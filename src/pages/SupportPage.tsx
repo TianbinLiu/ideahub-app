@@ -31,6 +31,9 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
+import { i18n } from "@lingui/core";
+import { msg } from "@lingui/core/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import Icon from "../components/Icon";
 import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
@@ -92,9 +95,10 @@ function sleep(ms: number, signal?: AbortSignal) {
 
 function errorText(e: unknown, fallback: string): string {
   if (e instanceof ApiError) {
-    if (e.status === 429) return "问得太快了，稍等几秒再发。";
-    if (e.status === 501) return "服务端还没开通 AI 客服，可以直接转人工。";
-    if (e.status === 0) return "当前是离线模式，客服需要联网。";
+    // 模块级函数拿不到 useLingui：用 i18n._(msg) 在调用那一刻按当前语言翻
+    if (e.status === 429) return i18n._(msg`问得太快了，稍等几秒再发。`);
+    if (e.status === 501) return i18n._(msg`服务端还没开通 AI 客服，可以直接转人工。`);
+    if (e.status === 0) return i18n._(msg`当前是离线模式，客服需要联网。`);
     return e.message || fallback;
   }
   if (e instanceof Error && e.message) return e.message;
@@ -142,6 +146,7 @@ function RailButton({ emoji, label, onClick }: { emoji: string; label: string; o
 export default function SupportPage() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
+  const { t } = useLingui();
 
   const [config, setConfig] = useState<SupportConfig | null>(null);
   const [configErr, setConfigErr] = useState("");
@@ -180,7 +185,7 @@ export default function SupportPage() {
   const abortRef = useRef<AbortController | null>(null);
   const captionRef = useRef<HTMLDivElement>(null);
 
-  const name = config?.name || "小梦";
+  const name = config?.name || t`小梦`;
   const enabled = config ? config.enabled : true;
   const asrOn = Boolean(config?.asr);
 
@@ -209,8 +214,8 @@ export default function SupportPage() {
       .catch((e) => {
         if (!alive) return;
         // 老服务端 / 离线：对话不可用，但转人工入口（邮箱）还在
-        setConfig({ ok: true, name: "小梦", enabled: false, tts: false, asr: false, voice: "", loginRequired: true, quickQuestions: [], categories: [] });
-        setConfigErr(errorText(e, "读不到客服配置"));
+        setConfig({ ok: true, name: t`小梦`, enabled: false, tts: false, asr: false, voice: "", loginRequired: true, quickQuestions: [], categories: [] });
+        setConfigErr(errorText(e, t`读不到客服配置`));
       });
     return () => {
       alive = false;
@@ -225,7 +230,8 @@ export default function SupportPage() {
       .then((s) => alive && setSettings(s))
       .catch((e) => {
         if (!alive || (e instanceof ApiError && (e.status === 404 || e.status === 0))) return;
-        setStageNotice(`读不到数字人设置（${errorText(e, "服务端出错")}），先按官方形象和默认声音走。`);
+        const why = errorText(e, t`服务端出错`);
+        setStageNotice(t`读不到数字人设置（${why}），先按官方形象和默认声音走。`);
       })
       .finally(() => alive && setSettingsSettled(true));
     const timer = window.setTimeout(() => alive && setStageSlow(true), STAGE_WAIT_MS);
@@ -241,7 +247,7 @@ export default function SupportPage() {
     setTicketsErr("");
     listMySupportTickets()
       .then((r) => alive && setTickets(r.items))
-      .catch((e) => alive && setTicketsErr(errorText(e, "读不到工单")));
+      .catch((e) => alive && setTicketsErr(errorText(e, t`读不到工单`)));
     return () => {
       alive = false;
     };
@@ -281,7 +287,10 @@ export default function SupportPage() {
   function refreshCompanion() {
     getSupportConfig()
       .then(setConfig)
-      .catch((e) => setStageNotice(`设置已保存，但重新读取配置失败（${errorText(e, "网络问题")}），下次进来会按新设置念。`));
+      .catch((e) => {
+        const why = errorText(e, t`网络问题`);
+        setStageNotice(t`设置已保存，但重新读取配置失败（${why}），下次进来会按新设置念。`);
+      });
     getCompanionSettings()
       .then(setSettings)
       .catch(() => undefined);
@@ -365,7 +374,7 @@ export default function SupportPage() {
     const text = (textArg ?? input).trim().slice(0, MAX_INPUT_CHARS);
     if (!text) return;
     if (!enabled) {
-      setChatErr(`服务端还没开通 AI 对话，${name}暂时不能回答；可以直接点「转人工」。`);
+      setChatErr(t`服务端还没开通 AI 对话，${name}暂时不能回答；可以直接点「转人工」。`);
       return;
     }
     stopAll();
@@ -417,18 +426,19 @@ export default function SupportPage() {
     } catch (e) {
       if (controller.signal.aborted) return;
       setMessages((prev) => prev.filter((m) => m.id !== assistantId || m.text));
-      setChatErr(errorText(e, `${name}走神了，再发一次试试。`));
+      setChatErr(errorText(e, t`${name}走神了，再发一次试试。`));
       setPhase("idle");
     }
   }
 
   /** 👍👎：先本地记下（立刻有反馈），再尽力交给服务端；失败不打扰用户 */
-  function rate(msg: ChatMessage, rating: Rating) {
-    if (msg.rating === rating) return;
-    setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, rating } : m)));
-    const idx = messages.findIndex((m) => m.id === msg.id);
+  function rate(cm: ChatMessage, rating: Rating) {
+    if (cm.rating === rating) return;
+    setMessages((prev) => prev.map((m) => (m.id === cm.id ? { ...m, rating } : m)));
+    const idx = messages.findIndex((m) => m.id === cm.id);
     const question = [...messages.slice(0, Math.max(0, idx))].reverse().find((m) => m.role === "user")?.text || "";
-    void rateSupportAnswer({ question: question.slice(0, 1000) || "（无）", answer: msg.text.slice(0, 4000), rating }).catch(() => undefined);
+    // i18n-ignore-next-line: 交给服务端的评价记录（后台改知识库用的线索），「没有问题原文」的占位与后台同一种语言
+    void rateSupportAnswer({ question: question.slice(0, 1000) || "（无）", answer: cm.text.slice(0, 4000), rating }).catch(() => undefined);
   }
 
   function openSheet() {
@@ -439,7 +449,7 @@ export default function SupportPage() {
   async function submitTicket() {
     if (submitting) return;
     if (!transcript.length && !note.trim()) {
-      setSheetErr("先说一句你遇到了什么，客服才知道从哪儿开始。");
+      setSheetErr(t`先说一句你遇到了什么，客服才知道从哪儿开始。`);
       return;
     }
     setSubmitting(true);
@@ -462,13 +472,15 @@ export default function SupportPage() {
           role: "assistant",
           system: true,
           text: r.reused
-            ? `你 10 分钟内已经提交过工单 #${short}，这次的内容已并入同一张，客服会一起看。`
-            : `工单 #${short} 已提交。人工客服看到后会在「通知」里回复你${contactEmail.trim() ? "，也会发到你留的邮箱" : ""}。`,
+            ? t`你 10 分钟内已经提交过工单 #${short}，这次的内容已并入同一张，客服会一起看。`
+            : contactEmail.trim()
+              ? t`工单 #${short} 已提交。人工客服看到后会在「通知」里回复你，也会发到你留的邮箱。`
+              : t`工单 #${short} 已提交。人工客服看到后会在「通知」里回复你。`,
         },
       ]);
       setTickets(null);
     } catch (e) {
-      setSheetErr(errorText(e, "提交失败，稍后再试"));
+      setSheetErr(errorText(e, t`提交失败，稍后再试`));
     } finally {
       setSubmitting(false);
     }
@@ -489,8 +501,9 @@ export default function SupportPage() {
   const marketModel = settings?.model ?? config?.model ?? null;
   const marketModelUrl = marketModel ? resolveModelJsonUrl(marketModel.modelJsonUrl) : "";
   const quick = config?.quickQuestions ?? [];
-  const statusLabel = phase === "thinking" ? "思考中" : phase === "speaking" ? "说话中" : enabled ? "在线" : "对话未开通";
-  const greeting = `你好，我是${name}，启梦的 AI 客服。账号、扣费、出片取回、安装更新都可以问我；我解决不了的会帮你转给人工。`;
+  const statusLabel = phase === "thinking" ? t`思考中` : phase === "speaking" ? t`说话中` : enabled ? t`在线` : t`对话未开通`;
+  const greeting = t`你好，我是${name}，启梦的 AI 客服。账号、扣费、出片取回、安装更新都可以问我；我解决不了的会帮你转给人工。`;
+  const voiceLabel = voiceOn ? t`语音播报：开` : t`语音播报：关`;
   const canRate = Boolean(lastAssistant && !lastAssistant.system && !lastAssistant.streaming && lastAssistant.text && phase === "idle");
 
   return (
@@ -502,7 +515,10 @@ export default function SupportPage() {
         heightFraction={MODEL_HEIGHT_FRACTION}
         modelUrl={marketModelUrl}
         waiting={!settingsSettled && !stageSlow}
-        onFallback={(reason) => setStageNotice(`这套形象加载失败（${reason.slice(0, 80)}），先换回官方形象；可以去「形象」里重新下载或换一套。`)}
+        onFallback={(reason) => {
+          const why = reason.slice(0, 80);
+          setStageNotice(t`这套形象加载失败（${why}），先换回官方形象；可以去「形象」里重新下载或换一套。`);
+        }}
       />
 
       {/* 顶栏浮层 */}
@@ -522,27 +538,27 @@ export default function SupportPage() {
             </div>
             {persona || marketModel ? (
               <div className="flex min-w-0 items-center gap-1 text-[11px]">
-                {persona && <span className="max-w-[48%] truncate rounded-full bg-fuchsia-500/20 px-1.5 text-fuchsia-200">人格：{persona.name}</span>}
-                {marketModel && <span className="max-w-[48%] truncate rounded-full bg-sky-500/20 px-1.5 text-sky-200">形象：{marketModel.name}</span>}
+                {persona && <span className="max-w-[48%] truncate rounded-full bg-fuchsia-500/20 px-1.5 text-fuchsia-200"><Trans>人格：{persona.name}</Trans></span>}
+                {marketModel && <span className="max-w-[48%] truncate rounded-full bg-sky-500/20 px-1.5 text-sky-200"><Trans>形象：{marketModel.name}</Trans></span>}
               </div>
             ) : (
-              <div className="truncate text-[11px] text-slate-400">启梦 AI 客服 · 解决不了转人工</div>
+              <div className="truncate text-[11px] text-slate-400"><Trans>启梦 AI 客服 · 解决不了转人工</Trans></div>
             )}
           </div>
           <button
             onClick={toggleVoice}
             aria-pressed={voiceOn}
-            aria-label={voiceOn ? "语音播报：开" : "语音播报：关"}
-            title={voiceOn ? "语音播报：开" : "语音播报：关"}
+            aria-label={voiceLabel}
+            title={voiceLabel}
             className={`${GLASS} flex h-9 w-9 items-center justify-center rounded-full text-base ${voiceOn ? "text-brand" : "text-slate-500"}`}
           >
             {voiceOn ? "🔊" : "🔇"}
           </button>
           <button onClick={() => setHistoryOpen(true)} className={`${GLASS} rounded-full px-3 py-1.5 text-xs text-slate-100 active:bg-slate-800/70`}>
-            记录{messages.length > 0 ? ` ${Math.ceil(messages.filter((m) => !m.system).length / 2)}` : ""}
+            <Trans>记录</Trans>{messages.length > 0 ? ` ${Math.ceil(messages.filter((m) => !m.system).length / 2)}` : ""}
           </button>
           <button onClick={() => showTickets(true)} className={`${GLASS} rounded-full px-3 py-1.5 text-xs text-slate-100 active:bg-slate-800/70`}>
-            工单
+            <Trans>工单</Trans>
           </button>
         </div>
       </div>
@@ -561,11 +577,11 @@ export default function SupportPage() {
             会被盖住 —— 两边同为 z-10、它在 DOM 里排在后面。所以**新加的这颗排在最后**：形象/人格/声音是天天用的三颗，
             而「创作」在设置页里另有一条找得到的路（CLAUDE.md：别让唯一入口有被盖住的可能）。 */}
       <div className="absolute right-2 z-10 flex flex-col gap-2" style={{ top: `calc(env(safe-area-inset-top, 0px) + ${TOP_BAR_PX + 14}px)` }}>
-        <RailButton emoji="👗" label="形象" onClick={() => navigate("/support/models")} />
-        <RailButton emoji="🎭" label="人格" onClick={() => navigate("/support/personas")} />
+        <RailButton emoji="👗" label={t`形象`} onClick={() => navigate("/support/models")} />
+        <RailButton emoji="🎭" label={t`人格`} onClick={() => navigate("/support/personas")} />
         {/* 在用混音（自己调的或声音市场的模板）时写「混音」：让人知道这颗键后面的东西变了 */}
-        <RailButton emoji="🎙️" label={config?.voiceSettings?.mix?.length ? "混音" : "声音"} onClick={() => setVoiceSheetOpen(true)} />
-        <RailButton emoji="✨" label="创作" onClick={() => navigate("/support/create")} />
+        <RailButton emoji="🎙️" label={config?.voiceSettings?.mix?.length ? t`混音` : t`声音`} onClick={() => setVoiceSheetOpen(true)} />
+        <RailButton emoji="✨" label={t`创作`} onClick={() => navigate("/support/create")} />
       </div>
 
       {/* 底部浮层：最近一问一答 + 转人工卡 + 快捷问题 + 输入区 */}
@@ -581,8 +597,8 @@ export default function SupportPage() {
         <div className={`${GLASS} mb-2 w-full rounded-2xl rounded-bl-sm px-3.5 py-2.5 shadow-lg`}>
           <div className="mb-0.5 flex items-center gap-2 text-[11px] text-brand">
             <span className="font-semibold">{name}</span>
-            {phase === "speaking" && subtitle && <span className="text-slate-400">正在说这句 →</span>}
-            {phase === "thinking" && <span className="text-slate-400">在想…</span>}
+            {phase === "speaking" && subtitle && <span className="text-slate-400"><Trans>正在说这句 →</Trans></span>}
+            {phase === "thinking" && <span className="text-slate-400"><Trans>在想…</Trans></span>}
           </div>
           <div
             ref={captionRef}
@@ -590,26 +606,26 @@ export default function SupportPage() {
             tabIndex={0}
             onClick={() => setHistoryOpen(true)}
             onKeyDown={(e) => e.key === "Enter" && setHistoryOpen(true)}
-            aria-label="查看完整对话记录"
+            aria-label={t`查看完整对话记录`}
             className={`max-h-[26vh] overflow-y-auto text-sm leading-6 ${lastAssistant?.system ? "text-emerald-100" : "text-slate-100"}`}
           >
             {reaction || lastAssistant?.text || (phase === "thinking" ? "…" : greeting)}
             {configErr && !messages.length && <p className="mt-1 text-xs text-amber-300">{configErr}</p>}
-            {!enabled && !configErr && !messages.length && <p className="mt-1 text-xs text-amber-300">服务端还没开通 AI 对话，你可以直接转人工。</p>}
+            {!enabled && !configErr && !messages.length && <p className="mt-1 text-xs text-amber-300"><Trans>服务端还没开通 AI 对话，你可以直接转人工。</Trans></p>}
           </div>
           {canRate && lastAssistant && (
             <div className="mt-2 flex items-center gap-2 border-t border-white/10 pt-2 text-[11px] text-slate-400">
               <span className="min-w-0 flex-1 truncate">
-                {lastAssistant.rating === "up" ? "谢谢反馈" : lastAssistant.rating === "down" ? "抱歉没帮上，要不要转人工？" : "这个回答有帮助吗？"}
+                {lastAssistant.rating === "up" ? t`谢谢反馈` : lastAssistant.rating === "down" ? t`抱歉没帮上，要不要转人工？` : t`这个回答有帮助吗？`}
               </span>
               {lastAssistant.rating === "down" && (
                 <button onClick={openSheet} className="rounded-full bg-amber-400 px-2.5 py-1 text-[11px] font-semibold text-ink active:opacity-60">
-                  转人工
+                  <Trans>转人工</Trans>
                 </button>
               )}
               <button
                 onClick={() => rate(lastAssistant, "up")}
-                aria-label="有帮助"
+                aria-label={t`有帮助`}
                 aria-pressed={lastAssistant.rating === "up"}
                 className={`flex h-8 w-8 items-center justify-center rounded-full text-base ${lastAssistant.rating === "up" ? "bg-emerald-500/25" : "active:bg-white/10"}`}
               >
@@ -617,7 +633,7 @@ export default function SupportPage() {
               </button>
               <button
                 onClick={() => rate(lastAssistant, "down")}
-                aria-label="没帮上"
+                aria-label={t`没帮上`}
                 aria-pressed={lastAssistant.rating === "down"}
                 className={`flex h-8 w-8 items-center justify-center rounded-full text-base ${lastAssistant.rating === "down" ? "bg-rose-500/25" : "active:bg-white/10"}`}
               >
@@ -629,13 +645,13 @@ export default function SupportPage() {
 
         {handoffHint && phase === "idle" && (
           <div className="mb-2 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-50 backdrop-blur-md">
-            这个问题需要人工处理（{CATEGORY_LABEL[handoffHint.category]}）。转人工会把这段对话一起交给客服，你不用再讲一遍。
+            <Trans>这个问题需要人工处理（{CATEGORY_LABEL[handoffHint.category]}）。转人工会把这段对话一起交给客服，你不用再讲一遍。</Trans>
             <div className="mt-2 flex gap-2">
               <button onClick={openSheet} className="rounded-full bg-amber-400 px-3.5 py-1.5 text-xs font-semibold text-ink active:opacity-60">
-                转人工
+                <Trans>转人工</Trans>
               </button>
               <button onClick={() => setHandoffHint(null)} className="rounded-full border border-white/20 px-3.5 py-1.5 text-xs text-slate-200 active:bg-slate-800/60">
-                先不用
+                <Trans>先不用</Trans>
               </button>
             </div>
           </div>
@@ -676,19 +692,19 @@ export default function SupportPage() {
             onChange={(e) => setInput(e.target.value)}
             maxLength={MAX_INPUT_CHARS}
             enterKeyHint="send"
-            placeholder={enabled ? (asrOn ? `按住说话，或问${name}：哪里不对？` : `问${name}：哪里不对？`) : "AI 对话未开通，可直接转人工"}
+            placeholder={enabled ? (asrOn ? t`按住说话，或问${name}：哪里不对？` : t`问${name}：哪里不对？`) : t`AI 对话未开通，可直接转人工`}
             disabled={!enabled}
             className="h-10 min-w-0 flex-1 bg-transparent px-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 disabled:opacity-40"
           />
           {phase !== "idle" ? (
-            <button type="button" onClick={stopAll} aria-label="停止" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-500/25 text-rose-200">
+            <button type="button" onClick={stopAll} aria-label={t`停止`} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-500/25 text-rose-200">
               <span className="block h-3.5 w-3.5 rounded-sm bg-current" />
             </button>
           ) : (
             <button
               type="submit"
               disabled={!input.trim() || !enabled}
-              aria-label="发送"
+              aria-label={t`发送`}
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand text-ink disabled:opacity-40"
             >
               <Icon name="send" size={18} />
@@ -696,9 +712,9 @@ export default function SupportPage() {
           )}
         </form>
         <div className="mt-1.5 flex items-center justify-between px-2 text-[11px] text-slate-400">
-          <span>AI 回答仅供参考，涉及退款与账号的事会转人工</span>
+          <span><Trans>AI 回答仅供参考，涉及退款与账号的事会转人工</Trans></span>
           <button onClick={openSheet} className="text-brand underline underline-offset-2">
-            转人工
+            <Trans>转人工</Trans>
           </button>
         </div>
       </div>
@@ -712,7 +728,7 @@ export default function SupportPage() {
       {ticketsOpen && (
         <div className="absolute inset-0 z-20 flex flex-col bg-ink">
           {/* 页顶栏只有一份实现（CLAUDE.md）：这一层是整页视图，不是覆盖层 */}
-          <PageHeader title="我的工单" onBack={() => showTickets(false)} />
+          <PageHeader title={t`我的工单`} onBack={() => showTickets(false)} />
           <TicketsPanel tickets={tickets} err={ticketsErr} highlight={highlightTicket} onChanged={setTickets} />
         </div>
       )}
@@ -720,16 +736,20 @@ export default function SupportPage() {
       {sheetOpen && (
         <div className="fixed inset-0 z-30 flex items-end bg-black/60" onClick={() => !submitting && setSheetOpen(false)}>
           <div className="w-full rounded-t-2xl border-t border-slate-700 bg-ink px-4 pb-[max(env(safe-area-inset-bottom),16px)] pt-4" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-sm font-bold text-slate-100">转人工客服</h2>
+            <h2 className="text-sm font-bold text-slate-100"><Trans>转人工客服</Trans></h2>
             <p className="mt-1 text-xs leading-relaxed text-slate-400">
-              会把{transcript.length ? `最近 ${transcript.length} 条对话` : "你的描述"}一起交给人工客服，回复会出现在「通知」和「我的工单」里。
+              {transcript.length ? (
+                <Trans>会把最近 {transcript.length} 条对话一起交给人工客服，回复会出现在「通知」和「我的工单」里。</Trans>
+              ) : (
+                <Trans>会把你的描述一起交给人工客服，回复会出现在「通知」和「我的工单」里。</Trans>
+              )}
             </p>
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
               maxLength={500}
               rows={3}
-              placeholder="还想补充什么？任务号、大概时间、屏幕上的提示…"
+              placeholder={t`还想补充什么？任务号、大概时间、屏幕上的提示…`}
               className="mt-3 w-full resize-none rounded-2xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500"
             />
             <input
@@ -738,16 +758,16 @@ export default function SupportPage() {
               type="email"
               inputMode="email"
               maxLength={120}
-              placeholder="联系邮箱（选填，用手机号/QQ 登录的建议留一个）"
+              placeholder={t`联系邮箱（选填，用手机号/QQ 登录的建议留一个）`}
               className="mt-2 h-10 w-full rounded-full border border-slate-700 bg-slate-950 px-4 text-xs text-slate-100 outline-none placeholder:text-slate-500"
             />
             {sheetErr && <p className="mt-2 text-xs leading-relaxed text-rose-300">{sheetErr}</p>}
             <div className="mt-3 flex gap-2">
               <button onClick={() => void submitTicket()} disabled={submitting} className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-semibold text-ink disabled:opacity-40">
-                {submitting ? "提交中…" : "提交给人工客服"}
+                {submitting ? t`提交中…` : t`提交给人工客服`}
               </button>
               <button onClick={() => setSheetOpen(false)} disabled={submitting} className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm text-slate-300">
-                取消
+                <Trans>取消</Trans>
               </button>
             </div>
           </div>
@@ -760,6 +780,7 @@ export default function SupportPage() {
 /** 完整对话记录：底部抽屉，数字人仍在后面 */
 function HistorySheet({ name, messages, onClose }: { name: string; messages: ChatMessage[]; onClose: () => void }) {
   const listRef = useRef<HTMLDivElement>(null);
+  const msgCount = messages.filter((m) => !m.system).length;
   useEffect(() => {
     const el = listRef.current;
     if (el) el.scrollTop = el.scrollHeight;
@@ -769,12 +790,12 @@ function HistorySheet({ name, messages, onClose }: { name: string; messages: Cha
     <div className="fixed inset-0 z-30 flex items-end bg-black/60" onClick={onClose}>
       <div className="flex max-h-[72vh] w-full flex-col rounded-t-2xl border-t border-slate-700 bg-ink" onClick={(e) => e.stopPropagation()}>
         <div className="flex h-12 shrink-0 items-center px-4">
-          <span className="text-sm font-bold text-slate-100">对话记录</span>
-          <span className="ml-2 text-[11px] text-slate-500">{messages.filter((m) => !m.system).length} 条</span>
+          <span className="text-sm font-bold text-slate-100"><Trans>对话记录</Trans></span>
+          <span className="ml-2 text-[11px] text-slate-500"><Trans>{msgCount} 条</Trans></span>
           <CloseButton chip="sm" size={13} align="end" className="ml-auto" onClick={onClose} />
         </div>
         <div ref={listRef} className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-[max(env(safe-area-inset-bottom),16px)]">
-          {messages.length === 0 && <p className="py-6 text-center text-xs text-slate-500">还没有对话。</p>}
+          {messages.length === 0 && <p className="py-6 text-center text-xs text-slate-500"><Trans>还没有对话。</Trans></p>}
           {messages.map((m) => (
             <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
               <div
@@ -813,43 +834,44 @@ function TicketsPanel({
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string>("");
   const [rowErr, setRowErr] = useState<Record<string, string>>({});
+  const { t } = useLingui();
 
-  async function sendMore(t: SupportTicket) {
-    const content = (drafts[t.id] || "").trim();
+  async function sendMore(tk: SupportTicket) {
+    const content = (drafts[tk.id] || "").trim();
     if (!content || busy) return;
-    setBusy(t.id);
-    setRowErr((p) => ({ ...p, [t.id]: "" }));
+    setBusy(tk.id);
+    setRowErr((p) => ({ ...p, [tk.id]: "" }));
     try {
-      const r = await appendTicketMessage(t.id, content);
-      onChanged((tickets || []).map((x) => (x.id === t.id ? r.ticket : x)));
-      setDrafts((p) => ({ ...p, [t.id]: "" }));
+      const r = await appendTicketMessage(tk.id, content);
+      onChanged((tickets || []).map((x) => (x.id === tk.id ? r.ticket : x)));
+      setDrafts((p) => ({ ...p, [tk.id]: "" }));
     } catch (e) {
-      setRowErr((p) => ({ ...p, [t.id]: errorText(e, "发送失败") }));
+      setRowErr((p) => ({ ...p, [tk.id]: errorText(e, t`发送失败`) }));
     } finally {
       setBusy("");
     }
   }
 
   if (err) return <p className="m-3 rounded-xl border border-rose-500/40 bg-rose-500/10 p-3 text-xs leading-relaxed text-rose-300">{err}</p>;
-  if (!tickets) return <p className="m-3 text-xs text-slate-500">读取中…</p>;
-  if (!tickets.length) return <EmptyState emoji="🎫" text="还没有工单" hint="和 AI 客服聊不明白的问题，点「转人工」就会出现在这里" />;
+  if (!tickets) return <p className="m-3 text-xs text-slate-500"><Trans>读取中…</Trans></p>;
+  if (!tickets.length) return <EmptyState emoji="🎫" text={t`还没有工单`} hint={t`和 AI 客服聊不明白的问题，点「转人工」就会出现在这里`} />;
 
   return (
     <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-2 pb-[max(env(safe-area-inset-bottom),16px)]">
-      {tickets.map((t) => (
-        <section key={t.id} className={`rounded-xl border p-3 ${t.id === highlight ? "border-brand/60 bg-brand/5" : "border-slate-700/70 bg-panel"}`}>
+      {tickets.map((tk) => (
+        <section key={tk.id} className={`rounded-xl border p-3 ${tk.id === highlight ? "border-brand/60 bg-brand/5" : "border-slate-700/70 bg-panel"}`}>
           <div className="flex items-center gap-2 text-[11px] text-slate-400">
-            <span className="rounded-full bg-slate-800 px-2 py-0.5 text-slate-200">{TICKET_STATUS_LABEL[t.status]}</span>
-            <span>{CATEGORY_LABEL[t.category]}</span>
-            <span className="ml-auto">#{t.id.slice(-6).toUpperCase()} · {relativeTime(Date.parse(t.createdAt))}</span>
+            <span className="rounded-full bg-slate-800 px-2 py-0.5 text-slate-200">{TICKET_STATUS_LABEL[tk.status]}</span>
+            <span>{CATEGORY_LABEL[tk.category]}</span>
+            <span className="ml-auto">#{tk.id.slice(-6).toUpperCase()} · {relativeTime(Date.parse(tk.createdAt))}</span>
           </div>
-          <h3 className="mt-1.5 text-sm font-semibold text-slate-100">{t.subject || "客服工单"}</h3>
-          {t.summary && <p className="mt-1 text-xs leading-relaxed text-slate-400">{t.summary}</p>}
-          {t.replies.length > 0 && (
+          <h3 className="mt-1.5 text-sm font-semibold text-slate-100">{tk.subject || t`客服工单`}</h3>
+          {tk.summary && <p className="mt-1 text-xs leading-relaxed text-slate-400">{tk.summary}</p>}
+          {tk.replies.length > 0 && (
             <div className="mt-2 space-y-1.5">
-              {t.replies.map((r) => (
+              {tk.replies.map((r) => (
                 <div key={r.id} className={`rounded-xl px-3 py-2 text-sm leading-5 ${r.by === "admin" ? "bg-emerald-500/10 text-emerald-100" : "bg-slate-800 text-slate-200"}`}>
-                  <span className="mr-1.5 text-[11px] text-slate-400">{r.by === "admin" ? "客服" : "我"} · {relativeTime(Date.parse(r.at))}</span>
+                  <span className="mr-1.5 text-[11px] text-slate-400">{r.by === "admin" ? t`客服` : t({ message: "我", context: "工单回复前的署名：这条是我自己补充的" })} · {relativeTime(Date.parse(r.at))}</span>
                   {r.content}
                 </div>
               ))}
@@ -857,21 +879,21 @@ function TicketsPanel({
           )}
           <div className="mt-2 flex items-center gap-1.5">
             <input
-              value={drafts[t.id] || ""}
-              onChange={(e) => setDrafts((p) => ({ ...p, [t.id]: e.target.value }))}
+              value={drafts[tk.id] || ""}
+              onChange={(e) => setDrafts((p) => ({ ...p, [tk.id]: e.target.value }))}
               maxLength={2000}
-              placeholder={t.status === "resolved" || t.status === "closed" ? "问题又出现了？补一句会重新打开" : "补充给客服…"}
+              placeholder={tk.status === "resolved" || tk.status === "closed" ? t`问题又出现了？补一句会重新打开` : t`补充给客服…`}
               className="h-9 min-w-0 flex-1 rounded-full border border-slate-700 bg-slate-950 px-3 text-xs text-slate-100 outline-none placeholder:text-slate-500"
             />
             <button
-              onClick={() => void sendMore(t)}
-              disabled={!(drafts[t.id] || "").trim() || busy === t.id}
+              onClick={() => void sendMore(tk)}
+              disabled={!(drafts[tk.id] || "").trim() || busy === tk.id}
               className="rounded-full bg-slate-700 px-3 py-1.5 text-xs text-slate-100 disabled:opacity-40"
             >
-              {busy === t.id ? "…" : "发送"}
+              {busy === tk.id ? "…" : t`发送`}
             </button>
           </div>
-          {rowErr[t.id] && <p className="mt-1 text-xs text-rose-300">{rowErr[t.id]}</p>}
+          {rowErr[tk.id] && <p className="mt-1 text-xs text-rose-300">{rowErr[tk.id]}</p>}
         </section>
       ))}
     </div>
