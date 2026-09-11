@@ -15,6 +15,9 @@
  * ★ 与形象市场同一套页面骨架（tab / 列表 / 就地报错在那张卡上）。
  */
 import { useEffect, useRef, useState } from "react";
+import { i18n, type MessageDescriptor } from "@lingui/core";
+import { msg } from "@lingui/core/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
 import { useNavigate } from "react-router";
@@ -36,7 +39,7 @@ import {
 
 const TABS = ["all", "installed", "mine"] as const;
 type Tab = (typeof TABS)[number];
-const TAB_LABEL: Record<Tab, string> = { all: "全部", installed: "已收藏", mine: "我的" };
+const TAB_LABEL: Record<Tab, MessageDescriptor> = { all: msg`全部`, installed: msg`已收藏`, mine: msg({ message: "我的", context: "市场页签 / 卡片角标：我自己上传或做的那些（不是底栏的「我的」页）" }) };
 const PAGE_SIZE = 40;
 /** 切换成功后停这么久再返回：让「已换成」那句话被看到 */
 const BACK_DELAY_MS = 900;
@@ -50,15 +53,17 @@ function reasonOf(e: ApiError): string {
 function applyErrorText(e: unknown): string {
   if (e instanceof ApiError && e.status === 403) {
     const reason = reasonOf(e);
-    if (reason === "unpaid") return "这是付费人格，请先在官网购买后再使用。";
-    if (reason === "private") return "这个人格没有公开，只有作者自己能用。";
+    // 模块级函数拿不到 useLingui：用 i18n._(msg) 在调用那一刻按当前语言翻
+    if (reason === "unpaid") return i18n._(msg`这是付费人格，请先在官网购买后再使用。`);
+    if (reason === "private") return i18n._(msg`这个人格没有公开，只有作者自己能用。`);
   }
-  return companionErrorText(e, "切换失败，稍后再试。");
+  return companionErrorText(e, i18n._(msg`切换失败，稍后再试。`));
 }
 
 export default function SupportPersonasPage() {
   const navigate = useNavigate();
   const back = useBackOr("/support");
+  const { t } = useLingui();
   const [scope, setScope] = useQueryTab<Tab>("tab", TABS, "all");
   const [q, setQ] = useState("");
   const [query, setQuery] = useState("");
@@ -81,7 +86,7 @@ export default function SupportPersonasPage() {
     let alive = true;
     getCompanionSettings()
       .then((s) => alive && setSettings(s))
-      .catch((e) => alive && setSettingsErr(companionErrorText(e, "读不到数字人设置")));
+      .catch((e) => alive && setSettingsErr(companionErrorText(e, t`读不到数字人设置`)));
     return () => {
       alive = false;
       window.clearTimeout(backTimer.current);
@@ -90,8 +95,8 @@ export default function SupportPersonasPage() {
 
   // 搜索防抖：打字不打服务端
   useEffect(() => {
-    const t = window.setTimeout(() => setQuery(q.trim()), 300);
-    return () => window.clearTimeout(t);
+    const timer = window.setTimeout(() => setQuery(q.trim()), 300);
+    return () => window.clearTimeout(timer);
   }, [q]);
 
   useEffect(() => {
@@ -105,7 +110,7 @@ export default function SupportPersonasPage() {
         setPage(1);
         setTotalPages(r.totalPages);
       })
-      .catch((e) => alive && setListErr(companionErrorText(e, "读不到人格列表")))
+      .catch((e) => alive && setListErr(companionErrorText(e, t`读不到人格列表`)))
       .finally(() => alive && setLoading(false));
     return () => {
       alive = false;
@@ -125,7 +130,7 @@ export default function SupportPersonasPage() {
       setPage(r.page);
       setTotalPages(r.totalPages);
     } catch (e) {
-      setListErr(companionErrorText(e, "加载更多失败"));
+      setListErr(companionErrorText(e, t`加载更多失败`));
     } finally {
       setMoreLoading(false);
     }
@@ -152,7 +157,7 @@ export default function SupportPersonasPage() {
       }
       const next = await updateCompanionSettings({ personaId: p._id });
       setSettings(next);
-      setNotice(`已换成「${p.name}」，返回客服页生效。`);
+      setNotice(t`已换成「${p.name}」，返回客服页生效。`);
       // busy 先不清：等返回的这一小段别再点别的。到点先解开再返回 —— 直接深链进来的人没有上一页可回，
       // 不解开就是一屏永远点不动的键（CLAUDE.md 坑表）
       backTimer.current = window.setTimeout(() => {
@@ -173,9 +178,9 @@ export default function SupportPersonasPage() {
     try {
       const next = await updateCompanionSettings({ personaId: null });
       setSettings(next);
-      setNotice("已恢复默认人格，返回客服页生效。");
+      setNotice(t`已恢复默认人格，返回客服页生效。`);
     } catch (e) {
-      setHeadErr(companionErrorText(e, "恢复失败，稍后再试。"));
+      setHeadErr(companionErrorText(e, t`恢复失败，稍后再试。`));
     } finally {
       setBusy("");
     }
@@ -190,24 +195,24 @@ export default function SupportPersonasPage() {
       if (scope === "installed") setItems((prev) => prev.filter((x) => x._id !== p._id));
       else patchItem(p._id, { installed: false, stats: { ...p.stats, downloadCount: r.downloadCount } });
     } catch (e) {
-      setCardErr({ id: p._id, text: companionErrorText(e, "取消收藏失败，稍后再试。") });
+      setCardErr({ id: p._id, text: companionErrorText(e, t`取消收藏失败，稍后再试。`) });
     } finally {
       setBusy("");
     }
   }
 
   const emptyText = query
-    ? "没有找到匹配的人格，换个词试试。"
+    ? t`没有找到匹配的人格，换个词试试。`
     : scope === "installed"
-      ? "还没有收藏过人格，去「全部」里挑一个。"
+      ? t`还没有收藏过人格，去「全部」里挑一个。`
       : scope === "mine"
-        ? "你还没有做过人格，点上面那张卡做一个。"
-        : "市场里还没有公开的人格。";
+        ? t`你还没有做过人格，点上面那张卡做一个。`
+        : t`市场里还没有公开的人格。`;
 
   return (
     <div className="min-h-full px-4 pb-10">
-      <PageHeader sticky inset onBack={back} title="数字人人格" />
-      <p className="mb-3 text-[11px] leading-relaxed text-slate-500">换一种说话风格，客服页与官网首页共用同一份设置；人格自带嗓子的话声音也会跟着换。</p>
+      <PageHeader sticky inset onBack={back} title={t`数字人人格`} />
+      <p className="mb-3 text-[11px] leading-relaxed text-slate-500"><Trans>换一种说话风格，客服页与官网首页共用同一份设置；人格自带嗓子的话声音也会跟着换。</Trans></p>
 
       {/* 制作入口（创作中心 P3）：整块可点的一行 tile —— 不是 CTA 按钮，按列表行那档形状写 */}
       <button
@@ -218,8 +223,8 @@ export default function SupportPersonasPage() {
           <Icon name="sparkle" size={20} />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-sm font-semibold text-slate-100">＋ 制作我的人格</span>
-          <span className="mt-0.5 block text-xs leading-relaxed text-slate-400">喂一段聊天记录或者答几道题，AI 帮你写出说话风格，试聊满意了再发布。</span>
+          <span className="block text-sm font-semibold text-slate-100"><Trans>＋ 制作我的人格</Trans></span>
+          <span className="mt-0.5 block text-xs leading-relaxed text-slate-400"><Trans>喂一段聊天记录或者答几道题，AI 帮你写出说话风格，试聊满意了再发布。</Trans></span>
         </span>
         <Icon name="chevron" size={16} className="shrink-0 text-slate-600" />
       </button>
@@ -228,11 +233,13 @@ export default function SupportPersonasPage() {
       {settings && (
         <div className="mb-3 flex items-center gap-2 rounded-xl border border-slate-700/70 bg-panel px-3 py-2">
           <div className="min-w-0 flex-1">
-            <div className="text-[11px] text-slate-500">当前人格</div>
+            <div className="text-[11px] text-slate-500"><Trans>当前人格</Trans></div>
             <div className="truncate text-sm text-slate-100">
               {effective
-                ? `${effective.coverEmoji || "🎭"} ${effective.name}${settings.personaSource === "model" ? "（形象作者推荐）" : ""}`
-                : "默认人设"}
+                ? settings.personaSource === "model"
+                  ? t`${effective.coverEmoji || "🎭"} ${effective.name}（形象作者推荐）`
+                  : `${effective.coverEmoji || "🎭"} ${effective.name}`
+                : t`默认人设`}
             </div>
           </div>
           <button
@@ -240,25 +247,25 @@ export default function SupportPersonasPage() {
             disabled={!chosenId || !!busy}
             className="shrink-0 rounded-full border border-slate-600 px-3 py-1.5 text-xs text-slate-300 disabled:opacity-40"
           >
-            {busy === "reset" ? "恢复中…" : "恢复默认人格"}
+            {busy === "reset" ? t`恢复中…` : t`恢复默认人格`}
           </button>
         </div>
       )}
       {headErr && <p className="mb-2 text-xs leading-relaxed text-rose-300">{headErr}</p>}
       {settingsErr && (
         <p className="mb-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-300">
-          读不到当前设置：{settingsErr}这里不标「使用中」，选用时以服务端为准。
+          <Trans>读不到当前设置：{settingsErr}这里不标「使用中」，选用时以服务端为准。</Trans>
         </p>
       )}
 
       <div className="mb-3 flex gap-2 no-scrollbar overflow-x-auto">
-        {TABS.map((t) => (
+        {TABS.map((tb) => (
           <button
-            key={t}
-            onClick={() => setScope(t)}
-            className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold ${scope === t ? "bg-brand text-ink" : "bg-panel text-slate-300"}`}
+            key={tb}
+            onClick={() => setScope(tb)}
+            className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold ${scope === tb ? "bg-brand text-ink" : "bg-panel text-slate-300"}`}
           >
-            {TAB_LABEL[t]}
+            {t(TAB_LABEL[tb])}
           </button>
         ))}
       </div>
@@ -268,11 +275,11 @@ export default function SupportPersonasPage() {
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="搜人格：名字、描述、标签…"
+          placeholder={t`搜人格：名字、描述、标签…`}
           className="min-w-0 flex-1 bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-500"
         />
         {q && (
-          <button onClick={() => setQ("")} aria-label="清空" className="text-slate-500">
+          <button onClick={() => setQ("")} aria-label={t`清空`} className="text-slate-500">
             <Icon name="close" size={14} />
           </button>
         )}
@@ -282,7 +289,7 @@ export default function SupportPersonasPage() {
       {listErr && <p className="mb-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-xs leading-relaxed text-rose-300">{listErr}</p>}
 
       {loading ? (
-        <EmptyState loading text="读取中…" />
+        <EmptyState loading text={t`读取中…`} />
       ) : items.length === 0 && !listErr ? (
         <EmptyState text={emptyText} />
       ) : (
@@ -300,17 +307,17 @@ export default function SupportPersonasPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span className="truncate text-sm font-semibold text-slate-100">{p.name}</span>
-                      {current && <span className="rounded-full px-2 py-0.5 bg-brand text-[10px] font-semibold text-ink">使用中</span>}
+                      {current && <span className="rounded-full px-2 py-0.5 bg-brand text-[10px] font-semibold text-ink"><Trans>使用中</Trans></span>}
                       {p.price > 0 && (
                         <span className={`rounded-full px-1.5 py-px text-[10px] ${needPay ? "bg-gold/20 text-gold" : "bg-slate-800 text-slate-400"}`}>
-                          {p.isOwner ? "我的" : p.purchased ? "已购" : `💰 ${p.price}`}
+                          {p.isOwner ? t({ message: "我的", context: "市场页签 / 卡片角标：我自己上传或做的那些（不是底栏的「我的」页）" }) : p.purchased ? t`已购` : `💰 ${p.price}`}
                         </span>
                       )}
-                      {p.voice && <span className="rounded-full px-2 py-0.5 bg-sky-500/20 text-[10px] text-sky-200">自带音色</span>}
+                      {p.voice && <span className="rounded-full px-2 py-0.5 bg-sky-500/20 text-[10px] text-sky-200"><Trans>自带音色</Trans></span>}
                     </div>
                     {p.description && <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-slate-400">{p.description}</p>}
                     <div className="mt-1 flex items-center gap-2 text-[11px] text-slate-500">
-                      {p.tags.length > 0 && <span className="min-w-0 truncate">{p.tags.slice(0, 4).map((t) => `#${t}`).join(" ")}</span>}
+                      {p.tags.length > 0 && <span className="min-w-0 truncate">{p.tags.slice(0, 4).map((tag) => `#${tag}`).join(" ")}</span>}
                       <span className="ml-auto shrink-0">
                         {authorName(p.author) ? `@${authorName(p.author)} · ` : ""}⬇ {p.stats.downloadCount}
                       </span>
@@ -323,7 +330,7 @@ export default function SupportPersonasPage() {
                     disabled={current || !!busy}
                     className={`flex-1 rounded-xl py-2.5 text-sm font-bold ${current ? "bg-slate-800 text-slate-500" : "bg-brand text-ink"} disabled:opacity-40`}
                   >
-                    {isBusy ? "切换中…" : current ? "使用中" : "安装并使用"}
+                    {isBusy ? t`切换中…` : current ? t`使用中` : t`安装并使用`}
                   </button>
                   {p.installed && !current && (
                     <button
@@ -331,11 +338,11 @@ export default function SupportPersonasPage() {
                       disabled={!!busy}
                       className="rounded-xl border border-slate-700 px-3.5 py-2.5 text-sm text-slate-400 disabled:opacity-40"
                     >
-                      取消收藏
+                      <Trans>取消收藏</Trans>
                     </button>
                   )}
                 </div>
-                {needPay && !current && <p className="mt-1.5 text-[11px] text-slate-500">付费人格：先在官网购买，买过之后这里就能用。</p>}
+                {needPay && !current && <p className="mt-1.5 text-[11px] text-slate-500"><Trans>付费人格：先在官网购买，买过之后这里就能用。</Trans></p>}
                 {cardErr?.id === p._id && <p className="mt-1.5 text-[11px] leading-relaxed text-rose-300">{cardErr.text}</p>}
               </section>
             );
@@ -349,12 +356,12 @@ export default function SupportPersonasPage() {
           disabled={moreLoading}
           className="mt-3 w-full rounded-xl border border-slate-700 py-2.5 text-xs text-slate-300 disabled:opacity-40"
         >
-          {moreLoading ? "加载中…" : "加载更多"}
+          {moreLoading ? t`加载中…` : t`加载更多`}
         </button>
       )}
 
       {/* 「买」这条仍然成立：App 内没有支付（POST /:id/purchase 只有官网做），别把它跟"创建"一起删掉 */}
-      <p className="mt-5 text-center text-[11px] leading-5 text-slate-500">付费人格要在官网 ideahubs.org 购买，买过之后这里就能用。</p>
+      <p className="mt-5 text-center text-[11px] leading-5 text-slate-500"><Trans>付费人格要在官网 ideahubs.org 购买，买过之后这里就能用。</Trans></p>
     </div>
   );
 }
