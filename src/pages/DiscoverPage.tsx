@@ -18,7 +18,7 @@ import { useAutoGuide } from "../components/guide/useAutoGuide";
 import SpriteToggle, { type SpriteSheet } from "../components/SpriteToggle";
 import UserRow from "../components/UserRow";
 import { Link, useLocation } from "react-router";
-import { Trans } from "@lingui/react/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { listVideos, profileHref, remoteOn, searchVideos } from "../data/videos";
 import { searchUsers, userDisplayName, type ApiUserLite } from "../api/users";
 import { VIDEO_CATEGORIES, VideoItem, formatDuration, formatPlays, segsTotal, videoCategoryLabel } from "../types";
@@ -69,6 +69,7 @@ const USER_LIMIT = 6;
 export default function DiscoverPage() {
   // ★ 无条件弹：这一页没有登录墙，谁都能逛
   useAutoGuide("discover", true);
+  const { t } = useLingui();
   /**
    * 搜索结果。★★ 2026-08-30 之前这里是 `useState(() => listVideos())` —— 挂载时把本地
    *   cache **快照一份**就再也不问服务端，而远端模式下那份 cache 只有推荐流的 30 条。
@@ -170,11 +171,11 @@ export default function DiscoverPage() {
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="搜索视频 / 分区 / 用户"
+          placeholder={t`搜索视频 / 分区 / 用户`}
           className="min-w-0 flex-1 bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-500"
         />
         {q && (
-          <button onClick={() => setQ("")} aria-label="清空搜索" className="text-slate-500">
+          <button onClick={() => setQ("")} aria-label={t`清空搜索`} className="text-slate-500">
             <Icon name="close" size={16} />
           </button>
         )}
@@ -187,26 +188,26 @@ export default function DiscoverPage() {
             离线 / 这台服务器没有这个端点 / 出错 / 真的没这个人。 */}
       {key && (
         <section data-guide="discover-users" className="mb-5">
-          <h2 className="mb-2 text-sm font-semibold text-slate-300">用户</h2>
+          <h2 className="mb-2 text-sm font-semibold text-slate-300"><Trans>用户</Trans></h2>
           {!canSearchUsers ? (
             // ★ 绝不能画成一个空列表：那等于说"查无此人"，而事实是"根本没查"。
             //   措辞不说死成"这个版本没有服务器"——!remoteOn() 也包括「配了地址但连不上」。
             <p className="rounded-xl bg-panel/60 px-3 py-2.5 text-xs leading-relaxed text-slate-400">
-              搜人需要连上服务器 · 当前是离线模式（视频和分区照常能搜）
+              <Trans>搜人需要连上服务器 · 当前是离线模式（视频和分区照常能搜）</Trans>
             </p>
           ) : userErr ? (
             <p className="rounded-xl bg-panel/60 px-3 py-2.5 text-xs leading-relaxed text-rose-300">
-              搜人失败：{userErr}
+              <Trans>搜人失败：{userErr}</Trans>
             </p>
           ) : !userSupported ? (
             <p className="rounded-xl bg-panel/60 px-3 py-2.5 text-xs leading-relaxed text-slate-400">
-              这台服务器还没有搜人功能 · 服务端升级后即可使用，App 不用重装
+              <Trans>这台服务器还没有搜人功能 · 服务端升级后即可使用，App 不用重装</Trans>
             </p>
           ) : userBusy ? (
-            <p className="px-1 py-2 text-xs text-slate-500">正在找人…</p>
+            <p className="px-1 py-2 text-xs text-slate-500"><Trans>正在找人…</Trans></p>
           ) : users.length === 0 ? (
             <p className="px-1 py-2 text-xs leading-relaxed text-slate-500">
-              没有找到「{key}」这个用户
+              <Trans>没有找到「{key}」这个用户</Trans>
               {/* ★ 这里**不要**再补一句"用户要按账号搜（字母/数字）"：
                   搜人端点是 `$or: [username, displayName]` 的**子串**匹配
                   （users.controller.js 的 searchUsers，tests/userSearch.spec.js S1 钉了
@@ -244,7 +245,7 @@ export default function DiscoverPage() {
         </section>
       )}
 
-      <h2 className="mb-2 text-sm font-semibold text-slate-300">浏览分区</h2>
+      <h2 className="mb-2 text-sm font-semibold text-slate-300"><Trans>浏览分区</Trans></h2>
       {/* 一行排开的入口。用 overflow-x-auto 而不是 grid：以后加分区也不会换行挤成两排，
           窄屏上自然变成横滑。-mx-4 px-4 让滑动区贴到屏幕边缘，最后一个不会卡在 padding 里。
           pt-1/pb-1 是给选中那一下的放大留的余量，否则 scale 会被滚动容器裁掉。 */}
@@ -299,15 +300,14 @@ export default function DiscoverPage() {
             再显示一遍就是把同一件事说两次，还引出"关掉 tag"和"再点一次图标"两条
             互相矛盾的退路。 */}
       <div data-guide="discover-scope" className="mb-2.5 flex items-center gap-2">
-        <h2 className="flex-none text-sm font-semibold text-slate-300">{sort === "new" ? "最新作品" : "最火作品"}</h2>
+        <h2 className="flex-none text-sm font-semibold text-slate-300">{sort === "new" ? t`最新作品` : t`最火作品`}</h2>
         <span className="min-w-0 flex-1 truncate text-[11px] text-slate-500">
-          {cat ? `${videoCategoryLabel(cat)} · ` : ""}
-          {results.length} 个作品
+          {cat ? t`${videoCategoryLabel(cat)} · ${results.length} 个作品` : t`${results.length} 个作品`}
         </span>
         <div className="flex flex-none rounded-full bg-panel p-0.5">
           {([
-            ["new", "最新"],
-            ["hot", "最火"],
+            ["new", t`最新`],
+            ["hot", t`最火`],
           ] as const).map(([k, label]) => (
             <button
               key={k}
@@ -341,7 +341,7 @@ export default function DiscoverPage() {
               )}
               {v.branchTree && (
                 <span className="absolute left-1.5 top-1.5 rounded bg-brand/85 px-1.5 py-0.5 text-[9px] font-semibold text-ink">
-                  互动
+                  <Trans>互动</Trans>
                 </span>
               )}
             </div>
@@ -355,11 +355,11 @@ export default function DiscoverPage() {
       {/* ★ 四种结局分开说（与本页搜人那半同一条理由）：在搜 / 没搜成 / 真的没有 / 这个分区没有。
           原来只有最后两种，于是"服务器没搜成"被画成了"没有找到相关作品"。 */}
       {vidBusy && results.length === 0 ? (
-        <EmptyState loading text="正在搜…" />
+        <EmptyState loading text={t`正在搜…`} />
       ) : vidErr ? (
-        <EmptyState error text={`没搜成：${vidErr}`} hint="上面列的是这台设备上已有的那几条，不是全部结果。" />
+        <EmptyState error text={t`没搜成：${vidErr}`} hint={t`上面列的是这台设备上已有的那几条，不是全部结果。`} />
       ) : results.length === 0 ? (
-        <EmptyState icon="search" text={key ? `没有找到「${key}」相关的作品` : cat ? `「${videoCategoryLabel(cat)}」还没有作品` : "还没有作品"} />
+        <EmptyState icon="search" text={key ? t`没有找到「${key}」相关的作品` : cat ? t`「${videoCategoryLabel(cat)}」还没有作品` : t`还没有作品`} />
       ) : null}
     </div>
   );

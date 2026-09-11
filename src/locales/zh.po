@@ -255,10 +255,25 @@ msgstr "（这一档是参考+点名，不是硬保证）"
 msgid "（这个位子没有描述）"
 msgstr "（这个位子没有描述）"
 
+#: src/pages/NotificationsPage.tsx
+msgid "（通知内容缺失）"
+msgstr "（通知内容缺失）"
+
+#. placeholder {0}: videoCategoryLabel(cat)
+#. placeholder {1}: results.length
+#: src/pages/DiscoverPage.tsx
+msgid "{0} · {1} 个作品"
+msgstr "{0} · {1} 个作品"
+
 #. placeholder {0}: QUALITY_LABELS[getQuality()].name
 #: src/pages/SettingsPage.tsx
 msgid "{0} · 只影响 3D 工坊"
 msgstr "{0} · 只影响 3D 工坊"
+
+#. placeholder {0}: results.length
+#: src/pages/DiscoverPage.tsx
+msgid "{0} 个作品"
+msgstr "{0} 个作品"
 
 #. placeholder {0}: tpl.roles.length
 #: src/components/TemplateShelf.tsx
@@ -274,6 +289,11 @@ msgstr "{0} 使用引导"
 #: src/components/MaterialSheet.tsx
 msgid "{0} 张"
 msgstr "{0} 张"
+
+#. placeholder {0}: deck.cardIds.length
+#: src/pages/DeckDetailPage.tsx
+msgid "{0} 张卡"
+msgstr "{0} 张卡"
 
 #. placeholder {0}: saved.length
 #: src/components/VideoCardAnnotator.tsx
@@ -300,6 +320,11 @@ msgstr "{0} 段"
 #: src/pages/DraftsPage.tsx
 msgid "{0} 段 · 已出片 {1} · {2}改过"
 msgstr "{0} 段 · 已出片 {1} · {2}改过"
+
+#. placeholder {0}: video.author
+#: src/pages/FeedPage.tsx
+msgid "{0} 的主页"
+msgstr "{0} 的主页"
 
 #. placeholder {0}: script.trim().length
 #. placeholder {1}: tierOf(tierId).label
@@ -449,6 +474,11 @@ msgstr "「{0}」要炼 {imgs} 张图、约 {1} token，余额不够——去「
 msgid "「{0}」还挂在广场上——先下架再删"
 msgstr "「{0}」还挂在广场上——先下架再删"
 
+#. placeholder {0}: videoCategoryLabel(cat)
+#: src/pages/DiscoverPage.tsx
+msgid "「{0}」还没有作品"
+msgstr "「{0}」还没有作品"
+
 #: src/studio/canvasAgent.ts
 msgid "「{u}」"
 msgstr "「{u}」"
@@ -556,6 +586,10 @@ msgstr "▸ 对不上怎么办？<0>多数情况删掉那个位子就行，不�
 msgid "○ 演示模式：本地模拟，不消耗 token"
 msgstr "○ 演示模式：本地模拟，不消耗 token"
 
+#: src/pages/DeckDetailPage.tsx
+msgid "★ 封面"
+msgstr "★ 封面"
+
 #: src/components/DeckCard.tsx
 msgid "★ 当前"
 msgstr "★ 当前"
@@ -589,6 +623,15 @@ msgstr "⚠ 视频里有<0>真人面孔</0>时，AI 可能在<1>受理之后</1>
 #: src/components/flow/FlowCanvas.tsx
 msgid "⚠「{0}」档带不了参考视频——去 ⚙ 本段设置换成「电影级」，否则生成会被整句拒。"
 msgstr "⚠「{0}」档带不了参考视频——去 ⚙ 本段设置换成「电影级」，否则生成会被整句拒。"
+
+#. placeholder {0}: fmtTokens(lockPrice)
+#: src/pages/FeedPage.tsx
+msgid "⚡ {0} token 解锁"
+msgstr "⚡ {0} token 解锁"
+
+#: src/pages/FeedPage.tsx
+msgid "⚡ 做同款"
+msgstr "⚡ 做同款"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "⚡ 炼这一段视频（{costLabel}）"
@@ -630,6 +673,10 @@ msgstr "✎ 返修（{price}）"
 #: src/components/flow/ReviseBox.tsx
 msgid "✎ 返修这一段"
 msgstr "✎ 返修这一段"
+
+#: src/pages/DeckDetailPage.tsx
+msgid "✏️ 编辑"
+msgstr "✏️ 编辑"
 
 #: src/components/flow/RefFrameSheet.tsx
 msgid "✓ 已加为中间帧"
@@ -893,6 +940,10 @@ msgstr "0.70× 慢"
 msgid "1.20× 快"
 msgstr "1.20× 快"
 
+#: src/pages/CreatePage.tsx
+msgid "3D 桌面与工作流画布是同一条流水线的两个面"
+msgstr "3D 桌面与工作流画布是同一条流水线的两个面"
+
 #: src/components/DraftSheet.tsx
 msgid "3D 桌面摆卡、推演走向"
 msgstr "3D 桌面摆卡、推演走向"
@@ -1043,6 +1094,10 @@ msgstr "上次查到的已授权素材（正在向方舟刷新…）："
 msgid "上次查到的已授权素材（这次没能向方舟刷新，原因见下；仍可点一份接上）："
 msgstr "上次查到的已授权素材（这次没能向方舟刷新，原因见下；仍可点一份接上）："
 
+#: src/pages/DiscoverPage.tsx
+msgid "上面列的是这台设备上已有的那几条，不是全部结果。"
+msgstr "上面列的是这台设备上已有的那几条，不是全部结果。"
+
 #: src/components/guide/GuideOverlay.tsx
 msgid "下一步"
 msgstr "下一步"
@@ -1125,6 +1180,10 @@ msgstr "不承接（用自己的首帧起拍）"
 msgid "不用模板（退回普通段）"
 msgstr "不用模板（退回普通段）"
 
+#: src/pages/CreatePage.tsx
+msgid "不用素材卡，直接写"
+msgstr "不用素材卡，直接写"
+
 #: src/components/VisibilityPicker.tsx
 msgid "不进首页和搜索；但拿到链接的人都能看，能被转发"
 msgstr "不进首页和搜索；但拿到链接的人都能看，能被转发"
@@ -1141,6 +1200,14 @@ msgstr "中间帧参考图"
 #: src/pages/SettingsVoicePage.tsx
 msgid "云端语音没出声（{0}）：稍后再试，或到火山控制台看额度"
 msgstr "云端语音没出声（{0}）：稍后再试，或到火山控制台看额度"
+
+#: src/pages/DiscoverPage.tsx
+msgid "互动"
+msgstr "互动"
+
+#: src/pages/FeedPage.tsx
+msgid "互动 · 你来选"
+msgstr "互动 · 你来选"
 
 #: src/components/BranchPlayer.tsx
 msgid "互动视频"
@@ -1380,6 +1447,10 @@ msgstr "先点下面一个格子，再点一张卡；也可以直接把卡拖到
 msgid "先给这张卡起个名字"
 msgstr "先给这张卡起个名字"
 
+#: src/pages/FeedPage.tsx
+msgid "全屏"
+msgstr "全屏"
+
 #: src/components/CoverPicker.tsx
 msgid "全新生成"
 msgstr "全新生成"
@@ -1387,6 +1458,10 @@ msgstr "全新生成"
 #: src/components/TemplateShelf.tsx
 msgid "全部"
 msgstr "全部"
+
+#: src/pages/NotificationsPage.tsx
+msgid "全部已读"
+msgstr "全部已读"
 
 #: src/components/VisibilityPicker.tsx
 msgid "公开"
@@ -1415,6 +1490,20 @@ msgstr "关掉"
 #: src/components/DownloadSheet.tsx
 msgid "关掉（保存继续跑）"
 msgstr "关掉（保存继续跑）"
+
+#: src/pages/FeedPage.tsx
+msgctxt "作者头像下那颗关注按钮（动作：关注这个人）"
+msgid "关注"
+msgstr "关注"
+
+#: src/pages/FeedPage.tsx
+msgctxt "首页顶部的关注流页签（名词：我关注的人发的作品）"
+msgid "关注"
+msgstr "关注"
+
+#: src/pages/FeedPage.tsx
+msgid "关注的创作者还没有新作品"
+msgstr "关注的创作者还没有新作品"
 
 #: src/components/DownloadSheet.tsx
 #: src/components/flow/ScriptSkillSheet.tsx
@@ -1468,14 +1557,42 @@ msgstr "最多消耗 {amount} token"
 msgid "最常见的一种：<0>有个人根本没被换成人偶</0>（还是原来的样子）， 尤其是画面正中央、看起来最像主角的那一个。这时清单里就多出一个画面上不存在的位子 ——<1>把它删掉就行，不用重炼</1>。 ⚠ 但删完要顺手检查一遍：画面上少了一个人偶，<2>它右边那些人从左数 就都要往左挪一位</2>（这一条是按位置指认独有的，编号版没有）。"
 msgstr "最常见的一种：<0>有个人根本没被换成人偶</0>（还是原来的样子）， 尤其是画面正中央、看起来最像主角的那一个。这时清单里就多出一个画面上不存在的位子 ——<1>把它删掉就行，不用重炼</1>。 ⚠ 但删完要顺手检查一遍：画面上少了一个人偶，<2>它右边那些人从左数 就都要往左挪一位</2>（这一条是按位置指认独有的，编号版没有）。"
 
+#: src/pages/DiscoverPage.tsx
+msgid "最新"
+msgstr "最新"
+
+#: src/pages/DiscoverPage.tsx
+msgid "最新作品"
+msgstr "最新作品"
+
+#: src/pages/DiscoverPage.tsx
+msgid "最火"
+msgstr "最火"
+
+#: src/pages/DiscoverPage.tsx
+msgid "最火作品"
+msgstr "最火作品"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "写一句换成谁，例：换成一只戴墨镜的柴犬"
 msgstr "写一句换成谁，例：换成一只戴墨镜的柴犬"
+
+#: src/pages/CreatePage.tsx
+msgid "写一句话出片"
+msgstr "写一句话出片"
+
+#: src/pages/DeckDetailPage.tsx
+msgid "写一段卡组简介：这套卡适合生成什么样的视频？"
+msgstr "写一段卡组简介：这套卡适合生成什么样的视频？"
 
 #: src/components/ForgeOverlay.tsx
 #: src/components/VideoCardAnnotator.tsx
 msgid "准备中…"
 msgstr "准备中…"
+
+#: src/pages/CreatePage.tsx
+msgid "几秒出片"
+msgstr "几秒出片"
 
 #: src/components/VisibilityPicker.tsx
 msgid "凭链接可见"
@@ -1500,6 +1617,10 @@ msgstr "出片的同时提炼一副本片卡组：你挂过的卡直接入组，
 #: src/components/VisibilityPicker.tsx
 msgid "出现在首页、分区和搜索里，谁都能看"
 msgstr "出现在首页、分区和搜索里，谁都能看"
+
+#: src/pages/FeedPage.tsx
+msgid "分享"
+msgstr "分享"
 
 #: src/components/DownloadSheet.tsx
 msgid "分享 / 另存为"
@@ -1630,6 +1751,10 @@ msgstr "删除失败，稍后再试。"
 msgid "删除失败了，原因不明。"
 msgstr "删除失败了，原因不明。"
 
+#: src/pages/NotificationsPage.tsx
+msgid "别人赞你、评论你、回复你、在评论里 @ 你，或平台发来通知时会出现在这里"
+msgstr "别人赞你、评论你、回复你、在评论里 @ 你，或平台发来通知时会出现在这里"
+
 #: src/components/PortraitAuthPanel.tsx
 msgid "刷新"
 msgstr "刷新"
@@ -1694,6 +1819,10 @@ msgstr "卡片"
 msgid "卡组"
 msgstr "卡组"
 
+#: src/pages/DeckDetailPage.tsx
+msgid "卡组不存在或不属于你"
+msgstr "卡组不存在或不属于你"
+
 #: src/components/VideoCardAnnotator.tsx
 msgid "卡组名"
 msgstr "卡组名"
@@ -1701,6 +1830,14 @@ msgstr "卡组名"
 #: src/components/DeleteDeckDialog.tsx
 msgid "卡组本身删了就找不回来。"
 msgstr "卡组本身删了就找不回来。"
+
+#: src/pages/DeckDetailPage.tsx
+msgid "卡组标题"
+msgstr "卡组标题"
+
+#: src/pages/DeckDetailPage.tsx
+msgid "卡组详情"
+msgstr "卡组详情"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "卡铸好了，但肖像授权绑定没存住（本机存储写入失败）——去卡详情页把授权再做一次，否则出片时会被拒。"
@@ -1732,6 +1869,10 @@ msgstr "原片第 {0} 秒（选段外）"
 msgid "去创作"
 msgstr "去创作"
 
+#: src/pages/DeckDetailPage.tsx
+msgid "去创意工坊"
+msgstr "去创意工坊"
+
 #: src/components/MaterialSheet.tsx
 msgid "去创意工坊建一组"
 msgstr "去创意工坊建一组"
@@ -1748,6 +1889,10 @@ msgstr "去制作"
 msgid "去升级"
 msgstr "去升级"
 
+#: src/pages/FeedPage.tsx
+msgid "去卡片工坊创作"
+msgstr "去卡片工坊创作"
+
 #: src/components/ForgeOverlay.tsx
 msgid "去取回这一段"
 msgstr "去取回这一段"
@@ -1763,6 +1908,10 @@ msgstr "去掉"
 #: src/components/support/VoiceMixer.tsx
 msgid "去掉这一味"
 msgstr "去掉这一味"
+
+#: src/pages/FeedPage.tsx
+msgid "去推荐流看看"
+msgstr "去推荐流看看"
 
 #: src/components/BlockButton.tsx
 msgid "去登录"
@@ -1799,6 +1948,10 @@ msgstr "发布失败，稍后再试。"
 #: src/components/support/VoiceMixer.tsx
 msgid "发布并设为我的声音"
 msgstr "发布并设为我的声音"
+
+#: src/pages/FeedPage.tsx
+msgid "发弹幕"
+msgstr "发弹幕"
 
 #. placeholder {0}: (e instanceof Error ? e.message : String(e)).slice(0, 100)
 #: src/components/PortraitAuthPanel.tsx
@@ -1941,6 +2094,10 @@ msgstr "只剩一段且已出片，删不掉"
 msgid "只存刚看的走向（{0} 段）"
 msgstr "只存刚看的走向（{0} 段）"
 
+#: src/pages/CreatePage.tsx
+msgid "只有一个节点：写一句话，挑个时长，直接出一条几秒的短视频。不推方案、不存草稿。"
+msgstr "只有一个节点：写一句话，挑个时长，直接出一条几秒的短视频。不推方案、不存草稿。"
+
 #: src/components/VisibilityPicker.tsx
 msgid "只有你能看到；别人拿到链接也打不开"
 msgstr "只有你能看到；别人拿到链接也打不开"
@@ -2044,6 +2201,10 @@ msgstr "回复"
 msgid "回复 @{0}"
 msgstr "回复 @{0}"
 
+#: src/pages/NotificationsPage.tsx
+msgid "回复了你的评论"
+msgstr "回复了你的评论"
+
 #. placeholder {0}: reviseOf.title
 #: src/components/ReviseBar.tsx
 msgid "回炉：《{0}》"
@@ -2053,6 +2214,10 @@ msgstr "回炉：《{0}》"
 msgid "回登录页"
 msgstr "回登录页"
 
+#: src/pages/VideoEditorPage.tsx
+msgid "回首页"
+msgstr "回首页"
+
 #: src/components/CoverPicker.tsx
 msgid "图片加载失败"
 msgstr "图片加载失败"
@@ -2060,6 +2225,10 @@ msgstr "图片加载失败"
 #: src/components/VideoCardAnnotator.tsx
 msgid "圈出来的范围太小（参考图至少要 300px 宽）——再拖大一点"
 msgstr "圈出来的范围太小（参考图至少要 300px 宽）——再拖大一点"
+
+#: src/pages/CreatePage.tsx
+msgid "在 3D 铸卡桌面上摆素材卡，AI 每段推演三套走向，挑一套炼一段，逐段往下铺；顶栏「🧩 工作流画布」把同一条流水线换成画布那一面。"
+msgstr "在 3D 铸卡桌面上摆素材卡，AI 每段推演三套走向，挑一套炼一段，逐段往下铺；顶栏「🧩 工作流画布」把同一条流水线换成画布那一面。"
 
 #: src/components/blockout/BoxFramePicker.tsx
 msgid "在哪几帧切开"
@@ -2072,6 +2241,10 @@ msgstr "在末尾追加"
 #: src/components/VideoCardAnnotator.tsx
 msgid "在画面上拖一下；不满意再拖就重画"
 msgstr "在画面上拖一下；不满意再拖就重画"
+
+#: src/pages/NotificationsPage.tsx
+msgid "在评论里 @ 了你"
+msgstr "在评论里 @ 了你"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "填入默认写法（填完还能改）"
@@ -2213,12 +2386,17 @@ msgstr "存草稿"
 msgid "存这张卡"
 msgstr "存这张卡"
 
+#: src/pages/VideoEditorPage.tsx
+msgid "它拿不到“要编辑哪段视频”这个信息（直接输入地址、或从后台回来时页面已被系统回收，都会这样）。请回到上一步重新进入。"
+msgstr "它拿不到“要编辑哪段视频”这个信息（直接输入地址、或从后台回来时页面已被系统回收，都会这样）。请回到上一步重新进入。"
+
 #: src/components/DownloadSheet.tsx
 msgid "安卓不让 App 直接写进相册。文件先落在 App 的缓存目录里；存好后点每一行的「分享 / 另存为」， 在系统面板里选相册或文件管理器。保存期间请留在 App 里，别把它划掉。 缓存目录在手机空间紧张时可能被系统清掉 —— 存好之后请尽快选个去处。"
 msgstr "安卓不让 App 直接写进相册。文件先落在 App 的缓存目录里；存好后点每一行的「分享 / 另存为」， 在系统面板里选相册或文件管理器。保存期间请留在 App 里，别把它划掉。 缓存目录在手机空间紧张时可能被系统清掉 —— 存好之后请尽快选个去处。"
 
 #: src/components/AvatarPicker.tsx
 #: src/components/VideoCardAnnotator.tsx
+#: src/pages/DeckDetailPage.tsx
 msgid "完成"
 msgstr "完成"
 
@@ -2231,12 +2409,21 @@ msgid "完成后会替换它的内容，链接不变"
 msgstr "完成后会替换它的内容，链接不变"
 
 #: src/components/blockout/RoleCastBoard.tsx
+#: src/pages/VideoEditorPage.tsx
 msgid "完成挂卡"
 msgstr "完成挂卡"
+
+#: src/pages/CreatePage.tsx
+msgid "完整作品"
+msgstr "完整作品"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "官方技能"
 msgstr "官方技能"
+
+#: src/pages/NotificationsPage.tsx
+msgid "客服回复了你的工单"
+msgstr "客服回复了你的工单"
 
 #. placeholder {0}: AI_REAL ? EXAMPLES[lang].template : EXAMPLES[lang].describe
 #: src/components/flow/FlowCanvas.tsx
@@ -2248,6 +2435,10 @@ msgstr "对画布说话：{0}"
 #: src/components/SegmentPlayer.tsx
 msgid "封面"
 msgstr "封面"
+
+#: src/pages/DeckDetailPage.tsx
+msgid "封面卡"
+msgstr "封面卡"
 
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "就是他"
@@ -2268,6 +2459,10 @@ msgstr "展开各段 ▾"
 #: src/components/TabBar.tsx
 msgid "工坊"
 msgstr "工坊"
+
+#: src/pages/CreatePage.tsx
+msgid "工坊模式"
+msgstr "工坊模式"
 
 #: src/components/DraftTitle.tsx
 msgid "工程名"
@@ -2480,6 +2675,10 @@ msgstr "带背景"
 msgid "帧{0}"
 msgstr "帧{0}"
 
+#: src/pages/NotificationsPage.tsx
+msgid "平台通知"
+msgstr "平台通知"
+
 #: src/components/flow/SkillPanel.tsx
 msgid "广场上还没有人发布技能——发布你的第一条？"
 msgstr "广场上还没有人发布技能——发布你的第一条？"
@@ -2488,9 +2687,21 @@ msgstr "广场上还没有人发布技能——发布你的第一条？"
 msgid "建组失败：登录态可能已经失效（卡都已各自存进卡片库，不会丢）"
 msgstr "建组失败：登录态可能已经失效（卡都已各自存进卡片库，不会丢）"
 
+#: src/pages/CreatePage.tsx
+msgid "开一条新的{pendingTitle}（丢弃上面那条）"
+msgstr "开一条新的{pendingTitle}（丢弃上面那条）"
+
+#: src/pages/CreatePage.tsx
+msgid "开头画面 AI 补"
+msgstr "开头画面 AI 补"
+
 #: src/components/DownloadSheet.tsx
 msgid "开始保存{totalLabel}"
 msgstr "开始保存{totalLabel}"
+
+#: src/pages/CreatePage.tsx
+msgid "开始创作"
+msgstr "开始创作"
 
 #: src/components/blockout/BlockoutTrimmer.tsx
 msgid "开始白模化"
@@ -2836,6 +3047,10 @@ msgstr "拿不到麦克风权限。在系统弹窗里点允许；拒绝过的话
 msgid "拿这一段成片当参考视频重拍，只改你写的地方；时长跟随成片（{sec}s），产物<0>无声</0>（合并时可外挂音轨）；上一版会留一份可还原"
 msgstr "拿这一段成片当参考视频重拍，只改你写的地方；时长跟随成片（{sec}s），产物<0>无声</0>（合并时可外挂音轨）；上一版会留一份可还原"
 
+#: src/pages/VideoEditorPage.tsx
+msgid "挂上你的角色"
+msgstr "挂上你的角色"
+
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "挂卡"
 msgstr "挂卡"
@@ -2941,6 +3156,10 @@ msgstr "接着写这一段的画面"
 msgid "推演中…"
 msgstr "推演中…"
 
+#: src/pages/FeedPage.tsx
+msgid "推荐"
+msgstr "推荐"
+
 #: src/components/PhotoSubjectPicker.tsx
 msgid "描不出来？保留框内背景 ›"
 msgstr "描不出来？保留框内背景 ›"
@@ -2963,6 +3182,10 @@ msgstr "提交：改完编号并删掉 {0} 个角色位"
 msgid "提交中…"
 msgstr "提交中…"
 
+#: src/pages/NotificationsPage.tsx
+msgid "提交了客服工单"
+msgstr "提交了客服工单"
+
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "提交后这几条的描述文字找不回来（这几个位置随时能再加回来，描述要自己重写）。"
 msgstr "提交后这几条的描述文字找不回来（这几个位置随时能再加回来，描述要自己重写）。"
@@ -2980,6 +3203,14 @@ msgstr "搜人失败"
 msgid "搜人失败：{0}"
 msgstr "搜人失败：{0}"
 
+#: src/pages/DiscoverPage.tsx
+msgid "搜人失败：{userErr}"
+msgstr "搜人失败：{userErr}"
+
+#: src/pages/DiscoverPage.tsx
+msgid "搜人需要连上服务器 · 当前是离线模式（视频和分区照常能搜）"
+msgstr "搜人需要连上服务器 · 当前是离线模式（视频和分区照常能搜）"
+
 #: src/components/MaterialSheet.tsx
 msgid "搜卡名 / 简介 / 类型"
 msgstr "搜卡名 / 简介 / 类型"
@@ -2995,6 +3226,10 @@ msgstr "搜模板：名字、介绍…"
 #: src/components/TemplateShelf.tsx
 msgid "搜模板：特摄、治愈、赛博…"
 msgstr "搜模板：特摄、治愈、赛博…"
+
+#: src/pages/DiscoverPage.tsx
+msgid "搜索视频 / 分区 / 用户"
+msgstr "搜索视频 / 分区 / 用户"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "摘掉模板，改为自选"
@@ -3019,6 +3254,10 @@ msgstr "播放器还没就绪，稍等一下再标这一帧。"
 #: src/components/MaterialSheet.tsx
 msgid "收下了 {n} 张"
 msgstr "收下了 {n} 张"
+
+#: src/pages/FeedPage.tsx
+msgid "收藏"
+msgstr "收藏"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "收起"
@@ -3193,6 +3432,10 @@ msgstr "服务器上有一发你付过钱的成片还没取回"
 msgid "服务端出错"
 msgstr "服务端出错"
 
+#: src/pages/NotificationsPage.tsx
+msgid "服务端升级后即可使用，App 不用重装"
+msgstr "服务端升级后即可使用，App 不用重装"
+
 #: src/components/support/HoldToTalk.tsx
 msgid "服务端还没开通语音识别，先打字吧。"
 msgstr "服务端还没开通语音识别，先打字吧。"
@@ -3208,6 +3451,10 @@ msgstr "未出片的段直接删，已出片的段不代删"
 #: src/components/VideoCardAnnotator.tsx
 msgid "未命名"
 msgstr "未命名"
+
+#: src/pages/DeckDetailPage.tsx
+msgid "未命名卡组"
+msgstr "未命名卡组"
 
 #: src/components/DraftTitle.tsx
 msgid "未命名工程"
@@ -3241,6 +3488,10 @@ msgstr "本机的作品与数据不会被删除，重新登录即可继续。"
 #: src/pages/SettingsStoragePage.tsx
 msgid "本机缓存"
 msgstr "本机缓存"
+
+#: src/pages/DeckDetailPage.tsx
+msgid "本机计数"
+msgstr "本机计数"
 
 #. placeholder {0}: saved.length
 #: src/components/VideoCardAnnotator.tsx
@@ -3315,6 +3566,10 @@ msgstr "查看用量 · 清理中间文件"
 #: src/components/flow/SegPlayer.tsx
 msgid "标注会先改这一段的设定画面，再重新生成本段视频"
 msgstr "标注会先改这一段的设定画面，再重新生成本段视频"
+
+#: src/pages/NotificationsPage.tsx
+msgid "标记中…"
+msgstr "标记中…"
 
 #: src/pages/SettingsPage.tsx
 msgid "标识、素材授权与违规处理"
@@ -3411,6 +3666,10 @@ msgstr "正在取回…"
 msgid "正在取声音：找到<0>只有这个人在说话</0>的一段，先定起点再定终点（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）。录制会实际播一遍。"
 msgstr "正在取声音：找到<0>只有这个人在说话</0>的一段，先定起点再定终点（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）。录制会实际播一遍。"
 
+#: src/pages/NotificationsPage.tsx
+msgid "正在取消息…"
+msgstr "正在取消息…"
+
 #: src/components/blockout/VisionFramePicker.tsx
 msgid "正在取这一帧…"
 msgstr "正在取这一帧…"
@@ -3423,9 +3682,21 @@ msgstr "正在取这一段的视频地址…"
 msgid "正在完成登录…"
 msgstr "正在完成登录…"
 
+#: src/pages/VideoEditorPage.tsx
+msgid "正在打开这段视频…"
+msgstr "正在打开这段视频…"
+
+#: src/pages/DiscoverPage.tsx
+msgid "正在找人…"
+msgstr "正在找人…"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "正在把「人偶 → 角色」合成一段话…"
 msgstr "正在把「人偶 → 角色」合成一段话…"
+
+#: src/pages/DiscoverPage.tsx
+msgid "正在搜…"
+msgstr "正在搜…"
 
 #: src/components/PortraitAuthPanel.tsx
 msgid "正在查你之前有没有授权过…"
@@ -3436,6 +3707,7 @@ msgid "正在标「脸部特写」：拖到看得清脸的一帧，圈住面部"
 msgstr "正在标「脸部特写」：拖到看得清脸的一帧，圈住面部"
 
 #: src/components/AuthPending.tsx
+#: src/pages/FeedPage.tsx
 msgid "正在确认登录状态…"
 msgstr "正在确认登录状态…"
 
@@ -3480,6 +3752,10 @@ msgstr "每个位子原来是谁（{0} 个）"
 msgid "每个界面第一次打开时会自动放一遍使用引导，之后不再自动弹；想单独重看某一屏，点那一屏角落的<0> ? </0>就行。这里是把<1>所有</1>引导恢复成「没看过」——之后每个界面第一次打开时会重新弹一遍。"
 msgstr "每个界面第一次打开时会自动放一遍使用引导，之后不再自动弹；想单独重看某一屏，点那一屏角落的<0> ? </0>就行。这里是把<1>所有</1>引导恢复成「没看过」——之后每个界面第一次打开时会重新弹一遍。"
 
+#: src/pages/CreatePage.tsx
+msgid "每段三选一，可回头改"
+msgstr "每段三选一，可回头改"
+
 #: src/components/CoverPicker.tsx
 msgid "每生成一版都会扣一次"
 msgstr "每生成一版都会扣一次"
@@ -3513,6 +3789,10 @@ msgstr "没抓到足够的声音——这段视频可能没有音轨，换一段
 msgid "没接到照片：相机那边可能没存下来——再拍一次，或选「上传本地图片」"
 msgstr "没接到照片：相机那边可能没存下来——再拍一次，或选「上传本地图片」"
 
+#: src/pages/DiscoverPage.tsx
+msgid "没搜成：{vidErr}"
+msgstr "没搜成：{vidErr}"
+
 #: src/components/MaterialSheet.tsx
 msgid "没有匹配的卡片"
 msgstr "没有匹配的卡片"
@@ -3532,6 +3812,14 @@ msgstr "没有可清理的中间文件"
 #: src/components/flow/FlowCanvas.tsx
 msgid "没有带声音样本的卡——在工坊「从视频提取」圈人物时可以顺手取一段声音"
 msgstr "没有带声音样本的卡——在工坊「从视频提取」圈人物时可以顺手取一段声音"
+
+#: src/pages/DiscoverPage.tsx
+msgid "没有找到「{key}」相关的作品"
+msgstr "没有找到「{key}」相关的作品"
+
+#: src/pages/DiscoverPage.tsx
+msgid "没有找到「{key}」这个用户"
+msgstr "没有找到「{key}」这个用户"
 
 #: src/components/support/VoiceMarket.tsx
 msgid "没有找到匹配的模板，换个词试试。"
@@ -3595,6 +3883,14 @@ msgstr "注销账号"
 msgid "注销这个账号"
 msgstr "注销这个账号"
 
+#: src/pages/DiscoverPage.tsx
+msgid "浏览分区"
+msgstr "浏览分区"
+
+#: src/pages/NotificationsPage.tsx
+msgid "消息"
+msgstr "消息"
+
 #: src/components/support/VoiceSheet.tsx
 msgid "混音"
 msgstr "混音"
@@ -3635,6 +3931,7 @@ msgid "清空已保存的视频（{0}）"
 msgstr "清空已保存的视频（{0}）"
 
 #: src/components/MaterialSheet.tsx
+#: src/pages/DiscoverPage.tsx
 msgid "清空搜索"
 msgstr "清空搜索"
 
@@ -3658,6 +3955,10 @@ msgstr "点一下选中/取消。选中的卡会当这一段的人物/场景参�
 msgid "点一张卡，挂给「{0}」"
 msgstr "点一张卡，挂给「{0}」"
 
+#: src/pages/DeckDetailPage.tsx
+msgid "点击卡片加入/移出 · 组内卡片左上角可设为封面"
+msgstr "点击卡片加入/移出 · 组内卡片左上角可设为封面"
+
 #: src/components/GenerationPill.tsx
 msgid "点击返回"
 msgstr "点击返回"
@@ -3666,8 +3967,13 @@ msgstr "点击返回"
 msgid "点击重命名"
 msgstr "点击重命名"
 
+#: src/pages/DeckDetailPage.tsx
+msgid "点右上角「编辑」挑几张卡进来"
+msgstr "点右上角「编辑」挑几张卡进来"
+
 #: src/components/CommentSheet.tsx
 #: src/components/support/VoiceMarket.tsx
+#: src/pages/FeedPage.tsx
 msgid "点赞"
 msgstr "点赞"
 
@@ -3714,6 +4020,7 @@ msgid "现在这一帧（原片第 {0} 秒）在选段外面——选段是原�
 msgstr "现在这一帧（原片第 {0} 秒）在选段外面——选段是原片的第 {1}~{2} 秒，只有那一段会被做成模板。把播放头挪进选段再标，或者先把上面的选段拖到这儿来。"
 
 #: src/components/flow/ScriptSkillSheet.tsx
+#: src/pages/FeedPage.tsx
 msgid "现在铺不了（可能有一段正在生成中），稍后再试"
 msgstr "现在铺不了（可能有一段正在生成中），稍后再试"
 
@@ -3755,9 +4062,17 @@ msgstr "用下面的格子行挂就行：先点一个格子，再点上面卡轨
 msgid "用它出片"
 msgstr "用它出片"
 
+#: src/pages/DiscoverPage.tsx
+msgid "用户"
+msgstr "用户"
+
 #: src/components/PhotoSubjectPicker.tsx
 msgid "用手指沿着这件东西的边描一整圈，松手自动闭合。圈外的桌面、手和别的东西，都会换成浅灰纯色底。"
 msgstr "用手指沿着这件东西的边描一整圈，松手自动闭合。圈外的桌面、手和别的东西，都会换成浅灰纯色底。"
+
+#: src/pages/CreatePage.tsx
+msgid "用素材卡定人物场景，全片一致"
+msgstr "用素材卡定人物场景，全片一致"
 
 #: src/components/CoverPicker.tsx
 msgid "用这一帧作封面"
@@ -3835,6 +4150,10 @@ msgstr "登录之后才能拉黑。"
 msgid "登录之后才能管理黑名单。"
 msgstr "登录之后才能管理黑名单。"
 
+#: src/pages/FeedPage.tsx
+msgid "登录后可以关注喜欢的创作者"
+msgstr "登录后可以关注喜欢的创作者"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "登记素材…"
 msgstr "登记素材…"
@@ -3843,6 +4162,10 @@ msgstr "登记素材…"
 #: src/components/TemplateShelf.tsx
 msgid "白模"
 msgstr "白模"
+
+#: src/pages/VideoEditorPage.tsx
+msgid "白模化 · 框出一段并裁掉水印"
+msgstr "白模化 · 框出一段并裁掉水印"
 
 #: src/components/blockout/VisionFramePicker.tsx
 msgid "白模化前，AI 先看几帧、列出<0>画面里有哪些人</0>，再按这份清单 逐个点名替换成<1>一模一样的纯白人偶</1>。<2>看漏了人，他照样会被换成白人偶</2>——但清单里没有他的位置，所以挂不了卡，而且<3>他还会把别人的 「从左数第几个」挤歪一位</3>。"
@@ -3876,9 +4199,21 @@ msgstr "白模成片本身无声，回看配的是模板原片的音轨，合并
 msgid "白模成片本身无声，这里配的是模板原片的音轨；合并成片时也会带上"
 msgstr "白模成片本身无声，这里配的是模板原片的音轨；合并成片时也会带上"
 
+#: src/pages/VideoEditorPage.tsx
+msgid "白模模板 · 给白色人偶挂人物卡"
+msgstr "白模模板 · 给白色人偶挂人物卡"
+
+#: src/pages/VideoEditorPage.tsx
+msgid "白模模板 · 给编号的人偶挂人物卡"
+msgstr "白模模板 · 给编号的人偶挂人物卡"
+
 #: src/studio/canvasAgent.ts
 msgid "白模段用，改成真实角色位与卡名"
 msgstr "白模段用，改成真实角色位与卡名"
+
+#: src/pages/CreatePage.tsx
+msgid "直接发布，不进草稿"
+msgstr "直接发布，不进草稿"
 
 #. placeholder {0}: msg.slice(0, 80)
 #: src/utils/nativeCamera.ts
@@ -4038,6 +4373,10 @@ msgstr "空 = AI 按提示词补画（计费）"
 msgid "空 = 承接上一段真实尾帧"
 msgstr "空 = 承接上一段真实尾帧"
 
+#: src/pages/DeckDetailPage.tsx
+msgid "空卡组"
+msgstr "空卡组"
+
 #: src/components/WorkshopShareBar.tsx
 msgid "空卡组不能分享：先往里放几张卡。"
 msgstr "空卡组不能分享：先往里放几张卡。"
@@ -4146,6 +4485,10 @@ msgstr "第二种：<0>相邻两行的位置排反了</0>（清单说他是从�
 #: src/components/DownloadSheet.tsx
 msgid "等待中"
 msgstr "等待中"
+
+#: src/pages/CreatePage.tsx
+msgid "简约模式"
+msgstr "简约模式"
 
 #: src/components/blockout/RoleCastBoard.tsx
 #: src/components/flow/SkillPanel.tsx
@@ -4267,6 +4610,14 @@ msgstr "网络不好，或者这条链接已经过期（隔天打开的草稿常
 msgid "网络问题"
 msgstr "网络问题"
 
+#: src/pages/CreatePage.tsx
+msgid "翻到{otherTitle}"
+msgstr "翻到{otherTitle}"
+
+#: src/pages/NotificationsPage.tsx
+msgid "联网后重新打开这一页就能看到"
+msgstr "联网后重新打开这一页就能看到"
+
 #: src/components/VideoCardAnnotator.tsx
 msgid "脸部特写"
 msgstr "脸部特写"
@@ -4354,6 +4705,10 @@ msgstr "设为我的声音"
 msgid "设为首帧"
 msgstr "设为首帧"
 
+#: src/pages/DeckDetailPage.tsx
+msgid "设封面"
+msgstr "设封面"
+
 #: src/pages/SettingsPage.tsx
 msgid "设置"
 msgstr "设置"
@@ -4365,6 +4720,14 @@ msgstr "设置中…"
 #: src/components/support/VoiceMarket.tsx
 msgid "设置失败，稍后再试。"
 msgstr "设置失败，稍后再试。"
+
+#: src/pages/FeedPage.tsx
+msgid "评论"
+msgstr "评论"
+
+#: src/pages/NotificationsPage.tsx
+msgid "评论了你的作品"
+msgstr "评论了你的作品"
 
 #: src/components/CommentSheet.tsx
 msgid "评论没发出去，请重试"
@@ -4477,6 +4840,14 @@ msgstr "调整头像"
 msgid "调节首尾帧"
 msgstr "调节首尾帧"
 
+#: src/pages/NotificationsPage.tsx
+msgid "赞了你的作品"
+msgstr "赞了你的作品"
+
+#: src/pages/NotificationsPage.tsx
+msgid "赞了你的评论"
+msgstr "赞了你的评论"
+
 #: src/components/blockout/TrimBar.tsx
 msgid "起点"
 msgstr "起点"
@@ -4517,6 +4888,10 @@ msgstr "跟随音色（{0}）"
 #: src/components/blockout/VisionFramePicker.tsx
 msgid "跳到第 {at} 秒"
 msgstr "跳到第 {at} 秒"
+
+#: src/pages/FeedPage.tsx
+msgid "转屏"
+msgstr "转屏"
 
 #: src/components/CoverPicker.tsx
 msgid "载入成片…"
@@ -4567,6 +4942,11 @@ msgstr "还没写这一段拍什么"
 msgid "还没接到成片"
 msgstr "还没接到成片"
 
+#: src/pages/DiscoverPage.tsx
+#: src/pages/FeedPage.tsx
+msgid "还没有作品"
+msgstr "还没有作品"
+
 #: src/components/TemplateShelf.tsx
 msgid "还没有你自己的模板——上面那两个入口都能做一个"
 msgstr "还没有你自己的模板——上面那两个入口都能做一个"
@@ -4587,9 +4967,17 @@ msgstr "还没有已授权的素材——请本人扫码/打开链接、完成�
 msgid "还没有技能——输入条写好常用指令，点「＋ 存为技能」。"
 msgstr "还没有技能——输入条写好常用指令，点「＋ 存为技能」。"
 
+#: src/pages/NotificationsPage.tsx
+msgid "还没有新消息"
+msgstr "还没有新消息"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "还没有白模模板——去模板市场逛逛"
 msgstr "还没有白模模板——去模板市场逛逛"
+
+#: src/pages/DeckDetailPage.tsx
+msgid "还没有简介——点右上角「编辑」写一段。"
+msgstr "还没有简介——点右上角「编辑」写一段。"
 
 #: src/components/MaterialSheet.tsx
 msgid "还没有素材卡"
@@ -4696,6 +5084,10 @@ msgstr "这一秒已经标过了（播放头刚好落回同一帧）。"
 #: src/components/TemplateShelf.tsx
 msgid "这一组模板暂时套不了"
 msgstr "这一组模板暂时套不了"
+
+#: src/pages/VideoEditorPage.tsx
+msgid "这一页需要从上传或模板页进来"
+msgstr "这一页需要从上传或模板页进来"
 
 #: src/pages/SettingsBlockedPage.tsx
 msgid "这不代表名单是空的"
@@ -4818,6 +5210,14 @@ msgstr "这台服务器还不支持搜人，@ 可能收不到"
 #: src/components/support/VoiceMixer.tsx
 msgid "这台服务器还没有可混音的 1.0 音色目录（服务端需要更新），先用「单音色」。"
 msgstr "这台服务器还没有可混音的 1.0 音色目录（服务端需要更新），先用「单音色」。"
+
+#: src/pages/DiscoverPage.tsx
+msgid "这台服务器还没有搜人功能 · 服务端升级后即可使用，App 不用重装"
+msgstr "这台服务器还没有搜人功能 · 服务端升级后即可使用，App 不用重装"
+
+#: src/pages/NotificationsPage.tsx
+msgid "这台服务器还没有通知功能"
+msgstr "这台服务器还没有通知功能"
 
 #: src/utils/nativeCamera.ts
 msgid "这台设备处理不了照片（画布不可用）"
@@ -4994,9 +5394,17 @@ msgstr "进卡的那一张"
 msgid "进行中…"
 msgstr "进行中…"
 
+#: src/pages/CreatePage.tsx
+msgid "进铸卡桌面"
+msgstr "进铸卡桌面"
+
 #: src/pages/SettingsPage.tsx
 msgid "退出"
 msgstr "退出"
+
+#: src/pages/FeedPage.tsx
+msgid "退出全屏"
+msgstr "退出全屏"
 
 #: src/components/ReviseBar.tsx
 msgid "退出回炉"
@@ -5046,6 +5454,19 @@ msgstr "选择时刻"
 msgid "选段"
 msgstr "选段"
 
+#: src/pages/VideoEditorPage.tsx
+msgid "选段与裁剪"
+msgstr "选段与裁剪"
+
+#. placeholder {0}: state.error
+#: src/pages/NotificationsPage.tsx
+msgid "通知没拉到：{0}"
+msgstr "通知没拉到：{0}"
+
+#: src/pages/NotificationsPage.tsx
+msgid "通知需要连上服务器 · 当前是离线模式"
+msgstr "通知需要连上服务器 · 当前是离线模式"
+
 #: src/components/flow/SkillPanel.tsx
 msgid "逛技能市场"
 msgstr "逛技能市场"
@@ -5073,6 +5494,10 @@ msgstr "重截预览"
 #: src/components/PhotoSubjectPicker.tsx
 msgid "重描"
 msgstr "重描"
+
+#: src/pages/NotificationsPage.tsx
+msgid "重新剪辑了你收藏的作品"
+msgstr "重新剪辑了你收藏的作品"
 
 #: src/components/flow/CastPreviewCard.tsx
 msgid "重新合成预览（{price}）"
@@ -5117,6 +5542,7 @@ msgstr "重认会<0>覆盖现有描述</0>（你自己改过的也会没），�
 #: src/components/blockout/VideoStage.tsx
 #: src/components/flow/SegPlayer.tsx
 #: src/components/UpdateSheet.tsx
+#: src/pages/NotificationsPage.tsx
 #: src/pages/SettingsBlockedPage.tsx
 msgid "重试"
 msgstr "重试"
