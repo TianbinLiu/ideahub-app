@@ -69,7 +69,10 @@ export default function ScriptSkillSheet({ onClose, onApplied }: { onClose: () =
         }
         return ok;
       },
-      { label: `铺成 ${nodes.length} 段（丢弃上面那条流水线）`, noun: "铺分镜" },
+      {
+        label: t`铺成 ${nodes.length} 段（丢弃上面那条流水线）`,
+        noun: t({ message: "铺分镜", context: "丢弃确认卡里「…再回来X」的那个动作（英文用小写动词短语）" }),
+      },
     );
   }
 

@@ -316,7 +316,11 @@ export default function EditPage() {
         navigate("/flow");
         return true;
       },
-      { label: "回炉重做（丢弃上面那条流水线）", noun: "回炉", claim: false },
+      {
+        label: t`回炉重做（丢弃上面那条流水线）`,
+        noun: t({ message: "回炉", context: "丢弃确认卡里「…再回来X」的那个动作（英文用小写动词短语）" }),
+        claim: false,
+      },
     );
   }
 
