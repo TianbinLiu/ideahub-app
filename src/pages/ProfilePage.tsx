@@ -36,6 +36,7 @@ import { useAutoGuide } from "../components/guide/useAutoGuide";
 import Sheet from "../components/Sheet";
 import DraftSheet from "../components/DraftSheet";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
+import { Trans, useLingui } from "@lingui/react/macro";
 import AigcBadge, { isAigcWork } from "../components/AigcBadge";
 import Icon, { type IconName } from "../components/Icon";
 import DeckCard from "../components/DeckCard";
@@ -164,6 +165,7 @@ export default function ProfilePage() {
   const user = useCurrentUser();
   const auth = useAuthState();
   const drafts = useDrafts();
+  const { t } = useLingui();
 
   const [tab, setTab] = useState<TabKey>("works");
   /** 作品墙的可见性筛选（只对自己有意义）。判否定：老作品没有 visibility = 公开 */
@@ -206,7 +208,7 @@ export default function ProfilePage() {
     if (uidNum == null) return;
     try {
       await copyText(String(uidNum));
-      showToast("UID 已复制");
+      showToast(t`UID 已复制`);
     } catch {
       /* 剪贴板都失败的话数字就在屏幕上，用户能看着抄，不值得为此弹错 */
     }
@@ -417,10 +419,10 @@ export default function ProfilePage() {
       <EmptyState
         full
         icon="user"
-        text="登录后可以创作视频、收藏卡片、管理卡组"
+        text={t`登录后可以创作视频、收藏卡片、管理卡组`}
         // 没登录也能换界面语言：设置页在 RequireAuth 后面，这一屏是未登录的人唯一找得到的入口之一
         hint={<LangChip />}
-        cta={{ label: "登录 / 注册", to: "/login?next=/me", primary: true }}
+        cta={{ label: t`登录 / 注册`, to: "/login?next=/me", primary: true }}
       />
     );
   }
@@ -428,6 +430,7 @@ export default function ProfilePage() {
   const cards = self ? myCards() : [];
   const decks = self ? myDecks() : [];
   const wallet = self ? walletOf() : null;
+  const planName = PLANS.find((p) => p.id === wallet?.planId)?.name ?? t`免费版`;
   const following = !self && isFollowing(display);
   const totalLikes = works.reduce((s, v) => s + v.likes, 0);
   const totalPlays = works.reduce((s, v) => s + v.plays, 0);
@@ -442,23 +445,23 @@ export default function ProfilePage() {
   const followers = stranger.profile?.followerCount;
   const stats: Array<{ label: string; value: string; onTap?: () => void }> = self
     ? [
-        { label: "关注", value: String(user!.following.length), onTap: () => setFollowListOpen(true) },
-        { label: "获赞", value: formatPlays(totalLikes) },
-        { label: "播放", value: formatPlays(totalPlays) },
+        { label: t({ message: "关注", context: "主页统计栏：我关注了多少人（名词，点开是关注列表）" }), value: String(user!.following.length), onTap: () => setFollowListOpen(true) },
+        { label: t`获赞`, value: formatPlays(totalLikes) },
+        { label: t({ message: "播放", context: "主页统计栏：作品一共被播放了多少次（名词，不是播放键）" }), value: formatPlays(totalPlays) },
       ]
     : [
-        ...(typeof followers === "number" ? [{ label: "粉丝", value: formatPlays(followers) }] : []),
-        { label: "作品", value: worksKnown ? String(works.length) : "—" },
-        { label: "获赞", value: num(totalLikes) },
-        { label: "播放", value: num(totalPlays) },
+        ...(typeof followers === "number" ? [{ label: t`粉丝`, value: formatPlays(followers) }] : []),
+        { label: t`作品`, value: worksKnown ? String(works.length) : "—" },
+        { label: t`获赞`, value: num(totalLikes) },
+        { label: t({ message: "播放", context: "主页统计栏：作品一共被播放了多少次（名词，不是播放键）" }), value: num(totalPlays) },
       ];
 
   const TAB_META: Record<TabKey, { icon: IconName; label: string; n: number }> = {
-    works: { icon: "grid", label: "作品", n: works.length },
-    drafts: { icon: "lock", label: "草稿", n: drafts.length },
-    cards: { icon: "card", label: "卡片", n: cards.length },
-    decks: { icon: "cards", label: "卡组", n: self ? decks.length : workDecks.length },
-    collects: { icon: "bookmark", label: "收藏", n: collects.length },
+    works: { icon: "grid", label: t`作品`, n: works.length },
+    drafts: { icon: "lock", label: t`草稿`, n: drafts.length },
+    cards: { icon: "card", label: t`卡片`, n: cards.length },
+    decks: { icon: "cards", label: t`卡组`, n: self ? decks.length : workDecks.length },
+    collects: { icon: "bookmark", label: t({ message: "收藏", context: "主页页签：我收藏的作品（名词，不是收藏键）" }), n: collects.length },
   };
   // 我的页五个页签全列（空的那几个是创作入口，本身就有用）；
   // 别人的页只列真有东西的，否则点进去是个死胡同
@@ -481,20 +484,20 @@ export default function ProfilePage() {
   function shareProfile() {
     const url = `${location.origin}${location.pathname}#${publicHref}`;
     if (navigator.share) {
-      void navigator.share({ title: `${display} 的主页`, url }).catch(() => {});
+      void navigator.share({ title: t`${display} 的主页`, url }).catch(() => {});
       return;
     }
     // 复制成功要给回执：没有提示的话"点了没反应"和"复制失败"在用户看来是同一件事
     void navigator.clipboard
       ?.writeText(url)
-      .then(() => flash("已复制主页链接"))
-      .catch(() => flash("复制失败，请手动分享"));
+      .then(() => flash(t`已复制主页链接`))
+      .catch(() => flash(t`复制失败，请手动分享`));
   }
 
   function onFollow() {
     // 还没水合完就先别把人送去登录页（见 hooks/useAccount 的 useAuthState）
     if (auth === "pending") {
-      flash("正在确认登录状态…");
+      flash(t`正在确认登录状态…`);
       return;
     }
     if (!user) {
@@ -526,14 +529,14 @@ export default function ProfilePage() {
                   几何是承重的（CLAUDE.md「动了首页底缘任何一个元素」那条）。 */}
               <HelpButton tour="profile" />
               {/* AI 客服入口：和铃铛、齿轮并排，同一 44px 热区规格 */}
-              <Link to="/support" className="flex h-11 w-11 items-center justify-center text-slate-300" aria-label="AI 客服">
+              <Link to="/support" className="flex h-11 w-11 items-center justify-center text-slate-300" aria-label={t`AI 客服`}>
                 <Icon name="headset" size={21} />
               </Link>
               <Link
                 data-guide="profile-notify"
                 to="/notifications"
                 className="relative flex h-11 w-11 items-center justify-center text-slate-300"
-                aria-label={unread > 0 ? `消息（${unread} 条未读）` : "消息"}
+                aria-label={unread > 0 ? t`消息（${unread} 条未读）` : t`消息`}
               >
                 <Icon name="bell" size={21} filled={unread > 0} />
                 {unread > 0 && (
@@ -546,7 +549,7 @@ export default function ProfilePage() {
                 to="/settings"
                 /* 44px 是移动端热区下限，原来的 h-9 w-9（36px）在手机上要点两三次才中 */
                 className="flex h-11 w-11 items-center justify-center text-slate-300"
-                aria-label="设置"
+                aria-label={t`设置`}
               >
                 <Icon name="settings" size={21} />
               </Link>
@@ -554,7 +557,7 @@ export default function ProfilePage() {
           ) : (
             <button
               onClick={shareProfile}
-              aria-label="分享主页"
+              aria-label={t`分享主页`}
               className="flex h-11 w-11 items-center justify-center text-slate-300"
             >
               <Icon name="share" size={21} />
@@ -572,7 +575,7 @@ export default function ProfilePage() {
             <button
               onClick={() => setAvatarOpen(true)}
               className="block rounded-full transition active:scale-95"
-              aria-label="更换头像"
+              aria-label={t`更换头像`}
             >
               <Avatar name={display} src={user!.avatar} size={92} />
               <span className="absolute bottom-0 right-0 flex h-7 w-7 items-center justify-center rounded-full border-2 border-ink bg-brand text-ink">
@@ -590,7 +593,7 @@ export default function ProfilePage() {
               {!following && (
                 <button
                   onClick={onFollow}
-                  aria-label="关注"
+                  aria-label={t({ message: "关注", context: "作者头像下那颗关注按钮（动作：关注这个人）" })}
                   className="absolute -bottom-2 left-1/2 flex h-7 w-7 -translate-x-1/2 items-center justify-center rounded-full border-2 border-ink bg-rose-500 text-white transition active:scale-90"
                 >
                   <Icon name="plus" size={14} strokeWidth={3} />
@@ -603,7 +606,7 @@ export default function ProfilePage() {
         {/* ★ 名字还没问到时（老链接里连名字都没带）显示一个占位，别显示空白 —— 空白
             会让人以为页面坏了。真名到货后这一行会自己变成他的名字。 */}
         <div className="mt-3.5 max-w-full truncate text-lg font-bold text-slate-100">
-          {display || (stranger.loading ? "加载中…" : stranger.missing ? "这个用户不存在" : "未知用户")}
+          {display || (stranger.loading ? t`加载中…` : stranger.missing ? t`这个用户不存在` : t`未知用户`)}
         </div>
         {/* ★★ 这一行**一律是 username**（句柄），自己的主页和别人的主页同一条口径。
             上一版这里对自己人显示的是**昵称**、对别人显示的是 username —— 同一个位置
@@ -628,7 +631,7 @@ export default function ProfilePage() {
             className="mt-1 flex items-center gap-1.5 text-[11px] tabular-nums text-slate-600 active:opacity-60"
           >
             <span>UID {uidNum}</span>
-            <span className="text-slate-700">点按复制</span>
+            <span className="text-slate-700"><Trans>点按复制</Trans></span>
           </button>
         )}
 
@@ -669,13 +672,13 @@ export default function ProfilePage() {
                 to="/settings/profile"
                 className="flex h-10 flex-1 items-center justify-center rounded-xl bg-panel text-sm font-semibold text-slate-100 ring-1 ring-slate-700 active:scale-[.98]"
               >
-                编辑资料
+                <Trans>编辑资料</Trans>
               </Link>
               <button
                 onClick={shareProfile}
                 className="flex h-10 flex-1 items-center justify-center rounded-xl bg-panel text-sm font-semibold text-slate-100 ring-1 ring-slate-700 active:scale-[.98]"
               >
-                分享主页
+                <Trans>分享主页</Trans>
               </button>
             </>
           ) : (
@@ -687,13 +690,13 @@ export default function ProfilePage() {
                 }`}
               >
                 {following && <Icon name="check" size={15} strokeWidth={2.5} />}
-                {following ? "已关注" : "关注"}
+                {following ? t`已关注` : t({ message: "关注", context: "作者头像下那颗关注按钮（动作：关注这个人）" })}
               </button>
               <button
                 onClick={shareProfile}
                 className="flex h-10 flex-1 items-center justify-center rounded-xl bg-panel text-sm font-semibold text-slate-100 ring-1 ring-slate-700 active:scale-[.98]"
               >
-                分享主页
+                <Trans>分享主页</Trans>
               </button>
             </>
           )}
@@ -704,7 +707,7 @@ export default function ProfilePage() {
             时才退回那句从作品算出来的概览 —— 它是真的，只是没那么有用。 */}
         {self ? (
           <p className="mt-3.5 whitespace-pre-wrap text-center text-sm leading-relaxed text-slate-300">
-            {user!.bio || <span className="text-slate-600">还没有简介——去设置里写一句吧</span>}
+            {user!.bio || <span className="text-slate-600"><Trans>还没有简介——去设置里写一句吧</Trans></span>}
           </p>
         ) : stranger.profile?.bio ? (
           <p className="mt-3.5 whitespace-pre-wrap text-center text-sm leading-relaxed text-slate-300">
@@ -713,8 +716,7 @@ export default function ProfilePage() {
         ) : (
           works.length > 0 && (
             <p className="mt-3.5 text-center text-xs text-slate-500">
-              {[...new Set(works.map((w) => videoCategoryLabel(w.category)))].slice(0, 3).join(" · ")} · 最近更新{" "}
-              {relativeTime(works[0].createdAt)}
+              <Trans>{[...new Set(works.map((w) => videoCategoryLabel(w.category)))].slice(0, 3).join(" · ")} · 最近更新 {relativeTime(works[0].createdAt)}</Trans>
             </p>
           )
         )}
@@ -747,13 +749,13 @@ export default function ProfilePage() {
                     {/* 套餐名的位置给「管理员」：他没有套餐档位，留着"免费版"三个字
                         反而是错的（他既不是免费版，也不受任何档位门禁约束） */}
                     <span className="ml-1.5 rounded bg-brand/20 px-1.5 py-0.5 text-[9px] font-normal text-brand">
-                      管理员
+                      <Trans>管理员</Trans>
                     </span>
                   </div>
                   {/* 「无需充值」写在这行，正好挨着右边那颗充值按钮 —— 入口照常保留
                       （测支付流程要用），但必须说清点它不是为了给自己续费 */}
                   <div className="text-[11px] leading-relaxed text-slate-500">
-                    AI 生成免扣费，无需充值；用量服务端照记
+                    <Trans>AI 生成免扣费，无需充值；用量服务端照记</Trans>
                   </div>
                 </>
               ) : (
@@ -765,23 +767,22 @@ export default function ProfilePage() {
                         <span className="text-xs font-normal text-slate-500">token</span>
                       </>
                     ) : (
-                      "余额读取中…"
+                      t`余额读取中…`
                     )}
                   </div>
                   <div className="text-[11px] text-slate-500">
                     {wallet ? (
                       <>
-                        套餐 {fmtTokens(wallet.plan)} · 直充 {fmtTokens(wallet.addon)} ·{" "}
-                        {PLANS.find((p) => p.id === wallet.planId)?.name ?? "免费版"}
+                        <Trans>套餐 {fmtTokens(wallet.plan)} · 直充 {fmtTokens(wallet.addon)} · {planName}</Trans>
                       </>
                     ) : (
-                      "点开重试"
+                      t`点开重试`
                     )}
                   </div>
                 </>
               )}
             </div>
-            <span className="rounded-full bg-brand px-3 py-1.5 text-xs font-bold text-ink">充值 / 套餐</span>
+            <span className="rounded-full bg-brand px-3 py-1.5 text-xs font-bold text-ink"><Trans>充值 / 套餐</Trans></span>
           </button>
         )}
       </div>
@@ -832,10 +833,10 @@ export default function ProfilePage() {
         {activeTab === "works" && self && works.some((v) => visibilityOf(v) !== "public") && (
           <div className="mb-2.5 flex flex-wrap gap-1.5">
             {([
-              ["all", `全部 ${works.length}`],
-              ["public", `公开 ${works.filter((v) => visibilityOf(v) === "public").length}`],
-              ["unlisted", `凭链接 ${works.filter((v) => visibilityOf(v) === "unlisted").length}`],
-              ["private", `仅自己可见 ${works.filter((v) => visibilityOf(v) === "private").length}`],
+              ["all", t`全部 ${works.length}`],
+              ["public", t`公开 ${works.filter((v) => visibilityOf(v) === "public").length}`],
+              ["unlisted", t`凭链接 ${works.filter((v) => visibilityOf(v) === "unlisted").length}`],
+              ["private", t`仅自己可见 ${works.filter((v) => visibilityOf(v) === "private").length}`],
             ] as const)
               // 一档都没有的就不摆（三个 chip 里两个是 0 只是噪声）
               .filter(([k]) => k === "all" || works.some((v) => visibilityOf(v) === k))
@@ -857,13 +858,13 @@ export default function ProfilePage() {
             shownWorks.length ? (
               <WorkGrid items={shownWorks} />
             ) : visFilter === "private" ? (
-              <Empty text="没有仅自己可见的作品" />
+              <Empty text={t`没有仅自己可见的作品`} />
             ) : worksKnown ? (
-              <Empty text="还没有发布作品" cta="去创作" to="/create" />
+              <Empty text={t`还没有发布作品`} cta={t`去创作`} to="/create" />
             ) : (
               // ★ 没问到就**不许**说"还没有发布作品"（铁律八）：那句话会让人以为作品没了，
               //   而"仅自己可见"的那些在 app 里没有第二个入口
-              <Empty text={myWorks?.status === "failed" ? `没能取到你的作品：${myWorks.error}` : "正在取你的作品…"} />
+              <Empty text={myWorks?.status === "failed" ? t`没能取到你的作品：${myWorks.error}` : t`正在取你的作品…`} />
             )
           ) : (
             <StrangerWorks
@@ -881,8 +882,8 @@ export default function ProfilePage() {
             大卡片、容量、重命名等完整管理在那一页 */}
         {activeTab === "drafts" && drafts.length > 0 && (
           <Link to="/drafts" className="flex items-center justify-between px-3 py-2 text-xs text-slate-400">
-            <span>共 {drafts.length} 条（上限 {MAX_DRAFTS}，超了会从最旧的清起）</span>
-            <span className="text-brand">草稿箱整页 ›</span>
+            <span><Trans>共 {drafts.length} 条（上限 {MAX_DRAFTS}，超了会从最旧的清起）</Trans></span>
+            <span className="text-brand"><Trans>草稿箱整页 ›</Trans></span>
           </Link>
         )}
         {activeTab === "drafts" &&
@@ -899,7 +900,7 @@ export default function ProfilePage() {
                     {/* 草稿必须带标题：它们常常共用同一批帧，只看封面分不出是哪条 */}
                     <div className="truncate text-[11px] font-medium text-white">{d.title}</div>
                     <div className="text-[10px] text-slate-300">
-                      已出片 {d.doneCount}/{d.segCount}
+                      <Trans>已出片 {d.doneCount}/{d.segCount}</Trans>
                     </div>
                   </div>
                   {/* ★ 这里原来写的是「仅自己可见」——和已发布作品的可见性设置**是同一个词**，
@@ -907,13 +908,13 @@ export default function ProfilePage() {
                       草稿的"没人看得到"是它还没发布，不是一个可切换的选项，用词必须分开。 */}
                   <span className="absolute left-1 top-1 flex items-center gap-0.5 rounded bg-black/65 px-1 py-0.5 text-[9px] text-white">
                     <Icon name="lock" size={9} strokeWidth={2.5} />
-                    未发布
+                    <Trans>未发布</Trans>
                   </span>
                 </button>
               ))}
             </div>
           ) : (
-            <Empty text="还没有草稿——工坊和工作流里都能存" cta="去创作" to="/create" />
+            <Empty text={t`还没有草稿——工坊和工作流里都能存`} cta={t`去创作`} to="/create" />
           ))}
 
         {/* 卡片 / 卡组不贴边也不去圆角：它们本身是有边框的实体卡，
@@ -944,8 +945,8 @@ export default function ProfilePage() {
           ) : (
             <Empty
               // ★ 同 WorkshopPage：分「没问到」与「问过是空的」两句话
-              text={cardsLoadIssue() ? "这会儿没能取到你的卡片——它们还在，联网后重开一次" : "还没有卡片"}
-              {...(cardsLoadIssue() ? {} : { cta: "去创意工坊", to: "/workshop" })}
+              text={cardsLoadIssue() ? t`这会儿没能取到你的卡片——它们还在，联网后重开一次` : t`还没有卡片`}
+              {...(cardsLoadIssue() ? {} : { cta: t`去创意工坊`, to: "/workshop" })}
             />
           ))}
 
@@ -962,7 +963,7 @@ export default function ProfilePage() {
                 ))}
               </div>
             ) : (
-              <Empty text="还没有卡组" cta="去创意工坊" to="/workshop" />
+              <Empty text={t`还没有卡组`} cta={t`去创意工坊`} to="/workshop" />
             )
           ) : (
             // 别人的卡组随作品走：点开去那支作品，收卡的按钮在详情页
@@ -981,7 +982,7 @@ export default function ProfilePage() {
 
         {activeTab === "collects" && collectGone > 0 && (
           <p className="mb-2 rounded-xl border border-slate-700 bg-panel px-3 py-2 text-[11px] leading-relaxed text-slate-400">
-            有 {collectGone} 条收藏打不开了：作者可能把它删了，或者改成了仅自己可见。
+            <Trans>有 {collectGone} 条收藏打不开了：作者可能把它删了，或者改成了仅自己可见。</Trans>
           </p>
         )}
         {/* ★ 「没问到」与「确实没了」分开说，而且要给一条重试的路：这一页的 effect
@@ -989,12 +990,12 @@ export default function ProfilePage() {
             不给这颗按钮就只能离开页面再进来 */}
         {activeTab === "collects" && collectUnknown > 0 && (
           <p className="mb-2 flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-400/10 px-3 py-2 text-[11px] leading-relaxed text-amber-100">
-            <span className="flex-1">有 {collectUnknown} 条这会儿没取回来（网络没通）——它们还在，不是被删了。</span>
+            <span className="flex-1"><Trans>有 {collectUnknown} 条这会儿没取回来（网络没通）——它们还在，不是被删了。</Trans></span>
             <button
               onClick={() => setCollectTry((n) => n + 1)}
               className="flex-none rounded-full bg-amber-400/20 px-2.5 py-1 font-semibold text-amber-100"
             >
-              重试
+              <Trans>重试</Trans>
             </button>
           </p>
         )}
@@ -1010,15 +1011,15 @@ export default function ProfilePage() {
             <Empty
               text={
                 collectUnknown > 0
-                  ? "这会儿没取回来，网络通了再试一次"
+                  ? t`这会儿没取回来，网络通了再试一次`
                   : collectGone > 0
-                    ? "收藏的这几条都打不开了：作者删了，或者改成了仅自己可见"
-                    : "正在取你的收藏…"
+                    ? t`收藏的这几条都打不开了：作者删了，或者改成了仅自己可见`
+                    : t`正在取你的收藏…`
               }
-              {...(collectUnknown === 0 && collectGone > 0 ? { cta: "去首页逛逛", to: "/" } : {})}
+              {...(collectUnknown === 0 && collectGone > 0 ? { cta: t`去首页逛逛`, to: "/" } : {})}
             />
           ) : (
-            <Empty text="还没有收藏——首页右侧的书签键收进来" cta="去首页逛逛" to="/" />
+            <Empty text={t`还没有收藏——首页右侧的书签键收进来`} cta={t`去首页逛逛`} to="/" />
           ))}
       </div>
 
@@ -1066,16 +1067,16 @@ function CutSessionBanner() {
   if (!cut) return null;
   const segCount = cut.draft.segments.length;
   const deckCount = cut.draft.deck?.cards.length ?? 0;
+  const when = relativeTime(cut.at || Date.now());
 
   return (
     <div className="mx-3 mt-3 rounded-xl border border-cyan-400/40 bg-cyan-500/10 p-3">
-      <div className="text-xs font-semibold text-cyan-100">有一条剪到一半的成片</div>
+      <div className="text-xs font-semibold text-cyan-100"><Trans>有一条剪到一半的成片</Trans></div>
       <p className="mt-1 text-[11px] leading-relaxed text-slate-300">
-        {segCount} 段{deckCount > 0 ? ` · 卡组 ${deckCount} 张已经铸好` : ""} ·{" "}
-        {relativeTime(cut.at || Date.now())}
+        {deckCount > 0 ? <Trans>{segCount} 段 · 卡组 {deckCount} 张已经铸好 · {when}</Trans> : <Trans>{segCount} 段 · {when}</Trans>}
         {/* ★ 这句要说清"为什么值得回去"：里面是**已经花过钱**的东西 */}
         <br />
-        <span className="text-slate-400">这些是已经花过 token 生成的内容，丢掉就得重做一遍。</span>
+        <span className="text-slate-400"><Trans>这些是已经花过 token 生成的内容，丢掉就得重做一遍。</Trans></span>
       </p>
       <div className="mt-2 flex gap-2">
         <button
@@ -1096,7 +1097,7 @@ function CutSessionBanner() {
           }}
           className="flex-1 rounded-xl bg-cyan-400/90 py-2.5 text-xs font-bold text-ink"
         >
-          接着剪
+          <Trans>接着剪</Trans>
         </button>
         {asking ? (
           <>
@@ -1104,13 +1105,13 @@ function CutSessionBanner() {
               onClick={() => void dropCutSession()}
               className="rounded-xl bg-rose-500/90 px-3 py-2.5 text-xs font-bold text-white"
             >
-              确认丢掉
+              <Trans>确认丢掉</Trans>
             </button>
             <button
               onClick={() => setAsking(false)}
               className="rounded-xl border border-slate-600 px-3 py-2.5 text-xs text-slate-300"
             >
-              取消
+              <Trans>取消</Trans>
             </button>
           </>
         ) : (
@@ -1118,7 +1119,7 @@ function CutSessionBanner() {
             onClick={() => setAsking(true)}
             className="rounded-xl border border-slate-600 px-3 py-2.5 text-xs text-slate-300"
           >
-            不要了
+            <Trans>不要了</Trans>
           </button>
         )}
       </div>
@@ -1130,6 +1131,7 @@ function PendingBanner() {
   useVideosVersion();
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
+  const { t } = useLingui();
   const list = pendingPublishes();
   const up = publishUploadStatus();
   if (list.length === 0 && !up) return null;
@@ -1140,7 +1142,7 @@ function PendingBanner() {
     return (
       <div className="mx-3 mt-3 rounded-xl border border-cyan-400/40 bg-cyan-500/10 p-3">
         <div className="text-xs font-semibold text-cyan-200">
-          正在上传「{up.title}」 {up.done}/{up.total}
+          <Trans>正在上传「{up.title}」 {up.done}/{up.total}</Trans>
         </div>
         <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/25">
           <div
@@ -1148,7 +1150,7 @@ function PendingBanner() {
             style={{ width: `${Math.round((up.done / Math.max(1, up.total)) * 100)}%` }}
           />
         </div>
-        <p className="mt-1 text-[10px] text-slate-400">{up.label} · 成片和画面要逐个传上去，别人才看得到</p>
+        <p className="mt-1 text-[10px] text-slate-400"><Trans>{up.label} · 成片和画面要逐个传上去，别人才看得到</Trans></p>
       </div>
     );
   }
@@ -1158,14 +1160,14 @@ function PendingBanner() {
       <div className="flex items-center gap-2">
         <span className="flex-none text-sm">⚠️</span>
         <span className="min-w-0 flex-1 text-xs font-semibold text-amber-200">
-          {list.length} 条作品还没传到服务器
+          <Trans>{list.length} 条作品还没传到服务器</Trans>
         </span>
       </div>
       <p className="mt-1 text-[11px] leading-relaxed text-amber-100/80">
-        「{first.draft.title}」{first.error}
+        <Trans>「{first.draft.title}」{first.error}</Trans>
       </p>
       <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
-        内容还在这台设备上，没有丢。修好网络或服务器后点重试即可。
+        <Trans>内容还在这台设备上，没有丢。修好网络或服务器后点重试即可。</Trans>
       </p>
       <div className="mt-2 flex gap-2">
         <button
@@ -1173,19 +1175,19 @@ function PendingBanner() {
             setBusy(true);
             setNote("");
             void retryPendingPublishes()
-              .then((left) => setNote(left === 0 ? "全部上传成功" : `还剩 ${left} 条没成功`))
+              .then((left) => setNote(left === 0 ? t`全部上传成功` : t`还剩 ${left} 条没成功`))
               .finally(() => setBusy(false));
           }}
           disabled={busy}
           className="flex-1 rounded-xl bg-amber-400/90 py-2.5 text-sm font-bold text-ink disabled:opacity-40"
         >
-          {busy ? "重试中…" : "立即重试"}
+          {busy ? t`重试中…` : t`立即重试`}
         </button>
         <button
           onClick={() => void dropPendingPublish(first.draft.clientId ?? "")}
           className="rounded-xl border border-slate-600 px-3 py-2.5 text-sm text-slate-300"
         >
-          不要了
+          <Trans>不要了</Trans>
         </button>
       </div>
       {note && <div className="mt-1.5 text-center text-[11px] text-amber-200">{note}</div>}
@@ -1220,13 +1222,14 @@ function StrangerWorks({
   hasId: boolean;
   onRetry: () => void;
 }) {
+  const { t } = useLingui();
   if (stranger.loading) {
     return (
-      <EmptyState loading text="正在打开 TA 的主页…" />
+      <EmptyState loading text={t`正在打开 TA 的主页…`} />
     );
   }
   if (stranger.missing) {
-    return <Empty text="找不到这个用户 —— 可能已经注销了" />;
+    return <Empty text={t`找不到这个用户 —— 可能已经注销了`} />;
   }
   const worksErr = stranger.works?.status === "failed" ? stranger.works.error : "";
   const err = stranger.error || worksErr;
@@ -1234,9 +1237,9 @@ function StrangerWorks({
     return (
       <EmptyState
         error
-        text={`没打开 TA 的主页：${err}`}
-        hint="这不代表 TA 没有作品，只是这次没取到"
-        cta={{ label: "重试", onClick: onRetry }}
+        text={t`没打开 TA 的主页：${err}`}
+        hint={t`这不代表 TA 没有作品，只是这次没取到`}
+        cta={{ label: t`重试`, onClick: onRetry }}
       />
     );
   }
@@ -1244,16 +1247,16 @@ function StrangerWorks({
   const note = worksKnown
     ? ""
     : stranger.unsupported
-      ? "这台服务器还没有用户主页接口 · 服务端升级后即可看到完整资料"
+      ? t`这台服务器还没有用户主页接口 · 服务端升级后即可看到完整资料`
       : stranger.works?.status === "partial"
-        ? "这台服务器还不支持按作者取作品 · 下面只是本次刷到的那些，不是全部"
+        ? t`这台服务器还不支持按作者取作品 · 下面只是本次刷到的那些，不是全部`
         : stranger.works?.status === "offline"
-          ? "TA 的作品需要连上服务器 · 当前是离线模式"
+          ? t`TA 的作品需要连上服务器 · 当前是离线模式`
           : !hasId
-            ? "这个链接里只有名字，没法向服务器确认是谁 · 下面只是本次刷到的那些"
+            ? t`这个链接里只有名字，没法向服务器确认是谁 · 下面只是本次刷到的那些`
             : "";
   if (works.length === 0) {
-    return <Empty text={worksKnown ? "TA 还没有发布作品" : note || "没能取到 TA 的作品"} />;
+    return <Empty text={worksKnown ? t`TA 还没有发布作品` : note || t`没能取到 TA 的作品`} />;
   }
   return (
     <>
@@ -1264,6 +1267,7 @@ function StrangerWorks({
 }
 
 function WorkGrid({ items }: { items: VideoItem[] }) {
+  const { t } = useLingui();
   return (
     <div className="grid grid-cols-3 gap-[2px]">
       {items.map((v) => {
@@ -1287,7 +1291,7 @@ function WorkGrid({ items }: { items: VideoItem[] }) {
                   而且同一份数据在详情页上什么版次都不印，两处对不上。 */}
             {!!v.revisedAt && (
               <span className="absolute bottom-1 right-1.5 rounded bg-black/60 px-1 py-0.5 text-[9px] tabular-nums text-slate-200">
-                {revisionLabel(v.revision) ?? "回炉过"}
+                {revisionLabel(v.revision) ?? t`回炉过`}
               </span>
             )}
             {/* 私密作品要在墙上一眼认得出来：否则作者只会看到"这条怎么没人看"，
@@ -1299,30 +1303,30 @@ function WorkGrid({ items }: { items: VideoItem[] }) {
             {v.takedown ? (
               <span
                 className="absolute left-1 top-1 flex items-center gap-0.5 rounded bg-rose-600/90 px-1 py-0.5 text-[9px] font-semibold text-white"
-                title={v.takedown.reason ? `下架原因：${takedownReasonText(v.takedown.reason)}` : undefined}
+                title={v.takedown.reason ? t`下架原因：${takedownReasonText(v.takedown.reason)}` : undefined}
               >
-                已下架
+                <Trans>已下架</Trans>
               </span>
             ) : visibilityOf(v) === "private" ? (
               <span className="absolute left-1 top-1 flex items-center gap-0.5 rounded bg-black/70 px-1 py-0.5 text-[9px] text-white">
                 <Icon name="lock" size={9} strokeWidth={2.5} />
-                仅自己可见
+                <Trans>仅自己可见</Trans>
               </span>
             ) : visibilityOf(v) === "unlisted" ? (
               /* ★ 这一档也要一眼认得出：作者会拿"它怎么没人看"来判断内容好不好，
                  而它压根不在任何人的首页里 —— 与"仅自己可见"那条角标同一个理由 */
               <span className="absolute left-1 top-1 flex items-center gap-0.5 rounded bg-black/70 px-1 py-0.5 text-[9px] text-white">
                 <Icon name="share" size={9} strokeWidth={2.5} />
-                凭链接
+                <Trans>凭链接</Trans>
               </span>
             ) : v.branchTree ? (
               <span className="absolute left-1 top-1 rounded bg-brand/90 px-1 py-0.5 text-[9px] font-semibold text-ink">
-                互动
+                <Trans>互动</Trans>
               </span>
             ) : null}
             {paid && (
               <span className="absolute right-1 top-1 rounded bg-gold/90 px-1 py-0.5 text-[9px] font-bold text-ink">
-                付费
+                <Trans>付费</Trans>
               </span>
             )}
             {/* 「AI 生成」标识（合规要求"内容周边"，见 components/AigcBadge 的 ★★）。
@@ -1364,15 +1368,16 @@ function FollowingSheet({
   onClose: () => void;
 }) {
   useAccountVersion(); // 就地取消关注后这一列要立刻变灰
+  const { t } = useLingui();
   return (
     <Sheet onClose={onClose}>
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-base font-bold text-slate-100">关注 {names.length}</h3>
-        <button onClick={onClose} className="text-slate-400" aria-label="关闭">
+        <h3 className="text-base font-bold text-slate-100"><Trans>关注 {names.length}</Trans></h3>
+        <button onClick={onClose} className="text-slate-400" aria-label={t`关闭`}>
           <Icon name="close" size={20} />
         </button>
       </div>
-      {names.length === 0 && <p className="py-10 text-center text-sm text-slate-500">还没有关注任何创作者</p>}
+      {names.length === 0 && <p className="py-10 text-center text-sm text-slate-500"><Trans>还没有关注任何创作者</Trans></p>}
       <div className="space-y-1">
         {names.map((a) => (
           <div key={a} className="flex items-center gap-3 rounded-xl p-2">
@@ -1387,7 +1392,7 @@ function FollowingSheet({
               <span className="min-w-0">
                 <span className="block truncate text-sm font-medium text-slate-100">{a}</span>
                 <span className="block text-[11px] text-slate-500">
-                  {videos.filter((v) => v.author === a).length} 支作品
+                  <Trans>{videos.filter((v) => v.author === a).length} 支作品</Trans>
                 </span>
               </span>
             </Link>
@@ -1397,7 +1402,7 @@ function FollowingSheet({
                 isFollowing(a) ? "bg-slate-700 text-slate-300" : "bg-brand font-bold text-ink"
               }`}
             >
-              {isFollowing(a) ? "已关注" : "关注"}
+              {isFollowing(a) ? t`已关注` : t({ message: "关注", context: "作者头像下那颗关注按钮（动作：关注这个人）" })}
             </button>
           </div>
         ))}
@@ -1429,6 +1434,7 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
   const [payable, setPayable] = useState<boolean | null>(null);
   /** 正在盯的订单号（下完单就开始轮询，结算/失败/超时都会停） */
   const [watching, setWatching] = useState<string | null>(null);
+  const { t } = useLingui();
 
   useEffect(() => {
     void refreshRemoteWallet();
@@ -1466,12 +1472,13 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
             window.clearInterval(timer);
             setWatching(null);
             await refreshRemoteWallet();
-            setOrder({ text: `已到账 ${fmtTokens(r.order.grantedTokens)} token`, tone: "ok" });
+            const got = fmtTokens(r.order.grantedTokens);
+            setOrder({ text: t`已到账 ${got} token`, tone: "ok" });
           } else if (r.order.status === "failed" || r.order.status === "closed") {
             window.clearInterval(timer);
             setWatching(null);
             setOrder({
-              text: r.order.status === "failed" ? "支付未成功，额度未到账" : "订单已关闭",
+              text: r.order.status === "failed" ? t`支付未成功，额度未到账` : t`订单已关闭`,
               orderNo: r.order.orderNo,
               tone: "bad",
             });
@@ -1496,12 +1503,13 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
       if (!r.ok) {
         setOrder({ text: r.message, tone: "bad" });
       } else if (r.credited) {
-        setOrder({ text: "已到账", tone: "ok" });
+        setOrder({ text: t`已到账`, tone: "ok" });
       } else {
+        const said = r.message;
         setOrder({
           text: r.payable
-            ? `${r.message}。付款完成后额度会自动到账，这里的余额也会跟着更新。`
-            : "订单已创建，但本服务还没接入支付渠道，暂时无法完成付款——额度不会到账。",
+            ? t`${said}。付款完成后额度会自动到账，这里的余额也会跟着更新。`
+            : t`订单已创建，但本服务还没接入支付渠道，暂时无法完成付款——额度不会到账。`,
           orderNo: r.orderNo,
           tone: r.payable ? "warn" : "bad",
         });
@@ -1521,14 +1529,14 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
   if (!wallet)
     return (
       <Sheet onClose={onClose}>
-        <EmptyState loading text="正在读取余额…" />
+        <EmptyState loading text={t`正在读取余额…`} />
       </Sheet>
     );
   return (
     <Sheet onClose={onClose}>
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-base font-bold text-slate-100">⚡ Token 钱包</h3>
-        <button onClick={onClose} className="text-slate-400" aria-label="关闭">
+        <h3 className="text-base font-bold text-slate-100"><Trans>⚡ Token 钱包</Trans></h3>
+        <button onClick={onClose} className="text-slate-400" aria-label={t`关闭`}>
           <Icon name="close" size={20} />
         </button>
       </div>
@@ -1538,18 +1546,18 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
           下单按钮也照常能点：入口保留是为了测支付流程，不是给自己续费。 */}
       {billingExempt() && (
         <div className="mb-3 rounded-xl border border-brand/40 bg-brand/10 px-3 py-2.5 text-[11px] leading-relaxed text-slate-300">
-          管理员账号无需充值：AI 生成走免扣费通道，不从下面的余额里扣。余额与下单入口保留，仅用于测试支付流程。
+          <Trans>管理员账号无需充值：AI 生成走免扣费通道，不从下面的余额里扣。余额与下单入口保留，仅用于测试支付流程。</Trans>
         </div>
       )}
 
       <div className="mb-4 grid grid-cols-2 gap-3">
         <div className="rounded-xl border border-slate-700/70 bg-panel p-3">
           <div className="text-lg font-bold tabular-nums text-slate-100">{fmtTokens(wallet.plan)}</div>
-          <div className="text-[11px] text-slate-500">套餐 token · 优先扣减</div>
+          <div className="text-[11px] text-slate-500"><Trans>套餐 token · 优先扣减</Trans></div>
         </div>
         <div className="rounded-xl border border-slate-700/70 bg-panel p-3">
           <div className="text-lg font-bold tabular-nums text-gold">{fmtTokens(wallet.addon)}</div>
-          <div className="text-[11px] text-slate-500">add-on token · 直充/创作收益</div>
+          <div className="text-[11px] text-slate-500"><Trans>add-on token · 直充/创作收益</Trans></div>
         </div>
       </div>
 
@@ -1568,11 +1576,11 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
           }`}
         >
           {order.text}
-          {order.orderNo && <div className="mt-1 font-mono text-[10px] opacity-70">订单号 {order.orderNo}</div>}
+          {order.orderNo && <div className="mt-1 font-mono text-[10px] opacity-70"><Trans>订单号 {order.orderNo}</Trans></div>}
         </div>
       )}
 
-      <div className="mb-1.5 text-sm font-semibold text-slate-300">订阅套餐</div>
+      <div className="mb-1.5 text-sm font-semibold text-slate-300"><Trans>订阅套餐</Trans></div>
       <div className="mb-4 space-y-2">
         {PLANS.map((p) => {
           const current = wallet.planId === p.id;
@@ -1581,10 +1589,10 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-semibold text-slate-100">
                   {p.name}
-                  {current && <span className="ml-1.5 rounded bg-brand/20 px-1.5 py-0.5 text-[9px] text-brand">当前</span>}
+                  {current && <span className="ml-1.5 rounded bg-brand/20 px-1.5 py-0.5 text-[9px] text-brand"><Trans>当前</Trans></span>}
                 </div>
                 <div className="text-[11px] text-slate-500">
-                  {fmtTokens(p.monthlyTokens)} token/月 · {p.desc}
+                  <Trans>{fmtTokens(p.monthlyTokens)} token/月 · {p.desc}</Trans>
                 </div>
               </div>
               <button
@@ -1592,14 +1600,14 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
                 disabled={busy || (p.price === 0 && current)}
                 className="rounded-full bg-brand px-3 py-1.5 text-xs font-bold text-ink disabled:bg-slate-700 disabled:text-slate-400"
               >
-                {p.price === 0 ? (current ? "已领取" : "领取") : `¥${p.price}/月`}
+                {p.price === 0 ? (current ? t`已领取` : t`领取`) : t`¥${p.price}/月`}
               </button>
             </div>
           );
         })}
       </div>
 
-      <div className="mb-1.5 text-xs font-semibold text-slate-300">直充 add-on（永不过期，套餐扣完才用它）</div>
+      <div className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>直充 add-on（永不过期，套餐扣完才用它）</Trans></div>
       <div className="grid grid-cols-3 gap-2">
         {RECHARGE_PACKS.map((pk) => (
           <button
@@ -1615,8 +1623,8 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
       </div>
       <p className="mt-3 text-center text-[10px] leading-relaxed text-slate-600">
         {payable === false
-          ? "本服务尚未接入支付渠道，下单后无法完成付款"
-          : "付款成功后额度自动到账；若长时间未到账请在订单里核对"}
+          ? t`本服务尚未接入支付渠道，下单后无法完成付款`
+          : t`付款成功后额度自动到账；若长时间未到账请在订单里核对`}
       </p>
     </Sheet>
   );
