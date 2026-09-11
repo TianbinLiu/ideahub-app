@@ -49,7 +49,6 @@ import { stageFuseInstruction, type StageState } from "./stage/stageState";
 import {
   BLOCKOUT_MAX_ROLES,
   markDescOfLabel,
-  markNoun,
   markSpecOf,
   refVideoIssue,
   splitCastRoles,
@@ -1481,13 +1480,15 @@ export const useFlow = create<FlowState>()((set, get) => ({
       });
       return false;
     }
-    // ★ 这一整段的措辞按方案分支：判据只问 data 层那一处（markSpecOf / markNoun），
+    // ★ 这一整段的措辞按方案分支：判据只问 data 层那一处（markSpecOf），
     //   别在这里写 `tpl.markSlots ? "位置" : "编号"`。对着一群一模一样的白人偶说"编号 3"，
     //   用户在画面上永远找不到那个东西 —— 一句过时的指路和一个坏功能长得一模一样
     // ★★ `spec` 里还带着那份顺序表，合成提示词时的**升序排序**就靠它（orderSlots）——
     //   所以这里传下去的必须是整个 spec，不是一个光秃秃的方案枚举
     const spec = markSpecOf(tpl);
-    const noun = markNoun(spec);
+    // ★ 多语言（2026-09-11）：「位置 / 编号」不再当片段拼进句子（英文里名词的位置与大小写随句子变），
+    //   下面每一句按方案各写一句整话
+    const ordinal = spec.scheme === "ordinal";
     /** 列举几个角色位时的分隔符 */
     const sep = t({ message: "、", comment: "列举几个角色位时的分隔符" });
 
@@ -1522,17 +1523,18 @@ export const useFlow = create<FlowState>()((set, get) => ({
       const known = new Set(roles.map((r) => r.label));
       const overCap = stray.filter((l) => known.has(l));
       const removed = stray.filter((l) => !known.has(l));
-      const ordinal = spec.scheme === "ordinal";
+      const over = overCap.join(sep);
+      const gone = removed.join(sep);
       const why = [
         overCap.length > 0
           ? ordinal
-            ? t`${noun} ${overCap.join(sep)} 超出了一次能挂卡的 ${BLOCKOUT_MAX_ROLES} 个上限（人再多，从左数到第几个也数不准了）`
-            : t`${noun} ${overCap.join(sep)} 超出了一次能挂卡的 ${BLOCKOUT_MAX_ROLES} 个上限（再多的编号在画面上也认不出来）`
+            ? t`位置 ${over} 超出了一次能挂卡的 ${BLOCKOUT_MAX_ROLES} 个上限（人再多，从左数到第几个也数不准了）`
+            : t`编号 ${over} 超出了一次能挂卡的 ${BLOCKOUT_MAX_ROLES} 个上限（再多的编号在画面上也认不出来）`
           : "",
         removed.length > 0
           ? ordinal
-            ? t`${noun} ${removed.join(sep)} 这个位子已经被模板作者在核对${noun}时删掉了（多半是因为画面上那个人根本没被换成人偶）`
-            : t`${noun} ${removed.join(sep)} 这个位子已经被模板作者在核对${noun}时删掉了（多半是因为画面上根本找不到这个号）`
+            ? t`位置 ${gone} 这个位子已经被模板作者在核对位置时删掉了（多半是因为画面上那个人根本没被换成人偶）`
+            : t`编号 ${gone} 这个位子已经被模板作者在核对编号时删掉了（多半是因为画面上根本找不到这个号）`
           : "",
       ]
         .filter(Boolean)
@@ -1555,8 +1557,11 @@ export const useFlow = create<FlowState>()((set, get) => ({
       slots.push({ label: r.label, desc: r.desc, mark: markDescOfLabel(tpl, r.label), card });
     }
     if (missing.length > 0) {
+      const lost = missing.join(sep);
       set({
-        err: t`${noun} ${missing.join(sep)} 挂的卡在这台设备的素材库里找不到（可能已被删掉，或属于另一个账号）——回去重新挂一张，或先把它取下`,
+        err: ordinal
+          ? t`位置 ${lost} 挂的卡在这台设备的素材库里找不到（可能已被删掉，或属于另一个账号）——回去重新挂一张，或先把它取下`
+          : t`编号 ${lost} 挂的卡在这台设备的素材库里找不到（可能已被删掉，或属于另一个账号）——回去重新挂一张，或先把它取下`,
       });
       return false;
     }
@@ -1590,8 +1595,12 @@ export const useFlow = create<FlowState>()((set, get) => ({
     for (const s of taken) {
       const seen = byName.get(s.card.name);
       if (seen && seen !== s.card.id) {
+        const cardName = s.card.name;
+        const slotLabel = s.label;
         set({
-          err: t`有两张不同的卡都叫「${s.card.name}」（${noun} ${s.label} 挂的是其中一张）——出片时靠角色名把形象图接到这个位子上，重名就分不出谁是谁，会换错人。请给其中一张改个名字，或换一张卡`,
+          err: ordinal
+            ? t`有两张不同的卡都叫「${cardName}」（位置 ${slotLabel} 挂的是其中一张）——出片时靠角色名把形象图接到这个位子上，重名就分不出谁是谁，会换错人。请给其中一张改个名字，或换一张卡`
+            : t`有两张不同的卡都叫「${cardName}」（编号 ${slotLabel} 挂的是其中一张）——出片时靠角色名把形象图接到这个位子上，重名就分不出谁是谁，会换错人。请给其中一张改个名字，或换一张卡`,
         });
         return false;
       }
@@ -1602,7 +1611,12 @@ export const useFlow = create<FlowState>()((set, get) => ({
       //   blockoutPrompt.castNameIssue，别在界面上再判一遍）。
       const nameIssue = castNameIssue(s.card.name);
       if (nameIssue) {
-        set({ err: t`${noun} ${s.label} 挂的这张卡不能这么用：${nameIssue}` });
+        const slotLabel = s.label;
+        set({
+          err: ordinal
+            ? t`位置 ${slotLabel} 挂的这张卡不能这么用：${nameIssue}`
+            : t`编号 ${slotLabel} 挂的这张卡不能这么用：${nameIssue}`,
+        });
         return false;
       }
     }
