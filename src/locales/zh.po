@@ -153,6 +153,7 @@ msgstr "，已放大到短边 {REF_SHORT_MIN}px"
 #. 列举几个图位名 / 还缺的几项时的分隔符
 #. 列举几个文件名 / 动作组 / 表情名时的分隔符
 #. 列举几个段号时的分隔符（第 1、3 段）
+#. 列举几个角色位时的分隔符
 #. 列举删号时清掉的几类数据时的分隔符
 #: src/components/blockout/RoleCastBoard.tsx
 #: src/components/blockout/RoleConfirmSheet.tsx
@@ -163,13 +164,16 @@ msgstr "，已放大到短边 {REF_SHORT_MIN}px"
 #: src/pages/CustomCardPage.tsx
 #: src/pages/CutPage.tsx
 #: src/pages/SupportModelNewPage.tsx
+#: src/studio/flowStore.ts
 msgid "、"
 msgstr "、"
 
 #. 列举「每个图位锁什么」时的分隔符
+#. 把两条拒绝原因连成一句时的分隔符
 #. 把几条「这一档为什么点不动」的原因连成一行时的分隔符
 #. 把几条「这一档为什么点不动」的原因连成一行时的分隔符
 #: src/pages/CardDetailPage.tsx
+#: src/studio/flowStore.ts
 #: src/studio/ui/projection.tsx
 msgid "；"
 msgstr "；"
@@ -494,6 +498,12 @@ msgstr "{0} · 只影响 3D 工坊"
 msgid "{0} · 成片和画面要逐个传上去，别人才看得到"
 msgstr "{0} · 成片和画面要逐个传上去，别人才看得到"
 
+#. placeholder {0}: s.template!.title
+#. placeholder {1}: i + 1
+#: src/studio/flowStore.ts
+msgid "{0} · 第 {1} 段"
+msgstr "{0} · 第 {1} 段"
+
 #. placeholder {0}: effective.coverEmoji || "🎭"
 #. placeholder {1}: effective.name
 #: src/pages/SupportPersonasPage.tsx
@@ -798,6 +808,36 @@ msgstr "{name}走神了，再发一次试试。"
 msgid "{nextLabel}没有「{goneNames}」这一格，你传的那张已经取下来了——需要的话换回{curLabel}再传一次。"
 msgstr "{nextLabel}没有「{goneNames}」这一格，你传的那张已经取下来了——需要的话换回{curLabel}再传一次。"
 
+#. placeholder {0}: missing.join(sep)
+#: src/studio/flowStore.ts
+msgid "{noun} {0} 挂的卡在这台设备的素材库里找不到（可能已被删掉，或属于另一个账号）——回去重新挂一张，或先把它取下"
+msgstr "{noun} {0} 挂的卡在这台设备的素材库里找不到（可能已被删掉，或属于另一个账号）——回去重新挂一张，或先把它取下"
+
+#. placeholder {0}: s.label
+#: src/studio/flowStore.ts
+msgid "{noun} {0} 挂的这张卡不能这么用：{nameIssue}"
+msgstr "{noun} {0} 挂的这张卡不能这么用：{nameIssue}"
+
+#. placeholder {0}: overCap.join(sep)
+#: src/studio/flowStore.ts
+msgid "{noun} {0} 超出了一次能挂卡的 {BLOCKOUT_MAX_ROLES} 个上限（人再多，从左数到第几个也数不准了）"
+msgstr "{noun} {0} 超出了一次能挂卡的 {BLOCKOUT_MAX_ROLES} 个上限（人再多，从左数到第几个也数不准了）"
+
+#. placeholder {0}: overCap.join(sep)
+#: src/studio/flowStore.ts
+msgid "{noun} {0} 超出了一次能挂卡的 {BLOCKOUT_MAX_ROLES} 个上限（再多的编号在画面上也认不出来）"
+msgstr "{noun} {0} 超出了一次能挂卡的 {BLOCKOUT_MAX_ROLES} 个上限（再多的编号在画面上也认不出来）"
+
+#. placeholder {0}: removed.join(sep)
+#: src/studio/flowStore.ts
+msgid "{noun} {0} 这个位子已经被模板作者在核对{noun}时删掉了（多半是因为画面上根本找不到这个号）"
+msgstr "{noun} {0} 这个位子已经被模板作者在核对{noun}时删掉了（多半是因为画面上根本找不到这个号）"
+
+#. placeholder {0}: removed.join(sep)
+#: src/studio/flowStore.ts
+msgid "{noun} {0} 这个位子已经被模板作者在核对{noun}时删掉了（多半是因为画面上那个人根本没被换成人偶）"
+msgstr "{noun} {0} 这个位子已经被模板作者在核对{noun}时删掉了（多半是因为画面上那个人根本没被换成人偶）"
+
 #: src/pages/ProfilePage.tsx
 msgid "{said}。付款完成后额度会自动到账，这里的余额也会跟着更新。"
 msgstr "{said}。付款完成后额度会自动到账，这里的余额也会跟着更新。"
@@ -841,6 +881,10 @@ msgstr "{who}（现在挂着 {0}）"
 #: src/pages/VideoPage.tsx
 msgid "{why}——卡在这台设备上有，但换台设备或重启后可能就没了，联网后再点一次。"
 msgstr "{why}——卡在这台设备上有，但换台设备或重启后可能就没了，联网后再点一次。"
+
+#: src/studio/flowStore.ts
+msgid "{why}——这些位子挂的卡不能生效，它们会保持人偶原样。回挂卡那一屏点「取下这几张」再完成挂卡"
+msgstr "{why}——这些位子挂的卡不能生效，它们会保持人偶原样。回挂卡那一屏点「取下这几张」再完成挂卡"
 
 #. placeholder {0}: g.title
 #. placeholder {1}: g.files
@@ -2045,6 +2089,10 @@ msgstr "一个能力角标都没有 —— 装上之后基本上是个不会动�
 msgid "一个节点，一条短片"
 msgstr "一个节点，一条短片"
 
+#: src/studio/flowStore.ts
+msgid "一个角色位都没挂卡：白模出片全靠卡上的形象图说明「换成谁」，一张都不挂的话出不了片——回去至少挂一张"
+msgstr "一个角色位都没挂卡：白模出片全靠卡上的形象图说明「换成谁」，一张都不挂的话出不了片——回去至少挂一张"
+
 #: src/pages/CustomCardPage.tsx
 msgid "一句主体描述（选）：例「银白长发的星星发夹少女」"
 msgstr "一句主体描述（选）：例「银白长发的星星发夹少女」"
@@ -2429,6 +2477,10 @@ msgstr "中间帧最多 {midMax} 张"
 #: src/components/flow/FlowCanvas.tsx
 msgid "中间帧参考图"
 msgstr "中间帧参考图"
+
+#: src/studio/flowStore.ts
+msgid "中间帧参考图最多 {CUSTOM_MID_MAX} 张（首帧、尾帧另算）——先删一张再加"
+msgstr "中间帧参考图最多 {CUSTOM_MID_MAX} 张（首帧、尾帧另算）——先删一张再加"
 
 #: src/pages/CustomCardPage.tsx
 msgid "主素材图 = 这个角色最完整的一张（照片/截图/画都行）；有面部近照的话脸会锁得更准。画风严格跟随素材（照片出写实、插画出同风格）。"
@@ -2963,6 +3015,10 @@ msgstr "先不改"
 msgid "先不用"
 msgstr "先不用"
 
+#: src/studio/flowStore.ts
+msgid "先从三套方案里挑一套（点方案卡），再生成本段"
+msgstr "先从三套方案里挑一套（点方案卡），再生成本段"
+
 #. placeholder {0}: primary.label
 #: src/pages/CustomCardPage.tsx
 msgid "先传{0}"
@@ -2975,6 +3031,18 @@ msgstr "先传主素材图"
 #: src/studio/ui/projection.tsx
 msgid "先写一句视频要求（缺的帧按它补画）"
 msgstr "先写一句视频要求（缺的帧按它补画）"
+
+#: src/studio/flowStore.ts
+msgid "先写一句要拍什么（或从工坊带素材卡过来），我才好推演走向"
+msgstr "先写一句要拍什么（或从工坊带素材卡过来），我才好推演走向"
+
+#: src/studio/flowStore.ts
+msgid "先写一句要改什么（例：把背景换成雨夜 / 去掉右上角的台标）"
+msgstr "先写一句要改什么（例：把背景换成雨夜 / 去掉右上角的台标）"
+
+#: src/studio/flowStore.ts
+msgid "先写清楚这一段要拍什么"
+msgstr "先写清楚这一段要拍什么"
 
 #: src/pages/FlowPage.tsx
 msgid "先写那句话"
@@ -3018,9 +3086,29 @@ msgstr "先存进 App，再选去处。"
 msgid "先把当前这段炼出来"
 msgstr "先把当前这段炼出来"
 
+#: src/studio/flowStore.ts
+msgid "先把这一段切到「✍ 自定义」再挂参考视频"
+msgstr "先把这一段切到「✍ 自定义」再挂参考视频"
+
+#: src/studio/flowStore.ts
+msgid "先把这一段切到「✍ 自定义」再插中间帧（普通段的尾帧由所选方案决定）"
+msgstr "先把这一段切到「✍ 自定义」再插中间帧（普通段的尾帧由所选方案决定）"
+
 #: src/pages/FlowPage.tsx
 msgid "先把这一段炼出来"
 msgstr "先把这一段炼出来"
+
+#: src/studio/flowStore.ts
+msgid "先把这一段炼出来，再加下一段"
+msgstr "先把这一段炼出来，再加下一段"
+
+#: src/studio/flowStore.ts
+msgid "先把这一段炼出来，再铸下一段"
+msgstr "先把这一段炼出来，再铸下一段"
+
+#: src/studio/flowStore.ts
+msgid "先挂上参考视频——中间帧参考图是「多图+参考视频」模式的一部分"
+msgstr "先挂上参考视频——中间帧参考图是「多图+参考视频」模式的一部分"
 
 #: src/pages/CutPage.tsx
 msgid "先点上面的片段选中，再用这排按钮"
@@ -3327,6 +3415,7 @@ msgstr "写入本地库…"
 #: src/components/VideoCardAnnotator.tsx
 #: src/pages/CustomCardPage.tsx
 #: src/pages/CutPage.tsx
+#: src/studio/flowStore.ts
 msgid "准备中…"
 msgstr "准备中…"
 
@@ -3701,9 +3790,17 @@ msgstr "刷新"
 msgid "刷新中…"
 msgstr "刷新中…"
 
+#: src/studio/flowStore.ts
+msgid "前面还有没炼完的段——先把前面那段炼出来，再推演这一段。"
+msgstr "前面还有没炼完的段——先把前面那段炼出来，再推演这一段。"
+
 #: src/studio/ui/projection.tsx
 msgid "前面还有没炼完的段——段与段靠上一段的真实结尾接着拍，得按顺序来"
 msgstr "前面还有没炼完的段——段与段靠上一段的真实结尾接着拍，得按顺序来"
+
+#: src/studio/flowStore.ts
+msgid "前面还有没炼完的段——段与段靠上一段的真实结尾画面接着拍，得按顺序来。先把前面那段炼出来。"
+msgstr "前面还有没炼完的段——段与段靠上一段的真实结尾画面接着拍，得按顺序来。先把前面那段炼出来。"
 
 #: src/components/BranchPlayer.tsx
 msgid "剧情走向，由你决定——"
@@ -4389,6 +4486,11 @@ msgstr "另存为我的"
 msgid "另有 {0} 处落在已删掉的段上，不计费也不会重拍"
 msgstr "另有 {0} 处落在已删掉的段上，不计费也不会重拍"
 
+#. placeholder {0}: plan.skipped
+#: src/studio/flowStore.ts
+msgid "另有 {0} 处落在承接段的前半段（开头画面用的是上一段的真实结尾，不重画）——不计费，但你写的要求仍会随出片提示词发出去。"
+msgstr "另有 {0} 处落在承接段的前半段（开头画面用的是上一段的真实结尾，不重画）——不计费，但你写的要求仍会随出片提示词发出去。"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "只传你自己做的、或者已经拿到授权的模型。别人的作品、真人肖像、Live2D 官方示例模型（Hiyori / Haru / Mao 这些）都不收。"
 msgstr "只传你自己做的、或者已经拿到授权的模型。别人的作品、真人肖像、Live2D 官方示例模型（Hiyori / Haru / Mao 这些）都不收。"
@@ -4409,6 +4511,10 @@ msgstr "只删生成过程中留下的、已经没人用的中间文件。未发
 #: src/studio/ui/projection.tsx
 msgid "只剩一段且已出片，删不掉"
 msgstr "只剩一段且已出片，删不掉"
+
+#: src/studio/flowStore.ts
+msgid "只剩这一段而且已经出片了，删不掉（想重来就用「删除本段」旁边的重新生成，或退出去开一条新的）"
+msgstr "只剩这一段而且已经出片了，删不掉（想重来就用「删除本段」旁边的重新生成，或退出去开一条新的）"
 
 #: src/pages/CustomCardPage.tsx
 msgid "只填空着的格子，不改你已经写的字"
@@ -4581,6 +4687,10 @@ msgstr "合成稿还留在「我的」里，没有丢。"
 msgid "合成走系统硬件编解码，不再录屏——可以切走，只是系统可能把它拖慢"
 msgstr "合成走系统硬件编解码，不再录屏——可以切走，只是系统可能把它拖慢"
 
+#: src/studio/flowStore.ts
+msgid "合成预览"
+msgstr "合成预览"
+
 #: src/components/flow/CastPreviewCard.tsx
 msgid "合成预览：只看站位与形象对不对，不代表成片画质；改了挂法要重新合成"
 msgstr "合成预览：只看站位与形象对不对，不代表成片画质；改了挂法要重新合成"
@@ -4588,6 +4698,29 @@ msgstr "合成预览：只看站位与形象对不对，不代表成片画质；
 #: src/components/flow/CastPreviewCard.tsx
 msgid "合成预览（{price}）"
 msgstr "合成预览（{price}）"
+
+#: src/studio/flowStore.ts
+msgid "合成预览好了"
+msgstr "合成预览好了"
+
+#: src/studio/flowStore.ts
+msgid "合成预览好了（只画了前 2 个角色位，其余人偶保持白模）"
+msgstr "合成预览好了（只画了前 2 个角色位，其余人偶保持白模）"
+
+#. placeholder {0}: why.slice(0, 60)
+#: src/studio/flowStore.ts
+msgid "合成预览没画成：{0}"
+msgstr "合成预览没画成：{0}"
+
+#. placeholder {0}: why.slice(0, 80)
+#: src/studio/flowStore.ts
+msgid "合成预览没画成（{0}）——不影响出片，可以直接生成"
+msgstr "合成预览没画成（{0}）——不影响出片，可以直接生成"
+
+#. placeholder {0}: fmtTokens(ONE_IMAGE)
+#: src/studio/flowStore.ts
+msgid "合成预览要一张图的钱（{0} token），余额不够——去「我的」页充值"
+msgstr "合成预览要一张图的钱（{0} token），余额不够——去「我的」页充值"
 
 #. placeholder {0}: Math.round(totalSec)
 #: src/components/TemplateShelf.tsx
@@ -4924,6 +5057,11 @@ msgstr "太短了，按住多说一会儿再松手。"
 msgid "太短了（{0}s）——按住别松，照着示例词念够 {VOICE_MIN_SEC} 秒再放手。"
 msgstr "太短了（{0}s）——按住别松，照着示例词念够 {VOICE_MIN_SEC} 秒再放手。"
 
+#. placeholder {0}: msg.slice(0, 80)
+#: src/studio/flowStore.ts
+msgid "失败：{0}"
+msgstr "失败：{0}"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "头"
 msgstr "头"
@@ -5180,6 +5318,33 @@ msgstr "对话未开通"
 #: src/pages/SupportPage.tsx
 msgid "对话记录"
 msgstr "对话记录"
+
+#: src/studio/flowStore.ts
+msgid "导演台截图不是一张图（截图失败了，再试一次）"
+msgstr "导演台截图不是一张图（截图失败了，再试一次）"
+
+#: src/studio/flowStore.ts
+msgid "导演台的开头帧融好了"
+msgstr "导演台的开头帧融好了"
+
+#: src/studio/flowStore.ts
+msgid "导演台融图"
+msgstr "导演台融图"
+
+#. placeholder {0}: why.slice(0, 60)
+#: src/studio/flowStore.ts
+msgid "导演台融图没成：{0}"
+msgstr "导演台融图没成：{0}"
+
+#. placeholder {0}: why.slice(0, 80)
+#: src/studio/flowStore.ts
+msgid "导演台融图没成（{0}）——没扣钱，可以再截一次"
+msgstr "导演台融图没成（{0}）——没扣钱，可以再截一次"
+
+#. placeholder {0}: fmtTokens(ONE_IMAGE)
+#: src/studio/flowStore.ts
+msgid "导演台融图要一张图的钱（{0} token），余额不够——去「我的」页充值"
+msgstr "导演台融图要一张图的钱（{0} token），余额不够——去「我的」页充值"
 
 #: src/pages/AdminPage.tsx
 msgid "封禁…"
@@ -6263,6 +6428,14 @@ msgstr "把播放头挪到选段里的第几秒"
 msgid "把整篇剧本贴进来：谁在哪儿做什么、接着发生什么……（故事梗概或分场脚本都行）"
 msgstr "把整篇剧本贴进来：谁在哪儿做什么、接着发生什么……（故事梗概或分场脚本都行）"
 
+#: src/studio/flowStore.ts
+msgid "把构图示意融成开头帧…"
+msgstr "把构图示意融成开头帧…"
+
+#: src/studio/flowStore.ts
+msgid "把角色放进白模画面…"
+msgstr "把角色放进白模画面…"
+
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "把这个角色位改成{s}"
 msgstr "把这个角色位改成{s}"
@@ -6384,6 +6557,10 @@ msgstr "挂卡合成预览"
 msgid "挂卡后自动合成，出片前可逐字改"
 msgstr "挂卡后自动合成，出片前可逐字改"
 
+#: src/studio/flowStore.ts
+msgid "挂卡已记下，但现在还出不了片：{issue}"
+msgstr "挂卡已记下，但现在还出不了片：{issue}"
+
 #. placeholder {0}: next.label
 #: src/components/flow/TierRow.tsx
 msgid "挂在这一段上的示例视频会被摘掉（「{0}」档带不了参考视频）"
@@ -6418,6 +6595,10 @@ msgstr "按作品筛（作品标题或 id）"
 #: src/components/PhotoSubjectPicker.tsx
 msgid "按你描的轮廓抠出主体，背景换成浅灰纯色（主体 {size}{up}）"
 msgstr "按你描的轮廓抠出主体，背景换成浅灰纯色（主体 {size}{up}）"
+
+#: src/studio/flowStore.ts
+msgid "按修改重画画面…"
+msgstr "按修改重画画面…"
 
 #: src/pages/CustomCardPage.tsx
 msgid "按方案逐格出图 + 撰写人物信息 · 演示档"
@@ -6590,10 +6771,29 @@ msgstr "接着写这一段的画面"
 msgid "接着剪"
 msgstr "接着剪"
 
+#. placeholder {0}: fmtTokens(propCost)
+#. placeholder {1}: fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0))
+#: src/studio/flowStore.ts
+msgid "推演一次约 {0} token，余额 {1} 不足——去「我的」页充值"
+msgstr "推演一次约 {0} token，余额 {1} 不足——去「我的」页充值"
+
+#: src/studio/flowStore.ts
+msgid "推演三种走向…"
+msgstr "推演三种走向…"
+
 #: src/components/flow/FlowCanvas.tsx
 #: src/studio/ui/projection.tsx
 msgid "推演中…"
 msgstr "推演中…"
+
+#. placeholder {0}: msg.slice(0, 120)
+#: src/studio/flowStore.ts
+msgid "推演失败：{0}"
+msgstr "推演失败：{0}"
+
+#: src/studio/flowStore.ts
+msgid "推演好了，但那一段已经不在流水线上了——没处摆（这一次的推演费已经花掉了）"
+msgstr "推演好了，但那一段已经不在流水线上了——没处摆（这一次的推演费已经花掉了）"
 
 #: src/pages/FeedPage.tsx
 msgid "推荐"
@@ -7122,6 +7322,64 @@ msgstr "有一条剪到一半的成片"
 msgid "有一条超过 {maxLen} 字了，发布会被服务端拒掉。"
 msgstr "有一条超过 {maxLen} 字了，发布会被服务端拒掉。"
 
+#: src/studio/flowStore.ts
+msgid "有一段正在生成，等它跑完再推演下一段"
+msgstr "有一段正在生成，等它跑完再推演下一段"
+
+#: src/studio/flowStore.ts
+msgid "有一段正在生成，等它跑完再炼下一段"
+msgstr "有一段正在生成，等它跑完再炼下一段"
+
+#: src/studio/flowStore.ts
+msgid "有一段正在生成，等它跑完再还原"
+msgstr "有一段正在生成，等它跑完再还原"
+
+#: src/studio/flowStore.ts
+msgid "有一段正在生成，等它跑完再重画这一套"
+msgstr "有一段正在生成，等它跑完再重画这一套"
+
+#: src/studio/flowStore.ts
+msgid "有一段正在生成中，等它跑完再切换这一段的模式"
+msgstr "有一段正在生成中，等它跑完再切换这一段的模式"
+
+#: src/studio/flowStore.ts
+msgid "有一段正在生成中，等它跑完再删（现在删的话，那一炉的钱照扣、成片会落空）"
+msgstr "有一段正在生成中，等它跑完再删（现在删的话，那一炉的钱照扣、成片会落空）"
+
+#: src/studio/flowStore.ts
+msgid "有一段正在生成中，等它跑完再加下一段（它炼完你才知道下一段从哪一帧接）"
+msgstr "有一段正在生成中，等它跑完再加下一段（它炼完你才知道下一段从哪一帧接）"
+
+#: src/studio/flowStore.ts
+msgid "有一段正在生成中，等它跑完再拆段（现在拆会让写回打在另一段上）"
+msgstr "有一段正在生成中，等它跑完再拆段（现在拆会让写回打在另一段上）"
+
+#: src/studio/flowStore.ts
+msgid "有一段正在生成中，等它跑完再挂/摘参考视频"
+msgstr "有一段正在生成中，等它跑完再挂/摘参考视频"
+
+#: src/studio/flowStore.ts
+msgid "有一段正在生成中，等它跑完再换走向（换走向会挪动后面的段）"
+msgstr "有一段正在生成中，等它跑完再换走向（换走向会挪动后面的段）"
+
+#: src/studio/flowStore.ts
+msgid "有一段正在生成中，等它跑完再改参考图"
+msgstr "有一段正在生成中，等它跑完再改参考图"
+
+#: src/studio/flowStore.ts
+msgid "有一段正在生成中，等它跑完再铸下一段"
+msgstr "有一段正在生成中，等它跑完再铸下一段"
+
+#: src/studio/flowStore.ts
+msgid "有一段生成完了，但它已经不在了"
+msgstr "有一段生成完了，但它已经不在了"
+
+#. placeholder {0}: s.card.name
+#. placeholder {1}: s.label
+#: src/studio/flowStore.ts
+msgid "有两张不同的卡都叫「{0}」（{noun} {1} 挂的是其中一张）——出片时靠角色名把形象图接到这个位子上，重名就分不出谁是谁，会换错人。请给其中一张改个名字，或换一张卡"
+msgstr "有两张不同的卡都叫「{0}」（{noun} {1} 挂的是其中一张）——出片时靠角色名把形象图接到这个位子上，重名就分不出谁是谁，会换错人。请给其中一张改个名字，或换一张卡"
+
 #: src/pages/SupportPage.tsx
 msgid "有帮助"
 msgstr "有帮助"
@@ -7303,6 +7561,12 @@ msgstr "本段炼成"
 msgid "本段生成中…"
 msgstr "本段生成中…"
 
+#. placeholder {0}: fmtTokens(cost)
+#. placeholder {1}: fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0))
+#: src/studio/flowStore.ts
+msgid "本段约需 {0} token，余额 {1} 不足——去「我的」页充值"
+msgstr "本段约需 {0} token，余额 {1} 不足——去「我的」页充值"
+
 #: src/components/MaterialSheet.tsx
 #: src/pages/FlowPage.tsx
 msgid "本段素材"
@@ -7476,6 +7740,10 @@ msgstr "模板名字（必填，例：清冷知性）"
 msgid "模板市场"
 msgstr "模板市场"
 
+#: src/studio/flowStore.ts
+msgid "模板视频还没转存到图床，做不了合成预览（稍后再试）"
+msgstr "模板视频还没转存到图床，做不了合成预览（稍后再试）"
+
 #: src/pages/TemplateDetailPage.tsx
 msgid "模板详情"
 msgstr "模板详情"
@@ -7594,6 +7862,10 @@ msgstr "正在存进本机卡片库…"
 msgid "正在完成登录…"
 msgstr "正在完成登录…"
 
+#: src/studio/flowStore.ts
+msgid "正在忙别的，等这一步完了再取"
+msgstr "正在忙别的，等这一步完了再取"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "正在截图…"
 msgstr "正在截图…"
@@ -7646,6 +7918,10 @@ msgstr "正在查你之前有没有授权过…"
 #: src/components/VideoCardAnnotator.tsx
 msgid "正在标「脸部特写」：拖到看得清脸的一帧，圈住面部"
 msgstr "正在标「脸部特写」：拖到看得清脸的一帧，圈住面部"
+
+#: src/studio/flowStore.ts
+msgid "正在生成中，等它跑完再换模板"
+msgstr "正在生成中，等它跑完再换模板"
 
 #: src/pages/TemplateDetailPage.tsx
 msgid "正在登记到服务器…"
@@ -7839,9 +8115,22 @@ msgstr "没抓到足够的声音——检查麦克风是不是被别的 App 占�
 msgid "没抓到足够的声音——这段视频可能没有音轨，换一段试试"
 msgstr "没抓到足够的声音——这段视频可能没有音轨，换一段试试"
 
+#: src/studio/flowStore.ts
+msgid "没接到出片结果，任务可能还在上游那边跑——用下面的「取回」领回来，别重新生成"
+msgstr "没接到出片结果，任务可能还在上游那边跑——用下面的「取回」领回来，别重新生成"
+
+#: src/studio/flowStore.ts
+msgid "没接到出片结果，任务可能还在方舟那边跑——用下面的「取回」领回来，别重新生成"
+msgstr "没接到出片结果，任务可能还在方舟那边跑——用下面的「取回」领回来，别重新生成"
+
 #: src/pages/CustomCardPage.tsx
 msgid "没接到照片：相机那边可能没存下来——再拍一次，或选「上传本地图片」"
 msgstr "没接到照片：相机那边可能没存下来——再拍一次，或选「上传本地图片」"
+
+#. placeholder {0}: msg.slice(0, 80)
+#: src/studio/flowStore.ts
+msgid "没接到结果：{0}"
+msgstr "没接到结果：{0}"
 
 #: src/pages/DiscoverPage.tsx
 msgid "没搜成：{vidErr}"
@@ -7900,6 +8189,10 @@ msgstr "没有叫「{q}」的卡组"
 #: src/pages/SettingsStoragePage.tsx
 msgid "没有可清理的中间文件"
 msgstr "没有可清理的中间文件"
+
+#: src/studio/flowStore.ts
+msgid "没有可还原的上一版"
+msgstr "没有可还原的上一版"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "没有带声音样本的卡——在工坊「从视频提取」圈人物时可以顺手取一段声音"
@@ -8580,6 +8873,14 @@ msgstr "白模复刻出片（「{tierLabel}」档）：模板视频按 {0} 秒�
 msgid "白模复刻段（还没出片）"
 msgstr "白模复刻段（还没出片）"
 
+#: src/studio/flowStore.ts
+msgid "白模复刻段只有一段：画面与运镜整个来自模板视频，没有可续的下一段"
+msgstr "白模复刻段只有一段：画面与运镜整个来自模板视频，没有可续的下一段"
+
+#: src/studio/flowStore.ts
+msgid "白模复刻段的画面来自模板视频，没有走向可推演——改的话去换模板或改点名句。"
+msgstr "白模复刻段的画面来自模板视频，没有走向可推演——改的话去换模板或改点名句。"
+
 #: src/components/flow/SegSettings.tsx
 msgid "白模复刻的画幅自适应模板视频，不可另选"
 msgstr "白模复刻的画幅自适应模板视频，不可另选"
@@ -8600,13 +8901,22 @@ msgstr "白模模板 · 给白色人偶挂人物卡"
 msgid "白模模板 · 给编号的人偶挂人物卡"
 msgstr "白模模板 · 给编号的人偶挂人物卡"
 
+#: src/studio/flowStore.ts
+msgid "白模模板出片暂未开放：还没有档位支持白模（r2v）出片"
+msgstr "白模模板出片暂未开放：还没有档位支持白模（r2v）出片"
+
 #: src/pages/TemplateDetailPage.tsx
+#: src/studio/flowStore.ts
 msgid "白模模板出片暂未开放：还没有档位支持白模（r2v）出片，等开放后再来"
 msgstr "白模模板出片暂未开放：还没有档位支持白模（r2v）出片，等开放后再来"
 
 #: src/studio/canvasAgent.ts
 msgid "白模段用，改成真实角色位与卡名"
 msgstr "白模段用，改成真实角色位与卡名"
+
+#: src/studio/flowStore.ts
+msgid "白模段的画面整个来自模板视频，导演台的构图用不上"
+msgstr "白模段的画面整个来自模板视频，导演台的构图用不上"
 
 #: src/pages/PublishPage.tsx
 msgid "目前所有作品都是<0>免费观看</0>。付费解锁还没开放——等收款和分账真的通了再放出来，免得你以为在收钱、其实一分也到不了账。"
@@ -8953,11 +9263,12 @@ msgid "第 {0} 味音色"
 msgstr "第 {0} 味音色"
 
 #. placeholder {0}: i + 1
+#. placeholder {0}: idx + 1
 #. placeholder {0}: index + 1
-#. placeholder {0}: segIndex + 1
 #: src/components/flow/FlowCanvas.tsx
 #: src/pages/FlowPage.tsx
 #: src/pages/PublishPage.tsx
+#: src/studio/flowStore.ts
 #: src/studio/ui/projection.tsx
 msgid "第 {0} 段"
 msgstr "第 {0} 段"
@@ -8978,9 +9289,36 @@ msgid "第 {0} 段 · 挑一套方案"
 msgstr "第 {0} 段 · 挑一套方案"
 
 #. placeholder {0}: i + 1
+#: src/studio/flowStore.ts
+msgid "第 {0} 段：{issue}"
+msgstr "第 {0} 段：{issue}"
+
+#. placeholder {0}: i + 1
 #: src/pages/FlowPage.tsx
 msgid "第 {0} 段（还没轮到）"
 msgstr "第 {0} 段（还没轮到）"
+
+#. placeholder {0}: idx + 1
+#. placeholder {1}: msg.slice(0, 150)
+#: src/studio/flowStore.ts
+msgid "第 {0} 段{1}成片 24 小时内都能取回：点下面那颗「取回」，不再花一分钱；「重新生成」是重新下一单、会再花一次。"
+msgstr "第 {0} 段{1}成片 24 小时内都能取回：点下面那颗「取回」，不再花一分钱；「重新生成」是重新下一单、会再花一次。"
+
+#. placeholder {0}: idx + 1
+#. placeholder {1}: msg.slice(0, 150)
+#: src/studio/flowStore.ts
+msgid "第 {0} 段{1}点下面那颗「取回」把它领回来，不再花一分钱；「重新生成」是重新下一单、会再花一次。"
+msgstr "第 {0} 段{1}点下面那颗「取回」把它领回来，不再花一分钱；「重新生成」是重新下一单、会再花一次。"
+
+#. placeholder {0}: i + 1
+#: src/studio/flowStore.ts
+msgid "第 {0} 段不是白模模板，这一组没法整组套用"
+msgstr "第 {0} 段不是白模模板，这一组没法整组套用"
+
+#. placeholder {0}: idx + 1
+#: src/studio/flowStore.ts
+msgid "第 {0} 段出片完成"
+msgstr "第 {0} 段出片完成"
 
 #. placeholder {0}: o.seg
 #. placeholder {1}: was !== prevReq ? "…" : ""
@@ -8999,10 +9337,46 @@ msgstr "第 {0} 段挂卡：这个模板人数可能超过 {BLOCKOUT_MAX_ROLES} 
 msgid "第 {0} 段挂着 {1} 张对得上「{name}」的卡（{names}），说全名"
 msgstr "第 {0} 段挂着 {1} 张对得上「{name}」的卡（{names}），说全名"
 
+#. placeholder {0}: idx + 1
+#: src/studio/flowStore.ts
+msgid "第 {0} 段推演失败"
+msgstr "第 {0} 段推演失败"
+
+#. placeholder {0}: idx + 1
+#: src/studio/flowStore.ts
+msgid "第 {0} 段推演好了三套方案"
+msgstr "第 {0} 段推演好了三套方案"
+
 #. placeholder {0}: job.seg
 #: src/components/flow/SegmentRecoverCards.tsx
 msgid "第 {0} 段有一发成片还没取回"
 msgstr "第 {0} 段有一发成片还没取回"
+
+#. placeholder {0}: idx + 1
+#: src/studio/flowStore.ts
+msgid "第 {0} 段本来就没套模板，不用摘（想关掉这个弹层点右上角的 ✕）"
+msgstr "第 {0} 段本来就没套模板，不用摘（想关掉这个弹层点右上角的 ✕）"
+
+#. placeholder {0}: i >= 0 ? i + 1 : s.cursor + 1
+#: src/studio/flowStore.ts
+msgid "第 {0} 段正在生成中（钱已经在花了）——换掉流水线不会把它停下，回包时那笔钱照扣、成片却落在一条已经不存在的流水线上。等它跑完再来"
+msgstr "第 {0} 段正在生成中（钱已经在花了）——换掉流水线不会把它停下，回包时那笔钱照扣、成片却落在一条已经不存在的流水线上。等它跑完再来"
+
+#. placeholder {0}: s0.nodes.indexOf(node) + 1
+#: src/studio/flowStore.ts
+msgid "第 {0} 段没有套可挂卡的白模模板（角色位只有白模模板才有）——在这一段的编辑窗点「🧪 套模板」选一个，别去模板市场重套（那会整条流水线重铺）"
+msgstr "第 {0} 段没有套可挂卡的白模模板（角色位只有白模模板才有）——在这一段的编辑窗点「🧪 套模板」选一个，别去模板市场重套（那会整条流水线重铺）"
+
+#. placeholder {0}: idx + 1
+#: src/studio/flowStore.ts
+msgid "第 {0} 段生成失败"
+msgstr "第 {0} 段生成失败"
+
+#. placeholder {0}: idx + 1
+#. placeholder {1}: msg.slice(0, 120)
+#: src/studio/flowStore.ts
+msgid "第 {0} 段生成失败：{1}"
+msgstr "第 {0} 段生成失败：{1}"
 
 #. placeholder {0}: index + 1
 #: src/pages/FlowPage.tsx
@@ -9020,6 +9394,16 @@ msgstr "第 {0} 段还没轮到（前面的段先炼完才解锁），挂不了�
 #: src/components/flow/SegmentRecoverCards.tsx
 msgid "第 {0} 段那一发已经取不回来了"
 msgstr "第 {0} 段那一发已经取不回来了"
+
+#. placeholder {0}: idx + 1
+#: src/studio/flowStore.ts
+msgid "第 {0} 段重画失败"
+msgstr "第 {0} 段重画失败"
+
+#. placeholder {0}: idx + 1
+#: src/studio/flowStore.ts
+msgid "第 {0} 段重画好了"
+msgstr "第 {0} 段重画好了"
 
 #. placeholder {0}: (m - winStart).toFixed(1)
 #. placeholder {0}: at - start
@@ -9158,6 +9542,10 @@ msgstr "简介"
 #: src/pages/FlowPage.tsx
 msgid "简约模式"
 msgstr "简约模式"
+
+#: src/studio/flowStore.ts
+msgid "简约模式只有一段，插不了中间帧——要多段接力去「工作流」里做"
+msgstr "简约模式只有一段，插不了中间帧——要多段接力去「工作流」里做"
 
 #: src/components/blockout/RoleCastBoard.tsx
 #: src/components/flow/SkillPanel.tsx
@@ -9443,6 +9831,10 @@ msgstr "自动查授权没成：{0}"
 #: src/studio/ui/projection.tsx
 msgid "自定义"
 msgstr "自定义"
+
+#: src/studio/flowStore.ts
+msgid "自定义段的首尾帧与参考视频是你自己给的，没有走向可推演——直接改帧或改这一段的要求。"
+msgstr "自定义段的首尾帧与参考视频是你自己给的，没有走向可推演——直接改帧或改这一段的要求。"
 
 #: src/pages/CustomCardPage.tsx
 msgid "自己上传图片"
@@ -10126,6 +10518,11 @@ msgstr "输入该用户的用户名 <0>{0}</0> 以确认："
 msgid "边界"
 msgstr "边界"
 
+#. placeholder {0}: rv.instruction.trim().slice(0, 20)
+#: src/studio/flowStore.ts
+msgid "返修：{0}"
+msgstr "返修：{0}"
+
 #: src/components/AvatarPicker.tsx
 #: src/components/IconTapButton.tsx
 #: src/pages/VideoPage.tsx
@@ -10367,6 +10764,10 @@ msgstr "还没标任何一帧。至少要标 1 帧才能开炼——拖上面的
 msgid "还没标刀——不标就自动对半切到每段 ≤30 秒。想自己定切点，把播放头拖到镜头切换那一帧点「在这里切一刀」。"
 msgstr "还没标刀——不标就自动对半切到每段 ≤30 秒。想自己定切点，把播放头拖到镜头切换那一帧点「在这里切一刀」。"
 
+#: src/studio/flowStore.ts
+msgid "还没给任何人偶挂卡，先去挂卡再合成预览"
+msgstr "还没给任何人偶挂卡，先去挂卡再合成预览"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "还没试跑过。发之前建议回上一步跑一遍，看看动作和表情是不是真的都能演。"
 msgstr "还没试跑过。发之前建议回上一步跑一遍，看看动作和表情是不是真的都能演。"
@@ -10394,9 +10795,17 @@ msgstr "这一下同时落在 {0} 个人偶上（他们在画面上叠着）—�
 msgid "这一发白模化已经取不回来了"
 msgstr "这一发白模化已经取不回来了"
 
+#: src/studio/flowStore.ts
+msgid "这一套方案还没有剧情——先写点什么，我才知道要画成什么样"
+msgstr "这一套方案还没有剧情——先写点什么，我才知道要画成什么样"
+
 #: src/pages/CustomCardPage.tsx
 msgid "这一张既当卡面，也当这张卡的主形象参考。"
 msgstr "这一张既当卡面，也当这张卡的主形象参考。"
+
+#: src/studio/flowStore.ts
+msgid "这一档不经过方案台。"
+msgstr "这一档不经过方案台。"
 
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "这一次会拿什么去写"
@@ -10416,22 +10825,59 @@ msgstr "这一步花两笔：AI 看 {frameCount} 帧认出画面里有哪些人�
 msgid "这一步花两笔：AI 看 {frameCount} 帧认出画面里有哪些人（按这 {durSec} 秒自动取，多看几帧不额外收费 · {0}）"
 msgstr "这一步花两笔：AI 看 {frameCount} 帧认出画面里有哪些人（按这 {durSec} 秒自动取，多看几帧不额外收费 · {0}）"
 
+#: src/studio/flowStore.ts
+msgid "这一段不是带角色位的白模段，没有可预览的挂法"
+msgstr "这一段不是带角色位的白模段，没有可预览的挂法"
+
 #. placeholder {0}: selectionSummary(outSel, geo)
 #: src/components/blockout/BlockoutTrimmer.tsx
 msgid "这一段可以开炼：{0}"
 msgstr "这一段可以开炼：{0}"
 
+#: src/studio/flowStore.ts
+msgid "这一段在生成过程中被删掉了（或整条流水线被换过）——这一炉的钱已经扣了，成片没处放。下次等它跑完再动流水线"
+msgstr "这一段在生成过程中被删掉了（或整条流水线被换过）——这一炉的钱已经扣了，成片没处放。下次等它跑完再动流水线"
+
+#: src/studio/flowStore.ts
+msgid "这一段套着模板——先「摘掉模板」（改为自选）再自定义首尾帧"
+msgstr "这一段套着模板——先「摘掉模板」（改为自选）再自定义首尾帧"
+
 #: src/components/flow/SegSettings.tsx
 msgid "这一段已出片，改画幅要重新生成才生效"
 msgstr "这一段已出片，改画幅要重新生成才生效"
+
+#: src/studio/flowStore.ts
+msgid "这一段已经不是白模段了，预览没处放（图钱已经花掉）"
+msgstr "这一段已经不是白模段了，预览没处放（图钱已经花掉）"
+
+#: src/studio/flowStore.ts
+msgid "这一段已经出片，拆不了——想改分段就先删掉本段再重新铺"
+msgstr "这一段已经出片，拆不了——想改分段就先删掉本段再重新铺"
+
+#: src/studio/flowStore.ts
+msgid "这一段已经出片，挂参考视频不会改成片——想重来就先删掉本段"
+msgstr "这一段已经出片，挂参考视频不会改成片——想重来就先删掉本段"
 
 #: src/studio/ui/projection.tsx
 msgid "这一段已经出片，退不回去了"
 msgstr "这一段已经出片，退不回去了"
 
+#: src/studio/flowStore.ts
+msgid "这一段已经出片：想改画面就先删掉本段再加一段，别在成片底下换帧"
+msgstr "这一段已经出片：想改画面就先删掉本段再加一段，别在成片底下换帧"
+
+#: src/studio/flowStore.ts
+msgid "这一段已经出片：换模板会作废这段成片。想换就删除本段重加，或先接受重炼这一段的花费"
+msgstr "这一段已经出片：换模板会作废这段成片。想换就删除本段重加，或先接受重炼这一段的花费"
+
 #: src/pages/CutPage.tsx
 msgid "这一段已经改好、钱也扣过了，但{why}"
 msgstr "这一段已经改好、钱也扣过了，但{why}"
+
+#. placeholder {0}: plan.skipped
+#: src/studio/flowStore.ts
+msgid "这一段带着参考视频，出片时不接受圈选改画面——这 {0} 处得先清掉才能开炼（它们也不计费）。"
+msgstr "这一段带着参考视频，出片时不接受圈选改画面——这 {0} 处得先清掉才能开炼（它们也不计费）。"
 
 #: src/studio/ui/projection.tsx
 msgid "这一段怎么拍？挑一张"
@@ -10464,9 +10910,21 @@ msgstr "这一段推演出的 {0} 套方案会一起丢掉，推演已经花掉�
 msgid "这一段播不出来（错误码 {codeText}）——成片地址可能已经过期或网络不通，回工作流重新打开草稿会重新取一遍"
 msgstr "这一段播不出来（错误码 {codeText}）——成片地址可能已经过期或网络不通，回工作流重新打开草稿会重新取一遍"
 
+#: src/studio/flowStore.ts
+msgid "这一段正在出片，等它结束再换开头帧"
+msgstr "这一段正在出片，等它结束再换开头帧"
+
 #: src/components/flow/SegPlayer.tsx
 msgid "这一段正在生成，炼完再圈"
 msgstr "这一段正在生成，炼完再圈"
+
+#: src/studio/flowStore.ts
+msgid "这一段正在生成中，等它跑完再改挂卡（改了也得重炼一次，别白花一次钱）"
+msgstr "这一段正在生成中，等它跑完再改挂卡（改了也得重炼一次，别白花一次钱）"
+
+#: src/studio/flowStore.ts
+msgid "这一段没有套可挂卡的白模模板（角色位只有白模模板才有）——在这一段的编辑窗点「🧪 套模板」选一个，别去模板市场重套（那会整条流水线重铺）"
+msgstr "这一段没有套可挂卡的白模模板（角色位只有白模模板才有）——在这一段的编辑窗点「🧪 套模板」选一个，别去模板市场重套（那会整条流水线重铺）"
 
 #: src/components/flow/SegPlayer.tsx
 msgid "这一段现在选中的走向还没有成片"
@@ -10475,6 +10933,10 @@ msgstr "这一段现在选中的走向还没有成片"
 #: src/pages/CutPage.tsx
 msgid "这一段的截帧流还在取（成片有 20MB 级，稍等几秒再点圈选）"
 msgstr "这一段的截帧流还在取（成片有 20MB 级，稍等几秒再点圈选）"
+
+#: src/studio/flowStore.ts
+msgid "这一段的方案已经换了，融好的开头帧没处放（图钱已经花掉）"
+msgstr "这一段的方案已经换了，融好的开头帧没处放（图钱已经花掉）"
 
 #: src/studio/ui/projection.tsx
 msgid "这一段的画质档"
@@ -10493,6 +10955,10 @@ msgstr "这一段的结束画面不再锁得住（「{0}」档只认起拍帧）
 msgid "这一段的要求由挂卡合成：AI 把「{noun} → 你挂的角色」写成一段话填进输入框，出片前能逐字过目和修改。{noun}与角色名是机器按画面生成的，改错就会换错人；其余文字随便改。改挂卡会按新映射重新合成并覆盖这里的内容。"
 msgstr "这一段的要求由挂卡合成：AI 把「{noun} → 你挂的角色」写成一段话填进输入框，出片前能逐字过目和修改。{noun}与角色名是机器按画面生成的，改错就会换错人；其余文字随便改。改挂卡会按新映射重新合成并覆盖这里的内容。"
 
+#: src/studio/flowStore.ts
+msgid "这一段返修不了：{issue}"
+msgstr "这一段返修不了：{issue}"
+
 #: src/studio/ui/projection.tsx
 msgid "这一段还没出片，模板与挂卡都能重选，不花钱"
 msgstr "这一段还没出片，模板与挂卡都能重选，不花钱"
@@ -10500,6 +10966,22 @@ msgstr "这一段还没出片，模板与挂卡都能重选，不花钱"
 #: src/studio/ui/projection.tsx
 msgid "这一段还没出片，退回去不花钱"
 msgstr "这一段还没出片，退回去不花钱"
+
+#: src/studio/flowStore.ts
+msgid "这一段还没有能播的成片，没什么可截的"
+msgstr "这一段还没有能播的成片，没什么可截的"
+
+#: src/studio/flowStore.ts
+msgid "这一段还没有能返修的成片——先生成，或者等转存完成"
+msgstr "这一段还没有能返修的成片——先生成，或者等转存完成"
+
+#: src/studio/flowStore.ts
+msgid "这一段还没有选定的方案，导演台的截图没处放"
+msgstr "这一段还没有选定的方案，导演台的截图没处放"
+
+#: src/studio/flowStore.ts
+msgid "这一炉一个方案都没有，铸不成段"
+msgstr "这一炉一个方案都没有，铸不成段"
 
 #: src/components/ForgeOverlay.tsx
 msgid "这一炉没成"
@@ -10553,6 +11035,10 @@ msgstr "这不代表它不存在，只是这次没问到"
 #: src/components/PortraitAuthPanel.tsx
 msgid "这不像方舟的资产 ID —— 应该长成 asset-20260401123823-6d4x2 这样（在方舟控制台点「复制 asset ID」拿到）"
 msgstr "这不像方舟的资产 ID —— 应该长成 asset-20260401123823-6d4x2 这样（在方舟控制台点「复制 asset ID」拿到）"
+
+#: src/studio/flowStore.ts
+msgid "这不是白模模板（只有白模模板能按段套用）"
+msgstr "这不是白模模板（只有白模模板能按段套用）"
 
 #: src/components/UpdateSheet.tsx
 msgid "这个 App 不是从应用商店装的，系统需要你先允许它安装应用，才能自己完成更新。"
@@ -11410,6 +11896,25 @@ msgstr "重生成 {segCount} 段约需 {need} token，余额 {have} 不足——
 msgid "重画中…"
 msgstr "重画中…"
 
+#. placeholder {0}: msg.slice(0, 120)
+#: src/studio/flowStore.ts
+msgid "重画失败：{0}"
+msgstr "重画失败：{0}"
+
+#: src/studio/flowStore.ts
+msgid "重画结束画面…{noteTail}"
+msgstr "重画结束画面…{noteTail}"
+
+#: src/studio/flowStore.ts
+msgid "重画起始画面…{noteTail}"
+msgstr "重画起始画面…{noteTail}"
+
+#. placeholder {0}: fmtTokens(cost)
+#. placeholder {1}: fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0))
+#: src/studio/flowStore.ts
+msgid "重画这一套约 {0} token，余额 {1} 不足——去「我的」页充值"
+msgstr "重画这一套约 {0} token，余额 {1} 不足——去「我的」页充值"
+
 #: src/pages/SettingsPage.tsx
 msgid "重看各个界面的使用说明"
 msgstr "重看各个界面的使用说明"
@@ -11566,6 +12071,11 @@ msgstr "音量"
 msgid "音频"
 msgstr "音频"
 
+#. placeholder {0}: e instanceof Error ? e.message.slice(0, 80) : String(e)
+#: src/studio/flowStore.ts
+msgid "预览帧还是没截到（{0}）——成片本身没事，点开卡片可回看"
+msgstr "预览帧还是没截到（{0}）——成片本身没事，点开卡片可回看"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "预览没画出来，试跑跑不了 —— 跑了也只是在官方看板娘身上演一遍。先点上面的「重新加载预览」。"
 msgstr "预览没画出来，试跑跑不了 —— 跑了也只是在官方看板娘身上演一遍。先点上面的「重新加载预览」。"
@@ -11590,6 +12100,10 @@ msgstr "领取"
 #: src/components/flow/TierRow.tsx
 msgid "首尾帧会改成\"参考图 + 提示词点名\"发出去（换来的是素材卡形象能一起发；代价是起止画面不再是硬约束）"
 msgstr "首尾帧会改成\"参考图 + 提示词点名\"发出去（换来的是素材卡形象能一起发；代价是起止画面不再是硬约束）"
+
+#: src/studio/flowStore.ts
+msgid "首尾帧都是你自己换的图，没有可让 AI 重画的部分（想重画就先在卡里清掉那一帧）"
+msgstr "首尾帧都是你自己换的图，没有可让 AI 重画的部分（想重画就先在卡里清掉那一帧）"
 
 #: src/components/flow/CustomFrameSlots.tsx
 msgid "首帧"
