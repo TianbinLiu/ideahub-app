@@ -63,7 +63,9 @@
 - **CardDetailPage / DeckDetailPage / TemplateDetailPage / TemplateMarketPage / CustomCardPage / DraftsPage / NotificationsPage**：见各文件头 1-25 行
 
 ### 1.5 启动行为
-- 冷启动先装 IndexedDB 数据层（视频/账号/社交/模板/草稿/弹幕/剪辑稿），装完前显示「正在打开作品库…」 — `app\src\App.tsx:203-225`
+- 冷启动先装 IndexedDB 数据层（视频/账号/社交/模板/草稿/弹幕/剪辑稿），装完前显示「正在打开作品库…」 — `app\src\App.tsx`、`app\src\data\boot.ts`
+- 本机数据库读不出来时**只停住用到它的那一块**：草稿箱、剪到一半的成片、我的模板会写「这会儿没读出来」并给「重试」（进那一屏先自动重试一次），读出来之前不会往里写、不会盖掉原来的；首页、账号、发现等照常能用。只有开机连不上服务器、本机的作品库 / 账号库也读不出来时，才整页显示「作品库没能打开」+ 重试 — `app\docs\local-storage-failure.md`
+- 系统发现本机数据库文件损坏、清空重建过时，开机会弹一次「这台设备上的本机数据被系统清空了」：只存在本机的草稿等已经没了、救不回来；已发布的作品与账号在服务器上不受影响 — `app\src\components\DataLossNotice.tsx`
 - 除工坊外全局锁竖屏（native manifest 已钉死，Web 层改不动） — `app\src\App.tsx:88-92`；`app\CLAUDE.md:285`
 - 已登录但本机没有当前版本协议同意记录的用户，开屏弹补签门；「不同意」只退登录态，不拦浏览 — `app\src\App.tsx:115-177`
 

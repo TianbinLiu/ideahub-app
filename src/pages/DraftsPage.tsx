@@ -13,8 +13,9 @@ import PageHeader from "../components/PageHeader";
 import { useNavigate } from "react-router";
 import { Trans, useLingui } from "@lingui/react/macro";
 import DraftSheet from "../components/DraftSheet";
+import { DraftsUnavailable } from "../components/LocalStoreIssue";
 import { MAX_DRAFTS, type WorkDraftMeta } from "../data/drafts";
-import { useDrafts } from "../hooks/useDrafts";
+import { useDrafts, useDraftsLoad } from "../hooks/useDrafts";
 import { useStudio } from "../studio/studioStore";
 import { relativeTime } from "../types";
 
@@ -22,6 +23,8 @@ export default function DraftsPage() {
   const nav = useNavigate();
   const { t } = useLingui();
   const drafts = useDrafts();
+  // ★ 索引没读出来时列表恒为空 —— 先判它，别对着一次读失败说「还没有草稿」（data/drafts 的 loadIssue ★★）
+  const load = useDraftsLoad();
   const [pick, setPick] = useState<WorkDraftMeta | null>(null);
   // 手上正在做的那条（自动存盘认领的草稿）——标出来，用户才知道"哪条是我现在这摊活"
   const currentId = useStudio((s) => s.workDraftId);
@@ -32,9 +35,12 @@ export default function DraftsPage() {
         onBack={() => nav(-1)}
         title={t`草稿箱`}
         right={
-          <span className="flex-none text-[11px] text-slate-500">
-            {drafts.length}/{MAX_DRAFTS}
-          </span>
+          // 读不出来时不摆「0/20」：那个数说的是"你一条都没有"
+          load.issue ? undefined : (
+            <span className="flex-none text-[11px] text-slate-500">
+              {drafts.length}/{MAX_DRAFTS}
+            </span>
+          )
         }
       />
       {/* 容量规则说在明处：超限清最旧不是 bug，是防配额吃满（drafts.MAX_DRAFTS 的 ★）。
@@ -43,7 +49,9 @@ export default function DraftsPage() {
         <Trans>草稿只存在这台设备上；超过 {MAX_DRAFTS} 条会从最旧的清起。每炼成一段都会自动存进当前草稿。</Trans>
       </p>
 
-      {drafts.length === 0 ? (
+      {load.issue ? (
+        <DraftsUnavailable retrying={load.retrying} onRetry={load.retry} />
+      ) : drafts.length === 0 ? (
         <EmptyState
           emoji="📝"
           text={t`还没有草稿——工坊和工作流里做到一半的工程都会存到这里`}

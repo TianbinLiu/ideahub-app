@@ -25,9 +25,9 @@
 //   那一摊归 `data/videoDownload` 的 `listDownloads()` / `clearDownloads()` 管，
 //   入口在设置 → 存储那一页，与这里的「清理缓存」并列成两行、两颗键、两句话。
 import { idbDel, idbGet, idbKeys } from "./db";
-import { listDrafts, loadDraft } from "./drafts";
+import { draftsLoadIssue, listDrafts, loadDraft } from "./drafts";
 import { allPendingDraftsForSweep, listVideos } from "./videos";
-import { cutSession } from "./cutSession";
+import { cutSession, cutSessionLoadIssue } from "./cutSession";
 import { myCards } from "./account";
 import type { VideoSegment } from "../types";
 
@@ -40,6 +40,11 @@ const MIN_AGE_MS = 24 * 60 * 60 * 1000;
 export interface SweepPlan {
   keys: string[];
   bytes: number;
+  /**
+   * 这一轮为什么一个都不删。★ 与"确实没有可清理的"是两句话（2026-09-11）：草稿索引 / 剪辑稿没读出来时，
+   * 它们引用的合并成片与 GLB 数不到，引用收集必然不完整 —— 这时说"没有可清理的"是假话，清了就是误删。
+   */
+  blocked?: "unreadStores";
 }
 
 /** 从 `idb:xxx` 指针里取出键名；不是这种形式就返回 null */
@@ -159,6 +164,9 @@ function bornAt(key: string): number | null {
  * @param now 注入当前时间，方便测试
  */
 export async function planSweep(now = Date.now()): Promise<SweepPlan> {
+  // ★★ 草稿索引 / 剪辑稿没读出来（它们的 loadIssue）：它们引用着的合并成片与 GLB 这一轮数不到，
+  //   引用收集必然不完整 —— 一个都不删，并且说清楚为什么（SweepPlan.blocked），别说成"没有可清理的"
+  if (draftsLoadIssue() || cutSessionLoadIssue()) return { keys: [], bytes: 0, blocked: "unreadStores" };
   const refs = await collectReferenced();
   if (refs.has("*")) return { keys: [], bytes: 0 }; // 引用收集不完整，一个都不删
   const all = await idbKeys();

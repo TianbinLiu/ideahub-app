@@ -2618,6 +2618,10 @@ msgstr "If <0>two mannequins stand almost on top of each other</0> and you can't
 msgid "上一张还没拍完"
 msgstr "The previous photo isn't finished yet"
 
+#: src/hooks/useFlowActions.ts
+msgid "上一条剪到一半的成片这会儿没读出来（本机数据库没打开），现在组稿会把它顶掉。先去「我的」点「重试」，读出来之后再来组这一条。"
+msgstr "Your previous half-edited video couldn't be loaded right now (this device's database didn't open), and assembling now would replace it. Go to “Me” and tap “Retry”, then come back to assemble this one once it loads."
+
 #: src/components/PhotoSubjectPicker.tsx
 #: src/pages/SupportModelNewPage.tsx
 #: src/pages/SupportPersonaNewPage.tsx
@@ -2717,6 +2721,10 @@ msgstr "Uploaded audio"
 #: src/components/VoiceUploadButton.tsx
 msgid "上传音频（原片较长，取前 {VOICE_MAX_SEC}s）"
 msgstr "Uploaded audio (the original was longer; kept the first {VOICE_MAX_SEC}s)"
+
+#: src/components/LocalStoreIssue.tsx
+msgid "上次剪到一半的成片这会儿没读出来（这台手机上的本地数据库没打开）。读出来之前不能组新的片子 —— 组稿会把它顶掉。"
+msgstr "Your last half-edited video couldn't be loaded right now (the local database on this phone didn't open). You can't assemble a new video until it loads — assembling would replace it."
 
 #: src/pages/DraftsPage.tsx
 msgid "上次在🎴 工坊"
@@ -3388,6 +3396,10 @@ msgstr "Works and cards are synced to the server, so you'll see them when you lo
 #: src/pages/EditPage.tsx
 msgid "作品内容"
 msgstr "Video content"
+
+#: src/components/BootFailed.tsx
+msgid "作品库没能打开"
+msgstr "Couldn't open your library"
 
 #: src/pages/AdminPage.tsx
 msgid "作品管理列表"
@@ -4676,6 +4688,10 @@ msgstr "The script is too short (at least {SCRIPT_MIN} characters)"
 #: src/pages/CutPage.tsx
 msgid "剪辑"
 msgstr "Edit"
+
+#: src/studio/studioStore.ts
+msgid "剪辑稿没能存进本地库：上一条剪到一半的成片还没读出来，存下去会把它盖掉。先去「我的」点「重试」。"
+msgstr "The edit couldn't be saved on this device: your previous half-edited video hasn't loaded yet, and saving would overwrite it. Go to “Me” and tap “Retry” first."
 
 #: src/studio/canvasAgent.ts
 msgid "办好了。"
@@ -7117,6 +7133,10 @@ msgstr "It's now public in the look market, and others can find it."
 msgid "已经到片段末尾了（片段共 {0} 秒，不含第 {1} 秒这一格）——往前挪一格再标。"
 msgstr "That's the end of the clip (the clip is {0}s long and doesn't include the step at {1}s) — move back one step and mark again."
 
+#: src/components/DataLossNotice.tsx
+msgid "已经发布的作品、账号和同步到服务器的卡片都在服务器上，不受影响。"
+msgstr "Your published videos, your account, and cards synced to the server are stored on the server and aren't affected."
+
 #: src/data/videoDownload.ts
 msgid "已经在保存另一条作品了，等它完成或点停止。"
 msgstr "Another video is already being saved — wait for it to finish, or tap Stop."
@@ -7868,6 +7888,10 @@ msgstr "Phone / username"
 #: src/pages/LoginPage.tsx
 msgid "手机号（中国大陆）"
 msgstr "Phone number (mainland China)"
+
+#: src/components/BootFailed.tsx
+msgid "手机存储空间不够，这台手机上的本地数据库打不开"
+msgstr "The phone is out of storage, so the local database on this phone can't be opened"
 
 #: src/data/videoDownload.ts
 msgid "手机空间不够，这一段没写完。腾点空间再点一次。"
@@ -10126,6 +10150,14 @@ msgstr "Connecting…"
 msgid "正在重写这一处…"
 msgstr "Rewriting this part…"
 
+#: src/hooks/useFlowActions.ts
+msgid "正在重新读取上一条剪辑稿…"
+msgstr "Reloading your previous edit…"
+
+#: src/components/LocalStoreIssue.tsx
+msgid "正在重新读取草稿箱…"
+msgstr "Reloading drafts…"
+
 #: src/pages/EditPage.tsx
 #: src/pages/PublishPage.tsx
 msgid "正在重试…"
@@ -10954,6 +10986,10 @@ msgstr "No videos are taken down right now"
 #: src/components/blockout/BoxFramePicker.tsx
 msgid "现在这一帧（原片第 {0} 秒）在选段外面——选段是原片的第 {1}~{2} 秒，只有那一段会被做成模板。把播放头挪进选段再标，或者先把上面的选段拖到这儿来。"
 msgstr "This frame ({0}s in the original) is outside the selection — the selection is {1}–{2}s of the original, and only that part becomes the template. Move the playhead into the selection before marking, or drag the selection above over here first."
+
+#: src/components/BootFailed.tsx
+msgid "现在连不上服务器，只能读这台手机上的数据，而它没读出来 —— 硬进去只会看到空首页、被登出，所以先停在这里。点重试只是再读一遍，不会删掉你的东西。"
+msgstr "The server can't be reached right now, so only the data on this phone can be used — and it couldn't be read. Going in anyway would show an empty home feed and sign you out, so we're stopping here. Retry just reads it again; it won't delete anything of yours."
 
 #: src/components/flow/ScriptSkillSheet.tsx
 #: src/pages/FeedPage.tsx
@@ -12481,6 +12517,10 @@ msgstr "Pasted text"
 msgid "精度"
 msgstr "Quality"
 
+#: src/components/DataLossNotice.tsx
+msgid "系统在打开本机数据库时发现文件已经损坏，把它清空后重建了一个新的。只存在这台设备上的东西 —— 草稿、剪到一半的成片、还没传上去的作品、本机模板 —— 没有了，救不回来。"
+msgstr "When opening this device's database, the system found its files damaged, cleared them and created a new one. Things that existed only on this device — drafts, half-edited videos, videos not yet uploaded and local templates — are gone and can't be recovered."
+
 #: src/studio/ui/NpcDialog.tsx
 msgid "系统没有中文语音包，暂时发不出声（嘴型仍会动）"
 msgstr "Your system has no Chinese voice pack, so there's no sound for now (the mouth still moves)"
@@ -12926,9 +12966,21 @@ msgstr "Drafts are stored only on this device; beyond {MAX_DRAFTS}, the oldest a
 msgid "草稿箱"
 msgstr "Drafts"
 
+#: src/pages/SettingsStoragePage.tsx
+msgid "草稿箱或剪到一半的成片这会儿没读出来，先不清理 —— 不然会把它们还在用的文件当成没人要的删掉。去草稿箱点「重试」读出来之后再来。"
+msgstr "Your drafts or half-edited video couldn't be loaded right now, so nothing will be cleaned up — otherwise files they still use could be deleted as unused. Go to Drafts, tap “Retry”, and come back once they load."
+
 #: src/pages/ProfilePage.tsx
 msgid "草稿箱整页 ›"
 msgstr "All drafts ›"
+
+#: src/data/drafts.ts
+msgid "草稿箱这会儿没打开（本机数据库没读出来），这一版没存进草稿。去草稿箱点「重试」，读出来之后再存。"
+msgstr "Drafts aren't available right now (this device's database couldn't be read), so this version wasn't saved as a draft. Go to Drafts and tap “Retry”, then save again once they load."
+
+#: src/components/LocalStoreIssue.tsx
+msgid "草稿箱这会儿没读出来（这台手机上的本地数据库没打开）"
+msgstr "Drafts couldn't be loaded right now (the local database on this phone didn't open)"
 
 #: src/studio/personaWizardStore.ts
 msgid "草稿还没有名字，回上一步补一个再试聊。"
@@ -13035,6 +13087,10 @@ msgstr "People who equip this look and haven't picked a persona or voice yet get
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "装备为当前人格"
 msgstr "Equip as current persona"
+
+#: src/components/BootFailed.tsx
+msgid "装载时出了错"
+msgstr "Something went wrong while loading"
 
 #: src/data/schemeMarket.ts
 msgid "装这套方案没成：{why}"
@@ -13476,6 +13532,10 @@ msgstr "Enter the verification code"
 msgid "请选择图片文件"
 msgstr "Please choose an image file"
 
+#: src/components/LocalStoreIssue.tsx
+msgid "读不出来不等于没了：读出来之前不会往草稿箱里写，原来的草稿不会被盖掉。其它功能照常能用。"
+msgstr "Not loading doesn't mean they're gone: nothing is written to Drafts until they load, so your existing drafts won't be overwritten. Everything else still works."
+
 #: src/api/uploads.ts
 msgid "读不出这个视频的时长或尺寸（文件可能损坏），请换一个 mp4/mov 文件重试。"
 msgstr "Couldn't read this video's duration or dimensions (the file may be damaged). Try a different mp4/mov file."
@@ -13528,6 +13588,7 @@ msgstr "Couldn't load the voice catalog"
 
 #: src/components/CoverPicker.tsx
 #: src/components/flow/CustomFrameSlots.tsx
+#: src/components/LocalStoreIssue.tsx
 #: src/components/support/AdminTicketsView.tsx
 #: src/components/support/VoiceMarket.tsx
 #: src/pages/AdminPage.tsx
@@ -13604,6 +13665,10 @@ msgstr "Account"
 #: src/pages/AdminPage.tsx
 msgid "账号本身永久删除，无法恢复，也无法用同名重建找回任何数据"
 msgstr "The account itself is permanently deleted. It can't be restored, and re-creating it under the same name won't bring back any data"
+
+#: src/components/BootFailed.tsx
+msgid "账号没装载完整 —— 硬进去页面会缺东西，所以先停在这里。点重试只是再装一遍，不会删掉你的东西。"
+msgstr "Your account didn't finish loading — going in anyway would leave pages missing things, so we're stopping here. Retry just loads it again; it won't delete anything of yours."
 
 #: src/types.ts
 msgid "质感特写"
@@ -13824,6 +13889,14 @@ msgstr "Can't save a draft yet (empty project or the write failed)"
 #: src/pages/SupportPage.tsx
 msgid "还想补充什么？任务号、大概时间、屏幕上的提示…"
 msgstr "Anything to add? Task ID, rough time, what the screen said…"
+
+#: src/components/BootFailed.tsx
+msgid "还是不行的话，把 App 从最近任务里彻底划掉重新打开。"
+msgstr "If that doesn't work, swipe the app away from Recent apps and open it again."
+
+#: src/components/BootFailed.tsx
+msgid "还是不行的话：手机存储快满了就先腾出一些空间，再把 App 从最近任务里彻底划掉重新打开。"
+msgstr "If that doesn't work: if your phone's storage is nearly full, free up some space first, then swipe the app away from Recent apps and open it again."
 
 #: src/pages/PublishPage.tsx
 msgid "还是先按「仅自己可见」发出去吧"
@@ -14654,6 +14727,10 @@ msgstr "This sentence is longer than {VIDEO_PROMPT_MAX} characters — the input
 msgid "这台手机上没有能接收视频的应用。文件已经在 App 内，装一个文件管理器再试。"
 msgstr "No app on this phone can receive videos. The file is already in the app — install a file manager and try again."
 
+#: src/components/BootFailed.tsx
+msgid "这台手机上的本地数据库这会儿打不开"
+msgstr "The local database on this phone can't be opened right now"
+
 #: src/api/uploads.ts
 msgid "这台服务器不支持回收模板视频（可能需要升级服务端）"
 msgstr "This server can't clean up template videos (it may need a server upgrade)"
@@ -14786,6 +14863,18 @@ msgstr "This server doesn't support notifications yet"
 msgid "这台设备上合成用不了——合成走的是系统硬件编解码器，只有安装包里有。请在手机 App 里完成合成。"
 msgstr "Merging isn't available on this device — it uses the system's hardware codecs, which only the installed app has. Please merge in the mobile app."
 
+#: src/components/DanmakuInput.tsx
+msgid "这台设备上存的弹幕这会儿没读出来，这次发的弹幕关掉 App 就没了"
+msgstr "Bullet comments saved on this device couldn't be loaded right now; bullet comments you send now will be gone when you close the app"
+
+#: src/components/LocalStoreIssue.tsx
+msgid "这台设备上存的模板这会儿没读出来，下面可能缺几条；读出来之前新做或改动的模板不会存在这台设备上。"
+msgstr "Templates saved on this device couldn't be loaded right now, so some may be missing below; templates you create or change before they load won't be saved on this device."
+
+#: src/components/SocialPanel.tsx
+msgid "这台设备上存的评论这会儿没读出来，这次写的评论关掉 App 就没了。"
+msgstr "Comments saved on this device couldn't be loaded right now; comments you write now will be gone when you close the app."
+
 #: src/pages/TemplateDetailPage.tsx
 msgid "这台设备上没有它的本机记录（换了设备？）。可以在这里下架或删除；改名/改简介需回到当初提取它的设备。"
 msgstr "This device has no local record of it (switched devices?). You can unpublish or delete it here; to rename it or edit its description, go back to the device you originally extracted it on."
@@ -14793,6 +14882,14 @@ msgstr "This device has no local record of it (switched devices?). You can unpub
 #: src/pages/VideoPage.tsx
 msgid "这台设备上没有这条作品 · 当前是离线模式"
 msgstr "This video isn't on this device · you're offline"
+
+#: src/components/SocialPanel.tsx
+msgid "这台设备上的互动记录这会儿没读出来：计数先从 0 算，这次点的赞、写的评论关掉 App 就没了。"
+msgstr "Activity saved on this device couldn't be loaded right now: counts start from 0, and likes and comments you add now will be gone when you close the app."
+
+#: src/components/DataLossNotice.tsx
+msgid "这台设备上的本机数据被系统清空了"
+msgstr "The local data on this device was cleared by the system"
 
 #: src/utils/oauth.ts
 msgid "这台设备上还没接第三方登录（{why}）——先用邮箱或手机号登录"
@@ -15610,7 +15707,9 @@ msgid "重认会<0>覆盖现有描述</0>（你自己改过的也会没），按
 msgstr "Re-detecting <0>overwrites the current descriptions</0> (including your own edits) and charges every time. Once reviewed, you can't re-detect."
 
 #: src/components/blockout/VideoStage.tsx
+#: src/components/BootFailed.tsx
 #: src/components/flow/SegPlayer.tsx
+#: src/components/LocalStoreIssue.tsx
 #: src/components/UpdateSheet.tsx
 #: src/pages/CardDetailPage.tsx
 #: src/pages/CustomCardPage.tsx

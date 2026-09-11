@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Spinner from "./components/Spinner";
 import { createPortal } from "react-dom";
 import { Navigate, Outlet, Route, Routes, useLocation, useNavigate } from "react-router";
@@ -45,15 +45,11 @@ import SupportModelNewPage from "./pages/SupportModelNewPage";
 import SupportPersonaNewPage from "./pages/SupportPersonaNewPage";
 import StudioPage from "./studio/StudioPage";
 import TabBar from "./components/TabBar";
-import { readyVideos } from "./data/videos";
-import { readySocial } from "./data/social";
-import { readyDanmaku } from "./data/danmaku";
+import { bootData, type BootFailure } from "./data/boot";
+import BootFailed from "./components/BootFailed";
+import DataLossNotice from "./components/DataLossNotice";
 import { checkUpdateForPrompt, type UpdateInfo } from "./data/appUpdate";
 import UpdateSheet from "./components/UpdateSheet";
-import { readyTemplates } from "./data/templates";
-import { readyDrafts } from "./data/drafts";
-import { readyCutSession } from "./data/cutSession";
-import { readyAccount } from "./data/account";
 import { useAuthState, useCurrentUser } from "./hooks/useAccount";
 import { useLingui } from "@lingui/react";
 import useOrientationLock from "./hooks/useOrientationLock";
@@ -212,22 +208,18 @@ export default function App() {
   //   （不重挂：状态与在途 Promise 都保留）。不订阅的话，只有自己调了 useLingui / <Trans> 的组件跟着换，
   //   渲染时调 .ts 助手（errText、relativeTime、显示字典）的组件停在旧语言，界面半中半英且零报错（方案 §5.4）。
   useLingui();
-  // 数据层是 IndexedDB（异步）：装载完成前不渲染路由，避免各页读到空库
-  const [ready, setReady] = useState(false);
-  useEffect(() => {
-    void Promise.all([
-      readyVideos(),
-      readyAccount(),
-      readySocial(),
-      readyTemplates(),
-      readyDrafts(),
-      readyDanmaku(),
-      // 剪到一半的那条成片（钱已经花在里面了，见 data/cutSession 的 ★★）
-      readyCutSession(),
-    ]).then(() => setReady(true));
+  // 数据层是 IndexedDB（异步）：装载完成前不渲染路由，避免各页读到空库。
+  // null = 还在装；[] = 可以进（局部没读出来的库各自在用到它的那一屏说）；非空 = 核心库没打开，整页拦。
+  // ★ 拦哪几样、为什么，只在 data/boot 一处（铁律六），别在别处再写一道开机闸
+  const [boot, setBoot] = useState<BootFailure[] | null>(null);
+  const load = useCallback(() => {
+    setBoot(null);
+    // ★ bootData 按构造不会 reject（allSettled + 兜底 catch），这里的 void 吞不掉任何东西
+    void bootData().then(setBoot);
   }, []);
+  useEffect(load, [load]);
 
-  if (!ready) {
+  if (!boot) {
     return (
       <div className="flex min-h-full items-center justify-center">
         <div className="flex flex-col items-center gap-3 text-slate-400">
@@ -237,6 +229,7 @@ export default function App() {
       </div>
     );
   }
+  if (boot.length > 0) return <BootFailed failures={boot} onRetry={load} />;
 
   return (
     <>
@@ -245,6 +238,8 @@ export default function App() {
       <OrientationGuard />
       <UpdateGate />
       <TermsGate />
+      {/* 本机数据库被系统判为损坏、清空重建过：开机如实说一次（data/db 的 noteDataLoss ★★） */}
+      <DataLossNotice />
       {/* 新手引导的遮罩。★ 必须在 <Routes> **外面**：每一页自己的根容器多半是
           `fixed inset-0`（首页/创作页/剪辑页/工作流页），挂在里面会跟着路由卸载，
           而遮罩要能盖住任何一页。弹哪一份由每一屏自己 useAutoGuide 声明。 */}

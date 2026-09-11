@@ -5,7 +5,7 @@
 // 而模板发布后即使作者本地删掉，市场里那份也该继续可用。所以两边分开存。
 //
 // 互动数据（浏览/点赞/收藏/评论）不在这里，走 data/social.ts 的旁路存储。
-import { idbGet, idbSet } from "./db";
+import { idbRead, idbSet } from "./db";
 import { apiGet, ApiError } from "../api/client";
 import * as branch from "../api/branch";
 import * as uploadsApi from "../api/uploads";
@@ -30,7 +30,22 @@ function emit() {
   for (const fn of subs) fn();
 }
 
+/**
+ * 本机模板库没读出来时的原因（空串 = 读好了）。
+ * ★★ 2026-09-11（开机闸调研后定为「局部可用」，见 data/boot 文件头）：`mine` 留空照常往下走的话，
+ *   「我的模板」里只剩服务器上那些，而下一次存 / 改模板会拿只含新那一条的数组把磁盘上那份**整张盖掉** ——
+ *   没登记上服务端的模板，云端视频句柄只存在那一份里。所以非空时 persist 一律不写，
+ *   TemplateShelf 如实说一句并给「重试」；读出来之后把这段时间只活在内存里的并回去再落盘（readyTemplates）。
+ */
+let loadIssue = "";
+let loaded = false;
+
+export function templatesLoadIssue(): string {
+  return loadIssue;
+}
+
 function persist() {
+  if (loadIssue) return;
   void idbSet(KEY, mine);
 }
 
@@ -55,9 +70,30 @@ export function templatesVersion(): number {
 // ⇒ 市场空的时候就**照实说空**（TemplateMarketPage 的空态文案已经跟着改成一句能行动的话）。
 //   要样板就发真的：建一个真模板、发布它，与所有人走同一条路。
 
+/**
+ * 装载。开机调一次，「我的模板」那条提示上的「重试」也调它。**不会 reject**：失败记进 loadIssue。
+ * ★ 读好了之后再调直接返回（理由同 drafts.readyDrafts：再读一遍会拿磁盘上的旧表盖掉内存里还没落盘的写）。
+ */
 export async function readyTemplates(): Promise<void> {
-  const saved = await idbGet<VideoTemplate[]>(KEY);
-  if (saved) mine = saved;
+  if (loaded && !loadIssue) return;
+  let saved: VideoTemplate[] | undefined;
+  try {
+    // ★★ 读失败要抛（idbRead）落进 catch；形状不对同样按"没读出来"算，别拿一个不是数组的东西去 for…of（见 loadIssue）
+    saved = await idbRead<VideoTemplate[]>(KEY);
+    if (saved !== undefined && !Array.isArray(saved)) throw new Error(`${KEY} is not an array`);
+  } catch (e) {
+    loadIssue = e instanceof Error ? e.message : String(e);
+    loaded = true;
+    console.warn("[templates] 本机模板库没读出来，这次会话先不写本机模板库:", e);
+    emit();
+    return;
+  }
+  // ★ 重试读出来时：读不出来那段时间里只活在内存里的（这段时间新做的模板）并回去再落盘，
+  //   别让磁盘上的旧表把它们盖掉 —— 那些模板多半已经登记上服务端，但本机那份云端句柄只存在这里
+  const unsaved = loadIssue ? mine.filter((u) => !saved?.some((s) => s.id === u.id)) : [];
+  loadIssue = "";
+  loaded = true;
+  if (saved) mine = [...unsaved, ...saved];
   // ★ V3（2026-09-06）：截线之前建的模板身上的非人物卡整批下场（与 account.ts 的 V3 清库同一条截线，
   //   主人拍板"不用顾及老卡"）；截线之后从原片铸的 V3 素材卡原样保留
   let wiped = false;
@@ -67,7 +103,7 @@ export async function readyTemplates(): Promise<void> {
       wiped = true;
     }
   }
-  if (wiped) persist();
+  if (wiped || unsaved.length > 0) persist();
   // ★ 这里以前给两个种子模板灌了一份假的浏览量/点赞（seedStats，2026-08-11 删）。
   //   假数字画在屏幕上与真互动长得一模一样，而同一个页面上还摆着服务端算的真热度 ——
   //   并排放一个编的和一个真的就是骗人（铁律八）。宁可从 0 开始。

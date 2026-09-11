@@ -12,7 +12,7 @@
 // 一支 2 段视频≈4MB 直接撑爆 5MB 配额 → 用户视频被配额兜底静默丢弃（首页永远看不到自己的作品）。
 import { CommentMention, DraftVideo, VideoComment, VideoDeck, VideoItem, VideoPart, uid } from "../types";
 import { makeFrame } from "../mock/frames";
-import { idbGet, idbSet } from "./db";
+import { idbGet, idbRead, idbSet } from "./db";
 import { materializeDraft, type MaterializeError } from "./publishAssets";
 import * as projects from "./projects";
 // ⚠ 与 data/danmaku 是**互相 import**（那边要本文件的 realId/remoteOn）：两边都只在函数体里
@@ -270,11 +270,28 @@ export async function readyVideos(): Promise<void> {
       // 装完库再补点赞态：离线模式下它只在本机有一份，不读回来的话
       // 每次冷启动"我赞过没有"都归零，点赞数就能被反复刷（见 setLike）
       await loadLiked();
-    })().finally(() => {
-      readyPromise = null;
-      cacheOwner = ownerKey(); // 记下这份 cache 是给谁装的，换人时才知道要清
-      cacheOwnerName = currentUser()?.name ?? null; // 改名时靠它发现"名字变了"
-    });
+    })()
+      .then(
+        () => {
+          cacheOwner = ownerKey(); // 记下这份 cache 是给谁装的，换人时才知道要清
+          cacheOwnerName = currentUser()?.name ?? null; // 改名时靠它发现"名字变了"
+        },
+        (e) => {
+          // ★★ 装载失败要把半截 cache 撤掉、owner 也别记（2026-09-10），否则开机闸的「重试」是假的：
+          //   ① readyLocal 已经把 cache 赋上、loadLiked 才抛（它要等账号库，账号库没装上就原样抛）——
+          //      不撤的话重试撞上开头 `if (cache) return` 直接 resolve，点赞态再也不读回来
+          //      （"我赞过没有"归零、赞能反复刷，loadLiked 那段 ★ 说的事）；
+          //   ② owner 记成 "" 的话，重试时账号库一 emit，上面 subscribeAccount 就判成"换人了"，
+          //      把重试刚装好的 cache 清回 null —— 首页空库。owner 保持 null = "还没装载过"，那段直接 return。
+          cache = null;
+          cacheOwner = null;
+          cacheOwnerName = null;
+          throw e;
+        },
+      )
+      .finally(() => {
+        readyPromise = null;
+      });
   }
   await readyPromise;
 }
@@ -283,7 +300,9 @@ let readyPromise: Promise<void> | null = null;
 
 /** 启动装载（离线）：IndexedDB 优先；首次运行把旧 localStorage 库搬过来后清掉旧键 */
 async function readyLocal(): Promise<void> {
-  let arr = await idbGet<VideoItem[]>(KEY);
+  // ★★ 读失败要抛（idbRead），不能当成空库（2026-09-10）：空库在下面会铺种子并 `idbSet(KEY, 种子)`，
+  //   等于拿三条演示作品把用户离线存的作品整张盖掉。
+  let arr = await idbRead<VideoItem[]>(KEY);
   if (!arr || !Array.isArray(arr) || arr.length === 0) {
     // 迁移：旧版 localStorage 库（可能已被配额裁剪，能救多少救多少）
     try {

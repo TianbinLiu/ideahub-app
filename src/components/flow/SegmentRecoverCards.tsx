@@ -26,6 +26,7 @@ import {
 } from "../../data/videoJobs";
 import { useFlow } from "../../studio/flowStore";
 import { useStudio } from "../../studio/studioStore";
+import { draftsLoadIssue, draftsUnavailableText } from "../../data/drafts";
 
 /** 待取回凭据的变动订阅（凭据落在 localStorage，见 data/videoJobs） */
 export function useVideoJobs(): number {
@@ -74,7 +75,13 @@ export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean
       //   useFlowActions（那条"又炼出一段就自动存盘"只长在工作流 / 工坊页上），所以这里自己存。
       setWorking(t`成片已落回流水线，正在存草稿…`);
       const meta = await useStudio.getState().saveWorkDraft({ from: "flow" }).catch(() => null);
-      if (!meta) setIssue(t`成片已经落回流水线，但自动存草稿没成（存储空间不足或隐私模式）——先别关 App，去工坊点一次「存草稿」`);
+      if (!meta)
+        // ★ 草稿箱没读出来时"去工坊点一次存草稿"只会原样再失败：换一句指对出路的（drafts.draftsUnavailableText）
+        setIssue(
+          draftsLoadIssue()
+            ? draftsUnavailableText()
+            : t`成片已经落回流水线，但自动存草稿没成（存储空间不足或隐私模式）——先别关 App，去工坊点一次「存草稿」`,
+        );
     } catch (e) {
       setIssue(e instanceof Error ? e.message : String(e));
     } finally {

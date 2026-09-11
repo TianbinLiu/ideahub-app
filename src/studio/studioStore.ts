@@ -12,7 +12,8 @@ import { GenNodeOpts, CUSTOM_MID_MAX, FlowMode, FlowNode, FlowTemplate, appendBl
 import { forgetCanvasAgent } from "./canvasAgent";
 import { DraftMode, WorkDraft, WorkDraftMeta, deleteDraft, getDraftMeta, saveDraft } from "../data/drafts";
 import { showToast } from "../data/toast";
-import { dropCutSession, saveCutSession } from "../data/cutSession";
+import { t } from "@lingui/core/macro";
+import { cutSessionLoadIssue, dropCutSession, saveCutSession } from "../data/cutSession";
 import type { CanvasSnapshot as ProjectCanvas } from "../data/projects";
 import { GenStep } from "./genLog";
 import { SPEAK_MOOD, speak, stopSpeaking } from "./speech";
@@ -2291,7 +2292,11 @@ export const useStudio = create<StudioState>()((set, get) => ({
     // ★ 音轨预置跟着稿子一起存（理由见 cutSession.CutSession.audioHint 的 ★★）：
     //   它只在组稿那一拍算得出来，App 一重启就没了，而「接着剪」正是重启之后才走的那条路。
     const ok = await saveCutSession(draft, draftAudioHint);
-    return ok ? null : "没能存进本地库（存储空间不足或浏览器隐私模式）";
+    if (ok) return null;
+    // ★ 上一条剪辑稿没读出来时 saveCutSession 会拒（不许盖掉一条读不出来的、花过钱的稿子）：原因与出路都不同，分开说
+    return cutSessionLoadIssue()
+      ? t`剪辑稿没能存进本地库：上一条剪到一半的成片还没读出来，存下去会把它盖掉。先去「我的」点「重试」。`
+      : "没能存进本地库（存储空间不足或浏览器隐私模式）";
   },
 
   finishPublish: (videoId) => {

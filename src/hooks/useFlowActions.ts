@@ -16,7 +16,8 @@ import { AI_REAL } from "../ai";
 import { fmtTokens } from "../data/economy";
 import { nodeDone, useFlow } from "../studio/flowStore";
 import { deckQuoteOf, useStudio } from "../studio/studioStore";
-import { cutSession } from "../data/cutSession";
+import { cutSession, cutSessionLoadIssue, readyCutSession } from "../data/cutSession";
+import { draftsLoadIssue, draftsUnavailableText } from "../data/drafts";
 import { captureCanvas } from "../data/projects";
 
 export interface FlowActions {
@@ -81,7 +82,10 @@ export function useFlowActions(opts?: {
         }
         if (!ok)
           useFlow.setState({
-            err: t`这一段炼好了，但自动存草稿失败（存储空间不足或浏览器隐私模式）——先别离开这一页，点上面的「存草稿」再试一次`,
+            // ★ 草稿箱没读出来时"再点一次存草稿"只会原样再失败：换一句指对出路的（drafts.draftsUnavailableText）
+            err: draftsLoadIssue()
+              ? draftsUnavailableText()
+              : t`这一段炼好了，但自动存草稿失败（存储空间不足或浏览器隐私模式）——先别离开这一页，点上面的「存草稿」再试一次`,
           });
       })();
     }
@@ -116,13 +120,29 @@ export function useFlowActions(opts?: {
     setSaveState("saving");
     const meta = await useStudio.getState().saveWorkDraft({ from: "flow" });
     setSaveState(meta ? "saved" : "failed");
-    if (!meta) useFlow.setState({ err: t`草稿保存失败（存储空间不足或浏览器隐私模式）` });
+    if (!meta)
+      useFlow.setState({ err: draftsLoadIssue() ? draftsUnavailableText() : t`草稿保存失败（存储空间不足或浏览器隐私模式）` });
     setTimeout(() => setSaveState("idle"), 2200);
   }
 
   /** 全部满意 → 组稿（回写真帧 + 提炼卡组）→ 进剪辑页 */
   async function cut() {
     if (busy || finalizing) return;
+    // ★★ **剪辑稿没读出来时先重读一次**（2026-09-11，cutSession.loadIssue 的 ★★）：下面那道闸问的是
+    //   "有没有一条剪到一半的"，读不出来时它答"没有"是假话 —— 组稿会顶掉一条花过钱、此刻看不见的剪辑稿。
+    //   重读还不行就整句拒（组稿要铸卡 = 真花钱：钱花出去之前先确认存得住）。
+    // ★ 重读期间把 finalizing 占上：这里多了一个 await，不占的话连点两下会叠出两次组稿。
+    if (cutSessionLoadIssue()) {
+      setFinalizing(t`正在重新读取上一条剪辑稿…`);
+      await readyCutSession();
+      setFinalizing("");
+      if (cutSessionLoadIssue()) {
+        useFlow.setState({
+          err: t`上一条剪到一半的成片这会儿没读出来（本机数据库没打开），现在组稿会把它顶掉。先去「我的」点「重试」，读出来之后再来组这一条。`,
+        });
+        return;
+      }
+    }
     // ★★ **先看有没有一条剪到一半的**（2026-08-30 发版前复核抓到）。
     //   组稿会整表换掉合成稿并覆盖那个唯一的落盘键，而里面躺着的是**真钱**：
     //   最多 8 张铸好的卡组（约 110k）+ 最多 2 个 3D 建模（各 160k）+ 可能已经实时
