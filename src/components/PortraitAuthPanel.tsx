@@ -19,6 +19,7 @@
 //     弱网下也不用盯着空白等。缓存只是预览，绑的时候用的仍是方舟现查的那份 id。
 //   · 自动那一发**不自动绑**：宿主「取消绑定」之后面板会重新挂载，自动绑回去等于取消键失灵。
 //     只有用户自己按「查授权状态」（刚扫完码那一刻）且正好一份可用时才顺手接上（老行为）。
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useState } from "react";
 import { showToast } from "../data/toast";
 import {
@@ -70,6 +71,7 @@ export default function PortraitAuthPanel({
   /** 确认到一份可用素材（自动绑到的、列表里挑的、或手填的）。note 是来源说明 */
   onBound: (assetId: string, note: string) => void;
 }) {
+  const { t } = useLingui();
   const [invite, setInvite] = useState<PortraitInvite | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
@@ -90,7 +92,7 @@ export default function PortraitAuthPanel({
     try {
       setInvite(await createPortraitInvite());
     } catch (e) {
-      setMsg(`发起授权没成：${(e instanceof Error ? e.message : String(e)).slice(0, 100)}——可以改用「填 asset ID」那条路`);
+      setMsg(t`发起授权没成：${(e instanceof Error ? e.message : String(e)).slice(0, 100)}——可以改用「填 asset ID」那条路`);
     } finally {
       setBusy(false);
     }
@@ -111,7 +113,7 @@ export default function PortraitAuthPanel({
       const { Browser } = await import("@capacitor/browser");
       await Browser.open({ url });
     } catch (e) {
-      setMsg(`打不开系统浏览器（${e instanceof Error ? e.message : String(e)}）——用「复制链接」自己粘到浏览器里`);
+      setMsg(t`打不开系统浏览器（${e instanceof Error ? e.message : String(e)}）——用「复制链接」自己粘到浏览器里`);
     }
   }
 
@@ -139,28 +141,33 @@ export default function PortraitAuthPanel({
         if (!auto && usable.length === 1) {
           const id = normalizeAssetId(usable[0].id || "");
           if (!id) {
-            setMsg(`方舟回了一份素材，但 ID 形状不认识（${usable[0].id}）——用「填 asset ID」那条路确认一下。`);
+            setMsg(t`方舟回了一份素材，但 ID 形状不认识（${usable[0].id}）——用「填 asset ID」那条路确认一下。`);
           } else {
-            onBound(id, "本人授权（方舟可信素材库）");
-            setMsg("已经接上这份已授权素材了。");
+            onBound(id, t`本人授权（方舟可信素材库）`);
+            setMsg(t`已经接上这份已授权素材了。`);
           }
         }
         // 自动那一发 / 多份：列表就是答复，不另说一句
       } else if (failed.length > 0) {
         setMsg(
-          `授权是成了，但${failed.length > 1 ? `这 ${failed.length} 份素材都` : "上传的那份素材"}` +
-            `没过方舟的内容审核（原因见下），所以还不能用来出片。请本人重新打开授权链接、换一张照片再传一次。`,
+          failed.length > 1
+            ? t`授权是成了，但这 ${failed.length} 份素材都没过方舟的内容审核（原因见下），所以还不能用来出片。请本人重新打开授权链接、换一张照片再传一次。`
+            : t`授权是成了，但上传的那份素材没过方舟的内容审核（原因见下），所以还不能用来出片。请本人重新打开授权链接、换一张照片再传一次。`,
         );
       } else if (!auto) {
         const g = await fetchPortraitGroups();
         setMsg(
           g.totalCount > 0
-            ? `已经有 ${g.totalCount} 个资产组，但里面一份素材都没有——请本人打开授权链接，走完活体认证后把照片传上去。`
-            : "还没有已授权的素材——请本人扫码/打开链接、完成活体认证与授权后再查。",
+            ? t`已经有 ${g.totalCount} 个资产组，但里面一份素材都没有——请本人打开授权链接，走完活体认证后把照片传上去。`
+            : t`还没有已授权的素材——请本人扫码/打开链接、完成活体认证与授权后再查。`,
         );
       }
     } catch (e) {
-      setMsg(`${auto ? "自动查授权没成" : "查状态没成"}：${(e instanceof Error ? e.message : String(e)).slice(0, 100)}`);
+      setMsg(
+        auto
+          ? t`自动查授权没成：${(e instanceof Error ? e.message : String(e)).slice(0, 100)}`
+          : t`查状态没成：${(e instanceof Error ? e.message : String(e)).slice(0, 100)}`,
+      );
     } finally {
       setBusy(false);
       if (auto) setAutoChecked(true);
@@ -177,13 +184,13 @@ export default function PortraitAuthPanel({
     // 归一（"asset://xxx" 与纯 id 都收）与格式判据都只有 cardAsset 一处
     const id = normalizeAssetId(draft);
     if (!id) {
-      setDraftErr("这不像方舟的资产 ID —— 应该长成 asset-20260401123823-6d4x2 这样（在方舟控制台点「复制 asset ID」拿到）");
+      setDraftErr(t`这不像方舟的资产 ID —— 应该长成 asset-20260401123823-6d4x2 这样（在方舟控制台点「复制 asset ID」拿到）`);
       return;
     }
     setDraftErr("");
     setDraft("");
     setManualOpen(false);
-    onBound(id, "手工填入（方舟控制台授权）");
+    onBound(id, t`手工填入（方舟控制台授权）`);
   }
 
   /** 画列表用的可用素材：现查到的优先，没查到过就用本机记的那份顶着 */
@@ -197,18 +204,20 @@ export default function PortraitAuthPanel({
           {/* ⚠ 别在这里写"有效期至 X"：自己授权自己时火山会把有效期直接改成永久
               （实测原文见 docs/backlog.md §1.6），邀约刚发出去时我们不知道扫码的是谁 */}
           <p className="mb-1.5 text-[10px] leading-relaxed text-sky-200">
-            完成一次活体认证并授权（有效期在火山那一页确认）。
+            <Trans>完成一次活体认证并授权（有效期在火山那一页确认）。</Trans>
           </p>
           <button
             onClick={() => void openHere(invite.url)}
             className="mb-2 w-full rounded-xl bg-brand py-2.5 text-xs font-bold text-ink"
           >
-            📱 就是我本人 · 在这台手机上完成授权
+            <Trans>📱 就是我本人 · 在这台手机上完成授权</Trans>
           </button>
           <p className="mb-1.5 text-[10px] leading-relaxed text-slate-400">
-            要授权的是<b className="text-slate-300">别人</b>？让他用自己的手机扫这个码
-            —— 活体认证必须在<b className="text-slate-300">他本人</b>的手机上、用他自己的火山账号做，
-            这正是这份授权有效的原因。
+            <Trans>
+              要授权的是<b className="text-slate-300">别人</b>？让他用自己的手机扫这个码
+              —— 活体认证必须在<b className="text-slate-300">他本人</b>的手机上、用他自己的火山账号做，
+              这正是这份授权有效的原因。
+            </Trans>
           </p>
           {/* 二维码白底黑点写死不吃主题色（对比度是功能） */}
           <div className="mb-1.5 flex justify-center rounded-lg bg-white p-2">
@@ -217,21 +226,21 @@ export default function PortraitAuthPanel({
           <p className="mb-1.5 break-all rounded bg-ink/60 px-2 py-1 font-mono text-[9px] text-slate-400">{invite.url}</p>
           <div className="flex gap-2">
             <button
-              onClick={() => void navigator.clipboard?.writeText(invite.url).then(() => showToast("链接已复制，可以发给本人"))}
+              onClick={() => void navigator.clipboard?.writeText(invite.url).then(() => showToast(t`链接已复制，可以发给本人`))}
               className="flex-1 rounded-full bg-brand py-1.5 text-[11px] font-bold text-ink"
             >
-              复制链接
+              <Trans>复制链接</Trans>
             </button>
             <button
               onClick={() => void checkStatus()}
               disabled={busy}
               className="rounded-full border border-slate-600 px-3 text-[11px] text-slate-300 disabled:opacity-40"
             >
-              {busy ? "查…" : "查授权状态"}
+              {busy ? <Trans>查…</Trans> : <Trans>查授权状态</Trans>}
             </button>
           </div>
           <p className="mt-1 text-[9px] leading-relaxed text-slate-600">
-            扫不动了？这条邀约码会过期，回来重新「发起授权」生成一张新的即可。
+            <Trans>扫不动了？这条邀约码会过期，回来重新「发起授权」生成一张新的即可。</Trans>
           </p>
         </div>
       ) : usableFound.length > 0 ? (
@@ -239,20 +248,20 @@ export default function PortraitAuthPanel({
         <p className="text-[10px] leading-relaxed text-slate-400">
           {fromCache
             ? autoChecked
-              ? "上次查到的已授权素材（这次没能向方舟刷新，原因见下；仍可点一份接上）："
-              : "上次查到的已授权素材（正在向方舟刷新…）："
-            : `方舟里有 ${usableFound.length} 份已授权素材，点一份接上：`}
+              ? t`上次查到的已授权素材（这次没能向方舟刷新，原因见下；仍可点一份接上）：`
+              : t`上次查到的已授权素材（正在向方舟刷新…）：`
+            : t`方舟里有 ${usableFound.length} 份已授权素材，点一份接上：`}
         </p>
       ) : !autoChecked && cached.length === 0 ? (
         // 第一次进、还没查完：别先闪一下「发起授权」再换成列表
-        <p className="text-[10px] text-slate-500">正在查你之前有没有授权过…</p>
+        <p className="text-[10px] text-slate-500"><Trans>正在查你之前有没有授权过…</Trans></p>
       ) : (
         <button
           onClick={() => void startInvite()}
           disabled={busy}
           className="w-full rounded-full border border-sky-500/40 py-1.5 text-[11px] text-sky-200 disabled:opacity-40"
         >
-          {busy ? "生成中…" : "🔗 发起肖像授权（本人扫码 / 本机打开）"}
+          {busy ? <Trans>生成中…</Trans> : <Trans>🔗 发起肖像授权（本人扫码 / 本机打开）</Trans>}
         </button>
       )}
 
@@ -267,27 +276,27 @@ export default function PortraitAuthPanel({
               onClick={() => {
                 const id = normalizeAssetId(it.id || "");
                 if (!id) {
-                  setMsg(`这份的 ID 形状不认识（${it.id}）——用「填 asset ID」那条路试试。`);
+                  setMsg(t`这份的 ID 形状不认识（${it.id}）——用「填 asset ID」那条路试试。`);
                   return;
                 }
-                onBound(id, "本人授权（方舟可信素材库）");
-                setMsg("接上了。");
+                onBound(id, t`本人授权（方舟可信素材库）`);
+                setMsg(t`接上了。`);
               }}
               className="w-full rounded-lg border border-slate-700 bg-ink/40 px-2 py-1.5 text-left disabled:opacity-40"
             >
               <span className="block font-mono text-[10px] text-emerald-300">{it.id}</span>
               <span className="block text-[9px] text-slate-500">
-                {it.name || "（无文件名）"}
+                {it.name || t`（无文件名）`}
                 {it.createTime ? ` · ${assetTime(it.createTime)}` : ""}
               </span>
             </button>
           ))}
           <div className="flex gap-3 px-1 text-[10px] text-slate-500">
             <button onClick={() => void checkStatus()} disabled={busy} className="underline underline-offset-2 disabled:opacity-40">
-              {busy ? "刷新中…" : "刷新"}
+              {busy ? <Trans>刷新中…</Trans> : <Trans>刷新</Trans>}
             </button>
             <button onClick={() => void startInvite()} disabled={busy} className="underline underline-offset-2 disabled:opacity-40">
-              授权另一个人
+              <Trans>授权另一个人</Trans>
             </button>
           </div>
         </div>
@@ -296,7 +305,7 @@ export default function PortraitAuthPanel({
       {/* 自动查失败时给一条重试的路（列表空着、按钮已经出了，但用户该知道为什么没列出来） */}
       {!invite && autoChecked && !found && cached.length === 0 && (
         <button onClick={() => void checkStatus()} disabled={busy} className="px-1 text-[10px] text-slate-500 underline underline-offset-2 disabled:opacity-40">
-          {busy ? "查…" : "已经授权过了？再查一次"}
+          {busy ? <Trans>查…</Trans> : <Trans>已经授权过了？再查一次</Trans>}
         </button>
       )}
 
@@ -309,7 +318,7 @@ export default function PortraitAuthPanel({
             .filter((x) => !assetUsable(x))
             .map((it) => (
               <p key={it.id} className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-[9px] leading-relaxed text-rose-300">
-                ✗ {it.name || it.id} 没过审核：{it.error?.message || it.error?.code || "方舟没给原因"}
+                ✗ {it.name || it.id} <Trans>没过审核：</Trans>{it.error?.message || it.error?.code || t`方舟没给原因`}
               </p>
             ))}
         </div>
@@ -324,13 +333,13 @@ export default function PortraitAuthPanel({
               setDraft(e.target.value);
               setDraftErr("");
             }}
-            placeholder="粘贴 asset ID 或 asset://…"
+            placeholder={t`粘贴 asset ID 或 asset://…`}
             className="w-full rounded-lg border border-slate-700 bg-ink/60 px-2.5 py-2 font-mono text-[11px] text-slate-100 placeholder:text-slate-500"
           />
           {draftErr && <p className="mt-1 text-[10px] leading-relaxed text-rose-300">{draftErr}</p>}
           <div className="mt-1.5 flex gap-2">
             <button onClick={saveManual} className="flex-1 rounded-full bg-brand py-1.5 text-[11px] font-bold text-ink">
-              绑定
+              <Trans>绑定</Trans>
             </button>
             <button
               onClick={() => {
@@ -339,7 +348,7 @@ export default function PortraitAuthPanel({
               }}
               className="rounded-full border border-slate-700 px-3 text-[11px] text-slate-400"
             >
-              取消
+              <Trans>取消</Trans>
             </button>
           </div>
         </div>
@@ -348,7 +357,7 @@ export default function PortraitAuthPanel({
           onClick={() => setManualOpen(true)}
           className="w-full rounded-full border border-slate-600 py-1.5 text-[11px] text-slate-300"
         >
-          ＋ 已在控制台授权过？直接填 asset ID
+          <Trans>＋ 已在控制台授权过？直接填 asset ID</Trans>
         </button>
       )}
     </div>

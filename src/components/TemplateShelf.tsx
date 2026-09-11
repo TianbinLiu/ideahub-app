@@ -6,6 +6,7 @@
 // ★ 分段模板组在列表里收成**一条**（用户点名：分段的模板要在同一模板下）：
 //   组头是第 1 段的卡，下面一条「共 N 段」的横条能展开其余段——每段的核对/识别/
 //   发布/删除操作原样住在各自的卡里，规则零复制。
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import EmptyState from "./EmptyState";
 import { Link, useNavigate } from "react-router";
@@ -50,7 +51,7 @@ export function useTemplatesVersion(): number {
 }
 
 export function TemplateCard({
-  t,
+  t: tpl,
   onPick,
   guide,
   guidePick,
@@ -73,7 +74,8 @@ export function TemplateCard({
   /** 封面：自己上传的那份优先；没有就从模板视频派生一帧。
    *  ★★ 「自己传白模视频」那条路建出来的模板 `cover` 一直是空串 —— 在此之前那张卡是
    *    **纯黑**的（`t.cover && <img>` 直接不渲染），看起来像模板坏了。 */
-  const cover = t.cover || refVideoPoster(t.refVideo);
+  const { t } = useLingui();
+  const cover = tpl.cover || refVideoPoster(tpl.refVideo);
   /**
    * 自动循环预览（2026-08-29，backlog 2.8-④ 对标 Higgsfield 的"名字+动图+一个键"）：
    * 白模模板的卡面就是它的参考视频在静音循环——替掉原来那颗「▶ 预览」开关。
@@ -95,16 +97,16 @@ export function TemplateCard({
     );
     io.observe(el);
     return () => io.disconnect();
-  }, [t.refVideo?.url]);
-  const catLabel = tplCategoryLabel(t.category);
+  }, [tpl.refVideo?.url]);
+  const catLabel = tplCategoryLabel(tpl.category);
   return (
     <div data-guide={guide} className="overflow-hidden rounded-xl border border-slate-700/70 bg-panel">
-      <Link to={`/template/${t.id}`} className="block">
+      <Link to={`/template/${tpl.id}`} className="block">
         <div className="relative aspect-[16/10] bg-black/40">
-          {t.refVideo ? (
+          {tpl.refVideo ? (
             <video
               ref={vidRef}
-              src={t.refVideo.url}
+              src={tpl.refVideo.url}
               poster={cover || undefined}
               muted
               loop
@@ -115,46 +117,46 @@ export function TemplateCard({
           ) : (
             cover && <img src={cover} alt="" className="h-full w-full object-cover" />
           )}
-          {t.refVideo && (
+          {tpl.refVideo && (
             <span className="absolute left-2 top-2 rounded bg-sky-500/90 px-1.5 py-0.5 text-[9px] font-bold text-white">
-              白模
+              <Trans>白模</Trans>
             </span>
           )}
           {/* ★ V2 标识：这个模板有**角色位**，套用时能逐个人偶换人（V1 只能整段换一个主体）。
               判据是**存在性**（`roles?.length`），不是等值 —— V1 老模板整个字段缺失。
               为什么要摆出来：两种模板在市场上长得一模一样，而能力差一个量级；
               不标的话用户只能靠"点进去试试"才知道这个模板能不能分角色换人。 */}
-          {t.roles?.length ? (
+          {tpl.roles?.length ? (
             <span className="absolute left-[3.1rem] top-2 rounded bg-emerald-500/90 px-1.5 py-0.5 text-[9px] font-bold text-white">
-              {t.roles.length} 个角色位可换人
+              <Trans>{tpl.roles.length} 个角色位可换人</Trans>
             </span>
           ) : null}
           {/* 「新」角标（backlog 2.8-① 的 marker 位，PixVerse 式）：七天内登记的标出来。
               只做 new 不做 hot——模板互动计数首发是**本机**的（服务端 ASSET_KINDS 还没有
               template），拿本机数标「热」是在撒谎；等计数上服务端再补那半。
               右上角是 ▶预览 钮退役后空出来的位置 */}
-          {Date.now() - t.createdAt < 7 * 24 * 3600 * 1000 && (
+          {Date.now() - tpl.createdAt < 7 * 24 * 3600 * 1000 && (
             <span className="absolute right-2 top-2 rounded bg-amber-400/95 px-1.5 py-0.5 text-[9px] font-bold text-ink">
-              新
+              <Trans>新</Trans>
             </span>
           )}
           {/* ★ 卡片做减法（2026-08-29 主人点名走 backlog 2.8-④）：@作者、播放/点赞数、
               简介两行全部收进详情页——卡面只剩「标题 + 循环预览 + 一个生成键」。
               保留的三枚角标（白模/角色位/暂时不可用）是能力与健康位，不是装饰。 */}
           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent px-3 pb-2 pt-8">
-            <div className="truncate text-sm font-bold text-slate-50">{t.title}</div>
+            <div className="truncate text-sm font-bold text-slate-50">{tpl.title}</div>
             <div className="mt-0.5 flex items-center gap-2 text-[10px] text-slate-300">
               {catLabel && <span className="rounded-full px-1.5 py-0.5 bg-white/15 text-[9px]">{catLabel}</span>}
               {/* 白模只有一段（整段复刻），报"模板视频几秒"比"1 段"信息量大 */}
               <span>
-                {t.refVideo
-                  ? `${(refVideoRealSec(t.refVideo) ?? t.refVideo.durationSec).toFixed(1)}s 复刻`
-                  : `${t.recipe.beats.length} 段`}
+                {tpl.refVideo
+                  ? t`${(refVideoRealSec(tpl.refVideo) ?? tpl.refVideo.durationSec).toFixed(1)}s 复刻`
+                  : t`${tpl.recipe.beats.length} 段`}
               </span>
               {/* ★★ 模板视频本身出不了片时打角标，**但不从列表里拿掉**：东西静默消失，
                   用户只会以为是我们弄丢了（铁律八）。判据只有 refVideoIssue 一处 */}
-              {refVideoIssue(t.refVideo) && (
-                <span className="rounded-full px-1.5 py-0.5 bg-rose-500/20 text-[9px] text-rose-200">暂时不可用</span>
+              {refVideoIssue(tpl.refVideo) && (
+                <span className="rounded-full px-1.5 py-0.5 bg-rose-500/20 text-[9px] text-rose-200"><Trans>暂时不可用</Trans></span>
               )}
             </div>
           </div>
@@ -167,7 +169,7 @@ export function TemplateCard({
             onClick={onPick}
             className="w-full rounded-xl bg-brand py-2.5 text-xs font-bold text-ink"
           >
-            用它出片
+            <Trans>用它出片</Trans>
           </button>
         </div>
       )}
@@ -189,19 +191,21 @@ export function TemplateCard({
  *   摆一颗点了必然失败的按钮，等于让用户以为还有救。
  */
 function BlockoutResumeCard({ job, onTaken }: { job: BlockoutJob; onTaken: () => void }) {
+  const { t } = useLingui();
   const [busy, setBusy] = useState("");
   const [issue, setIssue] = useState("");
   // 每分钟重算一次剩余时间（blockoutJobNote 是纯函数，重渲即刷新）
   const [, tick] = useState(0);
   useEffect(() => {
-    const t = setInterval(() => tick((n) => n + 1), 60_000);
-    return () => clearInterval(t);
+    const id = setInterval(() => tick((n) => n + 1), 60_000);
+    return () => clearInterval(id);
   }, []);
   const expired = blockoutJobExpired(job);
+  const sep = t({ message: "、", comment: "列举几个名字时的分隔符" });
 
   async function take() {
     setIssue("");
-    setBusy("正在取回…");
+    setBusy(t`正在取回…`);
     try {
       await resumeBlockoutize(job.jobId, (s) => setBusy(s));
       onTaken();
@@ -221,17 +225,17 @@ function BlockoutResumeCard({ job, onTaken }: { job: BlockoutJob; onTaken: () =>
       }`}
     >
       <div className="text-[11px] font-bold text-amber-200">
-        {expired ? "这一发白模化已经取不回来了" : "有一发白模化还没取回结果"}
+        {expired ? <Trans>这一发白模化已经取不回来了</Trans> : <Trans>有一发白模化还没取回结果</Trans>}
       </div>
       <div className="mt-0.5 truncate text-[11px] text-slate-300">
-        「{job.title}」· {job.durSec > 0 ? `${job.durSec}s` : "选段"}
+        「{job.title}」· {job.durSec > 0 ? `${job.durSec}s` : t`选段`}
         {/* ★ 序数方案下把位置列出来：这一发的凭据里就记着当初真正算出来的那份清单
             （`markSlots`，跟着凭据走而不是"按今天服务端是哪一套"事后推），所以这里说得准。
             老凭据没有这一位 → 只报个数（编号不连续，列出来反而误导） */}
         {job.roles.length > 0
           ? job.markSlots.length > 0
-            ? ` · 认出 ${job.roles.length} 个角色位：${job.roles.map((r) => r.label).join("、")}`
-            : ` · 认出 ${job.roles.length} 个角色位`
+            ? t` · 认出 ${job.roles.length} 个角色位：${job.roles.map((r) => r.label).join(sep)}`
+            : t` · 认出 ${job.roles.length} 个角色位`
           : ""}
       </div>
       <p className={`mt-1 text-[11px] leading-relaxed ${expired ? "text-slate-400" : "text-amber-200/90"}`}>
@@ -244,7 +248,7 @@ function BlockoutResumeCard({ job, onTaken }: { job: BlockoutJob; onTaken: () =>
           disabled={!!busy}
           className="mt-2 w-full rounded-xl bg-brand py-2.5 text-xs font-bold text-ink disabled:opacity-40"
         >
-          {busy ? "取回中…" : "取回这一发的结果（不额外花钱）"}
+          {busy ? <Trans>取回中…</Trans> : <Trans>取回这一发的结果（不额外花钱）</Trans>}
         </button>
       ) : (
         /* ★★ 只有**已经过期**的才给这颗（判据在 data 层 dismissBlockoutJob 里再挡一次）：
@@ -256,7 +260,7 @@ function BlockoutResumeCard({ job, onTaken }: { job: BlockoutJob; onTaken: () =>
           onClick={() => dismissBlockoutJob(job)}
           className="mt-2 w-full rounded-xl border border-slate-600 py-2.5 text-xs text-slate-300"
         >
-          知道了，不用再提醒我这一发
+          <Trans>知道了，不用再提醒我这一发</Trans>
         </button>
       )}
       {/* ★ 进度话摆在按钮下面而不是塞进按钮里：它是整句（"生成中 35s（可以退出…）"），
@@ -271,16 +275,17 @@ function BlockoutResumeCard({ job, onTaken }: { job: BlockoutJob; onTaken: () =>
  *    用户点名「格子上别堆一排按钮」；顺带列表滑动不再误触删除。此前"摆在列表里省一跳"
  *    那条取舍（见 git 历史）按用户新要求撤销：入口收在详情页一处，格子回归"只陈列 + 一眼看状态"。
  *  ★ 判据仍在 data 层唯一实现（isMyTemplate / remoteStateOf），这里只读不写。 */
-function OwnerRow({ t }: { t: VideoTemplate }) {
-  const st = remoteStateOf(t);
-  if (!isMyTemplate(t)) return null;
-  const published = st ? st.status === "published" : t.published;
+function OwnerRow({ t: tpl }: { t: VideoTemplate }) {
+  const { t } = useLingui();
+  const st = remoteStateOf(tpl);
+  if (!isMyTemplate(tpl)) return null;
+  const published = st ? st.status === "published" : tpl.published;
   const blocked = st?.status === "blocked";
   const [label, cls] = blocked
-    ? ["已下架", "bg-rose-500/15 text-rose-300"]
+    ? [t`已下架`, "bg-rose-500/15 text-rose-300"]
     : published
-      ? ["已发布", "bg-emerald-500/15 text-emerald-300"]
-      : ["草稿", "bg-slate-700 text-slate-300"];
+      ? [t`已发布`, "bg-emerald-500/15 text-emerald-300"]
+      : [t`草稿`, "bg-slate-700 text-slate-300"];
   return (
     <span data-guide="template-owner-row" className={`flex-none rounded-full px-2.5 py-1 text-[11px] ${cls}`}>
       {label}
@@ -302,6 +307,7 @@ function GroupRow({
   guide?: string;
   guidePick?: string;
 }) {
+  const { t } = useLingui();
   const [open, setOpen] = useState(false);
   const head = parts[0];
   const count = head.group?.count ?? parts.length;
@@ -321,10 +327,10 @@ function GroupRow({
             >
               <span>📼</span>
               <span className="min-w-0 flex-1">
-                同一条视频拆成 {count} 段的分段模板（共约 {Math.round(totalSec)}s）· 套用即整组铺开
-                {parts.length !== count ? ` · 这台设备上只看到 ${parts.length} 段` : ""}
+                <Trans>同一条视频拆成 {count} 段的分段模板（共约 {Math.round(totalSec)}s）· 套用即整组铺开</Trans>
+                {parts.length !== count ? t` · 这台设备上只看到 ${parts.length} 段` : ""}
               </span>
-              <span className="flex-none font-semibold">{open ? "收起 ▴" : "展开各段 ▾"}</span>
+              <span className="flex-none font-semibold">{open ? <Trans>收起 ▴</Trans> : <Trans>展开各段 ▾</Trans>}</span>
             </button>
             {isMyTemplate(head) && <OwnerRow t={head} />}
           </div>
@@ -353,6 +359,7 @@ export default function TemplateShelf({
    */
   queryKey?: string;
 }) {
+  const { t } = useLingui();
   const ver = useTemplatesVersion();
   const nav = useNavigate();
   const [q, setQ] = useState("");
@@ -426,10 +433,10 @@ export default function TemplateShelf({
   const asked = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (tab !== "mine" || !remoteLive) return;
-    for (const t of myTemplates()) {
-      if (!t.roles?.length || !t.remoteId || remoteStateOf(t) || asked.current.has(t.id)) continue;
-      asked.current.add(t.id);
-      void refreshRemoteTemplate(t.id);
+    for (const tpl of myTemplates()) {
+      if (!tpl.roles?.length || !tpl.remoteId || remoteStateOf(tpl) || asked.current.has(tpl.id)) continue;
+      asked.current.add(tpl.id);
+      void refreshRemoteTemplate(tpl.id);
     }
   }, [tab, ver, remoteLive]);
 
@@ -437,10 +444,10 @@ export default function TemplateShelf({
    *  本身不满足方舟窗口** —— 2026-08-16 起多了这一条），这时改跳详情页：那里印着拒绝的
    *  原因（r2vPriceIssue / refVideoIssue 各自的整句），留在市场干瞪眼不行。
    *  ★ 卡片上那个「暂时不可用」角标只是把这件事提前画出来，不是第二处判断 */
-  function pick(t: VideoTemplate) {
+  function pick(tpl: VideoTemplate) {
     // 分段组从任意一段点「用它出片」都是**整组**套用（templateGroupOf 不是组员时回 [自己]，
     // 所以单模板走的还是 applyTemplate 那条原路）
-    const parts = templateGroupOf(t);
+    const parts = templateGroupOf(tpl);
     // ★★ 组不齐时**整句拒绝**，绝不静默退成单段（2026-08-21 对抗评审确认）：
     //   templateGroupOf 凑不齐 count 就回 [自己]，而 `parts.length > 1` 这个判据会把它
     //   当成"这本来就是单模板"，落进 applyTemplate —— 一个节点、mode 退成 simple、
@@ -448,11 +455,9 @@ export default function TemplateShelf({
     //   凑不齐的常见原因：作者只发布了其中几段、某段被删、远端列表分页截断、弱网只到货一半。
     //   ⚠ 删段之后其余段的 group.count 仍是旧值，那一组会**永远**凑不齐 —— 所以这句话
     //     必须把"缺了几段"说出来，让作者知道去补发或重切，而不是每次都莫名其妙少几段。
-    if (t.group && parts.length !== t.group.count) {
+    if (tpl.group && parts.length !== tpl.group.count) {
       setPickErr(
-        `这是一条分成 ${t.group.count} 段的模板，但这台设备上只拿到了 ${parts.length} 段 —— ` +
-          `整组套用会少内容，所以先不套。下拉刷新试试；如果是作者只发布了其中几段（组内每段各自发布），` +
-          `等其余段发布出来再用。`,
+        t`这是一条分成 ${tpl.group.count} 段的模板，但这台设备上只拿到了 ${parts.length} 段 —— 整组套用会少内容，所以先不套。下拉刷新试试；如果是作者只发布了其中几段（组内每段各自发布），等其余段发布出来再用。`,
       );
       return;
     }
@@ -462,7 +467,7 @@ export default function TemplateShelf({
     //   会把那条草稿原地覆盖 —— 那是那些付费段唯一的备份
     guard(() => {
       const group = parts.length > 1;
-      const ok = group ? useFlow.getState().applyTemplateGroup(parts) : useFlow.getState().applyTemplate(t);
+      const ok = group ? useFlow.getState().applyTemplateGroup(parts) : useFlow.getState().applyTemplate(tpl);
       if (ok) nav("/flow");
       // ★★ 被整句拒时：**分段组把原因就地印出来，别甩去详情页**（第六轮收尾扫描抓到）。
       //   两个理由：① 详情页从头到尾不读 flowStore.err，它只会重算**这一条**模板的
@@ -471,8 +476,8 @@ export default function TemplateShelf({
       //   ② 更糟的是他在那一页再点一次「用它出片」，走的是 applyTemplate（单条），
       //   其余段静默消失 —— 而那正是本函数上面明令拒绝的「整组套用会少内容」。
       //   单模板那条仍然跳详情页：那一页会自己重算 blockoutIssue，措辞与这里一致。
-      else if (group) setPickErr(useFlow.getState().err || "这一组模板暂时套不了");
-      else nav(`/template/${t.id}`);
+      else if (group) setPickErr(useFlow.getState().err || t`这一组模板暂时套不了`);
+      else nav(`/template/${tpl.id}`);
       return ok;
     });
   }
@@ -481,16 +486,16 @@ export default function TemplateShelf({
     <div>
       {discardDialog}
       <div className="mb-3 flex gap-2">
-        {(["market", "mine"] as const).map((t) => (
+        {(["market", "mine"] as const).map((k) => (
           <button
-            key={t}
+            key={k}
             // 引导只圈「我的模板」那颗（market 那颗给 undefined = 不渲染这个属性，
             // 与改造前的 DOM 一模一样）
-            data-guide={t === "mine" ? "templates-tab-mine" : undefined}
-            onClick={() => setTab(t)}
-            className={`rounded-full px-3.5 py-1.5 text-xs font-semibold ${tab === t ? "bg-brand text-ink" : "bg-panel text-slate-300"}`}
+            data-guide={k === "mine" ? "templates-tab-mine" : undefined}
+            onClick={() => setTab(k)}
+            className={`rounded-full px-3.5 py-1.5 text-xs font-semibold ${tab === k ? "bg-brand text-ink" : "bg-panel text-slate-300"}`}
           >
-            {t === "market" ? "模板市场" : `我的模板 ${mineRows || ""}`}
+            {k === "market" ? <Trans>模板市场</Trans> : <Trans>我的模板 {mineRows || ""}</Trans>}
           </button>
         ))}
       </div>
@@ -501,7 +506,7 @@ export default function TemplateShelf({
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="搜模板：特摄、治愈、赛博…"
+            placeholder={t`搜模板：特摄、治愈、赛博…`}
             className="min-w-0 flex-1 bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-500"
           />
         </div>
@@ -514,7 +519,7 @@ export default function TemplateShelf({
             1px 的 box-shadow）上下两条边就被裁掉了，首尾两颗的左右边同理 —— 看起来是
             "圆边框缺了一截"。负外边距让这 2px 不占版面，与改之前逐像素同位。 */}
       <div className="-mx-0.5 -my-0.5 mb-2.5 flex gap-1.5 no-scrollbar overflow-x-auto px-0.5 py-0.5">
-        {[{ id: "", label: "全部" }, ...TPL_CATEGORIES].map((c) => (
+        {[{ id: "", label: t`全部` }, ...TPL_CATEGORIES].map((c) => (
           <button
             key={c.id}
             onClick={() => setCat(c.id)}
@@ -575,7 +580,7 @@ export default function TemplateShelf({
               AI 付费白模化**那条路 —— 用户带着一段自己做好的白模片点进去，会被再白模化
               一次、白花一次 r2v，而且画质更差。现在两条路都在框选那一屏里选，
               所以这句话要把**两种都传得**说出来。 */}
-          传一段视频做白模模板（自己做好的白模片也行）
+          <Trans>传一段视频做白模模板（自己做好的白模片也行）</Trans>
         </button>
       )}
 
@@ -620,12 +625,12 @@ export default function TemplateShelf({
             icon="search"
             text={
               cat && allRows.length > 0
-                ? `「${tplCategoryLabel(cat)}」分类下还没有模板——点「全部」看现有的，或做一个发布出来占坑`
+                ? t`「${tplCategoryLabel(cat)}」分类下还没有模板——点「全部」看现有的，或做一个发布出来占坑`
                 : tab === "mine"
-                  ? "还没有你自己的模板——上面那两个入口都能做一个"
+                  ? t`还没有你自己的模板——上面那两个入口都能做一个`
                   : q.trim()
-                    ? "没有匹配的模板，换个词试试"
-                    : "市场上还没有公开的模板。做一个自己的、发布出来，这里就有了。"
+                    ? t`没有匹配的模板，换个词试试`
+                    : t`市场上还没有公开的模板。做一个自己的、发布出来，这里就有了。`
             }
           />
         )}
@@ -635,7 +640,7 @@ export default function TemplateShelf({
         <VideoTemplateExtractor
           defaultBlockout
           onClose={() => setExtract(false)}
-          onDone={(t) => pick(t)}
+          onDone={(tpl) => pick(tpl)}
         />
       )}
     </div>

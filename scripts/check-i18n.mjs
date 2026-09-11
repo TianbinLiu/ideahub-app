@@ -15,7 +15,7 @@
 //     冻结文件（FROZEN_FILES：画布指挥句式 src/studio/agentGrammar.ts —— 被解析的输入，不是界面文案）。
 //   B 宏用法：模块顶层出现会立刻翻译的调用（t`` / t() / plural / select / i18n._( / i18n.t(）→ 失败（只准 msg / defineMessage）；
 //     .tsx 从 @lingui/core/macro 引 t → 失败（组件里用 useLingui 的 t，否则切语言不重渲）；zhPrompt 模板里出现宏 → 失败；
-//     src/ai/prompts/** 与冻结文件 import @lingui → 失败；useMemo / useCallback 里用了宏而依赖里没有 locale / i18n → 只提醒。
+//     src/ai/prompts/** 与冻结文件 import @lingui → 失败；useMemo / useCallback 里用了宏而依赖里没有 locale / i18n / t → 只提醒。
 //   C 冻结声明：`/* i18n-frozen: 理由 */` 修饰的声明，初始化式里出现宏 → 失败（协议串被误翻是零报错的）。
 //   E 缺译棘轮：src/locales/en.po 里 msgstr 为空的条数不得超过基线。
 //
@@ -174,11 +174,14 @@ for (const file of walk(SRC)) {
     if (ts.isCallExpression(node)) {
       const ex = node.expression;
       if (ts.isPropertyAccessExpression(ex) && ts.isIdentifier(ex.expression) && ex.expression.text === "console") n = { ...n, skip: true };
-      // useMemo / useCallback：用了宏而依赖里没有 locale / i18n → 切语言后这一处停在旧语言（只提醒）
+      // useMemo / useCallback：用了宏而依赖里没有 locale / i18n / t → 切语言后这一处停在旧语言（只提醒）
+      // ★ 依赖里写 useLingui 的 t 也算数：@lingui/react 的 I18nProvider 每次 "change" 都重建 context
+      //   （getI18nContext 里 `_: i18n.t.bind(i18n)` 重新 bind，i18n 也换一个新 Proxy），t 的身份随语言变、
+      //   memo 会跟着重算。不认它的话，迁移时把 t 写进依赖（正确写法）也会被报，这条提醒就成了噪音。
       if (ts.isIdentifier(ex) && (ex.text === "useMemo" || ex.text === "useCallback") && node.arguments.length >= 1) {
         const deps = node.arguments[1];
-        if (containsMacro(node.arguments[0]) && !(deps && /locale|i18n/.test(deps.getText(sf)))) {
-          warnings.push(`${rel}:${lineOf(node)}  ${ex.text} 里用了宏，依赖里没有 locale / i18n：切语言后这一处可能停在旧语言`);
+        if (containsMacro(node.arguments[0]) && !(deps && /locale|i18n|\bt\b/.test(deps.getText(sf)))) {
+          warnings.push(`${rel}:${lineOf(node)}  ${ex.text} 里用了宏，依赖里没有 locale / i18n / t：切语言后这一处可能停在旧语言`);
         }
       }
     }

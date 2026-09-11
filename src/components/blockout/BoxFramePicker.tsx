@@ -27,6 +27,7 @@
 //   默认选段是 0 起 30 秒，于是一段两分钟的素材，用户在中后段标的帧会被全部滤光：
 //   atSecs 变成空数组 → `api/branch` 那句 `atSecs.length ? {atSecs} : {}` 发出空请求体 →
 //   服务端退回几何自动铺。而界面上还写着「已标 5/5」，全程一个字都没说，且这一步是付费的。
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Icon from "../Icon";
 import { BLOCKOUT_BOX_TRIES } from "../../data/economy";
@@ -155,6 +156,7 @@ export default function BoxFramePicker({
   onMarksChange,
   disabled,
 }: BoxFramePickerProps) {
+  const { t } = useLingui();
   const vid = useRef<HTMLVideoElement | null>(null);
   const [at, setAt] = useState(0);
   const [dur, setDur] = useState(0);
@@ -332,9 +334,9 @@ export default function BoxFramePicker({
     const v = vid.current;
     if (!v || dur <= 0 || disabled) return;
     if (!v.paused) v.pause();
-    const t = Math.min(Math.max(winStart, quant(v.currentTime + delta)), winEnd);
-    v.currentTime = t;
-    setAt(t);
+    const sec = Math.min(Math.max(winStart, quant(v.currentTime + delta)), winEnd);
+    v.currentTime = sec;
+    setAt(sec);
   }
 
   const here = quant(at);
@@ -354,18 +356,18 @@ export default function BoxFramePicker({
       ? // ★ 2026-08-17 补：`dur <= 0` 本来就把滑杆与这颗按钮灰掉了，却不在这三条理由里 ——
         // 正是本文件自己立的那条禁令的反例。它也不是用户的错（多半是元数据还在读），
         // 所以话要说成"等一下"而不是"你做错了"。
-        "还在读这段视频的时长，读到之前标不了帧。应用切到后台时系统会暂停解码——回到前台等一两秒就好；一直读不出来就是这个文件解不开，换一个 mp4 试试。"
+        t`还在读这段视频的时长，读到之前标不了帧。应用切到后台时系统会暂停解码——回到前台等一两秒就好；一直读不出来就是这个文件解不开，换一个 mp4 试试。`
       : hereOutside && sel
         ? clipAxis
           ? // clip 形态下唯一能跑到选段外的位置是**末尾那一格**（上界是开区间：裁出来的片子没有它）
-            `已经到片段末尾了（片段共 ${sel.durSec} 秒，不含第 ${sel.durSec} 秒这一格）——往前挪一格再标。`
-          : `现在这一帧（原片第 ${here.toFixed(1)} 秒）在选段外面——选段是原片的第 ${sel.startSec}~${sel.startSec + sel.durSec} 秒，只有那一段会被做成模板。把播放头挪进选段再标，或者先把上面的选段拖到这儿来。`
+            t`已经到片段末尾了（片段共 ${sel.durSec} 秒，不含第 ${sel.durSec} 秒这一格）——往前挪一格再标。`
+          : t`现在这一帧（原片第 ${here.toFixed(1)} 秒）在选段外面——选段是原片的第 ${sel.startSec}~${sel.startSec + sel.durSec} 秒，只有那一段会被做成模板。把播放头挪进选段再标，或者先把上面的选段拖到这儿来。`
         : full
           ? kind === "split"
-            ? `已经标满 ${cap} 刀了——一次分段登记最多切 ${SPLIT_MAX_PARTS} 段（超过 30 秒的段还会自动补刀，不用标太密）。先删一刀再标。`
-            : `已经标满 ${cap} 帧了——再多也用不上（服务端依次试、第一个成的就停）。先删一帧再标。`
+            ? t`已经标满 ${cap} 刀了——一次分段登记最多切 ${SPLIT_MAX_PARTS} 段（超过 30 秒的段还会自动补刀，不用标太密）。先删一刀再标。`
+            : t`已经标满 ${cap} 帧了——再多也用不上（服务端依次试、第一个成的就停）。先删一帧再标。`
           : already
-            ? "这一秒已经标过了。把播放头挪到别处再标。"
+            ? t`这一秒已经标过了。把播放头挪到别处再标。`
             : null;
 
   const tab = (m: BoxFrameMode, label: string) => (
@@ -383,21 +385,23 @@ export default function BoxFramePicker({
 
   return (
     <div className="space-y-2 rounded-lg border border-slate-700/70 bg-panel/60 px-3 py-2.5">
-      <p className="text-[11px] font-bold text-slate-200">{kind === "split" ? "在哪几帧切开" : "AI 分析哪几帧"}</p>
+      <p className="text-[11px] font-bold text-slate-200">{kind === "split" ? <Trans>在哪几帧切开</Trans> : <Trans>AI 分析哪几帧</Trans>}</p>
 
       {/* split 形态没有模式档：不标 = 自动对半、标了不够 = 自动补刀，都在 planSplits 一处，
           界面上摆一对"自动/手动"页签只会暗示存在两条不同的路 */}
       {kind === "analyze" && (
         <div className="flex gap-2">
-          {tab("auto", "自动（推荐）")}
-          {tab("manual", "自己挑")}
+          {tab("auto", t`自动（推荐）`)}
+          {tab("manual", t`自己挑`)}
         </div>
       )}
 
       {kind === "analyze" && mode === "auto" ? (
         <p className="text-[11px] leading-relaxed text-slate-400">
-          由 AI 自己挑：先看正中间那一帧，认不全再往两头铺，最多试 {BLOCKOUT_BOX_TRIES} 帧。
-          <b className="text-slate-300">一镜到底、人站着不动的素材用这个就够。</b>
+          <Trans>
+            由 AI 自己挑：先看正中间那一帧，认不全再往两头铺，最多试 {BLOCKOUT_BOX_TRIES} 帧。
+            <b className="text-slate-300">一镜到底、人站着不动的素材用这个就够。</b>
+          </Trans>
         </p>
       ) : (
         <>
@@ -406,16 +410,20 @@ export default function BoxFramePicker({
                 一帧里数（认人是每段各来一次的）。"不标也行"必须说 —— 不说的话用户会以为
                 这一步是必填的，对着一条一镜到底的素材硬找切点 */
             <p className="text-[11px] leading-relaxed text-slate-400">
-              <b className="text-slate-200">标在场景切换、人数变化的那一帧</b>：每段是独立模板、各认一次人，
-              切在镜头边界上每段都认得更准。<b className="text-slate-200">不标也行</b>——会自动对半切到每段 ≤30
-              秒；标了之后还超 30 秒的段也会自动补刀。切出来不足 4 秒的刀落不下去，会整句告诉你。
+              <Trans>
+                <b className="text-slate-200">标在场景切换、人数变化的那一帧</b>：每段是独立模板、各认一次人，
+                切在镜头边界上每段都认得更准。<b className="text-slate-200">不标也行</b>——会自动对半切到每段 ≤30
+                秒；标了之后还超 30 秒的段也会自动补刀。切出来不足 4 秒的刀落不下去，会整句告诉你。
+              </Trans>
             </p>
           ) : (
             /* ★ 这句话是"什么时候该用自己挑"的判据，不是装饰：分镜一换，画面里的人和
                 他们的左右次序都会变，而 AI 按几何位置铺帧，不知道分镜在哪 */
             <p className="text-[11px] leading-relaxed text-slate-400">
-              <b className="text-slate-200">素材有分镜切换、或者人会进出画面时用这个</b>：拖到一帧
-              <b className="text-slate-200">人最齐、最能代表这一段</b>的画面，标下来。标了几帧就按你标的顺序依次试。
+              <Trans>
+                <b className="text-slate-200">素材有分镜切换、或者人会进出画面时用这个</b>：拖到一帧
+                <b className="text-slate-200">人最齐、最能代表这一段</b>的画面，标下来。标了几帧就按你标的顺序依次试。
+              </Trans>
             </p>
           )}
 
@@ -424,21 +432,25 @@ export default function BoxFramePicker({
               （2026-08-17 之前就是这样，而这一步是付费的）。 */}
           {sel && !clipAxis && (
             <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200/90">
-              下面这条时间轴是<b className="font-bold">整条原片</b>，而真正做成模板的只有你在上面框出的
-              <b className="font-bold">
-                第 {sel.startSec}~{sel.startSec + sel.durSec} 秒
-              </b>
+              <Trans>
+                下面这条时间轴是<b className="font-bold">整条原片</b>，而真正做成模板的只有你在上面框出的
+                <b className="font-bold">
+                  第 {sel.startSec}~{sel.startSec + sel.durSec} 秒
+                </b>
+              </Trans>
               {/* ★ 别在这里写"落在外面的不计费"：这条路的报价是**按上限的一个定额**
                   （标 1 帧和标满 5 帧报的是同一个数，见 economy.ownRefTemplateCost），
                   说"不计费"会让人以为每多标一帧就多花一笔 —— 那是另一条路的价目。 */}
-              ——只有落在这一段里的标记才作数，落在外面的 AI 根本不会看，等于白标。
+              <Trans>——只有落在这一段里的标记才作数，落在外面的 AI 根本不会看，等于白标。</Trans>
             </p>
           )}
           {/* clip 形态：轴就是选段本身，说一句"从哪到哪"就够 —— 不再需要那段黄字 */}
           {sel && clipAxis && (
             <p className="text-[10px] leading-relaxed text-slate-500">
-              下面这条时间轴就是你框出的那 {sel.durSec} 秒（原片第 {sel.startSec}~{sel.startSec + sel.durSec} 秒），
-              从片段第 0 秒起算。
+              <Trans>
+                下面这条时间轴就是你框出的那 {sel.durSec} 秒（原片第 {sel.startSec}~{sel.startSec + sel.durSec} 秒），
+                从片段第 0 秒起算。
+              </Trans>
             </p>
           )}
 
@@ -476,7 +488,7 @@ export default function BoxFramePicker({
             <button
               onClick={() => togglePlay()}
               disabled={disabled || dur <= 0}
-              aria-label={playing ? "暂停" : "播放"}
+              aria-label={playing ? t`暂停` : t`播放`}
               className="flex-none rounded-full bg-slate-700/70 px-2.5 py-1.5 text-slate-200 disabled:opacity-40"
             >
               <Icon name={playing ? "pause" : "play"} size={14} />
@@ -489,7 +501,7 @@ export default function BoxFramePicker({
                 if (vid.current) vid.current.playbackRate = next ? 0.25 : 1;
               }}
               disabled={disabled || dur <= 0}
-              aria-label={slow ? "恢复正常速度" : "慢放 0.25 倍"}
+              aria-label={slow ? t`恢复正常速度` : t`慢放 0.25 倍`}
               className={`flex-none rounded-lg px-2 py-1.5 text-[11px] font-semibold tabular-nums disabled:opacity-40 ${
                 slow ? "bg-brand text-ink" : "bg-slate-700/70 text-slate-300"
               }`}
@@ -503,17 +515,17 @@ export default function BoxFramePicker({
               step={step}
               value={Math.min(Math.max(at, winStart), winEnd)}
               onChange={(e) => {
-                const t = Number(e.target.value);
-                setAt(t);
-                if (vid.current) vid.current.currentTime = t;
+                const sec = Number(e.target.value);
+                setAt(sec);
+                if (vid.current) vid.current.currentTime = sec;
               }}
               disabled={disabled || dur <= 0}
               className="min-w-0 flex-1 accent-sky-400 disabled:opacity-40"
-              aria-label="把播放头挪到第几秒"
+              aria-label={t`把播放头挪到第几秒`}
             />
             {/* ★ 读数与滑杆同一把尺：clip 形态按片段内秒报（滑杆左端就是片段第 0 秒） */}
             <span className="flex-none text-[11px] tabular-nums text-slate-400">
-              {clipAxis ? `片段第 ${(here - winStart).toFixed(1)} 秒` : `第 ${here.toFixed(1)} 秒`}
+              {clipAxis ? t`片段第 ${(here - winStart).toFixed(1)} 秒` : t`第 ${here.toFixed(1)} 秒`}
             </span>
           </div>
           {/* ★ 微调：手指在 300px 的轨道上拖不出 0.1 秒（360 秒素材是 1.2 秒/px）。
@@ -522,7 +534,7 @@ export default function BoxFramePicker({
             <button
               onClick={() => nudge(-step)}
               disabled={disabled || dur <= 0}
-              aria-label={`往前 ${step} 秒`}
+              aria-label={t`往前 ${step} 秒`}
               className="flex-1 rounded-full bg-slate-700/70 py-1.5 text-[11px] tabular-nums text-slate-200 disabled:opacity-40"
             >
               ◀ −{step}s
@@ -530,7 +542,7 @@ export default function BoxFramePicker({
             <button
               onClick={() => nudge(step)}
               disabled={disabled || dur <= 0}
-              aria-label={`往后 ${step} 秒`}
+              aria-label={t`往后 ${step} 秒`}
               className="flex-1 rounded-full bg-slate-700/70 py-1.5 text-[11px] tabular-nums text-slate-200 disabled:opacity-40"
             >
               +{step}s ▶
@@ -549,13 +561,12 @@ export default function BoxFramePicker({
               disabled={disabled || !!block}
               className="flex-1 rounded-xl border border-sky-500/60 bg-sky-500/10 py-2 text-xs font-bold text-sky-200 disabled:opacity-40"
             >
-              {kind === "split" ? "＋ 在这里切一刀" : "＋ 标记这一帧"}
+              {kind === "split" ? <Trans>＋ 在这里切一刀</Trans> : <Trans>＋ 标记这一帧</Trans>}
             </button>
             {/* ★ 数的是**选段内**那些（不传 sel 时二者相同）：数总数的话，用户顶着
                 「已标 5/5」而实际只发出去 1 帧 —— 门禁同理，它挡的也是选段内那些。 */}
             <span className="flex-none text-[11px] tabular-nums text-slate-400">
-              已标 {inside.length}/{cap}
-              {kind === "split" ? " 刀" : ""}
+              {kind === "split" ? <Trans>已标 {inside.length}/{cap} 刀</Trans> : <Trans>已标 {inside.length}/{cap}</Trans>}
             </span>
           </div>
 
@@ -565,7 +576,7 @@ export default function BoxFramePicker({
             kind === "split" ? (
               // split 形态下"没标"不是缺口而是一条完整的路（自动对半），话按这个说
               <p className="text-[10px] leading-relaxed text-slate-500">
-                还没标刀——不标就自动对半切到每段 ≤30 秒。想自己定切点，把播放头拖到镜头切换那一帧点「在这里切一刀」。
+                <Trans>还没标刀——不标就自动对半切到每段 ≤30 秒。想自己定切点，把播放头拖到镜头切换那一帧点「在这里切一刀」。</Trans>
               </p>
             ) : (
               // ★ 2026-08-17 改口：原话是「一帧都没标的话会退回『自动』那条 —— 不会失败，
@@ -574,8 +585,10 @@ export default function BoxFramePicker({
               //   而在「识别角色位」重试那条路上仍然成立。两个调用点唯一都为真的说法只有
               //   "至少标 1 帧才作数"，所以只说这一句 —— 别在这里替某一条路许诺后果。
               <p className="text-[10px] leading-relaxed text-slate-500">
-                还没标任何一帧。「自己挑」至少要标 1 帧才作数——把播放头拖到人最齐的那一帧点「标记这一帧」，
-                或者切回「自动」。
+                <Trans>
+                  还没标任何一帧。「自己挑」至少要标 1 帧才作数——把播放头拖到人最齐的那一帧点「标记这一帧」，
+                  或者切回「自动」。
+                </Trans>
               </p>
             )
           ) : (
@@ -587,11 +600,11 @@ export default function BoxFramePicker({
                 const ok = boxMarkInSelection(m, sel);
                 const label = !ok
                   ? clipAxis
-                    ? `原片第 ${m.toFixed(1)} 秒（选段外）`
-                    : `第 ${m.toFixed(1)} 秒（选段外）`
+                    ? t`原片第 ${m.toFixed(1)} 秒（选段外）`
+                    : t`第 ${m.toFixed(1)} 秒（选段外）`
                   : clipAxis
-                    ? `第 ${(m - winStart).toFixed(1)} 秒`
-                    : `第 ${m.toFixed(1)} 秒`;
+                    ? t`第 ${(m - winStart).toFixed(1)} 秒`
+                    : t`第 ${m.toFixed(1)} 秒`;
                 return (
                   <span
                     key={m}
@@ -604,9 +617,9 @@ export default function BoxFramePicker({
                         const v = vid.current;
                         if (!v) return;
                         // clip 形态：选段外的那枚跳到离它最近的窗口边（跳出去就看不见了、也标不了）
-                        const t = clipAxis ? Math.min(Math.max(m, winStart), winEnd) : m;
-                        v.currentTime = t;
-                        setAt(t);
+                        const sec = clipAxis ? Math.min(Math.max(m, winStart), winEnd) : m;
+                        v.currentTime = sec;
+                        setAt(sec);
                       }}
                       className="tabular-nums"
                     >
@@ -615,7 +628,7 @@ export default function BoxFramePicker({
                     <button
                       onClick={() => onMarksChange(marks.filter((x) => x !== m))}
                       disabled={disabled}
-                      aria-label={`删掉第 ${m.toFixed(1)} 秒这一帧`}
+                      aria-label={t`删掉第 ${m.toFixed(1)} 秒这一帧`}
                       className={`disabled:opacity-40 ${ok ? "text-slate-400" : "text-rose-300"}`}
                     >
                       ×
@@ -634,15 +647,19 @@ export default function BoxFramePicker({
               {clipAxis ? (
                 // clip 形态下选段不在这一屏：出路是"回上一步"，不是"把上面的选段拖回去"
                 <>
-                  有 {outside.length} 帧落在现在的选段外面（是回上一步改选段之前标的），<b>不会被采用</b>，
-                  AI 一眼都不会看它们。把它们删掉，或者回上一步把选段拖回去
-                  （它们在原片的第 {outside.map((m) => m.toFixed(1)).join(" / ")} 秒）。
+                  <Trans>
+                    有 {outside.length} 帧落在现在的选段外面（是回上一步改选段之前标的），<b>不会被采用</b>，
+                    AI 一眼都不会看它们。把它们删掉，或者回上一步把选段拖回去
+                    （它们在原片的第 {outside.map((m) => m.toFixed(1)).join(" / ")} 秒）。
+                  </Trans>
                 </>
               ) : (
                 <>
-                  有 {outside.length} 帧落在选段外面（选段后来被拖动过——标的时候它们还在里面），
-                  <b>不会被采用</b>，AI 一眼都不会看它们。把它们删掉，或者把上面的选段拖回去
-                  （它们在原片的第 {outside.map((m) => m.toFixed(1)).join(" / ")} 秒）。
+                  <Trans>
+                    有 {outside.length} 帧落在选段外面（选段后来被拖动过——标的时候它们还在里面），
+                    <b>不会被采用</b>，AI 一眼都不会看它们。把它们删掉，或者把上面的选段拖回去
+                    （它们在原片的第 {outside.map((m) => m.toFixed(1)).join(" / ")} 秒）。
+                  </Trans>
                 </>
               )}
             </p>

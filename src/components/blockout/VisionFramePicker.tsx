@@ -24,6 +24,7 @@
 // ★ 标记按**绝对秒**存（用户是对着画面标的），换算成提交用的 `frameTimes`（相对选段起点）
 //   只有 `arkVideoRules.frameTimesOf` 一处 —— 选段之后还会被拖动，存相对秒的话拖一下
 //   起点，同一条标记就悄悄指向了另一帧，而缩略图还停在旧画面上。
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
 import { BLOCKOUTIZE_FRAME_MAX, BLOCKOUTIZE_FRAME_MIN, BLOCKOUTIZE_FRAME_EVERY_SEC } from "../../data/templates";
 import { formatDuration } from "../../types";
@@ -72,6 +73,7 @@ export default function VisionFramePicker({
   onCapture,
   disabled,
 }: VisionFramePickerProps) {
+  const { t } = useLingui();
   /** 抓帧失败的整句原因（超时、解不开）。★ 一律显示，不吞：吞掉的表现是"点了没反应" */
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
@@ -90,9 +92,9 @@ export default function VisionFramePicker({
   const markBlock = disabled
     ? null
     : full
-      ? `已经标满 ${BLOCKOUTIZE_FRAME_MAX} 帧了（再多也只是买重复的画面）——先删掉一帧再标。`
+      ? t`已经标满 ${BLOCKOUTIZE_FRAME_MAX} 帧了（再多也只是买重复的画面）——先删掉一帧再标。`
       : already
-        ? "这一秒已经标过了。把播放头挪到别处再标（人物入场/离场的前后各一帧最有用）。"
+        ? t`这一秒已经标过了。把播放头挪到别处再标（人物入场/离场的前后各一帧最有用）。`
         : null;
 
   async function mark() {
@@ -105,7 +107,7 @@ export default function VisionFramePicker({
       const got = await onCapture(start + rel);
       const at = Math.round(got.atSec);
       if (marks.some((m) => Math.round(m.atSec) === at)) {
-        setErr("这一秒已经标过了（播放头刚好落回同一帧）。");
+        setErr(t`这一秒已经标过了（播放头刚好落回同一帧）。`);
         return;
       }
       onMarksChange([...marks, { atSec: at, thumb: got.thumb }].sort((a, b) => a.atSec - b.atSec));
@@ -131,42 +133,50 @@ export default function VisionFramePicker({
 
   return (
     <div className="space-y-2 rounded-lg border border-slate-700/70 bg-panel/60 px-3 py-2.5">
-      <p className="text-[11px] font-bold text-slate-200">AI 看哪几帧</p>
+      <p className="text-[11px] font-bold text-slate-200"><Trans>AI 看哪几帧</Trans></p>
       <p className="text-[10px] leading-relaxed text-slate-500">
-        白模化前，AI 先看几帧、列出<b className="text-slate-300">画面里有哪些人</b>，再按这份清单
-        逐个点名替换成<b className="text-slate-300">一模一样的纯白人偶</b>。
-        <b className="text-amber-300">看漏了人，他照样会被换成白人偶</b>
-        ——但清单里没有他的位置，所以挂不了卡，而且<b className="text-amber-300">他还会把别人的
-        「从左数第几个」挤歪一位</b>。
+        <Trans>
+          白模化前，AI 先看几帧、列出<b className="text-slate-300">画面里有哪些人</b>，再按这份清单
+          逐个点名替换成<b className="text-slate-300">一模一样的纯白人偶</b>。
+          <b className="text-amber-300">看漏了人，他照样会被换成白人偶</b>
+          ——但清单里没有他的位置，所以挂不了卡，而且<b className="text-amber-300">他还会把别人的
+          「从左数第几个」挤歪一位</b>。
+        </Trans>
       </p>
       {/* ★★ 命中率：这一屏是**花钱之前的最后一屏**，目的是让作者多标几帧 / 减少人数。
           与提取器那一屏逐字同源，同样**不给具体数字**（旧的那句"7 发 4 发全对"是颜色方案
           那一版提示词的实测，那一版已经删了 —— 理由见提取器那一处的 ⚠）。 */}
       <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[10px] leading-relaxed text-amber-200/90">
-        <b className="font-bold">这一步不是每次都全对。</b>
-        实测每隔几发就会有 1~2 个人<b className="font-bold">根本没被换成人偶</b>（还是原来的样子）
-        —— 最常出错的是<b className="font-bold">画面正中央、看起来最像主角的那一个</b>。
-        出片之后你要对着画面从左往右数一遍：对不上的位子删掉就行（不用重炼、不花钱），
-        要全对上只能重炼（<b className="font-bold">重炼要再花一次钱</b>）。
-        <b className="font-bold">画面里的人越少越准</b>，也可以在下面多标几帧让 AI 少看漏人。
+        <Trans>
+          <b className="font-bold">这一步不是每次都全对。</b>
+          实测每隔几发就会有 1~2 个人<b className="font-bold">根本没被换成人偶</b>（还是原来的样子）
+          —— 最常出错的是<b className="font-bold">画面正中央、看起来最像主角的那一个</b>。
+          出片之后你要对着画面从左往右数一遍：对不上的位子删掉就行（不用重炼、不花钱），
+          要全对上只能重炼（<b className="font-bold">重炼要再花一次钱</b>）。
+          <b className="font-bold">画面里的人越少越准</b>，也可以在下面多标几帧让 AI 少看漏人。
+        </Trans>
       </p>
 
       <div className="flex gap-2">
-        {tab("auto", "自动（推荐）")}
-        {tab("manual", "自己挑")}
+        {tab("auto", t`自动（推荐）`)}
+        {tab("manual", t`自己挑`)}
       </div>
 
       {mode === "auto" ? (
         <p className="text-[11px] leading-relaxed text-slate-400">
-          按这一段的时长自动取帧：现在是 <b className="text-slate-200">{autoFrames} 帧</b>
-          （每 {BLOCKOUTIZE_FRAME_EVERY_SEC} 秒一帧，最少 {BLOCKOUTIZE_FRAME_MIN} 帧、最多 {BLOCKOUTIZE_FRAME_MAX} 帧）。
-          <b className="text-slate-300">拖时间轴改选段长度，帧数和下面的报价都会跟着变。</b>
+          <Trans>
+            按这一段的时长自动取帧：现在是 <b className="text-slate-200">{autoFrames} 帧</b>
+            （每 {BLOCKOUTIZE_FRAME_EVERY_SEC} 秒一帧，最少 {BLOCKOUTIZE_FRAME_MIN} 帧、最多 {BLOCKOUTIZE_FRAME_MAX} 帧）。
+            <b className="text-slate-300">拖时间轴改选段长度，帧数和下面的报价都会跟着变。</b>
+          </Trans>
         </p>
       ) : (
         <>
           <p className="text-[11px] leading-relaxed text-slate-400">
-            <b className="text-slate-200">画面里人数会变（有人入场 / 离场）时用这个</b>：在变化的
-            <b className="text-slate-200">前后各标一帧</b>，AI 才认得全。其余情况用「自动」就够了。
+            <Trans>
+              <b className="text-slate-200">画面里人数会变（有人入场 / 离场）时用这个</b>：在变化的
+              <b className="text-slate-200">前后各标一帧</b>，AI 才认得全。其余情况用「自动」就够了。
+            </Trans>
           </p>
 
           {/* 定位：复用同一个播放器与播放头，这里只提供"按秒对齐"的那一层 */}
@@ -187,7 +197,7 @@ export default function VisionFramePicker({
               onChange={(e) => onSeek(start + Number(e.target.value))}
               disabled={disabled}
               className="min-w-0 flex-1 accent-sky-400 disabled:opacity-40"
-              aria-label="把播放头挪到选段里的第几秒"
+              aria-label={t`把播放头挪到选段里的第几秒`}
             />
             <button
               onClick={() => onSeek(start + Math.min(last, rel + 1))}
@@ -197,7 +207,7 @@ export default function VisionFramePicker({
               +1s
             </button>
             <span className="flex-none text-[11px] tabular-nums text-slate-400">
-              第 {rel} 秒
+              <Trans>第 {rel} 秒</Trans>
             </span>
           </div>
 
@@ -207,10 +217,10 @@ export default function VisionFramePicker({
               disabled={disabled || busy || !!markBlock}
               className="flex-1 rounded-xl border border-sky-500/60 bg-sky-500/10 py-2 text-xs font-bold text-sky-200 disabled:opacity-40"
             >
-              {busy ? "正在取这一帧…" : "＋ 标记这一帧"}
+              {busy ? <Trans>正在取这一帧…</Trans> : <Trans>＋ 标记这一帧</Trans>}
             </button>
             <span className="flex-none text-[11px] tabular-nums text-slate-400">
-              已标 {inside.length}/{BLOCKOUTIZE_FRAME_MAX}
+              <Trans>已标 {inside.length}/{BLOCKOUTIZE_FRAME_MAX}</Trans>
             </span>
           </div>
 
@@ -220,7 +230,7 @@ export default function VisionFramePicker({
 
           {marks.length === 0 ? (
             <p className="text-[10px] leading-relaxed text-slate-500">
-              还没标任何一帧。至少要标 1 帧才能开炼——拖上面的滑杆到有人的地方，点「标记这一帧」。
+              <Trans>还没标任何一帧。至少要标 1 帧才能开炼——拖上面的滑杆到有人的地方，点「标记这一帧」。</Trans>
             </p>
           ) : (
             <div className="flex gap-1.5 no-scrollbar overflow-x-auto pb-1">
@@ -233,7 +243,7 @@ export default function VisionFramePicker({
                       onClick={() => onSeek(at)}
                       disabled={disabled}
                       className={`block overflow-hidden rounded-lg border ${ok ? "border-sky-500/60" : "border-rose-500/70"}`}
-                      aria-label={`跳到第 ${at} 秒`}
+                      aria-label={t`跳到第 ${at} 秒`}
                     >
                       {m.thumb ? (
                         <img src={m.thumb} alt="" className="h-14 w-auto max-w-[7rem] object-cover" />
@@ -241,7 +251,7 @@ export default function VisionFramePicker({
                         // 缩略图抓不到（跨域素材污染了画布）时不留白：这一帧照样作数，
                         // 只是没有小图 —— 空着会让人以为标记没成功
                         <span className="flex h-14 w-20 items-center justify-center bg-slate-800 text-[10px] text-slate-400">
-                          无预览
+                          <Trans>无预览</Trans>
                         </span>
                       )}
                       <span
@@ -249,14 +259,14 @@ export default function VisionFramePicker({
                           ok ? "bg-black/60 text-slate-200" : "bg-rose-500/25 text-rose-200"
                         }`}
                       >
-                        {ok ? `第 ${at - start} 秒` : "不在选段内"}
+                        {ok ? t`第 ${at - start} 秒` : t`不在选段内`}
                       </span>
                     </button>
                     <button
                       onClick={() => onMarksChange(marks.filter((x) => Math.round(x.atSec) !== at))}
                       disabled={disabled}
                       className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-slate-900/90 text-[11px] text-slate-200 ring-1 ring-slate-600 disabled:opacity-40"
-                      aria-label={`删掉第 ${at} 秒这一帧`}
+                      aria-label={t`删掉第 ${at} 秒这一帧`}
                     >
                       ×
                     </button>
@@ -268,9 +278,11 @@ export default function VisionFramePicker({
 
           {outside.length > 0 && (
             <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-rose-200">
-              有 {outside.length} 帧落在选段外面（选段后来被拖动过），
-              <b>不会被采用、也不计费</b>——把它们删掉，或者把选段拖回去（它们在原片的第{" "}
-              {outside.map((m) => formatDuration(Math.round(m.atSec))).join(" / ")} 处）。
+              <Trans>
+                有 {outside.length} 帧落在选段外面（选段后来被拖动过），
+                <b>不会被采用、也不计费</b>——把它们删掉，或者把选段拖回去（它们在原片的第{" "}
+                {outside.map((m) => formatDuration(Math.round(m.atSec))).join(" / ")} 处）。
+              </Trans>
             </p>
           )}
         </>
