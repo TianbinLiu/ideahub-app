@@ -16,6 +16,8 @@
 //   现在这张来自官方 `03_qq_symbol.psd`（企鹅单独图标），只做了等比缩放导出：
 //   不裁内容、不重上色、不换底、不加描边。换素材时也守这条。
 import type { CSSProperties } from "react";
+import { i18n } from "@lingui/core";
+import { msg } from "@lingui/core/macro";
 
 export type BrandName = "google" | "github" | "wechat" | "qq";
 
@@ -24,12 +26,22 @@ export type BrandName = "google" | "github" | "wechat" | "qq";
  * ★ QQ 也是白底 —— 官方企鹅是黑+红+橙的彩色实心图形，压在品牌蓝上既看不清，
  *   又等于给商标换了衬底（"请勿更改"管的不只是图形本身）。与 Google 那颗同一处理。
  */
-export const BRAND_CHIP: Record<BrandName, { bg: string; label: string }> = {
-  google: { bg: "#ffffff", label: "Google" },
-  github: { bg: "#1b1f24", label: "GitHub" },
-  wechat: { bg: "#07C160", label: "微信" },
-  qq: { bg: "#ffffff", label: "QQ" },
+export const BRAND_CHIP: Record<BrandName, { bg: string }> = {
+  google: { bg: "#ffffff" },
+  github: { bg: "#1b1f24" },
+  wechat: { bg: "#07C160" },
+  qq: { bg: "#ffffff" },
 };
+
+/**
+ * 各家的名字（登录页那排按钮的 aria-label / title 用）。
+ * ★ 只有微信随界面语言变（英文叫 WeChat）；另外三家本来就是拉丁字母的商标名，各语言都原样。
+ * ★ 是函数不是表里的字符串：模块顶层的字符串会冻结在开机那一刻的语言上。
+ */
+export function brandLabel(name: BrandName): string {
+  if (name === "wechat") return i18n._(msg`微信`);
+  return { google: "Google", github: "GitHub", qq: "QQ" }[name];
+}
 
 function Google({ s }: { s: number }) {
   // 官方四色 G。四段弧 + 右侧横条，色序（蓝/绿/黄/红）是规范里定死的

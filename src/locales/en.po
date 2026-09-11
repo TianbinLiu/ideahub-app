@@ -952,6 +952,10 @@ msgstr "{motion} (not in bundle)"
 msgid "{msgCount} 条"
 msgstr "{msgCount, plural, one {# message} other {# messages}}"
 
+#: src/pages/LoginPage.tsx
+msgid "{name}登录（暂未接入）"
+msgstr "{name} sign-in (not available yet)"
+
 #: src/components/support/VoiceSheet.tsx
 msgid "{name}的声音"
 msgstr "{name}'s voice"
@@ -2315,6 +2319,10 @@ msgstr "④ Tags (optional)"
 msgid "4K 贴图 · 15 万面 · 最清楚但吃显存（她 3.9MB／他 3.8MB）"
 msgstr "4K textures · 150K faces · sharpest but heavy on GPU memory (she 3.9MB / he 3.8MB)"
 
+#: src/pages/LoginPage.tsx
+msgid "6 位验证码"
+msgstr "6-digit code"
+
 #: src/pages/ProfilePage.tsx
 msgid "add-on token · 直充/创作收益"
 msgstr "Add-on tokens · top-ups / creator earnings"
@@ -2427,6 +2435,10 @@ msgstr "QQ sharing works in the app. In a browser, copy the link instead"
 #: src/components/ShareSheet.tsx
 msgid "QQ 好友"
 msgstr "QQ friends"
+
+#: src/pages/LoginPage.tsx
+msgid "QQ 登录要在 App 里用（浏览器中没有 QQ 客户端可以拉起），先用邮箱或手机号登录"
+msgstr "QQ sign-in only works in the app (a browser has no QQ client to open) — sign in with email or phone for now"
 
 #: src/components/CoverPicker.tsx
 msgid "Seedream 真实生成，约 20-30 秒"
@@ -2959,6 +2971,10 @@ msgstr "Not in Home or search, but anyone with the link can watch it and pass it
 #: src/pages/CutPage.tsx
 msgid "与素材同分辨率，最快"
 msgstr "Same resolution as the footage; fastest"
+
+#: src/pages/LoginPage.tsx
+msgid "中国大陆"
+msgstr "mainland China"
 
 #: src/studio/stage/stageState.ts
 msgid "中景"
@@ -3799,6 +3815,10 @@ msgstr "Tell us what happened first, so support knows where to start."
 msgid "先选一个理由"
 msgstr "Pick a reason first"
 
+#: src/pages/LoginPage.tsx
+msgid "先随便逛逛"
+msgstr "Just browse for now"
+
 #: src/studio/canvasAgent.ts
 msgid "免费 · 会重新合成点名句（覆盖你改过的字）"
 msgstr "Free · re-composes the casting line (overwrites your edits)"
@@ -3963,6 +3983,10 @@ msgstr "<0>All of their videos</0> (including private and taken-down ones) are r
 #: src/api/support.ts
 msgid "其他"
 msgstr "Other"
+
+#: src/pages/LoginPage.tsx
+msgid "其他方式"
+msgstr "Other options"
 
 #: src/pages/AdminPage.tsx
 msgid "其发出的<0>评论、弹幕</0>全部删除；别人作品下的也一样；⚠ <1>其他用户</1>回复在这些评论下的楼中楼会被连带删除"
@@ -5205,6 +5229,10 @@ msgstr "Sending…"
 msgid "发送失败"
 msgstr "Couldn't send"
 
+#: src/pages/LoginPage.tsx
+msgid "发送验证码"
+msgstr "Send code"
+
 #: src/pages/AdminPage.tsx
 msgid "发通知…"
 msgstr "Send notice…"
@@ -5339,6 +5367,10 @@ msgstr "Unpublish"
 #: src/pages/CutPage.tsx
 msgid "取消合并"
 msgstr "Cancel merge"
+
+#: src/pages/LoginPage.tsx
+msgid "取消同意协议"
+msgstr "Withdraw agreement"
 
 #: src/components/CommentSheet.tsx
 msgid "取消回复"
@@ -5661,6 +5693,14 @@ msgstr "A composed preview costs one image ({0} tokens) and your balance isn't e
 msgid "同一条视频拆成 {count} 段的分段模板（共约 {0}s）· 套用即整组铺开"
 msgstr "Split template: one video in {count, plural, one {# segment} other {# segments}} (about {0}s total) · using it lays out the whole group"
 
+#: src/pages/LoginPage.tsx
+msgid "同意协议"
+msgstr "Agree to the terms"
+
+#: src/pages/LoginPage.tsx
+msgid "同意并继续"
+msgstr "Agree and continue"
+
 #: src/pages/SupportModelNewPage.tsx
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "名字"
@@ -5673,6 +5713,10 @@ msgstr "Name (required, up to {NAME_MAX} characters)"
 #: src/pages/CutPage.tsx
 msgid "后移 ▶"
 msgstr "Move right ▶"
+
+#: src/pages/LoginPage.tsx
+msgid "启梦"
+msgstr "QiMeng"
 
 #: src/i18n/activate.ts
 msgid "启梦 · 有想法，就是梦想启程的第一步"
@@ -6018,6 +6062,7 @@ msgstr "In progress"
 #: src/pages/AdminPage.tsx
 #: src/pages/CardDetailPage.tsx
 #: src/pages/CustomCardPage.tsx
+#: src/pages/LoginPage.tsx
 msgid "处理中…"
 msgstr "Processing…"
 
@@ -6353,6 +6398,22 @@ msgstr "Shy"
 msgctxt "Live2D 表情槽名"
 msgid "害羞"
 msgstr "Shy"
+
+#: src/pages/LoginPage.tsx
+msgid "密码"
+msgstr "Password"
+
+#: src/pages/LoginPage.tsx
+msgid "密码（至少 6 位）"
+msgstr "Password (at least 6 characters)"
+
+#: src/pages/LoginPage.tsx
+msgid "密码登录"
+msgstr "Password"
+
+#: src/pages/LoginPage.tsx
+msgid "密码至少 6 位"
+msgstr "The password needs at least 6 characters"
 
 #: src/studio/live2dUploadStore.ts
 msgid "对映射"
@@ -7008,6 +7069,10 @@ msgstr "Purchased"
 msgid "已过 {forkCount} 个分支点"
 msgstr "{forkCount, plural, one {Passed # branch point} other {Passed # branch points}}"
 
+#: src/pages/LoginPage.tsx
+msgid "已连接服务器：账号与作品跨设备同步。"
+msgstr "Connected to the server: your account and videos sync across devices."
+
 #: src/studio/ui/PlanBoard.tsx
 msgid "已选定 · 可换首尾帧、改剧情，改完点这一套的「重新生成」"
 msgstr "Selected · swap frames or edit the story, then tap this plan's “Regenerate”"
@@ -7028,6 +7093,10 @@ msgstr "Minted"
 #: src/components/flow/ScriptSkillSheet.tsx
 msgid "已铺 {0} 段，从第 1 段开始炼"
 msgstr "Laid out {0, plural, one {# segment} other {# segments}} — start rendering from segment 1"
+
+#: src/pages/LoginPage.tsx
+msgid "已阅读并同意<0>《用户协议》</0>与<1>《隐私政策》</1>"
+msgstr "I have read and agree to the <0>User Agreement</0> and the <1>Privacy Policy</1>"
 
 #: src/pages/ProfilePage.tsx
 msgid "已领取"
@@ -7202,6 +7271,10 @@ msgstr "The segment that produced it isn't in this pipeline (the original draft 
 msgid "当前"
 msgstr "Current"
 
+#: src/pages/LoginPage.tsx
+msgid "当前为本地账号：数据存在这台设备上，换设备不同步。<0/>接入服务器后将支持跨设备与账号互通。"
+msgstr "This is a local account: your data stays on this device and won't sync to other devices.<0/>Once connected to a server, your account will work across devices."
+
 #: src/pages/SupportPersonasPage.tsx
 msgid "当前人格"
 msgstr "Current persona"
@@ -7249,6 +7322,10 @@ msgstr "You're in offline mode (not connected to a server). Admin features need 
 #: src/api/companion.ts
 msgid "当前是离线模式（没配服务器地址），这个功能需要联网。"
 msgstr "You're in offline mode (no server address configured); this feature needs a connection."
+
+#: src/pages/LoginPage.tsx
+msgid "当前网络环境（{regionName}）下 Google / GitHub 不可用，已自动隐藏"
+msgstr "Google / GitHub aren't available on the current network ({regionName}), so they've been hidden"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "录制中…（实际播这一段）"
@@ -7329,6 +7406,7 @@ msgstr "Idle motion"
 msgid "得先给它起个标题，才发得出去（关掉这张卡去填一个）。"
 msgstr "It needs a title before it can be published (close this card and fill one in)."
 
+#: src/components/BrandIcon.tsx
 #: src/components/ShareSheet.tsx
 msgid "微信"
 msgstr "WeChat"
@@ -7336,6 +7414,10 @@ msgstr "WeChat"
 #: src/components/ShareSheet.tsx
 msgid "微信分享要在 App 里用，浏览器里请复制链接"
 msgstr "WeChat sharing works in the app. In a browser, copy the link instead"
+
+#: src/pages/LoginPage.tsx
+msgid "微信登录要在 App 里用（浏览器中没有微信客户端可以拉起），先用邮箱或手机号登录"
+msgstr "WeChat sign-in only works in the app (a browser has no WeChat client to open) — sign in with email or phone for now"
 
 #: src/studio/personaWizardStore.ts
 msgid "微调"
@@ -7349,6 +7431,10 @@ msgstr "Required · also the card face"
 #: src/pages/SupportModelNewPage.tsx
 msgid "必须 · {0}"
 msgstr "Required · {0}"
+
+#: src/pages/LoginPage.tsx
+msgid "忘记密码？"
+msgstr "Forgot password?"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "思考"
@@ -7598,6 +7684,18 @@ msgstr "In decks"
 #: src/components/PortraitAuthPanel.tsx
 msgid "手工填入（方舟控制台授权）"
 msgstr "Enter manually (authorized in the Ark console)"
+
+#: src/pages/LoginPage.tsx
+msgid "手机号"
+msgstr "Phone"
+
+#: src/pages/LoginPage.tsx
+msgid "手机号 / 用户名"
+msgstr "Phone / username"
+
+#: src/pages/LoginPage.tsx
+msgid "手机号（中国大陆）"
+msgstr "Phone number (mainland China)"
 
 #: src/data/videoDownload.ts
 msgid "手机空间不够，这一段没写完。腾点空间再点一次。"
@@ -8659,6 +8757,14 @@ msgstr "Text description"
 msgid "新"
 msgstr "New"
 
+#: src/pages/LoginPage.tsx
+msgid "新密码（至少 6 位）"
+msgstr "New password (at least 6 characters)"
+
+#: src/pages/LoginPage.tsx
+msgid "新密码至少 6 位"
+msgstr "The new password needs at least 6 characters"
+
 #: src/pages/SettingsPage.tsx
 msgid "新手引导"
 msgstr "Guides"
@@ -8747,6 +8853,14 @@ msgstr "Length"
 #: src/pages/SettingsProfilePage.tsx
 msgid "昵称"
 msgstr "Nickname"
+
+#: src/pages/LoginPage.tsx
+msgid "昵称（可留空）"
+msgstr "Nickname (optional)"
+
+#: src/pages/LoginPage.tsx
+msgid "昵称（首次登录时使用，可留空）"
+msgstr "Nickname (used the first time you sign in; optional)"
 
 #: src/components/blockout/BoxFramePicker.tsx
 #: src/components/blockout/VideoStage.tsx
@@ -8931,6 +9045,10 @@ msgstr "Someone"
 msgid "有帮助"
 msgstr "Helpful"
 
+#: src/pages/LoginPage.tsx
+msgid "有想法，就是梦想启程的第一步"
+msgstr "Every dream starts with an idea"
+
 #. placeholder {0}: info.versionName
 #: src/components/UpdateSheet.tsx
 msgid "有新版本 {0}"
@@ -8955,6 +9073,10 @@ msgstr "Has issues"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "朋友 / 学姐 / 助理 / 搭子…… 这一句会明显影响说话的分寸。"
 msgstr "Friend / senior / assistant / buddy… this noticeably affects how they talk to you."
+
+#: src/pages/LoginPage.tsx
+msgid "服务协议与隐私政策"
+msgstr "User Agreement and Privacy Policy"
 
 #: src/components/flow/SegmentRecoverCards.tsx
 msgid "服务器上有一发你付过钱的成片还没取回"
@@ -9079,6 +9201,7 @@ msgid "未挂"
 msgstr "Empty"
 
 #: src/ai/minimaxVideo.ts
+#: src/pages/LoginPage.tsx
 msgid "未知"
 msgstr "unknown"
 
@@ -9707,6 +9830,10 @@ msgstr "Generating. Wait for it to finish before changing the template"
 msgid "正在登记到服务器…"
 msgstr "Registering with the server…"
 
+#: src/pages/LoginPage.tsx
+msgid "正在确认可用的登录方式…"
+msgstr "Checking which sign-in methods are available…"
+
 #: src/pages/VideoPage.tsx
 msgid "正在确认登录状态，稍等一下再点。"
 msgstr "Checking your sign-in. Wait a moment, then tap again."
@@ -10185,6 +10312,10 @@ msgstr "Looks good, continue"
 msgid "沿边描出轮廓"
 msgstr "Trace the outline"
 
+#: src/pages/LoginPage.tsx
+msgid "注册新账号"
+msgstr "Create an account"
+
 #: src/pages/CardDetailPage.tsx
 msgid "注意：这张卡的 3D 建模只存在这台设备上，分享出去的那份不会带建模。"
 msgstr "Note: this card's 3D model only exists on this device, so the shared copy won't include it."
@@ -10645,6 +10776,10 @@ msgstr "Generation log"
 msgid "生气"
 msgstr "Angry"
 
+#: src/pages/LoginPage.tsx
+msgid "用{name}登录"
+msgstr "Sign in with {name}"
+
 #: src/pages/SettingsVoicePage.tsx
 msgid "用一句话描述你想要的语气，例如：请用成熟冷静的语气，语速放慢"
 msgstr "Describe the tone you want in one sentence, e.g.: speak in a mature, calm tone, a little slower"
@@ -10690,6 +10825,14 @@ msgstr "Questions users escalated from the AI assistant to a person; reply here"
 #: src/pages/AdminPage.tsx
 msgid "用户列表"
 msgstr "user list"
+
+#: src/pages/LoginPage.tsx
+msgid "用户名 / 邮箱"
+msgstr "Username / email"
+
+#: src/pages/LoginPage.tsx
+msgid "用户名（登录用，字母数字下划线）"
+msgstr "Username (for signing in; letters, digits and underscores)"
 
 #: src/live2d/bundlePreview.ts
 msgid "用户数据"
@@ -10850,10 +10993,15 @@ msgstr "Leave empty to follow persona/model: {0}"
 msgid "留空由 AI 决定；可填 2-15"
 msgstr "Leave empty to let the AI decide; 2–15 allowed"
 
+#: src/pages/LoginPage.tsx
+msgid "登录"
+msgstr "Sign in"
+
+#: src/pages/LoginPage.tsx
 #: src/pages/ProfilePage.tsx
 #: src/pages/WorkshopPage.tsx
 msgid "登录 / 注册"
-msgstr "Log in / Sign up"
+msgstr "Sign in / Sign up"
 
 #: src/components/ReportButton.tsx
 msgid "登录之后才能举报。"
@@ -10866,6 +11014,10 @@ msgstr "Sign in to block people."
 #: src/pages/SettingsBlockedPage.tsx
 msgid "登录之后才能管理黑名单。"
 msgstr "Log in to manage your block list."
+
+#: src/pages/LoginPage.tsx
+msgid "登录前请先阅读并同意<0>《用户协议》</0>与<1>《隐私政策》</1>。"
+msgstr "Before signing in, please read and agree to the <0>User Agreement</0> and the <1>Privacy Policy</1>."
 
 #: src/pages/FeedPage.tsx
 msgid "登录后可以关注喜欢的创作者"
@@ -13023,6 +13175,14 @@ msgstr "Check the license statement before publishing."
 msgid "请先登录。"
 msgstr "Please sign in first."
 
+#: src/pages/LoginPage.tsx
+msgid "请填邮箱"
+msgstr "Enter your email"
+
+#: src/pages/LoginPage.tsx
+msgid "请填邮箱和用户名"
+msgstr "Enter your email and username"
+
 #: src/api/client.ts
 msgid "请求超时"
 msgstr "Request timed out"
@@ -13030,6 +13190,18 @@ msgstr "Request timed out"
 #: src/api/companion.ts
 msgid "请求超时了，检查网络后再试一次。"
 msgstr "The request timed out. Check your connection and try again."
+
+#: src/pages/LoginPage.tsx
+msgid "请输入有效的中国大陆手机号"
+msgstr "Enter a valid mainland China phone number"
+
+#: src/pages/LoginPage.tsx
+msgid "请输入账号和密码"
+msgstr "Enter your account and password"
+
+#: src/pages/LoginPage.tsx
+msgid "请输入验证码"
+msgstr "Enter the verification code"
 
 #: src/utils/image.ts
 msgid "请选择图片文件"
@@ -14983,6 +15155,14 @@ msgstr "Prop card · {slotLabel} · {title}"
 msgid "道具卡的图要先框出主体、描出轮廓，「{names}」那张没抠过，已经取下——点那一格重新选图。"
 msgstr " Prop card images need the subject boxed and outlined first. The “{names}” image wasn't cut out, so it was removed — tap that slot to choose an image again."
 
+#: src/pages/LoginPage.tsx
+msgid "邮箱"
+msgstr "Email"
+
+#: src/pages/LoginPage.tsx
+msgid "邮箱验证码"
+msgstr "Email code"
+
 #: src/pages/CutPage.tsx
 msgid "配乐用的是自动预置的原片音轨，而你裁过/删过/换过片段顺序——声音是按原片从头混进去的，会和画面对不上。想对齐就换一条自己的音频，或者把片段改回原样再合一次。"
 msgstr "The music is the auto-added original audio, but you trimmed, deleted or reordered clips — the sound is mixed in from the start of the original, so it won't line up with the picture. To match them, use your own audio, or put the clips back and merge again."
@@ -14994,6 +15174,10 @@ msgstr "Wine-red cloak · green-and-gold bodice dress"
 #: src/studio/personaWizardStore.ts
 msgid "重写人格的一个字段"
 msgstr "Rewrite one persona field"
+
+#: src/pages/LoginPage.tsx
+msgid "重发"
+msgstr "Resend"
 
 #: src/components/DraftSheet.tsx
 msgid "重命名"
@@ -15118,6 +15302,14 @@ msgstr "Rewatch each screen's guide"
 #: src/pages/SettingsPage.tsx
 msgid "重看所有新手引导"
 msgstr "Rewatch all guides"
+
+#: src/pages/LoginPage.tsx
+msgid "重置密码"
+msgstr "Reset password"
+
+#: src/pages/LoginPage.tsx
+msgid "重置密码并登录"
+msgstr "Reset password and sign in"
 
 #: src/components/blockout/DetectRolesEntry.tsx
 msgid "重认会<0>覆盖现有描述</0>（你自己改过的也会没），按一次收一次费；核对过之后不能再重认。"
@@ -15366,6 +15558,14 @@ msgstr "Home"
 #: src/pages/AdminPage.tsx
 msgid "驳回"
 msgstr "Dismiss"
+
+#: src/pages/LoginPage.tsx
+msgid "验证并注册"
+msgstr "Verify and sign up"
+
+#: src/pages/LoginPage.tsx
+msgid "验证码已发出，10 分钟内有效"
+msgstr "Code sent — it's valid for 10 minutes"
 
 #: src/components/support/HoldToTalk.tsx
 #: src/components/VoiceRecorder.tsx
