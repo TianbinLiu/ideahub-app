@@ -33,7 +33,9 @@
 // ★ 入口按能力门控渲染：服务端不认这套端点时开关根本不出现（remoteTemplatesCapable，
 //   唯一实现）—— 不摆永远点不动的东西。
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { Trans } from "@lingui/react/macro";
+import { i18n } from "@lingui/core";
+import { msg } from "@lingui/core/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import BoxFramePicker, { boxMarksInSelection, type BoxFrameMode } from "./blockout/BoxFramePicker";
 import { DetectRolesEntry } from "./blockout/DetectRolesEntry";
 import HelpButton from "./guide/HelpButton";
@@ -111,7 +113,8 @@ function probeVideoMeta(file: File): Promise<{ durationSec: number; width: numbe
       fn();
     };
     const t = setTimeout(
-      () => finish(() => reject(new Error("视频加载超时（应用切到后台会暂停解码，回到前台再试）"))),
+      // 模块级函数拿不到 useLingui：用 i18n._(msg) 在抛出那一刻按当前语言翻（与 videoFrames 那句是同一条 msgid）
+      () => finish(() => reject(new Error(i18n._(msg`视频加载超时（应用切到后台会暂停解码，回到前台再试）`)))),
       15_000,
     );
     v.muted = true;
@@ -122,7 +125,7 @@ function probeVideoMeta(file: File): Promise<{ durationSec: number; width: numbe
     };
     v.onerror = () => {
       clearTimeout(t);
-      finish(() => reject(new Error("这个视频浏览器解不开（白模模板只收 mp4 / mov）")));
+      finish(() => reject(new Error(i18n._(msg`这个视频浏览器解不开（白模模板只收 mp4 / mov）`))));
     };
     v.src = url;
   });
@@ -186,17 +189,42 @@ const WM_RING_CORE_MAX = 0.05;
 const WM_CORE_EDGE_MIN = 0.1;
 const WM_EDGE_STEP = 24;
 
+/**
+ * 四个角各带一句**整句**提示（msg 描述符，命中时在 cornerWatermarkHint 里按当前语言翻）。
+ * ★ 以前是角名（"左上角"）拼上共用的后半句：英文要说 "the top-left corner may have…"，
+ *   角名得挪进句子里，拼接做不到 —— 所以四句各自成句，后半句逐字相同，改的时候四句一起改。
+ * ★ 后半句说「用裁剪框把这块框到画面外」，不再说「裁掉这块后再上传」：这句提示是**传完之后**才探出来的
+ *   （pick 里水印探测那一步），摆在裁剪框上方 —— 劝人「上传前裁掉」是一句已经执行不了的指示。
+ *   也不写「下面的裁剪框」：白模化那条路做完不清 warn，结果卡上还会再显示一次，那一屏没有裁剪框。
+ */
 const WM_CORNERS = [
-  { name: "左上角", right: false, bottom: false },
-  { name: "右上角", right: true, bottom: false },
-  { name: "左下角", right: false, bottom: true },
-  { name: "右下角", right: true, bottom: true },
+  {
+    right: false,
+    bottom: false,
+    hint: msg`左上角疑似有水印或台标：白模出片会把它逐帧复刻进每一条成片，建议用裁剪框把这块框到画面外。（只是提醒，看错了直接忽略——照样可以继续。）`,
+  },
+  {
+    right: true,
+    bottom: false,
+    hint: msg`右上角疑似有水印或台标：白模出片会把它逐帧复刻进每一条成片，建议用裁剪框把这块框到画面外。（只是提醒，看错了直接忽略——照样可以继续。）`,
+  },
+  {
+    right: false,
+    bottom: true,
+    hint: msg`左下角疑似有水印或台标：白模出片会把它逐帧复刻进每一条成片，建议用裁剪框把这块框到画面外。（只是提醒，看错了直接忽略——照样可以继续。）`,
+  },
+  {
+    right: true,
+    bottom: true,
+    hint: msg`右下角疑似有水印或台标：白模出片会把它逐帧复刻进每一条成片，建议用裁剪框把这块框到画面外。（只是提醒，看错了直接忽略——照样可以继续。）`,
+  },
 ] as const;
 
 /** dataURL → HTMLImageElement。★ 必带超时：与 probeVideoMeta 同一个理由（后台页解码会被挂起）。 */
 function loadFrameImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
+    // i18n-ignore-next-line: 只进 console.warn（pick 里水印探测那一处 catch），探测失败按设计不上屏（见 cornerWatermarkHint 的 ★）
     const t = setTimeout(() => reject(new Error("帧解码超时")), 8_000);
     img.onload = () => {
       clearTimeout(t);
@@ -204,6 +232,7 @@ function loadFrameImage(src: string): Promise<HTMLImageElement> {
     };
     img.onerror = () => {
       clearTimeout(t);
+      // i18n-ignore-next-line: 只进 console.warn（pick 里水印探测那一处 catch），探测失败按设计不上屏（见 cornerWatermarkHint 的 ★）
       reject(new Error("帧解码失败"));
     };
     img.src = src;
@@ -303,7 +332,7 @@ async function cornerWatermarkHint(frames: string[]): Promise<string | null> {
   // 拿整幅画面当分母就不行了——远处一个大动作能把平均值拉起来，等于把这道门放开
   const ew = Math.min(w, bw * 2);
   const eh = Math.min(h, bh * 2);
-  let best: { name: string; score: number } | null = null;
+  let best: { corner: (typeof WM_CORNERS)[number]; score: number } | null = null;
   for (const c of WM_CORNERS) {
     const bx0 = c.right ? w - bw : 0;
     const by0 = c.bottom ? h - bh : 0;
@@ -324,10 +353,11 @@ async function cornerWatermarkHint(frames: string[]): Promise<string | null> {
     // 多个角同时命中时只报一个（"到处都是水印"这种话没法执行）：取反差最大的那个。
     // +0.01 只为躲开 ring 恰好为 0 的除零
     const score = box / (ring + 0.01);
-    if (!best || score > best.score) best = { name: c.name, score };
+    if (!best || score > best.score) best = { corner: c, score };
   }
   if (!best) return null;
-  return `${best.name}疑似有水印或台标：白模出片会把它逐帧复刻进每一条成片，建议裁掉这块后再上传。（只是提醒，看错了直接忽略——照样可以继续。）`;
+  // 模块级函数拿不到 useLingui：命中那一刻按当前语言翻（结果进 warn state，之后切语言不跟着变，与其它提示同一口径）
+  return i18n._(best.corner.hint);
 }
 
 // 上限与报价式子都在 economy 里（TEMPLATE_MAX_CARDS / templateCost）：
@@ -350,6 +380,7 @@ export default function VideoTemplateExtractor({
   // ★ 浮层也要自己声明引导（不是路由，按 pathname 集中判的话这一屏永远轮不到）。
   //   第一次打开时强制放一遍，看过一次不再自动弹；标题栏那颗 ? 随时能重看。
   useAutoGuide("extractor");
+  const { t } = useLingui();
   const [file, setFile] = useState<File | null>(null);
   const [frameN, setFrameN] = useState(6);
   const [frames, setFrames] = useState<string[]>([]);
@@ -624,35 +655,44 @@ export default function VideoTemplateExtractor({
    */
   const blockoutBlock = blockout ? blockoutizeBlockReason() : null;
 
+  // 文案里的数先取名：译文读到的是 {ownRefPrice} / {minSec} / {maxSec}，不是 {0}。
+  // ★ 两个秒数照旧取 BLOCKOUT_INPUT_RULES（路线说明与页脚共用这一份），别手写 5 / 30
+  const ownRefPrice = fmtTokens(ownRefTemplateCost());
+  const minSec = BLOCKOUT_INPUT_RULES.minSec;
+  const maxSec = BLOCKOUT_INPUT_RULES.maxSec;
+
   /**
-   * 三条路线的**唯一一份说明**：第 1 步读 `t`/`short`（一行，够做选择就行），
-   * 第 2 步读 `t`/`long`（路线已定，长说明这时才是可执行的）。
+   * 三条路线的**唯一一份说明**：第 1 步读 `title`/`short`（一行，够做选择就行），
+   * 第 2 步读 `title`/`long`（路线已定，长说明这时才是可执行的）。
    * ★ 拆成两截而不是"第 1 步截断显示"：短的那句要能独立成话，截断出来的半句不能。
    * ★ 秒数一律取 `BLOCKOUT_INPUT_RULES.maxSec`，别手写 30 —— 那个数在下面的页脚里也出现，
    *   两处各写各的就会在改窗口时分家（本仓「上限自己抄一份」那条）。
+   * ★ 字段叫 `title` 不叫 `t`（接 Lingui 时改的）：`t` 这个名字现在归 useLingui，写成 t: t`…` 读着像笔误。
+   * ★ 「经典配方」这个叫法被门禁那两句（改选「经典配方」）与新手引导（guide/tours 的 extractor）引用，
+   *   改名要几处一起改，英文也一样（Classic recipe）。
    */
   const routeOpts = [
     ...(blockoutReady
       ? ([
           {
             v: "aiBlockout" as const,
-            t: "让 AI 把里面的人换成白模人偶",
-            short: "任意视频都行 · 要花钱",
-            long: "套用者出片时整段复刻它的场景与运镜。这是一次真实出片，费用在下一步框选时整句报出来。",
+            title: t`让 AI 把里面的人换成白模人偶`,
+            short: t`任意视频都行 · 要花钱`,
+            long: t`套用者出片时整段复刻它的场景与运镜。这是一次真实出片，费用在下一步框选时整句报出来。`,
           },
           {
             v: "ownRef" as const,
-            t: "它本来就是白模 / 人偶片，直接用",
-            short: `只认人、不出片 · 约 ${fmtTokens(ownRefTemplateCost())}`,
-            long: `不出片、不换人，只认出画面里有谁、量出他们在哪。超过 ${BLOCKOUT_INPUT_RULES.maxSec} 秒的素材可以整条切段登记成一组（逐段认人、按段计费）。`,
+            title: t`它本来就是白模 / 人偶片，直接用`,
+            short: t`只认人、不出片 · 约 ${ownRefPrice}`,
+            long: t`不出片、不换人，只认出画面里有谁、量出他们在哪。超过 ${maxSec} 秒的素材可以整条切段登记成一组（逐段认人、按段计费）。`,
           },
         ] as const)
       : []),
     {
       v: "classic" as const,
-      t: "经典配方（不做白模）",
-      short: "学画风运镜 · 不传公网 · 不要套餐",
-      long: "抽几帧总结画风、运镜与分镜骨架，再提炼可复用的场景/道具卡。不出片，也不把视频传上公网。",
+      title: t`经典配方（不做白模）`,
+      short: t`学画风运镜 · 不传公网 · 不要套餐`,
+      long: t`抽几帧总结画风、运镜与分镜骨架，再提炼可复用的场景/道具卡。不出片，也不把视频传上公网。`,
     },
   ];
   // ★ 兜底取最后一条（= 经典）：blockoutReady 是异步到货的，到货前后这张表会变长，
@@ -1067,13 +1107,14 @@ export default function VideoTemplateExtractor({
   async function run() {
     if (frames.length === 0) return;
     if (AI_REAL && !canAfford(estimate)) {
-      setErr(`预估需 ${fmtTokens(estimate)} token，余额不足——去「我的」页充值`);
+      const price = fmtTokens(estimate);
+      setErr(t`预估需 ${price} token，余额不足——去「我的」页充值`);
       return;
     }
     setErr("");
-    const job = startJob({ kind: "template-analyze", title: "分析模板", page: currentRoute(), route: "/templates?shelf=mine", progress: "分析中…" });
+    const job = startJob({ kind: "template-analyze", title: t`分析模板`, page: currentRoute(), route: "/templates?shelf=mine", progress: t`分析中…` });
     try {
-      setBusy("分析中…");
+      setBusy(t`分析中…`);
       const r = await extractTemplateFromVideo(
         frames,
         note,
@@ -1095,15 +1136,23 @@ export default function VideoTemplateExtractor({
         source: r.source,
       });
       setGot(tpl);
-      job.done({ msg: "模板分析好了，去「我的模板」看看", silent: mountedRef.current });
+      job.done({ msg: t`模板分析好了，去「我的模板」看看`, silent: mountedRef.current });
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      job.fail(`分析没成：${msg.slice(0, 60)}`, "/templates?shelf=mine");
-      setErr(msg);
+      // 改名只为不和 msg 宏读混（宏按作用域认 import，runOwnRef / runBlockoutize 里那两个 const msg 不受影响；留给 X1b 连同改写 job.fail 那两行一起改名，现在改会动那两条字面量的基线哈希）
+      const reason = e instanceof Error ? e.message : String(e);
+      const why = reason.slice(0, 60);
+      job.fail(t`分析没成：${why}`, "/templates?shelf=mine");
+      setErr(reason);
     } finally {
       setBusy("");
     }
   }
+
+  // 规格那句的两个数先取名：译文读到的是 {maxMinutes} / {maxMb}，不是 {0} / {1}
+  const maxMinutes = Math.round(TEMPLATE_UPLOAD_RULES.maxSec / 60);
+  const maxMb = Math.round(MAX_TEMPLATE_VIDEO_BYTES / 1024 / 1024);
+  // 预估消耗那一行同理：单位 token 写进同一条 msgid（{estimateText} token），英文才写得成复数 tokens
+  const estimateText = fmtTokens(estimate);
 
   return (
     <div className="fixed inset-0 z-50 flex items-end bg-black/60" onClick={close}>
@@ -1113,7 +1162,7 @@ export default function VideoTemplateExtractor({
         style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
       >
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-sm font-bold text-slate-100">🎬 从视频提取模板</h3>
+          <h3 className="text-sm font-bold text-slate-100"><Trans>🎬 从视频提取模板</Trans></h3>
           <HelpButton tour="extractor" className="ml-auto" />
           <CloseButton chip="sm" size={13} align="end" onClick={close} />
         </div>
@@ -1197,7 +1246,7 @@ export default function VideoTemplateExtractor({
               </p>
             )}
             <div className="rounded-xl bg-black/25 p-3">
-              <div className="mb-1 text-[11px] text-slate-500">总结出的画面要求</div>
+              <div className="mb-1 text-[11px] text-slate-500"><Trans>总结出的画面要求</Trans></div>
               <p className="text-xs leading-relaxed text-slate-400">{got.recipe.styleHint}</p>
             </div>
             <button
@@ -1207,7 +1256,7 @@ export default function VideoTemplateExtractor({
               }}
               className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink"
             >
-              用这个模板出片
+              <Trans>用这个模板出片</Trans>
             </button>
           </div>
         ) : (
@@ -1222,7 +1271,7 @@ export default function VideoTemplateExtractor({
               <p className="mb-3 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-300">
                 {blockoutBlock}
                 <br />
-                白模那两条路都只走这一档，所以现在还开不了 —— 改选「经典配方」仍然可以做模板，它不需要付费套餐。
+                <Trans>白模那两条路都只走这一档，所以现在还开不了 —— 改选「经典配方」仍然可以做模板，它不需要付费套餐。</Trans>
               </p>
             )}
 
@@ -1239,7 +1288,7 @@ export default function VideoTemplateExtractor({
                   规格水印全部搬到第 2 步（那时路线已定，说明才是可执行的）。见 step 的 ★★。 */}
             {step === "route" && (
               <div data-guide="extractor-routes" className="space-y-2">
-                <div className="mb-1 text-sm font-semibold text-slate-200">这段视频要做成什么？</div>
+                <div className="mb-1 text-sm font-semibold text-slate-200"><Trans>这段视频要做成什么？</Trans></div>
                 {routeOpts.map((o) => (
                   <button
                     key={o.v}
@@ -1283,7 +1332,7 @@ export default function VideoTemplateExtractor({
                       {route === o.v ? "●" : "○"}
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-semibold text-slate-100">{o.t}</span>
+                      <span className="block text-sm font-semibold text-slate-100">{o.title}</span>
                       <span className="block text-[11px] text-slate-400">{o.short}</span>
                     </span>
                     <span className="flex-none text-slate-500">›</span>
@@ -1310,7 +1359,7 @@ export default function VideoTemplateExtractor({
                     disabled={!!busy}
                     className="mb-2 -ml-1 px-1 py-1 text-[11px] text-slate-400 disabled:opacity-40"
                   >
-                    ‹ 换一种做法
+                    <Trans>‹ 换一种做法</Trans>
                   </button>
                 )}
                 {/* ★ 传完之后整屏归 BlockoutTrimmer，这张卡与下面两段黄字都收起来：
@@ -1319,7 +1368,7 @@ export default function VideoTemplateExtractor({
                     人已经站在下一步里了）。 */}
                 {!receipt && (
                   <div className="mb-3 rounded-xl border border-slate-700 bg-black/25 px-3 py-2">
-                    <div className="text-sm font-semibold text-slate-100">{routeNow.t}</div>
+                    <div className="text-sm font-semibold text-slate-100">{routeNow.title}</div>
                     <p className="mt-1 text-[11px] leading-relaxed text-slate-400">{routeNow.long}</p>
                   </div>
                 )}
@@ -1340,9 +1389,11 @@ export default function VideoTemplateExtractor({
                           等于没说，用户不知道该拿什么去核对；
                         · 「从左往右」是**核对的方法**：角色位是按画面从左到右连续排的（序数方案），
                           不说方位，那份清单就对不上号。 */}
-                    <b className="font-bold">不是每次都全对</b>——会有人根本没被换成人偶，最容易漏
-                    <b className="font-bold">画面正中央那一个</b>。出片后<b className="font-bold">从左往右</b>核对，
-                    对不上的位子删掉就行（不花钱）；要全对上只能<b className="font-bold">再花一次钱重炼</b>。人越少越准。
+                    <Trans>
+                      <b className="font-bold">不是每次都全对</b>——会有人根本没被换成人偶，最容易漏
+                      <b className="font-bold">画面正中央那一个</b>。出片后<b className="font-bold">从左往右</b>核对，
+                      对不上的位子删掉就行（不花钱）；要全对上只能<b className="font-bold">再花一次钱重炼</b>。人越少越准。
+                    </Trans>
                   </p>
                 )}
 
@@ -1356,12 +1407,15 @@ export default function VideoTemplateExtractor({
                       等于让老用户在零提示下把视频传上公网。 */}
                 {blockout && !receipt && (
                   <p className="mb-3 text-[11px] leading-relaxed text-amber-400/90">
-                    mp4 / mov · {Math.round(TEMPLATE_UPLOAD_RULES.maxSec / 60)} 分钟以内 ·{" "}
-                    {Math.round(MAX_TEMPLATE_VIDEO_BYTES / 1024 / 1024)}MB 以内 · 会
-                    <b className="text-amber-300">公开托管</b>（套用者出片时引用它）。
+                    <Trans>
+                      mp4 / mov · {maxMinutes} 分钟以内 · {maxMb}MB 以内 · 会
+                      <b className="text-amber-300">公开托管</b>（套用者出片时引用它）。
+                    </Trans>
                     <br />
-                    画面里的水印、台标、字幕会被<b className="text-amber-300">复刻进每一次出片</b>，
-                    下一步用裁剪框把它框到画面外。
+                    <Trans>
+                      画面里的水印、台标、字幕会被<b className="text-amber-300">复刻进每一次出片</b>，
+                      下一步用裁剪框把它框到画面外。
+                    </Trans>
                   </p>
                 )}
 
@@ -1643,7 +1697,7 @@ export default function VideoTemplateExtractor({
                   className="mb-3 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-slate-600 py-6 text-sm text-slate-300 disabled:opacity-40"
                 >
                   <Icon name="plus" size={18} />
-                  {file ? file.name : blockout ? "选一段视频（传完再框选）" : "选一段参考视频"}
+                  {file ? file.name : blockout ? t`选一段视频（传完再框选）` : t`选一段参考视频`}
                 </button>
 
                 {/* ★ 白模路选完文件就直接传、传完整屏换成 BlockoutTrimmer，所以下面这些
@@ -1668,7 +1722,7 @@ export default function VideoTemplateExtractor({
                             disabled={!!busy}
                             className={`flex-1 rounded-lg py-1.5 text-xs font-semibold ${frameN === n ? "bg-brand text-ink" : "bg-slate-700/70 text-slate-300"}`}
                           >
-                            {n} 帧
+                            <Trans>{n} 帧</Trans>
                           </button>
                         ))}
                       </div>
@@ -1686,14 +1740,14 @@ export default function VideoTemplateExtractor({
                       value={note}
                       onChange={(e) => setNote(e.target.value)}
                       rows={2}
-                      placeholder="补充说明（可选）：比如「重点学它的运镜和胶片质感，别管剧情」"
+                      placeholder={t`补充说明（可选）：比如「重点学它的运镜和胶片质感，别管剧情」`}
                       className="mb-3 w-full resize-none rounded-lg border border-slate-700 bg-black/30 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
                     />
 
                     <div className="mb-3 flex items-center justify-between rounded-lg bg-black/25 px-3 py-2 text-xs">
-                      <span className="text-slate-400">预估消耗</span>
+                      <span className="text-slate-400"><Trans>预估消耗</Trans></span>
                       <span className="text-slate-200">
-                        {fmtTokens(estimate)} token
+                        <Trans>{estimateText} token</Trans>
                         {/* ★ 一处实现（见 account.balanceNote）；顺带补上 AI_REAL ——
                             演示模式下本就不花钱，报一个真余额只会让人以为这一炉在扣钱 */}
                         {AI_REAL && balanceNote() && <span className="ml-2 text-slate-500">{balanceNote()}</span>}
@@ -1711,15 +1765,18 @@ export default function VideoTemplateExtractor({
                   <p className="text-[10px] leading-relaxed text-slate-500">
                     {/* ★ 被门禁挡住时不许照旧写"选好视频先传上去" —— 那是一句用户执行不了的
                         指示（按钮已经点不动了）。换成一条**真的走得通**的出路：经典配方那条路
-                        不走 paidOnly 的档位，谁都能用。 */}
+                        不走 paidOnly 的档位，谁都能用。
+                        ★ 出路要点名那颗键「‹ 换一种做法」：这一步上面没有路线卡，只说「上面改选」等于
+                        指着一个不存在的东西。这句只在第 2 步（传文件之前）出现，那颗键此时一定在上面，方位词是对的
+                        （门禁红字那句两步都出现，才不许写方位）。那颗键改名时这里一起改，英文也一样。 */}
                     {busy ||
                       (blockoutBlock
-                        ? "白模那两条路现在开不了（原因见上）。上面改选「经典配方」仍然可以做模板——它不需要付费套餐，只是不做白模人偶。"
+                        ? t`白模那两条路现在开不了（原因见上）。点上面「‹ 换一种做法」改选「经典配方」仍然可以做模板——它不需要付费套餐，只是不做白模人偶。`
                         : // ★★ 只说**这一屏别处没说过的**：上传不花钱、选段窗口、报价在开炼之前。
                           //   「拖裁剪框把水印框到画面外」与「报价」上面那两段各说过一次了 ——
                           //   同一屏说两遍不是强调，是让人以为那是两件事（这一屏本来就是靠删重复
                           //   才腾出地方的，2026-08-23 拆两步时一并收）。
-                          `传上去不花钱 · 下一步框出 ${BLOCKOUT_INPUT_RULES.minSec}~${BLOCKOUT_INPUT_RULES.maxSec} 秒 · 报价确认后才开炼`)}
+                          t`传上去不花钱 · 下一步框出 ${minSec}~${maxSec} 秒 · 报价确认后才开炼`)}
                   </p>
                 ) : (
                   <>
@@ -1728,13 +1785,13 @@ export default function VideoTemplateExtractor({
                       disabled={frames.length === 0 || !!busy}
                       className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
                     >
-                      {busy || "开始分析并生成模板"}
+                      {busy || t`开始分析并生成模板`}
                     </button>
                     {/* ★ 只留反直觉的那一条。「总结画风/运镜/分镜骨架」搬进了新手引导，
                         但「不提取主角」不能搬：不说的话用户会把它当成模板做坏了，
                         而这是每次都成立的事实、不是只看一遍就够的介绍。 */}
                     <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
-                      <b className="text-slate-400">不提取主角</b>——主角由你之后那句话指定。
+                      <Trans><b className="text-slate-400">不提取主角</b>——主角由你之后那句话指定。</Trans>
                     </p>
                   </>
                 )}
