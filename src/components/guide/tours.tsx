@@ -35,6 +35,8 @@
 // 把发弹幕键说成"下面有计数"（它有意显示的是字不是数）、工坊那份漏了一种卡且改了卡种名。
 // ⇒ 改这里的任何一句之前，先去对应组件里对一遍实现。这些话是**会被用户当真**的。
 import type { ReactNode } from "react";
+import type { MessageDescriptor } from "@lingui/core";
+import { msg } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import { BLOCKOUT_INPUT_RULES } from "../../data/templates";
 import { CARD_TYPES, CARD_TYPE_LABELS } from "../../types";
@@ -42,7 +44,14 @@ import { CARD_TYPES, CARD_TYPE_LABELS } from "../../types";
 import { REF_MAX_RATIO } from "../../utils/image";
 
 export interface GuideStep {
-  title: string;
+  /**
+   * 卡片标题（GuideOverlay 的 h2，手机宽度下单行截断 —— 英文控制在四个词上下）。
+   * ★ 过渡期（多语言 T1~T4 分批迁这份文件）：迁完的屏写 msg 描述符，还没迁的屏仍是中文字符串，
+   *   GuideOverlay 两种都认。全部迁完那一批（T4）收成只收 MessageDescriptor。
+   *   ⚠ 别写 t`…`：TOURS 在模块顶层，那一刻就翻会冻结在开机语言（check-i18n 会拦）。
+   */
+  title: string | MessageDescriptor;
+  /** ★ 整段包一个 <Trans>（一步一条 msgid，别按句切）：它渲染时才查目录，放在模块顶层也跟得上切语言 */
   body: ReactNode;
   /** 要高亮的元素上 `data-guide` 的值。不给 = 这一步只讲话，卡片居中 */
   anchor?: string;
@@ -50,8 +59,8 @@ export interface GuideStep {
 
 export interface GuideTour {
   id: string;
-  /** 这一屏的名字，只进无障碍标签与调试 */
-  title: string;
+  /** 这一屏的名字，只进无障碍标签与调试。★ 过渡期形状同 GuideStep.title */
+  title: string | MessageDescriptor;
   /**
    * 版本号。★ **只在有意要让所有人重看一遍时才加**（比如这一屏改版到老引导会误导人）。
    *   平时改错别字不要动它 —— 用户明确要的是"弹过一次不再自动弹"。
@@ -64,78 +73,78 @@ export interface GuideTour {
 export const TOURS: GuideTour[] = [
   {
     id: "feed",
-    title: "首页视频流",
+    title: msg`首页视频流`,
     version: 1,
     steps: [
       {
-        title: "上下滑着看",
+        title: msg`上下滑着看`,
         body: (
-          <>
+          <Trans>
             整屏一支，上下滑换下一支——划到哪支哪支就自动播，<b className="font-bold text-slate-100">划走就停下、划回来从头播</b>。<b className="font-bold text-slate-100">单击暂停</b>，再点一下接着放；<b className="font-bold text-slate-100">双击点赞</b>，连点两下只会点亮、不会取消。顶上的「关注 / 推荐」切换看谁的作品。
-          </>
+          </Trans>
         ),
       },
       {
-        title: "右边那一列",
+        title: msg`右边那一列`,
         anchor: "feed-rail",
         body: (
-          <>
+          <Trans>
             最上面是<b className="font-bold text-slate-100">作者头像</b>（点进主页，下面那枚 + 号关注）。往下第一枚是发弹幕；再往下点赞、评论、收藏、分享，<b className="font-bold text-slate-100">这四枚下面的数字是已经有多少人做过</b>。评论就地滑出来，不用离开这一屏。
-          </>
+          </Trans>
         ),
       },
       {
-        title: "底下那条细线",
+        title: msg`底下那条细线`,
         anchor: "feed-progress",
         body: (
-          <>
+          <Trans>
             底缘那条细线是<b className="font-bold text-slate-100">播放进度</b>，右上小字是当前 / 总时长，按住能<b className="font-bold text-slate-100">拖着跳到任意一处</b>。多段的作品，这条线走的是整片。
-          </>
+          </Trans>
         ),
       },
       {
-        title: "标题进详情页",
+        title: msg`标题进详情页`,
         anchor: "feed-title",
         body: (
-          <>
+          <Trans>
             <b className="font-bold text-slate-100">点标题进详情页</b>——本片卡组、多 P 选集、完整简介、「互动 · 你来选」的分支，都<b className="font-bold text-slate-100">只在那儿</b>。点作者名或头像，去的是他的主页。
-          </>
+          </Trans>
         ),
       },
       {
-        title: "全屏与转屏",
+        title: msg`全屏与转屏`,
         anchor: "feed-fullscreen",
         body: (
-          <>
+          <Trans>
             那一列最下面单独一枚是全屏键，点了只留画面；<b className="font-bold text-slate-100">横屏的片子会连屏幕一起转过来</b>，所以它在横屏片上写的是「转屏」。退出点右上角那枚缩小键。
-          </>
+          </Trans>
         ),
       },
     ],
   },
   {
     id: "create",
-    title: "创作入口",
+    title: msg`创作入口`,
     // version 2（2026-08-30）：轮播换成一张卡的正反面，工作流并进工坊 —— 老文案教的
     // 「左右滑动/边上的箭头/底部圆点」在页面上全都不存在了
     version: 2,
     steps: [
       {
-        title: "挑一种创作方式",
+        title: msg`挑一种创作方式`,
         anchor: "create-dots",
         body: (
-          <>
+          <Trans>
             底栏的 ➕ 先落到这里。这是<b className="font-bold text-slate-100">一张卡的正反面</b>：正面工坊、背面简约，点右上角那枚按钮翻面（上面写着背面是谁）。两面<b className="font-bold text-slate-100">不是各走各的</b>，而是同一条流水线的两个入口，最后都汇到剪辑与发布。
-          </>
+          </Trans>
         ),
       },
       {
-        title: "挑定了就进去",
+        title: msg`挑定了就进去`,
         anchor: "create-cta",
         body: (
-          <>
+          <Trans>
             挑定了就点卡片底部那枚按钮：工坊落到 3D 铸卡桌面（顶栏 🧩 随时把同一条流水线换成<b className="font-bold text-slate-100">工作流画布</b>那一面），简约落到一步一屏的向导。出片之后都汇到<b className="font-bold text-slate-100">同一个剪辑页</b>，再从那里发布。
-          </>
+          </Trans>
         ),
       },
     ],
@@ -245,52 +254,54 @@ export const TOURS: GuideTour[] = [
   },
   {
     id: "templates",
-    title: "视频模板",
+    title: msg`视频模板`,
     version: 1,
     steps: [
       {
-        title: "模板是成品配方",
+        // ★ 正文「工坊的卡片市场」里的「工坊」是底栏那一格（/workshop，英文 Workshop；写这句时它还叫「创意工坊」）的「从市场添加」，不是 3D 铸卡桌（Studio）
+        title: msg`模板是成品配方`,
         body: (
-          <>
+          <Trans>
             这一屏摆的是调好的<b className="font-bold text-slate-100">成品配方</b>：画风、运镜、分镜骨架都定好了，挑一个套上去，写一句话或者给人偶挂上你的角色卡就能出片。它和工坊的卡片市场是两回事——卡片是素材，得自己组装剧情；模板是拿来就能出片的成品。
-          </>
+          </Trans>
         ),
       },
       {
-        title: "封面上的角标",
+        title: msg`封面上的角标`,
         anchor: "template-card",
         body: (
-          <>
+          <Trans>
             角标写着这个模板能干什么。<b className="font-bold text-slate-100">白模</b>：出片时整段复刻它的场景、道具与运镜，只把人换掉，旁边报的是这条模板视频有多长——成片长度和画幅都跟着它走；<b className="font-bold text-slate-100">几个角色位可换人</b>：画面里那几个白色人偶，各能挂一张你的角色卡。没角标的是经典配方模板，按分镜骨架重新画，旁边报的是分几段。
-          </>
+          </Trans>
         ),
       },
       {
-        title: "用它出片",
+        // 标题与货架上那颗按钮同一个 msgid（「用它出片」）：引导说的就是那颗键，英文跟着它走
+        title: msg`用它出片`,
         anchor: "template-pick",
         body: (
-          <>
+          <Trans>
             点<b className="font-bold text-slate-100">用它出片</b>就跳到出片那一屏，接下来怎么走按模板分两种：<b className="font-bold text-slate-100">带角色位</b>的那种，本段内容区是一颗挂卡的钮——点开把你的角色卡逐个挂到人偶身上，还能另加一句自己的要求；其余的（经典配方、没有角色位的老白模）是写一句话，配方会把它填进每一段剧情。每段要花多少写在「生成本段」那颗按钮上，点它之前不花钱。
-          </>
+          </Trans>
         ),
       },
       {
-        title: "做自己的模板",
+        title: msg`做自己的模板`,
         anchor: "templates-tab-mine",
         body: (
-          <>
+          <Trans>
             <b className="font-bold text-slate-100">我的模板</b>装的是你自己做的，新做一个也从那里进：传一段视频，让 AI 把画面里的人换成一模一样的白色人偶，或者直接拿你本来就做好的白模片用。走哪条路在提取器<b className="font-bold text-slate-100">打开后的第一屏</b>挑；要花多少钱到框选那一步当场整句报出来，确认了才开炼。
-          </>
+          </Trans>
         ),
       },
       {
         // ★ 有意不挂锚点（2026-08-28 撤掉 template-owner-row）：那一行只对自己的模板
         //   渲染，而这份引导在市场页签自动弹——那一刻它多半不存在，圈画不出来
-        title: "发布与下架",
+        title: msg`发布与下架`,
         body: (
-          <>
+          <Trans>
             自己的模板，卡片上只标一个<b className="font-bold text-slate-100">状态</b>（草稿 / 已发布 / 已下架）。<b className="font-bold text-slate-100">识别角色位、核对、试炼、发布、删除</b>这些操作都收进了模板详情页——点开卡片进去，作者工作台就在那儿（先让 AI 识别画面里的人，再逐个核对）。
-          </>
+          </Trans>
         ),
       },
     ],
@@ -565,214 +576,218 @@ export const TOURS: GuideTour[] = [
   },
   {
     id: "workshop",
-    title: "创意工坊",
+    title: msg`创意工坊`,
     // v2（2026-08-28）：2026-08-21 本页加了第三个页签「我的模板」（内嵌模板货架与
     // 提取器，其中 AI 白模化是真花钱出一次片的），老引导还在说"只管卡片和卡组、
     // 只有两个页签"——页面改版到老引导会误导人，升版本让所有人重看。
     version: 2,
     steps: [
       {
-        title: "这一页管素材，成片在工坊",
+        // ★ 这一屏（创意工坊，底栏那一格写的是「工坊」= Workshop）与标题里的「工坊」（3D 铸卡桌 = Studio）是两个地方，英文别译成同一个词：这一步讲的正是二者的分工。
+        //   ⚠ 光秃秃的「工坊」得看上下文：本文件里多数指 3D 铸卡桌，但「视频模板」第 1 步那句「工坊的卡片市场」指的是底栏这一格
+        title: msg`这一页管素材，成片在工坊`,
         anchor: "workshop-studio-entry",
         body: (
-          <>
+          <Trans>
             这里管<b className="font-bold text-slate-100">卡片、卡组和模板</b>这些素材。
             要摆桌铸卡、把卡炼成视频，从这条路进 3D 工坊；
             唯一的例外是模板栏里的「AI 换白模」——那条会真出一次片、真花钱。
-          </>
+          </Trans>
         ),
       },
       {
-        title: "造卡四条路，一条花钱",
+        title: msg`造卡四条路，一条花钱`,
         anchor: "workshop-extract-card",
         body: (
-          <>
+          <Trans>
             只有 AI 出图<b className="font-bold text-slate-100">要花 token</b>（工坊铸卡，或「自己传图」里
             选了 AI 生成图位）。从视频圈选提取、自己传图、从市场拿都<b className="font-bold text-slate-100">不花</b>——
             提取是拖到某一帧、亲手圈出要的人或物，圈出来的画面就是参考图。
-          </>
+          </Trans>
         ),
       },
       {
         // ★ 有意不挂锚点：它排在卡片网格下面，卡一多就掉出首屏，而引导期间页面滚不动。
         //   （屏外锚点现在会退成居中卡片，不再把「下一步」沉出屏幕 —— 但退化了圈就没了，
         //   不如一开始就写清位置。）
-        title: "市场里点哪儿才是拿",
+        title: msg`市场里点哪儿才是拿`,
         body: (
-          <>
+          <Trans>
             下面「从市场添加」那一栏：点卡面只是<b className="font-bold text-slate-100">看详情</b>，
             卡片下面那行小字才是收进自己的库。那一栏还能切成卡组、整套装走，都不花钱。
-          </>
+          </Trans>
         ),
       },
       {
-        title: "卡组是干什么的",
+        title: msg`卡组是干什么的`,
         anchor: "workshop-tabs",
         body: (
-          <>
+          <Trans>
             把常用的几张归成一组；出片时<b className="font-bold text-slate-100">人物和场景由卡组锁住，全片保持一致</b>。
             散着的卡在「我的卡片」页签，你自己做的模板在「我的模板」。
-          </>
+          </Trans>
         ),
       },
       {
         // ★ 有意不挂锚点（2026-08-28 撤掉 workshop-deck-new）：那颗按钮只在「我的卡组」
         //   页签下渲染，而引导在默认的「我的卡片」页签自动弹——那一刻它不存在，圈画不出来
-        title: "组卡组：怎么加、怎么改",
+        title: msg`组卡组：怎么加、怎么改`,
         body: (
-          <>
+          <Trans>
             在「我的卡组」页签里：先点「编辑」<b className="font-bold text-slate-100">再</b>点卡片，才是加进来或拿出去；卡角能定封面。
             组名点上去直接改。删掉整组<b className="font-bold text-slate-100">不会删卡</b>。
-          </>
+          </Trans>
         ),
       },
     ],
   },
   {
     id: "discover",
-    title: "分区",
+    // ★ 带 context：「分区」「我的」两个 msgid 已经是底栏页签的名字；这里是拼进「… 使用引导」的屏名，英文要能换一种说法
+    title: msg({ message: "分区", context: "新手引导的屏名：只拼进无障碍标签「… 使用引导」（与底栏页签同字不同用）" }),
     version: 1,
     steps: [
       {
-        title: "一个框搜两样",
+        title: msg`一个框搜两样`,
         anchor: "discover-search",
         body: (
-          <>
+          <Trans>
             打字之后上面先出<b className="font-bold text-slate-100">人</b>、下面出作品。
             作品是拿标题、简介、作者、分区、话题标签一起对的，不只对标题。
-          </>
+          </Trans>
         ),
       },
       {
-        title: "搜到的人",
+        title: msg`搜到的人`,
         anchor: "discover-users",
         body: (
-          <>
+          <Trans>
             人排在作品前面，点一行进他主页 —— 有些作品这里搜不到，去他主页能看全。
             名字底下那串 <b className="font-bold text-slate-100">@ 开头的</b>，就是 @ 他时要打的那串。
-          </>
+          </Trans>
         ),
       },
       {
-        title: "分区图标就是开关",
+        title: msg`分区图标就是开关`,
         anchor: "discover-cats",
         body: (
-          <>
+          <Trans>
             点一个就只看这一类，选中的那个会放大亮起来；
             <b className="font-bold text-slate-100">再点同一个才取消</b> —— 没有别的地方能关掉它。
-          </>
+          </Trans>
         ),
       },
       {
-        title: "现在筛的是什么",
+        title: msg`现在筛的是什么`,
         anchor: "discover-scope",
         body: (
-          <>
+          <Trans>
             分区和搜索词是<b className="font-bold text-slate-100">叠加</b>的。这行小字报的是当前分区和筛出的条数；
             觉得作品变少了，先看分区图标亮没亮、搜索框清没清。右边那两颗换排法：最火按播放多少排，最新按发布时间倒着排。
-          </>
+          </Trans>
         ),
       },
     ],
   },
   {
     id: "profile",
-    title: "我的",
+    // ★ 带 context，理由同上面「分区」那一条
+    title: msg({ message: "我的", context: "新手引导的屏名：只拼进无障碍标签「… 使用引导」（与底栏页签同字不同用）" }),
     version: 1,
     steps: [
       {
-        title: "出片花的就是这些 token",
+        title: msg`出片花的就是这些 token`,
         anchor: "profile-wallet",
         body: (
-          <>
+          <Trans>
             出片、出图、铸卡、解锁付费作品，扣的都是它。点开看余额、买套餐或直充 ——
             <b className="font-bold text-slate-100">套餐按月给且先扣，直充的不过期</b>。
-          </>
+          </Trans>
         ),
       },
       {
-        title: "五个图标各管一堆",
+        title: msg`五个图标各管一堆`,
         anchor: "profile-tabs",
         body: (
-          <>
+          <Trans>
             从左到右是作品、草稿、卡片、卡组、收藏，点一下换一堆看。
             图标旁边那个数字是这堆有几件；<b className="font-bold text-slate-100">空的那几堆不显示数字</b>。
-          </>
+          </Trans>
         ),
       },
       {
-        title: "没做完的半成品在这一格",
+        title: msg`没做完的半成品在这一格`,
         anchor: "profile-tab-drafts",
         body: (
-          <>
+          <Trans>
             存着的半成品都在这儿。那把锁是「<b className="font-bold text-slate-100">还没发布</b>」，
             不是私密。点一张要先挑用工坊还是工作流打开 —— 同一份内容，两边都进得去。
-          </>
+          </Trans>
         ),
       },
       {
-        title: "谁赞了你、谁关注了你",
+        title: msg`谁赞了你、谁关注了你`,
         anchor: "profile-notify",
         body: (
-          <>
+          <Trans>
             点它看消息 —— 全 app <b className="font-bold text-slate-100">只有这一个入口</b>。
             有新的时候图标上会多一个红点，红点不报条数，进去才知道有几条。
-          </>
+          </Trans>
         ),
       },
       {
-        title: "这三个数字里有一个能点",
+        title: msg`这三个数字里有一个能点`,
         anchor: "profile-stats",
         body: (
-          <>
+          <Trans>
             「关注」那格点开是你关注过的人的名单，就地能取关。
             旁边两个是你<b className="font-bold text-slate-100">所有作品加起来</b>的总数，不是某一支的。
-          </>
+          </Trans>
         ),
       },
     ],
   },
   {
     id: "tpldetail",
-    title: "模板详情",
+    title: msg`模板详情`,
     version: 1,
     steps: [
       {
-        title: "白模那种模板：视频就是成片",
+        title: msg`白模那种模板：视频就是成片`,
         anchor: "template-refvideo",
         body: (
-          <>
+          <Trans>
             白模那种模板，出片就是<b className="font-bold text-slate-100">整段复刻这段视频</b>、只把人偶换掉。
             下面那行报价把模板视频自己的时长也计了一遍，不是只按出片时长算。
-          </>
+          </Trans>
         ),
       },
       {
-        title: "点「用这个模板出片」还不扣钱",
+        title: msg`点「用这个模板出片」还不扣钱`,
         body: (
-          <>
+          <Trans>
             那颗按钮只是把配方铺到出片那一屏，<b className="font-bold text-slate-100">钱要到那边点生成才扣</b>。
             有角色位的模板会先领你去给人偶挂卡。
-          </>
+          </Trans>
         ),
       },
       {
-        title: "自己做的才多一块工作台",
+        title: msg`自己做的才多一块工作台`,
         body: (
-          <>
+          <Trans>
             互动区上面那一大块「✎ 模板信息」<b className="font-bold text-slate-100">只有作者看得见</b>。
             发布＝别人搜得到、能付费套用；白模模板要先用它真出过一段片才让发。
             下架只是收回来，你那份还在。
-          </>
+          </Trans>
         ),
       },
       {
-        title: "删除是真的销毁",
+        title: msg`删除是真的销毁`,
         body: (
-          <>
+          <Trans>
             工作台里的「删除」不是从列表里划掉：<b className="font-bold text-slate-100">云端那段模板视频和原始素材会一起没掉</b>，
             谁都找不回。所以要点两下才认。
-          </>
+          </Trans>
         ),
       },
     ],
@@ -1125,5 +1140,5 @@ export const TOURS: GuideTour[] = [
 ];
 
 export function tourById(id: string): GuideTour | null {
-  return TOURS.find((t) => t.id === id) ?? null;
+  return TOURS.find((tour) => tour.id === id) ?? null;
 }
