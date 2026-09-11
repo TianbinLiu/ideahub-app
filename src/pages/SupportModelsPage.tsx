@@ -32,13 +32,13 @@ import { useBackOr } from "../hooks/useBackOr";
 import { useQueryTab } from "../hooks/useQueryTab";
 import { ApiError } from "../api/client";
 import {
-  LIVE2D_BADGE_LABEL,
   OFFICIAL_MODEL_ID,
   authorName,
   companionErrorText,
   getCompanionSettings,
   installLive2dModel,
   listLive2dModels,
+  live2dBadgeLabel,
   resolveModelJsonUrl,
   uninstallLive2dModel,
   updateCompanionSettings,
@@ -292,7 +292,7 @@ export default function SupportModelsPage() {
                     <div className="mt-1 flex flex-wrap gap-1">
                       {m.capabilities.badges.map((b) => (
                         <span key={b} className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] text-slate-300">
-                          {LIVE2D_BADGE_LABEL[b]}
+                          {live2dBadgeLabel(b)}
                         </span>
                       ))}
                     </div>
