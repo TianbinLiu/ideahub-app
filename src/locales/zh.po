@@ -35,6 +35,10 @@ msgstr " · 🔒 前面的段炼完才解锁"
 msgid " · 上次"
 msgstr " · 上次"
 
+#: src/pages/EditPage.tsx
+msgid " · 互动分支"
+msgstr " · 互动分支"
+
 #: src/pages/SimpleModePage.tsx
 msgid " · 已给尾帧"
 msgstr " · 已给尾帧"
@@ -338,6 +342,12 @@ msgstr "{0} 条评论"
 msgid "{0} 段"
 msgstr "{0} 段"
 
+#. placeholder {0}: p.segments.length
+#. placeholder {1}: formatDuration(totalOf(i))
+#: src/pages/EditPage.tsx
+msgid "{0} 段 · {1}"
+msgstr "{0} 段 · {1}"
+
 #. placeholder {0}: d.segCount
 #. placeholder {0}: meta.segCount
 #. placeholder {1}: d.doneCount
@@ -437,6 +447,10 @@ msgstr "{installs} 人装过"
 msgid "{name}的声音"
 msgstr "{name}的声音"
 
+#: src/pages/PublishPage.tsx
+msgid "{segCount} 段 · 共 {totalText}"
+msgstr "{segCount} 段 · 共 {totalText}"
+
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "{who}，还没挂卡"
 msgstr "{who}，还没挂卡"
@@ -467,6 +481,11 @@ msgstr "{why}——卡在这台设备上有，但换台设备或重启后可能�
 #: src/pages/SettingsStoragePage.tsx
 msgid "《{0}》 {1} 个文件 · {2}"
 msgstr "《{0}》 {1} 个文件 · {2}"
+
+#. placeholder {0}: title.trim()
+#: src/pages/PublishPage.tsx
+msgid "《{0}》卡组"
+msgstr "《{0}》卡组"
 
 #. placeholder {0}: strayRemoved.join("」「")
 #: src/components/blockout/RoleCastBoard.tsx
@@ -589,6 +608,11 @@ msgstr "＋ 自建一套"
 msgid "＋中间帧（{midCount}/{midMax}）"
 msgstr "＋中间帧（{midCount}/{midMax}）"
 
+#. placeholder {0}: deckIssue.why
+#: src/pages/PublishPage.tsx
+msgid "<0>作品已经发布成功了</0>，但本片卡组没能存进你的工坊：{0}。<1>卡还在这台设备上，重试一次多半就好。</1>"
+msgstr "<0>作品已经发布成功了</0>，但本片卡组没能存进你的工坊：{0}。<1>卡还在这台设备上，重试一次多半就好。</1>"
+
 #: src/components/DeleteCardDialog.tsx
 msgid "<0>删了就找不回来</0>：卡面、形象参考图、声音样本与肖像授权都会一起清掉。"
 msgstr "<0>删了就找不回来</0>：卡面、形象参考图、声音样本与肖像授权都会一起清掉。"
@@ -663,6 +687,10 @@ msgstr "⚠ 如果删它是因为画面上根本没有那个人偶，记得把�
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "⚠ 已挂 {0} 张，超过一次出片能带的 {maxRefImages} 张参考图上限。 多出来的会在出片时按出片管线既有的规则被挤掉 —— 建议你自己减到 {maxRefImages} 张， 免得被挤掉的正好是最要紧的那张。"
 msgstr "⚠ 已挂 {0} 张，超过一次出片能带的 {maxRefImages} 张参考图上限。 多出来的会在出片时按出片管线既有的规则被挤掉 —— 建议你自己减到 {maxRefImages} 张， 免得被挤掉的正好是最要紧的那张。"
+
+#: src/pages/PublishPage.tsx
+msgid "⚠ 渐变回退"
+msgstr "⚠ 渐变回退"
 
 #: src/components/blockout/BlockoutTrimmer.tsx
 msgid "⚠ 视频里有<0>真人面孔</0>时，AI 可能在<1>受理之后</1>才拒绝这一发 —— 那时算力已经开始消耗，<2>这笔费用不退</2>（实测：创建时不拒，只能中途失败）。真人素材请自己掂量；动画、游戏画面、 自己拍的白模预演不受影响。"
@@ -765,6 +793,10 @@ msgstr "✎ 返修这一段"
 msgid "✏️ 编辑"
 msgstr "✏️ 编辑"
 
+#: src/pages/EditPage.tsx
+msgid "✓ 已保存"
+msgstr "✓ 已保存"
+
 #: src/components/flow/RefFrameSheet.tsx
 msgid "✓ 已加为中间帧"
 msgstr "✓ 已加为中间帧"
@@ -792,6 +824,10 @@ msgstr "✓ 已设为首帧"
 #: src/components/CoverPicker.tsx
 msgid "✓ 用作封面"
 msgstr "✓ 用作封面"
+
+#: src/pages/PublishPage.tsx
+msgid "✓ 真实影像"
+msgstr "✓ 真实影像"
 
 #: src/pages/TemplateDetailPage.tsx
 msgid "✓ 试炼通过——你已经用这个模板真实出过片，可以发布了。"
@@ -1060,6 +1096,10 @@ msgstr "🪪 <0>方舟可信素材</0>（真人出片的合规通道）：「高
 #: src/components/VideoCardAnnotator.tsx
 msgid "🛒 逛方案市场"
 msgstr "🛒 逛方案市场"
+
+#: src/pages/EditPage.tsx
+msgid "🛠 回炉重做"
+msgstr "🛠 回炉重做"
 
 #: src/components/support/VoiceSheet.tsx
 #: src/pages/SettingsVoicePage.tsx
@@ -1427,6 +1467,10 @@ msgstr "以后再说"
 msgid "以当前封面为参考图，按要求修改"
 msgstr "以当前封面为参考图，按要求修改"
 
+#: src/pages/PublishPage.tsx
+msgid "会替换《{originTitle}》的内容，链接不变。"
+msgstr "会替换《{originTitle}》的内容，链接不变。"
+
 #: src/components/TemplateShelf.tsx
 msgid "传一段视频做白模模板（自己做好的白模片也行）"
 msgstr "传一段视频做白模模板（自己做好的白模片也行）"
@@ -1457,6 +1501,14 @@ msgstr "余额不足（现有 {have}）——去「我的」页充值"
 msgid "作品、卡片和钱包都记在服务器上，重新登录同一账号就回来。"
 msgstr "作品、卡片和钱包都记在服务器上，重新登录同一账号就回来。"
 
+#: src/pages/EditPage.tsx
+msgid "作品不存在"
+msgstr "作品不存在"
+
+#: src/pages/EditPage.tsx
+msgid "作品不存在或已删除"
+msgstr "作品不存在或已删除"
+
 #: src/pages/SettingsStoragePage.tsx
 msgid "作品与卡片存在本机数据库里。AI 生成的画面体积较大，空间不足时请删除旧作品。"
 msgstr "作品与卡片存在本机数据库里。AI 生成的画面体积较大，空间不足时请删除旧作品。"
@@ -1464,6 +1516,10 @@ msgstr "作品与卡片存在本机数据库里。AI 生成的画面体积较大
 #: src/pages/SettingsStoragePage.tsx
 msgid "作品与卡片已同步到服务器，换设备登录同一账号即可看到；这里是它们在本机的副本，加上生成过程中的中间文件。"
 msgstr "作品与卡片已同步到服务器，换设备登录同一账号即可看到；这里是它们在本机的副本，加上生成过程中的中间文件。"
+
+#: src/pages/EditPage.tsx
+msgid "作品内容"
+msgstr "作品内容"
 
 #: src/components/support/VoiceSheet.tsx
 msgid "你的设置（官网同步）"
@@ -1533,9 +1589,14 @@ msgid "保存"
 msgstr "保存"
 
 #: src/components/support/VoiceSheet.tsx
+#: src/pages/EditPage.tsx
 #: src/pages/SettingsProfilePage.tsx
 msgid "保存中…"
 msgstr "保存中…"
+
+#: src/pages/EditPage.tsx
+msgid "保存修改"
+msgstr "保存修改"
 
 #: src/components/DownloadSheet.tsx
 #: src/components/ShareSheet.tsx
@@ -1550,6 +1611,10 @@ msgstr "保存到本地是怎么走的"
 #: src/components/support/VoiceSheet.tsx
 msgid "保存失败，稍后再试。"
 msgstr "保存失败，稍后再试。"
+
+#: src/pages/EditPage.tsx
+msgid "保存失败，请重试"
+msgstr "保存失败，请重试"
 
 #: src/pages/SettingsProfilePage.tsx
 msgid "保存资料"
@@ -1612,6 +1677,10 @@ msgstr "先加一味音色再保存。"
 msgid "先去挂卡，点名句会填进这里（可改）"
 msgstr "先去挂卡，点名句会填进这里（可改）"
 
+#: src/pages/PublishPage.tsx
+msgid "先去看作品"
+msgstr "先去看作品"
+
 #: src/components/ForgeOverlay.tsx
 msgid "先去逛逛，好了叫我"
 msgstr "先去逛逛，好了叫我"
@@ -1627,6 +1696,10 @@ msgstr "先存进 App，再选去处。"
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "先点下面一个格子，再点一张卡；也可以直接把卡拖到格子上"
 msgstr "先点下面一个格子，再点一张卡；也可以直接把卡拖到格子上"
+
+#: src/pages/PublishPage.tsx
+msgid "先给视频起个标题"
+msgstr "先给视频起个标题"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "先给这张卡起个名字"
@@ -1712,6 +1785,10 @@ msgstr "关闭评论"
 msgid "内容可能还在，只是这次没取到（网络或服务器的问题）"
 msgstr "内容可能还在，只是这次没取到（网络或服务器的问题）"
 
+#: src/pages/PublishPage.tsx
+msgid "内容声明：本作品由 AI 生成"
+msgstr "内容声明：本作品由 AI 生成"
+
 #: src/components/TagInput.tsx
 msgid "再加一个"
 msgstr "再加一个"
@@ -1733,6 +1810,8 @@ msgid "再补一句要求（可留空）"
 msgstr "再补一句要求（可留空）"
 
 #: src/components/DeleteConfirmShell.tsx
+#: src/pages/EditPage.tsx
+#: src/pages/PublishPage.tsx
 #: src/pages/VideoPage.tsx
 msgid "再试一次"
 msgstr "再试一次"
@@ -1860,6 +1939,11 @@ msgstr "分享需要先连接服务器并登录 —— 离线库里没有「别�
 msgid "分区"
 msgstr "分区"
 
+#: src/pages/EditPage.tsx
+#: src/pages/PublishPage.tsx
+msgid "分类"
+msgstr "分类"
+
 #: src/pages/TemplateDetailPage.tsx
 msgid "分镜骨架（{THEME_TOKEN} 会换成你那句话）"
 msgstr "分镜骨架（{THEME_TOKEN} 会换成你那句话）"
@@ -1893,6 +1977,7 @@ msgid "删"
 msgstr "删"
 
 #: src/components/blockout/RoleConfirmSheet.tsx
+#: src/pages/EditPage.tsx
 msgid "删掉"
 msgstr "删掉"
 
@@ -1920,6 +2005,10 @@ msgstr "删掉之后，<0>{0}</0>那个人偶就<1>没法挂卡了</1> —— �
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "删掉之后，画面上这个人偶就<0>没有编号了</0> —— 套用你模板的人不能给它挂卡，它会保持白模人偶原样出现在片子里。剩下的编号一个都不会变。"
 msgstr "删掉之后，画面上这个人偶就<0>没有编号了</0> —— 套用你模板的人不能给它挂卡，它会保持白模人偶原样出现在片子里。剩下的编号一个都不会变。"
+
+#: src/pages/EditPage.tsx
+msgid "删掉之后这条作品就不能再回炉了，作品本身不受影响。"
+msgstr "删掉之后这条作品就不能再回炉了，作品本身不受影响。"
 
 #. placeholder {0}: deck.name
 #: src/components/DeleteDeckDialog.tsx
@@ -1951,6 +2040,10 @@ msgstr "删掉这个角色位"
 msgid "删掉这张卡"
 msgstr "删掉这张卡"
 
+#: src/pages/EditPage.tsx
+msgid "删掉这条作品的工坊工程？"
+msgstr "删掉这条作品的工坊工程？"
+
 #: src/pages/SettingsStoragePage.tsx
 msgid "删的是你点「保存到本地」存进 App 的那 {files} 个视频文件。已经用「分享 / 另存为」交给相册或 文件管理器的副本不受影响；还留在这里没交出去的，删了就没有了。"
 msgstr "删的是你点「保存到本地」存进 App 的那 {files} 个视频文件。已经用「分享 / 另存为」交给相册或 文件管理器的副本不受影响；还留在这里没交出去的，删了就没有了。"
@@ -1962,9 +2055,15 @@ msgstr "删的是你点「保存到本地」存进 App 的那 {files} 个视频�
 msgid "删除"
 msgstr "删除"
 
+#. placeholder {0}: video.title
+#: src/pages/EditPage.tsx
+msgid "删除《{0}》？"
+msgstr "删除《{0}》？"
+
 #: src/components/CommentDelete.tsx
 #: src/components/DeleteConfirmShell.tsx
 #: src/components/support/VoiceMarket.tsx
+#: src/pages/EditPage.tsx
 msgid "删除中…"
 msgstr "删除中…"
 
@@ -1975,6 +2074,26 @@ msgstr "删除失败，稍后再试。"
 #: src/components/DeleteConfirmShell.tsx
 msgid "删除失败了，原因不明。"
 msgstr "删除失败了，原因不明。"
+
+#: src/pages/EditPage.tsx
+msgid "删除留存的工坊工程"
+msgstr "删除留存的工坊工程"
+
+#: src/pages/EditPage.tsx
+msgid "删除这部作品"
+msgstr "删除这部作品"
+
+#: src/pages/PublishPage.tsx
+msgid "别人只看得到成片，看不到你用了哪几张卡，也不能「做同款」。"
+msgstr "别人只看得到成片，看不到你用了哪几张卡，也不能「做同款」。"
+
+#: src/pages/PublishPage.tsx
+msgid "别人只看得到成片，看不到你用了哪几张卡，也不能「做同款」。原作品上那套卡组也会一并撤下。"
+msgstr "别人只看得到成片，看不到你用了哪几张卡，也不能「做同款」。原作品上那套卡组也会一并撤下。"
+
+#: src/pages/EditPage.tsx
+msgid "别人的首页和你的主页上都不再出现，成片和评论都留着，随时能改回来。"
+msgstr "别人的首页和你的主页上都不再出现，成片和评论都留着，随时能改回来。"
 
 #: src/pages/NotificationsPage.tsx
 msgid "别人赞你、评论你、回复你、在评论里 @ 你，或平台发来通知时会出现在这里"
@@ -2047,6 +2166,10 @@ msgstr "卡已丢失"
 msgid "卡片"
 msgstr "卡片"
 
+#: src/pages/PublishPage.tsx
+msgid "卡片存上了，卡组本身没建成"
+msgstr "卡片存上了，卡组本身没建成"
+
 #: src/components/MaterialSheet.tsx
 msgid "卡组"
 msgstr "卡组"
@@ -2087,10 +2210,18 @@ msgstr "卡面仍带背景：出片时 AI 可能把背景里的东西也画进�
 msgid "卡面会带着框里的背景，出片时 AI 可能把背景里的东西也画进去。"
 msgstr "卡面会带着框里的背景，出片时 AI 可能把背景里的东西也画进去。"
 
+#: src/pages/PublishPage.tsx
+msgid "原作品"
+msgstr "原作品"
+
 #. placeholder {0}: takedownReasonText(video.takedown.reason)
 #: src/components/ShareSheet.tsx
 msgid "原因：{0}"
 msgstr "原因：{0}"
+
+#: src/pages/EditPage.tsx
+msgid "原因不明"
+msgstr "原因不明"
 
 #. placeholder {0}: m.toFixed(1)
 #: src/components/blockout/BoxFramePicker.tsx
@@ -2166,6 +2297,7 @@ msgid "参考视频没挂上：{why}"
 msgstr "参考视频没挂上：{why}"
 
 #: src/components/flow/SkillPanel.tsx
+#: src/pages/PublishPage.tsx
 msgid "发布"
 msgstr "发布"
 
@@ -2207,6 +2339,14 @@ msgstr "发布到模板市场"
 msgid "发布前须用本模板<0>真实出过一次片</0>（套用它、挂上角色卡、付费出一段）——这一步能确保套用你模板的人不会白花钱。"
 msgstr "发布前须用本模板<0>真实出过一次片</0>（套用它、挂上角色卡、付费出一段）——这一步能确保套用你模板的人不会白花钱。"
 
+#: src/pages/PublishPage.tsx
+msgid "发布后会做三件事：{note}并按<0>《AIGC 内容须知》</0>承担发布者责任。<1>这项声明不可关闭。</1>"
+msgstr "发布后会做三件事：{note}并按<0>《AIGC 内容须知》</0>承担发布者责任。<1>这项声明不可关闭。</1>"
+
+#: src/pages/PublishPage.tsx
+msgid "发布后会留存这条片的工坊工程，之后可回炉重做。"
+msgstr "发布后会留存这条片的工坊工程，之后可回炉重做。"
+
 #: src/components/support/VoiceMixer.tsx
 msgid "发布失败，稍后再试。"
 msgstr "发布失败，稍后再试。"
@@ -2214,6 +2354,10 @@ msgstr "发布失败，稍后再试。"
 #: src/components/support/VoiceMixer.tsx
 msgid "发布并设为我的声音"
 msgstr "发布并设为我的声音"
+
+#: src/pages/PublishPage.tsx
+msgid "发布视频"
+msgstr "发布视频"
 
 #: src/pages/FeedPage.tsx
 msgid "发弹幕"
@@ -2264,6 +2408,10 @@ msgstr "取最新…"
 msgid "取回中…"
 msgstr "取回中…"
 
+#: src/pages/PublishPage.tsx
+msgid "取回最新工程重来"
+msgstr "取回最新工程重来"
+
 #. placeholder {0}: blob.type || "?"
 #: src/data/cardViews.ts
 msgid "取回来的不是图片（{0}）"
@@ -2300,6 +2448,7 @@ msgstr "取流超时（窗口在后台时浏览器不解码视频）"
 #: src/components/support/VoiceMarket.tsx
 #: src/components/support/VoiceMixer.tsx
 #: src/components/VideoCardAnnotator.tsx
+#: src/pages/EditPage.tsx
 msgid "取消"
 msgstr "取消"
 
@@ -2382,6 +2531,10 @@ msgstr "只存刚看的走向（{0} 段）"
 msgid "只有一个节点：写一句话，挑个时长，直接出一条几秒的短视频。不推方案、不存草稿。"
 msgstr "只有一个节点：写一句话，挑个时长，直接出一条几秒的短视频。不推方案、不存草稿。"
 
+#: src/pages/EditPage.tsx
+msgid "只有作者本人可以编辑这部作品"
+msgstr "只有作者本人可以编辑这部作品"
+
 #: src/components/VisibilityPicker.tsx
 msgid "只有你能看到；别人拿到链接也打不开"
 msgstr "只有你能看到；别人拿到链接也打不开"
@@ -2431,6 +2584,10 @@ msgstr "合成中…"
 msgid "合成整片 · 还差 {0} 段"
 msgstr "合成整片 · 还差 {0} 段"
 
+#: src/pages/PublishPage.tsx
+msgid "合成稿还留在「我的」里，没有丢。"
+msgstr "合成稿还留在「我的」里，没有丢。"
+
 #: src/components/flow/CastPreviewCard.tsx
 msgid "合成预览：只看站位与形象对不对，不代表成片画质；改了挂法要重新合成"
 msgstr "合成预览：只看站位与形象对不对，不代表成片画质；改了挂法要重新合成"
@@ -2469,6 +2626,10 @@ msgstr "唤起指令句式（也可以输入 /）"
 msgid "喂一段聊天记录或者答几道题，AI 帮你写出说话风格，试聊满意了再发布。"
 msgstr "喂一段聊天记录或者答几道题，AI 帮你写出说话风格，试聊满意了再发布。"
 
+#: src/pages/EditPage.tsx
+msgid "回到作品"
+msgstr "回到作品"
+
 #: src/components/PhotoSubjectPicker.tsx
 msgid "回到整图"
 msgstr "回到整图"
@@ -2502,6 +2663,14 @@ msgstr "回复了你的评论"
 #: src/components/ReviseBar.tsx
 msgid "回炉：《{0}》"
 msgstr "回炉：《{0}》"
+
+#: src/pages/PublishPage.tsx
+msgid "回炉重做"
+msgstr "回炉重做"
+
+#: src/pages/EditPage.tsx
+msgid "回炉重做这条作品？"
+msgstr "回炉重做这条作品？"
 
 #: src/pages/OauthCallbackPage.tsx
 msgid "回登录页"
@@ -2762,6 +2931,11 @@ msgstr "对画布说话：{0}"
 msgid "封面"
 msgstr "封面"
 
+#. placeholder {0}: e.message
+#: src/pages/EditPage.tsx
+msgid "封面上传失败：{0}"
+msgstr "封面上传失败：{0}"
+
 #: src/pages/DeckDetailPage.tsx
 msgid "封面卡"
 msgstr "封面卡"
@@ -2797,6 +2971,10 @@ msgstr "工坊模式"
 #: src/components/DraftTitle.tsx
 msgid "工程名"
 msgstr "工程名"
+
+#: src/pages/EditPage.tsx
+msgid "工程已留存，现在可以回炉重做了"
+msgstr "工程已留存，现在可以回炉重做了"
 
 #. placeholder {0}: mb(row.bytes)
 #: src/components/DownloadSheet.tsx
@@ -2932,6 +3110,10 @@ msgstr "已接上授权素材，存卡时一并绑定"
 #: src/pages/SupportPersonasPage.tsx
 msgid "已收藏"
 msgstr "已收藏"
+
+#: src/pages/PublishPage.tsx
+msgid "已替换。这条作品现在是{rev}，收藏过它的人会收到通知。"
+msgstr "已替换。这条作品现在是{rev}，收藏过它的人会收到通知。"
 
 #. placeholder {0}: inside.length
 #: src/components/blockout/VisionFramePicker.tsx
@@ -3162,6 +3344,10 @@ msgstr "往前 {step} 秒"
 msgid "往后 {step} 秒"
 msgstr "往后 {step} 秒"
 
+#: src/pages/PublishPage.tsx
+msgid "得先给它起个标题，才发得出去（关掉这张卡去填一个）。"
+msgstr "得先给它起个标题，才发得出去（关掉这张卡去填一个）。"
+
 #: src/components/ShareSheet.tsx
 msgid "微信"
 msgstr "微信"
@@ -3212,9 +3398,17 @@ msgstr "想怎么开始？"
 msgid "想拍什么？"
 msgstr "想拍什么？"
 
+#: src/pages/EditPage.tsx
+msgid "想换成片内容，用下面的「🛠 回炉重做」把这条片的工坊工程取回工坊接着改 —— 链接、播放量、评论都留着。想做一条全新的，<0>去工坊再创作</0>。"
+msgstr "想换成片内容，用下面的「🛠 回炉重做」把这条片的工坊工程取回工坊接着改 —— 链接、播放量、评论都留着。想做一条全新的，<0>去工坊再创作</0>。"
+
 #: src/components/blockout/BoxFramePicker.tsx
 msgid "慢放 0.25 倍"
 msgstr "慢放 0.25 倍"
+
+#: src/pages/EditPage.tsx
+msgid "成片、评论和点赞会一起消失，云端存的视频与封面也会一并删除。不能撤销。"
+msgstr "成片、评论和点赞会一起消失，云端存的视频与封面也会一并删除。不能撤销。"
 
 #: src/components/flow/SegmentRecoverCards.tsx
 msgid "成片已经落回流水线，但自动存草稿没成（存储空间不足或隐私模式）——先别关 App，去工坊点一次「存草稿」"
@@ -3231,6 +3425,10 @@ msgstr "成片解码失败——换「本地上传」或下面各段的首尾帧
 #: src/components/CoverPicker.tsx
 msgid "成片还在载入，稍等一下再截"
 msgstr "成片还在载入，稍等一下再截"
+
+#: src/pages/PublishPage.tsx
+msgid "成片预览（各段按时间线依次播放）"
+msgstr "成片预览（各段按时间线依次播放）"
 
 #: src/pages/SettingsPage.tsx
 msgid "我们对涉及未成年人内容的立场与处理方式（在官网打开）"
@@ -3695,6 +3893,10 @@ msgstr "收取中…"
 msgid "收藏"
 msgstr "收藏"
 
+#: src/pages/PublishPage.tsx
+msgid "收费方式"
+msgstr "收费方式"
+
 #: src/components/VideoCardAnnotator.tsx
 #: src/pages/SimpleModePage.tsx
 msgid "收起"
@@ -3728,6 +3930,10 @@ msgstr "改哪里？例：把背景换成雨夜 / 去掉右上角的台标 / 主
 msgid "改完挂卡会按新的映射<0>重新合成</0>下面那段要求，你改过的字会被替换掉。"
 msgstr "改完挂卡会按新的映射<0>重新合成</0>下面那段要求，你改过的字会被替换掉。"
 
+#: src/pages/EditPage.tsx
+msgid "改成「仅自己可见」就好"
+msgstr "改成「仅自己可见」就好"
+
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "改错了不用重炼"
 msgstr "改错了不用重炼"
@@ -3735,6 +3941,18 @@ msgstr "改错了不用重炼"
 #: src/components/PhotoSubjectPicker.tsx
 msgid "放大再框"
 msgstr "放大再框"
+
+#: src/pages/PublishPage.tsx
+msgid "放弃"
+msgstr "放弃"
+
+#: src/pages/PublishPage.tsx
+msgid "放弃本次合成"
+msgstr "放弃本次合成"
+
+#: src/pages/PublishPage.tsx
+msgid "放弃本次合成？"
+msgstr "放弃本次合成？"
 
 #: src/pages/SettingsPage.tsx
 #: src/pages/SupportPersonasPage.tsx
@@ -3762,6 +3980,10 @@ msgstr "新"
 #: src/pages/SettingsPage.tsx
 msgid "新手引导"
 msgstr "新手引导"
+
+#: src/pages/PublishPage.tsx
+msgid "新的一版"
+msgstr "新的一版"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "方案"
@@ -3815,6 +4037,10 @@ msgstr "暂停"
 msgid "暂时不可用"
 msgstr "暂时不可用"
 
+#: src/pages/EditPage.tsx
+msgid "暂时问不到服务器，没能确认这条作品有没有留存工坊工程。"
+msgstr "暂时问不到服务器，没能确认这条作品有没有留存工坊工程。"
+
 #: src/components/CoverPicker.tsx
 msgid "暗处在首页会被文字和按钮盖住（大致）"
 msgstr "暗处在首页会被文字和按钮盖住（大致）"
@@ -3826,6 +4052,10 @@ msgstr "更换头像"
 #: src/components/UpdateSheet.tsx
 msgid "更新失败，请稍后再试"
 msgstr "更新失败，请稍后再试"
+
+#: src/pages/PublishPage.tsx
+msgid "替换原作品"
+msgstr "替换原作品"
 
 #. placeholder {0}: posted.droppedMentions
 #: src/components/CommentSheet.tsx
@@ -3866,6 +4096,10 @@ msgstr "有一发白模化还没取回结果"
 #: src/components/UpdateSheet.tsx
 msgid "有新版本 {0}"
 msgstr "有新版本 {0}"
+
+#: src/pages/PublishPage.tsx
+msgid "有片段还挂在临时链接上（约 24 小时有效）——尽快发布，服务端会转存为长期地址"
+msgstr "有片段还挂在临时链接上（约 24 小时有效）——尽快发布，服务端会转存为长期地址"
 
 #: src/components/flow/SegmentRecoverCards.tsx
 msgid "服务器上有一发你付过钱的成片还没取回"
@@ -4031,9 +4265,18 @@ msgstr "标记中…"
 msgid "标识、素材授权与违规处理"
 msgstr "标识、素材授权与违规处理"
 
+#: src/pages/EditPage.tsx
+#: src/pages/PublishPage.tsx
+msgid "标题 *"
+msgstr "标题 *"
+
 #: src/pages/TemplateDetailPage.tsx
 msgid "标题/简介的修改只改本机显示；市场里展示的是登记那一刻的版本。"
 msgstr "标题/简介的修改只改本机显示；市场里展示的是登记那一刻的版本。"
+
+#: src/pages/EditPage.tsx
+msgid "标题不能为空"
+msgstr "标题不能为空"
 
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "核对之前不能发布（位置对不上会让别人的角色卡换到别人身上）"
@@ -4111,6 +4354,10 @@ msgstr "模板详情"
 msgid "模板里这张卡已经变了，刷新后再试"
 msgstr "模板里这张卡已经变了，刷新后再试"
 
+#: src/pages/EditPage.tsx
+msgid "正在上传封面…"
+msgstr "正在上传封面…"
+
 #: src/pages/TemplateDetailPage.tsx
 msgid "正在从服务器取这个模板…"
 msgstr "正在从服务器取这个模板…"
@@ -4137,6 +4384,10 @@ msgstr "正在取名单…"
 #: src/components/TemplateShelf.tsx
 msgid "正在取回…"
 msgstr "正在取回…"
+
+#: src/pages/EditPage.tsx
+msgid "正在取回工坊工程…"
+msgstr "正在取回工坊工程…"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "正在取声音：找到<0>只有这个人在说话</0>的一段，先定起点再定终点（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）。录制会实际播一遍。"
@@ -4174,9 +4425,17 @@ msgstr "正在找人…"
 msgid "正在把「人偶 → 角色」合成一段话…"
 msgstr "正在把「人偶 → 角色」合成一段话…"
 
+#: src/pages/PublishPage.tsx
+msgid "正在把本片卡组存进你的工坊…"
+msgstr "正在把本片卡组存进你的工坊…"
+
 #: src/pages/DiscoverPage.tsx
 msgid "正在搜…"
 msgstr "正在搜…"
+
+#: src/pages/PublishPage.tsx
+msgid "正在替换…"
+msgstr "正在替换…"
 
 #: src/components/PortraitAuthPanel.tsx
 msgid "正在查你之前有没有授权过…"
@@ -4199,6 +4458,10 @@ msgstr "正在确认登录状态，稍等一下再点。"
 #: src/pages/VideoPage.tsx
 msgid "正在确认登录状态…"
 msgstr "正在确认登录状态…"
+
+#: src/pages/EditPage.tsx
+msgid "正在确认这条作品有没有留存工坊工程…"
+msgstr "正在确认这条作品有没有留存工坊工程…"
 
 #: src/pages/SettingsStoragePage.tsx
 msgid "正在算可清理的空间…"
@@ -4223,6 +4486,11 @@ msgstr "正在读图…"
 #: src/components/UpdateSheet.tsx
 msgid "正在连接…"
 msgstr "正在连接…"
+
+#: src/pages/EditPage.tsx
+#: src/pages/PublishPage.tsx
+msgid "正在重试…"
+msgstr "正在重试…"
 
 #: src/components/DownloadSheet.tsx
 msgid "正在问总大小…"
@@ -4326,9 +4594,21 @@ msgstr "没能切换语言，请重试"
 msgid "没能删掉，请重试"
 msgstr "没能删掉，请重试"
 
+#: src/pages/EditPage.tsx
+msgid "没能删掉这份工程（{why}）"
+msgstr "没能删掉这份工程（{why}）"
+
 #: src/pages/SettingsBlockedPage.tsx
 msgid "没能取到黑名单（网络不通，或这台服务器还没有这个功能）"
 msgstr "没能取到黑名单（网络不通，或这台服务器还没有这个功能）"
+
+#: src/pages/EditPage.tsx
+msgid "没能取回这条作品的工坊工程（{fetchErr}）。换个网络再试一次。"
+msgstr "没能取回这条作品的工坊工程（{fetchErr}）。换个网络再试一次。"
+
+#: src/pages/EditPage.tsx
+msgid "没能取回这条作品的工坊工程（{fetchErr}）。本机还留着那一版的画布的话，先点上面的「重新留存这一版」；否则只能重新发一条。"
+msgstr "没能取回这条作品的工坊工程（{fetchErr}）。本机还留着那一版的画布的话，先点上面的「重新留存这一版」；否则只能重新发一条。"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "没能存进你的卡片库：登录态可能已经失效。重新登录后再点一次（圈好的图还在）。"
@@ -4350,6 +4630,10 @@ msgstr "没能打开浏览器（可能被拦截了）。你可以直接访问 {u
 #: src/pages/VideoPage.tsx
 msgid "没能打开这条作品：{failErr}"
 msgstr "没能打开这条作品：{failErr}"
+
+#: src/pages/EditPage.tsx
+msgid "没能改成「仅自己可见」：{why}"
+msgstr "没能改成「仅自己可见」：{why}"
 
 #: src/components/PortraitAuthPanel.tsx
 msgid "没过审核："
@@ -4495,6 +4779,10 @@ msgstr "照片重新编码失败"
 msgid "照着下面这句念（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）——出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段音色。"
 msgstr "照着下面这句念（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）——出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段音色。"
 
+#: src/pages/PublishPage.tsx
+msgid "片子留住、不出现在任何人的首页；想好了再去作品编辑页改成公开。"
+msgstr "片子留住、不出现在任何人的首页；想好了再去作品编辑页改成公开。"
+
 #. placeholder {0}: (here - winStart).toFixed(1)
 #: src/components/blockout/BoxFramePicker.tsx
 msgid "片段第 {0} 秒"
@@ -4522,6 +4810,10 @@ msgstr "现在这一帧（原片第 {0} 秒）在选段外面——选段是原�
 #: src/pages/VideoPage.tsx
 msgid "现在铺不了（可能有一段正在生成中），稍后再试"
 msgstr "现在铺不了（可能有一段正在生成中），稍后再试"
+
+#: src/pages/EditPage.tsx
+msgid "现在铺不进工坊，稍后再试"
+msgstr "现在铺不进工坊，稍后再试"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "生成中"
@@ -4641,6 +4933,14 @@ msgstr "画面里是真实人物（真人）"
 msgid "画面里还有人没列出来，加一个"
 msgstr "画面里还有人没列出来，加一个"
 
+#: src/pages/EditPage.tsx
+msgid "留存的工坊工程还是上一版的，这一版没有留存上来 —— 现在换不了内容。先点下面的「重新留存这一版」。"
+msgstr "留存的工坊工程还是上一版的，这一版没有留存上来 —— 现在换不了内容。先点下面的「重新留存这一版」。"
+
+#: src/pages/EditPage.tsx
+msgid "留存的工坊工程还是上一版的，这一版没有留存上来 —— 现在换不了内容。想换内容请重新发一条。"
+msgstr "留存的工坊工程还是上一版的，这一版没有留存上来 —— 现在换不了内容。想换内容请重新发一条。"
+
 #. placeholder {0}: merged.instruct
 #: src/components/support/VoiceSheet.tsx
 msgid "留空 = 跟随人格/模型：{0}"
@@ -4727,6 +5027,10 @@ msgstr "白模模板出片暂未开放：还没有档位支持白模（r2v）出
 msgid "白模段用，改成真实角色位与卡名"
 msgstr "白模段用，改成真实角色位与卡名"
 
+#: src/pages/PublishPage.tsx
+msgid "目前所有作品都是<0>免费观看</0>。付费解锁还没开放——等收款和分账真的通了再放出来，免得你以为在收钱、其实一分也到不了账。"
+msgstr "目前所有作品都是<0>免费观看</0>。付费解锁还没开放——等收款和分账真的通了再放出来，免得你以为在收钱、其实一分也到不了账。"
+
 #: src/pages/CreatePage.tsx
 msgid "直接发布，不进草稿"
 msgstr "直接发布，不进草稿"
@@ -4743,6 +5047,10 @@ msgstr "相机没有交回照片"
 #: src/utils/nativeCamera.ts
 msgid "相机照片存不下来（存储可能已满）"
 msgstr "相机照片存不下来（存储可能已满）"
+
+#: src/pages/PublishPage.tsx
+msgid "看到这条片子的人能看到卡面与设定，也能「收入卡组」接着创作——这是别人找到你的主要方式。声明过真实人物的卡，形象图不会给出去。"
+msgstr "看到这条片子的人能看到卡面与设定，也能「收入卡组」接着创作——这是别人找到你的主要方式。声明过真实人物的卡，形象图不会给出去。"
 
 #: src/pages/SettingsPage.tsx
 msgid "看名单 · 随时解除"
@@ -4786,6 +5094,8 @@ msgstr "真的删掉？（连云端视频一起）"
 #: src/components/InfoDialog.tsx
 #: src/components/InfoTip.tsx
 #: src/components/ReviseBar.tsx
+#: src/pages/EditPage.tsx
+#: src/pages/PublishPage.tsx
 #: src/pages/VideoPage.tsx
 msgid "知道了"
 msgstr "知道了"
@@ -4811,6 +5121,7 @@ msgstr "确认一下就出片"
 #: src/components/CommentDelete.tsx
 #: src/components/DraftSheet.tsx
 #: src/components/support/VoiceMarket.tsx
+#: src/pages/EditPage.tsx
 msgid "确认删除"
 msgstr "确认删除"
 
@@ -4927,6 +5238,7 @@ msgstr "第 {0} 味音色"
 #. placeholder {0}: i + 1
 #. placeholder {0}: index + 1
 #: src/components/flow/FlowCanvas.tsx
+#: src/pages/PublishPage.tsx
 msgid "第 {0} 段"
 msgstr "第 {0} 段"
 
@@ -5021,6 +5333,11 @@ msgstr "第二种：<0>相邻两行的位置排反了</0>（清单说他是从�
 msgid "等待中"
 msgstr "等待中"
 
+#: src/pages/EditPage.tsx
+#: src/pages/PublishPage.tsx
+msgid "简介"
+msgstr "简介"
+
 #: src/pages/CreatePage.tsx
 msgid "简约模式"
 msgstr "简约模式"
@@ -5114,9 +5431,17 @@ msgstr "给这一段选素材卡"
 msgid "给这把嗓子起个名字再发布。"
 msgstr "给这把嗓子起个名字再发布。"
 
+#: src/pages/PublishPage.tsx
+msgid "给这支视频起个好名字"
+msgstr "给这支视频起个好名字"
+
 #: src/components/DraftTitle.tsx
 msgid "给这条工程起个名"
 msgstr "给这条工程起个名"
+
+#: src/pages/EditPage.tsx
+msgid "继续回炉"
+msgstr "继续回炉"
 
 #. placeholder {0}: strayRemoved.join(sep)
 #: src/components/blockout/RoleCastBoard.tsx
@@ -5131,6 +5456,10 @@ msgstr "编号 {0} 上挂着的卡<0>不会生效</0>：这些位子超出了一
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "编号还没核对：AI 编的号可能与画面上人偶头上的数字对不上，<0>核对之前不能发布</0>（对不上会让别人的角色卡换到别人身上）。点这里去核对。"
 msgstr "编号还没核对：AI 编的号可能与画面上人偶头上的数字对不上，<0>核对之前不能发布</0>（对不上会让别人的角色卡换到别人身上）。点这里去核对。"
+
+#: src/pages/EditPage.tsx
+msgid "编辑作品"
+msgstr "编辑作品"
 
 #: src/pages/SettingsPage.tsx
 #: src/pages/SettingsProfilePage.tsx
@@ -5315,6 +5644,15 @@ msgstr "试听太频繁了，稍等几秒再点。"
 msgid "试听没出声，稍后再试。"
 msgstr "试听没出声，稍后再试。"
 
+#: src/pages/EditPage.tsx
+#: src/pages/PublishPage.tsx
+msgid "话题标签"
+msgstr "话题标签"
+
+#: src/pages/PublishPage.tsx
+msgid "该段视频生成失败或处于演示模式，播放时用首尾帧渐变代替"
+msgstr "该段视频生成失败或处于演示模式，播放时用首尾帧渐变代替"
+
 #: src/components/support/VoiceSheet.tsx
 #: src/pages/SettingsVoicePage.tsx
 msgid "语调指令"
@@ -5494,10 +5832,15 @@ msgstr "输入的用户名还对不上"
 msgid "返回"
 msgstr "返回"
 
+#: src/pages/PublishPage.tsx
+msgid "返回工坊"
+msgstr "返回工坊"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "返回挑选"
 msgstr "返回挑选"
 
+#: src/pages/EditPage.tsx
 #: src/pages/VideoPage.tsx
 msgid "返回首页"
 msgstr "返回首页"
@@ -5518,6 +5861,14 @@ msgstr "还在读这段视频的时长，读到之前标不了帧。应用切到
 msgid "还存不了草稿（空白工程或写盘失败）"
 msgstr "还存不了草稿（空白工程或写盘失败）"
 
+#: src/pages/PublishPage.tsx
+msgid "还是先按「仅自己可见」发出去吧"
+msgstr "还是先按「仅自己可见」发出去吧"
+
+#: src/pages/PublishPage.tsx
+msgid "还是没能同步到服务器"
+msgstr "还是没能同步到服务器"
+
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "还有 {emptyCount} 个角色位没挂卡 —— <0>可以直接出片</0>，没挂的通常保持白色人偶的样子。 ⚠ 素材里<1>镜头切换多</1>时例外：实测 AI 可能拿已挂的卡把没挂的位子也换掉（同一个角色出现两份）。 要稳就把每个位子都挂上（同一张卡可以挂多个位子），或选一镜到底的素材。"
 msgstr "还有 {emptyCount} 个角色位没挂卡 —— <0>可以直接出片</0>，没挂的通常保持白色人偶的样子。 ⚠ 素材里<1>镜头切换多</1>时例外：实测 AI 可能拿已挂的卡把没挂的位子也换掉（同一个角色出现两份）。 要稳就把每个位子都挂上（同一张卡可以挂多个位子），或选一镜到底的素材。"
@@ -5529,6 +5880,10 @@ msgstr "还没写这一段拍什么"
 #: src/components/ForgeOverlay.tsx
 msgid "还没接到成片"
 msgstr "还没接到成片"
+
+#: src/pages/EditPage.tsx
+msgid "还没数清这条作品有多少条弹幕。弹幕是按全片时间轴打的，换内容会让它们对不上画面，所以提交时会被全部清空，且无法恢复。"
+msgstr "还没数清这条作品有多少条弹幕。弹幕是按全片时间轴打的，换内容会让它们对不上画面，所以提交时会被全部清空，且无法恢复。"
 
 #: src/pages/SupportModelsPage.tsx
 msgid "还没有下载过形象，去「市场」里挑一套。"
@@ -5817,6 +6172,10 @@ msgstr "这几句里同时写了中文和英文的段号，分不清是哪一段
 msgid "这台服务器没配云端语音，试听不了；保存设置仍然有效。"
 msgstr "这台服务器没配云端语音，试听不了；保存设置仍然有效。"
 
+#: src/pages/EditPage.tsx
+msgid "这台服务器还不支持回炉重做。等服务器更新后再试。"
+msgstr "这台服务器还不支持回炉重做。等服务器更新后再试。"
+
 #: src/components/MentionInput.tsx
 msgid "这台服务器还不支持搜人，@ 可能收不到"
 msgstr "这台服务器还不支持搜人，@ 可能收不到"
@@ -5872,6 +6231,10 @@ msgstr "这台设备解出来的画面是 {0}×{1}，服务器登记的却是 {w
 #: src/components/PhotoSubjectPicker.tsx
 msgid "这块太小了：折算只有 {cutBest} px，至少 {REF_SHORT_REJECT} px——框大一点再继续"
 msgstr "这块太小了：折算只有 {cutBest} px，至少 {REF_SHORT_REJECT} px——框大一点再继续"
+
+#: src/pages/PublishPage.tsx
+msgid "这套卡组"
+msgstr "这套卡组"
 
 #: src/pages/VideoPage.tsx
 msgid "这套卡里有声明过「真实人物」的卡，它的形象参考图只留给作者本人 —— 照片里的人授权的是作者用，不是所有人用。你仍然收得下这张卡的设定（名字、简介、身份句），但出片时得自己给形象。"
@@ -5939,13 +6302,61 @@ msgstr "这是付费人格，请先在官网购买后再使用。"
 msgid "这是私密作品：链接只有你自己打得开。想给别人看，去编辑里改成「凭链接可见」或「公开」。"
 msgstr "这是私密作品：链接只有你自己打得开。想给别人看，去编辑里改成「凭链接可见」或「公开」。"
 
+#: src/pages/EditPage.tsx
+msgid "这条作品<0>至少</0>有 {danmakuCount} 条弹幕（只数到这么多，实际更多）。弹幕是按全片时间轴打的，换内容会让它们对不上画面，所以会被<1>全部</1>清空，且无法恢复。"
+msgstr "这条作品<0>至少</0>有 {danmakuCount} 条弹幕（只数到这么多，实际更多）。弹幕是按全片时间轴打的，换内容会让它们对不上画面，所以会被<1>全部</1>清空，且无法恢复。"
+
 #: src/pages/VideoPage.tsx
 msgid "这条作品不存在，或已被作者删除"
 msgstr "这条作品不存在，或已被作者删除"
 
+#: src/pages/EditPage.tsx
+msgid "这条作品别人看不到，没有观众会收到通知。"
+msgstr "这条作品别人看不到，没有观众会收到通知。"
+
+#: src/pages/EditPage.tsx
+msgid "这条作品已经有 {plays} 次播放、{saves} 个人收藏。重新剪辑之后，同一个链接下的内容会变，收藏过它的人会收到一条「你收藏的作品重新剪辑过了」。"
+msgstr "这条作品已经有 {plays} 次播放、{saves} 个人收藏。重新剪辑之后，同一个链接下的内容会变，收藏过它的人会收到一条「你收藏的作品重新剪辑过了」。"
+
+#: src/pages/EditPage.tsx
+msgid "这条作品已经有 {plays} 次播放。重新剪辑之后，同一个链接下的内容会变，收藏过它的人会收到一条「你收藏的作品重新剪辑过了」。"
+msgstr "这条作品已经有 {plays} 次播放。重新剪辑之后，同一个链接下的内容会变，收藏过它的人会收到一条「你收藏的作品重新剪辑过了」。"
+
 #: src/pages/VideoPage.tsx
 msgid "这条作品已被平台下架"
 msgstr "这条作品已被平台下架"
+
+#: src/pages/EditPage.tsx
+msgid "这条作品已被平台下架，下架期间不能改内容。"
+msgstr "这条作品已被平台下架，下架期间不能改内容。"
+
+#: src/pages/EditPage.tsx
+msgid "这条作品有 {danmakuCount} 条弹幕。弹幕是按全片时间轴打的，换内容会让它们对不上画面，所以会被清空，且无法恢复。"
+msgstr "这条作品有 {danmakuCount} 条弹幕。弹幕是按全片时间轴打的，换内容会让它们对不上画面，所以会被清空，且无法恢复。"
+
+#: src/pages/EditPage.tsx
+msgid "这条作品没有留存工坊工程，改不了内容。想换内容请重新发一条。"
+msgstr "这条作品没有留存工坊工程，改不了内容。想换内容请重新发一条。"
+
+#: src/pages/EditPage.tsx
+msgid "这条作品目前没有能显示给你的弹幕。如果还有（比如来自你拉黑的人），提交时也会一并清空，且无法恢复。"
+msgstr "这条作品目前没有能显示给你的弹幕。如果还有（比如来自你拉黑的人），提交时也会一并清空，且无法恢复。"
+
+#: src/pages/EditPage.tsx
+msgid "这条作品设为按分集收费，不能换内容。"
+msgstr "这条作品设为按分集收费，不能换内容。"
+
+#: src/pages/EditPage.tsx
+msgid "这条作品还在上传，传完再回炉。"
+msgstr "这条作品还在上传，传完再回炉。"
+
+#: src/pages/PublishPage.tsx
+msgid "这条合成好的成片和填好的标题、简介会被丢掉，回到工坊。"
+msgstr "这条合成好的成片和填好的标题、简介会被丢掉，回到工坊。"
+
+#: src/pages/PublishPage.tsx
+msgid "这条合成好的成片和填好的标题、简介会被丢掉，回到工坊。《{originTitle}》不受影响，还是现在这一版。"
+msgstr "这条合成好的成片和填好的标题、简介会被丢掉，回到工坊。《{originTitle}》不受影响，还是现在这一版。"
 
 #: src/components/ShareSheet.tsx
 msgid "这条已被平台下架，链接别人打不开，所以先不能分享。"
@@ -6028,6 +6439,7 @@ msgstr "这段视频的画面还没解出来（应用切到后台时系统会暂
 msgid "这段视频里只认出了这 {0} 个位置，都已经在列表里了。 清单之外的人同样是白色人偶，但没有位置能指认他们，<0>挂不了卡</0>。"
 msgstr "这段视频里只认出了这 {0} 个位置，都已经在列表里了。 清单之外的人同样是白色人偶，但没有位置能指认他们，<0>挂不了卡</0>。"
 
+#: src/pages/PublishPage.tsx
 #: src/pages/VideoPage.tsx
 msgid "这组卡没能同步到服务器"
 msgstr "这组卡没能同步到服务器"
@@ -6169,6 +6581,10 @@ msgstr "重新核对编号"
 msgid "重新核对编号 —— 画面上有两个一样的号？有个号找不着？点这里改，不用重炼"
 msgstr "重新核对编号 —— 画面上有两个一样的号？有个号找不着？点这里改，不用重炼"
 
+#: src/pages/EditPage.tsx
+msgid "重新留存这一版（现存那份还是上一版）"
+msgstr "重新留存这一版（现存那份还是上一版）"
+
 #: src/pages/TemplateDetailPage.tsx
 msgid "重新登记到服务器"
 msgstr "重新登记到服务器"
@@ -6176,6 +6592,10 @@ msgstr "重新登记到服务器"
 #: src/components/blockout/DetectRolesEntry.tsx
 msgid "重新识别角色位"
 msgstr "重新识别角色位"
+
+#: src/pages/EditPage.tsx
+msgid "重新问一次服务器"
+msgstr "重新问一次服务器"
 
 #: src/pages/SettingsPage.tsx
 msgid "重看各个界面的使用说明"
@@ -6192,11 +6612,21 @@ msgstr "重认会<0>覆盖现有描述</0>（你自己改过的也会没），�
 #: src/components/blockout/VideoStage.tsx
 #: src/components/flow/SegPlayer.tsx
 #: src/components/UpdateSheet.tsx
+#: src/pages/EditPage.tsx
 #: src/pages/NotificationsPage.tsx
+#: src/pages/PublishPage.tsx
 #: src/pages/SettingsBlockedPage.tsx
 #: src/pages/VideoPage.tsx
 msgid "重试"
 msgstr "重试"
+
+#: src/pages/PublishPage.tsx
+msgid "重试中…"
+msgstr "重试中…"
+
+#: src/pages/EditPage.tsx
+msgid "重试留存"
+msgstr "重试留存"
 
 #: src/pages/SettingsPage.tsx
 #: src/pages/SettingsVoicePage.tsx
@@ -6227,6 +6657,11 @@ msgstr "隐藏遮挡"
 #: src/components/BlockButton.tsx
 msgid "随时可以解除：「我的 → 设置 → 已拉黑的人」。"
 msgstr "随时可以解除：「我的 → 设置 → 已拉黑的人」。"
+
+#. placeholder {0}: draft.deck.cards.length
+#: src/pages/PublishPage.tsx
+msgid "随片带上这 {0} 张卡"
+msgstr "随片带上这 {0} 张卡"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "随片提炼卡组"
