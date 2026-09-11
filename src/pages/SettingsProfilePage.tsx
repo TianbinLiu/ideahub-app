@@ -6,6 +6,7 @@
 //   小路保留（新账号默认值就是 emoji，不想上传照片的人还得有它）。
 // ★ 使用说明在引导弹窗里（tours.tsx 的 setprofile），页面上只留控件与失败提示。
 import { useRef, useState } from "react";
+import { Trans, useLingui } from "@lingui/react/macro";
 import PageHeader from "../components/PageHeader";
 import { useNavigate } from "react-router";
 import Icon from "../components/Icon";
@@ -38,6 +39,7 @@ export default function SettingsProfilePage() {
   const [profileErr, setProfileErr] = useState("");
   const timer = useRef<number | undefined>(undefined);
   useAutoGuide("setprofile", !!user);
+  const { t } = useLingui();
 
   // 路由已套 RequireAuth；这里只为 TS 收窄（render 里 navigate 会被 React 丢弃，别改回来）
   if (!user) return null;
@@ -62,14 +64,14 @@ export default function SettingsProfilePage() {
 
   return (
     <div className="min-h-full px-4 pb-10">
-      <PageHeader sticky inset onBack={() => navigate(-1)} title="编辑资料" right={<HelpButton tour="setprofile" />} />
+      <PageHeader sticky inset onBack={() => navigate(-1)} title={t`编辑资料`} right={<HelpButton tour="setprofile" />} />
 
       {/* ── 头像 ──────────────────────────────────────────────── */}
       <section data-guide="setprofile-avatar" className="mb-7 flex flex-col items-center">
         <button
           onClick={() => setPickerOpen(true)}
           className="relative rounded-full transition active:scale-95"
-          aria-label="更换头像"
+          aria-label={t`更换头像`}
         >
           <Avatar name={user.name} src={user.avatar} size={88} />
           <span className="absolute -bottom-0.5 -right-0.5 flex h-7 w-7 items-center justify-center rounded-full border-2 border-ink bg-brand text-ink">
@@ -80,7 +82,7 @@ export default function SettingsProfilePage() {
 
         {/* 不想上传照片的用户仍可用 emoji（新账号的默认值也是 emoji） */}
         <details className="mt-3 w-full">
-          <summary className="cursor-pointer text-center text-xs text-slate-500">或选一个 emoji</summary>
+          <summary className="cursor-pointer text-center text-xs text-slate-500"><Trans>或选一个 emoji</Trans></summary>
           <div className="mt-2 grid grid-cols-6 gap-2">
             {AVATARS.map((a) => (
               <button
@@ -104,14 +106,14 @@ export default function SettingsProfilePage() {
           value={name}
           onChange={(e) => setName(e.target.value)}
           maxLength={NAME_MAX}
-          placeholder="昵称"
+          placeholder={t`昵称`}
           className="w-full rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
         />
         <textarea
           value={bio}
           onChange={(e) => setBio(e.target.value)}
           maxLength={BIO_MAX}
-          placeholder="一句话简介"
+          placeholder={t`一句话简介`}
           rows={3}
           className="w-full resize-none rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
         />
@@ -126,7 +128,7 @@ export default function SettingsProfilePage() {
           disabled={saving}
           className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
         >
-          {saving ? "保存中…" : saved ? "已保存 ✓" : "保存资料"}
+          {saving ? t`保存中…` : saved ? t`已保存 ✓` : t`保存资料`}
         </button>
       </section>
 

@@ -5,6 +5,7 @@
 // ★ setQuality 会 location.reload()（模型经 useLoader 按 URL 缓存，整页重载最干净）。
 //   hash 路由下 reload 回到的还是本页，选中态自然对上，不用额外善后。
 import { useState } from "react";
+import { useLingui } from "@lingui/react/macro";
 import PageHeader from "../components/PageHeader";
 import { useNavigate } from "react-router";
 import HelpButton from "../components/guide/HelpButton";
@@ -17,13 +18,14 @@ export default function SettingsQualityPage() {
   const navigate = useNavigate();
   const [quality, setQ] = useState<Quality>(() => getQuality());
   useAutoGuide("setquality", !!user);
+  const { t } = useLingui();
 
   // 路由已套 RequireAuth；这里只为 TS 收窄（render 里 navigate 会被 React 丢弃，别改回来）
   if (!user) return null;
 
   return (
     <div className="min-h-full px-4 pb-10">
-      <PageHeader sticky inset onBack={() => navigate(-1)} title="画面质量" right={<HelpButton tour="setquality" />} />
+      <PageHeader sticky inset onBack={() => navigate(-1)} title={t`画面质量`} right={<HelpButton tour="setquality" />} />
 
       <div data-guide="setquality-opts" className="space-y-2">
         {(Object.keys(QUALITY_LABELS) as Quality[]).map((q) => (

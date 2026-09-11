@@ -35,6 +35,7 @@ export default function SettingsPage() {
   const user = useCurrentUser();
   const navigate = useNavigate();
   const [signOutOpen, setSignOutOpen] = useState(false);
+  const { t } = useLingui();
 
   // 路由已套 RequireAuth，未登录进不来；这里只为 TS 收窄。
   // （老写法是在 render 里 navigate 去登录页——navigate 本质是 setState，渲染期间
@@ -43,21 +44,21 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-full px-4 pb-10">
-      <PageHeader sticky inset onBack={() => navigate(-1)} title="设置" />
+      <PageHeader sticky inset onBack={() => navigate(-1)} title={t`设置`} />
 
       {/* ── 个性化 ────────────────────────────────────────────── */}
       <Group>
-        <NavRow to="/settings/profile" emoji="🪪" title="编辑资料" sub="头像 · 昵称 · 简介" />
+        <NavRow to="/settings/profile" emoji="🪪" title={t`编辑资料`} sub={t`头像 · 昵称 · 简介`} />
         {/* 行上报「当前用的是哪把」：这一节的信息价值九成在它（拆页前收起态就这么画） */}
-        <NavRow to="/settings/voice" emoji="🎙️" title="铸卡师的声音" sub={currentVoice().name} />
-        <NavRow to="/settings/quality" emoji="🎨" title="画面质量" sub={`${QUALITY_LABELS[getQuality()].name} · 只影响 3D 工坊`} />
+        <NavRow to="/settings/voice" emoji="🎙️" title={t`铸卡师的声音`} sub={currentVoice().name} />
+        <NavRow to="/settings/quality" emoji="🎨" title={t`画面质量`} sub={t`${QUALITY_LABELS[getQuality()].name} · 只影响 3D 工坊`} />
         <LangRow />
       </Group>
 
       {/* ── 账号 · 安全 ────────────────────────────────────────
           ★ 拉黑是**账号级**的（跟着人走、换设备还在），所以不放在下面「本机」那一组里 */}
       <Group>
-        <NavRow to="/settings/blocked" emoji="🚫" title="已拉黑的人" sub="看名单 · 随时解除" />
+        <NavRow to="/settings/blocked" emoji="🚫" title={t`已拉黑的人`} sub={t`看名单 · 随时解除`} />
       </Group>
 
       {/* ── 本机 ─────────────────────────────────────────────── */}
@@ -65,8 +66,8 @@ export default function SettingsPage() {
         <NavRow
           to="/settings/storage"
           emoji="🧹"
-          title={isRemoteMode() ? "本机缓存" : "存储"}
-          sub="查看用量 · 清理中间文件"
+          title={isRemoteMode() ? t`本机缓存` : t`存储`}
+          sub={t`查看用量 · 清理中间文件`}
         />
         <GuideRow />
         <VersionRow />
@@ -74,28 +75,28 @@ export default function SettingsPage() {
 
       {/* ── 帮助 ─────────────────────────────────────────────── */}
       <Group>
-        <NavRow to="/support" emoji="🎧" title="AI 客服 · 帮助与反馈" sub="问小梦，解决不了转人工" />
+        <NavRow to="/support" emoji="🎧" title={t`AI 客服 · 帮助与反馈`} sub={t`问小梦，解决不了转人工`} />
         {/* 数字人的形象 / 人格：主入口在客服页顶栏那一列小键，这里再给一条找得到的路（设置存服务端，官网同步） */}
-        <NavRow to="/support/models" emoji="👗" title="数字人形象" sub="给小梦换一套 Live2D 形象" />
-        <NavRow to="/support/personas" emoji="🎭" title="数字人人格" sub="换一种说话风格，官网同步" />
+        <NavRow to="/support/models" emoji="👗" title={t`数字人形象`} sub={t`给小梦换一套 Live2D 形象`} />
+        <NavRow to="/support/personas" emoji="🎭" title={t`数字人人格`} sub={t`换一种说话风格，官网同步`} />
         {/* 创作中心（2026-09-07）：客服页那一列小键的第四颗是主入口，这里是第二条路 ——
             那一列在对话很热闹时可能被底部输入区盖住（SupportPage 那段量法），唯一入口不能只有一条 */}
-        <NavRow to="/support/create" emoji="✨" title="创作中心" sub="自己做模型 · 音频 · 人格，可发布到市场" />
+        <NavRow to="/support/create" emoji="✨" title={t`创作中心`} sub={t`自己做模型 · 音频 · 人格，可发布到市场`} />
       </Group>
 
       {/* ── 协议与须知 ────────────────────────────────────────────
           应用商店与监管都要求协议在应用内可随时找到；文本只有 data/agreements 一份 */}
       <Group>
-        <DocRow id="terms" emoji="📜" sub="使用本应用的约定" />
-        <DocRow id="privacy" emoji="🔒" sub="收集什么、怎么用、找谁行使权利" />
-        <DocRow id="aigc" emoji="🏷️" sub="标识、素材授权与违规处理" />
+        <DocRow id="terms" emoji="📜" sub={t`使用本应用的约定`} />
+        <DocRow id="privacy" emoji="🔒" sub={t`收集什么、怎么用、找谁行使权利`} />
+        <DocRow id="aigc" emoji="🏷️" sub={t`标识、素材授权与违规处理`} />
         {/* ★ 儿童安全标准（CSAE）在官网上，不在 data/agreements 里 —— 理由见
             utils/shareLink 的 childSafetyUrl：那是要给 Google Play 核的网页资源，
             正文只该有一份。这一行的存在本身也算数：政策要求"用户在应用内找得到"。 */}
         <ExtDocRow
           emoji="🧒"
-          title="儿童安全标准"
-          sub="我们对涉及未成年人内容的立场与处理方式（在官网打开）"
+          title={t`儿童安全标准`}
+          sub={t`我们对涉及未成年人内容的立场与处理方式（在官网打开）`}
           url={childSafetyUrl()}
         />
       </Group>
@@ -110,9 +111,9 @@ export default function SettingsPage() {
             不说的话他会把"这一步免费"当成产品事实（各处报价旁边也有同一句，见 TokenCost）。 */}
       {isAdmin() && (
         <Group>
-          <NavRow to="/admin" emoji="🛡️" title="管理后台" sub="处理举报（下架 / 驳回 / 删除）· 平台数据" />
+          <NavRow to="/admin" emoji="🛡️" title={t`管理后台`} sub={t`处理举报（下架 / 驳回 / 删除）· 平台数据`} />
           <p className="px-4 pb-3 text-[11px] leading-relaxed text-slate-500">
-            你的账号是管理员：AI 生成走的是免扣费通道，消耗不从钱包里扣。
+            <Trans>你的账号是管理员：AI 生成走的是免扣费通道，消耗不从钱包里扣。</Trans>
           </p>
         </Group>
       )}
@@ -121,7 +122,7 @@ export default function SettingsPage() {
         onClick={() => setSignOutOpen(true)}
         className="w-full rounded-xl border border-rose-500/40 py-3 text-sm text-rose-400"
       >
-        退出登录
+        <Trans>退出登录</Trans>
       </button>
 
       {/* 注销：与退出登录刻意拉开视觉重量（小字链接 vs 整宽按钮）——两者后果差一个账号。
@@ -129,14 +130,14 @@ export default function SettingsPage() {
           这里藏入口只是别引人去点） */}
       {isRemoteMode() && (
         <Link to="/settings/deactivate" className="mt-3 block text-center text-[11px] text-slate-500 underline underline-offset-2">
-          注销账号
+          <Trans>注销账号</Trans>
         </Link>
       )}
 
       {signOutOpen && (
         <ConfirmDialog
-          title="退出登录？"
-          confirmLabel="退出"
+          title={t`退出登录？`}
+          confirmLabel={t`退出`}
           danger
           onConfirm={() => {
             signOut();
@@ -146,8 +147,8 @@ export default function SettingsPage() {
         >
           {/* 「退了会怎样」按模式如实说：远端模式本机只是镜像；离线模式数据全在本机、不动 */}
           {isRemoteMode()
-            ? "作品、卡片和钱包都记在服务器上，重新登录同一账号就回来。"
-            : "本机的作品与数据不会被删除，重新登录即可继续。"}
+            ? t`作品、卡片和钱包都记在服务器上，重新登录同一账号就回来。`
+            : t`本机的作品与数据不会被删除，重新登录即可继续。`}
         </ConfirmDialog>
       )}
     </div>
@@ -293,6 +294,7 @@ function DocRow({ id, emoji, sub }: { id: AgreementId; emoji: string; sub: strin
  *   政策要求的"应用内找得到"其实没做到，而屏幕上什么都不会显示。
  */
 function ExtDocRow({ emoji, title, sub, url }: { emoji: string; title: string; sub: string; url: string }) {
+  const { t } = useLingui();
   const [err, setErr] = useState("");
   return (
     <>
@@ -307,7 +309,7 @@ function ExtDocRow({ emoji, title, sub, url }: { emoji: string; title: string; s
               throw new Error("popup blocked");
             }
           } catch {
-            setErr(`没能打开浏览器（可能被拦截了）。你可以直接访问 ${url}`);
+            setErr(t`没能打开浏览器（可能被拦截了）。你可以直接访问 ${url}`);
           }
         }}
         className="flex w-full items-center gap-3 px-4 py-3.5 text-left active:bg-slate-800/40"
@@ -332,6 +334,7 @@ function ExtDocRow({ emoji, title, sub, url }: { emoji: string; title: string; s
 // ★ 说明写在确认小窗里，不常驻：一年点不了几次的动作，话在动手那一刻说就够。
 // ★ 只清**这台设备**上的记录：引导状态本来就只存在 localStorage，不上服务端。
 function GuideRow() {
+  const { t } = useLingui();
   const [open, setOpen] = useState(false);
   const [done, setDone] = useState(false);
   return (
@@ -342,17 +345,17 @@ function GuideRow() {
       >
         <span className="text-lg">💡</span>
         <span className="min-w-0 flex-1">
-          <span className="block text-sm text-slate-100">新手引导</span>
+          <span className="block text-sm text-slate-100"><Trans>新手引导</Trans></span>
           <span className="block truncate text-[11px] text-slate-500">
-            {done ? "已恢复——下次进各个界面会重新弹一遍" : "重看各个界面的使用说明"}
+            {done ? t`已恢复——下次进各个界面会重新弹一遍` : t`重看各个界面的使用说明`}
           </span>
         </span>
         <Icon name="chevron" size={16} className="flex-none text-slate-600" />
       </button>
       {open && (
         <ConfirmDialog
-          title="重看所有新手引导"
-          confirmLabel="恢复"
+          title={t`重看所有新手引导`}
+          confirmLabel={t`恢复`}
           onConfirm={() => {
             resetGuidesSeen();
             setDone(true);
@@ -360,9 +363,11 @@ function GuideRow() {
           }}
           onClose={() => setOpen(false)}
         >
-          每个界面第一次打开时会自动放一遍使用引导，之后不再自动弹；想单独重看某一屏，点那一屏角落的
-          <b className="text-slate-300"> ? </b>就行。这里是把<b className="text-slate-300">所有</b>
-          引导恢复成「没看过」——之后每个界面第一次打开时会重新弹一遍。
+          <Trans>
+            每个界面第一次打开时会自动放一遍使用引导，之后不再自动弹；想单独重看某一屏，点那一屏角落的
+            <b className="text-slate-300"> ? </b>就行。这里是把<b className="text-slate-300">所有</b>
+            引导恢复成「没看过」——之后每个界面第一次打开时会重新弹一遍。
+          </Trans>
         </ConfirmDialog>
       )}
     </>
@@ -377,6 +382,7 @@ function GuideRow() {
 //   "已是最新"和"根本没查成"必须分得开（铁律八）。
 // ★ 浏览器里跑没有版本号可显示，整行不出现。
 function VersionRow() {
+  const { t } = useLingui();
   const [ver, setVer] = useState<{ versionCode: number; versionName: string } | null>(null);
   const [supported, setSupported] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -395,10 +401,12 @@ function VersionRow() {
       <span className="text-lg">📦</span>
       <span className="min-w-0 flex-1">
         <span className="block text-sm text-slate-100">
-          版本 {ver.versionName} <span className="text-[11px] text-slate-500">（{ver.versionCode}）</span>
+          <Trans>
+            版本 {ver.versionName} <span className="text-[11px] text-slate-500">（{ver.versionCode}）</span>
+          </Trans>
         </span>
         <span className="block truncate text-[11px] text-slate-500">
-          {note || (supported ? "可以检查有没有新版本" : "由应用商店负责更新")}
+          {note || (supported ? t`可以检查有没有新版本` : t`由应用商店负责更新`)}
         </span>
       </span>
       {supported && (
@@ -409,15 +417,15 @@ function VersionRow() {
             void checkUpdate(false)
               .then((r) => {
                 if (r) setInfo(r);
-                else setNote("已经是最新版本");
+                else setNote(t`已经是最新版本`);
               })
-              .catch((e) => setNote(e instanceof Error ? e.message : "检查失败"))
+              .catch((e) => setNote(e instanceof Error ? e.message : t`检查失败`))
               .finally(() => setBusy(false));
           }}
           disabled={busy}
           className="flex-none rounded-full bg-slate-700 px-3 py-1.5 text-xs text-slate-200 disabled:opacity-40"
         >
-          {busy ? "检查中…" : "检查更新"}
+          {busy ? t`检查中…` : t`检查更新`}
         </button>
       )}
       {info && <UpdateSheet info={info} onClose={() => setInfo(null)} />}

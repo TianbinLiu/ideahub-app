@@ -6,6 +6,7 @@
 // ★ TemplateCard / useTemplatesVersion 从这里**转口**：TemplateDetailPage 一直从本页
 //   import，路径不动（组件不 import 页面的铁律只约束 components/*，页面互引本仓有先例）。
 import PageHeader from "../components/PageHeader";
+import { useLingui } from "@lingui/react/macro";
 import { useBackOr } from "../hooks/useBackOr";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
@@ -18,9 +19,10 @@ export default function TemplateMarketPage() {
   useAutoGuide("templates");
   // 深链冷启动没有上一页时退回首页，别退出 App（hooks/useBackOr 的 ★★）
   const back = useBackOr("/");
+  const { t } = useLingui();
   return (
     <div className="min-h-full px-4 pb-10">
-      <PageHeader sticky inset onBack={back} title="视频模板" subtitle="套上模板，一句话出片" right={<HelpButton tour="templates" />} />
+      <PageHeader sticky inset onBack={back} title={t`视频模板`} subtitle={t`套上模板，一句话出片`} right={<HelpButton tour="templates" />} />
       {/* 「模板市场/我的模板」那层页签进地址（?shelf=），去详情再返回还在原页签 */}
       <TemplateShelf queryKey="shelf" />
     </div>
