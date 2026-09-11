@@ -20,6 +20,7 @@ import { IMAGE_TOKENS, fmtTokens, r2vPriceIssue, tierOf, providerOf, clampDurati
 import { refVideoIssue } from "../data/templates";
 import { ShotSpec, shotLineOf, CardType, ID_LINE_MAX, CARD_TYPE_PROMPT, idLineOf, viewsOf, type Card, type GenMode, type VideoAspect, type VideoTemplate } from "../types";
 import { voiceOf } from "../data/cardVoice";
+import { t } from "@lingui/core/macro";
 
 export interface SegmentAnn {
   atSec: number;
@@ -181,6 +182,7 @@ export function refVideoOn(o: {
  *   白模段的正文本来就只是"这一段讲什么"的补充（画面全部来自参考视频），少 21 字换一句
  *   全局生效的负向约束划算；再往里加词前先想清楚这笔交换还成不成立。
  */
+/* i18n-frozen: 白模出片提示词的替换句，发给视频模型 */
 const BLOCKOUT_SWAP =
   "。将视频中的红色小人替换为下列角色，严格保留视频中的背景、道具与运镜，画面中不要出现任何水印、台标、字幕或角标";
 /**
@@ -188,6 +190,7 @@ const BLOCKOUT_SWAP =
  * ★ 同样是尽力而为（edit 的立身之本是"保住主体、复刻其余"，改法是软引导）；产物无声（arkClient 的 BLOCKOUT_TASK
  *   钉着 generate_audio:false），UI 上必须说。
  */
+/* i18n-frozen: 返修提示词的尾句，发给视频模型 */
 const REVISE_TAIL =
   "。以上是要改的地方：在参考视频的基础上只做这些修改，其余画面、人物形象、动作、运镜与时长保持不变，画面中不要出现任何水印、台标、字幕或角标";
 
@@ -225,11 +228,11 @@ export function blockoutIssue(o: {
   //   全程绿灯，直到方舟同步 400（而全 app 没人监听 emitApiError）。
   const ref = refVideoIssue(o.refVideo);
   if (ref) return ref;
-  if (o.anns?.length) return "白模出片没有设定帧可圈选修改——先删掉圈选标注，想改画面就改那句话";
-  if (o.firstFrame) return "白模出片不能带设定首帧（首帧与参考视频在方舟是互斥场景）——清掉这张帧再出片";
-  if (o.carryFrame) return "白模段不承接上一段的尾帧（承接帧与参考视频在方舟是互斥场景）——白模模板只有一段";
+  if (o.anns?.length) return t`白模出片没有设定帧可圈选修改——先删掉圈选标注，想改画面就改那句话`;
+  if (o.firstFrame) return t`白模出片不能带设定首帧（首帧与参考视频在方舟是互斥场景）——清掉这张帧再出片`;
+  if (o.carryFrame) return t`白模段不承接上一段的尾帧（承接帧与参考视频在方舟是互斥场景）——白模模板只有一段`;
   if (!o.revise && !o.materials?.some((c) => viewsOf(c).length > 0))
-    return "白模出片要先挂一张带形象参考图的角色卡：模板只提供画面与运镜，「换成谁」全靠卡上的形象图";
+    return t`白模出片要先挂一张带形象参考图的角色卡：模板只提供画面与运镜，「换成谁」全靠卡上的形象图`;
   return null;
 }
 
@@ -323,6 +326,7 @@ function materialText(materials?: Card[]): string {
   //   对一段设定说"外形"是胡话，模型会去找一个不存在的物体
   const bg = materials.find((c) => c.type === "background");
   const bgLine = bg ? ((bg.idLine || "").trim() || bg.summary || "").slice(0, ID_LINE_MAX) : "";
+  // i18n-ignore-next-line: 素材设定句，拼进发给模型的提示词
   return `${list ? `。本段固定素材设定（必须严格遵守，不得改动其外形与身份）：${list}` : ""}${bgLine ? `。故事背景：${bgLine}` : ""}`;
 }
 
@@ -382,13 +386,19 @@ export function customRefPrompt(o: {
   if (o.hasFirst)
     parts.push(
       o.carried
-        ? `图片${n++}是上一镜的最后一帧，本段从这一帧接着往下演——人物、服装、场景、光线与机位保持连续`
-        : `图片${n++}是这段视频的第一帧画面，视频从它开始`,
+        ? // i18n-ignore-next-line: 时序点名句，发给视频模型
+          `图片${n++}是上一镜的最后一帧，本段从这一帧接着往下演——人物、服装、场景、光线与机位保持连续`
+        : // i18n-ignore-next-line: 同上
+          `图片${n++}是这段视频的第一帧画面，视频从它开始`,
     );
+  // i18n-ignore-next-line: 同上
   for (let k = 0; k < o.midCount; k++) parts.push(`图片${n++}是视频中间的关键画面，按顺序经过它`);
+  // i18n-ignore-next-line: 同上
   if (o.hasLast) parts.push(`图片${n}是这段视频的最后一帧画面，视频结束在它`);
+  // i18n-ignore-next-line: 同上
   const head = o.hasVideo ? "。参考视频提供整体画面、运镜与节奏" : "";
   if (parts.length === 0) return head ? `${head}。` : "";
+  // i18n-ignore-next-line: 同上
   return `${head}${head ? "；" : "。"}${parts.join("；")}。画面按图片编号顺序推进，衔接自然。`;
 }
 
@@ -427,7 +437,10 @@ function contractLine(o: { quoted: number | null; mode: GenMode; durationSec: nu
   if (video === null) return "";
   const implied = video + o.images * IMAGE_TOKENS;
   if (implied === o.quoted) return "";
-  const line = `⚠ 契约核对：界面报价 ${fmtTokens(o.quoted)}，按契约应为 ${fmtTokens(implied)}（视频 ${fmtTokens(video)} + 出图 ${o.images} 张）——本次仍按报价扣，请把这句话反馈给我们`;
+  const quotedLabel = fmtTokens(o.quoted);
+  const impliedLabel = fmtTokens(implied);
+  const videoLabel = fmtTokens(video);
+  const line = t`⚠ 契约核对：界面报价 ${quotedLabel}，按契约应为 ${impliedLabel}（视频 ${videoLabel} + 出图 ${o.images} 张）——本次仍按报价扣，请把这句话反馈给我们`;
   console.warn("[segmentGen] " + line);
   return line;
 }
@@ -435,7 +448,7 @@ function contractLine(o: { quoted: number | null; mode: GenMode; durationSec: nu
 function settleSegment(res: { error?: string; pendingTaskId?: string } | undefined): void {
   // 「没接到结果」要**原样保持它的类型**往上抛：调用方据此决定凭据留不留
   // （留 = 亮取回入口，销毁 = 只剩「重新生成」= 再花一次钱）。
-  if (res?.pendingTaskId) throw new ArkTaskUnknown(res.error ?? "没接到这一段的出片结果", res.pendingTaskId);
+  if (res?.pendingTaskId) throw new ArkTaskUnknown(res.error ?? t`没接到这一段的出片结果`, res.pendingTaskId);
   if (res?.error) throw new Error(res.error);
 }
 
@@ -465,22 +478,23 @@ function voiceRefsFor(o: {
     if (!o.tier.audio)
       notes.push(
         o.tier.flatCost
-          ? `「${o.tier.label}」档暂无配音，台词只以画面呈现`
-          : `「${o.tier.label}」档出片无声，台词不会被配音（要声音选「高清」或「电影级」）`,
+          ? t`「${o.tier.label}」档暂无配音，台词只以画面呈现`
+          : t`「${o.tier.label}」档出片无声，台词不会被配音（要声音选「高清」或「电影级」）`,
       );
     else if (!o.referenceMode)
       // ★ 能走到这里的只有白模段（它自己就是 r2v，且 tier.audio 为真的两档都收参考图）——
       //   所以话要按白模说。原话「本档只能走首尾帧」在这唯一的场合是假的（白模根本没有首尾帧）
       notes.push(
         o.blockout
-          ? "白模复刻不带声音样本：音轨在「完成视频」那一步回填原片，台词音色由模型自定"
-          : "这一段带不了声音样本（本档的出片方式与参考音频互斥）——台词仍会被配音，但音色随机",
+          ? t`白模复刻不带声音样本：音轨在「完成视频」那一步回填原片，台词音色由模型自定`
+          : t`这一段带不了声音样本（本档的出片方式与参考音频互斥）——台词仍会被配音，但音色随机`,
       );
   }
   return {
     refAudios: ok ? voiced.map((c) => voiceOf(c.id)!.dataUrl) : undefined,
     voiceLine: ok
-      ? `。${voiced.map((c, i) => `「${c.name}」的台词使用参考音频${i + 1}的音色`).join("；")}`
+      ? // i18n-ignore-next-line: 音色点名句，发给视频模型
+        `。${voiced.map((c, i) => `「${c.name}」的台词使用参考音频${i + 1}的音色`).join("；")}`
       : "",
     notes,
   };
@@ -515,7 +529,11 @@ export async function generateSegment(
    *  声明放在它后面的话，那条路上的每一句提示都无处可放（这正是 §2.11.2② 的成因之一）。 */
   const notes: string[] = [];
   /** 进度行的尾巴。★ 不能单独 prog：同一个同步块里的下一行 prog 会立刻把它盖掉 */
-  const noteTail = () => (notes.length ? `（${notes.join("；")}）` : "");
+  const noteTail = () => {
+    if (!notes.length) return "";
+    const joined = notes.join(t({ message: "；", comment: "出片进度行里几条提示之间的分隔符" }));
+    return t({ message: `（${joined}）`, comment: "出片进度行尾巴上那一串提示：括起来接在进度句后面（英文前面留一个空格）" });
+  };
 
   // ★ 白模门禁放在最前（步骤①之前）：圈选改帧那一步要花真钱出图，走进去再拒就白烧了。
   //   走不成一律 throw 整句原因（绝不降级——理由钉在 blockoutIssue 的 ★ 上），
@@ -531,12 +549,12 @@ export async function generateSegment(
   // 首/中/尾帧作为 reference_image 发出去，时序由默认提示词点名（customRefPrompt）。
   // 与白模复刻是两种商品：这条输出时长用户选、画幅照传、计价 (输入+输出)×系数。
   if (input.materialRef) {
-    const t = tierOf(input.videoTier);
-    if (!t.refVid) {
-      throw new Error(`「${t.label}」档不支持带参考视频出片——去 ⚙ 本段设置换成「电影级」档，或移除参考视频`);
+    const refTier = tierOf(input.videoTier);
+    if (!refTier.refVid) {
+      throw new Error(t`「${refTier.label}」档不支持带参考视频出片——去 ⚙ 本段设置换成「电影级」档，或移除参考视频`);
     }
     if (input.anns.length) {
-      throw new Error("带参考视频的自定义段暂不支持圈选改画面——清掉圈选标注再出片");
+      throw new Error(t`带参考视频的自定义段暂不支持圈选改画面——清掉圈选标注再出片`);
     }
     // 承接的真实尾帧优先当首帧参考（段间无缝正是这条链的意义）
     const firstRef = input.carryFrame || input.firstFrame || "";
@@ -551,7 +569,7 @@ export async function generateSegment(
         refUrls.push(u);
         continue;
       }
-      prog(`上传参考帧 ${i + 1}/${ordered.length}…`);
+      prog(t`上传参考帧 ${i + 1}/${ordered.length}…`);
       const blob = await (await fetch(u)).blob();
       refUrls.push(await uploadImage(blob, `custom-ref-${i + 1}.jpg`));
     }
@@ -566,10 +584,8 @@ export async function generateSegment(
     const mats = materialText(input.materials);
     const tail = `${roles}${mats}`;
     const room = Math.max(0, VIDEO_PROMPT_MAX - tail.length);
-    const cut =
-      input.plot.length > room
-        ? `（⚠ 要求太长，末尾 ${input.plot.length - room} 字没能发出去——时序点名句要占 ${tail.length} 字）`
-        : "";
+    const plotOver = input.plot.length - room;
+    const cut = plotOver > 0 ? t`（⚠ 要求太长，末尾 ${plotOver} 字没能发出去——时序点名句要占 ${tail.length} 字）` : "";
     // ★★ 音色样本这条路**以前整条漏了**（§2.11.2②）：判断只长在经典路上，而这条支路在它
     //   之前就 return —— 用户挂了带 🔊 的卡、写了「」台词，拿回随机音色，屏幕上一个字没有。
     //   这条路协议上就是 reference 子任务（refTask:"reference"），tier 又是 ultra（refVid
@@ -577,14 +593,16 @@ export async function generateSegment(
     const voice = voiceRefsFor({
       plot: input.plot,
       materials: input.materials,
-      tier: t,
+      tier: refTier,
       referenceMode: true,
       blockout: false,
     });
     notes.push(...voice.notes);
     const fitted = withVoiceLine(`${`${shotPrefix(input.shot)}${input.plot}`.slice(0, room)}${tail}`, voice.voiceLine);
-    if (fitted.dropped) notes.push("音色点名句没能发出去（提示词已经写满）——台词仍会被配音，但音色随机；把要求写短些就能带上");
-    prog(`按参考视频 + ${refUrls.length} 张关键帧出片（输入 ${input.materialRef.durationSec}s + 输出 ${clampDuration(input.durationSec, input.videoTier)}s 计价）…${cut}${noteTail()}`);
+    if (fitted.dropped) notes.push(t`音色点名句没能发出去（提示词已经写满）——台词仍会被配音，但音色随机；把要求写短些就能带上`);
+    const inSec = input.materialRef.durationSec;
+    const outSec = clampDuration(input.durationSec, input.videoTier);
+    prog(t`按参考视频 + ${refUrls.length} 张关键帧出片（输入 ${inSec}s + 输出 ${outSec}s 计价）…` + cut + noteTail());
     {
       const cl = contractLine({ quoted: input.quotedTokens, mode: "reference", durationSec: input.durationSec, tierId: input.videoTier, refVideoSec: input.materialRef.durationSec, images: 0 });
       if (cl) prog(cl);
@@ -625,8 +643,8 @@ export async function generateSegment(
   // 首帧就是真人卡的照片（或用户设定帧/承接帧），提示词驱动它动起来 —— 三发探针
   // 验证过的 i2v 形态。出片调用的分流在 composeSegments（尾帧捕获/承接共用那条产线）。
   if (providerOf(input.videoTier) === "minimax") {
-    if (blockout) throw new Error("白模模板出片只在方舟档（真人档没有 r2v 能力）——这一段换回「电影级」档，或换掉模板");
-    if (input.anns.length) throw new Error("真人档暂不支持圈选改画面（改图引擎会拒收真人脸）——清掉圈选标注再出片");
+    if (blockout) throw new Error(t`白模模板出片只在方舟档（真人档没有 r2v 能力）——这一段换回「电影级」档，或换掉模板`);
+    if (input.anns.length) throw new Error(t`真人档暂不支持圈选改画面（改图引擎会拒收真人脸）——清掉圈选标注再出片`);
     const firstSrc =
       input.carryFrame ||
       input.firstFrame ||
@@ -638,9 +656,10 @@ export async function generateSegment(
         .map((v) => v.url)
         .find(Boolean);
     if (!firstSrc) {
-      throw new Error("真人档需要一张起拍画面：挂一张带照片的真人卡，或自己传一张开头帧");
+      throw new Error(t`真人档需要一张起拍画面：挂一张带照片的真人卡，或自己传一张开头帧`);
     }
-    prog(`真人档按发计价（${clampDuration(input.durationSec, input.videoTier)} 秒整档）· 以卡片照片起拍…`);
+    const flatSec = clampDuration(input.durationSec, input.videoTier);
+    prog(t`真人档按发计价（${flatSec} 秒整档）· 以卡片照片起拍…`);
     {
       const cl = contractLine({ quoted: input.quotedTokens, mode: "minimax", durationSec: input.durationSec, tierId: input.videoTier, images: 0 });
       if (cl) prog(cl);
@@ -685,13 +704,14 @@ export async function generateSegment(
     // ★ 少收了钱也要说：用户圈了却看不到画面变化，不说的话他只会以为"圈选坏了"。
     //   文字要求仍然随 reqs 发出去，所以这句话要把"没白圈"讲清楚（铁律八）。
     notes.push(
-      `本段承接上一段的结尾画面，开头画面不重画——你圈在前半段的 ${skippedAnns} 处只作为文字要求写进出片提示词（这几处不计费）`,
+      t`本段承接上一段的结尾画面，开头画面不重画——你圈在前半段的 ${skippedAnns} 处只作为文字要求写进出片提示词（这几处不计费）`,
     );
   }
   for (let k = 0; k < redrawn.length; k++) {
     const a = redrawn[k];
-    prog(`按圈选改画面 ${k + 1}/${redrawn.length}…`);
+    prog(t`按圈选改画面 ${k + 1}/${redrawn.length}…`);
     const edited = await refineFrame(
+      // i18n-ignore-next-line: 圈选改图的指令，发给出图模型
       `${a.req}。参考图中红色圈线标注了目标物体：只对该物体做上述处理，并彻底去掉红色圈线本身`,
       a.frame,
       input.aspect,
@@ -734,8 +754,8 @@ export async function generateSegment(
   if (wantRef && !refMode) {
     prog(
       tier.refImg
-        ? "素材卡上没有可用的形象参考图，改为先按描述画一张设定帧再出片（多花约一张出图的钱）"
-        : `「${tier.label}」档不支持参考图，改为先按描述画一张设定帧再出片（想直接用卡片形象请选「高清」或「电影级」）`,
+        ? t`素材卡上没有可用的形象参考图，改为先按描述画一张设定帧再出片（多花约一张出图的钱）`
+        : t`「${tier.label}」档不支持参考图，改为先按描述画一张设定帧再出片（想直接用卡片形象请选「高清」或「电影级」）`,
     );
   }
   // 素材卡的形象参考图，两种用法**互斥**（方舟文档：图生视频-首帧、图生视频-首尾帧、
@@ -835,14 +855,14 @@ export async function generateSegment(
   //   任务要么被方舟拒、要么受理后拍出一段没换主体的复刻片——受理后失败不退费，
   //   替用户把这笔钱按住的唯一办法就是在这里响亮地停下（铁律八）。
   if (blockout && !refUrls) {
-    throw new Error("角色卡上的形象参考图一张都没能读出来（图片可能已损坏），白模出片必须靠形象图说明「换成谁」——给卡换一张形象图再试");
+    throw new Error(t`角色卡上的形象参考图一张都没能读出来（图片可能已损坏），白模出片必须靠形象图说明「换成谁」——给卡换一张形象图再试`);
   }
   // ★ 走到这一步才发现一张参考图都没准备成（图裂了/跨域读不出来）：**退回首尾帧模式**
   //   而不是发一个没有参考图的"参考生视频"任务——那个任务方舟会拒，或者更糟：受理了
   //   然后拍出一段与卡片毫无关系的片子，钱照扣（受理后失败不退）。
   if (refMode && !refUrls) {
     refMode = false;
-    prog("素材卡的形象参考图一张都没能用上，改为先按描述画一张设定帧再出片（多花约一张出图的钱）");
+    prog(t`素材卡的形象参考图一张都没能用上，改为先按描述画一张设定帧再出片（多花约一张出图的钱）`);
   }
   // 补画只属于经典路（!blockout）：白模段 first/last 天然为空（门禁保证），
   // 但空≠要补——它的画面在模板视频里
@@ -851,7 +871,7 @@ export async function generateSegment(
   if (!blockout && !refMode && !first) {
     const dr = await drawRefs();
     drawn++;
-    prog(`绘制起拍画面…${noteTail()}`);
+    prog(t`绘制起拍画面…` + noteTail());
     first = await generateCover(
       `${input.framePrompt || input.plot.slice(0, 200)}${mats}${dr.bind(0)}`,
       undefined,
@@ -862,8 +882,9 @@ export async function generateSegment(
   if (!blockout && !refMode && !last && tier.flf) {
     const dr = await drawRefs();
     drawn++;
-    prog(`绘制结束画面…${noteTail()}`);
+    prog(t`绘制结束画面…` + noteTail());
     last = await generateCover(
+      // i18n-ignore-next-line: 画结束画面的出图提示词，发给模型
       `${input.plot.slice(0, 180)} 的结束瞬间${mats}${dr.bind(0)}`,
       undefined,
       input.aspect,
@@ -885,15 +906,15 @@ export async function generateSegment(
           frameRefs.push(u);
           continue;
         }
-        prog(`上传本段设定帧 ${i + 1}/${ordered.length}…`);
+        prog(t`上传本段设定帧 ${i + 1}/${ordered.length}…`);
         frameRefs.push(await uploadImage(await (await fetch(u)).blob(), `seg-frame-${i + 1}.jpg`));
       }
     } catch {
       frameRefs = [];
       notes.push(
-        `设定帧没能转成参考图，这一段退回首尾帧模式出片（卡片形象图这次发不出去${
-          refAudios ? "，台词音色样本也带不了" : ""
-        }）`,
+        refAudios
+          ? t`设定帧没能转成参考图，这一段退回首尾帧模式出片（卡片形象图这次发不出去，台词音色样本也带不了）`
+          : t`设定帧没能转成参考图，这一段退回首尾帧模式出片（卡片形象图这次发不出去）`,
       );
     }
   }
@@ -960,6 +981,7 @@ export async function generateSegment(
   // refMode 的绑定句已前置（bindHead），尾巴只剩素材设定文字
   const tail = blockout ? (named ? bind : `${input.revise ? REVISE_TAIL : BLOCKOUT_SWAP}${mats}${bind}`) : `${frameRoles}${mats}`;
   // ★ 镜头字段放正文最前（景别 / 运镜 / 情绪节拍），模型先读到"怎么拍"再读"拍什么"
+  // i18n-ignore-next-line: 出片提示词正文，发给视频模型
   const story = `${shotPrefix(input.shot)}${reqs ? `${input.plot}。修改要求（必须满足）：${reqs}` : input.plot}`;
   // ★ 提示词有 VIDEO_PROMPT_MAX 的硬顶，而截的是**正文** —— 头（点名句）与尾（素材设定/
   //   白模绑定句）都要先留位。直接拼起来交上去的话：简约模式的输入框本身就允许 400 字，
@@ -973,9 +995,11 @@ export async function generateSegment(
   //   悄悄切掉正文末尾，用户看到的是"我写的最后几条要求模型完全没照做"，零报错。
   // ★ 不能单独 prog：下面那两行 prog 在同一个同步块里，会立刻把它盖掉（React 连画都
   //   没画过它，等于这句话没说过）—— 与 noteTail 同一个理由，所以并进同一行说。
+  const storyOver = story.length - room;
+  const reserved = tail.length + bindHead.length + frameBind.length;
   const cut =
-    story.length > room
-      ? `（⚠ 这一段的要求太长，末尾 ${story.length - room} 字没能发出去：提示词上限 ${VIDEO_PROMPT_MAX} 字，其中素材设定与形象点名句占了 ${tail.length + bindHead.length + frameBind.length} 字——把要求写短些，或少挂一张卡）`
+    storyOver > 0
+      ? t`（⚠ 这一段的要求太长，末尾 ${storyOver} 字没能发出去：提示词上限 ${VIDEO_PROMPT_MAX} 字，其中素材设定与形象点名句占了 ${reserved} 字——把要求写短些，或少挂一张卡）`
       : "";
   // ★★ 音色点名句接在硬顶之内接得下才接（§2.11.2③）：原来是无条件 `${plot}${voiceLine}`，
   //   而 real.ts 那一刀从**尾巴**下刀 ⇒ 正文写满时它必然被切掉，参考音频却照发 ⇒ 音色随机，
@@ -984,17 +1008,24 @@ export async function generateSegment(
   const fitted = withVoiceLine(plot, voice.voiceLine);
   if (fitted.dropped)
     notes.push(
-      "音色点名句没能发出去（提示词已经写满）——台词仍会被配音，但音色随机；把要求写短些就能带上",
+      t`音色点名句没能发出去（提示词已经写满）——台词仍会被配音，但音色随机；把要求写短些就能带上`,
     );
-  if (blockout && input.revise) prog(`按你的改法返修这一段（时长跟随成片 ${input.refVideo?.durationSec ?? "?"} 秒，产物无声）…${noteTail()}${cut}`);
-  else if (blockout)
+  const refSec = input.refVideo?.durationSec;
+  if (blockout && input.revise)
     prog(
-      `按模板视频逐镜头复刻出片（时长跟随模板${input.refVideo?.durationSec ? ` ${input.refVideo.durationSec} 秒` : ""}）…${noteTail()}${cut}`,
+      (refSec ? t`按你的改法返修这一段（时长跟随成片 ${refSec} 秒，产物无声）…` : t`按你的改法返修这一段（时长跟随成片，产物无声）…`) +
+        noteTail() +
+        cut,
     );
-  else if (refMode) prog(`参考卡片形象直接出片（省掉设定帧）…${noteTail()}${cut}`);
+  else if (blockout)
+    prog((refSec ? t`按模板视频逐镜头复刻出片（时长跟随模板 ${refSec} 秒）…` : t`按模板视频逐镜头复刻出片（时长跟随模板）…`) + noteTail() + cut);
+  else if (refMode) prog(t`参考卡片形象直接出片（省掉设定帧）…` + noteTail() + cut);
   // ★ 这一支以前是 `else if (cut)` —— 没有截断就一个字不说，于是“帧当参考图发”这条路上
   //   的提示（含上传失败退回首尾帧）没有任何出口。改成无条件说一句，把 notes 带上。
-  else prog(`${sendFrameRefs ? `按 ${frameRefs.length + cardRefs.length} 张参考图出片（帧与卡片形象同发）` : "出片中"}…${noteTail()}${cut}`);
+  else {
+    const refCount = frameRefs.length + cardRefs.length;
+    prog((sendFrameRefs ? t`按 ${refCount} 张参考图出片（帧与卡片形象同发）…` : t`出片中…`) + noteTail() + cut);
+  }
   /** 这一发的生成模式（契约的声明；槽位与它是否一致由 real.validateGenSpec 在花钱之前核对） */
   const mode: GenMode = blockout
     ? "edit"
