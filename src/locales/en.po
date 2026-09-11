@@ -13500,12 +13500,12 @@ msgid "等了 60 秒一个字节都没来，当断了处理。再点一次接着
 msgstr "Not a single byte arrived in 60 seconds, so it was treated as disconnected. Tap again to retry."
 
 #: src/data/templates.ts
-msgid "等太久没等到回复——但**这一发多半还在服务器上跑**（认人最坏要几分钟），而且可能已经计费。先别急着再点（这会儿再点只会说「正在识别中」）：等一两分钟，退出这一页再进来看看角色位是不是已经有了。"
-msgstr "No reply after waiting a long time — but this job is most likely still running on the server (identifying people can take several minutes at worst), and you may already have been charged. Don't tap again yet (tapping again now would only tell you it's still detecting): wait a minute or two, then leave this page and come back to see whether the role slots are there."
-
-#: src/data/templates.ts
 msgid "等太久没等到回复——但这一发多半还在服务器上跑（整条切成 N 段要逐段转码，慢的时候好几分钟）。先别急着再点（再点会把同一条视频切第二遍），也别去删那段素材：等一两分钟，去「我的模板」看看那一组是不是已经到了。"
 msgstr "No reply after waiting a long time — but this job is most likely still running on the server (splitting the whole video into segments means transcoding them one by one, which can take several minutes when it's slow). Don't tap again yet (that would split the same video a second time), and don't delete that footage: wait a minute or two, then check “My templates” to see whether the group has arrived."
+
+#: src/data/templates.ts
+msgid "等太久没等到回复——但这一发多半还在服务器上跑（认人最坏要几分钟），而且可能已经计费。先别急着再点（这会儿再点只会被服务器挡回来：上一次还没跑完）：等一两分钟，退出这一页再进来看看角色位是不是已经有了。"
+msgstr "No reply after waiting a long time — but this job is most likely still running on the server (identifying people can take several minutes at worst), and you may already have been charged. Don't tap again yet (the server would just turn you away because the last run hasn't finished): wait a minute or two, then leave this page and come back to see whether the role slots are there."
 
 #: src/studio/live2dUploadStore.ts
 msgid "等太久没等到服务器回话。这一发可能已经建好了 —— 先去「我的」里看一眼，没有再回来重发。"
