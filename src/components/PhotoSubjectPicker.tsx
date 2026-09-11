@@ -16,6 +16,7 @@
 //   留下的黑边，竖屏素材已实测裁偏。这里的舞台是按 contain 自己算出来的盒子，坐标一律源像素。
 // ★ 为什么框分两级：CropOverlay 的最小框是 40 个**屏幕**像素，4000 宽的照片显示在手机上时
 //   折算成源像素近 460，小物件根本框不紧 ——「放大再框」让舞台只显示框附近那一块，最小框随之缩小。
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useRef, useState, type PointerEvent as RPointerEvent } from "react";
 import { createPortal } from "react-dom";
 import CropOverlay from "./blockout/CropOverlay";
@@ -84,6 +85,7 @@ export default function PhotoSubjectPicker({
   onError: (msg: string) => void;
   onClose: () => void;
 }) {
+  const { t } = useLingui();
   const [source, setSource] = useState<SubjectSource | null>(null);
   const [space, setSpace] = useState({ w: 0, h: 0 });
   const [busy, setBusy] = useState(false);
@@ -196,14 +198,14 @@ export default function PhotoSubjectPicker({
     const last = pts[pts.length - 1];
     if (Math.hypot(p[0] - last[0], p[1] - last[1]) * scale < LASSO_STEP_PX) return;
     pts.push(p);
-    setTick((t) => t + 1);
+    setTick((n) => n + 1);
   }
 
   function lassoUp() {
     const pts = drawing.current;
     drawing.current = null;
     if (pts && pts.length >= 3) onChange({ ...pickRef.current, lasso: pts });
-    else setTick((t) => t + 1);
+    else setTick((n) => n + 1);
   }
 
   /** 合成进卡的那一张：抠主体（或保留框内背景）→ 铺底定比例 → prepareCardImage（唯一实现）→ 预览 */
@@ -219,10 +221,10 @@ export default function PhotoSubjectPicker({
       const { blob, note: prepNote } = await prepareCardImage(file);
       const dataUrl = await blobToDataUrl(blob);
       const size = `${composed.subjectW}×${composed.subjectH}px`;
-      const up = composed.upscaled ? `，已放大到短边 ${REF_SHORT_MIN}px` : "";
+      const up = composed.upscaled ? t`，已放大到短边 ${REF_SHORT_MIN}px` : "";
       const base = keepBg
-        ? `保留了框内背景（${size}${up}）——卡面仍带背景，出片时 AI 可能把背景里的东西也画进去`
-        : `按你描的轮廓抠出主体，背景换成浅灰纯色（主体 ${size}${up}）`;
+        ? t`保留了框内背景（${size}${up}）——卡面仍带背景，出片时 AI 可能把背景里的东西也画进去`
+        : t`按你描的轮廓抠出主体，背景换成浅灰纯色（主体 ${size}${up}）`;
       const note = joinViewNote(base, prepNote);
       onChange({ ...pickRef.current, stage: "preview", preview: { dataUrl, note, keptBg: keepBg } });
     } catch (e) {
@@ -236,24 +238,24 @@ export default function PhotoSubjectPicker({
   const disp = (pts: [number, number][]) =>
     region ? pts.map(([x, y]) => `${((x - region.x) * scale).toFixed(1)},${((y - region.y) * scale).toFixed(1)}`) : [];
 
-  const title = pick.stage === "box" ? "框出这件道具" : pick.stage === "cut" ? "沿边描出轮廓" : "确认卡面";
+  const title = pick.stage === "box" ? t`框出这件道具` : pick.stage === "cut" ? t`沿边描出轮廓` : t`确认卡面`;
   const hint =
     pick.stage === "box"
-      ? "把这件道具框住，框得越紧越好。东西在画面里太小、框不紧的话，先点「放大再框」。"
+      ? t`把这件道具框住，框得越紧越好。东西在画面里太小、框不紧的话，先点「放大再框」。`
       : pick.stage === "cut"
-        ? "用手指沿着这件东西的边描一整圈，松手自动闭合。圈外的桌面、手和别的东西，都会换成浅灰纯色底。"
-        : "下面就是进卡的那一张：卡面和出片参考图都用它。";
+        ? t`用手指沿着这件东西的边描一整圈，松手自动闭合。圈外的桌面、手和别的东西，都会换成浅灰纯色底。`
+        : t`下面就是进卡的那一张：卡面和出片参考图都用它。`;
   const primaryBtn = "flex-1 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40";
   const secondaryBtn = "flex-1 rounded-xl bg-panel py-2.5 text-sm font-bold text-slate-200 ring-1 ring-slate-700 disabled:opacity-40";
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex flex-col bg-ink" role="dialog" aria-label={`道具卡 · ${slotLabel} · ${title}`}>
+    <div className="fixed inset-0 z-50 flex flex-col bg-ink" role="dialog" aria-label={t`道具卡 · ${slotLabel} · ${title}`}>
       <div className="safe-top flex h-[58px] flex-none items-center gap-2 px-4">
         {pick.stage !== "box" && (
           <BackButton
             chip="md"
             size={16}
-            label="上一步"
+            label={t`上一步`}
             disabled={busy}
             onClick={() =>
               onChange(
@@ -266,9 +268,9 @@ export default function PhotoSubjectPicker({
         )}
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-bold text-slate-100">{title}</p>
-          <p className="truncate text-[10px] text-slate-500">道具卡 · {slotLabel}</p>
+          <p className="truncate text-[10px] text-slate-500"><Trans>道具卡 · {slotLabel}</Trans></p>
         </div>
-        <CloseButton chip="md" size={16} align="end" label="取消，不用这张图" disabled={busy} onClick={onClose} />
+        <CloseButton chip="md" size={16} align="end" label={t`取消，不用这张图`} disabled={busy} onClick={onClose} />
       </div>
 
       <p className="flex-none px-4 pb-2 text-[11px] leading-relaxed text-slate-400">{hint}</p>
@@ -277,10 +279,10 @@ export default function PhotoSubjectPicker({
         {!source ? (
           <span className="flex items-center gap-2 text-xs text-slate-400">
             <Spinner size="sm" />
-            正在读图…
+            <Trans>正在读图…</Trans>
           </span>
         ) : pick.stage === "preview" && pick.preview ? (
-          <img src={pick.preview.dataUrl} alt="进卡的那一张" className="h-full w-full object-contain" />
+          <img src={pick.preview.dataUrl} alt={t`进卡的那一张`} className="h-full w-full object-contain" />
         ) : fit && region ? (
           <div className="relative" style={{ width: fit.w, height: fit.h }}>
             <canvas ref={canvasRef} className="block h-full w-full" />
@@ -342,7 +344,7 @@ export default function PhotoSubjectPicker({
           <>
             {pick.rect && cutBest < REF_SHORT_REJECT && (
               <p className="text-[11px] leading-relaxed text-rose-300">
-                这块太小了：折算只有 {cutBest} px，至少 {REF_SHORT_REJECT} px——框大一点再继续
+                <Trans>这块太小了：折算只有 {cutBest} px，至少 {REF_SHORT_REJECT} px——框大一点再继续</Trans>
               </p>
             )}
             <div className="flex gap-2">
@@ -356,7 +358,7 @@ export default function PhotoSubjectPicker({
                 }
                 className={secondaryBtn}
               >
-                {pick.zoom ? "回到整图" : "放大再框"}
+                {pick.zoom ? <Trans>回到整图</Trans> : <Trans>放大再框</Trans>}
               </button>
               <button
                 type="button"
@@ -364,7 +366,7 @@ export default function PhotoSubjectPicker({
                 onClick={() => onChange({ ...pick, stage: "cut", lasso: null, preview: null })}
                 className={primaryBtn}
               >
-                下一步：描轮廓 ›
+                <Trans>下一步：描轮廓 ›</Trans>
               </button>
             </div>
           </>
@@ -373,11 +375,11 @@ export default function PhotoSubjectPicker({
         {pick.stage === "cut" && (
           <>
             {pick.lasso && !lassoEnough && (
-              <p className="text-[11px] leading-relaxed text-rose-300">再描完整一点：沿着这件东西的边描一整圈</p>
+              <p className="text-[11px] leading-relaxed text-rose-300"><Trans>再描完整一点：沿着这件东西的边描一整圈</Trans></p>
             )}
             {pick.lasso && lassoEnough && lassoShort < REF_SHORT_REJECT && (
               <p className="text-[11px] leading-relaxed text-rose-300">
-                描出来的范围太小了：折算只有 {lassoShort} px，至少 {REF_SHORT_REJECT} px——在框里描大一点
+                <Trans>描出来的范围太小了：折算只有 {lassoShort} px，至少 {REF_SHORT_REJECT} px——在框里描大一点</Trans>
               </p>
             )}
             <div className="flex gap-2">
@@ -387,10 +389,10 @@ export default function PhotoSubjectPicker({
                 onClick={() => onChange({ ...pick, lasso: null, preview: null })}
                 className={secondaryBtn}
               >
-                重描
+                <Trans>重描</Trans>
               </button>
               <button type="button" disabled={!lassoOk || busy} onClick={() => void makePreview(false)} className={primaryBtn}>
-                {busy ? "合成中…" : "下一步：预览 ›"}
+                {busy ? <Trans>合成中…</Trans> : <Trans>下一步：预览 ›</Trans>}
               </button>
             </div>
             {/* 拍板 4 b：只有第 1 格给这个出口，而且风险必须写在按之前看得到的地方 */}
@@ -402,10 +404,10 @@ export default function PhotoSubjectPicker({
                   onClick={() => void makePreview(true)}
                   className="text-[11px] font-semibold text-amber-200 underline underline-offset-2 disabled:opacity-40"
                 >
-                  描不出来？保留框内背景 ›
+                  <Trans>描不出来？保留框内背景 ›</Trans>
                 </button>
                 <p className="mt-0.5 text-[10px] leading-relaxed text-amber-200/90">
-                  卡面会带着框里的背景，出片时 AI 可能把背景里的东西也画进去。
+                  <Trans>卡面会带着框里的背景，出片时 AI 可能把背景里的东西也画进去。</Trans>
                 </p>
               </div>
             )}
@@ -416,7 +418,7 @@ export default function PhotoSubjectPicker({
           <>
             {pick.preview.keptBg && (
               <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-200">
-                卡面仍带背景：出片时 AI 可能把背景里的东西也画进去。想只留主体，就回上一步描出轮廓。
+                <Trans>卡面仍带背景：出片时 AI 可能把背景里的东西也画进去。想只留主体，就回上一步描出轮廓。</Trans>
               </p>
             )}
             <p className="text-[10px] leading-relaxed text-slate-500">{pick.preview.note}</p>
@@ -426,14 +428,14 @@ export default function PhotoSubjectPicker({
                 onClick={() => onChange({ ...pick, stage: pick.preview?.keptBg ? "box" : "cut", preview: null })}
                 className={secondaryBtn}
               >
-                {pick.preview.keptBg ? "‹ 重新框" : "‹ 重新描"}
+                {pick.preview.keptBg ? <Trans>‹ 重新框</Trans> : <Trans>‹ 重新描</Trans>}
               </button>
               <button
                 type="button"
                 onClick={() => pick.preview && onDone({ dataUrl: pick.preview.dataUrl, note: pick.preview.note, keptBg: pick.preview.keptBg })}
                 className={primaryBtn}
               >
-                用这张
+                <Trans>用这张</Trans>
               </button>
             </div>
           </>
