@@ -31,9 +31,18 @@ msgstr " · with {0, plural, one {# attached card} other {# attached cards}}"
 msgid " · 正在停止（当前这一段会跑完）"
 msgstr " · Stopping (the current segment will finish)"
 
+#: src/components/VideoCardAnnotator.tsx
+msgid " · 演示"
+msgstr " · demo"
+
 #: src/components/CoverPicker.tsx
 msgid " · 真实影像"
 msgstr " · real footage"
+
+#. placeholder {0}: fmtTokens(schemeCost(sc.slots))
+#: src/components/VideoCardAnnotator.tsx
+msgid " · 约 {0}"
+msgstr " · about {0}"
 
 #. placeholder {0}: job.roles.length
 #: src/components/TemplateShelf.tsx
@@ -75,10 +84,12 @@ msgstr ", upscaled to {REF_SHORT_MIN}px on the short side"
 #. 列举几个名字时的分隔符
 #. 列举几个名字时的分隔符
 #. 列举几个名字时的分隔符
+#. 列举几个名字时的分隔符
 #: src/components/blockout/RoleCastBoard.tsx
 #: src/components/blockout/RoleConfirmSheet.tsx
 #: src/components/DeleteCardDialog.tsx
 #: src/components/TemplateShelf.tsx
+#: src/components/VideoCardAnnotator.tsx
 msgid "、"
 msgstr ", "
 
@@ -123,6 +134,10 @@ msgstr "· It will be removed from {deckCount, plural, one {# deck ({deckNames})
 #: src/components/DeleteCardDialog.tsx
 msgid "· 它已经分享到创意工坊：删卡会<0>同时下架</0>； 别人已经装走的那份在他们自己的库里，不受影响。"
 msgstr "· It's shared to the Workshop. Deleting the card <0>also takes it down</0>; copies others already installed stay in their own libraries."
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "· 无脸"
+msgstr "· faceless"
 
 #: src/components/MaterialSheet.tsx
 msgid "· 点 ✕ 移出本段"
@@ -213,6 +228,11 @@ msgstr "{0} guide"
 msgid "{0} 张"
 msgstr "{0, plural, one {# card} other {# cards}}"
 
+#. placeholder {0}: saved.length
+#: src/components/VideoCardAnnotator.tsx
+msgid "{0} 张卡已入库，在「我的卡组」里能看到。"
+msgstr "{0, plural, one {# card was added to your library; you'll find it in “My decks”.} other {# cards were added to your library; you'll find them in “My decks”.}}"
+
 #. placeholder {0}: commentCountOf(video)
 #: src/components/CommentSheet.tsx
 msgid "{0} 条评论"
@@ -240,6 +260,16 @@ msgstr "{0} segments · {1} rendered · edited {2}"
 #: src/components/flow/ScriptSkillSheet.tsx
 msgid "{0}/{SCRIPT_MAX} 字 · 铺出来按当前设置：{1}档 · {2}"
 msgstr "{0}/{SCRIPT_MAX} characters · segments will use the current settings: {1} tier · {2}"
+
+#. placeholder {0}: (vEnd - vStart).toFixed(1)
+#: src/components/VideoCardAnnotator.tsx
+msgid "{0}s · 太短"
+msgstr "{0}s · too short"
+
+#. placeholder {0}: (vEnd - vStart).toFixed(1)
+#: src/components/VideoCardAnnotator.tsx
+msgid "{0}s · 太长"
+msgstr "{0}s · too long"
 
 #. placeholder {0}: (refVideoRealSec(tpl.refVideo) ?? tpl.refVideo.durationSec).toFixed(1)
 #: src/components/TemplateShelf.tsx
@@ -330,11 +360,22 @@ msgstr "“{0}” needs at least {1}s"
 msgid "「{0}」分类下还没有模板——点「全部」看现有的，或做一个发布出来占坑"
 msgstr "No templates in “{0}” yet — tap “All” to see what's there, or make one and publish it to be the first"
 
+#. placeholder {0}: card.name
+#: src/components/VideoCardAnnotator.tsx
+msgid "「{0}」已存进卡片库"
+msgstr "“{0}” saved to your card library"
+
 #. placeholder {0}: tierOf(node.videoTier).label
 #. placeholder {1}: Object.keys(flat!).join("/")
 #: src/components/flow/SegSettings.tsx
 msgid "「{0}」按发计价，只有 {1} 秒两档"
 msgstr "“{0}” is priced per clip and only offers {1}s"
+
+#. placeholder {0}: scheme.title
+#. placeholder {1}: fmtTokens(price)
+#: src/components/VideoCardAnnotator.tsx
+msgid "「{0}」要炼 {imgs} 张图、约 {1} token，余额不够——去「我的」页充值"
+msgstr "“{0}” generates {imgs, plural, one {# image} other {# images}} for about {1} tokens — not enough balance. Top up on the Me page"
 
 #. placeholder {0}: s.title
 #: src/components/flow/SkillPanel.tsx
@@ -344,6 +385,14 @@ msgstr "“{0}” is still published. Unpublish it before deleting"
 #: src/studio/canvasAgent.ts
 msgid "「{u}」"
 msgstr "“{u}”"
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "↺ 用回原片"
+msgstr "↺ Use the original crop"
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "＋ 再标一张脸部特写（可选，出片时锁面部特征更稳）"
+msgstr "+ Also mark a face close-up (optional; keeps facial features steadier in videos)"
 
 #. placeholder {0}: rows.length
 #: src/components/support/VoiceMixer.tsx
@@ -377,6 +426,10 @@ msgstr "+ turning all {durSec}s into white mannequins ({0} · {1})"
 msgid "＋ 标记这一帧"
 msgstr "+ Mark this frame"
 
+#: src/components/VideoCardAnnotator.tsx
+msgid "＋ 自建一套"
+msgstr "+ Create your own"
+
 #: src/components/flow/RefFrameSheet.tsx
 msgid "＋中间帧（{midCount}/{midMax}）"
 msgstr "+ Middle frame ({midCount}/{midMax})"
@@ -409,6 +462,10 @@ msgstr "<0>This step isn't always fully right.</0> In testing, every few runs 1�
 #: src/components/support/VoiceMixer.tsx
 msgid "■ 停止"
 msgstr "■ Stop"
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "▭ 框"
+msgstr "▭ Box"
 
 #: src/components/support/VoiceMarket.tsx
 #: src/components/support/VoiceMixer.tsx
@@ -457,6 +514,10 @@ msgstr "✂ Subject only (main image)"
 msgid "✂ 只留主体"
 msgstr "✂ Subject only"
 
+#: src/components/VideoCardAnnotator.tsx
+msgid "✂ 就取这一块"
+msgstr "✂ Use this area"
+
 #: src/studio/canvasAgent.ts
 msgid "✎ 拍摄要求"
 msgstr "✎ What to shoot"
@@ -497,9 +558,26 @@ msgstr "✓ Use as cover"
 msgid "✨ AI 封面（改图/生成）"
 msgstr "✨ AI cover (edit / generate)"
 
+#: src/components/VideoCardAnnotator.tsx
+msgid "✨ 已按「{pickedTitle}」炼好形象图"
+msgstr "✨ Character images generated with “{pickedTitle}”"
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "✨ 按这套方案炼形象图（{portraitCount} 张 · 演示）"
+msgstr "✨ Generate character images with this scheme ({portraitCount, plural, one {# image} other {# images}} · demo)"
+
+#. placeholder {0}: fmtTokens(schemeCost((schemeOf(schemeId) ?? defaultScheme()).slots))
+#: src/components/VideoCardAnnotator.tsx
+msgid "✨ 按这套方案炼形象图（{portraitCount} 张 · 约 {0}）"
+msgstr "✨ Generate character images with this scheme ({portraitCount, plural, one {# image} other {# images}} · about {0})"
+
 #: src/components/blockout/BlockoutTrimmer.tsx
 msgid "⤢ 铺满整幅"
 msgstr "⤢ Fill the frame"
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "⭕ 圆"
+msgstr "⭕ Circle"
 
 #: src/components/flow/SegPlayer.tsx
 msgid "⭕ 圈选改画面"
@@ -513,6 +591,10 @@ msgstr "⭕ Circle what you want to change"
 msgid "🃏 挂卡换人"
 msgstr "🃏 Cast cards"
 
+#: src/components/VideoCardAnnotator.tsx
+msgid "🎙 录这一段"
+msgstr "🎙 Record this clip"
+
 #: src/components/VoiceRecorder.tsx
 msgid "🎙 按住跟读（长按录音）"
 msgstr "🎙 Hold to read aloud (press and hold to record)"
@@ -521,9 +603,21 @@ msgstr "🎙 Hold to read aloud (press and hold to record)"
 msgid "🎞 从成片截帧"
 msgstr "🎞 Grab a frame from the video"
 
+#: src/components/VideoCardAnnotator.tsx
+msgid "🎤 取一段他的声音（可选，{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒 · 出片时台词可用这个音色）"
+msgstr "🎤 Capture a clip of their voice (optional, {VOICE_MIN_SEC}–{VOICE_MAX_SEC}s · dialogue in videos can use this voice)"
+
 #: src/components/flow/CustomFrameSlots.tsx
 msgid "🎨 融图合成这一帧"
 msgstr "🎨 Compose this frame by blending images"
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "🎯 从视频提取卡片"
+msgstr "🎯 Extract cards from a video"
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "🎯 从视频提取卡组"
+msgstr "🎯 Extract a deck from a video"
 
 #: src/studio/canvasAgent.ts
 msgid "🎲 重演方案"
@@ -559,6 +653,12 @@ msgstr "🔇 Muted"
 msgid "🔇 静音中"
 msgstr "🔇 Muted"
 
+#. placeholder {0}: pendingVoice.durationSec
+#. placeholder {1}: pendingVoice.note
+#: src/components/VideoCardAnnotator.tsx
+msgid "🔊 声音样本 {0}s · {1}"
+msgstr "🔊 Voice sample {0}s · {1}"
+
 #: src/components/blockout/VideoStage.tsx
 #: src/components/BranchPlayer.tsx
 #: src/components/SegmentPlayer.tsx
@@ -572,6 +672,22 @@ msgstr "🔊 Template audio"
 #: src/components/PortraitAuthPanel.tsx
 msgid "🔗 发起肖像授权（本人扫码 / 本机打开）"
 msgstr "🔗 Start portrait authorization (scan the code / open on this device)"
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "🖌 笔"
+msgstr "🖌 Brush"
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "🖼 把这次的产出存成方案示例图"
+msgstr "🖼 Save these results as the scheme's example images"
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "🖼 整帧"
+msgstr "🖼 Full frame"
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "🖼 更新这套方案的示例图"
+msgstr "🖼 Update this scheme's example images"
 
 #: src/components/CoverPicker.tsx
 msgid "🖼 本地上传"
@@ -597,6 +713,14 @@ msgstr "🧪 Use a template"
 msgid "🧪 摘掉模板"
 msgstr "🧪 Remove template"
 
+#: src/components/VideoCardAnnotator.tsx
+msgid "🪪 <0>方舟可信素材</0>（真人出片的合规通道）：「高清」「电影级」档<1>不收直接上传的真人照片</1>，只收本人授权过的素材。现在就能做："
+msgstr "🪪 <0>Ark trusted assets</0> (the compliant route for real-person videos): the HD and Cinematic tiers <1>don't accept directly uploaded photos of real people</1>, only assets the person has authorized. You can set it up right now:"
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "🛒 逛方案市场"
+msgstr "🛒 Browse the scheme market"
+
 #: src/components/support/VoiceSheet.tsx
 msgid "0.70× 慢"
 msgstr "0.70× slow"
@@ -613,6 +737,10 @@ msgstr "Lay out cards on the 3D table and explore directions"
 msgid "AI 分析哪几帧"
 msgstr "Frames for the AI to analyze"
 
+#: src/components/VideoCardAnnotator.tsx
+msgid "AI 图位生成好了——回工坊点「从视频提取」接着存卡"
+msgstr "AI images are ready — go back to the Workshop and tap “Extract from video” to finish saving the card"
+
 #: src/components/CoverPicker.tsx
 msgid "AI 封面工坊"
 msgstr "AI cover studio"
@@ -620,6 +748,10 @@ msgstr "AI cover studio"
 #: src/studio/canvasAgent.ts
 msgid "AI 指挥没连上（{why}），先按本地句式办了能办的。"
 msgstr "Couldn't reach the AI director ({why}), so I did what plain phrasing allows. "
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "AI 生成图位"
+msgstr "AI image slots"
 
 #: src/components/CoverPicker.tsx
 msgid "AI 生成封面"
@@ -648,6 +780,10 @@ msgstr "QQ friends"
 #: src/components/CoverPicker.tsx
 msgid "Seedream 真实生成，约 20-30 秒"
 msgstr "Real Seedream generation, about 20–30 seconds"
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "一句简介（可留空）"
+msgstr "One-line summary (optional)"
 
 #: src/components/support/VoiceMixer.tsx
 msgid "一句话介绍（选填）"
@@ -723,6 +859,7 @@ msgid "下一步：预览 ›"
 msgstr "Next: preview ›"
 
 #: src/components/flow/SkillPanel.tsx
+#: src/components/VideoCardAnnotator.tsx
 msgid "下架"
 msgstr "Unpublish"
 
@@ -766,6 +903,10 @@ msgstr "The timeline below is <0>the whole original video</0>, but only <1>{0}�
 #: src/components/DraftSheet.tsx
 msgid "不删"
 msgstr "Keep it"
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "不取了"
+msgstr "Cancel"
 
 #: src/components/blockout/VisionFramePicker.tsx
 msgid "不在选段内"
@@ -944,6 +1085,10 @@ msgstr "Add a voice before saving."
 msgid "先去逛逛，好了叫我"
 msgstr "Look around, tell me when it's done"
 
+#: src/components/VideoCardAnnotator.tsx
+msgid "先听一遍：要的是<0>这个人说话</0>的干净片段。出片走「高清/电影级」且台词写在引号里时， 会把这段声音发给 AI 作音色参考（免费）。样本只存在这台设备上，分享卡片不带它。"
+msgstr "Listen to it first: you want a clean clip of <0>this person speaking</0>. When a video renders on the HD or Cinematic tier with dialogue in quotes, this clip is sent to the AI as a voice reference (free). The sample stays on this device and isn't included when you share the card."
+
 #: src/components/DownloadSheet.tsx
 msgid "先存进 App，再选去处。"
 msgstr "Files go into the app first, then you pick where they go."
@@ -951,6 +1096,10 @@ msgstr "Files go into the app first, then you pick where they go."
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "先点下面一个格子，再点一张卡；也可以直接把卡拖到格子上"
 msgstr "Tap a slot below, then tap a card — or drag a card straight onto a slot"
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "先给这张卡起个名字"
+msgstr "Give this card a name first"
 
 #: src/components/CoverPicker.tsx
 msgid "全新生成"
@@ -1037,6 +1186,7 @@ msgid "最常见的一种：<0>有个人根本没被换成人偶</0>（还是原
 msgstr "The most common case: <0>someone was never turned into a mannequin</0> (they still look the same), especially the one in the middle of the frame who looks most like the lead. The list then has an extra slot that doesn't exist in the picture — <1>just delete it, no re-render needed</1>. ⚠ But check again afterwards: with one fewer mannequin in the picture, <2>everyone to its right moves one place to the left when counting from the left</2> (this only applies to position-based templates, not numbered ones)."
 
 #: src/components/ForgeOverlay.tsx
+#: src/components/VideoCardAnnotator.tsx
 msgid "准备中…"
 msgstr "Preparing…"
 
@@ -1093,6 +1243,7 @@ msgid "创作"
 msgstr "Create"
 
 #: src/components/flow/SkillPanel.tsx
+#: src/components/VideoCardAnnotator.tsx
 msgid "删"
 msgstr "Delete"
 
@@ -1207,6 +1358,10 @@ msgstr "Load more"
 msgid "加载更多失败"
 msgstr "Couldn't load more"
 
+#: src/components/VideoCardAnnotator.tsx
+msgid "勾了「画面里是真实人物」，就得同时勾上下面那条肖像同意的确认——没有本人同意，真人素材不能入库。取消真人勾选，或者勾上确认再存。"
+msgstr "If you check “A real person is in the picture”, you also have to check the portrait-consent confirmation below — real-person material can't be saved without the person's consent. Uncheck the real-person box, or check the confirmation, then save."
+
 #: src/components/support/VoiceMarket.tsx
 msgid "匿名"
 msgstr "Anonymous"
@@ -1214,6 +1369,14 @@ msgstr "Anonymous"
 #: src/components/support/VoiceSheet.tsx
 msgid "单音色"
 msgstr "Single voice"
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "卡存在本机了，但还没同步到服务端（{reason}）——网络恢复前别退出登录，否则会丢"
+msgstr "The card is saved on this device but hasn't synced to the server yet ({reason}) — don't log out until the network is back, or it will be lost"
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "卡存好了，但 {lost} 没传上——去卡片详情页补挂"
+msgstr "The card is saved, but {lost} didn't upload — add it again on the card's detail page"
 
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "卡已丢失"
@@ -1227,9 +1390,17 @@ msgstr "Cards"
 msgid "卡组"
 msgstr "Decks"
 
+#: src/components/VideoCardAnnotator.tsx
+msgid "卡组名"
+msgstr "Deck name"
+
 #: src/components/DeleteDeckDialog.tsx
 msgid "卡组本身删了就找不回来。"
 msgstr "Once the deck itself is deleted, it can't be recovered."
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "卡铸好了，但肖像授权绑定没存住（本机存储写入失败）——去卡详情页把授权再做一次，否则出片时会被拒。"
+msgstr "The card was created, but its portrait authorization link didn't save (device storage write failed) — redo the authorization on the card's detail page, or videos using it will be rejected."
 
 #: src/pages/CustomCardPage.tsx
 msgid "卡面仍带背景，出片可能把背景里的东西画进去"
@@ -1273,6 +1444,10 @@ msgstr "Go recover this segment"
 msgid "去开启「允许安装未知应用」"
 msgstr "Turn on “Install unknown apps”"
 
+#: src/components/VideoCardAnnotator.tsx
+msgid "去掉"
+msgstr "Remove"
+
 #: src/components/support/VoiceMixer.tsx
 msgid "去掉这一味"
 msgstr "Remove this voice"
@@ -1292,6 +1467,10 @@ msgstr "Publishing…"
 #: src/components/support/VoiceMixer.tsx
 msgid "发布到声音市场"
 msgstr "Publish to voice market"
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "发布到市场"
+msgstr "Publish to market"
 
 #: src/components/support/VoiceMixer.tsx
 msgid "发布失败，稍后再试。"
@@ -1362,6 +1541,10 @@ msgstr "Grabbing frame…"
 msgid "取帧超时（窗口在后台时浏览器不解码视频）"
 msgstr "Grabbing the frame timed out (the browser doesn't decode video while the window is in the background)"
 
+#: src/components/VideoCardAnnotator.tsx
+msgid "取整个画面"
+msgstr "Uses the whole frame"
+
 #: src/components/flow/SegPlayer.tsx
 msgid "取流超时（窗口在后台时浏览器不解码视频）"
 msgstr "Loading the stream timed out (the browser doesn't decode video while the window is in the background)"
@@ -1376,6 +1559,7 @@ msgstr "Loading the stream timed out (the browser doesn't decode video while the
 #: src/components/ShareSheet.tsx
 #: src/components/support/VoiceMarket.tsx
 #: src/components/support/VoiceMixer.tsx
+#: src/components/VideoCardAnnotator.tsx
 msgid "取消"
 msgstr "Cancel"
 
@@ -1405,9 +1589,19 @@ msgstr "Unlike"
 msgid "取消静音"
 msgstr "Unmute"
 
+#. placeholder {0}: vStart.toFixed(1)
+#. placeholder {1}: vEnd.toFixed(1)
+#: src/components/VideoCardAnnotator.tsx
+msgid "取自原视频 {0}–{1}s"
+msgstr "From the original video, {0}–{1}s"
+
 #: src/components/blockout/VideoStage.tsx
 msgid "取这一帧超时了。应用切到后台时系统会暂停视频解码——回到前台、让画面真的动起来之后再点「标记这一帧」。"
 msgstr "Grabbing this frame timed out. The system pauses video decoding while the app is in the background. Come back, let the picture actually play, then tap “Mark this frame”."
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "另存为我的"
+msgstr "Save as my own"
 
 #. placeholder {0}: resPath.ok ? resPath.plan.targets.length : 0
 #: src/components/DownloadSheet.tsx
@@ -1458,6 +1652,10 @@ msgstr "Composite preview ({price})"
 msgid "同一条视频拆成 {count} 段的分段模板（共约 {0}s）· 套用即整组铺开"
 msgstr "Split template: one video in {count, plural, one {# segment} other {# segments}} (about {0}s total) · using it lays out the whole group"
 
+#: src/components/VideoCardAnnotator.tsx
+msgid "名字（必填，≤{NAME_MAX} 字）"
+msgstr "Name (required, up to {NAME_MAX} characters)"
+
 #: src/i18n/activate.ts
 msgid "启梦 · 有想法，就是梦想启程的第一步"
 msgstr "QiMeng · Every dream starts with an idea"
@@ -1500,6 +1698,10 @@ msgstr "Remaking: “{0}”"
 msgid "图片加载失败"
 msgstr "Image failed to load"
 
+#: src/components/VideoCardAnnotator.tsx
+msgid "圈出来的范围太小（参考图至少要 300px 宽）——再拖大一点"
+msgstr "The selected area is too small (reference images need to be at least 300px wide) — drag a bigger one"
+
 #: src/components/blockout/BoxFramePicker.tsx
 msgid "在哪几帧切开"
 msgstr "Where to split"
@@ -1507,6 +1709,10 @@ msgstr "Where to split"
 #: src/studio/canvasAgent.ts
 msgid "在末尾追加"
 msgstr "Adds one at the end"
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "在画面上拖一下；不满意再拖就重画"
+msgstr "Drag on the picture; drag again to redo it"
 
 #: src/components/support/VoiceSheet.tsx
 msgid "声音市场"
@@ -1575,6 +1781,10 @@ msgstr "If you can't count that many mannequins in the picture, this blockout it
 msgid "存"
 msgstr "Save"
 
+#: src/components/VideoCardAnnotator.tsx
+msgid "存为卡组"
+msgstr "Save as deck"
+
 #: src/components/FrameAnnotator.tsx
 msgid "存入标注"
 msgstr "Save annotation"
@@ -1584,11 +1794,37 @@ msgstr "Save annotation"
 msgid "存全部分支（{0} 段）"
 msgstr "All branches ({0, plural, one {# segment} other {# segments}})"
 
+#: src/components/VideoCardAnnotator.tsx
+msgid "存卡"
+msgstr "Save card"
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "存卡中…"
+msgstr "Saving card…"
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "存卡没成，回去看原因"
+msgstr "Couldn't save the card — go back to see why"
+
+#. placeholder {0}: msg.slice(0, 120)
+#: src/components/VideoCardAnnotator.tsx
+msgid "存卡没成：{0}"
+msgstr "Couldn't save the card: {0}"
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "存示例图…"
+msgstr "Saving example images…"
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "存这张卡"
+msgstr "Save this card"
+
 #: src/components/DownloadSheet.tsx
 msgid "安卓不让 App 直接写进相册。文件先落在 App 的缓存目录里；存好后点每一行的「分享 / 另存为」， 在系统面板里选相册或文件管理器。保存期间请留在 App 里，别把它划掉。 缓存目录在手机空间紧张时可能被系统清掉 —— 存好之后请尽快选个去处。"
 msgstr "Android doesn't let apps write straight into the gallery. Files land in the app's cache first; once saved, tap “Share / Save as” on each row and pick the gallery or a file manager in the system sheet. Stay in the app while saving and don't swipe it away. The system may clear the cache when storage runs low, so pick a destination soon after saving."
 
 #: src/components/AvatarPicker.tsx
+#: src/components/VideoCardAnnotator.tsx
 msgid "完成"
 msgstr "Done"
 
@@ -1676,6 +1912,10 @@ msgstr "Published “{0}” to the voice market and set it as your voice."
 msgid "已在工坊 · 取消分享"
 msgstr "In Workshop · Unshare"
 
+#: src/components/VideoCardAnnotator.tsx
+msgid "已建组「{deckDone}」"
+msgstr "Deck “{deckDone}” created"
+
 #: src/components/BlockButton.tsx
 msgid "已拉黑"
 msgstr "Blocked"
@@ -1691,6 +1931,10 @@ msgstr "Replaced with the subject-only image"
 #: src/pages/CardDetailPage.tsx
 msgid "已换成只留主体的这张，出片按它走（卡面封面不跟着换）"
 msgstr "Replaced with the subject-only image. Videos will use it (the card cover stays as it was)."
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "已接上授权素材，存卡时一并绑定"
+msgstr "Authorized asset linked; it will be bound when you save the card"
 
 #. placeholder {0}: inside.length
 #: src/components/blockout/VisionFramePicker.tsx
@@ -1784,6 +2028,10 @@ msgstr "Frame {0}"
 msgid "广场上还没有人发布技能——发布你的第一条？"
 msgstr "No one has published a skill yet. Publish the first one?"
 
+#: src/components/VideoCardAnnotator.tsx
+msgid "建组失败：登录态可能已经失效（卡都已各自存进卡片库，不会丢）"
+msgstr "Couldn't create the deck: your login may have expired (each card is already saved in your library, so nothing is lost)"
+
 #: src/components/DownloadSheet.tsx
 msgid "开始保存{totalLabel}"
 msgstr "Start saving{totalLabel}"
@@ -1819,6 +2067,22 @@ msgstr "Current cover (reference)"
 #: src/components/CoverPicker.tsx
 msgid "当前封面不可作参考图"
 msgstr "The current cover can't be used as a reference"
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "录制中…（实际播这一段）"
+msgstr "Recording… (playing this clip)"
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "录制中途被系统暂停了（多半是切到了后台）——回到这一页重新点一次「录这一段」"
+msgstr "Recording was paused by the system (most likely the app went to the background) — come back to this page and tap “Record this clip” again"
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "形象图没画成：{why}——原片裁剪没受影响，可以直接存或再试一次"
+msgstr "Character images weren't generated: {why} — your original crop is unaffected, so you can save it as is or try again"
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "形象图没画成（没扣钱）"
+msgstr "Character images weren't generated (no charge)"
 
 #: src/components/MaterialSheet.tsx
 msgid "往下拖出窗口，交给她"
@@ -1901,6 +2165,10 @@ msgstr "My skills (tap one to fill the input)"
 #: src/components/TemplateShelf.tsx
 msgid "我的模板 {0}"
 msgstr "My templates {0}"
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "我确认已依法取得画面中人物对使用其肖像生成内容的同意，相应责任由我承担"
+msgstr "I confirm I have lawfully obtained consent from the person in the picture to generate content with their likeness, and I take responsibility for it"
 
 #: src/components/CoverPicker.tsx
 msgid "或从各段画面中选择："
@@ -2078,6 +2346,10 @@ msgstr "Frames are picked automatically from this selection's length: currently 
 msgid "换一句"
 msgstr "Another sentence"
 
+#: src/components/VideoCardAnnotator.tsx
+msgid "换一套"
+msgstr "Change"
+
 #. placeholder {0}: ask.label
 #: src/components/flow/TierRow.tsx
 msgid "换到「{0}」档会有这些变化："
@@ -2195,9 +2467,17 @@ msgstr "The player isn't ready yet. Wait a moment, then mark this frame."
 msgid "收下了 {n} 张"
 msgstr "{n, plural, one {Got # card} other {Got # cards}}"
 
+#: src/components/VideoCardAnnotator.tsx
+msgid "收起"
+msgstr "Collapse"
+
 #: src/components/TemplateShelf.tsx
 msgid "收起 ▴"
 msgstr "Collapse ▴"
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "改"
+msgstr "Edit"
 
 #: src/components/flow/ScriptSkillSheet.tsx
 msgid "改剧本重拆"
@@ -2232,6 +2512,15 @@ msgstr "File format: {0}"
 msgid "新"
 msgstr "New"
 
+#: src/components/VideoCardAnnotator.tsx
+msgid "方案"
+msgstr "Scheme"
+
+#. placeholder {0}: schemeOf(schemeId)?.title ?? defaultScheme().title
+#: src/components/VideoCardAnnotator.tsx
+msgid "方案：{0}"
+msgstr "Scheme: {0}"
+
 #. placeholder {0}: usable[0].id
 #: src/components/PortraitAuthPanel.tsx
 msgid "方舟回了一份素材，但 ID 形状不认识（{0}）——用「填 asset ID」那条路确认一下。"
@@ -2245,6 +2534,10 @@ msgstr "Ark gave no reason"
 #: src/components/PortraitAuthPanel.tsx
 msgid "方舟里有 {0} 份已授权素材，点一份接上："
 msgstr "Ark has {0, plural, one {# authorized asset} other {# authorized assets}}. Tap one to link it:"
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "无脸"
+msgstr "Faceless"
 
 #: src/components/blockout/VisionFramePicker.tsx
 msgid "无预览"
@@ -2330,6 +2623,10 @@ msgstr "Server default"
 msgid "未出片的段直接删，已出片的段不代删"
 msgstr "Deletes segments without video; won't delete ones that have video"
 
+#: src/components/VideoCardAnnotator.tsx
+msgid "未命名"
+msgstr "Untitled"
+
 #: src/components/DraftTitle.tsx
 msgid "未命名工程"
 msgstr "Untitled project"
@@ -2353,6 +2650,16 @@ msgstr "Recorded by me reading along"
 #: src/utils/nativeCamera.ts
 msgid "本机没有系统相机（Android 11 起只认预装相机）——改用「上传本地图片」"
 msgstr "No system camera on this device (Android 11+ only allows the preinstalled camera). Use “Upload from device” instead."
+
+#. placeholder {0}: saved.length
+#: src/components/VideoCardAnnotator.tsx
+msgid "本次已存 {0} 张（最后一步打包成卡组）"
+msgstr "Saved this session: {0, plural, one {# card} other {# cards}} (packed into a deck at the last step)"
+
+#. placeholder {0}: saved.length
+#: src/components/VideoCardAnnotator.tsx
+msgid "本次已存 {0} 张（已在「我的卡片」里）"
+msgstr "Saved this session: {0, plural, one {# card} other {# cards}} (already in “My cards”)"
 
 #. placeholder {0}: modelLabel(tierOf(node.videoTier).model)
 #: src/components/flow/SegSettings.tsx
@@ -2481,6 +2788,10 @@ msgstr "Fetching the latest role slots…"
 msgid "正在取回…"
 msgstr "Recovering…"
 
+#: src/components/VideoCardAnnotator.tsx
+msgid "正在取声音：找到<0>只有这个人在说话</0>的一段，先定起点再定终点（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）。录制会实际播一遍。"
+msgstr "Capturing voice: find a stretch where <0>only this person is speaking</0>, set the start and then the end ({VOICE_MIN_SEC}–{VOICE_MAX_SEC}s). Recording plays the clip through once."
+
 #: src/components/blockout/VisionFramePicker.tsx
 msgid "正在取这一帧…"
 msgstr "Grabbing this frame…"
@@ -2492,6 +2803,10 @@ msgstr "Getting this segment's video address…"
 #: src/components/PortraitAuthPanel.tsx
 msgid "正在查你之前有没有授权过…"
 msgstr "Checking whether you've authorized before…"
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "正在标「脸部特写」：拖到看得清脸的一帧，圈住面部"
+msgstr "Marking the face close-up: drag to a frame where the face is clear, then circle the face"
 
 #: src/components/AuthPending.tsx
 msgid "正在确认登录状态…"
@@ -2551,6 +2866,10 @@ msgstr "No sound captured. Check whether another app is using the microphone."
 msgid "没抓到足够的声音——检查麦克风是不是被别的 App 占着。"
 msgstr "Not enough sound captured. Check whether another app is using the microphone."
 
+#: src/components/VideoCardAnnotator.tsx
+msgid "没抓到足够的声音——这段视频可能没有音轨，换一段试试"
+msgstr "Not enough sound was captured — this video may have no audio track; try another clip"
+
 #: src/pages/CustomCardPage.tsx
 msgid "没接到照片：相机那边可能没存下来——再拍一次，或选「上传本地图片」"
 msgstr "No photo came back — the camera may not have saved it. Try again, or choose “Upload from device”."
@@ -2578,6 +2897,14 @@ msgstr "Couldn't switch the language. Please try again."
 #: src/components/CommentDelete.tsx
 msgid "没能删掉，请重试"
 msgstr "Couldn't delete. Try again"
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "没能存进你的卡片库：登录态可能已经失效。重新登录后再点一次（圈好的图还在）。"
+msgstr "Couldn't save to your card library: your login may have expired. Log in again and tap once more (your selections are still here)."
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "没能存进卡片库：登录态可能已失效"
+msgstr "Couldn't save to the card library: login may have expired"
 
 #. placeholder {0}: e instanceof Error ? e.message : String(e)
 #: src/components/blockout/VideoStage.tsx
@@ -2764,6 +3091,10 @@ msgstr "The picture isn't ready yet. Wait until the video shows, then tap again"
 msgid "画面里怎么认出这个人偶（这句话会进出片提示词）"
 msgstr "How to spot this mannequin in the picture (this sentence goes into the render prompt)"
 
+#: src/components/VideoCardAnnotator.tsx
+msgid "画面里是真实人物（真人）"
+msgstr "A real person is in the picture"
+
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "画面里还有人没列出来，加一个"
 msgstr "Someone in the picture isn't listed — add one"
@@ -2830,6 +3161,10 @@ msgstr "Couldn't save the camera photo (storage may be full)"
 msgid "看首页遮挡"
 msgstr "Show feed overlay"
 
+#: src/components/VideoCardAnnotator.tsx
+msgid "真人素材出片要过供应商的内容审核，也受深度合成相关法规约束——用这张卡出片可能被拒单或加审。 拿别人的脸生成内容，必须先取得他本人的同意。"
+msgstr "Videos with real people go through the provider's content review and are subject to deep-synthesis regulations — videos using this card may be rejected or get extra review. To generate content with someone else's face, you must first get their consent."
+
 #: src/components/flow/SkillPanel.tsx
 msgid "真删？"
 msgstr "Really delete?"
@@ -2866,6 +3201,14 @@ msgstr "Confirm delete"
 msgid "确认卡面"
 msgstr "Confirm card image"
 
+#: src/components/VideoCardAnnotator.tsx
+msgid "示例图没存上：{why}"
+msgstr "Example images weren't saved: {why}"
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "视频不上传、不花 token：拖到某一帧，圈出要的人或物，裁出来的画面就是这张卡的参考图。"
+msgstr "The video isn't uploaded and costs no tokens: drag to a frame and circle the person or object you want — the cropped image becomes this card's reference image."
+
 #: src/components/CoverPicker.tsx
 msgid "视频加载超时，稍后再试"
 msgstr "The video took too long to load — try again later"
@@ -2885,6 +3228,10 @@ msgstr "Couldn't grab frames from the video"
 #: src/components/videoFrames.ts
 msgid "视频抽帧超时"
 msgstr "Grabbing frames from the video timed out"
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "视频提取卡组"
+msgstr "Deck from video"
 
 #: src/components/CoverPicker.tsx
 msgid "视频未就绪"
@@ -3030,6 +3377,15 @@ msgstr "Asset library"
 msgid "素材库里还没有可挂的人物卡"
 msgstr "No character cards in your library to attach yet"
 
+#. placeholder {0}: vEnd.toFixed(1)
+#: src/components/VideoCardAnnotator.tsx
+msgid "终点 {0}s"
+msgstr "End {0}s"
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "终点 ＝当前帧"
+msgstr "End = current frame"
+
 #: src/components/PortraitAuthPanel.tsx
 msgid "绑定"
 msgstr "Link"
@@ -3067,6 +3423,14 @@ msgstr "Zoom"
 #: src/components/flow/SegPlayer.tsx
 msgid "网络不好，或者这条链接已经过期（隔天打开的草稿常见）"
 msgstr "Poor network, or the link has expired (common for drafts opened the next day)"
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "网络问题"
+msgstr "network problem"
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "脸部特写"
+msgstr "Face close-up"
 
 #: src/components/blockout/BoxFramePicker.tsx
 #: src/components/blockout/VisionFramePicker.tsx
@@ -3237,6 +3601,15 @@ msgstr "Adjust first and last frames"
 #: src/components/blockout/TrimBar.tsx
 msgid "起点"
 msgstr "Start"
+
+#. placeholder {0}: vStart.toFixed(1)
+#: src/components/VideoCardAnnotator.tsx
+msgid "起点 {0}s"
+msgstr "Start {0}s"
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "起点 ＝当前帧"
+msgstr "Start = current frame"
 
 #: src/components/support/VoiceMarket.tsx
 msgid "跟随"
@@ -3701,6 +4074,10 @@ msgstr "Exit remake"
 msgid "退回普通段"
 msgstr "Back to a normal segment"
 
+#: src/components/VideoCardAnnotator.tsx
+msgid "选一段本地视频"
+msgstr "Choose a video on this device"
+
 #: src/components/AvatarPicker.tsx
 msgid "选个头像"
 msgstr "Choose an avatar"
@@ -3736,6 +4113,10 @@ msgstr "Prop card · {slotLabel} · {title}"
 #: src/components/DraftSheet.tsx
 msgid "重命名"
 msgstr "Rename"
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "重圈"
+msgstr "Reselect"
 
 #: src/components/PhotoSubjectPicker.tsx
 msgid "重描"

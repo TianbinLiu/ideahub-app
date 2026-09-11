@@ -11,6 +11,7 @@
 //   存卡走 data/account.addCards（dataURL 转永久地址是它的活，铁律六），建组走 createDeck。
 // ★ 人物卡的"定段取声音样本"是阶段 2（等参考音频音色跟随的实听结论），本组件先留位。
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { AI_REAL, portraitViews } from "../ai";
 import { addCards, bindCardAsset, canAfford, createDeck, spendTokens } from "../data/account";
 import { fmtTokens, schemeCost } from "../data/economy";
@@ -106,9 +107,12 @@ let parked: {
 } | null = null;
 
 export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: boolean; onClose: () => void }) {
+  const { t } = useLingui();
+  const sep = t({ message: "、", comment: "列举几个名字时的分隔符" });
   const [url, setUrl] = useState<string | null>(null);
   const [dur, setDur] = useState(0);
-  const [t, setT] = useState(0);
+  /** 播放头（秒）。原来叫 t，与 useLingui 的 t 撞名，改叫 cur */
+  const [cur, setCur] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [type, setType] = useState<CardType | null>(null);
   const [tool, setTool] = useState<Tool>("circle");
@@ -408,11 +412,11 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
       capOn.current = false;
       // ★ 超时不是"录好了"：抓到的 PCM 是半截的。说清楚再退出，别让用户拿着半句话去合成
       //   （下面那道"够不够 VOICE_MIN_SEC"的闸只挡得住太短的，挡不住"刚好够但被截断"）
-      if (timedOut) throw new Error("录制中途被系统暂停了（多半是切到了后台）——回到这一页重新点一次「录这一段」");
+      if (timedOut) throw new Error(t`录制中途被系统暂停了（多半是切到了后台）——回到这一页重新点一次「录这一段」`);
       v.pause();
       const rate = graph.current.ctx.sampleRate;
       const total = pcm.current.reduce((n, a) => n + a.length, 0);
-      if (total < rate * VOICE_MIN_SEC * 0.8) throw new Error("没抓到足够的声音——这段视频可能没有音轨，换一段试试");
+      if (total < rate * VOICE_MIN_SEC * 0.8) throw new Error(t`没抓到足够的声音——这段视频可能没有音轨，换一段试试`);
       const keep = Math.min(total, Math.round(secs * rate));
       const flat = new Float32Array(keep);
       let off = 0;
@@ -427,7 +431,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
       setPendingVoice({
         dataUrl,
         durationSec: Math.round(secs * 10) / 10,
-        note: `取自原视频 ${vStart.toFixed(1)}–${vEnd.toFixed(1)}s`,
+        note: t`取自原视频 ${vStart.toFixed(1)}–${vEnd.toFixed(1)}s`,
       });
       setVoicePick(false);
     } catch (e) {
@@ -441,7 +445,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
   function confirmCrop() {
     const dataUrl = cropNow();
     if (!dataUrl) {
-      setErr("圈出来的范围太小（参考图至少要 300px 宽）——再拖大一点");
+      setErr(t`圈出来的范围太小（参考图至少要 300px 宽）——再拖大一点`);
       return;
     }
     setErr("");
@@ -452,7 +456,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
     // ★ V3：背景卡的图 role 记成 display——allocateRefs 从不分配它（types.CardView.role 的 ★★），
     //   这张卡以文字（简介 / 出片句）参与出片
     const role: CardRole = type === "background" ? "display" : type === "character" && facePass ? "face" : "primary";
-    const tag = role === "face" ? "脸部特写" : slotLabel(type!, "body");
+    const tag = role === "face" ? t`脸部特写` : slotLabel(type!, "body");
     setCrops((c) => [...c.filter((x) => x.role !== role), { role, tag, dataUrl }]);
     setShape(null);
     setFacePass(false);
@@ -473,13 +477,14 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
     const scheme = schemeOf(schemeId) ?? defaultScheme();
     const price = schemeCost(scheme.slots);
     if (AI_REAL && !canAfford(price)) {
-      setErr(`「${scheme.title}」要炼 ${scheme.slots.filter(isGenerated).length} 张图、约 ${fmtTokens(price)} token，余额不够——去「我的」页充值`);
+      const imgs = scheme.slots.filter(isGenerated).length;
+      setErr(t`「${scheme.title}」要炼 ${imgs} 张图、约 ${fmtTokens(price)} token，余额不够——去「我的」页充值`);
       return;
     }
     setErr("");
     const raw = crops;
     // ★ 登记成后台任务：窗关了也照画；画完窗不在就把图停进 parked，胶囊叫人回来存卡
-    const job = startJob({ kind: "card-ai", title: "AI 生成图位", page: "/workshop", route: "/workshop", progress: "准备中…" });
+    const job = startJob({ kind: "card-ai", title: t`AI 生成图位`, page: "/workshop", route: "/workshop", progress: t`准备中…` });
     try {
       const body = raw.find((c) => c.role === "primary") ?? raw[0];
       const face = raw.find((c) => c.role === "face");
@@ -500,16 +505,17 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
       if (!mountedRef.current) {
         // 窗已经关了：图停在模块里，下次打开这一窗接回来（见 parked 的 ★）
         parked = { crops: made, type: type ?? "character", name, summary, schemeId, realPerson, consentOk, pendingAsset, pendingVoice, at: Date.now() };
-        job.done({ msg: "AI 图位生成好了——回工坊点「从视频提取」接着存卡", route: "/workshop" });
+        job.done({ msg: t`AI 图位生成好了——回工坊点「从视频提取」接着存卡`, route: "/workshop" });
         return;
       }
       setRawCrops(raw);
       setCrops(made);
       job.done({ silent: true });
     } catch (e) {
-      job.fail("形象图没画成（没扣钱）", "/workshop");
+      job.fail(t`形象图没画成（没扣钱）`, "/workshop");
       // 失败不动原 crops（原片裁剪照旧能存卡），但必须整句说清（铁律八）
-      setErr(`形象图没画成：${(e instanceof Error ? e.message : String(e)).slice(0, 120)}——原片裁剪没受影响，可以直接存或再试一次`);
+      const why = (e instanceof Error ? e.message : String(e)).slice(0, 120);
+      setErr(t`形象图没画成：${why}——原片裁剪没受影响，可以直接存或再试一次`);
     } finally {
       setBusy("");
     }
@@ -528,13 +534,14 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
       return;
     }
     setErr("");
-    setBusy("存示例图…");
+    setBusy(t`存示例图…`);
     try {
       const picks = crops.slice(0, SCHEME_EXAMPLE_MAX);
       const thumbs = await Promise.all(picks.map((c) => shrinkDataUrl(c.dataUrl, SCHEME_EXAMPLE_MAX_W)));
       setSchemeExamples(sc.id, thumbs);
     } catch (e) {
-      setErr(`示例图没存上：${(e instanceof Error ? e.message : String(e)).slice(0, 80)}`);
+      const why = (e instanceof Error ? e.message : String(e)).slice(0, 80);
+      setErr(t`示例图没存上：${why}`);
     } finally {
       setBusy("");
     }
@@ -543,19 +550,19 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
   async function saveCard() {
     if (!type || crops.length === 0 || busy) return;
     if (!name.trim()) {
-      setErr("先给这张卡起个名字");
+      setErr(t`先给这张卡起个名字`);
       return;
     }
     // 真人声明只属于人物卡：换卡种重圈后残留的勾不算数（UI 上那块也只在人物卡时渲染）
     const declareReal = type === "character" && realPerson;
     if (declareReal && !consentOk) {
-      setErr("勾了「画面里是真实人物」，就得同时勾上下面那条肖像同意的确认——没有本人同意，真人素材不能入库。取消真人勾选，或者勾上确认再存。");
+      setErr(t`勾了「画面里是真实人物」，就得同时勾上下面那条肖像同意的确认——没有本人同意，真人素材不能入库。取消真人勾选，或者勾上确认再存。`);
       return;
     }
     setErr("");
-    setBusy("存卡中…");
+    setBusy(t`存卡中…`);
     // ★ 登记成后台任务：远端模式要串行传几张图，窗关了也照存（卡进的是账号库，与窗无关）
-    const job = startJob({ kind: "card-mint", title: "存卡", page: "/workshop", route: "/workshop", progress: "存卡中…" });
+    const job = startJob({ kind: "card-mint", title: t`存卡`, page: "/workshop", route: "/workshop", progress: t`存卡中…` });
     try {
       // ★★ `kind` 由 role 反推**并且必须照写**（types.roleToKind）：它是跨仓冻结的三值，
       //   老服务端/老客户端只认它 —— 不写的话那边拿到的是个非法 view。role/tag 是新增位。
@@ -570,6 +577,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
         type,
         name: name.trim().slice(0, NAME_MAX),
         // ★ 兜底简介存进卡片内容、之后会进出片提示词（segmentGen.materialText）：卡种名读冻结的 CARD_TYPE_PROMPT
+        // i18n-ignore-next-line: 兜底简介会进出片提示词（segmentGen.materialText），与冻结的 CARD_TYPE_PROMPT 一样只说中文
         summary: summary.trim().slice(0, SUMMARY_MAX) || `从视频里圈选提取（${CARD_TYPE_PROMPT[type]}）`,
         cover: crops[0].dataUrl,
         ...(views.length > 1 ? { views } : {}),
@@ -579,13 +587,18 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
       };
       const r = await addCards([card]);
       if (r.added.length === 0) {
-        setErr("没能存进你的卡片库：登录态可能已经失效。重新登录后再点一次（圈好的图还在）。");
-        job.fail("没能存进卡片库：登录态可能已失效", "/workshop");
+        setErr(t`没能存进你的卡片库：登录态可能已经失效。重新登录后再点一次（圈好的图还在）。`);
+        job.fail(t`没能存进卡片库：登录态可能已失效`, "/workshop");
         return;
       }
       // ★ 与 CustomCardPage 同一套诚实口径：unsynced = 卡没到服务端，冷启动会整张消失
-      if (!r.synced) setErr(`卡存在本机了，但还没同步到服务端（${r.reason ?? "网络问题"}）——网络恢复前别退出登录，否则会丢`);
-      else if (r.lostViews.length > 0) setErr(`卡存好了，但 ${r.lostViews.join("、")} 没传上——去卡片详情页补挂`);
+      if (!r.synced) {
+        const reason = r.reason ?? t`网络问题`;
+        setErr(t`卡存在本机了，但还没同步到服务端（${reason}）——网络恢复前别退出登录，否则会丢`);
+      } else if (r.lostViews.length > 0) {
+        const lost = r.lostViews.join(sep);
+        setErr(t`卡存好了，但 ${lost} 没传上——去卡片详情页补挂`);
+      }
       // 声音样本进本机侧库（不进 Card——理由见 data/cardVoice 顶注）。addCards 成了才写：
       // 卡都没入库，样本挂上去就是永远读不到的孤儿
       if (type === "character" && pendingVoice) {
@@ -601,7 +614,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
           scope: "private",
           note: pendingAsset.note,
         });
-        if (!bound.stored) setErr("卡铸好了，但肖像授权绑定没存住（本机存储写入失败）——去卡详情页把授权再做一次，否则出片时会被拒。");
+        if (!bound.stored) setErr(t`卡铸好了，但肖像授权绑定没存住（本机存储写入失败）——去卡详情页把授权再做一次，否则出片时会被拒。`);
       }
       setSaved((s) => [...s, card]);
       setCrops([]);
@@ -618,11 +631,11 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
       setRealPerson(false);
       setConsentOk(false);
       setPendingAsset(null);
-      job.done({ msg: `「${card.name}」已存进卡片库`, route: "/workshop", silent: mountedRef.current });
+      job.done({ msg: t`「${card.name}」已存进卡片库`, route: "/workshop", silent: mountedRef.current });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      setErr(`存卡没成：${msg.slice(0, 120)}`);
-      job.fail("存卡没成，回去看原因", "/workshop");
+      setErr(t`存卡没成：${msg.slice(0, 120)}`);
+      job.fail(t`存卡没成，回去看原因`, "/workshop");
     } finally {
       setBusy("");
     }
@@ -630,12 +643,15 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
 
   function finishDeck() {
     if (saved.length === 0) return;
-    const d = createDeck(deckName.trim() || "视频提取卡组", saved.map((c) => c.id));
+    const d = createDeck(deckName.trim() || t`视频提取卡组`, saved.map((c) => c.id));
     setDeckDone(d ? d.name : null);
-    if (!d) setErr("建组失败：登录态可能已经失效（卡都已各自存进卡片库，不会丢）");
+    if (!d) setErr(t`建组失败：登录态可能已经失效（卡都已各自存进卡片库，不会丢）`);
   }
 
   const v = videoRef.current;
+  /** 选中那套方案的名字、要炼几张图：拼句之前先取成值（两句按钮 / 回执都读它们） */
+  const pickedTitle = schemeOf(schemeId)?.title ?? t`方案`;
+  const portraitCount = schemeOf(schemeId)?.slots.filter(isGenerated).length ?? 2;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end bg-black/60" onClick={onClose}>
@@ -645,7 +661,9 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
         style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
       >
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-sm font-bold text-slate-100">🎯 从视频提取{deckMode ? "卡组" : "卡片"}</h3>
+          <h3 className="text-sm font-bold text-slate-100">
+            {deckMode ? <Trans>🎯 从视频提取卡组</Trans> : <Trans>🎯 从视频提取卡片</Trans>}
+          </h3>
           <CloseButton chip="sm" size={13} align="end" onClick={onClose} />
         </div>
 
@@ -669,11 +687,11 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
         {deckDone !== null ? (
           <div className="space-y-3">
             <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3">
-              <div className="text-sm font-bold text-emerald-300">已建组「{deckDone}」</div>
-              <p className="mt-1 text-xs text-slate-300">{saved.length} 张卡已入库，在「我的卡组」里能看到。</p>
+              <div className="text-sm font-bold text-emerald-300"><Trans>已建组「{deckDone}」</Trans></div>
+              <p className="mt-1 text-xs text-slate-300"><Trans>{saved.length} 张卡已入库，在「我的卡组」里能看到。</Trans></p>
             </div>
             <button onClick={onClose} className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink">
-              完成
+              <Trans>完成</Trans>
             </button>
           </div>
         ) : !url && !(restored && crops.length > 0) ? (
@@ -683,10 +701,10 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
               className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-slate-600 py-8 text-sm text-slate-300"
             >
               <Icon name="plus" size={18} />
-              选一段本地视频
+              <Trans>选一段本地视频</Trans>
             </button>
             <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
-              视频不上传、不花 token：拖到某一帧，圈出要的人或物，裁出来的画面就是这张卡的参考图。
+              <Trans>视频不上传、不花 token：拖到某一帧，圈出要的人或物，裁出来的画面就是这张卡的参考图。</Trans>
             </p>
           </>
         ) : crops.length > 0 && !facePass && !voicePick ? (
@@ -695,7 +713,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
             <div className="flex gap-2">
               {crops.map((c, i) => (
                 <div key={`${c.role}:${i}`} className="w-24 flex-none">
-                  <TarotCard cover={c.dataUrl} title={name || "未命名"} sub={c.tag} type={type!} />
+                  <TarotCard cover={c.dataUrl} title={name || t`未命名`} sub={c.tag} type={type!} />
                 </div>
               ))}
             </div>
@@ -703,14 +721,14 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
               value={name}
               onChange={(e) => setName(e.target.value)}
               maxLength={NAME_MAX}
-              placeholder={`名字（必填，≤${NAME_MAX} 字）`}
+              placeholder={t`名字（必填，≤${NAME_MAX} 字）`}
               className="w-full rounded-lg border border-slate-700 bg-black/30 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
             />
             <input
               value={summary}
               onChange={(e) => setSummary(e.target.value)}
               maxLength={SUMMARY_MAX}
-              placeholder="一句简介（可留空）"
+              placeholder={t`一句简介（可留空）`}
               className="w-full rounded-lg border border-slate-700 bg-black/30 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
             />
             {/* 真人声明：像不像真人机器判不准，只能让圈图的人自己表态。勾了就展开协议区，
@@ -739,13 +757,15 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                     }}
                     className="h-4 w-4 flex-none accent-brand"
                   />
-                  画面里是真实人物（真人）
+                  <Trans>画面里是真实人物（真人）</Trans>
                 </label>
                 {realPerson && (
                   <div className="mt-2 space-y-1.5">
                     <p className="text-[10px] leading-relaxed text-slate-400">
-                      真人素材出片要过供应商的内容审核，也受深度合成相关法规约束——用这张卡出片可能被拒单或加审。
-                      拿别人的脸生成内容，必须先取得他本人的同意。
+                      <Trans>
+                        真人素材出片要过供应商的内容审核，也受深度合成相关法规约束——用这张卡出片可能被拒单或加审。
+                        拿别人的脸生成内容，必须先取得他本人的同意。
+                      </Trans>
                     </p>
                     <label className="flex items-start gap-2 text-[11px] leading-relaxed text-slate-300">
                       <input
@@ -757,24 +777,26 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                         }}
                         className="mt-0.5 h-4 w-4 flex-none accent-brand"
                       />
-                      我确认已依法取得画面中人物对使用其肖像生成内容的同意，相应责任由我承担
+                      <Trans>我确认已依法取得画面中人物对使用其肖像生成内容的同意，相应责任由我承担</Trans>
                     </label>
                     {/* 授权挪进造卡流程（2026-08-28 拍板）：勾了真人当场就能把肖像授权做掉，
                         不必等卡存完再去详情页找。拿到的 assetId 攒在 pendingAsset，
                         存卡成功才落 cardAsset 侧库（与声音样本同一条规则）。 */}
                     <div className="mt-1 rounded-lg border border-slate-700/70 bg-ink/30 p-2">
                       <p className="mb-1.5 text-[10px] leading-relaxed text-slate-400">
-                        🪪 <b className="text-slate-300">方舟可信素材</b>（真人出片的合规通道）：「高清」「电影级」档
-                        <b className="text-slate-300">不收直接上传的真人照片</b>，只收本人授权过的素材。现在就能做：
+                        <Trans>
+                          🪪 <b className="text-slate-300">方舟可信素材</b>（真人出片的合规通道）：「高清」「电影级」档
+                          <b className="text-slate-300">不收直接上传的真人照片</b>，只收本人授权过的素材。现在就能做：
+                        </Trans>
                       </p>
                       {pendingAsset ? (
                         <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5">
                           <span className="min-w-0">
-                            <span className="block text-[10px] text-emerald-300">已接上授权素材，存卡时一并绑定</span>
+                            <span className="block text-[10px] text-emerald-300"><Trans>已接上授权素材，存卡时一并绑定</Trans></span>
                             <span className="block truncate font-mono text-[9px] text-emerald-300">{pendingAsset.assetId}</span>
                           </span>
                           <button onClick={() => setPendingAsset(null)} className="flex-none text-[10px] text-slate-500">
-                            取消
+                            <Trans>取消</Trans>
                           </button>
                         </div>
                       ) : (
@@ -794,14 +816,14 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                 }}
                 className="w-full rounded-xl border border-slate-600 py-2.5 text-xs text-slate-300"
               >
-                ＋ 再标一张脸部特写（可选，出片时锁面部特征更稳）
+                <Trans>＋ 再标一张脸部特写（可选，出片时锁面部特征更稳）</Trans>
               </button>
             )}
             {type === "character" &&
               (rawCrops ? (
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2">
-                    <span className="text-[11px] text-emerald-300">✨ 已按「{schemeOf(schemeId)?.title ?? "方案"}」炼好形象图</span>
+                    <span className="text-[11px] text-emerald-300"><Trans>✨ 已按「{pickedTitle}」炼好形象图</Trans></span>
                     <button
                       onClick={() => {
                         setCrops(rawCrops);
@@ -810,7 +832,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                       disabled={!!busy}
                       className="flex-none text-[11px] text-slate-400 disabled:opacity-40"
                     >
-                      ↺ 用回原片
+                      <Trans>↺ 用回原片</Trans>
                     </button>
                   </div>
                   {/* 「存成方案示例图」：只对**自己的**方案、且不是真人素材时才给
@@ -830,7 +852,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                         disabled={!!busy}
                         className="w-full rounded-full border border-slate-700 py-1.5 text-[10px] text-slate-400 disabled:opacity-40"
                       >
-                        {sc.examples?.length ? "🖼 更新这套方案的示例图" : "🖼 把这次的产出存成方案示例图"}
+                        {sc.examples?.length ? t`🖼 更新这套方案的示例图` : t`🖼 把这次的产出存成方案示例图`}
                       </button>
                     );
                   })()}
@@ -847,12 +869,16 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                   >
                     <span className="min-w-0">
                       <span className="block truncate text-[11px] font-semibold text-slate-200">
-                        方案：{schemeOf(schemeId)?.title ?? defaultScheme().title}
-                        {schemeOf(schemeId)?.faceless && <span className="ml-1 text-emerald-300">· 无脸</span>}
+                        <Trans>方案：{schemeOf(schemeId)?.title ?? defaultScheme().title}</Trans>
+                        {schemeOf(schemeId)?.faceless && (
+                          <span className="ml-1 text-emerald-300">
+                            <Trans>· 无脸</Trans>
+                          </span>
+                        )}
                       </span>
                       <span className="block truncate text-[10px] text-slate-500">{schemeOf(schemeId)?.intro}</span>
                     </span>
-                    <span className="ml-2 flex-none text-[10px] text-slate-500">{schemeOpen ? "收起" : "换一套"}</span>
+                    <span className="ml-2 flex-none text-[10px] text-slate-500">{schemeOpen ? t`收起` : t`换一套`}</span>
                   </button>
                   {schemeOpen && !!schemeMarketErr() && (
                     <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-2 py-1 text-[10px] leading-relaxed text-rose-300">
@@ -879,7 +905,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                                 理由见 docs/card-prompt-scheme-market-design.md §B2 */}
                             {sc.faceless && (
                               <span className="flex-none rounded-full px-1.5 py-0.5 bg-emerald-500/15 text-[9px] text-emerald-300">
-                                无脸
+                                <Trans>无脸</Trans>
                               </span>
                             )}
                           </span>
@@ -900,7 +926,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                           )}
                           <span className="mt-0.5 block text-[9px] text-slate-600">
                             {sc.slots.map((x) => x.tag).join(" · ")}
-                            {AI_REAL ? ` · 约 ${fmtTokens(schemeCost(sc.slots))}` : " · 演示"}
+                            {AI_REAL ? t` · 约 ${fmtTokens(schemeCost(sc.slots))}` : t` · 演示`}
                           </span>
                           {/* 每一套都能拿去改：内置的会另存成自己的一份（内置不可改） */}
                           <span className="mt-1 flex gap-2">
@@ -914,7 +940,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                               onKeyDown={(e) => e.key === "Enter" && setSchemeEdit({ source: sc })}
                               className="text-[9px] text-slate-500 underline underline-offset-2"
                             >
-                              {sc.builtin ? "另存为我的" : "改"}
+                              {sc.builtin ? t`另存为我的` : t`改`}
                             </span>
                             {!sc.builtin && schemeMarketOn() && (
                               <span
@@ -926,7 +952,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                                 }}
                                 className="text-[9px] text-sky-300/90 underline underline-offset-2"
                               >
-                                {sc.published ? "下架" : "发布到市场"}
+                                {sc.published ? t`下架` : t`发布到市场`}
                               </span>
                             )}
                             {!sc.builtin && (
@@ -942,7 +968,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                                 onKeyDown={(e) => e.key === "Enter" && removeScheme(sc.id)}
                                 className="text-[9px] text-rose-400/80 underline underline-offset-2"
                               >
-                                删
+                                <Trans>删</Trans>
                               </span>
                             )}
                           </span>
@@ -953,7 +979,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                           onClick={() => setSchemeEdit({})}
                           className="flex-1 rounded-lg border border-dashed border-slate-600 px-2 py-1.5 text-[10px] text-slate-400"
                         >
-                          ＋ 自建一套
+                          <Trans>＋ 自建一套</Trans>
                         </button>
                         {/* ★ 没连服务端就整个不显示，而不是摆一颗点不动的按钮 */}
                         {schemeMarketOn() && (
@@ -961,7 +987,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                             onClick={() => setMarketOpen(true)}
                             className="flex-1 rounded-full border border-slate-600 px-2 py-1.5 text-[10px] text-slate-300"
                           >
-                            🛒 逛方案市场
+                            <Trans>🛒 逛方案市场</Trans>
                           </button>
                         )}
                       </div>
@@ -973,9 +999,9 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                     className="w-full rounded-xl border border-brand/50 bg-brand/10 py-2.5 text-xs font-semibold text-brand disabled:opacity-40"
                   >
                     {busy ||
-                      `✨ 按这套方案炼形象图（${schemeOf(schemeId)?.slots.filter(isGenerated).length ?? 2} 张${
-                        AI_REAL ? ` · 约 ${fmtTokens(schemeCost((schemeOf(schemeId) ?? defaultScheme()).slots))}` : " · 演示"
-                      }）`}
+                      (AI_REAL
+                        ? t`✨ 按这套方案炼形象图（${portraitCount} 张 · 约 ${fmtTokens(schemeCost((schemeOf(schemeId) ?? defaultScheme()).slots))}）`
+                        : t`✨ 按这套方案炼形象图（${portraitCount} 张 · 演示）`)}
                   </button>
                 </div>
               ))}
@@ -984,17 +1010,19 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                 <div className="rounded-lg border border-sky-500/40 bg-sky-500/10 p-2.5">
                   <div className="mb-1 flex items-center justify-between text-[11px] text-sky-200">
                     <span>
-                      🔊 声音样本 {pendingVoice.durationSec}s · {pendingVoice.note}
+                      <Trans>🔊 声音样本 {pendingVoice.durationSec}s · {pendingVoice.note}</Trans>
                     </span>
                     <button onClick={() => setPendingVoice(null)} className="text-slate-400">
-                      去掉
+                      <Trans>去掉</Trans>
                     </button>
                   </div>
                   {/* 试听是必经的把关点：段里没人说话/全是 BGM 时，只有耳朵能发现 */}
                   <audio controls src={pendingVoice.dataUrl} className="h-8 w-full" />
                   <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
-                    先听一遍：要的是<b className="font-bold text-slate-300">这个人说话</b>的干净片段。出片走「高清/电影级」且台词写在引号里时，
-                    会把这段声音发给 AI 作音色参考（免费）。样本只存在这台设备上，分享卡片不带它。
+                    <Trans>
+                      先听一遍：要的是<b className="font-bold text-slate-300">这个人说话</b>的干净片段。出片走「高清/电影级」且台词写在引号里时，
+                      会把这段声音发给 AI 作音色参考（免费）。样本只存在这台设备上，分享卡片不带它。
+                    </Trans>
                   </p>
                 </div>
               ) : (
@@ -1007,7 +1035,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                   }}
                   className="w-full rounded-xl border border-slate-600 py-2.5 text-xs text-slate-300"
                 >
-                  🎤 取一段他的声音（可选，{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒 · 出片时台词可用这个音色）
+                  <Trans>🎤 取一段他的声音（可选，{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒 · 出片时台词可用这个音色）</Trans>
                 </button>
               ))}
             {err && <p className="text-xs leading-relaxed text-rose-300">{err}</p>}
@@ -1021,14 +1049,14 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                 disabled={!!busy}
                 className="rounded-xl bg-slate-700/70 px-4 py-2.5 text-sm text-slate-200 disabled:opacity-40"
               >
-                重圈
+                <Trans>重圈</Trans>
               </button>
               <button
                 onClick={() => void saveCard()}
                 disabled={!!busy}
                 className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
               >
-                {busy || "存这张卡"}
+                {busy || t`存这张卡`}
               </button>
             </div>
           </div>
@@ -1050,19 +1078,19 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                   //   ⚠ 挂在 loadedmetadata 而不是只做一次：圈完→命名→再标脸会把这个元素
                   //   **整个重挂**，重挂就回到"从没播过"，黑帧问题原样复发。
                   //   静音是必须的（无用户手势时非静音 play 可能被拒绝），完事恢复；
-                  //   顺带把进度恢复到 t——重挂后元素回到 0，而滑条还显示旧位置（两边说的不一样）。
+                  //   顺带把进度恢复到 cur——重挂后元素回到 0，而滑条还显示旧位置（两边说的不一样）。
                   v.muted = true;
                   v.play()
                     .then(() => {
                       v.pause();
                       v.muted = false;
-                      if (t > 0 && t < v.duration) v.currentTime = t;
+                      if (cur > 0 && cur < v.duration) v.currentTime = cur;
                     })
                     .catch(() => {
                       v.muted = false;
                     });
                 }}
-                onTimeUpdate={(e) => setT(e.currentTarget.currentTime)}
+                onTimeUpdate={(e) => setCur(e.currentTarget.currentTime)}
                 onPlay={() => setPlaying(true)}
                 onPause={() => setPlaying(false)}
               />
@@ -1089,7 +1117,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                 min={0}
                 max={dur || 0}
                 step={0.03}
-                value={t}
+                value={cur}
                 onChange={(e) => {
                   const vv = videoRef.current;
                   if (vv) {
@@ -1100,39 +1128,49 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                 className="min-w-0 flex-1 accent-brand"
               />
               <span className="flex-none text-[10px] tabular-nums text-slate-500">
-                {t.toFixed(1)}s / {dur.toFixed(1)}s
+                {cur.toFixed(1)}s / {dur.toFixed(1)}s
               </span>
             </div>
 
-            {facePass && <p className="text-[11px] text-sky-300">正在标「脸部特写」：拖到看得清脸的一帧，圈住面部</p>}
+            {facePass && (
+              <p className="text-[11px] text-sky-300">
+                <Trans>正在标「脸部特写」：拖到看得清脸的一帧，圈住面部</Trans>
+              </p>
+            )}
 
             {voicePick && (
               <div className="space-y-1.5 rounded-lg border border-sky-500/40 bg-sky-500/10 p-2">
                 <p className="text-[11px] leading-relaxed text-sky-200">
-                  正在取声音：找到<b className="font-bold">只有这个人在说话</b>的一段，先定起点再定终点（{VOICE_MIN_SEC}~
-                  {VOICE_MAX_SEC} 秒）。录制会实际播一遍。
+                  <Trans>
+                    正在取声音：找到<b className="font-bold">只有这个人在说话</b>的一段，先定起点再定终点（{VOICE_MIN_SEC}~
+                    {VOICE_MAX_SEC} 秒）。录制会实际播一遍。
+                  </Trans>
                 </p>
                 <div className="flex items-center gap-1.5">
                   <button
                     onClick={() => {
-                      setVStart(t);
-                      if (vEnd !== null && vEnd <= t) setVEnd(null);
+                      setVStart(cur);
+                      if (vEnd !== null && vEnd <= cur) setVEnd(null);
                     }}
                     disabled={recording}
                     className="rounded-full bg-slate-700/70 px-2.5 py-1 text-[11px] text-slate-200 disabled:opacity-40"
                   >
-                    起点 {vStart !== null ? `${vStart.toFixed(1)}s` : "＝当前帧"}
+                    {vStart !== null ? t`起点 ${vStart.toFixed(1)}s` : t`起点 ＝当前帧`}
                   </button>
                   <button
-                    onClick={() => setVEnd(t)}
+                    onClick={() => setVEnd(cur)}
                     disabled={recording || vStart === null}
                     className="rounded-full bg-slate-700/70 px-2.5 py-1 text-[11px] text-slate-200 disabled:opacity-40"
                   >
-                    终点 {vEnd !== null ? `${vEnd.toFixed(1)}s` : "＝当前帧"}
+                    {vEnd !== null ? t`终点 ${vEnd.toFixed(1)}s` : t`终点 ＝当前帧`}
                   </button>
                   <span className="ml-auto text-[10px] tabular-nums text-slate-400">
                     {vStart !== null && vEnd !== null
-                      ? `${(vEnd - vStart).toFixed(1)}s${vEnd - vStart < VOICE_MIN_SEC ? " · 太短" : vEnd - vStart > VOICE_MAX_SEC ? " · 太长" : ""}`
+                      ? vEnd - vStart < VOICE_MIN_SEC
+                        ? t`${(vEnd - vStart).toFixed(1)}s · 太短`
+                        : vEnd - vStart > VOICE_MAX_SEC
+                          ? t`${(vEnd - vStart).toFixed(1)}s · 太长`
+                          : `${(vEnd - vStart).toFixed(1)}s`
                       : ""}
                   </span>
                 </div>
@@ -1142,7 +1180,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                     disabled={recording}
                     className="rounded-full bg-slate-700/70 px-3 py-1.5 text-xs text-slate-200 disabled:opacity-40"
                   >
-                    不取了
+                    <Trans>不取了</Trans>
                   </button>
                   <button
                     onClick={() => void grabVoice()}
@@ -1155,7 +1193,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                     }
                     className="flex-1 rounded-full bg-brand py-1.5 text-xs font-bold text-ink disabled:opacity-40"
                   >
-                    {recording ? "录制中…（实际播这一段）" : "🎙 录这一段"}
+                    {recording ? t`录制中…（实际播这一段）` : t`🎙 录这一段`}
                   </button>
                 </div>
                 {err && <p className="text-[11px] text-rose-300">{err}</p>}
@@ -1195,10 +1233,10 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                 <div className="flex items-center gap-1.5">
                   {(
                     [
-                      ["circle", "⭕ 圆"],
-                      ["rect", "▭ 框"],
-                      ["brush", "🖌 笔"],
-                      ["full", "🖼 整帧"],
+                      ["circle", t`⭕ 圆`],
+                      ["rect", t`▭ 框`],
+                      ["brush", t`🖌 笔`],
+                      ["full", t`🖼 整帧`],
                     ] as [Tool, string][]
                   ).map(([tl, label]) => (
                     <button
@@ -1212,7 +1250,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                       {label}
                     </button>
                   ))}
-                  <span className="ml-auto text-[10px] text-slate-500">{tool === "full" ? "取整个画面" : "在画面上拖一下；不满意再拖就重画"}</span>
+                  <span className="ml-auto text-[10px] text-slate-500">{tool === "full" ? t`取整个画面` : t`在画面上拖一下；不满意再拖就重画`}</span>
                 </div>
                 {err && <p className="text-xs text-rose-300">{err}</p>}
                 <button
@@ -1220,7 +1258,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                   disabled={tool !== "full" && !shape}
                   className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
                 >
-                  ✂ 就取这一块
+                  <Trans>✂ 就取这一块</Trans>
                 </button>
               </>
             )}
@@ -1229,7 +1267,11 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
             {saved.length > 0 && (
               <div className="rounded-xl bg-black/25 p-2.5">
                 <div className="mb-1.5 text-[11px] text-slate-400">
-                  本次已存 {saved.length} 张{deckMode ? "（最后一步打包成卡组）" : "（已在「我的卡片」里）"}
+                  {deckMode ? (
+                    <Trans>本次已存 {saved.length} 张（最后一步打包成卡组）</Trans>
+                  ) : (
+                    <Trans>本次已存 {saved.length} 张（已在「我的卡片」里）</Trans>
+                  )}
                 </div>
                 <div className="flex gap-1.5 no-scrollbar overflow-x-auto">
                   {saved.map((c) => (
@@ -1242,11 +1284,11 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                       value={deckName}
                       onChange={(e) => setDeckName(e.target.value)}
                       maxLength={12}
-                      placeholder="卡组名"
+                      placeholder={t`卡组名`}
                       className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-black/30 px-2.5 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-500"
                     />
                     <button onClick={finishDeck} className="rounded-full bg-brand px-3 py-1.5 text-xs font-bold text-ink">
-                      存为卡组
+                      <Trans>存为卡组</Trans>
                     </button>
                   </div>
                 )}
