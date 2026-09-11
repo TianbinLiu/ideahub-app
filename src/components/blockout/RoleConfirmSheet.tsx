@@ -53,6 +53,7 @@
 //   （confirmTemplateRoles / setTemplatePublished / remoteStateOf）不算"认 store"：
 //   那几个函数本身就是"一处实现"。
 import { useState, useSyncExternalStore } from "react";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { CloseButton } from "../IconTapButton";
 import { createPortal } from "react-dom";
 import Icon from "../Icon";
@@ -62,7 +63,6 @@ import MarkBadge from "./MarkBadge";
 import {
   BLOCKOUT_MAX_ROLES,
   confirmTemplateRoles,
-  markNoun,
   markSpecOf,
   refreshRemoteTemplate,
   remoteStateOf,
@@ -89,12 +89,13 @@ function useTemplatesTick(): number {
   return useSyncExternalStore(subscribeTemplates, templatesVersion, () => 0);
 }
 
-export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onClose: () => void }) {
+export default function RoleConfirmSheet({ t: tpl, onClose }: { t: VideoTemplate; onClose: () => void }) {
+  const { t } = useLingui();
   // ★ 浮层也要自己声明引导（不是路由，按 pathname 集中判的话这一屏永远轮不到）。
   //   第一次打开时强制放一遍，看过一次不再自动弹；标题栏那颗 ? 随时能重看。
   useAutoGuide("roleconfirm");
   const [rows, setRows] = useState<Row[]>(() =>
-    (t.roles ?? []).map((r) => ({ key: uid("role"), label: r.label, desc: r.desc, doomed: false })),
+    (tpl.roles ?? []).map((r) => ({ key: uid("role"), label: r.label, desc: r.desc, doomed: false })),
   );
   const [busy, setBusy] = useState(false);
   const [issue, setIssue] = useState("");
@@ -102,7 +103,7 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
   useTemplatesTick();
 
   /** 这个模板是哪种标记方案（判据只有 data 层一处）。整屏的输入方式与措辞都跟着它走 */
-  const spec = markSpecOf(t);
+  const spec = markSpecOf(tpl);
   const ordinal = spec.scheme === "ordinal";
   /**
    * 这一条描述会不会**进到付费提示词里**。
@@ -112,8 +113,12 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
    *   要么说“只给人看”而它其实进了提示词，要么说“会进提示词”而作者白写一场。
    * ★ V2（白模化）那条路没有这一位 —— 它的描述说的是“原片里是谁”，只给人看。
    */
-  const descGoesToPrompt = ordinal && !!t.markDescs?.length;
-  const noun = markNoun(spec);
+  const descGoesToPrompt = ordinal && !!tpl.markDescs?.length;
+  /** 名词（位置 / 编号）不再拼进句子：下面凡是带它的句子都按 `ordinal` 分成两句整话 ——
+   *  拼出来的在英文界面上只能是半句中文半句英文。空标记的占位词与待删清单的分隔符同理 */
+  const blankLabel = ordinal ? t`（空位置）` : t`（空编号）`;
+  const blankSlot = t`这个位置`;
+  const sep = t({ message: "、", comment: "列举几个名字时的分隔符" });
   /** 序数方案下可选的那几个位置 = **这段视频里真实存在的**那几个（不是一张凭空的 1..9 表）。
    *  ★ 这正是当初选择存 `markSlots`（而不是一个 `markScheme` 枚举）的理由之一：
    *    删掉一个位子之后还能把它**加回来**，而"这段里只有这几个位置"这句话也才说得准
@@ -122,9 +127,10 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
 
   // 服务端那份状态快照（remoteStateOf 唯一实现）。null = 还没到货 —— 那就什么都不断言，
   // 由提交时服务端的整句 400 说了算（★ UI 只把已知的快照画出来，不自己判"能不能改"）
-  const rs = remoteStateOf(t);
+  const rs = remoteStateOf(tpl);
   const kept = rows.filter((r) => !r.doomed);
   const doomed = rows.filter((r) => r.doomed);
+  const doomedList = doomed.map((r) => r.label || blankLabel).join(sep);
   /** 再删一条会不会跌破下限（判据的唯一实现在 data 层，这里只问它） */
   const floorNext = roleFloorIssue(kept.length - 1);
   /** 提交时真正会发出去的条数已经到上限了吗（上限是**服务端收几条**，不是屏幕上有几行，
@@ -159,7 +165,7 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
       // ★ 唯一的变换是 filter 掉待删的那几行（再脱掉本地 key）：顺序与 label 逐字沿用
       //   作者面板里的那一份。**别在这里排序或补号**（见文件头 ★★）
       await confirmTemplateRoles(
-        t.id,
+        tpl.id,
         kept.map((r) => ({ label: r.label, desc: r.desc })),
       );
       onClose();
@@ -178,7 +184,7 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
     setIssue("");
     setPubBusy(true);
     try {
-      await setTemplatePublished(t.id, false);
+      await setTemplatePublished(tpl.id, false);
     } catch (e) {
       setIssue(e instanceof Error ? e.message : String(e));
     } finally {
@@ -192,7 +198,7 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
     <div className="fixed inset-0 z-[70] flex flex-col bg-black/85 backdrop-blur-sm">
       <div className="safe-top flex h-[58px] items-center gap-2 px-4">
         <CloseButton chip="md" size={16} onClick={onClose} />
-        <h2 className="text-sm font-bold text-slate-100">核对角色位{noun}</h2>
+        <h2 className="text-sm font-bold text-slate-100">{ordinal ? <Trans>核对角色位位置</Trans> : <Trans>核对角色位编号</Trans>}</h2>
         <HelpButton tour="roleconfirm" className="ml-auto" />
       </div>
 
@@ -203,22 +209,36 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
         {rs?.status === "published" && (
           <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
             <p className="text-[11px] leading-relaxed text-amber-200">
-              这个模板<b className="font-bold">已经发布在市场上</b>，服务端不许直接改它的{noun}（包括删掉画面上
-              找不到的那个位子）—— {noun}一变，正在用它的人手里那份「哪个人偶挂谁」就全对不上了，而他们那边
-              不会有任何提示。先下架，改完再发布一次。
+              {ordinal ? (
+                <Trans>
+                  这个模板<b className="font-bold">已经发布在市场上</b>，服务端不许直接改它的位置（包括删掉画面上
+                  找不到的那个位子）—— 位置一变，正在用它的人手里那份「哪个人偶挂谁」就全对不上了，而他们那边
+                  不会有任何提示。先下架，改完再发布一次。
+                </Trans>
+              ) : (
+                <Trans>
+                  这个模板<b className="font-bold">已经发布在市场上</b>，服务端不许直接改它的编号（包括删掉画面上
+                  找不到的那个位子）—— 编号一变，正在用它的人手里那份「哪个人偶挂谁」就全对不上了，而他们那边
+                  不会有任何提示。先下架，改完再发布一次。
+                </Trans>
+              )}
             </p>
             <button
               onClick={() => void unpublish()}
               disabled={pubBusy}
               className="mt-2 rounded-full bg-amber-500/90 px-3 py-1 text-[11px] font-bold text-ink disabled:opacity-40"
             >
-              {pubBusy ? "下架中…" : `先下架，再改${noun}`}
+              {pubBusy ? t`下架中…` : ordinal ? t`先下架，再改位置` : t`先下架，再改编号`}
             </button>
           </div>
         )}
         {rs?.status === "blocked" && (
           <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-300">
-            这个模板已被平台下架，状态由平台管理 —— {noun}改不了，你自己也下架不了它。
+            {ordinal ? (
+              <Trans>这个模板已被平台下架，状态由平台管理 —— 位置改不了，你自己也下架不了它。</Trans>
+            ) : (
+              <Trans>这个模板已被平台下架，状态由平台管理 —— 编号改不了，你自己也下架不了它。</Trans>
+            )}
           </p>
         )}
 
@@ -226,8 +246,10 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
             ★ 低调色（不是警告色）：它不是问题，只是一条说明。答案是**不用重做**。 */}
         {!ordinal && (
           <p className="rounded-lg border border-slate-700/70 bg-panel/60 px-3 py-2 text-[11px] leading-relaxed text-slate-400">
-            这是<b className="font-bold">编号版</b>的老模板（2026-08-17 之前做的）。新做的模板改用
-            按位置指认了 —— 这一个继续按编号用，不受影响，<b className="font-bold">也不用重做</b>。
+            <Trans>
+              这是<b className="font-bold">编号版</b>的老模板（2026-08-17 之前做的）。新做的模板改用
+              按位置指认了 —— 这一个继续按编号用，不受影响，<b className="font-bold">也不用重做</b>。
+            </Trans>
           </p>
         )}
 
@@ -241,27 +263,27 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
             哪一种错、下一步做什么"。命中率那句话在花钱**之前**的两屏说（提取器/看帧那屏）。 */}
         <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-200/90">
           {ordinal ? (
-            <>
+            <Trans>
               下面这份「从左往右第几个是谁」是生成时<b className="font-bold">按 AI 量的位置排的猜测</b>，
               不保证与画面上真实的站位一致。请对着视频<b className="font-bold">从左往右数一遍</b> ——
               对不上时，别人给「最左边」挂的角色卡会换到另一个人身上，而且
               <b className="font-bold">不会有任何报错</b>。
               好消息是人偶全都一模一样、身上没有任何记号：你只需要数数，不用去找看不清的号。
-            </>
+            </Trans>
           ) : (
-            <>
+            <Trans>
               下面这份编号是生成时<b className="font-bold">按顺序编的猜测</b>，不保证与画面上人偶头上的
               数字一致（编号只印在人偶的某一面，多半是额头或后脑，转过身可能就看不见了 ——
               拖动进度条找到能看清号的那一帧再核对）。请对着视频逐个看清楚，改成画面上真实的数字 ——
               编号对不上时，别人给「3 号位」挂的角色卡会换到另一个人身上，而且
               <b className="font-bold">不会有任何报错</b>。
-            </>
+            </Trans>
           )}
         </p>
-        {t.refVideo && (
+        {tpl.refVideo && (
           <video
             data-guide="roleconfirm-video"
-            src={t.refVideo.url}
+            src={tpl.refVideo.url}
             controls
             playsInline
             className="max-h-[38vh] w-full rounded-xl bg-black object-contain"
@@ -278,47 +300,57 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
             绝不能连"不用重炼"一起收走。 */}
         <details className="rounded-lg border border-slate-700/70 bg-panel/60">
           <summary className="cursor-pointer list-none px-3 py-2 text-[11px] leading-relaxed text-slate-300">
-            ▸ 对不上怎么办？<span className="text-slate-500">多数情况删掉那个位子就行，不用重炼</span>
+            <Trans>▸ 对不上怎么办？<span className="text-slate-500">多数情况删掉那个位子就行，不用重炼</span></Trans>
           </summary>
           <div className="space-y-2 px-3 pb-3">
         {ordinal ? (
           <>
             <p className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-[11px] leading-relaxed text-sky-200/90">
-              最常见的一种：<b className="font-bold">有个人根本没被换成人偶</b>（还是原来的样子），
-              尤其是画面正中央、看起来最像主角的那一个。这时清单里就多出一个画面上不存在的位子 ——
-              <b className="font-bold">把它删掉就行，不用重炼</b>。
-              ⚠ 但删完要顺手检查一遍：画面上少了一个人偶，<b className="font-bold">它右边那些人从左数
-              就都要往左挪一位</b>（这一条是按位置指认独有的，编号版没有）。
+              <Trans>
+                最常见的一种：<b className="font-bold">有个人根本没被换成人偶</b>（还是原来的样子），
+                尤其是画面正中央、看起来最像主角的那一个。这时清单里就多出一个画面上不存在的位子 ——
+                <b className="font-bold">把它删掉就行，不用重炼</b>。
+                ⚠ 但删完要顺手检查一遍：画面上少了一个人偶，<b className="font-bold">它右边那些人从左数
+                就都要往左挪一位</b>（这一条是按位置指认独有的，编号版没有）。
+              </Trans>
             </p>
             <p className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-[11px] leading-relaxed text-sky-200/90">
-              第二种：<b className="font-bold">相邻两行的位置排反了</b>（清单说他是从左数第 2 个，
-              画面上他其实是第 3 个）。把这两行的位置互换过来就行，同样不用重炼。
+              <Trans>
+                第二种：<b className="font-bold">相邻两行的位置排反了</b>（清单说他是从左数第 2 个，
+                画面上他其实是第 3 个）。把这两行的位置互换过来就行，同样不用重炼。
+              </Trans>
             </p>
             <p className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-[11px] leading-relaxed text-sky-200/90">
-              万一<b className="font-bold">两个人偶站得几乎重叠</b>、从左往右数不出先后：挂在这个位置上
-              的卡<b className="font-bold">可能会换错人</b>（模型也只能按从左到右去找）。
-              不想赌，就把这个位子删掉 —— 那两个人偶会保持白色人偶原样出现在片子里。
+              <Trans>
+                万一<b className="font-bold">两个人偶站得几乎重叠</b>、从左往右数不出先后：挂在这个位置上
+                的卡<b className="font-bold">可能会换错人</b>（模型也只能按从左到右去找）。
+                不想赌，就把这个位子删掉 —— 那两个人偶会保持白色人偶原样出现在片子里。
+              </Trans>
             </p>
           </>
         ) : (
           <>
             <p className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-[11px] leading-relaxed text-sky-200/90">
-              画面上<b className="font-bold">可能有两个人偶印着同一个号</b>，也可能<b className="font-bold">某个号在画面上
-              根本找不到</b>（实测都出现过：一段 5 人素材实出 2/2/1/1/5，3 号和 4 号整个没出现）。
-              这两种<b className="font-bold">都不用重炼</b>：把找不到的那个位子删掉就行，剩下的编号一个都不会变。
+              <Trans>
+                画面上<b className="font-bold">可能有两个人偶印着同一个号</b>，也可能<b className="font-bold">某个号在画面上
+                根本找不到</b>（实测都出现过：一段 5 人素材实出 2/2/1/1/5，3 号和 4 号整个没出现）。
+                这两种<b className="font-bold">都不用重炼</b>：把找不到的那个位子删掉就行，剩下的编号一个都不会变。
+              </Trans>
             </p>
             <p className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-[11px] leading-relaxed text-sky-200/90">
-              如果两个人偶印着同一个号：挂在这个号上的卡<b className="font-bold">可能会把两个人一起换成同一张卡</b>
-              （模型只认数字，分不出哪个是你要的）。不想要这个效果，就把这个号的位子也删掉 ——
-              那两个人偶会保持白模原样出现在片子里。
+              <Trans>
+                如果两个人偶印着同一个号：挂在这个号上的卡<b className="font-bold">可能会把两个人一起换成同一张卡</b>
+                （模型只认数字，分不出哪个是你要的）。不想要这个效果，就把这个号的位子也删掉 ——
+                那两个人偶会保持白模原样出现在片子里。
+              </Trans>
             </p>
           </>
         )}
         {/* 诚实的边界：不写这句，作者会以为删位是万能的，对着一段全错的白模删到只剩一个 */}
         <p className="px-1 text-[10px] leading-relaxed text-slate-500">
           {ordinal
-            ? "如果画面上根本数不出这么多人偶，这段白模本身就没做好 —— 删位只能救回一部分，要全对得上只能重炼（要再花一次钱）。"
-            : "如果画面上大部分号都对不上，这段白模的编号本身就没画好 —— 删位只能救回一部分，要全对得上只能重炼（要再花一次钱）。"}
+            ? t`如果画面上根本数不出这么多人偶，这段白模本身就没做好 —— 删位只能救回一部分，要全对得上只能重炼（要再花一次钱）。`
+            : t`如果画面上大部分号都对不上，这段白模的编号本身就没画好 —— 删位只能救回一部分，要全对得上只能重炼（要再花一次钱）。`}
         </p>
           </div>
         </details>
@@ -331,31 +363,35 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
               className="rounded-lg border border-dashed border-rose-500/40 bg-rose-500/10 p-2.5 opacity-80"
             >
               <div className="flex items-center gap-2">
-                <MarkBadge spec={spec} label={r.label || `（空${noun}）`} tone="doomed" />
+                <MarkBadge spec={spec} label={r.label || blankLabel} tone="doomed" />
                 <span className="min-w-0 flex-1 truncate text-[11px] text-slate-400 line-through">{r.desc}</span>
                 <button
                   onClick={() => setRows((rs0) => rs0.map((x) => (x.key === r.key ? { ...x, doomed: false } : x)))}
                   className="flex flex-none items-center gap-1 rounded-full bg-slate-700 px-2.5 py-1 text-[11px] font-semibold text-slate-100"
                 >
                   <Icon name="replay" size={12} />
-                  撤销
+                  <Trans>撤销</Trans>
                 </button>
               </div>
               <p className="mt-1.5 text-[11px] leading-relaxed text-rose-300">
                 {ordinal ? (
                   <>
-                    删掉之后，<b className="font-bold">{r.label || "这个位置"}</b>那个人偶就
-                    <b className="font-bold">没法挂卡了</b> —— 它会保持白色人偶原样出现在片子里。
+                    <Trans>
+                      删掉之后，<b className="font-bold">{r.label || blankSlot}</b>那个人偶就
+                      <b className="font-bold">没法挂卡了</b> —— 它会保持白色人偶原样出现在片子里。
+                    </Trans>
                     <br />
-                    ⚠ 如果你删它是因为<b className="font-bold">画面上根本没有这个人偶</b>，那么它右边
-                    所有位子从左数都要<b className="font-bold">往左挪一位</b>，请顺手把它们也改一下；
-                    如果画面上那个人偶还在（只是你不想让人挂卡），右边的一个都不用动。
+                    <Trans>
+                      ⚠ 如果你删它是因为<b className="font-bold">画面上根本没有这个人偶</b>，那么它右边
+                      所有位子从左数都要<b className="font-bold">往左挪一位</b>，请顺手把它们也改一下；
+                      如果画面上那个人偶还在（只是你不想让人挂卡），右边的一个都不用动。
+                    </Trans>
                   </>
                 ) : (
-                  <>
+                  <Trans>
                     删掉之后，画面上这个人偶就<b className="font-bold">没有编号了</b> ——
                     套用你模板的人不能给它挂卡，它会保持白模人偶原样出现在片子里。剩下的编号一个都不会变。
-                  </>
+                  </Trans>
                 )}
               </p>
             </div>
@@ -371,13 +407,13 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
                     （data/templates 那段 ★★★：措辞的唯一实现在服务端）。 */}
               {ordinal ? (
                 <div className="mb-2">
-                  <div className="mb-1 text-[9px] text-slate-500">这个人偶在画面上排第几（点一下换）</div>
+                  <div className="mb-1 text-[9px] text-slate-500"><Trans>这个人偶在画面上排第几（点一下换）</Trans></div>
                   <div className="flex flex-wrap gap-1.5">
                     {slots.map((s) => (
                       <button
                         key={s}
                         onClick={() => setRow(r.key, { label: s })}
-                        aria-label={`把这个角色位改成${s}`}
+                        aria-label={t`把这个角色位改成${s}`}
                         aria-pressed={s === r.label}
                         className={`rounded-md px-1.5 py-1 text-[11px] font-bold ${
                           s === r.label ? "bg-sky-500/25 text-sky-100 ring-1 ring-sky-400" : "bg-black/40 text-slate-400"
@@ -393,7 +429,7 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
                 {/* 编号方案：逐字保留今天那个输入框（线上老模板走的就是这条路） */}
                 {!ordinal && (
                   <div className="flex-none">
-                    <div className="mb-1 text-[9px] text-slate-500">人偶编号</div>
+                    <div className="mb-1 text-[9px] text-slate-500"><Trans>人偶编号</Trans></div>
                     <input
                       value={r.label}
                       onChange={(e) => setRow(r.key, { label: e.target.value })}
@@ -406,8 +442,8 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
                 <div className="min-w-0 flex-1">
                   <div className="mb-1 text-[9px] text-slate-500">
                     {descGoesToPrompt
-                      ? "画面里怎么认出这个人偶（这句话会进出片提示词）"
-                      : "这个位置原来是谁（套用的人只看这句话）"}
+                      ? t`画面里怎么认出这个人偶（这句话会进出片提示词）`
+                      : t`这个位置原来是谁（套用的人只看这句话）`}
                   </div>
                   <input
                     /* ★ 引导锚点只给第一行：每行都写的话 querySelector 命中的仍是第一个，
@@ -416,7 +452,7 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
                     value={r.desc}
                     onChange={(e) => setRow(r.key, { desc: e.target.value })}
                     maxLength={300}
-                    placeholder={descGoesToPrompt ? "例：白色、弯腰前倾、在最左那盏路灯下" : "例：白发、黑袍的少年"}
+                    placeholder={descGoesToPrompt ? t`例：白色、弯腰前倾、在最左那盏路灯下` : t`例：白发、黑袍的少年`}
                     className="w-full rounded-lg bg-black/40 px-2 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-500"
                   />
                 </div>
@@ -428,10 +464,10 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
                     data-guide={i === 0 ? "roleconfirm-del" : undefined}
                     onClick={() => delRow(r.key)}
                     className="mt-4 flex flex-none items-center gap-1 rounded-full bg-black/40 px-2 py-1.5 text-[11px] text-slate-300"
-                    aria-label="删掉这个角色位"
+                    aria-label={t`删掉这个角色位`}
                   >
                     <Icon name="close" size={12} className="text-slate-400" />
-                    删掉
+                    <Trans>删掉</Trans>
                   </button>
                 )}
               </div>
@@ -459,7 +495,7 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
             className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-slate-600 py-2.5 text-[11px] text-slate-400"
           >
             <Icon name="plus" size={13} />
-            {ordinal ? "画面上还有一个白色人偶没列出来？把它加回来" : "画面里还有人没列出来，加一个"}
+            {ordinal ? t`画面上还有一个白色人偶没列出来？把它加回来` : t`画面里还有人没列出来，加一个`}
           </button>
         ) : (
           // 到顶时**换成一句说明**而不是摆一颗灰按钮 —— 否则作者点了才在提交时吃 zod 的
@@ -467,20 +503,20 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
           // ★ 序数方案有两种"到顶"，说的是不同的事：位子到 9 个，或者这段视频里的位置用完了
           <p className="rounded-xl border border-slate-700 bg-panel/60 px-3 py-2.5 text-[11px] leading-relaxed text-slate-300">
             {ordinal && !atMax ? (
-              <>
+              <Trans>
                 这段视频里只认出了这 {slots.length} 个位置，都已经在列表里了。
                 清单之外的人同样是白色人偶，但没有位置能指认他们，<b className="font-bold">挂不了卡</b>。
-              </>
+              </Trans>
             ) : ordinal ? (
-              <>
+              <Trans>
                 已经排到一次能挂卡的上限（{BLOCKOUT_MAX_ROLES} 个）。画面里如果还有别人，
                 他们同样是白色人偶但挂不了卡 —— 人再多，从左数到第几个也数不准了。
-              </>
+              </Trans>
             ) : (
-              <>
+              <Trans>
                 已经排到一次能挂卡的上限（{BLOCKOUT_MAX_ROLES} 个）。画面里如果还有别人，
                 他们身上不会有编号，会保持白模人偶原样 —— 编号再多，画面上也认不出来。
-              </>
+              </Trans>
             )}
           </p>
         )}
@@ -495,23 +531,48 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
         {doomed.length > 0 && (
           <div className="mb-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2">
             <p className="text-[11px] leading-relaxed text-rose-300">
-              这次提交会删掉{noun}{" "}
-              <b className="font-bold">{doomed.map((r) => r.label || `（空${noun}）`).join("、")}</b>
-              {doomed.length > 1 ? ` 共 ${doomed.length} 个角色位` : " 这一个角色位"}，
-              <b className="font-bold">其余位子一个都不动</b>。
+              {ordinal ? (
+                doomed.length > 1 ? (
+                  <Trans>
+                    这次提交会删掉位置 <b className="font-bold">{doomedList}</b> 共 {doomed.length} 个角色位，
+                    <b className="font-bold">其余位子一个都不动</b>。
+                  </Trans>
+                ) : (
+                  <Trans>
+                    这次提交会删掉位置 <b className="font-bold">{doomedList}</b> 这一个角色位，
+                    <b className="font-bold">其余位子一个都不动</b>。
+                  </Trans>
+                )
+              ) : doomed.length > 1 ? (
+                <Trans>
+                  这次提交会删掉编号 <b className="font-bold">{doomedList}</b> 共 {doomed.length} 个角色位，
+                  <b className="font-bold">其余位子一个都不动</b>。
+                </Trans>
+              ) : (
+                <Trans>
+                  这次提交会删掉编号 <b className="font-bold">{doomedList}</b> 这一个角色位，
+                  <b className="font-bold">其余位子一个都不动</b>。
+                </Trans>
+              )}
             </p>
             {/* ★ 「随时能再加回来」这句在序数方案下**靠 markSlots 才成立**（它存着白模化那一刻
                 算出来的整份位置清单，删过位之后仍然查得到）——所以这一位当初才没做成一个
                 只回答"是不是序数方案"的枚举 */}
             <p className="mt-1 text-[10px] leading-relaxed text-rose-300">
-              提交后这几条的描述文字找不回来（这几{ordinal ? "个位置" : "个编号"}随时能再加回来，描述要自己重写）。
+              {ordinal ? (
+                <Trans>提交后这几条的描述文字找不回来（这几个位置随时能再加回来，描述要自己重写）。</Trans>
+              ) : (
+                <Trans>提交后这几条的描述文字找不回来（这几个编号随时能再加回来，描述要自己重写）。</Trans>
+              )}
             </p>
             {/* ★★ 序数独有：删掉一个位子会让它右边那些位子的序数变。提交前**再说一次** ——
                 待删行里说过一次，但那时作者在逐行看；这里是他按下最终按钮之前的最后一眼 */}
             {ordinal && (
               <p className="mt-1 text-[10px] leading-relaxed text-rose-300">
-                ⚠ 如果删它是因为画面上根本没有那个人偶，记得把它<b className="font-bold">右边</b>那些位子
-                各往左挪一位再提交（按位置指认独有的一条，编号版没有）。
+                <Trans>
+                  ⚠ 如果删它是因为画面上根本没有那个人偶，记得把它<b className="font-bold">右边</b>那些位子
+                  各往左挪一位再提交（按位置指认独有的一条，编号版没有）。
+                </Trans>
               </p>
             )}
           </div>
@@ -523,10 +584,14 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
           className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
         >
           {busy
-            ? "提交中…"
+            ? t`提交中…`
             : doomed.length > 0
-              ? `提交：改完${noun}并删掉 ${doomed.length} 个角色位`
-              : `我已逐个核对，${noun}无误`}
+              ? ordinal
+                ? t`提交：改完位置并删掉 ${doomed.length} 个角色位`
+                : t`提交：改完编号并删掉 ${doomed.length} 个角色位`
+              : ordinal
+                ? t`我已逐个核对，位置无误`
+                : t`我已逐个核对，编号无误`}
         </button>
       </div>
     </div>,
@@ -548,14 +613,15 @@ export default function RoleConfirmSheet({ t, onClose }: { t: VideoTemplate; onC
  * ★ 没有 remoteId（登记还没成功）时不渲染：编号登记在服务端，摆个点了必然失败的按钮
  *   只会让作者以为功能坏了 —— 登记失败的原因与「重新登记」在详情页已经有出口。
  */
-export function RoleConfirmEntry({ t, compact }: { t: VideoTemplate; compact?: boolean }) {
+export function RoleConfirmEntry({ t: tpl, compact }: { t: VideoTemplate; compact?: boolean }) {
+  const { t } = useLingui();
   const [open, setOpen] = useState(false);
   const [opening, setOpening] = useState(false);
   useTemplatesTick();
 
-  const rs = remoteStateOf(t);
-  const ordinal = markSpecOf(t).scheme === "ordinal";
-  if (!t.roles?.length || !t.remoteId) return null;
+  const rs = remoteStateOf(tpl);
+  const ordinal = markSpecOf(tpl).scheme === "ordinal";
+  if (!tpl.roles?.length || !tpl.remoteId) return null;
 
   async function openSheet() {
     setOpening(true);
@@ -564,7 +630,7 @@ export function RoleConfirmEntry({ t, compact }: { t: VideoTemplate; compact?: b
     //   整份替换，等于把别处改对的编号又覆盖回错的 —— 而且两边都不报错。
     //   （两台设备同时编辑仍会后到者覆盖前者，本次不加乐观锁：那是一条新的跨仓规则。
     //    缓解是面板里摆着完整的那一份，作者自己看得见。已知、可接受。）
-    await refreshRemoteTemplate(t.id);
+    await refreshRemoteTemplate(tpl.id);
     setOpening(false);
     setOpen(true);
   }
@@ -574,22 +640,35 @@ export function RoleConfirmEntry({ t, compact }: { t: VideoTemplate; compact?: b
   //   压缩成小按钮不能把"这步没做会被 400"的信号一起压没。长文案两档留在详情页那份里。
   if (compact) {
     const pending = !rs || rs.rolesNeedConfirm;
-    const noun = ordinal ? "位置" : "编号";
     return (
       <>
         <button
           onClick={() => void openSheet()}
           disabled={opening}
-          title={pending ? `核对之前不能发布（${noun}对不上会让别人的角色卡换到别人身上）` : "改错了不用重炼"}
+          title={
+            !pending
+              ? t`改错了不用重炼`
+              : ordinal
+                ? t`核对之前不能发布（位置对不上会让别人的角色卡换到别人身上）`
+                : t`核对之前不能发布（编号对不上会让别人的角色卡换到别人身上）`
+          }
           className={`rounded-full px-2.5 py-1 text-[11px] font-semibold disabled:opacity-40 ${
             pending
               ? "border border-amber-500/50 bg-amber-500/15 text-amber-200"
               : "border border-slate-600 text-slate-300"
           }`}
         >
-          {opening ? "取最新…" : pending ? `核对${noun}` : `重新核对${noun}`}
+          {opening
+            ? t`取最新…`
+            : pending
+              ? ordinal
+                ? t`核对位置`
+                : t`核对编号`
+              : ordinal
+                ? t`重新核对位置`
+                : t`重新核对编号`}
         </button>
-        {open && <RoleConfirmSheet t={t} onClose={() => setOpen(false)} />}
+        {open && <RoleConfirmSheet t={tpl} onClose={() => setOpen(false)} />}
       </>
     );
   }
@@ -616,17 +695,17 @@ export function RoleConfirmEntry({ t, compact }: { t: VideoTemplate; compact?: b
               两屏，这里只放一句短的 + 下一步 */}
           <span>
             {opening ? (
-              "正在取最新的角色位…"
+              t`正在取最新的角色位…`
             ) : ordinal ? (
-              <>
+              <Trans>
                 位置还没核对：AI 排的「从左往右第几个」只是猜测，可能与画面上对不上，
                 <b className="font-bold">核对之前不能发布</b>（对不上会让别人的角色卡换到别人身上）。点这里去核对。
-              </>
+              </Trans>
             ) : (
-              <>
+              <Trans>
                 编号还没核对：AI 编的号可能与画面上人偶头上的数字对不上，
                 <b className="font-bold">核对之前不能发布</b>（对不上会让别人的角色卡换到别人身上）。点这里去核对。
-              </>
+              </Trans>
             )}
           </span>
         </button>
@@ -641,14 +720,14 @@ export function RoleConfirmEntry({ t, compact }: { t: VideoTemplate; compact?: b
           <Icon name="pen" size={13} className="flex-none" />
           <span>
             {opening
-              ? "正在取最新的角色位…"
+              ? t`正在取最新的角色位…`
               : ordinal
-                ? "重新核对位置 —— 有个人没被换成人偶？相邻两行排反了？点这里改，不用重炼"
-                : "重新核对编号 —— 画面上有两个一样的号？有个号找不着？点这里改，不用重炼"}
+                ? t`重新核对位置 —— 有个人没被换成人偶？相邻两行排反了？点这里改，不用重炼`
+                : t`重新核对编号 —— 画面上有两个一样的号？有个号找不着？点这里改，不用重炼`}
           </span>
         </button>
       )}
-      {open && <RoleConfirmSheet t={t} onClose={() => setOpen(false)} />}
+      {open && <RoleConfirmSheet t={tpl} onClose={() => setOpen(false)} />}
     </>
   );
 }

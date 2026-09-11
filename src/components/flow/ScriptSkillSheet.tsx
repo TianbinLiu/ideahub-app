@@ -3,6 +3,7 @@
 // 抽屉壳按 CLAUDE.md；从 AgentPalette（z-50）里开所以 z-[60]，portal 到 body（画布 transform 会给 fixed 造包含块）。
 import { useState } from "react";
 import { createPortal } from "react-dom";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { AI_REAL } from "../../ai";
 import { DEFAULT_TIER, fmtTokens, tierOf } from "../../data/economy";
 import { showToast } from "../../data/toast";
@@ -21,6 +22,7 @@ import { CloseButton } from "../IconTapButton";
 import { useApplyTemplate } from "./useApplyTemplate";
 
 export default function ScriptSkillSheet({ onClose, onApplied }: { onClose: () => void; onApplied: () => void }) {
+  const { t } = useLingui();
   // 档位 / 画幅 / 挂的卡都跟着当前流水线的第一段走：铺出来的段与它同一套设置，用户不用再逐段调
   const first = useFlow((s) => s.nodes[0]);
   const tierId = first?.videoTier ?? DEFAULT_TIER;
@@ -32,7 +34,7 @@ export default function ScriptSkillSheet({ onClose, onApplied }: { onClose: () =
   const [err, setErr] = useState("");
   const { guard, dialog } = useApplyTemplate();
   const stepIdx = SCRIPT_TO_SHOTS.steps.findIndex((s) => s.kind === step);
-  const price = AI_REAL ? fmtTokens(SCRIPT_TO_SHOTS.cost) : "演示";
+  const price = AI_REAL ? fmtTokens(SCRIPT_TO_SHOTS.cost) : t`演示`;
 
   async function run() {
     if (busy) return;
@@ -59,11 +61,11 @@ export default function ScriptSkillSheet({ onClose, onApplied }: { onClose: () =
         const ok = useFlow.getState().seed(nodes, { mode: "workflow", origin: "solo" });
         if (ok) {
           setStep("apply");
-          showToast(`已铺 ${nodes.length} 段，从第 1 段开始炼`);
+          showToast(t`已铺 ${nodes.length} 段，从第 1 段开始炼`);
           onApplied();
         } else {
           // seed 的整句拒绝（在途出片 / 被闸）要画在这里：AgentPalette 盖在画布壳那条错误条之上
-          setErr(useFlow.getState().err || "现在铺不了（可能有一段正在生成中），稍后再试");
+          setErr(useFlow.getState().err || t`现在铺不了（可能有一段正在生成中），稍后再试`);
         }
         return ok;
       },
@@ -83,7 +85,7 @@ export default function ScriptSkillSheet({ onClose, onApplied }: { onClose: () =
             <div className="text-sm font-bold text-slate-100">📑 {SCRIPT_TO_SHOTS.title}</div>
             <div className="text-[10px] leading-relaxed text-slate-500">{SCRIPT_TO_SHOTS.intro}</div>
           </div>
-          <CloseButton chip="sm" size={13} align="end" label="关闭" onClick={onClose} />
+          <CloseButton chip="sm" size={13} align="end" label={t`关闭`} onClick={onClose} />
         </div>
 
         {/* 步骤栏：这条技能的形状本身（steps / confirmAt 都在 structuredSkills 里定，这里只画） */}
@@ -116,13 +118,15 @@ export default function ScriptSkillSheet({ onClose, onApplied }: { onClose: () =
               onChange={(e) => setScript(e.target.value)}
               maxLength={SCRIPT_MAX}
               disabled={busy}
-              placeholder="把整篇剧本贴进来：谁在哪儿做什么、接着发生什么……（故事梗概或分场脚本都行）"
+              placeholder={t`把整篇剧本贴进来：谁在哪儿做什么、接着发生什么……（故事梗概或分场脚本都行）`}
               className="h-40 w-full resize-none rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand disabled:opacity-40"
             />
             <div className="mt-1 flex items-center justify-between text-[10px] text-slate-500">
               <span>
-                {script.trim().length}/{SCRIPT_MAX} 字 · 铺出来按当前设置：{tierOf(tierId).label}档 · {aspectOf(aspect).label}
-                {first?.materials?.length ? ` · 带着已挂的 ${first.materials.length} 张卡` : ""}
+                <Trans>
+                  {script.trim().length}/{SCRIPT_MAX} 字 · 铺出来按当前设置：{tierOf(tierId).label}档 · {aspectOf(aspect).label}
+                </Trans>
+                {first?.materials?.length ? t` · 带着已挂的 ${first.materials.length} 张卡` : ""}
               </span>
             </div>
             <button
@@ -130,7 +134,7 @@ export default function ScriptSkillSheet({ onClose, onApplied }: { onClose: () =
               disabled={busy || script.trim().length < SCRIPT_MIN}
               className="mt-3 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
             >
-              {busy ? (step === "model" ? "拆分镜中…" : "检查形状…") : `拆成分镜（${price}）`}
+              {busy ? (step === "model" ? t`拆分镜中…` : t`检查形状…`) : t`拆成分镜（${price}）`}
             </button>
           </>
         )}
@@ -138,7 +142,7 @@ export default function ScriptSkillSheet({ onClose, onApplied }: { onClose: () =
         {/* ② 拆好的段 → 确认 */}
         {plan && (
           <>
-            <div className="mb-1.5 text-xs font-semibold text-slate-300">拆成 {plan.segments.length} 段</div>
+            <div className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>拆成 {plan.segments.length} 段</Trans></div>
             <div className="space-y-1.5">
               {plan.segments.map((sg, i) => (
                 <div key={i} className="rounded-xl border border-slate-700/70 bg-panel p-3">
@@ -161,14 +165,14 @@ export default function ScriptSkillSheet({ onClose, onApplied }: { onClose: () =
                 }}
                 className="flex-1 rounded-xl border border-slate-700 bg-panel py-2.5 text-sm font-bold text-slate-100"
               >
-                改剧本重拆
+                <Trans>改剧本重拆</Trans>
               </button>
               <button onClick={apply} className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink">
-                铺成 {plan.segments.length} 段
+                <Trans>铺成 {plan.segments.length} 段</Trans>
               </button>
             </div>
             <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
-              铺进去的每一段都是已挑定的一套方案（镜头字段会进方案台与出片提示词），从第 1 段开始逐段炼；想换走向就在那一段上重新推演。
+              <Trans>铺进去的每一段都是已挑定的一套方案（镜头字段会进方案台与出片提示词），从第 1 段开始逐段炼；想换走向就在那一段上重新推演。</Trans>
             </p>
           </>
         )}
