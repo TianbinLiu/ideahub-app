@@ -1468,6 +1468,10 @@ msgid "<0>删了就找不回来</0>：卡面、形象参考图、铸造提示词
 msgstr "<0>删了就找不回来</0>：卡面、形象参考图、铸造提示词、声音样本与肖像授权都会一起清掉。"
 
 #: src/components/guide/tours.tsx
+msgid "<0>剪辑</0>管顺序与取舍，<1>圈选</1>管改画面（要花钱的那种改），<2>音频</2>管配乐 —— 不是每一档出的画面都带声音（白模复刻段一律没有）， 想要声音、想加配乐，就在这儿配。"
+msgstr "<0>剪辑</0>管顺序与取舍，<1>圈选</1>管改画面（要花钱的那种改），<2>音频</2>管配乐 —— 不是每一档出的画面都带声音（白模复刻段一律没有）， 想要声音、想加配乐，就在这儿配。"
+
+#: src/components/guide/tours.tsx
 msgid "<0>我的模板</0>装的是你自己做的，新做一个也从那里进：传一段视频，让 AI 把画面里的人换成一模一样的白色人偶，或者直接拿你本来就做好的白模片用。走哪条路在提取器<1>打开后的第一屏</1>挑；要花多少钱到框选那一步当场整句报出来，确认了才开炼。"
 msgstr "<0>我的模板</0>装的是你自己做的，新做一个也从那里进：传一段视频，让 AI 把画面里的人换成一模一样的白色人偶，或者直接拿你本来就做好的白模片用。走哪条路在提取器<1>打开后的第一屏</1>挑；要花多少钱到框选那一步当场整句报出来，确认了才开炼。"
 
@@ -1482,6 +1486,10 @@ msgstr "<0>标在场景切换、人数变化的那一帧</0>：每段是独立�
 #: src/components/guide/tours.tsx
 msgid "<0>点标题进详情页</0>——本片卡组、多 P 选集、完整简介、「互动 · 你来选」的分支，都<1>只在那儿</1>。点作者名或头像，去的是他的主页。"
 msgstr "<0>点标题进详情页</0>——本片卡组、多 P 选集、完整简介、「互动 · 你来选」的分支，都<1>只在那儿</1>。点作者名或头像，去的是他的主页。"
+
+#: src/components/guide/tours.tsx
+msgid "<0>炼出本段视频，下一段的卡位才会亮</0>：段与段靠上一段的真实尾帧承接起拍，攒着最后一起炼会接不上，第一段人物不对也要铺完才发现。每段都出片后，桌子右端的<1>法阵</1>会亮起，点它打开这条流水线的工作流画布，在那儿点「🎬 完成视频」去剪辑成片。"
+msgstr "<0>炼出本段视频，下一段的卡位才会亮</0>：段与段靠上一段的真实尾帧承接起拍，攒着最后一起炼会接不上，第一段人物不对也要铺完才发现。每段都出片后，桌子右端的<1>法阵</1>会亮起，点它打开这条流水线的工作流画布，在那儿点「🎬 完成视频」去剪辑成片。"
 
 #: src/components/blockout/VisionFramePicker.tsx
 msgid "<0>画面里人数会变（有人入场 / 离场）时用这个</0>：在变化的<1>前后各标一帧</1>，AI 才认得全。其余情况用「自动」就够了。"
@@ -2664,6 +2672,10 @@ msgstr "一句话：换成谁来演？例：一只戴墨镜的柴犬"
 msgid "一句话介绍（选填）"
 msgstr "一句话介绍（选填）"
 
+#: src/components/guide/tours.tsx
+msgid "一句话就能改流水线：给哪段套哪个模板、把谁挂到哪个位子、这段拍什么、加一段。<0>它不替你按那三件</0> —— 推演、出片（真花钱）， 以及挂卡合成（不花钱，但会把你改过的点名句整段重写）。它只摆一张确认卡， 上面写着这一下要花多少、或者会覆盖掉什么，你点了才真跑。办成了什么、被拒了什么，它逐条列给你看。 另外<1>对它说的每句话本身也按对话计一次费</1>——价印在输入框里。"
+msgstr "一句话就能改流水线：给哪段套哪个模板、把谁挂到哪个位子、这段拍什么、加一段。<0>它不替你按那三件</0> —— 推演、出片（真花钱）， 以及挂卡合成（不花钱，但会把你改过的点名句整段重写）。它只摆一张确认卡， 上面写着这一下要花多少、或者会覆盖掉什么，你点了才真跑。办成了什么、被拒了什么，它逐条列给你看。 另外<1>对它说的每句话本身也按对话计一次费</1>——价印在输入框里。"
+
 #: src/components/WorkshopShareBar.tsx
 msgid "一句话推荐（选填）：这张卡适合画什么？"
 msgstr "一句话推荐（选填）：这张卡适合画什么？"
@@ -2699,6 +2711,10 @@ msgstr "一句话说清它产出什么（选方案时会显示）"
 msgid "一屏一段、逐段生成"
 msgstr "一屏一段、逐段生成"
 
+#: src/components/guide/tours.tsx
+msgid "一屏看完整条片"
+msgstr "一屏看完整条片"
+
 #: src/data/promptSchemes.ts
 msgid "一张卡最多存 {MAX_CARD_VIEWS} 张形象图（服务端也钉着这个数），把图位删到 {MAX_CARD_VIEWS} 个以内"
 msgstr "一张卡最多存 {MAX_CARD_VIEWS} 张形象图（服务端也钉着这个数），把图位删到 {MAX_CARD_VIEWS} 个以内"
@@ -2728,6 +2744,18 @@ msgstr "一次全给（{0} 个文件）"
 msgid "一次给多个文件时系统按「任意文件」处理，相册可能不在候选里；想进相册就一个一个来。"
 msgstr "一次给多个文件时系统按「任意文件」处理，相册可能不在候选里；想进相册就一个一个来。"
 
+#: src/components/guide/tours.tsx
+msgid "一段一段来"
+msgstr "一段一段来"
+
+#: src/components/guide/tours.tsx
+msgid "一段有三种做法"
+msgstr "一段有三种做法"
+
+#: src/components/guide/tours.tsx
+msgid "一直往右拖到<0>末段后面</0>，跟着两格：一格<1>加下一段</1>， 一格<2>把各段合成整片</2>（每段都出片了才亮，还差几段它会说）。 已经出片的格子右上角有个 ▶，随时能回看那一段。"
+msgstr "一直往右拖到<0>末段后面</0>，跟着两格：一格<1>加下一段</1>， 一格<2>把各段合成整片</2>（每段都出片了才亮，还差几段它会说）。 已经出片的格子右上角有个 ▶，随时能回看那一段。"
+
 #. placeholder {0}: PERSONA_LIMITS.examples
 #. placeholder {1}: PERSONA_LIMITS.example
 #: src/pages/SupportPersonaNewPage.tsx
@@ -2737,6 +2765,10 @@ msgstr "一组一问一答，最多 {0} 组、每句 {1} 字以内。"
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "万一<0>两个人偶站得几乎重叠</0>、从左往右数不出先后：挂在这个位置上 的卡<1>可能会换错人</1>（模型也只能按从左到右去找）。 不想赌，就把这个位子删掉 —— 那两个人偶会保持白色人偶原样出现在片子里。"
 msgstr "万一<0>两个人偶站得几乎重叠</0>、从左往右数不出先后：挂在这个位置上 的卡<1>可能会换错人</1>（模型也只能按从左到右去找）。 不想赌，就把这个位子删掉 —— 那两个人偶会保持白色人偶原样出现在片子里。"
+
+#: src/components/guide/tours.tsx
+msgid "三个页签各管一摊"
+msgstr "三个页签各管一摊"
 
 #: src/utils/nativeCamera.ts
 msgid "上一张还没拍完"
@@ -4101,6 +4133,10 @@ msgstr "先挂上参考视频——中间帧参考图是「多图+参考视频�
 msgid "先挑至少一张参考图——融图是把几张图合成一张，没有素材就没得融"
 msgstr "先挑至少一张参考图——融图是把几张图合成一张，没有素材就没得融"
 
+#: src/components/guide/tours.tsx
+msgid "先核对成片"
+msgstr "先核对成片"
+
 #: src/pages/CutPage.tsx
 msgid "先点上面的片段选中，再用这排按钮"
 msgstr "先点上面的片段选中，再用这排按钮"
@@ -4504,6 +4540,10 @@ msgstr "写一句换成谁，例：换成一只戴墨镜的柴犬"
 msgid "写一句话出片"
 msgstr "写一句话出片"
 
+#: src/components/guide/tours.tsx
+msgid "写一句话就出片"
+msgstr "写一句话就出片"
+
 #: src/studio/ui/FuseFrameSheet.tsx
 msgid "写一句这张{label}要什么画面（例如\"他站在门口回头，半身，暖光\"）——不写的话模型只能自己编"
 msgstr "写一句这张{label}要什么画面（例如\"他站在门口回头，半身，暖光\"）——不写的话模型只能自己编"
@@ -4590,6 +4630,10 @@ msgstr "出片前先看一眼：把你挂的角色放进白模画面，站位不
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "出片前必须把它们取下。"
 msgstr "出片前必须把它们取下。"
+
+#: src/components/guide/tours.tsx
+msgid "出片前这里显示你给的<0>开头帧</0>（没给就先空着），出片后就地回放这一段。 不满意就改下面那句话（或换圈选）再来一次。"
+msgstr "出片前这里显示你给的<0>开头帧</0>（没给就先空着），出片后就地回放这一段。 不满意就改下面那句话（或换圈选）再来一次。"
 
 #: src/pages/CustomCardPage.tsx
 msgid "出片句（选填）"
@@ -5045,6 +5089,15 @@ msgstr "剧本太短（至少 {SCRIPT_MIN} 字）"
 msgid "剪辑"
 msgstr "剪辑"
 
+#: src/components/guide/tours.tsx
+msgctxt "新手引导的屏名：只拼进无障碍标签「… 使用引导」（与剪辑页页签、发布键同字不同用）"
+msgid "剪辑"
+msgstr "剪辑"
+
+#: src/components/guide/tours.tsx
+msgid "剪辑：不花钱的整理"
+msgstr "剪辑：不花钱的整理"
+
 #. 接在「……，但」后面说的从句（CutPage / useFlowActions 拼进句子里）：英文小写开头
 #: src/studio/studioStore.ts
 msgid "剪辑稿没能存进本地库：上一条剪到一半的成片还没读出来，存下去会把它盖掉。先去「我的」点「重试」。"
@@ -5213,6 +5266,10 @@ msgstr "单音色"
 msgid "卡"
 msgstr "卡"
 
+#: src/components/guide/tours.tsx
+msgid "卡从哪来"
+msgstr "卡从哪来"
+
 #: src/pages/CardDetailPage.tsx
 #: src/pages/CustomCardPage.tsx
 msgid "卡名"
@@ -5250,6 +5307,10 @@ msgstr "卡已丢失"
 msgid "卡建好了，但有图没能存到服务器"
 msgstr "卡建好了，但有图没能存到服务器"
 
+#: src/components/guide/tours.tsx
+msgid "卡有两条来路，都在<0>点一下桌对面的铸卡师</0>之后：「📎 添加素材」先挑卡种，再把图片或文本交给她炼；「🛒 逛市场」把现成的卡摊到桌上，看中了收进卡组。递素材那一屏会先摆出这一炉要花多少 token；炼出来先过目，点「收下这批卡」才真的进你的卡组。"
+msgstr "卡有两条来路，都在<0>点一下桌对面的铸卡师</0>之后：「📎 添加素材」先挑卡种，再把图片或文本交给她炼；「🛒 逛市场」把现成的卡摊到桌上，看中了收进卡组。递素材那一屏会先摆出这一炉要花多少 token；炼出来先过目，点「收下这批卡」才真的进你的卡组。"
+
 #: src/components/MaterialSheet.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/ProfilePage.tsx
@@ -5261,6 +5322,10 @@ msgstr "卡片"
 #: src/pages/PublishPage.tsx
 msgid "卡片存上了，卡组本身没建成"
 msgstr "卡片存上了，卡组本身没建成"
+
+#: src/components/guide/tours.tsx
+msgid "卡片工坊"
+msgstr "卡片工坊"
 
 #: src/pages/WorkshopPage.tsx
 msgid "卡片广场在服务器上，离线库里没有「别人」"
@@ -5586,6 +5651,11 @@ msgstr "发一句试试，比如「你好呀」。"
 msgid "发布"
 msgstr "发布"
 
+#: src/components/guide/tours.tsx
+msgctxt "新手引导的屏名：只拼进无障碍标签「… 使用引导」（与剪辑页页签、发布键同字不同用）"
+msgid "发布"
+msgstr "发布"
+
 #: src/pages/VideoPage.tsx
 msgctxt "评论输入框旁那颗键：把这条评论发出去（不是发布作品）"
 msgid "发布"
@@ -5608,6 +5678,10 @@ msgstr "发布中…"
 msgctxt "评论输入框旁那颗键：正在把这条评论发出去（不是发布作品）"
 msgid "发布中…"
 msgstr "发布中…"
+
+#: src/components/guide/tours.tsx
+msgid "发布之后怎么改"
+msgstr "发布之后怎么改"
 
 #: src/studio/personaWizardStore.ts
 msgid "发布人格"
@@ -5641,6 +5715,10 @@ msgstr "发布后会做三件事：{note}并按<0>《AIGC 内容须知》</0>承
 #: src/pages/PublishPage.tsx
 msgid "发布后会留存这条片的工坊工程，之后可回炉重做。"
 msgstr "发布后会留存这条片的工坊工程，之后可回炉重做。"
+
+#: src/components/guide/tours.tsx
+msgid "发布后编辑页随时能改标题、封面这些壳；想换<0>成片内容</0>，去编辑页点「🛠 回炉重做」， 把这条片的工坊工程取回工坊接着改，链接不变。「放弃本次合成」会把这条成片丢掉 —— 点它会先问你一句。"
+msgstr "发布后编辑页随时能改标题、封面这些壳；想换<0>成片内容</0>，去编辑页点「🛠 回炉重做」， 把这条片的工坊工程取回工坊接着改，链接不变。「放弃本次合成」会把这条成片丢掉 —— 点它会先问你一句。"
 
 #: src/components/support/VoiceMixer.tsx
 msgid "发布失败，稍后再试。"
@@ -6096,6 +6174,10 @@ msgstr "可以退出这一页去做别的，传完了会有提示。"
 msgid "可用约 {0} MB"
 msgstr "可用约 {0} MB"
 
+#: src/components/guide/tours.tsx
+msgid "可见性管<0>谁看得到</0>：公开、凭链接可见、仅自己可见。 发完在作品编辑页随时能改。收费这一栏现在<1>所有作品都是免费观看</1>—— 付费解锁等收款和分账真的通了再放出来。"
+msgstr "可见性管<0>谁看得到</0>：公开、凭链接可见、仅自己可见。 发完在作品编辑页随时能改。收费这一栏现在<1>所有作品都是免费观看</1>—— 付费解锁等收款和分账真的通了再放出来。"
+
 #: src/api/companion.ts
 msgid "可触摸"
 msgstr "可触摸"
@@ -6117,6 +6199,10 @@ msgstr "台词不再带音色样本（「{0}」档出片无声）"
 #: src/components/flow/TierRow.tsx
 msgid "台词不再带音色样本（「{0}」档暂无配音）"
 msgstr "台词不再带音色样本（「{0}」档暂无配音）"
+
+#: src/components/guide/tours.tsx
+msgid "右上角是终点"
+msgstr "右上角是终点"
 
 #: src/components/VideoTemplateExtractor.tsx
 msgid "右上角疑似有水印或台标：白模出片会把它逐帧复刻进每一条成片，建议用裁剪框把这块框到画面外。（只是提醒，看错了直接忽略——照样可以继续。）"
@@ -6232,6 +6318,10 @@ msgstr "合成预览没画成（{0}）——不影响出片，可以直接生成
 #: src/studio/flowStore.ts
 msgid "合成预览要一张图的钱（{0} token），余额不够——去「我的」页充值"
 msgstr "合成预览要一张图的钱（{0} token），余额不够——去「我的」页充值"
+
+#: src/components/guide/tours.tsx
+msgid "同一条片的另一面"
+msgstr "同一条片的另一面"
 
 #. placeholder {0}: Math.round(totalSec)
 #: src/components/TemplateShelf.tsx
@@ -6522,6 +6612,10 @@ msgstr "圈出要改的地方，写一句要求——AI 会重画这一格"
 #: src/pages/CutPage.tsx
 msgid "圈选"
 msgstr "圈选"
+
+#: src/components/guide/tours.tsx
+msgid "圈选：花钱的重生成"
+msgstr "圈选：花钱的重生成"
 
 #. placeholder {0}: srcErr[active!.segIndex]
 #: src/pages/CutPage.tsx
@@ -6981,6 +7075,10 @@ msgstr "完成度"
 msgid "完成挂卡"
 msgstr "完成挂卡"
 
+#: src/components/guide/tours.tsx
+msgid "完成直通发布"
+msgstr "完成直通发布"
+
 #: src/pages/FlowPage.tsx
 msgid "完成视频"
 msgstr "完成视频"
@@ -7048,6 +7146,10 @@ msgstr "密码至少 6 位"
 #: src/studio/live2dUploadStore.ts
 msgid "对映射"
 msgstr "对映射"
+
+#: src/components/guide/tours.tsx
+msgid "对画布说话"
+msgstr "对画布说话"
 
 #. placeholder {0}: AI_REAL ? EXAMPLES[lang].template : EXAMPLES[lang].describe
 #: src/components/flow/FlowCanvas.tsx
@@ -7243,6 +7345,10 @@ msgstr "工坊"
 msgid "工坊工程没能留在这台设备上（存储空间不足或浏览器隐私模式）——这条片发出去之后不能回炉"
 msgstr "工坊工程没能留在这台设备上（存储空间不足或浏览器隐私模式）——这条片发出去之后不能回炉"
 
+#: src/components/guide/tours.tsx
+msgid "工坊是什么"
+msgstr "工坊是什么"
+
 #: src/pages/CreatePage.tsx
 msgid "工坊模式"
 msgstr "工坊模式"
@@ -7294,6 +7400,10 @@ msgstr "左上角疑似有水印或台标：白模出片会把它逐帧复刻进
 #: src/studio/ui/NpcDialog.tsx
 msgid "左上角的返回按钮可逐层退出"
 msgstr "左上角的返回按钮可逐层退出"
+
+#: src/components/guide/tours.tsx
+msgid "左上角这颗按钮是<0>唯一的出口</0>，一层一层往外退：先关浮层、再退市场或对话，最后才回首页。<1>卡片收下就入账</1>，刷新还在；但桌上的流水线只在内存里，要存成草稿才留得住——每炼出一段会自动存一次；改了别的、想过会儿接着做，就先点顶栏右侧那颗<2>💾 存草稿</2>（桌上铸出第一段之前它是灰的）。"
+msgstr "左上角这颗按钮是<0>唯一的出口</0>，一层一层往外退：先关浮层、再退市场或对话，最后才回首页。<1>卡片收下就入账</1>，刷新还在；但桌上的流水线只在内存里，要存成草稿才留得住——每炼出一段会自动存一次；改了别的、想过会儿接着做，就先点顶栏右侧那颗<2>💾 存草稿</2>（桌上铸出第一段之前它是灰的）。"
 
 #: src/components/VideoTemplateExtractor.tsx
 msgid "左下角疑似有水印或台标：白模出片会把它逐帧复刻进每一条成片，建议用裁剪框把这块框到画面外。（只是提醒，看错了直接忽略——照样可以继续。）"
@@ -8755,6 +8865,10 @@ msgstr "拖四个角调整<0>裁剪框</0>，拖框身整体挪位。<1>台标 /
 msgid "拖拽换序 · 点击选中"
 msgstr "拖拽换序 · 点击选中"
 
+#: src/components/guide/tours.tsx
+msgid "拖进度条停在要改的画面，⭕ 圈出物体、写一句要求；可以<0>跨帧跨段圈多处</0>， 攒齐了一次性重新生成 —— 按钮上会标出几段、多少钱，<1>点那一下才计费</1>。"
+msgstr "拖进度条停在要改的画面，⭕ 圈出物体、写一句要求；可以<0>跨帧跨段圈多处</0>， 攒齐了一次性重新生成 —— 按钮上会标出几段、多少钱，<1>点那一下才计费</1>。"
+
 #: src/components/flow/RefFrameSheet.tsx
 msgid "拖进度条到想要的画面，再点下面的键"
 msgstr "拖进度条到想要的画面，再点下面的键"
@@ -9619,6 +9733,10 @@ msgstr "整条 {realSec} 秒将切成 {parts} 段（{segs}）登记成一组—�
 #: src/components/blockout/arkVideoRules.ts
 msgid "整条 {realSec} 秒将切成 {parts} 段（{segs}）登记成一组——每段是独立模板，从任何一段套用都会整组铺进工作流（画面 {picW}×{picH} 低于 AI 引擎的像素下限，登记时服务端会自动放大到刚过线，时长与画幅比例不变）。"
 msgstr "整条 {realSec} 秒将切成 {parts} 段（{segs}）登记成一组——每段是独立模板，从任何一段套用都会整组铺进工作流（画面 {picW}×{picH} 低于 AI 引擎的像素下限，登记时服务端会自动放大到刚过线，时长与画幅比例不变）。"
+
+#: src/components/guide/tours.tsx
+msgid "整条模式下「下一步」把时间轴按顺序导出成<0>一整条视频</0>、进发布页（已经合好的稿子它写的是「去发布」，直接进发布页）。 从工坊单段进来时它是「保存本段」，改完写回那一段、不合并不发片。"
+msgstr "整条模式下「下一步」把时间轴按顺序导出成<0>一整条视频</0>、进发布页（已经合好的稿子它写的是「去发布」，直接进发布页）。 从工坊单段进来时它是「保存本段」，改完写回那一段、不合并不发片。"
 
 #: src/components/blockout/arkVideoRules.ts
 msgid "整条登记不裁画面，而这条原片有一边到了 {longEdge} 像素，超过 AI 引擎的 {maxEdge} 上限。把选段收回 {segMaxSec} 秒以内、用裁剪框把画面框到 {maxEdge} 以内，一段一段做。"
@@ -10729,6 +10847,10 @@ msgstr "模板里这张卡已经变了，刷新后再试"
 msgid "横屏"
 msgstr "横屏"
 
+#: src/components/guide/tours.tsx
+msgid "横竖都能用"
+msgstr "横竖都能用"
+
 #: src/data/templates.ts
 msgctxt "人偶的主色（挂卡提醒那句话里显示）"
 msgid "橙"
@@ -11083,6 +11205,10 @@ msgstr "段已删"
 #: src/components/flow/FlowCanvas.tsx
 msgid "段间承接"
 msgstr "段间承接"
+
+#: src/components/guide/tours.tsx
+msgid "每一格是<0>一段</0>，从左往右就是这条片的顺序。 点一格<1>就地打开这一段的编辑窗</1>，再点一下收起，点别的格子就换过去。 画布可以拖着平移、两指捏合缩放。"
+msgstr "每一格是<0>一段</0>，从左往右就是这条片的顺序。 点一格<1>就地打开这一段的编辑窗</1>，再点一下收起，点别的格子就换过去。 画布可以拖着平移、两指捏合缩放。"
 
 #: src/studio/ui/SchemeEditorSheet.tsx
 msgid "每一格的提示词后面都会自动接上「保持参考图的画风与人物长相一致」——真人截图出写实、动漫截图出同风格插画。这一条不开放修改，免得真人素材被画成另一个画风。"
@@ -11548,6 +11674,14 @@ msgstr "注销账号"
 msgid "注销这个账号"
 msgstr "注销这个账号"
 
+#: src/components/guide/tours.tsx
+msgid "流水线画布"
+msgstr "流水线画布"
+
+#: src/components/guide/tours.tsx
+msgid "流水线的终点"
+msgstr "流水线的终点"
+
 #: src/studio/quality.ts
 msgid "流畅"
 msgstr "流畅"
@@ -11646,6 +11780,10 @@ msgstr "清空重聊"
 #: src/studio/genLog.ts
 msgid "渲染视频"
 msgstr "渲染视频"
+
+#: src/components/guide/tours.tsx
+msgid "满意了点右上角「完成视频」，去剪辑页收尾、发布。<0>简约不进草稿库</0>：中途退出这一段就不在了—— 想细做、想留草稿，回创作入口换工坊（工作流画布是它的另一面）。"
+msgstr "满意了点右上角「完成视频」，去剪辑页收尾、发布。<0>简约不进草稿库</0>：中途退出这一段就不在了—— 想细做、想留草稿，回创作入口换工坊（工作流画布是它的另一面）。"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "演出中…"
@@ -11761,6 +11899,10 @@ msgstr "点一个人偶选中它"
 msgid "点一个就只看这一类，选中的那个会放大亮起来；<0>再点同一个才取消</0> —— 没有别的地方能关掉它。"
 msgstr "点一个就只看这一类，选中的那个会放大亮起来；<0>再点同一个才取消</0> —— 没有别的地方能关掉它。"
 
+#: src/components/guide/tours.tsx
+msgid "点一个片段选中，就能在播放头处<0>✂️ 分割</0>、<1>🗑 删除</1>、拖拽或前移后移<2>换序</2>。 这些只改导出范围，<3>一个 token 都不花</3>。"
+msgstr "点一个片段选中，就能在播放头处<0>✂️ 分割</0>、<1>🗑 删除</1>、拖拽或前移后移<2>换序</2>。 这些只改导出范围，<3>一个 token 都不花</3>。"
+
 #. placeholder {0}: personNameOf(castable[selected]?.label)
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "点一张卡，挂给「{0}」"
@@ -11773,6 +11915,10 @@ msgstr "点亮法阵 · 去剪辑成片"
 #: src/pages/CardDetailPage.tsx
 msgid "点任意处关闭"
 msgstr "点任意处关闭"
+
+#: src/components/guide/tours.tsx
+msgid "点你这一侧那排上的<0>虚线卡位</0>，先挑这一段怎么拍：「套模板」给白模视频里的人偶挂卡换人；「自选卡片」挑几张素材卡、写清这一段要发生什么，AI 推演出几套走向，每套都带首尾帧预览，挑定一套后还能换帧、改剧情、按修改重画；「自定义」全按你给的示例视频或首尾帧来。满意了再<1>炼出本段视频</1>。底下这条提示会跟着你当前这一步换措辞。"
+msgstr "点你这一侧那排上的<0>虚线卡位</0>，先挑这一段怎么拍：「套模板」给白模视频里的人偶挂卡换人；「自选卡片」挑几张素材卡、写清这一段要发生什么，AI 推演出几套走向，每套都带首尾帧预览，挑定一套后还能换帧、改剧情、按修改重画；「自定义」全按你给的示例视频或首尾帧来。满意了再<1>炼出本段视频</1>。底下这条提示会跟着你当前这一步换措辞。"
 
 #: src/studio/StudioPage.tsx
 msgid "点击卡片之外的桌面区域可拉远视角"
@@ -11825,6 +11971,14 @@ msgstr "点地面放一个新人偶"
 #: src/pages/SupportModelNewPage.tsx
 msgid "点头 · 赞同"
 msgstr "点头 · 赞同"
+
+#: src/components/guide/tours.tsx
+msgid "点它才真花钱开炼，花多少就印在键上。旁边「⚙」改本段的<0>时长、画质与画幅</0>——价钱跟着变，点之前看一眼。 出片之后多一颗「⭕ 圈选」：圈出画面里要改的地方、写句要求，就地重画。"
+msgstr "点它才真花钱开炼，花多少就印在键上。旁边「⚙」改本段的<0>时长、画质与画幅</0>——价钱跟着变，点之前看一眼。 出片之后多一颗「⭕ 圈选」：圈出画面里要改的地方、写句要求，就地重画。"
+
+#: src/components/guide/tours.tsx
+msgid "点它把这条流水线带去 <0>3D 工坊</0>：画布是摊开的流水线， 工坊是摆在桌上的节点卡，<1>两边改的是同一份</1>， 换个面打开不用重炼、不重复收费。"
+msgstr "点它把这条流水线带去 <0>3D 工坊</0>：画布是摊开的流水线， 工坊是摆在桌上的节点卡，<1>两边改的是同一份</1>， 换个面打开不用重炼、不重复收费。"
 
 #: src/components/guide/tours.tsx
 msgid "点它看消息 —— 全 app <0>只有这一个入口</0>。 有新的时候图标上会多一个红点，红点不报条数，进去才知道有几条。"
@@ -13048,6 +13202,10 @@ msgstr "立场倾向"
 msgid "竖屏"
 msgstr "竖屏"
 
+#: src/components/guide/tours.tsx
+msgid "竖屏时编辑窗从下面升起，横屏时它挪到右边、画布留给左边 —— 段多的时候横过来看更痛快。 旁边那颗 💾 随时把这条片存成草稿，回头接着做。"
+msgstr "竖屏时编辑窗从下面升起，横屏时它挪到右边、画布留给左边 —— 段多的时候横过来看更痛快。 旁边那颗 💾 随时把这条片存成草稿，回头接着做。"
+
 #. placeholder {0}: idx + 1
 #. placeholder {1}: PERSONA_STEPS.length
 #: src/pages/SupportPersonaNewPage.tsx
@@ -13651,6 +13809,10 @@ msgstr "简介"
 msgid "简介最多 {SKILL_INTRO_MAX} 个字"
 msgstr "简介最多 {SKILL_INTRO_MAX} 个字"
 
+#: src/components/guide/tours.tsx
+msgid "简约出片"
+msgstr "简约出片"
+
 #: src/pages/CreatePage.tsx
 #: src/pages/FlowPage.tsx
 msgid "简约模式"
@@ -13659,6 +13821,10 @@ msgstr "简约模式"
 #: src/studio/flowStore.ts
 msgid "简约模式只有一段，插不了中间帧——要多段接力去「工作流」里做"
 msgstr "简约模式只有一段，插不了中间帧——要多段接力去「工作流」里做"
+
+#: src/components/guide/tours.tsx
+msgid "简约模式只有一段、<0>不推方案</0>：在这里写清想拍什么， 出片直接照它来。套了模板的话由配方管画风与分镜；<1>带角色位的白模模板</1>，这一块换成挂卡入口——把你的角色卡挂到画面里的人偶上。"
+msgstr "简约模式只有一段、<0>不推方案</0>：在这里写清想拍什么， 出片直接照它来。套了模板的话由配方管画风与分镜；<1>带角色位的白模模板</1>，这一块换成挂卡入口——把你的角色卡挂到画面里的人偶上。"
 
 #: src/components/blockout/RoleCastBoard.tsx
 #: src/components/flow/SkillPanel.tsx
@@ -13876,6 +14042,10 @@ msgstr "结尾帧"
 msgid "结果取回来了，但服务器返回的模板缺少参考视频地址——钱在开炼那一步已经付过，请去「我的模板」确认后再决定要不要重来。"
 msgstr "结果取回来了，但服务器返回的模板缺少参考视频地址——钱在开炼那一步已经付过，请去「我的模板」确认后再决定要不要重来。"
 
+#: src/components/guide/tours.tsx
+msgid "结果就在这块屏幕上"
+msgstr "结果就在这块屏幕上"
+
 #: src/components/CoverPicker.tsx
 msgid "绘制中…"
 msgstr "绘制中…"
@@ -13997,6 +14167,10 @@ msgstr "编辑"
 #: src/pages/EditPage.tsx
 msgid "编辑作品"
 msgstr "编辑作品"
+
+#: src/components/guide/tours.tsx
+msgid "编辑窗顶部这三颗按钮切的是<0>这一段</0>怎么做： 「套模板」是拿一段白模视频复刻运镜与站位，你只需给里面的人偶挂上自己的角色卡； 「自选卡片」是自己挑素材卡、写一句要求，AI 推演几套走向让你挑； 「自定义」全按你给的来：传一段示例视频当整段参考，或者直接给自己的首尾帧。 三种<1>每段各选各的</1>，同一条片里可以混着来。"
+msgstr "编辑窗顶部这三颗按钮切的是<0>这一段</0>怎么做： 「套模板」是拿一段白模视频复刻运镜与站位，你只需给里面的人偶挂上自己的角色卡； 「自选卡片」是自己挑素材卡、写一句要求，AI 推演几套走向让你挑； 「自定义」全按你给的来：传一段示例视频当整段参考，或者直接给自己的首尾帧。 三种<1>每段各选各的</1>，同一条片里可以混着来。"
 
 #: src/pages/ProfilePage.tsx
 #: src/pages/SettingsPage.tsx
@@ -14980,6 +15154,10 @@ msgstr "谁在故事里——长相 / 性格 / 口癖"
 #: src/pages/SupportModelNewPage.tsx
 msgid "谁能用"
 msgstr "谁能用"
+
+#: src/components/guide/tours.tsx
+msgid "谁能看"
+msgstr "谁能看"
 
 #: src/components/VisibilityPicker.tsx
 #: src/pages/SupportPersonaNewPage.tsx
@@ -16658,6 +16836,10 @@ msgstr "这是<0>做模板</0>这一次的花费；以后每次有人套用这�
 msgid "这是<0>编号版</0>的老模板（2026-08-17 之前做的）。新做的模板改用 按位置指认了 —— 这一个继续按编号用，不受影响，<1>也不用重做</1>。"
 msgstr "这是<0>编号版</0>的老模板（2026-08-17 之前做的）。新做的模板改用 按位置指认了 —— 这一个继续按编号用，不受影响，<1>也不用重做</1>。"
 
+#: src/components/guide/tours.tsx
+msgid "这是一张铸卡桌：<0>素材炼成卡</0>，卡摆上桌铸成<1>一段视频</1>，段够了再推成成片。卡分这几种——<2/>——它们决定每一段里出现谁、长什么样。"
+msgstr "这是一张铸卡桌：<0>素材炼成卡</0>，卡摆上桌铸成<1>一段视频</1>，段够了再推成成片。卡分这几种——<2/>——它们决定每一段里出现谁、长什么样。"
+
 #. placeholder {0}: tpl.group.count
 #. placeholder {1}: parts.length
 #: src/components/TemplateShelf.tsx
@@ -16973,6 +17155,10 @@ msgstr "这里的每一个动作都由服务端按 role 重新鉴权一次。<0/
 msgid "这里管<0>卡片、卡组和模板</0>这些素材。 要摆桌铸卡、把卡炼成视频，从这条路进 3D 工坊； 唯一的例外是模板栏里的「AI 换白模」——那条会真出一次片、真花钱。"
 msgstr "这里管<0>卡片、卡组和模板</0>这些素材。 要摆桌铸卡、把卡炼成视频，从这条路进 3D 工坊； 唯一的例外是模板栏里的「AI 换白模」——那条会真出一次片、真花钱。"
 
+#: src/components/guide/tours.tsx
+msgid "这颗键印着价钱"
+msgstr "这颗键印着价钱"
+
 #: src/components/PhotoSubjectPicker.tsx
 msgid "进卡的那一张"
 msgstr "进卡的那一张"
@@ -17012,6 +17198,10 @@ msgstr "连圈多张，打包成一组"
 #: src/pages/SettingsPage.tsx
 msgid "退出"
 msgstr "退出"
+
+#: src/components/guide/tours.tsx
+msgid "退出与存草稿"
+msgstr "退出与存草稿"
 
 #: src/pages/FeedPage.tsx
 msgid "退出全屏"
@@ -17486,6 +17676,10 @@ msgctxt "人偶的主色（挂卡提醒那句话里显示）"
 msgid "银"
 msgstr "银"
 
+#: src/components/guide/tours.tsx
+msgid "铸一段视频"
+msgstr "铸一段视频"
+
 #: src/studio/StudioPage.tsx
 msgid "铸出第一段之后就能给这条工程起名"
 msgstr "铸出第一段之后就能给这条工程起名"
@@ -17702,6 +17896,10 @@ msgstr "预览帧还是没截到（{0}）——成片本身没事，点开卡片
 #: src/pages/SupportModelNewPage.tsx
 msgid "预览没画出来，试跑跑不了 —— 跑了也只是在官方看板娘身上演一遍。先点上面的「重新加载预览」。"
 msgstr "预览没画出来，试跑跑不了 —— 跑了也只是在官方看板娘身上演一遍。先点上面的「重新加载预览」。"
+
+#: src/components/guide/tours.tsx
+msgid "预览里播的就是剪辑页合好的<0>这一整条成片</0>，下面这行的 ✓ 表示它是真生成的影像。<1>发布前从头到尾看一遍</1>，确认就是你要发的这一条。"
+msgstr "预览里播的就是剪辑页合好的<0>这一整条成片</0>，下面这行的 ✓ 表示它是真生成的影像。<1>发布前从头到尾看一遍</1>，确认就是你要发的这一条。"
 
 #: src/components/ShareSheet.tsx
 msgid "预览链接已复制，去贴给朋友吧"
