@@ -156,6 +156,10 @@ msgstr "{count, plural, one {# card} other {# cards}}"
 msgid "{durSec} 秒"
 msgstr "{durSec}s"
 
+#: src/components/WorkshopShareBar.tsx
+msgid "{installs} 人装过"
+msgstr "{installs, plural, one {Installed by # person} other {Installed by # people}}"
+
 #. placeholder {0}: tierOf(node.videoTier).label
 #. placeholder {1}: tierOf(node.videoTier).minSec
 #: src/components/flow/SegSettings.tsx
@@ -168,13 +172,27 @@ msgstr "“{0}” needs at least {1}s"
 msgid "「{0}」按发计价，只有 {1} 秒两档"
 msgstr "“{0}” is priced per clip and only offers {1}s"
 
+#. placeholder {0}: s.title
+#: src/components/flow/SkillPanel.tsx
+msgid "「{0}」还挂在广场上——先下架再删"
+msgstr "“{0}” is still published. Unpublish it before deleting"
+
 #: src/studio/canvasAgent.ts
 msgid "「{u}」"
 msgstr "“{u}”"
 
+#. placeholder {0}: rows.length
+#: src/components/support/VoiceMixer.tsx
+msgid "+ 加一味（{0}/{maxMix}）"
+msgstr "+ Add a voice ({0}/{maxMix})"
+
 #: src/studio/canvasAgent.ts
 msgid "＋ 加一段"
 msgstr "＋ Add a segment"
+
+#: src/components/flow/SkillPanel.tsx
+msgid "＋ 存为技能"
+msgstr "+ Save as skill"
 
 #: src/components/flow/RefFrameSheet.tsx
 msgid "＋中间帧（{midCount}/{midMax}）"
@@ -187,6 +205,14 @@ msgstr "<0>This can't be undone</0>: the card image, reference images, voice sam
 #: src/components/DeleteCardDialog.tsx
 msgid "<0>删了就找不回来</0>：卡面、形象参考图、铸造提示词、声音样本与肖像授权都会一起清掉。"
 msgstr "<0>This can't be undone</0>: the card image, reference images, generation prompt, voice sample and portrait authorization are all removed."
+
+#: src/components/support/VoiceMixer.tsx
+msgid "■ 停止"
+msgstr "■ Stop"
+
+#: src/components/support/VoiceMixer.tsx
+msgid "▶ 试听"
+msgstr "▶ Preview"
 
 #: src/components/TokenCost.tsx
 msgid "○ 演示模式：本地模拟，不消耗 token"
@@ -233,6 +259,10 @@ msgstr "✓ Set as last frame"
 msgid "✓ 已设为首帧"
 msgstr "✓ Set as first frame"
 
+#: src/components/flow/SegPlayer.tsx
+msgid "⭕ 圈选改画面"
+msgstr "⭕ Circle to edit"
+
 #: src/components/FrameAnnotator.tsx
 msgid "⭕ 圈选要修改的物体"
 msgstr "⭕ Circle what you want to change"
@@ -266,6 +296,7 @@ msgid "📥 取回这一段的成片（不重新下单，不再花钱）"
 msgstr "📥 Recover this segment's video (no new order, no extra charge)"
 
 #: src/components/BranchPlayer.tsx
+#: src/components/flow/SegPlayer.tsx
 #: src/components/SegmentPlayer.tsx
 msgid "🔇 已静音"
 msgstr "🔇 Muted"
@@ -279,6 +310,10 @@ msgstr "🔇 Muted"
 #: src/components/SegmentPlayer.tsx
 msgid "🔊 有声"
 msgstr "🔊 Sound on"
+
+#: src/components/flow/SegPlayer.tsx
+msgid "🔊 模板原声"
+msgstr "🔊 Template audio"
 
 #: src/studio/canvasAgent.ts
 msgid "🗑 删掉某段"
@@ -300,6 +335,30 @@ msgstr "🧪 Remove template"
 msgid "AI 指挥没连上（{why}），先按本地句式办了能办的。"
 msgstr "Couldn't reach the AI director ({why}), so I did what plain phrasing allows. "
 
+#: src/components/ShareSheet.tsx
+msgid "AI 逐段生成的短片 · 来自启梦"
+msgstr "An AI short made segment by segment · from QiMeng"
+
+#: src/components/ShareSheet.tsx
+msgid "QQ 分享要在 App 里用，浏览器里请复制链接"
+msgstr "QQ sharing works in the app. In a browser, copy the link instead"
+
+#: src/components/ShareSheet.tsx
+msgid "QQ 好友"
+msgstr "QQ friends"
+
+#: src/components/support/VoiceMixer.tsx
+msgid "一句话介绍（选填）"
+msgstr "One-line intro (optional)"
+
+#: src/components/WorkshopShareBar.tsx
+msgid "一句话推荐（选填）：这张卡适合画什么？"
+msgstr "One-line pitch (optional): what is this card good for?"
+
+#: src/components/flow/SkillPanel.tsx
+msgid "一句话简介（可空）"
+msgstr "One-line intro (optional)"
+
 #: src/utils/nativeCamera.ts
 msgid "上一张还没拍完"
 msgstr "The previous photo isn't finished yet"
@@ -319,6 +378,10 @@ msgstr "Uploaded audio (the original was longer; kept the first {VOICE_MAX_SEC}s
 #: src/components/guide/GuideOverlay.tsx
 msgid "下一步"
 msgstr "Next"
+
+#: src/components/flow/SkillPanel.tsx
+msgid "下架"
+msgstr "Unpublish"
 
 #: src/components/UpdateSheet.tsx
 msgid "下载中 {pct}%"
@@ -377,6 +440,10 @@ msgstr "How to use"
 msgid "例：删除圈中的路人 / 把圈中的伞换成红色油纸伞 / 圈中的招牌改成中文"
 msgstr "e.g. remove the passer-by in the circle / make the umbrella in the circle a red oil-paper umbrella / change the sign in the circle to English"
 
+#: src/components/ShareSheet.tsx
+msgid "保存到本地"
+msgstr "Save to device"
+
 #. placeholder {0}: formatDuration(total)
 #: src/components/blockout/TrimBar.tsx
 msgid "允许 {minSec}~{maxSec} 秒 · 全片 {0}"
@@ -397,6 +464,18 @@ msgstr "Look around, tell me when it's done"
 #: src/components/VisibilityPicker.tsx
 msgid "公开"
 msgstr "Public"
+
+#: src/components/WorkshopShareBar.tsx
+msgid "公开中：会出现在创意工坊的「从市场添加」里，别人可以把整套卡组装走。"
+msgstr "Public: shows up under “Add from market” in the Workshop, and others can install the whole deck."
+
+#: src/components/WorkshopShareBar.tsx
+msgid "公开中：会出现在创意工坊的「从市场添加」里，别人可以把这张卡装走。"
+msgstr "Public: shows up under “Add from market” in the Workshop, and others can install this card."
+
+#: src/components/support/VoiceMixer.tsx
+msgid "公开到声音市场（不勾 = 只在「我的」里）"
+msgstr "Publish to the voice market (unchecked = only in “Mine”)"
 
 #: src/components/DeleteConfirmShell.tsx
 msgid "关掉"
@@ -444,6 +523,10 @@ msgstr "Preparing…"
 msgid "凭链接可见"
 msgstr "Anyone with the link"
 
+#: src/components/ShareSheet.tsx
+msgid "凭链接可见：不进首页和搜索，但<0>拿到链接的人都能看，也能转给别人</0>。"
+msgstr "Anyone with the link: not in Home or search, but <0>anyone who has the link can watch it and pass it on</0>."
+
 #: src/components/flow/CastPreviewCard.tsx
 msgid "出片前先看一眼：把你挂的角色放进白模画面，站位不对这时候改还不花视频钱"
 msgstr "Check before rendering: your cast is placed into the blockout frame, and fixing positions now costs no video tokens"
@@ -452,6 +535,26 @@ msgstr "Check before rendering: your cast is placed into the blockout frame, and
 msgid "出现在首页、分区和搜索里，谁都能看"
 msgstr "Shows up in Home, Discover and search. Anyone can watch"
 
+#: src/components/WorkshopShareBar.tsx
+msgid "分享到创意工坊"
+msgstr "Share to Workshop"
+
+#: src/components/WorkshopShareBar.tsx
+msgid "分享失败：{err}"
+msgstr "Sharing failed: {err}"
+
+#: src/components/ShareSheet.tsx
+msgid "分享或保存这条作品"
+msgstr "Share or save this video"
+
+#: src/components/ShareSheet.tsx
+msgid "分享这条作品"
+msgstr "Share this video"
+
+#: src/components/WorkshopShareBar.tsx
+msgid "分享需要先连接服务器并登录 —— 离线库里没有「别人」。"
+msgstr "Sharing needs a server connection and sign-in; an offline library has no “others”."
+
 #: src/components/TabBar.tsx
 msgid "分区"
 msgstr "Discover"
@@ -459,6 +562,10 @@ msgstr "Discover"
 #: src/components/TabBar.tsx
 msgid "创作"
 msgstr "Create"
+
+#: src/components/flow/SkillPanel.tsx
+msgid "删"
+msgstr "Delete"
 
 #. placeholder {0}: card.name
 #: src/components/DeleteCardDialog.tsx
@@ -515,6 +622,11 @@ msgstr "Once the deck itself is deleted, it can't be recovered."
 msgid "卡面仍带背景，出片可能把背景里的东西画进去"
 msgstr "The card image still has its background, so generated videos may pick up things from it"
 
+#. placeholder {0}: takedownReasonText(video.takedown.reason)
+#: src/components/ShareSheet.tsx
+msgid "原因：{0}"
+msgstr "Reason: {0}"
+
 #: src/components/flow/TierRow.tsx
 msgid "去升级"
 msgstr "Upgrade"
@@ -527,9 +639,33 @@ msgstr "Go recover this segment"
 msgid "去开启「允许安装未知应用」"
 msgstr "Turn on “Install unknown apps”"
 
+#: src/components/support/VoiceMixer.tsx
+msgid "去掉这一味"
+msgstr "Remove this voice"
+
 #: src/components/BlockButton.tsx
 msgid "去登录"
 msgstr "Sign in"
+
+#: src/components/flow/SkillPanel.tsx
+msgid "发布"
+msgstr "Publish"
+
+#: src/components/support/VoiceMixer.tsx
+msgid "发布中…"
+msgstr "Publishing…"
+
+#: src/components/support/VoiceMixer.tsx
+msgid "发布到声音市场"
+msgstr "Publish to voice market"
+
+#: src/components/support/VoiceMixer.tsx
+msgid "发布失败，稍后再试。"
+msgstr "Publishing failed. Try again later."
+
+#: src/components/support/VoiceMixer.tsx
+msgid "发布并设为我的声音"
+msgstr "Publish and use as my voice"
 
 #: src/components/CommentSheet.tsx
 msgid "发送"
@@ -538,6 +674,14 @@ msgstr "Send"
 #: src/components/CommentSheet.tsx
 msgid "发送中…"
 msgstr "Sending…"
+
+#: src/components/flow/SegPlayer.tsx
+msgid "取不到可截帧的地址"
+msgstr "Couldn't get an address that allows frame capture"
+
+#: src/components/flow/SegPlayer.tsx
+msgid "取不到这一段的画面，圈选打不开——网络不好或链接已过期，稍后再试"
+msgstr "Couldn't get this segment's picture, so circling can't open. The network may be poor or the link expired; try again later"
 
 #. placeholder {0}: e instanceof Error ? e.message : String(e)
 #: src/data/cardViews.ts
@@ -553,14 +697,32 @@ msgstr "Recovering…"
 msgid "取回来的不是图片（{0}）"
 msgstr "What came back isn't an image ({0})"
 
+#: src/components/flow/SegPlayer.tsx
+msgid "取帧中…"
+msgstr "Grabbing frame…"
+
 #: src/utils/videoFrames.ts
 msgid "取帧超时（窗口在后台时浏览器不解码视频）"
 msgstr "Grabbing the frame timed out (the browser doesn't decode video while the window is in the background)"
 
+#: src/components/flow/SegPlayer.tsx
+msgid "取流超时（窗口在后台时浏览器不解码视频）"
+msgstr "Loading the stream timed out (the browser doesn't decode video while the window is in the background)"
+
 #: src/components/CommentDelete.tsx
 #: src/components/ConfirmDialog.tsx
+#: src/components/ShareSheet.tsx
+#: src/components/support/VoiceMixer.tsx
 msgid "取消"
 msgstr "Cancel"
+
+#: src/components/WorkshopShareBar.tsx
+msgid "取消分享失败：{err}"
+msgstr "Unsharing failed: {err}"
+
+#: src/components/WorkshopShareBar.tsx
+msgid "取消分享要先连上服务器：广场上那份在服务器上，离线改不动它。"
+msgstr "Unsharing needs a server connection: the Workshop copy lives on the server and can't be changed offline."
 
 #: src/components/CommentSheet.tsx
 msgid "取消回复"
@@ -582,6 +744,10 @@ msgstr "Grabbing this frame timed out. The system pauses video decoding while th
 #: src/components/VisibilityPicker.tsx
 msgid "只有你能看到；别人拿到链接也打不开"
 msgstr "Only you can see it. Others can't open it even with the link"
+
+#: src/components/WorkshopShareBar.tsx
+msgid "只能分享自己库里的卡：先把它添加到我的卡片。"
+msgstr "You can only share cards in your own library. Add it to My cards first."
 
 #: src/components/ForgeOverlay.tsx
 msgid "可以先去逛逛——生成不会中断，好了顶部会弹提示带你回来。别退出 App 就行"
@@ -651,8 +817,21 @@ msgstr "Adds one at the end"
 #: src/components/BlockButton.tsx
 #: src/components/VoiceRecorder.tsx
 #: src/components/VoiceUploadButton.tsx
+#: src/components/WorkshopShareBar.tsx
 msgid "处理中…"
 msgstr "Processing…"
+
+#: src/components/ShareSheet.tsx
+msgid "复制失败，手动复制：{url}"
+msgstr "Copy failed. Copy it manually: {url}"
+
+#: src/components/ShareSheet.tsx
+msgid "复制链接"
+msgstr "Copy link"
+
+#: src/components/flow/SegPlayer.tsx
+msgid "多半是刚换过走向或重推了方案。挑回原来那一套（或炼完这一套）就能回看"
+msgstr "Most likely you just switched direction or re-derived plans. Pick the original plan again (or render this one) to watch it"
 
 #: src/components/support/HoldToTalk.tsx
 msgid "太短了，按住多说一会儿再松手。"
@@ -666,6 +845,14 @@ msgstr "Too short ({0}s). Keep holding and read the sample for at least {VOICE_M
 #: src/components/AvatarPicker.tsx
 msgid "头像更换失败，本机仍会显示新头像"
 msgstr "Avatar update failed; this device will still show the new avatar"
+
+#: src/components/support/VoiceMixer.tsx
+msgid "女"
+msgstr "Female"
+
+#: src/components/flow/SkillPanel.tsx
+msgid "存"
+msgstr "Save"
 
 #: src/components/FrameAnnotator.tsx
 msgid "存入标注"
@@ -701,6 +888,19 @@ msgstr "Workshop"
 msgid "工程名"
 msgstr "Project name"
 
+#: src/components/flow/SkillPanel.tsx
+msgid "已发布"
+msgstr "Published"
+
+#. placeholder {0}: created.name
+#: src/components/support/VoiceMixer.tsx
+msgid "已发布「{0}」，但设为你的声音时失败了（{why}）。去「声音市场」里点「设为我的声音」就行，不用再发一遍。"
+msgstr "Published “{0}”, but setting it as your voice failed ({why}). Go to the voice market and tap “Use as my voice”; no need to publish again."
+
+#: src/components/WorkshopShareBar.tsx
+msgid "已在工坊 · 取消分享"
+msgstr "In Workshop · Unshare"
+
 #: src/components/BlockButton.tsx
 msgid "已拉黑"
 msgstr "Blocked"
@@ -721,6 +921,10 @@ msgstr "Replaced with the subject-only image. Videos will use it (the card cover
 msgid "已经炼出来的成片不受影响；换回来之后这些能力也会回来（示例视频要重新挂）。"
 msgstr "Videos already rendered aren't affected, and these abilities come back if you switch back (reattach the example video)."
 
+#: src/components/flow/SkillPanel.tsx
+msgid "已装"
+msgstr "Installed"
+
 #: src/components/BranchPlayer.tsx
 msgid "已过 {forkCount} 个分支点"
 msgstr "{forkCount, plural, one {Passed # branch point} other {Passed # branch points}}"
@@ -728,6 +932,10 @@ msgstr "{forkCount, plural, one {Passed # branch point} other {Passed # branch p
 #: src/pages/CustomCardPage.tsx
 msgid "带背景"
 msgstr "Background kept"
+
+#: src/components/flow/SkillPanel.tsx
+msgid "广场上还没有人发布技能——发布你的第一条？"
+msgstr "No one has published a skill yet. Publish the first one?"
 
 #: src/components/blockout/DetectRolesEntry.tsx
 msgid "开始识别（{price}）"
@@ -745,6 +953,14 @@ msgstr "The segment that produced it isn't in this pipeline (the original draft 
 msgid "当前头像。换成官方看板娘或自己的照片都行"
 msgstr "Current avatar. Pick an official mascot or your own photo"
 
+#: src/components/ShareSheet.tsx
+msgid "微信"
+msgstr "WeChat"
+
+#: src/components/ShareSheet.tsx
+msgid "微信分享要在 App 里用，浏览器里请复制链接"
+msgstr "WeChat sharing works in the app. In a browser, copy the link instead"
+
 #: src/components/flow/SegmentRecoverCards.tsx
 msgid "成片已经落回流水线，但自动存草稿没成（存储空间不足或隐私模式）——先别关 App，去工坊点一次「存草稿」"
 msgstr "The video is back in the pipeline, but the automatic draft save failed (low storage or private mode). Don't close the app yet: go to the Studio and tap “Save draft” once"
@@ -757,9 +973,22 @@ msgstr "The video is back in the pipeline. Saving draft…"
 msgid "我的"
 msgstr "Me"
 
+#: src/components/flow/SkillPanel.tsx
+msgid "我的技能（点一个 = 填进输入框）"
+msgstr "My skills (tap one to fill the input)"
+
+#: src/components/flow/SegPlayer.tsx
 #: src/utils/videoFrames.ts
 msgid "截出来是一片空白"
 msgstr "The captured frame came out blank"
+
+#: src/components/flow/SkillPanel.tsx
+msgid "技能名（≤{SKILL_TITLE_MAX} 字）"
+msgstr "Skill name (≤{SKILL_TITLE_MAX} characters)"
+
+#: src/components/flow/SkillPanel.tsx
+msgid "拉取中…"
+msgstr "Loading…"
 
 #: src/components/BlockButton.tsx
 msgid "拉黑"
@@ -913,6 +1142,10 @@ msgstr "New version {0} available"
 msgid "服务器上有一发你付过钱的成片还没取回"
 msgstr "A video you paid for is still waiting on the server to be recovered"
 
+#: src/components/support/VoiceMixer.tsx
+msgid "服务端出错"
+msgstr "server error"
+
 #: src/components/support/HoldToTalk.tsx
 msgid "服务端还没开通语音识别，先打字吧。"
 msgstr "Speech recognition isn't enabled on the server yet. Please type for now."
@@ -964,9 +1197,17 @@ msgstr "Release to cancel"
 msgid "松手结束 · {0}s"
 msgstr "Release to stop · {0}s"
 
+#: src/components/flow/SegPlayer.tsx
+msgid "标注会先改这一段的设定画面，再重新生成本段视频"
+msgstr "The annotation first edits this segment's set frame, then regenerates the segment's video"
+
 #: src/pages/SettingsPage.tsx
 msgid "桌面图标上的名字跟随手机系统语言，这里切换不会改它；多语言手机上两者可能不一致。"
 msgstr "The name under the home-screen icon follows your phone's system language. Switching here doesn't change it, so the two may differ on phones set to several languages."
+
+#: src/components/support/VoiceMixer.tsx
+msgid "模板名字（必填，例：清冷知性）"
+msgstr "Template name (required, e.g. Cool and composed)"
 
 #: src/pages/TemplateDetailPage.tsx
 msgid "模板里这张卡已经变了，刷新后再试"
@@ -975,6 +1216,10 @@ msgstr "This card changed in the template. Refresh and try again."
 #: src/components/flow/SegmentRecoverCards.tsx
 msgid "正在取回…"
 msgstr "Recovering…"
+
+#: src/components/flow/SegPlayer.tsx
+msgid "正在取这一段的视频地址…"
+msgstr "Getting this segment's video address…"
 
 #: src/components/AuthPending.tsx
 msgid "正在确认登录状态…"
@@ -1026,6 +1271,10 @@ msgstr "Couldn't delete. Try again"
 msgid "没能开始播放：{0}"
 msgstr "Couldn't start playback: {0}"
 
+#: src/components/support/VoiceMixer.tsx
+msgid "混音只支持 1.0 音色，语调指令对混音无效。最多 {maxMix} 味：滑杆是相对权重，右侧是归一后的占比。"
+msgstr "Mixing only supports 1.0 voices, and tone instructions don't apply to mixes. Up to {maxMix} voices: sliders are relative weights, and the right side shows each voice's normalized share."
+
 #: src/components/flow/CustomFrameSlots.tsx
 msgid "清掉"
 msgstr "Clear"
@@ -1063,6 +1312,10 @@ msgstr "Read the sentence below ({VOICE_MIN_SEC}–{VOICE_MAX_SEC}s). When a seg
 msgid "生成过程"
 msgstr "Generation log"
 
+#: src/components/support/VoiceMixer.tsx
+msgid "男"
+msgstr "Male"
+
 #: src/components/flow/SegSettings.tsx
 msgid "画幅"
 msgstr "Aspect"
@@ -1087,6 +1340,14 @@ msgstr "Blockout remake: only swaps the people and generates no sound; the origi
 msgid "白模复刻的画幅自适应模板视频，不可另选"
 msgstr "Blockout remakes follow the template video's aspect ratio; it can't be changed"
 
+#: src/components/flow/SegPlayer.tsx
+msgid "白模成片本身无声，回看配的是模板原片的音轨，合并成片时也会带上"
+msgstr "Blockout videos are silent; playback uses the template's original audio, which is also added when merging"
+
+#: src/components/flow/SegPlayer.tsx
+msgid "白模成片本身无声，这里配的是模板原片的音轨；合并成片时也会带上"
+msgstr "Blockout videos are silent; this plays the template's original audio, which is also added when merging"
+
 #: src/studio/canvasAgent.ts
 msgid "白模段用，改成真实角色位与卡名"
 msgstr "For blockout segments — swap in real slot and card names"
@@ -1103,6 +1364,10 @@ msgstr "The camera didn't return a photo"
 #: src/utils/nativeCamera.ts
 msgid "相机照片存不下来（存储可能已满）"
 msgstr "Couldn't save the camera photo (storage may be full)"
+
+#: src/components/flow/SkillPanel.tsx
+msgid "真删？"
+msgstr "Really delete?"
 
 #: src/components/flow/DeleteSegBtn.tsx
 msgid "真的删？这段成片会没"
@@ -1145,17 +1410,45 @@ msgstr "Couldn't grab frames from the video"
 msgid "视频抽帧超时"
 msgstr "Grabbing frames from the video timed out"
 
+#: src/components/flow/SegPlayer.tsx
 #: src/utils/videoFrames.ts
 msgid "视频读不出来"
 msgstr "Couldn't read the video"
+
+#: src/components/WorkshopShareBar.tsx
+msgid "私有：只在你自己的库里。分享后会出现在创意工坊的「从市场添加」里，别人可以把整套卡组装走。"
+msgstr "Private: only in your own library. Once shared, it shows up under “Add from market” in the Workshop, and others can install the whole deck."
+
+#: src/components/WorkshopShareBar.tsx
+msgid "私有：只在你自己的库里。分享后会出现在创意工坊的「从市场添加」里，别人可以把这张卡装走。"
+msgstr "Private: only in your own library. Once shared, it shows up under “Add from market” in the Workshop, and others can install this card."
 
 #: src/components/flow/CustomFrameSlots.tsx
 msgid "空 = AI 按提示词补画（计费）"
 msgstr "Empty = AI draws it from the prompt (charged)"
 
+#: src/components/WorkshopShareBar.tsx
+msgid "空卡组不能分享：先往里放几张卡。"
+msgstr "An empty deck can't be shared. Add some cards first."
+
 #: src/components/UpdateSheet.tsx
 msgid "立即更新"
 msgstr "Update now"
+
+#. placeholder {0}: i + 1
+#: src/components/support/VoiceMixer.tsx
+msgid "第 {0} 味权重"
+msgstr "Voice {0} weight"
+
+#. placeholder {0}: i + 1
+#: src/components/support/VoiceMixer.tsx
+msgid "第 {0} 味音色"
+msgstr "Voice {0}"
+
+#. placeholder {0}: idx + 1
+#: src/components/flow/SegPlayer.tsx
+msgid "第 {0} 段 · 成片"
+msgstr "Segment {0} · Video"
 
 #. placeholder {0}: o.seg
 #. placeholder {1}: was !== prevReq ? "…" : ""
@@ -1188,6 +1481,10 @@ msgstr "Segment {0}'s video can no longer be recovered"
 msgid "第 {s} 段"
 msgstr "Segment {s}"
 
+#: src/components/flow/SkillPanel.tsx
+msgid "算了"
+msgstr "Never mind"
+
 #: src/components/TokenCost.tsx
 msgid "管理员免扣费：这一步最多值 {amount} token，不从你的钱包里扣"
 msgstr "Admin, no charge: this step is worth up to {amount} tokens and won't come out of your wallet"
@@ -1200,6 +1497,10 @@ msgstr "Admin, no charge: this step is worth about {amount} tokens and won't com
 msgid "素材"
 msgstr "Assets"
 
+#: src/components/support/VoiceMixer.tsx
+msgid "给这把嗓子起个名字再发布。"
+msgstr "Give this voice a name before publishing."
+
 #: src/components/DraftTitle.tsx
 msgid "给这条工程起个名"
 msgstr "Name this project"
@@ -1207,6 +1508,10 @@ msgstr "Name this project"
 #: src/components/AvatarPicker.tsx
 msgid "缩放"
 msgstr "Zoom"
+
+#: src/components/flow/SegPlayer.tsx
+msgid "网络不好，或者这条链接已经过期（隔天打开的草稿常见）"
+msgstr "Poor network, or the link has expired (common for drafts opened the next day)"
 
 #: src/components/AvatarPicker.tsx
 msgid "自定义"
@@ -1219,6 +1524,10 @@ msgstr "Costs tokens — you'll confirm first"
 #: src/components/UpdateSheet.tsx
 msgid "若安装时提示「应用未安装」，多半是早期测试包的签名不同，先卸载旧版再装即可"
 msgstr "If installing says “App not installed”, an early test build probably has a different signature. Uninstall the old version, then install again"
+
+#: src/components/flow/SkillPanel.tsx
+msgid "装"
+msgstr "Install"
 
 #: src/components/blockout/DetectRolesEntry.tsx
 msgid "认好了 ✓"
@@ -1285,6 +1594,10 @@ msgstr "More info"
 msgid "说点什么，@ 可以叫上别人"
 msgstr "Say something; use @ to mention someone"
 
+#: src/components/support/VoiceMixer.tsx
+msgid "读不到混音目录：{catalogErr}"
+msgstr "Couldn't load the mix catalog: {catalogErr}"
+
 #: src/components/flow/CustomFrameSlots.tsx
 msgid "读取中…"
 msgstr "Loading…"
@@ -1292,6 +1605,10 @@ msgstr "Loading…"
 #: src/components/AvatarPicker.tsx
 msgid "读取图片…"
 msgstr "Reading image…"
+
+#: src/components/support/VoiceMixer.tsx
+msgid "读取音色目录…"
+msgstr "Loading voice catalog…"
 
 #: src/components/VisibilityPicker.tsx
 msgid "谁能看到"
@@ -1315,6 +1632,10 @@ msgstr "Start"
 msgid "跟随系统（{0}）"
 msgstr "Follow system ({0})"
 
+#: src/components/flow/SkillPanel.tsx
+msgid "输入条里先打好那句话，再来存成技能"
+msgstr "Type the instruction in the input bar first, then save it as a skill"
+
 #: src/components/AvatarPicker.tsx
 #: src/components/IconTapButton.tsx
 msgid "返回"
@@ -1332,6 +1653,10 @@ msgstr "Can't save a draft yet (empty project or the write failed)"
 msgid "还没接到成片"
 msgstr "Video not received yet"
 
+#: src/components/flow/SkillPanel.tsx
+msgid "还没有技能——输入条写好常用指令，点「＋ 存为技能」。"
+msgstr "No skills yet. Type a common instruction in the input bar and tap “+ Save as skill”."
+
 #: src/components/CommentSheet.tsx
 msgid "还没有评论，抢个沙发"
 msgstr "No comments yet. Be the first"
@@ -1339,6 +1664,18 @@ msgstr "No comments yet. Be the first"
 #: src/components/flow/SegSettings.tsx
 msgid "这一段已出片，改画幅要重新生成才生效"
 msgstr "This segment is already rendered. A new aspect ratio only takes effect after regenerating"
+
+#: src/components/flow/SegPlayer.tsx
+msgid "这一段正在生成，炼完再圈"
+msgstr "This segment is generating. Circle after it's rendered"
+
+#: src/components/flow/SegPlayer.tsx
+msgid "这一段现在选中的走向还没有成片"
+msgstr "The direction selected for this segment has no video yet"
+
+#: src/components/flow/SegPlayer.tsx
+msgid "这一段的视频拉不下来"
+msgstr "Couldn't load this segment's video"
 
 #. placeholder {0}: next.label
 #: src/components/flow/TierRow.tsx
@@ -1378,6 +1715,10 @@ msgstr "This server doesn't have cloud voices set up, so previews can't play. Yo
 msgid "这台服务器还不支持搜人，@ 可能收不到"
 msgstr "This server can't search for people yet, so @mentions may not reach them"
 
+#: src/components/support/VoiceMixer.tsx
+msgid "这台服务器还没有可混音的 1.0 音色目录（服务端需要更新），先用「单音色」。"
+msgstr "This server has no 1.0 voice catalog for mixing yet (the server needs an update). Use “Single voice” for now."
+
 #: src/utils/nativeCamera.ts
 msgid "这台设备处理不了照片（画布不可用）"
 msgstr "This device can't process the photo (canvas unavailable)"
@@ -1389,6 +1730,22 @@ msgstr "This device has no camera available"
 #: src/components/support/HoldToTalk.tsx
 msgid "这台设备没有可用的麦克风。"
 msgstr "This device has no available microphone."
+
+#: src/components/WorkshopShareBar.tsx
+msgid "这张卡不在你的库里，它的分享开关归卡主管。"
+msgstr "This card isn't in your library; sharing it is up to its owner."
+
+#: src/components/WorkshopShareBar.tsx
+msgid "这张卡声明过是真实人物，不能分享到创意工坊：肖像授权只覆盖你自己使用。"
+msgstr "This card is declared as a real person, so it can't be shared to the Workshop: the portrait authorization only covers your own use."
+
+#: src/components/WorkshopShareBar.tsx
+msgid "这张卡挂的是第三方版权模型，未获授权前不能分享出去。"
+msgstr "This card uses a third-party copyrighted model and can't be shared without authorization."
+
+#: src/components/WorkshopShareBar.tsx
+msgid "这张卡是装来的，不能再分享一遍——广场上显示的始终是最早分享那份。想让别人看到你改过的版本，用它做一张自己的卡。"
+msgstr "This card was installed from someone else and can't be shared again; the Workshop always shows the first shared copy. To share your edited version, make your own card from it."
 
 #: src/data/cardViews.ts
 msgid "这张图在你处理的时候变了（可能在别的设备上改过），刷新后再试"
@@ -1406,6 +1763,14 @@ msgstr "This photo can't be decoded (common with HEIC and other phone-specific f
 msgid "这张确认卡是上一段的，已经作废——回到那一段再换档"
 msgstr "This confirmation was for another segment and is no longer valid. Go back to that segment to switch tiers"
 
+#: src/components/ShareSheet.tsx
+msgid "这是私密作品：链接只有你自己打得开。想给别人看，去编辑里改成「凭链接可见」或「公开」。"
+msgstr "This video is private: only you can open the link. To show others, change it to “Anyone with the link” or “Public” in Edit."
+
+#: src/components/ShareSheet.tsx
+msgid "这条已被平台下架，链接别人打不开，所以先不能分享。"
+msgstr "This video was taken down by the platform. Others can't open the link, so it can't be shared."
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "这条流水线还没有段——对下面的输入条说「{addExample}」"
 msgstr "This pipeline has no segments yet — tell the bar below “{addExample}”"
@@ -1417,6 +1782,10 @@ msgstr "This comment is still sending. You can reply once it's posted"
 #: src/components/VoiceRecorder.tsx
 msgid "这条路我走了很多年，闭着眼睛都知道哪里有个台阶。"
 msgstr "I've walked this road for years, and I could find every step along it with my eyes closed."
+
+#: src/components/ShareSheet.tsx
+msgid "这条还在上传中（或没连上服务器）——现在分享出去的链接别人打不开。等它传完再分享。"
+msgstr "This video is still uploading (or isn't connected to the server), so a shared link won't open for others. Share it once the upload finishes."
 
 #: src/components/blockout/VideoStage.tsx
 msgid "这段视频在这个位置解不开，换一帧试试。"
@@ -1458,6 +1827,10 @@ msgstr "Pick the frames where the scene or the number of people changes, and AI 
 msgid "选择故事的开场"
 msgstr "Choose how the story begins"
 
+#: src/components/flow/SkillPanel.tsx
+msgid "逛技能市场"
+msgstr "Browse the skill market"
+
 #: src/components/flow/CastPreviewCard.tsx
 msgid "重新合成预览（{price}）"
 msgstr "Recompose preview ({price})"
@@ -1475,6 +1848,7 @@ msgid "重认会<0>覆盖现有描述</0>（你自己改过的也会没），按
 msgstr "Re-detecting <0>overwrites the current descriptions</0> (including your own edits) and charges every time. Once reviewed, you can't re-detect."
 
 #: src/components/blockout/VideoStage.tsx
+#: src/components/flow/SegPlayer.tsx
 #: src/components/UpdateSheet.tsx
 msgid "重试"
 msgstr "Retry"
@@ -1487,6 +1861,10 @@ msgstr "You can undo this anytime in Me → Settings → Blocked users."
 #: src/components/SegmentPlayer.tsx
 msgid "静音"
 msgstr "Mute"
+
+#: src/components/ShareSheet.tsx
+msgid "预览链接已复制，去贴给朋友吧"
+msgstr "Preview link copied. Paste it to your friends"
 
 #: src/components/TokenCost.tsx
 msgid "预计消耗 {amount} token"

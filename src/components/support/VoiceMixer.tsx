@@ -14,6 +14,7 @@
  * ★ 发布 = POST /api/voice-templates（新模板）→ PUT settings { voice: { templateId } }（设为自己的声音，服务端展开成快照）。
  *   第二步失败时模板已经在市场里了：整句说「已发布但没设成」，让人去市场页点「设为我的声音」，别让他再发一遍。
  */
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useState, type ReactNode } from "react";
 import Icon from "../Icon";
 import {
@@ -71,6 +72,7 @@ function VoiceOptions({ list, used, self }: { list: MixableVoice[]; used: Set<st
 }
 
 export default function VoiceMixer({ name, catalog, catalogErr, rows, onRows, rate, followRate, pitch, previewer, disabled, onPublished, children }: Props) {
+  const { t } = useLingui();
   const [busy, setBusy] = useState<"" | "preview" | "publish">("");
   const [err, setErr] = useState("");
   const [formOpen, setFormOpen] = useState(false);
@@ -125,7 +127,7 @@ export default function VoiceMixer({ name, catalog, catalogErr, rows, onRows, ra
     const tplNameTrimmed = tplName.trim();
     if (locked || !rows.length) return;
     if (!tplNameTrimmed) {
-      setErr("给这把嗓子起个名字再发布。");
+      setErr(t`给这把嗓子起个名字再发布。`);
       return;
     }
     setErr("");
@@ -150,10 +152,11 @@ export default function VoiceMixer({ name, catalog, catalogErr, rows, onRows, ra
       setTplDesc("");
       onPublished(created);
     } catch (e) {
+      const why = companionErrorText(e, t`服务端出错`);
       setErr(
         created
-          ? `已发布「${created.name}」，但设为你的声音时失败了（${companionErrorText(e, "服务端出错")}）。去「声音市场」里点「设为我的声音」就行，不用再发一遍。`
-          : companionErrorText(e, "发布失败，稍后再试。"),
+          ? t`已发布「${created.name}」，但设为你的声音时失败了（${why}）。去「声音市场」里点「设为我的声音」就行，不用再发一遍。`
+          : companionErrorText(e, t`发布失败，稍后再试。`),
       );
     } finally {
       setBusy("");
@@ -163,13 +166,13 @@ export default function VoiceMixer({ name, catalog, catalogErr, rows, onRows, ra
   return (
     <div>
       <p className="mb-2 rounded-lg border border-sky-500/40 bg-sky-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-sky-200">
-        混音只支持 1.0 音色，语调指令对混音无效。最多 {maxMix} 味：滑杆是相对权重，右侧是归一后的占比。
+        <Trans>混音只支持 1.0 音色，语调指令对混音无效。最多 {maxMix} 味：滑杆是相对权重，右侧是归一后的占比。</Trans>
       </p>
-      {catalogErr && <p className="mb-2 text-[11px] leading-relaxed text-rose-300">读不到混音目录：{catalogErr}</p>}
-      {!catalog && !catalogErr && <p className="mb-2 text-[11px] text-slate-500">读取音色目录…</p>}
+      {catalogErr && <p className="mb-2 text-[11px] leading-relaxed text-rose-300"><Trans>读不到混音目录：{catalogErr}</Trans></p>}
+      {!catalog && !catalogErr && <p className="mb-2 text-[11px] text-slate-500"><Trans>读取音色目录…</Trans></p>}
       {catalog && mixable.length === 0 && (
         <p className="mb-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-300">
-          这台服务器还没有可混音的 1.0 音色目录（服务端需要更新），先用「单音色」。
+          <Trans>这台服务器还没有可混音的 1.0 音色目录（服务端需要更新），先用「单音色」。</Trans>
         </p>
       )}
 
@@ -181,18 +184,18 @@ export default function VoiceMixer({ name, catalog, catalogErr, rows, onRows, ra
                 value={r.voiceId}
                 onChange={(e) => setRow(i, { voiceId: e.target.value })}
                 disabled={locked}
-                aria-label={`第 ${i + 1} 味音色`}
+                aria-label={t`第 ${i + 1} 味音色`}
                 className="h-9 min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-950 px-2 text-sm text-slate-100 outline-none focus:border-brand disabled:opacity-40"
               >
                 {/* 目录里没有的 id（老数据 / 目录还没到）也得显示出来，否则下拉会静默跳到第一项 */}
                 {!mixable.some((v) => v.id === r.voiceId) && <option value={r.voiceId}>{r.voiceId}</option>}
                 {female.length > 0 && (
-                  <optgroup label="女">
+                  <optgroup label={t`女`}>
                     <VoiceOptions list={female} used={used} self={r.voiceId} />
                   </optgroup>
                 )}
                 {male.length > 0 && (
-                  <optgroup label="男">
+                  <optgroup label={t`男`}>
                     <VoiceOptions list={male} used={used} self={r.voiceId} />
                   </optgroup>
                 )}
@@ -201,7 +204,7 @@ export default function VoiceMixer({ name, catalog, catalogErr, rows, onRows, ra
               <button
                 onClick={() => removeRow(i)}
                 disabled={locked || rows.length <= 1}
-                aria-label="去掉这一味"
+                aria-label={t`去掉这一味`}
                 className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-400 disabled:opacity-40"
               >
                 <Icon name="close" size={14} />
@@ -215,7 +218,7 @@ export default function VoiceMixer({ name, catalog, catalogErr, rows, onRows, ra
               value={clampWeight(r.weight)}
               onChange={(e) => setRow(i, { weight: Number(e.target.value) })}
               disabled={locked}
-              aria-label={`第 ${i + 1} 味权重`}
+              aria-label={t`第 ${i + 1} 味权重`}
               className="mt-1.5 w-full accent-brand"
             />
           </div>
@@ -226,7 +229,7 @@ export default function VoiceMixer({ name, catalog, catalogErr, rows, onRows, ra
         disabled={locked || !canAdd}
         className="mt-2 w-full rounded-full border border-dashed border-slate-600 py-1.5 text-xs text-slate-300 disabled:opacity-40"
       >
-        + 加一味（{rows.length}/{maxMix}）
+        <Trans>+ 加一味（{rows.length}/{maxMix}）</Trans>
       </button>
 
       {children}
@@ -237,7 +240,7 @@ export default function VoiceMixer({ name, catalog, catalogErr, rows, onRows, ra
           disabled={disabled || busy === "publish" || !rows.length}
           className="flex-1 rounded-xl border border-brand/60 py-2.5 text-sm font-semibold text-brand disabled:opacity-40"
         >
-          {busy === "preview" ? "■ 停止" : "▶ 试听"}
+          {busy === "preview" ? <Trans>■ 停止</Trans> : <Trans>▶ 试听</Trans>}
         </button>
         <button
           onClick={() => {
@@ -247,7 +250,7 @@ export default function VoiceMixer({ name, catalog, catalogErr, rows, onRows, ra
           disabled={locked || !rows.length}
           className="flex-1 rounded-xl border border-slate-600 py-2.5 text-sm text-slate-200 disabled:opacity-40"
         >
-          发布到声音市场
+          <Trans>发布到声音市场</Trans>
         </button>
       </div>
 
@@ -257,7 +260,7 @@ export default function VoiceMixer({ name, catalog, catalogErr, rows, onRows, ra
             value={tplName}
             onChange={(e) => setTplName(e.target.value)}
             maxLength={NAME_MAX}
-            placeholder="模板名字（必填，例：清冷知性）"
+            placeholder={t`模板名字（必填，例：清冷知性）`}
             className="h-9 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
           />
           <textarea
@@ -265,12 +268,12 @@ export default function VoiceMixer({ name, catalog, catalogErr, rows, onRows, ra
             onChange={(e) => setTplDesc(e.target.value)}
             rows={2}
             maxLength={DESC_MAX}
-            placeholder="一句话介绍（选填）"
+            placeholder={t`一句话介绍（选填）`}
             className="mt-2 w-full resize-none rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
           />
           <label className="mt-2 flex items-center gap-2 text-xs text-slate-300">
             <input type="checkbox" checked={shared} onChange={(e) => setShared(e.target.checked)} className="accent-brand" />
-            公开到声音市场（不勾 = 只在「我的」里）
+            <Trans>公开到声音市场（不勾 = 只在「我的」里）</Trans>
           </label>
           <div className="mt-2 flex gap-2">
             <button
@@ -278,14 +281,14 @@ export default function VoiceMixer({ name, catalog, catalogErr, rows, onRows, ra
               disabled={locked || !tplName.trim()}
               className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-semibold text-ink disabled:opacity-40"
             >
-              {busy === "publish" ? "发布中…" : "发布并设为我的声音"}
+              {busy === "publish" ? <Trans>发布中…</Trans> : <Trans>发布并设为我的声音</Trans>}
             </button>
             <button
               onClick={() => setFormOpen(false)}
               disabled={busy === "publish"}
               className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm text-slate-300 disabled:opacity-40"
             >
-              取消
+              <Trans>取消</Trans>
             </button>
           </div>
         </div>
