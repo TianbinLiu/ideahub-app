@@ -8,11 +8,13 @@
 //   用户随时可以改主意"把这一版当新片发出去"，而不是被锁在替换那条路上。
 // ★ 缺失横幅（amber）是**事件档、可关**：留存那一刻拿不到映射的图位被显式墓碑化了
 //   （见 data/projects 的 markLost），这里如实报数 —— 不报的话用户会以为方案卡坏了。
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useState, useSyncExternalStore } from "react";
 import { useFlow } from "../studio/flowStore";
 import { projectMetaOf, projectsVersion, subscribeProjects } from "../data/projects";
 
 export default function ReviseBar({ className = "" }: { className?: string }) {
+  const { t } = useLingui();
   const reviseOf = useFlow((s) => s.reviseOf);
   // ★ 缺失数**自己去问**，不靠上层传：这个横条有两个宿主（工作流页、画布顶栏），
   //   靠 prop 传就必然有一个宿主忘了传，而"忘了"的表现是横幅整条不出现（零报错）
@@ -24,8 +26,8 @@ export default function ReviseBar({ className = "" }: { className?: string }) {
     <div className={`flex-none space-y-1.5 px-4 ${className}`}>
       <div className="flex items-center gap-2 rounded-xl border border-gold/40 bg-gold/10 px-3 py-2">
         <span className="min-w-0 flex-1 truncate text-[11px] leading-relaxed text-gold">
-          回炉：《{reviseOf.title}》
-          <span className="text-slate-400"> · 完成后会替换它的内容，链接不变</span>
+          <Trans>回炉：《{reviseOf.title}》</Trans>
+          <span className="text-slate-400"> · <Trans>完成后会替换它的内容，链接不变</Trans></span>
         </span>
         <button
           onClick={() => {
@@ -47,7 +49,7 @@ export default function ReviseBar({ className = "" }: { className?: string }) {
           }}
           className="flex-none rounded-full bg-panel px-3 py-1 text-[11px] text-slate-300 ring-1 ring-slate-700"
         >
-          退出回炉
+          <Trans>退出回炉</Trans>
         </button>
       </div>
       {lostCount > 0 && !lostClosed && (
@@ -59,10 +61,12 @@ export default function ReviseBar({ className = "" }: { className?: string }) {
               ⚠ 服务端只回一个合计数（`lostCount`），这里分不出各是几处 —— 所以**不拆数**、
                 只把两种可能都说到；逐格的准话在方案卡上（PlanBoard 按 `p.lost.video` 分档）。 */}
           <span className="min-w-0 flex-1 text-[11px] leading-relaxed text-amber-200">
-            这份工程有 {lostCount} 处素材没有留存 · 方案卡上逐格标了出来：预览图重新推演就能补回来，
-            成片要重新出片（会再花一次钱）
+            <Trans>
+              这份工程有 {lostCount} 处素材没有留存 · 方案卡上逐格标了出来：预览图重新推演就能补回来，
+              成片要重新出片（会再花一次钱）
+            </Trans>
           </span>
-          <button onClick={() => setLostClosed(true)} aria-label="知道了" className="flex-none text-[11px] text-amber-300/80">
+          <button onClick={() => setLostClosed(true)} aria-label={t`知道了`} className="flex-none text-[11px] text-amber-300/80">
             ✕
           </button>
         </div>

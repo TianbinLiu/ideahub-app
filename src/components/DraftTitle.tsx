@@ -11,6 +11,7 @@
 // ★ 自动存盘不会冲掉用户起的名：saveWorkDraft 对已认领草稿传 undefined title，
 //   drafts.saveDraft 落库时 `input.title ?? prev.title`——那条既有纪律正是这枚组件
 //   能薄成这样的原因。
+import { useLingui } from "@lingui/react/macro";
 import { useEffect, useState } from "react";
 import Icon from "./Icon";
 import { renameDraft } from "../data/drafts";
@@ -30,6 +31,7 @@ export default function DraftTitle({
    *    草稿箱与画布顶栏（不传这个 prop）仍然直接显示标题。 */
   collapsed?: boolean;
 }) {
+  const { t } = useLingui();
   const draftId = useStudio((s) => s.workDraftId);
   const drafts = useDrafts();
   const title = (draftId && drafts.find((d) => d.id === draftId)?.title) || "";
@@ -44,17 +46,17 @@ export default function DraftTitle({
 
   async function commit() {
     setEditing(false);
-    const t = val.trim().slice(0, 40);
-    if (!t || t === title) return;
+    const name = val.trim().slice(0, 40);
+    if (!name || name === title) return;
     if (draftId) {
-      await renameDraft(draftId, t);
+      await renameDraft(draftId, name);
       return;
     }
     // 还没有草稿：起名即建档。失败要说话——这一下用户明确表达了"想留住"，
     // 静默丢掉名字比一开始不给输入框更糟
-    const meta = await useStudio.getState().saveWorkDraft({ title: t, from });
+    const meta = await useStudio.getState().saveWorkDraft({ title: name, from });
     if (!meta) {
-      setMsg("还存不了草稿（空白工程或写盘失败）");
+      setMsg(t`还存不了草稿（空白工程或写盘失败）`);
       setTimeout(() => setMsg(""), 2600);
     }
   }
@@ -72,7 +74,7 @@ export default function DraftTitle({
           if (e.key === "Escape") setEditing(false);
         }}
         onClick={(e) => e.stopPropagation()}
-        placeholder="给这条工程起个名"
+        placeholder={t`给这条工程起个名`}
         className={`min-w-0 rounded-lg border border-brand/60 bg-black/40 px-2 py-1 text-sm font-bold text-slate-100 outline-none ${className}`}
       />
     );
@@ -84,8 +86,8 @@ export default function DraftTitle({
           e.stopPropagation();
           setEditing(true);
         }}
-        title={title || "给这条工程起个名"}
-        aria-label="工程名"
+        title={title || t`给这条工程起个名`}
+        aria-label={t`工程名`}
         className={`relative flex h-9 w-9 flex-none items-center justify-center rounded-full ${className}`}
       >
         <Icon name="pen" size={15} className={msg ? "text-rose-300" : title ? "text-slate-200" : "text-slate-400"} />
@@ -105,11 +107,11 @@ export default function DraftTitle({
         e.stopPropagation();
         setEditing(true);
       }}
-      title="点击重命名"
+      title={t`点击重命名`}
       className={`flex min-w-0 items-center gap-1 text-left ${className}`}
     >
       <span className={`truncate text-sm font-bold ${title ? "text-slate-100" : "text-slate-500"}`}>
-        {msg || title || "未命名工程"}
+        {msg || title || t`未命名工程`}
       </span>
       <span aria-hidden className="flex-none text-[10px] text-slate-500">
         ✎

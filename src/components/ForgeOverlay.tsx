@@ -7,6 +7,7 @@
 //
 // ★ 失败不自动关：日志里卡在哪一步、报了什么，是用户唯一能拿去判断
 //   「重试还是改提示词」的依据。自动收走等于把错误咽掉（铁律八）。
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import GenTrace from "./GenTrace";
@@ -42,6 +43,7 @@ export default function ForgeOverlay({
    *  给了才渲染那颗按钮 —— 工坊桌面的炼卡浮层没有全局胶囊接手，就不给这个口子 */
   onLeave?: () => void;
 }) {
+  const { t } = useLingui();
   // 成功：等她把"举牌大笑"这套动作演完，再多留一拍才收场。
   // 立刻收会让人只看到一道闪光，根本没看清发生了什么
   const [animDone, setAnimDone] = useState(false);
@@ -49,8 +51,8 @@ export default function ForgeOverlay({
     if (phase !== "done" || !animDone) return;
     // 1200ms 而不是 900：演完之后接的是 forged-hold 循环（举着牌、光在涨落），
     // 收太快就等于没接。
-    const t = setTimeout(onClose, 1200);
-    return () => clearTimeout(t);
+    const id = setTimeout(onClose, 1200);
+    return () => clearTimeout(id);
     // onClose 每次渲染都是新函数，放进依赖会让定时器不断重建、永远不触发
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, animDone]);
@@ -71,7 +73,7 @@ export default function ForgeOverlay({
   useEffect(() => setIntroDone(false), [phase]);
 
   const title =
-    phase === "done" ? "本段炼成" : phase === "failed" ? "这一炉没成" : phase === "unknown" ? "还没接到成片" : "炼制中…";
+    phase === "done" ? t`本段炼成` : phase === "failed" ? t`这一炉没成` : phase === "unknown" ? t`还没接到成片` : t`炼制中…`;
   /** 收场的两种相：真失败与"没接到"。画面上的差别只有颜色与措辞，但那正是全部重点 */
   const settled = phase === "failed" || phase === "unknown";
   // key 必须跟着 pose 走：只改 background-image 的话 CSS 动画不会重新起一次，
@@ -118,7 +120,7 @@ export default function ForgeOverlay({
       {/* 步骤日志：与节点卡上那份同源（node.steps），所以浮层关掉之后还能回看 */}
       <div className="mt-3 max-h-[34vh] w-full max-w-sm overflow-y-auto rounded-xl bg-white/[0.04] px-3 py-2">
         <GenTrace steps={steps} running={phase === "forging"} expanded />
-        {steps.length === 0 && <div className="py-2 text-center text-[11px] text-slate-500">准备中…</div>}
+        {steps.length === 0 && <div className="py-2 text-center text-[11px] text-slate-500"><Trans>准备中…</Trans></div>}
       </div>
 
       {settled && (
@@ -142,7 +144,7 @@ export default function ForgeOverlay({
             }`}
           >
             <Icon name="close" size={14} />
-            {phase === "unknown" ? "去取回这一段" : "知道了"}
+            {phase === "unknown" ? <Trans>去取回这一段</Trans> : <Trans>知道了</Trans>}
           </button>
         </>
       )}
@@ -157,10 +159,10 @@ export default function ForgeOverlay({
               没有取回入口，见 studioStore.genNodeVideo 的 ⚠）——往放心里说错一样是骗人。 */}
           <p className="mt-2.5 max-w-sm text-center text-[11px] leading-relaxed text-slate-500">
             {recoverable
-              ? "可以先去逛逛——生成不会中断。就算退出 App 也不要紧：任务已被方舟受理，回这一段点「取回」就能把成片领回来（24 小时内有效，取回不花钱）"
+              ? t`可以先去逛逛——生成不会中断。就算退出 App 也不要紧：任务已被方舟受理，回这一段点「取回」就能把成片领回来（24 小时内有效，取回不花钱）`
               : onLeave
-                ? "可以先去逛逛——生成不会中断，好了顶部会弹提示带你回来。别退出 App 就行"
-                : "整段一炉出，别退出 App"}
+                ? t`可以先去逛逛——生成不会中断，好了顶部会弹提示带你回来。别退出 App 就行`
+                : t`整段一炉出，别退出 App`}
           </p>
           {onLeave && (
             <button
@@ -168,7 +170,7 @@ export default function ForgeOverlay({
               className="mt-3 flex items-center gap-1.5 rounded-full border border-slate-600 px-4 py-2 text-xs text-slate-200"
             >
               <Icon name="play" size={13} />
-              先去逛逛，好了叫我
+              <Trans>先去逛逛，好了叫我</Trans>
             </button>
           )}
         </>
