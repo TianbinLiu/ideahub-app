@@ -9,6 +9,9 @@
 // ★ 所有 hook 排在任何早退之前（npm run build 里的 check-hook-order.mjs 会拦，而它是
 //   拿三次白屏事故换来的）。
 // ★ 自带一份 err 行（"z 层盖住谁就自带一份"）。
+import { i18n } from "@lingui/core";
+import { msg } from "@lingui/core/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Sheet from "./Sheet";
 import InfoTip from "./InfoTip";
@@ -40,6 +43,7 @@ export default function DownloadSheet({
 }) {
   // ★ 默认档的分岔：BranchPlayer 的 path 初值是 [rootId]，也就是"还没开始播"。
   //   不做这个分岔的话最常见的一次点击（打开就点保存）会默认只存 1 段，而作品有 9 段。
+  const { t } = useLingui();
   const [scope, setScope] = useState<"path" | "all">(() => (branchPath.length <= 1 ? "all" : "path"));
   const [err, setErr] = useState("");
   const [note, setNote] = useState("");
@@ -66,7 +70,7 @@ export default function DownloadSheet({
     if (swept.current) return;
     swept.current = true;
     void sweepStaleParts(video.id).then((n) => {
-      if (n > 0) setNote(`上次有 ${n} 段没下完，那些半截文件已经清掉了，这次会重下。`);
+      if (n > 0) setNote(t`上次有 ${n} 段没下完，那些半截文件已经清掉了，这次会重下。`);
     });
   }, [video.id]);
 
@@ -89,7 +93,7 @@ export default function DownloadSheet({
   const running = dl.running && mine;
   const someoneElseRunning = dl.running && !mine;
 
-  const totalLabel = sizes?.total !== null && sizes?.total !== undefined ? `（约 ${mb(sizes.total)}）` : "";
+  const totalLabel = sizes?.total !== null && sizes?.total !== undefined ? t`（约 ${mb(sizes.total)}）` : "";
   const doneRows = rows.filter((r) => (r.status === "done" || r.status === "exists") && r.fileUri);
 
   function begin() {
@@ -101,13 +105,15 @@ export default function DownloadSheet({
 
   return (
     <Sheet onClose={onClose}>
-      <p className="text-sm font-bold text-slate-100">保存到本地</p>
+      <p className="text-sm font-bold text-slate-100"><Trans>保存到本地</Trans></p>
       <p className="mt-1 flex items-center gap-1 text-xs text-slate-400">
-        先存进 App，再选去处。
-        <InfoTip title="保存到本地是怎么走的">
-          安卓不让 App 直接写进相册。文件先落在 App 的缓存目录里；存好后点每一行的「分享 / 另存为」，
-          在系统面板里选相册或文件管理器。保存期间请留在 App 里，别把它划掉。
-          缓存目录在手机空间紧张时可能被系统清掉 —— 存好之后请尽快选个去处。
+        <Trans>先存进 App，再选去处。</Trans>
+        <InfoTip title={t`保存到本地是怎么走的`}>
+          <Trans>
+            安卓不让 App 直接写进相册。文件先落在 App 的缓存目录里；存好后点每一行的「分享 / 另存为」，
+            在系统面板里选相册或文件管理器。保存期间请留在 App 里，别把它划掉。
+            缓存目录在手机空间紧张时可能被系统清掉 —— 存好之后请尽快选个去处。
+          </Trans>
         </InfoTip>
       </p>
       <p className="mt-1 truncate text-xs text-slate-500">《{video.title}》</p>
@@ -121,12 +127,12 @@ export default function DownloadSheet({
         <>
           {plan.kind === "branch" && (
             <div className="mt-3">
-              <p className="text-xs text-slate-400">互动视频没有单条成片。</p>
+              <p className="text-xs text-slate-400"><Trans>互动视频没有单条成片。</Trans></p>
               <div className="mt-2 flex flex-col gap-1.5">
                 {(
                   [
-                    ["path", `只存刚看的走向（${resPath.ok ? resPath.plan.targets.length : 0} 段）`],
-                    ["all", `存全部分支（${resAll.ok ? resAll.plan.targets.length : 0} 段）`],
+                    ["path", t`只存刚看的走向（${resPath.ok ? resPath.plan.targets.length : 0} 段）`],
+                    ["all", t`存全部分支（${resAll.ok ? resAll.plan.targets.length : 0} 段）`],
                   ] as const
                 ).map(([v, label]) => (
                   <button
@@ -144,19 +150,19 @@ export default function DownloadSheet({
             </div>
           )}
           {plan.kind === "linear" && (
-            <p className="mt-3 text-xs text-slate-400">这条有 {targets.length} 段，会存成 {targets.length} 个文件。</p>
+            <p className="mt-3 text-xs text-slate-400"><Trans>这条有 {targets.length} 段，会存成 {targets.length} 个文件。</Trans></p>
           )}
 
           <p className="mt-3 text-[11px] text-slate-500">
-            文件格式：{plan.formats.map((f) => f.toUpperCase()).join(" / ")}
-            {targets.length > 1 ? ` · ${targets.length} 个文件` : ""}
+            <Trans>文件格式：{plan.formats.map((f) => f.toUpperCase()).join(" / ")}</Trans>
+            {targets.length > 1 ? t` · ${targets.length} 个文件` : ""}
           </p>
 
           {/* ★★ webm 那条必须说在前面：线上相当一部分成片是剪辑页 MediaRecorder 导出的
               vp9 webm，安卓相册/播放器对它支持很差 —— 用户存完打不开只会以为"下载坏了"。 */}
           {plan.hasWebm && (
             <p className="mt-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-200">
-              这条是 webm 格式，部分相册应用打不开；保存时选文件管理器更稳。
+              <Trans>这条是 webm 格式，部分相册应用打不开；保存时选文件管理器更稳。</Trans>
             </p>
           )}
 
@@ -180,7 +186,7 @@ export default function DownloadSheet({
                   {row?.err && <p className="mt-1 text-[11px] leading-relaxed text-rose-300">{row.err}</p>}
                   {row?.raw && <p className="mt-0.5 break-all text-[10px] text-slate-500">{row.raw}</p>}
                   {row?.unverified && (
-                    <p className="mt-0.5 text-[10px] text-slate-500">大小未知，没法校验这一份是不是完整的。</p>
+                    <p className="mt-0.5 text-[10px] text-slate-500"><Trans>大小未知，没法校验这一份是不是完整的。</Trans></p>
                   )}
                   {row && (row.status === "done" || row.status === "exists") && (
                     <div className="mt-1.5 flex items-center gap-2">
@@ -188,7 +194,7 @@ export default function DownloadSheet({
                         onClick={() => void shareOne(row, video.title)}
                         className="flex-none rounded-full bg-slate-700 px-3 py-1 text-[11px] text-slate-100 active:scale-95"
                       >
-                        分享 / 另存为
+                        <Trans>分享 / 另存为</Trans>
                       </button>
                       {row.share && (
                         <span className={`text-[11px] ${row.share.ok ? "text-emerald-300" : "text-amber-300"}`}>
@@ -217,8 +223,8 @@ export default function DownloadSheet({
           )}
           {running && (
             <p className="mt-3 text-[11px] text-slate-400">
-              正在保存 {rows.filter((r) => r.status === "done" || r.status === "exists").length}/{rows.length} 段
-              {dl.stopping ? " · 正在停止（当前这一段会跑完）" : ""}
+              <Trans>正在保存 {rows.filter((r) => r.status === "done" || r.status === "exists").length}/{rows.length} 段</Trans>
+              {dl.stopping ? t` · 正在停止（当前这一段会跑完）` : ""}
             </p>
           )}
 
@@ -229,10 +235,10 @@ export default function DownloadSheet({
               running ? "border border-slate-600 text-slate-200" : "bg-gold/90 text-ink"
             }`}
           >
-            {running ? "停止" : `开始保存${totalLabel}`}
+            {running ? <Trans>停止</Trans> : <Trans>开始保存{totalLabel}</Trans>}
           </button>
           {!running && !totalLabel && (
-            <p className="mt-1 text-[11px] text-slate-500">{sizes ? "大小未知" : "正在问总大小…"}</p>
+            <p className="mt-1 text-[11px] text-slate-500">{sizes ? <Trans>大小未知</Trans> : <Trans>正在问总大小…</Trans>}</p>
           )}
 
           {/* ⛔ 这里曾有一颗「转成 MP4 再存」（Cloudinary `f_mp4` 派生地址），2026-09-07 评审当天
@@ -251,11 +257,11 @@ export default function DownloadSheet({
                 }
                 className="mt-2 w-full rounded-xl border border-slate-700 py-2.5 text-sm text-slate-200 active:scale-[0.99]"
               >
-                一次全给（{doneRows.length} 个文件）
+                <Trans>一次全给（{doneRows.length} 个文件）</Trans>
               </button>
               {/* 依据：SharePlugin.shareFiles() 里 `filesList.size() > 1` 时 MIME 被硬改成「任意文件」 */}
               <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
-                一次给多个文件时系统按「任意文件」处理，相册可能不在候选里；想进相册就一个一个来。
+                <Trans>一次给多个文件时系统按「任意文件」处理，相册可能不在候选里；想进相册就一个一个来。</Trans>
               </p>
             </>
           )}
@@ -264,18 +270,18 @@ export default function DownloadSheet({
 
       {someoneElseRunning && (
         <p className="mt-3 text-[11px] leading-relaxed text-amber-300">
-          正在保存另一条作品，等它完成或点停止再来。
+          <Trans>正在保存另一条作品，等它完成或点停止再来。</Trans>
         </p>
       )}
       {note && <p className="mt-2 text-[11px] leading-relaxed text-slate-400">{note}</p>}
       {err && <p className="mt-2 text-[11px] leading-relaxed text-rose-300">{err}</p>}
 
       <p className="mt-3 text-[11px] leading-relaxed text-slate-500">
-        这些文件在 App 的缓存目录里，系统可能会清掉。设置 → 存储里能看到它们占了多少，也能清空。
+        <Trans>这些文件在 App 的缓存目录里，系统可能会清掉。设置 → 存储里能看到它们占了多少，也能清空。</Trans>
       </p>
 
       <button onClick={onClose} className="mt-3 w-full rounded-xl border border-slate-700 py-2.5 text-sm text-slate-300">
-        {running ? "关掉（保存继续跑）" : "关闭"}
+        {running ? <Trans>关掉（保存继续跑）</Trans> : <Trans>关闭</Trans>}
       </button>
     </Sheet>
   );
@@ -283,21 +289,21 @@ export default function DownloadSheet({
 
 /** 行右侧那一格的四态。★ total 为 null 时写「已下 4.1 MB」而不是一条恒 0% 的进度条 */
 function rowRight(row: DownloadRow | null, known: number | null): string {
-  if (!row) return known === null ? "大小未知" : `约 ${mb(known)}`;
+  if (!row) return known === null ? i18n._(msg`大小未知`) : i18n._(msg`约 ${mb(known)}`);
   switch (row.status) {
     case "queued":
-      return "等待中";
+      return i18n._(msg`等待中`);
     case "checking":
-      return "检查中";
+      return i18n._(msg`检查中`);
     case "downloading":
-      return row.total ? `${Math.floor((row.bytes / row.total) * 100)}%` : `已下 ${mb(row.bytes)}`;
+      return row.total ? `${Math.floor((row.bytes / row.total) * 100)}%` : i18n._(msg`已下 ${mb(row.bytes)}`);
     case "done":
-      return "✓ 已存";
+      return i18n._(msg`✓ 已存`);
     case "exists":
-      return "✓ 已存（之前存过）";
+      return i18n._(msg`✓ 已存（之前存过）`);
     case "stopped":
-      return "已停止";
+      return i18n._(msg`已停止`);
     case "failed":
-      return "没存下";
+      return i18n._(msg`没存下`);
   }
 }

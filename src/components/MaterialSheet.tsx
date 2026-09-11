@@ -15,6 +15,7 @@
 //   变成同一个手势，浏览器一旦接管滚动就直接给我们发 pointercancel，
 //   拖拽在真机上会时灵时不灵。所以每个页签里都是一条 `touch-action: pan-x` 的横轨，
 //   卡多了排成两行继续往右接，而不是换行往下堆。
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useMemo, useRef, useState, type PointerEvent as RPointerEvent } from "react";
 import { CloseButton } from "./IconTapButton";
 import { createPortal } from "react-dom";
@@ -87,6 +88,7 @@ export default function MaterialSheet({
   onAdd: (cards: Card[]) => number;
   onClose: () => void;
 }) {
+  const { t } = useLingui();
   useAccountVersion();
   const allCards = myCards();
   const allDecks = myDecks();
@@ -161,7 +163,7 @@ export default function MaterialSheet({
         const n = onAdd(s.cards);
         // 收下这一段单独演一次：双手收回、把牌捧在胸前。它的 A 帧同样是 handover 的 B 帧，
         // 所以从"伸手等着"到"接住了"是连续的一个动作，不会跳帧
-        setRecv({ text: n > 0 ? `收下了 ${n} 张` : "这些卡本段已经有了", zone: s.zone });
+        setRecv({ text: n > 0 ? t`收下了 ${n} 张` : t`这些卡本段已经有了`, zone: s.zone });
         setToast("");
       },
       onPointerCancel: () => {
@@ -193,17 +195,17 @@ export default function MaterialSheet({
       >
         <div className="flex items-center gap-2 py-2">
           <Icon name="card" size={17} className="flex-none text-brand" />
-          <span className="flex-none text-sm font-bold text-slate-100">素材库</span>
-          <span className="min-w-0 flex-1 truncate text-[11px] text-slate-500">往下拖出窗口，交给她</span>
-          <CloseButton chip="md" size={16} align="end" label="关闭素材库" onClick={onClose} />
+          <span className="flex-none text-sm font-bold text-slate-100"><Trans>素材库</Trans></span>
+          <span className="min-w-0 flex-1 truncate text-[11px] text-slate-500"><Trans>往下拖出窗口，交给她</Trans></span>
+          <CloseButton chip="md" size={16} align="end" label={t`关闭素材库`} onClick={onClose} />
         </div>
 
         {/* 卡组 / 卡片分成两个页签：两者的拖拽语义完全不同（整组 vs 单张），
             混在一屏里滚，用户很容易把"拖了一组"当成"拖了一张" */}
         <div className="mb-2 flex gap-1 rounded-xl bg-black/30 p-1">
           {([
-            ["cards", "卡片", allCards.length],
-            ["decks", "卡组", allDecks.length],
+            ["cards", t`卡片`, allCards.length],
+            ["decks", t`卡组`, allDecks.length],
           ] as const).map(([k, label, n]) => (
             <button
               key={k}
@@ -223,11 +225,11 @@ export default function MaterialSheet({
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder={tab === "cards" ? "搜卡名 / 简介 / 类型" : "搜卡组名，或组里的卡名"}
+            placeholder={tab === "cards" ? t`搜卡名 / 简介 / 类型` : t`搜卡组名，或组里的卡名`}
             className="min-w-0 flex-1 bg-transparent text-xs text-slate-100 outline-none placeholder:text-slate-500"
           />
           {q && (
-            <button onClick={() => setQ("")} aria-label="清空搜索" className="flex-none text-slate-500">
+            <button onClick={() => setQ("")} aria-label={t`清空搜索`} className="flex-none text-slate-500">
               <Icon name="close" size={13} />
             </button>
           )}
@@ -235,12 +237,12 @@ export default function MaterialSheet({
 
         {tab === "decks" ? (
           allDecks.length === 0 ? (
-            empty("还没有卡组", "去创意工坊建一组")
+            empty(t`还没有卡组`, t`去创意工坊建一组`)
           ) : decks.length === 0 ? (
-            <p className="py-7 text-center text-xs text-slate-600">没有匹配的卡组</p>
+            <p className="py-7 text-center text-xs text-slate-600"><Trans>没有匹配的卡组</Trans></p>
           ) : (
             <>
-              <div className="mb-1.5 text-[11px] text-slate-500">拖一整组 = 组里的卡全加进来</div>
+              <div className="mb-1.5 text-[11px] text-slate-500"><Trans>拖一整组 = 组里的卡全加进来</Trans></div>
               <div className={`${rail(decks.length)} no-scrollbar`} style={{ touchAction: "pan-x" }}>
                 {decks.map((d) => {
                   const list = d.cardIds.map((id) => byId.get(id)).filter((c): c is Card => !!c);
@@ -260,9 +262,9 @@ export default function MaterialSheet({
             </>
           )
         ) : allCards.length === 0 ? (
-          empty("还没有素材卡", "去创意工坊铸几张")
+          empty(t`还没有素材卡`, t`去创意工坊铸几张`)
         ) : cards.length === 0 ? (
-          <p className="py-7 text-center text-xs text-slate-600">没有匹配的卡片</p>
+          <p className="py-7 text-center text-xs text-slate-600"><Trans>没有匹配的卡片</Trans></p>
         ) : (
           <div className={`${rail(cards.length)} no-scrollbar`} style={{ touchAction: "pan-x" }}>
             {cards.map((c) => (
@@ -278,7 +280,7 @@ export default function MaterialSheet({
                 <TarotCard cover={c.cover || null} title={c.name} type={c.type} />
                 {have.has(c.id) && (
                   <span className="absolute inset-x-0 top-1/2 -translate-y-1/2 text-center text-[10px] font-bold text-emerald-300">
-                    已加入
+                    <Trans>已加入</Trans>
                   </span>
                 )}
               </div>
@@ -323,7 +325,7 @@ export default function MaterialSheet({
                   drag.over ? "bg-brand text-ink" : "bg-black/70 text-white/90"
                 }`}
               >
-                {drag.over ? `松手 · 交给她` : "拖到这里交给她"}
+                {drag.over ? t`松手 · 交给她` : t`拖到这里交给她`}
               </span>
             </div>
 
@@ -393,16 +395,17 @@ export default function MaterialSheet({
  *   是同一套视觉，用户一眼认得出"我刚交出去的就是这张"。缩略方块看着像文件列表。
  */
 export function MaterialStrip({ materials, onRemove }: { materials: Card[]; onRemove: (id: string) => void }) {
+  const { t } = useLingui();
   return (
     <div>
       <div className="mb-1.5 flex items-center gap-2">
-        <span className="mb-1.5 text-xs font-semibold text-slate-300">本段素材</span>
-        <span className="text-[11px] text-slate-500">{materials.length} 张</span>
-        {materials.length > 0 && <span className="text-[10px] text-slate-600">· 点 ✕ 移出本段</span>}
+        <span className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>本段素材</Trans></span>
+        <span className="text-[11px] text-slate-500"><Trans>{materials.length} 张</Trans></span>
+        {materials.length > 0 && <span className="text-[10px] text-slate-600"><Trans>· 点 ✕ 移出本段</Trans></span>}
       </div>
       {materials.length === 0 ? (
         <div className="flex h-[104px] items-center justify-center rounded-xl border border-dashed border-slate-700 text-[11px] text-slate-500">
-          从上面的素材库往屏幕中间拖一张下来
+          <Trans>从上面的素材库往屏幕中间拖一张下来</Trans>
         </div>
       ) : (
         <div className="no-scrollbar flex gap-2.5 overflow-x-auto pb-0.5">
@@ -411,7 +414,7 @@ export function MaterialStrip({ materials, onRemove }: { materials: Card[]; onRe
               <TarotCard cover={c.cover || null} title={c.name} type={c.type} />
               <button
                 onClick={() => onRemove(c.id)}
-                aria-label={`移除 ${c.name}`}
+                aria-label={t`移除 ${c.name}`}
                 /* 热区给到 24px：卡只有 70px 宽，×号再小就点不中了 */
                 className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full border border-slate-600 bg-ink text-[11px] text-slate-300 shadow"
               >
