@@ -12,10 +12,13 @@
  *   「舞台上现在挂着的模型就是我们这个地址」（`companionBus.model.modelUrl`）—— 不能只看"没报错"：
  *   SupportStage 加载失败会**退回官方看板娘**，屏幕上照样有个人在动，用户会以为自己的包过了。
  * ★ 反馈按本仓的形状：页内三色横幅（emerald / amber / rose）+ 就地红字，不弹 toast（那是「已复制」那类回执用的）。
- * ★ 没有 i18n，全中文内联。
+ * ★ 界面文案走 Lingui：槽位中文名表（ACTION_LABEL 等）是 msg 描述符，渲染时再翻；包里读出来的名字、服务端回的原话原样显示。
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
+import { i18n, type MessageDescriptor } from "@lingui/core";
+import { msg } from "@lingui/core/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import ConfirmDialog from "../components/ConfirmDialog";
 import EmptyState from "../components/EmptyState";
 import Icon from "../components/Icon";
@@ -71,54 +74,54 @@ import {
 } from "../studio/live2dUploadStore";
 
 // ── 槽位的中文名（界面文案，不是规则：枚举本身一律从 protocol.ts / mapping.ts 取，别在这儿抄第二份） ──
-const ACTION_LABEL: Record<CompanionAction, string> = {
-  none: "不演",
-  acknowledge: "点头 · 赞同",
-  disagree: "摇头 · 否定",
-  think: "思考",
-  explain: "讲解",
-  excited: "兴奋",
-  wave: "挥手",
-  shy: "害羞",
-  surprised: "吃惊",
-  comfort: "安慰",
-  playful: "调皮",
+const ACTION_LABEL: Record<CompanionAction, MessageDescriptor> = {
+  none: msg({ message: "不演", context: "Live2D 动作槽：这个语义动作不播任何动作" }),
+  acknowledge: msg`点头 · 赞同`,
+  disagree: msg`摇头 · 否定`,
+  think: msg`思考`,
+  explain: msg`讲解`,
+  excited: msg`兴奋`,
+  wave: msg`挥手`,
+  shy: msg({ message: "害羞", context: "Live2D 动作槽名" }),
+  surprised: msg`吃惊`,
+  comfort: msg`安慰`,
+  playful: msg`调皮`,
 };
-const FACE_LABEL: Record<CompanionFace, string> = {
-  normal: "平静",
-  happy: "开心",
-  laughing: "大笑",
-  angry: "生气",
-  sad: "难过",
-  crying: "哭",
-  shy: "害羞",
-  tease: "坏笑",
-  cuddle: "撒娇",
+const FACE_LABEL: Record<CompanionFace, MessageDescriptor> = {
+  normal: msg`平静`,
+  happy: msg`开心`,
+  laughing: msg`大笑`,
+  angry: msg`生气`,
+  sad: msg`难过`,
+  crying: msg`哭`,
+  shy: msg({ message: "害羞", context: "Live2D 表情槽名" }),
+  tease: msg`坏笑`,
+  cuddle: msg`撒娇`,
 };
-const TOUCH_LABEL: Record<TouchArea, string> = {
-  Head: "头",
-  Hair: "头发",
-  HandL: "左手",
-  HandR: "右手",
-  ArmL: "左臂",
-  ArmR: "右臂",
-  Body: "身体",
-  Skirt: "裙子",
-  Legs: "腿",
+const TOUCH_LABEL: Record<TouchArea, MessageDescriptor> = {
+  Head: msg`头`,
+  Hair: msg`头发`,
+  HandL: msg`左手`,
+  HandR: msg`右手`,
+  ArmL: msg`左臂`,
+  ArmR: msg`右臂`,
+  Body: msg`身体`,
+  Skirt: msg`裙子`,
+  Legs: msg`腿`,
 };
-const PARAM_LABEL: Record<ParamSlot, string> = {
-  mouthOpen: "张嘴",
-  mouthForm: "嘴形",
-  eyeL: "左眼",
-  eyeR: "右眼",
-  eyeBallX: "眼球左右",
-  eyeBallY: "眼球上下",
-  angleX: "头左右",
-  angleY: "头上下",
-  angleZ: "头倾斜",
-  bodyX: "身体左右",
-  breath: "呼吸",
-  cheek: "脸红",
+const PARAM_LABEL: Record<ParamSlot, MessageDescriptor> = {
+  mouthOpen: msg`张嘴`,
+  mouthForm: msg`嘴形`,
+  eyeL: msg`左眼`,
+  eyeR: msg`右眼`,
+  eyeBallX: msg`眼球左右`,
+  eyeBallY: msg`眼球上下`,
+  angleX: msg`头左右`,
+  angleY: msg`头上下`,
+  angleZ: msg`头倾斜`,
+  bodyX: msg`身体左右`,
+  breath: msg`呼吸`,
+  cheek: msg`脸红`,
 };
 
 /**
@@ -128,14 +131,25 @@ const PARAM_LABEL: Record<ParamSlot, string> = {
  * ★ 认不出来的原样显示：服务端将来加了新槽，界面上出现一小段英文远好过显示成空白或者"未知"。
  */
 function slotLabel(slot: string): string {
-  if (slot === "idle") return "待机动作";
+  // 模块级函数拿不到 useLingui：用 i18n._ 在调用那一刻按当前语言翻；表里查不到的槽名原样显示
+  const named = (d: MessageDescriptor | undefined, raw: string) => (d ? i18n._(d) : raw);
+  if (slot === "idle") return i18n._(msg`待机动作`);
   const colon = slot.indexOf(":");
-  if (colon < 0) return PARAM_LABEL[slot as ParamSlot] ?? slot;
+  if (colon < 0) return named(PARAM_LABEL[slot as ParamSlot], slot);
   const kind = slot.slice(0, colon);
   const key = slot.slice(colon + 1);
-  if (kind === "action") return `动作 · ${ACTION_LABEL[key as CompanionAction] ?? key}`;
-  if (kind === "face") return `表情 · ${FACE_LABEL[key as CompanionFace] ?? key}`;
-  if (kind === "touch") return `触摸 · ${TOUCH_LABEL[key as TouchArea] ?? key}`;
+  if (kind === "action") {
+    const name = named(ACTION_LABEL[key as CompanionAction], key);
+    return i18n._(msg`动作 · ${name}`);
+  }
+  if (kind === "face") {
+    const name = named(FACE_LABEL[key as CompanionFace], key);
+    return i18n._(msg`表情 · ${name}`);
+  }
+  if (kind === "touch") {
+    const name = named(TOUCH_LABEL[key as TouchArea], key);
+    return i18n._(msg`触摸 · ${name}`);
+  }
   return slot;
 }
 
@@ -208,10 +222,11 @@ function MapRow({
   // ★ 演不出来有**两个**原因，说法不一样（别压成一档）：包里真没有这个组 / 表情，
   //   或者台上现在根本不是我们的包（预览退回官方看板娘了）。后者说成"包里没有它"就是诬告。
   const [flash, setFlash] = useState<"" | "playing" | "missing" | "offstage">("");
+  const { t } = useLingui();
   useEffect(() => {
     if (flash !== "playing") return;
-    const t = setTimeout(() => setFlash(""), PLAY_FLASH_MS);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setFlash(""), PLAY_FLASH_MS);
+    return () => clearTimeout(timer);
   }, [flash]);
   return (
     <div className="rounded-xl border border-slate-700/70 bg-panel px-3 py-2">
@@ -220,7 +235,7 @@ function MapRow({
           type="button"
           onClick={() => setFlash(onPlay?.() === false ? (previewOnStage() ? "missing" : "offstage") : "playing")}
           disabled={disabled || !onPlay}
-          aria-label={`试演 ${label}`}
+          aria-label={t`试演 ${label}`}
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-900 text-brand disabled:opacity-40"
         >
           <Icon name="play" size={13} filled />
@@ -235,11 +250,11 @@ function MapRow({
           }`}
         >
           {flash === "missing"
-            ? "这个包里没有它 —— 换一个，或者回 Cubism 重新导出。"
+            ? t`这个包里没有它 —— 换一个，或者回 Cubism 重新导出。`
             : flash === "offstage"
-              ? "上面那块现在不是你的包（预览没画出来），演不了 —— 先点「重新加载预览」。"
+              ? t`上面那块现在不是你的包（预览没画出来），演不了 —— 先点「重新加载预览」。`
               : flash === "playing"
-                ? "演出中…"
+                ? t`演出中…`
                 : hint}
         </p>
       )}
@@ -327,6 +342,7 @@ function RecommendPickers() {
   const [voices, setVoices] = useState<VoiceTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
+  const { t } = useLingui();
 
   useEffect(() => {
     let alive = true;
@@ -340,7 +356,7 @@ function RecommendPickers() {
       if (p.status === "fulfilled") setPersonas(p.value.personas.filter(bindablePersona));
       if (v.status === "fulfilled") setVoices(v.value.templates);
       const bad = [p, v].find((r) => r.status === "rejected");
-      setErr(bad && bad.status === "rejected" ? companionErrorText(bad.reason, "推荐列表没取到，跳过这两项也能发布。") : "");
+      setErr(bad && bad.status === "rejected" ? companionErrorText(bad.reason, t`推荐列表没取到，跳过这两项也能发布。`) : "");
       setLoading(false);
     });
     return () => {
@@ -351,23 +367,23 @@ function RecommendPickers() {
   const voiceId = voice?.templateId ?? "";
   return (
     <div className="rounded-xl border border-slate-700/70 bg-panel p-3">
-      <FieldLabel>作者推荐（可以都不选）</FieldLabel>
+      <FieldLabel><Trans>作者推荐（可以都不选）</Trans></FieldLabel>
       <p className="mb-2 text-xs leading-relaxed text-slate-500">
-        装了这个形象、自己又还没挑过人格 / 声音的人，会拿到你推荐的这两样；已经自己挑过的人不受影响。
+        <Trans>装了这个形象、自己又还没挑过人格 / 声音的人，会拿到你推荐的这两样；已经自己挑过的人不受影响。</Trans>
       </p>
       {loading ? (
-        <EmptyState loading text="正在取人格与声音…" compact />
+        <EmptyState loading text={t`正在取人格与声音…`} compact />
       ) : (
         <div className="space-y-2">
           <div className="flex items-center gap-2">
-            <span className="w-16 shrink-0 text-xs font-semibold text-slate-300">人格</span>
+            <span className="w-16 shrink-0 text-xs font-semibold text-slate-300"><Trans>人格</Trans></span>
             <select
               value={personaId}
-              aria-label="推荐哪个人格"
+              aria-label={t`推荐哪个人格`}
               onChange={(e) => useLive2dUpload.setState({ recPersonaId: e.target.value })}
               className={selectCls}
             >
-              <option value="">不推荐</option>
+              <option value="">{t`不推荐`}</option>
               {personas.map((p) => (
                 <option key={p._id} value={p._id}>
                   {p.coverEmoji} {p.name}
@@ -376,28 +392,28 @@ function RecommendPickers() {
             </select>
           </div>
           <div className="flex items-center gap-2">
-            <span className="w-16 shrink-0 text-xs font-semibold text-slate-300">声音</span>
+            <span className="w-16 shrink-0 text-xs font-semibold text-slate-300"><Trans>声音</Trans></span>
             <select
               value={voiceId}
-              aria-label="推荐哪个声音"
+              aria-label={t`推荐哪个声音`}
               onChange={(e) => {
                 // ★ 存的是模板那份**拼好的快照**（VoiceTemplate.voice，templateId 就在里面）：
                 //   声音按快照走、不按 id 引用（COMPANION.md），模板将来被删了这个嗓子也还在
-                const picked = voices.find((t) => t._id === e.target.value);
+                const picked = voices.find((vo) => vo._id === e.target.value);
                 useLive2dUpload.setState({ recVoice: picked ? picked.voice : null });
               }}
               className={selectCls}
             >
-              <option value="">不推荐</option>
-              {voices.map((t) => (
-                <option key={t._id} value={t._id}>
-                  {t.name}
+              <option value="">{t`不推荐`}</option>
+              {voices.map((vo) => (
+                <option key={vo._id} value={vo._id}>
+                  {vo.name}
                 </option>
               ))}
             </select>
           </div>
           {personas.length === 0 && voices.length === 0 && !err && (
-            <p className="text-[11px] leading-relaxed text-slate-500">市场里还没有公开的人格和声音可选，跳过就行。</p>
+            <p className="text-[11px] leading-relaxed text-slate-500"><Trans>市场里还没有公开的人格和声音可选，跳过就行。</Trans></p>
           )}
         </div>
       )}
@@ -408,6 +424,7 @@ function RecommendPickers() {
 
 export default function SupportModelNewPage() {
   const navigate = useNavigate();
+  const { t } = useLingui();
   const back = useBackOr("/support/models");
   const s = useLive2dUpload();
   const [, setStep] = useUploadField("step");
@@ -449,7 +466,8 @@ export default function SupportModelNewPage() {
     // 等媒体/加载一律带上限（CLAUDE.md 坑表）：不带的话窗口被切到后台时它会永远停在"加载中"
     const timer = setTimeout(() => {
       if (useLive2dUpload.getState().previewState === "loading") {
-        markPreviewLoaded(false, `等了 ${PREVIEW_TIMEOUT_MS / 1000} 秒还没画出来。包可能太大，或者贴图 / moc3 有问题。`);
+        const secs = PREVIEW_TIMEOUT_MS / 1000;
+        markPreviewLoaded(false, t`等了 ${secs} 秒还没画出来。包可能太大，或者贴图 / moc3 有问题。`);
       }
     }, PREVIEW_TIMEOUT_MS);
     return () => {
@@ -472,20 +490,32 @@ export default function SupportModelNewPage() {
   const groups = s.inspect?.capabilities.motionGroups ?? detail?.motionGroups.map((g) => g.name) ?? [];
   const expressions = s.inspect?.capabilities.expressions ?? detail?.expressions ?? [];
   const hitAreas = s.inspect?.capabilities.hitAreas ?? detail?.hitAreas ?? [];
+  /** 列举文件名 / 表情名 / 命中区时的分隔符 */
+  const listSep = t({ message: "、", comment: "列举几个文件名 / 动作组 / 表情名时的分隔符" });
+  /** 「刚点到：…」那一行：认得出的区翻成人话，认不出的原样 */
+  const hitText = lastHit
+    .map((a) => {
+      const d = TOUCH_LABEL[a as TouchArea];
+      return d ? t(d) : a;
+    })
+    .join(" / ");
+  const texList =
+    detail?.textures.map((tex) => (tex.width ? `${tex.width}×${tex.height}` : t`尺寸没量出来`)).join(listSep) ?? "";
 
   /** 验收脚本：一项一项演，演完自动打勾。人点了停就停在当前这一项（不清已经打过的勾） */
   const verifyItems = useMemo(() => {
     const items: { key: string; label: string; run: () => void; waitMs: number }[] = [
-      { key: "speak", label: "说一句话，看嘴动没动", run: () => companionBus.speakSynthetic(2200), waitMs: 2600 },
-      { key: "blink", label: "眨眼（她自己会眨，盯 3 秒）", run: () => undefined, waitMs: 3000 },
+      { key: "speak", label: t`说一句话，看嘴动没动`, run: () => companionBus.speakSynthetic(2200), waitMs: 2600 },
+      { key: "blink", label: t`眨眼（她自己会眨，盯 3 秒）`, run: () => undefined, waitMs: 3000 },
     ];
     for (const a of ACTIONS) {
       if (a === "none") continue;
       const g = mapping?.actions?.[a];
       if (!g) continue;
+      const actName = t(ACTION_LABEL[a]);
       items.push({
         key: `a:${a}`,
-        label: `动作「${ACTION_LABEL[a]}」→ ${g}`,
+        label: t`动作「${actName}」→ ${g}`,
         run: () => companionBus.action(a),
         waitMs: TIMING.actionSuppressMs + 300,
       });
@@ -494,32 +524,36 @@ export default function SupportModelNewPage() {
       if (f === "normal") continue;
       const m = mapping?.faces?.[f];
       if (!m) continue;
+      const faceName = t(FACE_LABEL[f]);
+      const expr = m.expression || t`参数版`;
       items.push({
         key: `f:${f}`,
-        label: `表情「${FACE_LABEL[f]}」→ ${m.expression || "参数版"}`,
+        label: t`表情「${faceName}」→ ${expr}`,
         run: () => companionBus.face(f),
         waitMs: 1800,
       });
     }
-    for (const t of TOUCH_AREAS) {
-      const m = mapping?.touch?.[t];
+    for (const area of TOUCH_AREAS) {
+      const m = mapping?.touch?.[area];
       if (!m) continue;
+      const areaName = t(TOUCH_LABEL[area]);
+      const target = m.motion || t`只说话、不播动作`;
       items.push({
-        key: `t:${t}`,
-        label: `摸「${TOUCH_LABEL[t]}」→ ${m.motion || "只说话、不播动作"}`,
+        key: `t:${area}`,
+        label: t`摸「${areaName}」→ ${target}`,
         run: () => (m.motion ? previewMotionGroup(m.motion) : undefined),
         waitMs: m.motion ? TIMING.actionSuppressMs + 300 : 600,
       });
     }
     return items;
-  }, [mapping]);
+  }, [mapping, t]);
 
   async function runVerify() {
     if (verifyRunning.current) return;
     // ★ 与第 ② 步同一条判据（store 的 `previewOnStage`）：台上不是我们这个包时整句拒 —— 对着官方看板娘打出来的
     //   那一列 ✓ 是彻头彻尾的假话，比一列空的更坏
     if (!previewOnStage()) {
-      useLive2dUpload.setState({ verifyNow: "", previewErr: "上面那块现在不是你的包（预览没画出来）。先点「重新加载预览」，画出来了再试跑。", previewState: "failed" });
+      useLive2dUpload.setState({ verifyNow: "", previewErr: t`上面那块现在不是你的包（预览没画出来）。先点「重新加载预览」，画出来了再试跑。`, previewState: "failed" });
       return;
     }
     verifyRunning.current = true;
@@ -544,17 +578,17 @@ export default function SupportModelNewPage() {
     verifyRunning.current = false;
     useLive2dUpload.setState(
       lost
-        ? { verifyNow: "", verifyDone: [], verifyOk: false, previewState: "failed", previewErr: "试跑跑到一半，上面那块换成了别的模型 —— 这一轮不作数。点「重新加载预览」再跑一遍。" }
+        ? { verifyNow: "", verifyDone: [], verifyOk: false, previewState: "failed", previewErr: t`试跑跑到一半，上面那块换成了别的模型 —— 这一轮不作数。点「重新加载预览」再跑一遍。` }
         : { verifyNow: "" },
     );
   }
 
   async function grabCover() {
-    useLive2dUpload.setState({ coverBusy: "正在截图…", coverErr: "" });
+    useLive2dUpload.setState({ coverBusy: t`正在截图…`, coverErr: "" });
     if (!previewOnStage()) {
       useLive2dUpload.setState({
         coverBusy: "",
-        coverErr: "台上现在不是你的模型（预览没画出来），截下来的会是官方看板娘。先点「重新加载预览」，画出来了再截。",
+        coverErr: t`台上现在不是你的模型（预览没画出来），截下来的会是官方看板娘。先点「重新加载预览」，画出来了再截。`,
       });
       return;
     }
@@ -562,7 +596,7 @@ export default function SupportModelNewPage() {
     if (!blob) {
       useLive2dUpload.setState({
         coverBusy: "",
-        coverErr: "没截到画面（模型可能还没画出来）。等预览里的人动起来再点一次，或者用下面的「自己选一张」。",
+        coverErr: t`没截到画面（模型可能还没画出来）。等预览里的人动起来再点一次，或者用下面的「自己选一张」。`,
       });
       return;
     }
@@ -581,12 +615,12 @@ export default function SupportModelNewPage() {
         sticky
         inset
         onBack={back}
-        title="上传 Live2D 模型"
-        subtitle={s.file ? s.file.name : "zip 包 · 最大 25MB"}
+        title={t`上传 Live2D 模型`}
+        subtitle={s.file ? s.file.name : t`zip 包 · 最大 25MB`}
         right={
           dirty && s.step !== "done" ? (
             <button type="button" onClick={() => setRestartAsk(true)} disabled={busy} className={`flex-none ${secondaryCls}`}>
-              重新开始
+              <Trans>重新开始</Trans>
             </button>
           ) : null
         }
@@ -615,25 +649,27 @@ export default function SupportModelNewPage() {
             <SupportStage className="absolute inset-0" modelUrl={s.previewUrl} topPx={0} heightFraction={0.9} onFallback={(r) => markPreviewLoaded(false, r)} />
             {s.previewState === "loading" && (
               <div className="pointer-events-none absolute inset-x-0 bottom-2 flex justify-center">
-                <span className="rounded-full bg-black/60 px-2.5 py-1 text-[11px] text-slate-200">正在加载这个包…</span>
+                <span className="rounded-full bg-black/60 px-2.5 py-1 text-[11px] text-slate-200"><Trans>正在加载这个包…</Trans></span>
               </div>
             )}
           </div>
           <div className="mt-2 space-y-2">
-            {s.previewState === "ok" && <Banner tone="ok">画出来了。可以摸一摸她、拖一拖看看视线跟不跟手。</Banner>}
+            {s.previewState === "ok" && <Banner tone="ok"><Trans>画出来了。可以摸一摸她、拖一拖看看视线跟不跟手。</Trans></Banner>}
             {s.previewState === "failed" && (
               <Banner tone="bad">
-                这个包在手机上画不出来{s.previewErr ? `：${s.previewErr}` : "。"}
-                {" "}
-                画不出来的包发布出去别人也用不了，请先修好再传。
+                {s.previewErr ? (
+                  <Trans>这个包在手机上画不出来：{s.previewErr} 画不出来的包发布出去别人也用不了，请先修好再传。</Trans>
+                ) : (
+                  <Trans>这个包在手机上画不出来。画不出来的包发布出去别人也用不了，请先修好再传。</Trans>
+                )}
               </Banner>
             )}
             <div className="flex items-center gap-2">
               <button type="button" onClick={reloadPreview} disabled={busy || !s.preview} className={secondaryCls}>
-                重新加载预览
+                <Trans>重新加载预览</Trans>
               </button>
               {lastHit.length > 0 && (
-                <span className="min-w-0 truncate text-[11px] text-slate-500">刚点到：{lastHit.map((a) => TOUCH_LABEL[a as TouchArea] || a).join(" / ")}</span>
+                <span className="min-w-0 truncate text-[11px] text-slate-500"><Trans>刚点到：{hitText}</Trans></span>
               )}
             </div>
           </div>
@@ -644,14 +680,14 @@ export default function SupportModelNewPage() {
       {s.step === "pick" && (
         <section className="space-y-3">
           <div className="rounded-xl border border-slate-700/70 bg-panel p-3">
-            <FieldLabel>要带上什么</FieldLabel>
+            <FieldLabel><Trans>要带上什么</Trans></FieldLabel>
             <ul className="space-y-1 text-xs leading-relaxed text-slate-400">
-              <li>· 一份 <b className="text-slate-300">*.model3.json</b>（Cubism 4 导出的，Version 3）与它引用的 <b className="text-slate-300">*.moc3</b></li>
-              <li>· 贴图 png / webp，每张不超过 4096²、最多 4 张</li>
-              <li>· 想要会转头 / 眨眼 / 说话，模型里得有 ParamAngleX、ParamAngleY、ParamEyeLOpen、ParamEyeROpen、ParamMouthOpenY 这几个标准参数</li>
-              <li>· 有 physics3 / pose3 / cdi3 / exp3 表情 / motion3 动作也一起压进去，我们会自动接上</li>
+              <li><Trans>· 一份 <b className="text-slate-300">*.model3.json</b>（Cubism 4 导出的，Version 3）与它引用的 <b className="text-slate-300">*.moc3</b></Trans></li>
+              <li><Trans>· 贴图 png / webp，每张不超过 4096²、最多 4 张</Trans></li>
+              <li><Trans>· 想要会转头 / 眨眼 / 说话，模型里得有 ParamAngleX、ParamAngleY、ParamEyeLOpen、ParamEyeROpen、ParamMouthOpenY 这几个标准参数</Trans></li>
+              <li><Trans>· 有 physics3 / pose3 / cdi3 / exp3 表情 / motion3 动作也一起压进去，我们会自动接上</Trans></li>
               {/* ★ 量的是 zip 文件本身，不是解压后的总大小（与服务端、与直传票上的 maxSizeBytes 同一把尺） */}
-              <li>· zip 文件本身不超过 {Math.round(MAX_LIVE2D_BUNDLE_BYTES / 1024 / 1024)}MB</li>
+              <li><Trans>· zip 文件本身不超过 {Math.round(MAX_LIVE2D_BUNDLE_BYTES / 1024 / 1024)}MB</Trans></li>
             </ul>
           </div>
 
@@ -668,33 +704,36 @@ export default function SupportModelNewPage() {
             }}
           />
           <button type="button" onClick={() => fileRef.current?.click()} disabled={busy} className={primaryCls}>
-            {s.file ? "换一个 zip" : "选一个 zip"}
+            {s.file ? t`换一个 zip` : t`选一个 zip`}
           </button>
 
-          {busy && <EmptyState loading text={s.progress || "正在处理…"} compact />}
+          {busy && <EmptyState loading text={s.progress || t`正在处理…`} compact />}
           {!!s.readErr && <Banner tone="bad">{s.readErr}</Banner>}
 
           {s.check && (
             <div className="space-y-2">
-              {s.check.issues.map((t) => (
-                <Banner key={t} tone="bad">
-                  {t}
+              {s.check.issues.map((issue) => (
+                <Banner key={issue} tone="bad">
+                  {issue}
                 </Banner>
               ))}
-              {s.check.warnings.map((t) => (
-                <Banner key={t} tone="warn">
-                  {t}
+              {s.check.warnings.map((warning) => (
+                <Banner key={warning} tone="warn">
+                  {warning}
                 </Banner>
               ))}
               {s.check.skipped.length > 0 && (
                 <Banner tone="info">
-                  有 {s.check.skipped.length} 个文件不在我们收的类型里，不会被带上（{s.check.skipped.slice(0, 3).join("、")}
-                  {s.check.skipped.length > 3 ? " 等" : ""}）。
+                  {s.check.skipped.length > 3 ? (
+                    <Trans>有 {s.check.skipped.length} 个文件不在我们收的类型里，不会被带上（{s.check.skipped.slice(0, 3).join(listSep)} 等）。</Trans>
+                  ) : (
+                    <Trans>有 {s.check.skipped.length} 个文件不在我们收的类型里，不会被带上（{s.check.skipped.slice(0, 3).join(listSep)}）。</Trans>
+                  )}
                 </Banner>
               )}
               {s.check.entries.length > 1 && (
                 <div className="rounded-xl border border-slate-700/70 bg-panel p-3">
-                  <FieldLabel>包里有 {s.check.entries.length} 个 model3.json，用哪一个？</FieldLabel>
+                  <FieldLabel><Trans>包里有 {s.check.entries.length} 个 model3.json，用哪一个？</Trans></FieldLabel>
                   <div className="space-y-1.5">
                     {s.check.entries.map((p) => (
                       <button
@@ -708,27 +747,27 @@ export default function SupportModelNewPage() {
                       >
                         <Icon name="file" size={14} className="shrink-0 text-slate-500" />
                         <span className="min-w-0 flex-1 truncate text-xs text-slate-200">{p}</span>
-                        {(s.check?.detail.get(p)?.issues.length ?? 0) > 0 && <span className="shrink-0 text-[10px] text-rose-300">有问题</span>}
+                        {(s.check?.detail.get(p)?.issues.length ?? 0) > 0 && <span className="shrink-0 text-[10px] text-rose-300"><Trans>有问题</Trans></span>}
                       </button>
                     ))}
                   </div>
                 </div>
               )}
-              {detail?.issues.map((t) => (
-                <Banner key={t} tone="bad">
-                  {t}
+              {detail?.issues.map((issue) => (
+                <Banner key={issue} tone="bad">
+                  {issue}
                 </Banner>
               ))}
               {s.check.issues.length === 0 && !!s.entry && (detail?.issues.length ?? 0) === 0 && (
                 <button type="button" onClick={() => void buildPreview(s.entry)} disabled={busy} className={primaryCls}>
-                  下一步：本地预览
+                  <Trans>下一步：本地预览</Trans>
                 </button>
               )}
             </div>
           )}
 
           <p className="text-[11px] leading-relaxed text-slate-500">
-            只传你自己做的、或者已经拿到授权的模型。别人的作品、真人肖像、Live2D 官方示例模型（Hiyori / Haru / Mao 这些）都不收。
+            <Trans>只传你自己做的、或者已经拿到授权的模型。别人的作品、真人肖像、Live2D 官方示例模型（Hiyori / Haru / Mao 这些）都不收。</Trans>
           </p>
         </section>
       )}
@@ -737,36 +776,38 @@ export default function SupportModelNewPage() {
       {s.step === "preview" && (
         <section className="space-y-3">
           <div className="rounded-xl border border-slate-700/70 bg-panel p-3">
-            <FieldLabel>这个包里有什么</FieldLabel>
+            <FieldLabel><Trans>这个包里有什么</Trans></FieldLabel>
             {detail ? (
               <div className="space-y-2 text-xs leading-relaxed text-slate-400">
                 <div>
-                  动作组 {detail.motionGroups.length} 组
+                  <Trans>动作组 {detail.motionGroups.length} 组</Trans>
                   {detail.motionGroups.length > 0 && (
-                    <span className="text-slate-500">（{detail.motionGroups.map((g) => `${g.name}×${g.count}`).join("、")}）</span>
+                    <span className="text-slate-500"><Trans>（{detail.motionGroups.map((g) => `${g.name}×${g.count}`).join(listSep)}）</Trans></span>
                   )}
                 </div>
                 <div>
-                  表情 {detail.expressions.length} 个{detail.expressions.length > 0 && <span className="text-slate-500">（{detail.expressions.join("、")}）</span>}
+                  <Trans>表情 {detail.expressions.length} 个</Trans>
+                  {detail.expressions.length > 0 && <span className="text-slate-500"><Trans>（{detail.expressions.join(listSep)}）</Trans></span>}
                 </div>
                 <div>
-                  命中区 {detail.hitAreas.length} 个{detail.hitAreas.length > 0 && <span className="text-slate-500">（{detail.hitAreas.join("、")}）</span>}
+                  <Trans>命中区 {detail.hitAreas.length} 个</Trans>
+                  {detail.hitAreas.length > 0 && <span className="text-slate-500"><Trans>（{detail.hitAreas.join(listSep)}）</Trans></span>}
                 </div>
                 <div>
-                  贴图 {detail.textures.length} 张
+                  <Trans>贴图 {detail.textures.length} 张</Trans>
                   <span className="text-slate-500">
-                    （{detail.textures.map((t) => (t.width ? `${t.width}×${t.height}` : "尺寸没量出来")).join("、")}）
+                    <Trans>（{texList}）</Trans>
                   </span>
                 </div>
                 <div>
-                  物理 {detail.hasPhysics ? "有" : "没有"} · 透明度组 {detail.hasPose ? "有" : "没有"}
+                  {detail.hasPhysics ? t`物理 有` : t`物理 没有`} · {detail.hasPose ? t`透明度组 有` : t`透明度组 没有`}
                 </div>
                 <div>
                   {detail.params === null ? (
-                    <span className="text-amber-300">包里没有 cdi3.json，读不到参数表 —— 下一步交给服务器再看一次。</span>
+                    <span className="text-amber-300"><Trans>包里没有 cdi3.json，读不到参数表 —— 下一步交给服务器再看一次。</Trans></span>
                   ) : (
                     <>
-                      参数 {detail.params.length} 个
+                      <Trans>参数 {detail.params.length} 个</Trans>
                       <div className="no-scrollbar mt-1 flex gap-1.5 overflow-x-auto">
                         {detail.params.slice(0, 40).map((p) => (
                           <span key={p.id} className="shrink-0 rounded-full bg-slate-900 px-2 py-0.5 text-[10px] text-slate-400">
@@ -779,13 +820,13 @@ export default function SupportModelNewPage() {
                 </div>
               </div>
             ) : (
-              <p className="text-xs text-slate-500">没有解析结果。</p>
+              <p className="text-xs text-slate-500"><Trans>没有解析结果。</Trans></p>
             )}
           </div>
 
           <div className="flex gap-2">
             <button type="button" onClick={() => setStep("pick")} className="flex-1 rounded-xl border border-slate-600 py-2.5 text-sm text-slate-300">
-              上一步
+              <Trans>上一步</Trans>
             </button>
             <button
               type="button"
@@ -793,12 +834,12 @@ export default function SupportModelNewPage() {
               disabled={s.previewState !== "ok"}
               className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
             >
-              下一步：自动识别
+              <Trans>下一步：自动识别</Trans>
             </button>
           </div>
           {s.previewState !== "ok" && (
             <p className="text-center text-[11px] text-slate-500">
-              {s.previewState === "failed" ? "画不出来的包发不了。" : "等她画出来才能继续。"}
+              {s.previewState === "failed" ? t`画不出来的包发不了。` : t`等她画出来才能继续。`}
             </p>
           )}
         </section>
@@ -809,24 +850,23 @@ export default function SupportModelNewPage() {
         <section className="space-y-3">
           {!s.inspect && !busy && (
             <div className="rounded-xl border border-slate-700/70 bg-panel p-3">
-              <FieldLabel>把包交给服务器看一眼</FieldLabel>
+              <FieldLabel><Trans>把包交给服务器看一眼</Trans></FieldLabel>
               <p className="text-xs leading-relaxed text-slate-400">
-                服务器会解开包、数出它会哪些动作和表情，并给一份自动映射（下一步你可以改）。这一步会把包传上去
-                （约 {(s.file ? s.file.size / 1024 / 1024 : 0).toFixed(1)}MB），传完之后不会立刻公开。
+                <Trans>服务器会解开包、数出它会哪些动作和表情，并给一份自动映射（下一步你可以改）。这一步会把包传上去（约 {(s.file ? s.file.size / 1024 / 1024 : 0).toFixed(1)}MB），传完之后不会立刻公开。</Trans>
               </p>
             </div>
           )}
           {busy && (
             <div className="space-y-2">
-              <EmptyState loading text={s.progress || "正在处理…"} compact />
+              <EmptyState loading text={s.progress || t`正在处理…`} compact />
               {/* ★ `inspect` 也要摆：multipart 那条退路（>15MB 会撞 Cloudflare 125 秒墙的正是它）
                   整个上传期间 busy 都是 "inspect" —— 只在 "upload" 时摆的话，最需要这颗键的那条路上够不着它 */}
               {(s.busy === "upload" || s.busy === "inspect") && (
                 <button type="button" onClick={cancelBundleInspect} className={`mx-auto block ${secondaryCls}`}>
-                  {s.busy === "upload" ? "取消上传" : "取消"}
+                  {s.busy === "upload" ? t`取消上传` : t`取消`}
                 </button>
               )}
-              <p className="text-center text-[11px] leading-relaxed text-slate-500">可以退出这一页去做别的，传完了会有提示。</p>
+              <p className="text-center text-[11px] leading-relaxed text-slate-500"><Trans>可以退出这一页去做别的，传完了会有提示。</Trans></p>
             </div>
           )}
           {!!s.inspectErr && <Banner tone="bad">{s.inspectErr}</Banner>}
@@ -835,15 +875,14 @@ export default function SupportModelNewPage() {
             <>
               {!s.directOn && (
                 <Banner tone="warn">
-                  这台服务器还没开直传，刚才走的是慢的那条 —— 包要经过我们的服务器，大包在手机网络上有可能超时。
-                  这条路上识别不会把包留下，所以最后<b>发布时还要再传一次</b>。
+                  <Trans>这台服务器还没开直传，刚才走的是慢的那条 —— 包要经过我们的服务器，大包在手机网络上有可能超时。这条路上识别不会把包留下，所以最后<b>发布时还要再传一次</b>。</Trans>
                 </Banner>
               )}
               <div className="rounded-xl border border-slate-700/70 bg-panel p-3">
-                <FieldLabel>它会什么</FieldLabel>
+                <FieldLabel><Trans>它会什么</Trans></FieldLabel>
                 <div className="mb-2 flex flex-wrap gap-1.5">
                   {s.inspect.capabilities.badges.length === 0 ? (
-                    <span className="text-xs text-slate-500">一个能力角标都没有 —— 装上之后基本上是个不会动的立绘。</span>
+                    <span className="text-xs text-slate-500"><Trans>一个能力角标都没有 —— 装上之后基本上是个不会动的立绘。</Trans></span>
                   ) : (
                     s.inspect.capabilities.badges.map((b) => (
                       <span key={b} className="rounded-full bg-gold/90 px-2 py-0.5 text-[10px] font-semibold text-ink">
@@ -853,19 +892,17 @@ export default function SupportModelNewPage() {
                   )}
                 </div>
                 <p className="text-xs leading-relaxed text-slate-400">
-                  动作 {s.inspect.capabilities.motionCount} 段 / {s.inspect.capabilities.motionGroups.length} 组 · 表情{" "}
-                  {s.inspect.capabilities.expressions.length} 个 · 命中区 {s.inspect.capabilities.hitAreas.length} 个 · 贴图{" "}
-                  {s.inspect.capabilities.textures.count} 张（最大边 {s.inspect.capabilities.textures.maxSide}px）
+                  <Trans>动作 {s.inspect.capabilities.motionCount} 段 / {s.inspect.capabilities.motionGroups.length} 组 · 表情 {s.inspect.capabilities.expressions.length} 个 · 命中区 {s.inspect.capabilities.hitAreas.length} 个 · 贴图 {s.inspect.capabilities.textures.count} 张（最大边 {s.inspect.capabilities.textures.maxSide}px）</Trans>
                 </p>
                 {!s.inspect.capabilities.paramsKnown && (
                   <p className="mt-1 text-xs leading-relaxed text-slate-500">
-                    包里没有 cdi3.json，服务器读不到参数表 —— 这不代表模型没有参数，只是这一屏说不出它们叫什么。
+                    <Trans>包里没有 cdi3.json，服务器读不到参数表 —— 这不代表模型没有参数，只是这一屏说不出它们叫什么。</Trans>
                   </p>
                 )}
               </div>
 
               <div className="rounded-xl border border-slate-700/70 bg-panel p-3">
-                <FieldLabel>完成度</FieldLabel>
+                <FieldLabel><Trans>完成度</Trans></FieldLabel>
                 <div className="space-y-1">
                   {s.inspect.completeness.required.map((r) => (
                     <div key={`req-${r.slot}`} className="flex items-center gap-2 text-xs">
@@ -876,14 +913,14 @@ export default function SupportModelNewPage() {
                         className={r.ok === true ? "text-emerald-300" : r.ok === false ? "text-rose-300" : "text-slate-500"}
                       />
                       <span className={r.ok === true ? "text-slate-300" : r.ok === false ? "text-rose-300" : "text-slate-500"}>
-                        必须 · {slotLabel(r.slot)}
-                        {r.ok === null && "（包里没有参数表，看不出来）"}
+                        <Trans>必须 · {slotLabel(r.slot)}</Trans>
+                        {r.ok === null && t`（包里没有参数表，看不出来）`}
                       </span>
                     </div>
                   ))}
                 </div>
                 <p className="mt-2 text-xs text-slate-400">
-                  推荐项 {s.inspect.completeness.recommendedDone}/{s.inspect.completeness.recommendedTotal} 项已具备
+                  <Trans>推荐项 {s.inspect.completeness.recommendedDone}/{s.inspect.completeness.recommendedTotal} 项已具备</Trans>
                 </p>
                 <div className="no-scrollbar mt-1 flex gap-1.5 overflow-x-auto">
                   {s.inspect.completeness.recommended.map((r) => (
@@ -907,7 +944,7 @@ export default function SupportModelNewPage() {
 
           <div className="flex gap-2">
             <button type="button" onClick={() => setStep("preview")} disabled={busy} className="flex-1 rounded-xl border border-slate-600 py-2.5 text-sm text-slate-300 disabled:opacity-40">
-              上一步
+              <Trans>上一步</Trans>
             </button>
             {s.inspect ? (
               <button
@@ -916,21 +953,20 @@ export default function SupportModelNewPage() {
                 disabled={missingRequired(s.inspect.completeness.required).length > 0}
                 className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
               >
-                下一步：对映射
+                <Trans>下一步：对映射</Trans>
               </button>
             ) : (
               <button type="button" onClick={() => void startBundleInspect()} disabled={busy} className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40">
-                开始识别
+                <Trans>开始识别</Trans>
               </button>
             )}
           </div>
           {!!s.inspect && missingRequired(s.inspect.completeness.required).length > 0 && (
-            <p className="text-center text-[11px] text-rose-300">上面标红的必须项缺了，补齐再重新导出一次包。</p>
+            <p className="text-center text-[11px] text-rose-300"><Trans>上面标红的必须项缺了，补齐再重新导出一次包。</Trans></p>
           )}
           {!!s.inspect && !s.inspect.capabilities.paramsKnown && missingRequired(s.inspect.completeness.required).length === 0 && (
             <p className="text-center text-[11px] leading-relaxed text-slate-500">
-              这个包里没有 cdi3.json，必须项一条都核不了 —— 我们按「标准参数名」放行。装上之后要是不会眨眼 / 不会转头，
-              多半就是参数名不标准，回 Cubism 改成 ParamEyeLOpen 这一套再导一次。
+              <Trans>这个包里没有 cdi3.json，必须项一条都核不了 —— 我们按「标准参数名」放行。装上之后要是不会眨眼 / 不会转头，多半就是参数名不标准，回 Cubism 改成 ParamEyeLOpen 这一套再导一次。</Trans>
             </p>
           )}
         </section>
@@ -940,37 +976,37 @@ export default function SupportModelNewPage() {
       {s.step === "mapping" && (
         <section className="space-y-3">
           <Banner tone="info">
-            这一步是把「我们的演出协议」对到「你这个模型自己的名字」上。不改也行 —— 服务器已经按常见命名猜了一份，
-            下面每一行左边的 ▶ 可以当场在上面的预览里试一下。
+            <Trans>这一步是把「我们的演出协议」对到「你这个模型自己的名字」上。不改也行 —— 服务器已经按常见命名猜了一份，下面每一行左边的 ▶ 可以当场在上面的预览里试一下。</Trans>
           </Banner>
           {!mapping ? (
-            <EmptyState emoji="🤔" text="还没有映射可以改" hint="回上一步让服务器先识别一次。" compact />
+            <EmptyState emoji="🤔" text={t`还没有映射可以改`} hint={t`回上一步让服务器先识别一次。`} compact />
           ) : (
             <>
               <div>
-                <FieldLabel>动作</FieldLabel>
+                <FieldLabel><Trans>动作</Trans></FieldLabel>
                 <div className="space-y-1.5">
                   {ACTIONS.filter((a) => a !== "none").map((a) => {
                     const value = mapping.actions?.[a] ?? "";
+                    const actName = t(ACTION_LABEL[a]);
                     return (
                       <MapRow
                         key={a}
-                        label={ACTION_LABEL[a]}
+                        label={actName}
                         disabled={!value}
                         // ★ 与触摸那一行同一个入口（`previewMotionGroup`，判据含"台上是不是我们的包"）——
                         //   此前这里直接调 `companionBus.motionGroup`，预览退回官方看板娘时会对着小梦说
                         //   「这个包里没有它 —— 换一个，或者回 Cubism 重新导出」，而那是一句假话
                         onPlay={() => previewMotionGroup(value)}
-                        hint={!value ? "没对上动作组，这个动作不演" : undefined}
+                        hint={!value ? t`没对上动作组，这个动作不演` : undefined}
                       >
                         <select
                           value={value}
-                          aria-label={`${ACTION_LABEL[a]} 用哪个动作组`}
+                          aria-label={t`${actName} 用哪个动作组`}
                           onChange={(e) => patch({ actions: { ...mapping.actions, [a]: e.target.value || null } })}
                           className={selectCls}
                         >
-                          <option value="">不演</option>
-                          {value && !groups.includes(value) && <option value={value}>{value}（包里没有）</option>}
+                          <option value="">{t({ message: "不演", context: "Live2D 动作槽：这个语义动作不播任何动作" })}</option>
+                          {value && !groups.includes(value) && <option value={value}>{t`${value}（包里没有）`}</option>}
                           {groups.map((g) => (
                             <option key={g} value={g}>
                               {g}
@@ -984,24 +1020,25 @@ export default function SupportModelNewPage() {
               </div>
 
               <div>
-                <FieldLabel>表情</FieldLabel>
+                <FieldLabel><Trans>表情</Trans></FieldLabel>
                 <p className="mb-1.5 text-xs leading-relaxed text-slate-500">
-                  选「用通用参数演」= 不挂你的 exp3，改用我们那套参数（眉毛、嘴角、脸红）去凑 —— 模型没有对应表情文件时这条更稳。
+                  <Trans>选「用通用参数演」= 不挂你的 exp3，改用我们那套参数（眉毛、嘴角、脸红）去凑 —— 模型没有对应表情文件时这条更稳。</Trans>
                 </p>
                 <div className="space-y-1.5">
                   {FACES.filter((f) => f !== "normal").map((f) => {
                     const cur = mapping.faces?.[f] ?? null;
                     const value = cur?.expression ?? "";
+                    const faceName = t(FACE_LABEL[f]);
                     return (
                       <MapRow
                         key={f}
-                        label={FACE_LABEL[f]}
+                        label={faceName}
                         // ★ 同上：台上不是我们的包就整句拒，别对着官方看板娘说"这个表情包里没有"
                         onPlay={() => (previewOnStage() ? (value ? companionBus.expression(value) : companionBus.face(f)) : false)}
                       >
                         <select
                           value={value}
-                          aria-label={`${FACE_LABEL[f]} 用哪个表情`}
+                          aria-label={t`${faceName} 用哪个表情`}
                           onChange={(e) =>
                             patch({
                               // ★ null = 退到我们的参数版通用表情（mapping.ts 的 setFace 就是这么读的），
@@ -1011,8 +1048,8 @@ export default function SupportModelNewPage() {
                           }
                           className={selectCls}
                         >
-                          <option value="">用通用参数演</option>
-                          {value && !expressions.includes(value) && <option value={value}>{value}（包里没有）</option>}
+                          <option value="">{t`用通用参数演`}</option>
+                          {value && !expressions.includes(value) && <option value={value}>{t`${value}（包里没有）`}</option>}
                           {expressions.map((x) => (
                             <option key={x} value={x}>
                               {x}
@@ -1026,14 +1063,13 @@ export default function SupportModelNewPage() {
               </div>
 
               <div>
-                <FieldLabel>触摸区</FieldLabel>
+                <FieldLabel><Trans>触摸区</Trans></FieldLabel>
                 <p className="mb-1.5 text-xs leading-relaxed text-slate-500">
-                  左边是模型自己的命中区（HitAreas），右边是摸到这里播哪个动作。想验证对没对上，直接在上面的预览里摸一下 ——
-                  屏幕上会写「刚点到：…」。
+                  <Trans>左边是模型自己的命中区（HitAreas），右边是摸到这里播哪个动作。想验证对没对上，直接在上面的预览里摸一下 —— 屏幕上会写「刚点到：…」。</Trans>
                 </p>
                 <div className="space-y-1.5">
-                  {TOUCH_AREAS.map((t) => {
-                    const cur = mapping.touch?.[t] ?? null;
+                  {TOUCH_AREAS.map((slot) => {
+                    const cur = mapping.touch?.[slot] ?? null;
                     // ★★ `hitAreas` 是**数组**：服务端的自动映射可以给一个槽位对上好几个命中区，
                     //   运行时也是按数组判的（`mapping.ts` 的 `t.hitAreas.some(...)`）。此前这一行
                     //   把它截成一条 —— 用户只要动一下这行任一个下拉，其余的就被静默丢掉，
@@ -1043,33 +1079,34 @@ export default function SupportModelNewPage() {
                     const area = areas[0] ?? "";
                     const rest = areas.slice(1);
                     const motion = cur?.motion ?? "";
+                    const areaName = t(TOUCH_LABEL[slot]);
                     return (
                       <MapRow
-                        key={t}
-                        label={TOUCH_LABEL[t]}
+                        key={slot}
+                        label={areaName}
                         disabled={!motion}
                         onPlay={() => (motion ? previewMotionGroup(motion) : false)}
                         hint={
                           !area
-                            ? "没对上命中区，摸这里不会有反应"
+                            ? t`没对上命中区，摸这里不会有反应`
                             : rest.length > 0
-                              ? `这个槽位还对着另外 ${rest.length} 个命中区：${rest.join(" / ")}`
+                              ? t`这个槽位还对着另外 ${rest.length} 个命中区：${rest.join(" / ")}`
                               : undefined
                         }
                       >
                         <select
                           value={area}
-                          aria-label={`${TOUCH_LABEL[t]} 对应哪个命中区`}
+                          aria-label={t`${areaName} 对应哪个命中区`}
                           onChange={(e) =>
                             patch({
                               // 只换**第一条**，后面那几条原样留着（见上面 ★★）
-                              touch: { ...mapping.touch, [t]: e.target.value ? { hitAreas: [e.target.value, ...rest], motion: motion || null } : null },
+                              touch: { ...mapping.touch, [slot]: e.target.value ? { hitAreas: [e.target.value, ...rest], motion: motion || null } : null },
                             })
                           }
                           className={selectCls}
                         >
-                          <option value="">没有</option>
-                          {area && !hitAreas.includes(area) && <option value={area}>{area}（包里没有）</option>}
+                          <option value="">{t`没有`}</option>
+                          {area && !hitAreas.includes(area) && <option value={area}>{t`${area}（包里没有）`}</option>}
                           {hitAreas.map((h) => (
                             <option key={h} value={h}>
                               {h}
@@ -1079,15 +1116,15 @@ export default function SupportModelNewPage() {
                         <select
                           value={motion}
                           disabled={!area}
-                          aria-label={`摸${TOUCH_LABEL[t]}播哪个动作`}
+                          aria-label={t`摸${areaName}播哪个动作`}
                           onChange={(e) =>
                             // 改动作不动命中区那一列（`areas` 原样带过去，见上面 ★★）
-                            patch({ touch: { ...mapping.touch, [t]: { hitAreas: areas.length ? areas : [area], motion: e.target.value || null } } })
+                            patch({ touch: { ...mapping.touch, [slot]: { hitAreas: areas.length ? areas : [area], motion: e.target.value || null } } })
                           }
                           className={selectCls}
                         >
-                          <option value="">只说话</option>
-                          {motion && !groups.includes(motion) && <option value={motion}>{motion}（包里没有）</option>}
+                          <option value="">{t`只说话`}</option>
+                          {motion && !groups.includes(motion) && <option value={motion}>{t`${motion}（包里没有）`}</option>}
                           {groups.map((g) => (
                             <option key={g} value={g}>
                               {g}
@@ -1101,29 +1138,29 @@ export default function SupportModelNewPage() {
               </div>
 
               <div className="rounded-xl border border-slate-700/70 bg-panel p-3">
-                <FieldLabel>参数（服务器自动对的）</FieldLabel>
+                <FieldLabel><Trans>参数（服务器自动对的）</Trans></FieldLabel>
                 <div className="grid grid-cols-2 gap-x-3 gap-y-1">
                   {(Object.keys(STANDARD_PARAMS) as ParamSlot[]).map((slot) => {
                     const id = mapping.params?.[slot];
                     return (
                       <div key={slot} className="flex min-w-0 items-center justify-between gap-2 text-[11px]">
-                        <span className="shrink-0 text-slate-400">{PARAM_LABEL[slot]}</span>
-                        <span className={`min-w-0 truncate ${id ? "text-slate-300" : "text-slate-600"}`}>{id || "没有"}</span>
+                        <span className="shrink-0 text-slate-400">{t(PARAM_LABEL[slot])}</span>
+                        <span className={`min-w-0 truncate ${id ? "text-slate-300" : "text-slate-600"}`}>{id || t`没有`}</span>
                       </div>
                     );
                   })}
                 </div>
                 <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
-                  参数这一栏这版还不能在 App 里改。对不上的话去 Cubism 里把参数 id 改成标准名（ParamAngleX 这一套）再导出一次。
+                  <Trans>参数这一栏这版还不能在 App 里改。对不上的话去 Cubism 里把参数 id 改成标准名（ParamAngleX 这一套）再导出一次。</Trans>
                 </p>
               </div>
 
               <div className="flex gap-2">
                 <button type="button" onClick={resetMapping} disabled={!s.mappingTouched} className={`flex-1 rounded-xl border border-slate-600 py-2.5 text-sm text-slate-300 disabled:opacity-40`}>
-                  恢复自动映射
+                  <Trans>恢复自动映射</Trans>
                 </button>
                 <button type="button" onClick={() => setStep("verify")} className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink">
-                  下一步：试跑
+                  <Trans>下一步：试跑</Trans>
                 </button>
               </div>
             </>
@@ -1134,7 +1171,7 @@ export default function SupportModelNewPage() {
       {/* ⑤ 验收试跑 */}
       {s.step === "verify" && (
         <section className="space-y-3">
-          <Banner tone="info">按顺序演一遍：说话对口型、眨眼、每个对上的动作 / 表情 / 触摸区各来一次。盯着上面那块看。</Banner>
+          <Banner tone="info"><Trans>按顺序演一遍：说话对口型、眨眼、每个对上的动作 / 表情 / 触摸区各来一次。盯着上面那块看。</Trans></Banner>
           <div className="rounded-xl border border-slate-700/70 bg-panel p-3">
             <div className="space-y-1">
               {verifyItems.map((it) => {
@@ -1169,7 +1206,7 @@ export default function SupportModelNewPage() {
               disabled={!s.verifyNow && s.previewState !== "ok"}
               className="flex-1 rounded-xl border border-brand/60 py-2.5 text-sm font-semibold text-brand disabled:opacity-40"
             >
-              {s.verifyNow ? "■ 停下" : s.verifyDone.length ? "▶ 再跑一遍" : "▶ 开始试跑"}
+              {s.verifyNow ? t`■ 停下` : s.verifyDone.length ? t`▶ 再跑一遍` : t`▶ 开始试跑`}
             </button>
             <button
               type="button"
@@ -1180,16 +1217,16 @@ export default function SupportModelNewPage() {
               disabled={!!s.verifyNow}
               className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
             >
-              没问题，继续
+              <Trans>没问题，继续</Trans>
             </button>
           </div>
           {s.previewState !== "ok" && !s.verifyNow && (
             <p className="text-center text-[11px] leading-relaxed text-slate-500">
-              预览没画出来，试跑跑不了 —— 跑了也只是在官方看板娘身上演一遍。先点上面的「重新加载预览」。
+              <Trans>预览没画出来，试跑跑不了 —— 跑了也只是在官方看板娘身上演一遍。先点上面的「重新加载预览」。</Trans>
             </p>
           )}
           <button type="button" onClick={() => setStep("mapping")} disabled={!!s.verifyNow} className={`mx-auto block ${secondaryCls}`}>
-            回去改映射
+            <Trans>回去改映射</Trans>
           </button>
         </section>
       )}
@@ -1198,21 +1235,21 @@ export default function SupportModelNewPage() {
       {s.step === "publish" && (
         <section className="space-y-3">
           {s.verifyOk ? (
-            <Banner tone="ok">试跑过了（{s.verifyDone.length} 项）。</Banner>
+            <Banner tone="ok"><Trans>试跑过了（{s.verifyDone.length} 项）。</Trans></Banner>
           ) : (
-            <Banner tone="warn">还没试跑过。发之前建议回上一步跑一遍，看看动作和表情是不是真的都能演。</Banner>
+            <Banner tone="warn"><Trans>还没试跑过。发之前建议回上一步跑一遍，看看动作和表情是不是真的都能演。</Trans></Banner>
           )}
           <div>
-            <FieldLabel>名字</FieldLabel>
-            <input value={s.name} onChange={(e) => setName(e.target.value)} maxLength={40} placeholder="别人在市场里看到的名字" className={inputCls} />
+            <FieldLabel><Trans>名字</Trans></FieldLabel>
+            <input value={s.name} onChange={(e) => setName(e.target.value)} maxLength={40} placeholder={t`别人在市场里看到的名字`} className={inputCls} />
           </div>
 
           <div>
-            <FieldLabel>封面</FieldLabel>
+            <FieldLabel><Trans>封面</Trans></FieldLabel>
             {s.coverUrl ? (
-              <img src={s.coverUrl} alt="封面" className="mb-2 h-40 w-full rounded-xl border border-slate-700/70 object-cover" />
+              <img src={s.coverUrl} alt={t`封面`} className="mb-2 h-40 w-full rounded-xl border border-slate-700/70 object-cover" />
             ) : (
-              <p className="mb-2 text-xs text-slate-500">不给封面也能发，市场里会是一块空的卡面。</p>
+              <p className="mb-2 text-xs text-slate-500"><Trans>不给封面也能发，市场里会是一块空的卡面。</Trans></p>
             )}
             <input
               ref={coverRef}
@@ -1229,10 +1266,10 @@ export default function SupportModelNewPage() {
             />
             <div className="flex gap-2">
               <button type="button" onClick={() => void grabCover()} disabled={!!s.coverBusy} className={secondaryCls}>
-                从预览截一张
+                <Trans>从预览截一张</Trans>
               </button>
               <button type="button" onClick={() => coverRef.current?.click()} disabled={!!s.coverBusy} className={secondaryCls}>
-                自己选一张
+                <Trans>自己选一张</Trans>
               </button>
             </div>
             {!!s.coverBusy && <p className="mt-1 text-xs text-slate-500">{s.coverBusy}</p>}
@@ -1240,30 +1277,30 @@ export default function SupportModelNewPage() {
           </div>
 
           <div>
-            <FieldLabel>简介</FieldLabel>
+            <FieldLabel><Trans>简介</Trans></FieldLabel>
             <textarea
               value={s.desc}
               onChange={(e) => setDesc(e.target.value)}
               rows={3}
               maxLength={300}
-              placeholder="画风、适合配什么人格、有哪些动作可以摸出来…"
+              placeholder={t`画风、适合配什么人格、有哪些动作可以摸出来…`}
               className={`${inputCls} resize-none leading-relaxed`}
             />
           </div>
 
           <div>
-            <FieldLabel>标签</FieldLabel>
+            <FieldLabel><Trans>标签</Trans></FieldLabel>
             <TagInput tags={s.tags} onChange={setTags} max={TAG_MAX} maxLen={VIDEO_TAG_LEN} split={parseTags} />
           </div>
 
           <RecommendPickers />
 
           <div>
-            <FieldLabel>谁能用</FieldLabel>
+            <FieldLabel><Trans>谁能用</Trans></FieldLabel>
             <div className="grid grid-cols-2 gap-1 rounded-xl bg-panel p-1">
               {[
-                { on: true, label: "公开到市场", hint: "别人能搜到、能下载来用" },
-                { on: false, label: "只有我自己", hint: "只出现在你的「我的」里" },
+                { on: true, label: t`公开到市场`, hint: t`别人能搜到、能下载来用` },
+                { on: false, label: t`只有我自己`, hint: t`只出现在你的「我的」里` },
               ].map((o) => (
                 <button
                   key={String(o.on)}
@@ -1276,28 +1313,25 @@ export default function SupportModelNewPage() {
                 </button>
               ))}
             </div>
-            <p className="mt-1 text-[11px] text-slate-500">{s.shared ? "别人能搜到、能下载来用；随时可以改回私有。" : "只出现在你的「我的」里，别人看不到。"}</p>
+            <p className="mt-1 text-[11px] text-slate-500">{s.shared ? t`别人能搜到、能下载来用；随时可以改回私有。` : t`只出现在你的「我的」里，别人看不到。`}</p>
           </div>
 
           <label className="flex items-start gap-2.5 rounded-xl border border-slate-700/70 bg-panel p-3">
             <input type="checkbox" checked={s.selfMade} onChange={(e) => setSelfMade(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-brand" />
             <span className="min-w-0 text-xs leading-relaxed text-slate-300">
-              <b className="text-slate-100">我确认：</b>
-              <br />· 这个模型是我做的，或者我已经拿到作者授权；
-              <br />· 我没有上传他人作品、真人肖像，也没有上传 Live2D 官方示例模型；
-              <br />· 违规的内容会被下架，情节严重的可能会封号。
+              <Trans><b className="text-slate-100">我确认：</b><br />· 这个模型是我做的，或者我已经拿到作者授权；<br />· 我没有上传他人作品、真人肖像，也没有上传 Live2D 官方示例模型；<br />· 违规的内容会被下架，情节严重的可能会封号。</Trans>
             </span>
           </label>
 
           {!!s.publishErr && <Banner tone="bad">{s.publishErr}</Banner>}
-          {busy && <EmptyState loading text={s.progress || "正在发布…"} compact />}
+          {busy && <EmptyState loading text={s.progress || t`正在发布…`} compact />}
 
           <button type="button" onClick={() => void submitLive2dModel()} disabled={busy || !s.name.trim() || !s.selfMade} className={primaryCls}>
-            发布
+            <Trans>发布</Trans>
           </button>
-          {!s.selfMade && <p className="text-center text-[11px] text-slate-500">勾上上面那三条才能发布。</p>}
+          {!s.selfMade && <p className="text-center text-[11px] text-slate-500"><Trans>勾上上面那三条才能发布。</Trans></p>}
           <button type="button" onClick={() => setStep("verify")} disabled={busy} className={`mx-auto block ${secondaryCls}`}>
-            上一步
+            <Trans>上一步</Trans>
           </button>
         </section>
       )}
@@ -1305,7 +1339,7 @@ export default function SupportModelNewPage() {
       {/* 成功页 */}
       {s.step === "done" && s.created && (
         <section className="space-y-3">
-          <EmptyState emoji="🎉" title={`「${s.created.name}」发布好了`} text={s.shared ? "已经公开到形象市场，别人能搜到它了。" : "已经存进「我的」，只有你能看到。"} />
+          <EmptyState emoji="🎉" title={t`「${s.created.name}」发布好了`} text={s.shared ? t`已经公开到形象市场，别人能搜到它了。` : t`已经存进「我的」，只有你能看到。`} />
           {s.inspect?.warnings.map((w) => (
             <Banner key={w} tone="warn">
               {w}
@@ -1320,18 +1354,18 @@ export default function SupportModelNewPage() {
             }}
             className={primaryCls}
           >
-            去看看
+            <Trans>去看看</Trans>
           </button>
           <button type="button" onClick={() => resetLive2dDraft()} className={`mx-auto block ${secondaryCls}`}>
-            再传一个
+            <Trans>再传一个</Trans>
           </button>
         </section>
       )}
 
       {restartAsk && (
         <ConfirmDialog
-          title="重新开始？"
-          confirmLabel="重新开始"
+          title={t`重新开始？`}
+          confirmLabel={t`重新开始`}
           danger
           onClose={() => setRestartAsk(false)}
           onConfirm={() => {
@@ -1339,8 +1373,11 @@ export default function SupportModelNewPage() {
             resetLive2dDraft();
           }}
         >
-          这一页填的东西会清空，已经选的包也要重新选一次。
-          {s.bundleRef ? "刚才传上去的那一份也不会变成模型，要重新走一遍上传和识别。" : ""}
+          {s.bundleRef ? (
+            <Trans>这一页填的东西会清空，已经选的包也要重新选一次。刚才传上去的那一份也不会变成模型，要重新走一遍上传和识别。</Trans>
+          ) : (
+            <Trans>这一页填的东西会清空，已经选的包也要重新选一次。</Trans>
+          )}
         </ConfirmDialog>
       )}
     </div>

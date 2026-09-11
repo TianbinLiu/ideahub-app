@@ -150,6 +150,7 @@ msgstr "，已放大到短边 {REF_SHORT_MIN}px"
 #. 列举几个名字时的分隔符
 #. 列举几个名字时的分隔符
 #. 列举几个名字时的分隔符
+#. 列举几个文件名 / 动作组 / 表情名时的分隔符
 #. 列举几个段号时的分隔符（第 1、3 段）
 #: src/components/blockout/RoleCastBoard.tsx
 #: src/components/blockout/RoleConfirmSheet.tsx
@@ -157,6 +158,7 @@ msgstr "，已放大到短边 {REF_SHORT_MIN}px"
 #: src/components/TemplateShelf.tsx
 #: src/components/VideoCardAnnotator.tsx
 #: src/pages/CutPage.tsx
+#: src/pages/SupportModelNewPage.tsx
 msgid "、"
 msgstr "、"
 
@@ -190,6 +192,15 @@ msgstr "。挂上带形象图的角色卡（右下角素材按钮），AI 会把
 #: src/components/GenTrace.tsx
 msgid "· {doneCount}/{total} 步"
 msgstr "· {doneCount}/{total} 步"
+
+#. placeholder {0}: Math.round(MAX_LIVE2D_BUNDLE_BYTES / 1024 / 1024)
+#: src/pages/SupportModelNewPage.tsx
+msgid "· zip 文件本身不超过 {0}MB"
+msgstr "· zip 文件本身不超过 {0}MB"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "· 一份 <0>*.model3.json</0>（Cubism 4 导出的，Version 3）与它引用的 <1>*.moc3</1>"
+msgstr "· 一份 <0>*.model3.json</0>（Cubism 4 导出的，Version 3）与它引用的 <1>*.moc3</1>"
 
 #: src/components/BlockButton.tsx
 msgid "· 他不知道自己被拉黑了，你们谁都不会收到通知；"
@@ -235,6 +246,10 @@ msgstr "· 它会从 {deckCount} 个卡组里移出（{deckNames}），卡组本
 msgid "· 它已经分享到创意工坊：删卡会<0>同时下架</0>； 别人已经装走的那份在他们自己的库里，不受影响。"
 msgstr "· 它已经分享到创意工坊：删卡会<0>同时下架</0>； 别人已经装走的那份在他们自己的库里，不受影响。"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "· 想要会转头 / 眨眼 / 说话，模型里得有 ParamAngleX、ParamAngleY、ParamEyeLOpen、ParamEyeROpen、ParamMouthOpenY 这几个标准参数"
+msgstr "· 想要会转头 / 眨眼 / 说话，模型里得有 ParamAngleX、ParamAngleY、ParamEyeLOpen、ParamEyeROpen、ParamMouthOpenY 这几个标准参数"
+
 #: src/pages/SettingsDeactivatePage.tsx
 msgid "· 数据不会立刻从服务器抹除（防误操作）。想恢复账号、或要求彻底删除数据，发邮件到 <0>{SUPPORT_EMAIL}</0>。"
 msgstr "· 数据不会立刻从服务器抹除（防误操作）。想恢复账号、或要求彻底删除数据，发邮件到 <0>{SUPPORT_EMAIL}</0>。"
@@ -242,6 +257,10 @@ msgstr "· 数据不会立刻从服务器抹除（防误操作）。想恢复账
 #: src/components/VideoCardAnnotator.tsx
 msgid "· 无脸"
 msgstr "· 无脸"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "· 有 physics3 / pose3 / cdi3 / exp3 表情 / motion3 动作也一起压进去，我们会自动接上"
+msgstr "· 有 physics3 / pose3 / cdi3 / exp3 表情 / motion3 动作也一起压进去，我们会自动接上"
 
 #: src/components/MaterialSheet.tsx
 msgid "· 点 ✕ 移出本段"
@@ -267,6 +286,10 @@ msgstr "· 素材：没有（跳过了）"
 #: src/pages/SettingsDeactivatePage.tsx
 msgid "· 账号里的 token 余额、已购内容与已发布作品都将一并无法使用。"
 msgstr "· 账号里的 token 余额、已购内容与已发布作品都将一并无法使用。"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "· 贴图 png / webp，每张不超过 4096²、最多 4 张"
+msgstr "· 贴图 png / webp，每张不超过 4096²、最多 4 张"
 
 #: src/components/BlockButton.tsx
 msgid "· 这不是举报：想让平台处理他，请另外点「举报」。"
@@ -296,6 +319,21 @@ msgstr "‹ 重新描"
 #: src/components/PhotoSubjectPicker.tsx
 msgid "‹ 重新框"
 msgstr "‹ 重新框"
+
+#. placeholder {0}: detail.expressions.join(listSep)
+#. placeholder {0}: detail.hitAreas.join(listSep)
+#. placeholder {0}: detail.motionGroups.map((g) => `${g.name}×${g.count}`).join(listSep)
+#: src/pages/SupportModelNewPage.tsx
+msgid "（{0}）"
+msgstr "（{0}）"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "（{texList}）"
+msgstr "（{texList}）"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "（包里没有参数表，看不出来）"
+msgstr "（包里没有参数表，看不出来）"
 
 #: src/components/CommentDelete.tsx
 msgid "（它下面的回复会一起删掉）"
@@ -583,6 +621,18 @@ msgstr "{0}重新剪辑过"
 msgid "{0}锁{1}"
 msgstr "{0}锁{1}"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "{actName} 用哪个动作组"
+msgstr "{actName} 用哪个动作组"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "{area}（包里没有）"
+msgstr "{area}（包里没有）"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "{areaName} 对应哪个命中区"
+msgstr "{areaName} 对应哪个命中区"
+
 #: src/pages/TemplateDetailPage.tsx
 msgid "{beatCount} 段 · 每段 {beatSec}s"
 msgstr "{beatCount} 段 · 每段 {beatSec}s"
@@ -599,6 +649,10 @@ msgstr "{display} 的主页"
 msgid "{durSec} 秒"
 msgstr "{durSec} 秒"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "{faceName} 用哪个表情"
+msgstr "{faceName} 用哪个表情"
+
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "{fileName} 读不出来，换个纯文本文件试试。"
 msgstr "{fileName} 读不出来，换个纯文本文件试试。"
@@ -610,6 +664,10 @@ msgstr "{fileName} 里没有文字。"
 #: src/components/WorkshopShareBar.tsx
 msgid "{installs} 人装过"
 msgstr "{installs} 人装过"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "{motion}（包里没有）"
+msgstr "{motion}（包里没有）"
 
 #: src/pages/SupportPage.tsx
 msgid "{msgCount} 条"
@@ -638,6 +696,10 @@ msgstr "{segCount} 段 · 共 {totalText}"
 #: src/pages/ProfilePage.tsx
 msgid "{segCount} 段 · 卡组 {deckCount} 张已经铸好 · {when}"
 msgstr "{segCount} 段 · 卡组 {deckCount} 张已经铸好 · {when}"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "{value}（包里没有）"
+msgstr "{value}（包里没有）"
 
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "{who}，还没挂卡"
@@ -711,6 +773,11 @@ msgstr "「{0}」最短 {1} 秒"
 #: src/components/TemplateShelf.tsx
 msgid "「{0}」分类下还没有模板——点「全部」看现有的，或做一个发布出来占坑"
 msgstr "「{0}」分类下还没有模板——点「全部」看现有的，或做一个发布出来占坑"
+
+#. placeholder {0}: s.created.name
+#: src/pages/SupportModelNewPage.tsx
+msgid "「{0}」发布好了"
+msgstr "「{0}」发布好了"
 
 #. placeholder {0}: card.name
 #: src/components/VideoCardAnnotator.tsx
@@ -849,6 +916,10 @@ msgstr "<0>删了就找不回来</0>：卡面、形象参考图、声音样本�
 msgid "<0>删了就找不回来</0>：卡面、形象参考图、铸造提示词、声音样本与肖像授权都会一起清掉。"
 msgstr "<0>删了就找不回来</0>：卡面、形象参考图、铸造提示词、声音样本与肖像授权都会一起清掉。"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "<0>我确认：</0><1/>· 这个模型是我做的，或者我已经拿到作者授权；<2/>· 我没有上传他人作品、真人肖像，也没有上传 Live2D 官方示例模型；<3/>· 违规的内容会被下架，情节严重的可能会封号。"
+msgstr "<0>我确认：</0><1/>· 这个模型是我做的，或者我已经拿到作者授权；<2/>· 我没有上传他人作品、真人肖像，也没有上传 Live2D 官方示例模型；<3/>· 违规的内容会被下架，情节严重的可能会封号。"
+
 #: src/components/blockout/BoxFramePicker.tsx
 msgid "<0>标在场景切换、人数变化的那一帧</0>：每段是独立模板、各认一次人， 切在镜头边界上每段都认得更准。<1>不标也行</1>——会自动对半切到每段 ≤30 秒；标了之后还超 30 秒的段也会自动补刀。切出来不足 4 秒的刀落不下去，会整句告诉你。"
 msgstr "<0>标在场景切换、人数变化的那一帧</0>：每段是独立模板、各认一次人， 切在镜头边界上每段都认得更准。<1>不标也行</1>——会自动对半切到每段 ≤30 秒；标了之后还超 30 秒的段也会自动补刀。切出来不足 4 秒的刀落不下去，会整句告诉你。"
@@ -865,6 +936,10 @@ msgstr "<0>素材有分镜切换、或者人会进出画面时用这个</0>：�
 msgid "<0>这一步不是每次都全对。</0>实测每隔几发就会有 1~2 个人<1>根本没被换成人偶</1>（还是原来的样子） —— 最常出错的是<2>画面正中央、看起来最像主角的那一个</2>。 出片之后你要对着画面从左往右数一遍：对不上的位子删掉就行（不用重炼、不花钱）， 要全对上只能重炼（<3>重炼要再花一次钱</3>）。<4>画面里的人越少越准</4>，也可以在下面多标几帧让 AI 少看漏人。"
 msgstr "<0>这一步不是每次都全对。</0>实测每隔几发就会有 1~2 个人<1>根本没被换成人偶</1>（还是原来的样子） —— 最常出错的是<2>画面正中央、看起来最像主角的那一个</2>。 出片之后你要对着画面从左往右数一遍：对不上的位子删掉就行（不用重炼、不花钱）， 要全对上只能重炼（<3>重炼要再花一次钱</3>）。<4>画面里的人越少越准</4>，也可以在下面多标几帧让 AI 少看漏人。"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "■ 停下"
+msgstr "■ 停下"
+
 #: src/components/support/VoiceMarket.tsx
 #: src/components/support/VoiceMixer.tsx
 msgid "■ 停止"
@@ -873,6 +948,14 @@ msgstr "■ 停止"
 #: src/components/VideoCardAnnotator.tsx
 msgid "▭ 框"
 msgstr "▭ 框"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "▶ 再跑一遍"
+msgstr "▶ 再跑一遍"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "▶ 开始试跑"
+msgstr "▶ 开始试跑"
 
 #: src/components/support/VoiceMarket.tsx
 #: src/components/support/VoiceMixer.tsx
@@ -1575,9 +1658,17 @@ msgstr "TA 还没有发布作品"
 msgid "UID 已复制"
 msgstr "UID 已复制"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "zip 包 · 最大 25MB"
+msgstr "zip 包 · 最大 25MB"
+
 #: src/pages/SupportModelsPage.tsx
 msgid "zip 包 ≤25MB，向导会认出它的动作、表情和触摸区。"
 msgstr "zip 包 ≤25MB，向导会认出它的动作、表情和触摸区。"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "一个能力角标都没有 —— 装上之后基本上是个不会动的立绘。"
+msgstr "一个能力角标都没有 —— 装上之后基本上是个不会动的立绘。"
 
 #: src/pages/FlowPage.tsx
 msgid "一个节点，一条短片"
@@ -1645,6 +1736,7 @@ msgid "上一张还没拍完"
 msgstr "上一张还没拍完"
 
 #: src/components/PhotoSubjectPicker.tsx
+#: src/pages/SupportModelNewPage.tsx
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "上一步"
 msgstr "上一步"
@@ -1652,6 +1744,10 @@ msgstr "上一步"
 #: src/pages/FlowPage.tsx
 msgid "上一段"
 msgstr "上一段"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "上传 Live2D 模型"
+msgstr "上传 Live2D 模型"
 
 #. placeholder {0}: Math.round(frac * 100)
 #: src/components/flow/FlowCanvas.tsx
@@ -1706,6 +1802,18 @@ msgstr "上次查到的已授权素材（这次没能向方舟刷新，原因见
 msgid "上面列的是这台设备上已有的那几条，不是全部结果。"
 msgstr "上面列的是这台设备上已有的那几条，不是全部结果。"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "上面标红的必须项缺了，补齐再重新导出一次包。"
+msgstr "上面标红的必须项缺了，补齐再重新导出一次包。"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "上面那块现在不是你的包（预览没画出来），演不了 —— 先点「重新加载预览」。"
+msgstr "上面那块现在不是你的包（预览没画出来），演不了 —— 先点「重新加载预览」。"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "上面那块现在不是你的包（预览没画出来）。先点「重新加载预览」，画出来了再试跑。"
+msgstr "上面那块现在不是你的包（预览没画出来）。先点「重新加载预览」，画出来了再试跑。"
+
 #: src/components/guide/GuideOverlay.tsx
 #: src/pages/CutPage.tsx
 #: src/pages/SimpleModePage.tsx
@@ -1713,9 +1821,25 @@ msgstr "上面列的是这台设备上已有的那几条，不是全部结果。
 msgid "下一步"
 msgstr "下一步"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "下一步：对映射"
+msgstr "下一步：对映射"
+
 #: src/components/PhotoSubjectPicker.tsx
 msgid "下一步：描轮廓 ›"
 msgstr "下一步：描轮廓 ›"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "下一步：本地预览"
+msgstr "下一步：本地预览"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "下一步：自动识别"
+msgstr "下一步：自动识别"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "下一步：试跑"
+msgstr "下一步：试跑"
 
 #: src/components/PhotoSubjectPicker.tsx
 msgid "下一步：预览 ›"
@@ -1810,6 +1934,15 @@ msgstr "不太像，回去重生成"
 msgid "不承接（用自己的首帧起拍）"
 msgstr "不承接（用自己的首帧起拍）"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "不推荐"
+msgstr "不推荐"
+
+#: src/pages/SupportModelNewPage.tsx
+msgctxt "Live2D 动作槽：这个语义动作不播任何动作"
+msgid "不演"
+msgstr "不演"
+
 #: src/pages/FlowPage.tsx
 msgid "不用"
 msgstr "不用"
@@ -1825,6 +1958,10 @@ msgstr "不用素材卡，直接写"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "不筛，全都要"
 msgstr "不筛，全都要"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "不给封面也能发，市场里会是一块空的卡面。"
+msgstr "不给封面也能发，市场里会是一块空的卡面。"
 
 #: src/pages/ProfilePage.tsx
 msgid "不要了"
@@ -1876,6 +2013,7 @@ msgstr "互动视频没有单条成片。"
 msgid "人偶编号"
 msgstr "人偶编号"
 
+#: src/pages/SupportModelNewPage.tsx
 #: src/pages/SupportPage.tsx
 msgid "人格"
 msgstr "人格"
@@ -1947,6 +2085,10 @@ msgstr "从视频提取卡片"
 #: src/pages/WorkshopPage.tsx
 msgid "从视频提取卡组"
 msgstr "从视频提取卡组"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "从预览截一张"
+msgstr "从预览截一张"
 
 #: src/pages/ProfilePage.tsx
 msgid "付款成功后额度自动到账；若长时间未到账请在订单里核对"
@@ -2047,6 +2189,10 @@ msgstr "作品与卡片已同步到服务器，换设备登录同一账号即可
 #: src/pages/EditPage.tsx
 msgid "作品内容"
 msgstr "作品内容"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "作者推荐（可以都不选）"
+msgstr "作者推荐（可以都不选）"
 
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "你 / 您 / 我的名字"
@@ -2373,6 +2519,7 @@ msgstr "公开中：会出现在创意工坊的「从市场添加」里，别人
 msgid "公开到声音市场（不勾 = 只在「我的」里）"
 msgstr "公开到声音市场（不勾 = 只在「我的」里）"
 
+#: src/pages/SupportModelNewPage.tsx
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "公开到市场"
 msgstr "公开到市场"
@@ -2442,6 +2589,10 @@ msgstr "关闭素材库"
 msgid "关闭评论"
 msgstr "关闭评论"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "兴奋"
+msgstr "兴奋"
+
 #: src/pages/VideoPage.tsx
 msgid "内容可能还在，只是这次没取到（网络或服务器的问题）"
 msgstr "内容可能还在，只是这次没取到（网络或服务器的问题）"
@@ -2453,6 +2604,10 @@ msgstr "内容声明：本作品由 AI 生成"
 #: src/pages/ProfilePage.tsx
 msgid "内容还在这台设备上，没有丢。修好网络或服务器后点重试即可。"
 msgstr "内容还在这台设备上，没有丢。修好网络或服务器后点重试即可。"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "再传一个"
+msgstr "再传一个"
 
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "再做一个"
@@ -2716,6 +2871,10 @@ msgstr "切换失败，稍后再试。"
 msgid "刚才切到后台了——合成不会因此录坏画面，但可能被系统拖慢；真断了会明确告诉你"
 msgstr "刚才切到后台了——合成不会因此录坏画面，但可能被系统拖慢；真断了会明确告诉你"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "刚点到：{hitText}"
+msgstr "刚点到：{hitText}"
+
 #: src/components/TabBar.tsx
 #: src/pages/SupportPage.tsx
 msgid "创作"
@@ -2861,6 +3020,10 @@ msgstr "别人只看得到成片，看不到你用了哪几张卡，也不能「
 msgid "别人只看得到成片，看不到你用了哪几张卡，也不能「做同款」。原作品上那套卡组也会一并撤下。"
 msgstr "别人只看得到成片，看不到你用了哪几张卡，也不能「做同款」。原作品上那套卡组也会一并撤下。"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "别人在市场里看到的名字"
+msgstr "别人在市场里看到的名字"
+
 #: src/pages/EditPage.tsx
 msgid "别人的首页和你的主页上都不再出现，成片和评论都留着，随时能改回来。"
 msgstr "别人的首页和你的主页上都不再出现，成片和评论都留着，随时能改回来。"
@@ -2868,6 +3031,14 @@ msgstr "别人的首页和你的主页上都不再出现，成片和评论都留
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "别人能在人格市场里搜到、装上用；署你的名。"
 msgstr "别人能在人格市场里搜到、装上用；署你的名。"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "别人能搜到、能下载来用"
+msgstr "别人能搜到、能下载来用"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "别人能搜到、能下载来用；随时可以改回私有。"
+msgstr "别人能搜到、能下载来用；随时可以改回私有。"
 
 #: src/pages/NotificationsPage.tsx
 msgid "别人赞你、评论你、回复你、在评论里 @ 你，或平台发来通知时会出现在这里"
@@ -2944,9 +3115,53 @@ msgstr "加载更多失败"
 msgid "加进来"
 msgstr "加进来"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "动作"
+msgstr "动作"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "动作 · {name}"
+msgstr "动作 · {name}"
+
+#. placeholder {0}: s.inspect.capabilities.motionCount
+#. placeholder {1}: s.inspect.capabilities.motionGroups.length
+#. placeholder {2}: s.inspect.capabilities.expressions.length
+#. placeholder {3}: s.inspect.capabilities.hitAreas.length
+#. placeholder {4}: s.inspect.capabilities.textures.count
+#. placeholder {5}: s.inspect.capabilities.textures.maxSide
+#: src/pages/SupportModelNewPage.tsx
+msgid "动作 {0} 段 / {1} 组 · 表情 {2} 个 · 命中区 {3} 个 · 贴图 {4} 张（最大边 {5}px）"
+msgstr "动作 {0} 段 / {1} 组 · 表情 {2} 个 · 命中区 {3} 个 · 贴图 {4} 张（最大边 {5}px）"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "动作「{actName}」→ {g}"
+msgstr "动作「{actName}」→ {g}"
+
+#. placeholder {0}: detail.motionGroups.length
+#: src/pages/SupportModelNewPage.tsx
+msgid "动作组 {0} 组"
+msgstr "动作组 {0} 组"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "勾上上面那三条才能发布。"
+msgstr "勾上上面那三条才能发布。"
+
 #: src/components/VideoCardAnnotator.tsx
 msgid "勾了「画面里是真实人物」，就得同时勾上下面那条肖像同意的确认——没有本人同意，真人素材不能入库。取消真人勾选，或者勾上确认再存。"
 msgstr "勾了「画面里是真实人物」，就得同时勾上下面那条肖像同意的确认——没有本人同意，真人素材不能入库。取消真人勾选，或者勾上确认再存。"
+
+#. placeholder {0}: s.check.entries.length
+#: src/pages/SupportModelNewPage.tsx
+msgid "包里有 {0} 个 model3.json，用哪一个？"
+msgstr "包里有 {0} 个 model3.json，用哪一个？"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "包里没有 cdi3.json，服务器读不到参数表 —— 这不代表模型没有参数，只是这一屏说不出它们叫什么。"
+msgstr "包里没有 cdi3.json，服务器读不到参数表 —— 这不代表模型没有参数，只是这一屏说不出它们叫什么。"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "包里没有 cdi3.json，读不到参数表 —— 下一步交给服务器再看一次。"
+msgstr "包里没有 cdi3.json，读不到参数表 —— 下一步交给服务器再看一次。"
 
 #: src/components/support/VoiceMarket.tsx
 #: src/pages/SupportModelsPage.tsx
@@ -3136,9 +3351,30 @@ msgstr "去模板市场"
 msgid "去登录"
 msgstr "去登录"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "去看看"
+msgstr "去看看"
+
 #: src/pages/ProfilePage.tsx
 msgid "去首页逛逛"
 msgstr "去首页逛逛"
+
+#. placeholder {0}: detail.params.length
+#: src/pages/SupportModelNewPage.tsx
+msgid "参数 {0} 个"
+msgstr "参数 {0} 个"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "参数（服务器自动对的）"
+msgstr "参数（服务器自动对的）"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "参数版"
+msgstr "参数版"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "参数这一栏这版还不能在 App 里改。对不上的话去 Cubism 里把参数 id 改成标准名（ParamAngleX 这一套）再导出一次。"
+msgstr "参数这一栏这版还不能在 App 里改。对不上的话去 Cubism 里把参数 id 改成标准名（ParamAngleX 这一套）再导出一次。"
 
 #: src/pages/CardDetailPage.tsx
 msgid "参考图怎么被 AI 取用"
@@ -3162,6 +3398,7 @@ msgstr "发一句试试，比如「你好呀」。"
 
 #: src/components/flow/SkillPanel.tsx
 #: src/pages/PublishPage.tsx
+#: src/pages/SupportModelNewPage.tsx
 msgid "发布"
 msgstr "发布"
 
@@ -3326,6 +3563,7 @@ msgstr "取流超时（窗口在后台时浏览器不解码视频）"
 #: src/pages/CardDetailPage.tsx
 #: src/pages/EditPage.tsx
 #: src/pages/ProfilePage.tsx
+#: src/pages/SupportModelNewPage.tsx
 #: src/pages/SupportPage.tsx
 msgid "取消"
 msgstr "取消"
@@ -3333,6 +3571,10 @@ msgstr "取消"
 #: src/components/PhotoSubjectPicker.tsx
 msgid "取消，不用这张图"
 msgstr "取消，不用这张图"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "取消上传"
+msgstr "取消上传"
 
 #: src/pages/SupportModelsPage.tsx
 msgid "取消中…"
@@ -3409,6 +3651,18 @@ msgstr "另存为我的"
 msgid "另有 {0} 处落在已删掉的段上，不计费也不会重拍"
 msgstr "另有 {0} 处落在已删掉的段上，不计费也不会重拍"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "只传你自己做的、或者已经拿到授权的模型。别人的作品、真人肖像、Live2D 官方示例模型（Hiyori / Haru / Mao 这些）都不收。"
+msgstr "只传你自己做的、或者已经拿到授权的模型。别人的作品、真人肖像、Live2D 官方示例模型（Hiyori / Haru / Mao 这些）都不收。"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "只出现在你的「我的」里"
+msgstr "只出现在你的「我的」里"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "只出现在你的「我的」里，别人看不到。"
+msgstr "只出现在你的「我的」里，别人看不到。"
+
 #: src/pages/SettingsStoragePage.tsx
 msgid "只删生成过程中留下的、已经没人用的中间文件。未发布的草稿和还没传上去的作品不会动。"
 msgstr "只删生成过程中留下的、已经没人用的中间文件。未发布的草稿和还没传上去的作品不会动。"
@@ -3458,9 +3712,21 @@ msgstr "只有你自己能装上用，市场里搜不到。"
 msgid "只有我"
 msgstr "只有我"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "只有我自己"
+msgstr "只有我自己"
+
 #: src/components/WorkshopShareBar.tsx
 msgid "只能分享自己库里的卡：先把它添加到我的卡片。"
 msgstr "只能分享自己库里的卡：先把它添加到我的卡片。"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "只说话"
+msgstr "只说话"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "只说话、不播动作"
+msgstr "只说话、不播动作"
 
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "叫什么名字"
@@ -3482,6 +3748,10 @@ msgstr "可以检查有没有新版本"
 msgid "可以退出这一页，跑完会有通知。"
 msgstr "可以退出这一页，跑完会有通知。"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "可以退出这一页去做别的，传完了会有提示。"
+msgstr "可以退出这一页去做别的，传完了会有提示。"
+
 #. placeholder {0}: storage.quotaMB
 #: src/pages/SettingsStoragePage.tsx
 msgid "可用约 {0} MB"
@@ -3490,6 +3760,10 @@ msgstr "可用约 {0} MB"
 #: src/pages/CutPage.tsx
 msgid "可跨帧跨段圈多处，最后一次性重新生成——那一步才计费。"
 msgstr "可跨帧跨段圈多处，最后一次性重新生成——那一步才计费。"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "台上现在不是你的模型（预览没画出来），截下来的会是官方看板娘。先点「重新加载预览」，画出来了再截。"
+msgstr "台上现在不是你的模型（预览没画出来），截下来的会是官方看板娘。先点「重新加载预览」，画出来了再截。"
 
 #. placeholder {0}: next.label
 #: src/components/flow/TierRow.tsx
@@ -3500,6 +3774,22 @@ msgstr "台词不再带音色样本（「{0}」档出片无声）"
 #: src/components/flow/TierRow.tsx
 msgid "台词不再带音色样本（「{0}」档暂无配音）"
 msgstr "台词不再带音色样本（「{0}」档暂无配音）"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "右手"
+msgstr "右手"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "右眼"
+msgstr "右眼"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "右臂"
+msgstr "右臂"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "吃惊"
+msgstr "吃惊"
 
 #: src/pages/CutPage.tsx
 msgid "合并失败：{raw}"
@@ -3557,6 +3847,7 @@ msgstr "合成预览（{price}）"
 msgid "同一条视频拆成 {count} 段的分段模板（共约 {0}s）· 套用即整组铺开"
 msgstr "同一条视频拆成 {count} 段的分段模板（共约 {0}s）· 套用即整组铺开"
 
+#: src/pages/SupportModelNewPage.tsx
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "名字"
 msgstr "名字"
@@ -3585,6 +3876,15 @@ msgstr "启梦官方"
 msgid "周末打算去一趟菜市场，买点新鲜的菜，晚上做一顿好吃的。"
 msgstr "周末打算去一趟菜市场，买点新鲜的菜，晚上做一顿好吃的。"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "呼吸"
+msgstr "呼吸"
+
+#. placeholder {0}: detail.hitAreas.length
+#: src/pages/SupportModelNewPage.tsx
+msgid "命中区 {0} 个"
+msgstr "命中区 {0} 个"
+
 #: src/pages/SupportPage.tsx
 msgid "和 AI 客服聊不明白的问题，点「转人工」就会出现在这里"
 msgstr "和 AI 客服聊不明白的问题，点「转人工」就会出现在这里"
@@ -3597,6 +3897,10 @@ msgstr "和你是什么关系"
 msgid "哪个是 TA"
 msgstr "哪个是 TA"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "哭"
+msgstr "哭"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "唤起指令句式（也可以输入 /）"
 msgstr "唤起指令句式（也可以输入 /）"
@@ -3605,6 +3909,14 @@ msgstr "唤起指令句式（也可以输入 /）"
 #: src/pages/SupportPersonasPage.tsx
 msgid "喂一段聊天记录或者答几道题，AI 帮你写出说话风格，试聊满意了再发布。"
 msgstr "喂一段聊天记录或者答几道题，AI 帮你写出说话风格，试聊满意了再发布。"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "嘴形"
+msgstr "嘴形"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "回上一步让服务器先识别一次。"
+msgstr "回上一步让服务器先识别一次。"
 
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "回到「生成」那一步先让 AI 写一版。"
@@ -3621,6 +3933,10 @@ msgstr "回到整图"
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "回到标记帧"
 msgstr "回到标记帧"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "回去改映射"
+msgstr "回去改映射"
 
 #: src/components/GenerationPill.tsx
 msgid "回去看原因 ›"
@@ -3729,6 +4045,10 @@ msgstr "在线"
 msgid "在评论里 @ 了你"
 msgstr "在评论里 @ 了你"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "坏笑"
+msgstr "坏笑"
+
 #: src/components/flow/FlowCanvas.tsx
 #: src/pages/FlowPage.tsx
 msgid "填入默认写法（填完还能改）"
@@ -3738,6 +4058,7 @@ msgstr "填入默认写法（填完还能改）"
 msgid "填过的设定、导入的素材、生成出来的草稿和试聊记录都会清掉，回到第一步。已经发布出去的人格不受影响。"
 msgstr "填过的设定、导入的素材、生成出来的草稿和试聊记录都会清掉，回到第一步。已经发布出去的人格不受影响。"
 
+#: src/pages/SupportModelNewPage.tsx
 #: src/pages/SupportPage.tsx
 msgid "声音"
 msgstr "声音"
@@ -3794,6 +4115,10 @@ msgstr "大小未知"
 msgid "大小未知，没法校验这一份是不是完整的。"
 msgstr "大小未知，没法校验这一份是不是完整的。"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "大笑"
+msgstr "大笑"
+
 #: src/components/support/HoldToTalk.tsx
 msgid "太短了，按住多说一会儿再松手。"
 msgstr "太短了，按住多说一会儿再松手。"
@@ -3803,6 +4128,18 @@ msgstr "太短了，按住多说一会儿再松手。"
 msgid "太短了（{0}s）——按住别松，照着示例词念够 {VOICE_MIN_SEC} 秒再放手。"
 msgstr "太短了（{0}s）——按住别松，照着示例词念够 {VOICE_MIN_SEC} 秒再放手。"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "头"
+msgstr "头"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "头上下"
+msgstr "头上下"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "头倾斜"
+msgstr "头倾斜"
+
 #: src/pages/SettingsPage.tsx
 msgid "头像 · 昵称 · 简介"
 msgstr "头像 · 昵称 · 简介"
@@ -3810,6 +4147,14 @@ msgstr "头像 · 昵称 · 简介"
 #: src/components/AvatarPicker.tsx
 msgid "头像更换失败，本机仍会显示新头像"
 msgstr "头像更换失败，本机仍会显示新头像"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "头发"
+msgstr "头发"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "头左右"
+msgstr "头左右"
 
 #: src/pages/TemplateMarketPage.tsx
 msgid "套上模板，一句话出片"
@@ -3923,6 +4268,10 @@ msgstr "存这张卡"
 msgid "它们还在，联网后重开一次"
 msgstr "它们还在，联网后重开一次"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "它会什么"
+msgstr "它会什么"
+
 #: src/pages/VideoEditorPage.tsx
 msgid "它拿不到“要编辑哪段视频”这个信息（直接输入地址、或从后台回来时页面已被系统回收，都会这样）。请回到上一步重新进入。"
 msgstr "它拿不到“要编辑哪段视频”这个信息（直接输入地址、或从后台回来时页面已被系统回收，都会这样）。请回到上一步重新进入。"
@@ -3930,6 +4279,10 @@ msgstr "它拿不到“要编辑哪段视频”这个信息（直接输入地址
 #: src/components/DownloadSheet.tsx
 msgid "安卓不让 App 直接写进相册。文件先落在 App 的缓存目录里；存好后点每一行的「分享 / 另存为」， 在系统面板里选相册或文件管理器。保存期间请留在 App 里，别把它划掉。 缓存目录在手机空间紧张时可能被系统清掉 —— 存好之后请尽快选个去处。"
 msgstr "安卓不让 App 直接写进相册。文件先落在 App 的缓存目录里；存好后点每一行的「分享 / 另存为」， 在系统面板里选相册或文件管理器。保存期间请留在 App 里，别把它划掉。 缓存目录在手机空间紧张时可能被系统清掉 —— 存好之后请尽快选个去处。"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "安慰"
+msgstr "安慰"
 
 #: src/pages/SupportPersonasPage.tsx
 msgid "安装并使用"
@@ -3949,6 +4302,10 @@ msgstr "完成一次活体认证并授权（有效期在火山那一页确认）
 #: src/components/ReviseBar.tsx
 msgid "完成后会替换它的内容，链接不变"
 msgstr "完成后会替换它的内容，链接不变"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "完成度"
+msgstr "完成度"
 
 #: src/components/blockout/RoleCastBoard.tsx
 #: src/pages/VideoEditorPage.tsx
@@ -3987,6 +4344,16 @@ msgstr "客服回复了你的工单"
 msgid "客服工单"
 msgstr "客服工单"
 
+#: src/pages/SupportModelNewPage.tsx
+msgctxt "Live2D 动作槽名"
+msgid "害羞"
+msgstr "害羞"
+
+#: src/pages/SupportModelNewPage.tsx
+msgctxt "Live2D 表情槽名"
+msgid "害羞"
+msgstr "害羞"
+
 #. placeholder {0}: AI_REAL ? EXAMPLES[lang].template : EXAMPLES[lang].describe
 #: src/components/flow/FlowCanvas.tsx
 msgid "对画布说话：{0}"
@@ -4003,6 +4370,7 @@ msgstr "对话记录"
 #: src/components/BranchPlayer.tsx
 #: src/components/CoverPicker.tsx
 #: src/components/SegmentPlayer.tsx
+#: src/pages/SupportModelNewPage.tsx
 msgid "封面"
 msgstr "封面"
 
@@ -4030,6 +4398,10 @@ msgstr "就是他"
 #: src/components/flow/FlowCanvas.tsx
 msgid "就用这一段"
 msgstr "就用这一段"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "尺寸没量出来"
+msgstr "尺寸没量出来"
 
 #: src/components/flow/CustomFrameSlots.tsx
 msgid "尾帧"
@@ -4075,6 +4447,22 @@ msgstr "工程名"
 #: src/pages/EditPage.tsx
 msgid "工程已留存，现在可以回炉重做了"
 msgstr "工程已留存，现在可以回炉重做了"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "左手"
+msgstr "左手"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "左眼"
+msgstr "左眼"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "左臂"
+msgstr "左臂"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "左边是模型自己的命中区（HitAreas），右边是摸到这里播哪个动作。想验证对没对上，直接在上面的预览里摸一下 —— 屏幕上会写「刚点到：…」。"
+msgstr "左边是模型自己的命中区（HitAreas），右边是摸到这里播哪个动作。想验证对没对上，直接在上面的预览里摸一下 —— 屏幕上会写「刚点到：…」。"
 
 #. placeholder {0}: mb(row.bytes)
 #: src/components/DownloadSheet.tsx
@@ -4291,11 +4679,19 @@ msgstr "已清理 {n} 个文件"
 msgid "已用 {0} MB"
 msgstr "已用 {0} MB"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "已经公开到形象市场，别人能搜到它了。"
+msgstr "已经公开到形象市场，别人能搜到它了。"
+
 #. placeholder {0}: sel.durSec
 #. placeholder {1}: sel.durSec
 #: src/components/blockout/BoxFramePicker.tsx
 msgid "已经到片段末尾了（片段共 {0} 秒，不含第 {1} 秒这一格）——往前挪一格再标。"
 msgstr "已经到片段末尾了（片段共 {0} 秒，不含第 {1} 秒这一格）——往前挪一格再标。"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "已经存进「我的」，只有你能看到。"
+msgstr "已经存进「我的」，只有你能看到。"
 
 #. placeholder {0}: materials.length
 #: src/pages/SupportPersonaNewPage.tsx
@@ -4388,6 +4784,10 @@ msgstr "市场分类（发布前挑一个）"
 msgid "市场里还没有公开的人格。"
 msgstr "市场里还没有公开的人格。"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "市场里还没有公开的人格和声音可选，跳过就行。"
+msgstr "市场里还没有公开的人格和声音可选，跳过就行。"
+
 #: src/components/support/VoiceMarket.tsx
 msgid "市场里还没有公开的声音模板，去「混音」发布第一条。"
 msgstr "市场里还没有公开的声音模板，去「混音」发布第一条。"
@@ -4412,6 +4812,10 @@ msgstr "帧{0}"
 #: src/pages/NotificationsPage.tsx
 msgid "平台通知"
 msgstr "平台通知"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "平静"
+msgstr "平静"
 
 #: src/components/flow/SkillPanel.tsx
 msgid "广场上还没有人发布技能——发布你的第一条？"
@@ -4449,13 +4853,25 @@ msgstr "开始创作"
 msgid "开始白模化"
 msgstr "开始白模化"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "开始识别"
+msgstr "开始识别"
+
 #: src/components/blockout/DetectRolesEntry.tsx
 msgid "开始识别（{price}）"
 msgstr "开始识别（{price}）"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "开心"
+msgstr "开心"
+
 #: src/studio/canvasAgent.ts
 msgid "引号里填模板名（下面可直接点）"
 msgstr "引号里填模板名（下面可直接点）"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "张嘴"
+msgstr "张嘴"
 
 #: src/components/flow/SegmentRecoverCards.tsx
 msgid "当初炼它的那一段不在这条流水线里（重启后没打开原草稿，或那一段从没存过草稿）：取回来会作为新的一段落在流水线里，之后照常剪辑、发布。凭据还在，没有浪费。"
@@ -4543,6 +4959,10 @@ msgstr "往后 {step} 秒"
 msgid "待挑方案"
 msgstr "待挑方案"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "待机动作"
+msgstr "待机动作"
+
 #: src/pages/PublishPage.tsx
 msgid "得先给它起个标题，才发得出去（关掉这张卡去填一个）。"
 msgstr "得先给它起个标题，才发得出去（关掉这张卡去填一个）。"
@@ -4554,6 +4974,15 @@ msgstr "微信"
 #: src/components/ShareSheet.tsx
 msgid "微信分享要在 App 里用，浏览器里请复制链接"
 msgstr "微信分享要在 App 里用，浏览器里请复制链接"
+
+#. placeholder {0}: slotLabel(r.slot)
+#: src/pages/SupportModelNewPage.tsx
+msgid "必须 · {0}"
+msgstr "必须 · {0}"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "思考"
+msgstr "思考"
 
 #: src/pages/SupportPage.tsx
 msgid "思考中"
@@ -4581,6 +5010,10 @@ msgstr "恢复失败，稍后再试。"
 #: src/components/blockout/BoxFramePicker.tsx
 msgid "恢复正常速度"
 msgstr "恢复正常速度"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "恢复自动映射"
+msgstr "恢复自动映射"
 
 #: src/components/support/VoiceSheet.tsx
 msgid "恢复跟随人格/模型"
@@ -4828,6 +5261,10 @@ msgstr "把 1～3 味豆包音色按比例调成自己的嗓子，可以发布�
 msgid "把「<0>{0}</0>」挂到 <1>{1}</1> 身上？"
 msgstr "把「<0>{0}</0>」挂到 <1>{1}</1> 身上？"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "把包交给服务器看一眼"
+msgstr "把包交给服务器看一眼"
+
 #: src/pages/FlowPage.tsx
 msgid "把各段合成一条完整视频"
 msgstr "把各段合成一条完整视频"
@@ -5010,6 +5447,10 @@ msgstr "按要求改当前封面"
 msgid "按这一段的时长自动取帧：现在是 <0>{autoFrames} 帧</0>（每 {BLOCKOUTIZE_FRAME_EVERY_SEC} 秒一帧，最少 {BLOCKOUTIZE_FRAME_MIN} 帧、最多 {BLOCKOUTIZE_FRAME_MAX} 帧）。<1>拖时间轴改选段长度，帧数和下面的报价都会跟着变。</1>"
 msgstr "按这一段的时长自动取帧：现在是 <0>{autoFrames} 帧</0>（每 {BLOCKOUTIZE_FRAME_EVERY_SEC} 秒一帧，最少 {BLOCKOUTIZE_FRAME_MIN} 帧、最多 {BLOCKOUTIZE_FRAME_MAX} 帧）。<1>拖时间轴改选段长度，帧数和下面的报价都会跟着变。</1>"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "按顺序演一遍：说话对口型、眨眼、每个对上的动作 / 表情 / 触摸区各来一次。盯着上面那块看。"
+msgstr "按顺序演一遍：说话对口型、眨眼、每个对上的动作 / 表情 / 触摸区各来一次。盯着上面那块看。"
+
 #: src/pages/SimpleModePage.tsx
 msgid "挑一个模板"
 msgstr "挑一个模板"
@@ -5018,9 +5459,17 @@ msgstr "挑一个模板"
 msgid "挑一条现成的片子，复刻它的画面与运镜"
 msgstr "挑一条现成的片子，复刻它的画面与运镜"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "挥手"
+msgstr "挥手"
+
 #: src/pages/FlowPage.tsx
 msgid "换"
 msgstr "换"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "换一个 zip"
+msgstr "换一个 zip"
 
 #: src/components/VoiceRecorder.tsx
 msgid "换一句"
@@ -5108,6 +5557,24 @@ msgstr "推荐"
 #: src/pages/SupportModelsPage.tsx
 msgid "推荐人格：{0}"
 msgstr "推荐人格：{0}"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "推荐列表没取到，跳过这两项也能发布。"
+msgstr "推荐列表没取到，跳过这两项也能发布。"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "推荐哪个人格"
+msgstr "推荐哪个人格"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "推荐哪个声音"
+msgstr "推荐哪个声音"
+
+#. placeholder {0}: s.inspect.completeness.recommendedDone
+#. placeholder {1}: s.inspect.completeness.recommendedTotal
+#: src/pages/SupportModelNewPage.tsx
+msgid "推荐项 {0}/{1} 项已具备"
+msgstr "推荐项 {0}/{1} 项已具备"
 
 #: src/components/PhotoSubjectPicker.tsx
 msgid "描不出来？保留框内背景 ›"
@@ -5205,9 +5672,25 @@ msgstr "搜索卡片名 / 标签"
 msgid "搜索视频 / 分区 / 用户"
 msgstr "搜索视频 / 分区 / 用户"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "摇头 · 否定"
+msgstr "摇头 · 否定"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "摘掉模板，改为自选"
 msgstr "摘掉模板，改为自选"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "摸{areaName}播哪个动作"
+msgstr "摸{areaName}播哪个动作"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "摸「{areaName}」→ {target}"
+msgstr "摸「{areaName}」→ {target}"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "撒娇"
+msgstr "撒娇"
 
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "撤销"
@@ -5469,6 +5952,18 @@ msgstr "替换原作品"
 msgid "有 {0} 个 @ 没能送达（对方不会收到通知）"
 msgstr "有 {0} 个 @ 没能送达（对方不会收到通知）"
 
+#. placeholder {0}: s.check.skipped.length
+#. placeholder {1}: s.check.skipped.slice(0, 3).join(listSep)
+#: src/pages/SupportModelNewPage.tsx
+msgid "有 {0} 个文件不在我们收的类型里，不会被带上（{1} 等）。"
+msgstr "有 {0} 个文件不在我们收的类型里，不会被带上（{1} 等）。"
+
+#. placeholder {0}: s.check.skipped.length
+#. placeholder {1}: s.check.skipped.slice(0, 3).join(listSep)
+#: src/pages/SupportModelNewPage.tsx
+msgid "有 {0} 个文件不在我们收的类型里，不会被带上（{1}）。"
+msgstr "有 {0} 个文件不在我们收的类型里，不会被带上（{1}）。"
+
 #. placeholder {0}: outside.length
 #. placeholder {1}: outside.map((m) => m.toFixed(1)).join(" / ")
 #: src/components/blockout/BoxFramePicker.tsx
@@ -5537,6 +6032,10 @@ msgstr "有片段还挂在临时链接上（约 24 小时有效）——尽快�
 msgid "有素材的话会先分析一遍再写，慢一点；分析结果留着，后面重写不用再读一次素材。"
 msgstr "有素材的话会先分析一遍再写，慢一点；分析结果留着，后面重写不用再读一次素材。"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "有问题"
+msgstr "有问题"
+
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "朋友 / 学姐 / 助理 / 搭子…… 这一句会明显影响说话的分寸。"
 msgstr "朋友 / 学姐 / 助理 / 搭子…… 这一句会明显影响说话的分寸。"
@@ -5544,6 +6043,11 @@ msgstr "朋友 / 学姐 / 助理 / 搭子…… 这一句会明显影响说话�
 #: src/components/flow/SegmentRecoverCards.tsx
 msgid "服务器上有一发你付过钱的成片还没取回"
 msgstr "服务器上有一发你付过钱的成片还没取回"
+
+#. placeholder {0}: (s.file ? s.file.size / 1024 / 1024 : 0).toFixed(1)
+#: src/pages/SupportModelNewPage.tsx
+msgid "服务器会解开包、数出它会哪些动作和表情，并给一份自动映射（下一步你可以改）。这一步会把包传上去（约 {0}MB），传完之后不会立刻公开。"
+msgstr "服务器会解开包、数出它会哪些动作和表情，并给一份自动映射（下一步你可以改）。这一步会把包传上去（约 {0}MB），传完之后不会立刻公开。"
 
 #: src/components/support/VoiceMixer.tsx
 #: src/pages/SupportPage.tsx
@@ -5739,6 +6243,7 @@ msgstr "标价"
 msgid "标注会先改这一段的设定画面，再重新生成本段视频"
 msgstr "标注会先改这一段的设定画面，再重新生成本段视频"
 
+#: src/pages/SupportModelNewPage.tsx
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "标签"
 msgstr "标签"
@@ -5874,6 +6379,18 @@ msgstr "正在保存另一条作品，等它完成或点停止再来。"
 msgid "正在停止…"
 msgstr "正在停止…"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "正在加载这个包…"
+msgstr "正在加载这个包…"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "正在发布…"
+msgstr "正在发布…"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "正在取人格与声音…"
+msgstr "正在取人格与声音…"
+
 #: src/pages/ProfilePage.tsx
 msgid "正在取你的作品…"
 msgstr "正在取你的作品…"
@@ -5923,9 +6440,17 @@ msgstr "正在取这一帧…"
 msgid "正在取这一段的视频地址…"
 msgstr "正在取这一段的视频地址…"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "正在处理…"
+msgstr "正在处理…"
+
 #: src/pages/OauthCallbackPage.tsx
 msgid "正在完成登录…"
 msgstr "正在完成登录…"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "正在截图…"
+msgstr "正在截图…"
 
 #: src/pages/ProfilePage.tsx
 msgid "正在打开 TA 的主页…"
@@ -6118,9 +6643,21 @@ msgstr "没听懂这几句，怕改错就没动：{0}。"
 msgid "没存下"
 msgstr "没存下"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "没对上动作组，这个动作不演"
+msgstr "没对上动作组，这个动作不演"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "没对上命中区，摸这里不会有反应"
+msgstr "没对上命中区，摸这里不会有反应"
+
 #: src/pages/SupportPage.tsx
 msgid "没帮上"
 msgstr "没帮上"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "没截到画面（模型可能还没画出来）。等预览里的人动起来再点一次，或者用下面的「自己选一张」。"
+msgstr "没截到画面（模型可能还没画出来）。等预览里的人动起来再点一次，或者用下面的「自己选一张」。"
 
 #: src/pages/ProfilePage.tsx
 msgid "没打开 TA 的主页：{err}"
@@ -6145,6 +6682,10 @@ msgstr "没接到照片：相机那边可能没存下来——再拍一次，或
 #: src/pages/DiscoverPage.tsx
 msgid "没搜成：{vidErr}"
 msgstr "没搜成：{vidErr}"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "没有"
+msgstr "没有"
 
 #: src/pages/FlowPage.tsx
 msgid "没有下一段了"
@@ -6194,6 +6735,10 @@ msgstr "没有找到匹配的模板，换个词试试。"
 #: src/pages/WorkshopPage.tsx
 msgid "没有搜到「{kw}」相关的卡"
 msgstr "没有搜到「{kw}」相关的卡"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "没有解析结果。"
+msgstr "没有解析结果。"
 
 #: src/pages/SettingsPage.tsx
 msgid "没能切换语言，请重试"
@@ -6264,6 +6809,10 @@ msgstr "没过审核："
 #: src/pages/SettingsVoicePage.tsx
 msgid "没配云端语音时退回系统内置合成器（需装中文语音包）。"
 msgstr "没配云端语音时退回系统内置合成器（需装中文语音包）。"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "没问题，继续"
+msgstr "没问题，继续"
 
 #: src/components/PhotoSubjectPicker.tsx
 msgid "沿边描出轮廓"
@@ -6359,6 +6908,10 @@ msgstr "清空搜索"
 msgid "清空重聊"
 msgstr "清空重聊"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "演出中…"
+msgstr "演出中…"
+
 #: src/components/flow/CastPreviewCard.tsx
 #: src/components/flow/FlowCanvas.tsx
 #: src/components/flow/ReviseBox.tsx
@@ -6411,6 +6964,10 @@ msgstr "点右上角「编辑」挑几张卡进来"
 msgid "点名句"
 msgstr "点名句"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "点头 · 赞同"
+msgstr "点头 · 赞同"
+
 #: src/pages/ProfilePage.tsx
 msgid "点开重试"
 msgstr "点开重试"
@@ -6460,6 +7017,14 @@ msgstr "片段第 {0} 秒"
 msgid "版本 {0} <0>（{1}）</0>"
 msgstr "版本 {0} <0>（{1}）</0>"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "物理 有"
+msgstr "物理 有"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "物理 没有"
+msgstr "物理 没有"
+
 #: src/components/DraftSheet.tsx
 msgid "现在打不开这条草稿"
 msgstr "现在打不开这条草稿"
@@ -6504,6 +7069,10 @@ msgstr "生成结果"
 #: src/components/GenTrace.tsx
 msgid "生成过程"
 msgstr "生成过程"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "生气"
+msgstr "生气"
 
 #: src/pages/SettingsVoicePage.tsx
 msgid "用一句话描述你想要的语气，例如：请用成熟冷静的语气，语速放慢"
@@ -6553,6 +7122,10 @@ msgstr "用这一帧作封面"
 msgid "用这张"
 msgstr "用这张"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "用通用参数演"
+msgstr "用通用参数演"
+
 #: src/pages/CutPage.tsx
 msgid "由 720P 素材放大，文件更大但不会更清晰"
 msgstr "由 720P 素材放大，文件更大但不会更清晰"
@@ -6568,6 +7141,14 @@ msgstr "由应用商店负责更新"
 #: src/components/support/VoiceMixer.tsx
 msgid "男"
 msgstr "男"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "画不出来的包发不了。"
+msgstr "画不出来的包发不了。"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "画出来了。可以摸一摸她、拖一拖看看视线跟不跟手。"
+msgstr "画出来了。可以摸一摸她、拖一拖看看视线跟不跟手。"
 
 #: src/components/flow/SegSettings.tsx
 msgid "画幅"
@@ -6615,6 +7196,10 @@ msgstr "画面里是真实人物（真人）"
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "画面里还有人没列出来，加一个"
 msgstr "画面里还有人没列出来，加一个"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "画风、适合配什么人格、有哪些动作可以摸出来…"
+msgstr "画风、适合配什么人格、有哪些动作可以摸出来…"
 
 #: src/pages/EditPage.tsx
 msgid "留存的工坊工程还是上一版的，这一版没有留存上来 —— 现在换不了内容。先点下面的「重新留存这一版」。"
@@ -6814,6 +7399,18 @@ msgstr "真的删？这段成片会没"
 #: src/pages/TemplateDetailPage.tsx
 msgid "真的删掉？（连云端视频一起）"
 msgstr "真的删掉？（连云端视频一起）"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "眨眼（她自己会眨，盯 3 秒）"
+msgstr "眨眼（她自己会眨，盯 3 秒）"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "眼球上下"
+msgstr "眼球上下"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "眼球左右"
+msgstr "眼球左右"
 
 #: src/components/ForgeOverlay.tsx
 #: src/components/guide/GuideOverlay.tsx
@@ -7164,12 +7761,21 @@ msgstr "第三方登录未完成"
 msgid "第二种：<0>相邻两行的位置排反了</0>（清单说他是从左数第 2 个， 画面上他其实是第 3 个）。把这两行的位置互换过来就行，同样不用重炼。"
 msgstr "第二种：<0>相邻两行的位置排反了</0>（清单说他是从左数第 2 个， 画面上他其实是第 3 个）。把这两行的位置互换过来就行，同样不用重炼。"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "等了 {secs} 秒还没画出来。包可能太大，或者贴图 / moc3 有问题。"
+msgstr "等了 {secs} 秒还没画出来。包可能太大，或者贴图 / moc3 有问题。"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "等她画出来才能继续。"
+msgstr "等她画出来才能继续。"
+
 #: src/components/DownloadSheet.tsx
 msgid "等待中"
 msgstr "等待中"
 
 #: src/pages/EditPage.tsx
 #: src/pages/PublishPage.tsx
+#: src/pages/SupportModelNewPage.tsx
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "简介"
 msgstr "简介"
@@ -7394,9 +8000,17 @@ msgstr "联系邮箱（选填，用手机号/QQ 登录的建议留一个）"
 msgid "联网后重新打开这一页就能看到"
 msgstr "联网后重新打开这一页就能看到"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "脸红"
+msgstr "脸红"
+
 #: src/components/VideoCardAnnotator.tsx
 msgid "脸部特写"
 msgstr "脸部特写"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "腿"
+msgstr "腿"
 
 #: src/components/blockout/BoxFramePicker.tsx
 #: src/components/blockout/VisionFramePicker.tsx
@@ -7441,6 +8055,10 @@ msgstr "自己挑"
 msgid "自己敲一个 emoji"
 msgstr "自己敲一个 emoji"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "自己选一张"
+msgstr "自己选一张"
+
 #: src/pages/SupportModelsPage.tsx
 #: src/pages/SupportPersonasPage.tsx
 msgid "自带音色"
@@ -7483,6 +8101,23 @@ msgstr "补充给客服…"
 msgid "补充要求：{reqText}"
 msgstr "补充要求：{reqText}"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "表情"
+msgstr "表情"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "表情 · {name}"
+msgstr "表情 · {name}"
+
+#. placeholder {0}: detail.expressions.length
+#: src/pages/SupportModelNewPage.tsx
+msgid "表情 {0} 个"
+msgstr "表情 {0} 个"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "表情「{faceName}」→ {expr}"
+msgstr "表情「{faceName}」→ {expr}"
+
 #: src/components/flow/SkillPanel.tsx
 msgid "装"
 msgstr "装"
@@ -7491,9 +8126,21 @@ msgstr "装"
 msgid "装上中…"
 msgstr "装上中…"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "装了这个形象、自己又还没挑过人格 / 声音的人，会拿到你推荐的这两样；已经自己挑过的人不受影响。"
+msgstr "装了这个形象、自己又还没挑过人格 / 声音的人，会拿到你推荐的这两样；已经自己挑过的人不受影响。"
+
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "装备为当前人格"
 msgstr "装备为当前人格"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "裙子"
+msgstr "裙子"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "要带上什么"
+msgstr "要带上什么"
 
 #: src/pages/SimpleModePage.tsx
 msgid "要拍什么"
@@ -7514,6 +8161,14 @@ msgstr "解除"
 #: src/pages/SettingsBlockedPage.tsx
 msgid "解除中…"
 msgstr "解除中…"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "触摸 · {name}"
+msgstr "触摸 · {name}"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "触摸区"
+msgstr "触摸区"
 
 #. placeholder {0}: order.orderNo
 #: src/pages/ProfilePage.tsx
@@ -7547,6 +8202,10 @@ msgstr "让别人在人格市场里搜得到。"
 #: src/pages/SupportPage.tsx
 msgid "记录"
 msgstr "记录"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "讲解"
+msgstr "讲解"
 
 #: src/pages/WorkshopPage.tsx
 msgid "设为卡组封面"
@@ -7628,9 +8287,22 @@ msgstr "试听太频繁了，稍等几秒再点。"
 msgid "试听没出声，稍后再试。"
 msgstr "试听没出声，稍后再试。"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "试演 {label}"
+msgstr "试演 {label}"
+
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "试聊、微调、发布三步要先生成出草稿才能进。"
 msgstr "试聊、微调、发布三步要先生成出草稿才能进。"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "试跑跑到一半，上面那块换成了别的模型 —— 这一轮不作数。点「重新加载预览」再跑一遍。"
+msgstr "试跑跑到一半，上面那块换成了别的模型 —— 这一轮不作数。点「重新加载预览」再跑一遍。"
+
+#. placeholder {0}: s.verifyDone.length
+#: src/pages/SupportModelNewPage.tsx
+msgid "试跑过了（{0} 项）。"
+msgstr "试跑过了（{0} 项）。"
 
 #: src/pages/EditPage.tsx
 #: src/pages/PublishPage.tsx
@@ -7683,6 +8355,10 @@ msgstr "语音识别暂时不可用（上游没接住），先打字吧。"
 #: src/pages/SimpleModePage.tsx
 msgid "说一句想拍什么，AI 直接出一条短片"
 msgstr "说一句想拍什么，AI 直接出一条短片"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "说一句话，看嘴动没动"
+msgstr "说一句话，看嘴动没动"
 
 #: src/components/support/HoldToTalk.tsx
 msgid "说得太频繁了，稍等几秒。"
@@ -7774,6 +8450,10 @@ msgstr "读取音色目录…"
 msgid "读过你的素材"
 msgstr "读过你的素材"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "谁能用"
+msgstr "谁能用"
+
 #: src/components/VisibilityPicker.tsx
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "谁能看到"
@@ -7787,6 +8467,10 @@ msgstr "调和"
 msgid "调整头像"
 msgstr "调整头像"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "调皮"
+msgstr "调皮"
+
 #: src/components/flow/RefFrameSheet.tsx
 msgid "调节首尾帧"
 msgstr "调节首尾帧"
@@ -7794,6 +8478,11 @@ msgstr "调节首尾帧"
 #: src/pages/SupportPage.tsx
 msgid "谢谢反馈"
 msgstr "谢谢反馈"
+
+#. placeholder {0}: detail.textures.length
+#: src/pages/SupportModelNewPage.tsx
+msgid "贴图 {0} 张"
+msgstr "贴图 {0} 张"
 
 #: src/pages/NotificationsPage.tsx
 msgid "赞了你的作品"
@@ -7851,6 +8540,14 @@ msgstr "跳到第 {at} 秒"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "跳过 / 下一步"
 msgstr "跳过 / 下一步"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "身体"
+msgstr "身体"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "身体左右"
+msgstr "身体左右"
 
 #: src/pages/SupportPage.tsx
 msgid "转人工"
@@ -8027,6 +8724,10 @@ msgstr "还没有收藏过人格，去「全部」里挑一个。"
 msgid "还没有新消息"
 msgstr "还没有新消息"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "还没有映射可以改"
+msgstr "还没有映射可以改"
+
 #: src/pages/FlowPage.tsx
 msgid "还没有画面——先写这一段拍什么"
 msgstr "还没有画面——先写这一段拍什么"
@@ -8088,6 +8789,10 @@ msgstr "还没标任何一帧。至少要标 1 帧才能开炼——拖上面的
 msgid "还没标刀——不标就自动对半切到每段 ≤30 秒。想自己定切点，把播放头拖到镜头切换那一帧点「在这里切一刀」。"
 msgstr "还没标刀——不标就自动对半切到每段 ≤30 秒。想自己定切点，把播放头拖到镜头切换那一帧点「在这里切一刀」。"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "还没试跑过。发之前建议回上一步跑一遍，看看动作和表情是不是真的都能演。"
+msgstr "还没试跑过。发之前建议回上一步跑一遍，看看动作和表情是不是真的都能演。"
+
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "还没选。"
 msgstr "还没选。"
@@ -8109,6 +8814,10 @@ msgstr "这一发白模化已经取不回来了"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "这一次会拿什么去写"
 msgstr "这一次会拿什么去写"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "这一步是把「我们的演出协议」对到「你这个模型自己的名字」上。不改也行 —— 服务器已经按常见命名猜了一份，下面每一行左边的 ▶ 可以当场在上面的预览里试一下。"
+msgstr "这一步是把「我们的演出协议」对到「你这个模型自己的名字」上。不改也行 —— 服务器已经按常见命名猜了一份，下面每一行左边的 ▶ 可以当场在上面的预览里试一下。"
 
 #. placeholder {0}: fmtTokens(visionTokens)
 #: src/components/blockout/BlockoutTrimmer.tsx
@@ -8196,6 +8905,14 @@ msgstr "这一秒已经标过了（播放头刚好落回同一帧）。"
 msgid "这一组模板暂时套不了"
 msgstr "这一组模板暂时套不了"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "这一页填的东西会清空，已经选的包也要重新选一次。"
+msgstr "这一页填的东西会清空，已经选的包也要重新选一次。"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "这一页填的东西会清空，已经选的包也要重新选一次。刚才传上去的那一份也不会变成模型，要重新走一遍上传和识别。"
+msgstr "这一页填的东西会清空，已经选的包也要重新选一次。刚才传上去的那一份也不会变成模型，要重新走一遍上传和识别。"
+
 #: src/pages/VideoEditorPage.tsx
 msgid "这一页需要从上传或模板页进来"
 msgstr "这一页需要从上传或模板页进来"
@@ -8248,9 +8965,36 @@ msgstr "这个位置"
 msgid "这个位置原来是谁（套用的人只看这句话）"
 msgstr "这个位置原来是谁（套用的人只看这句话）"
 
+#. placeholder {0}: s.previewErr
+#: src/pages/SupportModelNewPage.tsx
+msgid "这个包在手机上画不出来：{0} 画不出来的包发布出去别人也用不了，请先修好再传。"
+msgstr "这个包在手机上画不出来：{0} 画不出来的包发布出去别人也用不了，请先修好再传。"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "这个包在手机上画不出来。画不出来的包发布出去别人也用不了，请先修好再传。"
+msgstr "这个包在手机上画不出来。画不出来的包发布出去别人也用不了，请先修好再传。"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "这个包里有什么"
+msgstr "这个包里有什么"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "这个包里没有 cdi3.json，必须项一条都核不了 —— 我们按「标准参数名」放行。装上之后要是不会眨眼 / 不会转头，多半就是参数名不标准，回 Cubism 改成 ParamEyeLOpen 这一套再导一次。"
+msgstr "这个包里没有 cdi3.json，必须项一条都核不了 —— 我们按「标准参数名」放行。装上之后要是不会眨眼 / 不会转头，多半就是参数名不标准，回 Cubism 改成 ParamEyeLOpen 这一套再导一次。"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "这个包里没有它 —— 换一个，或者回 Cubism 重新导出。"
+msgstr "这个包里没有它 —— 换一个，或者回 Cubism 重新导出。"
+
 #: src/pages/SupportPage.tsx
 msgid "这个回答有帮助吗？"
 msgstr "这个回答有帮助吗？"
+
+#. placeholder {0}: rest.length
+#. placeholder {1}: rest.join(" / ")
+#: src/pages/SupportModelNewPage.tsx
+msgid "这个槽位还对着另外 {0} 个命中区：{1}"
+msgstr "这个槽位还对着另外 {0} 个命中区：{1}"
 
 #: src/pages/SupportModelsPage.tsx
 msgid "这个模型没有可用的文件地址，换一个试试。"
@@ -8383,6 +9127,10 @@ msgstr "这台服务器还不支持按作者取作品 · 下面只是本次刷�
 #: src/components/MentionInput.tsx
 msgid "这台服务器还不支持搜人，@ 可能收不到"
 msgstr "这台服务器还不支持搜人，@ 可能收不到"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "这台服务器还没开直传，刚才走的是慢的那条 —— 包要经过我们的服务器，大包在手机网络上有可能超时。这条路上识别不会把包留下，所以最后<0>发布时还要再传一次</0>。"
+msgstr "这台服务器还没开直传，刚才走的是慢的那条 —— 包要经过我们的服务器，大包在手机网络上有可能超时。这条路上识别不会把包留下，所以最后<0>发布时还要再传一次</0>。"
 
 #: src/components/support/VoiceMixer.tsx
 msgid "这台服务器还没有可混音的 1.0 音色目录（服务端需要更新），先用「单音色」。"
@@ -8757,6 +9505,14 @@ msgstr "退出编辑"
 msgid "退回普通段"
 msgstr "退回普通段"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "选「用通用参数演」= 不挂你的 exp3，改用我们那套参数（眉毛、嘴角、脸红）去凑 —— 模型没有对应表情文件时这条更稳。"
+msgstr "选「用通用参数演」= 不挂你的 exp3，改用我们那套参数（眉毛、嘴角、脸红）去凑 —— 模型没有对应表情文件时这条更稳。"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "选一个 zip"
+msgstr "选一个 zip"
+
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "选一个大方向就行，后面 AI 会照着写。"
 msgstr "选一个大方向就行，后面 AI 会照着写。"
@@ -8796,6 +9552,14 @@ msgstr "选段"
 #: src/pages/VideoEditorPage.tsx
 msgid "选段与裁剪"
 msgstr "选段与裁剪"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "透明度组 有"
+msgstr "透明度组 有"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "透明度组 没有"
+msgstr "透明度组 没有"
 
 #. placeholder {0}: state.error
 #: src/pages/NotificationsPage.tsx
@@ -8842,14 +9606,20 @@ msgstr "重描"
 msgid "重新剪辑了你收藏的作品"
 msgstr "重新剪辑了你收藏的作品"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "重新加载预览"
+msgstr "重新加载预览"
+
 #: src/components/flow/CastPreviewCard.tsx
 msgid "重新合成预览（{price}）"
 msgstr "重新合成预览（{price}）"
 
+#: src/pages/SupportModelNewPage.tsx
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "重新开始"
 msgstr "重新开始"
 
+#: src/pages/SupportModelNewPage.tsx
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "重新开始？"
 msgstr "重新开始？"
@@ -8989,6 +9759,10 @@ msgstr "随片提炼卡组"
 msgid "随片提炼本片卡组"
 msgstr "随片提炼本片卡组"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "难过"
+msgstr "难过"
+
 #: src/components/BranchPlayer.tsx
 #: src/components/SegmentPlayer.tsx
 msgid "静音"
@@ -9005,6 +9779,10 @@ msgstr "音量"
 #: src/pages/CutPage.tsx
 msgid "音频"
 msgstr "音频"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "预览没画出来，试跑跑不了 —— 跑了也只是在官方看板娘身上演一遍。先点上面的「重新加载预览」。"
+msgstr "预览没画出来，试跑跑不了 —— 跑了也只是在官方看板娘身上演一遍。先点上面的「重新加载预览」。"
 
 #: src/components/ShareSheet.tsx
 msgid "预览链接已复制，去贴给朋友吧"
