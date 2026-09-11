@@ -6119,12 +6119,12 @@ msgid "台词不再带音色样本（「{0}」档暂无配音）"
 msgstr "Dialogue no longer uses the voice sample (“{0}” has no voiceover yet)"
 
 #: src/components/VideoTemplateExtractor.tsx
-msgid "右上角疑似有水印或台标：白模出片会把它逐帧复刻进每一条成片，建议裁掉这块后再上传。（只是提醒，看错了直接忽略——照样可以继续。）"
-msgstr "The top-right corner may have a watermark or channel logo: blockout rendering copies it frame by frame into every finished video, so it's best to crop that area out before uploading. (Just a reminder — if it's wrong, ignore it and carry on.)"
+msgid "右上角疑似有水印或台标：白模出片会把它逐帧复刻进每一条成片，建议用裁剪框把这块框到画面外。（只是提醒，看错了直接忽略——照样可以继续。）"
+msgstr "The top-right corner may have a watermark or channel logo: blockout rendering copies it frame by frame into every finished video, so it's best to use the crop box to leave that area outside the frame. (Just a reminder — if it's wrong, ignore it and carry on.)"
 
 #: src/components/VideoTemplateExtractor.tsx
-msgid "右下角疑似有水印或台标：白模出片会把它逐帧复刻进每一条成片，建议裁掉这块后再上传。（只是提醒，看错了直接忽略——照样可以继续。）"
-msgstr "The bottom-right corner may have a watermark or channel logo: blockout rendering copies it frame by frame into every finished video, so it's best to crop that area out before uploading. (Just a reminder — if it's wrong, ignore it and carry on.)"
+msgid "右下角疑似有水印或台标：白模出片会把它逐帧复刻进每一条成片，建议用裁剪框把这块框到画面外。（只是提醒，看错了直接忽略——照样可以继续。）"
+msgstr "The bottom-right corner may have a watermark or channel logo: blockout rendering copies it frame by frame into every finished video, so it's best to use the crop box to leave that area outside the frame. (Just a reminder — if it's wrong, ignore it and carry on.)"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "右手"
@@ -7288,16 +7288,16 @@ msgid "工程没能留存（{why}）——作品已经发出去了，只是这�
 msgstr "The project couldn't be kept ({why}) — the video has been published; it just can't be remade for now. Tap “Retry keeping” on the edit page"
 
 #: src/components/VideoTemplateExtractor.tsx
-msgid "左上角疑似有水印或台标：白模出片会把它逐帧复刻进每一条成片，建议裁掉这块后再上传。（只是提醒，看错了直接忽略——照样可以继续。）"
-msgstr "The top-left corner may have a watermark or channel logo: blockout rendering copies it frame by frame into every finished video, so it's best to crop that area out before uploading. (Just a reminder — if it's wrong, ignore it and carry on.)"
+msgid "左上角疑似有水印或台标：白模出片会把它逐帧复刻进每一条成片，建议用裁剪框把这块框到画面外。（只是提醒，看错了直接忽略——照样可以继续。）"
+msgstr "The top-left corner may have a watermark or channel logo: blockout rendering copies it frame by frame into every finished video, so it's best to use the crop box to leave that area outside the frame. (Just a reminder — if it's wrong, ignore it and carry on.)"
 
 #: src/studio/ui/NpcDialog.tsx
 msgid "左上角的返回按钮可逐层退出"
 msgstr "The Back button in the top left steps back one layer at a time"
 
 #: src/components/VideoTemplateExtractor.tsx
-msgid "左下角疑似有水印或台标：白模出片会把它逐帧复刻进每一条成片，建议裁掉这块后再上传。（只是提醒，看错了直接忽略——照样可以继续。）"
-msgstr "The bottom-left corner may have a watermark or channel logo: blockout rendering copies it frame by frame into every finished video, so it's best to crop that area out before uploading. (Just a reminder — if it's wrong, ignore it and carry on.)"
+msgid "左下角疑似有水印或台标：白模出片会把它逐帧复刻进每一条成片，建议用裁剪框把这块框到画面外。（只是提醒，看错了直接忽略——照样可以继续。）"
+msgstr "The bottom-left corner may have a watermark or channel logo: blockout rendering copies it frame by frame into every finished video, so it's best to use the crop box to leave that area outside the frame. (Just a reminder — if it's wrong, ignore it and carry on.)"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "左手"
@@ -12541,8 +12541,8 @@ msgid "白模段的画面整个来自模板视频，导演台的构图用不上"
 msgstr "A blockout segment's visuals come entirely from the template video, so the stage composition can't be used"
 
 #: src/components/VideoTemplateExtractor.tsx
-msgid "白模那两条路现在开不了（原因见上）。上面改选「经典配方」仍然可以做模板——它不需要付费套餐，只是不做白模人偶。"
-msgstr "The two blockout routes aren't available right now (see the reason above). You can still make a template by switching to “Classic recipe” above — it doesn't need a paid plan; it just doesn't make blockout mannequins."
+msgid "白模那两条路现在开不了（原因见上）。点上面「‹ 换一种做法」改选「经典配方」仍然可以做模板——它不需要付费套餐，只是不做白模人偶。"
+msgstr "The two blockout routes aren't available right now (see the reason above). You can still make a template: tap “‹ Pick a different route” above and switch to “Classic recipe” — it doesn't need a paid plan; it just doesn't make blockout mannequins."
 
 #: src/components/VideoTemplateExtractor.tsx
 msgid "白模那两条路都只走这一档，所以现在还开不了 —— 改选「经典配方」仍然可以做模板，它不需要付费套餐。"
