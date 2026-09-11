@@ -149,6 +149,10 @@ export default function GuideOverlay() {
 
   if (!tour || !act || !step) return null;
 
+  // ★ 标题的过渡期形状（见 tours.tsx 的 GuideStep.title）：迁完的屏是 msg 描述符，用上面 useLingui 给的 t
+  //   在渲染时翻；还没迁的屏仍是中文字符串，原样显示。这两行只是取值、不是 hook，放在早退之后没事（check-hook-order）。
+  const tourName = typeof tour.title === "string" ? tour.title : t(tour.title);
+  const stepTitle = typeof step.title === "string" ? step.title : t(step.title);
   const last = act.step >= tour.steps.length - 1;
   const stop = (e: { stopPropagation: () => void }) => e.stopPropagation();
 
@@ -201,7 +205,7 @@ export default function GuideOverlay() {
       style={{ zIndex: GUIDE_Z }}
       role="dialog"
       aria-modal="true"
-      aria-label={t`${tour.title} 使用引导`}
+      aria-label={t`${tourName} 使用引导`}
     >
       {/* 变暗：有锚点时用「圈 + 一圈超大 box-shadow」挖洞（不需要 SVG mask，
           也不会像两层 div 那样在圈边留出接缝）；没锚点就整屏均匀压暗 */}
@@ -226,7 +230,7 @@ export default function GuideOverlay() {
           <span className="rounded-full px-2 py-0.5 bg-brand/20 text-[10px] font-bold text-brand">
             {act.step + 1}/{tour.steps.length}
           </span>
-          <h2 className="min-w-0 flex-1 truncate text-sm font-bold text-slate-100">{step.title}</h2>
+          <h2 className="min-w-0 flex-1 truncate text-sm font-bold text-slate-100">{stepTitle}</h2>
         </div>
         <div className="text-xs leading-relaxed text-slate-300">{step.body}</div>
         <button

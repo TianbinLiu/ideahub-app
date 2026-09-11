@@ -586,11 +586,6 @@ msgstr "{0, plural, one {# clip} other {# clips}} · {1} total"
 msgid "{0} 个角色位可换人"
 msgstr "{0, plural, one {# recastable slot} other {# recastable slots}}"
 
-#. placeholder {0}: tour.title
-#: src/components/guide/GuideOverlay.tsx
-msgid "{0} 使用引导"
-msgstr "{0} guide"
-
 #. placeholder {0}: source.title
 #: src/studio/ui/SchemeEditorSheet.tsx
 msgid "{0} 副本"
@@ -1038,6 +1033,10 @@ msgstr "{total, plural, one {# segment} other {# segments}}<0>, {done} rendered<
 msgid "{total} 段<0>，其中 {done} 段已出片</0><1>，{anns} 条圈选要求</1>。"
 msgstr "{total, plural, one {# segment} other {# segments}}<0>, {done} rendered</0><1>, {anns, plural, one {# circle-edit request} other {# circle-edit requests}}</1>."
 
+#: src/components/guide/GuideOverlay.tsx
+msgid "{tourName} 使用引导"
+msgstr "{tourName} guide"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "{value}（包里没有）"
 msgstr "{value} (not in bundle)"
@@ -1244,6 +1243,10 @@ msgstr "“{title}” matches {0} templates ({names}{more}). Each segment of a s
 msgid "「{u}」"
 msgstr "“{u}”"
 
+#: src/components/guide/tours.tsx
+msgid "「关注」那格点开是你关注过的人的名单，就地能取关。 旁边两个是你<0>所有作品加起来</0>的总数，不是某一支的。"
+msgstr "Tap “Following” to open the list of people you follow, where you can unfollow them on the spot. The two next to it are totals for <0>all your videos combined</0>, not for any single one."
+
 #: src/studio/ui/projection.tsx
 msgid "← 左右滑动浏览 · 单击查看详情 · 窗外拖拽可转视角"
 msgstr "← Swipe to browse · tap for details · drag outside the window to turn the view"
@@ -1387,6 +1390,10 @@ msgstr "<0>This can't be undone</0>: the card image, reference images, voice sam
 msgid "<0>删了就找不回来</0>：卡面、形象参考图、铸造提示词、声音样本与肖像授权都会一起清掉。"
 msgstr "<0>This can't be undone</0>: the card image, reference images, generation prompt, voice sample and portrait authorization are all removed."
 
+#: src/components/guide/tours.tsx
+msgid "<0>我的模板</0>装的是你自己做的，新做一个也从那里进：传一段视频，让 AI 把画面里的人换成一模一样的白色人偶，或者直接拿你本来就做好的白模片用。走哪条路在提取器<1>打开后的第一屏</1>挑；要花多少钱到框选那一步当场整句报出来，确认了才开炼。"
+msgstr "<0>My templates</0> holds the ones you made yourself, and it's also where you start a new one: upload a video and let the AI replace the people in it with identical white mannequins, or use a blockout clip you've already made. You choose the route on <1>the first screen after the extractor opens</1>; the cost is spelled out in full right at the selection step, and nothing starts until you confirm."
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "<0>我确认：</0><1/>· 这个模型是我做的，或者我已经拿到作者授权；<2/>· 我没有上传他人作品、真人肖像，也没有上传 Live2D 官方示例模型；<3/>· 违规的内容会被下架，情节严重的可能会封号。"
 msgstr "<0>I confirm:</0><1/>· I made this model, or I have the creator's permission;<2/>· I'm not uploading someone else's work, a real person's likeness, or an official Live2D sample model;<3/>· I understand that violating content will be taken down, and serious cases may lead to account suspension."
@@ -1394,6 +1401,10 @@ msgstr "<0>I confirm:</0><1/>· I made this model, or I have the creator's permi
 #: src/components/blockout/BoxFramePicker.tsx
 msgid "<0>标在场景切换、人数变化的那一帧</0>：每段是独立模板、各认一次人， 切在镜头边界上每段都认得更准。<1>不标也行</1>——会自动对半切到每段 ≤30 秒；标了之后还超 30 秒的段也会自动补刀。切出来不足 4 秒的刀落不下去，会整句告诉你。"
 msgstr "<0>Mark the frame where the scene or the number of people changes</0>: each segment is its own template and detects people on its own, so cutting on shot boundaries makes every segment more accurate. <1>Marking is optional</1> — it halves automatically until every segment is ≤30s, and any segment still over 30s after your cuts gets extra cuts automatically. A cut that would leave less than 4s can't be placed, and you'll be told why."
+
+#: src/components/guide/tours.tsx
+msgid "<0>点标题进详情页</0>——本片卡组、多 P 选集、完整简介、「互动 · 你来选」的分支，都<1>只在那儿</1>。点作者名或头像，去的是他的主页。"
+msgstr "<0>Tap the title to open the details page</0> — the cards from this video, multi-part episodes, the full description and the “Interactive · you choose” branches are <1>only there</1>. Tapping the author's name or avatar takes you to their profile."
 
 #: src/components/blockout/VisionFramePicker.tsx
 msgid "<0>画面里人数会变（有人入场 / 离场）时用这个</0>：在变化的<1>前后各标一帧</1>，AI 才认得全。其余情况用「自动」就够了。"
@@ -2512,6 +2523,10 @@ msgstr "zip bundle · up to 25MB"
 msgid "zip 包 ≤25MB，向导会认出它的动作、表情和触摸区。"
 msgstr "Zip package up to 25MB; the wizard detects its motions, expressions and touch areas."
 
+#: src/components/guide/tours.tsx
+msgid "一个框搜两样"
+msgstr "One box searches two things"
+
 #: src/pages/AdminPage.tsx
 msgid "一个用户都没有"
 msgstr "No users at all"
@@ -2642,6 +2657,10 @@ msgstr "Previous segment"
 #: src/studio/StudioPage.tsx
 msgid "上一页"
 msgstr "Previous page"
+
+#: src/components/guide/tours.tsx
+msgid "上下滑着看"
+msgstr "Swipe up and down"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "上传 Live2D 模型"
@@ -2908,6 +2927,10 @@ msgstr "Downloading…"
 msgid "下载并使用"
 msgstr "Download and use"
 
+#: src/components/guide/tours.tsx
+msgid "下面「从市场添加」那一栏：点卡面只是<0>看详情</0>， 卡片下面那行小字才是收进自己的库。那一栏还能切成卡组、整套装走，都不花钱。"
+msgstr "In the “Add from the market” section below, tapping a card face only <0>shows its details</0>; the small text under the card is what adds it to your own library. That section can also switch to decks so you can install a whole set, and none of this costs anything."
+
 #: src/components/PhotoSubjectPicker.tsx
 msgid "下面就是进卡的那一张：卡面和出片参考图都用它。"
 msgstr "This is the image that goes into the card: it's used for the card face and as the video reference."
@@ -3124,6 +3147,10 @@ msgstr "Interactive"
 msgid "互动 · 你来选"
 msgstr "Interactive · you choose"
 
+#: src/components/guide/tours.tsx
+msgid "互动区上面那一大块「✎ 模板信息」<0>只有作者看得见</0>。 发布＝别人搜得到、能付费套用；白模模板要先用它真出过一段片才让发。 下架只是收回来，你那份还在。"
+msgstr "The big “✎ Template info” block above the interactions is <0>visible only to the creator</0>. Publishing means others can find it and pay to use it; a blockout template can only be published after you've actually rendered a segment with it. Unpublishing just takes it back, and your copy stays."
+
 #: src/components/BranchPlayer.tsx
 msgid "互动视频"
 msgstr "Interactive video"
@@ -3135,6 +3162,10 @@ msgstr "Interactive video · {branchPoints, plural, one {# branch point} other {
 #: src/components/DownloadSheet.tsx
 msgid "互动视频没有单条成片。"
 msgstr "Interactive videos don't have a single finished video."
+
+#: src/components/guide/tours.tsx
+msgid "五个图标各管一堆"
+msgstr "Five icons, one pile each"
 
 #: src/studio/ui/NpcDialog.tsx
 msgid "交给铸卡师炼卡"
@@ -3152,6 +3183,10 @@ msgstr "Mannequins: {0}"
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "人偶编号"
 msgstr "Mannequin number"
+
+#: src/components/guide/tours.tsx
+msgid "人排在作品前面，点一行进他主页 —— 有些作品这里搜不到，去他主页能看全。 名字底下那串 <0>@ 开头的</0>，就是 @ 他时要打的那串。"
+msgstr "People are listed before videos. Tap a row to open their profile — some videos can't be found here, but their profile shows them all. The string <0>starting with @</0> under the name is what you type to @mention them."
 
 #: src/pages/SupportModelNewPage.tsx
 #: src/pages/SupportPage.tsx
@@ -3241,6 +3276,10 @@ msgstr "Drag a card from the library above to the middle of the screen"
 #: src/components/BranchPlayer.tsx
 msgid "从头再看"
 msgstr "Watch again"
+
+#: src/components/guide/tours.tsx
+msgid "从左到右是作品、草稿、卡片、卡组、收藏，点一下换一堆看。 图标旁边那个数字是这堆有几件；<0>空的那几堆不显示数字</0>。"
+msgstr "From left to right: Videos, Drafts, Cards, Decks and Saved. Tap one to switch piles. The number next to an icon is how many items that pile has; <0>empty piles show no number</0>."
 
 #: src/pages/WorkshopPage.tsx
 msgid "从市场添加"
@@ -3694,6 +3733,10 @@ msgstr "remix"
 msgid "做同款（丢弃上面那条流水线）"
 msgstr "Remix (discard the pipeline above)"
 
+#: src/components/guide/tours.tsx
+msgid "做自己的模板"
+msgstr "Make your own templates"
+
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "停下"
 msgstr "Stop"
@@ -3915,6 +3958,10 @@ msgstr "Free"
 #: src/pages/FeedPage.tsx
 msgid "全屏"
 msgstr "Full screen"
+
+#: src/components/guide/tours.tsx
+msgid "全屏与转屏"
+msgstr "Full screen and rotate"
 
 #: src/studio/ui/projection.tsx
 msgid "全按你的来"
@@ -4174,6 +4221,10 @@ msgstr "Add a request (optional)"
 msgid "再试一次"
 msgstr "Try again"
 
+#: src/components/guide/tours.tsx
+msgid "最上面是<0>作者头像</0>（点进主页，下面那枚 + 号关注）。往下第一枚是发弹幕；再往下点赞、评论、收藏、分享，<1>这四枚下面的数字是已经有多少人做过</1>。评论就地滑出来，不用离开这一屏。"
+msgstr "At the top is the <0>author's avatar</0> (tap it for their profile; the + below it follows them). The first button under it sends a bullet comment; further down are like, comment, save and share, and <1>the numbers under these four show how many people have already done that</1>. Comments slide up right here, so you don't have to leave this screen."
+
 #: src/api/uploads.ts
 msgid "最后一段传完了，但视频存储没有把这段视频组装出来——请重新选一次文件再传。"
 msgstr "The last chunk finished, but video storage didn't assemble the video — pick the file again and re-upload."
@@ -4317,6 +4368,10 @@ msgstr "Anyone with the link"
 msgid "凭链接可见：不进首页和搜索，但<0>拿到链接的人都能看，也能转给别人</0>。"
 msgstr "Anyone with the link: not in Home or search, but <0>anyone who has the link can watch it and pass it on</0>."
 
+#: src/components/guide/tours.tsx
+msgid "出片、出图、铸卡、解锁付费作品，扣的都是它。点开看余额、买套餐或直充 ——<0>套餐按月给且先扣，直充的不过期</0>。"
+msgstr "Rendering videos, generating images, minting cards and unlocking paid videos all spend these. Tap to see your balance, buy a plan or top up — <0>plan tokens come monthly and are used first; topped-up tokens don't expire</0>."
+
 #: src/studio/segmentGen.ts
 msgid "出片中…"
 msgstr "Rendering…"
@@ -4361,6 +4416,10 @@ msgstr "Used in video"
 #: src/components/flow/FlowCanvas.tsx
 msgid "出片的同时提炼一副本片卡组：你挂过的卡直接入组，缺的卡种由 AI 按成片补齐（含一张画风卡）。不勾就只出片、不出卡组。组稿前随时能改。"
 msgstr "Also extract a deck from this video while rendering: cards you attached go straight in, and the AI fills in missing card types from the finished video (including an art style card). Unchecked means video only, no deck. You can change this any time before assembling."
+
+#: src/components/guide/tours.tsx
+msgid "出片花的就是这些 token"
+msgstr "These tokens pay for rendering"
 
 #: src/pages/CardDetailPage.tsx
 msgid "出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段声音的音色（尽力而为，不是复刻）。样本只存在这台设备上，分享卡片不带它。"
@@ -4418,6 +4477,19 @@ msgstr "The split point is too close to the clip's edge (leave at least {MIN_CLI
 #: src/components/TabBar.tsx
 msgid "分区"
 msgstr "Discover"
+
+#: src/components/guide/tours.tsx
+msgctxt "新手引导的屏名：只拼进无障碍标签「… 使用引导」（与底栏页签同字不同用）"
+msgid "分区"
+msgstr "Discover"
+
+#: src/components/guide/tours.tsx
+msgid "分区和搜索词是<0>叠加</0>的。这行小字报的是当前分区和筛出的条数； 觉得作品变少了，先看分区图标亮没亮、搜索框清没清。右边那两颗换排法：最火按播放多少排，最新按发布时间倒着排。"
+msgstr "Categories and search terms <0>stack</0>. This small line shows the current category and how many videos match. If there seem to be fewer videos, first check whether a category icon is lit and whether the search box is empty. The two buttons on the right change the order: Hottest sorts by plays, Newest by publish time, latest first."
+
+#: src/components/guide/tours.tsx
+msgid "分区图标就是开关"
+msgstr "Category icons are toggles"
 
 #. placeholder {0}: n.id.slice(-4)
 #: src/data/videoDownload.ts
@@ -4477,6 +4549,11 @@ msgstr "Create"
 msgid "创作中心"
 msgstr "Creator center"
 
+#: src/components/guide/tours.tsx
+msgid "创作入口"
+msgstr "Create page"
+
+#: src/components/guide/tours.tsx
 #: src/pages/WorkshopPage.tsx
 msgid "创意工坊"
 msgstr "Workshop"
@@ -4613,6 +4690,10 @@ msgstr "Delete failed. Try again later."
 #: src/components/DeleteConfirmShell.tsx
 msgid "删除失败了，原因不明。"
 msgstr "Delete failed for an unknown reason."
+
+#: src/components/guide/tours.tsx
+msgid "删除是真的销毁"
+msgstr "Deleting really destroys it"
 
 #: src/pages/EditPage.tsx
 msgid "删除留存的工坊工程"
@@ -4978,6 +5059,10 @@ msgstr "The deck is already minted, but {why} — switching away now will lose i
 msgid "卡组已经铸好了，但{why}——现在切后台会丢掉它，请先把片子剪完发出去。{capWhy}。"
 msgstr "The deck is already minted, but {why} — switching away now will lose it, so finish editing and publish the video first. {capWhy}."
 
+#: src/components/guide/tours.tsx
+msgid "卡组是干什么的"
+msgstr "What decks are for"
+
 #: src/studio/ui/projection.tsx
 msgid "卡组暂无此类型——找铸卡师炼一张或去市场收"
 msgstr "No cards of this type in the deck — have the card smith forge one, or get one from the market"
@@ -5257,6 +5342,10 @@ msgstr "Post"
 #: src/pages/TemplateDetailPage.tsx
 msgid "发布（需先试炼）"
 msgstr "Publish (needs a trial run first)"
+
+#: src/components/guide/tours.tsx
+msgid "发布与下架"
+msgstr "Publish and unpublish"
 
 #: src/components/support/VoiceMixer.tsx
 #: src/pages/SupportPersonaNewPage.tsx
@@ -5646,6 +5735,10 @@ msgstr "Written from the basics and questionnaire only"
 msgid "只换这个"
 msgstr "Redo just this"
 
+#: src/components/guide/tours.tsx
+msgid "只有 AI 出图<0>要花 token</0>（工坊铸卡，或「自己传图」里 选了 AI 生成图位）。从视频圈选提取、自己传图、从市场拿都<1>不花</1>—— 提取是拖到某一帧、亲手圈出要的人或物，圈出来的画面就是参考图。"
+msgstr "Only AI image generation <0>costs tokens</0> (minting in the Studio, or choosing AI-generated image slots in “Make a card from your own images”). Extracting by circling in a video, uploading your own images and taking from the market <1>cost nothing</1> — extracting means dragging to a frame and circling the person or object you want by hand, and what you circle becomes the reference image."
+
 #: src/pages/CreatePage.tsx
 msgid "只有一个节点：写一句话，挑个时长，直接出一条几秒的短视频。不推方案、不存草稿。"
 msgstr "Just one step: write a sentence, pick a length, and get a short video a few seconds long. No plans, no drafts."
@@ -5765,6 +5858,10 @@ msgstr "Slide right"
 #: src/pages/SupportModelNewPage.tsx
 msgid "右臂"
 msgstr "Right arm"
+
+#: src/components/guide/tours.tsx
+msgid "右边那一列"
+msgstr "The right-hand column"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "吃惊"
@@ -6155,6 +6252,10 @@ msgstr "Circling needs this segment's frame stream, which failed to load: {why} 
 msgid "在 3D 铸卡桌面上摆素材卡，AI 每段推演三套走向，挑一套炼一段，逐段往下铺；顶栏「🧩 工作流画布」把同一条流水线换成画布那一面。"
 msgstr "Lay out cards on the 3D crafting table: for each segment AI plans three directions, you pick one and render it, building the video segment by segment. “🧩 Workflow canvas” in the top bar shows the same pipeline as a canvas."
 
+#: src/components/guide/tours.tsx
+msgid "在「我的卡组」页签里：先点「编辑」<0>再</0>点卡片，才是加进来或拿出去；卡角能定封面。 组名点上去直接改。删掉整组<1>不会删卡</1>。"
+msgstr "In the “My decks” tab, tap “Edit” <0>before</0> tapping cards to add or take them out; a card's corner sets the cover. Tap the deck name to rename it. Deleting a whole deck <1>doesn't delete its cards</1>."
+
 #: src/components/blockout/BoxFramePicker.tsx
 msgid "在哪几帧切开"
 msgstr "Where to split"
@@ -6486,6 +6587,10 @@ msgstr "Save as my scheme"
 msgid "存成我的方案（用它炼一次约 {0}）"
 msgstr "Save as my scheme (about {0} per forge with it)"
 
+#: src/components/guide/tours.tsx
+msgid "存着的半成品都在这儿。那把锁是「<0>还没发布</0>」， 不是私密。点一张要先挑用工坊还是工作流打开 —— 同一份内容，两边都进得去。"
+msgstr "All your saved unfinished work is here. The lock means “<0>not published yet</0>”, not private. Tapping one first asks whether to open it in Studio or Workflow — it's the same content, and either one can open it."
+
 #: src/components/VideoCardAnnotator.tsx
 msgid "存示例图…"
 msgstr "Saving example images…"
@@ -6702,6 +6807,10 @@ msgstr "Cover emoji"
 msgid "封面上传失败：{0}"
 msgstr "Couldn't upload the cover: {0}"
 
+#: src/components/guide/tours.tsx
+msgid "封面上的角标"
+msgstr "Badges on the cover"
+
 #: src/pages/DeckDetailPage.tsx
 msgid "封面卡"
 msgstr "Cover card"
@@ -6772,6 +6881,10 @@ msgstr "Expand"
 #: src/components/TemplateShelf.tsx
 msgid "展开各段 ▾"
 msgstr "Show segments ▾"
+
+#: src/components/guide/tours.tsx
+msgid "工作台里的「删除」不是从列表里划掉：<0>云端那段模板视频和原始素材会一起没掉</0>， 谁都找不回。所以要点两下才认。"
+msgstr "“Delete” in the workbench doesn't just cross it off a list: <0>the template video in the cloud and the original footage are gone along with it</0>, and no one can get them back. That's why it takes two taps."
 
 #: src/pages/FlowPage.tsx
 msgid "工作流"
@@ -7363,6 +7476,10 @@ msgstr "Market closed. Anything else you'd like to do?"
 msgid "市场分类（发布前挑一个）"
 msgstr "Market category (pick one before publishing)"
 
+#: src/components/guide/tours.tsx
+msgid "市场里点哪儿才是拿"
+msgstr "In the market: what to tap"
+
 #: src/pages/SupportPersonasPage.tsx
 msgid "市场里还没有公开的人格。"
 msgstr "No public personas in the market yet."
@@ -7419,6 +7536,18 @@ msgstr "Calm"
 #: src/components/flow/SkillPanel.tsx
 msgid "广场上还没有人发布技能——发布你的第一条？"
 msgstr "No one has published a skill yet. Publish the first one?"
+
+#: src/components/guide/tours.tsx
+msgid "底下那条细线"
+msgstr "The thin line at the bottom"
+
+#: src/components/guide/tours.tsx
+msgid "底栏的 ➕ 先落到这里。这是<0>一张卡的正反面</0>：正面工坊、背面简约，点右上角那枚按钮翻面（上面写着背面是谁）。两面<1>不是各走各的</1>，而是同一条流水线的两个入口，最后都汇到剪辑与发布。"
+msgstr "Tapping ➕ in the tab bar brings you here first. This is <0>one card with two sides</0>: Studio mode on the front, Simple mode on the back. Tap the button at the top right to flip it (it names what's on the back). The two sides <1>aren't separate paths</1> — they're two entrances to the same pipeline, and both end up at editing and publishing."
+
+#: src/components/guide/tours.tsx
+msgid "底缘那条细线是<0>播放进度</0>，右上小字是当前 / 总时长，按住能<1>拖着跳到任意一处</1>。多段的作品，这条线走的是整片。"
+msgstr "The thin line along the bottom edge is <0>playback progress</0>; the small text above it on the right shows current / total time. Press and hold to <1>drag to any point</1>. For multi-segment videos, the line covers the whole video."
 
 #: src/pages/WorkshopPage.tsx
 msgid "建一个把常用素材归到一起"
@@ -7875,6 +8004,11 @@ msgctxt "市场页签 / 卡片角标：我自己上传或做的那些（不是�
 msgid "我的"
 msgstr "Mine"
 
+#: src/components/guide/tours.tsx
+msgctxt "新手引导的屏名：只拼进无障碍标签「… 使用引导」（与底栏页签同字不同用）"
+msgid "我的"
+msgstr "Profile"
+
 #: src/components/support/VoiceMarket.tsx
 msgid "我的 · 未公开"
 msgstr "Mine · not public"
@@ -7993,6 +8127,10 @@ msgstr "Your phone is out of storage, so this segment wasn't fully written. Free
 msgid "打不开系统浏览器（{0}）——用「复制链接」自己粘到浏览器里"
 msgstr "Couldn't open the system browser ({0}) — use “Copy link” and paste it into a browser yourself"
 
+#: src/components/guide/tours.tsx
+msgid "打字之后上面先出<0>人</0>、下面出作品。 作品是拿标题、简介、作者、分区、话题标签一起对的，不只对标题。"
+msgstr "Once you type, <0>people</0> appear first at the top and videos below. Videos are matched against title, description, author, category and tags together, not just the title."
+
 #: src/components/DraftSheet.tsx
 msgid "打开中…"
 msgstr "Opening…"
@@ -8102,6 +8240,10 @@ msgstr " Give it to the AI (or use this card in the Studio) to generate images t
 #: src/pages/CardDetailPage.tsx
 msgid "把它交给 AI（或在工坊中使用本卡），即可生成与卡面一致的角色画面 / 3D 建模。"
 msgstr " Give it to the AI (or use this card in the Studio) to generate character images / 3D models that match the card."
+
+#: src/components/guide/tours.tsx
+msgid "把常用的几张归成一组；出片时<0>人物和场景由卡组锁住，全片保持一致</0>。 散着的卡在「我的卡片」页签，你自己做的模板在「我的模板」。"
+msgstr "Group the cards you use often into a deck; when rendering, <0>the deck locks the characters and scenes so the whole video stays consistent</0>. Loose cards are in the “My cards” tab, and templates you made are in “My templates”."
 
 #: src/components/blockout/BoxFramePicker.tsx
 msgid "把播放头挪到第几秒"
@@ -8399,10 +8541,22 @@ msgstr "Pick a plan → swap frames or edit the story → generate this segment'
 msgid "挑一条现成的片子，复刻它的画面与运镜"
 msgstr "Pick an existing video and remake its visuals and camera moves"
 
+#: src/components/guide/tours.tsx
+msgid "挑一种创作方式"
+msgstr "Pick a way to create"
+
 #. placeholder {0}: picked.length
 #: src/studio/ui/FuseFrameSheet.tsx
 msgid "挑参考图（{0}/{FUSE_MAX}）"
 msgstr "Pick reference images ({0}/{FUSE_MAX})"
+
+#: src/components/guide/tours.tsx
+msgid "挑定了就点卡片底部那枚按钮：工坊落到 3D 铸卡桌面（顶栏 🧩 随时把同一条流水线换成<0>工作流画布</0>那一面），简约落到一步一屏的向导。出片之后都汇到<1>同一个剪辑页</1>，再从那里发布。"
+msgstr "Once you've picked, tap the button at the bottom of the card: Studio mode takes you to the 3D crafting table (🧩 in the top bar switches the same pipeline to its <0>Workflow canvas</0> side at any time), and Simple mode takes you to a one-step-per-screen wizard. After rendering, both lead to <1>the same editing page</1>, and you publish from there."
+
+#: src/components/guide/tours.tsx
+msgid "挑定了就进去"
+msgstr "Picked one? Go in"
 
 #: src/studio/ui/projection.tsx
 msgid "挑素材卡＋写要求，三套方案挑一套"
@@ -8721,6 +8875,10 @@ msgstr "Search personas: name, description, tags…"
 msgid "搜人需要连上服务器 · 当前是离线模式（视频和分区照常能搜）"
 msgstr "Searching people needs a server connection · you're offline (videos and categories can still be searched)"
 
+#: src/components/guide/tours.tsx
+msgid "搜到的人"
+msgstr "People in the results"
+
 #: src/components/MaterialSheet.tsx
 msgid "搜卡名 / 简介 / 类型"
 msgstr "Search name / summary / type"
@@ -9029,6 +9187,10 @@ msgstr "Digital human look"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "整体再来一版"
 msgstr "Write a whole new version"
+
+#: src/components/guide/tours.tsx
+msgid "整屏一支，上下滑换下一支——划到哪支哪支就自动播，<0>划走就停下、划回来从头播</0>。<1>单击暂停</1>，再点一下接着放；<2>双击点赞</2>，连点两下只会点亮、不会取消。顶上的「关注 / 推荐」切换看谁的作品。"
+msgstr "One video fills the screen; swipe up or down for the next one. Whatever you land on plays automatically, and <0>it stops when you swipe away and restarts from the beginning when you swipe back</0>. <1>Tap once to pause</1>, tap again to resume; <2>double-tap to like</2> — double-tapping only turns the like on, never off. “Following / For you” at the top switches whose videos you see."
 
 #: src/components/ForgeOverlay.tsx
 msgid "整段一炉出，别退出 App"
@@ -9828,6 +9990,10 @@ msgstr "Title and description edits only change what this device shows; the mark
 msgid "标题不能为空"
 msgstr "The title can't be empty"
 
+#: src/components/guide/tours.tsx
+msgid "标题进详情页"
+msgstr "Tap the title for details"
+
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "核对之前不能发布（位置对不上会让别人的角色卡换到别人身上）"
 msgstr "Can't publish until checked (wrong positions send other people's character cards to the wrong person)"
@@ -9967,6 +10133,10 @@ msgstr "The template name is empty"
 msgid "模板市场"
 msgstr "Template market"
 
+#: src/components/guide/tours.tsx
+msgid "模板是成品配方"
+msgstr "Templates are ready-made recipes"
+
 #: src/api/uploads.ts
 msgid "模板视频只收 mp4 / mov 格式（AI 出片引擎只认这两种），当前是 {mime}，请转码后重试。"
 msgstr "Template videos must be mp4 or mov (the only formats the AI video engine accepts); this one is {mime}. Convert it and try again."
@@ -9975,6 +10145,7 @@ msgstr "Template videos must be mp4 or mov (the only formats the AI video engine
 msgid "模板视频还没转存到图床，做不了合成预览（稍后再试）"
 msgstr "The template video hasn't been transferred to storage yet, so a preview can't be composed (try again later)"
 
+#: src/components/guide/tours.tsx
 #: src/pages/TemplateDetailPage.tsx
 msgid "模板详情"
 msgstr "Template details"
@@ -10381,6 +10552,10 @@ msgstr "Never sent to the model (multi-view sheets like turnarounds or spec shee
 #: src/pages/AdminPage.tsx
 msgid "永久删除该账号"
 msgstr "Permanently delete this account"
+
+#: src/components/guide/tours.tsx
+msgid "没做完的半成品在这一格"
+msgstr "Unfinished work is here"
 
 #: src/pages/AdminPage.tsx
 msgid "没删掉，请重试"
@@ -10909,6 +11084,14 @@ msgstr "Tapping “Finish video” also extracts this video's deck: cards you've
 msgid "点「生成本段」先出三套方案（各带首尾帧预览），挑定后再炼视频"
 msgstr "Tap “Generate this segment” to get three plans first (each with first/last-frame previews), then render the video once you pick one"
 
+#: src/components/guide/tours.tsx
+msgid "点「用这个模板出片」还不扣钱"
+msgstr "“Make a video…” won't charge yet"
+
+#: src/components/guide/tours.tsx
+msgid "点<0>用它出片</0>就跳到出片那一屏，接下来怎么走按模板分两种：<1>带角色位</1>的那种，本段内容区是一颗挂卡的钮——点开把你的角色卡逐个挂到人偶身上，还能另加一句自己的要求；其余的（经典配方、没有角色位的老白模）是写一句话，配方会把它填进每一段剧情。每段要花多少写在「生成本段」那颗按钮上，点它之前不花钱。"
+msgstr "Tap <0>Use this template</0> to jump to the rendering screen. What comes next depends on the template: for ones <1>with role slots</1>, this segment's content area is a cast-cards button — open it to attach your character cards to the mannequins one by one, and you can add a request of your own; for the rest (classic recipes and older blockouts without role slots) you write one sentence, and the recipe fills it into every segment's story. Each segment's cost is shown on the “Generate this segment” button, and nothing is spent until you tap it."
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "点一下选中/取消。选中的卡会当这一段的人物/场景参考，跟着提示词一起进推演与出片。"
 msgstr "Tap to select or deselect. Selected cards serve as character/scene references for this segment and go into planning and rendering along with the prompt."
@@ -10916,6 +11099,10 @@ msgstr "Tap to select or deselect. Selected cards serve as character/scene refer
 #: src/studio/stage/StageOverlay.tsx
 msgid "点一个人偶选中它"
 msgstr "Tap a mannequin to select it"
+
+#: src/components/guide/tours.tsx
+msgid "点一个就只看这一类，选中的那个会放大亮起来；<0>再点同一个才取消</0> —— 没有别的地方能关掉它。"
+msgstr "Tap one to see only that category; the selected one grows and lights up. <0>Tap the same one again to clear it</0> — there's nowhere else to turn it off."
 
 #. placeholder {0}: personNameOf(castable[selected]?.label)
 #: src/components/blockout/RoleCastBoard.tsx
@@ -10981,6 +11168,10 @@ msgstr "Tap the floor to place a new mannequin"
 #: src/pages/SupportModelNewPage.tsx
 msgid "点头 · 赞同"
 msgstr "Nod · agree"
+
+#: src/components/guide/tours.tsx
+msgid "点它看消息 —— 全 app <0>只有这一个入口</0>。 有新的时候图标上会多一个红点，红点不报条数，进去才知道有几条。"
+msgstr "Tap it to see your messages — it's <0>the only way in</0> anywhere in the app. When something new arrives, a red dot appears on the icon; the dot doesn't show a count, so you only see how many once you open it."
 
 #: src/studio/ui/PlanBoard.tsx
 msgid "点开卡片换图"
@@ -11116,6 +11307,10 @@ msgstr "This draft can't be opened right now"
 msgid "现在没有被下架的作品"
 msgstr "No videos are taken down right now"
 
+#: src/components/guide/tours.tsx
+msgid "现在筛的是什么"
+msgstr "What you're filtering by"
+
 #. placeholder {0}: here.toFixed(1)
 #. placeholder {1}: sel.startSec
 #. placeholder {2}: sel.startSec + sel.durSec
@@ -11205,6 +11400,7 @@ msgstr "Use your own images for the card face and references, with no AI image g
 msgid "用哪一套方案生成这张卡"
 msgstr "Which scheme to generate this card with"
 
+#: src/components/guide/tours.tsx
 #: src/components/TemplateShelf.tsx
 msgid "用它出片"
 msgstr "Use this template"
@@ -11582,6 +11778,14 @@ msgstr "For blockout segments — swap in real slot and card names"
 msgid "白模段的画面整个来自模板视频，导演台的构图用不上"
 msgstr "A blockout segment's visuals come entirely from the template video, so the stage composition can't be used"
 
+#: src/components/guide/tours.tsx
+msgid "白模那种模板，出片就是<0>整段复刻这段视频</0>、只把人偶换掉。 下面那行报价把模板视频自己的时长也计了一遍，不是只按出片时长算。"
+msgstr "With a blockout template, rendering <0>copies this whole video</0> and only swaps out the mannequins. The price line below also counts the template video's own length; it isn't based only on the length of what you render."
+
+#: src/components/guide/tours.tsx
+msgid "白模那种模板：视频就是成片"
+msgstr "Blockout: you get this video"
+
 #: src/pages/PublishPage.tsx
 msgid "目前所有作品都是<0>免费观看</0>。付费解锁还没开放——等收款和分账真的通了再放出来，免得你以为在收钱、其实一分也到不了账。"
 msgstr "All videos are currently <0>free to watch</0>. Paid unlocks aren't available yet — they'll open once payments and revenue sharing actually work, so you never think you're earning when nothing would reach you."
@@ -11919,6 +12123,7 @@ msgstr "Video not ready"
 msgid "视频档位"
 msgstr "Video tier"
 
+#: src/components/guide/tours.tsx
 #: src/pages/TemplateMarketPage.tsx
 msgid "视频模板"
 msgstr "Video templates"
@@ -12756,6 +12961,10 @@ msgstr "The materials went over the limit: the first {droppedChars, plural, one 
 msgid "素材超了上限，最前面的 {droppedChars} 字没有送去分析。"
 msgstr "The materials went over the limit: {droppedChars, plural, one {the first # character wasn't} other {the first # characters weren't}} sent for analysis."
 
+#: src/components/guide/tours.tsx
+msgid "组卡组：怎么加、怎么改"
+msgstr "Decks: adding and editing"
+
 #: src/hooks/useFlowActions.ts
 msgid "组稿中…"
 msgstr "Assembling…"
@@ -13016,6 +13225,10 @@ msgstr "Make the three parts of your own digital human: how it looks, how it sou
 msgid "自己做模型 · 音频 · 人格，可发布到市场"
 msgstr "Make models · voices · personas and publish them to the market"
 
+#: src/components/guide/tours.tsx
+msgid "自己做的才多一块工作台"
+msgstr "Only yours have a workbench"
+
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "自己写"
 msgstr "Write my own"
@@ -13028,6 +13241,10 @@ msgstr "Pick myself"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "自己敲一个 emoji"
 msgstr "Type your own emoji"
+
+#: src/components/guide/tours.tsx
+msgid "自己的模板，卡片上只标一个<0>状态</0>（草稿 / 已发布 / 已下架）。<1>识别角色位、核对、试炼、发布、删除</1>这些操作都收进了模板详情页——点开卡片进去，作者工作台就在那儿（先让 AI 识别画面里的人，再逐个核对）。"
+msgstr "Your own templates show just a <0>status</0> on the card (Draft / Published / Taken down). Actions like <1>detecting roles, checking, trial runs, publishing and deleting</1> all live on the template details page — open the card and the creator's workbench is right there (let the AI detect the people in the picture first, then check them one by one)."
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "自己选一张"
@@ -13284,6 +13501,10 @@ msgstr "Apprentice adventurer · she"
 #: src/studio/ui/projection.tsx
 msgid "规格"
 msgstr "Specs"
+
+#: src/components/guide/tours.tsx
+msgid "角标写着这个模板能干什么。<0>白模</0>：出片时整段复刻它的场景、道具与运镜，只把人换掉，旁边报的是这条模板视频有多长——成片长度和画幅都跟着它走；<1>几个角色位可换人</1>：画面里那几个白色人偶，各能挂一张你的角色卡。没角标的是经典配方模板，按分镜骨架重新画，旁边报的是分几段。"
+msgstr "The badges say what a template can do. <0>Blockout</0>: rendering copies its whole scene, props and camera work and only swaps the people, and the number shown with it is how long the template video is — the finished video's length and aspect ratio follow it. <1>Recastable slots</1>: each of the white mannequins in the picture can take one of your character cards. Templates without a badge are classic recipe templates, redrawn from the shot outline, and the number shown is how many segments they have."
 
 #: src/studio/segmentGen.ts
 msgid "角色卡上的形象参考图一张都没能读出来（图片可能已损坏），白模出片必须靠形象图说明「换成谁」——给卡换一张形象图再试"
@@ -13791,6 +14012,10 @@ msgstr "Who can use it"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "谁能看到"
 msgstr "Who can see this"
+
+#: src/components/guide/tours.tsx
+msgid "谁赞了你、谁关注了你"
+msgstr "Who liked you, who followed you"
 
 #: src/pages/SettingsVoicePage.tsx
 msgid "调和"
@@ -14345,6 +14570,10 @@ msgstr "This chunk has been uploading for {hardMin} minutes and still isn't done
 msgid "这一小段有 {stallSec} 秒没传出去一个字节——网络断了或太不稳，换个网络再试"
 msgstr "This chunk hasn't sent a single byte in {stallSec} seconds — the connection dropped or is too unstable. Switch networks and try again"
 
+#: src/components/guide/tours.tsx
+msgid "这一屏摆的是调好的<0>成品配方</0>：画风、运镜、分镜骨架都定好了，挑一个套上去，写一句话或者给人偶挂上你的角色卡就能出片。它和工坊的卡片市场是两回事——卡片是素材，得自己组装剧情；模板是拿来就能出片的成品。"
+msgstr "This screen shows tuned, <0>ready-made recipes</0>: art style, camera work and shot outline are all set. Pick one and apply it, then write a sentence or attach your character cards to the mannequins, and you can render. It's a different thing from the Workshop's card market — cards are materials, and you have to build the story yourself; a template is a finished recipe you can render with right away."
+
 #: src/pages/CustomCardPage.tsx
 msgid "这一张既当卡面，也当这张卡的主形象参考。"
 msgstr "This image is both the card face and the card's main look reference."
@@ -14635,9 +14864,17 @@ msgstr "Everything on this page will be cleared, and you'll need to choose the b
 msgid "这一页填的东西会清空，已经选的包也要重新选一次。刚才传上去的那一份也不会变成模型，要重新走一遍上传和识别。"
 msgstr "Everything on this page will be cleared, and you'll need to choose the bundle again. The copy you just uploaded won't become a model either; you'll need to upload it and run detection again."
 
+#: src/components/guide/tours.tsx
+msgid "这一页管素材，成片在工坊"
+msgstr "Materials here, videos in Studio"
+
 #: src/pages/VideoEditorPage.tsx
 msgid "这一页需要从上传或模板页进来"
 msgstr "This page needs to be opened from an upload or template page"
+
+#: src/components/guide/tours.tsx
+msgid "这三个数字里有一个能点"
+msgstr "One of these three is tappable"
 
 #: src/pages/ProfilePage.tsx
 msgid "这不代表 TA 没有作品，只是这次没取到"
@@ -15491,6 +15728,10 @@ msgstr "Numbers only."
 msgid "这里的每一个动作都由服务端按 role 重新鉴权一次。<0/>看不到内容就不要下架 —— 举报理由只是线索，不是结论。"
 msgstr "Every action here is re-authorized by the server based on role.<0/>Don't take anything down if you can't see the content — a report reason is a lead, not a verdict."
 
+#: src/components/guide/tours.tsx
+msgid "这里管<0>卡片、卡组和模板</0>这些素材。 要摆桌铸卡、把卡炼成视频，从这条路进 3D 工坊； 唯一的例外是模板栏里的「AI 换白模」——那条会真出一次片、真花钱。"
+msgstr "This page manages materials: <0>cards, decks and templates</0>. To lay out the table, mint cards and render them into videos, go into the 3D Studio from here. The only exception is having the AI turn a video into a blockout in the “My templates” tab — that one really renders a video and really costs money."
+
 #: src/components/PhotoSubjectPicker.tsx
 msgid "进卡的那一张"
 msgstr "Image for the card"
@@ -15693,6 +15934,10 @@ msgstr "Notifications need a server connection · you're offline"
 msgid "逛技能市场"
 msgstr "Browse the skill market"
 
+#: src/components/guide/tours.tsx
+msgid "造卡四条路，一条花钱"
+msgstr "Four ways to get cards, one paid"
+
 #: src/types.ts
 msgid "造型、比例、材质与配色"
 msgstr "shape, proportions, materials and colors"
@@ -15721,6 +15966,14 @@ msgstr "Prop card · {slotLabel} · {title}"
 #: src/pages/CustomCardPage.tsx
 msgid "道具卡的图要先框出主体、描出轮廓，「{names}」那张没抠过，已经取下——点那一格重新选图。"
 msgstr " Prop card images need the subject boxed and outlined first. The “{names}” image wasn't cut out, so it was removed — tap that slot to choose an image again."
+
+#: src/components/guide/tours.tsx
+msgid "那一列最下面单独一枚是全屏键，点了只留画面；<0>横屏的片子会连屏幕一起转过来</0>，所以它在横屏片上写的是「转屏」。退出点右上角那枚缩小键。"
+msgstr "The separate button at the very bottom of that column is full screen: tap it to show only the video. <0>Landscape videos rotate the screen with them</0>, which is why on landscape videos it says “Rotate”. To exit, tap the shrink button in the top-right corner."
+
+#: src/components/guide/tours.tsx
+msgid "那颗按钮只是把配方铺到出片那一屏，<0>钱要到那边点生成才扣</0>。 有角色位的模板会先领你去给人偶挂卡。"
+msgstr "That button only lays the recipe out on the rendering screen; <0>you're charged only when you tap generate there</0>. Templates with role slots take you to attach cards to the mannequins first."
 
 #: src/pages/LoginPage.tsx
 msgid "邮箱"
@@ -16186,6 +16439,10 @@ msgstr "Home"
 #: src/types.ts
 msgid "首页全屏铺满（短视频默认）"
 msgstr "Fills the home feed full-screen (the short-video default)"
+
+#: src/components/guide/tours.tsx
+msgid "首页视频流"
+msgstr "Home feed"
 
 #: src/pages/AdminPage.tsx
 msgid "驳回"
