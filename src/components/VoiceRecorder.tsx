@@ -12,6 +12,9 @@
 //   传文件绕过了"这是本人声音"这层含义，跟读的意义就是声源可信。录不了就先不录。
 // ★ 长按语义：pointerdown 起录、pointerup/leave 停。短于 2s 整句拒（不是静默丢弃），
 //   到 15s 自动停（Seedance 参考音频硬窗口，常量在 cardVoice）。
+import type { MessageDescriptor } from "@lingui/core";
+import { msg } from "@lingui/core/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useRef, useState } from "react";
 import { VOICE_MAX_SEC, VOICE_MIN_SEC } from "../data/cardVoice";
 import { pcmToVoiceWav } from "../utils/wav";
@@ -21,10 +24,10 @@ import { pcmToVoiceWav } from "../utils/wav";
  * ★ 内容刻意**与产品无关**：样本是拿去当音色参考的，句子里带品牌词/台词会被 AI 当成
  *   "这个人说过这句话"，串进成片台词里。
  */
-const SAMPLE_LINES = [
-  "今天天气不错，我在院子里晒了会儿太阳，顺手把花也浇了。",
-  "周末打算去一趟菜市场，买点新鲜的菜，晚上做一顿好吃的。",
-  "这条路我走了很多年，闭着眼睛都知道哪里有个台阶。",
+const SAMPLE_LINES: MessageDescriptor[] = [
+  msg`今天天气不错，我在院子里晒了会儿太阳，顺手把花也浇了。`,
+  msg`周末打算去一趟菜市场，买点新鲜的菜，晚上做一顿好吃的。`,
+  msg`这条路我走了很多年，闭着眼睛都知道哪里有个台阶。`,
 ];
 
 export default function VoiceRecorder({
@@ -33,6 +36,7 @@ export default function VoiceRecorder({
   /** 录成（2~15s、已编成 WAV dataURL）时回调。宿主自己决定何时落 cardVoice 侧库 */
   onDone: (v: { dataUrl: string; durationSec: number; note: string }) => void;
 }) {
+  const { t } = useLingui();
   const [lineIdx, setLineIdx] = useState(0);
   const [recording, setRecording] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -65,7 +69,7 @@ export default function VoiceRecorder({
       if (timer.current) clearInterval(timer.current);
       graph.current?.proc.disconnect();
       void graph.current?.ctx.close();
-      stream.current?.getTracks().forEach((t) => t.stop());
+      stream.current?.getTracks().forEach((track) => track.stop());
     },
     [],
   );
@@ -79,8 +83,8 @@ export default function VoiceRecorder({
       // ★ 授权弹窗期间手已经松了（pointerup 那时 recording 还是 false，stop() 无从拦）：
       //   这里是唯一能拦住"孤儿录音"的地方——不拦的话红按钮会自己数秒（真机实测）
       if (!pressedRef.current) {
-        ms.getTracks().forEach((t) => t.stop());
-        setErr("麦克风授权好了——再按住一次，照着示例词念。");
+        ms.getTracks().forEach((track) => track.stop());
+        setErr(t`麦克风授权好了——再按住一次，照着示例词念。`);
         return;
       }
       stream.current = ms;
@@ -116,8 +120,8 @@ export default function VoiceRecorder({
       const raw = e instanceof Error ? e.message : String(e);
       setErr(
         /denied|permission|NotAllowed/i.test(raw)
-          ? "拿不到麦克风权限。App 版本 ≤2.29 的安装包没带录音权限，升级到新版后在系统弹窗里点允许；拒绝过的话去系统设置 → 应用 → 启梦 → 权限里打开麦克风。"
-          : `麦克风打不开：${raw}`,
+          ? t`拿不到麦克风权限。App 版本 ≤2.29 的安装包没带录音权限，升级到新版后在系统弹窗里点允许；拒绝过的话去系统设置 → 应用 → 启梦 → 权限里打开麦克风。`
+          : t`麦克风打不开：${raw}`,
       );
     }
   }
@@ -138,18 +142,18 @@ export default function VoiceRecorder({
       stream.current = null;
       const rate = g?.ctx.sampleRate ?? 48000;
       g?.proc.disconnect();
-      ms?.getTracks().forEach((t) => t.stop());
+      ms?.getTracks().forEach((track) => track.stop());
       await g?.ctx.close();
 
       const secs = (Date.now() - startedAt.current) / 1000;
       if (secs < VOICE_MIN_SEC) {
         // 整句拒（不是静默丢）：短样本方舟那头也会拒，在这里说比出片时说便宜得多
-        setErr(`太短了（${secs.toFixed(1)}s）——按住别松，照着示例词念够 ${VOICE_MIN_SEC} 秒再放手。`);
+        setErr(t`太短了（${secs.toFixed(1)}s）——按住别松，照着示例词念够 ${VOICE_MIN_SEC} 秒再放手。`);
         return;
       }
       const total = pcm.current.reduce((n, a) => n + a.length, 0);
       if (total < rate * VOICE_MIN_SEC * 0.5) {
-        setErr("没抓到足够的声音——检查麦克风是不是被别的 App 占着。");
+        setErr(t`没抓到足够的声音——检查麦克风是不是被别的 App 占着。`);
         return;
       }
       // ★ 编码前按 15s 硬掐 PCM（兜底的兜底）：万一哪条路又让录音超了窗（真机上刚出过
@@ -168,7 +172,7 @@ export default function VoiceRecorder({
       onDone({
         dataUrl,
         durationSec: Math.min(VOICE_MAX_SEC, Math.round(secs * 10) / 10),
-        note: "本人跟读录制",
+        note: t`本人跟读录制`,
       });
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -180,17 +184,17 @@ export default function VoiceRecorder({
   return (
     <div className="rounded-lg border border-slate-700 bg-black/25 p-2.5">
       <p className="text-[10px] leading-relaxed text-slate-400">
-        照着下面这句念（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）——出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段音色。
+        <Trans>照着下面这句念（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）——出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段音色。</Trans>
       </p>
       <div className="mt-1.5 flex items-start gap-2">
         <p className="flex-1 rounded-lg bg-ink/60 px-2.5 py-2 text-xs leading-relaxed text-slate-200">
-          “{SAMPLE_LINES[lineIdx]}”
+          “{t(SAMPLE_LINES[lineIdx])}”
         </p>
         <button
           onClick={() => setLineIdx((i) => (i + 1) % SAMPLE_LINES.length)}
           className="mt-1 flex-none text-[10px] text-slate-500"
         >
-          换一句
+          <Trans>换一句</Trans>
         </button>
       </div>
       <button
@@ -213,7 +217,7 @@ export default function VoiceRecorder({
         } disabled:opacity-40`}
         style={{ touchAction: "none" }}
       >
-        {busy ? "处理中…" : recording ? `松手结束 · ${elapsed.toFixed(1)}s` : "🎙 按住跟读（长按录音）"}
+        {busy ? <Trans>处理中…</Trans> : recording ? t`松手结束 · ${elapsed.toFixed(1)}s` : <Trans>🎙 按住跟读（长按录音）</Trans>}
       </button>
       {err && <p className="mt-1.5 text-[10px] leading-relaxed text-rose-300">{err}</p>}
     </div>

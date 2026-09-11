@@ -11,6 +11,7 @@
  * ★ 麦克风权限是原生权限：拒绝过的整句告诉用户去系统设置打开（铁律八，不静默）。
  * ★ 识别失败/没识别出字都在按钮下方整句说明，不弹 toast（api:error 没人听）。
  */
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useRef, useState } from "react";
 import { ApiError } from "../../api/client";
 import { transcribeAudio } from "../../api/support";
@@ -29,6 +30,7 @@ type Props = {
 };
 
 export default function HoldToTalk({ disabled, onText, onError, className = "" }: Props) {
+  const { t } = useLingui();
   const [recording, setRecording] = useState(false);
   const [busy, setBusy] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -51,7 +53,7 @@ export default function HoldToTalk({ disabled, onText, onError, className = "" }
       // 卸载时别让麦克风亮着
       if (timerRef.current) window.clearInterval(timerRef.current);
       graphRef.current?.proc.disconnect();
-      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current?.getTracks().forEach((track) => track.stop());
       void graphRef.current?.ctx.close().catch(() => undefined);
     },
     [],
@@ -66,8 +68,8 @@ export default function HoldToTalk({ disabled, onText, onError, className = "" }
       const ms = await navigator.mediaDevices.getUserMedia({ audio: true });
       // 授权弹窗期间手已经松了：别录一段"孤儿录音"
       if (!pressedRef.current) {
-        ms.getTracks().forEach((t) => t.stop());
-        onError("麦克风授权好了，再按住说一次。");
+        ms.getTracks().forEach((track) => track.stop());
+        onError(t`麦克风授权好了，再按住说一次。`);
         return;
       }
       streamRef.current = ms;
@@ -102,10 +104,10 @@ export default function HoldToTalk({ disabled, onText, onError, className = "" }
       const raw = e instanceof Error ? e.message : String(e);
       onError(
         /denied|permission|NotAllowed/i.test(raw)
-          ? "拿不到麦克风权限。在系统弹窗里点允许；拒绝过的话去系统设置 → 应用 → 启梦 → 权限里打开麦克风。"
+          ? t`拿不到麦克风权限。在系统弹窗里点允许；拒绝过的话去系统设置 → 应用 → 启梦 → 权限里打开麦克风。`
           : /NotFound|no.*device/i.test(raw)
-            ? "这台设备没有可用的麦克风。"
-            : `麦克风打不开：${raw}`,
+            ? t`这台设备没有可用的麦克风。`
+            : t`麦克风打不开：${raw}`,
       );
     }
   }
@@ -125,7 +127,7 @@ export default function HoldToTalk({ disabled, onText, onError, className = "" }
     streamRef.current = null;
     const rate = g?.ctx.sampleRate ?? 48000;
     g?.proc.disconnect();
-    ms?.getTracks().forEach((t) => t.stop());
+    ms?.getTracks().forEach((track) => track.stop());
     await g?.ctx.close().catch(() => undefined);
 
     const secs = (Date.now() - startedAt.current) / 1000;
@@ -137,12 +139,12 @@ export default function HoldToTalk({ disabled, onText, onError, className = "" }
       return;
     }
     if (secs < MIN_SEC) {
-      onError("太短了，按住多说一会儿再松手。");
+      onError(t`太短了，按住多说一会儿再松手。`);
       return;
     }
     const total = chunks.reduce((n, a) => n + a.length, 0);
     if (total < rate * 0.3) {
-      onError("没抓到声音，检查麦克风是不是被别的 App 占着。");
+      onError(t`没抓到声音，检查麦克风是不是被别的 App 占着。`);
       return;
     }
     const keep = Math.min(total, Math.round(MAX_SEC * rate));
@@ -162,7 +164,7 @@ export default function HoldToTalk({ disabled, onText, onError, className = "" }
       const { text } = await transcribeAudio(blob, "wav");
       if (!text) {
         // 上游判定整段静音：多半是按住了没出声、或离麦太远（真机实测第一次就是这样）
-        onError("没听到声音：按住的时候靠近一点说，说完再松手。");
+        onError(t`没听到声音：按住的时候靠近一点说，说完再松手。`);
         return;
       }
       onText(text);
@@ -170,15 +172,15 @@ export default function HoldToTalk({ disabled, onText, onError, className = "" }
       if (e instanceof ApiError) {
         onError(
           e.status === 501
-            ? "服务端还没开通语音识别，先打字吧。"
+            ? t`服务端还没开通语音识别，先打字吧。`
             : e.status === 502
-              ? "语音识别暂时不可用（上游没接住），先打字吧。"
+              ? t`语音识别暂时不可用（上游没接住），先打字吧。`
               : e.status === 429
-                ? "说得太频繁了，稍等几秒。"
-                : e.message || "语音识别失败",
+                ? t`说得太频繁了，稍等几秒。`
+                : e.message || t`语音识别失败`,
         );
       } else {
-        onError(`语音识别失败：${e instanceof Error ? e.message : String(e)}`);
+        onError(t`语音识别失败：${e instanceof Error ? e.message : String(e)}`);
       }
     } finally {
       setBusy(false);
@@ -216,11 +218,11 @@ export default function HoldToTalk({ disabled, onText, onError, className = "" }
       {(recording || busy) && (
         <div className="pointer-events-none absolute bottom-[calc(100%+10px)] left-0 z-10 flex w-52 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/85 px-3 py-2 text-xs text-slate-100 shadow-xl backdrop-blur-md">
           {busy ? (
-            <span>识别中…</span>
+            <span><Trans>识别中…</Trans></span>
           ) : (
             <>
               <span className={`h-2.5 w-2.5 rounded-full ${cancelling ? "bg-slate-500" : "bg-rose-500 animate-pulse"}`} />
-              <span className="min-w-0 flex-1 truncate">{cancelling ? "松开取消" : `松开发送 · ${elapsed.toFixed(1)}s`}</span>
+              <span className="min-w-0 flex-1 truncate">{cancelling ? t`松开取消` : t`松开发送 · ${elapsed.toFixed(1)}s`}</span>
               <span className="flex h-3 w-10 items-end gap-0.5" aria-hidden="true">
                 {[0.3, 0.6, 1, 0.6, 0.3].map((k, i) => (
                   <span key={i} className="w-1.5 rounded-sm bg-brand" style={{ height: `${Math.max(15, Math.min(100, level * 100 * k + 15))}%` }} />
@@ -239,7 +241,7 @@ export default function HoldToTalk({ disabled, onText, onError, className = "" }
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
         onContextMenu={(e) => e.preventDefault()}
-        aria-label={recording ? "松开发送" : "按住说话"}
+        aria-label={recording ? t`松开发送` : t`按住说话`}
         aria-pressed={recording}
         className={`flex h-10 w-10 select-none items-center justify-center rounded-full transition [touch-action:none] ${
           recording ? (cancelling ? "bg-slate-600 text-slate-200" : "bg-rose-500 text-white scale-110") : "text-slate-300 active:bg-white/10"

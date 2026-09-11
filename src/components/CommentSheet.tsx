@@ -6,6 +6,7 @@
 //   无论写多大的 z 都只能在这个 z-0 的盒子里排，而 TabBar 是它的兄弟节点、z-40。
 //   结果就是输入框和「发送」整行都被底栏盖住——实测点下去命中的是底栏的「创作」，
 //   直接跳去 /create，评论在手机上根本发不出来（只有回车能提交）。
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { addReply, commentAvatarOf, commentCountOf, commentPending, ensureComments, isMyAuthor, setCommentLike } from "../data/videos";
@@ -59,6 +60,7 @@ function buildThreads(list: VideoComment[]): Thread[] {
 }
 
 export default function CommentSheet({ video, onClose }: { video: VideoItem; onClose: () => void }) {
+  const { t } = useLingui();
   // video.comments 由 addReply 原地换新数组，本地 state 拿快照驱动渲染
   const [list, setList] = useState<VideoComment[]>(video.comments);
   /**
@@ -125,10 +127,10 @@ export default function CommentSheet({ video, onClose }: { video: VideoItem; onC
       //   strip 掉（不报错），核对没过的也会被丢掉。不说的话就是"@ 了、对方永远收不到"
       //   的静默失败（铁律八）。这是黄字不是红字 —— 评论本身是成功的。
       if (posted && posted.droppedMentions > 0) {
-        setWarn(`有 ${posted.droppedMentions} 个 @ 没能送达（对方不会收到通知）`);
+        setWarn(t`有 ${posted.droppedMentions} 个 @ 没能送达（对方不会收到通知）`);
       }
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "评论没发出去，请重试");
+      setErr(e instanceof Error ? e.message : t`评论没发出去，请重试`);
     } finally {
       setBusy(false);
     }
@@ -145,7 +147,7 @@ export default function CommentSheet({ video, onClose }: { video: VideoItem; onC
     //   发上去会被服务端判否，整条回复 400。与其让用户打完字再失败，
     //   不如当场说清楚为什么点不动（按钮那边是灰的，这里补一句原因）。
     if (commentPending(c)) {
-      setErr("这条评论还在发送中，等它发出去之后才能回复");
+      setErr(t`这条评论还在发送中，等它发出去之后才能回复`);
       return;
     }
     setErr("");
@@ -176,7 +178,7 @@ export default function CommentSheet({ video, onClose }: { video: VideoItem; onC
               disabled={pending}
               className="mt-1 text-[11px] text-slate-500 active:opacity-60 disabled:opacity-40"
             >
-              {pending ? "发送中…" : "回复"}
+              {pending ? <Trans>发送中…</Trans> : <Trans>回复</Trans>}
             </button>
             {/* 删除入口与详情页共用同一份实现（能不能删、二次确认、失败红字都在里面） */}
             <CommentDelete videoId={video.id} comment={c} onDeleted={() => setList([...video.comments])} />
@@ -189,7 +191,7 @@ export default function CommentSheet({ video, onClose }: { video: VideoItem; onC
         {/* 心 + 数字。热区给到 32px 宽——评论行密，小了会点到隔壁那条 */}
         <button
           onClick={() => toggleLike(c)}
-          aria-label={c.liked ? "取消点赞" : "点赞"}
+          aria-label={c.liked ? t`取消点赞` : t`点赞`}
           aria-pressed={c.liked === true}
           className={`-my-1 flex w-8 flex-none flex-col items-center justify-start gap-0.5 py-1 ${
             c.liked ? "text-rose-500" : "text-slate-500"
@@ -220,17 +222,17 @@ export default function CommentSheet({ video, onClose }: { video: VideoItem; onC
           {/* ★ 与首页那一栏同一个口径（commentCountOf）：服务端的总数优先。
               读 list.length 的话，详情还没补回来时标题会先写「0 条评论」——
               而下面可能马上就渲染出好几条，自相矛盾。 */}
-          <span className="text-sm font-bold text-slate-100">{commentCountOf(video)} 条评论</span>
-          <CloseButton chip="sm" size={13} align="end" label="关闭评论" onClick={onClose} />
+          <span className="text-sm font-bold text-slate-100"><Trans>{commentCountOf(video)} 条评论</Trans></span>
+          <CloseButton chip="sm" size={13} align="end" label={t`关闭评论`} onClick={onClose} />
         </div>
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-3">
-          {threads.map((t) => (
-            <div key={t.top.id} className="space-y-3">
-              {row(t.top, false)}
-              {t.replies.map((r) => row(r, true))}
+          {threads.map((th) => (
+            <div key={th.top.id} className="space-y-3">
+              {row(th.top, false)}
+              {th.replies.map((r) => row(r, true))}
             </div>
           ))}
-          {list.length === 0 && <div className="py-10 text-center text-sm text-slate-500">还没有评论，抢个沙发</div>}
+          {list.length === 0 && <div className="py-10 text-center text-sm text-slate-500"><Trans>还没有评论，抢个沙发</Trans></div>}
         </div>
         <div
           className="border-t border-slate-700/60 px-4 py-3"
@@ -240,8 +242,8 @@ export default function CommentSheet({ video, onClose }: { video: VideoItem; onC
             // 正在回复谁必须**看得见**：不显示的话用户以为自己在发顶层评论，
             // 发出去才发现缩进到了别人楼里
             <div className="mb-2 flex items-center gap-2 text-xs text-slate-400">
-              <span className="min-w-0 truncate">回复 @{replyTo.author}</span>
-              <button onClick={() => setReplyTo(null)} className="-m-1 p-1 text-slate-500" aria-label="取消回复">
+              <span className="min-w-0 truncate"><Trans>回复 @{replyTo.author}</Trans></span>
+              <button onClick={() => setReplyTo(null)} className="-m-1 p-1 text-slate-500" aria-label={t`取消回复`}>
                 <Icon name="close" size={14} />
               </button>
             </div>
@@ -259,7 +261,7 @@ export default function CommentSheet({ video, onClose }: { video: VideoItem; onC
               onChange={setDraft}
               onPick={(p) => setPicks((ps) => [...ps, p])}
               onEnter={() => void submit()}
-              placeholder={replyTo ? `回复 @${replyTo.author}` : "说点什么，@ 可以叫上别人"}
+              placeholder={replyTo ? t`回复 @${replyTo.author}` : t`说点什么，@ 可以叫上别人`}
               className="rounded-full border border-slate-700 bg-black/30 px-4 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
             />
             <button
@@ -267,7 +269,7 @@ export default function CommentSheet({ video, onClose }: { video: VideoItem; onC
               disabled={!draft.trim() || busy}
               className="rounded-full bg-brand px-4 py-2 text-sm font-semibold text-ink disabled:opacity-40"
             >
-              {busy ? "发送中…" : "发送"}
+              {busy ? <Trans>发送中…</Trans> : <Trans>发送</Trans>}
             </button>
           </div>
         </div>

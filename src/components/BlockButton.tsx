@@ -10,6 +10,7 @@
 // ★★ 拉黑与举报**是两件事，都要有**：举报是"交给平台处理"，拉黑是"我自己不想看见"。
 //   政策也分别要求。所以它们并排，不合并成一个菜单里的两项 —— 合并会让举报变难点到，
 //   而举报是我们唯一的内容治理输入。
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router";
@@ -31,6 +32,7 @@ export default function BlockButton({
   mine?: boolean;
   className?: string;
 }) {
+  const { t } = useLingui();
   const auth = useAuthState();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -61,7 +63,7 @@ export default function BlockButton({
     setTimeout(() => setOpen(false), 1600);
   }
 
-  const who = userName?.trim() || "这个用户";
+  const who = userName?.trim() || t`这个用户`;
 
   const trigger = (
     <button
@@ -72,7 +74,7 @@ export default function BlockButton({
       disabled={done}
       className={`text-[11px] text-slate-500 active:opacity-60 disabled:opacity-40 ${className}`}
     >
-      {done ? "已拉黑" : "拉黑"}
+      {done ? <Trans>已拉黑</Trans> : <Trans>拉黑</Trans>}
     </button>
   );
 
@@ -97,32 +99,32 @@ export default function BlockButton({
               <AuthPending />
             ) : auth === "out" ? (
               <>
-                <p className="text-xs leading-relaxed text-slate-300">登录之后才能拉黑。</p>
+                <p className="text-xs leading-relaxed text-slate-300"><Trans>登录之后才能拉黑。</Trans></p>
                 <button
                   onClick={() => navigate("/login")}
                   className="mt-3 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink"
                 >
-                  去登录
+                  <Trans>去登录</Trans>
                 </button>
               </>
             ) : done ? (
               <p className="py-2 text-center text-xs leading-relaxed text-emerald-300">
-                已拉黑「{who}」——你们不会再看见彼此的内容。
+                <Trans>已拉黑「{who}」——你们不会再看见彼此的内容。</Trans>
               </p>
             ) : (
               <>
-                <h3 className="text-sm font-bold text-slate-100">拉黑「{who}」？</h3>
+                <h3 className="text-sm font-bold text-slate-100"><Trans>拉黑「{who}」？</Trans></h3>
                 {/* ★★ 把**真实后果**说全，尤其"双向"这一条：服务端那份名单是双向生效的
                     （我拉黑的 ∪ 拉黑我的），只说"你看不见他"会让用户以为自己还被对方看着。
                     ⚠ 也要说清它**不是**举报：拉黑不会让平台处理他。 */}
                 <ul className="mt-2 space-y-1 text-[11px] leading-relaxed text-slate-400">
-                  <li>· 他的作品、评论、弹幕都不会再出现在你这儿；</li>
-                  <li>· 他也看不见你的——这是双向的；</li>
-                  <li>· 他不知道自己被拉黑了，你们谁都不会收到通知；</li>
-                  <li>· 这不是举报：想让平台处理他，请另外点「举报」。</li>
+                  <li><Trans>· 他的作品、评论、弹幕都不会再出现在你这儿；</Trans></li>
+                  <li><Trans>· 他也看不见你的——这是双向的；</Trans></li>
+                  <li><Trans>· 他不知道自己被拉黑了，你们谁都不会收到通知；</Trans></li>
+                  <li><Trans>· 这不是举报：想让平台处理他，请另外点「举报」。</Trans></li>
                 </ul>
                 <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
-                  随时可以解除：「我的 → 设置 → 已拉黑的人」。
+                  <Trans>随时可以解除：「我的 → 设置 → 已拉黑的人」。</Trans>
                 </p>
                 {err && <p className="mt-2 text-[11px] leading-relaxed text-rose-300">{err}</p>}
                 <div className="mt-3 flex gap-2">
@@ -130,14 +132,14 @@ export default function BlockButton({
                     onClick={() => setOpen(false)}
                     className="flex-1 rounded-xl border border-slate-600 py-2.5 text-sm text-slate-300"
                   >
-                    再想想
+                    <Trans>再想想</Trans>
                   </button>
                   <button
                     onClick={() => void submit()}
                     disabled={busy}
                     className="flex-1 rounded-xl bg-rose-500/90 py-2.5 text-sm font-bold text-white disabled:opacity-40"
                   >
-                    {busy ? "处理中…" : "拉黑"}
+                    {busy ? <Trans>处理中…</Trans> : <Trans>拉黑</Trans>}
                   </button>
                 </div>
               </>

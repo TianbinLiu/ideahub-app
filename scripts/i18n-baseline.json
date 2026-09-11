@@ -555,74 +555,8 @@
   "src/components/AigcBadge.tsx": {
    "ee569181afc2cbdd": 1
   },
-  "src/components/AvatarPicker.tsx": {
-   "11d024154013c0ca": 1,
-   "12e2ed4d508a98bc": 1,
-   "1cac8ac7f58f132c": 2,
-   "2b4ee7ce92935edf": 2,
-   "33246f6a5e5b26f0": 1,
-   "88e8f81597241158": 1,
-   "89c93cdf393e8b61": 1,
-   "a001e8a134286931": 1,
-   "c493338e8c33e181": 1,
-   "cec223009e1bd547": 1,
-   "e6eba4c3d40643d2": 1,
-   "f252733b3a6bb39a": 1,
-   "f2f8ea9bbf1dc697": 1
-  },
-  "src/components/BlockButton.tsx": {
-   "035aaa60c8b5028f": 1,
-   "0adc2ec232199ae1": 1,
-   "0e87a6063bfb5003": 1,
-   "1753d89c6f87a9c9": 1,
-   "1cac8ac7f58f132c": 1,
-   "38c3e32c944b5882": 2,
-   "59ed68f4be83dcae": 1,
-   "63054d8dc0aa038e": 1,
-   "661a4793cc5f9ef5": 1,
-   "6b7712fdce323a40": 1,
-   "6c01b0cfd0e4c5d6": 1,
-   "70ac744382b5e511": 1,
-   "7d47ad82723c76cd": 1,
-   "a0dd0ebd3d72bdb5": 1,
-   "d08717c64c374dda": 1
-  },
-  "src/components/BranchPlayer.tsx": {
-   "130448bce6758f08": 1,
-   "21925350deba6663": 1,
-   "3f090f9fbfab4427": 1,
-   "59bc75cad0d089d7": 1,
-   "9701450b1d5cc27c": 1,
-   "a9e29b65c6894473": 1,
-   "afdbd1ddecd83db1": 1,
-   "b8bb31e17014487c": 1,
-   "ba1a150ab39eb62b": 1,
-   "bdf8b53ce47f8626": 1,
-   "e5a2fa22cc09a604": 1,
-   "edeb44fe7fdbeb65": 1,
-   "f16180108fd023b5": 1,
-   "fb38634ab2c1bd59": 1,
-   "fe0cfcc385151f95": 1
-  },
   "src/components/BrandIcon.tsx": {
    "68406df395e4974a": 1
-  },
-  "src/components/CommentSheet.tsx": {
-   "0e067edec1abeec0": 1,
-   "1214d633a448542f": 1,
-   "1eaca439afba792b": 1,
-   "27b2fc9d2b928d84": 1,
-   "3444454fa9558abe": 1,
-   "5907f05aa4020f70": 1,
-   "69493ae65a54878f": 1,
-   "6ff997b2c2f9f545": 1,
-   "776f119bedeb2887": 1,
-   "b3786d3b8c5fd6f8": 1,
-   "c1b894480de0e2bb": 2,
-   "ca6f4bcae05dbdbf": 1,
-   "e07f300d0c2faeba": 1,
-   "f68b8599fad02cc0": 1,
-   "ffc7850925e7e36c": 1
   },
   "src/components/CoverPicker.tsx": {
    "03d1bd48560aac45": 2,
@@ -690,25 +624,6 @@
    "d846c9dffc85cccd": 1,
    "df64576e4ade4843": 1,
    "ec3c550a65f6e6d6": 1
-  },
-  "src/components/DeleteCardDialog.tsx": {
-   "129dd1861cd39247": 1,
-   "12c9471ef7ad45e5": 1,
-   "2ca337a5908bbad1": 1,
-   "2fb3b147648b4e66": 1,
-   "39a26997f3e298c3": 1,
-   "3d3e17a162e710c7": 1,
-   "433fd725ee1cd8ea": 1,
-   "5df3ac9bbecd3916": 1,
-   "5e2f799cf79b5456": 1,
-   "76041c7faa91cf1c": 1,
-   "7c0ed14c25cbda9c": 1,
-   "8344571076ab09a9": 1,
-   "ab008364c4c6ae84": 1,
-   "b486977166d86084": 1,
-   "caf5c10dd4df4a4f": 1,
-   "cbbca2291cb8194b": 1,
-   "f0e3848a143accc7": 1
   },
   "src/components/DownloadSheet.tsx": {
    "13bc7676d60403ee": 1,
@@ -1226,23 +1141,6 @@
    "fadb1c0b48e494ad": 2,
    "fbd5b75066a6dc39": 2
   },
-  "src/components/VoiceRecorder.tsx": {
-   "094422dc884c6a5c": 1,
-   "1cac8ac7f58f132c": 1,
-   "24ccce6db7beb673": 1,
-   "394205b51af021c7": 1,
-   "4d1306a41eb00833": 1,
-   "5acd249046f84c76": 1,
-   "7e1b3be263bcd51b": 1,
-   "7ea97da2bddc3278": 1,
-   "84a0b0b8f5e8562c": 1,
-   "b1dadf9958018ceb": 1,
-   "bde1d2461b21b6ea": 1,
-   "cdd0e24cfbc8f08a": 1,
-   "dfc092ce0b0ec64b": 1,
-   "f1de5ebfdc20fd6f": 1,
-   "ff52a77538bc7869": 1
-  },
   "src/components/WorkshopShareBar.tsx": {
    "02b78ea0b9204f4f": 1,
    "1711c6f788527324": 1,
@@ -1564,21 +1462,6 @@
    "fc279e012d907791": 1,
    "fdd5f2799d461cb4": 2,
    "ff0869d24aed325c": 1
-  },
-  "src/components/blockout/VideoStage.tsx": {
-   "130448bce6758f08": 1,
-   "17e288372c06d2ff": 1,
-   "1d1e95899c9b015d": 1,
-   "21925350deba6663": 1,
-   "23b161bd1d802c5f": 1,
-   "2b4c4217ec79b4ff": 1,
-   "771b826e5b48d7c7": 1,
-   "9701450b1d5cc27c": 1,
-   "a33df6619da9bad8": 1,
-   "af4aacc57e2056db": 1,
-   "d7b9dd7f958830d5": 1,
-   "ddf29120ac68b07b": 1,
-   "e2d53a6d3a6a8645": 1
   },
   "src/components/blockout/VisionFramePicker.tsx": {
    "01169cf9e4a429fe": 1,
@@ -1912,21 +1795,6 @@
    "f16180108fd023b5": 1,
    "f8c19a7a30e55829": 1
   },
-  "src/components/flow/SegSettings.tsx": {
-   "1587cfaee2a4c481": 1,
-   "29d0552d2e4c7601": 2,
-   "34724c8eee3f2ad9": 1,
-   "489af2cbe98d61e8": 1,
-   "75e00c77cbfc1396": 1,
-   "7d8628187b3ea5b2": 1,
-   "7f11009f46747d08": 1,
-   "7f61049bc9ecae7b": 1,
-   "8368b47ac634fce7": 1,
-   "9634413d59ab7240": 1,
-   "9a582589806dd509": 1,
-   "ae5be2106d03bd84": 1,
-   "fb2ea9e2dfbf5bcb": 1
-  },
   "src/components/flow/SkillPanel.tsx": {
    "0558bc6e9363b15d": 1,
    "0ed63abff14a4fa8": 1,
@@ -1947,23 +1815,6 @@
    "cf6270936d83576b": 1,
    "f6dab2ddb1151591": 1,
    "fbfd96e2c2ed7a2f": 1
-  },
-  "src/components/flow/TierRow.tsx": {
-   "108d4767849c5739": 1,
-   "1bafb9106e7c345b": 1,
-   "240a76178bcc937a": 1,
-   "2bb3b2bb6304d41a": 1,
-   "2da31b6de8937bef": 1,
-   "4de03fd3e1860769": 1,
-   "59fac4a0b78db3a8": 1,
-   "78c46bb0f5798cf1": 1,
-   "878081d904d1991d": 1,
-   "92360402f90716d2": 1,
-   "a28afbddc5415ba9": 1,
-   "b312e9e2ef980f24": 1,
-   "e62cb11d40810d41": 1,
-   "ebec3910dc0f6983": 1,
-   "fdaaddb82bc6e832": 1
   },
   "src/components/flow/useApplyTemplate.tsx": {
    "11982ccf815e84db": 1,
@@ -2465,25 +2316,6 @@
    "edfea05c31eaad97": 1,
    "f950213ab7585d65": 1,
    "ffc7850925e7e36c": 1
-  },
-  "src/components/support/HoldToTalk.tsx": {
-   "2976e27f21ebe63b": 1,
-   "34edfccffc75cdae": 1,
-   "38a10c9034b20d59": 1,
-   "4d1306a41eb00833": 1,
-   "4e391299c88c026c": 1,
-   "70f70e7eaf53713d": 1,
-   "75d07a6ca3103066": 1,
-   "7ec1e1cd26a27d9c": 1,
-   "a1e855e1aed83835": 1,
-   "ada71a662ef21a7f": 1,
-   "b541acd90ec3a2d2": 1,
-   "b95d2ebc23f8b21b": 1,
-   "e9762c327ac762bf": 1,
-   "f4020a2b46936a53": 1,
-   "f6fc65bc71f8bb49": 1,
-   "f708561e135b24d9": 1,
-   "f89b77701eedb266": 1
   },
   "src/components/support/VoiceMarket.tsx": {
    "050487f0b30fc6a2": 1,
