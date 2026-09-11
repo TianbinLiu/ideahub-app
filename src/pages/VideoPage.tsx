@@ -17,6 +17,7 @@ import {
   addComment,
   addPlay,
   authorAvatarOf,
+  authorDisplayName,
   commentAvatarOf,
   fetchVideoById,
   getVideo,
@@ -542,8 +543,9 @@ export default function VideoPage() {
             to={profileHref({ id: video.authorId, name: video.author })}
             className="flex items-center gap-2 active:opacity-60"
           >
-            <Avatar name={video.author} src={authorAvatarOf(video)} size={32} />
-            <span className="text-slate-200">{video.author}</span>
+            {/* 名字只翻「我」/「匿名」两个哨兵（videos.authorDisplayName）；跳转、Avatar 的 name（取色）认的仍是 video.author 原值 */}
+            <Avatar name={video.author} label={authorDisplayName(video.author, video.authorId)} src={authorAvatarOf(video)} size={32} />
+            <span className="text-slate-200">{authorDisplayName(video.author, video.authorId)}</span>
           </Link>
           <span><Trans>{formatPlays(plays)}播放</Trans></span>
           <span>{relativeTime(video.createdAt)}</span>
@@ -697,10 +699,10 @@ export default function VideoPage() {
             {comments.map((c) => (
               <div key={c.id} className="flex gap-3">
                 {/* 真头像，没有才退首字母底（规则只在 videos.commentAvatarOf 一处，与评论抽屉共用） */}
-                <Avatar name={c.author} src={commentAvatarOf(c)} size={36} />
+                <Avatar name={c.author} label={authorDisplayName(c.author, c.authorId)} src={commentAvatarOf(c)} size={36} />
                 <div className="min-w-0">
                   <div className="text-xs text-slate-500">
-                    {c.author} · {relativeTime(c.at)}
+                    {authorDisplayName(c.author, c.authorId)} · {relativeTime(c.at)}
                   </div>
                   {/* 解析到人的 @ 才是链接，打错的留成普通文字（见 MentionText 顶部） */}
                   <div className="mt-0.5 text-sm text-slate-200">

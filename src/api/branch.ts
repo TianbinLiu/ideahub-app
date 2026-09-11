@@ -306,11 +306,20 @@ export function forgetAuthors(): void {
   authorIdByName.clear();
 }
 
+/**
+ * 拿不到作者名时的兜底展示名。
+ * ★ 它同时是**身份值**：进了 VideoItem.author / 评论的 author 之后，被 isMyAuthor / isFollowing 按名字比、
+ *   当上面登记处的键、拼 /u/ 链接 —— 所以冻结中文。英文界面只在画作者名的那几处经
+ *   data/videos.authorDisplayName 翻（只在 authorId 也为空时才算它 —— 走到这里的作者本来就没有 _id）（多语言，2026-09-11）。
+ */
+// i18n-ignore-next-line: 作者兜底名是身份值（按名字比、当登记处的键、拼 /u/ 链接），显示时经 videos.authorDisplayName 翻
+export const ANON_AUTHOR = "匿名";
+
 /** author 字段 → 展示名（populate 过取 displayName/username，没 populate 只能回退成 id） */
 export function authorName(author: ApiAuthor | string | undefined): string {
-  if (!author) return "匿名";
+  if (!author) return ANON_AUTHOR;
   if (typeof author === "string") return author;
-  const name = author.displayName || author.username || author._id || "匿名";
+  const name = author.displayName || author.username || author._id || ANON_AUTHOR;
   rememberAuthor(name, author._id);
   return name;
 }

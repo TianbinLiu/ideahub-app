@@ -52,6 +52,7 @@ import {
   type VideoLookup,
   isMyAuthor,
   listVideos,
+  pendingErrorText,
   pendingPublishes,
   profileHref,
   publishUploadStatus,
@@ -462,7 +463,7 @@ export default function ProfilePage() {
 
   const TAB_META: Record<TabKey, { icon: IconName; label: string; n: number }> = {
     works: { icon: "grid", label: t`作品`, n: works.length },
-    drafts: { icon: "lock", label: t`草稿`, n: drafts.length },
+    drafts: { icon: "lock", label: t({ message: "草稿", context: "主页页签：我存下的那些草稿（名词，整个页签的名字；不是某一条的「草稿」状态角标）" }), n: drafts.length },
     cards: { icon: "card", label: t`卡片`, n: cards.length },
     decks: { icon: "cards", label: t`卡组`, n: self ? decks.length : workDecks.length },
     collects: { icon: "bookmark", label: t({ message: "收藏", context: "主页页签：我收藏的作品（名词，不是收藏键）" }), n: collects.length },
@@ -1174,6 +1175,9 @@ function PendingBanner() {
     );
   }
   if (!first) return null;
+  // ★ 原因按码现翻（videos.pendingErrorText）：队列里落盘的是码，老条目没有码就照原样显示存下的那句
+  const title = first.draft.title;
+  const why = pendingErrorText(first);
   return (
     <div className="mx-3 mt-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
       <div className="flex items-center gap-2">
@@ -1183,7 +1187,13 @@ function PendingBanner() {
         </span>
       </div>
       <p className="mt-1 text-[11px] leading-relaxed text-amber-100/80">
-        <Trans>「{first.draft.title}」{first.error}</Trans>
+        {/* ★ 原因为空（原话本身是空的、老条目没存原因）时整句换成只有标题那句：英文是「“标题”: 原因」，
+            拿空串去拼会在句末剩一个孤零零的冒号。中文两句画出来与原来逐字相同 */}
+        {why ? (
+          <Trans comment="个人页「还没传到服务器」横幅：作品标题，后面紧跟上一次没传上去的原因（why 是一整句，可能是服务器原话）">「{title}」{why}</Trans>
+        ) : (
+          <Trans comment="个人页「还没传到服务器」横幅：只有作品标题（这一条没记下没传上去的原因）">「{title}」</Trans>
+        )}
       </p>
       <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
         <Trans>内容还在这台设备上，没有丢。修好网络或服务器后点重试即可。</Trans>

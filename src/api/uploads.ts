@@ -459,7 +459,7 @@ async function directTicket(signPath: string): Promise<DirectTicket | null> {
 /**
  * 传输层失败（断线/超时）标成可重试；被存储明确拒绝的不标 —— 见 putChunk 的 ★
  * ★ `code: "NETWORK"` 只给「连接断了」那一种（与 ApiError 同一个码）：发布失败的原因由
- *   data/videos.errText 按码分档，不再去 message 里找「网络不可用」四个字。
+ *   data/videos.uploadFailOf 按码分档（2026-09-11 之前叫 errText），不再去 message 里找「网络不可用」四个字。
  */
 function chunkError(message: string, retriable: boolean, code?: "NETWORK"): Error & { retriable?: boolean; code?: string } {
   return Object.assign(new Error(message), { retriable }, code ? { code } : {});

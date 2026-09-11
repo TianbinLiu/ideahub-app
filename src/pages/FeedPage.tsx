@@ -14,6 +14,8 @@ import {
   PLAY_MIN_SEC,
   addPlay,
   authorAvatarOf,
+  authorDisplayName,
+  authorSentinelOf,
   commentCountOf,
   hasCountedPlay,
   isLiked,
@@ -424,6 +426,12 @@ function FeedItem({
   /** 作者主页：自己的作品进「我的」，别人的按 userId 进 /user/<id>（拿不到 id 才退回名字）。
    *  规则本体在 data/videos.profileHref 一处——评论里的 @提及、分区页搜人也走它（铁律六） */
   const authorHref = profileHref({ id: video.authorId, name: video.author });
+  /** 画在界面上的作者名：只翻离线作者「我」与兜底「匿名」两个哨兵（data/videos.authorDisplayName）。
+   *  ★ 只给显示用 —— 关注、跳转、Avatar 的 name（取色）认的仍是 video.author 原值。
+   *  ★ 名字叫 display：头像键的读屏名与个人页分享标题是同一句「{display} 的主页」，一个意思一个 msgid */
+  const display = authorDisplayName(video.author, video.authorId);
+  /** 作者就是正在看的人（离线的「我」）时，读屏名整句换成「我的主页」那句（英文 "Me's profile" 不成话）；判据同一处 */
+  const authorSentinel = authorSentinelOf(video.author, video.authorId);
   /** 画面上的按钮要把 pointer 截住：不截的话点一下既跳转、又顺带触发了
    *  外层 section 的单击（暂停/解除静音）——手指抬起来时视频已经停了 */
   const stopTap = {
@@ -689,12 +697,16 @@ function FeedItem({
           <div className="relative mb-1">
             <button
               onClick={() => navigate(authorHref)}
-              aria-label={t`${video.author} 的主页`}
+              aria-label={
+                authorSentinel === "me"
+                  ? t({ message: "我 的主页", context: "首页头像键的读屏名：这条作品是正在看的人自己发的，点进去是自己的主页" })
+                  : t`${display} 的主页`
+              }
               className="block active:scale-95"
             >
               <span className="block rounded-full ring-2 ring-white/90">
                 {/* 「自己的用活的那份、别人的用快照」这条规则收在 videos.authorAvatarOf 一处 */}
-                <Avatar name={video.author} src={authorAvatarOf(video)} size={44} />
+                <Avatar name={video.author} label={display} src={authorAvatarOf(video)} size={44} />
               </span>
             </button>
             {user && !mine && !following && (
@@ -818,7 +830,7 @@ function FeedItem({
               就是在告诉用户"@ 这串能 @ 到他"，而那串多半 @ 不到 —— 首页是曝光量最大的
               一屏，这条口径错在这儿传播得最快。要显示真句柄得把 author.username 一路
               接进 VideoItem，那是另一件事；在此之前，不写比写错好。 */}
-          {video.author}
+          {display}
         </button>
         {/* 标题接管了原来头像那个「进详情页」的职责。详情页不是可有可无的：
             本片卡组、分段剧情、多 P 选集都只在那儿，头像改指主页后必须另留一个门 */}

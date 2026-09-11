@@ -19,7 +19,7 @@ import SpriteToggle, { type SpriteSheet } from "../components/SpriteToggle";
 import UserRow from "../components/UserRow";
 import { Link, useLocation } from "react-router";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { listVideos, profileHref, remoteOn, searchVideos } from "../data/videos";
+import { authorDisplayName, listVideos, profileHref, remoteOn, searchVideos } from "../data/videos";
 import { searchUsers, userDisplayName, type ApiUserLite } from "../api/users";
 import { VIDEO_CATEGORIES, VideoItem, formatDuration, formatPlays, segsTotal, videoCategoryLabel } from "../types";
 
@@ -347,7 +347,7 @@ export default function DiscoverPage() {
             </div>
             <div className="mt-1.5 line-clamp-2 text-xs font-medium text-slate-200">{v.title}</div>
             <div className="mt-0.5 text-[10px] text-slate-500">
-              {v.author} · <Trans>{formatPlays(v.plays)}播放</Trans>
+              {authorDisplayName(v.author, v.authorId)} · <Trans>{formatPlays(v.plays)}播放</Trans>
             </div>
           </Link>
         ))}

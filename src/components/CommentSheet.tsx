@@ -9,7 +9,17 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { addReply, commentAvatarOf, commentCountOf, commentPending, ensureComments, isMyAuthor, setCommentLike } from "../data/videos";
+import {
+  addReply,
+  authorDisplayName,
+  authorSentinelOf,
+  commentAvatarOf,
+  commentCountOf,
+  commentPending,
+  ensureComments,
+  isMyAuthor,
+  setCommentLike,
+} from "../data/videos";
 import { VideoComment, VideoItem, relativeTime } from "../types";
 import type { MentionPick } from "../utils/mention";
 import { useVideosVersion } from "../hooks/useVideos";
@@ -158,13 +168,16 @@ export default function CommentSheet({ video, onClose }: { video: VideoItem; onC
 
   function row(c: VideoComment, indented: boolean) {
     const pending = commentPending(c);
+    /** 画出来的名字：只翻「我」/「匿名」两个哨兵（videos.authorDisplayName）；头像取色、举报 / 拉黑认的仍是 c.author 原值 */
+    const shownName = authorDisplayName(c.author, c.authorId);
     return (
       <div key={c.id} className={`flex gap-2.5 ${indented ? "pl-10" : ""}`}>
-        {/* 真头像（服务端随评论下发 / 自己的用活的那份），没有才退首字母底——Avatar 自己兜 */}
-        <Avatar name={c.author} src={commentAvatarOf(c)} size={indented ? 24 : 32} />
+        {/* 真头像（服务端随评论下发 / 自己的用活的那份），没有才退首字母底——Avatar 自己兜。
+            label 只管首字与 alt（英文界面的 Me / Anonymous），色相仍按 name 原值算 */}
+        <Avatar name={c.author} label={shownName} src={commentAvatarOf(c)} size={indented ? 24 : 32} />
         <div className="min-w-0 flex-1">
           <div className="text-xs text-slate-500">
-            {c.author} · {relativeTime(c.at)}
+            {shownName} · {relativeTime(c.at)}
           </div>
           {/* ★ 只有服务端确认解析到人的那几个 @ 会变成链接，打错的原样留成白字 ——
               用户据此看得出自己那一 @ 到底有没有落地（见 MentionText 顶部）。
@@ -205,6 +218,16 @@ export default function CommentSheet({ video, onClose }: { video: VideoItem; onC
     );
   }
 
+  /** 正在回复的那个人画在界面上的名字（只翻「我」/「匿名」两个哨兵，见 videos.authorDisplayName）。回复本身认的是评论 id */
+  const replyName = replyTo ? authorDisplayName(replyTo.author, replyTo.authorId) : "";
+  /** 「回复 @某某」那一句：输入区上方那条与输入框的占位字共用。
+   *  ★ 回复的是自己（离线的「我」）那条时整句换成「回复自己」那句（英文 "Reply to @Me" 不成话），判据同一处 authorSentinelOf */
+  const replyLabel = !replyTo
+    ? ""
+    : authorSentinelOf(replyTo.author, replyTo.authorId) === "me"
+      ? t({ message: "回复 @我", context: "评论输入区「正在回复谁」：回复的是正在看的人自己发的那条评论" })
+      : t`回复 @${replyName}`;
+
   return createPortal(
     // 整层拦截 pointer/click：抽屉内的滑动与点击不能落到底下的播放器手势上。
     // portal 之后 DOM 上已经不在播放器里了，但 React 合成事件仍沿**组件树**冒泡到
@@ -242,7 +265,7 @@ export default function CommentSheet({ video, onClose }: { video: VideoItem; onC
             // 正在回复谁必须**看得见**：不显示的话用户以为自己在发顶层评论，
             // 发出去才发现缩进到了别人楼里
             <div className="mb-2 flex items-center gap-2 text-xs text-slate-400">
-              <span className="min-w-0 truncate"><Trans>回复 @{replyTo.author}</Trans></span>
+              <span className="min-w-0 truncate">{replyLabel}</span>
               <button onClick={() => setReplyTo(null)} className="-m-1 p-1 text-slate-500" aria-label={t`取消回复`}>
                 <Icon name="close" size={14} />
               </button>
@@ -261,7 +284,7 @@ export default function CommentSheet({ video, onClose }: { video: VideoItem; onC
               onChange={setDraft}
               onPick={(p) => setPicks((ps) => [...ps, p])}
               onEnter={() => void submit()}
-              placeholder={replyTo ? t`回复 @${replyTo.author}` : t`说点什么，@ 可以叫上别人`}
+              placeholder={replyTo ? replyLabel : t`说点什么，@ 可以叫上别人`}
               className="rounded-full border border-slate-700 bg-black/30 px-4 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
             />
             <button

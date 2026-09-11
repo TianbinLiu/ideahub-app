@@ -10,7 +10,9 @@
 //
 // IndexedDB 而不是 localStorage 的原因（保留原注释）：真实 AI 首尾帧是 1MB 级 base64，
 // 一支 2 段视频≈4MB 直接撑爆 5MB 配额 → 用户视频被配额兜底静默丢弃（首页永远看不到自己的作品）。
-import { CommentMention, DraftVideo, VideoComment, VideoDeck, VideoItem, VideoPart, uid } from "../types";
+import { i18n, type MessageDescriptor } from "@lingui/core";
+import { msg, t } from "@lingui/core/macro";
+import { CommentMention, DraftVideo, type VIDEO_CATEGORIES, VideoComment, VideoDeck, VideoItem, VideoPart, uid } from "../types";
 import { makeFrame } from "../mock/frames";
 import { idbGet, idbRead, idbSet } from "./db";
 import { materializeDraft, type MaterializeError } from "./publishAssets";
@@ -31,6 +33,11 @@ const PENDING_KEY = "ideahub-app.videos.pending.v1";
 const LIKED_KEY = "ideahub-app.liked.v1";
 /** 本会话已计过播放的作品（sessionStorage 镜像，见 addPlay） */
 const PLAYED_KEY = "ideahub-app.played.v1";
+/**
+ * 离线模式的作者名（没连服务器时，自己发的作品 / 评论署的就是它）。
+ * ★ 它是**身份哨兵**，不是界面文案：落 IndexedDB，被 isMyAuthor 按 === 比较。英文界面画作者名时经 authorDisplayName 翻。
+ */
+// i18n-ignore-next-line: 离线作者身份哨兵，落 IndexedDB 并被 isMyAuthor 按 === 比较（显示时经 authorDisplayName 翻）
 export const ME = "我";
 
 interface SeedSegDef {
@@ -39,17 +46,45 @@ interface SeedSegDef {
   durationSec: number;
 }
 
+/** 首个种子的互动分支：第 1 段末分岔两条路，殊途同归到同一结局 */
+interface SeedBranchDef {
+  /** 另一条路（b2）上的那一段 */
+  alt: SeedSegDef;
+  /** b0 的两颗选项键：接主线第 2 段（→ b1）/ 走另一条路（→ b2） */
+  toMain: string;
+  toAlt: string;
+  /** b1、b2 上都指向结局（→ b3）的那一颗 */
+  ending: string;
+}
+
+/**
+ * 三条演示作品（离线模式，或首次拉服务端失败退回本机库时出现）。
+ *
+ * ★ 整张表冻结中文（多语言，2026-09-11）：
+ *   ① 演示作品要不要出英文版，主人还没拍板；在那之前标题 / 简介 / 评论 / 选项键都照中文显示。
+ *   ② 剧情（plot）不论怎么定都冻结：「做同款」（flowStore.remakeNodesOf）把它原样抄进流水线、发给模型。
+ *   ③ 这些值进 IndexedDB 之后就是数据：作者名与评论作者名按名字比（isMyAuthor）、做 Avatar 取色与 /u/ 链接，
+ *      标题还是占位帧的取色种子（`seed:${title}`）—— 按界面语言现翻，同一台设备换了语言颜色与身份会一起变。
+ * ★ 分支的另一段、选项键、评论作者名原来散在 buildSeeds 里现拼，2026-09-11 收进这张表（值逐字不变：
+ *   评论作者名就是原来 `观众${vi * 7 + ci + 1}号` 算出来的那几个），演示内容只有这一处、冻结声明也只要这一条。
+ * ★ 分区（category）直接写 VIDEO_CATEGORIES 的 id 原值（本来就冻结的跨仓契约值），字段类型收窄成那几个 id 的并集：
+ *   抄错一个字编译不过。
+ *   ⚠ 别写成 `VIDEO_CATEGORIES[1].id` 按下标取：分区表一挪顺序 / 插一项，演示作品就静默换了分区，类型照样过。
+ *   ⚠ 第三条也别借 DEFAULT_VIDEO_CATEGORY：这里说的是「这条演示作品本来就是剧情片」，不是「表单缺省」—— 缺省将来改了它不该跟着走。
+ */
+/* i18n-frozen: 演示作品内容落 IndexedDB 并按名字比；剧情经「做同款」发给模型；要不要出英文版待主人拍板 */
 const SEEDS: Array<{
   title: string;
-  category: string;
+  category: (typeof VIDEO_CATEGORIES)[number]["id"];
   description: string;
   author: string;
   plays: number;
   likes: number;
   saves: number;
   shares: number;
-  comments: string[];
+  comments: Array<{ author: string; text: string }>;
   segs: SeedSegDef[];
+  branch?: SeedBranchDef;
 }> = [
   {
     title: "雨夜霓虹：迷失信使",
@@ -60,12 +95,26 @@ const SEEDS: Array<{
     likes: 3120,
     saves: 786,
     shares: 512,
-    comments: ["首尾帧衔接得太丝滑了", "这个城市的雨我能看一年", "等分支功能上线！想看另一个结局"],
+    comments: [
+      { author: "观众1号", text: "首尾帧衔接得太丝滑了" },
+      { author: "观众2号", text: "这个城市的雨我能看一年" },
+      { author: "观众3号", text: "等分支功能上线！想看另一个结局" },
+    ],
     segs: [
       { title: "第1段 · 顺势推进", plot: "镜头缓缓推近，赛博侦探·凛的身影出现在雨夜霓虹街。整段画面浸在「雨幕青」的氛围里。积水倒映的招牌次第熄灭，一封没有署名的信躺在她的掌心。镜头停在一个欲言又止的瞬间。", durationSec: 6 },
       { title: "第2段 · 风云突变", plot: "毫无预兆地，天桥上的全息广告同时切换成同一张脸。冲突在此刻全面爆发，所有铺垫轰然兑现——追逐在雨幕与霓虹的缝隙间展开。画面在碎裂的光斑中戛然而止。", durationSec: 7 },
       { title: "第3段 · 柳暗花明", plot: "谁也没想到，信封里装的不是地址，而是一段坐标之外的记忆。真相以完全出乎意料的方式浮出水面——雨停了三秒，全城的灯为一个人亮起。镜头拉远，新的地平线在雾中显形。", durationSec: 8 },
     ],
+    branch: {
+      alt: {
+        title: "第2段 · 暗巷交易",
+        plot: "她没有追。转身钻进暗巷，把信拍在情报贩子的桌上——「谁在找它，我出双倍。」霓虹在水洼里晃了三晃，一只机械鸦落在她肩头，喉咙里播出一段被剪碎的坐标。",
+        durationSec: 7,
+      },
+      toMain: "追上去 · 风云突变",
+      toAlt: "按兵不动 · 暗巷交易",
+      ending: "结局 · 柳暗花明",
+    },
   },
   {
     title: "云海剑冢·白无衣",
@@ -76,7 +125,10 @@ const SEEDS: Array<{
     likes: 2455,
     saves: 604,
     shares: 388,
-    comments: ["水墨运镜绝了", "第三段的留白看哭了"],
+    comments: [
+      { author: "观众8号", text: "水墨运镜绝了" },
+      { author: "观众9号", text: "第三段的留白看哭了" },
+    ],
     segs: [
       { title: "第1段 · 顺势推进", plot: "光线沿着地平线铺开，剑修·白无衣的身影出现在云海剑冢。万柄锈剑在云涛中沉默，他解下背上的旧剑，插进空着的那个位置。画面在光影交界处缓缓定格。（呈现方式：水墨留白）", durationSec: 7 },
       { title: "第2段 · 风云突变", plot: "上一幕的平静被瞬间撕开，云海倒卷，群剑齐鸣。对峙升级，镜头以凌厉的快切逼近核心——十年前那一战的残影在剑光里重演。镜头甩向天空，留下未落地的悬念。", durationSec: 6 },
@@ -92,7 +144,10 @@ const SEEDS: Array<{
     likes: 1201,
     saves: 341,
     shares: 205,
-    comments: ["小满好可爱", "会说谎的罗盘是全片最佳配角"],
+    comments: [
+      { author: "观众15号", text: "小满好可爱" },
+      { author: "观众16号", text: "会说谎的罗盘是全片最佳配角" },
+    ],
     segs: [
       { title: "第1段 · 顺势推进", plot: "画面自上一幕的余韵中醒来，废土信使小满的身影出现在废土集市。整段画面浸在「黄昏金」的氛围里。她的邮包比人还高，摊主们却都认得那抹橘色。镜头停在一个欲言又止的瞬间。", durationSec: 6 },
       { title: "第2段 · 柳暗花明", plot: "镜头轻轻一转，那件「会说谎的罗盘」在此刻显出了它真正的分量。看似绝境之处竟藏着另一条通路——罗盘指向集市最深处一扇从未打开过的门。尾帧落在一个会心一笑的瞬间。", durationSec: 7 },
@@ -106,15 +161,20 @@ function buildSeeds(): VideoItem[] {
     let prevSeed: string | null = null;
     const segments = s.segs.map((seg, si) => {
       const base = `seed:${s.title}:${si}`;
-      const firstFrame = makeFrame(`${base}#first`, `${seg.title} · 首帧`, prevSeed ?? `${base}#first`);
-      const lastFrame = makeFrame(`${base}#last`, `${seg.title} · 尾帧`, `${base}#last`);
+      // ★ 占位帧不再往像素里写字（多语言方案 §4.1 / 第 1 步⑨）：画进 JPEG 的「第N段 · … · 首帧」换了语言也改不了，
+      //   还是拿片段标题拼出来的碎句。
+      //   ⚠ 右上角那行「AI 预览帧」仍由 makeFrame 画进像素：画的那一刻按当时的界面语言翻，随 JPEG 一起落 IndexedDB，
+      //     之后切语言它不跟着变 —— 那是 mock/frames 的事，这里不动。
+      //   ⚠ 已经装过种子的设备，IndexedDB 里那几张老封面还带着字（种子只在缺字段时重建，见 readyLocal），不去动它。
+      const firstFrame = makeFrame(`${base}#first`, "", prevSeed ?? `${base}#first`);
+      const lastFrame = makeFrame(`${base}#last`, "", `${base}#last`);
       prevSeed = `${base}#last`;
       return { ...seg, firstFrame, lastFrame };
     });
     const comments: VideoComment[] = s.comments.map((c, ci) => ({
       id: uid("cmt"),
-      author: `观众${vi * 7 + ci + 1}号`,
-      text: c,
+      author: c.author,
+      text: c.text,
       at: now - (ci + 1) * 3600_000 * (vi + 2),
     }));
     const item: VideoItem = {
@@ -132,15 +192,14 @@ function buildSeeds(): VideoItem[] {
       createdAt: now - (vi + 1) * 86400_000,
       comments,
     };
-    // 首个种子带互动分支树：第 1 段末分岔两条路，殊途同归到同一结局
-    if (vi === 0) {
+    // 首个种子带互动分支树：第 1 段末分岔两条路，殊途同归到同一结局（内容在 SEEDS 那张冻结表的 branch 里，只有第一条有）
+    const br = s.branch;
+    if (br) {
       const altBase = `seed:${s.title}:alt`;
       const alt = {
-        title: "第2段 · 暗巷交易",
-        plot: "她没有追。转身钻进暗巷，把信拍在情报贩子的桌上——「谁在找它，我出双倍。」霓虹在水洼里晃了三晃，一只机械鸦落在她肩头，喉咙里播出一段被剪碎的坐标。",
-        durationSec: 7,
-        firstFrame: makeFrame(`${altBase}#first`, "第2段 · 暗巷交易 · 首帧", `seed:${s.title}:0#last`),
-        lastFrame: makeFrame(`${altBase}#last`, "第2段 · 暗巷交易 · 尾帧", `${altBase}#last`),
+        ...br.alt,
+        firstFrame: makeFrame(`${altBase}#first`, "", `seed:${s.title}:0#last`),
+        lastFrame: makeFrame(`${altBase}#last`, "", `${altBase}#last`),
       };
       item.branchTree = {
         rootId: "b0",
@@ -149,12 +208,12 @@ function buildSeeds(): VideoItem[] {
             id: "b0",
             segment: segments[0],
             choices: [
-              { label: "追上去 · 风云突变", nextId: "b1" },
-              { label: "按兵不动 · 暗巷交易", nextId: "b2" },
+              { label: br.toMain, nextId: "b1" },
+              { label: br.toAlt, nextId: "b2" },
             ],
           },
-          b1: { id: "b1", segment: segments[1], choices: [{ label: "结局 · 柳暗花明", nextId: "b3" }] },
-          b2: { id: "b2", segment: alt, choices: [{ label: "结局 · 柳暗花明", nextId: "b3" }] },
+          b1: { id: "b1", segment: segments[1], choices: [{ label: br.ending, nextId: "b3" }] },
+          b2: { id: "b2", segment: alt, choices: [{ label: br.ending, nextId: "b3" }] },
           b3: { id: "b3", segment: segments[2], choices: [] },
         },
       };
@@ -462,7 +521,7 @@ export function matchesQuery(v: VideoItem, key: string): boolean {
     v.description.includes(key) ||
     v.author.includes(key) ||
     v.category.includes(key) ||
-    (v.tags ?? []).some((t) => t.includes(key))
+    (v.tags ?? []).some((tag) => tag.includes(key))
   );
 }
 
@@ -499,7 +558,7 @@ export async function searchVideos(opts: {
     return {
       items: localHit(),
       remote: false,
-      reason: e instanceof Error ? e.message : "没能连上服务器搜索",
+      reason: e instanceof Error ? e.message : t`没能连上服务器搜索`,
     };
   }
 }
@@ -521,6 +580,44 @@ export function isMyAuthor(author: string): boolean {
   if (author === ME) return true;
   const me = currentUser();
   return !!me && author === me.name;
+}
+
+/**
+ * 这个作者名是不是 app 自己填进去的两个哨兵之一（离线作者 `ME` / 兜底名 `branch.ANON_AUTHOR`）。**唯一判据**：
+ * authorDisplayName，以及首页头像键「我的主页」、评论抽屉「回复自己」那两句整句分支，都问它。
+ *
+ * ★★ 靠 authorId 分辨「哨兵」与「恰好把昵称起成这个字的真人」（多语言，2026-09-11 复核补）：
+ *   - 离线作者 `ME` 写进去的那一拍 authorId 恒为空：`author: currentUser()?.name ?? ME` 与 `authorId: currentUser()?.id`
+ *     是同一拍写的，没登录两个一起落空。兜底名 `ANON_AUTHOR` 只在服务端连 _id 都没给时出现，authorId 同样为空。
+ *   - 远端的作品 / 评论一律带 authorId（branch.authorId）。把一个昵称叫「我」的陌生人也翻成 Me，
+ *     英文界面就等于告诉看的人"这是你自己发的"。
+ *   - 例外：authorId 就是当前登录的这个人时「我」照样算 —— account.toLocalUser 给既没有昵称也没有用户名的账号兜底写的
+ *     就是「我」，那确实是本人。
+ * ⚠ 只管**显示**。isMyAuthor / isFollowing / profileHref 这些认人的地方照旧按存下来的原值判，别拿它去替。
+ */
+export function authorSentinelOf(author: string, authorId: string | null | undefined): "me" | "anon" | null {
+  if (author === ME && (!authorId || authorId === currentUser()?.id)) return "me";
+  if (author === branch.ANON_AUTHOR && !authorId) return "anon";
+  return null;
+}
+
+/**
+ * 作者名 → 画在界面上的那几个字。**只在画作者名的地方用**（首页那条作品的名字与头像、评论行、分区页卡片、详情页）。
+ *
+ * ★★ 只翻两个哨兵（判据见 authorSentinelOf）：离线作者「我」与兜底「匿名」—— 它们是 app 自己填进去的，
+ *   英文界面照原样画就是一个中文字。其余名字是用户起的昵称，原样显示。
+ * ⚠⚠ 返回值**绝不**拿去当身份（多语言，2026-09-11）：isMyAuthor / isMyVideo / isFollowing / toggleFollow / profileHref /
+ *   rememberAuthor 的键 / Avatar 的 name（按名字哈希取色；显示名走 Avatar 的 label）/ BlockButton 的 userName 认的都是存进库里的**原值**。
+ *   把翻过的名字传进去，英文界面下自己的离线作品会全变成"别人的"（冒出关注键、删不了自己的评论），零报错。
+ * ★ authorId **必填**：漏传就退回"只看名字"，远端那个昵称叫「我」的人又会显示成 Me —— 零症状。真没有就显式传 undefined。
+ */
+export function authorDisplayName(author: string, authorId: string | null | undefined): string {
+  const sentinel = authorSentinelOf(author, authorId);
+  if (sentinel === "me") {
+    return t({ message: "我", context: "作者名：这条作品 / 评论就是正在看的人自己发的（离线时自动署的名，或账号没有昵称时的兜底名）" });
+  }
+  if (sentinel === "anon") return t`匿名`;
+  return author;
 }
 
 /**
@@ -677,7 +774,7 @@ export async function updateVideoMeta(
   >,
 ): Promise<string | null> {
   const v = find(id);
-  if (!v) return "作品不存在或已删除";
+  if (!v) return t`作品不存在或已删除`;
   // 回滚用的快照：只记这次真要发给服务端的那几项，别的（deck/pricing）本来就只在本地
   const before: Partial<VideoItem> = {
     title: v.title,
@@ -723,7 +820,11 @@ export async function updateVideoMeta(
         save(all());
         emitVideos();
         emitApiError("updateVideo", e);
-        return `没能同步到服务器（${e instanceof Error ? e.message.slice(0, 40) : "原因不明"}）——改动已撤回。`;
+        const why = e instanceof Error ? e.message.slice(0, 40) : t`原因不明`;
+        return t({
+          message: `没能同步到服务器（${why}）——改动已撤回。`,
+          comment: "编辑作品（标题 / 简介 / 封面等）没同步上去的回执。why：服务器的原话（截 40 字），拿不到时是「原因不明」",
+        });
       }
     }
   }
@@ -753,14 +854,18 @@ export async function deleteVideoItem(id: string): Promise<string | null> {
   // ★ 只在**服务端认得这条**时才要求联网：还没落库的那条（本地 id）删的是队列，离线也能删干净
   const landed = onServer(v);
   if (API_ON && !remoteOn() && landed) {
-    return "这次没连上服务器。现在删只会删掉这台设备上的那份，下次启动它还会回来——等联网了再删。";
+    return t`这次没连上服务器。现在删只会删掉这台设备上的那份，下次启动它还会回来——等联网了再删。`;
   }
   if (remoteOn() && landed) {
     try {
       await branch.deleteVideo(rid);
     } catch (e) {
       emitApiError("deleteVideo", e);
-      return `服务器没能删掉这条作品（${e instanceof Error ? e.message.slice(0, 40) : "原因不明"}）。本地这份先留着——删了它下次启动也会回来。`;
+      const why = e instanceof Error ? e.message.slice(0, 40) : t`原因不明`;
+      return t({
+        message: `服务器没能删掉这条作品（${why}）。本地这份先留着——删了它下次启动也会回来。`,
+        comment: "删除作品失败的回执。why：服务器的原话（截 40 字），拿不到时是「原因不明」",
+      });
     }
   }
   // ★ 队列先清再动列表：反过来的话中间那一拍崩了，作品从列表消失而队列还在 = 最糟的组合
@@ -846,7 +951,8 @@ export function publishVideo(draft: DraftVideo): VideoItem {
     //   整份替换列表、readyLocal 根本不跑：刚花了几十分钟和真钱的那条作品从首页和
     //   个人页同时消失，本机那份再无入口读得到，全程零报错。
     //   ⇒ 落进待发队列，下次启动 flushPending 会把它传上去（服务端按 clientId 幂等）。
-    void queuePending(draft, "这次启动没连上服务器，作品先存在这台设备上——联网后会自动上传");
+    //   ★ 落盘的是码，那句话在个人页横幅读的那一刻才说（见 PendingErrorCode 的 ★★）
+    void queuePending(draft, { code: "queued-offline" });
   }
   emitVideos();
   return item;
@@ -1150,15 +1256,15 @@ export async function addReply(
     const vid = serverVideoId(v);
     // 说人话而不是让它去撞 400：这两种情况下这条评论**谁都看不到**，
     // 发出去等于骗人（离线模式另说，那时全库本来就只有自己）。
-    if (!vid) throw new Error("这条作品还没同步到服务器，稍后再来评论");
+    if (!vid) throw new Error(t`这条作品还没同步到服务器，稍后再来评论`);
     if (parentId && parentId.startsWith("cmt_")) {
-      throw new Error("这条评论还在发送中，等它发出去之后再回复");
+      throw new Error(t`这条评论还在发送中，等它发出去之后再回复`);
     }
     const remote = await branch.addComment(vid, body, parentId ?? undefined, spans);
     // ★ 回包里没有评论那个形状 = 这台服务器没有这个端点（Capacitor 的静态服务器对
     //   未命中路径回 **200 + index.html**，状态码判不出来）。这时把本地那条插进列表
     //   就是"看着发出去了、其实谁都收不到"，必须说出来。
-    if (!remote) throw new Error("服务器没有正常返回这条评论，请稍后重试");
+    if (!remote) throw new Error(t`服务器没有正常返回这条评论，请稍后重试`);
     const fields = toCommentFields(remote);
     // 老服务端没回 parentId：保留本地那份意图（降级成"位置不对"而不是"不见了"）
     cmt = { ...fields, parentId: fields.parentId ?? cmt.parentId };
@@ -1220,17 +1326,17 @@ export function canDeleteComment(videoId: string, c: VideoComment): boolean {
  */
 export async function removeComment(videoId: string, commentId: string): Promise<void> {
   const v = find(videoId);
-  if (!v) throw new Error("这条作品不在这台设备上，刷新一下再试");
+  if (!v) throw new Error(t`这条作品不在这台设备上，刷新一下再试`);
   const cmt = v.comments.find((c) => c.id === commentId);
   if (!cmt) return; // 已经不在了：当作删成功，重复点两下不该报错
 
   if (remoteOn()) {
     const vid = serverVideoId(v);
-    if (!vid) throw new Error("这条作品还没同步到服务器，稍后再试");
-    if (commentPending(cmt)) throw new Error("这条评论还在发送中，等它发出去之后再删");
+    if (!vid) throw new Error(t`这条作品还没同步到服务器，稍后再试`);
+    if (commentPending(cmt)) throw new Error(t`这条评论还在发送中，等它发出去之后再删`);
     // ★ 形状判"这台服务器认不认这个端点"，不判状态码（Capacitor 的 SPA 回退恒 200）
     const landed = await branch.removeComment(vid, commentId);
-    if (!landed) throw new Error("这台服务器还不支持删除评论（需要升级服务端）");
+    if (!landed) throw new Error(t`这台服务器还不支持删除评论（需要升级服务端）`);
   }
 
   const before = v.comments.length;
@@ -1357,8 +1463,9 @@ export function realId(id: string): string {
 
 function toMs(v: string | number | undefined): number {
   if (typeof v === "number") return v;
-  const t = v ? Date.parse(v) : NaN;
-  return Number.isNaN(t) ? Date.now() : t;
+  // ★ 局部名别叫 t：本文件从 @lingui/core/macro 引了 t（多语言，2026-09-11）
+  const ms = v ? Date.parse(v) : NaN;
+  return Number.isNaN(ms) ? Date.now() : ms;
 }
 
 function toComment(c: branch.ApiComment): VideoComment {
@@ -1622,7 +1729,7 @@ export function fetchVideoById(id: string): Promise<VideoLookup> {
       // ★ 回包里没有作品那个形状 = 这台服务器没有这个端点（Capacitor 的静态服务器对
       //   未命中路径回 200 + index.html，状态码判不出来）。这不是"没有这条作品"。
       if (!v || typeof v._id !== "string") {
-        return { status: "failed", error: "服务器没有正常返回这条作品" };
+        return { status: "failed", error: t`服务器没有正常返回这条作品` };
       }
       const item = toVideoItem(v);
       // ★ 存进旁路表，**不进 cache** —— 理由见 byId 的说明（进了就是往首页推荐流里掺东西）
@@ -1680,7 +1787,7 @@ export type AuthorWorks =
  */
 export async function fetchAuthorWorks(userId: string, limit = 30): Promise<AuthorWorks> {
   if (!remoteOn()) return { status: "offline" };
-  if (!userId) return { status: "failed", error: "不知道这是谁（链接里没有用户 id）" };
+  if (!userId) return { status: "failed", error: t`不知道这是谁（链接里没有用户 id）` };
   try {
     const res = await branch.listVideos({ author: userId, limit });
     const items = res.items.map(toVideoItem);
@@ -1790,7 +1897,7 @@ async function pushPublish(item: VideoItem, draft: DraftVideo): Promise<void> {
     //   先落一条队列项，成功再删掉它：多一次 IDB 写，换掉一条"几十分钟的付费成片
     //   彻底消失且零提示"的路。★ 幂等键是 clientId，重复入队只会覆盖同一条。
     if (draft.clientId) inflightPublish.add(draft.clientId);
-    await queuePending(draft, "上传中（App 被关掉的话，下次启动会自动重试）", { insurance: true });
+    await queuePending(draft, { code: "uploading" }, { insurance: true });
     // ★ 先把本机资产（base64 帧/卡面、idb: 成片）传成永久 URL，再发那个几 KB 的 JSON。
     //   不做这一步的话：请求体 MB 级被网关掐断，而且**就算发出去别人也放不出来**
     //   ——服务端存下的 videoUrl 是一个指向"发布者手机上某处"的 idb: 键。
@@ -1810,7 +1917,7 @@ async function pushPublish(item: VideoItem, draft: DraftVideo): Promise<void> {
     //   同一文件的 `fetchVideoById` 对同一形状早就判了形状不判状态码，发布这条路缺的
     //   就是这一句。抛出去 → 落进下面那个 catch → emitApiError + 入队重试。
     if (!v || typeof v._id !== "string") {
-      throw new Error("服务器没有正常返回这条作品（多半是服务器地址配错了，或网关把请求兜到了静态页）");
+      throw badShapeError();
     }
     idAlias.set(item.id, v._id);
     item.id = v._id;
@@ -1848,8 +1955,8 @@ async function pushPublish(item: VideoItem, draft: DraftVideo): Promise<void> {
     //   写着「内容还在这台设备上，没有丢」，重启之后那条付费成片却什么都不剩。
     // ★ 说给用户听要走 toast：这一刻他可能已经不在发布页上了，写进任何页面的 state 都白写
     //   （本仓那格坑：话要说在用户接下来会看的那一屏上）。
-    if (!(await queuePending((e as MaterializeError).partial ?? sending, e))) {
-      showToast("这条作品既没传上去、也没能存进待发队列——先别关 App，清点一下存储空间再发一次");
+    if (!(await queuePending((e as MaterializeError).partial ?? sending, uploadFailOf(e)))) {
+      showToast(t`这条作品既没传上去、也没能存进待发队列——先别关 App，清点一下存储空间再发一次`);
     }
   }
 }
@@ -1882,18 +1989,18 @@ export type ReviseResult =
  */
 export async function reviseVideo(id: string, draft: DraftVideo, baseRevision: number): Promise<ReviseResult> {
   const v0 = find(id);
-  if (!v0) return { ok: false, kind: "blocked", why: "这条作品已经不在了。" };
+  if (!v0) return { ok: false, kind: "blocked", why: t`这条作品已经不在了。` };
   if (!remoteOn()) {
     // ★ 离线/没连上时**整句拒**，不做"仅本地生效"：本地改了、服务端没改，下次冷启动
     //   `readyRemote` 整份替换 cache，用户的这一版当场蒸发（save() 在远端模式还是 no-op）
-    return { ok: false, kind: "network", why: "这次没连上服务器，内容没有被替换。合成稿还留在「我的」里，联网后再试一次。" };
+    return { ok: false, kind: "network", why: t`这次没连上服务器，内容没有被替换。合成稿还留在「我的」里，联网后再试一次。` };
   }
   // ★★ 0 段作品 = **黑屏**。服务端的 `segments` 上有 `.min(1)`，所以这一发会被 400 挡下 ——
   //   但那句 message 是 zod 的英文校验话，摆到用户面前读不出因果。就地判掉，说人话。
   //   ⛔ 更要紧的是**别把这一档当成"可以发"**：一条 0 段的作品会带着 200 + 递增的 revision
   //     回来，观众端零报错地打不开，而客户端那道 `revision === base + 1` 的门恰好判它成功。
   if (!draft.segments?.length) {
-    return { ok: false, kind: "blocked", why: "这条合成稿一段内容都没有，替换不了。回工坊补一段再来。" };
+    return { ok: false, kind: "blocked", why: t`这条合成稿一段内容都没有，替换不了。回工坊补一段再来。` };
   }
   // ★ 与发布路径逐条同一口径。第一步同样是剥 `poster`（成片第一帧 dataURL，只管显示）：
   //   服务端的 segmentBody 里没有这个键、zod 会 strip，带着走只是把请求体白撑大 N × 百 KB。
@@ -1912,7 +2019,16 @@ export async function reviseVideo(id: string, draft: DraftVideo, baseRevision: n
   } catch (e) {
     uploadStatus = null;
     emitApiError("reviseVideo", e);
-    return { ok: false, kind: "network", why: `素材没能全部上传（${errText(e)}）。内容没有被替换，合成稿还留在「我的」里。` };
+    const reason = uploadFailText(uploadFailOf(e));
+    return {
+      ok: false,
+      kind: "network",
+      why: t({
+        message: `素材没能全部上传（${reason}）。内容没有被替换，合成稿还留在「我的」里。`,
+        comment:
+          "回炉失败的回执（发布页横幅）。reason：上传失败的原因 ——「上传被拒（…）」「上传超时（…）」这类整句，或上传接口 / 本机抛的原话。原因本身常带括号，英文别再给它套一层，可以挪到句末",
+      }),
+    };
   }
   uploadStatus = null;
   let v: branch.ApiVideo | null;
@@ -1956,11 +2072,21 @@ export async function reviseVideo(id: string, draft: DraftVideo, baseRevision: n
       // 400 那四档（付费 / 已下架 / 复核中 / 缺版本号）同样原样显示
       if (e.status === 400 || e.status === 403 || e.status === 404) return { ok: false, kind: "blocked", why: e.message };
     }
-    return { ok: false, kind: "network", why: `没能替换（${errText(e)}）。合成稿还留在「我的」里，网络好了再试一次。` };
+    const reason = uploadFailText(uploadFailOf(e));
+    return {
+      ok: false,
+      kind: "network",
+      why: t({
+        message: `没能替换（${reason}）。合成稿还留在「我的」里，网络好了再试一次。`,
+        comment:
+          "回炉失败的回执（发布页横幅）。reason：失败的原因 ——「上传被拒（…）」「上传超时（…）」这类整句，或接口的原话。原因本身常带括号，英文别再给它套一层，可以挪到句末",
+      }),
+    };
   }
   if (!v || typeof v._id !== "string") {
     // 与 pushPublish 同一条：200 + 形状不对 = 失败（多半是服务器地址配错 / 网关兜到静态页）
-    return { ok: false, kind: "network", why: "服务器没有正常返回这条作品（多半是服务器地址配错了，或网关把请求兜到了静态页）。" };
+    // ★ 与待发队列 bad-shape 那句只差句末「。」：两处的中文都逐字保留，所以是两个 msgid（多语言，2026-09-11）
+    return { ok: false, kind: "network", why: t`服务器没有正常返回这条作品（多半是服务器地址配错了，或网关把请求兜到了静态页）。` };
   }
   const got = Number(v.revision ?? 0);
   if (got !== baseRevision + 1) {
@@ -1983,9 +2109,7 @@ export async function reviseVideo(id: string, draft: DraftVideo, baseRevision: n
     return {
       ok: false,
       kind: "stale-server",
-      why:
-        "这台服务器还不支持回炉重做——成片内容没有被替换（但标题、简介、封面这些改动已经生效了）。" +
-        "合成稿还留在「我的」里，等服务器更新后再试一次。",
+      why: t`这台服务器还不支持回炉重做——成片内容没有被替换（但标题、简介、封面这些改动已经生效了）。合成稿还留在「我的」里，等服务器更新后再试一次。`,
     };
   }
   // 回填本机库（与 pushPublish 同一口径：回包里的地址才是转存后的永久地址）
@@ -2033,7 +2157,7 @@ async function dropPending(clientId: string | undefined): Promise<void> {
  *     的旧记录顶掉 —— 那条是用户唯一能重试的备份，而顶掉它的只是一次多半会成功的保险。
  *     保险是尽力而为，真失败不是。
  */
-async function queuePending(draft: DraftVideo, error: unknown, opts?: { insurance?: boolean }): Promise<boolean> {
+async function queuePending(draft: DraftVideo, why: PendingWhy, opts?: { insurance?: boolean }): Promise<boolean> {
   const list = await readPending();
   // 同一条（clientId 幂等键）只留一份，反复重试不会堆成一摞
   const rest = list.filter((p) => p.draft.clientId !== draft.clientId);
@@ -2041,7 +2165,8 @@ async function queuePending(draft: DraftVideo, error: unknown, opts?: { insuranc
   // ★ owner 必须在**入队**这一刻写死（见 PendingPublish.owner 的 ★★）：flush 那会儿
   //   登录的可能已经是另一个人了，那时候再问 currentUser() 正好问到错的那个。
   // 只留最近 5 条，别把配额吃光
-  return await writePending([...rest, { draft, error: errText(error), at: Date.now(), owner: ownerKey() }].slice(-5));
+  // ★ 存的是码 + 原话（只有 other 才有），不是翻好的一句（见 PendingErrorCode 的 ★★）
+  return await writePending([...rest, { draft, ...pendingFields(why), at: Date.now(), owner: ownerKey() }].slice(-5));
 }
 
 /**
@@ -2057,8 +2182,15 @@ async function queuePending(draft: DraftVideo, error: unknown, opts?: { insuranc
  */
 export interface PendingPublish {
   draft: DraftVideo;
-  /** 上一次失败的原因，直接给用户看 */
-  error: string;
+  /** 上一次为什么没传上去（码）。★ 界面上一律经 pendingErrorText 说，别直接画 */
+  errorCode?: PendingErrorCode;
+  /** 码的参数。目前只有 other 带 detail（原话，截 120 字） */
+  errorParams?: { detail?: string };
+  /**
+   * 老版本存的**整句**失败原因（中文）。
+   * ★ 2026-09-11 起新条目不再写它、改写 errorCode（见 PendingErrorCode 的 ★★）；没有码的存量照原样显示这一句。
+   */
+  error?: string;
   at: number;
   /**
    * 这条是**谁的**（`ownerKey()`，即 user.id）。
@@ -2101,10 +2233,10 @@ function pendingMine(p: PendingPublish): boolean {
 /** 老版本存的是裸 DraftVideo[]，读的时候归一 */
 async function readPending(): Promise<PendingPublish[]> {
   const raw = (await idbGet<unknown[]>(PENDING_KEY)) ?? [];
-  return raw.map((x) =>
+  return raw.map((x): PendingPublish =>
     x && typeof x === "object" && "draft" in x
       ? (x as PendingPublish)
-      : { draft: x as DraftVideo, error: "上次没传上去", at: 0 },
+      : { draft: x as DraftVideo, errorCode: "legacy", at: 0 },
   );
 }
 
@@ -2153,20 +2285,129 @@ export function pendingPublishes(): PendingPublish[] {
   );
 }
 
-function errText(e: unknown): string {
+/**
+ * 待发队列里「上一次为什么没传上去」的码。
+ *
+ * ★★ 落盘的是**码 + 参数**，不是一句话（多语言方案 §5.5，2026-09-11）：队列项存进 IndexedDB，个人页横幅要**以后**
+ *   （常常是下次启动）才画它 —— 存整句话就冻结在写入那一刻的界面语言上，切了语言横幅还是那句。
+ *   话在读的那一刻由 pendingErrorText 按码说。
+ * ⚠ 老版本存的条目只有 `error` 整句（中文）、没有码：照原样显示，不改写存量。
+ * ⚠ other 的 detail 是**原话**，不按码说：服务端的原话按 D7 a 原样透传没问题，但落进 other 的还有几句是**本机**抛的、
+ *   抛的那一刻已经按当时的界面语言翻好了（publishAssets 的「…太大」「本机的成片文件已丢失」、uploads 的「上传成功但没拿到地址」
+ *   「成片太大」等）—— 它们进了队列同样冻结在写入时的语言上。根治得给这几种各分一个码（待办，另起一件事）。
+ */
+export type PendingErrorCode =
+  /** 配了服务器、这次启动没连上：作品先落本机，下次启动补传（publishVideo 那条分支） */
+  | "queued-offline"
+  /** 上传前先入队的保险条目（pushPublish 的 ★★）：进程被杀之后横幅上看到的就是它 */
+  | "uploading"
+  /** 老版本存的裸 DraftVideo（readPending 归一时补上） */
+  | "legacy"
+  /** 200 + 回包不是作品：多半是服务器地址配错、或网关把请求兜到了静态页（badShapeError） */
+  | "bad-shape"
+  /** 网络层断了 —— 这条路上十有八九是包太大被网关掐了（见 uploadFailOf） */
+  | "network"
+  | "timeout"
+  /** 其余：原话在 errorParams.detail（服务端 / 系统 / 本机抛的，原样透传；见上面 other 那条 ⚠） */
+  | "other";
+
+/** 一次失败归到哪一档：码，加上只有 other 才带的原话。落盘前经 pendingFields 拆成 errorCode / errorParams */
+type PendingWhy = { code: Exclude<PendingErrorCode, "other"> } | { code: "other"; detail: string };
+
+function pendingFields(why: PendingWhy): Pick<PendingPublish, "errorCode" | "errorParams"> {
+  return why.code === "other" ? { errorCode: "other", errorParams: { detail: why.detail } } : { errorCode: why.code };
+}
+
+/**
+ * 每个码在界面上说的那一句。★ 模块顶层只放描述符、读到时才翻（开机先激活语言再 import App，顶层翻出来会冻结在开机语言）。
+ * ★ 横幅把它接在「作品标题」后面，所以每一句都是跟在标题后面的原因，句末不加句号；
+ *   network / timeout 两句另外会被回炉失败的回执嵌进另一句（uploadFailText）。这两处用法写进了译者注释（comment），
+ *   英文目录里看得见 —— 只写在代码注释里的话，译者不知道同一句还会被塞进别的句子里。
+ */
+const PENDING_ERROR_MSG: Record<Exclude<PendingErrorCode, "other">, MessageDescriptor> = {
+  "queued-offline": msg({
+    message: "这次启动没连上服务器，作品先存在这台设备上——联网后会自动上传",
+    comment: "个人页「还没传到服务器」横幅：接在作品标题后面的原因。一整句，句末不加句号",
+  }),
+  uploading: msg({
+    message: "上传中（App 被关掉的话，下次启动会自动重试）",
+    comment: "个人页「还没传到服务器」横幅：接在作品标题后面的原因。一整句，句末不加句号",
+  }),
+  legacy: msg({
+    message: "上次没传上去",
+    comment: "个人页「还没传到服务器」横幅：接在作品标题后面的原因（老版本存下的条目，没记具体原因）。句末不加句号",
+  }),
+  "bad-shape": msg({
+    message: "服务器没有正常返回这条作品（多半是服务器地址配错了，或网关把请求兜到了静态页）",
+    comment: "个人页「还没传到服务器」横幅：接在作品标题后面的原因。一整句，句末不加句号",
+  }),
+  network: msg({
+    message: "上传被拒（作品体积较大，可能是服务器的请求体上限）",
+    comment:
+      "上传失败的原因，两处用：① 个人页「还没传到服务器」横幅上接在作品标题后面；② 回炉失败的回执里嵌进另一句（中文放在括号里）。一整句，句末不加句号",
+  }),
+  timeout: msg({
+    message: "上传超时（网络太慢或作品太大）",
+    comment:
+      "上传失败的原因，两处用：① 个人页「还没传到服务器」横幅上接在作品标题后面；② 回炉失败的回执里嵌进另一句（中文放在括号里）。一整句，句末不加句号",
+  }),
+};
+
+/**
+ * 待发条目的原因 → 当下界面语言的一句话。**唯一实现**（个人页横幅读它）。
+ * ★ 读的那一刻翻；老条目（2026-09-11 之前写的）没有码，照原样显示存下的那句中文。
+ * ★ 认不出的码（将来的版本写的）不吞掉：有原话说原话，没有就退回老那句。
+ * ⚠ 可能回空串（other 的原话本身是空的、老条目没存原因）：横幅那一行要分开说，别拿空串去拼「标题：原因」。
+ */
+export function pendingErrorText(p: Pick<PendingPublish, "errorCode" | "errorParams" | "error">): string {
+  const code = p.errorCode;
+  if (!code) return p.error ?? "";
+  if (code === "other") return p.errorParams?.detail ?? "";
+  const m = (PENDING_ERROR_MSG as Partial<Record<string, MessageDescriptor>>)[code];
+  return m ? i18n._(m) : (p.errorParams?.detail ?? p.error ?? "");
+}
+
+/** 发布回包「200 + 不是作品」时抛的码（uploadFailOf 认它归到 bad-shape） */
+const BAD_SHAPE_CODE = "BAD_SHAPE";
+
+/**
+ * 发布回包「200 + 不是作品」（多半是服务器地址配错、或网关把请求兜到了静态页）时抛它。
+ * ★ 认码不认话：message 只进 console / emitApiError（全 app 没人听），界面上的话由 pendingErrorText 按 bad-shape 说。
+ *   ⚠ message 里别出现 network / timeout / Failed to fetch 这几个词 —— uploadFailOf 的兜底正则不分大小写。
+ */
+function badShapeError(): Error {
+  return Object.assign(new Error("createVideo: the response is not a video (wrong server address, or a gateway served the static page)"), {
+    code: BAD_SHAPE_CODE,
+  });
+}
+
+/**
+ * 一次上传失败归到哪一档（码 + 只有 other 才带的原话）。**唯一的分档实现**：待发队列落盘与回炉的当场回执共用。
+ *
+ * ★ 按错误码分档，不在 message 里找中文关键词（2026-09-10 多语言第 1 步）。原来的「网络不可用」/「请求超时」
+ *   四处来源都带着码：api/client 的 ApiError（NETWORK / TIMEOUT）、uploads 的整份上传与分块断线
+ *   （chunkError 补了 NETWORK）；MaterializeError 是把 partial 挂在**原错误**上再抛，实例不变。
+ *   `Failed to fetch` / `NetworkError` / `TimeoutError` 是浏览器自己的英文，不是我们的文案，留着兜底。
+ * ⚠ 唯一的出入：老服务端（没有 /uploads/media/sign）那条整份上传的超时，原话「上传超时：这份 N MB…」
+ *   以前没命中「请求超时」、原样截 120 字显示，现在按码归到 timeout 那句短话 —— 两句说的是同一件事。
+ * ★ 2026-09-11 从 errText 改名、改成回码（多语言）：原来回一句中文，落进待发队列就冻结在写入时的语言上。
+ *   名字也别再叫 errText —— 方案 §5.5 里的全局 errText 是另一件事（按服务端码说话），同名只会被当成同一个东西。
+ *   （api/uploads 的 chunkError 注释与 CLAUDE.md「按错误 message 里的中文关键词判」那一格同日改了指向。）
+ */
+function uploadFailOf(e: unknown): PendingWhy {
   const m = e instanceof Error ? e.message : String(e);
-  // ★ 按错误码分档，不在 message 里找中文关键词（2026-09-10 多语言第 1 步）。原来的「网络不可用」/「请求超时」
-  //   四处来源都带着码：api/client 的 ApiError（NETWORK / TIMEOUT）、uploads 的整份上传与分块断线
-  //   （chunkError 补了 NETWORK）；MaterializeError 是把 partial 挂在**原错误**上再抛，实例不变。
-  //   `Failed to fetch` / `NetworkError` / `TimeoutError` 是浏览器自己的英文，不是我们的文案，留着兜底。
-  // ⚠ 唯一的出入：老服务端（没有 /uploads/media/sign）那条整份上传的超时，原话「上传超时：这份 N MB…」
-  //   以前没命中「请求超时」、原样截 120 字显示，现在按码归到下面那句短话 —— 两句说的是同一件事。
   const code = (e as { code?: unknown } | null)?.code;
+  if (code === BAD_SHAPE_CODE) return { code: "bad-shape" };
   // "网络不可用" 在这条路上十有八九是包太大被网关掐了（body 里带着 MB 级的 base64 帧），
   // 直接说"网络不好"会让人一直重试同一件必然失败的事
-  if (code === "NETWORK" || /Failed to fetch|NETWORK/i.test(m)) return "上传被拒（作品体积较大，可能是服务器的请求体上限）";
-  if (code === "TIMEOUT" || /TIMEOUT/i.test(m)) return "上传超时（网络太慢或作品太大）";
-  return m.slice(0, 120);
+  if (code === "NETWORK" || /Failed to fetch|NETWORK/i.test(m)) return { code: "network" };
+  if (code === "TIMEOUT" || /TIMEOUT/i.test(m)) return { code: "timeout" };
+  return { code: "other", detail: m.slice(0, 120) };
+}
+
+/** 当场说给人听（回炉失败的回执）：码现翻成当下界面语言，other 的原话照搬 */
+function uploadFailText(why: PendingWhy): string {
+  return why.code === "other" ? why.detail : i18n._(PENDING_ERROR_MSG[why.code]);
 }
 
 /** 启动时重试待发队列（成功的移出队列，失败的留着并记下原因） */
@@ -2199,7 +2440,7 @@ async function flushPending(): Promise<void> {
       //   于是那条队列项**不会进 left**，`writePending(left)` 之后就永久删掉了 ——
       //   用户点一次「立即重试」，队列里那条作品就没了，提示还写着「全部上传成功」。
       if (!v || typeof v._id !== "string") {
-        throw new Error("服务器没有正常返回这条作品（多半是服务器地址配错了，或网关把请求兜到了静态页）");
+        throw badShapeError();
       }
       // ★ 去重再塞：这条**很可能已经在 cache 里了**。
       //   进队列的典型原因是"POST 超时但服务端其实已经落库"（server 的 clientId 幂等
@@ -2229,9 +2470,11 @@ async function flushPending(): Promise<void> {
     } catch (e) {
       uploadStatus = null;
       // ★ 不再是空 catch：原因要留住，用户和排查的人都靠它
-      console.warn("[videos] 待发作品重试失败:", errText(e));
+      const why = uploadFailOf(e);
+      console.warn("[videos] 待发作品重试失败:", why.code, e);
       // ★ owner 原样带回去：重写队列时丢掉这一位，下一轮就又变成"谁登录发给谁"
-      left.push({ draft: (e as MaterializeError).partial ?? sending, error: errText(e), at: Date.now(), owner: p.owner });
+      // ★ 落盘的是码 + 原话（只有 other 才有），不是翻好的一句（见 PendingErrorCode 的 ★★）
+      left.push({ draft: (e as MaterializeError).partial ?? sending, ...pendingFields(why), at: Date.now(), owner: p.owner });
     }
   }
   // ★★ 把**别人那几条原样并回去**：它们这一轮压根没参与，但 writePending 是整表覆盖，
