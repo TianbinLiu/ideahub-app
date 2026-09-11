@@ -182,10 +182,12 @@ msgstr "、"
 #. 把几条「这一档为什么点不动」的原因连成一行时的分隔符
 #. 把铸卡时的几条说明连成一句时的分隔符
 #. 把铸卡时的几条说明连成一句时的分隔符
+#. 改图 / 重画完成那句后面几条参考图提示之间的分隔符
 #: src/live2d/bundlePreview.ts
 #: src/pages/CardDetailPage.tsx
 #: src/studio/flowStore.ts
 #: src/studio/segmentGen.ts
+#: src/studio/studioStore.ts
 #: src/studio/ui/NpcDialog.tsx
 #: src/studio/ui/projection.tsx
 msgid "；"
@@ -1008,6 +1010,11 @@ msgstr "{segCount} 段 · 共 {totalText}"
 #: src/pages/ProfilePage.tsx
 msgid "{segCount} 段 · 卡组 {deckCount} 张已经铸好 · {when}"
 msgstr "{segCount} 段 · 卡组 {deckCount} 张已经铸好 · {when}"
+
+#. 改图 / 重画完成的提示：sentence 是一整句（已翻译），notes 是用分隔符连起来的几条参考图提示，括起来接在句子后面
+#: src/studio/studioStore.ts
+msgid "{sentence}（{notes}）"
+msgstr "{sentence}（{notes}）"
 
 #: src/components/support/AdminTicketsView.tsx
 msgid "{total} 张"
@@ -2356,6 +2363,10 @@ msgstr "③ {0}（选填）"
 msgid "③ 人物信息"
 msgstr "③ 人物信息"
 
+#: src/studio/studioStore.ts
+msgid "3D 建模需 {price} token，余额不足，跳过"
+msgstr "3D 建模需 {price} token，余额不足，跳过"
+
 #: src/pages/CreatePage.tsx
 msgid "3D 桌面与工作流画布是同一条流水线的两个面"
 msgstr "3D 桌面与工作流画布是同一条流水线的两个面"
@@ -2667,6 +2678,14 @@ msgstr "上一步"
 #: src/studio/ui/projection.tsx
 msgid "上一段"
 msgstr "上一段"
+
+#: src/studio/studioStore.ts
+msgid "上一炉还在炼，等它出炉再说"
+msgstr "上一炉还在炼，等它出炉再说"
+
+#: src/studio/studioStore.ts
+msgid "上一炉还在跑，等它出炉再说。"
+msgstr "上一炉还在跑，等它出炉再说。"
 
 #: src/studio/StudioPage.tsx
 msgid "上一页"
@@ -3447,6 +3466,10 @@ msgstr "余额不够 AI 指挥（400/句）。"
 #: src/components/CoverPicker.tsx
 msgid "余额不够（需要 {0} token），去「我的」页充值"
 msgstr "余额不够（需要 {0} token），去「我的」页充值"
+
+#: src/studio/studioStore.ts
+msgid "余额不足，跳过卡组提炼（成片不受影响）"
+msgstr "余额不足，跳过卡组提炼（成片不受影响）"
 
 #: src/pages/VideoPage.tsx
 msgid "余额不足（现有 {have}）——去「我的」页充值"
@@ -4856,6 +4879,7 @@ msgstr "剧本太短（至少 {SCRIPT_MIN} 字）"
 msgid "剪辑"
 msgstr "剪辑"
 
+#. 接在「……，但」后面说的从句（CutPage / useFlowActions 拼进句子里）：英文小写开头
 #: src/studio/studioStore.ts
 msgid "剪辑稿没能存进本地库：上一条剪到一半的成片还没读出来，存下去会把它盖掉。先去「我的」点「重试」。"
 msgstr "剪辑稿没能存进本地库：上一条剪到一半的成片还没读出来，存下去会把它盖掉。先去「我的」点「重试」。"
@@ -5689,6 +5713,10 @@ msgstr "取消收藏失败，稍后再试。"
 msgid "取消点赞"
 msgstr "取消点赞"
 
+#: src/studio/studioStore.ts
+msgid "取消铸段"
+msgstr "取消铸段"
+
 #: src/components/BranchPlayer.tsx
 #: src/components/SegmentPlayer.tsx
 msgid "取消静音"
@@ -6356,6 +6384,7 @@ msgstr "场景"
 
 #. placeholder {0}: i + 1
 #: src/ai/index.ts
+#: src/studio/studioStore.ts
 msgid "场景{0}"
 msgstr "场景{0}"
 
@@ -6918,6 +6947,10 @@ msgstr "尺寸没量出来"
 msgid "尾帧"
 msgstr "尾帧"
 
+#: src/studio/studioStore.ts
+msgid "尾帧已按你的要求重画好了。"
+msgstr "尾帧已按你的要求重画好了。"
+
 #: src/studio/ui/FrameCard.tsx
 msgid "尾帧由所选方案决定；视频从开头帧往下拍"
 msgstr "尾帧由所选方案决定；视频从开头帧往下拍"
@@ -6987,6 +7020,18 @@ msgstr "工坊工程没能留在这台设备上（存储空间不足或浏览器
 #: src/pages/CreatePage.tsx
 msgid "工坊模式"
 msgstr "工坊模式"
+
+#: src/studio/studioStore.ts
+msgid "工坊里有一段正在炼视频（钱已经在花了）——换掉桌面不会把它停下，等它跑完再来"
+msgstr "工坊里有一段正在炼视频（钱已经在花了）——换掉桌面不会把它停下，等它跑完再来"
+
+#: src/studio/studioStore.ts
+msgid "工坊里正在改一张图，等它跑完再换桌面"
+msgstr "工坊里正在改一张图，等它跑完再换桌面"
+
+#: src/studio/studioStore.ts
+msgid "工坊里正在重推方案，等它跑完再换桌面"
+msgstr "工坊里正在重推方案，等它跑完再换桌面"
 
 #: src/components/DraftTitle.tsx
 msgid "工程名"
@@ -7246,6 +7291,7 @@ msgid "已建组「{deckDone}」"
 msgstr "已建组「{deckDone}」"
 
 #: src/components/flow/FlowCanvas.tsx
+#: src/studio/studioStore.ts
 msgid "已开始生成，可以离开这一页，出片后会提醒你"
 msgstr "已开始生成，可以离开这一页，出片后会提醒你"
 
@@ -8407,6 +8453,10 @@ msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜�
 msgid "拉远"
 msgstr "拉远"
 
+#: src/studio/studioStore.ts
+msgid "拉远视角"
+msgstr "拉远视角"
+
 #: src/components/BlockButton.tsx
 msgid "拉黑"
 msgstr "拉黑"
@@ -8545,6 +8595,10 @@ msgstr "按作品筛（作品标题或 id）"
 #: src/components/PhotoSubjectPicker.tsx
 msgid "按你描的轮廓抠出主体，背景换成浅灰纯色（主体 {size}{up}）"
 msgstr "按你描的轮廓抠出主体，背景换成浅灰纯色（主体 {size}{up}）"
+
+#: src/studio/studioStore.ts
+msgid "按你的改动重画好了。不满意就再改剧情、或者直接换成你自己的图。"
+msgstr "按你的改动重画好了。不满意就再改剧情、或者直接换成你自己的图。"
 
 #: src/studio/segmentGen.ts
 msgid "按你的改法返修这一段（时长跟随成片 {refSec} 秒，产物无声）…"
@@ -8799,6 +8853,10 @@ msgstr "推演一次约 {0} token，余额 {1} 不足——去「我的」页充
 msgid "推演三种走向…"
 msgstr "推演三种走向…"
 
+#: src/studio/studioStore.ts
+msgid "推演中"
+msgstr "推演中"
+
 #: src/components/flow/FlowCanvas.tsx
 #: src/studio/ui/projection.tsx
 msgid "推演中…"
@@ -8905,6 +8963,10 @@ msgstr "提交给人工客服"
 #: src/pages/FlowPage.tsx
 msgid "提取模板"
 msgstr "提取模板"
+
+#: src/studio/studioStore.ts
+msgid "提炼本片卡组…"
+msgstr "提炼本片卡组…"
 
 #: src/studio/blockoutPrompt.ts
 msgid "提示词合成失败：AI 什么都没返回——这一段的要求请自己写，或用下面那份默认写法。"
@@ -9156,13 +9218,29 @@ msgstr "收起"
 msgid "收起 ▴"
 msgstr "收起 ▴"
 
+#: src/studio/studioStore.ts
+msgid "收起卡组"
+msgstr "收起卡组"
+
 #: src/components/support/AdminTicketsView.tsx
 msgid "收起对话"
 msgstr "收起对话"
 
+#: src/studio/studioStore.ts
+msgid "收起市场"
+msgstr "收起市场"
+
+#: src/studio/studioStore.ts
+msgid "收起方案"
+msgstr "收起方案"
+
 #: src/pages/FlowPage.tsx
 msgid "收起方案台"
 msgstr "收起方案台"
+
+#: src/studio/studioStore.ts
+msgid "收起画布"
+msgstr "收起画布"
 
 #: src/pages/FlowPage.tsx
 msgid "收起补充要求"
@@ -9196,6 +9274,14 @@ msgstr "改哪里？例：把背景换成雨夜 / 去掉右上角的台标 / 主
 #: src/pages/CustomCardPage.tsx
 msgid "改图中…"
 msgstr "改图中…"
+
+#: src/studio/studioStore.ts
+msgid "改图没成：{reason}"
+msgstr "改图没成：{reason}"
+
+#: src/studio/studioStore.ts
+msgid "改图要 {price} token，余额不够了——去「我的」页充值。"
+msgstr "改图要 {price} token，余额不够了——去「我的」页充值。"
 
 #: src/pages/FlowPage.tsx
 msgid "改完挂卡会按新的映射<0>重新合成</0>下面那段要求，你改过的字会被替换掉 —— 因为旧的那段话里写的还是旧的挂卡，留着它 AI 就会照旧的换人。"
@@ -9579,6 +9665,10 @@ msgstr "有一段正在生成，等它跑完再还原"
 msgid "有一段正在生成，等它跑完再重画这一套"
 msgstr "有一段正在生成，等它跑完再重画这一套"
 
+#: src/studio/studioStore.ts
+msgid "有一段正在生成（画布那一面也算同一条流水线）——等它跑完再动这一段。"
+msgstr "有一段正在生成（画布那一面也算同一条流水线）——等它跑完再动这一段。"
+
 #: src/studio/flowStore.ts
 msgid "有一段正在生成中，等它跑完再切换这一段的模式"
 msgstr "有一段正在生成中，等它跑完再切换这一段的模式"
@@ -9826,6 +9916,10 @@ msgstr "未命名卡组"
 #: src/components/DraftTitle.tsx
 msgid "未命名工程"
 msgstr "未命名工程"
+
+#: src/data/drafts.ts
+msgid "未命名草稿"
+msgstr "未命名草稿"
 
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "未挂"
@@ -10978,6 +11072,11 @@ msgstr "没能存进你的卡片库：登录态可能已经失效。重新登录
 msgid "没能存进卡片库：登录态可能已失效"
 msgstr "没能存进卡片库：登录态可能已失效"
 
+#. 接在「……，但」后面说的从句（CutPage / useFlowActions 拼进句子里）：英文小写开头
+#: src/studio/studioStore.ts
+msgid "没能存进本地库（存储空间不足或浏览器隐私模式）"
+msgstr "没能存进本地库（存储空间不足或浏览器隐私模式）"
+
 #: src/pages/AdminPage.tsx
 msgid "没能完成，请重试"
 msgstr "没能完成，请重试"
@@ -11476,6 +11575,10 @@ msgstr "环绕"
 #: src/components/DraftSheet.tsx
 msgid "现在打不开这条草稿"
 msgstr "现在打不开这条草稿"
+
+#: src/studio/studioStore.ts
+msgid "现在换不了这套走向，稍后再试"
+msgstr "现在换不了这套走向，稍后再试"
 
 #: src/pages/AdminPage.tsx
 msgid "现在没有被下架的作品"
@@ -13387,6 +13490,7 @@ msgid "自动识别"
 msgstr "自动识别"
 
 #: src/components/AvatarPicker.tsx
+#: src/studio/studioStore.ts
 #: src/studio/ui/projection.tsx
 msgid "自定义"
 msgstr "自定义"
@@ -13781,6 +13885,10 @@ msgstr "让 AI 写一版"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "让别人在人格市场里搜得到。"
 msgstr "让别人在人格市场里搜得到。"
+
+#: src/studio/studioStore.ts
+msgid "让我把上一句说完"
+msgstr "让我把上一句说完"
 
 #: src/studio/ui/NpcDialog.tsx
 msgid "让铸卡师<0/>看着办"
@@ -14422,6 +14530,7 @@ msgstr "返修：{0}"
 #: src/components/AvatarPicker.tsx
 #: src/components/IconTapButton.tsx
 #: src/pages/VideoPage.tsx
+#: src/studio/studioStore.ts
 msgid "返回"
 msgstr "返回"
 
@@ -14786,6 +14895,18 @@ msgstr "这一发还在上游排队或生成中（当前状态：{shown}）—�
 msgid "这一套方案还没有剧情——先写点什么，我才知道要画成什么样"
 msgstr "这一套方案还没有剧情——先写点什么，我才知道要画成什么样"
 
+#: src/studio/studioStore.ts
+msgid "这一套的开头帧当时没画出来，没有可改的图——点「重新生成这一套的画面」，或者直接出片（出片要用到的帧会先补画，补画的钱算在出片报价里）。"
+msgstr "这一套的开头帧当时没画出来，没有可改的图——点「重新生成这一套的画面」，或者直接出片（出片要用到的帧会先补画，补画的钱算在出片报价里）。"
+
+#: src/studio/studioStore.ts
+msgid "这一套的结束帧当时没画出来，没有可改的图——点「重新生成这一套的画面」，或者直接出片（出片要用到的帧会先补画，补画的钱算在出片报价里）。"
+msgstr "这一套的结束帧当时没画出来，没有可改的图——点「重新生成这一套的画面」，或者直接出片（出片要用到的帧会先补画，补画的钱算在出片报价里）。"
+
+#: src/studio/studioStore.ts
+msgid "这一套还没有剧情——先写点什么，我才知道要画成什么样"
+msgstr "这一套还没有剧情——先写点什么，我才知道要画成什么样"
+
 #: src/api/uploads.ts
 msgid "这一小段传了 {hardMin} 分钟还没完成——网络太慢，换个网络再试"
 msgstr "这一小段传了 {hardMin} 分钟还没完成——网络太慢，换个网络再试"
@@ -14829,6 +14950,10 @@ msgstr "这一档暂时报不出价，换个档位再试"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "这一次会拿什么去写"
 msgstr "这一次会拿什么去写"
+
+#: src/studio/studioStore.ts
+msgid "这一次没推成"
+msgstr "这一次没推成"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "这一步是把「我们的演出协议」对到「你这个模型自己的名字」上。不改也行 —— 服务器已经按常见命名猜了一份，下面每一行左边的 ▶ 可以当场在上面的预览里试一下。"
@@ -14897,6 +15022,10 @@ msgstr "这一段已经出片：想改画面就先删掉本段再加一段，别
 msgid "这一段已经出片：换模板会作废这段成片。想换就删除本段重加，或先接受重炼这一段的花费"
 msgstr "这一段已经出片：换模板会作废这段成片。想换就删除本段重加，或先接受重炼这一段的花费"
 
+#: src/studio/studioStore.ts
+msgid "这一段已经出片了，退不回铸段窗——想换就删掉这一段再铸"
+msgstr "这一段已经出片了，退不回铸段窗——想换就删掉这一段再铸"
+
 #: src/pages/CutPage.tsx
 msgid "这一段已经改好、钱也扣过了，但{why}"
 msgstr "这一段已经改好、钱也扣过了，但{why}"
@@ -14941,6 +15070,11 @@ msgstr "这一段推演出的 {0} 套方案会一起丢掉，推演已经花掉�
 msgid "这一段播不出来（错误码 {codeText}）——成片地址可能已经过期或网络不通，回工作流重新打开草稿会重新取一遍"
 msgstr "这一段播不出来（错误码 {codeText}）——成片地址可能已经过期或网络不通，回工作流重新打开草稿会重新取一遍"
 
+#. 只接在 CutPage「这一段已经改好、钱也扣过了，但」后面说的从句：英文小写开头，主语前面已经说过，用 it 指这一段
+#: src/studio/studioStore.ts
+msgid "这一段是从工作流里单独打开的，改动还只在内存里——回工作流把它保存进草稿，再切后台。"
+msgstr "这一段是从工作流里单独打开的，改动还只在内存里——回工作流把它保存进草稿，再切后台。"
+
 #: src/studio/flowStore.ts
 msgid "这一段正在出片，等它结束再换开头帧"
 msgstr "这一段正在出片，等它结束再换开头帧"
@@ -14948,6 +15082,10 @@ msgstr "这一段正在出片，等它结束再换开头帧"
 #: src/components/flow/SegPlayer.tsx
 msgid "这一段正在生成，炼完再圈"
 msgstr "这一段正在生成，炼完再圈"
+
+#: src/studio/studioStore.ts
+msgid "这一段正在生成，等它跑完再改。"
+msgstr "这一段正在生成，等它跑完再改。"
 
 #: src/studio/flowStore.ts
 msgid "这一段正在生成中，等它跑完再改挂卡（改了也得重炼一次，别白花一次钱）"
@@ -14961,9 +15099,17 @@ msgstr "这一段没下完（原因见下面那行原文）。再点一次会从
 msgid "这一段没有套可挂卡的白模模板（角色位只有白模模板才有）——在这一段的编辑窗点「🧪 套模板」选一个，别去模板市场重套（那会整条流水线重铺）"
 msgstr "这一段没有套可挂卡的白模模板（角色位只有白模模板才有）——在这一段的编辑窗点「🧪 套模板」选一个，别去模板市场重套（那会整条流水线重铺）"
 
+#: src/studio/studioStore.ts
+msgid "这一段没炼成"
+msgstr "这一段没炼成"
+
 #: src/hooks/useFlowActions.ts
 msgid "这一段炼好了，但自动存草稿失败（存储空间不足或浏览器隐私模式）——先别离开这一页，点上面的「存草稿」再试一次"
 msgstr "这一段炼好了，但自动存草稿失败（存储空间不足或浏览器隐私模式）——先别离开这一页，点上面的「存草稿」再试一次"
+
+#: src/studio/studioStore.ts
+msgid "这一段现在删不掉"
+msgstr "这一段现在删不掉"
 
 #: src/components/flow/SegPlayer.tsx
 msgid "这一段现在选中的走向还没有成片"
@@ -15050,6 +15196,14 @@ msgstr "这一炉该出 {want} 张图、成了 {got} 张——缺的 {missingN} 
 #: src/studio/ui/NpcDialog.tsx
 msgid "这一炉该出 {want} 张图、成了 {got} 张——缺的 {missingN} 张先用你的原图顶上。已经画出来、只是没取回来的那几张仍会计费，实扣以「我的」页余额为准。{noteText}"
 msgstr "这一炉该出 {want} 张图、成了 {got} 张——缺的 {missingN} 张先用你的原图顶上。已经画出来、只是没取回来的那几张仍会计费，实扣以「我的」页余额为准。{noteText}"
+
+#: src/studio/studioStore.ts
+msgid "这一炉还在推演，等它出炉再退出"
+msgstr "这一炉还在推演，等它出炉再退出"
+
+#: src/studio/studioStore.ts
+msgid "这一片正在组稿中（提炼卡组要花几十秒），等它跑完再点"
+msgstr "这一片正在组稿中（提炼卡组要花几十秒），等它跑完再点"
 
 #: src/components/blockout/BoxFramePicker.tsx
 msgid "这一秒已经标过了。把播放头挪到别处再标。"
@@ -15317,6 +15471,10 @@ msgstr "这些是已经花过 token 生成的内容，丢掉就得重做一遍�
 #: src/studio/live2dUploadStore.ts
 msgid "这份包上次已经传上去了，直接让服务器再看一遍…"
 msgstr "这份包上次已经传上去了，直接让服务器再看一遍…"
+
+#: src/studio/studioStore.ts
+msgid "这份工坊工程是空的，铺不进工坊"
+msgstr "这份工坊工程是空的，铺不进工坊"
 
 #: src/components/ReviseBar.tsx
 msgid "这份工程有 {lostCount} 处素材没有留存 · 方案卡上逐格标了出来：预览图重新推演就能补回来， 成片要重新出片（会再花一次钱）"
@@ -15673,6 +15831,10 @@ msgstr "这张图太小了，AI 认不出里面的东西"
 msgid "这张图已经不在了"
 msgstr "这张图已经不在了"
 
+#: src/studio/studioStore.ts
+msgid "这张图改好了，但那一段已经不在流水线上了——改动没处写回（钱已经花了，抱歉）。"
+msgstr "这张图改好了，但那一段已经不在流水线上了——改动没处写回（钱已经花了，抱歉）。"
+
 #: src/components/AvatarPicker.tsx
 msgid "这张图片打不开"
 msgstr "这张图片打不开"
@@ -15726,6 +15888,10 @@ msgstr "这批卡没能同步到服务器"
 #: src/studio/ui/NpcDialog.tsx
 msgid "这批素材没能炼出卡，补充点描述再试？"
 msgstr "这批素材没能炼出卡，补充点描述再试？"
+
+#: src/studio/studioStore.ts
+msgid "这是 3D 画风，顺便铸 {want} 个建模（{price} token）…"
+msgstr "这是 3D 画风，顺便铸 {want} 个建模（{price} token）…"
 
 #: src/components/blockout/BlockoutTrimmer.tsx
 msgid "这是<0>做模板</0>这一次的花费；以后每次有人套用这个模板出片，会按模板视频的时长另计一笔。"
@@ -16062,9 +16228,17 @@ msgstr "退出"
 msgid "退出全屏"
 msgstr "退出全屏"
 
+#: src/studio/studioStore.ts
+msgid "退出卡组"
+msgstr "退出卡组"
+
 #: src/components/ReviseBar.tsx
 msgid "退出回炉"
 msgstr "退出回炉"
+
+#: src/studio/studioStore.ts
+msgid "退出对话"
+msgstr "退出对话"
 
 #: src/pages/SettingsPage.tsx
 msgid "退出登录"
@@ -16400,6 +16574,14 @@ msgstr "重画中…"
 msgid "重画失败：{0}"
 msgstr "重画失败：{0}"
 
+#: src/studio/studioStore.ts
+msgid "重画好了，但那一段已经不在流水线上了——没处写回（钱已经花了，抱歉）。"
+msgstr "重画好了，但那一段已经不在流水线上了——没处写回（钱已经花了，抱歉）。"
+
+#: src/studio/studioStore.ts
+msgid "重画没成：{reason}"
+msgstr "重画没成：{reason}"
+
 #: src/studio/flowStore.ts
 msgid "重画结束画面…{noteTail}"
 msgstr "重画结束画面…{noteTail}"
@@ -16413,6 +16595,10 @@ msgstr "重画起始画面…{noteTail}"
 #: src/studio/flowStore.ts
 msgid "重画这一套约 {0} token，余额 {1} 不足——去「我的」页充值"
 msgstr "重画这一套约 {0} token，余额 {1} 不足——去「我的」页充值"
+
+#: src/studio/studioStore.ts
+msgid "重画这一套要 {price} token，余额不够了——去「我的」页充值。"
+msgstr "重画这一套要 {price} token，余额不够了——去「我的」页充值。"
 
 #: src/pages/SettingsPage.tsx
 msgid "重看各个界面的使用说明"
@@ -16722,15 +16908,24 @@ msgstr "首尾帧轮播 · 点开换图"
 msgid "首尾帧都是你自己换的图，没有可让 AI 重画的部分（想重画就先在卡里清掉那一帧）"
 msgstr "首尾帧都是你自己换的图，没有可让 AI 重画的部分（想重画就先在卡里清掉那一帧）"
 
+#: src/studio/studioStore.ts
+msgid "首尾帧都是你自己换的图，没有可让我重画的地方——想重画就先在卡里清掉那一帧。"
+msgstr "首尾帧都是你自己换的图，没有可让我重画的地方——想重画就先在卡里清掉那一帧。"
+
 #: src/components/flow/CustomFrameSlots.tsx
 msgid "首帧"
 msgstr "首帧"
+
+#: src/studio/studioStore.ts
+msgid "首帧已按你的要求重画好了。"
+msgstr "首帧已按你的要求重画好了。"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "首帧承接上一段尾帧"
 msgstr "首帧承接上一段尾帧"
 
 #: src/components/TabBar.tsx
+#: src/studio/studioStore.ts
 msgid "首页"
 msgstr "首页"
 
