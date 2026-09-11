@@ -10,6 +10,7 @@
 //   emitApiError，所以指望它报错等于没报。
 // ★ 订阅源仍然只有 promptSchemes 那一个（这里改完调 emitSchemes）——界面不必订阅两处。
 import { remoteOn } from "./videos";
+import { t } from "@lingui/core/macro";
 import { fetchSharedSchemes, installScheme, publishScheme, pushScheme } from "../api/schemes";
 import { emitSchemes, mineSchemes, patchMine, upsertMine, type PromptScheme } from "./promptSchemes";
 
@@ -43,7 +44,7 @@ export function schemeMarketOn(): boolean {
 /** 拉一次广场。返回是否成功；失败原因在 schemeMarketErr() */
 export async function refreshSharedSchemes(): Promise<boolean> {
   if (!remoteOn()) {
-    marketErr = "还没连上服务器，方案市场用不了（本机自建的方案照常能用）";
+    marketErr = t`还没连上服务器，方案市场用不了（本机自建的方案照常能用）`;
     emitSchemes();
     return false;
   }
@@ -54,7 +55,8 @@ export async function refreshSharedSchemes(): Promise<boolean> {
     shared = await fetchSharedSchemes();
     return true;
   } catch (e) {
-    marketErr = `方案市场没打开：${e instanceof Error ? e.message : String(e)}`;
+    const why = e instanceof Error ? e.message : String(e);
+    marketErr = t`方案市场没打开：${why}`;
     return false;
   } finally {
     marketBusy = false;
@@ -70,12 +72,12 @@ export async function refreshSharedSchemes(): Promise<boolean> {
 export async function shareScheme(id: string, on: boolean): Promise<boolean> {
   const s = mineSchemes().find((x) => x.id === id);
   if (!s) {
-    marketErr = "只能发布自己自建的方案（内置那几套本来就人人都有）";
+    marketErr = t`只能发布自己自建的方案（内置那几套本来就人人都有）`;
     emitSchemes();
     return false;
   }
   if (!remoteOn()) {
-    marketErr = "还没连上服务器，发布不了";
+    marketErr = t`还没连上服务器，发布不了`;
     emitSchemes();
     return false;
   }
@@ -89,7 +91,8 @@ export async function shareScheme(id: string, on: boolean): Promise<boolean> {
     patchMine(id, { published: back.published });
     return true;
   } catch (e) {
-    marketErr = `${on ? "发布" : "下架"}没成：${e instanceof Error ? e.message : String(e)}`;
+    const why = e instanceof Error ? e.message : String(e);
+    marketErr = on ? t`发布没成：${why}` : t`下架没成：${why}`;
     return false;
   } finally {
     marketBusy = false;
@@ -104,7 +107,7 @@ export async function shareScheme(id: string, on: boolean): Promise<boolean> {
  */
 export async function installSharedScheme(id: string): Promise<PromptScheme | null> {
   if (!remoteOn()) {
-    marketErr = "还没连上服务器，装不了";
+    marketErr = t`还没连上服务器，装不了`;
     emitSchemes();
     return null;
   }
@@ -116,7 +119,8 @@ export async function installSharedScheme(id: string): Promise<PromptScheme | nu
     upsertMine(scheme);
     return scheme;
   } catch (e) {
-    marketErr = `装这套方案没成：${e instanceof Error ? e.message : String(e)}`;
+    const why = e instanceof Error ? e.message : String(e);
+    marketErr = t`装这套方案没成：${why}`;
     return null;
   } finally {
     marketBusy = false;

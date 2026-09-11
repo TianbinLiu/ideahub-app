@@ -29,7 +29,7 @@ export interface CardViewsResult {
 
 function findMine(cardId: string): Card {
   const card = myCards().find((c) => c.id === cardId);
-  if (!card) throw new Error("这张卡不在你的收藏里，改不了它的参考图");
+  if (!card) throw new Error(t`这张卡不在你的收藏里，改不了它的参考图`);
   return card;
 }
 
@@ -109,24 +109,24 @@ export interface PreparedCardImage {
  */
 export async function prepareCardImage(file: File): Promise<PreparedCardImage> {
   const { blob, cropped } = await fileToRefImage(file);
-  if (blob.size > MAX_IMAGE_BYTES) throw new Error("这张图太大了（上限 5MB）");
+  if (blob.size > MAX_IMAGE_BYTES) throw new Error(t`这张图太大了（上限 5MB）`);
   return {
     blob,
-    ...(cropped ? { note: "原图长宽比超过 3:1，已居中裁切——Seedream 不收超出这个比例的参考图" } : {}),
+    ...(cropped ? { note: t`原图长宽比超过 3:1，已居中裁切——Seedream 不收超出这个比例的参考图` } : {}),
   };
 }
 
 /** 远端模式才能加图：本地没有服务器可以把图转存成永久地址，而 views 不收 dataURL */
 function assertUploadable(): void {
   if (!isRemoteMode()) {
-    throw new Error("离线模式下加不了参考图：这些图要转存成永久地址才能给 AI 用，需要先连上服务器");
+    throw new Error(t`离线模式下加不了参考图：这些图要转存成永久地址才能给 AI 用，需要先连上服务器`);
   }
 }
 
 /** 先按现状算容量：老卡兑现出来的那张卡面也占一格（它确实会被喂给 Seedream） */
 function assertRoom(card: Card): void {
   if (viewsOf(card).length >= MAX_CARD_VIEWS) {
-    throw new Error(`最多 ${MAX_CARD_VIEWS} 张：方舟建议不要堆满，素材太多模型反而判断不出该优先保哪些特征`);
+    throw new Error(t`最多 ${MAX_CARD_VIEWS} 张：方舟建议不要堆满，素材太多模型反而判断不出该优先保哪些特征`);
   }
 }
 
@@ -247,19 +247,19 @@ async function blobToJpegDataUrl(blob: Blob): Promise<string> {
   const raw = await new Promise<string>((resolve, reject) => {
     const r = new FileReader();
     r.onload = () => resolve(r.result as string);
-    r.onerror = () => reject(new Error("读不出这张打包素材"));
+    r.onerror = () => reject(new Error(t`读不出这张打包素材`));
     r.readAsDataURL(blob);
   });
   if (raw.startsWith("data:image/jpeg")) return raw;
   const img = await new Promise<HTMLImageElement>((resolve, reject) => {
     const i = new Image();
     i.onload = () => resolve(i);
-    i.onerror = () => reject(new Error("这张打包素材解码失败"));
+    i.onerror = () => reject(new Error(t`这张打包素材解码失败`));
     i.src = raw;
   });
   const w = img.naturalWidth || img.width;
   const h = img.naturalHeight || img.height;
-  if (!w || !h) throw new Error("这张打包素材尺寸读不出来");
+  if (!w || !h) throw new Error(t`这张打包素材尺寸读不出来`);
   const c = document.createElement("canvas");
   c.width = w;
   c.height = h;
@@ -317,7 +317,7 @@ export async function refableViews(card: Card, wantHttps: boolean): Promise<Refa
         //   回的是 200 + index.html —— 素材真缺失时 res.ok 恒真，靠它把 HTML 当图转存上去
         //   就是把垃圾写进 views（CLAUDE.md「同源相对路径」那条坑的同款机理）
         if (!res.ok || !/^image\//.test(res.headers.get("content-type") ?? "")) {
-          throw new Error(`安装包里没有这张素材（${v.url}）`);
+          throw new Error(t`安装包里没有这张素材（${v.url}）`);
         }
         const dataUrl = await blobToJpegDataUrl(await res.blob());
         if (isRemoteMode()) {
@@ -325,7 +325,7 @@ export async function refableViews(card: Card, wantHttps: boolean): Promise<Refa
           swapped = true;
         } else if (wantHttps) {
           out.push(v);
-          why ??= "离线模式转不出永久地址";
+          why ??= t`离线模式转不出永久地址`;
         } else {
           out.push({ ...v, url: dataUrl });
         }
@@ -374,7 +374,7 @@ export async function refableViews(card: Card, wantHttps: boolean): Promise<Refa
 export async function removeCardView(cardId: string, index: number): Promise<CardViewsResult> {
   const card = findMine(cardId);
   const base = viewsOf(card);
-  if (index < 0 || index >= base.length) throw new Error("这张图已经不在了");
+  if (index < 0 || index >= base.length) throw new Error(t`这张图已经不在了`);
   const stored = Array.isArray(card.views);
   const views = base.filter((_, i) => i !== index).filter((v) => stored || /^https?:\/\//i.test(v.url));
   await setCardViews(cardId, views);
