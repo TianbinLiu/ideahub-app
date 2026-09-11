@@ -4,6 +4,9 @@
 // ★ 四种状态都要画出来：加载中 / 出错 / 空 / 离线。少画一种的表现都是同一件事 ——
 //   用户看到一个空列表，然后自己去猜到底是"没人理我"还是"坏了"（铁律八）。
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import type { MessageDescriptor } from "@lingui/core";
+import { msg } from "@lingui/core/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
 import { useNavigate } from "react-router";
@@ -21,44 +24,51 @@ import {
 import { relativeTime } from "../types";
 
 /** 一句话说清"谁做了什么"。作品名/评论正文在下一行单独展示，这里只给动作 */
-function actionText(n: NotificationItem): string {
+function actionText(n: NotificationItem): MessageDescriptor | null {
   switch (n.type) {
     case "BRANCH_LIKE":
-      return "赞了你的作品";
+      return msg`赞了你的作品`;
     case "BRANCH_COMMENT":
-      return "评论了你的作品";
+      return msg`评论了你的作品`;
     case "BRANCH_COMMENT_REPLY":
-      return "回复了你的评论";
+      return msg`回复了你的评论`;
     case "BRANCH_COMMENT_LIKE":
-      return "赞了你的评论";
+      return msg`赞了你的评论`;
     case "BRANCH_MENTION":
       // ★ 与「评论了你的作品」分开写：被 @ 的人**未必是作品作者**，多半是路过的第三个人。
       //   共用一句文案会让他以为是自己的作品被评论了，点进去发现是别人的片子。
-      return "在评论里 @ 了你";
+      return msg`在评论里 @ 了你`;
     case "BRANCH_REVISED":
       // ★ 主语是**作品**不是人：收件人是收藏者，他关心的是"我收藏的那条变了"，
       //   而不是"某某做了件事"。NoticeRow 那一档同理。
-      return "重新剪辑了你收藏的作品";
+      return msg`重新剪辑了你收藏的作品`;
     case "ADMIN_NOTICE":
       // 平台口吻的那一行不走这个句式（见 NoticeRow），这里只是类型上兜全
-      return "平台通知";
+      return msg`平台通知`;
     case "SUPPORT_TICKET":
-      return "提交了客服工单";
+      return msg`提交了客服工单`;
     case "SUPPORT_REPLY":
-      return "客服回复了你的工单";
+      return msg`客服回复了你的工单`;
     default:
       // ★★ 铁律七：**不认识的类型原样显示类型名**，不吞、不崩。这一支在类型上是
       //   never（白名单是闭合联合），但运行时形状由服务端决定 —— 哪天两边版本错开，
       //   能在界面上看见那个陌生词的人才知道该升级 App 了（铁律八：静默失败最糟）。
       //   ⚠ 今天真正的未知类型到不了这里：data/notifications.ts 的 toItem 会把
       //   白名单外的类型整条丢掉（return null）。这里是渲染层自己的最后一道兜底。
-      return String((n as NotificationItem).type);
+      // 模块顶层只能给描述符（翻译要等渲染时），所以这一支回 null，由渲染层的 actionLabel 原样显示类型名
+      return null;
   }
 }
 
 export default function NotificationsPage() {
   const navigate = useNavigate();
   const backOrMe = useBackOr("/me");
+  const { t } = useLingui();
+  /** 动作那半句：认识的类型走目录，不认识的原样显示类型名（见 actionText 的 ★★） */
+  const actionLabel = (n: NotificationItem) => {
+    const d = actionText(n);
+    return d ? t(d) : String(n.type);
+  };
   const state = useSyncExternalStore(subscribeNotifications, notificationsState);
   /** 「全部已读」在路上（要等服务端回包）：按钮上要有字 */
   const [marking, setMarking] = useState(false);
@@ -124,7 +134,7 @@ export default function NotificationsPage() {
       <PageHeader
         sticky
         onBack={backOrMe}
-        title="消息"
+        title={t`消息`}
         right={
           state.unread > 0 ? (
             <button
@@ -136,7 +146,7 @@ export default function NotificationsPage() {
               disabled={marking}
               className="h-11 flex-none whitespace-nowrap px-2 text-xs font-semibold text-slate-400 active:opacity-60 disabled:opacity-40"
             >
-              {marking ? "标记中…" : "全部已读"}
+              {marking ? t`标记中…` : t`全部已读`}
             </button>
           ) : null
         }
@@ -147,17 +157,17 @@ export default function NotificationsPage() {
             跑过一次才有意义（它在 useEffect 里，首帧之后），先判 online 的话每次进来
             都会先闪一下"当前是离线模式"——一个还没查证就下的结论。 */}
         {state.loading ? (
-          <EmptyState loading text="正在取消息…" />
+          <EmptyState loading text={t`正在取消息…`} />
         ) : !state.online ? (
           // ★ 措辞不能说成"这个版本没有服务器"：!remoteOn() 也包括「配了地址但连不上」。
           //   说死了会让一个只是断网的人以为要换个包。
-          <Empty text="通知需要连上服务器 · 当前是离线模式" hint="联网后重新打开这一页就能看到" />
+          <Empty text={t`通知需要连上服务器 · 当前是离线模式`} hint={t`联网后重新打开这一页就能看到`} />
         ) : !state.supported ? (
-          <Empty text="这台服务器还没有通知功能" hint="服务端升级后即可使用，App 不用重装" />
+          <Empty text={t`这台服务器还没有通知功能`} hint={t`服务端升级后即可使用，App 不用重装`} />
         ) : state.error ? (
-          <EmptyState error text={`通知没拉到：${state.error}`} cta={{ label: "重试", onClick: () => void refreshNotifications() }} />
+          <EmptyState error text={t`通知没拉到：${state.error}`} cta={{ label: t`重试`, onClick: () => void refreshNotifications() }} />
         ) : state.items.length === 0 ? (
-          <Empty text="还没有新消息" hint="别人赞你、评论你、回复你、在评论里 @ 你，或平台发来通知时会出现在这里" />
+          <Empty text={t`还没有新消息`} hint={t`别人赞你、评论你、回复你、在评论里 @ 你，或平台发来通知时会出现在这里`} />
         ) : (
           <ul className="divide-y divide-slate-800/70">
             {state.items.map((n) => (
@@ -179,11 +189,11 @@ export default function NotificationsPage() {
                   <div className="min-w-0 flex-1">
                     <div className="text-sm text-slate-200">
                       {n.type === "ADMIN_NOTICE" ? (
-                        <span className="font-semibold">平台通知</span>
+                        <span className="font-semibold"><Trans>平台通知</Trans></span>
                       ) : (
                         <>
                           <span className="font-semibold">{n.actorName}</span>
-                          <span className="text-slate-400"> {actionText(n)}</span>
+                          <span className="text-slate-400"> {actionLabel(n)}</span>
                         </>
                       )}
                     </div>
@@ -196,7 +206,7 @@ export default function NotificationsPage() {
                         </div>
                       ) : (
                         // 服务端没把正文放进 payload.commentText —— 契约问题，说出来（铁律八）
-                        <div className="mt-0.5 text-xs text-rose-300">（通知内容缺失）</div>
+                        <div className="mt-0.5 text-xs text-rose-300"><Trans>（通知内容缺失）</Trans></div>
                       )
                     ) : n.type === "BRANCH_REVISED" ? null : ( // ★ 见下面 ★★
                       n.commentText && (

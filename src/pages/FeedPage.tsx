@@ -2,6 +2,7 @@
 // 互动视频（带 branchTree）在流里播开场段，点"进入互动"跳详情页做分支选择。
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import EmptyState from "../components/EmptyState";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate } from "react-router";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
@@ -288,12 +289,13 @@ function FeedItem({
   //   多半是登录着的，只是会话还没认领上。判 `!user` 会把他弹去登录页（见 useAuthState）。
   const auth = useAuthState();
   const navigate = useNavigate();
+  const { t } = useLingui();
   // 登录态还没结论时的一句话回执。★ 不能"点了没反应"——那和坏了分不出来（铁律八）。
   const [authTip, setAuthTip] = useState("");
   const authTipTimer = useRef(0);
   function sessionBusy(): boolean {
     if (auth !== "pending") return false;
-    setAuthTip("正在确认登录状态…");
+    setAuthTip(t`正在确认登录状态…`);
     window.clearTimeout(authTipTimer.current);
     authTipTimer.current = window.setTimeout(() => setAuthTip(""), 1800);
     return true;
@@ -444,7 +446,7 @@ function FeedItem({
           .seed(remakeNodesOf(video.segments, video.deck?.cards ?? []), { mode: "workflow", origin: "solo" });
         if (ok) navigate("/flow");
         else {
-          setRemakeErr(useFlow.getState().err || "现在铺不了（可能有一段正在生成中），稍后再试");
+          setRemakeErr(useFlow.getState().err || t`现在铺不了（可能有一段正在生成中），稍后再试`);
           window.setTimeout(() => setRemakeErr(""), 5000);
         }
         return ok;
@@ -478,7 +480,7 @@ function FeedItem({
           >
             <span className="text-3xl">🔒</span>
             <span className="rounded-full bg-gold px-4 py-1.5 text-sm font-bold text-ink">
-              ⚡ {fmtTokens(lockPrice)} token 解锁
+              <Trans>⚡ {fmtTokens(lockPrice)} token 解锁</Trans>
             </span>
           </button>
         </>
@@ -521,14 +523,14 @@ function FeedItem({
             if (active && !paused) void e.currentTarget.play().catch(() => {});
           }}
           onTimeUpdate={(e) => {
-            const t = e.currentTarget.currentTime;
-            setProg({ t, d: e.currentTarget.duration || 0 });
+            const now = e.currentTarget.currentTime;
+            setProg({ t: now, d: e.currentTarget.duration || 0 });
             if (countedRef.current || !active) return;
             // 单次增量夹在 [0,1]：拖进度条一跳几十秒、或者切段后 currentTime 归零，
             // 都不该被算成"看过了"
             const w = watchRef.current;
-            w.sum += Math.min(1, Math.max(0, t - w.prev));
-            w.prev = t;
+            w.sum += Math.min(1, Math.max(0, now - w.prev));
+            w.prev = now;
             if (w.sum >= PLAY_MIN_SEC) {
               countedRef.current = true;
               addPlay(video.id);
@@ -684,7 +686,7 @@ function FeedItem({
           <div className="relative mb-1">
             <button
               onClick={() => navigate(authorHref)}
-              aria-label={`${video.author} 的主页`}
+              aria-label={t`${video.author} 的主页`}
               className="block active:scale-95"
             >
               <span className="block rounded-full ring-2 ring-white/90">
@@ -695,7 +697,7 @@ function FeedItem({
             {user && !mine && !following && (
               <button
                 onClick={() => setFollowing(toggleFollow(video.author))}
-                aria-label="关注"
+                aria-label={t({ message: "关注", context: "作者头像下那颗关注按钮（动作：关注这个人）" })}
                 className="absolute -bottom-2 left-1/2 flex h-5 w-5 -translate-x-1/2 items-center justify-center rounded-full bg-rose-500 text-white transition active:scale-90"
               >
                 <Icon name="plus" size={12} strokeWidth={3} />
@@ -708,7 +710,7 @@ function FeedItem({
               弹幕显示关掉时这里划一道斜杠——不然用户会以为发出去的弹幕没生效 */}
           <RailBtn
             glyph={<DanmakuGlyph size={26} off={!dmOn} />}
-            label="发弹幕"
+            label={t`发弹幕`}
             onClick={() => {
               // ★ 在这儿挡住未登录，而不是让 POST 去吃 401：client.ts 收到 401 会把用户
               //   **直接登出**，"我只是想发条弹幕，怎么账号退了"是最莫名其妙的一种失败。
@@ -724,11 +726,11 @@ function FeedItem({
               setDmOpen(true);
             }}
           />
-          <RailBtn icon="heart" filled={liked} tint="text-rose-500" label={String(likes)} name="点赞" perch="like" onClick={toggleLike} />
+          <RailBtn icon="heart" filled={liked} tint="text-rose-500" label={String(likes)} name={t`点赞`} perch="like" onClick={toggleLike} />
           {/* 评论就地滑出抽屉（对标短视频 App），不跳详情页打断刷视频的节奏 */}
           {/* ★ 走 commentCountOf，不读 comments.length：列表接口不返回 comments，
               直接读长度的话，没点进去过的作品评论数永远是 0（真机上抓到的） */}
-          <RailBtn icon="comment" label={String(commentCountOf(video))} name="评论" onClick={() => setCmtOpen(true)} />
+          <RailBtn icon="comment" label={String(commentCountOf(video))} name={t`评论`} onClick={() => setCmtOpen(true)} />
           {/* ★★ 收藏**不显示数字**（2026-08-30）：服务端根本没有收藏端点，`setSave` 只在
               这台设备的本地库里自增 —— 那个数既不是"多少人收藏了"，也不会跟着账号走
               （种子作品上更是 mock 里手打的 786/604/341）。**显示一个骗人的数比不显示更糟**：
@@ -739,7 +741,7 @@ function FeedItem({
             icon="bookmark"
             filled={saved}
             tint="text-gold"
-            label="收藏"
+            label={t`收藏`}
             perch="save"
             onClick={() => {
               // 收藏要认人：未登录先去登录，否则"收藏了"只是一个划走就没的错觉。
@@ -758,7 +760,7 @@ function FeedItem({
           {/* ★★ 分享数同理，而且更彻底：`VideoItem.shares` **全仓没有任何地方写过它**
               （`rg "\.shares"` 只命中 mock 种子与这一行）—— 也就是说真实作品上它恒为 0，
               而种子作品上是手打的假数。摆一个恒 0 的计数只会让作者以为"没人分享过"。 */}
-          <RailBtn icon="share" label="分享" onClick={share} />
+          <RailBtn icon="share" label={t`分享`} onClick={share} />
         </div>
 
         {/* 全屏键挂在整栏最下面：它不属于"对这条作品做点什么"那一组，
@@ -768,7 +770,7 @@ function FeedItem({
         <RailBtn
           icon="expand"
           guide={active ? "feed-fullscreen" : undefined}
-          label={shownAspect === "landscape" ? "转屏" : "全屏"}
+          label={shownAspect === "landscape" ? t`转屏` : t`全屏`}
           className="mt-6"
           onClick={onEnterFull}
         />
@@ -845,7 +847,7 @@ function FeedItem({
                 className="pointer-events-auto inline-flex min-h-[28px] items-center gap-1 rounded-full bg-gold/90 px-3 text-[11px] font-semibold text-ink active:scale-95"
               >
                 <Icon name="branch" size={13} strokeWidth={2.25} />
-                互动 · 你来选
+                <Trans>互动 · 你来选</Trans>
               </button>
             )}
             {/* 做同款（backlog 2.8-②）：从流里一键把这条片的分段剧本+卡组铺成自己的
@@ -857,7 +859,7 @@ function FeedItem({
                 onClick={remake}
                 className="pointer-events-auto inline-flex min-h-[28px] items-center gap-1 rounded-full bg-white/20 px-3 text-[11px] font-semibold text-white backdrop-blur-sm active:scale-95"
               >
-                ⚡ 做同款
+                <Trans>⚡ 做同款</Trans>
               </button>
             )}
           </div>
@@ -883,6 +885,7 @@ const FEED_STALE_MS = 60_000;
 export default function FeedPage() {
   const user = useCurrentUser();
   const version = useVideosVersion();
+  const { t } = useLingui();
   const [feed, setFeed] = useState<"recommend" | "following">("recommend");
   const all = useMemo(() => listVideos(), [version]);
   const followingRemote = useMemo(() => listFollowingVideos(), [version]);
@@ -1053,7 +1056,7 @@ export default function FeedPage() {
               feed === f ? "font-semibold text-white" : "text-white/65"
             } [text-shadow:0_1px_3px_rgba(0,0,0,.6)]`}
           >
-            {f === "following" ? "关注" : "推荐"}
+            {f === "following" ? t({ message: "关注", context: "首页顶部的关注流页签（名词：我关注的人发的作品）" }) : t`推荐`}
             {feed === f && (
               <span className="absolute inset-x-1 -bottom-0.5 h-0.5 rounded-full bg-white" />
             )}
@@ -1075,14 +1078,14 @@ export default function FeedPage() {
           text={
             feed === "following"
               ? user
-                ? "关注的创作者还没有新作品"
-                : "登录后可以关注喜欢的创作者"
-              : "还没有作品"
+                ? t`关注的创作者还没有新作品`
+                : t`登录后可以关注喜欢的创作者`
+              : t`还没有作品`
           }
           cta={
             feed === "following"
-              ? { label: "去推荐流看看", onClick: () => setFeed("recommend") }
-              : { label: "去卡片工坊创作", to: "/studio", primary: true }
+              ? { label: t`去推荐流看看`, onClick: () => setFeed("recommend") }
+              : { label: t`去卡片工坊创作`, to: "/studio", primary: true }
           }
         />
       </div>
@@ -1101,7 +1104,7 @@ export default function FeedPage() {
       {immersive && (
         <button
           onClick={exitFull}
-          aria-label="退出全屏"
+          aria-label={t`退出全屏`}
           className="safe-top absolute right-3 top-0 z-30 mt-3 flex h-11 w-11 items-center justify-center rounded-full bg-black/35 text-white/80 backdrop-blur-sm transition active:scale-90"
         >
           <Icon name="shrink" size={22} />
