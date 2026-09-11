@@ -354,9 +354,25 @@ POST console.volcengine.com/api/top/ark/cn-beijing/2024-01-01/ListAuthorizationA
 
 **Phase A 已完成（同日，浏览器逐项验过）**：
 - **「自己传图做卡片」接上方案体系**：人物卡的图位不再写死三格，由所选方案定
-  （与提取那条路同一套方案库；此页不出图，方案只定结构）。人物卡图位按 **tag** 键存
+  （与提取那条路同一套方案库；此页不出图，方案只定结构）。人物卡图位按**图位键**存
   （`schemeShots`），与非人物卡的 kind 库互不相通 —— 涉及人物卡的换卡种**什么都不丢**。
-  换方案时 tag 对得上的留、对不上的取下**并说明**（与 changeType 同一条纪律）。
+  换方案时键对得上的留、对不上的取下**并说明**（与 changeType 同一条纪律）。
+  图位键只有 `promptSchemes.slotKey` 一处（2026-09-11）：内置方案的图位带 id、键取冻结的中文原名
+  `types.BUILTIN_SLOT_ZH`（与此前的 tag 逐字相同，铸卡写进 `CardView.tag` 的也是它，见 `slotCardTag`），
+  用户方案照旧按 tag —— 内置图位名翻译之后，草稿照片与已铸卡片的 tag 都不跟着界面语言变。
+  ⚠ **翻译这七个内置图位名那一步（多语言 PR3）要连着做的六件**：① 放宽 `scripts/check-slot-ids.mjs` (b) 里
+  「tag 必须原样写成 `BUILTIN_SLOT_ZH.x`」那一条（改成「那个表达式引用的是同一个 id」；id 要有、在表里、同一套不重复、
+  共用 id 是同一格 —— 这几条照留）；② 每个英文名 **≤24 字**（`VIEW_TAG_MAX`），否则英文界面下「另存为」会被
+  `promptSchemes.schemeIssue` 整句拒；③ 显示那一层加**一处**映射：`CardView.tag` 等于表里某个原名时翻成界面语言
+  （`types.viewTag`、`FuseFrameSheet` 的候选名、`VideoCardAnnotator` 的卡面小字都读它）—— ⚠ 圈选提卡那条路
+  （`VideoCardAnnotator` 的 `脸部特写` / `slotLabel`，origin/main 就如此）写进 `CardView.tag` 的本来就是**界面语言**的名字、
+  不在原名表里，这处映射覆盖不到它，要单独定怎么办；④ 英文界面下另存内置方案，副本带的是**英文名、没有 id**，
+  再从内置方案换过去时照片会整批报「先收起来了」（两边键不同，图一张不删、换回去还在）—— 那句提示要不要改口一并定；
+  ⑤ `src/ai/real.ts` / `src/mock/ai.ts` 的进度句 `绘制${slot.tag}…`（以及 mock 假卡面上的字）把显示名拼进一句**没翻译的中文**里，
+  PR3 要改成带占位符的整句 t 句，别把名字接在中文后面（否则英文界面读出来是「绘制Full body…」）；
+  ⑥ 翻译后的内置图位名一律做成**读时取值**的 getter（方案对象上 `get tag()`），**绝不**写成模块加载时算一次的
+  `tag: builtinSlotLabel("fullBody")` —— App 切语言不重载，算一次就冻结在开机语言；门禁 (b) 放宽成的正是「tag 表达式经 getter
+  引用同一个 id」这一形态（见该脚本 (b) 段的 ★★）。
 - **真人授权挪进造卡流程**：`components/PortraitAuthPanel` 抽成**唯一实现**（回调制——
   造卡时卡还没有 id，面板只交出 assetId，落库时机宿主定），三处宿主：自己传图、
   从视频提取（勾真人当场做）、详情页窄条。pendingAsset 与声音样本同规则：

@@ -85,7 +85,11 @@ export interface CustomCardDraft {
   tagText: string;
   schemeId: string;
   schemeOpen: boolean;
-  /** 人物卡各图位（按方案的 tag 键） */
+  /**
+   * 人物卡各图位的图，按**图位键**存（promptSchemes.slotKey，不是界面上显示的名字；理由见 types.BUILTIN_SLOT_ZH）。
+   * ★ 认格子的代码只准待在本文件与 pages/CustomCardPage.tsx —— scripts/check-slot-ids.mjs 的 (c) 是**按路径**扫的，
+   *   要把这段逻辑拆到新文件，先把新文件加进那个脚本的文件表（不加就一条规则都不过，而两边都是 string、tsc 看不见）。
+   */
   schemeShots: Record<string, Shot>;
   step: CardStep;
   lane: "upload" | "ai" | null;
@@ -96,7 +100,8 @@ export interface CustomCardDraft {
   aiBusy: string;
   /** AI 车道素材口正在读哪张图（解码 + 裁切要一两秒，得让人看见） */
   aiPick: "body" | "face" | null;
-  annot: { tag: string; frame: string } | null;
+  /** 圈选改图开在哪一格上（图位键，同 schemeShots）与那一格的图 */
+  annot: { slotKey: string; frame: string } | null;
   /** 道具卡「只留主体」层开着时那张图（见 SubjectPick） */
   subjectPick: SubjectPick | null;
   /** 出片句（Card.idLine）：出片时整句拼进视频提示词，≤ types.ID_LINE_MAX */
@@ -121,7 +126,9 @@ export interface CustomCardDraft {
   authShot: Shot | null;
   unbindNote: string;
   pendingVoice: { dataUrl: string; durationSec: number; note: string } | null;
+  /** 正在处理哪一格：非人物卡的 kind，或人物卡的图位键（同 schemeShots） */
   busySlot: string | null;
+  /** 贴在出事那一格上的报错，key 同 busySlot */
   slotErr: { key: string; msg: string } | null;
   err: string;
   dropped: string;

@@ -21,14 +21,36 @@
 // ★ 与模板市场的关系：形状刻意照着 `data/templates.ts`（mine/shared/remoteId），
 //   将来接服务端共享时是同一套搬法。本轮只做**本机方案库 + 内置方案**，
 //   远端共享见 docs/backlog.md。
-import { CARD_SIZE, CardRole, CardType, MAX_CARD_VIEWS, VIEW_TAG_MAX, uid } from "../types";
+import {
+  BUILTIN_SLOT_ZH,
+  CARD_SIZE,
+  CardRole,
+  CardType,
+  MAX_CARD_VIEWS,
+  VIEW_TAG_MAX,
+  builtinSlotZh,
+  uid,
+  type BuiltinSlotId,
+} from "../types";
 import { t } from "@lingui/core/macro";
 
 /** 这一格的参考图从哪张裁剪来 */
 export type SchemeRef = "body" | "face";
 
 export interface SchemeSlot {
-  /** 界面上的花名（进 CardView.tag）。★ ≤24 字：server 的 CARD_VIEW_TAG_MAX 跨仓镜像 */
+  /**
+   * 内置图位的 id —— **只有内置方案的图位带它**（BUILTIN_SCHEMES 里逐格写 `id: "x", tag: BUILTIN_SLOT_ZH.x`）。
+   * 这一格的身份键与铸卡写进 CardView.tag 的值按它取（slotKey / slotCardTag，理由见 types.BUILTIN_SLOT_ZH）；
+   * 用户方案没有 id（另存为时 SchemeEditorSheet 去掉它），按 tag 认。
+   * ★ **它不上线**：内置方案不发服务端，另存为的副本已经把它去掉，就算带上服务端的 z.object 也会 strip ——
+   *   所以 `api/schemes.ts` 文件头那条「图位加字段要四处一起加」**不适用于这一位**（那句「六个字段一个不少」
+   *   数的是上线的那几位）。
+   */
+  id?: BuiltinSlotId;
+  /**
+   * 界面上显示的名字。用户方案的图位按它认格子、原样进 CardView.tag；内置方案走 id（见上）。
+   * ★ ≤24 字：server 的 CARD_VIEW_TAG_MAX 跨仓镜像
+   */
   tag: string;
   /** 出片管线里干什么（进 CardView.role）。合成规格图必须 display，见文件头 ★★★② */
   role: CardRole;
@@ -136,6 +158,41 @@ export function isGenerated(slot: SchemeSlot): boolean {
   return !slot.fromCrop;
 }
 
+/** 内置方案里带 id 的那一格 → 冻结的中文原名；其余（用户方案、id 不认得）回 undefined。slotKey 与 slotCardTag 共用这一个判据 */
+function builtinNameOf(scheme: Pick<PromptScheme, "builtin">, slot: SchemeSlot): string | undefined {
+  return scheme.builtin && slot.id ? builtinSlotZh(slot.id) : undefined;
+}
+
+/**
+ * 一格图位的**身份键** —— 唯一实现。自建卡页的草稿照片（customCardStore.schemeShots）、选图 / 圈选改图 / 报错落在哪一格、
+ * portraitViews 画回来的图放进哪一格，全按它认。
+ *
+ * ★★ 内置方案取冻结的中文原名（types.BUILTIN_SLOT_ZH，**为什么冻结写在那里**），**不取 slot.tag** —— 那是显示名，下一步要翻译。
+ *   今天原名与 tag 逐字相同，所以对存量草稿是零变化。用户方案照旧是 slot.tag（原样，不 trim、不截断）：它只有这一个名字。
+ * ★ `scheme` 传**这一格所属的那套**：换方案时，新方案的格子拿新方案算、当前画着的格子拿当前方案算。
+ *   传错了今天看不出来（两边算出来都是 tag），翻译上线之后才对不上 —— 门禁（scripts/check-slot-ids.mjs）只扫固定的几种
+ *   「拿 tag 当键」的写法，**看不出传的是哪一套方案**；今天这几处调用点是靠等价测试（PR 里那份无头渲染）核过的，改调用点时自己对一遍。
+ * ★★ 而且要传**原样**那一套：`builtin` 是可选位（`builtin?: boolean`），**重建一个对象字面量**（或者经一个
+ *   「只挑几位出来」的小映射函数）就会把它漏掉 —— tsc 一个字不说、门禁也看不出来（传的确实是一套方案），
+ *   而少了它内置图位的键与 CardView.tag 会整批退回显示名：翻译上线那天，付了钱的图落在页面根本不读的键上、
+ *   卡片里存进一个外文名（还可能超过服务端 24 字）。要改就写成 `{ ...那套方案, … }`。
+ *   （同族前车之鉴：CLAUDE.md「以"只渲染不落库"为由，给同一个映射抄第二份」那一格 —— 重建形状必漏字段。）
+ */
+export function slotKey(scheme: Pick<PromptScheme, "builtin">, slot: SchemeSlot): string {
+  return builtinNameOf(scheme, slot) ?? slot.tag;
+}
+
+/**
+ * 一格图位铸卡时**写进 CardView.tag 的值**。今天与 slotKey 算出来的相同，分开写是因为两者回答的是两件事：
+ * slotKey 认格子（只活在本机草稿里），这个是存进卡片、跟着卡组快照在服务端一躺很久的数据。
+ * ★ 内置方案写冻结的中文原名（理由见 types.BUILTIN_SLOT_ZH ②），用户方案原样写 slot.tag（与此前逐字相同）。
+ *   详情页上怎么显示是显示那一层的事。
+ * ★ 第一个参数与 slotKey 同一条讲究（传原样那一套、别重建对象）—— 见上面那段 ★★。
+ */
+export function slotCardTag(scheme: Pick<PromptScheme, "builtin">, slot: SchemeSlot): string {
+  return builtinNameOf(scheme, slot) ?? slot.tag;
+}
+
 // ── 内置方案 ───────────────────────────────────────────────────────
 //
 // ★ 三套的取材：仓库主人 2026-08-24 给的三张参考截图（人物卡设定图流派）。
@@ -168,7 +225,9 @@ const FULL_BODY_PROMPT =
 const FACE_PROMPT = "参考图中人物的面部特写肖像：纯白色背景，无任何背景元素与文字；头肩构图，五官清晰";
 
 // ★ 下面四格的正文原来直接写在 BUILTIN_SCHEMES 里。提出来是为了整句冻结（发给模型的提示词，不是界面文案）：
-//   方案的名字、简介、图位名是界面文案，它们还留在 BUILTIN_SCHEMES 里，不能跟着一起冻结。
+//   方案的名字、简介是界面文案，还留在 BUILTIN_SCHEMES 里，不能跟着一起冻结。
+//   图位的显示名也是界面文案，但它**今天直接读冻结的 types.BUILTIN_SLOT_ZH**（`tag: BUILTIN_SLOT_ZH.x`）——
+//   所以这七个名字暂时不在 i18n 棘轮里，翻译它们是下一步的事，见 BUILTIN_SCHEMES 头上那条 ★。
 //   ⚠ 措辞与「"…" +」换行拼接的排版一个字没动 —— design/gen-scheme-examples.mjs 按源码文本做子串断言，
 //   它先抹掉「" +」换行再比对，在拼接的字符串中间插注释会让断言失败。
 /* i18n-frozen: 出图提示词正文，发给模型 */
@@ -190,6 +249,13 @@ const SPEC_SHEET_PROMPT =
   "中栏为色彩参考色板横排（发色、眼色、肤色、服装主色与配色）；" +
   "右栏为服装局部细节特写三图。整体冷色调专业设计感排版";
 
+// ★ 图位一律写成 `id: "x", tag: BUILTIN_SLOT_ZH.x`（2026-09-11 多语言 PR2，主人拍板「内置方案先给图位加 id」）：
+//   id 定这一格的身份键与铸卡写进 CardView.tag 的值（冻结的中文原名，见 slotKey / slotCardTag），
+//   tag 是界面上显示的名字 —— 下一步翻译的是 tag，身份不跟着变。
+//   scripts/check-slot-ids.mjs 核这对写法，以及同一个 id 在几套里是同一格（role / 正文 / ref / size / fromCrop 逐项相同）。
+// ★★ **翻译这七个显示名的那一步**：把 `tag: BUILTIN_SLOT_ZH.x` 换成翻译后的名字，并同时放宽门禁 (b) 里「tag 必须原样写成
+//   BUILTIN_SLOT_ZH.x」那一条（改成「tag 那个表达式引用的是同一个 id」，id / 表 / 同一格那几条照留，见该脚本 (b) 段的 ★★）。
+//   连带要一起做的还有几件（英文名 ≤24 字、显示层的 CardView.tag 映射等），清单在 docs/backlog.md「Phase A」那条 ⚠。
 export const BUILTIN_SCHEMES: readonly PromptScheme[] = [
   {
     id: "scheme_clean",
@@ -200,19 +266,21 @@ export const BUILTIN_SCHEMES: readonly PromptScheme[] = [
     examples: ["/schemes/clean.webp"],
     slots: [
       {
-        tag: "全身立绘",
+        id: "fullBody",
+        tag: BUILTIN_SLOT_ZH.fullBody,
         role: "primary",
         prompt: FULL_BODY_PROMPT,
       },
       {
-        tag: "面部特写",
+        id: "faceCloseup",
+        tag: BUILTIN_SLOT_ZH.faceCloseup,
         role: "face",
         ref: "face",
         prompt: FACE_PROMPT,
       },
       // ★ 原片裁剪降级保留：AI 立绘再像也是重画的，出片对不上时它是唯一的对照物。
       //   不计费（fromCrop），也不进模型（display）。
-      { tag: "原片截图", role: "display", prompt: "", fromCrop: true },
+      { id: "sourceCrop", tag: BUILTIN_SLOT_ZH.sourceCrop, role: "display", prompt: "", fromCrop: true },
     ],
   },
   {
@@ -227,18 +295,21 @@ export const BUILTIN_SCHEMES: readonly PromptScheme[] = [
       {
         // ★★ 这一格是**唯一**能进管线的：它锁的是服装与体型，而画面里没有脸 ——
         //   既是这套方案的卖点，也正好避开"多视图当人物参考"那条（它本来就不锁身份）。
-        tag: "白模全身",
+        id: "mannequinBody",
+        tag: BUILTIN_SLOT_ZH.mannequinBody,
         role: "primary",
         prompt: MANNEQUIN_BODY_PROMPT,
       },
       {
-        tag: "服装细节",
+        id: "outfitDetail",
+        tag: BUILTIN_SLOT_ZH.outfitDetail,
         role: "aux",
         prompt: OUTFIT_DETAIL_PROMPT,
       },
       {
         // 三视图是给人看的规格图 —— 必须 display（文件头 ★★★②）
-        tag: "白模三视图",
+        id: "mannequinTurnaround",
+        tag: BUILTIN_SLOT_ZH.mannequinTurnaround,
         role: "display",
         prompt: TURNAROUND_PROMPT,
       },
@@ -252,18 +323,21 @@ export const BUILTIN_SCHEMES: readonly PromptScheme[] = [
     examples: ["/schemes/specsheet.webp"],
     slots: [
       {
-        tag: "面部特写",
+        id: "faceCloseup",
+        tag: BUILTIN_SLOT_ZH.faceCloseup,
         role: "face",
         ref: "face",
         prompt: FACE_PROMPT,
       },
       {
-        tag: "全身立绘",
+        id: "fullBody",
+        tag: BUILTIN_SLOT_ZH.fullBody,
         role: "primary",
         prompt: FULL_BODY_PROMPT,
       },
       {
-        tag: "设定规格稿",
+        id: "specSheet",
+        tag: BUILTIN_SLOT_ZH.specSheet,
         role: "display",
         prompt: SPEC_SHEET_PROMPT,
       },

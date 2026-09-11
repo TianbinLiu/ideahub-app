@@ -8,7 +8,7 @@ import { makeRng, pick } from "./rng";
 import { slotsFor } from "../data/economy";
 // 图位要不要调模型只有 promptSchemes.isGenerated 一处判据 —— 演示模式也走它，
 // 否则"哪几格算生成型"会有第二份答案，而它正是报价的输入。
-import { isGenerated, type PromptScheme } from "../data/promptSchemes";
+import { isGenerated, slotCardTag, slotKey, type PromptScheme } from "../data/promptSchemes";
 
 const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms + Math.random() * 400));
 
@@ -100,17 +100,28 @@ export async function portraitViews(o: {
   /** 与 real 同形：演示档不拼提示词，但类型上必填，调用点漏传在 tsc 就拦下 */
   realPhoto: boolean;
   onProgress?: (s: string) => void;
-}): Promise<{ role: CardRole; tag: string; dataUrl: string }[]> {
-  const out: { role: CardRole; tag: string; dataUrl: string }[] = [];
+}): Promise<{ slotKey: string; role: CardRole; tag: string; dataUrl: string }[]> {
+  const out: { slotKey: string; role: CardRole; tag: string; dataUrl: string }[] = [];
   for (let i = 0; i < o.scheme.slots.length; i++) {
     const slot = o.scheme.slots[i];
+    // ★ slotKey / tag 与 real 同一对函数；进度句与假卡面上的字是显示名，照旧用 slot.tag
     if (!isGenerated(slot)) {
-      out.push({ role: slot.role, tag: slot.tag, dataUrl: slot.ref === "face" && o.faceCrop ? o.faceCrop : o.bodyCrop });
+      out.push({
+        slotKey: slotKey(o.scheme, slot),
+        role: slot.role,
+        tag: slotCardTag(o.scheme, slot),
+        dataUrl: slot.ref === "face" && o.faceCrop ? o.faceCrop : o.bodyCrop,
+      });
       continue;
     }
     o.onProgress?.(`绘制${slot.tag}…（${i + 1}/${o.scheme.slots.length}·演示）`);
     await new Promise((r) => setTimeout(r, 300));
-    out.push({ role: slot.role, tag: slot.tag, dataUrl: makeCover(`portrait:${slot.role}:${i}`, slot.tag) });
+    out.push({
+      slotKey: slotKey(o.scheme, slot),
+      role: slot.role,
+      tag: slotCardTag(o.scheme, slot),
+      dataUrl: makeCover(`portrait:${slot.role}:${i}`, slot.tag),
+    });
   }
   return out;
 }
