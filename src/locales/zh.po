@@ -142,11 +142,13 @@ msgstr "，已放大到短边 {REF_SHORT_MIN}px"
 #. 列举几个名字时的分隔符
 #. 列举几个名字时的分隔符
 #. 列举几个名字时的分隔符
+#. 列举几个段号时的分隔符（第 1、3 段）
 #: src/components/blockout/RoleCastBoard.tsx
 #: src/components/blockout/RoleConfirmSheet.tsx
 #: src/components/DeleteCardDialog.tsx
 #: src/components/TemplateShelf.tsx
 #: src/components/VideoCardAnnotator.tsx
+#: src/pages/CutPage.tsx
 msgid "、"
 msgstr "、"
 
@@ -338,6 +340,12 @@ msgstr "{0} 个作品"
 msgid "{0} 个卡组"
 msgstr "{0} 个卡组"
 
+#. placeholder {0}: view.length
+#. placeholder {1}: formatDuration(total)
+#: src/pages/CutPage.tsx
+msgid "{0} 个片段 · 共 {1}"
+msgstr "{0} 个片段 · 共 {1}"
+
 #. placeholder {0}: tpl.roles.length
 #: src/components/TemplateShelf.tsx
 msgid "{0} 个角色位可换人"
@@ -366,6 +374,11 @@ msgstr "{0} 张卡"
 #: src/components/VideoCardAnnotator.tsx
 msgid "{0} 张卡已入库，在「我的卡组」里能看到。"
 msgstr "{0} 张卡已入库，在「我的卡组」里能看到。"
+
+#. placeholder {0}: res.label
+#: src/pages/CutPage.tsx
+msgid "{0} 是由 720P 素材放大的 —— 文件更大、合并更久，但<0>不会</0>更清晰"
+msgstr "{0} 是由 720P 素材放大的 —— 文件更大、合并更久，但<0>不会</0>更清晰"
 
 #. placeholder {0}: commentCountOf(video)
 #: src/components/CommentSheet.tsx
@@ -410,6 +423,12 @@ msgstr "{0}/{SCRIPT_MAX} 字 · 铺出来按当前设置：{1}档 · {2}"
 #: src/components/flow/FlowCanvas.tsx
 msgid "{0}/句"
 msgstr "{0}/句"
+
+#. placeholder {0}: Math.min(100, Math.round((mergeDone / total) * 100))
+#. placeholder {1}: formatDuration(Math.max(0, total - mergeDone))
+#: src/pages/CutPage.tsx
+msgid "{0}% · 还剩约 {1}"
+msgstr "{0}% · 还剩约 {1}"
 
 #. placeholder {0}: (vEnd - vStart).toFixed(1)
 #: src/components/VideoCardAnnotator.tsx
@@ -600,6 +619,10 @@ msgstr "↩ 回竖屏"
 msgid "↺ 用回原片"
 msgstr "↺ 用回原片"
 
+#: src/pages/CutPage.tsx
+msgid "⇤ 从这里开始"
+msgstr "⇤ 从这里开始"
+
 #: src/pages/SupportModelsPage.tsx
 msgid "＋ 上传我的 Live2D 模型"
 msgstr "＋ 上传我的 Live2D 模型"
@@ -661,6 +684,10 @@ msgstr "＋ 添加"
 msgid "＋ 添加到我的卡片"
 msgstr "＋ 添加到我的卡片"
 
+#: src/pages/CutPage.tsx
+msgid "＋ 添加本地音频作为 BGM"
+msgstr "＋ 添加本地音频作为 BGM"
+
 #: src/components/VideoCardAnnotator.tsx
 msgid "＋ 自建一套"
 msgstr "＋ 自建一套"
@@ -715,6 +742,10 @@ msgstr "▶ 试听"
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "▸ 对不上怎么办？<0>多数情况删掉那个位子就行，不用重炼</0>"
 msgstr "▸ 对不上怎么办？<0>多数情况删掉那个位子就行，不用重炼</0>"
+
+#: src/pages/CutPage.tsx
+msgid "◀ 前移"
+msgstr "◀ 前移"
 
 #: src/components/TokenCost.tsx
 msgid "○ 演示模式：本地模拟，不消耗 token"
@@ -822,6 +853,10 @@ msgstr "✂ 只留主体"
 msgid "✂ 就取这一块"
 msgstr "✂ 就取这一块"
 
+#: src/pages/CutPage.tsx
+msgid "✂️ 播放头处分割"
+msgstr "✂️ 播放头处分割"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "✍ 自定义"
 msgstr "✍ 自定义"
@@ -907,6 +942,13 @@ msgstr "✨ AI 封面（改图/生成）"
 msgid "✨ 已按「{pickedTitle}」炼好形象图"
 msgstr "✨ 已按「{pickedTitle}」炼好形象图"
 
+#. placeholder {0}: liveAnns.length
+#. placeholder {1}: annBySeg.size
+#. placeholder {2}: fmtTokens(annCost)
+#: src/pages/CutPage.tsx
+msgid "✨ 按 {0} 处圈选重新生成（{1} 段 · {2}）"
+msgstr "✨ 按 {0} 处圈选重新生成（{1} 段 · {2}）"
+
 #: src/components/VideoCardAnnotator.tsx
 msgid "✨ 按这套方案炼形象图（{portraitCount} 张 · 演示）"
 msgstr "✨ 按这套方案炼形象图（{portraitCount} 张 · 演示）"
@@ -935,6 +977,10 @@ msgstr "⬜ 白模模板 · 参考视频 约 {realSecText}s（按 {billSec} 秒�
 #: src/components/VideoCardAnnotator.tsx
 msgid "⭕ 圆"
 msgstr "⭕ 圆"
+
+#: src/pages/CutPage.tsx
+msgid "⭕ 圈选当前这一帧"
+msgstr "⭕ 圈选当前这一帧"
 
 #: src/components/flow/SegPlayer.tsx
 msgid "⭕ 圈选改画面"
@@ -1115,6 +1161,10 @@ msgstr "🔊 有声"
 msgid "🔊 模板原声"
 msgstr "🔊 模板原声"
 
+#: src/pages/CutPage.tsx
+msgid "🔊 用模板原声"
+msgstr "🔊 用模板原声"
+
 #: src/components/PortraitAuthPanel.tsx
 msgid "🔗 发起肖像授权（本人扫码 / 本机打开）"
 msgstr "🔗 发起肖像授权（本人扫码 / 本机打开）"
@@ -1155,6 +1205,10 @@ msgstr "🗑 删掉某段"
 #: src/components/flow/DeleteSegBtn.tsx
 msgid "🗑 删除本段"
 msgstr "🗑 删除本段"
+
+#: src/pages/CutPage.tsx
+msgid "🗑 删除片段"
+msgstr "🗑 删除片段"
 
 #: src/components/DraftSheet.tsx
 msgid "🧩 工作流模式"
@@ -1391,6 +1445,7 @@ msgid "上面列的是这台设备上已有的那几条，不是全部结果。"
 msgstr "上面列的是这台设备上已有的那几条，不是全部结果。"
 
 #: src/components/guide/GuideOverlay.tsx
+#: src/pages/CutPage.tsx
 #: src/pages/SimpleModePage.tsx
 msgid "下一步"
 msgstr "下一步"
@@ -1486,6 +1541,10 @@ msgstr "不用素材卡，直接写"
 #: src/components/VisibilityPicker.tsx
 msgid "不进首页和搜索；但拿到链接的人都能看，能被转发"
 msgstr "不进首页和搜索；但拿到链接的人都能看，能被转发"
+
+#: src/pages/CutPage.tsx
+msgid "与素材同分辨率，最快"
+msgstr "与素材同分辨率，最快"
 
 #: src/components/flow/RefFrameSheet.tsx
 msgid "中间帧最多 {midMax} 张"
@@ -1673,6 +1732,10 @@ msgstr "作品内容"
 msgid "你 10 分钟内已经提交过工单 #{short}，这次的内容已并入同一张，客服会一起看。"
 msgstr "你 10 分钟内已经提交过工单 #{short}，这次的内容已并入同一张，客服会一起看。"
 
+#: src/pages/CutPage.tsx
+msgid "你动过片段（裁剪 / 删段 / 换序），而配乐是自动预置的原片音轨——它按原片从头混，合出来会和画面对不上。想对齐就在「音频」里换一条自己的，或把片段改回原样。"
+msgstr "你动过片段（裁剪 / 删段 / 换序），而配乐是自动预置的原片音轨——它按原片从头混，合出来会和画面对不上。想对齐就在「音频」里换一条自己的，或把片段改回原样。"
+
 #: src/pages/WorkshopPage.tsx
 msgid "你可以在自己的卡片详情页按「分享到创意工坊」，成为第一个"
 msgstr "你可以在自己的卡片详情页按「分享到创意工坊」，成为第一个"
@@ -1782,6 +1845,10 @@ msgstr "保存失败，稍后再试。"
 msgid "保存失败，请重试"
 msgstr "保存失败，请重试"
 
+#: src/pages/CutPage.tsx
+msgid "保存本段"
+msgstr "保存本段"
+
 #: src/pages/SettingsProfilePage.tsx
 msgid "保存资料"
 msgstr "保存资料"
@@ -1860,9 +1927,17 @@ msgstr "先去逛逛，好了叫我"
 msgid "先听一遍：要的是<0>这个人说话</0>的干净片段。出片走「高清/电影级」且台词写在引号里时， 会把这段声音发给 AI 作音色参考（免费）。样本只存在这台设备上，分享卡片不带它。"
 msgstr "先听一遍：要的是<0>这个人说话</0>的干净片段。出片走「高清/电影级」且台词写在引号里时， 会把这段声音发给 AI 作音色参考（免费）。样本只存在这台设备上，分享卡片不带它。"
 
+#: src/pages/CutPage.tsx
+msgid "先存起来，圈完所有要改的地方再一次性重新生成"
+msgstr "先存起来，圈完所有要改的地方再一次性重新生成"
+
 #: src/components/DownloadSheet.tsx
 msgid "先存进 App，再选去处。"
 msgstr "先存进 App，再选去处。"
+
+#: src/pages/CutPage.tsx
+msgid "先点上面的片段选中，再用这排按钮"
+msgstr "先点上面的片段选中，再用这排按钮"
 
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "先点下面一个格子，再点一张卡；也可以直接把卡拖到格子上"
@@ -2046,8 +2121,13 @@ msgstr "写一句话出片"
 msgid "写一段卡组简介：这套卡适合生成什么样的视频？"
 msgstr "写一段卡组简介：这套卡适合生成什么样的视频？"
 
+#: src/pages/CutPage.tsx
+msgid "写入本地库…"
+msgstr "写入本地库…"
+
 #: src/components/ForgeOverlay.tsx
 #: src/components/VideoCardAnnotator.tsx
+#: src/pages/CutPage.tsx
 msgid "准备中…"
 msgstr "准备中…"
 
@@ -2058,6 +2138,14 @@ msgstr "准备文件 {done}/{total}"
 #: src/pages/SupportModelsPage.tsx
 msgid "准备文件…"
 msgstr "准备文件…"
+
+#: src/pages/CutPage.tsx
+msgid "准备素材…"
+msgstr "准备素材…"
+
+#: src/pages/CutPage.tsx
+msgid "准备配乐…"
+msgstr "准备配乐…"
 
 #: src/pages/CreatePage.tsx
 msgid "几秒出片"
@@ -2145,6 +2233,10 @@ msgstr "分享这条作品"
 msgid "分享需要先连接服务器并登录 —— 离线库里没有「别人」。"
 msgstr "分享需要先连接服务器并登录 —— 离线库里没有「别人」。"
 
+#: src/pages/CutPage.tsx
+msgid "分割点离片段边缘太近（至少留 {MIN_CLIP_SEC} 秒）"
+msgstr "分割点离片段边缘太近（至少留 {MIN_CLIP_SEC} 秒）"
+
 #: src/components/TabBar.tsx
 msgid "分区"
 msgstr "分区"
@@ -2171,6 +2263,10 @@ msgstr "切换中…"
 #: src/pages/SupportPersonasPage.tsx
 msgid "切换失败，稍后再试。"
 msgstr "切换失败，稍后再试。"
+
+#: src/pages/CutPage.tsx
+msgid "刚才切到后台了——合成不会因此录坏画面，但可能被系统拖慢；真断了会明确告诉你"
+msgstr "刚才切到后台了——合成不会因此录坏画面，但可能被系统拖慢；真断了会明确告诉你"
 
 #: src/components/TabBar.tsx
 #: src/pages/SupportPage.tsx
@@ -2323,6 +2419,10 @@ msgstr "别人的首页和你的主页上都不再出现，成片和评论都留
 msgid "别人赞你、评论你、回复你、在评论里 @ 你，或平台发来通知时会出现在这里"
 msgstr "别人赞你、评论你、回复你、在评论里 @ 你，或平台发来通知时会出现在这里"
 
+#: src/pages/CutPage.tsx
+msgid "到这里结束 ⇥"
+msgstr "到这里结束 ⇥"
+
 #: src/components/PortraitAuthPanel.tsx
 msgid "刷新"
 msgstr "刷新"
@@ -2334,6 +2434,10 @@ msgstr "刷新中…"
 #: src/components/BranchPlayer.tsx
 msgid "剧情走向，由你决定——"
 msgstr "剧情走向，由你决定——"
+
+#: src/pages/CutPage.tsx
+msgid "剪辑"
+msgstr "剪辑"
 
 #: src/studio/canvasAgent.ts
 msgid "办好了。"
@@ -2476,6 +2580,10 @@ msgstr "原因不明"
 msgid "原片第 {0} 秒（选段外）"
 msgstr "原片第 {0} 秒（选段外）"
 
+#: src/pages/CutPage.tsx
+msgid "原视频音轨"
+msgstr "原视频音轨"
+
 #: src/pages/TemplateDetailPage.tsx
 msgid "去出一段片"
 msgstr "去出一段片"
@@ -2508,6 +2616,10 @@ msgstr "去升级"
 #: src/pages/FeedPage.tsx
 msgid "去卡片工坊创作"
 msgstr "去卡片工坊创作"
+
+#: src/pages/CutPage.tsx
+msgid "去发布"
+msgstr "去发布"
 
 #: src/components/ForgeOverlay.tsx
 msgid "去取回这一段"
@@ -2732,6 +2844,10 @@ msgstr "取消分享要先连上服务器：广场上那份在服务器上，离
 msgid "取消发布"
 msgstr "取消发布"
 
+#: src/pages/CutPage.tsx
+msgid "取消合并"
+msgstr "取消合并"
+
 #: src/components/CommentSheet.tsx
 msgid "取消回复"
 msgstr "取消回复"
@@ -2777,6 +2893,11 @@ msgstr "取首尾帧…"
 #: src/components/VideoCardAnnotator.tsx
 msgid "另存为我的"
 msgstr "另存为我的"
+
+#. placeholder {0}: anns.length - liveAnns.length
+#: src/pages/CutPage.tsx
+msgid "另有 {0} 处落在已删掉的段上，不计费也不会重拍"
+msgstr "另有 {0} 处落在已删掉的段上，不计费也不会重拍"
 
 #: src/pages/SettingsStoragePage.tsx
 msgid "只删生成过程中留下的、已经没人用的中间文件。未发布的草稿和还没传上去的作品不会动。"
@@ -2828,6 +2949,10 @@ msgstr "可以检查有没有新版本"
 msgid "可用约 {0} MB"
 msgstr "可用约 {0} MB"
 
+#: src/pages/CutPage.tsx
+msgid "可跨帧跨段圈多处，最后一次性重新生成——那一步才计费。"
+msgstr "可跨帧跨段圈多处，最后一次性重新生成——那一步才计费。"
+
 #. placeholder {0}: next.label
 #: src/components/flow/TierRow.tsx
 msgid "台词不再带音色样本（「{0}」档出片无声）"
@@ -2838,10 +2963,31 @@ msgstr "台词不再带音色样本（「{0}」档出片无声）"
 msgid "台词不再带音色样本（「{0}」档暂无配音）"
 msgstr "台词不再带音色样本（「{0}」档暂无配音）"
 
+#: src/pages/CutPage.tsx
+msgid "合并失败：{raw}"
+msgstr "合并失败：{raw}"
+
+#: src/pages/CutPage.tsx
+msgid "合并失败：第 {segList} 段的视频取不到了（HTTP {http}）。这几段揣的还是方舟的临时链接、当初没能转存成永久地址，而那种链接只活 24 小时——过期之后合成器也拉不到。这条片子现在合不了：回工作流把这几段重新出片（会再花一次钱），或者删掉它们再合。"
+msgstr "合并失败：第 {segList} 段的视频取不到了（HTTP {http}）。这几段揣的还是方舟的临时链接、当初没能转存成永久地址，而那种链接只活 24 小时——过期之后合成器也拉不到。这条片子现在合不了：回工作流把这几段重新出片（会再花一次钱），或者删掉它们再合。"
+
+#: src/pages/CutPage.tsx
+msgid "合并时混进成片，短于成片会自动循环。"
+msgstr "合并时混进成片，短于成片会自动循环。"
+
+#: src/pages/CutPage.tsx
+msgid "合成中——这里的改动不会进这一炉"
+msgstr "合成中——这里的改动不会进这一炉"
+
 #: src/components/flow/CastPreviewCard.tsx
 #: src/components/PhotoSubjectPicker.tsx
+#: src/pages/CutPage.tsx
 msgid "合成中…"
 msgstr "合成中…"
+
+#: src/pages/CutPage.tsx
+msgid "合成成片"
+msgstr "合成成片"
 
 #. placeholder {0}: nodes.filter((n) => !nodeDone(n)).length
 #: src/components/flow/FlowCanvas.tsx
@@ -2851,6 +2997,10 @@ msgstr "合成整片 · 还差 {0} 段"
 #: src/pages/PublishPage.tsx
 msgid "合成稿还留在「我的」里，没有丢。"
 msgstr "合成稿还留在「我的」里，没有丢。"
+
+#: src/pages/CutPage.tsx
+msgid "合成走系统硬件编解码，不再录屏——可以切走，只是系统可能把它拖慢"
+msgstr "合成走系统硬件编解码，不再录屏——可以切走，只是系统可能把它拖慢"
 
 #: src/components/flow/CastPreviewCard.tsx
 msgid "合成预览：只看站位与形象对不对，不代表成片画质；改了挂法要重新合成"
@@ -2868,6 +3018,10 @@ msgstr "同一条视频拆成 {count} 段的分段模板（共约 {0}s）· 套�
 #: src/components/VideoCardAnnotator.tsx
 msgid "名字（必填，≤{NAME_MAX} 字）"
 msgstr "名字（必填，≤{NAME_MAX} 字）"
+
+#: src/pages/CutPage.tsx
+msgid "后移 ▶"
+msgstr "后移 ▶"
 
 #: src/i18n/activate.ts
 msgid "启梦 · 有想法，就是梦想启程的第一步"
@@ -2963,6 +3117,19 @@ msgstr "圈一张就走"
 #: src/components/VideoCardAnnotator.tsx
 msgid "圈出来的范围太小（参考图至少要 300px 宽）——再拖大一点"
 msgstr "圈出来的范围太小（参考图至少要 300px 宽）——再拖大一点"
+
+#: src/pages/CutPage.tsx
+msgid "圈选"
+msgstr "圈选"
+
+#. placeholder {0}: srcErr[active!.segIndex]
+#: src/pages/CutPage.tsx
+msgid "圈选与合并要用的截帧流没取到：{0}"
+msgstr "圈选与合并要用的截帧流没取到：{0}"
+
+#: src/pages/CutPage.tsx
+msgid "圈选要先取到这一段的截帧流，刚才没取到：{why} —— 点预览下方的「重试」"
+msgstr "圈选要先取到这一段的截帧流，刚才没取到：{why} —— 点预览下方的「重试」"
 
 #: src/pages/CreatePage.tsx
 msgid "在 3D 铸卡桌面上摆素材卡，AI 每段推演三套走向，挑一套炼一段，逐段往下铺；顶栏「🧩 工作流画布」把同一条流水线换成画布那一面。"
@@ -3378,6 +3545,10 @@ msgstr "已发布「{0}」（未公开，只在「我的」里），并设为你
 msgid "已发布「{0}」到声音市场，并设为你的声音。"
 msgstr "已发布「{0}」到声音市场，并设为你的声音。"
 
+#: src/pages/CutPage.tsx
+msgid "已取消合并。片段、圈选和配乐都还在，随时可以重新开始。"
+msgstr "已取消合并。片段、圈选和配乐都还在，随时可以重新开始。"
+
 #: src/components/WorkshopShareBar.tsx
 msgid "已在工坊 · 取消分享"
 msgstr "已在工坊 · 取消分享"
@@ -3781,9 +3952,25 @@ msgstr "想换成片内容，用下面的「🛠 回炉重做」把这条片的�
 msgid "慢放 0.25 倍"
 msgstr "慢放 0.25 倍"
 
+#: src/pages/CutPage.tsx
+msgid "成片"
+msgstr "成片"
+
 #: src/pages/EditPage.tsx
 msgid "成片、评论和点赞会一起消失，云端存的视频与封面也会一并删除。不能撤销。"
 msgstr "成片、评论和点赞会一起消失，云端存的视频与封面也会一并删除。不能撤销。"
+
+#: src/pages/CutPage.tsx
+msgid "成片写入本地库失败（存储配额？）"
+msgstr "成片写入本地库失败（存储配额？）"
+
+#: src/pages/CutPage.tsx
+msgid "成片合好了，去发布吧"
+msgstr "成片合好了，去发布吧"
+
+#: src/pages/CutPage.tsx
+msgid "成片已经合好了，但{cutWhy}"
+msgstr "成片已经合好了，但{cutWhy}"
 
 #: src/components/flow/SegmentRecoverCards.tsx
 msgid "成片已经落回流水线，但自动存草稿没成（存储空间不足或隐私模式）——先别关 App，去工坊点一次「存草稿」"
@@ -3894,6 +4081,10 @@ msgstr "截出来是一片空白"
 #: src/components/CoverPicker.tsx
 msgid "截取中…"
 msgstr "截取中…"
+
+#: src/pages/CutPage.tsx
+msgid "截取当前画面失败：{why}"
+msgstr "截取当前画面失败：{why}"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "截帧中…"
@@ -4053,6 +4244,10 @@ msgstr "拖动移动位置，双指或滑杆缩放"
 #: src/components/blockout/BlockoutTrimmer.tsx
 msgid "拖四个角调整<0>裁剪框</0>，拖框身整体挪位。<1>台标 / 水印必须框到框外</1> —— AI 出片是逐帧复刻画面， 提示词去不掉它（实测），裁掉是唯一的办法；而模板会被反复套用，留一个水印就是永久的。"
 msgstr "拖四个角调整<0>裁剪框</0>，拖框身整体挪位。<1>台标 / 水印必须框到框外</1> —— AI 出片是逐帧复刻画面， 提示词去不掉它（实测），裁掉是唯一的办法；而模板会被反复套用，留一个水印就是永久的。"
+
+#: src/pages/CutPage.tsx
+msgid "拖拽换序 · 点击选中"
+msgstr "拖拽换序 · 点击选中"
 
 #: src/components/flow/RefFrameSheet.tsx
 msgid "拖进度条到想要的画面，再点下面的键"
@@ -4312,6 +4507,7 @@ msgstr "撤销"
 #: src/components/blockout/VideoStage.tsx
 #: src/components/BranchPlayer.tsx
 #: src/components/SegmentPlayer.tsx
+#: src/pages/CutPage.tsx
 msgid "播放"
 msgstr "播放"
 
@@ -4319,6 +4515,10 @@ msgstr "播放"
 #: src/components/blockout/VideoStage.tsx
 msgid "播放器还没就绪，稍等一下再标这一帧。"
 msgstr "播放器还没就绪，稍等一下再标这一帧。"
+
+#: src/pages/CutPage.tsx
+msgid "播放头不在选中的片段里——先点一下这个片段（它会从头开始播），再操作。"
+msgstr "播放头不在选中的片段里——先点一下这个片段（它会从头开始播），再操作。"
 
 #: src/components/MaterialSheet.tsx
 msgid "收下了 {n} 张"
@@ -4482,6 +4682,7 @@ msgstr "昵称"
 #: src/components/blockout/VideoStage.tsx
 #: src/components/BranchPlayer.tsx
 #: src/components/SegmentPlayer.tsx
+#: src/pages/CutPage.tsx
 msgid "暂停"
 msgstr "暂停"
 
@@ -4851,6 +5052,10 @@ msgstr "正在保存 {0}/{1} 段"
 msgid "正在保存另一条作品，等它完成或点停止再来。"
 msgstr "正在保存另一条作品，等它完成或点停止再来。"
 
+#: src/pages/CutPage.tsx
+msgid "正在停止…"
+msgstr "正在停止…"
+
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "正在取最新的角色位…"
 msgstr "正在取最新的角色位…"
@@ -4990,6 +5195,21 @@ msgstr "正在重试…"
 #: src/components/DownloadSheet.tsx
 msgid "正在问总大小…"
 msgstr "正在问总大小…"
+
+#. placeholder {0}: a.segIndex + 1
+#: src/pages/CutPage.tsx
+msgid "段{0}"
+msgstr "段{0}"
+
+#. placeholder {0}: c.segIndex + 1
+#. placeholder {1}: clipDur(c).toFixed(1)
+#: src/pages/CutPage.tsx
+msgid "段{0} · {1}s"
+msgstr "段{0} · {1}s"
+
+#: src/pages/CutPage.tsx
+msgid "段已删"
+msgstr "段已删"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "段间承接"
@@ -5412,6 +5632,10 @@ msgstr "用这一帧作封面"
 msgid "用这张"
 msgstr "用这张"
 
+#: src/pages/CutPage.tsx
+msgid "由 720P 素材放大，文件更大但不会更清晰"
+msgstr "由 720P 素材放大，文件更大但不会更清晰"
+
 #: src/components/blockout/BoxFramePicker.tsx
 msgid "由 AI 自己挑：先看正中间那一帧，认不全再往两头铺，最多试 {BLOCKOUT_BOX_TRIES} 帧。<0>一镜到底、人站着不动的素材用这个就够。</0>"
 msgstr "由 AI 自己挑：先看正中间那一帧，认不全再往两头铺，最多试 {BLOCKOUT_BOX_TRIES} 帧。<0>一镜到底、人站着不动的素材用这个就够。</0>"
@@ -5736,6 +5960,10 @@ msgstr "视频模板"
 msgid "视频读不出来"
 msgstr "视频读不出来"
 
+#: src/pages/CutPage.tsx
+msgid "视频载入中…"
+msgstr "视频载入中…"
+
 #. placeholder {0}: (boxAtSec ?? 0).toFixed(1)
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "离开标记帧了，这里的落点会不准（画面上的人已经走动过）—— 回到第 {0} 秒再拖。"
@@ -5880,6 +6108,38 @@ msgstr "第 {rel} 秒"
 #: src/studio/canvasAgent.ts
 msgid "第 {s} 段"
 msgstr "第 {s} 段"
+
+#: src/pages/CutPage.tsx
+msgid "第 {segNo} 段 · {s}"
+msgstr "第 {segNo} 段 · {s}"
+
+#: src/pages/CutPage.tsx
+msgid "第 {segNo} 段 · 按圈选改画面 {step}/{steps}…"
+msgstr "第 {segNo} 段 · 按圈选改画面 {step}/{steps}…"
+
+#: src/pages/CutPage.tsx
+msgid "第 {segNo} 段 · 重拍视频（{n}/{segTotal} 段）…"
+msgstr "第 {segNo} 段 · 重拍视频（{n}/{segTotal} 段）…"
+
+#: src/pages/CutPage.tsx
+msgid "第 {segNo} 段成片转存中（换成永久地址）…"
+msgstr "第 {segNo} 段成片转存中（换成永久地址）…"
+
+#: src/pages/CutPage.tsx
+msgid "第 {segNo} 段成片转存中（换成永久地址）· 已等 {secs} 秒…"
+msgstr "第 {segNo} 段成片转存中（换成永久地址）· 已等 {secs} 秒…"
+
+#: src/pages/CutPage.tsx
+msgid "第 {segNo} 段是已经合好的本机成片，不能再合一次——去发布页发它，或回工作流重做一条"
+msgstr "第 {segNo} 段是已经合好的本机成片，不能再合一次——去发布页发它，或回工作流重做一条"
+
+#: src/pages/CutPage.tsx
+msgid "第 {segNo} 段还不是永久地址，合成用不了——回到工作流等它转存完再来"
+msgstr "第 {segNo} 段还不是永久地址，合成用不了——回到工作流等它转存完再来"
+
+#: src/pages/CutPage.tsx
+msgid "第 {segNo} 段还没有视频（只有设定帧），合成做不了——先把这一段炼出来"
+msgstr "第 {segNo} 段还没有视频（只有设定帧），合成做不了——先把这一段炼出来"
 
 #: src/pages/SimpleModePage.tsx
 msgid "第 {stepNo} / 3 步"
@@ -6484,6 +6744,10 @@ msgstr "返回首页"
 msgid "还原上一版"
 msgstr "还原上一版"
 
+#: src/pages/CutPage.tsx
+msgid "还原整段"
+msgstr "还原整段"
+
 #: src/components/blockout/BlockoutTrimmer.tsx
 msgid "还在读这段视频"
 msgstr "还在读这段视频"
@@ -6652,6 +6916,10 @@ msgstr "这一段可以开炼：{0}"
 msgid "这一段已出片，改画幅要重新生成才生效"
 msgstr "这一段已出片，改画幅要重新生成才生效"
 
+#: src/pages/CutPage.tsx
+msgid "这一段已经改好、钱也扣过了，但{why}"
+msgstr "这一段已经改好、钱也扣过了，但{why}"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "这一段拍什么？"
 msgstr "这一段拍什么？"
@@ -6664,6 +6932,10 @@ msgstr "这一段拍什么？写好直接生成"
 msgid "这一段拍什么？缺的帧按这句补画"
 msgstr "这一段拍什么？缺的帧按这句补画"
 
+#: src/pages/CutPage.tsx
+msgid "这一段播不出来（错误码 {codeText}）——成片地址可能已经过期或网络不通，回工作流重新打开草稿会重新取一遍"
+msgstr "这一段播不出来（错误码 {codeText}）——成片地址可能已经过期或网络不通，回工作流重新打开草稿会重新取一遍"
+
 #: src/components/flow/SegPlayer.tsx
 msgid "这一段正在生成，炼完再圈"
 msgstr "这一段正在生成，炼完再圈"
@@ -6671,6 +6943,10 @@ msgstr "这一段正在生成，炼完再圈"
 #: src/components/flow/SegPlayer.tsx
 msgid "这一段现在选中的走向还没有成片"
 msgstr "这一段现在选中的走向还没有成片"
+
+#: src/pages/CutPage.tsx
+msgid "这一段的截帧流还在取（成片有 20MB 级，稍等几秒再点圈选）"
+msgstr "这一段的截帧流还在取（成片有 20MB 级，稍等几秒再点圈选）"
 
 #: src/components/flow/SegPlayer.tsx
 msgid "这一段的视频拉不下来"
@@ -6801,6 +7077,10 @@ msgstr "这个模板认出了 {0} 个人物，超过了一次能挂卡的 {BLOCK
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "这个模板认出了 {0} 个人物，超过了一次能挂卡的 {BLOCKOUT_MAX_ROLES} 个上限。 下面这 {1} 个<0>会保持人偶原样、挂不了卡</0>（上限是 {BLOCKOUT_MAX_ROLES}，因为再多的编号在画面上也认不出来了）。"
 msgstr "这个模板认出了 {0} 个人物，超过了一次能挂卡的 {BLOCKOUT_MAX_ROLES} 个上限。 下面这 {1} 个<0>会保持人偶原样、挂不了卡</0>（上限是 {BLOCKOUT_MAX_ROLES}，因为再多的编号在画面上也认不出来了）。"
+
+#: src/pages/CutPage.tsx
+msgid "这个片段是分割出来的，同一段还有另一半在时间轴上——回到整段会和它重叠，成片里同一截会播两遍。想撤销分割，先删掉另一半。"
+msgstr "这个片段是分割出来的，同一段还有另一半在时间轴上——回到整段会和它重叠，成片里同一截会播两遍。想撤销分割，先删掉另一半。"
 
 #: src/components/BlockButton.tsx
 msgid "这个用户"
@@ -7064,6 +7344,14 @@ msgstr "这条合成好的成片和填好的标题、简介会被丢掉，回到
 msgid "这条已被平台下架，链接别人打不开，所以先不能分享。"
 msgstr "这条已被平台下架，链接别人打不开，所以先不能分享。"
 
+#: src/pages/CutPage.tsx
+msgid "这条成片有 {sizeMb}MB，接近服务器上限（约 {capMb}MB），可能传不上去。传失败的话回剪辑页删几段、或把导出分辨率降一档再合一次——片段和配乐都还在。"
+msgstr "这条成片有 {sizeMb}MB，接近服务器上限（约 {capMb}MB），可能传不上去。传失败的话回剪辑页删几段、或把导出分辨率降一档再合一次——片段和配乐都还在。"
+
+#: src/pages/CutPage.tsx
+msgid "这条成片没有声音：素材本身不带音轨，合成时也没有加配乐。想要声音就回剪辑页的「音频」加一条，再合一次。"
+msgstr "这条成片没有声音：素材本身不带音轨，合成时也没有加配乐。想要声音就回剪辑页的「音频」加一条，再合一次。"
+
 #: src/components/DownloadSheet.tsx
 msgid "这条是 webm 格式，部分相册应用打不开；保存时选文件管理器更稳。"
 msgstr "这条是 webm 格式，部分相册应用打不开；保存时选文件管理器更稳。"
@@ -7101,6 +7389,10 @@ msgstr "这条路我走了很多年，闭着眼睛都知道哪里有个台阶。
 #: src/components/ShareSheet.tsx
 msgid "这条还在上传中（或没连上服务器）——现在分享出去的链接别人打不开。等它传完再分享。"
 msgstr "这条还在上传中（或没连上服务器）——现在分享出去的链接别人打不开。等它传完再分享。"
+
+#: src/pages/CutPage.tsx
+msgid "这样裁完只剩不到 {MIN_CLIP_SEC} 秒，片段太短了"
+msgstr "这样裁完只剩不到 {MIN_CLIP_SEC} 秒，片段太短了"
 
 #. placeholder {0}: doomed.length
 #: src/components/blockout/RoleConfirmSheet.tsx
@@ -7252,6 +7544,10 @@ msgstr "道具卡 · {slotLabel}"
 msgid "道具卡 · {slotLabel} · {title}"
 msgstr "道具卡 · {slotLabel} · {title}"
 
+#: src/pages/CutPage.tsx
+msgid "配乐用的是自动预置的原片音轨，而你裁过/删过/换过片段顺序——声音是按原片从头混进去的，会和画面对不上。想对齐就换一条自己的音频，或者把片段改回原样再合一次。"
+msgstr "配乐用的是自动预置的原片音轨，而你裁过/删过/换过片段顺序——声音是按原片从头混进去的，会和画面对不上。想对齐就换一条自己的音频，或者把片段改回原样再合一次。"
+
 #: src/components/DraftSheet.tsx
 msgid "重命名"
 msgstr "重命名"
@@ -7296,6 +7592,10 @@ msgstr "重新核对编号"
 msgid "重新核对编号 —— 画面上有两个一样的号？有个号找不着？点这里改，不用重炼"
 msgstr "重新核对编号 —— 画面上有两个一样的号？有个号找不着？点这里改，不用重炼"
 
+#: src/pages/CutPage.tsx
+msgid "重新生成中断：{why}。已经改好的段已经保住了（它们的圈选也清掉了），再点一次只会重做剩下的那几段"
+msgstr "重新生成中断：{why}。已经改好的段已经保住了（它们的圈选也清掉了），再点一次只会重做剩下的那几段"
+
 #: src/pages/EditPage.tsx
 msgid "重新留存这一版（现存那份还是上一版）"
 msgstr "重新留存这一版（现存那份还是上一版）"
@@ -7311,6 +7611,10 @@ msgstr "重新识别角色位"
 #: src/pages/EditPage.tsx
 msgid "重新问一次服务器"
 msgstr "重新问一次服务器"
+
+#: src/pages/CutPage.tsx
+msgid "重生成 {segCount} 段约需 {need} token，余额 {have} 不足——去「我的」页充值"
+msgstr "重生成 {segCount} 段约需 {need} token，余额 {have} 不足——去「我的」页充值"
 
 #: src/pages/SettingsPage.tsx
 msgid "重看各个界面的使用说明"
@@ -7328,6 +7632,7 @@ msgstr "重认会<0>覆盖现有描述</0>（你自己改过的也会没），�
 #: src/components/flow/SegPlayer.tsx
 #: src/components/UpdateSheet.tsx
 #: src/pages/CardDetailPage.tsx
+#: src/pages/CutPage.tsx
 #: src/pages/EditPage.tsx
 #: src/pages/NotificationsPage.tsx
 #: src/pages/PublishPage.tsx
@@ -7404,6 +7709,18 @@ msgstr "随片提炼本片卡组"
 #: src/components/SegmentPlayer.tsx
 msgid "静音"
 msgstr "静音"
+
+#: src/pages/CutPage.tsx
+msgid "音轨没能取下来（{audioName}）——这一条先按无声导出。想要声音就换一条本地音频再重试合并。"
+msgstr "音轨没能取下来（{audioName}）——这一条先按无声导出。想要声音就换一条本地音频再重试合并。"
+
+#: src/pages/CutPage.tsx
+msgid "音量"
+msgstr "音量"
+
+#: src/pages/CutPage.tsx
+msgid "音频"
+msgstr "音频"
 
 #: src/components/ShareSheet.tsx
 msgid "预览链接已复制，去贴给朋友吧"
