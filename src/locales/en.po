@@ -9796,6 +9796,10 @@ msgstr "Check for updates"
 msgid "模型：{0}"
 msgstr "Model: {0}"
 
+#: src/studio/structuredSkills.ts
+msgid "模型写到一半被截断了（输出超过 {limit} token 的上限），这一次已经计费——把剧本删短一些或分两次拆再试"
+msgstr "The model's output was cut off midway (it went past the {limit}-token output limit). This run has already been charged — shorten the script or split it into two runs and try again."
+
 #: src/api/uploads.ts
 msgid "模型包最大 {maxMb}MB（这份约 {curMb}MB），请先压小再传。"
 msgstr "Model packages can be at most {maxMb}MB (this one is about {curMb}MB). Make it smaller before uploading."

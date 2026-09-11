@@ -10,7 +10,7 @@
 // ★ 模型输出是不可信输入：parseShotPlan 逐段过形状（cleanShot 那种检查的整段版），不合的整段丢，一段不剩就当失败——
 //   失败**不落地、不扣第二次钱**（钱在请求成功那一拍扣过一次，与 canvasAgent 同口径）。
 // ★ 依赖方向：data → store → 组件。本模块认 flowStore（newFlowNode），组件（ScriptSkillSheet）认它；反过来绝不。
-import { AI_REAL, VIDEO_PROMPT_MAX, canvasAgentChat } from "../ai";
+import { AI_REAL, VIDEO_PROMPT_MAX, skillChat } from "../ai";
 import { canAfford, spendTokens } from "../data/account";
 import { CHAT_TURN_TOKENS, clampDuration, fmtTokens } from "../data/economy";
 import { cleanShot, uid, type Card, type Proposal, type ShotSpec, type VideoAspect } from "../types";
@@ -42,6 +42,18 @@ export const SCRIPT_MAX = 2000;
 export const SCRIPT_MIN = 20;
 /** 最多拆几段。与做同款 / 草稿一样铺进同一条流水线，段越多越难一次出对，先钉 8 */
 export const SCRIPT_SEGMENTS_MAX = 8;
+
+/**
+ * 「拆分镜」那一发的输出上限（token）。★ 量出来的，不是拍的（2026-09-11 直连方舟 6 次，同一份 SYS、要 8 段）：
+ *   1042 字剧本 → 741 / 787 / 816；1681 字剧本 → 925 / 807 / 774 —— 每段 93~116 token，**6 次里 3 次超过 800**。
+ *   原来走 chat() 的 800 上限，超过的那一半被拦腰截断：JSON 解析失败、面板报"读不出来"，钱已经按 chat 计过。
+ * ★ 取 2400：SYS 允许的最长写法（8 段 × 剧情 120 字）推到约 1,100，再留一倍余量。上限只是封顶 ——
+ *   方舟按实际输出计费、服务端按调用定额收，没写满的部分谁都不花钱，用户价不变。
+ */
+const SCRIPT_SHOTS_MAX_TOKENS = 2400;
+/** 超时：实测 13~18 秒吐完 8 段，按上限写满约 45 秒。取 170 秒 —— 必须比服务端 /api/ark 的 150 秒长：
+ *  客户端先放弃的话，服务端照样跑完、照样计费，用户却收到一句失败（arkClient.generateImage 那段 ★ 同一个坑）。 */
+const SCRIPT_SHOTS_TIMEOUT_MS = 170_000;
 
 /**
  * 官方技能「剧本 → 分镜字段」的**形状**：steps 给面板画流程，confirmAt 说哪几步要人点头，cost 是一次运行的价签。
@@ -153,9 +165,15 @@ export async function runScriptToShots(script: string, tierId: string, onStep: (
     onStep("check");
     return localSplit(s, tierId);
   }
-  const raw = await canvasAgentChat(SYS, s);
-  spendTokens(CHAT_TURN_TOKENS); // 请求成功才扣（与 canvasAgent 同口径）；形状检查失败不退也不再扣
+  const { text: raw, truncated } = await skillChat(SYS, s, { maxTokens: SCRIPT_SHOTS_MAX_TOKENS, timeoutMs: SCRIPT_SHOTS_TIMEOUT_MS });
+  spendTokens(CHAT_TURN_TOKENS); // 请求成功才扣（与 canvasAgent 同口径）；截断 / 形状检查失败都不退也不再扣
   onStep("check");
+  // ★ 顶到上限就别去解析半截 JSON：直接说清是"被截断"、并说出钱已经花了 —— 否则面板上只有一句"读不出来"，
+  //   用户会以为是自己剧本写得不对、或者以为没扣钱（服务端按 chat 调用已经收过）。
+  if (truncated) {
+    const limit = SCRIPT_SHOTS_MAX_TOKENS;
+    throw new Error(t`模型写到一半被截断了（输出超过 ${limit} token 的上限），这一次已经计费——把剧本删短一些或分两次拆再试`);
+  }
   return parseShotPlan(raw, tierId);
 }
 

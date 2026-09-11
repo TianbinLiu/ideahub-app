@@ -374,6 +374,17 @@ export async function canvasAgentChat(_system: string, _user: string): Promise<s
   return "";
 }
 
+/** 结构化技能的对话通道的离线档。★ 演示构建走不到这里（structuredSkills 在 !AI_REAL 时本地切段），
+ *  留着是为了 ai/index 里 `typeof real.skillChat` 那道"真假同签名"的闸。 */
+export async function skillChat(
+  _system: string,
+  _user: string,
+  _limits: { maxTokens: number; timeoutMs: number },
+): Promise<{ text: string; truncated: boolean }> {
+  await delay(200);
+  return { text: "", truncated: false };
+}
+
 export async function npcChat(ctx: NpcChatContext): Promise<{ text: string; tokens: number }> {
   await delay(300); // 一点点延迟，否则"秒回"反而像假的
   for (const [re, lines] of CHAT_RULES) {

@@ -60,6 +60,7 @@ import {
   briefArkReason,
   type ArkTaskState,
   chat,
+  chatBounded,
   chatTurns,
   chatVision,
   fetchArkAsset,
@@ -2857,6 +2858,17 @@ export async function npcChat(ctx: {
  *    这里要的是整段 JSON，截一刀就废了。解析/落地都在 studio/canvasAgent。 */
 export async function canvasAgentChat(system: string, user: string): Promise<string> {
   return chat(system, user);
+}
+
+/** 结构化技能（剧本 → 分镜）的对话通道：单轮、原文返回，**上限与超时由技能给**，并报有没有顶到上限被截断。
+ *  ★ 不复用 canvasAgentChat —— 那条的输出是几条操作 JSON，800 远用不满；技能一次要吐整份分镜，
+ *    量出来就顶在 800 上（见 structuredSkills 的 SCRIPT_SHOTS_MAX_TOKENS）。 */
+export async function skillChat(
+  system: string,
+  user: string,
+  limits: { maxTokens: number; timeoutMs: number },
+): Promise<{ text: string; truncated: boolean }> {
+  return chatBounded(system, user, limits.maxTokens, limits.timeoutMs);
 }
 
 /** 按句号截断，宁可短不要断在半句。找不到句读就直接截并补省略号。 */

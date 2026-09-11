@@ -170,6 +170,8 @@ export type { NpcChatContext } from "../mock/ai";
 export const npcChat: typeof real.npcChat = AI_REAL ? real.npcChat : mock.npcChat;
 /** 画布指挥（自然语言 → 流水线操作）。mock 回空串 → canvasAgent 退本地句式解析 */
 export const canvasAgentChat: typeof real.canvasAgentChat = AI_REAL ? real.canvasAgentChat : mock.canvasAgentChat;
+/** 结构化技能（剧本 → 分镜）的对话通道：上限由技能按输出形状给，并报有没有被截断 */
+export const skillChat: typeof real.skillChat = AI_REAL ? real.skillChat : mock.skillChat;
 /** 降级应答：**永远是本地实现**。余额不足/请求失败时用它——这样 mock 那套规则
  *  不是"只有开发看得到的死代码"，真实用户路径也会走到，不会慢慢腐烂。 */
 export const npcChatOffline: typeof real.npcChat = mock.npcChat;
