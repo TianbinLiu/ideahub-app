@@ -12,9 +12,11 @@
 //   /api/tts 当年也栽在这条上（见 studio/speech.ts 的同款警告），别再改回去。
 //
 // 密钥永远不进前端包：APK 解一下就拿到了（铁律三）。
+import { t } from "@lingui/core/macro";
 import { API_BASE, API_ON, getToken } from "../api/client";
 import { syncRemoteWallet } from "../data/account";
 import { DEFAULT_IMAGE_TIER, imageTierOf, videoAudioOn } from "../data/economy";
+import type { GenMode } from "../types";
 
 /** 把响应头上的权威余额同步进本地镜像。头部缺失（CORS 没放行/dev 代理）时什么都不做。
  *  ★ 导出给 minimaxVideo 复用（真人档也走计费代理、也带同一对 X-Wallet 头）——
@@ -529,6 +531,113 @@ export class ArkTaskUnknown extends Error {
 }
 
 /**
+ * 出片 / 建模轮询的**进度事件**（2026-09-16 多语言）。协议层只报「发生了什么」，不再拼句子：
+ * 句子由拿到事件的那一方按当前界面语言现写（步骤日志 studio/genLog、剪辑页单段重拍的 busy 行）。
+ * ★ 为什么必须结构化：此前 genLog 拿正则认「排队中」「成片转存」「xx档 · 」「完成」这几个中文串来折叠步骤，
+ *   翻译任何一头都会让折叠**静默**失效（几十条一模一样的行、转存那一步折进「渲染视频」里不见了）。
+ * · poll：一次轮询的状态（方舟的 queued / running / …；MiniMax 侧已换算成同一套词）+ 已等秒数
+ * · pollRetry：单次查询失败、还在重试（真人档那条会报；方舟侧静默重试）
+ * · transfer / transferFailed：出片一成就换永久地址那一步（失败不挡出片，但要说出来）
+ */
+export type ArkProgress =
+  | { kind: "poll"; status: string; sec: number }
+  | { kind: "pollRetry"; fails: number; max: number; sec: number }
+  | { kind: "transfer" }
+  | { kind: "transferFailed"; reason: string };
+
+/**
+ * 一段出片全过程的事件（real.composeSegments 报给步骤日志的那条通道）：轮询事件带上档位 id，
+ * 再加「生成契约」与「完成」两个只有 real 那一层知道的事件。
+ * ★ 走 encodeGenEvent 编成一行字符串发出去：那条通道（composeSegments → segmentGen → flowStore）按约定只传字符串，
+ *   segmentGen 自己的进度句（「绘制起拍画面…」）也走同一条 —— 事件行带固定前缀，与人话一眼分得开。
+ */
+export type GenEvent =
+  | ({ tier: string } & ArkProgress)
+  | {
+      kind: "contract";
+      mode: GenMode;
+      tier: string;
+      ratio: string;
+      durationSec: number;
+      /** 参考视频的源片时长（edit 模式：输出时长跟随它） */
+      refSec?: number;
+      images: number;
+      audios: number;
+      carried: boolean;
+      chars: number;
+    }
+  | { kind: "done" };
+
+const GEN_EVENT_PREFIX = "@@gen:";
+
+/** 事件 → 进度行。★ 编码只有这一处，解码只有 decodeGenEvent 一处 */
+export function encodeGenEvent(ev: GenEvent): string {
+  return GEN_EVENT_PREFIX + JSON.stringify(ev);
+}
+
+/** 进度行 → 事件；不是事件行（segmentGen 的人话）回 null */
+export function decodeGenEvent(line: string): GenEvent | null {
+  if (!line.startsWith(GEN_EVENT_PREFIX)) return null;
+  try {
+    const ev = JSON.parse(line.slice(GEN_EVENT_PREFIX.length)) as GenEvent;
+    return ev && typeof ev.kind === "string" ? ev : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 生成模式的人话（契约行 / 契约核对的报错用）。2026-09-16 从 ./real 搬来：步骤日志渲染契约行也要读它，
+ * 而 studio 层只准依赖这个协议模块。getter：读到时按界面语言现翻（同 economy.VIDEO_TIERS 的 label）
+ */
+export const GEN_MODE_LABEL: Record<GenMode, string> = {
+  get t2v() {
+    return t`文生视频`;
+  },
+  get i2v() {
+    return t`首帧图生视频`;
+  },
+  get flf() {
+    return t`首尾帧图生视频`;
+  },
+  get "ref-images"() {
+    return t`参考图生视频（reference_image）`;
+  },
+  get reference() {
+    return t`参考视频 + 参考图（reference）`;
+  },
+  get edit() {
+    return t`参考视频逐镜复刻（edit）`;
+  },
+  get minimax() {
+    return t`真人档首帧图生视频（MiniMax）`;
+  },
+};
+
+/**
+ * 轮询事件 → 给人看的一行（「标准档 · 排队中 12s」）。**唯一实现**：步骤日志里「渲染视频」那一步的细节、
+ * 剪辑页单段重拍的 busy 行都读它 —— 两处各写一份的话，同一件事在两个页面会说成两句话。
+ * running / queued 之外的状态原样报方舟的状态词（与改之前一样）。
+ */
+export function describeArkProgress(tierLabel: string, ev: ArkProgress): string {
+  if (ev.kind === "transfer") return t`${tierLabel}档 · 成片转存中（换成永久地址）…`;
+  if (ev.kind === "transferFailed") {
+    const reason = ev.reason;
+    return t`${tierLabel}档 · 成片转存没成（${reason}）——先用方舟临时链接，预览帧稍后自动补上`;
+  }
+  const sec = ev.sec;
+  if (ev.kind === "pollRetry") {
+    const fails = ev.fails;
+    const max = ev.max;
+    return t`${tierLabel}档 · 生成中 ${sec}s（查询失败 ${fails}/${max}，重试中）`;
+  }
+  if (ev.status === "queued") return t`${tierLabel}档 · 排队中 ${sec}s`;
+  if (ev.status === "running") return t`${tierLabel}档 · 生成中 ${sec}s`;
+  const status = ev.status;
+  return t`${tierLabel}档 · ${status} ${sec}s`;
+}
+
+/**
  * Seedance 图生视频：创建任务 → 轮询 → 返回视频 URL。
  * 传 lastFrameUrl 则走"首尾帧"模式（我们的方案卡正好有首尾帧，画面收束更可控）；
  * 传 refImages 则走"全模态参考生视频"（多张形象图 + 一句话直出，不需要设定帧）；
@@ -596,7 +705,8 @@ export async function generateVideo(
      *   （studio/flowStore → data/videoJobs）。协议层认识 data 层就成了双向依赖。
      */
     onTask?: (taskId: string) => void;
-    onProgress?: (status: string) => void;
+    /** 轮询 / 转存进度（结构化，见 ArkProgress）；句子由调用方按界面语言写 */
+    onProgress?: (ev: ArkProgress) => void;
   },
 ): Promise<string> {
   const model = opts?.model ?? MODELS.video;
@@ -748,8 +858,8 @@ export async function generateVideo(
       continue;
     }
     const sec = Math.round((Date.now() - t0) / 1000);
-    const label = st.status === "queued" ? "排队中" : st.status === "running" ? "生成中" : st.status;
-    opts?.onProgress?.(`${label} ${sec}s`);
+    // 状态原样报（queued / running / …），句子由拿事件的那一方写（见 ArkProgress）
+    opts?.onProgress?.({ kind: "poll", status: st.status, sec });
     if (st.status === "succeeded") {
       const url = st.content?.video_url;
       if (!url) throw new Error("Seedance 任务成功但无视频 URL");
@@ -765,13 +875,11 @@ export async function generateVideo(
         //   只剩「把整条成片代理拉到手机上解码」那条 120s 兜底 ⇒ 超时 ⇒ 卡面「成片预览没截到」。
         //   主人 2026-09-06 与 09-07 两次真机撞的都是它（服务端日志：那两天出片当天一条 ark-transfer 都没有）。
         if (st.transfer?.state === "done" && st.transfer.url) return st.transfer.url;
-        opts?.onProgress?.("成片转存中（换成永久地址）…");
+        opts?.onProgress?.({ kind: "transfer" });
         try {
           return await transferArkVideo(url);
         } catch (e) {
-          opts?.onProgress?.(
-            `成片转存没成（${e instanceof Error ? e.message : String(e)}）——先用方舟临时链接，预览帧稍后自动补上`,
-          );
+          opts?.onProgress?.({ kind: "transferFailed", reason: e instanceof Error ? e.message : String(e) });
         }
       }
       return url;
@@ -803,7 +911,8 @@ export async function generateVideo(
  */
 export async function generate3dModel(
   imageUrl: string,
-  onProgress?: (status: string) => void,
+  /** 一次轮询的状态 + 已等秒数；句子由调用方按界面语言写（同 ArkProgress 的 ★） */
+  onProgress?: (ev: { status: string; sec: number }) => void,
 ): Promise<string> {
   const created = await arkFetch<{ id: string }>(
     "/contents/generations/tasks",
@@ -829,7 +938,7 @@ export async function generate3dModel(
       if (++pollFails >= 5) throw e;
       continue;
     }
-    onProgress?.(`建模${st.status === "running" ? "生成中" : st.status} ${Math.round((Date.now() - t0) / 1000)}s`);
+    onProgress?.({ status: st.status, sec: Math.round((Date.now() - t0) / 1000) });
     if (st.status === "succeeded") {
       const url = st.content?.file_url ?? st.content?.url ?? st.content?.video_url;
       if (!url) throw new Error("Seed3D 任务成功但未返回文件 URL");

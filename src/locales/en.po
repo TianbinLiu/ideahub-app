@@ -984,6 +984,14 @@ msgstr "{mocPath}'s file header isn't MOC3 (read “{shown}”), so it isn't a v
 msgid "{mocPath} 读不出来，压缩包可能损坏了。"
 msgstr "{mocPath} can't be read; the archive may be damaged."
 
+#: src/studio/genLog.ts
+msgid "{mode} · {tierLabel} · {ratio} · {dur} · 参考图 {images} · 参考音频 {audios} · 承接上一段尾帧 · 提示词 {chars} 字"
+msgstr "{mode} · {tierLabel} · {ratio} · {dur} · {images, plural, one {# reference image} other {# reference images}} · {audios, plural, one {# reference audio clip} other {# reference audio clips}} · continues from the previous segment's last frame · prompt {chars, plural, one {# character} other {# characters}}"
+
+#: src/studio/genLog.ts
+msgid "{mode} · {tierLabel} · {ratio} · {dur} · 参考图 {images} · 参考音频 {audios} · 提示词 {chars} 字"
+msgstr "{mode} · {tierLabel} · {ratio} · {dur} · {images, plural, one {# reference image} other {# reference images}} · {audios, plural, one {# reference audio clip} other {# reference audio clips}} · prompt {chars, plural, one {# character} other {# characters}}"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "{motion}（包里没有）"
 msgstr "{motion} (not in bundle)"
@@ -1040,6 +1048,30 @@ msgstr "{segCount, plural, one {# segment} other {# segments}} · deck of {deckC
 #: src/studio/studioStore.ts
 msgid "{sentence}（{notes}）"
 msgstr "{sentence} ({notes})"
+
+#: src/ai/arkClient.ts
+msgid "{tierLabel}档 · {status} {sec}s"
+msgstr "{tierLabel} tier · {status} {sec}s"
+
+#: src/ai/arkClient.ts
+msgid "{tierLabel}档 · 成片转存中（换成永久地址）…"
+msgstr "{tierLabel} tier · moving the video to permanent storage…"
+
+#: src/ai/arkClient.ts
+msgid "{tierLabel}档 · 成片转存没成（{reason}）——先用方舟临时链接，预览帧稍后自动补上"
+msgstr "{tierLabel} tier · moving to permanent storage failed ({reason}) — using Ark's temporary link for now; the preview frame will be filled in automatically later"
+
+#: src/ai/arkClient.ts
+msgid "{tierLabel}档 · 排队中 {sec}s"
+msgstr "{tierLabel} tier · queued {sec}s"
+
+#: src/ai/arkClient.ts
+msgid "{tierLabel}档 · 生成中 {sec}s"
+msgstr "{tierLabel} tier · generating {sec}s"
+
+#: src/ai/arkClient.ts
+msgid "{tierLabel}档 · 生成中 {sec}s（查询失败 {fails}/{max}，重试中）"
+msgstr "{tierLabel} tier · generating {sec}s (status check failed {fails}/{max}, retrying)"
 
 #: src/components/support/AdminTicketsView.tsx
 msgid "{total} 张"
@@ -1271,6 +1303,14 @@ msgstr "“{name}”"
 #: src/studio/canvasAgent.ts
 msgid "「{name}」对上了 {0} 张卡（{names}），说全名"
 msgstr "“{name}” matches {0} cards ({names}). Use the full name."
+
+#: src/ai/real.ts
+msgid "「{name}」建模{status} {sec}s"
+msgstr "“{name}” 3D model: {status} {sec}s"
+
+#: src/ai/real.ts
+msgid "「{name}」建模生成中 {sec}s"
+msgstr "“{name}” 3D model: generating {sec}s"
 
 #. 列表里的一项（名词短语，不加句号）：没能转存上去的那一张形象参考图，tag 是图位名（面部特写 / 全身立绘…，老卡可能是方案里存下的中文名）。调用方用分隔符把几项连成一串，再放进自己的句子里
 #: src/data/account.ts
@@ -5682,6 +5722,10 @@ msgstr "Rendering directly from the card images (no setup frames)…"
 msgid "参考图怎么被 AI 取用"
 msgstr "How the AI uses reference images"
 
+#: src/ai/arkClient.ts
+msgid "参考图生视频（reference_image）"
+msgstr "Reference images to video (reference_image)"
+
 #: src/types.ts
 msgid "参考图预算还有余时才轮到它"
 msgstr "Only used when there's room left in the reference-image budget"
@@ -5699,6 +5743,10 @@ msgstr "Reference template"
 msgid "参考画面特征"
 msgstr "Reference visual traits"
 
+#: src/ai/arkClient.ts
+msgid "参考视频 + 参考图（reference）"
+msgstr "Reference video + reference images (reference)"
+
 #: src/components/VideoTemplateExtractor.tsx
 msgid "参考视频没传上"
 msgstr "The reference video didn't upload"
@@ -5711,6 +5759,10 @@ msgstr "Couldn't attach the reference video: {0}"
 #: src/components/flow/FlowCanvas.tsx
 msgid "参考视频没挂上：{why}"
 msgstr "Reference video wasn't attached: {why}"
+
+#: src/ai/arkClient.ts
+msgid "参考视频逐镜复刻（edit）"
+msgstr "Shot-by-shot remake of a reference video (edit)"
 
 #: src/studio/ui/SchemeEditorSheet.tsx
 msgid "参考脸部裁剪"
@@ -8525,6 +8577,14 @@ msgstr "Couldn't decode the video — use “Upload from device” or the segmen
 msgid "成片读不出来（{0}）"
 msgstr "Couldn't read the finished video ({0})"
 
+#: src/studio/genLog.ts
+msgid "成片转存中（换成永久地址）"
+msgstr "Moving the video to permanent storage"
+
+#: src/studio/genLog.ts
+msgid "成片转存没成（{reason}）——先用方舟临时链接，预览帧稍后自动补上"
+msgstr "Moving to permanent storage failed ({reason}) — using Ark's temporary link for now; the preview frame will be filled in automatically later"
+
 #: src/components/CoverPicker.tsx
 msgid "成片还在载入，稍等一下再截"
 msgstr "The video is still loading — wait a moment, then grab"
@@ -9284,10 +9344,6 @@ msgstr "Authorized asset (filled in automatically)"
 msgid "授权素材已接上（铸卡时绑定）"
 msgstr "Authorized asset attached (bound when minting)"
 
-#: src/ai/minimaxVideo.ts
-msgid "排队"
-msgstr "queued"
-
 #: src/components/PortraitAuthPanel.tsx
 msgid "接上了。"
 msgstr "Linked."
@@ -9893,6 +9949,10 @@ msgstr "File format: {0}"
 msgid "文字描述"
 msgstr "Text description"
 
+#: src/ai/arkClient.ts
+msgid "文生视频"
+msgstr "Text to video"
+
 #: src/components/TemplateShelf.tsx
 msgid "新"
 msgstr "New"
@@ -10006,6 +10066,14 @@ msgstr "No preview frame"
 #: src/studio/ui/PlanBoard.tsx
 msgid "时长"
 msgstr "Length"
+
+#: src/studio/genLog.ts
+msgid "时长跟随参考片"
+msgstr "duration follows the reference video"
+
+#: src/studio/genLog.ts
+msgid "时长跟随参考片 {refSec}s"
+msgstr "duration follows the reference video ({refSec}s)"
 
 #: src/pages/SettingsProfilePage.tsx
 msgid "昵称"
@@ -13010,10 +13078,6 @@ msgid "真人"
 msgstr "Real-person"
 
 #: src/ai/minimaxVideo.ts
-msgid "真人档任务创建中…"
-msgstr "Creating the real-person tier job…"
-
-#: src/ai/minimaxVideo.ts
 msgid "真人档任务受理了却没给任务号——上游协议变了，把这句话反馈给我们"
 msgstr "The real-person tier job was accepted but no task ID came back — the upstream protocol has changed. Please send us this message"
 
@@ -13073,17 +13137,13 @@ msgstr "The real-person tier doesn't support circle edits yet (the image-edit en
 msgid "真人档本来就是直出，不需要再切自定义"
 msgstr "The real-person tier already renders directly; no need to switch to Custom"
 
-#: src/ai/minimaxVideo.ts
-msgid "真人档生成中…（{shown}）"
-msgstr "Real-person tier generating… ({shown})"
-
-#: src/ai/minimaxVideo.ts
-msgid "真人档生成中…（查询失败 {pollFails}/5，重试中）"
-msgstr "Real-person tier generating… (check failed {pollFails}/5, retrying)"
-
 #: src/studio/segmentGen.ts
 msgid "真人档需要一张起拍画面：挂一张带照片的真人卡，或自己传一张开头帧"
 msgstr "The real-person tier needs a starting image: add a real-person card with a photo, or upload an opening frame yourself"
+
+#: src/ai/arkClient.ts
+msgid "真人档首帧图生视频（MiniMax）"
+msgstr "Real-person tier first frame to video (MiniMax)"
 
 #: src/pages/CustomCardPage.tsx
 msgid "真人素材"
@@ -18221,6 +18281,10 @@ msgstr "First and last frames will be sent as “reference image + prompt mentio
 msgid "首尾帧可控（默认）"
 msgstr "First and last frames controllable (default)"
 
+#: src/ai/arkClient.ts
+msgid "首尾帧图生视频"
+msgstr "First and last frames to video"
+
 #: src/studio/ui/FrameCard.tsx
 msgid "首尾帧轮播"
 msgstr "First & last frames"
@@ -18240,6 +18304,10 @@ msgstr "Both the first and last frames are images you swapped in, so there's not
 #: src/components/flow/CustomFrameSlots.tsx
 msgid "首帧"
 msgstr "First frame"
+
+#: src/ai/arkClient.ts
+msgid "首帧图生视频"
+msgstr "First frame to video"
 
 #: src/studio/studioStore.ts
 msgid "首帧已按你的要求重画好了。"

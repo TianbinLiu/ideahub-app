@@ -2737,13 +2737,13 @@ export const useFlow = create<FlowState>()((set, get) => ({
       const cur = steps[steps.length - 1];
       patchNode({ steps, progress: cur && cur.status === "running" ? (cur.detail ?? cur.title) : "" });
     });
-    /** ai 层报上来的平铺短句 → 归一成「步骤 / 细节」，同一件事的读秒折进同一步 */
+    /** ai 层报上来的进度行（事件行 / 人话短句）→ 归一成「步骤 / 细节」，同一件事的读秒折进同一步；事件随步骤留下（GenStep.event） */
     const prog = (status: string) => {
-      const { title, detail, terminal, keep } = splitStatus(status);
+      const { title, detail, terminal, keep, event } = splitStatus(status);
       if (terminal) return log.end();
       const cur = log.steps[log.steps.length - 1];
-      if (!cur || cur.status !== "running" || cur.title !== title) log.begin(title, { keep });
-      if (detail) log.detail(detail);
+      if (!cur || cur.status !== "running" || cur.title !== title) log.begin(title, { keep, event });
+      if (detail) log.detail(detail, event);
     };
     const myRun = get().genRun + 1;
     set({ busy: true, err: "", genRun: myRun });

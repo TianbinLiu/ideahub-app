@@ -59,10 +59,14 @@ import {
   ArkTaskUnknown,
   briefArkReason,
   type ArkTaskState,
+  type GenEvent,
   chat,
   chatBounded,
   chatTurns,
   chatVision,
+  describeArkProgress,
+  encodeGenEvent,
+  GEN_MODE_LABEL,
   fetchArkAsset,
   fetchArkTask,
   generate3dModel,
@@ -70,7 +74,7 @@ import {
   generateVideo,
   isArkAssetUrl,
 } from "./arkClient";
-// 进度行是界面文案（画在自建卡页 / 命名屏上）；发给模型的指令仍冻结中文，本文件只有这一类用宏
+// 界面文案（自建卡页的进度句、出片产线的进度 / 报错 / 契约核对）走宏；发给模型的指令仍冻结中文——本文件的宏只用于界面文案
 import { t } from "@lingui/core/macro";
 
 /** 方舟返回的图片 URL 有时效（约 24h），落地成 dataURL 再入库（草稿存 localStorage） */
@@ -2151,6 +2155,8 @@ async function glbFromArkZip(zipUrl: string): Promise<Blob> {
   throw new Error("建模包里没有 .glb 文件");
 }
 
+// ★ 从这里往下是出片产线（建模 / 重拍 / 截帧 / 契约 / 逐段出片 / 取回）：界面文案走 t。
+//   上面铸卡 / 推演 / 提卡那些发给模型的提示词一律冻结中文，别给它们套 t
 /**
  * 3D 风格视频的角色卡自动建模：Seed3D 按卡面出带纹理+PBR 的 3D 文件（约 2.4 元/张）。
  * GLB 36MB 级——存 IndexedDB blob 仓（key=model3d:<cardId>），卡上只挂 `idb:` 指针
@@ -2165,9 +2171,15 @@ export async function deriveCharacterModels(
   const targets = cards.filter((c) => c.type === "character" && !c.modelUrl).slice(0, maxCount);
   for (let i = 0; i < targets.length; i++) {
     const card = targets[i];
+    const name = card.name;
     try {
       onProgress?.(`为「${card.name}」铸造 3D 建模 ${i + 1}/${targets.length}…`);
-      const url = await generate3dModel(card.cover, (s) => onProgress?.(`「${card.name}」${s}`));
+      const url = await generate3dModel(card.cover, (ev) => {
+        // 建模轮询：读秒各一句整话；running 之外原样报方舟的状态词（与改之前一样）
+        const sec = ev.sec;
+        const status = ev.status;
+        onProgress?.(status === "running" ? t`「${name}」建模生成中 ${sec}s` : t`「${name}」建模${status} ${sec}s`);
+      });
       onProgress?.(`「${card.name}」建模下载解包中…`);
       const blob = await glbFromArkZip(url);
       const key = `model3d:${card.id}`;
@@ -2224,7 +2236,8 @@ export async function regenSegment(
     model: tier.model,
     // 重拍必须沿用原画幅：这里漏了它，圈选改一次画面就把竖屏段悄悄拍成横屏
     ratio: aspectOf(seg.aspect).ratio,
-    onProgress: (s) => onProgress?.(`${tier.label}档 · ${s}`),
+    // 剪辑页只有一行 busy 文案、没有步骤日志：事件在这里就写成句子（唯一实现 arkClient.describeArkProgress）
+    onProgress: (ev) => onProgress?.(describeArkProgress(tier.label, ev)),
   });
   let lastFrame: string | undefined;
   let poster: string | undefined;
@@ -2546,16 +2559,7 @@ export interface GenSpec {
   refTask?: "edit" | "reference";
 }
 
-/** 生成模式的人话（契约行 / 报错用） */
-export const GEN_MODE_LABEL: Record<GenMode, string> = {
-  t2v: "文生视频",
-  i2v: "首帧图生视频",
-  flf: "首尾帧图生视频",
-  "ref-images": "参考图生视频（reference_image）",
-  reference: "参考视频 + 参考图（reference）",
-  edit: "参考视频逐镜复刻（edit）",
-  minimax: "真人档首帧图生视频（MiniMax）",
-};
+// 生成模式的人话 GEN_MODE_LABEL 2026-09-16 搬去 ./arkClient（与契约事件 GenEvent 放一起：步骤日志渲染契约行也要读它），这里照旧引用
 
 /**
  * 槽位里放了什么 → 这一发实际会走哪种模式（**唯一判定**，2026-09-06 §四 1）。
@@ -2598,11 +2602,24 @@ export function validateGenSpec(sg: GenSpec): void {
   if (sg.mode === "minimax" && !sg.firstFrame) throw new Error("生成契约不完整：真人档需要一张起拍画面");
 }
 
-/** 契约那一行（进步骤日志，genLog.splitStatus 认「契约 · 」前缀）。只描述、不判断——判断在 validateGenSpec / segmentGen */
-export function describeGenSpec(sg: GenSpec, carried: boolean): string {
-  const tier = tierOf(sg.videoTier);
-  const dur = sg.mode === "edit" ? `时长跟随参考片${sg.refVideoSec ? ` ${sg.refVideoSec}s` : ""}` : `${sg.durationSec}s`;
-  return `契约 · ${GEN_MODE_LABEL[sg.mode]} · ${tier.label} · ${aspectOf(sg.aspect).ratio} · ${dur} · 参考图 ${sg.refImages?.length ?? 0} · 参考音频 ${sg.refAudios?.length ?? 0}${carried ? " · 承接上一段尾帧" : ""} · 提示词 ${sg.plot.length} 字`;
+/**
+ * 契约那一行（进步骤日志）：**结构化事件**，句子由 studio/genLog 按界面语言现写
+ * （2026-09-16 之前这里拼一行中文、那边拿「契约 · 」正则认；多语言之后认字的折叠会静默失效）。
+ * 只描述、不判断——判断在 validateGenSpec / segmentGen
+ */
+export function describeGenSpec(sg: GenSpec, carried: boolean): Extract<GenEvent, { kind: "contract" }> {
+  return {
+    kind: "contract",
+    mode: sg.mode,
+    tier: tierOf(sg.videoTier).id,
+    ratio: aspectOf(sg.aspect).ratio,
+    durationSec: sg.durationSec,
+    ...(sg.refVideoSec ? { refSec: sg.refVideoSec } : {}),
+    images: sg.refImages?.length ?? 0,
+    audios: sg.refAudios?.length ?? 0,
+    carried,
+    chars: sg.plot.length,
+  };
 }
 
 /**
@@ -2640,7 +2657,7 @@ export async function composeSegments(
     const prevTail = carryTail;
     carryTail = null;
     // ★ 契约行：这一发到底发了什么（模式 / 档 / 画幅 / 时长 / 参考几张），进步骤日志给人看（2026-09-06）
-    onProgress?.(i, segments.length, describeGenSpec(sg, !!prevTail));
+    onProgress?.(i, segments.length, encodeGenEvent(describeGenSpec(sg, !!prevTail)));
     try {
       // 尾帧续作：本段设定首帧 = 上一段设定尾帧（承接关系）时，改用上一段视频的
       // 真实结尾起拍——设定尾帧只是分镜蓝图，视频（尤其极速档）不一定拍到那儿。
@@ -2666,7 +2683,7 @@ export async function composeSegments(
           firstFrame: await shrinkFrameFor720p(first),
           // 与报价同一把尺：clampDuration 对 flatCost 档吸附到 6/10 整档
           durationSec: clampDuration(sg.durationSec, sg.videoTier),
-          onProgress: (st) => onProgress?.(i, segments.length, `${tier.label}档 · ${st}`),
+          onProgress: (ev) => onProgress?.(i, segments.length, encodeGenEvent({ ...ev, tier: tier.id })),
           // ★ 受理回调必须给：不给就没有凭据，"没接到结果"那一支等于不存在
           //   （与方舟那条同一条约定，见 minimaxVideo 的 onTask）
           onTask: (taskId) => onTask?.(taskId, i),
@@ -2705,7 +2722,7 @@ export async function composeSegments(
         model: tier.model,
         ratio: aspectOf(sg.aspect).ratio,
         onTask: (taskId) => onTask?.(taskId, i),
-        onProgress: (s) => onProgress?.(i, segments.length, `${tier.label}档 · ${s}`),
+        onProgress: (ev) => onProgress?.(i, segments.length, encodeGenEvent({ ...ev, tier: tier.id })),
       });
       // 视频较大（数 MB），存 URL 而非 dataURL——localStorage 放不下 base64 视频；
       // 方舟 URL 24h 有效，超时后播放器自动回退首尾帧渐变
@@ -2732,7 +2749,7 @@ export async function composeSegments(
     }
     out.push(res);
   }
-  onProgress?.(segments.length, segments.length, "完成");
+  onProgress?.(segments.length, segments.length, encodeGenEvent({ kind: "done" }));
   return out;
 }
 
