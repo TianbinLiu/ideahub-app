@@ -70,7 +70,6 @@
    "1569daac97831ea7": 2,
    "160452538f209592": 1,
    "165bf08c1abde901": 1,
-   "18a6be8a0000cccd": 1,
    "18fc702bc74f4900": 1,
    "19747e0a04b04c74": 1,
    "1a4bd0a406834a8f": 1,
@@ -664,14 +663,6 @@
    "799dba635a37f99f": 1,
    "cdd57ddef6ed3d4d": 1,
    "dcd1016d326df4e8": 1
-  },
-  "src/data/promptSchemes.ts": {
-   "0423ae51e840a74a": 1,
-   "6b4d702be6ef5f5a": 1,
-   "8ebe95a4183da013": 1,
-   "9c38f1945a6ad852": 1,
-   "a2ddb38b75b2679a": 1,
-   "d2d4751657802651": 1
   },
   "src/studio/npcPersona.ts": {
    "3bf3bbb3b2abc6eb": 1,

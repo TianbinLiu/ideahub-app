@@ -9,6 +9,8 @@ import { slotsFor } from "../data/economy";
 // 图位要不要调模型只有 promptSchemes.isGenerated 一处判据 —— 演示模式也走它，
 // 否则"哪几格算生成型"会有第二份答案，而它正是报价的输入。
 import { isGenerated, slotCardTag, slotKey, type PromptScheme } from "../data/promptSchemes";
+// 进度行是界面文案，与 real 同一句式（名字当占位符）；本文件其余中文是演示数据，不进目录（check-i18n 豁免）
+import { t } from "@lingui/core/macro";
 
 const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms + Math.random() * 400));
 
@@ -104,7 +106,7 @@ export async function portraitViews(o: {
   const out: { slotKey: string; role: CardRole; tag: string; dataUrl: string }[] = [];
   for (let i = 0; i < o.scheme.slots.length; i++) {
     const slot = o.scheme.slots[i];
-    // ★ slotKey / tag 与 real 同一对函数；进度句与假卡面上的字是显示名，照旧用 slot.tag
+    // ★ slotKey / tag 与 real 同一对函数；进度句与假卡面上的字是显示名（随界面语言变），照旧用 slot.tag
     if (!isGenerated(slot)) {
       out.push({
         slotKey: slotKey(o.scheme, slot),
@@ -114,7 +116,10 @@ export async function portraitViews(o: {
       });
       continue;
     }
-    o.onProgress?.(`绘制${slot.tag}…（${i + 1}/${o.scheme.slots.length}·演示）`);
+    const name = slot.tag;
+    const n = i + 1;
+    const total = o.scheme.slots.length;
+    o.onProgress?.(t`绘制${name}…（${n}/${total}·演示）`);
     await new Promise((r) => setTimeout(r, 300));
     out.push({
       slotKey: slotKey(o.scheme, slot),
@@ -148,7 +153,7 @@ export async function searchMarket(query: string): Promise<Card[]> {
   const all = marketAll();
   const q = query.trim();
   const list = q
-    ? all.filter((c) => c.name.includes(q) || c.summary.includes(q) || (c.tags ?? []).some((t) => t.includes(q)))
+    ? all.filter((c) => c.name.includes(q) || c.summary.includes(q) || (c.tags ?? []).some((x) => x.includes(q)))
     : all;
   // 不再 slice(0, 8)：8 是"一屏摆得下几张"的旧口径，把另外 10 张种子卡直接扔了。
   // 现在桌面分页展示（见 layout.MARKET.perPage），取全量交给 UI 翻页。
@@ -177,8 +182,8 @@ function matchType(hint: string): CardType | null {
 /** 类型推断优先级：文件名 > 文件内容 > 补充说明 */
 function inferType(fileName: string, text: string | null, note: string, isImage: boolean): CardType {
   for (const h of [fileName, text ?? "", note]) {
-    const t = matchType(h);
-    if (t) return t;
+    const hit = matchType(h);
+    if (hit) return hit;
   }
   return isImage ? "character" : "scene";
 }

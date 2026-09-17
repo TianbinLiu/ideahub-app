@@ -47,14 +47,17 @@ import {
   CardRole,
   CardType,
   CardView,
+  FACE_CROP_ZH,
   roleToKind,
-  slotLabel,
+  slotPromptOf,
   uid,
+  viewTag,
 } from "../types";
 
 /**
  * 命名屏手里那几张图。**认 `role` 不认 `kind`**：图位由方案决定，`kind` 只是
  * 落卡时写回服务端的兼容值（`types.roleToKind`，跨仓冻结三值）。
+ * `tag` 是要存进 CardView.tag 的值（冻结中文：圈选那一步是 FACE_CROP_ZH / 固定图位表的名字，方案出图是 slotCardTag），画到屏幕上走 viewTag。
  */
 type Crop = { role: CardRole; tag: string; dataUrl: string };
 import Icon from "./Icon";
@@ -456,7 +459,11 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
     // ★ V3：背景卡的图 role 记成 display——allocateRefs 从不分配它（types.CardView.role 的 ★★），
     //   这张卡以文字（简介 / 出片句）参与出片
     const role: CardRole = type === "background" ? "display" : type === "character" && facePass ? "face" : "primary";
-    const tag = role === "face" ? t`脸部特写` : slotLabel(type!, "body");
+    // ★ 存进 CardView.tag 的是**冻结中文**（FACE_CROP_ZH / 固定图位表 CARD_SLOT_PROMPT 的名字），不是界面语言的名字：
+    //   卡片在服务端一躺很久、给各种界面语言的人看，显示时由 viewTag 现翻（理由见 types.BUILTIN_SLOT_ZH ②）。
+    //   此前这条路存的是界面语言：脸「脸部特写」自 #226（2026-09-10）、主图 slotLabel 自 #257（2026-09-11）起到 PR3 之间，
+    //   那批卡的英文名原样显示、不迁移。
+    const tag = role === "face" ? FACE_CROP_ZH : slotPromptOf(type!, "body").label;
     setCrops((c) => [...c.filter((x) => x.role !== role), { role, tag, dataUrl }]);
     setShape(null);
     setFacePass(false);
@@ -713,7 +720,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
             <div className="flex gap-2">
               {crops.map((c, i) => (
                 <div key={`${c.role}:${i}`} className="w-24 flex-none">
-                  <TarotCard cover={c.dataUrl} title={name || t`未命名`} sub={c.tag} type={type!} />
+                  <TarotCard cover={c.dataUrl} title={name || t`未命名`} sub={viewTag(type!, { kind: roleToKind(c.role), tag: c.tag })} type={type!} />
                 </div>
               ))}
             </div>
@@ -910,7 +917,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                             )}
                           </span>
                           <span className="mt-0.5 block text-[10px] leading-relaxed text-slate-500">{sc.intro}</span>
-                          {/* 示例缩图：只有作者存过才有（内置那几套没有，见 backlog） */}
+                          {/* 示例缩图：内置那几套随包带（public/schemes，design/gen-scheme-examples.mjs 出的），用户方案只有作者存过才有 */}
                           {!!sc.examples?.length && (
                             <span className="mt-1 flex gap-1">
                               {sc.examples.map((ex, k) => (

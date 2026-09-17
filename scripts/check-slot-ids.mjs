@@ -6,8 +6,10 @@
 //   都被拦），还给出错误的改法。**真正的证明是 PR 里描述的等价性 harness**（同一批用户流程在 origin/main 与本分支上逐字节比对，
 //   再把内置图位名换成英文、验键与 CardView.tag 都不跟着变）。这里只钉住"哪天有人把最顺手的回退写回来"那几种形状：
 //   (a) types.BUILTIN_SLOT_ZH 那张表：七对冻结原名、as const、BuiltinSlotId 与 builtinSlotZh；
-//   (b) BUILTIN_SCHEMES 每一格 `id: "x", tag: BUILTIN_SLOT_ZH.x` 的写法、共用 id 在几套里是同一格；再把 builtinSlotZh / slotKey /
-//       slotCardTag 从源码抠出来转译实跑（显示名换成英文，键必须还是冻结原名；用户方案原样回 tag）；
+//   (b) BUILTIN_SCHEMES 每一套 `builtinScheme(msg…, msg…, { id, builtin: true, …, slots: [ builtinSlot("x", { … }) ] })` 的写法
+//       （两种对象里都不许 `...x` 展开）、共用 id 在几套里是同一格、builtinSlotLabel / i18n 确实是从 ../types / @lingui/core 引的；
+//       再把 builtinSlotZh / slotKey / slotCardTag / builtinSlot / builtinScheme 从源码抠出来转译实跑
+//       （显示名翻成英文，键必须还是冻结原名；tag / title / intro 必须是读时取值的 getter、rest 里混进的定格值盖不住它；用户方案原样回 tag）；
 //   (c) 自建卡页与它的 store 里"拿显示名 / 图位 id 认格子"的几种写法 —— 逐行正则，扫的是去掉注释、字面量涂空后的代码；
 //   (d) portraitViews（real / mock）回包与铸卡写进 CardView 的 tag 走 slotCardTag，交给 portraitViews 的方案是原样那套。
 // ★★ (c)(d) **只扫 PAGE / STORE / REAL / MOCK 四个常量列出的文件**：把自建卡那一页的图位逻辑拆到新文件时先把新文件加进来 ——
@@ -158,7 +160,8 @@ if (files[TYPES]) {
   for (const id of zhFn ? ["toString", ""] : []) expect("builtinSlotZh", zhFn, [id], undefined, "只认表里的自有属性，不顺原型链查");
 }
 
-// ── (b) promptSchemes.BUILTIN_SCHEMES：每一格 `id: "x", tag: BUILTIN_SLOT_ZH.x`，共用 id 是同一格；再实跑 slotKey / slotCardTag ──
+// ── (b) promptSchemes.BUILTIN_SCHEMES：每一套 builtinScheme(msg…, msg…, { … slots: [ builtinSlot("x", { … }) ] })，共用 id 是同一格；
+//        再实跑 builtinSlot / builtinScheme / slotKey / slotCardTag ──
 const schemes = [];
 let slotCount = 0;
 if (files[SCHEMES]) {
@@ -168,53 +171,147 @@ if (files[SCHEMES]) {
   if (!arr) fail(`${SCHEMES}：找不到 export const BUILTIN_SCHEMES … = [ … ]`);
   const used = new Set();
   const shape = new Map();
+  /** 涂空代码里 [s, e) 这一段是不是 `name(` 开头、且在段内闭合的调用；是的话回实参的切段，否则 null */
+  const callOf = (s, e, name) => {
+    const m = new RegExp(`^\\s*${name}\\s*\\(`).exec(f.code.slice(s, e));
+    const p = m && pieces(f.code, s + m[0].length - 1);
+    return p && p.close < e ? p.parts : null;
+  };
+  const peek = (s, e) => show(flat(f.bare.slice(s, e)).slice(0, 60));
   for (const [s, e] of arr?.parts ?? []) {
-    const open = f.code.indexOf("{", s);
-    const sc = open >= 0 && open < e ? propsOf(f, open) : null;
-    if (!sc) { fail(`${SCHEMES}:${f.lineAt(s)}  BUILTIN_SCHEMES 的每一项都要是对象字面量`); continue; }
+    const line = f.lineAt(s + f.code.slice(s, e).search(/\S/));
+    // ★★ 名字与简介只准经 builtinScheme 成为**读时取值**的 getter（下面实跑验它确实是 getter）：直接写 `{ title: "…" }` 是模块加载时
+    //   定格的字符串，`title: i18n._(…)` 也是 —— App 切语言不重载（src/i18n/switch.ts），定格一次就冻结在开机语言
+    const args = callOf(s, e, "builtinScheme");
+    if (!args || args.length !== 3) { fail(`${SCHEMES}:${line}  BUILTIN_SCHEMES 的每一项都要写成 builtinScheme(msg\`名字\`, msg\`简介\`, { … })（读到 ${peek(s, e)}）`); continue; }
+    for (const [what, [a, b]] of [["名字", args[0]], ["简介", args[1]]]) {
+      if (!/^\s*msg\s*[(`]/.test(f.bare.slice(a, b))) fail(`${SCHEMES}:${line}  builtinScheme 的${what}要是 msg 描述符（msg\`…\` 或 msg({ message, comment })，读到时才翻），读到 ${peek(a, b)}`);
+    }
+    const open = f.code.indexOf("{", args[2][0]);
+    const sc = open >= 0 && open < args[2][1] ? propsOf(f, open) : null;
+    if (!sc) { fail(`${SCHEMES}:${line}  builtinScheme 的第三个参数要是对象字面量 { id, builtin: true, …, slots: [ … ] }`); continue; }
     const sid = (sc.props.get("id")?.val ?? "").replace(/^"|"$/g, "") || `第 ${schemes.length + 1} 套`;
-    if (sc.props.get("builtin")?.val !== "true") fail(`${SCHEMES}:${f.lineAt(open)}  内置方案 ${sid} 要写 builtin: true —— slotKey / slotCardTag 只在内置方案上按 id 取原名，漏了整套退回显示名`);
+    // ★★ 两种对象里都不许 `...x` 展开：展开进来的属性 tsc 不做多余属性检查、这里也读不到它的名字 —— 一个定格的 tag / title 就能这么
+    //   绕过两道闸（builtinScheme 的 ...rest 在 getter 前面、会被盖掉，但 builtin / slots 这些也就看不见了）。要复用就逐个属性写
+    for (const k of sc.props.keys()) if (k.startsWith("...")) fail(`${SCHEMES}:${line}  内置方案 ${sid} 的对象里不许写 ${show(k)} 展开：展开能把定格的 title / intro 绕过 tsc 的多余属性检查与这道门禁带进来（这里读不到展开里的属性名，builtin / slots 也跟着看不见）—— 逐个属性写`);
+    for (const n of ["title", "intro"]) if (sc.props.has(n)) fail(`${SCHEMES}:${line}  内置方案 ${sid} 的 ${n} 由 builtinScheme 前两个 msg 参数给（getter），别在对象里再写一份 —— 写在这里的是定格的字符串`);
+    if (sc.props.get("builtin")?.val !== "true") fail(`${SCHEMES}:${line}  内置方案 ${sid} 要写 builtin: true —— slotKey / slotCardTag 只在内置方案上按 id 取原名，漏了整套退回显示名`);
     const slotsP = sc.props.get("slots");
     const list = slotsP?.val.startsWith("[") ? pieces(f.code, f.code.indexOf("[", slotsP.pos)) : null;
-    if (!list) { fail(`${SCHEMES}:${f.lineAt(open)}  内置方案 ${sid} 的 slots 要是数组字面量`); continue; }
+    if (!list) { fail(`${SCHEMES}:${line}  内置方案 ${sid} 的 slots 要是数组字面量`); continue; }
     const seen = new Set();
     const scheme = { id: sid, slots: [] };
     for (const [a, b] of list.parts) {
       slotCount++;
-      const so = f.code.indexOf("{", a);
-      const sl = so >= 0 && so < b ? propsOf(f, so) : null;
-      const line = f.lineAt(a + f.code.slice(a, b).search(/\S/));
-      if (!sl) { fail(`${SCHEMES}:${line}  ${sid} 的图位要写成对象字面量`); continue; }
-      const idm = /^"([A-Za-z_$][\w$]*)"$/.exec(sl.props.get("id")?.val ?? "");
-      if (!idm) { fail(`${SCHEMES}:${line}  ${sid} 有一格图位没有 id: "x"（内置图位一律写 id: "x", tag: BUILTIN_SLOT_ZH.x）`); continue; }
+      const at = f.lineAt(a + f.code.slice(a, b).search(/\S/));
+      // ★★ 图位只准经 builtinSlot：id 是第一个参数，tag 由它给成按 id 现翻的 getter。对象里写 tag（写死的中文、或 builtinSlotLabel("x")
+      //   这种模块加载时算一次的表达式）都红 —— 两种都是定格。id 在表里 / 同一套不重复 / 共用 id 同一格 / 表里的 id 都有人用 照旧
+      const sargs = callOf(a, b, "builtinSlot");
+      if (!sargs || sargs.length !== 2) { fail(`${SCHEMES}:${at}  ${sid} 的图位要写成 builtinSlot("x", { role, prompt, … })（tag 由它给成读时取值的 getter；读到 ${peek(a, b)}）`); continue; }
+      const idm = /^"([A-Za-z_$][\w$]*)"$/.exec(flat(f.bare.slice(sargs[0][0], sargs[0][1])));
+      if (!idm) { fail(`${SCHEMES}:${at}  ${sid} 的图位：builtinSlot 第一个参数要是图位 id 字面量 "x"（读到 ${peek(sargs[0][0], sargs[0][1])}）`); continue; }
       const id = idm[1];
-      if (!Object.hasOwn(table, id)) fail(`${SCHEMES}:${line}  ${sid} 的图位 id ${show(id)} 不在 types.BUILTIN_SLOT_ZH 里`);
-      // ★★ 「tag 必须原样写成 BUILTIN_SLOT_ZH.<同一个 id>」钉的是**今天**这一步：显示名与冻结原名逐字相同，界面上每个字都与改动前一样；
-      //   键本身跟着 id 走、不跟 tag（下面实跑那段就是拿翻译过的 tag 验的）。**翻译内置图位名的那一步（PR3）只放宽这一条**：改成「tag 那个
-      //   表达式经一个**读时取值**的 getter 引用同一个 id」（如 `get tag() { return builtinSlotLabel("fullBody"); }`，不是模块加载时算一次的
-      //   `tag: builtinSlotLabel("fullBody")` —— App 切语言不重载）。id 必须有、在表里、同一套不重复、共用 id 是同一格、表里的 id 都有人用 —— 照留。
-      const tag = sl.props.get("tag")?.val;
-      if (tag !== `BUILTIN_SLOT_ZH.${id}`) fail(`${SCHEMES}:${line}  ${sid} 的 id: ${show(id)} 那一格要写 tag: BUILTIN_SLOT_ZH.${id}（读到 ${show(tag ?? "（没有 tag）")}）`);
-      if (seen.has(id)) fail(`${SCHEMES}:${line}  ${sid} 里 id ${show(id)} 出现了两次：两格同一个键，会显示同一张照片、铸卡时同一张进两次`);
+      if (!Object.hasOwn(table, id)) fail(`${SCHEMES}:${at}  ${sid} 的图位 id ${show(id)} 不在 types.BUILTIN_SLOT_ZH 里`);
+      const so = f.code.indexOf("{", sargs[1][0]);
+      const sl = so >= 0 && so < sargs[1][1] ? propsOf(f, so) : null;
+      if (!sl) { fail(`${SCHEMES}:${at}  ${sid} 的图位 ${show(id)}：builtinSlot 第二个参数要是对象字面量 { role, prompt, … }`); continue; }
+      for (const k of sl.props.keys()) if (k.startsWith("...")) fail(`${SCHEMES}:${at}  ${sid} 的图位 ${show(id)} 在 builtinSlot 的对象里写了 ${show(k)} 展开：展开进来的 tag tsc 不做多余属性检查、这里也读不到它的名字，一个定格的显示名就能这么绕过两道闸冻结在开机语言（工厂里 ...rest 在 getter 前面只是第二道）—— 逐个属性写`);
+      for (const n of ["id", "tag"]) if (sl.props.has(n)) fail(`${SCHEMES}:${at}  ${sid} 的图位 ${show(id)} 在 builtinSlot 的对象里写了 ${n}：id 是第一个参数，tag 由 builtinSlot 给成读时取值的 getter —— 写死的字符串或 builtinSlotLabel(…) 这种模块加载时算一次的表达式都会冻结在开机语言`);
+      if (seen.has(id)) fail(`${SCHEMES}:${at}  ${sid} 里 id ${show(id)} 出现了两次：两格同一个键，会显示同一张照片、铸卡时同一张进两次`);
       seen.add(id), used.add(id);
       const fields = Object.fromEntries(["role", "prompt", "ref", "size", "fromCrop"].map((n) => [n, sl.props.get(n)?.val ?? "（不写）"]));
       const prev = shape.get(id);
       if (!prev) shape.set(id, { sid, fields });
-      else for (const n of Object.keys(fields)) if (prev.fields[n] !== fields[n]) fail(`${SCHEMES}:${line}  内置图位 ${id} 在 ${prev.sid} 与 ${sid} 里不是同一格：${n} 一边是 ${show(prev.fields[n])}、一边是 ${show(fields[n])}（同一个 id 就是同一个键，换方案时键对得上的图原样留下）`);
+      else for (const n of Object.keys(fields)) if (prev.fields[n] !== fields[n]) fail(`${SCHEMES}:${at}  内置图位 ${id} 在 ${prev.sid} 与 ${sid} 里不是同一格：${n} 一边是 ${show(prev.fields[n])}、一边是 ${show(fields[n])}（同一个 id 就是同一个键，换方案时键对得上的图原样留下）`);
       scheme.slots.push({ id, role: fields.role.replace(/^"|"$/g, ""), prompt: "" });
     }
     schemes.push(scheme);
   }
   for (const id of Object.keys(table)) if (!used.has(id)) fail(`types.BUILTIN_SLOT_ZH.${id} 没有任何内置方案在用（删掉它，或者补上那一格）`);
 
-  // 实跑：内置图位的显示名模拟成翻译之后的样子，键必须仍是冻结原名；用户方案原样回 tag；id 只在 builtin 为真时作数
-  const fns = zhFn ? extract(f, ["slotKey", "slotCardTag"], { builtinSlotZh: zhFn, BUILTIN_SLOT_ZH: Object.freeze({ ...table }) }) : {};
+  // ★ 翻译只准经 ../types 的 builtinSlotLabel 与 @lingui/core 的 i18n：下面实跑抠的是函数、替身填的就是这两个名字，本文件里另写一份
+  //   `const builtinSlotLabel = (id) => builtinSlotZh(id)` / `const i18n = { _: (d) => d.message }` 实跑照样绿，而它永远不翻
+  //   ★ 收齐**每一组** `import { … } from "<mod>"` 再找名字：`import { type MessageDescriptor }` 与 `import { i18n }` 拆成两组是合法写法，
+  //     只看第一组会把它误报成「没 import i18n」（(c) 钉 PAGE 的 slotKey / slotCardTag 同一条规矩）
+  const pin = (mod, name, why) => {
+    const groups = [...f.bare.matchAll(new RegExp(`import\\s*\\{([^}]*)\\}\\s*from\\s*"${mod.replace(/[./]/g, "\\$&")}"`, "g"))].map((m) => m[1]);
+    if (!groups.length || !new RegExp(`\\b${name}\\b`).test(groups.join(","))) fail(`${SCHEMES}：要从 "${mod}" import ${name}（${why}）—— 别在本文件另抄一份：门禁实跑时替身填的就是这个名字，本地那份看不出来，而它永远不会翻`);
+  };
+  pin("../types", "builtinSlotLabel", "内置图位显示名的唯一出处");
+  pin("@lingui/core", "i18n", "方案名与简介按当前界面语言翻的那个 i18n");
+
+  // 实跑：builtinSlot / builtinScheme 用一个**可换语言**的替身翻译（builtinSlotLabel / i18n._ 各回「<语言>:<id 或 message>」）——
+  //   tag / title / intro 必须是 getter（换语言后再读会变；描述符上有 get），显示名翻成英文后 slotKey / slotCardTag 仍回冻结原名；
+  //   目录里没有这条时 tag 退回冻结原名；rest 里混进来的定格值盖不住 getter；用户方案原样回 tag；id 只在 builtin 为真时作数
+  const live = { lang: "ENGLISH" };
+  /** 读一个属性：getter 抛了也算一种 got —— 否则一个引用了抠函数环境里没有的名字的 getter 会让门禁带着堆栈崩掉，而不是一条 ❌ */
+  const read = (obj, prop) => { try { return obj[prop]; } catch (e) { return `抛了：${e.message}`; } };
+  const fns = zhFn
+    ? extract(f, ["slotKey", "slotCardTag", "builtinSlot", "builtinScheme"], {
+        builtinSlotZh: zhFn,
+        BUILTIN_SLOT_ZH: Object.freeze({ ...table }),
+        builtinSlotLabel: (id) => (live.lang && Object.hasOwn(table, id) ? `${live.lang}:${id}` : undefined),
+        i18n: { _: (d) => `${live.lang}:${typeof d === "string" ? d : d?.message}` },
+      })
+    : {};
+  const getterOf = (obj, prop) => typeof Object.getOwnPropertyDescriptor(obj, prop)?.get === "function";
   for (const name of zhFn ? ["slotKey", "slotCardTag"] : []) {
     const fn = fns[name];
     if (typeof fn !== "function") { fail(`${SCHEMES}：找不到 export function ${name}(scheme, slot)`); continue; }
     for (const sc of schemes) for (const sl of sc.slots) if (table[sl.id]) expect(name, fn, [{ id: sc.id, builtin: true }, { ...sl, tag: "ENGLISH" }], table[sl.id], "内置图位按 id 取冻结原名，显示名翻译了也不跟着变");
     for (const tag of ["自定义", " 自定义 ", "自".repeat(40)]) expect(name, fn, [{ builtin: false }, { tag, role: "primary", prompt: "" }], tag, "用户方案原样回 tag，不 trim、不截断");
     expect(name, fn, [{ builtin: false, slots: [] }, { id: "fullBody", tag: "自定义", role: "primary", prompt: "" }], "自定义", "id 只在内置方案上作数：用户方案带着 id 也按 tag 认");
+  }
+  if (zhFn && typeof fns.builtinSlot !== "function") fail(`${SCHEMES}：找不到 function builtinSlot(id, rest)（内置图位的工厂：tag 是按 id 现翻的 getter）`);
+  else if (zhFn) {
+    for (const id of Object.keys(table)) {
+      runs++;
+      live.lang = "ENGLISH";
+      let slot;
+      try { slot = fns.builtinSlot(id, { role: "primary", prompt: "P" }); } catch (e) { fail(`builtinSlot(${show(id)}, …) 抛了：${e.message}`); continue; }
+      if (slot.id !== id || slot.role !== "primary" || slot.prompt !== "P") fail(`builtinSlot(${show(id)}, { role, prompt })：id / role / prompt 要原样带上，got ${show({ id: slot.id, role: slot.role, prompt: slot.prompt })}`);
+      if (!getterOf(slot, "tag")) fail(`builtinSlot(${show(id)}) 给的 tag 不是 getter（描述符上没有 get，是定格的数据属性）：模块加载时算一次的显示名会冻结在开机语言 —— 写成 get tag() { return builtinSlotLabel(id) ?? BUILTIN_SLOT_ZH[id]; }`);
+      if (read(slot, "tag") !== `ENGLISH:${id}`) fail(`builtinSlot(${show(id)}).tag：want ${show(`ENGLISH:${id}`)}，got ${show(read(slot, "tag"))}（显示名要经 types.builtinSlotLabel 按 id 翻）`);
+      live.lang = "中文";
+      if (read(slot, "tag") !== `中文:${id}`) fail(`builtinSlot(${show(id)}).tag 切语言后仍是 ${show(read(slot, "tag"))}：不是读时取值，定格在了第一次读的语言`);
+      live.lang = "";
+      if (read(slot, "tag") !== table[id]) fail(`builtinSlot(${show(id)}).tag 目录里没有这条时：want 冻结原名 ${show(table[id])}，got ${show(read(slot, "tag"))}`);
+      live.lang = "ENGLISH";
+      for (const name of ["slotKey", "slotCardTag"]) if (typeof fns[name] === "function") expect(name, fns[name], [{ id: "内置", builtin: true }, slot], table[id], "真 getter 给的英文显示名下，键与 CardView.tag 仍是冻结原名");
+    }
+    // ★ rest 里混进来的 tag 盖不住 getter：对象字面量里写 tag 会被 tsc 拦，`{ ...X }` 展开进来的 tsc 不查 —— 上面 (b) 拒绝展开写法是第一道，
+    //   工厂里 `...rest` 写在 get tag() 前面（后写的 getter 才赢）是第二道；这里验第二道，反过来写的工厂在这一条上红
+    runs++;
+    live.lang = "ENGLISH";
+    const id0 = Object.keys(table)[0];
+    let mixed = null;
+    try { mixed = fns.builtinSlot(id0, { role: "primary", prompt: "P", tag: "定格" }); } catch (e) { fail(`builtinSlot(${show(id0)}, { …, tag: "定格" }) 抛了：${e.message}`); }
+    if (mixed && (!getterOf(mixed, "tag") || read(mixed, "tag") !== `ENGLISH:${id0}`)) fail(`builtinSlot(${show(id0)}, { role, prompt, tag: "定格" })：rest 里混进来的 tag 盖掉了 getter（want getter 读出 ${show(`ENGLISH:${id0}`)}，got ${show(read(mixed, "tag"))}）—— 工厂里 ...rest 要写在 get tag() 前面，后写的 getter 才盖得住展开进来的定格字符串`);
+  }
+  if (zhFn && typeof fns.builtinScheme !== "function") fail(`${SCHEMES}：找不到 function builtinScheme(title, intro, rest)（内置方案的工厂：名字与简介是读时取值的 getter）`);
+  else if (zhFn) {
+    runs++;
+    live.lang = "ENGLISH";
+    let sc = null;
+    try { sc = fns.builtinScheme({ message: "名字" }, { message: "简介" }, { id: "scheme_x", builtin: true, faceless: true, examples: ["/x.webp"], slots: [] }); } catch (e) { fail(`builtinScheme(…) 抛了：${e.message}`); }
+    if (sc) {
+      if (sc.id !== "scheme_x" || sc.builtin !== true || sc.faceless !== true || sc.examples?.[0] !== "/x.webp" || !Array.isArray(sc.slots)) fail(`builtinScheme 的第三个参数要原样带上（id / builtin / faceless / examples / slots），got ${show({ id: sc.id, builtin: sc.builtin, faceless: sc.faceless, examples: sc.examples })}`);
+      for (const [prop, want] of [["title", "名字"], ["intro", "简介"]]) {
+        if (!getterOf(sc, prop)) fail(`builtinScheme 给的 ${prop} 不是 getter（定格的数据属性会冻结在开机语言）—— 写成 get ${prop}() { return i18n._(${prop}); }`);
+        live.lang = "ENGLISH";
+        if (read(sc, prop) !== `ENGLISH:${want}`) fail(`builtinScheme(…).${prop}：want ${show(`ENGLISH:${want}`)}，got ${show(read(sc, prop))}（要经 i18n._ 翻 msg 描述符）`);
+        live.lang = "中文";
+        if (read(sc, prop) !== `中文:${want}`) fail(`builtinScheme(…).${prop} 切语言后仍是 ${show(read(sc, prop))}：不是读时取值`);
+      }
+    }
+    // ★ 同 builtinSlot 那条：rest 里混进来的 title / intro 盖不住 getter（...rest 在 getter 前面）
+    runs++;
+    live.lang = "ENGLISH";
+    let mixed = null;
+    try { mixed = fns.builtinScheme({ message: "名字" }, { message: "简介" }, { id: "scheme_y", builtin: true, slots: [], title: "定格", intro: "定格" }); } catch (e) { fail(`builtinScheme(…, { …, title, intro }) 抛了：${e.message}`); }
+    for (const [prop, want] of mixed ? [["title", "名字"], ["intro", "简介"]] : []) {
+      if (!getterOf(mixed, prop) || read(mixed, prop) !== `ENGLISH:${want}`) fail(`builtinScheme(…, { …, ${prop}: "定格" })：rest 里混进来的 ${prop} 盖掉了 getter（want getter 读出 ${show(`ENGLISH:${want}`)}，got ${show(read(mixed, prop))}）—— 工厂里 ...rest 要写在两个 getter 前面`);
+    }
   }
 }
 
@@ -261,10 +358,12 @@ for (const f of [files[PAGE], files[STORE]].filter(Boolean)) {
 }
 if (files[PAGE]) {
   const f = files[PAGE];
-  const imp = /import\s*\{([^}]*)\}\s*from\s*"\.\.\/data\/promptSchemes"/.exec(f.bare);
+  // ★ 收齐**每一组** `import { … } from "../data/promptSchemes"` 再找名字：把 `import { defaultScheme }` 单独拆成一组写在前面是合法写法，
+  //   只看第一组会把它误报成「没 import slotKey」（(b) 钉 builtinSlotLabel / i18n 的 pin 同一条规矩）
+  const impGroups = [...f.bare.matchAll(/import\s*\{([^}]*)\}\s*from\s*"\.\.\/data\/promptSchemes"/g)].map((m) => m[1]);
   for (const n of ["slotKey", "slotCardTag"]) {
     if (!new RegExp(`\\b${n}\\(`).test(f.code)) fail(`${PAGE}：找不到 ${n}( 的调用 —— 认格子 / 铸卡的 tag 只有 promptSchemes 那一份实现`);
-    if (!imp || !new RegExp(`\\b${n}\\b`).test(imp[1])) fail(`${PAGE}：要从 "../data/promptSchemes" import ${n}（自己抄一份就是第二份实现）`);
+    if (!impGroups.length || !new RegExp(`\\b${n}\\b`).test(impGroups.join(","))) fail(`${PAGE}：要从 "../data/promptSchemes" import ${n}（自己抄一份就是第二份实现）`);
   }
 }
 if (files[STORE] && !/annot:\s*\{\s*slotKey:\s*string;\s*frame:\s*string\s*\}\s*\|\s*null/.test(files[STORE].bare)) fail(`${STORE}：CustomCardDraft.annot 要是 { slotKey: string; frame: string } | null（圈选改图开在哪一格按图位键记，不记显示名）`);
@@ -306,7 +405,7 @@ if (files[PAGE]) {
     calls++;
     const p = pieces(f.code, m.index + m[0].length - 1);
     if (/\bscheme:\s*(scheme\b|\{\s*\.\.\.scheme\b)/.test(p ? f.code.slice(m.index, p.close + 1) : "")) continue;
-    fail(`${PAGE}:${f.lineAt(m.index)}  portraitViews 的 scheme 要原样传那一套或写成 { ...scheme, … }：PromptScheme.builtin 是可选位，重建一个字面量把它漏掉是零症状（tsc 不说话、这里也看不见），而 slotKey / slotCardTag 只在 builtin 为真时按 id 取原名 —— PR3 之后这一整批图的键与 CardView.tag 都退回显示名，落在页面根本不读的键上`);
+    fail(`${PAGE}:${f.lineAt(m.index)}  portraitViews 的 scheme 要原样传那一套或写成 { ...scheme, … }：PromptScheme.builtin 是可选位，重建一个字面量把它漏掉是零症状（tsc 不说话、这里也看不见），而 slotKey / slotCardTag 只在 builtin 为真时按 id 取原名 —— 显示名翻译之后这一整批图的键与 CardView.tag 都退回显示名，落在页面根本不读的键上`);
   }
   if (!calls) fail(`${PAGE}：找不到 portraitViews(…) 的调用（那边改了写法，就同步改这里）`);
 }
@@ -317,4 +416,4 @@ if (problems.length) {
   console.error("\n   门禁是浅的（正文 / 正则级）：改法看每一条后面那句；(c) 真拦错了写 // slot-ids-ignore-next-line: 理由。\n   (c)(d) 只扫文件头 PAGE / STORE / REAL / MOCK 四个文件：图位逻辑搬到新文件时先把它加进去。\n");
   process.exit(1);
 }
-console.log(`✓ 图位 id 检查通过（${Object.keys(table).length} 个内置原名 · 内置方案 ${slotCount} 格 · builtinSlotZh / slotKey / slotCardTag 实跑 ${runs} 条 · (c) 扫了 ${scanned} 行）`);
+console.log(`✓ 图位 id 检查通过（${Object.keys(table).length} 个内置原名 · 内置方案 ${slotCount} 格 · builtinSlotZh / slotKey / slotCardTag / builtinSlot / builtinScheme 实跑 ${runs} 条 · (c) 扫了 ${scanned} 行）`);
