@@ -12,7 +12,7 @@
 import { t } from "@lingui/core/macro";
 import { API_BASE } from "../api/client";
 import { getToken } from "../api/client";
-import { ArkTaskUnknown, syncWalletFromHeaders } from "./arkClient";
+import { ArkTaskUnknown, syncWalletFromHeaders, type ArkProgress } from "./arkClient";
 
 /** 上游受理回执的业务码：0 = 成功。非 0 时 status_msg 是给人看的原因 */
 interface BaseResp {
@@ -124,7 +124,8 @@ export async function minimaxVideo(o: {
   /** 首帧图：URL 或 dataURL（实测两种都收） */
   firstFrame: string;
   durationSec: number;
-  onProgress?: (s: string) => void;
+  /** 轮询进度（结构化，与方舟侧同一个 ArkProgress）；句子由拿事件的那一方按界面语言写 */
+  onProgress?: (ev: ArkProgress) => void;
   /**
    * 任务**刚被上游受理**（从这一刻起这一发的钱已经花掉了）。
    * ★ 与 arkClient 的 onTask 同一条约定：调用方拿它去落凭据，而落凭据必须发生在
@@ -132,8 +133,9 @@ export async function minimaxVideo(o: {
    */
   onTask?: (taskId: string) => void;
 }): Promise<string> {
-  const prog = (s: string) => o.onProgress?.(s);
-  prog(t`真人档任务创建中…`);
+  // 「任务创建中」那一步由 real.composeSegments 在调用之前就报了，这里不再重复报一遍
+  //（改之前这里多报的那条在日志里显示成「真人档 · 真人档任务创建中…」）
+  const prog = (ev: ArkProgress) => o.onProgress?.(ev);
   const created = await jsonOf(
     await fetch(`${BASE}/video`, {
       method: "POST",
@@ -160,7 +162,8 @@ export async function minimaxVideo(o: {
   o.onTask?.(taskId); // ★ 在开始等之前落凭据（理由见 onTask 的 ★）
 
   // 实测 768P/6s 约 40~90 秒出片；10 分钟死线（与方舟侧的轮询纪律同精神：不无限等）
-  const deadline = Date.now() + 10 * 60_000;
+  const t0 = Date.now();
+  const deadline = t0 + 10 * 60_000;
   // ★★ 单次查询抖动**不放弃整发**（2026-08-31 补，照 arkClient 的同一条纪律）：
   //   原来这一行是裸的 `await jsonOf(fetch(...))`，`jsonOf` 对任何非 2xx / 非 JSON
   //   当场抛 —— 手机在 5G/WiFi 之间切一下、或代理吃到一次上游 504，整发就被判死。
@@ -194,12 +197,14 @@ export async function minimaxVideo(o: {
         const why = e instanceof Error ? e.message.slice(0, 60) : t`查询失败`;
         throw new ArkTaskUnknown(t`盯不住这一发的进度了（${why}）——任务还在上游跑，不是失败。`, taskId);
       }
-      prog(t`真人档生成中…（查询失败 ${pollFails}/5，重试中）`);
+      prog({ kind: "pollRetry", fails: pollFails, max: 5, sec: Math.round((Date.now() - t0) / 1000) });
       continue;
     }
     const status = String(st.status ?? "");
-    const shown = status || t`排队`;
-    prog(t`真人档生成中…（${shown}）`);
+    // 海螺的状态词换算成方舟那套（Queueing → queued，Preparing / Processing → running），认不得的原样报；
+    // 空状态按排队报（改之前也是这么兜的）。读秒句因此与方舟各档同一份（arkClient.describeArkProgress）
+    const shown = status === "Queueing" || !status ? "queued" : status === "Preparing" || status === "Processing" ? "running" : status;
+    prog({ kind: "poll", status: shown, sec: Math.round((Date.now() - t0) / 1000) });
     if (status === "Fail") {
       const why = baseRespOf(st)?.status_msg || t`上游未说明原因`;
       throw new Error(t`真人档出片失败：${why}`);

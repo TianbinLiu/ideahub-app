@@ -2737,13 +2737,13 @@ export const useFlow = create<FlowState>()((set, get) => ({
       const cur = steps[steps.length - 1];
       patchNode({ steps, progress: cur && cur.status === "running" ? (cur.detail ?? cur.title) : "" });
     });
-    /** ai 层报上来的平铺短句 → 归一成「步骤 / 细节」，同一件事的读秒折进同一步 */
+    /** ai 层报上来的进度行（事件行 / 人话短句）→ 归一成「步骤 / 细节」，同一件事的读秒折进同一步；事件随步骤留下（GenStep.event） */
     const prog = (status: string) => {
-      const { title, detail, terminal, keep } = splitStatus(status);
+      const { title, detail, terminal, keep, event } = splitStatus(status);
       if (terminal) return log.end();
       const cur = log.steps[log.steps.length - 1];
-      if (!cur || cur.status !== "running" || cur.title !== title) log.begin(title, { keep });
-      if (detail) log.detail(detail);
+      if (!cur || cur.status !== "running" || cur.title !== title) log.begin(title, { keep, event });
+      if (detail) log.detail(detail, event);
     };
     const myRun = get().genRun + 1;
     set({ busy: true, err: "", genRun: myRun });
@@ -2927,7 +2927,9 @@ export const useFlow = create<FlowState>()((set, get) => ({
         const flat = providerOf(node.videoTier ?? DEFAULT_TIER) === "minimax";
         // 凭据**留着**（这一支绝不 dropVideoJob）：它是取回入口能不能出现的唯一依据。
         // 日志那一行也不许写"失败"——步骤日志是用户回看这一段怎么回事的地方。
-        log.fail(t`没接到结果：${msg.slice(0, 80)}`);
+        // ★ 截断窗口按英文放宽（2026-09-16，下面几处同）：英文比中文长一倍多，80 / 150 / 160 会把
+        //   「钱已扣、别重新生成」「没有花钱」那半句切掉——而那正是这几句存在的理由
+        log.fail(t`没接到结果：${msg.slice(0, 160)}`);
         patchNode({
           status: "pending",
           progress: "",
@@ -2950,8 +2952,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
           // ★ 24 小时是**方舟产物**的物理事实；真人档那边我们没量过留存，不许编一个数
           //   （同 videoJobNote 里那条 ★★）
           err: flat
-            ? t`第 ${idx + 1} 段${msg.slice(0, 150)}点下面那颗「取回」把它领回来，不再花一分钱；「重新生成」是重新下一单、会再花一次。`
-            : t`第 ${idx + 1} 段${msg.slice(0, 150)}成片 24 小时内都能取回：点下面那颗「取回」，不再花一分钱；「重新生成」是重新下一单、会再花一次。`,
+            ? t`第 ${idx + 1} 段${msg.slice(0, 240)}点下面那颗「取回」把它领回来，不再花一分钱；「重新生成」是重新下一单、会再花一次。`
+            : t`第 ${idx + 1} 段${msg.slice(0, 240)}成片 24 小时内都能取回：点下面那颗「取回」，不再花一分钱；「重新生成」是重新下一单、会再花一次。`,
         });
         return false;
       }
@@ -2960,13 +2962,13 @@ export const useFlow = create<FlowState>()((set, get) => ({
       //   "过期的不给按钮"）。没受理过的那些 taskId 为空，这一行本来就是空转。
       if (taskId) dropVideoJob(taskId);
       // 失败也留在日志里：卡在哪一步、跑了多久，比一句"生成失败"有用得多
-      log.fail(t`失败：${msg.slice(0, 80)}`);
-      patchNode({ status: "failed", progress: "", error: msg.slice(0, 160) });
+      log.fail(t`失败：${msg.slice(0, 160)}`);
+      patchNode({ status: "failed", progress: "", error: msg.slice(0, 240) });
       set(
         get().genRun === myRun
           ? {
               busy: false,
-              err: t`第 ${idx + 1} 段生成失败：${msg.slice(0, 120)}`,
+              err: t`第 ${idx + 1} 段生成失败：${msg.slice(0, 240)}`,
               genNotice: { ok: false, msg: t`第 ${idx + 1} 段生成失败` },
             }
           : {},

@@ -5,7 +5,7 @@
 // 列出来，用户就能自己判断是在正常推进还是真卡住了，也知道钱花在了哪几步上。
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useRef, useState } from "react";
-import type { GenStep } from "../studio/genLog";
+import { stepText, type GenStep } from "../studio/genLog";
 
 function fmtMs(ms: number): string {
   return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`;
@@ -70,6 +70,8 @@ export default function GenTrace({
           {steps.map((s) => {
             const isRun = s.status === "running";
             const isErr = s.status === "error";
+            // ★ 读时渲染：带事件的步按当前界面语言重写标题 / 细节（genLog.stepText）；老草稿没有事件，照旧显示存下的句子
+            const { title, detail } = stepText(s);
             return (
               <div key={s.id} className="relative flex items-start gap-2.5 py-[3px]">
                 <span
@@ -87,11 +89,11 @@ export default function GenTrace({
                       isRun ? "text-slate-200" : isErr ? "text-rose-300" : "text-slate-500"
                     }`}
                   >
-                    {s.title}
+                    {title}
                     {s.ms != null && <span className="ml-1.5 text-[10px] text-slate-600">· {fmtMs(s.ms)}</span>}
                   </div>
-                  {(isRun || s.keep) && s.detail && (
-                    <div className="text-[10.5px] leading-relaxed text-slate-500">{s.detail}</div>
+                  {(isRun || s.keep) && detail && (
+                    <div className="text-[10.5px] leading-relaxed text-slate-500">{detail}</div>
                   )}
                 </div>
               </div>

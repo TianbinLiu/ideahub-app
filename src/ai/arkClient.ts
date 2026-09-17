@@ -12,9 +12,12 @@
 //   /api/tts 当年也栽在这条上（见 studio/speech.ts 的同款警告），别再改回去。
 //
 // 密钥永远不进前端包：APK 解一下就拿到了（铁律三）。
+import { i18n } from "@lingui/core";
+import { t } from "@lingui/core/macro";
 import { API_BASE, API_ON, getToken } from "../api/client";
 import { syncRemoteWallet } from "../data/account";
 import { DEFAULT_IMAGE_TIER, imageTierOf, videoAudioOn } from "../data/economy";
+import type { GenMode } from "../types";
 
 /** 把响应头上的权威余额同步进本地镜像。头部缺失（CORS 没放行/dev 代理）时什么都不做。
  *  ★ 导出给 minimaxVideo 复用（真人档也走计费代理、也带同一对 X-Wallet 头）——
@@ -80,7 +83,9 @@ export async function fetchArkAsset(url: string, timeoutMs: number): Promise<Res
   //   （异常被上层 catch 吞掉），只表现为"卡在捕获尾帧""封面是黑的"。在这里就掐断。
   const ct = res.headers.get("content-type") ?? "";
   if (res.ok && ct.includes("text/html")) {
-    throw new Error(`取产物失败：${API_BASE || "本机"} 上没有 /api/ark/asset 代理，请更新服务端`);
+    // 配了服务端地址 / 没配（dev 同源）各一句整话，不拼「本机」那个片段（多语言要整句）
+    const host = API_BASE;
+    throw new Error(host ? t`取产物失败：${host} 上没有 /api/ark/asset 代理，请更新服务端` : t`取产物失败：本机上没有 /api/ark/asset 代理，请更新服务端`);
   }
   return res;
 }
@@ -117,9 +122,10 @@ export async function transferArkVideo(url: string): Promise<string> {
     signal: AbortSignal.timeout(180_000),
   });
   const ct = res.headers.get("content-type") ?? "";
-  if (!ct.includes("application/json")) throw new Error("这台服务器还没有 /api/ark/transfer-video（请更新服务端）");
+  if (!ct.includes("application/json")) throw new Error(t`这台服务器还没有 /api/ark/transfer-video（请更新服务端）`);
   const j = (await res.json().catch(() => ({}))) as { url?: string; message?: string };
-  if (!res.ok || !j.url) throw new Error(j.message || `转存失败（${res.status}）`);
+  const status = res.status;
+  if (!res.ok || !j.url) throw new Error(j.message || t`转存失败（${status}）`);
   return j.url;
 }
 
@@ -146,9 +152,10 @@ export async function requestArkTransfer(
     signal: AbortSignal.timeout(20_000),
   });
   const ct = res.headers.get("content-type") ?? "";
-  if (!ct.includes("application/json")) throw new Error("这台服务器还没有 /api/ark/transfer-video（请更新服务端）");
+  if (!ct.includes("application/json")) throw new Error(t`这台服务器还没有 /api/ark/transfer-video（请更新服务端）`);
   const j = (await res.json().catch(() => ({}))) as { state?: "done" | "pending" | "failed"; url?: string; message?: string };
-  if (!res.ok && res.status !== 202) throw new Error(j.message || `转存受理失败（${res.status}）`);
+  const status = res.status;
+  if (!res.ok && status !== 202) throw new Error(j.message || t`转存受理失败（${status}）`);
   return { state: j.state ?? "pending", ...(j.url ? { url: j.url } : {}), ...(j.message ? { message: j.message } : {}) };
 }
 
@@ -169,7 +176,8 @@ export async function transferStatus(
     signal: AbortSignal.timeout(20_000),
   });
   const ct = res.headers.get("content-type") ?? "";
-  if (!res.ok || !ct.includes("application/json")) throw new Error(`转存状态查询失败（${res.status}）`);
+  const status = res.status;
+  if (!res.ok || !ct.includes("application/json")) throw new Error(t`转存状态查询失败（${status}）`);
   const j = (await res.json().catch(() => ({}))) as { results?: Record<string, { state: "done" | "pending" | "failed" | "none"; url?: string; message?: string }> };
   return j.results ?? {};
 }
@@ -216,6 +224,11 @@ export class ArkHttpError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    /**
+     * 服务端的业务码（如套餐门禁的 `PLAN_REQUIRED`）；方舟原生错误 / 老服务端没有 → 空串。
+     * ★ 英文界面按它挑本端的整句（D7 a：服务端给码、App 说话）—— 判它，别判 message 里的字。
+     */
+    readonly code = "",
   ) {
     super(message);
     this.name = "ArkHttpError";
@@ -260,11 +273,14 @@ export class ArkBadReply extends Error {
  * ★ 状态码保留：那是唯一对排查有用、又短的一位。
  */
 export function briefArkReason(e: unknown): string {
-  if (e instanceof ArkHttpError) return `服务器返回 ${e.status}`;
+  if (e instanceof ArkHttpError) {
+    const status = e.status;
+    return t`服务器返回 ${status}`;
+  }
   // ★ 认类型，不在 message 里找「网络失败」：arkFetch 只在这一种情况下抛 ArkNoReply（见它的 ★★）
-  if (e instanceof ArkNoReply) return "网络不通";
+  if (e instanceof ArkNoReply) return t`网络不通`;
   if (e instanceof Error) return e.message.slice(0, 40);
-  return "未知原因";
+  return t`未知原因`;
 }
 
 /** 带超时的 Ark 请求。fetch 没有默认超时——网络一卡整个工坊就"假死"在加载态。
@@ -284,7 +300,8 @@ async function arkFetch<T>(path: string, init?: RequestInit, timeoutMs = 90_000)
       },
     }).catch((e) => {
       // 类型见 ArkNoReply 的 ★★：没收到回包 ≠ 没扣钱
-      throw new ArkNoReply(`Ark ${path} 网络失败: ${e instanceof Error ? e.message : e}`);
+      const detail = e instanceof Error ? e.message : String(e);
+      throw new ArkNoReply(t`Ark ${path} 网络失败: ${detail}`);
     });
     // ★ 每个响应都带着服务端的权威余额（扣费/退款都发生在那边）。趁这一趟同步回来，
     //   省掉一次 GET /api/me/wallet，也避免在两次请求之间显示旧余额。
@@ -304,26 +321,35 @@ async function arkFetch<T>(path: string, init?: RequestInit, timeoutMs = 90_000)
     //   这里把它翻成一句能直接行动的提示。
     const ct = res.headers.get("content-type") ?? "";
     if (!ct.includes("json")) {
-      if (res.status === 501) throw new Error("这台服务器没有配置方舟密钥（服务端 .env 的 ARK_API_KEY）");
+      if (res.status === 501) throw new Error(t`这台服务器没有配置方舟密钥（服务端 .env 的 ARK_API_KEY）`);
+      // 「配没配服务端地址 × 回包有没有说类型」各一句整话，不拼「本机」「未知类型」那两个片段（多语言要整句）
+      const host = API_BASE;
+      const kind = ct.split(";")[0];
       throw new Error(
-        `AI 服务不可用：${API_BASE || "本机"} 上没有 /api/ark 代理` +
-          `（返回的是 ${ct.split(";")[0] || "未知类型"}，不是 JSON）。请更新服务端后重试。`,
+        host
+          ? kind
+            ? t`AI 服务不可用：${host} 上没有 /api/ark 代理（返回的是 ${kind}，不是 JSON）。请更新服务端后重试。`
+            : t`AI 服务不可用：${host} 上没有 /api/ark 代理（返回的不是 JSON，也没说明类型）。请更新服务端后重试。`
+          : kind
+            ? t`AI 服务不可用：本机上没有 /api/ark 代理（返回的是 ${kind}，不是 JSON）。请更新服务端后重试。`
+            : t`AI 服务不可用：本机上没有 /api/ark 代理（返回的不是 JSON，也没说明类型）。请更新服务端后重试。`,
       );
     }
     if (!res.ok) {
       const body = await res.text().catch(() => "");
       // 服务端把方舟的错误原样透传，所以这里既可能是方舟的 400，也可能是代理自己的
       // 401/403/429/501 —— 都带 message，原样抛给上层做回退与播报（铁律八）
-      if (res.status === 501) throw new Error("这台服务器没有配置方舟密钥（服务端 .env 的 ARK_API_KEY）");
-      if (res.status === 401) throw new Error("登录态失效，重新登录后再试");
+      if (res.status === 501) throw new Error(t`这台服务器没有配置方舟密钥（服务端 .env 的 ARK_API_KEY）`);
+      if (res.status === 401) throw new Error(t`登录态失效，重新登录后再试`);
       // 402 = 服务端钱包判定余额不足，**方舟根本没被调用**（服务端在转发之前就拦了）。
       // 本地镜像放行了它才会走到这里：镜像慢了半拍、或者被人改过。
       // 把服务端说的实数带出去，比本地那个可能已经不对的数字可信。
       if (res.status === 402) {
         const need = Number(/"need":\s*(\d+)/.exec(body)?.[1] ?? 0);
         const have = Number(/"balance":\s*(\d+)/.exec(body)?.[1] ?? 0);
+        // 服务端没报具体数（老服务端）时另一句整话，不拼「更多」那个片段
         throw new Error(
-          `token 余额不足：这一步需要 ${need || "更多"}，余额 ${have}——去「我的」页充值`,
+          need ? t`token 余额不足：这一步需要 ${need}，余额 ${have}——去「我的」页充值` : t`token 余额不足：这一步需要更多，余额 ${have}——去「我的」页充值`,
         );
       }
       // 403 = 服务端的套餐门禁（PLAN_REQUIRED，见 server config/tokens.js 的 paidOnlyDenial）。
@@ -333,8 +359,14 @@ async function arkFetch<T>(path: string, init?: RequestInit, timeoutMs = 90_000)
       //   `slice(0, 120)`，真正的原因（"仅对付费套餐开放"）正好被截在外面，
       //   用户看到的是一串带 doubao 型号的花括号（铁律八：失败要响，也要看得懂）。
       if (res.status === 403) {
-        const msg = /"message"\s*:\s*"([^"]+)"/.exec(body)?.[1];
-        throw new Error(msg || "这一档不对当前套餐开放，去「我的」页升级套餐后再试");
+        const serverMsg = /"message"\s*:\s*"([^"]+)"/.exec(body)?.[1] ?? "";
+        const code = /"code"\s*:\s*"([^"]+)"/.exec(body)?.[1] ?? "";
+        // ★ D7 a（多语言）：中文界面照旧原样说服务端那句整话；英文界面认 **code**（PLAN_REQUIRED）说本端的整句 ——
+        //   判码不判文案。认不得的码仍只能原样带出服务端那句（多半是中文），总比按字猜强。
+        // ★ 抛 ArkHttpError（带 status 与 code）而不是裸 Error：调用方一律按类型 / 状态码分档，这一档此前是唯一的例外
+        const ours = t`这一档不对当前套餐开放，去「我的」页升级套餐后再试`;
+        const useOurs = !serverMsg || (code === "PLAN_REQUIRED" && i18n.locale === "en");
+        throw new ArkHttpError(useOurs ? ours : serverMsg, 403, code);
       }
       throw new ArkHttpError(`Ark ${path} ${res.status}: ${body.slice(0, 300)}`, res.status);
     }
@@ -342,7 +374,8 @@ async function arkFetch<T>(path: string, init?: RequestInit, timeoutMs = 90_000)
       return (await res.json()) as T;
     } catch (e) {
       // 2xx 的回包读到一半断了 / JSON 坏了：服务端已经结算（见 ArkBadReply）
-      throw new ArkBadReply(`Ark ${path} 回包读不出来: ${e instanceof Error ? e.message : e}`);
+      const detail = e instanceof Error ? e.message : String(e);
+      throw new ArkBadReply(t`Ark ${path} 回包读不出来: ${detail}`);
     }
   }
 }
@@ -386,7 +419,7 @@ export async function generateImage(
     170_000,
   );
   const url = out.data?.[0]?.url;
-  if (!url) throw new Error("Seedream 未返回图片");
+  if (!url) throw new Error(t`Seedream 未返回图片`);
   return url;
 }
 
@@ -529,6 +562,113 @@ export class ArkTaskUnknown extends Error {
 }
 
 /**
+ * 出片 / 建模轮询的**进度事件**（2026-09-16 多语言）。协议层只报「发生了什么」，不再拼句子：
+ * 句子由拿到事件的那一方按当前界面语言现写（步骤日志 studio/genLog、剪辑页单段重拍的 busy 行）。
+ * ★ 为什么必须结构化：此前 genLog 拿正则认「排队中」「成片转存」「xx档 · 」「完成」这几个中文串来折叠步骤，
+ *   翻译任何一头都会让折叠**静默**失效（几十条一模一样的行、转存那一步折进「渲染视频」里不见了）。
+ * · poll：一次轮询的状态（方舟的 queued / running / …；MiniMax 侧已换算成同一套词）+ 已等秒数
+ * · pollRetry：单次查询失败、还在重试（真人档那条会报；方舟侧静默重试）
+ * · transfer / transferFailed：出片一成就换永久地址那一步（失败不挡出片，但要说出来）
+ */
+export type ArkProgress =
+  | { kind: "poll"; status: string; sec: number }
+  | { kind: "pollRetry"; fails: number; max: number; sec: number }
+  | { kind: "transfer" }
+  | { kind: "transferFailed"; reason: string };
+
+/**
+ * 一段出片全过程的事件（real.composeSegments 报给步骤日志的那条通道）：轮询事件带上档位 id，
+ * 再加「生成契约」与「完成」两个只有 real 那一层知道的事件。
+ * ★ 走 encodeGenEvent 编成一行字符串发出去：那条通道（composeSegments → segmentGen → flowStore）按约定只传字符串，
+ *   segmentGen 自己的进度句（「绘制起拍画面…」）也走同一条 —— 事件行带固定前缀，与人话一眼分得开。
+ */
+export type GenEvent =
+  | ({ tier: string } & ArkProgress)
+  | {
+      kind: "contract";
+      mode: GenMode;
+      tier: string;
+      ratio: string;
+      durationSec: number;
+      /** 参考视频的源片时长（edit 模式：输出时长跟随它） */
+      refSec?: number;
+      images: number;
+      audios: number;
+      carried: boolean;
+      chars: number;
+    }
+  | { kind: "done" };
+
+const GEN_EVENT_PREFIX = "@@gen:";
+
+/** 事件 → 进度行。★ 编码只有这一处，解码只有 decodeGenEvent 一处 */
+export function encodeGenEvent(ev: GenEvent): string {
+  return GEN_EVENT_PREFIX + JSON.stringify(ev);
+}
+
+/** 进度行 → 事件；不是事件行（segmentGen 的人话）回 null */
+export function decodeGenEvent(line: string): GenEvent | null {
+  if (!line.startsWith(GEN_EVENT_PREFIX)) return null;
+  try {
+    const ev = JSON.parse(line.slice(GEN_EVENT_PREFIX.length)) as GenEvent;
+    return ev && typeof ev.kind === "string" ? ev : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 生成模式的人话（契约行 / 契约核对的报错用）。2026-09-16 从 ./real 搬来：步骤日志渲染契约行也要读它，
+ * 而 studio 层只准依赖这个协议模块。getter：读到时按界面语言现翻（同 economy.VIDEO_TIERS 的 label）
+ */
+export const GEN_MODE_LABEL: Record<GenMode, string> = {
+  get t2v() {
+    return t`文生视频`;
+  },
+  get i2v() {
+    return t`首帧图生视频`;
+  },
+  get flf() {
+    return t`首尾帧图生视频`;
+  },
+  get "ref-images"() {
+    return t`参考图生视频（reference_image）`;
+  },
+  get reference() {
+    return t`参考视频 + 参考图（reference）`;
+  },
+  get edit() {
+    return t`参考视频逐镜复刻（edit）`;
+  },
+  get minimax() {
+    return t`真人档首帧图生视频（MiniMax）`;
+  },
+};
+
+/**
+ * 轮询事件 → 给人看的一行（「标准档 · 排队中 12s」）。**唯一实现**：步骤日志里「渲染视频」那一步的细节、
+ * 剪辑页单段重拍的 busy 行都读它 —— 两处各写一份的话，同一件事在两个页面会说成两句话。
+ * running / queued 之外的状态原样报方舟的状态词（与改之前一样）。
+ */
+export function describeArkProgress(tierLabel: string, ev: ArkProgress): string {
+  if (ev.kind === "transfer") return t`${tierLabel}档 · 成片转存中（换成永久地址）…`;
+  if (ev.kind === "transferFailed") {
+    const reason = ev.reason;
+    return t`${tierLabel}档 · 成片转存没成（${reason}）——先用方舟临时链接，预览帧稍后自动补上`;
+  }
+  const sec = ev.sec;
+  if (ev.kind === "pollRetry") {
+    const fails = ev.fails;
+    const max = ev.max;
+    return t`${tierLabel}档 · 生成中 ${sec}s（查询失败 ${fails}/${max}，重试中）`;
+  }
+  if (ev.status === "queued") return t`${tierLabel}档 · 排队中 ${sec}s`;
+  if (ev.status === "running") return t`${tierLabel}档 · 生成中 ${sec}s`;
+  const status = ev.status;
+  return t`${tierLabel}档 · ${status} ${sec}s`;
+}
+
+/**
  * Seedance 图生视频：创建任务 → 轮询 → 返回视频 URL。
  * 传 lastFrameUrl 则走"首尾帧"模式（我们的方案卡正好有首尾帧，画面收束更可控）；
  * 传 refImages 则走"全模态参考生视频"（多张形象图 + 一句话直出，不需要设定帧）；
@@ -596,7 +736,8 @@ export async function generateVideo(
      *   （studio/flowStore → data/videoJobs）。协议层认识 data 层就成了双向依赖。
      */
     onTask?: (taskId: string) => void;
-    onProgress?: (status: string) => void;
+    /** 轮询 / 转存进度（结构化，见 ArkProgress）；句子由调用方按界面语言写 */
+    onProgress?: (ev: ArkProgress) => void;
   },
 ): Promise<string> {
   const model = opts?.model ?? MODELS.video;
@@ -606,24 +747,28 @@ export async function generateVideo(
   if (refVideoUrl && !supportsRefVideo(model)) {
     // 响亮地失败（同下面 refImage 那条）：静默忽略参考视频 = 模板整个被扔掉、
     // 拍一段无关的片、照收钱 —— 那不是降级，是偷换商品（铁律八）
+    // i18n-ignore-next-line: 开发期断言（协议能力白名单兜底，引用 VideoTier.* 标识符；调用方 real.validateGenSpec 已按档位整句拒过）
     throw new Error(`模型 ${model} 不支持白模参考视频出片，不该走到这里（能力表见 data/economy 的 VideoTier.refVid）`);
   }
   if (refs.length > 0 && !supportsRefImage(model)) {
     // 响亮地失败：静默忽略参考图 = 用户付了钱、加了图、画面没变、零报错（铁律八）
+    // i18n-ignore-next-line: 开发期断言（同上）
     throw new Error(`模型 ${model} 不支持参考生视频，不该走到这里（能力表见 data/economy 的 VideoTier.refImg）`);
   }
   if (mode === "frames" && !firstFrameUrl) {
-    throw new Error("出片缺少起拍画面：既没有首帧也没有参考图");
+    throw new Error(t`出片缺少起拍画面：既没有首帧也没有参考图`);
   }
   const refAudios = opts?.refAudios ?? [];
   if (refAudios.length > 0 && mode !== "reference") {
     // 响亮地失败（同上两条）：首尾帧模式混参考音频是方舟侧的 400——在这里放行等于
     // 让一个必然失败的任务把钱先扣了（任务创建那一刻就计费受理）
+    // i18n-ignore-next-line: 开发期断言（同上）
     throw new Error("参考音频只能配参考生视频模式（首尾帧任务混参考媒体会被方舟拒绝）——不该走到这里");
   }
   if (refAudios.length > 0 && !videoAudioOn(model)) {
     // 1.x 收到 audio_url 是 400 还是静默忽略没人验证过——静默忽略就是"带了声音样本、
     // 片子照样哑的、零报错"，比报错更坏（与 refImage 白名单同一条纪律）
+    // i18n-ignore-next-line: 开发期断言（同上）
     throw new Error(`模型 ${model} 不支持音频，不该带参考音频（能力表见 data/economy 的 VideoTier.audio）`);
   }
   const content: Array<Record<string, unknown>> =
@@ -740,19 +885,17 @@ export async function generateVideo(
       //   所以按 unknown 抛（凭据留着、给取回入口），与 waitBlockoutTask 里
       //   「盯不住这一发的进度了」那一支同一个判断
       if (++pollFails >= 5) {
-        throw new ArkTaskUnknown(
-          `盯不住这一发的进度了（${briefArkReason(e)}）。任务还在方舟那边跑，不是失败：钱在提交那一刻就已经花掉了。`,
-          id,
-        );
+        const why = briefArkReason(e);
+        throw new ArkTaskUnknown(t`盯不住这一发的进度了（${why}）。任务还在方舟那边跑，不是失败：钱在提交那一刻就已经花掉了。`, id);
       }
       continue;
     }
     const sec = Math.round((Date.now() - t0) / 1000);
-    const label = st.status === "queued" ? "排队中" : st.status === "running" ? "生成中" : st.status;
-    opts?.onProgress?.(`${label} ${sec}s`);
+    // 状态原样报（queued / running / …），句子由拿事件的那一方写（见 ArkProgress）
+    opts?.onProgress?.({ kind: "poll", status: st.status, sec });
     if (st.status === "succeeded") {
       const url = st.content?.video_url;
-      if (!url) throw new Error("Seedance 任务成功但无视频 URL");
+      if (!url) throw new Error(t`Seedance 任务成功但无视频 URL`);
       // ★ 出片一成马上换成永久地址（理由见 transferArkVideo 的 ★）。这里是**唯一**收口：
       //   composeSegments / regenSegment / 未来任何调用方都自动拿到能全球播的地址。
       //   失败不挡出片 —— 退回方舟直链（24h 内有效，发布时服务端还会再转存一次），但要说出来。
@@ -765,19 +908,20 @@ export async function generateVideo(
         //   只剩「把整条成片代理拉到手机上解码」那条 120s 兜底 ⇒ 超时 ⇒ 卡面「成片预览没截到」。
         //   主人 2026-09-06 与 09-07 两次真机撞的都是它（服务端日志：那两天出片当天一条 ark-transfer 都没有）。
         if (st.transfer?.state === "done" && st.transfer.url) return st.transfer.url;
-        opts?.onProgress?.("成片转存中（换成永久地址）…");
+        opts?.onProgress?.({ kind: "transfer" });
         try {
           return await transferArkVideo(url);
         } catch (e) {
-          opts?.onProgress?.(
-            `成片转存没成（${e instanceof Error ? e.message : String(e)}）——先用方舟临时链接，预览帧稍后自动补上`,
-          );
+          opts?.onProgress?.({ kind: "transferFailed", reason: e instanceof Error ? e.message : String(e) });
         }
       }
       return url;
     }
     if (st.status === "failed" || st.status === "cancelled") {
-      throw new Error(`Seedance 任务${st.status}: ${st.error?.message ?? ""}`);
+      const status = st.status;
+      const detail = st.error?.message ?? "";
+      // 方舟没给原因时另一句整话（改之前尾巴挂着一个空的「: 」）
+      throw new Error(detail ? t`Seedance 任务${status}: ${detail}` : t`Seedance 任务${status}`);
     }
   }
   // ★ 这句话只准写**用户真能拿它做点什么**的内容。原来那版写了「任务号 xxx」与
@@ -789,11 +933,8 @@ export async function generateVideo(
   //   在这里许一个那边兑现不了的承诺，就是换了一种骗人。可行动的那半句由**落了凭据的
   //   那一方**接着说（flowStore.genNode 的 pending 分支 + 段卡上的取回卡）。
   // ★ 任务号也不写进这句话：用户抄不动它，也不需要抄（取回按凭据走，不要人输号）。
-  throw new ArkTaskUnknown(
-    `等了 ${Math.round((Date.now() - t0) / 60_000)} 分钟还没出片。这不是失败：任务还在方舟那边跑，` +
-      `钱在提交那一刻就已经花掉了。`,
-    id,
-  );
+  const minutes = Math.round((Date.now() - t0) / 60_000);
+  throw new ArkTaskUnknown(t`等了 ${minutes} 分钟还没出片。这不是失败：任务还在方舟那边跑，钱在提交那一刻就已经花掉了。`, id);
 }
 
 /**
@@ -803,7 +944,8 @@ export async function generateVideo(
  */
 export async function generate3dModel(
   imageUrl: string,
-  onProgress?: (status: string) => void,
+  /** 一次轮询的状态 + 已等秒数；句子由调用方按界面语言写（同 ArkProgress 的 ★） */
+  onProgress?: (ev: { status: string; sec: number }) => void,
 ): Promise<string> {
   const created = await arkFetch<{ id: string }>(
     "/contents/generations/tasks",
@@ -829,16 +971,19 @@ export async function generate3dModel(
       if (++pollFails >= 5) throw e;
       continue;
     }
-    onProgress?.(`建模${st.status === "running" ? "生成中" : st.status} ${Math.round((Date.now() - t0) / 1000)}s`);
+    onProgress?.({ status: st.status, sec: Math.round((Date.now() - t0) / 1000) });
     if (st.status === "succeeded") {
       const url = st.content?.file_url ?? st.content?.url ?? st.content?.video_url;
+      // i18n-ignore-next-line: 只进 console.warn（唯一调用方 real.deriveCharacterModels 整段 try/catch 吞掉、跳过这张卡）
       if (!url) throw new Error("Seed3D 任务成功但未返回文件 URL");
       return url;
     }
     if (st.status === "failed" || st.status === "cancelled") {
+      // i18n-ignore-next-line: 同上，只进 console.warn
       throw new Error(`Seed3D 任务${st.status}: ${st.error?.message ?? ""}`);
     }
   }
+  // i18n-ignore-next-line: 同上，只进 console.warn
   throw new Error("Seed3D 任务超时（10 分钟）");
 }
 
