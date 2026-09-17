@@ -686,6 +686,11 @@ msgstr "{0} 等 {1} 张没能同步（{2}）。卡本身在服务器上，只有
 
 #. placeholder {0}: c.name
 #: src/studio/ui/FuseFrameSheet.tsx
+msgid "{0}·{label}"
+msgstr "{0}·{label}"
+
+#. placeholder {0}: c.name
+#: src/studio/ui/FuseFrameSheet.tsx
 msgid "{0}·形象"
 msgstr "{0}·形象"
 
@@ -2715,6 +2720,11 @@ msgstr "一屏一段、逐段生成"
 msgid "一屏看完整条片"
 msgstr "一屏看完整条片"
 
+#. 内置方案的一句话简介：≤120 个字符（服务端上限，另存为后原样带进用户方案）
+#: src/data/promptSchemes.ts
+msgid "一张分栏设定稿（素描线稿 + 色板 + 服装细节），外加一张能出片的面部特写。规格稿只作展示。"
+msgstr "一张分栏设定稿（素描线稿 + 色板 + 服装细节），外加一张能出片的面部特写。规格稿只作展示。"
+
 #: src/data/promptSchemes.ts
 msgid "一张卡最多存 {MAX_CARD_VIEWS} 张形象图（服务端也钉着这个数），把图位删到 {MAX_CARD_VIEWS} 个以内"
 msgstr "一张卡最多存 {MAX_CARD_VIEWS} 张形象图（服务端也钉着这个数），把图位删到 {MAX_CARD_VIEWS} 个以内"
@@ -3431,6 +3441,11 @@ msgstr "人物模型"
 #: src/pages/SupportCreatePage.tsx
 msgid "人物音频"
 msgstr "人物音频"
+
+#. 内置方案的一句话简介：≤120 个字符（服务端上限，另存为后原样带进用户方案）
+#: src/data/promptSchemes.ts
+msgid "人脸与服装分离：出一张无面部的白模三视图（只锁服装/体型/比例）+ 一张服装细节图。不复刻长相，适合只想借动作与穿着的素材。"
+msgstr "人脸与服装分离：出一张无面部的白模三视图（只锁服装/体型/比例）+ 一张服装细节图。不复刻长相，适合只想借动作与穿着的素材。"
 
 #: src/api/admin.ts
 msgid "人身攻击 / 辱骂"
@@ -4214,9 +4229,15 @@ msgstr "全景"
 msgid "全景主视图"
 msgstr "全景主视图"
 
+#. 内置方案的图位名：≤24 个字符（另存为后原样成为用户方案的图位名，服务端上限 24）；与 CARD_SLOTS 的同名条目是同一个 msgid
 #: src/types.ts
 msgid "全身立绘"
 msgstr "全身立绘"
+
+#. 内置提示词方案的名字：≤34 个字符（另存为会接上「 copy」，服务端方案名上限 40）
+#: src/data/promptSchemes.ts
+msgid "全身立绘+面部特写"
+msgstr "全身立绘+面部特写"
 
 #: src/components/support/AdminTicketsView.tsx
 #: src/components/TemplateShelf.tsx
@@ -5466,6 +5487,11 @@ msgstr "原因不明"
 #: src/data/cardViews.ts
 msgid "原图长宽比超过 3:1，已居中裁切——Seedream 不收超出这个比例的参考图"
 msgstr "原图长宽比超过 3:1，已居中裁切——Seedream 不收超出这个比例的参考图"
+
+#. 内置方案的图位名：≤24 个字符（另存为后原样成为用户方案的图位名，服务端上限 24）
+#: src/types.ts
+msgid "原片截图"
+msgstr "原片截图"
 
 #. placeholder {0}: m.toFixed(1)
 #: src/components/blockout/BoxFramePicker.tsx
@@ -9845,6 +9871,10 @@ msgstr "方案「{0}」· {1} 个图位——这些图从哪来？"
 msgid "方案名字（例如「白模三视图·我的版」）"
 msgstr "方案名字（例如「白模三视图·我的版」）"
 
+#: src/data/promptSchemes.ts
+msgid "方案名超过 {SCHEME_TITLE_MAX} 个字符，服务器会拒收——先把名字改短再发布"
+msgstr "方案名超过 {SCHEME_TITLE_MAX} 个字符，服务器会拒收——先把名字改短再发布"
+
 #: src/data/schemeMarket.ts
 msgid "方案市场没打开：{why}"
 msgstr "方案市场没打开：{why}"
@@ -9884,6 +9914,11 @@ msgstr "无脸"
 #: src/pages/CustomCardPage.tsx
 msgid "无脸方案画出来的图里没有脸，但出片时<0>仍然要靠这份授权素材</0>（合规看的是有没有绑定授权，不看图里有没有脸）——所以上面那份授权别取消。"
 msgstr "无脸方案画出来的图里没有脸，但出片时<0>仍然要靠这份授权素材</0>（合规看的是有没有绑定授权，不看图里有没有脸）——所以上面那份授权别取消。"
+
+#. 内置提示词方案的名字：≤34 个字符（另存为会接上「 copy」，服务端方案名上限 40）
+#: src/data/promptSchemes.ts
+msgid "无面部白模三视图"
+msgstr "无面部白模三视图"
 
 #: src/components/blockout/VisionFramePicker.tsx
 msgid "无预览"
@@ -10298,6 +10333,11 @@ msgstr "服装、体型与整体造型；也是这张卡的卡面"
 #: src/types.ts
 msgid "服装、体型与整体配色"
 msgstr "服装、体型与整体配色"
+
+#. 内置方案的图位名：≤24 个字符（另存为后原样成为用户方案的图位名，服务端上限 24）
+#: src/types.ts
+msgid "服装细节"
+msgstr "服装细节"
 
 #: src/studio/stage/StageOverlay.tsx
 msgid "朝向"
@@ -12558,10 +12598,25 @@ msgctxt "人偶的主色（挂卡提醒那句话里显示）"
 msgid "白"
 msgstr "白"
 
+#. 内置方案的一句话简介：≤120 个字符（服务端上限，另存为后原样带进用户方案）
+#: src/data/promptSchemes.ts
+msgid "白底全身立绘 + 面部特写两张，出片管线真正会吃的就是这两张。原片截图留作对照。"
+msgstr "白底全身立绘 + 面部特写两张，出片管线真正会吃的就是这两张。原片截图留作对照。"
+
 #: src/components/flow/FlowCanvas.tsx
 #: src/components/TemplateShelf.tsx
 msgid "白模"
 msgstr "白模"
+
+#. 内置方案的图位名：≤24 个字符（另存为后原样成为用户方案的图位名，服务端上限 24）
+#: src/types.ts
+msgid "白模三视图"
+msgstr "白模三视图"
+
+#. 内置方案的图位名：≤24 个字符（另存为后原样成为用户方案的图位名，服务端上限 24）
+#: src/types.ts
+msgid "白模全身"
+msgstr "白模全身"
 
 #: src/studio/segmentGen.ts
 msgid "白模出片不能带设定首帧（首帧与参考视频在方舟是互斥场景）——清掉这张帧再出片"
@@ -13809,6 +13864,10 @@ msgstr "简介"
 msgid "简介最多 {SKILL_INTRO_MAX} 个字"
 msgstr "简介最多 {SKILL_INTRO_MAX} 个字"
 
+#: src/data/promptSchemes.ts
+msgid "简介超过 {SCHEME_INTRO_MAX} 个字符，服务器会拒收——先把简介改短再发布"
+msgstr "简介超过 {SCHEME_INTRO_MAX} 个字符，服务器会拒收——先把简介改短再发布"
+
 #: src/components/guide/tours.tsx
 msgid "简约出片"
 msgstr "简约出片"
@@ -14046,6 +14105,14 @@ msgstr "结果取回来了，但服务器返回的模板缺少参考视频地址
 msgid "结果就在这块屏幕上"
 msgstr "结果就在这块屏幕上"
 
+#: src/mock/ai.ts
+msgid "绘制{name}…（{n}/{total}·演示）"
+msgstr "绘制{name}…（{n}/{total}·演示）"
+
+#: src/ai/real.ts
+msgid "绘制{name}…（{n}/{total}）"
+msgstr "绘制{name}…（{n}/{total}）"
+
 #: src/components/CoverPicker.tsx
 msgid "绘制中…"
 msgstr "绘制中…"
@@ -14245,7 +14312,7 @@ msgstr "背景卡"
 msgid "脸红"
 msgstr "脸红"
 
-#: src/components/VideoCardAnnotator.tsx
+#: src/types.ts
 msgid "脸部特写"
 msgstr "脸部特写"
 
@@ -14636,6 +14703,11 @@ msgstr "角色卡上的形象参考图一张都没能读出来（图片可能已
 msgid "角色名「{name}」里有 {shown}——出片时\"哪个人偶换成谁\"是用这几个符号分隔的，名字里带着它们会让 AI 把一条绑定读成两条（换错人不会报错，只有你自己看得出来）。请给这张卡改个名字"
 msgstr "角色名「{name}」里有 {shown}——出片时\"哪个人偶换成谁\"是用这几个符号分隔的，名字里带着它们会让 AI 把一条绑定读成两条（换错人不会报错，只有你自己看得出来）。请给这张卡改个名字"
 
+#. 内置提示词方案的名字：≤34 个字符（另存为会接上「 copy」，服务端方案名上限 40）
+#: src/data/promptSchemes.ts
+msgid "角色设定规格图"
+msgstr "角色设定规格图"
+
 #: src/live2d/bundlePreview.ts
 msgid "解压后一共约 {totalMb}MB（zip 本身 {zipMb}MB，没超上限）。手机上加载会慢一些，介意的话把贴图压到 2048² 再导出一次。"
 msgstr "解压后一共约 {totalMb}MB（zip 本身 {zipMb}MB，没超上限）。手机上加载会慢一些，介意的话把贴图压到 2048² 再导出一次。"
@@ -14752,6 +14824,11 @@ msgstr "设定帧没能转成参考图，这一段退回首尾帧模式出片（
 #: src/studio/segmentGen.ts
 msgid "设定帧没能转成参考图，这一段退回首尾帧模式出片（卡片形象图这次发不出去）"
 msgstr "设定帧没能转成参考图，这一段退回首尾帧模式出片（卡片形象图这次发不出去）"
+
+#. 内置方案的图位名：≤24 个字符（另存为后原样成为用户方案的图位名，服务端上限 24）
+#: src/types.ts
+msgid "设定规格稿"
+msgstr "设定规格稿"
 
 #: src/pages/DeckDetailPage.tsx
 #: src/pages/WorkshopPage.tsx
@@ -17840,6 +17917,7 @@ msgstr "青年牌手 · 他"
 msgid "静音"
 msgstr "静音"
 
+#. 内置方案的图位名：≤24 个字符（另存为后原样成为用户方案的图位名，服务端上限 24）；与 CARD_SLOTS 的同名条目是同一个 msgid
 #: src/types.ts
 msgid "面部特写"
 msgstr "面部特写"

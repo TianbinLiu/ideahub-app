@@ -360,19 +360,29 @@ POST console.volcengine.com/api/top/ark/cn-beijing/2024-01-01/ListAuthorizationA
   图位键只有 `promptSchemes.slotKey` 一处（2026-09-11）：内置方案的图位带 id、键取冻结的中文原名
   `types.BUILTIN_SLOT_ZH`（与此前的 tag 逐字相同，铸卡写进 `CardView.tag` 的也是它，见 `slotCardTag`），
   用户方案照旧按 tag —— 内置图位名翻译之后，草稿照片与已铸卡片的 tag 都不跟着界面语言变。
-  ⚠ **翻译这七个内置图位名那一步（多语言 PR3）要连着做的六件**：① 放宽 `scripts/check-slot-ids.mjs` (b) 里
-  「tag 必须原样写成 `BUILTIN_SLOT_ZH.x`」那一条（改成「那个表达式引用的是同一个 id」；id 要有、在表里、同一套不重复、
-  共用 id 是同一格 —— 这几条照留）；② 每个英文名 **≤24 字**（`VIEW_TAG_MAX`），否则英文界面下「另存为」会被
-  `promptSchemes.schemeIssue` 整句拒；③ 显示那一层加**一处**映射：`CardView.tag` 等于表里某个原名时翻成界面语言
-  （`types.viewTag`、`FuseFrameSheet` 的候选名、`VideoCardAnnotator` 的卡面小字都读它）—— ⚠ 圈选提卡那条路
-  （`VideoCardAnnotator` 的 `脸部特写` / `slotLabel`，origin/main 就如此）写进 `CardView.tag` 的本来就是**界面语言**的名字、
-  不在原名表里，这处映射覆盖不到它，要单独定怎么办；④ 英文界面下另存内置方案，副本带的是**英文名、没有 id**，
-  再从内置方案换过去时照片会整批报「先收起来了」（两边键不同，图一张不删、换回去还在）—— 那句提示要不要改口一并定；
-  ⑤ `src/ai/real.ts` / `src/mock/ai.ts` 的进度句 `绘制${slot.tag}…`（以及 mock 假卡面上的字）把显示名拼进一句**没翻译的中文**里，
-  PR3 要改成带占位符的整句 t 句，别把名字接在中文后面（否则英文界面读出来是「绘制Full body…」）；
-  ⑥ 翻译后的内置图位名一律做成**读时取值**的 getter（方案对象上 `get tag()`），**绝不**写成模块加载时算一次的
-  `tag: builtinSlotLabel("fullBody")` —— App 切语言不重载，算一次就冻结在开机语言；门禁 (b) 放宽成的正是「tag 表达式经 getter
-  引用同一个 id」这一形态（见该脚本 (b) 段的 ★★）。
+  ✅ **翻译那七个内置图位名（多语言 PR3，2026-09-11）连着做完的六件**：① `scripts/check-slot-ids.mjs` (b) 改核新写法
+  `builtinSlot("x", { … })` / `builtinScheme(msg…, msg…, { … })`（id 要有、在表里、同一套不重复、共用 id 是同一格、`builtin: true`
+  照留；两种对象里都不许 `...x` 展开 —— 展开能把定格的 tag / title 绕过 tsc 的多余属性检查与门禁带进来；`builtinSlotLabel` / `i18n`
+  必须是从 `../types` / `@lingui/core` 引的，本地另抄一份门禁替身看不出、而它永远不翻），并把两个工厂抠出来实跑：显示名翻成英文后
+  键仍是冻结原名、`tag` / `title` / `intro` 是读时取值的 getter（定格成 `tag: builtinSlotLabel(id)` 那种写法会红）、rest 里混进的
+  定格值盖不住 getter（`...rest` 在 getter 前面）、getter 抛了也是一条 ❌ 而不是堆栈；② 英文名都 ≤24 字（`VIEW_TAG_MAX`，最长
+  「Mannequin turnaround」20 字），en.po 里带给译者的长度提示；③ 显示映射只有 `types.frozenViewName` 一处（`viewTag` 读它）：
+  `CardView.tag` 等于 `BUILTIN_SLOT_ZH` 的某个原名 / `FACE_CROP_ZH` / `CARD_SLOT_PROMPT` 的某个名字时翻成界面语言，其余原样显示
+  （`VideoCardAnnotator` 卡面小字、卡详情页读 `viewTag`；`FuseFrameSheet` 候选名只借 `frozenViewName` 这一处映射、其余原样拼 tag，
+  因为改动前它不 trim、空白名也不退回固定图位名 —— 中文界面逐字节不变）；圈选提卡那条路改回**存冻结名**（脸 `FACE_CROP_ZH`、主图
+  `slotPromptOf(type, "body").label`）—— 英文界面下圈选提卡此前存进去的英文名（脸「脸部特写」自 #226（2026-09-10）、主图 slotLabel
+  自 #257（2026-09-11）起到 PR3 之间存的是界面语言，如「Face close-up」）不在映射里，原样显示、不做迁移（存量极少、意思不变）；
+  ④ 英文界面下另存内置方案，副本带英文名、没有 id，再从内置方案换过去时照片会按「先收起来了」报（两边键不同，图一张不删、
+  换回去还在）—— 那句提示**不改口**：它说的是事实，改口只会多一条目录条目；
+  ⑤ `src/ai/real.ts` / `src/mock/ai.ts` 的进度句改成整句 `t`（`绘制{name}…（{n}/{total}）`），名字是占位符；
+  ⑥ 内置图位名、方案名、简介一律是读时取值的 getter（`builtinSlot` / `builtinScheme`），**绝不**写成模块加载时算一次的
+  `tag: builtinSlotLabel("fullBody")`（App 切语言不重载，算一次就冻结在开机语言）。另加了发布前的长度闸
+  `promptSchemes.schemePublishIssue`（名字 ≤40、简介 ≤120，与服务端 zod 同源；只拦发布、不拦下架）：英文副本的名字与简介比中文长。
+  ⚠ 还留着的：`SchemeEditorSheet` 的输入框 maxLength 仍是 20 / 60（英文副本的预填值不会被截，但改一个字就只能删）；
+  `CustomCardPage` 每格下面那行提示是冻结的中文提示词正文；`real.ts:934`（「参考图未采用」那行步骤日志）把 `viewTag` 翻出来的
+  图位名套在没翻译的中文模板串里 —— 这是 PR3 **扩大**的、不是原有的：PR3 之前英文界面下带冻结名的图这一句是整句中文，PR3 把
+  冻结名翻了之后成了中英混排（此前只有没 tag 的图会混排）；之后改成整句 `t`、名字当 `{name}` 占位符。`account.ts` 的 lostViews
+  那一项 #264（2026-09-11）已经是整句 `t`（`「{name}」的{tag}`），PR3 落地后英文界面下它整句都是英文，不在这张单子上。
 - **真人授权挪进造卡流程**：`components/PortraitAuthPanel` 抽成**唯一实现**（回调制——
   造卡时卡还没有 id，面板只交出 assetId，落库时机宿主定），三处宿主：自己传图、
   从视频提取（勾真人当场做）、详情页窄条。pendingAsset 与声音样本同规则：

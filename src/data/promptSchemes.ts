@@ -28,18 +28,20 @@ import {
   CardType,
   MAX_CARD_VIEWS,
   VIEW_TAG_MAX,
+  builtinSlotLabel,
   builtinSlotZh,
   uid,
   type BuiltinSlotId,
 } from "../types";
-import { t } from "@lingui/core/macro";
+import { i18n, type MessageDescriptor } from "@lingui/core";
+import { msg, t } from "@lingui/core/macro";
 
 /** 这一格的参考图从哪张裁剪来 */
 export type SchemeRef = "body" | "face";
 
 export interface SchemeSlot {
   /**
-   * 内置图位的 id —— **只有内置方案的图位带它**（BUILTIN_SCHEMES 里逐格写 `id: "x", tag: BUILTIN_SLOT_ZH.x`）。
+   * 内置图位的 id —— **只有内置方案的图位带它**（BUILTIN_SCHEMES 里逐格写 `builtinSlot("x", { … })`，tag 是按 id 现翻的 getter）。
    * 这一格的身份键与铸卡写进 CardView.tag 的值按它取（slotKey / slotCardTag，理由见 types.BUILTIN_SLOT_ZH）；
    * 用户方案没有 id（另存为时 SchemeEditorSheet 去掉它），按 tag 认。
    * ★ **它不上线**：内置方案不发服务端，另存为的副本已经把它去掉，就算带上服务端的 z.object 也会 strip ——
@@ -48,8 +50,9 @@ export interface SchemeSlot {
    */
   id?: BuiltinSlotId;
   /**
-   * 界面上显示的名字。用户方案的图位按它认格子、原样进 CardView.tag；内置方案走 id（见上）。
-   * ★ ≤24 字：server 的 CARD_VIEW_TAG_MAX 跨仓镜像
+   * 界面上显示的名字。用户方案的图位按它认格子、原样进 CardView.tag；内置方案走 id（见上），它的 tag 是**读时取值的 getter**
+   * （builtinSlot：types.builtinSlotLabel 按当前界面语言翻），`{ ...slot }` 一展开就定格成当时那种语言的字符串。
+   * ★ ≤24 字：server 的 CARD_VIEW_TAG_MAX 跨仓镜像（内置图位的英文名也守这条：另存为后它原样成为用户方案的图位名）
    */
   tag: string;
   /** 出片管线里干什么（进 CardView.role）。合成规格图必须 display，见文件头 ★★★② */
@@ -167,8 +170,9 @@ function builtinNameOf(scheme: Pick<PromptScheme, "builtin">, slot: SchemeSlot):
  * 一格图位的**身份键** —— 唯一实现。自建卡页的草稿照片（customCardStore.schemeShots）、选图 / 圈选改图 / 报错落在哪一格、
  * portraitViews 画回来的图放进哪一格，全按它认。
  *
- * ★★ 内置方案取冻结的中文原名（types.BUILTIN_SLOT_ZH，**为什么冻结写在那里**），**不取 slot.tag** —— 那是显示名，下一步要翻译。
- *   今天原名与 tag 逐字相同，所以对存量草稿是零变化。用户方案照旧是 slot.tag（原样，不 trim、不截断）：它只有这一个名字。
+ * ★★ 内置方案取冻结的中文原名（types.BUILTIN_SLOT_ZH，**为什么冻结写在那里**），**不取 slot.tag** —— 那是显示名，随界面语言变
+ *   （builtinSlot 的 getter）。中文界面下原名与 tag 逐字相同，所以对存量草稿是零变化。用户方案照旧是 slot.tag（原样，不 trim、
+ *   不截断）：它只有这一个名字。
  * ★ `scheme` 传**这一格所属的那套**：换方案时，新方案的格子拿新方案算、当前画着的格子拿当前方案算。
  *   传错了今天看不出来（两边算出来都是 tag），翻译上线之后才对不上 —— 门禁（scripts/check-slot-ids.mjs）只扫固定的几种
  *   「拿 tag 当键」的写法，**看不出传的是哪一套方案**；今天这几处调用点是靠等价测试（PR 里那份无头渲染）核过的，改调用点时自己对一遍。
@@ -191,6 +195,53 @@ export function slotKey(scheme: Pick<PromptScheme, "builtin">, slot: SchemeSlot)
  */
 export function slotCardTag(scheme: Pick<PromptScheme, "builtin">, slot: SchemeSlot): string {
   return builtinNameOf(scheme, slot) ?? slot.tag;
+}
+
+/**
+ * 方案名 / 简介的长度上限 —— **跨仓镜像**：server `schemas/promptScheme.schemas.js` 的 `title.max(40)` / `intro.max(120)`。
+ * ★ 那边是 zod `.max()`，超了是发布那一发**整发 400**、不是截断。schemeIssue 不查这两条（本机方案随便多长都能存、能用），
+ *   只在发布前问一次（schemePublishIssue）：英文界面下另存内置方案，副本带的是英文名与英文简介（比中文长），
+ *   内置那几套的英文按这两个数定过（名字 ≤34 + 「 copy」，简介 ≤120），将来换译文超了也在这儿被拦成一句人话。
+ */
+export const SCHEME_TITLE_MAX = 40;
+export const SCHEME_INTRO_MAX = 120;
+
+/** 「这份方案能不能发到市场」—— 只查服务端会拒的长度；null = 没问题，否则一句整句原因。下架不问它 */
+export function schemePublishIssue(s: Pick<PromptScheme, "title" | "intro">): string | null {
+  if ((s.title || "").trim().length > SCHEME_TITLE_MAX) return t`方案名超过 ${SCHEME_TITLE_MAX} 个字符，服务器会拒收——先把名字改短再发布`;
+  if ((s.intro || "").trim().length > SCHEME_INTRO_MAX) return t`简介超过 ${SCHEME_INTRO_MAX} 个字符，服务器会拒收——先把简介改短再发布`;
+  return null;
+}
+
+/**
+ * 内置方案的一格图位。★ tag 是**读时取值的 getter**：按 id 经 types.builtinSlotLabel 翻成当前界面语言（目录里没有就退回冻结原名）。
+ *   不能写成 `tag: builtinSlotLabel(id)` —— 那是模块加载时算一次，而 App 切语言不重载（src/i18n/switch.ts），算一次就冻结在开机语言。
+ *   身份键与铸卡写进 CardView.tag 的值仍按 id 取冻结原名（slotKey / slotCardTag），与这个 getter 无关。
+ * ★ `...rest` 写在 getter **前面**（与 builtinScheme 同序）：rest 里要是混进一个 tag，后写的 getter 盖掉它；反过来写，
+ *   那个 tag 会把 getter 盖成定格的字符串 —— 对象字面量里写 tag 会被 tsc 拦，`{ ...X }` 展开进来的 tsc 不查（多余属性检查不看展开），
+ *   门禁 (b) 拒绝 builtinSlot 对象里的展开写法、并实跑「rest 带 tag 时 getter 仍在」，这里的顺序是第二道。
+ */
+function builtinSlot(id: BuiltinSlotId, rest: Omit<SchemeSlot, "id" | "tag">): SchemeSlot {
+  return {
+    ...rest,
+    id,
+    get tag() {
+      return builtinSlotLabel(id) ?? BUILTIN_SLOT_ZH[id];
+    },
+  };
+}
+
+/** 一套内置方案：名字与简介是 msg 描述符，同样读到时现翻（getter，理由同 builtinSlot；`...rest` 同样在 getter 前面）。其余位原样 */
+function builtinScheme(title: MessageDescriptor, intro: MessageDescriptor, rest: Omit<PromptScheme, "title" | "intro">): PromptScheme {
+  return {
+    ...rest,
+    get title() {
+      return i18n._(title);
+    },
+    get intro() {
+      return i18n._(intro);
+    },
+  };
 }
 
 // ── 内置方案 ───────────────────────────────────────────────────────
@@ -225,9 +276,8 @@ const FULL_BODY_PROMPT =
 const FACE_PROMPT = "参考图中人物的面部特写肖像：纯白色背景，无任何背景元素与文字；头肩构图，五官清晰";
 
 // ★ 下面四格的正文原来直接写在 BUILTIN_SCHEMES 里。提出来是为了整句冻结（发给模型的提示词，不是界面文案）：
-//   方案的名字、简介是界面文案，还留在 BUILTIN_SCHEMES 里，不能跟着一起冻结。
-//   图位的显示名也是界面文案，但它**今天直接读冻结的 types.BUILTIN_SLOT_ZH**（`tag: BUILTIN_SLOT_ZH.x`）——
-//   所以这七个名字暂时不在 i18n 棘轮里，翻译它们是下一步的事，见 BUILTIN_SCHEMES 头上那条 ★。
+//   方案的名字、简介与图位的显示名是界面文案，都是 msg 描述符、经 getter 读到时现翻（builtinScheme / builtinSlot），
+//   不能跟着一起冻结。
 //   ⚠ 措辞与「"…" +」换行拼接的排版一个字没动 —— design/gen-scheme-examples.mjs 按源码文本做子串断言，
 //   它先抹掉「" +」换行再比对，在拼接的字符串中间插注释会让断言失败。
 /* i18n-frozen: 出图提示词正文，发给模型 */
@@ -249,100 +299,76 @@ const SPEC_SHEET_PROMPT =
   "中栏为色彩参考色板横排（发色、眼色、肤色、服装主色与配色）；" +
   "右栏为服装局部细节特写三图。整体冷色调专业设计感排版";
 
-// ★ 图位一律写成 `id: "x", tag: BUILTIN_SLOT_ZH.x`（2026-09-11 多语言 PR2，主人拍板「内置方案先给图位加 id」）：
+// ★ 图位一律写成 `builtinSlot("x", { role, prompt, … })`（2026-09-11 多语言 PR2 加 id、PR3 翻译显示名）：
 //   id 定这一格的身份键与铸卡写进 CardView.tag 的值（冻结的中文原名，见 slotKey / slotCardTag），
-//   tag 是界面上显示的名字 —— 下一步翻译的是 tag，身份不跟着变。
-//   scripts/check-slot-ids.mjs 核这对写法，以及同一个 id 在几套里是同一格（role / 正文 / ref / size / fromCrop 逐项相同）。
-// ★★ **翻译这七个显示名的那一步**：把 `tag: BUILTIN_SLOT_ZH.x` 换成翻译后的名字，并同时放宽门禁 (b) 里「tag 必须原样写成
-//   BUILTIN_SLOT_ZH.x」那一条（改成「tag 那个表达式引用的是同一个 id」，id / 表 / 同一格那几条照留，见该脚本 (b) 段的 ★★）。
-//   连带要一起做的还有几件（英文名 ≤24 字、显示层的 CardView.tag 映射等），清单在 docs/backlog.md「Phase A」那条 ⚠。
+//   tag 由 builtinSlot 给成按 id 现翻的 getter（types.builtinSlotLabel），别在这里写 tag。
+//   方案本身写成 `builtinScheme(msg 名字, msg 简介, { id, builtin: true, examples, slots })`：名字与简介同样是读时取值的 getter。
+//   msgid 就是此前写死的中文，所以中文界面上每个字都与改动前一样；英文（与给译者的长度提示）在 src/locales/en.po。
+//   ★★ 这些 getter 一展开就定格：SchemeEditorSheet 另存为时 `{ ...slot }`，副本带的是**当时界面语言**的名字、没有 id，
+//      从此按自己的名字认（用户方案）—— 英文界面下另存出来的就是一套英文方案，这是接受的（副本本来就是用户自己的东西）。
+//   scripts/check-slot-ids.mjs (b) 核这两种写法（id 在表里、同一套不重复、表里的 id 都有人用、共用 id 是同一格、builtin: true；
+//   两种对象里都**不许 `...x` 展开** —— 展开能把定格的 tag / title 绕过 tsc 的多余属性检查与门禁带进来；本文件要从 ../types 引
+//   builtinSlotLabel、从 @lingui/core 引 i18n，本地另抄一份的话门禁替身看不出、而它永远不翻），
+//   并把 builtinSlot / builtinScheme 抠出来实跑：显示名换成英文后键仍是冻结原名、tag / title / intro 是读时取值而不是定格的。
 export const BUILTIN_SCHEMES: readonly PromptScheme[] = [
-  {
-    id: "scheme_clean",
+  builtinScheme(
     // ★ 2026-08-28 由「干净立绘（默认）」改名：主人点名标题直接说产出物
-    title: "全身立绘+面部特写",
-    intro: "白底全身立绘 + 面部特写两张，出片管线真正会吃的就是这两张。原片截图留作对照。",
-    builtin: true,
-    examples: ["/schemes/clean.webp"],
-    slots: [
-      {
-        id: "fullBody",
-        tag: BUILTIN_SLOT_ZH.fullBody,
-        role: "primary",
-        prompt: FULL_BODY_PROMPT,
-      },
-      {
-        id: "faceCloseup",
-        tag: BUILTIN_SLOT_ZH.faceCloseup,
-        role: "face",
-        ref: "face",
-        prompt: FACE_PROMPT,
-      },
-      // ★ 原片裁剪降级保留：AI 立绘再像也是重画的，出片对不上时它是唯一的对照物。
-      //   不计费（fromCrop），也不进模型（display）。
-      { id: "sourceCrop", tag: BUILTIN_SLOT_ZH.sourceCrop, role: "display", prompt: "", fromCrop: true },
-    ],
-  },
-  {
-    id: "scheme_faceless",
-    title: "无面部白模三视图",
-    intro:
-      "人脸与服装分离：出一张无面部的白模三视图（只锁服装/体型/比例）+ 一张服装细节图。不复刻长相，适合只想借动作与穿着的素材。",
-    builtin: true,
-    faceless: true,
-    examples: ["/schemes/faceless.webp"],
-    slots: [
-      {
+    msg({ message: "全身立绘+面部特写", comment: "内置提示词方案的名字：≤34 个字符（另存为会接上「 copy」，服务端方案名上限 40）" }),
+    msg({
+      message: "白底全身立绘 + 面部特写两张，出片管线真正会吃的就是这两张。原片截图留作对照。",
+      comment: "内置方案的一句话简介：≤120 个字符（服务端上限，另存为后原样带进用户方案）",
+    }),
+    {
+      id: "scheme_clean",
+      builtin: true,
+      examples: ["/schemes/clean.webp"],
+      slots: [
+        builtinSlot("fullBody", { role: "primary", prompt: FULL_BODY_PROMPT }),
+        builtinSlot("faceCloseup", { role: "face", ref: "face", prompt: FACE_PROMPT }),
+        // ★ 原片裁剪降级保留：AI 立绘再像也是重画的，出片对不上时它是唯一的对照物。
+        //   不计费（fromCrop），也不进模型（display）。
+        builtinSlot("sourceCrop", { role: "display", prompt: "", fromCrop: true }),
+      ],
+    },
+  ),
+  builtinScheme(
+    msg({ message: "无面部白模三视图", comment: "内置提示词方案的名字：≤34 个字符（另存为会接上「 copy」，服务端方案名上限 40）" }),
+    msg({
+      message: "人脸与服装分离：出一张无面部的白模三视图（只锁服装/体型/比例）+ 一张服装细节图。不复刻长相，适合只想借动作与穿着的素材。",
+      comment: "内置方案的一句话简介：≤120 个字符（服务端上限，另存为后原样带进用户方案）",
+    }),
+    {
+      id: "scheme_faceless",
+      builtin: true,
+      faceless: true,
+      examples: ["/schemes/faceless.webp"],
+      slots: [
         // ★★ 这一格是**唯一**能进管线的：它锁的是服装与体型，而画面里没有脸 ——
         //   既是这套方案的卖点，也正好避开"多视图当人物参考"那条（它本来就不锁身份）。
-        id: "mannequinBody",
-        tag: BUILTIN_SLOT_ZH.mannequinBody,
-        role: "primary",
-        prompt: MANNEQUIN_BODY_PROMPT,
-      },
-      {
-        id: "outfitDetail",
-        tag: BUILTIN_SLOT_ZH.outfitDetail,
-        role: "aux",
-        prompt: OUTFIT_DETAIL_PROMPT,
-      },
-      {
+        builtinSlot("mannequinBody", { role: "primary", prompt: MANNEQUIN_BODY_PROMPT }),
+        builtinSlot("outfitDetail", { role: "aux", prompt: OUTFIT_DETAIL_PROMPT }),
         // 三视图是给人看的规格图 —— 必须 display（文件头 ★★★②）
-        id: "mannequinTurnaround",
-        tag: BUILTIN_SLOT_ZH.mannequinTurnaround,
-        role: "display",
-        prompt: TURNAROUND_PROMPT,
-      },
-    ],
-  },
-  {
-    id: "scheme_specsheet",
-    title: "角色设定规格图",
-    intro: "一张分栏设定稿（素描线稿 + 色板 + 服装细节），外加一张能出片的面部特写。规格稿只作展示。",
-    builtin: true,
-    examples: ["/schemes/specsheet.webp"],
-    slots: [
-      {
-        id: "faceCloseup",
-        tag: BUILTIN_SLOT_ZH.faceCloseup,
-        role: "face",
-        ref: "face",
-        prompt: FACE_PROMPT,
-      },
-      {
-        id: "fullBody",
-        tag: BUILTIN_SLOT_ZH.fullBody,
-        role: "primary",
-        prompt: FULL_BODY_PROMPT,
-      },
-      {
-        id: "specSheet",
-        tag: BUILTIN_SLOT_ZH.specSheet,
-        role: "display",
-        prompt: SPEC_SHEET_PROMPT,
-      },
-    ],
-  },
+        builtinSlot("mannequinTurnaround", { role: "display", prompt: TURNAROUND_PROMPT }),
+      ],
+    },
+  ),
+  builtinScheme(
+    msg({ message: "角色设定规格图", comment: "内置提示词方案的名字：≤34 个字符（另存为会接上「 copy」，服务端方案名上限 40）" }),
+    msg({
+      message: "一张分栏设定稿（素描线稿 + 色板 + 服装细节），外加一张能出片的面部特写。规格稿只作展示。",
+      comment: "内置方案的一句话简介：≤120 个字符（服务端上限，另存为后原样带进用户方案）",
+    }),
+    {
+      id: "scheme_specsheet",
+      builtin: true,
+      examples: ["/schemes/specsheet.webp"],
+      slots: [
+        builtinSlot("faceCloseup", { role: "face", ref: "face", prompt: FACE_PROMPT }),
+        builtinSlot("fullBody", { role: "primary", prompt: FULL_BODY_PROMPT }),
+        builtinSlot("specSheet", { role: "display", prompt: SPEC_SHEET_PROMPT }),
+      ],
+    },
+  ),
 ];
 
 // ── 本机方案库（用户自定义 + 内置）─────────────────────────────────

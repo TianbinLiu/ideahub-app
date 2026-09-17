@@ -19,7 +19,7 @@ import { CloseButton } from "../../components/IconTapButton";
 import { AI_REAL, fuseFrame } from "../../ai";
 import { canAfford, spendTokens } from "../../data/account";
 import { ONE_IMAGE, fmtTokens } from "../../data/economy";
-import type { VideoAspect } from "../../types";
+import { frozenViewName, type CardType, type VideoAspect } from "../../types";
 
 /** 一张可选的参考图 */
 export interface FuseSource {
@@ -40,7 +40,7 @@ export const FUSE_MAX = 3;
  *   （或整发 400），而那一步是花钱的。
  */
 export function fuseSourcesOf(o: {
-  materials?: { name: string; views?: { url: string; tag?: string }[]; cover?: string }[];
+  materials?: { name: string; type: CardType; views?: { url: string; tag?: string }[]; cover?: string }[];
   carryFrame?: string | null;
   firstFrame?: string;
   lastFrame?: string;
@@ -58,7 +58,23 @@ export function fuseSourcesOf(o: {
   for (const c of o.materials ?? []) {
     const views = Array.isArray(c.views) ? c.views : [];
     if (views.length > 0)
-      for (const v of views) push(v.url, v.tag ? `${c.name}·${v.tag}` : i18n._(msg`${c.name}·形象`));
+      for (const v of views) {
+        // 没 tag 的图照旧叫「名字·形象」（改动前也是这一句）；先 continue 掉是为了下面的 v.tag / label 是 string —— msg 的占位符不收 undefined
+        if (!v.tag) {
+          push(v.url, i18n._(msg`${c.name}·形象`));
+          continue;
+        }
+        // ★ 存的是冻结中文（内置图位原名 / 圈选提卡的名字）时按界面语言翻，只借 types.frozenViewName 这一处映射；其余原样用 v.tag
+        //   —— 与改动前逐字节相同：不 trim、空白名不退回固定图位名（所以不走 viewTag，它两样都做，会把中文界面也改了）。
+        //   中文界面下映射回的就是 trim 后的原名（目录里 msgstr = msgid），永远落在原样那一支；英文下才换成译名。只是候选图的标签，
+        //   fuseFrame 只收 url。
+        // ★ 「名字·图位名」也经 msg（msgid `{0}·{label}`，与没 tag 那句 `{0}·形象` 同一条规矩）：分隔符是译者定的 —— 英文目录里
+        //   两句都是「 · 」，直接拼 `${c.name}·${label}` 的话同一张候选列表会一半「凛·Full body」一半「凛 · look」。
+        //   中文目录 msgstr = msgid，渲染出来与直接拼逐字节相同（PR 里的等价性 harness 验过）。
+        const shown = frozenViewName(c.type, v.tag);
+        const label = shown && shown !== v.tag.trim() ? shown : v.tag;
+        push(v.url, i18n._(msg`${c.name}·${label}`));
+      }
     else push(c.cover, c.name);
   }
   return out;

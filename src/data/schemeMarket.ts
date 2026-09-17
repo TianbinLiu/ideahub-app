@@ -12,7 +12,7 @@
 import { remoteOn } from "./videos";
 import { t } from "@lingui/core/macro";
 import { fetchSharedSchemes, installScheme, publishScheme, pushScheme } from "../api/schemes";
-import { emitSchemes, mineSchemes, patchMine, upsertMine, type PromptScheme } from "./promptSchemes";
+import { emitSchemes, mineSchemes, patchMine, schemePublishIssue, upsertMine, type PromptScheme } from "./promptSchemes";
 
 // ── 广场（远端共享）────────────────────────────────────────────────
 //
@@ -80,6 +80,16 @@ export async function shareScheme(id: string, on: boolean): Promise<boolean> {
     marketErr = t`还没连上服务器，发布不了`;
     emitSchemes();
     return false;
+  }
+  // ★ 只在**发布**时问长度（下架永远放行）：英文界面下另存内置方案，副本带的是英文名与英文简介，服务端 zod 超了是整发 400 ——
+  //   在本机拦成一句人话（schemePublishIssue，上限与服务端同源）。
+  if (on) {
+    const issue = schemePublishIssue(s);
+    if (issue) {
+      marketErr = issue;
+      emitSchemes();
+      return false;
+    }
   }
   marketBusy = true;
   marketErr = "";

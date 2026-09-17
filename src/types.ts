@@ -247,6 +247,7 @@ export interface CardView {
   /**
    * 这张图叫什么（人读）。缺省 = `slotLabel(type, kind)`（老卡与固定图位流的行为不变）。
    * ★ 只用于界面标签，**绝不进** allocateRefs 的判断（理由见 role 的 ★★）。
+   * ★ 内置图位与圈选提卡存的是**冻结中文**（BUILTIN_SLOT_ZH / FACE_CROP_ZH / CARD_SLOT_PROMPT 的名字），画到屏幕上走 viewTag 现翻。
    */
   tag?: string;
   /** 这张图的说明（例如"原图过长，已居中裁成 3:1"），详情页放大时显示 */
@@ -387,10 +388,31 @@ export function roleToKind(role: CardRole): CardView["kind"] {
 /**
  * 这张图在界面上叫什么。**唯一实现**：方案给的花名优先，没有就退回固定图位表的名字。
  * ★ 退回而不是留空：老卡没有 tag，留空的表现是详情页三个格子都没标题。
+ * ★ 存的名字是冻结中文时（内置图位原名 BUILTIN_SLOT_ZH / 圈选提卡的 FACE_CROP_ZH / 固定图位表 CARD_SLOT_PROMPT 的名字）
+ *   读到时按界面语言现翻（frozenViewName，显示层唯一的一处映射）；其余**原样显示**：用户自己起的名字，以及英文界面下圈选提卡
+ *   存进去的英文名（脸「脸部特写」自 #226（2026-09-10）、主图 slotLabel 自 #257（2026-09-11）起到 PR3 之间存的是界面语言，
+ *   PR3 改回存冻结名，存量不迁移）。用户恰好起了「全身立绘」这种名字也会被翻 —— 意思相同，可以接受。
  */
 export function viewTag(type: CardType, view: Pick<CardView, "kind" | "tag">): string {
-  const t = typeof view.tag === "string" ? view.tag.trim() : "";
-  return t || slotLabel(type, view.kind);
+  // 不叫 t：本文件从 @lingui/core/macro 引了 t 宏
+  const name = typeof view.tag === "string" ? view.tag.trim() : "";
+  if (!name) return slotLabel(type, view.kind);
+  return frozenViewName(type, name) ?? name;
+}
+
+/**
+ * 存进 CardView.tag 的冻结中文名 → 界面语言；不是冻结名回 undefined（调用方原样显示）。只管显示，任何判据都不读它。
+ * 首尾空白不算（与 viewTag 同一把尺）。viewTag 之外只有 FuseFrameSheet 的候选名读它：那里改动前是原样拼 tag（不 trim、
+ * 空白名不退回固定图位名），走 viewTag 会把中文界面也改了，所以它只借这一处映射、其余照旧。
+ */
+export function frozenViewName(type: CardType, tag: string): string | undefined {
+  const zh = tag.trim();
+  const builtin = (Object.keys(BUILTIN_SLOT_ZH) as BuiltinSlotId[]).find((id) => BUILTIN_SLOT_ZH[id] === zh);
+  if (builtin) return builtinSlotLabel(builtin);
+  if (zh === FACE_CROP_ZH) return i18n._(FACE_CROP_LABEL);
+  // 固定图位表：CARD_SLOT_PROMPT（冻结）与 CARD_SLOTS（界面）kind 一一对应、顺序相同（见 CARD_SLOT_PROMPT 的 ★）
+  const at = (CARD_SLOT_PROMPT[type] ?? []).findIndex((s) => s.label === zh);
+  return at >= 0 ? CARD_SLOTS[type][at]?.label : undefined;
 }
 
 /**
@@ -583,13 +605,14 @@ export function slotPromptOf(type: CardType, kind: unknown): { label: string; lo
  *   **这一段是这条规矩的唯一出处**：promptSchemes.slotKey / slotCardTag、自建卡页、portraitViews、scripts/check-slot-ids.mjs
  *   那几处只写一句「理由见这里」，别再各抄一份。
  *   ① 身份键：自建卡页按图位存草稿照片（customCardStore.schemeShots），选图 / 圈选改图 / 报错的在途状态也按它认格子
- *      （promptSchemes.slotKey）。内置图位的名字下一步要翻译，键要是跟着界面语言变，切一次语言草稿里的照片就对不上格子
+ *      （promptSchemes.slotKey）。内置图位的名字按界面语言现翻（builtinSlotLabel，经 promptSchemes.builtinSlot 的 getter），
+ *      键要是跟着界面语言变，切一次语言草稿里的照片就对不上格子
  *      —— 不画、不当卡面、铸卡也不带走，零报错。
  *   ② **内置方案图位**铸出来那张卡里存的 `CardView.tag`（promptSchemes.slotCardTag）：卡片与卡组快照在服务端一躺很久、
  *      给各种界面语言的人看，存某一种界面语言的名字，换个语言的人读到的就是外文；英文名还容易超过服务端 24 字
  *      （VIEW_TAG_MAX）—— 超了整发 400。⚠ 反过来别读成「CardView.tag 一律是这七个原名」：圈选提卡那条路
- *      （components/VideoCardAnnotator）写进去的本来就是**界面语言**的名字（「脸部特写」/ 英文），不在这张表里 ——
- *      将来做显示层翻译映射时它是个例外，见 docs/backlog.md「Phase A」那条 ⚠。
+ *      （components/VideoCardAnnotator）存的是 FACE_CROP_ZH / CARD_SLOT_PROMPT 的冻结名（也是中文，不在这张表里）。
+ *      显示层的翻译只有 viewTag（frozenViewName）一处：存的名字等于这几张表里的某个冻结名就翻成界面语言，其余原样显示。
  *   ⇒ 永不翻译，一个字都别改：这七个原名与此前内置图位写死的 tag 逐字相同，存量草稿的键与已铸卡片的 tag 靠它接得上。
  * ★ 表的**键**是图位 id（ASCII 字母数字），**值**才是运行时那个键 —— slotKey 回的是值，`slot.id` 全仓只有
  *   promptSchemes.builtinNameOf 读得着，它自己一个存储都不落。两列都不许写成 CardView 的 kind 词（face / body / detail），
@@ -620,6 +643,38 @@ export type BuiltinSlotId = keyof typeof BUILTIN_SLOT_ZH;
 export function builtinSlotZh(id: string): string | undefined {
   return Object.prototype.hasOwnProperty.call(BUILTIN_SLOT_ZH, id) ? BUILTIN_SLOT_ZH[id as BuiltinSlotId] : undefined;
 }
+
+/**
+ * 内置图位的**界面显示名**（msg 描述符，读到时现翻 —— 理由见 liveLabels）。键与 BUILTIN_SLOT_ZH 相同，值才随界面语言变。
+ * ★ 七条都带给译者的长度提示：英文名 ≤24 个字符（VIEW_TAG_MAX）—— 英文界面下「另存为」把显示名原样存成用户方案的图位名，
+ *   超了 schemeIssue 整句拒、服务端 zod 也拒。slotCardTag 存的是 BUILTIN_SLOT_ZH 的原名，不受这条限制。
+ * ★ 全身立绘 / 面部特写 与 CARD_SLOTS（liveSlot）的同名条目是同一个 msgid，翻一处两处都变 —— 目录里两处的 #. 提示并在同一条上，
+ *   所以这两条也写上「≤24」并点名同源：译者不管从哪一处翻到它，都知道这个名字还挂在固定图位表上、也守同一个上限。
+ */
+const BUILTIN_SLOT_LABEL: Record<BuiltinSlotId, MessageDescriptor> = {
+  fullBody: msg({ message: "全身立绘", comment: "内置方案的图位名：≤24 个字符（另存为后原样成为用户方案的图位名，服务端上限 24）；与 CARD_SLOTS 的同名条目是同一个 msgid" }),
+  faceCloseup: msg({ message: "面部特写", comment: "内置方案的图位名：≤24 个字符（另存为后原样成为用户方案的图位名，服务端上限 24）；与 CARD_SLOTS 的同名条目是同一个 msgid" }),
+  sourceCrop: msg({ message: "原片截图", comment: "内置方案的图位名：≤24 个字符（另存为后原样成为用户方案的图位名，服务端上限 24）" }),
+  mannequinBody: msg({ message: "白模全身", comment: "内置方案的图位名：≤24 个字符（另存为后原样成为用户方案的图位名，服务端上限 24）" }),
+  outfitDetail: msg({ message: "服装细节", comment: "内置方案的图位名：≤24 个字符（另存为后原样成为用户方案的图位名，服务端上限 24）" }),
+  mannequinTurnaround: msg({ message: "白模三视图", comment: "内置方案的图位名：≤24 个字符（另存为后原样成为用户方案的图位名，服务端上限 24）" }),
+  specSheet: msg({ message: "设定规格稿", comment: "内置方案的图位名：≤24 个字符（另存为后原样成为用户方案的图位名，服务端上限 24）" }),
+};
+
+/** 按图位 id 取内置图位的界面显示名；不是内置图位回 undefined（只认自有属性，理由同 builtinSlotZh） */
+export function builtinSlotLabel(id: string): string | undefined {
+  return Object.prototype.hasOwnProperty.call(BUILTIN_SLOT_LABEL, id) ? i18n._(BUILTIN_SLOT_LABEL[id as BuiltinSlotId]) : undefined;
+}
+
+/**
+ * 从视频圈选提卡时，脸部那一张存进 CardView.tag 的名字 —— 与 BUILTIN_SLOT_ZH 同一条规矩：存冻结中文，显示时经 viewTag 现翻。
+ * 主图那一张存的是 slotPromptOf(type, "body").label（固定图位表的冻结名）。这条路此前存的是界面语言的名字：脸「脸部特写」自 #226
+ * （2026-09-10）、主图 slotLabel 自 #257（2026-09-11）起到 PR3 之间；那批英文名 viewTag 原样显示，不迁移。
+ */
+/* i18n-frozen: 从视频圈选提卡时脸部裁剪那一张存进 CardView.tag 的名字（与 BUILTIN_SLOT_ZH 同一条规则：存冻结中文，显示时再翻） */
+export const FACE_CROP_ZH = "脸部特写";
+/** FACE_CROP_ZH 的界面显示名（读到时现翻，viewTag 用） */
+const FACE_CROP_LABEL = msg`脸部特写`;
 
 /**
  * 卡片详情页那段"铸卡时的完整提示词"的标题。

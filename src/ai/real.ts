@@ -70,6 +70,8 @@ import {
   generateVideo,
   isArkAssetUrl,
 } from "./arkClient";
+// 进度行是界面文案（画在自建卡页 / 命名屏上）；发给模型的指令仍冻结中文，本文件只有这一类用宏
+import { t } from "@lingui/core/macro";
 
 /** 方舟返回的图片 URL 有时效（约 24h），落地成 dataURL 再入库（草稿存 localStorage） */
 async function toDataUrl(url: string): Promise<string> {
@@ -119,7 +121,7 @@ async function genImageAsDataUrl(
  * ★ `realPhoto` 必填：真人那条路上画风句换成无条件的照片锁定（`promptSchemes.PHOTO_LOCK_CLAUSE`
  *   的 ★★ 写了为什么条件句不够）。写成可选的话漏传零症状 —— 全身立绘又开始随参考图质量飘。
  * ★ 那两个名字各走 `promptSchemes.slotKey` / `slotCardTag`（2026-09-11 多语言 PR2，理由见 types.BUILTIN_SLOT_ZH）；
- *   进度那句里的 `slot.tag` 只是给人看的显示名，不参与认格子。
+ *   进度那句里的 `slot.tag` 只是给人看的显示名（随界面语言变），不参与认格子 —— 整句 t、名字当占位符，别把它接在中文后面。
  */
 export async function portraitViews(o: {
   scheme: PromptScheme;
@@ -145,7 +147,10 @@ export async function portraitViews(o: {
       });
       continue;
     }
-    o.onProgress?.(`绘制${slot.tag}…（${i + 1}/${slots.length}）`);
+    const name = slot.tag;
+    const n = i + 1;
+    const total = slots.length;
+    o.onProgress?.(t`绘制${name}…（${n}/${total}）`);
     const ref = slot.ref === "face" ? o.faceCrop || o.bodyCrop : o.bodyCrop;
     const dataUrl = await genImageAsDataUrl(schemeSlotPrompt(slot, o.subject, { realPhoto: o.realPhoto }), {
       imageRefs: [ref],
@@ -222,8 +227,8 @@ export async function recognizeCardSubject(o: { type: "prop" | "scene"; image: s
   if (!name && !summary && !idLine) throw new ArkBadReply("识别结果是空的");
   const tags = Array.isArray(j.tags)
     ? j.tags
-        .filter((t): t is string => typeof t === "string")
-        .map((t) => t.trim().slice(0, 10))
+        .filter((x): x is string => typeof x === "string")
+        .map((x) => x.trim().slice(0, 10))
         .filter(Boolean)
         .slice(0, 6)
     : [];
@@ -1584,7 +1589,7 @@ export async function deriveDeckCards(
   // 用户挂过的卡种整个关门；没挂过的点名为「缺失卡种」
   const covered = new Set(existing.map((c) => c.type));
   // ★ V3：background 永远不算"缺失卡种"——故事背景不从画面/剧情推断（用户想要就自己写一张）
-  const missing = CARD_TYPES.filter((t) => !covered.has(t) && t !== "background");
+  const missing = CARD_TYPES.filter((k) => !covered.has(k) && k !== "background");
   if (missing.length === 0) return { cards: [], tokens: 0 }; // 五种都挂全了：素材卡并集就是完整卡组，一张不铸
   const existingDesc =
     existing.length > 0
@@ -2019,7 +2024,7 @@ export async function extractTemplateFromVideo(
 以下是参考视频按时间顺序的抽帧：`,
     frames,
   );
-  const t = JSON.parse(raw.replace(/```json|```/g, "").trim()) as {
+  const parsed = JSON.parse(raw.replace(/```json|```/g, "").trim()) as {
     title?: string;
     intro?: string;
     source?: string;
@@ -2027,10 +2032,10 @@ export async function extractTemplateFromVideo(
     beats?: string[];
     framePrompt?: string;
   };
-  const styleHint = (t.styleHint ?? "").trim();
+  const styleHint = (parsed.styleHint ?? "").trim();
   let tokens = CHAT_TURN_TOKENS; // 配方那一次看图（一次 chat 定额，与塞几帧无关）
   // 白模只留 1 条（提示词也只要了 1 条，这刀是模型不守规矩时的保险，同 mintCards 那刀的道理）
-  const beats = (Array.isArray(t.beats) ? t.beats : [])
+  const beats = (Array.isArray(parsed.beats) ? parsed.beats : [])
     .filter((b) => typeof b === "string" && b.trim())
     .slice(0, blockout ? 1 : 3);
   if (!styleHint || beats.length === 0) throw new Error("模板配方 JSON 结构不符（缺 styleHint 或 beats）");
@@ -2067,13 +2072,13 @@ export async function extractTemplateFromVideo(
   }
 
   return {
-    title: (t.title ?? "").trim() || "未命名模板",
-    intro: (t.intro ?? "").trim(),
-    source: (t.source ?? "").trim(),
+    title: (parsed.title ?? "").trim() || "未命名模板",
+    intro: (parsed.intro ?? "").trim(),
+    source: (parsed.source ?? "").trim(),
     recipe: {
       styleHint,
       beats,
-      framePrompt: (t.framePrompt ?? "").trim() || `{{主题}}，${styleHint.slice(0, 40)}，无文字无水印。`,
+      framePrompt: (parsed.framePrompt ?? "").trim() || `{{主题}}，${styleHint.slice(0, 40)}，无文字无水印。`,
       // 模板段数由 beats 决定，单段时长给 5 秒（Seedance 的甜点，够一个完整动作）
       durationSec: 5,
     },
@@ -2879,9 +2884,9 @@ export async function skillChat(
 }
 
 /** 按句号截断，宁可短不要断在半句。找不到句读就直接截并补省略号。 */
-function clipSentences(t: string, max: number): string {
-  if (t.length <= max) return t;
-  const cut = t.slice(0, max);
+function clipSentences(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max);
   const i = Math.max(cut.lastIndexOf("。"), cut.lastIndexOf("！"), cut.lastIndexOf("？"));
   return i > 20 ? cut.slice(0, i + 1) : cut + "…";
 }
