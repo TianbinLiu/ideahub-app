@@ -6207,6 +6207,11 @@ msgstr "发布视频"
 msgid "发弹幕"
 msgstr "发弹幕"
 
+#: src/pages/FeedPage.tsx
+msgctxt "首页右侧栏图标下的短标签（一行放得下）"
+msgid "发弹幕"
+msgstr "发弹幕"
+
 #: src/components/DanmakuInput.tsx
 msgid "发条友善的弹幕"
 msgstr "发条友善的弹幕"
