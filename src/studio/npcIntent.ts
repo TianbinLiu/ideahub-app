@@ -21,6 +21,18 @@ export type NpcIntent = "crisis" | "help" | "forge" | "market" | "chat";
 export const CRISIS_RE =
   /自杀|轻生|自尽|割腕|跳楼|自残|伤害自己|不想活|活不下去|活着(好累|没意思)|结束(我的)?生命|(我|真|好)想死/;
 
+/**
+ * 同一道闸的英文那一半（2026-09-17，多语言 S2 评审补）。铸卡师在英文界面里开口说话、危机那句也有了英文版，
+ * 可这一档的路由此前只认中文：用英文打「I want to kill myself」会落进**付费闲聊**（冻结中文的 system 还叮嘱
+ * 模型别做心理疏导），那条服务条永远出不来。口径与上面那条一样——**宁可误判，不可漏判**：
+ * 「Suicide Squad 风格的卡」会多出一条服务条（0 token、不锁聊天），这个代价可以接受。
+ * ★ 只补危机这一档。找卡 / 帮助 / 炼卡那三档仍只认中文（英文台词已经改成指向「🛒 Browse market」那颗键），
+ *   要不要给它们也补英文句式是另一件事：那三档有成本不变量，得连同验收用例一起设计。
+ * ★ 撇号两种都认（don't / don’t / dont）；不写 "going to die"——讲剧情的人会说「the hero is going to die」。
+ */
+export const CRISIS_EN_RE =
+  /suicid|kill(ing)?\s+my\s?self|(end|ending|take|taking)\s+my\s+(own\s+)?life|end\s+it\s+all|(want\s+to|wanna|wish\s+to)\s+die|wish\s+i\s+(was|were)\s+dead|better\s+off\s+dead|(don['’]?t|do\s+not)\s+(want\s+to|wanna)\s+(live|be\s+alive)|(no|any)\s+reason\s+to\s+live|self[-\s]?harm|(hurt|hurting|harm|harming|cut|cutting)\s+my\s?self/i;
+
 /** 疑问/评价句式 → 降级闲聊。没有这条，「你觉得做卡难吗」会被 FORGE 命中，代价 13.7k */
 const ASKING_RE = /[？?]\s*$|吗[。！？!]?\s*$|呢[。！？!]?\s*$|^(你|您)?(觉得|认为|说说|知道|会不会|能不能)/;
 const FORGE_VERB_RE = /炼|铸|做(一|张|个|几)|造(一|张|个)|生成|来(一|张|个)|整(一|张|个)|帮我(做|画|炼)/;
@@ -35,7 +47,7 @@ const HELP_RE =
 /** 判定顺序见文件头。斜杠前缀是显式意图，直接短路。 */
 export function routeIntent(text: string): NpcIntent {
   const t = text.trim();
-  if (CRISIS_RE.test(t)) return "crisis";
+  if (CRISIS_RE.test(t) || CRISIS_EN_RE.test(t)) return "crisis";
   if (/^\/(找|搜)/.test(t)) return "market";
   if (/^\/(炼|卡)/.test(t)) return "forge";
   if (/^\/帮助/.test(t)) return "help";

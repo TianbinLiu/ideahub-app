@@ -6,6 +6,17 @@ import { routeIntent, searchKeyword } from "../src/studio/npcIntent.ts";
 const CASES = [
   // 危机最优先，早于一切
   ["我不想活了", "crisis"], ["活着好累", "crisis"], ["想自杀", "crisis"],
+  // 英文那一半（CRISIS_EN_RE）：漏一条都不行；大小写、两种撇号、不带撇号都要认
+  ["I want to kill myself", "crisis"], ["i'm thinking about suicide", "crisis"], ["I don't want to live anymore", "crisis"],
+  ["I don’t wanna be alive", "crisis"], ["i dont want to live", "crisis"], ["I want to die", "crisis"],
+  ["I'm going to end my life", "crisis"], ["sometimes I think about ending it all... end it all", "crisis"],
+  ["I keep hurting myself", "crisis"], ["self-harm", "crisis"], ["I wish I was dead", "crisis"],
+  ["SUICIDAL", "crisis"], ["there's no reason to live", "crisis"],
+  // 误判可以接受（多一条服务条、0 token），写在这里是为了让人知道这是有意的
+  ["Suicide Squad style card", "crisis"],
+  // 英文闲聊不该被危机档误吞：讲剧情的、日常的
+  ["the hero is going to die in the last shot", "chat"], ["I live in Shanghai", "chat"], ["hello", "chat"],
+  ["how do I end this segment", "chat"], ["cut the last scene", "chat"], ["this deadline is killing me", "chat"],
   // 帮助排在闲聊前：模型不知道界面上有几个按钮，让它答一定会编
   ["这个怎么用", "help"], ["新手教程", "help"], ["卡位是干嘛用的", "help"],
   // 炼卡：动词 + 名词，且不是疑问/评价句

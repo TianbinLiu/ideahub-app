@@ -158,6 +158,7 @@ msgstr ", upscaled to {REF_SHORT_MIN}px on the short side"
 #. 列举几个名字时的分隔符
 #. 列举几个名字时的分隔符
 #. 列举几个名字时的分隔符
+#. 列举几个名字时的分隔符
 #. 列举几个图位名 / 还缺的几项时的分隔符
 #. 列举几个文件名 / 动作组 / 表情名时的分隔符
 #. 列举几个段号时的分隔符（第 1、3 段）
@@ -175,6 +176,7 @@ msgstr ", upscaled to {REF_SHORT_MIN}px on the short side"
 #: src/pages/CutPage.tsx
 #: src/pages/SupportModelNewPage.tsx
 #: src/studio/flowStore.ts
+#: src/studio/studioStore.ts
 msgid "、"
 msgstr ", "
 
@@ -205,6 +207,10 @@ msgstr "; "
 #: src/studio/canvasAgent.ts
 msgid "：「{quote}{0}」"
 msgstr ": “{quote}{0}”"
+
+#: src/studio/npcPersona.ts
+msgid "……线断了一下。再说一遍，我听着。"
+msgstr "…The line dropped for a moment. Say it again — I'm listening."
 
 #. 句末句号，收住上面那一两句报价说明
 #: src/components/blockout/BlockoutTrimmer.tsx
@@ -436,6 +442,16 @@ msgstr " (no parameter list in the bundle, so this can't be checked)"
 msgid "（它下面的回复会一起删掉）"
 msgstr "(Replies under it will be deleted too)"
 
+#. 铸卡师的播报。括号里是动作旁白，英文也要放在括号里（TTS 按括号剥掉不念）
+#: src/studio/studioStore.ts
+msgid "（抽出一叠卡摊在桌上）社区里最近热的。要找特定的，上面那条写词。"
+msgstr "(Pulls out a stack of cards and spreads them on the table) What's been hot in the community lately. Looking for something specific? Type a word in the bar above."
+
+#. 铸卡师的失败台词。括号里是动作旁白，英文也要放在括号里
+#: src/studio/npcPersona.ts
+msgid "（指尖停在桌沿）走神了。你刚才说什么？"
+msgstr "(Fingertips resting on the table's edge) I drifted off. What did you just say?"
+
 #: src/components/PortraitAuthPanel.tsx
 msgid "（无文件名）"
 msgstr "(no file name)"
@@ -468,6 +484,11 @@ msgstr "(not set)"
 #: src/studio/canvasAgent.ts
 msgid "（没有可办的）"
 msgstr "(Nothing to do)"
+
+#. 铸卡师的失败台词。括号里是动作旁白，英文也要放在括号里
+#: src/studio/npcPersona.ts
+msgid "（炉火忽地窜高）这会儿人多，等一口气再说。"
+msgstr "(The forge flares up) It's crowded right now. Catch your breath and try again in a moment."
 
 #: src/pages/AdminPage.tsx
 msgid "（空）"
@@ -518,9 +539,19 @@ msgstr " (optional · upload your own image or a blend; AI fills in only what's 
 msgid "（选填 · 传自己的图或融图）"
 msgstr " (optional · upload your own image or a blend)"
 
+#. 玩家那一侧的气泡（不念）：把 fileCount 份素材递给铸卡师的动作旁白，英文也放在括号里
+#: src/studio/studioStore.ts
+msgid "（递上 {fileCount} 份素材）"
+msgstr "(Hands over {fileCount, plural, one {# file} other {# files}})"
+
 #: src/pages/NotificationsPage.tsx
 msgid "（通知内容缺失）"
 msgstr "(notification content missing)"
+
+#. 铸卡师的失败台词。括号里是动作旁白，英文也要放在括号里
+#: src/studio/npcPersona.ts
+msgid "（顿了顿）这个话头我接不住。换个说法。"
+msgstr "(Pauses) I can't take that one up. Put it another way."
 
 #. placeholder {0}: videoCategoryLabel(cat)
 #. placeholder {1}: results.length
@@ -860,6 +891,10 @@ msgstr "{cardN, plural, one {# card} other {# cards}} × up to {0, plural, one {
 msgid "{count} 张"
 msgstr "{count, plural, one {# card} other {# cards}}"
 
+#: src/studio/studioStore.ts
+msgid "{count} 张新卡飞进你的卡组了。"
+msgstr "{count, plural, one {# new card flew} other {# new cards flew}} into your deck."
+
 #: src/components/flow/TierRow.tsx
 #: src/studio/ui/projection.tsx
 msgid "{desc}（{model}）"
@@ -975,6 +1010,16 @@ msgstr "{label} is too large ({sizeMb}MB; the limit is 5MB)"
 #: src/data/economy.ts
 msgid "{lack}是声明过的真人素材，但还没有方舟可信素材 ID —— 「{label}」档不收直接上传的真人照片，只收本人授权过的素材。去卡片详情页按提示做一次肖像授权并填上素材 ID，或先把这张卡取下"
 msgstr "{lack}: declared as real-person material, but there's no Ark trusted asset ID yet — the “{label}” tier doesn't accept directly uploaded photos of real people, only assets the person has authorized. Go to the card details page, follow the prompts to complete portrait authorization and fill in the asset ID, or remove the card for now"
+
+#. 铸卡师念的话。list 是前三张的名字（已用分隔符连好），count 是丢的总张数（大于 3），reason 是失败原因整句
+#: src/studio/studioStore.ts
+msgid "{list} 等 {count} 张没能存到服务器（{reason}）——这几张只留在这台设备上，换设备或者重新登录就没了。想留住的话，回卡片详情页把它重新挂一次。"
+msgstr "{count} images including {list} couldn't be saved to the server ({reason}) — they're only on this device now, and switching devices or signing in again will lose them. To keep them, open the card's detail page and attach them again."
+
+#. 铸卡师念的话。list 是丢的那几张（最多三张）的名字，reason 是失败原因整句
+#: src/studio/studioStore.ts
+msgid "{list}没能存到服务器（{reason}）——这几张只留在这台设备上，换设备或者重新登录就没了。想留住的话，回卡片详情页把它重新挂一次。"
+msgstr "{list} couldn't be saved to the server ({reason}) — this device now holds the only copy, and switching devices or signing in again will lose it. To keep it, open the card's detail page and attach it again."
 
 #: src/live2d/bundlePreview.ts
 msgid "{mocPath} 的文件头不是 MOC3（读到 “{shown}”），这不是一份有效的 moc3。"
@@ -1304,6 +1349,10 @@ msgstr "“{name}”"
 msgid "「{name}」对上了 {0} 张卡（{names}），说全名"
 msgstr "“{name}” matches {0} cards ({names}). Use the full name."
 
+#: src/studio/studioStore.ts
+msgid "「{name}」已经在你的卡组里了。"
+msgstr "“{name}” is already in your deck."
+
 #: src/ai/real.ts
 msgid "「{name}」建模{status} {sec}s"
 msgstr "“{name}” 3D model: {status} {sec}s"
@@ -1316,6 +1365,14 @@ msgstr "“{name}” 3D model: downloading and unpacking…"
 msgid "「{name}」建模生成中 {sec}s"
 msgstr "“{name}” 3D model: generating {sec}s"
 
+#: src/studio/studioStore.ts
+msgid "「{name}」归你了，好眼光。"
+msgstr "“{name}” is yours now. Good eye."
+
+#: src/studio/studioStore.ts
+msgid "「{name}」没能装进你的卡片库：{why}"
+msgstr "“{name}” couldn't be added to your card library: {why}"
+
 #. 列表里的一项（名词短语，不加句号）：没能转存上去的那一张形象参考图，tag 是图位名（面部特写 / 全身立绘…，老卡可能是方案里存下的中文名）。调用方用分隔符把几项连成一串，再放进自己的句子里
 #: src/data/account.ts
 msgid "「{name}」的{tag}"
@@ -1325,6 +1382,10 @@ msgstr "{tag} for “{name}”"
 #: src/data/account.ts
 msgid "「{name}」的形象参考图"
 msgstr "Reference images for “{name}”"
+
+#: src/studio/studioStore.ts
+msgid "「{name}」还是空的——去创意工坊给它添几张卡吧。"
+msgstr "“{name}” is still empty — add a few cards to it in the Workshop."
 
 #: src/data/economy.ts
 msgid "「{names}」这一档暂未开放白模模板出片，等开放后再来"
@@ -1338,6 +1399,10 @@ msgstr "Blockout videos on “{names}” can't be priced yet (the r2v rate for {
 #: src/pages/CustomCardPage.tsx
 msgid "「{names}」那张是按道具卡抠好的主体图，当不了{nextLabel}的图，已经取下——需要的话换回道具卡重新做。"
 msgstr " The “{names}” image is a subject cut out for a prop card and can't be used for a {nextLabel}, so it was removed — switch back to a prop card and redo it if you need it."
+
+#: src/studio/studioStore.ts
+msgid "「{q}」没有。换个词。"
+msgstr "Nothing for “{q}”. Try another word."
 
 #: src/pages/FlowPage.tsx
 msgid "「{tierLabel}」档不支持参考图：会先按描述画一张设定帧再出片。想直接用卡片形象，在「⚙ 本段设置」里换成「高清」或「电影级」"
@@ -2880,6 +2945,10 @@ msgstr "One segment at a time"
 msgid "一段有三种做法"
 msgstr "Three ways to make a segment"
 
+#: src/studio/studioStore.ts
+msgid "一炉最多放 {max} 张素材卡，先撤下几张再加。"
+msgstr "A batch holds at most {max} material cards — take a few off before adding more."
+
 #: src/components/guide/tours.tsx
 msgid "一直往右拖到<0>末段后面</0>，跟着两格：一格<1>加下一段</1>， 一格<2>把各段合成整片</2>（每段都出片了才亮，还差几段它会说）。 已经出片的格子右上角有个 ▶，随时能回看那一段。"
 msgstr "Drag all the way right, <0>past the last segment</0>, and two cells follow: one <1>adds the next segment</1>, and the other <2>merges all segments into the full video</2> (it only lights up once every segment has a video, and tells you how many are still to go). Cells that already have a video show a ▶ in the top-right corner, so you can rewatch that segment any time."
@@ -2897,6 +2966,14 @@ msgstr "If <0>two mannequins stand almost on top of each other</0> and you can't
 #: src/components/guide/tours.tsx
 msgid "三个页签各管一摊"
 msgstr "Three tabs, three jobs"
+
+#: src/studio/studioStore.ts
+msgid "三种走向推演完毕，但有 {degraded} 个方案的首尾帧没画出来（出片前会先补画要用到的帧，补画的钱算在出片报价里）。点开看看剧情，选定一个。"
+msgstr "Three directions are drafted, but the first and last frames of {degraded, plural, one {# plan} other {# plans}} weren't drawn (the frames that are needed get drawn before rendering, and that cost is part of the render price). Open them, read the stories and pick one."
+
+#: src/studio/studioStore.ts
+msgid "三种走向推演完毕，已经投影在你面前——点开看看各自的首尾帧和剧情，选定一个。"
+msgstr "Three directions are drafted and projected in front of you — open them to see each one's first and last frames and story, then pick one."
 
 #: src/utils/nativeCamera.ts
 msgid "上一张还没拍完"
@@ -2919,6 +2996,10 @@ msgstr "Back"
 #: src/studio/ui/projection.tsx
 msgid "上一段"
 msgstr "Previous segment"
+
+#: src/studio/studioStore.ts
+msgid "上一炉还在推演，等它出炉再开新的。"
+msgstr "The last batch is still being drafted — wait for it to finish before starting a new one."
 
 #: src/studio/studioStore.ts
 msgid "上一炉还在炼，等它出炉再说"
@@ -2978,6 +3059,7 @@ msgid "上传后自动用它的首尾帧当本段首尾帧，之后还能细调�
 msgstr "After upload, its first and last frames become this segment's first and last frames; you can fine-tune them and add middle frames later"
 
 #: src/pages/CustomCardPage.tsx
+#: src/studio/studioStore.ts
 msgid "上传失败"
 msgstr "Upload failed"
 
@@ -3891,6 +3973,11 @@ msgstr "The frames you marked are all outside the selected part (the selection w
 msgid "你的卡库里没有「{name}」"
 msgstr "There's no “{name}” in your card library"
 
+#. 铸卡师念的话。英文请把「说『逛市场』」改成点对话框下方的「🛒 Browse market」气泡键
+#: src/studio/studioStore.ts
+msgid "你的卡组还是空的。先把素材交给我炼卡，或者说「逛市场」看看现成的。"
+msgstr "Your deck is still empty. Hand me materials to forge cards, or tap “🛒 Browse market” to see ready-made ones."
+
 #: src/components/support/VoiceSheet.tsx
 msgid "你的设置（官网同步）"
 msgstr "Your settings (synced with the website)"
@@ -3926,6 +4013,11 @@ msgstr "You haven't uploaded a look yet. Tap the card above to upload one."
 #: src/pages/SupportPersonasPage.tsx
 msgid "你还没有做过人格，点上面那张卡做一个。"
 msgstr "You haven't made a persona yet. Tap the card above to make one."
+
+#. 铸卡师念的话。英文请把「说『逛市场』」改成点对话框下方的「🛒 Browse market」气泡键
+#: src/studio/studioStore.ts
+msgid "你还没有卡。先把素材交给我炼卡，或者说「逛市场」看看现成的。"
+msgstr "You don't have any cards yet. Hand me materials to forge cards, or tap “🛒 Browse market” to see ready-made ones."
 
 #: src/data/templates.ts
 msgid "你选了「自己挑」分析帧，但一帧都没能用上——要么还没标，要么标的那几帧都落在选中的这一段外面（选段后来被拖动过）。回去在选段里标至少 1 帧，或者切回「自动」。"
@@ -4132,6 +4224,11 @@ msgstr "Cost of making this template"
 #: src/components/guide/tours.tsx
 msgid "做自己的模板"
 msgstr "Make your own templates"
+
+#. 心理危机服务条（居中细字，不念）。hotline 是中国大陆的全国心理援助热线号码，英文要说明它是中国大陆的热线
+#: src/studio/npcPersona.ts
+msgid "停一下。如果你有伤害自己的念头，现在就找个能说话的人，或者打全国心理援助热线 {hotline}。这件事我帮不了你，但它比卡重要。"
+msgstr "Stop for a moment. If you're having thoughts of hurting yourself, find someone to talk to right now, or call mainland China's national psychological support hotline {hotline}. I can't help with this, but it matters more than any card."
 
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "停下"
@@ -8345,6 +8442,10 @@ msgstr "bullet comment management list"
 msgid "弹幕颜色 {c}"
 msgstr "Bullet comment color {c}"
 
+#: src/studio/studioStore.ts
+msgid "当下最热的 {count} 张。"
+msgstr "The {count, plural, one {# hottest card} other {# hottest cards}} right now."
+
 #: src/components/flow/SegmentRecoverCards.tsx
 msgid "当初炼它的那一段不在这条流水线里（重启后没打开原草稿，或那一段从没存过草稿）：取回来会作为新的一段落在流水线里，之后照常剪辑、发布。凭据还在，没有浪费。"
 msgstr "The segment that produced it isn't in this pipeline (the original draft wasn't reopened after a restart, or that segment was never saved). Recovering adds it as a new segment you can edit and publish as usual. The receipt is still valid, so nothing is wasted."
@@ -9185,6 +9286,10 @@ msgstr "Billed as {0}s · follows the template video (a blockout remake's length
 msgid "按 {refCount} 张参考图出片（帧与卡片形象同发）…"
 msgstr "Rendering from {refCount, plural, one {# reference image} other {# reference images}} (frames and card images sent together)…"
 
+#: src/studio/studioStore.ts
+msgid "按「{q}」翻出 {count} 张。"
+msgstr "Found {count, plural, one {# card} other {# cards}} for “{q}”."
+
 #: src/components/support/HoldToTalk.tsx
 msgid "按住说话"
 msgstr "Hold to talk"
@@ -9358,6 +9463,10 @@ msgstr "Change look"
 msgid "换个词试试，或者清空搜索框看看大家都分享了什么"
 msgstr "Try another word, or clear the search to see what everyone has shared"
 
+#: src/studio/studioStore.ts
+msgid "换了一批走向，投影在你面前了——点开挑一套。"
+msgstr "A fresh batch of directions is projected in front of you — open it and pick one."
+
 #. placeholder {0}: ask.label
 #: src/components/flow/TierRow.tsx
 msgid "换到「{0}」档会有这些变化："
@@ -9458,6 +9567,10 @@ msgstr "Keep editing"
 msgid "推演一次约 {0} token，余额 {1} 不足——去「我的」页充值"
 msgstr "Drafting costs about {0} tokens and your balance of {1} isn't enough — top up on the “Me” page"
 
+#: src/studio/studioStore.ts
+msgid "推演一次约 {price} token，余额 {balance} 不够——去「我的」页充值。"
+msgstr "Drafting costs about {price} tokens and your balance of {balance} isn't enough — top up on the “Me” page."
+
 #: src/studio/flowStore.ts
 msgid "推演三种走向…"
 msgstr "Drafting three directions…"
@@ -9476,9 +9589,17 @@ msgstr "Planning…"
 msgid "推演失败：{0}"
 msgstr "Drafting failed: {0}"
 
+#: src/studio/studioStore.ts
+msgid "推演好了，但现在铺不上桌——稍后再试。"
+msgstr "The plans are ready but can't be laid on the table right now — try again later."
+
 #: src/studio/flowStore.ts
 msgid "推演好了，但那一段已经不在流水线上了——没处摆（这一次的推演费已经花掉了）"
 msgstr "The drafts are ready, but that segment is no longer in the pipeline — there's nowhere to put them (this drafting cost has already been spent)"
+
+#: src/studio/studioStore.ts
+msgid "推演期间桌面已经变样，这一炉先作废——按现在的走向重新生成吧。"
+msgstr "The table changed while I was drafting, so this batch is void — draft again from the current direction."
 
 #: src/pages/FeedPage.tsx
 msgid "推荐"
@@ -9793,6 +9914,11 @@ msgstr "Keep these cards"
 #: src/pages/VideoPage.tsx
 msgid "收入我的卡组"
 msgstr "Add to my cards"
+
+#. 铸卡师念的话。括号里是动作旁白，英文也要放在括号里（TTS 按括号剥掉不念）
+#: src/studio/studioStore.ts
+msgid "收到，让我看看成色……（炉火升起）"
+msgstr "Got it. Let me see what they're made of… (The forge fires up)"
 
 #: src/pages/VideoPage.tsx
 msgid "收取中…"
@@ -10998,6 +11124,10 @@ msgstr "The segment you frame and the area you crop are everything the AI actual
 msgid "框出这件道具"
 msgstr "Box the prop"
 
+#: src/studio/studioStore.ts
+msgid "桌上还没有段——先点虚线卡位铸第一段，或去模板市场挑一个「用它出片」。"
+msgstr "There are no segments on the table yet — tap the dashed slot to forge the first one, or pick one in the Template market and tap “Use this template”."
+
 #: src/pages/SettingsPage.tsx
 msgid "桌面图标上的名字跟随手机系统语言，这里切换不会改它；多语言手机上两者可能不一致。"
 msgstr "The name under the home-screen icon follows your phone's system language. Switching here doesn't change it, so the two may differ on phones set to several languages."
@@ -11109,6 +11239,14 @@ msgstr "The model's output has no segments array"
 msgid "模板分析好了，去「我的模板」看看"
 msgstr "Template analyzed — check it in “My templates”"
 
+#: src/studio/studioStore.ts
+msgid "模板卡摆上桌了——先给人偶挂上你的角色卡，点名句合成好就能开炼。"
+msgstr "The template card is on the table — cast your character cards onto the mannequins first; once the casting line is composed, you can start rendering."
+
+#: src/studio/studioStore.ts
+msgid "模板卡摆上桌了——写一句换成谁来演，就能开炼。"
+msgstr "The template card is on the table — write who should play the part, and you can start rendering."
+
 #: src/pages/TemplateDetailPage.tsx
 msgid "模板名"
 msgstr "Template name"
@@ -11187,6 +11325,11 @@ msgstr "Portrait or landscape"
 msgctxt "人偶的主色（挂卡提醒那句话里显示）"
 msgid "橙"
 msgstr "orange"
+
+#. 铸卡师的开场白（会被念出来）。英文请把「逛逛市场」改成点对话框下方的「🛒 Browse market」气泡键；括号里的内容 TTS 不念
+#: src/studio/studioStore.ts
+msgid "欢迎来到卡片工坊。把你的素材（图片、文本）交给我，我为你炼成卡片；也可以逛逛市场，看看大家都在用什么。"
+msgstr "Welcome to the Studio. Hand me your materials (images or text) and I'll forge them into cards; or tap “🛒 Browse market” to see what everyone's using."
 
 #. placeholder {0}: up.title
 #. placeholder {1}: up.done
@@ -12199,6 +12342,10 @@ msgstr "gray"
 msgid "灰着的运镜插进去会超过 {VIDEO_PROMPT_MAX} 字的上限，想用就先删几个字"
 msgstr "The grayed-out moves would push the text past the {VIDEO_PROMPT_MAX}-character limit. Delete a few words to use them."
 
+#: src/studio/studioStore.ts
+msgid "炉子炸了……{reason}"
+msgstr "The forge blew up… {reason}"
+
 #: src/studio/ui/NpcDialog.tsx
 msgid "炉火正旺，卡片成形中…"
 msgstr "The forge is blazing; your cards are taking shape…"
@@ -12542,6 +12689,10 @@ msgstr "Can't reach the server right now, so the template isn't registered yet �
 #: src/pages/VideoPage.tsx
 msgid "现在铺不了（可能有一段正在生成中），稍后再试"
 msgstr "Can't lay it out right now (a segment may be generating) — try again later"
+
+#: src/studio/studioStore.ts
+msgid "现在铺不了这一段，稍后再试。"
+msgstr "Can't lay this segment right now. Try again later."
 
 #: src/pages/EditPage.tsx
 msgid "现在铺不进工坊，稍后再试"
@@ -14357,7 +14508,7 @@ msgstr "When opening this device's database, the system found its files damaged,
 
 #: src/studio/ui/NpcDialog.tsx
 msgid "系统没有中文语音包，暂时发不出声（嘴型仍会动）"
-msgstr "Your system has no Chinese voice pack, so there's no sound for now (the mouth still moves)"
+msgstr "Your system has no voice for this language, so there's no sound for now (the mouth still moves)"
 
 #: src/data/videoDownload.ts
 msgid "系统面板已经开着了，先在那边选一个。"
@@ -14757,9 +14908,18 @@ msgstr "Auto-detect"
 msgid "自定义"
 msgstr "Custom"
 
+#. 铸卡师念的话。工坊方案台上那颗出片键印的是「⚡ 生成本段视频（价钱）」，英文请引用它的英文名（不带价钱）
+#: src/studio/studioStore.ts
+msgid "自定义方案摆上桌了——帧和提示词确认没问题，就点「炼这一段视频」。"
+msgstr "The custom plan is on the table — once the frames and prompt look right, tap “⚡ Generate this segment's video”."
+
 #: src/studio/flowStore.ts
 msgid "自定义段的首尾帧与参考视频是你自己给的，没有走向可推演——直接改帧或改这一段的要求。"
 msgstr "A custom segment's frames and reference video come from you, so there are no directions to draft — edit the frames or this segment's request directly."
+
+#: src/studio/studioStore.ts
+msgid "自定义直出也得写一句这段要拍什么——缺的帧我按这句话补画，一个字都没有我就只能瞎画了。"
+msgstr "Even a custom direct render needs one sentence about what this segment shoots — I draw the missing frames from it, and with nothing written I'd just be guessing."
 
 #: src/pages/CustomCardPage.tsx
 msgid "自己上传图片"
@@ -14831,6 +14991,10 @@ msgstr "at least one image (the first filled slot is the card face)"
 #: src/studio/personaWizardStore.ts
 msgid "至少填一样：名字、定位、简介，或者导入一点素材。"
 msgstr "Fill in at least one: name, role or intro — or import some materials."
+
+#: src/studio/studioStore.ts
+msgid "至少放一张素材卡，或写一句视频要求，我才好推演。"
+msgstr "Put in at least one material card, or write one sentence about the video, so I can draft plans."
 
 #: src/pages/CustomCardPage.tsx
 msgid "至少给一格图，这颗键才亮（第一张有图的就是卡面）"
@@ -16467,6 +16631,10 @@ msgstr "The {0, plural, one {# plan} other {# plans}} drafted for this segment w
 msgid "这一段播不出来（错误码 {codeText}）——成片地址可能已经过期或网络不通，回工作流重新打开草稿会重新取一遍"
 msgstr "This segment won't play (error code {codeText}) — the video link may have expired or the network is down. Reopening the draft from the workflow fetches it again."
 
+#: src/studio/studioStore.ts
+msgid "这一段改动写不回去了——它挂着的那个节点已经不在流水线上（被删掉，或者整条流水线被换过了）。"
+msgstr "This segment's changes can't be written back — the node it belongs to is no longer in the pipeline (it was deleted, or the whole pipeline was replaced)."
+
 #. 只接在 CutPage「这一段已经改好、钱也扣过了，但」后面说的从句：英文小写开头，主语前面已经说过，用 it 指这一段
 #: src/studio/studioStore.ts
 msgid "这一段是从工作流里单独打开的，改动还只在内存里——回工作流把它保存进草稿，再切后台。"
@@ -16499,6 +16667,11 @@ msgstr "This segment has no blockout template to place cards on (only blockout t
 #: src/studio/studioStore.ts
 msgid "这一段没炼成"
 msgstr "Couldn't generate this segment"
+
+#. 铸卡师念的话。「编辑本段」指方案台上那颗「✂ 编辑」键，英文请引用它的英文名
+#: src/studio/studioStore.ts
+msgid "这一段炼好了——下一段的虚线卡位已经亮起来了。想改细节就点「编辑本段」圈画面，改完的尾帧就是下一段的起拍画面。"
+msgstr "This segment is rendered — the next segment's dashed slot is lit. To tweak details, tap “✂ Edit” and circle the picture; the edited last frame becomes the next segment's opening shot."
 
 #: src/hooks/useFlowActions.ts
 msgid "这一段炼好了，但自动存草稿失败（存储空间不足或浏览器隐私模式）——先别离开这一页，点上面的「存草稿」再试一次"
@@ -16585,6 +16758,11 @@ msgstr "This segment has no chosen plan yet, so there's nowhere to put the stage
 #: src/studio/flowStore.ts
 msgid "这一炉一个方案都没有，铸不成段"
 msgstr "This run has no plans, so no segment can be forged"
+
+#. 铸卡师念的话。reason 是截短的报错原文；「生成」指的是铸段窗里那颗「🎲 推演三套方案」键，英文请引用它的英文名
+#: src/studio/studioStore.ts
+msgid "这一炉推演失败了：{reason}——歇口气再点一次「生成」。"
+msgstr "Drafting failed this time: {reason} — take a breath and tap “🎲 Draft three plans” again."
 
 #: src/components/ForgeOverlay.tsx
 msgid "这一炉没成"
@@ -16795,6 +16973,10 @@ msgstr "This template isn't in the library on this device"
 msgid "这个模板不存在或已被作者删除"
 msgstr "This template doesn't exist or was deleted by its creator"
 
+#: src/studio/studioStore.ts
+msgid "这个模板套不上，换一个试试。"
+msgstr "This template can't be applied. Try another one."
+
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "这个模板已经排到一次能挂卡的上限（{BLOCKOUT_MAX_ROLES} 个）。画面里如果还有别人，他们同样是白色人偶，但清单里没有他们的位置，挂不了卡 —— 人再多，从左数到第几个也数不准了。"
 msgstr "This template has reached the limit of {BLOCKOUT_MAX_ROLES} slots that can take cards. Anyone else in the picture is also a white mannequin, but has no position on the list and can't take a card — with more people, counting from the left stops being reliable."
@@ -16896,6 +17078,10 @@ msgstr "These files live in the app's cache, which the system may clear. Setting
 #: src/pages/ProfilePage.tsx
 msgid "这些是已经花过 token 生成的内容，丢掉就得重做一遍。"
 msgstr "This content already cost tokens to generate — discard it and you'll have to make it again."
+
+#: src/studio/studioStore.ts
+msgid "这些素材还差点意思，再补充点描述？"
+msgstr "These materials aren't quite enough — could you add some description?"
 
 #: src/studio/live2dUploadStore.ts
 msgid "这份包上次已经传上去了，直接让服务器再看一遍…"
@@ -17938,6 +18124,10 @@ msgstr "Opacity groups: no"
 msgid "逐格传自己的图 · 不花钱"
 msgstr "Upload your own image for each slot · free"
 
+#: src/studio/npcPersona.ts
+msgid "递素材给我，炼成卡；卡拖到桌上的虚线卡位，铸成一段；段够了点法阵，推成成片。想看现成的就去市场。"
+msgstr "Hand me materials and I forge them into cards; drag a card onto the dashed slot on the table to forge a segment; once you have enough segments, tap the circle to assemble the video. For ready-made cards, browse the market."
+
 #: src/pages/AdminPage.tsx
 msgid "通知"
 msgstr "Notifications"
@@ -18229,6 +18419,14 @@ msgctxt "人偶的主色（挂卡提醒那句话里显示）"
 msgid "金"
 msgstr "gold"
 
+#: src/studio/studioStore.ts
+msgid "铛——{cardCount} 张卡的形已经出来了，一共 {shots} 张图，你先过目。"
+msgstr "Clang — {cardCount, plural, one {# card has} other {# cards have}} taken shape, {shots, plural, one {# image} other {# images}} in all. Take a look."
+
+#: src/studio/studioStore.ts
+msgid "铛——{cardCount} 张卡的形已经出来了，你先过目。"
+msgstr "Clang — {cardCount, plural, one {# card has} other {# cards have}} taken shape. Take a look."
+
 #: src/data/templates.ts
 msgctxt "人偶的主色（挂卡提醒那句话里显示）"
 msgid "银"
@@ -18253,7 +18451,7 @@ msgstr "Card smith"
 #: src/pages/SettingsPage.tsx
 #: src/pages/SettingsVoicePage.tsx
 msgid "铸卡师的声音"
-msgstr "Card crafter's voice"
+msgstr "Card smith's voice"
 
 #: src/pages/CustomCardPage.tsx
 msgid "铸卡本身不消耗 token · 铸好后直接进你的卡片库"
