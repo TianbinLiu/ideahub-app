@@ -6207,6 +6207,11 @@ msgstr "Publish video"
 msgid "发弹幕"
 msgstr "Send a bullet comment"
 
+#: src/pages/FeedPage.tsx
+msgctxt "首页右侧栏图标下的短标签（一行放得下）"
+msgid "发弹幕"
+msgstr "Bullet"
+
 #: src/components/DanmakuInput.tsx
 msgid "发条友善的弹幕"
 msgstr "Send a friendly bullet comment"
@@ -12653,7 +12658,7 @@ msgstr "Tap “Generate this segment” to get three plans first (each with firs
 
 #: src/components/guide/tours.tsx
 msgid "点「用这个模板出片」还不扣钱"
-msgstr "“Make a video…” won't charge yet"
+msgstr "“Make a video…” is still free"
 
 #: src/components/guide/tours.tsx
 msgid "点<0>用它出片</0>就跳到出片那一屏，接下来怎么走按模板分两种：<1>带角色位</1>的那种，本段内容区是一颗挂卡的钮——点开把你的角色卡逐个挂到人偶身上，还能另加一句自己的要求；其余的（经典配方、没有角色位的老白模）是写一句话，配方会把它填进每一段剧情。每段要花多少写在「生成本段」那颗按钮上，点它之前不花钱。"

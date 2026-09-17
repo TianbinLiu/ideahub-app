@@ -64,6 +64,25 @@ interface Rect {
   height: number;
 }
 
+/**
+ * 系统栏占掉的那两条（px）。★ targetSdk 35+ 强制 edge-to-edge：WebView 画到状态栏与手势条底下，
+ * 页面靠 `.safe-top` / `.safe-bottom` 让位，而这张卡按**视口坐标**摆 —— 不把这两条算进去，
+ * 卡片顶满空隙时标题那一行会钻到状态栏底下、按钮贴着手势条（2026-09-17 主人真机点名「太靠近屏幕边缘」；
+ * 英文正文长，顶满空隙的步数比中文多得多，所以英文界面上更显眼）。
+ * 读法：JS 读不到 env()，挂一个不可见的探针让 CSS 替我们算。浏览器里两条都是 0。
+ */
+function safeInsets(): { top: number; bottom: number } {
+  const probe = document.createElement("div");
+  probe.style.cssText =
+    "position:fixed;visibility:hidden;pointer-events:none;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)";
+  document.body.appendChild(probe);
+  const cs = getComputedStyle(probe);
+  const top = parseFloat(cs.paddingTop) || 0;
+  const bottom = parseFloat(cs.paddingBottom) || 0;
+  probe.remove();
+  return { top, bottom };
+}
+
 function rectOf(anchor: string): Rect | null {
   const el = document.querySelector(`[data-guide="${CSS.escape(anchor)}"]`);
   if (!el) return null;
@@ -93,6 +112,7 @@ export default function GuideOverlay() {
   const step = tour && act ? tour.steps[act.step] : null;
 
   const [rect, setRect] = useState<Rect | null>(null);
+  const [insets, setInsets] = useState<{ top: number; bottom: number }>({ top: 0, bottom: 0 });
   const tries = useRef(0);
   const raf = useRef(0);
 
@@ -127,6 +147,7 @@ export default function GuideOverlay() {
     // ★ 不会因此闪一下：这两次 setState 在同一个 layout effect 里同步发出，React 批到
     //   一次渲染，锚点当场就找得到的步骤只会看到最终那个 rect（清空那一拍不落屏）。
     setRect(null);
+    setInsets(safeInsets());
     measure();
     return () => window.cancelAnimationFrame(raf.current);
   }, [measure]);
@@ -177,8 +198,9 @@ export default function GuideOverlay() {
   //   直接拿它算会得到一个"上面还有很多地方"的假结论，而那块地方在屏幕外。
   const vTop = rect ? Math.max(0, Math.min(vh, rect.top)) : 0;
   const vBot = rect ? Math.max(0, Math.min(vh, rect.top + rect.height)) : 0;
-  const gapAbove = rect ? vTop - HOLE_PAD - GAP - EDGE : 0;
-  const gapBelow = rect ? vh - vBot - HOLE_PAD - GAP - EDGE : 0;
+  // ★ 两头的留白各加上系统栏那一条（见 safeInsets）：卡片顶满空隙时也不钻到状态栏 / 手势条底下
+  const gapAbove = rect ? vTop - HOLE_PAD - GAP - EDGE - insets.top : 0;
+  const gapBelow = rect ? vh - vBot - HOLE_PAD - GAP - EDGE - insets.bottom : 0;
   const below = gapBelow >= gapAbove;
   const gap = Math.max(gapAbove, gapBelow);
   const anchored = !!rect && gap >= MIN_CARD_H;
@@ -189,11 +211,16 @@ export default function GuideOverlay() {
   const clamp = (v: number) => Math.max(0, Math.min(vh, v));
   const topIn = clamp(rect ? rect.top : 0);
   const botIn = clamp(rect ? rect.top + rect.height : 0);
+  // ★★ 卡片自己**不滚**，滚的是里面的正文（见下面那三段）：整张卡滚的时候，「下一步」排在内容最底下，
+  //   正文一长它就沉到卡片的折叠线以下 —— 这一层锁死整屏、没有跳过键，用户看到的是一张没有按钮的卡。
+  //   2026-09-17 量到：英文「提取模板」第 5 步在 360×640 上卡高顶到 70vh（448px），按钮在卡外 58px 处。
+  //   中文正文短，几乎撞不上，所以这条一直没暴露。
+  const centeredMax = Math.min(vh * 0.7, vh - insets.top - insets.bottom - EDGE * 2);
   const cardStyle: React.CSSProperties = anchored
     ? below
-      ? { top: botIn + HOLE_PAD + GAP, maxHeight: gap, overflowY: "auto" }
-      : { bottom: vh - topIn + HOLE_PAD + GAP, maxHeight: gap, overflowY: "auto" }
-    : { top: "50%", transform: "translateY(-50%)", maxHeight: "70vh", overflowY: "auto" };
+      ? { top: botIn + HOLE_PAD + GAP, maxHeight: gap }
+      : { bottom: vh - topIn + HOLE_PAD + GAP, maxHeight: gap }
+    : { top: "50%", transform: "translateY(-50%)", maxHeight: centeredMax };
 
   return createPortal(
     <div
@@ -225,17 +252,21 @@ export default function GuideOverlay() {
       )}
 
       {/* 说明卡。★ 用 absolute 定位而不是 flex 居中：有锚点时要贴着圈放 */}
-      <div className="absolute inset-x-4 rounded-2xl border border-slate-600 bg-panel p-4 shadow-2xl" style={cardStyle}>
-        <div className="mb-1.5 flex items-center gap-2">
+      <div className="absolute inset-x-4 flex flex-col rounded-2xl border border-slate-600 bg-panel p-4 shadow-2xl" style={cardStyle}>
+        <div className="mb-1.5 flex flex-none items-center gap-2">
           <span className="rounded-full px-2 py-0.5 bg-brand/20 text-[10px] font-bold text-brand">
             {act.step + 1}/{tour.steps.length}
           </span>
           <h2 className="min-w-0 flex-1 truncate text-sm font-bold text-slate-100">{stepTitle}</h2>
         </div>
-        <div className="text-xs leading-relaxed text-slate-300">{step.body}</div>
+        {/* 只有这一段会滚（min-h-0 让它在 flex 列里缩得下去）；标题与按钮各自 flex-none，永远在卡里看得见。
+            key：换步时回到顶上，别停在上一步滚到的位置 */}
+        <div key={act.step} className="min-h-0 flex-1 overflow-y-auto overscroll-contain text-xs leading-relaxed text-slate-300">
+          {step.body}
+        </div>
         <button
           onClick={() => (last ? closeGuide() : stepGuide())}
-          className="mt-3.5 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink"
+          className="mt-3.5 w-full flex-none rounded-xl bg-brand py-2.5 text-sm font-bold text-ink"
         >
           {last ? <Trans>知道了</Trans> : <Trans>下一步</Trans>}
         </button>
