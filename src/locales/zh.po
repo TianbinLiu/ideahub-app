@@ -1151,6 +1151,10 @@ msgstr "{total} 段<0>，其中 {done} 段已出片</0><1>，{anns} 条圈选要
 msgid "{tourName} 使用引导"
 msgstr "{tourName} 使用引导"
 
+#: src/studio/ui/SchemeEditorSheet.tsx
+msgid "{used}/{SCHEME_SLOT_PROMPT_MAX} · 超过 {SLOT_PROMPT_SOFT_HAN} 个汉字，模型可能顾不上后面的细节"
+msgstr "{used}/{SCHEME_SLOT_PROMPT_MAX} · 超过 {SLOT_PROMPT_SOFT_HAN} 个汉字，模型可能顾不上后面的细节"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "{value}（包里没有）"
 msgstr "{value}（包里没有）"
