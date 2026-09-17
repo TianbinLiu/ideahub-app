@@ -30,6 +30,8 @@
 //   上传回执（publicId 是回收那段素材的唯一句柄）。跳出去再回来，回执就没了，
 //   用户中途放弃时那段 100MB 的视频两端都没了句柄（VideoEditorPage 顶部注释也是
 //   这么写的：宿主有活状态时直接嵌组件）。
+// ★ 引导跟着屏走（2026-09-17 补入口）：标题栏那颗「?」到了 **AI 白模化的框选屏**换讲「选段与裁剪」（guide/tours 的 trim），
+//   第一次到那一屏自动弹一次 —— 判据与「自带白模片那条路为什么不挂」见组件里的 aiTrimScreen。
 // ★ 入口按能力门控渲染：服务端不认这套端点时开关根本不出现（remoteTemplatesCapable，
 //   唯一实现）—— 不摆永远点不动的东西。
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
@@ -41,6 +43,8 @@ import { DetectRolesEntry } from "./blockout/DetectRolesEntry";
 import HelpButton from "./guide/HelpButton";
 import { currentRoute, startJob } from "../data/jobs";
 import { useAutoGuide } from "./guide/useAutoGuide";
+import { activeGuide } from "../data/guide";
+import { useGuide } from "../hooks/useGuide";
 import { AI_REAL, extractTemplateCards, extractTemplateFromVideo } from "../ai";
 import {
   MAX_TEMPLATE_VIDEO_BYTES,
@@ -366,6 +370,22 @@ async function cornerWatermarkHint(frames: string[]): Promise<string | null> {
 // 模型多认出两张，那两张卡面就是白收的钱。别再把这个数抄回来。
 const FRAME_CHOICES = [4, 6, 8];
 
+/**
+ * 「选段与裁剪」引导（guide/tours 的 trim）的**首次自动弹**，只在 AI 白模化的框选屏上挂载（见 aiTrimScreen）。
+ * ★ 单独成一个小组件：要订阅引导库（useGuide），挂在提取器本体上的话，引导每走一步整个提取器都跟着重渲染。
+ * ★★ **别的引导开着就等它关**（openGuide 是原地替换 active 的，useAutoGuide 自己不等）：上传要走几分钟，用户完全可能在等的时候
+ *   点「?」重看「提取模板」—— 不等的话，传完 420ms 后这里一弹，就把他读到一半的那份顶掉。开着的是 trim 自己时不等
+ *   （刚挂上就手点了「?」：与别的屏同一个行为；等的话他看完一关，这里又弹一遍）。
+ * @param ready 屏上没有在跑的事。传完还要抽帧查水印（busy），查完可能在框选器上方多一行黄字 —— 圈量好之后版面再动就指歪了；
+ *   白模化在途时更不该弹。
+ */
+function TrimAutoGuide({ ready }: { ready: boolean }) {
+  useGuide();
+  const open = activeGuide();
+  useAutoGuide("trim", ready && !(open && open.id !== "trim"));
+  return null;
+}
+
 export default function VideoTemplateExtractor({
   onClose,
   onDone,
@@ -379,7 +399,8 @@ export default function VideoTemplateExtractor({
   defaultBlockout?: boolean;
 }) {
   // ★ 浮层也要自己声明引导（不是路由，按 pathname 集中判的话这一屏永远轮不到）。
-  //   第一次打开时强制放一遍，看过一次不再自动弹；标题栏那颗 ? 随时能重看。
+  //   第一次打开时强制放一遍，看过一次不再自动弹；标题栏那颗 ? 随时能重看
+  //   （到了 AI 白模化的框选屏，那颗 ? 换讲「选段与裁剪」那份，它的首次自动弹在 TrimAutoGuide —— 见 aiTrimScreen）。
   useAutoGuide("extractor");
   const { t } = useLingui();
   const [file, setFile] = useState<File | null>(null);
@@ -658,6 +679,18 @@ export default function VideoTemplateExtractor({
    *   存下来就会停在"还不知道"那一拍上，而那一拍恰恰是**放行**的（乐观口径）。
    */
   const blockoutBlock = blockout ? blockoutizeBlockReason() : null;
+
+  /**
+   * 「AI 白模化的框选屏」在不在屏上：与下面 JSX 渲染 BlockoutTrimmer 的那一支同一组条件，再加 route === "aiBlockout"。
+   * 标题栏那颗「?」与 TrimAutoGuide 两处读它 —— 这就是「选段与裁剪」引导（guide/tours 的 trim）在 App 里的入口（2026-09-17 补：
+   * 此前它只挂在 /video-editor 的 blockoutize 模式上，而全仓没有任何入口带那个 mode 导航过去）。
+   * ★★ 自带白模片那条路的第 1 步**有意不算**：那份引导第 1 步说的是白模化的钱（「钱一开始算就退不了」）、第 4 步讲「AI 看哪几帧」，
+   *   而那一步不花钱（ownRefTrimPricing）、那一块也不渲染（hideVisionFrames）—— 挂上去就是引导对着这一屏说假话。要挂得另写一份。
+   * ⚠ 引导正文是照 /video-editor 那一屏（光秃秃一个 BlockoutTrimmer）写的，而这一屏还多了标题与「补充说明」两栏 ——
+   *   **补充说明正是喂给第 1/4 步说的那一发「看帧认人」的**（runBlockoutize 的 intro/note），引导没提它。没顺手改正文：
+   *   改了要升 version，老用户会被整份重弹一遍；等下次升 version 时一并补。
+   */
+  const aiTrimScreen = !got && step === "pick" && route === "aiBlockout" && !!receipt;
 
   // 文案里的数先取名：译文读到的是 {ownRefPrice} / {minSec} / {maxSec}，不是 {0}。
   // ★ 两个秒数照旧取 BLOCKOUT_INPUT_RULES（路线说明与页脚共用这一份），别手写 5 / 30
@@ -1236,9 +1269,16 @@ export default function VideoTemplateExtractor({
       >
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-sm font-bold text-slate-100"><Trans>🎬 从视频提取模板</Trans></h3>
-          <HelpButton tour="extractor" className="ml-auto" />
+          {/* ★ 这颗「?」讲**当下这一屏**：AI 白模化的框选屏换成「选段与裁剪」，其余仍是「提取模板」；同一时刻只摆一颗。
+              ★ 两支都写字面的 tour="…"：scripts/check-guides 按这个形状认入口，写成 tour={…} 它认不出来 */}
+          {aiTrimScreen ? (
+            <HelpButton tour="trim" className="ml-auto" />
+          ) : (
+            <HelpButton tour="extractor" className="ml-auto" />
+          )}
           <CloseButton chip="sm" size={13} align="end" onClick={close} />
         </div>
+        {aiTrimScreen && <TrimAutoGuide ready={!busy} />}
 
         {got ? (
           <div className="space-y-3">
