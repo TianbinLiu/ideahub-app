@@ -2902,7 +2902,9 @@ export async function npcChat(ctx: {
     raw.replace(/<[^>]*>/g, "").replace(/[*_`#]/g, "").replace(/\s+/g, " ").trim(),
     90,
   );
-  return { text: clean || "（没说话）", tokens: 0 };
+  /* i18n-frozen: 进模型对话历史（npcReply 以 kind:"chat" 入列，chatWindow 把它当 assistant 回合原样发回模型），D13 b 之后再议 */
+  const SILENT_REPLY = "（没说话）";
+  return { text: clean || SILENT_REPLY, tokens: 0 };
 }
 
 /** 画布指挥（「对画布说话」）的对话通道：单轮、原文返回。

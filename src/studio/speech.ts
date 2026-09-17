@@ -12,6 +12,10 @@
 import type { Viseme } from "./scene/faceExpr";
 import { currentInstruct, currentRate, currentVoice, emotionFor } from "./voices";
 import { API_BASE, getToken } from "../api/client";
+// ★ 界面语言只从 i18n/switch 的 activeLang 读（「当前生效的语言」的唯一读法，不是偏好）。
+//   依赖方向没破：i18n 是叶子模块，不会反过来认识本文件
+import type { Lang } from "../i18n/locale";
+import { activeLang } from "../i18n/switch";
 
 /** 每帧被 TripoNpc 直读的口型状态。走模块单例而不是 React 状态：
  *  说话时每秒要更新几十次，进 store 就是每秒几十次全场景重渲。 */
@@ -33,39 +37,77 @@ export function voiceSupported(): boolean {
 }
 
 // ── 选嗓子 ────────────────────────────────────────────────────
-// **只收中文嗓子，没有就不出声。** 台词全是中文，拿 en-US 的嗓子去念只会得到
-// 一串念不出来的静音或者把汉字拼读成英文——比不出声更糟。实测这台机器上的
-// Chromium 只带 David/Mark/Zira 三个英文声，中文语音包要系统里另装。
-// voices 在部分浏览器上是**异步填充**的（首次返回空数组，之后才触发
-// voiceschanged），所以不能只在模块加载时取一次。
-let cachedVoice: SpeechSynthesisVoice | null = null;
-let voiceResolved = false;
+// **按界面语言挑嗓子**（2026-09-11 主人拍板：英文界面里铸卡师也要出声，宁可用系统随便一把也别哑）。
+//   zh：只收中文嗓子，没有就不出声——台词是中文，拿 en-US 的嗓子去念只会得到一串念不出来的
+//       静音或者把汉字拼读成英文，比不出声更糟。这一档与改按语言挑之前**逐字相同**。
+//   en：先挑 en-* 里名字带 Natural / Online / Google（云端或神经网络音，明显更像人）的，再挑常见的
+//       英文女声名（角色是女性），再退到任意一把 en-*，实在没有就退到**随便哪一把**——名字都是猜的，
+//       猜错了顶多是换一把嗓子，绝不会哑。
+// 实测这台机器上的 Chromium 只带 David/Mark/Zira 三个英文声，中文语音包要系统里另装。
+// voices 在部分浏览器上是**异步填充**的（首次返回空数组，之后才触发 voiceschanged），
+// 所以不能只在模块加载时取一次。
+// ★ 缓存按语言分格：切语言（setLangPref 不 reload）之后下一句按新语言现挑，不用监听语言切换；
+//   voiceschanged 一来就整个清掉重挑。
+let cachedVoice: Partial<Record<Lang, SpeechSynthesisVoice | null>> = {};
 
-function pickVoice(): SpeechSynthesisVoice | null {
-  if (voiceResolved) return cachedVoice;
+function pickVoice(lang: Lang = activeLang()): SpeechSynthesisVoice | null {
+  if (lang in cachedVoice) return cachedVoice[lang] ?? null;
   const all = window.speechSynthesis.getVoices();
   if (all.length === 0) return null; // 还没填充，下次再问
-  voiceResolved = true;
-  const zh = all.filter((v) => v.lang.toLowerCase().startsWith("zh"));
-  if (zh.length === 0) {
-    cachedVoice = null;
-    return null;
+  const ofLang = (prefix: string) => all.filter((v) => v.lang.toLowerCase().startsWith(prefix));
+  const firstNamed = (list: SpeechSynthesisVoice[], names: string[]) =>
+    names.map((n) => list.find((v) => v.name.toLowerCase().includes(n))).find(Boolean);
+  let pick: SpeechSynthesisVoice | null;
+  if (lang === "zh") {
+    const zh = ofLang("zh");
+    // 这些是 Windows/macOS 上常见的中文女声名；命不中就退回中文里的第一个
+    const preferred = ["xiaoxiao", "xiaoyi", "huihui", "yaoyao", "tingting", "meijia", "female"];
+    pick = zh.length === 0 ? null : (firstNamed(zh, preferred) ?? zh[0]);
+  } else {
+    const en = ofLang("en");
+    pick =
+      firstNamed(en, ["natural", "online", "google", "neural"]) ??
+      firstNamed(en, ["zira", "aria", "jenny", "samantha", "hazel", "susan", "female"]) ??
+      en[0] ??
+      all[0] ??
+      null;
   }
-  // 这些是 Windows/macOS 上常见的中文女声名；命不中就退回中文里的第一个
-  const preferred = ["xiaoxiao", "xiaoyi", "huihui", "yaoyao", "tingting", "meijia", "female"];
-  cachedVoice = preferred.map((n) => zh.find((v) => v.name.toLowerCase().includes(n))).find(Boolean) ?? zh[0];
-  return cachedVoice;
+  cachedVoice[lang] = pick;
+  return pick;
+}
+
+/** 这一句该用哪一把嗓子。中文界面永远只走中文那一档（与按语言挑之前逐字相同）。
+ *  英文界面下看**这一句自己的字**（text 是剥掉括号旁白与绘文字之后、真正要念的那份），分三种：
+ *   ① 有汉字、一个西文字母都没有（模型闲聊回复在 D13 b 之前仍是中文；设置页的试听句冻结中文）
+ *      → **只认中文嗓子，没有就回 null**。英文嗓子念纯汉字本来就是静音，退过去什么也听不到，反而让
+ *      speak() 回 true：设置页那句「试听不了」的报错不出来，npcSay 也不会退回按字数估口型。
+ *   ② 汉字为主、夹着几个西文词（「这张 Rin 的卡不错，花了 5k token。」「AI 合成的，是。」——NPC_SYSTEM
+ *      要求模型承认自己是 AI，这种回复很常见）→ 有中文嗓子就用它（中文嗓子念得了夹着的西文，反过来不行），
+ *      没有再退英文那一档（至少把西文词念出来，不哑）。
+ *      判据「汉字数 > 2 × 西文词数」是拿真实台词量的：只比多少（汉字 > 词数）会把引了中文卡名 / 搜索词的
+ *      英文句子（Found 3 cards for “赛博朋克”. = 4 字 3 词；“远坂凛的面部特写” is yours now. Good eye. = 8 字 6 词）
+ *      也判成中文；乘 2 之后这两句留在英文嗓子，上面那几句中文回复（9 字 3 词 / 4 字 1 词）仍归中文嗓子。
+ *   ③ 其余（英文句子，哪怕引了一个中文名）→ 英文那一档（它自己会退到任意一把）。 */
+function voiceFor(text: string): SpeechSynthesisVoice | null {
+  if (activeLang() === "zh") return pickVoice("zh");
+  const han = (text.match(/\p{Script=Han}/gu) ?? []).length;
+  if (han === 0) return pickVoice("en");
+  const words = (text.match(/[A-Za-z]+/g) ?? []).length;
+  if (words === 0) return pickVoice("zh");
+  return (han > 2 * words ? pickVoice("zh") : null) ?? pickVoice("en");
 }
 
 if (typeof window !== "undefined" && "speechSynthesis" in window) {
   window.speechSynthesis.onvoiceschanged = () => {
-    voiceResolved = false;
+    cachedVoice = {};
     pickVoice();
   };
 }
 
-/** 语音能力现状。UI 要能把"我关的"和"这台机器没中文语音包"分开讲清楚，
- *  否则用户开着开关却听不见声音，只会以为功能坏了。 */
+/** 语音能力现状（按**当前界面语言**答）。UI 要能把"我关的"和"这台机器没这门语言的语音包"分开讲清楚，
+ *  否则用户开着开关却听不见声音，只会以为功能坏了。
+ *  ★ 英文界面下 "ok" 可能是退到了非英文的嗓子（主人的取舍：出声比哑巴好）；"no-voice" 在英文界面下
+ *    等于这台机器一把嗓子都没有（安卓 WebView 常常 getVoices() 回空数组）。 */
 export function voiceStatus(): "ok" | "no-voice" | "unsupported" {
   if (cloudOn) return "ok"; // 云端嗓子不依赖系统语音包
   if (!voiceSupported()) return "unsupported";
@@ -320,7 +362,14 @@ async function speakCloud(text: string, sy: Syl[], me: number): Promise<boolean>
 export function speak(text: string): boolean {
   cancelPendingStop(); // 新台词到了，之前排队的"延迟掐音"作废
   if (!voiceEnabled()) return false;
-  const clean = text.replace(/[（(][^）)]*[）)]/g, " ").trim(); // 括号里的旁白不念
+  // 括号里的旁白不念；**绘文字也不念**——台词里引的键名带着它（“🛒 Browse market”「✂ 编辑」），Google / Apple 的
+  // 嗓子会把它的名字念出来（"shopping cart"），云端那条没测过。气泡里的字一个不动，这里只管交给合成器
+  // （云端与本地共用）的那一份；只删不补空格。没有绘文字的台词与加这条之前逐字相同。
+  // 删的是：绘文字本体、国旗的区域指示符、肤色修饰符、变体选择符 FE0F、零宽连接符、键帽圈 20E3
+  const clean = text
+    .replace(/[（(][^）)]*[）)]/g, " ")
+    .replace(/[\p{Extended_Pictographic}\u{1F1E6}-\u{1F1FF}\u{1F3FB}-\u{1F3FF}\uFE0F\u200D\u20E3]/gu, "")
+    .trim();
   if (!clean) return false;
   // ★ 音节表要按**真正会被念出来的字**建，不能包含 <cot text=…> 标记——
   //   标记只影响演绎、不出声，算进去会让音节数虚高，而云端是拿
@@ -341,11 +390,12 @@ export function speak(text: string): boolean {
   return speakLocal(clean, sy, me);
 }
 
-/** 浏览器内置合成器。没有中文嗓子就不出声——拿 en-US 的嗓子念汉字只会得到
- *  静音或拼读，比不出声更糟。 */
+/** 浏览器内置合成器。嗓子按界面语言挑（见 voiceFor）：中文界面没有中文嗓子就不出声——拿 en-US 的
+ *  嗓子念汉字只会得到静音或拼读，比不出声更糟；英文界面念英文句子则宁可退到任意一把也不哑
+ *  （整句纯汉字是例外：没有中文嗓子就回 false，理由见 voiceFor ①）。 */
 function speakLocal(clean: string, sy: Syl[], me: number): boolean {
   if (!voiceSupported()) return false;
-  const voice = pickVoice();
+  const voice = voiceFor(clean);
   if (!voice) return false;
 
   const u = new SpeechSynthesisUtterance(clean);
@@ -439,7 +489,8 @@ if (import.meta.env.DEV && typeof window !== "undefined") {
     stopSpeaking,
     // 与 speak() 走同一条路（先剥 cot 标签），否则这个调试视图会和真实行为不一致
     plan: (t: string) => syllables(spokenOf(t)),
-    voice: () => pickVoice(),
+    voice: (lang?: Lang) => pickVoice(lang), // 不传 = 当前界面语言；传 "zh" / "en" 看另一档挑到谁
+    voiceFor, // 某一句会用哪把嗓子（英文界面下纯汉字只认中文嗓子、汉字为主的优先中文嗓子，见 voiceFor）
     status: voiceStatus,
     cloud: () => cloudOn, // 取函数：它会被第一次失败改掉，取值会拿到一个过期的快照
     voices: () => (voiceSupported() ? window.speechSynthesis.getVoices().map((v) => `${v.name} [${v.lang}]`) : []),

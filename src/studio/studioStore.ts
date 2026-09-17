@@ -17,7 +17,7 @@ import { cutSessionLoadIssue, dropCutSession, saveCutSession } from "../data/cut
 import type { CanvasSnapshot as ProjectCanvas } from "../data/projects";
 import { GenStep } from "./genLog";
 import { SPEAK_MOOD, speak, stopSpeaking } from "./speech";
-import { CRISIS_LINE, HELP_LINE, NPC_SYSTEM, chatFailLine, chatWindow, deskBlock } from "./npcPersona";
+import { NPC_SYSTEM, chatFailLine, chatWindow, crisisLine, deskBlock, helpLine } from "./npcPersona";
 
 export interface DialogMsg {
   id: string;
@@ -678,7 +678,7 @@ interface StudioState {
   layCustomNode: () => void;
   /** 铸段向导第①步选「套模板」：就地落一张白模节点卡（不再把人赶去画布那一面）。
    *  规则全在 flowStore（appendNode 门禁 + setNodeTemplate 快照/闸），这里只是编排 */
-  layTemplateNode: (t: VideoTemplate) => void;
+  layTemplateNode: (tpl: VideoTemplate) => void;
   setRequirement: (v: string) => void;
   setDurationMode: (m: "ai" | "manual") => void;
   setDurationSec: (v: number) => void;
@@ -836,10 +836,20 @@ interface StudioState {
  */
 function sayLostViews(r: AddCardsResult, s: Pick<StudioState, "npcSay" | "setMood">): void {
   if (r.lostViews.length === 0) return;
-  const head = r.lostViews.slice(0, 3).join("、");
+  const count = r.lostViews.length;
+  const list = r.lostViews.slice(0, 3).join(t({ message: "、", comment: "列举几个名字时的分隔符" }));
+  const reason = r.reason ?? t`上传失败`;
+  // ★ 按张数分成两整句（超过三张才带「等 N 张」）：英文两句句式不同，不能拼片段
   s.npcSay(
-    `${head}${r.lostViews.length > 3 ? ` 等 ${r.lostViews.length} 张` : ""}没能存到服务器（${r.reason ?? "上传失败"}）` +
-      `——这几张只留在这台设备上，换设备或者重新登录就没了。想留住的话，回卡片详情页把它重新挂一次。`,
+    count > 3
+      ? t({
+          message: `${list} 等 ${count} 张没能存到服务器（${reason}）——这几张只留在这台设备上，换设备或者重新登录就没了。想留住的话，回卡片详情页把它重新挂一次。`,
+          comment: "铸卡师念的话。list 是前三张的名字（已用分隔符连好），count 是丢的总张数（大于 3），reason 是失败原因整句",
+        })
+      : t({
+          message: `${list}没能存到服务器（${reason}）——这几张只留在这台设备上，换设备或者重新登录就没了。想留住的话，回卡片详情页把它重新挂一次。`,
+          comment: "铸卡师念的话。list 是丢的那几张（最多三张）的名字，reason 是失败原因整句",
+        }),
   );
   s.setMood(-0.6, 3000);
 }
@@ -868,6 +878,13 @@ function freshEditor(slots: string[]): EditorState {
 
 // 市场检索的请求序号：过期响应直接丢弃，防止慢请求乱序覆盖新结果
 let marketSeq = 0;
+
+/** 一炉最多放几张素材卡。pickDeckCard / dropOnPlaceholder 两道闸与铸卡师那句话共用这一个数——
+ *  各写各的 20 的话，改上限漏一处是零症状（话里说 20、实际能放 30）。
+ *  ⚠ 还有第三份手写的 20 没收：studio/ui/projection.tsx 素材栏那行计数「{n}/20 张 · 同类型可多张」。
+ *    收它要改那条 msgid（归 projection.tsx 那份 PR），所以这里先 export 出去等它来读；
+ *    在那之前改这个数，记得把那一行一起改 */
+export const EDITOR_SLOTS_MAX = 20;
 /** 聊天世代号。照 marketSeq 那套：过期回调可以照记消息，但**一定不出声**
  *  ——否则用户发完就切页面，她会在首页开口。 */
 let chatSeq = 0;
@@ -1015,7 +1032,14 @@ export const useStudio = create<StudioState>()((set, get) => ({
     set((s) => ({ dialog: { ...s.dialog, messages: [...s.dialog.messages, { id: uid("m"), from: "me", text, kind }] } })),
   initGreet: () => {
     if (get().dialog.messages.length > 0) return;
-    get().npcSay("欢迎来到卡片工坊。把你的素材（图片、文本）交给我，我为你炼成卡片；也可以逛逛市场，看看大家都在用什么。");
+    // ★ 英文版指向「🛒 逛市场」那颗气泡键而不是"说一句逛市场"：npcIntent 的路由只认中文词，
+    //   英文界面下打字说 browse market 会落进付费闲聊
+    get().npcSay(
+      t({
+        message: "欢迎来到卡片工坊。把你的素材（图片、文本）交给我，我为你炼成卡片；也可以逛逛市场，看看大家都在用什么。",
+        comment: "铸卡师的开场白（会被念出来）。英文请把「逛逛市场」改成点对话框下方的「🛒 Browse market」气泡键；括号里的内容 TTS 不念",
+      }),
+    );
   },
   setCamera: (camera) => set({ camera }),
   setDialogView: (dialogView) => set({ dialogView }),
@@ -1034,7 +1058,13 @@ export const useStudio = create<StudioState>()((set, get) => ({
     //   而它 2026-08-24 起硬写成 `async () => []` —— 铸卡师照常演"抽出一叠卡摊在桌上"，
     //   桌上永远一张都没有。现在真接到服务端广场（data/account.plazaCards，与创意工坊
     //   那一格同一个来源、同一份映射），演出与事实对上了。
-    get().npcSay("（抽出一叠卡摊在桌上）社区里最近热的。要找特定的，上面那条写词。", "act");
+    get().npcSay(
+      t({
+        message: "（抽出一叠卡摊在桌上）社区里最近热的。要找特定的，上面那条写词。",
+        comment: "铸卡师的播报。括号里是动作旁白，英文也要放在括号里（TTS 按括号剥掉不念）",
+      }),
+      "act",
+    );
     const items = await plazaCards("");
     if (seq !== marketSeq) return; // 期间发起过新检索，丢弃本次结果
     set((s) => ({ market: { ...s.market, items, loading: false } }));
@@ -1046,10 +1076,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
     if (seq !== marketSeq) return; // 过期响应
     set((s) => ({ market: { ...s.market, items, loading: false } }));
     // 0 张时不能说"翻出了 0 张，都给你摊开了"——自相矛盾
-    get().npcSay(
-      q ? (items.length ? `按「${q}」翻出 ${items.length} 张。` : `「${q}」没有。换个词。`) : `当下最热的 ${items.length} 张。`,
-      "act",
-    );
+    const count = items.length;
+    get().npcSay(q ? (count ? t`按「${q}」翻出 ${count} 张。` : t`「${q}」没有。换个词。`) : t`当下最热的 ${count} 张。`, "act");
   },
   shiftMarket: (d) =>
     set((s) => {
@@ -1071,6 +1099,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
   addMarketToDeck: (from) => {
     const card = get().marketDetail;
     if (!card) return;
+    const name = card.name;
     // ★★ 装卡走 `account.acquireCard` 这一处（2026-08-31 修）。原来这里直接 `addCards`，
     //   那正是 acquireCard 注释里点名要防的"第三颗按钮"（铁律六），后果有两层：
     //   ① 广场卡由 `sharedToCard` 打了 `published: true`，`addCards` 原样 `{...c}` 入库，
@@ -1088,7 +1117,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
         // 装不进库就别让它留在桌上：桌上的卡组下次进工坊是从 myCards() 重铺的，
         // 留着只会变成"上次明明加了、今天不见了"（铁律八：失败要当场说，别留到下次）
         set((st) => ({ deck: st.deck.filter((c) => c.id !== card.id) }));
-        get().npcSay(`「${card.name}」没能装进你的卡片库：${r.why}`);
+        const why = r.why;
+        get().npcSay(t`「${name}」没能装进你的卡片库：${why}`);
         get().setMood(-0.6, 3000);
         return;
       }
@@ -1098,7 +1128,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
       if (mine) set((st) => ({ deck: st.deck.map((c) => (c.id === card.id ? mine : c)) }));
     });
     if (get().deck.some((c) => c.id === card.id)) {
-      get().npcSay(`「${card.name}」已经在你的卡组里了。`);
+      get().npcSay(t`「${name}」已经在你的卡组里了。`);
       set({ marketDetail: null, camera: { kind: "default" } });
       return;
     }
@@ -1109,7 +1139,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
       deck: [...s.deck, card],
       flights: [...s.flights, { id: uid("fl"), card, from, delay: 0 }],
     }));
-    get().npcSay(`「${card.name}」归你了，好眼光。`);
+    get().npcSay(t`「${name}」归你了，好眼光。`);
     get().setMood(1, 3200);
   },
 
@@ -1130,25 +1160,36 @@ export const useStudio = create<StudioState>()((set, get) => ({
   },
 
   forgeCards: async (files, note, type, tierId) => {
-    get().meSay(note || `（递上 ${files.length} 份素材）`);
+    const fileCount = files.length;
+    get().meSay(
+      note ||
+        t({
+          message: `（递上 ${fileCount} 份素材）`,
+          comment: "玩家那一侧的气泡（不念）：把 fileCount 份素材递给铸卡师的动作旁白，英文也放在括号里",
+        }),
+    );
     set((s) => ({ dialog: { ...s.dialog, busy: true }, forgeProgress: "" }));
-    get().npcSay("收到，让我看看成色……（炉火升起）");
+    get().npcSay(t({ message: "收到，让我看看成色……（炉火升起）", comment: "铸卡师念的话。括号里是动作旁白，英文也要放在括号里（TTS 按括号剥掉不念）" }));
     try {
       // ★ onProgress 必须透传：顶档一张图实测 73.6 秒，一炉两张就是两分半。
       //   中间不报进度，用户看到的就是一个不动的"炼卡中…"——与卡死无从区分。
       const { cards, minted, notes } = await generateCards(files, note, type, {
         tierId,
-        onProgress: (msg) => set({ forgeProgress: msg }),
+        onProgress: (status) => set({ forgeProgress: status }),
       });
       if (cards.length === 0) {
-        get().npcSay("这些素材还差点意思，再补充点描述？");
+        get().npcSay(t`这些素材还差点意思，再补充点描述？`);
         get().setMood(-0.6, 2600);
       } else {
         // 一卡多图之后"几张卡"不再等于"几张图"，两个数都说出来——只报卡数的话，
         // 用户对着一张 12 万 token 的账单只看得到"3 张卡"
+        // ★ 图比卡多才另说「一共 N 张图」：按这个条件分成两整句，别拼片段
         const shots = minted.reduce((n, k) => n + k, 0);
+        const cardCount = cards.length;
         get().npcSay(
-          `铛——${cards.length} 张卡的形已经出来了${shots > cards.length ? `，一共 ${shots} 张图` : ""}，你先过目。`,
+          shots > cardCount
+            ? t`铛——${cardCount} 张卡的形已经出来了，一共 ${shots} 张图，你先过目。`
+            : t`铛——${cardCount} 张卡的形已经出来了，你先过目。`,
         );
       }
       // ★★ notes 必须一路带出去，**不能只留在 forgeProgress 上**：那是一行会被下一条
@@ -1160,8 +1201,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
     } catch (e) {
       // 真实 AI 会因为余额/审核/网络失败。以前这里直接 throw 到无人接手的
       // Promise 上，界面只剩一个转不停的"炼卡中…"；现在由铸卡师说出来
-      const msg = (e instanceof Error ? e.message : String(e)).slice(0, 80);
-      get().npcSay(`炉子炸了……${msg}`);
+      const reason = (e instanceof Error ? e.message : String(e)).slice(0, 80);
+      get().npcSay(t`炉子炸了……${reason}`);
       get().setMood(-0.8, 3000);
       throw e;
     } finally {
@@ -1184,7 +1225,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
         ],
       };
     });
-    get().npcSay(`${cards.length} 张新卡飞进你的卡组了。`);
+    const count = cards.length;
+    get().npcSay(t`${count} 张新卡飞进你的卡组了。`);
     get().setMood(1, 4000);
     // 收下才归入账号资产（创意工坊/Profile 可见）。★ 必须 await：这一步顺带把新画的
     //   形象参考图转存成永久地址，失败了要当场说出来 —— 不说的话，用户花 12 万 token
@@ -1221,12 +1263,12 @@ export const useStudio = create<StudioState>()((set, get) => ({
       moodUntil: 0,
       dialog: {
         ...s.dialog,
-        messages: [...s.dialog.messages, { id: uid("m"), from: "npc", text: CRISIS_LINE, kind: "sys" }],
+        messages: [...s.dialog.messages, { id: uid("m"), from: "npc", text: crisisLine(), kind: "sys" }],
       },
     }));
   },
 
-  helpReply: () => get().npcSay(HELP_LINE, "chat"),
+  helpReply: () => get().npcSay(helpLine(), "chat"),
 
   chatToNpc: async (text) => {
     // ★ 别叫 t：同一作用域里要用 Lingui 的 t 宏，局部变量会把宏遮住
@@ -1277,7 +1319,13 @@ export const useStudio = create<StudioState>()((set, get) => ({
     const { deck, projection } = get();
     if (projection) return;
     if (deck.length === 0) {
-      get().npcSay("你的卡组还是空的。先把素材交给我炼卡，或者说「逛市场」看看现成的。");
+      // ★ 英文版指向「🛒 逛市场」气泡键，不是"说一句逛市场"（npcIntent 只认中文词，见 initGreet）
+      get().npcSay(
+        t({
+          message: "你的卡组还是空的。先把素材交给我炼卡，或者说「逛市场」看看现成的。",
+          comment: "铸卡师念的话。英文请把「说『逛市场』」改成点对话框下方的「🛒 Browse market」气泡键",
+        }),
+      );
     }
     // 聚焦期间收起展开排（素材在投影窗内选择），画面只留浮卡
     set({
@@ -1357,7 +1405,13 @@ export const useStudio = create<StudioState>()((set, get) => ({
     const { projection } = get();
     if (projection) return;
     if (myCards().length === 0 && get().deck.length === 0) {
-      get().npcSay("你还没有卡。先把素材交给我炼卡，或者说「逛市场」看看现成的。");
+      // ★ 英文版指向「🛒 逛市场」气泡键，不是"说一句逛市场"（npcIntent 只认中文词，见 initGreet）
+      get().npcSay(
+        t({
+          message: "你还没有卡。先把素材交给我炼卡，或者说「逛市场」看看现成的。",
+          comment: "铸卡师念的话。英文请把「说『逛市场』」改成点对话框下方的「🛒 Browse market」气泡键",
+        }),
+      );
       return;
     }
     set({
@@ -1384,7 +1438,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
       cards = (d?.cardIds ?? []).map((id) => byId.get(id)).filter((c): c is Card => !!c);
     }
     if (cards.length === 0) {
-      get().npcSay(`「${name}」还是空的——去创意工坊给它添几张卡吧。`);
+      get().npcSay(t`「${name}」还是空的——去创意工坊给它添几张卡吧。`);
       return false;
     }
     // 只换工作卡组（编辑器素材池同源），不动镜头不摊桌——卡片在小窗里看
@@ -1412,8 +1466,9 @@ export const useStudio = create<StudioState>()((set, get) => ({
     const card = deck.find((c) => c.id === cardId);
     if (!card || !editor || editor.generating) return;
     if (editor.slots.includes(card.id)) return;
-    if (editor.slots.length >= 20) {
-      get().npcSay("一炉最多放 20 张素材卡，先撤下几张再加。");
+    if (editor.slots.length >= EDITOR_SLOTS_MAX) {
+      const max = EDITOR_SLOTS_MAX;
+      get().npcSay(t`一炉最多放 ${max} 张素材卡，先撤下几张再加。`);
       return;
     }
     set({ editor: { ...editor, slots: [...editor.slots, card.id] } });
@@ -1425,7 +1480,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
     set({ dragCardId: null });
     if (!card) return;
     if (editor && !editor.generating) {
-      if (!editor.slots.includes(card.id) && editor.slots.length < 20)
+      if (!editor.slots.includes(card.id) && editor.slots.length < EDITOR_SLOTS_MAX)
         set({ editor: { ...editor, slots: [...editor.slots, card.id] } });
       return;
     }
@@ -1671,7 +1726,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
         set({ notice: { text: useFlow.getState().err || t`这一次没推成`, at: Date.now() } });
         return false;
       }
-      get().npcSay("换了一批走向，投影在你面前了——点开挑一套。");
+      get().npcSay(t`换了一批走向，投影在你面前了——点开挑一套。`);
       return true;
     } finally {
       nodeGenInFlight = false;
@@ -1715,7 +1770,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
     const { editor, deck } = get();
     if (!editor || editor.generating) return;
     if (!editor.requirement.trim()) {
-      get().npcSay("自定义直出也得写一句这段要拍什么——缺的帧我按这句话补画，一个字都没有我就只能瞎画了。");
+      get().npcSay(t`自定义直出也得写一句这段要拍什么——缺的帧我按这句话补画，一个字都没有我就只能瞎画了。`);
       return;
     }
     const materials = editor.slots.map((id) => deck.find((c) => c.id === id)).filter((c): c is Card => !!c);
@@ -1748,7 +1803,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
       chain: !editor.startFrame && !!prev?.lastFrame && first === prev.lastFrame,
     });
     if (!newId) {
-      get().npcSay(useFlow.getState().err || "现在铺不了这一段，稍后再试。");
+      get().npcSay(useFlow.getState().err || t`现在铺不了这一段，稍后再试。`);
       return;
     }
     // ★★ 车道开关**无条件打**（2026-08-30 修）：`FlowNode.custom` 记的是"这一段属于自定义
@@ -1768,7 +1823,15 @@ export const useStudio = create<StudioState>()((set, get) => ({
       for (const m of editor.refVideo.mids) flow.addCustomMid(newId, m);
     }
     set({ spreadOpen: false, focus: { nodeId: newId }, projection: "proposals", editor: null });
-    get().npcSay("自定义方案摆上桌了——帧和提示词确认没问题，就点「炼这一段视频」。");
+    // ★ 2026-09-17 订正（多语言 S2 评审对着 projection.tsx 核出来的）：layCustomNode 只从工坊铸段窗调，
+    //   落地后方案台那颗出片键印的是「⚡ 生成本段视频（价钱）」；「炼这一段视频」是画布那一面的键名
+    //   （FlowCanvas），这一屏上没有——英文那句一直引的就是工坊这颗
+    get().npcSay(
+      t({
+        message: "自定义方案摆上桌了——帧和提示词确认没问题，就点「⚡ 生成本段视频」。",
+        comment: "铸卡师念的话。「⚡ 生成本段视频」是工坊方案台上那颗出片键的名字（键上还带价钱），英文请引用它的英文名（不带价钱）",
+      }),
+    );
   },
 
   /**
@@ -1777,33 +1840,34 @@ export const useStudio = create<StudioState>()((set, get) => ({
    *   「＋ 加一段 → 🧪 套模板」两拍等价，门禁与快照规则全在 flowStore 那两处。
    * ★ 套不上就把刚落的空卡收回（铁律八的另一半：失败不能留一张自称模板段的裸卡在桌上）。
    */
-  layTemplateNode: (t) => {
+  // ★ 参数别叫 t：函数体里要用 Lingui 的 t 宏，同名参数会把宏遮住
+  layTemplateNode: (tpl) => {
     const editor = get().editor;
     if (editor?.generating) return;
     const flow = useFlow.getState();
     const p: Proposal = {
       id: uid("prop"),
-      title: t.title,
+      title: tpl.title,
       plot: "",
       firstFrame: "",
       lastFrame: "",
-      durationSec: t.refVideo?.durationSec ?? 5,
+      durationSec: tpl.refVideo?.durationSec ?? 5,
     };
     const newId = flow.appendNode({ proposals: [p], chosenId: p.id });
     if (!newId) {
-      get().npcSay(useFlow.getState().err || "现在铺不了这一段，稍后再试。");
+      get().npcSay(useFlow.getState().err || t`现在铺不了这一段，稍后再试。`);
       return;
     }
-    if (!useFlow.getState().setNodeTemplate(newId, t)) {
+    if (!useFlow.getState().setNodeTemplate(newId, tpl)) {
       useFlow.getState().removeNode(newId);
-      get().npcSay(useFlow.getState().err || "这个模板套不上，换一个试试。");
+      get().npcSay(useFlow.getState().err || t`这个模板套不上，换一个试试。`);
       return;
     }
     set({ spreadOpen: false, focus: { nodeId: newId }, projection: "proposals", editor: null });
     get().npcSay(
-      t.roles?.length
-        ? "模板卡摆上桌了——先给人偶挂上你的角色卡，点名句合成好就能开炼。"
-        : "模板卡摆上桌了——写一句换成谁来演，就能开炼。",
+      tpl.roles?.length
+        ? t`模板卡摆上桌了——先给人偶挂上你的角色卡，点名句合成好就能开炼。`
+        : t`模板卡摆上桌了——写一句换成谁来演，就能开炼。`,
     );
   },
 
@@ -1811,7 +1875,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
     const { editor, deck } = get();
     if (!editor || editor.generating) return;
     if (nodeGenInFlight) {
-      set({ notice: { text: "上一炉还在推演，等它出炉再开新的。", at: Date.now() } });
+      set({ notice: { text: t`上一炉还在推演，等它出炉再开新的。`, at: Date.now() } });
       return;
     }
     {
@@ -1826,7 +1890,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
       .map((id) => deck.find((c) => c.id === id))
       .filter((c): c is Card => !!c);
     if (materials.length === 0 && !editor.requirement.trim()) {
-      get().npcSay("至少放一张素材卡，或写一句视频要求，我才好推演。");
+      get().npcSay(t`至少放一张素材卡，或写一句视频要求，我才好推演。`);
       return;
     }
     // 按发计价档（真人档）没有方案台（判定在 economy.deriveIssue 一处）——工坊的
@@ -1876,9 +1940,9 @@ export const useStudio = create<StudioState>()((set, get) => ({
     const propCost = proposalsCost(!!startFrame);
     if (AI_REAL && !canAfford(propCost)) {
       const w = walletOf();
-      get().npcSay(
-        `推演一次约 ${fmtTokens(propCost)} token，余额 ${fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0))} 不够——去「我的」页充值。`,
-      );
+      const price = fmtTokens(propCost);
+      const balance = fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0));
+      get().npcSay(t`推演一次约 ${price} token，余额 ${balance} 不够——去「我的」页充值。`);
       return;
     }
     nodeGenInFlight = true;
@@ -1920,7 +1984,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
         ? !!tail2 && tail2.id === anchor.id && tail2.chosenId === anchor.chosenId
         : path2.length === 0;
       if (!anchorOk) {
-        get().npcSay("推演期间桌面已经变样，这一炉先作废——按现在的走向重新生成吧。");
+        get().npcSay(t`推演期间桌面已经变样，这一炉先作废——按现在的走向重新生成吧。`);
         get().setMood(-0.5, 2200);
         return;
       }
@@ -1936,7 +2000,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
         chain: !editor.startFrame && !!prev?.lastFrame, // 承接与否只看"帧是不是上一段给的"，与报价那个 startFrame 差一位（用户自己传图时不算承接）
       });
       if (!newId) {
-        get().npcSay(useFlow.getState().err || "推演好了，但现在铺不上桌——稍后再试。");
+        get().npcSay(useFlow.getState().err || t`推演好了，但现在铺不上桌——稍后再试。`);
         get().setMood(-0.5, 2200);
         return;
       }
@@ -1944,14 +2008,21 @@ export const useStudio = create<StudioState>()((set, get) => ({
       const degraded = proposals.filter((p) => p.degraded).length;
       get().npcSay(
         degraded > 0
-          ? `三种走向推演完毕，但有 ${degraded} 个方案的首尾帧没画出来（出片前会先补画要用到的帧，补画的钱算在出片报价里）。点开看看剧情，选定一个。`
-          : "三种走向推演完毕，已经投影在你面前——点开看看各自的首尾帧和剧情，选定一个。",
+          ? t`三种走向推演完毕，但有 ${degraded} 个方案的首尾帧没画出来（出片前会先补画要用到的帧，补画的钱算在出片报价里）。点开看看剧情，选定一个。`
+          : t`三种走向推演完毕，已经投影在你面前——点开看看各自的首尾帧和剧情，选定一个。`,
       );
     } catch (e) {
       // 此前任何异常都会静默炸掉整个 Promise——按钮复位却没有任何解释，像"点了没反应"
-      const msg = e instanceof Error ? e.message : String(e);
+      const reason = (e instanceof Error ? e.message : String(e)).slice(0, 120);
       console.warn("[studio] 推演失败:", e);
-      get().npcSay(`这一炉推演失败了：${msg.slice(0, 120)}——歇口气再点一次「生成」。`);
+      // ★ 2026-09-16 订正（多语言 S2 对着 projection.tsx 核出来的）：铸段窗那颗键印的是「🎲 推演三套方案」，
+      //   原稿里的「生成」早已不存在，用户按这句话找不到该点哪儿
+      get().npcSay(
+        t({
+          message: `这一炉推演失败了：${reason}——歇口气再点一次「🎲 推演三套方案」。`,
+          comment: "铸卡师念的话。reason 是截短的报错原文；「🎲 推演三套方案」是铸段窗里那颗键的名字，英文请引用它的英文名",
+        }),
+      );
       get().setMood(-0.6, 2600);
     } finally {
       nodeGenInFlight = false;
@@ -2026,7 +2097,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
       //   而这一段的改动（包括剪辑页里花钱重生成的那一版）当场蒸发（铁律八）。
       //   走到这里只有一种可能：这一段挂着的节点已经不在流水线上了（被删、或整条被换掉）。
       if (!p) {
-        get().npcSay("这一段改动写不回去了——它挂着的那个节点已经不在流水线上（被删掉，或者整条流水线被换过了）。");
+        get().npcSay(t`这一段改动写不回去了——它挂着的那个节点已经不在流水线上（被删掉，或者整条流水线被换过了）。`);
         get().setMood(-0.6, 3200);
       }
       if (p) {
@@ -2094,8 +2165,13 @@ export const useStudio = create<StudioState>()((set, get) => ({
         set({ notice: { text: useFlow.getState().err || t`这一段没炼成`, at: Date.now() } });
         return false;
       }
+      // ★ 2026-09-16 订正（多语言 S2 对着 projection.tsx 核出来的）：方案台那颗键印的是「✂ 编辑」，
+      //   原稿里的「编辑本段」早已不存在
       get().npcSay(
-        "这一段炼好了——下一段的虚线卡位已经亮起来了。想改细节就点「编辑本段」圈画面，改完的尾帧就是下一段的起拍画面。",
+        t({
+          message: "这一段炼好了——下一段的虚线卡位已经亮起来了。想改细节就点「✂ 编辑」圈画面，改完的尾帧就是下一段的起拍画面。",
+          comment: "铸卡师念的话。「✂ 编辑」是方案台上那颗键的名字，英文请引用它的英文名",
+        }),
       );
       return true;
     } finally {
@@ -2108,7 +2184,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
     // 单一真相后"法阵"不再铺表（没有第二份数据要同步），它只是去另一面的门。
     // 空流水线不导航：/flow 对 0 段会弹回创作入口，看着像法阵坏了——如实指路
     if (useFlow.getState().nodes.length === 0) {
-      get().npcSay("桌上还没有段——先点虚线卡位铸第一段，或去模板市场挑一个「用它出片」。");
+      get().npcSay(t`桌上还没有段——先点虚线卡位铸第一段，或去模板市场挑一个「用它出片」。`);
       return;
     }
     set({ goFlowAt: Date.now() });
