@@ -9,6 +9,7 @@
 //   所以 resolve 只代表"微信已拉起"，不代表用户真的发了。
 import { registerPlugin, Capacitor } from "@capacitor/core";
 import { wechatNativeLogin } from "../api/auth";
+import { nativeErrorCode, nativeLoginErrorText } from "./nativeLoginError";
 
 interface WeChatPluginApi {
   isAvailable(): Promise<{ available: boolean; wechatInstalled: boolean }>;
@@ -23,9 +24,19 @@ export function wechatSupported(): boolean {
   return Capacitor.isNativePlatform();
 }
 
-/** 走完整条微信登录，成功返回本站 token；取消/失败/没装微信都抛（铁律八） */
+/**
+ * 走完整条微信登录，成功返回本站 token；取消/失败/没装微信都抛（铁律八）。
+ * ★ 原生那一半的失败在这里就翻成人话（按 code，见 nativeLoginError）——原生插件抛的是中文硬编码，
+ *   而且与服务端换 token 失败同前缀；分档之后「你可能选了分身」那一句才有地方说。
+ *   服务端那一半（wechatNativeLogin）的错误原样往上抛，两者在屏幕上再不会混。
+ */
 export async function signInWithWeChat(): Promise<string> {
-  const { code } = await WeChat.login();
+  let code: string;
+  try {
+    code = (await WeChat.login()).code;
+  } catch (e) {
+    throw new Error(nativeLoginErrorText("wechat", nativeErrorCode(e), e instanceof Error ? e.message : String(e)));
+  }
   const { token } = await wechatNativeLogin(code);
   return token;
 }

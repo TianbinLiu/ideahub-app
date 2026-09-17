@@ -846,6 +846,15 @@ msgstr "{0}锁{1}"
 msgid "{actName} 用哪个动作组"
 msgstr "{actName} 用哪个动作组"
 
+#: src/utils/nativeLoginError.ts
+msgid "{app}授权失败（{detail}）。再点一次试试，或者用手机号、邮箱登录。"
+msgstr "{app}授权失败（{detail}）。再点一次试试，或者用手机号、邮箱登录。"
+
+#. placeholder {0}: cloneHint()
+#: src/utils/nativeLoginError.ts
+msgid "{app}没有接受这次授权（{detail}）。{0}"
+msgstr "{app}没有接受这次授权（{detail}）。{0}"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "{area}（包里没有）"
 msgstr "{area}（包里没有）"
@@ -2820,6 +2829,10 @@ msgstr "canvas 不可用"
 msgid "mp4 / mov · {maxMinutes} 分钟以内 · {maxMb}MB 以内 · 会<0>公开托管</0>（套用者出片时引用它）。"
 msgstr "mp4 / mov · {maxMinutes} 分钟以内 · {maxMb}MB 以内 · 会<0>公开托管</0>（套用者出片时引用它）。"
 
+#: src/utils/nativeLoginError.ts
+msgid "QQ"
+msgstr "QQ"
+
 #: src/components/ShareSheet.tsx
 msgid "QQ 分享要在 App 里用，浏览器里请复制链接"
 msgstr "QQ 分享要在 App 里用，浏览器里请复制链接"
@@ -2827,6 +2840,10 @@ msgstr "QQ 分享要在 App 里用，浏览器里请复制链接"
 #: src/components/ShareSheet.tsx
 msgid "QQ 好友"
 msgstr "QQ 好友"
+
+#: src/utils/nativeLoginError.ts
+msgid "QQ 登录没能初始化。请重启 App 再试，或者用手机号、邮箱登录。"
+msgstr "QQ 登录没能初始化。请重启 App 再试，或者用手机号、邮箱登录。"
 
 #: src/pages/LoginPage.tsx
 msgid "QQ 登录要在 App 里用（浏览器中没有 QQ 客户端可以拉起），先用邮箱或手机号登录"
@@ -3058,6 +3075,10 @@ msgstr "上一张还没拍完"
 #: src/hooks/useFlowActions.ts
 msgid "上一条剪到一半的成片这会儿没读出来（本机数据库没打开），现在组稿会把它顶掉。先去「我的」点「重试」，读出来之后再来组这一条。"
 msgstr "上一条剪到一半的成片这会儿没读出来（本机数据库没打开），现在组稿会把它顶掉。先去「我的」点「重试」，读出来之后再来组这一条。"
+
+#: src/utils/nativeLoginError.ts
+msgid "上一次{app}登录被这一次顶替了。"
+msgstr "上一次{app}登录被这一次顶替了。"
 
 #: src/components/PhotoSubjectPicker.tsx
 #: src/components/VideoTemplateExtractor.tsx
@@ -7440,6 +7461,10 @@ msgstr "如：黄昏的旧海港，锈铁塔吊与晒网的木架"
 msgid "如果两个人偶印着同一个号：挂在这个号上的卡<0>可能会把两个人一起换成同一张卡</0>（模型只认数字，分不出哪个是你要的）。不想要这个效果，就把这个号的位子也删掉 —— 那两个人偶会保持白模原样出现在片子里。"
 msgstr "如果两个人偶印着同一个号：挂在这个号上的卡<0>可能会把两个人一起换成同一张卡</0>（模型只认数字，分不出哪个是你要的）。不想要这个效果，就把这个号的位子也删掉 —— 那两个人偶会保持白模原样出现在片子里。"
 
+#: src/utils/nativeLoginError.ts
+msgid "如果刚才弹出过选择框、你选的是分身，请退回来改选本体那一个——分身给不了第三方应用授权。也可以直接用手机号或邮箱登录。"
+msgstr "如果刚才弹出过选择框、你选的是分身，请退回来改选本体那一个——分身给不了第三方应用授权。也可以直接用手机号或邮箱登录。"
+
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "如果画面上大部分号都对不上，这段白模的编号本身就没画好 —— 删位只能救回一部分，要全对得上只能重炼（要再花一次钱）。"
 msgstr "如果画面上大部分号都对不上，这段白模的编号本身就没画好 —— 删位只能救回一部分，要全对得上只能重炼（要再花一次钱）。"
@@ -8106,6 +8131,10 @@ msgstr "已发布「{0}」到声音市场，并设为你的声音。"
 #: src/api/uploads.ts
 msgid "已取消"
 msgstr "已取消"
+
+#: src/utils/nativeLoginError.ts
+msgid "已取消{app}登录。"
+msgstr "已取消{app}登录。"
 
 #: src/studio/live2dUploadStore.ts
 msgid "已取消上传。要发布的话重新点一次「开始识别」。"
@@ -8853,6 +8882,7 @@ msgstr "得先给它起个标题，才发得出去（关掉这张卡去填一个
 
 #: src/components/BrandIcon.tsx
 #: src/components/ShareSheet.tsx
+#: src/utils/nativeLoginError.ts
 msgid "微信"
 msgstr "微信"
 
@@ -8863,6 +8893,10 @@ msgstr "微信分享要在 App 里用，浏览器里请复制链接"
 #: src/pages/LoginPage.tsx
 msgid "微信登录要在 App 里用（浏览器中没有微信客户端可以拉起），先用邮箱或手机号登录"
 msgstr "微信登录要在 App 里用（浏览器中没有微信客户端可以拉起），先用邮箱或手机号登录"
+
+#: src/utils/nativeLoginError.ts
+msgid "微信里拒绝了这次授权。想用微信登录的话再点一次，在微信里选「同意」。"
+msgstr "微信里拒绝了这次授权。想用微信登录的话再点一次，在微信里选「同意」。"
 
 #: src/studio/personaWizardStore.ts
 msgid "微调"
@@ -12424,6 +12458,10 @@ msgstr "没能完成，请重试"
 msgid "没能开始播放：{0}"
 msgstr "没能开始播放：{0}"
 
+#: src/utils/nativeLoginError.ts
+msgid "没能打开{app}的授权页。确认装的是正式版{app}并且版本不太旧，或者用手机号、邮箱登录。"
+msgstr "没能打开{app}的授权页。确认装的是正式版{app}并且版本不太旧，或者用手机号、邮箱登录。"
+
 #: src/pages/SettingsPage.tsx
 msgid "没能打开浏览器（可能被拦截了）。你可以直接访问 {url}"
 msgstr "没能打开浏览器（可能被拦截了）。你可以直接访问 {url}"
@@ -14791,6 +14829,11 @@ msgstr "等了 12 分钟还没出片（任务还在方舟那边跑，不是失�
 #: src/data/videoDownload.ts
 msgid "等了 60 秒一个字节都没来，当断了处理。再点一次接着试。"
 msgstr "等了 60 秒一个字节都没来，当断了处理。再点一次接着试。"
+
+#. placeholder {0}: cloneHint()
+#: src/utils/nativeLoginError.ts
+msgid "等了很久也没等到{app}的回音。再点一次试试；{0}"
+msgstr "等了很久也没等到{app}的回音。再点一次试试；{0}"
 
 #: src/data/templates.ts
 msgid "等太久没等到回复——但这一发多半还在服务器上跑（整条切成 N 段要逐段转码，慢的时候好几分钟）。先别急着再点（再点会把同一条视频切第二遍），也别去删那段素材：等一两分钟，去「我的模板」看看那一组是不是已经到了。"
@@ -17593,6 +17636,10 @@ msgstr "这几句里同时写了中文和英文的段号，分不清是哪一段
 msgid "这句话超过 {VIDEO_PROMPT_MAX} 字——输入条本来也发不出这么长，精简一下"
 msgstr "这句话超过 {VIDEO_PROMPT_MAX} 字——输入条本来也发不出这么长，精简一下"
 
+#: src/utils/nativeLoginError.ts
+msgid "这台手机上没有安装微信。装了微信再试，或者用手机号、邮箱登录。"
+msgstr "这台手机上没有安装微信。装了微信再试，或者用手机号、邮箱登录。"
+
 #: src/data/videoDownload.ts
 msgid "这台手机上没有能接收视频的应用。文件已经在 App 内，装一个文件管理器再试。"
 msgstr "这台手机上没有能接收视频的应用。文件已经在 App 内，装一个文件管理器再试。"
@@ -18264,6 +18311,10 @@ msgstr "这样裁完只剩不到 {MIN_CLIP_SEC} 秒，片段太短了"
 #: src/data/videos.ts
 msgid "这次启动没连上服务器，作品先存在这台设备上——联网后会自动上传"
 msgstr "这次启动没连上服务器，作品先存在这台设备上——联网后会自动上传"
+
+#: src/utils/nativeLoginError.ts
+msgid "这次微信回执与本次请求对不上，请再点一次。"
+msgstr "这次微信回执与本次请求对不上，请再点一次。"
 
 #. placeholder {0}: doomed.length
 #: src/components/blockout/RoleConfirmSheet.tsx

@@ -10,6 +10,7 @@
 //   完整推理见 QQLoginPlugin.java 的类注释。
 import { registerPlugin, Capacitor } from "@capacitor/core";
 import { qqNativeLogin } from "../api/auth";
+import { nativeErrorCode, nativeLoginErrorText } from "./nativeLoginError";
 
 interface QQLoginPluginApi {
   isAvailable(): Promise<{ available: boolean; qqInstalled: boolean }>;
@@ -39,7 +40,13 @@ export function qqLoginSupported(): boolean {
  *   静默吞掉的话，用户点了按钮却什么都没发生，只会以为是坏了（铁律八）。
  */
 export async function signInWithQQ(): Promise<string> {
-  const { code } = await QQLogin.login();
+  // ★ 原生那一半的失败按 code 翻成人话（理由同 utils/wechat.ts）；服务端那一半原样抛
+  let code: string;
+  try {
+    code = (await QQLogin.login()).code;
+  } catch (e) {
+    throw new Error(nativeLoginErrorText("qq", nativeErrorCode(e), e instanceof Error ? e.message : String(e)));
+  }
   const { token } = await qqNativeLogin(code);
   return token;
 }
