@@ -75,10 +75,8 @@ export const deriveDeckCards: typeof real.deriveDeckCards = AI_REAL
 /** 白模段挂卡后的合成预览图；mock 构建直接把白模帧当预览（0 token） */
 export const castPreviewImage: typeof real.castPreviewImage = AI_REAL ? real.castPreviewImage : async (o) => o.frameUrl;
 export { frameUrlAt } from "./real";
-/** 白模模板登记时从原片抽帧铸 V3 素材卡（场景 / 道具 / 风格）；mock 构建不出卡 */
-export const extractTemplateCards: typeof real.extractTemplateCards = AI_REAL
-  ? real.extractTemplateCards
-  : async () => ({ cards: [], tokens: 0 });
+// ★ 这里原来还有 `extractTemplateCards`（白模模板登记时从原片抽帧铸 V3 素材卡）：唯一的调用方在白模路上恒走不到（提取器那条路不存原片帧），
+//   主人 2026-09-17 定「AI 白模化用不到提炼素材卡」，连同 real.ts 里的实现一起删除（要找回看 git 历史）。
 /** 上传参考视频提炼**模板**（画风配方 + 分镜骨架 + 可复用素材卡）；
  *  mock 构建给一份能跑通流程的假配方 */
 export const extractTemplateFromVideo: typeof real.extractTemplateFromVideo = AI_REAL

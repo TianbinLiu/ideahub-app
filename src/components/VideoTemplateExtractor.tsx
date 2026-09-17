@@ -45,7 +45,7 @@ import { currentRoute, startJob } from "../data/jobs";
 import { useAutoGuide } from "./guide/useAutoGuide";
 import { activeGuide } from "../data/guide";
 import { useGuide } from "../hooks/useGuide";
-import { AI_REAL, extractTemplateCards, extractTemplateFromVideo } from "../ai";
+import { AI_REAL, extractTemplateFromVideo } from "../ai";
 import {
   MAX_TEMPLATE_VIDEO_BYTES,
   TEMPLATE_UPLOAD_RULES,
@@ -55,9 +55,8 @@ import {
   type TemplateVideoReceipt,
 } from "../api/uploads";
 import { balanceNote, canAfford, spendTokens } from "../data/account";
-import { TEMPLATE_MAX_CARDS, blockoutCardsCost, fmtTokens, ownRefTemplateCost, templateCost } from "../data/economy";
+import { TEMPLATE_MAX_CARDS, fmtTokens, ownRefTemplateCost, templateCost } from "../data/economy";
 import {
-  updateTemplate,
   ARK_EDIT_RULES,
   BLOCKOUT_INPUT_RULES,
   SPLIT_MAX_PARTS,
@@ -766,7 +765,6 @@ export default function VideoTemplateExtractor({
   const splitCap = SPLIT_MAX_PARTS * maxSec;
   const cutsMax = SPLIT_MAX_PARTS - 1;
   const partMinSec = ARK_EDIT_RULES.minSec;
-  const cardsPrice = fmtTokens(blockoutCardsCost());
   /** ownRef 的选段裁决（注入 Trimmer 的 judge 口）：≤30 秒沿用白模化那组窗口判词但豁免
    *  像素门（derive 会放大），>30 秒换分段那组（整条/整幅/≤12 段，见 arkVideoRules） */
   const ownRefJudge =
@@ -1142,49 +1140,10 @@ export default function VideoTemplateExtractor({
         },
       });
       setGot(tpl);
-      // ★ V3 第三期：白模模板的素材卡（场景 / 道具 / 风格）从**原片**抽帧铸——白模帧里认不出这些。
-      //   报价（blockoutCardsCost）在上一屏与白模化那两笔并排说过；余额不够就只做模板、把话说清（铁律八）
-      //   结局四种、各自整句（不再把「；素材卡没铸…」这种半句拼进通知里）：没铸 / 余额不够 / 铸了 N 张 / 铸失败
-      let cardsOutcome: "none" | "unaffordable" | "minted" | "failed" = "none";
-      let cardsQuote = "";
-      let cardsN = 0;
-      let cardsWhy = "";
-      if (frames.length > 0) {
-        const quote = blockoutCardsCost();
-        if (AI_REAL && !canAfford(quote)) {
-          cardsOutcome = "unaffordable";
-          cardsQuote = fmtTokens(quote);
-        } else {
-          try {
-            const r = await extractTemplateCards(frames, note, (st) => {
-              setBusy(st);
-              job.update(st);
-            });
-            if (AI_REAL && r.tokens > 0) spendTokens(r.tokens);
-            if (r.cards.length > 0) {
-              updateTemplate(tpl.id, { cards: r.cards });
-              setGot({ ...tpl, cards: r.cards });
-              cardsOutcome = "minted";
-              cardsN = r.cards.length;
-            }
-          } catch (e) {
-            const why = e instanceof Error ? e.message : String(e);
-            cardsOutcome = "failed";
-            cardsWhy = why.slice(0, 60);
-          }
-        }
-      }
-      job.done({
-        msg:
-          cardsOutcome === "unaffordable"
-            ? t`白模模板做好了；素材卡没铸（最多需 ${cardsQuote} token，余额不够），去「我的模板」看看`
-            : cardsOutcome === "minted"
-              ? t`白模模板做好了，附 ${cardsN} 张素材卡，去「我的模板」看看`
-              : cardsOutcome === "failed"
-                ? t`白模模板做好了；素材卡没铸成（${cardsWhy}），去「我的模板」看看`
-                : t`白模模板做好了，去「我的模板」看看`,
-        silent: mountedRef.current,
-      });
+      // ★ 这里原来有一步「白模化成功后从原片抽帧铸素材卡」（V3 第三期 2026-09-06 加；2026-09-17 删，主人定：AI 白模化用不到）。
+      //   它从没跑到过：判据 frames.length > 0，而 frames 只有经典配方那条路才存（白模分支抽的 4 帧只查水印、不存；选文件与换路都会清空），
+      //   四种结局实际只出过「没铸」这一种，上一屏那句第三笔报价也从没上过屏。real.extractTemplateCards / economy.blockoutCardsCost 一并删除。
+      job.done({ msg: t`白模模板做好了，去「我的模板」看看`, silent: mountedRef.current });
     } catch (e) {
       const reason = e instanceof Error ? e.message : String(e);
       const why = reason.slice(0, 60);
@@ -1704,13 +1663,8 @@ export default function VideoTemplateExtractor({
                 trimWindow={ownRefWindow}
                 extra={
                   <div className="space-y-2">
-                    {/* ★ V3 第三期：白模化之外的第三笔——从原片抽帧铸素材卡。报在这里、实收按 real.extractTemplateCards
-                        逐笔记，只会比这个数少（余额不够时只做模板并说明）。ownRef 路不铸（那条路的原片就是白模） */}
-                    {route !== "ownRef" && frames.length > 0 && (
-                      <p className="text-[11px] leading-relaxed text-slate-400">
-                        <Trans>另外会从原片提炼素材卡（场景 / 道具 / 风格，最多 {TEMPLATE_MAX_CARDS} 张，按实际出的收，最多 {cardsPrice}）。</Trans>
-                      </p>
-                    )}
+                    {/* （原来这里有第三笔报价「另外会从原片提炼素材卡…」：显示条件 frames.length > 0 在白模路上恒假，从没上过屏，
+                        2026-09-17 随 runBlockoutize 里那一步一起删。这一屏的钱只有 BlockoutTrimmer 报的那两笔。） */}
                     {/* 标题：aiBlockout 路只有这一屏，在这里填；ownRef 路挪到第 2 步（提交那一屏）填 */}
                     {route === "aiBlockout" && titleField}
                     {/* ★ 补充说明只对**要 AI 白模化**那条路有用（它进的是"看帧认人"那一发的
