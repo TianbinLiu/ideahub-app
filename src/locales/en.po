@@ -1578,6 +1578,10 @@ msgstr "<0>The AI reads this when recreating this card's visuals or 3D model</0>
 msgid "<0>不提取主角</0>——主角由你之后那句话指定。"
 msgstr "<0>The lead isn't extracted</0> — you'll name the lead in the sentence you write later."
 
+#: src/components/guide/tours.tsx
+msgid "<0>不是每个模板都有这条路</0>：画面上画出了落点框才有（没有框就用格子行挂，那条路任何模板都有）。 有框时也可以按住上面这排卡里的一张，<1>往下拖到画面里那个人偶身上</1>，人少的时候更直观。 框是照<2>某一帧</2>量出来的，所以这时画面只在那一帧附近播一小下就自动停回去； 播远了、人走动了，框会自己消失，画面下面会给一颗「回到标记帧」把它拨回去 —— 这是有意的，不是坏了。"
+msgstr "<0>Not every template has this option</0>: it's only there when drop-target boxes are drawn on the picture (without boxes, use the slot row — that works on every template). With boxes, you can also press and hold a card in the row above and <1>drag it down onto that mannequin in the picture</1>, which is more intuitive when there are only a few people. The boxes were measured on <2>one particular frame</2>, so here the video only plays for a moment around that frame and then goes back to it on its own; if playback moves away and people have moved, the boxes disappear by themselves and a “Back to marked frame” button appears below the picture to take you back — that's by design, not a bug."
+
 #: src/components/VideoTemplateExtractor.tsx
 msgid "<0>不是每次都全对</0>——会有人根本没被换成人偶，最容易漏<1>画面正中央那一个</1>。出片后<2>从左往右</2>核对， 对不上的位子删掉就行（不花钱）；要全对上只能<3>再花一次钱重炼</3>。人越少越准。"
 msgstr "<0>It isn't always fully right</0> — some people may not be turned into mannequins at all, and the one most often missed is <1>the one in the middle of the frame</1>. After rendering, check <2>from left to right</2>: just delete any slot that doesn't match (free); getting every slot right means <3>paying again to re-render</3>. The fewer people, the more accurate."
@@ -1606,6 +1610,10 @@ msgstr "<0>This can't be undone</0>: the card image, reference images, generatio
 #: src/components/guide/tours.tsx
 msgid "<0>剪辑</0>管顺序与取舍，<1>圈选</1>管改画面（要花钱的那种改），<2>音频</2>管配乐 —— 不是每一档出的画面都带声音（白模复刻段一律没有）， 想要声音、想加配乐，就在这儿配。"
 msgstr "<0>Edit</0> handles order and what to keep, <1>Circle</1> handles changes to the picture (the kind that costs money), and <2>Audio</2> handles music — not every tier's footage comes with sound (blockout remake segments never do), so if you want sound or background music, add it here."
+
+#: src/components/guide/tours.tsx
+msgid "<0>只有拖到画面上</0>那一条会先问一遍：上面那排卡的正下方会出现一条确认，写着要把哪张卡挂到哪个人物身上，同时把画面上那个人偶高亮起来 —— 因为那个落点是<1>推断</1>出来的（人偶会重叠、人会走动）。 请对着高亮的那个再看一眼，对了点「就是他」，不对点「点错了」：挂错人<2>不会报错</2>，要等成片炼出来才看得见， 那时已经花过一次出片的钱了。落到格子上不问 —— 落在哪一格是你眼睛看着放的，没有可推断错的余地。"
+msgstr "<0>Only a drop on the picture</0> asks first: a confirmation strip appears right below the row of cards, saying which card is about to go onto which person, and that mannequin is highlighted in the picture at the same time — because that drop target is <1>inferred</1> (mannequins overlap and people move). Take another look at the highlighted one, then tap “That's the one” if it's right or “Wrong one” if it isn't: attaching to the wrong person <2>gives no error</2>, and you'd only see it once the finished video is rendered, by which time you've already paid for a render. A drop on a slot doesn't ask — you put it on that slot with your own eyes, so there's nothing to infer wrongly."
 
 #: src/components/guide/tours.tsx
 msgid "<0>我的模板</0>装的是你自己做的，新做一个也从那里进：传一段视频，让 AI 把画面里的人换成一模一样的白色人偶，或者直接拿你本来就做好的白模片用。走哪条路在提取器<1>打开后的第一屏</1>挑；要花多少钱到框选那一步当场整句报出来，确认了才开炼。"
@@ -2713,6 +2721,7 @@ msgid "AI 生成整套约 {aiPriceText} token，余额 {balance} 不够——去
 msgstr "Generating the full set with AI costs about {aiPriceText} tokens, and your balance of {balance} isn't enough — top up on the “Me” page, or choose “Upload my own images” instead (free)"
 
 #: src/components/blockout/VisionFramePicker.tsx
+#: src/components/guide/tours.tsx
 msgid "AI 看哪几帧"
 msgstr "Frames for the AI to look at"
 
@@ -2927,6 +2936,10 @@ msgstr "No bullet comments at all"
 #: src/pages/AdminPage.tsx
 msgid "一条评论都没有"
 msgstr "No comments at all"
+
+#: src/components/guide/tours.tsx
+msgid "一格一个角色位"
+msgstr "One slot per role"
 
 #. placeholder {0}: doneRows.length
 #: src/components/DownloadSheet.tsx
@@ -3394,9 +3407,17 @@ msgstr "Outside the selection"
 msgid "不太像，回去重生成"
 msgstr "Not quite right, go back and regenerate"
 
+#: src/components/guide/tours.tsx
+msgid "不对就改，不用重炼"
+msgstr "Fix it here, no re-render"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "不承接（用自己的首帧起拍）"
 msgstr "Not continued (starts from its own first frame)"
+
+#: src/components/guide/tours.tsx
+msgid "不挂满也能出片"
+msgstr "No need to fill every slot"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "不推荐"
@@ -3410,6 +3431,10 @@ msgstr "None"
 #: src/pages/FlowPage.tsx
 msgid "不用"
 msgstr "Don't use"
+
+#: src/components/guide/tours.tsx
+msgid "不用挂满：挂几个换几个，剩下的通常照旧是人偶（切镜多的素材例外，第 1 步说过）。挂过的位子随时能换 —— <0>点中那一格，再点另一张卡</0>就换掉了； 那一格挂着卡时，上面卡片那一行的右端会出现<1>「取下」</1>。都弄好之后点底部的<2>「完成挂卡」</2>，就带着这份对应关系回到上一步去炼视频。"
+msgstr "You don't have to fill every slot: the ones you fill get swapped, and the rest usually stay mannequins (footage with many shot changes is the exception, as step 1 said). A filled slot can be changed any time — <0>select that slot, then tap another card</0> and it's replaced; while the selected slot has a card, <1>“Remove”</1> appears at the right end of the card row above. When everything's set, tap <2>“Done casting”</2> at the bottom to take this mapping back to the previous step and render the video."
 
 #: src/pages/FlowPage.tsx
 msgid "不用模板，开一条空的（丢弃上面那条）"
@@ -3548,6 +3573,10 @@ msgstr "Report this comment"
 #: src/studio/ui/NpcDialog.tsx
 msgid "也可以按左上角的返回"
 msgstr "You can also use Back in the top left"
+
+#: src/components/guide/tours.tsx
+msgid "也能拖到画面上"
+msgstr "Or drag onto the picture"
 
 #. placeholder {0}: res.status
 #: src/pages/SettingsVoicePage.tsx
@@ -4400,6 +4429,10 @@ msgstr "Pick at least one reference image first — fusion combines several imag
 msgid "先核对成片"
 msgstr "Check the video first"
 
+#: src/components/guide/tours.tsx
+msgid "先框出哪一段"
+msgstr "First, select the part"
+
 #: src/pages/CutPage.tsx
 msgid "先点上面的片段选中，再用这排按钮"
 msgstr "Tap a clip above to select it, then use these buttons"
@@ -4717,6 +4750,10 @@ msgstr "Tap again to delete. People using it keep the voice; it just won't show 
 msgid "再补一句要求（可留空）"
 msgstr "Add a request (optional)"
 
+#: src/components/guide/tours.tsx
+msgid "再裁掉台标与水印"
+msgstr "Crop out logos and watermarks"
+
 #: src/components/DeleteConfirmShell.tsx
 #: src/pages/CardDetailPage.tsx
 #: src/pages/EditPage.tsx
@@ -5030,7 +5067,7 @@ msgstr "Analyzing…"
 
 #: src/components/VideoTemplateExtractor.tsx
 msgid "分析帧数（越多认得越准，价钱不变）"
-msgstr "Frames to analyze (more frames recognize better; the price stays the same)"
+msgstr "Frames to analyze (more frames are more accurate; the price stays the same)"
 
 #: src/components/VideoTemplateExtractor.tsx
 msgid "分析模板"
@@ -7465,6 +7502,10 @@ msgstr "Password"
 msgid "密码至少 6 位"
 msgstr "The password needs at least 6 characters"
 
+#: src/components/guide/tours.tsx
+msgid "对不上是可以就地改的：<0>标记写错了直接改成画面上那个</0>；清单里多出画面上找不到的位子就「删掉」；AI 漏认的人偶还能用清单下面那颗带加号的键<1>加回清单</1>。这些都<2>不会再花一次钱</2>。按位置指认的模板删掉一位后，记得把它右边各位往左挪一位——面板在待删行和提交前都会提醒。各种对不上的细节，展开视频<3>下面</3>那个「对不上怎么办？」看。"
+msgstr "Mismatches can be fixed right here: <0>if a mark is wrong, change it to the one in the picture</0>; if the list has an extra slot you can't find in the picture, tap “Delete”; and a mannequin the AI missed can be <1>added back</1> with the + button below the list. None of this <2>costs you again</2>. On a position-based template, after deleting a slot remember to move each slot to its right one place to the left — the panel reminds you on the pending-delete row and again before you submit. For the details of each kind of mismatch, expand “Doesn't match?” <3>below</3> the video."
+
 #: src/studio/live2dUploadStore.ts
 msgid "对映射"
 msgstr "Check mapping"
@@ -7477,6 +7518,10 @@ msgstr "Talk to the canvas"
 #: src/components/flow/FlowCanvas.tsx
 msgid "对画布说话：{0}"
 msgstr "Talk to the canvas: {0}"
+
+#: src/components/guide/tours.tsx
+msgid "对着视频逐行核对"
+msgstr "Check rows against the video"
 
 #: src/pages/SupportPage.tsx
 msgid "对话未开通"
@@ -9191,6 +9236,14 @@ msgstr "Taking photo…"
 msgid "拖一整组 = 组里的卡全加进来"
 msgstr "Drag a whole deck = add every card in it"
 
+#: src/components/guide/tours.tsx
+msgid "拖两头的把手只取你要的那几秒。 挑<0>人最齐、镜头最稳</0>的一段—— 切镜多的素材里，同一个人在不同镜头里的位置不一样，套用时容易换错人。"
+msgstr "Drag the handles at both ends to keep just the seconds you want. Pick a part where <0>everyone is in the picture and the camera is steadiest</0> — in footage with many shot changes, the same person stands in a different place from shot to shot, so cards easily land on the wrong person when the template is used."
+
+#: src/components/guide/tours.tsx
+msgid "拖到画面上会再问一次"
+msgstr "Drops on the picture ask first"
+
 #: src/components/MaterialSheet.tsx
 msgid "拖到这里交给她"
 msgstr "Drag here to hand it to her"
@@ -9207,6 +9260,10 @@ msgstr "Drag a card onto the dashed slot to forge a segment · tap for details"
 msgid "拖四个角调整<0>裁剪框</0>，拖框身整体挪位。<1>台标 / 水印必须框到框外</1> —— AI 出片是逐帧复刻画面， 提示词去不掉它（实测），裁掉是唯一的办法；而模板会被反复套用，留一个水印就是永久的。"
 msgstr "Drag the four corners to adjust the <0>crop box</0>, or drag the box itself to move it. <1>Channel logos / watermarks must be left outside the box</1> — the AI remakes the picture frame by frame and prompts can't remove them (tested), so cropping is the only way; and since templates get reused over and over, a watermark left in stays forever."
 
+#: src/components/guide/tours.tsx
+msgid "拖四个角调裁剪框。水印<0>必须框到框外</0>： 出片是逐帧复刻画面，提示词去不掉它（实测），而模板会被反复套用—— 留一个水印就是永久的。"
+msgstr "Drag the four corners to adjust the crop box. Watermarks <0>must be left outside the box</0>: rendering remakes the picture frame by frame and prompts can't remove them (tested), and since a template gets used over and over, a watermark left in stays forever."
+
 #: src/pages/CutPage.tsx
 msgid "拖拽换序 · 点击选中"
 msgstr "Drag to reorder · tap to select"
@@ -9218,6 +9275,10 @@ msgstr "Drag the progress bar to the frame you want to change, ⭕ circle the ob
 #: src/components/flow/RefFrameSheet.tsx
 msgid "拖进度条到想要的画面，再点下面的键"
 msgstr "Drag the progress bar to the frame you want, then tap a button below"
+
+#: src/components/guide/tours.tsx
+msgid "拿一段参考视频，让 AI 把它变成能反复套用的<0>模板</0>。第一步就是在这里<1>选做法</1>：选哪条决定后面几步长什么样，也决定花不花钱、花多少。<2>上传之前</2>随时能点「‹ 换一种做法」回来换（在白模与经典之间换，已经选好的文件要重新选一次）。 传完就定死了——要换只能取消整个重来。"
+msgstr "Take a reference video and let the AI turn it into a <0>template</0> you can use over and over. The first step, right here, is to <1>pick a route</1>: the one you pick decides what the next steps look like, and whether it costs anything and how much. <2>Before you upload</2> you can come back and switch at any time with “‹ Pick a different route” (if you switch between a blockout route and the classic one, a file you've already chosen has to be chosen again). Once the upload finishes the route is locked — to change it you have to cancel and start over."
 
 #: src/components/VoiceRecorder.tsx
 msgid "拿不到麦克风权限。App 版本 ≤2.29 的安装包没带录音权限，升级到新版后在系统弹窗里点允许；拒绝过的话去系统设置 → 应用 → 启梦 → 权限里打开麦克风。"
@@ -9262,6 +9323,10 @@ msgstr "Cards saved, but the video can't be generated yet: {issue}"
 #: src/studio/canvasAgent.ts
 msgid "挂卡没成功（原因没说清——这是个 bug，请反馈）"
 msgstr "Casting failed (no reason was given — this is a bug, please report it)"
+
+#: src/components/guide/tours.tsx
+msgid "挂卡面板"
+msgstr "Casting panel"
 
 #. placeholder {0}: next.label
 #: src/components/flow/TierRow.tsx
@@ -9645,6 +9710,10 @@ msgstr "The traced area is too small: only {lassoShort}px after scaling, needs a
 msgid "描述素材，或直接描述你想要的卡"
 msgstr "Describe your materials, or just describe the card you want"
 
+#: src/components/guide/tours.tsx
+msgid "描述给套用者看"
+msgstr "Who the description is for"
+
 #. placeholder {0}: doomed.length
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "提交：改完位置并删掉 {0} 个角色位"
@@ -9694,6 +9763,11 @@ msgstr "Send to a human agent"
 #: src/pages/FlowPage.tsx
 msgid "提取模板"
 msgstr "Extract template"
+
+#: src/components/guide/tours.tsx
+msgctxt "新手引导的屏名：只拼进无障碍标签「… 使用引导」（与简约出片页的「提取模板」键同字不同用）"
+msgid "提取模板"
+msgstr "Template extractor"
 
 #: src/studio/studioStore.ts
 msgid "提炼本片卡组…"
@@ -10019,6 +10093,10 @@ msgstr "Image edit failed: {reason}"
 msgid "改图要 {price} token，余额不够了——去「我的」页充值。"
 msgstr "Editing the image costs {price} tokens and your balance isn't enough — top up on the “Me” page."
 
+#: src/components/guide/tours.tsx
+msgid "改完一次提交"
+msgstr "Submit everything at once"
+
 #: src/pages/FlowPage.tsx
 msgid "改完挂卡会按新的映射<0>重新合成</0>下面那段要求，你改过的字会被替换掉 —— 因为旧的那段话里写的还是旧的挂卡，留着它 AI 就会照旧的换人。"
 msgstr "After you change the cards, the request below is <0>re-composed</0> with the new mapping and your edits are replaced — the old text still describes the old cards, and keeping it would make the AI swap people the old way."
@@ -10238,6 +10316,10 @@ msgstr "The scheme market didn't open: {why}"
 msgid "方舟回了一份素材，但 ID 形状不认识（{0}）——用「填 asset ID」那条路确认一下。"
 msgstr "Ark returned an asset, but its ID format isn't recognized ({0}) — confirm it by entering the asset ID manually."
 
+#: src/components/guide/tours.tsx
+msgid "方舟对画面大小、宽高比、时长都有硬门槛。 不过关时下面会<0>直接说是哪一条不合</0>，按那句话改就行， 不用在这里背数。"
+msgstr "Ark has hard limits on picture size, aspect ratio and duration. When a selection doesn't pass, the message below <0>tells you exactly which limit it breaks</0>; just follow what it says — no need to memorize numbers here."
+
 #: src/data/templates.ts
 msgid "方舟报这一发没能出片，正在向服务器核实到底怎么回事…"
 msgstr "Ark reported that this job didn't produce a video; checking with the server what actually happened…"
@@ -10312,6 +10394,10 @@ msgstr "duration follows the reference video"
 #: src/studio/genLog.ts
 msgid "时长跟随参考片 {refSec}s"
 msgstr "duration follows the reference video ({refSec}s)"
+
+#: src/components/guide/tours.tsx
+msgid "时间轴下面那一块：AI <0>只看这几帧</0>去认画面里有谁—— 被看漏的人照样会变成白人偶，但清单里<1>没有他的位置，谁的卡都挂不上</1>， 还会把别人的位置挤歪。可以让它自动挑，也可以自己标人最全的几帧；<2>帧数不进报价</2>：多看几帧更准，也不额外收费。"
+msgstr "The block below the timeline: the AI looks at <0>only these frames</0> to work out who's in the picture — anyone it misses still becomes a white mannequin, but <1>has no slot on the list, so no card can be attached to them</1>, and they push everyone else's position off. You can let it pick automatically, or mark the frames with the most people yourself; <2>the frame count doesn't affect the price</2>: more frames are more accurate and cost nothing extra."
 
 #: src/pages/SettingsProfilePage.tsx
 msgid "昵称"
@@ -10862,6 +10948,10 @@ msgstr "Local count: only activity on this device is counted"
 msgid "本机那份画布已经不在了——这条作品没法再补留存了。"
 msgstr "The canvas on this device is gone — this video's project can no longer be kept."
 
+#: src/components/guide/tours.tsx
+msgid "本来就是白模片"
+msgstr "It's already a blockout"
+
 #. placeholder {0}: modelLabel(tier.model)
 #: src/studio/ui/NpcDialog.tsx
 msgid "本次出图：{0}"
@@ -11108,6 +11198,10 @@ msgstr "Check positions"
 msgid "核对编号"
 msgstr "Check numbers"
 
+#: src/components/guide/tours.tsx
+msgid "核对角色位"
+msgstr "Check role slots"
+
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "核对角色位位置"
 msgstr "Check role slot positions"
@@ -11118,7 +11212,7 @@ msgstr "Check role slot numbers"
 
 #: src/components/guide/tours.tsx
 msgid "框出哪一段、裁出哪一块，就是 AI 真正拿去白模化的全部内容；再加上下面 「AI 看哪几帧」，决定它认不认得全画面里的人。<0>这一发多少钱</0>只看时长（越长越贵，多看几帧不额外收费）， 而钱一开始算就退不了。"
-msgstr "The segment you frame and the area you crop are everything the AI actually turns into a blockout; “Frames for the AI to look at” below decides whether it catches everyone in the shot. <0>What this run costs</0> depends only on the duration (longer costs more; looking at more frames costs nothing extra), and once charging starts it can't be refunded."
+msgstr "The part you select and the area you crop are everything the AI actually turns into a blockout; “Frames for the AI to look at” below decides whether it catches everyone in the shot. <0>What this run costs</0> depends only on the duration (longer costs more; looking at more frames costs nothing extra), and once charging starts it can't be refunded."
 
 #: src/components/PhotoSubjectPicker.tsx
 msgid "框出这件道具"
@@ -11743,6 +11837,10 @@ msgstr "Every segment must be rendered before merging"
 msgid "每生成一版都会扣一次"
 msgstr "Each version you generate is charged"
 
+#: src/components/guide/tours.tsx
+msgid "每行那句描述给<0>套用你模板的人</0>看：他看不到你的原片，画面上又全是长得一样的人偶，只能靠<1>标记加这句话</1>决定把哪张卡挂上去。写什么看输入框上面那行小字：写着「会进出片提示词」时，描述的是<2>人偶现在的样子</2>（例：白色、弯腰前倾、在最左那盏路灯下）；否则写原片里这个人认得出来的外形（例：白发、黑袍的少年）。别写只有你自己看得懂的代号。"
+msgstr "The description on each row is for <0>people using your template</0>: they can't see your original footage, and the picture is full of identical mannequins, so <1>the mark plus this sentence</1> is all they have to decide which card goes where. What to write depends on the small label above the input: when it says “this sentence goes into the render prompt”, describe <2>what the mannequin looks like now</2> (e.g. white, leaning forward, under the leftmost streetlight); otherwise describe how to recognize this person in the original footage (e.g. a boy with white hair in a black robe). Don't use code names only you understand."
+
 #: src/studio/ui/NpcDialog.tsx
 msgid "每说一句扣一次"
 msgstr "Charged per message"
@@ -12209,6 +12307,10 @@ msgstr "Mixing only supports 1.0 voices, and tone instructions don't apply to mi
 msgid "添加中…"
 msgstr "Adding…"
 
+#: src/components/guide/tours.tsx
+msgid "清单上每一行说的是「画面上那个人偶，原来是谁」。这份对应关系是生成时 AI 猜出来的，不保证跟成片对得上。猜错时，别人给这个位子挂的角色卡会<0>换到另一个人身上</0>，而且<1>不会有任何报错</1>——所以只有看着画面的你能确认它。"
+msgstr "Each row of the list says “who that mannequin in the picture originally was”. The AI guessed this mapping during generation, and it isn't guaranteed to match the finished video. When a guess is wrong, a character card someone attaches to that slot <0>lands on a different person</0>, and <1>there will be no error at all</1> — so only you, looking at the picture, can confirm it."
+
 #: src/components/flow/CustomFrameSlots.tsx
 msgid "清掉"
 msgstr "Clear"
@@ -12353,6 +12455,10 @@ msgstr "The forge is blazing; your cards are taking shape…"
 #: src/studio/ui/NpcDialog.tsx
 msgid "炉边"
 msgstr "By the forge"
+
+#: src/components/guide/tours.tsx
+msgid "点「删掉」只是先标成待删，提交之前随时能撤销。底部那颗按钮把<0>改好的标记和要删的位子一次提交完</0>，不会留下改了一半的状态。提交完这个核对入口<1>也不会消失</1>——以后发现哪个人偶对不上，还能回来接着改；模板<2>已经发布</2>时要先下架才能改，面板里有那颗按钮。"
+msgstr "Tapping “Delete” only marks a slot as pending deletion, and you can undo it any time before you submit. The button at the bottom <0>submits the corrected marks and the slots to delete all at once</0>, so nothing is left half-changed. After you submit, this check <1>doesn't go away</1> — if you later find a mannequin that doesn't match, you can come back and keep editing; if the template is <2>already published</2>, you have to unpublish it before editing, and the panel has a button for that."
 
 #: src/hooks/useFlowActions.ts
 msgid "点「完成视频」还会提炼本片卡组：你挂过的卡直接入组，缺的卡种 AI 补齐（风格卡必有；背景卡是你写的故事背景，不自动出），最多 {maxCards} 张、约 {cardsTok} token；这条片写了 3D / 建模一类的画风，还会给派生的角色卡铸最多 {max3d} 个 3D 建模，另约 {model3dTok} token。都按实际出卡结算，余额不够会自动跳过（成片不受影响）。"
@@ -12942,6 +13048,10 @@ msgstr "The visuals and camera work come entirely from the template video — wr
 msgid "画面尺寸（{0}×{1}）与时长是这台设备解出来的； 上传后服务器会按它自己读到的值再核一次，对不上会在开始计算<0>之前</0>拒掉（不扣费）。"
 msgstr "The dimensions ({0}×{1}) and duration were decoded on this device; after upload the server checks them against its own reading, and a mismatch is rejected <0>before</0> processing starts (no charge)."
 
+#: src/components/guide/tours.tsx
+msgid "画面正下方这一排格子，<0>一格就是这个模板的一个角色位</0>； 格子上的「人物1 / 人物2」只是它的名字，<1>不表示画面里从左到右的次序</1>。 挂卡分两下：<2>先点一格选中它，再点上面那排卡里的一张</2>； 也可以直接把上面那排卡<3>往下拖到格子上</3> —— 拖到格子上是直接落，不会再问一遍。 画面上画得出落点框的模板，点中一格时<4>画面上对应的那个框会亮起来</4>， 想知道这一格是画面里的哪一个就看它。挂卡这条路任何模板都有，与画面里有没有画框无关。 卡片只列人物卡：人偶要换成的是角色，场景卡、道具卡挂上去没有意义。"
+msgstr "In the row of slots right below the picture, <0>each slot is one of the template's role slots</0>; the “Person 1 / Person 2” on a slot is just its name and <1>says nothing about left-to-right order in the picture</1>. Attaching takes two taps: <2>tap a slot to select it, then tap a card in the row above</2>; or drag a card from that row <3>straight down onto a slot</3> — that lands right away, with no second question. On templates that can draw drop-target boxes on the picture, selecting a slot <4>lights up the matching box in the picture</4>, so look there to see which mannequin the slot stands for. Attaching this way works on every template, boxes or not. Only character cards are listed: a mannequin gets replaced by a character, so a scene or prop card would make no sense there."
+
 #: src/pages/TemplateDetailPage.tsx
 msgid "画面质感与运镜"
 msgstr "Look and camera moves"
@@ -13280,6 +13390,10 @@ msgstr "For blockout segments — swap in real slot and card names"
 #: src/studio/flowStore.ts
 msgid "白模段的画面整个来自模板视频，导演台的构图用不上"
 msgstr "A blockout segment's visuals come entirely from the template video, so the stage composition can't be used"
+
+#: src/components/guide/tours.tsx
+msgid "白模那两条怎么走"
+msgstr "How the blockout routes work"
 
 #: src/components/VideoTemplateExtractor.tsx
 msgid "白模那两条路现在开不了（原因见上）。点上面「‹ 换一种做法」改选「经典配方」仍然可以做模板——它不需要付费套餐，只是不做白模人偶。"
@@ -13631,6 +13745,10 @@ msgstr "Video storage rejected this chunk: {msg}"
 #: src/studio/ui/FrameCard.tsx
 msgid "视频将在这两帧之间生成"
 msgstr "The video will be generated between these two frames"
+
+#: src/components/guide/tours.tsx
+msgid "视频就摆在清单上面，进度条可以拖着停在你想看的那一帧。然后逐行核对这个人偶的标记跟画面对不对得上：给的是<0>位置</0>，就对着画面从左往右数一遍；给的是<1>编号</1>，就照人偶身上印的数字改。标记必须跟你眼睛看到的完全一致——你这个模板的标记具体怎么看清楚，视频上面那段说明会讲。"
+msgstr "The video sits right above the list, and you can drag its progress bar to stop on the frame you want. Then go row by row and check whether each mannequin's mark matches the picture: if it's a <0>position</0>, count across the picture from left to right; if it's a <1>number</1>, change it to the number printed on the mannequin. The mark has to match exactly what you see — the note above the video explains how to read the marks on your template."
 
 #: src/api/uploads.ts
 msgid "视频已经传上去了，但服务器没能确认（{why}）。我们会尽量把它回收掉。网络恢复后请重新选一次文件再传。"
@@ -14352,14 +14470,22 @@ msgstr "Segment {0} opening frame"
 msgid "第一张 · 同时就是卡面"
 msgstr "First image · also the card face"
 
+#: src/components/guide/tours.tsx
+msgid "第一条：<0>任意视频都行</0>，AI 把画面里的人全换成一模一样的纯白人偶。 别人套用时整段复刻你这段的<1>场景与运镜</1>，再逐个人偶挂上自己的人物卡， 没挂卡的位子通常保持人偶原样。这条会真的出一次片，所以要花钱——具体多少在框选那一步整句报出来。"
+msgstr "The first route: <0>any video works</0>, and the AI replaces everyone in the picture with identical plain white mannequins. When others use the template, their video copies this clip's whole <1>scene and camera work</1>, and they attach their own character cards to the mannequins one by one; slots left without a card usually stay mannequins. This route really renders a video, so it costs money — the exact amount is spelled out in full at the selection step."
+
 #: src/pages/OauthCallbackPage.tsx
 #: src/utils/oauth.ts
 msgid "第三方登录未完成"
 msgstr "Third-party login wasn't completed"
 
 #: src/components/guide/tours.tsx
-msgid "第三条，也是默认那条：AI 从整段视频里<0>均匀抽</0>几帧看（你只定抽几帧）， 总结画风质感、运镜与分镜骨架，再提炼可复用的场景／道具卡。帧数越多认得越准，价钱不变。 它<1>不出片、不把你的视频传上公网，也是三条里唯一不需要付费套餐的</1>。"
-msgstr "The third route, and the default: the AI samples a few frames <0>evenly</0> across the whole video (you only choose how many), sums up the look, camera work and shot outline, then extracts reusable scene / prop cards. More frames recognize better, and the price stays the same. It <1>doesn't generate video, doesn't put your video on the public internet, and is the only one of the three that doesn't need a paid plan</1>."
+msgid "第三条：AI 从整段视频里<0>均匀抽</0>几帧看（你只定抽几帧）， 总结画风质感、运镜与分镜骨架，再提炼可复用的场景／道具卡。帧数越多认得越准，价钱不变。 它<1>不出片、不把你的视频传上公网，也是三条里唯一不需要付费套餐的</1>。"
+msgstr "The third route: the AI samples a few frames <0>evenly</0> across the whole video (you only choose how many), sums up the look, camera work and shot outline, then extracts reusable scene / prop cards. More frames make it more accurate, and the price stays the same. It <1>renders no video, doesn't put your video on the public internet, and is the only one of the three that doesn't need a paid plan</1>."
+
+#: src/components/guide/tours.tsx
+msgid "第二条：这段<0>已经是白模 / 人偶片</0>（你自己做好的预演片）。 不出片、不换人，只认出画面里有谁、量出他们在哪，<1>便宜两个量级</1>。 这两条我们分不出来，只能你自己选：该出片的没出，模板里全是真人；不该出片的出了，白花一次钱、画质还被二次白模化。"
+msgstr "The second route: this clip <0>is already a blockout / mannequin clip</0> (previs you made yourself). No render and no swapping — it only finds who's in the picture and measures where they are, which makes it <1>two orders of magnitude cheaper</1>. We can't tell which of these two routes your clip needs, so you have to choose: skip a render that was needed and the template is full of real people; render when it wasn't needed and you pay for nothing, and the picture gets degraded by a second blockout pass."
 
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "第二种：<0>相邻两行的位置排反了</0>（清单说他是从左数第 2 个， 画面上他其实是第 3 个）。把这两行的位置互换过来就行，同样不用重炼。"
@@ -14631,6 +14757,10 @@ msgstr "End {0}s"
 #: src/components/VideoCardAnnotator.tsx
 msgid "终点 ＝当前帧"
 msgstr "End = current frame"
+
+#: src/components/guide/tours.tsx
+msgid "经典配方"
+msgstr "Classic recipe"
 
 #: src/components/VideoTemplateExtractor.tsx
 msgid "经典配方（不做白模）"
@@ -15192,6 +15322,10 @@ msgstr "The cropped frame is too narrow: the aspect ratio must be between {minRa
 msgid "裁完的画面太小：宽×高至少要 {minPixels} 像素（现在 {cropW}×{cropH} = {pixels}，还差 {shortBy}）。AI 出片引擎会拒绝这样的输入——把裁剪框拖大一点。"
 msgstr "The cropped picture is too small: width × height must be at least {minPixels} pixels (currently {cropW}×{cropH} = {pixels}, {shortBy} short). The AI video engine will reject input like this — drag the crop box larger."
 
+#: src/components/guide/tours.tsx
+msgid "裁得太小会被挡下"
+msgstr "Too small a crop gets blocked"
+
 #: src/components/flow/SkillPanel.tsx
 msgid "装"
 msgstr "Install"
@@ -15357,6 +15491,10 @@ msgstr "Let the AI write a version"
 #: src/components/VideoTemplateExtractor.tsx
 msgid "让 AI 把里面的人换成白模人偶"
 msgstr "Let AI replace the people with blockout mannequins"
+
+#: src/components/guide/tours.tsx
+msgid "让 AI 换成白模"
+msgstr "Let AI replace the people"
 
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "让别人在人格市场里搜得到。"
@@ -16453,6 +16591,18 @@ msgid "这一小段有 {stallSec} 秒没传出去一个字节——网络断了�
 msgstr "This chunk hasn't sent a single byte in {stallSec} seconds — the connection dropped or is too unstable. Switch networks and try again"
 
 #: src/components/guide/tours.tsx
+msgid "这一屏做什么"
+msgstr "What this screen does"
+
+#: src/components/guide/tours.tsx
+msgid "这一屏在做什么"
+msgstr "What you do here"
+
+#: src/components/guide/tours.tsx
+msgid "这一屏在决定三件事"
+msgstr "Three things decided here"
+
+#: src/components/guide/tours.tsx
 msgid "这一屏摆的是调好的<0>成品配方</0>：画风、运镜、分镜骨架都定好了，挑一个套上去，写一句话或者给人偶挂上你的角色卡就能出片。它和工坊的卡片市场是两回事——卡片是素材，得自己组装剧情；模板是拿来就能出片的成品。"
 msgstr "This screen shows tuned, <0>ready-made recipes</0>: art style, camera work and shot outline are all set. Pick one and apply it, then write a sentence or attach your character cards to the mannequins, and you can render. It's a different thing from the Workshop's card market — cards are materials, and you have to build the story yourself; a template is a finished recipe you can render with right away."
 
@@ -17094,6 +17244,10 @@ msgstr "This Studio project is empty, so it can't be laid out in the Studio"
 #: src/components/ReviseBar.tsx
 msgid "这份工程有 {lostCount} 处素材没有留存 · 方案卡上逐格标了出来：预览图重新推演就能补回来， 成片要重新出片（会再花一次钱）"
 msgstr "{lostCount, plural, one {# asset in this project wasn't kept} other {# assets in this project weren't kept}} · Each is marked on the plan cards: previews come back when you re-derive, videos must be rendered again (charged again)"
+
+#: src/components/guide/tours.tsx
+msgid "这份清单是猜的"
+msgstr "This list is a guess"
 
 #: src/data/projects.ts
 msgid "这份画布没能整理成可留存的样子——这条作品没法再补留存了。"
@@ -17845,6 +17999,10 @@ msgstr "This video is only about {sec, plural, one {# second} other {# seconds}}
 msgid "这段视频在这个位置解不开，换一帧试试。"
 msgstr "The video can't be decoded at this point. Try another frame."
 
+#: src/components/guide/tours.tsx
+msgid "这段视频是模板的<0>白模视频</0>：里面的人偶是占位的，还不是具体的人。给一个人偶挂上一张人物卡，出片时它就会被换成那张卡上的角色；没挂卡的位子通常保持人偶原样 —— 但素材切镜多时可能被 AI 拿已挂的卡换掉，要稳就挂满。"
+msgstr "This video is the template's <0>blockout video</0>: the mannequins in it are placeholders, not anyone in particular yet. Attach a character card to a mannequin and, when you render, it's replaced by the character on that card; slots without a card usually stay mannequins — but in footage with many shot changes the AI may replace them using the cards you did attach, so to be safe, fill every slot."
+
 #: src/components/blockout/VideoStage.tsx
 msgid "这段视频浏览器解不开（白模模板只收 mp4 / mov；换个文件或转码后重试）。"
 msgstr "This video can't be decoded (blockout templates only accept MP4 / MOV; try another file or convert it first)."
@@ -18088,10 +18246,15 @@ msgctxt "Live2D 上传向导的步骤名：选一个 zip 模型包"
 msgid "选文件"
 msgstr "Choose file"
 
+#: src/components/guide/tours.tsx
+msgid "选文件 → 上传（<0>不花钱</0>）→ 下一步拖时间轴框出 {minSec}~{maxSec} 秒、拖裁剪框把台标水印框到画面外。让 AI 换白模那条就在这一屏读完报价、点「开始白模化」才开炼； 自带白模片那条这一屏不花钱，点「下一步：挑 AI 分析帧」去下一屏，在框出来的那一段上定 AI 分析哪几帧（自动或自己挑）， 报价也在那一屏、点「做成模板（不出片）」之前整句报出 （把选段拖过上限，会自动变成<1>整条切段登记成一组</1>，那颗键换成「下一步：标切段刀」，按段计费）。 让 AI 换白模那条还要注意：换人偶<2>不是每次都全对</2>，最容易漏画面正中央那一个—— 出片后对着画面从左往右核对，对不上的位子删掉就行（不用重炼、不花钱）。"
+msgstr "Choose a file → upload (<0>free</0>) → next screen: drag the timeline to select {minSec}–{maxSec, plural, one {# second} other {# seconds}} and crop out channel logos and watermarks. AI blockout route: the price is on that screen, and nothing starts until you tap “Start blockout”. Already-a-blockout route: that screen is free — tap “Next: pick frames for the AI”, then on the second screen choose which frames of your selection the AI analyzes (auto, or your own picks); the price is spelled out in full there, before you tap “Make template (no render)”. A selection past the limit automatically switches that route to <1>cutting the whole video into segments registered as a group</1>, charged per segment (the button then reads “Next: place the cuts”). On the AI blockout route, swapping in mannequins <2>isn't always fully right</2> — the one in the middle of the frame is missed most often. After rendering, check the picture from left to right and just delete any slot that doesn't match (no re-render, no charge)."
+
 #: src/components/TemplateShelf.tsx
 msgid "选段"
 msgstr "Selection"
 
+#: src/components/guide/tours.tsx
 #: src/pages/VideoEditorPage.tsx
 msgid "选段与裁剪"
 msgstr "Select and crop"
