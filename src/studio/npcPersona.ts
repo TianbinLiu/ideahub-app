@@ -9,6 +9,7 @@
 //   剥掉不念——等于她的"语气"变成了永远不会出声的文字。所以这里一个语气形容词都没有。
 import { t } from "@lingui/core/macro";
 import { ArkHttpError, ArkNoReply, type ChatTurn } from "../ai/arkClient";
+import { activeLang } from "../i18n/switch";
 import type { DialogMsg } from "./studioStore";
 
 /** 593 字。再长会挤占多轮历史，turbo 也抓不住重点。 */
@@ -29,13 +30,22 @@ export const NPC_SYSTEM = `你是「铸卡师」，魔法书房式卡片工坊�
  *   号码与措辞——**绝不能让模型生成这个号码**，幻觉出一个打不通的号码后果不需要解释。
  */
 export const CRISIS_HOTLINE = "12356";
-/** 危机服务条的那句话。读时现翻（模块顶层不许调 t），号码只从 CRISIS_HOTLINE 来。
- *  ⚠ 12356 只在中国大陆打得通：英文版明说它是大陆的热线；英文用户该看到什么资源由主人定 */
+/**
+ * 英文界面给的资源：**988**（美国 Suicide & Crisis Lifeline，电话与短信同号，2022-07 起全美通用）。
+ * ★ 2026-09-17 主人定：英文按美国这边的口径给。12356 只在中国大陆打得通，摆给英文用户等于给了一个打不通的号。
+ *   同样**绝不让模型生成**；美国之外的英文用户另说一句「拨当地的急救电话」（写在英文 msgstr 里）。
+ */
+export const CRISIS_HOTLINE_US = "988";
+/** 这一刻该摆哪个号码：跟着**当前生效的界面语言**走（与 speech.ts 同一个读法），不是跟着偏好或系统语言 */
+export function crisisHotline(): string {
+  return activeLang() === "en" ? CRISIS_HOTLINE_US : CRISIS_HOTLINE;
+}
+/** 危机服务条的那句话。读时现翻（模块顶层不许调 t），号码只从 crisisHotline() 来（中文 12356 / 英文 988） */
 export function crisisLine(): string {
-  const hotline = CRISIS_HOTLINE;
+  const hotline = crisisHotline();
   return t({
     message: `停一下。如果你有伤害自己的念头，现在就找个能说话的人，或者打全国心理援助热线 ${hotline}。这件事我帮不了你，但它比卡重要。`,
-    comment: "心理危机服务条（居中细字，不念）。hotline 是中国大陆的全国心理援助热线号码，英文要说明它是中国大陆的热线",
+    comment: "心理危机服务条（居中细字，不念）。中文界面 hotline = 12356（中国大陆的全国心理援助热线）；英文界面 hotline = 988（美国 Suicide & Crisis Lifeline，电话与短信同号），英文要说明它是美国的热线，并补一句美国之外拨当地急救电话",
   });
 }
 // ★ 三条实现约束，缺一条这句就变成反效果：
