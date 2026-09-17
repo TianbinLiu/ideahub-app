@@ -6661,6 +6661,11 @@ msgstr "可以退出这一页去做别的，传完了会有提示。"
 msgid "可用约 {0} MB"
 msgstr "可用约 {0} MB"
 
+#: src/ai/failCharge.ts
+msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
+msgid "可能已经扣了钱"
+msgstr "可能已经扣了钱"
+
 #: src/components/guide/tours.tsx
 msgid "可见性管<0>谁看得到</0>：公开、凭链接可见、仅自己可见。 发完在作品编辑页随时能改。收费这一栏现在<1>所有作品都是免费观看</1>—— 付费解锁等收款和分账真的通了再放出来。"
 msgstr "可见性管<0>谁看得到</0>：公开、凭链接可见、仅自己可见。 发完在作品编辑页随时能改。收费这一栏现在<1>所有作品都是免费观看</1>—— 付费解锁等收款和分账真的通了再放出来。"
@@ -7088,6 +7093,11 @@ msgstr "图片编码失败"
 msgid "图片读取失败"
 msgstr "图片读取失败"
 
+#. moneyLine 是一句完整的、自带句号的话，说这一步的钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格
+#: src/pages/CustomCardPage.tsx
+msgid "图生成好了，但人物信息没写成。{moneyLine}下一步自己填就行"
+msgstr "图生成好了，但人物信息没写成。{moneyLine}下一步自己填就行"
+
 #: src/pages/CustomCardPage.tsx
 msgid "图生成好了，但人物信息没写成（这一半没扣钱）——下一步自己填就行"
 msgstr "图生成好了，但人物信息没写成（这一半没扣钱）——下一步自己填就行"
@@ -7124,6 +7134,11 @@ msgstr "圈选改图"
 #: src/pages/CustomCardPage.tsx
 msgid "圈选改图完成，回去看看"
 msgstr "圈选改图完成，回去看看"
+
+#. moneyBrief 是括号里的一个短语，说钱扣没扣（ai/failCharge.chargeNote 的 brief：可能已经扣了钱 / 已计费）
+#: src/pages/CustomCardPage.tsx
+msgid "圈选改图没成（{moneyBrief}）"
+msgstr "圈选改图没成（{moneyBrief}）"
 
 #: src/pages/CustomCardPage.tsx
 msgid "圈选改图没成（没扣钱）"
@@ -7679,15 +7694,19 @@ msgstr "导演台的开头帧融好了"
 msgid "导演台融图"
 msgstr "导演台融图"
 
-#. placeholder {0}: why.slice(0, 60)
+#. placeholder {0}: raw.slice(0, 60)
 #: src/studio/flowStore.ts
 msgid "导演台融图没成：{0}"
 msgstr "导演台融图没成：{0}"
 
-#. placeholder {0}: why.slice(0, 80)
+#. moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格
 #: src/studio/flowStore.ts
-msgid "导演台融图没成（{0}）——没扣钱，可以再截一次"
-msgstr "导演台融图没成（{0}）——没扣钱，可以再截一次"
+msgid "导演台融图没成（{reason}）。{moneyLine}开头帧没有换，可以再截一次"
+msgstr "导演台融图没成（{reason}）。{moneyLine}开头帧没有换，可以再截一次"
+
+#: src/studio/flowStore.ts
+msgid "导演台融图没成（{why}）——没扣钱，可以再截一次"
+msgstr "导演台融图没成（{why}）——没扣钱，可以再截一次"
 
 #. placeholder {0}: fmtTokens(ONE_IMAGE)
 #: src/studio/flowStore.ts
@@ -8337,6 +8356,26 @@ msgstr "已经标满 {cap} 帧了——再多也用不上（服务端依次试�
 msgid "已经炼出来的成片不受影响；换回来之后这些能力也会回来（示例视频要重新挂）。"
 msgstr "已经炼出来的成片不受影响；换回来之后这些能力也会回来（示例视频要重新挂）。"
 
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "已经画好的 {count} 张已按张计费（共 {paid} token）；失败的这一张可能也扣了 {price} token——以「我的」页的 token 余额为准。"
+msgstr "已经画好的 {count} 张已按张计费（共 {paid} token）；失败的这一张可能也扣了 {price} token——以「我的」页的 token 余额为准。"
+
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "已经画好的 {count} 张已按张计费（共 {paid} token）。"
+msgstr "已经画好的 {count} 张已按张计费（共 {paid} token）。"
+
+#: src/ai/failCharge.ts
+msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
+msgid "已经画好的 {count} 张已计费"
+msgstr "已经画好的 {count} 张已计费"
+
+#: src/ai/failCharge.ts
+msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
+msgid "已经画好的 {count} 张已计费，失败的那张可能也扣了"
+msgstr "已经画好的 {count} 张已计费，失败的那张可能也扣了"
+
 #: src/pages/CustomCardPage.tsx
 msgid "已经离开真人素材这条路：授权绑定和随它取来的那张照片都撤掉了。"
 msgstr "已经离开真人素材这条路：授权绑定和随它取来的那张照片都撤掉了。"
@@ -8373,6 +8412,11 @@ msgstr "已解决"
 #: src/pages/CustomCardPage.tsx
 msgid "已解除授权绑定——随授权取来的那张照片也一并取下了（卡面与 AI 主素材都不再留着它）。"
 msgstr "已解除授权绑定——随授权取来的那张照片也一并取下了（卡面与 AI 主素材都不再留着它）。"
+
+#: src/ai/failCharge.ts
+msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
+msgid "已计费"
+msgstr "已计费"
 
 #: src/pages/SupportPersonasPage.tsx
 msgid "已购"
@@ -8726,14 +8770,33 @@ msgstr "形象"
 msgid "形象：{0}"
 msgstr "形象：{0}"
 
-#. placeholder {0}: (e instanceof Error ? e.message : String(e)).slice(0, 120)
+#. moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格
+#: src/components/VideoCardAnnotator.tsx
+msgid "形象图没画成：{reason}。{moneyLine}这一次画的图没留下；原片裁剪没受影响，可以直接存或再试一次"
+msgstr "形象图没画成：{reason}。{moneyLine}这一次画的图没留下；原片裁剪没受影响，可以直接存或再试一次"
+
+#. moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格
 #: src/pages/CustomCardPage.tsx
-msgid "形象图没画成：{0}——一分钱没扣，可以再试或改选自己传图"
-msgstr "形象图没画成：{0}——一分钱没扣，可以再试或改选自己传图"
+msgid "形象图没画成：{reason}。{moneyLine}这一次画的图都没留下，可以再试或改选自己传图"
+msgstr "形象图没画成：{reason}。{moneyLine}这一次画的图都没留下，可以再试或改选自己传图"
+
+#: src/pages/CustomCardPage.tsx
+msgid "形象图没画成：{why}——一分钱没扣，可以再试或改选自己传图"
+msgstr "形象图没画成：{why}——一分钱没扣，可以再试或改选自己传图"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "形象图没画成：{why}——原片裁剪没受影响，可以直接存或再试一次"
 msgstr "形象图没画成：{why}——原片裁剪没受影响，可以直接存或再试一次"
+
+#. moneyBrief 是括号里的一个短语，说钱扣没扣（ai/failCharge.chargeNote 的 brief：可能已经扣了钱 / 已计费 / 已经画好的 N 张已计费…）
+#: src/components/VideoCardAnnotator.tsx
+msgid "形象图没画成（{moneyBrief}）"
+msgstr "形象图没画成（{moneyBrief}）"
+
+#. moneyBrief 是括号里的一个短语，说钱扣没扣（ai/failCharge.chargeNote 的 brief：可能已经扣了钱 / 已计费 / 已经画好的 N 张已计费…）
+#: src/pages/CustomCardPage.tsx
+msgid "形象图没画成（{moneyBrief}），回去看原因"
+msgstr "形象图没画成（{moneyBrief}），回去看原因"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "形象图没画成（没扣钱）"
@@ -12144,10 +12207,14 @@ msgstr "没接到这一段的出片结果"
 msgid "没搜成：{vidErr}"
 msgstr "没搜成：{vidErr}"
 
-#. placeholder {0}: (e instanceof Error ? e.message : String(e)).slice(0, 90)
+#. moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格
 #: src/pages/CustomCardPage.tsx
-msgid "没改成：{0}（没扣钱）"
-msgstr "没改成：{0}（没扣钱）"
+msgid "没改成：{reason}。{moneyLine}这一格的原图没动，可以再试一次"
+msgstr "没改成：{reason}。{moneyLine}这一格的原图没动，可以再试一次"
+
+#: src/pages/CustomCardPage.tsx
+msgid "没改成：{why}（没扣钱）"
+msgstr "没改成：{why}（没扣钱）"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "没有"
@@ -12250,9 +12317,10 @@ msgstr "没有选择去处。文件还在 App 里，随时可以再点「分享 
 msgid "没画出来"
 msgstr "没画出来"
 
+#. moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格
 #: src/pages/CustomCardPage.tsx
-msgid "没等到识别结果，这次可能已经扣了 {recogPrice}——以「我的」页钱包流水为准。可以先自己填"
-msgstr "没等到识别结果，这次可能已经扣了 {recogPrice}——以「我的」页钱包流水为准。可以先自己填"
+msgid "没等到识别结果。{moneyLine}可以先自己填"
+msgstr "没等到识别结果。{moneyLine}可以先自己填"
 
 #: src/pages/CustomCardPage.tsx
 msgid "没等到识别结果（网络不通），可以先自己填"
@@ -12393,6 +12461,11 @@ msgstr "没融成：{0}——原来的{label}没变，可以再试一次"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "没认出「谁在说话」，会把整段一起分析。"
 msgstr "没认出「谁在说话」，会把整段一起分析。"
+
+#. moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格
+#: src/pages/CustomCardPage.tsx
+msgid "没读出识别结果。{moneyLine}可以自己填，或者再识别一次"
+msgstr "没读出识别结果。{moneyLine}可以自己填，或者再识别一次"
 
 #: src/components/PortraitAuthPanel.tsx
 msgid "没过审核："
@@ -15879,10 +15952,6 @@ msgstr "识别好了，但卡面已经换了，结果没填"
 msgid "识别好了，回去看看填得对不对"
 msgstr "识别好了，回去看看填得对不对"
 
-#: src/pages/CustomCardPage.tsx
-msgid "识别已计费 {recogPrice}，但没读出结果——可以自己填，或者再识别一次"
-msgstr "识别已计费 {recogPrice}，但没读出结果——可以自己填，或者再识别一次"
-
 #: src/studio/live2dUploadStore.ts
 msgid "识别模型包"
 msgstr "识别模型包"
@@ -16887,6 +16956,16 @@ msgstr "这一步不出片、不换人，只花「认人 + 量框」的钱。按
 #: src/components/VideoTemplateExtractor.tsx
 msgid "这一步不花钱：框好要用的那一段点「下一步」，下一步在<0>框出来的这一段</0>上标帧，报价也在那一步、按「做成模板」之前整句报出。"
 msgstr "这一步不花钱：框好要用的那一段点「下一步」，下一步在<0>框出来的这一段</0>上标帧，报价也在那一步、按「做成模板」之前整句报出。"
+
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "这一步可能已经扣了 {price} token——以「我的」页的 token 余额为准。"
+msgstr "这一步可能已经扣了 {price} token——以「我的」页的 token 余额为准。"
+
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "这一步已计费 {price} token。"
+msgstr "这一步已计费 {price} token。"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "这一步是把「我们的演出协议」对到「你这个模型自己的名字」上。不改也行 —— 服务器已经按常见命名猜了一份，下面每一行左边的 ▶ 可以当场在上面的预览里试一下。"

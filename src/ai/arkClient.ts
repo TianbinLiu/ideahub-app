@@ -255,11 +255,41 @@ export class ArkNoReply extends Error {
  * 回包是 2xx 却读不出来（JSON 坏了，或模型没按要求的形状写）—— 服务端已经转发并结算过，
  * **钱已经扣了**，只是结果用不上。
  * ★ 与 ArkNoReply 分开：这一档能确定地说「已计费」，那一档只能说「可能」。
+ * ★ 「2xx 之后才坏」的都归这一档，不只是 JSON 坏了（2026-09-17 补齐，补之前下面两种抛的是裸 Error，
+ *   被调用方归进「其余 = 没扣钱」）：出图回包里没有图片地址（generateImage）、图已经出了但取不回来
+ *   （real.genImageAsDataUrl：generateImage 已结算，之后的 toDataUrl 才失败）。判据只有一条 ——
+ *   **这一发在服务端拿到过 2xx**（契约「扣费」一节：只有上游非 2xx 才退）。
  */
 export class ArkBadReply extends Error {
   constructor(message: string) {
     super(message);
     this.name = "ArkBadReply";
+  }
+}
+
+/**
+ * 一批**逐个计费**的调用里，第 k 发失败了 —— 前面 k-1 发各自已经按调用结算，整批失败不等于一分钱没花。
+ *
+ * ★★ 为什么要这个类（2026-09-17）：real.portraitViews 按方案逐格出图，每一格是一次独立的
+ *   `POST /images/generations`；服务端按**调用**结算（契约「扣费」一节 + server arkGateway.chargedArkCall：
+ *   先扣、转发、只有上游非 2xx 才退），不知道也不关心这几发属于同一批。画到第 3 格才失败时，前 2 张的钱
+ *   已经扣了、图却随着这次抛错一起丢了 —— 调用方此前一律说「一分钱没扣」。
+ * ★ `failure` 是真正失败的那一发抛的错，三档判定认的是**它**的类型；`message` 照抄它的，
+ *   只读 `.message` 的调用方看到的原因一字不变。
+ * ★ 自己存一份 `failure`，不用 ES2022 的 `new Error(msg, { cause })`：老 WebView 不认那个选项（静默忽略），
+ *   `cause` 读出来是 undefined ⇒ 判定落进「其余 = 没扣钱」，零报错地往放心的方向说错。
+ * ★★ 别对它直接 `instanceof ArkNoReply`（恒假）：钱花没花只问 ai/failCharge.chargeOnFail，它会拆这层壳；
+ *   要一句给人看的原因问 briefArkReason，同样会拆。
+ */
+export class ArkBatchPartial extends Error {
+  constructor(
+    /** 真正失败的那一发抛的错 */
+    readonly failure: unknown,
+    /** 同一批里在它之前已经成功（= 已经各自结算）的计费调用次数 */
+    readonly settledBefore: number,
+  ) {
+    super(failure instanceof Error ? failure.message : String(failure));
+    this.name = "ArkBatchPartial";
   }
 }
 
@@ -271,15 +301,20 @@ export class ArkBadReply extends Error {
  *   （request id 对他毫无意义），而且它长到会把后半句**真正可行动的话**（"再点一次
  *   「取回」，凭据还在"）挤出可视区 —— arkFetch 里 403 那条注释记的就是同一个坑。
  * ★ 状态码保留：那是唯一对排查有用、又短的一位。
+ * ★ `max` 只管「原话照抄」那一支留多少字，缺省 40（出片轮询那句后面还跟着可行动的半句，得短）。
+ *   失败提示是一整段、后面跟的是钱上的话时给宽一点（与那一处「没扣钱」原句留的字数相同）：逐格出图画到第 2 张撞上 402，
+ *   原话是「token 余额不足：这一步需要 N，余额 M——去「我的」页充值」，按 40 字截会把「去充值」那半句截掉。
  */
-export function briefArkReason(e: unknown): string {
+export function briefArkReason(e: unknown, max = 40): string {
+  // 批量那层壳先拆掉：原因在里面那一发上（不拆的话「没等到回包」会读成一串 `Ark /images/… 网络失败`）
+  if (e instanceof ArkBatchPartial) return briefArkReason(e.failure, max);
   if (e instanceof ArkHttpError) {
     const status = e.status;
     return t`服务器返回 ${status}`;
   }
   // ★ 认类型，不在 message 里找「网络失败」：arkFetch 只在这一种情况下抛 ArkNoReply（见它的 ★★）
   if (e instanceof ArkNoReply) return t`网络不通`;
-  if (e instanceof Error) return e.message.slice(0, 40);
+  if (e instanceof Error) return e.message.slice(0, max);
   return t`未知原因`;
 }
 
@@ -419,7 +454,8 @@ export async function generateImage(
     170_000,
   );
   const url = out.data?.[0]?.url;
-  if (!url) throw new Error(t`Seedream 未返回图片`);
+  // ★ ArkBadReply 不是裸 Error：走到这一行说明回包是 2xx，服务端已经结算，只是里面没有图 ——「已计费、结果用不上」那一档
+  if (!url) throw new ArkBadReply(t`Seedream 未返回图片`);
   return url;
 }
 
