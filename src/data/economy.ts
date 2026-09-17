@@ -1124,8 +1124,8 @@ export const TEMPLATE_MAX_CARDS = 6 as CardMintCap;
 const MINT_CARD_MAX_TOKENS = IMAGE_TOKENS + CHAT_TURN_TOKENS;
 
 /**
- * 看片提卡的**上限**：`chatCalls` 次 chat + 最多 `cap` 张卡 —— 下面四个报价函数（extractCost / templateCost /
- * blockoutCardsCost / deckCardsCost）只准从这里取。
+ * 看片提卡的**上限**：`chatCalls` 次 chat + 最多 `cap` 张卡 —— 下面三个报价函数（extractCost / templateCost /
+ * deckCardsCost）只准从这里取（原来还有第四个 blockoutCardsCost：白模路上那一步走不到的「从原片铸素材卡」的报价，2026-09-17 一起删）。
  *
  * ★★ 单位与服务端结算一一对应：一次 chat（看图、纯文字都一样）= CHAT_TURN_TOKENS，一张图 = IMAGE_TOKENS。
  *   real.ts 记实收时按同一对单位逐笔加（每发一次 chat 加一个、每真出一张图加一个），报价只是把
@@ -1177,19 +1177,10 @@ export function blockoutTemplateCost(frameCount: number): number {
   //   去充了一笔本来不需要的钱。
   //   ⚠ 机理是**服务端按"调用了几次、什么 kind"计价，不按内容量**：N 帧是塞进
   //   同一条 messages 里的一次 chat。所以"按帧报价"这个模型从一开始就对不上。
-  //   ⚠ 同一处分叉当时还留在提卡四条路（templateCost / extractCost / deckCardsCost / blockoutCardsCost）
+  //   ⚠ 同一处分叉当时还留在提卡四条路（templateCost / extractCost / deckCardsCost / blockoutCardsCost —— 最后这个 2026-09-17 已删）
   //   与 real.ts 的记账上；2026-09-10 逐条核清每条路真发几次 chat 之后一并改成按调用计（见 mintQuote）。
   void frameCount;
   return CHAT_TURN_TOKENS;
-}
-
-/**
- * 白模模板登记时从原片铸素材卡（V3 第三期）的**上限**：看一次原片抽帧 + 最多 TEMPLATE_MAX_CARDS 张
- * （每张最多 一张卡面 + 一次去人复核）。实收由 real.extractTemplateCards 逐笔记（道具裁剪 / 风格整帧不出图 = 0 图钱），
- * 只会比这个数少。与 blockoutizeCost 是**两笔**：那笔是白模化本身（服务端按任务扣），这笔是客户端直连方舟的调用。
- */
-export function blockoutCardsCost(): number {
-  return mintQuote(1, TEMPLATE_MAX_CARDS);
 }
 
 /**

@@ -43,8 +43,6 @@ import { myCards } from "../data/account";
 // ★ "这个模板是哪种标记方案"的判据只有 data 层一处，页面只问它（铁律六）。
 //   这一页拿到的是宿主已经问过的结果（`MarkSpec`），自己一次都不判
 import type { MarkSpec } from "../data/templates";
-import HelpButton from "../components/guide/HelpButton";
-import { useAutoGuide } from "../components/guide/useAutoGuide";
 import { useAccountVersion } from "../hooks/useAccount";
 import type { Card, MarkBox } from "../types";
 
@@ -199,9 +197,12 @@ export default function VideoEditorPage() {
   const loc = useLocation();
   const { t } = useLingui();
   const state = useMemo(() => parseState(loc.state), [loc.state]);
-  // ★ 只在「选段与裁剪」那一档自动弹，且要等 state 解析出来 —— 从别处误入这一页时
-  //   （state 为 null）页面渲染的是"这一页需要从上传或模板页进来"，那时弹引导是答非所问。
-  useAutoGuide("trim", state?.mode === "blockoutize");
+  // ★★ 「选段与裁剪」那份引导（guide/tours 的 trim）**不在这一页声明**（2026-09-17 撤）：
+  //   blockoutize 这一档是死码 —— 全仓没有任何地方构造过 mode: "blockoutize" 的入参
+  //   （5 处 navigate("/video-editor") 传的都是 castEditorState 的产物，返回类型恒为 CastEditorState）。
+  //   而 scripts/check-guides 只按"全仓有没有这个字样"认入口：把入口留在走不到的地方，
+  //   活的那一份（提取器的 aiTrimScreen）被删掉时门禁照样绿 —— 这份引导此前失踪一直没被发现，
+  //   正是因为门禁一直被这里满足着。要在这儿重新挂，先让这一档真有宿主进得来。
 
   // 本机文件 → 可播地址。★ 必须在**卸载时**回收：objectURL 不回收就是一条挂在
   //   document 上的引用，而这里引的是一段最大 100MB 的视频（进出编辑页几次就是几百 MB）
@@ -251,9 +252,8 @@ export default function VideoEditorPage() {
               : t`白模化 · 框出一段并裁掉水印`}
           </>
         }
-        // ★ 「?」只给「选段与裁剪」这一档：cast 那一档的引导挂在 RoleCastBoard 自己身上
-        //   （它才知道有没有框、有没有格子），这里再放一颗就是两处入口教同一件事。
-        right={state?.mode === "blockoutize" ? <HelpButton tour="trim" /> : null}
+        // ★ 这一页不摆「?」：cast 那一档的引导挂在 RoleCastBoard 自己身上（它才知道有没有框、
+        //   有没有格子）；blockoutize 那一档为什么也不摆，见上面 state 那一处的 ★★。
       />
 
       <main className="px-4 py-3">

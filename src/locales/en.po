@@ -3819,10 +3819,6 @@ msgstr "Continue from the previous segment's actual last frame"
 msgid "从上面的素材库往屏幕中间拖一张下来"
 msgstr "Drag a card from the library above to the middle of the screen"
 
-#: src/ai/real.ts
-msgid "从原片提炼素材卡（{frameCount} 帧）…"
-msgstr "Extracting material cards from the original video ({frameCount, plural, one {# frame} other {# frames}})…"
-
 #: src/components/BranchPlayer.tsx
 msgid "从头再看"
 msgstr "Watch again"
@@ -6508,10 +6504,6 @@ msgstr "Catchphrases"
 #: src/types.ts
 msgid "古风"
 msgstr "Ancient style"
-
-#: src/components/VideoTemplateExtractor.tsx
-msgid "另外会从原片提炼素材卡（场景 / 道具 / 风格，最多 {TEMPLATE_MAX_CARDS} 张，按实际出的收，最多 {cardsPrice}）。"
-msgstr "Material cards (scene / prop / style) are also extracted from the original video: up to {TEMPLATE_MAX_CARDS, plural, one {# card} other {# cards}}, charged by what's actually made, at most {cardsPrice} tokens."
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "另存为我的"
@@ -11627,10 +11619,6 @@ msgstr "The template name is empty"
 msgid "模板市场"
 msgstr "Template market"
 
-#: src/ai/real.ts
-msgid "模板提卡 JSON 结构不符"
-msgstr "Template card JSON is malformed"
-
 #: src/components/guide/tours.tsx
 msgid "模板是成品配方"
 msgstr "Templates are ready-made recipes"
@@ -13657,18 +13645,6 @@ msgstr "Blockout template · attach character cards to the numbered mannequins"
 #: src/components/VideoTemplateExtractor.tsx
 msgid "白模模板做好了，去「我的模板」看看"
 msgstr "Blockout template ready — check it in “My templates”"
-
-#: src/components/VideoTemplateExtractor.tsx
-msgid "白模模板做好了，附 {cardsN} 张素材卡，去「我的模板」看看"
-msgstr "Blockout template ready, with {cardsN, plural, one {# material card} other {# material cards}} — check it in “My templates”"
-
-#: src/components/VideoTemplateExtractor.tsx
-msgid "白模模板做好了；素材卡没铸（最多需 {cardsQuote} token，余额不够），去「我的模板」看看"
-msgstr "Blockout template ready; no material cards were minted (they need up to {cardsQuote} tokens and your balance isn't enough) — check it in “My templates”"
-
-#: src/components/VideoTemplateExtractor.tsx
-msgid "白模模板做好了；素材卡没铸成（{cardsWhy}），去「我的模板」看看"
-msgstr "Blockout template ready; minting the material cards failed ({cardsWhy}) — check it in “My templates”"
 
 #: src/studio/segmentGen.ts
 msgid "白模模板出片只在方舟档（真人档没有 r2v 能力）——这一段换回「电影级」档，或换掉模板"

@@ -2063,8 +2063,8 @@ async function mintCards(
 
 // （这里原来还有「上传视频 → AI 看抽帧自动铸卡」那条路：extractCardsFromVideo + 它的提示词 VIDEO_MINT，多语言 R2 删除。
 //   圈选提取（VideoCardAnnotator）取代 VideoCardExtractor 之后，它只剩 ai/index.ts 的一条转发、全仓零调用方 —— 留着就得给一条
-//   没人走得到的路翻译进度与报错。要找回看 git 历史。提卡现在是三条路：成片提炼 deriveDeckCards / 经典模板
-//   extractTemplateFromVideo / 白模模板原片 extractTemplateCards。）
+//   没人走得到的路翻译进度与报错。要找回看 git 历史。提卡现在是两条路：成片提炼 deriveDeckCards / 经典模板
+//   extractTemplateFromVideo（白模模板原片那条 extractTemplateCards 2026-09-17 也删了，见 extractTemplateFromVideo 后面那段说明）。）
 
 /**
  * 视频 → 模板素材卡。上限比成片提炼那条（DECK_MAX_CARDS）小（不出 character 卡），所以是**另一个**常量。
@@ -2201,34 +2201,9 @@ export async function extractTemplateFromVideo(
   };
 }
 
-/**
- * 白模模板登记时从**原片**抽帧铸 V3 素材卡（场景 / 道具 / 风格；不出人物卡）——第三期（2026-09-06）。
- * ★ 白模化那条路此前 cards 恒空：白模帧里全是灰白简模，认不出素材；而原片帧在登记那一刻就在客户端手上
- *   （提取器抽帧那一步），风格 / 场景 / 道具正该从它出（docs/card-roles-v3-design.md §2 的 ⚠）。
- * ★ 服务端不存模板卡（BranchTemplate 没有 cards 字段，经典模板的卡也只在本机），这里同样只落本机模板。
- * ★ 报价上限 economy.blockoutCardsCost 与这里的真实调用序列（一次看图 + 每张 出图 / 复核）逐项对应。
- */
-export async function extractTemplateCards(
-  frames: string[],
-  note: string,
-  onProgress?: (status: string) => void,
-): Promise<{ cards: Card[]; tokens: number }> {
-  if (frames.length === 0) return { cards: [], tokens: 0 };
-  const frameCount = frames.length;
-  onProgress?.(t`从原片提炼素材卡（${frameCount} 帧）…`);
-  const raw = await chatVision(
-    TEMPLATE_MINT.prompt,
-    zhPrompt`用户补充说明：${note || "无"}
-以下是原片按时间顺序的抽帧（frameIndex 从 1 起）：`,
-    frames,
-  );
-  const parsed = JSON.parse(raw.replace(/```json|```/g, "").trim()) as CardDef[];
-  if (!Array.isArray(parsed)) throw new Error(t`模板提卡 JSON 结构不符`);
-  const defs = sanitizeCardDefs(parsed).filter((d) => d.type !== "character");
-  const styleHint = defs.find((d) => d.type === "style")?.name ?? "";
-  const r = await mintCards(defs, TEMPLATE_MINT, styleHint, [], onProgress, frames[Math.floor(frames.length / 2)] ?? frames[0], frames);
-  return { cards: r.cards, tokens: CHAT_TURN_TOKENS + r.tokens };
-}
+// （这里原来还有 extractTemplateCards：白模模板登记时从**原片**抽帧铸 V3 素材卡（第三期，2026-09-06）。2026-09-17 删除 —— 主人定：AI 白模化用不到
+//   提炼素材卡；而且它唯一的调用方（VideoTemplateExtractor.runBlockoutize）判的 frames.length > 0 在白模路上恒假（那条路不存原片帧），
+//   这个函数从没被真调用过。它用的提示词 TEMPLATE_MINT 仍在：经典模板那条路（上面 extractTemplateFromVideo 的认卡遍）照用。要找回看 git 历史。）
 
 /**
  * Seed3D 产物是 zip 包（实测 2026-08-07：包内单个自包含 pbr/mesh_textured_pbr.glb，36MB 级）。
