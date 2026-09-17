@@ -54,6 +54,7 @@ import { balanceNote, canAfford, spendTokens } from "../data/account";
 import { TEMPLATE_MAX_CARDS, blockoutCardsCost, fmtTokens, ownRefTemplateCost, templateCost } from "../data/economy";
 import {
   updateTemplate,
+  ARK_EDIT_RULES,
   BLOCKOUT_INPUT_RULES,
   SPLIT_MAX_PARTS,
   blockoutizeBlockReason,
@@ -588,8 +589,11 @@ export default function VideoTemplateExtractor({
     //   真正需要保护的只有一档：**一发登记正压在服务端手里**、回执还没标 spent ——
     //   关掉会把源删掉，而服务端正拿着它切段（四道引用检查此刻全部落空，拦不住）。
     if (flightRef.current && receipt && !receipt.spent) {
+      // 两句各自成句（不拼「busy + 后半句」）：busy 是 data 层报上来的那句进度，没有时退回「正在登记」
       setWarn(
-        `${busy || "正在登记"}——这一步在跑，跑完再关：现在关掉会把已经传上去的那段素材删掉，而服务器正拿它切段。`,
+        busy
+          ? t`${busy}——这一步在跑，跑完再关：现在关掉会把已经传上去的那段素材删掉，而服务器正拿它切段。`
+          : t`正在登记——这一步在跑，跑完再关：现在关掉会把已经传上去的那段素材删掉，而服务器正拿它切段。`,
       );
       return;
     }
@@ -715,6 +719,21 @@ export default function VideoTemplateExtractor({
    *   提交时 runOwnRef 用同样输入重算，结果必然一致）。
    */
   const splitPlan = segLong && receipt ? planSplits(receipt.data.durationSec, splitMarks) : null;
+  // 文案里的数先取名：译文读到的是 {splitParts} / {srcSec} / {cutsMax}…，不是 {0}。
+  // ★ 数都从常量推，别手写 4 / 16 / 240 / 360：自动对半切最多覆盖 8 段（2 的幂，见 arkVideoRules 的 autoMaxSec ★★），
+  //   再往上一跳就是 16 段；整条登记的天花板 = SPLIT_MAX_PARTS × maxSec；「切出来不足 4 秒的刀落不下去」的 4 是
+  //   方舟窗口下限（planSplits 里那个 MIN 对齐的就是 ARK_EDIT_RULES）。下面三档长素材提示的门槛也读这几个数。
+  const splitParts = splitPlan ? splitPlan.splits.length + 1 : 0;
+  const droppedCount = splitPlan?.dropped.length ?? 0;
+  const droppedSecs = (splitPlan?.dropped ?? []).map((m) => m.toFixed(1)).join(" / ");
+  const srcSec = receipt ? receipt.data.durationSec.toFixed(1) : "";
+  const autoParts = 8;
+  const autoMaxSec = autoParts * maxSec;
+  const autoJumpParts = autoParts * 2;
+  const splitCap = SPLIT_MAX_PARTS * maxSec;
+  const cutsMax = SPLIT_MAX_PARTS - 1;
+  const partMinSec = ARK_EDIT_RULES.minSec;
+  const cardsPrice = fmtTokens(blockoutCardsCost());
   /** ownRef 的选段裁决（注入 Trimmer 的 judge 口）：≤30 秒沿用白模化那组窗口判词但豁免
    *  像素门（derive 会放大），>30 秒换分段那组（整条/整幅/≤12 段，见 arkVideoRules） */
   const ownRefJudge =
@@ -753,13 +772,14 @@ export default function VideoTemplateExtractor({
         {segLong && splitPlan ? (
           <>
             <p className="text-[11px] leading-relaxed text-slate-400">
-              这一步不出片、不换人，只花「认人 + 量框」的钱，而分段是
-              <b className="text-slate-200">每段各认一次</b>：{splitPlan.splits.length + 1} 段 ×{" "}
-              {fmtTokens(ownRefTemplateCost())}。按上限报价，实收只少不多（服务端一认出来就不再试）。
+              <Trans>
+                这一步不出片、不换人，只花「认人 + 量框」的钱，而分段是
+                <b className="text-slate-200">每段各认一次</b>：{splitParts} 段 × {ownRefPrice}。按上限报价，实收只少不多（服务端一认出来就不再试）。
+              </Trans>
             </p>
             <TokenCost
-              tokens={ownRefTemplateCost() * (splitPlan.splits.length + 1)}
-              note={`分段登记这一次的总消耗（${splitPlan.splits.length + 1} 段合计）`}
+              tokens={ownRefTemplateCost() * splitParts}
+              note={t`分段登记这一次的总消耗（${splitParts} 段合计）`}
               upper
               className="mt-1"
             />
@@ -767,15 +787,21 @@ export default function VideoTemplateExtractor({
         ) : (
           <>
             <p className="text-[11px] leading-relaxed text-slate-400">
-              这一步不出片、不换人，只花「认人 + 量框」的钱。按上限报价，实收只少不多
-              （服务端一认出来就不再试）。
+              <Trans>
+                这一步不出片、不换人，只花「认人 + 量框」的钱。按上限报价，实收只少不多
+                （服务端一认出来就不再试）。
+              </Trans>
             </p>
-            <TokenCost tokens={ownRefTemplateCost()} note="做成模板这一次的消耗" upper className="mt-1" />
+            <TokenCost tokens={ownRefTemplateCost()} note={t`做成模板这一次的消耗`} upper className="mt-1" />
           </>
         )}
+        {/* 尾句按形态各自整句（不在句子中间换名词）：分段按所套那一段计，单段按模板视频计 */}
         <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
-          这是做模板这一次的花费；以后每次有人套用出片，按{segLong ? "所套那一段" : "模板视频"}
-          的时长另计一笔。
+          {segLong ? (
+            <Trans>这是做模板这一次的花费；以后每次有人套用出片，按所套那一段的时长另计一笔。</Trans>
+          ) : (
+            <Trans>这是做模板这一次的花费；以后每次有人套用出片，按模板视频的时长另计一笔。</Trans>
+          )}
         </p>
       </div>
     ) : undefined;
@@ -789,8 +815,10 @@ export default function VideoTemplateExtractor({
   const ownRefTrimPricing =
     route === "ownRef" && receipt ? (
       <p className="rounded-lg border border-slate-700 bg-panel/60 px-3 py-2 text-[11px] leading-relaxed text-slate-400">
-        这一步不花钱：框好要用的那一段点「下一步」，下一步在<b className="text-slate-200">框出来的这一段</b>
-        上标帧，报价也在那一步、按「做成模板」之前整句报出。
+        <Trans>
+          这一步不花钱：框好要用的那一段点「下一步」，下一步在<b className="text-slate-200">框出来的这一段</b>
+          上标帧，报价也在那一步、按「做成模板」之前整句报出。
+        </Trans>
       </p>
     ) : undefined;
   /**
@@ -808,6 +836,15 @@ export default function VideoTemplateExtractor({
           durationSec: receipt.data.durationSec,
         })
       : null;
+  /** 第 2 步顶上那句「第 1 步已框出：…」的读数：与第 1 步同一份 selectionSummary（不带「AI 看 N 帧」那半句） */
+  const frameStepSummary =
+    route === "ownRef" && ownRefStep === "frames" && trimSel && receipt
+      ? selectionSummary(
+          trimSel,
+          { width: receipt.data.width, height: receipt.data.height, durationSec: receipt.data.durationSec },
+          { frames: false },
+        )
+      : "";
   /** 模板标题输入：第 1 步（aiBlockout 路）与 ownRef 第 2 步共用同一份 */
   const titleField = (
     <input
@@ -815,7 +852,7 @@ export default function VideoTemplateExtractor({
       onChange={(e) => setTitle(e.target.value)}
       maxLength={40}
       disabled={!!busy}
-      placeholder="模板标题（别人在市场里看到的就是它）"
+      placeholder={t`模板标题（别人在市场里看到的就是它）`}
       className="w-full rounded-lg border border-slate-700 bg-black/30 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand disabled:opacity-40"
     />
   );
@@ -844,7 +881,7 @@ export default function VideoTemplateExtractor({
       //   不够 5 秒时，这条路无论怎么框都做不出能被套用的模板 —— 在这儿说清楚，用户连
       //   100MB 都不用传。它不是第二份判据，与选段那句读的是同一个 minSec（见那边的 ★）。
       try {
-        setBusy("检查视频规格…");
+        setBusy(t`检查视频规格…`);
         const meta = await probeVideoMeta(f);
         const issue =
           templateVideoPrecheckIssue({
@@ -875,10 +912,12 @@ export default function VideoTemplateExtractor({
         // ★ 真进度（直传是分块的，XHR 给得出 upload.onprogress）。此前这里只有一句
         //   静态的"大文件在慢网上要等一会" —— 而这一步在手机网上要走好几分钟，
         //   没有进度条的话，用户唯一能做的判断就是"是不是卡死了"。
-        setBusy("上传视频 0%");
+        // 三处进度（起手 0%、胶囊初值、每一块的回调）共用同一条 msgid
+        const uploadLine = (pct: number) => t`上传视频 ${pct}%`;
+        setBusy(uploadLine(0));
         // ★ 登记成后台任务（手机网上要走几分钟）：退出这一页胶囊接手进度。
         //   但回执只活在这一窗里 —— 窗关了传完也接不上，通知里要把这句话说出来
-        const job = startJob({ kind: "template-upload", title: "上传参考视频", page: currentRoute(), progress: "上传视频 0%" });
+        const job = startJob({ kind: "template-upload", title: t`上传参考视频`, page: currentRoute(), progress: uploadLine(0) });
         uploadAbort.current?.abort(); // 上一发若还在跑（换文件），先停掉它
         const ac = new AbortController();
         uploadAbort.current = ac;
@@ -887,30 +926,32 @@ export default function VideoTemplateExtractor({
           data = await uploadTemplateVideo(
             f,
             (frac) => {
-              const t = `上传视频 ${Math.round(frac * 100)}%`;
-              setBusy(t);
-              job.update(t);
+              const line = uploadLine(Math.round(frac * 100));
+              setBusy(line);
+              job.update(line);
             },
             ac.signal,
           );
         } catch (e) {
-          job.fail("参考视频没传上", currentRoute());
+          job.fail(t`参考视频没传上`, currentRoute());
           throw e;
         }
         if (mountedRef.current) job.done({ silent: true });
-        else job.done({ msg: "视频传完了，但提取窗已经关了——回模板页重新打开、再选一次", route: currentRoute() });
+        else job.done({ msg: t`视频传完了，但提取窗已经关了——回模板页重新打开、再选一次`, route: currentRoute() });
         // spent:false —— 新的一份素材，还没有任何一发付过钱的白模化用过它（见 receipt 的 ★★）
         setReceipt({ file: f, data, src: URL.createObjectURL(f), spent: false });
         // 标题给个能用的默认值（文件名去掉扩展名）：服务端 zod 要求 title 非空，
         // 让用户对着一个空框才能继续，只是多一步没有信息量的操作
-        setTitle((t) => t || f.name.replace(/\.[^.]+$/, "").slice(0, 40) || "白模模板");
+        // ★ 与 data/templates 两处兜底同一条 msgid「白模模板」：它是存进服务端、别人在市场里看到的标题，按作者当时的界面语言定
+        setTitle((prev) => prev || f.name.replace(/\.[^.]+$/, "").slice(0, 40) || t`白模模板`);
         // 帧角疑似水印：本机抽几帧看一眼，命中就在裁剪框上方提示是哪个角。
         // ★ 排在上传**之后**，因为它现在的用途是"告诉你该往哪拖裁剪框"，而不是
         //   "劝你别传"（V1 时代只能劝退——那时没有裁剪框）。跑不起来就当没这功能，
         //   理由见 cornerWatermarkHint 的 ★（常驻告知在任何情况下都还在）。
-        setBusy("检查画面角落…");
+        setBusy(t`检查画面角落…`);
         try {
-          const wmFrames = await sampleFrames(f, 4, (i) => setBusy(`检查画面角落 ${i}/4…`));
+          const wmFrameN = 4;
+          const wmFrames = await sampleFrames(f, wmFrameN, (i) => setBusy(t`检查画面角落 ${i}/${wmFrameN}…`));
           setWarn((await cornerWatermarkHint(wmFrames)) ?? "");
         } catch (e2) {
           console.warn("[extractor] 帧角水印探测未能完成（不影响后续步骤）：", e2);
@@ -925,8 +966,8 @@ export default function VideoTemplateExtractor({
     }
     setFile(f);
     try {
-      setBusy("抽帧中…");
-      const fr = await sampleFrames(f, n, (i) => setBusy(`抽帧 ${i}/${n}…`));
+      setBusy(t`抽帧中…`);
+      const fr = await sampleFrames(f, n, (i) => setBusy(t`抽帧 ${i}/${n}…`));
       setFrames(fr);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -957,10 +998,10 @@ export default function VideoTemplateExtractor({
   async function runOwnRef(sel: BlockoutSelection) {
     if (!receipt || busy) return;
     setErr("");
-    setBusy("提交中…");
+    setBusy(t`提交中…`);
     flightRef.current = true;
     // ★ 登记成后台任务：登记落在服务端 + 本机模板库，窗关了也照样成；人不在就发通知
-    const job = startJob({ kind: "template-register", title: "登记模板", page: currentRoute(), route: "/templates?shelf=mine", progress: "提交中…" });
+    const job = startJob({ kind: "template-register", title: t`登记模板`, page: currentRoute(), route: "/templates?shelf=mine", progress: t`提交中…` });
     try {
       // ── 分段形态（选段拖过 30 秒）：整条切段登记成模板组 ──
       if (sel.durSec > BLOCKOUT_INPUT_RULES.maxSec) {
@@ -983,7 +1024,7 @@ export default function VideoTemplateExtractor({
           },
         });
         if (out.note) setWarn(out.note);
-        job.done({ msg: "模板组登记好了，去「我的模板」看看", silent: mountedRef.current });
+        job.done({ msg: t`模板组登记好了，去「我的模板」看看`, silent: mountedRef.current });
         const made = getTemplate(out.id);
         // ★ 分段成功**不直接跳出片**（与单段那条 onDone 直通不同）：N 段各自的认人结果
         //   都在 note 里，直通的话它们一闪就没（onDone 多半立刻导航走）。先给成功卡 ——
@@ -1017,13 +1058,14 @@ export default function VideoTemplateExtractor({
       });
       const made = getTemplate(out.id);
       if (out.note) setWarn(out.note);
-      job.done({ msg: "模板登记好了，去「我的模板」看看", silent: mountedRef.current });
+      job.done({ msg: t`模板登记好了，去「我的模板」看看`, silent: mountedRef.current });
       if (made) onDone?.(made);
       else close();
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      job.fail(`登记没成：${msg.slice(0, 60)}`, "/templates?shelf=mine");
-      setErr(msg);
+      const reason = e instanceof Error ? e.message : String(e);
+      const why = reason.slice(0, 60);
+      job.fail(t`登记没成：${why}`, "/templates?shelf=mine");
+      setErr(reason);
     } finally {
       flightRef.current = false;
       setBusy("");
@@ -1036,10 +1078,10 @@ export default function VideoTemplateExtractor({
     // ★ 先把 busy 点亮再 await：blockoutizeTemplate 头两道门（能力探测/报价）是异步的，
     //   第一句进度话要好几百毫秒才到 —— 中间这段空窗期按钮是活的，手一抖就是**两发**
     //   白模化（两次真实付费出片）。
-    setBusy("提交中…");
+    setBusy(t`提交中…`);
     flightRef.current = true;
     // ★ 登记成后台任务：白模化是服务端两阶段 + 分钟级等待，窗关了也照跑；人不在就发通知
-    const job = startJob({ kind: "template-blockout", title: "白模化", page: currentRoute(), route: "/templates?shelf=mine", progress: "提交中…" });
+    const job = startJob({ kind: "template-blockout", title: t`白模化`, page: currentRoute(), route: "/templates?shelf=mine", progress: t`提交中…` });
     try {
       const tpl = await blockoutizeTemplate({
         publicId: receipt.data.publicId,
@@ -1069,11 +1111,16 @@ export default function VideoTemplateExtractor({
       setGot(tpl);
       // ★ V3 第三期：白模模板的素材卡（场景 / 道具 / 风格）从**原片**抽帧铸——白模帧里认不出这些。
       //   报价（blockoutCardsCost）在上一屏与白模化那两笔并排说过；余额不够就只做模板、把话说清（铁律八）
-      let cardsNote = "";
+      //   结局四种、各自整句（不再把「；素材卡没铸…」这种半句拼进通知里）：没铸 / 余额不够 / 铸了 N 张 / 铸失败
+      let cardsOutcome: "none" | "unaffordable" | "minted" | "failed" = "none";
+      let cardsQuote = "";
+      let cardsN = 0;
+      let cardsWhy = "";
       if (frames.length > 0) {
         const quote = blockoutCardsCost();
         if (AI_REAL && !canAfford(quote)) {
-          cardsNote = `；素材卡没铸（最多需 ${fmtTokens(quote)} token，余额不够）`;
+          cardsOutcome = "unaffordable";
+          cardsQuote = fmtTokens(quote);
         } else {
           try {
             const r = await extractTemplateCards(frames, note, (st) => {
@@ -1084,19 +1131,32 @@ export default function VideoTemplateExtractor({
             if (r.cards.length > 0) {
               updateTemplate(tpl.id, { cards: r.cards });
               setGot({ ...tpl, cards: r.cards });
-              cardsNote = `，附 ${r.cards.length} 张素材卡`;
+              cardsOutcome = "minted";
+              cardsN = r.cards.length;
             }
           } catch (e) {
             const why = e instanceof Error ? e.message : String(e);
-            cardsNote = `；素材卡没铸成（${why.slice(0, 60)}）`;
+            cardsOutcome = "failed";
+            cardsWhy = why.slice(0, 60);
           }
         }
       }
-      job.done({ msg: `白模模板做好了${cardsNote}，去「我的模板」看看`, silent: mountedRef.current });
+      job.done({
+        msg:
+          cardsOutcome === "unaffordable"
+            ? t`白模模板做好了；素材卡没铸（最多需 ${cardsQuote} token，余额不够），去「我的模板」看看`
+            : cardsOutcome === "minted"
+              ? t`白模模板做好了，附 ${cardsN} 张素材卡，去「我的模板」看看`
+              : cardsOutcome === "failed"
+                ? t`白模模板做好了；素材卡没铸成（${cardsWhy}），去「我的模板」看看`
+                : t`白模模板做好了，去「我的模板」看看`,
+        silent: mountedRef.current,
+      });
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      job.fail(`白模化没成：${msg.slice(0, 60)}`, "/templates?shelf=mine");
-      setErr(msg);
+      const reason = e instanceof Error ? e.message : String(e);
+      const why = reason.slice(0, 60);
+      job.fail(t`白模化没成：${why}`, "/templates?shelf=mine");
+      setErr(reason);
     } finally {
       flightRef.current = false;
       setBusy("");
@@ -1138,7 +1198,7 @@ export default function VideoTemplateExtractor({
       setGot(tpl);
       job.done({ msg: t`模板分析好了，去「我的模板」看看`, silent: mountedRef.current });
     } catch (e) {
-      // 改名只为不和 msg 宏读混（宏按作用域认 import，runOwnRef / runBlockoutize 里那两个 const msg 不受影响；留给 X1b 连同改写 job.fail 那两行一起改名，现在改会动那两条字面量的基线哈希）
+      // 改名只为不和 msg 宏读混（宏按作用域认 import；runOwnRef / runBlockoutize 的 catch 同样叫 reason）
       const reason = e instanceof Error ? e.message : String(e);
       const why = reason.slice(0, 60);
       job.fail(t`分析没成：${why}`, "/templates?shelf=mine");
@@ -1153,6 +1213,19 @@ export default function VideoTemplateExtractor({
   const maxMb = Math.round(MAX_TEMPLATE_VIDEO_BYTES / 1024 / 1024);
   // 预估消耗那一行同理：单位 token 写进同一条 msgid（{estimateText} token），英文才写得成复数 tokens
   const estimateText = fmtTokens(estimate);
+  // 成功卡上的几个数先取名（got 为 null 时那块不渲染，这里只是给译文一个名字）。
+  // ★ 角色位清单：label 是服务端写的序数词（最左边 / 从左数第2个），是数据不是文案，原样列出；分隔符与货架那句同一条 msgid。
+  // ★ 秒数报**真实**秒数（拿不到就退回登记锚点）：作者刚花了一次真钱，这一行是他判断"做出来的东西对不对"的第一眼。
+  //   计价锚点是另一个数，在模板详情页说清楚。
+  const sep = t({ message: "、", comment: "列举几个名字时的分隔符" });
+  const gotTitle = got?.title ?? "";
+  const beats = got?.recipe.beats.length ?? 0;
+  const cardCount = got?.cards.length ?? 0;
+  const refSec = got?.refVideo ? (refVideoRealSec(got.refVideo) ?? got.refVideo.durationSec).toFixed(1) : "";
+  const roleCount = got?.roles?.length ?? 0;
+  const roleList = (got?.roles ?? []).map((r) => r.label).join(sep);
+  const groupCount = got?.group?.count ?? 0;
+  const groupIndex = (got?.group?.index ?? 0) + 1;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end bg-black/60" onClick={close}>
@@ -1170,17 +1243,16 @@ export default function VideoTemplateExtractor({
         {got ? (
           <div className="space-y-3">
             <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3">
-              <div className="text-sm font-bold text-emerald-300">已提取模板「{got.title}」</div>
+              <div className="text-sm font-bold text-emerald-300"><Trans>已提取模板「{gotTitle}」</Trans></div>
               <p className="mt-1 text-xs leading-relaxed text-slate-300">{got.intro}</p>
               <p className="mt-2 text-[11px] text-slate-400">
-                {got.recipe.beats.length} 段分镜 · {got.cards.length} 张素材卡 · 已存进「我的模板」（尚未发布）
+                <Trans>{beats} 段分镜 · {cardCount} 张素材卡 · 已存进「我的模板」（尚未发布）</Trans>
               </p>
               {got.refVideo && (
                 <p className="mt-1 text-[11px] text-sky-300">
-                  {/* ★ 报**真实**秒数（拿不到就退回登记锚点）：作者刚花了一次真钱，
-                      这一行是他判断"做出来的东西对不对"的第一眼。计价锚点是另一个数，
-                      在模板详情页说清楚。 */}
-                  白模模板 · 参考视频（{(refVideoRealSec(got.refVideo) ?? got.refVideo.durationSec).toFixed(1)}s）已托管
+                  {/* ★ 秒数是**真实**秒数（refSec，见 return 之前取名那几行的 ★）。
+                      ★ 整段三种形态各是一整句（没认出角色位 / 认出且能按位置列清单 / 只报个数）：
+                      以前是「已托管」+ 可选的角色位半句 + 「，套用出片时…」三截拼的，英文的语序拼不出来。 */}
                   {/* ★ 角色位数量必须说出来：它决定套用者能挂几张卡，而"AI 只认出 2 个人"
                       与"这段里本来就 2 个人"在画面上分不出来 —— 不说的话作者会以为模板坏了。
                       ★★ 序数方案下**可以直接把位置列出来**，这是一处真正的体验改善：
@@ -1193,20 +1265,29 @@ export default function VideoTemplateExtractor({
                       写明的有意降级），照那么写就是在承诺一个点了没反应的功能。
                       「没挂的保持原样」这半句同样不能省：不说的话，只挂了一张卡的人会以为
                       剩下的人偶是出片出坏了。 */}
-                  {got.roles?.length
-                    ? got.markSlots?.length
-                      ? ` · 识别出 ${got.roles.length} 个角色位：${got.roles.map((r) => r.label).join("、")}（套用时在编辑页按位置逐个挂人物卡，没挂的保持人偶原样）`
-                      : ` · 识别出 ${got.roles.length} 个角色位（套用时在编辑页逐个挂人物卡，没挂的保持白模人偶原样）`
-                    : ""}
-                  ，套用出片时将整段复刻它的场景与运镜
+                  {got.roles?.length ? (
+                    got.markSlots?.length ? (
+                      <Trans>
+                        白模模板 · 参考视频（{refSec}s）已托管 · 识别出 {roleCount} 个角色位：{roleList}（套用时在编辑页按位置逐个挂人物卡，没挂的保持人偶原样），套用出片时将整段复刻它的场景与运镜
+                      </Trans>
+                    ) : (
+                      <Trans>
+                        白模模板 · 参考视频（{refSec}s）已托管 · 识别出 {roleCount} 个角色位（套用时在编辑页逐个挂人物卡，没挂的保持白模人偶原样），套用出片时将整段复刻它的场景与运镜
+                      </Trans>
+                    )
+                  ) : (
+                    <Trans>白模模板 · 参考视频（{refSec}s）已托管，套用出片时将整段复刻它的场景与运镜</Trans>
+                  )}
                 </p>
               )}
               {/* 分段组：说清"一组几段、从哪儿都能整组套用"。不说的话，作者在「我的模板」里
                   看到 N 条「第 i/N 段」只会以为登记重复了 */}
               {got.group && (
                 <p className="mt-1 text-[11px] text-sky-300">
-                  分段组 · 整条已切成 {got.group.count} 段各自登记（这张卡是第 {got.group.index + 1} 段）。
-                  从任何一段套用都会整组铺进工作流，逐段挂卡出片，合并时自动回填原片音轨。
+                  <Trans>
+                    分段组 · 整条已切成 {groupCount} 段各自登记（这张卡是第 {groupIndex} 段）。
+                    从任何一段套用都会整组铺进工作流，逐段挂卡出片，合并时自动回填原片音轨。
+                  </Trans>
                 </p>
               )}
             </div>
@@ -1220,21 +1301,28 @@ export default function VideoTemplateExtractor({
                 void tplV;
                 const missing = templateGroupOf(got).filter((p) => !(p.roles?.length ?? 0));
                 if (!missing.length) return null;
+                const missingCount = missing.length;
                 return (
                   <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-200">
                     <p>
-                      有 {missing.length} 段还没认出角色位。这几段现在也能随整组套用出片，只是那一段不能逐人挂卡
-                      （AI 会整段泛指换人）。想让它们也能逐人挂卡，就在这里换一帧再认一次（每认一次都计费）：
+                      <Trans>
+                        有 {missingCount} 段还没认出角色位。这几段现在也能随整组套用出片，只是那一段不能逐人挂卡
+                        （AI 会整段泛指换人）。想让它们也能逐人挂卡，就在这里换一帧再认一次（每认一次都计费）：
+                      </Trans>
                     </p>
                     <div className="mt-2 space-y-2">
-                      {missing.map((p) => (
-                        <div key={p.id} className="rounded-lg bg-black/25 p-2">
-                          <div className="mb-1.5 text-xs font-semibold text-slate-300">
-                            第 {(p.group?.index ?? 0) + 1} 段 · {p.title}
+                      {missing.map((p) => {
+                        const partIndex = (p.group?.index ?? 0) + 1;
+                        const partTitle = p.title;
+                        return (
+                          <div key={p.id} className="rounded-lg bg-black/25 p-2">
+                            <div className="mb-1.5 text-xs font-semibold text-slate-300">
+                              <Trans>第 {partIndex} 段 · {partTitle}</Trans>
+                            </div>
+                            <DetectRolesEntry t={p} />
                           </div>
-                          <DetectRolesEntry t={p} />
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 );
@@ -1433,19 +1521,16 @@ export default function VideoTemplateExtractor({
               <div className="space-y-3">
                 <div className="flex items-start gap-2 rounded-lg border border-slate-700/70 bg-panel/60 px-3 py-2">
                   <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-slate-300">
-                    <b className="text-slate-100">第 1 步已框出：</b>
-                    {selectionSummary(
-                      trimSel,
-                      { width: receipt.data.width, height: receipt.data.height, durationSec: receipt.data.durationSec },
-                      { frames: false },
-                    )}
+                    <Trans>
+                      <b className="text-slate-100">第 1 步已框出：</b>{frameStepSummary}
+                    </Trans>
                   </p>
                   <button
                     onClick={() => setOwnRefStep("trim")}
                     disabled={!!busy}
                     className="flex-none rounded-full border border-slate-600 px-2.5 py-0.5 text-[10px] text-slate-300 disabled:opacity-40"
                   >
-                    ← 改选段
+                    <Trans>← 改选段</Trans>
                   </button>
                 </div>
 
@@ -1467,9 +1552,9 @@ export default function VideoTemplateExtractor({
                         不说的话，用户标了 3 刀、绿字却说"切成 3 段"，他只会以为标丢了 */}
                     {splitPlan && splitPlan.dropped.length > 0 && (
                       <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-rose-200">
-                        有 {splitPlan.dropped.length} 刀落不下去，已被忽略：第{" "}
-                        {splitPlan.dropped.map((m) => m.toFixed(1)).join(" / ")} 秒——离片头、片尾或相邻的刀不足
-                        4 秒，切出来会有短于 4 秒的段（AI 引擎收不下）。把这几刀删掉，或挪远一点再标。
+                        <Trans>
+                          有 {droppedCount} 刀落不下去，已被忽略：第 {droppedSecs} 秒——离片头、片尾或相邻的刀不足 {partMinSec} 秒，切出来会有短于 {partMinSec} 秒的段（AI 引擎收不下）。把这几刀删掉，或挪远一点再标。
+                        </Trans>
                       </p>
                     )}
                   </>
@@ -1520,14 +1605,14 @@ export default function VideoTemplateExtractor({
                     disabled={!!busy}
                     className="flex-none rounded-xl border border-slate-600 px-4 py-2.5 text-sm text-slate-300 disabled:opacity-40"
                   >
-                    上一步
+                    <Trans>上一步</Trans>
                   </button>
                   <button
                     onClick={() => void runOwnRef(trimSel)}
                     disabled={!!busy || !!(segLong && frameStepVerdict?.issue)}
                     className="min-w-0 flex-1 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
                   >
-                    {busy || "做成模板（不出片）"}
+                    {busy || t`做成模板（不出片）`}
                   </button>
                 </div>
               </div>
@@ -1583,8 +1668,7 @@ export default function VideoTemplateExtractor({
                         逐笔记，只会比这个数少（余额不够时只做模板并说明）。ownRef 路不铸（那条路的原片就是白模） */}
                     {route !== "ownRef" && frames.length > 0 && (
                       <p className="text-[11px] leading-relaxed text-slate-400">
-                        另外会从原片提炼素材卡（场景 / 道具 / 风格，最多 {TEMPLATE_MAX_CARDS} 张，按实际出的收，最多{" "}
-                        {fmtTokens(blockoutCardsCost())}）。
+                        <Trans>另外会从原片提炼素材卡（场景 / 道具 / 风格，最多 {TEMPLATE_MAX_CARDS} 张，按实际出的收，最多 {cardsPrice}）。</Trans>
                       </p>
                     )}
                     {/* 标题：aiBlockout 路只有这一屏，在这里填；ownRef 路挪到第 2 步（提交那一屏）填 */}
@@ -1610,11 +1694,13 @@ export default function VideoTemplateExtractor({
                       //   240 秒之后下一档直接 16 段、一步跨过 12 段上限 —— 对 241~360 秒的
                       //   素材说"拉满就会自动切成多段"，用户照做立刻撞红字。那一档改在
                       //   下面单独说（要自己标刀）。
-                      Math.floor(receipt.data.durationSec) <= 8 * BLOCKOUT_INPUT_RULES.maxSec && (
+                      Math.floor(receipt.data.durationSec) <= autoMaxSec && (
                         <p className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-sky-200/90">
-                          这条素材有 {receipt.data.durationSec.toFixed(1)} 秒：把上面的选段
-                          <b className="font-bold">拉满整条</b>，就会自动切成多段登记成一组（每段 ≤30 秒、逐段认人）；
-                          只想用其中一段就框 {BLOCKOUT_INPUT_RULES.maxSec} 秒以内。
+                          <Trans>
+                            这条素材有 {srcSec} 秒：把上面的选段
+                            <b className="font-bold">拉满整条</b>，就会自动切成多段登记成一组（每段 ≤{maxSec} 秒、逐段认人）；
+                            只想用其中一段就框 {maxSec} 秒以内。
+                          </Trans>
                         </p>
                       )}
                     {/* ★ 240~360 秒这一档单独说：自动切会一步跨到 16 段（见 arkVideoRules
@@ -1622,13 +1708,15 @@ export default function VideoTemplateExtractor({
                     {route === "ownRef" &&
                       receipt &&
                       !segLong &&
-                      Math.floor(receipt.data.durationSec) > 8 * BLOCKOUT_INPUT_RULES.maxSec &&
-                      Math.floor(receipt.data.durationSec) <= SPLIT_MAX_PARTS * BLOCKOUT_INPUT_RULES.maxSec && (
+                      Math.floor(receipt.data.durationSec) > autoMaxSec &&
+                      Math.floor(receipt.data.durationSec) <= splitCap && (
                         <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200/90">
-                          这条素材有 {receipt.data.durationSec.toFixed(1)} 秒：把选段<b className="font-bold">拉满整条</b>
-                          之后还要<b className="font-bold">自己标切段刀</b>（把 {SPLIT_MAX_PARTS - 1} 刀尽量摆匀）——
-                          这个长度上"自动对半"会一步切到 16 段，超过一次最多 {SPLIT_MAX_PARTS} 段。
-                          只想用其中一段就框 {BLOCKOUT_INPUT_RULES.maxSec} 秒以内。
+                          <Trans>
+                            这条素材有 {srcSec} 秒：把选段<b className="font-bold">拉满整条</b>
+                            之后还要<b className="font-bold">自己标切段刀</b>（把 {cutsMax} 刀尽量摆匀）——
+                            这个长度上"自动对半"会一步切到 {autoJumpParts} 段，超过一次最多 {SPLIT_MAX_PARTS} 段。
+                            只想用其中一段就框 {maxSec} 秒以内。
+                          </Trans>
                         </p>
                       )}
                     {/* ★ >360 秒这一档（2026-08-21 复核补）：`ownRefWindow` 把把手钳在 30 秒，
@@ -1638,14 +1726,12 @@ export default function VideoTemplateExtractor({
                     {route === "ownRef" &&
                       receipt &&
                       !segLong &&
-                      Math.floor(receipt.data.durationSec) > SPLIT_MAX_PARTS * BLOCKOUT_INPUT_RULES.maxSec && (
+                      Math.floor(receipt.data.durationSec) > splitCap && (
                         <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200/90">
-                          这条素材有 {receipt.data.durationSec.toFixed(1)} 秒，
-                          <b className="font-bold">整条登记做不了</b>（一次最多 {SPLIT_MAX_PARTS} 段 × {BLOCKOUT_INPUT_RULES.maxSec}
-                          秒 = {SPLIT_MAX_PARTS * BLOCKOUT_INPUT_RULES.maxSec} 秒），所以上面的选段拉到{" "}
-                          {BLOCKOUT_INPUT_RULES.maxSec} 秒就拉不动了。要么框其中{" "}
-                          {BLOCKOUT_INPUT_RULES.maxSec} 秒以内做一段，要么先把素材剪短到{" "}
-                          {SPLIT_MAX_PARTS * BLOCKOUT_INPUT_RULES.maxSec} 秒以内再传。
+                          <Trans>
+                            这条素材有 {srcSec} 秒，
+                            <b className="font-bold">整条登记做不了</b>（一次最多 {SPLIT_MAX_PARTS} 段 × {maxSec} 秒 = {splitCap} 秒），所以上面的选段拉到 {maxSec} 秒就拉不动了。要么框其中 {maxSec} 秒以内做一段，要么先把素材剪短到 {splitCap} 秒以内再传。
+                          </Trans>
                         </p>
                       )}
                     {route === "aiBlockout" && (
@@ -1653,7 +1739,7 @@ export default function VideoTemplateExtractor({
                         value={note}
                         onChange={(e) => setNote(e.target.value)}
                         rows={2}
-                        placeholder="补充说明（可选）：比如「这段里的人都穿古装」——AI 看帧认人时会参考它"
+                        placeholder={t`补充说明（可选）：比如「这段里的人都穿古装」——AI 看帧认人时会参考它`}
                         className="w-full resize-none rounded-lg border border-slate-700 bg-black/30 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
                       />
                     )}
@@ -1662,7 +1748,7 @@ export default function VideoTemplateExtractor({
                   // ★ ownRef 第 1 步的按钮是「下一步」，不花钱、不提交：按钮上得说清下一步是干什么
                   //   （分段形态标的是刀，单段形态挑的是 AI 分析帧 —— 两件事，两句话）
                   submitLabel={
-                    route === "ownRef" ? (segLong ? "下一步：标切段刀" : "下一步：挑 AI 分析帧") : undefined
+                    route === "ownRef" ? (segLong ? t`下一步：标切段刀` : t`下一步：挑 AI 分析帧`) : undefined
                   }
                   onSubmit={(sel) => {
                     if (route === "ownRef") {
