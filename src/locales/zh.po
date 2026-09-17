@@ -1491,6 +1491,10 @@ msgid "「{u}」"
 msgstr "「{u}」"
 
 #: src/components/guide/tours.tsx
+msgid "「人物信息」那一步的文字，之后 AI 复刻这张卡的画面 / 建模时会读，<0>写得越具体越像</0>。不填也行 —— 详情页会按卡名与简介现补一份；选了 AI 生成图位的话，这段连同卡名、标签 都已按素材写好，随意改。"
+msgstr "「人物信息」那一步的文字，之后 AI 复刻这张卡的画面 / 建模时会读，<0>写得越具体越像</0>。不填也行 —— 详情页会按卡名与简介现补一份；选了 AI 生成图位的话，这段连同卡名、标签 都已按素材写好，随意改。"
+
+#: src/components/guide/tours.tsx
 msgid "「关注」那格点开是你关注过的人的名单，就地能取关。 旁边两个是你<0>所有作品加起来</0>的总数，不是某一支的。"
 msgstr "「关注」那格点开是你关注过的人的名单，就地能取关。 旁边两个是你<0>所有作品加起来</0>的总数，不是某一支的。"
 
@@ -3241,6 +3245,10 @@ msgstr "上游说这一发失败了：{why}。按约定，受理之后的失败�
 msgid "上面列的是这台设备上已有的那几条，不是全部结果。"
 msgstr "上面列的是这台设备上已有的那几条，不是全部结果。"
 
+#: src/components/guide/tours.tsx
+msgid "上面是这台设备已经占用的空间。「清理缓存」<0>只删生成过程中留下、已经没人引用的中间文件</0> —— 未发布的草稿和还没传上去的作品一个不动。"
+msgstr "上面是这台设备已经占用的空间。「清理缓存」<0>只删生成过程中留下、已经没人引用的中间文件</0> —— 未发布的草稿和还没传上去的作品一个不动。"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "上面标红的必须项缺了，补齐再重新导出一次包。"
 msgstr "上面标红的必须项缺了，补齐再重新导出一次包。"
@@ -3738,6 +3746,10 @@ msgstr "人物信息"
 #: src/types.ts
 msgid "人物卡"
 msgstr "人物卡"
+
+#: src/components/guide/tours.tsx
+msgid "人物卡的图位由<0>方案</0>决定（格数也随方案走）；其余卡种由卡种决定 （一把剑不该有「{fullBody}」）。<1>第一格既是卡面也是主形象参考</1>： 卡框是竖版 2:3，别的比例会居中显示，不裁你的图。已有图的格子可以<2>⭕ 圈选改图</2>：圈出要改的地方写一句要求，AI 重画这一格 （单张图的价，改坏了不扣钱）。"
+msgstr "人物卡的图位由<0>方案</0>决定（格数也随方案走）；其余卡种由卡种决定 （一把剑不该有「{fullBody}」）。<1>第一格既是卡面也是主形象参考</1>： 卡框是竖版 2:3，别的比例会居中显示，不裁你的图。已有图的格子可以<2>⭕ 圈选改图</2>：圈出要改的地方写一句要求，AI 重画这一格 （单张图的价，改坏了不扣钱）。"
 
 #: src/pages/SupportCreatePage.tsx
 msgid "人物模型"
@@ -4480,6 +4492,10 @@ msgstr "先挂一张素材卡，或让 AI 先推演出首尾帧"
 msgid "先挂上参考视频——中间帧参考图是「多图+参考视频」模式的一部分"
 msgstr "先挂上参考视频——中间帧参考图是「多图+参考视频」模式的一部分"
 
+#: src/components/guide/tours.tsx
+msgid "先挑卡种，再挑方案"
+msgstr "先挑卡种，再挑方案"
+
 #: src/studio/ui/FuseFrameSheet.tsx
 msgid "先挑至少一张参考图——融图是把几张图合成一张，没有素材就没得融"
 msgstr "先挑至少一张参考图——融图是把几张图合成一张，没有素材就没得融"
@@ -4920,6 +4936,10 @@ msgstr "写一段卡组简介：这套卡适合生成什么样的视频？"
 #: src/pages/CutPage.tsx
 msgid "写入本地库…"
 msgstr "写入本地库…"
+
+#: src/components/guide/tours.tsx
+msgid "写给 AI 的那段信息"
+msgstr "写给 AI 的那段信息"
 
 #: src/studio/ui/AvatarPicker.tsx
 msgid "决定牌桌上属于你的那双手"
@@ -5657,6 +5677,10 @@ msgstr "匿名"
 #: src/components/support/VoiceSheet.tsx
 msgid "单音色"
 msgstr "单音色"
+
+#: src/components/guide/tours.tsx
+msgid "占的空间在这看、也在这清"
+msgstr "占的空间在这看、也在这清"
 
 #. 卡片占位封面中央那一个字（卡名为空时）
 #: src/mock/frames.ts
@@ -6567,6 +6591,10 @@ msgstr "只有模板作者能改分类"
 msgid "只画 1 张主图 · 它同时就是卡面"
 msgstr "只画 1 张主图 · 它同时就是卡面"
 
+#: src/components/guide/tours.tsx
+msgid "只管 3D 工坊"
+msgstr "只管 3D 工坊"
+
 #: src/data/videoDownload.ts
 msgid "只能保存自己发布的作品。"
 msgstr "只能保存自己发布的作品。"
@@ -7003,6 +7031,10 @@ msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜�
 msgid "固定"
 msgstr "固定"
 
+#: src/components/guide/tours.tsx
+msgid "图会被怎么处理"
+msgstr "图会被怎么处理"
+
 #. placeholder {0}: i + 1
 #: src/studio/ui/SchemeEditorSheet.tsx
 msgid "图位 {0} 的名字，如「白模全身」"
@@ -7026,6 +7058,10 @@ msgstr "图位「{tag}」要 AI 出图，但还没写提示词"
 #: src/data/promptSchemes.ts
 msgid "图位名「{tag}」超过 {VIEW_TAG_MAX} 个字——太长的话这张卡会存不到服务器上"
 msgstr "图位名「{tag}」超过 {VIEW_TAG_MAX} 个字——太长的话这张卡会存不到服务器上"
+
+#: src/components/guide/tours.tsx
+msgid "图位怎么摆、怎么改"
+msgstr "图位怎么摆、怎么改"
 
 #: src/components/CoverPicker.tsx
 msgid "图片加载失败"
@@ -7400,6 +7436,10 @@ msgstr "存为卡组"
 #: src/pages/SettingsStoragePage.tsx
 msgid "存储"
 msgstr "存储"
+
+#: src/components/guide/tours.tsx
+msgid "存储与清理"
+msgstr "存储与清理"
 
 #: src/components/FrameAnnotator.tsx
 msgid "存入标注"
@@ -9571,6 +9611,10 @@ msgid "挑参考图（{0}/{FUSE_MAX}）"
 msgstr "挑参考图（{0}/{FUSE_MAX}）"
 
 #: src/components/guide/tours.tsx
+msgid "挑完嗓子还有两个旋钮"
+msgstr "挑完嗓子还有两个旋钮"
+
+#: src/components/guide/tours.tsx
 msgid "挑定了就点卡片底部那枚按钮：工坊落到 3D 铸卡桌面（顶栏 🧩 随时把同一条流水线换成<0>工作流画布</0>那一面），简约落到一步一屏的向导。出片之后都汇到<1>同一个剪辑页</1>，再从那里发布。"
 msgstr "挑定了就点卡片底部那枚按钮：工坊落到 3D 铸卡桌面（顶栏 🧩 随时把同一条流水线换成<0>工作流画布</0>那一面），简约落到一步一屏的向导。出片之后都汇到<1>同一个剪辑页</1>，再从那里发布。"
 
@@ -9639,6 +9683,10 @@ msgstr "换了一批走向，投影在你面前了——点开挑一套。"
 #: src/components/flow/TierRow.tsx
 msgid "换到「{0}」档会有这些变化："
 msgstr "换到「{0}」档会有这些变化："
+
+#: src/components/guide/tours.tsx
+msgid "换头像"
+msgstr "换头像"
 
 #: src/components/AvatarPicker.tsx
 msgid "换头像…"
@@ -10518,6 +10566,14 @@ msgstr "昵称（可留空）"
 #: src/pages/LoginPage.tsx
 msgid "昵称（首次登录时使用，可留空）"
 msgstr "昵称（首次登录时使用，可留空）"
+
+#: src/components/guide/tours.tsx
+msgid "昵称和简介"
+msgstr "昵称和简介"
+
+#: src/components/guide/tours.tsx
+msgid "昵称是别人看到的名字，简介挂在主页名字底下。这两样改完要点<0>「保存资料」</0>才算数 —— 头像不用，点了就换。"
+msgstr "昵称是别人看到的名字，简介挂在主页名字底下。这两样改完要点<0>「保存资料」</0>才算数 —— 头像不用，点了就换。"
 
 #: src/components/blockout/BoxFramePicker.tsx
 #: src/components/blockout/VideoStage.tsx
@@ -11902,6 +11958,10 @@ msgid "段间承接"
 msgstr "段间承接"
 
 #: src/components/guide/tours.tsx
+msgid "每一条是一把嗓子，<0>点一下立刻念一句样本、同时选定它</0>。 标着「调和」的是几把嗓子混出来的。"
+msgstr "每一条是一把嗓子，<0>点一下立刻念一句样本、同时选定它</0>。 标着「调和」的是几把嗓子混出来的。"
+
+#: src/components/guide/tours.tsx
 msgid "每一格是<0>一段</0>，从左往右就是这条片的顺序。 点一格<1>就地打开这一段的编辑窗</1>，再点一下收起，点别的格子就换过去。 画布可以拖着平移、两指捏合缩放。"
 msgstr "每一格是<0>一段</0>，从左往右就是这条片的顺序。 点一格<1>就地打开这一段的编辑窗</1>，再点一下收起，点别的格子就换过去。 画布可以拖着平移、两指捏合缩放。"
 
@@ -12623,6 +12683,10 @@ msgstr "点一个片段选中，就能在播放头处<0>✂️ 分割</0>、<1>�
 msgid "点一张卡，挂给「{0}」"
 msgstr "点一张卡，挂给「{0}」"
 
+#: src/components/guide/tours.tsx
+msgid "点一条就试听"
+msgstr "点一条就试听"
+
 #: src/studio/scene/TableScene.tsx
 msgid "点亮法阵 · 去剪辑成片"
 msgstr "点亮法阵 · 去剪辑成片"
@@ -12686,6 +12750,10 @@ msgstr "点地面放一个新人偶"
 #: src/pages/SupportModelNewPage.tsx
 msgid "点头 · 赞同"
 msgstr "点头 · 赞同"
+
+#: src/components/guide/tours.tsx
+msgid "点头像打开选择器：官方看板娘现成可选，最后一格从相册选自己的图，<0>能拖动裁切、双指缩放</0>。不想用图，下面还能挑一个 emoji 顶着。"
+msgstr "点头像打开选择器：官方看板娘现成可选，最后一格从相册选自己的图，<0>能拖动裁切、双指缩放</0>。不想用图，下面还能挑一个 emoji 顶着。"
 
 #: src/components/guide/tours.tsx
 msgid "点它才真花钱开炼，花多少就印在键上。旁边「⚙」改本段的<0>时长、画质与画幅</0>——价钱跟着变，点之前看一眼。 出片之后多一颗「⭕ 圈选」：圈出画面里要改的地方、写句要求，就地重画。"
@@ -13178,6 +13246,7 @@ msgstr "画面正下方这一排格子，<0>一格就是这个模板的一个角
 msgid "画面质感与运镜"
 msgstr "画面质感与运镜"
 
+#: src/components/guide/tours.tsx
 #: src/pages/SettingsPage.tsx
 #: src/pages/SettingsQualityPage.tsx
 msgid "画面质量"
@@ -13568,6 +13637,10 @@ msgstr "直接用原片裁剪，不让 AI 画（这一格不花钱）"
 #: src/pages/AdminPage.tsx
 msgid "相关的举报记录、通知、代币流水、卡片/卡组一并清除；<0>⚠ 涉及未成年人（csae）的举报记录会保留</0>，不随删号清除（法定义务例外）。"
 msgstr "相关的举报记录、通知、代币流水、卡片/卡组一并清除；<0>⚠ 涉及未成年人（csae）的举报记录会保留</0>，不随删号清除（法定义务例外）。"
+
+#: src/components/guide/tours.tsx
+msgid "相册原图直接选：会自动压到 AI 认得出的尺寸，长宽比超过 {REF_MAX_RATIO}:1 的会被居中裁进{REF_MAX_RATIO}:1（方舟不收更极端的参考图），裁过会在那一格里写明。出片时<0>不是每张都会喂进模型</0>：取几张要看这张卡在那一段里 排第几、同段还挂了几张卡 —— 详情页会逐张标「出片用 / 仅展示」，那里是唯一的判据。"
+msgstr "相册原图直接选：会自动压到 AI 认得出的尺寸，长宽比超过 {REF_MAX_RATIO}:1 的会被居中裁进{REF_MAX_RATIO}:1（方舟不收更极端的参考图），裁过会在那一格里写明。出片时<0>不是每张都会喂进模型</0>：取几张要看这张卡在那一段里 排第几、同段还挂了几张卡 —— 详情页会逐张标「出片用 / 仅展示」，那里是唯一的判据。"
 
 #. placeholder {0}: msg.slice(0, 80)
 #: src/utils/nativeCamera.ts
@@ -14565,6 +14638,10 @@ msgstr "第 {stepNo} / 3 步"
 msgid "第 {v} 版"
 msgstr "第 {v} 版"
 
+#: src/components/guide/tours.tsx
+msgid "第 1 屏只做一件事：<0>挑卡种</0>。点「人物卡」会弹一扇小窗，<1>看图挑一套图位方案</1>（{schemeNames}），或者选<2>「真人素材扫脸认证」</2>——那条路先做 肖像授权（授权照片自动填进卡面）、跟读录音或上传本地音频。之后人物卡按四步走：<3>选来源 → 图位预览 → 人物信息 → 定名铸卡</3>。"
+msgstr "第 1 屏只做一件事：<0>挑卡种</0>。点「人物卡」会弹一扇小窗，<1>看图挑一套图位方案</1>（{schemeNames}），或者选<2>「真人素材扫脸认证」</2>——那条路先做 肖像授权（授权照片自动填进卡面）、跟读录音或上传本地音频。之后人物卡按四步走：<3>选来源 → 图位预览 → 人物信息 → 定名铸卡</3>。"
+
 #. placeholder {0}: i + 1
 #: src/data/publishAssets.ts
 msgid "第{0}段成片"
@@ -15058,6 +15135,7 @@ msgstr "编辑作品"
 msgid "编辑窗顶部这三颗按钮切的是<0>这一段</0>怎么做： 「套模板」是拿一段白模视频复刻运镜与站位，你只需给里面的人偶挂上自己的角色卡； 「自选卡片」是自己挑素材卡、写一句要求，AI 推演几套走向让你挑； 「自定义」全按你给的来：传一段示例视频当整段参考，或者直接给自己的首尾帧。 三种<1>每段各选各的</1>，同一条片里可以混着来。"
 msgstr "编辑窗顶部这三颗按钮切的是<0>这一段</0>怎么做： 「套模板」是拿一段白模视频复刻运镜与站位，你只需给里面的人偶挂上自己的角色卡； 「自选卡片」是自己挑素材卡、写一句要求，AI 推演几套走向让你挑； 「自定义」全按你给的来：传一段示例视频当整段参考，或者直接给自己的首尾帧。 三种<1>每段各选各的</1>，同一条片里可以混着来。"
 
+#: src/components/guide/tours.tsx
 #: src/pages/ProfilePage.tsx
 #: src/pages/SettingsPage.tsx
 #: src/pages/SettingsProfilePage.tsx
@@ -15188,6 +15266,7 @@ msgstr "自定义直出也得写一句这段要拍什么——缺的帧我按这
 msgid "自己上传图片"
 msgstr "自己上传图片"
 
+#: src/components/guide/tours.tsx
 #: src/pages/CustomCardPage.tsx
 #: src/pages/WorkshopPage.tsx
 msgid "自己传图做卡片"
@@ -15883,6 +15962,10 @@ msgstr "语速"
 #: src/components/support/VoiceMarket.tsx
 msgid "语速 {rateText}"
 msgstr "语速 {rateText}"
+
+#: src/components/guide/tours.tsx
+msgid "语速管快慢；语调用一句话描述想要的语气，<0>改完点上面任意音色即刻再听</0>。语调那一段不计费， 只对单音色生效 ——「调和」那几条用不了。"
+msgstr "语速管快慢；语调用一句话描述想要的语气，<0>改完点上面任意音色即刻再听</0>。语调那一段不计费， 只对单音色生效 ——「调和」那几条用不了。"
 
 #: src/pages/SupportPage.tsx
 msgid "语音播报：关"
@@ -17124,6 +17207,10 @@ msgstr "这一页需要从上传或模板页进来"
 msgid "这三个数字里有一个能点"
 msgstr "这三个数字里有一个能点"
 
+#: src/components/guide/tours.tsx
+msgid "这三档管的是工坊里 3D 形象的贴图精细度，<0>跟出片视频的清晰度无关</0>。第一次进工坊会按机型 自动选一档；之后想换，全 app 只有这里能改。换档会重新加载一次。"
+msgstr "这三档管的是工坊里 3D 形象的贴图精细度，<0>跟出片视频的清晰度无关</0>。第一次进工坊会按机型 自动选一档；之后想换，全 app 只有这里能改。换档会重新加载一次。"
+
 #: src/pages/ProfilePage.tsx
 msgid "这不代表 TA 没有作品，只是这次没取到"
 msgstr "这不代表 TA 没有作品，只是这次没取到"
@@ -17888,6 +17975,10 @@ msgstr "这是做模板这一次的花费；以后每次有人套用出片，按
 #: src/components/VideoTemplateExtractor.tsx
 msgid "这是做模板这一次的花费；以后每次有人套用出片，按模板视频的时长另计一笔。"
 msgstr "这是做模板这一次的花费；以后每次有人套用出片，按模板视频的时长另计一笔。"
+
+#: src/components/guide/tours.tsx
+msgid "这是另一条路"
+msgstr "这是另一条路"
 
 #: src/components/ShareSheet.tsx
 msgid "这是私密作品：链接只有你自己打得开。想给别人看，去编辑里改成「凭链接可见」或「公开」。"
@@ -18756,6 +18847,7 @@ msgstr "铸卡上传"
 msgid "铸卡师"
 msgstr "铸卡师"
 
+#: src/components/guide/tours.tsx
 #: src/pages/SettingsPage.tsx
 #: src/pages/SettingsVoicePage.tsx
 msgid "铸卡师的声音"
@@ -19106,3 +19198,7 @@ msgstr "黑"
 #: src/pages/SupportPersonasPage.tsx
 msgid "默认人设"
 msgstr "默认人设"
+
+#: src/components/guide/tours.tsx
+msgid "默认铸卡是 <0>AI 全自动出图</0>（3D 工坊找铸卡师）。 这一页反过来：<1>用你自己的图，不耗 token</1>； 也可以只交一张素材，让 AI 按方案把图位都画出来（只有那条才计费，价钱印在按钮上）。 铸出来的卡与 AI 铸的完全同一种东西 —— 能进卡组、当出片的形象参考、发布到创意工坊。"
+msgstr "默认铸卡是 <0>AI 全自动出图</0>（3D 工坊找铸卡师）。 这一页反过来：<1>用你自己的图，不耗 token</1>； 也可以只交一张素材，让 AI 按方案把图位都画出来（只有那条才计费，价钱印在按钮上）。 铸出来的卡与 AI 铸的完全同一种东西 —— 能进卡组、当出片的形象参考、发布到创意工坊。"

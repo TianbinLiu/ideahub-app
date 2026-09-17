@@ -15,7 +15,7 @@
 //
 // ★★ 数字一律**插值**，不许照抄一个字面量。CLAUDE.md 已有一条「『最多出几张卡』的上限
 //   自己抄一份」的事故（界面按 6 张报价、实际铸了 8 张，两个方向都不报错）。
-//   引导里再抄一份数字就是同一个坑第三次。本文件目前只插两处（选段窗口、卡种列表），
+//   引导里再抄一份数字就是同一个坑第三次。本文件目前插这几处（选段窗口、卡种列表、自制卡的比例上限、内置方案名与图位名），
 //   其余各屏都是**有意不给数**：那些数界面上当下那一刻自己会报（报价行、按钮标签），
 //   引导抄哪一个都是在造第 N 个需要维护的镜像。
 //
@@ -38,19 +38,22 @@ import type { ReactNode } from "react";
 import type { MessageDescriptor } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
+// 自制卡那份要点名内置方案：名字是读到时现翻的 getter（#272），顺序与选方案小窗同一个出处（listSchemes）。
+// ★ promptSchemes 是叶子模块（只依赖 types），从这里引它不成环
+import { listSchemes } from "../../data/promptSchemes";
 import { BLOCKOUT_INPUT_RULES } from "../../data/templates";
-import { CARD_TYPES, CARD_TYPE_LABELS } from "../../types";
+import { BUILTIN_SLOT_ZH, CARD_TYPES, CARD_TYPE_LABELS, builtinSlotLabel } from "../../types";
 // 自制卡那份要报比例上限：方舟的硬约束，数只能从这里取（数字一律插值，见 ★★）
 import { REF_MAX_RATIO } from "../../utils/image";
 
 export interface GuideStep {
   /**
    * 卡片标题（GuideOverlay 的 h2，手机宽度下单行截断 —— 英文控制在四个词上下）。
-   * ★ 过渡期（多语言 T1~T4 分批迁这份文件）：迁完的屏写 msg 描述符，还没迁的屏仍是中文字符串，
-   *   GuideOverlay 两种都认。全部迁完那一批（T4）收成只收 MessageDescriptor。
+   * ★ 只收 msg 描述符（2026-09-17 多语言 T4 收口；T1~T3 分批迁这份文件的过渡期里还认中文字符串）：
+   *   字符串标题不进目录，英文界面里就是一句中文、而且零报错 —— 现在写成字符串 tsc 当场报错。GuideOverlay 渲染时用 useLingui 的 t 翻。
    *   ⚠ 别写 t`…`：TOURS 在模块顶层，那一刻就翻会冻结在开机语言（check-i18n 会拦）。
    */
-  title: string | MessageDescriptor;
+  title: MessageDescriptor;
   /** ★ 整段包一个 <Trans>（一步一条 msgid，别按句切）：它渲染时才查目录，放在模块顶层也跟得上切语言 */
   body: ReactNode;
   /** 要高亮的元素上 `data-guide` 的值。不给 = 这一步只讲话，卡片居中 */
@@ -59,8 +62,8 @@ export interface GuideStep {
 
 export interface GuideTour {
   id: string;
-  /** 这一屏的名字，只进无障碍标签与调试。★ 过渡期形状同 GuideStep.title */
-  title: string | MessageDescriptor;
+  /** 这一屏的名字，只进无障碍标签与调试。★ 形状同 GuideStep.title（只收 msg 描述符） */
+  title: MessageDescriptor;
   /**
    * 版本号。★ **只在有意要让所有人重看一遍时才加**（比如这一屏改版到老引导会误导人）。
    *   平时改错别字不要动它 —— 用户明确要的是"弹过一次不再自动弹"。
@@ -102,6 +105,59 @@ function BlockoutRoutesBody() {
       （把选段拖过上限，会自动变成<b className="font-bold text-slate-100">整条切段登记成一组</b>，那颗键换成「下一步：标切段刀」，按段计费）。
       让 AI 换白模那条还要注意：换人偶<b className="font-bold text-slate-100">不是每次都全对</b>，最容易漏画面正中央那一个——
       出片后对着画面从左往右核对，对不上的位子删掉就行（不用重炼、不花钱）。
+    </Trans>
+  );
+}
+
+/**
+ * 「自己传图做卡片」第 2 步的正文。★ 做成组件的理由同上面两个：三套内置方案的名字是读到时现翻的 getter（promptSchemes.builtinScheme，#272），
+ *   写死在 <Trans> 里英文界面会念出三个中文名；TOURS 在模块顶层求值，读 getter 要放到渲染时
+ *   （引导开着时整屏锁死、切不了语言；关了再开是重新挂载，跟得上）。
+ * ★ 顺序不手排：与选方案小窗同一个出处 listSchemes（无脸优先），只留内置的三套。
+ */
+function SchemePickBody() {
+  const schemeNames = listSchemes("character")
+    .filter((s) => s.builtin)
+    .map((s) => s.title)
+    .join(" / ");
+  return (
+    <Trans>
+      第 1 屏只做一件事：<b className="font-bold text-slate-100">挑卡种</b>。点「人物卡」会弹一扇小窗，
+      <b className="font-bold text-slate-100">看图挑一套图位方案</b>（{schemeNames}），或者选<b className="font-bold text-slate-100">「真人素材扫脸认证」</b>——那条路先做
+      肖像授权（授权照片自动填进卡面）、跟读录音或上传本地音频。之后人物卡按四步走：
+      <b className="font-bold text-slate-100">选来源 → 图位预览 → 人物信息 → 定名铸卡</b>。
+    </Trans>
+  );
+}
+
+/**
+ * 「自己传图做卡片」第 3 步的正文。★ 引的那个图位名（全身立绘）同样走显示名 getter（types.builtinSlotLabel，#272），
+ *   退路照 promptSchemes.builtinSlot 的写法：不认得的 id 退回冻结原名。
+ */
+function SlotRulesBody() {
+  const fullBody = builtinSlotLabel("fullBody") ?? BUILTIN_SLOT_ZH.fullBody;
+  return (
+    <Trans>
+      人物卡的图位由<b className="font-bold text-slate-100">方案</b>决定（格数也随方案走）；其余卡种由卡种决定
+      （一把剑不该有「{fullBody}」）。<b className="font-bold text-slate-100">第一格既是卡面也是主形象参考</b>：
+      卡框是竖版 2:3，别的比例会居中显示，不裁你的图。已有图的格子可以
+      <b className="font-bold text-slate-100">⭕ 圈选改图</b>：圈出要改的地方写一句要求，AI 重画这一格
+      （单张图的价，改坏了不扣钱）。
+    </Trans>
+  );
+}
+
+/**
+ * 「自己传图做卡片」第 4 步的正文。★ 比例上限照旧只从 utils/image 取（文件头 ★★），挪进组件是让读数发生在渲染时。
+ *   标识符自己就是占位符的名字：译文里是 {REF_MAX_RATIO}，同一条里出现两次、两处都得留着。
+ */
+function RefImageBody() {
+  return (
+    <Trans>
+      相册原图直接选：会自动压到 AI 认得出的尺寸，长宽比超过 {REF_MAX_RATIO}:1 的会被居中裁进
+      {REF_MAX_RATIO}:1（方舟不收更极端的参考图），裁过会在那一格里写明。出片时
+      <b className="font-bold text-slate-100">不是每张都会喂进模型</b>：取几张要看这张卡在那一段里
+      排第几、同段还挂了几张卡 —— 详情页会逐张标「出片用 / 仅展示」，那里是唯一的判据。
     </Trans>
   );
 }
@@ -1062,7 +1118,8 @@ export const TOURS: GuideTour[] = [
   },
   {
     id: "customcard",
-    title: "自己传图做卡片",
+    // 与 /custom-card 那一页的页标题（创意工坊里那颗入口键也是这几个字）同一个 msgid：说的就是那一屏，英文跟着它走
+    title: msg`自己传图做卡片`,
     // 2026-08-28 文案收纳：页面顶上那块三条 bullet 的对比说明压成一句，展开讲在这。
     // 首次进页强制放一遍，"这是另一条路、默认铸卡不用传图"这件事仍然人人看得到。
     // ★ version 4（2026-08-30 人物卡拆成四步向导）：选来源（自传图/AI 生成）→ 图位预览
@@ -1072,63 +1129,43 @@ export const TOURS: GuideTour[] = [
     version: 4,
     steps: [
       {
-        title: "这是另一条路",
+        title: msg`这是另一条路`,
         body: (
-          <>
+          <Trans>
             默认铸卡是 <b className="font-bold text-slate-100">AI 全自动出图</b>（3D 工坊找铸卡师）。
             这一页反过来：<b className="font-bold text-slate-100">用你自己的图，不耗 token</b>；
             也可以只交一张素材，让 AI 按方案把图位都画出来（只有那条才计费，价钱印在按钮上）。
             铸出来的卡与 AI 铸的完全同一种东西 —— 能进卡组、当出片的形象参考、发布到创意工坊。
-          </>
+          </Trans>
         ),
       },
       {
-        title: "先挑卡种，再挑方案",
+        title: msg`先挑卡种，再挑方案`,
         anchor: "cc-type",
-        body: (
-          <>
-            第 1 屏只做一件事：<b className="font-bold text-slate-100">挑卡种</b>。点「人物卡」会弹一扇小窗，
-            <b className="font-bold text-slate-100">看图挑一套图位方案</b>（无面部白模三视图 / 全身立绘+面部特写 /
-            角色设定规格图），或者选<b className="font-bold text-slate-100">「真人素材扫脸认证」</b>——那条路先做
-            肖像授权（授权照片自动填进卡面）、跟读录音或上传本地音频。之后人物卡按四步走：
-            <b className="font-bold text-slate-100">选来源 → 图位预览 → 人物信息 → 定名铸卡</b>。
-          </>
-        ),
+        // ★ 正文在上面的 SchemePickBody（内置方案名要在渲染时按界面语言取，见那边的注释）
+        body: <SchemePickBody />,
       },
       {
-        title: "图位怎么摆、怎么改",
+        title: msg`图位怎么摆、怎么改`,
         anchor: "cc-slots",
-        body: (
-          <>
-            人物卡的图位由<b className="font-bold text-slate-100">方案</b>决定（格数也随方案走）；其余卡种由卡种决定
-            （一把剑不该有「全身立绘」）。<b className="font-bold text-slate-100">第一格既是卡面也是主形象参考</b>：
-            卡框是竖版 2:3，别的比例会居中显示，不裁你的图。已有图的格子可以
-            <b className="font-bold text-slate-100">⭕ 圈选改图</b>：圈出要改的地方写一句要求，AI 重画这一格
-            （单张图的价，改坏了不扣钱）。
-          </>
-        ),
+        // ★ 正文在上面的 SlotRulesBody（引的图位名走显示名 getter，见那边的注释）
+        body: <SlotRulesBody />,
       },
       {
-        title: "图会被怎么处理",
-        body: (
-          <>
-            相册原图直接选：会自动压到 AI 认得出的尺寸，长宽比超过 {REF_MAX_RATIO}:1 的会被居中裁进
-            {REF_MAX_RATIO}:1（方舟不收更极端的参考图），裁过会在那一格里写明。出片时
-            <b className="font-bold text-slate-100">不是每张都会喂进模型</b>：取几张要看这张卡在那一段里
-            排第几、同段还挂了几张卡 —— 详情页会逐张标「出片用 / 仅展示」，那里是唯一的判据。
-          </>
-        ),
+        title: msg`图会被怎么处理`,
+        // ★ 正文在上面的 RefImageBody（比例上限在渲染时读，见那边的注释）
+        body: <RefImageBody />,
       },
       {
-        title: "写给 AI 的那段信息",
+        title: msg`写给 AI 的那段信息`,
         anchor: "cc-info",
         body: (
-          <>
+          <Trans>
             「人物信息」那一步的文字，之后 AI 复刻这张卡的画面 / 建模时会读，
             <b className="font-bold text-slate-100">写得越具体越像</b>。不填也行 ——
             详情页会按卡名与简介现补一份；选了 AI 生成图位的话，这段连同卡名、标签
             都已按素材写好，随意改。
-          </>
+          </Trans>
         ),
       },
     ],
@@ -1138,92 +1175,94 @@ export const TOURS: GuideTour[] = [
   // 控件与条件触发的事实（离线/失败/管理员那几句仍在界面上，理由见文件头 ❌ 那条）。
   {
     id: "setprofile",
-    title: "编辑资料",
+    // 与那一页的页标题（设置页那一行也是这几个字）同一个 msgid，英文跟着页面走；下面「铸卡师的声音」「画面质量」同理
+    title: msg`编辑资料`,
     version: 1,
     steps: [
       {
-        title: "换头像",
+        title: msg`换头像`,
         anchor: "setprofile-avatar",
         body: (
-          <>
+          <Trans>
             点头像打开选择器：官方看板娘现成可选，最后一格从相册选自己的图，
             <b className="font-bold text-slate-100">能拖动裁切、双指缩放</b>。不想用图，下面还能挑一个
             emoji 顶着。
-          </>
+          </Trans>
         ),
       },
       {
-        title: "昵称和简介",
+        title: msg`昵称和简介`,
         anchor: "setprofile-form",
         body: (
-          <>
+          <Trans>
             昵称是别人看到的名字，简介挂在主页名字底下。这两样改完要点
             <b className="font-bold text-slate-100">「保存资料」</b>才算数 —— 头像不用，点了就换。
-          </>
+          </Trans>
         ),
       },
     ],
   },
   {
     id: "setvoice",
-    title: "铸卡师的声音",
+    title: msg`铸卡师的声音`,
     version: 1,
     steps: [
       {
-        title: "点一条就试听",
+        title: msg`点一条就试听`,
         anchor: "setvoice-list",
         body: (
-          <>
+          <Trans>
             每一条是一把嗓子，<b className="font-bold text-slate-100">点一下立刻念一句样本、同时选定它</b>。
             标着「调和」的是几把嗓子混出来的。
-          </>
+          </Trans>
         ),
       },
       {
-        title: "挑完嗓子还有两个旋钮",
+        title: msg`挑完嗓子还有两个旋钮`,
         anchor: "setvoice-tune",
         body: (
-          <>
+          <Trans>
             语速管快慢；语调用一句话描述想要的语气，
             <b className="font-bold text-slate-100">改完点上面任意音色即刻再听</b>。语调那一段不计费，
             只对单音色生效 ——「调和」那几条用不了。
-          </>
+          </Trans>
         ),
       },
     ],
   },
   {
     id: "setquality",
-    title: "画面质量",
+    title: msg`画面质量`,
     version: 1,
     steps: [
       {
-        title: "只管 3D 工坊",
+        title: msg`只管 3D 工坊`,
         anchor: "setquality-opts",
         body: (
-          <>
+          <Trans>
             这三档管的是工坊里 3D 形象的贴图精细度，
             <b className="font-bold text-slate-100">跟出片视频的清晰度无关</b>。第一次进工坊会按机型
             自动选一档；之后想换，全 app 只有这里能改。换档会重新加载一次。
-          </>
+          </Trans>
         ),
       },
     ],
   },
   {
     id: "setstorage",
-    title: "存储与清理",
+    // 这一条是引导自己的叫法（那一页的页标题按模式是「本机缓存」/「存储」）；屏名只拼进无障碍标签「… 使用引导」
+    title: msg`存储与清理`,
     version: 1,
     steps: [
       {
-        title: "占的空间在这看、也在这清",
+        title: msg`占的空间在这看、也在这清`,
         anchor: "setstorage-usage",
         body: (
-          <>
+          <Trans>
             上面是这台设备已经占用的空间。「清理缓存」
             <b className="font-bold text-slate-100">只删生成过程中留下、已经没人引用的中间文件</b> ——
             未发布的草稿和还没传上去的作品一个不动。
-          </>
+          </Trans>
         ),
       },
     ],

@@ -149,10 +149,10 @@ export default function GuideOverlay() {
 
   if (!tour || !act || !step) return null;
 
-  // ★ 标题的过渡期形状（见 tours.tsx 的 GuideStep.title）：迁完的屏是 msg 描述符，用上面 useLingui 给的 t
-  //   在渲染时翻；还没迁的屏仍是中文字符串，原样显示。这两行只是取值、不是 hook，放在早退之后没事（check-hook-order）。
-  const tourName = typeof tour.title === "string" ? tour.title : t(tour.title);
-  const stepTitle = typeof step.title === "string" ? step.title : t(step.title);
+  // ★ 标题只有一种形状：msg 描述符（tours.tsx 的 GuideStep.title / GuideTour.title，T4 收口后不再认中文字符串），
+  //   用上面 useLingui 给的 t 在渲染时翻。这两行只是取值、不是 hook，放在早退之后没事（check-hook-order）。
+  const tourName = t(tour.title);
+  const stepTitle = t(step.title);
   const last = act.step >= tour.steps.length - 1;
   const stop = (e: { stopPropagation: () => void }) => e.stopPropagation();
 
