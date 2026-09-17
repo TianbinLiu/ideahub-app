@@ -137,6 +137,18 @@ export function splitStatus(status: string): StepLine {
   return { title: status.replace(/[…\.]+$/, "") };
 }
 
+/**
+ * 一步在**此刻**该显示的标题 / 细节（读时渲染，渲染层 GenTrace 读它）：带事件的步按当前界面语言重写；
+ * 没有事件的（老草稿、segmentGen 的人话步、失败步）照旧显示存下的句子。
+ */
+export function stepText(step: GenStep): { title: string; detail?: string } {
+  if (step.event) {
+    const line = stepOf(step.event);
+    if (line.title) return { title: line.title, detail: line.detail };
+  }
+  return { title: step.title, detail: step.detail };
+}
+
 /** 事件 → 步骤。句子在这里按当前界面语言写；事件本身随步骤留着（GenStep.event） */
 function stepOf(ev: GenEvent): StepLine {
   // composeSegments 收尾：不是新的一步，是"上一步跑完了"——当成一步会在日志尾巴上挂一条 0.0s 的空条目
