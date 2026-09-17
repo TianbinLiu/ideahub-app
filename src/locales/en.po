@@ -1309,6 +1309,10 @@ msgid "「{name}」建模{status} {sec}s"
 msgstr "“{name}” 3D model: {status} {sec}s"
 
 #: src/ai/real.ts
+msgid "「{name}」建模下载解包中…"
+msgstr "“{name}” 3D model: downloading and unpacking…"
+
+#: src/ai/real.ts
 msgid "「{name}」建模生成中 {sec}s"
 msgstr "“{name}” 3D model: generating {sec}s"
 
@@ -1338,6 +1342,14 @@ msgstr " The “{names}” image is a subject cut out for a prop card and can't 
 #: src/pages/FlowPage.tsx
 msgid "「{tierLabel}」档不支持参考图：会先按描述画一张设定帧再出片。想直接用卡片形象，在「⚙ 本段设置」里换成「高清」或「电影级」"
 msgstr "The “{tierLabel}” tier doesn't support reference images: a setup frame is drawn from the description before rendering. To use the card images directly, switch to HD or Cinematic in “⚙ segment settings”"
+
+#: src/ai/real.ts
+msgid "「{tierLabel}」档不支持带参考视频出片"
+msgstr "The “{tierLabel}” tier can't render with a reference video"
+
+#: src/ai/real.ts
+msgid "「{tierLabel}」档协议上不收参考图，不能按参考图生视频出片"
+msgstr "The “{tierLabel}” tier's protocol doesn't accept reference images, so it can't render from reference images"
 
 #. 个人页「还没传到服务器」横幅：只有作品标题（这一条没记下没传上去的原因）
 #: src/pages/ProfilePage.tsx
@@ -2574,6 +2586,22 @@ msgstr "Couldn't reach the AI director ({why}), so I did what plain phrasing all
 msgid "AI 推演三套"
 msgstr "AI drafts three"
 
+#: src/ai/arkClient.ts
+msgid "AI 服务不可用：{host} 上没有 /api/ark 代理（返回的不是 JSON，也没说明类型）。请更新服务端后重试。"
+msgstr "AI service unavailable: {host} has no /api/ark proxy (the reply wasn't JSON and had no content type). Update the server and try again."
+
+#: src/ai/arkClient.ts
+msgid "AI 服务不可用：{host} 上没有 /api/ark 代理（返回的是 {kind}，不是 JSON）。请更新服务端后重试。"
+msgstr "AI service unavailable: {host} has no /api/ark proxy (the reply was {kind}, not JSON). Update the server and try again."
+
+#: src/ai/arkClient.ts
+msgid "AI 服务不可用：本机上没有 /api/ark 代理（返回的不是 JSON，也没说明类型）。请更新服务端后重试。"
+msgstr "AI service unavailable: this device has no /api/ark proxy (the reply wasn't JSON and had no content type). Update the server and try again."
+
+#: src/ai/arkClient.ts
+msgid "AI 服务不可用：本机上没有 /api/ark 代理（返回的是 {kind}，不是 JSON）。请更新服务端后重试。"
+msgstr "AI service unavailable: this device has no /api/ark proxy (the reply was {kind}, not JSON). Update the server and try again."
+
 #: src/data/templates.ts
 msgid "AI 正在把画面里的人换成一模一样的纯白色人偶：{status} {sec}s（可以退出，24 小时内都能回「我的模板」取回结果）"
 msgstr "The AI is replacing the people in the picture with identical plain white mannequins: {status} {sec}s (you can leave — come back to “My templates” within 24 hours to recover the result)"
@@ -2639,6 +2667,14 @@ msgstr "An AI short made segment by segment · from QiMeng"
 msgid "AI 预览帧"
 msgstr "AI preview frame"
 
+#: src/ai/arkClient.ts
+msgid "Ark {path} 回包读不出来: {detail}"
+msgstr "Ark {path}: couldn't read the reply: {detail}"
+
+#: src/ai/arkClient.ts
+msgid "Ark {path} 网络失败: {detail}"
+msgstr "Ark {path}: network failure: {detail}"
+
 #: src/components/CoverPicker.tsx
 msgid "canvas 不可用"
 msgstr "Canvas unavailable"
@@ -2658,6 +2694,22 @@ msgstr "QQ friends"
 #: src/pages/LoginPage.tsx
 msgid "QQ 登录要在 App 里用（浏览器中没有 QQ 客户端可以拉起），先用邮箱或手机号登录"
 msgstr "QQ sign-in only works in the app (a browser has no QQ client to open) — sign in with email or phone for now"
+
+#: src/ai/arkClient.ts
+msgid "Seedance 任务{status}"
+msgstr "Seedance task {status}"
+
+#: src/ai/arkClient.ts
+msgid "Seedance 任务{status}: {detail}"
+msgstr "Seedance task {status}: {detail}"
+
+#: src/ai/arkClient.ts
+msgid "Seedance 任务成功但无视频 URL"
+msgstr "The Seedance task succeeded but returned no video URL"
+
+#: src/ai/arkClient.ts
+msgid "Seedream 未返回图片"
+msgstr "Seedream returned no image"
 
 #: src/components/CoverPicker.tsx
 msgid "Seedream 真实生成，约 20-30 秒"
@@ -2686,6 +2738,14 @@ msgstr "Topics they won't discuss. The platform's safety baseline is added separ
 #: src/pages/ProfilePage.tsx
 msgid "TA 还没有发布作品"
 msgstr "They haven't published any videos yet"
+
+#: src/ai/arkClient.ts
+msgid "token 余额不足：这一步需要 {need}，余额 {have}——去「我的」页充值"
+msgstr "Not enough token balance: this step needs {need} and you have {have} — top up on the Me page"
+
+#: src/ai/arkClient.ts
+msgid "token 余额不足：这一步需要更多，余额 {have}——去「我的」页充值"
+msgstr "Not enough token balance: this step needs more than your balance of {have} — top up on the Me page"
 
 #: src/pages/ProfilePage.tsx
 msgid "UID 已复制"
@@ -3333,6 +3393,10 @@ msgstr "Middle-frame references"
 msgid "中间帧参考图最多 {CUSTOM_MID_MAX} 张（首帧、尾帧另算）——先删一张再加"
 msgstr "Up to {CUSTOM_MID_MAX} middle-frame references (first and last frames not included) — delete one before adding another"
 
+#: src/ai/real.ts
+msgid "为「{name}」铸造 3D 建模 {n}/{total}…"
+msgstr "Forging a 3D model for “{name}” {n}/{total}…"
+
 #: src/pages/CustomCardPage.tsx
 msgid "主素材图 = 这个角色最完整的一张（照片/截图/画都行）；有面部近照的话脸会锁得更准。画风严格跟随素材（照片出写实、插画出同风格）。"
 msgstr "Main reference = the most complete image of this character (a photo, screenshot or drawing all work). A face close-up locks the face more accurately. The art style strictly follows the reference (photos give realistic results, illustrations keep their style)."
@@ -3616,6 +3680,10 @@ msgstr "Low angle"
 msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜头运动"
 msgid "仰拍"
 msgstr "Low angle"
+
+#: src/ai/real.ts
+msgid "任务创建中…"
+msgstr "Creating the job…"
 
 #: src/components/VideoTemplateExtractor.tsx
 msgid "任意视频都行 · 要花钱"
@@ -4771,6 +4839,10 @@ msgstr "Used in video"
 #: src/components/flow/FlowCanvas.tsx
 msgid "出片的同时提炼一副本片卡组：你挂过的卡直接入组，缺的卡种由 AI 按成片补齐（含一张画风卡）。不勾就只出片、不出卡组。组稿前随时能改。"
 msgstr "Also extract a deck from this video while rendering: cards you attached go straight in, and the AI fills in missing card types from the finished video (including an art style card). Unchecked means video only, no deck. You can change this any time before assembling."
+
+#: src/ai/arkClient.ts
+msgid "出片缺少起拍画面：既没有首帧也没有参考图"
+msgstr "Missing the starting image: no first frame and no reference image"
 
 #: src/components/guide/tours.tsx
 msgid "出片花的就是这些 token"
@@ -5956,9 +6028,21 @@ msgstr "Couldn't get this segment's picture, so circling can't open. The network
 msgid "取不到这张图（{0}）"
 msgstr "Couldn't load this image ({0})"
 
+#: src/ai/arkClient.ts
+msgid "取产物失败：{host} 上没有 /api/ark/asset 代理，请更新服务端"
+msgstr "Couldn't fetch the output: {host} has no /api/ark/asset proxy — update the server"
+
+#: src/ai/arkClient.ts
+msgid "取产物失败：本机上没有 /api/ark/asset 代理，请更新服务端"
+msgstr "Couldn't fetch the output: this device has no /api/ark/asset proxy — update the server"
+
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "取最新…"
 msgstr "Fetching latest…"
+
+#: src/ai/real.ts
+msgid "取到成片了，正在捕获这一段的真实尾帧…"
+msgstr "Got the video; capturing this segment's actual last frame…"
 
 #: src/components/flow/SegmentRecoverCards.tsx
 #: src/components/TemplateShelf.tsx
@@ -6106,6 +6190,10 @@ msgstr "Cancel new segment"
 #: src/components/SegmentPlayer.tsx
 msgid "取消静音"
 msgstr "Unmute"
+
+#: src/ai/real.ts
+msgid "取视频失败 {status}"
+msgstr "Fetching the video failed: {status}"
 
 #. placeholder {0}: vStart.toFixed(1)
 #. placeholder {1}: vEnd.toFixed(1)
@@ -6944,7 +7032,7 @@ msgstr "Too short. Keep holding and talk a little longer before releasing."
 msgid "太短了（{0}s）——按住别松，照着示例词念够 {VOICE_MIN_SEC} 秒再放手。"
 msgstr "Too short ({0}s). Keep holding and read the sample for at least {VOICE_MIN_SEC}s before letting go."
 
-#. placeholder {0}: msg.slice(0, 80)
+#. placeholder {0}: msg.slice(0, 160)
 #: src/studio/flowStore.ts
 msgid "失败：{0}"
 msgstr "Failed: {0}"
@@ -9225,6 +9313,14 @@ msgstr "Pick material cards and write a request, then choose one of three plans"
 msgid "挥手"
 msgstr "Wave"
 
+#: src/ai/real.ts
+msgid "捕获本段真实尾帧…"
+msgstr "Capturing this segment's actual last frame…"
+
+#: src/ai/real.ts
+msgid "捕获真实尾帧…"
+msgstr "Capturing the actual last frame…"
+
 #: src/pages/FlowPage.tsx
 msgid "换"
 msgstr "Change"
@@ -10020,9 +10116,25 @@ msgstr "Ark returned an asset, but its ID format isn't recognized ({0}) — conf
 msgid "方舟报这一发没能出片，正在向服务器核实到底怎么回事…"
 msgstr "Ark reported that this job didn't produce a video; checking with the server what actually happened…"
 
+#: src/ai/real.ts
+msgid "方舟报这一发没能出片（{status}：{detail}）。任务被受理之后才失败的，费用不退；要这一段的话只能重新生成（重新下一单、再花一次钱）"
+msgstr "Ark reports this run didn't produce a video ({status}: {detail}). It failed after the job was accepted, so the charge isn't refunded; to get this segment you'll have to regenerate it (a new order that costs again)"
+
+#: src/ai/real.ts
+msgid "方舟报这一发没能出片（{status}）。任务被受理之后才失败的，费用不退；要这一段的话只能重新生成（重新下一单、再花一次钱）"
+msgstr "Ark reports this run didn't produce a video ({status}). It failed after the job was accepted, so the charge isn't refunded; to get this segment you'll have to regenerate it (a new order that costs again)"
+
 #: src/components/PortraitAuthPanel.tsx
 msgid "方舟没给原因"
 msgstr "Ark gave no reason"
+
+#: src/ai/real.ts
+msgid "方舟说这一发成功了，却没有给视频地址——这一段取不回来了（费用已经花过，重新生成是再花一次钱）"
+msgstr "Ark says this run succeeded but gave no video address — this segment can't be recovered (the charge was already spent; regenerating costs again)"
+
+#: src/ai/real.ts
+msgid "方舟那边查不到这一发了（任务号查无此物）——多半是产物已经过了 24 小时被清掉。真是这样的话这一段取不回来了，已经花掉的钱无法挽回；重新生成是重新下一单、会再花一次钱"
+msgstr "Ark can't find this run anymore (no task with that ID) — most likely the output passed its 24 hours and was cleaned up. If so, this segment can't be recovered and the money already spent can't be recovered either; regenerating places a new order and costs again"
 
 #. placeholder {0}: usableFound.length
 #: src/components/PortraitAuthPanel.tsx
@@ -10404,6 +10516,10 @@ msgstr "The server couldn't delete this video ({why}). The copy on this device s
 msgid "服务器说结果取回成功了，却没有返回模板信息（可能是旧版服务端）。这一步本身不花钱，钱在开炼那一步已经付过——去「我的模板」确认一下有没有新模板，没有的话请把这句话反馈给我们。"
 msgstr "The server said the result was recovered, but it didn't return the template info (it may be an older server version). This step itself costs nothing — the charge was already paid when the blockout started. Check “My templates” for a new template, and if there isn't one, please send us this message."
 
+#: src/ai/arkClient.ts
+msgid "服务器返回 {status}"
+msgstr "server returned {status}"
+
 #: src/components/support/VoiceMixer.tsx
 #: src/pages/SupportPage.tsx
 msgid "服务端出错"
@@ -10536,6 +10652,10 @@ msgstr "Empty"
 #: src/pages/LoginPage.tsx
 msgid "未知"
 msgstr "unknown"
+
+#: src/ai/arkClient.ts
+msgid "未知原因"
+msgstr "unknown reason"
 
 #: src/pages/ProfilePage.tsx
 msgid "未知套餐"
@@ -11196,6 +11316,10 @@ msgstr "Getting this segment's video address…"
 msgid "正在向上游核对这一发的状态…（查询不花钱）"
 msgstr "Checking this run's status with upstream… (checking is free)"
 
+#: src/ai/real.ts
+msgid "正在向方舟核对这一发的状态…（查询不花钱）"
+msgstr "Checking this run's status with Ark… (checking is free)"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "正在处理…"
 msgstr "Processing…"
@@ -11572,17 +11696,17 @@ msgstr "Not enough sound was captured — this video may have no audio track; tr
 
 #: src/studio/flowStore.ts
 msgid "没接到出片结果，任务可能还在上游那边跑——用下面的「取回」领回来，别重新生成"
-msgstr "No video result received; the task may still be running upstream — use “Retrieve” below to get it instead of regenerating"
+msgstr "No video result received; the task may still be running upstream — use “Recover” below to get it instead of regenerating"
 
 #: src/studio/flowStore.ts
 msgid "没接到出片结果，任务可能还在方舟那边跑——用下面的「取回」领回来，别重新生成"
-msgstr "No video result received; the task may still be running on Ark — use “Retrieve” below to get it instead of regenerating"
+msgstr "No video result received; the task may still be running on Ark — use “Recover” below to get it instead of regenerating"
 
 #: src/pages/CustomCardPage.tsx
 msgid "没接到照片：相机那边可能没存下来——再拍一次，或选「上传本地图片」"
 msgstr "No photo came back — the camera may not have saved it. Try again, or choose “Upload from device”."
 
-#. placeholder {0}: msg.slice(0, 80)
+#. placeholder {0}: msg.slice(0, 160)
 #: src/studio/flowStore.ts
 msgid "没接到结果：{0}"
 msgstr "No result received: {0}"
@@ -12321,6 +12445,10 @@ msgstr "Physics: no"
 msgid "特写"
 msgstr "Close-up"
 
+#: src/ai/real.ts
+msgid "状态：{status}——过几分钟再点一次「取回」。这一发的钱已经花过了，取回不再花一分钱"
+msgstr "Status: {status} — tap “Recover” again in a few minutes. This run has already been paid for; recovering costs nothing more"
+
 #: src/components/flow/CameraChips.tsx
 msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜头运动"
 msgid "环绕"
@@ -12446,6 +12574,34 @@ msgstr "Generation failed — try again later."
 #: src/studio/genLog.ts
 msgid "生成契约"
 msgstr "Generation spec"
+
+#: src/ai/real.ts
+msgid "生成契约不一致：参考图 / 参考视频与首尾帧不能混发（方舟三种场景互斥）"
+msgstr "Generation spec mismatch: reference images / a reference video can't be sent together with first/last frames (Ark's three modes are mutually exclusive)"
+
+#: src/ai/real.ts
+msgid "生成契约不一致：参考音频只能随参考图 / 参考视频发（首尾帧任务混参考媒体是 400）"
+msgstr "Generation spec mismatch: reference audio can only go with reference images / a reference video (mixing reference media into a first/last-frame job is a 400)"
+
+#: src/ai/real.ts
+msgid "生成契约不一致：真人档只收首帧，不收参考图 / 参考视频 / 参考音频"
+msgstr "Generation spec mismatch: the real-person tier accepts only a first frame, not reference images / video / audio"
+
+#: src/ai/real.ts
+msgid "生成契约不一致：这一段声明按「{declared}」出片，而槽位里实际是「{actual}」（报价与请求会是两把尺）——没有花钱，请把这句话反馈给我们"
+msgstr "Nothing was charged. Generation spec mismatch: this segment declares “{declared}” but its slots imply “{actual}” (the quote and the request would disagree) — please send us this message"
+
+#: src/ai/real.ts
+msgid "生成契约不完整：提示词是空的"
+msgstr "Generation spec incomplete: the prompt is empty"
+
+#: src/ai/real.ts
+msgid "生成契约不完整：真人档需要一张起拍画面"
+msgstr "Generation spec incomplete: the real-person tier needs a starting image"
+
+#: src/ai/real.ts
+msgid "生成契约不完整：素材参考模式至少要一张参考图"
+msgstr "Generation spec incomplete: material-reference mode needs at least one reference image"
 
 #: src/components/CoverPicker.tsx
 msgid "生成结果"
@@ -12751,6 +12907,10 @@ msgstr "Sign in to interact"
 msgid "登录已过期，请重新登录后再举报"
 msgstr "Your sign-in has expired. Sign in again to report"
 
+#: src/ai/arkClient.ts
+msgid "登录态失效，重新登录后再试"
+msgstr "Your session has expired — sign in again and retry"
+
 #: src/pages/WorkshopPage.tsx
 msgid "登录服务器后可以浏览别人分享的卡组"
 msgstr "Connect to the server to browse decks others have shared"
@@ -12997,6 +13157,10 @@ msgstr "Lost track of this run's progress ({why}) — the job is still running u
 #: src/data/templates.ts
 msgid "盯不住这一发的进度了（{why}）。"
 msgstr "Lost track of this job's progress ({why})."
+
+#: src/ai/arkClient.ts
+msgid "盯不住这一发的进度了（{why}）。任务还在方舟那边跑，不是失败：钱在提交那一刻就已经花掉了。"
+msgstr "This job was paid for the moment it was submitted and is still running on Ark — not a failure; we just lost track of its progress ({why})."
 
 #: src/pages/ProfilePage.tsx
 msgid "直充 add-on（永不过期，套餐扣完才用它）"
@@ -13264,6 +13428,14 @@ msgstr "Example video or your own frames; lay out the plan for free and generate
 msgid "社区分享的卡"
 msgstr "Cards shared by the community"
 
+#: src/ai/real.ts
+msgid "视频 seek 失败"
+msgstr "Video seek failed"
+
+#: src/ai/real.ts
+msgid "视频 seek 超时"
+msgstr "Video seek timed out"
+
 #: src/components/VideoCardAnnotator.tsx
 msgid "视频不上传、不花 token：拖到某一帧，圈出要的人或物，裁出来的画面就是这张卡的参考图。"
 msgstr "The video isn't uploaded and costs no tokens: drag to a frame and circle the person or object you want — the cropped image becomes this card's reference image."
@@ -13271,6 +13443,14 @@ msgstr "The video isn't uploaded and costs no tokens: drag to a frame and circle
 #: src/components/VideoTemplateExtractor.tsx
 msgid "视频传完了，但提取窗已经关了——回模板页重新打开、再选一次"
 msgstr "The video finished uploading, but the extractor had already been closed — reopen it from the templates page and choose the file again"
+
+#: src/ai/real.ts
+msgid "视频元数据加载失败（{code}）"
+msgstr "Loading the video metadata failed ({code})"
+
+#: src/ai/real.ts
+msgid "视频元数据加载超时"
+msgstr "Loading the video metadata timed out"
 
 #: src/api/uploads.ts
 msgid "视频最大 {maxMb}MB（这份约 {curMb}MB），请先压小再传。"
@@ -13545,16 +13725,16 @@ msgid "第 {0} 段（还没轮到）"
 msgstr "Segment {0} (not yet)"
 
 #. placeholder {0}: idx + 1
-#. placeholder {1}: msg.slice(0, 150)
+#. placeholder {1}: msg.slice(0, 240)
 #: src/studio/flowStore.ts
 msgid "第 {0} 段{1}成片 24 小时内都能取回：点下面那颗「取回」，不再花一分钱；「重新生成」是重新下一单、会再花一次。"
-msgstr "Segment {0}: {1} The video can be retrieved within 24 hours: tap “Retrieve” below at no extra cost; “Regenerate” places a new order and charges again."
+msgstr "Segment {0}: {1} The video can be recovered within 24 hours: tap “Recover” below at no extra cost; “Regenerate” places a new order and charges again."
 
 #. placeholder {0}: idx + 1
-#. placeholder {1}: msg.slice(0, 150)
+#. placeholder {1}: msg.slice(0, 240)
 #: src/studio/flowStore.ts
 msgid "第 {0} 段{1}点下面那颗「取回」把它领回来，不再花一分钱；「重新生成」是重新下一单、会再花一次。"
-msgstr "Segment {0}: {1} Tap “Retrieve” below to get it back at no extra cost; “Regenerate” places a new order and charges again."
+msgstr "Segment {0}: {1} Tap “Recover” below to get it back at no extra cost; “Regenerate” places a new order and charges again."
 
 #. placeholder {0}: i + 1
 #: src/studio/flowStore.ts
@@ -13602,7 +13782,7 @@ msgid "第 {0} 段生成失败"
 msgstr "Segment {0} failed to generate"
 
 #. placeholder {0}: idx + 1
-#. placeholder {1}: msg.slice(0, 120)
+#. placeholder {1}: msg.slice(0, 240)
 #: src/studio/flowStore.ts
 msgid "第 {0} 段生成失败：{1}"
 msgstr "Segment {0} failed to generate: {1}"
@@ -14033,6 +14213,10 @@ msgstr "The third route, and the default: the AI samples a few frames <0>evenly<
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "第二种：<0>相邻两行的位置排反了</0>（清单说他是从左数第 2 个， 画面上他其实是第 3 个）。把这两行的位置互换过来就行，同样不用重炼。"
 msgstr "The second case: <0>two neighboring rows have their positions swapped</0> (the list says someone is 2nd from the left, but in the picture they're 3rd). Just swap the positions of those two rows — again, no re-render needed."
+
+#: src/ai/arkClient.ts
+msgid "等了 {minutes} 分钟还没出片。这不是失败：任务还在方舟那边跑，钱在提交那一刻就已经花掉了。"
+msgstr "Still no video after {minutes, plural, one {# minute} other {# minutes}}. This isn't a failure: the job is still running on Ark and was paid for the moment it was submitted."
 
 #: src/api/stream.ts
 msgid "等了 {secs} 秒还没有回话，先停下了。稍后再试一次。"
@@ -14482,6 +14666,10 @@ msgstr "Network unavailable. Check your connection and try again."
 #: src/components/flow/SegPlayer.tsx
 msgid "网络不好，或者这条链接已经过期（隔天打开的草稿常见）"
 msgstr "Poor network, or the link has expired (common for drafts opened the next day)"
+
+#: src/ai/arkClient.ts
+msgid "网络不通"
+msgstr "no network"
 
 #: src/pages/CustomCardPage.tsx
 msgid "网络异常"
@@ -15622,6 +15810,18 @@ msgstr "Talk to a human"
 msgid "转人工客服"
 msgstr "Talk to a human agent"
 
+#: src/ai/arkClient.ts
+msgid "转存受理失败（{status}）"
+msgstr "The transfer request wasn't accepted ({status})"
+
+#: src/ai/arkClient.ts
+msgid "转存失败（{status}）"
+msgstr "the transfer failed ({status})"
+
+#: src/ai/arkClient.ts
+msgid "转存状态查询失败（{status}）"
+msgstr "Checking the transfer status failed ({status})"
+
 #: src/pages/FeedPage.tsx
 msgid "转屏"
 msgstr "Rotate"
@@ -15732,6 +15932,14 @@ msgstr "Restore previous version"
 #: src/pages/CutPage.tsx
 msgid "还原整段"
 msgstr "Restore full segment"
+
+#: src/ai/real.ts
+msgid "还在出片中——过几分钟再点一次「取回」。这一发的钱已经花过了，取回不再花一分钱"
+msgstr "Still rendering — tap “Recover” again in a few minutes. This run has already been paid for; recovering costs nothing more"
+
+#: src/ai/real.ts
+msgid "还在排队——过几分钟再点一次「取回」。这一发的钱已经花过了，取回不再花一分钱"
+msgstr "Still queued — tap “Recover” again in a few minutes. This run has already been paid for; recovering costs nothing more"
 
 #: src/components/blockout/BlockoutTrimmer.tsx
 msgid "还在读这段视频"
@@ -16044,13 +16252,17 @@ msgstr "This blockout job can no longer be recovered"
 msgid "这一发白模化预估要 {price} token（看帧认人 + 一次真实付费出片），余额不够——去「我的」页充值后再回来，框选不会丢。"
 msgstr "This blockout is estimated at {price} tokens (looking at frames to identify people + one real paid render), and your balance isn't enough — top up on the “Me” page and come back; your selection won't be lost."
 
+#: src/ai/real.ts
+msgid "这一发的状态暂时查不到（{why}）——联网后再点一次「取回」，凭据还在，也不花钱"
+msgstr "Can't look up this run's status right now ({why}) — once you're online, tap “Recover” again; the receipt is still there and it costs nothing"
+
 #: src/data/videoJobs.ts
 msgid "这一发的钱在提交那一刻就已经花掉了，任务多半还在上游跑 —— 点「取回」不重新下单、不再花一分钱；点「重新生成」是重新下一单、会再花一次。出片通常 1~2 分钟，隔一会儿再点一次。"
 msgstr "This job was paid for the moment it was submitted, and it's most likely still running upstream — tapping “Recover” doesn't place a new order and costs nothing more; tapping “Regenerate” places a new order and costs again. Videos usually take 1–2 minutes, so tap again in a little while."
 
 #: src/ai/minimaxVideo.ts
 msgid "这一发还在上游排队或生成中（当前状态：{shown}）——过几分钟再点一次「取回」，查询不花钱、凭据也还在。"
-msgstr "This run is still queued or generating upstream (current status: {shown}) — tap “Retrieve” again in a few minutes. Checking is free and the receipt is still there."
+msgstr "This run is still queued or generating upstream (current status: {shown}) — tap “Recover” again in a few minutes. Checking is free and the receipt is still there."
 
 #: src/studio/flowStore.ts
 msgid "这一套方案还没有剧情——先写点什么，我才知道要画成什么样"
@@ -16099,6 +16311,10 @@ msgstr "This preview image wasn't kept"
 #: src/studio/ui/SchemeEditorSheet.tsx
 msgid "这一格要画成什么样？（画风句会自动接上）"
 msgstr "What should this slot look like? (the style line is appended automatically)"
+
+#: src/ai/arkClient.ts
+msgid "这一档不对当前套餐开放，去「我的」页升级套餐后再试"
+msgstr "This tier isn't available on your current plan — upgrade your plan on the Me page and try again"
 
 #: src/studio/flowStore.ts
 msgid "这一档不经过方案台。"
@@ -16764,6 +16980,10 @@ msgstr "This server doesn't support detecting roles (the reply had the wrong sha
 msgid "这台服务器没有正常应答（工程可能还在）。"
 msgstr "This server didn't respond normally (the project may still be there)."
 
+#: src/ai/arkClient.ts
+msgid "这台服务器没有配置方舟密钥（服务端 .env 的 ARK_API_KEY）"
+msgstr "This server has no Ark key configured (ARK_API_KEY in the server's .env)"
+
 #: src/components/support/voicePreview.ts
 msgid "这台服务器没配云端语音，试听不了；保存设置仍然有效。"
 msgstr "This server doesn't have cloud voices set up, so previews can't play. Your saved settings still apply."
@@ -16871,6 +17091,10 @@ msgstr "This server doesn't support direct upload yet, so the slower route was u
 #: src/studio/live2dUploadStore.ts
 msgid "这台服务器还没开直传，改走慢的那条（约 {mb}MB，超过 15MB 可能会超时）…"
 msgstr "This server doesn't support direct upload yet, so taking the slower route (about {mb}MB; over 15MB may time out)…"
+
+#: src/ai/arkClient.ts
+msgid "这台服务器还没有 /api/ark/transfer-video（请更新服务端）"
+msgstr "This server doesn't have /api/ark/transfer-video yet (update the server)"
 
 #: src/pages/AdminPage.tsx
 msgid "这台服务器还没有{what}接口（需要升级服务端）。这不代表列表是空的 —— 是这一头根本问不到。"
@@ -18222,6 +18446,10 @@ msgstr "This needs an estimated {price} tokens and your balance isn't enough —
 #: src/studio/live2dUploadStore.ts
 msgid "预览准备失败。"
 msgstr "Couldn't prepare the preview."
+
+#: src/ai/real.ts
+msgid "预览帧没截到（{reason}）——成片本身没受影响，点开卡片可回看；下一段起拍退回设定尾帧"
+msgstr "Couldn't capture the preview frame ({reason}) — the video itself is fine; open the card to replay it. The next segment will start from the setup last frame instead"
 
 #. placeholder {0}: e instanceof Error ? e.message.slice(0, 80) : String(e)
 #: src/studio/flowStore.ts

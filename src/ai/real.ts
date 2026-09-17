@@ -2126,6 +2126,7 @@ export async function extractTemplateCards(
  */
 async function glbFromArkZip(zipUrl: string): Promise<Blob> {
   const res = await fetchArkAsset(zipUrl, 180_000);
+  // i18n-ignore-next-line: 只进 console.warn（唯一调用方 deriveCharacterModels 整段 try/catch 吞掉、跳过这张卡）
   if (!res.ok) throw new Error(`取建模包失败 ${res.status}`);
   const buf = new Uint8Array(await res.arrayBuffer());
   const u16 = (i: number) => buf[i] | (buf[i + 1] << 8);
@@ -2152,6 +2153,7 @@ async function glbFromArkZip(zipUrl: string): Promise<Blob> {
     }
     i += 45 + nameLen + extraLen + commentLen;
   }
+  // i18n-ignore-next-line: 同上，只进 console.warn
   throw new Error("建模包里没有 .glb 文件");
 }
 
@@ -2172,17 +2174,20 @@ export async function deriveCharacterModels(
   for (let i = 0; i < targets.length; i++) {
     const card = targets[i];
     const name = card.name;
+    const n = i + 1;
+    const total = targets.length;
     try {
-      onProgress?.(`为「${card.name}」铸造 3D 建模 ${i + 1}/${targets.length}…`);
+      onProgress?.(t`为「${name}」铸造 3D 建模 ${n}/${total}…`);
       const url = await generate3dModel(card.cover, (ev) => {
         // 建模轮询：读秒各一句整话；running 之外原样报方舟的状态词（与改之前一样）
         const sec = ev.sec;
         const status = ev.status;
         onProgress?.(status === "running" ? t`「${name}」建模生成中 ${sec}s` : t`「${name}」建模${status} ${sec}s`);
       });
-      onProgress?.(`「${card.name}」建模下载解包中…`);
+      onProgress?.(t`「${name}」建模下载解包中…`);
       const blob = await glbFromArkZip(url);
       const key = `model3d:${card.id}`;
+      // i18n-ignore-next-line: 只进 console.warn（下面的 catch 吞掉、跳过这张卡）
       if (!(await idbSet(key, blob))) throw new Error("建模落库失败（存储配额？）");
       card.modelUrl = `idb:${key}`;
     } catch (e) {
@@ -2243,7 +2248,7 @@ export async function regenSegment(
   let poster: string | undefined;
   let durationSec: number | undefined;
   try {
-    onProgress?.("捕获真实尾帧…");
+    onProgress?.(t`捕获真实尾帧…`);
     const cap = await captureVideoHeadTail(url);
     lastFrame = cap.tail;
     poster = cap.head;
@@ -2359,6 +2364,7 @@ function cloudinaryFrameUrl(videoUrl: string): ((so: string) => string) | null {
 
 async function fetchDataUrl(url: string, timeoutMs: number): Promise<string> {
   const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+  // i18n-ignore-next-line: 只进 console.warn（两个调用方都吞：captureVideoHeadTail 的 Cloudinary 抽帧退回本机解码；deriveDeckCards 的道具卡裁剪退回文生图）
   if (!res.ok) throw new Error(`取帧图失败 ${res.status}`);
   const blob = await res.blob();
   return await new Promise<string>((resolve, reject) => {
@@ -2380,9 +2386,11 @@ async function probeMeta(src: string): Promise<{ durationSec: number; width: num
     await withTimeout(
       new Promise<void>((resolve, reject) => {
         video.onloadedmetadata = () => resolve();
+        // i18n-ignore-next-line: 只进 console.warn（grabViaCloudinary 的 .catch 吞掉，时长另有来路）
         video.onerror = () => reject(new Error(`视频元数据加载失败（${video.error?.code ?? "?"}）`));
       }),
       20_000,
+      // i18n-ignore-next-line: 同上，只进 console.warn
       "视频元数据加载超时",
     );
     return { durationSec: video.duration, width: video.videoWidth, height: video.videoHeight };
@@ -2457,7 +2465,8 @@ async function captureVideoHeadTail(
   //   网慢时把人按在这儿等两分钟毫无意义（转存完之后 settleNodeMedia 会自动补截）。
   //   120s 那一版的实测终局就是「跑满 120.0s 后 The user aborted a request」。
   const res = await fetchArkAsset(videoUrl, 30_000);
-  if (!res.ok) throw new Error(`取视频失败 ${res.status}`);
+  const status = res.status;
+  if (!res.ok) throw new Error(t`取视频失败 ${status}`);
   const blobUrl = URL.createObjectURL(await res.blob());
   try {
     return await grabHeadTail(blobUrl, false);
@@ -2486,20 +2495,24 @@ async function grabHeadTail(
   await withTimeout(
     new Promise<void>((resolve, reject) => {
       video.onloadedmetadata = () => resolve();
-      video.onerror = () => reject(new Error(`视频元数据加载失败（${video.error?.code ?? "?"}）`));
+      video.onerror = () => {
+        const code = video.error?.code ?? "?";
+        reject(new Error(t`视频元数据加载失败（${code}）`));
+      };
     }),
     15_000,
-    "视频元数据加载超时",
+    t`视频元数据加载超时`,
   );
-  const seekTo = async (t: number) => {
-    video.currentTime = t;
+  // ★ 形参不叫 t：这个作用域里 t 是 Lingui 的宏
+  const seekTo = async (at: number) => {
+    video.currentTime = at;
     await withTimeout(
       new Promise<void>((resolve, reject) => {
         video.onseeked = () => resolve();
-        video.onerror = () => reject(new Error("视频 seek 失败"));
+        video.onerror = () => reject(new Error(t`视频 seek 失败`));
       }),
       15_000,
-      "视频 seek 超时",
+      t`视频 seek 超时`,
     );
   };
   const grab = () => {
@@ -2522,8 +2535,8 @@ async function grabHeadTail(
 
 /** 截帧失败要上屏（进节点的步骤日志），别只 console.warn：release 包看不到控制台（2026-09-05 主人真机） */
 function captureIssueLine(e: unknown): string {
-  const m = e instanceof Error ? e.message : String(e);
-  return `预览帧没截到（${m.slice(0, 80)}）——成片本身没受影响，点开卡片可回看；下一段起拍退回设定尾帧`;
+  const reason = (e instanceof Error ? e.message : String(e)).slice(0, 80);
+  return t`预览帧没截到（${reason}）——成片本身没受影响，点开卡片可回看；下一段起拍退回设定尾帧`;
 }
 
 // 提示词上限本体在 types.ts（data 层叶子也要引，放这边会让 data → ai 成环）。
@@ -2584,22 +2597,25 @@ export function genModeOf(sg: Omit<GenSpec, "mode">): GenMode {
  */
 export function validateGenSpec(sg: GenSpec): void {
   const tier = tierOf(sg.videoTier);
+  const tierLabel = tier.label;
   const implied = genModeOf(sg);
   if (sg.mode !== implied) {
+    const declared = GEN_MODE_LABEL[sg.mode];
+    const actual = GEN_MODE_LABEL[implied];
     throw new Error(
-      `生成契约不一致：这一段声明按「${GEN_MODE_LABEL[sg.mode]}」出片，而槽位里实际是「${GEN_MODE_LABEL[implied]}」（报价与请求会是两把尺）——没有花钱，请把这句话反馈给我们`,
+      t`生成契约不一致：这一段声明按「${declared}」出片，而槽位里实际是「${actual}」（报价与请求会是两把尺）——没有花钱，请把这句话反馈给我们`,
     );
   }
-  if (!sg.plot.trim()) throw new Error("生成契约不完整：提示词是空的");
+  if (!sg.plot.trim()) throw new Error(t`生成契约不完整：提示词是空的`);
   const refMedia = sg.mode === "ref-images" || sg.mode === "reference" || sg.mode === "edit";
-  if (refMedia && (sg.firstFrame || sg.lastFrame)) throw new Error("生成契约不一致：参考图 / 参考视频与首尾帧不能混发（方舟三种场景互斥）");
-  if (sg.mode === "ref-images" && !tier.refImg) throw new Error(`「${tier.label}」档协议上不收参考图，不能按参考图生视频出片`);
-  if ((sg.mode === "edit" || sg.mode === "reference") && !tier.refVid) throw new Error(`「${tier.label}」档不支持带参考视频出片`);
-  if (sg.mode === "reference" && !sg.refImages?.length) throw new Error("生成契约不完整：素材参考模式至少要一张参考图");
-  if (sg.refAudios?.length && !refMedia) throw new Error("生成契约不一致：参考音频只能随参考图 / 参考视频发（首尾帧任务混参考媒体是 400）");
+  if (refMedia && (sg.firstFrame || sg.lastFrame)) throw new Error(t`生成契约不一致：参考图 / 参考视频与首尾帧不能混发（方舟三种场景互斥）`);
+  if (sg.mode === "ref-images" && !tier.refImg) throw new Error(t`「${tierLabel}」档协议上不收参考图，不能按参考图生视频出片`);
+  if ((sg.mode === "edit" || sg.mode === "reference") && !tier.refVid) throw new Error(t`「${tierLabel}」档不支持带参考视频出片`);
+  if (sg.mode === "reference" && !sg.refImages?.length) throw new Error(t`生成契约不完整：素材参考模式至少要一张参考图`);
+  if (sg.refAudios?.length && !refMedia) throw new Error(t`生成契约不一致：参考音频只能随参考图 / 参考视频发（首尾帧任务混参考媒体是 400）`);
   if (sg.mode === "minimax" && (sg.refImages?.length || sg.refVideoUrl || sg.refAudios?.length))
-    throw new Error("生成契约不一致：真人档只收首帧，不收参考图 / 参考视频 / 参考音频");
-  if (sg.mode === "minimax" && !sg.firstFrame) throw new Error("生成契约不完整：真人档需要一张起拍画面");
+    throw new Error(t`生成契约不一致：真人档只收首帧，不收参考图 / 参考视频 / 参考音频`);
+  if (sg.mode === "minimax" && !sg.firstFrame) throw new Error(t`生成契约不完整：真人档需要一张起拍画面`);
 }
 
 /**
@@ -2669,7 +2685,7 @@ export async function composeSegments(
       // ★ 契约核对（花钱之前）：声明的模式 = 槽位实际会走的模式，档位能力与互斥都只在 validateGenSpec 一处查。
       //   用的是承接顶替**之后**的帧（顶替只换首帧的内容，不换模式）
       validateGenSpec({ ...sg, firstFrame: first, lastFrame: last });
-      onProgress?.(i, segments.length, "任务创建中…");
+      onProgress?.(i, segments.length, t`任务创建中…`);
       const tier = tierOf(sg.videoTier);
       // ── 真人档（MiniMax）在这里分流 ────────────────────────────
       // 出片调用换供应商，但**尾帧捕获/段间承接/进度**都走下面同一条产线——
@@ -2690,7 +2706,7 @@ export async function composeSegments(
         });
         res.url = url2;
         try {
-          onProgress?.(i, segments.length, "捕获本段真实尾帧…");
+          onProgress?.(i, segments.length, t`捕获本段真实尾帧…`);
           const cap = await captureVideoHeadTail(url2);
           res.lastFrame = cap.tail;
           res.poster = cap.head;
@@ -2729,7 +2745,7 @@ export async function composeSegments(
       res.url = url;
       // 捕获真实尾帧：回填节点/草稿（卡面显示真实结尾），并作为下一段的起拍帧
       try {
-        onProgress?.(i, segments.length, "捕获本段真实尾帧…");
+        onProgress?.(i, segments.length, t`捕获本段真实尾帧…`);
         const cap = await captureVideoHeadTail(url);
         res.lastFrame = cap.tail;
         res.poster = cap.head;
@@ -2785,7 +2801,7 @@ export async function takeVideoTask(
     let poster: string | undefined;
     let meta: { durationSec?: number; width?: number; height?: number } | undefined;
     try {
-      onProgress?.("捕获本段真实尾帧…");
+      onProgress?.(t`捕获本段真实尾帧…`);
       const cap = await captureVideoHeadTail(url);
       lastFrame = cap.tail;
       poster = cap.head;
@@ -2795,7 +2811,7 @@ export async function takeVideoTask(
     }
     return { url, ...(lastFrame ? { lastFrame } : {}), ...(poster ? { poster } : {}), ...(meta ?? {}) };
   }
-  onProgress?.("正在向方舟核对这一发的状态…（查询不花钱）");
+  onProgress?.(t`正在向方舟核对这一发的状态…（查询不花钱）`);
   let st: ArkTaskState;
   try {
     st = await fetchArkTask(taskId, { transfer: true });
@@ -2806,42 +2822,49 @@ export async function takeVideoTask(
     //   而且都不下"绝对"的断语。
     if (e instanceof ArkHttpError && e.status === 404) {
       throw new Error(
-        "方舟那边查不到这一发了（任务号查无此物）——多半是产物已经过了 24 小时被清掉。" +
-          "真是这样的话这一段取不回来了，已经花掉的钱无法挽回；重新生成是重新下一单、会再花一次钱",
+        t`方舟那边查不到这一发了（任务号查无此物）——多半是产物已经过了 24 小时被清掉。真是这样的话这一段取不回来了，已经花掉的钱无法挽回；重新生成是重新下一单、会再花一次钱`,
       );
     }
     // 查不动 ≠ 取不回：任务在方舟那边好好的，是我们这边的网络。凭据必须留着。
     // ★ 原因只带一行摘要，**不把方舟的 JSON 原样糊到屏幕上**：用户看不懂 request id，
     //   而那一坨还会把真正有用的后半句（"再点一次、凭据还在"）挤出可视区（同 arkFetch
     //   里 403 那条注释记过的坑）
-    throw new ArkTaskUnknown(
-      `这一发的状态暂时查不到（${briefArkReason(e)}）——联网后再点一次「取回」，凭据还在，也不花钱`,
-      taskId,
-    );
+    const why = briefArkReason(e);
+    throw new ArkTaskUnknown(t`这一发的状态暂时查不到（${why}）——联网后再点一次「取回」，凭据还在，也不花钱`, taskId);
   }
-  if (st.status === "failed" || st.status === "cancelled") {
+  const status = st.status;
+  if (status === "failed" || status === "cancelled") {
     // 真失败。★ 必须把"钱不退"写进整句里（契约：受理之后才失败不退）——
     //   不说的话用户只会理解成"再点一次就好了"，而那是再花一次钱
+    const detail = st.error?.message;
     throw new Error(
-      `方舟报这一发没能出片（${st.status}${st.error?.message ? `：${st.error.message}` : ""}）。` +
-        `任务被受理之后才失败的，费用不退；要这一段的话只能重新生成（重新下一单、再花一次钱）`,
+      detail
+        ? t`方舟报这一发没能出片（${status}：${detail}）。任务被受理之后才失败的，费用不退；要这一段的话只能重新生成（重新下一单、再花一次钱）`
+        : t`方舟报这一发没能出片（${status}）。任务被受理之后才失败的，费用不退；要这一段的话只能重新生成（重新下一单、再花一次钱）`,
     );
   }
-  if (st.status !== "succeeded") {
-    const label = st.status === "queued" ? "还在排队" : st.status === "running" ? "还在出片中" : `状态：${st.status}`;
-    throw new ArkTaskUnknown(`${label}——过几分钟再点一次「取回」。这一发的钱已经花过了，取回不再花一分钱`, taskId);
+  if (status !== "succeeded") {
+    // 排队 / 出片中 / 其它状态各一句整话（原样报方舟的状态词），不拼「还在排队——」那样的半句
+    throw new ArkTaskUnknown(
+      status === "queued"
+        ? t`还在排队——过几分钟再点一次「取回」。这一发的钱已经花过了，取回不再花一分钱`
+        : status === "running"
+          ? t`还在出片中——过几分钟再点一次「取回」。这一发的钱已经花过了，取回不再花一分钱`
+          : t`状态：${status}——过几分钟再点一次「取回」。这一发的钱已经花过了，取回不再花一分钱`,
+      taskId,
+    );
   }
   const url = st.content?.video_url;
   if (!url) {
     // 成功却没有地址：再查一次也是同一个答复，所以话要说死（普通 Error），
     // 别让用户对着一颗永远不会成功的「取回」反复点
-    throw new Error("方舟说这一发成功了，却没有给视频地址——这一段取不回来了（费用已经花过，重新生成是再花一次钱）");
+    throw new Error(t`方舟说这一发成功了，却没有给视频地址——这一段取不回来了（费用已经花过，重新生成是再花一次钱）`);
   }
   let lastFrame: string | undefined;
   let poster: string | undefined;
   let meta: { durationSec?: number; width?: number; height?: number } | undefined;
   try {
-    onProgress?.("取到成片了，正在捕获这一段的真实尾帧…");
+    onProgress?.(t`取到成片了，正在捕获这一段的真实尾帧…`);
     const cap = await captureVideoHeadTail(url);
     lastFrame = cap.tail;
     poster = cap.head;
