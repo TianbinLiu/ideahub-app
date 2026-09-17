@@ -1491,6 +1491,10 @@ msgid "「{u}」"
 msgstr "“{u}”"
 
 #: src/components/guide/tours.tsx
+msgid "「人物信息」那一步的文字，之后 AI 复刻这张卡的画面 / 建模时会读，<0>写得越具体越像</0>。不填也行 —— 详情页会按卡名与简介现补一份；选了 AI 生成图位的话，这段连同卡名、标签 都已按素材写好，随意改。"
+msgstr "The text in the “Character info” step is what the AI reads later when it recreates this card's visuals or builds its 3D model — <0>the more specific you are, the closer the result</0>. You can leave it empty — the details page fills one in on the spot from the card name and intro; if you chose AI-generated slots, this text, along with the card name and tags, has already been written from your reference image, so edit it freely."
+
+#: src/components/guide/tours.tsx
 msgid "「关注」那格点开是你关注过的人的名单，就地能取关。 旁边两个是你<0>所有作品加起来</0>的总数，不是某一支的。"
 msgstr "Tap “Following” to open the list of people you follow, where you can unfollow them on the spot. The two next to it are totals for <0>all your videos combined</0>, not for any single one."
 
@@ -3241,6 +3245,10 @@ msgstr "Upstream says this run failed: {why}. As agreed, failures after a job is
 msgid "上面列的是这台设备上已有的那几条，不是全部结果。"
 msgstr "What's listed above is only what's already on this device, not all results."
 
+#: src/components/guide/tours.tsx
+msgid "上面是这台设备已经占用的空间。「清理缓存」<0>只删生成过程中留下、已经没人引用的中间文件</0> —— 未发布的草稿和还没传上去的作品一个不动。"
+msgstr "At the top is the space already used on this device. “Clear cache” <0>only deletes intermediate files left over from generation that nothing references anymore</0> — unpublished drafts and works that haven't been uploaded yet are never touched."
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "上面标红的必须项缺了，补齐再重新导出一次包。"
 msgstr "The required items marked in red above are missing. Add them and export the bundle again."
@@ -3738,6 +3746,10 @@ msgstr "Character info"
 #: src/types.ts
 msgid "人物卡"
 msgstr "Character card"
+
+#: src/components/guide/tours.tsx
+msgid "人物卡的图位由<0>方案</0>决定（格数也随方案走）；其余卡种由卡种决定 （一把剑不该有「{fullBody}」）。<1>第一格既是卡面也是主形象参考</1>： 卡框是竖版 2:3，别的比例会居中显示，不裁你的图。人物卡已有图的格子可以<2>⭕ 圈选改图</2>：圈出要改的地方写一句要求，AI 重画这一格 （单张图的价，价钱印在那颗键上）。"
+msgstr "A character card's slots are set by its <0>scheme</0> (so is the number of slots); other card types get theirs from the type (a sword shouldn't have a “{fullBody}” slot). <1>The first slot is both the card face and the main look reference</1>: the card frame is a 2:3 portrait, and other ratios are shown centered — your image isn't cropped. On a character card, a slot that already has an image offers <2>⭕ Circle to edit</2>: circle what to change and write a request, and the AI redraws that slot (at the price of one image, printed on the button)."
 
 #: src/pages/SupportCreatePage.tsx
 msgid "人物模型"
@@ -4480,6 +4492,10 @@ msgstr "Add a material card first, or let the AI draft first and last frames"
 msgid "先挂上参考视频——中间帧参考图是「多图+参考视频」模式的一部分"
 msgstr "Attach a reference video first — middle-frame references are part of the “images + reference video” mode"
 
+#: src/components/guide/tours.tsx
+msgid "先挑卡种，再挑方案"
+msgstr "Card type first, then scheme"
+
 #: src/studio/ui/FuseFrameSheet.tsx
 msgid "先挑至少一张参考图——融图是把几张图合成一张，没有素材就没得融"
 msgstr "Pick at least one reference image first — fusion combines several images into one, so it needs material"
@@ -4921,6 +4937,10 @@ msgstr "Write a deck description: what kind of videos is this deck good for?"
 msgid "写入本地库…"
 msgstr "Saving to local storage…"
 
+#: src/components/guide/tours.tsx
+msgid "写给 AI 的那段信息"
+msgstr "The info the AI reads"
+
 #: src/studio/ui/AvatarPicker.tsx
 msgid "决定牌桌上属于你的那双手"
 msgstr "Decides which pair of hands at the card table is yours"
@@ -5010,7 +5030,7 @@ msgstr "When making videos, <0>not every image is fed to the model</0> — “Us
 
 #: src/pages/CustomCardPage.tsx
 msgid "出片时<0>不是每张都会喂进模型</0>——详情页会逐张标出「出片用 / 仅展示」，那里是唯一的判据。"
-msgstr "When generating video, <0>not every image is sent to the model</0> — the details page marks each one “used for video / display only”, and that's the only source of truth."
+msgstr "When generating video, <0>not every image is sent to the model</0> — the details page marks each one “Used in video / Display only”, and that's the only source of truth."
 
 #: src/pages/CardDetailPage.tsx
 msgid "出片时一段里只有「第一张人物卡」能带形象参考图：它最多取 {MAX_CHAR_REFS} 张（优先{face} + {body}）；同一段里的其余人物卡一张都不带，只按文字设定参与——一张图里画多个角色会被方舟整条拒掉。所以上面的「出片用」是按\"这张卡就是那第一张人物卡\"标的：它排在别的人物卡后面时，标着出片用的那几张同样进不了模型（生成步骤里会点名说明）。（两条不画设定帧的路是例外——白模模板挂卡、简约模式的参考图直出：每张人物卡都各带自己的形象图。）{detail}这一格铸卡不会自动出图（只能自己传），三张挂满时它也排在最后，出片轮不到它。"
@@ -5657,6 +5677,10 @@ msgstr "Anonymous"
 #: src/components/support/VoiceSheet.tsx
 msgid "单音色"
 msgstr "Single voice"
+
+#: src/components/guide/tours.tsx
+msgid "占的空间在这看、也在这清"
+msgstr "See and clear space here"
 
 #. 卡片占位封面中央那一个字（卡名为空时）
 #: src/mock/frames.ts
@@ -6527,13 +6551,13 @@ msgstr "Written from the basics and questionnaire only"
 msgid "只换这个"
 msgstr "Redo just this"
 
-#: src/components/guide/tours.tsx
-msgid "只有 AI 出图<0>要花 token</0>（工坊铸卡，或「自己传图」里 选了 AI 生成图位）。从视频圈选提取、自己传图、从市场拿都<1>不花</1>—— 提取是拖到某一帧、亲手圈出要的人或物，圈出来的画面就是参考图。"
-msgstr "Only AI image generation <0>costs tokens</0> (minting in the Studio, or choosing AI-generated image slots in “Make a card from your own images”). Extracting by circling in a video, uploading your own images and taking from the market <1>cost nothing</1> — extracting means dragging to a frame and circling the person or object you want by hand, and what you circle becomes the reference image."
-
 #: src/pages/CreatePage.tsx
 msgid "只有一个节点：写一句话，挑个时长，直接出一条几秒的短视频。不推方案、不存草稿。"
 msgstr "Just one step: write a sentence, pick a length, and get a short video a few seconds long. No plans, no drafts."
+
+#: src/components/guide/tours.tsx
+msgid "只有交给 AI 的<0>要花 token</0>（工坊铸卡，或从视频圈选提取、「自己传图」里 那几颗带 AI 的键）。从视频圈选提取、自己传图、从市场拿都<1>不花</1>—— 提取是拖到某一帧、亲手圈出要的人或物，圈出来的画面就是参考图。"
+msgstr "Only what you hand to the AI <0>costs tokens</0> (minting in the Studio, or the AI buttons that appear when you extract from a video or use “Make a card from your own images”). Extracting by circling in a video, uploading your own images and taking from the market <1>cost nothing</1> — extracting means dragging to a frame and circling the person or object you want by hand, and what you circle becomes the reference image."
 
 #: src/pages/EditPage.tsx
 msgid "只有作者本人可以编辑这部作品"
@@ -6566,6 +6590,10 @@ msgstr "Only the template's author can change its category"
 #: src/data/economy.ts
 msgid "只画 1 张主图 · 它同时就是卡面"
 msgstr "Draws just 1 main image · it doubles as the card face"
+
+#: src/components/guide/tours.tsx
+msgid "只管 3D 工坊"
+msgstr "Only affects the 3D Studio"
 
 #: src/data/videoDownload.ts
 msgid "只能保存自己发布的作品。"
@@ -7003,6 +7031,10 @@ msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜�
 msgid "固定"
 msgstr "Static"
 
+#: src/components/guide/tours.tsx
+msgid "图会被怎么处理"
+msgstr "What happens to your images"
+
 #. placeholder {0}: i + 1
 #: src/studio/ui/SchemeEditorSheet.tsx
 msgid "图位 {0} 的名字，如「白模全身」"
@@ -7026,6 +7058,10 @@ msgstr "The “{tag}” slot is generated by AI but has no prompt yet"
 #: src/data/promptSchemes.ts
 msgid "图位名「{tag}」超过 {VIEW_TAG_MAX} 个字——太长的话这张卡会存不到服务器上"
 msgstr "The slot name “{tag}” is longer than {VIEW_TAG_MAX} characters — a name that long keeps the card from saving to the server"
+
+#: src/components/guide/tours.tsx
+msgid "图位怎么摆、怎么改"
+msgstr "Slot layout and editing"
 
 #: src/components/CoverPicker.tsx
 msgid "图片加载失败"
@@ -9571,6 +9607,10 @@ msgid "挑参考图（{0}/{FUSE_MAX}）"
 msgstr "Pick reference images ({0}/{FUSE_MAX})"
 
 #: src/components/guide/tours.tsx
+msgid "挑完嗓子还有两个旋钮"
+msgstr "Two more knobs to turn"
+
+#: src/components/guide/tours.tsx
 msgid "挑定了就点卡片底部那枚按钮：工坊落到 3D 铸卡桌面（顶栏 🧩 随时把同一条流水线换成<0>工作流画布</0>那一面），简约落到一步一屏的向导。出片之后都汇到<1>同一个剪辑页</1>，再从那里发布。"
 msgstr "Once you've picked, tap the button at the bottom of the card: Studio mode takes you to the 3D crafting table (🧩 in the top bar switches the same pipeline to its <0>Workflow canvas</0> side at any time), and Simple mode takes you to a one-step-per-screen wizard. After rendering, both lead to <1>the same editing page</1>, and you publish from there."
 
@@ -9639,6 +9679,10 @@ msgstr "A fresh batch of directions is projected in front of you — open it and
 #: src/components/flow/TierRow.tsx
 msgid "换到「{0}」档会有这些变化："
 msgstr "Switching to “{0}” changes the following:"
+
+#: src/components/guide/tours.tsx
+msgid "换头像"
+msgstr "Change your avatar"
 
 #: src/components/AvatarPicker.tsx
 msgid "换头像…"
@@ -10519,6 +10563,14 @@ msgstr "Nickname (optional)"
 msgid "昵称（首次登录时使用，可留空）"
 msgstr "Nickname (used the first time you sign in; optional)"
 
+#: src/components/guide/tours.tsx
+msgid "昵称和简介"
+msgstr "Nickname and bio"
+
+#: src/components/guide/tours.tsx
+msgid "昵称是别人看到的名字，简介挂在主页名字底下。这两样改完要点<0>「保存资料」</0>才算数 —— 头像不用，点了就换。"
+msgstr "Your nickname is the name other people see, and your bio sits under your name on your profile. Changes to these two only count once you tap <0>“Save profile”</0> — the avatar doesn't need that; it changes as soon as you pick one."
+
 #: src/components/blockout/BoxFramePicker.tsx
 #: src/components/blockout/VideoStage.tsx
 #: src/components/BranchPlayer.tsx
@@ -11040,6 +11092,7 @@ msgstr "Works and data on this device won't be deleted; log back in to continue.
 msgid "本机的成片文件已丢失，无法上传"
 msgstr "The video file on this device is missing and can't be uploaded"
 
+#: src/components/guide/tours.tsx
 #: src/pages/SettingsPage.tsx
 #: src/pages/SettingsStoragePage.tsx
 msgid "本机缓存"
@@ -11902,6 +11955,10 @@ msgid "段间承接"
 msgstr "Continuity between segments"
 
 #: src/components/guide/tours.tsx
+msgid "每一条是一把嗓子，<0>点一下立刻念一句样本、同时选定它</0>。 标着「调和」的是几把嗓子混出来的。"
+msgstr "Each row is a voice: <0>tap one and it reads a sample line right away and becomes the selected voice</0>. The ones tagged “Blend” are mixed from several voices."
+
+#: src/components/guide/tours.tsx
 msgid "每一格是<0>一段</0>，从左往右就是这条片的顺序。 点一格<1>就地打开这一段的编辑窗</1>，再点一下收起，点别的格子就换过去。 画布可以拖着平移、两指捏合缩放。"
 msgstr "Each cell is <0>one segment</0>, and left to right is the order of the video. Tap a cell to <1>open that segment's editor right there</1>; tap it again to close it, or tap another cell to switch. You can drag the canvas to pan and pinch with two fingers to zoom."
 
@@ -12623,6 +12680,10 @@ msgstr "Tap a clip to select it, then you can <0>✂️ split</0> it at the play
 msgid "点一张卡，挂给「{0}」"
 msgstr "Tap a card to attach it to “{0}”"
 
+#: src/components/guide/tours.tsx
+msgid "点一条就试听"
+msgstr "Tap a voice to hear it"
+
 #: src/studio/scene/TableScene.tsx
 msgid "点亮法阵 · 去剪辑成片"
 msgstr "Light the circle · edit the video"
@@ -12686,6 +12747,10 @@ msgstr "Tap the floor to place a new mannequin"
 #: src/pages/SupportModelNewPage.tsx
 msgid "点头 · 赞同"
 msgstr "Nod · agree"
+
+#: src/components/guide/tours.tsx
+msgid "点头像打开选择器：官方看板娘现成可选，最后一格从相册选自己的图，<0>能拖动裁切、双指缩放</0>。不想用图，下面还能挑一个 emoji 顶着。"
+msgstr "Tap your avatar to open the picker: official mascot avatars are ready to pick, and the last cell lets you choose your own image from the gallery — <0>drag to crop it and pinch to zoom</0>. If you'd rather not use an image, you can pick an emoji below instead."
 
 #: src/components/guide/tours.tsx
 msgid "点它才真花钱开炼，花多少就印在键上。旁边「⚙」改本段的<0>时长、画质与画幅</0>——价钱跟着变，点之前看一眼。 出片之后多一颗「⭕ 圈选」：圈出画面里要改的地方、写句要求，就地重画。"
@@ -13178,6 +13243,7 @@ msgstr "In the row of slots right below the picture, <0>each slot is one of the 
 msgid "画面质感与运镜"
 msgstr "Look and camera moves"
 
+#: src/components/guide/tours.tsx
 #: src/pages/SettingsPage.tsx
 #: src/pages/SettingsQualityPage.tsx
 msgid "画面质量"
@@ -13568,6 +13634,10 @@ msgstr "Use the original crop directly instead of having the AI draw it (this sl
 #: src/pages/AdminPage.tsx
 msgid "相关的举报记录、通知、代币流水、卡片/卡组一并清除；<0>⚠ 涉及未成年人（csae）的举报记录会保留</0>，不随删号清除（法定义务例外）。"
 msgstr "Related reports, notifications, token history and cards/decks are cleared as well; <0>⚠ reports involving minors (csae) are kept</0> and aren't cleared with the account (a legal-obligation exception)."
+
+#: src/components/guide/tours.tsx
+msgid "相册原图直接选：会自动压到 AI 认得出的尺寸，长宽比超过 {REF_MAX_RATIO}:1 的会被居中裁进{REF_MAX_RATIO}:1（方舟不收更极端的参考图），裁过会在那一格里写明。道具卡多一步：选图后要先框出那件道具、沿边描一圈，只留主体。出片时<0>不是每张都会喂进模型</0>：取几张要看这张卡在那一段里 排第几、同段还挂了几张卡 —— 详情页会逐张标「出片用 / 仅展示」，那里是唯一的判据。"
+msgstr "Choose originals straight from your gallery: they're automatically scaled down to a size the AI can read, and anything with an aspect ratio beyond {REF_MAX_RATIO}:1 is center-cropped to {REF_MAX_RATIO}:1 (Ark doesn't accept more extreme reference images) — when that happens, the slot says so. Prop cards take one more step: after choosing an image, you box the prop and trace around its edge so only the subject is kept. When generating video, <0>not every image is sent to the model</0>: how many are used depends on where this card ranks in that segment and how many other cards are attached to the same segment — the details page marks each image “Used in video / Display only”, and that's the only source of truth."
 
 #. placeholder {0}: msg.slice(0, 80)
 #: src/utils/nativeCamera.ts
@@ -14565,6 +14635,10 @@ msgstr "Step {stepNo} of 3"
 msgid "第 {v} 版"
 msgstr "Version {v}"
 
+#: src/components/guide/tours.tsx
+msgid "第 1 屏只做一件事：<0>挑卡种</0>。点「人物卡」会弹一扇小窗，<1>看图挑一套图位方案</1>（{schemeNames}），或者选<2>「真人素材扫脸认证」</2>——那条路先做 肖像授权（授权照片自动填进卡面）、跟读录音或上传本地音频。之后人物卡按四步走：<3>选来源 → 图位预览 → 人物信息 → 定名完成</3>。"
+msgstr "The first screen does just one thing: <0>choose a card type</0>. Tapping “Character card” opens a small window where you <1>pick a slot scheme by its picture</1> ({schemeNames}) or choose <2>“Real-person face verification”</2> — that path starts with portrait authorization (the authorized photo is filled into the card face automatically) and a voice sample, recorded by reading aloud or uploaded from your device. After that, a character card takes four steps: <3>Choose source → Slot preview → Character info → Name and finish</3>."
+
 #. placeholder {0}: i + 1
 #: src/data/publishAssets.ts
 msgid "第{0}段成片"
@@ -15058,6 +15132,7 @@ msgstr "Edit video"
 msgid "编辑窗顶部这三颗按钮切的是<0>这一段</0>怎么做： 「套模板」是拿一段白模视频复刻运镜与站位，你只需给里面的人偶挂上自己的角色卡； 「自选卡片」是自己挑素材卡、写一句要求，AI 推演几套走向让你挑； 「自定义」全按你给的来：传一段示例视频当整段参考，或者直接给自己的首尾帧。 三种<1>每段各选各的</1>，同一条片里可以混着来。"
 msgstr "These three buttons at the top of the editor switch how <0>this segment</0> is made: “Use a template” takes a blockout video and copies its camera work and blocking, so all you do is cast your own character cards onto its mannequins; “Pick cards” means choosing material cards yourself and writing a request, and the AI drafts a few directions for you to pick from; “Custom” goes entirely by what you give it: upload a sample video as the reference for the whole segment, or provide your own first and last frames. <1>Each segment chooses its own</1>, so you can mix them in one video."
 
+#: src/components/guide/tours.tsx
 #: src/pages/ProfilePage.tsx
 #: src/pages/SettingsPage.tsx
 #: src/pages/SettingsProfilePage.tsx
@@ -15188,6 +15263,7 @@ msgstr "Even a custom direct render needs one sentence about what this segment s
 msgid "自己上传图片"
 msgstr "Upload my own images"
 
+#: src/components/guide/tours.tsx
 #: src/pages/CustomCardPage.tsx
 #: src/pages/WorkshopPage.tsx
 msgid "自己传图做卡片"
@@ -15883,6 +15959,10 @@ msgstr "Speed"
 #: src/components/support/VoiceMarket.tsx
 msgid "语速 {rateText}"
 msgstr "speed {rateText}"
+
+#: src/components/guide/tours.tsx
+msgid "语速管快慢；语调用一句话描述想要的语气，<0>改完点上面任意音色即刻再听</0>。语调那一段不计费， 只对单音色生效 ——「调和」那几条用不了。"
+msgstr "Speed sets the pace; Tone instruction takes one sentence describing the tone you want — <0>after a change, tap any voice above to hear it again right away</0>. The tone instruction isn't billed, and it only works on single voices — the “Blend” ones can't use it."
 
 #: src/pages/SupportPage.tsx
 msgid "语音播报：关"
@@ -17124,6 +17204,10 @@ msgstr "This page needs to be opened from an upload or template page"
 msgid "这三个数字里有一个能点"
 msgstr "One of these three is tappable"
 
+#: src/components/guide/tours.tsx
+msgid "这三档管的是工坊里 3D 形象的贴图精细度，<0>跟出片视频的清晰度无关</0>。第一次进工坊会按机型 自动选一档；之后想换，全 app 只有这里能改。换档会重新加载一次。"
+msgstr "These three quality levels set how detailed the textures of the 3D characters in the Studio are, and <0>have nothing to do with the resolution of the videos you generate</0>. The first time you enter the Studio, a level is picked automatically for your device; after that, this is the only place in the app to change it. Switching levels reloads the app once."
+
 #: src/pages/ProfilePage.tsx
 msgid "这不代表 TA 没有作品，只是这次没取到"
 msgstr "That doesn't mean they have no videos — they just couldn't be loaded this time"
@@ -17888,6 +17972,10 @@ msgstr "This is the one-time cost of making the template; every time someone lat
 #: src/components/VideoTemplateExtractor.tsx
 msgid "这是做模板这一次的花费；以后每次有人套用出片，按模板视频的时长另计一笔。"
 msgstr "This is the one-time cost of making the template; every time someone later uses it to render a video, a separate charge is based on the template video's length."
+
+#: src/components/guide/tours.tsx
+msgid "这是另一条路"
+msgstr "The other way to mint"
 
 #: src/components/ShareSheet.tsx
 msgid "这是私密作品：链接只有你自己打得开。想给别人看，去编辑里改成「凭链接可见」或「公开」。"
@@ -18756,6 +18844,7 @@ msgstr "Card upload"
 msgid "铸卡师"
 msgstr "Card smith"
 
+#: src/components/guide/tours.tsx
 #: src/pages/SettingsPage.tsx
 #: src/pages/SettingsVoicePage.tsx
 msgid "铸卡师的声音"
@@ -19106,3 +19195,7 @@ msgstr "black"
 #: src/pages/SupportPersonasPage.tsx
 msgid "默认人设"
 msgstr "Default persona"
+
+#: src/components/guide/tours.tsx
+msgid "默认铸卡是 <0>AI 全自动出图</0>（3D 工坊找铸卡师）。 这一页反过来：<1>用你自己的图，不耗 token</1>； 也可以只交一张素材，让 AI 按方案把图位都画出来。要花 token 的只有那几颗带 AI 的键（AI 生成图位、圈选改图、场景卡与道具卡的识别），价钱都当面标着，不点就不花。 铸出来的卡与 AI 铸的完全同一种东西 —— 能进卡组、当出片的形象参考、发布到创意工坊。"
+msgstr "By default, minting is <0>fully automatic AI image generation</0> (find the card smith in the 3D Studio). This page is the reverse: <1>you use your own images, and it costs no tokens</1>; or hand over just one reference image and let the AI draw every slot from the scheme. The only things that cost tokens are the AI buttons (AI slot generation, Circle to edit, and AI recognition for scene and prop cards); each shows its price up front, and nothing is charged unless you tap one. A card minted here is exactly the same kind of thing as an AI-minted one — it can go into decks, serve as a look reference when generating video, and be shared to the Workshop."
