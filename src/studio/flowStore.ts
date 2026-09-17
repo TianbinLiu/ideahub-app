@@ -2544,7 +2544,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
       const money = chargeNote(chargeOnFail(e), ONE_IMAGE);
       if (money) {
         const moneyLine = money.line;
-        const reason = briefArkReason(e);
+        const reason = briefArkReason(e, 80);
         set({
           err: t({
             message: `导演台融图没成（${reason}）。${moneyLine}开头帧没有换，可以再截一次`,

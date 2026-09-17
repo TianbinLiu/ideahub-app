@@ -301,17 +301,20 @@ export class ArkBatchPartial extends Error {
  *   （request id 对他毫无意义），而且它长到会把后半句**真正可行动的话**（"再点一次
  *   「取回」，凭据还在"）挤出可视区 —— arkFetch 里 403 那条注释记的就是同一个坑。
  * ★ 状态码保留：那是唯一对排查有用、又短的一位。
+ * ★ `max` 只管「原话照抄」那一支留多少字，缺省 40（出片轮询那句后面还跟着可行动的半句，得短）。
+ *   失败提示是一整段、后面跟的是钱上的话时给宽一点（与那一处「没扣钱」原句留的字数相同）：逐格出图画到第 2 张撞上 402，
+ *   原话是「token 余额不足：这一步需要 N，余额 M——去「我的」页充值」，按 40 字截会把「去充值」那半句截掉。
  */
-export function briefArkReason(e: unknown): string {
+export function briefArkReason(e: unknown, max = 40): string {
   // 批量那层壳先拆掉：原因在里面那一发上（不拆的话「没等到回包」会读成一串 `Ark /images/… 网络失败`）
-  if (e instanceof ArkBatchPartial) return briefArkReason(e.failure);
+  if (e instanceof ArkBatchPartial) return briefArkReason(e.failure, max);
   if (e instanceof ArkHttpError) {
     const status = e.status;
     return t`服务器返回 ${status}`;
   }
   // ★ 认类型，不在 message 里找「网络失败」：arkFetch 只在这一种情况下抛 ArkNoReply（见它的 ★★）
   if (e instanceof ArkNoReply) return t`网络不通`;
-  if (e instanceof Error) return e.message.slice(0, 40);
+  if (e instanceof Error) return e.message.slice(0, max);
   return t`未知原因`;
 }
 

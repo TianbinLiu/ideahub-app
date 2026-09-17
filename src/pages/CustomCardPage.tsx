@@ -690,7 +690,7 @@ export default function CustomCardPage() {
       if (money) {
         const moneyBrief = money.brief;
         const moneyLine = money.line;
-        const reason = briefArkReason(e);
+        const reason = briefArkReason(e, 120);
         job.fail(
           t({
             message: `形象图没画成（${moneyBrief}），回去看原因`,
@@ -739,7 +739,7 @@ export default function CustomCardPage() {
       if (money) {
         const moneyBrief = money.brief;
         const moneyLine = money.line;
-        const reason = briefArkReason(e);
+        const reason = briefArkReason(e, 90);
         job.fail(
           t({
             message: `圈选改图没成（${moneyBrief}）`,

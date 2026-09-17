@@ -527,7 +527,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
       if (money) {
         const moneyBrief = money.brief;
         const moneyLine = money.line;
-        const reason = briefArkReason(e);
+        const reason = briefArkReason(e, 120);
         job.fail(
           t({
             message: `形象图没画成（${moneyBrief}）`,
