@@ -44,6 +44,18 @@ import java.util.concurrent.Executors;
  * ★ 分享卡片的缩略图必须是**字节**（thumbData ≤ 32KB），微信不帮你拉 URL —— 与 QQ
  *   收 imageUrl 的口味相反。所以这里在 IO 线程下载封面、缩到 200px、JPEG 质量往下压
  *   直到 ≤ 32KB；拉不到就不带图（分享照发，别为一张缩略图把整个动作弄失败）。
+ *
+ * ★★ **每一条 reject 都带一个稳定的 ASCII code**（2026-09-17，「应用分身」那次缺陷）：
+ *   句子由 Web 侧按 code 用 Lingui 现翻（`utils/wechat.ts`）—— 原来这里直接抛中文，
+ *   英文界面下弹出的是中文，而且「原生回执」与「服务端换 token 失败」两种失败**同前缀**
+ *   （都叫「微信授权失败（…）」），用户截图里分不出是哪一头，没法定位。
+ *   ⚠ 别在 Web 侧按 message 里的中文关键词判（CLAUDE.md 那条坑），只认 code。
+ *
+ * ★★ **单槽绝不许永久占用**（同上）：有分身的手机上点登录会先弹系统的选择框，
+ *   而**取消选择框微信永远不给回执**（SDK 的 send() 已经 return true、PendingIntent 的
+ *   OnFinished 只打日志）—— 老写法里 pendingLogin 就此占死，之后每次点都被自己拒成
+ *   「上一次微信登录还没结束」，等于登录键彻底失效。两道闸：①再点一次**顶掉**上一次
+ *   （用户的意图很明确）；②看门狗到点自己释放。
  */
 @CapacitorPlugin(name = "WeChat")
 public class WeChatPlugin extends Plugin {
@@ -55,6 +67,10 @@ public class WeChatPlugin extends Plugin {
     private PluginCall pendingLogin;
     /** 本次登录请求的防伪标记：回执的 state 对不上就不是我们这一单 */
     private String loginState = "";
+    /** 看门狗：到点还没有回执就释放单槽（见类注释 ★★）。微信的授权页停留多久都算正常，所以给得宽 */
+    private static final long LOGIN_TIMEOUT_MS = 5 * 60 * 1000L;
+    private final android.os.Handler main = new android.os.Handler(android.os.Looper.getMainLooper());
+    private Runnable loginWatchdog;
 
     private final ExecutorService io = Executors.newSingleThreadExecutor();
 
@@ -86,16 +102,15 @@ public class WeChatPlugin extends Plugin {
         call.resolve(ret);
     }
 
-    /** 起授权。成功 resolve {code}，其余（取消/拒绝/未装微信）一律 reject（铁律八）。 */
+    /** 起授权。成功 resolve {code}，其余（取消/拒绝/未装微信）一律 reject（铁律八），每条都带 code。 */
     @PluginMethod
     public void login(PluginCall call) {
-        if (pendingLogin != null) {
-            call.reject("上一次微信登录还没结束");
-            return;
-        }
+        // ★ 再点一次就顶掉上一次：上一单要么真的还在飞（用户已经放弃它了），要么是永远等不到回执的
+        //   死槽（取消了选择框、分身没回执）。拒绝新的那一次 = 登录键从此点不动，比顶掉坏得多。
+        settle(null, "微信登录被新的一次顶替了", "WX_SUPERSEDED");
         IWXAPI wx = ensureApi();
         if (!wx.isWXAppInstalled()) {
-            call.reject("这台手机上没有安装微信");
+            call.reject("这台手机上没有安装微信", "WX_NOT_INSTALLED");
             return;
         }
 
@@ -112,10 +127,38 @@ public class WeChatPlugin extends Plugin {
         req.state = loginState;
 
         pendingLogin = call;
+        armWatchdog();
         if (!wx.sendReq(req)) {
-            pendingLogin = null;
-            call.reject("微信授权页没能打开（请稍后重试）");
+            settle(null, "微信授权页没能打开（请稍后重试）", "WX_SEND_FAILED");
         }
+    }
+
+    /** 看门狗：到点还没有回执就释放单槽。★ 每次 settle 都撤掉它，别让上一单的闹钟打断下一单 */
+    private void armWatchdog() {
+        cancelWatchdog();
+        loginWatchdog = () -> settle(null, "等了很久也没有收到微信的回执", "WX_NO_RESPONSE");
+        main.postDelayed(loginWatchdog, LOGIN_TIMEOUT_MS);
+    }
+
+    private void cancelWatchdog() {
+        if (loginWatchdog != null) {
+            main.removeCallbacks(loginWatchdog);
+            loginWatchdog = null;
+        }
+    }
+
+    /**
+     * 登录这一单的**唯一**收尾出口：清单槽、撤看门狗，再交结果。
+     * ★ 收成一处是因为老写法里每条分支各自 `pendingLogin = null` + reject，漏一条就是永久占槽（类注释 ★★）。
+     */
+    private void settle(JSObject ret, String err, String code) {
+        cancelWatchdog();
+        PluginCall call = pendingLogin;
+        pendingLogin = null;
+        loginState = "";
+        if (call == null) return;
+        if (ret != null) call.resolve(ret);
+        else call.reject(err, code);
     }
 
     /**
@@ -201,26 +244,25 @@ public class WeChatPlugin extends Plugin {
         WeChatPlugin self = instance;
         if (self == null) return;
         if (!(resp instanceof SendAuth.Resp)) return; // 分享回执：发出即成功，不在这儿收
-
-        PluginCall call = self.pendingLogin;
-        self.pendingLogin = null;
-        if (call == null) return;
+        if (self.pendingLogin == null) return;
 
         SendAuth.Resp auth = (SendAuth.Resp) resp;
         if (auth.errCode == BaseResp.ErrCode.ERR_OK) {
             if (self.loginState.isEmpty() || !self.loginState.equals(auth.state)) {
-                call.reject("微信回执与本次请求不匹配，请重试");
+                self.settle(null, "微信回执与本次请求不匹配，请重试", "WX_STATE_MISMATCH");
                 return;
             }
             JSObject ret = new JSObject();
             ret.put("code", auth.code == null ? "" : auth.code);
-            call.resolve(ret);
+            self.settle(ret, null, null);
         } else if (auth.errCode == BaseResp.ErrCode.ERR_USER_CANCEL) {
-            call.reject("已取消微信登录");
+            self.settle(null, "已取消微信登录", "WX_CANCEL");
         } else if (auth.errCode == BaseResp.ErrCode.ERR_AUTH_DENIED) {
-            call.reject("微信拒绝了授权请求");
+            self.settle(null, "微信拒绝了授权请求", "WX_DENIED");
         } else {
-            call.reject("微信授权失败（" + auth.errCode + "）");
+            // ★ 把 errCode 原样带给 Web 侧：-6（ERR_BAN，微信那头认不出我们的包名 / 签名）正是
+            //   「选了分身」最可能落到的那一档 —— 句子由 utils/wechat.ts 按 code 说，这里不拼中文。
+            self.settle(null, "微信授权失败（" + auth.errCode + "）", "WX_FAIL_" + auth.errCode);
         }
     }
 }

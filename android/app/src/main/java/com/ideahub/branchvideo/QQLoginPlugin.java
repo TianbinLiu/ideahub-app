@@ -42,6 +42,19 @@ import org.json.JSONObject;
  *   ③ 授权结果回到的是 **MainActivity.onActivityResult**，不是插件。Capacitor 的
  *      handleOnActivityResult 只服务于插件自己 startActivityForResult 起的那些，
  *      QQ 的 Activity 是 SDK 自己起的，收不到。所以 MainActivity 里转发一手（见那边）。
+ *
+ * ★★ 2026-09-17（「应用分身」那次缺陷）改了三件事：
+ *   ① **每条 reject 带一个稳定的 ASCII code**，句子由 Web 侧按 code 用 Lingui 现翻
+ *      （`utils/qqLogin.ts`）。原来这里抛中文：英文界面下弹中文，而且「SDK 侧 onError」与
+ *      「服务端换 token 失败」**同前缀**（都叫「QQ 授权失败（…）」），用户截图里分不出是哪一头。
+ *      ⚠ Web 侧只准认 code，别按 message 里的中文关键词判（CLAUDE.md 那条坑）。
+ *   ② **finish() 要把 listener 也清掉**：老写法只清 pending。而 MainActivity 把**所有**
+ *      onActivityResult 都转进来，SDK 的 UIListenerManager 对认不出的 requestCode 会退回用
+ *      我们传的这个 listener —— 于是一次早就结束的登录留下的 listener 会去"处理"别人的结果，
+ *      并且 handleActivityResult 返回 true 把它吞掉（相机等结果就此丢失，零报错）。
+ *   ③ **单槽绝不许永久占用**：有分身的手机上点登录会先弹系统的选择框；SDK 那头有一条
+ *      「ignore 回执到了、scheme 回跳没到」的路**永远不给回调**，老写法里 pending 就此占死，
+ *      之后每次点都被自己拒成「上一次 QQ 登录还没结束」。两道闸：再点一次顶掉上一次 + 看门狗。
  */
 @CapacitorPlugin(name = "QQLogin")
 public class QQLoginPlugin extends Plugin {
@@ -57,6 +70,10 @@ public class QQLoginPlugin extends Plugin {
     private IUiListener listener;
     /** 正在等回调的那次调用。同一时刻只可能有一次授权在飞 */
     private PluginCall pending;
+    /** 看门狗：到点还没有回调就释放单槽（见类注释 ★★③）。QQ 的授权页停留多久都算正常，给得宽 */
+    private static final long PENDING_TIMEOUT_MS = 5 * 60 * 1000L;
+    private final android.os.Handler main = new android.os.Handler(android.os.Looper.getMainLooper());
+    private Runnable watchdog;
 
     @Override
     public void load() {
@@ -86,17 +103,16 @@ public class QQLoginPlugin extends Plugin {
             call.reject("Activity 不可用");
             return;
         }
-        if (pending != null) {
-            // 上一次还没回来。这里不排队：QQ 那边也只认一次授权，排队只会让第二次拿到过期 code
-            call.reject("上一次 QQ 登录还没结束");
-            return;
-        }
+        // ★ 再点一次就顶掉上一次（见类注释 ★★③）：拒绝新的那一次 = 登录键从此点不动，比顶掉坏得多。
+        //   仍然不排队：QQ 那边也只认一次授权，排队只会让第二次拿到过期 code。
+        finish(null, "QQ 登录被新的一次顶替了", "QQ_SUPERSEDED");
         if (ensureTencent() == null) {
-            call.reject("QQ SDK 初始化失败");
+            call.reject("QQ SDK 初始化失败", "QQ_SDK_INIT_FAILED");
             return;
         }
 
         pending = call;
+        armWatchdog();
         listener = new IUiListener() {
             @Override
             public void onComplete(Object response) {
@@ -106,24 +122,27 @@ public class QQLoginPlugin extends Plugin {
                 JSONObject json = response instanceof JSONObject ? (JSONObject) response : null;
                 String code = json == null ? null : json.optString("code", json.optString("access_token", ""));
                 if (code == null || code.isEmpty()) {
-                    finish(null, "QQ 没有返回授权码");
+                    finish(null, "QQ 没有返回授权码", "QQ_NO_CODE");
                     return;
                 }
                 JSObject ret = new JSObject();
                 ret.put("code", code);
-                finish(ret, null);
+                finish(ret, null, null);
             }
 
             @Override
             public void onError(UiError e) {
-                // errorDetail 常常是空的，拼上 errorCode 才能在用户截图里看出是哪一类失败
-                String msg = e == null ? "QQ 授权失败" : ("QQ 授权失败（" + e.errorCode + "）" + safe(e.errorMessage));
-                finish(null, msg);
+                // errorDetail 常常是空的，拼上 errorCode 才能在用户截图里看出是哪一类失败。
+                // ★ code 里带上 errorCode：QQ 那头认不出我们的包名 / 签名（选了分身最可能落到的那一档）
+                //   与"应用没上线 / 不在调试者名单"都走 onError，Web 侧按这个数分档说话。
+                int ec = e == null ? 0 : e.errorCode;
+                String msg = e == null ? "QQ 授权失败" : ("QQ 授权失败（" + ec + "）" + safe(e.errorMessage));
+                finish(null, msg, "QQ_ERROR_" + ec);
             }
 
             @Override
             public void onCancel() {
-                finish(null, "已取消 QQ 授权");
+                finish(null, "已取消 QQ 授权", "QQ_CANCEL");
             }
 
             @Override
@@ -136,7 +155,7 @@ public class QQLoginPlugin extends Plugin {
         // 返回 -1 表示没能起来（最常见的是 manifest 里漏声明 AuthActivity）。
         // 不管它的话，pending 会一直挂着，用户再点就撞上上面那句"还没结束"。
         if (started == -1) {
-            finish(null, "QQ 授权页没能打开（请确认已安装 QQ 或稍后重试）");
+            finish(null, "QQ 授权页没能打开（请确认已安装 QQ 或稍后重试）", "QQ_START_FAILED");
         }
     }
 
@@ -154,22 +173,24 @@ public class QQLoginPlugin extends Plugin {
     public void shareToQQ(PluginCall call) {
         Activity activity = getActivity();
         if (activity == null) {
-            call.reject("Activity 不可用");
+            call.reject("Activity 不可用", "QQ_NO_ACTIVITY");
             return;
         }
         if (pending != null) {
-            call.reject("上一次操作还没结束");
+            // ★ 分享**不**顶掉在飞的那一单（可能是一次正在授权的登录，顶掉会把登录打断）；
+            //   看门狗保证死槽最多占住 PENDING_TIMEOUT_MS。
+            call.reject("上一次操作还没结束", "QQ_BUSY");
             return;
         }
         if (ensureTencent() == null) {
-            call.reject("QQ SDK 初始化失败");
+            call.reject("QQ SDK 初始化失败", "QQ_SDK_INIT_FAILED");
             return;
         }
 
         String title = call.getString("title", "");
         String targetUrl = call.getString("targetUrl", "");
         if (title == null || title.isEmpty() || targetUrl == null || targetUrl.isEmpty()) {
-            call.reject("缺少标题或链接");
+            call.reject("缺少标题或链接", "QQ_SHARE_BAD_ARGS");
             return;
         }
 
@@ -189,21 +210,23 @@ public class QQLoginPlugin extends Plugin {
         params.putString(com.tencent.connect.share.QQShare.SHARE_TO_QQ_APP_NAME, "启梦");
 
         pending = call;
+        armWatchdog();
         listener = new IUiListener() {
             @Override
             public void onComplete(Object response) {
-                finish(new JSObject(), null);
+                finish(new JSObject(), null, null);
             }
 
             @Override
             public void onError(UiError e) {
-                String msg = e == null ? "QQ 分享失败" : ("QQ 分享失败（" + e.errorCode + "）" + safe(e.errorMessage));
-                finish(null, msg);
+                int ec = e == null ? 0 : e.errorCode;
+                String msg = e == null ? "QQ 分享失败" : ("QQ 分享失败（" + ec + "）" + safe(e.errorMessage));
+                finish(null, msg, "QQ_SHARE_ERROR_" + ec);
             }
 
             @Override
             public void onCancel() {
-                finish(null, "已取消分享");
+                finish(null, "已取消分享", "QQ_SHARE_CANCEL");
             }
 
             @Override
@@ -214,13 +237,31 @@ public class QQLoginPlugin extends Plugin {
         tencent.shareToQQ(activity, params, listener);
     }
 
-    /** 收尾：结果只从这一处交付，避免某条分支忘了清 pending 把后续点击全堵死 */
-    private void finish(JSObject ret, String err) {
+    /**
+     * 收尾：结果只从这一处交付，避免某条分支忘了清 pending 把后续点击全堵死。
+     * ★ listener 也在这儿清（见类注释 ★★②）：留着它会去"处理"别人的 onActivityResult 并把结果吞掉。
+     */
+    private void finish(JSObject ret, String err, String code) {
+        cancelWatchdog();
         PluginCall call = pending;
         pending = null;
+        listener = null;
         if (call == null) return;
-        if (err != null) call.reject(err);
+        if (err != null) call.reject(err, code);
         else call.resolve(ret);
+    }
+
+    private void armWatchdog() {
+        cancelWatchdog();
+        watchdog = () -> finish(null, "等了很久也没有收到 QQ 的回执", "QQ_NO_RESPONSE");
+        main.postDelayed(watchdog, PENDING_TIMEOUT_MS);
+    }
+
+    private void cancelWatchdog() {
+        if (watchdog != null) {
+            main.removeCallbacks(watchdog);
+            watchdog = null;
+        }
     }
 
     private Tencent ensureTencent() {

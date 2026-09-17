@@ -846,6 +846,15 @@ msgstr "{0} locks {1}"
 msgid "{actName} 用哪个动作组"
 msgstr "Motion group for {actName}"
 
+#: src/utils/nativeLoginError.ts
+msgid "{app}授权失败（{detail}）。再点一次试试，或者用手机号、邮箱登录。"
+msgstr "{app} sign-in failed ({detail}). Try again, or sign in with your phone number or e-mail."
+
+#. placeholder {0}: cloneHint()
+#: src/utils/nativeLoginError.ts
+msgid "{app}没有接受这次授权（{detail}）。{0}"
+msgstr "{app} didn't accept this sign-in ({detail}). {0}"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "{area}（包里没有）"
 msgstr "{area} (not in bundle)"
@@ -2820,6 +2829,10 @@ msgstr "Canvas unavailable"
 msgid "mp4 / mov · {maxMinutes} 分钟以内 · {maxMb}MB 以内 · 会<0>公开托管</0>（套用者出片时引用它）。"
 msgstr "MP4 / MOV · up to {maxMinutes, plural, one {# minute} other {# minutes}} · up to {maxMb} MB · will be <0>hosted publicly</0> (videos made from the template reference it)."
 
+#: src/utils/nativeLoginError.ts
+msgid "QQ"
+msgstr "QQ"
+
 #: src/components/ShareSheet.tsx
 msgid "QQ 分享要在 App 里用，浏览器里请复制链接"
 msgstr "QQ sharing works in the app. In a browser, copy the link instead"
@@ -2827,6 +2840,10 @@ msgstr "QQ sharing works in the app. In a browser, copy the link instead"
 #: src/components/ShareSheet.tsx
 msgid "QQ 好友"
 msgstr "QQ friends"
+
+#: src/utils/nativeLoginError.ts
+msgid "QQ 登录没能初始化。请重启 App 再试，或者用手机号、邮箱登录。"
+msgstr "QQ sign-in couldn't start. Restart the app and try again, or sign in with your phone number or e-mail."
 
 #: src/pages/LoginPage.tsx
 msgid "QQ 登录要在 App 里用（浏览器中没有 QQ 客户端可以拉起），先用邮箱或手机号登录"
@@ -3058,6 +3075,10 @@ msgstr "The previous photo isn't finished yet"
 #: src/hooks/useFlowActions.ts
 msgid "上一条剪到一半的成片这会儿没读出来（本机数据库没打开），现在组稿会把它顶掉。先去「我的」点「重试」，读出来之后再来组这一条。"
 msgstr "Your previous half-edited video couldn't be loaded right now (this device's database didn't open), and assembling now would replace it. Go to “Me” and tap “Retry”, then come back to assemble this one once it loads."
+
+#: src/utils/nativeLoginError.ts
+msgid "上一次{app}登录被这一次顶替了。"
+msgstr "The previous {app} sign-in was replaced by this one."
 
 #: src/components/PhotoSubjectPicker.tsx
 #: src/components/VideoTemplateExtractor.tsx
@@ -7440,6 +7461,10 @@ msgstr "e.g. An old harbor at dusk, with rusty cranes and wooden net-drying rack
 msgid "如果两个人偶印着同一个号：挂在这个号上的卡<0>可能会把两个人一起换成同一张卡</0>（模型只认数字，分不出哪个是你要的）。不想要这个效果，就把这个号的位子也删掉 —— 那两个人偶会保持白模原样出现在片子里。"
 msgstr "If two mannequins carry the same number: the card attached to that number <0>may turn both of them into the same card</0> (the model only reads the number and can't tell which one you meant). If you don't want that, delete that number's slot too — both mannequins will appear in the video as plain blockout mannequins."
 
+#: src/utils/nativeLoginError.ts
+msgid "如果刚才弹出过选择框、你选的是分身，请退回来改选本体那一个——分身给不了第三方应用授权。也可以直接用手机号或邮箱登录。"
+msgstr "If a chooser appeared and you picked the cloned app, go back and pick the original one — a cloned app can't authorize other apps. You can also just sign in with your phone number or e-mail."
+
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "如果画面上大部分号都对不上，这段白模的编号本身就没画好 —— 删位只能救回一部分，要全对得上只能重炼（要再花一次钱）。"
 msgstr "If most numbers in the picture don't match, the numbering in this blockout itself came out wrong — deleting slots only saves part of it, and getting everything to match means re-rendering (which costs again)."
@@ -8106,6 +8131,10 @@ msgstr "Published “{0}” to the voice market and set it as your voice."
 #: src/api/uploads.ts
 msgid "已取消"
 msgstr "Canceled"
+
+#: src/utils/nativeLoginError.ts
+msgid "已取消{app}登录。"
+msgstr "{app} sign-in cancelled."
 
 #: src/studio/live2dUploadStore.ts
 msgid "已取消上传。要发布的话重新点一次「开始识别」。"
@@ -8853,6 +8882,7 @@ msgstr "It needs a title before it can be published (close this card and fill on
 
 #: src/components/BrandIcon.tsx
 #: src/components/ShareSheet.tsx
+#: src/utils/nativeLoginError.ts
 msgid "微信"
 msgstr "WeChat"
 
@@ -8863,6 +8893,10 @@ msgstr "WeChat sharing works in the app. In a browser, copy the link instead"
 #: src/pages/LoginPage.tsx
 msgid "微信登录要在 App 里用（浏览器中没有微信客户端可以拉起），先用邮箱或手机号登录"
 msgstr "WeChat sign-in only works in the app (a browser has no WeChat client to open) — sign in with email or phone for now"
+
+#: src/utils/nativeLoginError.ts
+msgid "微信里拒绝了这次授权。想用微信登录的话再点一次，在微信里选「同意」。"
+msgstr "The request was declined in WeChat. To sign in with WeChat, tap again and choose Agree in WeChat."
 
 #: src/studio/personaWizardStore.ts
 msgid "微调"
@@ -12424,6 +12458,10 @@ msgstr "Couldn't complete that. Please try again"
 msgid "没能开始播放：{0}"
 msgstr "Couldn't start playback: {0}"
 
+#: src/utils/nativeLoginError.ts
+msgid "没能打开{app}的授权页。确认装的是正式版{app}并且版本不太旧，或者用手机号、邮箱登录。"
+msgstr "Couldn't open {app}'s sign-in page. Make sure you have the official {app} app and that it isn't too old, or sign in with your phone number or e-mail."
+
 #: src/pages/SettingsPage.tsx
 msgid "没能打开浏览器（可能被拦截了）。你可以直接访问 {url}"
 msgstr "Couldn't open the browser (it may have been blocked). You can visit {url} directly"
@@ -14791,6 +14829,11 @@ msgstr "Still no video after 12 minutes (the job is still running on Ark — it 
 #: src/data/videoDownload.ts
 msgid "等了 60 秒一个字节都没来，当断了处理。再点一次接着试。"
 msgstr "Not a single byte arrived in 60 seconds, so it was treated as disconnected. Tap again to retry."
+
+#. placeholder {0}: cloneHint()
+#: src/utils/nativeLoginError.ts
+msgid "等了很久也没等到{app}的回音。再点一次试试；{0}"
+msgstr "No response from {app} after a long wait. Tap again to retry. {0}"
 
 #: src/data/templates.ts
 msgid "等太久没等到回复——但这一发多半还在服务器上跑（整条切成 N 段要逐段转码，慢的时候好几分钟）。先别急着再点（再点会把同一条视频切第二遍），也别去删那段素材：等一两分钟，去「我的模板」看看那一组是不是已经到了。"
@@ -17593,6 +17636,10 @@ msgstr "These mix Chinese and English segment numbers, so I couldn't tell which 
 msgid "这句话超过 {VIDEO_PROMPT_MAX} 字——输入条本来也发不出这么长，精简一下"
 msgstr "This sentence is longer than {VIDEO_PROMPT_MAX} characters — the input bar can't send that much anyway, so shorten it"
 
+#: src/utils/nativeLoginError.ts
+msgid "这台手机上没有安装微信。装了微信再试，或者用手机号、邮箱登录。"
+msgstr "WeChat isn't installed on this phone. Install it and try again, or sign in with your phone number or e-mail."
+
 #: src/data/videoDownload.ts
 msgid "这台手机上没有能接收视频的应用。文件已经在 App 内，装一个文件管理器再试。"
 msgstr "No app on this phone can receive videos. The file is already in the app — install a file manager and try again."
@@ -18264,6 +18311,10 @@ msgstr "That would leave less than {MIN_CLIP_SEC}s — the clip would be too sho
 #: src/data/videos.ts
 msgid "这次启动没连上服务器，作品先存在这台设备上——联网后会自动上传"
 msgstr "Couldn't reach the server when the app started, so the video is saved on this device for now — it will upload automatically once you're online"
+
+#: src/utils/nativeLoginError.ts
+msgid "这次微信回执与本次请求对不上，请再点一次。"
+msgstr "That WeChat response doesn't match this request. Please tap again."
 
 #. placeholder {0}: doomed.length
 #: src/components/blockout/RoleConfirmSheet.tsx
