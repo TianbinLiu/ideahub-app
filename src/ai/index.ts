@@ -70,20 +70,8 @@ export const deriveDeckCards: typeof real.deriveDeckCards = AI_REAL
         .filter((c) => !have.has(c.name));
       return { cards, tokens: 0 };
     };
-/** 上传本地视频提炼卡组（抽帧 → 视觉模型识别 → 铸卡面）；
- *  mock 构建直接把抽帧当卡面出场景卡，好歹能走通流程 */
-export const extractCardsFromVideo: typeof real.extractCardsFromVideo = AI_REAL
-  ? real.extractCardsFromVideo
-  : async (frames, note) => ({
-      tokens: 0,
-      cards: frames.slice(0, 3).map((f, i) => ({
-        id: `card_vid_${Date.now().toString(36)}_${i}`,
-        type: "scene" as const,
-        name: note ? t`${note.slice(0, 4)}片段${i + 1}` : t`视频片段${i + 1}`,
-        summary: t`演示模式：直接用抽帧当卡面，未经 AI 识别`,
-        cover: f,
-      })),
-    });
+// ★ 这里原来还有 `extractCardsFromVideo`（上传视频 → AI 看抽帧自动铸卡）：圈选提取（VideoCardAnnotator）取代它之后全仓零调用方，
+//   多语言 R2 连同 real.ts 里的实现与提示词一起删除（要找回看 git 历史）。
 /** 白模段挂卡后的合成预览图；mock 构建直接把白模帧当预览（0 token） */
 export const castPreviewImage: typeof real.castPreviewImage = AI_REAL ? real.castPreviewImage : async (o) => o.frameUrl;
 export { frameUrlAt } from "./real";
@@ -134,6 +122,9 @@ export const prepareMaterialRefs: typeof real.prepareMaterialRefs = AI_REAL
   ? real.prepareMaterialRefs
   : async () => ({ refs: [], bind: () => "", bindCompact: () => "" });
 export type { MaterialRefs } from "./real";
+/** 几条提示（prepareMaterialRefs 的 onNote、铸卡的 notes…）怎么连成一串 / 括成进度行的尾巴：分隔符与括号都进目录，
+ *  全仓一处（real.ts），真假两种构建同一份 —— 调用方别再自己写 `notes.join("；")` */
+export { joinNotes, notesInParens } from "./real";
 /** 设定图按要求改图（方案选帧改图/剪辑页圈选修改）；mock 原图返回 */
 export const refineFrame: typeof real.refineFrame = AI_REAL ? real.refineFrame : async (_req, ref) => ref;
 /** 剪辑页单段重生成；mock 返回空 URL（渐变回退） */

@@ -12,7 +12,7 @@
 //
 // 计费与 store 写入**不在这里**：两边的账本与状态形状不同（flowStore 写 videoByProposal，
 // 工坊写 proposal.videoUrl），这里只负责"把一段炼出来"，纯函数式地把结果交回去。
-import { ARK_REF_IMAGES_MAX, ArkTaskUnknown, VIDEO_PROMPT_MAX, composeSegments, generateCover, prepareMaterialRefs, refineFrame } from "../ai";
+import { ARK_REF_IMAGES_MAX, ArkTaskUnknown, VIDEO_PROMPT_MAX, composeSegments, generateCover, notesInParens, prepareMaterialRefs, refineFrame } from "../ai";
 import { uploadImage } from "../api/uploads";
 import { IMAGE_TOKENS, fmtTokens, r2vPriceIssue, tierOf, providerOf, clampDuration, videoTokensOfSpec, type VideoTier } from "../data/economy";
 // ★ 「模板视频自己合不合方舟窗口」的判据在 data（不在组件）：store 层这一处与
@@ -528,12 +528,9 @@ export async function generateSegment(
   /** 这一段一路攒下的「顺带说一句」。**声明必须在最顶上**：素材参考那条支路在中途就 return，
    *  声明放在它后面的话，那条路上的每一句提示都无处可放（这正是 §2.11.2② 的成因之一）。 */
   const notes: string[] = [];
-  /** 进度行的尾巴。★ 不能单独 prog：同一个同步块里的下一行 prog 会立刻把它盖掉 */
-  const noteTail = () => {
-    if (!notes.length) return "";
-    const joined = notes.join(t({ message: "；", comment: "出片进度行里几条提示之间的分隔符" }));
-    return t({ message: `（${joined}）`, comment: "出片进度行尾巴上那一串提示：括起来接在进度句后面（英文前面留一个空格）" });
-  };
+  /** 进度行的尾巴。★ 不能单独 prog：同一个同步块里的下一行 prog 会立刻把它盖掉
+   *  （连法与括号走共用的 ai.notesInParens：铸卡 / 重画 / 改图那几处是同一份，别再各写一遍） */
+  const noteTail = () => notesInParens(notes);
 
   // ★ 白模门禁放在最前（步骤①之前）：圈选改帧那一步要花真钱出图，走进去再拒就白烧了。
   //   走不成一律 throw 整句原因（绝不降级——理由钉在 blockoutIssue 的 ★ 上），

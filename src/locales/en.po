@@ -180,7 +180,7 @@ msgstr ", upscaled to {REF_SHORT_MIN}px on the short side"
 msgid "、"
 msgstr ", "
 
-#. 出片进度行里几条提示之间的分隔符
+#. 几条提示连成一串时的分隔符（出片 / 铸卡 / 推演 / 改图的进度行与完成提示共用）
 #. 列举「每个图位锁什么」时的分隔符
 #. 列举包里缺的几个文件时的分隔符
 #. 把两条拒绝原因连成一句时的分隔符
@@ -190,14 +190,12 @@ msgstr ", "
 #. 把几条「这一档为什么点不动」的原因连成一行时的分隔符
 #. 把铸卡时的几条说明连成一句时的分隔符
 #. 把铸卡时的几条说明连成一句时的分隔符
-#. 改图 / 重画完成那句后面几条参考图提示之间的分隔符
+#: src/ai/real.ts
 #: src/components/flow/SegSettings.tsx
 #: src/components/flow/TierRow.tsx
 #: src/live2d/bundlePreview.ts
 #: src/pages/CardDetailPage.tsx
 #: src/studio/flowStore.ts
-#: src/studio/segmentGen.ts
-#: src/studio/studioStore.ts
 #: src/studio/ui/NpcDialog.tsx
 #: src/studio/ui/projection.tsx
 msgid "；"
@@ -416,8 +414,8 @@ msgstr "‹ Re-box"
 msgid "（{0}）"
 msgstr " ({0})"
 
-#. 出片进度行尾巴上那一串提示：括起来接在进度句后面（英文前面留一个空格）
-#: src/studio/segmentGen.ts
+#. 进度行尾巴上那一串提示（出片 / 铸卡 / 重画共用）：括起来接在进度句后面（英文前面留一个空格）
+#: src/ai/real.ts
 msgid "（{joined}）"
 msgstr " ({joined})"
 
@@ -823,12 +821,6 @@ msgstr "{0} couldn't be synced ({1}). The card itself is on the server; only the
 msgid "{0}注册"
 msgstr "joined {0}"
 
-#. placeholder {0}: note.slice(0, 4)
-#. placeholder {1}: i + 1
-#: src/ai/index.ts
-msgid "{0}片段{1}"
-msgstr "{0} clip {1}"
-
 #. placeholder {0}: segs(r.paid.map((p) => p.seg))
 #: src/studio/canvasAgent.ts
 msgid "{0}的推演、生成、挂卡本地档不代办（要花钱，或会重写点名句）——在那一段的编辑窗里点。"
@@ -1061,6 +1053,10 @@ msgstr "{name}'s voice"
 msgid "{name}走神了，再发一次试试。"
 msgstr "{name} got distracted. Try sending again."
 
+#: src/ai/real.ts
+msgid "{names}只带上了第 1 张形象图（预算 {budget} 张已满），它们按第 1 张参与"
+msgstr "Only the first reference image of {names} was included (the budget of {budget, plural, one {# image} other {# images}} is full), so each takes part with its first image only"
+
 #: src/data/economy.ts
 msgid "{names}是声明过的真人素材，「{label}」档的供应商拒收真人照片（实测名人按版权拦、普通人按隐私拦，整发被拒）——换成「{hdTier}」「{ultraTier}」档并给这张卡做肖像授权，或换「{realTier}」档，或先把真人卡取下"
 msgstr "{names}: declared as real-person material, and the “{label}” tier's provider rejects photos of real people (in testing, celebrities are blocked for copyright and everyone else for privacy, and the whole request is rejected) — switch to “{hdTier}” or “{ultraTier}” and set up portrait authorization for this card, or switch to “{realTier}”, or remove the real-person card for now"
@@ -1069,9 +1065,22 @@ msgstr "{names}: declared as real-person material, and the “{label}” tier's 
 msgid "{names}是声明过的真人素材，「{label}」档的供应商拒收真人照片（实测名人按版权拦、普通人按隐私拦，整发被拒）；而「{realTier}」档做不了白模复刻——真人卡与白模模板不能同用：把真人卡取下换一张非真人卡，或不用模板、换「{realTier}」档以卡上照片起拍直出"
 msgstr "{names}: declared as real-person material, and the “{label}” tier's provider rejects photos of real people (in testing, celebrities are blocked for copyright and everyone else for privacy, and the whole request is rejected); meanwhile the “{realTier}” tier can't do blockout remakes — real-person cards and blockout templates can't be used together: swap the real-person card for a non-real-person card, or drop the template and switch to “{realTier}” to start from the card's photo and render directly"
 
+#: src/ai/real.ts
+msgid "{names}的形象参考图这次没带上（一次最多 {budget} 张，方舟的协议上限）——提示词里只剩它们的名字，画面上那几个人会由 AI 自己编，想换成卡上的样子就少挂几张卡"
+msgstr "The reference images for {names} weren't included this time (at most {budget, plural, one {# image} other {# images}} per render — Ark's protocol limit), so only their names are left in the prompt and the AI will make up those characters' looks; to have them look like their cards, attach fewer cards"
+
+#: src/ai/real.ts
+msgid "{names}的第 2 张参考图这次没带上（预算 {budget} 张已被更要紧的图位占满），它们按第 1 张参与"
+msgstr "The second reference image of {names} wasn't included this time (the budget of {budget, plural, one {# image} other {# images}} is taken up by more important slots), so each takes part with its first image only"
+
 #: src/pages/CustomCardPage.tsx
 msgid "{nextLabel}没有「{goneNames}」这一格，你传的那张已经取下来了——需要的话换回{curLabel}再传一次。"
 msgstr "{nextLabel} has no “{goneNames}” slot, so the image you uploaded there was removed — switch back to {curLabel} and upload it again if you need it."
+
+#. 往一串带引号的卡名后面再接一个：中文直接相连（「甲」「乙」），英文用逗号加空格隔开（“A”, “B”）
+#: src/ai/real.ts
+msgid "{quotedList}{quotedName}"
+msgstr "{quotedList}, {quotedName}"
 
 #: src/data/account.ts
 msgid "{reason}——卡在这台设备上有，但换台设备或重启后可能就没了。"
@@ -1340,6 +1349,8 @@ msgid "「{label}」这一档暂时报不出价（{model} 不在价目表里）�
 msgstr "The “{label}” tier can't be priced right now ({model} isn't in the price list) — use another tier for now"
 
 #. 给一个名字（卡名）加引号：中文「」，英文用弯引号
+#. 给一个名字（卡名）加引号：中文「」，英文用弯引号
+#: src/ai/real.ts
 #: src/data/economy.ts
 msgid "「{name}」"
 msgstr "“{name}”"
@@ -1373,15 +1384,59 @@ msgstr "“{name}” is yours now. Good eye."
 msgid "「{name}」没能装进你的卡片库：{why}"
 msgstr "“{name}” couldn't be added to your card library: {why}"
 
+#: src/ai/real.ts
+msgid "「{name}」的{label}没画成（{reason}），先用你交上来的原图顶着"
+msgstr "“{name}”: the “{label}” image couldn't be drawn ({reason}), so the original image you provided stands in for now"
+
+#: src/ai/real.ts
+msgid "「{name}」的{label}没画成（{reason}），先用你交上来的原图顶着，这张卡余下的 {rest} 张这次也不画了"
+msgstr "“{name}”: the “{label}” image couldn't be drawn ({reason}), so the original image you provided stands in for now, and {rest, plural, one {the card's other image} other {the card's other # images}} won't be drawn this time either"
+
+#: src/ai/real.ts
+msgid "「{name}」的{label}没画成（{reason}），先用占位图顶着"
+msgstr "“{name}”: the “{label}” image couldn't be drawn ({reason}), so a placeholder image stands in for now"
+
+#: src/ai/real.ts
+msgid "「{name}」的{label}没画成（{reason}），先用占位图顶着，这张卡余下的 {rest} 张这次也不画了"
+msgstr "“{name}”: the “{label}” image couldn't be drawn ({reason}), so a placeholder image stands in for now, and {rest, plural, one {the card's other image} other {the card's other # images}} won't be drawn this time either"
+
+#: src/ai/real.ts
+msgid "「{name}」的{label}没画成（{reason}），这张卡按主图锁形象"
+msgstr "“{name}”: the “{label}” image couldn't be drawn ({reason}), so this card locks its look from the main image alone"
+
 #. 列表里的一项（名词短语，不加句号）：没能转存上去的那一张形象参考图，tag 是图位名（面部特写 / 全身立绘…，老卡可能是方案里存下的中文名）。调用方用分隔符把几项连成一串，再放进自己的句子里
 #: src/data/account.ts
 msgid "「{name}」的{tag}"
 msgstr "{tag} for “{name}”"
 
+#: src/ai/real.ts
+msgid "「{name}」的主图读不出来，剩下 {rest} 张形象参考图这次不画了"
+msgstr "“{name}”: the main image couldn't be read, so {rest, plural, one {the remaining reference image} other {the remaining # reference images}} won't be drawn this time"
+
+#: src/ai/real.ts
+msgid "「{name}」的参考图这次没带上（一次最多 {budget} 张，堆满了模型反而判断不出该优先保哪些特征），它只按文字设定参与"
+msgstr "“{name}”: its reference image wasn't included this time (at most {budget, plural, one {# image} other {# images}} at once — with too many references, the model can't tell which features to prioritize), so it only takes part through its text details"
+
+#: src/ai/real.ts
+msgid "「{name}」的参考图这次没带上（一次最多 {budget} 张，方舟的协议上限），它只按文字设定参与"
+msgstr "“{name}”: its reference image wasn't included this time (at most {budget, plural, one {# image} other {# images}} per render — Ark's protocol limit), so it only takes part through its text details"
+
+#: src/ai/real.ts
+msgid "「{name}」的场景卡面去人没去干净，用了原片那一帧"
+msgstr "“{name}”: people couldn't be fully removed from the scene card face, so the original frame is used as it is"
+
 #. 列表里的一项（名词短语，不加句号）：这张卡的形象参考图没能挂到服务器那份卡上。调用方用分隔符把几项连成一串，再放进自己的句子里
 #: src/data/account.ts
 msgid "「{name}」的形象参考图"
 msgstr "Reference images for “{name}”"
+
+#: src/ai/real.ts
+msgid "「{name}」的形象图一张都没能进管线，出片时它只剩名字 —— 实测会被换成别人。到卡片详情页给它补一张形象参考图，或换一张卡再出片"
+msgstr "“{name}” needs a reference image — add one on the card's details page, or use another card. None of its images reached the pipeline, so the render would get only the name, and in our tests that comes out as someone else"
+
+#: src/ai/real.ts
+msgid "「{name}」的形象图一张都没能进管线（{why}），出片时它只剩名字 —— 实测会被换成别人。到卡片详情页给它补一张形象参考图，或换一张卡再出片"
+msgstr "“{name}” needs a reference image — add one on the card's details page, or use another card. None of its images reached the pipeline ({why}), so the render would get only the name, and in our tests that comes out as someone else"
 
 #: src/studio/studioStore.ts
 msgid "「{name}」还是空的——去创意工坊给它添几张卡吧。"
@@ -3727,6 +3782,10 @@ msgstr "Continue from the previous segment's actual last frame"
 msgid "从上面的素材库往屏幕中间拖一张下来"
 msgstr "Drag a card from the library above to the middle of the screen"
 
+#: src/ai/real.ts
+msgid "从原片提炼素材卡（{frameCount} 帧）…"
+msgstr "Extracting material cards from the original video ({frameCount, plural, one {# frame} other {# frames}})…"
+
 #: src/components/BranchPlayer.tsx
 msgid "从头再看"
 msgstr "Watch again"
@@ -5065,6 +5124,10 @@ msgstr "Branch {0}"
 msgid "分析中…"
 msgstr "Analyzing…"
 
+#: src/ai/real.ts
+msgid "分析场景与运镜（{frameCount} 帧）…"
+msgstr "Analyzing the scene and camera work ({frameCount, plural, one {# frame} other {# frames}})…"
+
 #: src/components/VideoTemplateExtractor.tsx
 msgid "分析帧数（越多认得越准，价钱不变）"
 msgstr "Frames to analyze (more frames are more accurate; the price stays the same)"
@@ -5076,6 +5139,10 @@ msgstr "Template analysis"
 #: src/components/VideoTemplateExtractor.tsx
 msgid "分析没成：{why}"
 msgstr "Analysis failed: {why}"
+
+#: src/ai/real.ts
+msgid "分析画面风格（{frameCount} 帧）…"
+msgstr "Analyzing the visual style ({frameCount, plural, one {# frame} other {# frames}})…"
 
 #: src/data/templates.ts
 msgid "分段登记成功了，但服务器返回的某一段缺少参考视频地址——请到「我的模板」里确认各段状态。"
@@ -5386,6 +5453,18 @@ msgstr "Earlier segments aren't finished yet — each segment continues from the
 #: src/types.ts
 msgid "剧情"
 msgstr "Story"
+
+#: src/ai/real.ts
+msgid "剧情 AI 未响应，改用本地剧本…"
+msgstr "The story AI didn't respond — using a local script instead…"
+
+#: src/ai/real.ts
+msgid "剧情就绪，绘制首尾帧 0/{total}…"
+msgstr "Story ready — drawing first and last frames 0/{total}…"
+
+#: src/ai/real.ts
+msgid "剧情推演中…"
+msgstr "Drafting the story…"
 
 #: src/components/BranchPlayer.tsx
 msgid "剧情走向，由你决定——"
@@ -5756,6 +5835,10 @@ msgstr "The card still has a background: the AI may draw things from it into vid
 msgid "卡面会带着框里的背景，出片时 AI 可能把背景里的东西也画进去。"
 msgstr "The card will keep the background inside the box, so the AI may draw things from it into videos."
 
+#: src/ai/real.ts
+msgid "卡面画好了（{noteList}）"
+msgstr "Card faces are done ({noteList})"
+
 #: src/pages/CustomCardPage.tsx
 msgid "卡面预览"
 msgstr "Card preview"
@@ -5927,6 +6010,10 @@ msgstr "Rendering directly from the card images (no setup frames)…"
 #: src/pages/CardDetailPage.tsx
 msgid "参考图怎么被 AI 取用"
 msgstr "How the AI uses reference images"
+
+#: src/ai/real.ts
+msgid "参考图未被受理，该帧改用纯文字重画"
+msgstr "The reference images weren't accepted, so this frame is being redrawn from text only"
 
 #: src/ai/arkClient.ts
 msgid "参考图生视频（reference_image）"
@@ -6215,6 +6302,10 @@ msgstr "The retrieved project is empty and can't be laid out in the Studio"
 #: src/components/TemplateShelf.tsx
 msgid "取回这一发的结果（不额外花钱）"
 msgstr "Recover this job's result (no extra charge)"
+
+#: src/ai/real.ts
+msgid "取图失败 {status}"
+msgstr "Fetching the image failed: {status}"
 
 #: src/utils/mediaUrl.ts
 msgid "取媒体失败 {code}"
@@ -9058,6 +9149,10 @@ msgstr "Continues from the previous segment's actual ending"
 msgid "承接上段尾帧，三个方案共用开头帧，只画尾帧"
 msgstr "Continues from the previous segment's last frame: all three plans share the opening frame, so only last frames are drawn"
 
+#: src/ai/real.ts
+msgid "承接上段尾帧，绘制收尾画面 0/{total}…"
+msgstr "Continuing from the previous segment's last frame — drawing ending frames 0/{total}…"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "承接尾帧"
 msgstr "Continues last frame"
@@ -9300,6 +9395,10 @@ msgstr "Chat with this draft to see if it feels right. {PREVIEW_ROUNDS_MAX} roun
 msgid "挂上你的角色"
 msgstr "Cast your characters"
 
+#: src/ai/real.ts
+msgid "挂了 {charCount} 张人物卡，只把「{heroName}」的形象参考图喂给绘图（一张图里画多个角色会被方舟整条拒掉），其余按文字设定"
+msgstr "{charCount, plural, one {# character card is} other {# character cards are}} attached, but only “{heroName}”'s reference images are fed to the image model (one image with several characters gets rejected outright by Ark); the others only take part through their text details"
+
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "挂卡"
 msgstr "Attach"
@@ -9397,6 +9496,10 @@ msgstr "Rendering from the reference video + {0, plural, one {# key frame} other
 #: src/studio/segmentGen.ts
 msgid "按圈选改画面 {0}/{1}…"
 msgstr "Applying circle edits {0}/{1}…"
+
+#: src/ai/real.ts
+msgid "按导演台构图出图（{count} 张参考）…"
+msgstr "Drawing from the stage composition ({count, plural, one {# reference} other {# references}})…"
 
 #: src/pages/CustomCardPage.tsx
 msgid "按方案逐格出图 + 撰写人物信息 · 演示档"
@@ -9769,9 +9872,14 @@ msgctxt "新手引导的屏名：只拼进无障碍标签「… 使用引导」�
 msgid "提取模板"
 msgstr "Template extractor"
 
+#: src/ai/real.ts
 #: src/studio/studioStore.ts
 msgid "提炼本片卡组…"
 msgstr "Extracting this video's deck…"
+
+#: src/ai/real.ts
+msgid "提炼模板素材卡…"
+msgstr "Extracting the template's material cards…"
 
 #: src/studio/blockoutPrompt.ts
 msgid "提示词合成失败：AI 什么都没返回——这一段的要求请自己写，或用下面那份默认写法。"
@@ -10843,7 +10951,9 @@ msgstr "Untitled deck"
 msgid "未命名工程"
 msgstr "Untitled project"
 
+#. AI 没给模板起名时的兜底标题（生成时写下，随模板存盘）
 #. 服务端没给标题时，模板上显示的兜底标题
+#: src/ai/real.ts
 #: src/data/templates.ts
 msgid "未命名模板"
 msgstr "Untitled template"
@@ -11358,6 +11468,10 @@ msgstr "The template name is empty"
 msgid "模板市场"
 msgstr "Template market"
 
+#: src/ai/real.ts
+msgid "模板提卡 JSON 结构不符"
+msgstr "Template card JSON is malformed"
+
 #: src/components/guide/tours.tsx
 msgid "模板是成品配方"
 msgstr "Templates are ready-made recipes"
@@ -11402,6 +11516,10 @@ msgstr "The template isn't registered with the server yet; you can check numbers
 #: src/data/templates.ts
 msgid "模板还没登记到服务器（{reg}）"
 msgstr "The template isn't registered with the server yet. Reason: {reg}"
+
+#: src/ai/real.ts
+msgid "模板配方 JSON 结构不符（缺 styleHint 或 beats）"
+msgstr "Template recipe JSON is malformed (no styleHint or beats)"
 
 #: src/pages/TemplateDetailPage.tsx
 msgid "模板里这张卡已经变了，刷新后再试"
@@ -12014,6 +12132,10 @@ msgstr "No deck called “{q}”"
 msgid "没有可清理的中间文件"
 msgstr "No intermediate files to clean up"
 
+#: src/ai/real.ts
+msgid "没有可融的参考图"
+msgstr "There are no reference images to fuse"
+
 #: src/studio/flowStore.ts
 msgid "没有可还原的上一版"
 msgstr "There's no previous version to restore"
@@ -12255,6 +12377,10 @@ msgstr "Deactivate account"
 msgid "注销这个账号"
 msgstr "Deactivate this account"
 
+#: src/ai/real.ts
+msgid "派生卡面全部失败"
+msgstr "All the card faces failed to draw"
+
 #: src/components/guide/tours.tsx
 msgid "流水线画布"
 msgstr "Workflow canvas"
@@ -12402,10 +12528,6 @@ msgstr "Demo mode: a placeholder template that hasn't been analyzed by AI"
 #: src/ai/index.ts
 msgid "演示模式：直接用抽帧当卡面"
 msgstr "Demo mode: extracted frames are used directly as card faces"
-
-#: src/ai/index.ts
-msgid "演示模式：直接用抽帧当卡面，未经 AI 识别"
-msgstr "Demo mode: extracted frames are used directly as card faces, without AI recognition"
 
 #: src/ai/index.ts
 msgid "演示模式：这里本应是 AI 总结出的画面质感与运镜要求。"
@@ -13484,6 +13606,10 @@ msgstr "View video"
 msgid "看方案"
 msgstr "View plans"
 
+#: src/ai/real.ts
+msgid "看片提炼本片卡组（{frameCount} 帧）…"
+msgstr "Extracting this video's deck from {frameCount, plural, one {# frame} other {# frames}}…"
+
 #: src/pages/FlowPage.tsx
 msgid "看看这句话变成了什么"
 msgstr "See what this sentence becomes"
@@ -13786,11 +13912,6 @@ msgstr "Video tier"
 #: src/pages/TemplateMarketPage.tsx
 msgid "视频模板"
 msgstr "Video templates"
-
-#. placeholder {0}: i + 1
-#: src/ai/index.ts
-msgid "视频片段{0}"
-msgstr "Video clip {0}"
 
 #: src/studio/ui/projection.tsx
 msgid "视频要求（剧情补充）"
@@ -14152,6 +14273,10 @@ msgstr "Segment {0}/{count}"
 #: src/pages/FlowPage.tsx
 msgid "第 {0}/{total} 段"
 msgstr "Segment {0}/{total}"
+
+#: src/ai/real.ts
+msgid "第 {n} 张参考图未采用（「{name}」的{view}，比例越界或读不出来）"
+msgstr "Reference image {n} wasn't used (“{name}”, “{view}”: its aspect ratio is out of range or it couldn't be read)"
 
 #: src/components/VideoTemplateExtractor.tsx
 msgid "第 {partIndex} 段 · {partTitle}"
@@ -14803,6 +14928,14 @@ msgstr "Drawing {name}… ({n}/{total})"
 msgid "绘制中…"
 msgstr "Drawing…"
 
+#: src/ai/real.ts
+msgid "绘制卡面 {done}/{total}…"
+msgstr "Drawing card faces {done}/{total}…"
+
+#: src/ai/real.ts
+msgid "绘制画面 {doneCount}/{total}…"
+msgstr "Drawing frames {doneCount}/{total}…"
+
 #: src/studio/segmentGen.ts
 msgid "绘制结束画面…"
 msgstr "Drawing the ending frame…"
@@ -15229,6 +15362,10 @@ msgstr "Navy long coat · gold trim"
 msgid "融一张约需 {0} token，余额不够——去「我的」页充值"
 msgstr "One fusion costs about {0} tokens and your balance isn't enough — top up on the “Me” page"
 
+#: src/ai/real.ts
+msgid "融合 {count} 张参考图…"
+msgstr "Fusing {count, plural, one {# reference image} other {# reference images}}…"
+
 #: src/studio/stage/StageOverlay.tsx
 msgid "融图中…"
 msgstr "Fusing…"
@@ -15405,6 +15542,10 @@ msgstr "Specs"
 #: src/components/guide/tours.tsx
 msgid "角标写着这个模板能干什么。<0>白模</0>：出片时整段复刻它的场景、道具与运镜，只把人换掉，旁边报的是这条模板视频有多长——成片长度和画幅都跟着它走；<1>几个角色位可换人</1>：画面里那几个白色人偶，各能挂一张你的角色卡。没角标的是经典配方模板，按分镜骨架重新画，旁边报的是分几段。"
 msgstr "The badges say what a template can do. <0>Blockout</0>: rendering copies its whole scene, props and camera work and only swaps the people, and the number shown with it is how long the template video is — the finished video's length and aspect ratio follow it. <1>Recastable slots</1>: each of the white mannequins in the picture can take one of your character cards. Templates without a badge are classic recipe templates, redrawn from the shot outline, and the number shown is how many segments they have."
+
+#: src/ai/real.ts
+msgid "角色卡上没有可用的形象图"
+msgstr "The character cards have no usable reference image"
 
 #: src/studio/segmentGen.ts
 msgid "角色卡上的形象参考图一张都没能读出来（图片可能已损坏），白模出片必须靠形象图说明「换成谁」——给卡换一张形象图再试"
@@ -18594,6 +18735,10 @@ msgstr "Clang — {cardCount, plural, one {# card has} other {# cards have}} tak
 msgctxt "人偶的主色（挂卡提醒那句话里显示）"
 msgid "银"
 msgstr "silver"
+
+#: src/ai/real.ts
+msgid "铸「{name}」第 {n}/{total} 张：{label}…"
+msgstr "Minting “{name}” — image {n}/{total}: {label}…"
 
 #: src/components/guide/tours.tsx
 msgid "铸一段视频"

@@ -1,7 +1,7 @@
 // 卡片工坊全局状态：卡组 / NPC 对话 / 市场 / 节点树 / 相机 / 合成 / 已发布作品回炉编辑
 import { create } from "zustand";
 import { shotLineOf, V3_CARD_WIPE_MS, BranchNodeData, BranchTree, Card, CardType, DEFAULT_ASPECT, DEFAULT_VIDEO_CATEGORY, DraftVideo, NodeSlot, Proposal, VideoAspect, VideoSegment, VideoTemplate, uid } from "../types";
-import { AI_REAL, MaterialFile, deriveCharacterModels, deriveDeckCards, generateCards, generateCover, generateProposals, npcChat, npcChatOffline, prepareMaterialRefs, refineFrame } from "../ai";
+import { AI_REAL, MaterialFile, deriveCharacterModels, deriveDeckCards, generateCards, generateCover, generateProposals, joinNotes, npcChat, npcChatOffline, prepareMaterialRefs, refineFrame } from "../ai";
 import { DECK_CAM, MARKET, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
 import { acquireCard, addCards as saveCardsToAccount, canAfford, myCards, myDecks, plazaCards, spendTokens, walletOf, type AddCardsResult } from "../data/account";
@@ -157,11 +157,11 @@ function otherFaceBusy(nodeId?: string): string | null {
  * 终局那句 + 攒起来的逐张参考图提示 —— refineProposalFrame / regenProposal 共用。
  * ★ 整句进 {sentence}、提示进 {notes}，括号与分隔符都在译文里：中文照旧「……。（甲；乙）」逐字不变，
  *   英文是半角括号、前面留空格。别拼成「句子 + 括号尾巴」两截：那样英文的句间空格没处放。
- * ★ notes 来自 ai/real.ts 的 prepareMaterialRefs（onNote），那边翻译之前仍是中文。
+ * ★ notes 来自 ai/real.ts 的 prepareMaterialRefs（onNote），每一条都是已按界面语言翻好的整句；几条之间的连法走共用的 ai.joinNotes。
  */
 function withRefNotes(sentence: string, list: string[]): string {
   if (list.length === 0) return sentence;
-  const notes = list.join(t({ message: "；", comment: "改图 / 重画完成那句后面几条参考图提示之间的分隔符" }));
+  const notes = joinNotes(list);
   return t({
     message: `${sentence}（${notes}）`,
     comment: "改图 / 重画完成的提示：sentence 是一整句（已翻译），notes 是用分隔符连起来的几条参考图提示，括起来接在句子后面",
