@@ -148,6 +148,11 @@ export const takeVideoTask: typeof real.takeVideoTask = AI_REAL
     };
 /** 「没接到结果 ≠ 这一发废了」的那个错误类型 —— 调用方据它决定凭据留不留（见 arkClient） */
 export { ArkBadReply, ArkNoReply, ArkTaskUnknown } from "./arkClient";
+/** 「这次失败钱花没花」的唯一判定 + 钱上的那几句话。catch 里要提钱就走它，别自己对着 ArkNoReply / ArkBadReply 分档 */
+export { chargeNote, chargeOnFail } from "./failCharge";
+export type { ChargeNote, FailCharge } from "./failCharge";
+/** 一句能给用户看的失败原因（网络不通 / 服务器返回 N / 原话前 40 字）—— 与钱上的话配着用，同样认类型不认字 */
+export { briefArkReason } from "./arkClient";
 /** 视频提示词的字数上限。两种构建下都是同一个数——拼提示词的那一处要按它给尾巴留位 */
 export { VIDEO_PROMPT_MAX } from "./real";
 /** 事后重截成片首尾帧 / 问转存进度 —— 真假两侧同一份（mock 出片是 "mock:" 占位串，调用方按 realVideoOfNode 先筛掉） */
