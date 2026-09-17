@@ -20,7 +20,7 @@
 import { startJob } from "../data/jobs";
 import { t } from "@lingui/core/macro";
 import { create } from "zustand";
-import { castPreviewImage, frameUrlAt, fuseStageFrame, AI_REAL, ArkTaskUnknown, generateCover, generateProposals, prepareMaterialRefs, recaptureSegment, takeVideoTask, transferStatus } from "../ai";
+import { castPreviewImage, frameUrlAt, fuseStageFrame, AI_REAL, ArkTaskUnknown, generateCover, generateProposals, notesInParens, prepareMaterialRefs, recaptureSegment, takeVideoTask, transferStatus } from "../ai";
 import { isArkAssetUrl, transferArkVideo } from "../ai/arkClient";
 import { canAfford, myCards, spendTokens, tierBlockReason, walletOf } from "../data/account";
 import {
@@ -1981,7 +1981,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
       // 只重画尾帧时正是这条路），React 连画都没画过。挂在后面那几行的行尾才看得见（铁律八）
       const notes: string[] = [];
       const mat = await prepareMaterialRefs(node.materials, "image", (n) => notes.push(n));
-      const noteTail = notes.length ? `（${notes.join("；")}）` : "";
+      // 尾巴走共用的 ai.notesInParens（分隔符与括号进目录；中文照旧「（甲；乙）」）。★ 局部名别改：它是下面两句 msgid 里的占位符 {noteTail}
+      const noteTail = notesInParens(notes);
       const refUrls = mat.refs.length > 0 ? mat.refs : undefined;
       let first = prop.firstFrame;
       // 首帧没有底图 → 素材卡的图就是 <图片1>，offset = 0
