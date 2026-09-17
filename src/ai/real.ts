@@ -55,6 +55,7 @@ import { refableViews } from "../data/cardViews";
 import { assetOf, assetUri } from "../data/cardAsset";
 import {
   ArkBadReply,
+  ArkBatchPartial,
   ArkHttpError,
   ArkTaskUnknown,
   briefArkReason,
@@ -103,13 +104,20 @@ async function toDataUrl(url: string): Promise<string> {
  * ★ 参数收成 opts 对象，**不再往后加位置参数**：`model` 是第四个了，而位置参数漏传
  *   一个不会报错，只会静默用默认模型出图 —— 顶档与默认档差着三倍钱，且画面看不出
  *   是"用错模型"还是"这次没画好"。
+ * ★★ 取图那一步失败要抛 ArkBadReply，不能原样抛（2026-09-17）：走到 toDataUrl 时 generateImage 已经拿到 2xx、
+ *   服务端已经结算，这张图的钱**已经扣了**，只是图没取回来。原样抛的是裸 Error（「取图失败 502」/ fetch 的 TypeError），
+ *   调用方按类型分档时它落进「其余 = 没扣钱」—— 往放心的方向说错。message 一字不改，只读 `.message` 的调用方照常。
  */
 async function genImageAsDataUrl(
   prompt: string,
   opts?: { imageRefs?: string[]; size?: string; model?: string },
 ): Promise<string> {
   const url = await generateImage(prompt, opts);
-  return await toDataUrl(url);
+  try {
+    return await toDataUrl(url);
+  } catch (e) {
+    throw new ArkBadReply(e instanceof Error ? e.message : String(e));
+  }
 }
 
 /**
@@ -126,6 +134,11 @@ async function genImageAsDataUrl(
  * ★ 串行不并行：Seedream 顶档一张可到 70 秒，几张并发在限流上撞车得不偿失；
  *   而且逐格报进度（onProgress）用户才知道自己在等第几张。
  * ★ 失败**整发抛**、不吞：调用方（命名屏）拿它写整句 err 并保住原裁剪（铁律八）。
+ * ★★ 抛出去的一律是 `ArkBatchPartial`（2026-09-17）：每一格是一次独立的 /images/generations，服务端按**调用**结算
+ *   （契约「扣费」一节，只有上游非 2xx 才退）——画到第 k 格失败时，前面 k-1 张的钱已经扣了，而图随着这次抛错一起丢了。
+ *   壳上带着「之前已经画好几张」（只数生成型的格子，`fromCrop` 那种没调模型、不算）与真正失败的那一发；
+ *   两个调用方（CustomCardPage.runAiForge / VideoCardAnnotator.makePortraits）据此经 ai/failCharge 说钱上的话。
+ *   第 1 格就失败也照样套壳（settledBefore = 0）：拆壳那条路每次失败都走到，不会只在罕见的半途失败里才第一次运行。
  * ★ `realPhoto` 必填：真人那条路上画风句换成无条件的照片锁定（`promptSchemes.PHOTO_LOCK_CLAUSE`
  *   的 ★★ 写了为什么条件句不够）。写成可选的话漏传零症状 —— 全身立绘又开始随参考图质量飘。
  * ★ 那两个名字各走 `promptSchemes.slotKey` / `slotCardTag`（2026-09-11 多语言 PR2，理由见 types.BUILTIN_SLOT_ZH）；
@@ -143,6 +156,8 @@ export async function portraitViews(o: {
 }): Promise<{ slotKey: string; role: CardRole; tag: string; dataUrl: string }[]> {
   const out: { slotKey: string; role: CardRole; tag: string; dataUrl: string }[] = [];
   const slots = o.scheme.slots;
+  /** 已经画好（= 已经各自结算）的张数。只数生成型的格子，别拿 out.length 顶：里面混着不计费的 fromCrop */
+  let drawn = 0;
   for (let i = 0; i < slots.length; i++) {
     const slot = slots[i];
     if (!isGenerated(slot)) {
@@ -160,10 +175,16 @@ export async function portraitViews(o: {
     const total = slots.length;
     o.onProgress?.(t`绘制${name}…（${n}/${total}）`);
     const ref = slot.ref === "face" ? o.faceCrop || o.bodyCrop : o.bodyCrop;
-    const dataUrl = await genImageAsDataUrl(schemeSlotPrompt(slot, o.subject, { realPhoto: o.realPhoto }), {
-      imageRefs: [ref],
-      size: slotSize(slot),
-    });
+    let dataUrl: string;
+    try {
+      dataUrl = await genImageAsDataUrl(schemeSlotPrompt(slot, o.subject, { realPhoto: o.realPhoto }), {
+        imageRefs: [ref],
+        size: slotSize(slot),
+      });
+    } catch (e) {
+      throw new ArkBatchPartial(e, drawn); // 理由见函数头的 ★★
+    }
+    drawn++;
     out.push({ slotKey: slotKey(o.scheme, slot), role: slot.role, tag: slotCardTag(o.scheme, slot), dataUrl });
   }
   return out;
@@ -217,7 +238,8 @@ const RECOGNIZE_SPEC: Record<"prop" | "scene", string> = {
  *   桌上别的东西会被写进这句硬约束。
  * ★ 回包过同一道措辞闸 dropRefClauses（三条提卡路共用的那一份，别在页面里另写）。
  * ★ 计费在服务端：一次 chat 定额 CHAT_TURN_TOKENS（server config/tokens.js 的 priceOf，与带几张图无关），
- *   先扣后转发。失败分档靠 arkClient 的错误类型：ArkNoReply = 可能已扣、ArkBadReply = 已扣、其余 = 没受理没扣。
+ *   先扣后转发。失败分档靠 arkClient 的错误类型：ArkNoReply = 可能已扣、ArkBadReply = 已扣、其余 = 没受理没扣
+ *   （判定与钱上的话在 ai/failCharge 一处，调用方别自己分档）。
  */
 export async function recognizeCardSubject(o: { type: "prop" | "scene"; image: string }): Promise<RecognizedCard> {
   const raw = await chatVision(zhPrompt`你是卡牌文案师。只输出一个 JSON 对象，不要输出任何其他文字。`, RECOGNIZE_SPEC[o.type], [o.image]);

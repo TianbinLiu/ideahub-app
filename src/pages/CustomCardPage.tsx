@@ -40,14 +40,14 @@ import PortraitAuthPanel from "../components/PortraitAuthPanel";
 import VoiceRecorder from "../components/VoiceRecorder";
 import VoiceUploadButton from "../components/VoiceUploadButton";
 import { fetchPortraitAssetImage } from "../api/portrait";
-import { addCards, bindCardAsset, canAfford, isRemoteMode, refreshRemoteWallet, spendTokens, walletOf } from "../data/account";
+import { addCards, bindCardAsset, canAfford, isRemoteMode, spendTokens, walletOf } from "../data/account";
 import { API_ON } from "../api/client";
 import { prepareCardImage } from "../data/cardViews";
 import { joinViewNote } from "../types";
 import PhotoSubjectPicker from "../components/PhotoSubjectPicker";
 import { blobToDataUrl } from "../utils/image";
 import { capturePhoto, nativeCameraSupported, stripExif, sweepCameraLeftovers, type CaptureResult } from "../utils/nativeCamera";
-import { AI_REAL, ArkBadReply, ArkNoReply, portraitViews, recognizeCardSubject, refineCardImage } from "../ai";
+import { AI_REAL, ArkBadReply, briefArkReason, chargeNote, chargeOnFail, portraitViews, recognizeCardSubject, refineCardImage } from "../ai";
 import { chatVision } from "../ai/arkClient";
 import FrameAnnotator from "../components/FrameAnnotator";
 import { CHAT_TURN_TOKENS, ONE_IMAGE, fmtTokens, schemeCost } from "../data/economy";
@@ -649,23 +649,66 @@ export default function CustomCardPage() {
               [aiBody.dataUrl],
             )
           : JSON.stringify({ name: t`演示角色`, summary: t`演示档生成的占位文案（配好 Key 后按素材图撰写）`, info: aiSubject.trim(), tags: [] });
-        const j = JSON.parse(raw.replace(/^[^{]*/, "").replace(/[^}]*$/, "")) as {
-          name?: string; summary?: string; info?: string; tags?: string[];
-        };
-        if (AI_REAL) spendTokens(CHAT_TURN_TOKENS); // 文案那一半：解析成功才扣
+        let j: { name?: string; summary?: string; info?: string; tags?: string[] };
+        try {
+          j = JSON.parse(raw.replace(/^[^{]*/, "").replace(/[^}]*$/, ""));
+        } catch {
+          // ★ 回包拿到了、只是不成 JSON：远端模式下这一发是 2xx、服务端已经结算 ——「已计费、结果用不上」那一档（ArkBadReply）。
+          //   让 SyntaxError 原样冒上去的话，它会被下面按类型分档的 catch 归进「其余 = 没扣钱」（real.recognizeCardSubject 同一招）
+          // i18n-ignore-next-line: 不上屏：紧接着的 catch 只认类型、不读这句
+          throw new ArkBadReply("人物信息不是 JSON");
+        }
+        if (AI_REAL) spendTokens(CHAT_TURN_TOKENS); // 文案那一半：解析成功才扣（离线账本；远端模式是空操作，服务端按调用结算）
         if (j.name) setName(String(j.name).slice(0, NAME_MAX));
         if (j.summary) setSummary(String(j.summary).slice(0, SUMMARY_MAX));
         if (j.info) setInfo(String(j.info).slice(0, INFO_MAX));
         if (Array.isArray(j.tags) && j.tags.length) setTagText(j.tags.slice(0, TAG_MAX).join(" "));
-      } catch {
-        // 文案没写成不拦路（图已经在手），这一半也不扣钱——到人物信息那一步自己写
-        setErr(t`图生成好了，但人物信息没写成（这一半没扣钱）——下一步自己填就行`);
+      } catch (copyErr) {
+        // 文案没写成不拦路（图已经在手）——到人物信息那一步自己写。
+        // ★ 这一半的钱按错误**类型**说（ai/failCharge，全仓一处）：远端模式下没等到回包 = 可能已经扣了、2xx 读不出 = 已计费；
+        //   回 null 才是真的没扣（离线 / 演示构建恒为 null，说的还是原来那句）
+        const money = chargeNote(chargeOnFail(copyErr), CHAT_TURN_TOKENS);
+        const moneyLine = money?.line ?? "";
+        setErr(
+          money
+            ? t({
+                message: `图生成好了，但人物信息没写成。${moneyLine}下一步自己填就行`,
+                comment: "moneyLine 是一句完整的、自带句号的话，说这一步的钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格",
+              })
+            : t`图生成好了，但人物信息没写成（这一半没扣钱）——下一步自己填就行`,
+        );
       }
       setStep("form");
       job.done({ msg: t`形象图生成好了，回去接着做卡`, silent: useCardDraft.getState().mounted });
     } catch (e) {
-      job.fail(t`形象图没画成（没扣钱），回去看原因`, "/custom-card");
-      setErr(t`形象图没画成：${(e instanceof Error ? e.message : String(e)).slice(0, 120)}——一分钱没扣，可以再试或改选自己传图`);
+      // ★★ 钱上的话按错误**类型**说，判定与措辞都在 ai/failCharge 一处。会抛到这里的实际上只有 portraitViews（一律是
+      //   ArkBatchPartial；它之后都是同步的状态写入，文案那一半自己接住了）：逐格出图、服务端按**张**结算，画到第 k 格才失败时
+      //   前 k-1 张的钱已经扣了 —— 此前这里一律说「一分钱没扣」。
+      //   回 null 才是真的没扣（离线 / 演示构建恒为 null：图那一半出齐才 spendTokens，说的还是原来那句）。
+      // ★ 「这一次画的图都没留下」是这一页的事实（portraitViews 整发抛、半途的图不落格子），所以由这一句说、不进钱上的那句
+      const money = chargeNote(chargeOnFail(e), ONE_IMAGE);
+      if (money) {
+        const moneyBrief = money.brief;
+        const moneyLine = money.line;
+        const reason = briefArkReason(e);
+        job.fail(
+          t({
+            message: `形象图没画成（${moneyBrief}），回去看原因`,
+            comment: "moneyBrief 是括号里的一个短语，说钱扣没扣（ai/failCharge.chargeNote 的 brief：可能已经扣了钱 / 已计费 / 已经画好的 N 张已计费…）",
+          }),
+          "/custom-card",
+        );
+        setErr(
+          t({
+            message: `形象图没画成：${reason}。${moneyLine}这一次画的图都没留下，可以再试或改选自己传图`,
+            comment: "moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格",
+          }),
+        );
+      } else {
+        const why = (e instanceof Error ? e.message : String(e)).slice(0, 120);
+        job.fail(t`形象图没画成（没扣钱），回去看原因`, "/custom-card");
+        setErr(t`形象图没画成：${why}——一分钱没扣，可以再试或改选自己传图`);
+      }
     } finally {
       setAiBusy("");
     }
@@ -690,8 +733,32 @@ export default function CustomCardPage() {
       setSchemeShots((prev) => ({ ...prev, [key]: { dataUrl: next, fileName: shot.fileName, note: t`已按圈选修改` } }));
       job.done({ msg: t`圈选改图完成，回去看看`, silent: useCardDraft.getState().mounted });
     } catch (e) {
-      job.fail(t`圈选改图没成（没扣钱）`, "/custom-card");
-      setSlotErr({ key, msg: t`没改成：${(e instanceof Error ? e.message : String(e)).slice(0, 90)}（没扣钱）` });
+      // ★ 钱上的话按错误**类型**说（ai/failCharge，全仓一处）：远端模式下没等到回包 = 可能已经扣了；2xx 但图用不上 / 取不回来 = 已计费。
+      //   回 null 才是真的没扣（离线 / 演示构建恒为 null，说的还是原来那句）。「原图没动」是这一格的事实：失败时没写 schemeShots
+      const money = chargeNote(chargeOnFail(e), ONE_IMAGE);
+      if (money) {
+        const moneyBrief = money.brief;
+        const moneyLine = money.line;
+        const reason = briefArkReason(e);
+        job.fail(
+          t({
+            message: `圈选改图没成（${moneyBrief}）`,
+            comment: "moneyBrief 是括号里的一个短语，说钱扣没扣（ai/failCharge.chargeNote 的 brief：可能已经扣了钱 / 已计费）",
+          }),
+          "/custom-card",
+        );
+        setSlotErr({
+          key,
+          msg: t({
+            message: `没改成：${reason}。${moneyLine}这一格的原图没动，可以再试一次`,
+            comment: "moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格",
+          }),
+        });
+      } else {
+        const why = (e instanceof Error ? e.message : String(e)).slice(0, 90);
+        job.fail(t`圈选改图没成（没扣钱）`, "/custom-card");
+        setSlotErr({ key, msg: t`没改成：${why}（没扣钱）` });
+      }
     } finally {
       setBusySlot(null);
     }
@@ -773,8 +840,8 @@ export default function CustomCardPage() {
    * 一键识别卡片文字（主人 2026-09-10 拍板 5 a：上传那条路默认不识别，给一颗可选的键；拍摄那条路以后接同一个函数）。
    * ★ 喂的是**卡面那一张**：道具卡就是抠好主体、铺好底的那张（理由见 ai/real.recognizeCardSubject 的 ★）。
    * ★ 只填空着的字段，不覆盖用户已经打的字；写回前核一次卡种与卡面没换过（等回包的几秒里用户可能换了）。
-   * ★★ 失败时的钱分三档说，按错误**类型**判（arkClient 的 ArkNoReply / ArkBadReply）：服务端先扣后转发，
-   *   客户端又先于服务端超时 ——「网络失败 = 没扣钱」这句话在远端模式下会说错。
+   * ★★ 失败时的钱分三档说，按错误**类型**判：服务端先扣后转发，客户端又先于服务端超时 ——「网络失败 = 没扣钱」
+   *   这句话在远端模式下会说错。判定与钱上的那句话在 ai/failCharge 一处，本页另外四处花钱的 catch 走的是同一份。
    */
   async function recognize() {
     if (type !== "prop" && type !== "scene") return;
@@ -822,16 +889,26 @@ export default function CustomCardPage() {
       }
       job.done({ msg: t`识别好了，回去看看填得对不对`, silent: s.mounted });
     } catch (e) {
-      const remote = isRemoteMode();
+      // ★★ 分档与钱上的那句话都只问 ai/failCharge（2026-09-17 收口）。这里原来自己抄了一遍 instanceof + isRemoteMode，
+      //   漏了管理员免扣费，还把人指去「我的」页的「钱包流水」—— App 里没有那一页（chargeNote 的 ★）。
+      //   money 为 null = 这次真的没扣（离线 / 演示构建、管理员）：此时按形状说原因，不提钱。
+      const charge = chargeOnFail(e);
+      const money = chargeNote(charge, CHAT_TURN_TOKENS);
+      const moneyLine = money?.line ?? "";
       let text: string;
-      if (e instanceof ArkNoReply) {
-        text = remote
-          ? t`没等到识别结果，这次可能已经扣了 ${recogPrice}——以「我的」页钱包流水为准。可以先自己填`
+      if (charge.shape === "noReply") {
+        text = money
+          ? t({
+              message: `没等到识别结果。${moneyLine}可以先自己填`,
+              comment: "moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格",
+            })
           : t`没等到识别结果（网络不通），可以先自己填`;
-        if (remote) void refreshRemoteWallet();
-      } else if (e instanceof ArkBadReply) {
-        text = remote
-          ? t`识别已计费 ${recogPrice}，但没读出结果——可以自己填，或者再识别一次`
+      } else if (charge.shape === "badReply") {
+        text = money
+          ? t({
+              message: `没读出识别结果。${moneyLine}可以自己填，或者再识别一次`,
+              comment: "moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格",
+            })
           : t`识别结果没读出来——可以自己填，或者再识别一次`;
       } else {
         text = t`识别没成（没扣钱）：${(e instanceof Error ? e.message : String(e)).slice(0, 80)}`;

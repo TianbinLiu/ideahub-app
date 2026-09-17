@@ -20,7 +20,7 @@
 import { startJob } from "../data/jobs";
 import { t } from "@lingui/core/macro";
 import { create } from "zustand";
-import { castPreviewImage, frameUrlAt, fuseStageFrame, AI_REAL, ArkTaskUnknown, generateCover, generateProposals, notesInParens, prepareMaterialRefs, recaptureSegment, takeVideoTask, transferStatus } from "../ai";
+import { castPreviewImage, frameUrlAt, fuseStageFrame, AI_REAL, ArkTaskUnknown, briefArkReason, chargeNote, chargeOnFail, generateCover, generateProposals, notesInParens, prepareMaterialRefs, recaptureSegment, takeVideoTask, transferStatus } from "../ai";
 import { isArkAssetUrl, transferArkVideo } from "../ai/arkClient";
 import { canAfford, myCards, spendTokens, tierBlockReason, walletOf } from "../data/account";
 import {
@@ -2536,9 +2536,25 @@ export const useFlow = create<FlowState>()((set, get) => ({
       job.done({ msg: t`导演台的开头帧融好了`, silent: true });
       return true;
     } catch (e) {
-      const why = e instanceof Error ? e.message : String(e);
-      job.fail(t`导演台融图没成：${why.slice(0, 60)}`, "/studio");
-      set({ err: t`导演台融图没成（${why.slice(0, 80)}）——没扣钱，可以再截一次` });
+      const raw = e instanceof Error ? e.message : String(e);
+      job.fail(t`导演台融图没成：${raw.slice(0, 60)}`, "/studio");
+      // ★ 钱上的话按错误**类型**说（ai/failCharge，全仓一处）：远端模式下没等到回包 = 可能已经扣了；2xx 但图用不上 / 取不回来 = 已计费。
+      //   此前一律说「没扣钱」。回 null 才是真的没扣（离线 / 演示构建恒为 null，说的还是原来那句）。
+      //   「开头帧没有换」是这一段的事实：失败时没走到 setFrame
+      const money = chargeNote(chargeOnFail(e), ONE_IMAGE);
+      if (money) {
+        const moneyLine = money.line;
+        const reason = briefArkReason(e);
+        set({
+          err: t({
+            message: `导演台融图没成（${reason}）。${moneyLine}开头帧没有换，可以再截一次`,
+            comment: "moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格",
+          }),
+        });
+      } else {
+        const why = raw.slice(0, 80);
+        set({ err: t`导演台融图没成（${why}）——没扣钱，可以再截一次` });
+      }
       return false;
     }
   },

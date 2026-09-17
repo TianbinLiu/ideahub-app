@@ -12,9 +12,9 @@
 // ★ 人物卡的"定段取声音样本"是阶段 2（等参考音频音色跟随的实听结论），本组件先留位。
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { AI_REAL, portraitViews } from "../ai";
+import { AI_REAL, briefArkReason, chargeNote, chargeOnFail, portraitViews } from "../ai";
 import { addCards, bindCardAsset, canAfford, createDeck, spendTokens } from "../data/account";
-import { fmtTokens, schemeCost } from "../data/economy";
+import { ONE_IMAGE, fmtTokens, schemeCost } from "../data/economy";
 import { VOICE_MAX_SEC, VOICE_MIN_SEC, saveVoice } from "../data/cardVoice";
 import { startJob } from "../data/jobs";
 import { pcmToVoiceWav } from "../utils/wav";
@@ -519,10 +519,33 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
       setCrops(made);
       job.done({ silent: true });
     } catch (e) {
-      job.fail(t`形象图没画成（没扣钱）`, "/workshop");
       // 失败不动原 crops（原片裁剪照旧能存卡），但必须整句说清（铁律八）
-      const why = (e instanceof Error ? e.message : String(e)).slice(0, 120);
-      setErr(t`形象图没画成：${why}——原片裁剪没受影响，可以直接存或再试一次`);
+      // ★★ 钱上的话按错误**类型**说，判定与措辞都在 ai/failCharge 一处（与 CustomCardPage.runAiForge 同一份）：逐格出图、服务端按**张**
+      //   结算，画到第 k 格才失败时前 k-1 张的钱已经扣了，而胶囊上此前一律写「没扣钱」。回 null 才是真的没扣
+      //   （离线 / 演示构建恒为 null：出齐才 spendTokens，说的还是原来那两句）。
+      const money = chargeNote(chargeOnFail(e), ONE_IMAGE);
+      if (money) {
+        const moneyBrief = money.brief;
+        const moneyLine = money.line;
+        const reason = briefArkReason(e);
+        job.fail(
+          t({
+            message: `形象图没画成（${moneyBrief}）`,
+            comment: "moneyBrief 是括号里的一个短语，说钱扣没扣（ai/failCharge.chargeNote 的 brief：可能已经扣了钱 / 已计费 / 已经画好的 N 张已计费…）",
+          }),
+          "/workshop",
+        );
+        setErr(
+          t({
+            message: `形象图没画成：${reason}。${moneyLine}这一次画的图没留下；原片裁剪没受影响，可以直接存或再试一次`,
+            comment: "moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格",
+          }),
+        );
+      } else {
+        job.fail(t`形象图没画成（没扣钱）`, "/workshop");
+        const why = (e instanceof Error ? e.message : String(e)).slice(0, 120);
+        setErr(t`形象图没画成：${why}——原片裁剪没受影响，可以直接存或再试一次`);
+      }
     } finally {
       setBusy("");
     }
