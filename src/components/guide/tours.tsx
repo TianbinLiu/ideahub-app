@@ -87,11 +87,19 @@ function CardKindList() {
 function BlockoutRoutesBody() {
   const minSec = BLOCKOUT_INPUT_RULES.minSec;
   const maxSec = BLOCKOUT_INPUT_RULES.maxSec;
+  // ★ 2026-09-17 订正（未升 version —— 主人 09-11 定：订正不重弹）：自带白模片那条 2026-09-05 起拆成两屏 —— 第 1 屏只框选段与裁剪
+  //   （不花钱，键是「下一步：挑 AI 分析帧」，拖过上限变成「下一步：标切段刀」），第 2 屏在框出来的那一段上定分析帧 / 切段刀、填标题、
+  //   读报价、点「做成模板（不出片）」（VideoTemplateExtractor 的 ownRefStep 与 BoxFramePicker 的 axis="clip"）。原稿「读完报价才开炼」
+  //   只对让 AI 换白模那条成立（它仍是一屏：BlockoutTrimmer 报两笔 +「开始白模化」）。
+  //   TOURS 里第 5 步那段 2026-08-23 的注释「说的事一个字没变」说的是当时撤锚点那一次，不是这一次。
+  //   ★ 订正记在这里、不记在 TOURS 那一步上：正文在这个组件里，订正与正文同一处、整块取舍。
   return (
     <Trans>
       选文件 → 上传（<b className="font-bold text-slate-100">不花钱</b>）→ 下一步拖时间轴框出 {minSec}~
-      {maxSec} 秒、拖裁剪框把台标水印框到画面外，读完报价才开炼
-      （自带白模片那条把选段拖过上限，会自动变成<b className="font-bold text-slate-100">整条切段登记成一组</b>，按段计费）。
+      {maxSec} 秒、拖裁剪框把台标水印框到画面外。让 AI 换白模那条就在这一屏读完报价、点「开始白模化」才开炼；
+      自带白模片那条这一屏不花钱，点「下一步：挑 AI 分析帧」去下一屏，在框出来的那一段上定 AI 分析哪几帧（自动或自己挑），
+      报价也在那一屏、点「做成模板（不出片）」之前整句报出
+      （把选段拖过上限，会自动变成<b className="font-bold text-slate-100">整条切段登记成一组</b>，那颗键换成「下一步：标切段刀」，按段计费）。
       让 AI 换白模那条还要注意：换人偶<b className="font-bold text-slate-100">不是每次都全对</b>，最容易漏画面正中央那一个——
       出片后对着画面从左往右核对，对不上的位子删掉就行（不用重炼、不花钱）。
     </Trans>
@@ -359,25 +367,34 @@ export const TOURS: GuideTour[] = [
     version: 2,
     steps: [
       {
+        // ★ 2026-09-17 订正（多语言 T3 对着实现核出来的；未升 version —— 主人 09-11 定：订正不重弹）：
+        //   原稿说「在白模与经典之间换会回收已传的视频、要重传（白模那两条互换不用）」。2026-08-23 拆成两步之后，
+        //   回三选一的那颗「‹ 换一种做法」只在**还没传完**（!receipt）时才画（VideoTemplateExtractor 的 step === "pick" 那块），
+        //   传完整屏归框选器、回不去 —— 「手上有一份已传的视频、又能换路」这种局面走不到了。现在真会发生的只有：
+        //   经典那条选好了文件（它不上传）再回来换到白模那两条，文件会被清掉、要重新选（路线键 onClick 里跨线那一支）。
         title: msg`这一屏做什么`,
         anchor: "extractor-routes",
         body: (
           <Trans>
             拿一段参考视频，让 AI 把它变成能反复套用的<b className="font-bold text-slate-100">模板</b>。第一步就是在这里
             <b className="font-bold text-slate-100">选做法</b>：选哪条决定后面几步长什么样，也决定花不花钱、花多少。
-            <b className="font-bold text-slate-100">上传之前</b>随时能回来换；在白模与经典之间换会回收已传的视频、要重传
-            （白模那两条互换不用）。传完就定死了——要换只能取消整个重来。
+            <b className="font-bold text-slate-100">上传之前</b>随时能点「‹ 换一种做法」回来换（在白模与经典之间换，已经选好的文件要重新选一次）。
+            传完就定死了——要换只能取消整个重来。
           </Trans>
         ),
       },
       {
+        // ★ 2026-09-17 订正（未升 version）：原稿「没挂卡的位子保持人偶原样」是无条件的说法，2026-08-18 实拍证伪过
+        //   （切镜多的素材上，没挂卡的位子会被 AI 拿已挂的卡换掉 —— RoleCastBoard 底部 emptyCount 提示的 ★★★，那里已改口「通常」）。
+        //   挂卡引导第 1 / 5 步同一句都带「通常」，这里按同一个口径补上；例外是什么由挂卡那一屏自己说。
+        //   （提取器成功卡上那句「没挂的保持人偶原样」同样还没改口 —— 那是界面文案，不在这份引导里。）
         title: msg`让 AI 换成白模`,
         anchor: "extractor-routes",
         body: (
           <Trans>
             第一条：<b className="font-bold text-slate-100">任意视频都行</b>，AI 把画面里的人全换成一模一样的纯白人偶。
             别人套用时整段复刻你这段的<b className="font-bold text-slate-100">场景与运镜</b>，再逐个人偶挂上自己的人物卡，
-            没挂卡的位子保持人偶原样。这条会真的出一次片，所以要花钱——具体多少在框选那一步整句报出来。
+            没挂卡的位子通常保持人偶原样。这条会真的出一次片，所以要花钱——具体多少在框选那一步整句报出来。
           </Trans>
         ),
       },
@@ -394,11 +411,14 @@ export const TOURS: GuideTour[] = [
       },
       {
         // 与提取器第三条路线卡同一个叫法（VideoTemplateExtractor 的 routeOpts：「经典配方（不做白模）」，那边的注释也点了这里的名）：改名两处一起改，英文也一样（Classic recipe）
+        // ★ 2026-09-17 订正（未升 version）：原稿写「第三条，也是默认那条」。缺省选中哪条要看入口：从「我的模板」那颗上传键进来
+        //   带 defaultBlockout，探测过了就拨到第一条（VideoTemplateExtractor 挂载 effect 里的 setRoute("aiBlockout")，TemplateShelf 传的 defaultBlockout）；
+        //   只有简约出片页的「提取模板」才停在经典。引导一进这屏就弹，那时 ● 多半亮在第一条上 —— 「也是默认那条」删掉。
         title: msg`经典配方`,
         anchor: "extractor-routes",
         body: (
           <Trans>
-            第三条，也是默认那条：AI 从整段视频里<b className="font-bold text-slate-100">均匀抽</b>几帧看（你只定抽几帧），
+            第三条：AI 从整段视频里<b className="font-bold text-slate-100">均匀抽</b>几帧看（你只定抽几帧），
             总结画风质感、运镜与分镜骨架，再提炼可复用的场景／道具卡。帧数越多认得越准，价钱不变。
             它<b className="font-bold text-slate-100">不出片、不把你的视频传上公网，也是三条里唯一不需要付费套餐的</b>。
           </Trans>
@@ -442,6 +462,8 @@ export const TOURS: GuideTour[] = [
         // ⇒ "这一格到底是画面里的哪一个"只有一个诚实答案：**点格子之后亮起来的那个框**。
         //   而那个框要模板带了位置数据才有，所以这里也只敢说到"有框时"为止 ——
         //   没框的模板这一句不成立，不许写成无条件的承诺。
+        // ★ 2026-09-17 订正（未升 version）：末句原来是「卡片只列人物卡（人偶换的是「人」）」—— 靠「人物卡」与「人」同一个字呼应，
+        //   译不出去（英文是 Character card / Person）。改成直说理由：VideoEditorPage 只把人物卡交给这块面板（myCards 按 type === "character" 过滤）。
         title: msg`一格一个角色位`,
         anchor: "cast-slot-strip",
         body: (
@@ -452,7 +474,7 @@ export const TOURS: GuideTour[] = [
             也可以直接把上面那排卡<b className="font-bold text-slate-100">往下拖到格子上</b> —— 拖到格子上是直接落，不会再问一遍。
             画面上画得出落点框的模板，点中一格时<b className="font-bold text-slate-100">画面上对应的那个框会亮起来</b>，
             想知道这一格是画面里的哪一个就看它。挂卡这条路任何模板都有，与画面里有没有画框无关。
-            卡片只列人物卡（人偶换的是「人」）。
+            卡片只列人物卡：人偶要换成的是角色，场景卡、道具卡挂上去没有意义。
           </Trans>
         ),
       },
@@ -472,21 +494,27 @@ export const TOURS: GuideTour[] = [
         ),
       },
       {
+        // ★ 2026-09-17 订正（未升 version）：原稿引了一句「是这个人吗」，界面上从来没有这句话。真的那一条是卡轨正下方的内联确认条
+        //   （RoleCastBoard 的 ask：「把「卡名」挂到 人物N 身上？」+「就是他」/「点错了」，2026-09-06 起摆在卡轨与画面之间）。
+        //   引号里只留真有的两颗键；那句问话带着卡名与人物名、不好整句引，改成转述。
         title: msg`拖到画面上会再问一次`,
         body: (
           <Trans>
-            <b className="font-bold text-slate-100">只有拖到画面上</b>那一条会先问你一句「是这个人吗」，同时把画面上那个人偶高亮起来 ——
+            <b className="font-bold text-slate-100">只有拖到画面上</b>那一条会先问一遍：上面那排卡的正下方会出现一条确认，写着要把哪张卡挂到哪个人物身上，同时把画面上那个人偶高亮起来 ——
             因为那个落点是<b className="font-bold text-slate-100">推断</b>出来的（人偶会重叠、人会走动）。
-            请对着高亮的那个再看一眼：挂错人<b className="font-bold text-slate-100">不会报错</b>，要等成片炼出来才看得见，
+            请对着高亮的那个再看一眼，对了点「就是他」，不对点「点错了」：挂错人<b className="font-bold text-slate-100">不会报错</b>，要等成片炼出来才看得见，
             那时已经花过一次出片的钱了。落到格子上不问 —— 落在哪一格是你眼睛看着放的，没有可推断错的余地。
           </Trans>
         ),
       },
       {
+        // ★ 2026-09-17 订正（未升 version）：原稿「剩下的照旧是人偶」是无条件的说法，2026-08-18 第十二发实拍证伪过
+        //   （切镜多的素材上，没挂卡的位子会被 AI 拿已挂的卡换掉 —— RoleCastBoard 底部那段 emptyCount 提示的 ★★★）。
+        //   第 1 步当时改了口，这一步漏了；按同一个口径补上「通常」。
         title: msg`不挂满也能出片`,
         body: (
           <Trans>
-            不用挂满：挂几个换几个，剩下的照旧是人偶。挂过的位子随时能换 —— <b className="font-bold text-slate-100">点中那一格，再点另一张卡</b>就换掉了；
+            不用挂满：挂几个换几个，剩下的通常照旧是人偶（切镜多的素材例外，第 1 步说过）。挂过的位子随时能换 —— <b className="font-bold text-slate-100">点中那一格，再点另一张卡</b>就换掉了；
             那一格挂着卡时，上面卡片那一行的右端会出现<b className="font-bold text-slate-100">「取下」</b>。都弄好之后点底部的<b className="font-bold text-slate-100">「完成挂卡」</b>，就带着这份对应关系回到上一步去炼视频。
           </Trans>
         ),
@@ -529,11 +557,14 @@ export const TOURS: GuideTour[] = [
         ),
       },
       {
+        // ★ 2026-09-17 订正（未升 version）：原稿把「加回来」放在引号里当键名引。清单下面那颗加号键的字样分两种：按位置指认的模板是
+        //   「画面上还有一个白色人偶没列出来？把它加回来」，编号方案的存量模板是「画面里还有人没列出来，加一个」（RoleConfirmSheet 的 canAdd 那颗键）——
+        //   后一种上引文对不上任何字样（中英文都一样）。去掉引号、改成指路（清单下面那颗带加号的键），两种模板都成立。
         title: msg`不对就改，不用重炼`,
         anchor: "roleconfirm-del",
         body: (
           <Trans>
-            对不上是可以就地改的：<b className="font-bold text-slate-100">标记写错了直接改成画面上那个</b>；清单里多出画面上找不到的位子就「删掉」；AI 漏认的人偶还能<b className="font-bold text-slate-100">「加回来」</b>。这些都<b className="font-bold text-slate-100">不会再花一次钱</b>。按位置指认的模板删掉一位后，记得把它右边各位往左挪一位——面板在待删行和提交前都会提醒。各种对不上的细节，展开视频<b className="font-bold text-slate-100">下面</b>那个「对不上怎么办？」看。
+            对不上是可以就地改的：<b className="font-bold text-slate-100">标记写错了直接改成画面上那个</b>；清单里多出画面上找不到的位子就「删掉」；AI 漏认的人偶还能用清单下面那颗带加号的键<b className="font-bold text-slate-100">加回清单</b>。这些都<b className="font-bold text-slate-100">不会再花一次钱</b>。按位置指认的模板删掉一位后，记得把它右边各位往左挪一位——面板在待删行和提交前都会提醒。各种对不上的细节，展开视频<b className="font-bold text-slate-100">下面</b>那个「对不上怎么办？」看。
           </Trans>
         ),
       },
@@ -592,13 +623,17 @@ export const TOURS: GuideTour[] = [
       },
       {
         // 标题与编辑页上那一块的小标题同一个 msgid（「AI 看哪几帧」）：引导说的就是那一块，英文跟着它走（第 1 步正文也逐字引了它）
+        // ★ 2026-09-17 订正（未升 version）：① 原稿末句「帧数直接算进下面的报价，多看更准也更贵」是按帧计价时代的说法 ——
+        //   看帧是一次 chat 定额，几帧都一个价（economy.blockoutTemplateCost 不读 frameCount；编辑页报价行写的是「多看几帧不额外收费」）。
+        //   第 1 步 2026-09-10 改过口，这一步漏了，两步并排自相矛盾，而这是钱上的话。
+        //   ② 「那排帧」：缺省的「自动」档只有一句「现在是 N 帧」，缩略图那一排要切到「自己挑」并标过帧才有（VisionFramePicker）—— 改成「那一块」。
         title: msg`AI 看哪几帧`,
         body: (
           <Trans>
-            时间轴下面那排帧：AI <b className="font-bold text-slate-100">只看这几帧</b>去认画面里有谁——
+            时间轴下面那一块：AI <b className="font-bold text-slate-100">只看这几帧</b>去认画面里有谁——
             被看漏的人照样会变成白人偶，但清单里<b className="font-bold text-slate-100">没有他的位置，谁的卡都挂不上</b>，
             还会把别人的位置挤歪。可以让它自动挑，也可以自己标人最全的几帧；
-            <b className="font-bold text-slate-100">帧数直接算进下面的报价</b>，多看更准也更贵。
+            <b className="font-bold text-slate-100">帧数不进报价</b>：多看几帧更准，也不额外收费。
           </Trans>
         ),
       },
