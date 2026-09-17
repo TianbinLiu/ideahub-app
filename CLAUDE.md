@@ -129,7 +129,9 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   那一趟。报价与记账的单位只在 `economy.mintQuote`（chat 次数 × `CHAT_TURN_TOKENS` + 出图张数 × `IMAGE_TOKENS`）。
   **V3 截线之前的非人物卡一律清掉**（`types.V3_CARD_WIPE_MS`；服务端 2026-09-06 已清，本机由 `account.ts` 的 V3 清库、
   `templates.readyTemplates`、`studioStore.openWorkDraft` 按截线过滤——按时间判不按卡种判，截线之后铸的 V3 卡要留）。
-  白模模板的素材卡从**原片**抽帧铸（`real.extractTemplateCards`，登记那一屏报 `blockoutCardsCost`）。
+  **白模模板不带素材卡**（2026-09-17 撤）：原来这里写「从原片抽帧铸」，而那一步**从落地那天起就没跑到过** ——
+  `frames` 只在经典那条路上被 set，白模路上恒空，出卡的分支与它那行报价永远为假。`real.extractTemplateCards` 与
+  `economy.blockoutCardsCost` 已随之删掉（全仓零调用方）。真要给白模模板配素材卡是**新功能**（得先给模板存一个原片指针），不是把这段改回来。
   全文见 docs/card-roles-v3-design.md。
 - **方案有结构化镜头字段**（`types.ShotSpec`：景别 / 运镜 / 情绪节拍，2026-09-06 对标 updream 分镜 Skill）：推演按字段写、
   `segmentGen.shotPrefix` 把它拼在正文最前、方案台显示、发布时折进 `VideoSegment.plot`。**一段出片的生成契约**是
