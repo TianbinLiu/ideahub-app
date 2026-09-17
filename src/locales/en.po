@@ -1151,6 +1151,10 @@ msgstr "{total, plural, one {# segment} other {# segments}}<0>, {done} rendered<
 msgid "{tourName} 使用引导"
 msgstr "{tourName} guide"
 
+#: src/studio/ui/SchemeEditorSheet.tsx
+msgid "{used}/{SCHEME_SLOT_PROMPT_MAX} · 超过 {SLOT_PROMPT_SOFT_HAN} 个汉字，模型可能顾不上后面的细节"
+msgstr "{used}/{SCHEME_SLOT_PROMPT_MAX} · over {SLOT_PROMPT_SOFT_HAN} Chinese characters — the model may lose the later details"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "{value}（包里没有）"
 msgstr "{value} (not in bundle)"

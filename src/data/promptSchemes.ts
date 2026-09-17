@@ -205,6 +205,18 @@ export function slotCardTag(scheme: Pick<PromptScheme, "builtin">, slot: SchemeS
  */
 export const SCHEME_TITLE_MAX = 40;
 export const SCHEME_INTRO_MAX = 120;
+/**
+ * 一格图位提示词的长度上限 —— **跨仓镜像**：server `schemas/promptScheme.schemas.js` 的 `SLOT_PROMPT_MAX = 600`（同样是整发 400、不截断）。
+ * ★ 2026-09-17 从 400 放到 600（主人：围绕出片的精细度定）：这一格画得准不准，直接决定出片时那张形象参考图像不像；
+ *   而上限按**字符**数，英文写同样的内容要两三倍的字符（400 个字符只够 60 来个英文词）。市面上的做法也是给足 + 计数：
+ *   可灵 2,500、海螺 2,000、Runway 1,000 个字符。再往上要先动服务端那个 600。
+ */
+export const SCHEME_SLOT_PROMPT_MAX = 600;
+/**
+ * Seedream 官方对提示词长度的建议：不超过 **300 个汉字或 600 个英文单词**，再长信息会分散、模型可能顾不上细节
+ * （方舟 Seedream 4.0 文档）。600 个字符装不下 600 个英文词，所以只有「汉字为主」的提示词才会走到这条提醒。
+ */
+export const SLOT_PROMPT_SOFT_HAN = 300;
 
 /** 「这份方案能不能发到市场」—— 只查服务端会拒的长度；null = 没问题，否则一句整句原因。下架不问它 */
 export function schemePublishIssue(s: Pick<PromptScheme, "title" | "intro">): string | null {

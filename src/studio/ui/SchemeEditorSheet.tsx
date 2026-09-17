@@ -16,7 +16,17 @@ import { createPortal } from "react-dom";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { CloseButton } from "../../components/IconTapButton";
 import { MAX_CARD_VIEWS, ROLE_LABELS, VIEW_TAG_MAX, type CardRole } from "../../types";
-import { isGenerated, saveScheme, schemeIssue, type PromptScheme, type SchemeSlot } from "../../data/promptSchemes";
+import {
+  SCHEME_INTRO_MAX,
+  SCHEME_SLOT_PROMPT_MAX,
+  SCHEME_TITLE_MAX,
+  SLOT_PROMPT_SOFT_HAN,
+  isGenerated,
+  saveScheme,
+  schemeIssue,
+  type PromptScheme,
+  type SchemeSlot,
+} from "../../data/promptSchemes";
 import { fmtTokens, schemeCost } from "../../data/economy";
 import { AI_REAL } from "../../ai";
 
@@ -112,14 +122,15 @@ export default function SchemeEditorSheet({
             setTitle(e.target.value);
             setErr("");
           }}
-          maxLength={20}
+          // ★ 与服务端同一个上限（发布时超了是整发 400）。原来手写 20：英文界面另存内置方案时预填的名字就有 30 个字符，只能删不能改
+          maxLength={SCHEME_TITLE_MAX}
           placeholder={t`方案名字（例如「白模三视图·我的版」）`}
           className="mb-1.5 w-full rounded-lg border border-slate-700 bg-panel px-2.5 py-2 text-sm text-slate-100 placeholder:text-slate-500"
         />
         <input
           value={intro}
           onChange={(e) => setIntro(e.target.value)}
-          maxLength={60}
+          maxLength={SCHEME_INTRO_MAX}
           placeholder={t`一句话说清它产出什么（选方案时会显示）`}
           className="mb-1.5 w-full rounded-lg border border-slate-700 bg-panel px-2.5 py-2 text-xs text-slate-100 placeholder:text-slate-500"
         />
@@ -216,10 +227,11 @@ export default function SchemeEditorSheet({
                   <textarea
                     value={s.prompt}
                     onChange={(e) => patchSlot(i, { prompt: e.target.value })}
-                    maxLength={400}
+                    maxLength={SCHEME_SLOT_PROMPT_MAX}
                     placeholder={t`这一格要画成什么样？（画风句会自动接上）`}
                     className="h-16 w-full resize-none rounded-md border border-slate-700 bg-ink/60 px-2 py-1.5 text-[11px] leading-relaxed text-slate-100 placeholder:text-slate-500"
                   />
+                  <SlotPromptMeter text={s.prompt} />
                 </>
               ) : (
                 <p className="text-[10px] text-slate-500"><Trans>这一格放原片裁剪本身，不调模型、不计费。</Trans></p>
@@ -260,5 +272,26 @@ export default function SchemeEditorSheet({
       </div>
     </div>,
     document.body,
+  );
+}
+
+/**
+ * 图位提示词的字数读数 + Seedream 官方的长度建议。★ 提醒只给「汉字为主」的提示词：官方口径是 300 个汉字或 600 个英文单词，
+ *   600 个字符的上限装不下 600 个英文词，英文提示词走不到那条线。读数本身两种语言都显示。
+ */
+function SlotPromptMeter({ text }: { text: string }) {
+  const used = text.length;
+  const han = (text.match(/\p{Script=Han}/gu) ?? []).length;
+  const long = han > SLOT_PROMPT_SOFT_HAN;
+  return (
+    <p className={`mt-0.5 text-right text-[9px] tabular-nums ${long ? "text-amber-300" : "text-slate-600"}`}>
+      {long ? (
+        <Trans>
+          {used}/{SCHEME_SLOT_PROMPT_MAX} · 超过 {SLOT_PROMPT_SOFT_HAN} 个汉字，模型可能顾不上后面的细节
+        </Trans>
+      ) : (
+        `${used}/${SCHEME_SLOT_PROMPT_MAX}`
+      )}
+    </p>
   );
 }
