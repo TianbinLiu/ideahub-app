@@ -157,6 +157,7 @@ msgstr ", upscaled to {REF_SHORT_MIN}px on the short side"
 #. 列举几个名字时的分隔符
 #. 列举几个名字时的分隔符
 #. 列举几个名字时的分隔符
+#. 列举几个名字时的分隔符
 #. 列举几个图位名 / 还缺的几项时的分隔符
 #. 列举几个文件名 / 动作组 / 表情名时的分隔符
 #. 列举几个段号时的分隔符（第 1、3 段）
@@ -167,6 +168,7 @@ msgstr ", upscaled to {REF_SHORT_MIN}px on the short side"
 #: src/components/DeleteCardDialog.tsx
 #: src/components/TemplateShelf.tsx
 #: src/components/VideoCardAnnotator.tsx
+#: src/components/VideoTemplateExtractor.tsx
 #: src/data/economy.ts
 #: src/pages/AdminPage.tsx
 #: src/pages/CustomCardPage.tsx
@@ -833,6 +835,14 @@ msgstr "Hit area for {areaName}"
 msgid "{beatCount} 段 · 每段 {beatSec}s"
 msgstr "{beatCount, plural, one {# segment} other {# segments}} · {beatSec}s each"
 
+#: src/components/VideoTemplateExtractor.tsx
+msgid "{beats} 段分镜 · {cardCount} 张素材卡 · 已存进「我的模板」（尚未发布）"
+msgstr "{beats, plural, one {# shot} other {# shots}} · {cardCount, plural, one {# material card} other {# material cards}} · saved to “My templates” (not published yet)"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "{busy}——这一步在跑，跑完再关：现在关掉会把已经传上去的那段素材删掉，而服务器正拿它切段。"
+msgstr "{busy} — this step is still running; wait for it to finish before closing: closing now deletes the footage that's already uploaded, while the server is still cutting it into segments."
+
 #: src/hooks/useFlowActions.ts
 msgid "{capWhy}。"
 msgstr "{capWhy}."
@@ -1333,6 +1343,10 @@ msgstr "← Swipe to pick a deck → it also becomes the material pool for new s
 msgid "← 换成自己写一句"
 msgstr "← Write my own sentence instead"
 
+#: src/components/VideoTemplateExtractor.tsx
+msgid "← 改选段"
+msgstr "← Change selection"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "↩ 回竖屏"
 msgstr "↩ Back to portrait"
@@ -1499,6 +1513,10 @@ msgstr "<0>The next segment's slot only lights up once this segment's video is g
 #: src/components/blockout/VisionFramePicker.tsx
 msgid "<0>画面里人数会变（有人入场 / 离场）时用这个</0>：在变化的<1>前后各标一帧</1>，AI 才认得全。其余情况用「自动」就够了。"
 msgstr "<0>Use this when the number of people changes (someone enters / leaves)</0>: mark <1>one frame before and one after</1> each change so the AI catches everyone. Otherwise “Auto” is enough."
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "<0>第 1 步已框出：</0>{frameStepSummary}"
+msgstr "<0>Selected in step 1:</0> {frameStepSummary}"
 
 #: src/components/blockout/BoxFramePicker.tsx
 msgid "<0>素材有分镜切换、或者人会进出画面时用这个</0>：拖到一帧<1>人最齐、最能代表这一段</1>的画面，标下来。标了几帧就按你标的顺序依次试。"
@@ -2789,6 +2807,7 @@ msgid "上一条剪到一半的成片这会儿没读出来（本机数据库没�
 msgstr "Your previous half-edited video couldn't be loaded right now (this device's database didn't open), and assembling now would replace it. Go to “Me” and tap “Retry”, then come back to assemble this one once it loads."
 
 #: src/components/PhotoSubjectPicker.tsx
+#: src/components/VideoTemplateExtractor.tsx
 #: src/pages/SupportModelNewPage.tsx
 #: src/pages/SupportPersonaNewPage.tsx
 #: src/studio/ui/NpcDialog.tsx
@@ -2835,6 +2854,10 @@ msgstr "The upload was interrupted (network unavailable)"
 #: src/studio/segmentGen.ts
 msgid "上传参考帧 {0}/{1}…"
 msgstr "Uploading reference frame {0}/{1}…"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "上传参考视频"
+msgstr "Reference video upload"
 
 #. placeholder {0}: Math.round(frac * 100)
 #: src/components/flow/FlowCanvas.tsx
@@ -2892,6 +2915,10 @@ msgstr "Upload from device"
 #: src/studio/segmentGen.ts
 msgid "上传本段设定帧 {0}/{1}…"
 msgstr "Uploading this segment's setup frame {0}/{1}…"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "上传视频 {pct}%"
+msgstr "Uploading video {pct}%"
 
 #: src/pages/SupportCreatePage.tsx
 msgid "上传自己的 Live2D 包（zip），对好动作、表情和触摸区，就能给数字人换上。"
@@ -3003,6 +3030,10 @@ msgstr "Next: specs ›"
 msgid "下一步：对映射"
 msgstr "Next: check the mapping"
 
+#: src/components/VideoTemplateExtractor.tsx
+msgid "下一步：挑 AI 分析帧"
+msgstr "Next: pick frames for the AI"
+
 #: src/components/PhotoSubjectPicker.tsx
 msgid "下一步：描轮廓 ›"
 msgstr "Next: trace outline ›"
@@ -3010,6 +3041,10 @@ msgstr "Next: trace outline ›"
 #: src/pages/SupportModelNewPage.tsx
 msgid "下一步：本地预览"
 msgstr "Next: local preview"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "下一步：标切段刀"
+msgstr "Next: place the cuts"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "下一步：自动识别"
@@ -3978,6 +4013,14 @@ msgstr "remix"
 msgid "做同款（丢弃上面那条流水线）"
 msgstr "Remix (discard the pipeline above)"
 
+#: src/components/VideoTemplateExtractor.tsx
+msgid "做成模板（不出片）"
+msgstr "Make template (no render)"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "做成模板这一次的消耗"
+msgstr "Cost of making this template"
+
 #: src/components/guide/tours.tsx
 msgid "做自己的模板"
 msgstr "Make your own templates"
@@ -4796,9 +4839,17 @@ msgstr "Split registration succeeded, but one of the segments the server returne
 msgid "分段登记暂不支持裁剪画面（服务端切段吃的是原始上传）：点视频下方播放条最右端的「⤢ 铺满整幅」把裁剪框还原。要裁水印或改画幅，就把选段收回 {segMaxSec} 秒以内、一段一段做。"
 msgstr "Split registration can't crop the picture yet (the server cuts the segments from the original upload): tap “⤢ Fill the frame” at the far right of the play bar below the video to reset the crop box. To crop out a watermark or change the aspect ratio, pull the selection back to within {segMaxSec} seconds and do it one segment at a time."
 
+#: src/components/VideoTemplateExtractor.tsx
+msgid "分段登记这一次的总消耗（{splitParts} 段合计）"
+msgstr "Total cost of this split registration ({splitParts, plural, one {# segment} other {# segments}} combined)"
+
 #: src/data/templates.ts
 msgid "分段登记需要至少一个分段点——不超过 30 秒的选段请走单段那条路。"
 msgstr "Split registration needs at least one split point — for a selection of 30 seconds or less, use the single-segment route."
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "分段组 · 整条已切成 {groupCount} 段各自登记（这张卡是第 {groupIndex} 段）。 从任何一段套用都会整组铺进工作流，逐段挂卡出片，合并时自动回填原片音轨。"
+msgstr "Split group · the whole video was cut into {groupCount, plural, one {# segment} other {# segments}}, each registered on its own (this card is segment {groupIndex}). Using any segment lays out the whole group in the workflow: cards are cast and rendered segment by segment, and the original audio track is added back automatically when merging."
 
 #: src/pages/EditPage.tsx
 #: src/pages/PublishPage.tsx
@@ -5648,6 +5699,10 @@ msgstr "Reference template"
 msgid "参考画面特征"
 msgstr "Reference visual traits"
 
+#: src/components/VideoTemplateExtractor.tsx
+msgid "参考视频没传上"
+msgstr "The reference video didn't upload"
+
 #. placeholder {0}: err instanceof Error ? err.message : String(err)
 #: src/studio/ui/projection.tsx
 msgid "参考视频没挂上：{0}"
@@ -6034,6 +6089,10 @@ msgstr "Catchphrases"
 #: src/types.ts
 msgid "古风"
 msgstr "Ancient style"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "另外会从原片提炼素材卡（场景 / 道具 / 风格，最多 {TEMPLATE_MAX_CARDS} 张，按实际出的收，最多 {cardsPrice}）。"
+msgstr "Material cards (scene / prop / style) are also extracted from the original video: up to {TEMPLATE_MAX_CARDS, plural, one {# card} other {# cards}}, charged by what's actually made, at most {cardsPrice} tokens."
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "另存为我的"
@@ -7739,6 +7798,10 @@ msgstr "Authorized asset linked; it will be bound when you save the card"
 msgid "已接上授权素材，铸卡时一并绑定"
 msgstr "Authorized asset attached; it will be bound when minting"
 
+#: src/components/VideoTemplateExtractor.tsx
+msgid "已提取模板「{gotTitle}」"
+msgstr "Template extracted: “{gotTitle}”"
+
 #: src/components/ReportButton.tsx
 msgid "已收到，管理员会尽快处理。"
 msgstr "Received — an admin will look into it soon."
@@ -8801,6 +8864,14 @@ msgstr "Sorry that didn't help. Talk to a human?"
 msgid "抽几帧总结画风、运镜与分镜骨架，再提炼可复用的场景/道具卡。不出片，也不把视频传上公网。"
 msgstr "Samples a few frames to sum up the art style, camera work and shot outline, then extracts reusable scene / prop cards. No render, and your video isn't put on the public internet."
 
+#: src/components/VideoTemplateExtractor.tsx
+msgid "抽帧 {i}/{n}…"
+msgstr "Grabbing frame {i}/{n}…"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "抽帧中…"
+msgstr "Grabbing frames…"
+
 #: src/studio/structuredSkills.ts
 msgid "拆出来的段一段都不合形状（剧情太短或缺字段）——把剧本写具体些再试"
 msgstr "None of the split segments had the right shape (story too short or fields missing) — make the script more specific and try again"
@@ -9317,6 +9388,7 @@ msgstr "Submitting"
 
 #: src/components/blockout/RoleConfirmSheet.tsx
 #: src/components/ReportButton.tsx
+#: src/components/VideoTemplateExtractor.tsx
 #: src/pages/SupportPage.tsx
 #: src/studio/personaWizardStore.ts
 msgid "提交中…"
@@ -10043,6 +10115,14 @@ msgstr "{count, plural, one {# card has no valid card ID and can't be saved to y
 msgid "有 {dropped} 个 @ 没能送达（对方不会收到通知）"
 msgstr "{dropped, plural, one {# @mention wasn't delivered (they won't be notified)} other {# @mentions weren't delivered (they won't be notified)}}"
 
+#: src/components/VideoTemplateExtractor.tsx
+msgid "有 {droppedCount} 刀落不下去，已被忽略：第 {droppedSecs} 秒——离片头、片尾或相邻的刀不足 {partMinSec} 秒，切出来会有短于 {partMinSec} 秒的段（AI 引擎收不下）。把这几刀删掉，或挪远一点再标。"
+msgstr "{droppedCount, plural, one {# cut can't be placed and was ignored} other {# cuts can't be placed and were ignored}}: at {droppedSecs}s — less than {partMinSec, plural, one {# second} other {# seconds}} from the start, the end or a neighboring cut, which would leave a segment shorter than {partMinSec, plural, one {# second} other {# seconds}} (the AI engine won't accept it). {droppedCount, plural, one {Delete that cut, or move it further away and mark again.} other {Delete these cuts, or move them further apart and mark again.}}"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "有 {missingCount} 段还没认出角色位。这几段现在也能随整组套用出片，只是那一段不能逐人挂卡 （AI 会整段泛指换人）。想让它们也能逐人挂卡，就在这里换一帧再认一次（每认一次都计费）："
+msgstr "{missingCount, plural, one {# segment still has no role slots detected. It can still be rendered along with the rest of the group; cards just can't be cast person by person on it} other {# segments still have no role slots detected. They can still be rendered along with the rest of the group; cards just can't be cast person by person on them}} (the AI swaps people across the whole segment without targeting individual slots). To allow casting person by person there too, pick a different frame here and detect again (each detection is charged):"
+
 #: src/components/flow/SegmentRecoverCards.tsx
 msgid "有一发成片已经取不回来了"
 msgstr "A video can no longer be recovered"
@@ -10762,6 +10842,18 @@ msgstr "Checking structure…"
 msgid "检查更新"
 msgstr "Check for updates"
 
+#: src/components/VideoTemplateExtractor.tsx
+msgid "检查画面角落 {i}/{wmFrameN}…"
+msgstr "Checking the corners of the picture {i}/{wmFrameN}…"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "检查画面角落…"
+msgstr "Checking the corners of the picture…"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "检查视频规格…"
+msgstr "Checking the video's specs…"
+
 #: src/data/templates.ts
 msgctxt "人偶的主色（挂卡提醒那句话里显示）"
 msgid "棕"
@@ -10850,6 +10942,14 @@ msgstr "Template market"
 msgid "模板是成品配方"
 msgstr "Templates are ready-made recipes"
 
+#: src/components/VideoTemplateExtractor.tsx
+msgid "模板标题（别人在市场里看到的就是它）"
+msgstr "Template title (this is what others see in the market)"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "模板登记好了，去「我的模板」看看"
+msgstr "Template registered — check it in “My templates”"
+
 #: src/api/uploads.ts
 msgid "模板视频只收 mp4 / mov 格式（AI 出片引擎只认这两种），当前是 {mime}，请转码后重试。"
 msgstr "Template videos must be mp4 or mov (the only formats the AI video engine accepts); this one is {mime}. Convert it and try again."
@@ -10857,6 +10957,10 @@ msgstr "Template videos must be mp4 or mov (the only formats the AI video engine
 #: src/studio/flowStore.ts
 msgid "模板视频还没转存到图床，做不了合成预览（稍后再试）"
 msgstr "The template video hasn't been transferred to storage yet, so a preview can't be composed (try again later)"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "模板组登记好了，去「我的模板」看看"
+msgstr "Template group registered — check it in “My templates”"
 
 #: src/components/guide/tours.tsx
 #: src/pages/TemplateDetailPage.tsx
@@ -11124,6 +11228,10 @@ msgstr "Lighting up the magic study…"
 #: src/studio/flowStore.ts
 msgid "正在生成中，等它跑完再换模板"
 msgstr "Generating. Wait for it to finish before changing the template"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "正在登记——这一步在跑，跑完再关：现在关掉会把已经传上去的那段素材删掉，而服务器正拿它切段。"
+msgstr "Registering — this step is still running; wait for it to finish before closing: closing now deletes the footage that's already uploaded, while the server is still cutting it into segments."
 
 #: src/pages/TemplateDetailPage.tsx
 msgid "正在登记到服务器…"
@@ -12588,6 +12696,14 @@ msgstr "Your sign-in has expired. Sign in again and retry."
 msgid "登记失败（{0}）"
 msgstr "Registration failed ({0})"
 
+#: src/components/VideoTemplateExtractor.tsx
+msgid "登记模板"
+msgstr "Template registration"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "登记没成：{why}"
+msgstr "Registration failed: {why}"
+
 #: src/components/flow/FlowCanvas.tsx
 #: src/studio/ui/projection.tsx
 msgid "登记素材…"
@@ -12630,6 +12746,10 @@ msgstr "Blockout videos have no setup frame to circle-edit — remove the circle
 msgid "白模出片要先挂一张带形象参考图的角色卡：模板只提供画面与运镜，「换成谁」全靠卡上的形象图"
 msgstr "Blockout videos need a character card with reference images first: the template only provides the picture and camera moves, and “who to swap in” depends entirely on the card's images"
 
+#: src/components/VideoTemplateExtractor.tsx
+msgid "白模化"
+msgstr "Blockout"
+
 #: src/pages/VideoEditorPage.tsx
 msgid "白模化 · 框出一段并裁掉水印"
 msgstr "Blockout · select a clip and crop out watermarks"
@@ -12653,6 +12773,10 @@ msgstr "Blockout can't be priced right now, so it won't start (pricing isn't rea
 #: src/data/economy.ts
 msgid "白模化暂未开放（当前没有任何档位开着白模出片），等开放后再来"
 msgstr "Blockout isn't available yet (no tier currently has blockout rendering turned on) — check back once it opens"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "白模化没成：{why}"
+msgstr "Blockout failed: {why}"
 
 #: src/components/blockout/BlockoutTrimmer.tsx
 msgid "白模化现在报不出价，先不能开炼（价目或开关没就绪）——这种情况请把这句话反馈给我们。"
@@ -12708,9 +12832,22 @@ msgstr "Blockout videos are silent; playback uses the template's original audio,
 msgid "白模成片本身无声，这里配的是模板原片的音轨；合并成片时也会带上"
 msgstr "Blockout videos are silent; this plays the template's original audio, which is also added when merging"
 
+#: src/components/VideoTemplateExtractor.tsx
 #: src/data/templates.ts
 msgid "白模模板"
 msgstr "Blockout template"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "白模模板 · 参考视频（{refSec}s）已托管 · 识别出 {roleCount} 个角色位：{roleList}（套用时在编辑页按位置逐个挂人物卡，没挂的保持人偶原样），套用出片时将整段复刻它的场景与运镜"
+msgstr "Blockout template · reference video ({refSec}s) hosted · {roleCount, plural, one {# role slot} other {# role slots}} detected: {roleList} (when using it, attach a character card to each slot by position in the editor; slots left empty keep their mannequins); when someone uses the template, their video copies its whole scene and camera work"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "白模模板 · 参考视频（{refSec}s）已托管 · 识别出 {roleCount} 个角色位（套用时在编辑页逐个挂人物卡，没挂的保持白模人偶原样），套用出片时将整段复刻它的场景与运镜"
+msgstr "Blockout template · reference video ({refSec}s) hosted · {roleCount, plural, one {# role slot} other {# role slots}} detected (when using it, attach character cards to the slots one by one in the editor; slots left empty keep their blockout mannequins); when someone uses the template, their video copies its whole scene and camera work"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "白模模板 · 参考视频（{refSec}s）已托管，套用出片时将整段复刻它的场景与运镜"
+msgstr "Blockout template · reference video ({refSec}s) hosted; when someone uses the template, their video copies its whole scene and camera work"
 
 #: src/pages/VideoEditorPage.tsx
 msgid "白模模板 · 给白色人偶挂人物卡"
@@ -12719,6 +12856,22 @@ msgstr "Blockout template · attach character cards to the white mannequins"
 #: src/pages/VideoEditorPage.tsx
 msgid "白模模板 · 给编号的人偶挂人物卡"
 msgstr "Blockout template · attach character cards to the numbered mannequins"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "白模模板做好了，去「我的模板」看看"
+msgstr "Blockout template ready — check it in “My templates”"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "白模模板做好了，附 {cardsN} 张素材卡，去「我的模板」看看"
+msgstr "Blockout template ready, with {cardsN, plural, one {# material card} other {# material cards}} — check it in “My templates”"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "白模模板做好了；素材卡没铸（最多需 {cardsQuote} token，余额不够），去「我的模板」看看"
+msgstr "Blockout template ready; no material cards were minted (they need up to {cardsQuote} tokens and your balance isn't enough) — check it in “My templates”"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "白模模板做好了；素材卡没铸成（{cardsWhy}），去「我的模板」看看"
+msgstr "Blockout template ready; minting the material cards failed ({cardsWhy}) — check it in “My templates”"
 
 #: src/studio/segmentGen.ts
 msgid "白模模板出片只在方舟档（真人档没有 r2v 能力）——这一段换回「电影级」档，或换掉模板"
@@ -13054,6 +13207,10 @@ msgstr "Cards shared by the community"
 #: src/components/VideoCardAnnotator.tsx
 msgid "视频不上传、不花 token：拖到某一帧，圈出要的人或物，裁出来的画面就是这张卡的参考图。"
 msgstr "The video isn't uploaded and costs no tokens: drag to a frame and circle the person or object you want — the cropped image becomes this card's reference image."
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "视频传完了，但提取窗已经关了——回模板页重新打开、再选一次"
+msgstr "The video finished uploading, but the extractor had already been closed — reopen it from the templates page and choose the file again"
 
 #: src/api/uploads.ts
 msgid "视频最大 {maxMb}MB（这份约 {curMb}MB），请先压小再传。"
@@ -13486,6 +13643,10 @@ msgstr "Segment {0}/{count}"
 #: src/pages/FlowPage.tsx
 msgid "第 {0}/{total} 段"
 msgstr "Segment {0}/{total}"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "第 {partIndex} 段 · {partTitle}"
+msgstr "Segment {partIndex} · {partTitle}"
 
 #: src/components/blockout/VisionFramePicker.tsx
 msgid "第 {rel} 秒"
@@ -14545,6 +14706,10 @@ msgstr "Add a note for support…"
 #: src/pages/FlowPage.tsx
 msgid "补充要求：{reqText}"
 msgstr "Extra request: {reqText}"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "补充说明（可选）：比如「这段里的人都穿古装」——AI 看帧认人时会参考它"
+msgstr "Extra details (optional): e.g. “everyone in this clip wears period costume” — the AI refers to it when looking at frames to find the people"
 
 #: src/components/VideoTemplateExtractor.tsx
 msgid "补充说明（可选）：比如「重点学它的运镜和胶片质感，别管剧情」"
@@ -15891,6 +16056,18 @@ msgstr "What this run will use"
 msgid "这一次没推成"
 msgstr "Drafting didn't work this time"
 
+#: src/components/VideoTemplateExtractor.tsx
+msgid "这一步不出片、不换人，只花「认人 + 量框」的钱，而分段是<0>每段各认一次</0>：{splitParts} 段 × {ownRefPrice}。按上限报价，实收只少不多（服务端一认出来就不再试）。"
+msgstr "This step renders nothing and swaps nobody; it only pays for “finding the people + measuring where they are”, and with segments that's <0>once per segment</0>: {splitParts, plural, one {# segment} other {# segments}} × {ownRefPrice} tokens. Quoted at the upper limit; the actual charge is never higher (the server stops retrying as soon as it succeeds)."
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "这一步不出片、不换人，只花「认人 + 量框」的钱。按上限报价，实收只少不多 （服务端一认出来就不再试）。"
+msgstr "This step renders nothing and swaps nobody; it only pays for “finding the people + measuring where they are”. Quoted at the upper limit; the actual charge is never higher (the server stops retrying as soon as it succeeds)."
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "这一步不花钱：框好要用的那一段点「下一步」，下一步在<0>框出来的这一段</0>上标帧，报价也在那一步、按「做成模板」之前整句报出。"
+msgstr "This step costs nothing: box the part you want and tap “Next”; on the next step you'll mark frames on <0>the part you boxed</0>, and the price is spelled out in full there, before “Make template”."
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "这一步是把「我们的演出协议」对到「你这个模型自己的名字」上。不改也行 —— 服务器已经按常见命名猜了一份，下面每一行左边的 ▶ 可以当场在上面的预览里试一下。"
 msgstr "This step maps “our performance protocol” onto “your model's own names”. You don't have to change anything — the server has already guessed from common naming, and the ▶ at the left of each row below tries it right away in the preview above."
@@ -16939,6 +17116,14 @@ msgstr "What kind of material is this"
 msgid "这是付费人格，请先在官网购买后再使用。"
 msgstr "This is a paid persona. Buy it on the website before using it."
 
+#: src/components/VideoTemplateExtractor.tsx
+msgid "这是做模板这一次的花费；以后每次有人套用出片，按所套那一段的时长另计一笔。"
+msgstr "This is the one-time cost of making the template; every time someone later uses it to render a video, a separate charge is based on the length of the segment they use."
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "这是做模板这一次的花费；以后每次有人套用出片，按模板视频的时长另计一笔。"
+msgstr "This is the one-time cost of making the template; every time someone later uses it to render a video, a separate charge is based on the template video's length."
+
 #: src/components/ShareSheet.tsx
 msgid "这是私密作品：链接只有你自己打得开。想给别人看，去编辑里改成「凭链接可见」或「公开」。"
 msgstr "This video is private: only you can open the link. To show others, change it to “Anyone with the link” or “Public” in Edit."
@@ -17085,6 +17270,18 @@ msgstr "This video is only about {total, plural, one {# second} other {# seconds
 #: src/components/blockout/arkVideoRules.ts
 msgid "这条视频约 {total} 秒，而分段登记一次最多 {SPLIT_MAX_PARTS} 段 × {segMaxSec} 秒 = {maxSec} 秒——整条装不下。把选段收回 {segMaxSec} 秒以内只做一段，或先把素材剪短再传。"
 msgstr "This video is about {total} seconds long, but one split registration holds at most {SPLIT_MAX_PARTS} segments × {segMaxSec} seconds = {maxSec} seconds — the whole video won't fit. Pull the selection back to within {segMaxSec} seconds to make a single segment, or trim the footage first and upload it again."
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "这条素材有 {srcSec} 秒，<0>整条登记做不了</0>（一次最多 {SPLIT_MAX_PARTS} 段 × {maxSec}秒 = {splitCap} 秒），所以上面的选段拉到 {maxSec} 秒就拉不动了。要么框其中 {maxSec} 秒以内做一段，要么先把素材剪短到 {splitCap} 秒以内再传。"
+msgstr "This footage is {srcSec} seconds long and <0>can't be registered whole</0> (one registration holds at most {SPLIT_MAX_PARTS} segments × {maxSec}s = {splitCap}s), so the selection above stops at {maxSec} seconds. Either select a part of {maxSec} seconds or less to make one segment, or trim the footage to {splitCap} seconds or less before uploading."
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "这条素材有 {srcSec} 秒：把上面的选段<0>拉满整条</0>，就会自动切成多段登记成一组（每段 ≤{maxSec} 秒、逐段认人）； 只想用其中一段就框 {maxSec} 秒以内。"
+msgstr "This footage is {srcSec} seconds long: <0>stretch the selection above over the whole video</0> and it's cut into several segments automatically and registered as a group (each ≤{maxSec}s, people detected segment by segment); to use just one part, select {maxSec} seconds or less."
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "这条素材有 {srcSec} 秒：把选段<0>拉满整条</0>之后还要<1>自己标切段刀</1>（把 {cutsMax} 刀尽量摆匀）—— 这个长度上\"自动对半\"会一步切到 {autoJumpParts} 段，超过一次最多 {SPLIT_MAX_PARTS} 段。 只想用其中一段就框 {maxSec} 秒以内。"
+msgstr "This footage is {srcSec} seconds long: after <0>stretching the selection over the whole video</0> you also have to <1>place the cuts yourself</1> (spread {cutsMax} cuts as evenly as you can) — at this length “halve automatically” jumps straight to {autoJumpParts} segments, over the limit of {SPLIT_MAX_PARTS} per registration. To use just one part, select {maxSec} seconds or less."
 
 #: src/components/DraftSheet.tsx
 msgid "这条草稿的内容已丢失，已从列表移除"
