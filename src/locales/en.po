@@ -17272,7 +17272,7 @@ msgid "这条视频约 {total} 秒，而分段登记一次最多 {SPLIT_MAX_PART
 msgstr "This video is about {total} seconds long, but one split registration holds at most {SPLIT_MAX_PARTS} segments × {segMaxSec} seconds = {maxSec} seconds — the whole video won't fit. Pull the selection back to within {segMaxSec} seconds to make a single segment, or trim the footage first and upload it again."
 
 #: src/components/VideoTemplateExtractor.tsx
-msgid "这条素材有 {srcSec} 秒，<0>整条登记做不了</0>（一次最多 {SPLIT_MAX_PARTS} 段 × {maxSec}秒 = {splitCap} 秒），所以上面的选段拉到 {maxSec} 秒就拉不动了。要么框其中 {maxSec} 秒以内做一段，要么先把素材剪短到 {splitCap} 秒以内再传。"
+msgid "这条素材有 {srcSec} 秒，<0>整条登记做不了</0>（一次最多 {SPLIT_MAX_PARTS} 段 × {maxSec} 秒 = {splitCap} 秒），所以上面的选段拉到 {maxSec} 秒就拉不动了。要么框其中 {maxSec} 秒以内做一段，要么先把素材剪短到 {splitCap} 秒以内再传。"
 msgstr "This footage is {srcSec} seconds long and <0>can't be registered whole</0> (one registration holds at most {SPLIT_MAX_PARTS} segments × {maxSec}s = {splitCap}s), so the selection above stops at {maxSec} seconds. Either select a part of {maxSec} seconds or less to make one segment, or trim the footage to {splitCap} seconds or less before uploading."
 
 #: src/components/VideoTemplateExtractor.tsx

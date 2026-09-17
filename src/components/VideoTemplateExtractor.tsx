@@ -1730,8 +1730,7 @@ export default function VideoTemplateExtractor({
                         <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200/90">
                           <Trans>
                             这条素材有 {srcSec} 秒，
-                            <b className="font-bold">整条登记做不了</b>（一次最多 {SPLIT_MAX_PARTS} 段 × {maxSec}
-                            秒 = {splitCap} 秒），所以上面的选段拉到 {maxSec} 秒就拉不动了。要么框其中 {maxSec} 秒以内做一段，要么先把素材剪短到 {splitCap} 秒以内再传。
+                            <b className="font-bold">整条登记做不了</b>（一次最多 {SPLIT_MAX_PARTS} 段 × {maxSec} 秒 = {splitCap} 秒），所以上面的选段拉到 {maxSec} 秒就拉不动了。要么框其中 {maxSec} 秒以内做一段，要么先把素材剪短到 {splitCap} 秒以内再传。
                           </Trans>
                         </p>
                       )}
