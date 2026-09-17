@@ -120,12 +120,15 @@ function SchemePickBody() {
     .filter((s) => s.builtin)
     .map((s) => s.title)
     .join(" / ");
+  // ★ 2026-09-17 订正（未升 version —— 主人 09-11 定：订正不重弹）：最后一步页面顶栏写的是「④ 定名完成」（CustomCardPage 的 PageHeader 那行步骤名），
+  //   原稿写成了「定名铸卡」（像的是上一步那颗键「下一步：定名与铸卡 ›」）。TOURS 里 version 4 那段注释用的还是老叫法。
+  //   ★ 订正记在这里、不记在 TOURS 那一步上：正文在这个组件里，订正与正文同一处、整块取舍。
   return (
     <Trans>
       第 1 屏只做一件事：<b className="font-bold text-slate-100">挑卡种</b>。点「人物卡」会弹一扇小窗，
       <b className="font-bold text-slate-100">看图挑一套图位方案</b>（{schemeNames}），或者选<b className="font-bold text-slate-100">「真人素材扫脸认证」</b>——那条路先做
       肖像授权（授权照片自动填进卡面）、跟读录音或上传本地音频。之后人物卡按四步走：
-      <b className="font-bold text-slate-100">选来源 → 图位预览 → 人物信息 → 定名铸卡</b>。
+      <b className="font-bold text-slate-100">选来源 → 图位预览 → 人物信息 → 定名完成</b>。
     </Trans>
   );
 }
@@ -136,13 +139,16 @@ function SchemePickBody() {
  */
 function SlotRulesBody() {
   const fullBody = builtinSlotLabel("fullBody") ?? BUILTIN_SLOT_ZH.fullBody;
+  // ★ 2026-09-17 订正（未升 version）：① 「⭕ 圈选改图」只长在人物卡的格子上（CustomCardPage 图位区 isChar 那一支；其余卡种只有「换一张 / 移除」）；
+  //   ② 原稿「改坏了不扣钱」拿掉，改指键上的价签（那颗键写的是「⭕ 圈选改图（价）」）。★ 别换成「没改成不扣钱」：远端模式下服务端先扣钱、再转发，
+  //   没等到回包 / 回包读不出 / 图没取回来都算「没改成」、钱却可能已经扣了（arkClient 的 ArkNoReply 那段 ★★；同页 recognize() 为此分三档说话）—— 引导不许这个诺。
   return (
     <Trans>
       人物卡的图位由<b className="font-bold text-slate-100">方案</b>决定（格数也随方案走）；其余卡种由卡种决定
       （一把剑不该有「{fullBody}」）。<b className="font-bold text-slate-100">第一格既是卡面也是主形象参考</b>：
-      卡框是竖版 2:3，别的比例会居中显示，不裁你的图。已有图的格子可以
+      卡框是竖版 2:3，别的比例会居中显示，不裁你的图。人物卡已有图的格子可以
       <b className="font-bold text-slate-100">⭕ 圈选改图</b>：圈出要改的地方写一句要求，AI 重画这一格
-      （单张图的价，改坏了不扣钱）。
+      （单张图的价，价钱印在那颗键上）。
     </Trans>
   );
 }
@@ -152,10 +158,12 @@ function SlotRulesBody() {
  *   标识符自己就是占位符的名字：译文里是 {REF_MAX_RATIO}，同一条里出现两次、两处都得留着。
  */
 function RefImageBody() {
+  // ★ 2026-09-17 订正（未升 version）：2026-09-10 起道具卡两格的图都先过「只留主体」层（CustomCardPage.onFile 里 type === "prop" 那一支 → PhotoSubjectPicker），
+  //   不走「越界居中裁」那条（utils/image 的 composeSubjectImage：抠出来的主体铺 3:4 浅灰底，保留背景时越界是补边）。补一句把道具卡单拎出来；怎么框怎么描由那一层自己讲。
   return (
     <Trans>
       相册原图直接选：会自动压到 AI 认得出的尺寸，长宽比超过 {REF_MAX_RATIO}:1 的会被居中裁进
-      {REF_MAX_RATIO}:1（方舟不收更极端的参考图），裁过会在那一格里写明。出片时
+      {REF_MAX_RATIO}:1（方舟不收更极端的参考图），裁过会在那一格里写明。道具卡多一步：选图后要先框出那件道具、沿边描一圈，只留主体。出片时
       <b className="font-bold text-slate-100">不是每张都会喂进模型</b>：取几张要看这张卡在那一段里
       排第几、同段还挂了几张卡 —— 详情页会逐张标「出片用 / 仅展示」，那里是唯一的判据。
     </Trans>
@@ -727,12 +735,15 @@ export const TOURS: GuideTour[] = [
         ),
       },
       {
+        // ★ 2026-09-17 订正（多语言 T4 顺带核的 —— 这一屏不在 T4 那五份里；未升 version，主人 09-11 定：订正不重弹）：原稿「只有 AI 出图要花 token（工坊铸卡，或「自己传图」里选了 AI 生成图位）」，
+        //   那个括号漏了三样花 token 的键：提取窗里人物卡的「✨ 按这套方案炼形象图」（VideoCardAnnotator.makePortraits）、「自己传图」的「⭕ 圈选改图」与场景卡 / 道具卡的识别
+        //   （识别是一次 chat、不算「出图」，所以句首一起改）。与「自己传图做卡片」第 1 步订正后的说法对齐；不要这一条就整块删，那一步不受影响。
         title: msg`造卡四条路，一条花钱`,
         anchor: "workshop-extract-card",
         body: (
           <Trans>
-            只有 AI 出图<b className="font-bold text-slate-100">要花 token</b>（工坊铸卡，或「自己传图」里
-            选了 AI 生成图位）。从视频圈选提取、自己传图、从市场拿都<b className="font-bold text-slate-100">不花</b>——
+            只有交给 AI 的<b className="font-bold text-slate-100">要花 token</b>（工坊铸卡，或从视频圈选提取、「自己传图」里
+            那几颗带 AI 的键）。从视频圈选提取、自己传图、从市场拿都<b className="font-bold text-slate-100">不花</b>——
             提取是拖到某一帧、亲手圈出要的人或物，圈出来的画面就是参考图。
           </Trans>
         ),
@@ -1129,12 +1140,15 @@ export const TOURS: GuideTour[] = [
     version: 4,
     steps: [
       {
+        // ★ 2026-09-17 订正（多语言 T4 对着实现核出来的；未升 version —— 主人 09-11 定：订正不重弹）：原稿「只有那条才计费」不成立 —— 这一页花 token 的键有四颗：
+        //   「✨ 生成 N 张图位与人物信息」、「⭕ 圈选改图」（本引导第 3 步自己就写着「单张图的价」）、场景卡 / 道具卡的「✨ 让 AI 按…填写」与第 1 屏弹窗里的「拍摄识别」（后两样 2026-09-10 加的）。
+        //   按 CustomCardPage 文件头那句「花钱的都是可选的一颗键」改口；「拍摄识别」的价写在那两张牌下面那行字里，所以说「当面标着」。
         title: msg`这是另一条路`,
         body: (
           <Trans>
             默认铸卡是 <b className="font-bold text-slate-100">AI 全自动出图</b>（3D 工坊找铸卡师）。
             这一页反过来：<b className="font-bold text-slate-100">用你自己的图，不耗 token</b>；
-            也可以只交一张素材，让 AI 按方案把图位都画出来（只有那条才计费，价钱印在按钮上）。
+            也可以只交一张素材，让 AI 按方案把图位都画出来。要花 token 的只有那几颗带 AI 的键（AI 生成图位、圈选改图、场景卡与道具卡的识别），价钱都当面标着，不点就不花。
             铸出来的卡与 AI 铸的完全同一种东西 —— 能进卡组、当出片的形象参考、发布到创意工坊。
           </Trans>
         ),
@@ -1250,8 +1264,10 @@ export const TOURS: GuideTour[] = [
   },
   {
     id: "setstorage",
-    // 这一条是引导自己的叫法（那一页的页标题按模式是「本机缓存」/「存储」）；屏名只拼进无障碍标签「… 使用引导」
-    title: msg`存储与清理`,
+    // ★ 2026-09-17 订正（未升 version）：原来叫「存储与清理」，是引导自己的叫法；那一页的页标题（设置页那一行也是）按模式是「本机缓存」/「存储」
+    //   （SettingsStoragePage 的 PageHeader）。屏名是模块顶层的描述符、跟不了模式，取正式包（远端模式）上的那个，与页标题同一个 msgid；
+    //   它只拼进无障碍标签「… 使用引导」，屏幕上看不见。
+    title: msg`本机缓存`,
     version: 1,
     steps: [
       {

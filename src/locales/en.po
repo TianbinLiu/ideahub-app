@@ -3748,8 +3748,8 @@ msgid "人物卡"
 msgstr "Character card"
 
 #: src/components/guide/tours.tsx
-msgid "人物卡的图位由<0>方案</0>决定（格数也随方案走）；其余卡种由卡种决定 （一把剑不该有「{fullBody}」）。<1>第一格既是卡面也是主形象参考</1>： 卡框是竖版 2:3，别的比例会居中显示，不裁你的图。已有图的格子可以<2>⭕ 圈选改图</2>：圈出要改的地方写一句要求，AI 重画这一格 （单张图的价，改坏了不扣钱）。"
-msgstr "A character card's slots are set by its <0>scheme</0> (so is the number of slots); other card types get theirs from the type (a sword shouldn't have a “{fullBody}” slot). <1>The first slot is both the card face and the main look reference</1>: the card frame is a 2:3 portrait, and other ratios are shown centered — your image isn't cropped. A slot that already has an image offers <2>⭕ Circle to edit</2>: circle what to change and write a request, and the AI redraws that slot (at the price of one image; you aren't charged if the edit goes wrong)."
+msgid "人物卡的图位由<0>方案</0>决定（格数也随方案走）；其余卡种由卡种决定 （一把剑不该有「{fullBody}」）。<1>第一格既是卡面也是主形象参考</1>： 卡框是竖版 2:3，别的比例会居中显示，不裁你的图。人物卡已有图的格子可以<2>⭕ 圈选改图</2>：圈出要改的地方写一句要求，AI 重画这一格 （单张图的价，价钱印在那颗键上）。"
+msgstr "A character card's slots are set by its <0>scheme</0> (so is the number of slots); other card types get theirs from the type (a sword shouldn't have a “{fullBody}” slot). <1>The first slot is both the card face and the main look reference</1>: the card frame is a 2:3 portrait, and other ratios are shown centered — your image isn't cropped. On a character card, a slot that already has an image offers <2>⭕ Circle to edit</2>: circle what to change and write a request, and the AI redraws that slot (at the price of one image, printed on the button)."
 
 #: src/pages/SupportCreatePage.tsx
 msgid "人物模型"
@@ -6551,13 +6551,13 @@ msgstr "Written from the basics and questionnaire only"
 msgid "只换这个"
 msgstr "Redo just this"
 
-#: src/components/guide/tours.tsx
-msgid "只有 AI 出图<0>要花 token</0>（工坊铸卡，或「自己传图」里 选了 AI 生成图位）。从视频圈选提取、自己传图、从市场拿都<1>不花</1>—— 提取是拖到某一帧、亲手圈出要的人或物，圈出来的画面就是参考图。"
-msgstr "Only AI image generation <0>costs tokens</0> (minting in the Studio, or choosing AI-generated image slots in “Make a card from your own images”). Extracting by circling in a video, uploading your own images and taking from the market <1>cost nothing</1> — extracting means dragging to a frame and circling the person or object you want by hand, and what you circle becomes the reference image."
-
 #: src/pages/CreatePage.tsx
 msgid "只有一个节点：写一句话，挑个时长，直接出一条几秒的短视频。不推方案、不存草稿。"
 msgstr "Just one step: write a sentence, pick a length, and get a short video a few seconds long. No plans, no drafts."
+
+#: src/components/guide/tours.tsx
+msgid "只有交给 AI 的<0>要花 token</0>（工坊铸卡，或从视频圈选提取、「自己传图」里 那几颗带 AI 的键）。从视频圈选提取、自己传图、从市场拿都<1>不花</1>—— 提取是拖到某一帧、亲手圈出要的人或物，圈出来的画面就是参考图。"
+msgstr "Only what you hand to the AI <0>costs tokens</0> (minting in the Studio, or the AI buttons that appear when you extract from a video or use “Make a card from your own images”). Extracting by circling in a video, uploading your own images and taking from the market <1>cost nothing</1> — extracting means dragging to a frame and circling the person or object you want by hand, and what you circle becomes the reference image."
 
 #: src/pages/EditPage.tsx
 msgid "只有作者本人可以编辑这部作品"
@@ -7436,10 +7436,6 @@ msgstr "Save as deck"
 #: src/pages/SettingsStoragePage.tsx
 msgid "存储"
 msgstr "Storage"
-
-#: src/components/guide/tours.tsx
-msgid "存储与清理"
-msgstr "Storage and cleanup"
 
 #: src/components/FrameAnnotator.tsx
 msgid "存入标注"
@@ -11096,6 +11092,7 @@ msgstr "Works and data on this device won't be deleted; log back in to continue.
 msgid "本机的成片文件已丢失，无法上传"
 msgstr "The video file on this device is missing and can't be uploaded"
 
+#: src/components/guide/tours.tsx
 #: src/pages/SettingsPage.tsx
 #: src/pages/SettingsStoragePage.tsx
 msgid "本机缓存"
@@ -13639,8 +13636,8 @@ msgid "相关的举报记录、通知、代币流水、卡片/卡组一并清除
 msgstr "Related reports, notifications, token history and cards/decks are cleared as well; <0>⚠ reports involving minors (csae) are kept</0> and aren't cleared with the account (a legal-obligation exception)."
 
 #: src/components/guide/tours.tsx
-msgid "相册原图直接选：会自动压到 AI 认得出的尺寸，长宽比超过 {REF_MAX_RATIO}:1 的会被居中裁进{REF_MAX_RATIO}:1（方舟不收更极端的参考图），裁过会在那一格里写明。出片时<0>不是每张都会喂进模型</0>：取几张要看这张卡在那一段里 排第几、同段还挂了几张卡 —— 详情页会逐张标「出片用 / 仅展示」，那里是唯一的判据。"
-msgstr "Choose originals straight from your gallery: they're automatically scaled down to a size the AI can read, and anything with an aspect ratio beyond {REF_MAX_RATIO}:1 is center-cropped to {REF_MAX_RATIO}:1 (Ark doesn't accept more extreme reference images) — when that happens, the slot says so. When generating video, <0>not every image is sent to the model</0>: how many are used depends on where this card ranks in that segment and how many other cards are attached to the same segment — the details page marks each image “Used in video / Display only”, and that's the only source of truth."
+msgid "相册原图直接选：会自动压到 AI 认得出的尺寸，长宽比超过 {REF_MAX_RATIO}:1 的会被居中裁进{REF_MAX_RATIO}:1（方舟不收更极端的参考图），裁过会在那一格里写明。道具卡多一步：选图后要先框出那件道具、沿边描一圈，只留主体。出片时<0>不是每张都会喂进模型</0>：取几张要看这张卡在那一段里 排第几、同段还挂了几张卡 —— 详情页会逐张标「出片用 / 仅展示」，那里是唯一的判据。"
+msgstr "Choose originals straight from your gallery: they're automatically scaled down to a size the AI can read, and anything with an aspect ratio beyond {REF_MAX_RATIO}:1 is center-cropped to {REF_MAX_RATIO}:1 (Ark doesn't accept more extreme reference images) — when that happens, the slot says so. Prop cards take one more step: after choosing an image, you box the prop and trace around its edge so only the subject is kept. When generating video, <0>not every image is sent to the model</0>: how many are used depends on where this card ranks in that segment and how many other cards are attached to the same segment — the details page marks each image “Used in video / Display only”, and that's the only source of truth."
 
 #. placeholder {0}: msg.slice(0, 80)
 #: src/utils/nativeCamera.ts
@@ -14639,8 +14636,8 @@ msgid "第 {v} 版"
 msgstr "Version {v}"
 
 #: src/components/guide/tours.tsx
-msgid "第 1 屏只做一件事：<0>挑卡种</0>。点「人物卡」会弹一扇小窗，<1>看图挑一套图位方案</1>（{schemeNames}），或者选<2>「真人素材扫脸认证」</2>——那条路先做 肖像授权（授权照片自动填进卡面）、跟读录音或上传本地音频。之后人物卡按四步走：<3>选来源 → 图位预览 → 人物信息 → 定名铸卡</3>。"
-msgstr "The first screen does just one thing: <0>choose a card type</0>. Tapping “Character card” opens a small window where you <1>pick a slot scheme by its picture</1> ({schemeNames}) or choose <2>“Real-person face verification”</2> — that path starts with portrait authorization (the authorized photo is filled into the card face automatically) and a voice sample, recorded by reading aloud or uploaded from your device. After that, a character card takes four steps: <3>Choose source → Slot preview → Character info → Name and mint</3>."
+msgid "第 1 屏只做一件事：<0>挑卡种</0>。点「人物卡」会弹一扇小窗，<1>看图挑一套图位方案</1>（{schemeNames}），或者选<2>「真人素材扫脸认证」</2>——那条路先做 肖像授权（授权照片自动填进卡面）、跟读录音或上传本地音频。之后人物卡按四步走：<3>选来源 → 图位预览 → 人物信息 → 定名完成</3>。"
+msgstr "The first screen does just one thing: <0>choose a card type</0>. Tapping “Character card” opens a small window where you <1>pick a slot scheme by its picture</1> ({schemeNames}) or choose <2>“Real-person face verification”</2> — that path starts with portrait authorization (the authorized photo is filled into the card face automatically) and a voice sample, recorded by reading aloud or uploaded from your device. After that, a character card takes four steps: <3>Choose source → Slot preview → Character info → Name and finish</3>."
 
 #. placeholder {0}: i + 1
 #: src/data/publishAssets.ts
@@ -19200,5 +19197,5 @@ msgid "默认人设"
 msgstr "Default persona"
 
 #: src/components/guide/tours.tsx
-msgid "默认铸卡是 <0>AI 全自动出图</0>（3D 工坊找铸卡师）。 这一页反过来：<1>用你自己的图，不耗 token</1>； 也可以只交一张素材，让 AI 按方案把图位都画出来（只有那条才计费，价钱印在按钮上）。 铸出来的卡与 AI 铸的完全同一种东西 —— 能进卡组、当出片的形象参考、发布到创意工坊。"
-msgstr "By default, minting is <0>fully automatic AI image generation</0> (find the card smith in the 3D Studio). This page is the reverse: <1>you use your own images, and it costs no tokens</1>; or hand over just one reference image and let the AI draw every slot from the scheme (only that option is charged, and the price is printed on the button). A card minted here is exactly the same kind of thing as an AI-minted one — it can go into decks, serve as a look reference when generating video, and be shared to the Workshop."
+msgid "默认铸卡是 <0>AI 全自动出图</0>（3D 工坊找铸卡师）。 这一页反过来：<1>用你自己的图，不耗 token</1>； 也可以只交一张素材，让 AI 按方案把图位都画出来。要花 token 的只有那几颗带 AI 的键（AI 生成图位、圈选改图、场景卡与道具卡的识别），价钱都当面标着，不点就不花。 铸出来的卡与 AI 铸的完全同一种东西 —— 能进卡组、当出片的形象参考、发布到创意工坊。"
+msgstr "By default, minting is <0>fully automatic AI image generation</0> (find the card smith in the 3D Studio). This page is the reverse: <1>you use your own images, and it costs no tokens</1>; or hand over just one reference image and let the AI draw every slot from the scheme. The only things that cost tokens are the AI buttons (AI slot generation, Circle to edit, and AI recognition for scene and prop cards); each shows its price up front, and nothing is charged unless you tap one. A card minted here is exactly the same kind of thing as an AI-minted one — it can go into decks, serve as a look reference when generating video, and be shared to the Workshop."
