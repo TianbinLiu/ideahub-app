@@ -1823,10 +1823,13 @@ export const useStudio = create<StudioState>()((set, get) => ({
       for (const m of editor.refVideo.mids) flow.addCustomMid(newId, m);
     }
     set({ spreadOpen: false, focus: { nodeId: newId }, projection: "proposals", editor: null });
+    // ★ 2026-09-17 订正（多语言 S2 评审对着 projection.tsx 核出来的）：layCustomNode 只从工坊铸段窗调，
+    //   落地后方案台那颗出片键印的是「⚡ 生成本段视频（价钱）」；「炼这一段视频」是画布那一面的键名
+    //   （FlowCanvas），这一屏上没有——英文那句一直引的就是工坊这颗
     get().npcSay(
       t({
-        message: "自定义方案摆上桌了——帧和提示词确认没问题，就点「炼这一段视频」。",
-        comment: "铸卡师念的话。工坊方案台上那颗出片键印的是「⚡ 生成本段视频（价钱）」，英文请引用它的英文名（不带价钱）",
+        message: "自定义方案摆上桌了——帧和提示词确认没问题，就点「⚡ 生成本段视频」。",
+        comment: "铸卡师念的话。「⚡ 生成本段视频」是工坊方案台上那颗出片键的名字（键上还带价钱），英文请引用它的英文名（不带价钱）",
       }),
     );
   },
@@ -2012,10 +2015,12 @@ export const useStudio = create<StudioState>()((set, get) => ({
       // 此前任何异常都会静默炸掉整个 Promise——按钮复位却没有任何解释，像"点了没反应"
       const reason = (e instanceof Error ? e.message : String(e)).slice(0, 120);
       console.warn("[studio] 推演失败:", e);
+      // ★ 2026-09-16 订正（多语言 S2 对着 projection.tsx 核出来的）：铸段窗那颗键印的是「🎲 推演三套方案」，
+      //   原稿里的「生成」早已不存在，用户按这句话找不到该点哪儿
       get().npcSay(
         t({
-          message: `这一炉推演失败了：${reason}——歇口气再点一次「生成」。`,
-          comment: "铸卡师念的话。reason 是截短的报错原文；「生成」指的是铸段窗里那颗「🎲 推演三套方案」键，英文请引用它的英文名",
+          message: `这一炉推演失败了：${reason}——歇口气再点一次「🎲 推演三套方案」。`,
+          comment: "铸卡师念的话。reason 是截短的报错原文；「🎲 推演三套方案」是铸段窗里那颗键的名字，英文请引用它的英文名",
         }),
       );
       get().setMood(-0.6, 2600);
@@ -2160,10 +2165,12 @@ export const useStudio = create<StudioState>()((set, get) => ({
         set({ notice: { text: useFlow.getState().err || t`这一段没炼成`, at: Date.now() } });
         return false;
       }
+      // ★ 2026-09-16 订正（多语言 S2 对着 projection.tsx 核出来的）：方案台那颗键印的是「✂ 编辑」，
+      //   原稿里的「编辑本段」早已不存在
       get().npcSay(
         t({
-          message: "这一段炼好了——下一段的虚线卡位已经亮起来了。想改细节就点「编辑本段」圈画面，改完的尾帧就是下一段的起拍画面。",
-          comment: "铸卡师念的话。「编辑本段」指方案台上那颗「✂ 编辑」键，英文请引用它的英文名",
+          message: "这一段炼好了——下一段的虚线卡位已经亮起来了。想改细节就点「✂ 编辑」圈画面，改完的尾帧就是下一段的起拍画面。",
+          comment: "铸卡师念的话。「✂ 编辑」是方案台上那颗键的名字，英文请引用它的英文名",
         }),
       );
       return true;

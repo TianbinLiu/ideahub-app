@@ -14908,9 +14908,9 @@ msgstr "Auto-detect"
 msgid "自定义"
 msgstr "Custom"
 
-#. 铸卡师念的话。工坊方案台上那颗出片键印的是「⚡ 生成本段视频（价钱）」，英文请引用它的英文名（不带价钱）
+#. 铸卡师念的话。「⚡ 生成本段视频」是工坊方案台上那颗出片键的名字（键上还带价钱），英文请引用它的英文名（不带价钱）
 #: src/studio/studioStore.ts
-msgid "自定义方案摆上桌了——帧和提示词确认没问题，就点「炼这一段视频」。"
+msgid "自定义方案摆上桌了——帧和提示词确认没问题，就点「⚡ 生成本段视频」。"
 msgstr "The custom plan is on the table — once the frames and prompt look right, tap “⚡ Generate this segment's video”."
 
 #: src/studio/flowStore.ts
@@ -16668,9 +16668,9 @@ msgstr "This segment has no blockout template to place cards on (only blockout t
 msgid "这一段没炼成"
 msgstr "Couldn't generate this segment"
 
-#. 铸卡师念的话。「编辑本段」指方案台上那颗「✂ 编辑」键，英文请引用它的英文名
+#. 铸卡师念的话。「✂ 编辑」是方案台上那颗键的名字，英文请引用它的英文名
 #: src/studio/studioStore.ts
-msgid "这一段炼好了——下一段的虚线卡位已经亮起来了。想改细节就点「编辑本段」圈画面，改完的尾帧就是下一段的起拍画面。"
+msgid "这一段炼好了——下一段的虚线卡位已经亮起来了。想改细节就点「✂ 编辑」圈画面，改完的尾帧就是下一段的起拍画面。"
 msgstr "This segment is rendered — the next segment's dashed slot is lit. To tweak details, tap “✂ Edit” and circle the picture; the edited last frame becomes the next segment's opening shot."
 
 #: src/hooks/useFlowActions.ts
@@ -16759,9 +16759,9 @@ msgstr "This segment has no chosen plan yet, so there's nowhere to put the stage
 msgid "这一炉一个方案都没有，铸不成段"
 msgstr "This run has no plans, so no segment can be forged"
 
-#. 铸卡师念的话。reason 是截短的报错原文；「生成」指的是铸段窗里那颗「🎲 推演三套方案」键，英文请引用它的英文名
+#. 铸卡师念的话。reason 是截短的报错原文；「🎲 推演三套方案」是铸段窗里那颗键的名字，英文请引用它的英文名
 #: src/studio/studioStore.ts
-msgid "这一炉推演失败了：{reason}——歇口气再点一次「生成」。"
+msgid "这一炉推演失败了：{reason}——歇口气再点一次「🎲 推演三套方案」。"
 msgstr "Drafting failed this time: {reason} — take a breath and tap “🎲 Draft three plans” again."
 
 #: src/components/ForgeOverlay.tsx
