@@ -1,31 +1,23 @@
-## 工坊和工作流画布，现在是同一件东西的两个面
+启梦 2.46
 
-主人点名「两边要完全一样，只不过表现形式/UI 不同」。这一版把已经漂开的地方逐条对齐——
-**大部分是你看不见但一直在生效的**：
+· 支持英文界面：默认跟随手机语言，可在「我的 → 设置 → 语言」切换。
+· 成片合并改用手机的硬件编码：更快，导出标准 MP4，片头自带「AI 生成」标识。
+· 「我的」页新增 AI 客服：数字人答疑，解决不了可以转人工。
+· 场景卡、道具卡可以直接拍照并一键识别；道具卡可以只留主体。
+· 已发布的作品可以保存到手机，也能「回炉重做」接着改。
+· 可以拉黑用户；举报时可选「涉及未成年人」。
+· 开了应用分身的手机，QQ / 微信登录失败时会说清原因和办法。
+· AI 调用失败时，如实告诉你这次扣没扣 token。
+· 新手引导按现在的界面更新（首页、创意工坊的引导会再弹一次）。
 
-### 钱与门禁（这几条都在实际生效，且全程零报错）
+QiMeng 2.46
 
-- **同一颗按钮两个价**：工坊的「重新推演三套」不认「从上一段真实结尾接着拍」这个开关——
-  你在设置里**明确关掉**的承接，在工坊被悄悄接回来；报价也因此差一倍（承接时三套共用开头帧、
-  图量减半）。现在两面读同一个函数。
-- **「重新生成这一套的画面」两面两个价、两种结果**：画布标两张图的价并真重画首帧，
-  工坊标一张图的价且首帧原样不动。已收成一处。
-- **画布正在出片时，工坊照样能重推**：几分钟的出片没跑完，工坊这边先扣钱、再把方案整表换掉，
-  等出片回来时它要写回的那一套已经不存在了——两笔钱都花了，一个成片都拿不到。现在两面共用同一道闸。
-- **顺序门禁**：工坊此前一个字都不画、主按钮照亮，点下去真扣钱真炼，而这一段拿不到上一段的
-  真实结尾画面。现在闸补进了出片与推演本身（任何入口都绕不过），工坊也会画出 🔒 并说明原因。
-
-### 工坊缺的入口，补齐了
-
-- **删除本段**——此前工坊整面没有这颗键，而工坊自己的提示语正指着它（「想换先删段重加」）。
-- **改「这一段拍什么」**——此前落段之后就改不了，而「重新推演」读的正是这句话：
-  你只能拿同一句话反复付费重推，结果当然还是同一类走向。
-- **加卡 / 撤卡**——此前铸完段才发现挂错卡，唯一的出路是删段重来（而删段也没有）。
-
-### 说话
-
-- 工坊里「点了没成」的那些话此前**说了等于没说**（投影窗开着时那个对话框整个不显示），
-  现在改走屏幕上真看得见的提示。
-- 出片失败后的步骤日志不再整块消失——此前失败之后屏幕上再没有任何字说为什么，
-  你唯一能做的判断是"再点一次"，而那是再花一次钱。
-- 别的段正在炼的时候，工坊现在也能**回看**已经出片的段了（此前那颗键是灰的、还不给理由）。
+· English interface: follows your phone's language; switch anytime in Me → Settings → Language.
+· Video merging now uses your phone's hardware encoder: faster, standard MP4, with the "AI generated" label at the start.
+· New AI support on the Me tab: a digital assistant answers questions and can hand you over to a person.
+· Scene and prop cards can be photographed and recognized in one tap; prop cards can keep just the subject.
+· Save published videos to your phone, or reopen them to keep editing.
+· Block users; reports can be flagged as involving minors.
+· On phones with app cloning, a failed QQ / WeChat sign-in now says why and what to do.
+· When an AI call fails, you're told whether tokens were charged.
+· Guides updated to match the current screens (the Home and Workshop guides will show once more).
