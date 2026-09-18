@@ -22,6 +22,7 @@ import * as projects from "./projects";
 import { dropLocalDanmaku } from "./danmaku";
 import { showToast } from "./toast";
 import { currentUser, readyAccount, subscribeAccount } from "./account";
+import { mayClaimLegacy } from "./deviceOwner";
 import { API_ON, ApiError, emitApiError } from "../api/client";
 import * as branch from "../api/branch";
 import { resolveMentionSpans, type MentionPick } from "../utils/mention";
@@ -360,6 +361,9 @@ if (typeof window !== "undefined") {
     followingCache = null;
     feedFetchedAt = 0;
     followingFetchedAt = 0;
+    // 在途的刷新是上一个人发的（回包会被 owner 校验作废）：标记清掉，新的人马上就能自己拉一次
+    feedRefreshing = null;
+    followingRefreshing = null;
     detailed.clear();
     // ★ 旁路表同样是**隐私边界**（与 cache 同一条理由）：它装的是按 id 单取回来的
     //   作品，其中可能有上一个账号自己的私密作品——服务端只对作者本人返回它。
@@ -1710,10 +1714,13 @@ export async function refreshFeed(opts: { minAgeMs?: number } = {}): Promise<boo
   const minAge = opts.minAgeMs ?? 0;
   if (minAge > 0 && Date.now() - feedFetchedAt < minAge) return false;
   if (feedRefreshing) return feedRefreshing;
+  // 发请求时是谁：回包时已经换了人的话，这一份是**上一个人**的推荐流（里面有他自己的私密 / 仅链接可见作品），
+  // 不许并进新账号的首页（2026-09-18 发版复核抓到：原来只判 cache 还在不在，换号 + readyRemote 重装得比回包快就漏过去）
+  const owner = ownerKey();
   feedRefreshing = (async () => {
     try {
       const res = await branch.listVideos({ feed: "recommend", limit: 30 });
-      if (!cache) return false;
+      if (!cache || ownerKey() !== owner) return false;
       const fresh = res.items.map(toVideoItem);
       const freshIds = new Set(fresh.map((v) => v.id));
       const localOnly = cache.filter((v) => !onServer(v) && !freshIds.has(v.id));
@@ -1743,10 +1750,11 @@ export async function refreshFollowingFeed(opts: { minAgeMs?: number } = {}): Pr
   const minAge = opts.minAgeMs ?? 0;
   if (minAge > 0 && Date.now() - followingFetchedAt < minAge) return false;
   if (followingRefreshing) return followingRefreshing;
+  const owner = ownerKey(); // 同 refreshFeed：回包时换过人就作废（关注流更是按人算的）
   followingRefreshing = (async () => {
     try {
       const res = await branch.listVideos({ feed: "following", limit: 30 });
-      if (!cache) return false;
+      if (!cache || ownerKey() !== owner) return false;
       const feedNow = cache;
       followingCache = res.items.map((raw) => {
         const item = toVideoItem(raw);
@@ -2013,6 +2021,8 @@ async function loadDetail(item: VideoItem): Promise<void> {
  */
 async function pushPublish(item: VideoItem, draft: DraftVideo): Promise<void> {
   let sending = draft;
+  // 这一条是谁发的：上传几十秒到几分钟，中途换了账号的话后面那几发请求带的就是**别人的** token（见下面 createVideo 前那一句）
+  const ownerAtStart = ownerKey();
   try {
     // ★★ **先入队，成了再出队**（2026-08-21 第十轮扫描）：上传一条三段片要逐个传
     //   1MB 级的帧与 1.5MB 级的成片，慢网上一两分钟。原来只在 catch 里入队 ——
@@ -2031,6 +2041,11 @@ async function pushPublish(item: VideoItem, draft: DraftVideo): Promise<void> {
       emitVideos();
     });
     uploadStatus = null;
+    // ★★ 换过账号就不发（2026-09-18，见 data/deviceOwner）：每一发请求都现取 token，这时候 createVideo 带的是**新登录那个人**
+    //   的 token，而服务端 `author: req.user._id` 只认 token —— A 花钱炼的片子会挂到 B 名下进广场（与 PendingPublish.owner 的 ★★
+    //   同一个事故形状，那边防的是冷启动补发，这里防的是正在传的这一发）。抛出去落进 catch：条目留在待发队列、主人仍是 A
+    //   （queuePending 保留第一次入队时记的主人），A 再登录时照常补发。
+    if (ownerKey() !== ownerAtStart) throw ownerMovedError();
     const v = await branch.createVideo(sending);
     // ★★ **`null` 是失败，不是成功**（2026-08-21 第十轮扫描）：`createVideo` 对
     //   「200 + 形状不对」的回包返回 null（`request()` 不抛错：JSON.parse 失败就把
@@ -2299,9 +2314,13 @@ async function queuePending(draft: DraftVideo, why: PendingWhy, opts?: { insuran
   if (opts?.insurance && rest.length >= 5) return false; // 见上面的 ★★：满了就不上保险，别顶掉真失败的
   // ★ owner 必须在**入队**这一刻写死（见 PendingPublish.owner 的 ★★）：flush 那会儿
   //   登录的可能已经是另一个人了，那时候再问 currentUser() 正好问到错的那个。
+  // ★★ 同一条（clientId）**第一次**入队时记的主人要保留（2026-09-18）：发布是「先上保险、失败再入队一次」，
+  //   第二次入队发生在失败那一拍 —— 途中换了账号的话，那时的 ownerKey() 是 B，按它重写就把 A 的待发作品记到 B 名下，
+  //   随后由 B 的 flushPending 带着 B 的 token 发出去。
+  const firstOwner = list.find((p) => p.draft.clientId === draft.clientId)?.owner;
   // 只留最近 5 条，别把配额吃光
   // ★ 存的是码 + 原话（只有 other 才有），不是翻好的一句（见 PendingErrorCode 的 ★★）
-  return await writePending([...rest, { draft, ...pendingFields(why), at: Date.now(), owner: ownerKey() }].slice(-5));
+  return await writePending([...rest, { draft, ...pendingFields(why), at: Date.now(), owner: firstOwner ?? ownerKey() }].slice(-5));
 }
 
 /**
@@ -2340,8 +2359,10 @@ export interface PendingPublish {
    *   并给一颗「立即重试」。
    * ★ 同文件的 `LikedStore` 早就是这条规则的正确实现（连 owner 一起存，对不上就当没有）
    *   —— 那只是个点赞态，而这里是会真发到广场上的付费成片。
-   * ★ 缺省（老队列里的存量）**当成"当前这个人的"**：那些是升级前留下的，
-   *   绝大多数就是本人的；判成"别人的"会让它们永远发不出去也删不掉。
+   * ★ 缺省（老队列里的存量）归**第一个来认领的人**（2026-09-18 与 data/deviceOwner 的「存量」那条对齐）：
+   *   那些是升级前留下的，绝大多数就是本人的；判成"别人的"会让它们永远发不出去也删不掉。
+   *   原来是「对谁都算自己的」—— 换一个人登录照样能看到、能替他发出去，正是这次要治的串号。
+   *   现在：认领之前对「可以认领的人」（mayClaimLegacy）可见，第一次补发时写上他的名字（发成了就出队、没发成带着名字留下）。
    */
   owner?: string;
 }
@@ -2359,10 +2380,11 @@ export function publishUploadStatus(): typeof uploadStatus {
 
 /**
  * 这条待发记录是不是**当前这个人**的 —— 唯一实现（flush 与横幅共用，铁律六）。
- * ★ 缺省判成"是"：老队列里的存量没有这一位（见 PendingPublish.owner 的 ★）。
+ * ★ 没有主人的老存量：现在这个人能认领就算他的（见 PendingPublish.owner 的 ★）；配了服务器却没连上时
+ *   登进来的是临时的本机账号，不许它认领（deviceOwner.mayClaimLegacy 的 ★★）。
  */
 function pendingMine(p: PendingPublish): boolean {
-  return !p.owner || p.owner === ownerKey();
+  return p.owner ? p.owner === ownerKey() : mayClaimLegacy();
 }
 
 /** 老版本存的是裸 DraftVideo[]，读的时候归一 */
@@ -2409,6 +2431,11 @@ const inflightPublish = new Set<string>();
 export function isUploading(v: VideoItem): boolean {
   if (!v.clientId) return false;
   return inflightPublish.has(v.clientId) || pendingMirror.some((p) => p.draft.clientId === v.clientId);
+}
+
+/** 有作品**正在上传**吗（退出登录前那道闸问它，见 studio/signOutGuard） */
+export function publishInFlight(): boolean {
+  return inflightPublish.size > 0 || uploadStatus !== null;
 }
 
 /** 页面同步读：还有几条没传上去（在传的那几条不算，见 inflightPublish 的 ★） */
@@ -2508,7 +2535,7 @@ const BAD_SHAPE_CODE = "BAD_SHAPE";
 /**
  * 发布回包「200 + 不是作品」（多半是服务器地址配错、或网关把请求兜到了静态页）时抛它。
  * ★ 认码不认话：message 只进 console / emitApiError（全 app 没人听），界面上的话由 pendingErrorText 按 bad-shape 说。
- *   ⚠ message 里别出现 network / timeout / Failed to fetch 这几个词 —— uploadFailOf 的兜底正则不分大小写。
+ *   ⚠ message 里别出现「Failed to fetch」—— uploadFailOf 拿它兜底认浏览器自己的断网。
  */
 function badShapeError(): Error {
   return Object.assign(new Error("createVideo: the response is not a video (wrong server address, or a gateway served the static page)"), {
@@ -2522,7 +2549,8 @@ function badShapeError(): Error {
  * ★ 按错误码分档，不在 message 里找中文关键词（2026-09-10 多语言第 1 步）。原来的「网络不可用」/「请求超时」
  *   四处来源都带着码：api/client 的 ApiError（NETWORK / TIMEOUT）、uploads 的整份上传与分块断线
  *   （chunkError 补了 NETWORK）；MaterializeError 是把 partial 挂在**原错误**上再抛，实例不变。
- *   `Failed to fetch` / `NetworkError` / `TimeoutError` 是浏览器自己的英文，不是我们的文案，留着兜底。
+ *   浏览器自己的英文「Failed to fetch」不是我们的文案，留着兜底（2026-09-18 起只剩它：原来还拿不分大小写的
+ *   /NETWORK|TIMEOUT/ 扫 message，把英文界面的「Switch networks…」认成断网）。
  * ⚠ 唯一的出入：老服务端（没有 /uploads/media/sign）那条整份上传的超时，原话「上传超时：这份 N MB…」
  *   以前没命中「请求超时」、原样截 120 字显示，现在按码归到 timeout 那句短话 —— 两句说的是同一件事。
  * ★ 2026-09-11 从 errText 改名、改成回码（多语言）：原来回一句中文，落进待发队列就冻结在写入时的语言上。
@@ -2535,14 +2563,29 @@ function uploadFailOf(e: unknown): PendingWhy {
   if (code === BAD_SHAPE_CODE) return { code: "bad-shape" };
   // "网络不可用" 在这条路上十有八九是包太大被网关掐了（body 里带着 MB 级的 base64 帧），
   // 直接说"网络不好"会让人一直重试同一件必然失败的事
-  if (code === "NETWORK" || /Failed to fetch|NETWORK/i.test(m)) return { code: "network" };
-  if (code === "TIMEOUT" || /TIMEOUT/i.test(m)) return { code: "timeout" };
+  // ★ 认码不认话（CLAUDE.md「按 message 里的关键词判」那条坑）：原来还拿 /NETWORK/i、/TIMEOUT/i 扫 message ——
+  //   不分大小写，英文界面下上传卡住的那句「Switch networks…」就被判成 network，说成「包太大被网关掐了」（2026-09-18 发版复核抓到）。
+  //   上传分块断线的 chunkError 自带同一个码；浏览器自己的英文「Failed to fetch」不是我们的文案，留作兜底。
+  if (code === "NETWORK" || /Failed to fetch/.test(m)) return { code: "network" };
+  if (code === "TIMEOUT") return { code: "timeout" };
   return { code: "other", detail: m.slice(0, 120) };
 }
 
 /** 当场说给人听（回炉失败的回执）：码现翻成当下界面语言，other 的原话照搬 */
 function uploadFailText(why: PendingWhy): string {
   return why.code === "other" ? why.detail : i18n._(PENDING_ERROR_MSG[why.code]);
+}
+
+/**
+ * 上传途中登录的人变了（pushPublish / flushPending 共用）：两种情形说两句话 —— 没人登录着 = 只是登录失效了
+ * （原来一律说「换了账号」，2026-09-18 复核抓到）
+ */
+function ownerMovedError(): Error {
+  return new Error(
+    ownerKey()
+      ? t`上传途中换了登录的账号，这一条先不发——等原来那个账号再登录时会自动补发`
+      : t`上传途中登录失效了，这一条先不发——重新登录这个账号后会自动补发`,
+  );
 }
 
 /** 启动时重试待发队列（成功的移出队列，失败的留着并记下原因） */
@@ -2560,8 +2603,18 @@ async function flushPending(): Promise<void> {
   const list = all.filter(pendingMine);
   const others = all.filter((p) => !pendingMine(p));
   if (list.length === 0) return;
+  /**
+   * 这一轮是替谁补发的。★★ 补发一条要传几 MB，慢网上几分钟（2026-09-18 复核抓到）：这期间 A 登录失效、B 登进来的话，
+   * 下一发 createVideo 带的是 **B 的 token** —— A 花钱炼的片子挂到 B 名下进广场（pushPublish 那道同款闸）。
+   * 换过人就不再发，没发的原样留下、主人照旧记在 A 名下。
+   */
+  const flushOwner = ownerKey();
   const left: PendingPublish[] = [];
   for (const p of list) {
+    if (ownerKey() !== flushOwner) {
+      left.push({ ...p, owner: p.owner || flushOwner });
+      continue;
+    }
     let sending = p.draft;
     try {
       // 重试同样要先实体化：队列里存的可能还带着没传完的本机资产
@@ -2570,6 +2623,7 @@ async function flushPending(): Promise<void> {
         emitVideos();
       });
       uploadStatus = null;
+      if (ownerKey() !== flushOwner) throw ownerMovedError();
       const v = await branch.createVideo(sending);
       // ★★ 与 pushPublish 同一条：`null` 是失败。原来 `if (v && cache)` 把 null 当成功，
       //   于是那条队列项**不会进 left**，`writePending(left)` 之后就永久删掉了 ——
@@ -2609,7 +2663,8 @@ async function flushPending(): Promise<void> {
       console.warn("[videos] 待发作品重试失败:", why.code, e);
       // ★ owner 原样带回去：重写队列时丢掉这一位，下一轮就又变成"谁登录发给谁"
       // ★ 落盘的是码 + 原话（只有 other 才有），不是翻好的一句（见 PendingErrorCode 的 ★★）
-      left.push({ draft: (e as MaterializeError).partial ?? sending, ...pendingFields(why), at: Date.now(), owner: p.owner });
+      // ★ 没有主人的老存量在这里认领（pendingMine 已经判过「他可以认领」）：带上名字留下，下一轮就不再是谁登录发给谁
+      left.push({ draft: (e as MaterializeError).partial ?? sending, ...pendingFields(why), at: Date.now(), owner: p.owner || flushOwner });
     }
   }
   // ★★ 把**别人那几条原样并回去**：它们这一轮压根没参与，但 writePending 是整表覆盖，

@@ -35,6 +35,7 @@ import {
 } from "../types";
 import { i18n, type MessageDescriptor } from "@lingui/core";
 import { msg, t } from "@lingui/core/macro";
+import { splitByOwner } from "./ownerSplit";
 
 /** 这一格的参考图从哪张裁剪来 */
 export type SchemeRef = "body" | "face";
@@ -75,6 +76,11 @@ export interface SchemeSlot {
 
 export interface PromptScheme {
   id: string;
+  /**
+   * 这套自定义方案是**谁的**（user.id）。2026-09-18 起本机方案库按账号分开（见下面「本机方案库」那段）。
+   * ★ 内置方案没有它；升级前存的自定义方案也没有，由升级后第一个登录的人认领。
+   */
+  owner?: string;
   title: string;
   /** 一句话说清它产出什么、适合谁 */
   intro: string;
@@ -390,9 +396,52 @@ export const BUILTIN_SCHEMES: readonly PromptScheme[] = [
 
 const LS_KEY = "ideahub.promptSchemes";
 
-let mine: PromptScheme[] = load();
+// ★★ 按账号分开（2026-09-18 主人真机点名同一台手机换账号后数据串号）：原来整台设备一份，B 能改、能删 A 的方案，
+//   能把 A 的方案（连示例图）以 **B 的名义**发到市场。现在 `mine` 只装现在这个人的，别人的躺在 `others` 里
+//   （从不显示，落盘时并回去），分区只经 ownerSplit.splitByOwner。
+// ★★ 「现在是谁」**注入**进来（bindSchemesOwner，由 data/deviceOwner 装载时调）：本文件必须保持叶子
+//   （见下面「给市场模块用的内部口子」那段 ★★：account → mock/ai → 本文件），import deviceOwner 就绕成了环。
+//   注入之前（极早期）一律当作没人登录：mine 为空、新写的记成无主。
+interface SchemesOwnerSource {
+  /** 现在给谁看 */
+  viewer: () => string;
+  /** 内存里这摊活是谁的（新写的记在谁名下） */
+  work: () => string;
+  /** 现在这个人能不能认领升级前的无主存量（deviceOwner.mayClaimLegacy） */
+  claim: () => boolean;
+}
+let ownerSrc: SchemesOwnerSource = { viewer: () => "", work: () => "", claim: () => false };
+
+let mine: PromptScheme[] = [];
+let others: PromptScheme[] = [];
 const listeners = new Set<() => void>();
 let version = 0;
+partition(load());
+
+function partition(all: PromptScheme[]): void {
+  const split = splitByOwner(all, ownerSrc.viewer(), ownerSrc.claim());
+  mine = split.mine;
+  others = split.others;
+  if (split.claimed) persist();
+}
+
+/** data/deviceOwner 装载时调一次：接上「现在是谁」与换人通知（理由见上面 ★★） */
+export function bindSchemesOwner(src: SchemesOwnerSource, onViewerChange: (fn: () => void) => void): void {
+  ownerSrc = src;
+  partition([...mine, ...others]);
+  onViewerChange(() => {
+    partition([...mine, ...others]);
+    emit();
+  });
+}
+
+/** 新写进来的一套记在「内存里这摊活的主人」名下；不是现在这个人的就进暗格 */
+function place(s: PromptScheme): void {
+  const owner = s.owner || ownerSrc.work() || undefined;
+  const item = owner === s.owner ? s : { ...s, owner };
+  if (owner && owner !== ownerSrc.viewer()) others = [item, ...others.filter((x) => x.id !== item.id)];
+  else mine = [item, ...mine.filter((x) => x.id !== item.id)];
+}
 
 function load(): PromptScheme[] {
   try {
@@ -424,7 +473,8 @@ function isUsable(s: unknown): s is PromptScheme {
 
 function persist() {
   try {
-    localStorage.setItem(LS_KEY, JSON.stringify(mine));
+    // ★ 别人的那几套一起写回：只写 mine 就是一次存方案把别的账号的方案整批抹掉
+    localStorage.setItem(LS_KEY, JSON.stringify([...mine, ...others]));
   } catch {
     /* 配额满：方案库不是关键路径，丢了下次重建即可 */
   }
@@ -530,7 +580,7 @@ export function saveScheme(s: Omit<PromptScheme, "id" | "builtin"> & { id?: stri
     createdAt: Date.now(),
     slots: s.slots.slice(0, MAX_CARD_VIEWS),
   };
-  mine = [next, ...mine.filter((x) => x.id !== next.id)];
+  place(next);
   persist();
   emit();
   return next;
@@ -600,7 +650,7 @@ export function mineSchemes(): PromptScheme[] {
 
 /** 落一份方案进本机库（装回来的、或推送后回写的）。★ 同 id 覆盖，不重复堆 */
 export function upsertMine(s: PromptScheme): void {
-  mine = [s, ...mine.filter((x) => x.id !== s.id)];
+  place(s);
   persist();
   emit();
 }

@@ -1518,6 +1518,9 @@ export default function VideoTemplateExtractor({
               // ★ Trimmer 在这一步是**卸掉**的（不是 hidden）：两个 <video> 同时解码同一份
               //   objectURL 在手机上是白花的；选段由 trimSel 冻住，回上一步靠 initial 恢复。
               <div className="space-y-3">
+                {/* 这一步也要画 warn（2026-09-18 发版复核抓到）：close() 拦下 ✕ 时把原因写进 warn，这一屏原来不画它 ——
+                    ✕ 看起来就是坏的。其余几屏都在各自位置画了同一行 */}
+                {warn && <p className="text-xs leading-relaxed text-amber-400">⚠ {warn}</p>}
                 <div className="flex items-start gap-2 rounded-lg border border-slate-700/70 bg-panel/60 px-3 py-2">
                   <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-slate-300">
                     <Trans>

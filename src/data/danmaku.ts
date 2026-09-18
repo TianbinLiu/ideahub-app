@@ -22,6 +22,7 @@ import { i18n, type MessageDescriptor } from "@lingui/core";
 import { msg, t } from "@lingui/core/macro";
 import { idbRead, idbSet } from "./db";
 import { authState } from "./account";
+import { onViewerChange } from "./deviceOwner";
 import { readyVideos, realId, remoteOn } from "./videos";
 import * as branch from "../api/branch";
 import { uid } from "../types";
@@ -78,6 +79,18 @@ const REFETCH_MS = 30_000;
 const truncatedIds = new Set<string>();
 /** 这条作品的弹幕**真的问回来过**（回包到手）。与 fetchedAt 分开的理由见 danmakuFetched 的 ★ */
 const landed = new Set<string>();
+
+// ★★ 换了看的人（2026-09-18，见 data/deviceOwner）：远端那份镜像里每条弹幕的「是不是我发的」是按**问的那个人**
+//   算的 —— 不清的话 B 登录后最多 30 秒里（REFETCH_MS）看到 A 的弹幕标着「我的」、能点删除。整份作废让它按新的人重拉。
+//   离线模式那份就是本机弹幕库本身（落盘的），不在这里清。
+onViewerChange(() => {
+  if (!remoteOn()) return;
+  store = {};
+  fetchedAt.clear();
+  truncatedIds.clear();
+  landed.clear();
+  emit();
+});
 
 function emit(): void {
   version++;

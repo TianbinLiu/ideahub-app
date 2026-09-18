@@ -24,7 +24,7 @@ import { Link, useNavigate, useSearchParams } from "react-router";
 import ConfirmDialog from "../components/ConfirmDialog";
 import InfoDialog from "../components/InfoDialog";
 import Icon from "../components/Icon";
-import { AGREEMENTS, recordTermsAccepted, termsAccepted, type AgreementId } from "../data/agreements";
+import { AGREEMENTS, clearPendingTerms, recordTermsAccepted, termsPendingAccepted, type AgreementId } from "../data/agreements";
 import {
   consumeAuthNotice,
   isRemoteMode,
@@ -82,9 +82,10 @@ export default function LoginPage() {
   const [busy, setBusy] = useState(false);
 
   // ── 用户协议勾选门（2026-08-28）────────────────────────────────
-  // 文本只有 data/agreements 一份（铁律六）。这台设备上同意过当前版本就默认勾上，
-  // 正文更新（TERMS_UPDATED 变了）后记录失效、重新要求勾选。
-  const [agreed, setAgreed] = useState(() => termsAccepted());
+  // 文本只有 data/agreements 一份（铁律六）。
+  // ★ 默认**不勾**（2026-09-18）：原来「这台设备上有人同意过」就默认勾上 —— 换一个人来登录，他没点过任何东西
+  //   就「同意」了。现在只有这一次登录页上勾过、还没登录成的那一下还在时才默认勾上（见 agreements 那段 ★★）。
+  const [agreed, setAgreed] = useState(() => termsPendingAccepted());
   /** 看哪份全文（登录页只放协议与隐私两份；AIGC 须知在发布页与设置页） */
   const [viewDoc, setViewDoc] = useState<AgreementId | null>(null);
   /**
@@ -95,10 +96,15 @@ export default function LoginPage() {
 
   /** 所有登录入口共用的一道门（密码/验证码/QQ/Google/GitHub 都从这儿过） */
   function requireAgree(run: () => void) {
-    if (agreed) {
+    // ★ 勾选框上那一下还得**没过期**（agreements 的 PENDING_TTL_MS）：页面一直开着的话框还勾着，而勾它的可能是
+    //   早就走开的上一个人（2026-09-18 复核抓到）—— 过期了就撤掉勾、当面再问一次
+    if (agreed && termsPendingAccepted()) {
+      // 从真正点登录这一拍重新算期限：跳去第三方授权再回来（冷启动认领也算）不会在登录成功之前过期
+      recordTermsAccepted();
       run();
       return;
     }
+    if (agreed) setAgreed(false);
     setPendingAuth(() => run);
   }
 
@@ -470,7 +476,9 @@ export default function LoginPage() {
             onClick={() => {
               const v = !agreed;
               setAgreed(v);
+              // 勾上 = 待认领的同意（登录成功那一拍归给这个人）；取消 = 作废
               if (v) recordTermsAccepted();
+              else clearPendingTerms();
             }}
             aria-label={agreed ? t`取消同意协议` : t`同意协议`}
             role="checkbox"

@@ -47,6 +47,7 @@ import {
   chosenOf,
   clampCursor,
   nodeCost,
+  nodeDerived,
   nodeDone,
   nodeRecastable,
   planOf,
@@ -1461,6 +1462,7 @@ function NodePanel({
         <div className="flex items-center gap-2">
           <DeleteSegBtn
             done={done}
+            derived={nodeDerived(node)}
             disabled={busy || generating || (nodes.length <= 1 && !nodeRecastable(node))}
             onConfirm={() => {
               removeNode(node.id);

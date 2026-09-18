@@ -94,7 +94,10 @@ export default function BranchPlayer({
     if (!v || !seg.videoUrl) return;
     if (playing) {
       // ★ 带声音的播放被拒就退成静音再试一次（同 SegmentPlayer）：别让"出不了声"连累"看不看得见"
-      void v.play().catch(() => {
+      void v.play().catch((e: unknown) => {
+        // ★ 只有「带声音被自动播放策略拒了」（NotAllowedError）才退静音重试（2026-09-18 发版复核抓到）：
+        //   缓冲时点了暂停 / 换了段，旧那次 play() 会以 AbortError 收尾 —— 原来一律静音重播，于是视频在播、界面显示暂停
+        if ((e as { name?: string } | null)?.name !== "NotAllowedError") return;
         v.muted = true;
         setMuted(true);
         void v.play().catch(() => {});

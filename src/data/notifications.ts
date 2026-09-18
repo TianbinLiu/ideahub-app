@@ -12,6 +12,7 @@
 import * as api from "../api/notifications";
 import { remoteOn } from "./videos";
 import { currentUser } from "./account";
+import { onViewerChange } from "./deviceOwner";
 import { t } from "@lingui/core/macro";
 
 export type { BranchNotificationType } from "../api/notifications";
@@ -155,6 +156,18 @@ function toItem(n: api.ApiNotification): NotificationItem | null {
 /** 同一时刻只允许一次在途请求：页面聚焦 + 应用恢复可能在同一拍触发 */
 let inflight: Promise<void> | null = null;
 
+/** 换人的代数（见下面 onViewerChange）：拉取回包时先比一下，发请求时还是上一个人就不许落进这个人的界面 */
+let viewerGen = 0;
+
+// ★★ 换了看的人（2026-09-18，见 data/deviceOwner）：列表与红点都是**上一个人**的（谁关注了他、谁赞了他的作品）。
+//   原来要等下一次刷新才换 —— B 一登录，个人页红点就是 A 的未读数，点进消息页先看到 A 的通知。清回初值等着按新的人重拉；
+//   在途的那一次作废（viewerGen），inflight 置空让新的人马上能问。
+onViewerChange(() => {
+  viewerGen++;
+  inflight = null;
+  set({ items: [], unread: 0, loading: true, error: "", supported: true });
+});
+
 /**
  * 拉一次通知列表。
  *
@@ -170,9 +183,11 @@ export async function refreshNotifications(): Promise<void> {
   }
   if (inflight) return inflight;
   set({ loading: state.items.length === 0, error: "", online: true });
+  const gen = viewerGen;
   inflight = (async () => {
     try {
       const page = await api.listNotifications({ limit: PAGE_SIZE, type: TYPE_FILTER });
+      if (gen !== viewerGen) return; // 换过人了：这是上一个人的通知
       if (!page.supported) {
         // 老服务端（或 Capacitor 的 SPA 回退把 index.html 当成了响应）：
         // 说清楚是"这台服务器还没有这个功能"，不要伪装成"一条通知都没有"
@@ -188,10 +203,11 @@ export async function refreshNotifications(): Promise<void> {
         error: "",
       });
     } catch (e) {
+      if (gen !== viewerGen) return;
       set({ loading: false, error: e instanceof Error ? e.message : String(e) });
     }
   })().finally(() => {
-    inflight = null;
+    if (gen === viewerGen) inflight = null;
   });
   return inflight;
 }
@@ -206,8 +222,10 @@ export async function refreshUnreadCount(): Promise<void> {
     set({ unread: 0, online: false });
     return;
   }
+  const gen = viewerGen;
   try {
-    set({ unread: await api.unreadBranchCount(), online: true });
+    const unread = await api.unreadBranchCount();
+    if (gen === viewerGen) set({ unread, online: true });
   } catch {
     // 红点拉不到就维持上一次的值：这里报错没有任何可操作性（用户又不能"重试红点"），
     // 真正的错误会在通知页那次 refreshNotifications 里显示出来

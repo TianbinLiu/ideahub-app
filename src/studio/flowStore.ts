@@ -44,6 +44,7 @@ import { aspectOf, Card, DEFAULT_ASPECT, Proposal, TemplateRecipe, VideoAspect, 
 // ★ 角色位上限（服务端那个数的镜像）与"哪几个能挂卡"只有一处实现，在 data 层 ——
 //   store 不该 import 组件（依赖方向 data → store → 组件）
 import { dropVideoJob, rememberVideoJob, setVideoJobWaiting, type VideoJob } from "../data/videoJobs";
+import { onOwnerSwitch, ownerEpoch } from "../data/deviceOwner";
 // 导演台的状态与融图指令（纯数据 / 纯函数，见 stage/stageState 头部的 ★）
 import { stageFuseInstruction, type StageState } from "./stage/stageState";
 import {
@@ -372,9 +373,18 @@ export function nodeBlank(node: FlowNode): boolean {
 }
 
 /**
+ * 这一段**推演过三套方案**（花过 token：一次 chat + 最多 6 张帧图）—— 删段 / 回铸要不要先确认的判据，唯一实现。
+ * ★ 按方案张数判（≥2）：单方案的段是空白占位、做同款 / 剧本→分镜铺来的、自定义直出的，那些没为推演花过钱。
+ *   与「已出片」（nodeDone）是两件事：没出片的段照样可能躺着一炉付过钱的方案。
+ */
+export function nodeDerived(node: FlowNode): boolean {
+  return node.proposals.length >= 2;
+}
+
+/**
  * 这一段能不能退回铸段窗重来（2026-09-06 主人真机：选定白模模板之后 ‹ 灰着、删段又被"只剩一段"挡住，人被困在窗里）。
  * 判据只有一条：**还没出片、也没在炼**。空白段 ⊂ 它；模板段 / 自定义段 / 推演过的段都算 —— 退回去丢的东西各不相同
- * （模板与挂卡不花钱、推演过的三套花过 token），那由 UI 按 `node.proposals.length >= 2` 先确认，这里不管。
+ * （模板与挂卡不花钱、推演过的三套花过 token），那由 UI 按上面的 `nodeDerived` 先确认，这里不管。
  * 与 removeNode 的"只剩一段也能删"同一把尺（唯一实现，铁律六）。
  */
 export function nodeRecastable(node: FlowNode): boolean {
@@ -471,6 +481,9 @@ export function blankProposal(i: number): Proposal {
  * ★ **不写 firstFrame**：那一格是"设定首帧"，截到的成片头帧只进 poster（CLAUDE.md 那条坑：
  *   写回去会让重炼被自己截的帧挡住）。尾帧照主路径写 lastFrame（真实尾帧顶替设定尾帧）。
  * ★ 简约流水线只认一段：多出一段就翻成工作流形态（画布两段都能看到、能剪）。
+ * ★★ 流水线是空的也**不留在简约模式**（2026-09-18，2.46 发版复核抓到）：reset() 不动 mode，上一次停在简约模式的话
+ *   取回来的这一段就成了简约段 —— 而简约模式不进草稿库（saveWorkDraft 直接回 null），取回那一拍凭据又已经结案，
+ *   这一段只活在内存里，App 一重启就再也找不回来。取回来的是一段付过钱的成片，不是「一句话出片」的那一种。
  * ★ 纯函数、导出：预览里不用真去方舟取一发也能验落点。
  */
 export function placeRescuedSegment(
@@ -509,7 +522,7 @@ export function placeRescuedSegment(
   const pinned = pinUnstatedTpl(st.nodes, st.template);
   return {
     nodes: [...pinned.slice(0, at), node, ...pinned.slice(at)],
-    mode: st.mode === "simple" && st.nodes.length > 0 ? "workflow" : st.mode,
+    mode: st.mode === "simple" ? "workflow" : st.mode,
     at,
   };
 }
@@ -2195,13 +2208,18 @@ export const useFlow = create<FlowState>()((set, get) => ({
       const st = await transferStatus([url]).catch(() => null);
       const hit = st?.[url];
       if (hit?.state === "done" && hit.url) {
-        get().setProposalVideo(node.id, node.chosenId, hit.url);
+        // 问的这几百毫秒里这一段可能已经重新生成 / 还原过（见 adoptPermanentUrl 的 ★★）：换不上就别往下截 ——
+        // 截的是旧那条的帧，写回去就把旧片的首尾帧挂到了新片上
+        if (!adoptPermanentUrl(node.id, node.chosenId, url, hit.url)) return false;
         set((s) => ({ mediaRev: s.mediaRev + 1 }));
         url = hit.url;
       }
     }
     try {
       const cap = await recaptureSegment(url);
+      // 同上：截帧也是几秒的异步 —— 这期间这一段换了成片，就别把旧那条的帧写上去
+      if (get().nodes.find((n) => n.id === node.id)?.videoByProposal[node.chosenId] !== url) return false;
+      const oldTail = chosenOf(node).lastFrame;
       // ★ 钉住起手那套方案（node.chosenId）：截帧是几秒的异步，期间用户可能换了走向
       get().updateProposal(
         node.id,
@@ -2212,6 +2230,17 @@ export const useFlow = create<FlowState>()((set, get) => ({
         },
         node.chosenId,
       );
+      // ★★ 承接关系跟着尾帧换（2026-09-18，2.46 发版复核抓到）：下一段的开头帧是当初从这一段尾帧**原样拿过去**的，
+      //   「是不是承接来的」靠 `p.firstFrame === prev.lastFrame` 认。这里把尾帧换成了 Cloudinary 抽的那张，不跟着换的话
+      //   下一段就被当成「AI 自拟开头帧」—— 「✨ 重新生成这一套的画面」按两张收钱、重画开头帧，而出片时开头帧又被承接覆盖，
+      //   白花一张图的钱（segmentGen.redrawnAnns 那条同型的坑）。
+      if (oldTail && cap.tail && oldTail !== cap.tail) {
+        const all = get().nodes;
+        const next = all[all.findIndex((n) => n.id === node.id) + 1];
+        for (const p of next?.proposals ?? []) {
+          if (p.firstFrame === oldTail) get().updateProposal(next!.id, { firstFrame: cap.tail }, p.id);
+        }
+      }
       set((s) => ({ mediaRev: s.mediaRev + 1 }));
       return true;
     } catch (e) {
@@ -2241,7 +2270,10 @@ export const useFlow = create<FlowState>()((set, get) => ({
           const st = await transferStatus([url]).catch(() => null);
           const hit = st?.[url];
           if (hit?.state === "done" && hit.url) {
-            get().setProposalVideo(node.id, node.chosenId, hit.url);
+            // 这一段此刻放的已经不是这一条了（问 status 期间重新生成 / 还原过）：什么都别换（见 adoptPermanentUrl 的 ★★），
+            // 但**接着盯新的那条**（2026-09-18 发版复核抓到）：新成片自己那一次 settleNodeMedia 撞上 settling 里还挂着这一轮
+            // 已经被跳过了，这里 return 的话它永远拿不到永久地址与预览帧。下一轮按节点现在放的那条重读
+            if (!adoptPermanentUrl(node.id, node.chosenId, url, hit.url)) continue;
             set((s) => ({ mediaRev: s.mediaRev + 1 }));
             await get().recaptureNode(nodeId, { quiet: true });
             return;
@@ -2925,6 +2957,26 @@ export const useFlow = create<FlowState>()((set, get) => ({
         },
       );
       log.end();
+      // ★★ 写回之前先确认**这一段还在**（第七轮扫描），而且要排在结账与销毁凭据**之前**（2026-09-18）：
+      //   出片是几分钟的异步，这期间流水线可能已经被换掉、那一段被删了，或者换了账号（换号那一拍内存里的
+      //   活会被清掉，见 data/deviceOwner）。`get().nodes[idx]` 那时要么越界、要么指向**另一段** ——
+      //   认 id 不认下标。原来这里先销毁凭据再发现段没了：成片没处放、取回卡也没了，那笔钱在 App 里再也
+      //   找不回来（服务端登记表也补不回来：已处理名单里记着它）。现在凭据**留着** —— 取回卡会把它摆出来，
+      //   取回时新开一段安放、不再花钱（placeRescuedSegment）；本机账也不在这里记，取回那一拍按凭据上的
+      //   cost 记（这里记了就是两次）。
+      const still = get().nodes.find((n) => n.id === id);
+      if (!still) {
+        set(
+          get().genRun === myRun
+            ? {
+                busy: false,
+                err: t`这一段在生成过程中被删掉了（或整条流水线被换过）——成片已经出来了，钱在提交时已经扣过：用取回卡把它领回来，会新开一段放它，不再花钱。`,
+                genNotice: { ok: false, msg: t`有一段生成完了，但它已经不在流水线里——去取回卡把它领回来` },
+              }
+            : {},
+        );
+        return false;
+      }
       if (res.url && AI_REAL) spendTokens(cost);
       // 成片已经到手，凭据结案（留着只会在界面上多一颗"取回"，点了拿回同一段）
       if (taskId) dropVideoJob(taskId);
@@ -2933,6 +2985,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
       patchProp({
         // 返修：上一版留一份可还原（只留最近一版）；成片首帧原本就空，别用返修结果的空串盖掉设定帧
         ...(rv ? { prevVideoUrl: realVideoOfNode(node) ?? undefined } : {}),
+        // 返修出的这一条本身无声（edit 任务钉着 generate_audio:false）：记下地址，组稿时据此如实说「没有声音」（见 Proposal.silentVideos）
+        ...(rv && res.url ? { silentVideos: [...(prop.silentVideos ?? []), res.url].slice(-4) } : {}),
         firstFrame: rv ? prop.firstFrame : res.firstFrame,
         lastFrame: res.lastFrame,
         // 成片第一帧只管显示（白模/参考直出段没有设定首帧，卡面靠它）；这一炉没截到就清掉
@@ -2946,23 +3000,6 @@ export const useFlow = create<FlowState>()((set, get) => ({
         videoUrl: res.url || "mock:",
         degraded: undefined,
       });
-      // ★★ 写回之前先确认**这一段还在**（第七轮扫描）：出片是几分钟的异步，这期间流水线
-      //   可能已经被换掉或那一段被删了。`get().nodes[idx]` 那时要么越界（读 undefined 的
-      //   属性当场抛错，用户看到的是一句 JS 异常），要么指向**另一段**（下标前移）——
-      //   而钱在上一行已经扣了。认 id 不认下标，找不到就如实说一句，别装作成功。
-      const still = get().nodes.find((n) => n.id === id);
-      if (!still) {
-        set(
-          get().genRun === myRun
-            ? {
-                busy: false,
-                err: t`这一段在生成过程中被删掉了（或整条流水线被换过）——这一炉的钱已经扣了，成片没处放。下次等它跑完再动流水线`,
-                genNotice: { ok: false, msg: t`有一段生成完了，但它已经不在了` },
-              }
-            : {},
-        );
-        return false;
-      }
       patchNode({
         status: "idle",
         progress: "",
@@ -3013,6 +3050,9 @@ export const useFlow = create<FlowState>()((set, get) => ({
         //   FlowPage 的 simple 闸里，画布与工坊两面一个像素都看不到，于是这句提示
         //   指向一个不存在的出口。现在三个宿主共用 components/flow/SegmentRecoverCards。
         //   以后再加新的出片宿主，先把那个组件挂上再说这句话。
+        // ★ 只有「还是我这一炉」才动 busy / err（见 genRun 的 ★★）：换过账号的话这一炉是上一个人的，
+        //   这句话（连同「点下面那颗取回」）不该出现在新登录的这个人屏幕上 —— 他的取回卡里没有这一发
+        if (get().genRun !== myRun) return false;
         set({
           busy: false,
           // ★ 24 小时是**方舟产物**的物理事实；真人档那边我们没量过留存，不许编一个数
@@ -3050,6 +3090,10 @@ export const useFlow = create<FlowState>()((set, get) => ({
   takeJob: async (job, prog) => {
     const s0 = get();
     if (s0.busy) throw new Error(t`正在忙别的，等这一步完了再取`);
+    // 取回期间换过人（2026-09-18）：登录失效后另一个人登录，回来时流水线已经清过了（A → B → A 也一样清过，
+    // 下面按原来那一段算好的 orphan / node 全是悬空的）—— 成片不许落进去、凭据不许销毁（留给原来那个人，
+    // 他再登录时取回卡上还在），busy 也不归这一发清。按换人代数判，见 deviceOwner.ownerEpoch
+    const epochAtStart = ownerEpoch();
     const node = s0.nodes.find((n) => n.id === job.nodeId) ?? null;
     /**
      * 原来那一段那一套走向还在不在这条流水线里。
@@ -3062,6 +3106,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
     set({ busy: true, err: "" });
     try {
       const res = await takeVideoTask(job.taskId, prog, job.provider);
+      if (ownerEpoch() !== epochAtStart) throw new Error(t`取回期间换了账号，这一发留给原来那个账号，下次登录时再取。`);
       const { url, lastFrame, poster } = res;
       // ★ 与 genNode 成功那一行**同一条规则**（"拿到结果才扣"）：接不到结果的那一发
       //   在本机账上没扣过，取回等于这一段终于成了。不扣的话"等超时再取回"就是白嫖，
@@ -3109,7 +3154,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
       const placedId = orphan ? (get().nodes[get().cursor]?.id ?? "") : job.nodeId;
       if (placedId) get().settleNodeMedia(placedId);
     } catch (e) {
-      set({ busy: false });
+      if (ownerEpoch() === epochAtStart) set({ busy: false });
       // ★ 凭据在这里**一律不动**：takeVideoTask 已经把"还能再来取"与"真没了"分成了
       //   两种抛法，但两者的善后都不是"悄悄删掉" —— 真失败那一条要留在屏幕上让用户
       //   看见"钱不退"，销毁它等于把这句话也一起吞了。真正的销毁只发生在取回成功
@@ -3118,6 +3163,48 @@ export const useFlow = create<FlowState>()((set, get) => ({
     }
   },
 }));
+
+/**
+ * **同一条成片**换成转存后的永久地址 —— recaptureNode 与 settleNodeMedia 两处共用（铁律六）。
+ * ★★ 只在这一段这套方案**此刻放的还是 fromUrl** 时才换（2026-09-18，2.46 发版复核抓到）：换地址之前要先 await 一次
+ *   转存状态，这几百毫秒里重新生成或「还原上一版」可能已经落下 —— 原来无条件 setProposalVideo，会把旧那条的永久地址
+ *   盖到刚付过钱的新成片上。换不上回 false，调用方就此收手。
+ * ★ 「这一条是返修出的、本身无声」的记号跟着地址换（Proposal.silentVideos）：地址变了记号还挂在老地址上，
+ *   组稿时就认不出它是无声的。只在这里换，不在 setProposalVideo 里换 —— 那边还接剪辑页写回的**另一条**成片。
+ */
+function adoptPermanentUrl(nodeId: string, proposalId: string, fromUrl: string, toUrl: string): boolean {
+  const node = useFlow.getState().nodes.find((n) => n.id === nodeId);
+  const p = node?.proposals.find((x) => x.id === proposalId);
+  if (!node || !p || node.videoByProposal[proposalId] !== fromUrl) return false;
+  useFlow.getState().setProposalVideo(nodeId, proposalId, toUrl);
+  if (p.silentVideos?.includes(fromUrl)) {
+    useFlow.getState().updateProposal(nodeId, { silentVideos: p.silentVideos.map((u) => (u === fromUrl ? toUrl : u)) }, proposalId);
+  }
+  return true;
+}
+
+// ★★ 换成另一个账号的那一拍（2026-09-18 主人真机点名同一台手机换账号后数据串号，见 data/deviceOwner）：
+//   内存里这条流水线是**上一个人**的 —— 段、帧、付过钱的成片、挂的人物卡（可能是真人）、回炉权（reviseOf）。
+//   原来退出登录不清它，B 登录后进工坊 / 点胶囊回 /flow，看到的就是 A 的流水线，能接着炼（记 B 的账、用 A 的卡）、
+//   能组稿发成 B 的作品。这里整表清掉；genRun +1 让 A 还在路上的那一炉回来时**动不了**新会话的 busy / err
+//   （它的成片不会丢：凭据记在 A 名下，写回时发现段不在就留着，A 再登录时从取回卡领回，见 genNode 的 still 那段）。
+// ★ A → 没登录 → A 不算换人（onOwnerSwitch 的 ★）：登录失效后重新登录同一个号，流水线原样还在。
+// ★ 不走 canReplaceNodes 那道闸：那道闸防的是**同一个人**亲手换掉还在炼的流水线；这里是账号已经换了，
+//   留着才是事故。在炼的那一发由上面那条保住，不靠拦。
+onOwnerSwitch(() => {
+  useFlow.setState((s) => ({
+    nodes: [],
+    cursor: 0,
+    mode: "workflow",
+    origin: "solo",
+    busy: false,
+    err: "",
+    genNotice: null,
+    genStarted: null,
+    genRun: s.genRun + 1,
+    ...clearTemplate(),
+  }));
+});
 
 // DEV 调试/E2E 挂钩
 if (import.meta.env.DEV) {

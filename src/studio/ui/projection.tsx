@@ -31,7 +31,7 @@ import {
   rederiveKey,
   useStudio,
 } from "../studioStore";
-import { CUSTOM_MID_MAX, nodeBlank, recastBlocked, nodeDone, nodeCost, tplOfNode, useFlow, type FlowNode, nodeAnnPlan, annSkipNote, redrawCost, derivesProposals, nodeLocked, deriveCostOf } from "../flowStore";
+import { CUSTOM_MID_MAX, nodeBlank, recastBlocked, nodeDerived, nodeDone, nodeCost, tplOfNode, useFlow, type FlowNode, nodeAnnPlan, annSkipNote, redrawCost, derivesProposals, nodeLocked, deriveCostOf } from "../flowStore";
 import TierRow from "../../components/flow/TierRow";
 // 选模板弹层借画布那一份（铁律六：市场懒加载/分段组折叠/预览确认全在那一个实现里）。
 // FlowCanvas 不 import 本文件，方向安全（它俩只在 StudioPage/FlowPage 各自的树里出现）
@@ -1005,7 +1005,7 @@ function ProposalsPanel() {
    */
   const recastWhyNot = recastBlocked(flowNodes, node.id);
   const canRecast = !recastWhyNot && !genHere && !busy;
-  const recastCostly = node.proposals.length >= 2;
+  const recastCostly = nodeDerived(node);
   const recastNodeId = node.id;
   function requestRecast() {
     if (!canRecast) return;
@@ -1622,6 +1622,7 @@ function PickedActions({
         <div className="mt-1.5 flex items-center gap-2">
           <DeleteSegBtn
             done={done}
+            derived={nodeDerived(node)}
             /* ★ 与画布同源：画布那颗读的是 store 上的 busy，工坊本地那个 busy 认不出
                画布发起的那一炉（见 ProposalsPanel 里 genHere 的 ★★） */
             disabled={busy || flowBusy || node.status === "generating" || (flowNow.nodes.length <= 1 && nodeDone(node))}

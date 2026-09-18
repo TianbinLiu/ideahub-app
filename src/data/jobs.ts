@@ -10,6 +10,7 @@
 // ★ 结局要**说人话**并带一条路（`route`）：胶囊上那颗「回去看看 ›」点下去要有地方落。
 //   `silent` 给"人就在那一页上"的场合：页面自己会画结果，再弹一条通知是重复。
 // ★ 与 videos/danmaku 同一套订阅：模块级单例 + 版本号，`hooks/useJobs` 用 useSyncExternalStore 接。
+import { onOwnerSwitch } from "./deviceOwner";
 
 export type JobStatus = "running" | "done" | "failed";
 
@@ -51,6 +52,15 @@ function emit(): void {
   version++;
   for (const fn of subs) fn();
 }
+
+// ★★ 换成另一个账号的那一拍（2026-09-18，见 data/deviceOwner）：这些票都是上一个人的 —— 通知里写着他的卡名、
+//   「回去看看 ›」点下去是他的表单 / 他的卡。整表撤掉。还在跑的那几件活回包时 update / done / fail
+//   找不到票就什么都不做（patch 按 id 找），不会在新账号的胶囊里冒出来。
+onOwnerSwitch(() => {
+  if (jobs.length === 0) return;
+  jobs = [];
+  emit();
+});
 
 export function subscribeJobs(fn: () => void): () => void {
   subs.add(fn);

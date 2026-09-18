@@ -157,6 +157,15 @@ export default function SupportPage() {
   /** 触摸反应正在说 / 刚说完的那句（不进 messages，所以单独记一份给字幕气泡） */
   const [reaction, setReaction] = useState("");
   const [voiceOn, setVoiceOn] = useState(voiceEnabled);
+  /**
+   * 🔇 的即时版本（2026-09-18 发版复核抓到「🔇 静不了正在说的这一句」）：原来 send() 开头把开关读成一个常量，
+   * 之后排队的每一句都照样去合成语音；而 toggleVoice 只改标志，正在放的那一句照样出声。
+   * voiceOnRef 让后面的句子现问「现在还开着声音吗」；muteRef 是一个只管**停声音**的中止器 —— 与整轮对话的
+   * controller 分开：那个一中止就连文字流也掐了，而静音只该让她闭嘴、字照样出完。
+   */
+  const voiceOnRef = useRef(voiceOn);
+  voiceOnRef.current = voiceOn;
+  const muteRef = useRef(new AbortController());
   const [chatErr, setChatErr] = useState("");
   const [micErr, setMicErr] = useState("");
   const [handoffHint, setHandoffHint] = useState<{ category: SupportCategory } | null>(null);
@@ -324,9 +333,13 @@ export default function SupportPage() {
     companionBus.action(normalizeAction(sentence.action));
     const blob = await audio;
     if (runRef.current !== run || signal.aborted) return;
-    if (blob) {
+    const mute = muteRef.current.signal;
+    // ★ 现问「现在还开着声音吗」（2026-09-18 发版复核抓到）：只看 mute 的话，🔇 那一下换了一个新的中止器，
+    //   而后面几句的声音早就合成好了（文字流比念快得多）—— 第 1 句停住，第 2 句照样大声念出来
+    if (blob && voiceOnRef.current && !mute.aborted) {
       try {
-        await getPlayer().play(blob, (level) => companionBus.mouth(level), { signal });
+        // 🔇 中止的只是这一句的声音：play 收尾后落到下面的口型模拟，字幕与队列照常往下走（不会像停不掉的中止器那样卡死队列）
+        await getPlayer().play(blob, (level) => companionBus.mouth(level), { signal: eitherSignal(signal, mute) });
         return;
       } catch {
         if (signal.aborted) return;
@@ -353,6 +366,11 @@ export default function SupportPage() {
         setReaction(pick.text);
         const run = runRef.current;
         const controller = new AbortController();
+        // ★ 登记进 abortRef（2026-09-18，2.46 发版复核抓到）：原来是个局部变量，■ / 回车走的 stopAll() 中止不到它，
+        //   而 SpeechPlayer.stop() 只暂停、摘音源，不触发 ended / error —— perform() 永远不结束，队列从此卡死：
+        //   之后每一次 send() 都停在「思考中」、没声音、麦克风灰着，只有离开这一页才好。中止了 play() 才会收尾。
+        //   （companion/speech.ts 与官网同源拷贝，这里不单改它的 stop()）
+        abortRef.current = controller;
         const sentence: CompanionSentence = { index: 0, text: pick.text, emotion: pick.emotion, face: pick.face, action: pick.action, tts: { emotion: pick.emotion, instruct: "" } };
         const audio: Promise<Blob | null> =
           voiceOn && Boolean(config?.tts) ? synthesizeSpeech(ttsBodyFor(config, sentence), controller.signal).catch(() => null) : Promise.resolve(null);
@@ -368,6 +386,12 @@ export default function SupportPage() {
     const next = !voiceOn;
     setVoiceOn(next);
     setVoiceEnabled(next);
+    voiceOnRef.current = next;
+    if (!next) {
+      // 正在放的这一句当场停（见 muteRef 的 ★），换一个新的中止器给之后的句子用
+      muteRef.current.abort();
+      muteRef.current = new AbortController();
+    }
   }
 
   async function send(textArg?: string) {
@@ -395,7 +419,8 @@ export default function SupportPage() {
     setPhase("thinking");
     setSubtitle("");
 
-    const wantVoice = voiceOn && Boolean(config?.tts);
+    // 每一句合成语音之前**现问**开没开声音（voiceOnRef 的 ★）：说到一半点了 🔇，后面的句子就不再去合成
+    const wantVoice = () => voiceOnRef.current && Boolean(config?.tts);
     let handoff: SupportCategory | null = null;
     try {
       await streamSupportChat(
@@ -404,7 +429,7 @@ export default function SupportPage() {
           onSentence: (sentence) => {
             // 文字先上屏（市面客服都是文字即时、语音随后），语音按句排队
             setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, text: m.text ? `${m.text} ${sentence.text}` : sentence.text } : m)));
-            const audio: Promise<Blob | null> = wantVoice
+            const audio: Promise<Blob | null> = wantVoice()
               ? synthesizeSpeech(ttsBodyFor(config, sentence), controller.signal).catch(() => null)
               : Promise.resolve(null);
             void enqueue(run, () => perform(run, sentence, audio, controller.signal));
@@ -425,9 +450,15 @@ export default function SupportPage() {
       setPhase("idle");
     } catch (e) {
       if (controller.signal.aborted) return;
-      setMessages((prev) => prev.filter((m) => m.id !== assistantId || m.text));
+      // ★ 中途断了（2026-09-18 发版复核抓到）：已经上屏的半截留着，但不再算「正在说」—— 原来 streaming 一直为真，
+      //   ■ 一直在、麦克风灰着、没有 👍👎。已经排队的那几句照常念完，**念完才回到 idle**：这里不先置 idle ——
+      //   先置的话 ■ 消失、麦克风亮起（会把她自己的声音录进去），下一句又把状态改回「说话中」。队列是空的话，
+      //   下面这一发在一个微任务里就结了
+      setMessages((prev) => prev.filter((m) => m.id !== assistantId || m.text).map((m) => (m.id === assistantId ? { ...m, streaming: false } : m)));
       setChatErr(errorText(e, t`${name}走神了，再发一次试试。`));
-      setPhase("idle");
+      void enqueue(run, async () => undefined).then(() => {
+        if (runRef.current === run) setPhase("idle");
+      });
     }
   }
 
@@ -901,4 +932,15 @@ function TicketsPanel({
       ))}
     </div>
   );
+}
+
+/** 两个中止信号任一触发就触发（AbortSignal.any 的最小替身：老一点的 WebView 上没有它） */
+function eitherSignal(a: AbortSignal, b: AbortSignal): AbortSignal {
+  if (a.aborted) return a;
+  if (b.aborted) return b;
+  const c = new AbortController();
+  const fire = () => c.abort();
+  a.addEventListener("abort", fire, { once: true });
+  b.addEventListener("abort", fire, { once: true });
+  return c.signal;
 }

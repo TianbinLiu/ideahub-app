@@ -57,6 +57,9 @@ function applyErrorText(e: unknown): string {
     if (reason === "unpaid") return i18n._(msg`这是付费人格，请先在官网购买后再使用。`);
     if (reason === "private") return i18n._(msg`这个人格没有公开，只有作者自己能用。`);
   }
+  // ★ 这里的 404 是「这个人格没了」（列表拉出来之后被作者删掉 / 下架），不是共用文案里的「老服务端没这个功能」——
+  //   列表都拉出来了，功能当然在（2026-09-18 发版复核抓到；VoiceMarket 那边早就这么分开说了）
+  if (e instanceof ApiError && e.status === 404) return i18n._(msg`这个人格已经被作者删掉或下架了，刷新列表看看别的。`);
   return companionErrorText(e, i18n._(msg`切换失败，稍后再试。`));
 }
 

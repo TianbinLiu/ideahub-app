@@ -905,6 +905,13 @@ export interface Proposal {
   /** 返修（flowStore.genNode 的 opts.revise）之前那一版成片地址：返修一次覆盖一次，只留最近一版可还原（restoreProposalVideo） */
   prevVideoUrl?: string;
   /**
+   * 由**返修**出的那几条成片的地址（返修走白模同一条 edit 任务，钉着 generate_audio:false —— 这几条文件本身无声）。
+   * ★ 为什么记地址不记一个布尔（2026-09-18，2.46 发版复核抓到「返修段的『没有声音』提示不准」）：「还原上一版」会把
+   *   videoUrl 与 prevVideoUrl 对调，布尔跟不上这一对调；记地址的话「现在放的这条是不是返修出的」只要问它在不在这里。
+   * ★ 只给组稿那一拍算 VideoSegment.hasAudio 用（studioStore.finalizeInner）；最多留几条，够覆盖「返修 → 再返修 → 还原」。
+   */
+  silentVideos?: string[];
+  /**
    * 成片的**第一帧**（出片时从视频里截的，与 lastFrame 同一次解码），**只管显示**。
    *
    * ★★ 与 `firstFrame` 同名不同物：那是出片**前**画好的设定首帧（Seedream 画的 / 承接来的 /
@@ -1333,6 +1340,12 @@ export interface VideoTemplate {
   id: string;
   title: string;
   intro: string;
+  /**
+   * 本机模板库（data/templates 的 mine）里这一条是**谁的**（user.id，见 data/deviceOwner）。
+   * ★ 只有本机库那几条有它；服务端来的（mineRemote / shared）与套进流水线的快照都不看它。
+   * ★ 可选：升级前存的模板没有它，由升级后第一个登录的人认领。与 `author`（显示名，会变、会重名）不是一回事。
+   */
+  owner?: string;
   /** 封面（dataURL 或站内路径） */
   cover: string;
   /** 市场人话分类（TPL_CATEGORIES 的 id）。缺省 = 未分类（存量模板全是，判否定） */

@@ -10,6 +10,7 @@ import { CHAT_TURN_TOKENS, DECK_MAX_3D, deriveIssue, DECK_MAX_CARDS, DEFAULT_TIE
 import { GenNodeOpts, CUSTOM_MID_MAX, FlowMode, FlowNode, FlowTemplate, appendBlocked, appendIssue, chosenOf, recastBlocked, nodeVideo, tplOfNode, useFlow, keepFirstFrame, redrawCost, usableFrames } from "./flowStore";
 // ★ 依赖方向没破：canvasAgent 只认识 flowStore，不认识本模块（不会成环）
 import { forgetCanvasAgent } from "./canvasAgent";
+import { onOwnerSwitch, ownerEpoch, workOwner } from "../data/deviceOwner";
 import { DraftMode, WorkDraft, WorkDraftMeta, deleteDraft, getDraftMeta, saveDraft } from "../data/drafts";
 import { showToast } from "../data/toast";
 import { t } from "@lingui/core/macro";
@@ -890,6 +891,10 @@ export const EDITOR_SLOTS_MAX = 20;
 let chatSeq = 0;
 // 节点生成的全局并发闸：取消编辑器再重开也不允许并发两炉
 let nodeGenInFlight = false;
+/** 工坊有没有一炉推演在路上 —— 退出登录前要问（studio/signOutGuard）：铸段窗那一炉只挂这把闸与 editor.generating */
+export function studioDeriveInFlight(): boolean {
+  return nodeGenInFlight;
+}
 
 /**
  * 返回栈的层级。**这是返回优先级的唯一定义**——goBack() 与顶栏按钮文案都读它，
@@ -1161,6 +1166,10 @@ export const useStudio = create<StudioState>()((set, get) => ({
 
   forgeCards: async (files, note, type, tierId) => {
     const fileCount = files.length;
+    // 这一炉是谁开的（2026-09-18）：登录失效后换了另一个人登录，这一炉回来时不许在新账号的对话里出声、
+    // 也不许交给新账号收下 —— 抛给 NpcDialog（那一页多半早已卸载，话落空也无妨），dialog.busy 也不归它清
+    const ownerAtStart = workOwner();
+    const switched = () => workOwner() !== ownerAtStart;
     get().meSay(
       note ||
         t({
@@ -1175,8 +1184,11 @@ export const useStudio = create<StudioState>()((set, get) => ({
       //   中间不报进度，用户看到的就是一个不动的"炼卡中…"——与卡死无从区分。
       const { cards, minted, notes } = await generateCards(files, note, type, {
         tierId,
-        onProgress: (status) => set({ forgeProgress: status }),
+        onProgress: (status) => {
+          if (!switched()) set({ forgeProgress: status });
+        },
       });
+      if (switched()) throw new Error(t`这一炉是上一个登录的账号开的，已作废。`);
       if (cards.length === 0) {
         get().npcSay(t`这些素材还差点意思，再补充点描述？`);
         get().setMood(-0.6, 2600);
@@ -1199,6 +1211,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
       //   永远不知道缺的是哪张、为什么缺、要不要重炼（铁律八）。
       return { cards, minted, notes };
     } catch (e) {
+      if (switched()) throw e;
       // 真实 AI 会因为余额/审核/网络失败。以前这里直接 throw 到无人接手的
       // Promise 上，界面只剩一个转不停的"炼卡中…"；现在由铸卡师说出来
       const reason = (e instanceof Error ? e.message : String(e)).slice(0, 80);
@@ -1206,7 +1219,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
       get().setMood(-0.8, 3000);
       throw e;
     } finally {
-      set((s) => ({ dialog: { ...s.dialog, busy: false }, forgeProgress: "" }));
+      if (!switched()) set((s) => ({ dialog: { ...s.dialog, busy: false }, forgeProgress: "" }));
     }
   },
 
@@ -1294,6 +1307,9 @@ export const useStudio = create<StudioState>()((set, get) => ({
       marketOpen: s0.market.open,
       lowBalance: (w?.plan ?? 0) + (w?.addon ?? 0) < CHAT_TURN_TOKENS * 10,
     };
+    // 这一句是谁问的（2026-09-18）：登录失效后换了另一个人登录，回来的那句是答上一个人的 —— 不进新账号的对话、不记账
+    const ownerAtStart = workOwner();
+    const switched = () => workOwner() !== ownerAtStart;
     try {
       const { text: reply } = await (paid ? npcChat : npcChatOffline)({
         text: line,
@@ -1301,14 +1317,16 @@ export const useStudio = create<StudioState>()((set, get) => ({
         system: NPC_SYSTEM,
         deskBlock: deskBlock(desk),
       });
+      if (switched()) return;
       if (paid) spendTokens(CHAT_TURN_TOKENS); // 成功才扣，与 refineProposalFrame 同口径
       get().npcReply(reply, { offline: !paid, seq });
     } catch (e) {
+      if (switched()) return;
       console.warn("[studio] 对话失败:", e); // ★ 技术细节只进 console，不进台词
       const f = chatFailLine(e);
       get().npcReply(f.text, { blocked: f.blocked, offline: !f.blocked, seq });
     } finally {
-      set((st) => ({ dialog: { ...st.dialog, thinking: false } }));
+      if (!switched()) set((st) => ({ dialog: { ...st.dialog, thinking: false } }));
     }
   },
 
@@ -1958,6 +1976,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
       return;
     }
     nodeGenInFlight = true;
+    // 这一炉是谁开的：推演是分钟级异步，回来时已经换了账号的话它不许落进新账号的流水线（见下面锚点校验前那一句）
+    const ownerAtStart = workOwner();
     // live 始终指向本次生成挂在 store 上的最新编辑器对象——进度更新会换对象，
     // 不能再拿发起时的引用做"表单还开着吗"的同一性判断
     let live: EditorState = { ...editor, generating: true, progress: "" };
@@ -1987,6 +2007,10 @@ export const useStudio = create<StudioState>()((set, get) => ({
       );
       // 只有发起时的编辑器仍然打开才由本次生成负责关闭（取消后重开的新表单不受影响）
       const editorPatch = get().editor === live ? { editor: null as EditorState | null } : {};
+      // ★★ 换过账号（2026-09-18）：这一炉是上一个人开的、钱记在他账上。锚点校验拦不住「开炼时流水线是空的」那一种
+      //   （换号清空之后流水线还是空的，anchorOk 照样为真），不在这里拦的话 A 推演出的三套会落进 B 的流水线。
+      //   作废且不在 B 面前提它（那是 A 的事）。
+      if (workOwner() !== ownerAtStart) return;
       // ★ 锚点校验（推演是分钟级异步）：挂载点还是当初那一段、走向没改、流水线没换，
       //   这一炉才有处落。对不上就作废并如实说——appendNode 自己的门禁（末段已出片/
       //   生成中拒）在此之上再拦一层，两层的拒绝都会开口（铁律八）。
@@ -2220,6 +2244,12 @@ export const useStudio = create<StudioState>()((set, get) => ({
   },
   finalizeInner: async (nodes, mode, onProgress, deckOff) => {
     const say = (s: string) => onProgress?.(s);
+    // 组稿期间换过人（2026-09-18 复核抓到）：登录失效后另一个人登录 —— 剩下的提炼卡组 / 3D 建模不再发（每一发都现取 token，
+    // 会记在新账号头上，一个建模约 160k），稿子也不写进 store（persistCutDraft 按 workOwner 落盘 = 落进新账号的剪辑稿，
+    // useFlowActions.cut 随后还会清掉新账号的流水线、把他带去剪辑页）。回 false = 这一次没组成，上层什么都不做。
+    // 主动退出会被 signOutGuard 拦住（finalizing），这里只防被动登出那一种。按换人代数判（见 deviceOwner.ownerEpoch）
+    const epochAtStart = ownerEpoch();
+    const moved = () => ownerEpoch() !== epochAtStart;
     /**
      * ★★ 这次组稿要不要派生卡组 —— **本条规则的唯一实现**（铁律六），
      *   与 saveWorkDraft 里那条「简约模式不进草稿库」并列，理由是同一个：
@@ -2268,7 +2298,15 @@ export const useStudio = create<StudioState>()((set, get) => ({
         videoTier: n.videoTier,
         // 这一段自己出不出声（见 types.VideoSegment.hasAudio 的 ★★）：白模复刻走 r2v、
         // 服务端钉死 generate_audio:false，恒无声；普通段看档位（videoAudioOn 是唯一实现）
-        hasAudio: !tplOfNode(n)?.refVideo && videoAudioOn(tierOf(n.videoTier).model),
+        // ★ 另外两种也恒无声（2026-09-18，2.46 发版复核抓到：原来只看档位与模板，这两种被报成「有声」，
+        //   剪辑页那句「整条都没有声音」就被压掉了）：
+        //   · 现在放的这条是**返修**出的（Proposal.silentVideos，返修走 generate_audio:false 的 edit 任务）；
+        //   · **取回的白模段**：取回安放时 tpl 写死 null（模板归属恢复不了），白模的身份只剩 audioHint 这一位
+        hasAudio:
+          !tplOfNode(n)?.refVideo &&
+          !n.audioHint &&
+          !(real && p.silentVideos?.includes(real)) &&
+          videoAudioOn(tierOf(n.videoTier).model),
         aspect: n.aspect,
         ...(real ? { videoUrl: real } : {}),
       };
@@ -2294,6 +2332,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
         const canDerive = !AI_REAL || canAfford(deckCardsCost());
         if (!canDerive) say(t`余额不足，跳过卡组提炼（成片不受影响）`);
         if (!canDerive) throw new Error("skip-derive");
+        if (moved()) throw new Error("owner-moved");
         say(t`提炼本片卡组…`);
         const derived = await deriveDeckCards(
           // ★ V3：带上成片地址与实测时长，deriveDeckCards 能抽帧就看片提炼（卡面贴合原片）
@@ -2325,6 +2364,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
             if (AI_REAL && !canAfford(deckModel3dCost(want))) {
               say(t`3D 建模需 ${price} token，余额不足，跳过`);
             } else {
+              if (moved()) throw new Error("owner-moved");
               say(t`这是 3D 画风，顺便铸 ${want} 个建模（${price} token）…`);
               const before = fresh.filter((c) => c.modelUrl).length;
               await deriveCharacterModels(fresh, DECK_MAX_3D, say);
@@ -2334,6 +2374,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
           }
         }
       } catch (e) {
+        if (moved()) return false;
         if (!(e instanceof Error && e.message === "skip-derive")) console.warn("[studio] 卡组提炼回退按段场景卡:", e);
         if (deckCards.length === 0) {
           deckCards.push(
@@ -2349,6 +2390,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
         }
       }
     }
+    if (moved()) return false;
     set({
       // ★ 新的合成稿一出现，上一次发布就翻篇（publishedWorkId 的清零规则只有这一条：
       //   "draft 被赋新值"。openSegmentEdit 是另一个赋新值的地方，同样清）
@@ -2767,6 +2809,43 @@ export const useStudio = create<StudioState>()((set, get) => ({
 export function publishedExit(): string | null {
   return useStudio.getState().publishedWorkId ? "/" : null;
 }
+
+// ★★ 换成另一个账号的那一拍：工坊内存里的东西是**上一个人**的（2026-09-18，见 data/deviceOwner 与 flowStore 同一段）。
+//   桌上的卡组（A 的卡，可能是真人卡）、铸段窗、剪辑页那份合成稿（B 在 /cut、/publish 能直接发出去）、
+//   与草稿的关联（workDraftId 还指着 A 的草稿）、工坊对话（会作为历史一起发进 B 的 chat 请求）、拖进来待铸卡的文件
+//   （A 的照片）、对画布说话的多轮记忆 —— 一样都不许留给 B。镜头、心情、语气这类纯界面状态留着。
+onOwnerSwitch(() => {
+  forgetCanvasAgent();
+  useStudio.setState((s) => ({
+    deck: [],
+    activeDeck: null,
+    spreadOpen: false,
+    canvasOpen: false,
+    deckView: false,
+    market: { ...s.market, open: false, items: [], query: "", loading: false, page: 0 },
+    marketDetail: null,
+    dialog: { messages: [], busy: false, thinking: false },
+    pendingFiles: [],
+    forgeProgress: "",
+    focus: null,
+    projection: null,
+    editor: null,
+    dragCardId: null,
+    dialogView: false,
+    flights: [],
+    draft: null,
+    draftAudioHint: null,
+    segEdit: null,
+    publishedWorkId: null,
+    workDraftId: null,
+    savedDoneCount: 0,
+    finalizing: false,
+    frameRefining: null,
+    proposalRegen: null,
+    nodeGen: null,
+    notice: null,
+  }));
+});
 
 // DEV 调试/E2E 挂钩：让自动化脚本能拿到与组件同实例的 store
 if (import.meta.env.DEV) {

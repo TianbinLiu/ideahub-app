@@ -306,7 +306,9 @@ export default function StudioPage() {
           </button>
           {/* ★ 摆在浮动顶栏右侧这一组里，而不是画面角落硬定位：这一屏是 3D 画布，
               任何 absolute 的小控件都可能压住法阵/卡位（都是量出来的位置） */}
-          <HelpButton tour="studio" className="bg-panel/85 backdrop-blur" />
+          {/* 圆的底色走 circleClassName：className 落在外层那个 44×44 命中区上（HelpButton 的 @param），
+              传给它的话「?」会被画成一块深色方块（2026-09-18 发版复核抓到，首页那颗早就改了） */}
+          <HelpButton tour="studio" circleClassName="bg-panel/85 backdrop-blur" />
           {/* 存草稿：桌面上有东西才亮。工坊侧此前完全没有落盘手段——摆了半天卡、
               推演了几炉，刷新一下全没（两个 store 都是纯内存单例） */}
           {

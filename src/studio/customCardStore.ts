@@ -12,11 +12,17 @@
 //   把 store 变成一面复读机。
 // ★ `mounted` 给结局分叉用：页在 → 直接画在页上（跳转/就地显示）；页不在 → 走胶囊通知。
 //   `resetCardDraft` 不动它（铸成跳走前要 reset，而那一刻页还在）。
-// ★ 依赖方向：data → store → 组件。这里只认 types 与 data/promptSchemes。
-import { useCallback } from "react";
+// ★ 依赖方向：data → store → 组件。这里只认 types、data/promptSchemes 与 data/deviceOwner。
+// ★★ 表单是**谁的**（2026-09-18 主人真机点名同一台手机换账号后数据串号）：里面有 A 的照片、真人声明与授权
+//   （pendingAsset —— 铸卡时会绑到**新卡**上，绑的是 A 授权的那个真实的人）、声音样本、付过钱的 AI 图位。
+//   原来换号不清，B 进这一页看到的就是 A 的表单，点「铸卡」会把 A 的授权绑到 B 的卡上。现在换号那一拍把 A 的表单
+//   收进暗格（parkedDrafts，只在这一进程里）、给 B 一份空的；A 再登录回来原样还给他。A 还在跑的 AI 出图回包
+//   经 useDraftField 的 setter 落回 A 的暗格，不落进 B 的表单（见那里的 bornOwner）。
+import { useCallback, useRef } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { create } from "zustand";
 import { defaultScheme } from "../data/promptSchemes";
+import { onOwnerSwitch, workOwner } from "../data/deviceOwner";
 import type { CardType, CardView } from "../types";
 
 /** 一个图位上已经准备好的那张图 */
@@ -196,6 +202,25 @@ export function initialDraft(): CustomCardDraft {
 
 export const useCardDraft = create<CustomCardDraft>()(() => initialDraft());
 
+/** store 里现在这份表单是谁的（第一次问时取「内存里这摊活的主人」） */
+let draftOwner = "";
+function ownerOfDraft(): string {
+  if (!draftOwner) draftOwner = workOwner();
+  return draftOwner;
+}
+/** 别的账号做到一半的表单（只在这一进程里，不落盘 —— 这一页本来就不落盘） */
+const parkedDrafts = new Map<string, CustomCardDraft>();
+
+onOwnerSwitch((prev, next) => {
+  const cur = useCardDraft.getState();
+  // 上一个人做到一半的收进暗格；空表单不必收
+  if (draftDirty(cur) || draftBusy(cur)) parkedDrafts.set(prev, { ...cur, mounted: false });
+  const back = parkedDrafts.get(next);
+  parkedDrafts.delete(next);
+  useCardDraft.setState({ ...(back ?? initialDraft()), mounted: cur.mounted }, true);
+  draftOwner = next;
+});
+
 /** 清空重来（铸成跳走、或用户点「重新开始」）。`mounted` 原样保留 */
 export function resetCardDraft(): void {
   useCardDraft.setState({ ...initialDraft(), mounted: useCardDraft.getState().mounted }, true);
@@ -228,16 +253,23 @@ export function useDraftField<K extends keyof CustomCardDraft>(
   key: K,
 ): [CustomCardDraft[K], Dispatch<SetStateAction<CustomCardDraft[K]>>] {
   const value = useCardDraft((s) => s[key]);
+  // 这个字段是**替谁写的**：挂载那一拍的主人。换过账号之后，上一个人还在跑的活（AI 出图回包）调到这个 setter，
+  // 写回的是他自己暗格里的那份表单，不落进新账号的表单（见文件头 ★★）
+  const bornOwner = useRef(ownerOfDraft()).current;
   const set = useCallback<Dispatch<SetStateAction<CustomCardDraft[K]>>>(
     (v) => {
-      useCardDraft.setState(
-        (s) =>
-          ({
-            [key]: typeof v === "function" ? (v as (prev: CustomCardDraft[K]) => CustomCardDraft[K])(s[key]) : v,
-          }) as Partial<CustomCardDraft>,
-      );
+      const patch = (s: CustomCardDraft) =>
+        ({
+          [key]: typeof v === "function" ? (v as (prev: CustomCardDraft[K]) => CustomCardDraft[K])(s[key]) : v,
+        }) as Partial<CustomCardDraft>;
+      if (!bornOwner || bornOwner === ownerOfDraft()) {
+        useCardDraft.setState(patch);
+        return;
+      }
+      const parked = parkedDrafts.get(bornOwner);
+      if (parked) parkedDrafts.set(bornOwner, { ...parked, ...patch(parked) });
     },
-    [key],
+    [key, bornOwner],
   );
   return [value, set];
 }

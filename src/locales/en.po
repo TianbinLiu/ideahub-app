@@ -163,6 +163,7 @@ msgstr ", upscaled to {REF_SHORT_MIN}px on the short side"
 #. 列举几个文件名 / 动作组 / 表情名时的分隔符
 #. 列举几个段号时的分隔符（第 1、3 段）
 #. 列举几个角色位时的分隔符
+#. 列举几件后台任务名时的分隔符
 #. 列举删号时清掉的几类数据时的分隔符
 #: src/components/blockout/RoleCastBoard.tsx
 #: src/components/blockout/RoleConfirmSheet.tsx
@@ -176,6 +177,7 @@ msgstr ", upscaled to {REF_SHORT_MIN}px on the short side"
 #: src/pages/CutPage.tsx
 #: src/pages/SupportModelNewPage.tsx
 #: src/studio/flowStore.ts
+#: src/studio/signOutGuard.ts
 #: src/studio/studioStore.ts
 msgid "、"
 msgstr ", "
@@ -1510,6 +1512,10 @@ msgstr "The text in the “Character info” step is what the AI reads later whe
 #: src/components/guide/tours.tsx
 msgid "「关注」那格点开是你关注过的人的名单，就地能取关。 旁边两个是你<0>所有作品加起来</0>的总数，不是某一支的。"
 msgstr "Tap “Following” to open the list of people you follow, where you can unfollow them on the spot. The two next to it are totals for <0>all your videos combined</0>, not for any single one."
+
+#: src/studio/signOutGuard.ts
+msgid "「自己传图做卡片」那一页还有活在跑（AI 出图 / 铸卡），等它跑完再退出登录，卡才会落在这个账号里。"
+msgstr "“Make a card from your own images” still has work running (AI images / minting). Wait for it to finish before logging out, so the card lands in this account."
 
 #: src/components/blockout/arkVideoRules.ts
 msgid "「自己挑」现在一帧有效的标记都没有（还没标，或者标的那几帧都落到选段外面去了）。AI 得看着画面才认得出里面有哪些人——把播放头拖到有人的地方点「标记这一帧」（至少 1 帧、最多 {BLOCKOUTIZE_FRAME_MAX} 帧），或者切回「自动」。"
@@ -3235,6 +3241,14 @@ msgstr "Upload timed out: this {mb} file didn't finish within {secs} seconds. Yo
 msgid "上传超时（网络太慢或作品太大）"
 msgstr "Upload timed out (the connection is too slow or the video is too large)"
 
+#: src/data/videos.ts
+msgid "上传途中换了登录的账号，这一条先不发——等原来那个账号再登录时会自动补发"
+msgstr "The signed-in account changed during the upload, so this one wasn't published yet — it will be published automatically when the original account logs in again"
+
+#: src/data/videos.ts
+msgid "上传途中登录失效了，这一条先不发——重新登录这个账号后会自动补发"
+msgstr "Your login expired during the upload, so this one wasn't published yet — it will be published automatically when you log in to this account again"
+
 #: src/components/VoiceUploadButton.tsx
 msgid "上传音频"
 msgstr "Uploaded audio"
@@ -3606,6 +3620,18 @@ msgstr "mainland China"
 #: src/studio/stage/stageState.ts
 msgid "中景"
 msgstr "Medium shot"
+
+#: src/pages/CutPage.tsx
+msgid "中途换了账号，剩下的段没有重做"
+msgstr "The account changed partway through, so the remaining segments weren't redone"
+
+#: src/studio/personaWizardStore.ts
+msgid "中途换了账号，草稿还没写——再点一次生成。"
+msgstr "The account changed partway through, so the draft wasn't written — tap generate again."
+
+#: src/studio/live2dUploadStore.ts
+msgid "中途换了账号：包已经传上去了，还没识别——再点一次「开始识别」。"
+msgstr "The account changed partway through: the package was uploaded but hasn't been detected yet — tap “Start detection” again."
 
 #: src/components/flow/RefFrameSheet.tsx
 msgid "中间帧最多 {midMax} 张"
@@ -4083,6 +4109,10 @@ msgstr "Video content"
 msgid "作品库没能打开"
 msgstr "Couldn't open your library"
 
+#: src/studio/signOutGuard.ts
+msgid "作品正在上传，等它传完再退出登录——现在退出的话，要等你再登录这个账号时才会补发。"
+msgstr "A video is uploading. Wait for it to finish before logging out — if you log out now, it will only be published after you log back in to this account."
+
 #: src/pages/AdminPage.tsx
 msgid "作品管理列表"
 msgstr "video management list"
@@ -4493,6 +4523,10 @@ msgstr "Write what this segment should show first"
 #: src/pages/FlowPage.tsx
 msgid "先写那句话"
 msgstr "Write the sentence first"
+
+#: src/pages/SettingsPage.tsx
+msgid "先别退出登录"
+msgstr "Don't log out yet"
 
 #: src/components/support/VoiceSheet.tsx
 msgid "先加一味音色再保存。"
@@ -5308,6 +5342,10 @@ msgstr "The app went to the background — that won't corrupt the merge, but the
 msgid "刚才挂卡的是另一个模板（这条流水线上套的模板中途换过了）——回模板详情页重新套用一次再挂卡"
 msgstr "The cards you just attached were for a different template (this pipeline's template was changed in the meantime) — go back to the template page, apply it again, then attach the cards"
 
+#: src/pages/CustomCardPage.tsx
+msgid "刚才那张照片到得太晚了：这一格你已经放了别的图，就不替换了"
+msgstr "That photo arrived too late: you already put another image in this slot, so it was not replaced"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "刚点到：{hitText}"
 msgstr "Just touched: {hitText}"
@@ -5611,6 +5649,14 @@ msgstr "Video editor"
 #: src/components/guide/tours.tsx
 msgid "剪辑：不花钱的整理"
 msgstr "Edit: free tidying up"
+
+#: src/pages/CutPage.tsx
+msgid "剪辑中的稿子已经关掉或换成了别的，剩下的段没有重做"
+msgstr "The draft being edited was closed or replaced, so the remaining segments weren't redone"
+
+#: src/pages/CutPage.tsx
+msgid "剪辑中的稿子已经关掉或换成了别的：这一段重拍好的成片没有写进去（下次进创作入口，它会出现在「取回」卡上）；剩下的段没有重做"
+msgstr "The draft being edited was closed or replaced: this segment's redone video wasn't added to it (it will show up on a “Recover” card the next time you open the Create page); the remaining segments weren't redone"
 
 #. 接在「……，但」后面说的从句（CutPage / useFlowActions 拼进句子里）：英文小写开头
 #: src/studio/studioStore.ts
@@ -6404,6 +6450,10 @@ msgstr "Recovering…"
 msgid "取回最新工程重来"
 msgstr "Get the latest project and start over"
 
+#: src/studio/flowStore.ts
+msgid "取回期间换了账号，这一发留给原来那个账号，下次登录时再取。"
+msgstr "The account changed while retrieving. This result is kept for the original account to retrieve the next time it logs in."
+
 #. placeholder {0}: blob.type || "?"
 #: src/data/cardViews.ts
 msgid "取回来的不是图片（{0}）"
@@ -6934,6 +6984,11 @@ msgstr "Name"
 #: src/components/VideoCardAnnotator.tsx
 msgid "名字（必填，≤{NAME_MAX} 字）"
 msgstr "Name (required, up to {NAME_MAX} characters)"
+
+#. placeholder {0}: jobs.length
+#: src/studio/signOutGuard.ts
+msgid "后台还有 {0} 件活在跑（{names}），等它们跑完再退出登录，结果才会落在这个账号里。"
+msgstr "Background jobs still running: {0} ({names}). Wait for them to finish before logging out, so the results land in this account."
 
 #: src/pages/CutPage.tsx
 msgid "后移 ▶"
@@ -7865,6 +7920,10 @@ msgstr "Cover card"
 msgid "封面没传上去，换一张再试。"
 msgstr "The cover didn't upload. Try a different image."
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "封面还在处理，等它好了再发布。"
+msgstr "The cover is still being processed. Publish once it is ready."
+
 #: src/pages/SupportPage.tsx
 msgid "小梦"
 msgstr "Xiaomeng"
@@ -7952,6 +8011,10 @@ msgstr "Workflow canvas"
 msgid "工作流画布：同一条流水线的另一面"
 msgstr "Workflow canvas: the other side of the same pipeline"
 
+#: src/studio/signOutGuard.ts
+msgid "工作流里有一段正在跑（出片 / 推演 / 重画 / 取回；要花钱的那几样，钱在提交那一刻已经扣了）。等它跑完再退出登录，结果才会稳稳落在这个账号里。"
+msgstr "A segment is still running in the workflow (rendering, generating options, redrawing or retrieving; the paid ones were charged when submitted). Wait for it to finish before logging out, so the result lands safely in this account."
+
 #: src/pages/SupportPage.tsx
 msgid "工单"
 msgstr "Tickets"
@@ -7991,6 +8054,10 @@ msgstr "The Studio is editing an image — wait for it to finish before replacin
 #: src/studio/studioStore.ts
 msgid "工坊里正在重推方案，等它跑完再换桌面"
 msgstr "The Studio is redrafting plans — wait for it to finish before replacing the table"
+
+#: src/studio/signOutGuard.ts
+msgid "工坊里还有一步在跑（推演方案 / 重画画面 / 改图，钱已经在花了），等它跑完再退出登录。"
+msgstr "A step is still running in the workshop (generating options / redrawing / editing an image — it's already being charged). Wait for it to finish before logging out."
 
 #: src/components/DraftTitle.tsx
 msgid "工程名"
@@ -9154,12 +9221,24 @@ msgid "成片写入本地库失败（存储配额？）"
 msgstr "Couldn't save the video to local storage (out of space?)"
 
 #: src/pages/CutPage.tsx
+msgid "成片合好了，但剪辑中的稿子已经关掉或换成了别的，这一条没有接上——回到那份稿子再合一次（合成不花钱）"
+msgstr "The video was merged, but the draft being edited was closed or replaced, so it wasn't attached — go back to that draft and merge again (merging is free)"
+
+#: src/pages/CutPage.tsx
 msgid "成片合好了，去发布吧"
 msgstr "Your video is merged — go publish it"
 
 #: src/api/uploads.ts
 msgid "成片太大（{mb}MB，这台服务器的上限是 20MB）——先在剪辑页压一档画质再发。"
 msgstr "The finished video is too big ({mb}MB; this server's limit is 20MB) — lower the quality by one step on the editing page, then publish."
+
+#: src/components/flow/SegmentRecoverCards.tsx
+msgid "成片已经取回，放进了流水线，也存进了草稿"
+msgstr "Video recovered: it is in the pipeline and saved to your drafts"
+
+#: src/components/flow/SegmentRecoverCards.tsx
+msgid "成片已经取回。简约模式不存草稿——趁现在把它剪完发出去，App 被关掉的话这一段就找不回来了"
+msgstr "Video recovered. Simple mode does not save drafts — edit and publish it now; if the app is closed, this segment cannot be recovered again"
 
 #: src/pages/CutPage.tsx
 msgid "成片已经合好了，但{cutWhy}"
@@ -9170,8 +9249,8 @@ msgid "成片已经落回流水线，但自动存草稿没成（存储空间不�
 msgstr "The video is back in the pipeline, but the automatic draft save failed (low storage or private mode). Don't close the app yet: go to the Studio and tap “Save draft” once"
 
 #: src/components/flow/SegmentRecoverCards.tsx
-msgid "成片已落回流水线，正在存草稿…"
-msgstr "The video is back in the pipeline. Saving draft…"
+#~ msgid "成片已落回流水线，正在存草稿…"
+#~ msgstr "The video is back in the pipeline. Saving draft…"
 
 #: src/components/CoverPicker.tsx
 msgid "成片解码失败——换「本地上传」或下面各段的首尾帧"
@@ -9780,6 +9859,14 @@ msgstr "Rendering from the reference video + {0, plural, one {# key frame} other
 #: src/studio/segmentGen.ts
 msgid "按圈选改画面 {0}/{1}…"
 msgstr "Applying circle edits {0}/{1}…"
+
+#: src/pages/CutPage.tsx
+msgid "按圈选重做"
+msgstr "Redo from circles"
+
+#: src/pages/CutPage.tsx
+msgid "按圈选重做好了，回剪辑页看看"
+msgstr "Redo from circles is done — go back to the editor to take a look"
 
 #: src/ai/real.ts
 msgid "按导演台构图出图（{count} 张参考）…"
@@ -11009,8 +11096,16 @@ msgid "有一段正在生成中，等它跑完再铸下一段"
 msgstr "A segment is generating. Wait for it to finish before forging the next one"
 
 #: src/studio/flowStore.ts
-msgid "有一段生成完了，但它已经不在了"
-msgstr "A segment finished generating, but it's no longer there"
+#~ msgid "有一段生成完了，但它已经不在了"
+#~ msgstr "A segment finished generating, but it's no longer there"
+
+#: src/studio/flowStore.ts
+msgid "有一段生成完了，但它已经不在流水线里——去取回卡把它领回来"
+msgstr "A segment finished generating, but it's no longer in the pipeline — recover it from the recovery card"
+
+#: src/studio/signOutGuard.ts
+#~ msgid "有一段视频正在生成（钱在提交那一刻已经扣了）。等它出片再退出登录，结果才会稳稳落在这个账号里。"
+#~ msgstr "A video segment is generating (it was charged when submitted). Wait for it to finish before logging out, so the result lands safely in this account."
 
 #: src/studio/flowStore.ts
 msgid "有两张不同的卡都叫「{cardName}」（位置 {slotLabel} 挂的是其中一张）——出片时靠角色名把形象图接到这个位子上，重名就分不出谁是谁，会换错人。请给其中一张改个名字，或换一张卡"
@@ -11976,6 +12071,10 @@ msgstr "Grabbing this frame…"
 msgid "正在取这一段的视频地址…"
 msgstr "Getting this segment's video address…"
 
+#: src/studio/signOutGuard.ts
+msgid "正在合成挂卡的点名句，等它跑完再退出登录。"
+msgstr "Writing the casting lines for the attached cards. Wait for it to finish before logging out."
+
 #: src/ai/minimaxVideo.ts
 msgid "正在向上游核对这一发的状态…（查询不花钱）"
 msgstr "Checking this run's status with upstream… (checking is free)"
@@ -12121,6 +12220,10 @@ msgstr "Checking whether this video has a kept Studio project…"
 #: src/pages/SettingsStoragePage.tsx
 msgid "正在算可清理的空间…"
 msgstr "Calculating reclaimable space…"
+
+#: src/studio/signOutGuard.ts
+msgid "正在组稿（铸卡组），等它跑完再退出登录。"
+msgstr "Assembling the video (minting the deck). Wait for it to finish before logging out."
 
 #: src/data/templates.ts
 msgid "正在裁出你框选的那一段…"
@@ -14075,6 +14178,10 @@ msgstr "Real-person face verification"
 #: src/components/flow/SkillPanel.tsx
 msgid "真删？"
 msgstr "Really delete?"
+
+#: src/components/flow/DeleteSegBtn.tsx
+msgid "真的删？推演出的方案会没（花过的 token 不退）"
+msgstr "Really delete? The generated options will be gone (tokens spent are not refunded)"
 
 #: src/components/flow/DeleteSegBtn.tsx
 msgid "真的删？这段成片会没"
@@ -16272,17 +16379,27 @@ msgid "语音播报：开"
 msgstr "Voice replies: on"
 
 #: src/components/support/HoldToTalk.tsx
-msgid "语音识别失败"
-msgstr "Speech recognition failed"
+#~ msgid "语音识别失败"
+#~ msgstr "Speech recognition failed"
 
 #. placeholder {0}: e instanceof Error ? e.message : String(e)
 #: src/components/support/HoldToTalk.tsx
 msgid "语音识别失败：{0}"
 msgstr "Speech recognition failed: {0}"
 
+#. placeholder {0}: e.status
+#: src/components/support/HoldToTalk.tsx
+msgid "语音识别失败（HTTP {0}），先打字吧。"
+msgstr "Speech recognition failed (HTTP {0}). Type instead for now."
+
 #: src/components/support/HoldToTalk.tsx
 msgid "语音识别暂时不可用（上游没接住），先打字吧。"
 msgstr "Speech recognition is temporarily unavailable (the upstream service didn't respond). Please type for now."
+
+#. placeholder {0}: e.status
+#: src/components/support/HoldToTalk.tsx
+msgid "语音识别暂时不可用（服务器那头出了问题，{0}），先打字吧。"
+msgstr "Speech recognition is unavailable right now (a server-side error, {0}). Type instead for now."
 
 #: src/pages/SimpleModePage.tsx
 msgid "说一句想拍什么，AI 直接出一条短片"
@@ -17236,8 +17353,12 @@ msgid "这一段后面还有别的段：退回铸段窗重铸只能接在最后�
 msgstr "There are more segments after this one: going back to the segment window re-forges it at the end of the pipeline. To change this segment's mode, delete the segments after it first, then go back."
 
 #: src/studio/flowStore.ts
-msgid "这一段在生成过程中被删掉了（或整条流水线被换过）——这一炉的钱已经扣了，成片没处放。下次等它跑完再动流水线"
-msgstr "This segment was deleted while generating (or the pipeline was replaced) — the run has already been charged and the video has nowhere to go. Next time, wait for it to finish before changing the pipeline"
+msgid "这一段在生成过程中被删掉了（或整条流水线被换过）——成片已经出来了，钱在提交时已经扣过：用取回卡把它领回来，会新开一段放它，不再花钱。"
+msgstr "This segment was deleted while it was generating (or the whole pipeline was replaced). The video is ready and was already charged when submitted: recover it from the recovery card — it will be added as a new segment at no extra charge."
+
+#: src/studio/flowStore.ts
+#~ msgid "这一段在生成过程中被删掉了（或整条流水线被换过）——这一炉的钱已经扣了，成片没处放。下次等它跑完再动流水线"
+#~ msgstr "This segment was deleted while generating (or the pipeline was replaced) — the run has already been charged and the video has nowhere to go. Next time, wait for it to finish before changing the pipeline"
 
 #: src/studio/canvasAgent.ts
 msgid "这一段在确认之前被改过了（时长/画面/选中的走向变了）：现在要 {nowLabel}，卡上写的是 {cardLabel}——重说一句，我按新价再摆一张卡"
@@ -17292,6 +17413,10 @@ msgstr "This segment can't use voice samples (this tier's rendering mode is inco
 #: src/studio/flowStore.ts
 msgid "这一段带着参考视频，出片时不接受圈选改画面——这 {0} 处得先清掉才能开炼（它们也不计费）。"
 msgstr "This segment has a reference video, so circled edits aren't accepted when generating — {0, plural, one {clear this # edit before you start (it isn't charged).} other {clear these # edits before you start (they aren't charged).}}"
+
+#: src/components/support/HoldToTalk.tsx
+msgid "这一段录得太长了，说短一点再试。"
+msgstr "That recording was too long. Try a shorter one."
 
 #: src/studio/ui/projection.tsx
 msgid "这一段怎么拍？挑一张"
@@ -17457,6 +17582,10 @@ msgstr "This run has no plans, so no segment can be forged"
 msgid "这一炉推演失败了：{reason}——歇口气再点一次「🎲 推演三套方案」。"
 msgstr "Drafting failed this time: {reason} — take a breath and tap “🎲 Draft three plans” again."
 
+#: src/studio/studioStore.ts
+msgid "这一炉是上一个登录的账号开的，已作废。"
+msgstr "This batch was started by the previously signed-in account and has been discarded."
+
 #: src/components/ForgeOverlay.tsx
 msgid "这一炉没成"
 msgstr "This render failed"
@@ -17561,6 +17690,10 @@ msgstr "This zip is about {zipMb}MB, over the {maxMb}MB limit. Textures are usua
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "这个人偶在画面上排第几（点一下换）"
 msgstr "This mannequin's position in the picture (tap to change)"
+
+#: src/pages/SupportPersonasPage.tsx
+msgid "这个人格已经被作者删掉或下架了，刷新列表看看别的。"
+msgstr "This persona was deleted or unlisted by its author. Refresh the list to find another."
 
 #: src/pages/SupportPersonasPage.tsx
 msgid "这个人格没有公开，只有作者自己能用。"
@@ -19201,6 +19334,10 @@ msgstr "Card upload"
 #: src/studio/ui/NpcDialog.tsx
 msgid "铸卡师"
 msgstr "Card smith"
+
+#: src/studio/signOutGuard.ts
+msgid "铸卡师正在炼卡（出图的钱已经在花了），等这一炉出炉再退出登录，卡才会落在这个账号里。"
+msgstr "The card smith is forging cards (the images are already being charged). Wait for this batch to finish before logging out, so the cards land in this account."
 
 #: src/components/guide/tours.tsx
 #: src/pages/SettingsPage.tsx

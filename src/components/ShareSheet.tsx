@@ -214,7 +214,9 @@ export default function ShareSheet({
       // 先关掉分享面板再由详情页开下载面板：两层弹层永不叠加，Sheet 的 z-50 就够用
       onTap: () => saveLocal?.onTap(),
     },
-  ];
+    // ★ saveLocal === null = 这个入口**在这里不存在**（见组件头那段）：不画，而不是画一颗永远灰着的键
+    //   （2026-09-18 发版复核抓到：首页那颗分享键拿到的正是 null，面板里第四项恒灰 —— 界面上摆一个永远点不动的选项）
+  ].filter((o) => o.key !== "save" || saveLocal !== null);
 
   return createPortal(
     <div

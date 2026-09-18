@@ -39,6 +39,7 @@ import { create } from "zustand";
 import type { MessageDescriptor } from "@lingui/core";
 import { msg, t } from "@lingui/core/macro";
 import { currentRoute, startJob } from "../data/jobs";
+import { onOwnerSwitch, workOwner } from "../data/deviceOwner";
 import { companionBus } from "../companion/bus";
 import { setPreviewMapping, type CompanionMapping } from "../live2d/mapping";
 import type { BundleCheck, BundlePreview } from "../live2d/bundlePreview";
@@ -330,16 +331,19 @@ export async function pickBundle(file: File): Promise<void> {
     progress: t`正在解开压缩包…`,
     step: "pick",
   });
+  // 解包要几秒：这期间换了人，结果写回发起人那一份（见文件末尾「按账号分开」）
+  const slot = draftSlot(ownerOfDraft());
   let check: BundleCheck;
   try {
     check = await readLive2dBundle(file, MAX_LIVE2D_BUNDLE_BYTES);
   } catch (e) {
-    set({ busy: "", progress: "", readErr: e instanceof Error ? e.message : t`这个文件读不了。` });
+    slot.set({ busy: "", progress: "", readErr: e instanceof Error ? e.message : t`这个文件读不了。` });
     return;
   }
   const entry = check.entries[0] || "";
-  set({ check, entry, busy: "", progress: "" });
+  slot.set({ check, entry, busy: "", progress: "" });
   if (check.issues.length || !entry) return; // 不合格：停在第 ① 步，页面把 issues 逐条红字列出来
+  if (!slot.live()) return; // 收在暗格里的那一份停在第 ① 步，他回来再点下一步建预览
   await buildPreview(entry);
 }
 
@@ -363,9 +367,15 @@ export async function buildPreview(entry: string): Promise<void> {
     return;
   }
   set({ ...wipe, busy: "preview", progress: t`正在准备预览…`, entry, previewState: "loading", previewErr: "", previewHealed: false, step: "preview" });
+  const slot = draftSlot(ownerOfDraft());
   try {
     dropPreview();
     const preview = await createBundlePreview(s.check, entry);
+    if (!slot.live()) {
+      // 换过人：这份预览收进发起人的暗格，不登记给运行时（台上已经是别人的了）；还给他的那一拍换新地址重新登记
+      slot.set({ preview, previewUrl: preview.modelUrl, busy: "", progress: "" });
+      return;
+    }
     // 服务端还没看过这个包时 `mapping` 是 null —— 登记的会是一份**空映射**（见 publishPreviewMapping 的第二个 ★★），
     // 也就是这一步的预览只验"画不画得出来"，动作 / 表情 / 触摸暂时都不响应。这是刻意的取舍，别改成登记 null。
     publishPreviewMapping(preview.modelUrl, get().mapping);
@@ -375,7 +385,7 @@ export async function buildPreview(entry: string): Promise<void> {
     //   不清的话舞台仍按 `!!s.previewUrl` 挂着、去加载一个**已经被撤销的地址**，而那颗
     //   「重新加载预览」（`disabled={!s.preview}`）也仍然亮着 —— 它调的 `preview.reload()` 闭包里
     //   锁着的是**上一个 entry**，于是"换了入口 → 建预览失败 → 点重新加载"画出来的是用户没选的那个模型，零报错。
-    set({
+    slot.set({
       preview: null,
       previewUrl: "",
       previewHealed: false,
@@ -451,8 +461,10 @@ export async function startBundleInspect(): Promise<void> {
   const controller = new AbortController();
   inspectAbort = controller;
   const job = startJob({ kind: "live2d-inspect", title: t`识别模型包`, page: currentRoute(), progress: t`准备上传…` });
+  // 回包写回发起它的那个人（换过账号就是他的暗格，见文件末尾「按账号分开」）
+  const slot = draftSlot(ownerOfDraft());
   const step = (text: string) => {
-    set({ progress: text });
+    slot.set({ progress: text });
     job.update(text);
   };
   set({ busy: "upload", inspectErr: "", step: "inspect" });
@@ -483,6 +495,12 @@ export async function startBundleInspect(): Promise<void> {
         step(t`这台服务器还没开直传，改走慢的那条（约 ${mb}MB，超过 15MB 可能会超时）…`);
       }
     }
+    // ★ 传完换过账号就不发识别那一发：每一发请求都现取 token，这一发会记在新账号头上（见文件末尾那段 ★）
+    if (!slot.live()) {
+      slot.set({ bundleRef, directOn, busy: "", progress: "", inspectErr: t`中途换了账号：包已经传上去了，还没识别——再点一次「开始识别」。` });
+      job.done({ silent: true });
+      return;
+    }
     set({ bundleRef, directOn, busy: "inspect" });
     // ★ 两条路这一步做的事完全不同，别用同一句话糊过去：直传那条只是让服务器去 Cloudinary 取包（秒级），
     //   multipart 那条是**现在才开始把 25MB 推上去**（分钟级）—— 说成"正在解包识别"的话，
@@ -493,7 +511,7 @@ export async function startBundleInspect(): Promise<void> {
     const result = await inspectLive2dBundle(bundleRef ? { bundleRef, entry } : { file, entry }, controller.signal);
     // ★ 服务端可能按别的入口读（我们传了 entry，正常会一致）；以它回的那个为准，别两边各记一份
     const mapping = result.mapping ?? null;
-    set({
+    slot.set({
       inspect: result,
       entry: result.entry || entry,
       mapping,
@@ -502,20 +520,21 @@ export async function startBundleInspect(): Promise<void> {
       progress: "",
       step: "inspect",
     });
-    publishPreviewMapping(get().previewUrl, mapping);
+    // 收进暗格的那一份不碰运行时：还给他的那一拍按新映射重新登记（见文件末尾 onOwnerSwitch）
+    if (slot.live()) publishPreviewMapping(get().previewUrl, mapping);
     // ★★ 必须把预览重加载一遍：`resolveParamIds` 只在模型构造时算一次，而这份映射里的**参数 id**
     //   （旧式 PARAM_ANGLE_X 之类）正是这一步才知道。不重载的话预览一直按标准参数名读写 ——
     //   模型转头 / 眨眼 / 口型全部静默失效，第 ⑤ 步试跑会把一个其实没问题的包判成坏的。
     //   （动作 / 表情 / 触摸的改动不用重载，那三样是现读的，见 publishPreviewMapping 的 ★★。）
-    reloadPreview();
-    if (get().mounted) job.done({ silent: true });
+    if (slot.live()) reloadPreview();
+    if (slot.get()?.mounted) job.done({ silent: true });
     else job.done({ msg: t`模型包识别好了，回去接着填。`, route: "/support/models/new" });
   } catch (e) {
     // ★ 「用户自己点了取消」不是失败：说成失败会让人以为传坏了、再传一次（又是几分钟）
     const aborted = e instanceof DOMException && e.name === "AbortError";
     const text = aborted ? t`已取消上传。要发布的话重新点一次「开始识别」。` : companionErrorText(e, t`识别失败了，再试一次。`);
-    set({ busy: "", progress: "", inspectErr: text });
-    if (get().mounted || aborted) job.done({ silent: true });
+    slot.set({ busy: "", progress: "", inspectErr: text });
+    if (slot.get()?.mounted || aborted) job.done({ silent: true });
     else job.fail(t`模型包识别失败：${text}`, "/support/models/new");
   } finally {
     if (inspectAbort === controller) inspectAbort = null;
@@ -557,12 +576,13 @@ export async function uploadCover(blob: Blob, filename: string): Promise<void> {
     set({ coverBusy: "", coverErr: t`这张图太大了（${mb}MB，上限 ${cap}MB），换一张小一点的。` });
     return;
   }
+  const slot = draftSlot(ownerOfDraft());
   set({ coverBusy: t`正在上传封面…`, coverErr: "" });
   try {
     const url = await uploadImage(blob, filename);
-    set({ coverUrl: url, coverBusy: "" });
+    slot.set({ coverUrl: url, coverBusy: "" });
   } catch (e) {
-    set({ coverBusy: "", coverErr: companionErrorText(e, t`封面没传上去，换一张再试。`) });
+    slot.set({ coverBusy: "", coverErr: companionErrorText(e, t`封面没传上去，换一张再试。`) });
   }
 }
 
@@ -587,6 +607,7 @@ export async function submitLive2dModel(): Promise<void> {
     return;
   }
   const job = startJob({ kind: "live2d-publish", title: t`发布模型`, page: currentRoute(), progress: t`正在发布…` });
+  const slot = draftSlot(ownerOfDraft());
   set({ busy: "publish", publishErr: "", progress: s.bundleRef ? t`正在发布…` : t`正在上传并发布（这条路要把包传过我们的服务器，大包会慢）…` });
   try {
     const result = await createLive2dModel({
@@ -602,8 +623,8 @@ export async function submitLive2dModel(): Promise<void> {
       selfMade: true,
       ...(s.bundleRef ? { bundleRef: s.bundleRef, bundleName: s.file.name } : { file: s.file }),
     });
-    set({ created: result.model, step: "done", busy: "", progress: "" });
-    if (get().mounted) job.done({ silent: true });
+    slot.set({ created: result.model, step: "done", busy: "", progress: "" });
+    if (slot.get()?.mounted) job.done({ silent: true });
     else job.done({ msg: t`「${result.model.name}」已经发布好了。`, route: "/support/models" });
   } catch (e) {
     const status = e instanceof ApiError ? e.status : 0;
@@ -625,8 +646,59 @@ export async function submitLive2dModel(): Promise<void> {
     if (refGone) {
       text += t` 传上去的那份包服务器已经回收了，再点一次发布会把包重新传一遍（这条路慢一些）。`;
     }
-    set({ busy: "", progress: "", publishErr: text, ...(refGone ? { bundleRef: "", directOn: false } : {}) });
-    if (get().mounted) job.done({ silent: true });
+    slot.set({ busy: "", progress: "", publishErr: text, ...(refGone ? { bundleRef: "", directOn: false } : {}) });
+    if (slot.get()?.mounted) job.done({ silent: true });
     else job.fail(t`模型发布失败：${text}`, "/support/models/new");
   }
+}
+
+// ── 按账号分开（2026-09-18，见 data/deviceOwner）──────────────────────────────
+//
+// ★★ 同一台手机退出 A、登录 B：原来这份草稿原样留着 —— B 打开「上传形象」看到的是 A 选的包、A 调的映射，
+//   点发布就把 A 的模型包以 **B 的名义**发出去（2026-09-18 复核抓到）。现在换人那一拍把 A 的整份收进暗格、给 B 一份
+//   空的；A 再登录回来原样还给他 —— 与 customCardStore 同一个做法。
+// ★ 预览：暗格里留着 check / preview（File 与解好的包都在内存里，见文件头的取舍 —— 活到进程结束的代价同样适用），
+//   但登记给运行时的那份映射当场撤掉（台上马上要换成 B 的）；还给 A 的那一拍按「重新加载预览」同一条路换个新地址、
+//   重新登记（旧地址多半已被运行时撤掉，见文件头 ⚠⚠）。
+// ★ A 还在跑的上传 / 识别 / 发布（登录失效后另一个人登录的那一种；主动退出会被 studio/signOutGuard 拦住）回来时经
+//   draftSlot 写回 A 的暗格；传完之后还有识别那一发，换过人就不发 —— 每一发请求都现取 token。
+
+/** 这一份草稿现在归谁（换人那一拍跟着换） */
+let draftOwner = "";
+function ownerOfDraft(): string {
+  if (!draftOwner) draftOwner = workOwner();
+  return draftOwner;
+}
+const parkedDrafts = new Map<string, Live2dUploadDraft>();
+
+onOwnerSwitch((prev, next) => {
+  const cur = get();
+  if (liveMappingUrl) {
+    setPreviewMapping(liveMappingUrl, null);
+    liveMappingUrl = "";
+    liveMapping = null;
+  }
+  if (live2dDraftDirty(cur) || live2dDraftBusy(cur)) parkedDrafts.set(prev, { ...cur, mounted: false });
+  const back = parkedDrafts.get(next);
+  parkedDrafts.delete(next);
+  useLive2dUpload.setState({ ...(back ?? initialLive2dDraft()), mounted: cur.mounted }, true);
+  draftOwner = next;
+  if (back?.preview) rebuildPreviewUrl(false);
+});
+
+/** 长活的落点：发起它的那个人那一份（人没换 → store；换过 → 他的暗格；暗格都没有 → 丢）。读 mounted 等也走它 */
+function draftSlot(owner: string) {
+  const live = () => !owner || owner === ownerOfDraft();
+  return {
+    live,
+    get: (): Live2dUploadDraft | null => (live() ? get() : (parkedDrafts.get(owner) ?? null)),
+    set: (patch: Partial<Live2dUploadDraft>): void => {
+      if (live()) {
+        set(patch);
+        return;
+      }
+      const p = parkedDrafts.get(owner);
+      if (p) parkedDrafts.set(owner, { ...p, ...patch });
+    },
+  };
 }

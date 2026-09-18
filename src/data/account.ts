@@ -10,9 +10,9 @@ import { t } from "@lingui/core/macro";
 import { V3_CARD_WIPE_MS, Card, SHARE_NOTE_MAX, uid, viewTag, type CardView } from "../types";
 // data → mock 是既有方向（data/videos.ts 也从 mock/frames 取种子帧），不成环
 import { MARKET_DECKS, marketCardsByName } from "../mock/ai";
-import { reconcileTermsWithServer } from "./agreements";
-import { removeVoice } from "./cardVoice";
-import { adoptRemoteAssets, assetOf, removeAsset, saveAsset, setAssetSyncIssue, type CardAsset } from "./cardAsset";
+import { claimPendingTerms, reconcileTermsWithServer } from "./agreements";
+import { claimLegacyVoices, removeVoice } from "./cardVoice";
+import { adoptRemoteAssets, assetOf, claimLegacyAssets, removeAsset, saveAsset, setAssetSyncIssue, type CardAsset } from "./cardAsset";
 import { PLANS, PLATFORM_CUT, fmtTokens, type VideoTier } from "./economy";
 import { idbGet, idbRead, idbSet } from "./db";
 // 转存（dataURL → 永久 URL）的唯一入口，与发布/换封面/详情页加图共用（铁律六）
@@ -156,7 +156,21 @@ async function readyLocal(): Promise<void> {
   db.cards ??= [];
   db.decks ??= [];
   wipeLegacyAssetsLocal();
+  claimLegacyCardSideStores();
   emit();
+}
+
+/**
+ * 离线模式：升级前只按卡 id 存的肖像授权 / 声音样本，归给现在登录的这个人（只限他原创的卡）。
+ * 远端模式那条在 syncCardAssets 里（那边知道哪张是装来的副本）。见 data/cardAsset 文件头 ★★。
+ */
+function claimLegacyCardSideStores(): void {
+  const u = currentUser();
+  // ★ 判 API_ON 不判 remoteOn()：配了服务器却没连上时登进来的是现编 id 的本机账号，不许它认领（见 deviceOwner.mayClaimLegacy 的 ★★）
+  if (!u || !db || API_ON) return;
+  const originals = db.cards.filter((c) => c.ownerId === u.id && !c.fromOthers).map((c) => c.id);
+  void claimLegacyAssets(originals);
+  void claimLegacyVoices(originals);
 }
 
 /**
@@ -368,6 +382,9 @@ export function signIn(account: string, name?: string): User {
   }
   db.currentId = user.id;
   persist();
+  // 登录页上勾过的那一下同意归给这个人（远端那条在 adoptUser 的对账里，见 agreements 那段 ★★）
+  claimPendingTerms(user.id);
+  claimLegacyCardSideStores();
   return user;
 }
 
@@ -518,7 +535,15 @@ export function isFollowing(author: string): boolean {
  * ⚠ 上面那段事故记录**别删**：它是"远端模式下往 persist() 里存东西 = 什么都没存"
  *   这条坑的现场，而那条坑对别的字段仍然成立。
  */
-const COLLECTS_KEY = "ideahub-app.collects.v1";
+/** 老键：整台设备**一格**（带 owner）。只读来迁移 —— 见 collectsKey 的 ★★ */
+const COLLECTS_KEY_V1 = "ideahub-app.collects.v1";
+/**
+ * 每个账号一个键（2026-09-18）。
+ * ★★ 原来整台设备一格：owner 对不上时读侧当没有（隐私没问题），可写侧**整格覆盖** —— B 收藏一条，A 那份就没了；
+ *   A 还没传上服务器的那几条（冷启动 syncCollects 才上行的本机独有收藏）就此丢掉。按账号分键，谁都不盖谁。
+ *   与 `ideahub-app.cardWipeV3.<id>` 同一种按人分键的写法。
+ */
+const collectsKey = (owner: string) => `ideahub-app.collects.v2.${owner}`;
 interface CollectsStore {
   owner: string;
   ids: string[];
@@ -528,7 +553,12 @@ async function loadCollects(): Promise<void> {
   if (!remoteOn()) return; // 离线模式整个账号库都落盘了，collects 在里面
   const u = currentUser();
   if (!u) return;
-  const saved = await idbGet<CollectsStore>(COLLECTS_KEY);
+  let saved = await idbGet<CollectsStore>(collectsKey(u.id));
+  // 老键里正好是这个人的那一格：接过来（下一次 saveCollects 写进他自己的键）。别人的那一格原样留着给他本人
+  if (!saved) {
+    const legacy = await idbGet<CollectsStore>(COLLECTS_KEY_V1);
+    if (legacy && legacy.owner === u.id) saved = legacy;
+  }
   if (!saved || !Array.isArray(saved.ids) || saved.owner !== u.id) return;
   u.collects = [...saved.ids];
 }
@@ -537,7 +567,7 @@ function saveCollects(): void {
   if (!remoteOn()) return;
   const u = currentUser();
   if (!u) return;
-  void idbSet(COLLECTS_KEY, { owner: u.id, ids: [...(u.collects ?? [])] });
+  void idbSet(collectsKey(u.id), { owner: u.id, ids: [...(u.collects ?? [])] });
 }
 
 /**
@@ -1852,7 +1882,8 @@ async function hydrateProfile(remote: authApi.ApiUser): Promise<authApi.ApiUser>
 function adoptUser(remote: authApi.ApiUser): User {
   // 协议同意对账：四条登录路 + 冷启动都汇到这里，是唯一该做这件事的地方
   // （服务端有当前版本→落本机；本机有而服务端旧→补传。见 agreements 里那段 ★）
-  reconcileTermsWithServer(remote.termsAcceptedVersion);
+  // ★ 带上是谁：同意按人记（见 agreements 那段 ★★）
+  reconcileTermsWithServer(remote.termsAcceptedVersion, remote._id);
   const user = toLocalUser(remote);
   db = { users: [user], currentId: user.id, cards: [], decks: [] };
   // ★ 认领成功 = "还不知道"结束。所有产生登录用户的路（冷启动认领、四条登录路、
@@ -2123,7 +2154,10 @@ async function syncCardAssets(cards: branch.ApiCard[]): Promise<void> {
       };
     }
   }
-  const localOnly = await adoptRemoteAssets(remote, cards.map((c) => c.cardId));
+  // ★ 老绑定 / 老样本只认领给**原创**的卡（sourceOwner 有值 = 从广场装来的副本，那条多半是原作者的授权，见 cardAsset 文件头）
+  const originals = cards.filter((c) => !c.sourceOwner).map((c) => c.cardId);
+  void claimLegacyVoices(originals);
+  const localOnly = await adoptRemoteAssets(remote, cards.map((c) => c.cardId), originals);
   for (const id of Object.keys(remote)) setAssetSyncIssue(id, null);
   for (const id of localOnly) {
     const a = assetOf(id);

@@ -17,6 +17,7 @@ import { addCards, bindCardAsset, canAfford, createDeck, spendTokens } from "../
 import { ONE_IMAGE, fmtTokens, schemeCost } from "../data/economy";
 import { VOICE_MAX_SEC, VOICE_MIN_SEC, saveVoice } from "../data/cardVoice";
 import { startJob } from "../data/jobs";
+import { deviceOwner, workOwner } from "../data/deviceOwner";
 import { pcmToVoiceWav } from "../utils/wav";
 import PortraitAuthPanel from "./PortraitAuthPanel";
 import {
@@ -107,8 +108,11 @@ type PortraitPartial = { schemeId: string; raw: Crop[]; realPhoto: boolean; draw
  *   "退出页面不能打断生成"）。停的只有"存卡需要的那几样"，视频本身不停（objectURL 已随
  *   卸载释放）—— 接回来直接落在命名那一屏，能存卡；要重圈得重新选视频。
  * ★ 画到半途失败时停的是原片裁剪 + 已经画好的那几格（`partial`）：接回来照样只补剩下的（2026-09-17）。
+ * ★ **一个人一格**（2026-09-18，见 data/deviceOwner）：这些图是谁付的钱、带着谁的真人授权（pendingAsset），就只有谁打开
+ *   这一窗才接得回。原来整个模块只有一格：B 打开时不接 A 的（那一道闸早就有），可 B 自己下一次停图就把 A 那份**盖掉** ——
+ *   A 花钱画的图、待绑定的授权、声音样本一起没了（2026-09-18 复核抓到）。
  */
-let parked: {
+type ParkedPortraits = {
   /** 命名屏上摆的那几张：炼齐了是形象图，半途失败时是原片裁剪 */
   crops: Crop[];
   /** crops 是炼好的形象图时，原片裁剪（「↺ 用回原片」要它）；crops 本身就是原片时为 null */
@@ -124,7 +128,10 @@ let parked: {
   pendingAsset: { assetId: string; note: string } | null;
   pendingVoice: { dataUrl: string; durationSec: number; note: string } | null;
   at: number;
-} | null = null;
+};
+/** 键 = 付钱的那个人（workOwner）。只在这一进程的内存里，过 24 小时的不接 */
+const parkedByOwner = new Map<string, ParkedPortraits>();
+const PARKED_TTL_MS = 24 * 3600_000;
 
 export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: boolean; onClose: () => void }) {
   const { t } = useLingui();
@@ -207,7 +214,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
 
   useEffect(() => () => void (url && URL.revokeObjectURL(url)), [url]);
 
-  /** 窗还开着没有：后台任务的结局分叉（在 → 画在窗里；不在 → 图停进 parked + 胶囊通知） */
+  /** 窗还开着没有：后台任务的结局分叉（在 → 画在窗里；不在 → 图停进 parkedByOwner + 胶囊通知） */
   const mountedRef = useRef(true);
   useEffect(() => {
     // ★ 挂载时要置回 true（2026-09-17 验半途失败时撞见）：StrictMode 在 dev 里把 effect 走一遍「挂载→卸载→挂载」，
@@ -218,15 +225,16 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
       mountedRef.current = false;
     };
   }, []);
-  /** 上次离开时停在模块里的 AI 图位接回来了（见 parked）：没有视频也直接落在命名屏 */
+  /** 上次离开时停在模块里的 AI 图位接回来了（见 ParkedPortraits）：没有视频也直接落在命名屏 */
   const [restored, setRestored] = useState(false);
   useEffect(() => {
-    if (!parked || Date.now() - parked.at > 24 * 3600_000) {
-      parked = null;
-      return;
-    }
-    const pk = parked;
-    parked = null;
+    const now = Date.now();
+    for (const [who, p] of parkedByOwner) if (now - p.at > PARKED_TTL_MS) parkedByOwner.delete(who);
+    // 只接**现在这个人**的那一格；别人的原样留着（见 ParkedPortraits 的 ★）
+    const me = deviceOwner();
+    const pk = parkedByOwner.get(me);
+    if (!pk) return;
+    parkedByOwner.delete(me);
     setCrops(pk.crops);
     // ★ 炼齐了的那一份带着原片接回来：「↺ 用回原片」照旧能撤（此前这里恒 null，接回来的形象图被当成原片，
     //   方案选择器与「炼形象图」又摆出来，再点一次就是拿 AI 图当参考重画一遍）
@@ -539,7 +547,9 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
     const raw = crops;
     /** 半途失败时记进 partial 的是**这一发**的输入（人可能中途勾掉了「真人」） */
     const input = { schemeId: scheme.id, raw, realPhoto: realPerson };
-    // ★ 登记成后台任务：窗关了也照画；画完窗不在就把图停进 parked，胶囊叫人回来存卡
+    /** 这一发是谁付的钱：画完窗已关时停进他那一格（见 ParkedPortraits 的 ★） */
+    const ownerAtStart = workOwner();
+    // ★ 登记成后台任务：窗关了也照画；画完窗不在就把图停进 parkedByOwner，胶囊叫人回来存卡
     const job = startJob({ kind: "card-ai", title: t`AI 生成图位`, page: "/workshop", route: "/workshop", progress: t`准备中…` });
     try {
       const body = raw.find((c) => c.role === "primary") ?? raw[0];
@@ -565,8 +575,8 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
         return v ? [{ role: v.role, tag: v.tag, dataUrl: v.dataUrl }] : [];
       });
       if (!mountedRef.current) {
-        // 窗已经关了：图停在模块里，下次打开这一窗接回来（见 parked 的 ★）
-        parked = { crops: made, raw, partial: null, type: type ?? "character", name, summary, schemeId, realPerson, consentOk, pendingAsset, pendingVoice, at: Date.now() };
+        // 窗已经关了：图停在模块里，下次打开这一窗接回来（见 ParkedPortraits 的 ★）
+        parkedByOwner.set(ownerAtStart, { crops: made, raw, partial: null, type: type ?? "character", name, summary, schemeId, realPerson, consentOk, pendingAsset, pendingVoice, at: Date.now() });
         job.done({ msg: t`AI 图位生成好了——回工坊点「从视频提取」接着存卡`, route: "/workshop" });
         return;
       }
@@ -592,7 +602,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
         // 窗已经关了：原片裁剪连同留着的那几格停进模块里，下次打开接回来照样只补剩下的。
         // ★ 判「留着的」不判「这一次画好的」：补画那一发一张没画成时，上一次留下的（已付费）照样要停 —— 窗一卸载，state 里那份就没了
         if (Object.keys(merged).length > 0) {
-          parked = { crops: raw, raw: null, partial: { schemeId: input.schemeId, realPhoto: input.realPhoto, drawn: merged }, type: type ?? "character", name, summary, schemeId, realPerson, consentOk, pendingAsset, pendingVoice, at: Date.now() };
+          parkedByOwner.set(ownerAtStart, { crops: raw, raw: null, partial: { schemeId: input.schemeId, realPhoto: input.realPhoto, drawn: merged }, type: type ?? "character", name, summary, schemeId, realPerson, consentOk, pendingAsset, pendingVoice, at: Date.now() });
         }
       } else if (drawnSlots.length > 0) {
         setPartial({ ...input, drawn: merged });

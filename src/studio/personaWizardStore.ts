@@ -49,6 +49,7 @@ import {
   type SpeakerStat,
 } from "../companion/personaWizard";
 import { currentRoute, startJob } from "../data/jobs";
+import { onOwnerSwitch, workOwner } from "../data/deviceOwner";
 // ★ id 生成器全仓只有 types.uid 一份，别在 store 里另写一个自增的（铁律六）
 import { uid } from "../types";
 
@@ -349,9 +350,11 @@ export async function runGeneratePersona(opts: { only?: PersonaDraftField[] } = 
     page: currentRoute(),
     progress: t`准备中…`,
   });
+  // 回包写回发起这一炉的那个人（换过账号就是他的暗格，见文件末尾「按账号分开」）
+  const slot = wizardSlot(ownerOfWizard());
   usePersonaWizard.setState({ genBusy: t`准备中…`, genOnly: only?.[0] ?? null, genErr: "", banner: null });
   const step = (text: string) => {
-    usePersonaWizard.setState({ genBusy: text });
+    slot.set({ genBusy: text });
     job.update(text);
   };
 
@@ -366,10 +369,10 @@ export async function runGeneratePersona(opts: { only?: PersonaDraftField[] } = 
         step(t`正在读你给的素材…`);
         const r = await analyzePersonaMaterials({ materials, speaker: s0.speaker || undefined });
         analysis = r.analysis;
-        usePersonaWizard.setState({ analysis, analyzedKey: wantKey });
+        slot.set({ analysis, analyzedKey: wantKey });
         if (droppedChars > 0 || droppedItems > 0) {
           // 截了就要说（铁律八）：不说的话症状是"生成出来的不像"，而用户查不到原因
-          usePersonaWizard.setState({
+          slot.set({
             banner: {
               kind: "warn",
               text:
@@ -380,6 +383,13 @@ export async function runGeneratePersona(opts: { only?: PersonaDraftField[] } = 
           });
         }
       }
+    }
+
+    // ★ 分析完换过账号就不发生成那一发：每一发请求都现取 token，这一发会记在新账号头上（见文件末尾那段 ★）
+    if (!slot.live()) {
+      slot.set({ genBusy: "", genOnly: null, genErr: t`中途换了账号，草稿还没写——再点一次生成。` });
+      job.done({ silent: true });
+      return;
     }
 
     // ② 生成草稿
@@ -395,27 +405,30 @@ export async function runGeneratePersona(opts: { only?: PersonaDraftField[] } = 
       only,
       draft: only ? (s.draft ?? undefined) : undefined,
     });
-    usePersonaWizard.setState({ draft: r.draft, genBusy: "", genOnly: null });
+    slot.set({ draft: r.draft, genBusy: "", genOnly: null });
     // ★ 整份换了一版草稿 ⇒ 上一版的试聊记录作废（`only` 只改一处，不清）。不清的话有两件坏事：
     //   ① 第 ⑤ 步一进去就是满 5 轮、再也聊不动（此前唯一的出路是整份「重新开始」）；
     //   ② 更实的一件：`sendPreviewMessage` 把 `history` 原样发出去 —— 上一版草稿的回答会被当成
     //      这一版"说过的话"喂给模型，试出来的像不像根本不作数。
-    if (!only) clearPreview();
+    if (!only) {
+      if (slot.live()) clearPreview();
+      else slot.set({ chat: [], chatErr: "" });
+    }
 
-    const back = usePersonaWizard.getState();
-    if (back.mounted) {
+    const back = slot.get();
+    if (back?.mounted) {
       // 人就在这一页上：页面自己会把草稿画出来，胶囊再弹一条是重复
       job.done({ silent: true });
-      usePersonaWizard.setState({ banner: { kind: "ok", text: only ? t`换好了。` : t`草稿写好了，往下可以试聊。` } });
+      slot.set({ banner: { kind: "ok", text: only ? t`换好了。` : t`草稿写好了，往下可以试聊。` } });
     } else {
       job.done({ msg: only ? t`人格的那一处重写好了` : t`人格草稿写好了`, route: "/support/personas/new" });
     }
   } catch (e) {
     const reason = companionErrorText(e, t`生成失败了，稍后再试。`);
-    usePersonaWizard.setState({ genBusy: "", genOnly: null, genErr: reason });
+    slot.set({ genBusy: "", genOnly: null, genErr: reason });
     // ★ 与成功那一支同一个口径（也与 live2dUploadStore 的两处失败同形）：人就在这一页上时，
     //   `genErr` 那行红字已经把话说完了，胶囊再报一条 = 同一件事说两遍（CLAUDE.md「长活登记」那条）。
-    if (usePersonaWizard.getState().mounted) job.done({ silent: true });
+    if (slot.get()?.mounted) job.done({ silent: true });
     else job.fail(reason, "/support/personas/new");
   }
 }
@@ -457,6 +470,7 @@ export async function sendPreviewMessage(text: string): Promise<void> {
       },
       {
         onSentence: (sentence) => {
+          if (ctrl.signal.aborted) return; // 掐掉之后（换号 / 停下）再来的半句不上屏
           // ★ `sentence.text` 服务端已经把 [情绪][face][action] 标签剥干净了（客服页读的也是它）——
           //   这里不再自己写一遍正则；face / action 走 protocol 的 normalize，未知值退回 normal/none。
           usePersonaWizard.setState((st) => ({
@@ -475,6 +489,8 @@ export async function sendPreviewMessage(text: string): Promise<void> {
       },
       ctrl.signal,
     );
+    // 被掐掉的那一条由 abortPreview 收拾现场（换号那一拍掐的话，这里的 store 已经是另一个人的了）
+    if (ctrl.signal.aborted) return;
     usePersonaWizard.setState((st) => ({
       chat: st.chat.map((m) => (m.id === botId ? { ...m, streaming: false } : m)),
       chatBusy: false,
@@ -540,6 +556,7 @@ export async function publishPersona(): Promise<MarketPersona | null> {
 
   const wire = draftForServer(s.draft);
 
+  const slot = wizardSlot(ownerOfWizard());
   usePersonaWizard.setState({ pubBusy: true, pubErr: "", banner: null });
   const job = startJob({ kind: "persona-publish", title: t`发布人格`, page: currentRoute(), progress: t`提交中…` });
   try {
@@ -552,15 +569,15 @@ export async function publishPersona(): Promise<MarketPersona | null> {
       shared: s.shared,
       price,
     });
-    usePersonaWizard.setState({ pubBusy: false, published: r.persona });
-    if (usePersonaWizard.getState().mounted) job.done({ silent: true });
+    slot.set({ pubBusy: false, published: r.persona });
+    if (slot.get()?.mounted) job.done({ silent: true });
     else job.done({ msg: t`人格「${name}」发布好了`, route: "/support/personas" });
     return r.persona;
   } catch (e) {
     const reason = companionErrorText(e, t`发布失败了，稍后再试。`);
-    usePersonaWizard.setState({ pubBusy: false, pubErr: reason });
+    slot.set({ pubBusy: false, pubErr: reason });
     // 同上：页在就 silent，页不在才走胶囊
-    if (usePersonaWizard.getState().mounted) job.done({ silent: true });
+    if (slot.get()?.mounted) job.done({ silent: true });
     else job.fail(reason, "/support/personas/new");
     return null;
   }
@@ -573,12 +590,13 @@ export async function publishPersona(): Promise<MarketPersona | null> {
 export async function equipPublishedPersona(): Promise<void> {
   const s = usePersonaWizard.getState();
   if (s.equipBusy || !s.published) return;
+  const slot = wizardSlot(ownerOfWizard());
   usePersonaWizard.setState({ equipBusy: true, equipMsg: null });
   try {
     await updateCompanionSettings({ personaId: s.published._id });
-    usePersonaWizard.setState({ equipBusy: false, equipMsg: { kind: "ok", text: t`装上了，回客服页就是这个人格在说话。` } });
+    slot.set({ equipBusy: false, equipMsg: { kind: "ok", text: t`装上了，回客服页就是这个人格在说话。` } });
   } catch (e) {
-    usePersonaWizard.setState({ equipBusy: false, equipMsg: { kind: "bad", text: companionErrorText(e, t`装不上，稍后再试。`) } });
+    slot.set({ equipBusy: false, equipMsg: { kind: "bad", text: companionErrorText(e, t`装不上，稍后再试。`) } });
   }
 }
 
@@ -664,4 +682,57 @@ export function patchStyle(patch: Partial<PersonaDraft["style"]>): void {
   const { draft } = usePersonaWizard.getState();
   if (!draft) return;
   usePersonaWizard.setState({ draft: { ...draft, style: { ...draft.style, ...patch } } });
+}
+
+// ── 按账号分开（2026-09-18，见 data/deviceOwner）──────────────────────────────
+//
+// ★★ 同一台手机退出 A、登录 B：原来这份表单原样留着 —— B 打开「做人格」看到的是 A 走到第几步、A 的分析与草稿，
+//   还能拿 A 的素材原文（可能几万字聊天记录）以 **B 的名义**再送去分析，把 A 的人格发布成 B 的（2026-09-18 复核抓到）。
+//   现在换人那一拍把 A 的整份（连模块级的素材原文）收进暗格、给 B 一份空的；A 再登录回来原样还给他
+//   —— 与 customCardStore 同一个做法。暗格只在这一进程的内存里，素材「不入库」的承诺（文件头 ★★ ②）照旧成立。
+// ★ A 还在跑的活（登录失效后另一个人登录的那一种；主动退出会被 studio/signOutGuard 拦住）回来时经 wizardSlot
+//   写回 A 的暗格，不落进 B 的表单；分两发请求的（先分析、再生成）换过人就不发第二发 —— 每一发请求都现取 token。
+// ★ 试聊不花钱，换人那一拍直接掐掉（abortPreview 顺手收拾现场），不必替它留回包。
+
+interface ParkedWizard {
+  state: PersonaWizardState;
+  texts: Map<string, string>;
+}
+/** 这一份表单现在归谁（换人那一拍跟着换） */
+let wizardOwner = "";
+function ownerOfWizard(): string {
+  if (!wizardOwner) wizardOwner = workOwner();
+  return wizardOwner;
+}
+const parkedWizards = new Map<string, ParkedWizard>();
+
+onOwnerSwitch((prev, next) => {
+  abortPreview();
+  const cur = usePersonaWizard.getState();
+  if (wizardDirty(cur) || wizardBusy(cur)) {
+    parkedWizards.set(prev, { state: { ...cur, mounted: false }, texts: new Map(materialTexts) });
+  }
+  materialTexts.clear();
+  const back = parkedWizards.get(next);
+  parkedWizards.delete(next);
+  if (back) for (const [id, text] of back.texts) materialTexts.set(id, text);
+  usePersonaWizard.setState({ ...(back?.state ?? initialWizardState()), mounted: cur.mounted }, true);
+  wizardOwner = next;
+});
+
+/** 长活的落点：发起它的那个人那一份（人没换 → store；换过 → 他的暗格；暗格都没有 → 丢）。读 mounted 等也走它 */
+function wizardSlot(owner: string) {
+  const live = () => !owner || owner === ownerOfWizard();
+  return {
+    live,
+    get: (): PersonaWizardState | null => (live() ? usePersonaWizard.getState() : (parkedWizards.get(owner)?.state ?? null)),
+    set: (patch: Partial<PersonaWizardState>): void => {
+      if (live()) {
+        usePersonaWizard.setState(patch);
+        return;
+      }
+      const p = parkedWizards.get(owner);
+      if (p) p.state = { ...p.state, ...patch };
+    },
+  };
 }

@@ -189,28 +189,93 @@ export const AGREEMENTS: Record<AgreementId, { title: string; body: ReactNode }>
 // （POST /api/me/accept-terms → User.termsAcceptedVersion/At），两边靠下面的
 // reconcile 对账，任何一边成功都不阻塞另一边。
 // 正文更新（TERMS_UPDATED 变了）后两边的旧记录都失效，门会重新弹。
-const ACCEPT_KEY = "ideahub-app.terms.accepted";
+//
+// ★★ 同意是**每个人**的，不是这台设备的（2026-09-18 主人真机点名同一台手机换账号后数据串号）：
+//   原来整台设备记一格 —— A 同意过，B 在登录页看到的勾选框就是**默认勾上**的（默认勾选不算同意），
+//   登录后补签门也不弹；对账那一步还会拿这一格替 B 往服务端补传一条「已同意」—— B 从头到尾没点过任何东西，
+//   合规留痕上却写着他同意了。现在：
+//     · 登录之后按人记（acceptKey(userId)），补签门只看这个人自己的那一格；
+//     · 登录页上真勾过的那一下先记成「待认领」（PENDING_KEY —— 那时还不知道是谁），登录成功那一拍归给这个人
+//       并补传服务端（reconcileTermsWithServer / 离线那条走 claimPendingTerms），归完就清；取消勾选同样清掉；
+//     · 登录页的勾选框只在「这一次没登录成的勾选还在」时默认勾上。
+// ★ 老的设备级那一格（ACCEPT_KEY_V1）**不迁移**：它说不出是谁同意的。服务端已有本人记录的账号照常不弹门
+//   （对账会把服务端那份落到他自己的格子里）；服务端没有的，补签门会再弹一次，让本人点一次 —— 这才是对的。
+const ACCEPT_KEY_V1 = "ideahub-app.terms.accepted";
+const acceptKey = (userId: string) => `ideahub-app.terms.accepted.${userId}`;
+/** 登录页上这一次真勾过、还没登录成（不知道是谁）的那一下。存「版本|勾下的时刻」 */
+const PENDING_KEY = "ideahub-app.terms.pendingAccept";
+/**
+ * 待认领那一下能活多久。
+ * ★★ 必须有期限（2026-09-18 复核抓到）：A 退出、B 在登录页勾了一下又走了 —— 没有期限的话，几天后 A 打开登录页
+ *   框是勾着的，一登录就替 A 记下、补传「同意」，而 A 从没点过（正是这一批要治的预勾同意）。
+ * ★ 15 分钟 = 够走完一趟第三方登录（跳去微信 / QQ 再回来，进程被回收后冷启动认领也算）；
+ *   点登录那一拍会再续一次（LoginPage.requireAgree），在登录页上填验证码磨蹭再久也不会过期。
+ */
+const PENDING_TTL_MS = 15 * 60 * 1000;
 
-export function termsAccepted(): boolean {
+function readKey(key: string): string | null {
   try {
-    return localStorage.getItem(ACCEPT_KEY) === TERMS_UPDATED;
+    return localStorage.getItem(key);
   } catch {
-    return false; // 隐私模式下 localStorage 会抛：当没同意过，重新勾一次即可
+    return null; // 隐私模式下 localStorage 会抛：当没同意过，重新勾一次即可
   }
 }
-
-export function recordTermsAccepted(): void {
+function writeKey(key: string, value: string | null): void {
   try {
-    localStorage.setItem(ACCEPT_KEY, TERMS_UPDATED);
+    if (value === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, value);
   } catch {
     /* 存不下就每次都要勾，不致命 */
   }
+}
+
+/** 这个人同意过当前这一版吗（补签门的判据） */
+export function termsAccepted(userId: string): boolean {
+  return !!userId && readKey(acceptKey(userId)) === TERMS_UPDATED;
+}
+
+/** 登录页上这一次勾过、还没登录成的那一下在不在（登录页勾选框的默认值）。过期的当没有，顺手清掉 */
+export function termsPendingAccepted(): boolean {
+  const raw = readKey(PENDING_KEY);
+  if (!raw) return false;
+  const cut = raw.lastIndexOf("|");
+  const version = cut < 0 ? raw : raw.slice(0, cut);
+  const at = cut < 0 ? NaN : Number(raw.slice(cut + 1));
+  const age = Date.now() - at;
+  if (version === TERMS_UPDATED && age >= 0 && age <= PENDING_TTL_MS) return true;
+  writeKey(PENDING_KEY, null);
+  return false;
+}
+
+/**
+ * 记下「同意了当前这一版」。
+ * 传 userId = 登录着的这个人亲手同意（补签门）；不传 = 登录页上还没登录时勾的，先记成待认领。
+ */
+export function recordTermsAccepted(userId?: string): void {
+  if (!userId) {
+    writeKey(PENDING_KEY, `${TERMS_UPDATED}|${Date.now()}`);
+    return;
+  }
+  writeKey(acceptKey(userId), TERMS_UPDATED);
   // 服务端留痕：有登录态才发得出（requireAuth）。失败静默——本机记录已成立，
   // 老服务端 404 也算失败；补发交给 reconcileTermsWithServer 那条自愈。
-  // ★ 登录页勾选那一下发生在拿到 token **之前**，这里必然发不出——正是靠
-  //   登录成功后 adoptUser 里的对账把它补上，不要在登录页里再写一条补发（铁律六）。
   if (getToken()) void acceptTermsRemote(TERMS_UPDATED).catch(() => {});
 }
+
+/** 登录页上取消勾选：那一下待认领的同意作废 */
+export function clearPendingTerms(): void {
+  writeKey(PENDING_KEY, null);
+}
+
+/** 离线登录成功那一拍：登录页上那一下待认领的同意归给这个人（远端那条走 reconcileTermsWithServer） */
+export function claimPendingTerms(userId: string): void {
+  if (!userId || !termsPendingAccepted()) return;
+  writeKey(acceptKey(userId), TERMS_UPDATED);
+  writeKey(PENDING_KEY, null);
+}
+
+// 老的设备级那一格留着不读（见上面 ★ 为什么不迁移）；顺手清掉，免得下一个人以为它还算数
+writeKey(ACCEPT_KEY_V1, null);
 
 /**
  * 登录/冷启动拿到服务端的同意版本后对账（data/account.adoptUser 是唯一调用方）：
@@ -219,14 +284,14 @@ export function recordTermsAccepted(): void {
  *   "上次 POST 恰好断网"两种漏发，发到成功为止——端点幂等，多发无害）；
  *   两边都没有 → 不动，补签门该弹就弹。
  */
-export function reconcileTermsWithServer(serverVersion: string | undefined): void {
+export function reconcileTermsWithServer(serverVersion: string | undefined, userId: string): void {
+  // 登录页上那一下待认领的同意，就是**这个正在登录的人**勾的：归给他
+  const pending = termsPendingAccepted();
+  writeKey(PENDING_KEY, null);
   if (serverVersion === TERMS_UPDATED) {
-    try {
-      localStorage.setItem(ACCEPT_KEY, TERMS_UPDATED);
-    } catch {
-      /* 存不下就这次会话内靠内存渲染，下次再对一遍 */
-    }
+    writeKey(acceptKey(userId), TERMS_UPDATED);
     return;
   }
-  if (termsAccepted() && getToken()) void acceptTermsRemote(TERMS_UPDATED).catch(() => {});
+  if (pending) writeKey(acceptKey(userId), TERMS_UPDATED);
+  if (termsAccepted(userId) && getToken()) void acceptTermsRemote(TERMS_UPDATED).catch(() => {});
 }

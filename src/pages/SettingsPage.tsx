@@ -16,6 +16,7 @@ import ConfirmDialog from "../components/ConfirmDialog";
 import InfoDialog from "../components/InfoDialog";
 import { AGREEMENTS, TERMS_UPDATED, type AgreementId } from "../data/agreements";
 import { signOut, isAdmin, isRemoteMode } from "../data/account";
+import { signOutBlocker } from "../studio/signOutGuard";
 import { useCurrentUser } from "../hooks/useAccount";
 import { resetGuidesSeen } from "../data/guide";
 import { childSafetyUrl } from "../utils/shareLink";
@@ -35,6 +36,8 @@ export default function SettingsPage() {
   const user = useCurrentUser();
   const navigate = useNavigate();
   const [signOutOpen, setSignOutOpen] = useState(false);
+  /** 退出被拦下的原因（还有花钱的活在跑，见 studio/signOutGuard）。空串 = 没拦 */
+  const [signOutWhy, setSignOutWhy] = useState("");
   const { t } = useLingui();
 
   // 路由已套 RequireAuth，未登录进不来；这里只为 TS 收窄。
@@ -119,7 +122,12 @@ export default function SettingsPage() {
       )}
 
       <button
-        onClick={() => setSignOutOpen(true)}
+        onClick={() => {
+          // ★ 还有花钱的活在跑就先说清楚、不退（理由见 studio/signOutGuard 文件头）
+          const why = signOutBlocker();
+          if (why) setSignOutWhy(why);
+          else setSignOutOpen(true);
+        }}
         className="w-full rounded-xl border border-rose-500/40 py-3 text-sm text-rose-400"
       >
         <Trans>退出登录</Trans>
@@ -134,12 +142,24 @@ export default function SettingsPage() {
         </Link>
       )}
 
+      {signOutWhy && (
+        <InfoDialog title={t`先别退出登录`} onClose={() => setSignOutWhy("")}>
+          {signOutWhy}
+        </InfoDialog>
+      )}
       {signOutOpen && (
         <ConfirmDialog
           title={t`退出登录？`}
           confirmLabel={t`退出`}
           danger
           onConfirm={() => {
+            // 确认卡摆着的这段时间里世界会变（比如刚点了一次出片）：真退之前拿同一把尺再问一次
+            const why = signOutBlocker();
+            if (why) {
+              setSignOutOpen(false);
+              setSignOutWhy(why);
+              return;
+            }
             signOut();
             navigate("/", { replace: true });
           }}

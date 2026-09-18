@@ -40,6 +40,7 @@
 import type { VideoAspect } from "../types";
 import { t } from "@lingui/core/macro";
 import { API_BASE, apiGet, getToken } from "../api/client";
+import { deviceOwner, mayClaimLegacy, onViewerChange, workOwner } from "./deviceOwner";
 
 export const VIDEO_JOB_TTL_MS = 24 * 3600_000;
 
@@ -116,6 +117,16 @@ export interface VideoJob {
    */
   tplRefVideo?: string;
   createdAt: number;
+  /**
+   * 这一发是**谁付的钱**（user.id，见 data/deviceOwner）—— 取回卡只摆给他看、只有他取得回。
+   *
+   * ★★ 2026-09-18 补（主人真机点名同一台手机换账号后数据串号）。原来凭据整台设备一份、不记主人：
+   *   A 付过钱、还没取回的那一发，B 登录后照样摆在取回卡上，B 点「取回」就落进 **B 的**流水线、
+   *   跟着 B 的作品发出去 —— 而 A 再登录时凭据已经销毁，那笔钱在 App 里再也找不回来。
+   * ★ 受理那一拍写死（rememberVideoJob 里按 workOwner 记）：之后再问 currentUser() 可能已经是另一个人了。
+   * ★ 可选：升级前的凭据没有它，由升级后第一个登录的人认领（claimLegacy）。
+   */
+  owner?: string;
 }
 
 const KEY = "ideahub-app.videoJobs.v1";
@@ -161,6 +172,29 @@ const subs = new Set<() => void>();
 function emit() {
   version++;
   for (const fn of subs) fn();
+}
+
+// 换了看的人：认领存量，取回卡按新的人重画
+onViewerChange(() => {
+  claimLegacy();
+  emit();
+});
+
+/**
+ * 升级前那些无主的凭据，归**现在登录的这个人**（见 data/deviceOwner 文件头「存量」那条）。
+ * ★ 同步改内存、落盘、**不 emit**：它会在渲染里（取回卡的列表读）被调到。
+ */
+function claimLegacy(): void {
+  const me = deviceOwner();
+  if (!me || !jobs.some((j) => !j.owner) || !mayClaimLegacy()) return;
+  jobs = jobs.map((j) => (j.owner ? j : { ...j, owner: me }));
+  persist();
+}
+
+/** 这一发是**现在登录的这个人**付的吗（取回卡、节点角标只摆这些） */
+function viewerJob(j: VideoJob): boolean {
+  const me = deviceOwner();
+  return !!me && j.owner === me;
 }
 
 export function subscribeVideoJobs(fn: () => void): () => void {
@@ -261,7 +295,9 @@ export function videoJobNote(job: VideoJob): string {
  * ★ 同一个 taskId 重复记只留一条：受理只发生一次，重复调用只可能来自重挂载/重试。
  */
 export function rememberVideoJob(job: VideoJob): void {
-  jobs = [...jobs.filter((j) => j.taskId !== job.taskId && !prunable(j)), job];
+  // ★ 主人在受理这一拍写死（见 VideoJob.owner 的 ★）：这一发是「内存里这摊活的主人」付的钱
+  const owned: VideoJob = job.owner ? job : { ...job, owner: workOwner() || undefined };
+  jobs = [...jobs.filter((j) => j.taskId !== job.taskId && !prunable(j)), owned];
   persist();
   emit();
 }
@@ -327,14 +363,18 @@ export function videoJobWaiting(taskId: string): boolean {
   return waiting.has(taskId);
 }
 
-/** 本机所有待取回的出片（新的在前）。★ 过期的**照样返回** —— 那句"钱无法挽回"要给人看见 */
+/**
+ * **现在登录的这个人**所有待取回的出片（新的在前）。★ 过期的**照样返回** —— 那句"钱无法挽回"要给人看见。
+ * ★ 别的账号付的那几发不在这里（见 VideoJob.owner 的 ★★）：它们原样留在本机，等那个人登录时再摆出来。
+ */
 export function pendingVideoJobs(): VideoJob[] {
   const live = jobs.filter((j) => !prunable(j));
   if (live.length !== jobs.length) {
     jobs = live;
     persist();
   }
-  return [...live].sort((a, b) => b.createdAt - a.createdAt);
+  claimLegacy();
+  return jobs.filter(viewerJob).sort((a, b) => b.createdAt - a.createdAt);
 }
 
 /** 该**摆出来让人取回**的那几发 = 全部凭据里去掉这一会话正在等的（取回卡列表读这个） */
@@ -357,6 +397,8 @@ export function videoJobOf(nodeId: string, proposalId: string): VideoJob | null 
 // ★ 补来的凭据 nodeId / proposalId 为空：takeJob 见"原节点不在"就走 placeRescuedSegment 新开一段，正是要的。
 // ★ 一分钟内只问一次；离线模式（没配 API_BASE / 没登录）一个请求都不发。
 let lastImportAt = 0;
+/** 上一次是替谁问的：换了人就不受那一分钟的限制（B 刚登录时 A 一分钟前问过，不该让 B 干等） */
+let lastImportOwner = "";
 
 interface ServerVideoTask {
   taskId: string;
@@ -402,8 +444,12 @@ function importBase(): number {
 /** 把服务端登记表里本机不认识、也没处理过的视频任务补成「待取回」凭据。回补了几条 */
 export async function importServerVideoJobs(): Promise<number> {
   if (!API_BASE || !getToken()) return 0;
-  if (Date.now() - lastImportAt < 60_000) return 0;
+  // ★ 登记表是**这个 token 的账号**的：说不出现在是谁（会话还没认领上）就先不补，补了也不知道记在谁名下
+  const owner = deviceOwner();
+  if (!owner) return 0;
+  if (owner === lastImportOwner && Date.now() - lastImportAt < 60_000) return 0;
   lastImportAt = Date.now();
+  lastImportOwner = owner;
   let tasks: ServerVideoTask[] = [];
   try {
     const data = await apiGet<{ tasks?: ServerVideoTask[] }>("/api/ark/video-tasks", { timeoutMs: 15_000 });
@@ -413,6 +459,8 @@ export async function importServerVideoJobs(): Promise<number> {
   }
   // ★ 拿到表之后才定线（见 importBase 的 ★★）：请求失败的那几次不算"第一次问过"
   const base = importBase();
+  // ★ 请求在路上的这十几秒里可能换了人：拿到表时已经不是发请求的那个人，就不补（下次由对的人再问）
+  if (deviceOwner() !== owner) return 0;
   let added = 0;
   for (const task of tasks) {
     if (!task?.taskId || typeof task.taskId !== "string") continue;
@@ -437,6 +485,7 @@ export async function importServerVideoJobs(): Promise<number> {
       ...(aspectOfRatio(task.ratio) ? { aspect: aspectOfRatio(task.ratio) } : {}),
       ...(task.prompt ? { plot: task.prompt } : {}),
       createdAt,
+      owner,
     };
     if (prunable(job)) continue;
     jobs = [...jobs, job];
