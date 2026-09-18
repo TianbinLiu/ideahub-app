@@ -41,6 +41,8 @@ import { Trans } from "@lingui/react/macro";
 // 自制卡那份要点名内置方案：名字是读到时现翻的 getter（#272），顺序与选方案小窗同一个出处（listSchemes）。
 // ★ promptSchemes 是叶子模块（只依赖 types），从这里引它不成环
 import { listSchemes } from "../../data/promptSchemes";
+// 「我的」那份要报草稿上限：数只能从这里取（数字一律插值，见 ★★）。★ drafts 只依赖 db / utils/image / types，从这里引它不成环
+import { MAX_DRAFTS } from "../../data/drafts";
 import { BLOCKOUT_INPUT_RULES } from "../../data/templates";
 import { BUILTIN_SLOT_ZH, CARD_TYPES, CARD_TYPE_LABELS, builtinSlotLabel } from "../../types";
 // 自制卡那份要报比例上限：方舟的硬约束，数只能从这里取（数字一律插值，见 ★★）
@@ -175,7 +177,10 @@ export const TOURS: GuideTour[] = [
   {
     id: "feed",
     title: msg`首页视频流`,
-    version: 1,
+    // v2（2026-09-17，主人点名「涨 version」）：v1 第 2 步把收藏、分享也说成下面有数字（#288 订正），
+    //   而这份引导是每个新装的人第一眼看到的 —— 看过 v1 的人只有主动点 ? 才读得到订正，所以升版让所有人重看一遍；
+    //   同一拍补了「⚡ 做同款」那一步（它会整表换掉手上那条流水线，v1 一个字没提）。
+    version: 2,
     steps: [
       {
         title: msg`上下滑着看`,
@@ -220,6 +225,21 @@ export const TOURS: GuideTour[] = [
         ),
       },
       {
+        // ★ 2026-09-17 补（主人点名「补」：T5 起草时列的「引导没提、新用户今天会需要」之一）。
+        //   标题与那颗 chip 同一个 msgid（「⚡ 做同款」）：引导说的就是那颗键，英文跟着它走（同「视频模板」第 3 步的做法）。
+        //   ★ 只说「有的作品」：它只在 canRemake 时渲染（付费没解锁的、一段剧本都没有的不给，FeedPage 的 canRemake / flowStore.remakeableOf），
+        //     按文件头的规矩只给它命名、不承诺它一定在；锚点同理挂在当前那一支上（active），这一支没有这颗时自动退成居中卡片。
+        //   事实出处：remakeNodesOf 抄的是每段的 plot（剧本）与作品卡组的卡（没有卡组就不带），seed 成 mode:"workflow" 后 navigate("/flow")；
+        //   整表覆盖，守卫走 useApplyTemplate —— flowDirty() 时先弹 DiscardFlowDialog；seed 本身不花钱（钱在那边推演 / 生成时才扣）。
+        title: msg`⚡ 做同款`,
+        anchor: "feed-remake",
+        body: (
+          <Trans>
+            有的作品简介下面还有这一颗：把这条片的分段剧本（有卡组的连卡组）铺成<b className="font-bold text-slate-100">你自己的一条流水线</b>，落到工作流画布上接着改。它会<b className="font-bold text-slate-100">换掉你手上那条</b>（那条里有东西时先问你）；铺过去这一下不花钱。
+          </Trans>
+        ),
+      },
+      {
         title: msg`全屏与转屏`,
         anchor: "feed-fullscreen",
         body: (
@@ -238,11 +258,14 @@ export const TOURS: GuideTour[] = [
     version: 2,
     steps: [
       {
+        // ★ 2026-09-17 补（主人点名「补」；未升 version —— 只多讲一种翻法，老文案没有说错）：卡片左右滑也能翻面
+        //   （CreatePage 的 onPointerUp：横向位移 ≥ SWIPE_MIN 就 setTurns，方向跟着手指走），原文只讲了右上角那颗翻面钮。
+        //   ⚠ 上面 v2 那条注释说的「左右滑动」是**老轮播**的换张手势（已删）；这里的滑是翻同一张卡，两回事。
         title: msg`挑一种创作方式`,
         anchor: "create-dots",
         body: (
           <Trans>
-            底栏的 ➕ 先落到这里。这是<b className="font-bold text-slate-100">一张卡的正反面</b>：正面工坊、背面简约，点右上角那枚按钮翻面（上面写着背面是谁）。两面<b className="font-bold text-slate-100">不是各走各的</b>，而是同一条流水线的两个入口，最后都汇到剪辑与发布。
+            底栏的 ➕ 先落到这里。这是<b className="font-bold text-slate-100">一张卡的正反面</b>：正面工坊、背面简约，<b className="font-bold text-slate-100">左右滑卡片</b>或点右上角那枚按钮都能翻面（按钮上写着背面是谁）。两面<b className="font-bold text-slate-100">不是各走各的</b>，而是同一条流水线的两个入口，最后都汇到剪辑与发布。
           </Trans>
         ),
       },
@@ -384,6 +407,20 @@ export const TOURS: GuideTour[] = [
         body: (
           <Trans>
             这一屏摆的是调好的<b className="font-bold text-slate-100">成品配方</b>：画风、运镜、分镜骨架都定好了，挑一个套上去，写一句话或者给人偶挂上你的角色卡就能出片。它和工坊的卡片市场是两回事——卡片是素材，得自己组装剧情；模板是拿来就能出片的成品。
+          </Trans>
+        ),
+      },
+      {
+        // ★ 2026-09-17 补（主人点名「补」；未升 version）：货架上的搜索框与分类芯片原来一个字没提。
+        //   事实出处（TemplateShelf）：搜索框只在市场页签渲染（browseTemplates(q)）；分类芯片两个页签都有，
+        //   `cat` 是货架级 state、切页签不清，过滤按 `r.parts[0].category === cat` —— 没有分类的老模板在选了任何一类时都被滤掉，
+        //   只在「全部」下出现。「看不到自己做的模板」多半就是这一拍，所以把出路写进来（与「分区」第 4 步「先看分区图标亮没亮」同一种写法）。
+        //   锚点挂在芯片那一行（template-filters），两个页签都在。
+        title: msg`搜索与分类`,
+        anchor: "template-filters",
+        body: (
+          <Trans>
+            市场页签顶上能<b className="font-bold text-slate-100">按词搜</b>，下面那排芯片<b className="font-bold text-slate-100">按类筛</b>，两个叠在一起生效。选中的分类在「我的模板」里也管用，没分过类的老模板只在「全部」下出现——找不到自己做的，先点回「全部」。
           </Trans>
         ),
       },
@@ -740,7 +777,10 @@ export const TOURS: GuideTour[] = [
     // v2（2026-08-28）：2026-08-21 本页加了第三个页签「我的模板」（内嵌模板货架与
     // 提取器，其中 AI 白模化是真花钱出一次片的），老引导还在说"只管卡片和卡组、
     // 只有两个页签"——页面改版到老引导会误导人，升版本让所有人重看。
-    version: 2,
+    // v3（2026-09-17，主人点名「涨 version」）：v2 第 1、2 步都说错了钱（「AI 白模化是唯一收费处」、
+    //   圈选提取同时写进花钱与不花钱两边），#279 / #288 订正过；看过 v2 的人不升版就读不到。
+    //   同一拍补了「＋ 新建卡组」与「分享到创意工坊」（第 5、6 步）。
+    version: 3,
     steps: [
       {
         // ★ 这一屏（创意工坊，底栏那一格写的是「工坊」= Workshop）与标题里的「工坊」（3D 铸卡桌 = Studio）是两个地方，英文别译成同一个词：这一步讲的正是二者的分工。
@@ -808,11 +848,26 @@ export const TOURS: GuideTour[] = [
       {
         // ★ 有意不挂锚点（2026-08-28 撤掉 workshop-deck-new）：那颗按钮只在「我的卡组」
         //   页签下渲染，而引导在默认的「我的卡片」页签自动弹——那一刻它不存在，圈画不出来
+        // ★ 2026-09-17 补「＋ 新建卡组」（主人点名「补」）：原文只讲了怎么往卡组里加卡，没讲卡组从哪儿来（WorkshopPage 卡组页签顶上那颗）
         title: msg`组卡组：怎么加、怎么改`,
         body: (
           <Trans>
-            在「我的卡组」页签里：先点「编辑」<b className="font-bold text-slate-100">再</b>点卡片，才是加进来或拿出去；卡角能定封面。
+            在「我的卡组」页签里：<b className="font-bold text-slate-100">「＋ 新建卡组」</b>开一组新的；先点「编辑」<b className="font-bold text-slate-100">再</b>点卡片，才是加进来或拿出去；卡角能定封面。
             组名点上去直接改。删掉整组<b className="font-bold text-slate-100">不会删卡</b>。
+          </Trans>
+        ),
+      },
+      {
+        // ★ 2026-09-17 补（主人点名「补」）：每个卡组下面的 WorkshopShareBar 原来一个字没提。锚点不挂，理由同上一步（只在「我的卡组」页签渲染）。
+        //   事实出处：分享后出现在「从市场添加」的卡组栏（WorkshopShareBar 那行说明）；装走不花钱（本页第 3 步）；
+        //   ★ 「别人已经装走的还在」是说给**分享之前**的人听的：server branchAsset.controller 的 installDeck 把快照里的卡 upsert 进装的人自己的卡库
+        //   并另建一个卡组，unpublishDeck 只把 published 置假、清空快照 —— 已经装走的副本不跟着撤。
+        //   分享被拒的那几种原因（离线、空卡组…）按文件头的规矩留在键旁边说（shareBlockReason），不进引导。
+        title: msg`把卡组分享出去`,
+        body: (
+          <Trans>
+            每个卡组下面有一颗<b className="font-bold text-slate-100">「分享到创意工坊」</b>：分享后它会出现在「从市场添加」里，别人能整套装走，不花钱。
+            同一颗键能取消分享，但<b className="font-bold text-slate-100">别人已经装走的那份还在他那儿</b>。
           </Trans>
         ),
       },
@@ -896,12 +951,17 @@ export const TOURS: GuideTour[] = [
         ),
       },
       {
+        // ★ 2026-09-17 补草稿上限（主人点名「补」；未升 version）：这是一条**会丢东西**的规则（drafts.saveWorkDraft 超过 MAX_DRAFTS
+        //   按 updatedAt 保留最新的，被挤掉的正文直接删），原文没提。数插值 MAX_DRAFTS（文件头 ★★）。
+        //   ⚠ 这不是把界面上的说明搬进引导：ProfilePage 草稿格顶上那行「共 N 条（上限 …，超了会从最旧的清起）」照旧留着，
+        //     引导只是在人还没存满之前先说一声。
         title: msg`没做完的半成品在这一格`,
         anchor: "profile-tab-drafts",
         body: (
           <Trans>
             存着的半成品都在这儿。那把锁是「<b className="font-bold text-slate-100">还没发布</b>」，
             不是私密。点一张要先挑用工坊还是工作流打开 —— 同一份内容，两边都进得去。
+            草稿最多留 {MAX_DRAFTS} 条，<b className="font-bold text-slate-100">超了会从最旧的清起</b>。
           </Trans>
         ),
       },
@@ -912,6 +972,20 @@ export const TOURS: GuideTour[] = [
           <Trans>
             点它看消息 —— 全 app <b className="font-bold text-slate-100">只有这一个入口</b>。
             有新的时候图标上会多一个红点，红点不报条数，进去才知道有几条。
+          </Trans>
+        ),
+      },
+      {
+        // ★ 2026-09-17 补（主人点名「补」；未升 version）：顶栏铃铛两边的两个入口原来没讲（ProfilePage 顶栏：? → 耳机 → 铃铛 → 齿轮）。
+        //   事实出处：齿轮 → /settings（SettingsPage：编辑资料、语言、画面质量、本机缓存 / 存储、「新手引导」那一行把所有引导恢复成没看过）；
+        //   耳机 → /support（AI 客服，模型判定或用户要求时转人工工单，见 api/support 与 App.tsx 那条路由的注释）。
+        //   锚点挂齿轮（profile-settings）：只有自己的主页才有这一排，而这份引导只在自己的主页弹。
+        title: msg`客服与设置`,
+        anchor: "profile-settings",
+        body: (
+          <Trans>
+            齿轮是<b className="font-bold text-slate-100">设置</b>：资料、界面语言、画质、缓存都在里面，看过的引导也能从那儿全部恢复重看。
+            铃铛左边那副耳机是 <b className="font-bold text-slate-100">AI 客服</b> —— 不会用、遇到问题都能问它，解决不了还能转人工。
           </Trans>
         ),
       },
@@ -952,12 +1026,28 @@ export const TOURS: GuideTour[] = [
         ),
       },
       {
+        // ★ 2026-09-17：「白模模板要先真出过一段片才让发」挪到下一步（那一步把发布前的几件事按顺序说全），这里只留工作台是什么、发布与下架各是什么
         title: msg`自己做的才多一块工作台`,
         body: (
           <Trans>
             互动区上面那一大块「✎ 模板信息」<b className="font-bold text-slate-100">只有作者看得见</b>。
-            发布＝别人搜得到、能付费套用；白模模板要先用它真出过一段片才让发。
-            下架只是收回来，你那份还在。
+            发布＝别人搜得到、能付费套用；下架只是收回来，你那份还在。
+          </Trans>
+        ),
+      },
+      {
+        // ★ 2026-09-17 补（主人点名「补」；未升 version）：工作台里的「识别角色位」原来没讲，顺序也没讲。
+        //   事实出处：发布闸两道 —— 核对（RoleConfirmEntry：「核对之前不能发布」）与试炼（provenAt：作者本人用它真出过一次片）；
+        //   角色位是**做模板时就认过一遍**的（data/templates.makeOwnRefTemplate 的第 ③ 步 / 服务端白模化那一跳认人 + 量框），
+        //   工作台里那颗是**重来**的入口（DetectRolesEntry：没认出来 = 「识别角色位」，认过没核对 = 「重新识别角色位」；
+        //   每点一次都按 ownRefTemplateCost 收费、价印在键上；核对过就不再出现 —— 服务端也会拒）。
+        //   所以不引用键上的字（两档字不同），只说「让它重新识别」；也不说它在核对的上面还是下面（DOM 里核对入口在前）。
+        //   锚点不挂：整块只对作者渲染，理由同上一步。
+        title: msg`白模模板发布前`,
+        body: (
+          <Trans>
+            白模模板要先<b className="font-bold text-slate-100">逐个核对角色位</b>，再用它真出一段片，才让发布。
+            角色位是做模板时 AI 认的；认得不对，核对之前可以在这里让它重新识别（按次收费，价写在键上），核对过就不能再认了。
           </Trans>
         ),
       },
