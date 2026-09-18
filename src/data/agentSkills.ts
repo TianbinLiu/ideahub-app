@@ -15,7 +15,7 @@
 //   `toSkillPayload`，以及 api/skills.ts。漏任何一处 = 发了、201 了、读回来是空的，零报错。
 import { VIDEO_PROMPT_MAX, uid } from "../types";
 import { t } from "@lingui/core/macro";
-import { deviceOwner, onViewerChange, workOwner } from "./deviceOwner";
+import { deviceOwner, mayClaimLegacy, onViewerChange, workOwner } from "./deviceOwner";
 import { splitByOwner } from "./ownerSplit";
 
 export interface AgentSkill {
@@ -57,7 +57,7 @@ let version = 0;
 partition(load());
 
 function partition(all: AgentSkill[]): void {
-  const split = splitByOwner(all, deviceOwner());
+  const split = splitByOwner(all, deviceOwner(), mayClaimLegacy());
   mine = split.mine;
   others = split.others;
   if (split.claimed) persist();

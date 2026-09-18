@@ -28,7 +28,7 @@
 //   别的账号草稿里引用着的成片与 GLB 会被当孤儿删掉。
 import { t } from "@lingui/core/macro";
 import { idbDel, idbGet, idbRead, idbSet } from "./db";
-import { deviceOwner, onViewerChange, workOwner } from "./deviceOwner";
+import { deviceOwner, mayClaimLegacy, onViewerChange, workOwner } from "./deviceOwner";
 import { shrinkDataUrl } from "../utils/image";
 import { Card, NodeSlot, uid } from "../types";
 
@@ -126,7 +126,7 @@ onViewerChange(() => {
  */
 function claimLegacy(): void {
   const me = deviceOwner();
-  if (!me || loadIssue || !index.some((d) => !d.owner)) return;
+  if (!me || loadIssue || !index.some((d) => !d.owner) || !mayClaimLegacy()) return;
   index = index.map((d) => (d.owner ? d : { ...d, owner: me }));
   persistIndex();
 }

@@ -891,6 +891,10 @@ export const EDITOR_SLOTS_MAX = 20;
 let chatSeq = 0;
 // 节点生成的全局并发闸：取消编辑器再重开也不允许并发两炉
 let nodeGenInFlight = false;
+/** 工坊有没有一炉推演在路上 —— 退出登录前要问（studio/signOutGuard）：铸段窗那一炉只挂这把闸与 editor.generating */
+export function studioDeriveInFlight(): boolean {
+  return nodeGenInFlight;
+}
 
 /**
  * 返回栈的层级。**这是返回优先级的唯一定义**——goBack() 与顶栏按钮文案都读它，
@@ -1162,6 +1166,10 @@ export const useStudio = create<StudioState>()((set, get) => ({
 
   forgeCards: async (files, note, type, tierId) => {
     const fileCount = files.length;
+    // 这一炉是谁开的（2026-09-18）：登录失效后换了另一个人登录，这一炉回来时不许在新账号的对话里出声、
+    // 也不许交给新账号收下 —— 抛给 NpcDialog（那一页多半早已卸载，话落空也无妨），dialog.busy 也不归它清
+    const ownerAtStart = workOwner();
+    const switched = () => workOwner() !== ownerAtStart;
     get().meSay(
       note ||
         t({
@@ -1176,8 +1184,11 @@ export const useStudio = create<StudioState>()((set, get) => ({
       //   中间不报进度，用户看到的就是一个不动的"炼卡中…"——与卡死无从区分。
       const { cards, minted, notes } = await generateCards(files, note, type, {
         tierId,
-        onProgress: (status) => set({ forgeProgress: status }),
+        onProgress: (status) => {
+          if (!switched()) set({ forgeProgress: status });
+        },
       });
+      if (switched()) throw new Error(t`这一炉是上一个登录的账号开的，已作废。`);
       if (cards.length === 0) {
         get().npcSay(t`这些素材还差点意思，再补充点描述？`);
         get().setMood(-0.6, 2600);
@@ -1200,6 +1211,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
       //   永远不知道缺的是哪张、为什么缺、要不要重炼（铁律八）。
       return { cards, minted, notes };
     } catch (e) {
+      if (switched()) throw e;
       // 真实 AI 会因为余额/审核/网络失败。以前这里直接 throw 到无人接手的
       // Promise 上，界面只剩一个转不停的"炼卡中…"；现在由铸卡师说出来
       const reason = (e instanceof Error ? e.message : String(e)).slice(0, 80);
@@ -1207,7 +1219,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
       get().setMood(-0.8, 3000);
       throw e;
     } finally {
-      set((s) => ({ dialog: { ...s.dialog, busy: false }, forgeProgress: "" }));
+      if (!switched()) set((s) => ({ dialog: { ...s.dialog, busy: false }, forgeProgress: "" }));
     }
   },
 
@@ -1295,6 +1307,9 @@ export const useStudio = create<StudioState>()((set, get) => ({
       marketOpen: s0.market.open,
       lowBalance: (w?.plan ?? 0) + (w?.addon ?? 0) < CHAT_TURN_TOKENS * 10,
     };
+    // 这一句是谁问的（2026-09-18）：登录失效后换了另一个人登录，回来的那句是答上一个人的 —— 不进新账号的对话、不记账
+    const ownerAtStart = workOwner();
+    const switched = () => workOwner() !== ownerAtStart;
     try {
       const { text: reply } = await (paid ? npcChat : npcChatOffline)({
         text: line,
@@ -1302,14 +1317,16 @@ export const useStudio = create<StudioState>()((set, get) => ({
         system: NPC_SYSTEM,
         deskBlock: deskBlock(desk),
       });
+      if (switched()) return;
       if (paid) spendTokens(CHAT_TURN_TOKENS); // 成功才扣，与 refineProposalFrame 同口径
       get().npcReply(reply, { offline: !paid, seq });
     } catch (e) {
+      if (switched()) return;
       console.warn("[studio] 对话失败:", e); // ★ 技术细节只进 console，不进台词
       const f = chatFailLine(e);
       get().npcReply(f.text, { blocked: f.blocked, offline: !f.blocked, seq });
     } finally {
-      set((st) => ({ dialog: { ...st.dialog, thinking: false } }));
+      if (!switched()) set((st) => ({ dialog: { ...st.dialog, thinking: false } }));
     }
   },
 

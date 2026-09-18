@@ -44,7 +44,7 @@ import { aspectOf, Card, DEFAULT_ASPECT, Proposal, TemplateRecipe, VideoAspect, 
 // ★ 角色位上限（服务端那个数的镜像）与"哪几个能挂卡"只有一处实现，在 data 层 ——
 //   store 不该 import 组件（依赖方向 data → store → 组件）
 import { dropVideoJob, rememberVideoJob, setVideoJobWaiting, type VideoJob } from "../data/videoJobs";
-import { onOwnerSwitch } from "../data/deviceOwner";
+import { onOwnerSwitch, workOwner } from "../data/deviceOwner";
 // 导演台的状态与融图指令（纯数据 / 纯函数，见 stage/stageState 头部的 ★）
 import { stageFuseInstruction, type StageState } from "./stage/stageState";
 import {
@@ -3088,6 +3088,9 @@ export const useFlow = create<FlowState>()((set, get) => ({
   takeJob: async (job, prog) => {
     const s0 = get();
     if (s0.busy) throw new Error(t`正在忙别的，等这一步完了再取`);
+    // 这一发是谁取的（2026-09-18）：登录失效后换了另一个人登录，回来时流水线已经清成新账号的了 ——
+    // 成片不许落进去、凭据不许销毁（留给原来那个人，他再登录时取回卡上还在），busy 也不归这一发清
+    const ownerAtStart = workOwner();
     const node = s0.nodes.find((n) => n.id === job.nodeId) ?? null;
     /**
      * 原来那一段那一套走向还在不在这条流水线里。
@@ -3100,6 +3103,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
     set({ busy: true, err: "" });
     try {
       const res = await takeVideoTask(job.taskId, prog, job.provider);
+      if (workOwner() !== ownerAtStart) throw new Error(t`取回期间换了账号，这一发留给原来那个账号，下次登录时再取。`);
       const { url, lastFrame, poster } = res;
       // ★ 与 genNode 成功那一行**同一条规则**（"拿到结果才扣"）：接不到结果的那一发
       //   在本机账上没扣过，取回等于这一段终于成了。不扣的话"等超时再取回"就是白嫖，
@@ -3147,7 +3151,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
       const placedId = orphan ? (get().nodes[get().cursor]?.id ?? "") : job.nodeId;
       if (placedId) get().settleNodeMedia(placedId);
     } catch (e) {
-      set({ busy: false });
+      if (workOwner() === ownerAtStart) set({ busy: false });
       // ★ 凭据在这里**一律不动**：takeVideoTask 已经把"还能再来取"与"真没了"分成了
       //   两种抛法，但两者的善后都不是"悄悄删掉" —— 真失败那一条要留在屏幕上让用户
       //   看见"钱不退"，销毁它等于把这句话也一起吞了。真正的销毁只发生在取回成功

@@ -28,7 +28,7 @@ import { isPermanentUrl, pairAssetUrls, type PairTarget } from "./publishAssets"
 import * as api from "../api/projects";
 import { ApiError } from "../api/client";
 import type { DraftVideo } from "../types";
-import { deviceOwner, onViewerChange, workOwner } from "./deviceOwner";
+import { deviceOwner, mayClaimLegacy, onViewerChange, workOwner } from "./deviceOwner";
 
 /**
  * 待提交的画布快照（组稿那一拍抓的，还没瘦身）。**每个账号一格**：同一个人同一时刻只可能有一摊活。
@@ -134,6 +134,7 @@ export function subscribeProjects(fn: () => void): () => void {
 //   是按 A 的工程列表判的（B 自己的作品全被判成「没有留存工程」），直到重启。readyOnce 置回 null 让编辑页重问。
 //   升级前那一格顺手认领给新登录的这个人。
 onViewerChange(() => {
+  viewerGen++;
   metas = [];
   supported = null;
   readyOnce = null;
@@ -144,7 +145,7 @@ onViewerChange(() => {
 /** 升级前那一格（没有主人）归现在登录的这个人（见 data/deviceOwner 文件头「存量」那条）。即发即忘落盘，不 emit */
 function claimLegacySlot(): void {
   const me = deviceOwner();
-  if (!me || !legacySlot || slots[me]) return;
+  if (!me || !legacySlot || slots[me] || !mayClaimLegacy()) return;
   slots = { ...slots, [me]: legacySlot };
   legacySlot = null;
   void idbSet(PENDING_KEY, { v: 2, byOwner: slots });
@@ -155,6 +156,11 @@ export function projectsVersion(): number {
 }
 
 let readyOnce: Promise<void> | null = null;
+/**
+ * 换人的代数（onViewerChange +1）。拉工程列表的回包先比一下：请求发出去时还是上一个人，回来已经换人了，
+ * 那份就不许落进这个人的缓存（2026-09-18 复核抓到：B 的「🛠 回炉重做」会按 A 的工程列表判）。
+ */
+let viewerGen = 0;
 
 /**
  * 拉一次工程列表填 meta 缓存（首次调用才真跑，之后共用同一个 Promise）。
@@ -175,11 +181,14 @@ let readyOnce: Promise<void> | null = null;
  */
 export function readyProjects(): Promise<void> {
   readyOnce ??= (async () => {
+    const gen = viewerGen;
     // 遗留键搭这次往返一起清（见 LEGACY_KEY 的 ★）。失败忽略：它只是占地方
     void idbDel(LEGACY_KEY).catch(() => {});
     await readPending();
     try {
       const items = await api.listProjects();
+      // 换过人了：这是上一个人的列表。readyOnce 在换人那一拍已经置回 null，编辑页下次问的时候会替现在这个人重拉
+      if (gen !== viewerGen) return;
       if (items === null) {
         // 回包形状认不出来 = 这台服务器没有这个端点（**不能**看状态码，见 api/projects 的 ★）
         supported = false;
@@ -188,6 +197,7 @@ export function readyProjects(): Promise<void> {
         metas = items;
       }
     } catch (e) {
+      if (gen !== viewerGen) return; // 同上：上一个人的失败不改这个人的「支不支持」，也不动他那份 readyOnce
       // 404 / 501 = 这台服务器真的没有这条路由；其余一律是"没问出来"，不是"不支持"
       const status = e instanceof ApiError ? e.status : 0;
       if (status === 404 || status === 501) {

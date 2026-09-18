@@ -407,8 +407,10 @@ interface SchemesOwnerSource {
   viewer: () => string;
   /** 内存里这摊活是谁的（新写的记在谁名下） */
   work: () => string;
+  /** 现在这个人能不能认领升级前的无主存量（deviceOwner.mayClaimLegacy） */
+  claim: () => boolean;
 }
-let ownerSrc: SchemesOwnerSource = { viewer: () => "", work: () => "" };
+let ownerSrc: SchemesOwnerSource = { viewer: () => "", work: () => "", claim: () => false };
 
 let mine: PromptScheme[] = [];
 let others: PromptScheme[] = [];
@@ -417,7 +419,7 @@ let version = 0;
 partition(load());
 
 function partition(all: PromptScheme[]): void {
-  const split = splitByOwner(all, ownerSrc.viewer());
+  const split = splitByOwner(all, ownerSrc.viewer(), ownerSrc.claim());
   mine = split.mine;
   others = split.others;
   if (split.claimed) persist();

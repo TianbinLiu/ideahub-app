@@ -8,14 +8,20 @@
 /**
  * 按主人分区。`me` 为空（没人登录）时一条都不归 mine。
  * 无主的存量（升级前写的）归 `me` —— 由升级后第一个登录的人认领；`claimed` 为真时调用方要落一次盘。
+ * `claim` 为假（deviceOwner.mayClaimLegacy 说这个人不该认领）时无主的原样留在 others 里，等下一个该认领的人。
+ * ★ `claim` 必填：漏传是零症状的（老数据被一个临时身份认走，见 mayClaimLegacy 的 ★）。
  * ★ 认领是就地改 `owner`（与各库原来就地改条目的写法一致），调用方不必再拷一份。
  */
-export function splitByOwner<T extends { owner?: string }>(all: T[], me: string): { mine: T[]; others: T[]; claimed: boolean } {
+export function splitByOwner<T extends { owner?: string }>(
+  all: T[],
+  me: string,
+  claim: boolean,
+): { mine: T[]; others: T[]; claimed: boolean } {
   const mine: T[] = [];
   const others: T[] = [];
   let claimed = false;
   for (const item of all) {
-    if (!item.owner && me) {
+    if (!item.owner && me && claim) {
       item.owner = me;
       claimed = true;
     }

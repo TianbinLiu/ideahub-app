@@ -22,6 +22,7 @@ import * as projects from "./projects";
 import { dropLocalDanmaku } from "./danmaku";
 import { showToast } from "./toast";
 import { currentUser, readyAccount, subscribeAccount } from "./account";
+import { mayClaimLegacy } from "./deviceOwner";
 import { API_ON, ApiError, emitApiError } from "../api/client";
 import * as branch from "../api/branch";
 import { resolveMentionSpans, type MentionPick } from "../utils/mention";
@@ -2044,8 +2045,14 @@ async function pushPublish(item: VideoItem, draft: DraftVideo): Promise<void> {
     //   的 token，而服务端 `author: req.user._id` 只认 token —— A 花钱炼的片子会挂到 B 名下进广场（与 PendingPublish.owner 的 ★★
     //   同一个事故形状，那边防的是冷启动补发，这里防的是正在传的这一发）。抛出去落进 catch：条目留在待发队列、主人仍是 A
     //   （queuePending 保留第一次入队时记的主人），A 再登录时照常补发。
-    if (ownerKey() !== ownerAtStart) {
-      throw new Error(t`上传途中换了登录的账号，这一条先不发——等原来那个账号再登录时会自动补发`);
+    const ownerNow = ownerKey();
+    if (ownerNow !== ownerAtStart) {
+      // 两种情形说两句话：没人登录着 = 只是登录失效了（原来一律说「换了账号」，2026-09-18 复核抓到）
+      throw new Error(
+        ownerNow
+          ? t`上传途中换了登录的账号，这一条先不发——等原来那个账号再登录时会自动补发`
+          : t`上传途中登录失效了，这一条先不发——重新登录这个账号后会自动补发`,
+      );
     }
     const v = await branch.createVideo(sending);
     // ★★ **`null` 是失败，不是成功**（2026-08-21 第十轮扫描）：`createVideo` 对
@@ -2360,8 +2367,10 @@ export interface PendingPublish {
    *   并给一颗「立即重试」。
    * ★ 同文件的 `LikedStore` 早就是这条规则的正确实现（连 owner 一起存，对不上就当没有）
    *   —— 那只是个点赞态，而这里是会真发到广场上的付费成片。
-   * ★ 缺省（老队列里的存量）**当成"当前这个人的"**：那些是升级前留下的，
-   *   绝大多数就是本人的；判成"别人的"会让它们永远发不出去也删不掉。
+   * ★ 缺省（老队列里的存量）归**第一个来认领的人**（2026-09-18 与 data/deviceOwner 的「存量」那条对齐）：
+   *   那些是升级前留下的，绝大多数就是本人的；判成"别人的"会让它们永远发不出去也删不掉。
+   *   原来是「对谁都算自己的」—— 换一个人登录照样能看到、能替他发出去，正是这次要治的串号。
+   *   现在：认领之前对「可以认领的人」（mayClaimLegacy）可见，第一次补发时写上他的名字（发成了就出队、没发成带着名字留下）。
    */
   owner?: string;
 }
@@ -2379,10 +2388,11 @@ export function publishUploadStatus(): typeof uploadStatus {
 
 /**
  * 这条待发记录是不是**当前这个人**的 —— 唯一实现（flush 与横幅共用，铁律六）。
- * ★ 缺省判成"是"：老队列里的存量没有这一位（见 PendingPublish.owner 的 ★）。
+ * ★ 没有主人的老存量：现在这个人能认领就算他的（见 PendingPublish.owner 的 ★）；配了服务器却没连上时
+ *   登进来的是临时的本机账号，不许它认领（deviceOwner.mayClaimLegacy 的 ★★）。
  */
 function pendingMine(p: PendingPublish): boolean {
-  return !p.owner || p.owner === ownerKey();
+  return p.owner ? p.owner === ownerKey() : mayClaimLegacy();
 }
 
 /** 老版本存的是裸 DraftVideo[]，读的时候归一 */
@@ -2637,7 +2647,8 @@ async function flushPending(): Promise<void> {
       console.warn("[videos] 待发作品重试失败:", why.code, e);
       // ★ owner 原样带回去：重写队列时丢掉这一位，下一轮就又变成"谁登录发给谁"
       // ★ 落盘的是码 + 原话（只有 other 才有），不是翻好的一句（见 PendingErrorCode 的 ★★）
-      left.push({ draft: (e as MaterializeError).partial ?? sending, ...pendingFields(why), at: Date.now(), owner: p.owner });
+      // ★ 没有主人的老存量在这里认领（pendingMine 已经判过「他可以认领」）：带上名字留下，下一轮就不再是谁登录发给谁
+      left.push({ draft: (e as MaterializeError).partial ?? sending, ...pendingFields(why), at: Date.now(), owner: p.owner || ownerKey() });
     }
   }
   // ★★ 把**别人那几条原样并回去**：它们这一轮压根没参与，但 writePending 是整表覆盖，

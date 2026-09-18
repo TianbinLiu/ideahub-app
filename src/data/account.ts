@@ -166,7 +166,8 @@ async function readyLocal(): Promise<void> {
  */
 function claimLegacyCardSideStores(): void {
   const u = currentUser();
-  if (!u || !db || remoteOn()) return;
+  // ★ 判 API_ON 不判 remoteOn()：配了服务器却没连上时登进来的是现编 id 的本机账号，不许它认领（见 deviceOwner.mayClaimLegacy 的 ★★）
+  if (!u || !db || API_ON) return;
   const originals = db.cards.filter((c) => c.ownerId === u.id && !c.fromOthers).map((c) => c.id);
   void claimLegacyAssets(originals);
   void claimLegacyVoices(originals);

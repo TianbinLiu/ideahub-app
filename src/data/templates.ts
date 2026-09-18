@@ -20,7 +20,7 @@ import { remoteOn } from "./videos";
 import { i18n, type MessageDescriptor } from "@lingui/core";
 import { msg, t } from "@lingui/core/macro";
 import { V3_CARD_WIPE_MS, Card, MarkBox, VideoAspect, VideoTemplate, uid } from "../types";
-import { deviceOwner, onViewerChange, workOwner } from "./deviceOwner";
+import { deviceOwner, mayClaimLegacy, onViewerChange, workOwner } from "./deviceOwner";
 import { splitByOwner } from "./ownerSplit";
 
 const KEY = "templates.v1";
@@ -70,7 +70,7 @@ function persist() {
  * 无主的存量归现在登录的这个人；认领了就落一次盘。
  */
 function partition(all: VideoTemplate[]): void {
-  const split = splitByOwner(all, deviceOwner());
+  const split = splitByOwner(all, deviceOwner(), mayClaimLegacy());
   mine = split.mine;
   othersMine = split.others;
   if (split.claimed) persist();
@@ -183,11 +183,14 @@ function ensureMineRemote(): void {
       mineRemoteFresh = true;
       emit();
     } catch {
+      // 换过人了：上一个人这一发失败，冷却不该落到这个人头上（2026-09-18 复核抓到）
+      if (gen !== viewerGen) return;
       // ★ 不设 error 文案：这一屏本来就有本机那份可显示，一条红字只会让作者以为模板出事了。
       //   冷却 15s 之后自然重试（切 tab / 重渲染都会再问一次）。
       mineRemoteRetryAt = Date.now() + 15_000;
     } finally {
-      mineRemoteLoading = false;
+      // 换过人的话，loading 在换人那一拍已经复位、现在可能是这个人自己那一发在途 —— 不归上一个人的回包清
+      if (gen === viewerGen) mineRemoteLoading = false;
     }
   })();
 }
@@ -2402,7 +2405,14 @@ export function pendingBlockoutIssue(): string {
 
 /** 真正去拉那一次（同一时刻只有一发在途；**唯一实现**，懒加载与强制刷新都走它） */
 function loadPendingJobs(): Promise<void> {
+  /**
+   * 这一发回来时已经换了人（2026-09-18 复核抓到）：回包丢掉之外还要在收尾时叫一次重画 ——
+   * 换人那一拍这一发还在途，新的人来问时撞上 `pendingInflight` 就没发自己那一发；回包被丢掉又不 emit 的话，
+   * 他的待取回名单要等到别的事让页面重画才会去拉。
+   */
+  let stale = false;
   pendingInflight ??= (async () => {
+    const gen = viewerGen;
     try {
       if (!(await remoteTemplatesCapable())) {
         // 瞬时网络失败（探测没缓存结论）≠ 老服务端：前者要说出来（这一屏关系到钱），
@@ -2414,10 +2424,12 @@ function loadPendingJobs(): Promise<void> {
         }
         return;
       }
-      const gen = viewerGen;
       const list = await branch.listBlockoutJobs();
       // 换过人了：这是上一个人的待取回名单（他付过钱的那几发），不许落进这个人的界面（见 viewerGen）
-      if (gen !== viewerGen) return;
+      if (gen !== viewerGen) {
+        stale = true;
+        return;
+      }
       if (list === null) {
         // 这台服务器有模板能力、但没有两阶段的 pending 端点（上一版服务端）。
         // 它那条白模化是同步跑完的（startBlockoutize 的 legacy 分支），本来就没有
@@ -2433,6 +2445,11 @@ function loadPendingJobs(): Promise<void> {
       pendingIssue = "";
       emit();
     } catch (e) {
+      // 上一个人的失败同样不落到这个人头上（冷却、那行红字都不给他）
+      if (gen !== viewerGen) {
+        stale = true;
+        return;
+      }
       const why = e instanceof Error ? e.message : String(e);
       pendingIssue = t`还没取回的白模化结果拉取失败：${why}`;
       pendingRetryAt = Date.now() + 15_000;
@@ -2440,6 +2457,7 @@ function loadPendingJobs(): Promise<void> {
     }
   })().finally(() => {
     pendingInflight = null;
+    if (stale) emit();
   });
   return pendingInflight;
 }

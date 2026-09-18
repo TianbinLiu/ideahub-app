@@ -3245,6 +3245,10 @@ msgstr "上传超时（网络太慢或作品太大）"
 msgid "上传途中换了登录的账号，这一条先不发——等原来那个账号再登录时会自动补发"
 msgstr "上传途中换了登录的账号，这一条先不发——等原来那个账号再登录时会自动补发"
 
+#: src/data/videos.ts
+msgid "上传途中登录失效了，这一条先不发——重新登录这个账号后会自动补发"
+msgstr "上传途中登录失效了，这一条先不发——重新登录这个账号后会自动补发"
+
 #: src/components/VoiceUploadButton.tsx
 msgid "上传音频"
 msgstr "上传音频"
@@ -3616,6 +3620,18 @@ msgstr "中国大陆"
 #: src/studio/stage/stageState.ts
 msgid "中景"
 msgstr "中景"
+
+#: src/pages/CutPage.tsx
+msgid "中途换了账号，剩下的段没有重做"
+msgstr "中途换了账号，剩下的段没有重做"
+
+#: src/studio/personaWizardStore.ts
+msgid "中途换了账号，草稿还没写——再点一次生成。"
+msgstr "中途换了账号，草稿还没写——再点一次生成。"
+
+#: src/studio/live2dUploadStore.ts
+msgid "中途换了账号：包已经传上去了，还没识别——再点一次「开始识别」。"
+msgstr "中途换了账号：包已经传上去了，还没识别——再点一次「开始识别」。"
 
 #: src/components/flow/RefFrameSheet.tsx
 msgid "中间帧最多 {midMax} 张"
@@ -6426,6 +6442,10 @@ msgstr "取回中…"
 msgid "取回最新工程重来"
 msgstr "取回最新工程重来"
 
+#: src/studio/flowStore.ts
+msgid "取回期间换了账号，这一发留给原来那个账号，下次登录时再取。"
+msgstr "取回期间换了账号，这一发留给原来那个账号，下次登录时再取。"
+
 #. placeholder {0}: blob.type || "?"
 #: src/data/cardViews.ts
 msgid "取回来的不是图片（{0}）"
@@ -7982,6 +8002,10 @@ msgstr "工作流画布"
 #: src/studio/StudioPage.tsx
 msgid "工作流画布：同一条流水线的另一面"
 msgstr "工作流画布：同一条流水线的另一面"
+
+#: src/studio/signOutGuard.ts
+msgid "工作流里有一段正在跑（出片 / 推演 / 重画 / 取回；要花钱的那几样，钱在提交那一刻已经扣了）。等它跑完再退出登录，结果才会稳稳落在这个账号里。"
+msgstr "工作流里有一段正在跑（出片 / 推演 / 重画 / 取回；要花钱的那几样，钱在提交那一刻已经扣了）。等它跑完再退出登录，结果才会稳稳落在这个账号里。"
 
 #: src/pages/SupportPage.tsx
 msgid "工单"
@@ -9824,6 +9848,14 @@ msgstr "按参考视频 + {0} 张关键帧出片（输入 {inSec}s + 输出 {out
 msgid "按圈选改画面 {0}/{1}…"
 msgstr "按圈选改画面 {0}/{1}…"
 
+#: src/pages/CutPage.tsx
+msgid "按圈选重做"
+msgstr "按圈选重做"
+
+#: src/pages/CutPage.tsx
+msgid "按圈选重做好了，回剪辑页看看"
+msgstr "按圈选重做好了，回剪辑页看看"
+
 #: src/ai/real.ts
 msgid "按导演台构图出图（{count} 张参考）…"
 msgstr "按导演台构图出图（{count} 张参考）…"
@@ -11060,8 +11092,8 @@ msgid "有一段生成完了，但它已经不在流水线里——去取回卡�
 msgstr "有一段生成完了，但它已经不在流水线里——去取回卡把它领回来"
 
 #: src/studio/signOutGuard.ts
-msgid "有一段视频正在生成（钱在提交那一刻已经扣了）。等它出片再退出登录，结果才会稳稳落在这个账号里。"
-msgstr "有一段视频正在生成（钱在提交那一刻已经扣了）。等它出片再退出登录，结果才会稳稳落在这个账号里。"
+#~ msgid "有一段视频正在生成（钱在提交那一刻已经扣了）。等它出片再退出登录，结果才会稳稳落在这个账号里。"
+#~ msgstr "有一段视频正在生成（钱在提交那一刻已经扣了）。等它出片再退出登录，结果才会稳稳落在这个账号里。"
 
 #: src/studio/flowStore.ts
 msgid "有两张不同的卡都叫「{cardName}」（位置 {slotLabel} 挂的是其中一张）——出片时靠角色名把形象图接到这个位子上，重名就分不出谁是谁，会换错人。请给其中一张改个名字，或换一张卡"
@@ -17533,6 +17565,10 @@ msgstr "这一炉一个方案都没有，铸不成段"
 msgid "这一炉推演失败了：{reason}——歇口气再点一次「🎲 推演三套方案」。"
 msgstr "这一炉推演失败了：{reason}——歇口气再点一次「🎲 推演三套方案」。"
 
+#: src/studio/studioStore.ts
+msgid "这一炉是上一个登录的账号开的，已作废。"
+msgstr "这一炉是上一个登录的账号开的，已作废。"
+
 #: src/components/ForgeOverlay.tsx
 msgid "这一炉没成"
 msgstr "这一炉没成"
@@ -19281,6 +19317,10 @@ msgstr "铸卡上传"
 #: src/studio/ui/NpcDialog.tsx
 msgid "铸卡师"
 msgstr "铸卡师"
+
+#: src/studio/signOutGuard.ts
+msgid "铸卡师正在炼卡（出图的钱已经在花了），等这一炉出炉再退出登录，卡才会落在这个账号里。"
+msgstr "铸卡师正在炼卡（出图的钱已经在花了），等这一炉出炉再退出登录，卡才会落在这个账号里。"
 
 #: src/components/guide/tours.tsx
 #: src/pages/SettingsPage.tsx

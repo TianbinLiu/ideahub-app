@@ -24,6 +24,7 @@ import { isArkAssetUrl, requestArkTransfer, transferStatus } from "../ai/arkClie
 import { canAfford, spendTokens, walletOf } from "../data/account";
 import { idbSet } from "../data/db";
 import { dropVideoJob } from "../data/videoJobs";
+import { workOwner } from "../data/deviceOwner";
 import { annRedrawCost, fmtTokens, segTokens } from "../data/economy";
 import { publishedExit, useStudio } from "../studio/studioStore";
 import { VideoSegment, aspectOf, formatDuration, segLen, uid } from "../types";
@@ -596,6 +597,21 @@ export default function CutPage() {
       return;
     }
     setErr("");
+    // ★★ 这是一件分钟级、逐段花钱的长活（2026-09-18 复核抓到）：原来不领票，退出登录拦不住它 ——
+    //   A 走开去退出、B 登录之后，循环接着发改图 / 重拍，每一发都现取 token、记在 **B** 的账上，做完还把 A 的段
+    //   写进 B 的剪辑稿。现在领一张票（退出登录被 studio/signOutGuard 拦住；人走开了胶囊里也看得见它还在跑），
+    //   另外每一发请求之前问一句「还是不是这个人」—— 登录失效后换人登录那一种拦不住，靠这一句收手
+    //   （已经受理的那一发凭据记在 A 名下、不在这里结案，A 回来从取回卡领）。
+    const ownerAtStart = workOwner();
+    const stopIfMoved = () => {
+      if (workOwner() !== ownerAtStart) throw new Error(t`中途换了账号，剩下的段没有重做`);
+    };
+    const job = startJob({ kind: "cut-regen", title: t`按圈选重做`, page: "/cut", progress: t`准备中…` });
+    /** 屏幕与票说同一句话 */
+    const say = (line: string) => {
+      setBusy(line);
+      job.update(line);
+    };
     try {
       const nextSegs = draft!.segments.slice();
       let n = 0;
@@ -611,7 +627,8 @@ export default function CutPage() {
           const a = list[k];
           const step = k + 1;
           const steps = list.length;
-          setBusy(t`第 ${segNo} 段 · 按圈选改画面 ${step}/${steps}…`);
+          stopIfMoved();
+          say(t`第 ${segNo} 段 · 按圈选改画面 ${step}/${steps}…`);
           const edited = await refineFrame(
             // i18n-ignore-next-line: 发给 Seedream 图生图的改图指令，提示词冻结中文（界面语言不改变模型听什么）
             `${a.req}。参考图中红色圈线标注了目标物体：只对该物体做上述处理，并彻底去掉红色圈线本身`,
@@ -621,9 +638,11 @@ export default function CutPage() {
           if (a.atSec < half) seg.firstFrame = edited;
           else seg.lastFrame = edited;
         }
-        setBusy(t`第 ${segNo} 段 · 重拍视频（${n}/${segTotal} 段）…`);
+        stopIfMoved();
+        say(t`第 ${segNo} 段 · 重拍视频（${n}/${segTotal} 段）…`);
         const reqAll = list.map((a) => a.req).join("；");
-        const { url, lastFrame, poster, taskId } = await regenSegment(seg, reqAll, (s) => setBusy(t`第 ${segNo} 段 · ${s}`));
+        const { url, lastFrame, poster, taskId } = await regenSegment(seg, reqAll, (s) => say(t`第 ${segNo} 段 · ${s}`));
+        stopIfMoved();
         // ★ 成片到手，这一发结案（2026-09-18）：服务端登记表不知道谁取回了哪一发，不结案的话下次进创作入口
         //   它会被补成一张「还没取回」的卡（data/videoJobs.importServerVideoJobs）
         if (taskId) dropVideoJob(taskId);
@@ -649,11 +668,16 @@ export default function CutPage() {
         loadCaptureSrc(segIndex, url);
       }
       setBusy("");
+      if (aliveRef.current) job.done({ silent: true });
+      else job.done({ msg: t`按圈选重做好了，回剪辑页看看`, route: "/cut" });
     } catch (e) {
       setBusy("");
       // ★ 说清"前面几段已经保住了"：不说的话用户以为整轮白花，会再点一次（再收一遍）
       const why = (e instanceof Error ? e.message : String(e)).slice(0, 110);
-      setErr(t`重新生成中断：${why}。已经改好的段已经保住了（它们的圈选也清掉了），再点一次只会重做剩下的那几段`);
+      const line = t`重新生成中断：${why}。已经改好的段已经保住了（它们的圈选也清掉了），再点一次只会重做剩下的那几段`;
+      setErr(line);
+      if (aliveRef.current) job.done({ silent: true });
+      else job.fail(line, "/cut");
     }
   }
 
@@ -672,6 +696,11 @@ export default function CutPage() {
       return;
     }
     mergingRef.current = true;
+    // 这一炉是谁合的（2026-09-18 复核抓到）：登录失效后换了另一个人登录，合完的成片不许写进新账号的剪辑稿 ——
+    // persistCutDraft 按 workOwner 落盘 = 落在新账号名下，个人页横幅就会把 A 付过钱的成片摆给 B、能以 B 的名义发。
+    // A 的剪辑稿还是合之前那一份，回来再合一次即可（合成本身不花钱）。主动退出会被 signOutGuard 拦住（下面领了票）。
+    const ownerAtStart = workOwner();
+    const ownerMoved = () => workOwner() !== ownerAtStart;
     /**
      * ★★ 合成是一件**能活过页面卸载**的长活（屏幕上那句话就写着「可以切走」），
      *   所以它必须领一张票（本仓约定：长活登记进 data/jobs，胶囊只有一颗）。
@@ -770,10 +799,12 @@ export default function CutPage() {
           return;
         }
         mergeSegs = next;
-        // 写回草稿：预览、重试合并、发布都用转存后的地址，别让下一步再拉一次跨境
-        useStudio.setState({ draft: { ...draft!, segments: next } });
-        // 跨境转存的成果，不值得再拉一遍
-        void useStudio.getState().persistCutDraft();
+        if (!ownerMoved()) {
+          // 写回草稿：预览、重试合并、发布都用转存后的地址，别让下一步再拉一次跨境
+          useStudio.setState({ draft: { ...draft!, segments: next } });
+          // 跨境转存的成果，不值得再拉一遍
+          void useStudio.getState().persistCutDraft();
+        }
       }
       // ★ 音轨与画布准备是**同步长活**（预置的原片音轨是整条原视频，几十 MB、跨境要十几秒）：
       //   不先点亮 busy 的话，这段时间按钮亮着、屏幕上一个字都没有 = 用户眼里的"点了没反应"
@@ -895,6 +926,8 @@ export default function CutPage() {
         //   用户删掉 / 挪走第 1 段时两者不是同一段，标签就与合出来的画面对不上（2026-09-18 发版复核抓到：370f719 只改了一半）
         aspect: first.aspect ?? segs[0]?.aspect,
       };
+      // 换过账号：成片不落进新账号（见 ownerAtStart 的注释）；票在换人那一拍已经被清掉了
+      if (ownerMoved()) return;
       leftRef.current = true;
       useStudio.setState({ draft: { ...draft!, segments: [mergedSeg], branchTree: undefined, merged: true } });
       // ★★ 这一拍把 `idb:merged:` 指针钉到盘上 —— 在此之前那条几十 MB 的成片

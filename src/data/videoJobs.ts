@@ -40,7 +40,7 @@
 import type { VideoAspect } from "../types";
 import { t } from "@lingui/core/macro";
 import { API_BASE, apiGet, getToken } from "../api/client";
-import { deviceOwner, onViewerChange, workOwner } from "./deviceOwner";
+import { deviceOwner, mayClaimLegacy, onViewerChange, workOwner } from "./deviceOwner";
 
 export const VIDEO_JOB_TTL_MS = 24 * 3600_000;
 
@@ -186,7 +186,7 @@ onViewerChange(() => {
  */
 function claimLegacy(): void {
   const me = deviceOwner();
-  if (!me || !jobs.some((j) => !j.owner)) return;
+  if (!me || !jobs.some((j) => !j.owner) || !mayClaimLegacy()) return;
   jobs = jobs.map((j) => (j.owner ? j : { ...j, owner: me }));
   persist();
 }

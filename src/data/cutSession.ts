@@ -28,7 +28,7 @@
 //   否则放过一夜的剪辑稿会被「清理缓存」把成片和模型真删掉，稿子还在、指针指向空气。
 import { idbRead, idbSet } from "./db";
 import type { DraftVideo } from "../types";
-import { deviceOwner, onViewerChange, workOwner } from "./deviceOwner";
+import { deviceOwner, mayClaimLegacy, onViewerChange, workOwner } from "./deviceOwner";
 
 // ★ 键名没改（还叫 v1）：新旧两种形状存在同一个键里，读的时候按形状分辨（见 readStore）。
 //   换一个新键的话迁移要写两个键，中间断一次就会出现「新键已有、老键还在」，老那条会被再认领一次。
@@ -91,7 +91,7 @@ onViewerChange(() => {
 function claimLegacy(): void {
   const me = deviceOwner();
   const legacy = store.legacy;
-  if (!me || !legacy || loadIssue) return;
+  if (!me || !legacy || loadIssue || !mayClaimLegacy()) return;
   // 这个人已经有一条新格式的稿子（理论上不会：老格式只在升级前写过）：老稿不丢，留给下一个没有稿子的人认领
   if (store.byOwner[me]) return;
   store = { v: 2, byOwner: { ...store.byOwner, [me]: legacy } };

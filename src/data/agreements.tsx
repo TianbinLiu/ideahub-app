@@ -202,8 +202,16 @@ export const AGREEMENTS: Record<AgreementId, { title: string; body: ReactNode }>
 //   （对账会把服务端那份落到他自己的格子里）；服务端没有的，补签门会再弹一次，让本人点一次 —— 这才是对的。
 const ACCEPT_KEY_V1 = "ideahub-app.terms.accepted";
 const acceptKey = (userId: string) => `ideahub-app.terms.accepted.${userId}`;
-/** 登录页上这一次真勾过、还没登录成（不知道是谁）的那一下 */
+/** 登录页上这一次真勾过、还没登录成（不知道是谁）的那一下。存「版本|勾下的时刻」 */
 const PENDING_KEY = "ideahub-app.terms.pendingAccept";
+/**
+ * 待认领那一下能活多久。
+ * ★★ 必须有期限（2026-09-18 复核抓到）：A 退出、B 在登录页勾了一下又走了 —— 没有期限的话，几天后 A 打开登录页
+ *   框是勾着的，一登录就替 A 记下、补传「同意」，而 A 从没点过（正是这一批要治的预勾同意）。
+ * ★ 15 分钟 = 够走完一趟第三方登录（跳去微信 / QQ 再回来，进程被回收后冷启动认领也算）；
+ *   点登录那一拍会再续一次（LoginPage.requireAgree），在登录页上填验证码磨蹭再久也不会过期。
+ */
+const PENDING_TTL_MS = 15 * 60 * 1000;
 
 function readKey(key: string): string | null {
   try {
@@ -226,9 +234,17 @@ export function termsAccepted(userId: string): boolean {
   return !!userId && readKey(acceptKey(userId)) === TERMS_UPDATED;
 }
 
-/** 登录页上这一次勾过、还没登录成的那一下在不在（登录页勾选框的默认值） */
+/** 登录页上这一次勾过、还没登录成的那一下在不在（登录页勾选框的默认值）。过期的当没有，顺手清掉 */
 export function termsPendingAccepted(): boolean {
-  return readKey(PENDING_KEY) === TERMS_UPDATED;
+  const raw = readKey(PENDING_KEY);
+  if (!raw) return false;
+  const cut = raw.lastIndexOf("|");
+  const version = cut < 0 ? raw : raw.slice(0, cut);
+  const at = cut < 0 ? NaN : Number(raw.slice(cut + 1));
+  const age = Date.now() - at;
+  if (version === TERMS_UPDATED && age >= 0 && age <= PENDING_TTL_MS) return true;
+  writeKey(PENDING_KEY, null);
+  return false;
 }
 
 /**
@@ -237,7 +253,7 @@ export function termsPendingAccepted(): boolean {
  */
 export function recordTermsAccepted(userId?: string): void {
   if (!userId) {
-    writeKey(PENDING_KEY, TERMS_UPDATED);
+    writeKey(PENDING_KEY, `${TERMS_UPDATED}|${Date.now()}`);
     return;
   }
   writeKey(acceptKey(userId), TERMS_UPDATED);

@@ -15,7 +15,7 @@
 //   · `workOwner()` —— **内存里这摊活是谁的**（写盘时记的主人）。登录着时就是当前账号；登录失效（401）
 //     之后是上一个登录的人 —— 那时流水线还在内存里、出片还在跑，自动存盘要记在**他**名下，而不是
 //     写成无主（没人看得见 = 静默丢）或者被拒。成立的前提是下面那条：换成**另一个人**的那一拍，
-//     内存里的活一律清掉（`onOwnerSwitch`，由 App 根上的 useOwnerSwitchReset 做），所以内存里的活
+//     内存里的活一律清掉（`onOwnerSwitch`：各 store / 模块在自己文件里订阅，模块级、不经组件），所以内存里的活
 //     永远属于「最近一个登录过的人」。
 //
 // ★ 升级前的存量没有主人（owner 缺省）：由升级后**第一个在这台设备上登录的账号**认领（各库的 claim）。
@@ -23,7 +23,8 @@
 //   多账号共用的设备（主人自己测试的那台）升级后先用原来的账号登录一次，东西就归他。
 //   ⚠ 别改成「无主的对谁都可见」：那等于把这次的串号原样留给所有老数据。
 //   ⚠ 也别改成「无主的一律藏起来」：藏起来的是用户花过钱的半成品，零提示消失比串号更坏。
-import { currentUser, subscribeAccount } from "./account";
+import { API_ON } from "../api/client";
+import { currentUser, isRemoteMode, subscribeAccount } from "./account";
 import { bindSchemesOwner } from "./promptSchemes";
 import { bindAssetOwner } from "./cardAsset";
 import { bindVoiceOwner } from "./cardVoice";
@@ -62,6 +63,16 @@ export function workOwner(): string {
   const now = deviceOwner();
   if (now) lastOwner = now;
   return lastOwner;
+}
+
+/**
+ * 现在这个人能不能认领升级前的无主存量（各库的 claim 都先问它）。
+ * ★★ 配了服务器、这次会话却没连上时**一律不认领**（2026-09-18 复核抓到）：那时登录页退回本机账号那一套，
+ *   登进来的是一个现编 id 的本机账号 —— 它一认领，老草稿、剪辑稿、取回凭据、本机模板就全归了这个临时身份；
+ *   服务器回来后用真账号登录，一样都看不到了。无主的原样留着，等连上服务器、真账号登录时再认领。
+ */
+export function mayClaimLegacy(): boolean {
+  return !!deviceOwner() && !(API_ON && !isRemoteMode());
 }
 
 /** 这条带主人的记录，对**现在这个人**可见吗。无主的存量先由各库认领，这里一律判否 */
@@ -109,7 +120,7 @@ export function onOwnerSwitch(fn: (prev: string, next: string) => void): () => v
 const inject = (fn: () => void) => {
   onViewerChange(() => fn());
 };
-bindSchemesOwner({ viewer: deviceOwner, work: workOwner }, inject);
+bindSchemesOwner({ viewer: deviceOwner, work: workOwner, claim: mayClaimLegacy }, inject);
 bindAssetOwner({ viewer: deviceOwner, work: workOwner }, inject);
 bindVoiceOwner({ viewer: deviceOwner, work: workOwner }, inject);
 
