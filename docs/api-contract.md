@@ -1089,7 +1089,7 @@ exports.takedownTarget = async ({ targetType, targetId, operatorId, reason, hard
 卡片的全局计数（`kind:"card"` 按 cardId 跨用户聚合，删了会清掉别人手里同一张卡的热度）；
 ideas 产品线的内容（那边有自己的软删除体系，混着做一半更糟 —— 已知未尽事项）。
 
-回包 `removed` 逐项带条数（`{ videos, comments, danmaku, likesGiven, …, user }`），
+回包 `removed` 逐项带条数（`{ videos, comments, danmaku, likesGiven, …, chatThreads, chatMemories, user }`；`chatThreads` / `chatMemories` 是 2026-09-18 起连带硬删的数字人对话会话与记忆卡），
 UI 把它显示出来 —— 「删了个寂寞」必须有症状。
 
 ★ UI 要求**输入用户名**做二次确认并把后果说全（不可逆、连带内容清单）；
