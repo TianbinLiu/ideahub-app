@@ -26,7 +26,7 @@ import {
 } from "../types";
 // ★ 不再 import makeFrame：推演没画出来的帧留空、不拿占位图顶（见推演三套方案那一段末尾的 ★★）
 import { makeCover } from "../mock/frames";
-import type { MaterialFile, ProposalContext } from "../mock/ai";
+import type { MaterialFile, PortraitView, ProposalContext } from "../mock/ai";
 import * as mock from "../mock/ai";
 import {
   CHAT_TURN_TOKENS,
@@ -134,11 +134,14 @@ async function genImageAsDataUrl(
  * ★ 串行不并行：Seedream 顶档一张可到 70 秒，几张并发在限流上撞车得不偿失；
  *   而且逐格报进度（onProgress）用户才知道自己在等第几张。
  * ★ 失败**整发抛**、不吞：调用方（命名屏）拿它写整句 err 并保住原裁剪（铁律八）。
- * ★★ 抛出去的一律是 `ArkBatchPartial`（2026-09-17）：每一格是一次独立的 /images/generations，服务端按**调用**结算
- *   （契约「扣费」一节，只有上游非 2xx 才退）——画到第 k 格失败时，前面 k-1 张的钱已经扣了，而图随着这次抛错一起丢了。
- *   壳上带着「之前已经画好几张」（只数生成型的格子，`fromCrop` 那种没调模型、不算）与真正失败的那一发；
- *   两个调用方（CustomCardPage.runAiForge / VideoCardAnnotator.makePortraits）据此经 ai/failCharge 说钱上的话。
- *   第 1 格就失败也照样套壳（settledBefore = 0）：拆壳那条路每次失败都走到，不会只在罕见的半途失败里才第一次运行。
+ * ★★ 抛出去的一律是 `PortraitViewsPartial`（ArkBatchPartial 的子类，2026-09-17）：每一格是一次独立的 /images/generations，
+ *   服务端按**调用**结算（契约「扣费」一节，只有上游非 2xx 才退）——画到第 k 格失败时，前面 k-1 张的钱已经扣了。
+ *   壳上带着真正失败的那一发，和**已经画好的那几张图本身**（`drawn`，只含生成型的格子：`fromCrop` 那种没调模型、不计费，
+ *   调用方随时能从原片裁剪再拿一份）。两个调用方（CustomCardPage.runAiForge / VideoCardAnnotator.makePortraits）把它们
+ *   留下、下一次只补剩下的格子，并经 ai/failCharge 说钱上的话。
+ *   第 1 格就失败也照样套壳（drawn 为空）：拆壳那条路每次失败都走到，不会只在罕见的半途失败里才第一次运行。
+ * ★ 调用方可以只交**一部分格子**（`{ ...scheme, slots: 剩下的 }`）：认格子的 slotKey / slotCardTag 只看这一格与方案的 builtin，
+ *   不看它在 slots 里排第几，所以补画回来的图与上一次画好的落在同一套键上。
  * ★ `realPhoto` 必填：真人那条路上画风句换成无条件的照片锁定（`promptSchemes.PHOTO_LOCK_CLAUSE`
  *   的 ★★ 写了为什么条件句不够）。写成可选的话漏传零症状 —— 全身立绘又开始随参考图质量飘。
  * ★ 那两个名字各走 `promptSchemes.slotKey` / `slotCardTag`（2026-09-11 多语言 PR2，理由见 types.BUILTIN_SLOT_ZH）；
@@ -153,11 +156,11 @@ export async function portraitViews(o: {
   /** 调用方已知参考图是真人照片（用户走了真人路 / 勾了「这是真人」）。传 `realPerson` 状态 */
   realPhoto: boolean;
   onProgress?: (s: string) => void;
-}): Promise<{ slotKey: string; role: CardRole; tag: string; dataUrl: string }[]> {
-  const out: { slotKey: string; role: CardRole; tag: string; dataUrl: string }[] = [];
+}): Promise<PortraitView[]> {
+  const out: PortraitView[] = [];
   const slots = o.scheme.slots;
-  /** 已经画好（= 已经各自结算）的张数。只数生成型的格子，别拿 out.length 顶：里面混着不计费的 fromCrop */
-  let drawn = 0;
+  /** 已经画好（= 已经各自结算）的那几格。只收生成型的，别拿 out 顶：里面混着不计费的 fromCrop */
+  const drawn: PortraitView[] = [];
   for (let i = 0; i < slots.length; i++) {
     const slot = slots[i];
     if (!isGenerated(slot)) {
@@ -182,12 +185,35 @@ export async function portraitViews(o: {
         size: slotSize(slot),
       });
     } catch (e) {
-      throw new ArkBatchPartial(e, drawn); // 理由见函数头的 ★★
+      throw new PortraitViewsPartial(e, drawn); // 理由见函数头的 ★★
     }
-    drawn++;
     out.push({ slotKey: slotKey(o.scheme, slot), role: slot.role, tag: slotCardTag(o.scheme, slot), dataUrl });
+    drawn.push(out[out.length - 1]);
   }
   return out;
+}
+
+/**
+ * 逐格出图画到半途失败 —— 带着**已经画好的那几张图**的 ArkBatchPartial（portraitViews 唯一会抛的错）。
+ *
+ * ★★ 为什么把图挂在错误上交出去（2026-09-17）：那几张的钱已经按调用结算了（见 portraitViews 的 ★★），此前它们随着抛错
+ *   一起丢掉，用户唯一能点的是同一颗键——全价重来，已经付过钱的那几张再付一次。现在调用方收下它们、放进格子，
+ *   下一次只补剩下的（报价同一把尺 economy.schemeCost，数的是剩下那几格）。
+ * ★★ 收到它的调用方**必须**把 `drawn` 留下，离线账本也按这几张记账（`spendTokens(schemeCost(画好的那几格))`）——
+ *   ai/failCharge.chargeOnFail 在离线模式下据此把它们说成「已计费」。留下却不记账 = 离线用户白拿图；
+ *   记了账却不留下 = 花了钱什么都没拿到，那句「已计费」还成了唯一的回执。
+ * ★ 与父类的 settledBefore 由构造器钉成同一个数（drawn.length），两边说的张数不会分叉。
+ * ★ 成功路径的返回形状一个字没动：半途的图只从这里出，mock（从不失败）不用跟着改签名。
+ */
+export class PortraitViewsPartial extends ArkBatchPartial {
+  constructor(
+    failure: unknown,
+    /** 已经画好（已各自结算）的那几格，按方案顺序；不含 fromCrop 的格子 */
+    readonly drawn: readonly PortraitView[],
+  ) {
+    super(failure, drawn.length);
+    this.name = "PortraitViewsPartial";
+  }
 }
 
 /**

@@ -88,11 +88,24 @@ export function marketCardsByName(names: string[]): Card[] {
   return names.map((n) => all.find((c) => c.name === n)).filter((c): c is Card => !!c);
 }
 
+/**
+ * 「按方案炼形象图」画回来的一格（real / mock 两份 portraitViews 同一个形状）。
+ * `slotKey` 认格子（promptSchemes.slotKey）、`tag` 是写进 CardView.tag 的值（slotCardTag）、`role` 进不进模型。
+ * ★ real 半途失败时抛的 `PortraitViewsPartial.drawn` 也是它 —— 调用方收下半途的图与收下整套走同一条写法。
+ */
+export interface PortraitView {
+  slotKey: string;
+  role: CardRole;
+  tag: string;
+  dataUrl: string;
+}
+
 /** 市场检索：空词 → 最热；有词 → 名称/简介/标签模糊匹配 */
 /**
  * 演示模式的「按方案炼形象图」：不出网，按方案的图位数回同样多张假图。
  * ★ 形状必须与 real 那份**逐字段一致**（含 role/tag）：形状不一致的话，演示模式下
  *   走通的流程在真实模式里会在落卡那一步才炸，而那时钱已经花了。
+ * ★ 演示档从不半途失败，所以不抛 real 那个 PortraitViewsPartial；调用方的半途分支只在真实构建里走得到。
  */
 export async function portraitViews(o: {
   scheme: PromptScheme;
@@ -102,8 +115,8 @@ export async function portraitViews(o: {
   /** 与 real 同形：演示档不拼提示词，但类型上必填，调用点漏传在 tsc 就拦下 */
   realPhoto: boolean;
   onProgress?: (s: string) => void;
-}): Promise<{ slotKey: string; role: CardRole; tag: string; dataUrl: string }[]> {
-  const out: { slotKey: string; role: CardRole; tag: string; dataUrl: string }[] = [];
+}): Promise<PortraitView[]> {
+  const out: PortraitView[] = [];
   for (let i = 0; i < o.scheme.slots.length; i++) {
     const slot = o.scheme.slots[i];
     // ★ slotKey / tag 与 real 同一对函数；进度句与假卡面上的字是显示名（随界面语言变），照旧用 slot.tag

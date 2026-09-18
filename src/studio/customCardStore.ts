@@ -98,6 +98,16 @@ export interface CustomCardDraft {
   aiSubject: string;
   /** AI 车道正在跑的那一步（空 = 没在跑） */
   aiBusy: string;
+  /**
+   * 上一次「AI 生成图位」画到半途失败时，已经画好（已计费）、放进了格子里的那几格 —— 下一次点同一颗键只补剩下的。
+   * ★★ 为什么要记（2026-09-17）：逐格出图每一格是一次独立计费的调用（ai/real.PortraitViewsPartial 的 ★★），此前半途画好的图
+   *   随抛错一起丢掉，用户唯一的出路是全价重来。图本身已经合进 schemeShots（与成功路径同一条写法），这里只记**哪几格**
+   *   （`keys`，图位键，认格子的规矩同 schemeShots）与**那一次的输入**。
+   * ★ 输入（方案 / 主素材 / 面部近照 / 真人照片锁定）换过之后这份记录就不作数：留下的图与新输入对不上，接着补会补出一个
+   *   前后不是同一个人的角色。素材按**对象身份**比（Shot 换了就是换了），不比 dataURL 的内容。判据只在 CustomCardPage 的
+   *   aiPlan 一处（报价、余额门、真画的格子、离线实扣都读它）。
+   */
+  aiPartial: { schemeId: string; body: Shot; face: Shot | null; realPhoto: boolean; keys: string[] } | null;
   /** AI 车道素材口正在读哪张图（解码 + 裁切要一两秒，得让人看见） */
   aiPick: "body" | "face" | null;
   /** 圈选改图开在哪一格上（图位键，同 schemeShots）与那一格的图 */
@@ -155,6 +165,7 @@ export function initialDraft(): CustomCardDraft {
     aiFace: null,
     aiSubject: "",
     aiBusy: "",
+    aiPartial: null,
     aiPick: null,
     annot: null,
     subjectPick: null,

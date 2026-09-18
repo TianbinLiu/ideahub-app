@@ -273,7 +273,11 @@ export class ArkBadReply extends Error {
  * ★★ 为什么要这个类（2026-09-17）：real.portraitViews 按方案逐格出图，每一格是一次独立的
  *   `POST /images/generations`；服务端按**调用**结算（契约「扣费」一节 + server arkGateway.chargedArkCall：
  *   先扣、转发、只有上游非 2xx 才退），不知道也不关心这几发属于同一批。画到第 3 格才失败时，前 2 张的钱
- *   已经扣了、图却随着这次抛错一起丢了 —— 调用方此前一律说「一分钱没扣」。
+ *   已经扣了 —— 调用方此前一律说「一分钱没扣」。
+ * ★★ 已经画好的那几张**不跟着丢**：portraitViews 抛的是子类 real.PortraitViewsPartial，图本身挂在它的 `drawn` 上，
+ *   调用方收下、下一次只补剩下的，离线账本也按这几张记账（那个子类头上写了为什么两件事必须一起做）。
+ *   于是「之前那几发」在两种账本里都是已计费 —— ai/failCharge.chargeOnFail 离线时也照 settledBefore 说。
+ *   以后再有别的批量调用抛这个类，先做到同样两件事，否则那句「已计费」在离线时就是假话。
  * ★ `failure` 是真正失败的那一发抛的错，三档判定认的是**它**的类型；`message` 照抄它的，
  *   只读 `.message` 的调用方看到的原因一字不变。
  * ★ 自己存一份 `failure`，不用 ES2022 的 `new Error(msg, { cause })`：老 WebView 不认那个选项（静默忽略），

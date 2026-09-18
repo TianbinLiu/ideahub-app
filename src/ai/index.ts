@@ -30,6 +30,9 @@ export const fuseStageFrame: typeof real.fuseStageFrame = AI_REAL ? real.fuseSta
 /** 参考图协议上限的兜底值（档位表没写 refImagesMax 时用它）——与 real.ts 同一个常量 */
 export { ARK_REF_IMAGES_MAX } from "./real";
 export const portraitViews: typeof real.portraitViews = AI_REAL ? real.portraitViews : mock.portraitViews;
+export type { PortraitView } from "../mock/ai";
+/** 逐格出图画到半途失败：已经画好（已计费）的那几张挂在它的 `drawn` 上，调用方收下、下一次只补剩下的（mock 从不抛它） */
+export { PortraitViewsPartial } from "./real";
 /** 圈选改卡图；mock 原图返回（与 refineFrame 的 mock 同款：演示档不装作改了） */
 export const refineCardImage: typeof real.refineCardImage = AI_REAL ? real.refineCardImage : async (o) => o.annotated;
 /** 拍照 / 传图识别卡片文字（场景卡、道具卡）；mock 回一份写明是演示的占位，不装作认出了什么 */
