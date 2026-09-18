@@ -18,12 +18,15 @@
 // ★★ 读接口是**同步**的（danmakuOf）。渲染层每一拍都要问一次"这一秒有哪些弹幕"，
 //   改成 Promise 就得把整个播放循环异步化。远端那份靠"按作品懒加载 + 到货后 emit"
 //   补进内存 cache，与 videos.ts 的 loadDetail 是同一招。
-import { t } from "@lingui/core/macro";
+import { i18n, type MessageDescriptor } from "@lingui/core";
+import { msg, t } from "@lingui/core/macro";
 import { idbRead, idbSet } from "./db";
 import { authState } from "./account";
 import { readyVideos, realId, remoteOn } from "./videos";
 import * as branch from "../api/branch";
 import { uid } from "../types";
+// ★ 只为一件事订阅：换界面语言时把演示弹幕换成另一种语言（retitleSeeds）。i18n/switch 没有 data 依赖，不成环。
+import { subscribeLang } from "../i18n/switch";
 
 export interface DanmakuItem {
   id: string;
@@ -90,37 +93,50 @@ export function danmakuVersion(): number {
   return version;
 }
 
-/** 种子弹幕：只给三条演示作品，而且**只在离线模式**铺。
- *  ★ 接上服务端之后一条都不铺：那时候库里是真人发的真弹幕，
- *    掺几条假的进去就是骗人（铁律八）。
- *  ★ 多语言：不翻。这是演示观众发的弹幕（用户内容），与 videos.ts 的中文种子作品配套；
- *    而且首启就落进 IndexedDB —— 在 buildSeeds 里翻译会把第一次开机时的语言永久存下来。 */
-/* i18n-frozen: 演示作品的弹幕是用户内容，与 videos.ts 的种子作品配套，首启落 IndexedDB（只在离线模式出现） */
-const SEEDS: Record<string, Array<[number, string, string?]>> = {
+/** 种子弹幕的 id 前缀。★ 「哪几条是我们铺的」只按它判（落盘时剔掉、换语言时对号入座都问它） */
+const SEED_PREFIX = "seeddm_";
+
+/** 一条种子弹幕的 id —— **唯一**的拼法（铺种子与换语言时对号入座共用，两处各拼一遍必然分叉） */
+function seedDmId(vid: string, i: number): string {
+  return `${SEED_PREFIX}${vid}_${i}`;
+}
+
+/**
+ * 种子弹幕：只给三条演示作品，而且**只在离线模式**铺。
+ *
+ * ★ 接上服务端之后一条都不铺：那时候库里是真人发的真弹幕，掺几条假的进去就是骗人（铁律八）。
+ * ★★ 走目录（2026-09-17 主人拍板「方案一 ①」）：与 data/videos 的三条种子作品配套 —— 那边的标题 /
+ *   简介 / 作者显示名都按界面语言现翻了，弹幕留一屏中文会比不翻更怪。模块顶层只放 `msg` 描述符，
+ *   buildSeeds() 调用那一刻才翻。
+ * ★★ 翻出来的字**绝不落盘**（persistLocal 把它们剔掉）：首启就写盘的话，第一次开机时的语言会被永久存下来。
+ * ★ 演示作品的**评论**是整条撤掉的（见 data/videos.buildSeeds 的 ★★：那是编出来的社交证明），弹幕留着 ——
+ *   评论区自己有空态与发评论的入口，一条没有照样看得懂；弹幕没有内容的话整层功能在屏幕上完全不存在。
+ */
+const SEEDS: Record<string, Array<[number, MessageDescriptor, string?]>> = {
   seedv_0: [
-    [1.2, "这个雨夜的光太顶了"],
-    [2.6, "前方高能", "#ffd166"],
-    [4.0, "凛姐姐好帅"],
-    [7.5, "全息广告那一下鸡皮疙瘩起来了", "#38bdf8"],
-    [9.8, "追！"],
-    [13.0, "信里居然是记忆"],
-    [15.4, "雨停三秒这个设定绝了", "#ff6b81"],
-    [18.6, "二刷来了"],
+    [1.2, msg`这个雨夜的光太顶了`],
+    [2.6, msg`前方高能`, "#ffd166"],
+    [4.0, msg`凛姐姐好帅`],
+    [7.5, msg`全息广告那一下鸡皮疙瘩起来了`, "#38bdf8"],
+    [9.8, msg`追！`],
+    [13.0, msg`信里居然是记忆`],
+    [15.4, msg`雨停三秒这个设定绝了`, "#ff6b81"],
+    [18.6, msg`二刷来了`],
   ],
   seedv_1: [
-    [1.0, "水墨留白舒服"],
-    [3.4, "万剑埋骨之地"],
-    [6.8, "云海倒卷这一下太燃了", "#ffd166"],
-    [10.2, "十年前那一战"],
-    [14.5, "递剑的那只手…"],
-    [17.9, "看哭了", "#c084fc"],
+    [1.0, msg`水墨留白舒服`],
+    [3.4, msg`万剑埋骨之地`],
+    [6.8, msg`云海倒卷这一下太燃了`, "#ffd166"],
+    [10.2, msg`十年前那一战`],
+    [14.5, msg`递剑的那只手…`],
+    [17.9, msg`看哭了`, "#c084fc"],
   ],
   seedv_2: [
-    [1.5, "小满好可爱"],
-    [3.2, "邮包比人还高哈哈哈"],
-    [6.4, "会说谎的罗盘", "#4ade80"],
-    [9.0, "那扇门后面是什么"],
-    [11.5, "治愈了"],
+    [1.5, msg`小满好可爱`],
+    [3.2, msg`邮包比人还高哈哈哈`],
+    [6.4, msg`会说谎的罗盘`, "#4ade80"],
+    [9.0, msg`那扇门后面是什么`],
+    [11.5, msg`治愈了`],
   ],
 };
 
@@ -129,15 +145,78 @@ function buildSeeds(): Record<string, DanmakuItem[]> {
   const out: Record<string, DanmakuItem[]> = {};
   for (const [vid, rows] of Object.entries(SEEDS)) {
     out[vid] = rows.map(([at, text, color], i) => ({
-      id: `seeddm_${vid}_${i}`,
+      id: seedDmId(vid, i),
       at,
-      text,
+      text: i18n._(text),
       color,
       mine: false,
       createdAt: now - (i + 1) * 600_000,
     }));
   }
   return out;
+}
+
+/**
+ * 把种子弹幕并进一份（从磁盘读上来的）表里。
+ * ★ 用户自己在演示作品下发过的弹幕原样保留：只把**上一次存下来的种子**（`seeddm_*`）换掉，
+ *   老设备上那批中文种子就是在这一步被洗掉的 —— 不需要版本号，也不需要判"这是不是老数据"。
+ */
+function withSeeds(saved: Record<string, DanmakuItem[]>): Record<string, DanmakuItem[]> {
+  const out: Record<string, DanmakuItem[]> = { ...saved };
+  for (const [vid, rows] of Object.entries(buildSeeds())) {
+    out[vid] = merge(seedFree(out[vid]), rows);
+  }
+  return out;
+}
+
+/**
+ * 磁盘上那一格里**用户自己发的**那些（把我们铺的种子剔掉）。
+ *
+ * ★★ 形状先判再用：磁盘上这一格万一不是数组、或者某一条没有 id，`.filter` / `.startsWith` 会抛 ——
+ *   而这两个调用点都在 readyDanmaku 的 try 里，一抛就整张表退成 `{}` + loadIssue，
+ *   **用户自己发过的弹幕这一会话全读不出来**，而坏的其实只有一格。坏的那一格丢掉就是了：
+ *   它本来就不是一条弹幕，留在盘上只会每次开机再坏一次（收敛判断那句早就带着 Array.isArray，两处要一样）。
+ */
+function seedFree(rows: DanmakuItem[] | undefined): DanmakuItem[] {
+  if (!Array.isArray(rows)) return [];
+  return rows.filter((d) => typeof d?.id === "string" && !d.id.startsWith(SEED_PREFIX));
+}
+
+/** 要落盘的那一份：种子弹幕一条都不写（文案按界面语言现翻，写下去就把开机那一刻的语言存死了） */
+function withoutSeeds(cur: Record<string, DanmakuItem[]>): Record<string, DanmakuItem[]> {
+  const out: Record<string, DanmakuItem[]> = {};
+  for (const [vid, rows] of Object.entries(cur)) {
+    const mine = seedFree(rows);
+    if (mine.length > 0) out[vid] = mine;
+  }
+  return out;
+}
+
+/**
+ * 换语言：把演示弹幕的文字换成当前界面语言那一份。
+ * ★ **就地改同一批对象、不换引用**（与 data/videos.retitleSeeds 同一条理由）：渲染层拿着 danmakuOf 的
+ *   返回值扫时间轴，换掉整张表还得指望每一处都重新问一次。id / 时间 / 颜色一个都不动。
+ */
+function retitleSeeds(): void {
+  for (const [vid, rows] of Object.entries(SEEDS)) {
+    const cur = store[vid];
+    if (!cur) continue;
+    rows.forEach(([, text], i) => {
+      const hit = cur.find((d) => d.id === seedDmId(vid, i));
+      if (hit) hit.text = i18n._(text);
+    });
+  }
+}
+
+/** 这次会话铺过种子没有（= 离线模式且本机那份读出来了）。换语言时只有铺过才有东西可改 */
+let seedsOn = false;
+
+if (typeof window !== "undefined") {
+  subscribeLang(() => {
+    if (!seedsOn) return;
+    retitleSeeds();
+    emit();
+  });
 }
 
 /**
@@ -154,7 +233,9 @@ export function danmakuLoadIssue(): string {
 /** 离线模式把整张表落盘。远端那份不落本地盘：服务端才是权威 */
 function persistLocal(): void {
   if (remoteOn() || loadIssue) return;
-  void idbSet(KEY, store);
+  // ★★ 种子弹幕剔掉再写（2026-09-17）：它们的文案按界面语言现翻，写进去就把开机那一刻的语言存死了。
+  //   顺带把老设备上存过的那批中文种子洗掉 —— 发一条弹幕就洗一次。
+  void idbSet(KEY, withoutSeeds(store));
 }
 
 export async function readyDanmaku(): Promise<void> {
@@ -164,6 +245,7 @@ export async function readyDanmaku(): Promise<void> {
   // ★ 作品库是核心库：它挂了就原样抛，开机闸整页停住，由作品库那一项负责说（data/boot）。
   await readyVideos();
   loadIssue = "";
+  seedsOn = false;
   if (remoteOn()) {
     // 远端模式：按作品懒加载，启动时什么都不用做（也**不铺种子**）
     store = {};
@@ -173,10 +255,18 @@ export async function readyDanmaku(): Promise<void> {
   try {
     // ★★ 读失败要抛（idbRead）落进 catch —— 不能当成"从来没存过"去铺种子并写盘（2026-09-10）
     const saved = await idbRead<Record<string, DanmakuItem[]>>(KEY);
-    // 种子只在**从来没存过**时铺一次：存过（哪怕用户把种子弹幕的作品删了）就不再补，
-    // 否则每次冷启动都会把演示弹幕重新塞回去
-    store = saved && typeof saved === "object" ? saved : buildSeeds();
-    if (!saved) void idbSet(KEY, store);
+    // ★★ 种子**每次开机现铺、一条都不落盘**（2026-09-17，与 data/videos 的三条种子作品同一条规矩）。
+    //   ⚠ 原来是「从来没存过才铺一次」+ 当场 idbSet：那样第一次开机时的语言会被永久写进磁盘，
+    //     之后换语言读回来还是旧那份，而且自己好不了。现在读上来的那份只保留用户自己发的，
+    //     种子由 withSeeds 现并进去（老设备上存着的中文种子在这一步被丢掉）。
+    store = withSeeds(saved && typeof saved === "object" ? saved : {});
+    seedsOn = true;
+    // ★ 老设备的收敛：磁盘上还躺着上一版铺的那批中文种子（`seeddm_*`）。内存里 withSeeds 已经换掉了，
+    //   这里顺手把磁盘那份也洗一次 —— 不写这一句的话，要等用户发一条弹幕才会被 persistLocal 带走
+    //   （与 data/videos.readyLocal 的收敛同形：磁盘上从此只有用户自己发的）。
+    if (saved && Object.values(saved).some((rows) => Array.isArray(rows) && rows.some((d) => d.id.startsWith(SEED_PREFIX)))) {
+      persistLocal();
+    }
   } catch (e) {
     store = {};
     loadIssue = e instanceof Error ? e.message : String(e);

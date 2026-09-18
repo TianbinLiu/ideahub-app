@@ -42,8 +42,9 @@ interface Thread {
  * 扁平的评论列表 → 两层楼。
  *
  * ★ 判「这条是不是回复」看 parentId 的**有无**，不和任何哨兵值比：这三个字段是后加的，
- *   老服务端返回的评论、离线库里的种子评论读出来都是 undefined。写成等值判会把
+ *   老服务端返回的评论、离线库里存量的老评论读出来都是 undefined。写成等值判会把
  *   存量评论整批归到某一类里去 —— 而且一个错都不报，只是评论区忽然少了一半。
+ *   （原来这句举的例子是"种子评论"，2026-09-17 那三条编出来的演示评论已经整条撤掉，见 data/videos.buildSeeds。）
  * ★ 找不到父的回复（父被删了 / 父不在这一页里）**必须提到顶层**，不能丢：
  *   静默吞掉一条用户发出去的评论是最坏的失败。
  */
@@ -168,7 +169,7 @@ export default function CommentSheet({ video, onClose }: { video: VideoItem; onC
 
   function row(c: VideoComment, indented: boolean) {
     const pending = commentPending(c);
-    /** 画出来的名字：只翻「我」/「匿名」两个哨兵（videos.authorDisplayName）；头像取色、举报 / 拉黑认的仍是 c.author 原值 */
+    /** 画出来的名字：只翻 app 自己填的那几个（「我」/「匿名」两个哨兵 + 离线演示作品的作者，判据见 videos.authorDisplayName）；头像取色、举报 / 拉黑认的仍是 c.author 原值 */
     const shownName = authorDisplayName(c.author, c.authorId);
     return (
       <div key={c.id} className={`flex gap-2.5 ${indented ? "pl-10" : ""}`}>
@@ -218,7 +219,7 @@ export default function CommentSheet({ video, onClose }: { video: VideoItem; onC
     );
   }
 
-  /** 正在回复的那个人画在界面上的名字（只翻「我」/「匿名」两个哨兵，见 videos.authorDisplayName）。回复本身认的是评论 id */
+  /** 正在回复的那个人画在界面上的名字（只翻 app 自己填的那几个名字，判据见 videos.authorDisplayName）。回复本身认的是评论 id */
   const replyName = replyTo ? authorDisplayName(replyTo.author, replyTo.authorId) : "";
   /** 「回复 @某某」那一句：输入区上方那条与输入框的占位字共用。
    *  ★ 回复的是自己（离线的「我」）那条时整句换成「回复自己」那句（英文 "Reply to @Me" 不成话），判据同一处 authorSentinelOf */

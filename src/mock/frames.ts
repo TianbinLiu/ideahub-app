@@ -86,7 +86,7 @@ function drawBase(
   ctx.fillRect(0, 0, w, h);
 }
 
-/** 视频帧占位图（jpeg dataURL）：横屏 640x360 / 竖屏 360x640 */
+/** 视频帧占位图（jpeg dataURL）：横屏 640x360 / 竖屏 360x640。★ label 传空串 = 一个字都不画（见下面的 ★★） */
 export function makeFrame(seed: string, label: string, hueSeed?: string, aspect?: VideoAspect): string {
   // 占位帧也得跟着画幅走：竖屏作品配一张 16:9 占位图，播放器一算比例就当成横屏，
   // 首页给它上下留黑边——演示模式下看起来就像"竖屏根本没生效"
@@ -99,6 +99,12 @@ export function makeFrame(seed: string, label: string, hueSeed?: string, aspect?
   const ctx = canvas.getContext("2d")!;
   drawBase(ctx, w, h, seed, hueSeed ?? seed);
 
+  // ★★ label 为空串 = **整张图一个字都不画**，连右上角那行「AI 预览帧」也不画（2026-09-17）。
+  //   为什么要有这一档：烧进 JPEG 的字画的那一刻就定死了 —— 按当时的界面语言翻，随 JPEG 一起存下来，
+  //   之后换语言它不跟着变。三条离线演示作品的占位帧走的就是这一档（data/videos.buildSeeds），
+  //   标题与「这是示例」都交给 UI 画（components/SeedBadge + AigcBadge）。
+  //   ⚠ 别把它读成"没有标题就顺手省掉水印"：传空串的调用点**只有** data/videos.buildSeeds 里那几处
+  //   （查法 `rg "makeFrame\\("`：ai/index.ts 与 mock/ai.ts 那几处都带 label，照旧盖「AI 预览帧」）。
   if (label) {
     ctx.font = "600 26px 'PingFang SC','Microsoft YaHei',sans-serif";
     ctx.fillStyle = "#ffffffee";
@@ -106,12 +112,12 @@ export function makeFrame(seed: string, label: string, hueSeed?: string, aspect?
     ctx.shadowBlur = 8;
     ctx.fillText(label, 24, h - 26);
     ctx.shadowBlur = 0;
+    ctx.font = "500 14px 'PingFang SC','Microsoft YaHei',sans-serif";
+    ctx.fillStyle = "#ffffff88";
+    ctx.textAlign = "right";
+    ctx.fillText(t`AI 预览帧`, w - 16, 28);
+    ctx.textAlign = "left";
   }
-  ctx.font = "500 14px 'PingFang SC','Microsoft YaHei',sans-serif";
-  ctx.fillStyle = "#ffffff88";
-  ctx.textAlign = "right";
-  ctx.fillText(t`AI 预览帧`, w - 16, 28);
-  ctx.textAlign = "left";
   return canvas.toDataURL("image/jpeg", 0.82);
 }
 

@@ -20,6 +20,7 @@ import {
   hasCountedPlay,
   isLiked,
   isMyVideo,
+  isSeedWork,
   listFollowingVideos,
   listVideos,
   refreshFeed,
@@ -41,6 +42,7 @@ import DanmakuGlyph from "../components/DanmakuGlyph";
 import DanmakuInput from "../components/DanmakuInput";
 import DanmakuLayer from "../components/DanmakuLayer";
 import AigcBadge, { isAigcWork } from "../components/AigcBadge";
+import SeedBadge from "../components/SeedBadge";
 import Icon, { type IconName } from "../components/Icon";
 import CharacterPerch, { usePerchBurst, type PerchPose } from "../components/CharacterPerch";
 import { remakeNodesOf, remakeableOf, useFlow } from "../studio/flowStore";
@@ -426,7 +428,8 @@ function FeedItem({
   /** 作者主页：自己的作品进「我的」，别人的按 userId 进 /user/<id>（拿不到 id 才退回名字）。
    *  规则本体在 data/videos.profileHref 一处——评论里的 @提及、分区页搜人也走它（铁律六） */
   const authorHref = profileHref({ id: video.authorId, name: video.author });
-  /** 画在界面上的作者名：只翻离线作者「我」与兜底「匿名」两个哨兵（data/videos.authorDisplayName）。
+  /** 画在界面上的作者名：只翻 **app 自己填进去的那几个名字**（离线的「我」/ 兜底「匿名」两个哨兵，
+   *  外加三条离线演示作品的作者）——判据只有 data/videos.authorDisplayName 一处。
    *  ★ 只给显示用 —— 关注、跳转、Avatar 的 name（取色）认的仍是 video.author 原值。
    *  ★ 名字叫 display：头像键的读屏名与个人页分享标题是同一句「{display} 的主页」，一个意思一个 msgid */
   const display = authorDisplayName(video.author, video.authorId);
@@ -855,6 +858,9 @@ function FeedItem({
               把那几个数重算一遍（CLAUDE.md 那格坑）。行内 chip 高度变化为 0。
               合规位置要求的是"播放画面周边的显著位置"，这里正是抖音同款的落点。 */}
           {isAigcWork(video) && <AigcBadge tone="overlay" className="mr-1 align-[1px]" />}
+          {/* 「示例 · 离线」与 AI 标识并排、同样走**行内**：底缘那 100px 里四样东西的位置是联动算出来的
+              （CLAUDE.md 那格坑），纵向多堆一行就得把那几个数重算一遍。判据只有 videos.isSeedWork 一处。 */}
+          {isSeedWork(video) && <SeedBadge tone="overlay" className="mr-1 align-[1px]" />}
           {video.description} <span className="text-white/70">#{videoCategoryLabel(video.category)}</span>
         </p>
         {(isInteractive || canRemake) && (

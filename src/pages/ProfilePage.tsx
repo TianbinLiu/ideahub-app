@@ -38,6 +38,7 @@ import DraftSheet from "../components/DraftSheet";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { Trans, useLingui } from "@lingui/react/macro";
 import AigcBadge, { isAigcWork } from "../components/AigcBadge";
+import SeedBadge from "../components/SeedBadge";
 import Icon, { type IconName } from "../components/Icon";
 import DeckCard from "../components/DeckCard";
 import Avatar from "../components/Avatar";
@@ -45,12 +46,14 @@ import AuthPending from "../components/AuthPending";
 import AvatarPicker from "../components/AvatarPicker";
 import { copyText } from "../components/ShareSheet";
 import {
+  authorDisplayName,
   authorIdOfName,
   dropPendingPublish,
   fetchAuthorWorks,
   fetchVideoById,
   type VideoLookup,
   isMyAuthor,
+  isSeedWork,
   listVideos,
   pendingErrorText,
   pendingPublishes,
@@ -204,6 +207,19 @@ export default function ProfilePage() {
     : stranger.profile
       ? userDisplayName(stranger.profile)
       : nameHint;
+  /**
+   * 画在屏幕上的那几个字（顶栏那一行大名、头像里的首字、分享出去的那句标题）。
+   * **只翻**离线的「我」/「匿名」两个哨兵与三条演示作品的作者 —— 判据只有 videos.authorDisplayName 一处，
+   * 远端模式（有 authorId）一律不翻。不接这一下的话，英文界面从首页点「Lightforge」进来，
+   * 这一页顶上写的还是「光影铸造者」，同一个人两个名字。
+   * ⚠ 身份一律仍用 `display` **原值**：筛作品（localWorks）、关注 / 取关、`/u/` 链接、Avatar 的取色、
+   *   换头像都不许换成它 —— 换了就是照着一个库里不存在的名字去筛、去关注，而且零报错。
+   * ⚠ 下面那行 `handle`（@ 那一行）**有意不接它**：@ 回答的是"别人要怎么 @ 我"，两边都问不到 username 时
+   *   退回的是**链接里带过来的那个名字**（nameHint），与地址栏 `/u/…` 里那一串对得上。接成显示名的话，
+   *   "有 profile、却没有 username"的远端陌生人，这一行会从链接里的名字悄悄变成服务端当前的昵称 ——
+   *   那是与演示作品无关的一处**远端**行为变化（2026-09-17 复核退回）。
+   */
+  const shownName = self ? display : authorDisplayName(display, strangerId);
   const handle = self ? (user?.account ?? "") : (stranger.profile?.username ?? nameHint);
   /** 公开数字 UID。两边都可能没有：离线账号压根没有；老服务端/老缓存也不回 ——
    *  没有就整行不画（画 0 或画空是编的，铁律八），所以别给默认值 */
@@ -489,6 +505,11 @@ export default function ProfilePage() {
   function shareProfile() {
     const url = `${location.origin}${location.pathname}#${publicHref}`;
     if (navigator.share) {
+      // ★ 标题用**显示名**：顶栏那行大名在英文界面下是 Lightforge，分享出去却写「光影铸造者」的话，
+      //   同一个人在两处两个名字。链接不受影响 —— publicHref 上面已经按 display **原值**拼好了。
+      // ⚠ 这个局部就叫 display 是**有意的**：msgid 里的占位符名字取自这个表达式，与首页头像键共用同一条
+      //   「{display} 的主页」。换个名字等于白白多一条只有占位符不同的目录条目（同一句英文存两份）。
+      const display = shownName;
       void navigator.share({ title: t`${display} 的主页`, url }).catch(() => {});
       return;
     }
@@ -592,7 +613,7 @@ export default function ProfilePage() {
               {/* ★ 用他**真的头像**。原来这里死写 `<Avatar name={display} />`（不传 src），
                   于是搜索结果里明明刚显示过他的头像，点进来却退回一个字母底 ——
                   头像在 Link 的那一跳里被丢掉了，用户会怀疑是不是进错了人。 */}
-              <Avatar name={display} src={stranger.profile?.avatarUrl} size={92} />
+              <Avatar name={display} label={shownName} src={stranger.profile?.avatarUrl} size={92} />
               {/* 未关注时头像下挂一个 + —— 与首页右侧栏的关注反馈同款，
                   从头像点进来的人不用再去找按钮 */}
               {!following && (
@@ -611,7 +632,7 @@ export default function ProfilePage() {
         {/* ★ 名字还没问到时（老链接里连名字都没带）显示一个占位，别显示空白 —— 空白
             会让人以为页面坏了。真名到货后这一行会自己变成他的名字。 */}
         <div className="mt-3.5 max-w-full truncate text-lg font-bold text-slate-100">
-          {display || (stranger.loading ? t`加载中…` : stranger.missing ? t`这个用户不存在` : t`未知用户`)}
+          {shownName || (stranger.loading ? t`加载中…` : stranger.missing ? t`这个用户不存在` : t`未知用户`)}
         </div>
         {/* ★★ 这一行**一律是 username**（句柄），自己的主页和别人的主页同一条口径。
             上一版这里对自己人显示的是**昵称**、对别人显示的是 username —— 同一个位置
@@ -1323,36 +1344,44 @@ function WorkGrid({ items }: { items: VideoItem[] }) {
                 {revisionLabel(v.revision) ?? t`回炉过`}
               </span>
             )}
-            {/* 私密作品要在墙上一眼认得出来：否则作者只会看到"这条怎么没人看"，
-                而它压根就没出现在任何人的首页里。改回公开在作品编辑页 */}
-            {/* ★★ 下架排在私密**前面**：两者可以同时成立，而"被平台下架"是作者更需要知道的
-                那一个 —— 私密是他自己设的，下架不是。只显示"仅自己可见"会让他以为是自己
-                手滑设错了，改回公开之后发现还是没人看，再也找不到原因。
-                这一栏只有作者自己看得到（别人的接口回包里根本没有这条作品）。 */}
-            {v.takedown ? (
-              <span
-                className="absolute left-1 top-1 flex items-center gap-0.5 rounded bg-rose-600/90 px-1 py-0.5 text-[9px] font-semibold text-white"
-                title={v.takedown.reason ? t`下架原因：${takedownReasonText(v.takedown.reason)}` : undefined}
-              >
-                <Trans>已下架</Trans>
-              </span>
-            ) : visibilityOf(v) === "private" ? (
-              <span className="absolute left-1 top-1 flex items-center gap-0.5 rounded bg-black/70 px-1 py-0.5 text-[9px] text-white">
-                <Icon name="lock" size={9} strokeWidth={2.5} />
-                <Trans>仅自己可见</Trans>
-              </span>
-            ) : visibilityOf(v) === "unlisted" ? (
-              /* ★ 这一档也要一眼认得出：作者会拿"它怎么没人看"来判断内容好不好，
-                 而它压根不在任何人的首页里 —— 与"仅自己可见"那条角标同一个理由 */
-              <span className="absolute left-1 top-1 flex items-center gap-0.5 rounded bg-black/70 px-1 py-0.5 text-[9px] text-white">
-                <Icon name="share" size={9} strokeWidth={2.5} />
-                <Trans>凭链接</Trans>
-              </span>
-            ) : v.branchTree ? (
-              <span className="absolute left-1 top-1 rounded bg-brand/90 px-1 py-0.5 text-[9px] font-semibold text-ink">
-                <Trans>互动</Trans>
-              </span>
-            ) : null}
+            {/* 左上角这一排：「示例 · 离线」与「已下架 / 仅自己可见 / 凭链接 / 互动」那一枚并排，
+                **flex-wrap** 兜住 —— 三列网格一格只有 ~118px（360 宽的屏），英文下两枚一行放不下，
+                两个绝对定位各写各的必然叠在一起。
+                ★ 真实作品上这一排里只有原来那一枚，左对齐、尺寸不变，位置与以前逐像素相同。
+                ★ 「付费」仍在右上角自己那一格：演示作品从来没有 pricing（buildSeeds 不写这一格），两者不会同框。 */}
+            <span className="absolute inset-x-1 top-1 flex flex-wrap items-start gap-1">
+              {isSeedWork(v) && <SeedBadge tone="overlay" />}
+              {/* 私密作品要在墙上一眼认得出来：否则作者只会看到"这条怎么没人看"，
+                  而它压根就没出现在任何人的首页里。改回公开在作品编辑页 */}
+              {/* ★★ 下架排在私密**前面**：两者可以同时成立，而"被平台下架"是作者更需要知道的
+                  那一个 —— 私密是他自己设的，下架不是。只显示"仅自己可见"会让他以为是自己
+                  手滑设错了，改回公开之后发现还是没人看，再也找不到原因。
+                  这一栏只有作者自己看得到（别人的接口回包里根本没有这条作品）。 */}
+              {v.takedown ? (
+                <span
+                  className="flex items-center gap-0.5 rounded bg-rose-600/90 px-1 py-0.5 text-[9px] font-semibold text-white"
+                  title={v.takedown.reason ? t`下架原因：${takedownReasonText(v.takedown.reason)}` : undefined}
+                >
+                  <Trans>已下架</Trans>
+                </span>
+              ) : visibilityOf(v) === "private" ? (
+                <span className="flex items-center gap-0.5 rounded bg-black/70 px-1 py-0.5 text-[9px] text-white">
+                  <Icon name="lock" size={9} strokeWidth={2.5} />
+                  <Trans>仅自己可见</Trans>
+                </span>
+              ) : visibilityOf(v) === "unlisted" ? (
+                /* ★ 这一档也要一眼认得出：作者会拿"它怎么没人看"来判断内容好不好，
+                   而它压根不在任何人的首页里 —— 与"仅自己可见"那条角标同一个理由 */
+                <span className="flex items-center gap-0.5 rounded bg-black/70 px-1 py-0.5 text-[9px] text-white">
+                  <Icon name="share" size={9} strokeWidth={2.5} />
+                  <Trans>凭链接</Trans>
+                </span>
+              ) : v.branchTree ? (
+                <span className="rounded bg-brand/90 px-1 py-0.5 text-[9px] font-semibold text-ink">
+                  <Trans>互动</Trans>
+                </span>
+              ) : null}
+            </span>
             {paid && (
               <span className="absolute right-1 top-1 rounded bg-gold/90 px-1 py-0.5 text-[9px] font-bold text-ink">
                 <Trans>付费</Trans>
