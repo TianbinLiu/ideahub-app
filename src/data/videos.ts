@@ -2045,15 +2045,7 @@ async function pushPublish(item: VideoItem, draft: DraftVideo): Promise<void> {
     //   的 token，而服务端 `author: req.user._id` 只认 token —— A 花钱炼的片子会挂到 B 名下进广场（与 PendingPublish.owner 的 ★★
     //   同一个事故形状，那边防的是冷启动补发，这里防的是正在传的这一发）。抛出去落进 catch：条目留在待发队列、主人仍是 A
     //   （queuePending 保留第一次入队时记的主人），A 再登录时照常补发。
-    const ownerNow = ownerKey();
-    if (ownerNow !== ownerAtStart) {
-      // 两种情形说两句话：没人登录着 = 只是登录失效了（原来一律说「换了账号」，2026-09-18 复核抓到）
-      throw new Error(
-        ownerNow
-          ? t`上传途中换了登录的账号，这一条先不发——等原来那个账号再登录时会自动补发`
-          : t`上传途中登录失效了，这一条先不发——重新登录这个账号后会自动补发`,
-      );
-    }
+    if (ownerKey() !== ownerAtStart) throw ownerMovedError();
     const v = await branch.createVideo(sending);
     // ★★ **`null` 是失败，不是成功**（2026-08-21 第十轮扫描）：`createVideo` 对
     //   「200 + 形状不对」的回包返回 null（`request()` 不抛错：JSON.parse 失败就把
@@ -2583,6 +2575,18 @@ function uploadFailText(why: PendingWhy): string {
   return why.code === "other" ? why.detail : i18n._(PENDING_ERROR_MSG[why.code]);
 }
 
+/**
+ * 上传途中登录的人变了（pushPublish / flushPending 共用）：两种情形说两句话 —— 没人登录着 = 只是登录失效了
+ * （原来一律说「换了账号」，2026-09-18 复核抓到）
+ */
+function ownerMovedError(): Error {
+  return new Error(
+    ownerKey()
+      ? t`上传途中换了登录的账号，这一条先不发——等原来那个账号再登录时会自动补发`
+      : t`上传途中登录失效了，这一条先不发——重新登录这个账号后会自动补发`,
+  );
+}
+
 /** 启动时重试待发队列（成功的移出队列，失败的留着并记下原因） */
 async function flushPending(): Promise<void> {
   const all = await readPending();
@@ -2598,8 +2602,18 @@ async function flushPending(): Promise<void> {
   const list = all.filter(pendingMine);
   const others = all.filter((p) => !pendingMine(p));
   if (list.length === 0) return;
+  /**
+   * 这一轮是替谁补发的。★★ 补发一条要传几 MB，慢网上几分钟（2026-09-18 复核抓到）：这期间 A 登录失效、B 登进来的话，
+   * 下一发 createVideo 带的是 **B 的 token** —— A 花钱炼的片子挂到 B 名下进广场（pushPublish 那道同款闸）。
+   * 换过人就不再发，没发的原样留下、主人照旧记在 A 名下。
+   */
+  const flushOwner = ownerKey();
   const left: PendingPublish[] = [];
   for (const p of list) {
+    if (ownerKey() !== flushOwner) {
+      left.push({ ...p, owner: p.owner || flushOwner });
+      continue;
+    }
     let sending = p.draft;
     try {
       // 重试同样要先实体化：队列里存的可能还带着没传完的本机资产
@@ -2608,6 +2622,7 @@ async function flushPending(): Promise<void> {
         emitVideos();
       });
       uploadStatus = null;
+      if (ownerKey() !== flushOwner) throw ownerMovedError();
       const v = await branch.createVideo(sending);
       // ★★ 与 pushPublish 同一条：`null` 是失败。原来 `if (v && cache)` 把 null 当成功，
       //   于是那条队列项**不会进 left**，`writePending(left)` 之后就永久删掉了 ——
@@ -2648,7 +2663,7 @@ async function flushPending(): Promise<void> {
       // ★ owner 原样带回去：重写队列时丢掉这一位，下一轮就又变成"谁登录发给谁"
       // ★ 落盘的是码 + 原话（只有 other 才有），不是翻好的一句（见 PendingErrorCode 的 ★★）
       // ★ 没有主人的老存量在这里认领（pendingMine 已经判过「他可以认领」）：带上名字留下，下一轮就不再是谁登录发给谁
-      left.push({ draft: (e as MaterializeError).partial ?? sending, ...pendingFields(why), at: Date.now(), owner: p.owner || ownerKey() });
+      left.push({ draft: (e as MaterializeError).partial ?? sending, ...pendingFields(why), at: Date.now(), owner: p.owner || flushOwner });
     }
   }
   // ★★ 把**别人那几条原样并回去**：它们这一轮压根没参与，但 writePending 是整表覆盖，

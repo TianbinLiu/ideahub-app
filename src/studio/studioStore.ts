@@ -10,7 +10,7 @@ import { CHAT_TURN_TOKENS, DECK_MAX_3D, deriveIssue, DECK_MAX_CARDS, DEFAULT_TIE
 import { GenNodeOpts, CUSTOM_MID_MAX, FlowMode, FlowNode, FlowTemplate, appendBlocked, appendIssue, chosenOf, recastBlocked, nodeVideo, tplOfNode, useFlow, keepFirstFrame, redrawCost, usableFrames } from "./flowStore";
 // ★ 依赖方向没破：canvasAgent 只认识 flowStore，不认识本模块（不会成环）
 import { forgetCanvasAgent } from "./canvasAgent";
-import { onOwnerSwitch, workOwner } from "../data/deviceOwner";
+import { onOwnerSwitch, ownerEpoch, workOwner } from "../data/deviceOwner";
 import { DraftMode, WorkDraft, WorkDraftMeta, deleteDraft, getDraftMeta, saveDraft } from "../data/drafts";
 import { showToast } from "../data/toast";
 import { t } from "@lingui/core/macro";
@@ -2244,6 +2244,12 @@ export const useStudio = create<StudioState>()((set, get) => ({
   },
   finalizeInner: async (nodes, mode, onProgress, deckOff) => {
     const say = (s: string) => onProgress?.(s);
+    // 组稿期间换过人（2026-09-18 复核抓到）：登录失效后另一个人登录 —— 剩下的提炼卡组 / 3D 建模不再发（每一发都现取 token，
+    // 会记在新账号头上，一个建模约 160k），稿子也不写进 store（persistCutDraft 按 workOwner 落盘 = 落进新账号的剪辑稿，
+    // useFlowActions.cut 随后还会清掉新账号的流水线、把他带去剪辑页）。回 false = 这一次没组成，上层什么都不做。
+    // 主动退出会被 signOutGuard 拦住（finalizing），这里只防被动登出那一种。按换人代数判（见 deviceOwner.ownerEpoch）
+    const epochAtStart = ownerEpoch();
+    const moved = () => ownerEpoch() !== epochAtStart;
     /**
      * ★★ 这次组稿要不要派生卡组 —— **本条规则的唯一实现**（铁律六），
      *   与 saveWorkDraft 里那条「简约模式不进草稿库」并列，理由是同一个：
@@ -2326,6 +2332,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
         const canDerive = !AI_REAL || canAfford(deckCardsCost());
         if (!canDerive) say(t`余额不足，跳过卡组提炼（成片不受影响）`);
         if (!canDerive) throw new Error("skip-derive");
+        if (moved()) throw new Error("owner-moved");
         say(t`提炼本片卡组…`);
         const derived = await deriveDeckCards(
           // ★ V3：带上成片地址与实测时长，deriveDeckCards 能抽帧就看片提炼（卡面贴合原片）
@@ -2357,6 +2364,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
             if (AI_REAL && !canAfford(deckModel3dCost(want))) {
               say(t`3D 建模需 ${price} token，余额不足，跳过`);
             } else {
+              if (moved()) throw new Error("owner-moved");
               say(t`这是 3D 画风，顺便铸 ${want} 个建模（${price} token）…`);
               const before = fresh.filter((c) => c.modelUrl).length;
               await deriveCharacterModels(fresh, DECK_MAX_3D, say);
@@ -2366,6 +2374,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
           }
         }
       } catch (e) {
+        if (moved()) return false;
         if (!(e instanceof Error && e.message === "skip-derive")) console.warn("[studio] 卡组提炼回退按段场景卡:", e);
         if (deckCards.length === 0) {
           deckCards.push(
@@ -2381,6 +2390,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
         }
       }
     }
+    if (moved()) return false;
     set({
       // ★ 新的合成稿一出现，上一次发布就翻篇（publishedWorkId 的清零规则只有这一条：
       //   "draft 被赋新值"。openSegmentEdit 是另一个赋新值的地方，同样清）

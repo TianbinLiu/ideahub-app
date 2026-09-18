@@ -24,7 +24,7 @@ import { isArkAssetUrl, requestArkTransfer, transferStatus } from "../ai/arkClie
 import { canAfford, spendTokens, walletOf } from "../data/account";
 import { idbSet } from "../data/db";
 import { dropVideoJob } from "../data/videoJobs";
-import { workOwner } from "../data/deviceOwner";
+import { ownerEpoch } from "../data/deviceOwner";
 import { annRedrawCost, fmtTokens, segTokens } from "../data/economy";
 import { publishedExit, useStudio } from "../studio/studioStore";
 import { VideoSegment, aspectOf, formatDuration, segLen, uid } from "../types";
@@ -600,11 +600,12 @@ export default function CutPage() {
     // ★★ 这是一件分钟级、逐段花钱的长活（2026-09-18 复核抓到）：原来不领票，退出登录拦不住它 ——
     //   A 走开去退出、B 登录之后，循环接着发改图 / 重拍，每一发都现取 token、记在 **B** 的账上，做完还把 A 的段
     //   写进 B 的剪辑稿。现在领一张票（退出登录被 studio/signOutGuard 拦住；人走开了胶囊里也看得见它还在跑），
-    //   另外每一发请求之前问一句「还是不是这个人」—— 登录失效后换人登录那一种拦不住，靠这一句收手
-    //   （已经受理的那一发凭据记在 A 名下、不在这里结案，A 回来从取回卡领）。
-    const ownerAtStart = workOwner();
+    //   另外每一发请求之前问一句「中途换过人没有」—— 登录失效后换人登录那一种拦不住，靠这一句收手
+    //   （已经受理的那一发凭据记在 A 名下、不在这里结案，A 回来从取回卡领）。按换人代数判：A → B → A 之后
+    //   剪辑稿已经被清过，再往下写就是拿空稿子盖掉 A 的剪辑稿（见 deviceOwner.ownerEpoch）。
+    const epochAtStart = ownerEpoch();
     const stopIfMoved = () => {
-      if (workOwner() !== ownerAtStart) throw new Error(t`中途换了账号，剩下的段没有重做`);
+      if (ownerEpoch() !== epochAtStart || !useStudio.getState().draft) throw new Error(t`中途换了账号，剩下的段没有重做`);
     };
     const job = startJob({ kind: "cut-regen", title: t`按圈选重做`, page: "/cut", progress: t`准备中…` });
     /** 屏幕与票说同一句话 */
@@ -696,11 +697,12 @@ export default function CutPage() {
       return;
     }
     mergingRef.current = true;
-    // 这一炉是谁合的（2026-09-18 复核抓到）：登录失效后换了另一个人登录，合完的成片不许写进新账号的剪辑稿 ——
+    // 合成期间换过人（2026-09-18 复核抓到）：登录失效后另一个人登录，合完的成片不许写进新账号的剪辑稿 ——
     // persistCutDraft 按 workOwner 落盘 = 落在新账号名下，个人页横幅就会把 A 付过钱的成片摆给 B、能以 B 的名义发。
     // A 的剪辑稿还是合之前那一份，回来再合一次即可（合成本身不花钱）。主动退出会被 signOutGuard 拦住（下面领了票）。
-    const ownerAtStart = workOwner();
-    const ownerMoved = () => workOwner() !== ownerAtStart;
+    // 按换人代数判（A → B → A 也算换过：剪辑稿在中间被清过，见 deviceOwner.ownerEpoch）
+    const epochAtStart = ownerEpoch();
+    const ownerMoved = () => ownerEpoch() !== epochAtStart;
     /**
      * ★★ 合成是一件**能活过页面卸载**的长活（屏幕上那句话就写着「可以切走」），
      *   所以它必须领一张票（本仓约定：长活登记进 data/jobs，胶囊只有一颗）。
@@ -926,7 +928,7 @@ export default function CutPage() {
         //   用户删掉 / 挪走第 1 段时两者不是同一段，标签就与合出来的画面对不上（2026-09-18 发版复核抓到：370f719 只改了一半）
         aspect: first.aspect ?? segs[0]?.aspect,
       };
-      // 换过账号：成片不落进新账号（见 ownerAtStart 的注释）；票在换人那一拍已经被清掉了
+      // 换过账号：成片不落进新账号（见 epochAtStart 的注释）；票在换人那一拍已经被清掉了
       if (ownerMoved()) return;
       leftRef.current = true;
       useStudio.setState({ draft: { ...draft!, segments: [mergedSeg], branchTree: undefined, merged: true } });

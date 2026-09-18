@@ -331,16 +331,19 @@ export async function pickBundle(file: File): Promise<void> {
     progress: t`正在解开压缩包…`,
     step: "pick",
   });
+  // 解包要几秒：这期间换了人，结果写回发起人那一份（见文件末尾「按账号分开」）
+  const slot = draftSlot(ownerOfDraft());
   let check: BundleCheck;
   try {
     check = await readLive2dBundle(file, MAX_LIVE2D_BUNDLE_BYTES);
   } catch (e) {
-    set({ busy: "", progress: "", readErr: e instanceof Error ? e.message : t`这个文件读不了。` });
+    slot.set({ busy: "", progress: "", readErr: e instanceof Error ? e.message : t`这个文件读不了。` });
     return;
   }
   const entry = check.entries[0] || "";
-  set({ check, entry, busy: "", progress: "" });
+  slot.set({ check, entry, busy: "", progress: "" });
   if (check.issues.length || !entry) return; // 不合格：停在第 ① 步，页面把 issues 逐条红字列出来
+  if (!slot.live()) return; // 收在暗格里的那一份停在第 ① 步，他回来再点下一步建预览
   await buildPreview(entry);
 }
 
@@ -364,9 +367,15 @@ export async function buildPreview(entry: string): Promise<void> {
     return;
   }
   set({ ...wipe, busy: "preview", progress: t`正在准备预览…`, entry, previewState: "loading", previewErr: "", previewHealed: false, step: "preview" });
+  const slot = draftSlot(ownerOfDraft());
   try {
     dropPreview();
     const preview = await createBundlePreview(s.check, entry);
+    if (!slot.live()) {
+      // 换过人：这份预览收进发起人的暗格，不登记给运行时（台上已经是别人的了）；还给他的那一拍换新地址重新登记
+      slot.set({ preview, previewUrl: preview.modelUrl, busy: "", progress: "" });
+      return;
+    }
     // 服务端还没看过这个包时 `mapping` 是 null —— 登记的会是一份**空映射**（见 publishPreviewMapping 的第二个 ★★），
     // 也就是这一步的预览只验"画不画得出来"，动作 / 表情 / 触摸暂时都不响应。这是刻意的取舍，别改成登记 null。
     publishPreviewMapping(preview.modelUrl, get().mapping);
@@ -376,7 +385,7 @@ export async function buildPreview(entry: string): Promise<void> {
     //   不清的话舞台仍按 `!!s.previewUrl` 挂着、去加载一个**已经被撤销的地址**，而那颗
     //   「重新加载预览」（`disabled={!s.preview}`）也仍然亮着 —— 它调的 `preview.reload()` 闭包里
     //   锁着的是**上一个 entry**，于是"换了入口 → 建预览失败 → 点重新加载"画出来的是用户没选的那个模型，零报错。
-    set({
+    slot.set({
       preview: null,
       previewUrl: "",
       previewHealed: false,

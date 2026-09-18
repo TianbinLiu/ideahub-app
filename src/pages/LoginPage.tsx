@@ -96,13 +96,15 @@ export default function LoginPage() {
 
   /** 所有登录入口共用的一道门（密码/验证码/QQ/Google/GitHub 都从这儿过） */
   function requireAgree(run: () => void) {
-    if (agreed) {
-      // 待认领那一下有期限（agreements 的 PENDING_TTL_MS）：从真正点登录这一拍重新算，
-      // 在登录页上填验证码磨蹭多久都不会让它在登录成功之前过期
+    // ★ 勾选框上那一下还得**没过期**（agreements 的 PENDING_TTL_MS）：页面一直开着的话框还勾着，而勾它的可能是
+    //   早就走开的上一个人（2026-09-18 复核抓到）—— 过期了就撤掉勾、当面再问一次
+    if (agreed && termsPendingAccepted()) {
+      // 从真正点登录这一拍重新算期限：跳去第三方授权再回来（冷启动认领也算）不会在登录成功之前过期
       recordTermsAccepted();
       run();
       return;
     }
+    if (agreed) setAgreed(false);
     setPendingAuth(() => run);
   }
 

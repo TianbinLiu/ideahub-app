@@ -2415,6 +2415,11 @@ function loadPendingJobs(): Promise<void> {
     const gen = viewerGen;
     try {
       if (!(await remoteTemplatesCapable())) {
+        // 上一个人这一发的探测结论不落到这个人头上（冷却、那行提示都不给他）
+        if (gen !== viewerGen) {
+          stale = true;
+          return;
+        }
         // 瞬时网络失败（探测没缓存结论）≠ 老服务端：前者要说出来（这一屏关系到钱），
         // 后者安静 —— 老服务端连白模化入口都不渲染，说"待取回列表拉不到"只是噪音
         if (remoteOn() && capProbe === null) {

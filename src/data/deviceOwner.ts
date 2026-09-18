@@ -115,6 +115,22 @@ export function onOwnerSwitch(fn: (prev: string, next: string) => void): () => v
   });
 }
 
+/**
+ * 换过几次人（onOwnerSwitch 每触发一次 +1）。内存里的长活 await 回来时比一下：变了 = 中途换过人、内存已经被清过 ——
+ * **哪怕又换回来了**：A → B → A 之后流水线 / 工坊 / 剪辑稿都已经不是发起时那一份，手里捏着的节点、稿子全是悬空的
+ * （2026-09-18 复核抓到：只比 workOwner() 的话 A → B → A 看不出来，取回会把凭据销毁、剪辑页会拿空稿子盖掉剪辑稿）。
+ * ★ 与「比 workOwner()」分工：要判「这一发请求会记在谁的账上」比人（A → B → A 之后发出去的仍是 A 的 token）；
+ *   要判「我手里的节点 / 稿子还在不在」比这个代数。
+ */
+let switches = 0;
+export function ownerEpoch(): number {
+  return switches;
+}
+// ★ 在各 store 的清空之前登记（本文件最先装载），换人那一拍先 +1、再清
+onOwnerSwitch(() => {
+  switches++;
+});
+
 // 方案库、肖像授权、声音样本三个是叶子模块、不能 import 本文件（account 经它们绕回来会成环，见各自文件头），
 // 由这里把「现在是谁」注入过去
 const inject = (fn: () => void) => {

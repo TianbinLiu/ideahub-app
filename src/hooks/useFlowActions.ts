@@ -19,6 +19,7 @@ import { deckQuoteOf, useStudio } from "../studio/studioStore";
 import { cutSession, cutSessionLoadIssue, readyCutSession } from "../data/cutSession";
 import { draftsLoadIssue, draftsUnavailableText } from "../data/drafts";
 import { captureCanvas } from "../data/projects";
+import { ownerEpoch } from "../data/deviceOwner";
 
 export interface FlowActions {
   /** 存草稿按钮的四态（idle/saving/saved/failed） */
@@ -163,8 +164,11 @@ export function useFlowActions(opts?: {
       // ★ mode 与 deckOff 同一拍从 store 现读：报价（deckQuoteOf）读的就是这两个 ——
       //   报什么价就收什么钱
       const st = useFlow.getState();
+      // 组稿期间换过人：finalizeFromFlow 自己会回 false；它回来之后、下面两个 await 之间换的，在清流水线与跳页之前再拦一次 ——
+      // 否则清掉的是**新账号**的流水线、把他带去剪辑页（见 studioStore.finalizeInner 的 epochAtStart）
+      const epochAtStart = ownerEpoch();
       const ok = await useStudio.getState().finalizeFromFlow(st.nodes, st.mode, (s) => setFinalizing(s), st.deckOff);
-      if (ok) {
+      if (ok && ownerEpoch() === epochAtStart) {
         // ★★ 落盘就在这一拍：卡组刚铸完（最多 8 张，真扣过钱）、3D 建模的 GLB 刚落 idb 而
         //   **指针只在内存 draft 上**。下面马上要 reset() 流水线，此后这摊活的唯一副本
         //   就是那份内存 draft —— 切后台被系统回收就得从草稿箱重来一遍，**再收一次那笔钱**。
@@ -206,6 +210,7 @@ export function useFlowActions(opts?: {
         //   同步续体里就 `reset()`（它 `set({ …, err: "" })`）并 `navigate` 换路由，
         //   而 err 的消费者一个都不在 /cut 上 —— 于是这句提示在任何路径上都显示不出来，
         //   而它说的正是"你刚花掉的钱现在没有备份"。⇒ 随导航把话带到剪辑页去说。
+        if (ownerEpoch() !== epochAtStart) return;
         opts?.onLeave?.();
         useFlow.getState().reset();
         // ★ 工坊那一面的投影窗/聚焦是**独立的一份状态**，reset() 只清流水线 ——
