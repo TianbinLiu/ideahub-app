@@ -12,6 +12,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import EmptyState from "../components/EmptyState";
 import AigcBadge, { isAigcWork } from "../components/AigcBadge";
+import SeedBadge from "../components/SeedBadge";
 import Icon from "../components/Icon";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
@@ -19,7 +20,7 @@ import SpriteToggle, { type SpriteSheet } from "../components/SpriteToggle";
 import UserRow from "../components/UserRow";
 import { Link, useLocation } from "react-router";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { authorDisplayName, listVideos, profileHref, remoteOn, searchVideos } from "../data/videos";
+import { authorDisplayName, isSeedWork, listVideos, profileHref, remoteOn, searchVideos } from "../data/videos";
 import { searchUsers, userDisplayName, type ApiUserLite } from "../api/users";
 import { VIDEO_CATEGORIES, VideoItem, formatDuration, formatPlays, segsTotal, videoCategoryLabel } from "../types";
 
@@ -339,11 +340,17 @@ export default function DiscoverPage() {
                   <AigcBadge tone="overlay" />
                 </span>
               )}
-              {v.branchTree && (
-                <span className="absolute left-1.5 top-1.5 rounded bg-brand/85 px-1.5 py-0.5 text-[9px] font-semibold text-ink">
-                  <Trans>互动</Trans>
-                </span>
-              )}
+              {/* 左上角这一排：「示例 · 离线」与「互动」并排，**flex-wrap** 兜住 —— 英文下这两枚
+                  （Sample · offline / Interactive）比中文宽不少，两个绝对定位各写各的必然叠在一起。
+                  ★ 真实作品上这一排里只有「互动」那一枚，左上角、尺寸不变，位置与以前逐像素相同。 */}
+              <span className="absolute inset-x-1.5 top-1.5 flex flex-wrap items-start gap-1">
+                {isSeedWork(v) && <SeedBadge tone="overlay" />}
+                {v.branchTree && (
+                  <span className="rounded bg-brand/85 px-1.5 py-0.5 text-[9px] font-semibold text-ink">
+                    <Trans>互动</Trans>
+                  </span>
+                )}
+              </span>
             </div>
             <div className="mt-1.5 line-clamp-2 text-xs font-medium text-slate-200">{v.title}</div>
             <div className="mt-0.5 text-[10px] text-slate-500">

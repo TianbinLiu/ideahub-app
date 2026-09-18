@@ -4,6 +4,7 @@ import Spinner from "../components/Spinner";
 import PageHeader from "../components/PageHeader";
 import { takedownReasonText } from "../api/admin";
 import AigcBadge, { isAigcWork } from "../components/AigcBadge";
+import SeedBadge from "../components/SeedBadge";
 import Icon from "../components/Icon";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -24,6 +25,7 @@ import {
   isLiked,
   isMyAuthor,
   isMyVideo,
+  isSeedWork,
   partsOf,
   profileHref,
   setLike,
@@ -543,7 +545,7 @@ export default function VideoPage() {
             to={profileHref({ id: video.authorId, name: video.author })}
             className="flex items-center gap-2 active:opacity-60"
           >
-            {/* 名字只翻「我」/「匿名」两个哨兵（videos.authorDisplayName）；跳转、Avatar 的 name（取色）认的仍是 video.author 原值 */}
+            {/* 名字只翻 app 自己填的那几个（「我」/「匿名」两个哨兵 + 三条离线演示作品的作者，判据见 videos.authorDisplayName）；跳转、Avatar 的 name（取色）认的仍是 video.author 原值 */}
             <Avatar name={video.author} label={authorDisplayName(video.author, video.authorId)} src={authorAvatarOf(video)} size={32} />
             <span className="text-slate-200">{authorDisplayName(video.author, video.authorId)}</span>
           </Link>
@@ -578,6 +580,8 @@ export default function VideoPage() {
             与话题标签同一排 —— 它本身也是"关于这条内容是什么"的说明。 */}
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
           {isAigcWork(video) && <AigcBadge />}
+          {/* 「示例 · 离线」：这三条是没连上服务器时铺的演示作品，与真人作品长得一模一样（见 components/SeedBadge） */}
+          {isSeedWork(video) && <SeedBadge />}
           {(video.tags ?? []).map((tag) => (
             <button
               key={tag}

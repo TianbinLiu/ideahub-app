@@ -3056,6 +3056,10 @@ msgstr "一组一问一答，最多 {0} 组、每句 {1} 字以内。"
 msgid "万一<0>两个人偶站得几乎重叠</0>、从左往右数不出先后：挂在这个位置上 的卡<1>可能会换错人</1>（模型也只能按从左到右去找）。 不想赌，就把这个位子删掉 —— 那两个人偶会保持白色人偶原样出现在片子里。"
 msgstr "万一<0>两个人偶站得几乎重叠</0>、从左往右数不出先后：挂在这个位置上 的卡<1>可能会换错人</1>（模型也只能按从左到右去找）。 不想赌，就把这个位子删掉 —— 那两个人偶会保持白色人偶原样出现在片子里。"
 
+#: src/data/danmaku.ts
+msgid "万剑埋骨之地"
+msgstr "万剑埋骨之地"
+
 #: src/components/guide/tours.tsx
 msgid "三个页签各管一摊"
 msgstr "三个页签各管一摊"
@@ -3666,6 +3670,18 @@ msgstr "也可以按左上角的返回"
 msgid "也能拖到画面上"
 msgstr "也能拖到画面上"
 
+#: src/data/danmaku.ts
+msgid "二刷来了"
+msgstr "二刷来了"
+
+#: src/data/danmaku.ts
+msgid "云海倒卷这一下太燃了"
+msgstr "云海倒卷这一下太燃了"
+
+#: src/data/videos.ts
+msgid "云海剑冢·白无衣"
+msgstr "云海剑冢·白无衣"
+
 #. placeholder {0}: res.status
 #: src/pages/SettingsVoicePage.tsx
 msgid "云端语音没出声（{0}）：稍后再试，或到火山控制台看额度"
@@ -3925,6 +3941,10 @@ msgstr "会表情"
 #: src/studio/ui/NpcDialog.tsx
 msgid "会被拿起来用的关键物件"
 msgstr "会被拿起来用的关键物件"
+
+#: src/data/danmaku.ts
+msgid "会说谎的罗盘"
+msgstr "会说谎的罗盘"
 
 #: src/components/TemplateShelf.tsx
 msgid "传一段视频做白模模板（自己做好的白模片也行）"
@@ -4314,6 +4334,14 @@ msgstr "保存这把混音"
 msgid "保留了框内背景（{size}{up}）——卡面仍带背景，出片时 AI 可能把背景里的东西也画进去"
 msgstr "保留了框内背景（{size}{up}）——卡面仍带背景，出片时 AI 可能把背景里的东西也画进去"
 
+#: src/data/videos.ts
+msgid "信使小满在废土集市用三封信换回了一个秘密。轻松治愈向。"
+msgstr "信使小满在废土集市用三封信换回了一个秘密。轻松治愈向。"
+
+#: src/data/danmaku.ts
+msgid "信里居然是记忆"
+msgstr "信里居然是记忆"
+
 #: src/studio/stage/stageState.ts
 msgid "俯拍"
 msgstr "俯拍"
@@ -4573,6 +4601,11 @@ msgstr "先选一个理由"
 msgid "先随便逛逛"
 msgstr "先随便逛逛"
 
+#: src/data/videos.ts
+msgctxt "离线演示作品的作者名（编出来的示例作者，不是真人）"
+msgid "光影铸造者"
+msgstr "光影铸造者"
+
 #: src/studio/canvasAgent.ts
 msgid "免费 · 会重新合成点名句（覆盖你改过的字）"
 msgstr "免费 · 会重新合成点名句（覆盖你改过的字）"
@@ -4589,6 +4622,10 @@ msgstr "全屏"
 #: src/components/guide/tours.tsx
 msgid "全屏与转屏"
 msgstr "全屏与转屏"
+
+#: src/data/danmaku.ts
+msgid "全息广告那一下鸡皮疙瘩起来了"
+msgstr "全息广告那一下鸡皮疙瘩起来了"
 
 #: src/studio/ui/projection.tsx
 msgid "全按你的来"
@@ -4998,6 +5035,10 @@ msgstr "准备素材…"
 #: src/pages/CutPage.tsx
 msgid "准备配乐…"
 msgstr "准备配乐…"
+
+#: src/data/danmaku.ts
+msgid "凛姐姐好帅"
+msgstr "凛姐姐好帅"
 
 #: src/pages/CreatePage.tsx
 msgid "几秒出片"
@@ -5479,6 +5520,10 @@ msgstr "刷新"
 msgid "刷新中…"
 msgstr "刷新中…"
 
+#: src/data/danmaku.ts
+msgid "前方高能"
+msgstr "前方高能"
+
 #: src/studio/flowStore.ts
 msgid "前面还有没炼完的段——先把前面那段炼出来，再推演这一段。"
 msgstr "前面还有没炼完的段——先把前面那段炼出来，再推演这一段。"
@@ -5694,6 +5739,10 @@ msgstr "包里没有找到 *.model3.json。它是 Cubism 4（Version 3）导出�
 #: src/pages/WorkshopPage.tsx
 msgid "匿名"
 msgstr "匿名"
+
+#: src/data/danmaku.ts
+msgid "十年前那一战"
+msgstr "十年前那一战"
 
 #: src/components/support/VoiceSheet.tsx
 msgid "单音色"
@@ -7785,6 +7834,10 @@ msgstr "封面没传上去，换一张再试。"
 msgid "小梦"
 msgstr "小梦"
 
+#: src/data/danmaku.ts
+msgid "小满好可爱"
+msgstr "小满好可爱"
+
 #: src/studio/StudioPage.tsx
 msgid "小窗右上角可在「卡组 / 卡片」间切换，单击卡片看详情"
 msgstr "小窗右上角可在「卡组 / 卡片」间切换，单击卡片看详情"
@@ -8580,6 +8633,15 @@ msgstr "底栏的 ➕ 先落到这里。这是<0>一张卡的正反面</0>：正
 #: src/components/guide/tours.tsx
 msgid "底缘那条细线是<0>播放进度</0>，右上小字是当前 / 总时长，按住能<1>拖着跳到任意一处</1>。多段的作品，这条线走的是整片。"
 msgstr "底缘那条细线是<0>播放进度</0>，右上小字是当前 / 总时长，按住能<1>拖着跳到任意一处</1>。多段的作品，这条线走的是整片。"
+
+#: src/data/videos.ts
+msgctxt "离线演示作品的作者名（编出来的示例作者，不是真人）"
+msgid "废土行者"
+msgstr "废土行者"
+
+#: src/data/videos.ts
+msgid "废土集市奇遇记"
+msgstr "废土集市奇遇记"
 
 #: src/pages/WorkshopPage.tsx
 msgid "建一个把常用素材归到一起"
@@ -12126,6 +12188,10 @@ msgstr "比如「树洞」「陪练」「编剧搭子」"
 msgid "比如「认识很久的朋友」"
 msgstr "比如「认识很久的朋友」"
 
+#: src/data/danmaku.ts
+msgid "水墨留白舒服"
+msgstr "水墨留白舒服"
+
 #: src/types.ts
 msgid "永不进模型（三视图/规格稿这类多视图会让 AI 认错人）"
 msgstr "永不进模型（三视图/规格稿这类多视图会让 AI 认错人）"
@@ -12497,6 +12563,10 @@ msgstr "没读出识别结果。{moneyLine}可以自己填，或者再识别一�
 msgid "没过审核："
 msgstr "没过审核："
 
+#: src/components/SeedBadge.tsx
+msgid "没连上服务器时显示的示例内容，不是真实用户作品"
+msgstr "没连上服务器时显示的示例内容，不是真实用户作品"
+
 #: src/data/videoDownload.ts
 msgid "没连上网，这一段没下完。再点一次会从头重下这一段。"
 msgstr "没连上网，这一段没下完。再点一次会从头重下这一段。"
@@ -12508,6 +12578,10 @@ msgstr "没配云端语音时退回系统内置合成器（需装中文语音包
 #: src/pages/SupportModelNewPage.tsx
 msgid "没问题，继续"
 msgstr "没问题，继续"
+
+#: src/data/danmaku.ts
+msgid "治愈了"
+msgstr "治愈了"
 
 #: src/components/PhotoSubjectPicker.tsx
 msgid "沿边描出轮廓"
@@ -13695,6 +13769,10 @@ msgstr "白模那种模板，出片就是<0>整段复刻这段视频</0>、只�
 msgid "白模那种模板：视频就是成片"
 msgstr "白模那种模板：视频就是成片"
 
+#: src/data/videos.ts
+msgid "白衣剑修重返万剑埋骨之地，水墨留白风格的三段式短片。"
+msgstr "白衣剑修重返万剑埋骨之地，水墨留白风格的三段式短片。"
+
 #: src/pages/PublishPage.tsx
 msgid "目前所有作品都是<0>免费观看</0>。付费解锁还没开放——等收款和分账真的通了再放出来，免得你以为在收钱、其实一分也到不了账。"
 msgstr "目前所有作品都是<0>免费观看</0>。付费解锁还没开放——等收款和分账真的通了再放出来，免得你以为在收钱、其实一分也到不了账。"
@@ -13763,6 +13841,10 @@ msgstr "看到这条片子的人能看到卡面与设定，也能「收入卡组
 #: src/pages/SettingsPage.tsx
 msgid "看名单 · 随时解除"
 msgstr "看名单 · 随时解除"
+
+#: src/data/danmaku.ts
+msgid "看哭了"
+msgstr "看哭了"
 
 #: src/pages/FlowPage.tsx
 msgid "看成片"
@@ -13968,6 +14050,10 @@ msgstr "确认移除"
 #: src/studio/ui/projection.tsx
 msgid "示例"
 msgstr "示例"
+
+#: src/components/SeedBadge.tsx
+msgid "示例 · 离线"
+msgstr "示例 · 离线"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "示例图没存上：{why}"
@@ -16348,6 +16434,10 @@ msgstr "贴图有 {count} 张，超过 {MAX_TEXTURE_COUNT} 张的上限。请在
 msgid "费用与退款"
 msgstr "费用与退款"
 
+#: src/data/videos.ts
+msgid "赛博侦探在永雨之城追踪一封无法送达的信。分支视频先导样片，由卡片工坊逐段生成。"
+msgstr "赛博侦探在永雨之城追踪一封无法送达的信。分支视频先导样片，由卡片工坊逐段生成。"
+
 #: src/pages/NotificationsPage.tsx
 msgid "赞了你的作品"
 msgstr "赞了你的作品"
@@ -17549,6 +17639,10 @@ msgstr "这个链接里只有名字，没法向服务器确认是谁 · 下面�
 msgid "这个问题需要人工处理（{0}）。转人工会把这段对话一起交给客服，你不用再讲一遍。"
 msgstr "这个问题需要人工处理（{0}）。转人工会把这段对话一起交给客服，你不用再讲一遍。"
 
+#: src/data/danmaku.ts
+msgid "这个雨夜的光太顶了"
+msgstr "这个雨夜的光太顶了"
+
 #: src/components/MaterialSheet.tsx
 msgid "这些卡本段已经有了"
 msgstr "这些卡本段已经有了"
@@ -18441,6 +18535,10 @@ msgstr "连内容一起删掉，不可撤销"
 msgid "连圈多张，打包成一组"
 msgstr "连圈多张，打包成一组"
 
+#: src/data/danmaku.ts
+msgid "追！"
+msgstr "追！"
+
 #: src/pages/SettingsPage.tsx
 msgid "退出"
 msgstr "退出"
@@ -18631,6 +18729,10 @@ msgstr "透明度组 没有"
 msgid "逐格传自己的图 · 不花钱"
 msgstr "逐格传自己的图 · 不花钱"
 
+#: src/data/danmaku.ts
+msgid "递剑的那只手…"
+msgstr "递剑的那只手…"
+
 #: src/studio/npcPersona.ts
 msgid "递素材给我，炼成卡；卡拖到桌上的虚线卡位，铸成一段；段够了点法阵，推成成片。想看现成的就去市场。"
 msgstr "递素材给我，炼成卡；卡拖到桌上的虚线卡位，铸成一段；段够了点法阵，推成成片。想看现成的就去市场。"
@@ -18705,9 +18807,17 @@ msgstr "道具卡的图要先框出主体、描出轮廓，「{names}」那张�
 msgid "那一列最下面单独一枚是全屏键，点了只留画面；<0>横屏的片子会连屏幕一起转过来</0>，所以它在横屏片上写的是「转屏」。退出点右上角那枚缩小键。"
 msgstr "那一列最下面单独一枚是全屏键，点了只留画面；<0>横屏的片子会连屏幕一起转过来</0>，所以它在横屏片上写的是「转屏」。退出点右上角那枚缩小键。"
 
+#: src/data/danmaku.ts
+msgid "那扇门后面是什么"
+msgstr "那扇门后面是什么"
+
 #: src/components/guide/tours.tsx
 msgid "那颗按钮只是把配方铺到出片那一屏，<0>钱要到那边点生成才扣</0>。 有角色位的模板会先领你去给人偶挂卡。"
 msgstr "那颗按钮只是把配方铺到出片那一屏，<0>钱要到那边点生成才扣</0>。 有角色位的模板会先领你去给人偶挂卡。"
+
+#: src/data/danmaku.ts
+msgid "邮包比人还高哈哈哈"
+msgstr "邮包比人还高哈哈哈"
 
 #: src/pages/LoginPage.tsx
 msgid "邮箱"
@@ -19084,6 +19194,14 @@ msgstr "随身物、纹样或疤痕"
 msgid "难过"
 msgstr "难过"
 
+#: src/data/danmaku.ts
+msgid "雨停三秒这个设定绝了"
+msgstr "雨停三秒这个设定绝了"
+
+#: src/data/videos.ts
+msgid "雨夜霓虹：迷失信使"
+msgstr "雨夜霓虹：迷失信使"
+
 #. placeholder {0}: fmtTokens(cost)
 #. placeholder {1}: fmtTokens((wallet?.plan ?? 0) + (wallet?.addon ?? 0))
 #: src/studio/ui/NpcDialog.tsx
@@ -19306,6 +19424,11 @@ msgstr "黄"
 msgctxt "人偶的主色（挂卡提醒那句话里显示）"
 msgid "黑"
 msgstr "黑"
+
+#: src/data/videos.ts
+msgctxt "离线演示作品的作者名（编出来的示例作者，不是真人）"
+msgid "墨白"
+msgstr "墨白"
 
 #: src/pages/SupportPersonasPage.tsx
 msgid "默认人设"

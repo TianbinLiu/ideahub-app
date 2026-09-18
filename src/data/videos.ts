@@ -25,6 +25,9 @@ import { currentUser, readyAccount, subscribeAccount } from "./account";
 import { API_ON, ApiError, emitApiError } from "../api/client";
 import * as branch from "../api/branch";
 import { resolveMentionSpans, type MentionPick } from "../utils/mention";
+// ★ 只为一件事订阅：换界面语言时把三条演示作品的标题 / 简介换成另一种语言（retitleSeeds）。
+//   i18n/switch 没有任何 data 依赖，不成环（它只认识 @lingui/core 与 i18n/locale）。
+import { subscribeLang } from "../i18n/switch";
 
 const KEY = "ideahub-app.videos.v1";
 /** 远端模式下发布失败的作品暂存处（不混进离线主库 KEY，避免两种模式的数据互相污染） */
@@ -58,48 +61,42 @@ interface SeedBranchDef {
 }
 
 /**
- * 三条演示作品（离线模式，或首次拉服务端失败退回本机库时出现）。
- *
- * ★ 整张表冻结中文（多语言，2026-09-11）：
- *   ① 演示作品要不要出英文版，主人还没拍板；在那之前标题 / 简介 / 评论 / 选项键都照中文显示。
- *   ② 剧情（plot）不论怎么定都冻结：「做同款」（flowStore.remakeNodesOf）把它原样抄进流水线、发给模型。
- *   ③ 这些值进 IndexedDB 之后就是数据：作者名与评论作者名按名字比（isMyAuthor）、做 Avatar 取色与 /u/ 链接，
- *      标题还是占位帧的取色种子（`seed:${title}`）—— 按界面语言现翻，同一台设备换了语言颜色与身份会一起变。
- * ★ 分支的另一段、选项键、评论作者名原来散在 buildSeeds 里现拼，2026-09-11 收进这张表（值逐字不变：
- *   评论作者名就是原来 `观众${vi * 7 + ci + 1}号` 算出来的那几个），演示内容只有这一处、冻结声明也只要这一条。
- * ★ 分区（category）直接写 VIDEO_CATEGORIES 的 id 原值（本来就冻结的跨仓契约值），字段类型收窄成那几个 id 的并集：
- *   抄错一个字编译不过。
- *   ⚠ 别写成 `VIDEO_CATEGORIES[1].id` 按下标取：分区表一挪顺序 / 插一项，演示作品就静默换了分区，类型照样过。
- *   ⚠ 第三条也别借 DEFAULT_VIDEO_CATEGORY：这里说的是「这条演示作品本来就是剧情片」，不是「表单缺省」—— 缺省将来改了它不该跟着走。
+ * 三条演示作品的 id。**永不变**：本机「我赞过没有」（LIKED_KEY）、「这一会话看过没有」（PLAYED_KEY）、
+ * 演示弹幕（data/danmaku 的 SEEDS 按同一批 id 归档）都拿它当钥匙，改一个字就等于把用户这些痕迹全丢了。
  */
-/* i18n-frozen: 演示作品内容落 IndexedDB 并按名字比；剧情经「做同款」发给模型；要不要出英文版待主人拍板 */
-const SEEDS: Array<{
-  title: string;
-  category: (typeof VIDEO_CATEGORIES)[number]["id"];
-  description: string;
-  author: string;
-  plays: number;
-  likes: number;
-  saves: number;
-  shares: number;
-  comments: Array<{ author: string; text: string }>;
-  segs: SeedSegDef[];
-  branch?: SeedBranchDef;
-}> = [
-  {
-    title: "雨夜霓虹：迷失信使",
+const SEED_IDS = ["seedv_0", "seedv_1", "seedv_2"] as const;
+type SeedId = (typeof SEED_IDS)[number];
+
+/**
+ * 三条演示作品里**冻结中文**的那一半：分区、作者名、段标题、剧情、互动分支的另一段与三颗选项键。
+ *
+ * ★★ 为什么这一半不进目录（2026-09-17 主人拍板「方案一 ①」，调研正本 §B）：
+ *   ① 剧情随「做同款」原样进模型 —— flowStore.remakeNodesOf 把 plot 抄进 plot 与 requirement，
+ *      随后当出片正文发给方舟；而 ai/real.ts 的 SOFTEN 敏感词表只有中文正则，英文剧本会整段绕过软化。
+ *      翻不翻等实验 E1 / E2 出结果。
+ *   ② 段标题是「第N段 · X」这个**被解析的形状**：六条正则剥那个前缀（见 ai/real.ts 那条 i18n-ignore）。
+ *   ③ 作者名是**身份键**，与上面的 ME 同一类：isMyAuthor / profileHref（`/u/:展示名` 那条老链接）/
+ *      toggleFollow / Avatar 取色全按原值比。英文界面画名字时经 authorDisplayName **一处**翻
+ *      （与「我」/「匿名」两个哨兵同一条规矩）。
+ *   ④ 分支那**三**颗选项键（追上去 / 按兵不动 / 结局）**不受 ①② 约束**，别读成它们也"被解析、要进模型"
+ *      （2026-09-17 复核订正，上一版这条写得容易误会）：「做同款」只取 `video.segments`
+ *      （flowStore.remakeNodesOf 的入参），branchTree 一个字都不看；也没有任何正则去解析它们。
+ *      冻结纯粹是因为**它们指向的剧情是中文** —— 按钮写英文、点下去是中文剧情，比整条都是中文更怪。
+ *      要翻的话是 3 条 msgid 的事，没有形状上的风险。
+ *   ⑤ 分区直接写 VIDEO_CATEGORIES 的 id 原值（本来就冻结的跨仓契约值），字段类型收窄成那几个 id 的并集：
+ *      抄错一个字编译不过。
+ *      ⚠ 别写成 `VIDEO_CATEGORIES[1].id` 按下标取：分区表一挪顺序 / 插一项，演示作品就静默换了分区，类型照样过。
+ *      ⚠ 第三条也别借 DEFAULT_VIDEO_CATEGORY：这里说的是「这条演示作品本来就是剧情片」，不是「表单缺省」。
+ *   ⇒ 英文界面下这三条的正文仍是中文；「这是编出来的示例」由角标说（components/SeedBadge）。
+ */
+/* i18n-frozen: 演示作品的剧情随「做同款」进模型、段标题的「第N段 · 」前缀被六条正则解析、作者名是身份键、分区是跨仓契约 id（分支选项键跟着中文剧情一起冻，见上面的 ④） */
+const SEED_SCRIPTS: Record<
+  SeedId,
+  { category: (typeof VIDEO_CATEGORIES)[number]["id"]; author: string; segs: SeedSegDef[]; branch?: SeedBranchDef }
+> = {
+  seedv_0: {
     category: "科幻",
-    description: "赛博侦探在永雨之城追踪一封无法送达的信。分支视频先导样片，由卡片工坊逐段生成。",
     author: "光影铸造者",
-    plays: 48213,
-    likes: 3120,
-    saves: 786,
-    shares: 512,
-    comments: [
-      { author: "观众1号", text: "首尾帧衔接得太丝滑了" },
-      { author: "观众2号", text: "这个城市的雨我能看一年" },
-      { author: "观众3号", text: "等分支功能上线！想看另一个结局" },
-    ],
     segs: [
       { title: "第1段 · 顺势推进", plot: "镜头缓缓推近，赛博侦探·凛的身影出现在雨夜霓虹街。整段画面浸在「雨幕青」的氛围里。积水倒映的招牌次第熄灭，一封没有署名的信躺在她的掌心。镜头停在一个欲言又止的瞬间。", durationSec: 6 },
       { title: "第2段 · 风云突变", plot: "毫无预兆地，天桥上的全息广告同时切换成同一张脸。冲突在此刻全面爆发，所有铺垫轰然兑现——追逐在雨幕与霓虹的缝隙间展开。画面在碎裂的光斑中戛然而止。", durationSec: 7 },
@@ -116,89 +113,133 @@ const SEEDS: Array<{
       ending: "结局 · 柳暗花明",
     },
   },
-  {
-    title: "云海剑冢·白无衣",
+  seedv_1: {
     category: "古风",
-    description: "白衣剑修重返万剑埋骨之地，水墨留白风格的三段式短片。",
     author: "墨白",
-    plays: 30877,
-    likes: 2455,
-    saves: 604,
-    shares: 388,
-    comments: [
-      { author: "观众8号", text: "水墨运镜绝了" },
-      { author: "观众9号", text: "第三段的留白看哭了" },
-    ],
     segs: [
       { title: "第1段 · 顺势推进", plot: "光线沿着地平线铺开，剑修·白无衣的身影出现在云海剑冢。万柄锈剑在云涛中沉默，他解下背上的旧剑，插进空着的那个位置。画面在光影交界处缓缓定格。（呈现方式：水墨留白）", durationSec: 7 },
       { title: "第2段 · 风云突变", plot: "上一幕的平静被瞬间撕开，云海倒卷，群剑齐鸣。对峙升级，镜头以凌厉的快切逼近核心——十年前那一战的残影在剑光里重演。镜头甩向天空，留下未落地的悬念。", durationSec: 6 },
       { title: "第3段 · 柳暗花明", plot: "故事在此处拐了一个温柔的弯，剑鸣化作风声。一个被忽略的细节此刻成为唯一的钥匙——剑冢尽头立着的不是碑，是当年递剑给他的那只手的雕像。画面亮起久违的暖色，尘埃缓缓落定。", durationSec: 8 },
     ],
   },
-  {
-    title: "废土集市奇遇记",
+  seedv_2: {
     category: "剧情",
-    description: "信使小满在废土集市用三封信换回了一个秘密。轻松治愈向。",
     author: "废土行者",
-    plays: 19452,
-    likes: 1201,
-    saves: 341,
-    shares: 205,
-    comments: [
-      { author: "观众15号", text: "小满好可爱" },
-      { author: "观众16号", text: "会说谎的罗盘是全片最佳配角" },
-    ],
     segs: [
       { title: "第1段 · 顺势推进", plot: "画面自上一幕的余韵中醒来，废土信使小满的身影出现在废土集市。整段画面浸在「黄昏金」的氛围里。她的邮包比人还高，摊主们却都认得那抹橘色。镜头停在一个欲言又止的瞬间。", durationSec: 6 },
       { title: "第2段 · 柳暗花明", plot: "镜头轻轻一转，那件「会说谎的罗盘」在此刻显出了它真正的分量。看似绝境之处竟藏着另一条通路——罗盘指向集市最深处一扇从未打开过的门。尾帧落在一个会心一笑的瞬间。", durationSec: 7 },
     ],
   },
-];
+};
 
+/**
+ * 三条演示作品里**走目录**的那一半：标题、简介、作者的显示名。
+ *
+ * ★★ 模块顶层只放 `msg` 描述符，buildSeeds() / authorDisplayName() 调用那一刻才翻 —— 顶层翻会把
+ *   开机那一刻的语言冻在这张表上（CLAUDE.md 的 Lingui 那条）。翻出来的字**也绝不落盘**（见 save 与 readyLocal）。
+ * ★ 作者的「显示名」与「身份键」分家：键在上面那张冻结表上，这里只给"画在屏幕上的那几个字"。
+ */
+const SEED_TEXT: Record<SeedId, { title: MessageDescriptor; description: MessageDescriptor; author: MessageDescriptor }> = {
+  seedv_0: {
+    title: msg`雨夜霓虹：迷失信使`,
+    description: msg`赛博侦探在永雨之城追踪一封无法送达的信。分支视频先导样片，由卡片工坊逐段生成。`,
+    author: msg({ message: "光影铸造者", context: "离线演示作品的作者名（编出来的示例作者，不是真人）" }),
+  },
+  seedv_1: {
+    title: msg`云海剑冢·白无衣`,
+    description: msg`白衣剑修重返万剑埋骨之地，水墨留白风格的三段式短片。`,
+    author: msg({ message: "墨白", context: "离线演示作品的作者名（编出来的示例作者，不是真人）" }),
+  },
+  seedv_2: {
+    title: msg`废土集市奇遇记`,
+    description: msg`信使小满在废土集市用三封信换回了一个秘密。轻松治愈向。`,
+    author: msg({ message: "废土行者", context: "离线演示作品的作者名（编出来的示例作者，不是真人）" }),
+  },
+};
+
+/**
+ * 演示作者名 → 画在界面上的那几个字。**唯一消费者是 authorDisplayName**。
+ * ★ 键取自冻结表，绝不在这里把那三个中文名重打一遍：打错一个字就是零报错的「翻不到」（照原样显示中文）。
+ */
+const SEED_AUTHOR_NAMES = new Map<string, MessageDescriptor>(
+  SEED_IDS.map((id) => [SEED_SCRIPTS[id].author, SEED_TEXT[id].author]),
+);
+
+/** 这个 id 是不是**这三条**演示作品之一（老设备上可能躺着别的 `seedv_*`，它们只会被丢掉，不该按新表改字） */
+function seedTextOf(id: string): (typeof SEED_TEXT)[SeedId] | null {
+  return (SEED_IDS as readonly string[]).includes(id) ? SEED_TEXT[id as SeedId] : null;
+}
+
+/**
+ * 三条演示作品的"发布时间"基准。**是个定值，不是 `Date.now()`**（2026-09-17 复核补）。
+ *
+ * ★★ 种子改成每次开机现造、一条都不落盘之后（见 readyLocal），"当前时间减 N 天"这种写法会让它们
+ *   **永远停在 1/2/3 天前**，两处后果都难查：
+ *   ① 列表一律按 createdAt 倒序（`listVideos` → 首页 / 分区页「最新」/ 个人页那份合并列表），
+ *      三条编出来的演示作品会永久霸占前三格、压在用户自己离线发的作品上面 —— 本 PR 的整件事
+ *      就是撤掉编出来的信号，别顺手造一个新的；
+ *   ② 详情页与个人页画的是 `relativeTime(createdAt)`，装了一年的机器上它还写着「1天前」。
+ * ★ 以前这个数是"第一次装机那一刻"（种子落过盘，所以整台机器只算一次），不落盘之后**只有定值与它等价**。
+ * ★ 取这版演示内容定稿那天：比它晚发布的作品自然排在前面（用户自己发一条就在上面），而它们本身会正常变旧。
+ */
+const SEED_EPOCH = Date.UTC(2026, 8, 1);
+
+/**
+ * 铺三条演示作品（离线模式，或首次拉服务端失败退回本机库时出现）。
+ *
+ * ★★ 它们**一条都不落盘**（save 与 readyLocal 各有一句）：标题与简介是按当前界面语言翻出来的，
+ *   写进 IndexedDB 就等于把开机那一刻的语言永久存下来。每次开机现造、换语言现改（retitleSeeds）。
+ * ★★ 计数一律 0、评论一条都没有（2026-09-17 主人拍板「方案一 ①」）。原来这里写着 48213 次播放、
+ *   3120 个赞和几条「首尾帧衔接得太丝滑了」—— 那是**编出来的社交证明**：作者、播放数、评论都不存在，
+ *   而它们与真人发的作品长得一模一样。
+ *   ⇒ 评论**整条撤掉**而不是逐条标「示例评论」：评论区本来就有空态（「还没有评论，抢个沙发」）与发评论的
+ *     入口，一条没有照样看得懂。弹幕不一样 —— 没有内容的话整层功能在屏幕上完全不存在，所以
+ *     data/danmaku 那几条留着并走目录。
+ *   ⇒ 0 也**照常显示**（不去隐藏）：真人发的新作品播放 / 点赞本来就是 0，这里藏起来反而成了另一种特殊待遇。
+ * ★ likes 起手也是 0，冷启动后由 loadLiked 按本机那份点赞态补成 1 —— 它记的是**看的人自己那一票**，
+ *   不是编出来的热度（那一头有注释说为什么必须补）。
+ * ★ 占位帧的 seed 用 **id** 不用标题：标题现在按界面语言现翻，拿它当取色种子的话换一次语言封面就换个颜色。
+ * ★ 发布时间用 `SEED_EPOCH` 这个**定值**不用 `Date.now()`（理由写在那个常量头上：现造 + 相对当前时间
+ *   = 演示作品永远最新，永久压在用户自己的作品上面）。
+ */
 function buildSeeds(): VideoItem[] {
-  const now = Date.now();
-  return SEEDS.map((s, vi) => {
+  return SEED_IDS.map((id, vi) => {
+    const sc = SEED_SCRIPTS[id];
+    const tx = SEED_TEXT[id];
     let prevSeed: string | null = null;
-    const segments = s.segs.map((seg, si) => {
-      const base = `seed:${s.title}:${si}`;
-      // ★ 占位帧不再往像素里写字（多语言方案 §4.1 / 第 1 步⑨）：画进 JPEG 的「第N段 · … · 首帧」换了语言也改不了，
-      //   还是拿片段标题拼出来的碎句。
-      //   ⚠ 右上角那行「AI 预览帧」仍由 makeFrame 画进像素：画的那一刻按当时的界面语言翻，随 JPEG 一起落 IndexedDB，
-      //     之后切语言它不跟着变 —— 那是 mock/frames 的事，这里不动。
-      //   ⚠ 已经装过种子的设备，IndexedDB 里那几张老封面还带着字（种子只在缺字段时重建，见 readyLocal），不去动它。
+    const segments = sc.segs.map((seg, si) => {
+      const base = `seed:${id}:${si}`;
+      // ★★ 占位帧**一个字都不往像素里写**（label 传空串，见 mock/frames.makeFrame 的 ★★）：
+      //   烧进 JPEG 的字画的那一刻就定死了，换语言不跟着变 —— 标题交给 UI 画。
+      //   ⚠ 已经装过种子的老设备不用管：种子现在每次开机重建，磁盘上那几张带字的老封面在
+      //     readyLocal 里就被丢掉了。
       const firstFrame = makeFrame(`${base}#first`, "", prevSeed ?? `${base}#first`);
       const lastFrame = makeFrame(`${base}#last`, "", `${base}#last`);
       prevSeed = `${base}#last`;
       return { ...seg, firstFrame, lastFrame };
     });
-    const comments: VideoComment[] = s.comments.map((c, ci) => ({
-      id: uid("cmt"),
-      author: c.author,
-      text: c.text,
-      at: now - (ci + 1) * 3600_000 * (vi + 2),
-    }));
     const item: VideoItem = {
-      id: `seedv_${vi}`,
-      title: s.title,
-      category: s.category,
-      description: s.description,
+      id,
+      title: i18n._(tx.title),
+      category: sc.category,
+      description: i18n._(tx.description),
       cover: segments[0].firstFrame,
       segments,
-      author: s.author,
-      plays: s.plays,
-      likes: s.likes,
-      saves: s.saves,
-      shares: s.shares,
-      createdAt: now - (vi + 1) * 86400_000,
-      comments,
+      author: sc.author,
+      plays: 0,
+      likes: 0,
+      saves: 0,
+      shares: 0,
+      createdAt: SEED_EPOCH - (vi + 1) * 86400_000,
+      comments: [],
     };
-    // 首个种子带互动分支树：第 1 段末分岔两条路，殊途同归到同一结局（内容在 SEEDS 那张冻结表的 branch 里，只有第一条有）
-    const br = s.branch;
+    // 首个种子带互动分支树：第 1 段末分岔两条路，殊途同归到同一结局（内容在 SEED_SCRIPTS 那张冻结表的 branch 里，只有第一条有）
+    const br = sc.branch;
     if (br) {
-      const altBase = `seed:${s.title}:alt`;
+      const altBase = `seed:${id}:alt`;
       const alt = {
         ...br.alt,
-        firstFrame: makeFrame(`${altBase}#first`, "", `seed:${s.title}:0#last`),
+        firstFrame: makeFrame(`${altBase}#first`, "", `seed:${id}:0#last`),
         lastFrame: makeFrame(`${altBase}#last`, "", `${altBase}#last`),
       };
       item.branchTree = {
@@ -219,6 +260,33 @@ function buildSeeds(): VideoItem[] {
       };
     }
     return item;
+  });
+}
+
+/**
+ * 换语言：把三条演示作品的标题 / 简介换成当前界面语言那一份。
+ *
+ * ★★ **就地改同一批对象、不换引用**：分区页那份列表是挂载时的 `useState(() => listVideos())` 快照
+ *   （它有意不订阅 videosVersion —— 直接依赖 videoV 的话点一次赞就重拉一遍列表，见 ProfilePage 那段 ⚠），
+ *   换掉数组它会永远停在旧语言。界面重渲由 Lingui 的 I18nProvider 负责（切语言不 reload、不重挂树，见 i18n/switch）。
+ * ★ 只碰这两格：剧情 / 段标题 / 作者名都是冻结的中文（见 SEED_SCRIPTS），帧里没有字，计数与身份一个都不动。
+ */
+function retitleSeeds(): void {
+  if (!cache) return;
+  for (const v of cache) {
+    const tx = seedTextOf(v.id);
+    if (!tx) continue;
+    v.title = i18n._(tx.title);
+    v.description = i18n._(tx.description);
+  }
+}
+
+if (typeof window !== "undefined") {
+  subscribeLang(() => {
+    // 远端模式一条种子都没铺（readyRemote 那条路不经过 buildSeeds），这里就没有可改的
+    if (remoteOn()) return;
+    retitleSeeds();
+    emitVideos();
   });
 }
 
@@ -359,8 +427,8 @@ let readyPromise: Promise<void> | null = null;
 
 /** 启动装载（离线）：IndexedDB 优先；首次运行把旧 localStorage 库搬过来后清掉旧键 */
 async function readyLocal(): Promise<void> {
-  // ★★ 读失败要抛（idbRead），不能当成空库（2026-09-10）：空库在下面会铺种子并 `idbSet(KEY, 种子)`，
-  //   等于拿三条演示作品把用户离线存的作品整张盖掉。
+  // ★★ 读失败要抛（idbRead），不能当成空库（2026-09-10）：当成空库的话下面那句 idbSet 会拿一张空表
+  //   把用户离线存的作品整张盖掉。
   let arr = await idbRead<VideoItem[]>(KEY);
   if (!arr || !Array.isArray(arr) || arr.length === 0) {
     // 迁移：旧版 localStorage 库（可能已被配额裁剪，能救多少救多少）
@@ -377,24 +445,28 @@ async function readyLocal(): Promise<void> {
       /* 旧库损坏就当空库 */
     }
   }
-  if (!arr || arr.length === 0) {
-    arr = buildSeeds();
-  } else if (
-    !arr.find((v) => v.id === "seedv_0")?.branchTree ||
-    // 旧库种子没有 saves/shares（这两个字段是后加的）：同样重建。
-    // 不做这一步的话，老用户设备上的演示作品会一直显示「收藏 0 / 分享 0」——
-    // 字段是 optional，读不到不报错，属于静默降级，只能靠迁移补。
-    arr.find((v) => v.id === "seedv_0")?.saves === undefined
-  ) {
-    // 旧库种子缺字段：重建种子、保留用户视频
-    arr = [...arr.filter((v) => !isSeed(v)), ...buildSeeds()];
-  }
-  cache = arr;
-  await idbSet(KEY, arr);
+  // ★★ 演示作品**每次开机现造、一条都不落盘**（2026-09-17，「方案一 ①」）。一句话解决三件事：
+  //   ① 标题 / 简介是按当前界面语言翻出来的，落盘等于把开机那一刻的语言永久存进 IndexedDB
+  //      （下次换了语言读回来还是旧那份，而且**自己好不了**）；
+  //   ② 老设备**自动收敛**：磁盘上那三条中文种子连同编出来的播放数 / 点赞数 / 评论，读上来就被丢掉，
+  //      紧接着那句 idbSet 把磁盘上那份也洗干净 —— 不需要版本号，也不需要判"这是不是老数据"；
+  //   ③ 用户自己的作品一个字都不动（只按 isSeedWork 过滤，别的一律原样留着）。
+  //   ⚠ 别把 buildSeeds() 的结果并进 idbSet 的入参：那正是 ① 要防的事（save 那一处同理）。
+  //   ⚠ 也别改成"没有种子时才造"：种子就是**派生数据**，每次现造才不会出现半新半旧的表。
+  const mine = (arr ?? []).filter((v) => !isSeedWork(v));
+  cache = [...buildSeeds(), ...mine];
+  await idbSet(KEY, mine);
   localStorage.removeItem(KEY); // 迁移完成，旧键不再使用（避免两处数据打架）
 }
 
-function isSeed(v: VideoItem): boolean {
+/**
+ * 这条是不是**离线演示作品**（三条种子）。唯一判据：id 前缀。
+ *
+ * ★ 导出出去是因为界面要画那枚「示例 · 离线」角标（components/SeedBadge，首页 / 详情页 / 分区页 /
+ *   个人页网格四处渲染，判据只有这一处）；本模块自己拿它决定"哪些不落盘"。
+ * ★ 认前缀、不认那三个 id：老设备上可能还躺着以前版本铺的别的 `seedv_*`，它们同样是示例、同样不该落盘。
+ */
+export function isSeedWork(v: Pick<VideoItem, "id">): boolean {
   return v.id.startsWith("seedv_");
 }
 
@@ -421,10 +493,22 @@ export function remoteOn(): boolean {
  * 异步落库（IndexedDB 配额充足，不再需要"丢最旧用户视频"的兜底裁剪）。
  * ★ 远端模式直接 return：服务端才是权威，把远端副本写进离线主库会让下次离线启动
  *   看到一堆真假掺半的数据。整个文件所有写路径都收敛到这一个开关。
+ * ★★ 演示作品**一条都不写进磁盘**（2026-09-17，与 readyLocal 那一句同一个理由）：它们的标题 / 简介
+ *   是按当前界面语言翻出来的，落盘就把开机那一刻的语言存死了。
+ *   ⚠ 这一句还兼着"老设备收敛"：addPlay / setLike / setSave / 发布 都会走到这里，走一次磁盘上的老种子
+ *   （中文标题 + 编出来的播放数）就被洗掉一批。
+ *   ⚠ **知情的取舍**：离线时在演示作品下发的评论因此只活这一次会话（重启就没了）。没为它单开一个
+ *   设备级键，是因为那种键必须记 owner（CLAUDE.md「设备级单键的队列 / 名单不记这是谁的」那格），
+ *   而换个人登进来"跳过还是覆盖"两条路都有坑；而这条评论挂在一条**不存在的作品**上、谁也收不到。
+ *   演示弹幕那一侧相反：那边用户自己发的**留着**（data/danmaku 的 withoutSeeds 只剔 seeddm_ 开头的那些），
+ *   因为它本来就与作品分表存、不需要新键。
  */
 function save(list: VideoItem[]): void {
   if (remoteOn()) return;
-  void idbSet(KEY, list);
+  void idbSet(
+    KEY,
+    list.filter((v) => !isSeedWork(v)),
+  );
 }
 
 let cache: VideoItem[] | null = null;
@@ -513,6 +597,12 @@ export function listVideos(): VideoItem[] {
  * ★ 与服务端的 `$or: [title, description, tags]` **有意不完全相同**：本地这份还认作者名
  *   与分区（离线库里能直接比，服务端那边作者是外键、分区另有 query 参数）。两边都要覆盖
  *   title/description/tags 这三样 —— 那是标签芯片点下去必须命中的最小集合。
+ * ★ 离线时还认作者的**显示名**（2026-09-17）：三条演示作品的作者在英文界面上画的是 Lightforge /
+ *   Inkwhite / Wasteland Walker，而库里存的是中文身份键（见 authorDisplayName 的 ⚠⚠）—— 不认这一份，
+ *   用户照着屏幕上那几个字去搜刚看到的人，得到的是「没有找到相关作品」。而离线这条路上**没有第二个
+ *   匹配器**：searchVideos 在 !remoteOn() 时直接回 localHit，不问服务端。
+ *   ⚠ 这一句让本函数跟着界面语言走，所以拿 `!remoteOn()` 闸住 —— 远端模式（含搜索失败退回本地那一支）
+ *     的结果与以前逐字相同。它只被 searchVideos 调、不在 useMemo 里，换语言后下一次搜索自然按新语言比。
  */
 export function matchesQuery(v: VideoItem, key: string): boolean {
   if (!key) return true;
@@ -520,6 +610,7 @@ export function matchesQuery(v: VideoItem, key: string): boolean {
     v.title.includes(key) ||
     v.description.includes(key) ||
     v.author.includes(key) ||
+    (!remoteOn() && authorDisplayName(v.author, v.authorId).includes(key)) ||
     v.category.includes(key) ||
     (v.tags ?? []).some((tag) => tag.includes(key))
   );
@@ -594,6 +685,8 @@ export function isMyAuthor(author: string): boolean {
  *   - 例外：authorId 就是当前登录的这个人时「我」照样算 —— account.toLocalUser 给既没有昵称也没有用户名的账号兜底写的
  *     就是「我」，那确实是本人。
  * ⚠ 只管**显示**。isMyAuthor / isFollowing / profileHref 这些认人的地方照旧按存下来的原值判，别拿它去替。
+ * ⚠ 它只回答"是不是哨兵"这一件事，这一件事上它仍是唯一判据；但"这个名字会不会被翻"要去 authorDisplayName 看 ——
+ *   那边从 2026-09-17 起另有一条**独立**判据（三条离线演示作品的作者，SEED_AUTHOR_NAMES）。
  */
 export function authorSentinelOf(author: string, authorId: string | null | undefined): "me" | "anon" | null {
   if (author === ME && (!authorId || authorId === currentUser()?.id)) return "me";
@@ -604,8 +697,10 @@ export function authorSentinelOf(author: string, authorId: string | null | undef
 /**
  * 作者名 → 画在界面上的那几个字。**只在画作者名的地方用**（首页那条作品的名字与头像、评论行、分区页卡片、详情页）。
  *
- * ★★ 只翻两个哨兵（判据见 authorSentinelOf）：离线作者「我」与兜底「匿名」—— 它们是 app 自己填进去的，
- *   英文界面照原样画就是一个中文字。其余名字是用户起的昵称，原样显示。
+ * ★★ 翻的只有 **app 自己填进去的那几个名字**，一共两类，判据各自独立（2026-09-17 补第二类）：
+ *   ① 两个哨兵（判据见 authorSentinelOf）：离线作者「我」与兜底「匿名」；
+ *   ② 三条离线演示作品的作者（SEED_AUTHOR_NAMES，判据是下面那段 ★★ 的三条：离线 + 没有 authorId + 不是本人）。
+ *   其余名字是用户起的昵称，一律原样显示。
  * ⚠⚠ 返回值**绝不**拿去当身份（多语言，2026-09-11）：isMyAuthor / isMyVideo / isFollowing / toggleFollow / profileHref /
  *   rememberAuthor 的键 / Avatar 的 name（按名字哈希取色；显示名走 Avatar 的 label）/ BlockButton 的 userName 认的都是存进库里的**原值**。
  *   把翻过的名字传进去，英文界面下自己的离线作品会全变成"别人的"（冒出关注键、删不了自己的评论），零报错。
@@ -617,6 +712,14 @@ export function authorDisplayName(author: string, authorId: string | null | unde
     return t({ message: "我", context: "作者名：这条作品 / 评论就是正在看的人自己发的（离线时自动署的名，或账号没有昵称时的兜底名）" });
   }
   if (sentinel === "anon") return t`匿名`;
+  // ★★ 三条离线演示作品的作者（编出来的示例作者，不是真人）：英文界面画英文名。三条判据缺一不可 ——
+  //   ① 只在离线模式（种子只在那儿出现，远端模式一条都不铺）；
+  //   ② authorId 为空（远端来的作品 / 评论一律带 authorId）；
+  //   ③ 不是当前这个人自己 —— 真有人把昵称起成「墨白」时，他自己那些离线作品照原样显示。
+  //   与上面两个哨兵同一条规矩：**只管显示**，isMyAuthor / isMyVideo / isFollowing / toggleFollow /
+  //   profileHref / Avatar 的 name（取色）认的仍是存进库里的那个中文原值。
+  const demo = SEED_AUTHOR_NAMES.get(author);
+  if (demo && !remoteOn() && !authorId && !isMyAuthor(author)) return i18n._(demo);
   return author;
 }
 
@@ -1428,6 +1531,11 @@ async function loadLiked(): Promise<void> {
   const saved = await idbGet<LikedStore>(LIKED_KEY);
   if (!saved || !Array.isArray(saved.ids) || saved.owner !== ownerKey()) return;
   for (const id of saved.ids) likedIds.add(id);
+  // ★ 演示作品不落盘（见 save），likes 每次开机都从 0 造起；而"我赞过没有"是**落盘**的 ——
+  //   不补这一下，冷启动后演示作品上会出现「红心亮着、赞数 0」这种自相矛盾的读数。
+  //   补出来的 1 是**看的人自己那一票**，不是编出来的热度（种子的三个计数仍然恒 0 起步）。
+  //   ⚠ 顺序决定了它必须写在这儿：readyLocal（buildSeeds）排在 loadLiked 之前，那一刻 likedIds 还是空的。
+  for (const v of cache ?? []) if (isSeedWork(v) && likedIds.has(v.id)) v.likes = 1;
 }
 
 function saveLiked(): void {

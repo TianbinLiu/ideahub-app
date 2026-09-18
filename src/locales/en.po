@@ -3056,6 +3056,10 @@ msgstr "One exchange per group; up to {0} groups, {1} characters per line."
 msgid "万一<0>两个人偶站得几乎重叠</0>、从左往右数不出先后：挂在这个位置上 的卡<1>可能会换错人</1>（模型也只能按从左到右去找）。 不想赌，就把这个位子删掉 —— 那两个人偶会保持白色人偶原样出现在片子里。"
 msgstr "If <0>two mannequins stand almost on top of each other</0> and you can't tell their order from left to right, the card attached to this position <1>may go to the wrong person</1> (the model can only search from left to right too). If you don't want to gamble, delete this slot — both mannequins will then appear in the video as plain white mannequins."
 
+#: src/data/danmaku.ts
+msgid "万剑埋骨之地"
+msgstr "the burial ground of ten thousand blades"
+
 #: src/components/guide/tours.tsx
 msgid "三个页签各管一摊"
 msgstr "Three tabs, three jobs"
@@ -3666,6 +3670,18 @@ msgstr "You can also use Back in the top left"
 msgid "也能拖到画面上"
 msgstr "Or drag onto the picture"
 
+#: src/data/danmaku.ts
+msgid "二刷来了"
+msgstr "second watch, here I am"
+
+#: src/data/danmaku.ts
+msgid "云海倒卷这一下太燃了"
+msgstr "the cloud sea flipping over is so hype"
+
+#: src/data/videos.ts
+msgid "云海剑冢·白无衣"
+msgstr "Sword Tomb in the Clouds · Bai Wuyi"
+
 #. placeholder {0}: res.status
 #: src/pages/SettingsVoicePage.tsx
 msgid "云端语音没出声（{0}）：稍后再试，或到火山控制台看额度"
@@ -3925,6 +3941,10 @@ msgstr "Expressions"
 #: src/studio/ui/NpcDialog.tsx
 msgid "会被拿起来用的关键物件"
 msgstr "A key object that gets picked up and used"
+
+#: src/data/danmaku.ts
+msgid "会说谎的罗盘"
+msgstr "the compass that lies"
 
 #: src/components/TemplateShelf.tsx
 msgid "传一段视频做白模模板（自己做好的白模片也行）"
@@ -4314,6 +4334,14 @@ msgstr "Save this mix"
 msgid "保留了框内背景（{size}{up}）——卡面仍带背景，出片时 AI 可能把背景里的东西也画进去"
 msgstr "Kept the background inside the box ({size}{up}) — the card still has a background, so the AI may draw things from it into videos"
 
+#: src/data/videos.ts
+msgid "信使小满在废土集市用三封信换回了一个秘密。轻松治愈向。"
+msgstr "Courier Xiaoman trades three letters for a secret at the wasteland market. Light and heartwarming."
+
+#: src/data/danmaku.ts
+msgid "信里居然是记忆"
+msgstr "the letter held a memory?!"
+
 #: src/studio/stage/stageState.ts
 msgid "俯拍"
 msgstr "High angle"
@@ -4573,6 +4601,11 @@ msgstr "Pick a reason first"
 msgid "先随便逛逛"
 msgstr "Just browse for now"
 
+#: src/data/videos.ts
+msgctxt "离线演示作品的作者名（编出来的示例作者，不是真人）"
+msgid "光影铸造者"
+msgstr "Lightforge"
+
 #: src/studio/canvasAgent.ts
 msgid "免费 · 会重新合成点名句（覆盖你改过的字）"
 msgstr "Free · re-composes the casting line (overwrites your edits)"
@@ -4589,6 +4622,10 @@ msgstr "Full screen"
 #: src/components/guide/tours.tsx
 msgid "全屏与转屏"
 msgstr "Full screen and rotate"
+
+#: src/data/danmaku.ts
+msgid "全息广告那一下鸡皮疙瘩起来了"
+msgstr "that hologram switch gave me chills"
 
 #: src/studio/ui/projection.tsx
 msgid "全按你的来"
@@ -4998,6 +5035,10 @@ msgstr "Preparing footage…"
 #: src/pages/CutPage.tsx
 msgid "准备配乐…"
 msgstr "Preparing music…"
+
+#: src/data/danmaku.ts
+msgid "凛姐姐好帅"
+msgstr "Rin is so cool"
 
 #: src/pages/CreatePage.tsx
 msgid "几秒出片"
@@ -5479,6 +5520,10 @@ msgstr "Refresh"
 msgid "刷新中…"
 msgstr "Refreshing…"
 
+#: src/data/danmaku.ts
+msgid "前方高能"
+msgstr "here it comes!!"
+
 #: src/studio/flowStore.ts
 msgid "前面还有没炼完的段——先把前面那段炼出来，再推演这一段。"
 msgstr "Earlier segments aren't finished yet — generate the earlier one first, then draft this one."
@@ -5694,6 +5739,10 @@ msgstr "No *.model3.json found in the package. It's the entry file that Cubism 4
 #: src/pages/WorkshopPage.tsx
 msgid "匿名"
 msgstr "Anonymous"
+
+#: src/data/danmaku.ts
+msgid "十年前那一战"
+msgstr "that battle ten years ago"
 
 #: src/components/support/VoiceSheet.tsx
 msgid "单音色"
@@ -7785,6 +7834,10 @@ msgstr "The cover didn't upload. Try a different image."
 msgid "小梦"
 msgstr "Xiaomeng"
 
+#: src/data/danmaku.ts
+msgid "小满好可爱"
+msgstr "Xiaoman is adorable"
+
 #: src/studio/StudioPage.tsx
 msgid "小窗右上角可在「卡组 / 卡片」间切换，单击卡片看详情"
 msgstr "Switch between “Decks / Cards” at the top right of the window; tap a card for details"
@@ -8580,6 +8633,15 @@ msgstr "Tapping ➕ in the tab bar brings you here first. This is <0>one card wi
 #: src/components/guide/tours.tsx
 msgid "底缘那条细线是<0>播放进度</0>，右上小字是当前 / 总时长，按住能<1>拖着跳到任意一处</1>。多段的作品，这条线走的是整片。"
 msgstr "The thin line along the bottom edge is <0>playback progress</0>; the small text above it on the right shows current / total time. Press and hold to <1>drag to any point</1>. For multi-segment videos, the line covers the whole video."
+
+#: src/data/videos.ts
+msgctxt "离线演示作品的作者名（编出来的示例作者，不是真人）"
+msgid "废土行者"
+msgstr "Wasteland Walker"
+
+#: src/data/videos.ts
+msgid "废土集市奇遇记"
+msgstr "Adventures at the Wasteland Market"
 
 #: src/pages/WorkshopPage.tsx
 msgid "建一个把常用素材归到一起"
@@ -12126,6 +12188,10 @@ msgstr "e.g. “a listening ear”, “practice partner”, “writing buddy”"
 msgid "比如「认识很久的朋友」"
 msgstr "e.g. “a friend of many years”"
 
+#: src/data/danmaku.ts
+msgid "水墨留白舒服"
+msgstr "that ink-wash negative space though"
+
 #: src/types.ts
 msgid "永不进模型（三视图/规格稿这类多视图会让 AI 认错人）"
 msgstr "Never sent to the model (multi-view sheets like turnarounds or spec sheets make the AI mix people up)"
@@ -12497,6 +12563,10 @@ msgstr "The recognition result couldn't be read. {moneyLine} Fill it in yourself
 msgid "没过审核："
 msgstr "failed review: "
 
+#: src/components/SeedBadge.tsx
+msgid "没连上服务器时显示的示例内容，不是真实用户作品"
+msgstr "Sample content shown when the server isn't reachable — not a real user's work"
+
 #: src/data/videoDownload.ts
 msgid "没连上网，这一段没下完。再点一次会从头重下这一段。"
 msgstr "No network connection, so this segment didn't finish downloading. Tapping again re-downloads this segment from the start."
@@ -12508,6 +12578,10 @@ msgstr "Without cloud voice, the system's built-in speech synthesizer is used in
 #: src/pages/SupportModelNewPage.tsx
 msgid "没问题，继续"
 msgstr "Looks good, continue"
+
+#: src/data/danmaku.ts
+msgid "治愈了"
+msgstr "so wholesome"
 
 #: src/components/PhotoSubjectPicker.tsx
 msgid "沿边描出轮廓"
@@ -13695,6 +13769,10 @@ msgstr "With a blockout template, rendering <0>copies this whole video</0> and o
 msgid "白模那种模板：视频就是成片"
 msgstr "Blockout: you get this video"
 
+#: src/data/videos.ts
+msgid "白衣剑修重返万剑埋骨之地，水墨留白风格的三段式短片。"
+msgstr "A white-robed swordsman returns to the burial ground of ten thousand blades. A three-part short in ink-wash style."
+
 #: src/pages/PublishPage.tsx
 msgid "目前所有作品都是<0>免费观看</0>。付费解锁还没开放——等收款和分账真的通了再放出来，免得你以为在收钱、其实一分也到不了账。"
 msgstr "All videos are currently <0>free to watch</0>. Paid unlocks aren't available yet — they'll open once payments and revenue sharing actually work, so you never think you're earning when nothing would reach you."
@@ -13763,6 +13841,10 @@ msgstr "People who see this video can see the cards and their details, and can �
 #: src/pages/SettingsPage.tsx
 msgid "看名单 · 随时解除"
 msgstr "See the list · unblock anytime"
+
+#: src/data/danmaku.ts
+msgid "看哭了"
+msgstr "crying"
 
 #: src/pages/FlowPage.tsx
 msgid "看成片"
@@ -13968,6 +14050,10 @@ msgstr "Confirm removal"
 #: src/studio/ui/projection.tsx
 msgid "示例"
 msgstr "Example"
+
+#: src/components/SeedBadge.tsx
+msgid "示例 · 离线"
+msgstr "Sample · offline"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "示例图没存上：{why}"
@@ -16348,6 +16434,10 @@ msgstr "There are {count} textures, over the limit of {MAX_TEXTURE_COUNT}. Merge
 msgid "费用与退款"
 msgstr "Billing & refunds"
 
+#: src/data/videos.ts
+msgid "赛博侦探在永雨之城追踪一封无法送达的信。分支视频先导样片，由卡片工坊逐段生成。"
+msgstr "A cyber detective chases an undeliverable letter through a city where the rain never stops. A branching-video teaser, generated segment by segment in the Studio."
+
 #: src/pages/NotificationsPage.tsx
 msgid "赞了你的作品"
 msgstr "liked your video"
@@ -17549,6 +17639,10 @@ msgstr "This link only has a name, so the server can't confirm who it is · belo
 msgid "这个问题需要人工处理（{0}）。转人工会把这段对话一起交给客服，你不用再讲一遍。"
 msgstr "This needs a human agent ({0}). Talking to a human sends this conversation along, so you won't have to explain it again."
 
+#: src/data/danmaku.ts
+msgid "这个雨夜的光太顶了"
+msgstr "the lighting in this rain is unreal"
+
 #: src/components/MaterialSheet.tsx
 msgid "这些卡本段已经有了"
 msgstr "This segment already has these cards"
@@ -18441,6 +18535,10 @@ msgstr "Deletes the content too; can't be undone"
 msgid "连圈多张，打包成一组"
 msgstr "Circle several and bundle them into a deck"
 
+#: src/data/danmaku.ts
+msgid "追！"
+msgstr "go after her!!"
+
 #: src/pages/SettingsPage.tsx
 msgid "退出"
 msgstr "Log out"
@@ -18631,6 +18729,10 @@ msgstr "Opacity groups: no"
 msgid "逐格传自己的图 · 不花钱"
 msgstr "Upload your own image for each slot · free"
 
+#: src/data/danmaku.ts
+msgid "递剑的那只手…"
+msgstr "the hand that gave him the sword…"
+
 #: src/studio/npcPersona.ts
 msgid "递素材给我，炼成卡；卡拖到桌上的虚线卡位，铸成一段；段够了点法阵，推成成片。想看现成的就去市场。"
 msgstr "Hand me materials and I forge them into cards; drag a card onto the dashed slot on the table to forge a segment; once you have enough segments, tap the circle to assemble the video. For ready-made cards, browse the market."
@@ -18705,9 +18807,17 @@ msgstr " Prop card images need the subject boxed and outlined first. The “{nam
 msgid "那一列最下面单独一枚是全屏键，点了只留画面；<0>横屏的片子会连屏幕一起转过来</0>，所以它在横屏片上写的是「转屏」。退出点右上角那枚缩小键。"
 msgstr "The separate button at the very bottom of that column is full screen: tap it to show only the video. <0>Landscape videos rotate the screen with them</0>, which is why on landscape videos it says “Rotate”. To exit, tap the shrink button in the top-right corner."
 
+#: src/data/danmaku.ts
+msgid "那扇门后面是什么"
+msgstr "what's behind that door"
+
 #: src/components/guide/tours.tsx
 msgid "那颗按钮只是把配方铺到出片那一屏，<0>钱要到那边点生成才扣</0>。 有角色位的模板会先领你去给人偶挂卡。"
 msgstr "That button only lays the recipe out on the rendering screen; <0>you're charged only when you tap generate there</0>. Templates with role slots take you to attach cards to the mannequins first."
+
+#: src/data/danmaku.ts
+msgid "邮包比人还高哈哈哈"
+msgstr "her mailbag is taller than she is lol"
 
 #: src/pages/LoginPage.tsx
 msgid "邮箱"
@@ -19084,6 +19194,14 @@ msgstr "carried items, patterns or scars"
 msgid "难过"
 msgstr "Sad"
 
+#: src/data/danmaku.ts
+msgid "雨停三秒这个设定绝了"
+msgstr "three seconds without rain — what a touch"
+
+#: src/data/videos.ts
+msgid "雨夜霓虹：迷失信使"
+msgstr "Neon Rain: The Lost Courier"
+
 #. placeholder {0}: fmtTokens(cost)
 #. placeholder {1}: fmtTokens((wallet?.plan ?? 0) + (wallet?.addon ?? 0))
 #: src/studio/ui/NpcDialog.tsx
@@ -19306,6 +19424,11 @@ msgstr "yellow"
 msgctxt "人偶的主色（挂卡提醒那句话里显示）"
 msgid "黑"
 msgstr "black"
+
+#: src/data/videos.ts
+msgctxt "离线演示作品的作者名（编出来的示例作者，不是真人）"
+msgid "墨白"
+msgstr "Inkwhite"
 
 #: src/pages/SupportPersonasPage.tsx
 msgid "默认人设"
