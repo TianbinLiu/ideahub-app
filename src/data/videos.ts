@@ -2560,8 +2560,11 @@ function uploadFailOf(e: unknown): PendingWhy {
   if (code === BAD_SHAPE_CODE) return { code: "bad-shape" };
   // "网络不可用" 在这条路上十有八九是包太大被网关掐了（body 里带着 MB 级的 base64 帧），
   // 直接说"网络不好"会让人一直重试同一件必然失败的事
-  if (code === "NETWORK" || /Failed to fetch|NETWORK/i.test(m)) return { code: "network" };
-  if (code === "TIMEOUT" || /TIMEOUT/i.test(m)) return { code: "timeout" };
+  // ★ 认码不认话（CLAUDE.md「按 message 里的关键词判」那条坑）：原来还拿 /NETWORK/i、/TIMEOUT/i 扫 message ——
+  //   不分大小写，英文界面下上传卡住的那句「Switch networks…」就被判成 network，说成「包太大被网关掐了」（2026-09-18 发版复核抓到）。
+  //   上传分块断线的 chunkError 自带同一个码；浏览器自己的英文「Failed to fetch」不是我们的文案，留作兜底。
+  if (code === "NETWORK" || /Failed to fetch/.test(m)) return { code: "network" };
+  if (code === "TIMEOUT") return { code: "timeout" };
   return { code: "other", detail: m.slice(0, 120) };
 }
 

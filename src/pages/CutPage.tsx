@@ -827,6 +827,13 @@ export default function CutPage() {
         }
       }
 
+      // ★ 配乐落盘那几秒里点了取消：别再开合成（2026-09-18 发版复核抓到：原来只在合成**之后**问一次，
+      //   取消了照样把整条合完，几十秒白跑，而屏幕上写着「正在停止」）
+      if (cancelRef.current) {
+        setBusy("");
+        setErr(t`已取消合并。片段、圈选和配乐都还在，随时可以重新开始。`);
+        return;
+      }
       say(t`合成中…`);
       const merged = await runNativeMerge(
         {
@@ -884,7 +891,9 @@ export default function CutPage() {
         videoUrl: `idb:${key}`,
         // 合并后就只剩这一段了：画幅必须跟着走，否则首页拿不到画幅提示，
         // 而且回炉重制时新拍的段会退回默认画幅
-        aspect: segs[0]?.aspect,
+        // ★ 与输出尺寸同一把尺（上面 portrait 那一行的 ★★）：认时间轴上的第一段 `first`，不认 segs[0] ——
+        //   用户删掉 / 挪走第 1 段时两者不是同一段，标签就与合出来的画面对不上（2026-09-18 发版复核抓到：370f719 只改了一半）
+        aspect: first.aspect ?? segs[0]?.aspect,
       };
       leftRef.current = true;
       useStudio.setState({ draft: { ...draft!, segments: [mergedSeg], branchTree: undefined, merged: true } });

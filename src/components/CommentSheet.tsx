@@ -17,7 +17,7 @@ import {
   commentCountOf,
   commentPending,
   ensureComments,
-  isMyAuthor,
+  isMyVideo,
   setCommentLike,
 } from "../data/videos";
 import { VideoComment, VideoItem, relativeTime } from "../types";
@@ -197,9 +197,10 @@ export default function CommentSheet({ video, onClose }: { video: VideoItem; onC
             {/* 删除入口与详情页共用同一份实现（能不能删、二次确认、失败红字都在里面） */}
             <CommentDelete videoId={video.id} comment={c} onDeleted={() => setList([...video.comments])} />
             {/* 举报入口同样是共用的那一份（理由表、重复举报的说法、失败红字都在里面）。
-                mine 传 isMyAuthor：自己的评论该删不该举报，传了就整块不渲染 */}
-            <ReportButton targetType="comment" targetId={c.id} videoId={video.id} mine={isMyAuthor(c.author)} />
-            <BlockButton userId={c.authorId ?? ""} userName={c.author} mine={isMyAuthor(c.author)} />
+                mine 按 **userId** 判（isMyVideo）：自己的评论该删不该举报，传了就整块不渲染。
+                ★ 别按展示名判（isMyAuthor）：昵称和我一样的陌生人会被当成「我」，举报 / 拉黑两颗键一起藏掉（2026-09-18 发版复核抓到） */}
+            <ReportButton targetType="comment" targetId={c.id} videoId={video.id} mine={isMyVideo({ author: c.author, authorId: c.authorId })} />
+            <BlockButton userId={c.authorId ?? ""} userName={c.author} mine={isMyVideo({ author: c.author, authorId: c.authorId })} />
           </div>
         </div>
         {/* 心 + 数字。热区给到 32px 宽——评论行密，小了会点到隔壁那条 */}

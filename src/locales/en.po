@@ -7892,6 +7892,10 @@ msgstr "Cover card"
 msgid "封面没传上去，换一张再试。"
 msgstr "The cover didn't upload. Try a different image."
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "封面还在处理，等它好了再发布。"
+msgstr "The cover is still being processed. Publish once it is ready."
+
 #: src/pages/SupportPage.tsx
 msgid "小梦"
 msgstr "Xiaomeng"
@@ -14130,6 +14134,10 @@ msgstr "Real-person face verification"
 #: src/components/flow/SkillPanel.tsx
 msgid "真删？"
 msgstr "Really delete?"
+
+#: src/components/flow/DeleteSegBtn.tsx
+msgid "真的删？推演出的方案会没（花过的 token 不退）"
+msgstr "Really delete? The generated options will be gone (tokens spent are not refunded)"
 
 #: src/components/flow/DeleteSegBtn.tsx
 msgid "真的删？这段成片会没"

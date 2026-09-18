@@ -49,6 +49,7 @@ import {
   flowCost,
   frontierOf,
   nodeCost,
+  nodeDerived,
   nodeDone,
   tplOfNode,
   nodeRefOn,
@@ -1454,6 +1455,7 @@ export default function FlowPage() {
                         同一段成片两套规矩，且没确认的恰是默认视图（对抗评审确认） */}
                     <DeleteSegBtn
                       done={nodeDone(node)}
+                      derived={nodeDerived(node)}
                       disabled={busy || nodes.length <= 1}
                       onConfirm={() => removeNode(node.id)}
                       className="rounded bg-rose-500/15 px-2 py-1 text-rose-300 disabled:opacity-40"

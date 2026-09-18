@@ -1326,10 +1326,13 @@ export default function SupportModelNewPage() {
           {!!s.publishErr && <Banner tone="bad">{s.publishErr}</Banner>}
           {busy && <EmptyState loading text={s.progress || t`正在发布…`} compact />}
 
-          <button type="button" onClick={() => void submitLive2dModel()} disabled={busy || !s.name.trim() || !s.selfMade} className={primaryCls}>
+          {/* ★ 封面还在截 / 在传的时候不许发（2026-09-18 发版复核抓到）：发布读的是那一拍的 coverUrl，
+              封面还没回来就发出去，这个模型在市场里就没有封面 —— 而屏幕上刚刚还显示着「正在上传封面…」 */}
+          <button type="button" onClick={() => void submitLive2dModel()} disabled={busy || !!s.coverBusy || !s.name.trim() || !s.selfMade} className={primaryCls}>
             <Trans>发布</Trans>
           </button>
           {!s.selfMade && <p className="text-center text-[11px] text-slate-500"><Trans>勾上上面那三条才能发布。</Trans></p>}
+          {s.selfMade && !!s.coverBusy && <p className="text-center text-[11px] text-slate-500"><Trans>封面还在处理，等它好了再发布。</Trans></p>}
           <button type="button" onClick={() => setStep("verify")} disabled={busy} className={`mx-auto block ${secondaryCls}`}>
             <Trans>上一步</Trans>
           </button>

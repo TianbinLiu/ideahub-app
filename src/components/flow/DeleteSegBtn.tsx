@@ -11,12 +11,19 @@ import { useEffect, useRef, useState } from "react";
 
 export default function DeleteSegBtn({
   done,
+  derived,
   disabled,
   onConfirm,
   className = "",
 }: {
   /** 这一段已经出片（有成片）—— 删了那笔钱就白花了，要点两下 */
   done: boolean;
+  /**
+   * 这一段推演过三套方案（flowStore.nodeDerived）—— 没出片也花过钱，同样点两下。
+   * ★ 必填（2026-09-18 发版复核抓到「删掉唯一一段没出片的段只要点一下，推演花的钱一起没了」）：
+   *   漏传就是零症状地退回「一点就删」。
+   */
+  derived: boolean;
   disabled?: boolean;
   onConfirm: () => void;
   className?: string;
@@ -30,7 +37,7 @@ export default function DeleteSegBtn({
   return (
     <button
       onClick={() => {
-        if (done && !armed) {
+        if ((done || derived) && !armed) {
           setArmed(true);
           timer.current = window.setTimeout(() => setArmed(false), 3000);
           return;
@@ -43,7 +50,15 @@ export default function DeleteSegBtn({
       disabled={disabled}
       className={`${className} ${armed ? "bg-rose-500 font-bold text-white" : ""}`}
     >
-      {armed ? <Trans>真的删？这段成片会没</Trans> : <Trans>🗑 删除本段</Trans>}
+      {armed ? (
+        done ? (
+          <Trans>真的删？这段成片会没</Trans>
+        ) : (
+          <Trans>真的删？推演出的方案会没（花过的 token 不退）</Trans>
+        )
+      ) : (
+        <Trans>🗑 删除本段</Trans>
+      )}
     </button>
   );
 }

@@ -23,7 +23,6 @@ import {
   fetchVideoById,
   getVideo,
   isLiked,
-  isMyAuthor,
   isMyVideo,
   isSeedWork,
   partsOf,
@@ -601,10 +600,10 @@ export default function VideoPage() {
               为它去动那几个咬着算的数值不划算。
             ★ 自己的作品不显示（mine）：自己的东西该编辑该删，不该举报。 */}
         <div className="mt-2 flex justify-end">
-          <ReportButton targetType="video" targetId={video.id} videoId={video.id} mine={isMyAuthor(video.author)} />
+          <ReportButton targetType="video" targetId={video.id} videoId={video.id} mine={isMyVideo({ author: video.author, authorId: video.authorId })} />
           {/* ★ 拉黑与举报并排、不合并成菜单：两件事、政策也分别要求，
               合并会让举报变难点到，而举报是我们唯一的内容治理输入（见 BlockButton 顶注） */}
-          <BlockButton userId={video.authorId ?? ""} userName={video.author} mine={isMyAuthor(video.author)} />
+          <BlockButton userId={video.authorId ?? ""} userName={video.author} mine={isMyVideo({ author: video.author, authorId: video.authorId })} />
         </div>
 
         {/* 「保存到本地」整宽次级键（不与金色 CTA 抢，放在「⚡ 做同款」之上）。
@@ -718,8 +717,8 @@ export default function VideoPage() {
                   <div className="flex flex-wrap items-center gap-3">
                     <CommentDelete videoId={video.id} comment={c} onDeleted={() => setComments([...video.comments])} />
                     {/* 举报入口与首页评论抽屉共用同一份实现（铁律六） */}
-                    <ReportButton targetType="comment" targetId={c.id} videoId={video.id} mine={isMyAuthor(c.author)} />
-                    <BlockButton userId={c.authorId ?? ""} userName={c.author} mine={isMyAuthor(c.author)} />
+                    <ReportButton targetType="comment" targetId={c.id} videoId={video.id} mine={isMyVideo({ author: c.author, authorId: c.authorId })} />
+                    <BlockButton userId={c.authorId ?? ""} userName={c.author} mine={isMyVideo({ author: c.author, authorId: c.authorId })} />
                   </div>
                 </div>
               </div>

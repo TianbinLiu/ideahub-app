@@ -7892,6 +7892,10 @@ msgstr "封面卡"
 msgid "封面没传上去，换一张再试。"
 msgstr "封面没传上去，换一张再试。"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "封面还在处理，等它好了再发布。"
+msgstr "封面还在处理，等它好了再发布。"
+
 #: src/pages/SupportPage.tsx
 msgid "小梦"
 msgstr "小梦"
@@ -14130,6 +14134,10 @@ msgstr "真人素材扫脸认证"
 #: src/components/flow/SkillPanel.tsx
 msgid "真删？"
 msgstr "真删？"
+
+#: src/components/flow/DeleteSegBtn.tsx
+msgid "真的删？推演出的方案会没（花过的 token 不退）"
+msgstr "真的删？推演出的方案会没（花过的 token 不退）"
 
 #: src/components/flow/DeleteSegBtn.tsx
 msgid "真的删？这段成片会没"

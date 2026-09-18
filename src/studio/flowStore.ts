@@ -378,6 +378,15 @@ export function nodeBlank(node: FlowNode): boolean {
  * （模板与挂卡不花钱、推演过的三套花过 token），那由 UI 按 `node.proposals.length >= 2` 先确认，这里不管。
  * 与 removeNode 的"只剩一段也能删"同一把尺（唯一实现，铁律六）。
  */
+/**
+ * 这一段**推演过三套方案**（花过 token：一次 chat + 最多 6 张帧图）—— 删段 / 回铸要不要先确认的判据，唯一实现。
+ * ★ 按方案张数判（≥2）：单方案的段是空白占位、做同款 / 剧本→分镜铺来的、自定义直出的，那些没为推演花过钱。
+ *   与「已出片」（nodeDone）是两件事：没出片的段照样可能躺着一炉付过钱的方案。
+ */
+export function nodeDerived(node: FlowNode): boolean {
+  return node.proposals.length >= 2;
+}
+
 export function nodeRecastable(node: FlowNode): boolean {
   return !nodeDone(node) && node.status !== "generating";
 }
