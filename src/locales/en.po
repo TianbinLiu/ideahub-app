@@ -5326,6 +5326,10 @@ msgstr "The app went to the background — that won't corrupt the merge, but the
 msgid "刚才挂卡的是另一个模板（这条流水线上套的模板中途换过了）——回模板详情页重新套用一次再挂卡"
 msgstr "The cards you just attached were for a different template (this pipeline's template was changed in the meantime) — go back to the template page, apply it again, then attach the cards"
 
+#: src/pages/CustomCardPage.tsx
+msgid "刚才那张照片到得太晚了：这一格你已经放了别的图，就不替换了"
+msgstr "That photo arrived too late: you already put another image in this slot, so it was not replaced"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "刚点到：{hitText}"
 msgstr "Just touched: {hitText}"
@@ -9188,6 +9192,14 @@ msgstr "Your video is merged — go publish it"
 msgid "成片太大（{mb}MB，这台服务器的上限是 20MB）——先在剪辑页压一档画质再发。"
 msgstr "The finished video is too big ({mb}MB; this server's limit is 20MB) — lower the quality by one step on the editing page, then publish."
 
+#: src/components/flow/SegmentRecoverCards.tsx
+msgid "成片已经取回，放进了流水线，也存进了草稿"
+msgstr "Video recovered: it is in the pipeline and saved to your drafts"
+
+#: src/components/flow/SegmentRecoverCards.tsx
+msgid "成片已经取回。简约模式不存草稿——趁现在把它剪完发出去，App 被关掉的话这一段就找不回来了"
+msgstr "Video recovered. Simple mode does not save drafts — edit and publish it now; if the app is closed, this segment cannot be recovered again"
+
 #: src/pages/CutPage.tsx
 msgid "成片已经合好了，但{cutWhy}"
 msgstr "The video is merged, but {cutWhy}"
@@ -9197,8 +9209,8 @@ msgid "成片已经落回流水线，但自动存草稿没成（存储空间不�
 msgstr "The video is back in the pipeline, but the automatic draft save failed (low storage or private mode). Don't close the app yet: go to the Studio and tap “Save draft” once"
 
 #: src/components/flow/SegmentRecoverCards.tsx
-msgid "成片已落回流水线，正在存草稿…"
-msgstr "The video is back in the pipeline. Saving draft…"
+#~ msgid "成片已落回流水线，正在存草稿…"
+#~ msgstr "The video is back in the pipeline. Saving draft…"
 
 #: src/components/CoverPicker.tsx
 msgid "成片解码失败——换「本地上传」或下面各段的首尾帧"

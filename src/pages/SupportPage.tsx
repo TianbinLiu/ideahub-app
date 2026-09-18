@@ -353,6 +353,11 @@ export default function SupportPage() {
         setReaction(pick.text);
         const run = runRef.current;
         const controller = new AbortController();
+        // ★ 登记进 abortRef（2026-09-18，2.46 发版复核抓到）：原来是个局部变量，■ / 回车走的 stopAll() 中止不到它，
+        //   而 SpeechPlayer.stop() 只暂停、摘音源，不触发 ended / error —— perform() 永远不结束，队列从此卡死：
+        //   之后每一次 send() 都停在「思考中」、没声音、麦克风灰着，只有离开这一页才好。中止了 play() 才会收尾。
+        //   （companion/speech.ts 与官网同源拷贝，这里不单改它的 stop()）
+        abortRef.current = controller;
         const sentence: CompanionSentence = { index: 0, text: pick.text, emotion: pick.emotion, face: pick.face, action: pick.action, tts: { emotion: pick.emotion, instruct: "" } };
         const audio: Promise<Blob | null> =
           voiceOn && Boolean(config?.tts) ? synthesizeSpeech(ttsBodyFor(config, sentence), controller.signal).catch(() => null) : Promise.resolve(null);

@@ -360,6 +360,9 @@ if (typeof window !== "undefined") {
     followingCache = null;
     feedFetchedAt = 0;
     followingFetchedAt = 0;
+    // 在途的刷新是上一个人发的（回包会被 owner 校验作废）：标记清掉，新的人马上就能自己拉一次
+    feedRefreshing = null;
+    followingRefreshing = null;
     detailed.clear();
     // ★ 旁路表同样是**隐私边界**（与 cache 同一条理由）：它装的是按 id 单取回来的
     //   作品，其中可能有上一个账号自己的私密作品——服务端只对作者本人返回它。
@@ -1710,10 +1713,13 @@ export async function refreshFeed(opts: { minAgeMs?: number } = {}): Promise<boo
   const minAge = opts.minAgeMs ?? 0;
   if (minAge > 0 && Date.now() - feedFetchedAt < minAge) return false;
   if (feedRefreshing) return feedRefreshing;
+  // 发请求时是谁：回包时已经换了人的话，这一份是**上一个人**的推荐流（里面有他自己的私密 / 仅链接可见作品），
+  // 不许并进新账号的首页（2026-09-18 发版复核抓到：原来只判 cache 还在不在，换号 + readyRemote 重装得比回包快就漏过去）
+  const owner = ownerKey();
   feedRefreshing = (async () => {
     try {
       const res = await branch.listVideos({ feed: "recommend", limit: 30 });
-      if (!cache) return false;
+      if (!cache || ownerKey() !== owner) return false;
       const fresh = res.items.map(toVideoItem);
       const freshIds = new Set(fresh.map((v) => v.id));
       const localOnly = cache.filter((v) => !onServer(v) && !freshIds.has(v.id));
@@ -1743,10 +1749,11 @@ export async function refreshFollowingFeed(opts: { minAgeMs?: number } = {}): Pr
   const minAge = opts.minAgeMs ?? 0;
   if (minAge > 0 && Date.now() - followingFetchedAt < minAge) return false;
   if (followingRefreshing) return followingRefreshing;
+  const owner = ownerKey(); // 同 refreshFeed：回包时换过人就作废（关注流更是按人算的）
   followingRefreshing = (async () => {
     try {
       const res = await branch.listVideos({ feed: "following", limit: 30 });
-      if (!cache) return false;
+      if (!cache || ownerKey() !== owner) return false;
       const feedNow = cache;
       followingCache = res.items.map((raw) => {
         const item = toVideoItem(raw);

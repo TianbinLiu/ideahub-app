@@ -472,6 +472,9 @@ export function blankProposal(i: number): Proposal {
  * ★ **不写 firstFrame**：那一格是"设定首帧"，截到的成片头帧只进 poster（CLAUDE.md 那条坑：
  *   写回去会让重炼被自己截的帧挡住）。尾帧照主路径写 lastFrame（真实尾帧顶替设定尾帧）。
  * ★ 简约流水线只认一段：多出一段就翻成工作流形态（画布两段都能看到、能剪）。
+ * ★★ 流水线是空的也**不留在简约模式**（2026-09-18，2.46 发版复核抓到）：reset() 不动 mode，上一次停在简约模式的话
+ *   取回来的这一段就成了简约段 —— 而简约模式不进草稿库（saveWorkDraft 直接回 null），取回那一拍凭据又已经结案，
+ *   这一段只活在内存里，App 一重启就再也找不回来。取回来的是一段付过钱的成片，不是「一句话出片」的那一种。
  * ★ 纯函数、导出：预览里不用真去方舟取一发也能验落点。
  */
 export function placeRescuedSegment(
@@ -510,7 +513,7 @@ export function placeRescuedSegment(
   const pinned = pinUnstatedTpl(st.nodes, st.template);
   return {
     nodes: [...pinned.slice(0, at), node, ...pinned.slice(at)],
-    mode: st.mode === "simple" && st.nodes.length > 0 ? "workflow" : st.mode,
+    mode: st.mode === "simple" ? "workflow" : st.mode,
     at,
   };
 }
@@ -2196,13 +2199,18 @@ export const useFlow = create<FlowState>()((set, get) => ({
       const st = await transferStatus([url]).catch(() => null);
       const hit = st?.[url];
       if (hit?.state === "done" && hit.url) {
-        get().setProposalVideo(node.id, node.chosenId, hit.url);
+        // 问的这几百毫秒里这一段可能已经重新生成 / 还原过（见 adoptPermanentUrl 的 ★★）：换不上就别往下截 ——
+        // 截的是旧那条的帧，写回去就把旧片的首尾帧挂到了新片上
+        if (!adoptPermanentUrl(node.id, node.chosenId, url, hit.url)) return false;
         set((s) => ({ mediaRev: s.mediaRev + 1 }));
         url = hit.url;
       }
     }
     try {
       const cap = await recaptureSegment(url);
+      // 同上：截帧也是几秒的异步 —— 这期间这一段换了成片，就别把旧那条的帧写上去
+      if (get().nodes.find((n) => n.id === node.id)?.videoByProposal[node.chosenId] !== url) return false;
+      const oldTail = chosenOf(node).lastFrame;
       // ★ 钉住起手那套方案（node.chosenId）：截帧是几秒的异步，期间用户可能换了走向
       get().updateProposal(
         node.id,
@@ -2213,6 +2221,17 @@ export const useFlow = create<FlowState>()((set, get) => ({
         },
         node.chosenId,
       );
+      // ★★ 承接关系跟着尾帧换（2026-09-18，2.46 发版复核抓到）：下一段的开头帧是当初从这一段尾帧**原样拿过去**的，
+      //   「是不是承接来的」靠 `p.firstFrame === prev.lastFrame` 认。这里把尾帧换成了 Cloudinary 抽的那张，不跟着换的话
+      //   下一段就被当成「AI 自拟开头帧」—— 「✨ 重新生成这一套的画面」按两张收钱、重画开头帧，而出片时开头帧又被承接覆盖，
+      //   白花一张图的钱（segmentGen.redrawnAnns 那条同型的坑）。
+      if (oldTail && cap.tail && oldTail !== cap.tail) {
+        const all = get().nodes;
+        const next = all[all.findIndex((n) => n.id === node.id) + 1];
+        for (const p of next?.proposals ?? []) {
+          if (p.firstFrame === oldTail) get().updateProposal(next!.id, { firstFrame: cap.tail }, p.id);
+        }
+      }
       set((s) => ({ mediaRev: s.mediaRev + 1 }));
       return true;
     } catch (e) {
@@ -2242,7 +2261,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
           const st = await transferStatus([url]).catch(() => null);
           const hit = st?.[url];
           if (hit?.state === "done" && hit.url) {
-            get().setProposalVideo(node.id, node.chosenId, hit.url);
+            // 这一段此刻放的已经不是这一条了（问 status 期间重新生成 / 还原过）：什么都别换（见 adoptPermanentUrl 的 ★★）
+            if (!adoptPermanentUrl(node.id, node.chosenId, url, hit.url)) return;
             set((s) => ({ mediaRev: s.mediaRev + 1 }));
             await get().recaptureNode(nodeId, { quiet: true });
             return;
@@ -2954,6 +2974,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
       patchProp({
         // 返修：上一版留一份可还原（只留最近一版）；成片首帧原本就空，别用返修结果的空串盖掉设定帧
         ...(rv ? { prevVideoUrl: realVideoOfNode(node) ?? undefined } : {}),
+        // 返修出的这一条本身无声（edit 任务钉着 generate_audio:false）：记下地址，组稿时据此如实说「没有声音」（见 Proposal.silentVideos）
+        ...(rv && res.url ? { silentVideos: [...(prop.silentVideos ?? []), res.url].slice(-4) } : {}),
         firstFrame: rv ? prop.firstFrame : res.firstFrame,
         lastFrame: res.lastFrame,
         // 成片第一帧只管显示（白模/参考直出段没有设定首帧，卡面靠它）；这一炉没截到就清掉
@@ -3125,6 +3147,25 @@ export const useFlow = create<FlowState>()((set, get) => ({
     }
   },
 }));
+
+/**
+ * **同一条成片**换成转存后的永久地址 —— recaptureNode 与 settleNodeMedia 两处共用（铁律六）。
+ * ★★ 只在这一段这套方案**此刻放的还是 fromUrl** 时才换（2026-09-18，2.46 发版复核抓到）：换地址之前要先 await 一次
+ *   转存状态，这几百毫秒里重新生成或「还原上一版」可能已经落下 —— 原来无条件 setProposalVideo，会把旧那条的永久地址
+ *   盖到刚付过钱的新成片上。换不上回 false，调用方就此收手。
+ * ★ 「这一条是返修出的、本身无声」的记号跟着地址换（Proposal.silentVideos）：地址变了记号还挂在老地址上，
+ *   组稿时就认不出它是无声的。只在这里换，不在 setProposalVideo 里换 —— 那边还接剪辑页写回的**另一条**成片。
+ */
+function adoptPermanentUrl(nodeId: string, proposalId: string, fromUrl: string, toUrl: string): boolean {
+  const node = useFlow.getState().nodes.find((n) => n.id === nodeId);
+  const p = node?.proposals.find((x) => x.id === proposalId);
+  if (!node || !p || node.videoByProposal[proposalId] !== fromUrl) return false;
+  useFlow.getState().setProposalVideo(nodeId, proposalId, toUrl);
+  if (p.silentVideos?.includes(fromUrl)) {
+    useFlow.getState().updateProposal(nodeId, { silentVideos: p.silentVideos.map((u) => (u === fromUrl ? toUrl : u)) }, proposalId);
+  }
+  return true;
+}
 
 // ★★ 换成另一个账号的那一拍（2026-09-18 主人真机点名同一台手机换账号后数据串号，见 data/deviceOwner）：
 //   内存里这条流水线是**上一个人**的 —— 段、帧、付过钱的成片、挂的人物卡（可能是真人）、回炉权（reviseOf）。

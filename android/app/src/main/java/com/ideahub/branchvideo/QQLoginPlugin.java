@@ -52,6 +52,8 @@ import org.json.JSONObject;
  *      onActivityResult 都转进来，SDK 的 UIListenerManager 对认不出的 requestCode 会退回用
  *      我们传的这个 listener —— 于是一次早就结束的登录留下的 listener 会去"处理"别人的结果，
  *      并且 handleActivityResult 返回 true 把它吞掉（相机等结果就此丢失，零报错）。
+ *      ⚠ 光清 listener 只盖住了「登录已经结束」那一段：QQ 操作**挂起期间** listener 还在，别人的结果照样被吞 ——
+ *      2026-09-18 起 handleActivityResult 只认 QQ 自己的请求码（10100 ~ 11106），其余一律交回 Capacitor。
  *   ③ **单槽绝不许永久占用**：有分身的手机上点登录会先弹系统的选择框；SDK 那头有一条
  *      「ignore 回执到了、scheme 回跳没到」的路**永远不给回调**，老写法里 pending 就此占死，
  *      之后每次点都被自己拒成「上一次 QQ 登录还没结束」。两道闸：再点一次顶掉上一次 + 看门狗。
@@ -277,11 +279,20 @@ public class QQLoginPlugin extends Plugin {
         return s == null ? "" : s;
     }
 
+    /** QQ SDK 自己的请求码范围（com.tencent.connect.common.Constants 的 REQUEST_*：10100 ~ 11106，2026-09-18 javap 实读 open_sdk 3.5.19） */
+    private static final int QQ_REQUEST_MIN = 10100;
+    private static final int QQ_REQUEST_MAX = 11106;
+
     /**
      * 由 MainActivity.onActivityResult 转发进来（见类注释 ③）。
      * 没有在等回调时直接返回 false，让宿主继续走它原来的分支。
      */
     static boolean handleActivityResult(int requestCode, int resultCode, Intent data) {
+        // ★★ 不是 QQ 的请求码就**不碰**，交回 MainActivity 给 Capacitor（2026-09-18，2.46 发版复核抓到）：
+        //   Tencent.onActivityResultData 对认不出的请求码也会把结果交给我们的 listener（回 onError(-6) / onCancel）并**恒回 true**，
+        //   于是 QQ 登录 / 分享挂起的那几分钟里，别的页面拉起的相机结果被整个吞掉（Camera.getPhoto 永不收尾），
+        //   挂起的那次 QQ 操作还被误判成失败。Capacitor 自己的 ActivityResult 请求码从 0x10000 起，与这段不重叠。
+        if (requestCode < QQ_REQUEST_MIN || requestCode > QQ_REQUEST_MAX) return false;
         QQLoginPlugin self = instance;
         if (self == null || self.listener == null) return false;
         return Tencent.onActivityResultData(requestCode, resultCode, data, self.listener);

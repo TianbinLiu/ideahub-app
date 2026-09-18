@@ -12,7 +12,8 @@
 //   判「这一发是不是这条流水线的」由 `mine` 传进来（真闸在 `flowStore.takeJob`，
 //   这里只是把"为什么按钮是灰的"画出来，别在这儿另写一遍判断）。
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { showToast } from "../../data/toast";
 import { useSyncExternalStore } from "react";
 import {
   dismissVideoJob,
@@ -58,6 +59,14 @@ export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean
   const busy = useFlow((s) => s.busy);
   const [working, setWorking] = useState("");
   const [issue, setIssue] = useState("");
+  // 这张卡还挂着吗：取回成功那一拍凭据结案、列表重画，这张卡**当场就卸载了**（见 take 里的 ★★）
+  const alive = useRef(true);
+  useEffect(
+    () => () => {
+      alive.current = false;
+    },
+    [],
+  );
   // videoJobNote 是纯函数，重渲即刷新剩余时间
   const [, tick] = useState(0);
   useEffect(() => {
@@ -70,24 +79,37 @@ export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean
     setIssue("");
     setWorking(t`正在取回…`);
     try {
-      await takeJob(job, (st) => setWorking(st));
-      // ★★ 取回成功**当场存草稿**（2026-09-06 主人真机）：取回那一拍凭据已销毁、成片只落在内存里的流水线上，
-      //   这时 App 再被重启一次（系统回收 / 出包装机）这一发就谁都找不回来了。创作入口这个宿主没挂
-      //   useFlowActions（那条"又炼出一段就自动存盘"只长在工作流 / 工坊页上），所以这里自己存。
-      setWorking(t`成片已落回流水线，正在存草稿…`);
-      const meta = await useStudio.getState().saveWorkDraft({ from: "flow" }).catch(() => null);
-      if (!meta)
-        // ★ 草稿箱没读出来时"去工坊点一次存草稿"只会原样再失败：换一句指对出路的（drafts.draftsUnavailableText）
-        setIssue(
-          draftsLoadIssue()
-            ? draftsUnavailableText()
-            : t`成片已经落回流水线，但自动存草稿没成（存储空间不足或隐私模式）——先别关 App，去工坊点一次「存草稿」`,
-        );
+      await takeJob(job, (st) => {
+        if (alive.current) setWorking(st);
+      });
     } catch (e) {
-      setIssue(e instanceof Error ? e.message : String(e));
-    } finally {
-      setWorking("");
+      const why = e instanceof Error ? e.message : String(e);
+      if (alive.current) {
+        setIssue(why);
+        setWorking("");
+      } else showToast(why, 6000);
+      return;
     }
+    // ★★ 取回成功**当场存草稿**（2026-09-06 主人真机）：取回那一拍凭据已销毁、成片只落在内存里的流水线上，
+    //   这时 App 再被重启一次（系统回收 / 出包装机）这一发就谁都找不回来了。创作入口这个宿主没挂
+    //   useFlowActions（那条"又炼出一段就自动存盘"只长在工作流 / 工坊页上），所以这里自己存。
+    // ★★ 结果用**轻提示**说（2026-09-18，2.46 发版复核抓到）：取回成功那一拍凭据结案、列表重画，这张卡已经卸载了 ——
+    //   原来写进 setIssue 的「存草稿没成」从来没人看得见，而那恰恰是「先别关 App」的那一句。
+    // ★ 简约流水线（原节点本来就在简约模式里）不进草稿库：不去存，也不说成「存储空间不足」，照实说它只活在内存里。
+    if (useFlow.getState().mode === "simple") {
+      showToast(t`成片已经取回。简约模式不存草稿——趁现在把它剪完发出去，App 被关掉的话这一段就找不回来了`, 7000);
+      return;
+    }
+    const meta = await useStudio.getState().saveWorkDraft({ from: "flow" }).catch(() => null);
+    if (meta) showToast(t`成片已经取回，放进了流水线，也存进了草稿`, 3500);
+    else
+      // ★ 草稿箱没读出来时"去工坊点一次存草稿"只会原样再失败：换一句指对出路的（drafts.draftsUnavailableText）
+      showToast(
+        draftsLoadIssue()
+          ? draftsUnavailableText()
+          : t`成片已经落回流水线，但自动存草稿没成（存储空间不足或隐私模式）——先别关 App，去工坊点一次「存草稿」`,
+        7000,
+      );
   }
 
   return (

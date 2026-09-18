@@ -365,9 +365,11 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
     setBusy(true);
     setErr("");
     setNote("");
+    // 先收放大层再取图（2026-09-18 发版复核抓到）：原来只在取成功后才收，取失败时那句报错被放大层整个盖住，
+    //   用户看到的是「点了没反应」
+    setZoom(null);
     try {
       const src = await viewSourceBlob(v.url);
-      setZoom(null);
       setSubject({
         pick: freshSubjectPick({ kind: v.kind, src, fileName: "view.jpg", allowKeepBg: false }),
         target: { replace: { index: i, url: v.url } },

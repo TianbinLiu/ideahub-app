@@ -878,13 +878,21 @@ export default function CustomCardPage() {
       return;
     }
     setCaptureBusy(t`拍照中…`);
-    const r = await capturePhoto((late) => void placeCaptured(late, startType));
+    // 拍之前第一格里是什么：迟到的照片只在这一格**还是这样**时才落（见 placeCaptured 的 lateGuard）
+    const shotAtStart = useCardDraft.getState().shots[CARD_SLOTS[startType][0].kind]?.dataUrl ?? "";
+    const r = await capturePhoto((late) => void placeCaptured(late, startType, shotAtStart));
     setCaptureBusy("");
     await placeCaptured(r, startType);
   }
 
-  /** 拍照的结局 → 落格 / 说原因。迟到的照片（看门狗已经回了「没接到」）只在卡种没换时才落 */
-  async function placeCaptured(r: CaptureResult, startType: CardType) {
+  /**
+   * 拍照的结局 → 落格 / 说原因。
+   * @param lateGuard 只有**迟到**的照片（看门狗已经回了「没接到」之后才到）才传：拍之前第一格里的内容。
+   *   ★ 迟到的那张只在「卡种没换、第一格还是拍之前那样、也没有正在进行的选图 / 抠图」时才落（2026-09-18，2.46 发版复核抓到）：
+   *   原来只判卡种 —— 人照着「没接到」那句话改用了「上传本地图片」、或正在给道具抠图，迟到的照片会把他刚放好的图顶掉，
+   *   还会重新挂上「拍完自动识别」，对被替换掉的那张再扣一次识别的钱。
+   */
+  async function placeCaptured(r: CaptureResult, startType: CardType, lateGuard?: string) {
     if (r.kind === "cancelled" || r.kind === "unsupported") return; // 回到两选一，没有任何残留
     if (r.kind === "lost") {
       setCaptureMsg(t`没接到照片：相机那边可能没存下来——再拍一次，或选「上传本地图片」`);
@@ -897,6 +905,10 @@ export default function CustomCardPage() {
     const s = useCardDraft.getState();
     if (s.type !== startType) return; // 等相机的这段时间换了卡种：这张不往别的卡上落
     const slot = CARD_SLOTS[startType][0].kind;
+    if (lateGuard !== undefined && ((s.shots[slot]?.dataUrl ?? "") !== lateGuard || s.subjectPick || s.busySlot !== null)) {
+      setCaptureMsg(t`刚才那张照片到得太晚了：这一格你已经放了别的图，就不替换了`);
+      return;
+    }
     setSourcePick(false);
     setCaptureMsg("");
     setStep("form");

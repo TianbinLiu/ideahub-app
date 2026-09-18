@@ -2275,7 +2275,15 @@ export const useStudio = create<StudioState>()((set, get) => ({
         videoTier: n.videoTier,
         // 这一段自己出不出声（见 types.VideoSegment.hasAudio 的 ★★）：白模复刻走 r2v、
         // 服务端钉死 generate_audio:false，恒无声；普通段看档位（videoAudioOn 是唯一实现）
-        hasAudio: !tplOfNode(n)?.refVideo && videoAudioOn(tierOf(n.videoTier).model),
+        // ★ 另外两种也恒无声（2026-09-18，2.46 发版复核抓到：原来只看档位与模板，这两种被报成「有声」，
+        //   剪辑页那句「整条都没有声音」就被压掉了）：
+        //   · 现在放的这条是**返修**出的（Proposal.silentVideos，返修走 generate_audio:false 的 edit 任务）；
+        //   · **取回的白模段**：取回安放时 tpl 写死 null（模板归属恢复不了），白模的身份只剩 audioHint 这一位
+        hasAudio:
+          !tplOfNode(n)?.refVideo &&
+          !n.audioHint &&
+          !(real && p.silentVideos?.includes(real)) &&
+          videoAudioOn(tierOf(n.videoTier).model),
         aspect: n.aspect,
         ...(real ? { videoUrl: real } : {}),
       };
