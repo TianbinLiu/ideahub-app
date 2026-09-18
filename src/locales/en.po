@@ -1688,8 +1688,8 @@ msgid "<0>只有拖到画面上</0>那一条会先问一遍：上面那排卡的
 msgstr "<0>Only a drop on the picture</0> asks first: a confirmation strip appears right below the row of cards, saying which card is about to go onto which person, and that mannequin is highlighted in the picture at the same time — because that drop target is <1>inferred</1> (mannequins overlap and people move). Take another look at the highlighted one, then tap “That's the one” if it's right or “Wrong one” if it isn't: attaching to the wrong person <2>gives no error</2>, and you'd only see it once the finished video is rendered, by which time you've already paid for a render. A drop on a slot doesn't ask — you put it on that slot with your own eyes, so there's nothing to infer wrongly."
 
 #: src/components/guide/tours.tsx
-msgid "<0>我的模板</0>装的是你自己做的，新做一个也从那里进：传一段视频，让 AI 把画面里的人换成一模一样的白色人偶，或者直接拿你本来就做好的白模片用。走哪条路在提取器<1>打开后的第一屏</1>挑；要花多少钱到框选那一步当场整句报出来，确认了才开炼。"
-msgstr "<0>My templates</0> holds the ones you made yourself, and it's also where you start a new one: upload a video and let the AI replace the people in it with identical white mannequins, or use a blockout clip you've already made. You choose the route on <1>the first screen after the extractor opens</1>; the cost is spelled out in full right at the selection step, and nothing starts until you confirm."
+msgid "<0>我的模板</0>装的是你自己做的，新做一个也从那里进：传一段视频，让 AI 把画面里的人换成一模一样的白色人偶，或者直接拿你本来就做好的白模片用。走哪条路在提取器<1>打开后的第一屏</1>挑；要花多少钱都在按下开始那颗键之前整句报出来，确认了才扣。"
+msgstr "<0>My templates</0> holds the ones you made yourself, and it's also where you start a new one: upload a video and let the AI replace the people in it with identical white mannequins, or use a blockout clip you've already made. You choose the route on <1>the first screen after the extractor opens</1>; the cost is always spelled out in full before the button that starts it, and nothing is charged until you confirm."
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "<0>我确认：</0><1/>· 这个模型是我做的，或者我已经拿到作者授权；<2/>· 我没有上传他人作品、真人肖像，也没有上传 Live2D 官方示例模型；<3/>· 违规的内容会被下架，情节严重的可能会封号。"
@@ -4896,8 +4896,8 @@ msgid "再试一次"
 msgstr "Try again"
 
 #: src/components/guide/tours.tsx
-msgid "最上面是<0>作者头像</0>（点进主页，下面那枚 + 号关注）。往下第一枚是发弹幕；再往下点赞、评论、收藏、分享，<1>这四枚下面的数字是已经有多少人做过</1>。评论就地滑出来，不用离开这一屏。"
-msgstr "At the top is the <0>author's avatar</0> (tap it for their profile; the + below it follows them). The first button under it sends a bullet comment; further down are like, comment, save and share, and <1>the numbers under these four show how many people have already done that</1>. Comments slide up right here, so you don't have to leave this screen."
+msgid "最上面是<0>作者头像</0>（点进主页，下面那枚 + 号关注）。往下第一枚是发弹幕；再往下点赞、评论、收藏、分享，<1>点赞和评论下面是数字</1>（多少人点过赞、有多少条评论），收藏和分享下面写的是名字、不报数。评论就地滑出来，不用离开这一屏。"
+msgstr "At the top is the <0>author's avatar</0> (tap it for their profile; the + below it follows them). The first button under it sends a bullet comment; further down are like, comment, save and share, and <1>like and comment each show a number</1> (how many people liked it, and how many comments there are), while save and share show only their names, not a count. Comments slide up right here, so you don't have to leave this screen."
 
 #: src/api/uploads.ts
 msgid "最后一段传完了，但视频存储没有把这段视频组装出来——请重新选一次文件再传。"
@@ -6626,10 +6626,6 @@ msgstr "Redo just this"
 msgid "只有一个节点：写一句话，挑个时长，直接出一条几秒的短视频。不推方案、不存草稿。"
 msgstr "Just one step: write a sentence, pick a length, and get a short video a few seconds long. No plans, no drafts."
 
-#: src/components/guide/tours.tsx
-msgid "只有交给 AI 的<0>要花 token</0>（工坊铸卡，或从视频圈选提取、「自己传图」里 那几颗带 AI 的键）。从视频圈选提取、自己传图、从市场拿都<1>不花</1>—— 提取是拖到某一帧、亲手圈出要的人或物，圈出来的画面就是参考图。"
-msgstr "Only what you hand to the AI <0>costs tokens</0> (minting in the Studio, or the AI buttons that appear when you extract from a video or use “Make a card from your own images”). Extracting by circling in a video, uploading your own images and taking from the market <1>cost nothing</1> — extracting means dragging to a frame and circling the person or object you want by hand, and what you circle becomes the reference image."
-
 #: src/pages/EditPage.tsx
 msgid "只有作者本人可以编辑这部作品"
 msgstr "Only the creator can edit this video"
@@ -6977,6 +6973,10 @@ msgstr "Feed in a chat log or answer a few questions, and AI writes a speaking s
 #: src/pages/SupportModelNewPage.tsx
 msgid "嘴形"
 msgstr "Mouth shape"
+
+#: src/components/guide/tours.tsx
+msgid "四条路里<0>只有工坊铸卡一定花 token</0>。从视频圈选提取、自己传图本身<1>不花</1>，只有窗口里那几颗带 AI 的键要钱（价印在键上）；从市场拿也不花。 提取是拖到某一帧、亲手圈出要的人或物，圈出来的画面就是参考图。"
+msgstr "Of the four routes, <0>only minting in the Studio always costs tokens</0>. Extracting by circling in a video and uploading your own images <1>cost nothing</1> in themselves — only the AI buttons inside those windows charge you, and the price is printed on the button; taking from the market is free too. Extracting means dragging to a frame and circling the person or object you want by hand, and what you circle becomes the reference image."
 
 #: src/studio/ui/projection.tsx
 msgid "回上一步写一句视频要求，这颗键才亮"
@@ -9284,8 +9284,8 @@ msgid "打不开系统浏览器（{0}）——用「复制链接」自己粘到�
 msgstr "Couldn't open the system browser ({0}) — use “Copy link” and paste it into a browser yourself"
 
 #: src/components/guide/tours.tsx
-msgid "打字之后上面先出<0>人</0>、下面出作品。 作品是拿标题、简介、作者、分区、话题标签一起对的，不只对标题。"
-msgstr "Once you type, <0>people</0> appear first at the top and videos below. Videos are matched against title, description, author, category and tags together, not just the title."
+msgid "打字之后上面先出<0>人</0>、下面出作品。 作品是拿标题、简介、话题标签一起对的，不只对标题；<1>按作者找人用上面那半</1>。"
+msgstr "Once you type, <0>people</0> appear first at the top and videos below. Videos are matched against title, description and tags together, not just the title; <1>to find someone by name, use the people half above</1>."
 
 #: src/components/DraftSheet.tsx
 msgid "打开中…"
@@ -15803,8 +15803,8 @@ msgid "规格"
 msgstr "Specs"
 
 #: src/components/guide/tours.tsx
-msgid "角标写着这个模板能干什么。<0>白模</0>：出片时整段复刻它的场景、道具与运镜，只把人换掉，旁边报的是这条模板视频有多长——成片长度和画幅都跟着它走；<1>几个角色位可换人</1>：画面里那几个白色人偶，各能挂一张你的角色卡。没角标的是经典配方模板，按分镜骨架重新画，旁边报的是分几段。"
-msgstr "The badges say what a template can do. <0>Blockout</0>: rendering copies its whole scene, props and camera work and only swaps the people, and the number shown with it is how long the template video is — the finished video's length and aspect ratio follow it. <1>Recastable slots</1>: each of the white mannequins in the picture can take one of your character cards. Templates without a badge are classic recipe templates, redrawn from the shot outline, and the number shown is how many segments they have."
+msgid "角标写着这个模板能干什么。<0>白模</0>：出片时整段复刻它的场景、道具与运镜，只把人换掉，旁边报的是这条模板视频有多长——成片长度和画幅都跟着它走；<1>几个角色位可换人</1>：画面里那几个白色人偶，各能挂一张你的角色卡。没有这两枚角标的是经典配方模板，按分镜骨架重新画，旁边报的是分几段。"
+msgstr "The badges say what a template can do. <0>Blockout</0>: rendering copies its whole scene, props and camera work and only swaps the people, and the number shown with it is how long the template video is — the finished video's length and aspect ratio follow it. <1>Recastable slots</1>: each of the white mannequins in the picture can take one of your character cards. Templates without either of those badges are classic recipe templates, redrawn from the shot outline, and the number shown is how many segments they have."
 
 #: src/ai/real.ts
 msgid "角色卡上没有可用的形象图"
@@ -18492,8 +18492,8 @@ msgid "这里的每一个动作都由服务端按 role 重新鉴权一次。<0/>
 msgstr "Every action here is re-authorized by the server based on role.<0/>Don't take anything down if you can't see the content — a report reason is a lead, not a verdict."
 
 #: src/components/guide/tours.tsx
-msgid "这里管<0>卡片、卡组和模板</0>这些素材。 要摆桌铸卡、把卡炼成视频，从这条路进 3D 工坊； 唯一的例外是模板栏里的「AI 换白模」——那条会真出一次片、真花钱。"
-msgstr "This page manages materials: <0>cards, decks and templates</0>. To lay out the table, mint cards and render them into videos, go into the 3D Studio from here. The only exception is having the AI turn a video into a blockout in the “My templates” tab — that one really renders a video and really costs money."
+msgid "这里管<0>卡片、卡组和模板</0>这些素材。 要摆桌铸卡、把卡炼成视频，从这条路进 3D 工坊。 这一页自己也有<1>要花钱的地方</1>：模板栏里做模板那几条路都要钱（让 AI 把视频里的人换成白模人偶那条还会真出一次片）， 以及提取窗里那颗「✨ 按这套方案炼形象图」。"
+msgstr "This page manages materials: <0>cards, decks and templates</0>. To lay out the table, mint cards and render them into videos, go into the 3D Studio from here. This page itself has things that <1>cost money</1> too: making a template in the “My templates” tab, whichever route you take (the one where the AI turns the people in a video into blockout mannequins also really renders a video), and the “✨ Generate character images with this scheme” button in the extract window."
 
 #: src/components/guide/tours.tsx
 msgid "这颗键印着价钱"
