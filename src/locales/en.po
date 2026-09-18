@@ -5547,6 +5547,10 @@ msgstr "Refresh"
 msgid "刷新中…"
 msgstr "Refreshing…"
 
+#: src/studio/flowStore.ts
+msgid "前一段还没出片：退回铸段窗之后，新铸的段要等前一段炼出来才接得上，这一下就只是把这一段删掉了。先把前一段炼出来再退。"
+msgstr "The previous segment has no video yet: after going back to the segment window, a new segment can only be attached once the previous one is generated, so this would just delete this segment. Generate the previous segment first, then go back."
+
 #: src/data/danmaku.ts
 msgid "前方高能"
 msgstr "here it comes!!"
@@ -18707,6 +18711,10 @@ msgstr "Go back"
 #: src/studio/canvasAgent.ts
 msgid "退回普通段"
 msgstr "Back to a normal segment"
+
+#: src/studio/flowStore.ts
+msgid "退回铸段窗之后新铸的段接不上去（{blocked}），这一下就只是把这一段删掉了。"
+msgstr "After going back to the segment window, a new segment couldn't be attached ({blocked}), so this would just delete this segment."
 
 #: src/studio/ui/projection.tsx
 msgid "退回铸段窗重选模式"
