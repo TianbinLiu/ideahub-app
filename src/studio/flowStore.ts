@@ -389,12 +389,23 @@ export function nodeRecastable(node: FlowNode): boolean {
  *   它被删掉之后，重铸的那一段只能接到末尾（顺序变了），而末尾那段还没出片，appendNode 根本不收：
  *   铸段窗里「推演三套」的钱已经扣了、这一段也已经没了。
  * ★ 按段位判，别改 nodeRecastable：那一条还是 removeNode「只剩一段也能删」的尺子，与位置无关。
+ * ★★ 光是「最后一段」还不够（同日复核那次修复本身时抓到）：删掉之后，铸出来的新段还得**接得上**删剩下的末尾。
+ *   前一段没出片、或前一段是白模复刻段时 appendNode 不收 —— 这一下就只剩「删掉」，而投影窗那一行还写着
+ *   「重选模式，不花钱」。做同款 / 剧本→分镜 / 模板组一次铺好几段，这正是它们最后一段的常态。
+ *   两条都问 appendNode 那套门禁本身（nodeDone / appendBlocked），别另抄一份判据；删到一段不剩时
+ *   removeNode 会清掉 store 级模板，所以这里传 null 与删完之后 appendNode 看到的是同一个世界。
  */
 export function recastBlocked(nodes: FlowNode[], nodeId: string): string | null {
   const node = nodes.find((n) => n.id === nodeId);
   if (!node || !nodeRecastable(node)) return t`这一段已经出片了，退不回铸段窗——想换就删掉这一段再铸`;
   if (nodes[nodes.length - 1]?.id !== nodeId)
     return t`这一段后面还有别的段：退回铸段窗重铸只能接在最后。想换这一段的模式，先删掉它后面的几段再退。`;
+  const rest = nodes.slice(0, -1);
+  const prev = rest[rest.length - 1];
+  if (prev && !nodeDone(prev))
+    return t`前一段还没出片：退回铸段窗之后，新铸的段要等前一段炼出来才接得上，这一下就只是把这一段删掉了。先把前一段炼出来再退。`;
+  const blocked = appendBlocked(rest, null);
+  if (blocked) return t`退回铸段窗之后新铸的段接不上去（${blocked}），这一下就只是把这一段删掉了。`;
   return null;
 }
 

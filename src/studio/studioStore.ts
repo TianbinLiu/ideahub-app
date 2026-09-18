@@ -639,7 +639,7 @@ interface StudioState {
    *   方案台的"上一段"，铸段窗那枚"上一步"随窗一起没了，而删段又被"只剩一段"挡住，
    *   用户被困在一张空白占位卡上。这里把段撤掉、铸段窗按原来的要求/档位/画幅/素材重开。
    */
-  /** 退回铸段窗重选模式：还没出片的**最后一段**（flowStore.recastBlocked 一处判据）；撤段 + 按原要求/档位/画幅/素材重开铸段窗 */
+  /** 退回铸段窗重选模式：还没出片、删掉后新段接得上的**最后一段**（flowStore.recastBlocked 一处判据）；撤段 + 按原要求/档位/画幅/素材重开铸段窗 */
   recastNode: (nodeId: string) => boolean;
   toggleSpread: () => void;
   shiftSpread: (dir: 1 | -1) => void;
@@ -1374,7 +1374,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
     const node = flow.nodes.find((n) => n.id === nodeId);
     // ★ 2026-09-06 从"只有空白段"放宽到"还没出片的段"：选定模板 / 挑定走向之后想换个模式，此前 ‹ 灰着、
     //   删段被"只剩一段"挡住，人被困在窗里。丢的东西由投影窗按情况先确认（推演过的三套花过 token）。
-    // ★ 2026-09-18 又收回一截：只有**最后一段**退得回去（判据 flowStore.recastBlocked 一处，理由见它的 ★★）
+    // ★ 2026-09-18 又收回一截：只有**最后一段**、且删掉之后新段接得上的才退得回去（判据 flowStore.recastBlocked 一处，理由见它的 ★★）
     const blocked = recastBlocked(flow.nodes, nodeId);
     if (!node || blocked) {
       set({ notice: { text: blocked ?? t`这一段已经出片了，退不回铸段窗——想换就删掉这一段再铸`, at: Date.now() } });

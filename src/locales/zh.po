@@ -5547,6 +5547,10 @@ msgstr "刷新"
 msgid "刷新中…"
 msgstr "刷新中…"
 
+#: src/studio/flowStore.ts
+msgid "前一段还没出片：退回铸段窗之后，新铸的段要等前一段炼出来才接得上，这一下就只是把这一段删掉了。先把前一段炼出来再退。"
+msgstr "前一段还没出片：退回铸段窗之后，新铸的段要等前一段炼出来才接得上，这一下就只是把这一段删掉了。先把前一段炼出来再退。"
+
 #: src/data/danmaku.ts
 msgid "前方高能"
 msgstr "前方高能"
@@ -18707,6 +18711,10 @@ msgstr "退回去"
 #: src/studio/canvasAgent.ts
 msgid "退回普通段"
 msgstr "退回普通段"
+
+#: src/studio/flowStore.ts
+msgid "退回铸段窗之后新铸的段接不上去（{blocked}），这一下就只是把这一段删掉了。"
+msgstr "退回铸段窗之后新铸的段接不上去（{blocked}），这一下就只是把这一段删掉了。"
 
 #: src/studio/ui/projection.tsx
 msgid "退回铸段窗重选模式"
