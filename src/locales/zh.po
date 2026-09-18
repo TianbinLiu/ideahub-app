@@ -2106,7 +2106,7 @@ msgstr "✨ 按 {0} 处圈选重新生成（{1} 段 · {2}）"
 msgid "✨ 按这套方案炼形象图（{portraitCount} 张 · 演示）"
 msgstr "✨ 按这套方案炼形象图（{portraitCount} 张 · 演示）"
 
-#. placeholder {0}: fmtTokens(schemeCost((schemeOf(schemeId) ?? defaultScheme()).slots))
+#. placeholder {0}: fmtTokens(plan.price)
 #: src/components/VideoCardAnnotator.tsx
 msgid "✨ 按这套方案炼形象图（{portraitCount} 张 · 约 {0}）"
 msgstr "✨ 按这套方案炼形象图（{portraitCount} 张 · 约 {0}）"
@@ -2120,6 +2120,15 @@ msgstr "✨ 生成 {0} 张图位与人物信息"
 #: src/pages/CustomCardPage.tsx
 msgid "✨ 生成 {0} 张图位与人物信息（{aiPriceText}）"
 msgstr "✨ 生成 {0} 张图位与人物信息（{aiPriceText}）"
+
+#: src/pages/CustomCardPage.tsx
+msgid "✨ 补齐剩下的 {aiTodoCount} 张图位与人物信息（{aiPriceText}）"
+msgstr "✨ 补齐剩下的 {aiTodoCount} 张图位与人物信息（{aiPriceText}）"
+
+#. placeholder {0}: fmtTokens(plan.price)
+#: src/components/VideoCardAnnotator.tsx
+msgid "✨ 补齐剩下的 {todoCount} 张形象图（约 {0}）"
+msgstr "✨ 补齐剩下的 {todoCount} 张形象图（约 {0}）"
 
 #: src/pages/CustomCardPage.tsx
 msgid "✨ 让 AI 按主体填写"
@@ -3258,6 +3267,19 @@ msgstr "上次查到的已授权素材（这次没能向方舟刷新，原因见
 #: src/data/videos.ts
 msgid "上次没传上去"
 msgstr "上次没传上去"
+
+#: src/components/VideoCardAnnotator.tsx
+#: src/pages/CustomCardPage.tsx
+msgid "上次没画完的那几张是按换之前的设置画的，这一次整套重画"
+msgstr "上次没画完的那几张是按换之前的设置画的，这一次整套重画"
+
+#: src/pages/CustomCardPage.tsx
+msgid "上次画好的「{aiKeptNames}」还在格子里，这一次只补「{aiTodoNames}」"
+msgstr "上次画好的「{aiKeptNames}」还在格子里，这一次只补「{aiTodoNames}」"
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "上次画好的「{keptNames}」先留着，这一次只补「{todoNames}」；直接存卡用的是原片裁剪"
+msgstr "上次画好的「{keptNames}」先留着，这一次只补「{todoNames}」；直接存卡用的是原片裁剪"
 
 #: src/studio/ui/FuseFrameSheet.tsx
 msgid "上段结尾"
@@ -8862,15 +8884,60 @@ msgstr "形象"
 msgid "形象：{0}"
 msgstr "形象：{0}"
 
+#. moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格。drawnNames 是几个图位名
+#: src/components/VideoCardAnnotator.tsx
+msgid "形象图只画成了一部分：{reason}。{moneyLine}画好的「{drawnNames}」先留着，补齐剩下的就一起换上；原片裁剪没受影响，也可以直接存"
+msgstr "形象图只画成了一部分：{reason}。{moneyLine}画好的「{drawnNames}」先留着，补齐剩下的就一起换上；原片裁剪没受影响，也可以直接存"
+
+#. moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格。keptNames 是几个图位名
+#: src/pages/CustomCardPage.tsx
+msgid "形象图只画成了一部分：{reason}。{moneyLine}画好的「{keptNames}」已经放进格子里了，剩下的可以再补——也可以改选自己传图"
+msgstr "形象图只画成了一部分：{reason}。{moneyLine}画好的「{keptNames}」已经放进格子里了，剩下的可以再补——也可以改选自己传图"
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "形象图只画成了一部分：{why}——没扣钱。画好的「{drawnNames}」先留着，补齐剩下的就一起换上；原片裁剪没受影响，也可以直接存"
+msgstr "形象图只画成了一部分：{why}——没扣钱。画好的「{drawnNames}」先留着，补齐剩下的就一起换上；原片裁剪没受影响，也可以直接存"
+
+#: src/pages/CustomCardPage.tsx
+msgid "形象图只画成了一部分：{why}——没扣钱。画好的「{keptNames}」已经放进格子里了，剩下的可以再补，也可以改选自己传图"
+msgstr "形象图只画成了一部分：{why}——没扣钱。画好的「{keptNames}」已经放进格子里了，剩下的可以再补，也可以改选自己传图"
+
+#. moneyBrief 是括号里的一个短语，说钱扣没扣（ai/failCharge.chargeNote 的 brief：已经画好的 N 张已计费…）
+#: src/components/VideoCardAnnotator.tsx
+msgid "形象图只画成了一部分（{moneyBrief}）——回工坊点「从视频提取」补剩下的"
+msgstr "形象图只画成了一部分（{moneyBrief}）——回工坊点「从视频提取」补剩下的"
+
+#. moneyBrief 是括号里的一个短语，说钱扣没扣（ai/failCharge.chargeNote 的 brief：已经画好的 N 张已计费…）
+#: src/components/VideoCardAnnotator.tsx
+msgid "形象图只画成了一部分（{moneyBrief}），画好的先留着"
+msgstr "形象图只画成了一部分（{moneyBrief}），画好的先留着"
+
+#. moneyBrief 是括号里的一个短语，说钱扣没扣（ai/failCharge.chargeNote 的 brief：已经画好的 N 张已计费…）
+#: src/pages/CustomCardPage.tsx
+msgid "形象图只画成了一部分（{moneyBrief}），画好的留着，回去补剩下的"
+msgstr "形象图只画成了一部分（{moneyBrief}），画好的留着，回去补剩下的"
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "形象图只画成了一部分（没扣钱）——回工坊点「从视频提取」补剩下的"
+msgstr "形象图只画成了一部分（没扣钱）——回工坊点「从视频提取」补剩下的"
+
+#: src/components/VideoCardAnnotator.tsx
+msgid "形象图只画成了一部分（没扣钱），画好的先留着"
+msgstr "形象图只画成了一部分（没扣钱），画好的先留着"
+
+#: src/pages/CustomCardPage.tsx
+msgid "形象图只画成了一部分（没扣钱），画好的留着，回去补剩下的"
+msgstr "形象图只画成了一部分（没扣钱），画好的留着，回去补剩下的"
+
 #. moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格
 #: src/components/VideoCardAnnotator.tsx
-msgid "形象图没画成：{reason}。{moneyLine}这一次画的图没留下；原片裁剪没受影响，可以直接存或再试一次"
-msgstr "形象图没画成：{reason}。{moneyLine}这一次画的图没留下；原片裁剪没受影响，可以直接存或再试一次"
+msgid "形象图没画成：{reason}。{moneyLine}原片裁剪没受影响，可以直接存或再试一次"
+msgstr "形象图没画成：{reason}。{moneyLine}原片裁剪没受影响，可以直接存或再试一次"
 
 #. moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格
 #: src/pages/CustomCardPage.tsx
-msgid "形象图没画成：{reason}。{moneyLine}这一次画的图都没留下，可以再试或改选自己传图"
-msgstr "形象图没画成：{reason}。{moneyLine}这一次画的图都没留下，可以再试或改选自己传图"
+msgid "形象图没画成：{reason}。{moneyLine}可以再试或改选自己传图"
+msgstr "形象图没画成：{reason}。{moneyLine}可以再试或改选自己传图"
 
 #: src/pages/CustomCardPage.tsx
 msgid "形象图没画成：{why}——一分钱没扣，可以再试或改选自己传图"
@@ -15697,6 +15764,10 @@ msgstr "补充说明（选填，管理员会看到）"
 #: src/pages/CustomCardPage.tsx
 msgid "补救：进卡片详情页，把没同步的那张<0>先删掉、再重新加一次</0>（图位已经满了的话必须先删 —— 满格时没有「+」按钮）。"
 msgstr "补救：进卡片详情页，把没同步的那张<0>先删掉、再重新加一次</0>（图位已经满了的话必须先删 —— 满格时没有「+」按钮）。"
+
+#: src/pages/CustomCardPage.tsx
+msgid "补齐剩下的图位约 {aiPriceText} token，余额 {balance} 不够——去「我的」页充值，或改选「自己上传图片」（不花钱）"
+msgstr "补齐剩下的图位约 {aiPriceText} token，余额 {balance} 不够——去「我的」页充值，或改选「自己上传图片」（不花钱）"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "表情"

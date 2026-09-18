@@ -5,7 +5,8 @@
 //   实现在 server services/arkGateway.chargedArkCall）。于是「失败 = 没扣钱」这句话只在一部分失败上成立：
 //     ① 没等到回包（ArkNoReply：断网、客户端先超时）—— 服务端那一发照样跑完、按 2xx 计费，钱**可能**已经扣了；
 //     ② 回包是 2xx 但结果用不上（ArkBadReply：JSON 坏了 / 回包里没有图 / 图出了却取不回来）—— **已经**扣了；
-//     ③ 逐格出图画到第 k 格才失败（ArkBatchPartial）—— 前 k-1 张各自按调用结算过了，与第 k 张成不成无关；
+//     ③ 逐格出图画到第 k 格才失败（ArkBatchPartial）—— 前 k-1 张各自按调用结算过了，与第 k 张成不成无关
+//        （那几张图调用方会收下、下一次只补剩下的，见 real.PortraitViewsPartial）；
 //     ④ 其余（服务端明说失败：400 敏感词 / 402 余额不足 / 403 套餐门禁 / 429 / 5xx 已退；或请求根本没到计费端点）—— 没扣。
 //   收口之前，自传图做卡片的圈选改图 / AI 生成图位 / 人物信息、提取窗的炼形象图、导演台融图五处的 catch 一律说
 //   「没扣钱」，只有 CustomCardPage.recognize 一处自己抄了一遍三档 —— 而且它指给用户的「钱包流水」在 App 里并不存在。
@@ -35,16 +36,23 @@ export interface FailCharge {
    * ⚠ 只答这一发。整次操作有没有花钱还要看 paidBefore —— 两样合起来的那句话由 chargeNote 给，别在调用点自己拼。
    */
   tier: "maybe" | "charged" | "none";
-  /** 同一批里在这一发之前已经各自结算的调用次数（逐格出图：已经画好的那几张）。不是批量调用、或钱不经服务端结算时恒 0 */
+  /**
+   * 同一批里在这一发之前已经各自结算的调用次数（逐格出图：已经画好、交给调用方留下的那几张）。不是批量调用、或管理员免扣费时恒 0。
+   * ★ 离线账本也算：那几张调用方收下时当场按张记进本机账本（real.PortraitViewsPartial 的 ★★ 规定了这一条）。
+   */
   paidBefore: number;
 }
 
 /**
  * 这次失败，钱花没花 —— **唯一判定**。
  *
- * ★ 只有「钱由服务端结算」时才分档：离线 / 演示构建的账本在本机，用到这里的调用点都是**成功之后**才 spendTokens，
- *   失败就是没扣（新接进来的调用点先核对这一条：先扣后调的话，离线那一句「没扣钱」就不成立了）。
+ * ★ 失败的**这一发**只有「钱由服务端结算」时才分档：离线 / 演示构建的账本在本机，用到这里的调用点都是**成功之后**才 spendTokens，
+ *   这一发失败就是没扣（新接进来的调用点先核对这一条：先扣后调的话，离线那一句「没扣钱」就不成立了）。
  *   管理员同理：服务端对 admin 跳过扣费（chargedArkCall 的 free），客户端判据只有 billingExempt 一处。
+ * ★★ 批量里**之前画好的那几发**（paidBefore）离线时照样算已计费（2026-09-17 起）：逐格出图半途失败时调用方不再丢掉那几张图，
+ *   而是收下、并在离线账本里按张记上 —— 不记的话离线用户能白拿图（主人点名）。所以离线分支带 settledBefore 回去，
+ *   chargeNote 说出来的是「已经画好的 N 张已按张计费」，与本机账本真扣的那一笔一致。
+ *   离线的管理员这一档不存在（role 只从服务端的账号来），不必为它分支。
  * ★ 副作用：判成 maybe 时顺手去刷一次钱包。这一档恰恰是**没有回包**的那一档，响应头带不回余额（arkFetch 的
  *   syncWalletFromHeaders 没机会跑），不刷的话「我的」页上那个数还是扣之前的 —— 而我们正要用户去看它。
  *   放在这里而不是留给调用点：漏掉它没有任何症状。charged 与 paidBefore 那几发都拿到过 2xx，余额已经随响应头同步过。
@@ -52,12 +60,14 @@ export interface FailCharge {
 export function chargeOnFail(e: unknown): FailCharge {
   const failure = e instanceof ArkBatchPartial ? e.failure : e;
   const shape: FailCharge["shape"] = failure instanceof ArkNoReply ? "noReply" : failure instanceof ArkBadReply ? "badReply" : "other";
-  if (!isRemoteMode() || billingExempt()) return { shape, tier: "none", paidBefore: 0 };
+  const settled = e instanceof ArkBatchPartial ? e.settledBefore : 0;
+  if (!isRemoteMode()) return { shape, tier: "none", paidBefore: settled };
+  if (billingExempt()) return { shape, tier: "none", paidBefore: 0 };
   if (shape === "noReply") void refreshRemoteWallet();
   return {
     shape,
     tier: shape === "noReply" ? "maybe" : shape === "badReply" ? "charged" : "none",
-    paidBefore: e instanceof ArkBatchPartial ? e.settledBefore : 0,
+    paidBefore: settled,
   };
 }
 
@@ -69,7 +79,8 @@ export interface ChargeNote {
 
 /**
  * 把结论说成人话 —— 钱上的话**全仓只有这几句**，调用点把它当占位符嵌进自己的整句里。
- * 回 null = 这次确实一分钱没扣：调用点说它原来那句（「没扣钱」），离线 / 演示构建因此一个字都不变。
+ * 回 null = 这次确实一分钱没扣：调用点说它原来那句（「没扣钱」），离线 / 演示构建因此一个字都不变
+ * （例外只有批量半途失败、画好的那几张被收下的时候：离线账本也记了它们，说的是「已经画好的 N 张已按张计费」）。
  *
  * @param unitTokens 这类调用**一次**的价：出图 ONE_IMAGE、对话 CHAT_TURN_TOKENS —— 与报价、余额门读同一个常量
  *

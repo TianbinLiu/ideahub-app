@@ -47,7 +47,18 @@ import { joinViewNote } from "../types";
 import PhotoSubjectPicker from "../components/PhotoSubjectPicker";
 import { blobToDataUrl } from "../utils/image";
 import { capturePhoto, nativeCameraSupported, stripExif, sweepCameraLeftovers, type CaptureResult } from "../utils/nativeCamera";
-import { AI_REAL, ArkBadReply, briefArkReason, chargeNote, chargeOnFail, portraitViews, recognizeCardSubject, refineCardImage } from "../ai";
+import {
+  AI_REAL,
+  ArkBadReply,
+  PortraitViewsPartial,
+  briefArkReason,
+  chargeNote,
+  chargeOnFail,
+  portraitViews,
+  recognizeCardSubject,
+  refineCardImage,
+  type PortraitView,
+} from "../ai";
 import { chatVision } from "../ai/arkClient";
 import FrameAnnotator from "../components/FrameAnnotator";
 import { CHAT_TURN_TOKENS, ONE_IMAGE, fmtTokens, schemeCost } from "../data/economy";
@@ -194,6 +205,8 @@ export default function CustomCardPage() {
   const [aiFace, setAiFace] = useDraftField("aiFace");
   const [aiSubject, setAiSubject] = useDraftField("aiSubject");
   const [aiBusy, setAiBusy] = useDraftField("aiBusy");
+  /** 上一次 AI 出图画到半途失败时留下的那几格（见 customCardStore 的 ★★；用法只在 aiPlan） */
+  const [aiPartial, setAiPartial] = useDraftField("aiPartial");
   /** AI 素材口正在读哪张图（解码 + 裁切要一两秒，得让人看见） */
   const [aiPick, setAiPick] = useDraftField("aiPick");
   /** AI 素材选图口（body/face 复用一个 input） */
@@ -583,24 +596,64 @@ export default function CustomCardPage() {
     setErr("");
   }
 
-  /** AI 车道整套价：逐格出图（schemeCost，只数生成型格）+ 一次看图写文案的对话。
+  /**
+   * 「AI 生成图位」这一次要画哪几格 —— **唯一实现**：键上的价签、余额门、交给 portraitViews 的格子、离线实扣都读它
+   * （CLAUDE.md「同一笔钱在第二个地方再算一次报价」那一格）。
+   * ★ 上一次画到半途失败（aiPartial）、而且方案 / 主素材 / 面部近照 / 真人照片锁定都没换过时，只补剩下的：那一次画好、
+   *   **现在还在格子里**的算留着。被移除了的照样补（想重画哪一格，把那一格的图移除就行）；换成自己的图、圈选改过的
+   *   也算留着 —— 不去盖掉用户亲手动过的格子。
+   * ★ 输入换过（stale）就按现在的设置整套画：留下的图是按旧输入画的，接着补会补出一个前后不是同一个人的角色。
+   *   换回去（方案、素材都还是那一份）它又作数 —— 记录还在，格子里的图也还在。
+   */
+  const aiPlan = (() => {
+    const p = aiPartial;
+    const live = !!p && p.schemeId === scheme.id && p.body === aiBody && p.face === aiFace && p.realPhoto === realPerson;
+    const keys = p && live ? p.keys : [];
+    const kept = pageSlots.filter((s) => {
+      const k = slotKey(scheme, s);
+      return keys.includes(k) && !!schemeShots[k];
+    });
+    return { todo: pageSlots.filter((s) => !kept.includes(s)), kept, stale: !!p && !live };
+  })();
+  /** AI 车道这一次的价：要画的那几格（schemeCost，只数生成型格）+ 一次看图写文案的对话。
    *  报价印在按钮上、实扣分两笔在各自成功后各扣一半——同一对常量，不另拼数（铁律六） */
-  const aiPrice = schemeCost(pageSlots) + CHAT_TURN_TOKENS;
+  const aiPrice = schemeCost(aiPlan.todo) + CHAT_TURN_TOKENS;
   const aiPriceText = fmtTokens(aiPrice);
+  /** 按钮上方那行里的两串图位名（显示名，只给人看） */
+  const aiKeptNames = aiPlan.kept.map((s) => s.tag).join(listSep);
+  const aiTodoNames = aiPlan.todo.map((s) => s.tag).join(listSep);
+  /** 按钮上的张数：这一次要画的格子 */
+  const aiTodoCount = aiPlan.todo.length;
+
+  /** portraitViews 画回来的图 → 按图位键放回格子的那一份。整套画成与半途失败两条路共用：收下半途的图与收下整套是同一种写法 */
+  function aiShotsOf(views: readonly PortraitView[]): Record<string, Shot> {
+    const got: Record<string, Shot> = {};
+    // ★ 放回格子按 v.slotKey（身份键）；v.tag 是写进 CardView 的值，这一页不拿它认格子
+    for (const v of views) got[v.slotKey] = { dataUrl: v.dataUrl, fileName: t`AI 生成` };
+    return got;
+  }
   /** 圈选改一格的价签（与 refineSlot 真扣的是同一个常量） */
   const refinePrice = fmtTokens(ONE_IMAGE);
 
-  /** AI 车道：素材 → 按方案逐格出图 → 看图写人物信息。失败整句说、成功才扣（铁律八） */
+  /** AI 车道：素材 → 按方案逐格出图 → 看图写人物信息。失败整句说、成功才扣（铁律八）；半途失败时画好的那几张留下（见 aiPlan） */
   async function runAiForge() {
     if (!aiBody || aiBusy) return;
+    // ★ 这一次画哪几格、报多少价在点下去这一拍取定（aiPlan 一处）：跑的过程中页面上再怎么变，这一发画的、扣的都是这几格
+    const { todo, kept } = aiPlan;
     if (AI_REAL && !canAfford(aiPrice)) {
       const w = walletOf();
       const balance = fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0));
-      setErr(t`AI 生成整套约 ${aiPriceText} token，余额 ${balance} 不够——去「我的」页充值，或改选「自己上传图片」（不花钱）`);
+      setErr(
+        kept.length > 0
+          ? t`补齐剩下的图位约 ${aiPriceText} token，余额 ${balance} 不够——去「我的」页充值，或改选「自己上传图片」（不花钱）`
+          : t`AI 生成整套约 ${aiPriceText} token，余额 ${balance} 不够——去「我的」页充值，或改选「自己上传图片」（不花钱）`,
+      );
       return;
     }
     setErr("");
     setAiBusy(t`准备中…`);
+    // ★ 半途失败时记进 aiPartial 的是**这一发**用的输入，不是回包那一拍页面上的（人可能中途换了素材）
+    const input = { schemeId: scheme.id, body: aiBody, face: aiFace, realPhoto: realPerson };
     // ★ 登记成后台任务：退出这一页它照跑，胶囊接手进度；结果写进 store，人回来原样在
     const job = startJob({ kind: "card-ai", title: t`AI 生成图位`, page: "/custom-card", route: "/custom-card", progress: t`准备中…` });
     try {
@@ -608,7 +661,8 @@ export default function CustomCardPage() {
         // ★ `{ ...scheme, … }` 这个展开**不能改成重建**（挑几位出来拼一个新对象、或者包一个小映射函数）：
         //   `builtin` 是可选位，漏了 tsc 不说话，而 portraitViews 正是拿这一位算键与 CardView.tag 的
         //   （promptSchemes.slotKey 那段 ★★）—— 翻译上线后这一整批图会落在本页根本不读的键上。
-        scheme: { ...scheme, slots: pageSlots },
+        // ★ 只交**这一次要画的**格子（上一次半途画好的不再画，见 aiPlan）；键只看格子本身，与它在 slots 里排第几无关
+        scheme: { ...scheme, slots: todo },
         bodyCrop: aiBody.dataUrl,
         faceCrop: aiFace?.dataUrl ?? null,
         subject: aiSubject.trim() || undefined,
@@ -621,14 +675,12 @@ export default function CustomCardPage() {
           job.update(st);
         },
       });
-      if (AI_REAL) spendTokens(schemeCost(pageSlots)); // 图那一半：出齐才扣
-      const shots: Record<string, Shot> = {};
-      // ★ 放回格子按 v.slotKey（身份键）；v.tag 是写进 CardView 的值，这一页不拿它认格子
-      for (const v of out) shots[v.slotKey] = { dataUrl: v.dataUrl, fileName: t`AI 生成` };
+      if (AI_REAL) spendTokens(schemeCost(todo)); // 图那一半：这一次要画的格子画齐才扣（与键上的价签同一个数）
       // ★★ **合并**不是整表替换（2026-09-01 复核抓到）：整表替换会把"换方案时收起来、
       //   换回去还能找回"的那几张一起删掉 —— 而那句承诺是 v2.42 刚修好的。
-      //   当前方案的每一格 AI 都会出，所以合并不会留下半新半旧。
-      setSchemeShots((prev) => ({ ...prev, ...shots }));
+      //   当前方案的每一格要么这一次画了、要么是上一次同一份输入画好留着的，所以合并不会留下半新半旧。
+      setSchemeShots((prev) => ({ ...prev, ...aiShotsOf(out) }));
+      setAiPartial(null); // 画齐了：上一次留下的与这一次画的合起来就是整套，下一次点又是整套重画
       // ★ 跑过 AI 就是走了 AI 这条路：lane 要表态。第③屏的标题按 lane 判
       //   （"AI 已按素材写好，可随意改"），而 aiOpen 让"面板开着"不再等于"lane 是 ai"。
       setLane("ai");
@@ -681,13 +733,49 @@ export default function CustomCardPage() {
       setStep("form");
       job.done({ msg: t`形象图生成好了，回去接着做卡`, silent: useCardDraft.getState().mounted });
     } catch (e) {
-      // ★★ 钱上的话按错误**类型**说，判定与措辞都在 ai/failCharge 一处。会抛到这里的实际上只有 portraitViews（一律是
-      //   ArkBatchPartial；它之后都是同步的状态写入，文案那一半自己接住了）：逐格出图、服务端按**张**结算，画到第 k 格才失败时
-      //   前 k-1 张的钱已经扣了 —— 此前这里一律说「一分钱没扣」。
-      //   回 null 才是真的没扣（离线 / 演示构建恒为 null：图那一半出齐才 spendTokens，说的还是原来那句）。
-      // ★ 「这一次画的图都没留下」是这一页的事实（portraitViews 整发抛、半途的图不落格子），所以由这一句说、不进钱上的那句
+      // ★★ 会抛到这里的实际上只有 portraitViews（一律是 PortraitViewsPartial；它之后都是同步的状态写入，文案那一半自己接住了）。
+      //   逐格出图、服务端按**张**结算：画到第 k 格才失败时，前面画好的那几张已经付过钱 —— 收下它们（real.PortraitViewsPartial
+      //   的 ★★：留下与离线记账两件事必须一起做），放进格子、记进 aiPartial，下一次只补剩下的（aiPlan）。
+      const drawn = e instanceof PortraitViewsPartial ? e.drawn : [];
+      const done = new Set(drawn.map((v) => v.slotKey));
+      /** 这一次画好了的那几格（todo 里的、按方案顺序）：离线实扣与说给人听的名字都从它来 */
+      const drawnSlots = todo.filter((s) => done.has(slotKey(scheme, s)));
+      if (drawnSlots.length > 0) {
+        // 与成功路径同一条合并写法（aiShotsOf）：留下的图与整套画成时落在同一套键上
+        setSchemeShots((prev) => ({ ...prev, ...aiShotsOf(drawn) }));
+        setAiPartial({ ...input, keys: [...kept.map((s) => slotKey(scheme, s)), ...drawnSlots.map((s) => slotKey(scheme, s))] });
+        // 离线账本按实际画好的张数扣（与报价同一把尺 schemeCost）；远端模式这一行是空操作 —— 服务端早按调用结算过了
+        if (AI_REAL) spendTokens(schemeCost(drawnSlots));
+      }
+      // ★★ 钱上的话按错误**类型**说，判定与措辞都在 ai/failCharge 一处（画好的那几张在两种账本里都已计费，chargeOnFail 据此说）。
+      //   回 null 才是真的没扣：一张没画成的离线 / 演示构建，或管理员（服务端不向他扣）。
+      // ★ 「画好的放进格子里了」是这一页的事实，由这一句说、不进钱上的那句。「只补剩下的」这个承诺不写进 err：
+      //   换过素材 / 方案之后它就不成立了，而 err 不会跟着变 —— 由按钮上方那行（按 aiPlan 现算）说
       const money = chargeNote(chargeOnFail(e), ONE_IMAGE);
-      if (money) {
+      const keptNames = drawnSlots.map((s) => s.tag).join(listSep);
+      if (drawnSlots.length > 0 && money) {
+        const moneyBrief = money.brief;
+        const moneyLine = money.line;
+        const reason = briefArkReason(e, 120);
+        job.fail(
+          t({
+            message: `形象图只画成了一部分（${moneyBrief}），画好的留着，回去补剩下的`,
+            comment: "moneyBrief 是括号里的一个短语，说钱扣没扣（ai/failCharge.chargeNote 的 brief：已经画好的 N 张已计费…）",
+          }),
+          "/custom-card",
+        );
+        setErr(
+          t({
+            message: `形象图只画成了一部分：${reason}。${moneyLine}画好的「${keptNames}」已经放进格子里了，剩下的可以再补——也可以改选自己传图`,
+            comment: "moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格。keptNames 是几个图位名",
+          }),
+        );
+      } else if (drawnSlots.length > 0) {
+        // 画好了几张、却一分钱没扣：只有管理员（服务端免扣费）会走到这里
+        const why = (e instanceof Error ? e.message : String(e)).slice(0, 120);
+        job.fail(t`形象图只画成了一部分（没扣钱），画好的留着，回去补剩下的`, "/custom-card");
+        setErr(t`形象图只画成了一部分：${why}——没扣钱。画好的「${keptNames}」已经放进格子里了，剩下的可以再补，也可以改选自己传图`);
+      } else if (money) {
         const moneyBrief = money.brief;
         const moneyLine = money.line;
         const reason = briefArkReason(e, 120);
@@ -700,7 +788,7 @@ export default function CustomCardPage() {
         );
         setErr(
           t({
-            message: `形象图没画成：${reason}。${moneyLine}这一次画的图都没留下，可以再试或改选自己传图`,
+            message: `形象图没画成：${reason}。${moneyLine}可以再试或改选自己传图`,
             comment: "moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格",
           }),
         );
@@ -1566,6 +1654,26 @@ export default function CustomCardPage() {
                 placeholder={t`一句主体描述（选）：例「银白长发的星星发夹少女」`}
                 className="mt-2 w-full rounded-lg border border-slate-700 bg-ink/50 px-2.5 py-2 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
               />
+              {/* 上一次画到半途失败留下的那几张（aiPlan 现算：换过素材 / 方案它就不作数，这行随之换成下面那句）。
+                  「只补剩下的」这个承诺只说在这里，不写进 err —— err 不会跟着输入变 */}
+              {aiPlan.kept.length > 0 && (
+                <div className="mt-2 flex items-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5">
+                  <span className="flex flex-none gap-1">
+                    {aiPlan.kept.map((s) => (
+                      <img key={slotKey(scheme, s)} src={schemeShots[slotKey(scheme, s)]?.dataUrl} alt={s.tag} className="h-10 w-8 rounded object-cover" />
+                    ))}
+                  </span>
+                  <span className="min-w-0 text-[10px] leading-relaxed text-emerald-300">
+                    <Trans>上次画好的「{aiKeptNames}」还在格子里，这一次只补「{aiTodoNames}」</Trans>
+                  </span>
+                </div>
+              )}
+              {aiPlan.stale && (
+                <p className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200/90">
+                  {/* 与提取窗那句同一个 msgid：两处的输入各不相同（这里还有走没走真人素材那条路），所以只说「设置换过了」 */}
+                  <Trans>上次没画完的那几张是按换之前的设置画的，这一次整套重画</Trans>
+                </p>
+              )}
               <button
                 onClick={() => void runAiForge()}
                 disabled={!aiBody || !!aiBusy}
@@ -1573,9 +1681,12 @@ export default function CustomCardPage() {
                 className="mt-2.5 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
               >
                 {aiBusy ||
-                  (AI_REAL
-                    ? t`✨ 生成 ${pageSlots.length} 张图位与人物信息（${aiPriceText}）`
-                    : t`✨ 生成 ${pageSlots.length} 张图位与人物信息`)}
+                  // 留着的那几张只会来自真实构建（演示档从不半途失败），所以这一档只有带价签的一种说法
+                  (aiPlan.kept.length > 0
+                    ? t`✨ 补齐剩下的 ${aiTodoCount} 张图位与人物信息（${aiPriceText}）`
+                    : AI_REAL
+                      ? t`✨ 生成 ${pageSlots.length} 张图位与人物信息（${aiPriceText}）`
+                      : t`✨ 生成 ${pageSlots.length} 张图位与人物信息`)}
               </button>
             </div>
             )}

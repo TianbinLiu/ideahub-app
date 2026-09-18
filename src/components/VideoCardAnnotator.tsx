@@ -12,7 +12,7 @@
 // ★ 人物卡的"定段取声音样本"是阶段 2（等参考音频音色跟随的实听结论），本组件先留位。
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { AI_REAL, briefArkReason, chargeNote, chargeOnFail, portraitViews } from "../ai";
+import { AI_REAL, PortraitViewsPartial, briefArkReason, chargeNote, chargeOnFail, portraitViews } from "../ai";
 import { addCards, bindCardAsset, canAfford, createDeck, spendTokens } from "../data/account";
 import { ONE_IMAGE, fmtTokens, schemeCost } from "../data/economy";
 import { VOICE_MAX_SEC, VOICE_MIN_SEC, saveVoice } from "../data/cardVoice";
@@ -29,6 +29,7 @@ import {
   schemeOf,
   schemesVersion,
   setSchemeExamples,
+  slotKey,
   subscribeSchemes,
   SCHEME_EXAMPLE_MAX,
   SCHEME_EXAMPLE_MAX_W,
@@ -91,13 +92,29 @@ const DEFAULT_TOOL: Record<CardType, Tool> = {
 };
 
 /**
+ * 上一次「炼形象图」画到半途失败时，已经画好（已计费）的那几格（2026-09-17）。按图位键（promptSchemes.slotKey）存。
+ * ★★ 与原片裁剪怎么共存：`crops` 仍是原片裁剪（这时直接存卡，存的就是原片），画好的图先放在这里、不进 crops ——
+ *   把半套 AI 图和半套原片拼成一张卡，出片时一格像 AI 画的、一格是原片截图，前后对不上。补齐剩下的之后才整套换进 crops
+ *   （rawCrops 记原片，「↺ 用回原片」照旧能撤）。
+ * ★ 输入（方案 / 原片裁剪 / 真人照片锁定）换过就不作数：接着补会补出一个前后不是同一个人的角色。原片裁剪按**数组身份**比
+ *   （重圈、再标一张脸都会换一个新数组）。判据只在组件里的 plan 一处。
+ */
+type PortraitPartial = { schemeId: string; raw: Crop[]; realPhoto: boolean; drawn: Record<string, Crop> };
+
+/**
  * 离开时还没存的 AI 图位（真花了钱的）—— 停在模块里，下次打开这一窗原样接回来。
  * ★ 组件卸载后 setCrops 打在空气上，portraitViews 的产物会静默丢掉（2026-09-05 主人点名
  *   "退出页面不能打断生成"）。停的只有"存卡需要的那几样"，视频本身不停（objectURL 已随
  *   卸载释放）—— 接回来直接落在命名那一屏，能存卡；要重圈得重新选视频。
+ * ★ 画到半途失败时停的是原片裁剪 + 已经画好的那几格（`partial`）：接回来照样只补剩下的（2026-09-17）。
  */
 let parked: {
+  /** 命名屏上摆的那几张：炼齐了是形象图，半途失败时是原片裁剪 */
   crops: Crop[];
+  /** crops 是炼好的形象图时，原片裁剪（「↺ 用回原片」要它）；crops 本身就是原片时为 null */
+  raw: Crop[] | null;
+  /** 半途失败时已经画好的那几格。raw 不另存：接回来的 crops 就是那一份原片裁剪 */
+  partial: Omit<PortraitPartial, "raw"> | null;
   type: CardType;
   name: string;
   summary: string;
@@ -128,6 +145,8 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
   const [summary, setSummary] = useState("");
   /** AI 立绘生成前的原片裁剪（撤销用）。null = 当前 crops 就是原片 */
   const [rawCrops, setRawCrops] = useState<Crop[] | null>(null);
+  /** 上一次炼形象图画到半途失败时留下的那几格（见 PortraitPartial 的 ★★；用法只在 plan） */
+  const [partial, setPartial] = useState<PortraitPartial | null>(null);
   /** 选中的提示词方案（决定这张卡出哪几个图位）。缺省 = 干净立绘（老行为） */
   const [schemeId, setSchemeId] = useState<string>(defaultScheme().id);
   /** 方案选择器展开着？ */
@@ -190,12 +209,15 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
 
   /** 窗还开着没有：后台任务的结局分叉（在 → 画在窗里；不在 → 图停进 parked + 胶囊通知） */
   const mountedRef = useRef(true);
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    // ★ 挂载时要置回 true（2026-09-17 验半途失败时撞见）：StrictMode 在 dev 里把 effect 走一遍「挂载→卸载→挂载」，
+    //   原来只在 cleanup 里置 false，于是 dev 里它从第一拍起就恒为 false —— 炼好的图一律当成「窗已关」停进 parked，
+    //   窗开着却什么都不出，要关窗重开才接得回来。正式包没有这次模拟卸载，所以一直没人看见
+    mountedRef.current = true;
+    return () => {
       mountedRef.current = false;
-    },
-    [],
-  );
+    };
+  }, []);
   /** 上次离开时停在模块里的 AI 图位接回来了（见 parked）：没有视频也直接落在命名屏 */
   const [restored, setRestored] = useState(false);
   useEffect(() => {
@@ -206,7 +228,11 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
     const pk = parked;
     parked = null;
     setCrops(pk.crops);
-    setRawCrops(null);
+    // ★ 炼齐了的那一份带着原片接回来：「↺ 用回原片」照旧能撤（此前这里恒 null，接回来的形象图被当成原片，
+    //   方案选择器与「炼形象图」又摆出来，再点一次就是拿 AI 图当参考重画一遍）
+    setRawCrops(pk.raw);
+    // ★ 半途留下的那几格按**同一个数组**认原片（plan 按数组身份比）：接回来的 crops 就是当时那一份原片裁剪
+    setPartial(pk.partial ? { ...pk.partial, raw: pk.crops } : null);
     setType(pk.type);
     setName(pk.name);
     setSummary(pk.summary);
@@ -470,33 +496,57 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
   }
 
   /**
+   * 这一次「炼形象图」要画哪几格 —— **唯一实现**：键上的价签、余额门、交给 portraitViews 的格子、离线实扣都读它
+   * （CLAUDE.md「同一笔钱在第二个地方再算一次报价」那一格）。
+   * ★ 上一次画到半途失败（partial）、而且方案 / 原片裁剪 / 真人勾选都没换过时，只补剩下的格子；换过就按现在的设置整套画
+   *   （stale：留下的图是按旧输入画的）。换回去它又作数 —— 记录还在。
+   * ★ `todo` 里可能有 fromCrop 的格子（原片截图）：那种不调模型、不计费，每一次都从原片裁剪现放，所以不当成"留着"的。
+   */
+  const plan = (() => {
+    const scheme = schemeOf(schemeId) ?? defaultScheme();
+    const p = partial;
+    const live = !!p && p.schemeId === scheme.id && p.raw === crops && p.realPhoto === realPerson;
+    const kept: Record<string, Crop> = p && live ? p.drawn : {};
+    const keptSlots = scheme.slots.filter((s) => !!kept[slotKey(scheme, s)]);
+    const todo = scheme.slots.filter((s) => !keptSlots.includes(s));
+    return { scheme, kept, keptSlots, todo, price: schemeCost(todo), stale: !!p && !live };
+  })();
+  /** 按钮上方那行与按钮上的名字、张数（显示名只给人看） */
+  const keptNames = plan.keptSlots.map((s) => s.tag).join(sep);
+  const todoNames = plan.todo.filter(isGenerated).map((s) => s.tag).join(sep);
+  const todoCount = plan.todo.filter(isGenerated).length;
+
+  /**
    * 「按提示词方案炼形象图」（人物卡命名屏的可选付费步）：拿圈选裁剪当 i2i 参考，
    * **按所选方案的图位**逐格出图（无脸白模三视图 / 分栏设定规格图 / 干净立绘…）。
    *
-   * ★ 报价与实扣读**同一个** `schemeCost(scheme.slots)`（按钮上印的、这里判余额的、
-   *   真扣钱的三处同源）—— 抄第二份就是本仓头号事故的形状：页面按 2 张报价、
-   *   实际炼了 3 张，多出来那张照扣钱且两个方向都不报错。
+   * ★ 报价与实扣读**同一个** `plan.price`（按钮上印的、这里判余额的、真扣钱的三处同源）——
+   *   抄第二份就是本仓头号事故的形状：页面按 2 张报价、实际炼了 3 张，多出来那张照扣钱且两个方向都不报错。
    * ★ 原片裁剪**不丢**：方案里那个 `fromCrop` 的格子直接放它（不调模型、不计费），
    *   没有这种格子时也留在 rawCrops 里供「↺ 用回原片」撤销。
+   * ★ 画到半途失败时画好的那几张不丢（2026-09-17）：留在 partial 里，下一次只补剩下的（见 plan 与 PortraitPartial 的 ★★）。
    */
   async function makePortraits() {
     if (busy || crops.length === 0) return;
-    const scheme = schemeOf(schemeId) ?? defaultScheme();
-    const price = schemeCost(scheme.slots);
+    // ★ 这一次画哪几格、报多少价在点下去这一拍取定：跑的过程中窗里再怎么变，这一发画的、扣的都是这几格
+    const { scheme, kept, todo, price } = plan;
     if (AI_REAL && !canAfford(price)) {
-      const imgs = scheme.slots.filter(isGenerated).length;
+      const imgs = todo.filter(isGenerated).length;
       setErr(t`「${scheme.title}」要炼 ${imgs} 张图、约 ${fmtTokens(price)} token，余额不够——去「我的」页充值`);
       return;
     }
     setErr("");
     const raw = crops;
+    /** 半途失败时记进 partial 的是**这一发**的输入（人可能中途勾掉了「真人」） */
+    const input = { schemeId: scheme.id, raw, realPhoto: realPerson };
     // ★ 登记成后台任务：窗关了也照画；画完窗不在就把图停进 parked，胶囊叫人回来存卡
     const job = startJob({ kind: "card-ai", title: t`AI 生成图位`, page: "/workshop", route: "/workshop", progress: t`准备中…` });
     try {
       const body = raw.find((c) => c.role === "primary") ?? raw[0];
       const face = raw.find((c) => c.role === "face");
       const out = await portraitViews({
-        scheme,
+        // 只交这一次要画的格子（上一次半途画好的不再画）；键只看格子本身，与它在 slots 里排第几无关
+        scheme: { ...scheme, slots: todo },
         bodyCrop: body.dataUrl,
         faceCrop: face?.dataUrl ?? null,
         subject: summary.trim() || name.trim(),
@@ -507,24 +557,79 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
           job.update(st);
         },
       });
-      if (AI_REAL) spendTokens(price);
-      const made: Crop[] = out.map((v) => ({ role: v.role, tag: v.tag, dataUrl: v.dataUrl }));
+      if (AI_REAL) spendTokens(price); // 这一次要画的格子画齐才扣（与键上的价签同一个数）
+      // 按方案顺序拼整套：上一次留下的 + 这一次画的（fromCrop 那一格这一次照样从原片裁剪现放）
+      const got = new Map(out.map((v) => [v.slotKey, v]));
+      const made: Crop[] = scheme.slots.flatMap((s) => {
+        const v = kept[slotKey(scheme, s)] ?? got.get(slotKey(scheme, s));
+        return v ? [{ role: v.role, tag: v.tag, dataUrl: v.dataUrl }] : [];
+      });
       if (!mountedRef.current) {
         // 窗已经关了：图停在模块里，下次打开这一窗接回来（见 parked 的 ★）
-        parked = { crops: made, type: type ?? "character", name, summary, schemeId, realPerson, consentOk, pendingAsset, pendingVoice, at: Date.now() };
+        parked = { crops: made, raw, partial: null, type: type ?? "character", name, summary, schemeId, realPerson, consentOk, pendingAsset, pendingVoice, at: Date.now() };
         job.done({ msg: t`AI 图位生成好了——回工坊点「从视频提取」接着存卡`, route: "/workshop" });
         return;
       }
+      setPartial(null); // 画齐了：留下的与这一次画的已经合进 made
       setRawCrops(raw);
       setCrops(made);
       job.done({ silent: true });
     } catch (e) {
       // 失败不动原 crops（原片裁剪照旧能存卡），但必须整句说清（铁律八）
+      // ★★ 画好的那几张（PortraitViewsPartial.drawn）已经付过钱：收下、留在 partial 里，下一次只补剩下的；离线账本按张记上
+      //   （real.PortraitViewsPartial 的 ★★：留下与记账两件事必须一起做）。它们不进 crops，理由见 PortraitPartial 的 ★★
+      const drawn = e instanceof PortraitViewsPartial ? e.drawn : [];
+      const done = new Set(drawn.map((v) => v.slotKey));
+      /** 这一次画好了的那几格（todo 里的、按方案顺序）：离线实扣与说给人听的名字都从它来 */
+      const drawnSlots = todo.filter((s) => done.has(slotKey(scheme, s)));
+      const drawnNames = drawnSlots.map((s) => s.tag).join(sep);
+      /** 留着的全部：上一次留下的 + 这一次画好的 */
+      const merged: Record<string, Crop> = { ...kept };
+      for (const v of drawn) merged[v.slotKey] = { role: v.role, tag: v.tag, dataUrl: v.dataUrl };
+      // 与报价同一把尺；远端模式是空操作（服务端早按调用结算过了）
+      if (drawnSlots.length > 0 && AI_REAL) spendTokens(schemeCost(drawnSlots));
+      if (!mountedRef.current) {
+        // 窗已经关了：原片裁剪连同留着的那几格停进模块里，下次打开接回来照样只补剩下的。
+        // ★ 判「留着的」不判「这一次画好的」：补画那一发一张没画成时，上一次留下的（已付费）照样要停 —— 窗一卸载，state 里那份就没了
+        if (Object.keys(merged).length > 0) {
+          parked = { crops: raw, raw: null, partial: { schemeId: input.schemeId, realPhoto: input.realPhoto, drawn: merged }, type: type ?? "character", name, summary, schemeId, realPerson, consentOk, pendingAsset, pendingVoice, at: Date.now() };
+        }
+      } else if (drawnSlots.length > 0) {
+        setPartial({ ...input, drawn: merged });
+      }
       // ★★ 钱上的话按错误**类型**说，判定与措辞都在 ai/failCharge 一处（与 CustomCardPage.runAiForge 同一份）：逐格出图、服务端按**张**
-      //   结算，画到第 k 格才失败时前 k-1 张的钱已经扣了，而胶囊上此前一律写「没扣钱」。回 null 才是真的没扣
-      //   （离线 / 演示构建恒为 null：出齐才 spendTokens，说的还是原来那两句）。
+      //   结算，画到第 k 格才失败时前 k-1 张的钱已经扣了（离线账本也在上面记了）。回 null 才是真的没扣：
+      //   一张没画成的离线 / 演示构建，或管理员（服务端不向他扣）。
       const money = chargeNote(chargeOnFail(e), ONE_IMAGE);
-      if (money) {
+      const here = mountedRef.current;
+      if (drawnSlots.length > 0 && money) {
+        const moneyBrief = money.brief;
+        const moneyLine = money.line;
+        const reason = briefArkReason(e, 120);
+        job.fail(
+          here
+            ? t({
+                message: `形象图只画成了一部分（${moneyBrief}），画好的先留着`,
+                comment: "moneyBrief 是括号里的一个短语，说钱扣没扣（ai/failCharge.chargeNote 的 brief：已经画好的 N 张已计费…）",
+              })
+            : t({
+                message: `形象图只画成了一部分（${moneyBrief}）——回工坊点「从视频提取」补剩下的`,
+                comment: "moneyBrief 是括号里的一个短语，说钱扣没扣（ai/failCharge.chargeNote 的 brief：已经画好的 N 张已计费…）",
+              }),
+          "/workshop",
+        );
+        setErr(
+          t({
+            message: `形象图只画成了一部分：${reason}。${moneyLine}画好的「${drawnNames}」先留着，补齐剩下的就一起换上；原片裁剪没受影响，也可以直接存`,
+            comment: "moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格。drawnNames 是几个图位名",
+          }),
+        );
+      } else if (drawnSlots.length > 0) {
+        // 画好了几张、却一分钱没扣：只有管理员（服务端免扣费）会走到这里
+        job.fail(here ? t`形象图只画成了一部分（没扣钱），画好的先留着` : t`形象图只画成了一部分（没扣钱）——回工坊点「从视频提取」补剩下的`, "/workshop");
+        const why = (e instanceof Error ? e.message : String(e)).slice(0, 120);
+        setErr(t`形象图只画成了一部分：${why}——没扣钱。画好的「${drawnNames}」先留着，补齐剩下的就一起换上；原片裁剪没受影响，也可以直接存`);
+      } else if (money) {
         const moneyBrief = money.brief;
         const moneyLine = money.line;
         const reason = briefArkReason(e, 120);
@@ -537,7 +642,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
         );
         setErr(
           t({
-            message: `形象图没画成：${reason}。${moneyLine}这一次画的图没留下；原片裁剪没受影响，可以直接存或再试一次`,
+            message: `形象图没画成：${reason}。${moneyLine}原片裁剪没受影响，可以直接存或再试一次`,
             comment: "moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格",
           }),
         );
@@ -649,6 +754,8 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
       setSaved((s) => [...s, card]);
       setCrops([]);
       setRawCrops(null);
+      // 这张卡存完了：它没补齐的那几格不带到下一张（留着只会在下一张卡上说一句"上次没画完的…"）
+      setPartial(null);
       setName("");
       setSummary("");
       setType(null);
@@ -710,6 +817,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
               setType(null);
               setShape(null);
               setCrops([]);
+              setPartial(null); // 换了一段视频：上一段里没补齐的那几格与之后圈的人无关
             }
           }}
         />
@@ -1023,15 +1131,42 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                       </div>
                     </div>
                   )}
+                  {/* 上一次画到半途失败留下的那几张（plan 现算：换过方案 / 裁剪 / 真人勾选就不作数，这行随之换成下面那句）。
+                      「只补剩下的」这个承诺只说在这里，不写进 err —— err 不会跟着输入变 */}
+                  {plan.keptSlots.length > 0 && (
+                    <div className="flex items-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5">
+                      <span className="flex flex-none gap-1">
+                        {plan.keptSlots.map((s) => (
+                          <img
+                            key={slotKey(plan.scheme, s)}
+                            src={plan.kept[slotKey(plan.scheme, s)]?.dataUrl}
+                            alt={s.tag}
+                            className="h-10 w-8 rounded object-cover"
+                          />
+                        ))}
+                      </span>
+                      <span className="min-w-0 text-[10px] leading-relaxed text-emerald-300">
+                        <Trans>上次画好的「{keptNames}」先留着，这一次只补「{todoNames}」；直接存卡用的是原片裁剪</Trans>
+                      </span>
+                    </div>
+                  )}
+                  {plan.stale && (
+                    <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200/90">
+                      <Trans>上次没画完的那几张是按换之前的设置画的，这一次整套重画</Trans>
+                    </p>
+                  )}
                   <button
                     onClick={() => void makePortraits()}
                     disabled={!!busy}
                     className="w-full rounded-xl border border-brand/50 bg-brand/10 py-2.5 text-xs font-semibold text-brand disabled:opacity-40"
                   >
                     {busy ||
-                      (AI_REAL
-                        ? t`✨ 按这套方案炼形象图（${portraitCount} 张 · 约 ${fmtTokens(schemeCost((schemeOf(schemeId) ?? defaultScheme()).slots))}）`
-                        : t`✨ 按这套方案炼形象图（${portraitCount} 张 · 演示）`)}
+                      // 留着的那几张只会来自真实构建（演示档从不半途失败），所以这一档只有带价签的一种说法
+                      (plan.keptSlots.length > 0
+                        ? t`✨ 补齐剩下的 ${todoCount} 张形象图（约 ${fmtTokens(plan.price)}）`
+                        : AI_REAL
+                          ? t`✨ 按这套方案炼形象图（${portraitCount} 张 · 约 ${fmtTokens(plan.price)}）`
+                          : t`✨ 按这套方案炼形象图（${portraitCount} 张 · 演示）`)}
                   </button>
                 </div>
               ))}
