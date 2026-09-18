@@ -1551,6 +1551,17 @@ const likedIds = new Set<string>();
 const idAlias = new Map<string, string>();
 /** 已经补过详情（评论）的视频，避免每次 getVideo 都打一次 */
 const detailed = new Set<string>();
+/**
+ * 这几条被换成了**新的列表级对象**（没有评论）：它们「详情取过了」的记号作废，下一次 loadDetail 才会重取。
+ * ★ 记号跟着的是**对象**不是 id —— 整份重拉（refreshFeed / refreshFollowingFeed）换掉对象而不清记号，
+ *   正是「首页回来之后评论区空了」那一条（见 refreshFeed 的 ★）。
+ */
+function forgetDetails(items: VideoItem[]): void {
+  for (const v of items) {
+    detailed.delete(v.id);
+    detailed.delete(realId(v.id));
+  }
+}
 /** 列表分页游标；留给后续「上拉加载更多」用 */
 let nextCursor: string | null = null;
 
@@ -1707,6 +1718,10 @@ export async function refreshFeed(opts: { minAgeMs?: number } = {}): Promise<boo
       const freshIds = new Set(fresh.map((v) => v.id));
       const localOnly = cache.filter((v) => !onServer(v) && !freshIds.has(v.id));
       cache = [...localOnly, ...fresh];
+      // ★ 换进来的是**列表级**对象（契约：列表不带 comments，详情才带前 50 条）。「详情取过了」那份记号不跟着清的话，
+      //   loadDetail 按 detailed 去重直接早退 —— 评论抽屉与详情页从此显示「还没有评论」，而侧栏计数还是 N
+      //   （2026-09-18，2.46 发版前复核抓到）。清掉，下一次打开就重取；只有打开详情 / 评论才会取，不是整页都拉。
+      forgetDetails(fresh);
       nextCursor = res.nextCursor;
       feedFetchedAt = Date.now();
       emitVideos();
@@ -1740,6 +1755,8 @@ export async function refreshFollowingFeed(opts: { minAgeMs?: number } = {}): Pr
         const inFeed = feedNow.find((v) => v.id === item.id);
         if (inFeed) return inFeed;
         byId.set(item.id, item);
+        // ★ 同 refreshFeed：旁路表里换成了新的列表级对象，它的「详情取过了」记号要一起作废
+        forgetDetails([item]);
         return item;
       });
       followingFetchedAt = Date.now();
@@ -2096,7 +2113,17 @@ export type ReviseResult =
  *   而线上还是老内容，且再也没有人会发现（这正是 2026-08-10 删掉回炉的理由②的形状）。
  */
 export async function reviseVideo(id: string, draft: DraftVideo, baseRevision: number): Promise<ReviseResult> {
-  const v0 = find(id);
+  let v0 = find(id);
+  // ★ 本机没有就去服务端问一次（2026-09-18，2.46 发版前复核抓到）：远端模式下 cache 只有推荐流那 30 条，
+  //   重启之后从「我的 → 接着剪 → 替换原作品」走到这里，作品多半不在里面 —— 原来直接回「已经不在了」，
+  //   回炉在重启之后就永久走不通，除非碰巧先点开过那条作品的详情页。
+  // ★ 结局照 fetchVideoById 的四档分开说：只有服务端明说没有才是「不在了」，没问到不许说成不在了。
+  if (!v0 && remoteOn()) {
+    const look = await fetchVideoById(id);
+    if (look.status === "ok") v0 = look.video;
+    else if (look.status !== "missing")
+      return { ok: false, kind: "network", why: t`这次没能向服务器确认这条作品，内容没有被替换。合成稿还留在「我的」里，稍后再试一次。` };
+  }
   if (!v0) return { ok: false, kind: "blocked", why: t`这条作品已经不在了。` };
   if (!remoteOn()) {
     // ★ 离线/没连上时**整句拒**，不做"仅本地生效"：本地改了、服务端没改，下次冷启动

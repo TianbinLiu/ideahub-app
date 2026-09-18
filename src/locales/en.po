@@ -2859,6 +2859,10 @@ msgstr "QQ sign-in couldn't start. Restart the app and try again, or sign in wit
 msgid "QQ 登录要在 App 里用（浏览器中没有 QQ 客户端可以拉起），先用邮箱或手机号登录"
 msgstr "QQ sign-in only works in the app (a browser has no QQ client to open) — sign in with email or phone for now"
 
+#: src/utils/nativeLoginError.ts
+msgid "QQ 这次没有给回授权码，请再点一次，或者用手机号、邮箱登录。"
+msgstr "QQ didn't send back an authorization code this time. Tap again, or sign in with your phone number or e-mail."
+
 #: src/ai/arkClient.ts
 msgid "Seedance 任务{status}"
 msgstr "Seedance task {status}"
@@ -11132,6 +11136,10 @@ msgstr "The server couldn't delete this card ({why}). The copy on this device st
 msgid "服务器没能删掉这条作品（{why}）。本地这份先留着——删了它下次启动也会回来。"
 msgstr "The server couldn't delete this video ({why}). The copy on this device stays for now — if you deleted it, it would come back the next time the app starts."
 
+#: src/data/videoJobs.ts
+msgid "服务器登记的这一发已经过了 24 小时，成片取不到了。如果你当时已经在别处拿到了它，忽略这条就好。"
+msgstr "This job from the server's records is more than 24 hours old, so its video can no longer be fetched. If you already got it somewhere else back then, just ignore this."
+
 #: src/api/branch.ts
 msgid "服务器说结果取回成功了，却没有返回模板信息（可能是旧版服务端）。这一步本身不花钱，钱在开炼那一步已经付过——去「我的模板」确认一下有没有新模板，没有的话请把这句话反馈给我们。"
 msgstr "The server said the result was recovered, but it didn't return the template info (it may be an older server version). This step itself costs nothing — the charge was already paid when the blockout started. Check “My templates” for a new template, and if there isn't one, please send us this message."
@@ -17058,6 +17066,10 @@ msgstr "This job can no longer be recovered: Ark keeps videos on its servers for
 msgid "这一发我们不再跟进了：任务号还在下面，如果一直没取回来，把它发给客服还有机会。已经花掉的钱我们这边退不了——重新生成是再花一次钱。"
 msgstr "We've stopped tracking this job: the job ID is below, and if it never comes back, sending it to support may still help. The money already spent can't be refunded on our side — regenerating costs again."
 
+#: src/components/flow/SegmentRecoverCards.tsx
+msgid "这一发我已经拿到了，不用再提醒"
+msgstr "I already have this one, don't remind me"
+
 #: src/components/TemplateShelf.tsx
 msgid "这一发白模化已经取不回来了"
 msgstr "This blockout job can no longer be recovered"
@@ -17216,6 +17228,10 @@ msgid "这一段可以开炼：{0}"
 msgstr "Ready to start: {0}"
 
 #: src/studio/flowStore.ts
+msgid "这一段后面还有别的段：退回铸段窗重铸只能接在最后。想换这一段的模式，先删掉它后面的几段再退。"
+msgstr "There are more segments after this one: going back to the segment window re-forges it at the end of the pipeline. To change this segment's mode, delete the segments after it first, then go back."
+
+#: src/studio/flowStore.ts
 msgid "这一段在生成过程中被删掉了（或整条流水线被换过）——这一炉的钱已经扣了，成片没处放。下次等它跑完再动流水线"
 msgstr "This segment was deleted while generating (or the pipeline was replaced) — the run has already been charged and the video has nowhere to go. Next time, wait for it to finish before changing the pipeline"
 
@@ -17255,6 +17271,7 @@ msgstr "This segment already has a video: to change the visuals, delete it and a
 msgid "这一段已经出片：换模板会作废这段成片。想换就删除本段重加，或先接受重炼这一段的花费"
 msgstr "This segment already has a video: changing the template discards it. To change it, delete the segment and add it again, or accept the cost of regenerating this segment first"
 
+#: src/studio/flowStore.ts
 #: src/studio/studioStore.ts
 msgid "这一段已经出片了，退不回铸段窗——想换就删掉这一段再铸"
 msgstr "This segment already has a video, so it can't go back to the segment window — to change it, delete this segment and forge it again"
@@ -18512,6 +18529,10 @@ msgstr "This submission deletes number <0>{doomedList}</0> (just this one role s
 #: src/pages/CardDetailPage.tsx
 msgid "这次没取到这张卡：{0}"
 msgstr "Couldn't get this card this time: {0}"
+
+#: src/data/videos.ts
+msgid "这次没能向服务器确认这条作品，内容没有被替换。合成稿还留在「我的」里，稍后再试一次。"
+msgstr "Couldn't confirm this work with the server this time, so the content wasn't replaced. The merged draft is still on the Me page — try again later."
 
 #: src/data/videos.ts
 msgid "这次没连上服务器，内容没有被替换。合成稿还留在「我的」里，联网后再试一次。"

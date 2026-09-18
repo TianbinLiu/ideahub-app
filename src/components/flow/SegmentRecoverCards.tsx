@@ -20,6 +20,7 @@ import {
   recoverableVideoJobs,
   subscribeVideoJobs,
   videoJobExpired,
+  videoJobFromServer,
   videoJobNote,
   videoJobsVersion,
   type VideoJob,
@@ -141,6 +142,17 @@ export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean
           ) : (
             <Trans>📥 取回到这条流水线（新开一段 · 不再花钱）</Trans>
           )}
+        </button>
+      )}
+      {/* ★ 服务端登记表补来的那种没过期也能消掉（data/videoJobs.videoJobFromServer 的 ★，2026-09-18）：
+          登记表不知道谁取回了哪一发，这一发很可能在别的设备 / 官网上早就拿到了 —— 只给「取回」一颗键，
+          等于逼他把一段已经有了的片子再落一遍流水线。本机自己交的那种照旧只在过期后给「知道了」。 */}
+      {!expired && videoJobFromServer(job) && !working && (
+        <button
+          onClick={() => dismissVideoJob(job)}
+          className="mt-1 w-full rounded-full py-1 text-[10px] text-slate-400 underline underline-offset-2"
+        >
+          <Trans>这一发我已经拿到了，不用再提醒</Trans>
         </button>
       )}
       {/* 进度摆在按钮下面而不是塞进按钮里：它是整句（"正在向方舟核对…"），塞进去会折行 */}

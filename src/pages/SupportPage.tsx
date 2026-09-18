@@ -721,7 +721,10 @@ export default function SupportPage() {
 
       {historyOpen && <HistorySheet name={name} messages={messages} onClose={() => setHistoryOpen(false)} />}
 
-      {voiceSheetOpen && (
+      {/* ★ 等设置与客服配置**都有了结果**才挂（2026-09-18，2.46 发版前复核抓到）：VoiceSheet 只在挂上那一拍拿
+          settings 初始化表单、之后不再同步。创作中心带 ?sheet=voice 跳回来时面板在开页那一拍就掀开了 —— 表单是空的，
+          点「保存」就把音色 / 语速 / 口吻整份写成空值，盖掉他存过的声音。 */}
+      {voiceSheetOpen && settingsSettled && config && (
         <VoiceSheet name={name} settings={settings} merged={config?.voiceSettings} onClose={() => setVoiceSheetOpen(false)} onSaved={refreshCompanion} />
       )}
 

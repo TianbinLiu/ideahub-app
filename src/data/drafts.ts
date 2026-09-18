@@ -174,7 +174,8 @@ function persistIndex() {
 
 /**
  * 新建或更新一份草稿。返回落库后的索引项；写失败返回 null（配额满/隐私模式/索引没读出来）——
- * 调用方必须把这个 null 报给用户，不能静默当成保存成功（铁律八）；原因用 draftSaveFailReason() 说。
+ * 调用方必须把这个 null 报给用户，不能静默当成保存成功（铁律八）：索引没读出来那一档用 draftsUnavailableText() 说
+ * （判 draftsLoadIssue()），配额满 / 隐私模式由调用方整句说。（原来这里指的 draftSaveFailReason() 从没存在过。）
  */
 export async function saveDraft(input: {
   id?: string | null;

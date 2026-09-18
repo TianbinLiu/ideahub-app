@@ -18,9 +18,10 @@
 // ★★ 与 `data/templates.ts` 的 `BlockoutJob` 是**同一个形状、不同的存放地**，别把两者
 //   的规则互相搬：那边的凭据由**服务端**发（阶段一 `startBlockoutize` 落库），所以那边
 //   立了「这份名单只有服务端说得准，本机不存第二份」的规矩；而这里的方舟任务是
-//   **客户端自己建的**（POST /api/ark/contents/generations/tasks，服务端只当代理计费，
-//   不落业务凭据），**本机是唯一知道任务号的人**。要把这份名单搬到服务端得先改跨仓契约
-//   （铁律：服务端要先发）—— 那是另一件事，不是这一件的前提。
+//   **客户端自己建的**（POST /api/ark/contents/generations/tasks），这份名单的正本在本机。
+//   ⚠ 2026-09-06 起服务端**受理即登记**了一份（server `ArkVideoTask`，GET /api/ark/video-tasks，见下面的
+//   importServerVideoJobs）—— 但它只记"受理过哪几发"，**不知道哪台设备取没取回**，所以只拿来补本机丢了的
+//   凭据，从不当"这一发还没取回"的判据（判据是本机的 jobs + taken）。
 // ★ 落 localStorage 而不是 IndexedDB：这份记录要在**渲染那一拍就能问出来**（"这一段
 //   有没有待取回"直接决定按钮长什么样），异步库得再套一层"懒加载 + 到货 emit"的缓存，
 //   而它救的恰恰是"进程被回收"这种最不该多绕一圈的场景。一条记录两百来字节。
@@ -236,6 +237,9 @@ export function videoJobNote(job: VideoJob): string {
   const flat = job.provider === "minimax";
   const left = expiresAt(job) - Date.now();
   if (left <= 0) {
+    // ★ 登记表补来的那种不能断言"钱白花了"：它很可能在别的设备 / 官网上早就取到了（见 videoJobFromServer）
+    if (videoJobFromServer(job))
+      return t`服务器登记的这一发已经过了 24 小时，成片取不到了。如果你当时已经在别处拿到了它，忽略这条就好。`;
     return flat
       ? t`这一发我们不再跟进了：任务号还在下面，如果一直没取回来，把它发给客服还有机会。已经花掉的钱我们这边退不了——重新生成是再花一次钱。`
       : t`这一发已经取不回来了：方舟的成片只在服务器上留 24 小时，现在已经过期。已经花掉的钱无法挽回——这不是超时重来，重新生成是再花一次钱。`;
@@ -285,8 +289,18 @@ export function dropVideoJob(taskId: string): void {
  *   而且零报错。
  */
 export function dismissVideoJob(job: VideoJob): void {
-  if (!videoJobExpired(job)) return;
+  if (!videoJobExpired(job) && !videoJobFromServer(job)) return;
   dropVideoJob(job.taskId);
+}
+
+/**
+ * 这条凭据是**服务端登记表补来的**（本机从没认领过它属于哪一段）吗 —— `seg` 0 / 没有 nodeId 就是。
+ * ★ 这种卡随时可以消掉（不必等过期）：登记表不知道谁取回了哪一发，这一发很可能是在别的设备 / 官网上
+ *   交的、早就拿到了。本机自己交的那种（seg ≥ 1）仍然只在过期后才给「知道了」—— 没过期的时候
+ *   消掉它就是亲手扔掉一笔还能取回的钱。
+ */
+export function videoJobFromServer(job: VideoJob): boolean {
+  return job.seg === 0 && !job.nodeId;
 }
 
 /**
@@ -360,6 +374,31 @@ function aspectOfRatio(ratio: string | undefined): VideoAspect | undefined {
   return Number(m[1]) >= Number(m[2]) ? "landscape" : "portrait";
 }
 
+/**
+ * 这台设备**第一次**问服务端登记表的时刻；比它早受理的任务一律不补。
+ *
+ * ★★ 为什么要有这条线（2026-09-18，2.46 发版前复核抓到）：登记表不知道谁取回了哪一发，本机的「已处理」
+ *   名单（TAKEN_KEY）又是和它同一批才加的 —— 从 2.45 升上来的设备，名单是空的。没有这条线的话，升级后
+ *   第一次进创作入口，过去一两天里**早就拿到手的**每一发都会被补成「服务器上有一发你付过钱的成片还没取回」，
+ *   没过期的卡只有「取回」一颗键、消不掉；过期之后还会改口说「已经花掉的钱无法挽回」—— 对一段好好躺在
+ *   草稿里的成片说这句话，是往吓人的方向说错。
+ * ★ 代价说在明处：线以前**真没取回**的那一发（2.45 时代进程被杀、本机凭据也丢了）就补不回来了。
+ *   本机凭据还在的那种不受影响（它不走这条路）；而"升级那一天恰好卡着一发"远比"每个活跃用户都被吓一次"少。
+ * ★ 存不下（隐私模式）就每次都当第一次：等于这条补救路整个不开 —— 宁可少补，不许乱补。
+ */
+const IMPORT_BASE_KEY = "ideahub-app.videoJobs.importBase.v1";
+function importBase(): number {
+  try {
+    const v = Number(localStorage.getItem(IMPORT_BASE_KEY));
+    if (Number.isFinite(v) && v > 0) return v;
+    const now = Date.now();
+    localStorage.setItem(IMPORT_BASE_KEY, String(now));
+    return now;
+  } catch {
+    return Date.now();
+  }
+}
+
 /** 把服务端登记表里本机不认识、也没处理过的视频任务补成「待取回」凭据。回补了几条 */
 export async function importServerVideoJobs(): Promise<number> {
   if (!API_BASE || !getToken()) return 0;
@@ -372,12 +411,15 @@ export async function importServerVideoJobs(): Promise<number> {
   } catch {
     return 0; // 老服务端（404）/ 弱网：下次再问，没有这张表也不影响本机凭据
   }
+  // ★ 拿到表之后才定线（见 importBase 的 ★★）：请求失败的那几次不算"第一次问过"
+  const base = importBase();
   let added = 0;
   for (const task of tasks) {
     if (!task?.taskId || typeof task.taskId !== "string") continue;
     if (taken[task.taskId] || jobs.some((j) => j.taskId === task.taskId)) continue;
     const createdAt = new Date(task.createdAt).getTime();
     if (!Number.isFinite(createdAt)) continue;
+    if (createdAt <= base) continue;
     const when = new Date(createdAt);
     const hh = String(when.getHours()).padStart(2, "0");
     const mm = String(when.getMinutes()).padStart(2, "0");

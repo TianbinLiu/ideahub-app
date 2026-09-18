@@ -851,7 +851,10 @@ export async function generateSegment(
   //   refImg 那条能退回首尾帧（拍的还是这段剧情），白模退无可退：没有形象图的 r2v
   //   任务要么被方舟拒、要么受理后拍出一段没换主体的复刻片——受理后失败不退费，
   //   替用户把这笔钱按住的唯一办法就是在这里响亮地停下（铁律八）。
-  if (blockout && !refUrls) {
+  // ★ 返修不在此列（2026-09-18，2.46 发版前复核抓到）：它改的是画面不是换人 —— blockoutIssue 与上面
+  //   prepareMaterialRefs 的 strict:false 都已经给它开了「没卡也能走」的口子，唯独这道闸漏了，
+  //   于是没挂卡的段（电影级经典段 / 自定义段）点返修必被这句拒，而返修框上的键是亮的。
+  if (blockout && !input.revise && !refUrls) {
     throw new Error(t`角色卡上的形象参考图一张都没能读出来（图片可能已损坏），白模出片必须靠形象图说明「换成谁」——给卡换一张形象图再试`);
   }
   // ★ 走到这一步才发现一张参考图都没准备成（图裂了/跨域读不出来）：**退回首尾帧模式**
@@ -1044,14 +1047,20 @@ export async function generateSegment(
     });
     if (cl) prog(cl);
   }
+  // 参考类模式（白模 edit / 参考图生视频）的首尾帧槽位必须空 —— 方舟三场景互斥，混发直接 400。
+  // ★★ 按**声明的 mode** 判，不按 sendFrameRefs（2026-09-18，2.46 发版前复核抓到）：出过片的段，genNode 会把
+  //   截到的真实尾帧写回方案的 lastFrame，点「♻ 重新生成」时它原样进了这里 —— 白模段（edit）与卡片直出段
+  //   （ref-images，首帧本来就空）于是带着一张尾帧去找 validateGenSpec，被整句拒「参考图 / 参考视频与首尾帧
+  //   不能混发」：已经出过片的白模段从此重炼不了（不花钱，但只能删段重套模板）。2.45 的 composeSegments 是
+  //   在这两种模式下**静默忽略** lastFrame 的；契约校验加上之后，这一侧得真的不带。
+  const refSend = mode === "edit" || mode === "ref-images";
   const [res] = await composeSegments(
     [
       {
         mode,
         plot: fitted.plot,
-        // 帧当参考图发时 first/last 必须空 —— 方舟三场景互斥，混发直接 400
-        firstFrame: sendFrameRefs ? "" : first,
-        lastFrame: sendFrameRefs ? "" : last,
+        firstFrame: refSend ? "" : first,
+        lastFrame: refSend ? "" : last,
         durationSec: input.durationSec,
         videoTier: input.videoTier,
         aspect: input.aspect,
