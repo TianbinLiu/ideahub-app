@@ -20,10 +20,23 @@ import { remoteOn } from "./videos";
 import { i18n, type MessageDescriptor } from "@lingui/core";
 import { msg, t } from "@lingui/core/macro";
 import { V3_CARD_WIPE_MS, Card, MarkBox, VideoAspect, VideoTemplate, uid } from "../types";
+import { deviceOwner, onViewerChange, workOwner } from "./deviceOwner";
+import { splitByOwner } from "./ownerSplit";
 
 const KEY = "templates.v1";
 
+/**
+ * 本机模板库里**现在登录的这个人**的那几条（全文件读写的都是它）。
+ * ★★ 按账号分区（2026-09-18 主人真机点名同一台手机换账号后数据串号）：原来整台设备一张表，B 在「我的模板」里
+ *   看得到 A 的模板（封面、提示词、A 的人物卡、参考视频地址），拿到归属按钮 —— 能改名、能上下架本机市场、能**永久删掉**
+ *   A 只存在这台设备上的经典配方模板，还能套用它们、拿 A 的人物卡出片。现在：`mine` 只装现在这个人的，
+ *   别人的原样躺在 `othersMine` 里（从不显示），落盘时两份并回去（persist）。分区只在一处（partition），
+ *   换人时重分；无主的存量归现在登录的这个人（见 data/deviceOwner 文件头「存量」那条）。
+ * ⚠ 别为了"查得全"去 `othersMine` 里找：那就是把这次的串号原样放回来。
+ */
 let mine: VideoTemplate[] = [];
+/** 这台设备上**别的账号**的本机模板（与 mine 互补、从不显示，落盘时并回去） */
+let othersMine: VideoTemplate[] = [];
 let version = 0;
 const subs = new Set<() => void>();
 
@@ -48,8 +61,45 @@ export function templatesLoadIssue(): string {
 
 function persist() {
   if (loadIssue) return;
-  void idbSet(KEY, mine);
+  // ★ 别人的那几条一起写回：只写 mine 的话，一次存模板就把别的账号的本机模板整批抹掉
+  void idbSet(KEY, [...mine, ...othersMine]);
 }
+
+/**
+ * 按「现在给谁看」把整张表分成 mine / othersMine。没人登录时 mine 为空（看不到任何人的）。
+ * 无主的存量归现在登录的这个人；认领了就落一次盘。
+ */
+function partition(all: VideoTemplate[]): void {
+  const split = splitByOwner(all, deviceOwner());
+  mine = split.mine;
+  othersMine = split.others;
+  if (split.claimed) persist();
+}
+
+/**
+ * 换人的代数：换一次 +1。拉服务端列表那几条（我的模板 / 待取回的白模化）拿到回包时先比一下 ——
+ * 请求发出去的时候还是上一个人，回来已经换人了，那份就不许落进这个人的界面。
+ */
+let viewerGen = 0;
+
+// ★★ 换了看的人：本机表重分区，服务端那几份「我的 …」缓存全部作废重拉 —— 它们都是上一个人的：
+//   我在服务端的模板（mineRemote）、每条模板的归属状态（remoteStates.isOwner）、待取回的白模化（pendingJobs）。
+//   不清的话 B 在重启之前一直看得到 A 的未发布模板和 A 付过钱还没取回的那几发（agent 审计 2026-09-18）。
+onViewerChange(() => {
+  viewerGen++;
+  partition([...mine, ...othersMine]);
+  mineRemote = [];
+  mineRemoteFresh = false;
+  mineRemoteLoading = false;
+  mineRemoteRetryAt = 0;
+  remoteStates.clear();
+  sharedFresh = false;
+  pendingJobs = [];
+  pendingFresh = false;
+  pendingIssue = "";
+  pendingRetryAt = 0;
+  emit();
+});
 
 export function subscribeTemplates(fn: () => void): () => void {
   subs.add(fn);
@@ -92,14 +142,16 @@ export async function readyTemplates(): Promise<void> {
   }
   // ★ 重试读出来时：读不出来那段时间里只活在内存里的（这段时间新做的模板）并回去再落盘，
   //   别让磁盘上的旧表把它们盖掉 —— 那些模板多半已经登记上服务端，但本机那份云端句柄只存在这里
-  const unsaved = loadIssue ? mine.filter((u) => !saved?.some((s) => s.id === u.id)) : [];
+  const inMemory = [...mine, ...othersMine];
+  const unsaved = loadIssue ? inMemory.filter((u) => !saved?.some((s) => s.id === u.id)) : [];
   loadIssue = "";
   loaded = true;
-  if (saved) mine = [...unsaved, ...saved];
+  // ★ 先并成整张表、再按现在这个人分区（partition 顺手认领无主的存量）
+  if (saved) partition([...unsaved, ...saved]);
   // ★ V3（2026-09-06）：截线之前建的模板身上的非人物卡整批下场（与 account.ts 的 V3 清库同一条截线，
   //   主人拍板"不用顾及老卡"）；截线之后从原片铸的 V3 素材卡原样保留
   let wiped = false;
-  for (const t of mine) {
+  for (const t of [...mine, ...othersMine]) {
     if (t.createdAt < V3_CARD_WIPE_MS && t.cards.some((c) => c.type !== "character")) {
       t.cards = t.cards.filter((c) => c.type === "character");
       wiped = true;
@@ -121,9 +173,12 @@ export async function readyTemplates(): Promise<void> {
 function ensureMineRemote(): void {
   if (mineRemoteFresh || mineRemoteLoading || Date.now() < mineRemoteRetryAt) return;
   mineRemoteLoading = true;
+  const gen = viewerGen;
   void (async () => {
     try {
       const items = await branch.listMyTemplates(50);
+      // 换过人了：这是上一个人的「我的模板」，丢掉（见 viewerGen）
+      if (gen !== viewerGen) return;
       mineRemote = items.map(apiToTemplate).filter((x): x is VideoTemplate => x !== null);
       mineRemoteFresh = true;
       emit();
@@ -1503,9 +1558,12 @@ export interface NewTemplate {
 }
 
 export function saveTemplate(input: NewTemplate): VideoTemplate {
+  // ★ 记在「内存里这摊活是谁的」名下（workOwner）：白模化 / 登记是几分钟的活，落库那一拍会话可能刚好失效
+  const owner = workOwner() || undefined;
   const tpl: VideoTemplate = {
     id: uid("tpl"),
     ...input,
+    owner,
     // i18n-ignore-next-line: 落库的作者名兜底，经典配方模板在详情页按名字比对归属（身份值，不翻）
     author: currentUser()?.name ?? "我",
     createdAt: Date.now(),
@@ -1513,7 +1571,9 @@ export function saveTemplate(input: NewTemplate): VideoTemplate {
     // 那是后续「分享侧」的流程，这里只落本机
     published: false,
   };
-  mine = [tpl, ...mine];
+  // 不是现在这个人的（会话失效期间落库的那一条）：先放进暗格，等它的主人登录时分区到他那边
+  if (owner && owner !== deviceOwner()) othersMine = [tpl, ...othersMine];
+  else mine = [tpl, ...mine];
   persist();
   emit();
   // ★ 白模模板存完立刻登记到服务端（异步旁路，不挡提取器的成功画面）：
@@ -2354,7 +2414,10 @@ function loadPendingJobs(): Promise<void> {
         }
         return;
       }
+      const gen = viewerGen;
       const list = await branch.listBlockoutJobs();
+      // 换过人了：这是上一个人的待取回名单（他付过钱的那几发），不许落进这个人的界面（见 viewerGen）
+      if (gen !== viewerGen) return;
       if (list === null) {
         // 这台服务器有模板能力、但没有两阶段的 pending 端点（上一版服务端）。
         // 它那条白模化是同步跑完的（startBlockoutize 的 legacy 分支），本来就没有

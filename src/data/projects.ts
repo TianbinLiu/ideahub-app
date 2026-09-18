@@ -28,8 +28,17 @@ import { isPermanentUrl, pairAssetUrls, type PairTarget } from "./publishAssets"
 import * as api from "../api/projects";
 import { ApiError } from "../api/client";
 import type { DraftVideo } from "../types";
+import { deviceOwner, onViewerChange, workOwner } from "./deviceOwner";
 
-/** 待提交的画布快照（组稿那一拍抓的，还没瘦身）。**单键**：同一时刻只可能有一摊活 */
+/**
+ * 待提交的画布快照（组稿那一拍抓的，还没瘦身）。**每个账号一格**：同一个人同一时刻只可能有一摊活。
+ * ★★ 按账号分格（2026-09-18 主人真机点名同一台手机换账号后数据串号）：原来整台设备一格、不记主人 ——
+ *   B 发布 A 那条剪到一半的片子时，`stampPendingCanvas` 会把 **A 的整份画布**盖上 B 的章，`retain`
+ *   再把它当成 B 那条作品的工坊工程传上去（服务端只查作品是不是 B 的）；B 下一次组稿还会把 A 那份
+ *   等着「重试留存」的画布顶掉，A 那条作品从此回炉不了。主人是谁只问 data/deviceOwner：
+ *   编辑页那颗「重试留存」读现在这个人的（deviceOwner），抓 / 盖章 / 提交 / 清读写内存里这摊活的主人（workOwner）。
+ * ★ 键名没改：新旧两种形状存同一个键（见 readSlots），升级前那一格由升级后第一个登录的人认领。
+ */
 const PENDING_KEY = "ideahub-app.project.pending.v1";
 /** 本地取回缓存的键名前缀 + 那张 LRU 名单 */
 const cacheKey = (videoId: string) => `ideahub-app.project.${videoId}`;
@@ -104,7 +113,9 @@ let metas: api.ApiProjectMeta[] = [];
  *  ★ 三态是必须的：「还没问」「不支持」「支持但这条没有」在编辑页是三句**不同的话** */
 /** 三档之外还有第四档，见 `ProjectsSupport` */
 let supported: ProjectsSupport = null;
-let pending: PendingCanvas | null = null;
+/** 各账号的那一格（落盘形状 `{ v: 2, byOwner, legacy? }`）。legacy = 升级前那格、还没被认领 */
+let slots: Record<string, PendingCanvas> = {};
+let legacySlot: PendingCanvas | null = null;
 let pendingLoaded = false;
 let version = 0;
 const subs = new Set<() => void>();
@@ -117,6 +128,26 @@ function emit(): void {
 export function subscribeProjects(fn: () => void): () => void {
   subs.add(fn);
   return () => subs.delete(fn);
+}
+
+// ★★ 换了看的人：工程列表（metas）与「支不支持」都是**上一个人**问出来的 —— 不清的话 B 的「🛠 回炉重做」
+//   是按 A 的工程列表判的（B 自己的作品全被判成「没有留存工程」），直到重启。readyOnce 置回 null 让编辑页重问。
+//   升级前那一格顺手认领给新登录的这个人。
+onViewerChange(() => {
+  metas = [];
+  supported = null;
+  readyOnce = null;
+  claimLegacySlot();
+  emit();
+});
+
+/** 升级前那一格（没有主人）归现在登录的这个人（见 data/deviceOwner 文件头「存量」那条）。即发即忘落盘，不 emit */
+function claimLegacySlot(): void {
+  const me = deviceOwner();
+  if (!me || !legacySlot || slots[me]) return;
+  slots = { ...slots, [me]: legacySlot };
+  legacySlot = null;
+  void idbSet(PENDING_KEY, { v: 2, byOwner: slots });
 }
 
 export function projectsVersion(): number {
@@ -186,7 +217,7 @@ export function readyProjects(): Promise<void> {
  *   用户此刻该做的是去把回炉提交完，而屏幕上这两句都在把他往别处推。⇒ 那一档整颗键不画。
  */
 export function pendingRetainable(videoId: string, clientId?: string): boolean {
-  return pendingFor(videoId, clientId) && !!pending?.ready;
+  return pendingFor(videoId, clientId) && !!viewerSlot()?.ready;
 }
 
 /** 「这台服务器支不支持工坊工程」的四档答案。★ 四档各有各的话要说（见 readyProjects 的 ★★）：
@@ -224,17 +255,52 @@ function upsertMeta(m: api.ApiProjectMeta): void {
 
 // ── 待办（组稿那一拍抓的画布）──────────────────────────────
 
+/** 两种形状都认：老格式（整个值就是一格 PendingCanvas，没有主人）→ legacy；新格式 → 各账号一格 */
+function readSlots(raw: unknown): void {
+  slots = {};
+  legacySlot = null;
+  if (!raw || typeof raw !== "object") return;
+  if ((raw as { v?: unknown }).v === 2) {
+    const o = raw as { byOwner?: Record<string, PendingCanvas>; legacy?: PendingCanvas };
+    if (o.byOwner && typeof o.byOwner === "object") {
+      for (const [owner, p] of Object.entries(o.byOwner)) if (owner && p && typeof p === "object" && p.canvas) slots[owner] = p;
+    }
+    if (o.legacy && typeof o.legacy === "object" && o.legacy.canvas) legacySlot = o.legacy;
+    return;
+  }
+  if ((raw as PendingCanvas).canvas) legacySlot = raw as PendingCanvas;
+}
+
+/** 现在登录的这个人那一格（编辑页「重试留存」那几个同步判据读它） */
+function viewerSlot(): PendingCanvas | null {
+  const me = deviceOwner();
+  if (!me) return null;
+  claimLegacySlot();
+  return slots[me] ?? null;
+}
+
+/** 内存里这摊活的主人那一格（抓 / 盖章 / 提交读写它）。没装载就先装载 */
 async function readPending(): Promise<PendingCanvas | null> {
-  if (pendingLoaded) return pending;
-  pending = (await idbGet<PendingCanvas>(PENDING_KEY)) ?? null;
-  pendingLoaded = true;
-  return pending;
+  if (!pendingLoaded) {
+    readSlots(await idbGet<unknown>(PENDING_KEY));
+    pendingLoaded = true;
+    claimLegacySlot();
+  }
+  const owner = workOwner();
+  return owner ? (slots[owner] ?? null) : null;
 }
 
 async function writePending(p: PendingCanvas | null): Promise<boolean> {
-  pending = p;
-  pendingLoaded = true;
-  const ok = p ? await idbSet(PENDING_KEY, p) : (await idbDel(PENDING_KEY), true);
+  // ★ 先装载：没装载过就写的话，会拿只有这一格的表盖掉磁盘上别的账号的那几格
+  if (!pendingLoaded) await readPending();
+  const owner = workOwner();
+  // 说不出这摊活是谁的（这一进程里没人登录过）：不写 —— 写成无主的谁都认领不到
+  if (!owner) return false;
+  const next = { ...slots };
+  if (p) next[owner] = p;
+  else delete next[owner];
+  slots = next;
+  const ok = await idbSet(PENDING_KEY, { v: 2, byOwner: slots, ...(legacySlot ? { legacy: legacySlot } : {}) });
   emit();
   return ok;
 }
@@ -310,6 +376,7 @@ export async function stampPendingCanvas(clientId: string | undefined): Promise<
  *   判据由调用方补上（编辑页比对 `clientId`）。
  */
 export function pendingFor(videoId: string, clientId?: string): boolean {
+  const pending = viewerSlot();
   if (!pending) return false;
   if (pending.reviseOf) return pending.reviseOf.videoId === videoId;
   // ★ 盖过作品 id 就只认它（见 PendingCanvas.videoId 的 ★★★）：这一格跨得过冷启动，

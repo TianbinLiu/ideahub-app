@@ -1333,6 +1333,12 @@ export interface VideoTemplate {
   id: string;
   title: string;
   intro: string;
+  /**
+   * 本机模板库（data/templates 的 mine）里这一条是**谁的**（user.id，见 data/deviceOwner）。
+   * ★ 只有本机库那几条有它；服务端来的（mineRemote / shared）与套进流水线的快照都不看它。
+   * ★ 可选：升级前存的模板没有它，由升级后第一个登录的人认领。与 `author`（显示名，会变、会重名）不是一回事。
+   */
+  owner?: string;
   /** 封面（dataURL 或站内路径） */
   cover: string;
   /** 市场人话分类（TPL_CATEGORIES 的 id）。缺省 = 未分类（存量模板全是，判否定） */

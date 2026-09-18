@@ -15,15 +15,23 @@
 //   字段完全不重叠，而且它有 20 条上限 —— 塞进去等于拿剪辑稿挤真正的在途工程
 //   （与「简约模式不进草稿库」被挡掉的理由同型）。
 //
-// ★ **永远只有一条**：同一时刻只可能在剪一条片子，新的整体覆盖旧的。所以不需要淘汰策略，
+// ★ **每个账号永远只有一条**：同一时刻只可能在剪一条片子，新的整体覆盖旧的。所以不需要淘汰策略，
 //   也不跟草稿那 20 条抢配额。
+// ★★ 按账号各存一条（2026-09-18 主人真机：同一台手机退出 A、登录一个全新的 B，个人页还挂着 A 的
+//   「有一条剪到一半的成片」）。原来整台设备只有一条、不记主人：B 看得到 A 的横幅、能「接着剪」把 A 付过钱的
+//   片子以 B 的名义发出去、能「丢掉」替 A 删掉它；B 自己组稿还会被它挡住。主人是谁只问 data/deviceOwner：
+//   读（横幅、组稿闸）按 deviceOwner，写 / 丢按 workOwner（登录失效之后内存里那条稿子仍是上一个人的）。
+//   升级前那一条（老格式，没有主人）由升级后第一个登录的账号认领（claimLegacy）。
 //
 // ⚠ webm 与 GLB 的**字节不进这个键**，进来的只是 `idb:<键>` 指针 —— 但正因为如此，
 //   `cacheSweep.collectReferenced` **必须把这条稿子里的指针算进引用**（那边第 5 段），
 //   否则放过一夜的剪辑稿会被「清理缓存」把成片和模型真删掉，稿子还在、指针指向空气。
-import { idbRead, idbSet, idbDel } from "./db";
+import { idbRead, idbSet } from "./db";
 import type { DraftVideo } from "../types";
+import { deviceOwner, onViewerChange, workOwner } from "./deviceOwner";
 
+// ★ 键名没改（还叫 v1）：新旧两种形状存在同一个键里，读的时候按形状分辨（见 readStore）。
+//   换一个新键的话迁移要写两个键，中间断一次就会出现「新键已有、老键还在」，老那条会被再认领一次。
 const CUT_KEY = "ideahub-app.cut.v1";
 
 export interface CutSession {
@@ -46,8 +54,18 @@ export interface CutSession {
   at: number;
 }
 
-/** 内存镜像：页面与守卫都要**同步**问"有没有一条剪到一半的" */
-let mirror: CutSession | null = null;
+/**
+ * 落盘形状（2026-09-18 起）：每个账号一条。
+ * `legacy` = 升级前那条还没被认领的老稿（没有主人）——**不许在写盘时丢掉它**，认领之前原样带着。
+ */
+interface CutStore {
+  v: 2;
+  byOwner: Record<string, CutSession>;
+  legacy?: CutSession;
+}
+
+/** 内存镜像：页面与守卫都要**同步**问"有没有一条剪到一半的"（按主人取，见 cutSession） */
+let store: CutStore = { v: 2, byOwner: {} };
 let loaded = false;
 
 const listeners = new Set<() => void>();
@@ -57,6 +75,27 @@ function emit(): void {
 export function subscribeCutSession(fn: () => void): () => void {
   listeners.add(fn);
   return () => listeners.delete(fn);
+}
+
+// 换了看的人：认领存量（第一个登录的人）并让横幅 / 组稿闸按新的人重画
+onViewerChange(() => {
+  claimLegacy();
+  emit();
+});
+
+/**
+ * 升级前那条无主的老稿，归**现在登录的这个人**（见 data/deviceOwner 文件头「存量」那条）。
+ * ★ 同步改内存、异步落盘、**不 emit**：它可能在渲染里（cutSession() 的快照读）被调到，那一拍 emit 会让 React
+ *   在渲染中更新别的组件。改完之后对这个人来说 cutSession() 的答案本来就是这一条，没有要重画的。
+ */
+function claimLegacy(): void {
+  const me = deviceOwner();
+  const legacy = store.legacy;
+  if (!me || !legacy || loadIssue) return;
+  // 这个人已经有一条新格式的稿子（理论上不会：老格式只在升级前写过）：老稿不丢，留给下一个没有稿子的人认领
+  if (store.byOwner[me]) return;
+  store = { v: 2, byOwner: { ...store.byOwner, [me]: legacy } };
+  void idbSet(CUT_KEY, store);
 }
 
 /**
@@ -85,15 +124,37 @@ export async function readyCutSession(): Promise<void> {
   try {
     // ★★ 读失败要抛（idbRead）落进 catch，不能当成"没有"（见 loadIssue）
     const raw = await idbRead<unknown>(CUT_KEY);
-    mirror = validate(raw);
+    store = readStore(raw);
     loadIssue = "";
+    claimLegacy();
   } catch (e) {
-    mirror = null;
+    store = { v: 2, byOwner: {} };
     loadIssue = e instanceof Error ? e.message : String(e);
     console.warn("[cutSession] 剪辑稿没读出来:", e);
   }
   loaded = true;
   emit();
+}
+
+/**
+ * 两种形状都认：老格式（整个值就是一条 CutSession，没有主人）→ legacy；新格式 → 逐条校验。
+ * ★ 某个人的那条形状不对只丢那一条，别的账号的稿子照留。
+ */
+function readStore(raw: unknown): CutStore {
+  if (raw && typeof raw === "object" && (raw as { v?: unknown }).v === 2) {
+    const o = raw as { byOwner?: unknown; legacy?: unknown };
+    const byOwner: Record<string, CutSession> = {};
+    if (o.byOwner && typeof o.byOwner === "object") {
+      for (const [owner, cs] of Object.entries(o.byOwner as Record<string, unknown>)) {
+        const ok = validate(cs);
+        if (owner && ok) byOwner[owner] = ok;
+      }
+    }
+    const legacy = validate(o.legacy);
+    return { v: 2, byOwner, ...(legacy ? { legacy } : {}) };
+  }
+  const legacy = validate(raw);
+  return { v: 2, byOwner: {}, ...(legacy ? { legacy } : {}) };
 }
 
 /**
@@ -112,9 +173,24 @@ function validate(raw: unknown): CutSession | null {
   };
 }
 
-/** 同步读镜像。★ 没装载完时返回 null —— 调用方要能分清"没有"和"还没装完"就问 `cutSessionReady()` */
+/**
+ * 同步读镜像：**现在登录的这个人**的那条（没登录 = null）。
+ * ★ 没装载完时返回 null —— 调用方要能分清"没有"和"还没装完"就问 `cutSessionReady()`
+ */
 export function cutSession(): CutSession | null {
-  return mirror;
+  const me = deviceOwner();
+  if (!me) return null;
+  claimLegacy();
+  return store.byOwner[me] ?? null;
+}
+
+/**
+ * **所有账号**的剪辑稿（含还没被认领的老稿）—— 只给 cacheSweep 收集引用用。
+ * ★★ 别拿它画界面，也别让清缓存改读 cutSession()：那只是现在这个人的一条，别的账号的稿子里引用着的
+ *   合并成片与 GLB 会被当成孤儿删掉 —— 他下次登录时稿子还在、指针指向空气（与 videos.allPendingDraftsForSweep 同一条）。
+ */
+export function allCutSessionsForSweep(): CutSession[] {
+  return [...Object.values(store.byOwner), ...(store.legacy ? [store.legacy] : [])];
 }
 
 export function cutSessionReady(): boolean {
@@ -134,10 +210,16 @@ export async function saveCutSession(draft: DraftVideo, audioHint: string | null
     await readyCutSession();
     if (loadIssue) return false;
   }
+  // ★ 记在「内存里这摊活是谁的」名下（workOwner）：组稿 / 重拍那一拍会话可能刚好失效，
+  //   这时它仍是上一个登录的人的稿子。一个人都说不出来就拒 —— 写成无主的等于谁都看不见
+  const owner = workOwner();
+  if (!owner) return false;
+  claimLegacy();
   const next: CutSession = { draft, ...(audioHint ? { audioHint } : {}), at: Date.now() };
-  const ok = await idbSet(CUT_KEY, next);
+  const nextStore: CutStore = { ...store, byOwner: { ...store.byOwner, [owner]: next } };
+  const ok = await idbSet(CUT_KEY, nextStore);
   if (ok) {
-    mirror = next;
+    store = nextStore;
     emit();
   }
   return ok;
@@ -150,12 +232,16 @@ export async function dropCutSession(): Promise<void> {
   //   （saveCutSession 在读不出来时拒），磁盘上那个键装的是读不出来的**上一条**，删掉就是替用户丢了一条他没见过、
   //   花过钱的剪辑稿。顺手再读一次：读得出来的话它会照常以横幅出现，接着剪还是丢由用户自己决定。
   if (loadIssue) {
-    mirror = null;
     emit();
     void readyCutSession();
     return;
   }
-  mirror = null;
+  // ★ 只丢**这个人**的那一条：别的账号的剪辑稿原样留着（原来是整个键删掉 —— B 丢的是 A 的稿子）
+  const owner = workOwner();
+  if (!owner || !store.byOwner[owner]) return;
+  const byOwner = { ...store.byOwner };
+  delete byOwner[owner];
+  store = { ...store, byOwner };
   emit();
-  await idbDel(CUT_KEY);
+  await idbSet(CUT_KEY, store);
 }

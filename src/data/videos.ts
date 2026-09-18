@@ -2013,6 +2013,8 @@ async function loadDetail(item: VideoItem): Promise<void> {
  */
 async function pushPublish(item: VideoItem, draft: DraftVideo): Promise<void> {
   let sending = draft;
+  // 这一条是谁发的：上传几十秒到几分钟，中途换了账号的话后面那几发请求带的就是**别人的** token（见下面 createVideo 前那一句）
+  const ownerAtStart = ownerKey();
   try {
     // ★★ **先入队，成了再出队**（2026-08-21 第十轮扫描）：上传一条三段片要逐个传
     //   1MB 级的帧与 1.5MB 级的成片，慢网上一两分钟。原来只在 catch 里入队 ——
@@ -2031,6 +2033,13 @@ async function pushPublish(item: VideoItem, draft: DraftVideo): Promise<void> {
       emitVideos();
     });
     uploadStatus = null;
+    // ★★ 换过账号就不发（2026-09-18，见 data/deviceOwner）：每一发请求都现取 token，这时候 createVideo 带的是**新登录那个人**
+    //   的 token，而服务端 `author: req.user._id` 只认 token —— A 花钱炼的片子会挂到 B 名下进广场（与 PendingPublish.owner 的 ★★
+    //   同一个事故形状，那边防的是冷启动补发，这里防的是正在传的这一发）。抛出去落进 catch：条目留在待发队列、主人仍是 A
+    //   （queuePending 保留第一次入队时记的主人），A 再登录时照常补发。
+    if (ownerKey() !== ownerAtStart) {
+      throw new Error(t`上传途中换了登录的账号，这一条先不发——等原来那个账号再登录时会自动补发`);
+    }
     const v = await branch.createVideo(sending);
     // ★★ **`null` 是失败，不是成功**（2026-08-21 第十轮扫描）：`createVideo` 对
     //   「200 + 形状不对」的回包返回 null（`request()` 不抛错：JSON.parse 失败就把
@@ -2299,9 +2308,13 @@ async function queuePending(draft: DraftVideo, why: PendingWhy, opts?: { insuran
   if (opts?.insurance && rest.length >= 5) return false; // 见上面的 ★★：满了就不上保险，别顶掉真失败的
   // ★ owner 必须在**入队**这一刻写死（见 PendingPublish.owner 的 ★★）：flush 那会儿
   //   登录的可能已经是另一个人了，那时候再问 currentUser() 正好问到错的那个。
+  // ★★ 同一条（clientId）**第一次**入队时记的主人要保留（2026-09-18）：发布是「先上保险、失败再入队一次」，
+  //   第二次入队发生在失败那一拍 —— 途中换了账号的话，那时的 ownerKey() 是 B，按它重写就把 A 的待发作品记到 B 名下，
+  //   随后由 B 的 flushPending 带着 B 的 token 发出去。
+  const firstOwner = list.find((p) => p.draft.clientId === draft.clientId)?.owner;
   // 只留最近 5 条，别把配额吃光
   // ★ 存的是码 + 原话（只有 other 才有），不是翻好的一句（见 PendingErrorCode 的 ★★）
-  return await writePending([...rest, { draft, ...pendingFields(why), at: Date.now(), owner: ownerKey() }].slice(-5));
+  return await writePending([...rest, { draft, ...pendingFields(why), at: Date.now(), owner: firstOwner ?? ownerKey() }].slice(-5));
 }
 
 /**
@@ -2409,6 +2422,11 @@ const inflightPublish = new Set<string>();
 export function isUploading(v: VideoItem): boolean {
   if (!v.clientId) return false;
   return inflightPublish.has(v.clientId) || pendingMirror.some((p) => p.draft.clientId === v.clientId);
+}
+
+/** 有作品**正在上传**吗（退出登录前那道闸问它，见 studio/signOutGuard） */
+export function publishInFlight(): boolean {
+  return inflightPublish.size > 0 || uploadStatus !== null;
 }
 
 /** 页面同步读：还有几条没传上去（在传的那几条不算，见 inflightPublish 的 ★） */

@@ -21,14 +21,15 @@
 // ★★ 边界（2026-09-07 补，别让下一个人以为"清理缓存"已经涵盖它）：
 //   「保存到本地」落在**原生** Cache 目录（`Cache/ideahub-downloads/`）的那些视频文件
 //   **不在**这套扫描范围内 —— 这里扫的是 IndexedDB 的 blob 仓，`collectReferenced` 只认
-//   videos / pendingDrafts / listDrafts / cutSession / myCards 五个来源，一个原生文件都看不见。
+//   videos / pendingDrafts / 草稿 / 剪辑稿 / myCards 五个来源，一个原生文件都看不见。
 //   那一摊归 `data/videoDownload` 的 `listDownloads()` / `clearDownloads()` 管，
 //   入口在设置 → 存储那一页，与这里的「清理缓存」并列成两行、两颗键、两句话。
 import { idbDel, idbGet, idbKeys } from "./db";
-import { draftsLoadIssue, listDrafts, loadDraft } from "./drafts";
+import { allDraftsForSweep, draftsLoadIssue, loadDraftForSweep } from "./drafts";
 import { allPendingDraftsForSweep, listVideos } from "./videos";
-import { cutSession, cutSessionLoadIssue } from "./cutSession";
+import { allCutSessionsForSweep, cutSessionLoadIssue } from "./cutSession";
 import { myCards } from "./account";
+import { blobOwnedByViewer, forgetBlobOwners } from "./blobOwners";
 import type { VideoSegment } from "../types";
 
 /** 只清这两个前缀 —— 其余键要么是用户资产，要么小到不值得动 */
@@ -112,10 +113,12 @@ async function collectReferenced(): Promise<Set<string>> {
   }
 
   // 3) 草稿正文（用户唯一的副本）。索引里只有缩略图，指针在正文里
-  for (const meta of listDrafts()) {
+  // ★★ 读**所有账号**的草稿（2026-09-18 草稿按主人分开之后）：listDrafts() 只列现在登录的这个人的，
+  //   用它的话别的账号草稿里的成片与 GLB 会被当成孤儿删掉 —— 他再登录时草稿还在、指针指向空气
+  for (const meta of allDraftsForSweep()) {
     const thumb = pointerKey(meta.thumb);
     if (thumb) refs.add(thumb);
-    const body = await loadDraft(meta.id);
+    const body = await loadDraftForSweep(meta.id);
     if (!body) continue;
     // 草稿正文的形状随创作模式变（工坊节点树 / 工作流快照），逐字段遍历容易漏。
     // 直接在序列化结果里扫 `idb:<键>` —— 宁可多认几个也不能漏
@@ -131,8 +134,8 @@ async function collectReferenced(): Promise<Set<string>> {
   //    而那些**只被这一份稿子引用着**。⚠ 顺序上这一段必须与持久化同拍上线：
   //    漏了它，一条放过夜的剪辑稿会被这里把成片和模型真删掉，稿子还在、指针指向空气。
   //    写法照第 3 段（序列化后正则扫）：逐字段遍历容易漏。
-  const cut = cutSession();
-  if (cut) {
+  //    ★★ 同样读**所有账号**的（剪辑稿按主人分开之后 cutSession() 只给现在这个人的那一条，理由同第 3 段）
+  for (const cut of allCutSessionsForSweep()) {
     try {
       for (const m of JSON.stringify(cut).matchAll(/"idb:([^"]+)"/g)) refs.add(m[1]);
     } catch {
@@ -174,6 +177,9 @@ export async function planSweep(now = Date.now()): Promise<SweepPlan> {
   for (const k of all) {
     if (!SWEEPABLE.some((p) => k.startsWith(p))) continue;
     if (refs.has(k)) continue;
+    // ★★ 建模 GLB 只动**登记在现在这个人名下**的（2026-09-18，见 data/blobOwners）：引用收集第 4 段只数得到
+    //   现在这个人的卡，别的账号卡上的 `idb:model3d:` 在这里看起来就是孤儿。没登记的（升级前落库的）同样不动
+    if (k.startsWith("model3d:") && !blobOwnedByViewer(k)) continue;
     const t = bornAt(k);
     // 解不出时间的一律**不删**（老格式的键）：省这点空间不值得冒删错的风险
     if (t === null || now - t < MIN_AGE_MS) continue;
@@ -191,5 +197,6 @@ export async function planSweep(now = Date.now()): Promise<SweepPlan> {
 /** 真删。返回实际删掉的条数 */
 export async function runSweep(plan: SweepPlan): Promise<number> {
   for (const k of plan.keys) await idbDel(k);
+  forgetBlobOwners(plan.keys);
   return plan.keys.length;
 }

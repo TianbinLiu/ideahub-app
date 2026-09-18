@@ -17,6 +17,7 @@ import { addCards, bindCardAsset, canAfford, createDeck, spendTokens } from "../
 import { ONE_IMAGE, fmtTokens, schemeCost } from "../data/economy";
 import { VOICE_MAX_SEC, VOICE_MIN_SEC, saveVoice } from "../data/cardVoice";
 import { startJob } from "../data/jobs";
+import { deviceOwner, workOwner } from "../data/deviceOwner";
 import { pcmToVoiceWav } from "../utils/wav";
 import PortraitAuthPanel from "./PortraitAuthPanel";
 import {
@@ -124,6 +125,12 @@ let parked: {
   pendingAsset: { assetId: string; note: string } | null;
   pendingVoice: { dataUrl: string; durationSec: number; note: string } | null;
   at: number;
+  /**
+   * 这些图是**谁**付的钱、谁的授权（2026-09-18，见 data/deviceOwner）。只有同一个人打开这一窗才接得回：
+   * 换了账号的话 B 打开提取窗会接到 A 的图、A 的真人授权（pendingAsset），存卡时绑到 B 的卡上。
+   * 对不上就原样留着（不删 —— 是 A 花钱画的），等 A 回来。
+   */
+  owner: string;
 } | null = null;
 
 export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: boolean; onClose: () => void }) {
@@ -225,6 +232,8 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
       parked = null;
       return;
     }
+    // 别人的：不接、也不删（见 parked.owner）
+    if (parked.owner && parked.owner !== deviceOwner()) return;
     const pk = parked;
     parked = null;
     setCrops(pk.crops);
@@ -539,6 +548,8 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
     const raw = crops;
     /** 半途失败时记进 partial 的是**这一发**的输入（人可能中途勾掉了「真人」） */
     const input = { schemeId: scheme.id, raw, realPhoto: realPerson };
+    /** 这一发是谁付的钱：画完窗已关时停进 parked 要记在他名下（见 parked.owner） */
+    const ownerAtStart = workOwner();
     // ★ 登记成后台任务：窗关了也照画；画完窗不在就把图停进 parked，胶囊叫人回来存卡
     const job = startJob({ kind: "card-ai", title: t`AI 生成图位`, page: "/workshop", route: "/workshop", progress: t`准备中…` });
     try {
@@ -566,7 +577,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
       });
       if (!mountedRef.current) {
         // 窗已经关了：图停在模块里，下次打开这一窗接回来（见 parked 的 ★）
-        parked = { crops: made, raw, partial: null, type: type ?? "character", name, summary, schemeId, realPerson, consentOk, pendingAsset, pendingVoice, at: Date.now() };
+        parked = { crops: made, raw, partial: null, type: type ?? "character", name, summary, schemeId, realPerson, consentOk, pendingAsset, pendingVoice, at: Date.now(), owner: ownerAtStart };
         job.done({ msg: t`AI 图位生成好了——回工坊点「从视频提取」接着存卡`, route: "/workshop" });
         return;
       }
@@ -592,7 +603,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
         // 窗已经关了：原片裁剪连同留着的那几格停进模块里，下次打开接回来照样只补剩下的。
         // ★ 判「留着的」不判「这一次画好的」：补画那一发一张没画成时，上一次留下的（已付费）照样要停 —— 窗一卸载，state 里那份就没了
         if (Object.keys(merged).length > 0) {
-          parked = { crops: raw, raw: null, partial: { schemeId: input.schemeId, realPhoto: input.realPhoto, drawn: merged }, type: type ?? "character", name, summary, schemeId, realPerson, consentOk, pendingAsset, pendingVoice, at: Date.now() };
+          parked = { crops: raw, raw: null, partial: { schemeId: input.schemeId, realPhoto: input.realPhoto, drawn: merged }, type: type ?? "character", name, summary, schemeId, realPerson, consentOk, pendingAsset, pendingVoice, at: Date.now(), owner: ownerAtStart };
         }
       } else if (drawnSlots.length > 0) {
         setPartial({ ...input, drawn: merged });

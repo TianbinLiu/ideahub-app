@@ -7,6 +7,8 @@ import InfoDialog from "./components/InfoDialog";
 import { AGREEMENTS, recordTermsAccepted, termsAccepted, type AgreementId } from "./data/agreements";
 import GenerationPill from "./components/GenerationPill";
 import Toast from "./components/Toast";
+import { showToast } from "./data/toast";
+import { signOutBlocker } from "./studio/signOutGuard";
 import AuthPending from "./components/AuthPending";
 import FeedPage from "./pages/FeedPage";
 import DiscoverPage from "./pages/DiscoverPage";
@@ -135,7 +137,7 @@ function TermsGate() {
   // 同意/退出都不改本组件的 props，靠这个空 bump 让 termsAccepted() 重新求值
   const [, bump] = useState(0);
   const [viewDoc, setViewDoc] = useState<AgreementId | null>(null);
-  if (!user || termsAccepted()) return null;
+  if (!user || termsAccepted(user.id)) return null;
   return (
     <>
       {createPortal(
@@ -160,7 +162,7 @@ function TermsGate() {
             </div>
             <button
               onClick={() => {
-                recordTermsAccepted();
+                recordTermsAccepted(user.id);
                 bump((n) => n + 1);
               }}
               className="mt-4 w-full rounded-xl bg-brand py-2.5 text-xs font-bold text-ink"
@@ -169,6 +171,12 @@ function TermsGate() {
             </button>
             <button
               onClick={() => {
+                // 还有花钱的活在跑就先不退（见 studio/signOutGuard）；门还摆着，等跑完再来表态
+                const why = signOutBlocker();
+                if (why) {
+                  showToast(why, 4500); // 整句说清要等什么，默认那 1.8 秒读不完
+                  return;
+                }
                 signOut();
                 bump((n) => n + 1);
               }}

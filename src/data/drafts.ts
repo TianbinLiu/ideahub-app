@@ -18,8 +18,17 @@
 //   drafts.v1        → WorkDraftMeta[]（几 KB，个人页列表只读它）
 //   draft.<id>       → WorkDraft（含 1MB 级的首尾帧 base64，只在打开时读）
 // 合在一起的话，个人页每次进都要把所有草稿的全部帧拉进内存。
+//
+// ★★ 每条草稿记**主人**（WorkDraftMeta.owner，2026-09-18 主人真机点名同一台手机换账号后数据串号）：
+//   原来整台设备一张索引、不记主人 —— B 在草稿箱里看得到、打得开 A 的草稿（接着炼要花钱、发出去挂 B 的名字），
+//   B 存草稿超过 20 条时还会把 **A 最旧的草稿**挤掉删除。现在：列表只列现在这个人的（deviceOwner）、
+//   写 / 删 / 改名只动「内存里这摊活的主人」的（workOwner）、20 条上限按人各算。主人只问 data/deviceOwner。
+//   升级前的草稿没有主人，由升级后第一个登录的账号认领（claimLegacy）。
+// ⚠ 清缓存要看**所有人**的草稿（allDraftsForSweep / loadDraftForSweep）：只看现在这个人的，
+//   别的账号草稿里引用着的成片与 GLB 会被当孤儿删掉。
 import { t } from "@lingui/core/macro";
 import { idbDel, idbGet, idbRead, idbSet } from "./db";
+import { deviceOwner, onViewerChange, workOwner } from "./deviceOwner";
 import { shrinkDataUrl } from "../utils/image";
 import { Card, NodeSlot, uid } from "../types";
 
@@ -75,6 +84,11 @@ export interface WorkDraftMeta {
   doneCount: number;
   hasRoot: boolean;
   hasFlow: boolean;
+  /**
+   * 这条草稿是**谁的**（user.id，见 data/deviceOwner）。
+   * ★ 可选：升级前的索引项没有它 —— 由升级后第一个登录的人认领（claimLegacy），认领之前对谁都不列出。
+   */
+  owner?: string;
 }
 
 const INDEX_KEY = "drafts.v1";
@@ -97,6 +111,24 @@ function emit() {
 export function subscribeDrafts(fn: () => void): () => void {
   subs.add(fn);
   return () => subs.delete(fn);
+}
+
+// 换了看的人：认领存量并让草稿箱 / 个人页按新的人重画
+onViewerChange(() => {
+  claimLegacy();
+  emit();
+});
+
+/**
+ * 升级前那些无主的草稿，归**现在登录的这个人**（见 data/deviceOwner 文件头「存量」那条）。
+ * ★ 同步改内存、即发即忘落盘、**不 emit**：它会在渲染里（listDrafts 的快照读）被调到。改完之后这个人看到的
+ *   列表本来就包含它们，没有要重画的。索引没读出来时不动（loadIssue：动了会拿空表盖掉磁盘上的真索引）。
+ */
+function claimLegacy(): void {
+  const me = deviceOwner();
+  if (!me || loadIssue || !index.some((d) => !d.owner)) return;
+  index = index.map((d) => (d.owner ? d : { ...d, owner: me }));
+  persistIndex();
 }
 
 export function draftsVersion(): number {
@@ -135,6 +167,7 @@ export async function readyDrafts(): Promise<void> {
     if (saved !== undefined && !Array.isArray(saved)) throw new Error(`${INDEX_KEY} is not an array`);
     index = saved ?? [];
     loadIssue = "";
+    claimLegacy();
   } catch (e) {
     index = [];
     loadIssue = e instanceof Error ? e.message : String(e);
@@ -153,16 +186,37 @@ export function draftsUnavailableText(): string {
   return t`草稿箱这会儿没打开（本机数据库没读出来），这一版没存进草稿。去草稿箱点「重试」，读出来之后再存。`;
 }
 
-/** 全部草稿，最近改的在前 */
+/** **现在登录的这个人**的全部草稿，最近改的在前（没登录 = 空） */
 export function listDrafts(): WorkDraftMeta[] {
-  return [...index].sort((a, b) => b.updatedAt - a.updatedAt);
+  const me = deviceOwner();
+  if (!me) return [];
+  claimLegacy();
+  return index.filter((d) => d.owner === me).sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
+/** 「内存里这摊活的主人」名下的那条（工坊判缩略图、存草稿前查旧项用）。别人的一律当没有 */
 export function getDraftMeta(id: string): WorkDraftMeta | null {
-  return index.find((d) => d.id === id) ?? null;
+  const owner = workOwner();
+  claimLegacy();
+  return index.find((d) => d.id === id && !!owner && d.owner === owner) ?? null;
 }
 
+/** 打开一条草稿的正文。★ 只认「内存里这摊活的主人」的草稿：拿着别人草稿的 id 也打不开 */
 export async function loadDraft(id: string): Promise<WorkDraft | null> {
+  if (!getDraftMeta(id)) return null;
+  return (await idbGet<WorkDraft>(bodyKey(id))) ?? null;
+}
+
+/**
+ * **所有账号**的草稿索引（含还没被认领的）—— 只给 cacheSweep 收集引用用。
+ * ★★ 别拿它画界面；清缓存也别改读 listDrafts()：那只列现在这个人的，别的账号草稿里的成片与 GLB 会被当孤儿删掉。
+ */
+export function allDraftsForSweep(): WorkDraftMeta[] {
+  return [...index];
+}
+
+/** 读任意一条草稿的正文，不看主人 —— 只给 cacheSweep 用（理由同 allDraftsForSweep） */
+export async function loadDraftForSweep(id: string): Promise<WorkDraft | null> {
   return (await idbGet<WorkDraft>(bodyKey(id))) ?? null;
 }
 
@@ -196,9 +250,20 @@ export async function saveDraft(input: {
     await readyDrafts();
     if (loadIssue) return null;
   }
+  // ★★ 记在「内存里这摊活是谁的」名下（workOwner，见 data/deviceOwner）：出片跑完那一拍会话可能刚好失效，
+  //   这时自动存盘存的仍是上一个登录的人的流水线。一个人都说不出来就拒（写成无主 = 谁都看不见 = 静默丢）
+  const owner = workOwner();
+  if (!owner) {
+    console.warn("[drafts] 说不出这条草稿是谁的（这一进程里没人登录过），不存");
+    return null;
+  }
+  claimLegacy();
   const now = Date.now();
-  const id = input.id ?? uid("wd");
-  const prev = index.find((d) => d.id === id);
+  // ★★ 拿着**别人**草稿的 id 来存（换号之前那条流水线的 workDraftId 还挂着之类）：另起一条新的，
+  //   绝不覆盖别人的草稿 —— 那条是他的、可能是他花过钱的段唯一的备份
+  const foreign = !!input.id && index.some((d) => d.id === input.id && d.owner !== owner);
+  const id = !input.id || foreign ? uid("wd") : input.id;
+  const prev = index.find((d) => d.id === id && d.owner === owner);
   // 缩略图只在没有、或原图换了的时候重算：一次 canvas 编码几十毫秒，自动保存会频繁触发
   const thumb = input.coverFrame ? await shrinkDataUrl(input.coverFrame) : (prev?.thumb ?? "");
 
@@ -226,14 +291,17 @@ export async function saveDraft(input: {
     doneCount: input.doneCount,
     hasRoot: !!input.root,
     hasFlow: !!input.flow && (input.flow.nodes?.length ?? 0) > 0,
+    owner,
   };
   index = [meta, ...index.filter((d) => d.id !== id)];
 
-  // 超量淘汰最旧的（按 updatedAt），正文一并删掉
-  if (index.length > MAX_DRAFTS) {
-    const keep = [...index].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, MAX_DRAFTS);
-    const dropped = index.filter((d) => !keep.some((k) => k.id === d.id));
-    index = keep;
+  // 超量淘汰**这个人**最旧的（按 updatedAt），正文一并删掉。
+  // ★ 上限按人各算：别的账号的草稿一条都不许因为这个人存草稿而被挤掉
+  const mine = index.filter((d) => d.owner === owner);
+  if (mine.length > MAX_DRAFTS) {
+    const keep = [...mine].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, MAX_DRAFTS);
+    const dropped = mine.filter((d) => !keep.some((k) => k.id === d.id));
+    index = index.filter((d) => !dropped.some((x) => x.id === d.id));
     for (const d of dropped) void idbDel(bodyKey(d.id));
   }
   persistIndex();
@@ -244,6 +312,8 @@ export async function saveDraft(input: {
 export async function deleteDraft(id: string): Promise<void> {
   // 索引没读出来：列表本来是空的，没有可删的；动了反而会盖掉磁盘上的真索引（见 loadIssue）
   if (loadIssue) return;
+  // ★ 只删自己的（workOwner）：拿着别人草稿的 id 删不掉他的草稿
+  if (!getDraftMeta(id)) return;
   index = index.filter((d) => d.id !== id);
   persistIndex();
   emit();
@@ -254,13 +324,12 @@ export async function renameDraft(id: string, title: string): Promise<void> {
   if (loadIssue) return; // 同上
   const t = title.trim().slice(0, 40);
   if (!t) return;
-  const meta = index.find((d) => d.id === id);
-  if (meta) {
-    meta.title = t;
-    meta.updatedAt = Date.now();
-    persistIndex();
-    emit();
-  }
+  const meta = getDraftMeta(id); // 只改自己的（同 deleteDraft）
+  if (!meta) return;
+  meta.title = t;
+  meta.updatedAt = Date.now();
+  persistIndex();
+  emit();
   const body = await loadDraft(id);
   if (body) await idbSet(bodyKey(id), { ...body, title: t, updatedAt: Date.now() });
 }

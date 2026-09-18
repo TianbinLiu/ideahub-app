@@ -15,6 +15,8 @@
 //   `toSkillPayload`，以及 api/skills.ts。漏任何一处 = 发了、201 了、读回来是空的，零报错。
 import { VIDEO_PROMPT_MAX, uid } from "../types";
 import { t } from "@lingui/core/macro";
+import { deviceOwner, onViewerChange, workOwner } from "./deviceOwner";
+import { splitByOwner } from "./ownerSplit";
 
 export interface AgentSkill {
   id: string;
@@ -29,6 +31,12 @@ export interface AgentSkill {
   /** 已发布到广场（远端态的镜像）。★ 判**存在性**：老数据/离线恒缺省 = 没发布 */
   published?: boolean;
   createdAt?: number;
+  /**
+   * 这条技能是**谁的**（user.id，见 data/deviceOwner）。2026-09-18 起按账号分开：原来整台设备一份，
+   * B 能改、能删 A 的技能，能把 A 从没分享过的技能以 **B 的名义**发到市场（服务端按先发者认主，A 自己再发反被拒）。
+   * ★ 可选：升级前存的没有它，由升级后第一个登录的人认领。
+   */
+  owner?: string;
 }
 
 /** 名字上限。★ 跨仓镜像：server 的 agentSkill.schemas title max(20)，超了整发 400 */
@@ -38,9 +46,36 @@ export const SKILL_INTRO_MAX = 120;
 
 const LS_KEY = "ideahub.agentSkills";
 
-let mine: AgentSkill[] = load();
+/**
+ * 现在登录的这个人的技能（全文件读写的都是它）；`others` = 这台设备上别的账号的（从不显示，落盘时并回去）。
+ * 分区只经 ownerSplit.splitByOwner 一处，换人时重分（见 data/deviceOwner）。
+ */
+let mine: AgentSkill[] = [];
+let others: AgentSkill[] = [];
 const listeners = new Set<() => void>();
 let version = 0;
+partition(load());
+
+function partition(all: AgentSkill[]): void {
+  const split = splitByOwner(all, deviceOwner());
+  mine = split.mine;
+  others = split.others;
+  if (split.claimed) persist();
+}
+
+// 换了看的人：重分区，「/」面板与市场按新的人重画
+onViewerChange(() => {
+  partition([...mine, ...others]);
+  emit();
+});
+
+/** 新写进来的一条记在「内存里这摊活的主人」名下；不是现在这个人的就进暗格（会话失效期间写的那种） */
+function place(s: AgentSkill): void {
+  const owner = s.owner || workOwner() || undefined;
+  const item = owner === s.owner ? s : { ...s, owner };
+  if (owner && owner !== deviceOwner()) others = [item, ...others.filter((x) => x.id !== item.id)];
+  else mine = [item, ...mine.filter((x) => x.id !== item.id)];
+}
 
 function load(): AgentSkill[] {
   try {
@@ -61,7 +96,8 @@ function isUsable(s: unknown): s is AgentSkill {
 
 function persist() {
   try {
-    localStorage.setItem(LS_KEY, JSON.stringify(mine));
+    // ★ 别人的那几条一起写回：只写 mine 就是一次存技能把别的账号的技能整批抹掉
+    localStorage.setItem(LS_KEY, JSON.stringify([...mine, ...others]));
   } catch {
     /* 配额满：技能不是关键路径，丢了下次重存即可 */
   }
@@ -115,7 +151,7 @@ export function saveSkill(s: Omit<AgentSkill, "id"> & { id?: string }): AgentSki
     text: s.text.trim(),
     createdAt: s.createdAt ?? Date.now(),
   };
-  mine = [next, ...mine.filter((x) => x.id !== next.id)];
+  place(next);
   persist();
   emit();
   return next;
@@ -131,7 +167,7 @@ export function removeSkill(id: string): void {
 
 /** 落一份技能进本机库（装回来的、或推送后回写的）。同 id 覆盖，不重复堆 */
 export function upsertMine(s: AgentSkill): void {
-  mine = [s, ...mine.filter((x) => x.id !== s.id)];
+  place(s);
   persist();
   emit();
 }

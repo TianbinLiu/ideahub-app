@@ -10,6 +10,7 @@ import { CHAT_TURN_TOKENS, DECK_MAX_3D, deriveIssue, DECK_MAX_CARDS, DEFAULT_TIE
 import { GenNodeOpts, CUSTOM_MID_MAX, FlowMode, FlowNode, FlowTemplate, appendBlocked, appendIssue, chosenOf, recastBlocked, nodeVideo, tplOfNode, useFlow, keepFirstFrame, redrawCost, usableFrames } from "./flowStore";
 // ★ 依赖方向没破：canvasAgent 只认识 flowStore，不认识本模块（不会成环）
 import { forgetCanvasAgent } from "./canvasAgent";
+import { onOwnerSwitch, workOwner } from "../data/deviceOwner";
 import { DraftMode, WorkDraft, WorkDraftMeta, deleteDraft, getDraftMeta, saveDraft } from "../data/drafts";
 import { showToast } from "../data/toast";
 import { t } from "@lingui/core/macro";
@@ -1958,6 +1959,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
       return;
     }
     nodeGenInFlight = true;
+    // 这一炉是谁开的：推演是分钟级异步，回来时已经换了账号的话它不许落进新账号的流水线（见下面锚点校验前那一句）
+    const ownerAtStart = workOwner();
     // live 始终指向本次生成挂在 store 上的最新编辑器对象——进度更新会换对象，
     // 不能再拿发起时的引用做"表单还开着吗"的同一性判断
     let live: EditorState = { ...editor, generating: true, progress: "" };
@@ -1987,6 +1990,10 @@ export const useStudio = create<StudioState>()((set, get) => ({
       );
       // 只有发起时的编辑器仍然打开才由本次生成负责关闭（取消后重开的新表单不受影响）
       const editorPatch = get().editor === live ? { editor: null as EditorState | null } : {};
+      // ★★ 换过账号（2026-09-18）：这一炉是上一个人开的、钱记在他账上。锚点校验拦不住「开炼时流水线是空的」那一种
+      //   （换号清空之后流水线还是空的，anchorOk 照样为真），不在这里拦的话 A 推演出的三套会落进 B 的流水线。
+      //   作废且不在 B 面前提它（那是 A 的事）。
+      if (workOwner() !== ownerAtStart) return;
       // ★ 锚点校验（推演是分钟级异步）：挂载点还是当初那一段、走向没改、流水线没换，
       //   这一炉才有处落。对不上就作废并如实说——appendNode 自己的门禁（末段已出片/
       //   生成中拒）在此之上再拦一层，两层的拒绝都会开口（铁律八）。
@@ -2767,6 +2774,43 @@ export const useStudio = create<StudioState>()((set, get) => ({
 export function publishedExit(): string | null {
   return useStudio.getState().publishedWorkId ? "/" : null;
 }
+
+// ★★ 换成另一个账号的那一拍：工坊内存里的东西是**上一个人**的（2026-09-18，见 data/deviceOwner 与 flowStore 同一段）。
+//   桌上的卡组（A 的卡，可能是真人卡）、铸段窗、剪辑页那份合成稿（B 在 /cut、/publish 能直接发出去）、
+//   与草稿的关联（workDraftId 还指着 A 的草稿）、工坊对话（会作为历史一起发进 B 的 chat 请求）、拖进来待铸卡的文件
+//   （A 的照片）、对画布说话的多轮记忆 —— 一样都不许留给 B。镜头、心情、语气这类纯界面状态留着。
+onOwnerSwitch(() => {
+  forgetCanvasAgent();
+  useStudio.setState((s) => ({
+    deck: [],
+    activeDeck: null,
+    spreadOpen: false,
+    canvasOpen: false,
+    deckView: false,
+    market: { ...s.market, open: false, items: [], query: "", loading: false, page: 0 },
+    marketDetail: null,
+    dialog: { messages: [], busy: false, thinking: false },
+    pendingFiles: [],
+    forgeProgress: "",
+    focus: null,
+    projection: null,
+    editor: null,
+    dragCardId: null,
+    dialogView: false,
+    flights: [],
+    draft: null,
+    draftAudioHint: null,
+    segEdit: null,
+    publishedWorkId: null,
+    workDraftId: null,
+    savedDoneCount: 0,
+    finalizing: false,
+    frameRefining: null,
+    proposalRegen: null,
+    nodeGen: null,
+    notice: null,
+  }));
+});
 
 // DEV 调试/E2E 挂钩：让自动化脚本能拿到与组件同实例的 store
 if (import.meta.env.DEV) {

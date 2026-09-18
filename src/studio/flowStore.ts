@@ -44,6 +44,7 @@ import { aspectOf, Card, DEFAULT_ASPECT, Proposal, TemplateRecipe, VideoAspect, 
 // ★ 角色位上限（服务端那个数的镜像）与"哪几个能挂卡"只有一处实现，在 data 层 ——
 //   store 不该 import 组件（依赖方向 data → store → 组件）
 import { dropVideoJob, rememberVideoJob, setVideoJobWaiting, type VideoJob } from "../data/videoJobs";
+import { onOwnerSwitch } from "../data/deviceOwner";
 // 导演台的状态与融图指令（纯数据 / 纯函数，见 stage/stageState 头部的 ★）
 import { stageFuseInstruction, type StageState } from "./stage/stageState";
 import {
@@ -2925,6 +2926,26 @@ export const useFlow = create<FlowState>()((set, get) => ({
         },
       );
       log.end();
+      // ★★ 写回之前先确认**这一段还在**（第七轮扫描），而且要排在结账与销毁凭据**之前**（2026-09-18）：
+      //   出片是几分钟的异步，这期间流水线可能已经被换掉、那一段被删了，或者换了账号（换号那一拍内存里的
+      //   活会被清掉，见 data/deviceOwner）。`get().nodes[idx]` 那时要么越界、要么指向**另一段** ——
+      //   认 id 不认下标。原来这里先销毁凭据再发现段没了：成片没处放、取回卡也没了，那笔钱在 App 里再也
+      //   找不回来（服务端登记表也补不回来：已处理名单里记着它）。现在凭据**留着** —— 取回卡会把它摆出来，
+      //   取回时新开一段安放、不再花钱（placeRescuedSegment）；本机账也不在这里记，取回那一拍按凭据上的
+      //   cost 记（这里记了就是两次）。
+      const still = get().nodes.find((n) => n.id === id);
+      if (!still) {
+        set(
+          get().genRun === myRun
+            ? {
+                busy: false,
+                err: t`这一段在生成过程中被删掉了（或整条流水线被换过）——成片已经出来了，钱在提交时已经扣过：用取回卡把它领回来，会新开一段放它，不再花钱。`,
+                genNotice: { ok: false, msg: t`有一段生成完了，但它已经不在流水线里——去取回卡把它领回来` },
+              }
+            : {},
+        );
+        return false;
+      }
       if (res.url && AI_REAL) spendTokens(cost);
       // 成片已经到手，凭据结案（留着只会在界面上多一颗"取回"，点了拿回同一段）
       if (taskId) dropVideoJob(taskId);
@@ -2946,23 +2967,6 @@ export const useFlow = create<FlowState>()((set, get) => ({
         videoUrl: res.url || "mock:",
         degraded: undefined,
       });
-      // ★★ 写回之前先确认**这一段还在**（第七轮扫描）：出片是几分钟的异步，这期间流水线
-      //   可能已经被换掉或那一段被删了。`get().nodes[idx]` 那时要么越界（读 undefined 的
-      //   属性当场抛错，用户看到的是一句 JS 异常），要么指向**另一段**（下标前移）——
-      //   而钱在上一行已经扣了。认 id 不认下标，找不到就如实说一句，别装作成功。
-      const still = get().nodes.find((n) => n.id === id);
-      if (!still) {
-        set(
-          get().genRun === myRun
-            ? {
-                busy: false,
-                err: t`这一段在生成过程中被删掉了（或整条流水线被换过）——这一炉的钱已经扣了，成片没处放。下次等它跑完再动流水线`,
-                genNotice: { ok: false, msg: t`有一段生成完了，但它已经不在了` },
-              }
-            : {},
-        );
-        return false;
-      }
       patchNode({
         status: "idle",
         progress: "",
@@ -3013,6 +3017,9 @@ export const useFlow = create<FlowState>()((set, get) => ({
         //   FlowPage 的 simple 闸里，画布与工坊两面一个像素都看不到，于是这句提示
         //   指向一个不存在的出口。现在三个宿主共用 components/flow/SegmentRecoverCards。
         //   以后再加新的出片宿主，先把那个组件挂上再说这句话。
+        // ★ 只有「还是我这一炉」才动 busy / err（见 genRun 的 ★★）：换过账号的话这一炉是上一个人的，
+        //   这句话（连同「点下面那颗取回」）不该出现在新登录的这个人屏幕上 —— 他的取回卡里没有这一发
+        if (get().genRun !== myRun) return false;
         set({
           busy: false,
           // ★ 24 小时是**方舟产物**的物理事实；真人档那边我们没量过留存，不许编一个数
@@ -3118,6 +3125,29 @@ export const useFlow = create<FlowState>()((set, get) => ({
     }
   },
 }));
+
+// ★★ 换成另一个账号的那一拍（2026-09-18 主人真机点名同一台手机换账号后数据串号，见 data/deviceOwner）：
+//   内存里这条流水线是**上一个人**的 —— 段、帧、付过钱的成片、挂的人物卡（可能是真人）、回炉权（reviseOf）。
+//   原来退出登录不清它，B 登录后进工坊 / 点胶囊回 /flow，看到的就是 A 的流水线，能接着炼（记 B 的账、用 A 的卡）、
+//   能组稿发成 B 的作品。这里整表清掉；genRun +1 让 A 还在路上的那一炉回来时**动不了**新会话的 busy / err
+//   （它的成片不会丢：凭据记在 A 名下，写回时发现段不在就留着，A 再登录时从取回卡领回，见 genNode 的 still 那段）。
+// ★ A → 没登录 → A 不算换人（onOwnerSwitch 的 ★）：登录失效后重新登录同一个号，流水线原样还在。
+// ★ 不走 canReplaceNodes 那道闸：那道闸防的是**同一个人**亲手换掉还在炼的流水线；这里是账号已经换了，
+//   留着才是事故。在炼的那一发由上面那条保住，不靠拦。
+onOwnerSwitch(() => {
+  useFlow.setState((s) => ({
+    nodes: [],
+    cursor: 0,
+    mode: "workflow",
+    origin: "solo",
+    busy: false,
+    err: "",
+    genNotice: null,
+    genStarted: null,
+    genRun: s.genRun + 1,
+    ...clearTemplate(),
+  }));
+});
 
 // DEV 调试/E2E 挂钩
 if (import.meta.env.DEV) {

@@ -163,6 +163,7 @@ msgstr ", upscaled to {REF_SHORT_MIN}px on the short side"
 #. 列举几个文件名 / 动作组 / 表情名时的分隔符
 #. 列举几个段号时的分隔符（第 1、3 段）
 #. 列举几个角色位时的分隔符
+#. 列举几件后台任务名时的分隔符
 #. 列举删号时清掉的几类数据时的分隔符
 #: src/components/blockout/RoleCastBoard.tsx
 #: src/components/blockout/RoleConfirmSheet.tsx
@@ -176,6 +177,7 @@ msgstr ", upscaled to {REF_SHORT_MIN}px on the short side"
 #: src/pages/CutPage.tsx
 #: src/pages/SupportModelNewPage.tsx
 #: src/studio/flowStore.ts
+#: src/studio/signOutGuard.ts
 #: src/studio/studioStore.ts
 msgid "、"
 msgstr ", "
@@ -1510,6 +1512,10 @@ msgstr "The text in the “Character info” step is what the AI reads later whe
 #: src/components/guide/tours.tsx
 msgid "「关注」那格点开是你关注过的人的名单，就地能取关。 旁边两个是你<0>所有作品加起来</0>的总数，不是某一支的。"
 msgstr "Tap “Following” to open the list of people you follow, where you can unfollow them on the spot. The two next to it are totals for <0>all your videos combined</0>, not for any single one."
+
+#: src/studio/signOutGuard.ts
+msgid "「自己传图做卡片」那一页还有活在跑（AI 出图 / 铸卡），等它跑完再退出登录，卡才会落在这个账号里。"
+msgstr "“Make a card from your own images” still has work running (AI images / minting). Wait for it to finish before logging out, so the card lands in this account."
 
 #: src/components/blockout/arkVideoRules.ts
 msgid "「自己挑」现在一帧有效的标记都没有（还没标，或者标的那几帧都落到选段外面去了）。AI 得看着画面才认得出里面有哪些人——把播放头拖到有人的地方点「标记这一帧」（至少 1 帧、最多 {BLOCKOUTIZE_FRAME_MAX} 帧），或者切回「自动」。"
@@ -3235,6 +3241,10 @@ msgstr "Upload timed out: this {mb} file didn't finish within {secs} seconds. Yo
 msgid "上传超时（网络太慢或作品太大）"
 msgstr "Upload timed out (the connection is too slow or the video is too large)"
 
+#: src/data/videos.ts
+msgid "上传途中换了登录的账号，这一条先不发——等原来那个账号再登录时会自动补发"
+msgstr "The signed-in account changed during the upload, so this one wasn't published yet — it will be published automatically when the original account logs in again"
+
 #: src/components/VoiceUploadButton.tsx
 msgid "上传音频"
 msgstr "Uploaded audio"
@@ -4083,6 +4093,10 @@ msgstr "Video content"
 msgid "作品库没能打开"
 msgstr "Couldn't open your library"
 
+#: src/studio/signOutGuard.ts
+msgid "作品正在上传，等它传完再退出登录——现在退出的话，要等你再登录这个账号时才会补发。"
+msgstr "A video is uploading. Wait for it to finish before logging out — if you log out now, it will only be published after you log back in to this account."
+
 #: src/pages/AdminPage.tsx
 msgid "作品管理列表"
 msgstr "video management list"
@@ -4493,6 +4507,10 @@ msgstr "Write what this segment should show first"
 #: src/pages/FlowPage.tsx
 msgid "先写那句话"
 msgstr "Write the sentence first"
+
+#: src/pages/SettingsPage.tsx
+msgid "先别退出登录"
+msgstr "Don't log out yet"
 
 #: src/components/support/VoiceSheet.tsx
 msgid "先加一味音色再保存。"
@@ -6935,6 +6953,11 @@ msgstr "Name"
 msgid "名字（必填，≤{NAME_MAX} 字）"
 msgstr "Name (required, up to {NAME_MAX} characters)"
 
+#. placeholder {0}: jobs.length
+#: src/studio/signOutGuard.ts
+msgid "后台还有 {0} 件活在跑（{names}），等它们跑完再退出登录，结果才会落在这个账号里。"
+msgstr "Background jobs still running: {0} ({names}). Wait for them to finish before logging out, so the results land in this account."
+
 #: src/pages/CutPage.tsx
 msgid "后移 ▶"
 msgstr "Move right ▶"
@@ -7991,6 +8014,10 @@ msgstr "The Studio is editing an image — wait for it to finish before replacin
 #: src/studio/studioStore.ts
 msgid "工坊里正在重推方案，等它跑完再换桌面"
 msgstr "The Studio is redrafting plans — wait for it to finish before replacing the table"
+
+#: src/studio/signOutGuard.ts
+msgid "工坊里还有一步在跑（推演方案 / 重画画面 / 改图，钱已经在花了），等它跑完再退出登录。"
+msgstr "A step is still running in the workshop (generating options / redrawing / editing an image — it's already being charged). Wait for it to finish before logging out."
 
 #: src/components/DraftTitle.tsx
 msgid "工程名"
@@ -11009,8 +11036,16 @@ msgid "有一段正在生成中，等它跑完再铸下一段"
 msgstr "A segment is generating. Wait for it to finish before forging the next one"
 
 #: src/studio/flowStore.ts
-msgid "有一段生成完了，但它已经不在了"
-msgstr "A segment finished generating, but it's no longer there"
+#~ msgid "有一段生成完了，但它已经不在了"
+#~ msgstr "A segment finished generating, but it's no longer there"
+
+#: src/studio/flowStore.ts
+msgid "有一段生成完了，但它已经不在流水线里——去取回卡把它领回来"
+msgstr "A segment finished generating, but it's no longer in the pipeline — recover it from the recovery card"
+
+#: src/studio/signOutGuard.ts
+msgid "有一段视频正在生成（钱在提交那一刻已经扣了）。等它出片再退出登录，结果才会稳稳落在这个账号里。"
+msgstr "A video segment is generating (it was charged when submitted). Wait for it to finish before logging out, so the result lands safely in this account."
 
 #: src/studio/flowStore.ts
 msgid "有两张不同的卡都叫「{cardName}」（位置 {slotLabel} 挂的是其中一张）——出片时靠角色名把形象图接到这个位子上，重名就分不出谁是谁，会换错人。请给其中一张改个名字，或换一张卡"
@@ -11976,6 +12011,10 @@ msgstr "Grabbing this frame…"
 msgid "正在取这一段的视频地址…"
 msgstr "Getting this segment's video address…"
 
+#: src/studio/signOutGuard.ts
+msgid "正在合成挂卡的点名句，等它跑完再退出登录。"
+msgstr "Writing the casting lines for the attached cards. Wait for it to finish before logging out."
+
 #: src/ai/minimaxVideo.ts
 msgid "正在向上游核对这一发的状态…（查询不花钱）"
 msgstr "Checking this run's status with upstream… (checking is free)"
@@ -12121,6 +12160,10 @@ msgstr "Checking whether this video has a kept Studio project…"
 #: src/pages/SettingsStoragePage.tsx
 msgid "正在算可清理的空间…"
 msgstr "Calculating reclaimable space…"
+
+#: src/studio/signOutGuard.ts
+msgid "正在组稿（铸卡组），等它跑完再退出登录。"
+msgstr "Assembling the video (minting the deck). Wait for it to finish before logging out."
 
 #: src/data/templates.ts
 msgid "正在裁出你框选的那一段…"
@@ -17236,8 +17279,12 @@ msgid "这一段后面还有别的段：退回铸段窗重铸只能接在最后�
 msgstr "There are more segments after this one: going back to the segment window re-forges it at the end of the pipeline. To change this segment's mode, delete the segments after it first, then go back."
 
 #: src/studio/flowStore.ts
-msgid "这一段在生成过程中被删掉了（或整条流水线被换过）——这一炉的钱已经扣了，成片没处放。下次等它跑完再动流水线"
-msgstr "This segment was deleted while generating (or the pipeline was replaced) — the run has already been charged and the video has nowhere to go. Next time, wait for it to finish before changing the pipeline"
+msgid "这一段在生成过程中被删掉了（或整条流水线被换过）——成片已经出来了，钱在提交时已经扣过：用取回卡把它领回来，会新开一段放它，不再花钱。"
+msgstr "This segment was deleted while it was generating (or the whole pipeline was replaced). The video is ready and was already charged when submitted: recover it from the recovery card — it will be added as a new segment at no extra charge."
+
+#: src/studio/flowStore.ts
+#~ msgid "这一段在生成过程中被删掉了（或整条流水线被换过）——这一炉的钱已经扣了，成片没处放。下次等它跑完再动流水线"
+#~ msgstr "This segment was deleted while generating (or the pipeline was replaced) — the run has already been charged and the video has nowhere to go. Next time, wait for it to finish before changing the pipeline"
 
 #: src/studio/canvasAgent.ts
 msgid "这一段在确认之前被改过了（时长/画面/选中的走向变了）：现在要 {nowLabel}，卡上写的是 {cardLabel}——重说一句，我按新价再摆一张卡"

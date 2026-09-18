@@ -44,6 +44,7 @@ import {
   type ImageTier,
 } from "../data/economy";
 import { idbSet } from "../data/db";
+import { noteBlobOwner } from "../data/blobOwners";
 // 方案的提示词拼装与"这一格要不要调模型"都在 data/promptSchemes 一处实现（铁律六）：
 // 风格那句由 slotPrompt 统一拼，方案作者改不掉；isGenerated 与 economy.schemeCost 同源。
 // ★ 别名 schemeSlotPrompt：本文件下面已经有一个**铸卡**用的 slotPrompt(type,name,...)，
@@ -2301,6 +2302,8 @@ export async function deriveCharacterModels(
       const key = `model3d:${card.id}`;
       // i18n-ignore-next-line: 只进 console.warn（下面的 catch 吞掉、跳过这张卡）
       if (!(await idbSet(key, blob))) throw new Error("建模落库失败（存储配额？）");
+      // 记下这份建模是谁的：清理缓存只动登记在现在这个人名下的（别的账号的卡本机数不到，见 data/blobOwners）
+      noteBlobOwner(key);
       card.modelUrl = `idb:${key}`;
     } catch (e) {
       console.warn(`[ai] 角色卡「${card.name}」建模失败（跳过）:`, e);

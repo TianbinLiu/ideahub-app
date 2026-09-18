@@ -163,6 +163,7 @@ msgstr "，已放大到短边 {REF_SHORT_MIN}px"
 #. 列举几个文件名 / 动作组 / 表情名时的分隔符
 #. 列举几个段号时的分隔符（第 1、3 段）
 #. 列举几个角色位时的分隔符
+#. 列举几件后台任务名时的分隔符
 #. 列举删号时清掉的几类数据时的分隔符
 #: src/components/blockout/RoleCastBoard.tsx
 #: src/components/blockout/RoleConfirmSheet.tsx
@@ -176,6 +177,7 @@ msgstr "，已放大到短边 {REF_SHORT_MIN}px"
 #: src/pages/CutPage.tsx
 #: src/pages/SupportModelNewPage.tsx
 #: src/studio/flowStore.ts
+#: src/studio/signOutGuard.ts
 #: src/studio/studioStore.ts
 msgid "、"
 msgstr "、"
@@ -1510,6 +1512,10 @@ msgstr "「人物信息」那一步的文字，之后 AI 复刻这张卡的画�
 #: src/components/guide/tours.tsx
 msgid "「关注」那格点开是你关注过的人的名单，就地能取关。 旁边两个是你<0>所有作品加起来</0>的总数，不是某一支的。"
 msgstr "「关注」那格点开是你关注过的人的名单，就地能取关。 旁边两个是你<0>所有作品加起来</0>的总数，不是某一支的。"
+
+#: src/studio/signOutGuard.ts
+msgid "「自己传图做卡片」那一页还有活在跑（AI 出图 / 铸卡），等它跑完再退出登录，卡才会落在这个账号里。"
+msgstr "「自己传图做卡片」那一页还有活在跑（AI 出图 / 铸卡），等它跑完再退出登录，卡才会落在这个账号里。"
 
 #: src/components/blockout/arkVideoRules.ts
 msgid "「自己挑」现在一帧有效的标记都没有（还没标，或者标的那几帧都落到选段外面去了）。AI 得看着画面才认得出里面有哪些人——把播放头拖到有人的地方点「标记这一帧」（至少 1 帧、最多 {BLOCKOUTIZE_FRAME_MAX} 帧），或者切回「自动」。"
@@ -3235,6 +3241,10 @@ msgstr "上传超时：这份 {mb} 在 {secs} 秒内没传完。不是断网—�
 msgid "上传超时（网络太慢或作品太大）"
 msgstr "上传超时（网络太慢或作品太大）"
 
+#: src/data/videos.ts
+msgid "上传途中换了登录的账号，这一条先不发——等原来那个账号再登录时会自动补发"
+msgstr "上传途中换了登录的账号，这一条先不发——等原来那个账号再登录时会自动补发"
+
 #: src/components/VoiceUploadButton.tsx
 msgid "上传音频"
 msgstr "上传音频"
@@ -4083,6 +4093,10 @@ msgstr "作品内容"
 msgid "作品库没能打开"
 msgstr "作品库没能打开"
 
+#: src/studio/signOutGuard.ts
+msgid "作品正在上传，等它传完再退出登录——现在退出的话，要等你再登录这个账号时才会补发。"
+msgstr "作品正在上传，等它传完再退出登录——现在退出的话，要等你再登录这个账号时才会补发。"
+
 #: src/pages/AdminPage.tsx
 msgid "作品管理列表"
 msgstr "作品管理列表"
@@ -4493,6 +4507,10 @@ msgstr "先写清楚这一段要拍什么"
 #: src/pages/FlowPage.tsx
 msgid "先写那句话"
 msgstr "先写那句话"
+
+#: src/pages/SettingsPage.tsx
+msgid "先别退出登录"
+msgstr "先别退出登录"
 
 #: src/components/support/VoiceSheet.tsx
 msgid "先加一味音色再保存。"
@@ -6935,6 +6953,11 @@ msgstr "名字"
 msgid "名字（必填，≤{NAME_MAX} 字）"
 msgstr "名字（必填，≤{NAME_MAX} 字）"
 
+#. placeholder {0}: jobs.length
+#: src/studio/signOutGuard.ts
+msgid "后台还有 {0} 件活在跑（{names}），等它们跑完再退出登录，结果才会落在这个账号里。"
+msgstr "后台还有 {0} 件活在跑（{names}），等它们跑完再退出登录，结果才会落在这个账号里。"
+
 #: src/pages/CutPage.tsx
 msgid "后移 ▶"
 msgstr "后移 ▶"
@@ -7991,6 +8014,10 @@ msgstr "工坊里正在改一张图，等它跑完再换桌面"
 #: src/studio/studioStore.ts
 msgid "工坊里正在重推方案，等它跑完再换桌面"
 msgstr "工坊里正在重推方案，等它跑完再换桌面"
+
+#: src/studio/signOutGuard.ts
+msgid "工坊里还有一步在跑（推演方案 / 重画画面 / 改图，钱已经在花了），等它跑完再退出登录。"
+msgstr "工坊里还有一步在跑（推演方案 / 重画画面 / 改图，钱已经在花了），等它跑完再退出登录。"
 
 #: src/components/DraftTitle.tsx
 msgid "工程名"
@@ -11009,8 +11036,16 @@ msgid "有一段正在生成中，等它跑完再铸下一段"
 msgstr "有一段正在生成中，等它跑完再铸下一段"
 
 #: src/studio/flowStore.ts
-msgid "有一段生成完了，但它已经不在了"
-msgstr "有一段生成完了，但它已经不在了"
+#~ msgid "有一段生成完了，但它已经不在了"
+#~ msgstr "有一段生成完了，但它已经不在了"
+
+#: src/studio/flowStore.ts
+msgid "有一段生成完了，但它已经不在流水线里——去取回卡把它领回来"
+msgstr "有一段生成完了，但它已经不在流水线里——去取回卡把它领回来"
+
+#: src/studio/signOutGuard.ts
+msgid "有一段视频正在生成（钱在提交那一刻已经扣了）。等它出片再退出登录，结果才会稳稳落在这个账号里。"
+msgstr "有一段视频正在生成（钱在提交那一刻已经扣了）。等它出片再退出登录，结果才会稳稳落在这个账号里。"
 
 #: src/studio/flowStore.ts
 msgid "有两张不同的卡都叫「{cardName}」（位置 {slotLabel} 挂的是其中一张）——出片时靠角色名把形象图接到这个位子上，重名就分不出谁是谁，会换错人。请给其中一张改个名字，或换一张卡"
@@ -11976,6 +12011,10 @@ msgstr "正在取这一帧…"
 msgid "正在取这一段的视频地址…"
 msgstr "正在取这一段的视频地址…"
 
+#: src/studio/signOutGuard.ts
+msgid "正在合成挂卡的点名句，等它跑完再退出登录。"
+msgstr "正在合成挂卡的点名句，等它跑完再退出登录。"
+
 #: src/ai/minimaxVideo.ts
 msgid "正在向上游核对这一发的状态…（查询不花钱）"
 msgstr "正在向上游核对这一发的状态…（查询不花钱）"
@@ -12121,6 +12160,10 @@ msgstr "正在确认这条作品有没有留存工坊工程…"
 #: src/pages/SettingsStoragePage.tsx
 msgid "正在算可清理的空间…"
 msgstr "正在算可清理的空间…"
+
+#: src/studio/signOutGuard.ts
+msgid "正在组稿（铸卡组），等它跑完再退出登录。"
+msgstr "正在组稿（铸卡组），等它跑完再退出登录。"
 
 #: src/data/templates.ts
 msgid "正在裁出你框选的那一段…"
@@ -17236,8 +17279,12 @@ msgid "这一段后面还有别的段：退回铸段窗重铸只能接在最后�
 msgstr "这一段后面还有别的段：退回铸段窗重铸只能接在最后。想换这一段的模式，先删掉它后面的几段再退。"
 
 #: src/studio/flowStore.ts
-msgid "这一段在生成过程中被删掉了（或整条流水线被换过）——这一炉的钱已经扣了，成片没处放。下次等它跑完再动流水线"
-msgstr "这一段在生成过程中被删掉了（或整条流水线被换过）——这一炉的钱已经扣了，成片没处放。下次等它跑完再动流水线"
+msgid "这一段在生成过程中被删掉了（或整条流水线被换过）——成片已经出来了，钱在提交时已经扣过：用取回卡把它领回来，会新开一段放它，不再花钱。"
+msgstr "这一段在生成过程中被删掉了（或整条流水线被换过）——成片已经出来了，钱在提交时已经扣过：用取回卡把它领回来，会新开一段放它，不再花钱。"
+
+#: src/studio/flowStore.ts
+#~ msgid "这一段在生成过程中被删掉了（或整条流水线被换过）——这一炉的钱已经扣了，成片没处放。下次等它跑完再动流水线"
+#~ msgstr "这一段在生成过程中被删掉了（或整条流水线被换过）——这一炉的钱已经扣了，成片没处放。下次等它跑完再动流水线"
 
 #: src/studio/canvasAgent.ts
 msgid "这一段在确认之前被改过了（时长/画面/选中的走向变了）：现在要 {nowLabel}，卡上写的是 {cardLabel}——重说一句，我按新价再摆一张卡"

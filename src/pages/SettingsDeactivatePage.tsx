@@ -15,6 +15,7 @@ import { useNavigate } from "react-router";
 import { deactivateAccount, isRemoteMode } from "../data/account";
 import { SUPPORT_EMAIL } from "../data/agreements";
 import { useCurrentUser } from "../hooks/useAccount";
+import { signOutBlocker } from "../studio/signOutGuard";
 
 export default function SettingsDeactivatePage() {
   const user = useCurrentUser();
@@ -48,6 +49,12 @@ export default function SettingsDeactivatePage() {
 
   async function run() {
     if (!matched || busy) return;
+    // 注销 = 所有设备立即退出登录：还有花钱的活在跑就先别注销（见 studio/signOutGuard）
+    const why = signOutBlocker();
+    if (why) {
+      setErr(why);
+      return;
+    }
     setBusy(true);
     setErr("");
     try {
