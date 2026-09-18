@@ -495,6 +495,7 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 | `.env.local` 没配 | AI 功能静默走 mock，不报错 | `cp .env.example .env.local` |
 | 新 worktree 缺 `.env.local` | 同上（gitignore 不会带过去） | 手动复制 |
 | 新 worktree 缺 `public/models/protected/` | **出包直接少东西且不报错**：工坊里铸卡师不见了（milltina 是加密分发的默认 NPC），凛卡的 3D 预览也没了。dev 下同样静默——只是模型 404，画面上就是"人没出来" | 同样手动从主仓复制。出包前用 `ls dist/models/protected/` 确认 `milltina-opt.glbx` 在（2026-08-11 就是这么发出去一个没有铸卡师的包的） |
+| Windows 上构建过之后 `git status` 报 `M`，`git diff` 却为空 | 构建里的 `lingui extract` 把 .po 一律写成 LF，而合并 / 检出按 `core.autocrlf` 写下的是 CRLF：内容一个字没变，可索引里缓存的文件大小对不上，git 见大小变了就直接当改过、不读内容（`git update-index --refresh` 也刷不掉）。2026-09-17 `npm run land` 因此被「extract 改了目录」误拦；在出过包的 main 里手工 `git pull` / `merge`，要改写这几个文件时同样会被「Your local changes … would be overwritten」整发拒 | 先 `git diff --name-only` 确认内容真没变，再 `git add` 那几个文件刷新索引（只更新缓存的 stat，暂存区里什么都不会多）。**别 stash、别 reset**（stash 栈是所有 worktree 共用的）。land 的三道「干净」闸已改成按内容判、只差 stat 的替你刷新（`scripts/worktree-changes.mjs`） |
 | `VITE_API_BASE` 指了远端 | 首页空白（本地库被跳过） | 本地开发注释掉它 |
 | 方舟提示词含敏感词 | 整个请求 400，不是降级 | 见 `AGENTS.md` 本仓小节 |
 | 新增数据字段没写迁移 | 老设备读到 `undefined`，静默显示 0 | 在 `src/data/videos.ts` 的迁移分支里加条件 |
