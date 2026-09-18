@@ -23,6 +23,7 @@ import { AI_REAL, refineFrame, regenSegment } from "../ai";
 import { isArkAssetUrl, requestArkTransfer, transferStatus } from "../ai/arkClient";
 import { canAfford, spendTokens, walletOf } from "../data/account";
 import { idbSet } from "../data/db";
+import { dropVideoJob } from "../data/videoJobs";
 import { annRedrawCost, fmtTokens, segTokens } from "../data/economy";
 import { publishedExit, useStudio } from "../studio/studioStore";
 import { VideoSegment, aspectOf, formatDuration, segLen, uid } from "../types";
@@ -622,7 +623,10 @@ export default function CutPage() {
         }
         setBusy(t`第 ${segNo} 段 · 重拍视频（${n}/${segTotal} 段）…`);
         const reqAll = list.map((a) => a.req).join("；");
-        const { url, lastFrame, poster } = await regenSegment(seg, reqAll, (s) => setBusy(t`第 ${segNo} 段 · ${s}`));
+        const { url, lastFrame, poster, taskId } = await regenSegment(seg, reqAll, (s) => setBusy(t`第 ${segNo} 段 · ${s}`));
+        // ★ 成片到手，这一发结案（2026-09-18）：服务端登记表不知道谁取回了哪一发，不结案的话下次进创作入口
+        //   它会被补成一张「还没取回」的卡（data/videoJobs.importServerVideoJobs）
+        if (taskId) dropVideoJob(taskId);
         seg.videoUrl = url;
         if (lastFrame) seg.lastFrame = lastFrame;
         seg.poster = poster; // 没截到就清掉：别让缩略图挂着上一发的画面

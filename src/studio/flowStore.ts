@@ -381,6 +381,23 @@ export function nodeRecastable(node: FlowNode): boolean {
   return !nodeDone(node) && node.status !== "generating";
 }
 
+/**
+ * 「‹ 回铸段窗」这一下走不走得通（null = 走得通）—— studioStore.recastNode 与投影窗那枚 ‹ 共用。
+ *
+ * ★★ 回铸 = **先把这一段删掉**，再在铸段窗里铸一段新的、经 appendNode **接在末尾**。所以只有**最后一段**能这么退
+ *   （2026-09-18，2.46 发版前复核抓到）：做同款 / 剧本→分镜 / 模板组铺出来的多段流水线，第 1 段的 ‹ 就走到这里 ——
+ *   它被删掉之后，重铸的那一段只能接到末尾（顺序变了），而末尾那段还没出片，appendNode 根本不收：
+ *   铸段窗里「推演三套」的钱已经扣了、这一段也已经没了。
+ * ★ 按段位判，别改 nodeRecastable：那一条还是 removeNode「只剩一段也能删」的尺子，与位置无关。
+ */
+export function recastBlocked(nodes: FlowNode[], nodeId: string): string | null {
+  const node = nodes.find((n) => n.id === nodeId);
+  if (!node || !nodeRecastable(node)) return t`这一段已经出片了，退不回铸段窗——想换就删掉这一段再铸`;
+  if (nodes[nodes.length - 1]?.id !== nodeId)
+    return t`这一段后面还有别的段：退回铸段窗重铸只能接在最后。想换这一段的模式，先删掉它后面的几段再退。`;
+  return null;
+}
+
 /** 用户对这一段的原话（老草稿没有这个字段，退回当前方案的剧情——
  *  那正是旧版 deriveProposals 当作 requirement 用的东西，行为不变） */
 export function requirementOf(node: FlowNode): string {
@@ -662,6 +679,21 @@ export function appendBlocked(nodes: FlowNode[], template: FlowTemplate | null):
   if (prev ? !!tplOfNode(prev)?.refVideo : !!template?.refVideo) {
     return t`白模复刻段只有一段：画面与运镜整个来自模板视频，没有可续的下一段`;
   }
+  return null;
+}
+
+/**
+ * appendNode 收不收一段新成品（null = 收）—— appendNode 的门禁与工坊铸段窗「推演三套」**扣钱之前**的预检共用这一处。
+ * ★★ 为什么扣钱之前要先问（2026-09-18，2.46 发版前复核抓到）：studioStore.generateNode 是**先扣推演费、方案出炉后**
+ *   才 appendNode，被拒的话三套方案无处落、钱已花。平时虚线卡位（placeholderVisible）挡在前面，但「‹ 回铸段窗」
+ *   这类入口绕过了它 —— 所以预检要落在花钱的那一步本身，而不是只靠入口别亮。
+ */
+export function appendIssue(s: Pick<FlowState, "nodes" | "template" | "busy">): string | null {
+  const blocked = appendBlocked(s.nodes, s.template);
+  if (blocked) return blocked;
+  const prev = s.nodes[s.nodes.length - 1];
+  if (prev && !nodeDone(prev)) return t`先把这一段炼出来，再铸下一段`;
+  if (s.busy || s.nodes.some((n) => n.status === "generating")) return t`有一段正在生成中，等它跑完再铸下一段`;
   return null;
 }
 
@@ -1117,6 +1149,13 @@ interface FlowState {
    *   回包**打开，可以并发出第三炉。回包只有在"还是我这一炉"时才有资格动 busy。
    */
   genRun: number;
+  /**
+   * 最近一次**出片真的开始了**的那一段（genNode 打上 generating 的那一拍写，只在内存里、不进草稿）。
+   * ★ 画布编辑窗「提交出片即收窗」只认它（2026-09-18，2.46 发版前复核抓到）：此前那边看的是段状态跳到 generating，
+   *   而推演三套（deriveProposals）与重画画面（regenProposal）也把段打成 generating —— 每推演 / 重画一次窗就被收掉，
+   *   还吐一句「出片后会提醒你」。出片入口有好几处（画布三颗键、对画布说话、返修），记号打在 genNode 里一处就全覆盖。
+   */
+  genStarted: { id: string; at: number } | null;
   clearGenNotice: () => void;
   /**
    * **取回**一发已经付过钱、当时没接到的成片（凭据见 data/videoJobs）。
@@ -1140,6 +1179,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
   err: "",
   genNotice: null,
   genRun: 0,
+  genStarted: null,
   mediaRev: 0,
   clearGenNotice: () => set({ genNotice: null }),
   template: null,
@@ -2074,12 +2114,9 @@ export const useFlow = create<FlowState>()((set, get) => ({
       // addNode 生空白段，这里落**推演好的成品段**（工坊铸段：三套方案或自定义单方案已经在手）
       const prev = s.nodes[s.nodes.length - 1];
       {
-        const blocked = appendBlocked(s.nodes, s.template);
-        if (blocked) return { err: blocked };
-      }
-      if (prev && !nodeDone(prev)) return { err: t`先把这一段炼出来，再铸下一段` };
-      if (s.busy || s.nodes.some((n) => n.status === "generating")) {
-        return { err: t`有一段正在生成中，等它跑完再铸下一段` };
+        // 三条门禁收在 appendIssue 一处：工坊铸段窗「推演三套」扣钱之前问的也是它（见那个函数的 ★★）
+        const issue = appendIssue(s);
+        if (issue) return { err: issue };
       }
       if (spec.proposals.length === 0) return { err: t`这一炉一个方案都没有，铸不成段` };
       const i = s.nodes.length;
@@ -2765,6 +2802,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
     const myRun = get().genRun + 1;
     set({ busy: true, err: "", genRun: myRun });
     patchNode({ status: "generating", progress: t`准备中…`, error: undefined, steps: [] });
+    set({ genStarted: { id, at: Date.now() } });
     /** 这一发的方舟任务号（受理之后才有）。空 = 还没被受理，也就一分钱都没花 */
     let taskId = "";
     try {

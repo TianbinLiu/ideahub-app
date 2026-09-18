@@ -68,8 +68,11 @@ export default function DiscardFlowDialog({
   // ★ portal 到 body + fixed：宿主已经有四个页面（创作入口/工坊法阵/模板货架/模板详情），
   //   靠"祖先恰好是定位容器"太脆；而祖先上任何一个 backdrop-blur / transform 都会给
   //   fixed 后代造包含块（CLAUDE.md「全屏浮层只铺满一小块」那条）。
+  // ★ z-[70]（2026-09-18，2.46 发版前复核抓到）：它是**确认卡**，按层级约定要盖在抽屉之上 —— 原来是 z-50，
+  //   从画布「/」面板开的「剧本 → 分镜」抽屉是 z-[60]，流水线不是空的时候这张卡就被压在抽屉的遮罩底下：
+  //   「铺成 N 段」看起来点了没反应，点遮罩又会把抽屉连同已经付过钱的那次拆分一起关掉。
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6" onClick={onCancel}>
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-6" onClick={onCancel}>
       <div
         className="w-full max-w-md rounded-2xl border border-slate-700 bg-ink p-4"
         onClick={(e) => e.stopPropagation()}

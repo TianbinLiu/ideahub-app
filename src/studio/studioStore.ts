@@ -7,7 +7,7 @@ import type { PlayerAvatar } from "./quality";
 import { acquireCard, addCards as saveCardsToAccount, canAfford, myCards, myDecks, plazaCards, spendTokens, walletOf, type AddCardsResult } from "../data/account";
 import { CHAT_TURN_TOKENS, DECK_MAX_3D, deriveIssue, DECK_MAX_CARDS, DEFAULT_TIER, MODEL3D_TOKENS, ONE_IMAGE, deckCardsCost, deckModel3dCost, fmtTokens, proposalsCost, realFaceIssue, styleWants3d, tierOf, videoAudioOn } from "../data/economy";
 // 单向依赖：工坊把活动路径喂给工作流。flowStore 不认识 studioStore（见其文件头）
-import { GenNodeOpts, CUSTOM_MID_MAX, FlowMode, FlowNode, FlowTemplate, appendBlocked, chosenOf, nodeRecastable, nodeVideo, tplOfNode, useFlow, keepFirstFrame, redrawCost, usableFrames } from "./flowStore";
+import { GenNodeOpts, CUSTOM_MID_MAX, FlowMode, FlowNode, FlowTemplate, appendBlocked, appendIssue, chosenOf, recastBlocked, nodeVideo, tplOfNode, useFlow, keepFirstFrame, redrawCost, usableFrames } from "./flowStore";
 // ★ 依赖方向没破：canvasAgent 只认识 flowStore，不认识本模块（不会成环）
 import { forgetCanvasAgent } from "./canvasAgent";
 import { DraftMode, WorkDraft, WorkDraftMeta, deleteDraft, getDraftMeta, saveDraft } from "../data/drafts";
@@ -639,7 +639,7 @@ interface StudioState {
    *   方案台的"上一段"，铸段窗那枚"上一步"随窗一起没了，而删段又被"只剩一段"挡住，
    *   用户被困在一张空白占位卡上。这里把段撤掉、铸段窗按原来的要求/档位/画幅/素材重开。
    */
-  /** 退回铸段窗重选模式：还没出片的段都行（flowStore.nodeRecastable 一处判据）；撤段 + 按原要求/档位/画幅/素材重开铸段窗 */
+  /** 退回铸段窗重选模式：还没出片的**最后一段**（flowStore.recastBlocked 一处判据）；撤段 + 按原要求/档位/画幅/素材重开铸段窗 */
   recastNode: (nodeId: string) => boolean;
   toggleSpread: () => void;
   shiftSpread: (dir: 1 | -1) => void;
@@ -1374,8 +1374,10 @@ export const useStudio = create<StudioState>()((set, get) => ({
     const node = flow.nodes.find((n) => n.id === nodeId);
     // ★ 2026-09-06 从"只有空白段"放宽到"还没出片的段"：选定模板 / 挑定走向之后想换个模式，此前 ‹ 灰着、
     //   删段被"只剩一段"挡住，人被困在窗里。丢的东西由投影窗按情况先确认（推演过的三套花过 token）。
-    if (!node || !nodeRecastable(node)) {
-      set({ notice: { text: t`这一段已经出片了，退不回铸段窗——想换就删掉这一段再铸`, at: Date.now() } });
+    // ★ 2026-09-18 又收回一截：只有**最后一段**退得回去（判据 flowStore.recastBlocked 一处，理由见它的 ★★）
+    const blocked = recastBlocked(flow.nodes, nodeId);
+    if (!node || blocked) {
+      set({ notice: { text: blocked ?? t`这一段已经出片了，退不回铸段窗——想换就删掉这一段再铸`, at: Date.now() } });
       return false;
     }
     flow.removeNode(nodeId);
@@ -1883,6 +1885,16 @@ export const useStudio = create<StudioState>()((set, get) => ({
       const blocked = otherFaceBusy();
       if (blocked) {
         set({ notice: { text: blocked, at: Date.now() } });
+        return;
+      }
+    }
+    {
+      // ★ 扣推演费**之前**先问 appendNode 收不收（同一把尺 flowStore.appendIssue，2026-09-18 复核抓到）：
+      //   下面是先扣钱、方案出炉后才 appendNode —— 被拒就是钱已花、三套方案无处落。虚线卡位平时挡在前面，
+      //   但不是每个进铸段窗的入口都经过它。
+      const issue = appendIssue(useFlow.getState());
+      if (issue) {
+        set({ notice: { text: issue, at: Date.now() } });
         return;
       }
     }

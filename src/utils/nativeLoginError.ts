@@ -51,6 +51,8 @@ export function nativeLoginErrorText(who: "wechat" | "qq", code: string, raw: st
 
   if (code === "WX_STATE_MISMATCH") return t`这次微信回执与本次请求对不上，请再点一次。`;
   if (code === "QQ_SDK_INIT_FAILED") return t`QQ 登录没能初始化。请重启 App 再试，或者用手机号、邮箱登录。`;
+  // ★ QQ 回了「成功」却没带授权码（QQLoginPlugin 的 QQ_NO_CODE）：原来没有这一档，屏幕上会是「QQ授权失败（QQ_NO_CODE）」
+  if (code === "QQ_NO_CODE") return t`QQ 这次没有给回授权码，请再点一次，或者用手机号、邮箱登录。`;
 
   // 认不出我们 / 其它失败：带上原生那个码（用户截图里能看出是哪一档），再给分身指引
   const detail = code.replace(/^WX_FAIL_|^QQ_ERROR_/, "");

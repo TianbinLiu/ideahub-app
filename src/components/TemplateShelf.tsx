@@ -372,6 +372,18 @@ export default function TemplateShelf({
   const [localTab, setLocalTab] = useState<"market" | "mine">(initialTab ?? "market");
   const tab = queryKey ? queryTab : localTab;
   const setTab = queryKey ? setQueryTab : setLocalTab;
+  /**
+   * 货架还挂着吗。★ 白模「取回」最长要等十来分钟、进度上还写着"可以离开"，而 queryKey 模式下切页签是
+   *   **改地址参数**（setParams replace）—— 卸载之后照样生效，会把人正在看的那一页换成 /workshop 或 /templates
+   *   （2026-09-18，2.46 发版前复核抓到；react-router 的 navigate 在卸载后不设防，CLAUDE.md 合成那一格同理）。
+   */
+  const aliveRef = useRef(true);
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => {
+      aliveRef.current = false;
+    };
+  }, []);
   /** 人话分类筛选（backlog 2.8-③，Vidu 式按情绪与用途分）。"" = 全部 */
   const [cat, setCat] = useState("");
   // 白模上传入口按能力门控渲染（探测走 remoteTemplatesCapable 唯一实现）：
@@ -566,7 +578,8 @@ export default function TemplateShelf({
               onTaken={() => {
                 // 取回成功 = 本机多了一个白模模板（还等着核对角色位）。切到「我的模板」，
                 // 下面那条「待核对」的提示就跟着出来了 —— 那是发布前的必经一步
-                setTab("mine");
+                // ★ 人已经走开了就不切（见 aliveRef）：模板照样落进「我的模板」，回来就看得到
+                if (aliveRef.current) setTab("mine");
               }}
             />
           ))}

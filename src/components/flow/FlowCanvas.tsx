@@ -310,19 +310,18 @@ export default function FlowCanvas({
    *   判**跳变**不判状态：用户点开一张正在炼的卡看进度，也是 sel 指着一段 generating 的段，那时不该关。
    *   工坊那一面（投影窗）在 studioStore 的 genNode 委托处做同一件事。
    */
-  const genEdge = useRef<{ id: string; status: FlowNode["status"] } | null>(null);
+  //   ★ 2026-09-18 改判 flowStore.genStarted（genNode 真的开炼那一拍写的记号）：原来判段状态跳到 generating，
+  //     而推演三套 / 重画画面也把段打成 generating —— 每推演、每重画一次窗就被收掉，还说「出片后会提醒你」。
+  const genStarted = useFlow((s) => s.genStarted);
+  const seenGenStart = useRef(genStarted);
   useEffect(() => {
-    if (!selNode) {
-      genEdge.current = null;
-      return;
-    }
-    const prev = genEdge.current;
-    genEdge.current = { id: selNode.id, status: selNode.status };
-    if (prev && prev.id === selNode.id && prev.status !== "generating" && selNode.status === "generating") {
+    if (genStarted === seenGenStart.current) return;
+    seenGenStart.current = genStarted;
+    if (genStarted && selNode && genStarted.id === selNode.id) {
       setSel(null);
       showToast(t`已开始生成，可以离开这一页，出片后会提醒你`, 2600);
     }
-  }, [selNode]);
+  }, [genStarted, selNode]);
 
   /**
    * 把某一格挪进视野。**加段与 agent 聚焦都必须调它**：新加的那一段在画布右边几百像素外，

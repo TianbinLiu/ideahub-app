@@ -2343,10 +2343,16 @@ export async function regenSegment(
   },
   extraReq: string,
   onProgress?: (status: string) => void,
-): Promise<{ url: string; lastFrame?: string; poster?: string; durationSec?: number }> {
+): Promise<{ url: string; lastFrame?: string; poster?: string; durationSec?: number; taskId?: string }> {
   const tier = tierOf(seg.videoTier);
   const prompt = zhPrompt`${seg.plot.slice(0, 320)}。修改要求（必须满足）：${extraReq.slice(0, 160)}`;
+  /** 方舟任务号 —— 调用方拿它去 videoJobs 结案（2026-09-18）：服务端登记表会把**每一发**都列出来，
+   *  这一发不结案的话，下次进创作入口它就被补成一张「服务器上有一发你付过钱的成片还没取回」 */
+  let taskId: string | undefined;
   const url = await generateVideo(prompt, await shrinkFrameFor720p(seg.firstFrame), {
+    onTask: (id) => {
+      taskId = id;
+    },
     // 同 composeSegments：时长按档位夹，报价与出片同源
     durationSec: clampDuration(seg.durationSec, seg.videoTier),
     lastFrameUrl: tier.flf ? await shrinkFrameFor720p(seg.lastFrame) : undefined,
@@ -2369,7 +2375,7 @@ export async function regenSegment(
     console.warn("[ai] 重生成段尾帧捕获失败:", e);
     onProgress?.(captureIssueLine(e));
   }
-  return { url, lastFrame, poster, durationSec };
+  return { url, lastFrame, poster, durationSec, taskId };
 }
 
 /** 封面工坊：按用户要求出封面。refDataUrl 给了就是"改当前封面"（Seedream 图生图，

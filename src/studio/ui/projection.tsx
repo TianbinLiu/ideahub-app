@@ -31,7 +31,7 @@ import {
   rederiveKey,
   useStudio,
 } from "../studioStore";
-import { CUSTOM_MID_MAX, nodeBlank, nodeRecastable, nodeDone, nodeCost, tplOfNode, useFlow, type FlowNode, nodeAnnPlan, annSkipNote, redrawCost, derivesProposals, nodeLocked, deriveCostOf } from "../flowStore";
+import { CUSTOM_MID_MAX, nodeBlank, recastBlocked, nodeDone, nodeCost, tplOfNode, useFlow, type FlowNode, nodeAnnPlan, annSkipNote, redrawCost, derivesProposals, nodeLocked, deriveCostOf } from "../flowStore";
 import TierRow from "../../components/flow/TierRow";
 // 选模板弹层借画布那一份（铁律六：市场懒加载/分段组折叠/预览确认全在那一个实现里）。
 // FlowCanvas 不 import 本文件，方向安全（它俩只在 StudioPage/FlowPage 各自的树里出现）
@@ -958,6 +958,8 @@ function ProposalsPanel() {
   const flowErr = useFlow((s) => s.err);
   /** 另一面（画布）发起的那一炉也算 —— 判据与 studioStore.otherFaceBusy 同源 */
   const flowBusy = useFlow((s) => s.busy);
+  /** 「‹ 回铸段窗」要看这一段是不是流水线的最后一段（flowStore.recastBlocked）。★ hook 排在早退之前 */
+  const flowNodes = useFlow((s) => s.nodes);
   const { t } = useLingui();
   if (!node) return null;
   const idx = path.findIndex((n) => n.id === node.id);
@@ -996,11 +998,13 @@ function ProposalsPanel() {
    *    把唯一的主按钮换成一条必被拒的路（store 那边现在会整句拒，但更不该摆出来） */
   const notDerived = nodeBlank(node) && !deriveIssue(node.videoTier);
   /**
-   * 能不能退回铸段窗重选模式（flowStore.nodeRecastable 一处判据）：还没出片、没在炼。
+   * 能不能退回铸段窗重选模式（flowStore.recastBlocked 一处判据）：还没出片、没在炼，而且是**最后一段**
+   * （回铸 = 删掉它、重铸一段接在末尾，理由见那个函数的 ★★）。
    * ★ 第一段的 ‹ 就是这条路（2026-09-06 主人真机：选定白模模板之后 ‹ 灰着、删段又被挡住，人被困在窗里）。
    * ★ 推演过三套的段（proposals ≥ 2）退回去会丢掉花过 token 的方案 —— 先确认，别静默丢。
    */
-  const canRecast = nodeRecastable(node) && !genHere && !busy;
+  const recastWhyNot = recastBlocked(flowNodes, node.id);
+  const canRecast = !recastWhyNot && !genHere && !busy;
   const recastCostly = node.proposals.length >= 2;
   const recastNodeId = node.id;
   function requestRecast() {
@@ -1028,7 +1032,7 @@ function ProposalsPanel() {
           onClick={() => (idx <= 0 ? requestRecast() : go(-1))}
           disabled={idx <= 0 ? !canRecast : false}
           aria-label={idx <= 0 ? t`回铸段窗重选模式` : t`上一段`}
-          title={idx <= 0 ? (canRecast ? t`退回铸段窗重选模式` : t`这一段已经出片，退不回去了`) : t`上一段`}
+          title={idx <= 0 ? (canRecast ? t`退回铸段窗重选模式` : recastWhyNot ?? t`这一段已经出片，退不回去了`) : t`上一段`}
           className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-slate-700/60 text-slate-200 disabled:opacity-40"
         >
           ‹

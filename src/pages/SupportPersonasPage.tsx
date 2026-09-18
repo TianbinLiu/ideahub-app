@@ -81,14 +81,18 @@ export default function SupportPersonasPage() {
   const [headErr, setHeadErr] = useState("");
   const [notice, setNotice] = useState("");
   const backTimer = useRef(0);
+  /** 这一页还挂着吗 —— 回跳计时器是在切换的异步活**干完之后**才排的，人中途走开时卸载那一拍清不到它（见下面 ★） */
+  const aliveRef = useRef(true);
 
   useEffect(() => {
     let alive = true;
+    aliveRef.current = true;
     getCompanionSettings()
       .then((s) => alive && setSettings(s))
       .catch((e) => alive && setSettingsErr(companionErrorText(e, t`读不到数字人设置`)));
     return () => {
       alive = false;
+      aliveRef.current = false;
       window.clearTimeout(backTimer.current);
     };
   }, []);
@@ -160,6 +164,9 @@ export default function SupportPersonasPage() {
       setNotice(t`已换成「${p.name}」，返回客服页生效。`);
       // busy 先不清：等返回的这一小段别再点别的。到点先解开再返回 —— 直接深链进来的人没有上一页可回，
       // 不解开就是一屏永远点不动的键（CLAUDE.md 坑表）
+      // ★ 人已经走开了就别排回跳（2026-09-18，2.46 发版前复核抓到）：卸载那一拍清掉的是**当时**的计时器，而这一个
+      //   是 prefetch + PUT 干完之后才排的 —— 不判的话它会在别的页面上把人 back() 走
+      if (!aliveRef.current) return;
       backTimer.current = window.setTimeout(() => {
         setBusy("");
         back(); // 深链冷启动时没有上一页，裸 navigate(-1) 会退成白屏（hooks/useBackOr）

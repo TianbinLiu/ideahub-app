@@ -31,6 +31,7 @@ import { isArkAssetUrl } from "../ai/arkClient";
 import { addCards, createDeck, deckSynced } from "../data/account";
 import { getVideo, publishVideo, reviseVideo, type ReviseResult } from "../data/videos";
 import { useVideosVersion } from "../hooks/useVideos";
+import { showToast } from "../data/toast";
 import { publishedExit, useStudio } from "../studio/studioStore";
 import { DEFAULT_VIDEO_CATEGORY, VIDEO_CATEGORIES, VIDEO_TAG_LEN, VIDEO_TAG_MAX, type Visibility, formatDuration, parseTags, revisionLabel, visibilityOf, visibilityWire } from "../types";
 
@@ -126,6 +127,17 @@ export default function PublishPage() {
    */
   const publishedRef = useRef(false);
   /**
+   * 这一页还挂着吗（回炉提交要传好几分钟，人完全可能先走开）。
+   * ★ effect 体里重新置真：StrictMode 下 effect 会 mount → unmount → mount，只在 cleanup 置假的话 dev 里一挂上就是假的。
+   */
+  const aliveRef = useRef(true);
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => {
+      aliveRef.current = false;
+    };
+  }, []);
+  /**
    * 草稿没了就别把人晾在这一页上 —— 但**去哪儿要看是怎么没的**（判据只在
    * studioStore.publishedExit 一处，铁律六）：发布收工留下的死页送回首页，
    * "直接输地址闯进来 / 热更新丢了状态"才回工坊。
@@ -161,6 +173,11 @@ export default function PublishPage() {
     setErr("");
     setReviseFail(null);
     setBusy(t`正在替换…`);
+    // ★ 记下提交的是**哪一份**合成稿（2026-09-18，2.46 发版前复核抓到）：这一发要传好几分钟，人完全可能先回去
+    //   打开了另一条草稿 / 另一份合成稿。回包之后 finishPublish 清的是**那一刻**的 draft、剪辑稿存档与 workDraftId ——
+    //   不核对的话，删掉的是他后来打开的那一份。
+    const submitted = useStudio.getState().draft;
+    const submittedWork = useStudio.getState().workDraftId;
     const res = await reviseVideo(
       reviseOf.videoId,
       {
@@ -186,17 +203,28 @@ export default function PublishPage() {
       },
       reviseOf.baseRevision,
     );
-    setBusy("");
+    const alive = aliveRef.current;
+    if (alive) setBusy("");
     if (!res.ok) {
-      setReviseFail(res);
+      // ★ 人已经走开了：这一页的失败卡他看不到 —— 用全局轻提示把那一整句原话说出去（合成稿原样留着，回来能重试）
+      if (alive) setReviseFail(res);
+      else showToast(res.why, 6000);
       return;
     }
     publishedRef.current = true;
     // ★ 回炉**不做**「同名卡组落进作者工坊」那一步（全新发布那条路才做）：`createDeck`
     //   按名字再建一条，回炉多半用的还是同一套卡 —— 用户的工坊里会多出一条同名卡组，
     //   而卡本身随作品的 deck 一起上行了（详情页「收入卡组」拿得到）。
-    useStudio.getState().finishPublish(res.videoId);
+    // ★ 只在合成稿还是提交的那一份时才收尾（见上面 submitted 的 ★）：换过了就一样都别动，他手上的是另一摊活
+    //   （finishPublish 连工程草稿 workDraftId 一起退休，所以两样都要还是提交时那一份）
+    const st = useStudio.getState();
+    if (st.draft === submitted && st.workDraftId === submittedWork) st.finishPublish(res.videoId);
     const rev = revisionLabel(res.revision) ?? t`新的一版`;
+    if (!alive) {
+      // 人不在这一页了：别把他从正在看的页面拽走（HashRouter 的 navigate 在卸载后照样生效，CLAUDE.md 合成那一格）
+      showToast(t`已替换。这条作品现在是${rev}，收藏过它的人会收到通知。`, 5000);
+      return;
+    }
     navigate(`/video/${res.videoId}`, {
       replace: true,
       // 成功要说一句"发生了什么"，而且要说在**结果所在的那一页**上（本 app 没有 toast）。
