@@ -957,7 +957,6 @@ export default function FeedPage() {
   }, []);
   const wrapRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
-  const firstRun = useRef(true);
   // 沉浸/全屏态。放在页面这层而不是单条视频里：关注/推荐页签、底部 TabBar、退出键
   // 都不归 FeedItem 管，而它们必须一起消失
   const [immersive, setImmersive] = useState(false);
@@ -1013,12 +1012,17 @@ export default function FeedPage() {
     [],
   );
 
-  // 切流后回到顶部并重置当前屏（首次挂载不算切流，否则会覆盖掉恢复的位置）
+  // 切流后回到顶部并重置当前屏（首次挂载不算切流）。
+  // ★ 认「上一次处理过的是哪条流」，不认「是不是第一次跑」（2026-09-18 改）：原来是一个 `firstRun` ref，
+  //   而 StrictMode 在 dev 里把 effect 走一遍「挂载→卸载→挂载」—— 第一遍把它翻成 false，重放那一遍就把首次挂载
+  //   当成了切流（浏览器里实测：一进首页就对滚动容器 scrollTo({top:0}) 一次，正式包没有这一下）。今天它恰好是空转
+  //   （刚挂上的容器本来就在顶上、activeIdx 本来就是 0），可谁往后给首页加「回到上次看的那条」，在 dev 里验就会看着
+  //   它被这一下抹掉、以为自己没写对。比较值经得起重放：同一个 feed 跑几遍结论都一样。与 VideoTemplateExtractor
+  //   的 mountedRef 同一族（生命周期 ref 被 StrictMode 的模拟卸载骗过）
+  const shownFeed = useRef(feed);
   useEffect(() => {
-    if (firstRun.current) {
-      firstRun.current = false;
-      return;
-    }
+    if (shownFeed.current === feed) return;
+    shownFeed.current = feed;
     wrapRef.current?.scrollTo({ top: 0 });
     setActiveIdx(0);
   }, [feed]);
