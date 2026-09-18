@@ -21,7 +21,7 @@ import { useAutoGuide } from "../components/guide/useAutoGuide";
 import Icon from "../components/Icon";
 import { AI_REAL, refineFrame, regenSegment } from "../ai";
 import { isArkAssetUrl, requestArkTransfer, transferStatus } from "../ai/arkClient";
-import { canAfford, spendTokens, walletOf } from "../data/account";
+import { canAfford, isRemoteMode, spendTokens, walletOf } from "../data/account";
 import { idbSet } from "../data/db";
 import { dropVideoJob } from "../data/videoJobs";
 import { ownerEpoch } from "../data/deviceOwner";
@@ -604,8 +604,21 @@ export default function CutPage() {
     //   （已经受理的那一发凭据记在 A 名下、不在这里结案，A 回来从取回卡领）。按换人代数判：A → B → A 之后
     //   剪辑稿已经被清过，再往下写就是拿空稿子盖掉 A 的剪辑稿（见 deviceOwner.ownerEpoch）。
     const epochAtStart = ownerEpoch();
-    const stopIfMoved = () => {
-      if (ownerEpoch() !== epochAtStart || !useStudio.getState().draft) throw new Error(t`中途换了账号，剩下的段没有重做`);
+    /**
+     * 这一轮写回的是**哪一份稿子**：开头是剪辑页上这一份，每写回一段就换成新写的那份。store 里那份不再是它 =
+     * 稿子被关掉或换成了别的（2026-09-18 发版复核抓到：重做期间用返回键退出单段编辑、去剪另一段，原来循环照样往下写 ——
+     * 把这一段付过钱的成片写进**另一段**的稿子，还把服务端那一发结了案）。只判「清空了」不够：换成别的稿子时它不是空的。
+     */
+    let own = useStudio.getState().draft;
+    /** submitted = 这一段的重拍已经交出去了：不结案，服务端登记表里那一发下次进创作入口会被补成取回卡 */
+    const stopIfMoved = (submitted: boolean) => {
+      if (ownerEpoch() !== epochAtStart) throw new Error(t`中途换了账号，剩下的段没有重做`);
+      if (useStudio.getState().draft === own) return;
+      throw new Error(
+        submitted && isRemoteMode()
+          ? t`剪辑中的稿子已经关掉或换成了别的：这一段重拍好的成片没有写进去（下次进创作入口，它会出现在「取回」卡上）；剩下的段没有重做`
+          : t`剪辑中的稿子已经关掉或换成了别的，剩下的段没有重做`,
+      );
     };
     const job = startJob({ kind: "cut-regen", title: t`按圈选重做`, page: "/cut", progress: t`准备中…` });
     /** 屏幕与票说同一句话 */
@@ -614,7 +627,7 @@ export default function CutPage() {
       job.update(line);
     };
     try {
-      const nextSegs = draft!.segments.slice();
+      const nextSegs = own!.segments.slice();
       let n = 0;
       for (const [segIndex, list] of bySeg) {
         n++;
@@ -628,7 +641,7 @@ export default function CutPage() {
           const a = list[k];
           const step = k + 1;
           const steps = list.length;
-          stopIfMoved();
+          stopIfMoved(false);
           say(t`第 ${segNo} 段 · 按圈选改画面 ${step}/${steps}…`);
           const edited = await refineFrame(
             // i18n-ignore-next-line: 发给 Seedream 图生图的改图指令，提示词冻结中文（界面语言不改变模型听什么）
@@ -639,11 +652,11 @@ export default function CutPage() {
           if (a.atSec < half) seg.firstFrame = edited;
           else seg.lastFrame = edited;
         }
-        stopIfMoved();
+        stopIfMoved(false);
         say(t`第 ${segNo} 段 · 重拍视频（${n}/${segTotal} 段）…`);
         const reqAll = list.map((a) => a.req).join("；");
         const { url, lastFrame, poster, taskId } = await regenSegment(seg, reqAll, (s) => say(t`第 ${segNo} 段 · ${s}`));
-        stopIfMoved();
+        stopIfMoved(true);
         // ★ 成片到手，这一发结案（2026-09-18）：服务端登记表不知道谁取回了哪一发，不结案的话下次进创作入口
         //   它会被补成一张「还没取回」的卡（data/videoJobs.importServerVideoJobs）
         if (taskId) dropVideoJob(taskId);
@@ -659,7 +672,9 @@ export default function CutPage() {
         //   中途失败（第 3 段撞上敏感词/超时）前面两段**钱已经扣了**，成片却随
         //   nextSegs 一起丢弃，圈选也没清 —— 用户点「重试」对同一份内容再收一遍。
         //   逐段写回 + 逐段清掉这一段的圈选：失败时前面付过的钱全都留在成片里。
-        useStudio.setState({ draft: { ...useStudio.getState().draft!, segments: nextSegs.slice() } });
+        const nextDraft = { ...own!, segments: nextSegs.slice() };
+        useStudio.setState({ draft: nextDraft });
+        own = nextDraft;
         // ★ 钱刚扣过（segTokens + annRedrawCost）：这一段落盘，别让一次切后台把它烧掉。
         //   与 useFlowActions 那条「又炼出一段就自动存盘」是同一条规则、同一个理由。
         // ★ null = 存住了；有句子就原样说出去（segEdit 那条路说的是另一件事，见 store）
@@ -703,6 +718,12 @@ export default function CutPage() {
     // 按换人代数判（A → B → A 也算换过：剪辑稿在中间被清过，见 deviceOwner.ownerEpoch）
     const epochAtStart = ownerEpoch();
     const ownerMoved = () => ownerEpoch() !== epochAtStart;
+    /**
+     * 这一炉写回的是哪一份稿子（写一次换一次，同 regenerateAll 的 own）。合成能活过页面卸载，人走开之后可能打开了
+     * 别的稿子 / 单段编辑 —— 那时 store 里已经不是这一份了，合好的成片不许盖上去（2026-09-18 发版复核抓到）
+     */
+    let own = useStudio.getState().draft;
+    const draftMoved = () => useStudio.getState().draft !== own;
     /**
      * ★★ 合成是一件**能活过页面卸载**的长活（屏幕上那句话就写着「可以切走」），
      *   所以它必须领一张票（本仓约定：长活登记进 data/jobs，胶囊只有一颗）。
@@ -801,9 +822,11 @@ export default function CutPage() {
           return;
         }
         mergeSegs = next;
-        if (!ownerMoved()) {
+        if (!ownerMoved() && !draftMoved()) {
           // 写回草稿：预览、重试合并、发布都用转存后的地址，别让下一步再拉一次跨境
-          useStudio.setState({ draft: { ...draft!, segments: next } });
+          const nextDraft = { ...own!, segments: next };
+          useStudio.setState({ draft: nextDraft });
+          own = nextDraft;
           // 跨境转存的成果，不值得再拉一遍
           void useStudio.getState().persistCutDraft();
         }
@@ -931,8 +954,14 @@ export default function CutPage() {
       };
       // 换过账号：成片不落进新账号（见 epochAtStart 的注释）；票在换人那一拍已经被清掉了
       if (ownerMoved()) return;
+      // 合成期间稿子被关掉 / 换成了别的：不盖上去，票上如实说一句（合成不花钱，回那份稿子再合一次就是了）
+      if (draftMoved()) {
+        settled = true;
+        job.done({ msg: t`成片合好了，但剪辑中的稿子已经关掉或换成了别的，这一条没有接上——回到那份稿子再合一次（合成不花钱）` });
+        return;
+      }
       leftRef.current = true;
-      useStudio.setState({ draft: { ...draft!, segments: [mergedSeg], branchTree: undefined, merged: true } });
+      useStudio.setState({ draft: { ...own!, segments: [mergedSeg], branchTree: undefined, merged: true } });
       // ★★ 这一拍把 `idb:merged:` 指针钉到盘上 —— 在此之前那条几十 MB 的成片
       //   **只被内存里的 store 引用着**，磁盘上找不到任何指针（cacheSweep 文件头记的
       //   正是这个洞，它靠 24h 时间闸门兜着）。实时录制几分钟的成果，不能只活在内存里。
