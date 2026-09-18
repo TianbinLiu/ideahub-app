@@ -177,7 +177,11 @@ export default function HoldToTalk({ disabled, onText, onError, className = "" }
               ? t`语音识别暂时不可用（上游没接住），先打字吧。`
               : e.status === 429
                 ? t`说得太频繁了，稍等几秒。`
-                : e.message || t`语音识别失败`,
+                : e.status === 413
+                  ? t`这一段录得太长了，说短一点再试。`
+                  : e.status >= 500
+                    ? t`语音识别暂时不可用（服务器那头出了问题，${e.status}），先打字吧。`
+                    : e.message || t`语音识别失败`,
         );
       } else {
         onError(t`语音识别失败：${e instanceof Error ? e.message : String(e)}`);

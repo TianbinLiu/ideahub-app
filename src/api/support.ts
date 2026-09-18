@@ -213,8 +213,11 @@ export async function transcribeAudio(blob: Blob, format: "wav" | "mp3" | "ogg" 
     signal,
   });
   const ctype = res.headers.get("content-type") || "";
-  if (!ctype.includes("application/json")) throw new ApiError(t`服务端还没有语音识别（返回的不是 JSON）`, 501, "UNSUPPORTED");
+  // ★ 先看状态码（2026-09-18 发版复核抓到）：网关的错误页（Cloudflare 502/504/524、nginx 413）同样是 HTML，
+  //   原来一律判成「服务端还没有语音识别」—— 功能好好的，只是这一次上游挂了 / 录得太长。
+  //   只有 **2xx 却回了 HTML**（Capacitor 的 SPA 回退、老服务端）才是真的没有这个功能。
   if (!res.ok) await throwHttp(res);
+  if (!ctype.includes("application/json")) throw new ApiError(t`服务端还没有语音识别（返回的不是 JSON）`, 501, "UNSUPPORTED");
   const j = (await res.json()) as { ok?: boolean; text?: string; durationMs?: number };
   return { text: String(j.text || "").trim(), durationMs: Number(j.durationMs || 0) };
 }

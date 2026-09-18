@@ -16347,6 +16347,11 @@ msgstr "Speech recognition failed: {0}"
 msgid "语音识别暂时不可用（上游没接住），先打字吧。"
 msgstr "Speech recognition is temporarily unavailable (the upstream service didn't respond). Please type for now."
 
+#. placeholder {0}: e.status
+#: src/components/support/HoldToTalk.tsx
+msgid "语音识别暂时不可用（服务器那头出了问题，{0}），先打字吧。"
+msgstr "Speech recognition is unavailable right now (a server-side error, {0}). Type instead for now."
+
 #: src/pages/SimpleModePage.tsx
 msgid "说一句想拍什么，AI 直接出一条短片"
 msgstr "Say what you want to film and AI makes a short video right away"
@@ -17360,6 +17365,10 @@ msgstr "This segment can't use voice samples (this tier's rendering mode is inco
 msgid "这一段带着参考视频，出片时不接受圈选改画面——这 {0} 处得先清掉才能开炼（它们也不计费）。"
 msgstr "This segment has a reference video, so circled edits aren't accepted when generating — {0, plural, one {clear this # edit before you start (it isn't charged).} other {clear these # edits before you start (they aren't charged).}}"
 
+#: src/components/support/HoldToTalk.tsx
+msgid "这一段录得太长了，说短一点再试。"
+msgstr "That recording was too long. Try a shorter one."
+
 #: src/studio/ui/projection.tsx
 msgid "这一段怎么拍？挑一张"
 msgstr "How should this segment be shot? Pick one"
@@ -17628,6 +17637,10 @@ msgstr "This zip is about {zipMb}MB, over the {maxMb}MB limit. Textures are usua
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "这个人偶在画面上排第几（点一下换）"
 msgstr "This mannequin's position in the picture (tap to change)"
+
+#: src/pages/SupportPersonasPage.tsx
+msgid "这个人格已经被作者删掉或下架了，刷新列表看看别的。"
+msgstr "This persona was deleted or unlisted by its author. Refresh the list to find another."
 
 #: src/pages/SupportPersonasPage.tsx
 msgid "这个人格没有公开，只有作者自己能用。"
