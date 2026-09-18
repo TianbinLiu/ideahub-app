@@ -572,6 +572,7 @@ export default function ProfilePage() {
                 )}
               </Link>
               <Link
+                data-guide="profile-settings"
                 to="/settings"
                 /* 44px 是移动端热区下限，原来的 h-9 w-9（36px）在手机上要点两三次才中 */
                 className="flex h-11 w-11 items-center justify-center text-slate-300"

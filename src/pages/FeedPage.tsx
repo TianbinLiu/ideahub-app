@@ -881,6 +881,8 @@ function FeedItem({
             {canRemake && (
               <button
                 {...stopTap}
+                // 新手引导锚点：只挂在当前这一支上（同 feed-title），这一支没有这颗时那一步退成居中卡片
+                {...(active ? { "data-guide": "feed-remake" } : {})}
                 onClick={remake}
                 className="pointer-events-auto inline-flex min-h-[28px] items-center gap-1 rounded-full bg-white/20 px-3 text-[11px] font-semibold text-white backdrop-blur-sm active:scale-95"
               >
