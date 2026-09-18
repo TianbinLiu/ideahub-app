@@ -334,7 +334,9 @@ export default function SupportPage() {
     const blob = await audio;
     if (runRef.current !== run || signal.aborted) return;
     const mute = muteRef.current.signal;
-    if (blob && !mute.aborted) {
+    // ★ 现问「现在还开着声音吗」（2026-09-18 发版复核抓到）：只看 mute 的话，🔇 那一下换了一个新的中止器，
+    //   而后面几句的声音早就合成好了（文字流比念快得多）—— 第 1 句停住，第 2 句照样大声念出来
+    if (blob && voiceOnRef.current && !mute.aborted) {
       try {
         // 🔇 中止的只是这一句的声音：play 收尾后落到下面的口型模拟，字幕与队列照常往下走（不会像停不掉的中止器那样卡死队列）
         await getPlayer().play(blob, (level) => companionBus.mouth(level), { signal: eitherSignal(signal, mute) });
@@ -449,11 +451,11 @@ export default function SupportPage() {
     } catch (e) {
       if (controller.signal.aborted) return;
       // ★ 中途断了（2026-09-18 发版复核抓到）：已经上屏的半截留着，但不再算「正在说」—— 原来 streaming 一直为真，
-      //   ■ 一直在、麦克风灰着、没有 👍👎；已经排队的那几句照常念完，念完才回到 idle（原来这里先 idle，
-      //   排队的句子随后又把状态改回「说话中」，此后没人再改回来）
+      //   ■ 一直在、麦克风灰着、没有 👍👎。已经排队的那几句照常念完，**念完才回到 idle**：这里不先置 idle ——
+      //   先置的话 ■ 消失、麦克风亮起（会把她自己的声音录进去），下一句又把状态改回「说话中」。队列是空的话，
+      //   下面这一发在一个微任务里就结了
       setMessages((prev) => prev.filter((m) => m.id !== assistantId || m.text).map((m) => (m.id === assistantId ? { ...m, streaming: false } : m)));
       setChatErr(errorText(e, t`${name}走神了，再发一次试试。`));
-      setPhase("idle");
       void enqueue(run, async () => undefined).then(() => {
         if (runRef.current === run) setPhase("idle");
       });

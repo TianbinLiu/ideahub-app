@@ -61,12 +61,14 @@ export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean
   const [issue, setIssue] = useState("");
   // 这张卡还挂着吗：取回成功那一拍凭据结案、列表重画，这张卡**当场就卸载了**（见 take 里的 ★★）
   const alive = useRef(true);
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    // ★ 挂载时置回 true（2026-09-18 发版复核抓到）：StrictMode 下 effect 会 mount → unmount → mount，
+    //   只在 cleanup 里置 false 的话 dev 里它从第一拍起就恒为 false（同 #291 / #295 那一格）
+    alive.current = true;
+    return () => {
       alive.current = false;
-    },
-    [],
-  );
+    };
+  }, []);
   // videoJobNote 是纯函数，重渲即刷新剩余时间
   const [, tick] = useState(0);
   useEffect(() => {

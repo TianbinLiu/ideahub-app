@@ -373,12 +373,6 @@ export function nodeBlank(node: FlowNode): boolean {
 }
 
 /**
- * 这一段能不能退回铸段窗重来（2026-09-06 主人真机：选定白模模板之后 ‹ 灰着、删段又被"只剩一段"挡住，人被困在窗里）。
- * 判据只有一条：**还没出片、也没在炼**。空白段 ⊂ 它；模板段 / 自定义段 / 推演过的段都算 —— 退回去丢的东西各不相同
- * （模板与挂卡不花钱、推演过的三套花过 token），那由 UI 按 `node.proposals.length >= 2` 先确认，这里不管。
- * 与 removeNode 的"只剩一段也能删"同一把尺（唯一实现，铁律六）。
- */
-/**
  * 这一段**推演过三套方案**（花过 token：一次 chat + 最多 6 张帧图）—— 删段 / 回铸要不要先确认的判据，唯一实现。
  * ★ 按方案张数判（≥2）：单方案的段是空白占位、做同款 / 剧本→分镜铺来的、自定义直出的，那些没为推演花过钱。
  *   与「已出片」（nodeDone）是两件事：没出片的段照样可能躺着一炉付过钱的方案。
@@ -387,6 +381,12 @@ export function nodeDerived(node: FlowNode): boolean {
   return node.proposals.length >= 2;
 }
 
+/**
+ * 这一段能不能退回铸段窗重来（2026-09-06 主人真机：选定白模模板之后 ‹ 灰着、删段又被"只剩一段"挡住，人被困在窗里）。
+ * 判据只有一条：**还没出片、也没在炼**。空白段 ⊂ 它；模板段 / 自定义段 / 推演过的段都算 —— 退回去丢的东西各不相同
+ * （模板与挂卡不花钱、推演过的三套花过 token），那由 UI 按上面的 `nodeDerived` 先确认，这里不管。
+ * 与 removeNode 的"只剩一段也能删"同一把尺（唯一实现，铁律六）。
+ */
 export function nodeRecastable(node: FlowNode): boolean {
   return !nodeDone(node) && node.status !== "generating";
 }
@@ -2270,8 +2270,10 @@ export const useFlow = create<FlowState>()((set, get) => ({
           const st = await transferStatus([url]).catch(() => null);
           const hit = st?.[url];
           if (hit?.state === "done" && hit.url) {
-            // 这一段此刻放的已经不是这一条了（问 status 期间重新生成 / 还原过）：什么都别换（见 adoptPermanentUrl 的 ★★）
-            if (!adoptPermanentUrl(node.id, node.chosenId, url, hit.url)) return;
+            // 这一段此刻放的已经不是这一条了（问 status 期间重新生成 / 还原过）：什么都别换（见 adoptPermanentUrl 的 ★★），
+            // 但**接着盯新的那条**（2026-09-18 发版复核抓到）：新成片自己那一次 settleNodeMedia 撞上 settling 里还挂着这一轮
+            // 已经被跳过了，这里 return 的话它永远拿不到永久地址与预览帧。下一轮按节点现在放的那条重读
+            if (!adoptPermanentUrl(node.id, node.chosenId, url, hit.url)) continue;
             set((s) => ({ mediaRev: s.mediaRev + 1 }));
             await get().recaptureNode(nodeId, { quiet: true });
             return;

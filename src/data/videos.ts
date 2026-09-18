@@ -2535,7 +2535,7 @@ const BAD_SHAPE_CODE = "BAD_SHAPE";
 /**
  * 发布回包「200 + 不是作品」（多半是服务器地址配错、或网关把请求兜到了静态页）时抛它。
  * ★ 认码不认话：message 只进 console / emitApiError（全 app 没人听），界面上的话由 pendingErrorText 按 bad-shape 说。
- *   ⚠ message 里别出现 network / timeout / Failed to fetch 这几个词 —— uploadFailOf 的兜底正则不分大小写。
+ *   ⚠ message 里别出现「Failed to fetch」—— uploadFailOf 拿它兜底认浏览器自己的断网。
  */
 function badShapeError(): Error {
   return Object.assign(new Error("createVideo: the response is not a video (wrong server address, or a gateway served the static page)"), {
@@ -2549,7 +2549,8 @@ function badShapeError(): Error {
  * ★ 按错误码分档，不在 message 里找中文关键词（2026-09-10 多语言第 1 步）。原来的「网络不可用」/「请求超时」
  *   四处来源都带着码：api/client 的 ApiError（NETWORK / TIMEOUT）、uploads 的整份上传与分块断线
  *   （chunkError 补了 NETWORK）；MaterializeError 是把 partial 挂在**原错误**上再抛，实例不变。
- *   `Failed to fetch` / `NetworkError` / `TimeoutError` 是浏览器自己的英文，不是我们的文案，留着兜底。
+ *   浏览器自己的英文「Failed to fetch」不是我们的文案，留着兜底（2026-09-18 起只剩它：原来还拿不分大小写的
+ *   /NETWORK|TIMEOUT/ 扫 message，把英文界面的「Switch networks…」认成断网）。
  * ⚠ 唯一的出入：老服务端（没有 /uploads/media/sign）那条整份上传的超时，原话「上传超时：这份 N MB…」
  *   以前没命中「请求超时」、原样截 120 字显示，现在按码归到 timeout 那句短话 —— 两句说的是同一件事。
  * ★ 2026-09-11 从 errText 改名、改成回码（多语言）：原来回一句中文，落进待发队列就冻结在写入时的语言上。

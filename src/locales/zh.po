@@ -16367,13 +16367,18 @@ msgid "语音播报：开"
 msgstr "语音播报：开"
 
 #: src/components/support/HoldToTalk.tsx
-msgid "语音识别失败"
-msgstr "语音识别失败"
+#~ msgid "语音识别失败"
+#~ msgstr "语音识别失败"
 
 #. placeholder {0}: e instanceof Error ? e.message : String(e)
 #: src/components/support/HoldToTalk.tsx
 msgid "语音识别失败：{0}"
 msgstr "语音识别失败：{0}"
+
+#. placeholder {0}: e.status
+#: src/components/support/HoldToTalk.tsx
+msgid "语音识别失败（HTTP {0}），先打字吧。"
+msgstr "语音识别失败（HTTP {0}），先打字吧。"
 
 #: src/components/support/HoldToTalk.tsx
 msgid "语音识别暂时不可用（上游没接住），先打字吧。"

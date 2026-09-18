@@ -200,7 +200,9 @@ export function capturePhoto(onLate?: (r: CaptureResult) => void): Promise<Captu
         settled = true;
         stopWatch();
         resolve(r);
-      } else if (r.kind === "photo") {
+      } else if (r.kind === "photo" && holder === null) {
+        // ★ 只在**没有下一张在拍**时才交出去（2026-09-18 发版复核抓到）：人已经按「再拍一次」、相机还开着的时候
+        //   这张迟到的落了格，会被自动识别一次（花钱），紧接着第二张又把它换掉、再识别一次 —— 卡上的字说的是第一张
         onLate?.(r);
       }
     };
