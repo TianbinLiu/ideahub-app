@@ -361,8 +361,8 @@ export const BUILTIN_SCHEMES: readonly PromptScheme[] = [
       faceless: true,
       examples: ["/schemes/faceless.webp"],
       slots: [
-        // ★★ 这一格是**唯一**能进管线的：它锁的是服装与体型，而画面里没有脸 ——
-        //   既是这套方案的卖点，也正好避开"多视图当人物参考"那条（它本来就不锁身份）。
+        // ★★ 这一格是主图（进管线的还有下面那格服装细节 —— 2026-09-18 订正，原来这里写的是「唯一能进管线的」）：
+        //   它锁的是服装与体型，而画面里没有脸 —— 既是这套方案的卖点，也正好避开"多视图当人物参考"那条（它本来就不锁身份）。
         builtinSlot("mannequinBody", { role: "primary", prompt: MANNEQUIN_BODY_PROMPT }),
         builtinSlot("outfitDetail", { role: "aux", prompt: OUTFIT_DETAIL_PROMPT }),
         // 三视图是给人看的规格图 —— 必须 display（文件头 ★★★②）

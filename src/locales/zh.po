@@ -1670,8 +1670,12 @@ msgid "<0>作品已经发布成功了</0>，但本片卡组没能存进你的工
 msgstr "<0>作品已经发布成功了</0>，但本片卡组没能存进你的工坊：{0}。<1>卡还在这台设备上，重试一次多半就好。</1>"
 
 #: src/pages/CustomCardPage.tsx
-msgid "<0>出片时 AI 会原样读这一句</0>，写一眼就能画出来的外形特征；不填就用卡名和简介。"
-msgstr "<0>出片时 AI 会原样读这一句</0>，写一眼就能画出来的外形特征；不填就用卡名和简介。"
+#~ msgid "<0>出片时 AI 会原样读这一句</0>，写一眼就能画出来的外形特征；不填就用卡名和简介。"
+#~ msgstr "<0>出片时 AI 会原样读这一句</0>，写一眼就能画出来的外形特征；不填就用卡名和简介。"
+
+#: src/pages/CustomCardPage.tsx
+msgid "<0>出片时 AI 会原样读这一句</0>，只写这张卡本身一眼就能画出来的样子；不填就只用卡名（简介不进出片）。"
+msgstr "<0>出片时 AI 会原样读这一句</0>，只写这张卡本身一眼就能画出来的样子；不填就只用卡名（简介不进出片）。"
 
 #: src/pages/CustomCardPage.tsx
 msgid "<0>出片时 AI 会原样读这一句</0>，当作这段故事的背景设定；不填就用卡名和简介。"
@@ -4280,8 +4284,12 @@ msgid "例：白色、弯腰前倾、在最左那盏路灯下"
 msgstr "例：白色、弯腰前倾、在最左那盏路灯下"
 
 #: src/pages/CustomCardPage.tsx
-msgid "例：白裙短发的海边少女，左耳一枚贝壳耳坠，安静但固执；画风为二次元厚涂"
-msgstr "例：白裙短发的海边少女，左耳一枚贝壳耳坠，安静但固执；画风为二次元厚涂"
+msgid "例：白裙短发，左耳一枚贝壳耳坠，身形纤细，眼神安静"
+msgstr "例：白裙短发，左耳一枚贝壳耳坠，身形纤细，眼神安静"
+
+#: src/pages/CustomCardPage.tsx
+#~ msgid "例：白裙短发的海边少女，左耳一枚贝壳耳坠，安静但固执；画风为二次元厚涂"
+#~ msgstr "例：白裙短发的海边少女，左耳一枚贝壳耳坠，安静但固执；画风为二次元厚涂"
 
 #: src/pages/CustomCardPage.tsx
 msgid "例：雨夜的旧城小巷，两侧霓虹招牌，积水的地面反光"
@@ -7577,8 +7585,12 @@ msgid "好了（选中 {0} 张）"
 msgstr "好了（选中 {0} 张）"
 
 #: src/studio/ui/NpcDialog.tsx
-msgid "如：白裙短发的海边少女，安静但固执"
-msgstr "如：白裙短发的海边少女，安静但固执"
+msgid "如：白裙短发的少女，左耳一枚贝壳耳坠，眼神安静"
+msgstr "如：白裙短发的少女，左耳一枚贝壳耳坠，眼神安静"
+
+#: src/studio/ui/NpcDialog.tsx
+#~ msgid "如：白裙短发的海边少女，安静但固执"
+#~ msgstr "如：白裙短发的海边少女，安静但固执"
 
 #: src/studio/ui/NpcDialog.tsx
 msgid "如：黄昏的旧海港，锈铁塔吊与晒网的木架"
@@ -9887,6 +9899,12 @@ msgstr "按模板视频逐镜头复刻出片（时长跟随模板 {refSec} 秒�
 #: src/studio/segmentGen.ts
 msgid "按模板视频逐镜头复刻出片（时长跟随模板）…"
 msgstr "按模板视频逐镜头复刻出片（时长跟随模板）…"
+
+#. placeholder {0}: i + 1
+#: src/ai/index.ts
+#: src/studio/studioStore.ts
+msgid "按第 {0} 段的画面整理的场景"
+msgstr "按第 {0} 段的画面整理的场景"
 
 #: src/pages/CustomCardPage.tsx
 msgid "按素材撰写人物信息…"
@@ -16733,6 +16751,10 @@ msgstr "跳到第 {at} 秒"
 msgid "跳过 / 下一步"
 msgstr "跳过 / 下一步"
 
+#: src/types.ts
+msgid "身上佩戴的饰物、纹样或疤痕"
+msgstr "身上佩戴的饰物、纹样或疤痕"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "身体"
 msgstr "身体"
@@ -19457,8 +19479,8 @@ msgid "随片提炼本片卡组"
 msgstr "随片提炼本片卡组"
 
 #: src/types.ts
-msgid "随身物、纹样或疤痕"
-msgstr "随身物、纹样或疤痕"
+#~ msgid "随身物、纹样或疤痕"
+#~ msgstr "随身物、纹样或疤痕"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "难过"

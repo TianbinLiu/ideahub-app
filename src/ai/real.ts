@@ -81,6 +81,7 @@ import { t } from "@lingui/core/macro";
 // 发给模型的中文提示词：函数体里现拼的模板套 zhPrompt 标签（恒等，原样回串），模块级的提示词表用 i18n-frozen 声明 —— 都不翻译、不进目录。
 // ★ D13 b（产出跟界面语言）/ D11 b（英文敏感词表）以后要加的输出语言子句 / 英文词表另起一处拼，不改这些原文
 import { zhPrompt } from "./prompts/zhPrompt";
+import { CARD_SCOPE, CARD_SCOPE_ALL, ID_LINE_SPEC, ID_LINE_SPEC_OF } from "./cardScope";
 
 /** 方舟返回的图片 URL 有时效（约 24h），落地成 dataURL 再入库（草稿存 localStorage） */
 async function toDataUrl(url: string): Promise<string> {
@@ -242,17 +243,25 @@ export interface RecognizedCard {
 
 /** 识别提示词：**照片口径**，两种卡各一份（字段形状相同，便于一处解析） */
 /* i18n-frozen: 发给看图模型的识别提示词（回包按这几个 JSON 字段解析），不翻译 */
+// ★ 2026-09-18：简介原来要「有故事感」—— 故事感就是把人、事、别处的东西招进来（「主人公握着它推开了门」），
+//   而那一句会被当成这张卡的描述。四个字段都照 ai/cardScope 的卡种分工写（唯一口径）
 const RECOGNIZE_SPEC: Record<"prop" | "scene", string> = {
   prop:
     "这是一张实物照片，照片里只留下了要做成道具卡的那一件东西（背景已经换成浅灰纯色）。只看这件东西本身，写：" +
-    '{"name":"卡名，不超过8字","summary":"一句有故事感的简介，不超过60字",' +
-    '"idLine":"30~60字：这件物件一眼就能画出来的外形——造型、材质、配色、标志性细节；不写用途和故事",' +
-    '"tags":["不超过6个关键词"],"hasPeople":false}',
+    '{"name":"卡名，不超过8字","summary":"一句简介，不超过60字",' +
+    '"idLine":"30~60字：这件物件一眼就能画出来的外形——造型、材质、配色、标志性细节",' +
+    '"tags":["不超过6个关键词"],"hasPeople":false}。' +
+    "name、summary、idLine、tags 都" +
+    CARD_SCOPE.prop +
+    "。",
   scene:
     "这是一张实拍的地点照片。看它，写：" +
-    '{"name":"卡名，不超过8字","summary":"一句有故事感的简介，不超过60字",' +
-    '"idLine":"30~60字：这个地点的空间结构、地貌与建筑轮廓、主要陈设与光线氛围；不写人物",' +
-    '"tags":["不超过6个关键词"],"hasPeople":true 或 false（照片里有没有人，含路人、背影、局部身体）}',
+    '{"name":"卡名，不超过8字","summary":"一句简介，不超过60字",' +
+    '"idLine":"30~60字：这个地点的空间结构、地貌与建筑轮廓、主要陈设、光源与时段",' +
+    '"tags":["不超过6个关键词"],"hasPeople":true 或 false（照片里有没有人，含路人、背影、局部身体）}。' +
+    "name、summary、idLine、tags 都" +
+    CARD_SCOPE.scene +
+    "（hasPeople 照实填，不受这一条影响）。",
 };
 
 /**
@@ -474,7 +483,9 @@ const CARD_SAFE_AREA =
  */
 /* i18n-frozen: 各卡种卡面出图提示词的构图与禁忌，发给模型，不翻译 */
 const CARD_COMPOSITION: Record<CardType, string> = {
-  character: CARD_SAFE_AREA,
+  // ★ 2026-09-18：人物卡的卡面随后就是出片的形象参考图 —— 画进去的房间、手里的东西会被当成「这个人」的一部分带进每一段
+  //   （卡种分工见 ai/cardScope）。人物站在干净背景前、手里不拿东西
+  character: `人物站在干净的纯色背景前，手里不拿任何东西，不画场景与道具。${CARD_SAFE_AREA}`,
   scene: `这是一张定场图：完整交代这个地点的空间结构、规模与光线关系，一眼能认出是哪里，不要拍成局部特写。画面中不要出现任何人物或角色。${CARD_SAFE_AREA}`,
   // ★ V3：背景卡 = 故事背景，这张图只用于展示（永不进模型），画的是"这个故事长什么样"的示意画面
   background: `这是一张故事背景的示意画面：按故事的时代、地点与氛围画一张有叙事感的场景或象征画面，不要出现具体人物的脸，画面中不出现文字。${CARD_SAFE_AREA}`,
@@ -513,14 +524,8 @@ export const TYPE_LABEL: Record<CardType, string> = {
   style: "风格样张卡面",
 };
 
-/**
- * 身份句（Card.idLine）的 JSON 字段说明 —— 几处铸卡提示词共用一句（工坊铸卡师文案，以及经 CARD_RULES 进
- * 派生卡组、模板提卡；「视频提卡」那一处已随 extractCardsFromVideo 删除），改配方只改这里。
- * 配方出处（2026-08-28 调研，backlog 2.9）：方舟官方"主体= 2~3 个稳定静态特征"；
- * 火宝短剧"最有辨识度的特征放前面、性格转神态不出现性格词"。
- */
-/* i18n-frozen: 身份句的 JSON 字段说明，几处铸卡提示词共用，发给模型，不翻译 */
-const ID_LINE_SPEC = "30~60字的固定身份句：名字+2~3个不会变的视觉特征+标志物，如「凛：银发红瞳的义体侦探，左眼全息扫描仪，黑色风衣」；性格转成神态措辞，不出现性格词";
+// 身份句（Card.idLine）的字段说明 ID_LINE_SPEC 搬到了 ai/cardScope（2026-09-18）：与「每种卡只写自己负责的内容」那张分工表同处，
+// 几条铸卡提示词与自传图做卡片的 AI 车道都从那里拿（改配方只改那里）。
 
 // 卡面画布（CARD_SIZE）搬到了 types.ts —— 报价那侧（economy.IMAGE_TIERS）要按输出像素
 // 分档算钱，两边必须是同一个数。派生卡也用同一尺寸：素材卡和派生卡摆在同一副卡组里，
@@ -1146,8 +1151,10 @@ export async function prepareMaterialRefs(
         const feats = heroPicks.map((p) => zhPrompt`${numOf(p)}的${slotLocks(hero.type, p.view.kind)}`).join("、");
         // 设定括号用**身份句**（idLineOf）：它就是为"锁形象"压出来的那句视觉描述；
         // 老卡兜底"名字：简介40字"，与旧措辞等效
+        // 没写出片句时 idLineOf 只回卡名（简介不进出片，2026-09-18）：那时括号整个省掉，别写成「（设定：小夏）」
+        const heroLine = idLineOf(hero);
         parts.push(
-          zhPrompt`将${feats}定义为角色「${hero.name}」（设定：${idLineOf(hero)}），本段画面中该角色的长相、发色与服装必须与之完全一致`,
+          zhPrompt`将${feats}定义为角色「${hero.name}」${heroLine !== hero.name ? `（设定：${heroLine}）` : ""}，本段画面中该角色的长相、发色与服装必须与之完全一致`,
         );
       }
       // ★ 同一张卡的多张图必须**并进一句**说，不能一张图一句：两句"「会说谎的罗盘」的
@@ -1191,7 +1198,8 @@ export async function prepareMaterialRefs(
 async function forgePrimary(
   type: CardType,
   name: string,
-  summary: string,
+  /** 这张卡长什么样的那一句：出片句优先、没有才是简介（见 generateCards 的 look） */
+  look: string,
   note: string,
   slot: CardSlot,
   f: MaterialFile | undefined,
@@ -1202,7 +1210,7 @@ async function forgePrimary(
   const ref = raw ? [raw] : undefined;
   const prompt = softenForImage(
     [
-      zhPrompt`${TYPE_LABEL[type]}：${name}。${summary}`,
+      zhPrompt`${TYPE_LABEL[type]}：${name}。${look}`,
       // ★ 主图也要说清它是**哪个图位**（图位表的第 0 格）：人物卡的第 0 格是「全身立绘」
       //   而不是大头照 —— 不写这一句，模型十有八九给一张半身像，而后面几张都以它为参考，
       //   "这张卡没有全身参考"就一路传下去了（顺序为什么是 body 打头见 types.CARD_SLOTS）
@@ -1235,12 +1243,12 @@ async function forgePrimary(
  * 第 i(>0) 个图位的提示词。**恒定以卡面（`<图片1>`）为唯一参考图**，理由见 forgeSlots。
  * ★ 不拼 CARD_SAFE_AREA：这几张不进卡框，是详情页里的形象参考图。
  */
-function slotPrompt(type: CardType, name: string, summary: string, note: string, slot: CardSlot): string {
+function slotPrompt(type: CardType, name: string, look: string, note: string, slot: CardSlot): string {
   return softenForImage(
     [
       // ★ 这里用 CARD_TYPE_PROMPT（"人物卡"）而不是 TYPE_LABEL（"人物立绘卡面"）：
       //   这几张不是卡面，说成"卡面的面部特写"会让模型去画一张画着卡的图
-      zhPrompt`${CARD_TYPE_PROMPT[type]}「${name}」的${slotPromptOf(type, slot.kind).label}。${summary}`,
+      zhPrompt`${CARD_TYPE_PROMPT[type]}「${name}」的${slotPromptOf(type, slot.kind).label}。${look}`,
       zhPrompt`<图片1>是这张卡已经定稿的主图。画的必须是<图片1>里的同一${SUBJECT_WORD[type]}：${slotPromptOf(type, slot.kind).locks}要与<图片1>完全一致，只改变取景与景别，不要另画一${SUBJECT_WORD[type]}。`,
       // 画风也锁在主图上（2026-08-28 厚涂词退役后这句就是唯一的画风指令）：
       // 三张图随后要一起当形象参考，画风分裂与形象分裂一样致命
@@ -1291,7 +1299,7 @@ interface ForgeReport {
 async function forgeSlots(
   type: CardType,
   name: string,
-  summary: string,
+  look: string,
   note: string,
   slots: readonly CardSlot[],
   primary: string,
@@ -1318,7 +1326,7 @@ async function forgeSlots(
     const label = slot.label;
     rp.say(t`铸「${name}」第 ${n}/${total} 张：${label}…`);
     try {
-      const url = await genImageAsDataUrl(slotPrompt(type, name, summary, note, slot), {
+      const url = await genImageAsDataUrl(slotPrompt(type, name, look, note, slot), {
         imageRefs: [ref],
         size: tier.size,
         model: tier.model,
@@ -1391,9 +1399,11 @@ export async function generateCards(
       // 文案精炼：名称 + 一句话简介 + 类型校正 + 固定身份句（idLine：与文案同一次调用
       // 顺带产出、零新增成本——铸卡期一次压好，出片逐段复用同一句，见 types.Card.idLine）
       const meta = await chat(
+        // ★ 2026-09-18：简介原来要「有故事感」、出片句不分卡种一律按人物身份句写 —— 故事感把动作、地点、手里的东西招进来，
+        //   一张场景卡也被要求写「名字 + 视觉特征 + 标志物」。现在都按 ai/cardScope 的卡种分工写
         forcedType
-          ? zhPrompt`你是卡牌游戏的铸卡师。用户已指定这是一张【${TYPE_LABEL[forcedType]}】，不要改类型。输出 JSON：{"name":"不超过8字的卡名","summary":"一句30字内有故事感的简介","idLine":"${ID_LINE_SPEC}","type":"${forcedType}"}。只输出 JSON。`
-          : zhPrompt`你是卡牌游戏的铸卡师。根据素材信息输出 JSON：{"name":"不超过8字的卡名","summary":"一句30字内有故事感的简介","idLine":"${ID_LINE_SPEC}","type":"character|scene|background|prop|style"}。只输出 JSON。`,
+          ? zhPrompt`你是卡牌游戏的铸卡师。用户已指定这是一张【${TYPE_LABEL[forcedType]}】，不要改类型。输出 JSON：{"name":"不超过8字的卡名","summary":"一句30字内的简介","idLine":"${ID_LINE_SPEC_OF[forcedType]}","type":"${forcedType}"}。name、summary、idLine 都${CARD_SCOPE[forcedType]}。只输出 JSON。`
+          : zhPrompt`你是卡牌游戏的铸卡师。根据素材信息输出 JSON：{"name":"不超过8字的卡名","summary":"一句30字内的简介","idLine":"30~60字的出片句：人物卡写名字+2~3个不会变的外形特征，其余卡种写这张卡一眼就能画出来的样子","type":"character|scene|background|prop|style"}。${CARD_SCOPE_ALL}；name、summary、idLine 都照这条分工写。只输出 JSON。`,
         zhPrompt`文件名: ${f?.name ?? "无"}\n文本内容: ${(f?.text ?? "").slice(0, 300) || "无"}\n用户补充: ${note || "无"}\n是否图片素材: ${f?.dataUrl ? "是" : "否"}`,
       );
       const parsed = JSON.parse(meta.replace(/```json|```/g, "").trim()) as {
@@ -1416,13 +1426,16 @@ export async function generateCards(
     // ★ 这一档、这一类要画哪几张 —— **唯一来源**是 economy.slotsFor。
     //   别在这里另算张数（`imageTier.views` 是名义上限，非人物卡只有 2 格），
     //   报价、出图、结算读的必须是同一次 slice 的结果，否则就是"页面报 3 张、实际画 2 张"。
+    // 画卡面 / 形象图时拿哪一句描述它：出片句（按卡种分工写的外形）优先，没有才退回简介（2026-09-18）——
+    //   原来拿的是简介：它是给人看的一句话，带着故事就会把房间、手柄画进卡面，而卡面随后就是出片的形象参考图
+    const look = idLine || summary;
     const slots = slotsFor(type, opts?.tierId);
     // 与 forgeSlots 里后几张那句是同一条 msgid（第 n/total 张）
     const n = 1;
     const total = slots.length;
     const label = slots[0].label;
     rp.say(t`铸「${name}」第 ${n}/${total} 张：${label}…`);
-    const primary = await forgePrimary(type, name, summary, note, slots[0], f, card.cover, tier);
+    const primary = await forgePrimary(type, name, look, note, slots[0], f, card.cover, tier);
     if (!primary.genPrompt) {
       // 主图都没画成：后面几张没有参考图可依，画了也只会是另一个人 —— 直接收手。
       // ★ 说出来，并且说清楚顶上去的是什么。用户看到一张陌生的占位图却以为"AI 就画成这样"，
@@ -1444,7 +1457,7 @@ export async function generateCards(
       );
       return { card: { ...card, name, summary, type, cover: primary.cover, imageTier: tier.id }, minted: 0 };
     }
-    const views = await forgeSlots(type, name, summary, note, slots, primary.cover, tier, rp);
+    const views = await forgeSlots(type, name, look, note, slots, primary.cover, tier, rp);
     return {
       card: {
         ...card,
@@ -1500,8 +1513,9 @@ export async function generateCards(
 function frameArtStyle(materials?: Card[], refsOn = true): string {
   const styleCard = materials?.find((c) => c.type === "style");
   if (styleCard) {
-    // ★ V3：风格卡的出片句（idLine：画风 + 材质 + 色调光影 + 镜头语言）整句进来；老卡没有 idLine 退回简介前 24 字
-    const line = (styleCard.idLine || "").trim().slice(0, ID_LINE_MAX) || styleCard.summary.slice(0, 24);
+    // ★ V3：风格卡的出片句（idLine：画风 + 材质 + 色调光影 + 镜头语言）整句进来；没有 idLine 只报风格名 ——
+    //   简介不进出片（2026-09-18，原来退回简介前 24 字：简介里写的人物、地点会被当成画风要求，见 ai/cardScope）
+    const line = (styleCard.idLine || "").trim().slice(0, ID_LINE_MAX);
     return zhPrompt`整体画风与镜头语言严格跟随风格卡「${styleCard.name}」${line ? `（${line}）` : ""}，全片统一，高细节，`;
   }
   if (materials?.some((c) => c.realPerson === true)) return zhPrompt`照片级写实画面，高细节，电影感构图，氛围光，`;
@@ -1546,7 +1560,14 @@ export async function generateProposals(
   let plots: Array<{ title: string; plot: string; durationSec: number; shot?: unknown }>;
   onProgress?.(t`剧情推演中…`);
   try {
-    const mats = ctx.materials.map((m) => zhPrompt`${m.type}:${m.name}(${m.summary?.slice(0, 40) ?? ""})`).join("；");
+    // ★ 报出片句不报简介（2026-09-18 主人真机）：简介是给人看的一句话，常带着别的卡种的东西（「窝在房间里握着手柄」），
+    //   写进推演 = 三套剧情都围着手柄和房间转。idLineOf 没写出片句时只回卡名（背景卡回故事本身）
+    const mats = ctx.materials
+      .map((m) => {
+        const line = idLineOf(m);
+        return zhPrompt`${m.type}:${m.name}${line && line !== m.name ? `(${line.slice(0, 40)})` : ""}`;
+      })
+      .join("；");
     const raw = await chat(
       // ★ 2026-09-06：加结构化镜头字段（对标 updream 分镜 Skill）——景别 / 运镜 / 情绪节拍各是短语，出片提示词按字段读
       zhPrompt`你是互动视频编剧兼分镜师。基于素材与要求，为同一段视频写 3 个不同走向（顺势推进/风云突变/柳暗花明），输出 JSON 数组：[{"title":"12字内标题","plot":"80-120字剧情，画面感强，小说式","durationSec":4到9的整数,"shot":{"size":"景别（远景/全景/中景/近景/特写）","camera":"运镜（固定/推/拉/摇/移/跟/环绕/手持，可带方向，6字内）","beat":"情绪节拍，6字内，如 压抑→爆发"}}]。只输出 JSON。`,
@@ -1701,12 +1722,14 @@ function mintSpec(cap: CardMintCap, head: string, tail: string): MintSpec {
  */
 /* i18n-frozen: 三条提卡路共用的卡种定义与措辞纪律，发给模型，不翻译；禁用词与 REF_WORD_RE / BLOCKOUT_SKELETON_RE 是同一套中文 */
 const CARD_RULES =
-  "卡种定义：character＝主要角色；scene＝视频里的地点/空间/舞台，idLine 写空间结构、地面、背景、光源与时间；prop＝画面里被使用或显眼的物件；style＝这条视频的画面风格与镜头语言（画风、材质质感、色调光影、运镜、剪辑节奏），name 就是风格名（如「暗调赛博」「胶片日系」）；**不出 background 卡**（背景卡是作者写的故事背景，不能从画面推断）。每张卡的 idLine 是出片时用的一句（不超过 60 字）：人物卡按身份句写（" +
+  "卡种定义：character＝主要角色；scene＝视频里的地点/空间/舞台，idLine 写空间结构、地面、背景、光源与时间；prop＝画面里显眼、会反复出现的物件；style＝这条视频的画面风格与镜头语言（画风、材质质感、色调光影、运镜、剪辑节奏），name 就是风格名（如「暗调赛博」「胶片日系」）；**不出 background 卡**（背景卡是作者写的故事背景，不能从画面推断）。每张卡的 idLine 是出片时用的一句（不超过 60 字）：人物卡按身份句写（" +
   ID_LINE_SPEC +
-  "），其它卡种只写画面里能看到的事实；措辞必须**独立成立**——读者手上没有这段视频，禁止出现「参考视频」「原视频」「复刻」「还原」「参考」「一致」这类字眼。";
+  "），其它卡种只写画面里能看到的、属于这张卡本身的事实。" +
+  CARD_SCOPE_ALL +
+  "（summary、idLine、imagePrompt 都照这条分工写）。措辞必须**独立成立**——读者手上没有这段视频，禁止出现「参考视频」「原视频」「复刻」「还原」「参考」「一致」这类字眼。";
 /* i18n-frozen: 提卡回包的 JSON 形状说明，发给模型，不翻译（TEMPLATE_MINT 按字面 replace 其中的卡种枚举） */
 const CARD_JSON =
-  '：[{"type":"character|scene|prop|style","name":"不超过8字","summary":"30字内有故事感的简介","idLine":"出片句，见规则","imagePrompt":"该卡卡面的文生图描述，60字内，含主体与氛围","frameIndex":最能代表它的那一帧（从1起；没给抽帧时省略）,"box":[x1,y1,x2,y2]（道具卡在该帧里的位置，0~1 相对坐标，左上到右下；没给抽帧时省略）}]。';
+  '：[{"type":"character|scene|prop|style","name":"不超过8字","summary":"30字内的简介","idLine":"出片句，见规则","imagePrompt":"该卡卡面的文生图描述，60字内，只画这张卡本身（人物站在干净背景前、手里不拿东西；场景里没有人；道具单独摆放）","frameIndex":最能代表它的那一帧（从1起；没给抽帧时省略）,"box":[x1,y1,x2,y2]（道具卡在该帧里的位置，0~1 相对坐标，左上到右下；没给抽帧时省略）}]。';
 
 /** 成片剧情 → 本片卡组。上限与报价（economy.deckCardsCost）同一个常量。
  *  ★ 2026-08-28 主人拍板改成**卡种级**规则（原来是实体级"补缺的角色"）：
@@ -1833,14 +1856,16 @@ export function dropRefClauses(text: string | undefined): string {
  * 卡定义的措辞复核（三条提卡路共用，铸卡面之前跑）：
  * · background 一律丢（背景卡 = 作者写的故事背景，不从画面出）；
  * · 名字带禁用词整张丢（改名等于替模型编一张卡）；
- * · 简介 / 出片句 / 画面描述剥掉命中的子句，剥空了互相兜底，两样都空就丢。
+ * · 简介 / 出片句 / 画面描述剥掉命中的子句；简介剥空了拿出片句顶，两样都空就丢。
+ *   ★ 出片句**不再**拿简介顶（2026-09-18）：简介是给人看的，可能串着别的卡种的东西（ai/cardScope），
+ *     顶进出片句就成了每一段的硬约束。出片句空着，出片时只报卡名（types.idLineOf）。
  */
 function sanitizeCardDefs(defs: CardDef[]): CardDef[] {
   const out: CardDef[] = [];
   for (const d of defs) {
     if (!d.type || d.type === "background" || !d.name || REF_WORD_RE.test(d.name)) continue;
     const summary = dropRefClauses(d.summary);
-    const idLine = dropRefClauses(d.idLine) || summary;
+    const idLine = dropRefClauses(d.idLine);
     if (!summary && !idLine) continue;
     const imagePrompt = dropRefClauses(d.imagePrompt);
     out.push({ ...d, summary: summary || idLine, idLine, ...(imagePrompt ? { imagePrompt } : { imagePrompt: undefined }) });
@@ -2051,7 +2076,7 @@ async function mintCards(
         // 后续用它就能复刻出与卡面一致的画面/建模
         // ★ 跟随句只在参考帧**真备成了**才拼（铁律五的措辞版：图没发不许说"跟随参考图"）
         // ★ V3：带上卡种构图（CARD_COMPOSITION）——场景卡面"不要出现人物"这一条此前只有用户素材铸卡那条路有
-        genPrompt = zhPrompt`${TYPE_LABEL[type]}：${d.name}。${d.imagePrompt ?? d.summary ?? ""}。${styleHint ? `画风：${styleHint}。` : ""}${styleRefUrl ? STYLE_FOLLOW_MINT : ""}${CARD_COMPOSITION[type]}${cardStyleSuffix(type, "卡面")}`;
+        genPrompt = zhPrompt`${TYPE_LABEL[type]}：${d.name}。${d.imagePrompt || d.idLine || d.summary || ""}。${styleHint ? `画风：${styleHint}。` : ""}${styleRefUrl ? STYLE_FOLLOW_MINT : ""}${CARD_COMPOSITION[type]}${cardStyleSuffix(type, "卡面")}`;
         // 画布与素材卡一致（CARD_SIZE）：两种卡摆在同一副卡组里，画幅不一致一眼就看得出
         cover = await genImageAsDataUrl(genPrompt, {
           size: CARD_SIZE,

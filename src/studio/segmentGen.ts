@@ -315,11 +315,15 @@ function materialText(materials?: Card[]): string {
     .filter((c) => c.type !== "background")
     .map((c) => {
       //   逐段逐字复用——同一措辞本身就是一致性手段；老卡兜底"名字+简介40字"=老行为）。
-      if (c.type === "character") return `${CARD_TYPE_PROMPT[c.type]}「${c.name}」＝${idLineOf(c)}`;
-      // ★ V3：非人物卡有出片句（idLine：场景的空间结构、风格的画风+镜头语言）就整句进；
-      //   老卡没有 idLine 的仍是简介前 24 字（存量卡的提示词一个字不变）
+      if (c.type === "character") {
+        // 没写出片句时 idLineOf 只回卡名：别拼成「人物卡「小夏」＝小夏」
+        const line = idLineOf(c);
+        return `${CARD_TYPE_PROMPT[c.type]}「${c.name}」${line !== c.name ? `＝${line}` : ""}`;
+      }
+      // ★ V3：非人物卡有出片句（idLine：场景的空间结构、风格的画风+镜头语言）就整句进；没有的只报卡名 ——
+      //   简介不进出片（2026-09-18，原来退回简介前 24 字：简介是给人看的，常串着别的卡种的东西，见 ai/cardScope）
       const line = (c.idLine || "").trim().slice(0, ID_LINE_MAX);
-      return `${CARD_TYPE_PROMPT[c.type]}「${c.name}」${line ? `＝${line}` : c.summary ? `（${c.summary.slice(0, 24)}）` : ""}`;
+      return `${CARD_TYPE_PROMPT[c.type]}「${c.name}」${line ? `＝${line}` : ""}`;
     })
     .join("；");
   // ★ V3：背景卡 = 故事背景，纯文字、不发图（allocateRefs 不分配它），也不套"不得改动其外形"那句——

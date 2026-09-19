@@ -2579,7 +2579,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
     const heroUrl = imageOf(hero);
     const sceneUrl = imageOf(scene);
     const sources = [shot, heroUrl, sceneUrl].filter(Boolean);
-    const styleLine = styleCard ? (styleCard.idLine || "").trim().slice(0, 80) || styleCard.summary.slice(0, 24) : "";
+    // 风格卡没写出片句就只报风格名：简介不进出片（2026-09-18，同 real.frameArtStyle / ai/cardScope）
+    const styleLine = styleCard ? (styleCard.idLine || "").trim().slice(0, 80) : "";
     const instruction = stageFuseInstruction({
       plot: prop.plot,
       figures: node.stage?.figures.length ?? 1,

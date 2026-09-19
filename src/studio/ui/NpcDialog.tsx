@@ -662,7 +662,7 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
                   maxLength={300}
                   placeholder={
                     type === "character"
-                      ? t`如：白裙短发的海边少女，安静但固执`
+                      ? t`如：白裙短发的少女，左耳一枚贝壳耳坠，眼神安静`
                       : type === "scene"
                         ? t`如：黄昏的旧海港，锈铁塔吊与晒网的木架`
                         : t`描述素材，或直接描述你想要的卡`

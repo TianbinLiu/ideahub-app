@@ -1670,8 +1670,12 @@ msgid "<0>作品已经发布成功了</0>，但本片卡组没能存进你的工
 msgstr "<0>Your video was published</0>, but its deck couldn't be saved to your Studio: {0}. <1>The cards are still on this device; retrying usually works.</1>"
 
 #: src/pages/CustomCardPage.tsx
-msgid "<0>出片时 AI 会原样读这一句</0>，写一眼就能画出来的外形特征；不填就用卡名和简介。"
-msgstr "<0>The AI reads this line as-is when generating video</0>, so describe features that can be drawn at a glance. If it's empty, the card name and intro are used."
+#~ msgid "<0>出片时 AI 会原样读这一句</0>，写一眼就能画出来的外形特征；不填就用卡名和简介。"
+#~ msgstr "<0>The AI reads this line as-is when generating video</0>, so describe features that can be drawn at a glance. If it's empty, the card name and intro are used."
+
+#: src/pages/CustomCardPage.tsx
+msgid "<0>出片时 AI 会原样读这一句</0>，只写这张卡本身一眼就能画出来的样子；不填就只用卡名（简介不进出片）。"
+msgstr "<0>The AI reads this line as-is when generating video</0>, so describe only what this card itself looks like at a glance. If it's empty, only the card name is used (the intro isn't used for video)."
 
 #: src/pages/CustomCardPage.tsx
 msgid "<0>出片时 AI 会原样读这一句</0>，当作这段故事的背景设定；不填就用卡名和简介。"
@@ -4280,8 +4284,12 @@ msgid "例：白色、弯腰前倾、在最左那盏路灯下"
 msgstr "E.g. white, leaning forward, under the leftmost streetlight"
 
 #: src/pages/CustomCardPage.tsx
-msgid "例：白裙短发的海边少女，左耳一枚贝壳耳坠，安静但固执；画风为二次元厚涂"
-msgstr "e.g. A short-haired girl in a white dress by the sea, a seashell earring in her left ear, quiet but stubborn; anime-style impasto"
+msgid "例：白裙短发，左耳一枚贝壳耳坠，身形纤细，眼神安静"
+msgstr "e.g. White dress, short hair, a seashell earring in her left ear, slender build, calm eyes"
+
+#: src/pages/CustomCardPage.tsx
+#~ msgid "例：白裙短发的海边少女，左耳一枚贝壳耳坠，安静但固执；画风为二次元厚涂"
+#~ msgstr "e.g. A short-haired girl in a white dress by the sea, a seashell earring in her left ear, quiet but stubborn; anime-style impasto"
 
 #: src/pages/CustomCardPage.tsx
 msgid "例：雨夜的旧城小巷，两侧霓虹招牌，积水的地面反光"
@@ -7577,8 +7585,12 @@ msgid "好了（选中 {0} 张）"
 msgstr "Done ({0} selected)"
 
 #: src/studio/ui/NpcDialog.tsx
-msgid "如：白裙短发的海边少女，安静但固执"
-msgstr "e.g. A short-haired girl in a white dress by the sea, quiet but stubborn"
+msgid "如：白裙短发的少女，左耳一枚贝壳耳坠，眼神安静"
+msgstr "e.g. A short-haired girl in a white dress, a seashell earring in her left ear, calm eyes"
+
+#: src/studio/ui/NpcDialog.tsx
+#~ msgid "如：白裙短发的海边少女，安静但固执"
+#~ msgstr "e.g. A short-haired girl in a white dress by the sea, quiet but stubborn"
 
 #: src/studio/ui/NpcDialog.tsx
 msgid "如：黄昏的旧海港，锈铁塔吊与晒网的木架"
@@ -9887,6 +9899,12 @@ msgstr "Remaking the template video shot by shot (duration follows the template,
 #: src/studio/segmentGen.ts
 msgid "按模板视频逐镜头复刻出片（时长跟随模板）…"
 msgstr "Remaking the template video shot by shot (duration follows the template)…"
+
+#. placeholder {0}: i + 1
+#: src/ai/index.ts
+#: src/studio/studioStore.ts
+msgid "按第 {0} 段的画面整理的场景"
+msgstr "Scene taken from segment {0}'s footage"
 
 #: src/pages/CustomCardPage.tsx
 msgid "按素材撰写人物信息…"
@@ -16733,6 +16751,10 @@ msgstr "Jump to {at}s"
 msgid "跳过 / 下一步"
 msgstr "Skip / Next"
 
+#: src/types.ts
+msgid "身上佩戴的饰物、纹样或疤痕"
+msgstr "worn accessories, patterns or scars"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "身体"
 msgstr "Body"
@@ -19457,8 +19479,8 @@ msgid "随片提炼本片卡组"
 msgstr "Extract a deck from this video"
 
 #: src/types.ts
-msgid "随身物、纹样或疤痕"
-msgstr "carried items, patterns or scars"
+#~ msgid "随身物、纹样或疤痕"
+#~ msgstr "carried items, patterns or scars"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "难过"

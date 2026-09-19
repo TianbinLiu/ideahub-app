@@ -2383,7 +2383,9 @@ export const useStudio = create<StudioState>()((set, get) => ({
               type: "scene" as const,
               // ★ 兜底卡名存进卡组、随作品发布：按作者当时的界面语言定下来（与 ai/index.ts 的 mock 同一条 msgid）
               name: sg.title.replace(/^第\d+段 · /, "").slice(0, 8) || t`场景${i + 1}`,
-              summary: sg.plot.slice(0, 60),
+              // ★ 简介别抄剧情（2026-09-18）：剧情里全是人物和动作，而这是一张**场景**卡（卡种分工见 ai/cardScope）。
+              //   与 ai/index.ts 的 mock 同一条 msgid
+              summary: t`按第 ${i + 1} 段的画面整理的场景`,
               cover: sg.poster || sg.firstFrame,
             })),
           );

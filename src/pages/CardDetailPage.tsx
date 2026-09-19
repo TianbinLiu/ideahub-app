@@ -64,8 +64,9 @@ function cardInfoOf(card: Card): string {
   if (card.genPrompt) return card.genPrompt;
   // i18n-ignore-next-line: 这段是现补的铸卡提示词（与 ai/real.forgePrimary 同款格式），照原样交给模型才复刻得出卡面
   const tags = card.tags?.length ? `关键词：${card.tags.join("、")}。` : "";
+  // ★ 描述那一句与 real.forgePrimary 同源：出片句优先、没有才是简介（2026-09-18）
   // i18n-ignore-next-line: 同上，提示词正文冻结中文（类型名与画风尾巴也取自 ai/real 的提示词表）
-  return `${TYPE_LABEL[card.type]}：${card.name}。${card.summary}${tags}${cardStyleSuffix(card.type, "卡面")}`;
+  return `${TYPE_LABEL[card.type]}：${card.name}。${card.idLine || card.summary}${tags}${cardStyleSuffix(card.type, "卡面")}`;
 }
 
 /**

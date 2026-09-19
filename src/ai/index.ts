@@ -67,7 +67,8 @@ export const deriveDeckCards: typeof real.deriveDeckCards = AI_REAL
           id: `card_drv_${Date.now().toString(36)}_${i}`,
           type: "scene" as const,
           name: sg.title.replace(/^第\d+段 · /, "").slice(0, 8) || t`场景${i + 1}`,
-          summary: sg.plot.slice(0, 60),
+          // 简介别抄剧情：剧情里全是人物和动作，而这是一张场景卡（与 studioStore 兜底卡同一条 msgid，见那边的 ★）
+          summary: t`按第 ${i + 1} 段的画面整理的场景`,
           cover: sg.firstFrame,
         }))
         .filter((c) => !have.has(c.name));

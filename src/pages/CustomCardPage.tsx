@@ -60,6 +60,7 @@ import {
   type PortraitView,
 } from "../ai";
 import { chatVision } from "../ai/arkClient";
+import { CARD_SCOPE, ID_LINE_SPEC } from "../ai/cardScope";
 import FrameAnnotator from "../components/FrameAnnotator";
 import { CHAT_TURN_TOKENS, ONE_IMAGE, fmtTokens, schemeCost } from "../data/economy";
 import { saveVoice } from "../data/cardVoice";
@@ -149,7 +150,7 @@ export default function CustomCardPage() {
   const [summary, setSummary] = useDraftField("summary");
   const [info, setInfo] = useDraftField("info");
   const [tagText, setTagText] = useDraftField("tagText");
-  /** 出片句（Card.idLine）。这一页原来不写它，出片时退回「名字 + 简介前 24 字」（segmentGen.materialText） */
+  /** 出片句（Card.idLine）。没填的卡出片时只报卡名（types.idLineOf；简介不进出片，2026-09-18） */
   const [idLine, setIdLine] = useDraftField("idLine");
   /** 道具卡「只留主体」层（components/PhotoSubjectPicker）开着时那张图 */
   const [subjectPick, setSubjectPick] = useDraftField("subjectPick");
@@ -685,6 +686,9 @@ export default function CustomCardPage() {
       //   （"AI 已按素材写好，可随意改"），而 aiOpen 让"面板开着"不再等于"lane 是 ai"。
       setLane("ai");
       // ── 文案那一半：看图写人物信息（AI 车道连人物信息一起生成，主人点名）──
+      // ★★ 2026-09-18 主人真机：看的是用户交上来的**原图**，照片里的房间、手里的游戏手柄原样被写进了简介
+      //   （「窝在房间里握着手柄惬意玩乐」），出片时就被逼着画出手柄和房间。现在每个字段都按人物卡的分工写
+      //   （ai/cardScope 唯一口径：只写这个人本身），并顺带写出片句 —— 原来这条路从不写它，出片只能拿简介兜底
       setAiBusy(t`按素材撰写人物信息…`);
       job.update(t`按素材撰写人物信息…`);
       try {
@@ -697,11 +701,15 @@ export default function CustomCardPage() {
                 // i18n-ignore-next-line: 发给模型的输出形状说明，冻结中文
                 `{"name":"卡名≤${NAME_MAX}字","summary":"一句话简介≤${SUMMARY_MAX}字",` +
                 // i18n-ignore-next-line: 同上
-                `"info":"复刻这个角色的要点（发型发色/眼睛/服装/气质），≤200字","tags":["≤${TAG_MAX}个标签"]}`,
+                `"info":"复刻这个人的外形要点（发型发色/眼睛/体型/服装与身上佩戴的饰物/气质），≤200字",` +
+                // i18n-ignore-next-line: 同上（出片句 = Card.idLine，出片时原样进视频提示词）
+                `"idLine":"${ID_LINE_SPEC}","tags":["≤${TAG_MAX}个标签"]}。` +
+                // i18n-ignore-next-line: 同上 —— 卡种分工：照片里的地点、手里的东西、画风都不是这张人物卡的
+                `name、summary、info、idLine、tags 都${CARD_SCOPE.character}。`,
               [aiBody.dataUrl],
             )
           : JSON.stringify({ name: t`演示角色`, summary: t`演示档生成的占位文案（配好 Key 后按素材图撰写）`, info: aiSubject.trim(), tags: [] });
-        let j: { name?: string; summary?: string; info?: string; tags?: string[] };
+        let j: { name?: string; summary?: string; info?: string; idLine?: string; tags?: string[] };
         try {
           j = JSON.parse(raw.replace(/^[^{]*/, "").replace(/[^}]*$/, ""));
         } catch {
@@ -714,6 +722,8 @@ export default function CustomCardPage() {
         if (j.name) setName(String(j.name).slice(0, NAME_MAX));
         if (j.summary) setSummary(String(j.summary).slice(0, SUMMARY_MAX));
         if (j.info) setInfo(String(j.info).slice(0, INFO_MAX));
+        // 出片句只在还空着时填：用户自己写过的一句不替他改（与拍照识别那条同一口径）
+        if (j.idLine && !useCardDraft.getState().idLine.trim()) setIdLine(String(j.idLine).slice(0, ID_LINE_MAX));
         if (Array.isArray(j.tags) && j.tags.length) setTagText(j.tags.slice(0, TAG_MAX).join(" "));
       } catch (copyErr) {
         // 文案没写成不拦路（图已经在手）——到人物信息那一步自己写。
@@ -1099,7 +1109,7 @@ export default function CustomCardPage() {
         // 用户填的那段就是详情页「<类型>信息」那一块。没填就**不写**这个字段——
         // 详情页会如实说"这张卡没留下铸造时的提示词，下面是按同款格式现补的一份"
         ...(info.trim() ? { genPrompt: info.trim().slice(0, INFO_MAX) } : {}),
-        // 出片句：填了才写。没填不写，出片时照旧退回名字 + 简介（segmentGen.materialText / types.idLineOf）。
+        // 出片句：填了才写。没填不写，出片时只报卡名（types.idLineOf；简介不进出片）。
         // ★ 客户端 60（ID_LINE_MAX）< 服务端 zod 200，有意不相等（CLAUDE.md「把客户端上限与服务端对齐」那格）
         ...(idLine.trim() ? { idLine: idLine.trim().slice(0, ID_LINE_MAX) } : {}),
         // 真人声明只在为 true 时写（缺省 = 非真人，读侧判否定，见 types.Card.realPerson）
@@ -2142,7 +2152,7 @@ export default function CustomCardPage() {
           maxLength={INFO_MAX}
           placeholder={
             type === "character"
-              ? t`例：白裙短发的海边少女，左耳一枚贝壳耳坠，安静但固执；画风为二次元厚涂`
+              ? t`例：白裙短发，左耳一枚贝壳耳坠，身形纤细，眼神安静`
               : type === "style"
                 ? t`例：水墨留白，淡墨皴擦，大面积留白，边缘晕染`
                 : t`把这张卡的样子写具体：造型、材质、配色、光线……`
@@ -2160,7 +2170,7 @@ export default function CustomCardPage() {
         </div>
         {/* 出片句（Card.idLine）。★ 与上面那段「<类型>信息」不是一回事：信息只进 genPrompt（详情页展示、复刻时读），
             出片句是**出片时原样拼进视频提示词**的那一句（segmentGen.materialText）—— 这一页原来不写它，
-            出片时退回「名字 + 简介前 24 字」。画出来让人看得见、改得了：以后「拍摄识别」写进来的那一句
+            出片时只报卡名（简介不进出片，2026-09-18）。画出来让人看得见、改得了：以后「拍摄识别」写进来的那一句
             如果看不见，就是一段用户改不了的硬约束。 */}
         <h3 className="mb-1.5 mt-3 text-xs font-semibold text-slate-300"><Trans>出片句（选填）</Trans></h3>
         <input
@@ -2175,7 +2185,7 @@ export default function CustomCardPage() {
             {type === "background" ? (
               <Trans><span className="text-slate-400">出片时 AI 会原样读这一句</span>，当作这段故事的背景设定；不填就用卡名和简介。</Trans>
             ) : (
-              <Trans><span className="text-slate-400">出片时 AI 会原样读这一句</span>，写一眼就能画出来的外形特征；不填就用卡名和简介。</Trans>
+              <Trans><span className="text-slate-400">出片时 AI 会原样读这一句</span>，只写这张卡本身一眼就能画出来的样子；不填就只用卡名（简介不进出片）。</Trans>
             )}
           </p>
           <span className="flex-none text-[10px] text-slate-600">

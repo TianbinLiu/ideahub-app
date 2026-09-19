@@ -559,7 +559,9 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
         scheme: { ...scheme, slots: todo },
         bodyCrop: body.dataUrl,
         faceCrop: face?.dataUrl ?? null,
-        subject: summary.trim() || name.trim(),
+        // ★ 只用名字，不用简介（2026-09-18）：简介是随手写的一句话，常带着动作、手里的东西、地点 —— 填进方案的 {{主体}}
+        //   就会被画进形象图，而形象图随后就是出片的参考图（卡种分工见 ai/cardScope）。长相由圈出来的原片裁剪决定
+        subject: name.trim(),
         // 勾了「这是真人」= 参考图是照片是已知事实，画风句锁死（见 promptSchemes.PHOTO_LOCK_CLAUSE）
         realPhoto: realPerson,
         onProgress: (st) => {
