@@ -1429,12 +1429,20 @@ msgid "「{name}」的主图读不出来，剩下 {rest} 张形象参考图这�
 msgstr "“{name}”: the main image couldn't be read, so {rest, plural, one {the remaining reference image} other {the remaining # reference images}} won't be drawn this time"
 
 #: src/ai/real.ts
-msgid "「{name}」的参考图这次没带上（一次最多 {budget} 张，堆满了模型反而判断不出该优先保哪些特征），它只按文字设定参与"
-msgstr "“{name}”: its reference image wasn't included this time (at most {budget, plural, one {# image} other {# images}} at once — with too many references, the model can't tell which features to prioritize), so it only takes part through its text details"
+msgid "「{name}」的参考图这次没带上（一次最多 {budget} 张，堆满了模型反而判断不出该优先保哪些特征），它只按出片句参与（没写出片句就只报名字）"
+msgstr "“{name}”: its reference image wasn't included this time (at most {budget, plural, one {# image} other {# images}} at once — with too many references, the model can't tell which features to prioritize), so it only takes part through its video line (just its name if it has none)"
 
 #: src/ai/real.ts
-msgid "「{name}」的参考图这次没带上（一次最多 {budget} 张，方舟的协议上限），它只按文字设定参与"
-msgstr "“{name}”: its reference image wasn't included this time (at most {budget, plural, one {# image} other {# images}} per render — Ark's protocol limit), so it only takes part through its text details"
+#~ msgid "「{name}」的参考图这次没带上（一次最多 {budget} 张，堆满了模型反而判断不出该优先保哪些特征），它只按文字设定参与"
+#~ msgstr "“{name}”: its reference image wasn't included this time (at most {budget, plural, one {# image} other {# images}} at once — with too many references, the model can't tell which features to prioritize), so it only takes part through its text details"
+
+#: src/ai/real.ts
+msgid "「{name}」的参考图这次没带上（一次最多 {budget} 张，方舟的协议上限），它只按出片句参与（没写出片句就只报名字）"
+msgstr "“{name}”: its reference image wasn't included this time (at most {budget, plural, one {# image} other {# images}} per render — Ark's protocol limit), so it only takes part through its video line (just its name if it has none)"
+
+#: src/ai/real.ts
+#~ msgid "「{name}」的参考图这次没带上（一次最多 {budget} 张，方舟的协议上限），它只按文字设定参与"
+#~ msgstr "“{name}”: its reference image wasn't included this time (at most {budget, plural, one {# image} other {# images}} per render — Ark's protocol limit), so it only takes part through its text details"
 
 #: src/ai/real.ts
 msgid "「{name}」的场景卡面去人没去干净，用了原片那一帧"
@@ -3916,6 +3924,11 @@ msgstr "Extract a card from a video"
 msgid "从视频提取卡组"
 msgstr "Extract a deck from a video"
 
+#. placeholder {0}: CARD_TYPE_LABELS[type]
+#: src/components/VideoCardAnnotator.tsx
+msgid "从视频里圈选提取（{0}）"
+msgstr "Circled from a video ({0})"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "从预览截一张"
 msgstr "Capture from preview"
@@ -3996,8 +4009,8 @@ msgid "会表情"
 msgstr "Expressions"
 
 #: src/studio/ui/NpcDialog.tsx
-msgid "会被拿起来用的关键物件"
-msgstr "A key object that gets picked up and used"
+#~ msgid "会被拿起来用的关键物件"
+#~ msgstr "A key object that gets picked up and used"
 
 #: src/data/danmaku.ts
 msgid "会说谎的罗盘"
@@ -9771,8 +9784,12 @@ msgid "挂上你的角色"
 msgstr "Cast your characters"
 
 #: src/ai/real.ts
-msgid "挂了 {charCount} 张人物卡，只把「{heroName}」的形象参考图喂给绘图（一张图里画多个角色会被方舟整条拒掉），其余按文字设定"
-msgstr "{charCount, plural, one {# character card is} other {# character cards are}} attached, but only “{heroName}”'s reference images are fed to the image model (one image with several characters gets rejected outright by Ark); the others only take part through their text details"
+msgid "挂了 {charCount} 张人物卡，只把「{heroName}」的形象参考图喂给绘图（一张图里画多个角色会被方舟整条拒掉），其余只按出片句参与（没写出片句的只报名字）"
+msgstr "{charCount, plural, one {# character card is} other {# character cards are}} attached, but only “{heroName}”'s reference images are fed to the image model (one image with several characters gets rejected outright by Ark); the others only take part through their video lines (just their names if they have none)"
+
+#: src/ai/real.ts
+#~ msgid "挂了 {charCount} 张人物卡，只把「{heroName}」的形象参考图喂给绘图（一张图里画多个角色会被方舟整条拒掉），其余按文字设定"
+#~ msgstr "{charCount, plural, one {# character card is} other {# character cards are}} attached, but only “{heroName}”'s reference images are fed to the image model (one image with several characters gets rejected outright by Ark); the others only take part through their text details"
 
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "挂卡"
@@ -10670,6 +10687,10 @@ msgstr "Story illustration"
 #: src/types.ts
 msgid "故事背景"
 msgstr "Story background"
+
+#: src/studio/ui/NpcDialog.tsx
+msgid "故事里的关键物件——只管它本身的样子"
+msgstr "A key object in the story — just how the object itself looks"
 
 #: src/pages/SettingsPage.tsx
 #: src/pages/SupportPersonasPage.tsx
@@ -16595,8 +16616,12 @@ msgid "读过你的素材"
 msgstr "Read your materials"
 
 #: src/studio/ui/NpcDialog.tsx
-msgid "谁在故事里——长相 / 性格 / 口癖"
-msgstr "Who's in the story — looks / personality / catchphrases"
+#~ msgid "谁在故事里——长相 / 性格 / 口癖"
+#~ msgstr "Who's in the story — looks / personality / catchphrases"
+
+#: src/studio/ui/NpcDialog.tsx
+msgid "谁在故事里——长相与衣着（手里拿的、所在的地方另做道具卡、场景卡）"
+msgstr "Who's in the story — looks and clothing (things they hold and where they are go on prop and scene cards)"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "谁能用"

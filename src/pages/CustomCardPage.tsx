@@ -152,6 +152,7 @@ export default function CustomCardPage() {
   const [tagText, setTagText] = useDraftField("tagText");
   /** 出片句（Card.idLine）。没填的卡出片时只报卡名（types.idLineOf；简介不进出片，2026-09-18） */
   const [idLine, setIdLine] = useDraftField("idLine");
+  const [, setAiIdLine] = useDraftField("aiIdLine");
   /** 道具卡「只留主体」层（components/PhotoSubjectPicker）开着时那张图 */
   const [subjectPick, setSubjectPick] = useDraftField("subjectPick");
   /** 一键识别（场景卡 / 道具卡，拍板 5 a）正在跑的那一步，以及结局那句话 */
@@ -722,8 +723,19 @@ export default function CustomCardPage() {
         if (j.name) setName(String(j.name).slice(0, NAME_MAX));
         if (j.summary) setSummary(String(j.summary).slice(0, SUMMARY_MAX));
         if (j.info) setInfo(String(j.info).slice(0, INFO_MAX));
-        // 出片句只在还空着时填：用户自己写过的一句不替他改（与拍照识别那条同一口径）
-        if (j.idLine && !useCardDraft.getState().idLine.trim()) setIdLine(String(j.idLine).slice(0, ID_LINE_MAX));
+        // 出片句：还空着、或者还是上一次 AI 写的那一句（用户没改过）就换成这一次的；用户自己写过的不替他改
+        //（与拍照识别同一口径）。★ 开头若还带着「名字：」就去掉 —— 名字由出片提示词自己带，留在句子里的话改名之后就对不上了
+        if (j.idLine) {
+          const aiName = String(j.name ?? "").trim();
+          let line = String(j.idLine).trim();
+          if (aiName && line.startsWith(aiName)) line = line.slice(aiName.length).replace(/^[：:，,\s]+/, "");
+          line = line.slice(0, ID_LINE_MAX);
+          const cur = useCardDraft.getState();
+          if (line && (!cur.idLine.trim() || cur.idLine === cur.aiIdLine)) {
+            setIdLine(line);
+            setAiIdLine(line);
+          }
+        }
         if (Array.isArray(j.tags) && j.tags.length) setTagText(j.tags.slice(0, TAG_MAX).join(" "));
       } catch (copyErr) {
         // 文案没写成不拦路（图已经在手）——到人物信息那一步自己写。

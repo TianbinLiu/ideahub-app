@@ -1429,12 +1429,20 @@ msgid "「{name}」的主图读不出来，剩下 {rest} 张形象参考图这�
 msgstr "「{name}」的主图读不出来，剩下 {rest} 张形象参考图这次不画了"
 
 #: src/ai/real.ts
-msgid "「{name}」的参考图这次没带上（一次最多 {budget} 张，堆满了模型反而判断不出该优先保哪些特征），它只按文字设定参与"
-msgstr "「{name}」的参考图这次没带上（一次最多 {budget} 张，堆满了模型反而判断不出该优先保哪些特征），它只按文字设定参与"
+msgid "「{name}」的参考图这次没带上（一次最多 {budget} 张，堆满了模型反而判断不出该优先保哪些特征），它只按出片句参与（没写出片句就只报名字）"
+msgstr "「{name}」的参考图这次没带上（一次最多 {budget} 张，堆满了模型反而判断不出该优先保哪些特征），它只按出片句参与（没写出片句就只报名字）"
 
 #: src/ai/real.ts
-msgid "「{name}」的参考图这次没带上（一次最多 {budget} 张，方舟的协议上限），它只按文字设定参与"
-msgstr "「{name}」的参考图这次没带上（一次最多 {budget} 张，方舟的协议上限），它只按文字设定参与"
+#~ msgid "「{name}」的参考图这次没带上（一次最多 {budget} 张，堆满了模型反而判断不出该优先保哪些特征），它只按文字设定参与"
+#~ msgstr "「{name}」的参考图这次没带上（一次最多 {budget} 张，堆满了模型反而判断不出该优先保哪些特征），它只按文字设定参与"
+
+#: src/ai/real.ts
+msgid "「{name}」的参考图这次没带上（一次最多 {budget} 张，方舟的协议上限），它只按出片句参与（没写出片句就只报名字）"
+msgstr "「{name}」的参考图这次没带上（一次最多 {budget} 张，方舟的协议上限），它只按出片句参与（没写出片句就只报名字）"
+
+#: src/ai/real.ts
+#~ msgid "「{name}」的参考图这次没带上（一次最多 {budget} 张，方舟的协议上限），它只按文字设定参与"
+#~ msgstr "「{name}」的参考图这次没带上（一次最多 {budget} 张，方舟的协议上限），它只按文字设定参与"
 
 #: src/ai/real.ts
 msgid "「{name}」的场景卡面去人没去干净，用了原片那一帧"
@@ -3916,6 +3924,11 @@ msgstr "从视频提取卡片"
 msgid "从视频提取卡组"
 msgstr "从视频提取卡组"
 
+#. placeholder {0}: CARD_TYPE_LABELS[type]
+#: src/components/VideoCardAnnotator.tsx
+msgid "从视频里圈选提取（{0}）"
+msgstr "从视频里圈选提取（{0}）"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "从预览截一张"
 msgstr "从预览截一张"
@@ -3996,8 +4009,8 @@ msgid "会表情"
 msgstr "会表情"
 
 #: src/studio/ui/NpcDialog.tsx
-msgid "会被拿起来用的关键物件"
-msgstr "会被拿起来用的关键物件"
+#~ msgid "会被拿起来用的关键物件"
+#~ msgstr "会被拿起来用的关键物件"
 
 #: src/data/danmaku.ts
 msgid "会说谎的罗盘"
@@ -9771,8 +9784,12 @@ msgid "挂上你的角色"
 msgstr "挂上你的角色"
 
 #: src/ai/real.ts
-msgid "挂了 {charCount} 张人物卡，只把「{heroName}」的形象参考图喂给绘图（一张图里画多个角色会被方舟整条拒掉），其余按文字设定"
-msgstr "挂了 {charCount} 张人物卡，只把「{heroName}」的形象参考图喂给绘图（一张图里画多个角色会被方舟整条拒掉），其余按文字设定"
+msgid "挂了 {charCount} 张人物卡，只把「{heroName}」的形象参考图喂给绘图（一张图里画多个角色会被方舟整条拒掉），其余只按出片句参与（没写出片句的只报名字）"
+msgstr "挂了 {charCount} 张人物卡，只把「{heroName}」的形象参考图喂给绘图（一张图里画多个角色会被方舟整条拒掉），其余只按出片句参与（没写出片句的只报名字）"
+
+#: src/ai/real.ts
+#~ msgid "挂了 {charCount} 张人物卡，只把「{heroName}」的形象参考图喂给绘图（一张图里画多个角色会被方舟整条拒掉），其余按文字设定"
+#~ msgstr "挂了 {charCount} 张人物卡，只把「{heroName}」的形象参考图喂给绘图（一张图里画多个角色会被方舟整条拒掉），其余按文字设定"
 
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "挂卡"
@@ -10670,6 +10687,10 @@ msgstr "故事示意图"
 #: src/types.ts
 msgid "故事背景"
 msgstr "故事背景"
+
+#: src/studio/ui/NpcDialog.tsx
+msgid "故事里的关键物件——只管它本身的样子"
+msgstr "故事里的关键物件——只管它本身的样子"
 
 #: src/pages/SettingsPage.tsx
 #: src/pages/SupportPersonasPage.tsx
@@ -16595,8 +16616,12 @@ msgid "读过你的素材"
 msgstr "读过你的素材"
 
 #: src/studio/ui/NpcDialog.tsx
-msgid "谁在故事里——长相 / 性格 / 口癖"
-msgstr "谁在故事里——长相 / 性格 / 口癖"
+#~ msgid "谁在故事里——长相 / 性格 / 口癖"
+#~ msgstr "谁在故事里——长相 / 性格 / 口癖"
+
+#: src/studio/ui/NpcDialog.tsx
+msgid "谁在故事里——长相与衣着（手里拿的、所在的地方另做道具卡、场景卡）"
+msgstr "谁在故事里——长相与衣着（手里拿的、所在的地方另做道具卡、场景卡）"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "谁能用"

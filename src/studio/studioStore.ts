@@ -2344,7 +2344,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
             durationSec: sg.realDurationSec ?? sg.durationSec,
           })),
           styleHint,
-          deckCards.map((c) => ({ type: c.type, name: c.name, summary: c.summary })),
+          deckCards.map((c) => ({ type: c.type, name: c.name, summary: c.summary, idLine: c.idLine })),
           say,
         );
         const names = new Set(deckCards.map((c) => c.name));
