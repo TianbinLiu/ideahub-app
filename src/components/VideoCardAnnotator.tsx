@@ -45,7 +45,6 @@ import {
   Card,
   CARD_TYPE_COLORS,
   CARD_TYPE_LABELS,
-  CARD_TYPE_PROMPT,
   CardRole,
   CardType,
   CardView,
@@ -559,7 +558,9 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
         scheme: { ...scheme, slots: todo },
         bodyCrop: body.dataUrl,
         faceCrop: face?.dataUrl ?? null,
-        subject: summary.trim() || name.trim(),
+        // ★ 只用名字，不用简介（2026-09-18）：简介是随手写的一句话，常带着动作、手里的东西、地点 —— 填进方案的 {{主体}}
+        //   就会被画进形象图，而形象图随后就是出片的参考图（卡种分工见 ai/cardScope）。长相由圈出来的原片裁剪决定
+        subject: name.trim(),
         // 勾了「这是真人」= 参考图是照片是已知事实，画风句锁死（见 promptSchemes.PHOTO_LOCK_CLAUSE）
         realPhoto: realPerson,
         onProgress: (st) => {
@@ -721,9 +722,8 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
         id: uid("card"),
         type,
         name: name.trim().slice(0, NAME_MAX),
-        // ★ 兜底简介存进卡片内容、之后会进出片提示词（segmentGen.materialText）：卡种名读冻结的 CARD_TYPE_PROMPT
-        // i18n-ignore-next-line: 兜底简介会进出片提示词（segmentGen.materialText），与冻结的 CARD_TYPE_PROMPT 一样只说中文
-        summary: summary.trim().slice(0, SUMMARY_MAX) || `从视频里圈选提取（${CARD_TYPE_PROMPT[type]}）`,
+        // ★ 兜底简介只给人看（2026-09-18 起简介不进出片提示词，见 types.idLineOf）：按作者当时的界面语言写，存进卡片内容
+        summary: summary.trim().slice(0, SUMMARY_MAX) || t`从视频里圈选提取（${CARD_TYPE_LABELS[type]}）`,
         cover: crops[0].dataUrl,
         ...(views.length > 1 ? { views } : {}),
         // imageTier 不写：这条路一张图都没让 AI 画（与「自己传图做卡片」同一条规则）

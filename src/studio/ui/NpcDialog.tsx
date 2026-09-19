@@ -406,10 +406,10 @@ function HistorySheet({ onClose, onOpenForge }: { onClose: () => void; onOpenFor
 type ForgeStep = "type" | "input" | "preview";
 
 const TYPE_HINT: Record<CardType, MessageDescriptor> = {
-  character: msg`谁在故事里——长相 / 性格 / 口癖`,
+  character: msg`谁在故事里——长相与衣着（手里拿的、所在的地方另做道具卡、场景卡）`,
   scene: msg`故事发生在哪——地点与空间`,
   background: msg`这条片的故事背景 / 简介（只以文字参与出片）`,
-  prop: msg`会被拿起来用的关键物件`,
+  prop: msg`故事里的关键物件——只管它本身的样子`,
   style: msg`画风、材质质感、色调光影与镜头语言`,
 };
 
@@ -662,7 +662,7 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
                   maxLength={300}
                   placeholder={
                     type === "character"
-                      ? t`如：白裙短发的海边少女，安静但固执`
+                      ? t`如：白裙短发的少女，左耳一枚贝壳耳坠，眼神安静`
                       : type === "scene"
                         ? t`如：黄昏的旧海港，锈铁塔吊与晒网的木架`
                         : t`描述素材，或直接描述你想要的卡`

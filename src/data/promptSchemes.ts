@@ -60,7 +60,8 @@ export interface SchemeSlot {
   role: CardRole;
   /**
    * 这一格的提示词**正文**。风格那句由 `slotPrompt` 统一拼，作者写不了也删不掉（★★★①）。
-   * 支持 `{{主体}}` 占位符 —— 用户在命名屏填的那个 tag/描述会插进来。
+   * 支持 `{{主体}}` 占位符 —— 自传图做卡片那页插的是用户填的那句描述，圈选提取那边插的是卡名
+   * （2026-09-18 起不再插简介：简介常带着动作、手里的东西、地点，见 ai/cardScope）。
    */
   prompt: string;
   /** 拿哪张裁剪当 i2i 参考。缺省 body（人物主裁剪） */
@@ -361,8 +362,8 @@ export const BUILTIN_SCHEMES: readonly PromptScheme[] = [
       faceless: true,
       examples: ["/schemes/faceless.webp"],
       slots: [
-        // ★★ 这一格是**唯一**能进管线的：它锁的是服装与体型，而画面里没有脸 ——
-        //   既是这套方案的卖点，也正好避开"多视图当人物参考"那条（它本来就不锁身份）。
+        // ★★ 这一格是主图（进管线的还有下面那格服装细节 —— 2026-09-18 订正，原来这里写的是「唯一能进管线的」）：
+        //   它锁的是服装与体型，而画面里没有脸 —— 既是这套方案的卖点，也正好避开"多视图当人物参考"那条（它本来就不锁身份）。
         builtinSlot("mannequinBody", { role: "primary", prompt: MANNEQUIN_BODY_PROMPT }),
         builtinSlot("outfitDetail", { role: "aux", prompt: OUTFIT_DETAIL_PROMPT }),
         // 三视图是给人看的规格图 —— 必须 display（文件头 ★★★②）

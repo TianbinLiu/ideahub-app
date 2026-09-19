@@ -1429,12 +1429,20 @@ msgid "「{name}」的主图读不出来，剩下 {rest} 张形象参考图这�
 msgstr "「{name}」的主图读不出来，剩下 {rest} 张形象参考图这次不画了"
 
 #: src/ai/real.ts
-msgid "「{name}」的参考图这次没带上（一次最多 {budget} 张，堆满了模型反而判断不出该优先保哪些特征），它只按文字设定参与"
-msgstr "「{name}」的参考图这次没带上（一次最多 {budget} 张，堆满了模型反而判断不出该优先保哪些特征），它只按文字设定参与"
+msgid "「{name}」的参考图这次没带上（一次最多 {budget} 张，堆满了模型反而判断不出该优先保哪些特征），它只按出片句参与（没写出片句就只报名字）"
+msgstr "「{name}」的参考图这次没带上（一次最多 {budget} 张，堆满了模型反而判断不出该优先保哪些特征），它只按出片句参与（没写出片句就只报名字）"
 
 #: src/ai/real.ts
-msgid "「{name}」的参考图这次没带上（一次最多 {budget} 张，方舟的协议上限），它只按文字设定参与"
-msgstr "「{name}」的参考图这次没带上（一次最多 {budget} 张，方舟的协议上限），它只按文字设定参与"
+#~ msgid "「{name}」的参考图这次没带上（一次最多 {budget} 张，堆满了模型反而判断不出该优先保哪些特征），它只按文字设定参与"
+#~ msgstr "「{name}」的参考图这次没带上（一次最多 {budget} 张，堆满了模型反而判断不出该优先保哪些特征），它只按文字设定参与"
+
+#: src/ai/real.ts
+msgid "「{name}」的参考图这次没带上（一次最多 {budget} 张，方舟的协议上限），它只按出片句参与（没写出片句就只报名字）"
+msgstr "「{name}」的参考图这次没带上（一次最多 {budget} 张，方舟的协议上限），它只按出片句参与（没写出片句就只报名字）"
+
+#: src/ai/real.ts
+#~ msgid "「{name}」的参考图这次没带上（一次最多 {budget} 张，方舟的协议上限），它只按文字设定参与"
+#~ msgstr "「{name}」的参考图这次没带上（一次最多 {budget} 张，方舟的协议上限），它只按文字设定参与"
 
 #: src/ai/real.ts
 msgid "「{name}」的场景卡面去人没去干净，用了原片那一帧"
@@ -1670,8 +1678,12 @@ msgid "<0>作品已经发布成功了</0>，但本片卡组没能存进你的工
 msgstr "<0>作品已经发布成功了</0>，但本片卡组没能存进你的工坊：{0}。<1>卡还在这台设备上，重试一次多半就好。</1>"
 
 #: src/pages/CustomCardPage.tsx
-msgid "<0>出片时 AI 会原样读这一句</0>，写一眼就能画出来的外形特征；不填就用卡名和简介。"
-msgstr "<0>出片时 AI 会原样读这一句</0>，写一眼就能画出来的外形特征；不填就用卡名和简介。"
+#~ msgid "<0>出片时 AI 会原样读这一句</0>，写一眼就能画出来的外形特征；不填就用卡名和简介。"
+#~ msgstr "<0>出片时 AI 会原样读这一句</0>，写一眼就能画出来的外形特征；不填就用卡名和简介。"
+
+#: src/pages/CustomCardPage.tsx
+msgid "<0>出片时 AI 会原样读这一句</0>，只写这张卡本身一眼就能画出来的样子；不填就只用卡名（简介不进出片）。"
+msgstr "<0>出片时 AI 会原样读这一句</0>，只写这张卡本身一眼就能画出来的样子；不填就只用卡名（简介不进出片）。"
 
 #: src/pages/CustomCardPage.tsx
 msgid "<0>出片时 AI 会原样读这一句</0>，当作这段故事的背景设定；不填就用卡名和简介。"
@@ -3912,6 +3924,11 @@ msgstr "从视频提取卡片"
 msgid "从视频提取卡组"
 msgstr "从视频提取卡组"
 
+#. placeholder {0}: CARD_TYPE_LABELS[type]
+#: src/components/VideoCardAnnotator.tsx
+msgid "从视频里圈选提取（{0}）"
+msgstr "从视频里圈选提取（{0}）"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "从预览截一张"
 msgstr "从预览截一张"
@@ -3992,8 +4009,8 @@ msgid "会表情"
 msgstr "会表情"
 
 #: src/studio/ui/NpcDialog.tsx
-msgid "会被拿起来用的关键物件"
-msgstr "会被拿起来用的关键物件"
+#~ msgid "会被拿起来用的关键物件"
+#~ msgstr "会被拿起来用的关键物件"
 
 #: src/data/danmaku.ts
 msgid "会说谎的罗盘"
@@ -4280,8 +4297,12 @@ msgid "例：白色、弯腰前倾、在最左那盏路灯下"
 msgstr "例：白色、弯腰前倾、在最左那盏路灯下"
 
 #: src/pages/CustomCardPage.tsx
-msgid "例：白裙短发的海边少女，左耳一枚贝壳耳坠，安静但固执；画风为二次元厚涂"
-msgstr "例：白裙短发的海边少女，左耳一枚贝壳耳坠，安静但固执；画风为二次元厚涂"
+msgid "例：白裙短发，左耳一枚贝壳耳坠，身形纤细，眼神安静"
+msgstr "例：白裙短发，左耳一枚贝壳耳坠，身形纤细，眼神安静"
+
+#: src/pages/CustomCardPage.tsx
+#~ msgid "例：白裙短发的海边少女，左耳一枚贝壳耳坠，安静但固执；画风为二次元厚涂"
+#~ msgstr "例：白裙短发的海边少女，左耳一枚贝壳耳坠，安静但固执；画风为二次元厚涂"
 
 #: src/pages/CustomCardPage.tsx
 msgid "例：雨夜的旧城小巷，两侧霓虹招牌，积水的地面反光"
@@ -7577,8 +7598,12 @@ msgid "好了（选中 {0} 张）"
 msgstr "好了（选中 {0} 张）"
 
 #: src/studio/ui/NpcDialog.tsx
-msgid "如：白裙短发的海边少女，安静但固执"
-msgstr "如：白裙短发的海边少女，安静但固执"
+msgid "如：白裙短发的少女，左耳一枚贝壳耳坠，眼神安静"
+msgstr "如：白裙短发的少女，左耳一枚贝壳耳坠，眼神安静"
+
+#: src/studio/ui/NpcDialog.tsx
+#~ msgid "如：白裙短发的海边少女，安静但固执"
+#~ msgstr "如：白裙短发的海边少女，安静但固执"
 
 #: src/studio/ui/NpcDialog.tsx
 msgid "如：黄昏的旧海港，锈铁塔吊与晒网的木架"
@@ -9759,8 +9784,12 @@ msgid "挂上你的角色"
 msgstr "挂上你的角色"
 
 #: src/ai/real.ts
-msgid "挂了 {charCount} 张人物卡，只把「{heroName}」的形象参考图喂给绘图（一张图里画多个角色会被方舟整条拒掉），其余按文字设定"
-msgstr "挂了 {charCount} 张人物卡，只把「{heroName}」的形象参考图喂给绘图（一张图里画多个角色会被方舟整条拒掉），其余按文字设定"
+msgid "挂了 {charCount} 张人物卡，只把「{heroName}」的形象参考图喂给绘图（一张图里画多个角色会被方舟整条拒掉），其余只按出片句参与（没写出片句的只报名字）"
+msgstr "挂了 {charCount} 张人物卡，只把「{heroName}」的形象参考图喂给绘图（一张图里画多个角色会被方舟整条拒掉），其余只按出片句参与（没写出片句的只报名字）"
+
+#: src/ai/real.ts
+#~ msgid "挂了 {charCount} 张人物卡，只把「{heroName}」的形象参考图喂给绘图（一张图里画多个角色会被方舟整条拒掉），其余按文字设定"
+#~ msgstr "挂了 {charCount} 张人物卡，只把「{heroName}」的形象参考图喂给绘图（一张图里画多个角色会被方舟整条拒掉），其余按文字设定"
 
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "挂卡"
@@ -9887,6 +9916,12 @@ msgstr "按模板视频逐镜头复刻出片（时长跟随模板 {refSec} 秒�
 #: src/studio/segmentGen.ts
 msgid "按模板视频逐镜头复刻出片（时长跟随模板）…"
 msgstr "按模板视频逐镜头复刻出片（时长跟随模板）…"
+
+#. placeholder {0}: i + 1
+#: src/ai/index.ts
+#: src/studio/studioStore.ts
+msgid "按第 {0} 段的画面整理的场景"
+msgstr "按第 {0} 段的画面整理的场景"
 
 #: src/pages/CustomCardPage.tsx
 msgid "按素材撰写人物信息…"
@@ -10652,6 +10687,10 @@ msgstr "故事示意图"
 #: src/types.ts
 msgid "故事背景"
 msgstr "故事背景"
+
+#: src/studio/ui/NpcDialog.tsx
+msgid "故事里的关键物件——只管它本身的样子"
+msgstr "故事里的关键物件——只管它本身的样子"
 
 #: src/pages/SettingsPage.tsx
 #: src/pages/SupportPersonasPage.tsx
@@ -16577,8 +16616,12 @@ msgid "读过你的素材"
 msgstr "读过你的素材"
 
 #: src/studio/ui/NpcDialog.tsx
-msgid "谁在故事里——长相 / 性格 / 口癖"
-msgstr "谁在故事里——长相 / 性格 / 口癖"
+#~ msgid "谁在故事里——长相 / 性格 / 口癖"
+#~ msgstr "谁在故事里——长相 / 性格 / 口癖"
+
+#: src/studio/ui/NpcDialog.tsx
+msgid "谁在故事里——长相与衣着（手里拿的、所在的地方另做道具卡、场景卡）"
+msgstr "谁在故事里——长相与衣着（手里拿的、所在的地方另做道具卡、场景卡）"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "谁能用"
@@ -16732,6 +16775,10 @@ msgstr "跳到第 {at} 秒"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "跳过 / 下一步"
 msgstr "跳过 / 下一步"
+
+#: src/types.ts
+msgid "身上佩戴的饰物、纹样或疤痕"
+msgstr "身上佩戴的饰物、纹样或疤痕"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "身体"
@@ -19457,8 +19504,8 @@ msgid "随片提炼本片卡组"
 msgstr "随片提炼本片卡组"
 
 #: src/types.ts
-msgid "随身物、纹样或疤痕"
-msgstr "随身物、纹样或疤痕"
+#~ msgid "随身物、纹样或疤痕"
+#~ msgstr "随身物、纹样或疤痕"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "难过"

@@ -122,6 +122,11 @@ export interface CustomCardDraft {
   subjectPick: SubjectPick | null;
   /** 出片句（Card.idLine）：出片时整句拼进视频提示词，≤ types.ID_LINE_MAX */
   idLine: string;
+  /**
+   * AI 车道上一次写进出片句的那一句（空 = 没写过）。重跑 AI 时：出片句还是这一句（用户没改过）就换成新的；
+   * 用户改过就不动 —— 不然换了主素材图再跑一遍，留着的是上一张照片的出片句，成了与形象图矛盾的硬约束（2026-09-18 复核抓到）
+   */
+  aiIdLine: string;
   /** 一键识别（场景卡 / 道具卡）正在跑的那一步（空 = 没在跑） */
   recogBusy: string;
   /** 识别的结局那句话：钱扣没扣分三档说（见 CustomCardPage.recognize） */
@@ -176,6 +181,7 @@ export function initialDraft(): CustomCardDraft {
     annot: null,
     subjectPick: null,
     idLine: "",
+    aiIdLine: "",
     recogBusy: "",
     recogMsg: null,
     schemePick: false,

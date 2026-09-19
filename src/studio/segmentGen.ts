@@ -296,7 +296,7 @@ export function redrawnAnns<T extends { atSec: number }>(
  *      定义为角色「XX」」）—— 方舟提示词指南的正规用法。有了这句，多张图的语义从
  *      "在这张图上改"变成"这几张图分别定义了谁"，正是我们要的形象一致。
  *   所以现在是「文字 + 参考图 + 绑定句」三件一起给，文字这一半仍旧保留 ——
- *   没有 views 的卡、以及被规则一让位的第二张人物卡，全靠它。
+ *   没有 views 的卡、以及被规则一让位的第二张人物卡，全靠它（文字 = 出片句；没写出片句的只剩名字，简介 2026-09-18 起不进出片）。
  */
 /** 镜头字段的提示词前缀（唯一实现）：有字段才拼，句号收尾；三条出片路都从这里拿 */
 function shotPrefix(shot?: ShotSpec): string {
@@ -314,12 +314,16 @@ function materialText(materials?: Card[]): string {
     .sort((a, b) => ORDER[a.type] - ORDER[b.type])
     .filter((c) => c.type !== "background")
     .map((c) => {
-      //   逐段逐字复用——同一措辞本身就是一致性手段；老卡兜底"名字+简介40字"=老行为）。
-      if (c.type === "character") return `${CARD_TYPE_PROMPT[c.type]}「${c.name}」＝${idLineOf(c)}`;
-      // ★ V3：非人物卡有出片句（idLine：场景的空间结构、风格的画风+镜头语言）就整句进；
-      //   老卡没有 idLine 的仍是简介前 24 字（存量卡的提示词一个字不变）
+      //   逐段逐字复用——同一措辞本身就是一致性手段；没写出片句的卡只报卡名，简介不进出片，2026-09-18）。
+      if (c.type === "character") {
+        // 没写出片句时 idLineOf 只回卡名：别拼成「人物卡「小夏」＝小夏」
+        const line = idLineOf(c);
+        return `${CARD_TYPE_PROMPT[c.type]}「${c.name}」${line !== c.name ? `＝${line}` : ""}`;
+      }
+      // ★ V3：非人物卡有出片句（idLine：场景的空间结构、风格的画风+镜头语言）就整句进；没有的只报卡名 ——
+      //   简介不进出片（2026-09-18，原来退回简介前 24 字：简介是给人看的，常串着别的卡种的东西，见 ai/cardScope）
       const line = (c.idLine || "").trim().slice(0, ID_LINE_MAX);
-      return `${CARD_TYPE_PROMPT[c.type]}「${c.name}」${line ? `＝${line}` : c.summary ? `（${c.summary.slice(0, 24)}）` : ""}`;
+      return `${CARD_TYPE_PROMPT[c.type]}「${c.name}」${line ? `＝${line}` : ""}`;
     })
     .join("；");
   // ★ V3：背景卡 = 故事背景，纯文字、不发图（allocateRefs 不分配它），也不套"不得改动其外形"那句——
@@ -974,8 +978,8 @@ export async function generateSegment(
   //   400 字打底 —— 而提示词硬顶就是 400，截断又是**从正文这头切**的（见下面的 room），
   //   于是用户在输入框里亲眼过目、亲手改过的那段点名映射会被整段切没，画面照出、钱照收。
   //   舍它而不是舍别的，是因为这条路上它最接近纯冗余：每个角色的名字在**点名句**里已经出现
-  //   （编号N=张三），形象由**参考图 + 紧凑绑定句**（张三=@图片1@图片2）锁定，而设定文字那 30 字
-  //   是豆包写的卡面简介，对"把白模换成这个人"几乎不添信息。
+  //   （编号N=张三），形象由**参考图 + 紧凑绑定句**（张三=@图片1@图片2）锁定，而设定文字（出片句，没写就只是名字）
+  //   对"把白模换成这个人"几乎不添信息。
   //   ⚠ 例外：某张卡的形象图全都读不出来时，它就只剩名字了 —— 那种情况由 prepareMaterialRefs
   //   的 onNote 逐张点名（"第 N 张参考图未采用…"），一张都没成还会整句 throw，不是静默。
   // refMode 的绑定句已前置（bindHead），尾巴只剩素材设定文字

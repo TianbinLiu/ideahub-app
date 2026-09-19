@@ -488,7 +488,8 @@ export const CARD_SLOTS: Record<CardType, readonly CardSlot[]> = {
   character: [
     liveSlot("body", msg`全身立绘`, msg`服装、体型与整体配色`),
     liveSlot("face", msg`面部特写`, msg`面部特征与发型发色`),
-    liveSlot("detail", msg`标志性细节`, msg`随身物、纹样或疤痕`),
+    // ★ 锁「身上佩戴的」不锁「随身物」（2026-09-18）：手里拿的东西是道具卡的事（ai/cardScope），锁进人物卡就每一段都拿着它
+    liveSlot("detail", msg`标志性细节`, msg`身上佩戴的饰物、纹样或疤痕`),
   ],
   scene: [
     liveSlot("body", msg`全景主视图`, msg`空间结构、地貌与建筑轮廓及整体色调`),
@@ -527,14 +528,18 @@ export const VIDEO_PROMPT_MAX = 400;
 export const ID_LINE_MAX = 60;
 
 /**
- * 这张卡在**视频提示词**里的那一句 —— 唯一实现（铁律六：兜底只写这一处）。
- * 有 idLine 用 idLine；老卡/自传图卡退回「名字：简介前 40 字」（正是 2026-08-28 之前
- * 的老行为，所以存量卡的出片提示词一个字不变）。
+ * 这张卡在**出片提示词**里的那一句 —— 唯一实现（铁律六：兜底只写这一处）。
+ * 有 idLine 用 idLine；没有的（老卡、没写出片句的自传图卡）**只报卡名** —— 背景卡除外：它的简介就是故事本身。
+ * ★★ 2026-09-18 改（主人真机）：原来兜底「名字：简介前 40 字」。简介是给人看的一句话，AI 按照片写的时候会把照片里的
+ *   别的东西一起写进来 ——「窝在房间里握着手柄惬意玩乐」—— 而这一句进的是视频提示词里「必须严格遵守」的素材设定
+ *   与设定帧的角色绑定句，于是每一段都被逼着画出手柄和房间。人物的长相靠形象图（与出片句）锁，不靠简介；
+ *   各卡种该写什么见 ai/cardScope。
  */
 export function idLineOf(c: Card): string {
   const line = (c.idLine || "").trim();
   if (line) return line.slice(0, ID_LINE_MAX);
-  return `${c.name}${c.summary ? `：${c.summary.slice(0, 40)}` : ""}`;
+  if (c.type === "background") return `${c.name}${c.summary ? `：${c.summary.slice(0, 40)}` : ""}`;
+  return c.name;
 }
 
 /**
@@ -575,7 +580,7 @@ export const CARD_SLOT_PROMPT: Record<CardType, readonly CardSlot[]> = {
   character: [
     { kind: "body", label: "全身立绘", locks: "服装、体型与整体配色" },
     { kind: "face", label: "面部特写", locks: "面部特征与发型发色" },
-    { kind: "detail", label: "标志性细节", locks: "随身物、纹样或疤痕" },
+    { kind: "detail", label: "标志性细节", locks: "身上佩戴的饰物、纹样或疤痕" },
   ],
   scene: [
     { kind: "body", label: "全景主视图", locks: "空间结构、地貌与建筑轮廓及整体色调" },
@@ -738,7 +743,7 @@ export interface Card {
   genPrompt?: string;
   /**
    * 固定身份句（≤60 字）：出片提示词里代表这张卡的那一句。铸卡时由豆包随文案一并产出
-   * （名字 + 2~3 个不变的视觉特征 + 标志物，**不写性格词**）。
+   * （2~3 个不变的外形特征，只写这张卡本身、**不写性格词** —— 各卡种写什么见 ai/cardScope；2026-09-18 起不再带名字与「标志物」）。
    *
    * ★★ 为什么不直接把 genPrompt 塞进视频提示词（2026-08-28 调研钉死，来源见
    *   docs/backlog.md 2.9）：方舟官方明说"主体用 2~3 个稳定静态特征描述、勿贴长文，
@@ -746,7 +751,7 @@ export interface Card {
    *   长设定归图（genPrompt→Seedream），短身份句归片（idLine→Seedance）。
    * ★ 铸卡时一次性压好而不是出片时现压：零新增调用/延迟，且每段拿到**同一句**
    *   （逐镜复用同一措辞本身就是一致性手段——Sora/CHAR 都这么讲）。
-   * ★ 缺省 = 老卡/自传图卡：读侧一律走 idLineOf()（兜底"名字+简介"，老行为），
+   * ★ 缺省 = 老卡/没写出片句的自传图卡：读侧一律走 idLineOf()（2026-09-18 起兜底只报卡名，简介不进出片），
    *   绝不在调用点各写一份兜底。
    */
   idLine?: string;

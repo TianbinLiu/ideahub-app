@@ -2579,14 +2579,18 @@ export const useFlow = create<FlowState>()((set, get) => ({
     const heroUrl = imageOf(hero);
     const sceneUrl = imageOf(scene);
     const sources = [shot, heroUrl, sceneUrl].filter(Boolean);
-    const styleLine = styleCard ? (styleCard.idLine || "").trim().slice(0, 80) || styleCard.summary.slice(0, 24) : "";
+    // 风格卡没写出片句就只报风格名：简介不进出片（2026-09-18，同 real.frameArtStyle / ai/cardScope）
+    const styleLine = styleCard ? (styleCard.idLine || "").trim().slice(0, 80) : "";
+    // ★ 风格卡在就报它（没写出片句也报风格名），排在真人档的「照片级写实」前面 —— 与 real.frameArtStyle 同一个顺序（2026-09-18 复核抓到：
+    //   原来没写出片句的风格卡整张被丢掉，真人档还反过来盖过了它）
+    // i18n-ignore-next-line: 导演台融图的风格句，拼进发给模型的指令（进模型的文字冻结中文）
+    const styleSentence = styleCard ? `跟随风格卡「${styleCard.name}」${styleLine ? `（${styleLine}）` : ""}` : hero?.realPerson ? "照片级写实" : undefined;
     const instruction = stageFuseInstruction({
       plot: prop.plot,
       figures: node.stage?.figures.length ?? 1,
       heroName: heroUrl ? hero?.name : undefined,
       hasScene: !!sceneUrl,
-      // i18n-ignore-next-line: 导演台融图的风格句，拼进发给模型的指令（进模型的文字冻结中文）
-      style: styleLine ? `跟随风格卡「${styleCard?.name}」（${styleLine}）` : hero?.realPerson ? "照片级写实" : undefined,
+      style: styleSentence,
     });
     if (AI_REAL && !canAfford(ONE_IMAGE)) {
       set({ err: t`导演台融图要一张图的钱（${fmtTokens(ONE_IMAGE)} token），余额不够——去「我的」页充值` });

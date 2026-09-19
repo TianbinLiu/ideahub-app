@@ -1429,12 +1429,20 @@ msgid "「{name}」的主图读不出来，剩下 {rest} 张形象参考图这�
 msgstr "“{name}”: the main image couldn't be read, so {rest, plural, one {the remaining reference image} other {the remaining # reference images}} won't be drawn this time"
 
 #: src/ai/real.ts
-msgid "「{name}」的参考图这次没带上（一次最多 {budget} 张，堆满了模型反而判断不出该优先保哪些特征），它只按文字设定参与"
-msgstr "“{name}”: its reference image wasn't included this time (at most {budget, plural, one {# image} other {# images}} at once — with too many references, the model can't tell which features to prioritize), so it only takes part through its text details"
+msgid "「{name}」的参考图这次没带上（一次最多 {budget} 张，堆满了模型反而判断不出该优先保哪些特征），它只按出片句参与（没写出片句就只报名字）"
+msgstr "“{name}”: its reference image wasn't included this time (at most {budget, plural, one {# image} other {# images}} at once — with too many references, the model can't tell which features to prioritize), so it only takes part through its video line (just its name if it has none)"
 
 #: src/ai/real.ts
-msgid "「{name}」的参考图这次没带上（一次最多 {budget} 张，方舟的协议上限），它只按文字设定参与"
-msgstr "“{name}”: its reference image wasn't included this time (at most {budget, plural, one {# image} other {# images}} per render — Ark's protocol limit), so it only takes part through its text details"
+#~ msgid "「{name}」的参考图这次没带上（一次最多 {budget} 张，堆满了模型反而判断不出该优先保哪些特征），它只按文字设定参与"
+#~ msgstr "“{name}”: its reference image wasn't included this time (at most {budget, plural, one {# image} other {# images}} at once — with too many references, the model can't tell which features to prioritize), so it only takes part through its text details"
+
+#: src/ai/real.ts
+msgid "「{name}」的参考图这次没带上（一次最多 {budget} 张，方舟的协议上限），它只按出片句参与（没写出片句就只报名字）"
+msgstr "“{name}”: its reference image wasn't included this time (at most {budget, plural, one {# image} other {# images}} per render — Ark's protocol limit), so it only takes part through its video line (just its name if it has none)"
+
+#: src/ai/real.ts
+#~ msgid "「{name}」的参考图这次没带上（一次最多 {budget} 张，方舟的协议上限），它只按文字设定参与"
+#~ msgstr "“{name}”: its reference image wasn't included this time (at most {budget, plural, one {# image} other {# images}} per render — Ark's protocol limit), so it only takes part through its text details"
 
 #: src/ai/real.ts
 msgid "「{name}」的场景卡面去人没去干净，用了原片那一帧"
@@ -1670,8 +1678,12 @@ msgid "<0>作品已经发布成功了</0>，但本片卡组没能存进你的工
 msgstr "<0>Your video was published</0>, but its deck couldn't be saved to your Studio: {0}. <1>The cards are still on this device; retrying usually works.</1>"
 
 #: src/pages/CustomCardPage.tsx
-msgid "<0>出片时 AI 会原样读这一句</0>，写一眼就能画出来的外形特征；不填就用卡名和简介。"
-msgstr "<0>The AI reads this line as-is when generating video</0>, so describe features that can be drawn at a glance. If it's empty, the card name and intro are used."
+#~ msgid "<0>出片时 AI 会原样读这一句</0>，写一眼就能画出来的外形特征；不填就用卡名和简介。"
+#~ msgstr "<0>The AI reads this line as-is when generating video</0>, so describe features that can be drawn at a glance. If it's empty, the card name and intro are used."
+
+#: src/pages/CustomCardPage.tsx
+msgid "<0>出片时 AI 会原样读这一句</0>，只写这张卡本身一眼就能画出来的样子；不填就只用卡名（简介不进出片）。"
+msgstr "<0>The AI reads this line as-is when generating video</0>, so describe only what this card itself looks like at a glance. If it's empty, only the card name is used (the intro isn't used for video)."
 
 #: src/pages/CustomCardPage.tsx
 msgid "<0>出片时 AI 会原样读这一句</0>，当作这段故事的背景设定；不填就用卡名和简介。"
@@ -3912,6 +3924,11 @@ msgstr "Extract a card from a video"
 msgid "从视频提取卡组"
 msgstr "Extract a deck from a video"
 
+#. placeholder {0}: CARD_TYPE_LABELS[type]
+#: src/components/VideoCardAnnotator.tsx
+msgid "从视频里圈选提取（{0}）"
+msgstr "Circled from a video ({0})"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "从预览截一张"
 msgstr "Capture from preview"
@@ -3992,8 +4009,8 @@ msgid "会表情"
 msgstr "Expressions"
 
 #: src/studio/ui/NpcDialog.tsx
-msgid "会被拿起来用的关键物件"
-msgstr "A key object that gets picked up and used"
+#~ msgid "会被拿起来用的关键物件"
+#~ msgstr "A key object that gets picked up and used"
 
 #: src/data/danmaku.ts
 msgid "会说谎的罗盘"
@@ -4280,8 +4297,12 @@ msgid "例：白色、弯腰前倾、在最左那盏路灯下"
 msgstr "E.g. white, leaning forward, under the leftmost streetlight"
 
 #: src/pages/CustomCardPage.tsx
-msgid "例：白裙短发的海边少女，左耳一枚贝壳耳坠，安静但固执；画风为二次元厚涂"
-msgstr "e.g. A short-haired girl in a white dress by the sea, a seashell earring in her left ear, quiet but stubborn; anime-style impasto"
+msgid "例：白裙短发，左耳一枚贝壳耳坠，身形纤细，眼神安静"
+msgstr "e.g. White dress, short hair, a seashell earring in her left ear, slender build, calm eyes"
+
+#: src/pages/CustomCardPage.tsx
+#~ msgid "例：白裙短发的海边少女，左耳一枚贝壳耳坠，安静但固执；画风为二次元厚涂"
+#~ msgstr "e.g. A short-haired girl in a white dress by the sea, a seashell earring in her left ear, quiet but stubborn; anime-style impasto"
 
 #: src/pages/CustomCardPage.tsx
 msgid "例：雨夜的旧城小巷，两侧霓虹招牌，积水的地面反光"
@@ -7577,8 +7598,12 @@ msgid "好了（选中 {0} 张）"
 msgstr "Done ({0} selected)"
 
 #: src/studio/ui/NpcDialog.tsx
-msgid "如：白裙短发的海边少女，安静但固执"
-msgstr "e.g. A short-haired girl in a white dress by the sea, quiet but stubborn"
+msgid "如：白裙短发的少女，左耳一枚贝壳耳坠，眼神安静"
+msgstr "e.g. A short-haired girl in a white dress, a seashell earring in her left ear, calm eyes"
+
+#: src/studio/ui/NpcDialog.tsx
+#~ msgid "如：白裙短发的海边少女，安静但固执"
+#~ msgstr "e.g. A short-haired girl in a white dress by the sea, quiet but stubborn"
 
 #: src/studio/ui/NpcDialog.tsx
 msgid "如：黄昏的旧海港，锈铁塔吊与晒网的木架"
@@ -9759,8 +9784,12 @@ msgid "挂上你的角色"
 msgstr "Cast your characters"
 
 #: src/ai/real.ts
-msgid "挂了 {charCount} 张人物卡，只把「{heroName}」的形象参考图喂给绘图（一张图里画多个角色会被方舟整条拒掉），其余按文字设定"
-msgstr "{charCount, plural, one {# character card is} other {# character cards are}} attached, but only “{heroName}”'s reference images are fed to the image model (one image with several characters gets rejected outright by Ark); the others only take part through their text details"
+msgid "挂了 {charCount} 张人物卡，只把「{heroName}」的形象参考图喂给绘图（一张图里画多个角色会被方舟整条拒掉），其余只按出片句参与（没写出片句的只报名字）"
+msgstr "{charCount, plural, one {# character card is} other {# character cards are}} attached, but only “{heroName}”'s reference images are fed to the image model (one image with several characters gets rejected outright by Ark); the others only take part through their video lines (just their names if they have none)"
+
+#: src/ai/real.ts
+#~ msgid "挂了 {charCount} 张人物卡，只把「{heroName}」的形象参考图喂给绘图（一张图里画多个角色会被方舟整条拒掉），其余按文字设定"
+#~ msgstr "{charCount, plural, one {# character card is} other {# character cards are}} attached, but only “{heroName}”'s reference images are fed to the image model (one image with several characters gets rejected outright by Ark); the others only take part through their text details"
 
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "挂卡"
@@ -9887,6 +9916,12 @@ msgstr "Remaking the template video shot by shot (duration follows the template,
 #: src/studio/segmentGen.ts
 msgid "按模板视频逐镜头复刻出片（时长跟随模板）…"
 msgstr "Remaking the template video shot by shot (duration follows the template)…"
+
+#. placeholder {0}: i + 1
+#: src/ai/index.ts
+#: src/studio/studioStore.ts
+msgid "按第 {0} 段的画面整理的场景"
+msgstr "Scene taken from segment {0}'s footage"
 
 #: src/pages/CustomCardPage.tsx
 msgid "按素材撰写人物信息…"
@@ -10652,6 +10687,10 @@ msgstr "Story illustration"
 #: src/types.ts
 msgid "故事背景"
 msgstr "Story background"
+
+#: src/studio/ui/NpcDialog.tsx
+msgid "故事里的关键物件——只管它本身的样子"
+msgstr "A key object in the story — just how the object itself looks"
 
 #: src/pages/SettingsPage.tsx
 #: src/pages/SupportPersonasPage.tsx
@@ -16577,8 +16616,12 @@ msgid "读过你的素材"
 msgstr "Read your materials"
 
 #: src/studio/ui/NpcDialog.tsx
-msgid "谁在故事里——长相 / 性格 / 口癖"
-msgstr "Who's in the story — looks / personality / catchphrases"
+#~ msgid "谁在故事里——长相 / 性格 / 口癖"
+#~ msgstr "Who's in the story — looks / personality / catchphrases"
+
+#: src/studio/ui/NpcDialog.tsx
+msgid "谁在故事里——长相与衣着（手里拿的、所在的地方另做道具卡、场景卡）"
+msgstr "Who's in the story — looks and clothing (things they hold and where they are go on prop and scene cards)"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "谁能用"
@@ -16732,6 +16775,10 @@ msgstr "Jump to {at}s"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "跳过 / 下一步"
 msgstr "Skip / Next"
+
+#: src/types.ts
+msgid "身上佩戴的饰物、纹样或疤痕"
+msgstr "worn accessories, patterns or scars"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "身体"
@@ -19457,8 +19504,8 @@ msgid "随片提炼本片卡组"
 msgstr "Extract a deck from this video"
 
 #: src/types.ts
-msgid "随身物、纹样或疤痕"
-msgstr "carried items, patterns or scars"
+#~ msgid "随身物、纹样或疤痕"
+#~ msgstr "carried items, patterns or scars"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "难过"
