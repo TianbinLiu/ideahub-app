@@ -461,6 +461,28 @@ likes×6 + comments×4 + bookmarks×3 + min(views, 5000)×0.04
 App「我的 → AI 客服」（`/support`）的服务端。数字人是官网首页那位看板娘（Live2D，随 APK 打包在 `public/live2d/`），
 对话协议与官网 `/api/companion/chat` 相同（逐句 `sentence` 事件带 `[情绪][face][action]` 演出标签 + TTS 参数），多一个 `handoff`。
 
+★ **自伤危机协议（2026-09-24）覆盖 `/api/companion/chat`（两种请求体）与 `/api/personas/preview-chat`；
+`/api/support/chat` 还没接** —— 客服那条链路有它自己的一套 SSE 实现，不走 `streamCompanionReply`，所以默认守卫也罩不到它。
+⚠ 但 App 的**人格向导试聊**走的是 `preview-chat`，已经在协议内。App 现在不发 `caps`，所以命中时收到的是
+**退化形式**：一条普通 `sentence`（文案 = 求助卡的纯文本，带正常 tts 参数），后面直接 `done`。
+界面不会坏，但那句会被当台词念出来 —— App 接 `caps: ["safety"]` 那一版要把它改成卡片、并且不念。
+加州 SB 243 管的是「companion chatbot」，纯客服有豁免余地 —— 但我们的客服顶着同一位看板娘、同一套人格，
+这个豁免站不站得住还没拍板（见私密文档《AI 对话合规调研》），所以 App 这边要按「迟早要接」来准备：
+
+- 接的时候服务端会多两种事件，**不认识就不会发给你**：请求里带 `caps: ["safety","notice"]` 才发
+  `safety`（危机求助卡）与 `notice`（「我是 AI」告知）；不带 `caps` 的老客户端退化成一句普通 `sentence`，
+  界面不会坏，但求助卡会被当成台词念出来 —— 所以 App 接的那一版必须同时做到：收到 `safety` 就 `stopAll()`、
+  **不调 `/api/tts`**、不进字幕、不算数字人说的话。
+- `safety` 的形状：`{ kind: "crisis", trigger: "input"|"output", region: "US"|"CN"|"OTHER", title, body,
+  resources: [{ label, tel?, sms?, url? }], policyUrl, version }`；`notice` 的形状：`{ kind: "ai_disclosure", text }`。
+  热线按**访问者所在地区**给（服务端读 `CF-IPCountry`），不按界面语言 —— 界面英文但人在大陆时给 12356 才有用。
+  `done` 在输入命中那条链路上多带 `safety: true`（那一轮没调模型，也就没有 usage）。
+- 官网那侧还有 `PUT /api/companion/consent`（首次告知同意，空 body → `{ ok, consent: { version, at }, consented: true }`）
+  与 `GET /api/companion/config` 的 `safety` 块（`{ version, consentVersion, policyUrl, consentRequired, consented,
+  region, resources }`，**不登录也给**，只是 `consented` 恒为 false）；服务端开 `COMPANION_REQUIRE_CONSENT=1` 时，
+  没同意过的账号调陪聊会拿到 **428** `CONSENT_REQUIRED`。**这个开关只挡 `/api/companion/chat`，不挡客服**。
+- 协议细节公开在 https://ideahubs.org/safety/ai-chat （SB 243 §22602(b)(2) 要求公开），App 里要放链接时指这里。
+
 | 方法 | 路径 | 鉴权 | 说明 |
 |---|---|---|---|
 | GET | `/api/support/config` | optional | `{ ok, name, enabled, tts, asr, voice, loginRequired: true, quickQuestions[], categories[] }`。`asr=false`（或老服务端没这个字段）时不画麦克风。`enabled=false`（服务端没配 AI）时输入框禁用，只剩「转人工」。**2026-09-04 起登录时另带** `voiceSettings: VoiceSettings`（三层合并结果，见下）、`persona: PersonaSummary\|null`、`personaSource: "user"\|"model"\|""`、`model: Live2dModel\|null`（null = 官方内置）；老字段 `voice` = `voiceSettings.voiceId`。老服务端没有这四项 → App 按旧写法只传 `voice` |
