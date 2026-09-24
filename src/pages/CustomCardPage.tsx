@@ -660,6 +660,12 @@ export default function CustomCardPage() {
     // ★ 登记成后台任务：退出这一页它照跑，胶囊接手进度；结果写进 store，人回来原样在
     const job = startJob({ kind: "card-ai", title: t`AI 生成图位`, page: "/custom-card", route: "/custom-card", progress: t`准备中…` });
     try {
+      // ★ 设定稿（三视图 / 规格稿）要照**主图**画（ai/real.portraitViews 的 ★★）。整套一起画时那一格自己接上，
+      //   只补剩下几格时它不在这一发里 —— 从格子里把上一次画好 / 用户自己传的那张取出来交过去。
+      //   ⚠ 取的是**这一套方案**的主图位（pageSlots 已按 scheme 过滤），别拿"格子里第一张有图的"顶：
+      //   自建卡页的格子里还可能坐着用户传的脸部特写。
+      const primarySlot = pageSlots.find((s) => s.role === "primary");
+      const keptPrimary = primarySlot ? schemeShots[slotKey(scheme, primarySlot)]?.dataUrl ?? null : null;
       const out = await portraitViews({
         // ★ `{ ...scheme, … }` 这个展开**不能改成重建**（挑几位出来拼一个新对象、或者包一个小映射函数）：
         //   `builtin` 是可选位，漏了 tsc 不说话，而 portraitViews 正是拿这一位算键与 CardView.tag 的
@@ -668,6 +674,7 @@ export default function CustomCardPage() {
         scheme: { ...scheme, slots: todo },
         bodyCrop: aiBody.dataUrl,
         faceCrop: aiFace?.dataUrl ?? null,
+        primaryShot: keptPrimary,
         subject: aiSubject.trim() || undefined,
         // ★ 真人路（扫脸认证）上参考图是照片是已知事实：画风句锁死成"真实摄影"，不让模型
         //   自己判 —— 2026-09-04 主人实测授权自拍出的「全身立绘」是厚涂二次元（同一张参考的

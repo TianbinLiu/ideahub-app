@@ -34,6 +34,7 @@ import {
   CardRole,
   CardType,
   MAX_CARD_VIEWS,
+  isSheetView,
   VIEW_TAG_MAX,
   builtinSlotLabel,
   builtinSlotZh,
@@ -168,6 +169,25 @@ const SUBJECT_TOKEN = /\{\{\s*主体\s*\}\}/g;
 export function slotPrompt(slot: SchemeSlot, subject: string | undefined, o: { realPhoto: boolean }): string {
   const body = slot.prompt.replace(SUBJECT_TOKEN, (subject || "").trim());
   return `${body}；${o.realPhoto ? PHOTO_LOCK_CLAUSE : STYLE_CLAUSE}`;
+}
+
+/** 产出**多视图设定稿**的两个内置图位（键取自 types.BUILTIN_SLOT_ZH） */
+const SHEET_SLOT_IDS: readonly string[] = ["mannequinTurnaround", "specSheet"];
+
+/**
+ * 这一格产出的是不是**多视图设定稿**（三视图 / 规格稿）。
+ *
+ * ★★ 它只决定这一格**照着哪张图画**（ai/real.portraitViews：设定稿照本套已画好的主图画，见那里的 ★★），
+ *   **不决定谁进模型** —— 那一票只看 `role`（作者在卡片页标的「出片用 / 仅展示」，见 types.CardView.role 的 ★★）。
+ * ★ 内置方案按 `id` 认；用户方案（含「另存为」出来的副本）退回按**冻结原名**认（types.isSheetView）——
+ *   副本把内置图位的名字原样带走了，所以对它仍然成立。两种都认不出就退回老行为（照用户素材画），不报错。
+ * ⚠ 为什么不给 `SchemeSlot.ref` 加一个取值（那才是"照哪张画"的正牌字段）：`ref` 是**跨仓**的
+ *   （server `promptScheme.schemas.js` 的 `z.enum(["body","face"])`），加取值 = 老服务端对「另存为」上来的
+ *   副本整发 400。等服务端也放开再收口成 `ref`，在那之前这条规则活在这里。
+ */
+export function isSheetSlot(scheme: Pick<PromptScheme, "builtin">, slot: SchemeSlot): boolean {
+  if (scheme.builtin && slot.id) return SHEET_SLOT_IDS.includes(slot.id);
+  return isSheetView({ tag: slot.tag });
 }
 
 /** 这一格要不要调模型（= 要不要收钱）。唯一判据，economy 与生成侧共用 */

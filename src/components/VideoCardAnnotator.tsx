@@ -553,11 +553,16 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
     try {
       const body = raw.find((c) => c.role === "primary") ?? raw[0];
       const face = raw.find((c) => c.role === "face");
+      // ★ 设定稿照**主图**画（ai/real.portraitViews 的 ★★）。这一发整套画时那一格自己接上；
+      //   只补剩下几格时主图在 kept 里（上一次画好的那张），取出来交过去。
+      const primarySlot = scheme.slots.find((s) => s.role === "primary");
+      const keptPrimary = primarySlot ? kept[slotKey(scheme, primarySlot)]?.dataUrl ?? null : null;
       const out = await portraitViews({
         // 只交这一次要画的格子（上一次半途画好的不再画）；键只看格子本身，与它在 slots 里排第几无关
         scheme: { ...scheme, slots: todo },
         bodyCrop: body.dataUrl,
         faceCrop: face?.dataUrl ?? null,
+        primaryShot: keptPrimary,
         // ★ 只用名字，不用简介（2026-09-18）：简介是随手写的一句话，常带着动作、手里的东西、地点 —— 填进方案的 {{主体}}
         //   就会被画进形象图，而形象图随后就是出片的参考图（卡种分工见 ai/cardScope）。长相由圈出来的原片裁剪决定
         subject: name.trim(),

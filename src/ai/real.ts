@@ -51,7 +51,7 @@ import { noteBlobOwner } from "../data/blobOwners";
 // 风格那句由 slotPrompt 统一拼，方案作者改不掉；isGenerated 与 economy.schemeCost 同源。
 // ★ 别名 schemeSlotPrompt：本文件下面已经有一个**铸卡**用的 slotPrompt(type,name,...)，
 //   两者管的是完全不同的两件事（那个拼铸卡提示词，这个拼方案图位提示词）。
-import { isGenerated, slotCardTag, slotKey, slotPrompt as schemeSlotPrompt, slotSize, type PromptScheme } from "../data/promptSchemes";
+import { isGenerated, isSheetSlot, slotCardTag, slotKey, slotPrompt as schemeSlotPrompt, slotSize, type PromptScheme } from "../data/promptSchemes";
 import { minimaxVideo, takeMinimaxTask } from "./minimaxVideo";
 import { refableViews } from "../data/cardViews";
 // 已授权的可信素材：整张卡改发 asset:// URI（判据与拼法各只有一处，见 data/cardAsset）
@@ -155,6 +155,15 @@ export async function portraitViews(o: {
   scheme: PromptScheme;
   bodyCrop: string;
   faceCrop?: string | null;
+  /**
+   * 这一套**已经画好的主图**（role 为 primary 的那一格），没有就传 `null`。
+   *
+   * ★★ 必填（不是 `?:`）：漏传零症状 —— 设定稿又退回"自己从用户素材编一份"，
+   *   与主图不一致的那个老毛病悄悄回来，而屏幕上什么都不会变。
+   * ★ 只有**补画**时才用得上它（上一次画好留着的那几格不在这一发的 slots 里）；
+   *   整套一起画时本函数画出主图后自己接上（见循环里的 ★★）。
+   */
+  primaryShot: string | null;
   /** 用户写的那句描述，插进方案的 {{主体}} 占位符 */
   subject?: string;
   /** 调用方已知参考图是真人照片（用户走了真人路 / 勾了「这是真人」）。传 `realPerson` 状态 */
@@ -163,6 +172,24 @@ export async function portraitViews(o: {
 }): Promise<PortraitView[]> {
   const out: PortraitView[] = [];
   const slots = o.scheme.slots;
+  /**
+   * 这一套的主图：补画时是调用方给的那张，整套画时由下面画出来的那一格接上。
+   *
+   * ★★ 2026-09-24 付费实测（¥1.20，6 张）定的这条：设定稿（三视图 / 规格稿）原来与别的图位一样
+   *   **各自独立**从用户那张素材画 —— 素材没拍到的部位（背面、侧面、腿）每一格各编一个，于是
+   *   三视图编出深色短裤、全身立绘编出白衬衫裙，两张图上的同一个人穿着不同的衣服。
+   *   这不是"模型认错人"，是**两次独立创作**：谁也没看过谁。
+   *   （后果不只是难看：设定稿 2026-09-23 起会当参考图发给视频模型，而实测里多送的那张一旦
+   *   与主图不一致，模型听多送的那张 —— 上一次 ¥20.84 的 A/B 里 C 组转身那一发照着三视图
+   *   画了深色短裤。）
+   *   改成"照着主图画"之后实测一致（B1：同样的白衬衫裙、同样的黑皮鞋、同样的发型）。
+   * ★ 方向是**主图在前、设定稿在后**，不是反过来（主人提过"先出设定稿再按它出主图"）：
+   *   反过来实测也一致（B2/B3），但那样一来身份就由设定稿说了算 —— 而设定稿本身是编出来的，
+   *   它与用户素材之间又多了一道；无面部三视图那条更狠：派生出的主图上那张脸是模型凭空补的。
+   *   现在这个方向让主图始终离用户的素材只有一步。
+   * ★ 退路：这一套没有主图（用户方案全是设定稿、或补画时调用方给不出）就退回 bodyCrop，行为与从前一致。
+   */
+  let primary = o.primaryShot;
   /** 已经画好（= 已经各自结算）的那几格。只收生成型的，别拿 out 顶：里面混着不计费的 fromCrop */
   const drawn: PortraitView[] = [];
   for (let i = 0; i < slots.length; i++) {
@@ -181,7 +208,12 @@ export async function portraitViews(o: {
     const n = i + 1;
     const total = slots.length;
     o.onProgress?.(t`绘制${name}…（${n}/${total}）`);
-    const ref = slot.ref === "face" ? o.faceCrop || o.bodyCrop : o.bodyCrop;
+    // ★★ 设定稿照**主图**画（见 primary 的 ★★）；其余图位照用户那张素材画，与从前一致
+    const ref = isSheetSlot(o.scheme, slot)
+      ? primary || o.bodyCrop
+      : slot.ref === "face"
+        ? o.faceCrop || o.bodyCrop
+        : o.bodyCrop;
     let dataUrl: string;
     try {
       dataUrl = await genImageAsDataUrl(schemeSlotPrompt(slot, o.subject, { realPhoto: o.realPhoto }), {
@@ -193,6 +225,8 @@ export async function portraitViews(o: {
     }
     out.push({ slotKey: slotKey(o.scheme, slot), role: slot.role, tag: slotCardTag(o.scheme, slot), dataUrl });
     drawn.push(out[out.length - 1]);
+    // ★ 这一格就是主图：后面的设定稿照它画（方案的图位顺序里主图排在设定稿之前，两套内置方案都是）
+    if (slot.role === "primary") primary = dataUrl;
   }
   return out;
 }
@@ -345,6 +379,9 @@ export async function fuseFrame(o: {
  *   把导演台里的人偶当成了"人物"——雨夜霓虹街画得很好，站着的却是一黄一白两个塑料人偶；画幅提示里的「手机全屏画面」
  *   也被当真，整张图被画进了一只手机的屏幕里。所以这里：① 开头就点破图片1 是 3D 人偶摆的草图、只取构图；② 人偶必须换成
  *   真人 / 角色，列出不许出现的东西（人偶 / 3D 质感 / 灰白金黄塑料人形 / 网格地面）；③ 画幅只说"竖版 / 横版构图"，不提手机。
+ * ★ 2026-09-24 补记：那两个字**在源头**（types.VIDEO_ASPECTS 的 promptHint）已经去掉了 —— 当时只在这一处绕开，
+ *   于是设定帧与段间融图那两条路又各自踩了一年（实测 3/3 画出手机边框，见那边的 ★★）。这里的 ③ 保留：
+ *   它与"不提手机"是两件事（这一条还要说清楚人偶不是人物）。
  * ★ 截图那侧配合：截图时所有人偶一律灰白（选中的金色只在屏幕上有，StageOverlay 的 Capturer 会换回去）。
  */
 export async function fuseStageFrame(o: {
