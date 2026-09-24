@@ -46,7 +46,7 @@
 //   在 9 个角色位下光骨架就 300 字，加上出片时挂在尾巴上的绑定句直接溢出 ——
 //   而溢出是**从正文这头切**的（segmentGen 的 room），切掉的正是用户自己写的那几句。
 //   紧凑不等于天书：`编号1=张三` 一眼能懂、能手改，这是硬要求（这段话是给用户读的）。
-import { AI_REAL, VIDEO_PROMPT_MAX } from "../ai";
+import { AI_REAL, SHEET_CLAUSE, VIDEO_PROMPT_MAX, mayAddSheetClause } from "../ai";
 import { chat } from "../ai/arkClient";
 import { markColorOf, type MarkSpec } from "../data/templates";
 import type { Card, MarkScheme } from "../types";
@@ -153,11 +153,31 @@ export interface BlockoutCastSlot {
  *   外加头尾那句「参考图：…只用来锁这个角色的长相、发色与服装，不要照抄其构图与背景。」≈ 40 字。
  * ★ 宁可**估大**：估小了 segmentGen 会从正文尾巴切一刀，切掉的是「不要出现字幕」这类
  *   收尾要求，或者用户自己补的那句话 —— 而那一刀虽然会当场报出来，用户也只能回来重写。
+ * ★★ 2026-09-23 加的第二档（`sheets`）：挂上的卡里有**多视图设定稿**（三视图 / 规格稿）时，
+ *   尾巴会多出两截 —— 每张卡可能多一个 `@图片N`（+4），以及末尾那句 `SHEET_CLAUSE`。
+ *   ⚠ 分两档而不是一律按大的留：设定稿只在**挂的卡少**时才排得进预算，而这个留位是按卡数算的 ——
+ *   一律按大的留会让 6 个角色位的白模稿**整批丢掉括号描述**（下面 withDescs 那条），
+ *   而那些描述（尤其"位置关系"）是实测里唯一扛得住换人的一维（见 APPLY_DESC_MAX 的 ★★★）。
+ *   为一句说明把它们挤掉是赔本的。
  * ⚠ 这是**镜像**，不是那条规则本身：绑定句的真正形态在 `ai/real` 的 `bind()`。
  *   改那边的措辞就要回来重量一次（两边一起漂时没有任何症状，只表现为正文被多切几个字）。
+ *   ★ 所以那句说明的长度直接读 `SHEET_CLAUSE.length`，不在这里手抄一个数。
  */
 const BIND_RESERVE_FIXED = 40;
 const BIND_RESERVE_PER_CARD = 13;
+/** 设定稿也在场时，每张卡多留一个 `@图片N` 的位置 */
+const BIND_RESERVE_PER_CARD_SHEET = 17;
+/**
+ * 挂到几张卡为止，设定稿还**排得进**参考图预算 —— 超过这个数就按没有设定稿留位。
+ *
+ * ★ 3 是算出来的：第一轮每张人物卡 `MAX_CHAR_REFS`(2) 张，设定稿是第 3 张，
+ *   所以要 3×卡数 ≤ 这一发的参考图预算。这里按**最紧的那档协议上限**算（2.0 系 hd = 9 张）⇒ 3 张卡。
+ * ⚠ 2.5 档（30 张）下挂更多卡时设定稿照样排得进，那时这里是**估小**的：后果是正文被
+ *   segmentGen 切一刀、并在进度里当场报出来（那句 ⚠ 会说清切了多少字）。
+ *   这是**有意选的那一侧** —— 反过来一律按大的留，6 个角色位的稿子会整批丢掉括号描述
+ *   （下面的 withDescs），而那些描述（尤其"位置关系"）才是实测里真正扛住换人的一维。
+ */
+const SHEET_FITS_MAX_CARDS = 3;
 
 /**
  * 合成结果的字数上限：把尾巴的位置先留出来，剩下的**全给用户**。
@@ -166,9 +186,14 @@ const BIND_RESERVE_PER_CARD = 13;
  *   而截断是从正文这头切的。挂 9 张卡时尾巴约 40+9×13 = 157 字，这里就只准写到 243 字。
  * ★ 下限 80：卡再多也得给正文留一口气 —— 真到那一步，溢出会被 segmentGen 整句报出来
  *   （那才是唯一可靠的一环），而不是悄悄少发几句。
+ * @param sheets 挂上的卡里有没有多视图设定稿（`ai.mayAddSheetClause`）——有就按大的那一档留位（见上面 ★★）
  */
-export function blockoutPromptBudget(cardCount: number): number {
-  return Math.max(80, VIDEO_PROMPT_MAX - BIND_RESERVE_FIXED - Math.max(0, cardCount) * BIND_RESERVE_PER_CARD);
+export function blockoutPromptBudget(cardCount: number, sheets = false): number {
+  // ★ 卡多到设定稿根本排不进预算时，按没有设定稿留位（理由见 SHEET_FITS_MAX_CARDS）
+  const fits = sheets && cardCount <= SHEET_FITS_MAX_CARDS;
+  const perCard = fits ? BIND_RESERVE_PER_CARD_SHEET : BIND_RESERVE_PER_CARD;
+  const fixed = BIND_RESERVE_FIXED + (fits ? SHEET_CLAUSE.length : 0);
+  return Math.max(80, VIDEO_PROMPT_MAX - fixed - Math.max(0, cardCount) * perCard);
 }
 
 /**
@@ -480,9 +505,10 @@ function buildSkeleton(
   //   所以别把「6」写进任何判断里 —— 判据只有上面这一行长度比较。写死一个 6 的话，
   //   描述短的时候 7 个也塞得下却被拦掉，描述长的时候 6 个塞不下却放行（后者会把尾巴挤掉）。
   // ★ 卡数按**全部挂了卡的位子**算（组员已从 taken 里摘走，但它们的参考图照样占预算）
-  const cards = new Set(slots.flatMap((s) => (s.card ? [s.card.id] : []))).size;
+  const attached = slots.flatMap((s) => (s.card ? [s.card] : []));
+  const cards = new Set(attached.map((c) => c.id)).size;
   const full = build(true);
-  const withDescs = full.length <= blockoutPromptBudget(cards);
+  const withDescs = full.length <= blockoutPromptBudget(cards, mayAddSheetClause(attached));
   const usedDesc = new Map<string, string>();
   if (withDescs && ordinal) for (const slot of taken) if (slot.desc) usedDesc.set(slot.label, slot.desc);
   // ★ 哪些位子改按颜色点名了，也要**告诉**校验侧（与 usedDesc 同一条理由）：
@@ -739,8 +765,9 @@ export async function composeBlockoutPrompt(
   // ★ 预算按**这一次真的挂了几张卡**算（同一张卡挂两个位子只占一份图位，与
   //   flowStore 落 materials 时的去重同口径）——按角色位数量算会白白多留位，
   //   而多留的那部分本来是用户的。
-  const cards = new Set(slots.flatMap((s) => (s.card ? [s.card.id] : [])));
-  const budget = Math.max(blockoutPromptBudget(cards.size), skeleton.length);
+  const attached = slots.flatMap((s) => (s.card ? [s.card] : []));
+  const cards = new Set(attached.map((c) => c.id));
+  const budget = Math.max(blockoutPromptBudget(cards.size, mayAddSheetClause(attached)), skeleton.length);
   const context = slots
     // i18n-ignore-next-line: 角色位对照，只进发给豆包的上下文
     .flatMap((s) => (s.card ? [`${labelText(s.label, spec)}（原视频里是${s.desc || "某个人物"}）→ ${s.card.name}`] : []))

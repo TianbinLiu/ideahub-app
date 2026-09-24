@@ -17,8 +17,10 @@ import {
   viewsOf,
   CARD_SIZE,
   ID_LINE_MAX,
+  MAX_CARD_VIEWS,
   VIDEO_PROMPT_MAX,
   idLineOf,
+  isSheetView,
   type CardRole,
   type CardSlot,
   type CardView,
@@ -639,18 +641,27 @@ async function prepRefImage(src: string): Promise<string | null> {
 // 【规则二】总共最多 MAX_REF_IMAGES 张，**分两轮发**：
 //   · 第一轮：主角取前 MAX_CHAR_REFS 张；其余**每张**非人物卡各取 1 张
 //     —— 雨露均沾，不让排在前面的那张卡把预算一口吃光。
-//   · 第二轮：预算还有余，就按图位顺序给非人物卡补第 2 张，直到 MAX_REF_IMAGES 用完。
+//   · 第二轮起：预算还有余，就一轮一轮地给**每张已经排上号的卡**按图位顺序补下一张，
+//     直到预算用完（经典路 MAX_REF_IMAGES，直通路是档位协议上限）。
 //   ★★ 第二轮不是"能塞就塞"的凑数，是**在补一个真花了钱的窟窿**：老代码非人物卡一律
 //     只取 viewsOf()[0]，于是一段里只挂一两张卡时预算大量闲置，而用户为第 2 张图付的钱
 //     **永远进不了模型**（定妆档一张场景卡 33.7k token 里有 16.7k 是白花），全程零提示。
-//   ★★ 人物卡**不参与第二轮**。MAX_CHAR_REFS = 2 是方舟指南的硬结论（见规则三），
-//     预算有余就给主角补第 3 张不是"把钱花在刀刃上"，而是**主动把画面变差**：
-//     同一人物的多视图会被识别成多个主体，ID 漂移反而更重。宁可让那一格空着。
+//   ★★ 人物卡**2026-09-23 起也参与第二轮**（主人点名「直接放开三视图 / 规格稿」）：
+//     此前它被硬挡在第二轮之外，依据是方舟指南那句"多视图加剧 ID 漂移"——而那句话
+//     我们自己付费实测过一次（8 发 hd，A=面部+全身 / B=A+规格稿 / C=A+三视图），**没复现**：
+//     没出现多个人、没画出分栏网格文字与人台头，近景身份贴合同水平（实测细节记在
+//     data/promptSchemes 文件头 ★★★②，那里也写了唯一真复现出来的效应）。
+//     ⚠ 它仍然排在**别的卡的第 1 张之后**：一段里另一张卡连形象都没带上，却先去补主角的
+//       第 3 张，是把预算花在边际收益最低的地方。
+//     ⚠ 第 3 张进不进模型由**作者**决定（卡片页上的「出片用 / 仅展示」→ CardView.role）。
+//       所以这里不需要再判一次"它是不是规格图"：allocatable() 读的就是作者那一票。
 //
 // 【规则三】人物卡取图顺序 face → body → detail，**不是**多角度。方舟指南原文：
 //   「人物参考使用大头照 + 全身照即可，不建议使用人物多视图。多视图素材包含同一人物的
 //   不同角度，模型易将其识别为多个不同主体，反而加剧 ID 漂移问题。」
-//   道具/场景卡不受这条约束（它们不承担"主体身份"），所以第二轮只轮到它们。
+//   ⚠ 这条**只决定顺序**（face 优先、合成规格图排最后），不再决定"准不准进"——
+//     准不准由作者在卡片页上那一票说了算（见 allocatable 的 ★★）。
+//   道具/场景卡不受这条约束（它们不承担"主体身份"）。
 
 /**
  * **经典路**一段生成里最多带几张素材卡参考图（承接帧另算，见 prepareMaterialRefs 的 offset）。
@@ -676,7 +687,14 @@ export const MAX_REF_IMAGES = 3;
  *   给 Seedream 塞 30 张图去画一张设定帧，画面糊成一团。
  */
 export const ARK_REF_IMAGES_MAX = 30;
-/** 一张人物卡最多占几张（方舟指南：大头照 + 全身照，**多视图**反而加剧 ID 漂移） */
+/**
+ * 一张人物卡**第一轮**最多占几张（方舟指南：大头照 + 全身照，顺序 face → body）。
+ *
+ * ★★ 2026-09-23 起这个 2 只是**第一轮的配额**，不再是"一张人物卡的硬顶"：作者在卡片页上
+ *   标成「出片用」的第 3 张会在第二轮补进来（规则二的 ★★）。硬顶是 `MAX_CARD_VIEWS`——
+ *   一张卡最多就挂那么多张图，再想多也没有了。
+ * ★ 第一轮仍只发两张：预算紧时先保证"每个角色都有脸和全身"，这是方舟指南里真正有用的那半句。
+ */
 export const MAX_CHAR_REFS = 2;
 
 /**
@@ -685,15 +703,22 @@ export const MAX_CHAR_REFS = 2;
  *
  * ★ 逐位对齐老的 `KIND_ORDER`（face:0 / body:1 / detail:2）：`roleOf` 把老卡的
  *   face→face、body→primary、detail→aux，所以**存量卡的分配结果一字节不变**。
- * ★★ `display` 给 `Infinity` 只是"排最后"，**真正挡住它的是下面的 allocatable()**：
- *   合成规格图（三视图/分栏设定稿）当人物参考图会加剧 ID 漂移（方舟指南原文），
- *   排在最后仍可能在预算宽裕时被取上 —— 那正是"钱花了、画面更差了"。所以要硬排除。
+ * ★★ `display` 给 `Infinity` 是"排最后"，而**真正挡住它的是下面的 allocatable()**。
+ *   ⚠ 它今天的含义是**作者在卡片页上把这张标成了「仅展示」**（2026-09-23 起），不再是
+ *   "合成规格图这类图一律不准进模型"——后者已经放开（依据见 allocatable 的 ★★）。
  */
 const ROLE_ORDER: Record<CardRole, number> = { face: 0, primary: 1, aux: 2, display: Infinity };
 
 /**
  * 这张卡**可以进模型**的那些图（带原下标，`refUsedFlags` 要靠下标对齐）。
  * ★ `display` 在这里就被滤掉 —— 全仓只有这一处决定"哪些图有资格参与分配"。
+ *
+ * ★★ 2026-09-23 起 `display` 的唯一来源是**作者自己的选择**（卡片页每张图上的
+ *   「出片用 / 仅展示」→ data/cardViews.setCardViewRole → CardView.role），内置方案不再把
+ *   三视图 / 规格稿钉死成 display。改的依据是一次付费 A/B（方舟指南那句"多视图加剧 ID 漂移"
+ *   在本仓送法下没复现；细节与唯一真复现出来的效应写在 data/promptSchemes 文件头 ★★★②）。
+ * ⚠ 所以这里**不许**再按"这张图看起来像不像规格稿"做判断（tag 是自由文本、还会随界面语言变，
+ *   见 types.CardView.tag 的 ★）：作者那一票就是判据，界面上标的与模型收到的因此永远一致。
  */
 function allocatable(card: Card): { view: CardView; index: number }[] {
   return viewsOf(card)
@@ -751,10 +776,11 @@ function allocateRefs(materials: Card[], onNote?: (note: string) => void, multiC
   // ★★ **分两轮**（与经典路第二轮同一个用意：雨露均沾）：第一轮每张卡各 1 张（face 优先），
   //   预算还有余再回头给每张卡补第 2 张（body）。一张卡一次吃满 2 张的话，预算紧时
   //   排在后面的角色会**整个没有形象图**，而"每个人都认得出"正是白模模板的全部卖点。
-  // ★ 每张卡最多 `MAX_CHAR_REFS`（2）张、顺序 face→body，与经典路规则三同一条依据：
+  // ★ 这一轮每张卡最多 `MAX_CHAR_REFS`（2）张、顺序 face→body，与经典路规则三同一条依据：
   //   方舟指南「人物参考使用大头照 + 全身照即可，不建议使用人物多视图 —— 多视图素材包含
-  //   同一人物的不同角度，模型易将其识别为多个不同主体，反而加剧 ID 漂移」。预算从 3 涨到
-  //   30 之后**仍然不给第 3 张**：放开的是"能带几个人"，不是"一个人能带几个角度"。
+  //   同一人物的不同角度，模型易将其识别为多个不同主体，反而加剧 ID 漂移」。
+  //   ⚠ 第 3 张不是不给，是**排到下面那个"第二轮起"的队列里**（2026-09-23）：作者点亮的第 3 张
+  //     要等每张卡都拿到第 1 张之后才补。两条路共用同一个队列，别在这里另开一轮。
   // ★★ 同理，「把同一张卡的多张图**拼成一张**、只占一个 @图片N」这个省额度的招**本轮不做**：
   //   拼接出来的正是一张多视图素材，按上面那句指南就是在主动加剧 ID 漂移。留作备选，
   //   要用得先实测（本轮一次都没验过，而验证成本是一次真实付费出片）。
@@ -843,28 +869,46 @@ function allocateRefs(materials: Card[], onNote?: (note: string) => void, multiC
     picks.push({ card, index: it0.index, view });
   }
 
-  // ── 第二轮：预算还有余，非人物卡各补第 2 张 ──
-  // ★ 只补到第 2 张就打住：非人物卡的图位表本来就只有两格（types.CARD_SLOTS），
-  //   第 3 张在这条管线里没有对应的图位可指。
+  // ── 第二轮起：预算还有余，每张排上号的卡按图位顺序各补下一张 ──
+  //
+  // ★★ 2026-09-23 起**人物卡也在这个队列里**（此前只有非人物卡，理由与推翻它的实测见规则二的 ★★）：
+  //   作者在卡片页把第 3 张标成「出片用」之后，它必须真的有机会走到模型 —— 否则那颗开关是摆设，
+  //   而"界面上摆一个永远不生效的选项"是本仓明令禁止的。
+  // ★ 一轮一轮地发（不是一张卡一次吃满）：与第一轮"雨露均沾"同一个用意 —— 谁的第 2 张都比
+  //   别人的第 3 张要紧。
   const dropped: string[] = [];
-  for (const card of others) {
-    // 同上：走 allocatable 的第 2 张，下标也从它身上取
-    const it1 = allocatable(card)[1];
-    const view = it1?.view;
-    // 第一轮就没排上号的不给第 2 张：越过一张"连第 1 张都没带上"的卡去补别人的第 2 张，
-    // 是把预算花在边际收益最低的地方
-    if (!view || !picks.some((p) => p.card === card)) continue;
-    if (picks.length >= budget) {
-      dropped.push(card.name);
-      continue;
+  /** 每张卡"第一轮之后还剩下的可用图"，各自保持取图顺序 */
+  const rest = new Map<Card, { view: CardView; index: number }[]>();
+  for (const card of [...chars, ...others]) {
+    const taken = picks.filter((p) => p.card === card).length;
+    // 第一轮就没排上号的不补：越过一张"连第 1 张都没带上"的卡去补别人的下一张，
+    // 是把预算花在边际收益最低的地方。★ 经典路的非主角人物卡（规则一）正好也从这里被排除。
+    if (taken === 0) continue;
+    const ordered =
+      card.type === "character"
+        ? allocatable(card).sort((a, b) => ROLE_ORDER[roleOf(a.view)] - ROLE_ORDER[roleOf(b.view)])
+        : allocatable(card);
+    const left = ordered.slice(taken);
+    if (left.length > 0) rest.set(card, left);
+  }
+  // ★ 轮数上限就是一张卡最多能挂几张（MAX_CARD_VIEWS）——写成 while(true) 的话，
+  //   将来谁把 rest 的算法改出一个死循环，表现是出片这一步整个卡住而不是报错。
+  for (let round = 0; round < MAX_CARD_VIEWS; round++) {
+    for (const [card, left] of rest) {
+      const it = left[round];
+      if (!it) continue;
+      if (picks.length >= budget) {
+        if (!dropped.includes(card.name)) dropped.push(card.name);
+        continue;
+      }
+      picks.push({ card, index: it.index, view: it.view });
     }
-    picks.push({ card, index: it1.index, view });
   }
   if (onNote && dropped.length > 0) {
-    // 这一条同样要点名：用户为这张图付过钱，而它这次没进模型 —— 只是原因是"预算被更
-    // 要紧的图位占了"，不是"它没用"。挂少一张卡就能让它进去，所以这是句可行动的话。
+    // 这一条同样要点名：用户为这张图付过钱、还可能亲手把它标成了「出片用」，而它这次没进模型 ——
+    // 只是原因是"预算被更要紧的图位占了"，不是"它没用"。挂少一张卡就能让它进去，所以这是句可行动的话。
     const names = quotedNameList(dropped);
-    onNote(t`${names}的第 2 张参考图这次没带上（预算 ${budget} 张已被更要紧的图位占满），它们按第 1 张参与`);
+    onNote(t`${names}还有参考图没带上（预算 ${budget} 张已被更要紧的图位占满），它们按已经带上的那几张参与`);
   }
   // ★ 最后按卡归拢，让同一张卡的图在 `<图片N>` 里**连号**。两轮分配天然排出的是
   //   [场景①, 道具①, 场景②] 这种交错，绑定句于是长成"<图片1>、<图片3>是场景卡…；
@@ -916,6 +960,48 @@ export function refUsedFlags(card: Card, ctx?: Card[]): boolean[] {
 function slotLocks(type: CardType, kind: unknown): string {
   // ★ 读提示词那张冻结表（types.CARD_SLOT_PROMPT），不读界面的 CARD_SLOTS：这半句要进绑定句，界面翻译了它也不能变
   return slotPromptOf(type, kind).locks;
+}
+
+/**
+ * **多视图设定稿**（白模三视图 / 设定规格稿）真进了参考图时补的那一句。
+ *
+ * ★★ 为什么必须有它：2026-09-23 放开这两格的依据是一次付费 A/B（8 发 hd 出片），
+ *   而那 8 发**全都带着这句话**送 —— 方舟指南警告的"识别成多个不同主体"一次都没复现，
+ *   是在有这句话的前提下得到的结论。删了它等于把结论的前提抽掉（实测细节见 data/promptSchemes 文件头 ★★★②）。
+ * ★★ 只在**真有一张设定稿进了模型**时才拼（`isSheetView`，认图位名 —— 它只管措辞，不管谁进模型，
+ *   理由写在 types.isSheetView 的 ★★）。按"任何 aux"拼是错的：白模那条路上每张人物卡的第 2 张
+ *   本来就常是「服装细节」（aux），照那样写等于给**今天每一发**白模出片都无条件加上 50 多字，
+ *   而提示词硬顶 VIDEO_PROMPT_MAX 是 400 字、截断从正文那头下刀 —— 用户亲手写的那段会被多切几十字。
+ * ⚠ 它的长度被 studio/blockoutPrompt 的"尾巴留位"镜像着（那边直接读 `.length`，别把它改成模板函数）。
+ */
+/* i18n-frozen: 多视图设定稿（三视图 / 规格稿）的说明句，发给模型，不翻译 */
+export const SHEET_CLAUSE =
+  "三视图 / 规格稿里的多个角度都是同一个人，不是多个人；只据它核对服装的侧面与背面版型与配色，" +
+  "不要画出分栏、网格、色板、文字标注与无面部人台头。";
+
+/* i18n-frozen: 设定稿在长句绑定里代表的特征（替掉图位表那句「身上佩戴的饰物…」），发给模型，不翻译 */
+const SHEET_FEAT = "服装侧面与背面的版型与配色";
+
+/** 这批图里有没有设定稿（人物卡的）——有就要补 SHEET_CLAUSE 那一句 */
+function hasSheet(picks: readonly { card: Card; view: CardView }[]): boolean {
+  return picks.some((p) => p.card.type === "character" && isSheetView(p.view));
+}
+
+/**
+ * 这一段挂的卡里，**有没有可能**让 SHEET_CLAUSE 出现（= 某张人物卡有一张没被标成「仅展示」的设定稿）。
+ * ★ 给 studio/blockoutPrompt 估"尾巴要留多少字"用 —— 它问的是可能性（估大那一侧），
+ *   真正决定拼不拼的是上面的 `hasSheet`（按这一次真发出去的图算）。
+ */
+export function mayAddSheetClause(materials: readonly Card[]): boolean {
+  return materials.some((c) => c.type === "character" && allocatable(c).some((x) => isSheetView(x.view)));
+}
+
+/**
+ * 这张图在**长句**绑定里代表哪部分特征。
+ * ★ 设定稿不按图位表念（那句是「身上佩戴的饰物、纹样或疤痕」，对着一张三视图说就是指着 A 说 B）。
+ */
+function featOf(type: CardType, view: CardView): string {
+  return type === "character" && isSheetView(view) ? SHEET_FEAT : slotLocks(type, view.kind);
 }
 
 /**
@@ -1136,7 +1222,9 @@ export async function prepareMaterialRefs(
       charParts.length > 0
         ? zhPrompt`。等号右边的图只用来锁这个角色的长相、发色与服装，不要照抄其构图与背景。`
         : zhPrompt`。参考图只用于锁定形象，不要照抄它们的构图、背景、边框与文字。`;
-    return softenForImage(zhPrompt`。参考图：${body}${foot}`);
+    // ★ 设定稿那句接在最后（同 foot 的理由：限制句夹在中间会被读成在说后面那张卡）
+    const auxTail = hasSheet(good) ? SHEET_CLAUSE : "";
+    return softenForImage(zhPrompt`。参考图：${body}${foot}${auxTail}`);
   };
 
   return {
@@ -1148,7 +1236,7 @@ export async function prepareMaterialRefs(
       const numOf = (p: (typeof good)[number]) => zhPrompt`<图片${offset + good.indexOf(p) + 1}>`;
       const heroPicks = good.filter((p) => p.card === hero);
       if (heroPicks.length > 0 && hero) {
-        const feats = heroPicks.map((p) => zhPrompt`${numOf(p)}的${slotLocks(hero.type, p.view.kind)}`).join("、");
+        const feats = heroPicks.map((p) => zhPrompt`${numOf(p)}的${featOf(hero.type, p.view)}`).join("、");
         // 设定括号用**身份句**（idLineOf）：它就是为"锁形象"压出来的那句视觉描述。
         // 没写出片句时 idLineOf 只回卡名（简介不进出片，2026-09-18）：那时括号整个省掉，别写成「（设定：小夏）」
         const heroLine = idLineOf(hero);
@@ -1172,8 +1260,10 @@ export async function prepareMaterialRefs(
       if (parts.length === 0) return "";
       // ★ 必须过 softenForImage：绑定句里带着卡的 name/idLine，而那两样是豆包写的，
       //   极爱用「少女」这类词 —— 敏感词在方舟是整条请求 400，不是降级（见上面 SOFTEN 表）
+      // ★ 与紧凑式同一句（一处文案两条路共用）：真有设定稿进了模型才拼
+      const auxTail = hasSheet(good) ? zhPrompt`。${SHEET_CLAUSE}` : "";
       return softenForImage(
-        zhPrompt`。参考图说明：${parts.join("；")}。参考图只用于锁定形象，不要照抄它们的构图、背景、边框与文字`,
+        zhPrompt`。参考图说明：${parts.join("；")}。参考图只用于锁定形象，不要照抄它们的构图、背景、边框与文字${auxTail}`,
       );
     },
   };

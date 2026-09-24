@@ -295,6 +295,10 @@ msgstr "· It will be removed from {deckCount, plural, one {# deck ({deckNames})
 msgid "· 它已经分享到创意工坊：删卡会<0>同时下架</0>； 别人已经装走的那份在他们自己的库里，不受影响。"
 msgstr "· It's shared to the Workshop. Deleting the card <0>also takes it down</0>; copies others already installed stay in their own libraries."
 
+#: src/pages/CardDetailPage.tsx
+#~ msgid "· 已标成出片用，但这一段的参考图预算先给了前面几张——同段挂的卡越少，越轮得到它"
+#~ msgstr "· Marked Used in video, but this segment's reference-image budget went to the images ahead of it — the fewer cards in the segment, the sooner it gets in"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "· 想要会转头 / 眨眼 / 说话，模型里得有 ParamAngleX、ParamAngleY、ParamEyeLOpen、ParamEyeROpen、ParamMouthOpenY 这几个标准参数"
 msgstr "· For head turning, blinking and talking, the model needs the standard parameters ParamAngleX, ParamAngleY, ParamEyeLOpen, ParamEyeROpen and ParamMouthOpenY"
@@ -1081,8 +1085,12 @@ msgid "{names}的形象参考图这次没带上（一次最多 {budget} 张，�
 msgstr "The reference images for {names} weren't included this time (at most {budget, plural, one {# image} other {# images}} per render — Ark's protocol limit), so only their names are left in the prompt and the AI will make up those characters' looks; to have them look like their cards, attach fewer cards"
 
 #: src/ai/real.ts
-msgid "{names}的第 2 张参考图这次没带上（预算 {budget} 张已被更要紧的图位占满），它们按第 1 张参与"
-msgstr "The second reference image of {names} wasn't included this time (the budget of {budget, plural, one {# image} other {# images}} is taken up by more important slots), so each takes part with its first image only"
+#~ msgid "{names}的第 2 张参考图这次没带上（预算 {budget} 张已被更要紧的图位占满），它们按第 1 张参与"
+#~ msgstr "The second reference image of {names} wasn't included this time (the budget of {budget, plural, one {# image} other {# images}} is taken up by more important slots), so each takes part with its first image only"
+
+#: src/ai/real.ts
+msgid "{names}还有参考图没带上（预算 {budget} 张已被更要紧的图位占满），它们按已经带上的那几张参与"
+msgstr "{names} still have reference images that weren't included (the budget of {budget, plural, one {# image} other {# images}} is taken up by more important slots), so each takes part with the images that did get in"
 
 #: src/pages/CustomCardPage.tsx
 msgid "{nextLabel}没有「{goneNames}」这一格，你传的那张已经取下来了——需要的话换回{curLabel}再传一次。"
@@ -3026,8 +3034,13 @@ msgstr "The whole video on one screen"
 
 #. 内置方案的一句话简介：≤120 个字符（服务端上限，另存为后原样带进用户方案）
 #: src/data/promptSchemes.ts
-msgid "一张分栏设定稿（素描线稿 + 色板 + 服装细节），外加一张能出片的面部特写。规格稿只作展示。"
-msgstr "A spec sheet (sketch, palette, outfit details) plus a face close-up that video can use. The sheet is display-only."
+#~ msgid "一张分栏设定稿（素描线稿 + 色板 + 服装细节），外加一张能出片的面部特写。规格稿只作展示。"
+#~ msgstr "A spec sheet (sketch, palette, outfit details) plus a face close-up that video can use. The sheet is display-only."
+
+#. 内置方案的一句话简介：≤120 个字符（服务端上限，另存为后原样带进用户方案）
+#: src/data/promptSchemes.ts
+msgid "一张分栏设定稿（素描线稿 + 色板 + 服装细节），外加面部特写与全身立绘。规格稿默认也进出片，可在卡片页改回只展示。"
+msgstr "A spec sheet (sketch, palette, outfit details) plus a face close-up and a full-body drawing. The sheet is used in video by default; switch it back to display-only on the card page."
 
 #: src/data/promptSchemes.ts
 msgid "一张卡最多存 {MAX_CARD_VIEWS} 张形象图（服务端也钉着这个数），把图位删到 {MAX_CARD_VIEWS} 个以内"
@@ -3095,6 +3108,10 @@ msgstr "the burial ground of ten thousand blades"
 #: src/components/guide/tours.tsx
 msgid "三个页签各管一摊"
 msgstr "Three tabs, three jobs"
+
+#: src/types.ts
+msgid "三视图/规格稿/细节特写这类：预算还有余时才轮到它"
+msgstr "Turnarounds, spec sheets, detail close-ups: only used when there's room left in the budget"
 
 #: src/studio/studioStore.ts
 msgid "三种走向推演完毕，但有 {degraded} 个方案的首尾帧没画出来（出片前会先补画要用到的帧，补画的钱算在出片报价里）。点开看看剧情，选定一个。"
@@ -5173,12 +5190,20 @@ msgid "出片时<0>不是每张都会喂进模型</0>——「出片用」按单
 msgstr "When making videos, <0>not every image is fed to the model</0> — “Used in video” is marked optimistically, as if this were the only card, and may give way when a segment has many cards."
 
 #: src/pages/CustomCardPage.tsx
-msgid "出片时<0>不是每张都会喂进模型</0>——详情页会逐张标出「出片用 / 仅展示」，那里是唯一的判据。"
-msgstr "When generating video, <0>not every image is sent to the model</0> — the details page marks each one “Used in video / Display only”, and that's the only source of truth."
+msgid "出片时<0>不是每张都会喂进模型</0>——详情页会逐张标出「出片用 / 仅展示」，那里是唯一的判据，也在那里逐张改。"
+msgstr "When making videos, <0>not every image is fed to the model</0> — the card page marks each one “Used in video / Display only”, which is the only source of truth, and that's also where you change it."
+
+#: src/pages/CustomCardPage.tsx
+#~ msgid "出片时<0>不是每张都会喂进模型</0>——详情页会逐张标出「出片用 / 仅展示」，那里是唯一的判据。"
+#~ msgstr "When generating video, <0>not every image is sent to the model</0> — the details page marks each one “Used in video / Display only”, and that's the only source of truth."
 
 #: src/pages/CardDetailPage.tsx
-msgid "出片时一段里只有「第一张人物卡」能带形象参考图：它最多取 {MAX_CHAR_REFS} 张（优先{face} + {body}）；同一段里的其余人物卡一张都不带，只按文字设定参与——一张图里画多个角色会被方舟整条拒掉。所以上面的「出片用」是按\"这张卡就是那第一张人物卡\"标的：它排在别的人物卡后面时，标着出片用的那几张同样进不了模型（生成步骤里会点名说明）。（两条不画设定帧的路是例外——白模模板挂卡、简约模式的参考图直出：每张人物卡都各带自己的形象图。）{detail}这一格铸卡不会自动出图（只能自己传），三张挂满时它也排在最后，出片轮不到它。"
-msgstr "When making videos, only the “first character card” in a segment can bring reference images: it takes at most {MAX_CHAR_REFS, plural, one {# image} other {# images}} ({face} + {body} first). Other character cards in the same segment bring none and only take part through their text details — one image with several characters gets rejected outright by Ark. So “Used in video” above assumes this card is that first character card: if it comes after other character cards, the images marked Used in video won't reach the model either (the generation steps will say so). (The two paths that don't draw setup frames are exceptions — attaching cards to a blockout template, and direct reference-image output in Simple mode: every character card brings its own images.) The {detail} slot isn't generated automatically when minting (you can only upload it yourself), and when all three are filled it comes last, so it never gets used in videos."
+msgid "出片时一段里只有「第一张人物卡」能带形象参考图：先取 {MAX_CHAR_REFS} 张（优先{face} + {body}），标成「出片用」的第 3 张要等同段每张卡都拿到第 1 张之后，预算还有余才补得上；同一段里的其余人物卡一张都不带，只按文字设定参与——一张图里画多个角色会被方舟整条拒掉。所以上面的「出片用」是按\"这张卡就是那第一张人物卡\"标的：它排在别的人物卡后面时，标着出片用的那几张同样进不了模型（生成步骤里会点名说明）。（两条不画设定帧的路是例外——白模模板挂卡、简约模式的参考图直出：每张人物卡都各带自己的形象图。）{detail}这一格铸卡不会自动出图，只能自己传。"
+msgstr "When making videos, only the “first character card” in a segment can bring reference images: it takes {MAX_CHAR_REFS, plural, one {# image} other {# images}} first ({face} + {body} first), and a third image marked Used in video only gets added once every card in the segment has its first image and budget is still left. Other character cards in the same segment bring none and only take part through their text details — one image with several characters gets rejected outright by Ark. So “Used in video” above assumes this card is that first character card: if it comes after other character cards, the images marked Used in video won't reach the model either (the generation steps will say so). (The two paths that don't draw setup frames are exceptions — attaching cards to a blockout template, and direct reference-image output in Simple mode: every character card brings its own images.) The {detail} slot isn't generated automatically when minting; you can only upload it yourself."
+
+#: src/pages/CardDetailPage.tsx
+#~ msgid "出片时一段里只有「第一张人物卡」能带形象参考图：它最多取 {MAX_CHAR_REFS} 张（优先{face} + {body}）；同一段里的其余人物卡一张都不带，只按文字设定参与——一张图里画多个角色会被方舟整条拒掉。所以上面的「出片用」是按\"这张卡就是那第一张人物卡\"标的：它排在别的人物卡后面时，标着出片用的那几张同样进不了模型（生成步骤里会点名说明）。（两条不画设定帧的路是例外——白模模板挂卡、简约模式的参考图直出：每张人物卡都各带自己的形象图。）{detail}这一格铸卡不会自动出图（只能自己传），三张挂满时它也排在最后，出片轮不到它。"
+#~ msgstr "When making videos, only the “first character card” in a segment can bring reference images: it takes at most {MAX_CHAR_REFS, plural, one {# image} other {# images}} ({face} + {body} first). Other character cards in the same segment bring none and only take part through their text details — one image with several characters gets rejected outright by Ark. So “Used in video” above assumes this card is that first character card: if it comes after other character cards, the images marked Used in video won't reach the model either (the generation steps will say so). (The two paths that don't draw setup frames are exceptions — attaching cards to a blockout template, and direct reference-image output in Simple mode: every character card brings its own images.) The {detail} slot isn't generated automatically when minting (you can only upload it yourself), and when all three are filled it comes last, so it never gets used in videos."
 
 #. placeholder {0}: CARD_INFO_LABELS[card.type]
 #: src/pages/CardDetailPage.tsx
@@ -5186,8 +5211,12 @@ msgid "出片时提示词里代表这张卡的固定一句（逐段复用同一�
 msgstr "The fixed line that stands for this card in video prompts (the same wording is reused in every segment, which keeps the look steadier). Longer details reach the picture through the reference images above and the {0}; they aren't stuffed into the video prompt."
 
 #: src/pages/CardDetailPage.tsx
-msgid "出片时这类卡先保证第 1 张（{first}）喂给 AI；同一段里参考图总共最多 {MAX_REF_IMAGES} 张，预算还有余才轮得到第 2 张 —— 也就是同段挂的卡越少，它越可能真的进模型。预算不够时「先被丢的就是各卡的第 2 张」，卡再多下去整张卡都会带不上（两种情况生成步骤里都会逐张点名）。（白模挂卡与简约参考图直出那两条路更宽：参考图直接进视频模型，上限按所选档位的协议走。）"
-msgstr "When making videos, this kind of card always gets its first image ({first}) fed to the AI. A segment takes at most {MAX_REF_IMAGES, plural, one {# reference image} other {# reference images}} in total, and the second image only gets in if there's budget left — so the fewer cards in the segment, the more likely it actually reaches the model. When the budget runs short, “each card's second image is dropped first”, and with even more cards whole cards get left out (the generation steps name each one in both cases). (Attaching cards to a blockout template and direct reference-image output in Simple mode are more generous: reference images go straight into the video model, up to the limit of the chosen tier.)"
+msgid "出片时这类卡先保证第 1 张（{first}）喂给 AI；同一段里参考图总共最多 {MAX_REF_IMAGES} 张，预算还有余才一轮一轮地轮到第 2、第 3 张 —— 也就是同段挂的卡越少，它越可能真的进模型。预算不够时「先被丢的就是各卡靠后的那几张」，卡再多下去整张卡都会带不上（两种情况生成步骤里都会逐张点名）。（白模挂卡与简约参考图直出那两条路更宽：参考图直接进视频模型，上限按所选档位的协议走。）"
+msgstr "When making videos, this kind of card always gets its first image ({first}) fed to the AI. A segment takes at most {MAX_REF_IMAGES, plural, one {# reference image} other {# reference images}} in total, and the second and third images are added round by round only if there's budget left — so the fewer cards in the segment, the more likely they actually reach the model. When the budget runs short, “each card's later images are dropped first”, and with even more cards whole cards get left out (the generation steps name each one in both cases). (Attaching cards to a blockout template and direct reference-image output in Simple mode are more generous: reference images go straight into the video model, up to the limit of the chosen tier.)"
+
+#: src/pages/CardDetailPage.tsx
+#~ msgid "出片时这类卡先保证第 1 张（{first}）喂给 AI；同一段里参考图总共最多 {MAX_REF_IMAGES} 张，预算还有余才轮得到第 2 张 —— 也就是同段挂的卡越少，它越可能真的进模型。预算不够时「先被丢的就是各卡的第 2 张」，卡再多下去整张卡都会带不上（两种情况生成步骤里都会逐张点名）。（白模挂卡与简约参考图直出那两条路更宽：参考图直接进视频模型，上限按所选档位的协议走。）"
+#~ msgstr "When making videos, this kind of card always gets its first image ({first}) fed to the AI. A segment takes at most {MAX_REF_IMAGES, plural, one {# reference image} other {# reference images}} in total, and the second image only gets in if there's budget left — so the fewer cards in the segment, the more likely it actually reaches the model. When the budget runs short, “each card's second image is dropped first”, and with even more cards whole cards get left out (the generation steps name each one in both cases). (Attaching cards to a blockout template and direct reference-image output in Simple mode are more generous: reference images go straight into the video model, up to the limit of the chosen tier.)"
 
 #: src/pages/CardDetailPage.tsx
 msgid "出片用"
@@ -6212,8 +6241,8 @@ msgid "参考图生视频（reference_image）"
 msgstr "Reference images to video (reference_image)"
 
 #: src/types.ts
-msgid "参考图预算还有余时才轮到它"
-msgstr "Only used when there's room left in the reference-image budget"
+#~ msgid "参考图预算还有余时才轮到它"
+#~ msgstr "Only used when there's room left in the reference-image budget"
 
 #. placeholder {0}: i + 1
 #: src/ai/index.ts
@@ -6698,6 +6727,10 @@ msgstr "It's the only segment and already rendered, so it can't be deleted"
 #: src/studio/flowStore.ts
 msgid "只剩这一段而且已经出片了，删不掉（想重来就用「删除本段」旁边的重新生成，或退出去开一条新的）"
 msgstr "This is the only segment and it already has a video, so it can't be deleted (to start over, use Regenerate next to “Delete segment”, or leave and start a new pipeline)"
+
+#: src/types.ts
+msgid "只在卡片页看，出片时不发给 AI（作者随时能改回「出片用」）"
+msgstr "Shown on the card page only, never sent to the AI (you can switch it back to Used in video any time)"
 
 #: src/pages/CustomCardPage.tsx
 msgid "只填空着的格子，不改你已经写的字"
@@ -10688,6 +10721,10 @@ msgstr "Story illustration"
 msgid "故事背景"
 msgstr "Story background"
 
+#: src/pages/CardDetailPage.tsx
+msgid "故事背景卡只以文字参与出片，它的图不进模型。"
+msgstr "Backstory cards take part through their text only; their image never reaches the model."
+
 #: src/studio/ui/NpcDialog.tsx
 msgid "故事里的关键物件——只管它本身的样子"
 msgstr "A key object in the story — just how the object itself looks"
@@ -12439,8 +12476,8 @@ msgid "水墨留白舒服"
 msgstr "that ink-wash negative space though"
 
 #: src/types.ts
-msgid "永不进模型（三视图/规格稿这类多视图会让 AI 认错人）"
-msgstr "Never sent to the model (multi-view sheets like turnarounds or spec sheets make the AI mix people up)"
+#~ msgid "永不进模型（三视图/规格稿这类多视图会让 AI 认错人）"
+#~ msgstr "Never sent to the model (multi-view sheets like turnarounds or spec sheets make the AI mix people up)"
 
 #: src/pages/AdminPage.tsx
 msgid "永久删除该账号"
@@ -13191,6 +13228,10 @@ msgstr "Tap it to take this pipeline to the <0>3D Studio</0>: the canvas is the 
 #: src/components/guide/tours.tsx
 msgid "点它看消息 —— 全 app <0>只有这一个入口</0>。 有新的时候图标上会多一个红点，红点不报条数，进去才知道有几条。"
 msgstr "Tap it to see your messages — it's <0>the only way in</0> anywhere in the app. When something new arrives, a red dot appears on the icon; the dot doesn't show a count, so you only see how many once you open it."
+
+#: src/pages/CardDetailPage.tsx
+msgid "点开任意一张可以改「出片用 / 仅展示」。"
+msgstr "Tap any image to switch it between Used in video and Display only."
 
 #: src/studio/ui/PlanBoard.tsx
 msgid "点开卡片换图"
@@ -18362,6 +18403,10 @@ msgstr "This card has no voice sample yet. You can grab a clip (2–15s) while c
 #: src/data/cardViews.ts
 msgid "这张图在你处理的时候变了（可能在别的设备上改过），刷新后再试"
 msgstr "This image changed while you were editing it (maybe on another device). Refresh and try again."
+
+#: src/data/cardViews.ts
+msgid "这张图在你操作的时候变了（可能在别的设备上改过），刷新后再试"
+msgstr "This image changed while you were working on it (maybe on another device). Refresh and try again."
 
 #: src/studio/live2dUploadStore.ts
 msgid "这张图太大了（{mb}MB，上限 {cap}MB），换一张小一点的。"

@@ -29,6 +29,13 @@ export const fuseStageFrame: typeof real.fuseStageFrame = AI_REAL ? real.fuseSta
 /** 圈选提取的「按提示词方案炼形象图」（图位由方案决定，风格跟随原图） */
 /** 参考图协议上限的兜底值（档位表没写 refImagesMax 时用它）——与 real.ts 同一个常量 */
 export { ARK_REF_IMAGES_MAX } from "./real";
+/**
+ * 多视图设定稿（三视图 / 规格稿）进参考图时补的那句说明，与"这一段有没有可能用上它"。
+ * ★ 出口开在这里只为一个调用方：studio/blockoutPrompt 要按它的长度留出提示词尾巴的位置
+ *   （那份留位是**镜像**，见那边的 ⚠）。措辞与判据都在 ai/real，一处实现。
+ * ★ 两档实现（mock / real）不分叉：这两样是纯文本与纯判断，mock 构建下同样成立。
+ */
+export { SHEET_CLAUSE, mayAddSheetClause } from "./real";
 export const portraitViews: typeof real.portraitViews = AI_REAL ? real.portraitViews : mock.portraitViews;
 export type { PortraitView } from "../mock/ai";
 /** 逐格出图画到半途失败：已经画好（已计费）的那几张挂在它的 `drawn` 上，调用方收下、下一次只补剩下的（mock 从不抛它） */
