@@ -663,7 +663,7 @@ export function isCollected(videoId: string): boolean {
 // 也就不存在"骗谁的钱"。
 
 /** 远端模式的钱包镜像。null = 还没取到（未登录/请求未回来） */
-let remoteWallet: { plan: number; addon: number; planId: string } | null = null;
+let remoteWallet: { plan: number; addon: number; planId: string; debt: number; frozen: boolean } | null = null;
 
 /**
  * 镜像里的 planId 是不是**服务端说过的**。
@@ -679,10 +679,20 @@ let remoteWallet: { plan: number; addon: number; planId: string } | null = null;
 let planIdConfirmed = false;
 
 /** 用服务端的权威值覆盖镜像。由 /api/ark 的响应头与 GET /api/me/wallet 调用 */
-export function syncRemoteWallet(next: { plan: number; addon: number; planId?: string } | null): void {
+export function syncRemoteWallet(next: { plan: number; addon: number; planId?: string; debt?: number; frozen?: boolean } | null): void {
   if (!next) return;
   if (next.planId) planIdConfirmed = true;
-  remoteWallet = { plan: next.plan, addon: next.addon, planId: next.planId ?? remoteWallet?.planId ?? "free" };
+  // ★ debt 缺省时**保留镜像里的旧值**而不是清零：/api/ark 的响应头在不欠钱时根本不发
+  //   X-Wallet-Debt（少发一个头），清零会让「刚被冻结」这件事在下一次生成请求后自己消失。
+  //   真正解冻由服务端在 GET /api/me/wallet（带 debt: 0）或带头的那一次说了算。
+  const debt = next.debt ?? remoteWallet?.debt ?? 0;
+  remoteWallet = {
+    plan: next.plan,
+    addon: next.addon,
+    planId: next.planId ?? remoteWallet?.planId ?? "free",
+    debt,
+    frozen: next.frozen ?? debt > 0,
+  };
   emit();
 }
 
@@ -707,7 +717,7 @@ function ensureWallet(u: User): NonNullable<User["wallet"]> {
 }
 
 /** 当前用户钱包快照（未登录返回 null）。远端模式读镜像，离线模式读本地账本 */
-export function walletOf(): { plan: number; addon: number; planId: string } | null {
+export function walletOf(): { plan: number; addon: number; planId: string; debt?: number; frozen?: boolean } | null {
   if (remoteOn()) return currentUser() ? remoteWallet : null;
   const u = currentUser();
   if (!u || !db) return null;
@@ -724,6 +734,22 @@ export function walletOf(): { plan: number; addon: number; planId: string } | nu
  *   就是**反向假特权**——权限最大的人被自己这边挡在门外，看到的还是一句
  *   与事实相反的"余额不足"。免扣费这件事由 TokenCost 在报价那一行如实写出来。
  */
+/**
+ * 钱包是不是被退款欠额冻住了 —— **唯一实现**（方案 §15.4 R-7）。
+ *
+ * ★★ 为什么不能沿用 canAfford 那套「镜像没到位就放行」：冻结不是「钱不够」，
+ *   而是「充多少都先抵债」。放行的后果是用户看到正常报价、点下去吃 403，
+ *   而那条 403 在各个调用点的处置又各不相同。所以冻结**由服务端明说**
+ *   （wallet.frozen / X-Wallet-Debt 头），镜像里没有就当没冻。
+ * ★ 管理员不受影响：服务端对他根本不扣费，也就不会有欠额。
+ */
+export function walletFrozen(): { debt: number } | null {
+  if (billingExempt()) return null;
+  const w = walletOf();
+  if (!w || !w.frozen) return null;
+  return { debt: w.debt ?? 0 };
+}
+
 export function canAfford(n: number): boolean {
   if (billingExempt()) return true;
   if (remoteOn()) {
@@ -750,6 +776,11 @@ export function canAfford(n: number): boolean {
  */
 export function balanceNote(): string {
   if (billingExempt()) return t`管理员免扣费`;
+  const frozen = walletFrozen();
+  if (frozen) {
+    const owed = fmtTokens(frozen.debt);
+    return t`欠额 ${owed}，已冻结`;
+  }
   const w = walletOf();
   if (!w) return "";
   const amount = fmtTokens(w.plan + w.addon);

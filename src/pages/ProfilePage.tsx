@@ -1623,6 +1623,17 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
         </div>
       )}
 
+      {/* ★★ 退款欠额横幅（方案 §15.4.4）：欠额一天不清，生成就一直被 403 挡着。
+          不在这里说清楚「欠多少、怎么解冻」，用户会反复去点生成、反复吃同一个错误，
+          而错误码本身完全解释不了发生了什么。 */}
+      {(wallet.debt ?? 0) > 0 && (
+        <div className="mb-3 rounded-xl border border-rose-500/50 bg-rose-500/10 px-3 py-2.5 text-[11px] leading-relaxed text-rose-200">
+          <Trans>
+            因一笔退款，已收回相应 token，尚欠 {fmtTokens(wallet.debt ?? 0)}。下次充值会自动抵扣，抵完即可继续生成；在那之前生成功能暂时不可用。
+          </Trans>
+        </div>
+      )}
+
       <div className="mb-4 grid grid-cols-2 gap-3">
         <div className="rounded-xl border border-slate-700/70 bg-panel p-3">
           <div className="text-lg font-bold tabular-nums text-slate-100">{fmtTokens(wallet.plan)}</div>

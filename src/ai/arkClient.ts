@@ -29,7 +29,12 @@ export function syncWalletFromHeaders(h: Headers): void {
   const p = Number(plan);
   const a = Number(addon);
   if (!Number.isFinite(p) || !Number.isFinite(a)) return;
-  syncRemoteWallet({ plan: p, addon: a });
+  // ★ 退款欠额（2026-09-24）：服务端**只在欠钱时**发这个头，不欠就不发。
+  //   所以「没有这个头」≠「欠额归零」—— 归零由 GET /api/me/wallet 的 debt:0 说了算
+  //   （syncRemoteWallet 里那段注释是同一件事的另一半）。
+  const debtHeader = h.get("X-Wallet-Debt");
+  const d = debtHeader === null ? undefined : Number(debtHeader);
+  syncRemoteWallet({ plan: p, addon: a, ...(Number.isFinite(d as number) ? { debt: d as number } : {}) });
 }
 
 declare const __AI_REAL__: boolean;

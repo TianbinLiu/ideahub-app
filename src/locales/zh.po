@@ -7242,6 +7242,11 @@ msgstr "回铸段窗重选模式"
 msgid "回首页"
 msgstr "回首页"
 
+#. placeholder {0}: fmtTokens(wallet.debt ?? 0)
+#: src/pages/ProfilePage.tsx
+msgid "因一笔退款，已收回相应 token，尚欠 {0}。下次充值会自动抵扣，抵完即可继续生成；在那之前生成功能暂时不可用。"
+msgstr "因一笔退款，已收回相应 token，尚欠 {0}。下次充值会自动抵扣，抵完即可继续生成；在那之前生成功能暂时不可用。"
+
 #: src/components/flow/CameraChips.tsx
 msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜头运动"
 msgid "固定"
@@ -12018,6 +12023,10 @@ msgctxt "人偶的主色（挂卡提醒那句话里显示）"
 msgid "橙"
 msgstr "橙"
 
+#: src/data/account.ts
+msgid "欠额 {owed}，已冻结"
+msgstr "欠额 {owed}，已冻结"
+
 #. 铸卡师的开场白（会被念出来）。英文请把「逛逛市场」改成点对话框下方的「🛒 Browse market」气泡键；括号里的内容 TTS 不念
 #: src/studio/studioStore.ts
 msgid "欢迎来到卡片工坊。把你的素材（图片、文本）交给我，我为你炼成卡片；也可以逛逛市场，看看大家都在用什么。"
@@ -16721,6 +16730,10 @@ msgstr "账号本身永久删除，无法恢复，也无法用同名重建找回
 #: src/components/BootFailed.tsx
 msgid "账号没装载完整 —— 硬进去页面会缺东西，所以先停在这里。点重试只是再装一遍，不会删掉你的东西。"
 msgstr "账号没装载完整 —— 硬进去页面会缺东西，所以先停在这里。点重试只是再装一遍，不会删掉你的东西。"
+
+#: src/components/TokenCost.tsx
+msgid "账户有 {owed} token 欠额，充值抵扣后即可继续生成 · <0>去充值</0>"
+msgstr "账户有 {owed} token 欠额，充值抵扣后即可继续生成 · <0>去充值</0>"
 
 #: src/types.ts
 msgid "质感特写"
