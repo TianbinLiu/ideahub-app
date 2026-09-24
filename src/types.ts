@@ -215,9 +215,12 @@ export function aspectFromSize(w: number, h: number): VideoAspect {
  *   （唯一入口 data/cardViews.ts）。
  * ★ `kind` 不是装饰。方舟提示词指南原文：「人物参考使用大头照 + 全身照即可，
  *   **不建议使用人物多视图**。多视图素材包含同一人物的不同角度，模型易将其识别为
- *   多个不同主体，反而加剧 ID 漂移问题。」所以人物卡的推荐组合是 face + body 两张，
- *   UI 文案和取图顺序都按这条走 —— **不要**把用户往"三视图/多角度"上引导。
- *   道具/场景卡没有这个问题（它们不承担"主体身份"），多角度反而有帮助。
+ *   多个不同主体，反而加剧 ID 漂移问题。」所以人物卡的推荐组合仍是 face + body 两张，
+ *   **取图顺序**按这条走（ai/real 的 ROLE_ORDER）。
+ *   ⚠ 但"不许出现多视图"这半句 2026-09-23 起**不再成立**：那一次我们自己付费实测（8 发 hd），
+ *   多送一张三视图 / 规格稿没有复现指南说的"识别成多个主体"，于是改成**作者逐张决定**
+ *   （卡片页的「出片用 / 仅展示」→ `role`）。UI 文案因此也别再反过来说"多视图一定会坏事"。
+ *   道具/场景卡本来就没有这个问题（它们不承担"主体身份"），多角度反而有帮助。
  */
 export interface CardView {
   /** http(s) 永久地址。★ 不接受 dataURL，理由见上 */
@@ -237,11 +240,15 @@ export interface CardView {
    * ★★ 与 `tag` 分家是本设计的地基：`tag` 一旦是自由文本，管线就没法再回答
    *   "这张图该不该喂给模型"。合成一位的下场是同一个词在两档方案里管线行为相反 ——
    *   而那正是**静默扣错钱**的形状（详情页标着"出片用"、模型根本没收到）。
-   * ★ `display` 是**新增**的那一态，也是"提示词方案"能灵活的关键：方案产出的
-   *   **合成规格图**（左右分栏的设定稿、三视图、多肖像拼版）对人极有用，但方舟指南
-   *   原文说多视图素材「模型易将其识别为多个不同主体，反而加剧 ID 漂移」——
-   *   拿它当人物参考图是**主动把画面变差**。所以这类图一律 `display`：只展示、
-   *   永不进模型、也**不按"出片用"收费**。
+   * ★★ `display` = **作者说了这张只展示**（2026-09-23 起）。它原来的含义是"合成规格图
+   *   （分栏设定稿 / 三视图 / 多肖像拼版）一律不准进模型"，依据是方舟指南那句「多视图素材……
+   *   模型易将其识别为多个不同主体，反而加剧 ID 漂移」—— 而我们自己付费实测了一次（8 发 hd，
+   *   同素材同剧情：面部+全身 / 再加规格稿 / 再加三视图），**没复现**；真复现出来的是另一件事：
+   *   多送的那张与主图不一致时，模型听多送的那张。所以这一票交给作者（卡片页上每张图都能改
+   *   「出片用 / 仅展示」→ data/cardViews.setCardViewRole），内置方案只给默认值
+   *   （三视图 / 规格稿默认 aux，原片截图仍是 display）。实测细节见 data/promptSchemes 文件头 ★★★②。
+   * ★ 改这一票**两个方向都不花钱**：出片价 = 时长 × 档位（data/economy.segmentCost），
+   *   与这一段带几张参考图无关。所以界面上不必、也不许把它说成"会多收费"。
    */
   role?: CardRole;
   /**
@@ -357,8 +364,8 @@ export const CARD_SUMMARY_MAX = 2000;
 export const ROLE_LABELS: Record<CardRole, { label: string; hint: string }> = {
   face: liveText(msg`锁脸`, msg`面部特征与发型发色，出片时优先喂给 AI`),
   primary: liveText(msg`锁主体`, msg`服装、体型与整体造型；也是这张卡的卡面`),
-  aux: liveText(msg`补充参考`, msg`参考图预算还有余时才轮到它`),
-  display: liveText(msg`只展示`, msg`永不进模型（三视图/规格稿这类多视图会让 AI 认错人）`),
+  aux: liveText(msg`补充参考`, msg`三视图/规格稿/细节特写这类：预算还有余时才轮到它`),
+  display: liveText(msg`只展示`, msg`只在卡片页看，出片时不发给 AI（作者随时能改回「出片用」）`),
 };
 
 /**
@@ -665,6 +672,25 @@ const BUILTIN_SLOT_LABEL: Record<BuiltinSlotId, MessageDescriptor> = {
   mannequinTurnaround: msg({ message: "白模三视图", comment: "内置方案的图位名：≤24 个字符（另存为后原样成为用户方案的图位名，服务端上限 24）" }),
   specSheet: msg({ message: "设定规格稿", comment: "内置方案的图位名：≤24 个字符（另存为后原样成为用户方案的图位名，服务端上限 24）" }),
 };
+
+/** 产出**多视图设定稿**的那两个内置图位（一张图里画同一个人的好几个角度 / 好几栏） */
+const SHEET_SLOT_IDS = ["mannequinTurnaround", "specSheet"] as const;
+
+/**
+ * 这张图是不是**多视图设定稿**（内置图位「白模三视图」「设定规格稿」的产物）。
+ *
+ * ★★ 它只决定**措辞**：绑定句里要不要多说一句「这几个角度是同一个人，不是多个人；别把分栏网格画进画面」
+ *   （ai/real 的 SHEET_CLAUSE）。**绝不决定"谁进模型"** —— 那一票只看 `role`（见 CardView.role 的 ★★）。
+ *   ⚠ 这条区别是本函数能存在的全部理由：`tag` 是自由文本、还会随界面语言变，拿它当分配判据是明令禁止的
+ *   （CardView.tag 的 ★）；拿它挑一句话的措辞则可以 —— 认错了的后果只是多一句或少一句没有害处的说明。
+ * ★ 两种写法都认：冻结原名（内置方案铸出来的卡存的就是它）与当前界面语言的显示名
+ *   （英文界面下「另存为」的副本把显示名原样当成了图位名，见 BUILTIN_SLOT_ZH ②）。
+ */
+export function isSheetView(view: Pick<CardView, "tag">): boolean {
+  const tag = (view.tag ?? "").trim();
+  if (!tag) return false;
+  return SHEET_SLOT_IDS.some((id) => tag === BUILTIN_SLOT_ZH[id] || tag === builtinSlotLabel(id));
+}
 
 /** 按图位 id 取内置图位的界面显示名；不是内置图位回 undefined（只认自有属性，理由同 builtinSlotZh） */
 export function builtinSlotLabel(id: string): string | undefined {

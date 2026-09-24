@@ -18,7 +18,7 @@ import { isRemoteMode, myCards, setCardViews } from "./account";
 import { coverToPermanentUrl, toPermanentUrl } from "./publishAssets";
 import { uploadImage, MAX_IMAGE_BYTES } from "../api/uploads";
 import { fileToRefImage } from "../utils/image";
-import { MAX_CARD_VIEWS, primarySlotOf, viewsOf, type Card, type CardView } from "../types";
+import { MAX_CARD_VIEWS, primarySlotOf, roleOf, viewsOf, type Card, type CardView } from "../types";
 
 /** 加图/删图的结果：新的 views + 一句要说给用户听的话（没有就没有） */
 export interface CardViewsResult {
@@ -211,6 +211,52 @@ export async function replaceCardView(
   }
   await setCardViews(cardId, views);
   return { views, note };
+}
+
+/**
+ * 作者把第 index 张标成「出片用」还是「仅展示」（卡片页每张图上的那颗开关）。**唯一入口**。
+ *
+ * ★★ 这一票就是 ai/real.allocatable 的判据：标成仅展示 = `role:"display"` = 永不进模型；
+ *   标成出片用 = 退回**这一格本来的角色**（按 kind 推：face→face、body→primary、detail→aux，
+ *   types.roleOf 一处实现）。不另记一个"作者点过没有"的字段，理由是**两处默认值必然分叉**：
+ *   界面画的是 A、管线读的是 B，而这种错零报错（详情页标着「出片用」、模型根本没收到）。
+ * ★ 出片用那一档**不写 undefined 而是写具体值**：role 缺省在服务端是"老数据"的意思
+ *   （schemas/branchAsset.schemas.js 的 ★），写具体值才能把"作者看过这一格并且要它进模型"存住。
+ * ★ 认图不认下标（同 replaceCardView）：卡片页开着的时候别的设备可能改过这张卡，对不上就整句拒，
+ *   不把这一票打到另一张图上。
+ * ★ 两个方向都**不花钱**：出片价 = 时长 × 档位（data/economy.segmentCost），与这一段带几张参考图无关。
+ * ★ 离线模式也允许改：它只改 views 里的一个字段，不上传任何图（assertUploadable 拦的是"要转存"的那几条路）。
+ *   ⚠ 但存量图里若有没转存成功的 dataURL，materializedViews 会顺手补传 —— 那是自愈，不是这次操作的目的。
+ */
+export async function setCardViewRole(
+  cardId: string,
+  at: { index: number; url: string },
+  use: boolean,
+): Promise<CardViewsResult> {
+  const card = findMine(cardId);
+  const base = viewsOf(card);
+  const cur = base[at.index];
+  if (!cur || cur.url !== at.url) throw new Error(t`这张图在你操作的时候变了（可能在别的设备上改过），刷新后再试`);
+  // ★ 出片用 = 按 kind 推回本来的角色（roleOf 读的就是"没写 role 时该是什么"）——
+  //   直接写死 "aux" 会把面部特写降级成补充参考，那张图从此排在全身立绘后面
+  const role = use ? roleOf({ kind: cur.kind }) : "display";
+  if (roleOf(cur) === role) return { views: base }; // 没变就别打一次网络（连点两下同一颗键）
+  const stored = Array.isArray(card.views) && card.views.length > 0;
+  const views: CardView[] = [];
+  if (stored) {
+    // ★★ 被改的那一张也要过 materializeOne，**不能只 `{ ...v, role }`**：库里存着的可能是一张
+    //   转存失败留下的 dataURL（data/account.addCards 的 ★），而 api/branch.httpViews 写出去时
+    //   会把非 http 的整张滤掉 —— 用户只是点了一下「仅展示」，服务端上那张图却没了，零报错。
+    for (const [i, v] of base.entries()) {
+      const m = await materializeOne(card, v);
+      views.push(i === at.index ? { ...m, role } : m);
+    }
+  } else {
+    // 没真挂过图的老卡：base 是卡面兜底出来的那一张，这一票让它成为这张卡的第一份 views
+    views.push({ ...(await materializeOne(card, cur)), role });
+  }
+  await setCardViews(cardId, views);
+  return { views };
 }
 
 /**

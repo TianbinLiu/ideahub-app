@@ -18,7 +18,14 @@ import SocialPanel, { useCountView, useSocialVersion } from "../components/Socia
 import WorkshopShareBar, { shareBlockReason } from "../components/WorkshopShareBar";
 import CardHologram, { CARD_MODELS, useHologramModel } from "../studio/ui/CardHologram";
 import { acquireCard, bindCardAsset, cardsReady, fetchSharedCard, isRemoteMode, myCards, myDecks, removeCard, shareCard, updateCardMeta } from "../data/account";
-import { addCardView, addPreparedCardView, removeCardView, replaceCardView, viewSourceBlob } from "../data/cardViews";
+import {
+  addCardView,
+  addPreparedCardView,
+  removeCardView,
+  replaceCardView,
+  setCardViewRole,
+  viewSourceBlob,
+} from "../data/cardViews";
 import PhotoSubjectPicker from "../components/PhotoSubjectPicker";
 import { freshSubjectPick, type SubjectPick } from "../studio/customCardStore";
 import { i18n } from "@lingui/core";
@@ -42,6 +49,7 @@ import {
   SHARE_NOTE_MAX,
   primarySlotOf,
   publishableModelUrl,
+  roleOf,
   slotLabel,
   viewTag,
   viewsOf,
@@ -134,6 +142,9 @@ function hintFor(type: CardType): string {
  * ★ 非人物卡那句里的图位名按**这张卡真正的第 1 张**报，不按图位表的 [0] 报：
  *   管线取的是 viewsOf()[0]（存储顺序），老卡里排头的未必就是主视图 ——
  *   照表念一遍在那种卡上就是指着 A 说 B。
+ * ★ 2026-09-23：第 3 张（三视图 / 规格稿 / 细节特写）不再是"永远轮不到"——作者在放大层把它
+ *   标成「出片用」之后，它排在"每张卡的第 1 张"之后等预算（ai/real 规则二的 ★★）。这两句话要说清
+ *   **它排在哪**，不能只说"能用了"：用户按乐观口径理解、挂满三张卡再问为什么没生效，就是下一个坑。
  * ★★ 人物卡那句里"只有第一张人物卡"是**必须写出来的那半句**（这里原来写的是
  *   "每张人物卡最多取 2 张"，那是规则一的第二个、错的版本）：用户挂了两张人物卡、
  *   发现配角不像，读到旧那句会判断参考图已经生效、问题出在提示词，于是反复重炼、
@@ -144,7 +155,7 @@ function pipelineNoteFor(type: CardType, views: CardView[]): string {
     const first = views[0] ? viewTag(type, views[0]) : CARD_SLOTS[type][0].label;
     // ★ P2-a（2026-08-29）后直通路的预算跟档位协议走（9/30），3 张那句只描述经典路 —— 末尾括号里那句说的就是这件事
     return i18n._(
-      msg`出片时这类卡先保证第 1 张（${first}）喂给 AI；同一段里参考图总共最多 ${MAX_REF_IMAGES} 张，预算还有余才轮得到第 2 张 —— 也就是同段挂的卡越少，它越可能真的进模型。预算不够时「先被丢的就是各卡的第 2 张」，卡再多下去整张卡都会带不上（两种情况生成步骤里都会逐张点名）。（白模挂卡与简约参考图直出那两条路更宽：参考图直接进视频模型，上限按所选档位的协议走。）`,
+      msg`出片时这类卡先保证第 1 张（${first}）喂给 AI；同一段里参考图总共最多 ${MAX_REF_IMAGES} 张，预算还有余才一轮一轮地轮到第 2、第 3 张 —— 也就是同段挂的卡越少，它越可能真的进模型。预算不够时「先被丢的就是各卡靠后的那几张」，卡再多下去整张卡都会带不上（两种情况生成步骤里都会逐张点名）。（白模挂卡与简约参考图直出那两条路更宽：参考图直接进视频模型，上限按所选档位的协议走。）`,
     );
   }
   const face = slotLabel("character", "face");
@@ -154,7 +165,7 @@ function pipelineNoteFor(type: CardType, views: CardView[]): string {
   //   的参考图直接进视频模型，"一张图里画多个角色被拒"根本不适用，每张人物卡各带各的
   //   形象图。不说这一句，用户会照上面那半句自我设限：以为挂第 2 张人物卡没用。
   return i18n._(
-    msg`出片时一段里只有「第一张人物卡」能带形象参考图：它最多取 ${MAX_CHAR_REFS} 张（优先${face} + ${body}）；同一段里的其余人物卡一张都不带，只按文字设定参与——一张图里画多个角色会被方舟整条拒掉。所以上面的「出片用」是按"这张卡就是那第一张人物卡"标的：它排在别的人物卡后面时，标着出片用的那几张同样进不了模型（生成步骤里会点名说明）。（两条不画设定帧的路是例外——白模模板挂卡、简约模式的参考图直出：每张人物卡都各带自己的形象图。）${detail}这一格铸卡不会自动出图（只能自己传），三张挂满时它也排在最后，出片轮不到它。`,
+    msg`出片时一段里只有「第一张人物卡」能带形象参考图：先取 ${MAX_CHAR_REFS} 张（优先${face} + ${body}），标成「出片用」的第 3 张要等同段每张卡都拿到第 1 张之后，预算还有余才补得上；同一段里的其余人物卡一张都不带，只按文字设定参与——一张图里画多个角色会被方舟整条拒掉。所以上面的「出片用」是按"这张卡就是那第一张人物卡"标的：它排在别的人物卡后面时，标着出片用的那几张同样进不了模型（生成步骤里会点名说明）。（两条不画设定帧的路是例外——白模模板挂卡、简约模式的参考图直出：每张人物卡都各带自己的形象图。）${detail}这一格铸卡不会自动出图，只能自己传。`,
   );
 }
 
@@ -311,6 +322,14 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
   //   那个出口只给自建卡第 1 格（拍板 4 b）；这里是事后补救，保留背景等于什么都没做。
   const trimmable = owned && isRemoteMode() && card.type === "prop";
   const primaryIndex = Math.max(0, views.findIndex((v) => v.kind === primarySlotOf(card.type)));
+  /**
+   * 这一票能不能改。
+   * ★ 背景卡排除：它的图永远不进模型（ai/real.allocateRefs 从不分配背景卡），改了也没有任何效果。
+   * ★ 离线模式**不排除**：改 role 只动 views 里的一个字段、不上传任何图（与「+ 图位」不同）。
+   */
+  const roleSwitchable = owned && card.type !== "background";
+  /** 放大层那张图：作者标的是不是「出片用」（types.roleOf 一处实现，别在这里按 kind 再推一遍） */
+  const zoomMarked = zoom !== null && !!views[zoom] && roleOf(views[zoom]) !== "display";
 
   const pick = (kind: CardView["kind"]) => {
     kindRef.current = kind;
@@ -376,6 +395,26 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
         pick: freshSubjectPick({ kind: v.kind, src, fileName: "view.jpg", allowKeepBg: false }),
         target: { replace: { index: i, url: v.url } },
       });
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /**
+   * 作者把第 i 张改成「出片用 / 仅展示」（data/cardViews.setCardViewRole 一处实现）。
+   * ★ 不关放大层：改完要能当场看见角标翻过来，否则用户会连点好几下。
+   * ★ 失败必须显示：远端模式下这一步要同步服务端，静默失败的表现是"改了、下次冷启动又变回去"。
+   */
+  const onRole = async (i: number, use: boolean) => {
+    const v = views[i];
+    if (!v || busy) return;
+    setBusy(true);
+    setErr("");
+    setNote("");
+    try {
+      await setCardViewRole(card.id, { index: i, url: v.url }, use);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -483,6 +522,10 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
           它按卡种动态拼（hintFor / pipelineNoteFor 原样保留），塞不进静态的引导步骤 */}
       <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
         <Trans>出片时<span className="text-slate-400">不是每张都会喂进模型</span>——「出片用」按单卡乐观口径标，同一段挂的卡多时可能让位。</Trans>
+        {/* ★ 这颗开关长在放大层里（点开任意一张），这里必须指路：不说的话它等于不存在。
+            ★ `{" "}` 不能省：JSX 会把两个表达式之间那段带换行的空白整段删掉，屏幕上两句话会连成
+            "…可能让位。点开任意一张…"（实测） */}
+        {roleSwitchable && <>{" "}<Trans>点开任意一张可以改「出片用 / 仅展示」。</Trans></>}
         <button onClick={() => setRulesOpen(true)} className="ml-1 text-brand underline underline-offset-2">
           <Trans>取舍规则 ›</Trans>
         </button>
@@ -545,10 +588,42 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
                   "可能让位"这半句必须在这里也说一次，否则用户读到的就是一句无条件的
                   "会喂给 AI"（人物卡排在别人后面、或一段挂满 3 张时都不成立）。
                   这里不重判规则（used 仍来自 ai/real.refUsedFlags），只是把口径说全 */}
+              {/* ★ 仍然只有两档：单卡视角下"作者标了出片用"与"这次会带上它"今天**恒等** ——
+                  一张卡最多挂 MAX_CARD_VIEWS(3) 张，而经典路预算正好也是 MAX_REF_IMAGES(3)，
+                  所以自己一张卡永远塞得下（实测过）。多写一档"标了但没轮到"就是一句永远显示不出来的话。
+                  ⚠ 这两个 3 哪天不相等了（或者这里改成传 ctx 的多卡视角），那一档就要补回来：
+                  那时用户刚点完开关，读到的会是一句像在说"没生效"的话。 */}
               <span className={`ml-2 text-[11px] ${used[zoom] ? "text-brand" : "text-slate-500"}`}>
                 {used[zoom] ? t`· 出片时会喂给 AI（同一段挂的卡多时可能让位）` : t`· 只在这一页展示，出片用不到`}
               </span>
             </div>
+            {/* ★ 作者的那一票（CardView.role）。背景卡不摆：它的图永远不进模型（故事背景只以文字参与出片，
+                ai/real.allocateRefs 从不分配它），摆一颗点了不生效的开关是本仓明令禁止的 */}
+            {roleSwitchable ? (
+              <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                {[true, false].map((use) => (
+                  <button
+                    key={use ? "use" : "show"}
+                    disabled={busy}
+                    onClick={() => void onRole(zoom, use)}
+                    className={`rounded-full px-3 py-1 text-[11px] disabled:opacity-40 ${
+                      zoomMarked === use
+                        ? "bg-brand font-bold text-ink"
+                        : "bg-panel text-slate-300 ring-1 ring-slate-600"
+                    }`}
+                  >
+                    {use ? t`出片用` : t`仅展示`}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              owned &&
+              card.type === "background" && (
+                <p className="max-w-xs text-center text-[11px] text-slate-500">
+                  <Trans>故事背景卡只以文字参与出片，它的图不进模型。</Trans>
+                </p>
+              )
+            )}
             {views[zoom].note && <div className="max-w-xs text-center text-[11px] text-amber-400">{views[zoom].note}</div>}
             {trimmable && (
               <button

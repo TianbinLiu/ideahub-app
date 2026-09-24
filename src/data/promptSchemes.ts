@@ -12,9 +12,16 @@
 //        圈选提卡勾了「这是真人」），画风句换成**无条件**的照片锁定（`slotPrompt` 的
 //        `realPhoto`），不再让模型自己判"这是不是照片" —— 主人真机实测：同一张授权自拍，
 //        「面部特写」出的是照片、「全身立绘」出的是厚涂二次元。机理与实测数见 PHOTO_LOCK_CLAUSE。
-//   ② **合成规格图一律 `role:"display"`**：方舟提示词指南原文「多视图素材包含同一人物的
-//      不同角度，模型易将其识别为多个不同主体，反而加剧 ID 漂移」。三视图/分栏设定稿
-//      对人极有用、对模型有害 —— 让它进管线是**主动把画面变差**，还要为它收出片的钱。
+//   ② **合成规格图（三视图 / 分栏设定稿）的默认 role**：2026-09-23 起是 `aux`（进管线，排最后），
+//      此前是 `display`（永不进模型）。改的依据是**我们自己付费实测的**那一次 A/B
+//      （8 发 hd 出片 ¥20.84，同素材同剧情，A=面部+全身、B=A+规格稿、C=A+三视图）：方舟指南那句
+//      「多视图素材……模型易将其识别为多个不同主体，反而加剧 ID 漂移」在本仓的送法下**一次都没复现**
+//      —— 没出现多个人、没画出分栏/网格/文字标注/人台头，近景的身份贴合与只送两张时同水平。
+//      ⚠ 测的是**带着那句说明**送（绑定句里的 CHAR_AUX_CLAUSE：「同一个人的不同角度排版，不是多个人」），
+//        删了那句结论就不算数了。
+//      ⚠ 实测到的真效应是**另一件事**：多送的那张一旦与主图不一致，模型听多送的那张
+//        （C 组转身那发照着三视图画了深色短裤，而主图是白衬衫裙）。所以这一格的取舍要交给作者 ——
+//        卡片页上每张图都能改「出片用 / 仅展示」（data/cardViews.setCardViewRole）。
 //   ③ **图位数 ≤ MAX_CARD_VIEWS**：那个 3 是跨仓的（server 的 zod 也钉着），
 //      多出来的存不下，存不下就是"方案说出 5 张、卡上只有 3 张"，零报错。
 //
@@ -56,7 +63,7 @@ export interface SchemeSlot {
    * ★ ≤24 字：server 的 CARD_VIEW_TAG_MAX 跨仓镜像（内置图位的英文名也守这条：另存为后它原样成为用户方案的图位名）
    */
   tag: string;
-  /** 出片管线里干什么（进 CardView.role）。合成规格图必须 display，见文件头 ★★★② */
+  /** 出片管线里干什么（进 CardView.role）。合成规格图默认 aux（2026-09-23 放开，见文件头 ★★★②）；作者可在卡片页逐张改 */
   role: CardRole;
   /**
    * 这一格的提示词**正文**。风格那句由 `slotPrompt` 统一拼，作者写不了也删不掉（★★★①）。
@@ -366,15 +373,16 @@ export const BUILTIN_SCHEMES: readonly PromptScheme[] = [
         //   它锁的是服装与体型，而画面里没有脸 —— 既是这套方案的卖点，也正好避开"多视图当人物参考"那条（它本来就不锁身份）。
         builtinSlot("mannequinBody", { role: "primary", prompt: MANNEQUIN_BODY_PROMPT }),
         builtinSlot("outfitDetail", { role: "aux", prompt: OUTFIT_DETAIL_PROMPT }),
-        // 三视图是给人看的规格图 —— 必须 display（文件头 ★★★②）
-        builtinSlot("mannequinTurnaround", { role: "display", prompt: TURNAROUND_PROMPT }),
+        // ★ 三视图 2026-09-23 起默认进管线（aux，排在上面两格之后；实测依据见文件头 ★★★②）。
+        //   不想让它进模型的作者在卡片页把它改成「仅展示」即可。
+        builtinSlot("mannequinTurnaround", { role: "aux", prompt: TURNAROUND_PROMPT }),
       ],
     },
   ),
   builtinScheme(
     msg({ message: "角色设定规格图", comment: "内置提示词方案的名字：≤34 个字符（另存为会接上「 copy」，服务端方案名上限 40）" }),
     msg({
-      message: "一张分栏设定稿（素描线稿 + 色板 + 服装细节），外加一张能出片的面部特写。规格稿只作展示。",
+      message: "一张分栏设定稿（素描线稿 + 色板 + 服装细节），外加面部特写与全身立绘。规格稿默认也进出片，可在卡片页改回只展示。",
       comment: "内置方案的一句话简介：≤120 个字符（服务端上限，另存为后原样带进用户方案）",
     }),
     {
@@ -384,7 +392,8 @@ export const BUILTIN_SCHEMES: readonly PromptScheme[] = [
       slots: [
         builtinSlot("faceCloseup", { role: "face", ref: "face", prompt: FACE_PROMPT }),
         builtinSlot("fullBody", { role: "primary", prompt: FULL_BODY_PROMPT }),
-        builtinSlot("specSheet", { role: "display", prompt: SPEC_SHEET_PROMPT }),
+        // ★ 规格稿同三视图：2026-09-23 起默认 aux（文件头 ★★★②），作者可在卡片页改回「仅展示」
+        builtinSlot("specSheet", { role: "aux", prompt: SPEC_SHEET_PROMPT }),
       ],
     },
   ),
