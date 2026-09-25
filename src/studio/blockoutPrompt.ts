@@ -186,9 +186,11 @@ const SHEET_FITS_MAX_CARDS = 3;
  *   而截断是从正文这头切的。挂 9 张卡时尾巴约 40+9×13 = 157 字，这里就只准写到 243 字。
  * ★ 下限 80：卡再多也得给正文留一口气 —— 真到那一步，溢出会被 segmentGen 整句报出来
  *   （那才是唯一可靠的一环），而不是悄悄少发几句。
- * @param sheets 挂上的卡里有没有多视图设定稿（`ai.mayAddSheetClause`）——有就按大的那一档留位（见上面 ★★）
+ * @param sheets 挂上的卡里有没有多视图设定稿（`ai.mayAddSheetClause`）——有就按大的那一档留位（见上面 ★★）。
+ *   ★ **必填**（不是 `= false`）：漏传零症状 —— 悄悄按小的那一档留位，而多出来的那几十字是从**用户正文**
+ *   那头切掉的（segmentGen 的 room）。调用方手上就有那几张卡，回答这个问题不费事。
  */
-export function blockoutPromptBudget(cardCount: number, sheets = false): number {
+export function blockoutPromptBudget(cardCount: number, sheets: boolean): number {
   // ★ 卡多到设定稿根本排不进预算时，按没有设定稿留位（理由见 SHEET_FITS_MAX_CARDS）
   const fits = sheets && cardCount <= SHEET_FITS_MAX_CARDS;
   const perCard = fits ? BIND_RESERVE_PER_CARD_SHEET : BIND_RESERVE_PER_CARD;
