@@ -1245,7 +1245,11 @@ function whyOf(e: unknown): string {
 }
 
 /**
- * 改一张卡的**名字 / 简介 / 关键词**（本地 + 远端）。**唯一入口**。
+ * 改一张卡的**名字 / 简介 / 关键词 / 出片句**（本地 + 远端）。**唯一入口**。
+ *
+ * ★ 出片句（`idLine`）2026-09-24 才加进来：出片时真正读的就是它（`types.idLineOf`），而简介
+ *   一个字都不进提示词（2026-09-18 起）。服务端那条 PATCH 同日才收下这一位（ideahub-server#80）——
+ *   在那之前客户端就算发了也是「发了、被 z.object strip、读回来是空的」。
  *
  * ★★ 为什么这条值得单开一个函数、且必须同步远端：此前根本改不了 —— 客户端的
  *   `updateCard` 只写本地（`persist()` 就完了），服务端那条 PATCH **只收 views**。
@@ -1258,7 +1262,7 @@ function whyOf(e: unknown): string {
  */
 export async function updateCardMeta(
   cardId: string,
-  patch: { name?: string; summary?: string; tags?: string[] },
+  patch: { name?: string; summary?: string; tags?: string[]; idLine?: string },
 ): Promise<string | null> {
   const u = currentUser();
   if (!u || !db) return t`还没登录，改不了。`;
@@ -1267,7 +1271,11 @@ export async function updateCardMeta(
   if (Object.keys(patch).length === 0) return null; // 什么都没改，不算失败
 
   // 本地先落：远端要一个往返，输入框不该吊在那儿等
-  const before = { name: c.name, summary: c.summary, tags: c.tags };
+  // ★★ 快照按**这次真给了的那几位**存（2026-09-24 加 idLine 时改的，原来写死三位）：
+  //   漏一位的后果是下面 catch 回滚不到它 —— 远端失败了、本地却留着新值，界面显示改成功了，
+  //   下次冷启动 loadRemoteAssets 整表覆盖又变回去。那种"改了又变回来"正是这段 catch 要防的。
+  const before: Record<string, unknown> = {};
+  for (const k of Object.keys(patch)) before[k] = (c as unknown as Record<string, unknown>)[k];
   Object.assign(c, patch);
   persist();
 

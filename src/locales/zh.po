@@ -5072,6 +5072,10 @@ msgstr "最火作品"
 msgid "写一个称呼"
 msgstr "写一个称呼"
 
+#: src/pages/CardDetailPage.tsx
+msgid "写一句"
+msgstr "写一句"
+
 #: src/components/flow/FlowCanvas.tsx
 #: src/studio/ui/projection.tsx
 msgid "写一句换成谁，例：换成一只戴墨镜的柴犬"
@@ -5185,9 +5189,17 @@ msgstr "出片前必须把它们取下。"
 msgid "出片前这里显示你给的<0>开头帧</0>（没给就先空着），出片后就地回放这一段。 不满意就改下面那句话（或换圈选）再来一次。"
 msgstr "出片前这里显示你给的<0>开头帧</0>（没给就先空着），出片后就地回放这一段。 不满意就改下面那句话（或换圈选）再来一次。"
 
+#: src/pages/CardDetailPage.tsx
+msgid "出片句（例：银发红瞳，左眼戴全息镜片，黑色长风衣）"
+msgstr "出片句（例：银发红瞳，左眼戴全息镜片，黑色长风衣）"
+
 #: src/pages/CustomCardPage.tsx
 msgid "出片句（选填）"
 msgstr "出片句（选填）"
+
+#: src/pages/CardDetailPage.tsx
+msgid "出片句是 AI 出片时真正读的那一句（简介只给人看，不进提示词）：写 2~3 个不会变的外形特征，别写动作、手里的东西和地点。留空 = 出片时只报卡名。"
+msgstr "出片句是 AI 出片时真正读的那一句（简介只给人看，不进提示词）：写 2~3 个不会变的外形特征，别写动作、手里的东西和地点。留空 = 出片时只报卡名。"
 
 #: src/pages/CardDetailPage.tsx
 msgid "出片时<0>不是每张都会喂进模型</0>——「出片用」按单卡乐观口径标，同一段挂的卡多时可能让位。"
@@ -7658,6 +7670,10 @@ msgstr "如果两个人偶印着同一个号：挂在这个号上的卡<0>可能
 #: src/utils/nativeLoginError.ts
 msgid "如果刚才弹出过选择框、你选的是分身，请退回来改选本体那一个——分身给不了第三方应用授权。也可以直接用手机号或邮箱登录。"
 msgstr "如果刚才弹出过选择框、你选的是分身，请退回来改选本体那一个——分身给不了第三方应用授权。也可以直接用手机号或邮箱登录。"
+
+#: src/components/ReportButton.tsx
+msgid "如果影像里的人是你自己：另有一条更直接的通道 —— {SITE_BASE}/takedown，不用登录，我们会在 48 小时内处理并查找站内的相同副本。"
+msgstr "如果影像里的人是你自己：另有一条更直接的通道 —— {SITE_BASE}/takedown，不用登录，我们会在 48 小时内处理并查找站内的相同副本。"
 
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "如果画面上大部分号都对不上，这段白模的编号本身就没画好 —— 删位只能救回一部分，要全对得上只能重炼（要再花一次钱）。"
@@ -10641,7 +10657,6 @@ msgid "改剧本重拆"
 msgstr "改剧本重拆"
 
 #: src/components/DraftSheet.tsx
-#: src/pages/CardDetailPage.tsx
 msgid "改名"
 msgstr "改名"
 
@@ -10691,8 +10706,12 @@ msgid "改这套方案"
 msgstr "改这套方案"
 
 #: src/pages/CardDetailPage.tsx
-msgid "改这张卡的名字与简介"
-msgstr "改这张卡的名字与简介"
+msgid "改这张卡的名字、简介与出片句"
+msgstr "改这张卡的名字、简介与出片句"
+
+#: src/pages/CardDetailPage.tsx
+#~ msgid "改这张卡的名字与简介"
+#~ msgstr "改这张卡的名字与简介"
 
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "改错了不用重炼"
@@ -11482,6 +11501,10 @@ msgstr "未知格式"
 #: src/pages/ProfilePage.tsx
 msgid "未知用户"
 msgstr "未知用户"
+
+#: src/api/admin.ts
+msgid "未经同意的私密影像"
+msgstr "未经同意的私密影像"
 
 #: src/ai/minimaxVideo.ts
 msgid "未说明原因"
@@ -15619,6 +15642,7 @@ msgstr "编号 {slotLabel} 挂的这张卡不能这么用：{nameIssue}"
 msgid "编号还没核对：AI 编的号可能与画面上人偶头上的数字对不上，<0>核对之前不能发布</0>（对不上会让别人的角色卡换到别人身上）。点这里去核对。"
 msgstr "编号还没核对：AI 编的号可能与画面上人偶头上的数字对不上，<0>核对之前不能发布</0>（对不上会让别人的角色卡换到别人身上）。点这里去核对。"
 
+#: src/pages/CardDetailPage.tsx
 #: src/pages/WorkshopPage.tsx
 msgid "编辑"
 msgstr "编辑"
@@ -18420,6 +18444,10 @@ msgstr "这张卡没能存到服务器"
 #: src/studio/canvasAgent.ts
 msgid "这张卡说的那一段已经不在第 {seg} 位了（流水线被改过）——重说一句，我按现在的样子再摆一张"
 msgstr "这张卡说的那一段已经不在第 {seg} 位了（流水线被改过）——重说一句，我按现在的样子再摆一张"
+
+#: src/pages/CardDetailPage.tsx
+msgid "这张卡还没写出片句 —— 出片时提示词里只有卡名，长相由 AI 自己编（每一段都可能不一样）。"
+msgstr "这张卡还没写出片句 —— 出片时提示词里只有卡名，长相由 AI 自己编（每一段都可能不一样）。"
 
 #: src/pages/CardDetailPage.tsx
 msgid "这张卡还没有声音样本。在工坊「从视频提取」圈选人物时可以顺手取一段（2~15 秒）——出片走「高清/电影级」档且台词写在引号里时，AI 会参考这段声音的音色。"
