@@ -354,8 +354,13 @@ async function arkFetch<T>(path: string, init?: RequestInit, timeoutMs = 90_000)
     syncWalletFromHeaders(res.headers);
 
     if (res.status === 429 && attempt === 0) {
-      await new Promise((r) => setTimeout(r, 2500 + Math.random() * 1500));
-      continue;
+      // ★★ 每日上限那一类**不能重试**（2026-09-25 评审）：额度要等 UTC 次日重置，
+      //   白等 2.5~4 秒必然再失败一次，还在鼓励用户一直点。只有真的限流才退避。
+      const peek = await res.clone().text().catch(() => "");
+      if (!/"code"\s*:\s*"DAILY_LIMIT"/.test(peek)) {
+        await new Promise((r) => setTimeout(r, 2500 + Math.random() * 1500));
+        continue;
+      }
     }
 
     // ★ 先看 Content-Type，再看状态码 —— 顺序不能反。
@@ -402,15 +407,27 @@ async function arkFetch<T>(path: string, init?: RequestInit, timeoutMs = 90_000)
       //   下面那句 `Ark <path> 403: {…}` 光是前缀就 80 多字符，而 flowStore 还要
       //   `slice(0, 120)`，真正的原因（"仅对付费套餐开放"）正好被截在外面，
       //   用户看到的是一串带 doubao 型号的花括号（铁律八：失败要响，也要看得懂）。
-      if (res.status === 403) {
+      if (res.status === 403 || res.status === 429) {
         const serverMsg = /"message"\s*:\s*"([^"]+)"/.exec(body)?.[1] ?? "";
         const code = /"code"\s*:\s*"([^"]+)"/.exec(body)?.[1] ?? "";
-        // ★ D7 a（多语言）：中文界面照旧原样说服务端那句整话；英文界面认 **code**（PLAN_REQUIRED）说本端的整句 ——
+        // ★ D7 a（多语言）：中文界面照旧原样说服务端那句整话；英文界面认 **code** 说本端的整句 ——
         //   判码不判文案。认不得的码仍只能原样带出服务端那句（多半是中文），总比按字猜强。
-        // ★ 抛 ArkHttpError（带 status 与 code）而不是裸 Error：调用方一律按类型 / 状态码分档，这一档此前是唯一的例外
-        const ours = t`这一档不对当前套餐开放，去「我的」页升级套餐后再试`;
-        const useOurs = !serverMsg || (code === "PLAN_REQUIRED" && i18n.locale === "en");
-        throw new ArkHttpError(useOurs ? ours : serverMsg, 403, code);
+        // ★★ 2026-09-25 评审补上 WALLET_FROZEN 与 DAILY_LIMIT：服务端这两句 message 是
+        //   **硬编码中文**、全仓没有服务端 i18n，而英文用户是美国 Play 的目标用户
+        //   （i18n 对任何非 zh 浏览器返回 en，**默认就是英文**）。不补的话他们会在
+        //   推演/重画/融图失败时看到 `Redraw failed: 账户有 1234 token 欠额…`。
+        const owed = Number(/"debt":\s*(\d+)/.exec(body)?.[1] ?? 0);
+        const ourByCode: Record<string, string> = {
+          PLAN_REQUIRED: t`这一档不对当前套餐开放，去「我的」页升级套餐后再试`,
+          WALLET_FROZEN: owed
+            ? t`账户有 ${owed} token 欠额（一笔退款收回的），充值抵扣后即可继续生成`
+            : t`账户有一笔 token 欠额（退款收回的），充值抵扣后即可继续生成`,
+          DAILY_LIMIT: t`今天的生成额度用完了，明天 0 点（UTC）重置`,
+        };
+        const ours = ourByCode[code];
+        const useOurs = !serverMsg || (ours && i18n.locale === "en");
+        // ★ 抛 ArkHttpError（带 status 与 code）而不是裸 Error：调用方一律按类型 / 状态码分档
+        throw new ArkHttpError(useOurs ? ours || serverMsg : serverMsg, res.status, code);
       }
       throw new ArkHttpError(`Ark ${path} ${res.status}: ${body.slice(0, 300)}`, res.status);
     }

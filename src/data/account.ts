@@ -752,6 +752,13 @@ export function walletFrozen(): { debt: number } | null {
 
 export function canAfford(n: number): boolean {
   if (billingExempt()) return true;
+  // ★★ 冻结也要在这里拦（2026-09-25 评审）：`walletFrozen()` 原来只接进 TokenCost 与
+  //   balanceNote 两处**文案**，而全 app 有 19+ 处预检走的是 canAfford ——
+  //   于是欠额用户的按钮照样点得动，点下去吃 403。更要命的是跨月刷新**刻意不碰 debt**
+  //   （防退款套利），所以他会**整整一个月**处在「满额度 + 冻结」，预检恒放行。
+  //   工坊铸卡师那条链路的 403 还会落进「（指尖停在桌沿）走神了」这种兜底台词，
+  //   用户完全不知道发生了什么。
+  if (walletFrozen()) return false;
   if (remoteOn()) {
     if (!currentUser()) return false;
     if (!remoteWallet) return true; // 还不知道，交给服务端判

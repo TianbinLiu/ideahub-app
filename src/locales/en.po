@@ -3909,6 +3909,10 @@ msgstr "Only me {0}"
 msgid "今天天气不错，我在院子里晒了会儿太阳，顺手把花也浇了。"
 msgstr "The weather is lovely today, so I sat in the yard in the sun for a while and watered the flowers too."
 
+#: src/ai/arkClient.ts
+msgid "今天的生成额度用完了，明天 0 点（UTC）重置"
+msgstr "You have used up today's generation allowance. It resets at 00:00 UTC."
+
 #: src/components/flow/SegSettings.tsx
 msgid "从上一段的真实结尾画面接着拍"
 msgstr "Continue from the previous segment's actual last frame"
@@ -16734,6 +16738,14 @@ msgstr "Your account didn't finish loading — going in anyway would leave pages
 #: src/components/TokenCost.tsx
 msgid "账户有 {owed} token 欠额，充值抵扣后即可继续生成 · <0>去充值</0>"
 msgstr "Your account owes {owed} tokens; top up to clear it and generation resumes · <0>Top up</0>"
+
+#: src/ai/arkClient.ts
+msgid "账户有 {owed} token 欠额（一笔退款收回的），充值抵扣后即可继续生成"
+msgstr "Your account owes {owed} tokens (clawed back by a refund). Top up to clear it and generation resumes."
+
+#: src/ai/arkClient.ts
+msgid "账户有一笔 token 欠额（退款收回的），充值抵扣后即可继续生成"
+msgstr "Your account has an outstanding token balance (clawed back by a refund). Top up to clear it and generation resumes."
 
 #: src/types.ts
 msgid "质感特写"

@@ -3909,6 +3909,10 @@ msgstr "仅自己可见 {0}"
 msgid "今天天气不错，我在院子里晒了会儿太阳，顺手把花也浇了。"
 msgstr "今天天气不错，我在院子里晒了会儿太阳，顺手把花也浇了。"
 
+#: src/ai/arkClient.ts
+msgid "今天的生成额度用完了，明天 0 点（UTC）重置"
+msgstr "今天的生成额度用完了，明天 0 点（UTC）重置"
+
 #: src/components/flow/SegSettings.tsx
 msgid "从上一段的真实结尾画面接着拍"
 msgstr "从上一段的真实结尾画面接着拍"
@@ -16734,6 +16738,14 @@ msgstr "账号没装载完整 —— 硬进去页面会缺东西，所以先停�
 #: src/components/TokenCost.tsx
 msgid "账户有 {owed} token 欠额，充值抵扣后即可继续生成 · <0>去充值</0>"
 msgstr "账户有 {owed} token 欠额，充值抵扣后即可继续生成 · <0>去充值</0>"
+
+#: src/ai/arkClient.ts
+msgid "账户有 {owed} token 欠额（一笔退款收回的），充值抵扣后即可继续生成"
+msgstr "账户有 {owed} token 欠额（一笔退款收回的），充值抵扣后即可继续生成"
+
+#: src/ai/arkClient.ts
+msgid "账户有一笔 token 欠额（退款收回的），充值抵扣后即可继续生成"
+msgstr "账户有一笔 token 欠额（退款收回的），充值抵扣后即可继续生成"
 
 #: src/types.ts
 msgid "质感特写"
