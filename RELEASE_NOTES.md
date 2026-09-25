@@ -1,13 +1,13 @@
-启梦 2.48
+启梦 2.49
 
-· 卡片各司其职：人物卡只写这个人本身（长相、发型、身形、衣着与身上戴的饰物），不再把照片里的房间、手里拿的东西写进卡片；场景卡不写人，道具卡不写谁拿着它，风格卡不写具体内容。
-· 卡片简介只给人看，不再进出片提示词——以前简介里的「房间」「手柄」会被逼着画进每一段视频。
-· 「自己传图做卡片」的 AI 现在会顺手写好「出片句」（出片时真正读的那一句），换素材图重跑也会跟着更新。
-· 人物卡的卡面改成干净背景、手里不拿东西——那张图就是出片时用的形象参考。
+· 人物卡的「白模三视图」「设定规格稿」现在也能当出片参考图用了 —— 以前它们只能看，永远进不了模型。
+· 每张形象参考图都由你定：点开卡片里的任意一张图，选「出片用」或「仅展示」，当场生效。
+· 设定稿改成照着这张卡的主图画：以前每张各画各的，同一个人在两张图上可能穿着不同的衣服，出片时画面会按其中一张走。
+· 修掉一个会被拍进成片的问题：竖屏的设定画面有时会被画上一圈手机边框（连刘海一起）。
 
-QiMeng 2.48
+QiMeng 2.49
 
-· Each card type now sticks to its own job: a character card describes only the person (looks, hair, build, clothing and worn accessories), not the room in the photo or the thing in their hand; scene cards don't describe people, prop cards don't describe who holds them, and style cards don't describe specific content.
-· A card's intro is now just for reading and no longer goes into video prompts — words like "room" or "controller" in an intro used to force their way into every segment.
-· "Make a card from your own images" now also writes the card's video line (the line the AI actually reads when generating), and it updates when you re-run with a different image.
-· Character card art now uses a clean background with nothing in hand — that art is the reference image used when generating video.
+· A character card’s mannequin turnaround and spec sheet can now be used as reference images when generating video — until now they were display-only and never reached the model.
+· You decide per image: open any image on a card and switch it between “Used in video” and “Display only”.
+· Turnarounds and spec sheets are now drawn from the card’s main art, so they show the same outfit — each used to be drawn on its own, and video could follow the wrong one.
+· Fixed a problem that could end up in your finished video: portrait setup frames were sometimes drawn inside a phone-shaped frame, notch and all.
