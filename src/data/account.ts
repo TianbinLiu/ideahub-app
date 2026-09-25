@@ -1220,7 +1220,7 @@ function whyOf(e: unknown): string {
  */
 export async function updateCardMeta(
   cardId: string,
-  patch: { name?: string; summary?: string; tags?: string[] },
+  patch: { name?: string; summary?: string; tags?: string[]; idLine?: string },
 ): Promise<string | null> {
   const u = currentUser();
   if (!u || !db) return t`还没登录，改不了。`;
@@ -1229,7 +1229,11 @@ export async function updateCardMeta(
   if (Object.keys(patch).length === 0) return null; // 什么都没改，不算失败
 
   // 本地先落：远端要一个往返，输入框不该吊在那儿等
-  const before = { name: c.name, summary: c.summary, tags: c.tags };
+  // ★★ 快照按**这次真给了的那几位**存（2026-09-24 加 idLine 时改的，原来写死三位）：
+  //   漏一位的后果是下面 catch 回滚不到它 —— 远端失败了、本地却留着新值，界面显示改成功了，
+  //   下次冷启动 loadRemoteAssets 整表覆盖又变回去。那种"改了又变回来"正是这段 catch 要防的。
+  const before: Record<string, unknown> = {};
+  for (const k of Object.keys(patch)) before[k] = (c as unknown as Record<string, unknown>)[k];
   Object.assign(c, patch);
   persist();
 

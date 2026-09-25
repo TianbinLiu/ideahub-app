@@ -5068,6 +5068,10 @@ msgstr "Hottest videos"
 msgid "写一个称呼"
 msgstr "Write a form of address"
 
+#: src/pages/CardDetailPage.tsx
+msgid "写一句"
+msgstr "Write one"
+
 #: src/components/flow/FlowCanvas.tsx
 #: src/studio/ui/projection.tsx
 msgid "写一句换成谁，例：换成一只戴墨镜的柴犬"
@@ -5181,9 +5185,17 @@ msgstr "You must remove them before rendering."
 msgid "出片前这里显示你给的<0>开头帧</0>（没给就先空着），出片后就地回放这一段。 不满意就改下面那句话（或换圈选）再来一次。"
 msgstr "Before rendering, this shows the <0>opening frame</0> you provided (it stays empty if you didn't); after rendering, this segment plays back right here. Not happy? Change the sentence below (or circle something else) and try again."
 
+#: src/pages/CardDetailPage.tsx
+msgid "出片句（例：银发红瞳，左眼戴全息镜片，黑色长风衣）"
+msgstr "Video line (e.g. silver hair, red eyes, holo lens over the left eye, long black coat)"
+
 #: src/pages/CustomCardPage.tsx
 msgid "出片句（选填）"
 msgstr "Video line (optional)"
+
+#: src/pages/CardDetailPage.tsx
+msgid "出片句是 AI 出片时真正读的那一句（简介只给人看，不进提示词）：写 2~3 个不会变的外形特征，别写动作、手里的东西和地点。留空 = 出片时只报卡名。"
+msgstr "The video line is what the AI actually reads when generating (the intro is just for people and never goes into prompts): give 2–3 looks that never change, and leave out actions, held objects and places. Empty means only the card name is used."
 
 #: src/pages/CardDetailPage.tsx
 msgid "出片时<0>不是每张都会喂进模型</0>——「出片用」按单卡乐观口径标，同一段挂的卡多时可能让位。"
@@ -10632,7 +10644,6 @@ msgid "改剧本重拆"
 msgstr "Edit script and split again"
 
 #: src/components/DraftSheet.tsx
-#: src/pages/CardDetailPage.tsx
 msgid "改名"
 msgstr "Save"
 
@@ -10682,8 +10693,12 @@ msgid "改这套方案"
 msgstr "Edit this scheme"
 
 #: src/pages/CardDetailPage.tsx
-msgid "改这张卡的名字与简介"
-msgstr "Edit this card's name and description"
+msgid "改这张卡的名字、简介与出片句"
+msgstr "Edit this card's name, intro and video line"
+
+#: src/pages/CardDetailPage.tsx
+#~ msgid "改这张卡的名字与简介"
+#~ msgstr "Edit this card's name and description"
 
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "改错了不用重炼"
@@ -15606,6 +15621,7 @@ msgstr "The card on number {slotLabel} can't be used this way: {nameIssue}"
 msgid "编号还没核对：AI 编的号可能与画面上人偶头上的数字对不上，<0>核对之前不能发布</0>（对不上会让别人的角色卡换到别人身上）。点这里去核对。"
 msgstr "Numbers not checked yet: the numbers the AI assigned may not match the numbers on the mannequins' heads. <0>You can't publish until you check</0> (a mismatch sends other people's character cards to the wrong person). Tap here to check."
 
+#: src/pages/CardDetailPage.tsx
 #: src/pages/WorkshopPage.tsx
 msgid "编辑"
 msgstr "Edit"
@@ -18395,6 +18411,10 @@ msgstr "This card couldn't be saved to the server"
 #: src/studio/canvasAgent.ts
 msgid "这张卡说的那一段已经不在第 {seg} 位了（流水线被改过）——重说一句，我按现在的样子再摆一张"
 msgstr "The segment this card is about is no longer segment {seg} (the pipeline changed) — say it again and I'll set out a new card for the pipeline as it is now"
+
+#: src/pages/CardDetailPage.tsx
+msgid "这张卡还没写出片句 —— 出片时提示词里只有卡名，长相由 AI 自己编（每一段都可能不一样）。"
+msgstr "This card has no video line yet — prompts then carry only its name, and the AI invents the look (differently in each segment)."
 
 #: src/pages/CardDetailPage.tsx
 msgid "这张卡还没有声音样本。在工坊「从视频提取」圈选人物时可以顺手取一段（2~15 秒）——出片走「高清/电影级」档且台词写在引号里时，AI 会参考这段声音的音色。"
