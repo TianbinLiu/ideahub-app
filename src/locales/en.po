@@ -7662,6 +7662,10 @@ msgstr "If two mannequins carry the same number: the card attached to that numbe
 msgid "如果刚才弹出过选择框、你选的是分身，请退回来改选本体那一个——分身给不了第三方应用授权。也可以直接用手机号或邮箱登录。"
 msgstr "If a chooser appeared and you picked the cloned app, go back and pick the original one — a cloned app can't authorize other apps. You can also just sign in with your phone number or e-mail."
 
+#: src/components/ReportButton.tsx
+msgid "如果影像里的人是你自己：另有一条更直接的通道 —— {SITE_BASE}/takedown，不用登录，我们会在 48 小时内处理并查找站内的相同副本。"
+msgstr "If the person depicted is you, there is a more direct route: {SITE_BASE}/takedown — no sign-in needed. We act within 48 hours and search our site for identical copies."
+
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "如果画面上大部分号都对不上，这段白模的编号本身就没画好 —— 删位只能救回一部分，要全对得上只能重炼（要再花一次钱）。"
 msgstr "If most numbers in the picture don't match, the numbering in this blockout itself came out wrong — deleting slots only saves part of it, and getting everything to match means re-rendering (which costs again)."
@@ -11488,6 +11492,10 @@ msgstr "unknown format"
 #: src/pages/ProfilePage.tsx
 msgid "未知用户"
 msgstr "Unknown user"
+
+#: src/api/admin.ts
+msgid "未经同意的私密影像"
+msgstr "Non-consensual intimate imagery"
 
 #: src/ai/minimaxVideo.ts
 msgid "未说明原因"
