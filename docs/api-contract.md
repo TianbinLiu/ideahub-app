@@ -493,7 +493,7 @@ App 接 caps 之前，那条告知在 App 侧等于不存在 —— 这是已知
 | 方法 | 路径 | 鉴权 | 说明 |
 |---|---|---|---|
 | GET | `/api/support/config` | optional | `{ ok, name, enabled, tts, asr, voice, loginRequired: true, quickQuestions[], categories[] }`。`asr=false`（或老服务端没这个字段）时不画麦克风。`enabled=false`（服务端没配 AI）时输入框禁用，只剩「转人工」。**2026-09-04 起登录时另带** `voiceSettings: VoiceSettings`（三层合并结果，见下）、`persona: PersonaSummary\|null`、`personaSource: "user"\|"model"\|""`、`model: Live2dModel\|null`（null = 官方内置）；老字段 `voice` = `voiceSettings.voiceId`。老服务端没有这四项 → App 按旧写法只传 `voice` |
-| POST | `/api/support/chat` | required | SSE。body `{ messages: [{role: user\|assistant, content ≤1000}] ≤20, lang? }`。事件：`sentence {index, text, emotion, face, action, tts:{emotion, instruct}}`、`token {t}`、**`handoff {category, reason}`**（模型判定该转人工，一次对话最多一条）、`done {text, handoff, category}`、`error {message}`。限流 **20/分钟按账号**。★ Content-Type 不是 `text/event-stream` 就当服务端没有这个功能（SPA 回退给的是 200 + HTML） |
+| POST | `/api/support/chat` | required | SSE。body 两种写法：**按会话（2026-09-18 起）** `{ message ≤1000, threadId?, lang? }`——历史由服务端持有，不给 `threadId` 就开新会话，别人的 / 陪聊场景的 / 已删的 `threadId` → **404** `CHAT_THREAD_NOT_FOUND`（JSON，此时还没开始 SSE）；**旧写法** `{ messages: [{role: user\|assistant, content ≤1000}] ≤20, lang? }`——客户端自带历史、服务端不存（已发布的旧版 App 还在用，保留）。两种都给或都不给 → 400。按会话时**最先**来一个 `thread {threadId, title}`，`done` / `error` 多带 `threadId` 与 `context {used, budget, ratio, level: ok\|warn\|compact\|full}`（上下文用量，见下）。事件：`sentence {index, text, emotion, face, action, tts:{emotion, instruct}}`、`token {t}`、**`handoff {category, reason}`**（模型判定该转人工，一次对话最多一条）、`done {text, handoff, category}`、`error {message}`。限流 **20/分钟按账号**。★ Content-Type 不是 `text/event-stream` 就当服务端没有这个功能（SPA 回退给的是 200 + HTML） |
 | POST | `/api/support/tickets` | required | 转人工建单。body `{ transcript: [{role, content ≤2000}] ≤30, note? ≤500, contactEmail?, category? }`；`transcript` 与 `note` 至少一个。**201** `{ ok, ticket, reused: false }`；同一用户 10 分钟内已有未结工单 → **200** `{ ok, ticket, reused: true }`（不重复建）。服务端用 AI 归纳 `subject/summary/category`（失败退回用户原话），然后给所有管理员发 `SUPPORT_TICKET` 通知 + 邮件（`SUPPORT_NOTIFY_EMAIL` 或有真实邮箱的管理员）。限流 5/分钟 |
 | GET | `/api/support/tickets/mine` | required | `{ ok, items: Ticket[] }` 最近 20 张（不含 `contactEmail`） |
 | POST | `/api/support/tickets/:id/messages` | required | 在自己的工单里追加 `{ content ≤2000 }`；已结的单会重新 `open`；再通知管理员（10 分钟去重）。别人的工单 404 |
@@ -541,6 +541,27 @@ VoiceTemplate 形状：`{ _id, author: { _id, username }|string, name, descripti
 ★ 转人工判定是**模型**做的：提示词里写明五类情形（退款/余额、注销恢复/封禁申诉/被盗、下架申诉/侵权、用户明确要人工或两轮未解决、知识库无依据），满足时回复开头写 `[handoff:类别]`，服务端剥掉后发 `handoff` 事件；App 收到后在对话下方出「转人工」卡，用户确认才建单。用户也随时可以自己点「转人工」。
 ★ 知识库是 `ideahub-server/src/knowledge/support-kb.md`，由本仓 `docs/support-knowledge-base.md` 剥掉代码出处生成——**改知识改本仓源文件再重新生成**，两边不要各改各的。
 ★ 评测：`ideahub-server/scripts/evalSupport.js`（题库 `tests/fixtures/support-eval.json`）量关键词召回、禁止承诺零命中、转人工判定、首句延迟。
+
+### 对话记忆（`/api/chat`，2026-09-18）
+
+客服与官网看板娘陪聊（`/api/companion/chat`，请求体与事件同上）共用。设计见 `docs/character-art-privacy-context.md` §B / §C。`scene` = `support` | `companion`，两个场景的数据互不可见。全部需登录、只能碰自己的；别人的 / 不存在的 id 一律 404。
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|---|---|---|---|
+| GET | `/api/chat/threads?scene=&limit≤100` | required | 我的会话，按最后活跃倒序：`{ ok, threads: [{ id, scene, title, messageCount, lastActiveAt, createdAt, summary: { text, version }, compacting, context }] }` |
+| GET | `/api/chat/threads/:id/messages?before=&limit≤200` | required | 翻历史（按 `seq` 倒着分页，`before` 不给 = 最新一页；返回正序）：`{ ok, thread, messages: [{ seq, role: user\|assistant\|system, kind: msg\|divider, text, compacted, partial, createdAt }], hasMore }`。`compacted` = 已整理进摘要、不再发给模型（原文照样给人看）；`kind=divider` 是「已整理前 N 轮…」分隔提示；`partial` = 回复中途断开 / 上游出错存下的半截 |
+| POST | `/api/chat/threads/:id/compact` | required | 手动「整理记忆」：`{ focus? ≤200 }`（想重点记住的事）→ `{ ok, compacted, context }`；只留最后一轮原文，其余压成摘要 + 记忆卡。正在整理 **409** `CHAT_COMPACT_BUSY`、会话已删 404、模型失败 **502** `CHAT_COMPACT_FAILED`。限流 5/分钟 |
+| DELETE | `/api/chat/threads/:id` | required | 删会话：消息、用量、摘要以及**从它整理出的记忆卡**立即硬删 → `{ ok, deletedMemories }` |
+| DELETE | `/api/chat/threads?scene=` | required | 清空这个场景的全部会话（同上）→ `{ ok, deletedThreads, deletedMemories }` |
+| GET | `/api/chat/memories?scene=` | required | 「小梦记得的事」：`{ ok, memories: [{ id, scene, text, category, pinned, canRevert, updatedAt }] }`。陪聊的跨会话；客服的只属于某一个会话（会话删了 / 过期了就跟着没了） |
+| PATCH | `/api/chat/memories/:id` | required | `{ text? ≤200, pinned? }`（至少一项，否则 400）；改文字会留上一版（`canRevert`），换行会被压成空格 → `{ ok, memory }` |
+| POST | `/api/chat/memories/:id/revert` | required | 回到上一版（再点一次换回来）；没有上一版 400 `NOTHING_TO_REVERT` |
+| DELETE | `/api/chat/memories/:id` | required | 删一条 |
+| DELETE | `/api/chat/memories?scene=` | required | 一键清空 → `{ ok, deleted }` |
+
+★ 上下文用量 `context`：`used` = 上一轮接口给的 prompt + completion tokens（接口没给时是校准过的估算），`budget` = 产品预算（客服 16000、陪聊 32000，服务端 env 可调，**不是**模型上限）。`level`：`ok`；`warn`（≥60%，界面变黄）；`compact`（≥75%，这一轮回复发完后服务端自动整理，稍后 `GET /threads` 的 `context` 会降下来）；`full`（自动整理连续两次失败、已停止自动整理——提示用户开新对话或手动整理）。
+★ 保留期：客服会话最后一次活跃后 **30 天**、陪聊 **180 天**自动删除；陪聊的记忆卡保留到用户删除或删账号。删除一律硬删。删账号时全部对话数据一起删。
+★ 部署顺序：服务端先上线，再发用新写法的 App / 网站（老服务端不认 `{ message }`，会回 400）。
 
 ## 通知（分支视频）
 
@@ -1097,7 +1118,7 @@ exports.takedownTarget = async ({ targetType, targetId, operatorId, reason, hard
 卡片的全局计数（`kind:"card"` 按 cardId 跨用户聚合，删了会清掉别人手里同一张卡的热度）；
 ideas 产品线的内容（那边有自己的软删除体系，混着做一半更糟 —— 已知未尽事项）。
 
-回包 `removed` 逐项带条数（`{ videos, comments, danmaku, likesGiven, …, user }`），
+回包 `removed` 逐项带条数（`{ videos, comments, danmaku, likesGiven, …, chatThreads, chatMemories, user }`；`chatThreads` / `chatMemories` 是 2026-09-18 起连带硬删的数字人对话会话与记忆卡），
 UI 把它显示出来 —— 「删了个寂寞」必须有症状。
 
 ★ UI 要求**输入用户名**做二次确认并把后果说全（不可逆、连带内容清单）；
