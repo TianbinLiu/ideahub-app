@@ -9,7 +9,7 @@
 import { Trans } from "@lingui/react/macro";
 import { Link } from "react-router";
 import { AI_REAL } from "../ai";
-import { billingExempt, canAfford, walletOf } from "../data/account";
+import { billingExempt, canAfford, walletFrozen, walletOf } from "../data/account";
 import { fmtTokens } from "../data/economy";
 
 export default function TokenCost({
@@ -46,6 +46,23 @@ export default function TokenCost({
           <Trans>管理员免扣费：这一步约值 {amount} token，不从你的钱包里扣</Trans>
         )}
         {note ? ` · ${note}` : ""}
+      </p>
+    );
+  }
+  // ★★ 退款欠额冻结（方案 §15.4.4）：**不能靠 canAfford 表达**——它在镜像没到位时
+  //   一律放行，于是被冻结的用户会看到一句正常报价、点下去才吃 403。
+  //   冻结是「充多少都先抵债」，与「钱不够」是两件事，文案也必须是两句。
+  const frozen = walletFrozen();
+  if (frozen) {
+    const owed = fmtTokens(frozen.debt);
+    return (
+      <p className={`text-[11px] text-rose-300 ${className}`}>
+        <Trans>
+          账户有 {owed} token 欠额，充值抵扣后即可继续生成 ·{" "}
+          <Link to="/me" className="underline underline-offset-2">
+            去充值
+          </Link>
+        </Trans>
       </p>
     );
   }

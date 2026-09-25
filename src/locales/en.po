@@ -3909,6 +3909,10 @@ msgstr "Only me {0}"
 msgid "今天天气不错，我在院子里晒了会儿太阳，顺手把花也浇了。"
 msgstr "The weather is lovely today, so I sat in the yard in the sun for a while and watered the flowers too."
 
+#: src/ai/arkClient.ts
+msgid "今天的生成额度用完了，明天 0 点（UTC）重置"
+msgstr "You have used up today's generation allowance. It resets at 00:00 UTC."
+
 #: src/components/flow/SegSettings.tsx
 msgid "从上一段的真实结尾画面接着拍"
 msgstr "Continue from the previous segment's actual last frame"
@@ -7253,6 +7257,11 @@ msgstr "Back to the segment window to choose another mode"
 #: src/pages/VideoEditorPage.tsx
 msgid "回首页"
 msgstr "Back to home"
+
+#. placeholder {0}: fmtTokens(wallet.debt ?? 0)
+#: src/pages/ProfilePage.tsx
+msgid "因一笔退款，已收回相应 token，尚欠 {0}。下次充值会自动抵扣，抵完即可继续生成；在那之前生成功能暂时不可用。"
+msgstr "A refund clawed back the matching tokens; {0} is still outstanding. Your next top-up pays it off automatically, and generation resumes as soon as it clears. Until then generation is paused."
 
 #: src/components/flow/CameraChips.tsx
 msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜头运动"
@@ -12041,6 +12050,10 @@ msgctxt "人偶的主色（挂卡提醒那句话里显示）"
 msgid "橙"
 msgstr "orange"
 
+#: src/data/account.ts
+msgid "欠额 {owed}，已冻结"
+msgstr "{owed} owed — frozen"
+
 #. 铸卡师的开场白（会被念出来）。英文请把「逛逛市场」改成点对话框下方的「🛒 Browse market」气泡键；括号里的内容 TTS 不念
 #: src/studio/studioStore.ts
 msgid "欢迎来到卡片工坊。把你的素材（图片、文本）交给我，我为你炼成卡片；也可以逛逛市场，看看大家都在用什么。"
@@ -16745,6 +16758,18 @@ msgstr "The account itself is permanently deleted. It can't be restored, and re-
 #: src/components/BootFailed.tsx
 msgid "账号没装载完整 —— 硬进去页面会缺东西，所以先停在这里。点重试只是再装一遍，不会删掉你的东西。"
 msgstr "Your account didn't finish loading — going in anyway would leave pages missing things, so we're stopping here. Retry just loads it again; it won't delete anything of yours."
+
+#: src/components/TokenCost.tsx
+msgid "账户有 {owed} token 欠额，充值抵扣后即可继续生成 · <0>去充值</0>"
+msgstr "Your account owes {owed} tokens; top up to clear it and generation resumes · <0>Top up</0>"
+
+#: src/ai/arkClient.ts
+msgid "账户有 {owed} token 欠额（一笔退款收回的），充值抵扣后即可继续生成"
+msgstr "Your account owes {owed} tokens (clawed back by a refund). Top up to clear it and generation resumes."
+
+#: src/ai/arkClient.ts
+msgid "账户有一笔 token 欠额（退款收回的），充值抵扣后即可继续生成"
+msgstr "Your account has an outstanding token balance (clawed back by a refund). Top up to clear it and generation resumes."
 
 #: src/types.ts
 msgid "质感特写"

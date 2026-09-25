@@ -13,6 +13,14 @@ export interface WalletSnapshot {
   plan: number;
   addon: number;
   planId: string;
+  /**
+   * 退款欠额（正数 = 欠多少），>0 时服务端冻结一切消费（403 `WALLET_FROZEN`）。
+   * ★ 老服务端没有这两个字段 ⇒ undefined ⇒ 按「没欠、没冻」处理。
+   * ★★ `frozen` 是**服务端算好下发的**，客户端不要自己按 debt>0 再推一遍：
+   *    这两个判据将来一旦分叉（比如加个宽限期），两边会各说各的。
+   */
+  debt?: number;
+  frozen?: boolean;
 }
 
 interface WalletResp {
