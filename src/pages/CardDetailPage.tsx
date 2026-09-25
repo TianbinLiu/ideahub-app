@@ -39,6 +39,7 @@ import {
   CARD_INFO_LABELS,
   CARD_NAME_MAX,
   CARD_SUMMARY_MAX,
+  ID_LINE_MAX,
   CARD_SLOTS,
   CARD_TYPE_COLORS,
   CARD_TYPE_LABELS,
@@ -687,6 +688,8 @@ export default function CardDetailPage() {
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState("");
   const [editSummary, setEditSummary] = useState("");
+  /** 出片句（Card.idLine）：出片时真正读的那一句，2026-09-24 起可以改（服务端那条 PATCH 同日放开） */
+  const [editIdLine, setEditIdLine] = useState("");
   const [editBusy, setEditBusy] = useState(false);
   const [editErr, setEditErr] = useState<string | null>(null);
   /** 「添加到我的卡片」的在途与失败原因（只对别人的卡出现） */
@@ -798,12 +801,13 @@ export default function CardDetailPage() {
             onClick={() => {
               setEditName(card.name);
               setEditSummary(card.summary);
+              setEditIdLine(card.idLine || "");
               setEditErr(null);
               setEditing(true);
             }}
             className="rounded-full border border-slate-600 px-2 py-0.5 text-[10px] text-slate-400"
           >
-            <Trans>改名</Trans>
+            <Trans>编辑</Trans>
           </button>
         )}
         <span className="rounded-full border px-2 py-0.5 text-xs" style={{ color, borderColor: color }}>
@@ -839,7 +843,7 @@ export default function CardDetailPage() {
       {/* 固定身份句（Card.idLine）：出片提示词里代表这张卡的那一句（铸卡时压好、逐段复用）。
           只在真有的时候显示——老卡/自传图卡走 idLineOf 的兜底，那不是"留下来的身份句"，
           摆出来说成是就违反铁律五 */}
-      {card.idLine && (
+      {card.idLine ? (
         <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
           <div className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>🎯 出片身份句</Trans></div>
           <p className="text-xs leading-relaxed text-slate-400">{card.idLine}</p>
@@ -847,6 +851,31 @@ export default function CardDetailPage() {
             <Trans>出片时提示词里代表这张卡的固定一句（逐段复用同一措辞，形象更稳）。长设定进画面靠上面的参考图与{CARD_INFO_LABELS[card.type]}，不直接塞进视频提示词。</Trans>
           </p>
         </div>
+      ) : (
+        /* ★★ 没有出片句的**自己的卡**要给一条补写的路（2026-09-24，服务端同日才收得下这一位）：
+           简介自 2026-09-18 起一个字都不进出片提示词，于是没写出片句的卡在出片时**只剩一个卡名** ——
+           那个角色的长相由模型自己编，而钱照花。这件事此前在产品里既看不见、也补不了。
+           ⚠ 只对自己的卡显示：别人的卡这里什么都不摆（改不了的东西不该占一块屏）。 */
+        owned && (
+          <div className="mb-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
+            <div className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>🎯 出片身份句</Trans></div>
+            <p className="text-[11px] leading-relaxed text-amber-100">
+              <Trans>这张卡还没写出片句 —— 出片时提示词里只有卡名，长相由 AI 自己编（每一段都可能不一样）。</Trans>
+            </p>
+            <button
+              onClick={() => {
+                setEditName(card.name);
+                setEditSummary(card.summary);
+                setEditIdLine("");
+                setEditErr(null);
+                setEditing(true);
+              }}
+              className="mt-2 rounded-full bg-panel px-3 py-1 text-[11px] text-slate-200 ring-1 ring-slate-600"
+            >
+              <Trans>写一句</Trans>
+            </button>
+          </div>
+        )
       )}
 
       {/* 「<类型>信息」：铸卡时的完整提示词——照着它 AI 就能复刻出与卡面一致的画面/建模。
@@ -968,7 +997,7 @@ export default function CardDetailPage() {
       {editing && card && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-6" onClick={() => !editBusy && setEditing(false)}>
           <div className="w-full max-w-xs rounded-2xl border border-slate-700 bg-ink p-4" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-sm font-bold text-slate-100"><Trans>改这张卡的名字与简介</Trans></h3>
+            <h3 className="text-sm font-bold text-slate-100"><Trans>改这张卡的名字、简介与出片句</Trans></h3>
             <input
               value={editName}
               onChange={(e) => setEditName(e.target.value)}
@@ -984,6 +1013,22 @@ export default function CardDetailPage() {
               placeholder={t`一句话简介`}
               className="mt-2 w-full resize-none rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand leading-relaxed"
             />
+            {/* ★★ 出片句这一格是这扇窗存在的第二个理由（2026-09-24）：**出片时真正读的就是它**
+                （types.idLineOf），而简介一个字都不进提示词。2026-09-18 之前铸的卡这一位是空的，
+                在这之前产品里没有任何地方补得上 —— 服务端那条 PATCH 同日才收下它。
+                ⚠ 上限用 ID_LINE_MAX（60）硬拦：服务端是 200，我们的产品口径更紧（提示词预算反推），
+                两个数有意不等，别顺手统一。 */}
+            <textarea
+              value={editIdLine}
+              onChange={(e) => setEditIdLine(e.target.value)}
+              maxLength={ID_LINE_MAX}
+              rows={2}
+              placeholder={t`出片句（例：银发红瞳，左眼戴全息镜片，黑色长风衣）`}
+              className="mt-2 w-full resize-none rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand leading-relaxed"
+            />
+            <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
+              <Trans>出片句是 AI 出片时真正读的那一句（简介只给人看，不进提示词）：写 2~3 个不会变的外形特征，别写动作、手里的东西和地点。留空 = 出片时只报卡名。</Trans>
+            </p>
             {/* ★ 如实说清改的是哪一份：随作品/卡组发出去的是**快照**（逐字段复制的），
                 不会跟着改。不说的话用户以为"全网都改了"，回头发现别人那份还是旧名字。 */}
             <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
@@ -1011,7 +1056,7 @@ export default function CardDetailPage() {
                   }
                   setEditBusy(true);
                   setEditErr(null);
-                  void updateCardMeta(card.id, { name, summary: editSummary.trim() })
+                  void updateCardMeta(card.id, { name, summary: editSummary.trim(), idLine: editIdLine.trim() })
                     .then((why) => {
                       if (why) setEditErr(why);
                       else setEditing(false);
