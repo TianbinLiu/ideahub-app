@@ -1,9 +1,9 @@
-启梦 2.52
+启梦 2.53
 
-· 这一版对**侧载包**（你现在装的这种）没有看得见的改动：新增的是 Google Play 的付款通道，而它只在从 Google Play 安装的版本里可用。侧载包照旧用微信 / 支付宝。
-· 说清楚免得误会：侧载包里**一行结算代码都没有**，权限表也没变。
+· 真人档便宜了约 37%：6 秒从 135,000 降到 85,000 token，10 秒从 270,000 降到 143,200。换用海螺 2.3-Fast（官方称同等能力、生成更快），出片方式和效果不变。
+· 顺带更正了一处折算：此前真人档按旧汇率多算了约 7.7%，服务端已经改回来 —— 这一条装旧版也已经生效。
 
-QiMeng 2.52
+QiMeng 2.53
 
-· This version changes nothing visible in the **sideload build** (the one you have): what it adds is the Google Play payment path, which only works in builds installed from Google Play. The sideload build keeps using WeChat / Alipay.
-· To be explicit: the sideload build ships **no billing code at all**, and its permissions are unchanged.
+· The real-person tier is about 37% cheaper: 6s drops from 135,000 to 85,000 token, 10s from 270,000 to 143,200. It now uses Hailuo 2.3-Fast, which the vendor describes as the same capability with faster generation; how you use it is unchanged.
+· A conversion fix came with it: the real-person tier had been over-charging by about 7.7% against an outdated exchange rate. That is already corrected server-side, so it applies on older builds too.
