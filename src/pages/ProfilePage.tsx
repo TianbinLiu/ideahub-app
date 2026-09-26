@@ -76,13 +76,16 @@ import { cardsLoadIssue,
   isFollowing,
   myCards,
   myDecks,
+  buyWithPlay,
+  sweepPlayPurchases,
   rechargeAddon,
   refreshRemoteWallet,
   toggleFollow,
   walletOf,
   type RechargeResult,
 } from "../data/account";
-import { fetchOrder, fetchPayConfig } from "../api/wallet";
+import { fetchOrder, fetchPayConfig, type PlayCatalogItem } from "../api/wallet";
+import { PlayBilling, playBillingAvailable, type PlayProduct } from "../utils/playBilling";
 import { API_ON } from "../api/client";
 import { PLANS, RECHARGE_PACKS, fmtTokens } from "../data/economy";
 import { notificationsState, refreshUnreadCount, subscribeNotifications } from "../data/notifications";
@@ -1493,14 +1496,46 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
   const [payable, setPayable] = useState<boolean | null>(null);
   /** 正在盯的订单号（下完单就开始轮询，结算/失败/超时都会停） */
   const [watching, setWatching] = useState<string | null>(null);
+  /**
+   * Google Play 结算可用时，这里是**合并好的商品表**：服务端的 sku/token 数 + Play 给的本地价格。
+   * null = 不是 play 渠道、或服务端没配 Play、或商品表还没拿到 —— 三种都按「没有 Play」画界面。
+   * ★ 价格只能来自 Play（按国家定价），token 数只能来自服务端（发币的依据），两边**按 sku 对齐**。
+   */
+  const [playItems, setPlayItems] = useState<Array<PlayCatalogItem & { price: string }> | null>(null);
   const { t } = useLingui();
 
   useEffect(() => {
     void refreshRemoteWallet();
     if (!API_ON) return;
     void fetchPayConfig()
-      .then((c) => setPayable(c.payable))
+      .then(async (c) => {
+        setPayable(c.payable);
+        // ★ 三个条件缺一不可：服务端配了 Play、这个包是 play 渠道、Play 商店本身可用。
+        //   任何一条不成立就照旧显示微信/支付宝那套（侧载包永远走这条）。
+        if (!c.play?.enabled || !c.play.products.length) return;
+        if (!(await playBillingAvailable())) return;
+        const skus = c.play.products.filter((x) => x.kind === "recharge").map((x) => x.sku);
+        if (!skus.length) return;
+        try {
+          const { products } = await PlayBilling.queryProducts({ skus });
+          const bySku = new Map<string, PlayProduct>(products.map((x) => [x.sku, x]));
+          // ★ Play 里查不到的 sku **直接不显示**：那说明 Console 里没建 / 打错了 id，
+          //   摆出来只会得到一个点下去报"商品不存在"的按钮（服务端 config/play.js 的 ★★）。
+          const merged = c.play.products
+            .filter((x) => x.kind === "recharge" && bySku.has(x.sku))
+            .map((x) => ({ ...x, price: bySku.get(x.sku)!.formattedPrice }));
+          setPlayItems(merged.length ? merged : null);
+        } catch {
+          setPlayItems(null); // Play 连不上：别把充值入口整块弄没，下面还会说清"暂时不能买"
+        }
+      })
       .catch(() => setPayable(null)); // 问不到就不下结论，别误报成"不能买"
+    // ★★ 开钱包就扫一遍 Play 那边还挂着的购买（兑那一发断网/进程被杀时唯一的出路）。
+    //   静默失败可以，成功必须说出来 —— 用户正是因为"钱付了没到账"才打开这一页的。
+    void sweepPlayPurchases().then((r) => {
+      if (r.tokens > 0) setOrder({ text: t`已把上一笔购买取回，到账 ${fmtTokens(r.tokens)} token`, tone: "ok" });
+      else if (r.stuck > 0) setOrder({ text: t`有一笔已付款的购买还没能取回，稍后会自动重试；若长时间没到账请联系客服`, tone: "bad" });
+    });
   }, []);
 
   /**
@@ -1596,6 +1631,45 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
     }
   }
 
+  /** 用 Play 买一包。★ 与 submit() 分开：这条链路没有"待支付"中间态，也不需要轮询订单 */
+  async function buyPlay(sku: string) {
+    setBusy(true);
+    setOrder(null);
+    try {
+      const r = await buyWithPlay(sku);
+      if (r.kind === "granted") {
+        setOrder({
+          text: r.recovered
+            ? t`已到账 ${fmtTokens(r.tokens)} token（含之前未取回的那一笔）`
+            : t`已到账 ${fmtTokens(r.tokens)} token`,
+          tone: "ok",
+        });
+      } else if (r.kind === "pending") {
+        setOrder({ text: t`Google Play 还在等这笔付款完成，到账后余额会自动更新`, tone: "warn" });
+      } else if (r.kind === "canceled") {
+        setOrder({ text: t`已取消付款`, tone: "warn" });
+      } else if (r.kind === "unavailable") {
+        setOrder({ text: t`这台设备暂时不能用 Google Play 付款`, tone: "bad" });
+      } else if (r.kind === "login") {
+        setOrder({ text: t`请先登录`, tone: "bad" });
+      } else if (r.kind === "redeem-failed") {
+        // ★★ 这一档是**钱已经收了、币还没发**，不能说成"支付失败"。
+        //   能重试的就说会自动重试（下次开钱包/启动都会扫），不能重试的要给出路。
+        setOrder({
+          text: r.retryable
+            ? t`付款成功了，但额度还没能发到账上——重新打开这一页会自动再试一次`
+            : t`付款成功了，但这笔额度发不出来：${r.detail ?? ""}。请把这句话发给客服`,
+          tone: "bad",
+        });
+      } else {
+        setOrder({ text: r.detail ?? t`付款没有完成`, tone: "bad" });
+      }
+      await refreshRemoteWallet();
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const wallet = walletOf();
   // 远端模式下镜像可能还在路上。★ 不能 return null —— 那会表现成"点了钱包没反应"，
   // 而用户完全没法区分"在加载"和"坏了"
@@ -1666,7 +1740,10 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
 
       <div className="mb-1.5 text-sm font-semibold text-slate-300"><Trans>订阅套餐</Trans></div>
       <div className="mb-4 space-y-2">
-        {PLANS.map((p) => {
+        {/* ★★ play 渠道只显示免费档：付费套餐在 Play Console 里还没有对应商品，
+            而在 Play 的包里用微信/支付宝卖数字商品是**违反 Play 政策**的。
+            免费档的「领取」不是付款，留着。 */}
+        {PLANS.filter((p) => !playItems || p.price === 0).map((p) => {
           const current = wallet.planId === p.id;
           return (
             <div key={p.id} className="flex items-center gap-3 rounded-xl border border-slate-700/70 bg-panel p-3">
@@ -1693,22 +1770,38 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
 
       <div className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>直充 add-on（永不过期，套餐扣完才用它）</Trans></div>
       <div className="grid grid-cols-3 gap-2">
-        {RECHARGE_PACKS.map((pk) => (
-          <button
-            key={pk.tokens}
-            onClick={() => void submit(() => rechargeAddon(pk.tokens))}
-            disabled={busy}
-            className="rounded-xl border border-slate-700/60 bg-panel p-3 text-center disabled:opacity-40"
-          >
-            <div className="text-sm font-bold tabular-nums text-slate-100">{fmtTokens(pk.tokens)}</div>
-            <div className="mt-0.5 text-[11px] text-gold">¥{pk.price}</div>
-          </button>
-        ))}
+        {/* ★ 两条路**互斥**：play 渠道走 Google Play（价格由 Play 按国家给，原样显示它给的串），
+            其余渠道走服务端下单。同时摆出来就是 Play 政策里的违规项。 */}
+        {playItems
+          ? playItems.map((it) => (
+              <button
+                key={it.sku}
+                onClick={() => void buyPlay(it.sku)}
+                disabled={busy}
+                className="rounded-xl border border-slate-700/60 bg-panel p-3 text-center disabled:opacity-40"
+              >
+                <div className="text-sm font-bold tabular-nums text-slate-100">{fmtTokens(it.tokens)}</div>
+                <div className="mt-0.5 text-[11px] text-gold">{it.price}</div>
+              </button>
+            ))
+          : RECHARGE_PACKS.map((pk) => (
+              <button
+                key={pk.tokens}
+                onClick={() => void submit(() => rechargeAddon(pk.tokens))}
+                disabled={busy}
+                className="rounded-xl border border-slate-700/60 bg-panel p-3 text-center disabled:opacity-40"
+              >
+                <div className="text-sm font-bold tabular-nums text-slate-100">{fmtTokens(pk.tokens)}</div>
+                <div className="mt-0.5 text-[11px] text-gold">¥{pk.price}</div>
+              </button>
+            ))}
       </div>
       <p className="mt-3 text-center text-[10px] leading-relaxed text-slate-600">
-        {payable === false
-          ? t`本服务尚未接入支付渠道，下单后无法完成付款`
-          : t`付款成功后额度自动到账；若长时间未到账请在订单里核对`}
+        {playItems
+          ? t`通过 Google Play 付款，额度付完即到账；套餐订阅暂未在这个渠道开放`
+          : payable === false
+            ? t`本服务尚未接入支付渠道，下单后无法完成付款`
+            : t`付款成功后额度自动到账；若长时间未到账请在订单里核对`}
       </p>
     </Sheet>
   );

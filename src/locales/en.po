@@ -2861,6 +2861,10 @@ msgstr "Ark {path}: network failure: {detail}"
 msgid "canvas 不可用"
 msgstr "Canvas unavailable"
 
+#: src/pages/ProfilePage.tsx
+msgid "Google Play 还在等这笔付款完成，到账后余额会自动更新"
+msgstr "Google Play is still waiting for this payment to clear; your balance updates once it does."
+
 #: src/components/VideoTemplateExtractor.tsx
 msgid "mp4 / mov · {maxMinutes} 分钟以内 · {maxMb}MB 以内 · 会<0>公开托管</0>（套用者出片时引用它）。"
 msgstr "MP4 / MOV · up to {maxMinutes, plural, one {# minute} other {# minutes}} · up to {maxMb} MB · will be <0>hosted publicly</0> (videos made from the template reference it)."
@@ -3954,9 +3958,22 @@ msgstr "Circled from a video ({0})"
 msgid "从预览截一张"
 msgstr "Capture from preview"
 
+#. placeholder {0}: r.detail ?? ""
+#: src/pages/ProfilePage.tsx
+msgid "付款成功了，但这笔额度发不出来：{0}。请把这句话发给客服"
+msgstr "Your payment went through, but the tokens could not be issued: {0}. Please send this message to support."
+
+#: src/pages/ProfilePage.tsx
+msgid "付款成功了，但额度还没能发到账上——重新打开这一页会自动再试一次"
+msgstr "Your payment went through, but the tokens have not landed yet — reopening this page retries automatically."
+
 #: src/pages/ProfilePage.tsx
 msgid "付款成功后额度自动到账；若长时间未到账请在订单里核对"
 msgstr "Tokens are credited automatically after payment; if they don't arrive for a long time, check the order"
+
+#: src/pages/ProfilePage.tsx
+msgid "付款没有完成"
+msgstr "The payment did not complete."
 
 #: src/pages/ProfilePage.tsx
 msgid "付费"
@@ -8330,6 +8347,16 @@ msgstr "You've reached the limit of {MAX_CARD_VIEWS, plural, one {# image} other
 msgid "已到账"
 msgstr "Credited"
 
+#. placeholder {0}: fmtTokens(r.tokens)
+#: src/pages/ProfilePage.tsx
+msgid "已到账 {0} token"
+msgstr "{0} token added."
+
+#. placeholder {0}: fmtTokens(r.tokens)
+#: src/pages/ProfilePage.tsx
+msgid "已到账 {0} token（含之前未取回的那一笔）"
+msgstr "{0} token added, including an earlier purchase that had not been collected."
+
 #: src/pages/ProfilePage.tsx
 msgid "已到账 {got} token"
 msgstr "{got} tokens credited"
@@ -8369,6 +8396,10 @@ msgstr "{app} sign-in cancelled."
 #: src/studio/live2dUploadStore.ts
 msgid "已取消上传。要发布的话重新点一次「开始识别」。"
 msgstr "Upload canceled. To publish, tap “Start detection” again."
+
+#: src/pages/ProfilePage.tsx
+msgid "已取消付款"
+msgstr "Payment cancelled."
 
 #: src/pages/CutPage.tsx
 msgid "已取消合并。片段、圈选和配乐都还在，随时可以重新开始。"
@@ -8432,6 +8463,16 @@ msgstr "Reset — each screen will show its guide again next time"
 #: src/pages/SupportPersonasPage.tsx
 msgid "已恢复默认人格，返回客服页生效。"
 msgstr "Default persona restored. It takes effect when you go back to the support page."
+
+#. placeholder {0}: fmtTokens(r.tokens)
+#: src/components/PlayPurchaseSweep.tsx
+msgid "已把上一笔 Google Play 购买取回，到账 {0} token"
+msgstr "Collected your previous Google Play purchase: {0} token added."
+
+#. placeholder {0}: fmtTokens(r.tokens)
+#: src/pages/ProfilePage.tsx
+msgid "已把上一笔购买取回，到账 {0} token"
+msgstr "Collected your previous purchase: {0} token added."
 
 #: src/components/BlockButton.tsx
 msgid "已拉黑"
@@ -11210,6 +11251,10 @@ msgstr "A segment finished generating, but it's no longer in the pipeline — re
 #: src/studio/signOutGuard.ts
 #~ msgid "有一段视频正在生成（钱在提交那一刻已经扣了）。等它出片再退出登录，结果才会稳稳落在这个账号里。"
 #~ msgstr "A video segment is generating (it was charged when submitted). Wait for it to finish before logging out, so the result lands safely in this account."
+
+#: src/pages/ProfilePage.tsx
+msgid "有一笔已付款的购买还没能取回，稍后会自动重试；若长时间没到账请联系客服"
+msgstr "A paid purchase has not been collected yet; we keep retrying. If it never lands, please contact support."
 
 #: src/studio/flowStore.ts
 msgid "有两张不同的卡都叫「{cardName}」（位置 {slotLabel} 挂的是其中一张）——出片时靠角色名把形象图接到这个位子上，重名就分不出谁是谁，会换错人。请给其中一张改个名字，或换一张卡"
@@ -18341,6 +18386,10 @@ msgstr "This device can't process the photo (canvas unavailable)"
 msgid "这台设备既没有云端语音，系统也没装中文语音包，试听不了"
 msgstr "This device has no cloud voice and no Chinese system voice pack, so preview isn't available"
 
+#: src/pages/ProfilePage.tsx
+msgid "这台设备暂时不能用 Google Play 付款"
+msgstr "This device cannot pay through Google Play right now."
+
 #: src/utils/nativeCamera.ts
 msgid "这台设备没有可用的相机"
 msgstr "This device has no camera available"
@@ -19172,6 +19221,10 @@ msgstr "Couldn't load notifications: {0}"
 #: src/pages/NotificationsPage.tsx
 msgid "通知需要连上服务器 · 当前是离线模式"
 msgstr "Notifications need a server connection · you're offline"
+
+#: src/pages/ProfilePage.tsx
+msgid "通过 Google Play 付款，额度付完即到账；套餐订阅暂未在这个渠道开放"
+msgstr "Paid through Google Play; tokens land as soon as the payment clears. Plan subscriptions are not available on this channel yet."
 
 #: src/components/flow/SkillPanel.tsx
 msgid "逛技能市场"

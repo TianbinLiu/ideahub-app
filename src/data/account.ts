@@ -24,6 +24,8 @@ import { API_ON, ApiError, emitApiError, getToken, resetServerProbe, serverAlive
 import * as authApi from "../api/auth";
 import * as branch from "../api/branch";
 import * as walletApi from "../api/wallet";
+import { PlayBilling, playBillingAvailable, type PlayPurchase } from "../utils/playBilling";
+import { nativeErrorCode } from "../utils/nativeLoginError";
 
 export interface User {
   id: string;
@@ -949,6 +951,140 @@ export async function buyPlan(planId: string): Promise<RechargeResult> {
 /** 订单结算后刷新镜像。UI 轮询到 settled 时调 */
 export async function refreshWalletAfterOrder(): Promise<void> {
   await refreshRemoteWallet();
+}
+
+// ── Google Play 结算（play 渠道）────────────────────────────────
+//
+// ★★ 这条链路与上面那套下单（createRechargeOrder）**完全不同**：Play 那边先收钱，
+//   我们拿着 purchaseToken 去服务端兑。所以没有"订单待支付"这种中间态，
+//   也不需要轮询 —— 兑那一发回来就已经发币了。
+//
+// ★★ **兑不上不是"失败"，是"钱已经收了、币还没发"**。所以：
+//   ① 兑失败只在能重试的那几档重试（502 / 断网），其余立刻如实报错；
+//   ② 每次开钱包抽屉、以及每次启动都扫一遍 Play 那边还挂着的购买（sweepPlayPurchases）。
+//   Play 的消耗型商品在服务端 consume 之前一直查得到，这就是我们的补偿依据。
+//   ⚠ 少了 ②，"兑那一发正好断网"就等于用户白付一笔钱，而且端上一个字都不会说。
+
+export type PlayBuyResult =
+  /** 到账了（tokens = 这次一共发了多少；recovered = 顺带把之前卡住的那笔也兑了） */
+  | { kind: "granted"; tokens: number; recovered?: boolean }
+  /** Play 说还在等付款（现金、需要审批的支付方式）。钱没到，币也没发 —— 不是错误 */
+  | { kind: "pending" }
+  | { kind: "canceled" }
+  /** 这台设备 / 这个包 / 这台服务器不支持 Play 支付 */
+  | { kind: "unavailable"; detail?: string }
+  | { kind: "login" }
+  /** Play 那一半失败（没拉起收银台、商品不存在、Play 服务不可用…）。code 是 PLAY_<响应码> 一类 */
+  | { kind: "play-failed"; detail?: string; code?: string }
+  /** 钱收了但兑不上。★ retryable = 还值得再试（用户可以再点一次「取回」），否则要找客服 */
+  | { kind: "redeem-failed"; detail?: string; code?: string; retryable: boolean };
+
+/** 兑一笔，带重试。★ 只重试真的可能自己好起来的那几档 */
+async function redeemOne(token: string): Promise<{ granted: number } | { error: PlayBuyResult }> {
+  // 三次、间隔 1.5s / 4s：够穿过一次 502 或几秒的断网，又不会把用户按在等待里太久。
+  // ★ 服务端幂等，所以重试不会多发币（walletApi.redeemPlayPurchase 的 ★）。
+  const delays = [1500, 4000];
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const r = await walletApi.redeemPlayPurchase(token);
+      return { granted: r.granted };
+    } catch (e) {
+      const status = e instanceof ApiError ? e.status : 0;
+      const code = e instanceof ApiError ? e.code : "";
+      const detail = e instanceof Error ? e.message : undefined;
+      // ★ 按 **status/code** 分档，绝不按 message 里的中文关键词（那会在多语言之后静默失灵）
+      const retryable = status === 0 || status === 502 || status === 503 || status === 504;
+      if (!retryable || attempt >= delays.length) {
+        return { error: { kind: "redeem-failed", detail, code, retryable } };
+      }
+      await new Promise((r) => setTimeout(r, delays[attempt]));
+    }
+  }
+}
+
+/**
+ * 用 Google Play 买一包 token。
+ *
+ * @param sku 必须与服务端 `config/play.js` 以及 Play Console 里的商品 id 逐字相同
+ *            （界面里的 sku 来自 `/api/pay/config` 的 play.products，别在前端另写一份）
+ */
+export async function buyWithPlay(sku: string): Promise<PlayBuyResult> {
+  if (!remoteOn() || !currentUser()) return { kind: "login" };
+  if (!(await playBillingAvailable())) return { kind: "unavailable" };
+
+  // ① 先拿账号绑定用的混淆 id。拿不到就**不买** —— 见 utils/playBilling 的 ★
+  let accountId: string;
+  try {
+    accountId = (await walletApi.fetchPlayAccount()).obfuscatedAccountId;
+  } catch (e) {
+    const status = e instanceof ApiError ? e.status : 0;
+    emitApiError("buyWithPlay/account", e);
+    if (status === 501) return { kind: "unavailable", detail: e instanceof Error ? e.message : undefined };
+    return { kind: "play-failed", detail: e instanceof Error ? e.message : undefined };
+  }
+  if (!accountId) return { kind: "unavailable" };
+
+  // ② 拉起 Play 收银台。结果可能几分钟后才回（用户在里面换卡/验指纹）
+  let purchases: PlayPurchase[];
+  let recovered = false;
+  try {
+    const r = await PlayBilling.purchase({ sku, obfuscatedAccountId: accountId });
+    purchases = r.purchases || [];
+    recovered = Boolean(r.recovered);
+  } catch (e) {
+    const code = nativeErrorCode(e);
+    if (code === "USER_CANCELED") return { kind: "canceled" };
+    if (code === "UNSUPPORTED") return { kind: "unavailable" };
+    return { kind: "play-failed", detail: e instanceof Error ? e.message : undefined, code };
+  }
+
+  // ③ 交给服务端兑。★ PENDING 的**不能兑**（钱还没到，服务端会回 NOT_PURCHASED）
+  const ready = purchases.filter((p) => p.state === "PURCHASED");
+  if (!ready.length) {
+    return purchases.some((p) => p.state === "PENDING") ? { kind: "pending" } : { kind: "play-failed" };
+  }
+  let tokens = 0;
+  let firstError: PlayBuyResult | null = null;
+  for (const p of ready) {
+    const r = await redeemOne(p.purchaseToken);
+    if ("granted" in r) tokens += r.granted;
+    else if (!firstError) firstError = r.error;
+  }
+  await refreshRemoteWallet();
+  // ★ 有一笔兑上了就算到账（多笔的情况只发生在"顺带把卡住的那笔也兑了"），
+  //   但一笔都没成时要如实说失败 —— 不能拿个"已到账"糊过去。
+  if (tokens > 0) return { kind: "granted", tokens, recovered: recovered || ready.length > 1 };
+  return firstError ?? { kind: "redeem-failed", retryable: true };
+}
+
+/**
+ * 扫一遍 Play 那边还挂着、服务端还没 consume 的购买，能兑的都兑掉。
+ *
+ * ★★ 这是"付了钱没拿到东西"的唯一出路：兑那一发断网 / 进程被杀之后，
+ *   端上没有任何东西会自己重来。启动时扫一次、开钱包时再扫一次。
+ * ★ 一句话都不说地静默失败是可以的（用户没在等这件事），但**成功要说**：
+ *   调用方拿到 tokens>0 就该告诉用户"上一笔已经到账了"。
+ */
+export async function sweepPlayPurchases(): Promise<{ tokens: number; stuck: number }> {
+  if (!remoteOn() || !currentUser()) return { tokens: 0, stuck: 0 };
+  if (!(await playBillingAvailable())) return { tokens: 0, stuck: 0 };
+  let list: PlayPurchase[];
+  try {
+    list = (await PlayBilling.pendingPurchases()).purchases || [];
+  } catch {
+    return { tokens: 0, stuck: 0 }; // Play 连不上：不是现在要解决的事
+  }
+  const ready = list.filter((p) => p.state === "PURCHASED");
+  if (!ready.length) return { tokens: 0, stuck: 0 };
+  let tokens = 0;
+  let stuck = 0;
+  for (const p of ready) {
+    const r = await redeemOne(p.purchaseToken);
+    if ("granted" in r) tokens += r.granted;
+    else stuck += 1;
+  }
+  if (tokens > 0) await refreshRemoteWallet();
+  return { tokens, stuck };
 }
 
 /** 给创作者进账（观看付费分成）：按作者名找本地账号，找不到则静默丢弃 */
