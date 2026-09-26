@@ -57,6 +57,7 @@ import { useLingui } from "@lingui/react";
 // ★ 宏包这里只引 Trans：上一行的 useLingui 来自运行时包，根组件调它只为订阅语言变化（整棵树跟着重渲，见 App() 里那段 ★）；再从宏包引同名的会撞标识符
 import { Trans } from "@lingui/react/macro";
 import useOrientationLock from "./hooks/useOrientationLock";
+import PlayPurchaseSweep from "./components/PlayPurchaseSweep";
 import { signInWithOauthToken, signOut } from "./data/account";
 import { initOauthDeepLink, onOauthResult } from "./utils/oauth";
 
@@ -254,6 +255,7 @@ export default function App() {
       <OauthDeepLinkBridge />
       <OrientationGuard />
       <UpdateGate />
+      <PlayPurchaseSweep />
       <TermsGate />
       {/* 本机数据库被系统判为损坏、清空重建过：开机如实说一次（data/db 的 noteDataLoss ★★） */}
       <DataLossNotice />

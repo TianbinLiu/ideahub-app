@@ -15,4 +15,8 @@ ext {
     cordovaAndroidVersion = '14.0.1'
     // 成片合并用（VideoMergePlugin）：AndroidX Media3 Transformer，见 app/build.gradle 那段 ★★
     media3Version = '1.11.0'
+    // Google Play 结算（PlayBillingPlugin，只进 play 渠道）。★ 版本钉死别用 +：
+    //   这个库的 API 在大版本间真的改（8.0 把 queryProductDetailsAsync 的回调换成了
+    //   QueryProductDetailsResult），而它出错的方式是「收了钱没发货」。
+    playBillingVersion = '9.1.0'
 }

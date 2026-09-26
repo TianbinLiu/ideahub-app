@@ -216,6 +216,11 @@ dependencies {
     implementation "androidx.media3:media3-effect:$media3Version"
     implementation "androidx.media3:media3-common:$media3Version"
     implementation "androidx.media3:media3-exoplayer:$media3Version"
+    // ★★ Google Play 结算：**只给 play 渠道**（playImplementation）。侧载包里一行结算代码
+    //   都不带 —— 侧载装的包调 Play Billing 一律 BILLING_UNAVAILABLE（3），带上它只会让
+    //   APK 更大、并多一条 com.android.vending.BILLING 权限。
+    //   两个渠道各有一份 PlayBillingPlugin（src/play 真实现 / src/sideload 空壳）。
+    playImplementation "com.android.billingclient:billing:$playBillingVersion"
     implementation project(':capacitor-android')
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
