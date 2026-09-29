@@ -16,6 +16,9 @@ import Icon, { type IconName } from "../components/Icon";
 import PageHeader from "../components/PageHeader";
 import { useBackOr } from "../hooks/useBackOr";
 import { listLive2dModels, listPersonas, listVoiceTemplates } from "../api/companion";
+import { openExternal } from "../utils/openExternal";
+import { tutorUrl } from "../utils/shareLink";
+import { showToast } from "../data/toast";
 
 /** null = 还没问到 / 问失败了（不显示数字）；数字 = 服务端认账的那个数 */
 type Count = number | null;
@@ -116,6 +119,20 @@ export default function SupportCreatePage() {
           count={personas}
           cta={t`去制作`}
           onGo={() => navigate("/support/personas/new")}
+        />
+        {/* 第四扇门「人物 → 老师」（tutor 仓 docs/06 §5.1，2026-09-29）：不在 App 里做 —— 启梦老师是官网功能（阅读面 + 导学漫游都在网页），这里只是一扇门。
+            没有「我的作品 n」那一行：老师的数不在上面三条 scope=mine 里，问不到就不摆（不显示成 0）。?from=app-create 只用来记引流 */}
+        <CreateCard
+          icon="compass"
+          emoji="🎓"
+          title={t`人物 → 老师`}
+          desc={t`把自己的课件交给 AI，铸一位按你的材料讲课的老师，在官网上课；勾了「同时发布为启梦人格」的老师还能装进数字人。`}
+          count={null}
+          cta={t`去官网制作`}
+          onGo={() => {
+            const url = tutorUrl("app-create");
+            void openExternal(url).catch(() => showToast(t`没能打开浏览器（可能被拦截了）。你可以直接访问 ${url}`));
+          }}
         />
       </div>
 

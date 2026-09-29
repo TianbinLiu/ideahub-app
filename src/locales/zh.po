@@ -2833,6 +2833,10 @@ msgstr "AI 生成整套约 {aiPriceText} token，余额 {balance} 不够——�
 msgid "AI 看哪几帧"
 msgstr "AI 看哪几帧"
 
+#: src/pages/SettingsPage.tsx
+msgid "AI 老师（网页版）"
+msgstr "AI 老师（网页版）"
+
 #: src/studio/ui/PlanBoard.tsx
 msgid "AI 自拟开头帧"
 msgstr "AI 自拟开头帧"
@@ -3852,6 +3856,10 @@ msgstr "人格草稿写好了"
 #: src/types.ts
 msgid "人物"
 msgstr "人物"
+
+#: src/pages/SupportCreatePage.tsx
+msgid "人物 → 老师"
+msgstr "人物 → 老师"
 
 #. placeholder {0}: at + 1
 #: src/components/blockout/RoleCastBoard.tsx
@@ -6149,6 +6157,10 @@ msgstr "去发布"
 #: src/components/ForgeOverlay.tsx
 msgid "去取回这一段"
 msgstr "去取回这一段"
+
+#: src/pages/SupportCreatePage.tsx
+msgid "去官网制作"
+msgstr "去官网制作"
 
 #: src/components/UpdateSheet.tsx
 msgid "去开启「允许安装未知应用」"
@@ -9646,6 +9658,10 @@ msgstr "把整篇剧本贴进来：谁在哪儿做什么、接着发生什么…
 msgid "把构图示意融成开头帧…"
 msgstr "把构图示意融成开头帧…"
 
+#: src/pages/SupportCreatePage.tsx
+msgid "把自己的课件交给 AI，铸一位按你的材料讲课的老师，在官网上课；勾了「同时发布为启梦人格」的老师还能装进数字人。"
+msgstr "把自己的课件交给 AI，铸一位按你的材料讲课的老师，在官网上课；勾了「同时发布为启梦人格」的老师还能装进数字人。"
+
 #: src/studio/flowStore.ts
 msgid "把角色放进白模画面…"
 msgstr "把角色放进白模画面…"
@@ -12800,6 +12816,7 @@ msgid "没能打开{app}的授权页。确认装的是正式版{app}并且版本
 msgstr "没能打开{app}的授权页。确认装的是正式版{app}并且版本不太旧，或者用手机号、邮箱登录。"
 
 #: src/pages/SettingsPage.tsx
+#: src/pages/SupportCreatePage.tsx
 msgid "没能打开浏览器（可能被拦截了）。你可以直接访问 {url}"
 msgstr "没能打开浏览器（可能被拦截了）。你可以直接访问 {url}"
 
@@ -13619,6 +13636,10 @@ msgstr "用空格或逗号分隔，最多 {TAG_MAX} 个"
 #: src/pages/CreatePage.tsx
 msgid "用素材卡定人物场景，全片一致"
 msgstr "用素材卡定人物场景，全片一致"
+
+#: src/pages/SettingsPage.tsx
+msgid "用自己的教材铸一位老师，在官网上课"
+msgstr "用自己的教材铸一位老师，在官网上课"
 
 #: src/components/CoverPicker.tsx
 msgid "用这一帧作封面"

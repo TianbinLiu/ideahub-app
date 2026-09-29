@@ -10,7 +10,6 @@
 import { useEffect, useState } from "react";
 import PageHeader from "../components/PageHeader";
 import { Link, useNavigate } from "react-router";
-import { Browser } from "@capacitor/browser";
 import Icon from "../components/Icon";
 import ConfirmDialog from "../components/ConfirmDialog";
 import InfoDialog from "../components/InfoDialog";
@@ -19,8 +18,8 @@ import { signOut, isAdmin, isRemoteMode } from "../data/account";
 import { signOutBlocker } from "../studio/signOutGuard";
 import { useCurrentUser } from "../hooks/useAccount";
 import { resetGuidesSeen } from "../data/guide";
-import { childSafetyUrl } from "../utils/shareLink";
-import { isNative } from "../data/appUpdate";
+import { childSafetyUrl, tutorUrl } from "../utils/shareLink";
+import { openExternal } from "../utils/openExternal";
 import { getQuality, qualityLabel } from "../studio/quality";
 import { currentVoice } from "../studio/voices";
 import { checkUpdate, currentVersion, selfUpdateSupported, type UpdateInfo } from "../data/appUpdate";
@@ -85,6 +84,9 @@ export default function SettingsPage() {
         {/* 创作中心（2026-09-07）：客服页那一列小键的第四颗是主入口，这里是第二条路 ——
             那一列在对话很热闹时可能被底部输入区盖住（SupportPage 那段量法），唯一入口不能只有一条 */}
         <NavRow to="/support/create" emoji="✨" title={t`创作中心`} sub={t`自己做模型 · 音频 · 人格，可发布到市场`} />
+        {/* 启梦老师（tutor 仓 docs/06 §5.1，2026-09-29）：网页功能、不在 App 里，所以是外链不是路由 —— 与上面儿童安全页同一个理由：正文只在官网一份。
+            ?from=app-settings 只用来记引流（服务端只记不奖励，落地即抹掉）。⚠ 落到官网用的是那个浏览器里的登录态，不是 App 的；没登录过会先去登录再回来 */}
+        <ExtDocRow emoji="🎓" title={t`AI 老师（网页版）`} sub={t`用自己的教材铸一位老师，在官网上课`} url={tutorUrl("app-settings")} />
       </Group>
 
       {/* ── 协议与须知 ────────────────────────────────────────────
@@ -322,12 +324,7 @@ function ExtDocRow({ emoji, title, sub, url }: { emoji: string; title: string; s
         onClick={async () => {
           setErr("");
           try {
-            if (isNative()) {
-              await Browser.open({ url });
-            } else if (!window.open(url, "_blank", "noopener")) {
-              // 拦截弹窗时 window.open 回 null（不抛错）—— 这才是网页下真正的失败形状
-              throw new Error("popup blocked");
-            }
+            await openExternal(url); // 原生 Browser.open / 网页 window.open（被拦截时 throw）：唯一实现在 utils/openExternal
           } catch {
             setErr(t`没能打开浏览器（可能被拦截了）。你可以直接访问 ${url}`);
           }

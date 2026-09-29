@@ -2833,6 +2833,10 @@ msgstr "Generating the full set with AI costs about {aiPriceText} tokens, and yo
 msgid "AI 看哪几帧"
 msgstr "Frames for the AI to look at"
 
+#: src/pages/SettingsPage.tsx
+msgid "AI 老师（网页版）"
+msgstr "AI Tutor (web)"
+
 #: src/studio/ui/PlanBoard.tsx
 msgid "AI 自拟开头帧"
 msgstr "AI draws the opening frame"
@@ -3852,6 +3856,10 @@ msgstr "The persona draft is ready"
 #: src/types.ts
 msgid "人物"
 msgstr "Character"
+
+#: src/pages/SupportCreatePage.tsx
+msgid "人物 → 老师"
+msgstr "Character → Tutor"
 
 #. placeholder {0}: at + 1
 #: src/components/blockout/RoleCastBoard.tsx
@@ -6149,6 +6157,10 @@ msgstr "Go publish"
 #: src/components/ForgeOverlay.tsx
 msgid "去取回这一段"
 msgstr "Go recover this segment"
+
+#: src/pages/SupportCreatePage.tsx
+msgid "去官网制作"
+msgstr "Make it on the website"
 
 #: src/components/UpdateSheet.tsx
 msgid "去开启「允许安装未知应用」"
@@ -9646,6 +9658,10 @@ msgstr "Paste the whole script: who does what where, what happens next… (a syn
 msgid "把构图示意融成开头帧…"
 msgstr "Fusing the composition into the opening frame…"
 
+#: src/pages/SupportCreatePage.tsx
+msgid "把自己的课件交给 AI，铸一位按你的材料讲课的老师，在官网上课；勾了「同时发布为启梦人格」的老师还能装进数字人。"
+msgstr "Hand your course materials to AI and get a teacher who teaches from them, on the website; a tutor published with “also publish as a QiMeng persona” can even be installed on your companion."
+
 #: src/studio/flowStore.ts
 msgid "把角色放进白模画面…"
 msgstr "Placing characters into the blockout frame…"
@@ -12800,6 +12816,7 @@ msgid "没能打开{app}的授权页。确认装的是正式版{app}并且版本
 msgstr "Couldn't open {app}'s sign-in page. Make sure you have the official {app} app and that it isn't too old, or sign in with your phone number or e-mail."
 
 #: src/pages/SettingsPage.tsx
+#: src/pages/SupportCreatePage.tsx
 msgid "没能打开浏览器（可能被拦截了）。你可以直接访问 {url}"
 msgstr "Couldn't open the browser (it may have been blocked). You can visit {url} directly"
 
@@ -13619,6 +13636,10 @@ msgstr "Separate with spaces or commas, up to {TAG_MAX}"
 #: src/pages/CreatePage.tsx
 msgid "用素材卡定人物场景，全片一致"
 msgstr "Cards pin down characters and scenes, consistent across the video"
+
+#: src/pages/SettingsPage.tsx
+msgid "用自己的教材铸一位老师，在官网上课"
+msgstr "Forge a teacher from your own materials and learn on the website"
 
 #: src/components/CoverPicker.tsx
 msgid "用这一帧作封面"
