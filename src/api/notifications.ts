@@ -51,6 +51,19 @@ export const BRANCH_NOTIFICATION_TYPES = [
    */
   "SUPPORT_TICKET",
   "SUPPORT_REPLY",
+  /**
+   * 老师人格四类（tutor 仓 docs/02 9.6 / 5.9 / 4.9；server 写入只在 tutorNotify.service，2026-09-29 M4 接进 App）：
+   *   TUTOR_RATING：有人给我发布的老师打了分，payload { personaId, personaName, stars, text }
+   *   TUTOR_COMMENT：有人评论了我发布的老师，payload { personaId, personaName, text? }
+   *   TUTOR_REVIEW_DUE：我在学的课有阶段到期该回访了（平台口径、无 actor），payload { courseId, personaName, count, stages, stageId }
+   *   TUTOR_DOC_UPDATED：我在学的老师出了新版，payload { personaId, personaName, version, courseId, note }
+   * 深链目标：有 courseId 的落 App 内 /tutor/run/:courseId；评分 / 评论落 /tutor（市场页只在官网）。
+   * ★★ 老 App（≤ 2.48）**收不到这四类**（请求层白名单，见上面 BRANCH_REVISED 那条 ★★），契约已写明。
+   */
+  "TUTOR_RATING",
+  "TUTOR_COMMENT",
+  "TUTOR_REVIEW_DUE",
+  "TUTOR_DOC_UPDATED",
 ] as const;
 
 export type BranchNotificationType = (typeof BRANCH_NOTIFICATION_TYPES)[number];
@@ -76,6 +89,15 @@ export interface ApiNotification {
     commentId?: string;
     parentCommentId?: string;
     commentText?: string;
+    /** 老师人格四类（见 BRANCH_NOTIFICATION_TYPES 的注释）；平台通知 / 工单也各自往这里放 text / preview / ticketId */
+    text?: string;
+    personaId?: string;
+    personaName?: string;
+    courseId?: string;
+    stars?: number;
+    count?: number;
+    version?: number;
+    note?: string;
   } | null;
   /** null = 未读 */
   readAt?: string | number | null;

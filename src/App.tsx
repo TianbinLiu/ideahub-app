@@ -45,6 +45,9 @@ import SupportPersonasPage from "./pages/SupportPersonasPage";
 import SupportCreatePage from "./pages/SupportCreatePage";
 import SupportModelNewPage from "./pages/SupportModelNewPage";
 import SupportPersonaNewPage from "./pages/SupportPersonaNewPage";
+import TutorHomePage from "./pages/tutor/TutorHomePage";
+import TutorNewPage from "./pages/tutor/TutorNewPage";
+import TutorRunPage from "./pages/tutor/TutorRunPage";
 import StudioPage from "./studio/StudioPage";
 import TabBar from "./components/TabBar";
 import { bootData, type BootFailure } from "./data/boot";
@@ -473,6 +476,12 @@ export default function App() {
           </RequireAuth>
         }
       />
+      {/* 启梦老师（2026-09-29 M4，tutor 仓 docs/06 §6）：课程列表 / 在 App 里上课 / 用 md·txt 建课。三条都套 RequireAuth
+          （服务端 /api/tutor 全线 requireAuth；判据是 RequireAuth 里的 authState 三态，不是 !user —— CLAUDE.md 坑表）。
+          离线模式（API_BASE 为空）里页面进门就整句说「需要联网」，教学记录是服务端真相、不进 IndexedDB */}
+      <Route path="/tutor" element={<RequireAuth><TutorHomePage /></RequireAuth>} />
+      <Route path="/tutor/new" element={<RequireAuth><TutorNewPage /></RequireAuth>} />
+      <Route path="/tutor/run/:id" element={<RequireAuth><TutorRunPage /></RequireAuth>} />
       <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>

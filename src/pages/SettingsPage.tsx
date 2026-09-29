@@ -18,7 +18,7 @@ import { signOut, isAdmin, isRemoteMode } from "../data/account";
 import { signOutBlocker } from "../studio/signOutGuard";
 import { useCurrentUser } from "../hooks/useAccount";
 import { resetGuidesSeen } from "../data/guide";
-import { childSafetyUrl, tutorUrl } from "../utils/shareLink";
+import { childSafetyUrl } from "../utils/shareLink";
 import { openExternal } from "../utils/openExternal";
 import { getQuality, qualityLabel } from "../studio/quality";
 import { currentVoice } from "../studio/voices";
@@ -84,9 +84,9 @@ export default function SettingsPage() {
         {/* 创作中心（2026-09-07）：客服页那一列小键的第四颗是主入口，这里是第二条路 ——
             那一列在对话很热闹时可能被底部输入区盖住（SupportPage 那段量法），唯一入口不能只有一条 */}
         <NavRow to="/support/create" emoji="✨" title={t`创作中心`} sub={t`自己做模型 · 音频 · 人格，可发布到市场`} />
-        {/* 启梦老师（tutor 仓 docs/06 §5.1，2026-09-29）：网页功能、不在 App 里，所以是外链不是路由 —— 与上面儿童安全页同一个理由：正文只在官网一份。
-            ?from=app-settings 只用来记引流（服务端只记不奖励，落地即抹掉）。⚠ 落到官网用的是那个浏览器里的登录态，不是 App 的；没登录过会先去登录再回来 */}
-        <ExtDocRow emoji="🎓" title={t`AI 老师（网页版）`} sub={t`用自己的教材铸一位老师，在官网上课`} url={tutorUrl("app-settings")} />
+        {/* 启梦老师（M3 是外链；2026-09-29 M4 起 App 内能上课了，tutor 仓 docs/06 §6）：进 App 内的 /tutor。
+            ?from=app-settings 只用来记引流（服务端只记不奖励，落地即抹掉）；PDF / PPTX 建课那条路仍在网页端，/tutor 页里有链接 */}
+        <NavRow to="/tutor?from=app-settings" emoji="🎓" title={t`AI 老师`} sub={t`用自己的教材铸一位老师，在 App 里上课`} />
       </Group>
 
       {/* ── 协议与须知 ────────────────────────────────────────────
