@@ -28,6 +28,7 @@ import {
 } from "../api/admin";
 import { isRemoteMode } from "../data/account";
 import { SUPPORT_EMAIL } from "../data/agreements";
+import { SITE_BASE } from "../utils/shareLink";
 import { useAuthState, useCurrentUser } from "../hooks/useAccount";
 import AuthPending from "./AuthPending";
 import { CloseButton } from "./IconTapButton";
@@ -161,6 +162,15 @@ export default function ReportButton({
                     </button>
                   ))}
                 </div>
+                {/* ★ 选了 NCII 时必须指一句法定通道：这个弹窗要登录、而且只能举报站内某个对象，
+                    可影像里的人往往根本没有我们的账号。ideahubs.org/takedown 免登录、
+                    有 48 小时法定时限（TAKE IT DOWN Act §3）。少这一句，最需要那条通道的人
+                    就只会在这里提交一条普通举报，然后以为已经走完了流程。 */}
+                {reason === "ncii" && (
+                  <p className="mt-2.5 rounded-xl border border-amber-700/60 bg-amber-950/40 px-3 py-2 text-[11px] leading-relaxed text-amber-100">
+                    <Trans>如果影像里的人是你自己：另有一条更直接的通道 —— {SITE_BASE}/takedown，不用登录，我们会在 48 小时内处理并查找站内的相同副本。</Trans>
+                  </p>
+                )}
                 <textarea
                   value={detail}
                   onChange={(e) => setDetail(e.target.value.slice(0, DETAIL_MAX))}

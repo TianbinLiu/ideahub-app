@@ -67,6 +67,14 @@ export const REPORT_REASONS = [
   //   还要依法报告主管机关"。合并成一个 key 会让它沉进刷屏举报里 —— 服务端靠这个 key
   //   把它顶到待处理队列最前（Report.URGENT_REASONS + priority）。
   { id: "csae", label: msg`涉及未成年人` },
+  // ★★ ncii 同样排在前面、同样不是 porn 的子类：TAKE IT DOWN Act §3 给的是
+  //   **48 小时**法定时限（2026-05-19 起 FTC 执法、无小企业豁免），混进 porn
+  //   就等于没有时限。服务端 `Report.URGENT_REASONS` 里有它，会顶到队首。
+  //   ⚠ 这一项**不是**法条要求的那条通道 —— 那条是**免登录**的 ideahubs.org/takedown
+  //   （受害者通常没有我们的账号），本项只是给已登录用户的站内快捷入口，
+  //   **不产生**服务端 48 小时计时。两条都要有：一条满足法条，一条满足 Play
+  //   的「应用内可举报」。举报理由里出现它，界面上就该顺带指一句那个网址。
+  { id: "ncii", label: msg`未经同意的私密影像` },
   { id: "porn", label: msg`色情低俗` },
   { id: "violence", label: msg`血腥暴力` },
   { id: "abuse", label: msg`人身攻击 / 辱骂` },

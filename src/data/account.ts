@@ -24,6 +24,8 @@ import { API_ON, ApiError, emitApiError, getToken, resetServerProbe, serverAlive
 import * as authApi from "../api/auth";
 import * as branch from "../api/branch";
 import * as walletApi from "../api/wallet";
+import { PlayBilling, playBillingAvailable, type PlayPurchase } from "../utils/playBilling";
+import { nativeErrorCode } from "../utils/nativeLoginError";
 
 export interface User {
   id: string;
@@ -663,7 +665,7 @@ export function isCollected(videoId: string): boolean {
 // 也就不存在"骗谁的钱"。
 
 /** 远端模式的钱包镜像。null = 还没取到（未登录/请求未回来） */
-let remoteWallet: { plan: number; addon: number; planId: string } | null = null;
+let remoteWallet: { plan: number; addon: number; planId: string; debt: number; frozen: boolean } | null = null;
 
 /**
  * 镜像里的 planId 是不是**服务端说过的**。
@@ -679,10 +681,20 @@ let remoteWallet: { plan: number; addon: number; planId: string } | null = null;
 let planIdConfirmed = false;
 
 /** 用服务端的权威值覆盖镜像。由 /api/ark 的响应头与 GET /api/me/wallet 调用 */
-export function syncRemoteWallet(next: { plan: number; addon: number; planId?: string } | null): void {
+export function syncRemoteWallet(next: { plan: number; addon: number; planId?: string; debt?: number; frozen?: boolean } | null): void {
   if (!next) return;
   if (next.planId) planIdConfirmed = true;
-  remoteWallet = { plan: next.plan, addon: next.addon, planId: next.planId ?? remoteWallet?.planId ?? "free" };
+  // ★ debt 缺省时**保留镜像里的旧值**而不是清零：/api/ark 的响应头在不欠钱时根本不发
+  //   X-Wallet-Debt（少发一个头），清零会让「刚被冻结」这件事在下一次生成请求后自己消失。
+  //   真正解冻由服务端在 GET /api/me/wallet（带 debt: 0）或带头的那一次说了算。
+  const debt = next.debt ?? remoteWallet?.debt ?? 0;
+  remoteWallet = {
+    plan: next.plan,
+    addon: next.addon,
+    planId: next.planId ?? remoteWallet?.planId ?? "free",
+    debt,
+    frozen: next.frozen ?? debt > 0,
+  };
   emit();
 }
 
@@ -707,7 +719,7 @@ function ensureWallet(u: User): NonNullable<User["wallet"]> {
 }
 
 /** 当前用户钱包快照（未登录返回 null）。远端模式读镜像，离线模式读本地账本 */
-export function walletOf(): { plan: number; addon: number; planId: string } | null {
+export function walletOf(): { plan: number; addon: number; planId: string; debt?: number; frozen?: boolean } | null {
   if (remoteOn()) return currentUser() ? remoteWallet : null;
   const u = currentUser();
   if (!u || !db) return null;
@@ -724,8 +736,31 @@ export function walletOf(): { plan: number; addon: number; planId: string } | nu
  *   就是**反向假特权**——权限最大的人被自己这边挡在门外，看到的还是一句
  *   与事实相反的"余额不足"。免扣费这件事由 TokenCost 在报价那一行如实写出来。
  */
+/**
+ * 钱包是不是被退款欠额冻住了 —— **唯一实现**（方案 §15.4 R-7）。
+ *
+ * ★★ 为什么不能沿用 canAfford 那套「镜像没到位就放行」：冻结不是「钱不够」，
+ *   而是「充多少都先抵债」。放行的后果是用户看到正常报价、点下去吃 403，
+ *   而那条 403 在各个调用点的处置又各不相同。所以冻结**由服务端明说**
+ *   （wallet.frozen / X-Wallet-Debt 头），镜像里没有就当没冻。
+ * ★ 管理员不受影响：服务端对他根本不扣费，也就不会有欠额。
+ */
+export function walletFrozen(): { debt: number } | null {
+  if (billingExempt()) return null;
+  const w = walletOf();
+  if (!w || !w.frozen) return null;
+  return { debt: w.debt ?? 0 };
+}
+
 export function canAfford(n: number): boolean {
   if (billingExempt()) return true;
+  // ★★ 冻结也要在这里拦（2026-09-25 评审）：`walletFrozen()` 原来只接进 TokenCost 与
+  //   balanceNote 两处**文案**，而全 app 有 19+ 处预检走的是 canAfford ——
+  //   于是欠额用户的按钮照样点得动，点下去吃 403。更要命的是跨月刷新**刻意不碰 debt**
+  //   （防退款套利），所以他会**整整一个月**处在「满额度 + 冻结」，预检恒放行。
+  //   工坊铸卡师那条链路的 403 还会落进「（指尖停在桌沿）走神了」这种兜底台词，
+  //   用户完全不知道发生了什么。
+  if (walletFrozen()) return false;
   if (remoteOn()) {
     if (!currentUser()) return false;
     if (!remoteWallet) return true; // 还不知道，交给服务端判
@@ -750,6 +785,11 @@ export function canAfford(n: number): boolean {
  */
 export function balanceNote(): string {
   if (billingExempt()) return t`管理员免扣费`;
+  const frozen = walletFrozen();
+  if (frozen) {
+    const owed = fmtTokens(frozen.debt);
+    return t`欠额 ${owed}，已冻结`;
+  }
   const w = walletOf();
   if (!w) return "";
   const amount = fmtTokens(w.plan + w.addon);
@@ -911,6 +951,140 @@ export async function buyPlan(planId: string): Promise<RechargeResult> {
 /** 订单结算后刷新镜像。UI 轮询到 settled 时调 */
 export async function refreshWalletAfterOrder(): Promise<void> {
   await refreshRemoteWallet();
+}
+
+// ── Google Play 结算（play 渠道）────────────────────────────────
+//
+// ★★ 这条链路与上面那套下单（createRechargeOrder）**完全不同**：Play 那边先收钱，
+//   我们拿着 purchaseToken 去服务端兑。所以没有"订单待支付"这种中间态，
+//   也不需要轮询 —— 兑那一发回来就已经发币了。
+//
+// ★★ **兑不上不是"失败"，是"钱已经收了、币还没发"**。所以：
+//   ① 兑失败只在能重试的那几档重试（502 / 断网），其余立刻如实报错；
+//   ② 每次开钱包抽屉、以及每次启动都扫一遍 Play 那边还挂着的购买（sweepPlayPurchases）。
+//   Play 的消耗型商品在服务端 consume 之前一直查得到，这就是我们的补偿依据。
+//   ⚠ 少了 ②，"兑那一发正好断网"就等于用户白付一笔钱，而且端上一个字都不会说。
+
+export type PlayBuyResult =
+  /** 到账了（tokens = 这次一共发了多少；recovered = 顺带把之前卡住的那笔也兑了） */
+  | { kind: "granted"; tokens: number; recovered?: boolean }
+  /** Play 说还在等付款（现金、需要审批的支付方式）。钱没到，币也没发 —— 不是错误 */
+  | { kind: "pending" }
+  | { kind: "canceled" }
+  /** 这台设备 / 这个包 / 这台服务器不支持 Play 支付 */
+  | { kind: "unavailable"; detail?: string }
+  | { kind: "login" }
+  /** Play 那一半失败（没拉起收银台、商品不存在、Play 服务不可用…）。code 是 PLAY_<响应码> 一类 */
+  | { kind: "play-failed"; detail?: string; code?: string }
+  /** 钱收了但兑不上。★ retryable = 还值得再试（用户可以再点一次「取回」），否则要找客服 */
+  | { kind: "redeem-failed"; detail?: string; code?: string; retryable: boolean };
+
+/** 兑一笔，带重试。★ 只重试真的可能自己好起来的那几档 */
+async function redeemOne(token: string): Promise<{ granted: number } | { error: PlayBuyResult }> {
+  // 三次、间隔 1.5s / 4s：够穿过一次 502 或几秒的断网，又不会把用户按在等待里太久。
+  // ★ 服务端幂等，所以重试不会多发币（walletApi.redeemPlayPurchase 的 ★）。
+  const delays = [1500, 4000];
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const r = await walletApi.redeemPlayPurchase(token);
+      return { granted: r.granted };
+    } catch (e) {
+      const status = e instanceof ApiError ? e.status : 0;
+      const code = e instanceof ApiError ? e.code : "";
+      const detail = e instanceof Error ? e.message : undefined;
+      // ★ 按 **status/code** 分档，绝不按 message 里的中文关键词（那会在多语言之后静默失灵）
+      const retryable = status === 0 || status === 502 || status === 503 || status === 504;
+      if (!retryable || attempt >= delays.length) {
+        return { error: { kind: "redeem-failed", detail, code, retryable } };
+      }
+      await new Promise((r) => setTimeout(r, delays[attempt]));
+    }
+  }
+}
+
+/**
+ * 用 Google Play 买一包 token。
+ *
+ * @param sku 必须与服务端 `config/play.js` 以及 Play Console 里的商品 id 逐字相同
+ *            （界面里的 sku 来自 `/api/pay/config` 的 play.products，别在前端另写一份）
+ */
+export async function buyWithPlay(sku: string): Promise<PlayBuyResult> {
+  if (!remoteOn() || !currentUser()) return { kind: "login" };
+  if (!(await playBillingAvailable())) return { kind: "unavailable" };
+
+  // ① 先拿账号绑定用的混淆 id。拿不到就**不买** —— 见 utils/playBilling 的 ★
+  let accountId: string;
+  try {
+    accountId = (await walletApi.fetchPlayAccount()).obfuscatedAccountId;
+  } catch (e) {
+    const status = e instanceof ApiError ? e.status : 0;
+    emitApiError("buyWithPlay/account", e);
+    if (status === 501) return { kind: "unavailable", detail: e instanceof Error ? e.message : undefined };
+    return { kind: "play-failed", detail: e instanceof Error ? e.message : undefined };
+  }
+  if (!accountId) return { kind: "unavailable" };
+
+  // ② 拉起 Play 收银台。结果可能几分钟后才回（用户在里面换卡/验指纹）
+  let purchases: PlayPurchase[];
+  let recovered = false;
+  try {
+    const r = await PlayBilling.purchase({ sku, obfuscatedAccountId: accountId });
+    purchases = r.purchases || [];
+    recovered = Boolean(r.recovered);
+  } catch (e) {
+    const code = nativeErrorCode(e);
+    if (code === "USER_CANCELED") return { kind: "canceled" };
+    if (code === "UNSUPPORTED") return { kind: "unavailable" };
+    return { kind: "play-failed", detail: e instanceof Error ? e.message : undefined, code };
+  }
+
+  // ③ 交给服务端兑。★ PENDING 的**不能兑**（钱还没到，服务端会回 NOT_PURCHASED）
+  const ready = purchases.filter((p) => p.state === "PURCHASED");
+  if (!ready.length) {
+    return purchases.some((p) => p.state === "PENDING") ? { kind: "pending" } : { kind: "play-failed" };
+  }
+  let tokens = 0;
+  let firstError: PlayBuyResult | null = null;
+  for (const p of ready) {
+    const r = await redeemOne(p.purchaseToken);
+    if ("granted" in r) tokens += r.granted;
+    else if (!firstError) firstError = r.error;
+  }
+  await refreshRemoteWallet();
+  // ★ 有一笔兑上了就算到账（多笔的情况只发生在"顺带把卡住的那笔也兑了"），
+  //   但一笔都没成时要如实说失败 —— 不能拿个"已到账"糊过去。
+  if (tokens > 0) return { kind: "granted", tokens, recovered: recovered || ready.length > 1 };
+  return firstError ?? { kind: "redeem-failed", retryable: true };
+}
+
+/**
+ * 扫一遍 Play 那边还挂着、服务端还没 consume 的购买，能兑的都兑掉。
+ *
+ * ★★ 这是"付了钱没拿到东西"的唯一出路：兑那一发断网 / 进程被杀之后，
+ *   端上没有任何东西会自己重来。启动时扫一次、开钱包时再扫一次。
+ * ★ 一句话都不说地静默失败是可以的（用户没在等这件事），但**成功要说**：
+ *   调用方拿到 tokens>0 就该告诉用户"上一笔已经到账了"。
+ */
+export async function sweepPlayPurchases(): Promise<{ tokens: number; stuck: number }> {
+  if (!remoteOn() || !currentUser()) return { tokens: 0, stuck: 0 };
+  if (!(await playBillingAvailable())) return { tokens: 0, stuck: 0 };
+  let list: PlayPurchase[];
+  try {
+    list = (await PlayBilling.pendingPurchases()).purchases || [];
+  } catch {
+    return { tokens: 0, stuck: 0 }; // Play 连不上：不是现在要解决的事
+  }
+  const ready = list.filter((p) => p.state === "PURCHASED");
+  if (!ready.length) return { tokens: 0, stuck: 0 };
+  let tokens = 0;
+  let stuck = 0;
+  for (const p of ready) {
+    const r = await redeemOne(p.purchaseToken);
+    if ("granted" in r) tokens += r.granted;
+    else stuck += 1;
+  }
+  if (tokens > 0) await refreshRemoteWallet();
+  return { tokens, stuck };
 }
 
 /** 给创作者进账（观看付费分成）：按作者名找本地账号，找不到则静默丢弃 */
@@ -1207,7 +1381,11 @@ function whyOf(e: unknown): string {
 }
 
 /**
- * 改一张卡的**名字 / 简介 / 关键词**（本地 + 远端）。**唯一入口**。
+ * 改一张卡的**名字 / 简介 / 关键词 / 出片句**（本地 + 远端）。**唯一入口**。
+ *
+ * ★ 出片句（`idLine`）2026-09-24 才加进来：出片时真正读的就是它（`types.idLineOf`），而简介
+ *   一个字都不进提示词（2026-09-18 起）。服务端那条 PATCH 同日才收下这一位（ideahub-server#80）——
+ *   在那之前客户端就算发了也是「发了、被 z.object strip、读回来是空的」。
  *
  * ★★ 为什么这条值得单开一个函数、且必须同步远端：此前根本改不了 —— 客户端的
  *   `updateCard` 只写本地（`persist()` 就完了），服务端那条 PATCH **只收 views**。
@@ -1220,7 +1398,7 @@ function whyOf(e: unknown): string {
  */
 export async function updateCardMeta(
   cardId: string,
-  patch: { name?: string; summary?: string; tags?: string[] },
+  patch: { name?: string; summary?: string; tags?: string[]; idLine?: string },
 ): Promise<string | null> {
   const u = currentUser();
   if (!u || !db) return t`还没登录，改不了。`;
@@ -1229,7 +1407,11 @@ export async function updateCardMeta(
   if (Object.keys(patch).length === 0) return null; // 什么都没改，不算失败
 
   // 本地先落：远端要一个往返，输入框不该吊在那儿等
-  const before = { name: c.name, summary: c.summary, tags: c.tags };
+  // ★★ 快照按**这次真给了的那几位**存（2026-09-24 加 idLine 时改的，原来写死三位）：
+  //   漏一位的后果是下面 catch 回滚不到它 —— 远端失败了、本地却留着新值，界面显示改成功了，
+  //   下次冷启动 loadRemoteAssets 整表覆盖又变回去。那种"改了又变回来"正是这段 catch 要防的。
+  const before: Record<string, unknown> = {};
+  for (const k of Object.keys(patch)) before[k] = (c as unknown as Record<string, unknown>)[k];
   Object.assign(c, patch);
   persist();
 

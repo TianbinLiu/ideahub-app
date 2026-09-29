@@ -36,8 +36,8 @@ android {
         // ⚠ 并行分支各自出过包，号互相追：更新清单发到 40/2.29；主人真机上先后装过 44（public-uid 支）
         //   与 45（工坤/造卡支）。2026-08-30 全分支合流时跳到 46 越过全部已知在外的号。
         //   此后一律 +1，且只在 main 上涨（见 CLAUDE.md「分支纪律」）。
-        versionCode 60
-        versionName "2.48"
+        versionCode 65
+        versionName "2.53"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         // ★ QQ 互联的 AppID 只写这一处，下面两个用处都从它派生：
         //     BuildConfig.QQ_APP_ID  —— 起授权时给 SDK
@@ -216,6 +216,11 @@ dependencies {
     implementation "androidx.media3:media3-effect:$media3Version"
     implementation "androidx.media3:media3-common:$media3Version"
     implementation "androidx.media3:media3-exoplayer:$media3Version"
+    // ★★ Google Play 结算：**只给 play 渠道**（playImplementation）。侧载包里一行结算代码
+    //   都不带 —— 侧载装的包调 Play Billing 一律 BILLING_UNAVAILABLE（3），带上它只会让
+    //   APK 更大、并多一条 com.android.vending.BILLING 权限。
+    //   两个渠道各有一份 PlayBillingPlugin（src/play 真实现 / src/sideload 空壳）。
+    playImplementation "com.android.billingclient:billing:$playBillingVersion"
     implementation project(':capacitor-android')
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"

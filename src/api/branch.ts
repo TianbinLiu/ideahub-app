@@ -730,7 +730,7 @@ export async function updateCardViews(cardId: string, views: Card["views"]): Pro
  */
 export async function updateCardMeta(
   cardId: string,
-  patch: { name?: string; summary?: string; tags?: string[] },
+  patch: { name?: string; summary?: string; tags?: string[]; idLine?: string },
 ): Promise<ApiCard | null> {
   const res = await apiPatch<Record<string, unknown>>(`/api/branch/cards/${encodeURIComponent(cardId)}`, patch);
   return pick<ApiCard>(res, ["card", "item", "data"]);

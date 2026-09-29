@@ -461,6 +461,35 @@ likes×6 + comments×4 + bookmarks×3 + min(views, 5000)×0.04
 App「我的 → AI 客服」（`/support`）的服务端。数字人是官网首页那位看板娘（Live2D，随 APK 打包在 `public/live2d/`），
 对话协议与官网 `/api/companion/chat` 相同（逐句 `sentence` 事件带 `[情绪][face][action]` 演出标签 + TTS 参数），多一个 `handoff`。
 
+★ **自伤危机协议（2026-09-24；2026-09-25 评审后扩到客服）现在覆盖三条链路**：
+`/api/companion/chat`（两种请求体）、`/api/personas/preview-chat`、**以及 `/api/support/chat`**。
+客服原来没接 —— 而它是 Play 上唯一的通用对话入口（同一位看板娘、同一套人格），
+「纯客服豁免」还没拍板，代码却已经按豁免在跑。现在口径与陪聊逐字相同。
+
+⚠ **接了守卫的链路不再发 `token` 事件**（未经检查的原始增量，发出去等于绕过守卫；两端 UI 都没用它）。
+下面 `/api/support/chat` 那一行里的 `token {t}` 从这一版起**不会再出现**。
+⚠ App 的**人格向导试聊**与**客服**都在协议内，而 App 现在不发 `caps`，命中时收到的是
+**退化形式**：一条普通 `sentence`（文案 = 求助卡的纯文本，带正常 tts 参数），后面直接 `done`。
+界面不会坏，但客服那条会被 TTS 念出来 —— App 接 `caps: ["safety"]` 那一版要把它改成卡片、并且不念。
+⚠ **`notice`（AI 身份告知）没有退化形式**：不带 caps 就**收不到**，而服务端会照常记成「已告知」。
+App 接 caps 之前，那条告知在 App 侧等于不存在 —— 这是已知缺口，不是降级显示。
+加州 SB 243 管的是「companion chatbot」，纯客服有豁免余地 —— 但我们的客服顶着同一位看板娘、同一套人格，
+这个豁免站不站得住还没拍板（见私密文档《AI 对话合规调研》），所以 App 这边要按「迟早要接」来准备：
+
+- 服务端会多两种事件，**不认识就不会发给你**：请求里带 `caps: ["safety","notice"]` 才发
+  `safety`（危机求助卡）与 `notice`（「我是 AI」告知）；不带 `caps` 的老客户端退化成一句普通 `sentence`，
+  界面不会坏，但求助卡会被当成台词念出来 —— 所以 App 接的那一版必须同时做到：收到 `safety` 就 `stopAll()`、
+  **不调 `/api/tts`**、不进字幕、不算数字人说的话。
+- `safety` 的形状：`{ kind: "crisis", trigger: "input"|"output", region: "US"|"CN"|"OTHER", title, body,
+  resources: [{ label, tel?, sms?, url? }], policyUrl, version }`；`notice` 的形状：`{ kind: "ai_disclosure", text }`。
+  热线按**访问者所在地区**给（服务端读 `CF-IPCountry`），不按界面语言 —— 界面英文但人在大陆时给 12356 才有用。
+  `done` 在输入命中那条链路上多带 `safety: true`（那一轮没调模型，也就没有 usage）。
+- 官网那侧还有 `PUT /api/companion/consent`（首次告知同意，空 body → `{ ok, consent: { version, at }, consented: true }`）
+  与 `GET /api/companion/config` 的 `safety` 块（`{ version, consentVersion, policyUrl, consentRequired, consented,
+  region, resources }`，**不登录也给**，只是 `consented` 恒为 false）；服务端开 `COMPANION_REQUIRE_CONSENT=1` 时，
+  没同意过的账号调陪聊会拿到 **428** `CONSENT_REQUIRED`。**这个开关只挡 `/api/companion/chat`，不挡客服**。
+- 协议细节公开在 https://ideahubs.org/safety/ai-chat （SB 243 §22602(b)(2) 要求公开），App 里要放链接时指这里。
+
 | 方法 | 路径 | 鉴权 | 说明 |
 |---|---|---|---|
 | GET | `/api/support/config` | optional | `{ ok, name, enabled, tts, asr, voice, loginRequired: true, quickQuestions[], categories[] }`。`asr=false`（或老服务端没这个字段）时不画麦克风。`enabled=false`（服务端没配 AI）时输入框禁用，只剩「转人工」。**2026-09-04 起登录时另带** `voiceSettings: VoiceSettings`（三层合并结果，见下）、`persona: PersonaSummary\|null`、`personaSource: "user"\|"model"\|""`、`model: Live2dModel\|null`（null = 官方内置）；老字段 `voice` = `voiceSettings.voiceId`。老服务端没有这四项 → App 按旧写法只传 `voice` |
@@ -2246,7 +2275,7 @@ AK/SK 只在服务端（`VOLC_AK`/`VOLC_SK`），**永不进 app 包**。
 
 | 方法 | 路径 | 鉴权 | 说明 |
 |---|---|---|---|
-| GET | `/api/pay/config` | 无 | `{ channels, payable, mock, packs, plans }`。`payable=false` = 现在收不了钱，UI 必须说出来 |
+| GET | `/api/pay/config` | 无 | `{ channels, payable, mock, packs, plans, play }`。`payable=false` = 这套下单收不了钱，UI 必须说出来；`play` 见下面「Google Play 结算」|
 | POST | `/api/pay/orders` | required | `{ kind: "recharge", tokens } \| { kind: "plan", planId }` → 201 `{ order, payParams, payable }` |
 | GET | `/api/pay/orders/:orderNo` | required | 查单（仅本人）。客户端付款后轮询它等 `status: "settled"` |
 | GET | `/api/pay/orders?limit=` | required | 我的订单列表 |
@@ -2292,6 +2321,53 @@ app 那份是【报价】（按下按钮前给用户看的），server 这份是
 **显示余额**与**按下按钮之前提前拦一道**，被绕过不会造成任何损失（服务端不认它）。
 25 处调用点因此保持同步签名不变；权威值随 `/api/ark` 的响应头覆盖回来，最多短暂偏差且自愈。
 离线模式（没配 `VITE_API_BASE`）下它仍然是唯一账本——那种包本来就不出网。
+
+### Google Play 结算（play 渠道，2026-09-26 接）
+
+Play 这条**与上面那套下单完全不同**：Play 那边先收钱，我们拿 `purchaseToken` 去服务端兑。
+没有"订单待支付"中间态，也不用轮询 —— 兑那一发回来就已经发币了。
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|---|---|---|---|
+| GET | `/api/pay/config` | 无 | 多一个 `play: { enabled, products: [{ sku, kind, tokens, label }] }`。`enabled=false` = 服务端没配齐（包名 + 服务账号缺一就整条关着） |
+| GET | `/api/pay/play/account` | required | `{ obfuscatedAccountId }`。发起购买时设进 Billing 的 `setObfuscatedAccountId` |
+| POST | `/api/pay/play/redeem` | required | `{ purchaseToken }` → `{ ok, code, granted, wallet }`。**幂等** |
+| POST | `/api/pay/play/rtdn?key=` | **无** | Google Pub/Sub 推送（退款通知）。密钥没配时一律 404 |
+
+App 侧：`utils/playBilling.ts`（原生插件封装）+ `data/account.ts` 的
+`buyWithPlay` / `sweepPlayPurchases`；原生实现 `android/app/src/play/java/.../PlayBillingPlugin.java`
+（sideload 渠道是同名空壳，`isAvailable()` 回 false）。
+
+#### 五件错了都不报错的事
+
+1. **商品 id 三处必须逐字相同**：Play Console 的商品 id、server `config/play.js` 的 `sku`、
+   App 传给 Billing 的那个。对不上的表现是用户付了钱、服务端查出来的 productId 不在表里 ⇒
+   **不发币**（服务端会 `console.error`，端上报 502）。App 里的 sku **只从 `/api/pay/config`
+   拿**，不另写一份；Play 里查不到的 sku 直接不显示按钮。
+2. **客户端绝不 consume**。`consume` 蕴含 `acknowledge`，端上先消耗掉，服务端再查就是
+   "查不到 / 已消耗" ⇒ 钱收了、币没发。consume 只在服务端 `redeem` 末尾做一次（铁律六）。
+3. **兑不上 ≠ 支付失败**。这一档是"钱已经收了、币还没发"，文案不能说成失败（用户会去申请退款，
+   而正确的动作是等重试）。可重试的只有 502/503/504 与断网；400/409/429/501 立刻如实报错。
+4. **必须有补偿扫描**。兑那一发断网 / 进程被杀之后端上没有任何东西会自己重来；
+   Play 的消耗型商品在服务端 consume 之前一直查得到，所以启动后 3 秒扫一次
+   （`components/PlayPurchaseSweep.tsx`）、每次打开钱包抽屉再扫一次。
+   ⚠ 许可测试员的购买 **3 分钟**不被 acknowledge 会被 Google 自动退款，而 acknowledge
+   发生在服务端 redeem 的末尾 —— 这条扫描不是"锦上添花"。
+5. **`obfuscatedAccountId` 拿不到就不许买**。服务端对"没带"只 warn 一句就放行，
+   端上要是允许不带，"别人的购买兑不到我账上"这道闸等于不存在。
+
+#### 两条渠道互斥（Play 政策）
+
+play 渠道的包里，应用内数字商品**只能**走 Play Billing。所以钱包抽屉在 Play 可用时
+把 ¥ 直充包与**付费套餐**都藏掉（免费档的「领取」不是付款，留着），并说明
+"套餐订阅暂未在这个渠道开放" —— Play Console 里还没有套餐对应的商品。
+侧载包一行结算代码都不带（`playImplementation` 只给 play 渠道）。
+
+#### PENDING 不是错误
+
+用户选了现金等异步付款方式时 Play 回 `PENDING`：钱还没到，**不能拿去兑**
+（服务端会回 `NOT_PURCHASED`）。界面要说"还在等这笔付款完成"，到账后那笔会变成
+`PURCHASED`，被上面第 4 条的扫描捞到。
 
 ## 客户端接入约定
 
