@@ -314,7 +314,7 @@ function EditorPanel() {
    * ★ 2026-09-30 起真人卡过不去的档直接灰掉：没勾「火山引擎适用」时工坊里可能**一档都点不动**
    *   （真人档本来就走不了推演），只灰不说等于告诉用户"功能坏了"。印在档位那排下面，与套餐原因同一行。
    */
-  const faceNote = realFaceIssue(slotCards, editor.videoTier, { blockout: false });
+  const faceNote = realFaceIssue(slotCards, editor.videoTier, { blockout: false, framed: true });
 
   const crumbSteps = lane === "custom" ? (["mode", "ref", "content", "spec"] as const) : (["mode", "content", "spec"] as const);
   // ★ 标签压到两字：自定义车道是四步，375px 顶栏上「示例视频/写内容」会把整行折成两行（实测）
@@ -559,7 +559,8 @@ function EditorPanel() {
                 // ★★ 真人卡过不去的档直接灰（与 TierRow 同一条；判据 economy.realFaceIssue 一处）。
                 //   materials 与生成闸 studioStore.deriveProposals 同源：editor.slots 映射到牌组。
                 //   blockout 传 false 是事实：工坊建的是自定义段，白模段不走这块方案台（同那边的注释）
-                const block = tierBlockReason(tier) ?? realFaceIssue(slotCards, tier.id, { blockout: false }) ?? deriveIssue(tier.id);
+                //   framed 恒真：工坊铸段就是推演、推演就是画帧（帧里的真人脸会被整发拒，见 realFaceIssue 的 framed）
+                const block = tierBlockReason(tier) ?? realFaceIssue(slotCards, tier.id, { blockout: false, framed: true }) ?? deriveIssue(tier.id);
                 const desc = tier.desc;
                 const model = tier.model;
                 return (
@@ -1344,7 +1345,8 @@ function TierBlockNote({ node }: { node: FlowNode }) {
   // ★ 同一个原因只说一句、档位名并到一起（economy.r2vBlockLines，与本段设置抽屉共用）：
   //   此前这里逐档各印一句，白模段上四档都是「暂未开放」时同一件事印四遍
   const r2vBlocks = blockout ? r2vBlockLines() : [];
-  const realFaceBlock = realFaceIssue(node.materials, node.videoTier, { blockout });
+  // framed 恒真：工坊的段都是推演出来的（带帧），与 TierRow 的 needsDerive 同一口径
+  const realFaceBlock = realFaceIssue(node.materials, node.videoTier, { blockout, framed: true });
   const all = [...r2vBlocks, ...(realFaceBlock ? [realFaceBlock] : [])];
   if (all.length === 0) return null;
   return <p className="mt-1 text-[10px] leading-relaxed text-amber-300/80">{all.join(t({ message: "；", comment: "把几条「这一档为什么点不动」的原因连成一行时的分隔符" }))}</p>;

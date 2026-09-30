@@ -1944,7 +1944,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
     //   blockout 传 false 是**事实**不是省事：这条路建出来的是自定义段（下面 appendNode
     //   不传 tpl），白模段在工坊根本不摆方案台，走不到这儿。
     {
-      const realBlocked = realFaceIssue(materials, editor.videoTier, { blockout: false });
+      // framed 恒真：这一步就是推演（画首尾帧），已认证真人卡在高清/电影级上也过不去（见 realFaceIssue 的 framed）
+      const realBlocked = realFaceIssue(materials, editor.videoTier, { blockout: false, framed: true });
       if (realBlocked) {
         get().npcSay(realBlocked);
         return;

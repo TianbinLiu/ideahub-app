@@ -142,6 +142,20 @@ export function hasDialogue(plot: string): boolean {
   return /[「"].{1,}?[」"]/.test(plot);
 }
 
+/**
+ * 这一段出片**一张画面帧都不带**吗（允许参考图直出 = 简约模式，且没有设定首帧、没有承接帧、没有圈选）——
+ * refVideoOn 去掉「档位收不收参考图」「卡有没有图」两条之后剩下的**帧那一半**，唯一实现。
+ * ★ 抽出来给真人卡门禁用（2026-09-30 付费实测）：已认证真人卡在高清/电影级上只有不带帧的请求过得去 ——
+ *   帧里的写实人脸会被方舟整发拒（见 economy.realFaceIssue 的 framed）。门禁与出片问的必须是同一句：
+ *   界面说能选、出片却走了带帧那条，就是两面打架。
+ */
+export function frameFree(o: { firstFrame?: string; carryFrame?: string | null; anns?: unknown[]; refAllowed?: boolean }): boolean {
+  if (!o.refAllowed) return false;
+  if (o.firstFrame || o.carryFrame) return false;
+  if (o.anns?.length) return false;
+  return true;
+}
+
 export function refVideoOn(o: {
   videoTier: string;
   materials?: Card[];
@@ -157,10 +171,9 @@ export function refVideoOn(o: {
   //   「省掉设定帧直接出片」的说明、报价的 refMode 位都会按参考生视频亮——说的是
   //   另一件商品。白模自己的判定在 blockoutIssue/blockoutOn。
   if (o.refVideoUrl) return false;
-  if (!o.refAllowed) return false;
+  // 帧那一半（简约模式、无首帧、无承接、无圈选）只在 frameFree 一处判 —— 真人卡门禁问的是同一句
+  if (!frameFree(o)) return false;
   if (!tierOf(o.videoTier).refImg) return false;
-  if (o.firstFrame || o.carryFrame) return false;
-  if (o.anns?.length) return false;
   return !!o.materials?.some((c) => viewsOf(c).length > 0);
 }
 
