@@ -19,7 +19,7 @@ import { VOICE_MAX_SEC, VOICE_MIN_SEC, saveVoice } from "../data/cardVoice";
 import { startJob } from "../data/jobs";
 import { deviceOwner, workOwner } from "../data/deviceOwner";
 import { pcmToVoiceWav } from "../utils/wav";
-import PortraitAuthPanel from "./PortraitAuthPanel";
+import VolcCompatToggle from "./VolcCompatToggle";
 import {
   defaultScheme,
   defaultSchemeFor,
@@ -171,7 +171,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
   const [realPerson, setRealPerson] = useState(false);
   const [consentOk, setConsentOk] = useState(false);
   /**
-   * 造卡时就拿到的授权素材（PortraitAuthPanel 交出来的）。此时卡还没有 id，
+   * 造卡时就拿到的授权素材（VolcCompatToggle 交出来的）。此时卡还没有 id，
    * 只能攒在这里 —— addCards 成功后才写 cardAsset 侧库（与 pendingVoice 同一条规则：
    * 卡没入库，挂上去就是永远读不到的孤儿）。
    */
@@ -764,7 +764,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
           scope: "private",
           note: pendingAsset.note,
         });
-        if (!bound.stored) setErr(t`卡铸好了，但肖像授权绑定没存住（本机存储写入失败）——去卡详情页把授权再做一次，否则出片时会被拒。`);
+        if (!bound.stored) setErr(t`卡铸好了，但「火山引擎适用」没存住（本机存储写入失败）——去卡片详情页再勾一次。`);
       }
       setSaved((s) => [...s, card]);
       setCrops([]);
@@ -932,29 +932,15 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                       />
                       <Trans>我确认已依法取得画面中人物对使用其肖像生成内容的同意，相应责任由我承担</Trans>
                     </label>
-                    {/* 授权挪进造卡流程（2026-08-28 拍板）：勾了真人当场就能把肖像授权做掉，
-                        不必等卡存完再去详情页找。拿到的 assetId 攒在 pendingAsset，
-                        存卡成功才落 cardAsset 侧库（与声音样本同一条规则）。 */}
-                    <div className="mt-1 rounded-lg border border-slate-700/70 bg-ink/30 p-2">
-                      <p className="mb-1.5 text-[10px] leading-relaxed text-slate-400">
-                        <Trans>
-                          🪪 <b className="text-slate-300">方舟可信素材</b>（真人出片的合规通道）：「高清」「电影级」档
-                          <b className="text-slate-300">不收直接上传的真人照片</b>，只收本人授权过的素材。现在就能做：
-                        </Trans>
-                      </p>
-                      {pendingAsset ? (
-                        <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5">
-                          <span className="min-w-0">
-                            <span className="block text-[10px] text-emerald-300"><Trans>已接上授权素材，存卡时一并绑定</Trans></span>
-                            <span className="block truncate font-mono text-[9px] text-emerald-300">{pendingAsset.assetId}</span>
-                          </span>
-                          <button onClick={() => setPendingAsset(null)} className="flex-none text-[10px] text-slate-500">
-                            <Trans>取消</Trans>
-                          </button>
-                        </div>
-                      ) : (
-                        <PortraitAuthPanel onBound={(assetId, note) => setPendingAsset({ assetId, note })} />
-                      )}
+                    {/* 「火山引擎适用」（components/VolcCompatToggle，三个宿主共用一份）。2026-09-30 主人拍板：
+                        不写“哪一档需要认证”的说明，能用哪几档由档位按钮本身可不可点表达。
+                        拿到的 assetId 攒在 pendingAsset，存卡成功才落 cardAsset 侧库（与声音样本同一条规则）。 */}
+                    <div className="mt-1.5">
+                      <VolcCompatToggle
+                        boundId={pendingAsset?.assetId ?? null}
+                        onBound={(assetId, note) => setPendingAsset({ assetId, note })}
+                        onUnbind={() => setPendingAsset(null)}
+                      />
                     </div>
                   </div>
                 )}

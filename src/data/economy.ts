@@ -694,7 +694,9 @@ export function realFaceIssue(
   // 说错的话用户会去换一个同样出不了的档（铁律五：指路必须指对）
   if (tier.assetRef === true) {
     const lack = quotedNames(noAsset.map((c) => c.name));
-    return t`${lack}是声明过的真人素材，但还没有方舟可信素材 ID —— 「${label}」档不收直接上传的真人照片，只收本人授权过的素材。去卡片详情页按提示做一次肖像授权并填上素材 ID，或先把这张卡取下`;
+    // ★ 2026-09-30 起授权的界面入口就是卡上那个「火山引擎适用」勾选框（components/VolcCompatToggle），
+    //   原因句只指那一个地方（铁律五：指路必须指对 —— 此前这里指的"填素材 ID"那套界面已经没了）
+    return t`${lack}没有勾选「火山引擎适用」——「${label}」档只收做过火山引擎认证的真人卡。去卡片详情页勾选「火山引擎适用」，或先把这张卡取下`;
   }
   const names = quotedNames(real.map((c) => c.name));
   const realTier = tierOf("real").label;
@@ -704,7 +706,7 @@ export function realFaceIssue(
   // 收授权素材的就是这两档，各占一个占位符逐个点名（不是一张会变长的清单，别拿 joinTierNames 拼：英文要说成「A 或 B」）
   const hdTier = tierOf("hd").label;
   const ultraTier = tierOf("ultra").label;
-  return t`${names}是声明过的真人素材，「${label}」档的供应商拒收真人照片（实测名人按版权拦、普通人按隐私拦，整发被拒）——换成「${hdTier}」「${ultraTier}」档并给这张卡做肖像授权，或换「${realTier}」档，或先把真人卡取下`;
+  return t`${names}是真人卡，「${label}」档不收真人照片——换「${realTier}」档；或给卡勾选「火山引擎适用」后换「${hdTier}」「${ultraTier}」档`;
 }
 
 /** 几张卡的名字各加一对引号、按界面语言的列举分隔符连起来（中文「凛」、「樱」，英文 “Rin”, “Sakura”） */

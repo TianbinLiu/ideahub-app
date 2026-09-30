@@ -550,7 +550,10 @@ function EditorPanel() {
                 // 这里只负责把它画出来 —— 灰着但不说为什么等于告诉用户"功能坏了"
                 // 工坊铸段整个建立在推演上，按发直出档（真人档）走不了——判定与话术
                 // 都在 economy.deriveIssue 一处（flowStore/studioStore 的闸用的同一句）
-                const block = tierBlockReason(tier) ?? deriveIssue(tier.id);
+                // ★★ 真人卡过不去的档直接灰（与 TierRow 同一条；判据 economy.realFaceIssue 一处）。
+                //   materials 与生成闸 studioStore.deriveProposals 同源：editor.slots 映射到牌组。
+                //   blockout 传 false 是事实：工坊建的是自定义段，白模段不走这块方案台（同那边的注释）
+                const block = tierBlockReason(tier) ?? realFaceIssue(slotCards, tier.id, { blockout: false }) ?? deriveIssue(tier.id);
                 const desc = tier.desc;
                 const model = tier.model;
                 return (

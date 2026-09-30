@@ -144,7 +144,14 @@ export interface CustomCardDraft {
   realPerson: boolean;
   consentOk: boolean;
   pendingAsset: { assetId: string; note: string } | null;
+  /** 随火山引擎授权**取回来**的那张照片（它的存在理由就是那份绑定，撤授权就连它一起撤） */
   authShot: Shot | null;
+  /**
+   * 在真人素材页**亲手上传**的那张真人照片（2026-09-30 起真人素材页以上传为主）。
+   * ★ 与 authShot 分开存：撤火山授权时只撤随授权取回的那张，用户自己传的照片不动 ——
+   *   两张合成一个字段的话，取消「火山引擎适用」就会把用户自己传的图一起删掉。
+   */
+  realShot: Shot | null;
   unbindNote: string;
   pendingVoice: { dataUrl: string; durationSec: number; note: string } | null;
   /** 正在处理哪一格：非人物卡的 kind，或人物卡的图位键（同 schemeShots） */
@@ -194,6 +201,7 @@ export function initialDraft(): CustomCardDraft {
     consentOk: false,
     pendingAsset: null,
     authShot: null,
+    realShot: null,
     unbindNote: "",
     pendingVoice: null,
     busySlot: null,
@@ -241,6 +249,7 @@ export function draftDirty(s: CustomCardDraft): boolean {
     Object.keys(s.shots).length > 0 ||
     Object.keys(s.schemeShots).length > 0 ||
     !!s.aiBody ||
+    !!s.realShot ||
     !!s.subjectPick ||
     !!s.idLine
   );

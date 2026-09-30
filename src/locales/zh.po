@@ -457,8 +457,8 @@ msgid "（指尖停在桌沿）走神了。你刚才说什么？"
 msgstr "（指尖停在桌沿）走神了。你刚才说什么？"
 
 #: src/components/PortraitAuthPanel.tsx
-msgid "（无文件名）"
-msgstr "（无文件名）"
+#~ msgid "（无文件名）"
+#~ msgstr "（无文件名）"
 
 #: src/components/support/AdminTicketsView.tsx
 #: src/pages/AdminPage.tsx
@@ -1015,8 +1015,12 @@ msgid "{label} 太大（{sizeMb}MB，上限 5MB）"
 msgstr "{label} 太大（{sizeMb}MB，上限 5MB）"
 
 #: src/data/economy.ts
-msgid "{lack}是声明过的真人素材，但还没有方舟可信素材 ID —— 「{label}」档不收直接上传的真人照片，只收本人授权过的素材。去卡片详情页按提示做一次肖像授权并填上素材 ID，或先把这张卡取下"
-msgstr "{lack}是声明过的真人素材，但还没有方舟可信素材 ID —— 「{label}」档不收直接上传的真人照片，只收本人授权过的素材。去卡片详情页按提示做一次肖像授权并填上素材 ID，或先把这张卡取下"
+#~ msgid "{lack}是声明过的真人素材，但还没有方舟可信素材 ID —— 「{label}」档不收直接上传的真人照片，只收本人授权过的素材。去卡片详情页按提示做一次肖像授权并填上素材 ID，或先把这张卡取下"
+#~ msgstr "{lack}是声明过的真人素材，但还没有方舟可信素材 ID —— 「{label}」档不收直接上传的真人照片，只收本人授权过的素材。去卡片详情页按提示做一次肖像授权并填上素材 ID，或先把这张卡取下"
+
+#: src/data/economy.ts
+msgid "{lack}没有勾选「火山引擎适用」——「{label}」档只收做过火山引擎认证的真人卡。去卡片详情页勾选「火山引擎适用」，或先把这张卡取下"
+msgstr "{lack}没有勾选「火山引擎适用」——「{label}」档只收做过火山引擎认证的真人卡。去卡片详情页勾选「火山引擎适用」，或先把这张卡取下"
 
 #. 铸卡师念的话。list 是前三张的名字（已用分隔符连好），count 是丢的总张数（大于 3），reason 是失败原因整句
 #: src/studio/studioStore.ts
@@ -1073,12 +1077,16 @@ msgid "{names}只带上了第 1 张形象图（预算 {budget} 张已满），�
 msgstr "{names}只带上了第 1 张形象图（预算 {budget} 张已满），它们按第 1 张参与"
 
 #: src/data/economy.ts
-msgid "{names}是声明过的真人素材，「{label}」档的供应商拒收真人照片（实测名人按版权拦、普通人按隐私拦，整发被拒）——换成「{hdTier}」「{ultraTier}」档并给这张卡做肖像授权，或换「{realTier}」档，或先把真人卡取下"
-msgstr "{names}是声明过的真人素材，「{label}」档的供应商拒收真人照片（实测名人按版权拦、普通人按隐私拦，整发被拒）——换成「{hdTier}」「{ultraTier}」档并给这张卡做肖像授权，或换「{realTier}」档，或先把真人卡取下"
+#~ msgid "{names}是声明过的真人素材，「{label}」档的供应商拒收真人照片（实测名人按版权拦、普通人按隐私拦，整发被拒）——换成「{hdTier}」「{ultraTier}」档并给这张卡做肖像授权，或换「{realTier}」档，或先把真人卡取下"
+#~ msgstr "{names}是声明过的真人素材，「{label}」档的供应商拒收真人照片（实测名人按版权拦、普通人按隐私拦，整发被拒）——换成「{hdTier}」「{ultraTier}」档并给这张卡做肖像授权，或换「{realTier}」档，或先把真人卡取下"
 
 #: src/data/economy.ts
 msgid "{names}是声明过的真人素材，「{label}」档的供应商拒收真人照片（实测名人按版权拦、普通人按隐私拦，整发被拒）；而「{realTier}」档做不了白模复刻——真人卡与白模模板不能同用：把真人卡取下换一张非真人卡，或不用模板、换「{realTier}」档以卡上照片起拍直出"
 msgstr "{names}是声明过的真人素材，「{label}」档的供应商拒收真人照片（实测名人按版权拦、普通人按隐私拦，整发被拒）；而「{realTier}」档做不了白模复刻——真人卡与白模模板不能同用：把真人卡取下换一张非真人卡，或不用模板、换「{realTier}」档以卡上照片起拍直出"
+
+#: src/data/economy.ts
+msgid "{names}是真人卡，「{label}」档不收真人照片——换「{realTier}」档；或给卡勾选「火山引擎适用」后换「{hdTier}」「{ultraTier}」档"
+msgstr "{names}是真人卡，「{label}」档不收真人照片——换「{realTier}」档；或给卡勾选「火山引擎适用」后换「{hdTier}」「{ultraTier}」档"
 
 #: src/ai/real.ts
 msgid "{names}的形象参考图这次没带上（一次最多 {budget} 张，方舟的协议上限）——提示词里只剩它们的名字，画面上那几个人会由 AI 自己编，想换成卡上的样子就少挂几张卡"
@@ -1342,6 +1350,11 @@ msgstr "「{0}」还挂在广场上——先下架再删"
 #: src/pages/DiscoverPage.tsx
 msgid "「{0}」还没有作品"
 msgstr "「{0}」还没有作品"
+
+#. placeholder {0}: scheme.title
+#: src/pages/CustomCardPage.tsx
+msgid "「{0}」这套的图位要的是白模/设定稿，真人照片放不进去，但<0>交给 AI 出图那条路会拿它当主素材</0>。"
+msgstr "「{0}」这套的图位要的是白模/设定稿，真人照片放不进去，但<0>交给 AI 出图那条路会拿它当主素材</0>。"
 
 #. placeholder {0}: next.title
 #. placeholder {1}: gone.join(listSep)
@@ -1618,8 +1631,8 @@ msgid "＋ 存为技能"
 msgstr "＋ 存为技能"
 
 #: src/components/PortraitAuthPanel.tsx
-msgid "＋ 已在控制台授权过？直接填 asset ID"
-msgstr "＋ 已在控制台授权过？直接填 asset ID"
+#~ msgid "＋ 已在控制台授权过？直接填 asset ID"
+#~ msgstr "＋ 已在控制台授权过？直接填 asset ID"
 
 #. placeholder {0}: modelLabel(tier.model)
 #. placeholder {1}: fmtTokens(videoTokens)
@@ -1992,13 +2005,13 @@ msgstr "✂ 编辑"
 
 #. placeholder {0}: slot0.tag
 #: src/pages/CustomCardPage.tsx
-msgid "✅ 已把授权照片接进来了（既是卡面的「{0}」，也能直接交给 AI 按方案生成图位）"
-msgstr "✅ 已把授权照片接进来了（既是卡面的「{0}」，也能直接交给 AI 按方案生成图位）"
+#~ msgid "✅ 已把授权照片接进来了（既是卡面的「{0}」，也能直接交给 AI 按方案生成图位）"
+#~ msgstr "✅ 已把授权照片接进来了（既是卡面的「{0}」，也能直接交给 AI 按方案生成图位）"
 
 #. placeholder {0}: sc.title
 #: src/pages/CustomCardPage.tsx
-msgid "✅ 授权照片已取回。「{0}」这套的图位要白模/设定稿，照片不进格子——交给 AI 出图时它就是主素材。"
-msgstr "✅ 授权照片已取回。「{0}」这套的图位要白模/设定稿，照片不进格子——交给 AI 出图时它就是主素材。"
+#~ msgid "✅ 授权照片已取回。「{0}」这套的图位要白模/设定稿，照片不进格子——交给 AI 出图时它就是主素材。"
+#~ msgstr "✅ 授权照片已取回。「{0}」这套的图位要白模/设定稿，照片不进格子——交给 AI 出图时它就是主素材。"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "✍ 自定义"
@@ -2424,8 +2437,8 @@ msgid "📥 取回这一段的成片（不重新下单，不再花钱）"
 msgstr "📥 取回这一段的成片（不重新下单，不再花钱）"
 
 #: src/components/PortraitAuthPanel.tsx
-msgid "📱 就是我本人 · 在这台手机上完成授权"
-msgstr "📱 就是我本人 · 在这台手机上完成授权"
+#~ msgid "📱 就是我本人 · 在这台手机上完成授权"
+#~ msgstr "📱 就是我本人 · 在这台手机上完成授权"
 
 #: src/studio/stage/StageOverlay.tsx
 msgid "📸 截图 → 融成这一段的开头帧（{price}）"
@@ -2480,8 +2493,8 @@ msgid "🔊 用模板原声"
 msgstr "🔊 用模板原声"
 
 #: src/components/PortraitAuthPanel.tsx
-msgid "🔗 发起肖像授权（本人扫码 / 本机打开）"
-msgstr "🔗 发起肖像授权（本人扫码 / 本机打开）"
+#~ msgid "🔗 发起肖像授权（本人扫码 / 本机打开）"
+#~ msgstr "🔗 发起肖像授权（本人扫码 / 本机打开）"
 
 #: src/studio/ui/NpcDialog.tsx
 msgid "🔥 出炉了，过个目"
@@ -2593,16 +2606,16 @@ msgid "🧬 融首帧"
 msgstr "🧬 融首帧"
 
 #: src/components/VideoCardAnnotator.tsx
-msgid "🪪 <0>方舟可信素材</0>（真人出片的合规通道）：「高清」「电影级」档<1>不收直接上传的真人照片</1>，只收本人授权过的素材。现在就能做："
-msgstr "🪪 <0>方舟可信素材</0>（真人出片的合规通道）：「高清」「电影级」档<1>不收直接上传的真人照片</1>，只收本人授权过的素材。现在就能做："
+#~ msgid "🪪 <0>方舟可信素材</0>（真人出片的合规通道）：「高清」「电影级」档<1>不收直接上传的真人照片</1>，只收本人授权过的素材。现在就能做："
+#~ msgstr "🪪 <0>方舟可信素材</0>（真人出片的合规通道）：「高清」「电影级」档<1>不收直接上传的真人照片</1>，只收本人授权过的素材。现在就能做："
 
 #: src/pages/CardDetailPage.tsx
-msgid "🪪 肖像授权已在本机接上，但还没同步到服务端（{issue}）——换台设备暂时看不到，下次登录会自动补传。"
-msgstr "🪪 肖像授权已在本机接上，但还没同步到服务端（{issue}）——换台设备暂时看不到，下次登录会自动补传。"
+#~ msgid "🪪 肖像授权已在本机接上，但还没同步到服务端（{issue}）——换台设备暂时看不到，下次登录会自动补传。"
+#~ msgstr "🪪 肖像授权已在本机接上，但还没同步到服务端（{issue}）——换台设备暂时看不到，下次登录会自动补传。"
 
 #: src/pages/CardDetailPage.tsx
-msgid "🪪 这张真人卡还<0>没接上已授权的肖像素材</0>——「高清」「电影级」档不收直接上传的真人照片，接上之前用它出片会被拒。"
-msgstr "🪪 这张真人卡还<0>没接上已授权的肖像素材</0>——「高清」「电影级」档不收直接上传的真人照片，接上之前用它出片会被拒。"
+#~ msgid "🪪 这张真人卡还<0>没接上已授权的肖像素材</0>——「高清」「电影级」档不收直接上传的真人照片，接上之前用它出片会被拒。"
+#~ msgstr "🪪 这张真人卡还<0>没接上已授权的肖像素材</0>——「高清」「电影级」档不收直接上传的真人照片，接上之前用它出片会被拒。"
 
 #: src/studio/ui/NpcDialog.tsx
 msgid "🛒 市场"
@@ -3252,6 +3265,10 @@ msgstr "上传本地图片"
 msgid "上传本段设定帧 {0}/{1}…"
 msgstr "上传本段设定帧 {0}/{1}…"
 
+#: src/pages/CustomCardPage.tsx
+msgid "上传真人照片"
+msgstr "上传真人照片"
+
 #: src/components/VideoTemplateExtractor.tsx
 msgid "上传视频 {pct}%"
 msgstr "上传视频 {pct}%"
@@ -3307,12 +3324,12 @@ msgid "上次有 {n} 段没下完，那些半截文件已经清掉了，这次�
 msgstr "上次有 {n} 段没下完，那些半截文件已经清掉了，这次会重下。"
 
 #: src/components/PortraitAuthPanel.tsx
-msgid "上次查到的已授权素材（正在向方舟刷新…）："
-msgstr "上次查到的已授权素材（正在向方舟刷新…）："
+#~ msgid "上次查到的已授权素材（正在向方舟刷新…）："
+#~ msgstr "上次查到的已授权素材（正在向方舟刷新…）："
 
 #: src/components/PortraitAuthPanel.tsx
-msgid "上次查到的已授权素材（这次没能向方舟刷新，原因见下；仍可点一份接上）："
-msgstr "上次查到的已授权素材（这次没能向方舟刷新，原因见下；仍可点一份接上）："
+#~ msgid "上次查到的已授权素材（这次没能向方舟刷新，原因见下；仍可点一份接上）："
+#~ msgstr "上次查到的已授权素材（这次没能向方舟刷新，原因见下；仍可点一份接上）："
 
 #. 个人页「还没传到服务器」横幅：接在作品标题后面的原因（老版本存下的条目，没记具体原因）。句末不加句号
 #: src/data/videos.ts
@@ -3691,16 +3708,28 @@ msgid "主素材图（必）"
 msgstr "主素材图（必）"
 
 #: src/pages/CustomCardPage.tsx
-msgid "主素材图就是你刚授权的那张照片（点它可以换一张）。再补一张面部近照，脸会锁得更准。画风跟随素材，照片出写实。"
-msgstr "主素材图就是你刚授权的那张照片（点它可以换一张）。再补一张面部近照，脸会锁得更准。画风跟随素材，照片出写实。"
+#~ msgid "主素材图就是你刚授权的那张照片（点它可以换一张）。再补一张面部近照，脸会锁得更准。画风跟随素材，照片出写实。"
+#~ msgstr "主素材图就是你刚授权的那张照片（点它可以换一张）。再补一张面部近照，脸会锁得更准。画风跟随素材，照片出写实。"
 
 #: src/pages/CustomCardPage.tsx
-msgid "主素材已就位（就是那张授权照片），不用再传 · 演示档"
-msgstr "主素材已就位（就是那张授权照片），不用再传 · 演示档"
+msgid "主素材图就是那张真人照片（点它可以换一张）。再补一张面部近照，脸会锁得更准。画风跟随素材，照片出写实。"
+msgstr "主素材图就是那张真人照片（点它可以换一张）。再补一张面部近照，脸会锁得更准。画风跟随素材，照片出写实。"
 
 #: src/pages/CustomCardPage.tsx
-msgid "主素材已就位（就是那张授权照片），不用再传 · 约 {aiPriceText} token"
-msgstr "主素材已就位（就是那张授权照片），不用再传 · 约 {aiPriceText} token"
+#~ msgid "主素材已就位（就是那张授权照片），不用再传 · 演示档"
+#~ msgstr "主素材已就位（就是那张授权照片），不用再传 · 演示档"
+
+#: src/pages/CustomCardPage.tsx
+#~ msgid "主素材已就位（就是那张授权照片），不用再传 · 约 {aiPriceText} token"
+#~ msgstr "主素材已就位（就是那张授权照片），不用再传 · 约 {aiPriceText} token"
+
+#: src/pages/CustomCardPage.tsx
+msgid "主素材已就位（就是那张真人照片），不用再传 · 演示档"
+msgstr "主素材已就位（就是那张真人照片），不用再传 · 演示档"
+
+#: src/pages/CustomCardPage.tsx
+msgid "主素材已就位（就是那张真人照片），不用再传 · 约 {aiPriceText} token"
+msgstr "主素材已就位（就是那张真人照片），不用再传 · 约 {aiPriceText} token"
 
 #: src/pages/AdminPage.tsx
 msgid "举报"
@@ -5658,15 +5687,14 @@ msgstr "到这里结束 ⇥"
 msgid "制作人格"
 msgstr "制作人格"
 
-#: src/components/PortraitAuthPanel.tsx
 #: src/components/support/AdminTicketsView.tsx
 #: src/pages/AdminPage.tsx
 msgid "刷新"
 msgstr "刷新"
 
 #: src/components/PortraitAuthPanel.tsx
-msgid "刷新中…"
-msgstr "刷新中…"
+#~ msgid "刷新中…"
+#~ msgstr "刷新中…"
 
 #: src/studio/flowStore.ts
 msgid "前一段还没出片：退回铸段窗之后，新铸的段要等前一段炼出来才接得上，这一下就只是把这一段删掉了。先把前一段炼出来再退。"
@@ -6045,6 +6073,10 @@ msgstr "卡组详情"
 msgid "卡组还没同步到服务器，请稍后再试"
 msgstr "卡组还没同步到服务器，请稍后再试"
 
+#: src/components/VideoCardAnnotator.tsx
+msgid "卡铸好了，但「火山引擎适用」没存住（本机存储写入失败）——去卡片详情页再勾一次。"
+msgstr "卡铸好了，但「火山引擎适用」没存住（本机存储写入失败）——去卡片详情页再勾一次。"
+
 #. placeholder {0}: partial.reason
 #: src/pages/CustomCardPage.tsx
 msgid "卡铸好了，但<0>肖像授权的绑定没能存在这台设备上</0>（{0}）。这张卡挂着真人声明，没有绑定的话出片那一刻会被整发拒——去卡详情页把授权再做一次就好，卡本身不用重铸。"
@@ -6065,8 +6097,8 @@ msgid "卡铸好了，但有图没传上——回去看看"
 msgstr "卡铸好了，但有图没传上——回去看看"
 
 #: src/components/VideoCardAnnotator.tsx
-msgid "卡铸好了，但肖像授权绑定没存住（本机存储写入失败）——去卡详情页把授权再做一次，否则出片时会被拒。"
-msgstr "卡铸好了，但肖像授权绑定没存住（本机存储写入失败）——去卡详情页把授权再做一次，否则出片时会被拒。"
+#~ msgid "卡铸好了，但肖像授权绑定没存住（本机存储写入失败）——去卡详情页把授权再做一次，否则出片时会被拒。"
+#~ msgstr "卡铸好了，但肖像授权绑定没存住（本机存储写入失败）——去卡详情页把授权再做一次，否则出片时会被拒。"
 
 #: src/pages/CustomCardPage.tsx
 msgid "卡面"
@@ -6448,8 +6480,8 @@ msgstr "发条友善的弹幕"
 
 #. placeholder {0}: (e instanceof Error ? e.message : String(e)).slice(0, 100)
 #: src/components/PortraitAuthPanel.tsx
-msgid "发起授权没成：{0}——可以改用「填 asset ID」那条路"
-msgstr "发起授权没成：{0}——可以改用「填 asset ID」那条路"
+#~ msgid "发起授权没成：{0}——可以改用「填 asset ID」那条路"
+#~ msgstr "发起授权没成：{0}——可以改用「填 asset ID」那条路"
 
 #: src/components/CommentSheet.tsx
 #: src/components/flow/FlowCanvas.tsx
@@ -6602,14 +6634,11 @@ msgstr "取流超时（窗口在后台时浏览器不解码视频）"
 #: src/components/DanmakuInput.tsx
 #: src/components/DraftSheet.tsx
 #: src/components/flow/DiscardFlowDialog.tsx
-#: src/components/PortraitAuthPanel.tsx
 #: src/components/ShareSheet.tsx
 #: src/components/support/VoiceMarket.tsx
 #: src/components/support/VoiceMixer.tsx
-#: src/components/VideoCardAnnotator.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/CardDetailPage.tsx
-#: src/pages/CustomCardPage.tsx
 #: src/pages/EditPage.tsx
 #: src/pages/ProfilePage.tsx
 #: src/pages/SupportModelNewPage.tsx
@@ -7523,7 +7552,6 @@ msgstr "复制失败，手动复制：{url}"
 msgid "复制失败，请手动分享"
 msgstr "复制失败，请手动分享"
 
-#: src/components/PortraitAuthPanel.tsx
 #: src/components/ShareSheet.tsx
 msgid "复制链接"
 msgstr "复制链接"
@@ -7821,8 +7849,8 @@ msgid "完成"
 msgstr "完成"
 
 #: src/components/PortraitAuthPanel.tsx
-msgid "完成一次活体认证并授权（有效期在火山那一页确认）。"
-msgstr "完成一次活体认证并授权（有效期在火山那一页确认）。"
+#~ msgid "完成一次活体认证并授权（有效期在火山那一页确认）。"
+#~ msgstr "完成一次活体认证并授权（有效期在火山那一页确认）。"
 
 #: src/components/ReviseBar.tsx
 msgid "完成后会替换它的内容，链接不变"
@@ -8405,6 +8433,10 @@ msgstr "已取消付款"
 msgid "已取消合并。片段、圈选和配乐都还在，随时可以重新开始。"
 msgstr "已取消合并。片段、圈选和配乐都还在，随时可以重新开始。"
 
+#: src/pages/CustomCardPage.tsx
+msgid "已取消火山引擎适用——随认证取来的那张照片也一并取下了。"
+msgstr "已取消火山引擎适用——随认证取来的那张照片也一并取下了。"
+
 #: src/studio/ui/modals.tsx
 msgid "已在卡组"
 msgstr "已在卡组"
@@ -8528,12 +8560,12 @@ msgid "已换成只留主体的这张，出片按它走（卡面封面不跟着�
 msgstr "已换成只留主体的这张，出片按它走（卡面封面不跟着换）"
 
 #: src/components/VideoCardAnnotator.tsx
-msgid "已接上授权素材，存卡时一并绑定"
-msgstr "已接上授权素材，存卡时一并绑定"
+#~ msgid "已接上授权素材，存卡时一并绑定"
+#~ msgstr "已接上授权素材，存卡时一并绑定"
 
 #: src/pages/CustomCardPage.tsx
-msgid "已接上授权素材，铸卡时一并绑定"
-msgstr "已接上授权素材，铸卡时一并绑定"
+#~ msgid "已接上授权素材，铸卡时一并绑定"
+#~ msgstr "已接上授权素材，铸卡时一并绑定"
 
 #: src/components/VideoTemplateExtractor.tsx
 msgid "已提取模板「{gotTitle}」"
@@ -8612,8 +8644,8 @@ msgid "已经导入 {0} 条，一共 {total} 字"
 msgstr "已经导入 {0} 条，一共 {total} 字"
 
 #: src/components/PortraitAuthPanel.tsx
-msgid "已经授权过了？再查一次"
-msgstr "已经授权过了？再查一次"
+#~ msgid "已经授权过了？再查一次"
+#~ msgstr "已经授权过了？再查一次"
 
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "已经排到一次能挂卡的上限（{BLOCKOUT_MAX_ROLES} 个）。画面里如果还有别人， 他们同样是白色人偶但挂不了卡 —— 人再多，从左数到第几个也数不准了。"
@@ -8624,8 +8656,8 @@ msgid "已经排到一次能挂卡的上限（{BLOCKOUT_MAX_ROLES} 个）。画�
 msgstr "已经排到一次能挂卡的上限（{BLOCKOUT_MAX_ROLES} 个）。画面里如果还有别人， 他们身上不会有编号，会保持白模人偶原样 —— 编号再多，画面上也认不出来。"
 
 #: src/components/PortraitAuthPanel.tsx
-msgid "已经接上这份已授权素材了。"
-msgstr "已经接上这份已授权素材了。"
+#~ msgid "已经接上这份已授权素材了。"
+#~ msgstr "已经接上这份已授权素材了。"
 
 #: src/pages/SettingsPage.tsx
 msgid "已经是最新版本"
@@ -8633,8 +8665,8 @@ msgstr "已经是最新版本"
 
 #. placeholder {0}: g.totalCount
 #: src/components/PortraitAuthPanel.tsx
-msgid "已经有 {0} 个资产组，但里面一份素材都没有——请本人打开授权链接，走完活体认证后把照片传上去。"
-msgstr "已经有 {0} 个资产组，但里面一份素材都没有——请本人打开授权链接，走完活体认证后把照片传上去。"
+#~ msgid "已经有 {0} 个资产组，但里面一份素材都没有——请本人打开授权链接，走完活体认证后把照片传上去。"
+#~ msgstr "已经有 {0} 个资产组，但里面一份素材都没有——请本人打开授权链接，走完活体认证后把照片传上去。"
 
 #: src/components/flow/DiscardFlowDialog.tsx
 msgid "已经有一条工作流在跑"
@@ -8677,8 +8709,12 @@ msgid "已经画好的 {count} 张已计费，失败的那张可能也扣了"
 msgstr "已经画好的 {count} 张已计费，失败的那张可能也扣了"
 
 #: src/pages/CustomCardPage.tsx
-msgid "已经离开真人素材这条路：授权绑定和随它取来的那张照片都撤掉了。"
-msgstr "已经离开真人素材这条路：授权绑定和随它取来的那张照片都撤掉了。"
+#~ msgid "已经离开真人素材这条路：授权绑定和随它取来的那张照片都撤掉了。"
+#~ msgstr "已经离开真人素材这条路：授权绑定和随它取来的那张照片都撤掉了。"
+
+#: src/pages/CustomCardPage.tsx
+msgid "已经离开真人素材这条路：真人照片和火山引擎认证都撤掉了。"
+msgstr "已经离开真人素材这条路：真人照片和火山引擎认证都撤掉了。"
 
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "已经聊满 {PREVIEW_ROUNDS_MAX} 轮了"
@@ -8710,8 +8746,8 @@ msgid "已解决"
 msgstr "已解决"
 
 #: src/pages/CustomCardPage.tsx
-msgid "已解除授权绑定——随授权取来的那张照片也一并取下了（卡面与 AI 主素材都不再留着它）。"
-msgstr "已解除授权绑定——随授权取来的那张照片也一并取下了（卡面与 AI 主素材都不再留着它）。"
+#~ msgid "已解除授权绑定——随授权取来的那张照片也一并取下了（卡面与 AI 主素材都不再留着它）。"
+#~ msgstr "已解除授权绑定——随授权取来的那张照片也一并取下了（卡面与 AI 主素材都不再留着它）。"
 
 #: src/ai/failCharge.ts
 msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
@@ -9536,9 +9572,13 @@ msgstr "截帧中…"
 msgid "所属卡组"
 msgstr "所属卡组"
 
+#: src/components/VolcCompatToggle.tsx
+msgid "手工填入"
+msgstr "手工填入"
+
 #: src/components/PortraitAuthPanel.tsx
-msgid "手工填入（方舟控制台授权）"
-msgstr "手工填入（方舟控制台授权）"
+#~ msgid "手工填入（方舟控制台授权）"
+#~ msgstr "手工填入（方舟控制台授权）"
 
 #: src/components/flow/CameraChips.tsx
 msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜头运动"
@@ -9566,9 +9606,14 @@ msgid "手机空间不够，这一段没写完。腾点空间再点一次。"
 msgstr "手机空间不够，这一段没写完。腾点空间再点一次。"
 
 #. placeholder {0}: e instanceof Error ? e.message : String(e)
+#: src/components/VolcCompatToggle.tsx
+msgid "打不开系统浏览器（{0}）"
+msgstr "打不开系统浏览器（{0}）"
+
+#. placeholder {0}: e instanceof Error ? e.message : String(e)
 #: src/components/PortraitAuthPanel.tsx
-msgid "打不开系统浏览器（{0}）——用「复制链接」自己粘到浏览器里"
-msgstr "打不开系统浏览器（{0}）——用「复制链接」自己粘到浏览器里"
+#~ msgid "打不开系统浏览器（{0}）——用「复制链接」自己粘到浏览器里"
+#~ msgstr "打不开系统浏览器（{0}）——用「复制链接」自己粘到浏览器里"
 
 #: src/components/guide/tours.tsx
 msgid "打字之后上面先出<0>人</0>、下面出作品。 作品是拿标题、简介、话题标签一起对的，不只对标题；<1>按作者找人用上面那半</1>。"
@@ -9601,8 +9646,12 @@ msgid "执行中…"
 msgstr "执行中…"
 
 #: src/components/PortraitAuthPanel.tsx
-msgid "扫不动了？这条邀约码会过期，回来重新「发起授权」生成一张新的即可。"
-msgstr "扫不动了？这条邀约码会过期，回来重新「发起授权」生成一张新的即可。"
+#~ msgid "扫不动了？这条邀约码会过期，回来重新「发起授权」生成一张新的即可。"
+#~ msgstr "扫不动了？这条邀约码会过期，回来重新「发起授权」生成一张新的即可。"
+
+#: src/components/VolcCompatToggle.tsx
+msgid "扫脸认证新的"
+msgstr "扫脸认证新的"
 
 #: src/api/blocking.ts
 msgid "找不到这个人（账号可能已经注销了）。"
@@ -10187,52 +10236,52 @@ msgid "授权二维码"
 msgstr "授权二维码"
 
 #: src/components/PortraitAuthPanel.tsx
-msgid "授权另一个人"
-msgstr "授权另一个人"
+#~ msgid "授权另一个人"
+#~ msgstr "授权另一个人"
 
 #: src/components/PortraitAuthPanel.tsx
-msgid "授权是成了，但上传的那份素材没过方舟的内容审核（原因见下），所以还不能用来出片。请本人重新打开授权链接、换一张照片再传一次。"
-msgstr "授权是成了，但上传的那份素材没过方舟的内容审核（原因见下），所以还不能用来出片。请本人重新打开授权链接、换一张照片再传一次。"
+#~ msgid "授权是成了，但上传的那份素材没过方舟的内容审核（原因见下），所以还不能用来出片。请本人重新打开授权链接、换一张照片再传一次。"
+#~ msgstr "授权是成了，但上传的那份素材没过方舟的内容审核（原因见下），所以还不能用来出片。请本人重新打开授权链接、换一张照片再传一次。"
 
 #. placeholder {0}: failed.length
 #: src/components/PortraitAuthPanel.tsx
-msgid "授权是成了，但这 {0} 份素材都没过方舟的内容审核（原因见下），所以还不能用来出片。请本人重新打开授权链接、换一张照片再传一次。"
-msgstr "授权是成了，但这 {0} 份素材都没过方舟的内容审核（原因见下），所以还不能用来出片。请本人重新打开授权链接、换一张照片再传一次。"
+#~ msgid "授权是成了，但这 {0} 份素材都没过方舟的内容审核（原因见下），所以还不能用来出片。请本人重新打开授权链接、换一张照片再传一次。"
+#~ msgstr "授权是成了，但这 {0} 份素材都没过方舟的内容审核（原因见下），所以还不能用来出片。请本人重新打开授权链接、换一张照片再传一次。"
 
 #: src/pages/CustomCardPage.tsx
-msgid "授权照片已经取回来了，还填进了卡面的「{authSlotTag}」这一格——<0>下面两条路都不用你再传图</0>。"
-msgstr "授权照片已经取回来了，还填进了卡面的「{authSlotTag}」这一格——<0>下面两条路都不用你再传图</0>。"
-
-#. placeholder {0}: scheme.title
-#: src/pages/CustomCardPage.tsx
-msgid "授权照片已经取回来了。「{0}」这套的图位要的是白模/设定稿，照片放不进去，但<0>交给 AI 出图那条路会拿它当主素材</0>。"
-msgstr "授权照片已经取回来了。「{0}」这套的图位要的是白模/设定稿，照片放不进去，但<0>交给 AI 出图那条路会拿它当主素材</0>。"
-
-#: src/pages/CustomCardPage.tsx
-msgid "授权照片已经在「{authSlotTag}」那一格了 · 不花钱"
-msgstr "授权照片已经在「{authSlotTag}」那一格了 · 不花钱"
+#~ msgid "授权照片已经取回来了，还填进了卡面的「{authSlotTag}」这一格——<0>下面两条路都不用你再传图</0>。"
+#~ msgstr "授权照片已经取回来了，还填进了卡面的「{authSlotTag}」这一格——<0>下面两条路都不用你再传图</0>。"
 
 #. placeholder {0}: scheme.title
 #: src/pages/CustomCardPage.tsx
-msgid "授权照片还在手上（绑定也还在），但「{0}」的图位里已经不是它了——那一格的图被换过。AI 那条路的主素材也已经换成了别的图。"
-msgstr "授权照片还在手上（绑定也还在），但「{0}」的图位里已经不是它了——那一格的图被换过。AI 那条路的主素材也已经换成了别的图。"
+#~ msgid "授权照片已经取回来了。「{0}」这套的图位要的是白模/设定稿，照片放不进去，但<0>交给 AI 出图那条路会拿它当主素材</0>。"
+#~ msgstr "授权照片已经取回来了。「{0}」这套的图位要的是白模/设定稿，照片放不进去，但<0>交给 AI 出图那条路会拿它当主素材</0>。"
+
+#: src/pages/CustomCardPage.tsx
+#~ msgid "授权照片已经在「{authSlotTag}」那一格了 · 不花钱"
+#~ msgstr "授权照片已经在「{authSlotTag}」那一格了 · 不花钱"
 
 #. placeholder {0}: scheme.title
 #: src/pages/CustomCardPage.tsx
-msgid "授权照片还在手上（绑定也还在），但「{0}」的图位里已经不是它了——那一格的图被换过。交给 AI 出图那条路用的仍然是它。"
-msgstr "授权照片还在手上（绑定也还在），但「{0}」的图位里已经不是它了——那一格的图被换过。交给 AI 出图那条路用的仍然是它。"
+#~ msgid "授权照片还在手上（绑定也还在），但「{0}」的图位里已经不是它了——那一格的图被换过。AI 那条路的主素材也已经换成了别的图。"
+#~ msgstr "授权照片还在手上（绑定也还在），但「{0}」的图位里已经不是它了——那一格的图被换过。AI 那条路的主素材也已经换成了别的图。"
+
+#. placeholder {0}: scheme.title
+#: src/pages/CustomCardPage.tsx
+#~ msgid "授权照片还在手上（绑定也还在），但「{0}」的图位里已经不是它了——那一格的图被换过。交给 AI 出图那条路用的仍然是它。"
+#~ msgstr "授权照片还在手上（绑定也还在），但「{0}」的图位里已经不是它了——那一格的图被换过。交给 AI 出图那条路用的仍然是它。"
 
 #: src/pages/CustomCardPage.tsx
-msgid "授权素材（自动填入）"
-msgstr "授权素材（自动填入）"
+#~ msgid "授权素材（自动填入）"
+#~ msgstr "授权素材（自动填入）"
 
 #: src/pages/CustomCardPage.tsx
-msgid "授权素材已接上（铸卡时绑定）"
-msgstr "授权素材已接上（铸卡时绑定）"
+#~ msgid "授权素材已接上（铸卡时绑定）"
+#~ msgstr "授权素材已接上（铸卡时绑定）"
 
 #: src/components/PortraitAuthPanel.tsx
-msgid "接上了。"
-msgstr "接上了。"
+#~ msgid "接上了。"
+#~ msgstr "接上了。"
 
 #: src/studio/canvasAgent.ts
 msgid "接着写这一段的画面"
@@ -10949,8 +10998,8 @@ msgstr "方案市场没打开：{why}"
 
 #. placeholder {0}: usable[0].id
 #: src/components/PortraitAuthPanel.tsx
-msgid "方舟回了一份素材，但 ID 形状不认识（{0}）——用「填 asset ID」那条路确认一下。"
-msgstr "方舟回了一份素材，但 ID 形状不认识（{0}）——用「填 asset ID」那条路确认一下。"
+#~ msgid "方舟回了一份素材，但 ID 形状不认识（{0}）——用「填 asset ID」那条路确认一下。"
+#~ msgstr "方舟回了一份素材，但 ID 形状不认识（{0}）——用「填 asset ID」那条路确认一下。"
 
 #: src/components/guide/tours.tsx
 msgid "方舟对画面大小、宽高比、时长都有硬门槛。 不过关时下面会<0>直接说是哪一条不合</0>，按那句话改就行， 不用在这里背数。"
@@ -10969,8 +11018,8 @@ msgid "方舟报这一发没能出片（{status}）。任务被受理之后才�
 msgstr "方舟报这一发没能出片（{status}）。任务被受理之后才失败的，费用不退；要这一段的话只能重新生成（重新下一单、再花一次钱）"
 
 #: src/components/PortraitAuthPanel.tsx
-msgid "方舟没给原因"
-msgstr "方舟没给原因"
+#~ msgid "方舟没给原因"
+#~ msgstr "方舟没给原因"
 
 #: src/ai/real.ts
 msgid "方舟说这一发成功了，却没有给视频地址——这一段取不回来了（费用已经花过，重新生成是再花一次钱）"
@@ -10982,8 +11031,8 @@ msgstr "方舟那边查不到这一发了（任务号查无此物）——多半
 
 #. placeholder {0}: usableFound.length
 #: src/components/PortraitAuthPanel.tsx
-msgid "方舟里有 {0} 份已授权素材，点一份接上："
-msgstr "方舟里有 {0} 份已授权素材，点一份接上："
+#~ msgid "方舟里有 {0} 份已授权素材，点一份接上："
+#~ msgstr "方舟里有 {0} 份已授权素材，点一份接上："
 
 #: src/utils/image.ts
 msgid "无法处理图片"
@@ -11000,8 +11049,8 @@ msgid "无脸"
 msgstr "无脸"
 
 #: src/pages/CustomCardPage.tsx
-msgid "无脸方案画出来的图里没有脸，但出片时<0>仍然要靠这份授权素材</0>（合规看的是有没有绑定授权，不看图里有没有脸）——所以上面那份授权别取消。"
-msgstr "无脸方案画出来的图里没有脸，但出片时<0>仍然要靠这份授权素材</0>（合规看的是有没有绑定授权，不看图里有没有脸）——所以上面那份授权别取消。"
+#~ msgid "无脸方案画出来的图里没有脸，但出片时<0>仍然要靠这份授权素材</0>（合规看的是有没有绑定授权，不看图里有没有脸）——所以上面那份授权别取消。"
+#~ msgstr "无脸方案画出来的图里没有脸，但出片时<0>仍然要靠这份授权素材</0>（合规看的是有没有绑定授权，不看图里有没有脸）——所以上面那份授权别取消。"
 
 #. 内置提示词方案的名字：≤34 个字符（另存为会接上「 copy」，服务端方案名上限 40）
 #: src/data/promptSchemes.ts
@@ -11086,6 +11135,10 @@ msgstr "暂时问不到服务器，没能确认这条作品有没有留存工坊
 #: src/components/CoverPicker.tsx
 msgid "暗处在首页会被文字和按钮盖住（大致）"
 msgstr "暗处在首页会被文字和按钮盖住（大致）"
+
+#: src/pages/CustomCardPage.tsx
+msgid "更换"
+msgstr "更换"
 
 #: src/pages/ProfilePage.tsx
 #: src/pages/SettingsProfilePage.tsx
@@ -11568,9 +11621,13 @@ msgstr "未配置 ARK_API_KEY：产物为本地模拟，仅演示流程"
 msgid "本 P 为付费内容 · <0>{0} token</0>"
 msgstr "本 P 为付费内容 · <0>{0} token</0>"
 
+#: src/components/VolcCompatToggle.tsx
+msgid "本人扫码"
+msgstr "本人扫码"
+
 #: src/components/PortraitAuthPanel.tsx
-msgid "本人授权（方舟可信素材库）"
-msgstr "本人授权（方舟可信素材库）"
+#~ msgid "本人授权（方舟可信素材库）"
+#~ msgstr "本人授权（方舟可信素材库）"
 
 #: src/components/VoiceRecorder.tsx
 msgid "本人跟读录制"
@@ -11745,17 +11802,17 @@ msgid "松手结束 · {0}s"
 msgstr "松手结束 · {0}s"
 
 #: src/components/PortraitAuthPanel.tsx
-msgid "查…"
-msgstr "查…"
+#~ msgid "查…"
+#~ msgstr "查…"
 
 #: src/components/PortraitAuthPanel.tsx
-msgid "查授权状态"
-msgstr "查授权状态"
+#~ msgid "查授权状态"
+#~ msgstr "查授权状态"
 
 #. placeholder {0}: (e instanceof Error ? e.message : String(e)).slice(0, 100)
 #: src/components/PortraitAuthPanel.tsx
-msgid "查状态没成：{0}"
-msgstr "查状态没成：{0}"
+#~ msgid "查状态没成：{0}"
+#~ msgstr "查状态没成：{0}"
 
 #: src/studio/ui/NpcDialog.tsx
 msgid "查看历史对话"
@@ -11773,6 +11830,15 @@ msgstr "查看用量 · 清理中间文件"
 #: src/components/support/AdminTicketsView.tsx
 msgid "查看转人工前的对话（{0} 条）"
 msgstr "查看转人工前的对话（{0} 条）"
+
+#: src/components/VolcCompatToggle.tsx
+msgid "查结果"
+msgstr "查结果"
+
+#. placeholder {0}: (e instanceof Error ? e.message : String(e)).slice(0, 100)
+#: src/components/VolcCompatToggle.tsx
+msgid "查认证结果没成：{0}"
+msgstr "查认证结果没成：{0}"
 
 #: src/ai/minimaxVideo.ts
 msgid "查询失败"
@@ -12302,8 +12368,8 @@ msgid "正在把「编号 → 角色」合成一段话…"
 msgstr "正在把「编号 → 角色」合成一段话…"
 
 #: src/pages/CustomCardPage.tsx
-msgid "正在把授权照片取来填进卡面…"
-msgstr "正在把授权照片取来填进卡面…"
+#~ msgid "正在把授权照片取来填进卡面…"
+#~ msgstr "正在把授权照片取来填进卡面…"
 
 #: src/data/templates.ts
 msgid "正在把整条视频切成 {count} 段登记…（每段都要独立转码，请稍候）"
@@ -12326,8 +12392,8 @@ msgid "正在替换…"
 msgstr "正在替换…"
 
 #: src/components/PortraitAuthPanel.tsx
-msgid "正在查你之前有没有授权过…"
-msgstr "正在查你之前有没有授权过…"
+#~ msgid "正在查你之前有没有授权过…"
+#~ msgstr "正在查你之前有没有授权过…"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "正在标「脸部特写」：拖到看得清脸的一帧，圈住面部"
@@ -12578,8 +12644,13 @@ msgstr "没取到：{error}"
 
 #. placeholder {0}: (e instanceof Error ? e.message : String(e)).slice(0, 80)
 #: src/pages/CustomCardPage.tsx
-msgid "没取到授权照片（{0}）——授权时传的照片就在你相册里，下一步从相册选一样"
-msgstr "没取到授权照片（{0}）——授权时传的照片就在你相册里，下一步从相册选一样"
+#~ msgid "没取到授权照片（{0}）——授权时传的照片就在你相册里，下一步从相册选一样"
+#~ msgstr "没取到授权照片（{0}）——授权时传的照片就在你相册里，下一步从相册选一样"
+
+#. placeholder {0}: (e instanceof Error ? e.message : String(e)).slice(0, 80)
+#: src/pages/CustomCardPage.tsx
+msgid "没取到火山引擎认证时传的那张照片（{0}）"
+msgstr "没取到火山引擎认证时传的那张照片（{0}）"
 
 #: src/components/support/HoldToTalk.tsx
 msgid "没听到声音：按住的时候靠近一点说，说完再松手。"
@@ -12593,6 +12664,10 @@ msgstr "没听懂这几句，怕改错就没动：{0}。"
 #: src/components/DownloadSheet.tsx
 msgid "没存下"
 msgstr "没存下"
+
+#: src/pages/CardDetailPage.tsx
+msgid "没存住（本机存储写入失败）——再点一次；一直不行就重启 App 再试。"
+msgstr "没存住（本机存储写入失败）——再点一次；一直不行就重启 App 再试。"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "没对上动作组，这个动作不演"
@@ -12795,6 +12870,11 @@ msgstr "没能删掉：{why}。文件还在，可以再试一次。"
 msgid "没能删掉这份工程（{why}）"
 msgstr "没能删掉这份工程（{why}）"
 
+#. placeholder {0}: (e instanceof Error ? e.message : String(e)).slice(0, 100)
+#: src/components/VolcCompatToggle.tsx
+msgid "没能发起火山引擎认证：{0}"
+msgstr "没能发起火山引擎认证：{0}"
+
 #: src/pages/ProfilePage.tsx
 msgid "没能取到 TA 的作品"
 msgstr "没能取到 TA 的作品"
@@ -12923,7 +13003,7 @@ msgstr "没认出「谁在说话」，会把整段一起分析。"
 msgid "没读出识别结果。{moneyLine}可以自己填，或者再识别一次"
 msgstr "没读出识别结果。{moneyLine}可以自己填，或者再识别一次"
 
-#: src/components/PortraitAuthPanel.tsx
+#: src/components/VolcCompatToggle.tsx
 msgid "没过审核："
 msgstr "没过审核："
 
@@ -13159,6 +13239,27 @@ msgstr "演示角色"
 #: src/ai/index.ts
 msgid "演示道具"
 msgstr "演示道具"
+
+#: src/components/VolcCompatToggle.tsx
+msgid "火山引擎认证"
+msgstr "火山引擎认证"
+
+#: src/pages/CustomCardPage.tsx
+msgid "火山引擎认证素材"
+msgstr "火山引擎认证素材"
+
+#: src/components/VolcCompatToggle.tsx
+#: src/pages/CustomCardPage.tsx
+msgid "火山引擎适用"
+msgstr "火山引擎适用"
+
+#: src/components/VolcCompatToggle.tsx
+msgid "火山没给原因"
+msgstr "火山没给原因"
+
+#: src/components/VolcCompatToggle.tsx
+msgid "火山返回的素材 ID 形状不认识（{rawId}）"
+msgstr "火山返回的素材 ID 形状不认识（{rawId}）"
 
 #: src/data/templates.ts
 msgctxt "人偶的主色（挂卡提醒那句话里显示）"
@@ -13550,7 +13651,7 @@ msgid "生成中"
 msgstr "生成中"
 
 #: src/components/flow/FlowCanvas.tsx
-#: src/components/PortraitAuthPanel.tsx
+#: src/components/VolcCompatToggle.tsx
 #: src/pages/FlowPage.tsx
 #: src/pages/SimpleModePage.tsx
 msgid "生成中…"
@@ -14325,6 +14426,24 @@ msgid "真人档首帧图生视频（MiniMax）"
 msgstr "真人档首帧图生视频（MiniMax）"
 
 #: src/pages/CustomCardPage.tsx
+msgid "真人照片已经在「{realSlotTag}」那一格了 · 不花钱"
+msgstr "真人照片已经在「{realSlotTag}」那一格了 · 不花钱"
+
+#: src/pages/CustomCardPage.tsx
+msgid "真人照片已经填进卡面的「{realSlotTag}」这一格——<0>下面两条路都不用你再传图</0>。"
+msgstr "真人照片已经填进卡面的「{realSlotTag}」这一格——<0>下面两条路都不用你再传图</0>。"
+
+#. placeholder {0}: scheme.title
+#: src/pages/CustomCardPage.tsx
+msgid "真人照片还在手上，但「{0}」的图位里已经不是它了——那一格的图被换过。AI 那条路的主素材也已经换成了别的图。"
+msgstr "真人照片还在手上，但「{0}」的图位里已经不是它了——那一格的图被换过。AI 那条路的主素材也已经换成了别的图。"
+
+#. placeholder {0}: scheme.title
+#: src/pages/CustomCardPage.tsx
+msgid "真人照片还在手上，但「{0}」的图位里已经不是它了——那一格的图被换过。交给 AI 出图那条路用的仍然是它。"
+msgstr "真人照片还在手上，但「{0}」的图位里已经不是它了——那一格的图被换过。交给 AI 出图那条路用的仍然是它。"
+
+#: src/pages/CustomCardPage.tsx
 msgid "真人素材"
 msgstr "真人素材"
 
@@ -14333,8 +14452,8 @@ msgid "真人素材出片要过供应商的内容审核，也受深度合成相�
 msgstr "真人素材出片要过供应商的内容审核，也受深度合成相关法规约束——用这张卡出片可能被拒单或加审。 拿别人的脸生成内容，必须先取得他本人的同意。"
 
 #: src/pages/CustomCardPage.tsx
-msgid "真人素材扫脸认证"
-msgstr "真人素材扫脸认证"
+#~ msgid "真人素材扫脸认证"
+#~ msgstr "真人素材扫脸认证"
 
 #: src/components/flow/SkillPanel.tsx
 msgid "真删？"
@@ -15297,6 +15416,10 @@ msgstr "等她画出来才能继续。"
 msgid "等待中"
 msgstr "等待中"
 
+#: src/components/VolcCompatToggle.tsx
+msgid "等待火山引擎认证…"
+msgstr "等待火山引擎认证…"
+
 #: src/components/flow/DiscardFlowDialog.tsx
 msgid "等这一段炼完才能丢"
 msgstr "等这一段炼完才能丢"
@@ -15379,12 +15502,16 @@ msgid "粘一段进来"
 msgstr "粘一段进来"
 
 #: src/components/PortraitAuthPanel.tsx
-msgid "粘贴 asset ID 或 asset://…"
-msgstr "粘贴 asset ID 或 asset://…"
+#~ msgid "粘贴 asset ID 或 asset://…"
+#~ msgstr "粘贴 asset ID 或 asset://…"
 
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "粘贴的文本"
 msgstr "粘贴的文本"
+
+#: src/components/VolcCompatToggle.tsx
+msgid "粘贴素材 ID 或 asset://…"
+msgstr "粘贴素材 ID 或 asset://…"
 
 #: src/studio/ui/NpcDialog.tsx
 msgid "精度"
@@ -15536,13 +15663,13 @@ msgstr "经典配方（不做白模）"
 msgid "经典配方模板首发只存本机，不需要登记到服务器"
 msgstr "经典配方模板首发只存本机，不需要登记到服务器"
 
-#: src/components/PortraitAuthPanel.tsx
+#: src/components/VolcCompatToggle.tsx
 msgid "绑定"
 msgstr "绑定"
 
 #: src/pages/CardDetailPage.tsx
-msgid "绑定没存住（本机存储写入失败）——再点一次；一直不行就重启 App 再试。"
-msgstr "绑定没存住（本机存储写入失败）——再点一次；一直不行就重启 App 再试。"
+#~ msgid "绑定没存住（本机存储写入失败）——再点一次；一直不行就重启 App 再试。"
+#~ msgstr "绑定没存住（本机存储写入失败）——再点一次；一直不行就重启 App 再试。"
 
 #: src/studio/ui/FuseFrameSheet.tsx
 msgctxt "嵌在句子里的名词：这张结尾帧 / 融成结尾帧"
@@ -15801,8 +15928,8 @@ msgstr "自动取首尾帧没成——点「🎞 调节首尾帧」手动截。"
 
 #. placeholder {0}: (e instanceof Error ? e.message : String(e)).slice(0, 100)
 #: src/components/PortraitAuthPanel.tsx
-msgid "自动查授权没成：{0}"
-msgstr "自动查授权没成：{0}"
+#~ msgid "自动查授权没成：{0}"
+#~ msgstr "自动查授权没成：{0}"
 
 #: src/studio/live2dUploadStore.ts
 msgid "自动识别"
@@ -16172,8 +16299,8 @@ msgid "要拍什么"
 msgstr "要拍什么"
 
 #: src/components/PortraitAuthPanel.tsx
-msgid "要授权的是<0>别人</0>？让他用自己的手机扫这个码 —— 活体认证必须在<1>他本人</1>的手机上、用他自己的火山账号做， 这正是这份授权有效的原因。"
-msgstr "要授权的是<0>别人</0>？让他用自己的手机扫这个码 —— 活体认证必须在<1>他本人</1>的手机上、用他自己的火山账号做， 这正是这份授权有效的原因。"
+#~ msgid "要授权的是<0>别人</0>？让他用自己的手机扫这个码 —— 活体认证必须在<1>他本人</1>的手机上、用他自己的火山账号做， 这正是这份授权有效的原因。"
+#~ msgstr "要授权的是<0>别人</0>？让他用自己的手机扫这个码 —— 活体认证必须在<1>他本人</1>的手机上、用他自己的火山账号做， 这正是这份授权有效的原因。"
 
 #: src/api/companion.ts
 msgid "要检查的模型包既没有文件也没有直传编号（这是调用方的 bug）"
@@ -17114,6 +17241,10 @@ msgstr "还没取回的白模化结果拉取失败：{why}"
 msgid "还没取回的白模化结果暂时拉不到（网络不稳），稍后自动重试——这不代表你没有待取回的"
 msgstr "还没取回的白模化结果暂时拉不到（网络不稳），稍后自动重试——这不代表你没有待取回的"
 
+#: src/pages/CardDetailPage.tsx
+msgid "还没同步到服务端（{issue}）——换台设备暂时看不到，下次登录会自动补传。"
+msgstr "还没同步到服务端（{issue}）——换台设备暂时看不到，下次登录会自动补传。"
+
 #: src/components/ForgeOverlay.tsx
 msgid "还没接到成片"
 msgstr "还没接到成片"
@@ -17191,8 +17322,8 @@ msgid "还没有工单"
 msgstr "还没有工单"
 
 #: src/components/PortraitAuthPanel.tsx
-msgid "还没有已授权的素材——请本人扫码/打开链接、完成活体认证与授权后再查。"
-msgstr "还没有已授权的素材——请本人扫码/打开链接、完成活体认证与授权后再查。"
+#~ msgid "还没有已授权的素材——请本人扫码/打开链接、完成活体认证与授权后再查。"
+#~ msgstr "还没有已授权的素材——请本人扫码/打开链接、完成活体认证与授权后再查。"
 
 #: src/studio/ui/projection.tsx
 msgid "还没有建过卡组——发布作品会自动生成《作品》卡组，<0/>也可以在「创意工坊」页手动组一套（编辑时可指定封面卡）。"
@@ -17271,6 +17402,10 @@ msgstr "还没有草稿。"
 #: src/pages/VideoPage.tsx
 msgid "还没有评论，抢个沙发"
 msgstr "还没有评论，抢个沙发"
+
+#: src/components/VolcCompatToggle.tsx
+msgid "还没查到认证结果"
+msgstr "还没查到认证结果"
 
 #: src/components/blockout/BoxFramePicker.tsx
 msgid "还没标任何一帧。「自己挑」至少要标 1 帧才作数——把播放头拖到人最齐的那一帧点「标记这一帧」， 或者切回「自动」。"
@@ -17854,8 +17989,12 @@ msgid "这不代表它不存在，只是这次没问到"
 msgstr "这不代表它不存在，只是这次没问到"
 
 #: src/components/PortraitAuthPanel.tsx
-msgid "这不像方舟的资产 ID —— 应该长成 asset-20260401123823-6d4x2 这样（在方舟控制台点「复制 asset ID」拿到）"
-msgstr "这不像方舟的资产 ID —— 应该长成 asset-20260401123823-6d4x2 这样（在方舟控制台点「复制 asset ID」拿到）"
+#~ msgid "这不像方舟的资产 ID —— 应该长成 asset-20260401123823-6d4x2 这样（在方舟控制台点「复制 asset ID」拿到）"
+#~ msgstr "这不像方舟的资产 ID —— 应该长成 asset-20260401123823-6d4x2 这样（在方舟控制台点「复制 asset ID」拿到）"
+
+#: src/components/VolcCompatToggle.tsx
+msgid "这不像火山的素材 ID —— 应该长成 asset-20260401123823-6d4x2 这样"
+msgstr "这不像火山的素材 ID —— 应该长成 asset-20260401123823-6d4x2 这样"
 
 #: src/studio/flowStore.ts
 msgid "这不是白模模板（只有白模模板能按段套用）"
@@ -18121,8 +18260,8 @@ msgstr "这份画布没能整理成可留存的样子——这条作品没法再
 
 #. placeholder {0}: it.id
 #: src/components/PortraitAuthPanel.tsx
-msgid "这份的 ID 形状不认识（{0}）——用「填 asset ID」那条路试试。"
-msgstr "这份的 ID 形状不认识（{0}）——用「填 asset ID」那条路试试。"
+#~ msgid "这份的 ID 形状不认识（{0}）——用「填 asset ID」那条路试试。"
+#~ msgstr "这份的 ID 形状不认识（{0}）——用「填 asset ID」那条路试试。"
 
 #: src/pages/ProfilePage.tsx
 msgid "这会儿没取回来，网络通了再试一次"
@@ -18567,6 +18706,11 @@ msgstr "这张打包素材解码失败"
 #: src/studio/StudioPage.tsx
 msgid "这张桌子上还没有卡——去「创意工坊」的卡片广场装几张，或用「从视频提取」现炼"
 msgstr "这张桌子上还没有卡——去「创意工坊」的卡片广场装几张，或用「从视频提取」现炼"
+
+#. placeholder {0}: (e instanceof Error ? e.message : String(e)).slice(0, 80)
+#: src/pages/CustomCardPage.tsx
+msgid "这张照片没能读进来（{0}）——换一张再试"
+msgstr "这张照片没能读进来（{0}）——换一张再试"
 
 #: src/utils/nativeCamera.ts
 msgid "这张照片解不开（常见于 HEIC 等手机专有格式）——换成 JPG，或截个图再传"
@@ -19359,6 +19503,10 @@ msgstr "重新开始"
 msgid "重新开始？"
 msgstr "重新开始？"
 
+#: src/components/VolcCompatToggle.tsx
+msgid "重新打开"
+msgstr "重新打开"
+
 #: src/components/SegmentPlayer.tsx
 msgid "重新播放"
 msgstr "重新播放"
@@ -19593,8 +19741,8 @@ msgid "铺进画布"
 msgstr "铺进画布"
 
 #: src/components/PortraitAuthPanel.tsx
-msgid "链接已复制，可以发给本人"
-msgstr "链接已复制，可以发给本人"
+#~ msgid "链接已复制，可以发给本人"
+#~ msgstr "链接已复制，可以发给本人"
 
 #: src/types.ts
 msgid "锁主体"

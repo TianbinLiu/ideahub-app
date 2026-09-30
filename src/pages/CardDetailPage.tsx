@@ -17,7 +17,7 @@ import TarotCard from "../components/TarotCard";
 import SocialPanel, { useCountView, useSocialVersion } from "../components/SocialPanel";
 import WorkshopShareBar, { shareBlockReason } from "../components/WorkshopShareBar";
 import CardHologram, { CARD_MODELS, useHologramModel } from "../studio/ui/CardHologram";
-import { acquireCard, bindCardAsset, cardsReady, fetchSharedCard, isRemoteMode, myCards, myDecks, removeCard, shareCard, updateCardMeta } from "../data/account";
+import { acquireCard, bindCardAsset, cardsReady, fetchSharedCard, isRemoteMode, myCards, myDecks, removeCard, shareCard, unbindCardAsset, updateCardMeta } from "../data/account";
 import {
   addCardView,
   addPreparedCardView,
@@ -32,8 +32,8 @@ import { i18n } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { removeVoice, subscribeVoices, voiceOf, voicesVersion } from "../data/cardVoice";
-import { assetPersisted, assetSyncIssue, assetsVersion, subscribeAssets } from "../data/cardAsset";
-import PortraitAuthPanel from "../components/PortraitAuthPanel";
+import { assetOf, assetPersisted, assetSyncIssue, assetsVersion, subscribeAssets } from "../data/cardAsset";
+import VolcCompatToggle from "../components/VolcCompatToggle";
 import { formatHeat, heatOf } from "../data/social";
 import {
   CARD_INFO_LABELS,
@@ -171,55 +171,52 @@ function pipelineNoteFor(type: CardType, views: CardView[]): string {
 }
 
 /**
- * 「方舟可信素材」窄条 —— 只在**坏了**的时候出现：真人卡 + 还没绑上素材。
+ * 真人卡的「火山引擎适用」—— 详情页这一格（components/VolcCompatToggle，三个宿主共用一份）。
  *
- * ★★ 2026-08-28 仓库主人拍板：授权的主路挪进**造卡流程**（自己传图 / 从视频提取里
- *   勾「真人」当场做，共用 components/PortraitAuthPanel 一份实现），详情页不再常驻
- *   整块授权区 —— 绑上素材后这里**整块消失**。
- *   这条窄条存在的唯一理由是授权**异步**：本人可能隔天才扫码，照片还可能被内容审核
- *   拒掉（2026-08-28 第一发实测就被拒：InputImageSensitiveContentDetected）——
- *   造卡时没接上的真人卡总得有个就地修复的地方，不能逼人删卡重来。
+ * ★★ 2026-09-30 主人拍板改成勾选框：勾着 = 这张卡做过火山引擎认证，只收授权素材的档位
+ *   （高清 / 电影级）才对它开放；取消勾选 = 当场解绑。**不写**"哪一档需要认证"的说明——
+ *   能用哪几档由档位按钮本身可不可点表达（TierRow 读 economy.realFaceIssue）。
+ *   （2026-08-28 那一版是"只在坏了时出现、绑上即消失"的窄条；勾选框要一直在，勾着本身就是状态。）
+ * ★ 认证是**异步**的：本人可能隔天才扫码、照片还可能被内容审核拒掉 —— 造卡时没接上的真人卡
+ *   总得有个就地补的地方，不能逼人删卡重来。
  * ★ 只对自己的卡出现（别人的卡看不到本机侧库）。
- * ★ 绑定后**没有解绑入口**是有意的（同一次拍板「绑上即消失」）：绑错只剩"手填填错"
- *   一种来路，而手填两处都过 normalizeAssetId。真要换绑，等出现真实需求再开口子，
- *   别为想象中的操作摆按钮。
+ * ★ 勾选状态读 `assetOf`（内存里有没有），与出片门禁 `hasAsset` 同一个答案；
+ *   落盘失败另用 saveErr 当场说出来（铁律八：静默失败的话用户以为绑好了，重启后才发现没了）。
  */
 function CardAssetSection({ card, owned }: { card: Card; owned: boolean }) {
   useSyncExternalStore(subscribeAssets, assetsVersion, () => 0);
   const [saveErr, setSaveErr] = useState("");
   const { t } = useLingui();
   if (card.type !== "character" || card.realPerson !== true || !owned) return null;
-  // ★★ 判**落盘了吗**，不是"内存里有吗"（2026-09-01 复核抓到）：saveAsset 写内存那一拍就
-  //   emit()，只问 assetOf 的话窄条在点下去那一瞬间就没了 —— 连同它下面那句错误提示，
-  //   而提示里还写着「再点一次」，那时已经无处可点。落盘失败时窄条留住，这条路才是真的。
-  if (assetPersisted(card.id)) {
-    // 绑上（且存住了）即窄条消失（见顶注）——只剩一句可能要说的话：服务端还没收下。
-    // 绑定属于账号（server BranchCard.portrait），没上行 = 换台设备暂时看不到；下次登录会自动补传
-    const issue = assetSyncIssue(card.id);
-    return issue ? (
-      <p className="mb-4 rounded-lg border border-amber-500/40 bg-amber-400/5 px-3 py-2 text-[11px] leading-relaxed text-amber-200/90">
-        <Trans>🪪 肖像授权已在本机接上，但还没同步到服务端（{issue}）——换台设备暂时看不到，下次登录会自动补传。</Trans>
-      </p>
-    ) : null;
-  }
+  const bound = assetOf(card.id)?.assetId ?? null;
+  // 绑定属于账号（server BranchCard.portrait）：没上行 = 换台设备暂时看不到，下次登录会自动补传
+  const issue = bound && assetPersisted(card.id) ? assetSyncIssue(card.id) : null;
+  const notStored = t`没存住（本机存储写入失败）——再点一次；一直不行就重启 App 再试。`;
   return (
-    <div className="mb-4 rounded-xl border border-amber-500/40 bg-amber-400/5 p-3">
-      <p className="mb-1.5 text-[11px] leading-relaxed text-amber-200/90">
-        <Trans>🪪 这张真人卡还<b className="text-amber-100">没接上已授权的肖像素材</b>——「高清」「电影级」档不收直接上传的真人照片，接上之前用它出片会被拒。</Trans>
-      </p>
-      <PortraitAuthPanel
+    <div className="mb-4">
+      <VolcCompatToggle
+        boundId={bound}
         onBound={(assetId, note) => {
-          // 窄条是"卡已存在"的场景，当场落库。写失败要出声（铁律八）：
-          // 静默失败的话用户以为绑好了，出片那一刻才发现还是拒。
-          // ★ 判**返回值**不判 reject：saveAsset 底下的 idbSet 把异常吞了回 false，
-          //   原来那条 `.catch` 一次都跑不到（2026-09-01 修 cardAsset 契约时一并改）。
-          //   服务端那半（换台设备看得到）由 bindCardAsset 记进侧库，上面 assetPersisted 那支把话说出来
+          setSaveErr("");
+          // ★ 判**返回值**不判 reject：saveAsset 底下的 idbSet 把异常吞了回 false
           void bindCardAsset(card.id, { assetId, scope: "private", note }).then(
-            (b) => b.stored || setSaveErr(t`绑定没存住（本机存储写入失败）——再点一次；一直不行就重启 App 再试。`),
-            () => setSaveErr(t`绑定没存住（本机存储写入失败）——再点一次；一直不行就重启 App 再试。`),
+            (b) => b.stored || setSaveErr(notStored),
+            () => setSaveErr(notStored),
+          );
+        }}
+        onUnbind={() => {
+          setSaveErr("");
+          void unbindCardAsset(card.id).then(
+            (b) => b.stored || setSaveErr(notStored),
+            () => setSaveErr(notStored),
           );
         }}
       />
+      {issue && (
+        <p className="mt-1.5 text-[10px] leading-relaxed text-amber-200/90">
+          <Trans>还没同步到服务端（{issue}）——换台设备暂时看不到，下次登录会自动补传。</Trans>
+        </p>
+      )}
       {saveErr && <p className="mt-1.5 text-[10px] leading-relaxed text-rose-300">{saveErr}</p>}
     </div>
   );
