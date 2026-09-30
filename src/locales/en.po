@@ -1093,8 +1093,16 @@ msgstr "{names}: declared as real-person material, and the “{label}” tier's 
 #~ msgstr "Real-person cards: {names}. The “{label}” tier doesn’t take real-person photos — switch to “{realTier}”, or tick “Volcengine verified” on the card and use “{hdTier}” or “{ultraTier}”."
 
 #: src/data/economy.ts
+msgid "{names}是真人卡，「{label}」档不收真人照片——换「{realTier}」档（在「工作流」或「简约模式」里直出）；「{hdTier}」「{ultraTier}」档只在「简约模式」不带首帧、且卡勾了「火山引擎适用」时可用"
+msgstr "Real-person cards: {names}. The “{label}” tier doesn’t take real-person photos — switch to “{realTier}” (generate directly in Workflow or Simple mode). “{hdTier}” and “{ultraTier}” only work in Simple mode with no opening frame, on cards marked “Volcengine verified”."
+
+#: src/data/economy.ts
 msgid "{names}是真人卡，「{label}」档不收真人照片——换「{realTier}」档（在「工作流」或「简约模式」里直出）；或给卡勾选「火山引擎适用」后换「{hdTier}」「{ultraTier}」档"
 msgstr "Real-person cards: {names}. The “{label}” tier doesn’t take real-person photos — switch to “{realTier}” (generate directly in Workflow or Simple mode), or tick “Volcengine verified” on the card and use “{hdTier}” or “{ultraTier}”."
+
+#: src/data/economy.ts
+msgid "{names}是真人卡：「{label}」档只在「简约模式」不带首帧时可用（推演帧、承接画面、上传的首帧里有真人脸，会被整发拒）——去「简约模式」直出，或换「{realTier}」档（在「工作流」或「简约模式」里直出）"
+msgstr "Real-person cards: {names}. The “{label}” tier only works in Simple mode with no opening frame — derived frames, carried-over frames and uploaded opening frames show a real face, and the whole request gets rejected. Generate directly in Simple mode, or switch to “{realTier}” (generate directly in Workflow or Simple mode)."
 
 #: src/ai/real.ts
 msgid "{names}的形象参考图这次没带上（一次最多 {budget} 张，方舟的协议上限）——提示词里只剩它们的名字，画面上那几个人会由 AI 自己编，想换成卡上的样子就少挂几张卡"

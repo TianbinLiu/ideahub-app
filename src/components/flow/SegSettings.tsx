@@ -9,7 +9,7 @@
 // ★ 组件自己认 node.id 从 store 读（与 PlanSheet / CardPicker 同款）：宿主只给一个 id，
 //   不必把 index/nodes/mode 一路传下来，也就不会出现"传的是上一段"那类错。
 import { clampDuration, modelLabel, r2vBlockLines, realFaceIssue, tierOf } from "../../data/economy";
-import { chosenOf, nodeDone, tplOfNode, useFlow } from "../../studio/flowStore";
+import { chosenOf, nodeDone, nodeFramed, tplOfNode, useFlow } from "../../studio/flowStore";
 import { DURATIONS, VIDEO_ASPECTS } from "../../types";
 import { Trans, useLingui } from "@lingui/react/macro";
 import TierRow from "./TierRow";
@@ -18,6 +18,7 @@ import { carryIsHard } from "../../studio/segmentGen";
 export default function SegSettings({ nodeId }: { nodeId: string }) {
   const { t } = useLingui();
   const nodes = useFlow((s) => s.nodes);
+  const mode = useFlow((s) => s.mode);
   const { updateProposal, updateNode } = useFlow();
   const index = nodes.findIndex((n) => n.id === nodeId);
   const node = index >= 0 ? nodes[index] : undefined;
@@ -46,7 +47,8 @@ export default function SegSettings({ nodeId }: { nodeId: string }) {
    * blockout 位跟着本段事实：白模节点上「真人」档整个按不动（上面 r2vBlocks 正印着
    * 原因），默认那句「换成真人档就能出」在这儿是死路 —— 两行并排自相矛盾。
    */
-  const realFaceBlock = realFaceIssue(node.materials, node.videoTier, { blockout });
+  // framed 与生成闸同源（flowStore.nodeFramed）：已认证真人卡在高清/电影级上只有不带帧的请求过得去
+  const realFaceBlock = realFaceIssue(node.materials, node.videoTier, { blockout, framed: nodeFramed(nodes, index, mode) });
 
   return (
     <div className="space-y-3">

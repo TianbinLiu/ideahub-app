@@ -1093,8 +1093,16 @@ msgstr "{names}是声明过的真人素材，「{label}」档的供应商拒收�
 #~ msgstr "{names}是真人卡，「{label}」档不收真人照片——换「{realTier}」档；或给卡勾选「火山引擎适用」后换「{hdTier}」「{ultraTier}」档"
 
 #: src/data/economy.ts
+msgid "{names}是真人卡，「{label}」档不收真人照片——换「{realTier}」档（在「工作流」或「简约模式」里直出）；「{hdTier}」「{ultraTier}」档只在「简约模式」不带首帧、且卡勾了「火山引擎适用」时可用"
+msgstr "{names}是真人卡，「{label}」档不收真人照片——换「{realTier}」档（在「工作流」或「简约模式」里直出）；「{hdTier}」「{ultraTier}」档只在「简约模式」不带首帧、且卡勾了「火山引擎适用」时可用"
+
+#: src/data/economy.ts
 msgid "{names}是真人卡，「{label}」档不收真人照片——换「{realTier}」档（在「工作流」或「简约模式」里直出）；或给卡勾选「火山引擎适用」后换「{hdTier}」「{ultraTier}」档"
 msgstr "{names}是真人卡，「{label}」档不收真人照片——换「{realTier}」档（在「工作流」或「简约模式」里直出）；或给卡勾选「火山引擎适用」后换「{hdTier}」「{ultraTier}」档"
+
+#: src/data/economy.ts
+msgid "{names}是真人卡：「{label}」档只在「简约模式」不带首帧时可用（推演帧、承接画面、上传的首帧里有真人脸，会被整发拒）——去「简约模式」直出，或换「{realTier}」档（在「工作流」或「简约模式」里直出）"
+msgstr "{names}是真人卡：「{label}」档只在「简约模式」不带首帧时可用（推演帧、承接画面、上传的首帧里有真人脸，会被整发拒）——去「简约模式」直出，或换「{realTier}」档（在「工作流」或「简约模式」里直出）"
 
 #: src/ai/real.ts
 msgid "{names}的形象参考图这次没带上（一次最多 {budget} 张，方舟的协议上限）——提示词里只剩它们的名字，画面上那几个人会由 AI 自己编，想换成卡上的样子就少挂几张卡"

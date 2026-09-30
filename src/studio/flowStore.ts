@@ -56,7 +56,7 @@ import {
 } from "../data/templates";
 import { type BlockoutCastSlot, blockoutApplySkeleton, castNameIssue, composeBlockoutPrompt } from "./blockoutPrompt";
 import { GenStep, createGenLog, splitStatus } from "./genLog";
-import { blockoutIssue, generateSegment, redrawnAnns, refVideoOn } from "./segmentGen";
+import { blockoutIssue, frameFree, generateSegment, redrawnAnns, refVideoOn } from "./segmentGen";
 
 /** 正在后台盯转存收尾的段（settleNodeMedia）：同一段只盯一份，出片一次、打开草稿一次都可能起一份 */
 const settling = new Set<string>();
@@ -869,6 +869,21 @@ export function nodeRefOn(nodes: FlowNode[], idx: number, mode: FlowMode, tierOv
     // 混发的，不是「参考生视频」这条产品路（界面那句「省掉设定帧」不该亮）
     refVideoUrl: tplOfNode(node)?.refVideo?.url,
   });
+}
+
+/**
+ * 这一段出片会不会**带画面帧**（设定首帧 / 承接帧 / 圈选，或工作流里推演、补画出来的帧）——
+ * 真人卡门禁用（economy.realFaceIssue 的 framed：已认证真人卡在高清/电影级只有不带帧的请求过得去）。
+ * ★ 判据走 segmentGen.frameFree 一处（refVideoOn 的帧那一半）；帧在不在问 usableFrames、承接问 nodeCarry ——
+ *   与 genNode 真正发出去的那一份同源。老草稿里的占位图不算帧，但它出片前会被补画，补出来的一样算。
+ * ★ 不在简约模式（refAllowed 为假）时恒为真：那条路上的帧不是已经在方案里，就是出片前现画。
+ */
+export function nodeFramed(nodes: FlowNode[], idx: number, mode: FlowMode): boolean {
+  const node = nodes[idx];
+  if (!node) return true;
+  const prop = chosenOf(node);
+  const frames = usableFrames(node, prop, idx > 0 ? chosenOf(nodes[idx - 1]) : null);
+  return !frameFree({ firstFrame: frames.first, carryFrame: nodeCarry(nodes, idx), anns: node.anns, refAllowed: mode === "simple" });
 }
 
 /** 整条流水线还需要多少 token（当前走向已出片的段不再计费）。
@@ -1882,8 +1897,11 @@ export const useFlow = create<FlowState>()((set, get) => ({
     //   一样整发被拒 —— 而这条路是**先扣费后开跑**（下面 spendTokens 在 await 之前），
     //   门禁必须立在扣费之前，不然就是"钱扣了、供应商拒了"。
     //   blockout 位按本段事实传（白模节点上「换真人档」是死路，出路那半句要换说法）
+    // ★ framed 恒真：推演本身就是画首尾帧，已认证真人卡在高清/电影级上也过不去（帧里的真人脸，
+    //   见 realFaceIssue 的 framed）—— 拦在扣推演费之前，不然就是先花钱再被供应商拒
     const realFaceBlocked = realFaceIssue(node.materials, node.videoTier, {
       blockout: !!tplOfNode(node)?.refVideo,
+      framed: true,
     });
     if (realFaceBlocked) {
       set({ err: realFaceBlocked });
@@ -2815,8 +2833,10 @@ export const useFlow = create<FlowState>()((set, get) => ({
     //   方舟中途换回一句英文报错，不如当场说人话（同上面 tierBlockReason 的处置）。
     //   SegSettings 在档位区印的是同一句；r2v/白模路也从这里走，天然同一道门。
     //   blockout 位按本段事实传（白模节点上「换真人档」是死路，出路那半句要换说法）
+    // framed 按本段事实问（nodeFramed，与下面真正发出去的帧同源）：带帧的请求里真人脸会被整发拒
     const realFaceBlocked = realFaceIssue(node.materials, node.videoTier, {
       blockout: !!rv || !!tplOfNode(node)?.refVideo,
+      framed: nodeFramed(s0.nodes, idx, s0.mode),
     });
     if (realFaceBlocked) {
       set({ err: realFaceBlocked });

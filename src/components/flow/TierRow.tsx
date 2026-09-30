@@ -17,7 +17,7 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { tierBlockReason } from "../../data/account";
 import { clampDuration, deriveIssue, fmtTokens, r2vPriceIssue, realFaceIssue, tierOf, VIDEO_TIERS } from "../../data/economy";
-import { chosenOf, nodeCost, tplOfNode, useFlow } from "../../studio/flowStore";
+import { chosenOf, nodeCost, nodeFramed, tplOfNode, useFlow } from "../../studio/flowStore";
 import { carryIsHard } from "../../studio/segmentGen";
 
 /**
@@ -91,6 +91,8 @@ export default function TierRow({
   if (!node) return null;
   const prop = chosenOf(node);
   const blockout = !!tplOfNode(node)?.refVideo;
+  /** 这一段出片会不会带画面帧（flowStore.nodeFramed）；宿主主路是推演（工坊）时恒真 —— 推演就是画帧 */
+  const framed = !!needsDerive || nodeFramed(nodes, index, mode);
   const tierBlocks = VIDEO_TIERS.map((tier) => tierBlockReason(tier)).filter((r): r is string => !!r);
 
   /** 真正落地：换档 + 时长吸附写回 + 清掉带不动的东西。
@@ -131,7 +133,8 @@ export default function TierRow({
           //   不是选了再报错）。判据只有 economy.realFaceIssue 一处，与出片闸（flowStore.genNode /
           //   deriveProposals）问的是同一句 —— 界面说能选、闸却拒，就是两面打架。
           //   没勾「火山引擎适用」的真人卡：只收认证素材的档（高清 / 电影级）灰；1.0 两档本来就不收真人照片，也灰。
-          const faceBlock = realFaceIssue(node.materials, tier.id, { blockout });
+          //   勾了的也只在不带帧时放行（framed，2026-09-30 付费实测：帧里的真人脸会被整发拒）。
+          const faceBlock = realFaceIssue(node.materials, tier.id, { blockout, framed });
           const block = tierBlockReason(tier) ?? r2vBlock ?? faceBlock ?? (needsDerive ? deriveIssue(tier.id) : null);
           const desc = tier.desc;
           const model = tier.model;
