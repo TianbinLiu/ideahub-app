@@ -21,7 +21,7 @@ import { useAutoGuide } from "../components/guide/useAutoGuide";
 import Icon from "../components/Icon";
 import { AI_REAL, refineFrame, regenSegment } from "../ai";
 import { isArkAssetUrl, requestArkTransfer, transferStatus } from "../ai/arkClient";
-import { canAfford, isRemoteMode, spendTokens, walletOf } from "../data/account";
+import { canAfford, frozenNote, isRemoteMode, spendTokens, walletOf } from "../data/account";
 import { idbSet } from "../data/db";
 import { dropVideoJob } from "../data/videoJobs";
 import { ownerEpoch } from "../data/deviceOwner";
@@ -593,7 +593,7 @@ export default function CutPage() {
       const segCount = bySeg.size;
       const need = fmtTokens(annCost);
       const have = fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0));
-      setErr(t`重生成 ${segCount} 段约需 ${need} token，余额 ${have} 不足——去「我的」页充值`);
+      setErr(frozenNote() ?? t`重生成 ${segCount} 段约需 ${need} token，余额 ${have} 不足——去「我的」页充值`);
       return;
     }
     setErr("");

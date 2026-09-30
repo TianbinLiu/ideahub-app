@@ -40,7 +40,7 @@ import VolcCompatToggle from "../components/VolcCompatToggle";
 import VoiceRecorder from "../components/VoiceRecorder";
 import VoiceUploadButton from "../components/VoiceUploadButton";
 import { fetchPortraitAssetImage } from "../api/portrait";
-import { addCards, bindCardAsset, canAfford, isRemoteMode, spendTokens, walletOf } from "../data/account";
+import { addCards, bindCardAsset, canAfford, frozenNote, isRemoteMode, spendTokens, walletOf } from "../data/account";
 import { API_ON } from "../api/client";
 import { prepareCardImage } from "../data/cardViews";
 import { joinViewNote } from "../types";
@@ -687,9 +687,10 @@ export default function CustomCardPage() {
       const w = walletOf();
       const balance = fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0));
       setErr(
-        kept.length > 0
-          ? t`补齐剩下的图位约 ${aiPriceText} token，余额 ${balance} 不够——去「我的」页充值，或改选「自己上传图片」（不花钱）`
-          : t`AI 生成整套约 ${aiPriceText} token，余额 ${balance} 不够——去「我的」页充值，或改选「自己上传图片」（不花钱）`,
+        frozenNote() ??
+          (kept.length > 0
+            ? t`补齐剩下的图位约 ${aiPriceText} token，余额 ${balance} 不够——去「我的」页充值，或改选「自己上传图片」（不花钱）`
+            : t`AI 生成整套约 ${aiPriceText} token，余额 ${balance} 不够——去「我的」页充值，或改选「自己上传图片」（不花钱）`),
       );
       return;
     }
@@ -879,7 +880,7 @@ export default function CustomCardPage() {
     const shot = schemeShots[key];
     if (!slot || !shot || busySlot) return;
     if (AI_REAL && !canAfford(ONE_IMAGE)) {
-      setSlotErr({ key, msg: t`改一次图要 ${refinePrice} token，余额不够——去「我的」页充值` });
+      setSlotErr({ key, msg: frozenNote() ?? t`改一次图要 ${refinePrice} token，余额不够——去「我的」页充值` });
       return;
     }
     setBusySlot(key);
@@ -939,7 +940,7 @@ export default function CustomCardPage() {
     if (AI_REAL && !canAfford(CHAT_TURN_TOKENS)) {
       const w = walletOf();
       const balance = fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0));
-      setCaptureMsg(t`识别一次 ${recogPrice} token，余额 ${balance} 不够——去「我的」页充值，或选「上传本地图片」（不花钱）`);
+      setCaptureMsg(frozenNote() ?? t`识别一次 ${recogPrice} token，余额 ${balance} 不够——去「我的」页充值，或选「上传本地图片」（不花钱）`);
       return;
     }
     const startType = type;
@@ -1022,7 +1023,7 @@ export default function CustomCardPage() {
       const balance = fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0));
       setRecogMsg({
         tone: "error",
-        text: t`识别一次 ${recogPrice} token，余额 ${balance} 不够——去「我的」页充值，或者自己填`,
+        text: frozenNote() ?? t`识别一次 ${recogPrice} token，余额 ${balance} 不够——去「我的」页充值，或者自己填`,
       });
       return;
     }

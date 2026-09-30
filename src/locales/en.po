@@ -1022,6 +1022,10 @@ msgstr "{label} is too large ({sizeMb}MB; the limit is 5MB)"
 msgid "{lack}没有勾选「火山引擎适用」——「{label}」档只收做过火山引擎认证的真人卡。去卡片详情页勾选「火山引擎适用」，或先把这张卡取下"
 msgstr "Not marked “Volcengine verified”: {lack}. The “{label}” tier only takes real-person cards verified through Volcengine — tick “Volcengine verified” on the card’s detail page, or take the card off."
 
+#: src/data/economy.ts
+msgid "{lack}没有勾选「火山引擎适用」——「{label}」档只收做过火山引擎认证的真人卡。去卡片详情页勾选「火山引擎适用」，或换「{realTier}」档（在「工作流」或「简约模式」里直出）"
+msgstr "Not marked “Volcengine verified”: {lack}. The “{label}” tier only takes real-person cards verified through Volcengine — tick “Volcengine verified” on the card’s detail page, or switch to the “{realTier}” tier (generate directly in Workflow or Simple mode)."
+
 #. 铸卡师念的话。list 是前三张的名字（已用分隔符连好），count 是丢的总张数（大于 3），reason 是失败原因整句
 #: src/studio/studioStore.ts
 msgid "{list} 等 {count} 张没能存到服务器（{reason}）——这几张只留在这台设备上，换设备或者重新登录就没了。想留住的话，回卡片详情页把它重新挂一次。"
@@ -1085,8 +1089,12 @@ msgid "{names}是声明过的真人素材，「{label}」档的供应商拒收�
 msgstr "{names}: declared as real-person material, and the “{label}” tier's provider rejects photos of real people (in testing, celebrities are blocked for copyright and everyone else for privacy, and the whole request is rejected); meanwhile the “{realTier}” tier can't do blockout remakes — real-person cards and blockout templates can't be used together: swap the real-person card for a non-real-person card, or drop the template and switch to “{realTier}” to start from the card's photo and render directly"
 
 #: src/data/economy.ts
-msgid "{names}是真人卡，「{label}」档不收真人照片——换「{realTier}」档；或给卡勾选「火山引擎适用」后换「{hdTier}」「{ultraTier}」档"
-msgstr "Real-person cards: {names}. The “{label}” tier doesn’t take real-person photos — switch to “{realTier}”, or tick “Volcengine verified” on the card and use “{hdTier}” or “{ultraTier}”."
+#~ msgid "{names}是真人卡，「{label}」档不收真人照片——换「{realTier}」档；或给卡勾选「火山引擎适用」后换「{hdTier}」「{ultraTier}」档"
+#~ msgstr "Real-person cards: {names}. The “{label}” tier doesn’t take real-person photos — switch to “{realTier}”, or tick “Volcengine verified” on the card and use “{hdTier}” or “{ultraTier}”."
+
+#: src/data/economy.ts
+msgid "{names}是真人卡，「{label}」档不收真人照片——换「{realTier}」档（在「工作流」或「简约模式」里直出）；或给卡勾选「火山引擎适用」后换「{hdTier}」「{ultraTier}」档"
+msgstr "Real-person cards: {names}. The “{label}” tier doesn’t take real-person photos — switch to “{realTier}” (generate directly in Workflow or Simple mode), or tick “Volcengine verified” on the card and use “{hdTier}” or “{ultraTier}”."
 
 #: src/ai/real.ts
 msgid "{names}的形象参考图这次没带上（一次最多 {budget} 张，方舟的协议上限）——提示词里只剩它们的名字，画面上那几个人会由 AI 自己编，想换成卡上的样子就少挂几张卡"
@@ -1464,6 +1472,10 @@ msgstr "“{name}”: its reference image wasn't included this time (at most {bu
 #: src/ai/real.ts
 #~ msgid "「{name}」的参考图这次没带上（一次最多 {budget} 张，方舟的协议上限），它只按文字设定参与"
 #~ msgstr "“{name}”: its reference image wasn't included this time (at most {budget, plural, one {# image} other {# images}} per render — Ark's protocol limit), so it only takes part through its text details"
+
+#: src/studio/segmentGen.ts
+msgid "「{name}」的图都标成了「仅展示」，真人档不会拿它们起拍——到卡片详情页把一张改成「出片用」，或自己传一张开头帧"
+msgstr "Every image on “{name}” is set to “Display only”, so the real-person tier won’t start from any of them — set one to “Used in video” on the card’s detail page, or upload an opening frame yourself"
 
 #: src/ai/real.ts
 msgid "「{name}」的场景卡面去人没去干净，用了原片那一帧"
@@ -12652,6 +12664,10 @@ msgstr "Couldn't load: {error}"
 msgid "没取到火山引擎认证时传的那张照片（{0}）"
 msgstr "Couldn’t fetch the photo uploaded during Volcengine verification ({0})"
 
+#: src/pages/CardDetailPage.tsx
+msgid "没取消成功——服务端没收到（{why}），勾选保持原样；网络好了再点一次。"
+msgstr "Couldn’t turn it off — the server didn’t get the request ({why}), so it stays ticked. Try again once you’re back online."
+
 #: src/components/support/HoldToTalk.tsx
 msgid "没听到声音：按住的时候靠近一点说，说完再松手。"
 msgstr "No speech heard. Speak closer while holding, and release when you're done."
@@ -16935,13 +16951,17 @@ msgstr "Your account didn't finish loading — going in anyway would leave pages
 msgid "账户有 {owed} token 欠额，充值抵扣后即可继续生成 · <0>去充值</0>"
 msgstr "Your account owes {owed} tokens; top up to clear it and generation resumes · <0>Top up</0>"
 
-#: src/ai/arkClient.ts
+#: src/data/account.ts
 msgid "账户有 {owed} token 欠额（一笔退款收回的），充值抵扣后即可继续生成"
 msgstr "Your account owes {owed} tokens (clawed back by a refund). Top up to clear it and generation resumes."
 
-#: src/ai/arkClient.ts
+#: src/data/account.ts
 msgid "账户有一笔 token 欠额（退款收回的），充值抵扣后即可继续生成"
 msgstr "Your account has an outstanding token balance (clawed back by a refund). Top up to clear it and generation resumes."
+
+#: src/studio/canvasAgent.ts
+msgid "账户欠额冻结中，AI 指挥暂停（充值抵扣后恢复）。"
+msgstr "Your account is frozen over an outstanding balance, so the AI director is paused (it resumes once a top-up clears it). "
 
 #: src/types.ts
 msgid "质感特写"

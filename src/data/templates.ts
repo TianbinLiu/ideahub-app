@@ -13,7 +13,7 @@ import * as uploadsApi from "../api/uploads";
 //   mock），而白模化整条链路本来就只在"真的有服务端"时才存在（remoteOn + 能力探测
 //   两道门）。轮询一个真实存在的方舟任务没有 mock 版本可言，走开关只会平添一层空实现。
 import { fetchArkTask } from "../ai/arkClient";
-import { canAfford, currentUser, refreshRemoteWallet, tierBlockReason } from "./account";
+import { canAfford, currentUser, frozenNote, refreshRemoteWallet, tierBlockReason } from "./account";
 import { blockoutTier, blockoutizeCost, blockoutizeIssue, fmtTokens } from "./economy";
 import { toPermanentUrl } from "./publishAssets";
 import { remoteOn } from "./videos";
@@ -2808,7 +2808,7 @@ export async function blockoutizeTemplate(o: BlockoutizeInput): Promise<VideoTem
   if (!canAfford(cost)) {
     const price = fmtTokens(cost);
     throw new Error(
-      t`这一发白模化预估要 ${price} token（看帧认人 + 一次真实付费出片），余额不够——去「我的」页充值后再回来，框选不会丢。`,
+      frozenNote() ?? t`这一发白模化预估要 ${price} token（看帧认人 + 一次真实付费出片），余额不够——去「我的」页充值后再回来，框选不会丢。`,
     );
   }
 

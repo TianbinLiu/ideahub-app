@@ -13,7 +13,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { AI_REAL, PortraitViewsPartial, briefArkReason, chargeNote, chargeOnFail, portraitViews } from "../ai";
-import { addCards, bindCardAsset, canAfford, createDeck, spendTokens } from "../data/account";
+import { addCards, bindCardAsset, canAfford, createDeck, frozenNote, spendTokens } from "../data/account";
 import { ONE_IMAGE, fmtTokens, schemeCost } from "../data/economy";
 import { VOICE_MAX_SEC, VOICE_MIN_SEC, saveVoice } from "../data/cardVoice";
 import { startJob } from "../data/jobs";
@@ -539,7 +539,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
     const { scheme, kept, todo, price } = plan;
     if (AI_REAL && !canAfford(price)) {
       const imgs = todo.filter(isGenerated).length;
-      setErr(t`「${scheme.title}」要炼 ${imgs} 张图、约 ${fmtTokens(price)} token，余额不够——去「我的」页充值`);
+      setErr(frozenNote() ?? t`「${scheme.title}」要炼 ${imgs} 张图、约 ${fmtTokens(price)} token，余额不够——去「我的」页充值`);
       return;
     }
     setErr("");

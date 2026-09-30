@@ -192,7 +192,7 @@
 
 ### 4.1 供应商与模型
 - 主供应商：**火山引擎方舟（Ark v3）** — Seedream 生图 / Seedance 生视频 / 豆包对话 — `app\src\ai\arkClient.ts:1`
-- 真人档换供应商：**MiniMax 海螺 2.3（768P）**，境内 `api.minimaxi.com` — `app\src\ai\minimaxVideo.ts:1-8`；`app\src\data\economy.ts:272-282`
+- 真人档换供应商：**MiniMax 海螺 2.3-Fast（768P，只做图生视频）**；2026-09-26 起走 MiniMax **国际站** `api.minimax.io`（此前是中国站）——**不许再说「境内、照片不出境」** — `app\src\ai\minimaxVideo.ts:1-9`；`app\src\data\economy.ts:321-360`；server `config/minimax.js`
 - TTS 走火山 openspeech（另一条产品线，另配 `TTS_APPID`/`TTS_TOKEN`）；**方舟没有 TTS** — `app\CLAUDE.md:275`
 - 密钥永远在服务端，不进 App 包 — `app\AGENTS.md:57-59`；`app\src\ai\arkClient.ts:16`
 
@@ -203,14 +203,15 @@
 | std | **标准（默认）** | seedance-1-0-pro | 1 | ✓ | ✗ | ✗ | ✗ | ✗ | 3s | — |
 | hd | 高清 | seedance-2-0-mini | 23/15 | ✓ | ✓(≤9) | ✗ | **✓** | ✗ | 3s | — |
 | ultra | 电影级 | seedance-2-5 | 4.7 | ✓ | ✓(≤30) | ✓ | ✓ | ✗ | **4s** | **仅付费套餐** |
-| real | 真人 | MiniMax-Hailuo-2.3 | 按发定价 | ✗ | ✗ | ✗ | ✗ | **✓** | 6s | — |
+| real | 真人 | MiniMax-Hailuo-2.3-Fast | 按发定价 | ✗ | ✗ | ✗ | ✗ | **✓** | 6s | — |
 
 - 默认档 `DEFAULT_TIER = "std"` — `app\src\data\economy.ts:306`
 - 「高清」档**免费套餐就能选**，切过去就有 AI 生成的环境音；开音频零额外成本 — `app\src\data\economy.ts:126-142`
-- 真人档只有 6s / 10s 两个整档（海螺 768P 的全部合法时长），按发一口价 **135,000 / 270,000 token** — `app\src\data\economy.ts:284-287`, `:100-112`
+- 真人档只有 6s / 10s 两个整档（海螺 768P 的全部合法时长），按发一口价 **85,000 / 143,200 token**（2.53 起）。2.52 及更早的包报价写 135,000 / 270,000，服务端按 125,300 / 250,600 实扣——老包用户问「扣的比报的少」就是这个 — `app\src\data\economy.ts:337-343`；server `config/tokens.js` 的 `MINIMAX_FLAT_COST`
 - 真人档**没有「推演三套方案」这一步**（按发直出）；提示句见 `deriveIssue` — `app\src\data\economy.ts:319-323`
 - **除真人档外，四档全部拒收真人照片**（方舟两套探测器：名人按版权拦、普通人按隐私拦，整发拒收） — `app\src\data\economy.ts:194-205`
-- 真人卡的合规出路：做**肖像授权**拿到方舟可信素材 ID（`asset://`），高清/电影级两档收它 — `app\src\data\economy.ts:558-573`
+- 真人卡的合规出路：在卡上勾选**「火山引擎适用」**（点了会跳到火山引擎登录并扫脸认证，认证成功回到 App 自动勾上；卡片详情页也能勾/取消）。勾上之后高清/电影级两档才对这张卡开放（出片发的是方舟可信素材 `asset://`，不发照片）；没勾的真人卡只有「真人」档可点，其余档位是灰的 — `app\src\components\VolcCompatToggle.tsx`；`app\src\data\economy.ts:649-716`
+  - 2.54 之前的包：造卡入口叫「真人素材扫脸认证」，卡片详情页是「方舟可信素材」窄条（发起授权 / 填素材 ID），档位不会预先变灰、点生成才被拒
 - 真人卡 × 白模模板是**双向都无解**的组合 — `app\src\data\economy.ts:520-524`
 
 ### 4.3 出图档位（IMAGE_TIERS）— `app\src\data\economy.ts:707-737`
@@ -719,7 +720,7 @@
 ### 技术能力
 27. **不许说段与段「无缝衔接」「严丝合缝」**：高清/电影级两档是软引导不是硬约束 — `app\CLAUDE.md:181-184`；`app\RELEASE_NOTES.md:16-19`
 28. **不许说圈选「一定按你圈的改」**：已从硬约束变成软引导 — `app\CLAUDE.md:191`
-29. **不承诺可以上传真人照片出片**（除「真人」档外四档全部拒收，整发被拒不是降级）；合规出路是肖像授权拿 `asset://` — `app\src\data\economy.ts:194-205`, `:558-573`
+29. **不承诺可以上传真人照片出片**（除「真人」档外四档全部拒收，整发被拒不是降级）；合规出路是给卡勾选「火山引擎适用」（火山引擎扫脸认证，出片走 `asset://`），勾上后高清/电影级才可选 — `app\src\data\economy.ts:194-205`, `:649-716`
 30. **不承诺白模模板出片在所有档位可用**：仅「电影级」开闸，其余三档整句拒「暂未开放白模模板出片」 — `app\src\data\economy.ts:484-490`
 31. **不承诺真人卡能用白模模板**：双向无解组合 — `app\src\data\economy.ts:520-524`
 32. **不承诺给图生 3D 的角色能加眨眼/口型/表情**：做不成，表情能力是资产属性 — `app\CLAUDE.md:277`

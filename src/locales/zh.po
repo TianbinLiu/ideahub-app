@@ -1022,6 +1022,10 @@ msgstr "{label} 太大（{sizeMb}MB，上限 5MB）"
 msgid "{lack}没有勾选「火山引擎适用」——「{label}」档只收做过火山引擎认证的真人卡。去卡片详情页勾选「火山引擎适用」，或先把这张卡取下"
 msgstr "{lack}没有勾选「火山引擎适用」——「{label}」档只收做过火山引擎认证的真人卡。去卡片详情页勾选「火山引擎适用」，或先把这张卡取下"
 
+#: src/data/economy.ts
+msgid "{lack}没有勾选「火山引擎适用」——「{label}」档只收做过火山引擎认证的真人卡。去卡片详情页勾选「火山引擎适用」，或换「{realTier}」档（在「工作流」或「简约模式」里直出）"
+msgstr "{lack}没有勾选「火山引擎适用」——「{label}」档只收做过火山引擎认证的真人卡。去卡片详情页勾选「火山引擎适用」，或换「{realTier}」档（在「工作流」或「简约模式」里直出）"
+
 #. 铸卡师念的话。list 是前三张的名字（已用分隔符连好），count 是丢的总张数（大于 3），reason 是失败原因整句
 #: src/studio/studioStore.ts
 msgid "{list} 等 {count} 张没能存到服务器（{reason}）——这几张只留在这台设备上，换设备或者重新登录就没了。想留住的话，回卡片详情页把它重新挂一次。"
@@ -1085,8 +1089,12 @@ msgid "{names}是声明过的真人素材，「{label}」档的供应商拒收�
 msgstr "{names}是声明过的真人素材，「{label}」档的供应商拒收真人照片（实测名人按版权拦、普通人按隐私拦，整发被拒）；而「{realTier}」档做不了白模复刻——真人卡与白模模板不能同用：把真人卡取下换一张非真人卡，或不用模板、换「{realTier}」档以卡上照片起拍直出"
 
 #: src/data/economy.ts
-msgid "{names}是真人卡，「{label}」档不收真人照片——换「{realTier}」档；或给卡勾选「火山引擎适用」后换「{hdTier}」「{ultraTier}」档"
-msgstr "{names}是真人卡，「{label}」档不收真人照片——换「{realTier}」档；或给卡勾选「火山引擎适用」后换「{hdTier}」「{ultraTier}」档"
+#~ msgid "{names}是真人卡，「{label}」档不收真人照片——换「{realTier}」档；或给卡勾选「火山引擎适用」后换「{hdTier}」「{ultraTier}」档"
+#~ msgstr "{names}是真人卡，「{label}」档不收真人照片——换「{realTier}」档；或给卡勾选「火山引擎适用」后换「{hdTier}」「{ultraTier}」档"
+
+#: src/data/economy.ts
+msgid "{names}是真人卡，「{label}」档不收真人照片——换「{realTier}」档（在「工作流」或「简约模式」里直出）；或给卡勾选「火山引擎适用」后换「{hdTier}」「{ultraTier}」档"
+msgstr "{names}是真人卡，「{label}」档不收真人照片——换「{realTier}」档（在「工作流」或「简约模式」里直出）；或给卡勾选「火山引擎适用」后换「{hdTier}」「{ultraTier}」档"
 
 #: src/ai/real.ts
 msgid "{names}的形象参考图这次没带上（一次最多 {budget} 张，方舟的协议上限）——提示词里只剩它们的名字，画面上那几个人会由 AI 自己编，想换成卡上的样子就少挂几张卡"
@@ -1464,6 +1472,10 @@ msgstr "「{name}」的参考图这次没带上（一次最多 {budget} 张，�
 #: src/ai/real.ts
 #~ msgid "「{name}」的参考图这次没带上（一次最多 {budget} 张，方舟的协议上限），它只按文字设定参与"
 #~ msgstr "「{name}」的参考图这次没带上（一次最多 {budget} 张，方舟的协议上限），它只按文字设定参与"
+
+#: src/studio/segmentGen.ts
+msgid "「{name}」的图都标成了「仅展示」，真人档不会拿它们起拍——到卡片详情页把一张改成「出片用」，或自己传一张开头帧"
+msgstr "「{name}」的图都标成了「仅展示」，真人档不会拿它们起拍——到卡片详情页把一张改成「出片用」，或自己传一张开头帧"
 
 #: src/ai/real.ts
 msgid "「{name}」的场景卡面去人没去干净，用了原片那一帧"
@@ -12652,6 +12664,10 @@ msgstr "没取到：{error}"
 msgid "没取到火山引擎认证时传的那张照片（{0}）"
 msgstr "没取到火山引擎认证时传的那张照片（{0}）"
 
+#: src/pages/CardDetailPage.tsx
+msgid "没取消成功——服务端没收到（{why}），勾选保持原样；网络好了再点一次。"
+msgstr "没取消成功——服务端没收到（{why}），勾选保持原样；网络好了再点一次。"
+
 #: src/components/support/HoldToTalk.tsx
 msgid "没听到声音：按住的时候靠近一点说，说完再松手。"
 msgstr "没听到声音：按住的时候靠近一点说，说完再松手。"
@@ -16935,13 +16951,17 @@ msgstr "账号没装载完整 —— 硬进去页面会缺东西，所以先停�
 msgid "账户有 {owed} token 欠额，充值抵扣后即可继续生成 · <0>去充值</0>"
 msgstr "账户有 {owed} token 欠额，充值抵扣后即可继续生成 · <0>去充值</0>"
 
-#: src/ai/arkClient.ts
+#: src/data/account.ts
 msgid "账户有 {owed} token 欠额（一笔退款收回的），充值抵扣后即可继续生成"
 msgstr "账户有 {owed} token 欠额（一笔退款收回的），充值抵扣后即可继续生成"
 
-#: src/ai/arkClient.ts
+#: src/data/account.ts
 msgid "账户有一笔 token 欠额（退款收回的），充值抵扣后即可继续生成"
 msgstr "账户有一笔 token 欠额（退款收回的），充值抵扣后即可继续生成"
+
+#: src/studio/canvasAgent.ts
+msgid "账户欠额冻结中，AI 指挥暂停（充值抵扣后恢复）。"
+msgstr "账户欠额冻结中，AI 指挥暂停（充值抵扣后恢复）。"
 
 #: src/types.ts
 msgid "质感特写"

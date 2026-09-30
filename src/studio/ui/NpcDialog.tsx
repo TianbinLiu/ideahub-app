@@ -11,7 +11,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { useStudio } from "../studioStore";
 import { fileToCover } from "../../mock/frames";
 import { AI_REAL, MaterialFile } from "../../ai";
-import { canAfford, spendTokens, walletOf } from "../../data/account";
+import { canAfford, frozenNote, spendTokens, walletOf } from "../../data/account";
 import {
   DEFAULT_IMAGE_TIER,
   IMAGE_TIERS,
@@ -496,7 +496,7 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
     }
     if (AI_REAL && !canAfford(cost)) {
       setErr(
-        t`需要 ${fmtTokens(cost)} token，余额 ${fmtTokens((wallet?.plan ?? 0) + (wallet?.addon ?? 0))} 不够——去「我的」页充值`,
+        frozenNote() ?? t`需要 ${fmtTokens(cost)} token，余额 ${fmtTokens((wallet?.plan ?? 0) + (wallet?.addon ?? 0))} 不够——去「我的」页充值`,
       );
       return;
     }

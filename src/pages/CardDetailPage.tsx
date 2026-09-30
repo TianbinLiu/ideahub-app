@@ -207,7 +207,13 @@ function CardAssetSection({ card, owned }: { card: Card; owned: boolean }) {
         onUnbind={() => {
           setSaveErr("");
           void unbindCardAsset(card.id).then(
-            (b) => b.stored || setSaveErr(notStored),
+            (b) => {
+              // 服务端没收下"取消"：两边都没动（account.unbindCardAsset 先撤服务端的理由），勾选框照旧勾着 —— 说清楚、让人再点
+              if (b.synced === false) {
+                const why = b.reason ?? "";
+                setSaveErr(t`没取消成功——服务端没收到（${why}），勾选保持原样；网络好了再点一次。`);
+              } else if (!b.stored) setSaveErr(notStored);
+            },
             () => setSaveErr(notStored),
           );
         }}
