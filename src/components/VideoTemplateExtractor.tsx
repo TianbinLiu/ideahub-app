@@ -54,7 +54,7 @@ import {
   uploadTemplateVideo,
   type TemplateVideoReceipt,
 } from "../api/uploads";
-import { balanceNote, canAfford, spendTokens } from "../data/account";
+import { balanceNote, canAfford, frozenNote, spendTokens } from "../data/account";
 import { TEMPLATE_MAX_CARDS, fmtTokens, ownRefTemplateCost, templateCost } from "../data/economy";
 import {
   ARK_EDIT_RULES,
@@ -1160,7 +1160,7 @@ export default function VideoTemplateExtractor({
     if (frames.length === 0) return;
     if (AI_REAL && !canAfford(estimate)) {
       const price = fmtTokens(estimate);
-      setErr(t`预估需 ${price} token，余额不足——去「我的」页充值`);
+      setErr(frozenNote() ?? t`预估需 ${price} token，余额不足——去「我的」页充值`);
       return;
     }
     setErr("");

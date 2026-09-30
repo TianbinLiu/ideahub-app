@@ -11,7 +11,7 @@
 //   失败**不落地、不扣第二次钱**（钱在请求成功那一拍扣过一次，与 canvasAgent 同口径）。
 // ★ 依赖方向：data → store → 组件。本模块认 flowStore（newFlowNode），组件（ScriptSkillSheet）认它；反过来绝不。
 import { AI_REAL, VIDEO_PROMPT_MAX, skillChat } from "../ai";
-import { canAfford, spendTokens } from "../data/account";
+import { canAfford, frozenNote, spendTokens } from "../data/account";
 import { CHAT_TURN_TOKENS, clampDuration, fmtTokens } from "../data/economy";
 import { cleanShot, uid, type Card, type Proposal, type ShotSpec, type VideoAspect } from "../types";
 import { newFlowNode, type FlowNode } from "./flowStore";
@@ -158,7 +158,7 @@ export async function runScriptToShots(script: string, tierId: string, onStep: (
   if (s.length < SCRIPT_MIN) throw new Error(t`剧本太短（至少 ${SCRIPT_MIN} 字）`);
   if (AI_REAL && !canAfford(CHAT_TURN_TOKENS)) {
     const price = fmtTokens(CHAT_TURN_TOKENS);
-    throw new Error(t`拆分镜要 ${price} token，余额不够——去「我的」页充值`);
+    throw new Error(frozenNote() ?? t`拆分镜要 ${price} token，余额不够——去「我的」页充值`);
   }
   onStep("model");
   if (!AI_REAL) {

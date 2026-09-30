@@ -12,7 +12,7 @@ import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AI_REAL, generateCover } from "../ai";
-import { canAfford, spendTokens } from "../data/account";
+import { canAfford, frozenNote, spendTokens } from "../data/account";
 import { ONE_IMAGE, fmtTokens } from "../data/economy";
 import TokenCost from "./TokenCost";
 import { VideoAspect, VideoSegment, aspectCss, aspectOf, formatDuration, segLen, segsTotal } from "../types";
@@ -462,7 +462,7 @@ export function AiCoverDialog({
     // 这里以前既没有余额门槛也不扣费——一次 Seedream 白送。真实 AI 下改一版
     // 封面就是一张图的钱，改十版就是十张
     if (AI_REAL && !canAfford(ONE_IMAGE)) {
-      setErr(t`余额不够（需要 ${fmtTokens(ONE_IMAGE)} token），去「我的」页充值`);
+      setErr(frozenNote() ?? t`余额不够（需要 ${fmtTokens(ONE_IMAGE)} token），去「我的」页充值`);
       return;
     }
     setBusy(true);

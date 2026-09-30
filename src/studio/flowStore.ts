@@ -22,7 +22,7 @@ import { t } from "@lingui/core/macro";
 import { create } from "zustand";
 import { castPreviewImage, frameUrlAt, fuseStageFrame, AI_REAL, ArkTaskUnknown, briefArkReason, chargeNote, chargeOnFail, generateCover, generateProposals, notesInParens, prepareMaterialRefs, recaptureSegment, takeVideoTask, transferStatus } from "../ai";
 import { isArkAssetUrl, transferArkVideo } from "../ai/arkClient";
-import { canAfford, myCards, spendTokens, tierBlockReason, walletOf } from "../data/account";
+import { canAfford, frozenNote, myCards, spendTokens, tierBlockReason, walletOf } from "../data/account";
 import {
   r2vTokens,
   ONE_IMAGE,
@@ -1896,7 +1896,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
     if (AI_REAL && !canAfford(propCost)) {
       const w = walletOf();
       set({
-        err: t`推演一次约 ${fmtTokens(propCost)} token，余额 ${fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0))} 不足——去「我的」页充值`,
+        err: frozenNote() ?? t`推演一次约 ${fmtTokens(propCost)} token，余额 ${fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0))} 不足——去「我的」页充值`,
       });
       return false;
     }
@@ -2028,7 +2028,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
     if (AI_REAL && !canAfford(cost)) {
       const w = walletOf();
       set({
-        err: t`重画这一套约 ${fmtTokens(cost)} token，余额 ${fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0))} 不足——去「我的」页充值`,
+        err: frozenNote() ?? t`重画这一套约 ${fmtTokens(cost)} token，余额 ${fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0))} 不足——去「我的」页充值`,
       });
       return false;
     }
@@ -2516,7 +2516,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
       return false;
     }
     if (AI_REAL && !canAfford(ONE_IMAGE)) {
-      set({ err: t`合成预览要一张图的钱（${fmtTokens(ONE_IMAGE)} token），余额不够——去「我的」页充值` });
+      set({ err: frozenNote() ?? t`合成预览要一张图的钱（${fmtTokens(ONE_IMAGE)} token），余额不够——去「我的」页充值` });
       return false;
     }
     const job = startJob({ kind: "cast-preview", title: t`合成预览`, page: "/studio", route: "/studio", progress: t`把角色放进白模画面…` });
@@ -2593,7 +2593,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
       style: styleSentence,
     });
     if (AI_REAL && !canAfford(ONE_IMAGE)) {
-      set({ err: t`导演台融图要一张图的钱（${fmtTokens(ONE_IMAGE)} token），余额不够——去「我的」页充值` });
+      set({ err: frozenNote() ?? t`导演台融图要一张图的钱（${fmtTokens(ONE_IMAGE)} token），余额不够——去「我的」页充值` });
       return false;
     }
     const job = startJob({ kind: "stage-fuse", title: t`导演台融图`, page: "/studio", route: "/studio", progress: t`把构图示意融成开头帧…` });
@@ -2827,7 +2827,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
     if (AI_REAL && !canAfford(cost)) {
       const w = walletOf();
       set({
-        err: t`本段约需 ${fmtTokens(cost)} token，余额 ${fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0))} 不足——去「我的」页充值`,
+        err: frozenNote() ?? t`本段约需 ${fmtTokens(cost)} token，余额 ${fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0))} 不足——去「我的」页充值`,
       });
       return false;
     }

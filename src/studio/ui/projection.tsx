@@ -309,6 +309,12 @@ function EditorPanel() {
   const tierBlocks = VIDEO_TIERS.map((tier) => tierBlockReason(tier) ?? deriveIssue(tier.id)).filter(
     (r): r is string => !!r,
   );
+  /**
+   * 挂着的真人卡与**当前这一档**不搭的那一句（判据 economy.realFaceIssue 一处，与生成闸同一句）。
+   * ★ 2026-09-30 起真人卡过不去的档直接灰掉：没勾「火山引擎适用」时工坊里可能**一档都点不动**
+   *   （真人档本来就走不了推演），只灰不说等于告诉用户"功能坏了"。印在档位那排下面，与套餐原因同一行。
+   */
+  const faceNote = realFaceIssue(slotCards, editor.videoTier, { blockout: false });
 
   const crumbSteps = lane === "custom" ? (["mode", "ref", "content", "spec"] as const) : (["mode", "content", "spec"] as const);
   // ★ 标签压到两字：自定义车道是四步，375px 顶栏上「示例视频/写内容」会把整行折成两行（实测）
@@ -550,7 +556,10 @@ function EditorPanel() {
                 // 这里只负责把它画出来 —— 灰着但不说为什么等于告诉用户"功能坏了"
                 // 工坊铸段整个建立在推演上，按发直出档（真人档）走不了——判定与话术
                 // 都在 economy.deriveIssue 一处（flowStore/studioStore 的闸用的同一句）
-                const block = tierBlockReason(tier) ?? deriveIssue(tier.id);
+                // ★★ 真人卡过不去的档直接灰（与 TierRow 同一条；判据 economy.realFaceIssue 一处）。
+                //   materials 与生成闸 studioStore.deriveProposals 同源：editor.slots 映射到牌组。
+                //   blockout 传 false 是事实：工坊建的是自定义段，白模段不走这块方案台（同那边的注释）
+                const block = tierBlockReason(tier) ?? realFaceIssue(slotCards, tier.id, { blockout: false }) ?? deriveIssue(tier.id);
                 const desc = tier.desc;
                 const model = tier.model;
                 return (
@@ -574,7 +583,11 @@ function EditorPanel() {
               })}
             </div>
             {/* 原因印在页面上，不能只挂 title：工坊这块投影在手机上同样没有 hover */}
-            {tierBlocks.length > 0 && <p className="mt-1 text-[9px] leading-[13px] text-amber-300/80">{tierBlocks.join(t({ message: "；", comment: "把几条「这一档为什么点不动」的原因连成一行时的分隔符" }))}</p>}
+            {(tierBlocks.length > 0 || faceNote) && (
+              <p className="mt-1 text-[9px] leading-[13px] text-amber-300/80">
+                {[...tierBlocks, ...(faceNote ? [faceNote] : [])].join(t({ message: "；", comment: "把几条「这一档为什么点不动」的原因连成一行时的分隔符" }))}
+              </p>
+            )}
             {/* ★ 写出**真正会被调用的那个模型**。「极速/标准/高清」只说了画质档次，
                 没说这一段交给谁生成 —— 而 1.0 与 2.0 的观感差别很大，用户对不上账时
                 无从判断。名字由 tierOf(...).model 推导，与发给方舟的 id 同源，

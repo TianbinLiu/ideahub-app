@@ -36,11 +36,11 @@ import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
 import Icon from "../components/Icon";
 import TarotCard from "../components/TarotCard";
-import PortraitAuthPanel from "../components/PortraitAuthPanel";
+import VolcCompatToggle from "../components/VolcCompatToggle";
 import VoiceRecorder from "../components/VoiceRecorder";
 import VoiceUploadButton from "../components/VoiceUploadButton";
 import { fetchPortraitAssetImage } from "../api/portrait";
-import { addCards, bindCardAsset, canAfford, isRemoteMode, spendTokens, walletOf } from "../data/account";
+import { addCards, bindCardAsset, canAfford, frozenNote, isRemoteMode, spendTokens, walletOf } from "../data/account";
 import { API_ON } from "../api/client";
 import { prepareCardImage } from "../data/cardViews";
 import { joinViewNote } from "../types";
@@ -234,6 +234,10 @@ export default function CustomCardPage() {
    *   换成无脸方案时那张会被收起来（见 changeScheme），而照片**仍然在手上**。
    */
   const [authShot, setAuthShot] = useDraftField("authShot");
+  /** 真人素材页上**亲手上传**的那张真人照片（与随授权取回的 authShot 分开，理由见 customCardStore） */
+  const [realShot, setRealShot] = useDraftField("realShot");
+  /** 真人素材页那个虚框的选图口 */
+  const realFileRef = useRef<HTMLInputElement>(null);
   /**
    * 「授权已经撤掉了」这句话。**单独一个字段**，因为它要跨屏活着。
    * ★★ 为什么不能写进 importMsg（2026-09-01 发版前复核抓到，两名反方都判成立）：
@@ -311,11 +315,17 @@ export default function CustomCardPage() {
    *   「自己传图做卡片」。App 明明已经拿着那张照片（`schemeShots` 里一份、`aiBody` 里一份），
    *   **屏幕上一个像素都没说**。这不是功能缺失，是"知道却不说"——用户只能读成"它要我再传一次"。
    */
-  const haveAuthShot = !!pendingAsset && !!authShot;
+  /**
+   * 真人素材页上**手里那张真人照片**：亲手上传的优先；没上传时才是随火山授权取回的那张。
+   * ★ 2026-09-30 起真人素材页以上传为主（主人拍板），照片不再必然来自授权 —— 下游据此改口的
+   *   几处（页面标题、「下一步」、「选来源」整屏）问的都是"真人照片在不在手上"，答案只有这一个。
+   */
+  const realPhoto = realShot ?? (pendingAsset ? authShot : null);
+  const haveRealPhoto = !!realPhoto;
   /** 授权那张**此刻还是不是** AI 车道的主素材（用户可以点缩略图换一张，那一下只动 aiBody）。
-   *  ★ 与 `haveAuthShot` 分开：后者答"照片在不在手上"，而"AI 会拿哪张脸出图"是另一件事 ——
+   *  ★ 与 `haveRealPhoto` 分开：后者答"照片在不在手上"，而"AI 会拿哪张脸出图"是另一件事 ——
    *    拿前者去断言后者，就会在用户换过主素材之后仍然写着「主素材图就是你刚授权的那张」。 */
-  const authIsMaterial = !!authShot && aiBody === authShot;
+  const realIsMaterial = !!realPhoto && aiBody === realPhoto;
   /**
    * 授权照片落在**当前方案**的哪一格（无脸方案里放不下，是 null —— 那时话要换一种说法）。
    * ★★ 判据是**对象身份**（`=== authShot`），不是"第一个有图的格子"：后者在用户自己往别的
@@ -324,11 +334,11 @@ export default function CustomCardPage() {
    *   与 authShot，用户一旦替换那一格，引用就变了，这里自动不再认它。
    * ★ 找格子按图位键（slotKey），说出来的是那一格**显示的名字**（slot.tag）。
    */
-  const authSlotTag = authShot ? (pageSlots.find((s2) => schemeShots[slotKey(scheme, s2)] === authShot)?.tag ?? null) : null;
+  const realSlotTag = realPhoto ? (pageSlots.find((s2) => schemeShots[slotKey(scheme, s2)] === realPhoto)?.tag ?? null) : null;
   /** AI 面板默认展开：照片已经在手上时，"交给 AI 按方案出图"就是主人要的那条路。
    *  ★ 只在用户还没表过态时（lane === null）才替他展开，点过"自己传图"就不再自作主张。
    *  ★ 展开 ≠ 花钱：真扣钱在面板里那颗生成键上，用户还得自己按。 */
-  const aiOpen = lane === "ai" || (lane === null && haveAuthShot);
+  const aiOpen = lane === "ai" || (lane === null && haveRealPhoto);
   // 路由套着 RequireAuth，进来就有内容，无条件弹（引导来自 origin/main 的 UI 梳理批）
   useAutoGuide("customcard", true);
   // ★ 页面在不在（AI 出图 / 铸卡上传都活在 store 与 Promise 里，退出页面不断）：
@@ -403,7 +413,7 @@ export default function CustomCardPage() {
   }
 
   /**
-   * 撤掉真人授权 —— **唯一实现**（铁律六），两个入口共用：授权条上那颗「取消」、
+   * 撤掉真人授权 —— **唯一实现**（铁律六），两个入口共用：取消勾选「火山引擎适用」、
    * 以及「重选方案」里改挑一套普通方案（那一下会 setRealPerson(false)）。
    *
    * ★★ 为什么撤绑定必须**连照片一起撤**（2026-09-01 复核四条镜头独立指出）：那张照片是
@@ -450,7 +460,7 @@ export default function CustomCardPage() {
     //   历史方案的键（见下面那段 ★★），拿 Object.keys 去数会把用户从没见过的格子也报出来
     const gone = pageSlots
       .filter((sl) => schemeShots[slotKey(scheme, sl)] && !keep.has(slotKey(scheme, sl)))
-      .filter((sl) => !(opts?.dropAuth && schemeShots[slotKey(scheme, sl)] === authShot))
+      .filter((sl) => !(opts?.dropAuth && [authShot, realShot].includes(schemeShots[slotKey(scheme, sl)])))
       .map((sl) => sl.tag);
     if (gone.length > 0) {
       // ★★ **收起来 ≠ 删掉**（2026-09-01 发版前复核抓到）：这里原本真的把它从 schemeShots
@@ -477,58 +487,88 @@ export default function CustomCardPage() {
    * ★ 失败不静默：整句原因 + "从相册自己选也一样"的退路（授权时传的照片本来就在相册里）。
    */
   async function importAssetPhoto(assetId: string) {
-    setImportMsg(t`正在把授权照片取来填进卡面…`);
     setUnbindNote(""); // 又接上一份新的了，上一句「已经撤掉」就此翻篇
+    setImportMsg("");
+    // ★★ 用户已经在虚框里亲手传了照片：那张就是这张卡的真人照片，认证时传的那张**不取、不覆盖**。
+    //   读 store 当下值不读闭包：绑定可能发生在上传之后好几秒（等火山认证回来）
+    if (useCardDraft.getState().realShot) return;
     try {
       const blob = await fetchPortraitAssetImage(assetId);
-      // ★★ 判**形状**不判真值（2026-09-01 修）：`blob.type || "image/jpeg"` 看着是兜底，
-      //   其实是死的 —— 方舟素材桶回的是 `binary/octet-stream`，它是真值，`||` 永远不走
-      //   右边。于是 File 带着这个类型进 `decodeImageFile`，那里第一行
-      //   `!type.startsWith("image/")` 当场 throw「请选择图片文件」，用户读到的是
-      //   「没取到授权照片（请选择图片文件）」，而照片一直好好地在方舟上。
-      //   ⚠ 服务端那一侧同日也改成只透传 `image/*`（两头都修：这一头保护任何上游，
-      //     那一头让端点本身诚实）。这一行**不能因为那边修了就退回 `||`** ——
-      //     老版本 App 打的是同一个端点，而它们只有这一头。
+      // ★★ 判**形状**不判真值（2026-09-01 修）：方舟素材桶回的是 `binary/octet-stream`，它是真值，
+      //   `blob.type || "image/jpeg"` 的右边永远不走，于是 decodeImageFile 当场 throw「请选择图片文件」。
+      //   ⚠ 服务端同日也改成只透传 image/*，但老版本 App 打的是同一个端点，这一行不能退回 `||`。
       // i18n-ignore-next-line: 只是交给 prepareCardImage 的内部文件名，不上屏（上屏的是下面 shot.fileName）
       const file = new File([blob], "授权素材.jpg", {
         type: blob.type.startsWith("image/") ? blob.type : "image/jpeg",
       });
       const { blob: prepped, note } = await prepareCardImage(file);
       const dataUrl = await blobToDataUrl(prepped);
-      // ★★ 读 ref 不读闭包里的 `schemeId`：这几秒里用户可能已经换过方案了（见 schemeIdRef）
-      const sc = schemeOf(schemeIdRef.current) ?? defaultScheme();
-      // ★★ 取**这一页画得出来的**第一格，不是 `slots[0]`：本页只渲染/只落
-      //   `slots.filter(s => !s.fromCrop)`（见 pageSlots）。三套内置方案的第一格恰好都不是
-      //   fromCrop，所以今天撞不上；但真人路一旦能选任意方案（含市场装来的、第一格可以是
-      //   fromCrop 的自建方案），授权照片就会被写进一个**这一页根本不画、mint 也不带走**
-      //   的键，而屏幕上还打着「✅ 已填进 X」。零报错。
-      const shot: Shot = { dataUrl, fileName: t`授权素材（自动填入）`, ...(note ? { note } : {}) };
-      // ★★ **先认下"照片到手了"**——这与"它能不能放进某一格"是两件事（2026-09-01 拆开）。
-      //   拆之前：找不到可用图位就当场 return，照片连 aiBody 都没进，而屏幕说「换一套再试」——
-      //   可换方案**不会**重新取图（全 app 没有第二个触发 importAssetPhoto 的入口），
-      //   那张照片就此消失，用户只能解除授权重走一遍。
+      const shot: Shot = { dataUrl, fileName: t`火山引擎认证素材`, ...(note ? { note } : {}) };
+      // 取回来的这几秒里用户可能刚好在虚框里传了一张：以他传的为准
+      if (useCardDraft.getState().realShot) return;
+      // ★★ **先认下"照片到手了"**，再谈它能不能放进某一格（2026-09-01 拆开）：找不到可用图位时
+      //   照片仍然要进 AI 主素材，否则它就此消失（全 app 没有第二个重新取图的入口）
       setAuthShot(shot);
-      setAiBody(shot);
-      // ★★ 同一张也灌进 **AI 生成那条车道的主素材**（2026-09-01 补）：不灌的话，用户在
-      //   「① 选来源」里点「传素材，AI 生成图位」时那颗键仍然是灰的、title 写「先传主素材图」
-      //   （`runAiForge` 第一行就 `if (!aiBody) return`）—— 授权照片明明已经在手上了，
-      //   却要他再传一次本地图。这正是主人反馈的那件事的后半截。
-      // ★★ 无脸方案的第一格是「白模全身」，那一格要的是**白模渲染图**。把一张真人照片填进去，
-      //   它就成了卡面、还会被当成"这一格已经有图了"——而这套方案存在的全部理由就是画面里没有脸。
-      //   照片不进格子，但仍然在手上：AI 那条路拿它当主素材，那正是无脸方案用得上它的唯一方式。
-      const slot0 = sc.faceless ? undefined : sc.slots.find((x) => !x.fromCrop);
-      if (slot0) {
-        // 放进格子按图位键（用它所属的 sc 算），提示里说的是显示名
-        setSchemeShots((prev) => ({ ...prev, [slotKey(sc, slot0)]: shot }));
-        setImportMsg(t`✅ 已把授权照片接进来了（既是卡面的「${slot0.tag}」，也能直接交给 AI 按方案生成图位）`);
-      } else {
-        setImportMsg(t`✅ 授权照片已取回。「${sc.title}」这套的图位要白模/设定稿，照片不进格子——交给 AI 出图时它就是主素材。`);
-      }
+      adoptRealPhoto(shot, []);
     } catch (e) {
-      setImportMsg(
-        t`没取到授权照片（${(e instanceof Error ? e.message : String(e)).slice(0, 80)}）——授权时传的照片就在你相册里，下一步从相册选一样`,
-      );
+      // 取不到也不耽误：认证本身已经接上了，照片从上面的虚框传一张就行
+      setImportMsg(t`没取到火山引擎认证时传的那张照片（${(e instanceof Error ? e.message : String(e)).slice(0, 80)}）`);
     }
+  }
+
+  /**
+   * 把一张真人照片**落进这张卡** —— 唯一实现（铁律六）：虚框上传与火山认证取回两条来路共用。
+   * 放进当前方案**这一页画得出来的**第一个图位（卡面）+ 当 AI 车道的主素材。
+   * @param replacing 可以被这张顶替的旧照片（上一张上传的 / 随认证取回的）。
+   *   ★ 只顶替**还是那几张**的地方（引用相等）：用户自己往那一格传过别的图，就别动他的图。
+   * ★★ 取第一个**非 fromCrop** 的格，不是 `slots[0]`：本页只画、mint 只带走非 fromCrop 的格，
+   *   写进一个不画的键就是「屏幕说填好了、卡里没有」—— 零报错。
+   * ★★ 无脸方案的第一格是「白模全身」，要的是白模渲染图 —— 真人照片不进格子，
+   *   但仍然当 AI 车道的主素材（那正是无脸方案用得上它的唯一方式）。
+   * ★★ 读 schemeIdRef 不读闭包里的 schemeId：认证取回要跨好几次 await，用户可能已经换过方案。
+   */
+  function adoptRealPhoto(shot: Shot, replacing: (Shot | null)[]) {
+    const old = replacing.filter((x): x is Shot => !!x);
+    const sc = schemeOf(schemeIdRef.current) ?? defaultScheme();
+    setAiBody((prev) => (!prev || old.includes(prev) ? shot : prev));
+    const slot0 = sc.faceless ? undefined : sc.slots.find((x) => !x.fromCrop);
+    if (slot0) {
+      const key = slotKey(sc, slot0);
+      setSchemeShots((prev) => (prev[key] && !old.includes(prev[key]) ? prev : { ...prev, [key]: shot }));
+    }
+  }
+
+  /** 真人素材页的虚框：选一张本地真人照片 */
+  async function onRealPhoto(file: File | undefined) {
+    if (!file || busySlot) return;
+    setBusySlot("real");
+    setImportMsg("");
+    try {
+      const { blob, note } = await prepareCardImage(file);
+      const dataUrl = await blobToDataUrl(blob);
+      const shot: Shot = { dataUrl, fileName: file.name, ...(note ? { note } : {}) };
+      const prev = useCardDraft.getState();
+      setRealShot(shot);
+      adoptRealPhoto(shot, [prev.realShot, prev.authShot]);
+      setUnbindNote("");
+    } catch (e) {
+      setImportMsg(t`这张照片没能读进来（${(e instanceof Error ? e.message : String(e)).slice(0, 80)}）——换一张再试`);
+    } finally {
+      setBusySlot(null);
+    }
+  }
+
+  /** 撤掉虚框里那张上传的真人照片（离开真人路时用）。只取下**还是那一张**的格子（引用相等） */
+  function clearRealShot(): void {
+    const cur = useCardDraft.getState().realShot;
+    if (!cur) return;
+    setRealShot(null);
+    setSchemeShots((prev) => {
+      const next: Record<string, Shot> = {};
+      for (const [key, sh] of Object.entries(prev)) if (sh !== cur) next[key] = sh;
+      return next;
+    });
+    setAiBody((prev) => (prev === cur ? null : prev));
   }
 
   function pick(target: { kind: CardView["kind"] } | { slotKey: string }) {
@@ -647,9 +687,10 @@ export default function CustomCardPage() {
       const w = walletOf();
       const balance = fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0));
       setErr(
-        kept.length > 0
-          ? t`补齐剩下的图位约 ${aiPriceText} token，余额 ${balance} 不够——去「我的」页充值，或改选「自己上传图片」（不花钱）`
-          : t`AI 生成整套约 ${aiPriceText} token，余额 ${balance} 不够——去「我的」页充值，或改选「自己上传图片」（不花钱）`,
+        frozenNote() ??
+          (kept.length > 0
+            ? t`补齐剩下的图位约 ${aiPriceText} token，余额 ${balance} 不够——去「我的」页充值，或改选「自己上传图片」（不花钱）`
+            : t`AI 生成整套约 ${aiPriceText} token，余额 ${balance} 不够——去「我的」页充值，或改选「自己上传图片」（不花钱）`),
       );
       return;
     }
@@ -839,7 +880,7 @@ export default function CustomCardPage() {
     const shot = schemeShots[key];
     if (!slot || !shot || busySlot) return;
     if (AI_REAL && !canAfford(ONE_IMAGE)) {
-      setSlotErr({ key, msg: t`改一次图要 ${refinePrice} token，余额不够——去「我的」页充值` });
+      setSlotErr({ key, msg: frozenNote() ?? t`改一次图要 ${refinePrice} token，余额不够——去「我的」页充值` });
       return;
     }
     setBusySlot(key);
@@ -899,7 +940,7 @@ export default function CustomCardPage() {
     if (AI_REAL && !canAfford(CHAT_TURN_TOKENS)) {
       const w = walletOf();
       const balance = fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0));
-      setCaptureMsg(t`识别一次 ${recogPrice} token，余额 ${balance} 不够——去「我的」页充值，或选「上传本地图片」（不花钱）`);
+      setCaptureMsg(frozenNote() ?? t`识别一次 ${recogPrice} token，余额 ${balance} 不够——去「我的」页充值，或选「上传本地图片」（不花钱）`);
       return;
     }
     const startType = type;
@@ -982,7 +1023,7 @@ export default function CustomCardPage() {
       const balance = fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0));
       setRecogMsg({
         tone: "error",
-        text: t`识别一次 ${recogPrice} token，余额 ${balance} 不够——去「我的」页充值，或者自己填`,
+        text: frozenNote() ?? t`识别一次 ${recogPrice} token，余额 ${balance} 不够——去「我的」页充值，或者自己填`,
       });
       return;
     }
@@ -1210,7 +1251,7 @@ export default function CustomCardPage() {
   /** 第④步那行事实摘要：真人 / 授权 / 录音各自成句，再用「 · 」连起来 */
   const factLine = [
     realPerson ? t`已声明真人` : "",
-    pendingAsset ? t`授权素材已接上（铸卡时绑定）` : "",
+    pendingAsset ? t`火山引擎适用` : "",
     pendingVoice ? t`已录音 ${pendingVoice.durationSec.toFixed(1)}s` : "",
   ]
     .filter(Boolean)
@@ -1324,7 +1365,12 @@ export default function CustomCardPage() {
                         // ★★ 离开真人这条路 = 绑定作废。只清 realPerson 会留下一个
                         //   「有 pendingAsset 但 declareReal 为假」的状态：屏幕说"铸卡时绑定"、
                         //   mint 一行都不写，而那张真人照片照样进卡（见 clearAuthBinding 的 ★★）。
-                        clearAuthBinding(t`已经离开真人素材这条路：授权绑定和随它取来的那张照片都撤掉了。`);
+                        // ★★ 上传的那张也要撤：留着它，就是一张真人照片进了一张**没声明真人**的卡——
+                        //   economy.realFaceIssue 认不出它，任何档位都会放行
+                        const hadReal = !!useCardDraft.getState().realShot;
+                        clearRealShot();
+                        clearAuthBinding(t`已经离开真人素材这条路：真人照片和火山引擎认证都撤掉了。`);
+                        if (hadReal) setUnbindNote(t`已经离开真人素材这条路：真人照片和火山引擎认证都撤掉了。`);
                         setSchemePick(false);
                         setStep("source");
                       }}
@@ -1359,9 +1405,9 @@ export default function CustomCardPage() {
                   >
                     {/* 示意图也是自己生成的（gen-scheme-examples.mjs 第四张）：**虚构**人像 +
                         识别框。刻意不搬火山控制台那张官方人像——那是火山的版权素材 */}
-                    <img src="/schemes/realface.webp" alt={t`真人素材扫脸认证`} className="aspect-[3/4] w-full object-cover" />
+                    <img src="/schemes/realface.webp" alt={t`真人素材`} className="aspect-[3/4] w-full object-cover" />
                     <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/45 to-transparent px-2 pb-2 pt-6 text-center text-xs font-semibold text-sky-200">
-                      <Trans>真人素材扫脸认证</Trans>
+                      <Trans>真人素材</Trans>
                     </span>
                   </button>
                 </div>
@@ -1423,7 +1469,10 @@ export default function CustomCardPage() {
         </>
       )}
 
-      {/* ── 真人素材页（选「真人素材扫脸认证」才进）：肖像授权 + 跟读录音 + 传本地音频。
+      {/* ── 真人素材页（选「真人素材」才进）。★★ 2026-09-30 主人拍板：这一页的主体是**上传真人照片**；
+          火山引擎认证退成照片下方一个小勾选框「火山引擎适用」（components/VolcCompatToggle）。
+          ★ 这一页**不写**"哪一档需不需要认证"之类的说明：能用哪几档由档位按钮本身可不可点表达
+            （TierRow 读 economy.realFaceIssue —— 判据只有那一处）。
           跟读只在这一页有（主人点名）；其它方案在表单里只有传本地音频。 */}
       {step === "real" && (
         <>
@@ -1437,7 +1486,49 @@ export default function CustomCardPage() {
             <Icon name="back" size={12} />
             <Trans>重选方案</Trans>
           </button>
-          <label className="flex items-start gap-2 text-[11px] leading-relaxed text-slate-300">
+          <input
+            ref={realFileRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              e.target.value = ""; // 同一张图再选一次也要能触发
+              void onRealPhoto(f);
+            }}
+          />
+          <button
+            onClick={() => realFileRef.current?.click()}
+            disabled={busySlot === "real"}
+            className="relative flex min-h-[14rem] w-full items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-slate-600 bg-panel/40 disabled:opacity-60"
+          >
+            {busySlot === "real" ? (
+              <Spinner size="sm" />
+            ) : realPhoto ? (
+              <>
+                <img src={realPhoto.dataUrl} alt="" className="max-h-80 w-full object-contain" />
+                <span className="absolute bottom-2 right-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] text-slate-200">
+                  <Trans>更换</Trans>
+                </span>
+              </>
+            ) : (
+              <span className="flex flex-col items-center gap-2 text-slate-400">
+                <Icon name="upload" size={28} />
+                <span className="text-xs"><Trans>上传真人照片</Trans></span>
+              </span>
+            )}
+          </button>
+          {/* 我们动过这张图（裁比例 / 压尺寸）就必须说出来（Shot.note 的约定） */}
+          {realPhoto?.note && <p className="mt-1 text-[10px] leading-relaxed text-slate-500">{realPhoto.note}</p>}
+          {importMsg && <p className="mt-1.5 text-[10px] leading-relaxed text-rose-300">{importMsg}</p>}
+          {/* ★ 撤授权那句话**两屏都要画**：撤绑定的两个入口一个留在本屏、一个当场跳到
+              「① 选来源」，只画一屏就等于有一条路上永远看不到（见 unbindNote 的 ★★）。 */}
+          {unbindNote && (
+            <p className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200/90">
+              {unbindNote}
+            </p>
+          )}
+          <label className="mt-3 flex items-start gap-2 text-[11px] leading-relaxed text-slate-300">
             <input
               type="checkbox"
               checked={consentOk}
@@ -1449,51 +1540,24 @@ export default function CustomCardPage() {
             />
             <Trans>我确认已依法取得画面中人物对使用其肖像生成内容的同意，相应责任由我承担</Trans>
           </label>
-          <div className="mt-3 rounded-xl border border-slate-700/70 bg-panel p-2.5">
-            {pendingAsset ? (
-              <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5">
-                <span className="min-w-0">
-                  <span className="block text-[10px] text-emerald-300"><Trans>已接上授权素材，铸卡时一并绑定</Trans></span>
-                  <span className="block truncate font-mono text-[9px] text-emerald-300">{pendingAsset.assetId}</span>
-                </span>
-                <button
-                  onClick={() =>
-                    clearAuthBinding(t`已解除授权绑定——随授权取来的那张照片也一并取下了（卡面与 AI 主素材都不再留着它）。`)
-                  }
-                  className="flex-none text-[10px] text-slate-500"
-                >
-                  <Trans>取消</Trans>
-                </button>
-              </div>
-            ) : (
-              <PortraitAuthPanel
-                onBound={(assetId, note) => {
-                  setPendingAsset({ assetId, note });
-                  // 授权接上那一刻就把照片填进卡面（服务端代取，失败整句说并给退路）
-                  void importAssetPhoto(assetId);
-                }}
-              />
-            )}
-            {importMsg && <p className="mt-1.5 text-[10px] leading-relaxed text-slate-400">{importMsg}</p>}
-          {/* ★ 撤授权那句话**两屏都要画**：撤绑定的两个入口一个留在本屏、一个当场跳到
-              「① 选来源」，只画一屏就等于有一条路上永远看不到（见 unbindNote 的 ★★）。 */}
-          {unbindNote && (
-            <p className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200/90">
-              {unbindNote}
-            </p>
-          )}
+          <div className="mt-2">
+            <VolcCompatToggle
+              boundId={pendingAsset?.assetId ?? null}
+              onBound={(assetId, note) => {
+                setPendingAsset({ assetId, note });
+                // 虚框里还空着时，把认证时传的那张取来顶上（用户已经传过就不动他的图）
+                void importAssetPhoto(assetId);
+              }}
+              onUnbind={() =>
+                // 只有**随认证取回**的那张会跟着撤；用户亲手传的照片留着，这时就没什么要说的
+                clearAuthBinding(realShot ? "" : t`已取消火山引擎适用——随认证取来的那张照片也一并取下了。`)
+              }
+            />
           </div>
-          {/* ★★ 方案就在这一步选（2026-09-01 主人点名）。在这之前真人路是**四选一互斥**的
-              第四张牌：进来时硬编码套「全身立绘+面部特写」，而唯一的换方案入口「重选方案」
-              跳回 type 之后，点任何一张方案牌都会 `setRealPerson(false)` ——
-              **换方案就把真人绑定丢了**，用户只能在"选方案"和"用授权素材"之间二选一。
-              这里用的 `changeScheme` 不碰 realPerson，两件事从此正交。
-              ★ 只在**接上授权素材之后**才摆：没素材时选方案没有意义（图位没有输入），
-                摆出来只会让人以为选完就能生成。
-              ★ 无脸方案要说清**不豁免授权**：`economy.realFaceIssue` 的放行判据看的是
-                档位与 asset 绑定，**不看图里有没有脸** —— 选了无脸却不绑 asset，
-                在 hd/ultra 上照样被整句拒。 */}
-          {pendingAsset && (
+          {/* ★★ 方案就在这一步选（2026-09-01 主人点名）：用的 `changeScheme` 不碰 realPerson，
+              "选方案"与"真人素材"两件事正交。
+              ★ 只在**真人照片到手之后**才摆：没照片时选方案没有意义（图位没有输入）。 */}
+          {realPhoto && (
             <div className="mt-3 rounded-xl border border-slate-700/70 bg-panel p-2.5">
               <div className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>用哪一套方案生成这张卡</Trans></div>
               <div className="space-y-1">
@@ -1518,14 +1582,6 @@ export default function CustomCardPage() {
                   </button>
                 ))}
               </div>
-              {scheme.faceless && (
-                <p className="mt-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200/90">
-                  {/* ⚠ 这是**给用户看的文案**，不是注释：JSX 里的 ** 和反引号会原样显示出来 */}
-                  <Trans>
-                    无脸方案画出来的图里没有脸，但出片时<span className="font-semibold text-amber-100">仍然要靠这份授权素材</span>（合规看的是有没有绑定授权，不看图里有没有脸）——所以上面那份授权别取消。
-                  </Trans>
-                </p>
-              )}
               {dropped && <p className="mt-1.5 text-[10px] leading-relaxed text-amber-200/90">{dropped}</p>}
             </div>
           )}
@@ -1552,7 +1608,7 @@ export default function CustomCardPage() {
           {/* ★ 这颗键去的是「① 选来源」，不是「传图与信息」——旧文案指错了屏，
               而照片已经到手时更不该出现"传图"两个字（主人 2026-09-01 点名）。 */}
           <button onClick={() => setStep("source")} className="mt-4 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink">
-            {haveAuthShot ? t`下一步：这几张图怎么来 ›` : t`下一步：选图片来源 ›`}
+            {haveRealPhoto ? t`下一步：这几张图怎么来 ›` : t`下一步：选图片来源 ›`}
           </button>
         </>
       )}
@@ -1579,35 +1635,35 @@ export default function CustomCardPage() {
             </p>
           )}
           {/* ★★ 照片已经在手上时，**这一屏必须先说这件事**。不说的话，两个都写着"传"的
-              选项就是在问一个用户刚刚做完的问题。`authSlotTag` 为空 = 这套方案的图位
+              选项就是在问一个用户刚刚做完的问题。`realSlotTag` 为空 = 这套方案的图位
               （白模/设定稿）放不下真人照片，那就换一种说法，别许一个做不到的事。 */}
-          {haveAuthShot && authShot && (
+          {haveRealPhoto && realPhoto && (
             <div className="mb-3 flex items-start gap-2.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-2.5">
-              <img src={authShot.dataUrl} alt="" className="h-16 w-12 flex-none rounded-lg object-cover" />
+              <img src={realPhoto.dataUrl} alt="" className="h-16 w-12 flex-none rounded-lg object-cover" />
               <p className="min-w-0 text-[10px] leading-relaxed text-emerald-300">
-                {/* ★★ 三档，别压成两档（2026-09-01 复核抓到）：`authSlotTag` 为空**至少有三种
+                {/* ★★ 三档，别压成两档（2026-09-01 复核抓到）：`realSlotTag` 为空**至少有三种
                     原因**——方案无脸放不下、那一格的图被换过（AI 出图会覆盖）、授权时是无脸
                     方案后来换成了有脸。原来的 else 一律用「这套的图位要白模/设定稿」解释，
                     在后两种情况下是**假话**。判「放不放得下」一律问 `scheme.faceless`，
                     与 importAssetPhoto 决定放不放格子时同一把尺（铁律六）。 */}
-                {authSlotTag ? (
+                {realSlotTag ? (
                   <>
                     <Trans>
-                      授权照片已经取回来了，还填进了卡面的「{authSlotTag}」这一格——<span className="font-semibold">下面两条路都不用你再传图</span>。
+                      真人照片已经填进卡面的「{realSlotTag}」这一格——<span className="font-semibold">下面两条路都不用你再传图</span>。
                     </Trans>
                   </>
                 ) : scheme.faceless ? (
                   <>
                     <Trans>
-                      授权照片已经取回来了。「{scheme.title}」这套的图位要的是白模/设定稿，照片放不进去，但<span className="font-semibold">交给 AI 出图那条路会拿它当主素材</span>。
+                      「{scheme.title}」这套的图位要的是白模/设定稿，真人照片放不进去，但<span className="font-semibold">交给 AI 出图那条路会拿它当主素材</span>。
                     </Trans>
                   </>
                 ) : (
                   <>
-                    {authIsMaterial ? (
-                      <Trans>授权照片还在手上（绑定也还在），但「{scheme.title}」的图位里已经不是它了——那一格的图被换过。交给 AI 出图那条路用的仍然是它。</Trans>
+                    {realIsMaterial ? (
+                      <Trans>真人照片还在手上，但「{scheme.title}」的图位里已经不是它了——那一格的图被换过。交给 AI 出图那条路用的仍然是它。</Trans>
                     ) : (
-                      <Trans>授权照片还在手上（绑定也还在），但「{scheme.title}」的图位里已经不是它了——那一格的图被换过。AI 那条路的主素材也已经换成了别的图。</Trans>
+                      <Trans>真人照片还在手上，但「{scheme.title}」的图位里已经不是它了——那一格的图被换过。AI 那条路的主素材也已经换成了别的图。</Trans>
                     )}
                   </>
                 )}
@@ -1620,20 +1676,20 @@ export default function CustomCardPage() {
           <div className="flex flex-col gap-2.5">
             <button
               onClick={() => { setLane("upload"); setStep("form"); }}
-              className={`${haveAuthShot ? "order-2 " : ""}flex w-full items-center gap-3 rounded-xl border border-slate-600 bg-panel px-4 py-4 text-left`}
+              className={`${haveRealPhoto ? "order-2 " : ""}flex w-full items-center gap-3 rounded-xl border border-slate-600 bg-panel px-4 py-4 text-left`}
             >
               <span className="flex-none text-xl">🖼</span>
               <span className="min-w-0">
                 <span className="block text-sm font-bold text-slate-100">
-                  {authSlotTag ? t`就用这张照片，自己补其余格子` : t`自己上传图片`}
+                  {realSlotTag ? t`就用这张照片，自己补其余格子` : t`自己上传图片`}
                 </span>
                 <span className="mt-0.5 block text-[10px] leading-relaxed text-slate-500">
-                  {authSlotTag ? t`授权照片已经在「${authSlotTag}」那一格了 · 不花钱` : t`逐格传自己的图 · 不花钱`}
+                  {realSlotTag ? t`真人照片已经在「${realSlotTag}」那一格了 · 不花钱` : t`逐格传自己的图 · 不花钱`}
                 </span>
               </span>
               <span className="ml-auto flex-none text-slate-500">›</span>
             </button>
-            <div className={`${haveAuthShot ? "order-1 " : ""}space-y-2.5`}>
+            <div className={`${haveRealPhoto ? "order-1 " : ""}space-y-2.5`}>
             <button
               onClick={() => setLane("ai")}
               className={`flex w-full items-center gap-3 rounded-xl border px-4 py-4 text-left ${aiOpen ? "border-brand/70 bg-brand/10" : "border-slate-600 bg-panel"}`}
@@ -1641,13 +1697,13 @@ export default function CustomCardPage() {
               <span className="flex-none text-xl">✨</span>
               <span className="min-w-0">
                 <span className="block text-sm font-bold text-slate-100">
-                  {authIsMaterial ? t`用这张照片，AI 按方案出 ${pageSlots.length} 张图位` : t`传素材，AI 生成图位`}
+                  {realIsMaterial ? t`用这张照片，AI 按方案出 ${pageSlots.length} 张图位` : t`传素材，AI 生成图位`}
                 </span>
                 <span className="mt-0.5 block text-[10px] leading-relaxed text-slate-500">
-                  {authIsMaterial
+                  {realIsMaterial
                     ? AI_REAL
-                      ? t`主素材已就位（就是那张授权照片），不用再传 · 约 ${aiPriceText} token`
-                      : t`主素材已就位（就是那张授权照片），不用再传 · 演示档`
+                      ? t`主素材已就位（就是那张真人照片），不用再传 · 约 ${aiPriceText} token`
+                      : t`主素材已就位（就是那张真人照片），不用再传 · 演示档`
                     : AI_REAL
                       ? t`按方案逐格出图 + 撰写人物信息 · 约 ${aiPriceText} token`
                       : t`按方案逐格出图 + 撰写人物信息 · 演示档`}
@@ -1684,8 +1740,8 @@ export default function CustomCardPage() {
                   );
                 })}
                 <p className="min-w-0 flex-1 text-[10px] leading-relaxed text-slate-500">
-                  {authIsMaterial
-                    ? t`主素材图就是你刚授权的那张照片（点它可以换一张）。再补一张面部近照，脸会锁得更准。画风跟随素材，照片出写实。`
+                  {realIsMaterial
+                    ? t`主素材图就是那张真人照片（点它可以换一张）。再补一张面部近照，脸会锁得更准。画风跟随素材，照片出写实。`
                     : t`主素材图 = 这个角色最完整的一张（照片/截图/画都行）；有面部近照的话脸会锁得更准。画风严格跟随素材（照片出写实、插画出同风格）。`}
                 </p>
               </div>

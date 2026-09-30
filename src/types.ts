@@ -392,6 +392,16 @@ export function roleOf(view: Pick<CardView, "kind" | "role">): CardRole {
 }
 
 /**
+ * 这张图出片时**能不能交给模型** —— 唯一判据：作者在卡片页标成「仅展示」（role = display）的不能。
+ * 参考图分配（ai/real.allocatable）与真人档的起拍画面（studio/segmentGen 的 minimax 分支）共用。
+ * ★ 2026-09-30 抽出：真人档那一支原来直接拿 `viewsOf(card)` 的第一张起拍，作者标的「仅展示」在那条路上
+ *   不作数（ROLE_LABELS.display 明写着"出片时不发给 AI"）—— 同一条规则只在一条路上兑现。
+ */
+export function feedsModel(view: Pick<CardView, "kind" | "role">): boolean {
+  return roleOf(view) !== "display";
+}
+
+/**
  * 写卡时由 role 反推那个**必须照写**的 `kind`（跨仓冻结三值，理由见 CardView.kind 的 ★★）。
  * ★ `display` 与 `aux` 都落 `detail`：老客户端读到的是"第三优先级的补充图"，
  *   而它在老逻辑里本来就排最后、人物卡根本取不到 —— 降级方向是安全的那一侧。

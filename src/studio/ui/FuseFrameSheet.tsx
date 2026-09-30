@@ -17,7 +17,7 @@ import EmptyState from "../../components/EmptyState";
 import { createPortal } from "react-dom";
 import { CloseButton } from "../../components/IconTapButton";
 import { AI_REAL, fuseFrame } from "../../ai";
-import { canAfford, spendTokens } from "../../data/account";
+import { canAfford, frozenNote, spendTokens } from "../../data/account";
 import { ONE_IMAGE, fmtTokens } from "../../data/economy";
 import { frozenViewName, type CardType, type VideoAspect } from "../../types";
 
@@ -124,7 +124,7 @@ export default function FuseFrameSheet({
       return;
     }
     if (AI_REAL && !canAfford(price)) {
-      setErr(t`融一张约需 ${fmtTokens(price)} token，余额不够——去「我的」页充值`);
+      setErr(frozenNote() ?? t`融一张约需 ${fmtTokens(price)} token，余额不够——去「我的」页充值`);
       return;
     }
     setErr("");

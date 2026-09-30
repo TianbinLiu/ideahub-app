@@ -4,7 +4,7 @@ import { shotLineOf, V3_CARD_WIPE_MS, BranchNodeData, BranchTree, Card, CardType
 import { AI_REAL, MaterialFile, deriveCharacterModels, deriveDeckCards, generateCards, generateCover, generateProposals, joinNotes, npcChat, npcChatOffline, prepareMaterialRefs, refineFrame } from "../ai";
 import { DECK_CAM, MARKET, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
-import { acquireCard, addCards as saveCardsToAccount, canAfford, myCards, myDecks, plazaCards, spendTokens, walletOf, type AddCardsResult } from "../data/account";
+import { acquireCard, addCards as saveCardsToAccount, canAfford, frozenNote, myCards, myDecks, plazaCards, spendTokens, walletOf, type AddCardsResult } from "../data/account";
 import { CHAT_TURN_TOKENS, DECK_MAX_3D, deriveIssue, DECK_MAX_CARDS, DEFAULT_TIER, MODEL3D_TOKENS, ONE_IMAGE, deckCardsCost, deckModel3dCost, fmtTokens, proposalsCost, realFaceIssue, styleWants3d, tierOf, videoAudioOn } from "../data/economy";
 // 单向依赖：工坊把活动路径喂给工作流。flowStore 不认识 studioStore（见其文件头）
 import { GenNodeOpts, CUSTOM_MID_MAX, FlowMode, FlowNode, FlowTemplate, appendBlocked, appendIssue, chosenOf, recastBlocked, nodeVideo, tplOfNode, useFlow, keepFirstFrame, redrawCost, usableFrames } from "./flowStore";
@@ -1561,7 +1561,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
     // 改一次图 = 一张 Seedream。以前这里既不看余额也不扣费，用户改十版是白送十张
     if (AI_REAL && !canAfford(ONE_IMAGE)) {
       const price = fmtTokens(ONE_IMAGE);
-      set({ notice: { at: Date.now(), text: t`改图要 ${price} token，余额不够了——去「我的」页充值。` } });
+      set({ notice: { at: Date.now(), text: frozenNote() ?? t`改图要 ${price} token，余额不够了——去「我的」页充值。` } });
       return false;
     }
     set({ frameRefining: `${proposalId}:${which}` });
@@ -1662,7 +1662,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
     }
     if (AI_REAL && !canAfford(cost)) {
       const price = fmtTokens(cost);
-      set({ notice: { at: Date.now(), text: t`重画这一套要 ${price} token，余额不够了——去「我的」页充值。` } });
+      set({ notice: { at: Date.now(), text: frozenNote() ?? t`重画这一套要 ${price} token，余额不够了——去「我的」页充值。` } });
       return false;
     }
     set({ proposalRegen: proposalId });
@@ -1972,7 +1972,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
       const w = walletOf();
       const price = fmtTokens(propCost);
       const balance = fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0));
-      get().npcSay(t`推演一次约 ${price} token，余额 ${balance} 不够——去「我的」页充值。`);
+      get().npcSay(frozenNote() ?? t`推演一次约 ${price} token，余额 ${balance} 不够——去「我的」页充值。`);
       return;
     }
     nodeGenInFlight = true;

@@ -18,7 +18,7 @@ import { IMAGE_TOKENS, fmtTokens, r2vPriceIssue, tierOf, providerOf, clampDurati
 // ★ 「模板视频自己合不合方舟窗口」的判据在 data（不在组件）：store 层这一处与
 //   flowStore.applyTemplate、详情页问的必须是同一个函数（铁律六）。
 import { refVideoIssue } from "../data/templates";
-import { ShotSpec, shotLineOf, CardType, ID_LINE_MAX, CARD_TYPE_PROMPT, idLineOf, viewsOf, type Card, type GenMode, type VideoAspect, type VideoTemplate } from "../types";
+import { ShotSpec, shotLineOf, CardType, ID_LINE_MAX, CARD_TYPE_PROMPT, idLineOf, viewsOf, feedsModel, type Card, type GenMode, type VideoAspect, type VideoTemplate } from "../types";
 import { voiceOf } from "../data/cardVoice";
 import { t } from "@lingui/core/macro";
 
@@ -646,17 +646,24 @@ export async function generateSegment(
   if (providerOf(input.videoTier) === "minimax") {
     if (blockout) throw new Error(t`白模模板出片只在方舟档（真人档没有 r2v 能力）——这一段换回「电影级」档，或换掉模板`);
     if (input.anns.length) throw new Error(t`真人档暂不支持圈选改画面（改图引擎会拒收真人脸）——清掉圈选标注再出片`);
+    // 优先取声明过真人的卡（这一档存在的理由），再退任意有图的卡
+    const byReal = (input.materials ?? []).filter((c) => c.realPerson === true).concat(input.materials ?? []);
     const firstSrc =
       input.carryFrame ||
       input.firstFrame ||
-      // 优先取声明过真人的卡（这一档存在的理由），再退任意有图的卡
-      (input.materials ?? [])
-        .filter((c) => c.realPerson === true)
-        .concat(input.materials ?? [])
-        .flatMap((c) => viewsOf(c))
+      // ★ 作者标成「仅展示」的图不拿去起拍（types.feedsModel 一处判据，与参考图分配同一票；2026-09-30 补 ——
+      //   此前这一支直接取 viewsOf 的第一张，那一票在真人档上不作数）
+      byReal
+        .flatMap((c) => viewsOf(c).filter(feedsModel))
         .map((v) => v.url)
         .find(Boolean);
     if (!firstSrc) {
+      // 有图、只是全被标成了「仅展示」：点名那张卡、指到能改的地方（别说成"没有照片"）
+      const shy = byReal.find((c) => viewsOf(c).length > 0);
+      if (shy) {
+        const name = shy.name;
+        throw new Error(t`「${name}」的图都标成了「仅展示」，真人档不会拿它们起拍——到卡片详情页把一张改成「出片用」，或自己传一张开头帧`);
+      }
       throw new Error(t`真人档需要一张起拍画面：挂一张带照片的真人卡，或自己传一张开头帧`);
     }
     const flatSec = clampDuration(input.durationSec, input.videoTier);

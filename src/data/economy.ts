@@ -149,12 +149,11 @@ export interface VideoTier {
    * **按发固定计价表**（token/发，按时长档查）。非空 = 这一档不按 token 连续计，
    * segTokens 改查这张表（见那里的 ★）。只有 MiniMax 这种"每发一口价"的供应商用。
    *
-   * ★★ 报价=实扣的锚（成本价 1.0x，仓库主人拍板）：海螺 2.3 · 768p，
-   *   $0.28/发(6s)、$0.56/发(10s)，汇率 7.2 ⇒ ¥2.016 / ¥4.032；
-   *   按全仓 token 锚（元/百万 ÷ 15 = 系数 1，即 1 token = 15/1e6 元）折算：
-   *   ¥2.016 ÷ (15/1e6) = 134,400 token(6s)、268,800 token(10s)。取整 135k / 270k。
-   *   ⚠ server 的结算价必须逐条等于这两个数（跨仓钉子照 payOrder.spec 的样子打）。
-   *   汇率是会动的：真接计费前用当日汇率复核一遍，别让报价悄悄偏离实扣。
+   * ★★ 报价=实扣的锚（成本价 1.0x，仓库主人拍板）：官方美元单价 × 全仓锚 **$1 = 447,563 token** 折算取整
+   *   （2026-09-26 起）。当前取值与出处写在 VIDEO_TIERS 里「真人」那一行，这里**不再抄具体的数** ——
+   *   此前这里写着旧汇率 7.2 下的 135k / 270k，换模型、改锚之后它就成了一句会把人带回旧价的假话。
+   *   ⚠ server 的结算价（config/tokens.MINIMAX_FLAT_COST，按**模型**分行）必须与那一行逐条相等，
+   *   跨仓钉子在 server 的 realPersonProxy.spec.js 末尾。
    */
   flatCost?: Record<number, number>;
   /** token 消耗系数（相对标准档；按模型单价折算）。flatCost 档不看它，随便填 1 */
@@ -692,19 +691,26 @@ export function realFaceIssue(
   const label = tier.label;
   // 这一档收 asset://，只是有卡还没做授权 —— 出路是"去做授权"，与"换档位"完全不同，
   // 说错的话用户会去换一个同样出不了的档（铁律五：指路必须指对）
+  const realTier = tierOf("real").label;
   if (tier.assetRef === true) {
     const lack = quotedNames(noAsset.map((c) => c.name));
-    return t`${lack}是声明过的真人素材，但还没有方舟可信素材 ID —— 「${label}」档不收直接上传的真人照片，只收本人授权过的素材。去卡片详情页按提示做一次肖像授权并填上素材 ID，或先把这张卡取下`;
+    // ★ 2026-09-30 起授权的界面入口就是卡上那个「火山引擎适用」勾选框（components/VolcCompatToggle），
+    //   原因句只指那一个地方（铁律五：指路必须指对 —— 此前这里指的"填素材 ID"那套界面已经没了）
+    // ★ 不认证也有路：「真人」档收真人照片。但白模段上那一档做不了复刻（见下面 blockout 那句），那时不往那儿指
+    return opts?.blockout
+      ? t`${lack}没有勾选「火山引擎适用」——「${label}」档只收做过火山引擎认证的真人卡。去卡片详情页勾选「火山引擎适用」，或先把这张卡取下`
+      : t`${lack}没有勾选「火山引擎适用」——「${label}」档只收做过火山引擎认证的真人卡。去卡片详情页勾选「火山引擎适用」，或换「${realTier}」档（在「工作流」或「简约模式」里直出）`;
   }
   const names = quotedNames(real.map((c) => c.name));
-  const realTier = tierOf("real").label;
   if (opts?.blockout) {
     return t`${names}是声明过的真人素材，「${label}」档的供应商拒收真人照片（实测名人按版权拦、普通人按隐私拦，整发被拒）；而「${realTier}」档做不了白模复刻——真人卡与白模模板不能同用：把真人卡取下换一张非真人卡，或不用模板、换「${realTier}」档以卡上照片起拍直出`;
   }
   // 收授权素材的就是这两档，各占一个占位符逐个点名（不是一张会变长的清单，别拿 joinTierNames 拼：英文要说成「A 或 B」）
   const hdTier = tierOf("hd").label;
   const ultraTier = tierOf("ultra").label;
-  return t`${names}是声明过的真人素材，「${label}」档的供应商拒收真人照片（实测名人按版权拦、普通人按隐私拦，整发被拒）——换成「${hdTier}」「${ultraTier}」档并给这张卡做肖像授权，或换「${realTier}」档，或先把真人卡取下`;
+  // ★ 「真人」档只在画布（工作流 / 简约模式）上能直出 —— 工坊整个建立在推演上，那一档在工坊是灰的（deriveIssue）。
+  //   这句话画布、工坊方案台、工坊节点卡三处都会印，所以把去哪儿用它说在句子里，别指一条在工坊里走不通的路
+  return t`${names}是真人卡，「${label}」档不收真人照片——换「${realTier}」档（在「工作流」或「简约模式」里直出）；或给卡勾选「火山引擎适用」后换「${hdTier}」「${ultraTier}」档`;
 }
 
 /** 几张卡的名字各加一对引号、按界面语言的列举分隔符连起来（中文「凛」、「樱」，英文 “Rin”, “Sakura”） */
