@@ -11,7 +11,7 @@
 ### 1.1 产品定位
 - App 是 IdeaHub 的安卓端：React 19 + Vite 7 + Tailwind + Capacitor，形态对标抖音/TikTok 的全屏上下滑视频流，**视频由 AI 逐段生成，支持分支互动** — `app\CLAUDE.md:12-13`
 - 应用名「启梦」，包名 `com.ideahub.branchvideo` — `app\capacitor.config.ts:4-5`；`app\android\app\build.gradle:29`
-- 当前版本 versionName `2.56` / versionCode `68` — `app\android\app\build.gradle:39-40`
+- 当前版本 versionName `2.57` / versionCode `69` — `app\android\app\build.gradle:39-40`
 - 登录页标语：「启梦 · 有想法，就是梦想启程的第一步」— `app\src\pages\LoginPage.tsx:296-297`
 - 三仓结构：server（Node+Express5+MongoDB，阿里云 ECS）/ client（官网）/ app（APK/AAB），互相只靠 HTTP 契约耦合 — `app\AGENTS.md:17-23`
 
@@ -514,8 +514,14 @@
 - **冷启动立刻点 ➕ 被弹去登录页**（2026-08-20 已修） — `app\CLAUDE.md:293`
 - **改完昵称后作品列表还挂着旧名字**（已按 authorId 修） — `app\CLAUDE.md:294`
 
-### 9.2 近期版本（当前版 v2.56）— `app\RELEASE_NOTES.md`（每一版的原文：`git show vX.YZ:RELEASE_NOTES.md`）
+### 9.2 近期版本（当前版 v2.57）— `app\RELEASE_NOTES.md`（每一版的原文：`git show vX.YZ:RELEASE_NOTES.md`）
 > 注：侧载包的更新弹窗显示的就是 `RELEASE_NOTES.md`；从 Google Play 安装的版本随商店更新，不弹这个窗。
+
+**v2.57**（卡片按模型适配）：
+- 卡片详情页「🎛 按模型适配」：写清高清 / 电影级、标准 / 极速、真人档各能用上这张卡的什么（只对自己的卡出现，背景卡没有这一格）
+- 「标准/极速适用」= AI 看图写一段文字版形象描述（≤100 字、可改，约一次对话的钱）；标准 / 极速档收不到这张卡的图时用它代替。真人卡没有这一项（那两档本来就不收真人照片）
+- 「真人档适用」（人物 / 场景 / 道具卡）= AI 画竖、横两张起拍画面（约两张图的钱），真人档以它起拍
+- 工作流段设置、工坊铸段窗的档位下方点名哪张卡在这一档收不到形象图、去卡片页勾哪一个
 
 **v2.56**（工坊白屏修复 + 剪辑工程）：
 - 修复：2.51–2.55 的安装包漏了铸卡师模型，一进工坊的铸卡桌面就整页白屏 —— 遇到这个问题请更新到 2.56（简约模式不受影响）
