@@ -35,7 +35,6 @@ import { useCut } from "../studio/cutStore";
 import {
   BED_GAIN,
   BGM_DUCK,
-  MIN_CLIP_SEC,
   SPEEDS,
   TITLE_MAX,
   addAnn,
@@ -80,12 +79,16 @@ import {
   voiceStale,
   type CutAnn,
   type CutClip,
-  type CutIssue,
   type CutProject,
   type CutResult,
 } from "../data/cutProject";
 import { NarrationError, listNarrators, narratorOf, synthLine, type Narrator } from "../studio/cutNarration";
 import CutPreviewLayer from "../components/cut/CutPreviewLayer";
+import AutoEditSheet from "../components/cut/AutoEditSheet";
+import CutAgentSheet from "../components/cut/CutAgentSheet";
+import { AUTO_EDIT } from "../studio/cutAutoEdit";
+import { runCutAgent, type CutAgentCtx, type CutAgentOutcome } from "../studio/cutAgent";
+import { cutIssueText } from "../studio/cutIssues";
 import { VideoSegment, aspectOf, formatDuration, segLen, uid } from "../types";
 import { resolveMediaUrl, useMediaUrl } from "../utils/mediaUrl";
 import { captureVideoFrame, loadVideoAt, probeDuration } from "../utils/videoFrames";
@@ -220,6 +223,10 @@ export default function CutPage() {
   const [voicing, setVoicing] = useState<ReadonlySet<string>>(() => new Set());
   /** 正在试听哪一段的配音（片段 id） */
   const [auditioning, setAuditioning] = useState<string | null>(null);
+  /** 「✨ 一键成片」的面板开着没有 */
+  const [autoOpen, setAutoOpen] = useState(false);
+  /** 「💬 对剪辑台说」的面板开着没有 */
+  const [agentOpen, setAgentOpen] = useState(false);
   const auditionRef = useRef<HTMLAudioElement | null>(null);
   /** 可选的旁白音色（服务端目录，进「字幕」页签时取一次）。null = 还没取到 */
   const [narrators, setNarrators] = useState<Narrator[] | null>(null);
@@ -637,6 +644,18 @@ export default function CutPage() {
   /** 各段现在按多长算 —— 给跑在这一页卸载之后还活着的长活（配音）读最新的那份，别用闭包里的旧值 */
   const lensRef = useRef(lens);
   lensRef.current = lens;
+  /**
+   * 「对剪辑台说话」等模型回话的那几秒里，这几样都可能变：回话到的时候要读**最新**的（见 studio/cutAgent 文件头的 ★），
+   * 所以各留一个 ref，不用闭包里那一拍的值。
+   */
+  const realLensRef = useRef(realLens);
+  realLensRef.current = realLens;
+  const selRef = useRef(sel);
+  selRef.current = sel;
+  const voicingRef = useRef(false);
+  voicingRef.current = voicing.size > 0;
+  const busyRef = useRef(false);
+  busyRef.current = !!busy;
 
 
   if (!draft) return null;
@@ -741,29 +760,14 @@ export default function CutPage() {
    * ★ 播放头不在选中的那段里就整句拒 —— 这时候"在播放头处分割"本身没有意义，
    *   而默认切成正在播的那一段就是上面那个 bug 本身。
    */
-  /** 改不成的原因代码 → 整句人话（cutProject 是不认识界面语言的纯模块，话在这里说） */
-  function issueText(issue: CutIssue): string {
-    switch (issue) {
-      case "edge":
-        return t`分割点离片段边缘太近（至少留 ${MIN_CLIP_SEC} 秒）`;
-      case "short":
-        return t`这样裁完只剩不到 ${MIN_CLIP_SEC} 秒，片段太短了`;
-      case "sibling":
-        return t`这个片段是分割出来的，同一段还有另一半在时间轴上——回到整段会和它重叠，成片里同一截会播两遍。想撤销分割，先删掉另一半。`;
-      case "last":
-        return t`时间轴上只剩这一个片段了，不能再删。`;
-      case "gone":
-        return t`这个片段已经不在时间轴上了，重新点一个再操作。`;
-    }
-  }
-
   /**
    * 把一次改动写回工程：成了记一步撤销，不成就把原因摆出来（铁律八：说清为什么点不动）。
-   * ★ 时间轴的每一种改法都走这一处 —— 手点的、之后「对剪辑台说话」办的，都是 cutProject 里同一批函数的结果。
+   * ★ 时间轴的每一种改法都走这一处 —— 手点的与「对剪辑台说话」办的（studio/cutAgent），都是 cutProject 里同一批函数的结果；
+   *   改不成的那句话也只有一份（studio/cutIssues）。
    */
   function commit(r: CutResult, opts?: { coalesce?: string }): boolean {
     if (!r.ok) {
-      setErr(issueText(r.issue));
+      setErr(cutIssueText(r.issue));
       return false;
     }
     setErr("");
@@ -906,7 +910,9 @@ export default function CutPage() {
    */
   async function runVoices(ids: string[]) {
     const start = useCut.getState().project;
-    if (ids.length === 0 || !start || voicing.size > 0) return;
+    // ★ 认 ref 不认闭包里的 voicing：「对剪辑台说话」是等完模型回话才走到这里的，闭包里那份可能是几秒之前的
+    if (ids.length === 0 || !start || voicingRef.current) return;
+    voicingRef.current = true;
     const epochAtStart = ownerEpoch();
     const sigAtStart = start.sig;
     const many = ids.length > 1;
@@ -1002,6 +1008,98 @@ export default function CutPage() {
     setAuditioning(clipId);
     a.onended = () => setAuditioning((cur) => (cur === clipId ? null : cur));
     void a.play().catch(() => setAuditioning(null));
+  }
+
+  /**
+   * 「✨ 一键成片」点了头：把那一版写回工程（整件事只记一步撤销），要配音的话接着一句一句配。
+   * ★ 写回的是面板里用 cutProject.applyAutoPlan 算好的那份 —— 这里不再改它一个字（看到的就是写进去的）。
+   */
+  function applyAuto(next: CutProject, opts: { voice: boolean }) {
+    setAutoOpen(false);
+    setErr("");
+    useCut.getState().apply(next);
+    setTab("text");
+    if (!opts.voice) return;
+    const vid = narratorOf(next);
+    const ids = next.clips
+      .filter((c) => {
+        const text = (c.line?.text ?? "").trim();
+        if (!text || Math.ceil(lineUnits(text)) > lineCap(clipOutDur(c, lens))) return false;
+        return !c.line?.voice || voiceStale(c.line, vid);
+      })
+      .map((c) => c.id);
+    void runVoices(ids);
+  }
+
+  /**
+   * 「对剪辑台说话」要的现状 —— 每次**现读**（等模型回话的那几秒里人可以接着手剪）。
+   * 这会儿改不了时间轴就回 null：正在合成 / 重拍（这一炉的素材在开工那一拍已经定死，改了不进这一炉）、
+   * 稿子已经合好、单段编辑（那条路不合成，包装层没处落）、工程不在了（换过账号）。
+   */
+  function agentCtx(): CutAgentCtx | null {
+    const p = useCut.getState().project;
+    const st = useStudio.getState();
+    if (!p || p.merged || busyRef.current || st.segEdit || !st.draft || st.draft.merged) return null;
+    return {
+      project: p,
+      lens: lensRef.current,
+      realLens: realLensRef.current,
+      segCount: st.draft.segments.length,
+      selectedId: selRef.current,
+      voiceId: narratorOf(p),
+      voice: !canVoice ? "offline" : voicingRef.current ? "busy" : "ok",
+      newId: () => uid("clip"),
+    };
+  }
+
+  /**
+   * 「对剪辑台说话」：一句话 → 时间轴上的改动。听懂在 studio/cutGrammar、落地在 cutProject.applyCutOps、
+   * 调模型与说人话在 studio/cutAgent —— 这里只管**写回**：
+   * ★ 整句话一次写回、只记一步撤销（说错了一句「撤销」就回去）。
+   * ★ 写回之前核对 store 里还是不是算这份结果时用的那份工程：对不上就不写（照旧工程算的结果会盖掉中间的改动）。
+   * ★ 撤销 / 重做按**真的退了几步**报：栈里没有那么多步时，回执说的是实际的数，一步都退不了就说退不了。
+   */
+  async function runAgent(text: string): Promise<CutAgentOutcome> {
+    setErr("");
+    const out = await runCutAgent(text, agentCtx);
+    // ★ 等模型回话的时候人已经离开了剪辑页：这一句不落地。工程在全局 store 里，照写是写得进去的 —— 可那是一处
+    //   没人看见回执的改动（面板随页面一起没了），而且这一页那个"工程一动就落盘"的 effect 已经不在跑。宁可不办
+    if (!aliveRef.current) return { ...out, applied: [], next: null, voiceIds: [], undo: 0, redo: 0, openAuto: false };
+    const store = useCut.getState();
+    const refused = [...out.refused];
+    let applied = out.applied;
+    let voiceIds = out.voiceIds;
+    if (out.next || voiceIds.length > 0) {
+      if (store.project !== out.base) {
+        applied = [];
+        voiceIds = [];
+        refused.push(t`时间轴刚好在这一拍被改过，这一句没有落地——再说一次`);
+      } else if (out.next) {
+        store.apply(out.next);
+      }
+    }
+    let undone = 0;
+    for (let i = 0; i < out.undo && useCut.getState().past.length > 0; i++) {
+      useCut.getState().undo();
+      undone++;
+    }
+    let redone = 0;
+    for (let i = 0; i < out.redo && useCut.getState().future.length > 0; i++) {
+      useCut.getState().redo();
+      redone++;
+    }
+    if (out.undo > 0 && undone === 0) refused.push(t`没有可以撤销的步骤了`);
+    if (out.redo > 0 && redone === 0) refused.push(t`没有可以重做的步骤了`);
+    // 选中的片段被这一句删了（或者被撤销回去之前还不存在）：选中态跟着清掉，别留一个指着空气的选中
+    const after = useCut.getState().project;
+    setSel((cur) => (cur && after && !after.clips.some((c) => c.id === cur) ? null : cur));
+    if (voiceIds.length > 0) void runVoices(voiceIds);
+    if (out.openAuto) {
+      setAgentOpen(false);
+      setTab("text");
+      setAutoOpen(true);
+    }
+    return { ...out, applied, refused, voiceIds, undo: undone, redo: redone };
   }
 
   /** 把合好的稿子还原到合并之前（见 studioStore.reopenCut）。还原之后这一页会按源段重新铺开 */
@@ -1884,6 +1982,18 @@ export default function CutPage() {
           >
             <Icon name={playing ? "pause" : "play"} size={26} filled />
           </button>
+          {/* 「对剪辑台说话」的入口：放在预览这一行（不进某个页签）—— 它管的是整条时间轴，哪个页签开着都用得上。
+              合好的稿子与单段编辑没有它：前者改不了时间轴，后者不合成、包装层没处落（见 packaging） */}
+          {packaging && !alreadyMerged && project && (
+            <button
+              data-guide="cut-agent"
+              onClick={() => setAgentOpen(true)}
+              disabled={!!busy}
+              className="ml-auto flex flex-none items-center gap-1 rounded-full bg-slate-700/70 px-3 py-1.5 text-[11px] text-slate-100 disabled:opacity-40"
+            >
+              <Trans>💬 说一句</Trans>
+            </button>
+          )}
         </div>
 
         {/* 全局播放头 */}
@@ -2116,10 +2226,16 @@ export default function CutPage() {
                       ) : (
                         <div className="h-14 w-full bg-ink/60" />
                       )}
-                      <span className="absolute left-1 top-0.5 rounded bg-black/65 px-1 text-[9px] text-slate-200">
-                        <Trans>段{c.segIndex + 1} · {durOf(c).toFixed(1)}s</Trans>
-                        {/* ★ 裁过要看得出来：否则"这段怎么短了"只能靠回忆，而裁剪是可还原的 */}
-                        {clipTrimmed(c) && <span className="ml-0.5">✂</span>}
+                      <span className="absolute left-1 top-0.5 flex items-center gap-1 rounded bg-black/65 pr-1 text-[9px] text-slate-200">
+                        {/* ★ 一个片段两个数，长得不一样：亮底的是**从左数的位置**（「对剪辑台说话」认的「片段 2」就是它），
+                            后面的「段 N」是它出自稿子的第几段。换过序 / 切过 / 删过之后两个数对不上 —— 只标「段 N」的话，
+                            人照着缩略图说「第 3 段」，办到的却是从左数第 3 个（cutProject.segRefClip 的 ★） */}
+                        <b className="rounded-l bg-brand px-1 font-bold text-ink">{i + 1}</b>
+                        <span>
+                          <Trans>段{c.segIndex + 1} · {durOf(c).toFixed(1)}s</Trans>
+                          {/* ★ 裁过要看得出来：否则"这段怎么短了"只能靠回忆，而裁剪是可还原的 */}
+                          {clipTrimmed(c) && <span className="ml-0.5">✂</span>}
+                        </span>
                       </span>
                       {/* 这一段挂着什么包装也要看得出来（变速 / 从黑里进来 / 有字幕 / 有配音）：不然"这段怎么变快了"
                           同样只能靠回忆，而它们都藏在选中之后才出现的那块面板里 */}
@@ -2327,6 +2443,20 @@ export default function CutPage() {
 
           {tab === "text" && project && packaging && (
             <>
+              {/* ✨ 一键成片（结构化技能，studio/cutAutoEdit）：模型写底稿，人在确认卡上看过、改过才落进来 */}
+              <button
+                onClick={() => setAutoOpen(true)}
+                disabled={voicing.size > 0}
+                className="mb-2.5 flex w-full items-center gap-2 rounded-xl border border-brand/40 bg-brand/10 px-3 py-2.5 text-left disabled:opacity-40"
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-bold text-brand"><Trans>✨ 一键成片</Trans></span>
+                  <span className="block text-[10px] leading-relaxed text-slate-400">
+                    <Trans>片头标题、每段一句旁白、换场的转场，一次写好——你看过、改过再用</Trans>
+                  </span>
+                </span>
+                <span className="flex-none text-[11px] text-slate-300">{AI_REAL ? fmtTokens(AUTO_EDIT.cost) : t`演示`}</span>
+              </button>
               <input
                 value={project.title ?? ""}
                 maxLength={TITLE_MAX}
@@ -2419,6 +2549,8 @@ export default function CutPage() {
                           ) : (
                             <span className="h-7 w-7 flex-none rounded bg-ink/60" />
                           )}
+                          {/* 与时间轴缩略图上同一个编号（从左数的位置，见那边的 ★） */}
+                          <b className="flex-none rounded bg-brand px-1 text-[10px] font-bold text-ink">{i + 1}</b>
                           <span className="truncate text-[11px] text-slate-300">
                             <Trans>段{c.segIndex + 1} · {durOf(c).toFixed(1)}s</Trans>
                           </span>
@@ -2688,6 +2820,23 @@ export default function CutPage() {
         </>
         )}
       </div>
+
+      {autoOpen && project && (
+        <AutoEditSheet
+          project={project}
+          segs={segs}
+          lens={lens}
+          canVoice={canVoice}
+          voiceName={narratorName(voiceId)}
+          onClose={() => setAutoOpen(false)}
+          onApply={applyAuto}
+        />
+      )}
+
+      {/* 合成 / 重拍期间收起：那会儿时间轴改了也不进这一炉（agentCtx 同样会拒，这里是别让人对着一个必被拒的输入框说话） */}
+      {agentOpen && !busy && packaging && !alreadyMerged && project && (
+        <CutAgentSheet onRun={runAgent} onClose={() => setAgentOpen(false)} />
+      )}
 
       {annOpen && (
         <FrameAnnotator

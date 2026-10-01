@@ -1205,6 +1205,21 @@ export const TOURS: GuideTour[] = [
         ),
       },
       {
+        // 2026-10-01 一键成片与「说一句」（未升 version：老用户不重弹，点「?」的人看得到）。
+        // ★ 钱要在这里说清：说一句的直白句式不花钱（studio/cutGrammar 的本地档），一键成片是一次对话的钱；
+        //   价钱的数不写进来（economy.CHAT_TURN_TOKENS 会变，面板上印着真数）。
+        title: msg`懒得一格格点？说一句，或者一键`,
+        anchor: "cut-agent",
+        body: (
+          <Trans>
+            <b className="font-bold text-slate-100">💬 说一句</b>：用大白话指挥时间轴 ——「把片段2放慢」「片段3静音」「删掉片段2」，
+            直白的话当场就办、<b className="font-bold text-slate-100">不花钱</b>，说错了一句「撤销」就回去。
+            「字幕」页签里的<b className="font-bold text-slate-100">✨ 一键成片</b>让模型给每一段写旁白、起片头标题（收一次对话的钱），
+            写出来的每一句你都能改，点了头才写进去。
+          </Trans>
+        ),
+      },
+      {
         title: msg`圈选：花钱的重生成`,
         body: (
           <Trans>

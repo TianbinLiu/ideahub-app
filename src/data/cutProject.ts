@@ -1398,3 +1398,673 @@ export function compileTimeline(
   }
   return { ok: true, clips, total: plan.total, plan };
 }
+
+// ── 一键成片（P2）：给模型看的清单、模型输出的形状检查、落地 ─────────────
+//
+// ★ 这一段只有"数据进、数据出"：清单长什么样、模型回来的东西哪些能信、信了之后怎么写进工程。
+//   提示词、调模型、扣钱、界面都不在这里（studio/cutAutoEdit 与 components/cut/AutoEditSheet）——
+//   放在这儿是因为它们得在构建里实跑（check-cut-project.mjs）：**模型输出是不可信输入**，编号越界、
+//   同一个片段给了两句、在接着拍的接缝上加转场、标题带书名号，哪一种都真会来。
+// ★ 落地只调上面那批改法（setTitle / setClipLine / setClipFade / setEndFade / setCaptionsOn）：
+//   手点的、一键的、之后「对剪辑台说话」办的，走的是同一批函数（铁律六）。
+
+/** 清单里的一行：时间轴上的一个片段，带着模型写旁白要知道的那几样 */
+export interface AutoBriefClip {
+  /** 给模型看的编号（1 起，按时间轴顺序）。模型回话里认它，落地时换回 clipId —— 别让模型碰内部 id */
+  n: number;
+  clipId: string;
+  /** 这个片段在成片里的时长（秒） */
+  durSec: number;
+  /** 这一段念得完多长的一句话（lineCap） */
+  cap: number;
+  title: string;
+  plot: string;
+  /**
+   * 这个片段与前一个之间的接缝：first = 它是第一个；same-shot = 同一个镜头在延续（不许加转场）；
+   * scene-change = 明确换了场（可以加）；unknown = 不知道（老剪辑稿），按不许加处理。
+   */
+  seam: "first" | "same-shot" | "scene-change" | "unknown";
+}
+
+/** 画面描述给模型看多长（字符）。组稿时折进来的剧情是 60~120 字的小说式概括，160 够装下镜头行 + 正文 */
+const BRIEF_PLOT_MAX = 160;
+
+/** 时间轴 → 给模型看的清单。指着不存在的段的片段略过（同 timelinePlan） */
+export function autoBrief(
+  p: CutProject,
+  segs: ReadonlyArray<{ title?: string; plot?: string; carried?: boolean } | undefined>,
+  lens: ReadonlyArray<number>,
+): AutoBriefClip[] {
+  const out: AutoBriefClip[] = [];
+  p.clips.forEach((c, i) => {
+    const seg = segs[c.segIndex];
+    if (!seg) return;
+    const durSec = clipOutDur(c, lens);
+    const cont = out.length === 0 ? false : seamContinuous(p, i, segs);
+    out.push({
+      n: out.length + 1,
+      clipId: c.id,
+      durSec,
+      cap: lineCap(durSec),
+      title: (seg.title ?? "").trim(),
+      plot: (seg.plot ?? "").replace(/\s+/g, " ").trim().slice(0, BRIEF_PLOT_MAX),
+      seam: out.length === 0 ? "first" : cont === true ? "same-shot" : cont === false ? "scene-change" : "unknown",
+    });
+  });
+  return out;
+}
+
+/** 模型（或演示档）给出的一套包装，已经过了形状检查 */
+export interface AutoPlan {
+  /** 片头标题（可能是空串：模型没给 / 给的不成形） */
+  title: string;
+  /** 每个片段一句（清单里的每个片段都有一行，没话说的是空串）—— 确认卡照这张表逐行摆 */
+  lines: Array<{ clipId: string; text: string }>;
+  /** 这几个片段从黑里进来（只会落在明确换了场的接缝上） */
+  fades: string[];
+  /** 配乐建议（只给人看：没有内置曲库，配乐还是人自己挑） */
+  music: string;
+}
+
+/** 一条片子里自动加的闪黑最多几处：多了就成了幻灯片 */
+export const AUTO_FADES_MAX = 3;
+
+export type AutoIssue =
+  /** 回话里找不到 JSON */
+  | "no-json"
+  /** 有 JSON 但读不出来 */
+  | "bad-json"
+  /** 读出来了，可里面一句能用的旁白、一个能用的标题都没有 */
+  | "empty";
+
+export type AutoResult = { ok: true; plan: AutoPlan } | { ok: false; issue: AutoIssue };
+
+/** 标题两头常见的包装（书名号 / 引号 / 井号 / 句末标点）摘掉 */
+function cleanTitle(raw: unknown): string {
+  if (typeof raw !== "string") return "";
+  return raw
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^[《「『“"'#\s]+/, "")
+    .replace(/[》」』”"'。.!！\s]+$/, "")
+    .slice(0, TITLE_MAX);
+}
+
+/**
+ * 模型的回话 → 一套能落地的包装。**不可信输入**：
+ *   · 编号不是清单里的（越界 / 不是整数 / 不是数）→ 那一句丢掉；
+ *   · 同一个片段给了两句 → 认第一句；
+ *   · 一句话太长 → **不截**（截出来的是半句话），原样留着，由确认卡标出来、配音那一步把关；只按存储上限封顶；
+ *   · 转场落在第一个片段 / 接着拍的接缝 / 不知道是不是换场的接缝上 → 丢掉；超过 AUTO_FADES_MAX 处的丢掉后面的；
+ *   · 一句能用的话、一个能用的标题都没有 → 整份不要（回 empty）。
+ */
+export function parseAutoPlan(raw: string, brief: ReadonlyArray<AutoBriefClip>): AutoResult {
+  const text = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "").trim();
+  let data: unknown;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    const m = text.match(/\{[\s\S]*\}/);
+    if (!m) return { ok: false, issue: "no-json" };
+    try {
+      data = JSON.parse(m[0]);
+    } catch {
+      return { ok: false, issue: "bad-json" };
+    }
+  }
+  if (!data || typeof data !== "object" || Array.isArray(data)) return { ok: false, issue: "bad-json" };
+  const o = data as Record<string, unknown>;
+  const byN = new Map<number, AutoBriefClip>(brief.map((b) => [b.n, b]));
+  const num = (x: unknown): number | null => {
+    const v = typeof x === "number" ? x : typeof x === "string" && x.trim() !== "" ? Number(x) : NaN;
+    return Number.isInteger(v) ? v : null;
+  };
+  const picked = new Map<string, string>();
+  for (const it of Array.isArray(o.lines) ? o.lines : []) {
+    if (!it || typeof it !== "object") continue;
+    const row = it as Record<string, unknown>;
+    const n = num(row.clip);
+    const b = n === null ? undefined : byN.get(n);
+    if (!b || picked.has(b.clipId) || typeof row.text !== "string") continue;
+    picked.set(b.clipId, row.text.replace(/\s+/g, " ").trim().slice(0, LINE_MAX_CHARS));
+  }
+  const title = cleanTitle(o.title);
+  const lines = brief.map((b) => ({ clipId: b.clipId, text: picked.get(b.clipId) ?? "" }));
+  if (!title && !lines.some((l) => l.text)) return { ok: false, issue: "empty" };
+  const fades: string[] = [];
+  for (const it of Array.isArray(o.fades) ? o.fades : []) {
+    const n = num(it);
+    const b = n === null ? undefined : byN.get(n);
+    if (!b || b.seam !== "scene-change" || fades.includes(b.clipId)) continue;
+    if (fades.length >= AUTO_FADES_MAX) break;
+    fades.push(b.clipId);
+  }
+  const music = typeof o.music === "string" ? o.music.replace(/\s+/g, " ").trim().slice(0, 24) : "";
+  return { ok: true, plan: { title, lines, fades, music } };
+}
+
+/**
+ * 演示档（没有真模型时）：每个片段取它画面描述的第一句、截到念得完的长度；不加转场、不起标题。
+ * 只为让流程能走通看形状，**不冒充模型**（面板会标「演示」）。
+ */
+export function demoAutoPlan(brief: ReadonlyArray<AutoBriefClip>): AutoPlan {
+  const lines = brief.map((b) => {
+    // 组稿时镜头行折在剧情最前面（「中景 · 缓推 · 铺垫。正文…」）：第一句多半是它，带间隔号的那一句跳过
+    const parts = b.plot.split(/(?<=[。！？!?.])\s*/).map((s) => s.trim()).filter(Boolean);
+    const first = parts.find((s) => !s.includes("·")) ?? parts[0] ?? "";
+    let text = "";
+    for (const ch of first) {
+      if (lineUnits(text + ch) > b.cap) break;
+      text += ch;
+    }
+    return { clipId: b.clipId, text: text.trim() };
+  });
+  return { title: "", lines, fades: [], music: "" };
+}
+
+/**
+ * 把一套包装写进工程：**确认卡上看到的就是写进去的**。
+ *   · 标题：给了就写（空串 = 不动原来的）；
+ *   · 每个片段的那一句：照表写，空串 = 这一段不要字幕（原来有的会被去掉，连同配音）；表里没有的片段不动；
+ *     字没变的片段不动（它的配音还作数）；
+ *   · `fades`：开 = 表里的片段从黑里进来、其余片段都不；关 = 转场一个不动；
+ *   · `endFade` / `captions`：照开关的状态写。
+ * 片段在这期间被删了（表里的 id 找不到）就跳过那一行。
+ */
+export function applyAutoPlan(
+  p: CutProject,
+  plan: AutoPlan,
+  opts: { captions: boolean; fades: boolean; endFade: boolean },
+): CutProject {
+  let next = plan.title ? setTitle(p, plan.title) : p;
+  for (const l of plan.lines) {
+    const r = setClipLine(next, l.clipId, l.text);
+    if (r.ok) next = r.project;
+  }
+  if (opts.fades) {
+    const on = new Set(plan.fades);
+    for (const c of next.clips) {
+      const r = setClipFade(next, c.id, on.has(c.id));
+      if (r.ok) next = r.project;
+    }
+  }
+  next = setEndFade(next, opts.endFade);
+  next = setCaptionsOn(next, opts.captions);
+  return next;
+}
+
+// ── 对剪辑台说话（P2b）：白名单操作与落地 ───────────────────────────────
+//
+// ★ 这一段同样只有"数据进、数据出"：一串白名单操作（CutOp）→ 改过的工程 + 办成了哪些、没办哪些、为什么。
+//   听懂一句话（句式、模型回话的形状检查）在 studio/cutGrammar，说给人听的话与调模型在 studio/cutAgent ——
+//   落地放在这儿是因为它得在构建里实跑（check-cut-project.mjs）：点名认 id 不认下标、变速片段按成片的秒下刀、
+//   「只留 N 秒」不许把片段放长、撤销不与别的改动混办……哪一条错了都是**零报错地办成另一件事**。
+// ★ 落地只调上面那批改法：手点的、一键成片的、嘴说的走同一批函数（铁律六），改不成的原因也是同一份（CutIssue）。
+// ★ 这里的操作全是**不花钱的整理活**。要花钱的两件不在白名单里：圈选重拍根本没有对应的操作（模型编不出来）；
+//   重写旁白只会**打开**「一键成片」的面板（`auto`，那张确认卡才是点头的地方）。
+
+/**
+ * 说的是时间轴上的哪个片段：1 起的**位置**（「片段 2」= 从左数第 2 个）/ 最后一个 / 全部 / 现在选中的那个（没点名时）/
+ * `{ seg }` = 人说的是「第 N 段」「段 N」这种**带"段"字**的说法（见 segRefClip：它有两种读法，只有读法唯一时才办）。
+ */
+export type ClipRef = number | "last" | "all" | "current" | { seg: number };
+
+/**
+ * 「第 N 段」指的是哪个片段。时间轴上每个片段带着两个数：从左数的**位置**（「片段 N」，说话认的是它）和它出自稿子的
+ * **第几段**（缩略图上标的「段 N」）。没换过序、没切过、没删过的时候两个数是同一个；动过之后「第 3 段」就有两种读法 ——
+ * 位置 3 的那个，还是标着「段3」的那个。猜错的后果是**零报错地办在另一个片段上**（静音了别的段、删了别的段），
+ * 所以只有两种读法落在**同一个**片段上才认；否则回 null，调用方请人按位置说「片段 N」。
+ */
+export function segRefClip(clips: ReadonlyArray<CutClip>, segCount: number, n: number): string | null {
+  const live = clips.filter((c) => c.segIndex >= 0 && c.segIndex < segCount);
+  const at = live[n - 1];
+  if (!Number.isInteger(n) || !at || at.segIndex !== n - 1) return null;
+  return live.filter((c) => c.segIndex === n - 1).length === 1 ? at.id : null;
+}
+
+/** 剪辑台指挥的白名单操作。本地档与模型档共用（studio/cutGrammar 产出），applyCutOps 逐条落地 */
+export type CutOp =
+  | { op: "speed"; clip: ClipRef; value: number }
+  /** 快一档 / 慢一档（「再慢一点」）：从这一段**现在的**速度起，在 SPEEDS 里挪一格 */
+  | { op: "speed_step"; clip: ClipRef; dir: 1 | -1 }
+  /** 这一段原声的音量（0~1；静音 = 0） */
+  | { op: "volume"; clip: ClipRef; value: number }
+  /** 这一段从黑里进来（闪黑转场） */
+  | { op: "fade"; clip: ClipRef; on: boolean }
+  | { op: "end_fade"; on: boolean }
+  | { op: "remove"; clip: ClipRef }
+  /** 挪到第几位（1 起）/ 最前 / 最后；delta = 前移（-1）或后移（+1）一格 */
+  | { op: "move"; clip: ClipRef; to: number | "first" | "last" | { delta: 1 | -1 } }
+  /**
+   * 裁掉开头 / 结尾 sec 秒（cut），或者只留开头 / 结尾 sec 秒（keep）。秒数是这一段**在成片里**的秒。
+   * `edge` 是**动的那一头**：只留开头 = 动的是结尾（edge:"end"），只留结尾 = 动的是开头。
+   */
+  | { op: "trim"; clip: ClipRef; edge: "start" | "end"; sec: number; mode: "cut" | "keep" }
+  /** 在这一段的第 at 秒（成片里的秒，从这一段的开头数）切开 */
+  | { op: "split"; clip: ClipRef; at: number }
+  /** 写 / 改这一段的字幕（空串 = 去掉） */
+  | { op: "line"; clip: ClipRef; text: string }
+  /** 片头标题（空串 = 去掉） */
+  | { op: "title"; text: string }
+  /** 字幕烧不烧进画面 */
+  | { op: "captions"; on: boolean }
+  | { op: "voice"; clip: ClipRef }
+  | { op: "unvoice"; clip: ClipRef }
+  /** 配乐音量（0~1） */
+  | { op: "music_volume"; value: number }
+  | { op: "undo" }
+  | { op: "redo" }
+  /** 打开「一键成片」的面板（它自己就是确认卡：要花钱的那一步在那里点头） */
+  | { op: "auto" };
+
+export interface CutOpsCtx {
+  project: CutProject;
+  /** 各段现在按多长算（CutPage 的 lens） */
+  lens: ReadonlyArray<number>;
+  /** 各段**量出来的**长度，没量过的那一格是 undefined（同 timelinePlan 的 realLens） */
+  realLens: ReadonlyArray<number | undefined>;
+  /** 稿子里有几段（指着不存在的段的片段不算在时间轴上） */
+  segCount: number;
+  /** 说这句话时选中的片段；没选中是 null（「放慢一点」这种没点名的话落在它身上） */
+  selectedId: string | null;
+  /** 配音用的音色（判"配音过期没有"要用） */
+  voiceId: string;
+  /** 配音这会儿办不办得了：offline = 离线 / 演示构建里没有语音合成；busy = 上一批还在配 */
+  voice: "ok" | "offline" | "busy";
+  /** 切开一个片段时，给后一半起的 id */
+  newId: () => string;
+}
+
+/**
+ * 办成了的一件事。这里只记**事实**（Node 要能直接跑）；说给人听的那句话在 studio/cutAgent 里。
+ * `n` 是这个片段**在这句话说出来那一刻**的编号 —— 人说的是哪个数，回执就用哪个数。
+ */
+export type CutReceipt =
+  | { kind: "speed"; n: number; speed: number }
+  | { kind: "volume"; n: number; pct: number }
+  | { kind: "fade"; n: number; on: boolean }
+  | { kind: "end_fade"; on: boolean }
+  | { kind: "removed"; n: number }
+  | { kind: "moved"; n: number; place: number }
+  | { kind: "trimmed"; n: number; edge: "start" | "end"; mode: "cut" | "keep"; sec: number }
+  | { kind: "split"; n: number; at: number }
+  /** `long`：写是写上了，但这一段念不完这么长（配音之前得改短） */
+  | { kind: "line"; n: number; on: boolean; long: boolean }
+  /** `cut`：超过 TITLE_MAX 的部分没收 */
+  | { kind: "title"; on: boolean; cut: boolean }
+  | { kind: "captions"; on: boolean }
+  | { kind: "voice"; count: number }
+  | { kind: "unvoiced"; n: number }
+  | { kind: "music"; pct: number };
+
+/** 没办的一件事 + 为什么 */
+export type CutRefusal =
+  /** 没点名、也没有选中的片段 */
+  | { kind: "no_current" }
+  /** 没有这个编号的片段 */
+  | { kind: "no_clip"; ref: number; count: number }
+  /** 「第 N 段」有两种读法、落在不同的片段上（见 segRefClip）：不猜 */
+  | { kind: "seg_unclear"; ref: number }
+  /** cutProject 的改法自己拒了（原因是同一份 CutIssue） */
+  | { kind: "issue"; n: number; issue: CutIssue }
+  /** 同一句话里前面的操作已经把它删了 */
+  | { kind: "gone"; n: number }
+  | { kind: "same_place"; n: number }
+  /** 已经是最快 / 最慢的一档 */
+  | { kind: "speed_limit"; n: number; speed: number }
+  /** 「只留 sec 秒」，可这一段现在只有 have 秒 */
+  | { kind: "keep_longer"; n: number; sec: number; have: number }
+  /** 这一段的真实长度还没量出来，按秒下刀会落在错的地方 */
+  | { kind: "unmeasured"; n: number }
+  /** 秒数 / 位置不是一个能用的数 */
+  | { kind: "bad_number"; n: number }
+  /** 这件事不能对「全部片段」办，要点名一个 */
+  | { kind: "not_all" }
+  | { kind: "no_line"; n: number }
+  | { kind: "line_long"; n: number }
+  | { kind: "nothing_to_voice" }
+  | { kind: "no_voice" }
+  | { kind: "voice_offline" }
+  | { kind: "voice_busy" }
+  | { kind: "no_music" }
+  /** 撤销 / 重做与别的改动说在了一句里：别的没办 */
+  | { kind: "history_alone" };
+
+export interface CutOpsResult {
+  receipts: CutReceipt[];
+  refusals: CutRefusal[];
+  /** 改过之后的工程；一处都没改是 null。调用方**一次**写回（整句话只记一步撤销） */
+  next: CutProject | null;
+  /** 要去合成配音的片段 id（按点名的顺序） */
+  voiceIds: string[];
+  /** 要撤销 / 重做几步（栈里够不够由调用方去问，回执按真退了几步说） */
+  undo: number;
+  redo: number;
+  /** 要打开「一键成片」的面板 */
+  openAuto: boolean;
+}
+
+/**
+ * 把一串操作落到工程上 —— **唯一实现**（本地档与模型档共用）。
+ *
+ * ★ 点名在**这句话说出来的那一刻**的时间轴上解析成片段 id（一句话里先删片段 2、再说片段 3，说的是删之前的第 3 个），
+ *   之后一律认 id（CLAUDE.md「弹层按第几段记」那格：下标会因为前面的删、挪整体移位）。
+ * ★ 撤销 / 重做不与别的改动混在一句里办：这里算的是"在眼前这份工程上改成什么样"，而撤销换掉的正是眼前这份 ——
+ *   先撤再改，改动是照撤销之前的样子算的（写回去等于把撤销盖掉）；先改再撤，撤掉的就是刚办的那几件。
+ *   两种次序都不是人要的 ⇒ 这一句只办撤销 / 重做，其余的请人撤完再说一次（白拒一次，好过办成另一个样子）。
+ * ★ 本来就是那个样子的（已经静音的再说一次静音）也照报：人要的那个状态现在确实成立，一个字不回才像没听见。
+ */
+export function applyCutOps(ops: ReadonlyArray<CutOp>, ctx: CutOpsCtx): CutOpsResult {
+  const isLive = (c: CutClip) => c.segIndex >= 0 && c.segIndex < ctx.segCount;
+  const live = ctx.project.clips.filter(isLive);
+  const receipts: CutReceipt[] = [];
+  const refusals: CutRefusal[] = [];
+  const voiceIds: string[] = [];
+  let undo = 0;
+  let redo = 0;
+  let openAuto = false;
+  let p = ctx.project;
+
+  /** 同一个原因只说一次（「全部」展开成十个片段、十个都因为同一件事被拒的时候） */
+  const refuse = (r: CutRefusal) => {
+    const key = JSON.stringify(r);
+    if (!refusals.some((x) => JSON.stringify(x) === key)) refusals.push(r);
+  };
+  const noOf = (id: string) => live.findIndex((c) => c.id === id) + 1;
+  /** 点名 → 片段 id。认不出时记一句拒绝、回空表 */
+  const idsOf = (ref: ClipRef): string[] => {
+    if (ref === "all") return live.map((c) => c.id);
+    if (ref === "last") return live.length ? [live[live.length - 1].id] : [];
+    if (ref === "current") {
+      if (ctx.selectedId && live.some((c) => c.id === ctx.selectedId)) return [ctx.selectedId];
+      refuse({ kind: "no_current" });
+      return [];
+    }
+    if (typeof ref === "object") {
+      const id = segRefClip(ctx.project.clips, ctx.segCount, ref.seg);
+      if (id) return [id];
+      refuse({ kind: "seg_unclear", ref: ref.seg });
+      return [];
+    }
+    if (Number.isInteger(ref) && live[ref - 1]) return [live[ref - 1].id];
+    refuse({ kind: "no_clip", ref, count: live.length });
+    return [];
+  };
+  /** 这个片段现在的样子（同一句话里前面的操作可能已经改过它 / 删了它） */
+  const cur = (id: string, n: number): CutClip | null => {
+    const c = p.clips.find((x) => x.id === id);
+    if (!c) refuse({ kind: "gone", n });
+    return c ?? null;
+  };
+  /** 走一次 cutProject 的改法：成了换上新工程、记一条回执（回执照改完之后的样子写），不成记下原因 */
+  const run = (r: CutResult, n: number, receipt: () => CutReceipt): boolean => {
+    if (!r.ok) {
+      refuse(r.issue === "gone" ? { kind: "gone", n } : { kind: "issue", n, issue: r.issue });
+      return false;
+    }
+    p = r.project;
+    receipts.push(receipt());
+    return true;
+  };
+  /**
+   * 这个片段的出点是不是**确定的**：裁过尾巴（出点是人定的），或者这一段的真实长度量出来了。
+   * ★ 没量出来时 lens 里是申报值，而白模复刻 / 参考直出的片子实际比申报长得多（申报 5 秒、实际 20 秒，clipEnd 的 ★★）：
+   *   「裁掉结尾 2 秒」照申报值算会把出点定在第 3 秒 —— 人要的是 18 秒的片段，得到的是 3 秒的，零报错。
+   *   所以按秒下刀的操作（裁 / 留 / 切）在没量出来的片段上一律不办，请人先让它播出来。
+   */
+  const endKnown = (c: CutClip) => c.end !== undefined || ctx.realLens[c.segIndex] !== undefined;
+  const pctOf = (v: number) => Math.round(Math.max(0, Math.min(1, v)) * 100);
+
+  const isHistory = (o: CutOp) => o.op === "undo" || o.op === "redo";
+  const history = ops.filter(isHistory);
+  if (history.length > 0 && history.length < ops.length) refuse({ kind: "history_alone" });
+
+  for (const op of history.length > 0 ? history : ops) {
+    switch (op.op) {
+      case "speed":
+        for (const id of idsOf(op.clip)) {
+          const n = noOf(id);
+          if (!cur(id, n)) continue;
+          run(setClipSpeed(p, id, op.value), n, () => ({ kind: "speed", n, speed: clipSpeed(p.clips.find((c) => c.id === id)!) }));
+        }
+        break;
+      case "speed_step":
+        for (const id of idsOf(op.clip)) {
+          const n = noOf(id);
+          const c = cur(id, n);
+          if (!c) continue;
+          const at = SPEEDS.findIndex((s) => s === clipSpeed(c));
+          const to = at + op.dir;
+          if (at < 0 || to < 0 || to >= SPEEDS.length) {
+            refuse({ kind: "speed_limit", n, speed: clipSpeed(c) });
+            continue;
+          }
+          run(setClipSpeed(p, id, SPEEDS[to]), n, () => ({ kind: "speed", n, speed: SPEEDS[to] }));
+        }
+        break;
+      case "volume":
+        for (const id of idsOf(op.clip)) {
+          const n = noOf(id);
+          if (!cur(id, n)) continue;
+          run(setClipVolume(p, id, op.value), n, () => ({ kind: "volume", n, pct: pctOf(op.value) }));
+        }
+        break;
+      case "fade":
+        for (const id of idsOf(op.clip)) {
+          const n = noOf(id);
+          if (!cur(id, n)) continue;
+          run(setClipFade(p, id, op.on), n, () => ({ kind: "fade", n, on: op.on }));
+        }
+        break;
+      case "end_fade":
+        p = setEndFade(p, op.on);
+        receipts.push({ kind: "end_fade", on: op.on });
+        break;
+      case "remove":
+        // 「全部删掉」不办：时间轴不能是空的，而删到只剩一个也不是人要的
+        if (op.clip === "all") {
+          refuse({ kind: "not_all" });
+          break;
+        }
+        for (const id of idsOf(op.clip)) {
+          const n = noOf(id);
+          if (!cur(id, n)) continue;
+          run(removeClip(p, id), n, () => ({ kind: "removed", n }));
+        }
+        break;
+      case "move":
+        if (op.clip === "all") {
+          refuse({ kind: "not_all" });
+          break;
+        }
+        for (const id of idsOf(op.clip)) {
+          const n = noOf(id);
+          if (!cur(id, n)) continue;
+          // 位置按时间轴**现在**的顺序数（同一句话里前面可能已经删过、挪过），指着不存在的段的片段不占位
+          const now = p.clips.filter(isLive);
+          const from = now.findIndex((c) => c.id === id);
+          const lastIdx = now.length - 1;
+          const to =
+            op.to === "first"
+              ? 0
+              : op.to === "last"
+                ? lastIdx
+                : typeof op.to === "number"
+                  ? Math.min(lastIdx, Math.max(0, Math.round(op.to) - 1))
+                  : from + op.to.delta;
+          if (!Number.isFinite(to)) {
+            refuse({ kind: "bad_number", n });
+            continue;
+          }
+          if (from < 0 || to < 0 || to > lastIdx || to === from) {
+            refuse({ kind: "same_place", n });
+            continue;
+          }
+          run(reorderClip(p, id, now[to].id), n, () => ({ kind: "moved", n, place: to + 1 }));
+        }
+        break;
+      case "trim":
+        for (const id of idsOf(op.clip)) {
+          const n = noOf(id);
+          const c = cur(id, n);
+          if (!c) continue;
+          if (!(op.sec > 0) || !Number.isFinite(op.sec)) {
+            refuse({ kind: "bad_number", n });
+            continue;
+          }
+          if (!endKnown(c)) {
+            refuse({ kind: "unmeasured", n });
+            continue;
+          }
+          // 人说的秒是**成片里**的秒；变速的片段里一秒成片对应 speed 秒素材
+          const d = op.sec * clipSpeed(c);
+          const end = clipEnd(c, ctx.lens);
+          const receipt = (): CutReceipt => ({ kind: "trimmed", n, edge: op.edge, mode: op.mode, sec: op.sec });
+          if (op.mode === "keep") {
+            // ★ 「只留 N 秒」只许往短里裁：N 不小于这一段现在的长度时，照算会把入点 / 出点挪到片段**外面** ——
+            //   裁过的片段被悄悄放长，分割出来的那种还会与另一半重叠（同一截播两遍，resetClip 的 ★★ 是同一件事）
+            const have = clipOutDur(c, ctx.lens);
+            if (op.sec >= have - 0.01) {
+              refuse({ kind: "keep_longer", n, sec: op.sec, have });
+              continue;
+            }
+            if (op.edge === "end") run(trimClip(p, id, "end", c.start + d, ctx.lens), n, receipt);
+            else run(trimClip(p, id, "start", end - d, ctx.lens), n, receipt);
+          } else if (op.edge === "start") {
+            run(trimClip(p, id, "start", c.start + d, ctx.lens), n, receipt);
+          } else {
+            run(trimClip(p, id, "end", end - d, ctx.lens), n, receipt);
+          }
+        }
+        break;
+      case "split":
+        if (op.clip === "all") {
+          refuse({ kind: "not_all" });
+          break;
+        }
+        for (const id of idsOf(op.clip)) {
+          const n = noOf(id);
+          const c = cur(id, n);
+          if (!c) continue;
+          if (!(op.at > 0) || !Number.isFinite(op.at)) {
+            refuse({ kind: "bad_number", n });
+            continue;
+          }
+          if (!endKnown(c)) {
+            refuse({ kind: "unmeasured", n });
+            continue;
+          }
+          run(splitClip(p, id, c.start + op.at * clipSpeed(c), ctx.newId(), ctx.lens), n, () => ({ kind: "split", n, at: op.at }));
+        }
+        break;
+      case "line": {
+        const text = op.text.slice(0, LINE_MAX_CHARS);
+        // 写字幕要点名一个片段（同一句话不该一口气写给所有片段）；去掉字幕可以对全部办
+        if (op.clip === "all" && text !== "") {
+          refuse({ kind: "not_all" });
+          break;
+        }
+        for (const id of idsOf(op.clip)) {
+          const n = noOf(id);
+          const c = cur(id, n);
+          if (!c) continue;
+          const long = text.trim() !== "" && Math.ceil(lineUnits(text)) > lineCap(clipOutDur(c, ctx.lens));
+          run(setClipLine(p, id, text), n, () => ({ kind: "line", n, on: text !== "", long }));
+        }
+        break;
+      }
+      case "title":
+        p = setTitle(p, op.text);
+        receipts.push({ kind: "title", on: op.text !== "", cut: op.text.length > TITLE_MAX });
+        break;
+      case "captions":
+        p = setCaptionsOn(p, op.on);
+        receipts.push({ kind: "captions", on: op.on });
+        break;
+      case "voice": {
+        if (ctx.voice !== "ok") {
+          refuse({ kind: ctx.voice === "busy" ? "voice_busy" : "voice_offline" });
+          break;
+        }
+        const ids = idsOf(op.clip);
+        let queued = 0;
+        let blocked = 0;
+        let dup = 0;
+        for (const id of ids) {
+          const n = noOf(id);
+          const c = cur(id, n);
+          if (!c) {
+            blocked++;
+            continue;
+          }
+          const text = (c.line?.text ?? "").trim();
+          if (!text) {
+            // 「全部配音」里没字的片段不算被拒（它本来就没什么可配的）；点名要配的才说
+            if (op.clip !== "all") {
+              refuse({ kind: "no_line", n });
+              blocked++;
+            }
+            continue;
+          }
+          if (Math.ceil(lineUnits(text)) > lineCap(clipOutDur(c, ctx.lens))) {
+            refuse({ kind: "line_long", n });
+            blocked++;
+            continue;
+          }
+          // 已经配好、没过期的不重配（「全部配音」说的是把没配的配上）；点名的那一个照配（人就是要重来一遍）
+          if (op.clip === "all" && c.line?.voice && !voiceStale(c.line, ctx.voiceId)) continue;
+          if (voiceIds.includes(id)) {
+            dup++;
+            continue;
+          }
+          voiceIds.push(id);
+          queued++;
+        }
+        if (queued > 0) receipts.push({ kind: "voice", count: queued });
+        else if (ids.length > 0 && blocked === 0 && dup === 0) refuse({ kind: "nothing_to_voice" });
+        break;
+      }
+      case "unvoice": {
+        const ids = idsOf(op.clip);
+        let had = 0;
+        for (const id of ids) {
+          const n = noOf(id);
+          const c = cur(id, n);
+          if (!c) continue;
+          // 「全部去掉配音」只报真有配音的那几个；点名的那一个本来就没有配音也照报（那个状态现在确实成立）
+          if (!c.line?.voice && op.clip === "all") continue;
+          if (run(setClipVoice(p, id, null), n, () => ({ kind: "unvoiced", n }))) had++;
+        }
+        if (op.clip === "all" && ids.length > 0 && had === 0) refuse({ kind: "no_voice" });
+        break;
+      }
+      case "music_volume":
+        if (!p.audio) {
+          refuse({ kind: "no_music" });
+          break;
+        }
+        p = setAudioVolume(p, op.value);
+        receipts.push({ kind: "music", pct: pctOf(op.value) });
+        break;
+      case "undo":
+        undo++;
+        break;
+      case "redo":
+        redo++;
+        break;
+      case "auto":
+        openAuto = true;
+        break;
+    }
+  }
+  return {
+    receipts,
+    refusals,
+    next: p === ctx.project ? null : p,
+    // 同一句话里后面又把它删了的片段不配
+    voiceIds: voiceIds.filter((id) => p.clips.some((c) => c.id === id)),
+    undo,
+    redo,
+    openAuto,
+  };
+}
