@@ -16,10 +16,37 @@ export interface MergeClip {
   url: string;
   startSec?: number;
   endSec?: number;
+  // ── 包装层（2026-09-30）。全部可选：一个都不带时，原生的行为与加它们之前逐字相同 ──
+  /** 变速（画面与原声一起变）。缺省 1 */
+  speed?: number;
+  /** 这一段原声的音量（0 = 静音）。缺省 1 */
+  volume?: number;
+  /** 这一段在**成片**里的起点 / 时长（秒，变速之后）。闪黑按成片时间轴定位，带淡入淡出时必须给 */
+  outStartSec?: number;
+  outDurSec?: number;
+  /** 段头从黑淡入 / 段尾淡出到黑，各多久（秒） */
+  fadeInSec?: number;
+  fadeOutSec?: number;
 }
 
 /** 显式标识怎么盖。**政策在 Web 侧定**，原生只认这三个模式（见插件头部的 ★） */
 export type BadgeMode = "none" | "head" | "always";
+
+/** 烧进画面的一条字幕 / 标题。时间是成片时间轴上的绝对秒；**行已经断好**（data/cutProject.paginateCaption），原生逐行居中画 */
+export interface MergeCaption {
+  startSec: number;
+  endSec: number;
+  lines: string[];
+  kind?: "caption" | "title";
+}
+
+/** 一句配音：本机文件（stageLocalAudio 落的盘）+ 在成片里从第几秒念、念多久 */
+export interface MergeVoice {
+  url: string;
+  atSec: number;
+  durSec: number;
+  volume?: number;
+}
 
 export interface MergeOpts {
   clips: MergeClip[];
@@ -27,6 +54,23 @@ export interface MergeOpts {
   height: number;
   audio?: { url: string; volume: number };
   badge?: { text: string; mode: BadgeMode; headSec?: number };
+  /**
+   * 字幕。版式那几个比例（字多大、离底多远、一行多宽、标题多大摆多高）是 Web 侧量出来定的
+   * （data/cutProject.captionLayout），原生只照着画 —— 与显式标识同一条规矩：机制在原生、政策在这边。
+   */
+  captions?: {
+    items: MergeCaption[];
+    sizeRatio: number;
+    bottomRatio: number;
+    maxWidthRatio: number;
+    titleScale: number;
+    titleTopRatio: number;
+  };
+  voices?: MergeVoice[];
+  /** 成片最后这么多秒声音整体收掉。要同时给 totalSec（原生靠它知道"最后"在哪儿） */
+  tailFadeSec?: number;
+  /** 成片总长（秒）。配音不许把成片撑长、片尾收声从哪儿开始，都认它 */
+  totalSec?: number;
 }
 
 export interface MergeResult {

@@ -162,6 +162,7 @@ msgstr "，已放大到短边 {REF_SHORT_MIN}px"
 #. 列举几个图位名 / 还缺的几项时的分隔符
 #. 列举几个文件名 / 动作组 / 表情名时的分隔符
 #. 列举几个段号时的分隔符（第 1、3 段）
+#. 列举几个段号时的分隔符（第 1、3 段）
 #. 列举几个角色位时的分隔符
 #. 列举几件后台任务名时的分隔符
 #. 列举删号时清掉的几类数据时的分隔符
@@ -912,6 +913,10 @@ msgstr "{desc}（{model}）"
 msgid "{display} 的主页"
 msgstr "{display} 的主页"
 
+#: src/pages/CutPage.tsx
+msgid "{done} 句配音合成好了，回剪辑页听听"
+msgstr "{done} 句配音合成好了，回剪辑页听听"
+
 #: src/data/videoDownload.ts
 msgid "{done} 段存好了，{failed} 段没成"
 msgstr "{done} 段存好了，{failed} 段没成"
@@ -1625,6 +1630,10 @@ msgid "↻ 再炼一炉（{0}）"
 msgstr "↻ 再炼一炉（{0}）"
 
 #: src/pages/CutPage.tsx
+msgid "↻ 重新配音"
+msgstr "↻ 重新配音"
+
+#: src/pages/CutPage.tsx
 msgid "⇤ 从这里开始"
 msgstr "⇤ 从这里开始"
 
@@ -1760,8 +1769,12 @@ msgid "<0>删了就找不回来</0>：卡面、形象参考图、铸造提示词
 msgstr "<0>删了就找不回来</0>：卡面、形象参考图、铸造提示词、声音样本与肖像授权都会一起清掉。"
 
 #: src/components/guide/tours.tsx
-msgid "<0>剪辑</0>管顺序与取舍，<1>圈选</1>管改画面（要花钱的那种改），<2>音频</2>管配乐 —— 不是每一档出的画面都带声音（白模复刻段一律没有）， 想要声音、想加配乐，就在这儿配。"
-msgstr "<0>剪辑</0>管顺序与取舍，<1>圈选</1>管改画面（要花钱的那种改），<2>音频</2>管配乐 —— 不是每一档出的画面都带声音（白模复刻段一律没有）， 想要声音、想加配乐，就在这儿配。"
+#~ msgid "<0>剪辑</0>管顺序与取舍，<1>圈选</1>管改画面（要花钱的那种改），<2>音频</2>管配乐 —— 不是每一档出的画面都带声音（白模复刻段一律没有）， 想要声音、想加配乐，就在这儿配。"
+#~ msgstr "<0>剪辑</0>管顺序与取舍，<1>圈选</1>管改画面（要花钱的那种改），<2>音频</2>管配乐 —— 不是每一档出的画面都带声音（白模复刻段一律没有）， 想要声音、想加配乐，就在这儿配。"
+
+#: src/components/guide/tours.tsx
+msgid "<0>剪辑</0>管顺序与取舍，<1>字幕</1>管每一段的那句话和配音，<2>圈选</2>管改画面（要花钱的那种改），<3>音频</3>管配乐 —— 不是每一档出的画面都带声音（白模复刻段一律没有）， 想要声音、想加配乐，就在这儿配。"
+msgstr "<0>剪辑</0>管顺序与取舍，<1>字幕</1>管每一段的那句话和配音，<2>圈选</2>管改画面（要花钱的那种改），<3>音频</3>管配乐 —— 不是每一档出的画面都带声音（白模复刻段一律没有）， 想要声音、想加配乐，就在这儿配。"
 
 #: src/components/guide/tours.tsx
 msgid "<0>只有拖到画面上</0>那一条会先问一遍：上面那排卡的正下方会出现一条确认，写着要把哪张卡挂到哪个人物身上，同时把画面上那个人偶高亮起来 —— 因为那个落点是<1>推断</1>出来的（人偶会重叠、人会走动）。 请对着高亮的那个再看一眼，对了点「就是他」，不对点「点错了」：挂错人<2>不会报错</2>，要等成片炼出来才看得见， 那时已经花过一次出片的钱了。落到格子上不问 —— 落在哪一格是你眼睛看着放的，没有可推断错的余地。"
@@ -1803,6 +1816,10 @@ msgstr "<0>素材有分镜切换、或者人会进出画面时用这个</0>：�
 msgid "<0>这一步不是每次都全对。</0>实测每隔几发就会有 1~2 个人<1>根本没被换成人偶</1>（还是原来的样子） —— 最常出错的是<2>画面正中央、看起来最像主角的那一个</2>。 出片之后你要对着画面从左往右数一遍：对不上的位子删掉就行（不用重炼、不花钱）， 要全对上只能重炼（<3>重炼要再花一次钱</3>）。<4>画面里的人越少越准</4>，也可以在下面多标几帧让 AI 少看漏人。"
 msgstr "<0>这一步不是每次都全对。</0>实测每隔几发就会有 1~2 个人<1>根本没被换成人偶</1>（还是原来的样子） —— 最常出错的是<2>画面正中央、看起来最像主角的那一个</2>。 出片之后你要对着画面从左往右数一遍：对不上的位子删掉就行（不用重炼、不花钱）， 要全对上只能重炼（<3>重炼要再花一次钱</3>）。<4>画面里的人越少越准</4>，也可以在下面多标几帧让 AI 少看漏人。"
 
+#: src/pages/CutPage.tsx
+msgid "■ 停"
+msgstr "■ 停"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "■ 停下"
 msgstr "■ 停下"
@@ -1837,6 +1854,11 @@ msgstr "▶ 开始试跑"
 msgid "▶ 试听"
 msgstr "▶ 试听"
 
+#. placeholder {0}: v.durSec.toFixed(1)
+#: src/pages/CutPage.tsx
+msgid "▶ 试听 {0}s"
+msgstr "▶ 试听 {0}s"
+
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "▸ 对不上怎么办？<0>多数情况删掉那个位子就行，不用重炼</0>"
 msgstr "▸ 对不上怎么办？<0>多数情况删掉那个位子就行，不用重炼</0>"
@@ -1852,6 +1874,14 @@ msgstr "○ 演示模式"
 #: src/components/TokenCost.tsx
 msgid "○ 演示模式：本地模拟，不消耗 token"
 msgstr "○ 演示模式：本地模拟，不消耗 token"
+
+#: src/pages/CutPage.tsx
+msgid "◐ 这一段从黑里进来"
+msgstr "◐ 这一段从黑里进来"
+
+#: src/pages/CutPage.tsx
+msgid "◑ 片尾淡出"
+msgstr "◑ 片尾淡出"
 
 #: src/pages/DeckDetailPage.tsx
 #: src/pages/WorkshopPage.tsx
@@ -2138,6 +2168,10 @@ msgstr "✓ 用作封面"
 #: src/pages/PublishPage.tsx
 msgid "✓ 真实影像"
 msgstr "✓ 真实影像"
+
+#: src/pages/CutPage.tsx
+msgid "✓ 能配的句子都配好了"
+msgstr "✓ 能配的句子都配好了"
 
 #: src/pages/TemplateDetailPage.tsx
 msgid "✓ 试炼通过——你已经用这个模板真实出过片，可以发布了。"
@@ -2532,6 +2566,15 @@ msgstr "🔊 模板原声"
 #: src/pages/CutPage.tsx
 msgid "🔊 用模板原声"
 msgstr "🔊 用模板原声"
+
+#. placeholder {0}: voiceTodo.length
+#: src/pages/CutPage.tsx
+msgid "🔊 给 {0} 句配音（现在免费）"
+msgstr "🔊 给 {0} 句配音（现在免费）"
+
+#: src/pages/CutPage.tsx
+msgid "🔊 配音"
+msgstr "🔊 配音"
 
 #: src/components/PortraitAuthPanel.tsx
 #~ msgid "🔗 发起肖像授权（本人扫码 / 本机打开）"
@@ -3133,6 +3176,12 @@ msgstr "一次全给（{0} 个文件）"
 msgid "一次给多个文件时系统按「任意文件」处理，相册可能不在候选里；想进相册就一个一个来。"
 msgstr "一次给多个文件时系统按「任意文件」处理，相册可能不在候选里；想进相册就一个一个来。"
 
+#. placeholder {0}: Math.round(BGM_DUCK * 100)
+#. placeholder {1}: Math.round(BED_GAIN * 100)
+#: src/pages/CutPage.tsx
+msgid "一段一句，字数按这一段的时长封顶。有配音时，配乐会自动压到 {0}%、这一段的原声压到 {1}%（配音为主）。"
+msgstr "一段一句，字数按这一段的时长封顶。有配音时，配乐会自动压到 {0}%、这一段的原声压到 {1}%（配音为主）。"
+
 #: src/components/guide/tours.tsx
 msgid "一段一段来"
 msgstr "一段一段来"
@@ -3164,8 +3213,8 @@ msgid "万剑埋骨之地"
 msgstr "万剑埋骨之地"
 
 #: src/components/guide/tours.tsx
-msgid "三个页签各管一摊"
-msgstr "三个页签各管一摊"
+#~ msgid "三个页签各管一摊"
+#~ msgstr "三个页签各管一摊"
 
 #: src/types.ts
 msgid "三视图/规格稿/细节特写这类：预算还有余时才轮到它"
@@ -3178,6 +3227,11 @@ msgstr "三种走向推演完毕，但有 {degraded} 个方案的首尾帧没画
 #: src/studio/studioStore.ts
 msgid "三种走向推演完毕，已经投影在你面前——点开看看各自的首尾帧和剧情，选定一个。"
 msgstr "三种走向推演完毕，已经投影在你面前——点开看看各自的首尾帧和剧情，选定一个。"
+
+#. placeholder {0}: pv.lateSec.toFixed(1)
+#: src/pages/CutPage.tsx
+msgid "上一句还没念完，这一句晚 {0} 秒开始。"
+msgstr "上一句还没念完，这一句晚 {0} 秒开始。"
 
 #: src/utils/nativeCamera.ts
 msgid "上一张还没拍完"
@@ -3744,6 +3798,11 @@ msgstr "中间帧参考图最多 {CUSTOM_MID_MAX} 张（首帧、尾帧另算）
 msgid "为「{name}」铸造 3D 建模 {n}/{total}…"
 msgstr "为「{name}」铸造 3D 建模 {n}/{total}…"
 
+#. placeholder {0}: (1 + v.rate / 100).toFixed(2)
+#: src/pages/CutPage.tsx
+msgid "为了在这一段里念完，语速提到了 {0} 倍。"
+msgstr "为了在这一段里念完，语速提到了 {0} 倍。"
+
 #: src/pages/CustomCardPage.tsx
 msgid "主素材图 = 这个角色最完整的一张（照片/截图/画都行）；有面部近照的话脸会锁得更准。画风严格跟随素材（照片出写实、插画出同风格）。"
 msgstr "主素材图 = 这个角色最完整的一张（照片/截图/画都行）；有面部近照的话脸会锁得更准。画风严格跟随素材（照片出写实、插画出同风格）。"
@@ -3875,6 +3934,10 @@ msgstr "互动视频没有单条成片。"
 #: src/components/guide/tours.tsx
 msgid "五个图标各管一堆"
 msgstr "五个图标各管一堆"
+
+#: src/pages/CutPage.tsx
+msgid "交回自动"
+msgstr "交回自动"
 
 #: src/studio/ui/NpcDialog.tsx
 msgid "交给铸卡师炼卡"
@@ -4763,6 +4826,10 @@ msgstr "先点下面一个格子，再点一张卡；也可以直接把卡拖到
 msgid "先炼出当前段的视频"
 msgstr "先炼出当前段的视频"
 
+#: src/pages/CutPage.tsx
+msgid "先给上面的片段写一句话，就能把它配成声音。"
+msgstr "先给上面的片段写一句话，就能把它配成声音。"
+
 #: src/studio/live2dUploadStore.ts
 msgid "先给它起个名字。"
 msgstr "先给它起个名字。"
@@ -5093,6 +5160,10 @@ msgstr "再试一次"
 msgid "最上面是<0>作者头像</0>（点进主页，下面那枚 + 号关注）。往下第一枚是发弹幕；再往下点赞、评论、收藏、分享，<1>点赞和评论下面是数字</1>（多少人点过赞、有多少条评论），收藏和分享下面写的是名字、不报数。评论就地滑出来，不用离开这一屏。"
 msgstr "最上面是<0>作者头像</0>（点进主页，下面那枚 + 号关注）。往下第一枚是发弹幕；再往下点赞、评论、收藏、分享，<1>点赞和评论下面是数字</1>（多少人点过赞、有多少条评论），收藏和分享下面写的是名字、不报数。评论就地滑出来，不用离开这一屏。"
 
+#: src/pages/CutPage.tsx
+msgid "最后一句配音没念完就到片尾了（成片里它在片尾被掐掉）。把这一句改短，或者把最后一段留长一点。"
+msgstr "最后一句配音没念完就到片尾了（成片里它在片尾被掐掉）。把这一句改短，或者把最后一段留长一点。"
+
 #: src/api/uploads.ts
 msgid "最后一段传完了，但视频存储没有把这段视频组装出来——请重新选一次文件再传。"
 msgstr "最后一段传完了，但视频存储没有把这段视频组装出来——请重新选一次文件再传。"
@@ -5233,6 +5304,10 @@ msgstr "准备素材…"
 #: src/pages/CutPage.tsx
 msgid "准备配乐…"
 msgstr "准备配乐…"
+
+#: src/pages/CutPage.tsx
+msgid "准备配音…"
+msgstr "准备配音…"
 
 #: src/data/danmaku.ts
 msgid "凛姐姐好帅"
@@ -6203,6 +6278,10 @@ msgstr "原因不明"
 msgid "原图长宽比超过 3:1，已居中裁切——Seedream 不收超出这个比例的参考图"
 msgstr "原图长宽比超过 3:1，已居中裁切——Seedream 不收超出这个比例的参考图"
 
+#: src/pages/CutPage.tsx
+msgid "原声"
+msgstr "原声"
+
 #. 内置方案的图位名：≤24 个字符（另存为后原样成为用户方案的图位名，服务端上限 24）
 #: src/types.ts
 msgid "原片截图"
@@ -6279,6 +6358,10 @@ msgstr "去掉这一味"
 #: src/pages/CutPage.tsx
 msgid "去掉这条配乐"
 msgstr "去掉这条配乐"
+
+#: src/pages/CutPage.tsx
+msgid "去掉配音"
+msgstr "去掉配音"
 
 #: src/pages/FeedPage.tsx
 msgid "去推荐流看看"
@@ -7238,6 +7321,10 @@ msgid "嘴形"
 msgstr "嘴形"
 
 #: src/components/guide/tours.tsx
+msgid "四个页签各管一摊"
+msgstr "四个页签各管一摊"
+
+#: src/components/guide/tours.tsx
 msgid "四条路里<0>只有工坊铸卡一定花 token</0>。从视频圈选提取、自己传图本身<1>不花</1>，只有窗口里那几颗带 AI 的键要钱（价印在键上）；从市场拿也不花。 提取是拖到某一帧、亲手圈出要的人或物，圈出来的画面就是参考图。"
 msgstr "四条路里<0>只有工坊铸卡一定花 token</0>。从视频圈选提取、自己传图本身<1>不花</1>，只有窗口里那几颗带 AI 的键要钱（价印在键上）；从市场拿也不花。 提取是拖到某一帧、亲手圈出要的人或物，圈出来的画面就是参考图。"
 
@@ -7752,6 +7839,10 @@ msgstr "套餐 token · 优先扣减"
 msgid "女"
 msgstr "女"
 
+#: src/pages/CutPage.tsx
+msgid "女声"
+msgstr "女声"
+
 #. placeholder {0}: chosen.size
 #: src/components/flow/FlowCanvas.tsx
 msgid "好了（选中 {0} 张）"
@@ -7788,6 +7879,26 @@ msgstr "如果画面上大部分号都对不上，这段白模的编号本身就
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "如果画面上根本数不出这么多人偶，这段白模本身就没做好 —— 删位只能救回一部分，要全对得上只能重炼（要再花一次钱）。"
 msgstr "如果画面上根本数不出这么多人偶，这段白模本身就没做好 —— 删位只能救回一部分，要全对得上只能重炼（要再花一次钱）。"
+
+#: src/pages/CutPage.tsx
+msgid "字（或音色）改过了，这句配音还是之前合成的那一版——重新配一次，否则成片里念的和字幕对不上。"
+msgstr "字（或音色）改过了，这句配音还是之前合成的那一版——重新配一次，否则成片里念的和字幕对不上。"
+
+#: src/pages/CutPage.tsx
+msgid "字幕"
+msgstr "字幕"
+
+#: src/components/guide/tours.tsx
+msgid "字幕：一段一句，还能配音"
+msgstr "字幕：一段一句，还能配音"
+
+#: src/pages/CutPage.tsx
+msgid "字幕不烧进画面：成片里只有配音（没配音的那几句就什么都没有）。"
+msgstr "字幕不烧进画面：成片里只有配音（没配音的那几句就什么都没有）。"
+
+#: src/pages/CutPage.tsx
+msgid "字幕烧进画面"
+msgstr "字幕烧进画面"
 
 #: src/components/flow/SkillPanel.tsx
 msgid "存"
@@ -11289,9 +11400,25 @@ msgstr "有 {dropped} 个 @ 没能送达（对方不会收到通知）"
 msgid "有 {droppedCount} 刀落不下去，已被忽略：第 {droppedSecs} 秒——离片头、片尾或相邻的刀不足 {partMinSec} 秒，切出来会有短于 {partMinSec} 秒的段（AI 引擎收不下）。把这几刀删掉，或挪远一点再标。"
 msgstr "有 {droppedCount} 刀落不下去，已被忽略：第 {droppedSecs} 秒——离片头、片尾或相邻的刀不足 {partMinSec} 秒，切出来会有短于 {partMinSec} 秒的段（AI 引擎收不下）。把这几刀删掉，或挪远一点再标。"
 
+#: src/pages/CutPage.tsx
+msgid "有 {failed} 句没配上：{why}"
+msgstr "有 {failed} 句没配上：{why}"
+
+#: src/pages/CutPage.tsx
+msgid "有 {lost} 句配音的文件读不出来了（可能被清理过）——这几句在成片里没有声音。回剪辑页的「字幕」重新配一次，再合一次。"
+msgstr "有 {lost} 句配音的文件读不出来了（可能被清理过）——这几句在成片里没有声音。回剪辑页的「字幕」重新配一次，再合一次。"
+
 #: src/components/VideoTemplateExtractor.tsx
 msgid "有 {missingCount} 段还没认出角色位。这几段现在也能随整组套用出片，只是那一段不能逐人挂卡 （AI 会整段泛指换人）。想让它们也能逐人挂卡，就在这里换一帧再认一次（每认一次都计费）："
 msgstr "有 {missingCount} 段还没认出角色位。这几段现在也能随整组套用出片，只是那一段不能逐人挂卡 （AI 会整段泛指换人）。想让它们也能逐人挂卡，就在这里换一帧再认一次（每认一次都计费）："
+
+#: src/pages/CutPage.tsx
+msgid "有 {n} 句字幕 / 配音没排上：片段太短，或者被上一句配音挤到了片尾之外。"
+msgstr "有 {n} 句字幕 / 配音没排上：片段太短，或者被上一句配音挤到了片尾之外。"
+
+#: src/pages/CutPage.tsx
+msgid "有 {staleCount} 句配音还是改字（或换音色）之前合成的那一版——成片里念的和字幕对不上。回剪辑页的「字幕」重新配一次，再合一次。"
+msgstr "有 {staleCount} 句配音还是改字（或换音色）之前合成的那一版——成片里念的和字幕对不上。回剪辑页的「字幕」重新配一次，再合一次。"
 
 #: src/components/flow/SegmentRecoverCards.tsx
 msgid "有一发成片已经取不回来了"
@@ -11381,6 +11508,14 @@ msgstr "有一段正在生成中，等它跑完再铸下一段"
 #: src/studio/flowStore.ts
 msgid "有一段生成完了，但它已经不在流水线里——去取回卡把它领回来"
 msgstr "有一段生成完了，但它已经不在流水线里——去取回卡把它领回来"
+
+#: src/pages/CutPage.tsx
+msgid "有一段的真实时长还没量到，字幕和配音的时间可能排得不准——把每一段各播一下就量到了（合成前也会再量一次）。"
+msgstr "有一段的真实时长还没量到，字幕和配音的时间可能排得不准——把每一段各播一下就量到了（合成前也会再量一次）。"
+
+#: src/pages/CutPage.tsx
+msgid "有一段的真实时长还没量到，转场的位置定不准，预览里先不显示——把每一段各播一下就量到了。"
+msgstr "有一段的真实时长还没量到，转场的位置定不准，预览里先不显示——把每一段各播一下就量到了。"
 
 #: src/studio/signOutGuard.ts
 #~ msgid "有一段视频正在生成（钱在提交那一刻已经扣了）。等它出片再退出登录，结果才会稳稳落在这个账号里。"
@@ -11529,6 +11664,10 @@ msgstr "服务器说结果取回成功了，却没有返回模板信息（可能
 #: src/ai/arkClient.ts
 msgid "服务器返回 {status}"
 msgstr "服务器返回 {status}"
+
+#: src/studio/cutNarration.ts
+msgid "服务器还没有开通语音合成，配音暂时用不了"
+msgstr "服务器还没有开通语音合成，配音暂时用不了"
 
 #: src/components/support/VoiceMixer.tsx
 #: src/pages/SupportPage.tsx
@@ -13404,8 +13543,12 @@ msgid "点一个就只看这一类，选中的那个会放大亮起来；<0>再�
 msgstr "点一个就只看这一类，选中的那个会放大亮起来；<0>再点同一个才取消</0> —— 没有别的地方能关掉它。"
 
 #: src/components/guide/tours.tsx
-msgid "点一个片段选中，就能在播放头处<0>✂️ 分割</0>、<1>🗑 删除</1>、拖拽或前移后移<2>换序</2>。 这些只改导出范围，<3>一个 token 都不花</3>；每一步都能<4>↶ 撤销</4>，离开这一页再回来也都还在。"
-msgstr "点一个片段选中，就能在播放头处<0>✂️ 分割</0>、<1>🗑 删除</1>、拖拽或前移后移<2>换序</2>。 这些只改导出范围，<3>一个 token 都不花</3>；每一步都能<4>↶ 撤销</4>，离开这一页再回来也都还在。"
+#~ msgid "点一个片段选中，就能在播放头处<0>✂️ 分割</0>、<1>🗑 删除</1>、拖拽或前移后移<2>换序</2>。 这些只改导出范围，<3>一个 token 都不花</3>；每一步都能<4>↶ 撤销</4>，离开这一页再回来也都还在。"
+#~ msgstr "点一个片段选中，就能在播放头处<0>✂️ 分割</0>、<1>🗑 删除</1>、拖拽或前移后移<2>换序</2>。 这些只改导出范围，<3>一个 token 都不花</3>；每一步都能<4>↶ 撤销</4>，离开这一页再回来也都还在。"
+
+#: src/components/guide/tours.tsx
+msgid "点一个片段选中，就能在播放头处<0>✂️ 分割</0>、<1>🗑 删除</1>、拖拽或前移后移<2>换序</2>。 这些只改导出范围，<3>一个 token 都不花</3>；每一步都能<4>↶ 撤销</4>，离开这一页再回来也都还在。 选中一段之后，还能调它的<5>速度</5>、<6>原声音量</6>，或者让它<7>从黑里淡入</7>。"
+msgstr "点一个片段选中，就能在播放头处<0>✂️ 分割</0>、<1>🗑 删除</1>、拖拽或前移后移<2>换序</2>。 这些只改导出范围，<3>一个 token 都不花</3>；每一步都能<4>↶ 撤销</4>，离开这一页再回来也都还在。 选中一段之后，还能调它的<5>速度</5>、<6>原声音量</6>，或者让它<7>从黑里淡入</7>。"
 
 #: src/components/guide/tours.tsx
 #~ msgid "点一个片段选中，就能在播放头处<0>✂️ 分割</0>、<1>🗑 删除</1>、拖拽或前移后移<2>换序</2>。 这些只改导出范围，<3>一个 token 都不花</3>。"
@@ -13593,6 +13736,14 @@ msgstr "照片重新编码失败"
 #: src/components/VoiceRecorder.tsx
 msgid "照着下面这句念（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）——出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段音色。"
 msgstr "照着下面这句念（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）——出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段音色。"
+
+#: src/pages/CutPage.tsx
+msgid "片头标题"
+msgstr "片头标题"
+
+#: src/pages/CutPage.tsx
+msgid "片头标题（可不填；写了会烧在成片开头几秒）"
+msgstr "片头标题（可不填；写了会烧在成片开头几秒）"
 
 #: src/pages/PublishPage.tsx
 msgid "片子留住、不出现在任何人的首页；想好了再去作品编辑页改成公开。"
@@ -13936,6 +14087,10 @@ msgstr "电影级"
 msgid "男"
 msgstr "男"
 
+#: src/pages/CutPage.tsx
+msgid "男声"
+msgstr "男声"
+
 #: src/data/economy.ts
 msgid "画 2 张：主图 + 一张参考图，照着主图画同一个对象"
 msgstr "画 2 张：主图 + 一张参考图，照着主图画同一个对象"
@@ -14095,6 +14250,10 @@ msgstr "登录后可收入卡组"
 #: src/components/SocialPanel.tsx
 msgid "登录后才能互动"
 msgstr "登录后才能互动"
+
+#: src/studio/cutNarration.ts
+msgid "登录已失效，重新登录之后再配音"
+msgstr "登录已失效，重新登录之后再配音"
 
 #: src/api/admin.ts
 msgid "登录已过期，请重新登录后再举报"
@@ -14575,6 +14734,10 @@ msgstr "眼球上下"
 #: src/pages/SupportModelNewPage.tsx
 msgid "眼球左右"
 msgstr "眼球左右"
+
+#: src/pages/CutPage.tsx
+msgid "知性女声"
+msgstr "知性女声"
 
 #: src/components/ForgeOverlay.tsx
 #: src/components/guide/GuideOverlay.tsx
@@ -15122,6 +15285,10 @@ msgstr "第 {0}/{total} 段"
 msgid "第 {n} 张参考图未采用（「{name}」的{view}，比例越界或读不出来）"
 msgstr "第 {n} 张参考图未采用（「{name}」的{view}，比例越界或读不出来）"
 
+#: src/pages/CutPage.tsx
+msgid "第 {n}/{total} 句…"
+msgstr "第 {n}/{total} 句…"
+
 #: src/components/VideoTemplateExtractor.tsx
 msgid "第 {partIndex} 段 · {partTitle}"
 msgstr "第 {partIndex} 段 · {partTitle}"
@@ -15352,6 +15519,10 @@ msgstr "第 {seg} 段重新生成视频（旧成片作废）"
 #: src/data/templates.ts
 msgid "第 {seg}/{total} 段：AI 正在认画面里有哪些人…（要一到几分钟）"
 msgstr "第 {seg}/{total} 段：AI 正在认画面里有哪些人…（要一到几分钟）"
+
+#: src/pages/CutPage.tsx
+msgid "第 {segList} 段的真实时长没量到：字幕和配音是按申报的时长排的，时间可能对不上；闪黑与片尾淡出这一次没有做。回剪辑页把这几段各播一下（播过就量到了），再合一次。"
+msgstr "第 {segList} 段的真实时长没量到：字幕和配音是按申报的时长排的，时间可能对不上；闪黑与片尾淡出这一次没有做。回剪辑页把这几段各播一下（播过就量到了），再合一次。"
 
 #: src/pages/CutPage.tsx
 msgid "第 {segNo} 段 · {s}"
@@ -15836,6 +16007,10 @@ msgstr "给客服页和官网首页的看板娘换一套 Live2D 形象，两边�
 msgid "给小梦换一套 Live2D 形象"
 msgstr "给小梦换一套 Live2D 形象"
 
+#: src/components/guide/tours.tsx
+msgid "给每一段写一句话，它会<0>烧进画面</0>当字幕；点<1>🔊 配音</1>，就用选好的音色把它念出来 —— 配音现在不收 token， 字数按这一段的时长封顶。有配音时，配乐和这一段的原声会自动压低。"
+msgstr "给每一段写一句话，它会<0>烧进画面</0>当字幕；点<1>🔊 配音</1>，就用选好的音色把它念出来 —— 配音现在不收 token， 字数按这一段的时长封顶。有配音时，配乐和这一段的原声会自动压低。"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "给这一段选个白模模板"
 msgstr "给这一段选个白模模板"
@@ -15947,6 +16122,10 @@ msgstr "网络不好，或者这条链接已经过期（隔天打开的草稿常
 #: src/ai/arkClient.ts
 msgid "网络不通"
 msgstr "网络不通"
+
+#: src/studio/cutNarration.ts
+msgid "网络不通，这一句没合成出来——连上网再试一次"
+msgstr "网络不通，这一句没合成出来——连上网再试一次"
 
 #: src/pages/CustomCardPage.tsx
 msgid "网络异常"
@@ -16752,6 +16931,11 @@ msgstr "语速 {rateText}"
 msgid "语速管快慢；语调用一句话描述想要的语气，<0>改完点上面任意音色即刻再听</0>。语调那一段不计费， 只对单音色生效 ——「调和」那几条用不了。"
 msgstr "语速管快慢；语调用一句话描述想要的语气，<0>改完点上面任意音色即刻再听</0>。语调那一段不计费， 只对单音色生效 ——「调和」那几条用不了。"
 
+#. placeholder {0}: e.status
+#: src/studio/cutNarration.ts
+msgid "语音合成这一下没成（{0}），稍后再试一次"
+msgstr "语音合成这一下没成（{0}），稍后再试一次"
+
 #: src/pages/SupportPage.tsx
 msgid "语音播报：关"
 msgstr "语音播报：关"
@@ -17158,6 +17342,10 @@ msgstr "转人工"
 #: src/pages/SupportPage.tsx
 msgid "转人工客服"
 msgstr "转人工客服"
+
+#: src/pages/CutPage.tsx
+msgid "转场"
+msgstr "转场"
 
 #: src/ai/arkClient.ts
 msgid "转存受理失败（{status}）"
@@ -17625,6 +17813,29 @@ msgstr "这一发的钱在提交那一刻就已经花掉了，任务多半还在
 msgid "这一发还在上游排队或生成中（当前状态：{shown}）——过几分钟再点一次「取回」，查询不花钱、凭据也还在。"
 msgstr "这一发还在上游排队或生成中（当前状态：{shown}）——过几分钟再点一次「取回」，查询不花钱、凭据也还在。"
 
+#: src/studio/cutNarration.ts
+msgid "这一句太长了（{units}/{cap}），这一段念不完——改短一点，或者把这一段留长 / 放慢"
+msgstr "这一句太长了（{units}/{cap}），这一段念不完——改短一点，或者把这一段留长 / 放慢"
+
+#. placeholder {0}: cutShort.toFixed(1)
+#: src/pages/CutPage.tsx
+msgid "这一句念不完：到片尾还差 {0} 秒，成片里会在片尾被掐掉。改短一点，或者把这一段留长。"
+msgstr "这一句念不完：到片尾还差 {0} 秒，成片里会在片尾被掐掉。改短一点，或者把这一段留长。"
+
+#: src/pages/CutPage.tsx
+msgid "这一句排不上：片段太短，或者被上一句配音挤到了片尾之外——成片里不会有它。"
+msgstr "这一句排不上：片段太短，或者被上一句配音挤到了片尾之外——成片里不会有它。"
+
+#: src/pages/CutPage.tsx
+msgid "这一句比这一段放得下的字数多了（{chars}/{cap}），配不了音——改短一点，或者把这一段留长 / 放慢。"
+msgstr "这一句比这一段放得下的字数多了（{chars}/{cap}），配不了音——改短一点，或者把这一段留长 / 放慢。"
+
+#. placeholder {0}: pv.durSec.toFixed(1)
+#. placeholder {1}: pv.overSec.toFixed(1)
+#: src/pages/CutPage.tsx
+msgid "这一句要念 {0} 秒，比这一段长 {1} 秒——会念到下一段里（后面的配音跟着往后顺）。改短一点，或者把这一段放慢 / 留长。"
+msgstr "这一句要念 {0} 秒，比这一段长 {1} 秒——会念到下一段里（后面的配音跟着往后顺）。改短一点，或者把这一段放慢 / 留长。"
+
 #: src/studio/flowStore.ts
 msgid "这一套方案还没有剧情——先写点什么，我才知道要画成什么样"
 msgstr "这一套方案还没有剧情——先写点什么，我才知道要画成什么样"
@@ -17744,6 +17955,10 @@ msgstr "这一步花两笔：AI 看 {frameCount} 帧认出画面里有哪些人�
 #: src/studio/flowStore.ts
 msgid "这一段不是带角色位的白模段，没有可预览的挂法"
 msgstr "这一段不是带角色位的白模段，没有可预览的挂法"
+
+#: src/pages/CutPage.tsx
+msgid "这一段原声的音量"
+msgstr "这一段原声的音量"
 
 #: src/studio/ui/PlanBoard.tsx
 msgid "这一段叫什么"
@@ -17872,6 +18087,15 @@ msgstr "这一段改动写不回去了——它挂着的那个节点已经不在
 msgid "这一段是从工作流里单独打开的，改动还只在内存里——回工作流把它保存进草稿，再切后台。"
 msgstr "这一段是从工作流里单独打开的，改动还只在内存里——回工作流把它保存进草稿，再切后台。"
 
+#: src/pages/CutPage.tsx
+msgid "这一段是接着上一段拍的（同一个镜头在延续）——在这儿加转场会把接缝撕开。想要换场的感觉，加在别的接缝上更合适。"
+msgstr "这一段是接着上一段拍的（同一个镜头在延续）——在这儿加转场会把接缝撕开。想要换场的感觉，加在别的接缝上更合适。"
+
+#. placeholder {0}: Math.round(BED_GAIN * 100)
+#: src/pages/CutPage.tsx
+msgid "这一段有配音：原声自动压到 {0}%（配音为主）。拖一下滑杆就按你定的来。"
+msgstr "这一段有配音：原声自动压到 {0}%（配音为主）。拖一下滑杆就按你定的来。"
+
 #: src/studio/flowStore.ts
 msgid "这一段正在出片，等它结束再换开头帧"
 msgstr "这一段正在出片，等它结束再换开头帧"
@@ -17922,6 +18146,10 @@ msgstr "这一段现在选中的走向还没有成片"
 msgid "这一段的地址已经失效（HTTP {0}），回详情页刷新一下再试。"
 msgstr "这一段的地址已经失效（HTTP {0}），回详情页刷新一下再试。"
 
+#: src/pages/CutPage.tsx
+msgid "这一段的字幕 / 旁白（一句话）"
+msgstr "这一段的字幕 / 旁白（一句话）"
+
 #: src/studio/ui/PlanBoard.tsx
 msgid "这一段的成片没有留存，要重新出片（会再花一次钱）"
 msgstr "这一段的成片没有留存，要重新出片（会再花一次钱）"
@@ -17941,6 +18169,10 @@ msgstr "这一段的画质档"
 #: src/studio/ui/PlanBoard.tsx
 msgid "这一段的画面与剧情（会直接作为生成提示词）"
 msgstr "这一段的画面与剧情（会直接作为生成提示词）"
+
+#: src/pages/CutPage.tsx
+msgid "这一段的画面本身没有声音"
+msgstr "这一段的画面本身没有声音"
 
 #: src/components/flow/SegPlayer.tsx
 msgid "这一段的视频拉不下来"
@@ -17970,6 +18202,10 @@ msgstr "这一段还没出片，模板与挂卡都能重选，不花钱"
 #: src/studio/ui/projection.tsx
 msgid "这一段还没出片，退回去不花钱"
 msgstr "这一段还没出片，退回去不花钱"
+
+#: src/studio/cutNarration.ts
+msgid "这一段还没有写字幕，没有可配音的话"
+msgstr "这一段还没有写字幕，没有可配音的话"
 
 #: src/studio/ui/FuseFrameSheet.tsx
 msgid "这一段还没有可融的图"
@@ -18385,6 +18621,10 @@ msgstr "这几句里同时写了中文和英文的段号，分不清是哪一段
 #: src/data/agentSkills.ts
 msgid "这句话超过 {VIDEO_PROMPT_MAX} 字——输入条本来也发不出这么长，精简一下"
 msgstr "这句话超过 {VIDEO_PROMPT_MAX} 字——输入条本来也发不出这么长，精简一下"
+
+#: src/pages/CutPage.tsx
+msgid "这句配音的文件读不出来了（可能被清理过）——重新配一次。"
+msgstr "这句配音的文件读不出来了（可能被清理过）——重新配一次。"
 
 #: src/utils/nativeLoginError.ts
 msgid "这台手机上没有安装微信。装了微信再试，或者用手机号、邮箱登录。"
@@ -19026,6 +19266,11 @@ msgstr "这条模板没有公开，只有作者自己能用。"
 msgid "这条流水线还没有段——对下面的输入条说「{addExample}」"
 msgstr "这条流水线还没有段——对下面的输入条说「{addExample}」"
 
+#. placeholder {0}: Math.round(plan.bgmGain * 100)
+#: src/pages/CutPage.tsx
+msgid "这条片子有配音：配乐会在你定的音量上再压到 {0}%（配音为主），预览里听到的就是压过之后的。"
+msgstr "这条片子有配音：配乐会在你定的音量上再压到 {0}%（配音为主），预览里听到的就是压过之后的。"
+
 #: src/studio/ui/NpcDialog.tsx
 msgid "这条片的故事背景 / 简介（只以文字参与出片）"
 msgstr "这条片的故事背景 / 简介（只以文字参与出片）"
@@ -19344,6 +19589,10 @@ msgstr "选一段视频（传完再框选）"
 msgid "选个头像"
 msgstr "选个头像"
 
+#: src/pages/CutPage.tsx
+msgid "选中一个片段，还能调它的速度、原声音量，或者让它从黑里淡入。"
+msgstr "选中一个片段，还能调它的速度、原声音量，或者让它从黑里淡入。"
+
 #: src/components/blockout/arkVideoRules.ts
 msgid "选中的这一段只有 {durSec} 秒，至少要 {inMin} 秒。AI 把人换成白模时会把成片截短零点几秒（{durSec} 秒进去只剩约 {shrunk} 秒），而模板本身短于 {outMin} 秒就没人套用得了——把右边的把手往右拖，选够 {inMin} 秒。"
 msgstr "选中的这一段只有 {durSec} 秒，至少要 {inMin} 秒。AI 把人换成白模时会把成片截短零点几秒（{durSec} 秒进去只剩约 {shrunk} 秒），而模板本身短于 {outMin} 秒就没人套用得了——把右边的把手往右拖，选够 {inMin} 秒。"
@@ -19499,6 +19748,10 @@ msgstr "逛技能市场"
 msgid "速写"
 msgstr "速写"
 
+#: src/pages/CutPage.tsx
+msgid "速度"
+msgstr "速度"
+
 #: src/components/guide/tours.tsx
 msgid "造卡四条路，一条花钱"
 msgstr "造卡四条路，一条花钱"
@@ -19563,6 +19816,30 @@ msgstr "配乐「{lostName}」没能读出来——这一条先按没有配乐�
 #: src/pages/CutPage.tsx
 msgid "配乐用的是自动预置的原片音轨，而你裁过/删过/换过片段顺序——声音是按原片从头混进去的，会和画面对不上。想对齐就换一条自己的音频，或者把片段改回原样再合一次。"
 msgstr "配乐用的是自动预置的原片音轨，而你裁过/删过/换过片段顺序——声音是按原片从头混进去的，会和画面对不上。想对齐就换一条自己的音频，或者把片段改回原样再合一次。"
+
+#: src/pages/CutPage.tsx
+msgid "配音"
+msgstr "配音"
+
+#: src/pages/CutPage.tsx
+msgid "配音合成中…"
+msgstr "配音合成中…"
+
+#: src/studio/cutNarration.ts
+msgid "配音合成好了，但没能存进本地库（存储空间不足？）——清一清空间再配一次"
+msgstr "配音合成好了，但没能存进本地库（存储空间不足？）——清一清空间再配一次"
+
+#: src/studio/cutNarration.ts
+msgid "配音合成得太快了（每分钟最多 30 句），等一分钟再接着配"
+msgstr "配音合成得太快了（每分钟最多 30 句），等一分钟再接着配"
+
+#: src/pages/CutPage.tsx
+msgid "配音要连上服务器才能合成（离线 / 演示模式下用不了）。字幕照常能写、能烧进画面。"
+msgstr "配音要连上服务器才能合成（离线 / 演示模式下用不了）。字幕照常能写、能烧进画面。"
+
+#: src/pages/CutPage.tsx
+msgid "配音音色"
+msgstr "配音音色"
 
 #: src/studio/ui/AvatarPicker.tsx
 msgid "酒红斗篷 · 绿金束身裙"
@@ -19767,6 +20044,18 @@ msgstr "重试留存"
 #: src/pages/CustomCardPage.tsx
 msgid "重选方案"
 msgstr "重选方案"
+
+#: src/utils/videoFrames.ts
+msgid "量不出时长"
+msgstr "量不出时长"
+
+#: src/utils/videoFrames.ts
+msgid "量时长超时"
+msgstr "量时长超时"
+
+#: src/pages/CutPage.tsx
+msgid "量第 {segNo} 段的时长…"
+msgstr "量第 {segNo} 段的时长…"
 
 #: src/data/templates.ts
 msgctxt "人偶的主色（挂卡提醒那句话里显示）"
@@ -19989,6 +20278,10 @@ msgid "音色点名句没能发出去（提示词已经写满）——台词仍�
 msgstr "音色点名句没能发出去（提示词已经写满）——台词仍会被配音，但音色随机；把要求写短些就能带上"
 
 #: src/pages/CutPage.tsx
+msgid "音色目录没取到（{narratorErr}）——先用现在这个音色。"
+msgstr "音色目录没取到（{narratorErr}）——先用现在这个音色。"
+
+#: src/pages/CutPage.tsx
 msgid "音轨没能取下来（{audioName}）——这一条先按无声导出。想要声音就换一条本地音频再重试合并。"
 msgstr "音轨没能取下来（{audioName}）——这一条先按无声导出。想要声音就换一条本地音频再重试合并。"
 
@@ -20001,6 +20294,7 @@ msgid "音频"
 msgstr "音频"
 
 #: src/utils/nativeMerge.ts
+#: src/utils/videoFrames.ts
 msgid "音频读不出来"
 msgstr "音频读不出来"
 

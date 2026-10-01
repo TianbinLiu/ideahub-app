@@ -845,6 +845,19 @@ function nodeCarry(nodes: FlowNode[], idx: number): string | null {
 }
 
 /**
+ * 这一段是不是**接着上一段拍的** —— 给剪辑页判「这条接缝该不该加转场」（组稿时记进 VideoSegment.carried）。
+ * 两种情况算：① 承接上一段的真实尾帧起拍（问的就是上面的 nodeCarry，承接的唯一实现）；
+ * ② 与上一段同属一个分段模板组、是原片里紧挨着的下一截（那是同一条原片被切开的两段，接缝本来就是原片自己的剪法）。
+ */
+export function nodeContinues(nodes: FlowNode[], idx: number): boolean {
+  if (idx <= 0 || !nodes[idx]) return false;
+  if (nodeCarry(nodes, idx)) return true;
+  const g = tplOfNode(nodes[idx])?.group;
+  const pg = tplOfNode(nodes[idx - 1])?.group;
+  return !!g && !!pg && g.key === pg.key && g.index === pg.index + 1;
+}
+
+/**
  * 这一段会不会走**参考生视频** —— 报价（nodeCost）、界面上那句说明（FlowPage）、
  * 真正出片（genNode → segmentGen）问的必须是同一处。
  *

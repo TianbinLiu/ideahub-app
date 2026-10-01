@@ -78,9 +78,12 @@ src/
                交给系统分享，**唯一实现**；落点是原生 Cache 目录，不进 IndexedDB）；
                `projects.ts` = 已发布作品的「工坊工程」（供编辑页「🛠 回炉重做」取回来接着改）。
                **服务端为真相**，本机只有 5 条 LRU 缓存；存的是一份只含永久 URL 的瘦身画布；
-               `cutProject.ts` = **剪辑工程**：剪辑页时间轴（片段 / 圈选 / 配乐 / 导出档 / 合并留底）的数据形状与全部改法，
+               `cutProject.ts` = **剪辑工程**：剪辑页时间轴（片段 / 圈选 / 配乐 / 导出档 / 合并留底）与包装层
+               （片段上的字幕 / 配音 / 变速 / 原声 / 闪黑，工程上的片头标题 / 片尾淡出）的数据形状与全部改法，外加
+               **渲染计划**（`timelinePlan`：预览与原生导出照的同一份）与字幕分行分页（`paginateCaption`）；
                纯函数、零运行时依赖（构建里 `scripts/check-cut-project.mjs` 直接 import 它跑）；运行时那一份（带撤销栈）
-               在 `studio/cutStore.ts`，随 `cutSession.ts` 落盘
+               在 `studio/cutStore.ts`，随 `cutSession.ts` 落盘；配音的合成 / 量时长 / 存本地库在 `studio/cutNarration.ts`，
+               预览那一层（字幕 / 闪黑 / 配音跟着播放头走）在 `components/cut/CutPreviewLayer.tsx`
   hooks/
   mock/        无后端时的假数据
   pages/       路由页面（hash 路由）；`SupportPage` = AI 客服，`SupportModelsPage` / `SupportPersonasPage` =
@@ -197,6 +200,33 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   所以另有一条**不靠撤销**的路把删掉的段加回来（`missingSegs` / `restoreSeg`，时间轴下那排「＋ 段N」）：时间轴落盘之后删段是持久的，
   而每一段都是花钱炼出来的，不能让它在界面上彻底够不着。
   本地挑的配乐存进本地库（`cutbgm:` 键，`cacheSweep` 认它），工程里只记指针；`blob:` 地址活不过重启，读回来会被丢掉。
+- **包装层（字幕 / 配音 / 变速 / 原声音量 / 闪黑 / 片头标题 / 片尾淡出）：一份计划，两个渲染器**（2026-09-30，
+  docs/cut-autoedit-research.md 的 P1）。东西都**挂在片段上**（`CutClip.speed / volume / fade / line`，工程上只有
+  `title / capOff / voiceId / endFade`）—— 片段被裁、被挪、被删，它们跟着走。六条规矩：
+  ① **「哪一秒出什么」只在 `cutProject.timelinePlan` 一处算**：每个片段在成片里的起止、字幕的分页与断行
+  （`paginateCaption`）、每句配音从第几秒念、闪黑多长、配乐压到几成。剪辑页的预览（`CutPreviewLayer`：DOM 叠层 +
+  `playbackRate` + `<audio>`）与导出（`compileTimeline` → `utils/nativeMerge` → `VideoMergePlugin`）是两个渲染器，照的是
+  同一份 —— 在任何一边另算一遍，预览里对的东西合出来就是另一个样子。原生那边只收「已经断好的行 + 成片时间轴上的绝对秒 +
+  几个版式比例」，一个决定都不做（同显式标识那条：机制在原生、政策在 Web）；
+  ② **时间按成片时间轴给**：模拟器上量过，每段效果链拿到的时间戳是成片全局时间，裁过头、变速过的片段也一样。
+  所以片段的时长必须靠得住 —— `plan.exact`（每一段的长度都量过，或者出点是人裁的）为假时**不做闪黑与片尾收声**
+  （淡出落在片段中间，画面黑下去就亮不回来），合并那一拍会先把没量过的段量出来（`probeDuration`）；
+  「量过」要记下来，哪怕量到的数与申报值一样（`CutPage.learnRealDur`）；
+  ③ **字幕摆哪儿是量出来的**（`captionLayout` 头上记着量法）：竖屏片在首页是 cover（左右各裁 10%）、右侧操作栏与左下
+  信息块各占一块 ⇒ 竖屏基线离底 28%、一行最宽 58%；动了首页底缘 / 右侧栏的几何，这里要跟着重量；
+  ④ **配音**（`studio/cutNarration.synthLine`）：一段一句、长度按这一段念得完的量封顶（`lineUnits` / `lineCap`：
+  汉字一个算 1、字母一个算 0.3），**把关在合成那一发之前** —— 配音现在不向用户收 token（主人 09-30 定：免费 + 限量），
+  但按字符计费是平台的真成本。排时间用**量出来的**时长（`TTS_CPS` 只用来估）；念不完先提语速、最多重合成一次，
+  还超就由计划把超出多少算出来（`PlanVoice.overSec / lateSec`）、界面标出来，不悄悄截断。字改了 / 音色换了，旧配音
+  **不删**、标成过期（`voiceStale`）；声音存本地库（`cutvoice:` 键，`cacheSweep` 认它）；
+  ⑤ **原声音量缺省是"自动"**（`clipVolume`）：有配音的那一段自动压到 `BED_GAIN`，配乐整条压到 `BGM_DUCK`；
+  人拖过滑杆之后才是一个明确的数。标着「起始值」的那几个常数（`cutProject` 文件头）是按听感调的旋钮，
+  **还没上真机听过**，改只改那一处；
+  ⑥ **改片段范围的地方一律走 `cutProject.ranged`**，别再手写 `{ id, segIndex, start }` —— 那种写法在片段上只有三格时
+  没问题，包装层挂上来之后就是"裁一刀，这一段的字幕和配音没了"，零报错（分割是例外：一句话与「从黑里进来」只留在前一半）。
+  单段编辑（`segEdit`）里不出现包装层：那条路不合成，挂在片段上的东西没有地方落。
+  转场只有「从黑里进来」一种、**默认不加**；接着上一段尾帧拍的接缝（`VideoSegment.carried`，组稿时由
+  `flowStore.nodeContinues` 记）上加会给一句提示 —— `seamContinuous` 是留给一键成片的判据（不知道时不自动加）。
 - **AI 生成标识分两顶帽子，都要戴**（2026-09-07 逐条查证，出处见 `data/aigcLabel` 头部）：
   ① **生成侧**（《标识办法》第四条第一款第（四）项）：「在视频**起始画面**和视频**播放周边**的适当位置添加
   显著的提示标识，**可以**在视频末尾和中间适当位置添加」—— 应当的只有那两处，**视频这一项没有「每一帧 / 全程」的要求**。
@@ -659,6 +689,12 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 | 拿一张**看起来像真图**的占位图顶住没画出来的帧（`mock/frames.makeFrame`） | 下游只问「帧在不在」：出片（segmentGen 出片前补画）与报价（`segmentCost` 数图）都认 `!firstFrame` ⇒ 占位图被当真帧发给 Seedance，整段的钱照收，拍出来的是一张烧着「第N段 · … · 首帧」「AI 预览帧」的渐变图在动；方案台还写着「出片前会自动重画」，而那条重画分支（`composeSegments` 的 `sg.degraded`）从来没有调用方传过 —— 死码，全程零报错（2026-09-10 做多语言清点时抓到） | 缺失一律用字段本来的"没有"值（空串），为什么没有记在旁挂标记里（`Proposal.degraded` 只管渲染）—— 与上面「塞对象当墓碑」同一条规矩。帧能不能拿去出片只问 `flowStore.usableFrames`（报价 / 出片 / 工坊改帧三处共用），它顺带把老草稿里「degraded 为真且两帧都不空」的占位图认成没有 |
 | 拍照绕开 `utils/nativeCamera`（页面自己 import 相机插件）/ 给清单加 `CAMERA` / 改 QQ 的回调转发 | 三种都**零报错**：① 声明了 `CAMERA` ⇒ 插件先弹运行时授权、拒绝即 reject，表现为「点了没反应」（没声明时 `checkPermissions()` 恒报已授予，不能拿它当门禁）；② `file_paths.xml` 少了 `external-files-path Pictures/` ⇒ 插件 `getUriForFile` 抛、拍照整条失败；③ `MainActivity.onActivityResult` 只在 `QQLoginPlugin.handleActivityResult` 回 false 时才调 super —— 让非 QQ 的 requestCode 也回 true，相机结果就被吞了。另外 release 包 logcat 里一行都不打 | 入口只有 `utils/nativeCamera`，**只调 `getPhoto(Camera)`**：它自 8.1.0 标了 deprecated，但只有它走 `startActivityForResult`、进程被杀后能经 `appRestoredResult` 回放；`takePhoto` 走 ioncamera，结果静默丢。清单一行 CAMERA 都别加；`ioncamera_paths.xml` 同名覆盖成只剩 cache-path（库原文暴露整个共享存储，与 09-07 删掉的那条同一个口子）。**带 EXIF 的原始字节不出 nativeCamera**（`stripExif` 按方向摆正、重编码，GPS 不留）。验收看「真的拉起了系统相机」，不看「拿到了一张图」 |
 | 开机装载（`data/boot` 里那一排 ready*）/ 本机数据库读不出来 | 原来 `void Promise.all(...).then(setReady)` 没有 catch：任何一个 reject 页面就永远停在「正在打开作品库…」。⚠ 更常见的反而**不 reject**：`db.idbGet` 把一切读失败答成 undefined、`open()` 失败一次整个会话都是 undefined、`indexedDB.open` 还会永远不回话 —— IndexedDB 出事时 App 照常开机，草稿箱空、离线账号被登出、作品只剩种子，下一次写入拿这份空表**整张盖掉**磁盘上的真数据 | 拦还是降级只在 `data/boot` 一处（调研与出处：`docs/local-storage-failure.md`）：**只有退回本机库时作品库 / 账号库读不出来才整页拦**；草稿箱 / 剪辑稿 / 本机模板 / 互动 / 弹幕各自 `xxxLoadIssue()` + **冻结会盖掉磁盘的写** + 在用到的那一屏说「没读出来 + 重试」（`hooks/useLocalRetry`，进屏先自动试一次）。装「存着用户东西的库」一律 `idbRead`（读失败抛）。⚠ 装载失败要撤掉半截状态（account 的 `db`、videos 的 `cache` / `cacheOwner`），否则 `if (db) return` 让重试拿到半截库。⚠ 读好之后别再读一遍（`readyDrafts` 等读好了直接返回）：会拿磁盘旧表盖掉内存里还没落盘的写。⚠ Chromium 发现损坏会**先删库**再让我们打开（`upgradeneeded` 上 `dataLoss:"total"`），冻结写防不住这一档 —— 只能如实告诉人（`DataLossNotice`）；要真扛住得有 IndexedDB 之外的副本 |
+| 给一个实体加了字段，而"重建这个对象"的地方手写着字面量（`{ id, segIndex, start }`） | 零报错地把新字段丢掉：剪辑工程的片段原来只有三格，裁尾回到片尾 / 还原整段 / 量到更短的长度之后收拾，这三条路都是手写三格重建 —— 包装层（字幕 / 配音 / 变速 / 闪黑）挂上片段之后，等于"裁一刀，这一段的字幕和配音就没了"。与「服务端给实体加了字段，本机库那几跳必须一起搬」是同一个形状，只是发生在同一个文件里 | 重建一律从原对象展开再改（`cutProject.ranged(c, start, end)`），别手写字段清单；`scripts/check-cut-project.mjs` 里有一组「改范围的几条路都不许把包装层丢掉」的用例，加字段时把新字段补进那一组 |
+| "量到的数与原来的差不多"就不记 | `CutPage.learnRealDur` 原来差不到 0.25 秒就不记 —— 为的是别白白重渲染，可「量过没有」本身是一条信息：闪黑与片尾收声只在每一段的长度都量过时才做（`timelinePlan` 的 `exact`），于是申报 5 秒、实际也是 5 秒的普通段永远算"没量过"，转场永远不出，而屏幕上那句提示还在叫人"把每一段各播一下" | 量到了就记（同一个数再量到一次才不重复写）。凡是「值」与「知不知道这个值」是两件事的地方，别拿"值没变"当"不用记"的理由 |
+| 给预览播放器写死 `muted`、只靠 `timeupdate` 判片段出点 | ① 原声的音量滑杆是盲调的（与发布页那格同型）；② `timeupdate` 一秒才来四次，2 倍速的片段在两次之间能多放出半秒素材 —— 裁过尾巴的片段把裁掉的那一截露出来，段尾的淡出也黑不到底 | 预览带声音（被拒了退成静音再试一次，`CutPage.playVideo`）；片段出点由预览那一层逐帧看（`CutPreviewLayer.onClipEnd`），`timeupdate` 那条留着兜底（页面不可见时 rAF 不跑）。两处都可能来叫，所以换片段的函数要写成幂等的 |
+| 配音 / 字幕的长度上限按**字符数**算 | 汉字一秒念四个，英文一秒能念十二三个字母：按字符数封顶，6 秒的片段只写得下四五个英文词；绝对上限 80 个字符还会在落盘读回时把一句英文拦腰截掉（模拟器上合出来少了最后一个词才发现，零报错） | 长度按"念出来多久"算（`cutProject.lineUnits`：汉字一个算 1、字母一个算 0.3、标点空格不算），绝对上限另给一个按字符的（`LINE_MAX_CHARS`，对着服务端 /api/tts 的 300）。凡是"字数"进了规则的地方，先问一句这条规则在英文界面下还成不成立 |
+| 字幕断行贪心填满 / 只求两行一样宽 | 贪心会排出「信使收到一封没 / 有地址的信」这种拦腰断词的行，最后一页还常常只剩一个字；只求等宽又会排出「…去找收信 / 人，不管…」—— 把词和它的逗号拆到下一行 | 分行规则只在 `cutProject.paginateCaption`：先定最少的页数、把字匀到各页，页内再匀到各行，两级的切点都偏向短语末尾；汉字按词（`Intl.Segmenter`）、英文按单词；行尾不画的逗号不占宽度。改它就去 `check-cut-project.mjs` 补一句正例 —— 断行这种东西只有摆出具体句子才看得出好坏，合出来抽帧看过再定 |
+| 从模拟器 / 真机里经 CDP 把大文件读成**一整条 base64** 拿回电脑 | 5MB 的成片编成 7MB 的字符串，`Runtime.evaluate` 的回包直接把 WebSocket 弄断，Node 那头只报 `unsettled top-level await`，看不出是太大 | 按片读（每片 768KB，逐片 `Runtime.evaluate`），见下面「验剪辑页的合并」第 5 步 |
 
 ## 相关文档
 
@@ -698,3 +734,16 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
    「我的 →接着剪」进剪辑页 —— 从那一步起走的全是 App 自己的代码。CDP 的接法见 memory 的 real-device-testing。
 5. 合出来的成片在 IndexedDB 的 `merged:` 键里，经 CDP 读成 base64 拿回电脑，`ffprobe` 量时长与轨道、
    `ffmpeg` 抽帧看画面（竖屏成片在容器里是 1280×720 + rotation −90，那是 Media3 的写法，不是画幅错了）。
+   ⚠ **按片读**（每片 768KB 一次 `Runtime.evaluate`）：5MB 的成片一次读成一整条 base64，回包会把 WebSocket 弄断。
+6. 包装层怎么量（2026-09-30 都这么量过）：**闪黑** = 接缝前后各取几帧算平均亮度
+   （`ffmpeg -ss T -i x.mp4 -frames:v 1 -vf signalstats,metadata=print:key=lavfi.signalstats.YAVG:file=- -f null -`，
+   黑是 16）；**配音落点** = 把各段原声静音、不加配乐合一条，`silencedetect` 找出声的时刻，减去配音文件自己开头的静音；
+   **字幕** = 抽帧看；**变速** = 成片总长 + 测试片自带的时间码。验过的事实：每段效果链拿到的时间戳是成片全局时间
+   （变速、裁头的片段也是）；三句配音的落点误差约 12ms、不累积。
+7. **配音流程不花钱的验法**：真的语音合成按字符计费，别拿它测。起本地内存服务端（launch.json 的 `ideahub-api-mem`，
+   它的 cwd 是 app 仓 ⇒ 读不到 server 的 `.env` ⇒ `/api/tts/health` 回 `tts:false`，真接口根本没配），前面挡一个只拦
+   `POST /api/tts` 的小代理：回一段本地 mp3（按请求里的 `rate` 用 ffmpeg `atempo` 变速，编码照真接口：24kHz 单声道
+   64kbps），并把每一发请求（字、音色、语速）记进一个文件 —— 「念不完先提语速、最多重合成一次」这类逻辑就是对着这份
+   记录验的；别的请求原样转给内存服务端。`.env.e2e.local` 写 `VITE_API_BASE=http://localhost:<代理端口>`，
+   `adb reverse` 那个端口（**要在 App 启动之前**：启动那一拍探不到服务端，这次会话就落回离线模式），测试账号直接
+   `POST /api/auth/register` 建在内存库里、从登录页用密码登录。测完删 `.env.e2e.local`。

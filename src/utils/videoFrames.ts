@@ -42,6 +42,37 @@ export async function loadVideoAt(url: string, atSec: number, opts?: { crossOrig
   return v;
 }
 
+/**
+ * 只问一段媒体有多长（秒）：读 metadata，不解码画面。视频、音频都行（mp3 配音也拿它量）。
+ * ★ 带超时（文件头那条）：到点没回就抛，调用方按"没量到"处理 —— 别让一次锦上添花的量长度把整件事挂住。
+ * ★ 量不出一个有限的正数也算没量到（直播流 / 没有时长信息的文件会给 Infinity）。
+ */
+export function probeDuration(url: string, kind: "video" | "audio" = "video", timeoutMs = 15_000): Promise<number> {
+  return new Promise<number>((res, rej) => {
+    const el = document.createElement(kind);
+    el.muted = true;
+    el.preload = "metadata";
+    let done = false;
+    const finish = (fn: () => void) => {
+      if (done) return;
+      done = true;
+      window.clearTimeout(timer);
+      el.onloadedmetadata = null;
+      el.onerror = null;
+      el.removeAttribute("src");
+      el.load();
+      fn();
+    };
+    const timer = window.setTimeout(() => finish(() => rej(new Error(t`量时长超时`))), timeoutMs);
+    el.onloadedmetadata = () => {
+      const d = el.duration;
+      finish(() => (Number.isFinite(d) && d > 0 ? res(d) : rej(new Error(t`量不出时长`))));
+    };
+    el.onerror = () => finish(() => rej(new Error(kind === "video" ? t`视频读不出来` : t`音频读不出来`)));
+    el.src = url;
+  });
+}
+
 export async function captureVideoFrame(
   url: string,
   atSec: number,

@@ -33,14 +33,23 @@ import { annRedrawCost, fmtTokens, segTokens } from "../data/economy";
 import { publishedExit, useStudio } from "../studio/studioStore";
 import { useCut } from "../studio/cutStore";
 import {
+  BED_GAIN,
+  BGM_DUCK,
   MIN_CLIP_SEC,
+  SPEEDS,
+  TITLE_MAX,
   addAnn,
-  clipDur,
   clipEnd,
+  clipOutDur,
+  clipSpeed,
   clipTrimmed,
+  clipVolume,
   compileTimeline,
   dropAnnsOfSeg,
   hasSibling,
+  LINE_MAX_CHARS,
+  lineCap,
+  lineUnits,
   markMerged,
   moveClip as moveClipOp,
   removeAnn,
@@ -50,22 +59,36 @@ import {
   resetClip,
   restoreSeg,
   sanitizeClips,
+  seamContinuous,
   segSig,
   setAudio as setAudioOp,
   setAudioVolume,
+  setCaptionsOn,
+  setClipFade,
+  setClipLine,
+  setClipSpeed,
+  setClipVoice,
+  setClipVolume,
+  setEndFade,
   setRes,
+  setTitle,
+  setVoiceId,
   splitClip,
+  timelinePlan,
   timelineTouched as timelineTouchedOf,
   trimClip,
+  voiceStale,
   type CutAnn,
   type CutClip,
   type CutIssue,
   type CutProject,
   type CutResult,
 } from "../data/cutProject";
+import { NarrationError, listNarrators, narratorOf, synthLine, type Narrator } from "../studio/cutNarration";
+import CutPreviewLayer from "../components/cut/CutPreviewLayer";
 import { VideoSegment, aspectOf, formatDuration, segLen, uid } from "../types";
 import { resolveMediaUrl, useMediaUrl } from "../utils/mediaUrl";
-import { captureVideoFrame, loadVideoAt } from "../utils/videoFrames";
+import { captureVideoFrame, loadVideoAt, probeDuration } from "../utils/videoFrames";
 import { Capacitor } from "@capacitor/core";
 // 合并走原生硬件编解码器（见 utils/nativeMerge 头部的 ★★）
 import {
@@ -76,6 +99,7 @@ import {
   runNativeMerge,
   stageLocalAudio,
   type MergeClip,
+  type MergeVoice,
 } from "../utils/nativeMerge";
 import { aigcBadgeSpec } from "../data/aigcLabel";
 
@@ -106,7 +130,7 @@ function outSize(long: number, portrait: boolean): { w: number; h: number } {
   return portrait ? { w: short, h: long } : { w: long, h: short };
 }
 
-type Tab = "cut" | "mark" | "audio";
+type Tab = "cut" | "text" | "mark" | "audio";
 
 export default function CutPage() {
   const navigate = useNavigate();
@@ -192,6 +216,37 @@ export default function CutPage() {
     [audioSpec, audioUrl, audioName],
   );
   const [tab, setTab] = useState<Tab>("cut");
+  /** 正在合成配音的片段（id）：这几句的「配音」键转圈、不许重复点 */
+  const [voicing, setVoicing] = useState<ReadonlySet<string>>(() => new Set());
+  /** 正在试听哪一段的配音（片段 id） */
+  const [auditioning, setAuditioning] = useState<string | null>(null);
+  const auditionRef = useRef<HTMLAudioElement | null>(null);
+  /** 可选的旁白音色（服务端目录，进「字幕」页签时取一次）。null = 还没取到 */
+  const [narrators, setNarrators] = useState<Narrator[] | null>(null);
+  const [narratorErr, setNarratorErr] = useState("");
+  /** 配音要打服务端的语音合成：离线 / 演示构建里没有它（字幕照常能用） */
+  const canVoice = isRemoteMode();
+  useEffect(() => {
+    if (tab !== "text" || narrators || !canVoice) return;
+    let alive = true;
+    listNarrators()
+      .then((list) => {
+        if (alive) setNarrators(list);
+      })
+      .catch((e) => {
+        if (alive) setNarratorErr(e instanceof Error ? e.message : String(e));
+      });
+    return () => {
+      alive = false;
+    };
+  }, [tab, narrators, canVoice]);
+  // 离开这一页：试听的那一句收声
+  useEffect(
+    () => () => {
+      auditionRef.current?.pause();
+    },
+    [],
+  );
   const resId = project?.resId ?? "720";
   const [resOpen, setResOpen] = useState(false);
   const [busy, setBusy] = useState("");
@@ -245,7 +300,8 @@ export default function CutPage() {
    */
   const lens = useMemo(() => segs.map((sg, i) => realDur[i] ?? segLen(sg)), [segs, realDur]);
   const lenOf = (i: number): number => lens[i] ?? 0;
-  const durOf = (c: Clip): number => clipDur(c, lens);
+  /** 这个片段在**成片**里占多长（变速之后）。时间轴总长、播放头、缩略图的宽度都按它算；下刀（分割 / 裁剪）按片内时间，不用它 */
+  const durOf = (c: Clip): number => clipOutDur(c, lens);
   const endOf = (c: Clip): number => clipEnd(c, lens);
   /**
    * 学到一段的真实时长。
@@ -254,9 +310,10 @@ export default function CutPage() {
    */
   function learnRealDur(i: number, real: number) {
     if (!Number.isFinite(real) || real <= 0) return;
-    const declared = lenOf(i);
-    if (Math.abs(real - declared) < 0.25) return;
-    setRealDur((m) => ({ ...m, [i]: real }));
+    // ★ 量到了就记下来，哪怕它与申报值一样（2026-09-30 改：原来差不到 0.25 秒就不记）。「量过」本身是一条信息：
+    //   闪黑与片尾收声只在每一段的长度都量过时才做（cutProject.timelinePlan 的 exact）—— 不记的话，
+    //   申报 5 秒、实际也是 5 秒的普通段永远算"没量过"，转场就永远不出。同一个数再量到一次不重复写（别白白重渲染）
+    setRealDur((m) => (m[i] !== undefined && Math.abs(m[i] - real) < 0.01 ? m : { ...m, [i]: real }));
   }
   const aliveRef = useRef(true);
   useEffect(() => {
@@ -468,6 +525,46 @@ export default function CutPage() {
   const portrait = aspectOf((segs[view[0]?.segIndex] ?? segs[0])?.aspect).id === "portrait";
   const out = outSize(res.long, portrait);
   /**
+   * 渲染计划：每个片段在成片里的起止、哪一秒出哪句字幕、每句配音从第几秒念、闪黑多长、配乐压到几成。
+   * ★ **只在 cutProject.timelinePlan 出**：这一页的预览（CutPreviewLayer / 播放速度 / 原声音量）照它，
+   *   合并那一拍交给原生合成器的也是它（mergeAndGo 里重新出一份，那时各段的长度量得更全）。
+   */
+  const plan = useMemo(
+    () => (project && !alreadyMerged ? timelinePlan(project, lens, realLens, { w: out.w, h: out.h }, segs.length) : null),
+    [project, alreadyMerged, lens, realLens, out.w, out.h, segs.length],
+  );
+  /** 这份工程用哪个音色配音 */
+  const voiceId = narratorOf(project);
+  // 预览要念的那几句配音：本地库里的 blob → 能播的地址（读不出来的那几句不在表里：预览没声音，字幕照出）
+  const voiceRefKey = plan ? plan.voices.map((v) => v.ref).join("|") : "";
+  const [voiceUrls, setVoiceUrls] = useState<Record<string, string>>({});
+  useEffect(() => {
+    const refs = voiceRefKey ? voiceRefKey.split("|") : [];
+    if (refs.length === 0) {
+      setVoiceUrls((m) => (Object.keys(m).length === 0 ? m : {}));
+      return;
+    }
+    let alive = true;
+    void Promise.all(refs.map(async (r) => [r, await resolveMediaUrl(r).catch(() => null)] as const)).then((pairs) => {
+      if (!alive) return;
+      const next: Record<string, string> = {};
+      for (const [r, u] of pairs) if (u) next[r] = u;
+      setVoiceUrls(next);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [voiceRefKey]);
+  // 正在播的这一段按几倍速放、原声出几成 —— 与合成器照的是同一处判定（cutProject.clipSpeed / clipVolume）
+  const activeSpeed = active ? clipSpeed(active) : 1;
+  const activeVolume = active ? clipVolume(active) : 1;
+  useEffect(() => {
+    const v = vref.current;
+    if (!v) return;
+    v.playbackRate = activeSpeed;
+    v.volume = activeVolume;
+  }, [activeSpeed, activeVolume, playSrc, active?.id]);
+  /**
    * **还在成片里**的那些圈选 —— 计价、按钮上的数、重拍三处都只准用这一份。
    *
    * ★★ 2026-08-30 修：`anns` 是按 `segIndex` 攒的，而删片段（`removeClip`）只动 `clips`。
@@ -508,6 +605,7 @@ export default function CutPage() {
    *   这一份纯粹是"让耳朵先听见"，所以它出问题也不该影响导出（下面全都 catch 掉）。
    */
   const bgmRef = useRef<HTMLAudioElement | null>(null);
+  const bgmGain = plan?.bgmGain ?? 1;
   useEffect(() => {
     // 换了曲子/去掉了：把上一个收掉
     bgmRef.current?.pause();
@@ -515,37 +613,46 @@ export default function CutPage() {
     if (!audio) return;
     const el = new Audio(audio.url);
     el.loop = true; // 与合并那边一致：BGM 短于成片时循环补齐
-    el.volume = Math.max(0, Math.min(1, audio.volume));
+    el.volume = Math.max(0, Math.min(1, audio.volume * bgmGain));
     bgmRef.current = el;
     return () => {
       el.pause();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [audio?.url]);
 
-  // 音量滑杆实时生效（这正是这一整段存在的理由）
+  // 音量滑杆实时生效（这正是这一整段存在的理由）；有配音时配乐自动压低（计划里的 bgmGain），预览里也照压
   useEffect(() => {
-    if (bgmRef.current && audio) bgmRef.current.volume = Math.max(0, Math.min(1, audio.volume));
-  }, [audio?.volume]);
+    if (bgmRef.current && audio) bgmRef.current.volume = Math.max(0, Math.min(1, audio.volume * bgmGain));
+  }, [audio?.volume, bgmGain]);
 
-  // 合并期间别让预览的 BGM 跟着响：那会儿在录屏，两条声音会让人以为混轨出了问题
+  // 合成 / 重拍期间预览整个停下来：预览现在是带声音的（原声 / 配音 / 配乐），别让它们在「合成中」的遮罩后面接着响
   useEffect(() => {
-    if (busy) bgmRef.current?.pause();
+    if (!busy) return;
+    vref.current?.pause();
+    bgmRef.current?.pause();
+    auditionRef.current?.pause();
+    setPlaying(false);
   }, [busy]);
+  /** 各段现在按多长算 —— 给跑在这一页卸载之后还活着的长活（配音）读最新的那份，别用闭包里的旧值 */
+  const lensRef = useRef(lens);
+  lensRef.current = lens;
 
 
   if (!draft) return null;
 
-  /** 当前播放头（全局秒）：前面片段时长之和 + 片内偏移 */
+  /** 当前播放头（成片时间轴上的秒）：前面片段在成片里的时长之和 + 这一段片内走了多远 ÷ 速度 */
   const playhead =
     view.slice(0, activeIdx).reduce((s, c) => s + durOf(c), 0) +
-    (active ? Math.max(0, (vref.current?.currentTime ?? active.start) - active.start) : 0);
+    (active ? Math.max(0, (vref.current?.currentTime ?? active.start) - active.start) / clipSpeed(active) : 0);
 
   function seekGlobal(sec: number) {
     let acc = 0;
     for (let i = 0; i < view.length; i++) {
       const d = durOf(view[i]);
       if (sec < acc + d || i === view.length - 1) {
-        const local = view[i].start + Math.min(d, Math.max(0, sec - acc));
+        // 成片时间 → 片内时间：变速的片段里一秒成片对应 speed 秒素材
+        const local = view[i].start + Math.min(d, Math.max(0, sec - acc)) * clipSpeed(view[i]);
         if (i === activeIdx && vref.current) vref.current.currentTime = local;
         else {
           pendingSeek.current = local;
@@ -572,11 +679,40 @@ export default function CutPage() {
     setPlaying(false);
   }
 
+  /**
+   * 正在播的片段到出点了：接着播时间轴上的下一个，最后一个则停。
+   * ★ 两处会来叫（预览那一层逐帧看到的、播放器的 timeupdate 兜底的），可能前后脚各叫一次 —— 所以它是幂等的：
+   *   两次读到的都是同一拍的 activeIdx，置成同一个下一格。
+   */
+  function advanceClip() {
+    if (activeIdx + 1 < view.length) {
+      pendingSeek.current = view[activeIdx + 1].start;
+      setActiveIdx(activeIdx + 1);
+    } else {
+      // ★ 播到时间轴末尾：**连 BGM 一起停**。只停 video 的话音乐会一直循环，
+      //   而 togglePlay 判的是 v.paused（已经是暂停态）—— 再也停不下来
+      stopPlayback();
+    }
+  }
+
+  /**
+   * 让预览播起来 —— **带声音**（2026-09-30：原来这颗播放器写死 muted，原声的音量滑杆等于盲调）。
+   * 带声音的播放被拒（没有手势时个别 WebView 会拦）就退成静音再试一次：别把"能不能播"赌在"能不能出声"上
+   * （与发布页 / 详情页播放器同一条，见 CLAUDE.md「播放器上写死 muted」那格）。
+   */
+  function playVideo(v: HTMLVideoElement) {
+    v.muted = false;
+    void v.play().catch(() => {
+      v.muted = true;
+      void v.play().catch(() => {});
+    });
+  }
+
   function togglePlay() {
     const v = vref.current;
     if (!v) return;
     if (v.paused) {
-      void v.play();
+      playVideo(v);
       // ★ BGM 跟着画面走：播放头在哪儿，BGM 就从哪儿开始（成片里它是从 0 铺到尾的）
       const bgm = bgmRef.current;
       if (bgm) {
@@ -734,6 +870,138 @@ export default function CutPage() {
     if (!cur) return;
     applyAudio(setAudioOp(cur, { kind: "local", name: f.name, ref: stored ? `idb:${key}` : URL.createObjectURL(f), volume: 0.8 }));
     setErr(stored ? "" : t`这条音频没能存进本地库（存储空间不足？）——这一次照常能用，但离开剪辑页之后要重新挑一次。`);
+  }
+
+  /** 对选中的片段做一处包装层的改动（速度 / 原声 / 转场）。`coalesce`：滑杆一路拖过去只记一步撤销 */
+  function editSel(fn: (p: CutProject, clipId: string) => CutResult, coalesce?: string) {
+    const cur = useCut.getState().project;
+    if (!cur || !sel) return;
+    commit(fn(cur, sel), coalesce ? { coalesce } : undefined);
+  }
+
+  /** 改工程级的一格（片头标题 / 字幕烧不烧 / 音色 / 片尾淡出） */
+  function editProject(fn: (p: CutProject) => CutProject, coalesce?: string) {
+    const cur = useCut.getState().project;
+    if (!cur) return;
+    setErr("");
+    useCut.getState().apply(fn(cur), coalesce ? { coalesce } : undefined);
+  }
+
+  /** 写某个片段的字幕 / 旁白。一路打字只记一步撤销（输入框失焦时封口） */
+  function editLine(clipId: string, text: string) {
+    const cur = useCut.getState().project;
+    if (!cur) return;
+    commit(setClipLine(cur, clipId, text), { coalesce: `line:${clipId}` });
+  }
+
+  /**
+   * 给这几个片段的字幕配音（一句一句合成，写回各自的片段）。
+   *
+   * ★ 这是一件能活过页面卸载的长活（一句一两秒，一条片子十来句）：多句时领一张票（data/jobs，退出登录被拦、
+   *   人走开了胶囊里看得见）；每一句写回之前问两件事 —— 中途换过账号没有（deviceOwner.ownerEpoch）、
+   *   store 里的工程还是不是开工时那份稿子的（指纹）。对不上就收手：合成好的那一句不写进别人的 / 别的稿子里。
+   * ★ 写回按**片段 id**找、读最新的工程（不是闭包里那一份）：合成期间人可以接着剪 —— 片段被删了，这一句就不要了；
+   *   字被改了，配音照样挂上去，但它立刻是"过期"的（voiceStale），界面会标出来。
+   * ★ 一批只记一步撤销。失败的那几句把原因说出来；登录失效 / 限流 / 断网这几种后面的句子也一样会失败，当场停。
+   */
+  async function runVoices(ids: string[]) {
+    const start = useCut.getState().project;
+    if (ids.length === 0 || !start || voicing.size > 0) return;
+    const epochAtStart = ownerEpoch();
+    const sigAtStart = start.sig;
+    const many = ids.length > 1;
+    const total = ids.length;
+    const job = many ? startJob({ kind: "cut-voice", title: t`配音`, page: "/cut", progress: t`准备中…` }) : null;
+    const batch = uid("vb");
+    setErr("");
+    setVoicing(new Set(ids));
+    let done = 0;
+    let failed = 0;
+    let why = "";
+    try {
+      for (let k = 0; k < ids.length; k++) {
+        const id = ids[k];
+        const cur = useCut.getState().project;
+        if (ownerEpoch() !== epochAtStart || !cur || cur.sig !== sigAtStart || cur.merged) break;
+        const clip = cur.clips.find((c) => c.id === id);
+        const text = clip?.line?.text ?? "";
+        if (clip && text.trim()) {
+          const n = k + 1;
+          job?.update(t`第 ${n}/${total} 句…`);
+          try {
+            const voice = await synthLine(text, narratorOf(cur), clipOutDur(clip, lensRef.current));
+            const now = useCut.getState().project;
+            if (ownerEpoch() !== epochAtStart || !now || now.sig !== sigAtStart || now.merged) break;
+            const r = setClipVoice(now, id, voice);
+            if (r.ok) {
+              useCut.getState().apply(r.project, { coalesce: `voice:${batch}` });
+              done++;
+            }
+          } catch (e) {
+            failed++;
+            if (!why) why = e instanceof Error ? e.message : String(e);
+            // 这几种不是这一句的问题：后面的句子也一样会失败，别一句一句撞过去（限流那种还会越撞越久）
+            if (e instanceof NarrationError && ["auth", "rate", "unsupported", "network"].includes(e.kind)) {
+              failed += ids.length - k - 1;
+              break;
+            }
+          }
+        }
+        if (aliveRef.current) {
+          setVoicing((prev) => {
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+          });
+        }
+      }
+    } finally {
+      useCut.getState().seal();
+      if (aliveRef.current) setVoicing(new Set());
+      const line =
+        failed > 0
+          ? many
+            ? t`有 ${failed} 句没配上：${why}`
+            : why
+          : "";
+      if (aliveRef.current) {
+        if (line) setErr(line);
+        job?.done({ silent: true });
+      } else {
+        // ★ 人已经不在这一页了：这一页那个"工程一动就落盘"的 effect 没在跑，合成好的配音只在内存里 ——
+        //   App 这时被系统回收，它们就没了（字还在、声音得重配一遍，而每一句都是一次真的语音合成）。当场存一次。
+        //   换过账号 / 换了稿子的不存：那时 store 里已经不是这份工程了，上面的循环也早就收手了
+        const now = useCut.getState().project;
+        if (done > 0 && ownerEpoch() === epochAtStart && now && now.sig === sigAtStart && !useStudio.getState().segEdit) {
+          void useStudio.getState().persistCutDraft();
+        }
+        if (job) {
+          if (line) job.fail(line, "/cut");
+          else job.done({ msg: t`${done} 句配音合成好了，回剪辑页听听`, route: "/cut" });
+        }
+      }
+    }
+  }
+
+  /** 试听某一段的配音（再点一下停）。预览正在播的话先停下来 —— 两条声音叠着听不出配音本身 */
+  async function audition(clipId: string, ref: string) {
+    auditionRef.current?.pause();
+    auditionRef.current = null;
+    if (auditioning === clipId) {
+      setAuditioning(null);
+      return;
+    }
+    const url = voiceUrls[ref] ?? (await resolveMediaUrl(ref).catch(() => null));
+    if (!url) {
+      setErr(t`这句配音的文件读不出来了（可能被清理过）——重新配一次。`);
+      return;
+    }
+    stopPlayback();
+    const a = new Audio(url);
+    auditionRef.current = a;
+    setAuditioning(clipId);
+    a.onended = () => setAuditioning((cur) => (cur === clipId ? null : cur));
+    void a.play().catch(() => setAuditioning(null));
   }
 
   /** 把合好的稿子还原到合并之前（见 studioStore.reopenCut）。还原之后这一页会按源段重新铺开 */
@@ -1064,9 +1332,39 @@ export default function CutPage() {
       if (!mergeSupported()) throw new Error(mergeUnsupportedText());
       if (!projAtStart) throw new Error(t`时间轴还没准备好，稍等一下再点「下一步」`);
       say(t`准备素材…`);
-      // 时间轴 → 合成器吃的片段表（**这张表只在 cutProject.compileTimeline 出**）。没裁过尾巴的片段不带出点，
-      // 原生那边就不设结束点、一直取到片尾 —— 与"跟着实测时长走"是同一件事
-      const tl = compileTimeline(projAtStart, mergeSegs, lens);
+      // ── 先把各段的真实长度量出来（只在工程里有"长在时间上"的东西时：字幕 / 配音 / 闪黑 / 变速 / 配乐）──
+      // ★★ 这些东西按**成片时间轴**定位（第 7 秒出这句字幕、第 12.3 秒开始淡出），而成片时间轴是把各段的长度
+      //   一段一段加起来的。有一段的长度还停在申报值上（申报 5 秒、实际 20 秒的白模段），它后面的字幕、配音、
+      //   淡入淡出就全错位了 —— 所以长度靠不住时计划里干脆不做闪黑与片尾收声（cutProject.timelinePlan 的 ★★），
+      //   这里先尽力把它量出来。只读 metadata，一段几百毫秒；量不到不挡合成，如实说一句。
+      const mergeReal = realLens.slice();
+      const pre = timelinePlan(projAtStart, lens, mergeReal, out, mergeSegs.length);
+      if (pre.timed && !pre.exact) {
+        for (const pc of pre.clips) {
+          if (cancelRef.current) break;
+          const i = pc.segIndex;
+          const url = mergeSegs[i]?.videoUrl;
+          if (mergeReal[i] !== undefined || !url || !/^https?:/i.test(url)) continue;
+          const segNo = i + 1;
+          say(t`量第 ${segNo} 段的时长…`);
+          try {
+            const d = await probeDuration(url);
+            mergeReal[i] = d;
+            if (aliveRef.current) learnRealDur(i, d);
+          } catch (e) {
+            console.warn(`[cut] 第 ${segNo} 段的时长没量到:`, e);
+          }
+        }
+        if (cancelRef.current) {
+          setBusy("");
+          setErr(t`已取消合并。片段、圈选和配乐都还在，随时可以重新开始。`);
+          return;
+        }
+      }
+      const mergeLens = mergeSegs.map((sg, i) => mergeReal[i] ?? segLen(sg));
+      // 时间轴 → 合成器吃的那张表（**只在 cutProject.compileTimeline 出**，预览照的是同一份计划）。
+      // 没有长在时间上的东西时，没裁过尾巴的片段不带出点 —— 原生那边不设结束点、一直取到片尾
+      const tl = compileTimeline(projAtStart, mergeSegs, mergeLens, mergeReal, out);
       if (!tl.ok) {
         const segNo = tl.segNo;
         throw new Error(
@@ -1082,20 +1380,46 @@ export default function CutPage() {
         );
       }
       if (tl.clips.length === 0) throw new Error(t`时间轴上没有可合成的片段`);
+      const plan = tl.plan;
+      // ★ 包装层的几格只在**不是缺省值**时才带：一条什么都没加的稿子，交给原生的参数与包装层出现之前逐字相同
       const clips: MergeClip[] = tl.clips.map((c) => ({
         url: c.url,
         startSec: c.startSec,
         ...(c.endSec !== undefined ? { endSec: c.endSec } : {}),
+        ...(c.speed !== 1 ? { speed: c.speed } : {}),
+        ...(c.volume !== 1 ? { volume: c.volume } : {}),
+        ...(c.fadeInSec > 0 || c.fadeOutSec > 0
+          ? { outStartSec: c.outStartSec, outDurSec: c.outDurSec, fadeInSec: c.fadeInSec, fadeOutSec: c.fadeOutSec }
+          : {}),
       }));
       /** 真正进了成片的那几段（稿子里的段号，按时间轴顺序）—— 下面查画幅 / 剧情 / 有没有声音都认它 */
       const order = tl.clips.map((c) => c.segIndex);
+      // 计划里那几件"排不上 / 对不上"的事：合完才说也要说（这一页马上要跳走，话随导航带去发布页 —— 那里有「回剪辑页改一改」）
+      if (plan.timed && !plan.exact) {
+        const unsure = [...new Set(plan.clips.filter((pc) => mergeReal[pc.segIndex] === undefined && !pc.endExplicit).map((pc) => pc.segIndex + 1))];
+        const segList = unsure.join(t({ message: "、", comment: "列举几个段号时的分隔符（第 1、3 段）" }));
+        warns.push(
+          t`第 ${segList} 段的真实时长没量到：字幕和配音是按申报的时长排的，时间可能对不上；闪黑与片尾淡出这一次没有做。回剪辑页把这几段各播一下（播过就量到了），再合一次。`,
+        );
+      }
+      if (plan.dropped.length > 0) {
+        const n = plan.dropped.length;
+        warns.push(t`有 ${n} 句字幕 / 配音没排上：片段太短，或者被上一句配音挤到了片尾之外。`);
+      }
+      const staleCount = projAtStart.clips.filter((c) => voiceStale(c.line, narratorOf(projAtStart))).length;
+      if (staleCount > 0) {
+        warns.push(t`有 ${staleCount} 句配音还是改字（或换音色）之前合成的那一版——成片里念的和字幕对不上。回剪辑页的「字幕」重新配一次，再合一次。`);
+      }
+      const cutShort = plan.voices.filter((v) => v.playSec < v.durSec - 0.05).length;
+      if (cutShort > 0) warns.push(t`最后一句配音没念完就到片尾了（成片里它在片尾被掐掉）。把这一句改短，或者把最后一段留长一点。`);
 
       // BGM：本地挑的那份在 Web 侧是 blob:，原生打不开，先落盘（几 MB 级，段落视频绝不走这条）
       let audioArg: { url: string; volume: number } | undefined;
       if (audio) {
         try {
           say(t`准备配乐…`);
-          audioArg = { url: await stageLocalAudio(audio.url), volume: audio.volume };
+          // 有配音时配乐自动压低（plan.bgmGain，配音为主）；没有配音时这个系数是 1
+          audioArg = { url: await stageLocalAudio(audio.url), volume: audio.volume * plan.bgmGain };
         } catch (e) {
           // ★ 音轨拿不到**不许拖垮整条成片**（2026-08-21 对抗评审确认的老规矩，这次沿用）
           console.warn("[cut] 音轨取不到:", e);
@@ -1110,6 +1434,28 @@ export default function CutPage() {
         // （音频页签上那一行还亮着，人会以为它进去了）
         const lostName = audioName;
         warns.push(t`配乐「${lostName}」没能读出来——这一条先按没有配乐导出。想要它就回剪辑页的「音频」重新挑一次，再合一次。`);
+      }
+
+      // 配音：本地库里的 blob → 本机文件（与本地配乐同一条路：原生打不开 blob:）。
+      // ★ 一句取不到不拖垮整条成片（与配乐同一条老规矩），但要说出来 —— 字幕还在画面上，人会以为它有声音
+      const voiceArgs: MergeVoice[] = [];
+      if (plan.voices.length > 0) {
+        say(t`准备配音…`);
+        let lost = 0;
+        for (const v of plan.voices) {
+          if (cancelRef.current) break;
+          try {
+            const src = await resolveMediaUrl(v.ref);
+            if (!src) throw new Error("voice blob gone");
+            voiceArgs.push({ url: await stageLocalAudio(src), atSec: v.atSec, durSec: v.durSec, volume: v.volume });
+          } catch (e) {
+            lost++;
+            console.warn("[cut] 配音取不到:", e);
+          }
+        }
+        if (lost > 0) {
+          warns.push(t`有 ${lost} 句配音的文件读不出来了（可能被清理过）——这几句在成片里没有声音。回剪辑页的「字幕」重新配一次，再合一次。`);
+        }
       }
 
       // ★ 配乐落盘那几秒里点了取消：别再开合成（2026-09-18 发版复核抓到：原来只在合成**之后**问一次，
@@ -1129,6 +1475,23 @@ export default function CutPage() {
           // ★ 显式标识的**政策**在这里定，不在原生里（合规口径会变，变的时候不该动原生代码）。
           //   口径与出处见 data/aigcLabel.ts。
           badge: aigcBadgeSpec(),
+          // 字幕 / 标题：行与时间都是计划里排好的，版式那几个比例也是（cutProject.captionLayout）—— 原生只照着画
+          ...(plan.captions.length > 0
+            ? {
+                captions: {
+                  items: plan.captions.map((c) => ({ startSec: c.startSec, endSec: c.endSec, lines: c.lines, kind: c.kind })),
+                  sizeRatio: plan.layout.sizeRatio,
+                  bottomRatio: plan.layout.bottomRatio,
+                  maxWidthRatio: plan.layout.maxWidthRatio,
+                  titleScale: plan.layout.titleScale,
+                  titleTopRatio: plan.layout.titleTopRatio,
+                },
+              }
+            : {}),
+          ...(voiceArgs.length > 0 ? { voices: voiceArgs } : {}),
+          ...(plan.tailFadeSec > 0 ? { tailFadeSec: plan.tailFadeSec } : {}),
+          // 成片总长：配音不许把成片撑长、片尾收声从哪儿开始，原生都认它
+          ...(voiceArgs.length > 0 || plan.tailFadeSec > 0 ? { totalSec: tl.total } : {}),
         },
         (frac) => setMergeDone(tl.total * frac),
       );
@@ -1257,7 +1620,8 @@ export default function CutPage() {
        * ★ 判否定：只要有一段是 `undefined`（老草稿没有这一位）就当"不知道"，一个字都不说。
        * ★ 看的是 `view`（真正进了成片的那几段）不是 `segs` —— 删掉/没排进时间轴的段不算数。
        */
-      const bgmIn = !!audioArg && !merged.bgmSkipped;
+      // 配音与配乐一样算「我们自己送进去的声音」：有它成片就一定会响
+      const bgmIn = (!!audioArg && !merged.bgmSkipped) || voiceArgs.length > 0;
       const partAudio = order.map((i) => mergeSegs[i]?.hasAudio);
       const allSilent = partAudio.length > 0 && partAudio.every((x) => x === false);
       if (!bgmIn && (merged.hasAudio === false || allSilent)) {
@@ -1317,11 +1681,32 @@ export default function CutPage() {
     }
   }
 
+  /** 写了字幕的片段数（「字幕」页签上的角标） */
+  const lineCount = view.filter((c) => (c.line?.text ?? "").trim()).length;
+  /**
+   * 包装层（字幕 / 配音 / 变速 / 原声 / 转场）在这份稿子上用不用得上。
+   * ★ 单段编辑（从节点卡「编辑本段」进来）用不上：那条路不合成，「保存本段」只把帧与成片写回流水线
+   *   （studioStore.closeSegmentEdit），片段上挂的这些东西没有地方落 —— 摆出来就是一排改了不作数的键。
+   */
+  const packaging = !segEdit;
   const TABS: Array<{ id: Tab; label: string; badge?: number }> = [
     { id: "cut", label: t`剪辑` },
+    ...(packaging ? [{ id: "text" as const, label: t`字幕`, badge: lineCount || undefined }] : []),
     { id: "mark", label: t`圈选`, badge: anns.length || undefined },
     { id: "audio", label: t`音频`, badge: audioSpec ? 1 : undefined },
   ];
+  /** 音色 id → 名字（目录还没取到 / 目录里没有这一个时退回 id 本身，别画一个空的下拉项） */
+  const narratorName = (id: string): string =>
+    narrators?.find((n) => n.id === id)?.name ?? (id === narratorOf(null) ? t`知性女声` : id);
+  /** 该配音而还没配（或配音过期了）的那几句：有字、字数没超这一段放得下的 */
+  const voiceTodo = view.filter((c) => {
+    const text = (c.line?.text ?? "").trim();
+    if (!text || Math.ceil(lineUnits(text)) > lineCap(durOf(c))) return false;
+    return !c.line?.voice || voiceStale(c.line, voiceId);
+  });
+  /** 紧凑小键（选中 / 没选中两态） */
+  const chip = (on: boolean) =>
+    `rounded-full px-2.5 py-1.5 text-[11px] ${on ? "bg-brand font-semibold text-ink" : "bg-slate-700/70 text-slate-200"}`;
 
   return (
     <div className="fixed inset-0 flex flex-col bg-black">
@@ -1416,14 +1801,14 @@ export default function CutPage() {
 
       {/* ── 预览区 ── */}
       <div className="relative flex min-h-0 flex-1 flex-col">
-        <div className="flex min-h-0 flex-1 items-center justify-center">
+        {/* relative：字幕 / 闪黑那一层（CutPreviewLayer）按播放器在这个容器里的位置贴上去 */}
+        <div className="relative flex min-h-0 flex-1 items-center justify-center">
           {activeSeg?.videoUrl ? (
             playSrc ? (
               <video
                 key={`${active!.id}:${playSrc}`}
                 ref={vref}
                 src={playSrc}
-                muted
                 playsInline
                 className="max-h-full max-w-full"
                 // ★ 播放器自己的失败也要上屏（地址过期 / 解码失败），否则又是一块沉默的黑
@@ -1438,22 +1823,17 @@ export default function CutPage() {
                   if (active) learnRealDur(active.segIndex, v.duration);
                   v.currentTime = pendingSeek.current ?? active!.start;
                   pendingSeek.current = null;
-                  if (playing) void v.play().catch(() => {});
+                  // 每换一个片段播放器是新的：速度与原声音量要重新交代一遍（见 activeSpeed 那个 effect）
+                  v.playbackRate = activeSpeed;
+                  v.volume = activeVolume;
+                  if (playing) playVideo(v);
                 }}
                 onTimeUpdate={(e) => {
                   const v = e.currentTarget;
                   setT(v.currentTime);
-                  // 到达片段出点：跳下一片段接着播（时间轴顺序），最后一个则停
-                  if (active && v.currentTime >= endOf(active) - 0.03) {
-                    if (activeIdx + 1 < view.length) {
-                      pendingSeek.current = view[activeIdx + 1].start;
-                      setActiveIdx(activeIdx + 1);
-                    } else {
-                      // ★ 播到时间轴末尾：**连 BGM 一起停**。只停 video 的话音乐会一直循环，
-                      //   而 togglePlay 判的是 v.paused（已经是暂停态）—— 再也停不下来
-                      stopPlayback();
-                    }
-                  }
+                  // 到达片段出点：跳下一片段接着播（时间轴顺序），最后一个则停。
+                  // 预览那一层逐帧也在看（CutPreviewLayer.onClipEnd，更准）；这里留着兜底 —— 页面不可见时那一层的 rAF 不跑
+                  if (active && v.currentTime >= endOf(active) - 0.03) advanceClip();
                 }}
                 onClick={togglePlay}
               />
@@ -1463,6 +1843,15 @@ export default function CutPage() {
           ) : activeSeg ? (
             <img src={activeSeg.poster || activeSeg.firstFrame} alt="" className="max-h-full max-w-full" />
           ) : null}
+          {/* 字幕 / 标题 / 闪黑 / 配音跟着播放头走。合成期间收起（那会儿预览是停的，别让配音在遮罩后面响） */}
+          <CutPreviewLayer
+            videoRef={vref}
+            plan={busy ? null : plan}
+            clipId={active?.id ?? null}
+            playing={playing}
+            voiceUrls={voiceUrls}
+            onClipEnd={advanceClip}
+          />
         </div>
         {/* 取流/播放失败一律说在预览正下方（用户正盯着的那块），并给一条真能走的路 */}
         {activeSeg?.videoUrl && (playErr || srcErr[active!.segIndex]) && (
@@ -1732,6 +2121,15 @@ export default function CutPage() {
                         {/* ★ 裁过要看得出来：否则"这段怎么短了"只能靠回忆，而裁剪是可还原的 */}
                         {clipTrimmed(c) && <span className="ml-0.5">✂</span>}
                       </span>
+                      {/* 这一段挂着什么包装也要看得出来（变速 / 从黑里进来 / 有字幕 / 有配音）：不然"这段怎么变快了"
+                          同样只能靠回忆，而它们都藏在选中之后才出现的那块面板里 */}
+                      {(clipSpeed(c) !== 1 || c.fade || c.line?.text.trim()) && (
+                        <span className="absolute bottom-0.5 left-1 rounded bg-black/65 px-1 text-[9px] text-slate-200">
+                          {c.fade ? "◐ " : ""}
+                          {clipSpeed(c) !== 1 ? `${clipSpeed(c)}× ` : ""}
+                          {c.line?.text.trim() ? (c.line.voice ? "🔊" : "💬") : ""}
+                        </span>
+                      )}
                       {nAnn > 0 && (
                         <span className="absolute right-1 top-0.5 rounded-full bg-rose-500/90 px-1 text-[9px] font-bold text-white">
                           ⭕{nAnn}
@@ -1826,6 +2224,323 @@ export default function CutPage() {
                 })()}
               </div>
               {!sel && <p className="mt-1.5 text-[10px] text-slate-500"><Trans>先点上面的片段选中，再用这排按钮</Trans></p>}
+              {/* 包装层（2026-09-30）：选中的这一段自己的三样 —— 速度 / 原声 / 转场，外加整条片子的片尾淡出。
+                  ★ 改的都是 cutProject 里那几格，预览当场照着变（播放速度、原声音量、黑场遮罩），合成器照的是同一份计划 */}
+              {project &&
+                packaging &&
+                (() => {
+                  const sc = view.find((c) => c.id === sel) ?? null;
+                  const seg = sc ? segs[sc.segIndex] : undefined;
+                  const vol = sc ? clipVolume(sc) : 1;
+                  // 这一段与上一段之间是不是同一个镜头在延续（接着上一段尾帧拍的 / 分割出来的两半）：是的话加转场会把接缝撕开
+                  const seam = sc ? seamContinuous(project, project.clips.findIndex((c) => c.id === sc.id), segs) : false;
+                  const fadeUnsure = !!plan && !plan.exact && (!!project.endFade || project.clips.some((c) => c.fade));
+                  return (
+                    <div className="mt-2 rounded-xl bg-black/40 p-2.5">
+                      {sc ? (
+                        <>
+                          <div className="flex items-center gap-2">
+                            <span className="w-8 flex-none text-[10px] text-slate-500"><Trans>速度</Trans></span>
+                            <div className="flex min-w-0 gap-1 no-scrollbar overflow-x-auto rounded-full bg-panel p-0.5">
+                              {SPEEDS.map((s) => (
+                                <button
+                                  key={s}
+                                  onClick={() => editSel((p, id) => setClipSpeed(p, id, s))}
+                                  className={`flex-none rounded-full px-3 py-1 text-[11px] ${
+                                    clipSpeed(sc) === s ? "bg-brand font-semibold text-ink" : "text-slate-300"
+                                  }`}
+                                >
+                                  {s}×
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="mt-2 flex items-center gap-2">
+                            <span className="w-8 flex-none text-[10px] text-slate-500"><Trans>原声</Trans></span>
+                            {seg?.hasAudio === false ? (
+                              // 判否定：只有明确知道这一段没声音才这么说（老剪辑稿没有这一位 = 不知道，照常给滑杆）
+                              <span className="text-[11px] text-slate-500"><Trans>这一段的画面本身没有声音</Trans></span>
+                            ) : (
+                              <>
+                                <input
+                                  type="range"
+                                  min={0}
+                                  max={1}
+                                  step={0.05}
+                                  value={vol}
+                                  onChange={(e) => editSel((p, id) => setClipVolume(p, id, Number(e.target.value)), `vol:${sc.id}`)}
+                                  onPointerUp={() => useCut.getState().seal()}
+                                  onKeyUp={() => useCut.getState().seal()}
+                                  aria-label={t`这一段原声的音量`}
+                                  className="min-w-0 flex-1 accent-brand"
+                                />
+                                <span className="w-9 flex-none text-right text-[10px] tabular-nums text-slate-400">{Math.round(vol * 100)}%</span>
+                                {sc.volume !== undefined && sc.line?.voice ? (
+                                  <button
+                                    onClick={() => editSel((p, id) => setClipVolume(p, id, null))}
+                                    className="flex-none rounded-full bg-slate-700/70 px-2.5 py-1 text-[11px] text-slate-200"
+                                  >
+                                    <Trans>交回自动</Trans>
+                                  </button>
+                                ) : null}
+                              </>
+                            )}
+                          </div>
+                          {sc.volume === undefined && sc.line?.voice && seg?.hasAudio !== false ? (
+                            <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
+                              <Trans>这一段有配音：原声自动压到 {Math.round(BED_GAIN * 100)}%（配音为主）。拖一下滑杆就按你定的来。</Trans>
+                            </p>
+                          ) : null}
+                        </>
+                      ) : null}
+                      <div className={`flex flex-wrap items-center gap-1.5 ${sc ? "mt-2" : ""}`}>
+                        <span className="w-8 flex-none text-[10px] text-slate-500"><Trans>转场</Trans></span>
+                        {sc ? (
+                          <button onClick={() => editSel((p, id) => setClipFade(p, id, !sc.fade))} className={chip(!!sc.fade)}>
+                            <Trans>◐ 这一段从黑里进来</Trans>
+                          </button>
+                        ) : null}
+                        <button onClick={() => editProject((p) => setEndFade(p, !p.endFade))} className={chip(!!project.endFade)}>
+                          <Trans>◑ 片尾淡出</Trans>
+                        </button>
+                      </div>
+                      {!sc && (
+                        <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
+                          <Trans>选中一个片段，还能调它的速度、原声音量，或者让它从黑里淡入。</Trans>
+                        </p>
+                      )}
+                      {sc?.fade && seam === true ? (
+                        <p className="mt-1.5 text-[11px] leading-relaxed text-amber-200">
+                          <Trans>这一段是接着上一段拍的（同一个镜头在延续）——在这儿加转场会把接缝撕开。想要换场的感觉，加在别的接缝上更合适。</Trans>
+                        </p>
+                      ) : null}
+                      {fadeUnsure ? (
+                        <p className="mt-1.5 text-[11px] leading-relaxed text-amber-200">
+                          <Trans>有一段的真实时长还没量到，转场的位置定不准，预览里先不显示——把每一段各播一下就量到了。</Trans>
+                        </p>
+                      ) : null}
+                    </div>
+                  );
+                })()}
+            </>
+          )}
+
+          {tab === "text" && project && packaging && (
+            <>
+              <input
+                value={project.title ?? ""}
+                maxLength={TITLE_MAX}
+                onChange={(e) => editProject((p) => setTitle(p, e.target.value), "title")}
+                onBlur={() => useCut.getState().seal()}
+                placeholder={t`片头标题（可不填；写了会烧在成片开头几秒）`}
+                aria-label={t`片头标题`}
+                className="w-full rounded-lg border border-slate-700 bg-black/30 px-2.5 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
+              />
+              <div className="mt-2 flex items-center gap-2">
+                <label className="flex min-w-0 flex-1 items-center gap-1.5 text-[11px] text-slate-300">
+                  <input
+                    type="checkbox"
+                    className="accent-brand"
+                    checked={!project.capOff}
+                    onChange={(e) => editProject((p) => setCaptionsOn(p, e.target.checked))}
+                  />
+                  <Trans>字幕烧进画面</Trans>
+                </label>
+                {canVoice ? (
+                  <select
+                    value={voiceId}
+                    onChange={(e) => editProject((p) => setVoiceId(p, e.target.value))}
+                    aria-label={t`配音音色`}
+                    className="max-w-[10rem] flex-none rounded-lg border border-slate-700 bg-panel px-2 py-1.5 text-[11px] text-slate-200 outline-none"
+                  >
+                    {/* 目录还没取到 / 目录里没有现在这一个：先把它自己摆出来，别让下拉框显示成空的 */}
+                    {!narrators?.some((n) => n.id === voiceId) && <option value={voiceId}>{narratorName(voiceId)}</option>}
+                    {narrators && (
+                      <>
+                        <optgroup label={t`女声`}>
+                          {narrators.filter((n) => n.group === "female").map((n) => (
+                            <option key={n.id} value={n.id}>{n.name}</option>
+                          ))}
+                        </optgroup>
+                        <optgroup label={t`男声`}>
+                          {narrators.filter((n) => n.group === "male").map((n) => (
+                            <option key={n.id} value={n.id}>{n.name}</option>
+                          ))}
+                        </optgroup>
+                      </>
+                    )}
+                  </select>
+                ) : null}
+              </div>
+              {!project.capOff ? null : (
+                <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
+                  <Trans>字幕不烧进画面：成片里只有配音（没配音的那几句就什么都没有）。</Trans>
+                </p>
+              )}
+              {narratorErr ? (
+                <p className="mt-1 text-[10px] leading-relaxed text-amber-200">
+                  <Trans>音色目录没取到（{narratorErr}）——先用现在这个音色。</Trans>
+                </p>
+              ) : null}
+              {plan && plan.timed && !plan.exact ? (
+                <p className="mt-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-100">
+                  <Trans>有一段的真实时长还没量到，字幕和配音的时间可能排得不准——把每一段各播一下就量到了（合成前也会再量一次）。</Trans>
+                </p>
+              ) : null}
+              <div className="mt-2 space-y-2">
+                {view.map((c, i) => {
+                  const text = c.line?.text ?? "";
+                  const cap = lineCap(durOf(c));
+                  // 这一句念出来有多长（一个汉字算 1、三个多字母算 1）—— 与这一段念得完的量比
+                  const chars = Math.ceil(lineUnits(text));
+                  const v = c.line?.voice;
+                  const stale = voiceStale(c.line, voiceId);
+                  const pv = plan?.voices.find((x) => x.clipId === c.id);
+                  const dropped = !!plan?.dropped.includes(c.id);
+                  const making = voicing.has(c.id);
+                  const seg = segs[c.segIndex];
+                  const cutShort = pv ? pv.durSec - pv.playSec : 0;
+                  return (
+                    <div
+                      key={c.id}
+                      className={`rounded-xl border bg-black/40 p-2 ${i === activeIdx ? "border-cyan-400/60" : "border-transparent"}`}
+                    >
+                      <div className="mb-1.5 flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            setSel(c.id);
+                            pendingSeek.current = c.start;
+                            setActiveIdx(i);
+                          }}
+                          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                        >
+                          {seg.poster || seg.firstFrame ? (
+                            <img src={seg.poster || seg.firstFrame} alt="" className="h-7 w-7 flex-none rounded object-cover" />
+                          ) : (
+                            <span className="h-7 w-7 flex-none rounded bg-ink/60" />
+                          )}
+                          <span className="truncate text-[11px] text-slate-300">
+                            <Trans>段{c.segIndex + 1} · {durOf(c).toFixed(1)}s</Trans>
+                          </span>
+                        </button>
+                        <span className={`flex-none text-[10px] tabular-nums ${chars > cap ? "text-amber-300" : "text-slate-500"}`}>
+                          {chars}/{cap}
+                        </span>
+                      </div>
+                      <textarea
+                        rows={2}
+                        value={text}
+                        maxLength={LINE_MAX_CHARS}
+                        onChange={(e) => editLine(c.id, e.target.value)}
+                        onBlur={() => useCut.getState().seal()}
+                        placeholder={t`这一段的字幕 / 旁白（一句话）`}
+                        className="w-full resize-none rounded-lg border border-slate-700 bg-black/30 px-2.5 py-1.5 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
+                      />
+                      {text.trim() ? (
+                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                          {making ? (
+                            <span className="flex items-center gap-1.5 text-[11px] text-slate-300">
+                              <Spinner size="xs" />
+                              <Trans>配音合成中…</Trans>
+                            </span>
+                          ) : v ? (
+                            <>
+                              <button onClick={() => void audition(c.id, v.ref)} className={chip(auditioning === c.id)}>
+                                {auditioning === c.id ? t`■ 停` : t`▶ 试听 ${v.durSec.toFixed(1)}s`}
+                              </button>
+                              <button
+                                onClick={() => void runVoices([c.id])}
+                                disabled={!canVoice || voicing.size > 0 || chars > cap}
+                                className={`${stale ? "rounded-full bg-amber-400/90 px-2.5 py-1.5 text-[11px] font-semibold text-ink" : chip(false)} disabled:opacity-40`}
+                              >
+                                <Trans>↻ 重新配音</Trans>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  const cur = useCut.getState().project;
+                                  if (cur) commit(setClipVoice(cur, c.id, null));
+                                }}
+                                className="rounded-full bg-rose-500/15 px-2.5 py-1.5 text-[11px] text-rose-300"
+                              >
+                                <Trans>去掉配音</Trans>
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => void runVoices([c.id])}
+                              disabled={!canVoice || voicing.size > 0 || chars > cap}
+                              className={`${chip(false)} disabled:opacity-40`}
+                            >
+                              <Trans>🔊 配音</Trans>
+                            </button>
+                          )}
+                        </div>
+                      ) : null}
+                      {chars > cap ? (
+                        <p className="mt-1 text-[11px] leading-relaxed text-amber-200">
+                          <Trans>这一句比这一段放得下的字数多了（{chars}/{cap}），配不了音——改短一点，或者把这一段留长 / 放慢。</Trans>
+                        </p>
+                      ) : null}
+                      {stale ? (
+                        <p className="mt-1 text-[11px] leading-relaxed text-amber-200">
+                          <Trans>字（或音色）改过了，这句配音还是之前合成的那一版——重新配一次，否则成片里念的和字幕对不上。</Trans>
+                        </p>
+                      ) : null}
+                      {pv && cutShort > 0.05 ? (
+                        <p className="mt-1 text-[11px] leading-relaxed text-amber-200">
+                          <Trans>这一句念不完：到片尾还差 {cutShort.toFixed(1)} 秒，成片里会在片尾被掐掉。改短一点，或者把这一段留长。</Trans>
+                        </p>
+                      ) : pv && pv.overSec > 0.05 ? (
+                        <p className="mt-1 text-[11px] leading-relaxed text-amber-200">
+                          <Trans>这一句要念 {pv.durSec.toFixed(1)} 秒，比这一段长 {pv.overSec.toFixed(1)} 秒——会念到下一段里（后面的配音跟着往后顺）。改短一点，或者把这一段放慢 / 留长。</Trans>
+                        </p>
+                      ) : null}
+                      {pv && pv.lateSec > 0.05 ? (
+                        <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
+                          <Trans>上一句还没念完，这一句晚 {pv.lateSec.toFixed(1)} 秒开始。</Trans>
+                        </p>
+                      ) : null}
+                      {dropped ? (
+                        <p className="mt-1 text-[11px] leading-relaxed text-rose-300">
+                          <Trans>这一句排不上：片段太短，或者被上一句配音挤到了片尾之外——成片里不会有它。</Trans>
+                        </p>
+                      ) : null}
+                      {v?.rate && !stale ? (
+                        <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
+                          <Trans>为了在这一段里念完，语速提到了 {(1 + v.rate / 100).toFixed(2)} 倍。</Trans>
+                        </p>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+              {canVoice ? (
+                // 没有该配的句子时这颗键不摆「给 0 句配音」：要么还一句字幕都没写（先说该干什么），要么都配好了（说配好了）
+                lineCount === 0 ? (
+                  <p className="mt-2.5 text-center text-[11px] leading-relaxed text-slate-500">
+                    <Trans>先给上面的片段写一句话，就能把它配成声音。</Trans>
+                  </p>
+                ) : (
+                  <button
+                    onClick={() => void runVoices(voiceTodo.map((c) => c.id))}
+                    disabled={voiceTodo.length === 0 || voicing.size > 0}
+                    className="mt-2.5 w-full rounded-xl bg-cyan-500/85 py-2.5 text-sm font-bold text-ink disabled:opacity-40"
+                  >
+                    {voicing.size > 0
+                      ? t`配音合成中…`
+                      : voiceTodo.length > 0
+                        ? t`🔊 给 ${voiceTodo.length} 句配音（现在免费）`
+                        : t`✓ 能配的句子都配好了`}
+                  </button>
+                )
+              ) : (
+                <p className="mt-2.5 rounded-lg border border-slate-700 bg-black/30 px-2.5 py-1.5 text-[11px] leading-relaxed text-slate-400">
+                  <Trans>配音要连上服务器才能合成（离线 / 演示模式下用不了）。字幕照常能写、能烧进画面。</Trans>
+                </p>
+              )}
+              <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
+                <Trans>一段一句，字数按这一段的时长封顶。有配音时，配乐会自动压到 {Math.round(BGM_DUCK * 100)}%、这一段的原声压到 {Math.round(BED_GAIN * 100)}%（配音为主）。</Trans>
+              </p>
             </>
           )}
 
@@ -1928,6 +2643,12 @@ export default function CutPage() {
               {!audio && audioSpec.kind === "local" && localAudio?.failed ? (
                 <p className="mt-1.5 text-[11px] leading-relaxed text-rose-300">
                   <Trans>这条音频的文件读不出来了（可能被清理过）——去掉它重新挑一条，否则合成时不会有配乐。</Trans>
+                </p>
+              ) : null}
+              {/* 滑杆上写的是人定的音量；有配音时成片里还要再压一道（计划里的 bgmGain）—— 不说的话，滑杆 80% 而听到的只有两三成 */}
+              {plan && plan.bgmGain < 1 ? (
+                <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
+                  <Trans>这条片子有配音：配乐会在你定的音量上再压到 {Math.round(plan.bgmGain * 100)}%（配音为主），预览里听到的就是压过之后的。</Trans>
                 </p>
               ) : null}
               </>

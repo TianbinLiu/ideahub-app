@@ -11,6 +11,10 @@
 // ★ 仓内门禁纪律（check-hook-order 那条）：写完先造真违规试红。上线前试过四处，各自变红：
 //   resetClip 去掉兄弟片段那道闸；projectFits 不比指纹；validateProject 放过 blob: 的本地配乐；
 //   clipEnd 拿（可能还是申报值的）长度去截裁过的出点 —— 最后这条是写的时候真犯过的。
+//   包装层（字幕 / 配音 / 变速 / 闪黑，2026-09-30）又试过九处，各自变红：改范围时把片段上挂的字幕变速丢掉；
+//   分割把一句话留在两半上；有一段的长度没量过还照排闪黑；没量过的段把出点明说成申报值；配音不等上一句念完；
+//   有配音的段原声不压低；`blob:` 的配音读回来留着；字幕的一行比安全宽度宽；把接着拍的接缝报成换场。
+//   其中「一行超宽」第一遍没红（用例里没有"断在逗号后面就超宽"的句子），补了用例才红 —— 试红不是走过场。
 //
 // 用法：node scripts/check-cut-project.mjs [--module=<另一份 cutProject.ts 的路径，造违规试红用>]
 import fs from "node:fs";
@@ -230,25 +234,257 @@ const shape = (p) => p.clips.map((c) => `${c.segIndex}[${c.start}-${c.end ?? "�
 }
 
 // ── 交给合成器的那张表 ──
+const F = { w: 720, h: 1280 };
+const NONE = [undefined, undefined, undefined];
+/** 片段表里"取哪一截"那几格（包装层的几格另有用例） */
+const core = (c) => ({ url: c.url, startSec: c.startSec, ...(c.endSec !== undefined ? { endSec: c.endSec } : {}), segIndex: c.segIndex });
+const r3 = (x) => Math.round(x * 1000) / 1000;
 {
-  const p = must(C.trimClip(must(C.removeClip(fresh(), "c2"), "删"), "c3", "end", 8, lens3), "裁");
-  const tl = C.compileTimeline(p, segs3, lens3);
-  eq("片段表：没裁尾巴的不带出点", tl, {
-    ok: true,
-    clips: [
-      { url: "https://cdn.example/a.mp4", startSec: 0, segIndex: 0 },
-      { url: "https://cdn.example/c.mp4", startSec: 0, endSec: 8, segIndex: 2 },
-    ],
-    total: 13,
-  });
+  // 没有配乐、没有任何包装：与包装层出现之前逐字相同 —— 没裁尾巴的不带出点（量没量过长度都一样）
+  const bare = C.setAudio(must(C.trimClip(must(C.removeClip(fresh(), "c2"), "删"), "c3", "end", 8, lens3), "裁"), null);
+  const want = [
+    { url: "https://cdn.example/a.mp4", startSec: 0, segIndex: 0 },
+    { url: "https://cdn.example/c.mp4", startSec: 0, endSec: 8, segIndex: 2 },
+  ];
+  const tl = C.compileTimeline(bare, segs3, lens3, NONE, F);
+  eq("片段表：没裁尾巴的不带出点", tl.ok && tl.clips.map(core), want);
+  eq("片段表：总长", tl.ok && tl.total, 13);
+  eq("没有长在时间上的东西：量过长度也不明说出点", C.compileTimeline(bare, segs3, lens3, lens3, F).clips.map(core), want);
+  eq("没有包装时每段原速、原声原样、不闪黑", tl.ok && tl.clips.map((c) => [c.speed, c.volume, c.fadeInSec, c.fadeOutSec]), [[1, 1, 0, 0], [1, 1, 0, 0]]);
+  eq("每段在成片里的起点与时长", tl.ok && tl.clips.map((c) => [c.outStartSec, c.outDurSec]), [[0, 5], [5, 8]]);
   const noVideo = [segs3[0], { ...segs3[1], videoUrl: "" }, segs3[2]];
-  eq("有一段没出片", C.compileTimeline(fresh(), noVideo, lens3), { ok: false, issue: "no-video", segNo: 2 });
+  eq("有一段没出片", C.compileTimeline(fresh(), noVideo, lens3, NONE, F), { ok: false, issue: "no-video", segNo: 2 });
   const local = [segs3[0], segs3[1], { ...segs3[2], videoUrl: "idb:merged:mv_x_y" }];
-  eq("混着一段本机成片", C.compileTimeline(fresh(), local, lens3), { ok: false, issue: "local-merged", segNo: 3 });
+  eq("混着一段本机成片", C.compileTimeline(fresh(), local, lens3, NONE, F), { ok: false, issue: "local-merged", segNo: 3 });
   const blob = [{ ...segs3[0], videoUrl: "blob:http://x/1" }, segs3[1], segs3[2]];
-  eq("还不是永久地址", C.compileTimeline(fresh(), blob, lens3), { ok: false, issue: "not-permanent", segNo: 1 });
+  eq("还不是永久地址", C.compileTimeline(fresh(), blob, lens3, NONE, F), { ok: false, issue: "not-permanent", segNo: 1 });
   // 稿子换成单段成片那一拍：指着不存在的段的片段直接略过，别崩
-  eq("指着不存在的段的片段略过", C.compileTimeline(fresh(), [segs3[0]], lens3).clips.length, 1);
+  eq("指着不存在的段的片段略过", C.compileTimeline(fresh(), [segs3[0]], lens3, NONE, F).clips.length, 1);
+  // ★ 有长在时间上的东西（这里是配乐）+ 长度量过：出点明说 —— 合成器按它定每一段多长，我们排字幕靠的是同一个数
+  const timed = C.compileTimeline(fresh(), segs3, [5, 5, 20], [5, 5, 20], F);
+  eq("有包装且量过长度：出点明说成量到的那个数", timed.ok && timed.clips.map((c) => c.endSec), [5, 5, 20]);
+  // ★★ 没量过的那一段出点**不许**明说：明说成申报值会把实际更长的片子拦腰截断（申报 5 秒、实际 20 秒）
+  const part = C.compileTimeline(fresh(), segs3, lens3, [5, undefined, 10], F);
+  eq("没量过的那一段不明说出点", part.ok && part.clips.map((c) => c.endSec ?? null), [5, null, 10]);
+}
+
+// ── 包装层：变速 / 原声 / 闪黑 / 字幕 / 配音挂在片段上 ──
+const voiceOf = (text, durSec, voiceId = "v1") => ({ ref: "idb:cutvoice:vo_x_y", durSec, voiceId, text });
+const bareProj = () => C.setAudio(fresh(), null);
+{
+  let p = bareProj();
+  p = must(C.setClipSpeed(p, "c3", 1.3), "变速");
+  eq("变速就近取一档", p.clips[2].speed, 1.25);
+  eq("变速之后在成片里占的长度", C.clipOutDur(p.clips[2], lens3), 8);
+  eq("变速不改取的那一截", C.clipDur(p.clips[2], lens3), 10);
+  eq("变速算动过（预置音轨会对不上）", C.timelineTouched(p, 3), true);
+  eq("回到原速：这一格拿掉", "speed" in must(C.setClipSpeed(p, "c3", 1), "原速").clips[2], false);
+  eq("速度没变时原样返回", must(C.setClipSpeed(p, "c3", 1.25), "同速") === p, true);
+  eq("找不到片段", issueOf(C.setClipSpeed(p, "nope", 2)), "gone");
+
+  p = must(C.setClipLine(p, "c3", "雨停了，她收起伞。"), "写字幕");
+  p = must(C.setClipFade(p, "c3", true), "闪黑");
+  p = must(C.setClipVolume(p, "c3", 0.6), "原声");
+  // ★ 改范围的几条路都不许把包装层丢掉（原来它们手写 { id, segIndex, start }，片段上只有三格时没问题）
+  const keeps = (q, label) => {
+    const c = q.clips.find((x) => x.id === "c3");
+    eq(`${label}：字幕 / 变速 / 原声 / 闪黑都还在`, [c.line?.text, c.speed, c.volume, c.fade], ["雨停了，她收起伞。", 1.25, 0.6, true]);
+  };
+  const trimmed = must(C.trimClip(must(C.trimClip(p, "c3", "start", 2, lens3), "裁头"), "c3", "end", 8, lens3), "裁尾");
+  keeps(trimmed, "裁头裁尾");
+  keeps(must(C.trimClip(trimmed, "c3", "end", 10, lens3), "出点回到片尾"), "出点回到片尾");
+  keeps(must(C.resetClip(trimmed, "c3"), "还原"), "还原整段");
+  keeps(C.sanitizeClips(trimmed, [5, 5, 6]), "量到更短的长度之后收拾");
+  keeps(must(C.moveClip(p, "c3", -1), "前移"), "换序");
+  // 分割：一句话留在前一半（配音不该念两遍），闪黑说的是开头、也留在前一半；变速与原声两半都带着
+  const sp = must(C.splitClip(p, "c3", 5, "x3", lens3), "分割");
+  const [a, b] = [sp.clips[2], sp.clips[3]];
+  eq("分割：前一半留着字幕与闪黑", [a.line?.text, a.fade], ["雨停了，她收起伞。", true]);
+  eq("分割：后一半没有字幕、不闪黑", ["line" in b, "fade" in b], [false, false]);
+  eq("分割：两半都带着变速与原声", [a.speed, b.speed, a.volume, b.volume], [1.25, 1.25, 0.6, 0.6]);
+}
+{
+  let p = must(C.setClipLine(bareProj(), "c1", "第一句"), "写字幕");
+  eq("没配音、没动过滑杆：原声原样", C.clipVolume(p.clips[0]), 1);
+  p = must(C.setClipVoice(p, "c1", voiceOf("第一句", 2)), "挂配音");
+  eq("有配音、没动过滑杆：原声自动压低", C.clipVolume(p.clips[0]), C.BED_GAIN);
+  eq("人定过音量就按人定的", C.clipVolume(must(C.setClipVolume(p, "c1", 0.9), "定音量").clips[0]), 0.9);
+  eq("交回自动", C.clipVolume(must(C.setClipVolume(must(C.setClipVolume(p, "c1", 0.9), "定"), "c1", null), "交回").clips[0]), C.BED_GAIN);
+  eq("配音与字对得上：不算过期", C.voiceStale(p.clips[0].line, "v1"), false);
+  const edited = must(C.setClipLine(p, "c1", "第一句改了"), "改字");
+  eq("改字不丢配音", edited.clips[0].line.voice?.durSec, 2);
+  eq("改过字：配音过期", C.voiceStale(edited.clips[0].line, "v1"), true);
+  eq("换了音色：配音过期", C.voiceStale(p.clips[0].line, "v2"), true);
+  eq("字清空：这一句连配音一起去掉", "line" in must(C.setClipLine(p, "c1", ""), "清空").clips[0], false);
+  eq("去掉配音、字留着", must(C.setClipVoice(p, "c1", null), "去配音").clips[0].line, { text: "第一句" });
+  eq("没有字时挂不上配音", "line" in must(C.setClipVoice(bareProj(), "c1", voiceOf("x", 1)), "挂").clips[0], false);
+  eq("一句话有上限", must(C.setClipLine(p, "c1", "字".repeat(500)), "超长").clips[0].line.text.length, C.LINE_MAX_CHARS);
+  eq("念得完多长跟着时长走", [C.lineCap(5), C.lineCap(1), C.lineCap(60)], [24, 8, C.LINE_MAX]);
+  // 长度按"念出来多久"算：汉字一个算 1、字母数字一个算 0.3、空格标点不算 —— 按字符数封顶的话英文一段只写得下四五个词
+  eq("汉字一个算一个、标点不算", C.lineUnits("雨停了，她收起伞。"), 7);
+  eq("英文按字母折算", Math.round(C.lineUnits("He decides to deliver it himself.") * 10) / 10, 8.1);
+  eq("6 秒的片段写得下一句十几个词的英文", Math.ceil(C.lineUnits("In the rain, a courier finds a letter with no address.")) <= C.lineCap(6), true);
+  // 工程级的那几格
+  let q = C.setTitle(p, "雨夜霓虹");
+  q = C.setCaptionsOn(q, false);
+  q = C.setVoiceId(q, "zh_female_x");
+  q = C.setEndFade(q, true);
+  eq("标题 / 不烧字幕 / 音色 / 片尾淡出", [q.title, q.capOff, q.voiceId, q.endFade], ["雨夜霓虹", true, "zh_female_x", true]);
+  eq("标题清空：这一格拿掉", "title" in C.setTitle(q, ""), false);
+  eq("字幕开回来：这一格拿掉", "capOff" in C.setCaptionsOn(q, true), false);
+  eq("没变时原样返回", [C.setTitle(q, "雨夜霓虹") === q, C.setCaptionsOn(q, false) === q, C.setEndFade(q, true) === q, C.setVoiceId(q, "zh_female_x") === q], [true, true, true, true]);
+  // 落盘读回来
+  const full = must(C.setClipFade(must(C.setClipSpeed(q, "c2", 2), "变速"), "c2", true), "闪黑");
+  eq("带着包装层原样存、原样读", C.validateProject(JSON.parse(JSON.stringify(full))), full);
+  const dirty = JSON.parse(JSON.stringify(full));
+  dirty.clips[1].speed = 3; // 不在档位里
+  dirty.clips[0].line.voice.ref = "blob:http://x/1"; // 活不过重启
+  dirty.clips[2].line = { text: "   " }; // 只有空白
+  dirty.voiceId = "bad id!";
+  const back = C.validateProject(dirty);
+  eq("不认识的速度丢掉、片段留着", ["speed" in back.clips[1], back.clips[1].fade], [false, true]);
+  eq("blob: 的配音丢掉、字留着", back.clips[0].line, { text: "第一句" });
+  eq("只有空白的字幕不要", "line" in back.clips[2], false);
+  eq("不成形的音色 id 不要", "voiceId" in back, false);
+}
+
+// ── 接缝是不是同一个镜头在延续（该不该加转场）──
+{
+  const p = bareProj();
+  const carried = [{}, { carried: true }, { carried: false }];
+  eq("第一个片段前面没有接缝", C.seamContinuous(p, 0, carried), false);
+  eq("接着上一段尾帧拍的：延续", C.seamContinuous(p, 1, carried), true);
+  eq("明写了不是接着拍的：换场", C.seamContinuous(p, 2, carried), false);
+  eq("老剪辑稿没有这一位：不知道", C.seamContinuous(p, 1, [{}, {}, {}]), null);
+  const sp = must(C.splitClip(p, "c1", 2, "x1", lens3), "分割");
+  eq("分割出来的两半、切点对得上：延续", C.seamContinuous(sp, 1, carried), true);
+  // 接缝被动过（上一段裁了尾巴 / 这一段裁了头 / 中间删了一段 / 换了序）就不再是原来那条
+  eq("上一段裁过尾巴：不算延续", C.seamContinuous(must(C.trimClip(p, "c1", "end", 3, lens3), "裁尾"), 1, carried), false);
+  eq("这一段裁过头：不算延续", C.seamContinuous(must(C.trimClip(p, "c2", "start", 1, lens3), "裁头"), 1, carried), false);
+  eq("换过序：不算延续", C.seamContinuous(must(C.moveClip(p, "c2", -1), "前移"), 1, carried), false);
+  eq("同一段的两半之间裁掉了一截：不算延续", C.seamContinuous(must(C.trimClip(sp, "x1", "start", 3, lens3), "后一半裁头"), 1, carried), false);
+}
+
+// ── 字幕分行分页 ──
+{
+  const lines = (text, max, lpp) => C.paginateCaption(text, max, lpp).map((pg) => pg.lines);
+  const units = (s) => [...s].reduce((w, ch) => w + C.charUnits(ch), 0);
+  eq("短的一行放下", lines("你好", 11), [["你好"]]);
+  eq("空的 / 只有空白", [lines("", 11), lines("   \n ", 11)], [[], []]);
+  // ★ 短语整个整个地装页、页内两行挑差不多宽的断点 —— 不是贪心填满（那样会排出「信使收到一封没 / 有地址的信」）
+  eq("按短语分页、两行差不多宽、行尾不带逗号句号", lines("雨夜里，信使收到一封没有地址的信，他决定亲自去找收信人。", 11), [
+    ["雨夜里，信使收到", "一封没有地址的信"],
+    ["他决定亲自去找收信人"],
+  ]);
+  eq("断在标点后面有加分", lines("他推开门，屋里没有人", 8), [["他推开门", "屋里没有人"]]);
+  // 两行一样宽（9 + 9）要把「收信人，」拆开；宁可 11 + 7，断在逗号后面
+  eq("宁可两行不一样宽，也不把词和逗号拆到下一行", lines("他决定亲自去找收信人，不管要走多远。", 11), [["他决定亲自去找收信人", "不管要走多远"]]);
+  eq("问号叹号留着", lines("真的吗？真的！", 11), [["真的吗？真的！"]]);
+  // 行尾的逗号不画，量宽度时也不算它：前半句正好 11 个字加一个逗号，照样一行放下、断在逗号后面
+  eq("行尾不画的逗号不占宽度", lines("他推开那扇吱呀的旧木门，屋里没有人", 11), [["他推开那扇吱呀的旧木门", "屋里没有人"]]);
+  // 汉字按词断（运行环境的分词器，随版本可能略有出入），所以这几条只验性质、不钉逐字结果
+  const quoted = lines("他说：「走吧。」然后转身离开了这座城，再也没有回来过", 9).flat();
+  eq("收尾的标点不落在行首", quoted.filter((ln) => "，。！？、；：」』）".includes(ln[0])), []);
+  eq("起头的标点不落在行尾", quoted.filter((ln) => "「『（".includes(ln[ln.length - 1])), []);
+  eq("一个字都不丢（行尾的逗号句号除外）", quoted.join("").replace(/[，。]/g, ""), "他说：「走吧」然后转身离开了这座城再也没有回来过");
+  // 最后一页不该只剩一两个字（贪心填满两行之后剩一个「市」字单独翻一页）
+  const pagesOf = C.paginateCaption("信使收到一封没有地址的信然后转身离开了这座城市", 11);
+  eq("字匀到各页：最后一页不是孤零零一两个字", pagesOf.length === 2 && pagesOf[1].units >= 6, true);
+  const seg = typeof Intl.Segmenter === "function" ? [...new Intl.Segmenter("zh", { granularity: "word" }).segment("然后转身")].map((x) => x.segment) : [];
+  if (seg.includes("然后")) {
+    const broken = lines("他说完然后转身离开了这座城市的最后一条街然后消失", 9).flat();
+    eq("词不从中间断开（然 / 后）", broken.filter((ln) => ln.endsWith("然") || ln.startsWith("后")), []);
+  }
+  // 英文按单词断；三行的量匀成两页（一行 + 两行），不是贪心的「两行 + 孤零零一个 dog」
+  eq("英文按词断，不从词中间断", lines("The quick brown fox jumps over the lazy dog.", 11), [["The quick brown fox"], ["jumps over", "the lazy dog"]]);
+  eq("词里的句点 / 撇号不拆", lines("It’s 3.5 km away", 30), [["It’s 3.5 km away"]]);
+  // 一行不许比安全宽度宽（估宽了只是早换行，估窄了才会冲出去）
+  for (const [text, max] of [
+    ["雨夜里，信使收到一封没有地址的信，他决定亲自去找收信人。", 11],
+    ["The quick brown fox jumps over the lazy dog, then naps.", 11],
+    ["https://example.com/a-very-long-url-that-never-ends-and-keeps-going", 11],
+    ["混排 mixed 中英 English 文本 text 也要守住宽度", 7],
+    // 逗号前面那半句比一行多一个字：断在逗号后面最自然，可那样第一行就超宽了 —— 宁可从别处断
+    ["他推开那扇吱呀响的旧木门，屋里空无一人", 11],
+  ]) {
+    const all = C.paginateCaption(text, max).flatMap((pg) => pg.lines);
+    eq(`每一行都不超宽：${text.slice(0, 12)}…`, all.filter((ln) => units(ln) > max + 1e-6), []);
+    eq(`每一页最多两行：${text.slice(0, 12)}…`, C.paginateCaption(text, max).filter((pg) => pg.lines.length > 2), []);
+  }
+  eq("比一行还宽的词硬拆、一个字不丢", C.paginateCaption("abcdefghijklmnopqrstuvwxyz0123456789", 5).flatMap((pg) => pg.lines).join(""), "abcdefghijklmnopqrstuvwxyz0123456789");
+  eq("标题最多排四行", lines("这是一个很长很长的片头标题它会折成好几行", 7, 4)[0].length <= 4, true);
+  // 版式：竖屏 720×1280 一行 11 个字、横屏 1280×720 一行 18 个字（数是量出来的，见 captionLayout）
+  eq("竖屏一行几个字", [C.captionLayout(F).unitsPerLine, C.captionLayout(F).titleUnitsPerLine], [11, 7]);
+  eq("横屏一行几个字", [C.captionLayout({ w: 1280, h: 720 }).unitsPerLine, C.captionLayout({ w: 1280, h: 720 }).titleUnitsPerLine], [18, 12]);
+  eq("1080P 与 720P 排出来的行一样（版式按比例给）", C.captionLayout({ w: 1080, h: 1920 }).unitsPerLine, 11);
+}
+
+// ── 渲染计划：字幕 / 配音排在成片时间轴的哪儿 ──
+{
+  const plan = (p, real = lens3) => C.timelinePlan(p, lens3, real, F, 3);
+  const base = plan(bareProj());
+  eq("什么都没加：没有长在时间上的东西", [base.timed, base.exact, base.total, base.captions.length, base.voices.length, base.bgmGain, base.tailFadeSec], [false, true, 20, 0, 0, 1, 0]);
+  eq("各段在成片里的起点", base.clips.map((c) => c.outStart), [0, 5, 10]);
+  eq("有配乐就算长在时间上（片尾要收声）", [plan(fresh()).timed, plan(fresh()).tailFadeSec], [true, C.BGM_TAIL_SEC]);
+
+  // 变速：后面的段跟着往前挪
+  const fast = plan(must(C.setClipSpeed(bareProj(), "c1", 2), "变速"));
+  eq("变速之后的起点与总长", [fast.clips.map((c) => c.outStart), fast.total], [[0, 2.5, 7.5], 17.5]);
+
+  // 闪黑：这一段从黑里进来 = 上一段尾巴淡出 + 这一段开头淡入
+  const fadeP = C.setEndFade(must(C.setClipFade(bareProj(), "c2", true), "闪黑"), true);
+  const fd = plan(fadeP);
+  eq("闪黑落在接缝两侧、片尾淡出落在最后一段", fd.clips.map((c) => [c.fadeIn, c.fadeOut]), [[0, C.FADE_SEC], [C.FADE_SEC, 0], [0, C.END_FADE_SEC]]);
+  eq("片尾声音跟着收", fd.tailFadeSec, C.END_FADE_SEC);
+  // ★★ 有一段的长度没量过：闪黑与片尾收声一律不做（位置全是错的 —— 淡出落在片段中间，画面黑下去就亮不回来）
+  const unsure = plan(fadeP, [5, undefined, 10]);
+  eq("长度靠不住时不闪黑、不收声", [unsure.exact, unsure.clips.map((c) => [c.fadeIn, c.fadeOut]), unsure.tailFadeSec], [false, [[0, 0], [0, 0], [0, 0]], 0]);
+  eq("出点是人裁的也算靠得住", plan(must(C.trimClip(fadeP, "c2", "end", 3, lens3), "裁尾"), [5, undefined, 10]).exact, true);
+  // 很短的片段：淡入淡出各自最多占一半
+  const tiny = plan(must(C.setClipFade(must(C.trimClip(bareProj(), "c2", "end", 0.5, lens3), "裁到半秒"), "c2", true), "闪黑"));
+  eq("淡入不比半个片段长", tiny.clips[1].fadeIn, 0.25);
+
+  // 只有字幕、没有配音：整段挂着（开头晚一点出、结尾早一点收）
+  const cap = plan(must(C.setClipLine(bareProj(), "c2", "你好世界"), "字幕"));
+  eq("没配音的字幕挂满这一段", cap.captions.map((c) => [r3(c.startSec), r3(c.endSec), c.lines, c.kind, c.clipId]), [[5.15, 9.9, ["你好世界"], "caption", "c2"]]);
+  eq("只有字幕时配乐不压", cap.bgmGain, 1);
+
+  // 配音：从片段开头稍后念，字幕跟着声音走
+  const v1 = must(C.setClipVoice(must(C.setClipLine(bareProj(), "c1", "第一句"), "字"), "c1", voiceOf("第一句", 3)), "配音");
+  const pv = plan(v1);
+  eq("配音排在片段开头稍后", pv.voices.map((v) => [r3(v.atSec), v.durSec, v.playSec, v.lateSec, v.overSec]), [[0.15, 3, 3, 0, 0]]);
+  eq("字幕跟着配音：念完再留一小会儿", pv.captions.map((c) => [r3(c.startSec), r3(c.endSec)]), [[0.15, 3.4]]);
+  eq("有配音：配乐压低、这一段原声压低", [pv.bgmGain, pv.clips[0].volume, pv.clips[1].volume], [C.BGM_DUCK, C.BED_GAIN, 1]);
+
+  // 念超了：下一句往后顺，不叠着念
+  let over = must(C.setClipVoice(must(C.setClipLine(bareProj(), "c1", "很长的一句"), "字"), "c1", voiceOf("很长的一句", 6)), "配音");
+  over = must(C.setClipVoice(must(C.setClipLine(over, "c2", "第二句"), "字"), "c2", voiceOf("第二句", 2)), "配音");
+  const po = plan(over);
+  eq("念超了记下超出多少", r3(po.voices[0].overSec), 1.15);
+  eq("下一句往后顺", [r3(po.voices[1].atSec), r3(po.voices[1].lateSec)], [6.3, 1.15]);
+  eq("两条字幕不叠着", po.captions[1].startSec >= po.captions[0].endSec, true);
+
+  // 念到片尾还没完：在片尾掐掉
+  const tail = plan(must(C.setClipVoice(must(C.setClipLine(bareProj(), "c3", "收尾的话"), "字"), "c3", voiceOf("收尾的话", 12)), "配音"));
+  eq("片尾掐掉", [r3(tail.voices[0].playSec), r3(tail.voices[0].overSec)], [9.85, 2.15]);
+
+  // 位置不够：片段太短，字幕不出、并且记下来
+  const short = plan(must(C.setClipLine(must(C.trimClip(bareProj(), "c2", "end", 0.5, lens3), "裁到半秒"), "c2", "来不及看"), "字"));
+  eq("太短的片段排不上字幕", [short.captions.length, short.dropped], [0, ["c2"]]);
+
+  // 不烧字幕：配音照念
+  const off = plan(C.setCaptionsOn(v1, false));
+  eq("不烧字幕时只留配音", [off.captions.length, off.voices.length], [0, 1]);
+
+  // 片头标题
+  const tt = plan(C.setTitle(bareProj(), "雨夜霓虹：迷失信使"));
+  eq("片头标题", tt.captions.map((c) => [c.kind, c.startSec, r3(c.endSec), c.lines]), [["title", C.TITLE_AT_SEC, r3(C.TITLE_AT_SEC + C.TITLE_SEC), ["雨夜霓虹", "迷失信使"]]]);
+  eq("只有空白的标题不算", plan(C.setTitle(bareProj(), "   ")).captions.length, 0);
+
+  // 一句话翻两页：时间按字数分
+  const two = plan(must(C.setClipLine(bareProj(), "c3", "雨夜里，信使收到一封没有地址的信，他决定亲自去找收信人。"), "字"));
+  eq("翻页：两页首尾相接、盖满这一段", [two.captions.length, r3(two.captions[0].startSec), two.captions[0].endSec === two.captions[1].startSec, r3(two.captions[1].endSec)], [2, 10.15, true, 19.9]);
+  eq("翻页：字多的那一页挂得久", two.captions[0].endSec - two.captions[0].startSec > two.captions[1].endSec - two.captions[1].startSec, true);
 }
 
 if (problems.length) {
