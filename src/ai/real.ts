@@ -357,9 +357,14 @@ const TEXT_DESC_SUBJECT: Record<CardType, string> = {
   background: "故事设定",
 };
 
+/** 跟看图模型要的描述字数（比 TEXT_DESC_MAX 短两成留余量，理由见 describeCardForText） */
+const TEXT_DESC_ASK = Math.round(TEXT_DESC_MAX * 0.8);
+
 /**
  * 卡片的**文字版形象描述**（Card.textDesc）：收不到这张卡的图时替代图片（标准 / 极速、真人档里不当起拍画面的卡）。
- * ★ 按 CARD_SCOPE 的卡种分工写（唯一口径），回包过同一道措辞闸 dropRefClauses，截到 TEXT_DESC_MAX。
+ * ★ 按 CARD_SCOPE 的卡种分工写（唯一口径），回包过同一道措辞闸 dropRefClauses，按分句截到 TEXT_DESC_MAX。
+ * ★ 跟模型要的是 TEXT_DESC_ASK（比上限短两成）：「不超过 N 字」模型常超出一两成（2026-10-01 真机：要 100 给了一百多，
+ *   原来硬截在第 100 字，结尾断在「…右上角悬着浅黄」）。留了余量，大多数时候根本不用截；超了也截在分句上（clipSentences）。
  * ★ 计费同识别：一次 chat 定额 CHAT_TURN_TOKENS（服务端 priceOf，与带几张图无关）；失败分档走 ai/failCharge。
  * ★ 卡上一张能进模型的图都没有就整句拒（不花钱）：凭名字编一段外形，等于替这张卡另造一个样子。
  */
@@ -373,12 +378,16 @@ export async function describeCardForText(card: Card): Promise<string> {
   const raw = await chatVision(
     zhPrompt`你是卡牌文案师。只输出描述本身，不要输出任何其他文字。`,
     zhPrompt`看图，为${CARD_TYPE_PROMPT[card.type]}「${card.name}」写一段文字版形象描述，给收不到图片的视频模型用：` +
-      zhPrompt`不超过${TEXT_DESC_MAX}字，具体到不看图也能画出同一个${subject}。${CARD_SCOPE[card.type]}。` +
+      zhPrompt`不超过${TEXT_DESC_ASK}字，具体到不看图也能画出同一个${subject}。${CARD_SCOPE[card.type]}。` +
       (line ? zhPrompt`已有的出片句：${line}（在它的基础上展开，别和它矛盾）。` : "") +
       zhPrompt`不要写名字，不要加引号、编号和标题。`,
     refs.refs,
   );
-  const text = dropRefClauses(raw.replace(/^[「"“'\s]+|[」"”'\s]+$/g, "").replace(/\s+/g, " ").trim()).slice(0, TEXT_DESC_MAX);
+  const text = clipSentences(
+    dropRefClauses(raw.replace(/^[「"“'\s]+|[」"”'\s]+$/g, "").replace(/\s+/g, " ").trim()),
+    TEXT_DESC_MAX,
+    { clause: true },
+  );
   // i18n-ignore-next-line: 不上屏：调用方（CardModelFit）按 ArkBadReply 类型换成自己的整句并说清钱
   if (!text) throw new ArkBadReply("描述是空的");
   return text;
@@ -3328,10 +3337,19 @@ export async function skillChat(
   return chatBounded(system, user, limits.maxTokens, limits.timeoutMs);
 }
 
-/** 按句号截断，宁可短不要断在半句。找不到句读就直接截并补省略号。 */
-function clipSentences(text: string, max: number): string {
+/**
+ * 按句读截断，宁可短不要断在半句。找不到句读就直接截并补省略号。
+ * · 缺省只认句末（。！？）—— 对话气泡要的是整句话；
+ * · `clause: true` 连分句（；，、）也认，截在分句处就把它换成句号。给**描述**用：文字版形象描述常常是
+ *   一整段逗号串起来的长句，只认句末的话，一截就掉一大半（2026-10-01 真机那段，只认句号会把远山整段丢掉）。
+ */
+function clipSentences(text: string, max: number, opts?: { clause?: boolean }): string {
   if (text.length <= max) return text;
   const cut = text.slice(0, max);
-  const i = Math.max(cut.lastIndexOf("。"), cut.lastIndexOf("！"), cut.lastIndexOf("？"));
-  return i > 20 ? cut.slice(0, i + 1) : cut + "…";
+  const marks = opts?.clause ? "。！？；，、" : "。！？";
+  let i = -1;
+  for (const m of marks) i = Math.max(i, cut.lastIndexOf(m));
+  // 描述有硬上限（TEXT_DESC_MAX），省略号也得算在里面；对话气泡照旧（缺省行为不动）
+  if (i <= 20) return opts?.clause ? cut.slice(0, max - 1) + "…" : cut + "…";
+  return cut.slice(0, i) + ("。！？".includes(cut[i]) ? cut[i] : "。");
 }
