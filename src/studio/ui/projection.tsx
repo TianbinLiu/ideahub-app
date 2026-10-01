@@ -1232,6 +1232,7 @@ function ProposalsPanel() {
         <PlanBoard
           dense
           proposals={node.proposals}
+          minSec={tierOf(node.videoTier).minSec}
           pickedId={pickedId}
           isDone={proposalDone}
           busy={busy}

@@ -600,6 +600,7 @@ function NodeScreen({
           <div className="absolute inset-0" data-noswipe>
             <PlanBoard
               proposals={node.proposals}
+              minSec={tierOf(node.videoTier).minSec}
               pickedId={picking ? null : node.chosenId}
               isDone={(p) => !!node.videoByProposal[p.id]}
               busy={busy || generating}
