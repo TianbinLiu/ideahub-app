@@ -77,7 +77,10 @@ src/
                `videoDownload.ts` = 保存到本地（能不能存 / 存哪几个 / 叫什么名字 / 下载队列 /
                交给系统分享，**唯一实现**；落点是原生 Cache 目录，不进 IndexedDB）；
                `projects.ts` = 已发布作品的「工坊工程」（供编辑页「🛠 回炉重做」取回来接着改）。
-               **服务端为真相**，本机只有 5 条 LRU 缓存；存的是一份只含永久 URL 的瘦身画布
+               **服务端为真相**，本机只有 5 条 LRU 缓存；存的是一份只含永久 URL 的瘦身画布；
+               `cutProject.ts` = **剪辑工程**：剪辑页时间轴（片段 / 圈选 / 配乐 / 导出档 / 合并留底）的数据形状与全部改法，
+               纯函数、零运行时依赖（构建里 `scripts/check-cut-project.mjs` 直接 import 它跑）；运行时那一份（带撤销栈）
+               在 `studio/cutStore.ts`，随 `cutSession.ts` 落盘
   hooks/
   mock/        无后端时的假数据
   pages/       路由页面（hash 路由）；`SupportPage` = AI 客服，`SupportModelsPage` / `SupportPersonasPage` =
@@ -178,6 +181,22 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   原生打不开）。成片时长**由合成器给**（`ExportResult`），不再自己解码去量。
   ⚠ 浏览器（`npm run dev`）里没有这个插件，合并会整句拒 —— 意味着**合并这条路只能装机验**，别指望浏览器。
   ⚠ 原生只做**机制**，标识盖不盖、盖多久是**政策**，在 `data/aigcLabel` 一处（下一条）。
+- **剪辑页的时间轴是一份「剪辑工程」，不是页面的 useState**（2026-09-30，方案见 docs/cut-autoedit-research.md）：
+  片段（裁剪 / 分割 / 顺序）、圈选、配乐、导出档位都在 `data/cutProject` 的 `CutProject` 里，**改法只有那里的纯函数**
+  （手点的与之后「对剪辑台说话」办的走同一批，改不成回原因代码、话由剪辑页说），运行时在 `studio/cutStore`（带撤销 / 重做），
+  随剪辑稿落盘（`saveCutSession` 的第三参必填）。离开剪辑页再回来、App 重启后「接着剪」，时间轴都原样还在。四条规矩：
+  ① **生命周期照 `draftAudioHint`**：产出新稿子的每一处都要 `useCut.getState().load(…)`（组稿 / 单段编辑 / 个人页「接着剪」），
+  漏了由 `cutStore.ensure` 按源段指纹（`segSig`）兜底 —— 对不上就按眼前的稿子重开一份；
+  ② **合并是先留底、再换稿子**：`markMerged` 把源段存进工程，之后才把 `draft.segments` 换成单段成片；「回去改」只有
+  `studioStore.reopenCut` 一处（剪辑页横幅与发布页那颗键都调它）。源段任何时刻只在一处（没合 → `draft.segments`，合了 →
+  `project.merged.sources`）。顺序反过来的话，剪辑页那个「对一下工程」的 effect 会把工程当成别人的丢掉；
+  ③ **片段的出点缺省 = 片尾**（`CutClip.end?`），裁过的出点**不拿长度去截**：`lens` 在真实时长量出来之前是申报值，
+  收拾越界片段只认量出来的长度（`sanitizeClips(realLens)`，没量过的那一格一个都不动）；
+  ④ 撤销栈在**圈选重拍落地**时清空（栈里的快照还带着已经兑现的圈选，撤回去就能对着改好的画面再收一遍钱）；合并 / 回去改
+  不清 —— 导出档位与合并留底不归快照管（`cutStore.carryOver`），撤销一步裁剪不会顺手把留底撤没。撤销栈只活在内存里，
+  所以另有一条**不靠撤销**的路把删掉的段加回来（`missingSegs` / `restoreSeg`，时间轴下那排「＋ 段N」）：时间轴落盘之后删段是持久的，
+  而每一段都是花钱炼出来的，不能让它在界面上彻底够不着。
+  本地挑的配乐存进本地库（`cutbgm:` 键，`cacheSweep` 认它），工程里只记指针；`blob:` 地址活不过重启，读回来会被丢掉。
 - **AI 生成标识分两顶帽子，都要戴**（2026-09-07 逐条查证，出处见 `data/aigcLabel` 头部）：
   ① **生成侧**（《标识办法》第四条第一款第（四）项）：「在视频**起始画面**和视频**播放周边**的适当位置添加
   显著的提示标识，**可以**在视频末尾和中间适当位置添加」—— 应当的只有那两处，**视频这一项没有「每一帧 / 全程」的要求**。
@@ -621,7 +640,9 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 | 多序列合成里，第二条序列（BGM）喂的是一个**带画面的 mp4** | 白模模板的原片 `refVideo.url` 就是 mp4 —— 白模成片自己无声，声音正是从它来的。不 `setRemoveVideo(true)` 的话，合成器要多解一路视频，还要去猜两路画面谁盖谁 | BGM 那条 `EditedMediaItem` 一律 `.setRemoveVideo(true)`：只要声音。⚠ 这条路**至今没在真机上跑通过一次**（2026-09-07 的两次合并都没有 BGM）——验它要一条带模板原声的稿子走完整条 组稿 → 剪辑 → 合并 |
 | 播放器上写死 `muted`，理由写的是「静音自动播放才不被浏览器拦」，而这个播放器**根本不自动播放** | `SegmentPlayer:144` 与 `BranchPlayer:208` 都要用户先点那颗播放键才开始播 —— 手势早就有了，自动播放策略根本不适用。于是**发布页的成片预览与作品详情页永远是哑的，且全页没有任何解除入口**（首页 `FeedPage` 反而是对的：`muted={muted}` + 划走划来那套解锁）。后果不是"少了个功能"：用户刚合完一条片子，第一件事就是在发布页播一下 —— 听不见声音，得出的结论是**「合并把我的声音弄丢了」**，而片子里可能好好地有音轨。2026-09-07 主人报「又没声音了」时，这一层与"文件真的没音轨"那一层是同时成立的，光修一层看不出效果 | 缺省**出声**（`useState(false)`），控制条上给一颗 `🔊 有声 / 🔇 已静音`；`play()` 被拒了才退成静音重试一次 —— 别把"能不能播"赌在"能不能出声"上。⚠ `muted` 是 property 不是普通 attribute，换段会重建 `<video>`，要用一个无依赖的 effect 每次渲染都钉一遍。⚠ 首页那套静音是**解锁自动播放**用的，别一起改 |
 | media3 序列里**第一段没有音轨、后面的段有** | **整条合并当场抛**。反编译 media3 1.11.0 的 `SequenceAssetLoader` 定的案，那句报错在字节码里逐字存在：「The preceding MediaItem does not contain any audio track. …then `EditedMediaItemSequence.Builder.experimentalSetForceAudioTrack()` needs to be set to true.」机理是**轨道集合由第一段定死**（`sampleConsumersByTrackType`），后面的段冒出首段没有的轨型时 `checkNotNull` 拿到 null 就炸。而这条流水线在本 app 里再正常不过：白模复刻段天生无音轨（`BLOCKOUT_TASK` 的 `generate_audio:false`），hd/ultra 档的普通段真发 `generate_audio:true` ⇒ **「第 1 段白模 + 第 2 段普通段」必炸**。⚠ 反过来（有声在前、无声在后）不炸，media3 自己补静音 | 多段时开 `experimentalSetForceAudioTrack(true)`。⚠ **别一律开**：开了之后输出一定带一条音轨（没得混就是静音的），`ExportResult.audioMimeType` 恒非 null ⇒ 用来当面告诉用户「这条成片没有声音」的那一位就开始骗人。所以 `VideoMergePlugin` 只在 `size() > 1` 时开，并把 `hasAudio` 做成**三态**：送了 BGM = true、单段照实报、多段且没送 BGM **不报**（Web 侧 undefined = 什么都不说）。⚠ 顺带确认过一件不用担心的：角标的 `presentationTimeUs` 是**全局时间轴**（`SampleConsumerWrapper.registerVideoFrame` / `queueInputTexture` 都先做 `totalDurationUs + 本段时间戳`），所以多段片子只有整条成片开头那 2.5 秒有角标，不是每段都盖 |
-| 合并产物（`idb:merged:…`）又被送回剪辑页的合并入口 | 从个人页「接着剪」打开一条**已经合好**的稿子，点「下一步」会撞上 `mergeAndGo` 里那道 `^https?:` 闸，抛「第 N 段还不是永久地址，合成用不了——**回到工作流等它转存完再来**」。这条出路**根本不存在**：片子已经合好了没什么可等的，工作流也早被组稿那一拍 `reset()` 清空了 ⇒ **这条合好的成片再也发不出去**，而屏幕上还指着一个假出口（2026-09-07 核查抓到，主人当时正踩在上面） | 判据一处 `CutPage.alreadyMerged`（`draft.merged` 为主，单段 `idb:` 兜老稿子）：那颗键写「去发布」并直接 `navigate("/publish")`，`mergeAndGo` 起手也拦一道。⚠ 已经合好的片子**改不了**（不能再合一次），要改只能回工作流重做一条 —— 这句话要说出来，别让人对着一颗点不动的键猜 |
+| 合并产物（`idb:merged:…`）又被送回剪辑页的合并入口 | 从个人页「接着剪」打开一条**已经合好**的稿子，点「下一步」会撞上 `mergeAndGo` 里那道 `^https?:` 闸，抛「第 N 段还不是永久地址，合成用不了——**回到工作流等它转存完再来**」。这条出路**根本不存在**：片子已经合好了没什么可等的，工作流也早被组稿那一拍 `reset()` 清空了 ⇒ **这条合好的成片再也发不出去**，而屏幕上还指着一个假出口（2026-09-07 核查抓到，主人当时正踩在上面） | 判据一处 `CutPage.alreadyMerged`（`draft.merged` 为主，单段 `idb:` 兜老稿子）：那颗键写「去发布」并直接 `navigate("/publish")`，`mergeAndGo` 起手也拦一道。⚠ 2026-09-30 起合好的片子**可以「回去改」**（合并时源段留底在剪辑工程里，`studioStore.reopenCut`；剪辑页横幅与发布页各有一颗键），改完再合一次；只有**没留底**的老稿（那天之前合的）才是"要改只能回工作流重做一条"—— 这句话仍然要说出来，别让人对着一颗点不动的键猜 |
+| 拿「这一段有多长」去截 / 收拾时间轴上的片段，而那个数在真实时长量出来之前是**申报值** | 白模复刻 / 参考直出的片子申报 5 秒、实际 20 秒。从个人页「接着剪」回来、截帧流还没到的那几秒里，按申报值截出点 ⇒ 裁在第 15 秒的出点变成 5，这时点「下一步」合出来只有 5 秒；按申报值收拾"越界"片段更狠 ⇒ 裁在第 12 秒的入点被当成落到片尾之外，整个片段回到整段或被拿掉。全程零报错（2026-09-30 写剪辑工程时自己犯的，回头逐行复查才抓到；`check-cut-project.mjs` 里钉了一条） | 「按多长画 / 算」用 `lens`（实测优先、没实测过退回申报值）没问题；**凡是会改掉用户裁剪结果的判断**只认量出来的长度（`realLens`，没量过 = undefined = 不动）。`cutProject.clipEnd` 不截、`sanitizeClips` 只收 `realLens` |
+| 页面开着的时候，它依赖的那份 store 被别处清掉，而对上它的 effect 只在"进页 / 稿子换形状"时跑 | 剪辑页的时间轴一个片段都没有、每颗键都点不动，屏幕上一个字都不说（2026-09-30 浏览器里实测撞到：工程被 `load(null)` 而稿子形状没变） | 补开工程的 effect 把「现在有没有工程」也放进依赖（`CutPage` 的 `hasProject`）；稿子的身份用指纹（`draftSig`）而不是段数，段数相同的另一份稿子也能认出来 |
 | 把「模板原片」当音轨源送进合成器，却没问过它有没有声音 | 剪辑页会**自动**把白模模板的 `refVideo.url` 预置成「原视频音轨」，而**白模化生成的模板存的是方舟白模产物**（server `branchTemplate.routes.js:1099` 的 `blockout.transferToCloudinary(verdict.videoUrl)` → `:1292 refVideo.url`）—— 那份产物自己就是无声的（`BLOCKOUT_TASK` 的 `generate_audio:false`）。配上 2026-09-07 加的 `.setRemoveVideo(true)`，这条 `EditedMediaItem` 就成了**零轨道输入**：往 Composition 里塞一条什么都不出的序列，轻则白解一路、重则整发抛。⚠ 就算不抛也一样是错的 —— 那一栏写着「原视频音轨」而它根本发不出声，**文案在骗人**，而这条是 App 自己勾上的、用户从没选过 | 送之前探一次（`VideoMergePlugin.probeHasAudio`，`MediaMetadataRetriever` 的 `METADATA_KEY_HAS_AUDIO`）：确定没有就**跳过并如实说一句**（`bgmSkipped` 一路带到发布页）。⚠ 只探**这一条**、不探每个片段：一次网络读，还要带执行器 + 超时（`MediaMetadataRetriever` 对网络地址没有超时旋钮，卡住就是整条合并卡住）。⚠ 探不出来时**按"有"处理** —— 宁可按老样子走，也不要因为探测本身失败就把用户的配乐悄悄丢掉。⚠ 反过来「自带参考视频」那条路存的是原片裁剪（`templates.ts` 的 `url: cut.url`），那种是带声音的 —— 别一刀切当成都没声音。⚠ `MediaMetadataRetriever` 的**本地文件与网络地址是两个重载**：`setDataSource(String, Map)` 是网络那一版，喂 `file://` 直接 `RuntimeException: setDataSource failed: status = 0xFFFFFFEA`（2026-09-08 真机抓到）—— 而本地挑的 BGM 正是先落盘再以 `file://` 送进来的，于是那条路上的探测**永远失败**。兜底是「按有处理」所以没出错，但探测等于白跑、还每次刷一条警告，将来真正的失败会被这堆噪音盖住 |
 | 「这条成片是不是哑的」只问合成器 | 多段合并必须开 media3 的 forceAudioTrack（不开会整发抛），而它会给哑片也补一条静音轨 ⇒ `ExportResult.audioMimeType` 恒非 null、合成器**答不准**。而这恰恰是最该当面说的一句话：默认 std 档 `audio:false`、白模钉死 `generate_audio:false` ⇒ **多段全哑是常态不是边角**，于是一条没人告诉你它是哑的成片会一路发出去 | 判据挪到**输入侧**：组稿那一拍就算好 `VideoSegment.hasAudio`（`!tplOfNode(n)?.refVideo && videoAudioOn(tierOf(n.videoTier).model)`，零网络零 token），剪辑页拿**参与合并的那几段**（`view` 不是 `segs`）全为 false 来判。合成器那一位仍留着兜单段与老稿。⚠ 判否定：有一段是 `undefined`（老草稿）就当"不知道"，一个字都别说 |
 | 整条成片的画幅取 `segs[0]` | `segs[0]` 与**时间轴上的第一段**经常不是同一段 —— 用户把第 1 段删掉、或拖到后面去，成片仍按一个**根本不在片子里**的段的画幅归一；而归一走的是 `LAYOUT_SCALE_TO_FIT_WITH_CROP`，剩下那些段被硬裁掉两边，全程零报错。套白模模板会改写那一段的 aspect，所以混排是真会发生的 | 认 `segs[view[0]?.segIndex]`，`segs[0]` 只当兜底 |
@@ -659,3 +680,21 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 3. `adb reverse tcp:4000 tcp:4000`：手机上的 localhost:4000 就是电脑。e2e 模式的 CSP 除了 connect-src，**img-src 也放行了 localhost**——市场 Live2D 模型的贴图是 `<img>` 载入的，不放行的话真机换装只会看到 "Texture loading error" 然后回落官方形象。debug 变体的网络安全配置（`android/app/src/debug/res/xml/`）只给 localhost 放行明文；release 一个字没动。
 4. debug 包是 `com.ideahub.branchvideo.debug`，和正式包并排装，测完 `adb uninstall com.ideahub.branchvideo.debug`，不碰手机上正式版的草稿与登录态。
 5. QQ/微信登录在 debug 包里不能用（按正式包名 + 正式签名注册的），用密码登录测。
+
+### 验剪辑页的合并：模拟器就能跑，不必动主人的手机（2026-09-30 实测）
+
+「合并只能装机验」里的"机"可以是模拟器：AVD `Pixel_8_API_36` 上原生合成器（Media3 Transformer）照常能跑
+（软件编解码，三段 12 秒的片子约 11 秒合完），不用占主人的手机，也不用等它闲下来。
+
+1. 起模拟器（无窗口）：`emulator -avd Pixel_8_API_36 -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect`，
+   之后**每一条 adb 都带 `-s emulator-5554`** —— 主人的手机可能同时连着。
+2. 出包照上面第 2 步，但**不要** `.env.e2e.local`（没有 `VITE_API_BASE` = 离线模式，本机账号直接能登）。
+3. 测试片段放在电脑上由 dev server 供（比如 `public/_cuttest/*.mp4`，ffmpeg 现生成，**别提交**），
+   `adb -s emulator-5554 reverse tcp:5178 tcp:5178` 之后地址写 `http://localhost:5178/_cuttest/a.mp4`：
+   原生合成器拉得到（debug 变体给 localhost 放行了明文），预览的 `<video>` 也播得出（e2e 模式的 CSP 给
+   **media-src** 也放行了 localhost —— 不放行的话片段在剪辑页里一段都播不出来，分割 / 裁剪读的正是播放头）。
+4. 这种包是生产模式构建，**没有 `__studio` / `__cut` 这些 DEV 钩子**：要一条多段稿子，就经 CDP 往 IndexedDB
+   的 `ideahub-app.cut.v1` 里写一条剪辑稿（`{ v: 2, byOwner: { [账号 id]: { draft, at } } }`），刷新后从
+   「我的 →接着剪」进剪辑页 —— 从那一步起走的全是 App 自己的代码。CDP 的接法见 memory 的 real-device-testing。
+5. 合出来的成片在 IndexedDB 的 `merged:` 键里，经 CDP 读成 base64 拿回电脑，`ffprobe` 量时长与轨道、
+   `ffmpeg` 抽帧看画面（竖屏成片在容器里是 1280×720 + rotation −90，那是 Media3 的写法，不是画幅错了）。

@@ -15,6 +15,8 @@ import { DraftMode, WorkDraft, WorkDraftMeta, deleteDraft, getDraftMeta, saveDra
 import { showToast } from "../data/toast";
 import { t } from "@lingui/core/macro";
 import { cutSessionLoadIssue, dropCutSession, saveCutSession } from "../data/cutSession";
+import { unmarkMerged } from "../data/cutProject";
+import { useCut } from "./cutStore";
 import type { CanvasSnapshot as ProjectCanvas } from "../data/projects";
 import { GenStep } from "./genLog";
 import { SPEAK_MOOD, speak, stopSpeaking } from "./speech";
@@ -766,6 +768,14 @@ interface StudioState {
    *   两种结局用同一个 `false` 也不行：存储写失败与"这条路不该落盘"要说的话完全不同。
    */
   persistCutDraft: () => Promise<string | null>;
+  /**
+   * 「回去改」：把一条**已经合好**的稿子还原成合并之前的样子（源段 + 分支树回到稿子里、时间轴原样还在），
+   * 改完再合一次（合成不花钱）。**唯一一处**——剪辑页的横幅与发布页那颗键都调它。
+   * @returns false = 还原不了：稿子没合过，或者这条稿子没有留底（2026-09-30 之前合的老稿）
+   * ★ 旧的那条合并成片（`idb:merged:`）不在这里删：它从此没人引用，交给 cacheSweep 24h 后收
+   *   （与 dropCutSession 同一条：删除只有那一处实现）。
+   */
+  reopenCut: () => boolean;
 
   // ── 在途工程草稿（data/drafts.ts）─────────────────────────
   // ⚠ 与上面的 `draft` 不是一回事：`draft` 是组稿产物（待发布的成片稿），
@@ -2087,6 +2097,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
     const slot = activePath().find((n) => n.id === nodeId);
     const p = slot?.proposals.find((q) => q.id === proposalId);
     if (!slot || !p) return;
+    // 单段稿子同样是一份新稿子：剪辑工程从头开（同 finalizeInner；这条路不落盘，见 persistCutDraft 的 ★★）
+    useCut.getState().load(null);
     set({
       segEdit: { nodeId, proposalId },
       projection: null,
@@ -2394,6 +2406,9 @@ export const useStudio = create<StudioState>()((set, get) => ({
       }
     }
     if (moved()) return false;
+    // ★ 新稿子配一份新的剪辑工程（上一条稿子的时间轴 / 圈选 / 配乐不许跟过来）。规矩同 draftAudioHint：
+    //   产出新稿子的每一处都要交代这一格，见 cutStore 文件头。剪辑页进页时会按这份稿子现开一份
+    useCut.getState().load(null);
     set({
       // ★ 新的合成稿一出现，上一次发布就翻篇（publishedWorkId 的清零规则只有这一条：
       //   "draft 被赋新值"。openSegmentEdit 是另一个赋新值的地方，同样清）
@@ -2487,7 +2502,9 @@ export const useStudio = create<StudioState>()((set, get) => ({
     }
     // ★ 音轨预置跟着稿子一起存（理由见 cutSession.CutSession.audioHint 的 ★★）：
     //   它只在组稿那一拍算得出来，App 一重启就没了，而「接着剪」正是重启之后才走的那条路。
-    const ok = await saveCutSession(draft, draftAudioHint);
+    // ★ 剪辑工程（时间轴 / 圈选 / 配乐 / 合并留底）同一拍一起存：稿子与工程分两次写的话，
+    //   中间断一次就是「成片合好了、留底没存上」—— 那条稿子从此改不回去
+    const ok = await saveCutSession(draft, draftAudioHint, useCut.getState().project);
     if (ok) return null;
     // ★ 上一条剪辑稿没读出来时 saveCutSession 会拒（不许盖掉一条读不出来的、花过钱的稿子）：原因与出路都不同，分开说
     return cutSessionLoadIssue()
@@ -2499,6 +2516,25 @@ export const useStudio = create<StudioState>()((set, get) => ({
           message: "没能存进本地库（存储空间不足或浏览器隐私模式）",
           comment: "接在「……，但」后面说的从句（CutPage / useFlowActions 拼进句子里）：英文小写开头",
         });
+  },
+
+  reopenCut: () => {
+    const { draft } = get();
+    const project = useCut.getState().project;
+    const kept = project?.merged;
+    if (!draft || !draft.merged || !project || !kept || kept.sources.length === 0) return false;
+    // 源段回到稿子里；`merged` 这个键整个拿掉（不是写 false）—— 发布体会原样带上它，读它的地方都判真值
+    const { merged: _wasMerged, branchTree: _flat, ...rest } = draft;
+    void _wasMerged;
+    void _flat;
+    // ★ 留底同一拍撤掉：源段只许在一处（见 cutProject.CutProject.merged 的 ★）。不记撤销、也不清撤销栈 ——
+    //   留底不归快照管（cutStore.carryOver），合并之前那几步在回来之后照样撤得回去。
+    // ★ 顺序与合并那一拍一致：**先改工程、再换稿子**（两步在同一个同步段里，剪辑页的 effect 只会看到改完之后的样子）
+    useCut.getState().apply(unmarkMerged(project), { undo: false });
+    set({ draft: { ...rest, segments: kept.sources, ...(kept.branchTree ? { branchTree: kept.branchTree } : {}) } });
+    // 即发即忘：存不住也不挡人回去改（这一拍没有花钱；下一次时间轴一动，剪辑页自己的存盘会再试并把话说出来）
+    void get().persistCutDraft();
+    return true;
   },
 
   finishPublish: (videoId) => {

@@ -1,8 +1,9 @@
 // 清理本机缓存：只删**已经没人引用**的大文件（孤儿 blob）。
 //
-// 库里占地方的就两类，都是 blob 仓里的键：
+// 库里占地方的就这几类，都是 blob 仓里的键：
 //   merged:<id>    剪辑页合并出来的成片（几十 MB 一条）
 //   model3d:<id>   AI 生成的 3D 模型 GLB（36MB 级）
+//   cutbgm:<id>    剪辑页挑的本地配乐（几 MB 到几十 MB；2026-09-30 起落本地库，剪辑工程里存的是它的指针）
 // 它们不是直接被读的 —— 别的地方存的是一个 `idb:<键>` 指针（见 utils/mediaUrl）。
 // 指针没了、blob 还在，就是孤儿：删了谁也不受影响，留着纯占配额。
 // 孤儿是怎么来的：草稿被删/被 20 条上限挤掉、发布失败后重发、同一段重新合并过。
@@ -32,8 +33,12 @@ import { myCards } from "./account";
 import { blobOwnedByViewer, forgetBlobOwners } from "./blobOwners";
 import type { VideoSegment } from "../types";
 
-/** 只清这两个前缀 —— 其余键要么是用户资产，要么小到不值得动 */
-const SWEEPABLE = ["merged:", "model3d:"];
+/**
+ * 只清这几个前缀 —— 其余键要么是用户资产，要么小到不值得动。
+ * ★ `cutbgm:` 的指针只可能出现在剪辑稿里（cutSession 的 project.audio.ref），引用收集第 5 段是序列化后扫
+ *   `idb:` 的，天然数得到；换掉 / 去掉的那条配乐从此没人引用，过了 24 小时在这里收走。
+ */
+const SWEEPABLE = ["merged:", "model3d:", "cutbgm:"];
 
 /** 比这个还新的键一律不碰（毫秒）。见文件头"时间闸门" */
 const MIN_AGE_MS = 24 * 60 * 60 * 1000;

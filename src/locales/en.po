@@ -1591,9 +1591,25 @@ msgstr "← Write my own sentence instead"
 msgid "← 改选段"
 msgstr "← Change selection"
 
+#: src/pages/PublishPage.tsx
+msgid "↩ 回剪辑页改一改"
+msgstr "↩ Back to the editor"
+
+#: src/pages/CutPage.tsx
+msgid "↩ 回去改"
+msgstr "↩ Go back and edit"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "↩ 回竖屏"
 msgstr "↩ Back to portrait"
+
+#: src/pages/CutPage.tsx
+msgid "↶ 撤销"
+msgstr "↶ Undo"
+
+#: src/pages/CutPage.tsx
+msgid "↷ 重做"
+msgstr "↷ Redo"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "↺ 用回原片"
@@ -1672,6 +1688,11 @@ msgstr "+ New deck"
 #: src/components/blockout/VisionFramePicker.tsx
 msgid "＋ 标记这一帧"
 msgstr "+ Mark this frame"
+
+#. placeholder {0}: i + 1
+#: src/pages/CutPage.tsx
+msgid "＋ 段{0}"
+msgstr "＋ Seg {0}"
 
 #: src/pages/WorkshopPage.tsx
 msgid "＋ 添加"
@@ -3602,6 +3623,10 @@ msgstr "Segments in the wrong shape are dropped whole; if none are left, it coun
 msgid "不同意，退出登录"
 msgstr "Disagree and log out"
 
+#: src/pages/CutPage.tsx
+msgid "不在时间轴上的段，点一下加回来："
+msgstr "Segments not on the timeline — tap to add back:"
+
 #: src/components/blockout/VisionFramePicker.tsx
 msgid "不在选段内"
 msgstr "Outside the selection"
@@ -5474,6 +5499,10 @@ msgstr "The app went to the background — that won't corrupt the merge, but the
 msgid "刚才挂卡的是另一个模板（这条流水线上套的模板中途换过了）——回模板详情页重新套用一次再挂卡"
 msgstr "The cards you just attached were for a different template (this pipeline's template was changed in the meantime) — go back to the template page, apply it again, then attach the cards"
 
+#: src/pages/CutPage.tsx
+msgid "刚才的剪辑改动这一页上还在，但{saveWarn}——离开剪辑页之前先处理一下，否则这些改动会丢。"
+msgstr "Your recent edits are still on this page, but {saveWarn} — sort that out before leaving the editor, or these edits will be lost."
+
 #: src/pages/CustomCardPage.tsx
 msgid "刚才那张照片到得太晚了：这一格你已经放了别的图，就不替换了"
 msgstr "That photo arrived too late: you already put another image in this slot, so it was not replaced"
@@ -6247,6 +6276,10 @@ msgstr "Remove"
 msgid "去掉这一味"
 msgstr "Remove this voice"
 
+#: src/pages/CutPage.tsx
+msgid "去掉这条配乐"
+msgstr "Remove this music"
+
 #: src/pages/FeedPage.tsx
 msgid "去推荐流看看"
 msgstr "Browse For you"
@@ -6966,6 +6999,14 @@ msgstr "Dialogue no longer uses the voice sample (“{0}” renders without soun
 #: src/components/flow/TierRow.tsx
 msgid "台词不再带音色样本（「{0}」档暂无配音）"
 msgstr "Dialogue no longer uses the voice sample (“{0}” has no voiceover yet)"
+
+#: src/pages/CutPage.tsx
+msgid "右上角可以直接去发布。想再改片段、圈选或配乐，就回到合并之前接着剪——原来的时间轴都还在，改完重新合一次（合成不花钱）。"
+msgstr "You can publish right away from the top right. To change clips, circles or music, go back to before the merge and keep editing — your timeline is still there; merge again when you're done (merging is free)."
+
+#: src/pages/CutPage.tsx
+msgid "右上角可以直接去发布。这条成片没有留下合并之前的片段（它是旧版本合的），要改只能回工作流重做一条。"
+msgstr "You can publish right away from the top right. This video didn't keep its pre-merge clips (it was merged by an older version), so changing it means redoing it from the workflow."
 
 #: src/components/guide/tours.tsx
 msgid "右上角是终点"
@@ -9405,6 +9446,10 @@ msgid "成片合好了，但剪辑中的稿子已经关掉或换成了别的，�
 msgstr "The video was merged, but the draft being edited was closed or replaced, so it wasn't attached — go back to that draft and merge again (merging is free)"
 
 #: src/pages/CutPage.tsx
+msgid "成片合好了，但合成期间时间轴又改过，这一条和现在的时间轴对不上，没有接上——回剪辑页再合一次（合成不花钱）"
+msgstr "The video was merged, but the timeline changed during the merge, so it no longer matches and wasn't attached — go back to the editor and merge again (merging is free)"
+
+#: src/pages/CutPage.tsx
 msgid "成片合好了，去发布吧"
 msgstr "Your video is merged — go publish it"
 
@@ -10894,8 +10939,12 @@ msgid "整条 {realSec} 秒将切成 {parts} 段（{segs}）登记成一组—�
 msgstr "The whole {realSec}-second video will be cut into {parts, plural, one {# segment} other {# segments}} ({segs}) and registered as one group — each segment is its own template, and using any one of them lays out the whole group in the workflow. The picture ({picW}×{picH}) is below the AI engine's pixel minimum, so the server will automatically upscale it to just above the minimum when registering; the duration and aspect ratio stay the same."
 
 #: src/components/guide/tours.tsx
-msgid "整条模式下「下一步」把时间轴按顺序导出成<0>一整条视频</0>、进发布页（已经合好的稿子它写的是「去发布」，直接进发布页）。 从工坊单段进来时它是「保存本段」，改完写回那一段、不合并不发片。"
-msgstr "For a whole video, “Next” exports the timeline in order as <0>one continuous video</0> and goes to the publish page (for a draft that's already merged it reads “Go publish” and goes straight there). When you come in from a single segment in the Studio, it reads “Save segment” instead: your edits are written back to that segment, with no merging and nothing published."
+msgid "整条模式下「下一步」把时间轴按顺序导出成<0>一整条视频</0>、进发布页（已经合好的稿子它写的是「去发布」，直接进发布页； 合完还想改，点<1>↩ 回去改</1>就回到合并之前，改完再合一次、不花钱）。 从工坊单段进来时它是「保存本段」，改完写回那一段、不合并不发片。"
+msgstr "For a whole video, “Next” exports the timeline in order as <0>one continuous video</0> and goes to the publish page (for a draft that's already merged it reads “Go publish” and goes straight there; if you still want changes after merging, tap <1>↩ Go back and edit</1> to return to before the merge, then merge again for free). When you come in from a single segment in the Studio, it reads “Save segment” instead: your edits are written back to that segment, with no merging and nothing published."
+
+#: src/components/guide/tours.tsx
+#~ msgid "整条模式下「下一步」把时间轴按顺序导出成<0>一整条视频</0>、进发布页（已经合好的稿子它写的是「去发布」，直接进发布页）。 从工坊单段进来时它是「保存本段」，改完写回那一段、不合并不发片。"
+#~ msgstr "For a whole video, “Next” exports the timeline in order as <0>one continuous video</0> and goes to the publish page (for a draft that's already merged it reads “Go publish” and goes straight there). When you come in from a single segment in the Studio, it reads “Save segment” instead: your edits are written back to that segment, with no merging and nothing published."
 
 #: src/components/blockout/arkVideoRules.ts
 msgid "整条登记不裁画面，而这条原片有一边到了 {longEdge} 像素，超过 AI 引擎的 {maxEdge} 上限。把选段收回 {segMaxSec} 秒以内、用裁剪框把画面框到 {maxEdge} 以内，一段一段做。"
@@ -11100,9 +11149,21 @@ msgstr "duration follows the reference video"
 msgid "时长跟随参考片 {refSec}s"
 msgstr "duration follows the reference video ({refSec}s)"
 
+#: src/pages/CutPage.tsx
+msgid "时间轴上只剩这一个片段了，不能再删。"
+msgstr "This is the only clip left on the timeline, so it can't be deleted."
+
+#: src/pages/CutPage.tsx
+msgid "时间轴上没有可合成的片段"
+msgstr "There are no clips on the timeline to merge"
+
 #: src/components/guide/tours.tsx
 msgid "时间轴下面那一块：AI <0>只看这几帧</0>去认画面里有谁—— 被看漏的人照样会变成白人偶，但清单里<1>没有他的位置，谁的卡都挂不上</1>， 还会把别人的位置挤歪。可以让它自动挑，也可以自己标人最全的几帧；<2>帧数不进报价</2>：多看几帧更准，也不额外收费。"
 msgstr "The block below the timeline: the AI looks at <0>only these frames</0> to work out who's in the picture — anyone it misses still becomes a white mannequin, but <1>has no slot on the list, so no card can be attached to them</1>, and they push everyone else's position off. You can let it pick automatically, or mark the frames with the most people yourself; <2>the frame count doesn't affect the price</2>: more frames are more accurate and cost nothing extra."
+
+#: src/pages/CutPage.tsx
+msgid "时间轴还没准备好，稍等一下再点「下一步」"
+msgstr "The timeline isn't ready yet — wait a moment, then tap “Next”"
 
 #: src/pages/SettingsProfilePage.tsx
 msgid "昵称"
@@ -12543,7 +12604,7 @@ msgid "段{0}"
 msgstr "Seg {0}"
 
 #. placeholder {0}: c.segIndex + 1
-#. placeholder {1}: clipDur(c).toFixed(1)
+#. placeholder {1}: durOf(c).toFixed(1)
 #: src/pages/CutPage.tsx
 msgid "段{0} · {1}s"
 msgstr "Seg {0} · {1}s"
@@ -13343,8 +13404,12 @@ msgid "点一个就只看这一类，选中的那个会放大亮起来；<0>再�
 msgstr "Tap one to see only that category; the selected one grows and lights up. <0>Tap the same one again to clear it</0> — there's nowhere else to turn it off."
 
 #: src/components/guide/tours.tsx
-msgid "点一个片段选中，就能在播放头处<0>✂️ 分割</0>、<1>🗑 删除</1>、拖拽或前移后移<2>换序</2>。 这些只改导出范围，<3>一个 token 都不花</3>。"
-msgstr "Tap a clip to select it, then you can <0>✂️ split</0> it at the playhead, <1>🗑 delete</1> it, or <2>reorder</2> it by dragging or moving it left or right. These only change what gets exported and <3>don't cost a single token</3>."
+msgid "点一个片段选中，就能在播放头处<0>✂️ 分割</0>、<1>🗑 删除</1>、拖拽或前移后移<2>换序</2>。 这些只改导出范围，<3>一个 token 都不花</3>；每一步都能<4>↶ 撤销</4>，离开这一页再回来也都还在。"
+msgstr "Tap a clip to select it, then you can <0>✂️ split</0> it at the playhead, <1>🗑 delete</1> it, or <2>reorder</2> it by dragging or moving it left or right. These only change what gets exported and <3>don't cost a single token</3>; every step can be <4>↶ undone</4>, and your edits are still here when you leave this page and come back."
+
+#: src/components/guide/tours.tsx
+#~ msgid "点一个片段选中，就能在播放头处<0>✂️ 分割</0>、<1>🗑 删除</1>、拖拽或前移后移<2>换序</2>。 这些只改导出范围，<3>一个 token 都不花</3>。"
+#~ msgstr "Tap a clip to select it, then you can <0>✂️ split</0> it at the playhead, <1>🗑 delete</1> it, or <2>reorder</2> it by dragging or moving it left or right. These only change what gets exported and <3>don't cost a single token</3>."
 
 #. placeholder {0}: personNameOf(castable[selected]?.label)
 #: src/components/blockout/RoleCastBoard.tsx
@@ -13532,6 +13597,10 @@ msgstr "Read the sentence below ({VOICE_MIN_SEC}–{VOICE_MAX_SEC}s). When a seg
 #: src/pages/PublishPage.tsx
 msgid "片子留住、不出现在任何人的首页；想好了再去作品编辑页改成公开。"
 msgstr "The video is kept and won't appear in anyone's home feed; when you're ready, make it public from the video's edit page."
+
+#: src/pages/PublishPage.tsx
+msgid "片段、配乐还想调就回去接着剪，改完重新合一次（合成不花钱）。这一页填好的标题、简介和封面会留着。"
+msgstr "Still want to adjust clips or music? Go back and keep editing, then merge again (merging is free). The title, description and cover you've filled in here will be kept."
 
 #. placeholder {0}: (here - winStart).toFixed(1)
 #: src/components/blockout/BoxFramePicker.tsx
@@ -18197,6 +18266,10 @@ msgid "这个模板还没登记到服务器，先登记再识别角色位"
 msgstr "This template isn't registered with the server yet — register it before detecting roles"
 
 #: src/pages/CutPage.tsx
+msgid "这个片段已经不在时间轴上了，重新点一个再操作。"
+msgstr "That clip is no longer on the timeline — tap another one and try again."
+
+#: src/pages/CutPage.tsx
 msgid "这个片段是分割出来的，同一段还有另一半在时间轴上——回到整段会和它重叠，成片里同一截会播两遍。想撤销分割，先删掉另一半。"
 msgstr "This clip was split, and the other half of the same segment is still on the timeline — restoring the whole segment would overlap it, so the same part would play twice. To undo the split, delete the other half first."
 
@@ -18911,6 +18984,18 @@ msgstr "This video was taken down by the platform. Others can't open the link, s
 msgid "这条弹幕还在发送中，等它发出去之后再删"
 msgstr "This bullet comment is still sending. Delete it once it's sent"
 
+#: src/pages/PublishPage.tsx
+msgid "这条成片回不到合并之前了：它没有留下合并前的片段。可以直接发布，或回工作流重做一条。"
+msgstr "This video can't go back to before the merge: its pre-merge clips weren't kept. You can publish it as is, or redo it from the workflow."
+
+#: src/pages/CutPage.tsx
+msgid "这条成片回不到合并之前了：它没有留下合并前的片段。直接去发布，或回工作流重做一条。"
+msgstr "This video can't go back to before the merge: its pre-merge clips weren't kept. Go publish it, or redo it from the workflow."
+
+#: src/pages/CutPage.tsx
+msgid "这条成片已经合好了"
+msgstr "This video is already merged"
+
 #: src/pages/CutPage.tsx
 msgid "这条成片有 {sizeMb}MB，接近服务器上限（约 {capMb}MB），可能传不上去。传失败的话回剪辑页删几段、或把导出分辨率降一档再合一次——片段和配乐都还在。"
 msgstr "This video is {sizeMb}MB, close to the server limit (about {capMb}MB), so it may fail to upload. If it does, go back to the editor, remove some segments or lower the export resolution, and merge again — your clips and music are still there."
@@ -18996,6 +19081,14 @@ msgstr "This video is still uploading (or the server can't be reached), so there
 #: src/utils/nativeMerge.ts
 msgid "这条音频是空的"
 msgstr "This audio is empty"
+
+#: src/pages/CutPage.tsx
+msgid "这条音频没能存进本地库（存储空间不足？）——这一次照常能用，但离开剪辑页之后要重新挑一次。"
+msgstr "This audio couldn't be saved to local storage (out of space?) — it still works for now, but you'll need to pick it again after leaving the editor."
+
+#: src/pages/CutPage.tsx
+msgid "这条音频的文件读不出来了（可能被清理过）——去掉它重新挑一条，否则合成时不会有配乐。"
+msgstr "This audio file can't be read anymore (it may have been cleaned up) — remove it and pick another, or the merge won't have music."
 
 #: src/pages/CutPage.tsx
 msgid "这样裁完只剩不到 {MIN_CLIP_SEC} 秒，片段太短了"
@@ -19462,6 +19555,10 @@ msgstr "Email"
 #: src/pages/LoginPage.tsx
 msgid "邮箱验证码"
 msgstr "Email code"
+
+#: src/pages/CutPage.tsx
+msgid "配乐「{lostName}」没能读出来——这一条先按没有配乐导出。想要它就回剪辑页的「音频」重新挑一次，再合一次。"
+msgstr "Couldn't read the music “{lostName}” — this merge will export without it. To include it, pick it again under “Audio” in the editor and merge once more."
 
 #: src/pages/CutPage.tsx
 msgid "配乐用的是自动预置的原片音轨，而你裁过/删过/换过片段顺序——声音是按原片从头混进去的，会和画面对不上。想对齐就换一条自己的音频，或者把片段改回原样再合一次。"
