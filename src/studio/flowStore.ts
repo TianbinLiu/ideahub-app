@@ -899,6 +899,14 @@ export function nodeFramed(nodes: FlowNode[], idx: number, mode: FlowMode): bool
   return !frameFree({ firstFrame: frames.first, carryFrame: nodeCarry(nodes, idx), anns: node.anns, refAllowed: mode === "simple" });
 }
 
+/** 这一段**自己带着**首帧吗（用户传的 / 推演出的 / 承接上一段的）—— 真人档那句起拍提示用（有了就不提卡的起拍画面） */
+export function nodeOwnFirstFrame(nodes: FlowNode[], idx: number): boolean {
+  const node = nodes[idx];
+  if (!node) return false;
+  const frames = usableFrames(node, chosenOf(node), idx > 0 ? chosenOf(nodes[idx - 1]) : null);
+  return !!(frames.first || nodeCarry(nodes, idx));
+}
+
 /** 整条流水线还需要多少 token（当前走向已出片的段不再计费）。
  *  逐段问 nodeCost —— 顶栏那个总数与每一段按钮上的数字必须是同一把尺子。 */
 export function flowCost(nodes: FlowNode[], mode: FlowMode): number {

@@ -34,6 +34,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { removeVoice, subscribeVoices, voiceOf, voicesVersion } from "../data/cardVoice";
 import { assetOf, assetPersisted, assetSyncIssue, assetsVersion, subscribeAssets } from "../data/cardAsset";
 import VolcCompatToggle from "../components/VolcCompatToggle";
+import CardModelFit from "../components/CardModelFit";
 import { formatHeat, heatOf } from "../data/social";
 import {
   CARD_INFO_LABELS,
@@ -842,6 +843,9 @@ export default function CardDetailPage() {
 
       {/* 方舟可信素材：真人卡做完肖像授权后填 asset ID，出片改走 asset:// */}
       <CardAssetSection card={card} owned={owned} />
+
+      {/* 按模型适配：「标准/极速适用」（文字版形象描述）与「真人档适用」（起拍画面），见 components/CardModelFit */}
+      <CardModelFit card={card} owned={owned} />
 
       {/* 固定身份句（Card.idLine）：出片提示词里代表这张卡的那一句（铸卡时压好、逐段复用）。
           只在真有的时候显示——老卡/自传图卡走 idLineOf 的兜底，那不是"留下来的身份句"，

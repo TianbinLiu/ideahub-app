@@ -1420,7 +1420,16 @@ function whyOf(e: unknown): string {
  */
 export async function updateCardMeta(
   cardId: string,
-  patch: { name?: string; summary?: string; tags?: string[]; idLine?: string },
+  patch: {
+    name?: string;
+    summary?: string;
+    tags?: string[];
+    idLine?: string;
+    /** 按模型适配：文字版形象描述，空串 = 取消「标准/极速适用」 */
+    textDesc?: string;
+    /** 按模型适配：真人档起拍画面，null = 取消「真人档适用」 */
+    startFrames?: Card["startFrames"] | null;
+  },
 ): Promise<string | null> {
   const u = currentUser();
   if (!u || !db) return t`还没登录，改不了。`;
@@ -1434,7 +1443,11 @@ export async function updateCardMeta(
   //   下次冷启动 loadRemoteAssets 整表覆盖又变回去。那种"改了又变回来"正是这段 catch 要防的。
   const before: Record<string, unknown> = {};
   for (const k of Object.keys(patch)) before[k] = (c as unknown as Record<string, unknown>)[k];
-  Object.assign(c, patch);
+  // 起拍画面给 null = 取消：本地删掉这个键（读侧判有值），不留一个 null
+  const { startFrames, ...rest } = patch;
+  Object.assign(c, rest);
+  if (startFrames === null) delete c.startFrames;
+  else if (startFrames !== undefined) c.startFrames = startFrames;
   persist();
 
   if (!remoteOn()) return null;
@@ -2016,6 +2029,9 @@ export function toLocalCard(c: branch.ApiCard): Card {
     modelUrl: c.modelUrl || undefined,
     genPrompt: c.genPrompt || undefined,
     idLine: c.idLine || undefined,
+    // 按模型适配的两份专用内容（缺省 = 没勾；一张都没有的起拍画面也当没勾）
+    textDesc: c.textDesc || undefined,
+    startFrames: c.startFrames && (c.startFrames.portrait || c.startFrames.landscape) ? c.startFrames : undefined,
     // 真人声明：false/缺省都归一成 undefined —— 读侧判否定，两者本就同义（非真人），
     // 落一个显式 false 只会让人误以为"声明过不是"是个存在的状态
     realPerson: c.realPerson || undefined,
