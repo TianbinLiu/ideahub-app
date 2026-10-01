@@ -414,7 +414,7 @@ export async function deriveTemplateVideo(
  * ★ `params` 里有什么由服务端说了算（签名与要发的字段是同一个对象）：客户端自己拼、
  *   自己增删任何一项，Cloudinary 都只回一句 Invalid Signature，而那是最难查的一类错。
  */
-interface DirectTicket {
+export interface DirectTicket {
   uploadUrl: string;
   publicId: string;
   params: Record<string, string | number | boolean>;
@@ -597,8 +597,9 @@ async function withChunkRetry<T>(signal: AbortSignal | undefined, run: () => Pro
   throw last;
 }
 
-/** 直传：串行推完每一块。★ 串行不并发 —— 官方 SDK 也是串行，乱序/并发官方没有承诺过。 */
-async function putDirect(
+/** 直传：串行推完每一块。★ 串行不并发 —— 官方 SDK 也是串行，乱序/并发官方没有承诺过。
+ *  导出给 api/tutorUpload（教材 md / txt）用：票的字段名不同，换个壳就是同一条路（2026-09-29 M4） */
+export async function putDirect(
   ticket: DirectTicket,
   file: File,
   onProgress?: (frac: number) => void,

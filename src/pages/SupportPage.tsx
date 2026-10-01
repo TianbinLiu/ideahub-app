@@ -57,10 +57,10 @@ import {
   streamSupportChat,
   synthesizeSpeech,
   ticketStatusLabel,
+  ttsBodyFor,
   type SupportCategory,
   type SupportConfig,
   type SupportTicket,
-  type TtsRequest,
 } from "../api/support";
 import { relativeTime } from "../types";
 
@@ -108,30 +108,6 @@ function errorText(e: unknown, fallback: string): string {
 const GLASS = "border border-white/10 bg-slate-950/55 backdrop-blur-md";
 /** 设置这么久还没回来就先按官方形象起舞台（之后设置到了再换）：别让一个卡住的请求把人也拖没了 */
 const STAGE_WAIT_MS = 1500;
-
-/**
- * 一句台词的 /api/tts 请求体（一处实现）。voiceSettings 是服务端算好的三层合并结果
- * （用户覆盖 > 人格自带 > 模型推荐 > 默认）；情绪与语调指令来自这一句 —— 服务端已把「人设语调；情绪语调」
- * 合并进 sentence.tts.instruct。老服务端没有 voiceSettings → 退回旧写法（只有 voice + expressive:true）。
- * ★ 混音（voiceSettings.mix，1.0 音色）只发 mix + rate + pitch：voice 不传（服务端 speaker 固定 custom_mix_bigtts）、
- *   instruct / expressive 不传（context_texts 与表现力增强都是 2.0 专属，服务端对混音也直接丢弃）、emotion 也不传 ——
- *   混音 speaker 吃不吃 emotion 上游没写明，而 TTS 失败在这一页是**静默**退成合成口型（整段对话哑掉、没有一句报错），
- *   为一点情绪起伏赌整条声音不值。面板里的试听（VoiceMixer / VoiceMarket）发的也是这三个字段：听到的就是之后念台词的。
- */
-function ttsBodyFor(config: SupportConfig | null, sentence: CompanionSentence): TtsRequest {
-  const vs = config?.voiceSettings;
-  if (!vs) return { text: sentence.text, voice: config?.voice || undefined, emotion: sentence.tts?.emotion, instruct: sentence.tts?.instruct, expressive: true };
-  if (vs.mix?.length) return { text: sentence.text, mix: vs.mix, rate: vs.rate ?? undefined, pitch: vs.pitch ?? undefined };
-  return {
-    text: sentence.text,
-    voice: vs.voiceId || undefined,
-    rate: vs.rate ?? undefined,
-    pitch: vs.pitch ?? undefined,
-    expressive: vs.expressive,
-    emotion: sentence.tts?.emotion,
-    instruct: sentence.tts?.instruct,
-  };
-}
 
 /** 顶栏右下那一列小键（形象 / 人格 / 声音）：图标 + 两个字，和顶栏其它键同一套玻璃材质 */
 function RailButton({ emoji, label, onClick }: { emoji: string; label: string; onClick: () => void }) {

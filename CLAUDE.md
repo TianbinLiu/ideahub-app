@@ -61,7 +61,10 @@ npm run land -- --dry # 只检查不动手
 src/
   ai/          方舟（Seedream 生图 / Seedance 生视频 / 豆包对话）客户端与真假实现切换；`failCharge.ts` = 「这次 AI 调用失败，钱花没花」的**唯一**判定与钱上的那几句话（catch 里要提钱只走它）
   api/         与 server 的 HTTP 调用；`companion.ts` = 数字人的人格/形象/声音设置（/api/companion/settings）
-               与两个市场（Live2D 形象 / 人格）的请求层 + 共用报错文案
+               与两个市场（Live2D 形象 / 人格）的请求层 + 共用报错文案；
+               `tutor.ts` = 启梦老师（/api/tutor：课程 / 上课 bundle / 一轮 SSE / 自检 / 整理 / 直传票 / 生成作业；
+               `shape()` 把「回的不是 JSON 对象」认成「这台服务器没有老师」，别信状态码——SPA 回退是 200 + HTML），
+               `tutorUpload.ts` = md / txt 建课：本机抽文本 + 切块 + 块 hash（走 `tutor/shared`）→ 直传票 → 复用 `putDirect` 分块 → confirm
   companion/   AI 客服/看板娘的演出协议（表情/动作标签、SSE 解析、语音包络、舞台总线）——与官网 client 同源拷贝
   live2d/      Live2D 运行时加载与模型驱动（pixi + Cubism Core，全部自托管在 public/live2d/）；
                `prefetch.ts` = 换市场形象前把 model3.json 引用的文件各拉一遍，热 WebView 缓存
@@ -87,8 +90,16 @@ src/
                数字人形象 / 人格市场（/support/models、/support/personas，入口在客服页顶栏那一列小键与设置页）；
                `SupportCreatePage` = 创作中心三扇门（/support/create，那一列小键的第四颗 ✨），
                `SupportModelNewPage` / `SupportPersonaNewPage` = Live2D 上传向导 / 人格制作向导
-               （/support/models/new、/support/personas/new，设计正本 docs/digital-human-creator-center.md §3.5 与 §4.3）
+               （/support/models/new、/support/personas/new，设计正本 docs/digital-human-creator-center.md §3.5 与 §4.3）；
+               `tutor/` = 启梦老师（M4，tutor 仓 docs/06 §6）：`TutorHomePage` 课程列表 + 成人声明（/tutor）、
+               `TutorNewPage` 四步建课向导（/tutor/new，只收 md / txt，PDF / PPTX / DOCX 引导去官网）、
+               `TutorRunPage` 上课（/tutor/run/:id：文字卡按锚点 hash → 引文 → 整页兜底、一轮 SSE、👍👎、自检抽屉、「整理一下」领票）；
+               `useTeacherSpeech` = 老师开口（逐句 TTS + Live2D 舞台，**只对 bundle.companion.enabled 的老师**，判定在服务端 personaAccess 一处，App 只画）、
+               `tutorJobs` = 生成作业的模块级轮询 + data/jobs 领票（向导页只订阅）、`referral` = 落地记一次 ?from= 再抹掉。
+               三页在 `API_ON` 为假时整页「需要联网」，一个 IndexedDB 键都不碰（教学记录是服务端真相）
   studio/      创作/工坊相关
+  tutor/shared/ 与 tutor 仓 / server / 官网**同一份**的切块 + 块 hash 纯函数（verbatim 拷贝，改规则只改 tutor 仓再原样复制；
+               `.d.ts` 每条带 `declare`——构建里的 lingui extract 用 Babel 扫 .d.ts，裸声明会当语法错；README 在目录里）
   utils/
 public/
   create/      创作入口三张封面（角色设定的唯一出处）

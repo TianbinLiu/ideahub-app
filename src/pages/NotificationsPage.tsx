@@ -49,6 +49,15 @@ function actionText(n: NotificationItem): MessageDescriptor | null {
       return msg`提交了客服工单`;
     case "SUPPORT_REPLY":
       return msg`客服回复了你的工单`;
+    // 老师人格四类（M4）：主语分别是评分 / 评论的人、平台（回访到期没有 actor，走 NoticeRow 那种铃铛行）、作者
+    case "TUTOR_RATING":
+      return msg`给你发布的老师打了分`;
+    case "TUTOR_COMMENT":
+      return msg`评论了你发布的老师`;
+    case "TUTOR_REVIEW_DUE":
+      return msg`该回访了`;
+    case "TUTOR_DOC_UPDATED":
+      return msg`更新了你在学的老师`;
     default:
       // ★★ 铁律七：**不认识的类型原样显示类型名**，不吞、不崩。这一支在类型上是
       //   never（白名单是闭合联合），但运行时形状由服务端决定 —— 哪天两边版本错开，
@@ -126,6 +135,13 @@ export default function NotificationsPage() {
       navigate(`/video/${n.videoId}`, { state: { fromNotification: n.id } });
       return;
     }
+    // 老师人格（M4）：到期回访 / 新版 → 那门课的上课页；评分 / 评论 → 课程列表（市场详情只在官网，App 里没有那一页）。
+    // 上课页打开即算处理过，就地标已读（与工单同一条：它自己不认识通知）
+    if (n.tutor) {
+      void markNotificationRead(n.id);
+      navigate(n.tutor.courseId ? `/tutor/run/${encodeURIComponent(n.tutor.courseId)}` : "/tutor");
+      return;
+    }
     void markNotificationRead(n.id);
   }
 
@@ -176,7 +192,7 @@ export default function NotificationsPage() {
                   onClick={() => open(n)}
                   className="flex w-full items-start gap-3 py-3.5 text-left active:opacity-60"
                 >
-                  {n.type === "ADMIN_NOTICE" ? (
+                  {n.type === "ADMIN_NOTICE" || n.type === "TUTOR_REVIEW_DUE" ? (
                     // ★ 平台口吻：**不显示是哪个管理员发的**（数据里 actor 是那位管理员，
                     //   但把审核员透给被通知的用户等于把他摆到被骚扰的位置 ——
                     //   与举报下架不带 by 是同一条取舍）。头像位画一只铃铛顶替。
@@ -190,6 +206,9 @@ export default function NotificationsPage() {
                     <div className="text-sm text-slate-200">
                       {n.type === "ADMIN_NOTICE" ? (
                         <span className="font-semibold"><Trans>平台通知</Trans></span>
+                      ) : n.type === "TUTOR_REVIEW_DUE" ? (
+                        // 回访到期是系统发的（没有 actor）：主语是那门课，不是「有人」
+                        <span className="font-semibold">{n.tutor?.count ? t`「${n.tutor.personaName}」有 ${n.tutor.count} 个阶段该回访了` : t`「${n.tutor?.personaName ?? ""}」有阶段该回访了`}</span>
                       ) : (
                         <>
                           <span className="font-semibold">{n.actorName}</span>
@@ -221,6 +240,9 @@ export default function NotificationsPage() {
                         重说一遍，像是作者亲手写了条评论。⇒ 整行省掉：标题行已经说清了。 */}
                     {n.videoTitle && (
                       <div className="mt-0.5 truncate text-xs text-slate-500">{n.videoTitle}</div>
+                    )}
+                    {n.tutor && n.type !== "TUTOR_REVIEW_DUE" && (
+                      <div className="mt-0.5 truncate text-xs text-slate-500">🎓 {n.tutor.personaName}{n.tutor.stars ? ` · ${"★".repeat(n.tutor.stars)}` : ""}</div>
                     )}
                     <div className="mt-1 text-[11px] text-slate-500">{relativeTime(n.at)}</div>
                   </div>

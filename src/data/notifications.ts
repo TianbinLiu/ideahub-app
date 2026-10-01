@@ -30,6 +30,8 @@ export interface NotificationItem {
   commentText: string;
   /** 客服工单通知的深链目标（SUPPORT_TICKET / SUPPORT_REPLY）；其它类型为 null */
   ticketId: string | null;
+  /** 老师人格四类（TUTOR_*）的落点与显示（M4）：courseId 有值 → App 内 /tutor/run/:courseId；其它类型为 null */
+  tutor: { personaId: string | null; personaName: string; courseId: string | null; stars: number | null; count: number | null } | null;
   at: number;
   read: boolean;
 }
@@ -146,6 +148,10 @@ function toItem(n: api.ApiNotification): NotificationItem | null {
       (payload as { subject?: string }).subject ||
       "",
     ticketId: typeof (payload as { ticketId?: unknown }).ticketId === "string" ? ((payload as { ticketId: string }).ticketId) : null,
+    // 老师人格四类：id 都在 payload 里、不是顶层字段（server tutorNotify.service）。判否定：不是 TUTOR_ 开头的一律 null
+    tutor: String(n.type).startsWith("TUTOR_")
+      ? { personaId: typeof payload.personaId === "string" ? payload.personaId : null, personaName: payload.personaName || "", courseId: typeof payload.courseId === "string" ? payload.courseId : null, stars: typeof payload.stars === "number" ? payload.stars : null, count: typeof payload.count === "number" ? payload.count : null }
+      : null,
     at: toMs(n.createdAt),
     // ★ 判**未读**用「readAt 有没有值」，不是和某个哨兵值比：服务端未读写的是 null，
     //   而更老的记录里这一项可能压根不存在（undefined）。两种都必须算未读。
