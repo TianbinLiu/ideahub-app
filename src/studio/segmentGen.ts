@@ -12,13 +12,13 @@
 //
 // 计费与 store 写入**不在这里**：两边的账本与状态形状不同（flowStore 写 videoByProposal，
 // 工坊写 proposal.videoUrl），这里只负责"把一段炼出来"，纯函数式地把结果交回去。
-import { ARK_REF_IMAGES_MAX, ArkTaskUnknown, VIDEO_PROMPT_MAX, composeSegments, generateCover, notesInParens, prepareMaterialRefs, refineFrame } from "../ai";
+import { ARK_REF_IMAGES_MAX, ArkTaskUnknown, VIDEO_PROMPT_MAX, composeSegments, generateCover, notesInParens, prepareMaterialRefs, refCardIds, refineFrame } from "../ai";
 import { uploadImage } from "../api/uploads";
 import { IMAGE_TOKENS, fmtTokens, r2vPriceIssue, tierOf, providerOf, clampDuration, videoTokensOfSpec, type VideoTier } from "../data/economy";
 // ★ 「模板视频自己合不合方舟窗口」的判据在 data（不在组件）：store 层这一处与
 //   flowStore.applyTemplate、详情页问的必须是同一个函数（铁律六）。
 import { refVideoIssue } from "../data/templates";
-import { ShotSpec, shotLineOf, CardType, ID_LINE_MAX, CARD_TYPE_PROMPT, idLineOf, viewsOf, feedsModel, type Card, type GenMode, type VideoAspect, type VideoTemplate } from "../types";
+import { ShotSpec, shotLineOf, CardType, ID_LINE_MAX, CARD_TYPE_PROMPT, idLineOf, viewsOf, feedsModel, TEXT_DESC_MAX, aspectOf, type Card, type GenMode, type VideoAspect, type VideoTemplate } from "../types";
 import { voiceOf } from "../data/cardVoice";
 import { t } from "@lingui/core/macro";
 
@@ -154,6 +154,64 @@ export function frameFree(o: { firstFrame?: string; carryFrame?: string | null; 
   if (o.firstFrame || o.carryFrame) return false;
   if (o.anns?.length) return false;
   return true;
+}
+
+/**
+ * 真人档的起拍画面**从哪张卡来** —— 唯一实现（出片那一支与本段设置里那句提示共用）。
+ * 顺序：真人卡 > 其它人物卡 > 场景卡 > 道具卡 > 风格卡 > 背景卡（真人优先是这一档存在的理由，再按"画面主体"排）；
+ * 第一张拿得出图的卡说了算：它勾了「真人档适用」就用这一画幅的起拍画面，否则用它第一张「出片用」的图
+ * （作者标「仅展示」的不取，types.feedsModel 一处判据）。
+ */
+export function startSourceOf(
+  materials: Card[] | undefined,
+  aspect: VideoAspect | undefined,
+): { card: Card; url: string; fromStartFrame: boolean } | null {
+  const a = aspectOf(aspect).id;
+  const rank = (c: Card) =>
+    c.type === "character" ? (c.realPerson === true ? 0 : 1) : c.type === "scene" ? 2 : c.type === "prop" ? 3 : c.type === "style" ? 4 : 5;
+  const ordered = [...(materials ?? [])].sort((x, y) => rank(x) - rank(y));
+  for (const c of ordered) {
+    const sf = c.startFrames?.[a];
+    if (sf) return { card: c, url: sf, fromStartFrame: true };
+    const v = viewsOf(c).find(feedsModel);
+    if (v) return { card: c, url: v.url, fromStartFrame: false };
+  }
+  return null;
+}
+
+/**
+ * 「这一段挂的卡在这一档上有哪些没适配」—— 本段设置 / 工坊方案台在档位下面印的那一句（按模型适配，2026-09-30）。
+ * null = 没什么要说的。只说**能就地补**的事（勾哪个选项），不复述档位能力。
+ * · 标准 / 极速：设定帧只画得进分到图的那几张卡（经典路分配：一段只有第一张人物卡、共 3 张图），其余又没写文字版形象描述的点名；
+ * · 真人档：起拍画面来自一张没勾「真人档适用」的卡时提一句（ownFrame = 这一段已经有首帧 / 承接帧，就不提）。
+ */
+export function cardFitNote(
+  materials: Card[] | undefined,
+  tierId: string,
+  o: { aspect?: VideoAspect; ownFrame?: boolean },
+): string | null {
+  if (!materials?.length) return null;
+  const tier = tierOf(tierId);
+  if (tier.flatCost) {
+    if (o.ownFrame) return null;
+    const src = startSourceOf(materials, o.aspect);
+    if (!src || src.fromStartFrame) return null;
+    if (src.card.type !== "character" && src.card.type !== "scene" && src.card.type !== "prop") return null;
+    const name = src.card.name;
+    return t`这一段以「${name}」卡上的图起拍——去卡片页勾「真人档适用」可以换成专门画好的起拍画面`;
+  }
+  if (tier.refImg) return null;
+  const drawn = refCardIds(materials, false);
+  const lack = materials.filter((c) => c.type !== "background" && !drawn.has(c.id) && !(c.textDesc || "").trim() && c.realPerson !== true);
+  if (!lack.length) return null;
+  // 卡名加引号与列举分隔符走既有的两条（中文「」、英文弯引号）——与 economy.quotedNames 同一对 msgid
+  const names = lack
+    .map((c) => {
+      const name = c.name;
+      return t({ message: `「${name}」`, comment: "给一个名字（卡名）加引号：中文「」，英文用弯引号" });
+    })
+    .join(t({ message: "、", comment: "列举几个名字时的分隔符" }));
+  return t`${names}在这一档收不到形象图（设定帧只画得进第一张人物卡、一共 3 张图），只按出片句参与——去卡片页勾「标准/极速适用」补一段文字版形象描述`;
 }
 
 export function refVideoOn(o: {
@@ -317,7 +375,22 @@ function shotPrefix(shot?: ShotSpec): string {
   return line ? `${line}。` : "";
 }
 
-function materialText(materials?: Card[]): string {
+/** 这一批卡的 id（全都没把图送进模型时用） */
+function idsOf(materials?: Card[]): Set<string> {
+  return new Set((materials ?? []).map((c) => c.id));
+}
+
+/** 这一批卡里**不在** `sent` 里的那几张（= 这一发没把图送进模型的卡） */
+function idsWithout(materials: Card[] | undefined, sent: ReadonlySet<string>): Set<string> {
+  return new Set((materials ?? []).filter((c) => !sent.has(c.id)).map((c) => c.id));
+}
+
+/**
+ * @param imageless 按模型适配（2026-09-30）：这一发里**没把图送进模型**的那几张卡。它们有文字版形象描述
+ *   （Card.textDesc，勾了「标准/极速适用」）就用那一段替代出片句 —— 收不到图时，文字是这张卡唯一的样子。
+ *   ★ 谁收没收到图由调用方按**这一发的真实发送**给（参考图分配 / 起拍画面那张卡），这里不猜。
+ */
+function materialText(materials?: Card[], imageless?: ReadonlySet<string>): string {
   if (!materials?.length) return "";
   // ★ V3（2026-09-06）：按"离了它画面最先走样"排序——人物 > 风格 > 场景 > 道具；上游是从**尾巴**截到
   //   VIDEO_PROMPT_MAX 的（plot + 本串再 slice），排在后面的先被截。背景卡不在这串里，单独一句挂在最后。
@@ -328,14 +401,15 @@ function materialText(materials?: Card[]): string {
     .filter((c) => c.type !== "background")
     .map((c) => {
       //   逐段逐字复用——同一措辞本身就是一致性手段；没写出片句的卡只报卡名，简介不进出片，2026-09-18）。
+      const desc = imageless?.has(c.id) ? (c.textDesc || "").trim().slice(0, TEXT_DESC_MAX) : "";
       if (c.type === "character") {
         // 没写出片句时 idLineOf 只回卡名：别拼成「人物卡「小夏」＝小夏」
-        const line = idLineOf(c);
+        const line = desc || idLineOf(c);
         return `${CARD_TYPE_PROMPT[c.type]}「${c.name}」${line !== c.name ? `＝${line}` : ""}`;
       }
       // ★ V3：非人物卡有出片句（idLine：场景的空间结构、风格的画风+镜头语言）就整句进；没有的只报卡名 ——
       //   简介不进出片（2026-09-18，原来退回简介前 24 字：简介是给人看的，常串着别的卡种的东西，见 ai/cardScope）
-      const line = (c.idLine || "").trim().slice(0, ID_LINE_MAX);
+      const line = desc || (c.idLine || "").trim().slice(0, ID_LINE_MAX);
       return `${CARD_TYPE_PROMPT[c.type]}「${c.name}」${line ? `＝${line}` : ""}`;
     })
     .join("；");
@@ -595,7 +669,8 @@ export async function generateSegment(
       carried: !!input.carryFrame, // firstRef 就是 carryFrame || firstFrame（见上面那行）
     });
     // 点名句是这条路的**功能本体**，截断优先保它（与白模 tail 同一条纪律）
-    const mats = materialText(input.materials);
+    // 这条路发的是帧与参考视频，卡片的图一张都不发 ⇒ 每张卡都算"没收到图"（按模型适配：有文字版描述就用它）
+    const mats = materialText(input.materials, idsOf(input.materials));
     const tail = `${roles}${mats}`;
     const room = Math.max(0, VIDEO_PROMPT_MAX - tail.length);
     const plotOver = input.plot.length - room;
@@ -661,15 +736,9 @@ export async function generateSegment(
     if (input.anns.length) throw new Error(t`真人档暂不支持圈选改画面（改图引擎会拒收真人脸）——清掉圈选标注再出片`);
     // 优先取声明过真人的卡（这一档存在的理由），再退任意有图的卡
     const byReal = (input.materials ?? []).filter((c) => c.realPerson === true).concat(input.materials ?? []);
-    const firstSrc =
-      input.carryFrame ||
-      input.firstFrame ||
-      // ★ 作者标成「仅展示」的图不拿去起拍（types.feedsModel 一处判据，与参考图分配同一票；2026-09-30 补 ——
-      //   此前这一支直接取 viewsOf 的第一张，那一票在真人档上不作数）
-      byReal
-        .flatMap((c) => viewsOf(c).filter(feedsModel))
-        .map((v) => v.url)
-        .find(Boolean);
+    // 起拍画面从哪张卡来（唯一实现 startSourceOf：与本段设置里那句提示同一套判据）
+    const src = input.carryFrame || input.firstFrame ? null : startSourceOf(input.materials, input.aspect);
+    const firstSrc = input.carryFrame || input.firstFrame || src?.url || "";
     if (!firstSrc) {
       // 有图、只是全被标成了「仅展示」：点名那张卡、指到能改的地方（别说成"没有照片"）
       const shy = byReal.find((c) => viewsOf(c).length > 0);
@@ -680,7 +749,10 @@ export async function generateSegment(
       throw new Error(t`真人档需要一张起拍画面：挂一张带照片的真人卡，或自己传一张开头帧`);
     }
     const flatSec = clampDuration(input.durationSec, input.videoTier);
-    prog(t`真人档按发计价（${flatSec} 秒整档）· 以卡片照片起拍…`);
+    if (src?.fromStartFrame) {
+      const srcName = src.card.name;
+      prog(t`真人档按发计价（${flatSec} 秒整档）· 以「${srcName}」的起拍画面起拍…`);
+    } else prog(t`真人档按发计价（${flatSec} 秒整档）· 以卡片照片起拍…`);
     {
       const cl = contractLine({ quoted: input.quotedTokens, mode: "minimax", durationSec: input.durationSec, tierId: input.videoTier, images: 0 });
       if (cl) prog(cl);
@@ -689,7 +761,8 @@ export async function generateSegment(
       [
         {
           mode: "minimax",
-          plot: `${shotPrefix(input.shot)}${input.plot}${materialText(input.materials)}`.slice(0, VIDEO_PROMPT_MAX),
+          // 海螺只认一张第一帧：除了起拍画面那张卡，别的卡都收不到图（按模型适配：有文字版描述就用它）
+          plot: `${shotPrefix(input.shot)}${input.plot}${materialText(input.materials, idsWithout(input.materials, new Set(src ? [src.card.id] : [])))}`.slice(0, VIDEO_PROMPT_MAX),
           firstFrame: firstSrc,
           lastFrame: "",
           durationSec: input.durationSec,
@@ -746,7 +819,6 @@ export async function generateSegment(
 
   // ③ 参考生视频，或补画缺失的设定帧
   const tier = tierOf(input.videoTier);
-  const mats = materialText(input.materials);
   // ★ 判定用的是**顶替过承接帧之后**的 first：段间承接一旦成立就必须走首尾帧
   //   （方舟三种场景互斥），这一步的顺序不能反（refVideoOn 的条件④）
   let refMode = refVideoOn({ ...input, firstFrame: first });
@@ -897,7 +969,8 @@ export async function generateSegment(
     drawn++;
     prog(t`绘制起拍画面…` + noteTail());
     first = await generateCover(
-      `${input.framePrompt || input.plot.slice(0, 200)}${mats}${dr.bind(0)}`,
+      // 画帧只画得进分到图的那几张卡（经典路分配）；其余的有文字版形象描述就用它（按模型适配）
+      `${input.framePrompt || input.plot.slice(0, 200)}${materialText(input.materials, idsWithout(input.materials, dr.cards))}${dr.bind(0)}`,
       undefined,
       input.aspect,
       dr.refs.length ? dr.refs : undefined,
@@ -909,7 +982,7 @@ export async function generateSegment(
     prog(t`绘制结束画面…` + noteTail());
     last = await generateCover(
       // i18n-ignore-next-line: 画结束画面的出图提示词，发给模型
-      `${input.plot.slice(0, 180)} 的结束瞬间${mats}${dr.bind(0)}`,
+      `${input.plot.slice(0, 180)} 的结束瞬间${materialText(input.materials, idsWithout(input.materials, dr.cards))}${dr.bind(0)}`,
       undefined,
       input.aspect,
       dr.refs.length ? dr.refs : undefined,
@@ -1003,6 +1076,10 @@ export async function generateSegment(
   //   ⚠ 例外：某张卡的形象图全都读不出来时，它就只剩名字了 —— 那种情况由 prepareMaterialRefs
   //   的 onNote 逐张点名（"第 N 张参考图未采用…"），一张都没成还会整句 throw，不是静默。
   // refMode 的绑定句已前置（bindHead），尾巴只剩素材设定文字
+  // 按模型适配：**视频模型**这一发真收到了哪几张卡的图（参考生视频 / 白模 / 帧当参考图时的卡片图）——
+  //   其余的卡（1.0 两档是全部：协议上一张参考图都不收）有文字版形象描述就用它替代出片句
+  const sentCards: ReadonlySet<string> = refMode || blockout || sendFrameRefs ? (refs?.cards ?? new Set()) : new Set();
+  const mats = materialText(input.materials, idsWithout(input.materials, sentCards));
   const tail = blockout ? (named ? bind : `${input.revise ? REVISE_TAIL : BLOCKOUT_SWAP}${mats}${bind}`) : `${frameRoles}${mats}`;
   // ★ 镜头字段放正文最前（景别 / 运镜 / 情绪节拍），模型先读到"怎么拍"再读"拍什么"
   // i18n-ignore-next-line: 出片提示词正文，发给视频模型
