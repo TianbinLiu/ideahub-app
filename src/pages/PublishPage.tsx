@@ -33,6 +33,7 @@ import { getVideo, publishVideo, reviseVideo, type ReviseResult } from "../data/
 import { useVideosVersion } from "../hooks/useVideos";
 import { showToast } from "../data/toast";
 import { publishedExit, useStudio } from "../studio/studioStore";
+import { useCut } from "../studio/cutStore";
 import { DEFAULT_VIDEO_CATEGORY, VIDEO_CATEGORIES, VIDEO_TAG_LEN, VIDEO_TAG_MAX, type Visibility, formatDuration, parseTags, revisionLabel, visibilityOf, visibilityWire } from "../types";
 
 export default function PublishPage() {
@@ -47,11 +48,18 @@ export default function PublishPage() {
   });
   const draft = useStudio((s) => s.draft);
   const clearDraft = useStudio((s) => s.clearDraft);
-  const [title, setTitle] = useState("");
+  /**
+   * 这条合好的成片还能不能回到合并之前接着剪（剪辑工程里留着源段才行，见 studioStore.reopenCut）。
+   * 2026-09-30 之前合的老稿没有留底，那时这颗键不摆 —— 摆一颗按下去必被拒的键比不摆更糟。
+   */
+  const canReopenCut = useCut((s) => !!s.project?.merged?.sources.length) && !!draft?.merged;
+  // ★ 标题 / 标签的初值读稿子（新稿子上它们是空的，行为与从前一样）：从这一页「回剪辑页改一改」时
+  //   填好的几格会先写回稿子（见 backToCut），合完再回来才不用重新敲一遍
+  const [title, setTitle] = useState(draft?.title ?? "");
   const [category, setCategory] = useState<string>(draft?.category ?? DEFAULT_VIDEO_CATEGORY);
   const [description, setDescription] = useState(draft?.description ?? "");
   const [cover, setCover] = useState(draft?.cover ?? "");
-  const [tags, setTags] = useState<string[]>([]);
+  const [tags, setTags] = useState<string[]>(draft?.tags ?? []);
   // 可见性默认公开：发布这个动作本身的意思就是"给人看"。
   // 想先自己留着的人可以在这里改，发完在作品编辑页也随时能改回来。
   const [visibility, setVisibility] = useState<Visibility>("public");
@@ -306,6 +314,25 @@ export default function PublishPage() {
     navigate(`/video/${videoId}`, { replace: true });
   }
 
+  /**
+   * 「回剪辑页改一改」：在这一页看完成片，发现片段 / 配乐还想动 —— 回到合并之前接着剪，改完重新合一次。
+   *
+   * ★ 这一页填好的几格先写回稿子：表单只活在这个组件里，走开再回来就归零了，而人只是想去换一条配乐。
+   * ★ 用 replace：这一格此刻对着的是一条**没合**的稿子，留在返回栈里的话，按返回会落到一个
+   *   "发布一条还没合的片子"的页面上。
+   */
+  function backToCut() {
+    if (!draft || publishedRef.current || busy) return;
+    useStudio.setState({
+      draft: { ...draft, title: title.trim(), category, description, cover, ...(tags.length > 0 ? { tags } : {}) },
+    });
+    if (!useStudio.getState().reopenCut()) {
+      setErr(t`这条成片回不到合并之前了：它没有留下合并前的片段。可以直接发布，或回工作流重做一条。`);
+      return;
+    }
+    navigate("/cut", { replace: true });
+  }
+
   return (
     <div className="min-h-full">
       {/* ★ safe-top 挂在 header 自己身上、不挂页面根：header 是 sticky top-0，
@@ -343,6 +370,21 @@ export default function PublishPage() {
         <div>
           <SegmentPlayer segments={draft.segments} cover={cover || draft.cover} />
           <div className="mt-2 text-center text-xs text-slate-500"><Trans>成片预览（各段按时间线依次播放）</Trans></div>
+          {/* 看完成片还想动片段 / 配乐：回到合并之前接着剪（合并时源段留了底才有这条路，见 canReopenCut） */}
+          {canReopenCut && (
+            <div className="mt-2 text-center">
+              <button
+                onClick={backToCut}
+                disabled={!!busy}
+                className="rounded-full bg-panel px-3.5 py-1.5 text-xs text-slate-200 ring-1 ring-slate-700 disabled:opacity-40"
+              >
+                <Trans>↩ 回剪辑页改一改</Trans>
+              </button>
+              <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
+                <Trans>片段、配乐还想调就回去接着剪，改完重新合一次（合成不花钱）。这一页填好的标题、简介和封面会留着。</Trans>
+              </p>
+            </div>
+          )}
           {/* 每段的来历必须可见：真实 Seedance 影像还是首尾帧渐变回退。
               此前两者在预览里长得都"会动"，用户分不清哪些是真生成的 */}
           <div data-guide="publish-segments" className="mt-3 space-y-1.5">

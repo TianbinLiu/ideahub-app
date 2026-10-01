@@ -243,6 +243,10 @@ const cspFor = (mode: string) =>
         // 市场 Live2D 模型的贴图是 <img> 载入的（pixi Texture.from），走 img-src：本机 server 的 /uploads 也要放行，
         // 否则真机上换装只会看到 "Texture loading error" 然后回落官方形象（2026-09-04 真机实测）
         .replace("img-src 'self' data: blob: https:", "img-src 'self' data: blob: https: http://localhost:* http://127.0.0.1:*")
+        // 剪辑页装机验合并（2026-09-30）：测试片段放在电脑上、经 adb reverse 当成 http://localhost:<端口> 给手机 ——
+        // 原生合成器拉它没问题（debug 变体的网络安全配置给 localhost 放行了明文），可预览用的 <video> 走的是 media-src，
+        // 不放行的话片段在剪辑页里一段都播不出来（分割 / 裁剪读的正是播放头），合并前的那几步就没法验
+        .replace("media-src 'self' data: blob: https:", "media-src 'self' data: blob: https: http://localhost:* http://127.0.0.1:*")
     : CSP;
 
 const cspPlugin = (mode: string) => ({

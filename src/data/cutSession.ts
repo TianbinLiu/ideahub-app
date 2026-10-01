@@ -29,6 +29,7 @@
 import { idbRead, idbSet } from "./db";
 import type { DraftVideo } from "../types";
 import { deviceOwner, mayClaimLegacy, onViewerChange, workOwner } from "./deviceOwner";
+import { validateProject, type CutProject } from "./cutProject";
 
 // ★ 键名没改（还叫 v1）：新旧两种形状存在同一个键里，读的时候按形状分辨（见 readStore）。
 //   换一个新键的话迁移要写两个键，中间断一次就会出现「新键已有、老键还在」，老那条会被再认领一次。
@@ -50,6 +51,16 @@ export interface CutSession {
    *   与本仓「后加的字段一律判否定」同一条。
    */
   audioHint?: string;
+  /**
+   * 剪辑工程：时间轴上的片段（裁剪 / 分割 / 顺序）、还没付钱的圈选、配乐、导出档位，以及合并之后留底的源段
+   * （data/cutProject）。
+   *
+   * ★★ 为什么也要落盘（2026-09-30）：这些原来只是剪辑页里的几格 useState —— 稿子存了、剪了半天的时间轴没存，
+   *   「接着剪」回来又是一条没动过的；而合并之后稿子里只剩单段成片，源段不留底就再也改不回去。
+   * ★ 老稿子没有这一位（undefined）= **没有工程**，剪辑页按稿子重开一份（判否定）。形状不对的也按没有算
+   *   —— 坏的是工程不是稿子，花过钱的东西都在 draft 里，不能因为时间轴读坏了就把整条稿子丢掉。
+   */
+  project?: CutProject;
   /** 存下来的时刻（横幅上说"什么时候剪的"用） */
   at: number;
 }
@@ -166,9 +177,11 @@ function validate(raw: unknown): CutSession | null {
   const o = raw as Partial<CutSession>;
   const d = o.draft as DraftVideo | undefined;
   if (!d || typeof d !== "object" || !Array.isArray(d.segments) || d.segments.length === 0) return null;
+  const project = validateProject(o.project);
   return {
     draft: d,
     ...(typeof o.audioHint === "string" && o.audioHint ? { audioHint: o.audioHint } : {}),
+    ...(project ? { project } : {}),
     at: typeof o.at === "number" ? o.at : 0,
   };
 }
@@ -201,9 +214,10 @@ export function cutSessionReady(): boolean {
  * 存一稿。**回执是 boolean**（`idbSet` 本来就返回它）：存不住必须能被上层说出来 ——
  * 而调用它的每一处都恰好是"钱刚花出去"的那一拍（铁律八）。
  */
-export async function saveCutSession(draft: DraftVideo, audioHint: string | null): Promise<boolean> {
+export async function saveCutSession(draft: DraftVideo, audioHint: string | null, project: CutProject | null): Promise<boolean> {
   // ★ `audioHint` **必填**（哪怕传 null）：漏传它是零症状的 —— 稿子照存、回执照样是 true，
   //   只有几天后用户抱怨"合出来没声音"时才看得见。本仓「漏了就零症状的参数一律钉成必填」。
+  // ★ `project` 同理必填：漏传的后果是「接着剪」回来时间轴归零、合好的成片不能回去改，同样零症状。
   // ★★ 上一条没读出来时先重读一次（见 loadIssue）：读出来了就照常写（组稿闸那边已经问过要不要顶掉）；
   //   还读不出来就拒 —— 盖下去的可能是一条花过钱、用户此刻看不见的剪辑稿。原因由调用方问 cutSessionLoadIssue() 说
   if (loadIssue) {
@@ -215,7 +229,7 @@ export async function saveCutSession(draft: DraftVideo, audioHint: string | null
   const owner = workOwner();
   if (!owner) return false;
   claimLegacy();
-  const next: CutSession = { draft, ...(audioHint ? { audioHint } : {}), at: Date.now() };
+  const next: CutSession = { draft, ...(audioHint ? { audioHint } : {}), ...(project ? { project } : {}), at: Date.now() };
   const nextStore: CutStore = { ...store, byOwner: { ...store.byOwner, [owner]: next } };
   const ok = await idbSet(CUT_KEY, nextStore);
   if (ok) {

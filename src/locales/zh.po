@@ -1591,9 +1591,25 @@ msgstr "← 换成自己写一句"
 msgid "← 改选段"
 msgstr "← 改选段"
 
+#: src/pages/PublishPage.tsx
+msgid "↩ 回剪辑页改一改"
+msgstr "↩ 回剪辑页改一改"
+
+#: src/pages/CutPage.tsx
+msgid "↩ 回去改"
+msgstr "↩ 回去改"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "↩ 回竖屏"
 msgstr "↩ 回竖屏"
+
+#: src/pages/CutPage.tsx
+msgid "↶ 撤销"
+msgstr "↶ 撤销"
+
+#: src/pages/CutPage.tsx
+msgid "↷ 重做"
+msgstr "↷ 重做"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "↺ 用回原片"
@@ -1672,6 +1688,11 @@ msgstr "＋ 新建卡组"
 #: src/components/blockout/VisionFramePicker.tsx
 msgid "＋ 标记这一帧"
 msgstr "＋ 标记这一帧"
+
+#. placeholder {0}: i + 1
+#: src/pages/CutPage.tsx
+msgid "＋ 段{0}"
+msgstr "＋ 段{0}"
 
 #: src/pages/WorkshopPage.tsx
 msgid "＋ 添加"
@@ -3602,6 +3623,10 @@ msgstr "不合形状的段整段丢掉；一段不剩就算失败，不落地"
 msgid "不同意，退出登录"
 msgstr "不同意，退出登录"
 
+#: src/pages/CutPage.tsx
+msgid "不在时间轴上的段，点一下加回来："
+msgstr "不在时间轴上的段，点一下加回来："
+
 #: src/components/blockout/VisionFramePicker.tsx
 msgid "不在选段内"
 msgstr "不在选段内"
@@ -5474,6 +5499,10 @@ msgstr "刚才切到后台了——合成不会因此录坏画面，但可能被
 msgid "刚才挂卡的是另一个模板（这条流水线上套的模板中途换过了）——回模板详情页重新套用一次再挂卡"
 msgstr "刚才挂卡的是另一个模板（这条流水线上套的模板中途换过了）——回模板详情页重新套用一次再挂卡"
 
+#: src/pages/CutPage.tsx
+msgid "刚才的剪辑改动这一页上还在，但{saveWarn}——离开剪辑页之前先处理一下，否则这些改动会丢。"
+msgstr "刚才的剪辑改动这一页上还在，但{saveWarn}——离开剪辑页之前先处理一下，否则这些改动会丢。"
+
 #: src/pages/CustomCardPage.tsx
 msgid "刚才那张照片到得太晚了：这一格你已经放了别的图，就不替换了"
 msgstr "刚才那张照片到得太晚了：这一格你已经放了别的图，就不替换了"
@@ -6247,6 +6276,10 @@ msgstr "去掉"
 msgid "去掉这一味"
 msgstr "去掉这一味"
 
+#: src/pages/CutPage.tsx
+msgid "去掉这条配乐"
+msgstr "去掉这条配乐"
+
 #: src/pages/FeedPage.tsx
 msgid "去推荐流看看"
 msgstr "去推荐流看看"
@@ -6966,6 +6999,14 @@ msgstr "台词不再带音色样本（「{0}」档出片无声）"
 #: src/components/flow/TierRow.tsx
 msgid "台词不再带音色样本（「{0}」档暂无配音）"
 msgstr "台词不再带音色样本（「{0}」档暂无配音）"
+
+#: src/pages/CutPage.tsx
+msgid "右上角可以直接去发布。想再改片段、圈选或配乐，就回到合并之前接着剪——原来的时间轴都还在，改完重新合一次（合成不花钱）。"
+msgstr "右上角可以直接去发布。想再改片段、圈选或配乐，就回到合并之前接着剪——原来的时间轴都还在，改完重新合一次（合成不花钱）。"
+
+#: src/pages/CutPage.tsx
+msgid "右上角可以直接去发布。这条成片没有留下合并之前的片段（它是旧版本合的），要改只能回工作流重做一条。"
+msgstr "右上角可以直接去发布。这条成片没有留下合并之前的片段（它是旧版本合的），要改只能回工作流重做一条。"
 
 #: src/components/guide/tours.tsx
 msgid "右上角是终点"
@@ -9405,6 +9446,10 @@ msgid "成片合好了，但剪辑中的稿子已经关掉或换成了别的，�
 msgstr "成片合好了，但剪辑中的稿子已经关掉或换成了别的，这一条没有接上——回到那份稿子再合一次（合成不花钱）"
 
 #: src/pages/CutPage.tsx
+msgid "成片合好了，但合成期间时间轴又改过，这一条和现在的时间轴对不上，没有接上——回剪辑页再合一次（合成不花钱）"
+msgstr "成片合好了，但合成期间时间轴又改过，这一条和现在的时间轴对不上，没有接上——回剪辑页再合一次（合成不花钱）"
+
+#: src/pages/CutPage.tsx
 msgid "成片合好了，去发布吧"
 msgstr "成片合好了，去发布吧"
 
@@ -10894,8 +10939,12 @@ msgid "整条 {realSec} 秒将切成 {parts} 段（{segs}）登记成一组—�
 msgstr "整条 {realSec} 秒将切成 {parts} 段（{segs}）登记成一组——每段是独立模板，从任何一段套用都会整组铺进工作流（画面 {picW}×{picH} 低于 AI 引擎的像素下限，登记时服务端会自动放大到刚过线，时长与画幅比例不变）。"
 
 #: src/components/guide/tours.tsx
-msgid "整条模式下「下一步」把时间轴按顺序导出成<0>一整条视频</0>、进发布页（已经合好的稿子它写的是「去发布」，直接进发布页）。 从工坊单段进来时它是「保存本段」，改完写回那一段、不合并不发片。"
-msgstr "整条模式下「下一步」把时间轴按顺序导出成<0>一整条视频</0>、进发布页（已经合好的稿子它写的是「去发布」，直接进发布页）。 从工坊单段进来时它是「保存本段」，改完写回那一段、不合并不发片。"
+msgid "整条模式下「下一步」把时间轴按顺序导出成<0>一整条视频</0>、进发布页（已经合好的稿子它写的是「去发布」，直接进发布页； 合完还想改，点<1>↩ 回去改</1>就回到合并之前，改完再合一次、不花钱）。 从工坊单段进来时它是「保存本段」，改完写回那一段、不合并不发片。"
+msgstr "整条模式下「下一步」把时间轴按顺序导出成<0>一整条视频</0>、进发布页（已经合好的稿子它写的是「去发布」，直接进发布页； 合完还想改，点<1>↩ 回去改</1>就回到合并之前，改完再合一次、不花钱）。 从工坊单段进来时它是「保存本段」，改完写回那一段、不合并不发片。"
+
+#: src/components/guide/tours.tsx
+#~ msgid "整条模式下「下一步」把时间轴按顺序导出成<0>一整条视频</0>、进发布页（已经合好的稿子它写的是「去发布」，直接进发布页）。 从工坊单段进来时它是「保存本段」，改完写回那一段、不合并不发片。"
+#~ msgstr "整条模式下「下一步」把时间轴按顺序导出成<0>一整条视频</0>、进发布页（已经合好的稿子它写的是「去发布」，直接进发布页）。 从工坊单段进来时它是「保存本段」，改完写回那一段、不合并不发片。"
 
 #: src/components/blockout/arkVideoRules.ts
 msgid "整条登记不裁画面，而这条原片有一边到了 {longEdge} 像素，超过 AI 引擎的 {maxEdge} 上限。把选段收回 {segMaxSec} 秒以内、用裁剪框把画面框到 {maxEdge} 以内，一段一段做。"
@@ -11100,9 +11149,21 @@ msgstr "时长跟随参考片"
 msgid "时长跟随参考片 {refSec}s"
 msgstr "时长跟随参考片 {refSec}s"
 
+#: src/pages/CutPage.tsx
+msgid "时间轴上只剩这一个片段了，不能再删。"
+msgstr "时间轴上只剩这一个片段了，不能再删。"
+
+#: src/pages/CutPage.tsx
+msgid "时间轴上没有可合成的片段"
+msgstr "时间轴上没有可合成的片段"
+
 #: src/components/guide/tours.tsx
 msgid "时间轴下面那一块：AI <0>只看这几帧</0>去认画面里有谁—— 被看漏的人照样会变成白人偶，但清单里<1>没有他的位置，谁的卡都挂不上</1>， 还会把别人的位置挤歪。可以让它自动挑，也可以自己标人最全的几帧；<2>帧数不进报价</2>：多看几帧更准，也不额外收费。"
 msgstr "时间轴下面那一块：AI <0>只看这几帧</0>去认画面里有谁—— 被看漏的人照样会变成白人偶，但清单里<1>没有他的位置，谁的卡都挂不上</1>， 还会把别人的位置挤歪。可以让它自动挑，也可以自己标人最全的几帧；<2>帧数不进报价</2>：多看几帧更准，也不额外收费。"
+
+#: src/pages/CutPage.tsx
+msgid "时间轴还没准备好，稍等一下再点「下一步」"
+msgstr "时间轴还没准备好，稍等一下再点「下一步」"
 
 #: src/pages/SettingsProfilePage.tsx
 msgid "昵称"
@@ -12543,7 +12604,7 @@ msgid "段{0}"
 msgstr "段{0}"
 
 #. placeholder {0}: c.segIndex + 1
-#. placeholder {1}: clipDur(c).toFixed(1)
+#. placeholder {1}: durOf(c).toFixed(1)
 #: src/pages/CutPage.tsx
 msgid "段{0} · {1}s"
 msgstr "段{0} · {1}s"
@@ -13343,8 +13404,12 @@ msgid "点一个就只看这一类，选中的那个会放大亮起来；<0>再�
 msgstr "点一个就只看这一类，选中的那个会放大亮起来；<0>再点同一个才取消</0> —— 没有别的地方能关掉它。"
 
 #: src/components/guide/tours.tsx
-msgid "点一个片段选中，就能在播放头处<0>✂️ 分割</0>、<1>🗑 删除</1>、拖拽或前移后移<2>换序</2>。 这些只改导出范围，<3>一个 token 都不花</3>。"
-msgstr "点一个片段选中，就能在播放头处<0>✂️ 分割</0>、<1>🗑 删除</1>、拖拽或前移后移<2>换序</2>。 这些只改导出范围，<3>一个 token 都不花</3>。"
+msgid "点一个片段选中，就能在播放头处<0>✂️ 分割</0>、<1>🗑 删除</1>、拖拽或前移后移<2>换序</2>。 这些只改导出范围，<3>一个 token 都不花</3>；每一步都能<4>↶ 撤销</4>，离开这一页再回来也都还在。"
+msgstr "点一个片段选中，就能在播放头处<0>✂️ 分割</0>、<1>🗑 删除</1>、拖拽或前移后移<2>换序</2>。 这些只改导出范围，<3>一个 token 都不花</3>；每一步都能<4>↶ 撤销</4>，离开这一页再回来也都还在。"
+
+#: src/components/guide/tours.tsx
+#~ msgid "点一个片段选中，就能在播放头处<0>✂️ 分割</0>、<1>🗑 删除</1>、拖拽或前移后移<2>换序</2>。 这些只改导出范围，<3>一个 token 都不花</3>。"
+#~ msgstr "点一个片段选中，就能在播放头处<0>✂️ 分割</0>、<1>🗑 删除</1>、拖拽或前移后移<2>换序</2>。 这些只改导出范围，<3>一个 token 都不花</3>。"
 
 #. placeholder {0}: personNameOf(castable[selected]?.label)
 #: src/components/blockout/RoleCastBoard.tsx
@@ -13532,6 +13597,10 @@ msgstr "照着下面这句念（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）——出�
 #: src/pages/PublishPage.tsx
 msgid "片子留住、不出现在任何人的首页；想好了再去作品编辑页改成公开。"
 msgstr "片子留住、不出现在任何人的首页；想好了再去作品编辑页改成公开。"
+
+#: src/pages/PublishPage.tsx
+msgid "片段、配乐还想调就回去接着剪，改完重新合一次（合成不花钱）。这一页填好的标题、简介和封面会留着。"
+msgstr "片段、配乐还想调就回去接着剪，改完重新合一次（合成不花钱）。这一页填好的标题、简介和封面会留着。"
 
 #. placeholder {0}: (here - winStart).toFixed(1)
 #: src/components/blockout/BoxFramePicker.tsx
@@ -18197,6 +18266,10 @@ msgid "这个模板还没登记到服务器，先登记再识别角色位"
 msgstr "这个模板还没登记到服务器，先登记再识别角色位"
 
 #: src/pages/CutPage.tsx
+msgid "这个片段已经不在时间轴上了，重新点一个再操作。"
+msgstr "这个片段已经不在时间轴上了，重新点一个再操作。"
+
+#: src/pages/CutPage.tsx
 msgid "这个片段是分割出来的，同一段还有另一半在时间轴上——回到整段会和它重叠，成片里同一截会播两遍。想撤销分割，先删掉另一半。"
 msgstr "这个片段是分割出来的，同一段还有另一半在时间轴上——回到整段会和它重叠，成片里同一截会播两遍。想撤销分割，先删掉另一半。"
 
@@ -18911,6 +18984,18 @@ msgstr "这条已被平台下架，链接别人打不开，所以先不能分享
 msgid "这条弹幕还在发送中，等它发出去之后再删"
 msgstr "这条弹幕还在发送中，等它发出去之后再删"
 
+#: src/pages/PublishPage.tsx
+msgid "这条成片回不到合并之前了：它没有留下合并前的片段。可以直接发布，或回工作流重做一条。"
+msgstr "这条成片回不到合并之前了：它没有留下合并前的片段。可以直接发布，或回工作流重做一条。"
+
+#: src/pages/CutPage.tsx
+msgid "这条成片回不到合并之前了：它没有留下合并前的片段。直接去发布，或回工作流重做一条。"
+msgstr "这条成片回不到合并之前了：它没有留下合并前的片段。直接去发布，或回工作流重做一条。"
+
+#: src/pages/CutPage.tsx
+msgid "这条成片已经合好了"
+msgstr "这条成片已经合好了"
+
 #: src/pages/CutPage.tsx
 msgid "这条成片有 {sizeMb}MB，接近服务器上限（约 {capMb}MB），可能传不上去。传失败的话回剪辑页删几段、或把导出分辨率降一档再合一次——片段和配乐都还在。"
 msgstr "这条成片有 {sizeMb}MB，接近服务器上限（约 {capMb}MB），可能传不上去。传失败的话回剪辑页删几段、或把导出分辨率降一档再合一次——片段和配乐都还在。"
@@ -18996,6 +19081,14 @@ msgstr "这条还在上传中（或没连上服务器），还没有可下载的
 #: src/utils/nativeMerge.ts
 msgid "这条音频是空的"
 msgstr "这条音频是空的"
+
+#: src/pages/CutPage.tsx
+msgid "这条音频没能存进本地库（存储空间不足？）——这一次照常能用，但离开剪辑页之后要重新挑一次。"
+msgstr "这条音频没能存进本地库（存储空间不足？）——这一次照常能用，但离开剪辑页之后要重新挑一次。"
+
+#: src/pages/CutPage.tsx
+msgid "这条音频的文件读不出来了（可能被清理过）——去掉它重新挑一条，否则合成时不会有配乐。"
+msgstr "这条音频的文件读不出来了（可能被清理过）——去掉它重新挑一条，否则合成时不会有配乐。"
 
 #: src/pages/CutPage.tsx
 msgid "这样裁完只剩不到 {MIN_CLIP_SEC} 秒，片段太短了"
@@ -19462,6 +19555,10 @@ msgstr "邮箱"
 #: src/pages/LoginPage.tsx
 msgid "邮箱验证码"
 msgstr "邮箱验证码"
+
+#: src/pages/CutPage.tsx
+msgid "配乐「{lostName}」没能读出来——这一条先按没有配乐导出。想要它就回剪辑页的「音频」重新挑一次，再合一次。"
+msgstr "配乐「{lostName}」没能读出来——这一条先按没有配乐导出。想要它就回剪辑页的「音频」重新挑一次，再合一次。"
 
 #: src/pages/CutPage.tsx
 msgid "配乐用的是自动预置的原片音轨，而你裁过/删过/换过片段顺序——声音是按原片从头混进去的，会和画面对不上。想对齐就换一条自己的音频，或者把片段改回原样再合一次。"

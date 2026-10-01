@@ -1176,13 +1176,16 @@ export const TOURS: GuideTour[] = [
         ),
       },
       {
+        // ★ 2026-09-30 补（未升 version，主人 09-11 定的「引导不重弹」）：时间轴收成剪辑工程之后多了两件用户该知道的事 ——
+        //   每一步能撤销、离开这一页再回来都还在（data/cutProject）。原文不动，只在末尾加一句。
         title: msg`剪辑：不花钱的整理`,
         anchor: "cut-timeline",
         body: (
           <Trans>
             点一个片段选中，就能在播放头处<b className="font-bold text-slate-100">✂️ 分割</b>、
             <b className="font-bold text-slate-100">🗑 删除</b>、拖拽或前移后移<b className="font-bold text-slate-100">换序</b>。
-            这些只改导出范围，<b className="font-bold text-slate-100">一个 token 都不花</b>。
+            这些只改导出范围，<b className="font-bold text-slate-100">一个 token 都不花</b>；每一步都能
+            <b className="font-bold text-slate-100">↶ 撤销</b>，离开这一页再回来也都还在。
           </Trans>
         ),
       },
@@ -1198,11 +1201,13 @@ export const TOURS: GuideTour[] = [
       {
         // ★ 2026-09-11 订正（未升 version）：① 「发布后作品不可再修改」2026-09-07 起不成立（编辑页「🛠 回炉重做」能换成片内容，
         //   PublishPage / EditPage 那两处早已改口），这一页不必讲发布之后，删掉；② 已经合好的稿子这颗键写的是「去发布」（CutPage 的 alreadyMerged）。
+        // ★ 2026-09-30 再订正（未升 version）：合好之后不再是死路 —— 源段留了底，剪辑页与发布页都能「回去改」（studioStore.reopenCut）
         title: msg`右上角是终点`,
         anchor: "cut-next",
         body: (
           <Trans>
-            整条模式下「下一步」把时间轴按顺序导出成<b className="font-bold text-slate-100">一整条视频</b>、进发布页（已经合好的稿子它写的是「去发布」，直接进发布页）。
+            整条模式下「下一步」把时间轴按顺序导出成<b className="font-bold text-slate-100">一整条视频</b>、进发布页（已经合好的稿子它写的是「去发布」，直接进发布页；
+            合完还想改，点<b className="font-bold text-slate-100">↩ 回去改</b>就回到合并之前，改完再合一次、不花钱）。
             从工坊单段进来时它是「保存本段」，改完写回那一段、不合并不发片。
           </Trans>
         ),
