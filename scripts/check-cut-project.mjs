@@ -15,6 +15,13 @@
 //   分割把一句话留在两半上；有一段的长度没量过还照排闪黑；没量过的段把出点明说成申报值；配音不等上一句念完；
 //   有配音的段原声不压低；`blob:` 的配音读回来留着；字幕的一行比安全宽度宽；把接着拍的接缝报成换场。
 //   其中「一行超宽」第一遍没红（用例里没有"断在逗号后面就超宽"的句子），补了用例才红 —— 试红不是走过场。
+//   一键成片与「对剪辑台说话」的落地（2026-10-01）又试过二十三处，各自变红。一键成片八处：转场落在任意接缝上；
+//   同一个片段的第二句盖掉第一句；自动转场不封顶；转场开关关着还照改；空标题把原标题冲掉；演示档不按念得完的长度截；
+//   不知道是不是换场的接缝报成换场；太长的一句被截成半句。落地十二处：编号按"现在的"时间轴认（先删片段 2 再说片段 3
+//   就落到别人身上）；「只留 N 秒」把片段放长；长度没量过的片段照样按秒裁；裁 / 切不乘速度；撤销与别的改动混着办；
+//   配音办不了还照排；一句话删光；没变也换一份工程（空撤销）；「慢一点」写死成绝对倍数；配好的重配；一句话写给所有片段。
+//   「第 N 段」的两种读法又试两处：换过序还按位置认；同一段切成两半还认前一半。
+//   还有一处：配音还在配的时候，嘴说的那条路照样打开一键成片（界面上那颗入口这时是灰的）。
 //
 // 用法：node scripts/check-cut-project.mjs [--module=<另一份 cutProject.ts 的路径，造违规试红用>]
 import fs from "node:fs";
@@ -485,6 +492,327 @@ const bareProj = () => C.setAudio(fresh(), null);
   const two = plan(must(C.setClipLine(bareProj(), "c3", "雨夜里，信使收到一封没有地址的信，他决定亲自去找收信人。"), "字"));
   eq("翻页：两页首尾相接、盖满这一段", [two.captions.length, r3(two.captions[0].startSec), two.captions[0].endSec === two.captions[1].startSec, r3(two.captions[1].endSec)], [2, 10.15, true, 19.9]);
   eq("翻页：字多的那一页挂得久", two.captions[0].endSec - two.captions[0].startSec > two.captions[1].endSec - two.captions[1].startSec, true);
+}
+
+// ── 一键成片：给模型的清单、模型输出的形状检查（不可信输入）、落地 ──
+{
+  const segsA = [
+    { title: "第1段 · 开场", plot: "中景 · 缓推 · 铺垫。雨夜的码头上，信使推开仓库的铁门。他浑身湿透。", carried: false },
+    { title: "第2段 · 追逐", plot: "他在货架之间奔跑，身后的手电光越来越近。", carried: true },
+    { title: "第3段 · 收尾", plot: "天亮了。信使坐在海堤上，把那封信折好放进口袋。", carried: false },
+  ];
+  const p = bareProj();
+  const brief = C.autoBrief(p, segsA, lens3);
+  eq("清单：一个片段一行、编号从 1 起、带时长与念得完的长度", brief.map((b) => [b.n, b.clipId, b.durSec, b.cap]), [[1, "c1", 5, 24], [2, "c2", 5, 24], [3, "c3", 10, 48]]);
+  eq("清单：接缝的三种说法", brief.map((b) => b.seam), ["first", "same-shot", "scene-change"]);
+  eq("清单：老剪辑稿不知道是不是接着拍的", C.autoBrief(p, [{}, {}, {}], lens3).map((b) => b.seam), ["first", "unknown", "unknown"]);
+  // 删过段、变过速之后：编号重排，时长按成片里的算，接缝重新判（中间删了一段就不再是原来那条接缝）
+  const edited = must(C.setClipSpeed(must(C.removeClip(p, "c2"), "删"), "c3", 2), "变速");
+  eq("清单跟着时间轴走", C.autoBrief(edited, segsA, lens3).map((b) => [b.n, b.clipId, b.durSec, b.seam]), [[1, "c1", 5, "first"], [2, "c3", 5, "scene-change"]]);
+
+  const good = JSON.stringify({
+    title: "《雨夜信使》",
+    lines: [{ clip: 1, text: "雨夜里，他推开了那扇门。" }, { clip: 2, text: "有人追了上来。" }, { clip: 3, text: "天亮的时候，信还在他手里。" }],
+    fades: [3],
+    music: "低沉的钢琴",
+  });
+  const r = C.parseAutoPlan(good, brief);
+  eq("形状对的原样收下（标题摘掉书名号，编号换回片段 id）", r.ok && r.plan, {
+    title: "雨夜信使",
+    lines: [{ clipId: "c1", text: "雨夜里，他推开了那扇门。" }, { clipId: "c2", text: "有人追了上来。" }, { clipId: "c3", text: "天亮的时候，信还在他手里。" }],
+    fades: ["c3"],
+    music: "低沉的钢琴",
+  });
+  eq("包在代码块与客套话里的 JSON 也读得出", C.parseAutoPlan("好的，这是结果：\n```json\n" + good + "\n```\n希望有帮助", brief).ok, true);
+
+  // ★ 不可信输入：编号越界 / 重复 / 不是整数 / 缺字段 / 混进别的类型
+  const bad = C.parseAutoPlan(
+    JSON.stringify({
+      title: 12,
+      lines: [{ clip: 9, text: "越界" }, { clip: "2", text: "字符串编号也认" }, { clip: 2, text: "同一段的第二句" }, { clip: 1.5, text: "不是整数" }, { clip: 3 }, "乱入", null],
+      fades: [1, 2, 3, 3, 7, "x"],
+      music: 5,
+    }),
+    brief,
+  );
+  eq("越界 / 重复 / 不成形的行丢掉，没拿到话的片段留空", bad.ok && bad.plan.lines, [{ clipId: "c1", text: "" }, { clipId: "c2", text: "字符串编号也认" }, { clipId: "c3", text: "" }]);
+  eq("转场只落在明确换了场的接缝上（第一个片段、接着拍的都不行），不重复", bad.ok && bad.plan.fades, ["c3"]);
+  eq("标题 / 配乐建议不是字符串就当没有", bad.ok && [bad.plan.title, bad.plan.music], ["", ""]);
+  const unknownSeams = C.parseAutoPlan(JSON.stringify({ title: "t", lines: [], fades: [2, 3] }), C.autoBrief(p, [{}, {}, {}], lens3));
+  eq("不知道是不是换场的接缝上不加转场", unknownSeams.ok && unknownSeams.plan.fades, []);
+  const long = C.parseAutoPlan(JSON.stringify({ lines: [{ clip: 1, text: "字".repeat(60) }] }), brief);
+  eq("太长的一句不截（截出来是半句话）—— 由确认卡标出来", long.ok && long.plan.lines[0].text.length, 60);
+  eq("存储上限仍然封顶", (() => { const x = C.parseAutoPlan(JSON.stringify({ lines: [{ clip: 1, text: "字".repeat(999) }] }), brief); return x.ok && x.plan.lines[0].text.length; })(), C.LINE_MAX_CHARS);
+  eq("回话里没有 JSON", C.parseAutoPlan("抱歉，我没法完成这个请求。", brief), { ok: false, issue: "no-json" });
+  eq("半截 JSON（被截断）", C.parseAutoPlan('{"title": "雨夜信使", "lines": [{"clip": 1, "text": "雨夜里', brief), { ok: false, issue: "no-json" });
+  eq("有花括号但读不出来", C.parseAutoPlan('{"title": 雨夜信使}', brief), { ok: false, issue: "bad-json" });
+  eq("读得出但不是对象", C.parseAutoPlan("[1, 2]", brief), { ok: false, issue: "bad-json" });
+  eq("一句能用的话、一个能用的标题都没有", C.parseAutoPlan(JSON.stringify({ title: "  ", lines: [{ clip: 8, text: "x" }] }), brief), { ok: false, issue: "empty" });
+  eq("只有标题也算数", C.parseAutoPlan(JSON.stringify({ title: "雨夜信使" }), brief).ok, true);
+  // 转场最多 AUTO_FADES_MAX 处
+  const segs6 = Array.from({ length: 6 }, (_, i) => ({ title: `第${i + 1}段`, durationSec: 5, plot: "画面", carried: false }));
+  let k = 0;
+  const p6 = C.freshProject(segs6, false, () => `s${++k}`);
+  const many = C.parseAutoPlan(JSON.stringify({ title: "t", fades: [2, 3, 4, 5, 6] }), C.autoBrief(p6, segs6, [5, 5, 5, 5, 5, 5]));
+  eq("自动加的转场有上限", many.ok && many.plan.fades, ["s2", "s3", "s4"].slice(0, C.AUTO_FADES_MAX));
+
+  // 演示档：不冒充模型
+  const demo = C.demoAutoPlan(brief);
+  eq("演示档：每段取画面描述的第一句（跳过镜头行）", demo.lines.map((l) => l.text), ["雨夜的码头上，信使推开仓库的铁门。", "他在货架之间奔跑，身后的手电光越来越近。", "天亮了。"]);
+  eq("演示档：不加转场、不起标题", [demo.fades, demo.title, demo.music], [[], "", ""]);
+  const tight = C.demoAutoPlan([{ ...brief[0], cap: 8 }]);
+  eq("演示档：截到这一段念得完的长度", C.lineUnits(tight.lines[0].text) <= 8, true);
+
+  // 落地：确认卡上看到的就是写进去的
+  const plan = r.ok ? r.plan : null;
+  const applied = C.applyAutoPlan(p, plan, { captions: true, fades: true, endFade: true });
+  eq("落地：标题、每段一句、转场、片尾淡出", [applied.title, applied.clips.map((c) => c.line?.text), applied.clips.map((c) => !!c.fade), applied.endFade, "capOff" in applied], ["雨夜信使", ["雨夜里，他推开了那扇门。", "有人追了上来。", "天亮的时候，信还在他手里。"], [false, false, true], true, false]);
+  eq("落地不动别的（片段范围 / 配乐 / 档位）", [shape(applied), applied.audio, applied.resId], [shape(p), p.audio, p.resId]);
+  // 原来的东西怎么处理
+  let had = must(C.setClipVoice(must(C.setClipLine(p, "c1", "雨夜里，他推开了那扇门。"), "字"), "c1", voiceOf("雨夜里，他推开了那扇门。", 2)), "配音");
+  had = must(C.setClipFade(must(C.setClipLine(had, "c2", "原来的一句"), "字"), "c2", true), "闪黑");
+  const over = C.applyAutoPlan(had, { ...plan, lines: [plan.lines[0], { clipId: "c2", text: "" }, plan.lines[2]] }, { captions: false, fades: true, endFade: false });
+  eq("字没变的那一句：配音还作数", [over.clips[0].line.voice?.durSec, C.voiceStale(over.clips[0].line, "v1")], [2, false]);
+  eq("表里是空串的片段：原来的字幕去掉", "line" in over.clips[1], false);
+  eq("转场开着：不在表里的片段不再从黑里进来", over.clips.map((c) => !!c.fade), [false, false, true]);
+  eq("开关关着就写成关", ["endFade" in over, over.capOff], [false, true]);
+  const keepFades = C.applyAutoPlan(had, plan, { captions: true, fades: false, endFade: true });
+  eq("转场关着：原来的转场一个不动", keepFades.clips.map((c) => !!c.fade), [false, true, false]);
+  const gone = C.applyAutoPlan(must(C.removeClip(p, "c2"), "删"), plan, { captions: true, fades: true, endFade: true });
+  eq("表里的片段已经被删了：跳过那一行，别的照写", gone.clips.map((c) => [c.id, c.line?.text]), [["c1", "雨夜里，他推开了那扇门。"], ["c3", "天亮的时候，信还在他手里。"]]);
+  eq("标题是空的：不动原来的标题", C.applyAutoPlan(C.setTitle(p, "原标题"), { ...plan, title: "" }, { captions: true, fades: true, endFade: true }).title, "原标题");
+}
+
+// ── 对剪辑台说话：白名单操作落地（applyCutOps）──
+{
+  let k = 0;
+  const ctxOf = (p, over = {}) => ({
+    project: p,
+    lens: lens3,
+    realLens: lens3,
+    segCount: 3,
+    selectedId: null,
+    voiceId: "v1",
+    voice: "ok",
+    newId: () => `n${++k}`,
+    ...over,
+  });
+  const go = (ops, p = bareProj(), over) => C.applyCutOps(ops, ctxOf(p, over));
+  const kinds = (r) => r.refusals.map((x) => x.kind);
+
+  // 基本：一句话几件事，回执带的是说话那一刻的编号
+  let r = go([{ op: "speed", clip: 2, value: 0.5 }, { op: "volume", clip: 3, value: 0 }, { op: "end_fade", on: true }]);
+  eq("一句话三件事：各办各的", [r.receipts, r.refusals, r.next.clips.map((c) => [c.id, c.speed, c.volume]), r.next.endFade], [
+    [{ kind: "speed", n: 2, speed: 0.5 }, { kind: "volume", n: 3, pct: 0 }, { kind: "end_fade", on: true }],
+    [],
+    [["c1", null, null], ["c2", 0.5, null], ["c3", null, 0]],
+    true,
+  ]);
+  {
+    const p = bareProj();
+    const before = JSON.stringify(p);
+    go([{ op: "remove", clip: 1 }, { op: "speed", clip: 2, value: 2 }, { op: "title", text: "雨夜" }], p);
+    eq("传进来的那份工程不动（回的是新对象）", JSON.stringify(p), before);
+  }
+
+  // ★ 点名认 id 不认下标：先删片段 2、再说片段 3，说的是删之前的第 3 个
+  r = go([{ op: "remove", clip: 2 }, { op: "volume", clip: 3, value: 0 }]);
+  eq("先删片段 2 再说片段 3：落在原来的第 3 个上", [r.next.clips.map((c) => [c.id, c.volume]), r.receipts], [
+    [["c1", null], ["c3", 0]],
+    [{ kind: "removed", n: 2 }, { kind: "volume", n: 3, pct: 0 }],
+  ]);
+  r = go([{ op: "remove", clip: 2 }, { op: "speed", clip: 2, value: 0.5 }]);
+  eq("同一句话里前面已经删了它：后面那件不办、说出来", [r.refusals, r.receipts.length], [[{ kind: "gone", n: 2 }], 1]);
+
+  // 没变的也照报，但不产生一步空撤销
+  r = go([{ op: "speed", clip: 1, value: 1 }]);
+  eq("本来就是那个样子：照报、工程不换（不记一步空撤销）", [r.receipts, r.next], [[{ kind: "speed", n: 1, speed: 1 }], null]);
+
+  // 点名的几种
+  r = go([{ op: "volume", clip: "current", value: 0 }]);
+  eq("没点名也没选中：不办", [kinds(r), r.next], [["no_current"], null]);
+  r = go([{ op: "volume", clip: "current", value: 0 }], bareProj(), { selectedId: "c2" });
+  eq("没点名：落在选中的那个上", r.next.clips.map((c) => c.volume ?? null), [null, 0, null]);
+  r = go([{ op: "speed", clip: "current", value: 2 }, { op: "volume", clip: "current", value: 0 }]);
+  eq("同一个原因只说一次", r.refusals, [{ kind: "no_current" }]);
+  r = go([{ op: "volume", clip: 9, value: 0 }]);
+  eq("没有这个编号", r.refusals, [{ kind: "no_clip", ref: 9, count: 3 }]);
+  r = go([{ op: "volume", clip: "all", value: 0.3 }]);
+  eq("全部", [r.next.clips.map((c) => c.volume), r.receipts.map((x) => [x.n, x.pct])], [[0.3, 0.3, 0.3], [[1, 30], [2, 30], [3, 30]]]);
+  r = go([{ op: "fade", clip: "last", on: true }]);
+  eq("最后一个", r.next.clips.map((c) => !!c.fade), [false, false, true]);
+  r = go([{ op: "volume", clip: "last", value: 0 }, { op: "volume", clip: 3, value: 0 }], bareProj(), { segCount: 2 });
+  eq("指着不存在的段的片段不占编号", [r.next.clips.map((c) => c.volume ?? null), r.refusals], [[null, 0, null], [{ kind: "no_clip", ref: 3, count: 2 }]]);
+
+  // ★ 「第 N 段」（带"段"字的说法）：只有"位置 N"与"标着段 N 的那个"是同一个片段才办
+  r = go([{ op: "volume", clip: { seg: 3 }, value: 0 }]);
+  eq("没动过的时间轴：第 3 段就是片段 3", r.next.clips.map((c) => c.volume ?? null), [null, null, 0]);
+  {
+    const moved = must(C.reorderClip(bareProj(), "c3", "c1"), "换序"); // c3 c1 c2
+    r = go([{ op: "volume", clip: { seg: 3 }, value: 0 }], moved);
+    eq("换过序：第 3 段有两种读法（位置 3 的 / 标着段3 的），不办", [r.refusals, r.next], [[{ kind: "seg_unclear", ref: 3 }], null]);
+    r = go([{ op: "volume", clip: 3, value: 0 }], moved);
+    eq("换过序：按位置说「片段 3」照办，落在从左数第 3 个上", r.next.clips.map((c) => [c.id, c.volume ?? null]), [["c3", null], ["c1", null], ["c2", 0]]);
+    const cutUp = must(C.splitClip(bareProj(), "c2", 2, "h2", lens3), "切"); // c1 c2 h2 c3
+    r = go([{ op: "remove", clip: { seg: 2 } }, { op: "remove", clip: { seg: 1 } }], cutUp);
+    eq("切过：第 2 段有两个片段，不办；没受影响的第 1 段照办", [r.refusals, r.next.clips.map((c) => c.id)], [[{ kind: "seg_unclear", ref: 2 }], ["c2", "h2", "c3"]]);
+    const fewer = must(C.removeClip(bareProj(), "c1"), "删"); // c2 c3
+    r = go([{ op: "volume", clip: { seg: 3 }, value: 0 }, { op: "volume", clip: { seg: 2 }, value: 0 }], fewer);
+    eq("删过前面的：第 3 段 / 第 2 段都对不上位置，不办", [r.refusals, r.next], [[{ kind: "seg_unclear", ref: 3 }, { kind: "seg_unclear", ref: 2 }], null]);
+    eq(
+      "segRefClip：读法唯一才回片段",
+      [C.segRefClip(bareProj().clips, 3, 2), C.segRefClip(moved.clips, 3, 2), C.segRefClip(moved.clips, 3, 3), C.segRefClip(cutUp.clips, 3, 1), C.segRefClip(cutUp.clips, 3, 2), C.segRefClip(cutUp.clips, 3, 3), C.segRefClip(bareProj().clips, 3, 9), C.segRefClip(bareProj().clips, 3, 1.5)],
+      ["c2", null, null, "c1", null, null, null, null],
+    );
+  }
+
+  // 变速：明说的倍数就近取档；「慢一点 / 快一点」从现在的速度起挪一档
+  r = go([{ op: "speed", clip: 1, value: 0.6 }]);
+  eq("不在档上的倍数就近取一档，回执说的是真落到的那一档", r.receipts, [{ kind: "speed", n: 1, speed: 0.5 }]);
+  r = go([{ op: "speed_step", clip: 1, dir: -1 }]);
+  eq("慢一档：1× → 0.75×", [r.next?.clips[0].speed, r.receipts], [0.75, [{ kind: "speed", n: 1, speed: 0.75 }]]);
+  r = go([{ op: "speed_step", clip: 1, dir: -1 }], must(C.setClipSpeed(bareProj(), "c1", 0.75), "变速"));
+  eq("再慢一档：0.75× → 0.5×（不是纹丝不动）", r.next?.clips[0].speed, 0.5);
+  r = go([{ op: "speed_step", clip: 1, dir: -1 }], must(C.setClipSpeed(bareProj(), "c1", 0.5), "变速"));
+  eq("已经最慢：不办、说出来", [r.refusals, r.next], [[{ kind: "speed_limit", n: 1, speed: 0.5 }], null]);
+  r = go([{ op: "speed_step", clip: 1, dir: 1 }, { op: "speed_step", clip: 1, dir: 1 }]);
+  eq("一句话里快两档：1× → 1.25× → 1.5×", r.next?.clips[0].speed, 1.5);
+  r = go([{ op: "speed_step", clip: 2, dir: 1 }], must(C.setClipSpeed(bareProj(), "c2", 2), "变速"));
+  eq("已经最快", r.refusals, [{ kind: "speed_limit", n: 2, speed: 2 }]);
+
+  // 裁：秒是成片里的秒
+  r = go([{ op: "trim", clip: 3, edge: "start", sec: 2, mode: "cut" }]);
+  eq("裁掉开头 2 秒", shape(r.next), "0[0-尾] 1[0-尾] 2[2-尾]");
+  r = go([{ op: "trim", clip: 3, edge: "end", sec: 2, mode: "cut" }]);
+  eq("裁掉结尾 2 秒", shape(r.next), "0[0-尾] 1[0-尾] 2[0-8]");
+  r = go([{ op: "trim", clip: 3, edge: "end", sec: 3, mode: "keep" }]);
+  eq("只留开头 3 秒（动的是结尾）", [shape(r.next), r.receipts], ["0[0-尾] 1[0-尾] 2[0-3]", [{ kind: "trimmed", n: 3, edge: "end", mode: "keep", sec: 3 }]]);
+  r = go([{ op: "trim", clip: 3, edge: "start", sec: 3, mode: "keep" }]);
+  eq("只留结尾 3 秒（动的是开头）", shape(r.next), "0[0-尾] 1[0-尾] 2[7-尾]");
+  {
+    const fast = must(C.setClipSpeed(bareProj(), "c3", 2), "变速"); // 10 秒素材、成片里 5 秒
+    eq("变速片段：裁掉开头 2 秒成片 = 4 秒素材", shape(go([{ op: "trim", clip: 3, edge: "start", sec: 2, mode: "cut" }], fast).next), "0[0-尾] 1[0-尾] 2[4-尾]");
+    eq("变速片段：只留开头 2 秒成片 = 4 秒素材", shape(go([{ op: "trim", clip: 3, edge: "end", sec: 2, mode: "keep" }], fast).next), "0[0-尾] 1[0-尾] 2[0-4]");
+    eq("变速片段：在第 2 秒切开 = 素材的第 4 秒", shape(go([{ op: "split", clip: 3, at: 2 }], fast).next), "0[0-尾] 1[0-尾] 2[0-4] 2[4-尾]");
+    r = go([{ op: "trim", clip: 3, edge: "end", sec: 6, mode: "keep" }], fast);
+    eq("变速片段：成片里只有 5 秒，留不出 6 秒", r.refusals, [{ kind: "keep_longer", n: 3, sec: 6, have: 5 }]);
+  }
+  r = go([{ op: "trim", clip: 1, edge: "start", sec: 4.8, mode: "cut" }]);
+  eq("裁完剩下的太短：改法自己拒，原因是同一份代码", [r.refusals, r.next], [[{ kind: "issue", n: 1, issue: "short" }], null]);
+  r = go([{ op: "trim", clip: 1, edge: "start", sec: 0, mode: "cut" }, { op: "split", clip: 1, at: -1 }]);
+  eq("0 秒 / 负数：不办", [r.refusals, r.next], [[{ kind: "bad_number", n: 1 }], null]);
+  {
+    // ★ 「只留 N 秒」只许往短里裁
+    const cut3 = must(C.trimClip(bareProj(), "c3", "end", 3, lens3), "裁到 3 秒");
+    r = go([{ op: "trim", clip: 3, edge: "end", sec: 4, mode: "keep" }], cut3);
+    eq("只留开头 4 秒，可它只有 3 秒：不办（不许把裁过的片段放长）", [r.refusals, r.next], [[{ kind: "keep_longer", n: 3, sec: 4, have: 3 }], null]);
+    const halves = must(C.splitClip(bareProj(), "c3", 5, "h2", lens3), "切");
+    r = go([{ op: "trim", clip: 3, edge: "start", sec: 8, mode: "keep" }], halves);
+    eq("分割出来的前一半只留结尾 8 秒：不办（照算会伸进另一半，同一截播两遍）", [kinds(r), r.next], [["keep_longer"], null]);
+  }
+  {
+    // ★ 长度没量出来的片段，按秒下刀的都不办
+    const un = { realLens: [5, undefined, 10] };
+    r = go([{ op: "trim", clip: 2, edge: "end", sec: 2, mode: "cut" }, { op: "split", clip: 2, at: 2 }], bareProj(), un);
+    eq("没量过长度的片段：裁 / 切都不办", [r.refusals, r.next], [[{ kind: "unmeasured", n: 2 }], null]);
+    r = go([{ op: "speed", clip: 2, value: 2 }, { op: "trim", clip: 3, edge: "end", sec: 2, mode: "cut" }], bareProj(), un);
+    eq("没量过长度不碍别的操作，量过的片段照裁", [shape(r.next), r.next.clips[1].speed, r.refusals], ["0[0-尾] 1[0-尾] 2[0-8]", 2, []]);
+    const cut = must(C.trimClip(bareProj(), "c2", "end", 3, lens3), "裁");
+    r = go([{ op: "trim", clip: 2, edge: "end", sec: 1, mode: "cut" }], cut, un);
+    eq("出点是人定过的就不算没量过", shape(r.next), "0[0-尾] 1[0-2] 2[0-尾]");
+  }
+
+  // 切
+  k = 0;
+  r = go([{ op: "split", clip: 3, at: 3 }]);
+  eq("在第 3 秒切开：后一半用给的新 id", [shape(r.next), r.next.clips.map((c) => c.id), r.receipts], ["0[0-尾] 1[0-尾] 2[0-3] 2[3-尾]", ["c1", "c2", "c3", "n1"], [{ kind: "split", n: 3, at: 3 }]]);
+  r = go([{ op: "split", clip: 3, at: 0.1 }, { op: "split", clip: "all", at: 2 }]);
+  eq("离边缘太近 / 对全部切：不办", [r.refusals, r.next], [[{ kind: "issue", n: 3, issue: "edge" }, { kind: "not_all" }], null]);
+
+  // 挪
+  r = go([{ op: "move", clip: 3, to: "first" }]);
+  eq("挪到最前", [r.next.clips.map((c) => c.id), r.receipts], [["c3", "c1", "c2"], [{ kind: "moved", n: 3, place: 1 }]]);
+  eq("挪到第 2 位", go([{ op: "move", clip: 1, to: 2 }]).next.clips.map((c) => c.id), ["c2", "c1", "c3"]);
+  eq("位置越界就落在最后", go([{ op: "move", clip: 1, to: 99 }]).next.clips.map((c) => c.id), ["c2", "c3", "c1"]);
+  eq("后移一格", go([{ op: "move", clip: 1, to: { delta: 1 } }]).next.clips.map((c) => c.id), ["c2", "c1", "c3"]);
+  r = go([{ op: "move", clip: 1, to: { delta: -1 } }, { op: "move", clip: 3, to: "last" }, { op: "move", clip: "all", to: 1 }]);
+  eq("已经在那儿 / 对全部挪：不办", [r.refusals, r.next], [[{ kind: "same_place", n: 1 }, { kind: "same_place", n: 3 }, { kind: "not_all" }], null]);
+  r = go([{ op: "remove", clip: 1 }, { op: "move", clip: 3, to: "first" }]);
+  eq("位置按现在的时间轴数（前面删过一个）", r.next.clips.map((c) => c.id), ["c3", "c2"]);
+
+  // 删
+  r = go([{ op: "remove", clip: "all" }]);
+  eq("一句话删光：不办", [r.refusals, r.next], [[{ kind: "not_all" }], null]);
+  r = go([{ op: "remove", clip: 1 }, { op: "remove", clip: 2 }, { op: "remove", clip: 3 }]);
+  eq("删到只剩一个：最后那个不许删", [r.next.clips.map((c) => c.id), r.refusals], [["c3"], [{ kind: "issue", n: 3, issue: "last" }]]);
+
+  // 字幕 / 标题
+  r = go([{ op: "line", clip: 1, text: "雨停了。" }, { op: "line", clip: 2, text: "字".repeat(30) }]);
+  eq("写字幕；这一段念不完的照写但标出来", [r.next.clips.map((c) => c.line?.text?.length ?? 0), r.receipts.map((x) => x.long)], [[4, 30, 0], [false, true]]);
+  r = go([{ op: "line", clip: "all", text: "同一句" }]);
+  eq("同一句话不写给所有片段", [r.refusals, r.next], [[{ kind: "not_all" }], null]);
+  {
+    const two = must(C.setClipLine(must(C.setClipLine(bareProj(), "c1", "一"), "字"), "c3", "三"), "字");
+    r = go([{ op: "line", clip: "all", text: "" }], two);
+    eq("去掉全部字幕可以", r.next.clips.map((c) => "line" in c), [false, false, false]);
+  }
+  r = go([{ op: "title", text: "标".repeat(C.TITLE_MAX + 5) }]);
+  eq("标题太长：只收前 TITLE_MAX 个字，回执说出来", [r.next.title.length, r.receipts], [C.TITLE_MAX, [{ kind: "title", on: true, cut: true }]]);
+  r = go([{ op: "title", text: "" }, { op: "captions", on: false }], C.setTitle(bareProj(), "原标题"));
+  eq("去掉标题、不烧字幕", ["title" in r.next, r.next.capOff, r.receipts], [false, true, [{ kind: "title", on: false, cut: false }, { kind: "captions", on: false }]]);
+
+  // 配音
+  {
+    const lined = must(C.setClipLine(must(C.setClipLine(bareProj(), "c1", "雨停了。"), "字"), "c3", "天亮了。"), "字");
+    r = go([{ op: "voice", clip: "all" }], lined);
+    eq("全部配音：有字的那几个，按时间轴顺序；没字的不算被拒", [r.voiceIds, r.receipts, r.refusals, r.next], [["c1", "c3"], [{ kind: "voice", count: 2 }], [], null]);
+    r = go([{ op: "voice", clip: 2 }], lined);
+    eq("点名配音可它没有字", [r.voiceIds, r.refusals], [[], [{ kind: "no_line", n: 2 }]]);
+    r = go([{ op: "voice", clip: "all" }]);
+    eq("全部配音可一句字幕都没有", [r.voiceIds, r.refusals], [[], [{ kind: "nothing_to_voice" }]]);
+    const voiced = must(C.setClipVoice(lined, "c1", voiceOf("雨停了。", 1.2)), "配音");
+    r = go([{ op: "voice", clip: "all" }], voiced);
+    eq("全部配音：配好且没过期的不重配", r.voiceIds, ["c3"]);
+    r = go([{ op: "voice", clip: 1 }], voiced);
+    eq("点名的那一个照配（人就是要重来一遍）", r.voiceIds, ["c1"]);
+    r = go([{ op: "voice", clip: "all" }], voiced, { voiceId: "v2" });
+    eq("换过音色：过期的重配", r.voiceIds, ["c1", "c3"]);
+    r = go([{ op: "line", clip: 2, text: "有人追了上来。" }, { op: "voice", clip: 2 }], lined);
+    eq("同一句话里先写字再配音", [r.voiceIds, r.next.clips[1].line.text], [["c2"], "有人追了上来。"]);
+    r = go([{ op: "voice", clip: 1 }, { op: "remove", clip: 1 }], lined);
+    eq("配音排上了、后面又把它删了：不配", r.voiceIds, []);
+    const long = must(C.setClipLine(bareProj(), "c1", "字".repeat(30)), "字");
+    r = go([{ op: "voice", clip: 1 }], long);
+    eq("字幕太长念不完：不配", [r.voiceIds, r.refusals], [[], [{ kind: "line_long", n: 1 }]]);
+    r = go([{ op: "voice", clip: "all" }], lined, { voice: "busy" });
+    eq("上一批还在配：不办", [r.voiceIds, r.refusals], [[], [{ kind: "voice_busy" }]]);
+    r = go([{ op: "voice", clip: "all" }], lined, { voice: "offline" });
+    eq("离线 / 演示构建没有语音合成：不办", [r.voiceIds, r.refusals], [[], [{ kind: "voice_offline" }]]);
+    r = go([{ op: "unvoice", clip: "all" }], voiced);
+    eq("去掉全部配音：只动真有配音的", [r.next.clips[0].line, r.receipts], [{ text: "雨停了。" }, [{ kind: "unvoiced", n: 1 }]]);
+    r = go([{ op: "unvoice", clip: "all" }], lined);
+    eq("去掉全部配音可一个都没有", [r.refusals, r.next], [[{ kind: "no_voice" }], null]);
+  }
+
+  // 配乐音量
+  r = go([{ op: "music_volume", value: 0.4 }]);
+  eq("没有配乐：不办", [r.refusals, r.next], [[{ kind: "no_music" }], null]);
+  r = go([{ op: "music_volume", value: 0.4 }], fresh());
+  eq("配乐音量", [r.next.audio, r.receipts], [{ kind: "preset", volume: 0.4 }, [{ kind: "music", pct: 40 }]]);
+
+  // ★ 撤销 / 重做不与别的改动混办
+  r = go([{ op: "undo" }, { op: "undo" }]);
+  eq("撤销两步：只报步数，工程不在这里动", [r.undo, r.redo, r.next, r.refusals], [2, 0, null, []]);
+  r = go([{ op: "undo" }, { op: "volume", clip: 1, value: 0 }, { op: "redo" }]);
+  eq("撤销与别的改动说在一句里：只办撤销 / 重做，别的不办、说出来", [r.undo, r.redo, r.next, r.receipts, r.refusals], [1, 1, null, [], [{ kind: "history_alone" }]]);
+
+  // 一键成片：只是打开面板
+  r = go([{ op: "auto" }, { op: "end_fade", on: true }]);
+  eq("打开一键成片，别的照办", [r.openAuto, r.next.endFade], [true, true]);
+  r = go([{ op: "auto" }], bareProj(), { voice: "busy" });
+  eq("配音还在配的时候不开一键成片（界面上那颗入口这时是灰的，嘴说的不许绕过去）", [r.openAuto, r.refusals], [false, [{ kind: "voice_busy" }]]);
+  eq("离线 / 演示构建照样能开一键成片（它有演示档）", go([{ op: "auto" }], bareProj(), { voice: "offline" }).openAuto, true);
+  eq("空的操作表", go([]), { receipts: [], refusals: [], next: null, voiceIds: [], undo: 0, redo: 0, openAuto: false });
 }
 
 if (problems.length) {
