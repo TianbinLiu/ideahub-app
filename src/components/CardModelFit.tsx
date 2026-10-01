@@ -18,7 +18,7 @@ import { uploadImage } from "../api/uploads";
 import { assetOf } from "../data/cardAsset";
 import { canAfford, frozenNote, isRemoteMode, spendTokens, updateCardMeta } from "../data/account";
 import { CHAT_TURN_TOKENS, ONE_IMAGE, fmtTokens } from "../data/economy";
-import { TEXT_DESC_MAX, type Card, type VideoAspect } from "../types";
+import { TEXT_DESC_MAX, startFramesAllowed, type Card, type VideoAspect } from "../types";
 
 const ASPECTS: VideoAspect[] = ["portrait", "landscape"];
 
@@ -38,8 +38,8 @@ export default function CardModelFit({ card, owned }: { card: Card; owned: boole
 
   const textOn = !!card.textDesc?.trim();
   const framesOn = !!(card.startFrames?.portrait || card.startFrames?.landscape);
-  /** 起拍画面只对"画面主体"有意义：人物 / 场景 / 道具。风格卡是一种画法，画不出一个开场镜头 */
-  const framesAllowed = card.type === "character" || card.type === "scene" || card.type === "prop";
+  /** 起拍画面只给画得出开场镜头、又不是真人照片的卡（判据 types.startFramesAllowed 一处；真人卡在真人档本来就以照片起拍） */
+  const framesAllowed = startFramesAllowed(card);
   const real = card.type === "character" && card.realPerson === true;
   const textPrice = fmtTokens(CHAT_TURN_TOKENS);
   const framesPrice = fmtTokens(ONE_IMAGE * ASPECTS.length);
@@ -55,13 +55,15 @@ export default function CardModelFit({ card, owned }: { card: Card; owned: boole
     : textOn
       ? t`收不到图时用文字版形象描述`
       : t`形象图只经由设定帧起作用，收不到图时只剩出片句`;
-  const lineReal = framesOn
-    ? t`用专门画好的起拍画面起拍`
-    : card.type === "character"
-      ? t`用卡上的图起拍（白底立绘开场就是白底）`
-      : framesAllowed
-        ? t`只有它当起拍画面时才用得上形象图`
-        : t`只用文字`;
+  const lineReal = real
+    ? t`以卡上的真人照片起拍`
+    : framesOn
+      ? t`用专门画好的起拍画面起拍`
+      : card.type === "character"
+        ? t`用卡上的图起拍（白底立绘开场就是白底）`
+        : framesAllowed
+          ? t`只有它当起拍画面时才用得上形象图`
+          : t`只用文字`;
 
   async function save(patch: Parameters<typeof updateCardMeta>[1]): Promise<boolean> {
     const err = await updateCardMeta(card.id, patch);

@@ -18,7 +18,7 @@ import { IMAGE_TOKENS, fmtTokens, r2vPriceIssue, tierOf, providerOf, clampDurati
 // ★ 「模板视频自己合不合方舟窗口」的判据在 data（不在组件）：store 层这一处与
 //   flowStore.applyTemplate、详情页问的必须是同一个函数（铁律六）。
 import { refVideoIssue } from "../data/templates";
-import { ShotSpec, shotLineOf, CardType, ID_LINE_MAX, CARD_TYPE_PROMPT, idLineOf, viewsOf, feedsModel, TEXT_DESC_MAX, aspectOf, type Card, type GenMode, type VideoAspect, type VideoTemplate } from "../types";
+import { ShotSpec, shotLineOf, CardType, ID_LINE_MAX, CARD_TYPE_PROMPT, idLineOf, viewsOf, feedsModel, TEXT_DESC_MAX, aspectOf, startFramesAllowed, type Card, type GenMode, type VideoAspect, type VideoTemplate } from "../types";
 import { voiceOf } from "../data/cardVoice";
 import { t } from "@lingui/core/macro";
 
@@ -161,6 +161,7 @@ export function frameFree(o: { firstFrame?: string; carryFrame?: string | null; 
  * 顺序：真人卡 > 其它人物卡 > 场景卡 > 道具卡 > 风格卡 > 背景卡（真人优先是这一档存在的理由，再按"画面主体"排）；
  * 第一张拿得出图的卡说了算：它勾了「真人档适用」就用这一画幅的起拍画面，否则用它第一张「出片用」的图
  * （作者标「仅展示」的不取，types.feedsModel 一处判据）。
+ * ★ 真人卡永远以照片起拍（types.startFramesAllowed）：哪怕带着起拍画面的老数据也不取。
  */
 export function startSourceOf(
   materials: Card[] | undefined,
@@ -171,7 +172,7 @@ export function startSourceOf(
     c.type === "character" ? (c.realPerson === true ? 0 : 1) : c.type === "scene" ? 2 : c.type === "prop" ? 3 : c.type === "style" ? 4 : 5;
   const ordered = [...(materials ?? [])].sort((x, y) => rank(x) - rank(y));
   for (const c of ordered) {
-    const sf = c.startFrames?.[a];
+    const sf = startFramesAllowed(c) ? c.startFrames?.[a] : undefined;
     if (sf) return { card: c, url: sf, fromStartFrame: true };
     const v = viewsOf(c).find(feedsModel);
     if (v) return { card: c, url: v.url, fromStartFrame: false };
@@ -196,7 +197,8 @@ export function cardFitNote(
     if (o.ownFrame) return null;
     const src = startSourceOf(materials, o.aspect);
     if (!src || src.fromStartFrame) return null;
-    if (src.card.type !== "character" && src.card.type !== "scene" && src.card.type !== "prop") return null;
+    // 起拍来源卡不能有起拍画面（风格 / 背景卡，或真人卡 —— 真人卡以照片起拍正是这一档的本意）就没什么可勾的
+    if (!startFramesAllowed(src.card)) return null;
     const name = src.card.name;
     return t`这一段以「${name}」卡上的图起拍——去卡片页勾「真人档适用」可以换成专门画好的起拍画面`;
   }
