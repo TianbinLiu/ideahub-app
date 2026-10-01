@@ -236,7 +236,7 @@ unmuted play 未被拦）→ 存卡（views 转存 Cloudinary 成功）→ 套�
 
 含义修正（覆盖前面"真人只能走人像库"的判断）：
 - 前面结论是**只测了方舟**得出的——方舟严是方舟的产品选择，不是行业通则。
-- MiniMax 是国内公司、api.minimaxi.com 境内，**无人脸出境问题**（PIPL 友好），
+- MiniMax 是国内公司、api.minimaxi.com 境内，**无人脸出境问题**（PIPL 友好）【⚠ 2026-09-26 起服务端改走国际站 `api.minimax.io`，这一条已不成立，见 server `config/minimax.js`】，
   且政策上把真人合规责任放在使用者侧（与消费级海螺 App 同口径）。
 - 所以真人档 = **MiniMax I2V/S2V 首选**；Runway 作为备选（能力强但真人照片出境
   需 PIPL 单独同意 + 标准合同，成本高一档）；方舟人像库授权是最重的合规路，暂不需要。

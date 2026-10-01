@@ -2,7 +2,8 @@
 //
 // 为什么另起一家供应商：方舟对真人参考图两套探测器全拦（名人版权、普通人隐私，
 // 全任务形态实测），海螺同一批图输入输出两端都放行且成片落地（三发探针全 Success，
-// docs/card-system-v2-design.md 有矩阵）。境内 api.minimaxi.com，无人脸出境问题。
+// docs/card-system-v2-design.md 有矩阵）。⚠ 2026-09-26 起服务端走 MiniMax **国际站**（api.minimax.io，
+// server config/minimax 的区域分流）—— 真人照片是出境的，此前这里写的「境内、无人脸出境问题」已不成立。
 //
 // ★ 路径形状以 **server 代理**（/api/minimax/video、/video/:taskId、/file/:fileId）为准，
 //   dev 由 vite 代理把同样的路径改写到上游（vite.config.ts）——两个环境同一套客户端代码。
@@ -12,7 +13,7 @@
 import { t } from "@lingui/core/macro";
 import { API_BASE } from "../api/client";
 import { getToken } from "../api/client";
-import { ArkTaskUnknown, syncWalletFromHeaders, type ArkProgress } from "./arkClient";
+import { ArkTaskUnknown, billingDenialError, syncWalletFromHeaders, type ArkProgress } from "./arkClient";
 
 /** 上游受理回执的业务码：0 = 成功。非 0 时 status_msg 是给人看的原因 */
 interface BaseResp {
@@ -50,6 +51,11 @@ async function jsonOf(res: Response, step: MinimaxStep): Promise<Record<string, 
   }
   const j = (await res.json()) as Record<string, unknown>;
   if (!res.ok) {
+    // ★★ 计费代理的拒绝（402 余额 / 403 套餐或欠额冻结 / 429 每日上限）与 /api/ark 同一套 code，
+    //   说同一句话（arkClient.billingDenialError 一处实现，2026-09-30 补）。此前这里把整段 JSON
+    //   连同服务端写死的中文 message 原样甩给用户 —— 英文界面也是中文。
+    const denial = billingDenialError(status, JSON.stringify(j));
+    if (denial && denial.message) throw denial;
     const body = JSON.stringify(j).slice(0, 160);
     throw new Error(
       step === "create"
@@ -174,8 +180,8 @@ export async function minimaxVideo(o: {
     if (Date.now() > deadline) {
       // ★★ 抛 **ArkTaskUnknown**（2026-08-31）：这不是失败，是"我们没接到"。
       //   凭据留着、取回入口亮起来 —— 而在这之前唯一亮着的是「重新生成」= 再扣一次
-      //   整档的钱（真人档按发计价，10 秒档 270k，而免费版月额一共 300k：
-      //   一个免费用户到这一步连那颗按钮都按不动，这个月就此结束）。
+      //   整档的钱（真人档按发计价，10 秒档 143.2k，是免费版整月额度 300k 的一半：
+      //   按下去这个月就去掉一半，而那一发的成片其实还在）。
       //   ⚠ 这一行与下面那个 pollFails 分支**必须同时**是 ArkTaskUnknown：
       //   只改一个的话，另一个仍抛普通 Error → flowStore 的真失败分支
       //   `if (taskId) dropVideoJob(taskId)` 会把刚落的凭据当场删掉，比不改更坏。

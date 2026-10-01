@@ -752,6 +752,28 @@ export function walletFrozen(): { debt: number } | null {
   return { debt: w.debt ?? 0 };
 }
 
+/**
+ * 「钱包被欠额冻住了」那一整句 —— **唯一实现**：服务端 403 `WALLET_FROZEN` 的本端译句
+ * （ai/arkClient.billingDenialError，/api/ark 与 /api/minimax 两条代理共用）与出片前预检（frozenNote）说同一句。
+ * ★ debt 缺省 / 0（老服务端没带数）时另一句整话，不拼「一笔」那个片段（多语言要整句）。
+ */
+export function frozenLine(debt: number): string {
+  if (!(debt > 0)) return t`账户有一笔 token 欠额（退款收回的），充值抵扣后即可继续生成`;
+  const owed = fmtTokens(debt);
+  return t`账户有 ${owed} token 欠额（一笔退款收回的），充值抵扣后即可继续生成`;
+}
+
+/**
+ * 预检（canAfford）没过、而且是因为**冻结** —— 回那一整句；不是冻结回 null，调用方照旧说它自己那句「余额不足」。
+ * ★★ 2026-09-30 补：canAfford 自 2026-09-25 起也认冻结，可二十来处调用点的报错全写着「余额 X 不够——去充值」。
+ *   冻结的人往往**满额度**（跨月刷新刻意不碰 debt），于是屏幕上是「本段约需 85k，余额 300k 不足」——
+ *   自相矛盾，用户无从下手。调用点一律写成 `frozenNote() ?? t`…余额不足…``。
+ */
+export function frozenNote(): string | null {
+  const f = walletFrozen();
+  return f ? frozenLine(f.debt) : null;
+}
+
 export function canAfford(n: number): boolean {
   if (billingExempt()) return true;
   // ★★ 冻结也要在这里拦（2026-09-25 评审）：`walletFrozen()` 原来只接进 TokenCost 与
@@ -2306,18 +2328,30 @@ export async function bindCardAsset(cardId: string, a: CardAsset): Promise<BindA
   }
 }
 
-/** 解绑（本机镜像 + 服务端）。目前没有界面入口；删卡时 removeCard 只清本机那份（服务端随卡文档走） */
+/**
+ * 解绑（服务端 + 本机镜像）。界面入口是卡片详情页取消勾选「火山引擎适用」（2026-09-30 起）；
+ * 删卡时 removeCard 只清本机那份（服务端随卡文档走）。
+ * ★★ 远端模式**先撤服务端、成了再删本机**（与 bindCardAsset 的顺序相反，是有意的）：绑定属于账号
+ *   （BranchCard.portrait），本机只是镜像。先删本机的话，服务端那一步一失败，下次登录 syncCardAssets
+ *   就把它从服务端装回来 —— 用户明明取消了勾选，过一阵它自己又勾上了，零报错。
+ *   服务端没收下就**什么都不动**，回 synced=false（stored 为真 = 本机这一步没出错，因为根本没动），
+ *   由界面说"没取消成功、再点一次"。
+ * ★ 404 = 这张卡服务端还没有（建卡那一发没同步成）：服务端本来就没有这份绑定，没什么可撤的，照常删本机。
+ */
 export async function unbindCardAsset(cardId: string): Promise<BindAssetResult> {
+  if (remoteOn()) {
+    try {
+      await branch.updateCardPortrait(cardId, null);
+    } catch (e) {
+      if (!(e instanceof ApiError && e.status === 404)) {
+        emitApiError("updateCardPortrait", e);
+        return { stored: true, synced: false, reason: whyOf(e) };
+      }
+    }
+  }
   const stored = await removeAsset(cardId);
   setAssetSyncIssue(cardId, null);
-  if (!remoteOn()) return { stored, synced: null };
-  try {
-    await branch.updateCardPortrait(cardId, null);
-    return { stored, synced: true };
-  } catch (e) {
-    emitApiError("updateCardPortrait", e);
-    return { stored, synced: false, reason: whyOf(e) };
-  }
+  return { stored, synced: remoteOn() ? true : null };
 }
 
 /**

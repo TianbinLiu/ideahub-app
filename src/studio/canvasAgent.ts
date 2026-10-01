@@ -10,7 +10,7 @@
 // · **降级不封口**：mock 构建 / 余额不足 / 回复解析不出来，都退到本地直白句式解析
 //   （studio/agentGrammar.parseLocal，中英两套句式并联）——能办多少办多少，并说清自己是哪一档（铁律八：不静默）。
 import { AI_REAL, VIDEO_PROMPT_MAX, canvasAgentChat } from "../ai";
-import { canAfford, myCards, spendTokens } from "../data/account";
+import { canAfford, myCards, spendTokens, walletFrozen } from "../data/account";
 import { CHAT_TURN_TOKENS, fmtTokens, proposalsCost } from "../data/economy";
 import { BLOCKOUT_MAX_ROLES, browseTemplates, markSpecOf, myTemplates } from "../data/templates";
 import type { Card, VideoTemplate } from "../types";
@@ -620,7 +620,8 @@ export async function runCanvasAgent(text: string): Promise<AgentOutcome> {
   if (!paid) {
     const local = parseLocal(input);
     const r = applyOps(local.ops);
-    const why = AI_REAL ? t`余额不够 AI 指挥（400/句）。` : "";
+    // 冻结与余额不足分开说（account.frozenNote 的 ★★）：冻结的人往往满额度，说"余额不够"是假话
+    const why = !AI_REAL ? "" : walletFrozen() ? t`账户欠额冻结中，AI 指挥暂停（充值抵扣后恢复）。` : t`余额不够 AI 指挥（400/句）。`;
     const out = { say: why + localSay(local), ...r, paid: false };
     rememberOutcome(input, out);
     return out;

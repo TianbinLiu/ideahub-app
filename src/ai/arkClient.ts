@@ -15,7 +15,7 @@
 import { i18n } from "@lingui/core";
 import { t } from "@lingui/core/macro";
 import { API_BASE, API_ON, getToken } from "../api/client";
-import { syncRemoteWallet } from "../data/account";
+import { frozenLine, syncRemoteWallet } from "../data/account";
 import { DEFAULT_IMAGE_TIER, imageTierOf, videoAudioOn } from "../data/economy";
 import type { GenMode } from "../types";
 
@@ -327,6 +327,56 @@ export function briefArkReason(e: unknown, max = 40): string {
   return t`未知原因`;
 }
 
+/**
+ * 计费代理的拒绝 → 给用户看的那一整句（连同错误类型）—— **唯一实现**（2026-09-30 从 arkFetch 抽出）。
+ * 402 余额不足 / 403 套餐门禁或欠额冻结 / 429 每日上限或限流。/api/ark（arkFetch）与 /api/minimax
+ * （ai/minimaxVideo，真人档）共用：两条代理背后是服务端同一个 billing.chargedCall，回的是同一套 code。
+ * ★ 抽出来的原因：此前只有 arkFetch 认这些码，真人档那条路把整段 JSON 连同服务端写死的中文 message
+ *   原样甩给用户（「真人档出片创建失败（HTTP 403）：{"ok":false,"code":"WALLET_FROZEN",…}」，英文界面也是）。
+ * 返回 null = 不是这几种状态，调用方照旧按自己的方式报。
+ */
+export function billingDenialError(status: number, body: string): Error | null {
+  // 402 = 服务端钱包判定余额不足，**方舟根本没被调用**（服务端在转发之前就拦了）。
+  // 本地镜像放行了它才会走到这里：镜像慢了半拍、或者被人改过。
+  // 把服务端说的实数带出去，比本地那个可能已经不对的数字可信。
+  if (status === 402) {
+    const need = Number(/"need":\s*(\d+)/.exec(body)?.[1] ?? 0);
+    const have = Number(/"balance":\s*(\d+)/.exec(body)?.[1] ?? 0);
+    // 服务端没报具体数（老服务端）时另一句整话，不拼「更多」那个片段
+    return new Error(
+      need ? t`token 余额不足：这一步需要 ${need}，余额 ${have}——去「我的」页充值` : t`token 余额不足：这一步需要更多，余额 ${have}——去「我的」页充值`,
+    );
+  }
+  // 403 = 服务端的套餐门禁（PLAN_REQUIRED，见 server config/tokens.js 的 paidOnlyDenial）或欠额冻结（WALLET_FROZEN）。
+  // ★ message 是服务端拼好的**整句话**，原样带出去：这里既不重拼一遍文案（那是第二处
+  //   实现，两边措辞一分叉就没人知道以哪份为准），也不能让它裹在 JSON 里交给上层——
+  //   `Ark <path> 403: {…}` 光是前缀就 80 多字符，而 flowStore 还要
+  //   `slice(0, 120)`，真正的原因（"仅对付费套餐开放"）正好被截在外面，
+  //   用户看到的是一串带 doubao 型号的花括号（铁律八：失败要响，也要看得懂）。
+  if (status === 403 || status === 429) {
+    const serverMsg = /"message"\s*:\s*"([^"]+)"/.exec(body)?.[1] ?? "";
+    const code = /"code"\s*:\s*"([^"]+)"/.exec(body)?.[1] ?? "";
+    // ★ D7 a（多语言）：中文界面照旧原样说服务端那句整话；英文界面认 **code** 说本端的整句 ——
+    //   判码不判文案。认不得的码仍只能原样带出服务端那句（多半是中文），总比按字猜强。
+    // ★★ 2026-09-25 评审补上 WALLET_FROZEN 与 DAILY_LIMIT：服务端这两句 message 是
+    //   **硬编码中文**、全仓没有服务端 i18n，而英文用户是美国 Play 的目标用户
+    //   （i18n 对任何非 zh 浏览器返回 en，**默认就是英文**）。不补的话他们会在
+    //   推演/重画/融图失败时看到 `Redraw failed: 账户有 1234 token 欠额…`。
+    // ★ 欠额那句与出片前预检（data/account.frozenNote）是同一句：account.frozenLine 一处实现
+    const owed = Number(/"debt":\s*(\d+)/.exec(body)?.[1] ?? 0);
+    const ourByCode: Record<string, string> = {
+      PLAN_REQUIRED: t`这一档不对当前套餐开放，去「我的」页升级套餐后再试`,
+      WALLET_FROZEN: frozenLine(owed),
+      DAILY_LIMIT: t`今天的生成额度用完了，明天 0 点（UTC）重置`,
+    };
+    const ours = ourByCode[code];
+    const useOurs = !serverMsg || (ours && i18n.locale === "en");
+    // ★ 抛 ArkHttpError（带 status 与 code）而不是裸 Error：调用方一律按类型 / 状态码分档
+    return new ArkHttpError(useOurs ? ours || serverMsg : serverMsg, status, code);
+  }
+  return null;
+}
+
 /** 带超时的 Ark 请求。fetch 没有默认超时——网络一卡整个工坊就"假死"在加载态。
  *  429（限流，请求未被受理）自动退避重试一次；其他错误直接抛给上层做回退/播报。 */
 async function arkFetch<T>(path: string, init?: RequestInit, timeoutMs = 90_000): Promise<T> {
@@ -390,45 +440,9 @@ async function arkFetch<T>(path: string, init?: RequestInit, timeoutMs = 90_000)
       // 401/403/429/501 —— 都带 message，原样抛给上层做回退与播报（铁律八）
       if (res.status === 501) throw new Error(t`这台服务器没有配置方舟密钥（服务端 .env 的 ARK_API_KEY）`);
       if (res.status === 401) throw new Error(t`登录态失效，重新登录后再试`);
-      // 402 = 服务端钱包判定余额不足，**方舟根本没被调用**（服务端在转发之前就拦了）。
-      // 本地镜像放行了它才会走到这里：镜像慢了半拍、或者被人改过。
-      // 把服务端说的实数带出去，比本地那个可能已经不对的数字可信。
-      if (res.status === 402) {
-        const need = Number(/"need":\s*(\d+)/.exec(body)?.[1] ?? 0);
-        const have = Number(/"balance":\s*(\d+)/.exec(body)?.[1] ?? 0);
-        // 服务端没报具体数（老服务端）时另一句整话，不拼「更多」那个片段
-        throw new Error(
-          need ? t`token 余额不足：这一步需要 ${need}，余额 ${have}——去「我的」页充值` : t`token 余额不足：这一步需要更多，余额 ${have}——去「我的」页充值`,
-        );
-      }
-      // 403 = 服务端的套餐门禁（PLAN_REQUIRED，见 server config/tokens.js 的 paidOnlyDenial）。
-      // ★ message 是服务端拼好的**整句话**，原样带出去：这里既不重拼一遍文案（那是第二处
-      //   实现，两边措辞一分叉就没人知道以哪份为准），也不能让它裹在 JSON 里交给上层——
-      //   下面那句 `Ark <path> 403: {…}` 光是前缀就 80 多字符，而 flowStore 还要
-      //   `slice(0, 120)`，真正的原因（"仅对付费套餐开放"）正好被截在外面，
-      //   用户看到的是一串带 doubao 型号的花括号（铁律八：失败要响，也要看得懂）。
-      if (res.status === 403 || res.status === 429) {
-        const serverMsg = /"message"\s*:\s*"([^"]+)"/.exec(body)?.[1] ?? "";
-        const code = /"code"\s*:\s*"([^"]+)"/.exec(body)?.[1] ?? "";
-        // ★ D7 a（多语言）：中文界面照旧原样说服务端那句整话；英文界面认 **code** 说本端的整句 ——
-        //   判码不判文案。认不得的码仍只能原样带出服务端那句（多半是中文），总比按字猜强。
-        // ★★ 2026-09-25 评审补上 WALLET_FROZEN 与 DAILY_LIMIT：服务端这两句 message 是
-        //   **硬编码中文**、全仓没有服务端 i18n，而英文用户是美国 Play 的目标用户
-        //   （i18n 对任何非 zh 浏览器返回 en，**默认就是英文**）。不补的话他们会在
-        //   推演/重画/融图失败时看到 `Redraw failed: 账户有 1234 token 欠额…`。
-        const owed = Number(/"debt":\s*(\d+)/.exec(body)?.[1] ?? 0);
-        const ourByCode: Record<string, string> = {
-          PLAN_REQUIRED: t`这一档不对当前套餐开放，去「我的」页升级套餐后再试`,
-          WALLET_FROZEN: owed
-            ? t`账户有 ${owed} token 欠额（一笔退款收回的），充值抵扣后即可继续生成`
-            : t`账户有一笔 token 欠额（退款收回的），充值抵扣后即可继续生成`,
-          DAILY_LIMIT: t`今天的生成额度用完了，明天 0 点（UTC）重置`,
-        };
-        const ours = ourByCode[code];
-        const useOurs = !serverMsg || (ours && i18n.locale === "en");
-        // ★ 抛 ArkHttpError（带 status 与 code）而不是裸 Error：调用方一律按类型 / 状态码分档
-        throw new ArkHttpError(useOurs ? ours || serverMsg : serverMsg, res.status, code);
-      }
+      // 402 / 403 / 429 = 计费代理的拒绝（余额 / 套餐 / 冻结 / 每日上限）：整句与错误类型都在 billingDenialError 一处
+      const denial = billingDenialError(res.status, body);
+      if (denial) throw denial;
       throw new ArkHttpError(`Ark ${path} ${res.status}: ${body.slice(0, 300)}`, res.status);
     }
     try {

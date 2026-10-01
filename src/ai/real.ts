@@ -10,6 +10,7 @@ import {
   Proposal,
   VideoAspect,
   aspectOf,
+  feedsModel,
   roleOf,
   slotPromptOf,
   uid,
@@ -760,7 +761,7 @@ const ROLE_ORDER: Record<CardRole, number> = { face: 0, primary: 1, aux: 2, disp
 function allocatable(card: Card): { view: CardView; index: number }[] {
   return viewsOf(card)
     .map((view, index) => ({ view, index }))
-    .filter((x) => roleOf(x.view) !== "display");
+    .filter((x) => feedsModel(x.view));
 }
 
 /** 一张真会被喂给模型的图。`index` = 它在 `viewsOf(card)` 里的下标 —— refUsedFlags 靠它对齐 */

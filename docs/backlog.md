@@ -298,6 +298,14 @@ POST console.volcengine.com/api/top/ark/cn-beijing/2024-01-01/ListAuthorizationA
     （CLAUDE.md「界面上摆一个用户看不懂也做不了事的东西」）。目前**没做**这层翻译 ——
     开通之后这条错基本不会再出现，不值得为它现在加一处映射；等真撞上再说。
 
+- ⚠⚠ **2026-09-30 付费实测：可信素材只救得了卡片那一张。** 按 app 在「工作流」里的真实形状发了一发高清
+  （Seedream 4.0 用授权照片画首尾帧 → 帧当 `reference_image` + `asset://<同一个人的已认证素材>`），
+  **创建即被拒**：HTTP 400 `InputImageSensitiveContentDetected.PrivacyInformation`，报错点名 `content[2]`
+  （正脸的尾帧）；背影的首帧没被点名，`asset://` 本身没问题。未受理、出片不计费（只花了两张 Seedream）。
+  ⇒ 方舟对**任何非 asset 的写实人脸图**都拦，哪怕是 Seedream 画的、哪怕同一个人的 asset 就在同一发里。
+  已认证真人卡在高清/电影级上只有**不带帧的参考图直出**（简约模式、无首帧、无承接、无圈选）能用；
+  门禁收在 `economy.realFaceIssue` 的 `framed`（判据 `segmentGen.frameFree` / `flowStore.nodeFramed`）。
+  承接帧（第 2 段起）没单测，同一机理按"会被拒"处理。
 - ✅ **整条链路已跑通（2026-08-28）**。开通 Asset Service 后同一发请求 **200 → succeeded**：
   - 任务 `cgt-20260828142756-2ngg4`，`doubao-seedance-2-0-mini`，720p / 9:16 / 5s / 24fps，
     `generate_audio:true`，约 **85 秒**出片，回 `content.video_url`（TOS 直链，`X-Tos-Expires=86400`）。
