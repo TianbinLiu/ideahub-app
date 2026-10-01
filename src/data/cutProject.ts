@@ -2053,6 +2053,12 @@ export function applyCutOps(ops: ReadonlyArray<CutOp>, ctx: CutOpsCtx): CutOpsRe
         redo++;
         break;
       case "auto":
+        // 配音还在一句句写回来的时候不开一键成片：它会整批改字，正在路上的那几句配音一落地就是过期的。
+        // 界面上那颗入口这时是灰的 —— 嘴说的这条路不许绕过去（CLAUDE.md「agent 那条路绕过了 UI 的 disabled」那一类）
+        if (ctx.voice === "busy") {
+          refuse({ kind: "voice_busy" });
+          break;
+        }
         openAuto = true;
         break;
     }
