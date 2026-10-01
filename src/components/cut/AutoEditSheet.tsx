@@ -13,7 +13,8 @@ import { briefArkReason } from "../../ai/arkClient";
 import { chargeNote, chargeOnFail } from "../../ai/failCharge";
 import {
   LINE_MAX_CHARS,
-  TITLE_MAX,
+  TITLE_MAX_CHARS,
+  clipTitle,
   applyAutoPlan,
   lineUnits,
   type AutoPlan,
@@ -192,8 +193,9 @@ export default function AutoEditSheet({ project, segs, lens, canVoice, voiceName
             <div className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>片头标题</Trans></div>
             <input
               value={title}
-              maxLength={TITLE_MAX}
-              onChange={(e) => setTitle(e.target.value)}
+              maxLength={TITLE_MAX_CHARS}
+              // 当场收到上限之内：这里看到的就是写进工程的（落地那一步不再截一遍）
+              onChange={(e) => setTitle(clipTitle(e.target.value))}
               placeholder={t`不要标题就留空`}
               className="w-full rounded-lg border border-slate-700 bg-black/30 px-2.5 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
             />

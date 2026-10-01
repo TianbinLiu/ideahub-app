@@ -21,6 +21,8 @@
 //   就落到别人身上）；「只留 N 秒」把片段放长；长度没量过的片段照样按秒裁；裁 / 切不乘速度；撤销与别的改动混着办；
 //   配音办不了还照排；一句话删光；没变也换一份工程（空撤销）；「慢一点」写死成绝对倍数；配好的重配；一句话写给所有片段。
 //   「第 N 段」的两种读法又试两处：换过序还按位置认；同一段切成两半还认前一半。
+//   配音修剪与真模型量过之后（2026-10-01）又试七处：起音前不留边；只认正的采样；WAV 头里每秒字节数写错；字母的折算退回 0.3；
+//   标题按字符个数截；键重复的旁白不捞回来；清单的语言一律判成中文。
 //   还有一处：配音还在配的时候，嘴说的那条路照样打开一键成片（界面上那颗入口这时是灰的）。
 //
 // 用法：node scripts/check-cut-project.mjs [--module=<另一份 cutProject.ts 的路径，造违规试红用>]
@@ -327,9 +329,10 @@ const bareProj = () => C.setAudio(fresh(), null);
   eq("没有字时挂不上配音", "line" in must(C.setClipVoice(bareProj(), "c1", voiceOf("x", 1)), "挂").clips[0], false);
   eq("一句话有上限", must(C.setClipLine(p, "c1", "字".repeat(500)), "超长").clips[0].line.text.length, C.LINE_MAX_CHARS);
   eq("念得完多长跟着时长走", [C.lineCap(5), C.lineCap(1), C.lineCap(60)], [24, 8, C.LINE_MAX]);
-  // 长度按"念出来多久"算：汉字一个算 1、字母数字一个算 0.3、空格标点不算 —— 按字符数封顶的话英文一段只写得下四五个词
+  // 长度按"念出来多久"算：汉字一个算 1、字母数字一个算 0.4（真的语音合成量出来的）、空格标点不算 ——
+  // 按字符数封顶的话英文一段只写得下四五个词
   eq("汉字一个算一个、标点不算", C.lineUnits("雨停了，她收起伞。"), 7);
-  eq("英文按字母折算", Math.round(C.lineUnits("He decides to deliver it himself.") * 10) / 10, 8.1);
+  eq("英文按字母折算（27 个字母 × 0.4）", Math.round(C.lineUnits("He decides to deliver it himself.") * 10) / 10, 10.8);
   eq("6 秒的片段写得下一句十几个词的英文", Math.ceil(C.lineUnits("In the rain, a courier finds a letter with no address.")) <= C.lineCap(6), true);
   // 工程级的那几格
   let q = C.setTitle(p, "雨夜霓虹");
@@ -510,6 +513,13 @@ const bareProj = () => C.setAudio(fresh(), null);
   const edited = must(C.setClipSpeed(must(C.removeClip(p, "c2"), "删"), "c3", 2), "变速");
   eq("清单跟着时间轴走", C.autoBrief(edited, segsA, lens3).map((b) => [b.n, b.clipId, b.durSec, b.seam]), [[1, "c1", 5, "first"], [2, "c3", 5, "scene-change"]]);
 
+  // 清单是什么语言：字母折成"字"之后比汉字多才算英文；夹着几个英文专有名词的中文描述仍然是中文
+  eq("中文描述", C.briefLang(brief), "zh");
+  eq("英文描述", C.briefLang(C.autoBrief(p, [{ plot: "Wide shot. A lighthouse keeper climbs the spiral stairs at dusk." }, { plot: "He lights the great lamp." }, { plot: "Morning. A girl runs along the pier." }], lens3)), "en");
+  eq("夹着英文专有名词的中文描述算中文", C.briefLang(C.autoBrief(p, [{ plot: "机器人 WALL-E 在废弃的游乐园里醒来，胸口的指示灯忽明忽暗。" }, { plot: "小女孩 Alice 擦去它脸上的灰。" }, { plot: "他们一起走过黄昏的街道。" }], lens3)), "zh");
+  eq("一句描述都没有（只有段名）：按段名判，中文段名算中文", C.briefLang(C.autoBrief(p, [{ title: "第1段" }, { title: "第2段" }, { title: "第3段" }], lens3)), "zh");
+  eq("英文旁白的上限折成单词数", [C.capWords(28), C.capWords(24), C.capWords(8), C.capWords(2)], [14, 12, 4, 3]);
+
   const good = JSON.stringify({
     title: "《雨夜信使》",
     lines: [{ clip: 1, text: "雨夜里，他推开了那扇门。" }, { clip: 2, text: "有人追了上来。" }, { clip: 3, text: "天亮的时候，信还在他手里。" }],
@@ -538,6 +548,12 @@ const bareProj = () => C.setAudio(fresh(), null);
   eq("越界 / 重复 / 不成形的行丢掉，没拿到话的片段留空", bad.ok && bad.plan.lines, [{ clipId: "c1", text: "" }, { clipId: "c2", text: "字符串编号也认" }, { clipId: "c3", text: "" }]);
   eq("转场只落在明确换了场的接缝上（第一个片段、接着拍的都不行），不重复", bad.ok && bad.plan.fades, ["c3"]);
   eq("标题 / 配乐建议不是字符串就当没有", bad.ok && [bad.plan.title, bad.plan.music], ["", ""]);
+  // ★ 真模型写出来过的坏形状：lines 里只有一个对象、键重复（少了 "},{"）—— 合法 JSON，JSON.parse 只留最后一对
+  const dupKeys = C.parseAutoPlan('{"title":"雨夜信使","lines":[{"clip":1,"text":"雨夜里，他推开了那扇门。","clip":2,"text":"有人追了上来。","clip":3,"text":"天亮的时候，信还在他手里。"}],"fades":[3],"music":"钢琴"}', brief);
+  eq("键重复的写法：每一句都捞得回来", dupKeys.ok && dupKeys.plan.lines.map((l) => l.text), ["雨夜里，他推开了那扇门。", "有人追了上来。", "天亮的时候，信还在他手里。"]);
+  const dupEsc = C.parseAutoPlan('{"title":"t","lines":[{"clip":1,"text":"他说：\\"走吧\\"","clip":2,"text":"第二句"}]}', brief);
+  eq("捞回来的句子里带转义引号也读得对", dupEsc.ok && dupEsc.plan.lines.map((l) => l.text), ['他说："走吧"', "第二句", ""]);
+
   const unknownSeams = C.parseAutoPlan(JSON.stringify({ title: "t", lines: [], fades: [2, 3] }), C.autoBrief(p, [{}, {}, {}], lens3));
   eq("不知道是不是换场的接缝上不加转场", unknownSeams.ok && unknownSeams.plan.fades, []);
   const long = C.parseAutoPlan(JSON.stringify({ lines: [{ clip: 1, text: "字".repeat(60) }] }), brief);
@@ -726,6 +742,8 @@ const bareProj = () => C.setAudio(fresh(), null);
   k = 0;
   r = go([{ op: "split", clip: 3, at: 3 }]);
   eq("在第 3 秒切开：后一半用给的新 id", [shape(r.next), r.next.clips.map((c) => c.id), r.receipts], ["0[0-尾] 1[0-尾] 2[0-3] 2[3-尾]", ["c1", "c2", "c3", "n1"], [{ kind: "split", n: 3, at: 3 }]]);
+  r = go([{ op: "split", clip: 3, at: 3 }, { op: "speed", clip: 4, value: 0.5 }, { op: "speed", clip: 9, value: 0.5 }]);
+  eq("切完再指「切出来的那一半」：这一句里指不到，原因说清楚；真没有的编号另说", [r.refusals, r.next.clips.length, r.next.clips.every((c) => c.speed === undefined)], [[{ kind: "new_half", ref: 4 }, { kind: "no_clip", ref: 9, count: 3 }], 4, true]);
   r = go([{ op: "split", clip: 3, at: 0.1 }, { op: "split", clip: "all", at: 2 }]);
   eq("离边缘太近 / 对全部切：不办", [r.refusals, r.next], [[{ kind: "issue", n: 3, issue: "edge" }, { kind: "not_all" }], null]);
 
@@ -758,6 +776,11 @@ const bareProj = () => C.setAudio(fresh(), null);
   }
   r = go([{ op: "title", text: "标".repeat(C.TITLE_MAX + 5) }]);
   eq("标题太长：只收前 TITLE_MAX 个字，回执说出来", [r.next.title.length, r.receipts], [C.TITLE_MAX, [{ kind: "title", on: true, cut: true }]]);
+  // ★ 标题的上限按念出来 / 排出来的长度算，不按字符个数：英文 24 个字符才三四个词（真模型起的英文标题被拦腰截过）
+  eq("英文标题按折算后的长度算，不在 24 个字符处截", C.clipTitle("The Lighthouse Keeper's Promise"), "The Lighthouse Keeper's Promise");
+  eq("中文标题仍然是 24 个字", C.clipTitle("标".repeat(30)).length, 24);
+  eq("再长也不超过字符的硬上限", C.clipTitle("a ".repeat(60)).length <= C.TITLE_MAX_CHARS, true);
+  eq("落盘读回、模型起的、嘴上说的走同一把尺", [C.setTitle(bareProj(), "The Lighthouse Keeper's Promise").title, go([{ op: "title", text: "The Lighthouse Keeper's Promise" }]).receipts], ["The Lighthouse Keeper's Promise", [{ kind: "title", on: true, cut: false }]]);
   r = go([{ op: "title", text: "" }, { op: "captions", on: false }], C.setTitle(bareProj(), "原标题"));
   eq("去掉标题、不烧字幕", ["title" in r.next, r.next.capOff, r.receipts], [false, true, [{ kind: "title", on: false, cut: false }, { kind: "captions", on: false }]]);
 
@@ -813,6 +836,29 @@ const bareProj = () => C.setAudio(fresh(), null);
   eq("配音还在配的时候不开一键成片（界面上那颗入口这时是灰的，嘴说的不许绕过去）", [r.openAuto, r.refusals], [false, [{ kind: "voice_busy" }]]);
   eq("离线 / 演示构建照样能开一键成片（它有演示档）", go([{ op: "auto" }], bareProj(), { voice: "offline" }).openAuto, true);
   eq("空的操作表", go([]), { receipts: [], refusals: [], next: null, voiceIds: [], undo: 0, redo: 0, openAuto: false });
+}
+
+// ── 配音文件的修剪：判据（哪一截算"有话"）与 WAV 编码 ──
+{
+  const rate = 1000; // 好算：一个采样就是一毫秒
+  const mk = (leadMs, voicedMs, tailMs, amp = 0.5) => [...Array(leadMs).fill(0), ...Array(voicedMs).fill(amp), ...Array(tailMs).fill(0)];
+  eq("切掉首尾静音：起音前留 40ms、收尾后留 80ms", C.voiceBounds(mk(450, 2000, 400), rate), { start: 410, end: 2530 });
+  eq("开头没有那么多静音：从头起", C.voiceBounds(mk(10, 2000, 400), rate), { start: 0, end: 2090 });
+  eq("结尾没有那么多静音：到尾", C.voiceBounds(mk(450, 2000, 20), rate), { start: 410, end: 2470 });
+  eq("底噪不算有声", C.voiceBounds([...Array(300).fill(0.005), ...Array(1000).fill(0.5), ...Array(300).fill(-0.005)], rate), { start: 260, end: 1380 });
+  eq("负的采样也算有声（看绝对值）", C.voiceBounds(mk(300, 1000, 300, -0.5), rate), { start: 260, end: 1380 });
+  eq("中间的停顿不切", C.voiceBounds([...mk(100, 500, 0), ...Array(600).fill(0), ...mk(0, 500, 100)], rate), { start: 60, end: 1780 });
+  eq("整条都是静的：不切", C.voiceBounds(Array(2000).fill(0), rate), null);
+  eq("留下的不到 0.1 秒：不切（别切出一条空的）", C.voiceBounds([0, 0, 0.5, 0, 0], rate), null);
+  const pcm = new Float32Array(mk(450, 2000, 400));
+  eq("定型数组也认", C.voiceBounds(pcm, rate), { start: 410, end: 2530 });
+
+  const wav = new DataView(C.wavBytes([0, 1, -1, 0.5, 2, -2], 24000));
+  const str = (at, n) => String.fromCharCode(...Array.from({ length: n }, (_, i) => wav.getUint8(at + i)));
+  eq("WAV 头：RIFF / WAVE / fmt / data 四个标记", [str(0, 4), str(8, 4), str(12, 4), str(36, 4)], ["RIFF", "WAVE", "fmt ", "data"]);
+  eq("WAV 头：长度两格对得上", [wav.byteLength, wav.getUint32(4, true), wav.getUint32(40, true)], [44 + 12, 36 + 12, 12]);
+  eq("WAV 头：16 位单声道 PCM，采样率与每秒字节数", [wav.getUint16(20, true), wav.getUint16(22, true), wav.getUint32(24, true), wav.getUint32(28, true), wav.getUint16(32, true), wav.getUint16(34, true)], [1, 1, 24000, 48000, 2, 16]);
+  eq("采样折成 16 位（越界的钳住）", [0, 1, 2, 3, 4, 5].map((i) => wav.getInt16(44 + i * 2, true)), [0, 32767, -32768, 16384, 32767, -32768]);
 }
 
 if (problems.length) {

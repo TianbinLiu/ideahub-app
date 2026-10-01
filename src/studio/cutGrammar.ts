@@ -439,8 +439,13 @@ export function parseCutLocal(text: string): CutParse {
 
 // ── 模型档：回话的形状检查 ───────────────────────────────────────────────
 
-/** 一句话最多办几件事：模型一口气回几十条操作多半是跑飞了 */
-export const CUT_OPS_MAX = 12;
+/**
+ * 一句话最多办几件事。
+ * ★ 48 = 时间轴最多 24 个片段（原生合成器的上限）× 每个片段两件事。原来是 12：2026-10-01 拿真模型量的时候，
+ *   「把偶数编号的片段都静音」在 24 个片段的时间轴上正好回了 12 条 —— 再多一个片段，后面的就被丢掉、只办了一半。
+ *   模型被要求对"全部"用 "all"（一条顶 N 条），逐个列的只会是"某一部分片段"，所以按片段数的两倍封顶就够。
+ */
+export const CUT_OPS_MAX = 48;
 
 function refOf(x: unknown): ClipRef | null {
   if (x === "last" || x === "all" || x === "current") return x;
@@ -550,6 +555,11 @@ export function parseCutReply(raw: string): CutReply | null {
   if (!data || typeof data !== "object" || Array.isArray(data)) return null;
   const o = data as Record<string, unknown>;
   const list = Array.isArray(o.ops) ? o.ops : [];
+  // ★ 键重复的那种写法（`{"op":"speed","clip":1,…,"op":"volume","clip":2,…}`，少了一串 `},{`）是合法的 JSON：
+  //   JSON.parse 不报错、重复的键只留最后一对 —— 几条操作悄悄只剩一条。真模型在「一键成片」那边这么写过一次
+  //   （见 cutProject.parseAutoPlan）；操作的形状五花八门、没法像旁白那样按原文捞回来，所以原文里的 "op" 比解析出来的
+  //   条数多就整句不认（回 null：一件都不办，调用方会明说）——只办其中一条，比一条都不办更糟。
+  if ((text.match(/"op"\s*:/g) ?? []).length > list.length) return null;
   const ops: CutOp[] = [];
   let dropped = 0;
   for (const it of list) {

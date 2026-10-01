@@ -45,34 +45,60 @@ export const BGM_DUCK = 0.35;
 /** 有配音的那一段，原声自动压到几成（人没动过原声滑杆时）。起始值 */
 export const BED_GAIN = 0.35;
 /**
- * 估算用的语速（每秒几个字）。**只用来估**：给字数封顶、决定要不要先提一档语速；真正排时间用的是合成之后量出来的时长。
- * 出处：服务端 routes/tts.routes.js 头部那条实测「一条 25 字台词 ≈ 49KB」，按 64kbps 折约 6 秒 ≈ 4 字/秒。
- * ⚠ 那是铸卡师那把嗓子（语速 -10）量的，没按配音音色逐个复量。
+ * 给字数封顶用的语速（每秒几个字）。**只用来封顶**（lineCap）；真正排时间用的是合成之后量出来的时长。
+ * ★ 量过（2026-10-01，直连语音合成、与服务端同一份请求，7 个音色 × 4 种句长）：去掉首尾静音之后，11 个字以上的句子
+ *   每秒念 4.3~6.6 个字、均值约 5.1（最慢「Vivi」4.3、最快「阳光青年」6.6；缺省的「知性女声」4.8~5.8）。
+ *   按 4 封顶再给 1.2 倍宽裕（见 lineCap）= 每秒 4.8 个字：最慢的音色顶着上限写也只要提一成多的语速就念得完。
+ *   ⚠ 六个字的短句念得慢得多（3.2~4.5，中间那个逗号的停顿占了大头），所以上限另有 8 个字的下限兜着。
  */
 export const TTS_CPS = 4;
+/**
+ * 估"这一句念出来多久"用的语速（每秒几个字，**不含首尾静音**）：上面那批实测的均值 5.1 取整到 4.8，留一点余量。
+ * 只用来决定第一发要不要先提语速（studio/cutNarration）；估错了有量出来的时长兜着（最多再合成一次）。
+ */
+export const TTS_SPEECH_CPS = 4.8;
 /** 一句字幕 / 旁白最长算多少个"字"（lineUnits 的单位）。再长就该切成两段了 */
 export const LINE_MAX = 80;
 /** 一句字幕 / 旁白最多存多少个字符（落盘与输入框的硬上限）。服务端 /api/tts 单次上限是 300，留一点余量 */
 export const LINE_MAX_CHARS = 240;
 
 /**
- * 一句话念出来有多"长"，单位是「一个汉字」：汉字 / 假名 / 韩文一个算 1，拉丁字母与数字一个算 0.3，空格与标点不算。
+ * 一句话念出来有多"长"，单位是「一个汉字」：汉字 / 假名 / 韩文一个算 1，拉丁字母与数字一个算 0.4，空格与标点不算。
  *
- * ★ 为什么不直接数字符（2026-09-30 模拟器上撞到的）：汉字一秒念四个，英文一秒能念十二三个字母。按字符数封顶的话，
- *   6 秒的片段只写得下二十几个字母 —— 四五个英文词，而它本来念得完十五个。
- * ★ 0.3 是照常见语速折的（英文约每分钟 150 词、一词五个字母 ≈ 每秒 12.5 个字母 ≈ 3.75 个"字"，与 TTS_CPS 对得上），
- *   没按音色实测 —— 与 TTS_CPS 一样只用来估，排时间靠合成之后量出来的时长。
+ * ★ 为什么不直接数字符（2026-09-30 模拟器上撞到的）：汉字一秒念四五个，英文一秒能念十一二个字母。按字符数封顶的话，
+ *   6 秒的片段只写得下二十几个字母 —— 四五个英文词，而它本来念得完十来个。
+ * ★ 0.4 是量出来的（2026-10-01，真的语音合成）：这批音色都是中文音色，念英文每秒 10.7~12.5 个字母（去掉首尾静音），
+ *   同一批音色念中文每秒约 4.8 个字 ⇒ 一个字母折 0.4 个字。原来按常见英文语速估的是 0.3 —— 照那个数，英文旁白顶着上限写
+ *   会比估的长三成，念不完。
  */
+export const LATIN_UNIT = 0.4;
 export function lineUnits(text: string): number {
   let n = 0;
   for (const ch of text) {
     if (/[\s\p{P}\p{S}]/u.test(ch)) continue;
-    n += (ch.codePointAt(0) ?? 0) < 0x2e80 ? 0.3 : 1;
+    n += (ch.codePointAt(0) ?? 0) < 0x2e80 ? LATIN_UNIT : 1;
   }
   return n;
 }
-/** 片头标题的上限（字） */
+/** 片头标题的上限，单位同 lineUnits（一个汉字算 1、一个字母算 0.4）：24 个汉字在标题的字号下正好排满四行 */
 export const TITLE_MAX = 24;
+/** 片头标题最多多少个字符（输入框的硬上限）：按上面那个数，纯英文能写到六十来个字母 */
+export const TITLE_MAX_CHARS = 60;
+
+/**
+ * 把标题收到上限之内（超出去的从尾巴上截）。
+ * ★ 为什么不是 `slice(0, 24)`（2026-10-01 拿真模型量的）：那是按"个"数的，英文标题 24 个字符才三四个词 ——
+ *   一键成片给英文片子起的标题 3 次里 3 次被拦腰截成「The Lighthouse Keeper’s 」。按念出来 / 排出来的长度算，
+ *   英文与中文才是同一把尺。标点与空格不占长度，所以另有一个按字符的硬上限兜着。
+ */
+export function clipTitle(title: string): string {
+  let out = "";
+  for (const ch of title) {
+    if (out.length + ch.length > TITLE_MAX_CHARS || lineUnits(out + ch) > TITLE_MAX + 1e-9) break;
+    out += ch;
+  }
+  return out;
+}
 
 /**
  * 这一段念得完多长的一句话（单位同 lineUnits：一个汉字算 1；按片段在成片里的时长估）。
@@ -297,7 +323,7 @@ export function validateProject(raw: unknown): CutProject | null {
       ...(m.branchTree && typeof m.branchTree === "object" ? { branchTree: m.branchTree as BranchTree } : {}),
     };
   }
-  const title = isStr(o.title) ? o.title.trim().slice(0, TITLE_MAX) : "";
+  const title = isStr(o.title) ? clipTitle(o.title.trim()) : "";
   return {
     v: 1,
     sig: o.sig,
@@ -651,7 +677,7 @@ export function setClipVoice(p: CutProject, clipId: string, voice: CutVoice | nu
 }
 
 export function setTitle(p: CutProject, title: string): CutProject {
-  const t = title.slice(0, TITLE_MAX);
+  const t = clipTitle(title);
   if ((p.title ?? "") === t) return p;
   const next: CutProject = { ...p };
   if (t === "") delete next.title;
@@ -1454,6 +1480,32 @@ export function autoBrief(
   return out;
 }
 
+/**
+ * 这份清单的画面描述是用什么语言写的 —— 旁白、标题就用那种语言写（一键成片把它明说给模型）。
+ * ★ 为什么要由这里判、不让模型自己看着办（2026-10-01 拿真模型量的）：提示词是中文的，画面描述是英文时模型 3 次里 3 次
+ *   照样写中文旁白，还不带标点。判据：把字母按念出来的长度折成"字"（LATIN_UNIT），比汉字多就算英文；
+ *   字母不到 20 个的（只有几个专有名词）一律算中文。
+ */
+export function briefLang(brief: ReadonlyArray<AutoBriefClip>): "zh" | "en" {
+  let cjk = 0;
+  let latin = 0;
+  for (const b of brief) {
+    for (const ch of b.plot || b.title) {
+      if (/[a-zA-Z]/.test(ch)) latin++;
+      else if ((ch.codePointAt(0) ?? 0) >= 0x2e80) cjk++;
+    }
+  }
+  return latin >= 20 && latin * LATIN_UNIT > cjk ? "en" : "zh";
+}
+
+/**
+ * 英文旁白的上限折成几个单词（给模型看的：它数不准"字母 × 0.4"，数得准单词）。
+ * 一个英文单词平均 4.7 个字母 ≈ 1.9 个"字"（LATIN_UNIT），下限 3 个词。
+ */
+export function capWords(cap: number): number {
+  return Math.max(3, Math.floor(cap / (4.7 * LATIN_UNIT)));
+}
+
 /** 模型（或演示档）给出的一套包装，已经过了形状检查 */
 export interface AutoPlan {
   /** 片头标题（可能是空串：模型没给 / 给的不成形） */
@@ -1486,8 +1538,20 @@ function cleanTitle(raw: unknown): string {
     .replace(/\s+/g, " ")
     .trim()
     .replace(/^[《「『“"'#\s]+/, "")
-    .replace(/[》」』”"'。.!！\s]+$/, "")
-    .slice(0, TITLE_MAX);
+    .replace(/[》」』”"'。.!！\s]+$/, "");
+}
+
+/** 回话原文里成对出现的 `"clip": N, "text": "…"`（见 parseAutoPlan 里的 ★：对付键重复的那种写法） */
+function linePairs(text: string): Array<{ clip: unknown; text: unknown }> {
+  const out: Array<{ clip: unknown; text: unknown }> = [];
+  for (const m of text.matchAll(/"clip"\s*:\s*("?-?\d+(?:\.\d+)?"?)\s*,\s*"text"\s*:\s*("(?:[^"\\]|\\.)*")/g)) {
+    try {
+      out.push({ clip: JSON.parse(m[1]), text: JSON.parse(m[2]) });
+    } catch {
+      /* 这一对读不出来：跳过 */
+    }
+  }
+  return out;
 }
 
 /**
@@ -1520,7 +1584,12 @@ export function parseAutoPlan(raw: string, brief: ReadonlyArray<AutoBriefClip>):
     return Number.isInteger(v) ? v : null;
   };
   const picked = new Map<string, string>();
-  for (const it of Array.isArray(o.lines) ? o.lines : []) {
+  // ★ 模型偶尔把 lines 写成**一个**对象里重复的键（少了一串 `},{`）：`{"clip":1,"text":"…","clip":2,"text":"…"}`。
+  //   它是合法的 JSON —— JSON.parse 不报错，重复的键只留最后一对，于是四句旁白悄悄只剩一句（2026-10-01 拿真模型量时
+  //   24 发里遇到 1 发）。原文里成对的「clip + text」比解析出来的行多，就按原文把每一对都捞回来。
+  const listed: unknown[] = Array.isArray(o.lines) ? o.lines : [];
+  const pairs = linePairs(text);
+  for (const it of pairs.length > listed.length ? pairs : listed) {
     if (!it || typeof it !== "object") continue;
     const row = it as Record<string, unknown>;
     const n = num(row.clip);
@@ -1528,7 +1597,8 @@ export function parseAutoPlan(raw: string, brief: ReadonlyArray<AutoBriefClip>):
     if (!b || picked.has(b.clipId) || typeof row.text !== "string") continue;
     picked.set(b.clipId, row.text.replace(/\s+/g, " ").trim().slice(0, LINE_MAX_CHARS));
   }
-  const title = cleanTitle(o.title);
+  // 太长的从尾巴上截（clipTitle），截完再把落在末尾的半个词前的空格收掉
+  const title = clipTitle(cleanTitle(o.title)).trimEnd();
   const lines = brief.map((b) => ({ clipId: b.clipId, text: picked.get(b.clipId) ?? "" }));
   if (!title && !lines.some((l) => l.text)) return { ok: false, issue: "empty" };
   const fades: string[] = [];
@@ -1539,7 +1609,7 @@ export function parseAutoPlan(raw: string, brief: ReadonlyArray<AutoBriefClip>):
     if (fades.length >= AUTO_FADES_MAX) break;
     fades.push(b.clipId);
   }
-  const music = typeof o.music === "string" ? o.music.replace(/\s+/g, " ").trim().slice(0, 24) : "";
+  const music = typeof o.music === "string" ? o.music.replace(/\s+/g, " ").trim().slice(0, 40) : "";
   return { ok: true, plan: { title, lines, fades, music } };
 }
 
@@ -1690,7 +1760,7 @@ export type CutReceipt =
   | { kind: "split"; n: number; at: number }
   /** `long`：写是写上了，但这一段念不完这么长（配音之前得改短） */
   | { kind: "line"; n: number; on: boolean; long: boolean }
-  /** `cut`：超过 TITLE_MAX 的部分没收 */
+  /** `cut`：超过上限的部分没收（clipTitle） */
   | { kind: "title"; on: boolean; cut: boolean }
   | { kind: "captions"; on: boolean }
   | { kind: "voice"; count: number }
@@ -1703,6 +1773,8 @@ export type CutRefusal =
   | { kind: "no_current" }
   /** 没有这个编号的片段 */
   | { kind: "no_clip"; ref: number; count: number }
+  /** 这个编号是这一句里刚切出来的后半段：编号按说话那一刻认，这一句里指不到它 */
+  | { kind: "new_half"; ref: number }
   /** 「第 N 段」有两种读法、落在不同的片段上（见 segRefClip）：不猜 */
   | { kind: "seg_unclear"; ref: number }
   /** cutProject 的改法自己拒了（原因是同一份 CutIssue） */
@@ -1764,6 +1836,8 @@ export function applyCutOps(ops: ReadonlyArray<CutOp>, ctx: CutOpsCtx): CutOpsRe
   let redo = 0;
   let openAuto = false;
   let p = ctx.project;
+  /** 这一句里已经切开过几次（切出来的后半段在这一句里没有编号） */
+  let splits = 0;
 
   /** 同一个原因只说一次（「全部」展开成十个片段、十个都因为同一件事被拒的时候） */
   const refuse = (r: CutRefusal) => {
@@ -1787,7 +1861,10 @@ export function applyCutOps(ops: ReadonlyArray<CutOp>, ctx: CutOpsCtx): CutOpsRe
       return [];
     }
     if (Number.isInteger(ref) && live[ref - 1]) return [live[ref - 1].id];
-    refuse({ kind: "no_clip", ref, count: live.length });
+    // 这一句里前面切过片段、而这个编号正好是"切完之后"才有的：人（或模型）是按切完的样子数的。编号按说话那一刻认
+    // （见函数头的 ★），所以这一句里指不到它 —— 说清楚是这个原因，别只说"没有片段 6"（屏幕上明明有 6 个了）
+    if (Number.isInteger(ref) && ref > live.length && ref <= live.length + splits) refuse({ kind: "new_half", ref });
+    else refuse({ kind: "no_clip", ref, count: live.length });
     return [];
   };
   /** 这个片段现在的样子（同一句话里前面的操作可能已经改过它 / 删了它） */
@@ -1954,7 +2031,7 @@ export function applyCutOps(ops: ReadonlyArray<CutOp>, ctx: CutOpsCtx): CutOpsRe
             refuse({ kind: "unmeasured", n });
             continue;
           }
-          run(splitClip(p, id, c.start + op.at * clipSpeed(c), ctx.newId(), ctx.lens), n, () => ({ kind: "split", n, at: op.at }));
+          if (run(splitClip(p, id, c.start + op.at * clipSpeed(c), ctx.newId(), ctx.lens), n, () => ({ kind: "split", n, at: op.at }))) splits++;
         }
         break;
       case "line": {
@@ -1975,7 +2052,7 @@ export function applyCutOps(ops: ReadonlyArray<CutOp>, ctx: CutOpsCtx): CutOpsRe
       }
       case "title":
         p = setTitle(p, op.text);
-        receipts.push({ kind: "title", on: op.text !== "", cut: op.text.length > TITLE_MAX });
+        receipts.push({ kind: "title", on: op.text !== "", cut: clipTitle(op.text) !== op.text });
         break;
       case "captions":
         p = setCaptionsOn(p, op.on);
@@ -2073,4 +2150,79 @@ export function applyCutOps(ops: ReadonlyArray<CutOp>, ctx: CutOpsCtx): CutOpsRe
     redo,
     openAuto,
   };
+}
+
+// ── 配音文件的修剪（纯函数，P1 的补丁，2026-10-01）────────────────────────
+//
+// ★★ 为什么要修剪（拿真的语音合成量的，7 个音色 22 句，同服务端 /api/tts 的那份请求）：合成出来的 mp3
+//   开头有 0.18~0.46 秒、结尾有 0~0.54 秒是静的。不切的话 ① 声音比字幕晚半秒才出来；② 每句白占约 0.7 秒 ——
+//   5 秒的片段只剩 4 秒可念，慢一点的音色顶着字数上限写就念不完；③ 提语速只缩短有声的那一截、静音不跟着缩，
+//   "按量到的比例再提一档"会算少。
+// ★ 切在合成那一刻（studio/cutNarration，存盘之前）：之后的排时间、预览、原生合成拿到的都是一条"从头到尾都是话"的
+//   声音，一处都不用知道静音这回事。这里只放判据与编码（Node 能直接跑），解码与存盘在 cutNarration。
+
+/** 算不算"有声"的门限：满幅的 1.2%（约 −38dB）。合成语音的底噪远低于它，轻声的字头字尾高于它 */
+export const VOICE_SILENCE_AMP = 0.012;
+/** 起音之前留这么久（秒）：别把轻声的字头切掉 */
+export const VOICE_PAD_HEAD_SEC = 0.04;
+/** 收尾之后留这么久（秒）：尾音的衰减留一点，听着不像被掐断 */
+export const VOICE_PAD_TAIL_SEC = 0.08;
+
+/**
+ * 一条声音里"有话"的那一截：从第几个采样到第几个采样（含头不含尾，已经留了边）。
+ * 整条都是静的 / 留下的不到 0.1 秒就回 null（调用方原样用整条，别切出一条空的）。
+ */
+export function voiceBounds(samples: ArrayLike<number>, sampleRate: number): { start: number; end: number } | null {
+  const n = samples.length;
+  let first = -1;
+  for (let i = 0; i < n; i++) {
+    if (Math.abs(samples[i]) > VOICE_SILENCE_AMP) {
+      first = i;
+      break;
+    }
+  }
+  if (first < 0) return null;
+  let last = first;
+  for (let i = n - 1; i > first; i--) {
+    if (Math.abs(samples[i]) > VOICE_SILENCE_AMP) {
+      last = i;
+      break;
+    }
+  }
+  const start = Math.max(0, first - Math.round(VOICE_PAD_HEAD_SEC * sampleRate));
+  const end = Math.min(n, last + 1 + Math.round(VOICE_PAD_TAIL_SEC * sampleRate));
+  if (end - start < 0.1 * sampleRate) return null;
+  return { start, end };
+}
+
+/**
+ * 单声道采样（−1~1）→ WAV 文件的字节（16 位 PCM）。
+ * ★ 存 WAV 不存 mp3：浏览器里没有现成的 mp3 编码器，而一句旁白就几秒（24kHz 单声道约 48KB/秒）；
+ *   本地库、预览的 <audio>、原生合成器都认它。
+ */
+export function wavBytes(samples: ArrayLike<number>, sampleRate: number): ArrayBuffer {
+  const n = samples.length;
+  const buf = new ArrayBuffer(44 + n * 2);
+  const v = new DataView(buf);
+  const tag = (at: number, s: string) => {
+    for (let i = 0; i < s.length; i++) v.setUint8(at + i, s.charCodeAt(i));
+  };
+  tag(0, "RIFF");
+  v.setUint32(4, 36 + n * 2, true);
+  tag(8, "WAVE");
+  tag(12, "fmt ");
+  v.setUint32(16, 16, true); // fmt 块长度
+  v.setUint16(20, 1, true); // PCM
+  v.setUint16(22, 1, true); // 单声道
+  v.setUint32(24, sampleRate, true);
+  v.setUint32(28, sampleRate * 2, true); // 每秒字节数
+  v.setUint16(32, 2, true); // 每个采样占几字节
+  v.setUint16(34, 16, true); // 位深
+  tag(36, "data");
+  v.setUint32(40, n * 2, true);
+  for (let i = 0; i < n; i++) {
+    const x = Math.max(-1, Math.min(1, samples[i]));
+    v.setInt16(44 + i * 2, Math.round(x < 0 ? x * 0x8000 : x * 0x7fff), true);
+  }
+  return buf;
 }

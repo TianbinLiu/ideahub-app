@@ -7,11 +7,13 @@
 //   合成之前在这里把关）、服务端每个账号每分钟 30 次（原来就有）。看成本再定价。
 // ★ 念不完本段：先按字数估，估着念不完就直接提一档语速合成；量出来还超、而语速还有余量，就按量到的比例再提一次
 //   （最多重合成这一次）。还超就原样交回去 —— 不悄悄截断，超出多少由计划算出来、剪辑页标出来让人改短。
+// ★ 合成回来的声音先**切掉首尾的静音**再量、再存（tidy，判据在 cutProject.voiceBounds）：2026-10-01 拿真的语音合成量过，
+//   每句开头有 0.18~0.46 秒、结尾有 0~0.54 秒是静的 —— 不切，声音比字幕晚半秒才出来，每句还白占约 0.7 秒。
 import { t } from "@lingui/core/macro";
 import { ApiError } from "../api/client";
 import { getTtsVoices } from "../api/companion";
 import { synthesizeSpeech } from "../api/support";
-import { LINE_LEAD_SEC, TTS_CPS, lineCap, lineUnits, type CutProject, type CutVoice } from "../data/cutProject";
+import { LINE_LEAD_SEC, TTS_SPEECH_CPS, lineCap, lineUnits, voiceBounds, wavBytes, type CutProject, type CutVoice } from "../data/cutProject";
 import { idbSet } from "../data/db";
 import { uid } from "../types";
 import { probeDuration } from "../utils/videoFrames";
@@ -56,8 +58,14 @@ export async function listNarrators(): Promise<Narrator[]> {
   return out;
 }
 
-/** 语速最多提到几（TTS 的 speech_rate：倍速 = 1 + r/100）。1.3 倍再往上旁白就成了赶场 */
+/**
+ * 语速最多提到几（TTS 的 speech_rate）。1.3 倍再往上旁白就成了赶场。
+ * ★ 量过（2026-10-01）：有声的那一截确实按 1 + r/100 缩（r=10 → 1.09 倍、20 → 1.20、30 → 1.28），首尾的静音不跟着缩 ——
+ *   所以"按比例再提一档"要拿切掉静音之后的时长去算（tidy 之后量的就是它）。
+ */
 const MAX_RATE = 30;
+/** 解码配音用的采样率：语音合成给的就是 24kHz 单声道，照这个数解，存出来的 WAV 不白白放大 */
+const VOICE_RATE = 24000;
 
 /** 一句配音没合成出来的原因 —— 剪辑页据此决定说什么、给什么出路 */
 export class NarrationError extends Error {
@@ -69,18 +77,26 @@ export class NarrationError extends Error {
   }
 }
 
-/** 一条声音有多长（秒）。先整条解码去量（最准），解不了再读 metadata */
-async function measure(blob: Blob): Promise<number> {
+/**
+ * 把合成回来的一条声音收拾好：切掉首尾的静音（切过的另存成 WAV），量出它有多长（秒）。
+ * 解不了码时（没有 OfflineAudioContext / 文件坏了）原样交回去、只读 metadata 的时长 —— 少一次修剪，不算失败。
+ */
+async function tidy(blob: Blob): Promise<{ blob: Blob; dur: number }> {
   try {
-    const Ctx: typeof AudioContext | undefined =
-      window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    const Ctx: typeof OfflineAudioContext | undefined =
+      window.OfflineAudioContext ?? (window as unknown as { webkitOfflineAudioContext?: typeof OfflineAudioContext }).webkitOfflineAudioContext;
     if (Ctx) {
-      const ctx = new Ctx();
-      try {
-        const buf = await ctx.decodeAudioData(await blob.arrayBuffer());
-        if (Number.isFinite(buf.duration) && buf.duration > 0) return buf.duration;
-      } finally {
-        void ctx.close().catch(() => {});
+      // 只借它解码（不渲染）：解出来的采样率就是这里给的 VOICE_RATE
+      const buf = await new Ctx(1, VOICE_RATE, VOICE_RATE).decodeAudioData(await blob.arrayBuffer());
+      if (Number.isFinite(buf.duration) && buf.duration > 0) {
+        const pcm = monoOf(buf);
+        const cut = voiceBounds(pcm, buf.sampleRate);
+        // 两头都没什么可切的（不到 50 毫秒）就留着原文件：白转一次 WAV 只会让它变大
+        if (cut && pcm.length - (cut.end - cut.start) > 0.05 * buf.sampleRate) {
+          const kept = pcm.subarray(cut.start, cut.end);
+          return { blob: new Blob([wavBytes(kept, buf.sampleRate)], { type: "audio/wav" }), dur: kept.length / buf.sampleRate };
+        }
+        return { blob, dur: buf.duration };
       }
     }
   } catch {
@@ -88,10 +104,21 @@ async function measure(blob: Blob): Promise<number> {
   }
   const url = URL.createObjectURL(blob);
   try {
-    return await probeDuration(url, "audio");
+    return { blob, dur: await probeDuration(url, "audio") };
   } finally {
     URL.revokeObjectURL(url);
   }
+}
+
+/** 多声道混成单声道（语音合成给的本来就是单声道，这里只是不信任输入） */
+function monoOf(buf: AudioBuffer): Float32Array {
+  if (buf.numberOfChannels <= 1) return buf.getChannelData(0);
+  const out = new Float32Array(buf.length);
+  for (let ch = 0; ch < buf.numberOfChannels; ch++) {
+    const data = buf.getChannelData(ch);
+    for (let i = 0; i < out.length; i++) out[i] += data[i] / buf.numberOfChannels;
+  }
+  return out;
 }
 
 function explain(e: unknown): NarrationError {
@@ -114,7 +141,7 @@ function explain(e: unknown): NarrationError {
 export async function synthLine(text: string, voiceId: string, availSec: number, signal?: AbortSignal): Promise<CutVoice> {
   const line = text.trim();
   if (!line) throw new NarrationError("empty", t`这一段还没有写字幕，没有可配音的话`);
-  // 这一句念出来有多长（一个汉字算 1、三个多字母算 1，见 cutProject.lineUnits）。超过这一段念得完的量就不合成 ——
+  // 这一句念出来有多长（一个汉字算 1、一个字母算 0.4，见 cutProject.lineUnits）。超过这一段念得完的量就不合成 ——
   // 这是配音免费期的那道限量，把关的位置就在花钱的这一发之前
   const units = Math.ceil(lineUnits(line));
   const cap = lineCap(availSec);
@@ -123,21 +150,20 @@ export async function synthLine(text: string, voiceId: string, availSec: number,
   }
   // 念得完的时间：片段长度减去开头那一小段留白
   const room = Math.max(0.5, availSec - LINE_LEAD_SEC - 0.1);
-  const est = lineUnits(line) / TTS_CPS;
+  // 第一发要不要先提语速：按实测的平均语速估（不含首尾静音，tidy 会把它切掉）
+  const est = lineUnits(line) / TTS_SPEECH_CPS;
   let rate = est > room ? Math.min(MAX_RATE, Math.ceil((est / room - 1) * 100)) : 0;
   try {
-    let blob = await synthesizeSpeech({ text: line, voice: voiceId, ...(rate ? { rate } : {}) }, signal);
-    let dur = await measure(blob);
+    let { blob, dur } = await tidy(await synthesizeSpeech({ text: line, voice: voiceId, ...(rate ? { rate } : {}) }, signal));
     if (dur > room + 0.05 && rate < MAX_RATE) {
       // 量出来还是念不完：按量到的比例再提一档，重合成一次（只这一次）
       const need = Math.ceil(((1 + rate / 100) * (dur / room) - 1) * 100) + 2;
       const faster = Math.min(MAX_RATE, need);
       if (faster > rate) {
-        const blob2 = await synthesizeSpeech({ text: line, voice: voiceId, rate: faster }, signal);
-        const dur2 = await measure(blob2);
-        if (dur2 < dur) {
-          blob = blob2;
-          dur = dur2;
+        const again = await tidy(await synthesizeSpeech({ text: line, voice: voiceId, rate: faster }, signal));
+        if (again.dur < dur) {
+          blob = again.blob;
+          dur = again.dur;
           rate = faster;
         }
       }

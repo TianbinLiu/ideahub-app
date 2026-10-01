@@ -14610,6 +14610,10 @@ msgstr "Clip {n}: speed {speed}×"
 msgid "片段 {n}：配音去掉了"
 msgstr "Clip {n}: voiceover removed"
 
+#: src/studio/cutAgent.ts
+msgid "片段 {ref} 是这一句里刚切出来的，要下一句才指得到——再说一次"
+msgstr "Clip {ref} was only just split off in this sentence, so it can't be referred to until the next one — say it again"
+
 #: src/pages/PublishPage.tsx
 msgid "片段、配乐还想调就回去接着剪，改完重新合一次（合成不花钱）。这一页填好的标题、简介和封面会留着。"
 msgstr "Still want to adjust clips or music? Go back and keep editing, then merge again (merging is free). The title, description and cover you've filled in here will be kept."

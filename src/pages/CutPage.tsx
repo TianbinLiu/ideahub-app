@@ -36,7 +36,7 @@ import {
   BED_GAIN,
   BGM_DUCK,
   SPEEDS,
-  TITLE_MAX,
+  TITLE_MAX_CHARS,
   addAnn,
   clipEnd,
   clipOutDur,
@@ -2459,7 +2459,7 @@ export default function CutPage() {
               </button>
               <input
                 value={project.title ?? ""}
-                maxLength={TITLE_MAX}
+                maxLength={TITLE_MAX_CHARS}
                 onChange={(e) => editProject((p) => setTitle(p, e.target.value), "title")}
                 onBlur={() => useCut.getState().seal()}
                 placeholder={t`片头标题（可不填；写了会烧在成片开头几秒）`}
@@ -2521,7 +2521,7 @@ export default function CutPage() {
                 {view.map((c, i) => {
                   const text = c.line?.text ?? "";
                   const cap = lineCap(durOf(c));
-                  // 这一句念出来有多长（一个汉字算 1、三个多字母算 1）—— 与这一段念得完的量比
+                  // 这一句念出来有多长（一个汉字算 1、一个字母算 0.4，见 cutProject.lineUnits）—— 与这一段念得完的量比
                   const chars = Math.ceil(lineUnits(text));
                   const v = c.line?.voice;
                   const stale = voiceStale(c.line, voiceId);
