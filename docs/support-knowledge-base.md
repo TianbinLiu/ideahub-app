@@ -11,7 +11,7 @@
 ### 1.1 产品定位
 - App 是 IdeaHub 的安卓端：React 19 + Vite 7 + Tailwind + Capacitor，形态对标抖音/TikTok 的全屏上下滑视频流，**视频由 AI 逐段生成，支持分支互动** — `app\CLAUDE.md:12-13`
 - 应用名「启梦」，包名 `com.ideahub.branchvideo` — `app\capacitor.config.ts:4-5`；`app\android\app\build.gradle:29`
-- 当前版本 versionName `2.44` / versionCode `56` — `app\android\app\build.gradle:39-40`
+- 当前版本 versionName `2.56` / versionCode `68` — `app\android\app\build.gradle:39-40`
 - 登录页标语：「启梦 · 有想法，就是梦想启程的第一步」— `app\src\pages\LoginPage.tsx:296-297`
 - 三仓结构：server（Node+Express5+MongoDB，阿里云 ECS）/ client（官网）/ app（APK/AAB），互相只靠 HTTP 契约耦合 — `app\AGENTS.md:17-23`
 
@@ -513,8 +513,14 @@
 - **冷启动立刻点 ➕ 被弹去登录页**（2026-08-20 已修） — `app\CLAUDE.md:293`
 - **改完昵称后作品列表还挂着旧名字**（已按 authorId 修） — `app\CLAUDE.md:294`
 
-### 9.2 近期版本（当前版 v2.55）— `app\RELEASE_NOTES.md`（每一版的原文：`git show vX.YZ:RELEASE_NOTES.md`）
+### 9.2 近期版本（当前版 v2.56）— `app\RELEASE_NOTES.md`（每一版的原文：`git show vX.YZ:RELEASE_NOTES.md`）
 > 注：侧载包的更新弹窗显示的就是 `RELEASE_NOTES.md`；从 Google Play 安装的版本随商店更新，不弹这个窗。
+
+**v2.56**（工坊白屏修复 + 剪辑工程）：
+- 修复：2.51–2.55 的安装包漏了铸卡师模型，一进工坊的铸卡桌面就整页白屏 —— 遇到这个问题请更新到 2.56（简约模式不受影响）
+- 剪辑页的改动（裁剪、分割、调顺序、圈选、配乐）离开再回来都在，App 重启后从「我的 → 接着剪」回来也在；新增撤销 / 重做；删掉的段可用「＋ 段N」加回来
+- 合好的成片可「↩ 回去改」（发布页「↩ 回剪辑页改一改」同样），改完再合一次不花钱，标题、简介、封面留着
+- 高清档最短 4 秒（此前可选 3 秒，但出片会失败、不扣出片钱）
 
 **v2.55**（真人卡带画面帧时高清 / 电影级置灰）：
 - 勾了「火山引擎适用」的真人卡，高清 / 电影级只在「简约模式」不带首帧时可用；工作流推演、承接画面、上传首帧、圈选与工坊里这两档直接变灰（2.54 里是先扣推演费、出片时被拒）
