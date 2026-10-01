@@ -23,3 +23,11 @@ export function previewUrlOf(videoId: string): string {
  * ★ 设置页那一行走它。别在调用点自己拼 SITE_BASE。
  */
 export const childSafetyUrl = () => `${SITE_BASE}/child-safety`;
+
+/**
+ * 启梦老师（官网 /tutor，tutor 仓 docs/06 §5.1，2026-09-29）：用自己的教材铸一位 AI 老师、在网页里上课。
+ * 与儿童安全页同一个理由：它是**网页功能**（阅读面 + 导学漫游都在官网），App 里只放外链、不抄一份。
+ * from = 引流位的名字（服务端白名单：app-settings / app-create），只用来记一行、不奖励 —— 别拿它传别的东西。
+ * ⚠ 落到官网用的是那个浏览器里的登录态，不是 App 的（不做跨站登录）；没登录过会先去登录再回到 /tutor。
+ */
+export const tutorUrl = (from: "app-settings" | "app-create") => `${SITE_BASE}/tutor?from=${from}`;

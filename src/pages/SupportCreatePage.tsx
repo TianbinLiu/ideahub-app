@@ -117,6 +117,17 @@ export default function SupportCreatePage() {
           cta={t`去制作`}
           onGo={() => navigate("/support/personas/new")}
         />
+        {/* 第四扇门「人物 → 老师」（M3 是外链；2026-09-29 M4 起进 App 内的 /tutor：md / txt 建课、上课都在 App 里，PDF / PPTX 仍去网页端）。
+            没有「我的作品 n」那一行：老师的数不在上面三条 scope=mine 里，问不到就不摆（不显示成 0）。?from=app-create 只用来记引流 */}
+        <CreateCard
+          icon="compass"
+          emoji="🎓"
+          title={t`人物 → 老师`}
+          desc={t`把自己的课件交给 AI，铸一位按你的材料讲课的老师，在 App 里上课；勾了「同时发布为启梦人格」的老师还会开口说话。`}
+          count={null}
+          cta={t`去制作`}
+          onGo={() => navigate("/tutor?from=app-create")}
+        />
       </div>
 
       <p className="mt-5 text-center text-[11px] leading-5 text-slate-500"><Trans>发布出去的东西署你的名，别人下载后你能看到下载数。</Trans></p>

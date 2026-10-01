@@ -1011,6 +1011,14 @@ export const CARD_META_TOKENS = 400;
  */
 export const CHAT_TURN_TOKENS = 400;
 
+/**
+ * 老师人格三个单价（M4，tutor 仓 docs/06 §6.1「economy.ts 镜像 tutor_turn / distill / extract」）—— 这是**报价**那一半；
+ * **结算**在 server `config/tokens.js` 的 TUTOR_PRICES，两边逐条相等：server `tests/tutorPrices.spec.js` 钉着这一份的三个数
+ * （改价先改 server，再来这里，再改那条 spec —— 顺序反了 App 会先报一个服务端不认的价）。
+ * tutor_turn 钉在 CHAT_TURN_TOKENS（一次教学轮 = 一次 chat 调用，tutor 仓 docs/08 #4）；其余按「相对一轮花多少」按比例，都是建议值（dogfood 量过再钉死）。
+ */
+export const TUTOR_PRICES = Object.freeze({ tutor_turn: CHAT_TURN_TOKENS, tutor_distill: 600, tutor_extract: 400 } as const);
+
 // ★★ 这里原来有个 `SCRIPT_SPLIT_TOKENS = 2 * CHAT_TURN_TOKENS`（结构化技能「剧本 → 分镜字段」的价签，理由是
 //   "输入输出都是闲聊那一趟的几倍，按两趟计"），2026-09-10 删了：那一发只是**一次** chat
 //   （structuredSkills.runScriptToShots → canvasAgentChat → chat()），服务端按调用收 CHAT_TURN_TOKENS ——

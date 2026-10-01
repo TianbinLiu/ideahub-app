@@ -178,6 +178,30 @@ export interface TtsRequest {
 }
 
 /**
+ * 一句台词的 /api/tts 请求体（一处实现；2026-09-29 M4 从 SupportPage 搬到这里 —— 老师上课那一页念句子也用它）。
+ * voiceSettings 是服务端算好的三层合并结果（用户覆盖 > 人格自带 > 模型推荐 > 默认）；情绪与语调指令来自这一句 ——
+ * 服务端已把「人设语调；情绪语调」合并进 sentence.tts.instruct。老服务端没有 voiceSettings → 退回旧写法（只有 voice + expressive:true）。
+ * ★ 混音（voiceSettings.mix，1.0 音色）只发 mix + rate + pitch：voice 不传（服务端 speaker 固定 custom_mix_bigtts）、
+ *   instruct / expressive 不传（context_texts 与表现力增强都是 2.0 专属，服务端对混音也直接丢弃）、emotion 也不传 ——
+ *   混音 speaker 吃不吃 emotion 上游没写明，而 TTS 失败在客服页是**静默**退成合成口型（整段对话哑掉、没有一句报错），
+ *   为一点情绪起伏赌整条声音不值。面板里的试听（VoiceMixer / VoiceMarket）发的也是这三个字段：听到的就是之后念台词的。
+ */
+export function ttsBodyFor(config: SupportConfig | null, sentence: CompanionSentence): TtsRequest {
+  const vs = config?.voiceSettings;
+  if (!vs) return { text: sentence.text, voice: config?.voice || undefined, emotion: sentence.tts?.emotion, instruct: sentence.tts?.instruct, expressive: true };
+  if (vs.mix?.length) return { text: sentence.text, mix: vs.mix, rate: vs.rate ?? undefined, pitch: vs.pitch ?? undefined };
+  return {
+    text: sentence.text,
+    voice: vs.voiceId || undefined,
+    rate: vs.rate ?? undefined,
+    pitch: vs.pitch ?? undefined,
+    expressive: vs.expressive,
+    emotion: sentence.tts?.emotion,
+    instruct: sentence.tts?.instruct,
+  };
+}
+
+/**
  * 豆包 TTS → audio/mpeg Blob。登录 + 30 次/分钟限流（服务端）。
  * rate = speech_rate [-50,100]（倍速 1 + r/100），pitch = post_process.pitch [-12,12]；缺省 = 不传（原速原调）。
  */
