@@ -809,6 +809,8 @@ idLine strip 掉（app 读侧兜底成老行为，不炸但弱化）。
   这条对我们没有可迁移的部分（我们等价的东西就是档位表 + segmentGen 的分支）。
 - **Topaz 超分补帧 / 卡拉OK字幕 / 剪映式通用剪辑**：是真需求但属于另一条产品线（后期），
   与"AI 逐段生成"这个形态不是同一件事；超分还要另找供应商。真要做先单开一份 design doc。
+  → 剪辑那一半的 design doc 2026-09-30 开了：[`cut-autoedit-research.md`](cut-autoedit-research.md)
+  （对标「剪映 + WorkBuddy」，结论是不重造剪映、只补"工程化 + 包装层 + 一键成片"三层；**未拍板**）。超分仍然没人管。
 
 ---
 
