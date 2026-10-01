@@ -7,7 +7,7 @@ import type { PlayerAvatar } from "./quality";
 import { acquireCard, addCards as saveCardsToAccount, canAfford, frozenNote, myCards, myDecks, plazaCards, spendTokens, walletOf, type AddCardsResult } from "../data/account";
 import { CHAT_TURN_TOKENS, DECK_MAX_3D, deriveIssue, DECK_MAX_CARDS, DEFAULT_TIER, MODEL3D_TOKENS, ONE_IMAGE, deckCardsCost, deckModel3dCost, fmtTokens, proposalsCost, realFaceIssue, styleWants3d, tierOf, videoAudioOn } from "../data/economy";
 // 单向依赖：工坊把活动路径喂给工作流。flowStore 不认识 studioStore（见其文件头）
-import { GenNodeOpts, CUSTOM_MID_MAX, FlowMode, FlowNode, FlowTemplate, appendBlocked, appendIssue, chosenOf, recastBlocked, nodeVideo, tplOfNode, useFlow, keepFirstFrame, redrawCost, usableFrames } from "./flowStore";
+import { GenNodeOpts, CUSTOM_MID_MAX, FlowMode, FlowNode, FlowTemplate, appendBlocked, appendIssue, chosenOf, recastBlocked, nodeContinues, nodeVideo, tplOfNode, useFlow, keepFirstFrame, redrawCost, usableFrames } from "./flowStore";
 // ★ 依赖方向没破：canvasAgent 只认识 flowStore，不认识本模块（不会成环）
 import { forgetCanvasAgent } from "./canvasAgent";
 import { onOwnerSwitch, ownerEpoch, workOwner } from "../data/deviceOwner";
@@ -2293,7 +2293,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
         }
       }
     }
-    const segments: VideoSegment[] = nodes.map((n) => {
+    const segments: VideoSegment[] = nodes.map((n, ni) => {
       const p = chosenOf(n);
       const video = nodeVideo(n);
       const real = video && !video.startsWith("mock:") ? video : undefined;
@@ -2320,6 +2320,9 @@ export const useStudio = create<StudioState>()((set, get) => ({
           !n.audioHint &&
           !(real && p.silentVideos?.includes(real)) &&
           videoAudioOn(tierOf(n.videoTier).model),
+        // 这一段是不是接着上一段拍的（见 types.VideoSegment.carried）：剪辑页拿它判这条接缝该不该加转场。
+        // 每一段都明写 true / false —— 缺省留给老剪辑稿，那是「不知道」
+        carried: nodeContinues(nodes, ni),
         aspect: n.aspect,
         ...(real ? { videoUrl: real } : {}),
       };

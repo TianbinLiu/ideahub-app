@@ -1164,11 +1164,13 @@ export const TOURS: GuideTour[] = [
         // ★ 2026-09-11 订正（未升 version）：不是所有画面都没声音 —— 高清 / 电影级档（economy.VIDEO_TIERS 的 audio:true）
         //   出片自带 AI 生成的环境音；极速 / 标准档（默认档）、真人档与白模复刻段（arkClient.BLOCKOUT_TASK 的 generate_audio:false）才是哑的。
         //   档名不写进这句：档位表会变，引导里抄一份档名就是又一个要维护的镜像（文件头 ★★ 同理）。
-        title: msg`三个页签各管一摊`,
+        // ★ 2026-09-30 再订正（未升 version，「引导不重弹」）：多了「字幕」页签（包装层，data/cutProject 的 P1）。
+        title: msg`四个页签各管一摊`,
         anchor: "cut-tabs",
         body: (
           <Trans>
             <b className="font-bold text-slate-100">剪辑</b>管顺序与取舍，
+            <b className="font-bold text-slate-100">字幕</b>管每一段的那句话和配音，
             <b className="font-bold text-slate-100">圈选</b>管改画面（要花钱的那种改），
             <b className="font-bold text-slate-100">音频</b>管配乐 —— 不是每一档出的画面都带声音（白模复刻段一律没有），
             想要声音、想加配乐，就在这儿配。
@@ -1186,6 +1188,19 @@ export const TOURS: GuideTour[] = [
             <b className="font-bold text-slate-100">🗑 删除</b>、拖拽或前移后移<b className="font-bold text-slate-100">换序</b>。
             这些只改导出范围，<b className="font-bold text-slate-100">一个 token 都不花</b>；每一步都能
             <b className="font-bold text-slate-100">↶ 撤销</b>，离开这一页再回来也都还在。
+            选中一段之后，还能调它的<b className="font-bold text-slate-100">速度</b>、
+            <b className="font-bold text-slate-100">原声音量</b>，或者让它<b className="font-bold text-slate-100">从黑里淡入</b>。
+          </Trans>
+        ),
+      },
+      {
+        // 2026-09-30 包装层的那一步（未升 version：老用户不重弹，点「?」的人看得到）
+        title: msg`字幕：一段一句，还能配音`,
+        body: (
+          <Trans>
+            给每一段写一句话，它会<b className="font-bold text-slate-100">烧进画面</b>当字幕；点
+            <b className="font-bold text-slate-100">🔊 配音</b>，就用选好的音色把它念出来 —— 配音现在不收 token，
+            字数按这一段的时长封顶。有配音时，配乐和这一段的原声会自动压低。
           </Trans>
         ),
       },
