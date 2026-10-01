@@ -17693,6 +17693,10 @@ msgstr "这一档不对当前套餐开放，去「我的」页升级套餐后再
 msgid "这一档不经过方案台。"
 msgstr "这一档不经过方案台。"
 
+#: src/studio/ui/PlanBoard.tsx
+msgid "这一档最短 {minSec} 秒"
+msgstr "这一档最短 {minSec} 秒"
+
 #: src/studio/ui/NpcDialog.tsx
 msgid "这一档暂时报不出价，换个档位再试"
 msgstr "这一档暂时报不出价，换个档位再试"

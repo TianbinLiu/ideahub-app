@@ -17693,6 +17693,10 @@ msgstr "This tier isn't available on your current plan — upgrade your plan on 
 msgid "这一档不经过方案台。"
 msgstr "This tier doesn't use the plan board."
 
+#: src/studio/ui/PlanBoard.tsx
+msgid "这一档最短 {minSec} 秒"
+msgstr "This tier needs at least {minSec}s"
+
 #: src/studio/ui/NpcDialog.tsx
 msgid "这一档暂时报不出价，换个档位再试"
 msgstr "This tier can't be priced right now; try another tier"
