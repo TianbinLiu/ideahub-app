@@ -9,11 +9,11 @@
 // ★ 组件自己认 node.id 从 store 读（与 PlanSheet / CardPicker 同款）：宿主只给一个 id，
 //   不必把 index/nodes/mode 一路传下来，也就不会出现"传的是上一段"那类错。
 import { clampDuration, modelLabel, r2vBlockLines, realFaceIssue, tierOf } from "../../data/economy";
-import { chosenOf, nodeDone, nodeFramed, tplOfNode, useFlow } from "../../studio/flowStore";
+import { chosenOf, nodeDone, nodeFramed, nodeOwnFirstFrame, tplOfNode, useFlow } from "../../studio/flowStore";
 import { DURATIONS, VIDEO_ASPECTS } from "../../types";
 import { Trans, useLingui } from "@lingui/react/macro";
 import TierRow from "./TierRow";
-import { carryIsHard } from "../../studio/segmentGen";
+import { cardFitNote, carryIsHard } from "../../studio/segmentGen";
 
 export default function SegSettings({ nodeId }: { nodeId: string }) {
   const { t } = useLingui();
@@ -49,6 +49,8 @@ export default function SegSettings({ nodeId }: { nodeId: string }) {
    */
   // framed 与生成闸同源（flowStore.nodeFramed）：已认证真人卡在高清/电影级上只有不带帧的请求过得去
   const realFaceBlock = realFaceIssue(node.materials, node.videoTier, { blockout, framed: nodeFramed(nodes, index, mode) });
+  /** 按模型适配：这一段的卡在这一档上有哪些没适配（就地能补的那句，studio/segmentGen.cardFitNote 一处实现）。白模段不提 */
+  const fitNote = blockout ? null : cardFitNote(node.materials, node.videoTier, { aspect: node.aspect, ownFrame: nodeOwnFirstFrame(nodes, index) });
 
   return (
     <div className="space-y-3">
@@ -147,6 +149,7 @@ export default function SegSettings({ nodeId }: { nodeId: string }) {
           {[...r2vBlocks, ...(realFaceBlock ? [realFaceBlock] : [])].join(t({ message: "；", comment: "把几条「这一档为什么点不动」的原因连成一行时的分隔符" }))}
         </p>
       )}
+      {fitNote && !realFaceBlock && <p className="text-[10px] leading-relaxed text-slate-400">{fitNote}</p>}
       {/* ★ 把**真正会被调用的那个模型**写出来。「极速/标准/高清」只说了画质档次，
           没说这一段到底交给谁去生成 —— 而不同世代的模型（1.0 / 2.0）观感差别很大，
           用户对不上账时无从判断。这里显示的是 tierOf(...).model 推导出来的名字，

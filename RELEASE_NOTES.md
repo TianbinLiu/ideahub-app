@@ -1,11 +1,15 @@
-启梦 2.54
+启梦 2.56
 
-· 真人素材做卡改成先传照片：选「真人素材」后，点页面上的虚框上传一张真人照片就行。
-· 照片下方新增「火山引擎适用」勾选框：勾上会跳到火山引擎登录并扫脸认证，认证完回到 App 会自动勾上。勾上的真人卡可以用「高清」「电影级」出片；不勾的只能用「真人」档，用不了的档位会直接变灰。卡片详情页也能随时勾选或取消。
-· 余额被欠额冻结时，提示直接说明欠额，不再误报「余额不足」；真人档出片失败时也不再显示一串代码。
+· 修复：进工坊的铸卡桌面会整页白屏（2.51 起的安装包漏了铸卡师模型）。
+· 剪辑页：裁剪、分割、调顺序、圈选、换配乐，离开这一页再回来都还在；App 重启后从「我的 → 接着剪」回来也在。
+· 剪辑页新增撤销 / 重做；删掉的段可以用「＋ 段N」加回来。
+· 合好的成片可以「↩ 回去改」（发布页也能回剪辑页），改完再合一次不花钱；标题、简介、封面会留着。
+· 高清档最短 4 秒：此前能选 3 秒，但出片会失败。
 
-QiMeng 2.54
+QiMeng 2.56
 
-· Making a real-person card now starts with the photo: pick “Real-person material” and tap the dashed box to upload one.
-· A new “Volcengine verified” checkbox sits under the photo: ticking it takes you to Volcengine to sign in and verify your face, and it ticks itself once you come back verified. Verified real-person cards can use HD and Cinematic; unverified ones use the Real-person tier, and tiers you can’t use are greyed out. You can tick or untick it any time on the card’s detail page.
-· If your balance is frozen by an outstanding debt, the message now says so instead of “not enough balance”, and real-person tier errors no longer show raw code.
+· Fixed: entering the crafting table in Studio mode could show a blank screen (builds since 2.51 were missing the card smith model).
+· Video editor: trims, splits, reordering, circle-selections and music changes now stay when you leave the page and come back, even after restarting the app (Profile → Keep editing).
+· The editor now has Undo / Redo, and deleted segments can be added back with “＋ Seg N”.
+· A merged video can be reopened with “↩ Go back and edit” (or from the publish page) and merged again at no cost; the title, description and cover are kept.
+· HD clips are now at least 4 seconds: 3 seconds could be selected before, but the video would fail.

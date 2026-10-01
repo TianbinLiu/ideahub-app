@@ -257,7 +257,8 @@ export interface VideoTier {
    */
   paidOnly?: boolean;
   /**
-   * 这一档允许的最短时长（秒）。★ Seedance 2.5 的合法区间是 **[4,30]**，而时长按钮上
+   * 这一档允许的最短时长（秒）。★ Seedance 2.5 的合法区间是 **[4,30]**，2.0 mini 也是 4 起
+   * （2026-09-30 直连探针：3 秒在 t2v 与 r2v 都回 400 InvalidParameter，4 秒受理），而时长按钮上
    * 第一个选项就是 3 秒 —— 直接发过去是同步 400 InvalidParameter，用户只会觉得"这档坏了"。
    * 收在档位表里，**报价（segTokens）与出片（composeSegments）用的是同一个 clampDuration**。
    */
@@ -286,7 +287,8 @@ export const VIDEO_TIERS: VideoTier[] = [
   // ★ hd 的 audio: true 是**免费套餐也听得到声音**的那条路（paidOnly 只挡 ultra）——
   //   实测 2.0-mini 真出声（-30.2dB），且开音频零额外成本，所以 desc 里如实写出来：
   //   不写的话用户只能靠"换个档试试"发现，而多数人只会以为 App 的片本来就是哑的。
-  { id: "hd", get label() { return i18n._(msg`高清`); }, model: "doubao-seedance-2-0-mini-260615", mult: 23 / 15, flf: true, refImg: true, refImagesMax: 9, refVid: false, r2vMult: null, audio: true, realFace: false, assetRef: true, minSec: 3, get desc() { return i18n._(msg`新一代模型 · 画面更稳、细节更多；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音`); } },
+  // ★ minSec 4（2026-09-30 修，此前写的是 3）：2.0 mini 不收 3 秒 —— 选 3 秒出片是同步 400，用户只会觉得这一档坏了
+  { id: "hd", get label() { return i18n._(msg`高清`); }, model: "doubao-seedance-2-0-mini-260615", mult: 23 / 15, flf: true, refImg: true, refImagesMax: 9, refVid: false, r2vMult: null, audio: true, realFace: false, assetRef: true, minSec: 4, get desc() { return i18n._(msg`新一代模型 · 画面更稳、细节更多；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音`); } },
   {
     id: "ultra",
     get label() {

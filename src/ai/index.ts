@@ -129,7 +129,7 @@ export const deriveCharacterModels: typeof real.deriveCharacterModels = AI_REAL
  */
 export const prepareMaterialRefs: typeof real.prepareMaterialRefs = AI_REAL
   ? real.prepareMaterialRefs
-  : async () => ({ refs: [], bind: () => "", bindCompact: () => "" });
+  : async () => ({ refs: [], bind: () => "", bindCompact: () => "", cards: new Set<string>() });
 export type { MaterialRefs } from "./real";
 /** 几条提示（prepareMaterialRefs 的 onNote、铸卡的 notes…）怎么连成一串 / 括成进度行的尾巴：分隔符与括号都进目录，
  *  全仓一处（real.ts），真假两种构建同一份 —— 调用方别再自己写 `notes.join("；")` */
@@ -168,6 +168,24 @@ export { VIDEO_PROMPT_MAX } from "./real";
 export { recaptureSegment } from "./real";
 export { transferStatus } from "./arkClient";
 export { AI_REAL };
+
+/**
+ * 按模型适配（2026-09-30）：文字版形象描述 / 真人档起拍画面（components/CardModelFit）。
+ * 演示构建不调模型：描述给一句带「（演示）」的出片句，起拍画面给本地占位帧（不花钱、不联网）。
+ */
+export const describeCardForText: typeof real.describeCardForText = AI_REAL
+  ? real.describeCardForText
+  : async (card) => {
+      const base = card.idLine || card.name;
+      return t`（演示）${base}`;
+    };
+export const drawStartFrames: typeof real.drawStartFrames = AI_REAL
+  ? real.drawStartFrames
+  : async (card) => ({
+      portrait: makeFrame(card.id, card.name, card.id, "portrait"),
+      landscape: makeFrame(card.id, card.name, card.id, "landscape"),
+    });
+export { refCardIds } from "./real";
 
 export type { NpcChatContext } from "../mock/ai";
 /** ★ 必须标 typeof：既有导出全这么写，为的就是强制真假两侧同签名。

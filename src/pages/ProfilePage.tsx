@@ -95,6 +95,7 @@ import { useVideosVersion } from "../hooks/useVideos";
 import { CARD_TYPE_COLORS, CARD_TYPE_LABELS, VideoItem, type Visibility, formatPlays, relativeTime, revisionLabel, videoCategoryLabel, visibilityOf } from "../types";
 import { cutSession, cutSessionLoadIssue, dropCutSession, readyCutSession, subscribeCutSession } from "../data/cutSession";
 import { useStudio } from "../studio/studioStore";
+import { useCut } from "../studio/cutStore";
 
 type TabKey = "works" | "drafts" | "cards" | "decks" | "collects";
 
@@ -1133,6 +1134,9 @@ function CutSessionBanner() {
             //   白模复刻段的成片文件本身无声，声音全靠这条预置在合并时混进去；而
             //   `draftAudioHint` 只在组稿那一拍算、只活在内存里 —— 这条路恰恰是
             //   **App 重启之后**才走的，不还原的话音频页签是空的，合出来整条没声音且零提示。
+            // ★ 剪辑工程同一拍还原（时间轴 / 圈选 / 配乐 / 合并留底，见 cutSession.CutSession.project）。
+            //   老稿子没有这一格 = null，剪辑页进页时按稿子现开一份（cutStore.ensure）
+            useCut.getState().load(cut.project ?? null);
             useStudio.setState({
               draft: cut.draft,
               segEdit: null,

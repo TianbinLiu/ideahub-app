@@ -8,6 +8,7 @@ import { useNavigate } from "react-router";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { deckCoverOf, myCards, myDecks, tierBlockReason } from "../../data/account";
 import { VIDEO_TIERS, deriveIssue, fmtTokens, modelLabel, r2vBlockLines, realFaceIssue, segTokens, tierOf } from "../../data/economy";
+import { cardFitNote } from "../segmentGen";
 import TarotCard from "../../components/TarotCard";
 import DeckCard from "../../components/DeckCard";
 import GenTrace from "../../components/GenTrace";
@@ -315,6 +316,8 @@ function EditorPanel() {
    *   （真人档本来就走不了推演），只灰不说等于告诉用户"功能坏了"。印在档位那排下面，与套餐原因同一行。
    */
   const faceNote = realFaceIssue(slotCards, editor.videoTier, { blockout: false, framed: true });
+  /** 按模型适配那句（工坊的段都要推演、都带帧 ⇒ ownFrame 恒真：真人档那半在工坊用不上） */
+  const fitNote = faceNote ? null : cardFitNote(slotCards, editor.videoTier, { aspect: editor.aspect, ownFrame: true });
 
   const crumbSteps = lane === "custom" ? (["mode", "ref", "content", "spec"] as const) : (["mode", "content", "spec"] as const);
   // ★ 标签压到两字：自定义车道是四步，375px 顶栏上「示例视频/写内容」会把整行折成两行（实测）
@@ -589,6 +592,7 @@ function EditorPanel() {
                 {[...tierBlocks, ...(faceNote ? [faceNote] : [])].join(t({ message: "；", comment: "把几条「这一档为什么点不动」的原因连成一行时的分隔符" }))}
               </p>
             )}
+            {fitNote && <p className="mt-1 text-[9px] leading-[13px] text-slate-400">{fitNote}</p>}
             {/* ★ 写出**真正会被调用的那个模型**。「极速/标准/高清」只说了画质档次，
                 没说这一段交给谁生成 —— 而 1.0 与 2.0 的观感差别很大，用户对不上账时
                 无从判断。名字由 tierOf(...).model 推导，与发给方舟的 id 同源，
@@ -1232,6 +1236,7 @@ function ProposalsPanel() {
         <PlanBoard
           dense
           proposals={node.proposals}
+          minSec={tierOf(node.videoTier).minSec}
           pickedId={pickedId}
           isDone={proposalDone}
           busy={busy}
