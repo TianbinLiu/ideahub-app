@@ -19,6 +19,7 @@ import {
   CARD_SIZE,
   ID_LINE_MAX,
   TEXT_DESC_MAX,
+  startFramesAllowed,
   MAX_CARD_VIEWS,
   VIDEO_PROMPT_MAX,
   idLineOf,
@@ -401,8 +402,13 @@ export async function drawStartFrames(
   card: Card,
   onProgress?: (done: number, total: number) => void,
 ): Promise<Record<VideoAspect, string>> {
-  if (card.type !== "character" && card.type !== "scene" && card.type !== "prop") {
-    throw new Error(t`这种卡没有起拍画面（只有人物、场景、道具卡画得出一个开场镜头）`);
+  // 判据只在 types.startFramesAllowed（真人卡也在这里挡：方舟拒收真人照片当参考图，而真人档本来就以照片起拍）
+  if (!startFramesAllowed(card)) {
+    throw new Error(
+      card.realPerson === true
+        ? t`真人卡不用另画起拍画面：真人档直接以卡上的照片起拍`
+        : t`这种卡没有起拍画面（只有人物、场景、道具卡画得出一个开场镜头）`,
+    );
   }
   const refs = await prepareMaterialRefs([card], "image");
   if (!refs.refs.length) {
