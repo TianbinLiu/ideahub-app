@@ -6,11 +6,11 @@
 //   这类规则只能靠正反例守住（studio/agentGrammar 与 check-agent-grammar.mjs 是同一条纪律的第一份）。
 //   模型档的回话同样是不可信输入：parseCutReply 只放白名单里的操作过去，这里也钉着。
 // ★ **直接 import 模块本身**（Node 只剥类型），一条正则都不在这里重打 —— 重打一遍就是第二处实现。
-// ★ 写完先造真违规试红（仓内门禁纪律）。上线前试过十处，各自变红：删片段不要求点名；剥词法去掉
+// ★ 写完先造真违规试红（仓内门禁纪律）。上线前试过十一处，各自变红：删片段不要求点名；剥词法去掉
 //   （「把片段2里那个路人删掉」被当成删片段）；「去掉闪黑」那条规则拿掉（那句话就没人认了）；模型回话里不认识的
 //   操作不丢；句式表里放一句本地档听不懂的话；没说倍数的「放慢」写回成绝对的 0.75×；「第 N 段」当成位置认（与「片段 N」不分）；
 //   没引号的正文不要求引出它的词（「标题不要了」被写成标题）；"去掉"只认一种语序。
-//   另有一处：mentionsRemove 恒为真（模型自己加的删片段就拦不住了）。
+//   另有两处：mentionsRemove 恒为真（模型自己加的删片段就拦不住了）；键重复的操作照样办其中一条。
 //
 // 用法：node scripts/check-cut-grammar.mjs [--module=<另一份 cutGrammar.ts 的路径，造违规试红用>]
 import fs from "node:fs";
@@ -307,8 +307,12 @@ eq("两套句式一样多", G.CUT_PHRASES.zh.length, G.CUT_PHRASES.en.length);
   eq("回话里没有 JSON：整句不办", G.parseCutReply("好的，我已经帮你删掉了第二段。"), null);
   eq("包在代码块里的 JSON 读得出", G.parseCutReply('```json\n{"say":"好","ops":[{"op":"undo"}]}\n```')?.ops, [{ op: "undo" }]);
   eq("没有 ops 就是一句话", G.parseCutReply('{"say":"这个我办不了"}'), { say: "这个我办不了", ops: [], dropped: 0 });
-  const flood = G.parseCutReply(JSON.stringify({ ops: Array.from({ length: 40 }, () => ({ op: "undo" })) }));
-  eq("一口气回几十条：只收前 CUT_OPS_MAX 条", flood && [flood.ops.length, flood.dropped], [G.CUT_OPS_MAX, 40 - G.CUT_OPS_MAX]);
+  // ★ 键重复的写法（少了 "},{"）是合法 JSON、只留最后一对：整句不认，别只办其中一条
+  eq("键重复的操作：整句不认", G.parseCutReply('{"say":"好","ops":[{"op":"speed","clip":1,"value":2,"op":"volume","clip":2,"value":0}]}'), null);
+  eq("say 里提到 op 两个字不算", G.parseCutReply('{"say":"这个 \\"op\\": 我办不了","ops":[{"op":"undo"}]}')?.ops, [{ op: "undo" }]);
+  const flood = G.parseCutReply(JSON.stringify({ ops: Array.from({ length: 80 }, () => ({ op: "undo" })) }));
+  eq("一口气回上百条：只收前 CUT_OPS_MAX 条", flood && [flood.ops.length, flood.dropped], [G.CUT_OPS_MAX, 80 - G.CUT_OPS_MAX]);
+  eq("上限够 24 个片段各办两件事", G.CUT_OPS_MAX >= 48, true);
 }
 
 // ── 模型档的删片段要人的话里真提过"删"（模型自己加的戏不办）──

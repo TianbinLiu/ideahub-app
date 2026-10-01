@@ -15,19 +15,20 @@ import { AI_REAL, skillChat } from "../ai";
 import { ArkBadReply } from "../ai/arkClient";
 import { zhPrompt } from "../ai/prompts/zhPrompt";
 import { canAfford, frozenNote, spendTokens } from "../data/account";
-import { autoBrief, demoAutoPlan, parseAutoPlan, type AutoBriefClip, type AutoPlan, type CutProject } from "../data/cutProject";
+import { autoBrief, briefLang, capWords, demoAutoPlan, parseAutoPlan, type AutoBriefClip, type AutoPlan, type CutProject } from "../data/cutProject";
 import { CHAT_TURN_TOKENS, fmtTokens } from "../data/economy";
 import type { SkillStep, SkillStepKind } from "./structuredSkills";
 
 /**
- * 这一发的输出上限（token）。
- * ⚠ **不是量出来的**：做这一步时没有调过真模型（没问过不花主人的钱），是按最坏情况推的 ——
- *   时间轴最多 24 个片段（原生合成器的上限），一句最长 LINE_MAX 个字，全写满约 2000 个汉字 ≈ 2000 多 token。
- *   常见的片子是个位数片段、一句十几个字，离它很远。顶到上限时会如实说「被截断、这一次已经计费」，不去解析半截 JSON。
- *   上线之后拿真实的回话量一遍再收紧（structuredSkills.SCRIPT_SHOTS_MAX_TOKENS 是量过的样板）。
+ * 这一发的输出上限（token）。★ 量出来的（2026-10-01 直连方舟，同一份 SYS）：
+ *   3 个片段 95~98、6 个 151~169、9 个 196~203；最坏的情形 —— 24 个片段（原生合成器的上限）、每段 10 秒、
+ *   画面描述写满 —— 851 / 871。折下来一个片段 22~36 token；就算 24 句都顶着 48 个字的上限写，也只到 1,500 左右。
+ * ★ 取 2400：给最坏情形留六成余量。上限只是封顶 —— 方舟按实际输出计费、服务端按调用定额收，没写满的部分谁都不花钱。
+ *   顶到上限时如实说「被截断、这一次已经计费」，不去解析半截 JSON。
  */
 const AUTO_EDIT_MAX_TOKENS = 2400;
-/** 超时：必须比服务端 /api/ark 的 150 秒长 —— 客户端先放弃的话，服务端照样跑完、照样计费，人却收到一句失败 */
+/** 超时：实测 3.5~6.5 秒（个位数片段）、15~16 秒（24 个片段）。取 170 秒只因为必须比服务端 /api/ark 的 150 秒长 ——
+ *  客户端先放弃的话，服务端照样跑完、照样计费，人却收到一句失败 */
 const AUTO_EDIT_TIMEOUT_MS = 170_000;
 
 /** 这条技能的形状（面板照它画步骤栏；价签与余额门读同一个 cost） */
@@ -48,15 +49,16 @@ export const AUTO_EDIT = {
 
 /* i18n-frozen: 后期剪辑师模型的系统提示词（规定输出的 JSON 形状），冻结中文 */
 const SYS =
-  `你是短视频的后期剪辑师，给一条已经排好顺序的成片配旁白。用户会按播放顺序给出每个片段：编号、时长、这一段最多能念多长、` +
+  `你是短视频的后期剪辑师，给一条已经排好顺序的成片配旁白。用户先说明用哪种语言写，再按播放顺序给出每个片段：编号、时长、这一段的旁白最多写多长、` +
   `它与上一段的关系（同一个镜头接着拍 / 换了场 / 不确定）、以及这一段画面里发生的事。请你：` +
-  `① 起一个片头标题：不超过 12 个字，不带标点、引号和书名号；` +
+  `① 起一个片头标题：中文不超过 12 个字，英文不超过 6 个单词，不带标点、引号和书名号；` +
   `② 给每个片段写一句旁白（它同时会作为字幕烧在画面上）：口语化，像在给人讲这个故事，前后几句连起来是一段通顺的讲述；` +
-  `不要照抄画面描述，不要出现"镜头""画面""特写""景别"这类拍摄用语；长度不要超过该片段的上限（一个汉字算 1，三个英文字母算 1）；` +
-  `实在没话可说的片段给空字符串；旁白的语言与用户给的画面描述保持一致；` +
+  `不要照抄画面描述，不要出现"镜头""画面""特写""景别"这类拍摄用语；长度不要超过该片段的上限；` +
+  `实在没话可说的片段给空字符串；` +
   `③ 挑出适合在开头加"闪黑"转场的片段编号：只挑时间或地点明显换了的地方，整条片子最多三处，可以一处都不挑；` +
   `标着"同一个镜头接着拍"或"不确定"的片段不许挑，第 1 个片段不许挑；` +
-  `④ 给一句配乐建议：情绪或风格，10 个字以内。` +
+  `④ 给一句配乐建议：情绪或风格，中文 10 个字以内，英文 5 个单词以内。` +
+  `标题、旁白、配乐建议都用用户指定的那种语言写（指定英文就全部写英文、用英文标点）。` +
   `只输出 JSON，不要解释：{"title":"…","lines":[{"clip":1,"text":"…"}],"fades":[3],"music":"…"}`;
 
 /* i18n-frozen: 给模型看的片段清单里的固定说法（「它与上一段的关系」那一格、没有画面描述时的占位），与 SYS 的措辞对应，冻结中文 */
@@ -68,16 +70,22 @@ const BRIEF_ZH = {
     unknown: "不确定",
   } satisfies Record<AutoBriefClip["seam"], string>,
   noPlot: "（没有描述）",
+  langZh: "【语言】中文",
+  langEn: "【语言】英文（标题、旁白、配乐建议全部用英文写）",
 };
 
-/** 清单 → 给模型的那段话（一个片段两行：编号｜时长｜上限｜接缝，然后是画面） */
+/**
+ * 清单 → 给模型的那段话：第一行说用哪种语言写，之后一个片段两行（编号｜时长｜上限｜接缝，然后是画面）。
+ * ★ 语言由这里**明说**（cutProject.briefLang 按画面描述判），不让模型自己看着办：2026-10-01 实测画面描述是英文时，
+ *   它 3 次里 3 次照样写中文旁白。英文的上限折成单词数（capWords）—— 模型数不准"字母 × 0.4"，数得准单词。
+ */
 function briefText(brief: ReadonlyArray<AutoBriefClip>): string {
-  return brief
-    .map(
-      (b) =>
-        zhPrompt`片段${b.n}｜${b.durSec.toFixed(1)}秒｜最多${b.cap}字｜${BRIEF_ZH.seam[b.seam]}\n画面：${b.plot || b.title || BRIEF_ZH.noPlot}`,
-    )
-    .join("\n");
+  const en = briefLang(brief) === "en";
+  const rows = brief.map((b) => {
+    const limit = en ? zhPrompt`最多${capWords(b.cap)}个英文单词` : zhPrompt`最多${b.cap}字`;
+    return zhPrompt`片段${b.n}｜${b.durSec.toFixed(1)}秒｜${limit}｜${BRIEF_ZH.seam[b.seam]}\n画面：${b.plot || b.title || BRIEF_ZH.noPlot}`;
+  });
+  return [en ? BRIEF_ZH.langEn : BRIEF_ZH.langZh, ...rows].join("\n");
 }
 
 export interface AutoEditRun {
