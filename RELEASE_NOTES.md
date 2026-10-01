@@ -1,15 +1,13 @@
-启梦 2.56
+启梦 2.57
 
-· 修复：进工坊的铸卡桌面会整页白屏（2.51 起的安装包漏了铸卡师模型）。
-· 剪辑页：裁剪、分割、调顺序、圈选、换配乐，离开这一页再回来都还在；App 重启后从「我的 → 接着剪」回来也在。
-· 剪辑页新增撤销 / 重做；删掉的段可以用「＋ 段N」加回来。
-· 合好的成片可以「↩ 回去改」（发布页也能回剪辑页），改完再合一次不花钱；标题、简介、封面会留着。
-· 高清档最短 4 秒：此前能选 3 秒，但出片会失败。
+· 卡片详情页新增「🎛 按模型适配」：写清各档出片模型能用上这张卡的什么。
+· 勾「标准/极速适用」：AI 看卡上的图写一段文字版形象描述（约一次对话的价钱，写好可以改）。标准 / 极速档收不到这张卡的图时，就用这段文字代替。
+· 勾「真人档适用」（人物、场景、道具卡；真人卡照旧以照片起拍）：AI 画好竖、横两张起拍画面（两张图的价钱），真人档以它开场，不再是一张白底立绘。
+· 工作流和工坊里，档位下方会点名哪张卡在这一档收不到形象图、该去卡片页勾哪一个。
 
-QiMeng 2.56
+QiMeng 2.57
 
-· Fixed: entering the crafting table in Studio mode could show a blank screen (builds since 2.51 were missing the card smith model).
-· Video editor: trims, splits, reordering, circle-selections and music changes now stay when you leave the page and come back, even after restarting the app (Profile → Keep editing).
-· The editor now has Undo / Redo, and deleted segments can be added back with “＋ Seg N”.
-· A merged video can be reopened with “↩ Go back and edit” (or from the publish page) and merged again at no cost; the title, description and cover are kept.
-· HD clips are now at least 4 seconds: 3 seconds could be selected before, but the video would fail.
+· Card details now have a “🎛 Model fit” section that shows what each video tier can actually use from the card.
+· Tick “Standard/Fast ready” and AI writes a text description of the card’s look from its images (about the cost of one chat reply; you can edit it). It stands in for the images when the Standard or Fast tier can’t receive them.
+· Tick “Real-person ready” (character, scene and prop cards; real-person cards still open on their photo) and AI draws portrait and landscape opening frames (the cost of two images), so Real-person clips open on them instead of a white-background illustration.
+· In Workflow and Studio mode, the tier picker now names any card the chosen tier can’t see, and which box to tick on its card page.

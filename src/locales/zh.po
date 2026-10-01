@@ -4213,6 +4213,10 @@ msgstr "付费人格要在官网 ideahubs.org 购买，买过之后这里就能�
 msgid "代币流水"
 msgstr "代币流水"
 
+#: src/components/CardModelFit.tsx
+msgid "以卡上的真人照片起拍"
+msgstr "以卡上的真人照片起拍"
+
 #: src/components/UpdateSheet.tsx
 msgid "以后再说"
 msgstr "以后再说"
@@ -14969,6 +14973,10 @@ msgstr "看首页遮挡"
 msgctxt "画质档位名：唯一收真人照片的那一档（不是「真人卡」「真人照片」里的形容词）"
 msgid "真人"
 msgstr "真人"
+
+#: src/ai/real.ts
+msgid "真人卡不用另画起拍画面：真人档直接以卡上的照片起拍"
+msgstr "真人卡不用另画起拍画面：真人档直接以卡上的照片起拍"
 
 #: src/components/CardModelFit.tsx
 msgid "真人档：{lineReal}"
