@@ -553,6 +553,28 @@ export const VIDEO_PROMPT_MAX = 400;
 export const ID_LINE_MAX = 60;
 
 /**
+ * 文字版形象描述（Card.textDesc，按模型适配）的上限。比出片句长：它要在**没有图**时独自撑起这张卡的样子；
+ * 又不能太长：它进的是同一个 VIDEO_PROMPT_MAX 预算，挤掉的是用户写的正文（segmentGen 的 room 从正文下刀）。
+ * ★ 跨仓：server 那边上限放到 200 兜住长文，本端写入一律按这个数截。
+ */
+export const TEXT_DESC_MAX = 100;
+
+/**
+ * 这张卡能不能有「真人档适用」的起拍画面（Card.startFrames）—— **唯一判据**：卡片页那个勾选框、画起拍画面那一步、
+ * 出片时取起拍画面（segmentGen.startSourceOf）、本段设置里那句提示（cardFitNote）都只问它。
+ * · 只有"画面主体"画得出一个开场镜头：人物 / 场景 / 道具（风格卡是一种画法，背景卡只以文字参与）；
+ * · ★ 真人卡不给（2.57 发版复核抓到）：真人档本来就拿卡上的**照片**起拍 —— 那正是这一档存在的理由；
+ *   而画起拍画面要把那张照片当参考图交给方舟 Seedream，方舟拒收真人照片（见 economy.realFaceIssue 那几句实测），
+ *   勾了只会失败。更糟的是 cardFitNote 原来会在每一段「真人卡 + 真人档」上提示去勾它 —— 把这一档的主用法往死路上引。
+ */
+export function startFramesAllowed(
+  c: Pick<Card, "type" | "realPerson">,
+): c is Pick<Card, "type" | "realPerson"> & { type: "character" | "scene" | "prop" } {
+  if (c.type === "character") return c.realPerson !== true;
+  return c.type === "scene" || c.type === "prop";
+}
+
+/**
  * 这张卡在**出片提示词**里的那一句 —— 唯一实现（铁律六：兜底只写这一处）。
  * 有 idLine 用 idLine；没有的（老卡、没写出片句的自传图卡）**只报卡名** —— 背景卡除外：它的简介就是故事本身。
  * ★★ 2026-09-18 改（主人真机）：原来兜底「名字：简介前 40 字」。简介是给人看的一句话，AI 按照片写的时候会把照片里的
@@ -799,6 +821,20 @@ export interface Card {
    *   绝不在调用点各写一份兜底。
    */
   idLine?: string;
+  /**
+   * 按模型适配（2026-09-30，主人点名）：**文字版形象描述** —— 收不到这张卡的形象图的出片
+   * （标准 / 极速 = Seedance 1.0 协议上没有参考图；真人档里不当起拍画面的卡；参考图预算挤掉的卡）
+   * 用这一段替代图片。卡片页勾「标准/极速适用」时由 AI 看卡上的图写好（≤TEXT_DESC_MAX 字，可改）。
+   * 缺省 = 没勾。★ 用不用它只在 segmentGen.materialText 一处判（按"这一发谁的图没进模型"）。
+   */
+  textDesc?: string;
+  /**
+   * 按模型适配：真人档（海螺只认一张起拍画面）的**起拍画面**，按画幅各一张。卡片页勾「真人档适用」时
+   * 由 AI 按卡上的图画好。缺省 = 没勾（真人档照旧拿卡上的图起拍）。远端模式只会是 http(s)，离线模式可以是 dataURL。
+   * ★ 真人卡没有这一格（startFramesAllowed）：真人档直接以照片起拍。服务端把作品快照下发给别人时仍与 views 一起扣
+   *   （真人卡就算带着老数据，也不会把同一张脸发出去）。
+   */
+  startFrames?: Partial<Record<VideoAspect, string>>;
   /**
    * 铸这张卡时用的出图档位（data/economy.IMAGE_TIERS 的 id）。
    * ★ 缺省 = 老卡，一律当默认档读（imageTierOf 的兜底）；**不要**拿它和某个值等值判，

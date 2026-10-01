@@ -194,6 +194,10 @@ export interface ApiCard {
   genPrompt?: string;
   /** 固定身份句（出片提示词用，见 types.Card.idLine；服务端五处 2026-08-28 已加） */
   idLine?: string;
+  /** 按模型适配：文字版形象描述（types.Card.textDesc；服务端 2026-09-30 才收得下） */
+  textDesc?: string;
+  /** 按模型适配：真人档起拍画面，按画幅各一张（types.Card.startFrames；只可能是 http(s)） */
+  startFrames?: { portrait?: string; landscape?: string };
   /** 真人声明（缺省 = 老卡 = 非真人，读侧判否定，见 types.Card.realPerson） */
   realPerson?: boolean;
   /** 已分享到创意工坊 */
@@ -649,6 +653,17 @@ export async function listMyCollects(): Promise<{ ids: string[]; truncated?: boo
   return { ids: Array.isArray(res?.ids) ? res.ids : [], ...(res?.truncated ? { truncated: true } : {}) };
 }
 
+/** 能发给服务端的起拍画面：只留 http(s)（同 httpViews 的不变量；dataURL 发上去服务端整发 400）。新增卡与改卡共用 */
+function httpStartFrames(sf: Card["startFrames"]): ApiCard["startFrames"] {
+  if (!sf) return undefined;
+  const out: NonNullable<ApiCard["startFrames"]> = {};
+  for (const k of ["portrait", "landscape"] as const) {
+    const u = sf[k];
+    if (u && /^https?:\/\//i.test(u)) out[k] = u;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
 export async function addCards(cards: Card[]): Promise<ApiCard[]> {
   const payload: ApiCard[] = cards.map((c) => ({
     cardId: c.id,
@@ -665,6 +680,9 @@ export async function addCards(cards: Card[]): Promise<ApiCard[]> {
     modelUrl: c.modelUrl,
     genPrompt: c.genPrompt,
     idLine: c.idLine, // 与 genPrompt 同一批搬运点（漏了 = 换台设备登录身份句无声消失）
+    // 按模型适配的两份专用内容（同一批搬运点；起拍画面只发 http(s)）
+    textDesc: c.textDesc,
+    startFrames: httpStartFrames(c.startFrames),
     // ★ 真人声明与卡同生同灭：POST 是 $setOnInsert，漏在这里的话服务端那份永远是
     //   "非真人"，换台设备登录声明就无声消失、出片档位分流静默失效（modelUrl/genPrompt
     //   2026-08-11 就是这么丢的）。undefined 会被 JSON 序列化丢掉，等价于"没声明"。
@@ -730,9 +748,18 @@ export async function updateCardViews(cardId: string, views: Card["views"]): Pro
  */
 export async function updateCardMeta(
   cardId: string,
-  patch: { name?: string; summary?: string; tags?: string[]; idLine?: string },
+  patch: {
+    name?: string;
+    summary?: string;
+    tags?: string[];
+    idLine?: string;
+    textDesc?: string;
+    /** null = 取消「真人档适用」（服务端 $unset） */
+    startFrames?: Card["startFrames"] | null;
+  },
 ): Promise<ApiCard | null> {
-  const res = await apiPatch<Record<string, unknown>>(`/api/branch/cards/${encodeURIComponent(cardId)}`, patch);
+  const body = patch.startFrames ? { ...patch, startFrames: httpStartFrames(patch.startFrames) ?? null } : patch;
+  const res = await apiPatch<Record<string, unknown>>(`/api/branch/cards/${encodeURIComponent(cardId)}`, body);
   return pick<ApiCard>(res, ["card", "item", "data"]);
 }
 

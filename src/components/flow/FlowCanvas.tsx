@@ -1599,6 +1599,7 @@ function PlanSheet({ nodeId, onClose }: { nodeId: string; onClose: () => void })
         <div className="min-h-0 flex-1">
           <PlanBoard
             proposals={node.proposals}
+            minSec={tierOf(node.videoTier).minSec}
             // ★ 翻译：flow 的 chosenId 一直有值，"等挑"是 plan==="picking"（工坊那边是 chosenId===null）
             pickedId={picking ? null : node.chosenId}
             // ★ 工作流侧判据是 videoByProposal（工坊读 proposal.videoUrl），别抄错那一份

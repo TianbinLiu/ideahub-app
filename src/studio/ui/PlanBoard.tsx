@@ -26,6 +26,11 @@ import FuseFrameSheet, { type FuseSource } from "./FuseFrameSheet";
 
 export interface PlanBoardProps {
   proposals: Proposal[];
+  /**
+   * 本段档位的最短时长（economy.VideoTier.minSec）。短于它的时长按钮禁掉：出片与报价都会被
+   * clampDuration 吸附上去，按钮还亮着就是「写 3 秒、拍 4 秒、按 4 秒收」。缺省 = 不限。
+   */
+  minSec?: number;
   /** null = 三套摊开等挑（没有哪一行被放大） */
   pickedId: string | null;
   /** 这一套出片了吗（工坊读 proposal.videoUrl，工作流读 videoByProposal——形状不同，
@@ -76,6 +81,7 @@ export interface PlanBoardProps {
 
 export default function PlanBoard({
   proposals,
+  minSec,
   pickedId,
   isDone,
   busy,
@@ -261,18 +267,23 @@ export default function PlanBoard({
                     {shotLineDisplay(p.shot) && <p className="text-[10px] text-slate-500">{shotLineDisplay(p.shot)}</p>}
                     <div className="flex flex-wrap items-center gap-1">
                       <span className="flex-none text-[10px] text-slate-500"><Trans>时长</Trans></span>
-                      {DURATIONS.map((d) => (
-                        <button
-                          key={d}
-                          onClick={() => onPatch(p.id, { durationSec: d })}
-                          disabled={busy}
-                          className={`rounded px-1.5 py-0.5 text-[10px] disabled:opacity-40 ${
-                            p.durationSec === d ? "bg-gold/80 text-ink" : "bg-panel text-slate-300"
-                          }`}
-                        >
-                          {d}s
-                        </button>
-                      ))}
+                      {DURATIONS.map((d) => {
+                        const tooShort = minSec !== undefined && d < minSec;
+                        return (
+                          <button
+                            key={d}
+                            onClick={() => onPatch(p.id, { durationSec: d })}
+                            disabled={busy || tooShort}
+                            title={tooShort ? t`这一档最短 ${minSec} 秒` : undefined}
+                            // 高亮跟实际会拍的时长走（同 SegSettings：吸附后的结算值），别让禁掉的 3s 还亮着
+                            className={`rounded px-1.5 py-0.5 text-[10px] disabled:opacity-40 ${
+                              Math.max(minSec ?? 0, p.durationSec) === d ? "bg-gold/80 text-ink" : "bg-panel text-slate-300"
+                            }`}
+                          >
+                            {d}s
+                          </button>
+                        );
+                      })}
                     </div>
                     {/* 「按修改重画」只重画画面，不重写剧情——剧情是用户刚敲的字 */}
                     <button

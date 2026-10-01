@@ -18,6 +18,8 @@ import {
   viewsOf,
   CARD_SIZE,
   ID_LINE_MAX,
+  TEXT_DESC_MAX,
+  startFramesAllowed,
   MAX_CARD_VIEWS,
   VIDEO_PROMPT_MAX,
   idLineOf,
@@ -339,6 +341,96 @@ export async function recognizeCardSubject(o: { type: "prop" | "scene"; image: s
         .slice(0, 6)
     : [];
   return { name, summary, idLine, tags, hasPeople: j.hasPeople === true };
+}
+
+// ── 按模型适配（2026-09-30，主人点名）─────────────────────────────
+// 卡片为收不到它的图的模型各存一份专用内容（types.Card.textDesc / startFrames；界面在 components/CardModelFit）。
+// 两份都**看卡上会进模型的那几张图**来做 —— 取哪几张与出片同一套分配（prepareMaterialRefs 的画帧口径），
+// 作者标「仅展示」的不取。
+
+/* i18n-frozen: 文字版形象描述要描述的对象（拼进发给看图模型的提示词），不翻译 */
+const TEXT_DESC_SUBJECT: Record<CardType, string> = {
+  character: "人",
+  scene: "地点",
+  prop: "东西",
+  style: "画面风格",
+  background: "故事设定",
+};
+
+/**
+ * 卡片的**文字版形象描述**（Card.textDesc）：收不到这张卡的图时替代图片（标准 / 极速、真人档里不当起拍画面的卡）。
+ * ★ 按 CARD_SCOPE 的卡种分工写（唯一口径），回包过同一道措辞闸 dropRefClauses，截到 TEXT_DESC_MAX。
+ * ★ 计费同识别：一次 chat 定额 CHAT_TURN_TOKENS（服务端 priceOf，与带几张图无关）；失败分档走 ai/failCharge。
+ * ★ 卡上一张能进模型的图都没有就整句拒（不花钱）：凭名字编一段外形，等于替这张卡另造一个样子。
+ */
+export async function describeCardForText(card: Card): Promise<string> {
+  const refs = await prepareMaterialRefs([card], "image");
+  if (!refs.refs.length) {
+    throw new Error(t`这张卡没有能进模型的形象图（都标成了「仅展示」或读不出来）——先在上面挂一张「出片用」的图`);
+  }
+  const line = (card.idLine || "").trim();
+  const subject = TEXT_DESC_SUBJECT[card.type];
+  const raw = await chatVision(
+    zhPrompt`你是卡牌文案师。只输出描述本身，不要输出任何其他文字。`,
+    zhPrompt`看图，为${CARD_TYPE_PROMPT[card.type]}「${card.name}」写一段文字版形象描述，给收不到图片的视频模型用：` +
+      zhPrompt`不超过${TEXT_DESC_MAX}字，具体到不看图也能画出同一个${subject}。${CARD_SCOPE[card.type]}。` +
+      (line ? zhPrompt`已有的出片句：${line}（在它的基础上展开，别和它矛盾）。` : "") +
+      zhPrompt`不要写名字，不要加引号、编号和标题。`,
+    refs.refs,
+  );
+  const text = dropRefClauses(raw.replace(/^[「"“'\s]+|[」"”'\s]+$/g, "").replace(/\s+/g, " ").trim()).slice(0, TEXT_DESC_MAX);
+  // i18n-ignore-next-line: 不上屏：调用方（CardModelFit）按 ArkBadReply 类型换成自己的整句并说清钱
+  if (!text) throw new ArkBadReply("描述是空的");
+  return text;
+}
+
+/* i18n-frozen: 起拍画面的构图要求，发给出图模型，不翻译 */
+const START_FRAME_BRIEF: Record<"character" | "scene" | "prop", string> = {
+  character:
+    "人物站在一个与其气质相称的简洁日常场景里，七分身到全身，面向镜头略侧，表情自然放松，人物位于画面中央、四周留出动作空间；人物的长相、发型发色、体型与服装必须与参考图完全一致",
+  scene: "这个地点的开场全景镜头，画面里没有任何人物（含路人、背影、局部身体）；空间结构、地貌建筑、陈设与光线必须与参考图一致",
+  prop: "这件东西放在一个与它相称的环境里，物体完整清晰、位于画面视觉中心，画面里没有人和手；外形、材质、配色与细节必须与参考图完全一致",
+};
+
+/**
+ * 真人档的**起拍画面**（Card.startFrames）：海螺只认一张第一帧，卡上的白底立绘当第一帧，开场就是一片白底。
+ * 竖、横两个画幅各画一张（尺寸 = 该画幅的设定帧尺寸，与视频画幅一致：比例不对会被裁一刀）。
+ * ★ 画风跟随参考图（frameStyle 一处实现：真人卡照片级写实，插画同风格插画）。
+ * ★ 返回 dataURL，落地 / 上传由调用方做。两张串行画：第二张失败抛 ArkBatchPartial（第一张已计费，ai/failCharge 认得）。
+ */
+export async function drawStartFrames(
+  card: Card,
+  onProgress?: (done: number, total: number) => void,
+): Promise<Record<VideoAspect, string>> {
+  // 判据只在 types.startFramesAllowed（真人卡也在这里挡：方舟拒收真人照片当参考图，而真人档本来就以照片起拍）
+  if (!startFramesAllowed(card)) {
+    throw new Error(
+      card.realPerson === true
+        ? t`真人卡不用另画起拍画面：真人档直接以卡上的照片起拍`
+        : t`这种卡没有起拍画面（只有人物、场景、道具卡画得出一个开场镜头）`,
+    );
+  }
+  const refs = await prepareMaterialRefs([card], "image");
+  if (!refs.refs.length) {
+    throw new Error(t`这张卡没有能进模型的形象图（都标成了「仅展示」或读不出来）——先在上面挂一张「出片用」的图`);
+  }
+  const line = (card.idLine || "").trim();
+  const aspects: VideoAspect[] = ["portrait", "landscape"];
+  const out: Partial<Record<VideoAspect, string>> = {};
+  for (let i = 0; i < aspects.length; i++) {
+    const a = aspects[i];
+    onProgress?.(i, aspects.length);
+    try {
+      out[a] = await genImageAsDataUrl(
+        zhPrompt`视频的第一帧画面：「${card.name}」${line ? `（${line}）` : ""}。${START_FRAME_BRIEF[card.type]}。${frameStyle(a, [card])}`,
+        { imageRefs: refs.refs, size: aspectOf(a).frameSize },
+      );
+    } catch (e) {
+      if (i === 0) throw e;
+      throw new ArkBatchPartial(e, i);
+    }
+  }
+  return out as Record<VideoAspect, string>;
 }
 
 /**
@@ -764,6 +856,17 @@ function allocatable(card: Card): { view: CardView; index: number }[] {
     .filter((x) => feedsModel(x.view));
 }
 
+/**
+ * 这一批卡里**哪几张分得到图**（参考图分配的结论，不取图、不联网）—— 按模型适配用：分不到图的那几张，
+ * 出片提示词里用它们的文字版形象描述（Card.textDesc）替代图片。判据就是 allocateRefs 本身（唯一实现）：
+ * `direct` 为假 = 经典路（Seedream 画设定帧：一段只画得进第一张人物卡、总共 MAX_REF_IMAGES 张）；
+ * 为对象 = 直通路（参考图直接进 Seedance，上限 = 档位协议 cap）。
+ */
+export function refCardIds(materials: Card[] | undefined, direct: false | { cap?: number }): Set<string> {
+  if (!materials?.length) return new Set();
+  return new Set(allocateRefs(materials, undefined, !!direct, direct ? direct.cap : undefined).map((p) => p.card.id));
+}
+
 /** 一张真会被喂给模型的图。`index` = 它在 `viewsOf(card)` 里的下标 —— refUsedFlags 靠它对齐 */
 interface RefPick {
   card: Card;
@@ -1089,6 +1192,11 @@ export interface MaterialRefs {
    * ⚠ Seedream 画帧那半（needDraw / 方案台）**未做 A/B，仍用长句 bind()**——别顺手统一。
    */
   bindCompact: (offset?: number) => string;
+  /**
+   * 这一批里**真分到图**的卡（id）。按模型适配用：没分到的那几张，出片提示词里用它们的
+   * 文字版形象描述（Card.textDesc）替代图片（studio/segmentGen.materialText）。
+   */
+  cards: ReadonlySet<string>;
 }
 
 /**
@@ -1124,7 +1232,7 @@ export async function prepareMaterialRefs(
   onNote?: (note: string) => void,
   direct: boolean | { cap?: number; strict: boolean } = false,
 ): Promise<MaterialRefs> {
-  const empty: MaterialRefs = { refs: [], bind: () => "", bindCompact: () => "" };
+  const empty: MaterialRefs = { refs: [], bind: () => "", bindCompact: () => "", cards: new Set() };
   if (!materials?.length) return empty;
   // 布尔 true = 白模的老调用形态（严格闸 + 2.5 上限）；对象 = 带档位协议上限的直通路
   const d = direct === true ? { cap: undefined as number | undefined, strict: true } : direct || null;
@@ -1267,6 +1375,7 @@ export async function prepareMaterialRefs(
 
   return {
     refs: good.map((p) => p.url),
+    cards: new Set(good.map((p) => p.card.id)),
     bindCompact: compact,
     bind: (offset = 0) => {
       if (multiChar) return compact(offset);

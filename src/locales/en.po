@@ -159,6 +159,7 @@ msgstr ", upscaled to {REF_SHORT_MIN}px on the short side"
 #. 列举几个名字时的分隔符
 #. 列举几个名字时的分隔符
 #. 列举几个名字时的分隔符
+#. 列举几个名字时的分隔符
 #. 列举几个图位名 / 还缺的几项时的分隔符
 #. 列举几个文件名 / 动作组 / 表情名时的分隔符
 #. 列举几个段号时的分隔符（第 1、3 段）
@@ -178,6 +179,7 @@ msgstr ", upscaled to {REF_SHORT_MIN}px on the short side"
 #: src/pages/CutPage.tsx
 #: src/pages/SupportModelNewPage.tsx
 #: src/studio/flowStore.ts
+#: src/studio/segmentGen.ts
 #: src/studio/signOutGuard.ts
 #: src/studio/studioStore.ts
 msgid "、"
@@ -489,6 +491,10 @@ msgstr "(not set)"
 #: src/studio/canvasAgent.ts
 msgid "（没有可办的）"
 msgstr "(Nothing to do)"
+
+#: src/ai/index.ts
+msgid "（演示）{base}"
+msgstr "(Demo) {base}"
 
 #. 铸卡师的失败台词。括号里是动作旁白，英文也要放在括号里
 #: src/studio/npcPersona.ts
@@ -1085,6 +1091,10 @@ msgstr "{name} got distracted. Try sending again."
 msgid "{names}只带上了第 1 张形象图（预算 {budget} 张已满），它们按第 1 张参与"
 msgstr "Only the first reference image of {names} was included (the budget of {budget, plural, one {# image} other {# images}} is full), so each takes part with its first image only"
 
+#: src/studio/segmentGen.ts
+msgid "{names}在这一档收不到形象图（设定帧只画得进第一张人物卡、一共 3 张图），只按出片句参与——去卡片页勾「标准/极速适用」补一段文字版形象描述"
+msgstr "{names}: this tier can’t receive their images (setup frames only fit the first character card, 3 images in total), so they only take part through their identity line — tick “Standard/Fast ready” on the card’s page to add a text description"
+
 #: src/data/economy.ts
 #~ msgid "{names}是声明过的真人素材，「{label}」档的供应商拒收真人照片（实测名人按版权拦、普通人按隐私拦，整发被拒）——换成「{hdTier}」「{ultraTier}」档并给这张卡做肖像授权，或换「{realTier}」档，或先把真人卡取下"
 #~ msgstr "{names}: declared as real-person material, and the “{label}” tier's provider rejects photos of real people (in testing, celebrities are blocked for copyright and everyone else for privacy, and the whole request is rejected) — switch to “{hdTier}” or “{ultraTier}” and set up portrait authorization for this card, or switch to “{realTier}”, or remove the real-person card for now"
@@ -1407,8 +1417,10 @@ msgstr "The “{label}” tier can't be priced right now ({model} isn't in the p
 
 #. 给一个名字（卡名）加引号：中文「」，英文用弯引号
 #. 给一个名字（卡名）加引号：中文「」，英文用弯引号
+#. 给一个名字（卡名）加引号：中文「」，英文用弯引号
 #: src/ai/real.ts
 #: src/data/economy.ts
+#: src/studio/segmentGen.ts
 msgid "「{name}」"
 msgstr "“{name}”"
 
@@ -2329,6 +2341,10 @@ msgstr "🎙 Record this clip"
 msgid "🎙 按住跟读（长按录音）"
 msgstr "🎙 Hold to read aloud (press and hold to record)"
 
+#: src/components/CardModelFit.tsx
+msgid "🎛 按模型适配"
+msgstr "🎛 Model fit"
+
 #: src/components/CoverPicker.tsx
 msgid "🎞 从成片截帧"
 msgstr "🎞 Grab a frame from the video"
@@ -2816,6 +2832,10 @@ msgstr "6-digit code"
 msgid "add-on token · 直充/创作收益"
 msgstr "Add-on tokens · top-ups / creator earnings"
 
+#: src/components/CardModelFit.tsx
+msgid "AI 写一段约 {textPrice} token"
+msgstr "AI writes one for about {textPrice} token"
+
 #: src/studio/ui/projection.tsx
 msgid "AI 决定"
 msgstr "AI decides"
@@ -2924,6 +2944,10 @@ msgstr "AI-generated cover"
 #: src/pages/CustomCardPage.tsx
 msgid "AI 生成整套约 {aiPriceText} token，余额 {balance} 不够——去「我的」页充值，或改选「自己上传图片」（不花钱）"
 msgstr "Generating the full set with AI costs about {aiPriceText} tokens, and your balance of {balance} isn't enough — top up on the “Me” page, or choose “Upload my own images” instead (free)"
+
+#: src/components/CardModelFit.tsx
+msgid "AI 画竖横两张约 {framesPrice} token"
+msgstr "AI draws portrait + landscape for about {framesPrice} token"
 
 #: src/components/blockout/VisionFramePicker.tsx
 #: src/components/guide/tours.tsx
@@ -3705,6 +3729,10 @@ msgstr "No need to fill every slot"
 msgid "不推荐"
 msgstr "No recommendation"
 
+#: src/components/CardModelFit.tsx
+msgid "不收真人照片"
+msgstr "Doesn’t take real-person photos"
+
 #: src/pages/SupportModelNewPage.tsx
 msgctxt "Live2D 动作槽：这个语义动作不播任何动作"
 msgid "不演"
@@ -3729,6 +3757,10 @@ msgstr "No template (back to a regular segment)"
 #: src/pages/CreatePage.tsx
 msgid "不用素材卡，直接写"
 msgstr "No cards needed — just write"
+
+#: src/components/CardModelFit.tsx
+msgid "不看图也能画出同一个样子的外形描述"
+msgstr "A look description detailed enough to draw the same thing without the image"
 
 #: src/data/videos.ts
 msgid "不知道这是谁（链接里没有用户 id）"
@@ -4128,6 +4160,10 @@ msgstr "Paid personas are bought on the website, ideahubs.org; once purchased yo
 msgid "代币流水"
 msgstr "Token history"
 
+#: src/components/CardModelFit.tsx
+msgid "以卡上的真人照片起拍"
+msgstr "Opens on the card’s real photo"
+
 #: src/components/UpdateSheet.tsx
 msgid "以后再说"
 msgstr "Later"
@@ -4135,6 +4171,10 @@ msgstr "Later"
 #: src/components/CoverPicker.tsx
 msgid "以当前封面为参考图，按要求修改"
 msgstr "Uses the current cover as the reference and edits it as requested"
+
+#: src/components/CardModelFit.tsx
+msgid "以火山引擎认证素材进模型（只在简约模式不带首帧时）"
+msgstr "Goes in as the Volcengine-verified asset (only in Simple mode with no opening frame)"
 
 #: src/studio/stage/stageState.ts
 msgid "仰拍"
@@ -4499,6 +4539,7 @@ msgstr "e.g. A young woman with a black shoulder-length bob, a beauty mark under
 msgid "侵权 / 冒用他人作品"
 msgstr "Infringement / passing off others' work"
 
+#: src/components/CardModelFit.tsx
 #: src/components/support/VoiceSheet.tsx
 #: src/pages/CardDetailPage.tsx
 #: src/pages/TemplateDetailPage.tsx
@@ -5280,6 +5321,7 @@ msgstr "Clean-background main view"
 msgid "准备上传…"
 msgstr "Preparing to upload…"
 
+#: src/components/CardModelFit.tsx
 #: src/components/ForgeOverlay.tsx
 #: src/components/VideoCardAnnotator.tsx
 #: src/pages/CustomCardPage.tsx
@@ -6975,6 +7017,10 @@ msgstr "Only you can see it. Setting its visibility back to public won't help �
 msgid "只有你自己能装上用，市场里搜不到。"
 msgstr "Only you can use it; it won't show up in the market."
 
+#: src/components/CardModelFit.tsx
+msgid "只有它当起拍画面时才用得上形象图"
+msgstr "Its image is only used when it provides the opening frame"
+
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "只有我"
 msgstr "Only me"
@@ -6986,6 +7032,10 @@ msgstr "Only me"
 #: src/data/templates.ts
 msgid "只有模板作者能改分类"
 msgstr "Only the template's author can change its category"
+
+#: src/components/CardModelFit.tsx
+msgid "只用文字"
+msgstr "Text only"
 
 #: src/data/economy.ts
 msgid "只画 1 张主图 · 它同时就是卡面"
@@ -9336,6 +9386,10 @@ msgstr "Only some character images were generated (no charge); the finished ones
 msgid "形象图只画成了一部分（没扣钱），画好的留着，回去补剩下的"
 msgstr "Only some look images were generated (not charged). The finished ones were kept — go back to fill in the rest"
 
+#: src/components/CardModelFit.tsx
+msgid "形象图只经由设定帧起作用，收不到图时只剩出片句"
+msgstr "Images only work through setup frames; without them only the identity line is left"
+
 #. moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格
 #: src/components/VideoCardAnnotator.tsx
 msgid "形象图没画成：{reason}。{moneyLine}原片裁剪没受影响，可以直接存或再试一次"
@@ -9375,6 +9429,10 @@ msgstr "Look images weren't generated (not charged). Go back to see why"
 #: src/pages/CustomCardPage.tsx
 msgid "形象图生成好了，回去接着做卡"
 msgstr "Look images are ready. Go back and keep making the card"
+
+#: src/components/CardModelFit.tsx
+msgid "形象图直接进模型"
+msgstr "Images go straight into the model"
 
 #: src/types.ts
 msgid "影视横构图，首页上下留黑边，可点全屏转屏看"
@@ -10835,6 +10893,10 @@ msgstr "{n, plural, one {Got # card} other {Got # cards}}"
 msgid "收下这批卡"
 msgstr "Keep these cards"
 
+#: src/components/CardModelFit.tsx
+msgid "收不到图时用文字版形象描述"
+msgstr "Uses the text description when images can’t get through"
+
 #: src/pages/VideoPage.tsx
 msgid "收入我的卡组"
 msgstr "Add to my cards"
@@ -12092,6 +12154,14 @@ msgstr "Price"
 msgid "标准"
 msgstr "Standard"
 
+#: src/components/CardModelFit.tsx
+msgid "标准 / 极速：{line10}"
+msgstr "Standard / Fast: {line10}"
+
+#: src/components/CardModelFit.tsx
+msgid "标准/极速适用"
+msgstr "Standard/Fast ready"
+
 #: src/data/economy.ts
 msgid "标准套餐"
 msgstr "Standard plan"
@@ -12639,6 +12709,10 @@ msgstr "Registering with the server…"
 msgid "正在登记模板…"
 msgstr "Registering the template…"
 
+#: src/components/CardModelFit.tsx
+msgid "正在看图写文字版形象描述…"
+msgstr "Looking at the images and writing the text description…"
+
 #: src/pages/LoginPage.tsx
 msgid "正在确认可用的登录方式…"
 msgstr "Checking which sign-in methods are available…"
@@ -12854,6 +12928,15 @@ msgstr "Permanently delete this account"
 msgid "没做完的半成品在这一格"
 msgstr "Unfinished work is here"
 
+#: src/components/CardModelFit.tsx
+msgid "没写成（{why}），没有扣钱。"
+msgstr "Couldn’t write it ({why}). Nothing was charged."
+
+#. placeholder {0}: money.line
+#: src/components/CardModelFit.tsx
+msgid "没写成（{why}）。{0}"
+msgstr "Couldn’t write it ({why}). {0}"
+
 #: src/pages/AdminPage.tsx
 msgid "没删掉，请重试"
 msgstr "Couldn't delete it. Please try again"
@@ -13067,6 +13150,15 @@ msgstr "No destination chosen. The file is still in the app — tap “Share / S
 #: src/studio/ui/PlanBoard.tsx
 msgid "没画出来"
 msgstr "Not drawn"
+
+#: src/components/CardModelFit.tsx
+msgid "没画成（{why}），没有扣钱。"
+msgstr "Couldn’t draw them ({why}). Nothing was charged."
+
+#. placeholder {0}: money.line
+#: src/components/CardModelFit.tsx
+msgid "没画成（{why}）。{0}"
+msgstr "Couldn’t draw them ({why}). {0}"
 
 #. moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格
 #: src/pages/CustomCardPage.tsx
@@ -13890,6 +13982,10 @@ msgstr "Can't load it into the Studio right now. Try again later"
 msgid "生成"
 msgstr "Generate"
 
+#: src/components/CardModelFit.tsx
+msgid "生成一段约 {textPrice} token，余额不够——去「我的」页充值"
+msgstr "Writing one takes about {textPrice} token and your balance is too low — top up on the Me page"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "生成中"
 msgstr "Generating"
@@ -13974,9 +14070,17 @@ msgstr "Make your first one with one of the options below"
 msgid "用下面的格子行挂就行：先点一个格子，再点上面卡轨里的一张卡（也可以把卡直接拖到格子上）。 格子上那行小字是这个模板<0>原本的标记</0>（原样照抄、一个字没改）—— 画面上不会有框亮起来，「人物几」只是排序，认人得靠它和下面「每个位子原来是谁」。"
 msgstr "Use the slot row below instead: tap a slot, then tap a card in the card rail above (or drag a card straight onto a slot). The small text on each slot is this template's <0>original mark</0> (copied exactly as is) — no box will light up in the picture, and “Person N” is only the order, so identify people by that mark and by “Who each slot originally was” below."
 
+#: src/components/CardModelFit.tsx
+msgid "用专门画好的起拍画面起拍"
+msgstr "Starts from its dedicated opening frame"
+
 #: src/pages/WorkshopPage.tsx
 msgid "用你自己的图当卡面与形象参考，不经过 AI 出图 · 不消耗 token"
 msgstr "Use your own images for the card face and references, with no AI image generation · no tokens used"
+
+#: src/components/CardModelFit.tsx
+msgid "用卡上的图起拍（白底立绘开场就是白底）"
+msgstr "Starts from the card’s image (a white-background sheet means a white opening)"
 
 #: src/pages/CustomCardPage.tsx
 msgid "用哪一套方案生成这张卡"
@@ -14099,6 +14203,10 @@ msgstr "Draws 2 images: the main image + a reference image of the same subject, 
 msgid "画不出来的包发不了。"
 msgstr "A bundle that doesn't render can't be published."
 
+#: src/components/CardModelFit.tsx
+msgid "画两张约 {framesPrice} token，余额不够——去「我的」页充值"
+msgstr "Drawing both takes about {framesPrice} token and your balance is too low — top up on the Me page"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "画出来了。可以摸一摸她、拖一拖看看视线跟不跟手。"
 msgstr "It renders. Try touching her, or drag to see whether her gaze follows."
@@ -14115,6 +14223,11 @@ msgstr "Aspect"
 #: src/components/flow/TierRow.tsx
 msgid "画质"
 msgstr "Quality"
+
+#. placeholder {0}: done + 1
+#: src/components/CardModelFit.tsx
+msgid "画起拍画面 {0}/{total}…"
+msgstr "Drawing opening frame {0}/{total}…"
 
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "画面上<0>可能有两个人偶印着同一个号</0>，也可能<1>某个号在画面上 根本找不到</1>（实测都出现过：一段 5 人素材实出 2/2/1/1/5，3 号和 4 号整个没出现）。 这两种<2>都不用重炼</2>：把找不到的那个位子删掉就行，剩下的编号一个都不会变。"
@@ -14609,6 +14722,14 @@ msgctxt "画质档位名：唯一收真人照片的那一档（不是「真人�
 msgid "真人"
 msgstr "Real-person"
 
+#: src/ai/real.ts
+msgid "真人卡不用另画起拍画面：真人档直接以卡上的照片起拍"
+msgstr "Real-person cards don’t need a separate opening frame: the Real-person tier opens on the card’s photo"
+
+#: src/components/CardModelFit.tsx
+msgid "真人档：{lineReal}"
+msgstr "Real-person: {lineReal}"
+
 #: src/ai/minimaxVideo.ts
 msgid "真人档任务受理了却没给任务号——上游协议变了，把这句话反馈给我们"
 msgstr "The real-person tier job was accepted but no task ID came back — the upstream protocol has changed. Please send us this message"
@@ -14658,6 +14779,10 @@ msgid "真人档取件失败：上游没有返回下载地址"
 msgstr "Real-person tier: fetching the file failed — upstream didn't return a download URL"
 
 #: src/studio/segmentGen.ts
+msgid "真人档按发计价（{flatSec} 秒整档）· 以「{srcName}」的起拍画面起拍…"
+msgstr "Real-person tier, billed per run ({flatSec}s tier) · starting from “{srcName}”’s opening frame…"
+
+#: src/studio/segmentGen.ts
 msgid "真人档按发计价（{flatSec} 秒整档）· 以卡片照片起拍…"
 msgstr "Real-person tier, billed per run ({flatSec}s tier) · starting from the card photo…"
 
@@ -14668,6 +14793,10 @@ msgstr "The real-person tier doesn't support circle edits yet (the image-edit en
 #: src/components/flow/FlowCanvas.tsx
 msgid "真人档本来就是直出，不需要再切自定义"
 msgstr "The real-person tier already renders directly; no need to switch to Custom"
+
+#: src/components/CardModelFit.tsx
+msgid "真人档适用"
+msgstr "Real-person ready"
 
 #: src/studio/segmentGen.ts
 msgid "真人档需要一张起拍画面：挂一张带照片的真人卡，或自己传一张开头帧"
@@ -16562,6 +16691,10 @@ msgstr "Install"
 msgid "裙子"
 msgstr "Skirt"
 
+#: src/components/CardModelFit.tsx
+msgid "要先勾「火山引擎适用」"
+msgstr "Tick “Volcengine verified” first"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "要带上什么"
 msgstr "What to include"
@@ -17265,6 +17398,10 @@ msgstr "liked your video"
 msgid "赞了你的评论"
 msgstr "liked your comment"
 
+#: src/components/CardModelFit.tsx
+msgid "起拍画面画好了，但没能存上（{why}）——这两张已计费，再勾一次会重新画、再花一次钱。"
+msgstr "The opening frames were drawn but couldn’t be saved ({why}) — both were charged; ticking again redraws them and charges again."
+
 #: src/components/blockout/TrimBar.tsx
 msgid "起点"
 msgstr "Start"
@@ -17904,6 +18041,10 @@ msgstr "This tier isn't available on your current plan — upgrade your plan on 
 msgid "这一档不经过方案台。"
 msgstr "This tier doesn't use the plan board."
 
+#: src/studio/ui/PlanBoard.tsx
+msgid "这一档最短 {minSec} 秒"
+msgstr "This tier needs at least {minSec}s"
+
 #: src/studio/ui/NpcDialog.tsx
 msgid "这一档暂时报不出价，换个档位再试"
 msgstr "This tier can't be priced right now; try another tier"
@@ -17955,6 +18096,10 @@ msgstr "This step has two charges: the AI looks at {frameCount, plural, one {# f
 #: src/studio/flowStore.ts
 msgid "这一段不是带角色位的白模段，没有可预览的挂法"
 msgstr "This segment isn't a blockout segment with role slots, so there's no casting to preview"
+
+#: src/studio/segmentGen.ts
+msgid "这一段以「{name}」卡上的图起拍——去卡片页勾「真人档适用」可以换成专门画好的起拍画面"
+msgstr "This segment starts from the image on “{name}” — tick “Real-person ready” on the card’s page to use a dedicated opening frame instead"
 
 #: src/pages/CutPage.tsx
 msgid "这一段原声的音量"
@@ -18962,6 +19107,10 @@ msgstr "This card uses a third-party copyrighted model and can't be shared witho
 msgid "这张卡是装来的，不能再分享一遍——广场上显示的始终是最早分享那份。想让别人看到你改过的版本，用它做一张自己的卡。"
 msgstr "This card was installed from someone else and can't be shared again; the Workshop always shows the first shared copy. To share your edited version, make your own card from it."
 
+#: src/ai/real.ts
+msgid "这张卡没有能进模型的形象图（都标成了「仅展示」或读不出来）——先在上面挂一张「出片用」的图"
+msgstr "This card has no image the model can use (all set to “Display only” or unreadable) — add a “Used in video” image above first"
+
 #: src/pages/CardDetailPage.tsx
 msgid "这张卡没留下铸造时的提示词（老卡/素材卡），上面是按同款格式现补的一份。"
 msgstr "This card didn't keep the prompt it was minted with (an older or asset card); the one above was rebuilt in the same format."
@@ -19443,6 +19592,10 @@ msgstr "This text goes straight to the AI: getting the numbers or character name
 #: src/utils/wav.ts
 msgid "这段音频只有 {got}s，短于 {minSec}s 下限——换一段长一点的"
 msgstr "This audio is only {got}s, shorter than the {minSec}s minimum — use a longer clip"
+
+#: src/ai/real.ts
+msgid "这种卡没有起拍画面（只有人物、场景、道具卡画得出一个开场镜头）"
+msgstr "This card type has no opening frame (only character, scene and prop cards can make an opening shot)"
 
 #: src/pages/PublishPage.tsx
 #: src/pages/VideoPage.tsx
@@ -20436,6 +20589,10 @@ msgstr "Code sent — it's valid for 10 minutes"
 #: src/data/economy.ts
 msgid "高清"
 msgstr "HD"
+
+#: src/components/CardModelFit.tsx
+msgid "高清 / 电影级：{line2x}"
+msgstr "HD / Cinematic: {line2x}"
 
 #: src/components/support/HoldToTalk.tsx
 #: src/components/VoiceRecorder.tsx
