@@ -126,6 +126,14 @@ export interface ApiVideo {
   revision?: number;
   /** 最近一次回炉的时间；**只在有值时出现**（没回炉过的作品不该凭空长出一个日期） */
   revisedAt?: string | number;
+  /** 公开配方（制作过程）已公开且描述的正是当下这一版：服务端只在为真时发（2026-10-02） */
+  recipePublic?: boolean;
+  /** 作者本人才有：留存过配方时的开关现状 */
+  recipeState?: { public?: boolean; stale?: boolean };
+  /** 按谁的流程做的（详情端点才有；原作公开可见时才发） */
+  remixOf?: { id: string; title?: string; author?: ApiAuthor | string };
+  /** 有几个人按它做了同款（详情端点才有） */
+  remixCount?: number;
 }
 
 /**

@@ -210,6 +210,11 @@ msgstr "、"
 msgid "；"
 msgstr "；"
 
+#. placeholder {0}: shared.why
+#: src/data/projects.ts
+msgid "；制作过程也没能公开（{0}）"
+msgstr "；制作过程也没能公开（{0}）"
+
 #. placeholder {0}: quote !== o.text ? "…" : ""
 #: src/studio/canvasAgent.ts
 msgid "：「{quote}{0}」"
@@ -658,10 +663,20 @@ msgstr "{0} 个卡组"
 msgid "{0} 个片段 · 共 {1}"
 msgstr "{0} 个片段 · 共 {1}"
 
+#. placeholder {0}: s.slots
+#: src/components/recipe/RecipeView.tsx
+msgid "{0} 个空位"
+msgstr "{0} 个空位"
+
 #. placeholder {0}: tpl.roles.length
 #: src/components/TemplateShelf.tsx
 msgid "{0} 个角色位可换人"
 msgstr "{0} 个角色位可换人"
+
+#. placeholder {0}: video.remixCount
+#: src/pages/VideoPage.tsx
+msgid "{0} 人按这条的流程做了同款"
+msgstr "{0} 人按这条的流程做了同款"
 
 #. placeholder {0}: source.title
 #: src/studio/ui/SchemeEditorSheet.tsx
@@ -693,6 +708,8 @@ msgid "{0} 张人物卡用卡上的图起拍"
 msgstr "{0} 张人物卡用卡上的图起拍"
 
 #. placeholder {0}: deck.cardIds.length
+#. placeholder {0}: s.cards
+#: src/components/recipe/RecipeView.tsx
 #: src/pages/DeckDetailPage.tsx
 msgid "{0} 张卡"
 msgstr "{0} 张卡"
@@ -773,7 +790,9 @@ msgid "{0} 条评论"
 msgstr "{0} 条评论"
 
 #. placeholder {0}: nodes.length
+#. placeholder {0}: s.segs
 #. placeholder {0}: tpl.recipe.beats.length
+#: src/components/recipe/RecipeView.tsx
 #: src/components/TemplateShelf.tsx
 #: src/pages/FlowPage.tsx
 msgid "{0} 段"
@@ -802,12 +821,22 @@ msgstr "{0} 段 · 已出片 {1}"
 msgid "{0} 段 · 已出片 {1} · {2}改过"
 msgstr "{0} 段 · 已出片 {1} · {2}改过"
 
+#. placeholder {0}: s.templated
+#: src/components/recipe/RecipeView.tsx
+msgid "{0} 段用了模板"
+msgstr "{0} 段用了模板"
+
 #. placeholder {0}: partial.lost.slice(0, 3).join(listSep)
 #. placeholder {1}: partial.lost.length
 #. placeholder {2}: partial.reason ?? reasonUpload
 #: src/pages/CustomCardPage.tsx
 msgid "{0} 等 {1} 张没能同步（{2}）。卡本身在服务器上，只有这几张图还只留在这台设备，换设备或重新登录后它们会消失。"
 msgstr "{0} 等 {1} 张没能同步（{2}）。卡本身在服务器上，只有这几张图还只留在这台设备，换设备或重新登录后它们会消失。"
+
+#. placeholder {0}: issue ?? ""
+#: src/studio/flowStore.ts
+msgid "{0}，这一段改成了普通段（剧情要自己写）"
+msgstr "{0}，这一段改成了普通段（剧情要自己写）"
 
 #. placeholder {0}: c.name
 #: src/studio/ui/FuseFrameSheet.tsx
@@ -868,6 +897,11 @@ msgstr "{0}/句"
 #: src/pages/CutPage.tsx
 msgid "{0}% · 还剩约 {1}"
 msgstr "{0}% · 还剩约 {1}"
+
+#. placeholder {0}: Math.round(node.durationSec)
+#: src/components/recipe/RecipeView.tsx
+msgid "{0}s"
+msgstr "{0}s"
 
 #. placeholder {0}: (vEnd - vStart).toFixed(1)
 #: src/components/VideoCardAnnotator.tsx
@@ -968,6 +1002,14 @@ msgstr "{area}（包里没有）"
 #: src/pages/SupportModelNewPage.tsx
 msgid "{areaName} 对应哪个命中区"
 msgstr "{areaName} 对应哪个命中区"
+
+#: src/data/projects.ts
+msgid "{base}；制作过程已公开，别人能在作品页看到并照着做"
+msgstr "{base}；制作过程已公开，别人能在作品页看到并照着做"
+
+#: src/data/projects.ts
+msgid "{base}。但制作过程没能公开（{why}）——到编辑页的「制作过程」再开一次"
+msgstr "{base}。但制作过程没能公开（{why}）——到编辑页的「制作过程」再开一次"
 
 #: src/pages/TemplateDetailPage.tsx
 msgid "{beatCount} 段 · 每段 {beatSec}s"
@@ -1716,6 +1758,11 @@ msgstr "「自己挑」现在一帧有效的标记都没有（还没标，或者
 msgid "」「"
 msgstr "」「"
 
+#. placeholder {0}: authorDisplayName(res.data.meta.author.displayName || res.data.meta.author.username, res.data.meta.author._id)
+#: src/pages/RecipePage.tsx
+msgid "@{0} 公开的制作过程"
+msgstr "@{0} 公开的制作过程"
+
 #: src/studio/ui/projection.tsx
 msgid "← 左右滑动浏览 · 单击查看详情 · 窗外拖拽可转视角"
 msgstr "← 左右滑动浏览 · 单击查看详情 · 窗外拖拽可转视角"
@@ -2165,6 +2212,10 @@ msgstr "⚡ 做同款：同一份分段剧本和卡组，生成你自己的版�
 #: src/pages/SimpleModePage.tsx
 msgid "⚡ 出片（{0}）"
 msgstr "⚡ 出片（{0}）"
+
+#: src/pages/RecipePage.tsx
+msgid "⚡ 按这个流程做同款"
+msgstr "⚡ 按这个流程做同款"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "⚡ 炼这一段视频（{costLabel}）"
@@ -3902,6 +3953,10 @@ msgstr "不上传，直接给首尾帧 ›"
 msgid "不了"
 msgstr "不了"
 
+#: src/components/recipe/RecipeView.tsx
+msgid "不会公开：你的原话（每段的要求）、没选中的方案、圈选标注、导演台、上传的参考视频、出片日志、卡上的 3D 建模与生成提示词；声明过真实人物的卡与从别人那儿装来的卡只留一个空位。成片本身另按作品的可见范围走。"
+msgstr "不会公开：你的原话（每段的要求）、没选中的方案、圈选标注、导演台、上传的参考视频、出片日志、卡上的 3D 建模与生成提示词；声明过真实人物的卡与从别人那儿装来的卡只留一个空位。成片本身另按作品的可见范围走。"
+
 #: src/pages/tutor/TutorNewPage.tsx
 msgid "不先给结论，只问下一个能回答的小问题，让你自己说出来。"
 msgstr "不先给结论，只问下一个能回答的小问题，让你自己说出来。"
@@ -4476,6 +4531,11 @@ msgstr "会把你的描述一起交给人工客服，回复会出现在「通知
 msgid "会把最近 {0} 条对话一起交给人工客服，回复会出现在「通知」和「我的工单」里。"
 msgstr "会把最近 {0} 条对话一起交给人工客服，回复会出现在「通知」和「我的工单」里。"
 
+#. placeholder {0}: res.data.recipe.nodes.length
+#: src/pages/RecipePage.tsx
+msgid "会把这 {0} 段铺成你自己的工作流（不带原作的画面与成片），之后一段一结账，铺开不花钱。"
+msgstr "会把这 {0} 段铺成你自己的工作流（不带原作的画面与成片），之后一段一结账，铺开不花钱。"
+
 #. placeholder {0}: PERSONA_LIMITS.price
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "会按 {price} 积分发布（0~{0} 的整数）。"
@@ -4608,6 +4668,7 @@ msgstr "作品不存在"
 
 #: src/data/videos.ts
 #: src/pages/EditPage.tsx
+#: src/pages/RecipePage.tsx
 msgid "作品不存在或已删除"
 msgstr "作品不存在或已删除"
 
@@ -4627,6 +4688,10 @@ msgstr "作品内容"
 msgid "作品库没能打开"
 msgstr "作品库没能打开"
 
+#: src/pages/EditPage.tsx
+msgid "作品本身不受影响。删掉之后别人看不到制作过程；想再公开要从留存的工坊工程重新投一份。"
+msgstr "作品本身不受影响。删掉之后别人看不到制作过程；想再公开要从留存的工坊工程重新投一份。"
+
 #: src/studio/signOutGuard.ts
 msgid "作品正在上传，等它传完再退出登录——现在退出的话，要等你再登录这个账号时才会补发。"
 msgstr "作品正在上传，等它传完再退出登录——现在退出的话，要等你再登录这个账号时才会补发。"
@@ -4634,6 +4699,10 @@ msgstr "作品正在上传，等它传完再退出登录——现在退出的话
 #: src/pages/AdminPage.tsx
 msgid "作品管理列表"
 msgstr "作品管理列表"
+
+#: src/pages/RecipePage.tsx
+msgid "作品页仍然可以「做同款」：那是抄分段剧本，不含卡与段模板"
+msgstr "作品页仍然可以「做同款」：那是抄分段剧本，不含卡与段模板"
 
 #. placeholder {0}: displayNameOf(tgt.author)
 #: src/pages/AdminPage.tsx
@@ -4643,6 +4712,10 @@ msgstr "作者 {0}"
 #: src/pages/SupportModelNewPage.tsx
 msgid "作者推荐（可以都不选）"
 msgstr "作者推荐（可以都不选）"
+
+#: src/pages/RecipePage.tsx
+msgid "作者没有公开这条作品的制作过程"
+msgstr "作者没有公开这条作品的制作过程"
 
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "你 / 您 / 我的名字"
@@ -4735,6 +4808,10 @@ msgstr "你还没有做过人格，点上面那张卡做一个。"
 #: src/studio/studioStore.ts
 msgid "你还没有卡。先把素材交给我炼卡，或者说「逛市场」看看现成的。"
 msgstr "你还没有卡。先把素材交给我炼卡，或者说「逛市场」看看现成的。"
+
+#: src/pages/RecipePage.tsx
+msgid "你还没有这一类的卡——先空着"
+msgstr "你还没有这一类的卡——先空着"
 
 #: src/data/templates.ts
 msgid "你选了「自己挑」分析帧，但一帧都没能用上——要么还没标，要么标的那几帧都落在选中的这一段外面（选段后来被拖动过）。回去在选段里标至少 1 帧，或者切回「自动」。"
@@ -4937,6 +5014,7 @@ msgid "俯拍"
 msgstr "俯拍"
 
 #: src/pages/FeedPage.tsx
+#: src/pages/RecipePage.tsx
 #: src/pages/VideoPage.tsx
 msgctxt "丢弃确认卡里「…再回来X」的那个动作（英文用小写动词短语）"
 msgid "做同款"
@@ -5001,6 +5079,10 @@ msgstr "先下架，再改编号"
 #: src/components/flow/FlowCanvas.tsx
 msgid "先不"
 msgstr "先不"
+
+#: src/pages/EditPage.tsx
+msgid "先不公开"
+msgstr "先不公开"
 
 #: src/components/DeleteConfirmShell.tsx
 msgid "先不删"
@@ -5162,6 +5244,10 @@ msgstr "先点下面一个格子，再点一张卡；也可以直接把卡拖到
 msgid "先炼出当前段的视频"
 msgstr "先炼出当前段的视频"
 
+#: src/pages/RecipePage.tsx
+msgid "先空着（之后在画布上挂）"
+msgstr "先空着（之后在画布上挂）"
+
 #: src/pages/tutor/TutorNewPage.tsx
 msgid "先算再说"
 msgstr "先算再说"
@@ -5197,6 +5283,10 @@ msgstr "先说一句你遇到了什么，客服才知道从哪儿开始。"
 #: src/components/ReportButton.tsx
 msgid "先选一个理由"
 msgstr "先选一个理由"
+
+#: src/pages/RecipePage.tsx
+msgid "先选角"
+msgstr "先选角"
 
 #: src/pages/LoginPage.tsx
 msgid "先随便逛逛"
@@ -5307,6 +5397,15 @@ msgstr "公开到声音市场（不勾 = 只在「我的」里）"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "公开到市场"
 msgstr "公开到市场"
+
+#: src/pages/EditPage.tsx
+#: src/pages/PublishPage.tsx
+msgid "公开制作过程"
+msgstr "公开制作过程"
+
+#: src/pages/EditPage.tsx
+msgid "公开着的还是上一版的制作过程（这一版回炉后还没更新），别人现在看不到。"
+msgstr "公开着的还是上一版的制作过程（这一版回炉后还没更新），别人现在看不到。"
 
 #. placeholder {0}: cards.length
 #: src/pages/WorkshopPage.tsx
@@ -5929,6 +6028,10 @@ msgstr "分段组 · 整条已切成 {groupCount} 段各自登记（这张卡是
 msgid "分类"
 msgstr "分类"
 
+#: src/pages/RecipePage.tsx
+msgid "分镜"
+msgstr "分镜"
+
 #: src/pages/TemplateDetailPage.tsx
 msgid "分镜骨架（{THEME_TOKEN} 会换成你那句话）"
 msgstr "分镜骨架（{THEME_TOKEN} 会换成你那句话）"
@@ -6096,6 +6199,7 @@ msgstr "删第 {seg} 段：{0}"
 #: src/components/DraftSheet.tsx
 #: src/components/support/VoiceMarket.tsx
 #: src/pages/AdminPage.tsx
+#: src/pages/EditPage.tsx
 #: src/pages/TemplateDetailPage.tsx
 #: src/pages/WorkshopPage.tsx
 #: src/studio/stage/StageOverlay.tsx
@@ -6137,6 +6241,14 @@ msgid "删除是真的销毁"
 msgstr "删除是真的销毁"
 
 #: src/pages/EditPage.tsx
+msgid "删除留存的制作过程"
+msgstr "删除留存的制作过程"
+
+#: src/pages/EditPage.tsx
+msgid "删除留存的制作过程？"
+msgstr "删除留存的制作过程？"
+
+#: src/pages/EditPage.tsx
 msgid "删除留存的工坊工程"
 msgstr "删除留存的工坊工程"
 
@@ -6156,6 +6268,11 @@ msgstr "删除这条弹幕"
 msgid "删除这部作品"
 msgstr "删除这部作品"
 
+#: src/pages/EditPage.tsx
+#: src/pages/PublishPage.tsx
+msgid "别人会看到这些"
+msgstr "别人会看到这些"
+
 #: src/studio/ui/SchemeMarketSheet.tsx
 msgid "别人做的出图配方。装进来之后就是你自己的一套，可以随便改。"
 msgstr "别人做的出图配方。装进来之后就是你自己的一套，可以随便改。"
@@ -6167,6 +6284,14 @@ msgstr "别人只看得到成片，看不到你用了哪几张卡，也不能「
 #: src/pages/PublishPage.tsx
 msgid "别人只看得到成片，看不到你用了哪几张卡，也不能「做同款」。原作品上那套卡组也会一并撤下。"
 msgstr "别人只看得到成片，看不到你用了哪几张卡，也不能「做同款」。原作品上那套卡组也会一并撤下。"
+
+#: src/pages/PublishPage.tsx
+msgid "别人只看得到成片，看不到它是怎么一段段做出来的。"
+msgstr "别人只看得到成片，看不到它是怎么一段段做出来的。"
+
+#: src/pages/PublishPage.tsx
+msgid "别人只看得到成片，看不到它是怎么一段段做出来的。原作品上公开着的制作过程也会一并下线。"
+msgstr "别人只看得到成片，看不到它是怎么一段段做出来的。原作品上公开着的制作过程也会一并下线。"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "别人在市场里看到的名字"
@@ -6199,6 +6324,12 @@ msgstr "到这里结束 ⇥"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "制作人格"
 msgstr "制作人格"
+
+#: src/pages/EditPage.tsx
+#: src/pages/PublishPage.tsx
+#: src/pages/RecipePage.tsx
+msgid "制作过程"
+msgstr "制作过程"
 
 #: src/components/support/AdminTicketsView.tsx
 #: src/pages/AdminPage.tsx
@@ -6462,6 +6593,10 @@ msgstr "占的空间在这看、也在这清"
 msgid "卡"
 msgstr "卡"
 
+#: src/pages/RecipePage.tsx
+msgid "卡与空位"
+msgstr "卡与空位"
+
 #: src/components/guide/tours.tsx
 msgid "卡从哪来"
 msgstr "卡从哪来"
@@ -6649,6 +6784,34 @@ msgstr "卡面预览"
 #: src/pages/PublishPage.tsx
 msgid "原作品"
 msgstr "原作品"
+
+#: src/components/recipe/RecipeView.tsx
+msgid "原作用的是从别人那儿装来的卡，转发件不再分享"
+msgstr "原作用的是从别人那儿装来的卡，转发件不再分享"
+
+#: src/components/recipe/RecipeView.tsx
+msgid "原作用的是声明过真实人物的卡，不随配方带走"
+msgstr "原作用的是声明过真实人物的卡，不随配方带走"
+
+#: src/components/recipe/RecipeView.tsx
+msgid "原作这一段上传了自己的参考视频（不随配方带走）"
+msgstr "原作这一段上传了自己的参考视频（不随配方带走）"
+
+#: src/components/recipe/RecipeView.tsx
+msgid "原作这一段圈选改过画面（不随配方带走）"
+msgstr "原作这一段圈选改过画面（不随配方带走）"
+
+#: src/components/recipe/RecipeView.tsx
+msgid "原作这一段用导演台摆过站位与机位（不随配方带走）"
+msgstr "原作这一段用导演台摆过站位与机位（不随配方带走）"
+
+#: src/components/recipe/RecipeView.tsx
+msgid "原作这一段给过中间帧参考图（不随配方带走）"
+msgstr "原作这一段给过中间帧参考图（不随配方带走）"
+
+#: src/components/recipe/RecipeView.tsx
+msgid "原作这一段返修过"
+msgstr "原作这一段返修过"
 
 #. placeholder {0}: takedownReasonText(video.takedown.reason)
 #: src/components/ShareSheet.tsx
@@ -7180,6 +7343,7 @@ msgstr "取流超时（窗口在后台时浏览器不解码视频）"
 #: src/pages/CardDetailPage.tsx
 #: src/pages/EditPage.tsx
 #: src/pages/ProfilePage.tsx
+#: src/pages/RecipePage.tsx
 #: src/pages/SupportModelNewPage.tsx
 #: src/pages/SupportPage.tsx
 #: src/studio/stage/StageOverlay.tsx
@@ -7198,6 +7362,10 @@ msgstr "取消上传"
 #: src/pages/SupportModelsPage.tsx
 msgid "取消中…"
 msgstr "取消中…"
+
+#: src/pages/EditPage.tsx
+msgid "取消公开"
+msgstr "取消公开"
 
 #: src/components/WorkshopShareBar.tsx
 msgid "取消分享失败：{err}"
@@ -7550,6 +7718,10 @@ msgstr "右边那一列"
 #: src/pages/SupportModelNewPage.tsx
 msgid "吃惊"
 msgstr "吃惊"
+
+#: src/pages/RecipePage.tsx
+msgid "各段不挂原作的卡，之后自己挂。"
+msgstr "各段不挂原作的卡，之后自己挂。"
 
 #: src/pages/CutPage.tsx
 msgid "合并失败：{raw}"
@@ -8311,6 +8483,10 @@ msgstr "女"
 msgid "女声"
 msgstr "女声"
 
+#: src/pages/PublishPage.tsx
+msgid "好"
+msgstr "好"
+
 #. placeholder {0}: chosen.size
 #: src/components/flow/FlowCanvas.tsx
 msgid "好了（选中 {0} 张）"
@@ -8738,6 +8914,18 @@ msgstr "就用这一段"
 msgid "就用这张照片，自己补其余格子"
 msgstr "就用这张照片，自己补其余格子"
 
+#: src/pages/EditPage.tsx
+msgid "就这样公开"
+msgstr "就这样公开"
+
+#: src/pages/PublishPage.tsx
+msgid "就这样公开，发布"
+msgstr "就这样公开，发布"
+
+#: src/pages/PublishPage.tsx
+msgid "就这样公开，替换原作品"
+msgstr "就这样公开，替换原作品"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "尺寸没量出来"
 msgstr "尺寸没量出来"
@@ -8870,8 +9058,12 @@ msgid "工程已留存（有 {lost} 处预览图没能留下，回炉时重新�
 msgstr "工程已留存（有 {lost} 处预览图没能留下，回炉时重新截一下就有，不花钱）"
 
 #: src/data/projects.ts
-msgid "工程没能留存（{why}）——作品已经发出去了，只是这条暂时不能回炉；可在编辑页点「重试留存」"
-msgstr "工程没能留存（{why}）——作品已经发出去了，只是这条暂时不能回炉；可在编辑页点「重试留存」"
+#~ msgid "工程没能留存（{why}）——作品已经发出去了，只是这条暂时不能回炉；可在编辑页点「重试留存」"
+#~ msgstr "工程没能留存（{why}）——作品已经发出去了，只是这条暂时不能回炉；可在编辑页点「重试留存」"
+
+#: src/data/projects.ts
+msgid "工程没能留存（{why}）——作品已经发出去了，只是这条暂时不能回炉；可在编辑页点「重试留存」{tail}"
+msgstr "工程没能留存（{why}）——作品已经发出去了，只是这条暂时不能回炉；可在编辑页点「重试留存」{tail}"
 
 #: src/components/VideoTemplateExtractor.tsx
 msgid "左上角疑似有水印或台标：白模出片会把它逐帧复刻进每一条成片，建议用裁剪框把这块框到画面外。（只是提醒，看错了直接忽略——照样可以继续。）"
@@ -8967,6 +9159,18 @@ msgstr "已停止，存好 {done} 段"
 msgid "已停止。后面那些没有开始；已经下完的 {done} 段都留着，点每一行的「分享 / 另存为」就能交出去。"
 msgstr "已停止。后面那些没有开始；已经下完的 {done} 段都留着，点每一行的「分享 / 另存为」就能交出去。"
 
+#: src/pages/EditPage.tsx
+msgid "已公开"
+msgstr "已公开"
+
+#: src/pages/EditPage.tsx
+msgid "已公开：看到这条作品的人能点「查看制作过程」照着做"
+msgstr "已公开：看到这条作品的人能点「查看制作过程」照着做"
+
+#: src/pages/EditPage.tsx
+msgid "已公开：看到这条作品的人能点「查看制作过程」照着做。"
+msgstr "已公开：看到这条作品的人能点「查看制作过程」照着做。"
+
 #: src/pages/ProfilePage.tsx
 msgid "已关注"
 msgstr "已关注"
@@ -9026,6 +9230,10 @@ msgstr "已删除（服务端未返回明细）"
 #: src/pages/AdminPage.tsx
 msgid "已删除（没有关联数据）"
 msgstr "已删除（没有关联数据）"
+
+#: src/pages/EditPage.tsx
+msgid "已删除留存的制作过程"
+msgstr "已删除留存的制作过程"
 
 #: src/data/videoDownload.ts
 msgid "已删除的作品"
@@ -9092,6 +9300,10 @@ msgstr "已取消上传。要发布的话重新点一次「开始识别」。"
 #: src/pages/ProfilePage.tsx
 msgid "已取消付款"
 msgstr "已取消付款"
+
+#: src/pages/EditPage.tsx
+msgid "已取消公开：别人看不到制作过程了"
+msgstr "已取消公开：别人看不到制作过程了"
 
 #: src/pages/CutPage.tsx
 msgid "已取消合并。片段、圈选和配乐都还在，随时可以重新开始。"
@@ -9790,6 +10002,10 @@ msgstr "当前离线，这条弹幕只存在这台设备上"
 msgid "当前网络环境（{regionName}）下 Google / GitHub 不可用，已自动隐藏"
 msgstr "当前网络环境（{regionName}）下 Google / GitHub 不可用，已自动隐藏"
 
+#: src/components/recipe/RecipeView.tsx
+msgid "当时的模型：{model}"
+msgstr "当时的模型：{model}"
+
 #: src/components/VideoCardAnnotator.tsx
 msgid "录制中…（实际播这一段）"
 msgstr "录制中…（实际播这一段）"
@@ -10398,6 +10614,7 @@ msgstr "承接 = 把上一段的真实尾帧当<0>第一张参考图</0>发出�
 msgid "承接 = 本段首帧自动用上一段的真实尾帧。这一档是<0>协议级约束</0>，画面一定从那一帧起拍；上传自己的首帧会改为不承接。想恢复承接：清掉首帧，再到 ⚙ 本段设置里打开。"
 msgstr "承接 = 本段首帧自动用上一段的真实尾帧。这一档是<0>协议级约束</0>，画面一定从那一帧起拍；上传自己的首帧会改为不承接。想恢复承接：清掉首帧，再到 ⚙ 本段设置里打开。"
 
+#: src/components/recipe/RecipeView.tsx
 #: src/studio/ui/projection.tsx
 msgid "承接上一段尾帧"
 msgstr "承接上一段尾帧"
@@ -10727,6 +10944,17 @@ msgstr "按 {0} 秒计 · 跟随模板视频（白模复刻的输出时长≈模
 msgid "按 {refCount} 张参考图出片（帧与卡片形象同发）…"
 msgstr "按 {refCount} 张参考图出片（帧与卡片形象同发）…"
 
+#. placeholder {0}: authorDisplayName(video.remixOf.author, video.remixOf.authorId)
+#: src/pages/VideoPage.tsx
+msgid "按 @{0} 的流程做的同款"
+msgstr "按 @{0} 的流程做的同款"
+
+#. placeholder {0}: authorDisplayName(video.remixOf.author, video.remixOf.authorId)
+#. placeholder {1}: video.remixOf.title
+#: src/pages/VideoPage.tsx
+msgid "按 @{0} 的流程做的同款：《{1}》"
+msgstr "按 @{0} 的流程做的同款：《{1}》"
+
 #: src/studio/studioStore.ts
 msgid "按「{q}」翻出 {count} 张。"
 msgstr "按「{q}」翻出 {count} 张。"
@@ -10844,6 +11072,10 @@ msgstr "按课程的 AI 政策，这个问题只讲原理、不给答案"
 msgid "按这一段的时长自动取帧：现在是 <0>{autoFrames} 帧</0>（每 {BLOCKOUTIZE_FRAME_EVERY_SEC} 秒一帧，最少 {BLOCKOUTIZE_FRAME_MIN} 帧、最多 {BLOCKOUTIZE_FRAME_MAX} 帧）。<1>拖时间轴改选段长度，帧数和下面的报价都会跟着变。</1>"
 msgstr "按这一段的时长自动取帧：现在是 <0>{autoFrames} 帧</0>（每 {BLOCKOUTIZE_FRAME_EVERY_SEC} 秒一帧，最少 {BLOCKOUTIZE_FRAME_MIN} 帧、最多 {BLOCKOUTIZE_FRAME_MAX} 帧）。<1>拖时间轴改选段长度，帧数和下面的报价都会跟着变。</1>"
 
+#: src/pages/RecipePage.tsx
+msgid "按这个流程做同款（丢弃上面那条流水线）"
+msgstr "按这个流程做同款（丢弃上面那条流水线）"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "按顺序演一遍：说话对口型、眨眼、每个对上的动作 / 表情 / 触摸区各来一次。盯着上面那块看。"
 msgstr "按顺序演一遍：说话对口型、眨眼、每个对上的动作 / 表情 / 触摸区各来一次。盯着上面那块看。"
@@ -10937,6 +11169,10 @@ msgstr "换一种说话风格，客服页与官网首页共用同一份设置；
 #: src/studio/ui/AvatarSwapButton.tsx
 msgid "换个形象"
 msgstr "换个形象"
+
+#: src/pages/RecipePage.tsx
+msgid "换个网络再试一次"
+msgstr "换个网络再试一次"
 
 #: src/pages/WorkshopPage.tsx
 msgid "换个词试试，或者清空搜索框看看大家都分享了什么"
@@ -11848,6 +12084,10 @@ msgstr "方舟那边查不到这一发了（任务号查无此物）——多半
 #~ msgid "方舟里有 {0} 份已授权素材，点一份接上："
 #~ msgstr "方舟里有 {0} 份已授权素材，点一份接上："
 
+#: src/pages/RecipePage.tsx
+msgid "无标题"
+msgstr "无标题"
+
 #: src/utils/image.ts
 msgid "无法处理图片"
 msgstr "无法处理图片"
@@ -11969,6 +12209,11 @@ msgstr "暂时没能解除（网络或服务器忙）——过一会儿再试一
 #: src/pages/EditPage.tsx
 msgid "暂时问不到服务器，没能确认这条作品有没有留存工坊工程。"
 msgstr "暂时问不到服务器，没能确认这条作品有没有留存工坊工程。"
+
+#. placeholder {0}: recipeFetch.why
+#: src/pages/EditPage.tsx
+msgid "暂时问不到服务器（{0}）"
+msgstr "暂时问不到服务器（{0}）"
 
 #: src/components/CoverPicker.tsx
 msgid "暗处在首页会被文字和按钮盖住（大致）"
@@ -12720,6 +12965,10 @@ msgstr "松手结束 · {0}s"
 #~ msgid "查状态没成：{0}"
 #~ msgstr "查状态没成：{0}"
 
+#: src/pages/VideoPage.tsx
+msgid "查看制作过程"
+msgstr "查看制作过程"
+
 #: src/studio/ui/NpcDialog.tsx
 msgid "查看历史对话"
 msgstr "查看历史对话"
@@ -13022,6 +13271,18 @@ msgstr "模型这一次没写出能用的旁白（编号对不上，或者一句
 msgid "模型这一次的回话读不出来（不是约定的格式）——再试一次"
 msgstr "模型这一次的回话读不出来（不是约定的格式）——再试一次"
 
+#. placeholder {0}: node.tpl.title
+#: src/components/recipe/RecipeView.tsx
+msgid "模板「{0}」"
+msgstr "模板「{0}」"
+
+#. placeholder {0}: node.tpl.title
+#. placeholder {1}: node.tpl.part.index + 1
+#. placeholder {2}: node.tpl.part.count
+#: src/components/recipe/RecipeView.tsx
+msgid "模板「{0}」第 {1}/{2} 段"
+msgstr "模板「{0}」第 {1}/{2} 段"
+
 #: src/components/VideoTemplateExtractor.tsx
 msgid "模板分析好了，去「我的模板」看看"
 msgstr "模板分析好了，去「我的模板」看看"
@@ -13104,9 +13365,14 @@ msgstr "模板配方 JSON 结构不符（缺 styleHint 或 beats）"
 msgid "模板里这张卡已经变了，刷新后再试"
 msgstr "模板里这张卡已经变了，刷新后再试"
 
+#: src/components/recipe/RecipeView.tsx
 #: src/types.ts
 msgid "横屏"
 msgstr "横屏"
+
+#: src/components/recipe/RecipeView.tsx
+msgid "横竖混排"
+msgstr "横竖混排"
 
 #: src/components/guide/tours.tsx
 msgid "横竖都能用"
@@ -13172,6 +13438,10 @@ msgstr "正在保存另一条作品，等它完成或点停止再来。"
 msgid "正在停止…"
 msgstr "正在停止…"
 
+#: src/pages/EditPage.tsx
+msgid "正在公开…"
+msgstr "正在公开…"
+
 #: src/studio/personaWizardStore.ts
 msgid "正在写说话风格…"
 msgstr "正在写说话风格…"
@@ -13179,6 +13449,10 @@ msgstr "正在写说话风格…"
 #: src/studio/live2dUploadStore.ts
 msgid "正在准备预览…"
 msgstr "正在准备预览…"
+
+#: src/pages/EditPage.tsx
+msgid "正在删除…"
+msgstr "正在删除…"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "正在加载这个包…"
@@ -13205,6 +13479,10 @@ msgstr "正在取你的收藏…"
 msgid "正在取最新的角色位…"
 msgstr "正在取最新的角色位…"
 
+#: src/pages/RecipePage.tsx
+msgid "正在取制作过程…"
+msgstr "正在取制作过程…"
+
 #: src/pages/WorkshopPage.tsx
 msgid "正在取卡片广场…"
 msgstr "正在取卡片广场…"
@@ -13226,6 +13504,10 @@ msgstr "正在取回…"
 msgid "正在取回工坊工程…"
 msgstr "正在取回工坊工程…"
 
+#: src/pages/EditPage.tsx
+msgid "正在取回工程…"
+msgstr "正在取回工程…"
+
 #: src/data/templates.ts
 msgid "正在取回结果：服务端会自己向方舟核实，再把产物转存下来（这一步不额外花钱）…"
 msgstr "正在取回结果：服务端会自己向方舟核实，再把产物转存下来（这一步不额外花钱）…"
@@ -13237,6 +13519,14 @@ msgstr "正在取回结果…"
 #: src/components/VideoCardAnnotator.tsx
 msgid "正在取声音：找到<0>只有这个人在说话</0>的一段，先定起点再定终点（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）。录制会实际播一遍。"
 msgstr "正在取声音：找到<0>只有这个人在说话</0>的一段，先定起点再定终点（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）。录制会实际播一遍。"
+
+#: src/pages/RecipePage.tsx
+msgid "正在取段模板…"
+msgstr "正在取段模板…"
+
+#: src/pages/EditPage.tsx
+msgid "正在取消…"
+msgstr "正在取消…"
 
 #: src/pages/NotificationsPage.tsx
 msgid "正在取消息…"
@@ -13386,6 +13676,10 @@ msgstr "正在看图写文字版形象描述…"
 #: src/pages/LoginPage.tsx
 msgid "正在确认可用的登录方式…"
 msgstr "正在确认可用的登录方式…"
+
+#: src/pages/EditPage.tsx
+msgid "正在确认有没有公开…"
+msgstr "正在确认有没有公开…"
 
 #: src/data/account.ts
 #: src/pages/VideoPage.tsx
@@ -13757,6 +14051,10 @@ msgstr "没有下一段了"
 msgid "没有仅自己可见的作品"
 msgstr "没有仅自己可见的作品"
 
+#: src/pages/EditPage.tsx
+msgid "没有公开。公开之后，看到这条作品的人能点「查看制作过程」看每一段的剧情、档位、时长与卡组，并按这条流程做同款。"
+msgstr "没有公开。公开之后，看到这条作品的人能点「查看制作过程」看每一段的剧情、档位、时长与卡组，并按这条流程做同款。"
+
 #: src/pages/AdminPage.tsx
 msgid "没有匹配的作品"
 msgstr "没有匹配的作品"
@@ -13896,6 +14194,11 @@ msgstr "没等到识别结果。{moneyLine}可以先自己填"
 msgid "没等到识别结果（网络不通），可以先自己填"
 msgstr "没等到识别结果（网络不通），可以先自己填"
 
+#. placeholder {0}: out.why
+#: src/pages/EditPage.tsx
+msgid "没能公开（{0}）"
+msgstr "没能公开（{0}）"
+
 #: src/pages/SettingsPage.tsx
 msgid "没能切换语言，请重试"
 msgstr "没能切换语言，请重试"
@@ -13934,6 +14237,11 @@ msgstr "没能取到你的卡片"
 #: src/data/account.ts
 msgid "没能取到你的卡组"
 msgstr "没能取到你的卡组"
+
+#. placeholder {0}: res.why
+#: src/pages/RecipePage.tsx
+msgid "没能取到制作过程（{0}）"
+msgstr "没能取到制作过程（{0}）"
 
 #: src/pages/SettingsBlockedPage.tsx
 msgid "没能取到黑名单（网络不通，或这台服务器还没有这个功能）"
@@ -14582,6 +14890,15 @@ msgstr "炼卡中…"
 msgid "炼卡失败：{0}"
 msgstr "炼卡失败：{0}"
 
+#. placeholder {0}: fmtTokens(cost)
+#: src/components/recipe/RecipeView.tsx
+msgid "照做约 {0} token（不含推演与画面）"
+msgstr "照做约 {0} token（不含推演与画面）"
+
+#: src/pages/RecipePage.tsx
+msgid "照原作的卡挂在各段上；之后在画布上随时能换成自己的。"
+msgstr "照原作的卡挂在各段上；之后在画布上随时能换成自己的。"
+
 #: src/pages/CustomCardPage.tsx
 msgid "照片里有人：默认档出片不受影响；高清 / 超清档可能被方舟拒掉（没受理不扣视频钱）"
 msgstr "照片里有人：默认档出片不受影响；高清 / 超清档可能被方舟拒掉（没受理不扣视频钱）"
@@ -14874,6 +15191,7 @@ msgstr "现在连不上服务器，模板暂时没登记——联网后在模板
 
 #: src/components/flow/ScriptSkillSheet.tsx
 #: src/pages/FeedPage.tsx
+#: src/pages/RecipePage.tsx
 #: src/pages/VideoPage.tsx
 msgid "现在铺不了（可能有一段正在生成中），稍后再试"
 msgstr "现在铺不了（可能有一段正在生成中），稍后再试"
@@ -15004,6 +15322,11 @@ msgstr "用化名，别写真实教授的名字 —— 发布到市场时服务�
 msgid "用卡上的图起拍（白底立绘开场就是白底）"
 msgstr "用卡上的图起拍（白底立绘开场就是白底）"
 
+#. placeholder {0}: recipe.deck.length
+#: src/pages/RecipePage.tsx
+msgid "用原作带来的 {0} 张卡"
+msgstr "用原作带来的 {0} 张卡"
+
 #: src/pages/CustomCardPage.tsx
 msgid "用哪一套方案生成这张卡"
 msgstr "用哪一套方案生成这张卡"
@@ -15091,6 +15414,10 @@ msgstr "用这一帧作封面"
 #: src/components/cut/AutoEditSheet.tsx
 msgid "用这一版"
 msgstr "用这一版"
+
+#: src/pages/EditPage.tsx
+msgid "用这一版重新公开"
+msgstr "用这一版重新公开"
 
 #: src/components/VideoTemplateExtractor.tsx
 msgid "用这个模板出片"
@@ -15236,6 +15563,10 @@ msgid "留存工坊工程"
 msgstr "留存工坊工程"
 
 #: src/pages/EditPage.tsx
+msgid "留存的工坊工程还是上一版的，这一版没有留存上来 —— 先在上面「重新留存这一版」，再来公开。"
+msgstr "留存的工坊工程还是上一版的，这一版没有留存上来 —— 先在上面「重新留存这一版」，再来公开。"
+
+#: src/pages/EditPage.tsx
 msgid "留存的工坊工程还是上一版的，这一版没有留存上来 —— 现在换不了内容。先点下面的「重新留存这一版」。"
 msgstr "留存的工坊工程还是上一版的，这一版没有留存上来 —— 现在换不了内容。先点下面的「重新留存这一版」。"
 
@@ -15243,9 +15574,25 @@ msgstr "留存的工坊工程还是上一版的，这一版没有留存上来 �
 msgid "留存的工坊工程还是上一版的，这一版没有留存上来 —— 现在换不了内容。想换内容请重新发一条。"
 msgstr "留存的工坊工程还是上一版的，这一版没有留存上来 —— 现在换不了内容。想换内容请重新发一条。"
 
+#: src/pages/EditPage.tsx
+msgid "留存的工坊工程还是上一版的，这一版没有留存上来 —— 这一版的制作过程公开不了。"
+msgstr "留存的工坊工程还是上一版的，这一版没有留存上来 —— 这一版的制作过程公开不了。"
+
+#: src/pages/EditPage.tsx
+msgid "留存的工程投不出可公开的制作过程（画布是空的或段数超过上限）"
+msgstr "留存的工程投不出可公开的制作过程（画布是空的或段数超过上限）"
+
 #: src/data/projects.ts
 msgid "留存的这份工程描述的是第 {keptRev} 版，而这条作品已经是第 {liveRev} 版了——最新那一版的工程没有留存上来，取不到。"
 msgstr "留存的这份工程描述的是第 {keptRev} 版，而这条作品已经是第 {liveRev} 版了——最新那一版的工程没有留存上来，取不到。"
+
+#: src/pages/EditPage.tsx
+msgid "留存过制作过程，现在没有公开。"
+msgstr "留存过制作过程，现在没有公开。"
+
+#: src/pages/EditPage.tsx
+msgid "留存过制作过程（上一版的），现在没有公开。"
+msgstr "留存过制作过程（上一版的），现在没有公开。"
 
 #. placeholder {0}: merged.instruct
 #: src/components/support/VoiceSheet.tsx
@@ -15439,6 +15786,10 @@ msgstr "白模复刻不带声音样本：音轨在「完成视频」那一步回
 msgid "白模复刻出片（「{tierLabel}」档）：模板视频按 {0} 秒计的输入也计费、输出≈模板时长，共约 {1} token"
 msgstr "白模复刻出片（「{tierLabel}」档）：模板视频按 {0} 秒计的输入也计费、输出≈模板时长，共约 {1} token"
 
+#: src/components/recipe/RecipeView.tsx
+msgid "白模复刻段"
+msgstr "白模复刻段"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "白模复刻段（还没出片）"
 msgstr "白模复刻段（还没出片）"
@@ -15631,6 +15982,10 @@ msgid "看全部"
 msgstr "看全部"
 
 #: src/pages/PublishPage.tsx
+msgid "看到这条片子的人能点「查看制作过程」看每一段的剧情、档位、时长与卡组，并按这条流程做同款。你的原话、没选中的方案、圈选与导演台都不会给出去。"
+msgstr "看到这条片子的人能点「查看制作过程」看每一段的剧情、档位、时长与卡组，并按这条流程做同款。你的原话、没选中的方案、圈选与导演台都不会给出去。"
+
+#: src/pages/PublishPage.tsx
 msgid "看到这条片子的人能看到卡面与设定，也能「收入卡组」接着创作——这是别人找到你的主要方式。声明过真实人物的卡，形象图不会给出去。"
 msgstr "看到这条片子的人能看到卡面与设定，也能「收入卡组」接着创作——这是别人找到你的主要方式。声明过真实人物的卡，形象图不会给出去。"
 
@@ -15653,6 +16008,14 @@ msgstr "看方案"
 #: src/ai/real.ts
 msgid "看片提炼本片卡组（{frameCount} 帧）…"
 msgstr "看片提炼本片卡组（{frameCount} 帧）…"
+
+#: src/pages/PublishPage.tsx
+msgid "看看别人会看到什么"
+msgstr "看看别人会看到什么"
+
+#: src/pages/EditPage.tsx
+msgid "看看别人看到的"
+msgstr "看看别人看到的"
 
 #: src/pages/FlowPage.tsx
 msgid "看看这句话变成了什么"
@@ -16111,6 +16474,31 @@ msgstr "空 = AI 按提示词补画（计费）"
 msgid "空 = 承接上一段真实尾帧"
 msgstr "空 = 承接上一段真实尾帧"
 
+#. placeholder {0}: i + 1
+#. placeholder {1}: CARD_TYPE_LABELS[s.type]
+#: src/components/recipe/RecipeView.tsx
+#: src/pages/RecipePage.tsx
+msgid "空位 {0}：{1}"
+msgstr "空位 {0}：{1}"
+
+#. placeholder {0}: i + 1
+#. placeholder {1}: s.name
+#. placeholder {2}: CARD_TYPE_LABELS[s.type]
+#: src/components/recipe/RecipeView.tsx
+#: src/pages/RecipePage.tsx
+msgid "空位 {0}：{1}（{2}）"
+msgstr "空位 {0}：{1}（{2}）"
+
+#. placeholder {0}: CARD_TYPE_LABELS[s.type]
+#. placeholder {0}: s.name
+#: src/components/recipe/RecipeView.tsx
+msgid "空位：{0}"
+msgstr "空位：{0}"
+
+#: src/pages/RecipePage.tsx
+msgid "空位（原作没能带走的卡）"
+msgstr "空位（原作没能带走的卡）"
+
 #: src/pages/DeckDetailPage.tsx
 msgid "空卡组"
 msgstr "空卡组"
@@ -16143,6 +16531,7 @@ msgstr "立即重试"
 msgid "立场倾向"
 msgstr "立场倾向"
 
+#: src/components/recipe/RecipeView.tsx
 #: src/types.ts
 msgid "竖屏"
 msgstr "竖屏"
@@ -16182,6 +16571,7 @@ msgstr "第 {0} 味音色"
 #. placeholder {0}: i + 1
 #. placeholder {0}: idx + 1
 #: src/components/flow/FlowCanvas.tsx
+#: src/components/recipe/RecipeView.tsx
 #: src/data/videoDownload.ts
 #: src/pages/FlowPage.tsx
 #: src/pages/PublishPage.tsx
@@ -16245,6 +16635,11 @@ msgstr "第 {0} 段不是白模模板，这一组没法整组套用"
 msgid "第 {0} 段出片完成"
 msgstr "第 {0} 段出片完成"
 
+#. placeholder {0}: i + 1
+#: src/studio/flowStore.ts
+msgid "第 {0} 段原来的档位已经下线，改用默认档"
+msgstr "第 {0} 段原来的档位已经下线，改用默认档"
+
 #. placeholder {0}: idx + 1
 #: src/studio/flowStore.ts
 msgid "第 {0} 段推演失败"
@@ -16254,6 +16649,11 @@ msgstr "第 {0} 段推演失败"
 #: src/studio/flowStore.ts
 msgid "第 {0} 段推演好了三套方案"
 msgstr "第 {0} 段推演好了三套方案"
+
+#. placeholder {0}: i + 1
+#: src/studio/flowStore.ts
+msgid "第 {0} 段是白模复刻段，但现在没有档位支持白模出片"
+msgstr "第 {0} 段是白模复刻段，但现在没有档位支持白模出片"
 
 #. placeholder {0}: job.seg
 #: src/components/flow/SegmentRecoverCards.tsx
@@ -16286,6 +16686,22 @@ msgstr "第 {0} 段生成失败"
 msgid "第 {0} 段生成失败：{1}"
 msgstr "第 {0} 段生成失败：{1}"
 
+#. placeholder {0}: i + 1
+#. placeholder {1}: rn.tpl.title
+#: src/studio/flowStore.ts
+msgid "第 {0} 段用的模板「{1}」已经不在了"
+msgstr "第 {0} 段用的模板「{1}」已经不在了"
+
+#. placeholder {0}: i + 1
+#: src/studio/flowStore.ts
+msgid "第 {0} 段用的模板没能随配方带上"
+msgstr "第 {0} 段用的模板没能随配方带上"
+
+#. placeholder {0}: i + 1
+#: src/studio/flowStore.ts
+msgid "第 {0} 段的模板视频用不了（{refIssue}）"
+msgstr "第 {0} 段的模板视频用不了（{refIssue}）"
+
 #. placeholder {0}: index + 1
 #: src/pages/FlowPage.tsx
 msgid "第 {0} 段设置"
@@ -16302,6 +16718,11 @@ msgstr "第 {0} 段还没轮到（前面的段先炼完才解锁），挂不了�
 #: src/components/flow/SegmentRecoverCards.tsx
 msgid "第 {0} 段那一发已经取不回来了"
 msgstr "第 {0} 段那一发已经取不回来了"
+
+#. placeholder {0}: i + 1
+#: src/studio/flowStore.ts
+msgid "第 {0} 段那一档底下的模型已经换代，画面风格可能与原作不同"
+msgstr "第 {0} 段那一档底下的模型已经换代，画面风格可能与原作不同"
 
 #. placeholder {0}: idx + 1
 #: src/studio/flowStore.ts
@@ -16794,6 +17215,10 @@ msgstr "等待中"
 #: src/components/VolcCompatToggle.tsx
 msgid "等待火山引擎认证…"
 msgstr "等待火山引擎认证…"
+
+#: src/pages/RecipePage.tsx
+msgid "等服务器更新后再来"
+msgstr "等服务器更新后再来"
 
 #: src/components/flow/DiscardFlowDialog.tsx
 msgid "等这一段炼完才能丢"
@@ -17432,6 +17857,10 @@ msgstr "自定义方案摆上桌了——帧和提示词确认没问题，就点
 #: src/studio/flowStore.ts
 msgid "自定义段的首尾帧与参考视频是你自己给的，没有走向可推演——直接改帧或改这一段的要求。"
 msgstr "自定义段的首尾帧与参考视频是你自己给的，没有走向可推演——直接改帧或改这一段的要求。"
+
+#: src/components/recipe/RecipeView.tsx
+msgid "自定义直出"
+msgstr "自定义直出"
 
 #: src/studio/studioStore.ts
 msgid "自定义直出也得写一句这段要拍什么——缺的帧我按这句话补画，一个字都没有我就只能瞎画了。"
@@ -19444,6 +19873,10 @@ msgstr "这一段拍什么？缺的帧按这句补画"
 msgid "这一段拍什么（重新推演就按这句话）"
 msgstr "这一段拍什么（重新推演就按这句话）"
 
+#: src/components/recipe/RecipeView.tsx
+msgid "这一段按模板视频复刻，换成谁由挂上去的卡决定（原作的挂法不随配方带走）。"
+msgstr "这一段按模板视频复刻，换成谁由挂上去的卡决定（原作的挂法不随配方带走）。"
+
 #. placeholder {0}: node.proposals.length
 #: src/studio/ui/projection.tsx
 msgid "这一段推演出的 {0} 套方案会一起丢掉，推演已经花掉的 token 不退；这一段还没出片，没有别的损失。"
@@ -19962,6 +20395,10 @@ msgstr "这些素材还差点意思，再补充点描述？"
 msgid "这件事不能对全部片段一起办，说一个编号"
 msgstr "这件事不能对全部片段一起办，说一个编号"
 
+#: src/pages/RecipePage.tsx
+msgid "这份制作过程现在没有公开，只有你看得到；到<0>编辑页</0>可以公开。"
+msgstr "这份制作过程现在没有公开，只有你看得到；到<0>编辑页</0>可以公开。"
+
 #: src/studio/live2dUploadStore.ts
 msgid "这份包上次已经传上去了，直接让服务器再看一遍…"
 msgstr "这份包上次已经传上去了，直接让服务器再看一遍…"
@@ -20108,6 +20545,15 @@ msgstr "这台服务器还不支持下架（需要升级服务端）"
 #: src/api/admin.ts
 msgid "这台服务器还不支持举报（需要升级服务端）"
 msgstr "这台服务器还不支持举报（需要升级服务端）"
+
+#: src/data/recipes.ts
+#: src/pages/RecipePage.tsx
+msgid "这台服务器还不支持公开制作过程"
+msgstr "这台服务器还不支持公开制作过程"
+
+#: src/pages/EditPage.tsx
+msgid "这台服务器还不支持公开制作过程。"
+msgstr "这台服务器还不支持公开制作过程。"
 
 #: src/pages/AdminPage.tsx
 msgid "这台服务器还不支持删除（需要升级服务端）"
@@ -20405,6 +20851,10 @@ msgstr "这张卡没留下铸造时的提示词（老卡/素材卡），上面�
 msgid "这张卡没能存到服务器"
 msgstr "这张卡没能存到服务器"
 
+#: src/components/recipe/RecipeView.tsx
+msgid "这张卡没能随配方带上"
+msgstr "这张卡没能随配方带上"
+
 #: src/studio/canvasAgent.ts
 msgid "这张卡说的那一段已经不在第 {seg} 位了（流水线被改过）——重说一句，我按现在的样子再摆一张"
 msgstr "这张卡说的那一段已经不在第 {seg} 位了（流水线被改过）——重说一句，我按现在的样子再摆一张"
@@ -20542,6 +20992,10 @@ msgstr "这是什么素材"
 msgid "这是付费人格，请先在官网购买后再使用。"
 msgstr "这是付费人格，请先在官网购买后再使用。"
 
+#: src/pages/RecipePage.tsx
+msgid "这是你公开的制作过程；到<0>编辑页</0>可以关闭或删除。"
+msgstr "这是你公开的制作过程；到<0>编辑页</0>可以关闭或删除。"
+
 #: src/components/VideoTemplateExtractor.tsx
 msgid "这是做模板这一次的花费；以后每次有人套用出片，按所套那一段的时长另计一笔。"
 msgstr "这是做模板这一次的花费；以后每次有人套用出片，按所套那一段的时长另计一笔。"
@@ -20606,9 +21060,25 @@ msgstr "这条作品既没传上去、也没能存进待发队列——先别关
 msgid "这条作品有 {danmakuCount} 条弹幕。弹幕是按全片时间轴打的，换内容会让它们对不上画面，所以会被清空，且无法恢复。"
 msgstr "这条作品有 {danmakuCount} 条弹幕。弹幕是按全片时间轴打的，换内容会让它们对不上画面，所以会被清空，且无法恢复。"
 
+#: src/data/recipes.ts
+msgid "这条作品没有可公开的制作过程（画布是空的）"
+msgstr "这条作品没有可公开的制作过程（画布是空的）"
+
+#: src/pages/RecipePage.tsx
+msgid "这条作品没有留存制作过程"
+msgstr "这条作品没有留存制作过程"
+
 #: src/pages/EditPage.tsx
 msgid "这条作品没有留存工坊工程，改不了内容。想换内容请重新发一条。"
 msgstr "这条作品没有留存工坊工程，改不了内容。想换内容请重新发一条。"
+
+#: src/pages/EditPage.tsx
+msgid "这条作品没有留存工坊工程，没有可公开的制作过程。"
+msgstr "这条作品没有留存工坊工程，没有可公开的制作过程。"
+
+#: src/data/recipes.ts
+msgid "这条作品的流水线超过 24 段，制作过程暂时公开不了"
+msgstr "这条作品的流水线超过 24 段，制作过程暂时公开不了"
 
 #: src/data/videoDownload.ts
 msgid "这条作品的画面里没有「AI 生成」角标，按合规要求暂时不能导出成文件。"
@@ -20701,6 +21171,10 @@ msgstr "这条模板没有公开，只有作者自己能用。"
 msgid "这条流水线还没有段——对下面的输入条说「{addExample}」"
 msgstr "这条流水线还没有段——对下面的输入条说「{addExample}」"
 
+#: src/pages/RecipePage.tsx
+msgid "这条流程没有带卡，也没有空位 —— 直接铺开，之后在画布上挂自己的卡。"
+msgstr "这条流程没有带卡，也没有空位 —— 直接铺开，之后在画布上挂自己的卡。"
+
 #. placeholder {0}: Math.round(plan.bgmGain * 100)
 #: src/pages/CutPage.tsx
 msgid "这条片子有配音：配乐会在你定的音量上再压到 {0}%（配音为主），预览里听到的就是压过之后的。"
@@ -20773,6 +21247,14 @@ msgstr "这条音频的文件读不出来了（可能被清理过）——去掉
 #: src/studio/cutIssues.ts
 msgid "这样裁完只剩不到 {MIN_CLIP_SEC} 秒，片段太短了"
 msgstr "这样裁完只剩不到 {MIN_CLIP_SEC} 秒，片段太短了"
+
+#: src/pages/PublishPage.tsx
+msgid "这次不公开"
+msgstr "这次不公开"
+
+#: src/pages/PublishPage.tsx
+msgid "这次不公开，直接发"
+msgstr "这次不公开，直接发"
 
 #. 个人页「还没传到服务器」横幅：接在作品标题后面的原因。一整句，句末不加句号
 #: src/data/videos.ts
@@ -21348,6 +21830,10 @@ msgstr "重描"
 msgid "重新上架"
 msgstr "重新上架"
 
+#: src/pages/EditPage.tsx
+msgid "重新公开"
+msgstr "重新公开"
+
 #: src/pages/NotificationsPage.tsx
 msgid "重新剪辑了你收藏的作品"
 msgstr "重新剪辑了你收藏的作品"
@@ -21415,6 +21901,10 @@ msgstr "重新登记到服务器"
 #: src/components/blockout/DetectRolesEntry.tsx
 msgid "重新识别角色位"
 msgstr "重新识别角色位"
+
+#: src/pages/EditPage.tsx
+msgid "重新问一次"
+msgstr "重新问一次"
 
 #: src/pages/EditPage.tsx
 msgid "重新问一次服务器"
@@ -21497,6 +21987,7 @@ msgstr "重认会<0>覆盖现有描述</0>（你自己改过的也会没），�
 #: src/pages/NotificationsPage.tsx
 #: src/pages/ProfilePage.tsx
 #: src/pages/PublishPage.tsx
+#: src/pages/RecipePage.tsx
 #: src/pages/SettingsBlockedPage.tsx
 #: src/pages/tutor/TutorHomePage.tsx
 #: src/pages/tutor/TutorRunPage.tsx
@@ -21623,6 +22114,10 @@ msgstr "铺成 {0} 段"
 #: src/components/flow/ScriptSkillSheet.tsx
 msgid "铺成 {0} 段（丢弃上面那条流水线）"
 msgstr "铺成 {0} 段（丢弃上面那条流水线）"
+
+#: src/pages/RecipePage.tsx
+msgid "铺成我的工作流"
+msgstr "铺成我的工作流"
 
 #: src/studio/ui/projection.tsx
 msgid "铺方案免费 · 出片时在方案台按原价结算"

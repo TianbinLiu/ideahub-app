@@ -566,6 +566,24 @@ export default function VideoPage() {
           </button>
         </div>
 
+        {/* 同款署名（2026-10-02 公开配方）：按谁的流程做的（只在原作对这个人可见时服务端才发）、几个人照这条做了同款。
+            两行都**判有值**：老服务端 / 列表缓存没有这两位时一个字不出。计数来自详情端点，不含作者自己。 */}
+        {(video.remixOf || (video.remixCount ?? 0) > 0) && (
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
+            {video.remixOf && (
+              <Link to={`/video/${video.remixOf.id}`} className="underline underline-offset-2 active:opacity-60">
+                {/* 有标题 / 没标题两句各写一份：书名号是中文标点，拼在占位符里英文读出来就是「process：《…》」 */}
+                {video.remixOf.title ? (
+                  <Trans>按 @{authorDisplayName(video.remixOf.author, video.remixOf.authorId)} 的流程做的同款：《{video.remixOf.title}》</Trans>
+                ) : (
+                  <Trans>按 @{authorDisplayName(video.remixOf.author, video.remixOf.authorId)} 的流程做的同款</Trans>
+                )}
+              </Link>
+            )}
+            {(video.remixCount ?? 0) > 0 && <span><Trans>{video.remixCount} 人按这条的流程做了同款</Trans></span>}
+          </div>
+        )}
+
         {video.description && (
           <p className="mt-3 whitespace-pre-wrap rounded-xl bg-panel/60 p-3 text-sm leading-relaxed text-slate-300">
             {video.description}
@@ -632,14 +650,30 @@ export default function VideoPage() {
         {/* 做同款（backlog 2.8-②，可灵/即梦式闭环）：把**当前这一 P**的分段剧本+时长+
             档位+画幅+随片卡组整份铺成观众自己的工作流。帧不带（那是作者花钱炼的成片，
             抄的是配方）；铺开不花钱，一段一结账。守卫三件套见 useApplyTemplate。 */}
+        {/* 查看制作过程（公开配方，2026-10-02）：作者公开了才亮；付费未解锁的不给（与做同款同一条理由：配方是付费内容的一部分）。
+            制作过程页自带「按这个流程做同款」——它比下面那颗做同款多了卡 / 空位 / 段模板，所以两颗并存：
+            下面那颗是"抄分段剧本"，这一颗是"照整条流水线做"。 */}
+        {video.recipePublic && !locked && (
+          <Link
+            to={`/video/${video.id}/recipe`}
+            className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl border border-brand/40 bg-brand/5 py-2.5 text-sm font-bold text-brand active:scale-[0.99]"
+          >
+            <Icon name="branch" size={16} />
+            <Trans>查看制作过程</Trans>
+          </Link>
+        )}
+
         {remakeableOf(part?.segments ?? video.segments) && (
           <button
             onClick={() =>
               remakeGuard(() => {
                 const segs = part?.segments ?? video.segments;
-                const ok = useFlow
-                  .getState()
-                  .seed(remakeNodesOf(segs, video.deck?.cards ?? []), { mode: "workflow", origin: "solo" });
+                const ok = useFlow.getState().seed(remakeNodesOf(segs, video.deck?.cards ?? []), {
+                  mode: "workflow",
+                  origin: "solo",
+                  // 同款署名（2026-10-02）：发布时随稿子上行，原作页据它记一次「N 人做了同款」
+                  remixOf: { videoId: video.id, title: video.title, author: video.author },
+                });
                 if (ok) navigate("/flow");
                 else setRemakeErr(useFlow.getState().err || t`现在铺不了（可能有一段正在生成中），稍后再试`);
                 return ok;

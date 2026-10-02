@@ -17,6 +17,7 @@ import { makeFrame } from "../mock/frames";
 import { idbGet, idbRead, idbSet } from "./db";
 import { materializeDraft, type MaterializeError } from "./publishAssets";
 import * as projects from "./projects";
+import { onRecipeStateChange } from "./recipes";
 // ⚠ 与 data/danmaku 是**互相 import**（那边要本文件的 realId/remoteOn）：两边都只在函数体里
 //   用对方，所以这个环在运行时无害。加新引用之前先确认自己不是在模块顶层用它。
 import { dropLocalDanmaku } from "./danmaku";
@@ -874,6 +875,27 @@ export function partsOf(v: VideoItem): VideoPart[] {
  *  ★ 发上去的**只有服务端认的那几个字段**（title/category/description/tags/visibility）。
  *    deck / pricing 会被服务端 strip；cover 走另一条路（EditPage 先把它传成永久 URL
  *    再随 patch 发，见下面的 remotePatch.cover）。 */
+/**
+ * 配方状态变了（发布后留存那一拍公开成功 / 编辑页开关 / 删掉，2026-10-02）：把本机缓存里这条作品的两位改成服务端刚回的
+ * 状态并 emit，作品页那颗「查看制作过程」不用重拉就能跟着亮 / 灭 —— 刚发布完落到作品页时，缓存里那条是发布回包（配方
+ * 那时还没 PUT），不接这一下的话作者要重进一次才看得见那颗键。只改内存（远端模式本机不落盘，这两位本来也是服务端的真相）。
+ * null = 配方删掉了。订阅在 data/recipes（它不能引本文件）。
+ */
+function noteRecipeState(id: string, state: { public: boolean; stale: boolean } | null): void {
+  const v = find(id);
+  if (!v) return;
+  if (state) {
+    v.recipeState = { public: state.public, stale: state.stale };
+    if (state.public && !state.stale) v.recipePublic = true;
+    else delete v.recipePublic;
+  } else {
+    delete v.recipeState;
+    delete v.recipePublic;
+  }
+  emitVideos();
+}
+onRecipeStateChange(noteRecipeState);
+
 export async function updateVideoMeta(
   id: string,
   patch: Partial<
@@ -1004,7 +1026,11 @@ export async function deleteVideoItem(id: string): Promise<string | null> {
 //     两条老理由都不再成立。老设备上遗留的 "ideahub-app.projects.v1" 由
 //     projects.readyProjects() 顺手清掉（搭它本来就要做的那次往返，见那边的 ★）。
 
-export function publishVideo(draft: DraftVideo): VideoItem {
+/**
+ * @param opts.shareRecipe 发布页那颗「公开制作过程」的选择（2026-10-02，缺省不公开）。它不进发布体，
+ *   而是盖进组稿那一拍抓下的画布待办（data/projects），发布成功留存工程时顺手投成公开配方 PUT 上去。
+ */
+export function publishVideo(draft: DraftVideo, opts?: { shareRecipe?: boolean }): VideoItem {
   // 幂等键跟着草稿走：pushPublish 超时后进待发队列，flushPending 重发的是同一个 draft，
   // 服务端认这个键返回首次那条，不会重复落库
   draft = { ...draft, clientId: draft.clientId ?? uid("cv") };
@@ -1046,7 +1072,7 @@ export function publishVideo(draft: DraftVideo): VideoItem {
   //   任何一条上行路启动之前）：下面两条分支（现在传 / 进待发队列等 flushPending 补发）
   //   最终都靠这个键把回包与那份画布对上号。挂进 pushPublish 里就会漏掉离线那一条，
   //   而那条正是「作品发出去了、工程却永远留不上」最常见的形状。
-  void projects.stampPendingCanvas(draft.clientId);
+  void projects.stampPendingCanvas(draft.clientId, opts?.shareRecipe === true);
   if (remoteOn()) {
     void pushPublish(item, draft);
   } else if (API_ON) {
@@ -1663,7 +1689,32 @@ function toVideoItem(v: branch.ApiVideo): VideoItem {
     // ★ 都判**有值**，不给缺省：老服务端与从没回炉过的作品都不该凭空长出一个 0/日期。
     ...(typeof v.revision === "number" ? { revision: v.revision } : {}),
     ...(v.revisedAt ? { revisedAt: toMs(v.revisedAt) } : {}),
+    // ★ 制作过程与同款（2026-10-02）—— 同一条「服务端加了字段、这一跳必须一起搬」的纪律：
+    //   漏 recipePublic ⇒ 作品页那颗「查看制作过程」永远不亮；漏 remixOf ⇒ 「按 @谁 的流程制作」那行永远不出现。
+    //   列表与详情两跳共用 recipeBits 一处（详情回填是 loadDetail 的逐字段原地写，第一版就漏在那儿）
+    ...recipeBits(v),
     comments: Array.isArray(v.comments) ? v.comments.map(toComment) : [],
+  };
+}
+
+/** 作品上「制作过程 / 同款」那四位的映射（都判有值）。remixOf / remixCount **只有详情端点才算**，列表上没有 */
+function recipeBits(v: branch.ApiVideo): Pick<VideoItem, "recipePublic" | "recipeState" | "remixOf" | "remixCount"> {
+  return {
+    ...(v.recipePublic === true ? { recipePublic: true } : {}),
+    ...(v.recipeState && typeof v.recipeState === "object"
+      ? { recipeState: { public: v.recipeState.public === true, stale: v.recipeState.stale === true } }
+      : {}),
+    ...(v.remixOf && typeof v.remixOf === "object" && typeof v.remixOf.id === "string"
+      ? {
+          remixOf: {
+            id: v.remixOf.id,
+            title: typeof v.remixOf.title === "string" ? v.remixOf.title : "",
+            author: branch.authorName(v.remixOf.author),
+            ...(branch.authorId(v.remixOf.author) ? { authorId: branch.authorId(v.remixOf.author)! } : {}),
+          },
+        }
+      : {}),
+    ...(typeof v.remixCount === "number" ? { remixCount: v.remixCount } : {}),
   };
 }
 
@@ -1978,6 +2029,15 @@ async function loadDetail(item: VideoItem): Promise<void> {
     //   过期的 revision 会把「工程是上一版」误判成「对得上」。
     if (typeof v.revision === "number") item.revision = v.revision;
     if (v.revisedAt) item.revisedAt = toMs(v.revisedAt);
+    // ★ 制作过程 / 同款那四位也在这一跳搬（2026-10-02 浏览器实测抓到：服务端详情回了 remixCount，页面上一个字没有）：
+    //   remixOf / remixCount 只有详情端点才算，这里不搬就永远到不了作品页；recipePublic 作者关掉之后要在这里灭
+    const bits = recipeBits(v);
+    if (bits.recipePublic) item.recipePublic = true;
+    else delete item.recipePublic;
+    if (bits.recipeState) item.recipeState = bits.recipeState;
+    else delete item.recipeState;
+    if (bits.remixOf) item.remixOf = bits.remixOf;
+    if (bits.remixCount !== undefined) item.remixCount = bits.remixCount;
     // ★ 走同一处归一（见 toVideoDeck 的 ★★）：这一行原来直接赋 v.deck，
     //   于是详情回填会把 toVideoItem 归一好的那份**又换回没有 id 的原始快照**
     const deck = toVideoDeck(v.deck);

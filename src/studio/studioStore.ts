@@ -11,7 +11,7 @@ import { GenNodeOpts, CUSTOM_MID_MAX, FlowMode, FlowNode, FlowTemplate, appendBl
 // ★ 依赖方向没破：canvasAgent 只认识 flowStore，不认识本模块（不会成环）
 import { forgetCanvasAgent } from "./canvasAgent";
 import { onOwnerSwitch, ownerEpoch, workOwner } from "../data/deviceOwner";
-import { DraftMode, WorkDraft, WorkDraftMeta, deleteDraft, getDraftMeta, saveDraft } from "../data/drafts";
+import { DraftMode, WorkDraft, WorkDraftMeta, deleteDraft, getDraftMeta, readRemixOf as remixOfSnapshot, saveDraft } from "../data/drafts";
 import { showToast } from "../data/toast";
 import { t } from "@lingui/core/macro";
 import { cutSessionLoadIssue, dropCutSession, saveCutSession } from "../data/cutSession";
@@ -2470,6 +2470,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
               },
             }
           : {}),
+        // 「按谁的流程做的同款」随稿子去发布页（同样现读、同样"有才写这个键"）
+        ...(useFlow.getState().remixOf ? { remixOf: useFlow.getState().remixOf!.videoId } : {}),
       },
     });
     return true;
@@ -2606,6 +2608,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
         template: f.template,
         subject: f.subject,
         deckOff: f.deckOff,
+        // 同款署名跟着草稿走（flowStore.remixOf 的 ★）；只在真有的时候才带这个键
+        ...(f.remixOf ? { remixOf: f.remixOf } : {}),
       },
       coverFrame: coverFrame || undefined,
       segCount: nodes.length,
@@ -2702,6 +2706,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
         //   留着它的话，这条不相干的草稿在发布页会变成「替换原作品」—— 用一份别的内容
         //   把线上那条已发布作品换掉，而全程没有一个字提示（见 flowStore.FlowState.reviseOf 的 ★★）
         reviseOf: null,
+        // 同款署名随草稿还原（没记过的 = 不是同款；上一摊活的署名绝不能留到这条草稿上）
+        remixOf: remixOfSnapshot(d.flow?.remixOf),
         busy: false,
         err: "",
       });
@@ -2776,6 +2782,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
       deckOff: flow.deckOff !== false,
       // ★ 这一格就是「这条流水线要替换掉哪条已发布作品」——发布页据它换成「替换原作品」
       reviseOf: target,
+      // 回炉不改归属（回炉体逐字段拼、不带 remixOf），上一摊活的署名也不该留在这条上
+      remixOf: null,
       busy: false,
       err: "",
     });

@@ -81,6 +81,9 @@ src/
                交给系统分享，**唯一实现**；落点是原生 Cache 目录，不进 IndexedDB）；
                `projects.ts` = 已发布作品的「工坊工程」（供编辑页「🛠 回炉重做」取回来接着改）。
                **服务端为真相**，本机只有 5 条 LRU 缓存；存的是一份只含永久 URL 的瘦身画布；
+               `recipe.ts` = **公开配方**（制作过程）的形状与画布 → 配方的**白名单投影**（纯函数，零 store 依赖；服务端
+               `schemas/branchRecipe.schemas.js` 同一形状再验一遍，加字段三处一起动），`recipes.ts` = 上行 / 读回 / 开关
+               （四档结局不压档；状态变化经 `onRecipeStateChange` 广播给 videos 的缓存），HTTP 在 `api/recipes.ts`；
                `cutProject.ts` = **剪辑工程**：剪辑页时间轴（片段 / 圈选 / 配乐 / 导出档 / 合并留底）与包装层
                （片段上的字幕 / 配音 / 变速 / 原声 / 闪黑，工程上的片头标题 / 片尾淡出）的数据形状与全部改法，外加
                **渲染计划**（`timelinePlan`：预览与原生导出照的同一份）与字幕分行分页（`paginateCaption`）；
@@ -94,7 +97,8 @@ src/
                改法被拒时的那句话只有一份 `studio/cutIssues.ts`
   hooks/
   mock/        无后端时的假数据
-  pages/       路由页面（hash 路由）；`SupportPage` = AI 客服，`SupportModelsPage` / `SupportPersonasPage` =
+  pages/       路由页面（hash 路由）；`RecipePage` = 制作过程（/video/:id/recipe：四档结局 + 分镜 + 选角一屏 + 按配方做同款，
+               共用视图在 `components/recipe/RecipeView`，发布页 / 编辑页的「别人会看到这些」预览也画它）；`SupportPage` = AI 客服，`SupportModelsPage` / `SupportPersonasPage` =
                数字人形象 / 人格市场（/support/models、/support/personas，入口在客服页顶栏那一列小键与设置页）；
                `SupportCreatePage` = 创作中心三扇门（/support/create，那一列小键的第四颗 ✨），
                `SupportModelNewPage` / `SupportPersonaNewPage` = Live2D 上传向导 / 人格制作向导
@@ -439,6 +443,18 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   工坊/工作流挤出 20 条上限。
 - **在途工程存 `data/drafts.ts`**：没做完的半成品，可以接着编辑（工坊/工作流两条路都能打开）。
   草稿索引与正文分开存（正文带 1MB 级的帧，个人页列表只读索引）。
+- **公开配方（制作过程）只公开白名单投影，不公开画布**（2026-10-02，模板体系 P1，方案 docs/template-workflow-research.md §三 C，
+  落地记录在 §四）：`data/recipe.projectRecipe` 是**唯一**的画布 → 配方实现（发布页预览、发布后上行、编辑页补公开三条路都走它），
+  真人卡 → 空位不带名、装来的卡 → 空位带名、白模段不带点名句、段模板只回指服务端 id、导演台 / 圈选 / 参考视频 / 原话一律不带
+  （只留记号让故事板说一句）。四条规矩：① 发布页那颗「公开制作过程」的选择**盖进画布待办**（`PendingCanvas.shareRecipe`）而不是
+  发布体 —— 发布可能离线排队、冷启动由 flushPending 补发，那时发布页早不在了；配方 PUT 在留存工程那一拍、排在工程 PUT **之前**
+  （`projects.submit`），成败各说各的；② 回炉之后旧配方由服务端按版次自动对外隐藏（`stale`），留存新画布时重投一份；
+  ③ 「按谁的流程做的同款」= `flowStore.remixOf`：做同款与按配方复制都经 `seed(…, { remixOf })` 写，跟 `clearTemplate()` 清、
+  **进草稿**（与 reviseOf 相反），组稿折进 `DraftVideo.remixOf`，发布体逐字段拼的要记得带；④ 作品上那四位（`recipePublic` /
+  `recipeState` / `remixOf` / `remixCount`）映射只在 `videos.recipeBits` 一处，**列表与详情回填（`loadDetail`）两跳都要搬** ——
+  remixOf / remixCount 只有详情端点才算，漏在详情那一跳的症状是服务端回了、屏幕上一个字没有（第一版就这么漏过）。
+  按配方复制的建料在 `flowStore.recipeNodesOf`（第九条整表换 nodes 的入口，守卫走 `useApplyTemplate`）：白模段的模板由页面
+  **先取**（本机库 → 服务端 id），取不到退普通段并记进 notes 铺完当面说。老服务端上判「不支持」看回包形状，不看状态码。
 - **已发布作品的「回炉重做」存 `data/projects.ts`，不进草稿库**（2026-09-07）：发布（以及每一次
   回炉）成功后把当时那份工坊画布瘦身成**只含永久 URL** 的 JSON PUT 进服务端，编辑页那颗
   「🛠 回炉重做」取回来接着改，再走 `PATCH /videos/:id` 带 `segments` + `baseRevision` 换掉内容

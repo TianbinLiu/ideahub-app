@@ -48,6 +48,19 @@ export interface FlowSnapshot {
   subject: string;
   /** 「只出片不出卡组」的选择（flowStore.deckOff）。★ 2026-09-06 起缺省不出卡组：读的时候只有明确 false 才出 */
   deckOff?: boolean;
+  /**
+   * 「按谁的流程做的同款」（flowStore.remixOf，2026-10-02 公开配方）。★ 判有值：老草稿 / 普通草稿缺省 = 不是同款。
+   * 读回去时逐字段验形状（草稿正文是 unknown 读的），认不出来当没有 —— 少一行署名，不会坏别的。
+   */
+  remixOf?: { videoId: string; title: string; author: string };
+}
+
+/** 草稿正文里的同款署名 → flowStore.remixOf 的形状；认不出来回 null（老草稿 / 不是同款） */
+export function readRemixOf(raw: unknown): { videoId: string; title: string; author: string } | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const r = raw as Record<string, unknown>;
+  if (typeof r.videoId !== "string" || !r.videoId) return null;
+  return { videoId: r.videoId, title: typeof r.title === "string" ? r.title : "", author: typeof r.author === "string" ? r.author : "" };
 }
 
 export interface WorkDraft {

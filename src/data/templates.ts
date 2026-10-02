@@ -22,6 +22,7 @@ import { msg, t } from "@lingui/core/macro";
 import { V3_CARD_WIPE_MS, Card, MarkBox, VideoAspect, VideoTemplate, uid } from "../types";
 import { deviceOwner, mayClaimLegacy, onViewerChange, workOwner } from "./deviceOwner";
 import { splitByOwner } from "./ownerSplit";
+import { registerTemplateResolver } from "./recipe";
 
 const KEY = "templates.v1";
 
@@ -239,6 +240,10 @@ export function getTemplate(id: string): VideoTemplate | null {
     null
   );
 }
+
+// 公开配方（data/recipe）投影画布时要把**本机**模板 id 换成服务端 id：老快照不带 remoteId（flowStore.snapTpl 2026-10-02 才带），
+// 这里按本机库现查一次。登记在模块初始化上 —— recipe.ts 不引本文件（它引的东西少，本文件引的多，反过来容易绕成环）
+registerTemplateResolver((localId) => getTemplate(localId)?.remoteId ?? null);
 
 /**
  * 模板市场：本机已发布 + **远端 shared**（白模模板；到货前先出本机那份）。
