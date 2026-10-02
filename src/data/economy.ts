@@ -597,10 +597,26 @@ function joinTierNames(labels: string[]): string {
   );
 }
 
-/** 同一个原因、一档或几档合成一整句（labels 是档位的界面名）。单档（r2vPriceIssue）与合并（r2vBlockLines）读同一份措辞 */
+/**
+ * 同一个原因、一档或几档合成一整句（labels 是档位的界面名）。单档（r2vPriceIssue）与合并（r2vBlockLines）读同一份措辞。
+ *
+ * ★★ 「closed」分两种说法（2026-10-02 主人拍板：模板对出片模型是**硬要求**，不是"还没轮到"）：
+ *   · 有一档开着（今天是电影级 / Seedance 2.5）⇒ 说清**这类出片只有那一档做得到**。原来一律写「暂未开放…等开放后再来」，
+ *     读起来像是别的档过一阵也会放开 —— 而 1.0 两档与真人档在协议上就没有参考视频这一项，等多久都不会有；
+ *     用户该做的是换到做得到的那一档（或者按自己能用的模型去挑模板，见模板货架的「出片模型」筛选），不是等。
+ *   · 一档都没开（闸门全关）⇒ 才是真的「暂未开放」，原句保留。
+ * ★ 这句话三处都在用：白模段的档位那一排（r2vBlockLines）、返修（ReviseBox）、出片闸（segmentGen.blockoutIssue）——
+ *   所以不写成"这个模板…"：返修那一处根本没有模板。括号里把两种用法都点了名。
+ */
 function r2vBlockText(block: R2vBlock, labels: string[]): string {
   const names = joinTierNames(labels);
-  if (block.kind === "closed") return t`「${names}」这一档暂未开放白模模板出片，等开放后再来`;
+  if (block.kind === "closed") {
+    const open = blockoutTier();
+    if (!open) return t`「${names}」这一档暂未开放白模模板出片，等开放后再来`;
+    const openLabel = open.label;
+    const openModel = modelLabel(open.model);
+    return t`「${names}」做不了按参考视频出片（白模模板复刻、返修都属于这一类）——这类出片只有「${openLabel}」（${openModel}）做得到`;
+  }
   const model = block.model;
   return t`「${names}」这一档的白模出片暂时报不出价（${model} 的 r2v 单价未核账），先用别的档位`;
 }
@@ -639,9 +655,9 @@ export function r2vBlockLines(): string[] {
  *   而白模化那一发的模型由**服务端**的 blockoutize 端点钉死，能对上正是因为只有一个候选）。
  *   哪天开了第二档，这个函数就不再够用 —— 那时必须改成「服务端告诉我们这一发用了哪一档」，
  *   **不许在这里猜**：猜错就是报 A 档的价、按 B 档结算。
- * ⚠ 另有两处内联的 `VIDEO_TIERS.find((x) => x.refVid)`（pages/TemplateDetailPage、
- *   studio/flowStore）是本函数出现之前留下的同款判断，那两个文件这一轮不归本施工位改 ——
- *   接线那一位请把它们换成这里（铁律六）。
+ * ★ 2026-10-02 起全仓只剩这一处：pages/TemplateDetailPage 与 studio/flowStore（套用 / 整组套用 / 按段换模板）
+ *   原来各自内联的 `VIDEO_TIERS.find((x) => x.refVid)` 都换成了本函数；「这个模板能在哪几档上跑」再往上一层
+ *   是 data/templates.templateTiers（货架筛选、卡面与详情页的标注问的都是它）。
  */
 export function blockoutTier(): VideoTier | null {
   return VIDEO_TIERS.find((t) => t.refVid) ?? null;

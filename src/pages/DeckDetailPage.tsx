@@ -9,9 +9,59 @@ import TarotCard from "../components/TarotCard";
 import SocialPanel, { useCountView, useSocialVersion } from "../components/SocialPanel";
 import WorkshopShareBar, { shareBlockReason } from "../components/WorkshopShareBar";
 import { deckCoverOf, isRemoteMode, myCards, myDecks, shareDeck, updateDeck } from "../data/account";
+import { deckFitOf } from "../data/cardFit";
 import { formatHeat, heatOf } from "../data/social";
 import { useAccountVersion } from "../hooks/useAccount";
-import { CARD_TYPE_LABELS, SHARE_NOTE_MAX } from "../types";
+import { CARD_TYPE_LABELS, SHARE_NOTE_MAX, type Card } from "../types";
+
+/**
+ * 卡组的「按模型适配」摘要（2026-10-02 主人点名：出片涉及的各个组件对出片模型的口径要统一 —— 卡片有「按模型适配」，
+ * 模板有「出片模型」，卡组夹在中间也该说一句）。
+ *
+ * ★ 一条判据都没新写：每张卡的状态出自 data/cardFit.cardFitOf（卡片页那一格读的是同一份），这里只数张数。
+ * ★ 只数不改：哪张卡缺什么，点进那张卡的「按模型适配」里补 —— 这里不摆第二套勾选框（那会是同一个开关的第二处入口）。
+ * ★ 背景卡不计（它在所有档位都只以文字参与）；全是背景卡 / 空卡组时整块不画。
+ * ★ 三行的行首与卡片页那一格用同一组占位名（line2x / line10 / lineReal），目录里是同一条译文。
+ */
+function DeckModelFit({ cards }: { cards: Card[] }) {
+  const { t } = useLingui();
+  const fit = deckFitOf(cards);
+  if (fit.total === 0) return null;
+  const join = (parts: (string | false)[]) => parts.filter(Boolean).join(" · ");
+  const n2 = fit.ref;
+  const n1 = fit.frames;
+  const nr = fit.start;
+  const line2x = join([
+    n2.image > 0 && t`${n2.image} 张的形象图直接进模型`,
+    n2.asset > 0 && t`${n2.asset} 张真人卡以火山引擎认证素材进模型`,
+    n2.needAsset > 0 && t`${n2.needAsset} 张真人卡要先勾「火山引擎适用」`,
+  ]);
+  const line10 = join([
+    n1.text > 0 && t`${n1.text} 张有文字版形象描述`,
+    n1.frameOnly > 0 && t`${n1.frameOnly} 张只经由设定帧起作用`,
+    n1.noRealFace > 0 && t`${n1.noRealFace} 张真人卡用不上（这两档不收真人照片）`,
+  ]);
+  const lineReal = join([
+    nr.photo > 0 && t`${nr.photo} 张真人卡以照片起拍`,
+    nr.startFrames > 0 && t`${nr.startFrames} 张有专门画好的起拍画面`,
+    nr.ownImage > 0 && t`${nr.ownImage} 张人物卡用卡上的图起拍`,
+    nr.onlyAsStart > 0 && t`${nr.onlyAsStart} 张只有当起拍画面时才用得上形象图`,
+    nr.textOnly > 0 && t`${nr.textOnly} 张只用文字`,
+  ]);
+  return (
+    <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
+      <div className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>🎛 按模型适配</Trans></div>
+      <ul className="space-y-0.5 text-[10px] leading-relaxed text-slate-400">
+        <li><Trans>高清 / 电影级：{line2x}</Trans></li>
+        <li><Trans>标准 / 极速：{line10}</Trans></li>
+        <li><Trans>真人档：{lineReal}</Trans></li>
+      </ul>
+      <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
+        <Trans>真人档一段只用一张起拍画面。哪张没适配，点进那张卡的「按模型适配」里补。</Trans>
+      </p>
+    </div>
+  );
+}
 
 export default function DeckDetailPage() {
   useAccountVersion();
@@ -107,6 +157,8 @@ export default function DeckDetailPage() {
         disabledReason={shareBlockReason({ remote: isRemoteMode(), published: !!deck.published, cardCount: deck.cardIds.length })}
         onToggle={(next) => shareDeck(deck.id, next)}
       />
+
+      <DeckModelFit cards={inDeck} />
 
       {/* 卡片网格：查看态点卡进详情；编辑态点卡加入/移出、可设封面 */}
       {editing ? (

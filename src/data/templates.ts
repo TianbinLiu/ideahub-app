@@ -14,7 +14,7 @@ import * as uploadsApi from "../api/uploads";
 //   两道门）。轮询一个真实存在的方舟任务没有 mock 版本可言，走开关只会平添一层空实现。
 import { fetchArkTask } from "../ai/arkClient";
 import { canAfford, currentUser, frozenNote, refreshRemoteWallet, tierBlockReason } from "./account";
-import { blockoutTier, blockoutizeCost, blockoutizeIssue, fmtTokens } from "./economy";
+import { blockoutTier, blockoutizeCost, blockoutizeIssue, fmtTokens, type VideoTier } from "./economy";
 import { toPermanentUrl } from "./publishAssets";
 import { remoteOn } from "./videos";
 import { i18n, type MessageDescriptor } from "@lingui/core";
@@ -1809,6 +1809,56 @@ export function refVideoOwnerNote(ref: VideoTemplate["refVideo"]): string | null
     return t`这个模板的白模视频只有约 ${shown} 秒，不满足 AI 出片引擎要求的 ${min}~${max} 秒，所以它没法用来出片，也不能发布。这是我们当时的校验漏掉了，不是你操作错了——你之前那几次试炼失败都没有扣费。请重新做一个模板：框选时至少选 ${floor} 秒（AI 换白模时会把成片截短零点几秒，得留出这个余量）。`;
   }
   return t`这个模板的白模视频不满足 AI 出片引擎要求的 ${min}~${max} 秒，所以它没法用来出片，也不能发布。这是我们当时的校验漏掉了，不是你操作错了——你之前那几次试炼失败都没有扣费。请重新做一个模板：框选时至少选 ${floor} 秒（AI 换白模时会把成片截短零点几秒，得留出这个余量）。`;
+}
+
+// ── 这个模板能在哪几个出片模型上跑 ────────────────────────────────
+
+/**
+ * 「这个模板能在哪几个出片模型上跑」—— **唯一实现**（2026-10-02，主人拍板：模板对出片模型是**硬要求**）。
+ * 货架的「出片模型」筛选、卡面与详情页的标注、按段选模板时那句说明，问的都是这一句；
+ * 「套上之后档位钉在哪」（flowStore 的三个套用入口）读的是同一个 economy.blockoutTier。
+ *
+ *   · 白模（示例视频）模板 ⇒ **恰好一档**：它的商品是"按参考视频逐镜头复刻、只换主体"，只有开着 refVid 的那一档做得到
+ *     （economy.blockoutTier，今天是电影级 / Seedance 2.5）。闸门全关 ⇒ 空数组 = 现在哪一档都跑不了。
+ *   · 经典配方模板（一句话换主题）⇒ **null = 不限**。
+ *     ⚠ 它存着的 `recipe.videoTier` **不是事实**：那是提取器写死的默认值（VideoTemplateExtractor 里的 "hd"，
+ *       apiToTemplate 的兜底也是 "hd"），没有任何一次出片为它作证 —— 拿它当"适用档位"就是替作者编了一个承诺。
+ *       套用时它只是开场值，档位那一排照常可以换。
+ *
+ * ★ 不给「解除固定」的出口（主人 2026-10-02 明确否掉）：换到别的模型不是"效果差一点"，是那个模型根本没有
+ *   这项生成能力、出片直接失败。用户该做的是**按自己能用的模型去挑模板**（货架那颗筛选），不是在模板上换模型。
+ * ★ 返回档位**对象**（不是 id）：调用方要印名字与模型名，再按 id 回表里查一次就是第二次判断。
+ * ★ 哪天"不止一档"了（开了第二档 refVid，或者工作流模板进市场）：那时"哪几档"要改成**由事实定** ——
+ *   服务端试炼闸记下的 provenModels、作品逐段记的 videoTier —— 而不是在这里猜。见 docs/template-workflow-research.md §三 B。
+ */
+export function templateTiers(tpl: Pick<VideoTemplate, "refVideo">): VideoTier[] | null {
+  if (!tpl.refVideo) return null;
+  const tier = blockoutTier();
+  return tier ? [tier] : [];
+}
+
+/** 这个模板在 `tierId` 这一档上能不能出片（货架筛选用）。不限档位的模板对每一档都算能 */
+export function templateRunsOn(tpl: Pick<VideoTemplate, "refVideo">, tierId: string): boolean {
+  const tiers = templateTiers(tpl);
+  return tiers === null || tiers.some((x) => x.id === tierId);
+}
+
+/**
+ * 「**这个账号**的套餐用不用得了这个模板要求的出片模型」—— null = 用得了，或者还不知道套餐
+ * （同 account.tierBlockReason 的乐观口径：镜像慢半拍时宁可放行，由服务端说了算）。
+ *
+ * ★ 判据一条没新写：哪一档由 templateTiers 说，套餐由 account.tierBlockReason 说，这里只把两者接起来
+ *   （形状同下面的 blockoutizeBlockReason —— 那是"能不能**做**模板"，这是"能不能**用**模板"）。
+ * ★ 为什么要有它：模板要求的那一档（电影级）是仅付费套餐的一档。此前免费用户套上模板、挂完卡、写完点名句，
+ *   点「生成」才第一次听说用不了 —— 而充值解决不了（得换套餐）。这句话要在**选模板那一步**就说出口。
+ * ★ 要求的档里有一档用得了就算用得了（今天恰好一档；写成 every 是给"不止一档"那天留的）。
+ * ★ 只是提示，不是安全边界：真正的拦截在服务端（免费套餐调 2.5 是 403）。
+ */
+export function templatePlanIssue(tpl: Pick<VideoTemplate, "refVideo">): string | null {
+  const tiers = templateTiers(tpl);
+  if (!tiers?.length) return null;
+  const reasons = tiers.map((x) => tierBlockReason(x));
+  return reasons.every((r) => r !== null) ? reasons[0] : null;
 }
 
 // ── 一个模板最多有几个「能挂卡」的角色位 ────────────────────────────

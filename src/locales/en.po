@@ -687,6 +687,11 @@ msgstr "{0} chars"
 msgid "{0} 张"
 msgstr "{0, plural, one {# card} other {# cards}}"
 
+#. placeholder {0}: nr.ownImage
+#: src/pages/DeckDetailPage.tsx
+msgid "{0} 张人物卡用卡上的图起拍"
+msgstr "{0, plural, one {# character card starts from the card’s image} other {# character cards start from the card’s image}}"
+
 #. placeholder {0}: deck.cardIds.length
 #: src/pages/DeckDetailPage.tsx
 msgid "{0} 张卡"
@@ -696,6 +701,56 @@ msgstr "{0, plural, one {# card} other {# cards}}"
 #: src/components/VideoCardAnnotator.tsx
 msgid "{0} 张卡已入库，在「我的卡组」里能看到。"
 msgstr "{0, plural, one {# card was added to your library; you'll find it in “My decks”.} other {# cards were added to your library; you'll find them in “My decks”.}}"
+
+#. placeholder {0}: nr.onlyAsStart
+#: src/pages/DeckDetailPage.tsx
+msgid "{0} 张只有当起拍画面时才用得上形象图"
+msgstr "{0, plural, one {# card’s image is only used when it provides the opening frame} other {# cards’ images are only used when they provide the opening frame}}"
+
+#. placeholder {0}: nr.textOnly
+#: src/pages/DeckDetailPage.tsx
+msgid "{0} 张只用文字"
+msgstr "{0, plural, one {# card is text only} other {# cards are text only}}"
+
+#. placeholder {0}: n1.frameOnly
+#: src/pages/DeckDetailPage.tsx
+msgid "{0} 张只经由设定帧起作用"
+msgstr "{0, plural, one {# card works only through setup frames} other {# cards work only through setup frames}}"
+
+#. placeholder {0}: nr.startFrames
+#: src/pages/DeckDetailPage.tsx
+msgid "{0} 张有专门画好的起拍画面"
+msgstr "{0, plural, one {# card has a dedicated opening frame} other {# cards have a dedicated opening frame}}"
+
+#. placeholder {0}: n1.text
+#: src/pages/DeckDetailPage.tsx
+msgid "{0} 张有文字版形象描述"
+msgstr "{0, plural, one {# card has a text description} other {# cards have a text description}}"
+
+#. placeholder {0}: n2.image
+#: src/pages/DeckDetailPage.tsx
+msgid "{0} 张的形象图直接进模型"
+msgstr "{0, plural, one {# card’s images go straight into the model} other {# cards’ images go straight into the model}}"
+
+#. placeholder {0}: n2.asset
+#: src/pages/DeckDetailPage.tsx
+msgid "{0} 张真人卡以火山引擎认证素材进模型"
+msgstr "{0, plural, one {# real-person card goes in as a Volcengine-verified asset} other {# real-person cards go in as Volcengine-verified assets}}"
+
+#. placeholder {0}: nr.photo
+#: src/pages/DeckDetailPage.tsx
+msgid "{0} 张真人卡以照片起拍"
+msgstr "{0, plural, one {# real-person card opens on its photo} other {# real-person cards open on their photos}}"
+
+#. placeholder {0}: n1.noRealFace
+#: src/pages/DeckDetailPage.tsx
+msgid "{0} 张真人卡用不上（这两档不收真人照片）"
+msgstr "{0, plural, one {# real-person card can’t be used} other {# real-person cards can’t be used}} (these two tiers don’t take real-person photos)"
+
+#. placeholder {0}: n2.needAsset
+#: src/pages/DeckDetailPage.tsx
+msgid "{0} 张真人卡要先勾「火山引擎适用」"
+msgstr "{0, plural, one {# real-person card needs “Volcengine verified” ticked first} other {# real-person cards need “Volcengine verified” ticked first}}"
 
 #. placeholder {0}: videos.filter((v) => v.author === a).length
 #: src/pages/ProfilePage.tsx
@@ -938,6 +993,10 @@ msgstr "{cardN, plural, one {# card} other {# cards}} · up to {maxSlots, plural
 #: src/studio/ui/NpcDialog.tsx
 msgid "{cardN} 张卡 × 最多 {0} 张图 · 按真正调用了几次出图算 · 每次重炼都会再扣"
 msgstr "{cardN, plural, one {# card} other {# cards}} × up to {0, plural, one {# image} other {# images}} · charged per actual image call · every re-forge charges again"
+
+#: src/components/TemplateShelf.tsx
+msgid "{count} 个模板"
+msgstr "{count, plural, one {# template} other {# templates}}"
 
 #: src/components/DeckCard.tsx
 msgid "{count} 张"
@@ -1571,6 +1630,10 @@ msgstr "“{name}” needs a reference image — add one on the card's details p
 #: src/studio/studioStore.ts
 msgid "「{name}」还是空的——去创意工坊给它添几张卡吧。"
 msgstr "“{name}” is still empty — add a few cards to it in the Workshop."
+
+#: src/data/economy.ts
+msgid "「{names}」做不了按参考视频出片（白模模板复刻、返修都属于这一类）——这类出片只有「{openLabel}」（{openModel}）做得到"
+msgstr "“{names}” can't render from a reference video (blockout template remakes and revisions both work this way) — only “{openLabel}” ({openModel}) can"
 
 #: src/data/economy.ts
 msgid "「{names}」这一档暂未开放白模模板出片，等开放后再来"
@@ -2419,6 +2482,7 @@ msgid "🎙 按住跟读（长按录音）"
 msgstr "🎙 Hold to read aloud (press and hold to record)"
 
 #: src/components/CardModelFit.tsx
+#: src/pages/DeckDetailPage.tsx
 msgid "🎛 按模型适配"
 msgstr "🎛 Model fit"
 
@@ -3886,6 +3950,10 @@ msgstr "Not continued (starts from its own first frame)"
 msgid "不挂满也能出片"
 msgstr "No need to fill every slot"
 
+#: src/components/TemplateShelf.tsx
+msgid "不按出片模型筛"
+msgstr "Don't filter by video model"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "不推荐"
 msgstr "No recommendation"
@@ -3954,6 +4022,10 @@ msgstr "Leave empty for no title"
 #: src/components/VisibilityPicker.tsx
 msgid "不进首页和搜索；但拿到链接的人都能看，能被转发"
 msgstr "Not in Home or search, but anyone with the link can watch it and pass it on"
+
+#: src/pages/TemplateDetailPage.tsx
+msgid "不限"
+msgstr "Any"
 
 #: src/pages/CutPage.tsx
 msgid "与素材同分辨率，最快"
@@ -4248,6 +4320,10 @@ msgstr "Faceless mannequin turnaround (outfit, build, proportions) + outfit deta
 #: src/api/admin.ts
 msgid "人身攻击 / 辱骂"
 msgstr "Personal attacks / abuse"
+
+#: src/components/TemplateShelf.tsx
+msgid "仅{tierNames}"
+msgstr "{tierNames} only"
 
 #: src/pages/CardDetailPage.tsx
 msgid "仅展示"
@@ -5202,6 +5278,10 @@ msgstr "All cards"
 msgid "全部已读"
 msgstr "Mark all read"
 
+#: src/components/TemplateShelf.tsx
+msgid "全部模型"
+msgstr "All models"
+
 #: src/components/VisibilityPicker.tsx
 msgid "公开"
 msgstr "Public"
@@ -5695,6 +5775,15 @@ msgstr "When making videos, this kind of card always gets its first image ({firs
 #: src/pages/CardDetailPage.tsx
 #~ msgid "出片时这类卡先保证第 1 张（{first}）喂给 AI；同一段里参考图总共最多 {MAX_REF_IMAGES} 张，预算还有余才轮得到第 2 张 —— 也就是同段挂的卡越少，它越可能真的进模型。预算不够时「先被丢的就是各卡的第 2 张」，卡再多下去整张卡都会带不上（两种情况生成步骤里都会逐张点名）。（白模挂卡与简约参考图直出那两条路更宽：参考图直接进视频模型，上限按所选档位的协议走。）"
 #~ msgstr "When making videos, this kind of card always gets its first image ({first}) fed to the AI. A segment takes at most {MAX_REF_IMAGES, plural, one {# reference image} other {# reference images}} in total, and the second image only gets in if there's budget left — so the fewer cards in the segment, the more likely it actually reaches the model. When the budget runs short, “each card's second image is dropped first”, and with even more cards whole cards get left out (the generation steps name each one in both cases). (Attaching cards to a blockout template and direct reference-image output in Simple mode are more generous: reference images go straight into the video model, up to the limit of the chosen tier.)"
+
+#: src/components/TemplateShelf.tsx
+#: src/pages/TemplateDetailPage.tsx
+msgid "出片模型"
+msgstr "Video model"
+
+#: src/pages/TemplateDetailPage.tsx
+msgid "出片模型是固定的：按参考视频逐镜头复刻只有「{gateLabel}」做得到，套用后这一段不能换别的画质档。"
+msgstr "The video model is fixed: only “{gateLabel}” can remake a reference video shot by shot, so this segment can't switch to another quality tier once you use the template."
 
 #: src/pages/CardDetailPage.tsx
 msgid "出片用"
@@ -6632,6 +6721,7 @@ msgid "去制作"
 msgstr "Create"
 
 #: src/components/flow/TierRow.tsx
+#: src/pages/TemplateDetailPage.tsx
 msgid "去升级"
 msgstr "Upgrade"
 
@@ -7316,6 +7406,14 @@ msgstr "Text only"
 msgid "只画 1 张主图 · 它同时就是卡面"
 msgstr "Draws just 1 main image · it doubles as the card face"
 
+#: src/components/TemplateShelf.tsx
+msgid "只看你想用的那个模型出得了片的模板。模板对出片模型是硬要求：白模模板要按参考视频逐镜头复刻，换一个模型不是效果差一点，是出不了片。"
+msgstr "Show only the templates that the model you want to use can actually render. A template's video model is a hard requirement: blockout templates remake a reference video shot by shot, and on another model the result isn't just a bit worse — it won't render at all."
+
+#: src/components/TemplateShelf.tsx
+msgid "只看能用「{tierPickedLabel}」出片的模板，另有 {tierHidden} 个用不了这个模型。"
+msgstr "Showing only templates that render on “{tierPickedLabel}”; {tierHidden} more can't use this model."
+
 #: src/components/guide/tours.tsx
 msgid "只管 3D 工坊"
 msgstr "Only affects the 3D Studio"
@@ -7808,6 +7906,10 @@ msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜�
 msgid "固定"
 msgstr "Static"
 
+#: src/pages/TemplateDetailPage.tsx
+msgid "固定，套用后不能换"
+msgstr "Fixed — can't be changed once applied"
+
 #: src/components/guide/tours.tsx
 msgid "图会被怎么处理"
 msgstr "What happens to your images"
@@ -8170,6 +8272,10 @@ msgstr "Using it = remaking this clip's scenes and camera moves, with the manneq
 #: src/pages/TemplateDetailPage.tsx
 msgid "套用一次约 <0>{0}</0> token（按模板视频时长计）"
 msgstr "Each use costs about <0>{0}</0> tokens (based on the template video's length)"
+
+#: src/pages/TemplateDetailPage.tsx
+msgid "套用后在「画质」那一排自己选"
+msgstr "Pick it in the “Quality” row after applying"
 
 #: src/pages/TemplateDetailPage.tsx
 msgid "套用失败"
@@ -9406,8 +9512,12 @@ msgid "市场里还没有别人公开的形象。"
 msgstr "No one else has published a look to the market yet."
 
 #: src/components/guide/tours.tsx
-msgid "市场页签顶上能<0>按词搜</0>，下面那排芯片<1>按类筛</1>，两个叠在一起生效。选中的分类在「我的模板」里也管用，没分过类的老模板只在「全部」下出现——找不到自己做的，先点回「全部」。"
-msgstr "On the market tab you can <0>search by keyword</0> at the top, and the row of chips below <1>filters by category</1>; the two work together. The category you pick also applies in “My templates”, and older templates without a category only show under “All” — if you can't find one you made, tap “All” first."
+#~ msgid "市场页签顶上能<0>按词搜</0>，下面那排芯片<1>按类筛</1>，两个叠在一起生效。选中的分类在「我的模板」里也管用，没分过类的老模板只在「全部」下出现——找不到自己做的，先点回「全部」。"
+#~ msgstr "On the market tab you can <0>search by keyword</0> at the top, and the row of chips below <1>filters by category</1>; the two work together. The category you pick also applies in “My templates”, and older templates without a category only show under “All” — if you can't find one you made, tap “All” first."
+
+#: src/components/guide/tours.tsx
+msgid "市场页签顶上能<0>按词搜</0>，搜索框右边那颗<1>出片模型</1>只留你想用的那个模型出得了片的模板，下面那排芯片<2>按类筛</2>，三个叠在一起生效。选中的分类在「我的模板」里也管用，没分过类的老模板只在「全部」下出现——找不到自己做的，先点回「全部」。"
+msgstr "On the market tab you can <0>search by keyword</0> at the top, the <1>Video model</1> button to the right of the search box keeps only the templates that the model you want can render, and the row of chips below <2>filters by category</2>; all three work together. The category you pick also applies in “My templates”, and older templates without a category only show under “All” — if you can't find one you made, tap “All” first."
 
 #: src/studio/segmentGen.ts
 msgid "带参考视频的自定义段暂不支持圈选改画面——清掉圈选标注再出片"
@@ -10652,6 +10762,10 @@ msgstr "Revising this segment as you described (duration follows the video; the 
 #: src/studio/flowStore.ts
 msgid "按修改重画画面…"
 msgstr "Redrawing with your changes…"
+
+#: src/components/TemplateShelf.tsx
+msgid "按出片模型筛选"
+msgstr "Filter by video model"
 
 #. placeholder {0}: refUrls.length
 #: src/studio/segmentGen.ts
@@ -12665,6 +12779,7 @@ msgid "标准"
 msgstr "Standard"
 
 #: src/components/CardModelFit.tsx
+#: src/pages/DeckDetailPage.tsx
 msgid "标准 / 极速：{line10}"
 msgstr "Standard / Fast: {line10}"
 
@@ -12817,6 +12932,10 @@ msgstr "brown"
 #: src/studio/ui/projection.tsx
 msgid "模型：{0}"
 msgstr "Model: {0}"
+
+#: src/components/TemplateShelf.tsx
+msgid "模型不限"
+msgstr "Any model"
 
 #: src/studio/cutAutoEdit.ts
 msgid "模型写：片头标题、每段一句话、哪几处换了场"
@@ -13730,6 +13849,14 @@ msgstr "No new conversation, nothing to tidy."
 #: src/studio/cutAgent.ts
 msgid "没有片段 {ref}（时间轴上一共 {count} 个）"
 msgstr "There's no clip {ref} (the timeline has {count})"
+
+#: src/components/TemplateShelf.tsx
+msgid "没有能用「{name}」（{model}）出片的模板——点搜索栏旁边那颗键换一个模型，或者选回「全部模型」。"
+msgstr "No templates render on “{name}” ({model}) — tap the button next to the search box to pick another model, or go back to “All models”."
+
+#: src/components/TemplateShelf.tsx
+msgid "没有能用「{name}」（{model}）出片的模板。现有的 {hidden} 个都要按参考视频逐镜头复刻，只有「{needLabel}」（{needModel}）做得到——点搜索栏旁边那颗键换一个模型，或者选回「全部模型」。"
+msgstr "No templates render on “{name}” ({model}). {hidden, plural, one {The # template here remakes} other {All # templates here remake}} a reference video shot by shot, which only “{needLabel}” ({needModel}) can do — tap the button next to the search box to pick another model, or go back to “All models”."
 
 #: src/studio/cutAgent.ts
 msgid "没有要配音的句子（还没写字幕，或者都配好了）"
@@ -15382,6 +15509,10 @@ msgstr "Videos from blockout templates aren't available yet: no tier supports bl
 msgid "白模模板发布前"
 msgstr "Before publishing a blockout"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "白模模板固定用「{needLabel}」（{needModel}）出片：选了之后这一段不能换别的画质档。"
+msgstr "Blockout templates always render on “{needLabel}” ({needModel}): once you pick one, this segment can't switch to another quality tier."
+
 #: src/data/templates.ts
 msgid "白模模板已生成"
 msgstr "Blockout template created"
@@ -15495,6 +15626,10 @@ msgstr "Looks over the clips you've arranged: an opening title, one narration li
 msgid "看一遍再铺；铺是整表覆盖，现有流水线会先问你"
 msgstr "Review before laying it out; laying out replaces the whole pipeline, so you'll be asked about the current one first"
 
+#: src/components/TemplateShelf.tsx
+msgid "看全部"
+msgstr "Show all"
+
 #: src/pages/PublishPage.tsx
 msgid "看到这条片子的人能看到卡面与设定，也能「收入卡组」接着创作——这是别人找到你的主要方式。声明过真实人物的卡，形象图不会给出去。"
 msgstr "People who see this video can see the cards and their details, and can “Add to my cards” to create with them — this is the main way others find you. Cards marked as real people don't share their images."
@@ -15546,8 +15681,13 @@ msgid "真人卡不用另画起拍画面：真人档直接以卡上的照片起�
 msgstr "Real-person cards don’t need a separate opening frame: the Real-person tier opens on the card’s photo"
 
 #: src/components/CardModelFit.tsx
+#: src/pages/DeckDetailPage.tsx
 msgid "真人档：{lineReal}"
 msgstr "Real-person: {lineReal}"
+
+#: src/pages/DeckDetailPage.tsx
+msgid "真人档一段只用一张起拍画面。哪张没适配，点进那张卡的「按模型适配」里补。"
+msgstr "The Real-person tier uses just one opening frame per segment. For any card that isn't ready, open that card and fix it under “Model fit”."
 
 #: src/ai/minimaxVideo.ts
 msgid "真人档任务受理了却没给任务号——上游协议变了，把这句话反馈给我们"
@@ -17686,8 +17826,12 @@ msgid "规格"
 msgstr "Specs"
 
 #: src/components/guide/tours.tsx
-msgid "角标写着这个模板能干什么。<0>白模</0>：出片时整段复刻它的场景、道具与运镜，只把人换掉，旁边报的是这条模板视频有多长——成片长度和画幅都跟着它走；<1>几个角色位可换人</1>：画面里那几个白色人偶，各能挂一张你的角色卡。没有这两枚角标的是经典配方模板，按分镜骨架重新画，旁边报的是分几段。"
-msgstr "The badges say what a template can do. <0>Blockout</0>: rendering copies its whole scene, props and camera work and only swaps the people, and the number shown with it is how long the template video is — the finished video's length and aspect ratio follow it. <1>Recastable slots</1>: each of the white mannequins in the picture can take one of your character cards. Templates without either of those badges are classic recipe templates, redrawn from the shot outline, and the number shown is how many segments they have."
+#~ msgid "角标写着这个模板能干什么。<0>白模</0>：出片时整段复刻它的场景、道具与运镜，只把人换掉，旁边报的是这条模板视频有多长——成片长度和画幅都跟着它走；<1>几个角色位可换人</1>：画面里那几个白色人偶，各能挂一张你的角色卡。没有这两枚角标的是经典配方模板，按分镜骨架重新画，旁边报的是分几段。"
+#~ msgstr "The badges say what a template can do. <0>Blockout</0>: rendering copies its whole scene, props and camera work and only swaps the people, and the number shown with it is how long the template video is — the finished video's length and aspect ratio follow it. <1>Recastable slots</1>: each of the white mannequins in the picture can take one of your character cards. Templates without either of those badges are classic recipe templates, redrawn from the shot outline, and the number shown is how many segments they have."
+
+#: src/components/guide/tours.tsx
+msgid "角标写着这个模板能干什么。<0>白模</0>：出片时整段复刻它的场景、道具与运镜，只把人换掉，旁边报的是这条模板视频有多长——成片长度和画幅都跟着它走；<1>几个角色位可换人</1>：画面里那几个白色人偶，各能挂一张你的角色卡。没有这两枚角标的是经典配方模板，按分镜骨架重新画，旁边报的是分几段。标题下面那行小字的头一枚是<2>出片模型</2>：写着「仅」哪一档的，套用后出片模型固定、不能换；「模型不限」的可以自己选。"
+msgstr "The badges say what a template can do. <0>Blockout</0>: rendering copies its whole scene, props and camera work and only swaps the people, and the number shown with it is how long the template video is — the finished video's length and aspect ratio follow it. <1>Recastable slots</1>: each of the white mannequins in the picture can take one of your character cards. Templates without either of those badges are classic recipe templates, redrawn from the shot outline, and the number shown is how many segments they have. The first chip in the small line under the title is the <2>video model</2>: one that says “… only” means the model is fixed once you use the template and can't be changed; “Any model” means you choose."
 
 #: src/ai/real.ts
 msgid "角色卡上没有可用的形象图"
@@ -21785,6 +21929,7 @@ msgid "高清"
 msgstr "HD"
 
 #: src/components/CardModelFit.tsx
+#: src/pages/DeckDetailPage.tsx
 msgid "高清 / 电影级：{line2x}"
 msgstr "HD / Cinematic: {line2x}"
 

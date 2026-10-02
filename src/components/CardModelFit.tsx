@@ -15,7 +15,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useState } from "react";
 import { AI_REAL, briefArkReason, chargeNote, chargeOnFail, describeCardForText, drawStartFrames } from "../ai";
 import { uploadImage } from "../api/uploads";
-import { assetOf } from "../data/cardAsset";
+import { cardFitOf } from "../data/cardFit";
 import { canAfford, frozenNote, isRemoteMode, spendTokens, updateCardMeta } from "../data/account";
 import { CHAT_TURN_TOKENS, ONE_IMAGE, fmtTokens } from "../data/economy";
 import { TEXT_DESC_MAX, startFramesAllowed, type Card, type VideoAspect } from "../types";
@@ -35,6 +35,9 @@ export default function CardModelFit({ card, owned }: { card: Card; owned: boole
     setDraft(card.textDesc ?? "");
   }, [card.id, card.textDesc]);
   if (!owned || card.type === "background") return null;
+  /** 这张卡在三类出片模型上的状态（判据只在 data/cardFit 一处，卡组页的适配摘要读的是同一份） */
+  const fit = cardFitOf(card);
+  if (!fit) return null; // 只有背景卡会走到这里，上面已经早退；这一行让类型闭合
 
   const textOn = !!card.textDesc?.trim();
   const framesOn = !!(card.startFrames?.portrait || card.startFrames?.landscape);
@@ -44,26 +47,29 @@ export default function CardModelFit({ card, owned }: { card: Card; owned: boole
   const textPrice = fmtTokens(CHAT_TURN_TOKENS);
   const framesPrice = fmtTokens(ONE_IMAGE * ASPECTS.length);
 
-  // ── 各档位能用到这张卡的哪些部分（与出片管线同一套事实，见文件头） ──
-  const line2x = real
-    ? assetOf(card.id)
+  // ── 各档位能用到这张卡的哪些部分（与出片管线同一套事实，见文件头；状态由 cardFitOf 给，这里只负责说成整句） ──
+  const line2x =
+    fit.ref === "asset"
       ? t`以火山引擎认证素材进模型（只在简约模式不带首帧时）`
-      : t`要先勾「火山引擎适用」`
-    : t`形象图直接进模型`;
-  const line10 = real
-    ? t`不收真人照片`
-    : textOn
-      ? t`收不到图时用文字版形象描述`
-      : t`形象图只经由设定帧起作用，收不到图时只剩出片句`;
-  const lineReal = real
-    ? t`以卡上的真人照片起拍`
-    : framesOn
-      ? t`用专门画好的起拍画面起拍`
-      : card.type === "character"
-        ? t`用卡上的图起拍（白底立绘开场就是白底）`
-        : framesAllowed
-          ? t`只有它当起拍画面时才用得上形象图`
-          : t`只用文字`;
+      : fit.ref === "needAsset"
+        ? t`要先勾「火山引擎适用」`
+        : t`形象图直接进模型`;
+  const line10 =
+    fit.frames === "noRealFace"
+      ? t`不收真人照片`
+      : fit.frames === "text"
+        ? t`收不到图时用文字版形象描述`
+        : t`形象图只经由设定帧起作用，收不到图时只剩出片句`;
+  const lineReal =
+    fit.start === "photo"
+      ? t`以卡上的真人照片起拍`
+      : fit.start === "startFrames"
+        ? t`用专门画好的起拍画面起拍`
+        : fit.start === "ownImage"
+          ? t`用卡上的图起拍（白底立绘开场就是白底）`
+          : fit.start === "onlyAsStart"
+            ? t`只有它当起拍画面时才用得上形象图`
+            : t`只用文字`;
 
   async function save(patch: Parameters<typeof updateCardMeta>[1]): Promise<boolean> {
     const err = await updateCardMeta(card.id, patch);
