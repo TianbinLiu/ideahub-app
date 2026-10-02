@@ -303,6 +303,28 @@ P0 可以单独发一版；P1 开工前要先把 §五拍掉。
 `.env.e2e.local` 写 `VITE_API_BASE=http://127.0.0.1:4200`；账号用 `POST /api/auth/register` 建在内存库里；流水线用 `window.__flow` 铺两段带 https 成片地址的节点、
 从画布点「🎬 完成视频」走真的组稿 + 画布捕获，再直接 `#/publish`（浏览器里合并走不了）。⚠ 改 .po 会让 dev 整页重载、内存里的合成稿没了，从「我的 → 接着剪」取回来再发。
 
+### P2 落地记录（2026-10-02，App 与服务端各一个 PR；服务端 ideahub-server#102 等「合」）
+
+| 做了什么 | 落在哪 | 唯一实现 |
+|---|---|---|
+| **工作流模板 = 上了架的公开配方**（§五-5：必须挂在已发布作品上，示例视频就是那条作品） | 服务端 `BranchRecipe.listed / listedAt`，只有「公开 + 不过期」才许上架（400 `RECIPE_NOT_LISTABLE`，整句拒不静默）；关公开顺手下架；回炉后过期自动从货架消失，重投新一版回来 | server `branchRecipe.controller.patchRecipe` / `putRecipe`；App `data/recipes.setRecipeListed` / `shareFromCanvas(…, listed)` |
+| 两条上架入口 | ① 发布页「公开制作过程」下面一颗从属开关「同时上架到模板市场」（缺省不勾，选择随画布待办 `PendingCanvas.listRecipe` 走，离线补发也带着）；② 编辑页「制作过程」里「上架到模板市场 / 从模板市场下架」（只在公开且不过期时摆） | `PublishPage` 的 `listRecipe`；`EditPage.toggleRecipeListed` |
+| 货架 | 模板市场多一个「工作流」页签（`?shelf=workflows`，与另外两档并列）：按上架时间倒序，一张卡 = 封面 + 作者 + 段数 / 总时长 / 档位 / 用了模板的段 / 空位 / 同款数；四档结局各说各的；不带正文 | `components/WorkflowShelf` ← `data/recipes.fetchWorkflowTemplates` ← `GET /api/branch/templates/workflows`（**挂在 branchTemplate 路由之前**，不然 `/templates/:id` 吞掉 `workflows`） |
+| 模板页 | 就是制作过程页：顶上多一块示例视频（封面 + ▶ 去作品页）与「模板市场 · 工作流」徽标，其余（摘要 / 分镜 / 卡与空位 / 按这个流程做同款）P1 就有 | `RecipePage`；配方 meta 多 `listed` / `cover` |
+| **被公开流程引用的段模板只能下架**（§五-8） | 服务端 `BranchTemplate.status` 多一档 `retired`：作者「删除 / 下架」时引用数 > 0 就落成 retired —— 不进市场、素材不回收、**所有人**仍能按 id 读到（`GET /templates/:id`）并用它出片（ark `resolveR2v` 放行）；引用归零之后再删才真删。引用数现算（`BranchRecipe.refsOfTemplate`，`recipe.nodes.tpl.id` 多键索引），不缓存 | App：`branch.deleteRemoteTemplate` / `unpublishTemplate` 回 `retiredRefs`，`templates.deleteTemplateEverywhere` / `setTemplatePublished` 把条目留着、状态记 retired；详情页状态条「已下架 · 仍被公开的制作过程引用」+「重新发布」+ 一句 `retiredNote`（引用数） |
+| 治理 | 货架按作品可读性筛（列表口径但**收凭链接可见** —— 主人说不想进首页流就设成凭链接可见）；私密 / 下架的不列；blocked 的模板删除时不会被洗成 retired | server `videoReadableFilter` |
+
+没做的 / 有意留着的：
+
+- 货架上**不套**出片模型 / 分类那两套筛选（工作流的档位是逐段的、分类是作品的，硬套会筛错），先按上架时间倒序；要筛 P3 再议。
+- 「先搭后发」那条入口（在工作流里跑通一次就能发）没有单独做：发布本来就要求每段都出过片（合并对没出片的段整句拒），所以发布页那颗从属开关就是它。
+- 引用数归零的**自动**回收（清扫器）没做：作者自己再删一次才真删。
+- 退役模板在「我的模板」列表卡上没有单独的徽标（详情页有）。
+
+验法同 P1（内存服务端 + e2e dev）：段模板经 mongoose 直写进内存库（`BranchTemplate.create`，Cloudinary 没配、走不了登记端点），
+流水线第二段的 `tpl` 带 `remoteId` 指向它；发布时勾「同时上架」→ `GET /templates/workflows` 有货、货架页签有卡、编辑页上 / 下架往返 →
+模板作者登录删那张被引用的模板 → 详情页变「已下架 · 仍被公开的制作过程引用」+ 引用数一句，匿名 `GET /templates/:id` 仍 200、`/templates/shared` 里没有它 → 「重新发布」回 published。
+
 ## 五、拍板结果（主人 2026-10-02）
 
 主人当天明确回了四条（表里标 ★），其余六条按"没意见就按建议走"。

@@ -881,11 +881,11 @@ export function partsOf(v: VideoItem): VideoPart[] {
  * 那时还没 PUT），不接这一下的话作者要重进一次才看得见那颗键。只改内存（远端模式本机不落盘，这两位本来也是服务端的真相）。
  * null = 配方删掉了。订阅在 data/recipes（它不能引本文件）。
  */
-function noteRecipeState(id: string, state: { public: boolean; stale: boolean } | null): void {
+function noteRecipeState(id: string, state: { public: boolean; stale: boolean; listed: boolean } | null): void {
   const v = find(id);
   if (!v) return;
   if (state) {
-    v.recipeState = { public: state.public, stale: state.stale };
+    v.recipeState = { public: state.public, stale: state.stale, listed: state.listed };
     if (state.public && !state.stale) v.recipePublic = true;
     else delete v.recipePublic;
   } else {
@@ -1030,7 +1030,7 @@ export async function deleteVideoItem(id: string): Promise<string | null> {
  * @param opts.shareRecipe 发布页那颗「公开制作过程」的选择（2026-10-02，缺省不公开）。它不进发布体，
  *   而是盖进组稿那一拍抓下的画布待办（data/projects），发布成功留存工程时顺手投成公开配方 PUT 上去。
  */
-export function publishVideo(draft: DraftVideo, opts?: { shareRecipe?: boolean }): VideoItem {
+export function publishVideo(draft: DraftVideo, opts?: { shareRecipe?: boolean; listRecipe?: boolean }): VideoItem {
   // 幂等键跟着草稿走：pushPublish 超时后进待发队列，flushPending 重发的是同一个 draft，
   // 服务端认这个键返回首次那条，不会重复落库
   draft = { ...draft, clientId: draft.clientId ?? uid("cv") };
@@ -1072,7 +1072,7 @@ export function publishVideo(draft: DraftVideo, opts?: { shareRecipe?: boolean }
   //   任何一条上行路启动之前）：下面两条分支（现在传 / 进待发队列等 flushPending 补发）
   //   最终都靠这个键把回包与那份画布对上号。挂进 pushPublish 里就会漏掉离线那一条，
   //   而那条正是「作品发出去了、工程却永远留不上」最常见的形状。
-  void projects.stampPendingCanvas(draft.clientId, opts?.shareRecipe === true);
+  void projects.stampPendingCanvas(draft.clientId, opts?.shareRecipe === true, opts?.listRecipe === true);
   if (remoteOn()) {
     void pushPublish(item, draft);
   } else if (API_ON) {
@@ -1702,7 +1702,7 @@ function recipeBits(v: branch.ApiVideo): Pick<VideoItem, "recipePublic" | "recip
   return {
     ...(v.recipePublic === true ? { recipePublic: true } : {}),
     ...(v.recipeState && typeof v.recipeState === "object"
-      ? { recipeState: { public: v.recipeState.public === true, stale: v.recipeState.stale === true } }
+      ? { recipeState: { public: v.recipeState.public === true, stale: v.recipeState.stale === true, listed: v.recipeState.listed === true } }
       : {}),
     ...(v.remixOf && typeof v.remixOf === "object" && typeof v.remixOf.id === "string"
       ? {

@@ -455,6 +455,9 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   remixOf / remixCount 只有详情端点才算，漏在详情那一跳的症状是服务端回了、屏幕上一个字没有（第一版就这么漏过）。
   按配方复制的建料在 `flowStore.recipeNodesOf`（第九条整表换 nodes 的入口，守卫走 `useApplyTemplate`）：白模段的模板由页面
   **先取**（本机库 → 服务端 id），取不到退普通段并记进 notes 铺完当面说。老服务端上判「不支持」看回包形状，不看状态码。
+  **P2（同日）**：工作流模板**就是**上了架的公开配方（`listed`，必须挂在已发布作品上），货架 `components/WorkflowShelf`、模板页 = 制作过程页；
+  上架只许「公开 + 不过期」（服务端整句拒）。**被公开流程引用的段模板只能下架**：服务端把它退役成 `status: "retired"`（不进市场、素材不回收、
+  所有人仍能读到并用它出片），App 把 `retiredRefs` 说成人话（`templates.retiredNote`）、条目留着不删 —— 别把 retired 当成 blocked 或 pending 处理。
 - **已发布作品的「回炉重做」存 `data/projects.ts`，不进草稿库**（2026-09-07）：发布（以及每一次
   回炉）成功后把当时那份工坊画布瘦身成**只含永久 URL** 的 JSON PUT 进服务端，编辑页那颗
   「🛠 回炉重做」取回来接着改，再走 `PATCH /videos/:id` 带 `segments` + `baseRevision` 换掉内容

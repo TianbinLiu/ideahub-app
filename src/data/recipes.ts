@@ -10,7 +10,7 @@ import { t } from "@lingui/core/macro";
 import * as api from "../api/recipes";
 import { ApiError } from "../api/client";
 import { projectRecipe, type RecipeIssue, type WorkflowRecipe } from "./recipe";
-import type { ApiRecipe, ApiRecipeMeta } from "../api/recipes";
+import type { ApiRecipe, ApiRecipeMeta, ApiWorkflowTemplate } from "../api/recipes";
 import { onViewerChange } from "./deviceOwner";
 
 /**
@@ -18,7 +18,7 @@ import { onViewerChange } from "./deviceOwner";
  * `recipeState` 改过来 —— 本文件不能引 videos（videos → projects → 本文件，反过来就是环），所以用订阅不用直调。
  * null = 配方没了。
  */
-export type RecipeStateListener = (videoId: string, state: { public: boolean; stale: boolean } | null) => void;
+export type RecipeStateListener = (videoId: string, state: { public: boolean; stale: boolean; listed: boolean } | null) => void;
 const listeners = new Set<RecipeStateListener>();
 export function onRecipeStateChange(fn: RecipeStateListener): () => void {
   listeners.add(fn);
@@ -26,7 +26,7 @@ export function onRecipeStateChange(fn: RecipeStateListener): () => void {
     listeners.delete(fn);
   };
 }
-function announce(videoId: string, state: { public: boolean; stale: boolean } | null): void {
+function announce(videoId: string, state: { public: boolean; stale: boolean; listed: boolean } | null): void {
   for (const fn of listeners) fn(videoId, state);
 }
 
@@ -58,14 +58,22 @@ function why(e: unknown): string {
  * 画布 → 配方 → PUT。`canvas` 必须是**瘦身过**的（只含永久地址）：发布链路上拿的是 projects.submit 刚算出来的那份，
  * 编辑页拿的是服务端留存的那份 —— 两条路进来的都已经干净了；带着本机地址来的投影会把那些画面丢掉，服务端也会整句拒。
  */
-export async function shareFromCanvas(videoId: string, videoRevision: number, canvas: unknown, isPublic: boolean): Promise<ShareOutcome> {
+export async function shareFromCanvas(
+  videoId: string,
+  videoRevision: number,
+  canvas: unknown,
+  isPublic: boolean,
+  /** 同时上架到模板市场（工作流模板）。不传 = 不动原来的上架位 */
+  listed?: boolean,
+): Promise<ShareOutcome> {
   const recipe = projectRecipe(canvas);
   if (typeof recipe === "string") return { ok: false, kind: "projection", why: recipeIssueText(recipe) };
   try {
-    const meta = await api.putRecipe(videoId, { recipe, videoRevision, public: isPublic });
+    const meta = await api.putRecipe(videoId, { recipe, videoRevision, public: isPublic, ...(listed !== undefined ? { listed } : {}) });
     if (!meta) return { ok: false, kind: "unsupported", why: t`这台服务器还不支持公开制作过程` };
     cache.set(videoId, null); // 作者那一页读的是服务端那份，下次重取
-    announce(videoId, { public: meta.public, stale: meta.stale });
+    announce(videoId, { public: meta.public, stale: meta.stale, listed: meta.listed });
+    shelf = null; // 货架缓存作废
     return { ok: true, meta };
   } catch (e) {
     if (e instanceof ApiError && e.status >= 400 && e.status < 500) return { ok: false, kind: "rejected", why: why(e) };
@@ -84,7 +92,10 @@ export type RecipeFetch =
 const cache = new Map<string, ApiRecipe | null>();
 // ★ 换人就整个清掉：回包里带着 `isOwner`（按谁在问算的），A 退出 B 登录后沿用 A 那份会把 B 当成作者 ——
 //   制作过程页上冒出「这是你公开的制作过程，到编辑页可以关闭」（2026-10-02 浏览器里实测撞到）
-onViewerChange(() => cache.clear());
+onViewerChange(() => {
+  cache.clear();
+  shelf = null; // 货架按"这个人读得到的作品"筛，换人要重取
+});
 
 export async function fetchRecipe(videoId: string, opts?: { fresh?: boolean }): Promise<RecipeFetch> {
   if (!opts?.fresh) {
@@ -107,14 +118,46 @@ export async function fetchRecipe(videoId: string, opts?: { fresh?: boolean }): 
 
 /** 作者开 / 关公开。@returns null = 成了；字符串 = 整句人话 */
 export async function setRecipePublic(videoId: string, on: boolean): Promise<string | null> {
+  return patchRecipeState(videoId, { public: on });
+}
+
+/** 作者把制作过程上 / 下架到模板市场（工作流模板）。@returns null = 成了；字符串 = 整句人话（没公开 / 过期时服务端整句拒） */
+export async function setRecipeListed(videoId: string, on: boolean): Promise<string | null> {
+  return patchRecipeState(videoId, { listed: on });
+}
+
+async function patchRecipeState(videoId: string, patch: { public?: boolean; listed?: boolean }): Promise<string | null> {
   try {
-    const meta = await api.patchRecipe(videoId, on);
+    const meta = await api.patchRecipe(videoId, patch);
     if (!meta) return t`这台服务器还不支持公开制作过程`;
     cache.set(videoId, null);
-    announce(videoId, { public: meta.public, stale: meta.stale });
+    announce(videoId, { public: meta.public, stale: meta.stale, listed: meta.listed });
+    shelf = null;
     return null;
   } catch (e) {
     return why(e);
+  }
+}
+
+// ── 模板市场的「工作流」货架 ─────────────────────────────────────────
+
+export type WorkflowShelf =
+  | { state: "ok"; items: ApiWorkflowTemplate[] }
+  | { state: "unsupported" }
+  | { state: "failed"; why: string };
+
+/** 本次会话里读过的货架（上下架之后作废） */
+let shelf: WorkflowShelf | null = null;
+
+export async function fetchWorkflowTemplates(opts?: { fresh?: boolean }): Promise<WorkflowShelf> {
+  if (!opts?.fresh && shelf && shelf.state === "ok") return shelf;
+  try {
+    const items = await api.listWorkflowTemplates();
+    const next: WorkflowShelf = items ? { state: "ok", items } : { state: "unsupported" };
+    if (next.state === "ok") shelf = next;
+    return next;
+  } catch (e) {
+    return { state: "failed", why: why(e) };
   }
 }
 

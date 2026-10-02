@@ -46,6 +46,7 @@ import {
   registerIssueOf,
   registerTemplate,
   remoteStateOf,
+  retiredNote,
   setTemplateCategory,
   setTemplatePublished,
   templateGroupOf,
@@ -302,6 +303,8 @@ function OwnerBar({
   const [intro, setIntro] = useState(tpl.intro);
   const [busy, setBusy] = useState(false);
   const [opErr, setOpErr] = useState("");
+  /** 下架 / 删除时服务端把它退役了（被公开的制作过程引用着）：这句要当面说，不然作者以为删掉了 */
+  const [opNote, setOpNote] = useState("");
   /** 删除的第一段：按钮已经变成「真的删掉？」，再点一下才真动手（见下面那颗按钮的 ★★） */
   const [armed, setArmed] = useState(false);
   const dirty = title !== tpl.title || intro !== tpl.intro;
@@ -311,12 +314,14 @@ function OwnerBar({
 
   /** 异步操作的统一收口：失败把 message 印出来（全 app 没人监听 emitApiError，
    *  这里不接住就是静默失败——铁律八） */
-  async function run(op: () => Promise<void>) {
+  async function run(op: () => Promise<void | number | null>) {
     if (busy) return;
     setBusy(true);
     setOpErr("");
+    setOpNote("");
     try {
-      await op();
+      const refs = await op();
+      if (typeof refs === "number") setOpNote(retiredNote(refs));
     } catch (e) {
       setOpErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -352,6 +357,21 @@ function OwnerBar({
     }
     if (rs?.status === "blocked") {
       return <span className="rounded-full bg-rose-500/15 px-3.5 py-1.5 text-xs text-rose-300"><Trans>已被平台下架</Trans></span>;
+    }
+    // 退役（被公开的制作过程引用着、作者下了架）：不在市场，但那几条流程仍在用它 —— 可以重新发布
+    if (rs?.status === "retired") {
+      return (
+        <>
+          <span className="rounded-full bg-amber-500/15 px-3.5 py-1.5 text-xs text-amber-200"><Trans>已下架 · 仍被公开的制作过程引用</Trans></span>
+          <button
+            onClick={() => void run(() => setTemplatePublished(tpl.id, true))}
+            disabled={busy}
+            className="rounded-full bg-brand px-3.5 py-1.5 text-xs font-bold text-ink disabled:opacity-40"
+          >
+            <Trans>重新发布</Trans>
+          </button>
+        </>
+      );
     }
     if (tpl.published) {
       return (
@@ -455,10 +475,13 @@ function OwnerBar({
               return;
             }
             void run(async () => {
-              await deleteTemplateEverywhere(tpl.id);
+              const refs = await deleteTemplateEverywhere(tpl.id);
+              // 退役而不是删（被公开的制作过程引用着）：留在这一页把话说出来，别跳走
+              if (typeof refs === "number") return refs;
               // ★ replace 不是 push：被删的这一页不能留在历史栈里 —— 留着的话在市场页按返回
               //   会回到一个已经不存在的模板（2026-09-05 主人真机：「返回到上一访问的模板页」）
               nav("/templates", { replace: true });
+              return null;
             });
           }}
           onBlur={() => setArmed(false)}
@@ -536,6 +559,7 @@ function OwnerBar({
         </p>
       )}
       {opErr && <p className="mt-2 text-[11px] leading-relaxed text-rose-300">{opErr}</p>}
+      {opNote && <p className="mt-2 text-[11px] leading-relaxed text-amber-200">{opNote}</p>}
       {tpl.published && <p className="mt-2 text-[10px] text-slate-500"><Trans>已在模板市场公开，别人可以直接套用出片。</Trans></p>}
     </div>
   );

@@ -128,8 +128,8 @@ export interface ApiVideo {
   revisedAt?: string | number;
   /** 公开配方（制作过程）已公开且描述的正是当下这一版：服务端只在为真时发（2026-10-02） */
   recipePublic?: boolean;
-  /** 作者本人才有：留存过配方时的开关现状 */
-  recipeState?: { public?: boolean; stale?: boolean };
+  /** 作者本人才有：留存过配方时的开关现状（listed = 上架到了模板市场，老服务端不发） */
+  recipeState?: { public?: boolean; stale?: boolean; listed?: boolean };
   /** 按谁的流程做的（详情端点才有；原作公开可见时才发） */
   remixOf?: { id: string; title?: string; author?: ApiAuthor | string };
   /** 有几个人按它做了同款（详情端点才有） */
@@ -1575,9 +1575,21 @@ export async function detectTemplateRoles(
   };
 }
 
-export async function unpublishTemplate(id: string): Promise<ApiBranchTemplate | null> {
+/**
+ * 「被公开的制作过程引用着」的那一档回包（2026-10-02 模板体系 P2）：作者下架 / 删除时服务端不回收素材，
+ * 把模板**退役**（status=retired，不进市场、所有人仍能按 id 读到并用它出片），回 `retired: true, refs: N`。
+ * 判有值：老服务端不发 = 照老行为走。
+ */
+export function retiredRefs(res: unknown): number | null {
+  if (typeof res !== "object" || res === null) return null;
+  const r = res as Record<string, unknown>;
+  if (r.retired !== true) return null;
+  return Math.max(1, Number(r.refs) || 1);
+}
+
+export async function unpublishTemplate(id: string): Promise<{ template: ApiBranchTemplate | null; retiredRefs: number | null }> {
   const res = await apiPatch<Record<string, unknown>>(`/api/branch/templates/${encodeURIComponent(id)}/unpublish`);
-  return pick<ApiBranchTemplate>(res, ["template", "item", "data"]);
+  return { template: pick<ApiBranchTemplate>(res, ["template", "item", "data"]), retiredRefs: retiredRefs(res) };
 }
 
 /**
@@ -1586,10 +1598,10 @@ export async function unpublishTemplate(id: string): Promise<ApiBranchTemplate |
  * @returns false = 这台服务器没有这个端点（回包形状不对，判据同 removeComment 的
  *   deleteLanded——Capacitor SPA 回退恒 200，状态码不可信），调用方必须说出来
  */
-export async function deleteRemoteTemplate(id: string): Promise<boolean> {
+export async function deleteRemoteTemplate(id: string): Promise<false | { retiredRefs: number | null }> {
   try {
     const res = await apiDelete<unknown>(`/api/branch/templates/${encodeURIComponent(id)}`);
-    return deleteLanded(res);
+    return deleteLanded(res) ? { retiredRefs: retiredRefs(res) } : false;
   } catch (e) {
     // ★★★ 404 = **它已经不在了**，而"删除"要的就是这个结果 —— 按成功算（幂等）。
     //   不这么写的话：另一台设备（或上一次点击）已经把它删掉了，这一次 apiDelete
@@ -1605,7 +1617,7 @@ export async function deleteRemoteTemplate(id: string): Promise<boolean> {
     //   两者的 `code` 一模一样（都是 NOT_FOUND，见 server 的 utils/http.notFound 与
     //   middleware/error.notFound），唯一的区别是②由我们自己的中间件生成、message
     //   固定以 `Route not found:` 开头。判这个前缀不是猜 —— 那是本仓自己的产物。
-    if (e instanceof ApiError && e.status === 404 && !/^Route not found:/i.test(e.message)) return true;
+    if (e instanceof ApiError && e.status === 404 && !/^Route not found:/i.test(e.message)) return { retiredRefs: null };
     throw e;
   }
 }

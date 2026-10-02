@@ -663,8 +663,10 @@ msgstr "{0} 个卡组"
 msgid "{0} 个片段 · 共 {1}"
 msgstr "{0} 个片段 · 共 {1}"
 
+#. placeholder {0}: it.summary.slots
 #. placeholder {0}: s.slots
 #: src/components/recipe/RecipeView.tsx
+#: src/components/WorkflowShelf.tsx
 msgid "{0} 个空位"
 msgstr "{0} 个空位"
 
@@ -673,7 +675,9 @@ msgstr "{0} 个空位"
 msgid "{0} 个角色位可换人"
 msgstr "{0} 个角色位可换人"
 
+#. placeholder {0}: it.remixCount
 #. placeholder {0}: video.remixCount
+#: src/components/WorkflowShelf.tsx
 #: src/pages/VideoPage.tsx
 msgid "{0} 人按这条的流程做了同款"
 msgstr "{0} 人按这条的流程做了同款"
@@ -789,11 +793,12 @@ msgstr "{0} 条作品还没传到服务器"
 msgid "{0} 条评论"
 msgstr "{0} 条评论"
 
+#. placeholder {0}: it.summary.segs
 #. placeholder {0}: nodes.length
 #. placeholder {0}: s.segs
-#. placeholder {0}: tpl.recipe.beats.length
 #: src/components/recipe/RecipeView.tsx
 #: src/components/TemplateShelf.tsx
+#: src/components/WorkflowShelf.tsx
 #: src/pages/FlowPage.tsx
 msgid "{0} 段"
 msgstr "{0} 段"
@@ -821,8 +826,10 @@ msgstr "{0} 段 · 已出片 {1}"
 msgid "{0} 段 · 已出片 {1} · {2}改过"
 msgstr "{0} 段 · 已出片 {1} · {2}改过"
 
+#. placeholder {0}: it.summary.templated
 #. placeholder {0}: s.templated
 #: src/components/recipe/RecipeView.tsx
+#: src/components/WorkflowShelf.tsx
 msgid "{0} 段用了模板"
 msgstr "{0} 段用了模板"
 
@@ -3676,6 +3683,10 @@ msgstr "上传音频"
 msgid "上传音频（原片较长，取前 {VOICE_MAX_SEC}s）"
 msgstr "上传音频（原片较长，取前 {VOICE_MAX_SEC}s）"
 
+#: src/pages/EditPage.tsx
+msgid "上架到模板市场"
+msgstr "上架到模板市场"
+
 #: src/components/LocalStoreIssue.tsx
 msgid "上次剪到一半的成片这会儿没读出来（这台手机上的本地数据库没打开）。读出来之前不能组新的片子 —— 组稿会把它顶掉。"
 msgstr "上次剪到一半的成片这会儿没读出来（这台手机上的本地数据库没打开）。读出来之前不能组新的片子 —— 组稿会把它顶掉。"
@@ -3947,6 +3958,10 @@ msgstr "下面这条时间轴是<0>整条原片</0>，而真正做成模板的�
 #: src/studio/ui/projection.tsx
 msgid "不上传，直接给首尾帧 ›"
 msgstr "不上传，直接给首尾帧 ›"
+
+#: src/pages/PublishPage.tsx
+msgid "不上货架：只有看到这条作品的人才会发现它的制作过程。"
+msgstr "不上货架：只有看到这条作品的人才会发现它的制作过程。"
 
 #: src/components/flow/FlowCanvas.tsx
 #: src/pages/CardDetailPage.tsx
@@ -4430,6 +4445,10 @@ msgstr "从市场添加"
 #: src/components/CoverPicker.tsx
 msgid "从成片截取封面帧"
 msgstr "从成片截取封面帧"
+
+#: src/pages/EditPage.tsx
+msgid "从模板市场下架"
+msgstr "从模板市场下架"
 
 #: src/pages/WorkshopPage.tsx
 msgid "从视频提取卡片"
@@ -7100,6 +7119,10 @@ msgstr "发布之后怎么改"
 msgid "发布人格"
 msgstr "发布人格"
 
+#: src/components/WorkflowShelf.tsx
+msgid "发布作品时勾「同时上架到模板市场」，或在作品编辑页的「制作过程」里上架，这里就有了"
+msgstr "发布作品时勾「同时上架到模板市场」，或在作品编辑页的「制作过程」里上架，这里就有了"
+
 #: src/pages/SupportCreatePage.tsx
 msgid "发布出去的东西署你的名，别人下载后你能看到下载数。"
 msgstr "发布出去的东西署你的名，别人下载后你能看到下载数。"
@@ -7831,6 +7854,10 @@ msgstr "同意协议"
 #: src/pages/LoginPage.tsx
 msgid "同意并继续"
 msgstr "同意并继续"
+
+#: src/pages/PublishPage.tsx
+msgid "同时上架到模板市场（工作流模板）"
+msgstr "同时上架到模板市场（工作流模板）"
 
 #: src/data/economy.ts
 msgid "同样 2 张，换最新旗舰模型来画 · 形象更准、细节更实，出图较慢"
@@ -8973,9 +9000,18 @@ msgstr "展开各段 ▾"
 msgid "工作台里的「删除」不是从列表里划掉：<0>云端那段模板视频和原始素材会一起没掉</0>， 谁都找不回。所以要点两下才认。"
 msgstr "工作台里的「删除」不是从列表里划掉：<0>云端那段模板视频和原始素材会一起没掉</0>， 谁都找不回。所以要点两下才认。"
 
+#: src/components/TemplateShelf.tsx
 #: src/pages/FlowPage.tsx
 msgid "工作流"
 msgstr "工作流"
+
+#: src/components/WorkflowShelf.tsx
+msgid "工作流模板在服务端，联网后再来看"
+msgstr "工作流模板在服务端，联网后再来看"
+
+#: src/components/WorkflowShelf.tsx
+msgid "工作流模板就是一条公开了制作过程的作品：点进去看每一段怎么做的，再按它铺成自己的流水线。"
+msgstr "工作流模板就是一条公开了制作过程的作品：点进去看每一段怎么做的，再按它铺成自己的流水线。"
 
 #: src/studio/StudioPage.tsx
 msgid "工作流画布"
@@ -9108,6 +9144,10 @@ msgstr "左边是模型自己的命中区（HitAreas），右边是摸到这里�
 msgid "已上传：{0}（{1} 字）"
 msgstr "已上传：{0}（{1} 字）"
 
+#: src/pages/EditPage.tsx
+msgid "已上架到模板市场的「工作流」货架"
+msgstr "已上架到模板市场的「工作流」货架"
+
 #. placeholder {0}: mb(p.bytes)
 #. placeholder {0}: mb(row.bytes)
 #: src/components/DownloadSheet.tsx
@@ -9121,6 +9161,10 @@ msgstr "已下 {0}"
 msgid "已下架"
 msgstr "已下架"
 
+#: src/pages/TemplateDetailPage.tsx
+msgid "已下架 · 仍被公开的制作过程引用"
+msgstr "已下架 · 仍被公开的制作过程引用"
+
 #: src/pages/AdminPage.tsx
 msgid "已下架列表"
 msgstr "已下架列表"
@@ -9132,6 +9176,10 @@ msgstr "已下载"
 #: src/components/ReportButton.tsx
 msgid "已举报"
 msgstr "已举报"
+
+#: src/pages/EditPage.tsx
+msgid "已从模板市场下架（制作过程照样公开着）"
+msgstr "已从模板市场下架（制作过程照样公开着）"
 
 #: src/studio/StudioPage.tsx
 msgid "已保存"
@@ -9162,6 +9210,10 @@ msgstr "已停止。后面那些没有开始；已经下完的 {done} 段都留�
 #: src/pages/EditPage.tsx
 msgid "已公开"
 msgstr "已公开"
+
+#: src/pages/EditPage.tsx
+msgid "已公开，并上架在模板市场的「工作流」货架上：这条作品就是它的示例视频。"
+msgstr "已公开，并上架在模板市场的「工作流」货架上：这条作品就是它的示例视频。"
 
 #: src/pages/EditPage.tsx
 msgid "已公开：看到这条作品的人能点「查看制作过程」照着做"
@@ -11170,6 +11222,7 @@ msgstr "换一种说话风格，客服页与官网首页共用同一份设置；
 msgid "换个形象"
 msgstr "换个形象"
 
+#: src/components/WorkflowShelf.tsx
 #: src/pages/RecipePage.tsx
 msgid "换个网络再试一次"
 msgstr "换个网络再试一次"
@@ -12084,6 +12137,7 @@ msgstr "方舟那边查不到这一发了（任务号查无此物）——多半
 #~ msgid "方舟里有 {0} 份已授权素材，点一份接上："
 #~ msgstr "方舟里有 {0} 份已授权素材，点一份接上："
 
+#: src/components/WorkflowShelf.tsx
 #: src/pages/RecipePage.tsx
 msgid "无标题"
 msgstr "无标题"
@@ -12315,6 +12369,10 @@ msgstr "有 {missingCount} 段还没认出角色位。这几段现在也能随�
 #: src/pages/CutPage.tsx
 msgid "有 {n} 句字幕 / 配音没排上：片段太短，或者被上一句配音挤到了片尾之外。"
 msgstr "有 {n} 句字幕 / 配音没排上：片段太短，或者被上一句配音挤到了片尾之外。"
+
+#: src/data/templates.ts
+msgid "有 {refs} 份公开的制作过程在用这个模板：已从市场下架，但素材保留着、那几条流程仍能用它出片，等没人引用了再删。"
+msgstr "有 {refs} 份公开的制作过程在用这个模板：已从市场下架，但素材保留着、那几条流程仍能用它出片，等没人引用了再删。"
 
 #: src/pages/CutPage.tsx
 msgid "有 {staleCount} 句配音还是改字（或换音色）之前合成的那一版——成片里念的和字幕对不上。回剪辑页的「字幕」重新配一次，再合一次。"
@@ -13312,6 +13370,14 @@ msgstr "模板名是空的"
 msgid "模板市场"
 msgstr "模板市场"
 
+#: src/pages/RecipePage.tsx
+msgid "模板市场 · 工作流"
+msgstr "模板市场 · 工作流"
+
+#: src/pages/PublishPage.tsx
+msgid "模板市场的「工作流」货架上会多一张卡，这条作品就是它的示例视频；别人从那儿点进来按这条流程做同款。随时能在编辑页下架。"
+msgstr "模板市场的「工作流」货架上会多一张卡，这条作品就是它的示例视频；别人从那儿点进来按这条流程做同款。随时能在编辑页下架。"
+
 #: src/components/guide/tours.tsx
 msgid "模板是成品配方"
 msgstr "模板是成品配方"
@@ -13415,6 +13481,14 @@ msgstr "正在上传并识别（约 {mb}MB，走的是慢的那条）…"
 #: src/studio/live2dUploadStore.ts
 msgid "正在上传模型包 {n}%"
 msgstr "正在上传模型包 {n}%"
+
+#: src/pages/EditPage.tsx
+msgid "正在上架…"
+msgstr "正在上架…"
+
+#: src/pages/EditPage.tsx
+msgid "正在下架…"
+msgstr "正在下架…"
 
 #: src/pages/CardDetailPage.tsx
 msgid "正在从创意工坊取这张卡…"
@@ -13535,6 +13609,10 @@ msgstr "正在取消息…"
 #: src/pages/tutor/TutorHomePage.tsx
 msgid "正在取课程…"
 msgstr "正在取课程…"
+
+#: src/components/WorkflowShelf.tsx
+msgid "正在取货架…"
+msgstr "正在取货架…"
 
 #: src/components/blockout/VisionFramePicker.tsx
 msgid "正在取这一帧…"
@@ -14242,6 +14320,11 @@ msgstr "没能取到你的卡组"
 #: src/pages/RecipePage.tsx
 msgid "没能取到制作过程（{0}）"
 msgstr "没能取到制作过程（{0}）"
+
+#. placeholder {0}: shelf.why
+#: src/components/WorkflowShelf.tsx
+msgid "没能取到货架（{0}）"
+msgstr "没能取到货架（{0}）"
 
 #: src/pages/SettingsBlockedPage.tsx
 msgid "没能取到黑名单（网络不通，或这台服务器还没有这个功能）"
@@ -16269,6 +16352,10 @@ msgstr "示例图没存上：{why}"
 msgid "示例对话"
 msgstr "示例对话"
 
+#: src/pages/RecipePage.tsx
+msgid "示例视频 · 看成片"
+msgstr "示例视频 · 看成片"
+
 #: src/studio/ui/projection.tsx
 msgid "示例视频 / 自己给帧，免费铺方案直出"
 msgstr "示例视频 / 自己给帧，免费铺方案直出"
@@ -17216,6 +17303,7 @@ msgstr "等待中"
 msgid "等待火山引擎认证…"
 msgstr "等待火山引擎认证…"
 
+#: src/components/WorkflowShelf.tsx
 #: src/pages/RecipePage.tsx
 msgid "等服务器更新后再来"
 msgstr "等服务器更新后再来"
@@ -19304,6 +19392,10 @@ msgstr "还没有人分享卡片"
 msgid "还没有人分享卡组"
 msgstr "还没有人分享卡组"
 
+#: src/components/WorkflowShelf.tsx
+msgid "还没有人把制作过程上架到这里"
+msgstr "还没有人把制作过程上架到这里"
+
 #: src/pages/AdminPage.tsx
 msgid "还没有任何举报"
 msgstr "还没有任何举报"
@@ -20675,6 +20767,10 @@ msgstr "这台服务器还没有启梦老师（/api/tutor 不在）"
 msgid "这台服务器还没有客服工单接口（需要升级服务端）"
 msgstr "这台服务器还没有客服工单接口（需要升级服务端）"
 
+#: src/components/WorkflowShelf.tsx
+msgid "这台服务器还没有工作流模板的货架"
+msgstr "这台服务器还没有工作流模板的货架"
+
 #: src/pages/AdminPage.tsx
 msgid "这台服务器还没有平台数据接口（需要升级服务端）"
 msgstr "这台服务器还没有平台数据接口（需要升级服务端）"
@@ -21842,6 +21938,10 @@ msgstr "重新剪辑了你收藏的作品"
 msgid "重新加载预览"
 msgstr "重新加载预览"
 
+#: src/pages/TemplateDetailPage.tsx
+msgid "重新发布"
+msgstr "重新发布"
+
 #: src/components/flow/CastPreviewCard.tsx
 msgid "重新合成预览（{price}）"
 msgstr "重新合成预览（{price}）"
@@ -21980,6 +22080,7 @@ msgstr "重认会<0>覆盖现有描述</0>（你自己改过的也会没），�
 #: src/components/flow/SegPlayer.tsx
 #: src/components/LocalStoreIssue.tsx
 #: src/components/UpdateSheet.tsx
+#: src/components/WorkflowShelf.tsx
 #: src/pages/CardDetailPage.tsx
 #: src/pages/CustomCardPage.tsx
 #: src/pages/CutPage.tsx

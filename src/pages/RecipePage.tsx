@@ -16,6 +16,7 @@ import EmptyState from "../components/EmptyState";
 import Avatar from "../components/Avatar";
 import Sheet from "../components/Sheet";
 import { CloseButton } from "../components/IconTapButton";
+import Icon from "../components/Icon";
 import { RecipeCast, RecipeExcludedNote, RecipeStoryboard, RecipeSummaryRow } from "../components/recipe/RecipeView";
 import { useApplyTemplate } from "../components/flow/useApplyTemplate";
 import { useBackOr } from "../hooks/useBackOr";
@@ -152,6 +153,21 @@ export default function RecipePage() {
         )
       ) : (
         <div className="space-y-4">
+          {/* 示例视频（这一页就是工作流模板的模板页：示例视频 = 那条作品本身，点进去看成片）。封面没有就不摆，别摆一块黑 */}
+          {res.data.meta.cover && (
+            <Link to={`/video/${id}`} className="relative block overflow-hidden rounded-xl bg-slate-900 active:opacity-60">
+              <img src={res.data.meta.cover} alt="" className="aspect-video w-full object-cover" />
+              <span className="absolute inset-0 flex items-center justify-center">
+                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-black/55 text-white">
+                  <Icon name="play" size={22} />
+                </span>
+              </span>
+              <span className="absolute bottom-2 left-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] text-slate-100"><Trans>示例视频 · 看成片</Trans></span>
+              {res.data.meta.listed && (
+                <span className="absolute right-2 top-2 rounded-full bg-brand px-2 py-0.5 text-[10px] font-semibold text-ink"><Trans>模板市场 · 工作流</Trans></span>
+              )}
+            </Link>
+          )}
           {/* 谁的作品 */}
           <Link to={`/video/${id}`} className="flex items-center gap-2.5 rounded-xl border border-slate-700/70 bg-panel p-3 active:opacity-60">
             <Avatar
@@ -161,7 +177,13 @@ export default function RecipePage() {
               size={36}
             />
             <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-semibold text-slate-100">{res.data.meta.title || t`无标题`}</div>
+              <div className="flex items-center gap-1.5">
+                <span className="truncate text-sm font-semibold text-slate-100">{res.data.meta.title || t`无标题`}</span>
+                {/* 上了架的（工作流模板）：没有封面时徽标也要有地方落 */}
+                {res.data.meta.listed && !res.data.meta.cover && (
+                  <span className="flex-none rounded-full bg-brand px-2 py-0.5 text-[10px] font-semibold text-ink"><Trans>模板市场 · 工作流</Trans></span>
+                )}
+              </div>
               <div className="text-[11px] text-slate-500">
                 <Trans>@{authorDisplayName(res.data.meta.author.displayName || res.data.meta.author.username, res.data.meta.author._id)} 公开的制作过程</Trans>
               </div>
