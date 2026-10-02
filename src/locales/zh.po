@@ -687,6 +687,11 @@ msgstr "{0} 字"
 msgid "{0} 张"
 msgstr "{0} 张"
 
+#. placeholder {0}: nr.ownImage
+#: src/pages/DeckDetailPage.tsx
+msgid "{0} 张人物卡用卡上的图起拍"
+msgstr "{0} 张人物卡用卡上的图起拍"
+
 #. placeholder {0}: deck.cardIds.length
 #: src/pages/DeckDetailPage.tsx
 msgid "{0} 张卡"
@@ -696,6 +701,56 @@ msgstr "{0} 张卡"
 #: src/components/VideoCardAnnotator.tsx
 msgid "{0} 张卡已入库，在「我的卡组」里能看到。"
 msgstr "{0} 张卡已入库，在「我的卡组」里能看到。"
+
+#. placeholder {0}: nr.onlyAsStart
+#: src/pages/DeckDetailPage.tsx
+msgid "{0} 张只有当起拍画面时才用得上形象图"
+msgstr "{0} 张只有当起拍画面时才用得上形象图"
+
+#. placeholder {0}: nr.textOnly
+#: src/pages/DeckDetailPage.tsx
+msgid "{0} 张只用文字"
+msgstr "{0} 张只用文字"
+
+#. placeholder {0}: n1.frameOnly
+#: src/pages/DeckDetailPage.tsx
+msgid "{0} 张只经由设定帧起作用"
+msgstr "{0} 张只经由设定帧起作用"
+
+#. placeholder {0}: nr.startFrames
+#: src/pages/DeckDetailPage.tsx
+msgid "{0} 张有专门画好的起拍画面"
+msgstr "{0} 张有专门画好的起拍画面"
+
+#. placeholder {0}: n1.text
+#: src/pages/DeckDetailPage.tsx
+msgid "{0} 张有文字版形象描述"
+msgstr "{0} 张有文字版形象描述"
+
+#. placeholder {0}: n2.image
+#: src/pages/DeckDetailPage.tsx
+msgid "{0} 张的形象图直接进模型"
+msgstr "{0} 张的形象图直接进模型"
+
+#. placeholder {0}: n2.asset
+#: src/pages/DeckDetailPage.tsx
+msgid "{0} 张真人卡以火山引擎认证素材进模型"
+msgstr "{0} 张真人卡以火山引擎认证素材进模型"
+
+#. placeholder {0}: nr.photo
+#: src/pages/DeckDetailPage.tsx
+msgid "{0} 张真人卡以照片起拍"
+msgstr "{0} 张真人卡以照片起拍"
+
+#. placeholder {0}: n1.noRealFace
+#: src/pages/DeckDetailPage.tsx
+msgid "{0} 张真人卡用不上（这两档不收真人照片）"
+msgstr "{0} 张真人卡用不上（这两档不收真人照片）"
+
+#. placeholder {0}: n2.needAsset
+#: src/pages/DeckDetailPage.tsx
+msgid "{0} 张真人卡要先勾「火山引擎适用」"
+msgstr "{0} 张真人卡要先勾「火山引擎适用」"
 
 #. placeholder {0}: videos.filter((v) => v.author === a).length
 #: src/pages/ProfilePage.tsx
@@ -938,6 +993,10 @@ msgstr "{cardN} 张卡 · 每张最多 {maxSlots} 张图 · 按真正调用了�
 #: src/studio/ui/NpcDialog.tsx
 msgid "{cardN} 张卡 × 最多 {0} 张图 · 按真正调用了几次出图算 · 每次重炼都会再扣"
 msgstr "{cardN} 张卡 × 最多 {0} 张图 · 按真正调用了几次出图算 · 每次重炼都会再扣"
+
+#: src/components/TemplateShelf.tsx
+msgid "{count} 个模板"
+msgstr "{count} 个模板"
 
 #: src/components/DeckCard.tsx
 msgid "{count} 张"
@@ -1571,6 +1630,10 @@ msgstr "「{name}」的形象图一张都没能进管线（{why}），出片时�
 #: src/studio/studioStore.ts
 msgid "「{name}」还是空的——去创意工坊给它添几张卡吧。"
 msgstr "「{name}」还是空的——去创意工坊给它添几张卡吧。"
+
+#: src/data/economy.ts
+msgid "「{names}」做不了按参考视频出片（白模模板复刻、返修都属于这一类）——这类出片只有「{openLabel}」（{openModel}）做得到"
+msgstr "「{names}」做不了按参考视频出片（白模模板复刻、返修都属于这一类）——这类出片只有「{openLabel}」（{openModel}）做得到"
 
 #: src/data/economy.ts
 msgid "「{names}」这一档暂未开放白模模板出片，等开放后再来"
@@ -2419,6 +2482,7 @@ msgid "🎙 按住跟读（长按录音）"
 msgstr "🎙 按住跟读（长按录音）"
 
 #: src/components/CardModelFit.tsx
+#: src/pages/DeckDetailPage.tsx
 msgid "🎛 按模型适配"
 msgstr "🎛 按模型适配"
 
@@ -3886,6 +3950,10 @@ msgstr "不承接（用自己的首帧起拍）"
 msgid "不挂满也能出片"
 msgstr "不挂满也能出片"
 
+#: src/components/TemplateShelf.tsx
+msgid "不按出片模型筛"
+msgstr "不按出片模型筛"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "不推荐"
 msgstr "不推荐"
@@ -3954,6 +4022,10 @@ msgstr "不要标题就留空"
 #: src/components/VisibilityPicker.tsx
 msgid "不进首页和搜索；但拿到链接的人都能看，能被转发"
 msgstr "不进首页和搜索；但拿到链接的人都能看，能被转发"
+
+#: src/pages/TemplateDetailPage.tsx
+msgid "不限"
+msgstr "不限"
 
 #: src/pages/CutPage.tsx
 msgid "与素材同分辨率，最快"
@@ -4248,6 +4320,10 @@ msgstr "人脸与服装分离：出一张无面部的白模三视图（只锁服
 #: src/api/admin.ts
 msgid "人身攻击 / 辱骂"
 msgstr "人身攻击 / 辱骂"
+
+#: src/components/TemplateShelf.tsx
+msgid "仅{tierNames}"
+msgstr "仅{tierNames}"
 
 #: src/pages/CardDetailPage.tsx
 msgid "仅展示"
@@ -5202,6 +5278,10 @@ msgstr "全部卡片"
 msgid "全部已读"
 msgstr "全部已读"
 
+#: src/components/TemplateShelf.tsx
+msgid "全部模型"
+msgstr "全部模型"
+
 #: src/components/VisibilityPicker.tsx
 msgid "公开"
 msgstr "公开"
@@ -5695,6 +5775,15 @@ msgstr "出片时这类卡先保证第 1 张（{first}）喂给 AI；同一段�
 #: src/pages/CardDetailPage.tsx
 #~ msgid "出片时这类卡先保证第 1 张（{first}）喂给 AI；同一段里参考图总共最多 {MAX_REF_IMAGES} 张，预算还有余才轮得到第 2 张 —— 也就是同段挂的卡越少，它越可能真的进模型。预算不够时「先被丢的就是各卡的第 2 张」，卡再多下去整张卡都会带不上（两种情况生成步骤里都会逐张点名）。（白模挂卡与简约参考图直出那两条路更宽：参考图直接进视频模型，上限按所选档位的协议走。）"
 #~ msgstr "出片时这类卡先保证第 1 张（{first}）喂给 AI；同一段里参考图总共最多 {MAX_REF_IMAGES} 张，预算还有余才轮得到第 2 张 —— 也就是同段挂的卡越少，它越可能真的进模型。预算不够时「先被丢的就是各卡的第 2 张」，卡再多下去整张卡都会带不上（两种情况生成步骤里都会逐张点名）。（白模挂卡与简约参考图直出那两条路更宽：参考图直接进视频模型，上限按所选档位的协议走。）"
+
+#: src/components/TemplateShelf.tsx
+#: src/pages/TemplateDetailPage.tsx
+msgid "出片模型"
+msgstr "出片模型"
+
+#: src/pages/TemplateDetailPage.tsx
+msgid "出片模型是固定的：按参考视频逐镜头复刻只有「{gateLabel}」做得到，套用后这一段不能换别的画质档。"
+msgstr "出片模型是固定的：按参考视频逐镜头复刻只有「{gateLabel}」做得到，套用后这一段不能换别的画质档。"
 
 #: src/pages/CardDetailPage.tsx
 msgid "出片用"
@@ -6632,6 +6721,7 @@ msgid "去制作"
 msgstr "去制作"
 
 #: src/components/flow/TierRow.tsx
+#: src/pages/TemplateDetailPage.tsx
 msgid "去升级"
 msgstr "去升级"
 
@@ -7316,6 +7406,14 @@ msgstr "只用文字"
 msgid "只画 1 张主图 · 它同时就是卡面"
 msgstr "只画 1 张主图 · 它同时就是卡面"
 
+#: src/components/TemplateShelf.tsx
+msgid "只看你想用的那个模型出得了片的模板。模板对出片模型是硬要求：白模模板要按参考视频逐镜头复刻，换一个模型不是效果差一点，是出不了片。"
+msgstr "只看你想用的那个模型出得了片的模板。模板对出片模型是硬要求：白模模板要按参考视频逐镜头复刻，换一个模型不是效果差一点，是出不了片。"
+
+#: src/components/TemplateShelf.tsx
+msgid "只看能用「{tierPickedLabel}」出片的模板，另有 {tierHidden} 个用不了这个模型。"
+msgstr "只看能用「{tierPickedLabel}」出片的模板，另有 {tierHidden} 个用不了这个模型。"
+
 #: src/components/guide/tours.tsx
 msgid "只管 3D 工坊"
 msgstr "只管 3D 工坊"
@@ -7808,6 +7906,10 @@ msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜�
 msgid "固定"
 msgstr "固定"
 
+#: src/pages/TemplateDetailPage.tsx
+msgid "固定，套用后不能换"
+msgstr "固定，套用后不能换"
+
 #: src/components/guide/tours.tsx
 msgid "图会被怎么处理"
 msgstr "图会被怎么处理"
@@ -8170,6 +8272,10 @@ msgstr "套用＝复刻这段的场景与运镜，人偶换成你挂的角色卡
 #: src/pages/TemplateDetailPage.tsx
 msgid "套用一次约 <0>{0}</0> token（按模板视频时长计）"
 msgstr "套用一次约 <0>{0}</0> token（按模板视频时长计）"
+
+#: src/pages/TemplateDetailPage.tsx
+msgid "套用后在「画质」那一排自己选"
+msgstr "套用后在「画质」那一排自己选"
 
 #: src/pages/TemplateDetailPage.tsx
 msgid "套用失败"
@@ -9406,8 +9512,12 @@ msgid "市场里还没有别人公开的形象。"
 msgstr "市场里还没有别人公开的形象。"
 
 #: src/components/guide/tours.tsx
-msgid "市场页签顶上能<0>按词搜</0>，下面那排芯片<1>按类筛</1>，两个叠在一起生效。选中的分类在「我的模板」里也管用，没分过类的老模板只在「全部」下出现——找不到自己做的，先点回「全部」。"
-msgstr "市场页签顶上能<0>按词搜</0>，下面那排芯片<1>按类筛</1>，两个叠在一起生效。选中的分类在「我的模板」里也管用，没分过类的老模板只在「全部」下出现——找不到自己做的，先点回「全部」。"
+#~ msgid "市场页签顶上能<0>按词搜</0>，下面那排芯片<1>按类筛</1>，两个叠在一起生效。选中的分类在「我的模板」里也管用，没分过类的老模板只在「全部」下出现——找不到自己做的，先点回「全部」。"
+#~ msgstr "市场页签顶上能<0>按词搜</0>，下面那排芯片<1>按类筛</1>，两个叠在一起生效。选中的分类在「我的模板」里也管用，没分过类的老模板只在「全部」下出现——找不到自己做的，先点回「全部」。"
+
+#: src/components/guide/tours.tsx
+msgid "市场页签顶上能<0>按词搜</0>，搜索框右边那颗<1>出片模型</1>只留你想用的那个模型出得了片的模板，下面那排芯片<2>按类筛</2>，三个叠在一起生效。选中的分类在「我的模板」里也管用，没分过类的老模板只在「全部」下出现——找不到自己做的，先点回「全部」。"
+msgstr "市场页签顶上能<0>按词搜</0>，搜索框右边那颗<1>出片模型</1>只留你想用的那个模型出得了片的模板，下面那排芯片<2>按类筛</2>，三个叠在一起生效。选中的分类在「我的模板」里也管用，没分过类的老模板只在「全部」下出现——找不到自己做的，先点回「全部」。"
 
 #: src/studio/segmentGen.ts
 msgid "带参考视频的自定义段暂不支持圈选改画面——清掉圈选标注再出片"
@@ -10652,6 +10762,10 @@ msgstr "按你的改法返修这一段（时长跟随成片，产物无声）…
 #: src/studio/flowStore.ts
 msgid "按修改重画画面…"
 msgstr "按修改重画画面…"
+
+#: src/components/TemplateShelf.tsx
+msgid "按出片模型筛选"
+msgstr "按出片模型筛选"
 
 #. placeholder {0}: refUrls.length
 #: src/studio/segmentGen.ts
@@ -12665,6 +12779,7 @@ msgid "标准"
 msgstr "标准"
 
 #: src/components/CardModelFit.tsx
+#: src/pages/DeckDetailPage.tsx
 msgid "标准 / 极速：{line10}"
 msgstr "标准 / 极速：{line10}"
 
@@ -12817,6 +12932,10 @@ msgstr "棕"
 #: src/studio/ui/projection.tsx
 msgid "模型：{0}"
 msgstr "模型：{0}"
+
+#: src/components/TemplateShelf.tsx
+msgid "模型不限"
+msgstr "模型不限"
 
 #: src/studio/cutAutoEdit.ts
 msgid "模型写：片头标题、每段一句话、哪几处换了场"
@@ -13730,6 +13849,14 @@ msgstr "没有新对话，不用整理。"
 #: src/studio/cutAgent.ts
 msgid "没有片段 {ref}（时间轴上一共 {count} 个）"
 msgstr "没有片段 {ref}（时间轴上一共 {count} 个）"
+
+#: src/components/TemplateShelf.tsx
+msgid "没有能用「{name}」（{model}）出片的模板——点搜索栏旁边那颗键换一个模型，或者选回「全部模型」。"
+msgstr "没有能用「{name}」（{model}）出片的模板——点搜索栏旁边那颗键换一个模型，或者选回「全部模型」。"
+
+#: src/components/TemplateShelf.tsx
+msgid "没有能用「{name}」（{model}）出片的模板。现有的 {hidden} 个都要按参考视频逐镜头复刻，只有「{needLabel}」（{needModel}）做得到——点搜索栏旁边那颗键换一个模型，或者选回「全部模型」。"
+msgstr "没有能用「{name}」（{model}）出片的模板。现有的 {hidden} 个都要按参考视频逐镜头复刻，只有「{needLabel}」（{needModel}）做得到——点搜索栏旁边那颗键换一个模型，或者选回「全部模型」。"
 
 #: src/studio/cutAgent.ts
 msgid "没有要配音的句子（还没写字幕，或者都配好了）"
@@ -15382,6 +15509,10 @@ msgstr "白模模板出片暂未开放：还没有档位支持白模（r2v）出
 msgid "白模模板发布前"
 msgstr "白模模板发布前"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "白模模板固定用「{needLabel}」（{needModel}）出片：选了之后这一段不能换别的画质档。"
+msgstr "白模模板固定用「{needLabel}」（{needModel}）出片：选了之后这一段不能换别的画质档。"
+
 #: src/data/templates.ts
 msgid "白模模板已生成"
 msgstr "白模模板已生成"
@@ -15495,6 +15626,10 @@ msgstr "看一遍你排好的片段：起个片头标题、每段写一句旁白
 msgid "看一遍再铺；铺是整表覆盖，现有流水线会先问你"
 msgstr "看一遍再铺；铺是整表覆盖，现有流水线会先问你"
 
+#: src/components/TemplateShelf.tsx
+msgid "看全部"
+msgstr "看全部"
+
 #: src/pages/PublishPage.tsx
 msgid "看到这条片子的人能看到卡面与设定，也能「收入卡组」接着创作——这是别人找到你的主要方式。声明过真实人物的卡，形象图不会给出去。"
 msgstr "看到这条片子的人能看到卡面与设定，也能「收入卡组」接着创作——这是别人找到你的主要方式。声明过真实人物的卡，形象图不会给出去。"
@@ -15546,8 +15681,13 @@ msgid "真人卡不用另画起拍画面：真人档直接以卡上的照片起�
 msgstr "真人卡不用另画起拍画面：真人档直接以卡上的照片起拍"
 
 #: src/components/CardModelFit.tsx
+#: src/pages/DeckDetailPage.tsx
 msgid "真人档：{lineReal}"
 msgstr "真人档：{lineReal}"
+
+#: src/pages/DeckDetailPage.tsx
+msgid "真人档一段只用一张起拍画面。哪张没适配，点进那张卡的「按模型适配」里补。"
+msgstr "真人档一段只用一张起拍画面。哪张没适配，点进那张卡的「按模型适配」里补。"
 
 #: src/ai/minimaxVideo.ts
 msgid "真人档任务受理了却没给任务号——上游协议变了，把这句话反馈给我们"
@@ -17686,8 +17826,12 @@ msgid "规格"
 msgstr "规格"
 
 #: src/components/guide/tours.tsx
-msgid "角标写着这个模板能干什么。<0>白模</0>：出片时整段复刻它的场景、道具与运镜，只把人换掉，旁边报的是这条模板视频有多长——成片长度和画幅都跟着它走；<1>几个角色位可换人</1>：画面里那几个白色人偶，各能挂一张你的角色卡。没有这两枚角标的是经典配方模板，按分镜骨架重新画，旁边报的是分几段。"
-msgstr "角标写着这个模板能干什么。<0>白模</0>：出片时整段复刻它的场景、道具与运镜，只把人换掉，旁边报的是这条模板视频有多长——成片长度和画幅都跟着它走；<1>几个角色位可换人</1>：画面里那几个白色人偶，各能挂一张你的角色卡。没有这两枚角标的是经典配方模板，按分镜骨架重新画，旁边报的是分几段。"
+#~ msgid "角标写着这个模板能干什么。<0>白模</0>：出片时整段复刻它的场景、道具与运镜，只把人换掉，旁边报的是这条模板视频有多长——成片长度和画幅都跟着它走；<1>几个角色位可换人</1>：画面里那几个白色人偶，各能挂一张你的角色卡。没有这两枚角标的是经典配方模板，按分镜骨架重新画，旁边报的是分几段。"
+#~ msgstr "角标写着这个模板能干什么。<0>白模</0>：出片时整段复刻它的场景、道具与运镜，只把人换掉，旁边报的是这条模板视频有多长——成片长度和画幅都跟着它走；<1>几个角色位可换人</1>：画面里那几个白色人偶，各能挂一张你的角色卡。没有这两枚角标的是经典配方模板，按分镜骨架重新画，旁边报的是分几段。"
+
+#: src/components/guide/tours.tsx
+msgid "角标写着这个模板能干什么。<0>白模</0>：出片时整段复刻它的场景、道具与运镜，只把人换掉，旁边报的是这条模板视频有多长——成片长度和画幅都跟着它走；<1>几个角色位可换人</1>：画面里那几个白色人偶，各能挂一张你的角色卡。没有这两枚角标的是经典配方模板，按分镜骨架重新画，旁边报的是分几段。标题下面那行小字的头一枚是<2>出片模型</2>：写着「仅」哪一档的，套用后出片模型固定、不能换；「模型不限」的可以自己选。"
+msgstr "角标写着这个模板能干什么。<0>白模</0>：出片时整段复刻它的场景、道具与运镜，只把人换掉，旁边报的是这条模板视频有多长——成片长度和画幅都跟着它走；<1>几个角色位可换人</1>：画面里那几个白色人偶，各能挂一张你的角色卡。没有这两枚角标的是经典配方模板，按分镜骨架重新画，旁边报的是分几段。标题下面那行小字的头一枚是<2>出片模型</2>：写着「仅」哪一档的，套用后出片模型固定、不能换；「模型不限」的可以自己选。"
 
 #: src/ai/real.ts
 msgid "角色卡上没有可用的形象图"
@@ -21785,6 +21929,7 @@ msgid "高清"
 msgstr "高清"
 
 #: src/components/CardModelFit.tsx
+#: src/pages/DeckDetailPage.tsx
 msgid "高清 / 电影级：{line2x}"
 msgstr "高清 / 电影级：{line2x}"
 

@@ -44,7 +44,9 @@ export type IconName =
   // 「说不出来」那一档：上传向导的完成度清单里，没有 cdi3 的包既不是 ✓ 也不是 ✗（三态，别压成两档）
   | "info"
   // 详情页「保存到本地」与分享面板第四项共用
-  | "download";
+  | "download"
+  // 模板货架搜索栏旁边那颗「出片模型」筛选
+  | "filter";
 
 /** 描边版（默认）。值是 <svg> 的内容，静态字面量，无外部输入。 */
 const OUTLINE: Record<IconName, string> = {
@@ -104,7 +106,8 @@ const OUTLINE: Record<IconName, string> = {
   // ★ 不许退回 emoji ⬇：见文件头——emoji 走系统彩色字体，做不到随 currentColor 跟色。
   download:
     '<path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/>',
-
+  // 三条逐级变短的横线（Lucide list-filter）：筛选
+  filter: '<path d="M3 6h18"/><path d="M7 12h10"/><path d="M10 18h4"/>',
 };
 
 /**

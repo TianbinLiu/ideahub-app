@@ -28,7 +28,7 @@ import {
   ONE_IMAGE,
   DEFAULT_TIER,
   providerOf,
-  VIDEO_TIERS,
+  blockoutTier,
   annRedrawCost,
   clampDuration,
   materialRefCost,
@@ -1297,7 +1297,9 @@ export const useFlow = create<FlowState>()((set, get) => ({
       // ★ 四档全 false 的今天，这里就是**闸门本身**：整句拒绝、什么都不铺。
       //   开闸 = 仓库主人翻 economy 里 ultra.refVid 那一个布尔的 commit，这里自动放行
       //   ——refVid 的唯一出处是 VIDEO_TIERS，别在这里另记一份"开没开"。
-      const gate = VIDEO_TIERS.find((x) => x.refVid);
+      // ★ 「走哪一档」只问 economy.blockoutTier（2026-10-02 收口：本文件三个套用入口原来各内联一份 find(refVid)）。
+      //   这就是「用了模板、出片模型就固定」的落点：档位在这里钉死，档位那一排上别的档由 r2vPriceIssue 禁掉并说原因。
+      const gate = blockoutTier();
       if (!gate) {
         set({ err: t`白模模板出片暂未开放：还没有档位支持白模（r2v）出片，等开放后再来` });
         return false;
@@ -1370,7 +1372,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
     if (parts.length === 0) return false;
     if (!get().canReplaceNodes()) return false; // 理由同 applyTemplate
     if (parts.length === 1) return get().applyTemplate(parts[0]);
-    const gate = VIDEO_TIERS.find((x) => x.refVid);
+    const gate = blockoutTier();
     if (!gate) {
       set({ err: t`白模模板出片暂未开放：还没有档位支持白模（r2v）出片，等开放后再来` });
       return false;
@@ -1460,7 +1462,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
       return true;
     }
     // 换/套模板：与 applyTemplateGroup 铺节点走同一批规则（refVid 闸、窗口闸、快照、清挂卡）
-    const gate = VIDEO_TIERS.find((x) => x.refVid);
+    const gate = blockoutTier();
     if (!gate) {
       set({ err: t`白模模板出片暂未开放：还没有档位支持白模（r2v）出片` });
       return false;

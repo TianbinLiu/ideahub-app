@@ -49,9 +49,11 @@ import {
   setTemplateCategory,
   setTemplatePublished,
   templateGroupOf,
+  templatePlanIssue,
+  templateTiers,
   updateTemplate,
 } from "../data/templates";
-import { VIDEO_TIERS, fmtTokens, r2vPriceIssue, r2vTokens } from "../data/economy";
+import { blockoutTier, fmtTokens, modelLabel, r2vPriceIssue, r2vTokens } from "../data/economy";
 import { useCurrentUser } from "../hooks/useAccount";
 import { useBackOr } from "../hooks/useBackOr";
 import { useFlow } from "../studio/flowStore";
@@ -143,22 +145,15 @@ function TemplatePropTrim({ tplId, card }: { tplId: string; card: Card }) {
 }
 
 /**
- * 白模出片会走哪一档。refVid 的**唯一出处**是 economy.VIDEO_TIERS（开闸 = 仓库主人翻
- * ultra 那一个布尔的 commit）——flowStore.applyTemplate 的档位钳制读的也是这张表的
- * 同一个标志，这里只是对同一张表的另一次读取，不是第二份"开没开"的登记处。
- */
-function blockoutGate() {
-  return VIDEO_TIERS.find((x) => x.refVid) ?? null;
-}
-
-/**
  * 闸门整句（null = 能出片能报价）。gate 不存在时的措辞与 flowStore.applyTemplate 一致。
+ * ★ 「白模出片走哪一档」只问 economy.blockoutTier（2026-10-02 收口：这里原来有一份内联的 `find(refVid)`，
+ *   与 flowStore 的三个套用入口各写各的）。
  * ★ 第二段是**模板视频自己合不合方舟窗口**（唯一判据在 data/templates.refVideoIssue）：
  *   3.7 秒的坏模板以前在这一页全程绿灯，点下去才在方舟撞英文 400 —— 而那句 400
  *   全 app 没人接（没有全局 error toast），用户只会以为按钮坏了。
  */
 function blockoutIssue(tpl: VideoTemplate): string | null {
-  const gate = blockoutGate();
+  const gate = blockoutTier();
   // 模块级函数拿不到 useLingui：用 i18n._(msg) 在调用那一刻按当前语言翻
   if (!gate) return i18n._(msg`白模模板出片暂未开放：还没有档位支持白模（r2v）出片，等开放后再来`);
   return r2vPriceIssue(gate.id) ?? refVideoIssue(tpl.refVideo);
@@ -169,8 +164,12 @@ function blockoutIssue(tpl: VideoTemplate): string | null {
 function BlockoutInfo({ t: tpl, isOwner }: { t: VideoTemplate; isOwner: boolean }) {
   const { t } = useLingui();
   if (!tpl.refVideo) return null;
-  const gate = blockoutGate();
+  const gate = blockoutTier();
+  const gateLabel = gate?.label ?? "";
   const issue = blockoutIssue(tpl);
+  /** 这个账号的套餐用不了模板要求的那一档（null = 用得了，或还不知道套餐）。
+   *  ★ 目录侧的拒绝（issue）排在前面：闸没开 / 模板视频坏了的时候说「升级套餐后可用」，是把人骗去付钱 */
+  const planIssue = issue === null ? templatePlanIssue(tpl) : null;
   // issue 为 null 时 gate 必然存在且报得出价（r2vPriceIssue 先查 refVid 再查 r2vMult）
   const tokens = issue === null ? r2vTokens(tpl.refVideo.durationSec, gate!.id) : null;
   const realSec = refVideoRealSec(tpl.refVideo);
@@ -205,6 +204,14 @@ function BlockoutInfo({ t: tpl, isOwner }: { t: VideoTemplate; isOwner: boolean 
       <p data-guide="template-refvideo" className="text-[11px] leading-relaxed text-slate-400">
         <Trans>套用＝复刻这段的场景与运镜，人偶换成你挂的角色卡。时长与画幅跟这段视频走。</Trans>
       </p>
+      {/* ★ 出片模型是**固定**的（2026-10-02 主人拍板：模板对出片模型是硬要求，不给「解除固定」的出口）——
+          套用之前就说，别等人进了工作流、对着一排点不动的画质档才第一次知道。
+          闸门全关（gate 为 null）时不说：那时下面那句 issue 正在讲「暂未开放」。 */}
+      {gate && (
+        <p className="mt-1.5 text-[11px] leading-relaxed text-slate-400">
+          <Trans>出片模型是固定的：按参考视频逐镜头复刻只有「{gateLabel}」做得到，套用后这一段不能换别的画质档。</Trans>
+        </p>
+      )}
       {/* ★ 作者本人先看这一句：坏模板对他来说不是"换一个"，而是"这不是你的错、重做时至少
           选 5 秒"。它替代（不是叠加）下面那句给套用者的话 —— 两句一起显示会让作者以为
           出了两个错。判据同一处（refVideoOwnerNote 内部先问 refVideoIssue）。 */}
@@ -222,6 +229,49 @@ function BlockoutInfo({ t: tpl, isOwner }: { t: VideoTemplate; isOwner: boolean 
           </p>
         )
       )}
+      {/* ★ 套餐用不了这一档：说在出片键上方（那颗键此时是灰的），并给一条能走的路。
+          排在价钱之后而不是替掉它：价钱是"这个模板要花多少"，这一句是"你现在的套餐用不了"，两件事都该看见。
+          充值解决不了这道门（得换套餐），所以链接指向的是套餐，不是充值。 */}
+      {planIssue && (
+        <p className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-300/90">
+          {planIssue}
+          {"　"}
+          <Link to="/me" className="underline underline-offset-2">
+            <Trans>去升级</Trans>
+          </Link>
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * 「出片模型」那一行（2026-10-02 主人点名：模板要像卡片那样注明适用哪个出片模型）。
+ * 判据只有 data/templates.templateTiers 一处 —— 货架卡面的角标与搜索栏旁那颗「出片模型」筛选读的是同一份。
+ * ★ 白模闸门全关（空数组）时整行不画：那时 BlockoutInfo 里的 blockoutIssue 整句正在说「暂未开放」，这里再摆一枚空芯片是添乱。
+ * ★ 经典配方模板是「不限」：它存着的 recipe.videoTier 只是提取器写死的默认值、不是事实（见 templateTiers 的 ⚠），
+ *   套用后档位那一排照常能换，所以这里把"去哪儿选"说出来。
+ */
+function ModelRow({ t: tpl }: { t: VideoTemplate }) {
+  const tiers = templateTiers(tpl);
+  if (tiers && tiers.length === 0) return null;
+  return (
+    <div className="mb-2 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
+      <span>
+        <Trans>出片模型</Trans>
+      </span>
+      {tiers ? (
+        tiers.map((tier) => (
+          <span key={tier.id} className="rounded-full bg-panel px-2.5 py-1 text-[11px] text-slate-300">
+            {tier.label} · {modelLabel(tier.model)}
+          </span>
+        ))
+      ) : (
+        <span className="rounded-full bg-panel px-2.5 py-1 text-[11px] text-slate-300">
+          <Trans>不限</Trans>
+        </span>
+      )}
+      <span>{tiers ? <Trans>固定，套用后不能换</Trans> : <Trans>套用后在「画质」那一排自己选</Trans>}</span>
     </div>
   );
 }
@@ -234,7 +284,18 @@ function BlockoutInfo({ t: tpl, isOwner }: { t: VideoTemplate; isOwner: boolean 
  *  ⚠ 它**不是**「这条是不是我的」：那个问题由调用方的 `ownedHere` 答。两者在换设备后会分开
  *  （只存在于服务端的模板：是我的 ✓、但改不动 ✗）。这个形参此前叫 `inMine` —— 与那个
  *  已经被拆开的旧概念同名，读的人会重新把两件事合起来，所以改了名。 */
-function OwnerBar({ t: tpl, editable, onApply }: { t: VideoTemplate; editable: boolean; onApply: () => void }) {
+function OwnerBar({
+  t: tpl,
+  editable,
+  onApply,
+  planIssue,
+}: {
+  t: VideoTemplate;
+  editable: boolean;
+  onApply: () => void;
+  /** 这个账号的套餐用不了模板要求的出片模型（data/templates.templatePlanIssue）：试炼那颗键跟着灰掉，并把原因印在它旁边 */
+  planIssue: string | null;
+}) {
   const nav = useNavigate();
   const { t } = useLingui();
   const [title, setTitle] = useState(tpl.title);
@@ -442,7 +503,13 @@ function OwnerBar({ t: tpl, editable, onApply }: { t: VideoTemplate; editable: b
             <>
               <Trans>发布前须用本模板<b>真实出过一次片</b>（套用它、挂上角色卡、付费出一段）——这一步能确保套用你模板的人不会白花钱。</Trans>
               <span className="mt-1 flex gap-2">
-                <button onClick={onApply} className="rounded-full bg-slate-700 px-2.5 py-1 text-[11px] text-slate-100">
+                {/* ★ 套餐用不了这一档时灰掉：点下去走的是同一个 apply()，那边会整句拒，而那句话印在页面上方的出片键旁边 ——
+                    人站在这一块里，看不见 = 「点了没反应」。原因就地再印一遍（下面那行） */}
+                <button
+                  onClick={onApply}
+                  disabled={!!planIssue}
+                  className="rounded-full bg-slate-700 px-2.5 py-1 text-[11px] text-slate-100 disabled:opacity-40"
+                >
                   <Trans>去出一段片</Trans>
                 </button>
                 <button
@@ -453,6 +520,7 @@ function OwnerBar({ t: tpl, editable, onApply }: { t: VideoTemplate; editable: b
                   <Trans>出过了？刷新状态</Trans>
                 </button>
               </span>
+              {planIssue && <span className="mt-1 block text-amber-300/90">{planIssue}</span>}
             </>
           )}
         </div>
@@ -555,7 +623,11 @@ export default function TemplateDetailPage() {
 
   // 白模在闸门没开 / 模板视频本身不合方舟窗口时「看得见但点不动 + 说原因」
   // （原因印在 BlockoutInfo 的成本行里，作者本人看到的是另一句措辞）
-  const applyBlocked = tpl.refVideo ? blockoutIssue(tpl) : null;
+  // ★ 再加一道（2026-10-02）：这个账号的套餐用不了模板要求的出片模型（templatePlanIssue —— 货架上那颗「用它出片」
+  //   问的是同一句，被它拦下的人正是被领到这一页来的）。目录侧的拒绝排在前面：闸没开 / 模板视频坏了的时候
+  //   说「升级套餐后可用」是把人骗去付钱。
+  const planBlocked = templatePlanIssue(tpl);
+  const applyBlocked = (tpl.refVideo ? blockoutIssue(tpl) : null) ?? planBlocked;
   const tplSecs = tpl.refVideo ? (refVideoRealSec(tpl.refVideo) ?? tpl.refVideo.durationSec).toFixed(1) : "";
   const beatCount = tpl.recipe.beats.length;
   const beatSec = tpl.recipe.durationSec;
@@ -564,6 +636,11 @@ export default function TemplateDetailPage() {
   function apply() {
     if (!tpl) return;
     setApplyErr("");
+    // 套餐那道闸放在函数里、不只挂在主按钮的 disabled 上：作者工作台的「去出一段片」走的也是这里
+    if (planBlocked) {
+      setApplyErr(planBlocked);
+      return;
+    }
     // ★ 与货架那条同一个守卫（见 useApplyTemplate 的 ★★）：套用是整表覆盖，
     //   在途流水线里已经花钱炼出来的段会被抹掉，旧草稿还会被后续自动存盘覆盖
     guard(() => applyNow());
@@ -639,6 +716,7 @@ export default function TemplateDetailPage() {
             计价那个整数锚点在下面 BlockoutInfo 的成本行里说清楚。 */}
         {tpl.refVideo ? t`白模复刻 · 模板视频 ${tplSecs}s` : t`${beatCount} 段 · 每段 ${beatSec}s`}
       </div>
+      <ModelRow t={tpl} />
       <p className="mb-4 text-sm leading-relaxed text-slate-300">{tpl.intro}</p>
 
       <BlockoutInfo t={tpl} isOwner={isMine} />
@@ -712,7 +790,7 @@ export default function TemplateDetailPage() {
           是空的，但作者对自己已发布的模板必须仍有下架/删除入口，否则作废/侵权模板
           只能干挂在市场上被人付费套用）。经典路 isMine 本身就含 ownedHere，行为不变。
           ★ 传下去的是 editableHere（改得动吗），与 isMine（是不是我的）是两个问题——见上面 ★★ */}
-      {isMine && <OwnerBar t={tpl} editable={editableHere} onApply={apply} />}
+      {isMine && <OwnerBar t={tpl} editable={editableHere} onApply={apply} planIssue={planBlocked} />}
 
       <SocialPanel kind="template" id={tpl.id} />
     </div>

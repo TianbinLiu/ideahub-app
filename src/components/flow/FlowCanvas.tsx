@@ -59,7 +59,7 @@ import {
   type FlowNode,
   type FlowTemplate,
 } from "../../studio/flowStore";
-import { myCards } from "../../data/account";
+import { myCards, tierBlockReason } from "../../data/account";
 import { useAccountVersion } from "../../hooks/useAccount";
 import {
   browseTemplates,
@@ -70,7 +70,7 @@ import {
   subscribeTemplates,
   templatesVersion,
 } from "../../data/templates";
-import { CHAT_TURN_TOKENS, fmtTokens, proposalsCost, tierOf } from "../../data/economy";
+import { CHAT_TURN_TOKENS, blockoutTier, fmtTokens, modelLabel, proposalsCost, tierOf } from "../../data/economy";
 import { AGENT_PHRASES, executeAgentProposal, runCanvasAgent, type AgentOutcome, type AgentProposal } from "../../studio/canvasAgent";
 import { EXAMPLES, phraseText, templatePhrase } from "../../studio/agentGrammar";
 import { useLang } from "../../i18n/useLang";
@@ -2108,6 +2108,14 @@ export function TemplatePicker({
   /** 正在预览、等用户确认的那一段。★ 选段**先看再定**：套用即真花钱，
    *  而同一条素材切出来的几段封面常常长得差不多，光看缩略图分不出是哪一段。 */
   const [previewing, setPreviewing] = useState<VideoTemplate | null>(null);
+  // ★ 选了白模模板，这一段的出片模型就固定了（2026-10-02 主人拍板：模板对出片模型是硬要求，不给「解除固定」）。
+  //   「走哪一档」只问 economy.blockoutTier（setNodeTemplate 钉档位读的是同一个）；套餐用不了那一档时把
+  //   account.tierBlockReason 的整句接在后面 —— 照样能选来看，生成那一步会拦，但这句话要说在挑之前。
+  useAccountVersion();
+  const need = blockoutTier();
+  const needLabel = need?.label ?? "";
+  const needModel = need ? modelLabel(need.model) : "";
+  const needIssue = need ? tierBlockReason(need) : null;
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60" onClick={onClose}>
       <div
@@ -2119,6 +2127,12 @@ export function TemplatePicker({
           <span className="flex-1" />
           <CloseButton chip="sm" size={13} align="end" onClick={onClose} />
         </div>
+        {need && (
+          <p className="mb-1.5 flex-none text-[11px] leading-relaxed text-slate-400">
+            <Trans>白模模板固定用「{needLabel}」（{needModel}）出片：选了之后这一段不能换别的画质档。</Trans>
+            {needIssue && <span className="text-amber-300/90"> {needIssue}</span>}
+          </p>
+        )}
         {err && <p className="mb-1.5 flex-none text-[11px] leading-relaxed text-rose-300">{err}</p>}
         <div className="min-h-0 flex-1 space-y-2 overflow-y-auto">
           <button

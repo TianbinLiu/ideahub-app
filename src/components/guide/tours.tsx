@@ -416,11 +416,13 @@ export const TOURS: GuideTour[] = [
         //   `cat` 是货架级 state、切页签不清，过滤按 `r.parts[0].category === cat` —— 没有分类的老模板在选了任何一类时都被滤掉，
         //   只在「全部」下出现。「看不到自己做的模板」多半就是这一拍，所以把出路写进来（与「分区」第 4 步「先看分区图标亮没亮」同一种写法）。
         //   锚点挂在芯片那一行（template-filters），两个页签都在。
+        // ★ 2026-10-02 补（未升 version，引导不重弹）：搜索框右边多了一颗「出片模型」筛选（TemplateShelf 的 tierPick）——
+        //   只在市场页签上、只滤市场页签；它与搜索词、分类叠在一起生效（rows = 分类滤过的行再按 templateRunsOn 滤一遍）。
         title: msg`搜索与分类`,
         anchor: "template-filters",
         body: (
           <Trans>
-            市场页签顶上能<b className="font-bold text-slate-100">按词搜</b>，下面那排芯片<b className="font-bold text-slate-100">按类筛</b>，两个叠在一起生效。选中的分类在「我的模板」里也管用，没分过类的老模板只在「全部」下出现——找不到自己做的，先点回「全部」。
+            市场页签顶上能<b className="font-bold text-slate-100">按词搜</b>，搜索框右边那颗<b className="font-bold text-slate-100">出片模型</b>只留你想用的那个模型出得了片的模板，下面那排芯片<b className="font-bold text-slate-100">按类筛</b>，三个叠在一起生效。选中的分类在「我的模板」里也管用，没分过类的老模板只在「全部」下出现——找不到自己做的，先点回「全部」。
           </Trans>
         ),
       },
@@ -428,11 +430,13 @@ export const TOURS: GuideTour[] = [
         // ★ 2026-09-17 订正（未升 version）：一张封面上的角标不止讲能力的这两枚 —— 七天内登记的还有一枚「新」、
         //   模板视频出不了片的还有一枚「暂时不可用」（都在 TemplateShelf 的 TemplateCard 里，同一张封面上最多四枚）。
         //   原稿「没角标的是经典配方模板」对一条刚发布的经典模板就不成立；改成「没有这两枚角标的」，只认能力位。
+        // ★ 2026-10-02 补（未升 version）：标题下面那行小字的头一枚是出片模型（TemplateCard 读 templateTiers）——
+        //   白模模板写「仅电影级」之类（固定，套用后不能换），经典配方写「模型不限」；套餐用不了那一档时带一把锁。
         title: msg`封面上的角标`,
         anchor: "template-card",
         body: (
           <Trans>
-            角标写着这个模板能干什么。<b className="font-bold text-slate-100">白模</b>：出片时整段复刻它的场景、道具与运镜，只把人换掉，旁边报的是这条模板视频有多长——成片长度和画幅都跟着它走；<b className="font-bold text-slate-100">几个角色位可换人</b>：画面里那几个白色人偶，各能挂一张你的角色卡。没有这两枚角标的是经典配方模板，按分镜骨架重新画，旁边报的是分几段。
+            角标写着这个模板能干什么。<b className="font-bold text-slate-100">白模</b>：出片时整段复刻它的场景、道具与运镜，只把人换掉，旁边报的是这条模板视频有多长——成片长度和画幅都跟着它走；<b className="font-bold text-slate-100">几个角色位可换人</b>：画面里那几个白色人偶，各能挂一张你的角色卡。没有这两枚角标的是经典配方模板，按分镜骨架重新画，旁边报的是分几段。标题下面那行小字的头一枚是<b className="font-bold text-slate-100">出片模型</b>：写着「仅」哪一档的，套用后出片模型固定、不能换；「模型不限」的可以自己选。
           </Trans>
         ),
       },
