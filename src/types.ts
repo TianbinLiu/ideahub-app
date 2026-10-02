@@ -1289,6 +1289,17 @@ export interface VideoItem {
    *  按**有没有值**决定出不出现，不跟哨兵值比。 */
   revisedAt?: number;
   /**
+   * 作者公开了制作过程（公开配方，2026-10-02）：作品页那颗「查看制作过程」按它亮。
+   * ★ 服务端只在「公开 + 描述的正是当下这一版」时发这个键 —— 判有值，老服务端 / 没公开的一律没有。
+   */
+  recipePublic?: boolean;
+  /** 作者自己才看得到的开关现状（编辑页那颗开关的初值）：留存过配方时才有 */
+  recipeState?: { public: boolean; stale: boolean };
+  /** 这条是按谁的流程做的（只在原作公开可见时带）；详情端点才算 */
+  remixOf?: { id: string; title: string; author: string; authorId?: string };
+  /** 有几个人按这条的流程做了同款（不含作者自己）；详情端点才算，列表没有 */
+  remixCount?: number;
+  /**
    * 话题标签（发布页那一行，作者自己打）。缺省 = 老作品没打过标签，**判否定**。
    *
    * ★ 与 `Card.tags` 同名不同物：那是一张卡的关键词（进提示词），这是**作品**的话题
@@ -1648,6 +1659,13 @@ export interface DraftVideo {
    * 没有这个键就会出现同一部作品在库里两份（server 侧 {author, clientId} 唯一索引）。
    */
   clientId?: string;
+  /**
+   * 「按谁的流程做的同款」：原作品的 id（2026-10-02，公开配方）。做同款 / 按配方复制那一拍记进 flowStore.remixOf，
+   * 组稿时折进稿子，随发布体发上去（服务端只认"这个人读得到"的原作，认不下来当没带、不挡发布）。
+   * ★ 发布体是整份 `draft` 发的（api/branch.createVideo），所以这一格不用另拼；回炉体（reviseVideo）逐字段拼、不带它 ——
+   *   回炉换的是内容，归属不变。
+   */
+  remixOf?: string;
 }
 
 /**

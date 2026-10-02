@@ -452,9 +452,12 @@ function FeedItem({
   function remake() {
     remakeGuard(
       () => {
-        const ok = useFlow
-          .getState()
-          .seed(remakeNodesOf(video.segments, video.deck?.cards ?? []), { mode: "workflow", origin: "solo" });
+        const ok = useFlow.getState().seed(remakeNodesOf(video.segments, video.deck?.cards ?? []), {
+          mode: "workflow",
+          origin: "solo",
+          // 同款署名（2026-10-02）：发布时随稿子上行，原作页据它记一次「N 人做了同款」
+          remixOf: { videoId: video.id, title: video.title, author: video.author },
+        });
         if (ok) navigate("/flow");
         else {
           setRemakeErr(useFlow.getState().err || t`现在铺不了（可能有一段正在生成中），稍后再试`);

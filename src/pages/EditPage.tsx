@@ -24,6 +24,11 @@ import VisibilityPicker from "../components/VisibilityPicker";
 import { deleteVideoItem, getVideo, isMyVideo, isUploading, partsOf, updateVideoMeta } from "../data/videos";
 import { coverToPermanentUrl } from "../data/publishAssets";
 import * as projects from "../data/projects";
+import { fetchRecipe, previewRecipe, removeRecipe, setRecipePublic, shareFromCanvas, type RecipeFetch } from "../data/recipes";
+import type { WorkflowRecipe } from "../data/recipe";
+import Sheet from "../components/Sheet";
+import { CloseButton } from "../components/IconTapButton";
+import { RecipeCast, RecipeExcludedNote, RecipeStoryboard, RecipeSummaryRow } from "../components/recipe/RecipeView";
 import { danmakuFetched, danmakuOf, danmakuVersion, isTruncated, subscribeDanmaku } from "../data/danmaku";
 import { useStudio } from "../studio/studioStore";
 import { useApplyTemplate } from "../components/flow/useApplyTemplate";
@@ -77,6 +82,27 @@ export default function EditPage() {
   const [retainMsg, setRetainMsg] = useState("");
   const [dropAsk, setDropAsk] = useState(false);
   const [dropping, setDropping] = useState(false);
+  // ── 制作过程（公开配方，2026-10-02）────────────────────────
+  // 状态以**服务端**为准（fetchRecipe：作者本人不公开也读得到），不拿列表缓存里那两位当真相 ——
+  // 缓存可能来自老服务端 / 没刷新的 feed。四档结局原样摆（ok / none / unsupported / failed），别压成两档。
+  const [recipeFetch, setRecipeFetch] = useState<RecipeFetch | null>(null);
+  const [recipeBusy, setRecipeBusy] = useState("");
+  const [recipeMsg, setRecipeMsg] = useState<{ text: string; kind: "ok" | "err" } | null>(null);
+  /** 公开前的预览（别人会看到这些）：从服务端留存的工程投出来的那份 + 投影时拿的画布版次 */
+  const [recipePreview, setRecipePreview] = useState<{ recipe: WorkflowRecipe; canvas: unknown; revision: number } | null>(null);
+  const [recipeDropAsk, setRecipeDropAsk] = useState(false);
+  const videoId = video?.id ?? "";
+  useEffect(() => {
+    if (!videoId) return;
+    let on = true;
+    setRecipeFetch(null);
+    void fetchRecipe(videoId, { fresh: true }).then((r) => {
+      if (on) setRecipeFetch(r);
+    });
+    return () => {
+      on = false;
+    };
+  }, [videoId]);
   // 回炉是**第九条整表覆盖入口**：守卫与套模板/打开草稿同一份实现（先问脏、成了再断草稿）。
   // ★ claim: false —— 工程不是草稿，套上之后要断开与旧草稿的关联，此后自动存盘会**另存**
   //   一条普通在途草稿（这正是我们要的：回炉途中新炼的付费段有本地备份）
@@ -251,6 +277,87 @@ export default function EditPage() {
     }
     return null;
   })();
+
+  /** 服务端回的配方状态（作者本人：公开 / 关闭 / 过期），没有时 null */
+  const recipeMeta = recipeFetch?.state === "ok" ? recipeFetch.data.meta : null;
+  const recipeLive = !!recipeMeta && recipeMeta.public && !recipeMeta.stale;
+  /** 「用这一版公开」走得通的前提：留存的工程就是当下这一版（与回炉同一道判据） */
+  const recipeShareWhy: string | null = (() => {
+    if (supported === null) return t`正在确认这条作品有没有留存工坊工程…`;
+    if (supported === "error") return t`暂时问不到服务器，没能确认这条作品有没有留存工坊工程。`;
+    if (supported === false) return t`这台服务器还不支持公开制作过程。`;
+    if (!hasProject) return t`这条作品没有留存工坊工程，没有可公开的制作过程。`;
+    // 与 reforgeWhy 那一档同一个分叉：本机还留着这一版的画布待办才指「重新留存这一版」那颗键，否则那颗键根本不在屏幕上
+    if (projectStale) {
+      return projects.pendingRetainable(video.id, video.clientId)
+        ? t`留存的工坊工程还是上一版的，这一版没有留存上来 —— 先在上面「重新留存这一版」，再来公开。`
+        : t`留存的工坊工程还是上一版的，这一版没有留存上来 —— 这一版的制作过程公开不了。`;
+    }
+    return null;
+  })();
+
+  /** 从服务端留存的工程投一份出来，摆「别人会看到这些」的预览（确认之后才 PUT） */
+  async function beginShareRecipe() {
+    if (!video || recipeBusy) return;
+    setRecipeMsg(null);
+    setRecipeBusy(t`正在取回工程…`);
+    try {
+      const p = await projects.loadProject(video.id, Number(video.revision ?? 0));
+      const r = previewRecipe(p.canvas);
+      if (!r) {
+        setRecipeMsg({ text: t`留存的工程投不出可公开的制作过程（画布是空的或段数超过上限）`, kind: "err" });
+        return;
+      }
+      setRecipePreview({ recipe: r, canvas: p.canvas, revision: p.videoRevision });
+    } catch (e) {
+      setRecipeMsg({ text: e instanceof Error ? e.message : String(e), kind: "err" });
+    } finally {
+      setRecipeBusy("");
+    }
+  }
+
+  async function confirmShareRecipe() {
+    if (!video || !recipePreview || recipeBusy) return;
+    const { canvas, revision } = recipePreview;
+    setRecipePreview(null);
+    setRecipeBusy(t`正在公开…`);
+    const out = await shareFromCanvas(video.id, revision, canvas, true);
+    setRecipeBusy("");
+    if (out.ok) {
+      setRecipeFetch(await fetchRecipe(video.id, { fresh: true }));
+      setRecipeMsg({ text: t`已公开：看到这条作品的人能点「查看制作过程」照着做`, kind: "ok" });
+    } else {
+      setRecipeMsg({ text: t`没能公开（${out.why}）`, kind: "err" });
+    }
+  }
+
+  async function toggleRecipePublic(on: boolean) {
+    if (!video || recipeBusy) return;
+    setRecipeMsg(null);
+    setRecipeBusy(on ? t`正在公开…` : t`正在取消…`);
+    const why = await setRecipePublic(video.id, on);
+    setRecipeBusy("");
+    if (why) {
+      setRecipeMsg({ text: why, kind: "err" });
+      return;
+    }
+    setRecipeFetch(await fetchRecipe(video.id, { fresh: true }));
+    setRecipeMsg({ text: on ? t`已公开` : t`已取消公开：别人看不到制作过程了`, kind: "ok" });
+  }
+
+  async function dropRecipe() {
+    if (!video || recipeBusy) return;
+    setRecipeDropAsk(false);
+    setRecipeBusy(t`正在删除…`);
+    const why = await removeRecipe(video.id);
+    setRecipeBusy("");
+    if (why) {
+      setRecipeMsg({ text: why, kind: "err" });
+      return;
+    }
+    setRecipeFetch({ state: "none", code: "RECIPE_NOT_FOUND" });
+    setRecipeMsg({ text: t`已删除留存的制作过程`, kind: "ok" });
+  }
 
   /** 确认卡上那几个数：**取不到就整段不出现**，绝不拼一个骗人的数（本仓那条纪律） */
   const danmakuCount = danmakuOf(video.id).length;
@@ -455,6 +562,147 @@ export default function EditPage() {
             )}
           </div>
           {reforgeDialog}
+
+          {/* ── 制作过程（公开配方）────────────────────────────
+              摆在回炉下面：它公开的正是那份留存的工程（投影成白名单形状）。四档结局各说各的话。 */}
+          <div className="mt-5">
+            <div className="mb-1.5 text-sm font-semibold text-slate-300"><Trans>制作过程</Trans></div>
+            <div className="rounded-xl border border-slate-700/70 bg-panel p-3">
+              {recipeFetch === null ? (
+                <p className="text-xs text-slate-500"><Trans>正在确认有没有公开…</Trans></p>
+              ) : recipeFetch.state === "unsupported" ? (
+                <p className="text-xs leading-relaxed text-slate-500"><Trans>这台服务器还不支持公开制作过程。</Trans></p>
+              ) : recipeFetch.state === "failed" ? (
+                <div>
+                  <p className="text-xs leading-relaxed text-rose-300"><Trans>暂时问不到服务器（{recipeFetch.why}）</Trans></p>
+                  <button
+                    onClick={() => {
+                      setRecipeFetch(null);
+                      void fetchRecipe(video.id, { fresh: true }).then(setRecipeFetch);
+                    }}
+                    className="mt-2 rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-200 ring-1 ring-slate-700"
+                  >
+                    <Trans>重新问一次</Trans>
+                  </button>
+                </div>
+              ) : recipeFetch.state === "none" ? (
+                <div>
+                  <p className="text-xs leading-relaxed text-slate-400">
+                    <Trans>没有公开。公开之后，看到这条作品的人能点「查看制作过程」看每一段的剧情、档位、时长与卡组，并按这条流程做同款。</Trans>
+                  </p>
+                  <button
+                    onClick={() => void beginShareRecipe()}
+                    disabled={!!recipeShareWhy || !!recipeBusy}
+                    className="mt-2 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink active:scale-[0.99] disabled:opacity-40"
+                  >
+                    {recipeBusy || t`公开制作过程`}
+                  </button>
+                  {recipeShareWhy && <p className="mt-1.5 text-[11px] leading-relaxed text-slate-500">{recipeShareWhy}</p>}
+                </div>
+              ) : (
+                <div>
+                  <p className="text-xs leading-relaxed text-slate-400">
+                    {recipeLive ? (
+                      <Trans>已公开：看到这条作品的人能点「查看制作过程」照着做。</Trans>
+                    ) : recipeMeta!.stale ? (
+                      recipeMeta!.public ? (
+                        <Trans>公开着的还是上一版的制作过程（这一版回炉后还没更新），别人现在看不到。</Trans>
+                      ) : (
+                        <Trans>留存过制作过程（上一版的），现在没有公开。</Trans>
+                      )
+                    ) : (
+                      <Trans>留存过制作过程，现在没有公开。</Trans>
+                    )}
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {recipeLive && (
+                      <Link to={`/video/${video.id}/recipe`} className="rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-200 ring-1 ring-slate-700">
+                        <Trans>看看别人看到的</Trans>
+                      </Link>
+                    )}
+                    {recipeMeta!.stale ? (
+                      <button
+                        onClick={() => void beginShareRecipe()}
+                        disabled={!!recipeShareWhy || !!recipeBusy}
+                        className="rounded-full bg-brand px-3 py-1.5 text-[11px] font-bold text-ink disabled:opacity-40"
+                      >
+                        {recipeBusy || t`用这一版重新公开`}
+                      </button>
+                    ) : recipeMeta!.public ? (
+                      <button
+                        onClick={() => void toggleRecipePublic(false)}
+                        disabled={!!recipeBusy}
+                        className="rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-200 ring-1 ring-slate-700 disabled:opacity-40"
+                      >
+                        {recipeBusy || t`取消公开`}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => void toggleRecipePublic(true)}
+                        disabled={!!recipeBusy}
+                        className="rounded-full bg-brand px-3 py-1.5 text-[11px] font-bold text-ink disabled:opacity-40"
+                      >
+                        {recipeBusy || t`重新公开`}
+                      </button>
+                    )}
+                    {recipeMeta!.stale && recipeMeta!.public && (
+                      <button
+                        onClick={() => void toggleRecipePublic(false)}
+                        disabled={!!recipeBusy}
+                        className="rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-200 ring-1 ring-slate-700 disabled:opacity-40"
+                      >
+                        <Trans>取消公开</Trans>
+                      </button>
+                    )}
+                  </div>
+                  {recipeMeta!.stale && recipeShareWhy && <p className="mt-1.5 text-[11px] leading-relaxed text-slate-500">{recipeShareWhy}</p>}
+                  <button onClick={() => setRecipeDropAsk(true)} className="mt-2 text-[11px] text-slate-500 underline underline-offset-2">
+                    <Trans>删除留存的制作过程</Trans>
+                  </button>
+                </div>
+              )}
+              {recipeMsg && (
+                <p className={`mt-2 text-[11px] leading-relaxed ${recipeMsg.kind === "ok" ? "text-emerald-300" : "text-rose-300"}`}>{recipeMsg.text}</p>
+              )}
+            </div>
+          </div>
+          {recipePreview && (
+            <Sheet onClose={() => setRecipePreview(null)}>
+              <div className="mb-3 flex items-center justify-between">
+                <div className="text-sm font-bold text-slate-100"><Trans>别人会看到这些</Trans></div>
+                <CloseButton chip="sm" size={13} align="end" onClick={() => setRecipePreview(null)} />
+              </div>
+              <RecipeSummaryRow recipe={recipePreview.recipe} />
+              <div className="mt-3">
+                <RecipeStoryboard recipe={recipePreview.recipe} />
+              </div>
+              <div className="mt-3">
+                <RecipeCast recipe={recipePreview.recipe} />
+              </div>
+              <div className="mt-3">
+                <RecipeExcludedNote />
+              </div>
+              <div className="mt-4 flex gap-2">
+                <button onClick={() => setRecipePreview(null)} className="flex-1 rounded-xl bg-panel py-2.5 text-sm font-bold text-slate-200 ring-1 ring-slate-700">
+                  <Trans>先不公开</Trans>
+                </button>
+                <button onClick={() => void confirmShareRecipe()} className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink">
+                  <Trans>就这样公开</Trans>
+                </button>
+              </div>
+            </Sheet>
+          )}
+          {recipeDropAsk && (
+            <ConfirmDialog
+              title={t`删除留存的制作过程？`}
+              confirmLabel={t`删除`}
+              danger
+              onClose={() => setRecipeDropAsk(false)}
+              onConfirm={() => void dropRecipe()}
+            >
+              <Trans>作品本身不受影响。删掉之后别人看不到制作过程；想再公开要从留存的工坊工程重新投一份。</Trans>
+            </ConfirmDialog>
+          )}
         </div>
 
         {/* 右：元信息 + 封面 + 可见性 */}

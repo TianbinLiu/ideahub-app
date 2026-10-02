@@ -26,6 +26,7 @@ import { startJob } from "./jobs";
 import { t } from "@lingui/core/macro";
 import { isPermanentUrl, pairAssetUrls, type PairTarget } from "./publishAssets";
 import * as api from "../api/projects";
+import { shareFromCanvas, type ShareOutcome } from "./recipes";
 import { ApiError } from "../api/client";
 import type { DraftVideo } from "../types";
 import { deviceOwner, mayClaimLegacy, onViewerChange, workOwner } from "./deviceOwner";
@@ -105,6 +106,12 @@ interface PendingCanvas {
   ready?: true;
   /** ready 时随之定下的缺失数（重试要原样报上去，重算一遍必然得到 0——那时已经没有 before 了） */
   lostCount?: number;
+  /**
+   * 发布页上那颗「公开制作过程」的选择（2026-10-02，主人拍板默认开）：留存工程那一拍顺手把瘦身好的画布投成公开配方
+   * PUT 上去（data/recipes.shareFromCanvas）。★ 跟着待办落盘：发布可能是离线排队、冷启动由 flushPending 补发的，
+   *   那时发布页早就不在了 —— 这个选择只能存在这里。判否定：没有这一位（老待办 / 没经过发布页）= 不公开。
+   */
+  shareRecipe?: boolean;
 }
 
 // ── 订阅（模块级单例 + 版本号）────────────────────────────
@@ -366,7 +373,7 @@ export async function captureCanvas(input: {
  *     就**不盖**。此时这一条作品确实没有本机画布，`retain` 会走"待办缺失"那句实话，
  *     而上一条那份待办仍留着供它自己的「重试留存」用 —— 两边都不说谎。
  */
-export async function stampPendingCanvas(clientId: string | undefined): Promise<void> {
+export async function stampPendingCanvas(clientId: string | undefined, shareRecipe = false): Promise<void> {
   if (!clientId) return;
   const p = await readPending();
   if (!p || p.clientId === clientId) return;
@@ -374,7 +381,29 @@ export async function stampPendingCanvas(clientId: string | undefined): Promise<
     console.warn("[projects] 待办已属于另一摊活，不盖章", { has: p.clientId ?? "revise", want: clientId });
     return;
   }
-  await writePending({ ...p, clientId });
+  // ★ 「公开制作过程」的选择与幂等键**同一次写**：两次读改写同一格会互相盖掉（stampPendingCanvas 是 void 调的）
+  await writePending({ ...p, clientId, shareRecipe });
+}
+
+/**
+ * 回炉那条路给待办记下「公开制作过程」的选择（回炉的待办不盖幂等键，认的是 reviseOf）。
+ * ★ 要 await：它与 stampPendingCanvas 一样是对同一格的读改写，发布页在提交之前等它写完。
+ */
+export async function markShareRecipe(videoId: string, shareRecipe: boolean): Promise<void> {
+  const p = await readPending();
+  if (!p || p.reviseOf?.videoId !== videoId) return;
+  await writePending({ ...p, shareRecipe });
+}
+
+/**
+ * 发布页预览「别人会看到这些」要的那份画布：组稿那一拍抓下的、还没盖章（新发布）或对得上回炉目标（回炉）的待办。
+ * null = 本机没有这条稿子的画布（简约模式 / 捕获失败 / 换过设备）—— 那时发布页不摆「公开制作过程」那颗开关。
+ */
+export async function pendingCanvasFor(reviseOf: { videoId: string } | null | undefined): Promise<CanvasSnapshot | null> {
+  const p = await readPending();
+  if (!p) return null;
+  if (reviseOf) return p.reviseOf?.videoId === reviseOf.videoId ? p.canvas : null;
+  return !p.clientId && !p.videoId && !p.reviseOf ? p.canvas : null;
 }
 
 /**
@@ -629,25 +658,40 @@ async function retain(
     return;
   }
   const job = startJob({ kind: "project-retain", title: t`留存工坊工程`, progress: t`提交中` });
+  /** 「公开制作过程」那一半的结局（null = 这条没勾公开）。两件事分开说：工程是回炉用的，配方是给别人看的 */
+  let shared: ShareOutcome | null = null;
   try {
-    const { lost, videos } = await submit(videoId, before, after, revision, pend);
+    const r = await submit(videoId, before, after, revision, pend);
+    shared = r.shared;
+    const { lost, videos } = r;
     const previews = lost - videos;
-    job.done({
-      // ★★ 分两句说（见 submit 的 ★★）：把"要再花一次钱"和"重截一下就有"混成一句
-      //   「N 处素材」，往哪个方向说错都不高尚 —— 前者会让人以为不要紧，后者会把人吓住。
-      msg: videos
-        ? previews > 0
-          ? t`工程已留存，但有 ${videos} 段成片没能留下——回炉时那几段要重新出片（会再花一次钱）；另外 ${previews} 处只是预览图。回炉页会逐格标出来`
-          : t`工程已留存，但有 ${videos} 段成片没能留下——回炉时那几段要重新出片（会再花一次钱）。回炉页会逐格标出来`
-        : lost
-          ? t`工程已留存（有 ${lost} 处预览图没能留下，回炉时重新截一下就有，不花钱）`
-          : t`工程已留存，之后可在编辑页回炉重做`,
-      route: `/video/${videoId}`,
-    });
+    const base = videos
+      ? previews > 0
+        ? t`工程已留存，但有 ${videos} 段成片没能留下——回炉时那几段要重新出片（会再花一次钱）；另外 ${previews} 处只是预览图。回炉页会逐格标出来`
+        : t`工程已留存，但有 ${videos} 段成片没能留下——回炉时那几段要重新出片（会再花一次钱）。回炉页会逐格标出来`
+      : lost
+        ? t`工程已留存（有 ${lost} 处预览图没能留下，回炉时重新截一下就有，不花钱）`
+        : t`工程已留存，之后可在编辑页回炉重做`;
+    if (shared && !shared.ok) {
+      // ★ 工程留住了、制作过程没公开成：**必须说**（用户在发布页勾了公开，不说他会以为别人看得到），并指一条真能走的路
+      //   （编辑页那颗开关会从服务端留存的工程重新投一份）。老服务端那一档不说：那台服务器上根本没有这颗开关
+      const why = shared.why;
+      if (shared.kind !== "unsupported") job.fail(t`${base}。但制作过程没能公开（${why}）——到编辑页的「制作过程」再开一次`, `/edit/${videoId}`);
+      else job.done({ msg: base, route: `/video/${videoId}` });
+    } else {
+      job.done({
+        // ★★ 分两句说（见 submit 的 ★★）：把"要再花一次钱"和"重截一下就有"混成一句
+        //   「N 处素材」，往哪个方向说错都不高尚 —— 前者会让人以为不要紧，后者会把人吓住。
+        msg: shared?.ok ? t`${base}；制作过程已公开，别人能在作品页看到并照着做` : base,
+        route: `/video/${videoId}`,
+      });
+    }
   } catch (e) {
     const why = msg(e);
     console.warn("[projects] 留存失败", { videoId, why });
-    job.fail(t`工程没能留存（${why}）——作品已经发出去了，只是这条暂时不能回炉；可在编辑页点「重试留存」`, `/edit/${videoId}`);
+    // 配方那一半成没成要一起说（它在工程 PUT 之前就发过了，成与败都不随这里的 throw 变）
+    const tail = shared && !shared.ok && shared.kind !== "unsupported" ? t`；制作过程也没能公开（${shared.why}）` : "";
+    job.fail(t`工程没能留存（${why}）——作品已经发出去了，只是这条暂时不能回炉；可在编辑页点「重试留存」${tail}`, `/edit/${videoId}`);
   }
 }
 
@@ -698,7 +742,7 @@ async function submit(
   after: PairTarget & { title?: string },
   revision: number,
   pend: PendingCanvas,
-): Promise<{ lost: number; videos: number }> {
+): Promise<{ lost: number; videos: number; shared: ShareOutcome | null }> {
   let canvas = pend.canvas;
   let lost = pend.lostCount ?? 0;
   if (!pend.ready) {
@@ -713,10 +757,15 @@ async function submit(
     //   不显式带的话会把 retain 刚盖的作品 id 抹掉（见 PendingCanvas.videoId 的 ★★★）
     await writePending({ ...pend, videoId, canvas, ready: true, lostCount: lost });
   }
+  // ★ 「公开制作过程」排在工程 PUT **之前**：它只要这份瘦身好的画布，与工程的配额 / 版次闸无关；
+  //   工程那一发撞了配额（下面 put 会 throw）也不该把制作过程一起拖下水。它自己从不 throw（回结局对象）。
+  //   ⚠ 只做一次：`put` 成功会清待办，`shareRecipe` 这一位随之消失，「重试留存」那条路不会再发一遍 ——
+  //     工程 PUT 失败而重试时，配方早在第一次就送过了（成败都在当时的票上说过）。
+  const shared = pend.shareRecipe === true ? await shareFromCanvas(videoId, revision, canvas, true) : null;
   await put(videoId, after.title || pend.title, revision, canvas, lost);
   // ★ 从**改写之后**那份画布上数（`markLost` 把 flags 写进去的正是它）——
   //   这样"重试留存"那条路（pend.ready 已经是改写过的）也数得出来，不用另存一位
-  return { lost, videos: lostVideoCount(canvas) };
+  return { lost, videos: lostVideoCount(canvas), shared };
 }
 
 /**

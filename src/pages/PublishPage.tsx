@@ -34,6 +34,12 @@ import { useVideosVersion } from "../hooks/useVideos";
 import { showToast } from "../data/toast";
 import { publishedExit, useStudio } from "../studio/studioStore";
 import { useCut } from "../studio/cutStore";
+import Sheet from "../components/Sheet";
+import { CloseButton } from "../components/IconTapButton";
+import { RecipeCast, RecipeExcludedNote, RecipeStoryboard, RecipeSummaryRow } from "../components/recipe/RecipeView";
+import { markShareRecipe, pendingCanvasFor } from "../data/projects";
+import { previewRecipe } from "../data/recipes";
+import type { WorkflowRecipe } from "../data/recipe";
 import { DEFAULT_VIDEO_CATEGORY, VIDEO_CATEGORIES, VIDEO_TAG_LEN, VIDEO_TAG_MAX, type Visibility, formatDuration, parseTags, revisionLabel, visibilityOf, visibilityWire } from "../types";
 
 export default function PublishPage() {
@@ -106,6 +112,27 @@ export default function PublishPage() {
    */
   const [reviseFail, setReviseFail] = useState<Extract<ReviseResult, { ok: false }> | null>(null);
 
+  // ── 公开制作过程（2026-10-02，主人拍板：默认开、公开前先过一屏预览）──
+  // recipe：组稿那一拍抓下的画布（data/projects 的待办）投出来的配方。null = 这条稿子没有可公开的制作过程
+  //   （简约模式 / 捕获失败 / 换过设备 / 画布投不出来），那时这颗开关**根本不摆**；undefined = 还没读到（IndexedDB 异步）。
+  // ★ 预览画的是瘦身**之前**的画布（帧还是本机地址，previewRecipe 允许），真公开的那份在留存工程那一拍从瘦身好的画布再投一次
+  //   （projects.submit）—— 两份只差"画面地址"，段 / 卡 / 空位逐一相同（同一个 projectRecipe）。
+  const [recipe, setRecipe] = useState<WorkflowRecipe | null | undefined>(undefined);
+  const [shareRecipe, setShareRecipe] = useState(true);
+  /** 预览抽屉开着；`gate` = 是「发布」键顶出来的（确认之后要接着发），不是链接点开看看 */
+  const [recipeOpen, setRecipeOpen] = useState<{ gate: boolean } | null>(null);
+  /** 预览看过了没有：第一次点「发布」先摆预览，之后再点直接发（看过一遍就够了，别每次都拦） */
+  const recipeSeen = useRef(false);
+  useEffect(() => {
+    let on = true;
+    void pendingCanvasFor(reviseOf).then((c) => {
+      if (on) setRecipe(c ? previewRecipe(c) : null);
+    });
+    return () => {
+      on = false;
+    };
+  }, [reviseOf?.videoId]);
+
   // 壳字段初值：回炉态一律**预填原作品的值**（不是新草稿的自动标题）——用户回炉是来换内容的，
   // 让他把标题简介再敲一遍是把"改内容"伪装成"发新片"。
   // ★ 只在"表单还是空白"时回填，避免覆盖用户已经输入的内容（同 EditPage 那条）。
@@ -122,7 +149,24 @@ export default function PublishPage() {
     if (!origin) return;
     setVisibility(visibilityOf(origin));
     setTags(origin.tags ?? []);
+    // 回炉：开关跟着原作品现在的状态走（作者关过就别替他重新打开）；没留存过配方的老作品按默认开
+    setShareRecipe(origin.recipeState ? origin.recipeState.public : true);
   }, [origin?.id]);
+
+  /** 这一发要不要公开制作过程：开关 × 有东西可公开（`over` 给预览抽屉里那两颗键用，state 还来不及变） */
+  const wantShare = (over?: { shareRecipe?: boolean }) => (over?.shareRecipe ?? shareRecipe) && !!recipe;
+  /**
+   * 主按钮：公开着而且还没看过预览 → 先摆预览（主人点名"公开前先过一屏"），确认之后接着发。
+   * `over` 是预览抽屉里那两颗键传下来的（「这次不公开」要带着 shareRecipe:false 直接发，别让人再点一次）。
+   */
+  function primary(over?: { shareRecipe?: boolean }) {
+    if (wantShare(over) && !recipeSeen.current) {
+      setRecipeOpen({ gate: true });
+      return;
+    }
+    if (reviseOf) void submitRevise(over);
+    else void publish(over);
+  }
 
   /**
    * 本页刚刚发布过（publish() 已经把去处发出去了）。
@@ -172,7 +216,7 @@ export default function PublishPage() {
    * ★ `publishedRef` 只在**真成了**之后才置位：置早了失败时那颗键就永久禁着，
    *   而用户此刻最需要的就是再点一次。
    */
-  async function submitRevise() {
+  async function submitRevise(over?: { shareRecipe?: boolean }) {
     if (!draft || !reviseOf || publishedRef.current || busy) return;
     if (!title.trim()) {
       setErr(t`先给视频起个标题`);
@@ -181,6 +225,8 @@ export default function PublishPage() {
     setErr("");
     setReviseFail(null);
     setBusy(t`正在替换…`);
+    // 「公开制作过程」的选择先记进待办（要 await：与 retain 那边是对同一格的读改写），留存工程那一拍照它办
+    await markShareRecipe(reviseOf.videoId, wantShare(over));
     // ★ 记下提交的是**哪一份**合成稿（2026-09-18，2.46 发版前复核抓到）：这一发要传好几分钟，人完全可能先回去
     //   打开了另一条草稿 / 另一份合成稿。回包之后 finishPublish 清的是**那一刻**的 draft、剪辑稿存档与 workDraftId ——
     //   不核对的话，删掉的是他后来打开的那一份。
@@ -247,8 +293,8 @@ export default function PublishPage() {
     });
   }
 
-  /** @param over 立刻要生效、还来不及经过 state 的字段（放弃确认卡里那条"先私密发出去"用） */
-  async function publish(over?: { visibility?: Visibility }) {
+  /** @param over 立刻要生效、还来不及经过 state 的字段（放弃确认卡里那条"先私密发出去"、预览抽屉里「这次不公开」用） */
+  async function publish(over?: { visibility?: Visibility; shareRecipe?: boolean }) {
     if (!draft || publishedRef.current) return;
     if (!title.trim()) {
       setErr(t`先给视频起个标题`);
@@ -259,19 +305,25 @@ export default function PublishPage() {
       shareDeck && draft.deck?.cards.length
         ? { name: t`《${title.trim()}》卡组`, cards: draft.deck.cards }
         : undefined;
-    const item = publishVideo({
-      title: title.trim(),
-      category,
-      description: description.trim(),
-      ...(tags.length > 0 ? { tags } : {}),
-      cover,
-      segments: draft.segments,
-      branchTree: draft.branchTree,
-      deck,
-      merged: draft.merged,
-      // 三档 → 两个字段，映射只有 types.visibilityWire 一处
-      ...visibilityWire(over?.visibility ?? visibility),
-    });
+    const item = publishVideo(
+      {
+        title: title.trim(),
+        category,
+        description: description.trim(),
+        ...(tags.length > 0 ? { tags } : {}),
+        cover,
+        segments: draft.segments,
+        branchTree: draft.branchTree,
+        deck,
+        merged: draft.merged,
+        // 三档 → 两个字段，映射只有 types.visibilityWire 一处
+        ...visibilityWire(over?.visibility ?? visibility),
+        // 「按谁的流程做的同款」（组稿时从 flowStore.remixOf 折进稿子的）：这里是逐字段拼的发布体，不带就丢了
+        ...(draft.remixOf ? { remixOf: draft.remixOf } : {}),
+      },
+      // 公开制作过程：不进发布体，盖进画布待办，留存工程那一拍顺手投成配方 PUT 上去（data/projects.submit）
+      { shareRecipe: wantShare(over) },
+    );
     // ★ 作品已经落库了，从这一刻起不许再发第二条（下面要 await，窗口比原来长）
     publishedRef.current = true;
 
@@ -477,6 +529,40 @@ export default function PublishPage() {
 
           <VisibilityPicker value={visibility} onChange={setVisibility} />
 
+          {/* 公开制作过程（2026-10-02 主人拍板：默认开、公开前先过一屏预览）。只在这条稿子真有可公开的画布时才摆 ——
+              简约模式 / 捕获失败 / 换过设备的稿子没有可公开的东西，摆一颗恒灰的开关是噪声（与下面卡组那颗同一条理由） */}
+          {recipe && (
+            <div data-guide="publish-recipe">
+              <div className="mb-1.5 text-sm font-semibold text-slate-300"><Trans>制作过程</Trans></div>
+              <button
+                onClick={() => setShareRecipe((v) => !v)}
+                className={`flex w-full items-start gap-2.5 rounded-xl border px-3.5 py-2.5 text-left ${
+                  shareRecipe ? "border-brand/40 bg-brand/5" : "border-slate-700 bg-panel"
+                }`}
+              >
+                <span className={`mt-0.5 flex-none text-base ${shareRecipe ? "text-brand" : "text-slate-500"}`}>
+                  {shareRecipe ? "☑" : "☐"}
+                </span>
+                <span className="text-xs leading-relaxed text-slate-300">
+                  <Trans>公开制作过程</Trans>
+                  <span className="mt-0.5 block text-[11px] text-slate-500">
+                    {shareRecipe
+                      ? t`看到这条片子的人能点「查看制作过程」看每一段的剧情、档位、时长与卡组，并按这条流程做同款。你的原话、没选中的方案、圈选与导演台都不会给出去。`
+                      : reviseOf && origin?.recipeState?.public
+                        // ★ 回炉态要多说一句：关掉它，原作品上那份公开着的制作过程也会一并下线（服务端按版次判：旧配方配不上新一版）
+                        ? t`别人只看得到成片，看不到它是怎么一段段做出来的。原作品上公开着的制作过程也会一并下线。`
+                        : t`别人只看得到成片，看不到它是怎么一段段做出来的。`}
+                  </span>
+                </span>
+              </button>
+              {shareRecipe && (
+                <button type="button" onClick={() => setRecipeOpen({ gate: false })} className="mt-1.5 text-xs text-brand underline underline-offset-2">
+                  <Trans>看看别人会看到什么</Trans>
+                </button>
+              )}
+            </div>
+          )}
+
           {/* 随片带卡组：只在这条片子真的有卡组时才摆（没有卡组时摆一颗恒灰的开关是噪声） */}
           {!!draft.deck?.cards.length && (
             <div>
@@ -631,7 +717,7 @@ export default function PublishPage() {
 
           <div data-guide="publish-actions" className="flex items-center gap-3 pt-2">
             <button
-              onClick={() => (reviseOf ? void submitRevise() : void publish())}
+              onClick={() => primary()}
               disabled={!!busy || !!deckIssue}
               className="rounded-xl bg-brand px-6 py-2.5 text-sm font-bold text-ink hover:brightness-110 disabled:opacity-40"
             >
@@ -676,6 +762,50 @@ export default function PublishPage() {
         <InfoDialog title={AGREEMENTS.aigc.title} onClose={() => setAigcOpen(false)}>
           {AGREEMENTS.aigc.body}
         </InfoDialog>
+      )}
+
+      {/* 「别人会看到这些」：公开制作过程的预览（三处共用的 RecipeView）。gate 为真时是发布键顶出来的，两颗键都接着发 */}
+      {recipeOpen && recipe && (
+        <Sheet onClose={() => setRecipeOpen(null)}>
+          <div className="mb-3 flex items-center justify-between">
+            <div className="text-sm font-bold text-slate-100"><Trans>别人会看到这些</Trans></div>
+            <CloseButton chip="sm" size={13} align="end" onClick={() => setRecipeOpen(null)} />
+          </div>
+          <RecipeSummaryRow recipe={recipe} />
+          <div className="mt-3">
+            <RecipeStoryboard recipe={recipe} />
+          </div>
+          <div className="mt-3">
+            <RecipeCast recipe={recipe} />
+          </div>
+          <div className="mt-3">
+            <RecipeExcludedNote />
+          </div>
+          <div className="mt-4 flex gap-2">
+            <button
+              onClick={() => {
+                const gate = recipeOpen.gate;
+                setShareRecipe(false);
+                setRecipeOpen(null);
+                if (gate) primary({ shareRecipe: false });
+              }}
+              className="flex-1 rounded-xl bg-panel py-2.5 text-sm font-bold text-slate-200 ring-1 ring-slate-700"
+            >
+              {recipeOpen.gate ? t`这次不公开，直接发` : t`这次不公开`}
+            </button>
+            <button
+              onClick={() => {
+                const gate = recipeOpen.gate;
+                recipeSeen.current = true;
+                setRecipeOpen(null);
+                if (gate) primary();
+              }}
+              className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink"
+            >
+              {recipeOpen.gate ? (reviseOf ? t`就这样公开，替换原作品` : t`就这样公开，发布`) : t`好`}
+            </button>
+          </div>
+        </Sheet>
       )}
 
       {discardOpen && (

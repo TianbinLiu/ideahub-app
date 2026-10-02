@@ -41,6 +41,7 @@ import {
   deriveIssue,
 } from "../data/economy";
 import { aspectOf, Card, DEFAULT_ASPECT, Proposal, TemplateRecipe, VideoAspect, VideoSegment, VideoTemplate, aspectFromSize, uid, viewsOf } from "../types";
+import type { WorkflowRecipe } from "../data/recipe";
 // ★ 角色位上限（服务端那个数的镜像）与"哪几个能挂卡"只有一处实现，在 data 层 ——
 //   store 不该 import 组件（依赖方向 data → store → 组件）
 import { dropVideoJob, rememberVideoJob, setVideoJobWaiting, type VideoJob } from "../data/videoJobs";
@@ -208,6 +209,12 @@ export function reviseSecOf(p: Proposal): number {
 export type FlowTemplate = {
   id: string;
   title: string;
+  /**
+   * 服务端模板 id（`VideoTemplate.remoteId` 的镜像，2026-10-02 公开配方）：配方里段模板**只回指服务端 id**
+   * （data/recipe.tplRefOf），本机 id 在别人的设备上没有意义。★ 判有值：老快照 / 没登记的本机模板缺它，
+   *   投影时退回按本机 id 现查一次（data/templates 登记的解析器），再认不出就不带模板引用。
+   */
+  remoteId?: string;
   recipe: TemplateRecipe;
   cards: Card[];
   refVideo?: VideoTemplate["refVideo"];
@@ -261,7 +268,7 @@ export type FlowTemplate = {
  */
 function clearTemplate(): Pick<
   FlowState,
-  "template" | "subject" | "cast" | "castErr" | "castFallback" | "castBusy" | "castNodeId" | "deckOff" | "alts" | "reviseOf"
+  "template" | "subject" | "cast" | "castErr" | "castFallback" | "castBusy" | "castNodeId" | "deckOff" | "alts" | "reviseOf" | "remixOf"
 > {
   // deckOff 也在这里回默认：本函数的调用点恰好就是全部「整表换流水线/复位」点，
   // 而「只出片不出卡组」是**每条片各自**的选择，不该跟到下一条片上。
@@ -269,7 +276,8 @@ function clearTemplate(): Pick<
   // ★ deckOff 缺省 **true**（2026-09-06 主人点名：「生成对应视频卡组」默认不勾，想要再勾）
   // reviseOf 同理，而且它比前两位更要命：这几处全是**整表换掉 nodes**，
   // 留着它等于让下一条不相干的流水线拿着"替换那条已发布作品"的权力去发布（见 FlowState.reviseOf 的 ★★）
-  return { template: null, subject: "", cast: {}, castErr: "", castFallback: "", castBusy: false, castNodeId: null, deckOff: true, alts: {}, reviseOf: null };
+  // remixOf（按谁的流程做的同款）同理：整表换掉 nodes 之后就不再是那条的同款 —— 留着会把一条不相干的片署成别人的同款
+  return { template: null, subject: "", cast: {}, castErr: "", castFallback: "", castBusy: false, castNodeId: null, deckOff: true, alts: {}, reviseOf: null, remixOf: null };
 }
 
 /**
@@ -285,6 +293,7 @@ function snapTpl(src: VideoTemplate): FlowTemplate {
   return {
     id: src.id,
     title: src.title,
+    ...(src.remoteId ? { remoteId: src.remoteId } : {}),
     recipe: src.recipe,
     cards: src.cards,
     refVideo: src.refVideo,
@@ -586,6 +595,104 @@ export function remakeNodesOf(segs: VideoSegment[], cards: Card[]): FlowNode[] {
 /** 这条作品够不够格「做同款」：至少一段带剧本文字（纯上传/无剧本的作品没有配方可抄） */
 export function remakeableOf(segs: VideoSegment[] | undefined): boolean {
   return !!segs?.length && segs.some((s) => (s.plot ?? "").trim().length > 0);
+}
+
+/** 「按配方做同款」的选角（制作过程页那张面板的结果）。全部由调用方先备好 —— 建料保持同步、不碰网络 */
+export interface RecipePicks {
+  /** 配方自带的卡里要照用的（已转成 Card 形状；不要的那几张不在列） */
+  cards: Card[];
+  /** 空位 → 使用者自己挑的卡（下标 = recipe.cast 的下标；没填的空着） */
+  slotCards: Record<number, Card>;
+  /** 段模板：服务端 id → 现取到的模板；null = 取不到（那一段退成普通段） */
+  templates: Record<string, VideoTemplate | null>;
+}
+
+export interface RecipeBuild {
+  nodes: FlowNode[];
+  /** 与原作不一样的地方（模板取不到退成普通段、档位下线、模型换代……）—— 铺完由调用方摆出来，别悄悄不说 */
+  notes: string[];
+}
+
+/**
+ * 「按配方做同款」的建料（2026-10-02 公开配方，docs/template-workflow-research.md §三 C）：
+ * 把别人公开的制作过程（data/recipe.WorkflowRecipe）铺成一条新流水线的 nodes。与 remakeNodesOf 同一条规矩：
+ *   · 帧一张不带（主人拍板：复制不带起止画面），plan 跟着有没有剧情走 —— 有剧情 = "picked"（进来就能炼），
+ *     没剧情（白模段退化的那种）= 没推演过；
+ *   · 白模段要**现取得到**模板（picks.templates）、档位开着、模板视频过得了方舟窗口，三样缺一就退成普通段并记进 notes；
+ *     铺法与 applyTemplateGroup 同一形状（chain=false、档位 = blockoutTier、画幅跟模板、时长 = 模板的、tpl 逐段快照）；
+ *   · 卡：配方自带的卡按使用者勾的那几张挂，空位按他填的卡挂；白模段上这只是开场值，挂卡由 applyCast 整表重写；
+ *   · 自定义段的参考视频不随配方走，按普通段铺（原作的提示词还在）。
+ * ★ 每一段的 tpl 都**显式表态**（对象或 null）—— seed 之后 store 级 template 是 null，留 undefined 的段会在
+ *   用户点回某个白模段那一刻被兜底认成那个模板（pinUnstatedTpl 的 ★★）。
+ * ★ 纯建料，不碰 store：真正的整表覆盖走 `seed()`，调用方要套 useApplyTemplate 守卫（第九条整表换 nodes 的入口）。
+ */
+export function recipeNodesOf(recipe: WorkflowRecipe, picks: RecipePicks): RecipeBuild {
+  const notes: string[] = [];
+  const cardById = new Map(picks.cards.map((c) => [c.id, c] as const));
+  const gate = blockoutTier();
+  const nodes = recipe.nodes.map((rn, i) => {
+    const mats: Card[] = [];
+    for (const id of rn.cards) {
+      const c = cardById.get(id);
+      if (c && !mats.some((m) => m.id === c.id)) mats.push(c);
+    }
+    for (const s of rn.slots) {
+      const c = picks.slotCards[s];
+      if (c && !mats.some((m) => m.id === c.id)) mats.push(c);
+    }
+    const materials = mats.length ? { materials: mats } : {};
+    const title = rn.title || t`第 ${i + 1} 段`;
+    if (rn.kind === "blockout") {
+      const tmpl = rn.tpl ? (picks.templates[rn.tpl.id] ?? null) : null;
+      const refIssue = tmpl?.refVideo ? refVideoIssue(tmpl.refVideo) : null;
+      const issue = !rn.tpl
+        ? t`第 ${i + 1} 段用的模板没能随配方带上`
+        : !tmpl?.refVideo
+          ? t`第 ${i + 1} 段用的模板「${rn.tpl.title}」已经不在了`
+          : !gate
+            ? t`第 ${i + 1} 段是白模复刻段，但现在没有档位支持白模出片`
+            : refIssue
+              ? t`第 ${i + 1} 段的模板视频用不了（${refIssue}）`
+              : null;
+      if (!issue && tmpl?.refVideo && gate) {
+        const node = newFlowNode(i, {
+          chain: false,
+          ...materials,
+          videoTier: gate.id,
+          aspect: tmpl.refVideo.height > tmpl.refVideo.width ? "portrait" : "landscape",
+          tpl: snapTpl(tmpl),
+        });
+        node.proposals[0].durationSec = tmpl.refVideo.durationSec;
+        node.proposals[0].title = title;
+        return node;
+      }
+      notes.push(t`${issue ?? ""}，这一段改成了普通段（剧情要自己写）`);
+    }
+    const tier = tierOf(rn.tier).id === rn.tier ? rn.tier : DEFAULT_TIER;
+    if (tier !== rn.tier) notes.push(t`第 ${i + 1} 段原来的档位已经下线，改用默认档`);
+    else if (rn.model && tierOf(tier).model !== rn.model) notes.push(t`第 ${i + 1} 段那一档底下的模型已经换代，画面风格可能与原作不同`);
+    const p: Proposal = {
+      id: uid("prop"),
+      title,
+      plot: rn.plot,
+      firstFrame: "",
+      lastFrame: "",
+      durationSec: clampDuration(rn.durationSec, tier),
+      ...(rn.shot ? { shot: rn.shot } : {}),
+    };
+    return newFlowNode(i, {
+      proposals: [p],
+      chosenId: p.id,
+      ...(rn.plot ? { plan: "picked" as const } : {}),
+      requirement: rn.plot,
+      videoTier: tier,
+      aspect: rn.aspect,
+      chain: i > 0 && rn.chain,
+      tpl: null,
+      ...materials,
+    });
+  });
+  return { nodes, notes };
 }
 
 /**
@@ -1001,6 +1108,15 @@ interface FlowState {
    *   不该悄悄拥有替换线上作品的权力。回炉途中被杀，那摊活由普通草稿兜住，重开是普通编辑。
    */
   reviseOf: { videoId: string; baseRevision: number; title: string } | null;
+  /**
+   * 这条流水线是「按谁的流程做的同款」（2026-10-02，公开配方）：原作品 id + 给界面说的标题与作者名。null = 不是。
+   * 做同款（remakeNodesOf）与按配方复制（recipeNodesOf）都经 `seed(…, { remixOf })` 写它；组稿时折进
+   * `DraftVideo.remixOf` 随发布体上行（服务端只认读得到的原作，认不下来当没带、不挡发布）。
+   * ★ 跟着 `clearTemplate()` 走（整表换流水线就不再是那条的同款）。
+   * ★ 与 reviseOf 相反，它**进草稿**（saveWorkDraft / openWorkDraft 各搬一次）：署名是对原作者的交代，
+   *   一条半途存起来的同款草稿重开后仍然是同款 —— 丢掉它的后果是零报错地少一行署名、少记一次同款数。
+   */
+  remixOf: { videoId: string; title: string; author: string } | null;
   /** 全局生成闸：同一时刻只炼一段 */
   busy: boolean;
   err: string;
@@ -1051,7 +1167,7 @@ interface FlowState {
    */
   canReplaceNodes: () => boolean;
   /** 返回 false = 被 canReplaceNodes 拒了（原因在 err） */
-  seed: (nodes: FlowNode[], opts: { mode: FlowMode; origin: "studio" | "solo" }) => boolean;
+  seed: (nodes: FlowNode[], opts: { mode: FlowMode; origin: "studio" | "solo"; remixOf?: FlowState["remixOf"] }) => boolean;
   /** 工作流/简约模式的空白起手：一个待填的节点 */
   seedSolo: (mode: FlowMode) => boolean;
   /** 套模板：按配方的分镜骨架铺节点、挂上模板卡组，之后只等用户写那句话。
@@ -1235,6 +1351,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
   mode: "workflow",
   origin: "solo",
   reviseOf: null,
+  remixOf: null,
   busy: false,
   err: "",
   genNotice: null,
@@ -1268,7 +1385,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
   },
   seed: (nodes, opts) => {
     if (!get().canReplaceNodes()) return false;
-    set({ nodes, cursor: 0, mode: opts.mode, origin: opts.origin, busy: false, err: "", ...clearTemplate() });
+    // remixOf 排在 clearTemplate **之后**：那里把它清成 null，做同款 / 按配方复制要在同一拍里写上
+    set({ nodes, cursor: 0, mode: opts.mode, origin: opts.origin, busy: false, err: "", ...clearTemplate(), remixOf: opts.remixOf ?? null });
     return true;
   },
   seedSolo: (mode) => {
