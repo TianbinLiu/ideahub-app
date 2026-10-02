@@ -24,7 +24,7 @@ import VisibilityPicker from "../components/VisibilityPicker";
 import { deleteVideoItem, getVideo, isMyVideo, isUploading, partsOf, updateVideoMeta } from "../data/videos";
 import { coverToPermanentUrl } from "../data/publishAssets";
 import * as projects from "../data/projects";
-import { fetchRecipe, previewRecipe, removeRecipe, setRecipePublic, shareFromCanvas, type RecipeFetch } from "../data/recipes";
+import { fetchRecipe, previewRecipe, removeRecipe, setRecipeListed, setRecipePublic, shareFromCanvas, type RecipeFetch } from "../data/recipes";
 import type { WorkflowRecipe } from "../data/recipe";
 import Sheet from "../components/Sheet";
 import { CloseButton } from "../components/IconTapButton";
@@ -345,6 +345,21 @@ export default function EditPage() {
     setRecipeMsg({ text: on ? t`已公开` : t`已取消公开：别人看不到制作过程了`, kind: "ok" });
   }
 
+  /** 上 / 下架模板市场（工作流模板）。没公开 / 过期时服务端整句拒，原话摆在键旁 */
+  async function toggleRecipeListed(on: boolean) {
+    if (!video || recipeBusy) return;
+    setRecipeMsg(null);
+    setRecipeBusy(on ? t`正在上架…` : t`正在下架…`);
+    const why = await setRecipeListed(video.id, on);
+    setRecipeBusy("");
+    if (why) {
+      setRecipeMsg({ text: why, kind: "err" });
+      return;
+    }
+    setRecipeFetch(await fetchRecipe(video.id, { fresh: true }));
+    setRecipeMsg({ text: on ? t`已上架到模板市场的「工作流」货架` : t`已从模板市场下架（制作过程照样公开着）`, kind: "ok" });
+  }
+
   async function dropRecipe() {
     if (!video || recipeBusy) return;
     setRecipeDropAsk(false);
@@ -602,7 +617,9 @@ export default function EditPage() {
               ) : (
                 <div>
                   <p className="text-xs leading-relaxed text-slate-400">
-                    {recipeLive ? (
+                    {recipeLive && recipeMeta!.listed ? (
+                      <Trans>已公开，并上架在模板市场的「工作流」货架上：这条作品就是它的示例视频。</Trans>
+                    ) : recipeLive ? (
                       <Trans>已公开：看到这条作品的人能点「查看制作过程」照着做。</Trans>
                     ) : recipeMeta!.stale ? (
                       recipeMeta!.public ? (
@@ -619,6 +636,18 @@ export default function EditPage() {
                       <Link to={`/video/${video.id}/recipe`} className="rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-200 ring-1 ring-slate-700">
                         <Trans>看看别人看到的</Trans>
                       </Link>
+                    )}
+                    {/* 上 / 下架模板市场（工作流模板）：只在公开着且不过期时摆 —— 其余状态服务端必拒，摆一颗按下必败的键更糟 */}
+                    {recipeLive && (
+                      <button
+                        onClick={() => void toggleRecipeListed(!recipeMeta!.listed)}
+                        disabled={!!recipeBusy}
+                        className={`rounded-full px-3 py-1.5 text-[11px] disabled:opacity-40 ${
+                          recipeMeta!.listed ? "bg-panel text-slate-200 ring-1 ring-slate-700" : "bg-brand font-bold text-ink"
+                        }`}
+                      >
+                        {recipeBusy || (recipeMeta!.listed ? t`从模板市场下架` : t`上架到模板市场`)}
+                      </button>
                     )}
                     {recipeMeta!.stale ? (
                       <button

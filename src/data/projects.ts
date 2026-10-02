@@ -112,6 +112,8 @@ interface PendingCanvas {
    *   那时发布页早就不在了 —— 这个选择只能存在这里。判否定：没有这一位（老待办 / 没经过发布页）= 不公开。
    */
   shareRecipe?: boolean;
+  /** 发布页「同时上架到模板市场」（工作流模板）：从属于 shareRecipe，同一拍随配方 PUT 上去。判否定 */
+  listRecipe?: boolean;
 }
 
 // ── 订阅（模块级单例 + 版本号）────────────────────────────
@@ -373,7 +375,7 @@ export async function captureCanvas(input: {
  *     就**不盖**。此时这一条作品确实没有本机画布，`retain` 会走"待办缺失"那句实话，
  *     而上一条那份待办仍留着供它自己的「重试留存」用 —— 两边都不说谎。
  */
-export async function stampPendingCanvas(clientId: string | undefined, shareRecipe = false): Promise<void> {
+export async function stampPendingCanvas(clientId: string | undefined, shareRecipe = false, listRecipe = false): Promise<void> {
   if (!clientId) return;
   const p = await readPending();
   if (!p || p.clientId === clientId) return;
@@ -382,17 +384,17 @@ export async function stampPendingCanvas(clientId: string | undefined, shareReci
     return;
   }
   // ★ 「公开制作过程」的选择与幂等键**同一次写**：两次读改写同一格会互相盖掉（stampPendingCanvas 是 void 调的）
-  await writePending({ ...p, clientId, shareRecipe });
+  await writePending({ ...p, clientId, shareRecipe, listRecipe: shareRecipe && listRecipe });
 }
 
 /**
  * 回炉那条路给待办记下「公开制作过程」的选择（回炉的待办不盖幂等键，认的是 reviseOf）。
  * ★ 要 await：它与 stampPendingCanvas 一样是对同一格的读改写，发布页在提交之前等它写完。
  */
-export async function markShareRecipe(videoId: string, shareRecipe: boolean): Promise<void> {
+export async function markShareRecipe(videoId: string, shareRecipe: boolean, listRecipe = false): Promise<void> {
   const p = await readPending();
   if (!p || p.reviseOf?.videoId !== videoId) return;
-  await writePending({ ...p, shareRecipe });
+  await writePending({ ...p, shareRecipe, listRecipe: shareRecipe && listRecipe });
 }
 
 /**
@@ -761,7 +763,9 @@ async function submit(
   //   工程那一发撞了配额（下面 put 会 throw）也不该把制作过程一起拖下水。它自己从不 throw（回结局对象）。
   //   ⚠ 只做一次：`put` 成功会清待办，`shareRecipe` 这一位随之消失，「重试留存」那条路不会再发一遍 ——
   //     工程 PUT 失败而重试时，配方早在第一次就送过了（成败都在当时的票上说过）。
-  const shared = pend.shareRecipe === true ? await shareFromCanvas(videoId, revision, canvas, true) : null;
+  //   上架位只在发布页明确勾了时才传 true；没勾不传（回炉重投新一版时不动作者原来的上架位）
+  const shared =
+    pend.shareRecipe === true ? await shareFromCanvas(videoId, revision, canvas, true, pend.listRecipe === true ? true : undefined) : null;
   await put(videoId, after.title || pend.title, revision, canvas, lost);
   // ★ 从**改写之后**那份画布上数（`markLost` 把 flags 写进去的正是它）——
   //   这样"重试留存"那条路（pend.ready 已经是改写过的）也数得出来，不用另存一位

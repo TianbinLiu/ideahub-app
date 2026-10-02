@@ -663,8 +663,10 @@ msgstr "{0, plural, one {# deck} other {# decks}}"
 msgid "{0} 个片段 · 共 {1}"
 msgstr "{0, plural, one {# clip} other {# clips}} · {1} total"
 
+#. placeholder {0}: it.summary.slots
 #. placeholder {0}: s.slots
 #: src/components/recipe/RecipeView.tsx
+#: src/components/WorkflowShelf.tsx
 msgid "{0} 个空位"
 msgstr "{0, plural, one {# open slot} other {# open slots}}"
 
@@ -673,7 +675,9 @@ msgstr "{0, plural, one {# open slot} other {# open slots}}"
 msgid "{0} 个角色位可换人"
 msgstr "{0, plural, one {# recastable slot} other {# recastable slots}}"
 
+#. placeholder {0}: it.remixCount
 #. placeholder {0}: video.remixCount
+#: src/components/WorkflowShelf.tsx
 #: src/pages/VideoPage.tsx
 msgid "{0} 人按这条的流程做了同款"
 msgstr "{0, plural, one {# person remade this with its process} other {# people remade this with its process}}"
@@ -789,11 +793,12 @@ msgstr "{0, plural, one {# video hasn't reached the server yet} other {# videos 
 msgid "{0} 条评论"
 msgstr "{0, plural, one {# comment} other {# comments}}"
 
+#. placeholder {0}: it.summary.segs
 #. placeholder {0}: nodes.length
 #. placeholder {0}: s.segs
-#. placeholder {0}: tpl.recipe.beats.length
 #: src/components/recipe/RecipeView.tsx
 #: src/components/TemplateShelf.tsx
+#: src/components/WorkflowShelf.tsx
 #: src/pages/FlowPage.tsx
 msgid "{0} 段"
 msgstr "{0, plural, one {# segment} other {# segments}}"
@@ -821,8 +826,10 @@ msgstr "{0, plural, one {# segment} other {# segments}} · {1} rendered"
 msgid "{0} 段 · 已出片 {1} · {2}改过"
 msgstr "{0} segments · {1} rendered · edited {2}"
 
+#. placeholder {0}: it.summary.templated
 #. placeholder {0}: s.templated
 #: src/components/recipe/RecipeView.tsx
+#: src/components/WorkflowShelf.tsx
 msgid "{0} 段用了模板"
 msgstr "{0, plural, one {# segment uses a template} other {# segments use templates}}"
 
@@ -3676,6 +3683,10 @@ msgstr "Uploaded audio"
 msgid "上传音频（原片较长，取前 {VOICE_MAX_SEC}s）"
 msgstr "Uploaded audio (the original was longer; kept the first {VOICE_MAX_SEC}s)"
 
+#: src/pages/EditPage.tsx
+msgid "上架到模板市场"
+msgstr "List in the Template market"
+
 #: src/components/LocalStoreIssue.tsx
 msgid "上次剪到一半的成片这会儿没读出来（这台手机上的本地数据库没打开）。读出来之前不能组新的片子 —— 组稿会把它顶掉。"
 msgstr "Your last half-edited video couldn't be loaded right now (the local database on this phone didn't open). You can't assemble a new video until it loads — assembling would replace it."
@@ -3947,6 +3958,10 @@ msgstr "The timeline below is <0>the whole original video</0>, but only <1>{0}�
 #: src/studio/ui/projection.tsx
 msgid "不上传，直接给首尾帧 ›"
 msgstr "Skip upload, provide first/last frames ›"
+
+#: src/pages/PublishPage.tsx
+msgid "不上货架：只有看到这条作品的人才会发现它的制作过程。"
+msgstr "Not listed: only people who see this video will find its process."
 
 #: src/components/flow/FlowCanvas.tsx
 #: src/pages/CardDetailPage.tsx
@@ -4430,6 +4445,10 @@ msgstr "Add from the market"
 #: src/components/CoverPicker.tsx
 msgid "从成片截取封面帧"
 msgstr "Grab a cover frame from the video"
+
+#: src/pages/EditPage.tsx
+msgid "从模板市场下架"
+msgstr "Remove from the Template market"
 
 #: src/pages/WorkshopPage.tsx
 msgid "从视频提取卡片"
@@ -7100,6 +7119,10 @@ msgstr "Changing it after publishing"
 msgid "发布人格"
 msgstr "Publish persona"
 
+#: src/components/WorkflowShelf.tsx
+msgid "发布作品时勾「同时上架到模板市场」，或在作品编辑页的「制作过程」里上架，这里就有了"
+msgstr "Tick \"Also list in the Template market\" when publishing, or list it under \"Process\" on the video's edit page, and it will show up here"
+
 #: src/pages/SupportCreatePage.tsx
 msgid "发布出去的东西署你的名，别人下载后你能看到下载数。"
 msgstr "What you publish carries your name, and you can see how many times others download it."
@@ -7831,6 +7854,10 @@ msgstr "Agree to the terms"
 #: src/pages/LoginPage.tsx
 msgid "同意并继续"
 msgstr "Agree and continue"
+
+#: src/pages/PublishPage.tsx
+msgid "同时上架到模板市场（工作流模板）"
+msgstr "Also list in the Template market (workflow template)"
 
 #: src/data/economy.ts
 msgid "同样 2 张，换最新旗舰模型来画 · 形象更准、细节更实，出图较慢"
@@ -8973,9 +9000,18 @@ msgstr "Show segments ▾"
 msgid "工作台里的「删除」不是从列表里划掉：<0>云端那段模板视频和原始素材会一起没掉</0>， 谁都找不回。所以要点两下才认。"
 msgstr "“Delete” in the workbench doesn't just cross it off a list: <0>the template video in the cloud and the original footage are gone along with it</0>, and no one can get them back. That's why it takes two taps."
 
+#: src/components/TemplateShelf.tsx
 #: src/pages/FlowPage.tsx
 msgid "工作流"
 msgstr "Workflow"
+
+#: src/components/WorkflowShelf.tsx
+msgid "工作流模板在服务端，联网后再来看"
+msgstr "Workflow templates live on the server; come back when you're online"
+
+#: src/components/WorkflowShelf.tsx
+msgid "工作流模板就是一条公开了制作过程的作品：点进去看每一段怎么做的，再按它铺成自己的流水线。"
+msgstr "A workflow template is a video whose process is public: open it to see how each segment was made, then lay it out as your own pipeline."
 
 #: src/studio/StudioPage.tsx
 msgid "工作流画布"
@@ -9108,6 +9144,10 @@ msgstr "On the left is the model's own hit area (HitAreas); on the right, the mo
 msgid "已上传：{0}（{1} 字）"
 msgstr "Uploaded: {0} ({1} chars)"
 
+#: src/pages/EditPage.tsx
+msgid "已上架到模板市场的「工作流」货架"
+msgstr "Listed on the Template market's \"Workflows\" shelf"
+
 #. placeholder {0}: mb(p.bytes)
 #. placeholder {0}: mb(row.bytes)
 #: src/components/DownloadSheet.tsx
@@ -9121,6 +9161,10 @@ msgstr "{0} downloaded"
 msgid "已下架"
 msgstr "Taken down"
 
+#: src/pages/TemplateDetailPage.tsx
+msgid "已下架 · 仍被公开的制作过程引用"
+msgstr "Unlisted · still referenced by public processes"
+
 #: src/pages/AdminPage.tsx
 msgid "已下架列表"
 msgstr "taken-down list"
@@ -9132,6 +9176,10 @@ msgstr "Downloaded"
 #: src/components/ReportButton.tsx
 msgid "已举报"
 msgstr "Reported"
+
+#: src/pages/EditPage.tsx
+msgid "已从模板市场下架（制作过程照样公开着）"
+msgstr "Removed from the Template market (the process is still public)"
 
 #: src/studio/StudioPage.tsx
 msgid "已保存"
@@ -9162,6 +9210,10 @@ msgstr "Stopped. The rest didn't start; {done, plural, one {the # segment alread
 #: src/pages/EditPage.tsx
 msgid "已公开"
 msgstr "Shared"
+
+#: src/pages/EditPage.tsx
+msgid "已公开，并上架在模板市场的「工作流」货架上：这条作品就是它的示例视频。"
+msgstr "Shared and listed on the Template market's \"Workflows\" shelf: this video is its example."
 
 #: src/pages/EditPage.tsx
 msgid "已公开：看到这条作品的人能点「查看制作过程」照着做"
@@ -11170,6 +11222,7 @@ msgstr "Switch speaking styles. The support page and the website's home page sha
 msgid "换个形象"
 msgstr "Change look"
 
+#: src/components/WorkflowShelf.tsx
 #: src/pages/RecipePage.tsx
 msgid "换个网络再试一次"
 msgstr "Try again on another network"
@@ -12084,6 +12137,7 @@ msgstr "Ark can't find this run anymore (no task with that ID) — most likely t
 #~ msgid "方舟里有 {0} 份已授权素材，点一份接上："
 #~ msgstr "Ark has {0, plural, one {# authorized asset} other {# authorized assets}}. Tap one to link it:"
 
+#: src/components/WorkflowShelf.tsx
 #: src/pages/RecipePage.tsx
 msgid "无标题"
 msgstr "Untitled"
@@ -12315,6 +12369,10 @@ msgstr "{missingCount, plural, one {# segment still has no role slots detected. 
 #: src/pages/CutPage.tsx
 msgid "有 {n} 句字幕 / 配音没排上：片段太短，或者被上一句配音挤到了片尾之外。"
 msgstr "{n} caption / voiceover lines didn't fit: the clip is too short, or the previous voiceover pushed them past the end of the video."
+
+#: src/data/templates.ts
+msgid "有 {refs} 份公开的制作过程在用这个模板：已从市场下架，但素材保留着、那几条流程仍能用它出片，等没人引用了再删。"
+msgstr "{refs, plural, one {# public process uses this template: it has been removed from the market, but its assets are kept and that process can still render with it. Delete it once nothing references it.} other {# public processes use this template: it has been removed from the market, but its assets are kept and those processes can still render with it. Delete it once nothing references it.}}"
 
 #: src/pages/CutPage.tsx
 msgid "有 {staleCount} 句配音还是改字（或换音色）之前合成的那一版——成片里念的和字幕对不上。回剪辑页的「字幕」重新配一次，再合一次。"
@@ -13312,6 +13370,14 @@ msgstr "The template name is empty"
 msgid "模板市场"
 msgstr "Template market"
 
+#: src/pages/RecipePage.tsx
+msgid "模板市场 · 工作流"
+msgstr "Template market · Workflow"
+
+#: src/pages/PublishPage.tsx
+msgid "模板市场的「工作流」货架上会多一张卡，这条作品就是它的示例视频；别人从那儿点进来按这条流程做同款。随时能在编辑页下架。"
+msgstr "A card appears on the Template market's \"Workflows\" shelf with this video as its example; others open it from there and remake with this process. You can unlist it any time on the edit page."
+
 #: src/components/guide/tours.tsx
 msgid "模板是成品配方"
 msgstr "Templates are ready-made recipes"
@@ -13415,6 +13481,14 @@ msgstr "Uploading and detecting (about {mb}MB, on the slower route)…"
 #: src/studio/live2dUploadStore.ts
 msgid "正在上传模型包 {n}%"
 msgstr "Uploading the model bundle {n}%"
+
+#: src/pages/EditPage.tsx
+msgid "正在上架…"
+msgstr "Listing…"
+
+#: src/pages/EditPage.tsx
+msgid "正在下架…"
+msgstr "Unlisting…"
 
 #: src/pages/CardDetailPage.tsx
 msgid "正在从创意工坊取这张卡…"
@@ -13535,6 +13609,10 @@ msgstr "Loading messages…"
 #: src/pages/tutor/TutorHomePage.tsx
 msgid "正在取课程…"
 msgstr "Loading courses…"
+
+#: src/components/WorkflowShelf.tsx
+msgid "正在取货架…"
+msgstr "Loading the shelf…"
 
 #: src/components/blockout/VisionFramePicker.tsx
 msgid "正在取这一帧…"
@@ -14242,6 +14320,11 @@ msgstr "Couldn't load your decks"
 #: src/pages/RecipePage.tsx
 msgid "没能取到制作过程（{0}）"
 msgstr "Could not load the process ({0})"
+
+#. placeholder {0}: shelf.why
+#: src/components/WorkflowShelf.tsx
+msgid "没能取到货架（{0}）"
+msgstr "Could not load the shelf ({0})"
 
 #: src/pages/SettingsBlockedPage.tsx
 msgid "没能取到黑名单（网络不通，或这台服务器还没有这个功能）"
@@ -16269,6 +16352,10 @@ msgstr "Example images weren't saved: {why}"
 msgid "示例对话"
 msgstr "Example dialogue"
 
+#: src/pages/RecipePage.tsx
+msgid "示例视频 · 看成片"
+msgstr "Example video · watch"
+
 #: src/studio/ui/projection.tsx
 msgid "示例视频 / 自己给帧，免费铺方案直出"
 msgstr "Example video or your own frames; lay out the plan for free and generate directly"
@@ -17216,6 +17303,7 @@ msgstr "Waiting"
 msgid "等待火山引擎认证…"
 msgstr "Waiting for Volcengine verification…"
 
+#: src/components/WorkflowShelf.tsx
 #: src/pages/RecipePage.tsx
 msgid "等服务器更新后再来"
 msgstr "Come back after the server is updated"
@@ -19304,6 +19392,10 @@ msgstr "No one has shared any cards yet"
 msgid "还没有人分享卡组"
 msgstr "No one has shared any decks yet"
 
+#: src/components/WorkflowShelf.tsx
+msgid "还没有人把制作过程上架到这里"
+msgstr "Nobody has listed a process here yet"
+
 #: src/pages/AdminPage.tsx
 msgid "还没有任何举报"
 msgstr "No reports yet"
@@ -20675,6 +20767,10 @@ msgstr "This server doesn’t have QiMeng Tutor yet (/api/tutor is missing)"
 msgid "这台服务器还没有客服工单接口（需要升级服务端）"
 msgstr "This server doesn't have the support ticket API yet (it needs a server upgrade)"
 
+#: src/components/WorkflowShelf.tsx
+msgid "这台服务器还没有工作流模板的货架"
+msgstr "This server has no workflow template shelf yet"
+
 #: src/pages/AdminPage.tsx
 msgid "这台服务器还没有平台数据接口（需要升级服务端）"
 msgstr "This server doesn't have the platform stats API yet (the server needs an upgrade)"
@@ -21842,6 +21938,10 @@ msgstr "re-edited a video you saved"
 msgid "重新加载预览"
 msgstr "Reload preview"
 
+#: src/pages/TemplateDetailPage.tsx
+msgid "重新发布"
+msgstr "Publish again"
+
 #: src/components/flow/CastPreviewCard.tsx
 msgid "重新合成预览（{price}）"
 msgstr "Recompose preview ({price})"
@@ -21980,6 +22080,7 @@ msgstr "Re-detecting <0>overwrites the current descriptions</0> (including your 
 #: src/components/flow/SegPlayer.tsx
 #: src/components/LocalStoreIssue.tsx
 #: src/components/UpdateSheet.tsx
+#: src/components/WorkflowShelf.tsx
 #: src/pages/CardDetailPage.tsx
 #: src/pages/CustomCardPage.tsx
 #: src/pages/CutPage.tsx

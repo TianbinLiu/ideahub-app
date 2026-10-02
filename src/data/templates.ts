@@ -319,7 +319,8 @@ export function remoteTemplatesCapable(): Promise<boolean> {
  *  isOwner）塞进去，草稿里就会存下一份必然过时的复印件 */
 export interface RemoteTemplateState {
   remoteId: string;
-  status: "pending" | "published" | "blocked";
+  /** retired（2026-10-02）：被公开的制作过程引用着、作者下了架 —— 不在市场，但所有人仍能用它出片（素材留到没人引用） */
+  status: "pending" | "published" | "blocked" | "retired";
   /** 试炼闸：非空 = 作者本人用它真实出过一次片（发布的前置） */
   provenAt: number | null;
   /** 服务端按 ownerId 对当前 JWT 算的 —— 白模路的身份判定只认它，不比显示名 */
@@ -379,7 +380,7 @@ function recordState(api: branch.ApiBranchTemplate): RemoteTemplateState | null 
   const st: RemoteTemplateState = {
     remoteId: rid,
     // 判定写存在性/白名单而不是信任任意串：认不出的 status 当 pending（最保守的一档）
-    status: api.status === "published" || api.status === "blocked" ? api.status : "pending",
+    status: api.status === "published" || api.status === "blocked" || api.status === "retired" ? api.status : "pending",
     provenAt: toMs(api.provenAt ?? null),
     isOwner: api.isOwner === true,
     // ★ 逐条 `!== true`：只有服务端**明说**核对过才算数。老服务端不回这一位（undefined）
@@ -1315,7 +1316,8 @@ export async function refreshRemoteTemplate(id: string): Promise<void> {
  * 经典配方照旧只翻本机布尔；白模走服务端（试炼闸在那边，400 的整句原样抛给界面）。
  * @throws message 可直接显示
  */
-export async function setTemplatePublished(id: string, on: boolean): Promise<void> {
+/** @returns 下架时服务端把它退役了的话回引用数（调用方把 retiredNote 说出来）；否则 null */
+export async function setTemplatePublished(id: string, on: boolean): Promise<number | null> {
   const local = mine.find((x) => x.id === id);
   // ★ 本机没有 ≠ 不是我的：换设备/重装后本机库是空的，但服务端按 ownerId 算的
   //   isOwner 还在——此时作者必须仍能下架自己的模板（服务端端点本来就支持，
@@ -1328,14 +1330,17 @@ export async function setTemplatePublished(id: string, on: boolean): Promise<voi
   if (!tpl) throw new Error(t`这个模板不在本机库里`);
   if (!tpl.refVideo) {
     updateTemplate(id, { published: on }); // 经典路：存量行为原样保留
-    return;
+    return null;
   }
   if (!remoteOn()) throw new Error(t`现在连不上服务器——白模模板的市场在服务端，联网后再试`);
   if (!tpl.remoteId) {
     const reg = registerErrors.get(id);
     throw new Error(reg ? t`模板还没登记到服务器（${reg}）` : t`模板还在登记中，稍等几秒再试`);
   }
-  const api = on ? await branch.publishTemplate(tpl.remoteId) : await branch.unpublishTemplate(tpl.remoteId);
+  let api: branch.ApiBranchTemplate | null;
+  let retiredRefs: number | null = null;
+  if (on) api = await branch.publishTemplate(tpl.remoteId);
+  else ({ template: api, retiredRefs } = await branch.unpublishTemplate(tpl.remoteId));
   if (!api) throw new Error(t`这台服务器不支持模板发布（回包形状不对，可能需要升级服务端）`);
   const st = recordState(api);
   tpl.published = st?.status === "published";
@@ -1343,6 +1348,12 @@ export async function setTemplatePublished(id: string, on: boolean): Promise<voi
   // 自己刚上/下架，市场缓存作废重取（别让作者切到市场 tab 还看见旧列表）
   sharedFresh = false;
   emit();
+  return retiredRefs;
+}
+
+/** 「退役」那一档的整句（下架 / 删除时服务端回了 refs）—— 一处措辞，详情页与核对面板共用 */
+export function retiredNote(refs: number): string {
+  return t`有 ${refs} 份公开的制作过程在用这个模板：已从市场下架，但素材保留着、那几条流程仍能用它出片，等没人引用了再删。`;
 }
 
 /**
@@ -1461,7 +1472,7 @@ export async function confirmTemplateRoles(
  *   之后那段托管视频两端都没了句柄（2026-08-14 对抗审查抓到的泄漏路径）。
  * @throws message 可直接显示；抛出时本机记录**原样保留**（可重试）
  */
-export async function deleteTemplateEverywhere(id: string): Promise<void> {
+export async function deleteTemplateEverywhere(id: string): Promise<number | null> {
   const tpl = mine.find((x) => x.id === id);
   if (!tpl) {
     // 本机没有但远端缓存里有 = 换设备的作者在删自己的远端模板（身份由服务端把关，
@@ -1470,17 +1481,22 @@ export async function deleteTemplateEverywhere(id: string): Promise<void> {
     //   只找 shared 的话，换设备的作者在「我的模板」里点删除会得到一句"这个模板不在本机库里"
     //   —— 而那正是这条分支存在的唯一场景。
     const remote = mineRemote.find((x) => x.id === id) ?? shared.find((x) => x.id === id);
-    if (!remote?.remoteId) return;
+    if (!remote?.remoteId) return null;
     if (!remoteOn()) throw new Error(t`现在连不上服务器——联网后再删`);
     const landed = await branch.deleteRemoteTemplate(remote.remoteId);
     if (!landed) throw new Error(t`这台服务器不支持删除模板（回包形状不对，可能需要升级服务端）`);
+    if (landed.retiredRefs !== null) {
+      // 退役而不是删：条目留着（状态改成 retired），市场缓存作废
+      markRetired(remote.remoteId);
+      return landed.retiredRefs;
+    }
     remoteStates.delete(remote.remoteId);
     shared = shared.filter((x) => x.id !== id);
     mineRemote = mineRemote.filter((x) => x.id !== id);
     sharedFresh = false;
     mineRemoteFresh = false;
     emit();
-    return;
+    return null;
   }
   if (tpl.refVideo && tpl.remoteId) {
     if (!remoteOn()) {
@@ -1488,6 +1504,14 @@ export async function deleteTemplateEverywhere(id: string): Promise<void> {
     }
     const landed = await branch.deleteRemoteTemplate(tpl.remoteId);
     if (!landed) throw new Error(t`这台服务器不支持删除模板（回包形状不对，可能需要升级服务端）`);
+    if (landed.retiredRefs !== null) {
+      // ★ 退役而不是删（被公开的制作过程引用着）：本机这条**留着**（作者还要能在「我的模板」里看见它、等没人引用了再删），
+      //   只把发布位关掉、状态记成 retired
+      markRetired(tpl.remoteId);
+      tpl.published = false;
+      persist();
+      return landed.retiredRefs;
+    }
     remoteStates.delete(tpl.remoteId);
     // ★ 远端缓存里同一条也要摘掉：不摘的话本机那条一删，`myTemplates()` 立刻把远端那份
     //   补进来 —— 用户看到的是"删了它又回来了"（其实服务端已经删掉了，只是缓存没刷）
@@ -1503,6 +1527,17 @@ export async function deleteTemplateEverywhere(id: string): Promise<void> {
     registerErrors.delete(id);
   }
   deleteTemplate(id);
+  return null;
+}
+
+/** 服务端把它退役了：状态快照改成 retired、发布位关掉、市场缓存作废（条目本身留着） */
+function markRetired(remoteId: string): void {
+  const st = remoteStates.get(remoteId);
+  if (st) remoteStates.set(remoteId, { ...st, status: "retired" });
+  for (const list of [mineRemote, shared]) for (const x of list) if (x.remoteId === remoteId) x.published = false;
+  sharedFresh = false;
+  mineRemoteFresh = false;
+  emit();
 }
 
 export interface NewTemplate {

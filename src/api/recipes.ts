@@ -14,13 +14,28 @@ export interface ApiRecipeMeta {
   stale: boolean;
   bytes: number;
   nodeCount: number;
+  /** 上架到了模板市场（工作流模板 = 上了架的公开配方，2026-10-02 P2）。判否定：老服务端不发 = 没上架 */
+  listed: boolean;
   updatedAt: string | number;
+}
+
+/** 模板市场「工作流」货架上的一条（GET /api/branch/templates/workflows，不带正文） */
+export interface ApiWorkflowTemplate {
+  video: string;
+  title: string;
+  cover: string;
+  author: { _id: string; username: string; displayName: string; avatarUrl: string };
+  summary: { segs: number; totalSec: number; tiers: string[]; templated: number; cards: number; slots: number };
+  remixCount: number;
+  listedAt: string | number;
 }
 
 export interface ApiRecipe {
   recipe: WorkflowRecipe;
   meta: ApiRecipeMeta & {
     title: string;
+    /** 示例视频（那条作品）的封面；老服务端不发 = 空串 */
+    cover: string;
     author: { _id: string; username: string; displayName: string; avatarUrl: string };
     isOwner: boolean;
   };
@@ -41,8 +56,50 @@ function readMeta(raw: unknown): ApiRecipeMeta | null {
     stale: raw.stale === true,
     bytes: typeof raw.bytes === "number" ? raw.bytes : 0,
     nodeCount: typeof raw.nodeCount === "number" ? raw.nodeCount : 0,
+    listed: raw.listed === true,
     updatedAt: (raw.updatedAt as string | number) ?? 0,
   };
+}
+
+function readAuthor(raw: unknown): ApiWorkflowTemplate["author"] {
+  const a = isRecord(raw) ? raw : {};
+  return {
+    _id: typeof a._id === "string" ? a._id : "",
+    username: typeof a.username === "string" ? a.username : "",
+    displayName: typeof a.displayName === "string" ? a.displayName : "",
+    avatarUrl: typeof a.avatarUrl === "string" ? a.avatarUrl : "",
+  };
+}
+
+/**
+ * GET /api/branch/templates/workflows（optionalAuth）：工作流模板货架。
+ * 回包形状认不出来回 null（= 这台服务器没有这条货架）；认得出来但是空的回 []。逐条验形状，坏的一条跳过。
+ */
+export async function listWorkflowTemplates(limit = 30): Promise<ApiWorkflowTemplate[] | null> {
+  const res = await apiGet<unknown>(`/api/branch/templates/workflows?limit=${limit}`);
+  if (!isRecord(res) || !Array.isArray(res.items)) return null;
+  const out: ApiWorkflowTemplate[] = [];
+  for (const raw of res.items) {
+    if (!isRecord(raw) || typeof raw.video !== "string" || !raw.video) continue;
+    const s = isRecord(raw.summary) ? raw.summary : {};
+    out.push({
+      video: raw.video,
+      title: typeof raw.title === "string" ? raw.title : "",
+      cover: typeof raw.cover === "string" ? raw.cover : "",
+      author: readAuthor(raw.author),
+      summary: {
+        segs: Number(s.segs) || 0,
+        totalSec: Number(s.totalSec) || 0,
+        tiers: Array.isArray(s.tiers) ? s.tiers.filter((t): t is string => typeof t === "string") : [],
+        templated: Number(s.templated) || 0,
+        cards: Number(s.cards) || 0,
+        slots: Number(s.slots) || 0,
+      },
+      remixCount: Number(raw.remixCount) || 0,
+      listedAt: (raw.listedAt as string | number) ?? 0,
+    });
+  }
+  return out;
 }
 
 const path = (videoId: string) => `/api/branch/videos/${encodeURIComponent(videoId)}/recipe`;
@@ -63,6 +120,7 @@ export async function getRecipe(videoId: string): Promise<ApiRecipe | null> {
     meta: {
       ...meta,
       title: typeof res.meta.title === "string" ? res.meta.title : "",
+      cover: typeof res.meta.cover === "string" ? res.meta.cover : "",
       author: {
         _id: typeof a._id === "string" ? a._id : "",
         username: typeof a.username === "string" ? a.username : "",
@@ -79,6 +137,8 @@ export interface PutRecipeBody {
   /** 这份配方描述的是作品的哪一版（对不上服务端 400 `RECIPE_REVISION_MISMATCH`） */
   videoRevision: number;
   public: boolean;
+  /** 同时上架到模板市场（从属于 public；不带 = 不动原来的上架位） */
+  listed?: boolean;
 }
 
 /** PUT（requireAuth + 仅作者，12/分钟）。400 的几种原因都带整句中文，调用方原样显示。形状认不出来回 null */
@@ -88,9 +148,12 @@ export async function putRecipe(videoId: string, body: PutRecipeBody): Promise<A
   return readMeta(res.recipe);
 }
 
-/** PATCH（仅作者）：只开 / 关公开。没有配方时服务端 404 `RECIPE_NOT_FOUND`（apiPatch 抛） */
-export async function patchRecipe(videoId: string, isPublic: boolean): Promise<ApiRecipeMeta | null> {
-  const res = await apiPatch<unknown>(path(videoId), { public: isPublic });
+/**
+ * PATCH（仅作者）：开 / 关公开，上 / 下架模板市场（至少给一样）。没有配方时服务端 404 `RECIPE_NOT_FOUND`（apiPatch 抛）；
+ * 没公开 / 过期时要上架是 400 `RECIPE_NOT_LISTABLE`（整句中文，原样显示）
+ */
+export async function patchRecipe(videoId: string, patch: { public?: boolean; listed?: boolean }): Promise<ApiRecipeMeta | null> {
+  const res = await apiPatch<unknown>(path(videoId), patch);
   if (!isRecord(res) || !isRecord(res.recipe)) return null;
   return readMeta(res.recipe);
 }

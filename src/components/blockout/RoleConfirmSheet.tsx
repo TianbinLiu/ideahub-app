@@ -66,6 +66,7 @@ import {
   markSpecOf,
   refreshRemoteTemplate,
   remoteStateOf,
+  retiredNote,
   roleFloorIssue,
   setTemplatePublished,
   subscribeTemplates,
@@ -184,7 +185,9 @@ export default function RoleConfirmSheet({ t: tpl, onClose }: { t: VideoTemplate
     setIssue("");
     setPubBusy(true);
     try {
-      await setTemplatePublished(tpl.id, false);
+      const refs = await setTemplatePublished(tpl.id, false);
+      // 退役而不是回 pending（被公开的制作过程引用着）：改编号那条路服务端只收 pending，把原因说出来
+      if (typeof refs === "number") setIssue(retiredNote(refs));
     } catch (e) {
       setIssue(e instanceof Error ? e.message : String(e));
     } finally {

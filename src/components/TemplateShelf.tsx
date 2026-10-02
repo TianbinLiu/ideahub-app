@@ -22,6 +22,7 @@ import Sheet from "./Sheet";
 //   详情页 OwnerBar 要用同一个入口，一份实现两处用（两页各写一份必然分叉）
 // （播放/点赞数 2026-08-29 随卡片减法收进详情页，本文件不再读 social）
 import VideoTemplateExtractor from "./VideoTemplateExtractor";
+import WorkflowShelf from "./WorkflowShelf";
 import {
   groupRows,
   blockoutJobExpired,
@@ -390,7 +391,7 @@ export default function TemplateShelf({
 }: {
   initialTab?: "market" | "mine";
   /**
-   * 给了就把「模板市场/我的模板」这一层页签写进地址栏 query（键名由宿主定，工坊与市场页都用
+   * 给了就把「模板市场/工作流/我的模板」这一层页签写进地址栏 query（键名由宿主定，工坊与市场页都用
    * `shelf`）：去详情再返回时页签还在。不给 = 只活在组件 state 里（简约模式的选模板浮层那种
    * 宿主，它自己的地址不该被这一层改动）。
    */
@@ -401,8 +402,9 @@ export default function TemplateShelf({
   const nav = useNavigate();
   const [q, setQ] = useState("");
   // ★ 两条状态都无条件建（hook 顺序不能随 prop 变），用哪条由 queryKey 定
-  const [queryTab, setQueryTab] = useQueryTab(queryKey ?? "shelf", ["market", "mine"] as const, initialTab ?? "market");
-  const [localTab, setLocalTab] = useState<"market" | "mine">(initialTab ?? "market");
+  // 「工作流」（2026-10-02 P2）= 上了架的公开配方那条货架，列表与筛选都是另一套（components/WorkflowShelf）
+  const [queryTab, setQueryTab] = useQueryTab(queryKey ?? "shelf", ["market", "workflows", "mine"] as const, initialTab ?? "market");
+  const [localTab, setLocalTab] = useState<"market" | "workflows" | "mine">(initialTab ?? "market");
   const tab = queryKey ? queryTab : localTab;
   const setTab = queryKey ? setQueryTab : setLocalTab;
   /**
@@ -580,7 +582,7 @@ export default function TemplateShelf({
     <div>
       {discardDialog}
       <div className="mb-3 flex gap-2">
-        {(["market", "mine"] as const).map((k) => (
+        {(["market", "workflows", "mine"] as const).map((k) => (
           <button
             key={k}
             // 引导只圈「我的模板」那颗（market 那颗给 undefined = 不渲染这个属性，
@@ -589,10 +591,12 @@ export default function TemplateShelf({
             onClick={() => setTab(k)}
             className={`rounded-full px-3.5 py-1.5 text-xs font-semibold ${tab === k ? "bg-brand text-ink" : "bg-panel text-slate-300"}`}
           >
-            {k === "market" ? <Trans>模板市场</Trans> : <Trans>我的模板 {mineRows || ""}</Trans>}
+            {k === "market" ? <Trans>模板市场</Trans> : k === "workflows" ? <Trans>工作流</Trans> : <Trans>我的模板 {mineRows || ""}</Trans>}
           </button>
         ))}
       </div>
+
+      {tab === "workflows" && <WorkflowShelf />}
 
       {tab === "market" && (
         <div className="mb-3 flex items-stretch gap-2">
@@ -627,6 +631,7 @@ export default function TemplateShelf({
             `overflow-x-auto` 会把 overflow-y 一并算成 auto，选中那颗的 `ring-1`（画在盒子外
             1px 的 box-shadow）上下两条边就被裁掉了，首尾两颗的左右边同理 —— 看起来是
             "圆边框缺了一截"。负外边距让这 2px 不占版面，与改之前逐像素同位。 */}
+      {tab !== "workflows" && (
       <div data-guide="template-filters" className="-mx-0.5 -my-0.5 mb-2.5 flex gap-1.5 no-scrollbar overflow-x-auto px-0.5 py-0.5">
         {[{ id: "", label: t`全部` }, ...TPL_CATEGORIES].map((c) => (
           <button
@@ -640,6 +645,7 @@ export default function TemplateShelf({
           </button>
         ))}
       </div>
+      )}
 
       {/* 筛选开着、又真挡掉了东西：说一句并给一条回去的路（rows 为空时由下面的空态说，不重复） */}
       {tierPicked && tierHidden > 0 && rows.length > 0 && (
@@ -708,6 +714,7 @@ export default function TemplateShelf({
         </button>
       )}
 
+      {tab !== "workflows" && (
       <div className="space-y-3">
         {rows.map((row, i) =>
           row.parts.length > 1 ? (
@@ -761,6 +768,7 @@ export default function TemplateShelf({
           />
         )}
       </div>
+      )}
 
       {extract && (
         <VideoTemplateExtractor

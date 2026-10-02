@@ -119,6 +119,8 @@ export default function PublishPage() {
   //   （projects.submit）—— 两份只差"画面地址"，段 / 卡 / 空位逐一相同（同一个 projectRecipe）。
   const [recipe, setRecipe] = useState<WorkflowRecipe | null | undefined>(undefined);
   const [shareRecipe, setShareRecipe] = useState(true);
+  /** 「同时上架到模板市场」（工作流模板 = 上了架的公开配方，P2）：从属于 shareRecipe，缺省不勾（上货架是作者的主动选择） */
+  const [listRecipe, setListRecipe] = useState(false);
   /** 预览抽屉开着；`gate` = 是「发布」键顶出来的（确认之后要接着发），不是链接点开看看 */
   const [recipeOpen, setRecipeOpen] = useState<{ gate: boolean } | null>(null);
   /** 预览看过了没有：第一次点「发布」先摆预览，之后再点直接发（看过一遍就够了，别每次都拦） */
@@ -151,6 +153,7 @@ export default function PublishPage() {
     setTags(origin.tags ?? []);
     // 回炉：开关跟着原作品现在的状态走（作者关过就别替他重新打开）；没留存过配方的老作品按默认开
     setShareRecipe(origin.recipeState ? origin.recipeState.public : true);
+    setListRecipe(origin.recipeState?.listed === true);
   }, [origin?.id]);
 
   /** 这一发要不要公开制作过程：开关 × 有东西可公开（`over` 给预览抽屉里那两颗键用，state 还来不及变） */
@@ -226,7 +229,7 @@ export default function PublishPage() {
     setReviseFail(null);
     setBusy(t`正在替换…`);
     // 「公开制作过程」的选择先记进待办（要 await：与 retain 那边是对同一格的读改写），留存工程那一拍照它办
-    await markShareRecipe(reviseOf.videoId, wantShare(over));
+    await markShareRecipe(reviseOf.videoId, wantShare(over), listRecipe);
     // ★ 记下提交的是**哪一份**合成稿（2026-09-18，2.46 发版前复核抓到）：这一发要传好几分钟，人完全可能先回去
     //   打开了另一条草稿 / 另一份合成稿。回包之后 finishPublish 清的是**那一刻**的 draft、剪辑稿存档与 workDraftId ——
     //   不核对的话，删掉的是他后来打开的那一份。
@@ -322,7 +325,7 @@ export default function PublishPage() {
         ...(draft.remixOf ? { remixOf: draft.remixOf } : {}),
       },
       // 公开制作过程：不进发布体，盖进画布待办，留存工程那一拍顺手投成配方 PUT 上去（data/projects.submit）
-      { shareRecipe: wantShare(over) },
+      { shareRecipe: wantShare(over), listRecipe },
     );
     // ★ 作品已经落库了，从这一刻起不许再发第二条（下面要 await，窗口比原来长）
     publishedRef.current = true;
@@ -558,6 +561,25 @@ export default function PublishPage() {
               {shareRecipe && (
                 <button type="button" onClick={() => setRecipeOpen({ gate: false })} className="mt-1.5 text-xs text-brand underline underline-offset-2">
                   <Trans>看看别人会看到什么</Trans>
+                </button>
+              )}
+              {/* 上架到模板市场（工作流模板，P2）：从属于上面那颗；只有公开着才摆（关了公开上架也无从谈起） */}
+              {shareRecipe && (
+                <button
+                  onClick={() => setListRecipe((v) => !v)}
+                  className={`mt-2 flex w-full items-start gap-2.5 rounded-xl border px-3.5 py-2.5 text-left ${
+                    listRecipe ? "border-brand/40 bg-brand/5" : "border-slate-700 bg-panel"
+                  }`}
+                >
+                  <span className={`mt-0.5 flex-none text-base ${listRecipe ? "text-brand" : "text-slate-500"}`}>{listRecipe ? "☑" : "☐"}</span>
+                  <span className="text-xs leading-relaxed text-slate-300">
+                    <Trans>同时上架到模板市场（工作流模板）</Trans>
+                    <span className="mt-0.5 block text-[11px] text-slate-500">
+                      {listRecipe
+                        ? t`模板市场的「工作流」货架上会多一张卡，这条作品就是它的示例视频；别人从那儿点进来按这条流程做同款。随时能在编辑页下架。`
+                        : t`不上货架：只有看到这条作品的人才会发现它的制作过程。`}
+                    </span>
+                  </span>
                 </button>
               )}
             </div>
