@@ -876,6 +876,21 @@ export function refCardIds(materials: Card[] | undefined, direct: false | { cap?
   return new Set(allocateRefs(materials, undefined, !!direct, direct ? direct.cap : undefined).map((p) => p.card.id));
 }
 
+/**
+ * 参考图分配的**结论带图位**（不取图、不联网）—— 参考清单预览用（N1，2026-10-03）：界面上那排
+ * 「模型会收到什么」读的就是它。判据仍是 allocateRefs 本身；`direct` 的三种取值与 prepareMaterialRefs 的
+ * 同名参数逐一对应（true = 白模严格闸 + 2.5 上限；对象 = 直通路 + 档位上限；false = 经典路）。
+ * ⚠ 这是**计划**：真正取图那一拍个别图可能读不出来被跳过（prepareMaterialRefs 会逐张点名），编号随之前移。
+ */
+export function planCardRefs(
+  materials: Card[] | undefined,
+  direct: boolean | { cap?: number; strict?: boolean },
+): { card: Card; index: number; url: string }[] {
+  if (!materials?.length) return [];
+  const d = direct === true ? { cap: undefined as number | undefined } : direct || null;
+  return allocateRefs(materials, undefined, !!d, d?.cap).map((p) => ({ card: p.card, index: p.index, url: p.view.url }));
+}
+
 /** 一张真会被喂给模型的图。`index` = 它在 `viewsOf(card)` 里的下标 —— refUsedFlags 靠它对齐 */
 interface RefPick {
   card: Card;

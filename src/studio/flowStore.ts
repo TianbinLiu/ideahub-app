@@ -57,7 +57,8 @@ import {
 } from "../data/templates";
 import { type BlockoutCastSlot, blockoutApplySkeleton, castNameIssue, composeBlockoutPrompt } from "./blockoutPrompt";
 import { GenStep, createGenLog, splitStatus } from "./genLog";
-import { blockoutIssue, frameFree, generateSegment, redrawnAnns, refVideoOn } from "./segmentGen";
+import { blockoutIssue, frameFree, generateSegment, redrawnAnns, refPlanOf, refVideoOn, type RefPlan } from "./segmentGen";
+import { EXTRA_REF_MAX, cleanRefName, dropMention, refNameIssue, renameMention, usableExtraRefs, type ExtraRef, type ExtraRefRole } from "../data/refMentions";
 
 /** 正在后台盯转存收尾的段（settleNodeMedia）：同一段只盯一份，出片一次、打开草稿一次都可能起一份 */
 const settling = new Set<string>();
@@ -144,6 +145,15 @@ export interface FlowNode {
    * 提示词点名；没有 = 纯帧模式（first/last_frame 硬参数）。只在 custom 段上有意义。
    */
   customRef?: { url: string; publicId: string; durationSec: number; mids: string[] };
+  /**
+   * **临时参考图**（N1，2026-10-03 对标 LibTV 节点的参考清单）：不是卡的一次性图（站位草图、道具照片…），只在这一段生效。
+   * 出片时排在帧之后、卡片形象图之前当参考图发（segmentGen 的 extraRefs）；句子里 `@名字` 点到的换成「图片N」，
+   * 没点到的由系统按用途补一句（规则只在 data/refMentions）。
+   * ★ 地址与帧同形（本机 dataURL，出片那一拍才转存）；回炉工程里会被瘦身成空串 —— 读它一律过 usableExtraRefs。
+   * ★ 只在「自选卡片 / 自定义」两个车道上有界面；套模板的段与返修不发（genNode 不传），摘掉模板它还在。
+   * ★ 不进公开配方（data/recipe 的白名单投影里没有它）：是作者自己的图，与上传的参考视频 / 中间帧同一个理由。
+   */
+  extraRefs?: ExtraRef[];
   /**
    * 用户对这一段的原始输入（"这一段要拍什么"）。
    * ★ 与 proposal.plot 刻意分开：plot 是 AI 写出来的那一套的剧情（用户还能在方案卡上
@@ -997,6 +1007,56 @@ export function nodeRefOn(nodes: FlowNode[], idx: number, mode: FlowMode, tierOv
 }
 
 /**
+ * 这一段的**参考清单**：出片时视频模型会收到哪些图、各是第几张（N1，2026-10-03）。
+ * ★ 入参与 genNode 交给 generateSegment 的那一份**逐项同源**（帧问 usableFrames、承接问 nodeCarry、模板问 tplOfNode、
+ *   refAllowed 看模式），排队编号在 segmentGen.refPlanOf —— 界面只画它的答案，别在组件里另数一遍。
+ *   genNode 那边改了哪一项的取法，这里要跟着改（出片前会拿这份计划对一次张数，对不上写进步骤日志）。
+ */
+export function nodeRefPlan(nodes: FlowNode[], idx: number, mode: FlowMode): RefPlan | null {
+  const node = nodes[idx];
+  if (!node) return null;
+  // 还没推演的自选卡片段：帧到出片那一拍一定已经有了（推演时画），按「帧已在手」排（理由见 refPlanOf 的 framesComing）
+  const framesComing = nodeFramesComeFromDerive(node);
+  const prop = chosenOf(node);
+  const frames = usableFrames(node, prop, idx > 0 ? chosenOf(nodes[idx - 1]) : null);
+  const tplRef = tplOfNode(node)?.refVideo;
+  return refPlanOf({
+    plot: prop.plot,
+    videoTier: node.videoTier,
+    materials: node.materials,
+    firstFrame: frames.first,
+    lastFrame: frames.last,
+    carryFrame: nodeCarry(nodes, idx),
+    anns: node.anns,
+    refAllowed: mode === "simple",
+    refVideoUrl: tplRef?.url,
+    materialRef: node.custom && node.customRef ? { url: node.customRef.url, durationSec: node.customRef.durationSec, mids: node.customRef.mids } : undefined,
+    extraRefs: tplRef ? undefined : node.extraRefs,
+    durationSec: prop.durationSec,
+    framesComing,
+  });
+}
+
+/** 参考清单里「帧还没有」那一格该怎么说：true = 推演时画（自选卡片、还没推演），false = 出片前现画 */
+export function nodeFramesComeFromDerive(node: FlowNode): boolean {
+  return derivesProposals(node) && planOf(node) === null && !nodeDone(node);
+}
+
+/** 这一段里已经被占的名字（别的临时参考图 + 这一段挂的卡）：新名字不许与它们重 */
+function extraRefNamesTaken(node: FlowNode, exceptId?: string): string[] {
+  return [...usableExtraRefs(node.extraRefs).filter((x) => x.id !== exceptId).map((x) => x.name), ...(node.materials ?? []).map((c) => c.name)];
+}
+
+/** 名字为什么不能用（refMentions.refNameIssue 的三种结论 → 整句人话） */
+function extraRefNameMsg(issue: "empty" | "reserved" | "taken"): string {
+  return issue === "empty"
+    ? t`给这张参考图起个名字（句子里用 @名字 点它）`
+    : issue === "reserved"
+      ? t`这个名字留给帧和模型自己的写法了（首帧 / 尾帧 / 图片1…）——换一个`
+      : t`这一段已经有同名的参考图或卡片了——换一个名字`;
+}
+
+/**
  * 这一段出片会不会**带画面帧**（设定首帧 / 承接帧 / 圈选，或工作流里推演、补画出来的帧）——
  * 真人卡门禁用（economy.realFaceIssue 的 framed：已认证真人卡在高清/电影级只有不带帧的请求过得去）。
  * ★ 判据走 segmentGen.frameFree 一处（refVideoOn 的帧那一半）；帧在不在问 usableFrames、承接问 nodeCarry ——
@@ -1304,6 +1364,13 @@ interface FlowState {
   /** 素材参考模式下增/删**中间帧参考图**（上限 CUSTOM_MID_MAX）。返回 false = 被拒 */
   addCustomMid: (id: string, dataUrl: string) => boolean;
   removeCustomMid: (id: string, idx: number) => void;
+  /**
+   * 临时参考图（FlowNode.extraRefs）的增 / 改 / 删。名字查重（不与别的参考图、这一段的卡重名）与上限在这里拦，
+   * 被拒回 null / false、原因在 err。改名与删除会顺手收拾这一段句子里的 `@名字`（改名跟着换、删除退成普通文字）。
+   */
+  addExtraRef: (nodeId: string, ref: { url: string; name: string; role: ExtraRefRole }) => string | null;
+  updateExtraRef: (nodeId: string, refId: string, patch: { name?: string; role?: ExtraRefRole }) => boolean;
+  removeExtraRef: (nodeId: string, refId: string) => void;
   removeNode: (id: string) => void;
   setCursor: (i: number) => void;
   shiftCursor: (dir: 1 | -1) => void;
@@ -2933,6 +3000,89 @@ export const useFlow = create<FlowState>()((set, get) => ({
       ),
     })),
 
+  addExtraRef: (nodeId, ref) => {
+    const s = get();
+    const node = s.nodes.find((n) => n.id === nodeId);
+    if (!node || !ref.url) return null;
+    if (node.status === "generating") {
+      set({ err: t`这一段正在生成中，等它跑完再改参考图` });
+      return null;
+    }
+    const list = usableExtraRefs(node.extraRefs);
+    if (list.length >= EXTRA_REF_MAX) {
+      set({ err: t`一段最多 ${EXTRA_REF_MAX} 张临时参考图（它们与帧、卡片形象图共用同一份参考图额度）——先删一张再加` });
+      return null;
+    }
+    const name = cleanRefName(ref.name);
+    const issue = refNameIssue(name, extraRefNamesTaken(node));
+    if (issue) {
+      set({ err: extraRefNameMsg(issue) });
+      return null;
+    }
+    const id = uid();
+    set((st) => ({
+      nodes: st.nodes.map((n) => (n.id === nodeId ? { ...n, extraRefs: [...usableExtraRefs(n.extraRefs), { id, url: ref.url, name, role: ref.role }] } : n)),
+      err: "",
+    }));
+    return id;
+  },
+
+  updateExtraRef: (nodeId, refId, patch) => {
+    const s = get();
+    const node = s.nodes.find((n) => n.id === nodeId);
+    const cur = usableExtraRefs(node?.extraRefs).find((x) => x.id === refId);
+    if (!node || !cur) return false;
+    if (node.status === "generating") {
+      set({ err: t`这一段正在生成中，等它跑完再改参考图` });
+      return false;
+    }
+    let name = cur.name;
+    if (patch.name !== undefined && cleanRefName(patch.name) !== cur.name) {
+      name = cleanRefName(patch.name);
+      const issue = refNameIssue(name, extraRefNamesTaken(node, refId));
+      if (issue) {
+        set({ err: extraRefNameMsg(issue) });
+        return false;
+      }
+    }
+    const renamed = name !== cur.name;
+    set((st) => ({
+      nodes: st.nodes.map((n) =>
+        n.id === nodeId
+          ? {
+              ...n,
+              extraRefs: usableExtraRefs(n.extraRefs).map((x) => (x.id === refId ? { ...x, name, role: patch.role ?? x.role } : x)),
+              // 改名：这一段句子里的 @旧名 跟着换（不换的话它就成了没对上的点名，发出去只是普通文字）
+              ...(renamed
+                ? {
+                    requirement: n.requirement === undefined ? undefined : renameMention(n.requirement, cur.name, name),
+                    proposals: n.proposals.map((p) => ({ ...p, plot: renameMention(p.plot, cur.name, name) })),
+                  }
+                : {}),
+            }
+          : n,
+      ),
+      err: "",
+    }));
+    return true;
+  },
+
+  removeExtraRef: (nodeId, refId) =>
+    set((s) => ({
+      nodes: s.nodes.map((n) => {
+        if (n.id !== nodeId) return n;
+        const cur = usableExtraRefs(n.extraRefs).find((x) => x.id === refId);
+        if (!cur || n.status === "generating") return n;
+        return {
+          ...n,
+          extraRefs: usableExtraRefs(n.extraRefs).filter((x) => x.id !== refId),
+          // 图没了，句子里的 @名字 退成普通文字
+          requirement: n.requirement === undefined ? undefined : dropMention(n.requirement, cur.name),
+          proposals: n.proposals.map((p) => ({ ...p, plot: dropMention(p.plot, cur.name) })),
+        };
+      }),
+    })),
+
   genNode: async (id, opts) => {
     const s0 = get();
     const rv = opts?.revise;
@@ -3080,6 +3230,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
             !rv && node.custom && node.customRef
               ? { url: node.customRef.url, durationSec: node.customRef.durationSec, mids: node.customRef.mids }
               : undefined,
+          // 临时参考图（N1）：返修与白模段不带（参考是成片 / 模板视频本身）。与界面上的参考清单读同一份（nodeRefPlan）
+          extraRefs: rv || tplRef ? undefined : node.extraRefs,
           // ★ 登记值**整份**透传（不只时长）：出片门口那道「模板视频自己合不合方舟窗口」
           //   的判据要读 realDurationSec ?? durationSec，在这里只挑一个数传下去，
           //   segmentGen 就得自己拼那个 `??` —— 那是同一条规则的第二份实现。

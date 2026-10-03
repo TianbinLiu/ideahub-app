@@ -168,6 +168,9 @@ msgstr ", and this run has already been charged"
 #. 列举几个名字时的分隔符
 #. 列举几个名字时的分隔符
 #. 列举几个名字时的分隔符
+#. 列举几个名字时的分隔符
+#. 列举几个名字时的分隔符
+#. 列举几个名字时的分隔符
 #. 列举几个图位名 / 还缺的几项时的分隔符
 #. 列举几个文件名 / 动作组 / 表情名时的分隔符
 #. 列举几个段号时的分隔符（第 1、3 段）
@@ -178,6 +181,7 @@ msgstr ", and this run has already been charged"
 #: src/components/blockout/RoleCastBoard.tsx
 #: src/components/blockout/RoleConfirmSheet.tsx
 #: src/components/DeleteCardDialog.tsx
+#: src/components/flow/RefStrip.tsx
 #: src/components/TemplateShelf.tsx
 #: src/components/VideoCardAnnotator.tsx
 #: src/components/VideoTemplateExtractor.tsx
@@ -1207,6 +1211,10 @@ msgstr "{count} images including {list} couldn't be saved to the server ({reason
 msgid "{list}没能存到服务器（{reason}）——这几张只留在这台设备上，换设备或者重新登录就没了。想留住的话，回卡片详情页把它重新挂一次。"
 msgstr "{list} couldn't be saved to the server ({reason}) — this device now holds the only copy, and switching devices or signing in again will lose it. To keep it, open the card's detail page and attach it again."
 
+#: src/components/flow/RefStrip.tsx
+msgid "{looseNames} 没对上这一段的任何参考——检查名字，或点上面的图重新写进句子（发出去时它只是普通文字）。"
+msgstr "{looseNames} doesn't match any reference in this segment — check the name, or tap an image above to insert it again (it is sent as plain text)."
+
 #: src/live2d/bundlePreview.ts
 msgid "{mocPath} 的文件头不是 MOC3（读到 “{shown}”），这不是一份有效的 moc3。"
 msgstr "{mocPath}'s file header isn't MOC3 (read “{shown}”), so it isn't a valid moc3."
@@ -1246,6 +1254,10 @@ msgstr "{name}'s voice"
 #: src/pages/SupportPage.tsx
 msgid "{name}走神了，再发一次试试。"
 msgstr "{name} got distracted. Try sending again."
+
+#: src/studio/segmentGen.ts
+msgid "{names} 没对上这一段的任何参考，按普通文字发出"
+msgstr "{names} doesn't match any reference in this segment and is sent as plain text"
 
 #: src/ai/real.ts
 msgid "{names}只带上了第 1 张形象图（预算 {budget} 张已满），它们按第 1 张参与"
@@ -1507,6 +1519,11 @@ msgstr "The “{0}” tier can't render with a reference video — switch to “
 msgid "「{0}」档出片无声，台词不会被配音（要声音选「高清」或「电影级」）"
 msgstr "The “{0}” tier renders without sound, so dialogue won't be voiced (choose “HD” or “Cinematic” for sound)"
 
+#. placeholder {0}: tier.label
+#: src/studio/segmentGen.ts
+msgid "「{0}」档协议上不收参考图，临时参考图这次没发出去（想用它们换「高清」或「电影级」）"
+msgstr "The “{0}” tier doesn't accept reference images, so the extra reference images weren't sent this time (switch to “HD” or “Cinematic” to use them)"
+
 #. placeholder {0}: tierOf(editor.videoTier).label
 #: src/studio/ui/projection.tsx
 msgid "「{0}」档带不了参考视频"
@@ -1731,6 +1748,14 @@ msgstr "The “{tierLabel}” tier can't render with a reference video"
 msgid "「{tierLabel}」档协议上不收参考图，不能按参考图生视频出片"
 msgstr "The “{tierLabel}” tier's protocol doesn't accept reference images, so it can't render from reference images"
 
+#: src/components/flow/RefStrip.tsx
+msgid "「{tierLabel}」档协议上不收参考图：卡片形象只用来画首尾帧，出片时模型看到的只有首尾帧。想让模型直接看到卡片形象与临时参考图，换「高清」或「电影级」。"
+msgstr "The “{tierLabel}” tier doesn't accept reference images: card images are only used to draw the first and last frames, and those frames are all the video model sees. To let the model see card images and extra reference images directly, switch to “HD” or “Cinematic”."
+
+#: src/components/flow/RefStrip.tsx
+msgid "「{tierLabel}」档带不了示例视频——换成「电影级」之后这里才排得出清单。"
+msgstr "The “{tierLabel}” tier can't take a sample video — switch to “Cinematic” and the list will show up here."
+
 #. 个人页「还没传到服务器」横幅：只有作品标题（这一条没记下没传上去的原因）
 #: src/pages/ProfilePage.tsx
 msgid "「{title}」"
@@ -1778,6 +1803,10 @@ msgstr "“Pick myself” has no valid marks right now (none marked yet, or ever
 #: src/data/economy.ts
 msgid "」「"
 msgstr "”, “"
+
+#: src/components/flow/RefStrip.tsx
+msgid "@ 写进句子"
+msgstr "@ Mention it"
 
 #. placeholder {0}: authorDisplayName(res.data.meta.author.displayName || res.data.meta.author.username, res.data.meta.author._id)
 #: src/pages/RecipePage.tsx
@@ -1878,6 +1907,10 @@ msgstr "＋ Add a segment"
 #: src/studio/stage/StageOverlay.tsx
 msgid "+ 加人偶"
 msgstr "+ Add mannequin"
+
+#: src/components/flow/RefStrip.tsx
+msgid "＋ 参考图"
+msgstr "＋ Reference"
 
 #: src/components/blockout/BoxFramePicker.tsx
 msgid "＋ 在这里切一刀"
@@ -2621,6 +2654,10 @@ msgstr "🎬 Reference video attached ({0}s · billed as {1}s input + {2}s outpu
 msgid "🎬 参考视频已挂上（{0}s）"
 msgstr "🎬 Reference video attached ({0}s)"
 
+#: src/components/flow/RefStrip.tsx
+msgid "🎬 另带示例视频（不占图片编号）。"
+msgstr "🎬 Plus the sample video (it doesn't take an image number)."
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "🎬 完成视频 ›"
 msgstr "🎬 Finish video ›"
@@ -2774,6 +2811,18 @@ msgstr "📥 Recover this segment's video (no new order, no extra charge)"
 msgid "📸 截图 → 融成这一段的开头帧（{price}）"
 msgstr "📸 Capture → fuse into this segment's opening frame ({price})"
 
+#: src/components/flow/RefStrip.tsx
+msgid "🔇 {idleNames} 带着声音样本，但「{tierLabel}」档出片无声——要配音换「高清」或「电影级」。"
+msgstr "🔇 {idleNames} has a voice sample, but the “{tierLabel}” tier renders without sound — switch to “HD” or “Cinematic” for dubbing."
+
+#: src/components/flow/RefStrip.tsx
+msgid "🔇 {idleNames} 带着声音样本，但句子里没有台词——把台词写进引号（「」或 “”）里，才会按这张卡的声音配音。"
+msgstr "🔇 {idleNames} has a voice sample, but the prompt has no dialogue — put the line in quotes (“ ” or 「」) and it will be dubbed in this card's voice."
+
+#: src/components/flow/RefStrip.tsx
+msgid "🔇 {idleNames} 带着声音样本，但这一段的出片方式带不了参考音频（台词仍会配音，音色由模型定）。"
+msgstr "🔇 {idleNames} has a voice sample, but the way this segment is rendered can't carry reference audio (dialogue is still dubbed, in a voice the model picks)."
+
 #: src/components/BranchPlayer.tsx
 #: src/components/flow/SegPlayer.tsx
 #: src/components/SegmentPlayer.tsx
@@ -2796,6 +2845,10 @@ msgstr "🔊 Character voice · {0}s"
 #: src/components/flow/FlowCanvas.tsx
 msgid "🔊 只看带声音的卡"
 msgstr "🔊 Only cards with a voice"
+
+#: src/components/flow/RefStrip.tsx
+msgid "🔊 台词带声音样本：{voiceNames}。"
+msgstr "🔊 Dialogue carries voice samples: {voiceNames}."
 
 #. placeholder {0}: pendingVoice.durationSec
 #. placeholder {1}: pendingVoice.note
@@ -2852,6 +2905,15 @@ msgstr "🔥 Community heat {0}"
 #: src/components/VideoCardAnnotator.tsx
 msgid "🖌 笔"
 msgstr "🖌 Brush"
+
+#. placeholder {0}: refPlan.items.length
+#: src/studio/ui/projection.tsx
+msgid "🖼 参考清单 · 模型会收到 {0} 张图"
+msgstr "🖼 References · the model gets {0} images"
+
+#: src/studio/ui/projection.tsx
+msgid "🖼 参考清单 · 这一档不收参考图"
+msgstr "🖼 References · this tier takes no reference images"
 
 #: src/pages/CardDetailPage.tsx
 msgid "🖼 形象参考"
@@ -3483,6 +3545,14 @@ msgstr "One line per clip, capped by how long the clip is. When a clip has a voi
 msgid "一段一段来"
 msgstr "One segment at a time"
 
+#: src/components/flow/RefStrip.tsx
+msgid "一段最多 {EXTRA_REF_MAX} 张临时参考图"
+msgstr "Up to {EXTRA_REF_MAX} extra reference images per segment"
+
+#: src/studio/flowStore.ts
+msgid "一段最多 {EXTRA_REF_MAX} 张临时参考图（它们与帧、卡片形象图共用同一份参考图额度）——先删一张再加"
+msgstr "Up to {EXTRA_REF_MAX} extra reference images per segment (they share the reference-image budget with frames and card images) — remove one before adding another"
+
 #: src/components/guide/tours.tsx
 msgid "一段有三种做法"
 msgstr "Three ways to make a segment"
@@ -3613,7 +3683,13 @@ msgid "上传中断了（网络不可用）"
 msgstr "The upload was interrupted (network unavailable)"
 
 #. placeholder {0}: i + 1
-#. placeholder {1}: ordered.length
+#. placeholder {1}: extrasIn.length
+#: src/studio/segmentGen.ts
+msgid "上传临时参考图 {0}/{1}…"
+msgstr "Uploading extra reference image {0}/{1}…"
+
+#. placeholder {0}: i + 1
+#. placeholder {1}: toSend.length
 #: src/studio/segmentGen.ts
 msgid "上传参考帧 {0}/{1}…"
 msgstr "Uploading reference frame {0}/{1}…"
@@ -4172,6 +4248,10 @@ msgstr "The account changed partway through, so the draft wasn't written — tap
 msgid "中途换了账号：包已经传上去了，还没识别——再点一次「开始识别」。"
 msgstr "The account changed partway through: the package was uploaded but hasn't been detected yet — tap “Start detection” again."
 
+#: src/components/flow/RefStrip.tsx
+msgid "中间帧"
+msgstr "Mid frame"
+
 #: src/components/flow/RefFrameSheet.tsx
 msgid "中间帧最多 {midMax} 张"
 msgstr "Up to {midMax} middle frames"
@@ -4183,6 +4263,14 @@ msgstr "Middle-frame references"
 #: src/studio/flowStore.ts
 msgid "中间帧参考图最多 {CUSTOM_MID_MAX} 张（首帧、尾帧另算）——先删一张再加"
 msgstr "Up to {CUSTOM_MID_MAX} middle-frame references (first and last frames not included) — delete one before adding another"
+
+#: src/components/flow/RefStrip.tsx
+msgid "临时参考图在这一档发不出去（上面那几张变淡的）。"
+msgstr "The extra reference images can't be sent on this tier (the dimmed ones above)."
+
+#: src/studio/segmentGen.ts
+msgid "临时参考图没能传上去，这一段不带它们出片"
+msgstr "The extra reference images failed to upload, so this segment is rendered without them"
 
 #: src/ai/real.ts
 msgid "为「{name}」铸造 3D 建模 {n}/{total}…"
@@ -5600,6 +5688,11 @@ msgstr "Other options"
 msgid "其发出的<0>评论、弹幕</0>全部删除；别人作品下的也一样；⚠ <1>其他用户</1>回复在这些评论下的楼中楼会被连带删除"
 msgstr "All <0>comments and bullet comments</0> they posted are deleted, including those under other people's videos; ⚠ replies from <1>other users</1> under those comments are deleted along with them"
 
+#: src/components/flow/RefStrip.tsx
+msgctxt "临时参考图的用途：没在句子里点名时，系统按它替这张图说一句"
+msgid "其它"
+msgstr "Other"
+
 #: src/studio/ui/projection.tsx
 msgid "内容"
 msgstr "Content"
@@ -5643,6 +5736,11 @@ msgstr "Upload another"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "再做一个"
 msgstr "Make another"
+
+#: src/components/flow/FlowCanvas.tsx
+#: src/studio/ui/projection.tsx
+msgid "再写进去就超过 {VIDEO_PROMPT_MAX} 字的上限了——先删几个字"
+msgstr "Adding this would go over the {VIDEO_PROMPT_MAX}-character limit — delete a few characters first"
 
 #: src/components/TagInput.tsx
 msgid "再加一个"
@@ -5917,6 +6015,10 @@ msgstr "Rendering videos, generating images, minting cards and unlocking paid vi
 #: src/studio/segmentGen.ts
 msgid "出片中…"
 msgstr "Rendering…"
+
+#: src/components/flow/RefStrip.tsx
+msgid "出片前 AI 画"
+msgstr "AI draws it before rendering"
 
 #: src/components/flow/CastPreviewCard.tsx
 msgid "出片前先看一眼：把你挂的角色放进白模画面，站位不对这时候改还不花视频钱"
@@ -6297,6 +6399,7 @@ msgstr "Deleting segment {seg}: {0}"
 
 #: src/components/CommentDelete.tsx
 #: src/components/DraftSheet.tsx
+#: src/components/flow/RefStrip.tsx
 #: src/components/support/VoiceMarket.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/EditPage.tsx
@@ -6902,6 +7005,10 @@ msgid "原作这一段上传了自己的参考视频（不随配方带走）"
 msgstr "The original uploaded its own reference video for this segment (not included)"
 
 #: src/components/recipe/RecipeView.tsx
+msgid "原作这一段另给过自己的参考图（不随配方带走）"
+msgstr "The original used its own reference images for this segment (not included in the recipe)"
+
+#: src/components/recipe/RecipeView.tsx
 msgid "原作这一段圈选改过画面（不随配方带走）"
 msgstr "The original edited this segment's frames with markups (not included)"
 
@@ -6910,8 +7017,8 @@ msgid "原作这一段用导演台摆过站位与机位（不随配方带走）"
 msgstr "The original staged blocking and camera for this segment on the director stage (not included)"
 
 #: src/components/recipe/RecipeView.tsx
-msgid "原作这一段给过中间帧参考图（不随配方带走）"
-msgstr "The original gave mid-frame references for this segment (not included)"
+#~ msgid "原作这一段给过中间帧参考图（不随配方带走）"
+#~ msgstr "The original gave mid-frame references for this segment (not included)"
 
 #: src/components/recipe/RecipeView.tsx
 msgid "原作这一段返修过"
@@ -7094,6 +7201,11 @@ msgstr "Reference: main crop"
 msgid "参考卡片形象直接出片（省掉设定帧）…"
 msgstr "Rendering directly from the card images (no setup frames)…"
 
+#: src/components/flow/FlowCanvas.tsx
+#: src/studio/ui/projection.tsx
+msgid "参考图"
+msgstr "Ref"
+
 #: src/pages/CardDetailPage.tsx
 msgid "参考图怎么被 AI 取用"
 msgstr "How the AI uses reference images"
@@ -7118,6 +7230,14 @@ msgstr "Reference scene {0}"
 #: src/ai/index.ts
 msgid "参考模板"
 msgstr "Reference template"
+
+#: src/components/flow/RefStrip.tsx
+msgid "参考清单"
+msgstr "References"
+
+#: src/studio/segmentGen.ts
+msgid "参考清单核对：预计发 {planned} 张参考图，这一发实际发出 {sentCount} 张（有图没带上，图片编号以实际为准）"
+msgstr "Reference check: {planned} reference images were expected, but {sentCount} were actually sent this time (some images were left out, so image numbers follow what was sent)"
 
 #: src/pages/TemplateDetailPage.tsx
 msgid "参考画面特征"
@@ -7566,6 +7686,10 @@ msgstr "Catchphrases"
 msgid "古风"
 msgstr "Ancient style"
 
+#: src/components/flow/RefStrip.tsx
+msgid "句子里已经点到它了：这张图管什么，以你写的那半句为准。"
+msgstr "It's already mentioned in the prompt: what this image is for is whatever you wrote there."
+
 #: src/components/VideoCardAnnotator.tsx
 msgid "另存为我的"
 msgstr "Save as my own"
@@ -7573,6 +7697,10 @@ msgstr "Save as my own"
 #: src/studio/ui/SchemeEditorSheet.tsx
 msgid "另存为我的方案"
 msgstr "Save as my scheme"
+
+#: src/studio/segmentGen.ts
+msgid "另带 {extraCount} 张临时参考图"
+msgstr "plus {extraCount} extra reference images"
 
 #. placeholder {0}: anns.length - liveAnns.length
 #: src/pages/CutPage.tsx
@@ -7956,6 +8084,7 @@ msgstr "Also list in the Template market (workflow template)"
 msgid "同样 2 张，换最新旗舰模型来画 · 形象更准、细节更实，出图较慢"
 msgstr "The same 2 images, drawn by the latest flagship model · more accurate look, more solid detail, slower to draw"
 
+#: src/components/flow/RefStrip.tsx
 #: src/pages/SupportModelNewPage.tsx
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "名字"
@@ -8350,6 +8479,11 @@ msgid "在评论里 @ 了你"
 msgstr "mentioned you in a comment"
 
 #: src/types.ts
+msgid "场景"
+msgstr "Scene"
+
+#: src/components/flow/RefStrip.tsx
+msgctxt "临时参考图的用途：没在句子里点名时，系统按它替这张图说一句"
 msgid "场景"
 msgstr "Scene"
 
@@ -9051,6 +9185,7 @@ msgid "尺寸没量出来"
 msgstr "size unknown"
 
 #: src/components/flow/CustomFrameSlots.tsx
+#: src/components/flow/RefStrip.tsx
 #: src/studio/ui/FrameCard.tsx
 msgid "尾帧"
 msgstr "Last frame"
@@ -11161,7 +11296,7 @@ msgstr "Redrawing with your changes…"
 msgid "按出片模型筛选"
 msgstr "Filter by video model"
 
-#. placeholder {0}: refUrls.length
+#. placeholder {0}: ordered.length
 #: src/studio/segmentGen.ts
 msgid "按参考视频 + {0} 张关键帧出片（输入 {inSec}s + 输出 {outSec}s 计价）…"
 msgstr "Rendering from the reference video + {0, plural, one {# key frame} other {# key frames}} (billed as {inSec}s input + {outSec}s output)…"
@@ -11496,6 +11631,10 @@ msgstr "The plans are ready but can't be laid on the table right now — try aga
 #: src/studio/flowStore.ts
 msgid "推演好了，但那一段已经不在流水线上了——没处摆（这一次的推演费已经花掉了）"
 msgstr "The drafts are ready, but that segment is no longer in the pipeline — there's nowhere to put them (this drafting cost has already been spent)"
+
+#: src/components/flow/RefStrip.tsx
+msgid "推演时画"
+msgstr "Drawn when planning"
 
 #: src/studio/studioStore.ts
 msgid "推演期间桌面已经变样，这一炉先作废——按现在的走向重新生成吧。"
@@ -12880,6 +13019,11 @@ msgstr "Server is verifying…"
 msgid "服务端默认"
 msgstr "Server default"
 
+#: src/components/flow/RefStrip.tsx
+msgctxt "临时参考图的用途：没在句子里点名时，系统按它替这张图说一句"
+msgid "服装"
+msgstr "Outfit"
+
 #: src/types.ts
 msgid "服装、体型与整体造型；也是这张卡的卡面"
 msgstr "Outfit, build and overall look; also this card's cover"
@@ -14215,6 +14359,15 @@ msgstr "No speech heard. Speak closer while holding, and release when you're don
 msgid "没听懂这几句，怕改错就没动：{0}。"
 msgstr "Didn't understand these, so I left them alone: {0}. "
 
+#. placeholder {0}: selected.name
+#: src/components/flow/RefStrip.tsx
+msgid "没在句子里点名时，系统只会说它是一张补充参考——最好选一个用途，或者在句子里用 @{0} 说清楚。"
+msgstr "Without a mention in the prompt, the system only says it's an extra reference — better pick a purpose, or spell it out in the prompt with @{0}."
+
+#: src/components/flow/RefStrip.tsx
+msgid "没在句子里点名时，系统按这个用途替它说一句。"
+msgstr "Without a mention in the prompt, the system describes it by this purpose."
+
 #: src/components/DownloadSheet.tsx
 msgid "没存下"
 msgstr "Not saved"
@@ -14230,6 +14383,10 @@ msgstr "No motion group mapped, so this action won't play"
 #: src/pages/SupportModelNewPage.tsx
 msgid "没对上命中区，摸这里不会有反应"
 msgstr "No hit area mapped, so touching here does nothing"
+
+#: src/components/flow/RefStrip.tsx
+msgid "没带图、只按文字参与：{textOnlyNames}。"
+msgstr "No image sent, text only: {textOnlyNames}."
 
 #: src/pages/SupportPage.tsx
 msgid "没帮上"
@@ -14996,6 +15153,10 @@ msgstr "Tap a clip to select it, then you can <0>✂️ split</0> it at the play
 msgid "点一张卡，挂给「{0}」"
 msgstr "Tap a card to attach it to “{0}”"
 
+#: src/components/flow/RefStrip.tsx
+msgid "点一张图，把它写进句子（@名字）。"
+msgstr "Tap an image to mention it in the prompt (@name)."
+
 #: src/components/guide/tours.tsx
 msgid "点一条就试听"
 msgstr "Tap a voice to hear it"
@@ -15713,6 +15874,10 @@ msgstr "Use this"
 msgid "用这张照片，AI 按方案出 {0} 张图位"
 msgstr "Use this photo; the AI generates {0, plural, one {# slot image} other {# slot images}} from the scheme"
 
+#: src/components/flow/RefStrip.tsx
+msgid "用途"
+msgstr "Purpose"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "用通用参数演"
 msgstr "Use generic parameters"
@@ -15826,6 +15991,11 @@ msgstr "Watermarks, channel logos and subtitles in the picture get <0>copied int
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "画面里还有人没列出来，加一个"
 msgstr "Someone in the picture isn't listed — add one"
+
+#: src/components/flow/RefStrip.tsx
+msgctxt "临时参考图的用途：没在句子里点名时，系统按它替这张图说一句"
+msgid "画风"
+msgstr "Art style"
 
 #: src/types.ts
 msgid "画风、材质质感、色调与光影"
@@ -16385,6 +16555,14 @@ msgstr "Real-person tier: checking progress failed (HTTP {status}): {body}"
 msgid "真人档取件失败：上游没有返回下载地址"
 msgstr "Real-person tier: fetching the file failed — upstream didn't return a download URL"
 
+#: src/components/flow/RefStrip.tsx
+msgid "真人档只认一张起拍画面，不收参考图：卡片与临时参考图只按文字参与。"
+msgstr "The real-person tier only takes one opening frame and no reference images: cards and extra reference images take part as text only."
+
+#: src/studio/segmentGen.ts
+msgid "真人档只认一张起拍画面，临时参考图这次没发出去"
+msgstr "The real-person tier only takes one opening frame, so the extra reference images weren't sent this time"
+
 #: src/studio/segmentGen.ts
 msgid "真人档按发计价（{flatSec} 秒整档）· 以「{srcName}」的起拍画面起拍…"
 msgstr "Real-person tier, billed per run ({flatSec}s tier) · starting from “{srcName}”’s opening frame…"
@@ -16828,6 +17006,11 @@ msgstr "Portrait"
 #: src/components/guide/tours.tsx
 msgid "竖屏时编辑窗从下面升起，横屏时它挪到右边、画布留给左边 —— 段多的时候横过来看更痛快。 旁边那颗 💾 随时把这条片存成草稿，回头接着做。"
 msgstr "In portrait the editor rises from the bottom; in landscape it moves to the right and leaves the left side to the canvas — with lots of segments, turning sideways is much easier to work with. The 💾 next to it saves this video as a draft any time, so you can come back to it later."
+
+#: src/components/flow/RefStrip.tsx
+msgctxt "临时参考图的用途：没在句子里点名时，系统按它替这张图说一句"
+msgid "站位构图"
+msgstr "Blocking"
 
 #. placeholder {0}: stepIdx + 1
 #. placeholder {1}: steps.length
@@ -17870,6 +18053,10 @@ msgstr "Pick reference cards for this segment"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "给这个人格起个名字"
 msgstr "Give this persona a name"
+
+#: src/studio/flowStore.ts
+msgid "给这张参考图起个名字（句子里用 @名字 点它）"
+msgstr "Give this reference image a name (mention it in the prompt with @name)"
 
 #: src/components/support/VoiceMixer.tsx
 msgid "给这把嗓子起个名字再发布。"
@@ -19970,6 +20157,10 @@ msgstr "Nothing came out of this batch."
 msgid "这一批里没有可保存的文件。"
 msgstr "There are no files to save in this batch."
 
+#: src/components/flow/RefStrip.tsx
+msgid "这一排就是出片时视频模型会收到的图，按发送顺序编号。素材卡是谁、哪几张图是他，由系统自动写进提示词；你另加的参考图没在句子里点名时，系统按「用途」替它说一句。想自己说清楚某张图管什么，就在句子里写 @名字（或点这一排上的图）——出片时会在名字后面接上模型认的编号「图片N」。"
+msgstr "This row is exactly what the video model receives when the segment is rendered, numbered in sending order. Which card is who, and which images belong to them, is written into the prompt automatically; for an extra reference image you add without mentioning it, the system describes it by its “purpose”. To say what an image is for yourself, write @name in the prompt (or tap an image in this row) — at render time the model's own number (image N) is appended after the name."
+
 #: src/studio/ui/SchemeEditorSheet.tsx
 msgid "这一格放原片裁剪本身，不调模型、不计费。"
 msgstr "This slot holds the original crop itself — no model call, no charge."
@@ -20142,6 +20333,10 @@ msgstr "This segment already has a video, so it can't go back to the segment win
 msgid "这一段已经改好、钱也扣过了，但{why}"
 msgstr "This segment is done and has been charged, but {why}"
 
+#: src/studio/flowStore.ts
+msgid "这一段已经有同名的参考图或卡片了——换一个名字"
+msgstr "This segment already has a reference image or card with that name — pick another"
+
 #: src/studio/segmentGen.ts
 msgid "这一段带不了声音样本（本档的出片方式与参考音频互斥）——台词仍会被配音，但音色随机"
 msgstr "This segment can't use voice samples (this tier's rendering mode is incompatible with reference audio) — dialogue is still voiced, but with random voices"
@@ -20221,6 +20416,10 @@ msgid "这一段正在生成，等它跑完再改。"
 msgstr "This segment is generating. Wait for it to finish before editing it."
 
 #: src/studio/flowStore.ts
+msgid "这一段正在生成中，等它跑完再改参考图"
+msgstr "This segment is being generated — wait until it finishes before changing reference images"
+
+#: src/studio/flowStore.ts
 msgid "这一段正在生成中，等它跑完再改挂卡（改了也得重炼一次，别白花一次钱）"
 msgstr "This segment is generating. Wait for it to finish before changing the cards (changing them means regenerating anyway, so don't waste a run)"
 
@@ -20235,6 +20434,10 @@ msgstr "This segment has no blockout template to place cards on (only blockout t
 #: src/studio/studioStore.ts
 msgid "这一段没炼成"
 msgstr "Couldn't generate this segment"
+
+#: src/studio/segmentGen.ts
+msgid "这一段没走参考图出片，临时参考图这次没发出去"
+msgstr "This segment wasn't rendered from reference images, so the extra reference images weren't sent this time"
 
 #. 铸卡师念的话。「✂ 编辑」是方案台上那颗键的名字，英文请引用它的英文名
 #: src/studio/studioStore.ts
@@ -20314,6 +20517,10 @@ msgstr "This segment has no video yet, so you can choose the template and cards 
 #: src/studio/ui/projection.tsx
 msgid "这一段还没出片，退回去不花钱"
 msgstr "This segment has no video yet, so going back is free"
+
+#: src/components/flow/RefStrip.tsx
+msgid "这一段还没有任何参考图：挂素材卡、给首尾帧，或点「＋ 参考图」加一张站位草图 / 道具照片。"
+msgstr "This segment has no reference images yet: attach cards, provide first/last frames, or tap “＋ Reference” to add a blocking sketch or a prop photo."
 
 #: src/studio/cutNarration.ts
 msgid "这一段还没有写字幕，没有可配音的话"
@@ -20517,6 +20724,10 @@ msgstr "There's no cdi3.json in this bundle, so none of the required items can b
 #: src/pages/SupportModelNewPage.tsx
 msgid "这个包里没有它 —— 换一个，或者回 Cubism 重新导出。"
 msgstr "This bundle doesn't have it — pick another, or re-export from Cubism."
+
+#: src/studio/flowStore.ts
+msgid "这个名字留给帧和模型自己的写法了（首帧 / 尾帧 / 图片1…）——换一个"
+msgstr "That name is reserved for frames and the model's own notation (first frame / last frame / 图片1…) — pick another"
 
 #: src/pages/SupportPage.tsx
 msgid "这个回答有帮助吗？"
@@ -21194,6 +21405,10 @@ msgstr "This image is too large (the limit is 5MB)"
 #: src/utils/image.ts
 msgid "这张图太小了，AI 认不出里面的东西"
 msgstr "This image is too small for the AI to make anything out"
+
+#: src/components/flow/RefStrip.tsx
+msgid "这张图太长 / 太宽，已居中裁过"
+msgstr "This image was too tall or too wide, so it was center-cropped"
 
 #: src/data/cardViews.ts
 msgid "这张图已经不在了"
@@ -22021,6 +22236,11 @@ msgstr "shape, proportions, materials and colors"
 msgid "道具"
 msgstr "Prop"
 
+#: src/components/flow/RefStrip.tsx
+msgctxt "临时参考图的用途：没在句子里点名时，系统按它替这张图说一句"
+msgid "道具"
+msgstr "Prop"
+
 #: src/types.ts
 msgid "道具信息"
 msgstr "Prop info"
@@ -22696,8 +22916,13 @@ msgid "首尾帧都是你自己换的图，没有可让我重画的地方——�
 msgstr "Both the first and last frames are images you swapped in, so there's nothing for me to redraw — to redraw, clear that frame on the card first."
 
 #: src/components/flow/CustomFrameSlots.tsx
+#: src/components/flow/RefStrip.tsx
 msgid "首帧"
 msgstr "First frame"
+
+#: src/components/flow/RefStrip.tsx
+msgid "首帧·承接"
+msgstr "First · carried"
 
 #: src/ai/arkClient.ts
 msgid "首帧图生视频"

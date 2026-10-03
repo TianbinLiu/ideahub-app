@@ -19,9 +19,10 @@
 // ★ 段模板**只回指、不带快照**：出片时服务端只认已登记的模板视频地址（方舟 r2v 那道闸），快照里的地址对应的
 //   模板一旦没了，带过去也出不了片。复制时现去取那条模板，取不到那一段就退成普通段并说明。
 //
-// ★ 依赖方向：本文件属 data 层，只引 economy（价目）与 types。画布节点当 `unknown` 读（与 projects / drafts 同一种写法）——
+// ★ 依赖方向：本文件属 data 层，只引 economy（价目）、refMentions（点名的认法，零依赖）与 types。画布节点当 `unknown` 读（与 projects / drafts 同一种写法）——
 //   FlowNode 的类型在 store 层，这里不能引；所以每一格都自己验形状，读不出来的当没有。
 import { r2vTokens, segTokens, tierOf } from "./economy";
+import { dropMention, usableExtraRefs, type ExtraRef } from "./refMentions";
 import type { CardType, CardView, ShotSpec, VideoAspect } from "../types";
 
 /** 随配方带走的一张卡（字段与作品卡组快照同一批） */
@@ -50,7 +51,11 @@ export interface RecipeSlot {
 }
 
 export type RecipeNodeKind = "classic" | "blockout" | "custom";
-/** 原作这一段还用过、但没有随配方带走的东西（故事板据此说一句） */
+/**
+ * 原作这一段还用过、但没有随配方带走的东西（故事板据此说一句）。
+ * ★ `mid-frames` 自 2026-10-03（N1）起的含义是「作者另给过自己的参考图」：中间帧**或**临时参考图（FlowNode.extraRefs）。
+ *   没有另开一个记号：服务端那份 schema 的枚举是写死的，新记号要先上服务端再发 App，而这两样对看配方的人是同一句话。
+ */
 export type RecipeNodeFlag = "ref-video" | "mid-frames" | "stage" | "anns" | "revised";
 
 export interface RecipeTplRef {
@@ -211,7 +216,9 @@ export function projectRecipe(canvas: unknown, opts: ProjectRecipeOpts = {}): Wo
     const flags: RecipeNodeFlag[] = [];
     const customRef = rec(n.customRef);
     if (customRef && typeof customRef.url === "string" && customRef.url) flags.push("ref-video");
-    if (arr(customRef?.mids).length > 0) flags.push("mid-frames");
+    // 临时参考图（N1）是作者自己的图，不随配方带走：只留记号，句子里的 `@名字` 退成普通文字（复制的人那边没有这张图可点）
+    const extras = usableExtraRefs(arr(n.extraRefs) as ExtraRef[]);
+    if (arr(customRef?.mids).length > 0 || extras.length > 0) flags.push("mid-frames");
     if (rec(n.stage)) flags.push("stage");
     if (arr(n.anns).length > 0) flags.push("anns");
     if (typeof chosen.prevVideoUrl === "string" && chosen.prevVideoUrl) flags.push("revised");
@@ -225,7 +232,7 @@ export function projectRecipe(canvas: unknown, opts: ProjectRecipeOpts = {}): Wo
     return {
       title: str(chosen.title, 200),
       // 白模段不带点名句（见文件头）
-      plot: blockout ? "" : str(chosen.plot, 8000),
+      plot: blockout ? "" : extras.reduce((s, x) => dropMention(s, x.name), str(chosen.plot, 8000)),
       ...(shot ? { shot } : {}),
       durationSec: Number.isFinite(dur) ? Math.min(60, Math.max(1, dur)) : 5,
       tier,

@@ -21,6 +21,8 @@ import { captureFirstLast } from "../../utils/videoFrames";
 import SegPlayer from "../../components/flow/SegPlayer";
 import FuseFrameSheet, { fuseSourcesOf } from "./FuseFrameSheet";
 import CustomFrameSlots from "../../components/flow/CustomFrameSlots";
+import RefStrip from "../../components/flow/RefStrip";
+import { insertMention, uniqueRefName, usableExtraRefs } from "../../data/refMentions";
 import { SegmentRecoverList } from "../../components/flow/SegmentRecoverCards";
 import Icon from "../../components/Icon";
 import { CARD_TYPES, CARD_TYPE_COLORS, CARD_TYPE_LABELS, CARD_TYPE_SHORT, Card, CardType, Proposal, VIDEO_ASPECTS, aspectCss, aspectOf } from "../../types";
@@ -32,7 +34,7 @@ import {
   rederiveKey,
   useStudio,
 } from "../studioStore";
-import { CUSTOM_MID_MAX, nodeBlank, recastBlocked, nodeDerived, nodeDone, nodeCost, tplOfNode, useFlow, type FlowNode, nodeAnnPlan, annSkipNote, redrawCost, derivesProposals, nodeLocked, deriveCostOf } from "../flowStore";
+import { CUSTOM_MID_MAX, nodeBlank, recastBlocked, nodeDerived, nodeDone, nodeCost, tplOfNode, useFlow, type FlowNode, nodeAnnPlan, annSkipNote, redrawCost, derivesProposals, nodeLocked, deriveCostOf, nodeRefPlan, nodeFramesComeFromDerive } from "../flowStore";
 import TierRow from "../../components/flow/TierRow";
 // 选模板弹层借画布那一份（铁律六：市场懒加载/分段组折叠/预览确认全在那一个实现里）。
 // FlowCanvas 不 import 本文件，方向安全（它俩只在 StudioPage/FlowPage 各自的树里出现）
@@ -978,6 +980,9 @@ function ProposalsPanel() {
   const flowBusy = useFlow((s) => s.busy);
   /** 「‹ 回铸段窗」要看这一段是不是流水线的最后一段（flowStore.recastBlocked）。★ hook 排在早退之前 */
   const flowNodes = useFlow((s) => s.nodes);
+  /** 参考清单（N1）：这一面默认收着（投影窗矮，方案台要地方），点开才摊。★ 两个 hook 都排在早退之前 */
+  const [refsOpen, setRefsOpen] = useState(false);
+  const flowMode = useFlow((s) => s.mode);
   const { t } = useLingui();
   if (!node) return null;
   const idx = path.findIndex((n) => n.id === node.id);
@@ -1021,6 +1026,19 @@ function ProposalsPanel() {
    * ★ 第一段的 ‹ 就是这条路（2026-09-06 主人真机：选定白模模板之后 ‹ 灰着、删段又被挡住，人被困在窗里）。
    * ★ 推演过三套的段（proposals ≥ 2）退回去会丢掉花过 token 的方案 —— 先确认，别静默丢。
    */
+  /** 参考清单：排队编号与画布同一处（flowStore.nodeRefPlan）；临时参考图过 usableExtraRefs */
+  const refPlan = nodeRefPlan(path, idx, flowMode);
+  const extraRefs = usableExtraRefs(node.extraRefs);
+  /** 点一张图 → `@名字` 接到选定这一套剧情的句尾（这一面的剧情框在方案台里，拿不到光标）；字数上限同画布 */
+  function mentionInto(name: string) {
+    if (!node || !chosen) return;
+    const ins = insertMention(chosen.plot, chosen.plot.length, name);
+    if (ins.text.length > VIDEO_PROMPT_MAX) {
+      useFlow.setState({ err: t`再写进去就超过 ${VIDEO_PROMPT_MAX} 字的上限了——先删几个字` });
+      return;
+    }
+    useStudio.getState().patchProposal(node.id, chosen.id, { plot: ins.text });
+  }
   const recastWhyNot = recastBlocked(flowNodes, node.id);
   const canRecast = !recastWhyNot && !genHere && !busy;
   const recastCostly = nodeDerived(node);
@@ -1288,6 +1306,45 @@ function ProposalsPanel() {
           )}
         />
       </div>
+      )}
+      {/* 参考清单（N1，与画布同一份 RefStrip）：出片时模型会收到哪些图、各是第几张；＋ 临时参考图；点一张把 @名字 接到这一套剧情的句尾。
+          排队编号只问 flowStore.nodeRefPlan（与 genNode 发出去的那一份同源）；白模段不摆（它的参考是模板视频 + 挂卡） */}
+      {!blockout && refPlan && (
+        <div className="flex-none px-3 pt-1.5">
+          <button
+            onClick={() => setRefsOpen((v) => !v)}
+            className="flex w-full items-center gap-1.5 rounded-full border border-cyan-400/40 px-3 py-1.5 text-left text-[11px] text-cyan-200"
+          >
+            <span className="min-w-0 flex-1 truncate">
+              {refPlan.sends ? <Trans>🖼 参考清单 · 模型会收到 {refPlan.items.length} 张图</Trans> : <Trans>🖼 参考清单 · 这一档不收参考图</Trans>}
+            </span>
+            <Icon name="chevron" size={12} className={`flex-none transition-transform ${refsOpen ? "rotate-90" : ""}`} />
+          </button>
+          {refsOpen && (
+            <div className="mt-1.5 max-h-[46vh] overflow-y-auto">
+              <RefStrip
+                plan={refPlan}
+                extras={extraRefs}
+                cards={(node.materials ?? []).map((c) => ({ id: c.id, name: c.name }))}
+                tierLabel={tierOf(node.videoTier).label}
+                text={chosen?.plot ?? ""}
+                onMention={chosen ? mentionInto : undefined}
+                pendingFromDerive={nodeFramesComeFromDerive(node)}
+                canEdit={!locked && !genHere && !busy}
+                onAdd={(url) =>
+                  useFlow.getState().addExtraRef(node.id, {
+                    url,
+                    name: uniqueRefName(t`参考图`, [...extraRefs.map((x) => x.name), ...(node.materials ?? []).map((c) => c.name)]),
+                    role: "free",
+                  })
+                }
+                onUpdate={(id, patch) => useFlow.getState().updateExtraRef(node.id, id, patch)}
+                onRemove={(id) => useFlow.getState().removeExtraRef(node.id, id)}
+                onError={(msg) => useFlow.setState({ err: msg })}
+              />
+            </div>
+          )}
+        </div>
       )}
       {/* 导演台（2026-09-06 对标 LibTV）：摆人偶定站位与机位，截图融成开头帧。白模段用不上（画面来自模板视频）；
           已出片的段不摆（换了开头帧就得重炼）；画布那一面同款 */}
