@@ -6,9 +6,13 @@
 //   画布自定义车道的要求框与两面的方案台（PlanBoard）共用这一份。
 // ★ 不让人填每个镜头的秒数：官方提示词指南的说法是模型对精确时间的支持不稳定，强行限制时长可能导致结果异常（出处见 shotScript 文件头）。
 // ★ 「＋ 台词」插的是 `凛说：“”`：引号内的字才会被配音，说话人的名字把这句话接到那张人物卡的声音样本上。
+// ★★ 每一格都是受控输入框，值是「写回整段文字 → 再读出这一格」绕一圈回来的（2026-10-03 合进去当天补）：
+//   ① 这一圈必须逐字节往返，否则刚敲的字当场被吃（第一版 trim 掉行尾空格，英文「Rin walks」成了「Rinwalks」）—— 规则在 shotScript 文件头；
+//   ② 敲出来的字会改掉格子的数目（手打完「镜头2：」的冒号 = 多一格），原来那个框可能被卸掉 —— 敲字一律走 `typeInto`，
+//     它回「光标现在该在哪一格」，这里把焦点接过去。验这类输入框要**一个键一个键地敲**，一次写进一整串测不出来。
 import { Trans, useLingui } from "@lingui/react/macro";
 import { forwardRef, useImperativeHandle, useRef, useState } from "react";
-import { SHOT_MAX, addShot, insertLine, parseShots, removeShot, setLead, setShot } from "../../data/shotScript";
+import { SHOT_MAX, addShot, insertLine, parseShots, removeShot, typeInto } from "../../data/shotScript";
 
 export interface ShotListHandle {
   /** 在「正在写的那个镜头」的光标处改字（点名、运镜这些从外面插进来的都走它）。回 false = 插了会超上限，没插 */
@@ -41,54 +45,74 @@ const ShotListEditor = forwardRef<
     inputClassName?: string;
     /** 单镜头时输入框的行数 */
     rows?: number;
+    /**
+     * 窄宿主（方案台右边那一栏，手机上只有 185px 宽）：「镜头 N」与 ✕ 摆在输入框**上面**一行，输入框占满整栏。
+     * 量出来的：并排时每个镜头的输入框只剩 102px（一行 7 个汉字），叠起来是 185px（一行 13 个字，与没分镜时的那个框一样宽）。
+     */
+    stacked?: boolean;
   }
->(function ShotListEditor({ text, onChange, max, disabled, placeholder, speakers, canAdd, onActive, inputClassName, rows = 4 }, ref) {
+>(function ShotListEditor({ text, onChange, max, disabled, placeholder, speakers, canAdd, onActive, inputClassName, rows = 4, stacked }, ref) {
   const { t } = useLingui();
   const script = parseShots(text);
   const multi = script.shots.length > 1;
-  /** 正在写的是哪个镜头（-1 = 总述）。镜头被删掉之后落回最后一个 */
+  /** 正在写的是哪个镜头。镜头被删掉之后落回最后一个 */
   const [active, setActive] = useState(0);
   const act = Math.min(active, script.shots.length - 1);
-  const refs = useRef<(HTMLTextAreaElement | null)[]>([]);
+  /** 各格的输入框与光标，按格子的编号记（-1 = 总述）—— 别按「第几个渲染的」记：格子数一变，总述那一格的下标就挪了 */
+  const refs = useRef<Record<number, HTMLTextAreaElement | null>>({});
   const carets = useRef<Record<number, number>>({});
   const [linePick, setLinePick] = useState(false);
   const cls =
     inputClassName ??
     "w-full resize-none rounded-lg border border-slate-700/70 bg-panel px-2.5 py-2 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand disabled:opacity-40";
   const shotText = (i: number) => (i < 0 ? script.lead : (script.shots[i] ?? ""));
-  const write = (i: number, value: string) => onChange(i < 0 ? setLead(text, value) : setShot(text, i, value));
   /** 这一格还能再写几个字（整段共用一个上限） */
   const roomFor = (i: number) => Math.max(shotText(i).length, shotText(i).length + max - text.length);
+  const pick = (i: number) => {
+    setActive(i);
+    onActive?.(i);
+  };
   const focusAt = (i: number, caret: number) => {
+    carets.current[i] = caret;
+    // 等这一拍的受控值写回 DOM（格子数变了的话，等新的那几格挂上）再放光标
     requestAnimationFrame(() => {
-      const el = refs.current[i < 0 ? script.shots.length : i];
+      const el = refs.current[i];
       if (!el) return;
       el.focus();
       el.setSelectionRange(caret, caret);
     });
+  };
+  /**
+   * 往第 i 格写字。回光标落在哪一格（敲出 / 敲坏了镜头标识时格子会变，见文件头 ★★ ②）。
+   * refocus = 不管格子变没变都把焦点放过去（从按钮插进来的字：焦点在按钮上）
+   */
+  const write = (i: number, value: string, caret: number, refocus = false) => {
+    const out = typeInto(text, i, value, caret);
+    onChange(out.text);
+    // 光标记在它落下的那一格上（敲字时也记）：只靠 onSelect / onBlur 的话，不发按键事件的输入方式会留下一个过期的位置，
+    // 下一次「＋ 台词」/ 点名 / 运镜就插到句子中间去了（浏览器里实测撞到过）
+    carets.current[out.shot] = out.offset;
+    if (out.reshaped || out.shot !== i || refocus) {
+      if (out.shot >= 0) pick(out.shot);
+      focusAt(out.shot, out.offset);
+    }
   };
   const insert: ShotListHandle["insert"] = (make) => {
     const i = act;
     const cur = shotText(i);
     const out = make(cur, carets.current[i] ?? cur.length);
     if (text.length - cur.length + out.text.length > max) return false;
-    write(i, out.text);
-    carets.current[i] = out.caret;
-    focusAt(i, out.caret);
+    write(i, out.text, out.caret, true);
     return true;
   };
   useImperativeHandle(ref, () => ({ insert }));
-  const pick = (i: number) => {
-    setActive(i);
-    onActive?.(i);
-  };
   const area = (i: number, opts: { rows: number; placeholder?: string }) => (
     <textarea
       ref={(el) => {
-        refs.current[i < 0 ? script.shots.length : i] = el;
+        refs.current[i] = el;
       }}
       value={shotText(i)}
-      onChange={(e) => write(i, e.target.value)}
+      onChange={(e) => write(i, e.target.value, e.target.selectionStart)}
       onFocus={() => {
         if (i >= 0) pick(i);
       }}
@@ -101,6 +125,27 @@ const ShotListEditor = forwardRef<
       className={cls}
     />
   );
+  const badge = (i: number, extra = "") => (
+    <span className={`${extra}flex-none rounded-full px-2 py-0.5 text-[10px] ${act === i ? "bg-brand font-semibold text-ink" : "bg-slate-700/60 text-slate-300"}`}>
+      <Trans>镜头 {i + 1}</Trans>
+    </span>
+  );
+  const drop = (i: number, extra = "") => (
+    <button
+      type="button"
+      onClick={() => {
+        onChange(removeShot(text, i));
+        pick(Math.max(0, i - 1));
+      }}
+      disabled={disabled}
+      title={t`删掉这个镜头`}
+      className={`${extra}flex h-6 w-6 flex-none items-center justify-center rounded-full bg-black/40 text-[10px] text-slate-400 disabled:opacity-40`}
+    >
+      ✕
+    </button>
+  );
+  /** 加一个镜头要多占几个字：从一句话变成两个镜头是「镜头1：」+ 换行 +「镜头2：」，之后每加一个是换行 +「镜头N：」 */
+  const addCost = multi ? 5 : 9;
   const over = text.length > max;
   return (
     <div data-guide="shot-list" className="space-y-1.5">
@@ -109,27 +154,24 @@ const ShotListEditor = forwardRef<
       ) : (
         <>
           {/* 总述：几个镜头共用的交代（谁、在哪、什么氛围）。可不写 */}
-          {area(-1, { rows: 1, placeholder: t`整体交代（人物、地点、氛围；可不写）` })}
-          {script.shots.map((_, i) => (
-            <div key={i} className="flex items-start gap-1.5">
-              <span className={`mt-1.5 flex-none rounded-full px-2 py-0.5 text-[10px] ${act === i ? "bg-brand font-semibold text-ink" : "bg-slate-700/60 text-slate-300"}`}>
-                <Trans>镜头 {i + 1}</Trans>
-              </span>
-              <div className="min-w-0 flex-1">{area(i, { rows: 2, placeholder: t`这个镜头：谁、做什么、镜头怎么动` })}</div>
-              <button
-                type="button"
-                onClick={() => {
-                  onChange(removeShot(text, i));
-                  pick(Math.max(0, i - 1));
-                }}
-                disabled={disabled}
-                title={t`删掉这个镜头`}
-                className="mt-1.5 flex h-6 w-6 flex-none items-center justify-center rounded-full bg-black/40 text-[10px] text-slate-400 disabled:opacity-40"
-              >
-                ✕
-              </button>
-            </div>
-          ))}
+          {area(-1, { rows: 1, placeholder: stacked ? t`整体交代（可不写）` : t`整体交代（人物、地点、氛围；可不写）` })}
+          {script.shots.map((_, i) =>
+            stacked ? (
+              <div key={i} className="space-y-1">
+                <div className="flex items-center justify-between gap-1.5">
+                  {badge(i)}
+                  {drop(i)}
+                </div>
+                {area(i, { rows: 2, placeholder: t`这个镜头：谁、做什么、镜头怎么动` })}
+              </div>
+            ) : (
+              <div key={i} className="flex items-start gap-1.5">
+                {badge(i, "mt-1.5 ")}
+                <div className="min-w-0 flex-1">{area(i, { rows: 2, placeholder: t`这个镜头：谁、做什么、镜头怎么动` })}</div>
+                {drop(i, "mt-1.5 ")}
+              </div>
+            ),
+          )}
         </>
       )}
       {(canAdd || multi) && (
@@ -145,7 +187,7 @@ const ShotListEditor = forwardRef<
                 pick(n);
                 focusAt(n, 0);
               }}
-              disabled={disabled || script.shots.length >= SHOT_MAX || text.length + 6 > max}
+              disabled={disabled || script.shots.length >= SHOT_MAX || text.length + addCost > max}
               title={script.shots.length >= SHOT_MAX ? t`一段最多 ${SHOT_MAX} 个镜头（再多每个镜头只剩一两秒，模型顾不过来）` : undefined}
               className="rounded-full bg-slate-700/60 px-2.5 py-1 text-[10px] text-slate-200 disabled:opacity-40"
             >

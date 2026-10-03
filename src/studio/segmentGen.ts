@@ -964,7 +964,9 @@ export async function generateSegment(
     // 点名句是这条路的**功能本体**，截断优先保它（与白模 tail 同一条纪律）
     // 这条路发的是帧与参考视频，卡片的图一张都不发 ⇒ 每张卡都算"没收到图"（按模型适配：有文字版描述就用它）
     const mats = materialText(input.materials, idsOf(input.materials));
-    const tail = `${roles}${afterStop(roles, extraLines)}${mats}`;
+    // 三截各自以「。」开头、时序句又以「。」收尾：逐截去掉重复的那个句号（没有临时参考图时，素材设定直接接在时序句后面，原来会拼出「。。」）
+    const extraTail = afterStop(roles, extraLines);
+    const tail = `${roles}${extraTail}${afterStop(`${roles}${extraTail}`, mats)}`;
     /** 这一档的提示词上限（economy.promptMaxOf：带示例视频的只有电影级，500） */
     const cap = promptMaxOf(input.videoTier);
     const room = Math.max(0, cap - tail.length);
@@ -1426,11 +1428,13 @@ export async function generateSegment(
   //   其余的卡（1.0 两档是全部：协议上一张参考图都不收）有文字版形象描述就用它替代出片句
   const sentCards: ReadonlySet<string> = refMode || blockout || sendFrameRefs ? (refs?.cards ?? new Set()) : new Set();
   const mats = materialText(input.materials, idsWithout(input.materials, sentCards));
+  const extraTail = afterStop(frameRoles, extraLines);
   const tail = blockout
     ? named
       ? bind
       : `${input.revise ? REVISE_TAIL : BLOCKOUT_SWAP}${mats}${bind}`
-    : `${frameRoles}${afterStop(frameRoles, extraLines)}${mats}`;
+    : // 逐截去掉重复的句号（同 materialRef 那条路：没有临时参考图时素材设定直接接在时序句后面）
+      `${frameRoles}${extraTail}${afterStop(`${frameRoles}${extraTail}`, mats)}`;
   // ★ 镜头字段放正文最前（景别 / 运镜 / 情绪节拍），模型先读到"怎么拍"再读"拍什么"
   // ★ 正文用**编译过点名**的那一份（said.text；没有 `@` 的句子与原文逐字节相同）
   // i18n-ignore-next-line: 出片提示词正文，发给视频模型
