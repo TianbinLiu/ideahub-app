@@ -796,6 +796,7 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 - [`docs/ONBOARDING.md`](docs/ONBOARDING.md) — 从零到能跑
 - [`docs/api-contract.md`](docs/api-contract.md) — 与 server 的接口契约（三仓共享）
 - [`docs/play-store-checklist.md`](docs/play-store-checklist.md) — 上架检查单
+- [`docs/node-modes-libtv-alignment.md`](docs/node-modes-libtv-alignment.md) — 工作流节点「自选卡片 / 自定义」对齐 LibTV 节点的调研与方案（2026-10-03，等主人拍板，未动代码）
 - [`docs/app-distribution.md`](docs/app-distribution.md) — 发包给别人装、应用内更新怎么走
 - [`docs/signing-keystore.md`](docs/signing-keystore.md) — 签名 keystore 换机 / 新 worktree 怎么恢复
 - [`public/perch/README.md`](public/perch/README.md) — 角色动画资源怎么生成、踩过什么坑
