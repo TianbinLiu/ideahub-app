@@ -39,6 +39,7 @@ import { CloseButton } from "../components/IconTapButton";
 import { RecipeCast, RecipeExcludedNote, RecipeStoryboard, RecipeSummaryRow } from "../components/recipe/RecipeView";
 import { markShareRecipe, pendingCanvasFor } from "../data/projects";
 import { previewRecipe } from "../data/recipes";
+import RemixRewardNote from "../components/recipe/RemixRewardNote";
 import type { WorkflowRecipe } from "../data/recipe";
 import { DEFAULT_VIDEO_CATEGORY, VIDEO_CATEGORIES, VIDEO_TAG_LEN, VIDEO_TAG_MAX, type Visibility, formatDuration, parseTags, revisionLabel, visibilityOf, visibilityWire } from "../types";
 
@@ -582,8 +583,12 @@ export default function PublishPage() {
                   </span>
                 </button>
               )}
+              {visibility !== "private" && <RemixRewardNote className="mt-2" />}
             </div>
           )}
+          {/* 同款奖励（P3b）：别人照着这条做同款不需要它公开制作过程（首页 / 详情页那颗「做同款」照着分段剧本就能做），
+              所以没有制作过程可公开的稿子也说这一句。仅自己可见的没人看得到，不说。规则没到时这个组件什么都不画 */}
+          {!recipe && visibility !== "private" && <RemixRewardNote />}
 
           {/* 随片带卡组：只在这条片子真的有卡组时才摆（没有卡组时摆一颗恒灰的开关是噪声） */}
           {!!draft.deck?.cards.length && (

@@ -102,6 +102,29 @@ export async function listWorkflowTemplates(limit = 30): Promise<ApiWorkflowTemp
   return out;
 }
 
+/**
+ * 同款奖励的规则与我自己（作为原作者）的小结（GET /api/branch/remix-reward，2026-10-02 P3b）。
+ * ★ 四个数**全由服务端给**（server 的 config/remixReward.js），App 不抄：两仓各写各的价目表栽过两次。
+ */
+export interface ApiRemixReward {
+  rule: { enabled: boolean; tokens: number; perDay: number; perVideo: number; holdHours: number };
+  /** 只在带着登录态问的时候有 */
+  mine: { count: number; tokens: number; last24h: number } | null;
+}
+
+/** 回包里没有 `reward` 对象 = 这台服务器没有同款奖励（老服务端 / SPA 回退），回 null —— 判形状不判状态码 */
+export async function getRemixReward(): Promise<ApiRemixReward | null> {
+  const res = await apiGet<unknown>("/api/branch/remix-reward");
+  if (!isRecord(res) || !isRecord(res.reward)) return null;
+  const r = res.reward;
+  const pos = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v > 0 ? v : 0);
+  const m = isRecord(res.mine) ? res.mine : null;
+  return {
+    rule: { enabled: r.enabled === true, tokens: pos(r.tokens), perDay: pos(r.perDay), perVideo: pos(r.perVideo), holdHours: pos(r.holdHours) },
+    mine: m ? { count: pos(m.count), tokens: pos(m.tokens), last24h: pos(m.last24h) } : null,
+  };
+}
+
 const path = (videoId: string) => `/api/branch/videos/${encodeURIComponent(videoId)}/recipe`;
 
 /**
