@@ -15,7 +15,8 @@
 import { AI_REAL, ARK_REF_IMAGES_MAX, ArkTaskUnknown, VIDEO_PROMPT_MAX, composeSegments, generateCover, notesInParens, planCardRefs, prepareMaterialRefs, refCardIds, refineFrame } from "../ai";
 import { compileMentions, drawExtraRefs, extraRefLines, mentionTargets, plainMentions, usableExtraRefs, type ExtraRef } from "../data/refMentions";
 import { uploadImage } from "../api/uploads";
-import { IMAGE_TOKENS, fmtTokens, r2vPriceIssue, tierOf, providerOf, clampDuration, videoTokensOfSpec, type VideoTier } from "../data/economy";
+import { IMAGE_TOKENS, fmtTokens, r2vPriceIssue, tierOf, providerOf, clampDuration, videoTokensOfSpec, promptMaxOf, refAudioSecOf, type VideoTier } from "../data/economy";
+import { packShots } from "../data/shotScript";
 // ★ 「模板视频自己合不合方舟窗口」的判据在 data（不在组件）：store 层这一处与
 //   flowStore.applyTemplate、详情页问的必须是同一个函数（铁律六）。
 import { refVideoIssue } from "../data/templates";
@@ -140,9 +141,29 @@ export interface SegmentGenInput {
  *  ③ 档位真出声（VideoTier.audio；1.x 收下 generate_audio 静默忽略，样本发了也是哑的）。
  * 计费：阶段 0 直连实测**零加价**（usage 逐位相同），所以报价侧一项都不用加。
  */
-export function voicedCardsOf(o: { plot: string; materials?: Card[] }): Card[] {
+export function voicedCardsOf(o: { plot: string; materials?: Card[]; capSec?: number | null }): Card[] {
   if (!hasDialogue(o.plot)) return [];
-  return (o.materials ?? []).filter((c) => c.type === "character" && voiceOf(c.id)).slice(0, 3);
+  return fitVoices(cardsWithVoice(o.materials), o.capSec).fit;
+}
+
+/**
+ * 声音样本**合计时长**的预算（economy.refAudioSecOf：高清档 15 秒、电影级 30 秒）—— 按挂卡顺序装，装不下的那几张不带。
+ * capSec 不给 / null = 不按时长筛（不知道是哪一档的调用方照旧只按张数）。
+ * ★ 2026-10-03 之前没有这一道：三张卡各录 8 秒 = 24 秒，高清档整发被方舟拒（合计上限 15 秒）。
+ */
+export function fitVoices(cards: Card[], capSec?: number | null): { fit: Card[]; dropped: Card[] } {
+  if (capSec === undefined || capSec === null) return { fit: cards, dropped: [] };
+  const fit: Card[] = [];
+  const dropped: Card[] = [];
+  let total = 0;
+  for (const c of cards) {
+    const sec = voiceOf(c.id)?.durationSec ?? 0;
+    if (total + sec <= capSec + 0.05) {
+      fit.push(c);
+      total += sec;
+    } else dropped.push(c);
+  }
+  return { fit, dropped };
 }
 
 /**
@@ -460,6 +481,11 @@ export interface RefPlan {
    * quote = 句子里没有写在引号里的台词；tier = 这一档出片无声；mode = 这一发不是参考类请求（参考音频发不出去）。
    */
   voiceIdle: { cards: Card[]; why: "quote" | "tier" | "mode" } | null;
+  /**
+   * 声音样本**合计时长**装不下、这一发没带上的人物卡（N2）：别人的带上了，这几位的台词音色由模型定。
+   * capSec = 这一档的合计上限（economy.refAudioSecOf）。没有这种情况 = null。
+   */
+  voiceOver: { cards: Card[]; capSec: number } | null;
 }
 
 /**
@@ -487,14 +513,19 @@ export function refPlanOf(
   const push = (it: Omit<RefPlanItem, "n">) => items.push({ ...it, n: items.length + 1 });
   /** 没把图送进视频模型的卡（背景卡只走文字，不算） */
   const textOnlyOf = (sent: ReadonlySet<string>) => mats.filter((c) => c.type !== "background" && !sent.has(c.id));
-  const voiced = voicedCardsOf({ plot: o.plot, materials: mats });
+  const voiced = voicedCardsOf({ plot: o.plot, materials: mats, capSec: refAudioSecOf(o.videoTier) });
   const withVoice = cardsWithVoice(mats);
   /** 声音样本带得上 / 带不上（判据与 voiceRefsFor 同一组：有台词 + 参考类请求 + 档位出声） */
-  const voiceBits = (referenceMode: boolean): Pick<RefPlan, "voices" | "voiceIdle"> => {
+  const voiceBits = (referenceMode: boolean): Pick<RefPlan, "voices" | "voiceIdle" | "voiceOver"> => {
     const ok = referenceMode && tier.audio === true && voiced.length > 0;
-    if (ok) return { voices: voiced, voiceIdle: null };
-    if (!withVoice.length) return { voices: [], voiceIdle: null };
-    return { voices: [], voiceIdle: { cards: withVoice, why: !tier.audio ? "tier" : !referenceMode ? "mode" : "quote" } };
+    if (ok) {
+      // 合计时长装不下的那几张（与 voiceRefsFor 出片时点名的是同一批：都问 fitVoices）
+      const capSec = refAudioSecOf(o.videoTier);
+      const over = capSec === null ? [] : fitVoices(withVoice, capSec).dropped;
+      return { voices: voiced, voiceIdle: null, voiceOver: over.length && capSec !== null ? { cards: over, capSec } : null };
+    }
+    if (!withVoice.length) return { voices: [], voiceIdle: null, voiceOver: null };
+    return { voices: [], voiceIdle: { cards: withVoice, why: !tier.audio ? "tier" : !referenceMode ? "mode" : "quote" }, voiceOver: null };
   };
   // 自定义 + 示例视频：帧当参考图，卡片的图一张都不发
   if (o.materialRef) {
@@ -788,9 +819,18 @@ function voiceRefsFor(o: {
   referenceMode: boolean;
   blockout: boolean;
 }): { refAudios?: string[]; voiceLine: string; notes: string[] } {
-  const voiced = voicedCardsOf({ plot: o.plot, materials: o.materials });
+  const capSec = refAudioSecOf(o.tier.id);
+  const voiced = voicedCardsOf({ plot: o.plot, materials: o.materials, capSec });
   const ok = o.referenceMode && o.tier.audio === true && voiced.length > 0;
   const notes: string[] = [];
+  // 合计时长装不下的那几张要点名（否则那个人的台词音色随机，而卡上明明有声音样本）
+  if (o.referenceMode && o.tier.audio === true && capSec !== null && hasDialogue(o.plot)) {
+    const dropped = fitVoices(cardsWithVoice(o.materials), capSec).dropped;
+    if (dropped.length) {
+      const names = dropped.map((c) => c.name).join(t({ message: "、", comment: "列举几个名字时的分隔符" }));
+      notes.push(t`「${names}」的声音样本这次没带上（这一档的参考音频合计最长 ${capSec} 秒）——这几位的台词音色由模型定；把样本剪短些就能都带上`);
+    }
+  }
   // 带了声音的卡 + 有台词，却走不了音色参考 —— 一律说清为什么（铁律八：静默降级没人看）
   if (!ok && voiced.length > 0) {
     if (!o.tier.audio)
@@ -829,9 +869,9 @@ function voiceRefsFor(o: {
  *   仍然不让它跟正文抢配额，只是把"丢了"这件事从静默改成说出来；顺带避免发出半句
  *   （截一半的「…使用参考音」比不发更糟）。
  */
-function withVoiceLine(plot: string, voiceLine: string): { plot: string; dropped: boolean } {
+function withVoiceLine(plot: string, voiceLine: string, cap: number): { plot: string; dropped: boolean } {
   if (!voiceLine) return { plot, dropped: false };
-  if (plot.length + voiceLine.length <= VIDEO_PROMPT_MAX) return { plot: plot + voiceLine, dropped: false };
+  if (plot.length + voiceLine.length <= cap) return { plot: plot + voiceLine, dropped: false };
   return { plot, dropped: true };
 }
 
@@ -840,6 +880,8 @@ export async function generateSegment(
   onProgress?: SegmentProgress,
   onTask?: SegmentTaskAccepted,
 ): Promise<SegmentGenResult> {
+  // 分镜表（N2）：空镜头拿掉、编号重排之后再往下走（没分镜的句子逐字节原样，data/shotScript.packShots）
+  input = { ...input, plot: packShots(input.plot) };
   const prog = (s: string) => onProgress?.(s);
   let first = input.firstFrame;
   let last = input.lastFrame;
@@ -923,7 +965,9 @@ export async function generateSegment(
     // 这条路发的是帧与参考视频，卡片的图一张都不发 ⇒ 每张卡都算"没收到图"（按模型适配：有文字版描述就用它）
     const mats = materialText(input.materials, idsOf(input.materials));
     const tail = `${roles}${afterStop(roles, extraLines)}${mats}`;
-    const room = Math.max(0, VIDEO_PROMPT_MAX - tail.length);
+    /** 这一档的提示词上限（economy.promptMaxOf：带示例视频的只有电影级，500） */
+    const cap = promptMaxOf(input.videoTier);
+    const room = Math.max(0, cap - tail.length);
     const plotOver = said.text.length - room;
     const cut = plotOver > 0 ? t`（⚠ 要求太长，末尾 ${plotOver} 字没能发出去——时序点名句要占 ${tail.length} 字）` : "";
     // ★★ 音色样本这条路**以前整条漏了**（§2.11.2②）：判断只长在经典路上，而这条支路在它
@@ -938,7 +982,7 @@ export async function generateSegment(
       blockout: false,
     });
     notes.push(...voice.notes);
-    const fitted = withVoiceLine(`${`${shotPrefix(input.shot)}${said.text}`.slice(0, room)}${tail}`, voice.voiceLine);
+    const fitted = withVoiceLine(`${`${shotPrefix(input.shot)}${said.text}`.slice(0, room)}${tail}`, voice.voiceLine, cap);
     if (fitted.dropped) notes.push(t`音色点名句没能发出去（提示词已经写满）——台词仍会被配音，但音色随机；把要求写短些就能带上`);
     if (extrasIn.length) {
       const extraCount = extrasIn.length;
@@ -1396,7 +1440,9 @@ export async function generateSegment(
   //   用户写满（或套个字数多一点的模板再挂张卡）就把绑定句整句切没了，而参考图照样发出去
   //   —— 模型于是只把它们当风格图用：卡挂了、片出了、人物一点都不像，且**零报错**。
   //   截正文是唯一诚实的刀口（少几个字用户看得出来，也不改变"谁是谁"）。
-  const room = Math.max(0, VIDEO_PROMPT_MAX - tail.length - bindHead.length - frameBind.length);
+  /** 这一发的提示词上限：2.x 两档 500、其余 400（economy.promptMaxOf）；白模复刻段仍按 400（它的预算是按 400 反推的） */
+  const cap = blockout ? VIDEO_PROMPT_MAX : promptMaxOf(input.videoTier);
+  const room = Math.max(0, cap - tail.length - bindHead.length - frameBind.length);
   const plot = `${bindHead}${frameBind}${story.slice(0, room)}${tail}`;
   // ★ 但"截了要说"（铁律八）。V2 白模路把这条从"理论风险"变成了"每天都可能发生"：
   //   正文那段点名合成句本身就有一两百字，挂满三张卡时尾巴也有两百字上下 ——
@@ -1407,13 +1453,13 @@ export async function generateSegment(
   const reserved = tail.length + bindHead.length + frameBind.length;
   const cut =
     storyOver > 0
-      ? t`（⚠ 这一段的要求太长，末尾 ${storyOver} 字没能发出去：提示词上限 ${VIDEO_PROMPT_MAX} 字，其中素材设定与形象点名句占了 ${reserved} 字——把要求写短些，或少挂一张卡）`
+      ? t`（⚠ 这一段的要求太长，末尾 ${storyOver} 字没能发出去：提示词上限 ${cap} 字，其中素材设定与形象点名句占了 ${reserved} 字——把要求写短些，或少挂一张卡）`
       : "";
   // ★★ 音色点名句接在硬顶之内接得下才接（§2.11.2③）：原来是无条件 `${plot}${voiceLine}`，
   //   而 real.ts 那一刀从**尾巴**下刀 ⇒ 正文写满时它必然被切掉，参考音频却照发 ⇒ 音色随机，
   //   而 `cut` 那句警告一个字不数它。**必须排在下面那几行 prog 之前**：noteTail 只把
   //   此刻已经在 notes 里的话带出去，晚一行就等于这句话没说过。
-  const fitted = withVoiceLine(plot, voice.voiceLine);
+  const fitted = withVoiceLine(plot, voice.voiceLine, cap);
   if (fitted.dropped)
     notes.push(
       t`音色点名句没能发出去（提示词已经写满）——台词仍会被配音，但音色随机；把要求写短些就能带上`,

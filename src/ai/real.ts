@@ -41,6 +41,7 @@ import {
   IMAGE_TOKENS,
   TEMPLATE_MAX_CARDS,
   clampDuration,
+  promptMaxOf,
   imageTierOf,
   providerOf,
   slotsFor,
@@ -3153,7 +3154,9 @@ export async function composeSegments(
       }
       // 参考媒体类模式：一句话直出，**首尾帧一张都不给**（三种场景互斥）。判据只读契约的 mode（validateGenSpec 刚核对过）
       const refMode = sg.mode === "ref-images" || sg.mode === "reference" || sg.mode === "edit";
-      const url = await generateVideo(sg.plot.slice(0, VIDEO_PROMPT_MAX), refMode ? "" : await shrinkFrameFor720p(first), {
+      // 最后一道硬顶：按档位问 economy.promptMaxOf（2.x 两档 500，其余 400）；白模复刻段仍按 400（它的预算是按 400 反推的）
+      const promptCap = sg.mode === "edit" ? VIDEO_PROMPT_MAX : promptMaxOf(sg.videoTier);
+      const url = await generateVideo(sg.plot.slice(0, promptCap), refMode ? "" : await shrinkFrameFor720p(first), {
         // ★ 时长按档位夹（2.5 不收 3 秒）。与 economy.segTokens 用的是同一个函数 ——
         //   只在这一侧夹的话，界面报 3 秒的价、方舟出 4 秒的片。
         //   （白模段不受影响：refVideoUrl 非空时 arkClient 走 BLOCKOUT_TASK 的 duration:-1，

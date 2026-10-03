@@ -43,6 +43,8 @@ import FuseFrameSheet, { fuseSourcesOf } from "../../studio/ui/FuseFrameSheet";
 import CustomFrameSlots from "./CustomFrameSlots";
 import RefStrip from "./RefStrip";
 import FrameEditBox from "./FrameEditBox";
+import ShotListEditor, { type ShotListHandle } from "./ShotListEditor";
+import { parseShots, setShot } from "../../data/shotScript";
 import { insertMention, uniqueRefName, usableExtraRefs } from "../../data/refMentions";
 import { registerMaterialVideo, uploadTemplateVideo } from "../../api/uploads";
 import { fileToFrameDataUrl } from "../../utils/image";
@@ -77,7 +79,7 @@ import {
   subscribeTemplates,
   templatesVersion,
 } from "../../data/templates";
-import { CHAT_TURN_TOKENS, ONE_IMAGE, blockoutTier, fmtTokens, modelLabel, proposalsCost, tierOf } from "../../data/economy";
+import { CHAT_TURN_TOKENS, ONE_IMAGE, blockoutTier, fmtTokens, modelLabel, promptMaxOf, proposalsCost, tierOf } from "../../data/economy";
 import { AGENT_PHRASES, executeAgentProposal, runCanvasAgent, type AgentOutcome, type AgentProposal } from "../../studio/canvasAgent";
 import { EXAMPLES, phraseText, templatePhrase } from "../../studio/agentGrammar";
 import { useLang } from "../../i18n/useLang";
@@ -789,6 +791,9 @@ function NodePanel({
   /** 要求框与它最后一次的光标位置（参考清单「点一张图写进句子」插在这里；没点过框就接在句尾） */
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const caretRef = useRef<number | null>(null);
+  /** 分镜表（自定义车道的要求框，N2）：点名 / 运镜要插进「正在写的那个镜头」 */
+  const shotRef = useRef<ShotListHandle>(null);
+  const [activeShot, setActiveShot] = useState(0);
   // 挂卡合成的三个状态：画布这一面此前一个都没引用（见下面 castErr 那块的 ★★）
   /** 圈选跳过的那句话（整句由 flowStore.annSkipNote 出，三面共用）。
    *  ★ 先取 nodes 再在外面算：annSkipNote 每次返回**新对象**，直接塞进 useFlow 选择器
@@ -887,15 +892,29 @@ function NodePanel({
   const mounted = named ? (tpl!.roles ?? []).filter((r) => castOfNode[r.label]).length : 0;
   /** 这一段的临时参考图（回炉工程里地址被瘦身掉的当没有，判据在 refMentions 一处） */
   const extraRefs = usableExtraRefs(node.extraRefs);
+  /** 这一档的提示词上限（economy.promptMaxOf：2.x 两档 500、其余 400；套模板的段另按 400，不走这里） */
+  const promptMax = promptMaxOf(node.videoTier);
+  /** 分镜 / 台词只开在出声又收参考图的两档（高清 / 电影级）：别的档台词不会按卡的声音配，多镜头也没验过 */
+  const shotsOk = tierOf(node.videoTier).refImg && tierOf(node.videoTier).audio === true;
+  /** 运镜芯片对着哪段字：分了镜就是正在写的那个镜头，否则整段 */
+  const shotsNow = custom ? parseShots(p.plot).shots : [];
+  const shotIdx = Math.min(activeShot, Math.max(0, shotsNow.length - 1));
+  const chipOnShot = custom && shotsNow.length > 1;
   /**
    * 参考清单「点一张图」→ 把 `@名字` 写进要求框的光标处（自定义车道：那一栏写的就是出片用的 plot）。
    * ★ 字数上限与 textarea 的 maxLength、运镜 chips 同一个常量：插了会超就不插并说明（超出的部分是从正文尾巴截的）。
    */
   function mentionInto(name: string) {
+    // 自定义车道的要求框是分镜表：插进正在写的那个镜头的光标处（字数闸在它里面，整段共用一个上限）
+    if (shotRef.current) {
+      if (!shotRef.current.insert((cur, caret) => insertMention(cur, caret, name)))
+        useFlow.setState({ err: t`再写进去就超过 ${promptMax} 字的上限了——先删几个字` });
+      return;
+    }
     const cur = chosenOf(useFlow.getState().nodes[index] ?? node).plot;
     const ins = insertMention(cur, caretRef.current ?? cur.length, name);
-    if (ins.text.length > VIDEO_PROMPT_MAX) {
-      useFlow.setState({ err: t`再写进去就超过 ${VIDEO_PROMPT_MAX} 字的上限了——先删几个字` });
+    if (ins.text.length > promptMax) {
+      useFlow.setState({ err: t`再写进去就超过 ${promptMax} 字的上限了——先删几个字` });
       return;
     }
     updateProposal(node.id, { plot: ins.text });
@@ -1413,32 +1432,50 @@ function NodePanel({
               onError={(msg) => useFlow.setState({ err: msg })}
             />
           )}
-          {!(custom && customStep === "ref") && (
+          {custom && customStep === "content" && (
+            /* 自定义车道的要求框 = 分镜表（N2）：一个镜头时就是原来那一个输入框；「＋ 镜头」写成几个镜头，「＋ 台词」点明谁说的。
+               文字是唯一真身（读写规则在 data/shotScript），写的仍是这一套方案的 plot */
+            <ShotListEditor
+              ref={shotRef}
+              text={p.plot}
+              onChange={(next) => updateProposal(node.id, { plot: next })}
+              max={promptMax}
+              disabled={locked || generating}
+              placeholder={t`这一段拍什么？缺的帧按这句补画`}
+              speakers={mats.filter((c) => c.type === "character").map((c) => ({ id: c.id, name: c.name, voiced: !!voiceOf(c.id) }))}
+              canAdd={shotsOk}
+              onActive={setActiveShot}
+            />
+          )}
+          {!custom && (
           <textarea
             ref={promptRef}
             onSelect={(e) => (caretRef.current = e.currentTarget.selectionStart)}
             onBlur={(e) => (caretRef.current = e.currentTarget.selectionStart)}
-            value={flatTier || custom ? p.plot : (node.requirement ?? "")}
-            onChange={(e) =>
-              flatTier || custom ? updateProposal(node.id, { plot: e.target.value }) : setRequirement(node.id, e.target.value)
-            }
-            maxLength={VIDEO_PROMPT_MAX}
+            value={flatTier ? p.plot : (node.requirement ?? "")}
+            onChange={(e) => (flatTier ? updateProposal(node.id, { plot: e.target.value }) : setRequirement(node.id, e.target.value))}
+            maxLength={promptMax}
             disabled={locked || generating}
             placeholder={
               // ★ placeholder = 一句提问（ui-copy-grammar 文法⑦）：教学交给引导与按钮本身
-              flatTier ? t`这一段拍什么？写好直接生成` : custom ? t`这一段拍什么？缺的帧按这句补画` : t`这一段拍什么？`
+              flatTier ? t`这一段拍什么？写好直接生成` : t`这一段拍什么？`
             }
             className="h-20 w-full resize-none rounded-lg border border-slate-700/70 bg-panel px-2.5 py-2 text-xs leading-relaxed text-slate-100 placeholder:text-slate-500 disabled:opacity-40"
           />
           )}
           {/* 运镜 chips（对标落地，backlog 2.8-⑦）：点选把受控词表的短语插进上面那栏 ——
-              插的目标与 textarea 的绑定完全同源（flatTier/custom 写 plot，其余写
-              requirement），别在这里另判一遍归属 */}
+              插的目标与输入框的绑定完全同源（flatTier/custom 写 plot，其余写 requirement），别在这里另判一遍归属。
+              分了镜的自定义段：对着**正在写的那个镜头**亮灭与插入（每个镜头各有各的运镜），字数闸按整段还剩多少算 */}
           <CameraChips
-            text={flatTier || custom ? p.plot : (node.requirement ?? "")}
+            text={chipOnShot ? shotsNow[shotIdx] : flatTier || custom ? p.plot : (node.requirement ?? "")}
             onChange={(next) =>
-              flatTier || custom ? updateProposal(node.id, { plot: next }) : setRequirement(node.id, next)
+              chipOnShot
+                ? updateProposal(node.id, { plot: setShot(p.plot, shotIdx, next) })
+                : flatTier || custom
+                  ? updateProposal(node.id, { plot: next })
+                  : setRequirement(node.id, next)
             }
+            max={chipOnShot ? promptMax - (p.plot.length - shotsNow[shotIdx].length) : promptMax}
             disabled={locked || generating}
           />
         </>
@@ -1735,6 +1772,12 @@ function PlanSheet({ nodeId, onClose }: { nodeId: string; onClose: () => void })
             frameAspect={aspectCss(node.aspect)}
             // 横屏时弹层高度只有整屏那么点（≈375px），卡小一号才排得下
             dense={isLand}
+            // 分镜表（N2）：选定那一套的剧情框能写成几个镜头、给台词点明谁说的；上限按档位（2.x 两档 500）
+            shotEdit={{
+              speakers: (node.materials ?? []).filter((c) => c.type === "character").map((c) => ({ id: c.id, name: c.name, voiced: !!voiceOf(c.id) })),
+              max: promptMaxOf(node.videoTier),
+              canAdd: tierOf(node.videoTier).refImg && tierOf(node.videoTier).audio === true,
+            }}
             // 改这一帧（N3）：画布这一面此前没有（只有工坊方案台有一句话改帧）；同一个组件、同一处实现
             actions={() => (
               <FrameEditBox

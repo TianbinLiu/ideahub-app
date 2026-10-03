@@ -7,7 +7,8 @@ import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { deckCoverOf, myCards, myDecks, tierBlockReason } from "../../data/account";
-import { ONE_IMAGE, VIDEO_TIERS, deriveIssue, fmtTokens, modelLabel, r2vBlockLines, realFaceIssue, segTokens, tierOf } from "../../data/economy";
+import { ONE_IMAGE, VIDEO_TIERS, deriveIssue, fmtTokens, modelLabel, promptMaxOf, r2vBlockLines, realFaceIssue, segTokens, tierOf } from "../../data/economy";
+import { voiceOf } from "../../data/cardVoice";
 import { cardFitNote } from "../segmentGen";
 import TarotCard from "../../components/TarotCard";
 import DeckCard from "../../components/DeckCard";
@@ -1034,8 +1035,10 @@ function ProposalsPanel() {
   function mentionInto(name: string) {
     if (!node || !chosen) return;
     const ins = insertMention(chosen.plot, chosen.plot.length, name);
-    if (ins.text.length > VIDEO_PROMPT_MAX) {
-      useFlow.setState({ err: t`再写进去就超过 ${VIDEO_PROMPT_MAX} 字的上限了——先删几个字` });
+    // 上限按档位问 economy.promptMaxOf（2.x 两档 500），与画布同一个数
+    const promptMax = promptMaxOf(node.videoTier);
+    if (ins.text.length > promptMax) {
+      useFlow.setState({ err: t`再写进去就超过 ${promptMax} 字的上限了——先删几个字` });
       return;
     }
     useStudio.getState().patchProposal(node.id, chosen.id, { plot: ins.text });
@@ -1289,6 +1292,12 @@ function ProposalsPanel() {
             extras: extraRefs,
           })}
           fuseAspect={node.aspect}
+          /* 分镜表（N2，与画布方案台同一份）：选定那一套的剧情框能写成几个镜头、给台词点明谁说的；上限按档位 */
+          shotEdit={{
+            speakers: (node.materials ?? []).filter((c) => c.type === "character").map((c) => ({ id: c.id, name: c.name, voiced: !!voiceOf(c.id) })),
+            max: promptMaxOf(node.videoTier),
+            canAdd: tierOf(node.videoTier).refImg && tierOf(node.videoTier).audio === true,
+          }}
           switchWarn={(p) =>
             pickedId != null && pickedId !== p.id && idx < path.length - 1
               ? t`⚠ 换成这一套，现在这套走向后面的段会整段收起（切回可恢复）`

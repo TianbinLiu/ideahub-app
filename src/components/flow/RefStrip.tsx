@@ -16,7 +16,7 @@ import InfoTip from "../InfoTip";
 import Spinner from "../Spinner";
 import { showToast } from "../../data/toast";
 import { useLang } from "../../i18n/useLang";
-import { fileToRefImage } from "../../utils/image";
+import { VIDEO_REF_WINDOW, fileToRefImage } from "../../utils/image";
 import type { RefPlan, RefPlanItem } from "../../studio/segmentGen";
 import {
   EXTRA_REF_MAX,
@@ -150,6 +150,8 @@ export default function RefStrip({
   const textOnlyNames = plan.textOnly.map((c) => c.name).join(t({ message: "、", comment: "列举几个名字时的分隔符" }));
   const voiceNames = plan.voices.map((c) => c.name).join(t({ message: "、", comment: "列举几个名字时的分隔符" }));
   const idleNames = (plan.voiceIdle?.cards ?? []).map((c) => c.name).join(t({ message: "、", comment: "列举几个名字时的分隔符" }));
+  const overNames = (plan.voiceOver?.cards ?? []).map((c) => c.name).join(t({ message: "、", comment: "列举几个名字时的分隔符" }));
+  const overCap = plan.voiceOver?.capSec ?? 0;
   const looseNames = loose.map((x) => `@${x}`).join(" ");
   const chip = (it: RefPlanItem) => {
     const k = keyOf(it);
@@ -340,6 +342,12 @@ export default function RefStrip({
           )}
         </p>
       )}
+      {/* 声音样本合计太长、这几位没带上（N2）：出片之前就说，别等出片那一行进度 */}
+      {plan.voiceOver && (
+        <p className="mt-1 text-[10px] leading-relaxed text-amber-300/90">
+          <Trans>🔇 {overNames} 的声音样本这次带不上：这一档的参考音频合计最长 {overCap} 秒。把样本剪短些，或少挂一张带声音的卡。</Trans>
+        </p>
+      )}
       {loose.length > 0 && (
         <p className="mt-1 text-[10px] leading-relaxed text-amber-300/90">
           <Trans>{looseNames} 没对上这一段的任何参考——检查名字，或点上面的图重新写进句子（发出去时它只是普通文字）。</Trans>
@@ -361,7 +369,8 @@ export default function RefStrip({
           e.target.value = ""; // 同一张图连选两次也要能触发
           if (!f) return;
           setReading(true);
-          void fileToRefImage(f)
+          // 这些图直接发给视频模型：按它的窗口裁 / 放大（比卡片图那一套更窄，见 VIDEO_REF_WINDOW）
+          void fileToRefImage(f, 1024, 0.85, VIDEO_REF_WINDOW)
             .then(async (img) => {
               const id = onAdd(await blobToDataUrl(img.blob));
               if (!id) return;
