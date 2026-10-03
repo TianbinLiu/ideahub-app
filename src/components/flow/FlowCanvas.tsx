@@ -35,7 +35,8 @@ import { showToast } from "../../data/toast";
 import RefFrameSheet from "./RefFrameSheet";
 import SkillPanel from "./SkillPanel";
 import ScriptSkillSheet from "./ScriptSkillSheet";
-import { SCRIPT_TO_SHOTS } from "../../studio/structuredSkills";
+import ThemeRewriteSheet from "./ThemeRewriteSheet";
+import { SCRIPT_TO_SHOTS, THEME_REWRITE } from "../../studio/structuredSkills";
 import InfoTip from "../InfoTip";
 import PlanBoard from "../../studio/ui/PlanBoard";
 import FuseFrameSheet, { fuseSourcesOf } from "../../studio/ui/FuseFrameSheet";
@@ -114,7 +115,14 @@ export default function FlowCanvas({
   onCast,
   draft,
   finish,
+  autoTheme,
 }: {
+  /**
+   * 按配方做同款时填的「我的主题」（2026-10-02 P3a）：画布一挂上就开「按主题改写全片剧本」的面板、主题预填。
+   * 铺是免费的、改写花钱，所以不能在铺的那一拍顺手跑 —— 只是把面板开到眼前，钱仍要人点。
+   * 只在挂载时读一次（FlowPage 用完就把导航 state 清掉，返回再进不会再弹）。
+   */
+  autoTheme?: string;
   /** ✕ = 退出编辑，回创作入口（与线性视图页头的返回同一目的地）。
    *  ★ 用户点名：叉号不该落回旧的线性编辑页 —— 画布就是工作流的编辑现场。 */
   onExit: () => void;
@@ -146,6 +154,8 @@ export default function FlowCanvas({
   const err = useFlow((s) => s.err);
   const setCursor = useFlow((s) => s.setCursor);
   const [sel, setSel] = useState<number | null>(cursor);
+  /** 带着主题进来的那一次自动开面板（关了就不再开） */
+  const [themeSheet, setThemeSheet] = useState<string | null>(() => (autoTheme && autoTheme.trim() ? autoTheme : null));
   // 第一次打开画布强制放一遍引导（看过一次不再自动弹；顶栏那颗 ? 随时能重看）。
   // ★ 由**这一屏自己**声明（useAutoGuide 的 ★★）：画布是浮层不是路由，按 pathname 派发轮不到它
   useAutoGuide("canvas");
@@ -514,6 +524,10 @@ export default function FlowCanvas({
                       <span className="max-w-[200px] truncate">{tpl.title}</span>
                     </div>
                   )}
+                  {/* 从别人公开的制作过程接进来的段（P3a「接在后面」）：只管渲染，署名不走 remixOf */}
+                  {!tpl?.refVideo && n.fromRecipe && (
+                    <div className="mb-1 max-w-[200px] truncate text-[10px] text-slate-500">{t`来自 @${n.fromRecipe.author} 的流程`}</div>
+                  )}
                   <div className="relative" style={{ width: CARD_W }}>
                   <button
                     onClick={() => tapNode(i)}
@@ -712,6 +726,7 @@ export default function FlowCanvas({
           </div>
         )}
       </div>
+      {themeSheet !== null && <ThemeRewriteSheet initialTheme={themeSheet} onClose={() => setThemeSheet(null)} onApplied={() => setThemeSheet(null)} />}
     </div>
   );
 
@@ -1882,6 +1897,9 @@ function AgentPalette({ draft, onClose, onPick }: { draft: string; onClose: () =
   const { active: lang } = useLang();
   /** 官方结构化技能「剧本 → 分镜字段」的面板（studio/structuredSkills，§四 7）。★ hook 排在早退之前 */
   const [scriptSkill, setScriptSkill] = useState(false);
+  /** 官方技能二「按主题改写全片剧本」（P3a） */
+  const [themeSkill, setThemeSkill] = useState(false);
+  const rewritable = useFlow((s) => s.nodes).length > 0;
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end bg-black/60" onClick={onClose}>
       <div
@@ -1919,6 +1937,26 @@ function AgentPalette({ draft, onClose, onPick }: { draft: string; onClose: () =
             onClose={() => setScriptSkill(false)}
             onApplied={() => {
               setScriptSkill(false);
+              onClose();
+            }}
+          />
+        )}
+        <button
+          onClick={() => setThemeSkill(true)}
+          disabled={!rewritable}
+          className="mt-1.5 flex w-full items-center gap-2 rounded-xl border border-slate-700/70 bg-panel px-2.5 py-2 text-left disabled:opacity-40"
+        >
+          <div className="min-w-0 flex-1">
+            <div className="text-xs font-semibold text-slate-100">✍️ {t(THEME_REWRITE.title)}</div>
+            <div className="mt-0.5 text-[10px] leading-relaxed text-slate-500">{rewritable ? t(THEME_REWRITE.intro) : t`先铺一条流水线（做同款 / 拆分镜 / 加段）再改写`}</div>
+          </div>
+          <span className="flex-none rounded-full bg-brand/15 px-2 py-0.5 text-[10px] text-brand">{AI_REAL ? fmtTokens(THEME_REWRITE.cost) : t`演示`}</span>
+        </button>
+        {themeSkill && (
+          <ThemeRewriteSheet
+            onClose={() => setThemeSkill(false)}
+            onApplied={() => {
+              setThemeSkill(false);
               onClose();
             }}
           />

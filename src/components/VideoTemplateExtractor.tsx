@@ -445,7 +445,11 @@ export default function VideoTemplateExtractor({
    *   我们分不出来 —— 猜错的两个方向都很贵（该出片的没出 = 模板全是真人；
    *   不该出片的出了 = 白花一次 r2v，画质还被二次白模化）。
    */
-  const [route, setRoute] = useState<"aiBlockout" | "ownRef" | "classic">("classic");
+  // ★ 2026-10-02（模板体系 P3a，docs/template-workflow-research.md §七 F）：「经典配方」那条车道**从界面上收掉**了 ——
+  //   经典模板从来只存本机（市场只列作者自己本机已发布的），它唯一的价值「{{主题}} 一句话换主题」已由工作流模板 +
+  //   「按主题改写全片剧本」技能接管。`"classic"` 这一档与它的抽帧 / 提炼代码留着（本机存量经典模板照常能套用），
+  //   但 routeOpts 不再列出它、初值也不再落在它上面 —— 别把下面那些 `!blockout` 分支当成还在用的功能。
+  const [route, setRoute] = useState<"aiBlockout" | "ownRef" | "classic">("aiBlockout");
   /**
    * 这一屏走到第几步。**只有两步**：选路线 → 选文件（传完之后整屏交给 BlockoutTrimmer，
    * 那是第三块屏，由 `receipt` 决定，不占这里的位置）。
@@ -513,6 +517,8 @@ export default function VideoTemplateExtractor({
   // false = 开关不渲染。能力探测（remoteTemplatesCapable）过了才出现——服务端不认
   // 这套端点时摆一个开关出来，用户会一路走到上传那步才失败（不摆永远点不动的东西）。
   const [blockoutReady, setBlockoutReady] = useState(false);
+  /** 探过了没有（探测是异步的，没探完之前路线表是空的，那一屏要说"正在确认"而不是"不支持"） */
+  const [probed, setProbed] = useState(false);
   /**
    * 上传回执 + 本机可播地址。**按文件对象记**：同一个文件只传一次（重传既浪费限流
    * 额度又在 Cloudinary 留孤儿）。src 是 objectURL —— 播放取景用本机文件，不去拉
@@ -640,16 +646,11 @@ export default function VideoTemplateExtractor({
       .then((ok) => {
         if (!alive) return;
         setBlockoutReady(ok);
-        // ★★ 探测没过 = 白模那两条根本不渲染，"三选一"那一屏就只剩**一条**可选 ——
-        //   一个只有一个选项的选择题是纯粹的多一步，直接跳到选文件。
-        //   ★ 放在这里而不是 render 里按 `routeOpts.length` 派生：派生的话，探测**晚到**
-        //     且结果为真时会把已经在选文件的用户**拽回**选路线那一屏（他刚点开文件选择器）。
-        //     写在这一拍就没有这个歧义 —— 只有 `!ok` 才跳，而 `!ok` 意味着选项列表不会再变长，
-        //     那一屏此后永远只有一条，跳过去不丢任何东西。
-        if (!ok) setStep("pick");
+        setProbed(true);
+        // ★ 2026-10-02 起探测没过**不再**跳进选文件：那一跳原来是落到经典配方那条路（§七 F 收掉了），
+        //   现在没有路可走，留在这一屏把原因说出来（下面 routeOpts 为空那一段）。
         // 入口要求直达白模时，探测过了才真的拨上去（探测没过 = 开关都不存在，
         // 初值当然也不能生效）。此刻还没选过文件，不需要走开关按钮里那套清空逻辑
-        // ★ 入口方要求直接进白模：落到「AI 白模化」那一条（三条里唯一"任意视频都能用"的）
         if (ok && defaultBlockout) setRoute("aiBlockout");
       });
     return () => {
@@ -724,16 +725,11 @@ export default function VideoTemplateExtractor({
           },
         ] as const)
       : []),
-    {
-      v: "classic" as const,
-      title: t`经典配方（不做白模）`,
-      short: t`学画风运镜 · 不传公网 · 不要套餐`,
-      long: t`抽几帧总结画风、运镜与分镜骨架，再提炼可复用的场景/道具卡。不出片，也不把视频传上公网。`,
-    },
+    // 「经典配方」那一条 2026-10-02 收掉（见 route 的 ★），代码留在 `"classic"` 分支里
   ];
-  // ★ 兜底取最后一条（= 经典）：blockoutReady 是异步到货的，到货前后这张表会变长，
-  //   而 route 可能停在一条已经不在表里的路上 —— 取不到就整块空白，且不报错。
-  const routeNow = routeOpts.find((o) => o.v === route) ?? routeOpts[routeOpts.length - 1];
+  // ★ 兜底取第一条：blockoutReady 是异步到货的，到货前后这张表会变长，而 route 可能停在一条已经不在表里的路上。
+  //   表为空（服务端不支持 / 离线）时 routeNow 为 undefined，用到它的那张卡只在选了文件之后才画，而那时表必然非空
+  const routeNow = routeOpts.find((o) => o.v === route) ?? routeOpts[0];
 
   // ── ownRef 路：单段 / 分段两种形态（2026-08-20 接上长视频分段登记）────────────
   /**
@@ -1376,6 +1372,13 @@ export default function VideoTemplateExtractor({
             {step === "route" && (
               <div data-guide="extractor-routes" className="space-y-2">
                 <div className="mb-1 text-sm font-semibold text-slate-200"><Trans>这段视频要做成什么？</Trans></div>
+                {/* 路线表为空的两种情形分开说（没探完 ≠ 不支持）：白模模板的两条路都在服务端，经典配方那条本机路 2026-10-02 收掉了 */}
+                {!probed && routeOpts.length === 0 && <p className="text-xs text-slate-500"><Trans>正在确认服务器支持哪几种模板…</Trans></p>}
+                {probed && routeOpts.length === 0 && (
+                  <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs leading-relaxed text-amber-300/90">
+                    <Trans>白模模板要连上服务器才能做（这台服务器不支持，或现在没联网）。想把一条片的做法分享给别人，发布作品时公开「制作过程」就行。</Trans>
+                  </p>
+                )}
                 {routeOpts.map((o) => (
                   <button
                     key={o.v}
@@ -1392,7 +1395,8 @@ export default function VideoTemplateExtractor({
                       //   在此之前只清了 file/receipt/frames，标记留在原地 —— 上一段视频标的帧
                       //   会跟着进下一段，并原样发成 atSecs（换算是对的，指的却是别的画面）。
                       //   别在这里再清一遍：那就成了两处各清各的。
-                      if ((o.v !== "classic") !== blockout) {
+                      // 路线表里只剩白模两条（经典那条 2026-10-02 收掉），"跨线"只剩从 classic 初值切过来那一种；判据留着不改语义
+                      if ((o.v as string) !== "classic" && !blockout) {
                         dropReceipt();
                         setFile(null);
                         setFrames([]);
@@ -1407,7 +1411,7 @@ export default function VideoTemplateExtractor({
                       // ★ 判据现算 blockoutizeBlockReason()，不读 blockoutBlock —— 后者是按
                       //   **当前** route 算的，而这一拍 setRoute 还没生效，读它必然读到上一条路
                       //   的结论（从经典点进白模会被直接放行，走到第 2 步才被那颗灰按钮拦住）。
-                      if (o.v !== "classic" && blockoutizeBlockReason()) return;
+                      if (blockoutizeBlockReason()) return;
                       setStep("pick");
                     }}
                     disabled={!!busy}
@@ -1455,8 +1459,8 @@ export default function VideoTemplateExtractor({
                     人已经站在下一步里了）。 */}
                 {!receipt && (
                   <div className="mb-3 rounded-xl border border-slate-700 bg-black/25 px-3 py-2">
-                    <div className="text-sm font-semibold text-slate-100">{routeNow.title}</div>
-                    <p className="mt-1 text-[11px] leading-relaxed text-slate-400">{routeNow.long}</p>
+                    <div className="text-sm font-semibold text-slate-100">{routeNow?.title}</div>
+                    <p className="mt-1 text-[11px] leading-relaxed text-slate-400">{routeNow?.long}</p>
                   </div>
                 )}
 

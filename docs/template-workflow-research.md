@@ -448,6 +448,20 @@ P2 留下的三件（货架不套筛选 / 引用归零自动回收 / 「我的�
 3. C 做不做；做的话三个数（每次 30k / 每人每天 10 次 / 每条原作 50 次）认不认；「发布 24 小时后仍公开才发」认不认。
 4. F：A 上线后隐藏提取器里的「经典配方」路线，认不认。
 
+### P3a 落地记录（2026-10-02，App 一个 PR，无服务端改动；主人「全认」）
+
+| 做了什么 | 落在哪 | 唯一实现 |
+|---|---|---|
+| **A 「按主题改写全片剧本」**（官方结构化技能二） | 入口两条：画布「/」面板「官方技能」第二颗；按配方做同款的选角一屏多一栏「我的主题（可选）」—— 铺完（免费）经导航 state 带到画布，面板自动开、主题预填、钱仍要人点。形状照 `SCRIPT_TO_SHOTS`：输入 → 模型（段数 > 12 分几发、每发各计一次 chat）→ 形状检查（段数不等 / 空剧情整发作废；重复键按原文成对捞）→ 原 / 新逐段对照、可勾掉 → 写回（`updateProposal` 只改 title / plot，认 node.id + proposal.id，已出片 / 不在了的跳过）。只改没出片的普通段与自定义段，白模段不动 | `studio/structuredSkills.THEME_REWRITE` / `rewritableSegs` / `runThemeRewrite` / `parseRewritePlan` / `applyRewrite`；面板 `components/flow/ThemeRewriteSheet`；提示词与清单冻结中文（`REWRITE_SYS` + `zhPrompt`） |
+| **B 接在现有流水线后面** | 选角一屏在手上已有工作流时多一颗「接在我现在的 N 段后面」（简约模式不给）；接上去的段带 `FlowNode.fromRecipe`（画布卡上一行「来自 @谁 的流程」，只管渲染），**不写** `remixOf`；不走 useApplyTemplate（没有东西会丢）。只做接末尾，不做插中间（理由 §七 B） | `flowStore.appendNodes`（闸与 addNode 同一组：尾段白模拒、在途生成拒；第一段 chain 置 false、tpl 显式表态） |
+| **F 收掉提取器的「经典配方」车道** | 路线表只剩白模两条，初值落在「AI 白模化」；服务端不支持 / 离线时不再跳进经典的选文件屏，留在路线屏说原因（探测中 / 不支持两句分开）；引导里讲第三条的那一步删掉。`"classic"` 分支的代码留着（本机存量经典模板照常套用），只是界面上到不了 | `VideoTemplateExtractor` 的 `routeOpts` / `probed`；tours「提取模板」 |
+
+验法：内存服务端 + e2e dev（`.env.e2e.local` 里 `ARK_API_KEY=` 留空 ⇒ `__AI_REAL__` 为假，改写走演示档不花钱）：
+画布「/」→ 改写（demo）→ 两段对照 → 勾掉第 2 段 → 写回 1 段，第 1 段 plot 变、requirement / shot / 时长不变；`parseRewritePlan` 在浏览器里直接喂了 5 种回包
+（正常 / 重复键 / 少一段 / 空剧情 / 不是 JSON）；发布一条公开制作过程的作品 → 手上留一段 → 制作过程页「接在我现在的 1 段后面」+ 填主题 → 画布 3 段、
+后两段带「来自 @p3_a 的流程」、`remixOf` 为空、导航 state 已清、改写面板自动开且主题预填；「我的模板」上传入口的路线屏只剩两条。
+真模型那一发还没跑（REWRITE_MAX_TOKENS 2400 是按「剧本 → 分镜」的实测估的，装机后第一次真跑要看截断率）。
+
 ## 来源
 
 - LibTV 实测：https://www.liblib.tv/ （作品详情 `/detail/…` 的「查看制作过程」，2026-10-02，未登录）

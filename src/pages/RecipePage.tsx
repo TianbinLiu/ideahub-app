@@ -28,6 +28,7 @@ import { fetchRemoteTemplateById, getTemplate } from "../data/templates";
 import { showToast } from "../data/toast";
 import { authorDisplayName } from "../data/videos";
 import { recipeNodesOf, useFlow, type RecipePicks } from "../studio/flowStore";
+import { THEME_MAX } from "../studio/structuredSkills";
 import { CARD_TYPE_LABELS, type Card, type VideoTemplate } from "../types";
 
 /** 随配方带来的卡 → 本机 Card 形状（只挂在节点上当素材，不进卡库）。★ fromOthers：这是别人的卡 —— 再发布时它只会变成空位、不会被二次分享 */
@@ -67,6 +68,12 @@ export default function RecipePage() {
 
   // ── 做同款 ──
   const [castOpen, setCastOpen] = useState(false);
+  /** 「我的主题（可选）」（P3a）：填了就带去画布，铺完自动开「按主题改写」的面板（改写花钱，那边仍要人点） */
+  const [theme, setTheme] = useState("");
+  /** 手上已有一条工作流时的第二条路：接在后面（flowStore.appendNodes，不是整表覆盖）。简约模式恒单段，不给接 */
+  const flowNodes = useFlow((s) => s.nodes);
+  const flowMode = useFlow((s) => s.mode);
+  const canAppend = flowNodes.length > 0 && flowMode === "workflow";
   const [useDeck, setUseDeck] = useState(true);
   const [slotPick, setSlotPick] = useState<Record<number, string>>({});
   const [building, setBuilding] = useState("");
@@ -82,7 +89,13 @@ export default function RecipePage() {
     return [...ids];
   }, [recipe]);
 
-  async function build() {
+  /** 铺完去画布：填了主题就带着它（FlowPage 读一次就清掉） */
+  function goFlow() {
+    const th = theme.trim();
+    navigate("/flow", th ? { state: { themeRewrite: th } } : undefined);
+  }
+
+  async function build(how: "replace" | "append" = "replace") {
     if (!recipe || building) return;
     setBuildErr("");
     // 白模段的模板：本机库有就用，没有就按服务端 id 现取一次（取不到 = null，那一段退成普通段，notes 里说）
@@ -103,6 +116,22 @@ export default function RecipePage() {
     }
     const picks: RecipePicks = { cards: useDeck ? recipe.deck.map(cardOfRecipe) : [], slotCards, templates };
     const meta = res?.state === "ok" ? res.data.meta : null;
+    if (how === "append") {
+      // 接在现有流水线后面：没有东西会丢，不走守卫；署名不写 remixOf（只给"整条照着做"的那种），被接的段各带一行「来自 @谁 的流程」
+      const built = recipeNodesOf(recipe, picks);
+      const author = meta?.author.displayName || meta?.author.username || "";
+      const nodes = built.nodes.map((n) => ({ ...n, fromRecipe: { videoId: id, author } }));
+      const ok = useFlow.getState().appendNodes(nodes);
+      if (!ok) {
+        setBuildErr(useFlow.getState().err || t`现在接不上（可能有一段正在生成中），稍后再试`);
+        return;
+      }
+      setCastOpen(false);
+      const notes = [t`已接上 ${nodes.length} 段`, ...built.notes];
+      showToast(notes.join("；"), built.notes.length ? 6000 : 2500);
+      goFlow();
+      return;
+    }
     guard(
       () => {
         const built = recipeNodesOf(recipe, picks);
@@ -118,7 +147,7 @@ export default function RecipePage() {
         setCastOpen(false);
         // 与原作不一样的地方当面说（模板取不到 / 档位下线 / 模型换代），别悄悄铺完
         if (built.notes.length) showToast(built.notes.join("；"), 6000);
-        navigate("/flow");
+        goFlow();
         return true;
       },
       {
@@ -283,6 +312,18 @@ export default function RecipePage() {
           {recipe.deck.length === 0 && recipe.cast.length === 0 && (
             <p className="text-xs leading-relaxed text-slate-400"><Trans>这条流程没有带卡，也没有空位 —— 直接铺开，之后在画布上挂自己的卡。</Trans></p>
           )}
+          {/* 我的主题（可选，P3a）：铺完在画布上自动开「按主题改写全片剧本」的面板，主题预填；改写花钱，那边仍要人点 */}
+          <div className="mt-3">
+            <div className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>我的主题（可选）</Trans></div>
+            <textarea
+              value={theme}
+              onChange={(e) => setTheme(e.target.value)}
+              maxLength={THEME_MAX}
+              rows={2}
+              placeholder={t`一句话：讲谁、讲什么、什么调子。填了就在铺完之后把每一段的剧情改成你的故事（一次对话的价钱，到画布上再点）`}
+              className="w-full resize-none rounded-lg border border-slate-700 bg-ink px-2.5 py-1.5 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
+            />
+          </div>
           {buildErr && (
             <div className="mt-3 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs leading-relaxed text-rose-200">{buildErr}</div>
           )}
@@ -290,10 +331,16 @@ export default function RecipePage() {
             <button onClick={() => setCastOpen(false)} className="flex-1 rounded-xl bg-panel py-2.5 text-sm font-bold text-slate-200 ring-1 ring-slate-700">
               <Trans>取消</Trans>
             </button>
-            <button onClick={() => void build()} disabled={!!building} className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40">
-              {building || t`铺成我的工作流`}
+            <button onClick={() => void build("replace")} disabled={!!building} className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40">
+              {building || (canAppend ? t`替换我现在的流水线` : t`铺成我的工作流`)}
             </button>
           </div>
+          {/* 手上已有一条工作流：第二条路接在后面（P3a 只做接在末尾，不做插到中间，理由见 docs/template-workflow-research.md §七 B） */}
+          {canAppend && (
+            <button onClick={() => void build("append")} disabled={!!building} className="mt-2 w-full rounded-xl bg-panel py-2.5 text-sm font-bold text-slate-200 ring-1 ring-slate-700 disabled:opacity-40">
+              {building || t`接在我现在的 ${flowNodes.length} 段后面`}
+            </button>
+          )}
         </Sheet>
       )}
     </div>
