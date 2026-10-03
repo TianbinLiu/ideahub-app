@@ -70,7 +70,8 @@ src/
                `prefetch.ts` = 换市场形象前把 model3.json 引用的文件各拉一遍，热 WebView 缓存
   components/  通用组件；`flow/` = 工作流画布：`FlowCanvas.tsx`（画布壳 + 就地编辑窗 +
                agent 输入条 + 四个 portal 弹层：方案台/成片回看/选卡/选模板）、
-               `DeleteSegBtn.tsx`（删段确认，与 FlowPage 那份共用一处实现）；
+               `DeleteSegBtn.tsx`（删段确认，与 FlowPage 那份共用一处实现）、
+               `RefStrip.tsx`（参考清单：出片时模型会收到哪些图、各是第几张 + 临时参考图 + 点图写进句子，画布与工坊方案台共用）；
                `support/` = AI 客服页专用：`SupportStage`（Live2D 舞台，按 modelUrl 换装）、`HoldToTalk`、
                `VoiceSheet`（声音面板，三页：单音色 / 混音 / 声音市场；存服务端，官网同步）、
                `VoiceMixer`（混音调配 + 发布成模板）、`VoiceMarket`（声音市场列表：试听 / 设为我的声音 / 点赞 / 删自己的）、
@@ -96,7 +97,9 @@ src/
                （调模型在 `studio/cutAutoEdit.ts`，确认卡 `components/cut/AutoEditSheet.tsx`）；「💬 说一句」= `applyCutOps`
                （句式与模型回话的白名单检查在 `studio/cutGrammar.ts`，构建里 `scripts/check-cut-grammar.mjs` 实跑；
                调模型 / 算钱 / 说人话在 `studio/cutAgent.ts`，面板 `components/cut/CutAgentSheet.tsx`）；
-               改法被拒时的那句话只有一份 `studio/cutIssues.ts`
+               改法被拒时的那句话只有一份 `studio/cutIssues.ts`；
+               `refMentions.ts` = 参考清单的「@ 点名」与临时参考图的规则（认法 / 编译 / 名字 / 系统兜底句），纯函数零依赖，
+               构建里 `scripts/check-ref-mentions.mjs` 实跑
   hooks/
   mock/        无后端时的假数据
   pages/       路由页面（hash 路由）；`RecipePage` = 制作过程（/video/:id/recipe：四档结局 + 分镜 + 选角一屏 + 按配方做同款，
@@ -395,6 +398,25 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   那个角色的形象由模型自己编且零报错；③ `noteTail` 必须**现算**（notes 在它之后还会
   被追加），写成定死的串那几条提示永远不会出现在任何一行进度里。
   ⚠ 圈选改帧也跟着从硬约束变软引导（anns 不再挡住这条路）——文案不许说成"一定按你圈的改"。
+- **参考清单、临时参考图与 `@` 点名**（N1，2026-10-03 对标 LibTV 节点里的内联引用；方案、拍板与落地记录在
+  docs/node-modes-libtv-alignment.md）。「自选卡片 / 自定义」两个车道在出片之前就把「视频模型会收到哪些图、各是第几张」摆出来，
+  可以加不是卡的一次性参考图（`FlowNode.extraRefs`，一段最多 3 张，各有名字与用途），句子里写 `@名字` 点它。六条规矩：
+  ① **「这一发的参考图怎么分」只有 `segmentGen.refSlotsOf` 一处判定**（是不是参考类请求、帧占几位、卡片图按哪套分、临时参考图带不带得出去）：
+  出片读它，界面那排清单（`refPlanOf`，经 `flowStore.nodeRefPlan`）也读它。发送顺序恒为 **帧 → 临时参考图 → 卡片形象图**，
+  改顺序要两处一起改；出片前会拿同一份输入再排一次，张数对不上写一句「参考清单核对」进步骤日志。
+  ② **帧与临时参考图占的图位在「准备卡片图」那一步就从预算里扣**（`refSlotsOf` 的 `direct.cap`），不是发之前截 ——
+  绑定句按全量编号说话，截了就点名到没发出去的编号上（与「帧一律当参考图发」那条的 ② 同一个坑）。
+  ③ **点名的规则只在 `data/refMentions`**（零依赖，构建里实跑）：临时参考图与帧编译成「名字（图片N）」，**素材卡只留卡名** ——
+  卡的身份绑定仍由 `prepareMaterialRefs.bindCompact` 管，别在这里把卡也内联成编号（同一条绑定规则的第二处实现）。
+  没有 `@` 的句子逐字节原样；认不出的 `@xxx` 只摘掉 `@`（留着它模型会当成一个不存在的引用），并在清单下与出片进度里说出来；
+  模型自己的写法（`@图片3`）原样不动。
+  ④ **没点名的临时参考图由系统按用途补一句**（`extraRefLines`），点过名的不重复；画帧（出片前 AI 补画设定帧）也带上它们，
+  站位构图那一类只给起拍画面（尾帧也照着站位画，一段就成了定格）。
+  ⑤ 临时参考图**只在参考类请求上发得出去**：极速 / 标准 / 真人档不发并说出来，点名退成名字；白模段与返修不带（`genNode` 不传）。
+  ⑥ 地址与帧同形（本机 dataURL，出片那一拍才转存；上传走 `fileToRefImage`，越界居中裁并提示）；回炉工程瘦身后地址为空的当没有 ——
+  **读 `extraRefs` 一律过 `usableExtraRefs`**。改名 / 删除只走 flowStore 的三个 action（顺手收拾这一段句子里的 `@名字`）；
+  不进公开配方（记号复用 `mid-frames`，句子里的点名退成文字）。
+  同一批顺手改的：`segmentGen.hasDialogue` 认中文弯引号（原来 “你来了” 会被配音却带不上卡的声音样本），清单里提前说「声音样本为什么带不上」。
 - **「这一段用哪个模板」是三态，且必须当场表态**（`FlowNode.tpl`）：`undefined` = 还没表态
   （退回 store 级 `template`，老草稿与单模板流靠它）、`null` = 明确没有、对象 = 这一段自己的
   快照。读**只准走 `tplOfNode`**。而 store 级那份会随 `setCursor` 换成**当前段**的快照 ——
@@ -796,7 +818,7 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 - [`docs/ONBOARDING.md`](docs/ONBOARDING.md) — 从零到能跑
 - [`docs/api-contract.md`](docs/api-contract.md) — 与 server 的接口契约（三仓共享）
 - [`docs/play-store-checklist.md`](docs/play-store-checklist.md) — 上架检查单
-- [`docs/node-modes-libtv-alignment.md`](docs/node-modes-libtv-alignment.md) — 工作流节点「自选卡片 / 自定义」对齐 LibTV 节点的调研与方案（2026-10-03，等主人拍板，未动代码）
+- [`docs/node-modes-libtv-alignment.md`](docs/node-modes-libtv-alignment.md) — 工作流节点「自选卡片 / 自定义」对齐 LibTV 节点：调研、方案、主人拍板与落地记录（N1 参考清单 + @ 点名已落地；N3 关键画面、N2 分镜表待做）
 - [`docs/app-distribution.md`](docs/app-distribution.md) — 发包给别人装、应用内更新怎么走
 - [`docs/signing-keystore.md`](docs/signing-keystore.md) — 签名 keystore 换机 / 新 worktree 怎么恢复
 - [`public/perch/README.md`](public/perch/README.md) — 角色动画资源怎么生成、踩过什么坑

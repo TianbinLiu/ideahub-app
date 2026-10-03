@@ -35,7 +35,7 @@ export function flagText(flag: RecipeNodeFlag): string {
     case "ref-video":
       return i18n._(msg`原作这一段上传了自己的参考视频（不随配方带走）`);
     case "mid-frames":
-      return i18n._(msg`原作这一段给过中间帧参考图（不随配方带走）`);
+      return i18n._(msg`原作这一段另给过自己的参考图（不随配方带走）`);
     case "stage":
       return i18n._(msg`原作这一段用导演台摆过站位与机位（不随配方带走）`);
     case "anns":

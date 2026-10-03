@@ -41,6 +41,8 @@ import InfoTip from "../InfoTip";
 import PlanBoard from "../../studio/ui/PlanBoard";
 import FuseFrameSheet, { fuseSourcesOf } from "../../studio/ui/FuseFrameSheet";
 import CustomFrameSlots from "./CustomFrameSlots";
+import RefStrip from "./RefStrip";
+import { insertMention, uniqueRefName, usableExtraRefs } from "../../data/refMentions";
 import { registerMaterialVideo, uploadTemplateVideo } from "../../api/uploads";
 import { fileToFrameDataUrl } from "../../utils/image";
 import {
@@ -51,6 +53,8 @@ import {
   nodeDerived,
   nodeDone,
   nodeRecastable,
+  nodeRefPlan,
+  nodeFramesComeFromDerive,
   planOf,
   realVideoOfNode,
   annSkipNote,
@@ -773,7 +777,13 @@ function NodePanel({
     removeMaterial,
     removeNode,
     removeAnn,
+    addExtraRef,
+    updateExtraRef,
+    removeExtraRef,
   } = useFlow();
+  /** 要求框与它最后一次的光标位置（参考清单「点一张图写进句子」插在这里；没点过框就接在句尾） */
+  const promptRef = useRef<HTMLTextAreaElement>(null);
+  const caretRef = useRef<number | null>(null);
   // 挂卡合成的三个状态：画布这一面此前一个都没引用（见下面 castErr 那块的 ★★）
   /** 圈选跳过的那句话（整句由 flowStore.annSkipNote 出，三面共用）。
    *  ★ 先取 nodes 再在外面算：annSkipNote 每次返回**新对象**，直接塞进 useFlow 选择器
@@ -870,6 +880,29 @@ function NodePanel({
   const isCursorNode = useFlow((s) => s.nodes[s.cursor]?.id === node.id);
   const castOfNode = isCursorNode ? cast : (node.cast ?? {});
   const mounted = named ? (tpl!.roles ?? []).filter((r) => castOfNode[r.label]).length : 0;
+  /** 这一段的临时参考图（回炉工程里地址被瘦身掉的当没有，判据在 refMentions 一处） */
+  const extraRefs = usableExtraRefs(node.extraRefs);
+  /**
+   * 参考清单「点一张图」→ 把 `@名字` 写进要求框的光标处（自定义车道：那一栏写的就是出片用的 plot）。
+   * ★ 字数上限与 textarea 的 maxLength、运镜 chips 同一个常量：插了会超就不插并说明（超出的部分是从正文尾巴截的）。
+   */
+  function mentionInto(name: string) {
+    const cur = chosenOf(useFlow.getState().nodes[index] ?? node).plot;
+    const ins = insertMention(cur, caretRef.current ?? cur.length, name);
+    if (ins.text.length > VIDEO_PROMPT_MAX) {
+      useFlow.setState({ err: t`再写进去就超过 ${VIDEO_PROMPT_MAX} 字的上限了——先删几个字` });
+      return;
+    }
+    updateProposal(node.id, { plot: ins.text });
+    caretRef.current = ins.caret;
+    // 光标放回刚插进去的点名后面（等这一拍的受控值写回 DOM 之后）
+    requestAnimationFrame(() => {
+      const el = promptRef.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(ins.caret, ins.caret);
+    });
+  }
 
   return (
     <div className="flex flex-col gap-2.5 px-3 py-2.5">
@@ -1339,8 +1372,37 @@ function NodePanel({
           {/* ★ 真人档（flatTier）与自定义段直出：这一栏写的就是 plot（genNode 只认
               chosenOf().plot），推演那条路整个不存在——占位语也换掉，别许诺"三套方案"。
               其余档照旧写 requirement（推演依据）。 */}
+          {/* 参考清单（N1）：出片时模型会收到哪些图、各是第几张；＋ 临时参考图；点一张把它写进句子。
+              两个车道共用一份（自选卡片那一栏写的是推演要求，不插点名——方案的剧情里手写 @名字 一样认）。
+              排队编号只问 flowStore.nodeRefPlan（与 genNode 发出去的那一份同源） */}
+          {!(custom && customStep === "ref") && (
+            <RefStrip
+              plan={nodeRefPlan(nodes, index, mode)}
+              extras={extraRefs}
+              cards={mats.map((c) => ({ id: c.id, name: c.name }))}
+              tierLabel={tierOf(node.videoTier).label}
+              text={p.plot}
+              onMention={custom ? mentionInto : undefined}
+              pendingFromDerive={nodeFramesComeFromDerive(node)}
+              canEdit={!locked && !generating}
+              onAdd={(url) =>
+                addExtraRef(node.id, {
+                  url,
+                  // 默认名：「参考图 / 参考图2…」（不与别的参考图、这一段的卡重名）；加完当场能改
+                  name: uniqueRefName(t`参考图`, [...extraRefs.map((x) => x.name), ...mats.map((c) => c.name)]),
+                  role: "free",
+                })
+              }
+              onUpdate={(id, patch) => updateExtraRef(node.id, id, patch)}
+              onRemove={(id) => removeExtraRef(node.id, id)}
+              onError={(msg) => useFlow.setState({ err: msg })}
+            />
+          )}
           {!(custom && customStep === "ref") && (
           <textarea
+            ref={promptRef}
+            onSelect={(e) => (caretRef.current = e.currentTarget.selectionStart)}
+            onBlur={(e) => (caretRef.current = e.currentTarget.selectionStart)}
             value={flatTier || custom ? p.plot : (node.requirement ?? "")}
             onChange={(e) =>
               flatTier || custom ? updateProposal(node.id, { plot: e.target.value }) : setRequirement(node.id, e.target.value)

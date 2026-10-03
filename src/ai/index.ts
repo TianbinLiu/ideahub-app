@@ -185,7 +185,7 @@ export const drawStartFrames: typeof real.drawStartFrames = AI_REAL
       portrait: makeFrame(card.id, card.name, card.id, "portrait"),
       landscape: makeFrame(card.id, card.name, card.id, "landscape"),
     });
-export { refCardIds } from "./real";
+export { refCardIds, planCardRefs } from "./real";
 
 export type { NpcChatContext } from "../mock/ai";
 /** ★ 必须标 typeof：既有导出全这么写，为的就是强制真假两侧同签名。
