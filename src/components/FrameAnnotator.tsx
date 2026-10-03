@@ -16,6 +16,26 @@ export function drawCover(ctx: CanvasRenderingContext2D, src: HTMLVideoElement |
 }
 
 /**
+ * 按**原比例**把整帧画进一张新画布（长边 long）—— 圈选的底图用它截（N3，2026-10-03）。
+ *
+ * ★★ 为什么不用 drawCover 截成 1280×720：竖屏是默认画幅，而 cover 进一张横画布只剩中间一条（720×1280 的帧只看得到约三分之一高），
+ *   圈不到上下的东西；这张被裁过的横图随后又被当成底图去重画一张竖帧 —— 画面被重新构图，圈外的内容也变了。
+ *   成片回看（SegPlayer）与简约页此前都是这么截的，剪辑页那一处早就按画幅截了。
+ * 量不到尺寸（视频还没解码出第一帧）回 null，调用方当失败处理，别拿一张空画布去圈。
+ */
+export function drawWhole(src: HTMLVideoElement | HTMLImageElement, long = 1280): HTMLCanvasElement | null {
+  const sw = src instanceof HTMLVideoElement ? src.videoWidth : src.naturalWidth;
+  const sh = src instanceof HTMLVideoElement ? src.videoHeight : src.naturalHeight;
+  if (!sw || !sh) return null;
+  const k = long / Math.max(sw, sh);
+  const c = document.createElement("canvas");
+  c.width = Math.max(2, Math.round(sw * k));
+  c.height = Math.max(2, Math.round(sh * k));
+  c.getContext("2d")!.drawImage(src, 0, 0, c.width, c.height);
+  return c;
+}
+
+/**
  * 在成片画布右下角画一枚**持续显示**的 AIGC 标识（《人工智能生成合成内容标识办法》
  * 2025-09-01 施行的显式标识：视频须"持续显示"含「AI」+「生成/合成」字样的角标，
  * 不是只在起始画面出现）。合并那一层每帧调一次 —— 逐帧盖章才叫"持续"。
@@ -75,16 +95,30 @@ export default function FrameAnnotator({
   const [ellipse, setEllipse] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
   const dragRef = useRef<{ x: number; y: number } | null>(null);
   const [req, setReq] = useState("");
+  /**
+   * 画布的像素尺寸**跟着这一帧的比例走**（长边 1280）。
+   * ★★ 2026-10-03 之前写死 1280×720、把图拉伸着画满：竖屏帧 / 卡片形象图在这里是被压扁的，存出去的标注图也是那张变形的图
+   *   —— 模型拿它当底图重画。默认画幅就是竖屏，所以这条每天都在发生（N3 对比现有「圈图改图」时查到）。
+   */
+  const [size, setSize] = useState<{ w: number; h: number }>({ w: 1280, h: 720 });
 
   useEffect(() => {
     void loadImg(frame)
       .then((img) => {
         imgRef.current = img;
-        redraw(null);
+        const nw = img.naturalWidth || 1280;
+        const nh = img.naturalHeight || 720;
+        const k = 1280 / Math.max(nw, nh);
+        setEllipse(null);
+        setSize({ w: Math.max(2, Math.round(nw * k)), h: Math.max(2, Math.round(nh * k)) });
       })
       .catch((e) => console.warn("[annot] 帧加载失败:", e));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [frame]);
+  // 尺寸一变画布会被清空：等这一拍的尺寸写回 DOM 之后再画（图刚载完、尺寸没变的那种情况也走这里）
+  useEffect(() => {
+    redraw(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [size, frame]);
 
   function redraw(el: typeof ellipse) {
     const c = canvasRef.current;
@@ -122,11 +156,12 @@ export default function FrameAnnotator({
           <span className="text-sm font-bold text-slate-100"><Trans>⭕ 圈选要修改的物体</Trans></span>
           <CloseButton chip="sm" size={13} align="end" onClick={onClose} />
         </div>
+        {/* 竖屏帧按高度收（不然一张 9:16 的图铺满宽度要两屏高）；横屏帧照旧铺满宽度 */}
         <canvas
           ref={canvasRef}
-          width={1280}
-          height={720}
-          className="w-full touch-none rounded-lg"
+          width={size.w}
+          height={size.h}
+          className="mx-auto block max-h-[56vh] max-w-full touch-none rounded-lg"
           onPointerDown={(e) => {
             try {
               e.currentTarget.setPointerCapture(e.pointerId);

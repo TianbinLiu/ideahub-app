@@ -273,6 +273,35 @@ export const extraRefLines = (
 };
 
 /**
+ * **画帧**时要带上的临时参考图与那句说明 —— 所有画设定帧的路共用（出片前补画 / 推演三套 / 按修改重画，N3 收口）。
+ * 不带的话，帧是照着另一个样子画的，出片时帧与参考图互相打架。
+ * ★ 站位构图那一类只给**起拍画面**：尾帧也照同一张站位画，这一段就成了一动不动的定格。
+ * @param offset 这一发里排在它们前面的参考图张数（底图 + 卡片形象图）：它们的 `<图片N>` 从 offset+1 起
+ */
+/* i18n-frozen: 画帧提示词里的图片编号写法，发给出图模型 */
+export const drawExtraRefs = (extras: readonly ExtraRef[], which: "first" | "last", offset: number): { urls: string[]; line: string } => {
+  const list = usableExtraRefs(extras).filter((x) => which === "first" || x.role !== "layout");
+  return {
+    urls: list.map((x) => x.url),
+    line: extraRefLines(
+      list.map((x, i) => ({ name: x.name, role: x.role, n: offset + i + 1 })),
+      (n) => `<图片${n}>`,
+    ),
+  };
+};
+
+/**
+ * 画帧 / 推演用的句子：`@点名` 一律退成名字（画帧那一发的图片编号与出片的不是同一套；名字由 drawExtraRefs 那句接到图上）。
+ * 没有 `@` 的句子逐字节原样。
+ */
+export function plainMentions(text: string, cards: readonly { id: string; name: string }[], extras: readonly ExtraRef[] | undefined): string {
+  return compileMentions(
+    text,
+    mentionTargets({ cards, extras: usableExtraRefs(extras).map((x) => ({ id: x.id, name: x.name, n: null })), frames: {} }),
+  ).text;
+}
+
+/**
  * 这一发的点名目标表 —— 出片（segmentGen）与界面（参考清单标「已点名」）共用的**唯一拼法**。
  * @param frames 帧的编号；null = 这一发里帧不是参考图（走首尾帧协议参数 / 根本没有帧）
  * @param extras 临时参考图的编号；n 为 null = 这一发没把它发出去（档位不收），点名退成它的名字

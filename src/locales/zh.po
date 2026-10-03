@@ -1938,6 +1938,10 @@ msgstr "＋ 插一张中间帧（把这一段拆成两段，从这一帧断开�
 msgid "＋ 新建卡组"
 msgstr "＋ 新建卡组"
 
+#: src/components/flow/SegPlayer.tsx
+msgid "＋ 新开一段"
+msgstr "＋ 新开一段"
+
 #: src/components/blockout/BoxFramePicker.tsx
 #: src/components/blockout/VisionFramePicker.tsx
 msgid "＋ 标记这一帧"
@@ -2451,12 +2455,12 @@ msgid "✨ AI 封面（改图/生成）"
 msgstr "✨ AI 封面（改图/生成）"
 
 #: src/studio/ui/projection.tsx
-msgid "✨ AI 改尾帧"
-msgstr "✨ AI 改尾帧"
+#~ msgid "✨ AI 改尾帧"
+#~ msgstr "✨ AI 改尾帧"
 
 #: src/studio/ui/projection.tsx
-msgid "✨ AI 改首帧"
-msgstr "✨ AI 改首帧"
+#~ msgid "✨ AI 改首帧"
+#~ msgstr "✨ AI 改首帧"
 
 #: src/pages/CutPage.tsx
 msgid "✨ 一键成片"
@@ -2481,6 +2485,14 @@ msgstr "✨ 按这套方案炼形象图（{portraitCount} 张 · 演示）"
 #: src/components/VideoCardAnnotator.tsx
 msgid "✨ 按这套方案炼形象图（{portraitCount} 张 · 约 {0}）"
 msgstr "✨ 按这套方案炼形象图（{portraitCount} 张 · 约 {0}）"
+
+#: src/components/flow/FrameEditBox.tsx
+msgid "✨ 改尾帧"
+msgstr "✨ 改尾帧"
+
+#: src/components/flow/FrameEditBox.tsx
+msgid "✨ 改首帧"
+msgstr "✨ 改首帧"
 
 #. placeholder {0}: pageSlots.length
 #: src/pages/CustomCardPage.tsx
@@ -2545,6 +2557,14 @@ msgstr "⬜ 白模模板 · 参考视频 约 {realSecText}s（按 {billSec} 秒�
 #: src/components/VideoCardAnnotator.tsx
 msgid "⭕ 圆"
 msgstr "⭕ 圆"
+
+#: src/components/flow/FrameEditBox.tsx
+msgid "⭕ 圈出一处再改"
+msgstr "⭕ 圈出一处再改"
+
+#: src/components/flow/FrameEditBox.tsx
+msgid "⭕ 圈出一处再改（{costLabel}）"
+msgstr "⭕ 圈出一处再改（{costLabel}）"
 
 #: src/pages/FlowPage.tsx
 msgid "⭕ 圈选"
@@ -2810,6 +2830,10 @@ msgstr "📥 取回这一段的成片（不重新下单，不再花钱）"
 #: src/studio/stage/StageOverlay.tsx
 msgid "📸 截图 → 融成这一段的开头帧（{price}）"
 msgstr "📸 截图 → 融成这一段的开头帧（{price}）"
+
+#: src/components/flow/SegPlayer.tsx
+msgid "📸 截这一帧"
+msgstr "📸 截这一帧"
 
 #: src/components/flow/RefStrip.tsx
 msgid "🔇 {idleNames} 带着声音样本，但「{tierLabel}」档出片无声——要配音换「高清」或「电影级」。"
@@ -4997,7 +5021,7 @@ msgstr "例：主角在雨里发现了那封信的真正收件人……"
 msgid "例：删除圈中的路人 / 把圈中的伞换成红色油纸伞 / 圈中的招牌改成中文"
 msgstr "例：删除圈中的路人 / 把圈中的伞换成红色油纸伞 / 圈中的招牌改成中文"
 
-#: src/studio/ui/projection.tsx
+#: src/components/flow/FrameEditBox.tsx
 msgid "例：把伞换成红色 / 去掉背景里的路人 / 光线改成黄昏"
 msgstr "例：把伞换成红色 / 去掉背景里的路人 / 光线改成黄昏"
 
@@ -5458,6 +5482,10 @@ msgstr "先随便逛逛"
 msgctxt "离线演示作品的作者名（编出来的示例作者，不是真人）"
 msgid "光影铸造者"
 msgstr "光影铸造者"
+
+#: src/components/flow/FrameEditBox.tsx
+msgid "光线改成黄昏"
+msgstr "光线改成黄昏"
 
 #: src/studio/canvasAgent.ts
 msgid "免费 · 会重新合成点名句（覆盖你改过的字）"
@@ -7119,6 +7147,10 @@ msgstr "去开启「允许安装未知应用」"
 msgid "去掉"
 msgstr "去掉"
 
+#: src/components/flow/FrameEditBox.tsx
+msgid "去掉背景里的路人"
+msgstr "去掉背景里的路人"
+
 #: src/components/support/VoiceMixer.tsx
 msgid "去掉这一味"
 msgstr "去掉这一味"
@@ -8400,6 +8432,10 @@ msgstr "圈出来的范围太小（参考图至少要 300px 宽）——再拖�
 msgid "圈出要改的地方，写一句要求——AI 会重画这一格"
 msgstr "圈出要改的地方，写一句要求——AI 会重画这一格"
 
+#: src/components/flow/FrameEditBox.tsx
+msgid "圈出要改的那一处，写一句要求——只改圈里的，改好直接顶替这一帧"
+msgstr "圈出要改的那一处，写一句要求——只改圈里的，改好直接顶替这一帧"
+
 #: src/pages/CutPage.tsx
 msgid "圈选"
 msgstr "圈选"
@@ -9545,6 +9581,10 @@ msgstr "已到账 {got} token"
 msgid "已加入"
 msgstr "已加入"
 
+#: src/components/flow/SegPlayer.tsx
+msgid "已加进第 {seg} 段的参考图"
+msgstr "已加进第 {seg} 段的参考图"
+
 #: src/components/flow/SkillPanel.tsx
 #: src/components/TemplateShelf.tsx
 msgid "已发布"
@@ -9747,6 +9787,14 @@ msgstr "已收藏"
 #: src/components/flow/ThemeRewriteSheet.tsx
 msgid "已改写 {n} 段的剧情；你的原话、镜头字段与时长都没动"
 msgstr "已改写 {n} 段的剧情；你的原话、镜头字段与时长都没动"
+
+#: src/components/flow/SegPlayer.tsx
+msgid "已放进第 {seg} 段的尾帧"
+msgstr "已放进第 {seg} 段的尾帧"
+
+#: src/components/flow/SegPlayer.tsx
+msgid "已放进第 {seg} 段的首帧"
+msgstr "已放进第 {seg} 段的首帧"
 
 #: src/pages/PublishPage.tsx
 msgid "已替换。这条作品现在是{rev}，收藏过它的人会收到通知。"
@@ -10291,9 +10339,25 @@ msgstr "当前离线，这条弹幕只存在这台设备上"
 msgid "当前网络环境（{regionName}）下 Google / GitHub 不可用，已自动隐藏"
 msgstr "当前网络环境（{regionName}）下 Google / GitHub 不可用，已自动隐藏"
 
+#: src/components/flow/SegPlayer.tsx
+msgid "当参考图"
+msgstr "当参考图"
+
+#: src/components/flow/SegPlayer.tsx
+msgid "当尾帧"
+msgstr "当尾帧"
+
 #: src/components/recipe/RecipeView.tsx
 msgid "当时的模型：{model}"
 msgstr "当时的模型：{model}"
+
+#: src/components/flow/SegPlayer.tsx
+msgid "当首帧"
+msgstr "当首帧"
+
+#: src/components/flow/SegPlayer.tsx
+msgid "当首帧 = 那一段从这一帧起拍（不再承接上一段的结尾）；当参考图 = 进它的参考清单，出片时一并发给模型。"
+msgstr "当首帧 = 那一段从这一帧起拍（不再承接上一段的结尾）；当参考图 = 进它的参考清单，出片时一并发给模型。"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "录制中…（实际播这一段）"
@@ -10780,6 +10844,10 @@ msgstr "截取中…"
 #: src/pages/CutPage.tsx
 msgid "截取当前画面失败：{why}"
 msgstr "截取当前画面失败：{why}"
+
+#: src/components/flow/SegPlayer.tsx
+msgid "截图"
+msgstr "截图"
 
 #: src/studio/stage/StageOverlay.tsx
 msgid "截图只是构图示意，会和你挂的人物卡 / 场景卡一起融成真正的开头帧（一张图的钱）；融好的帧会钉住，重推方案不会改它，想换就再截一次。人偶站位、机位都随这一段存着，下次打开还在。"
@@ -11353,17 +11421,25 @@ msgstr "按素材撰写人物信息…"
 msgid "按素材自动判断类型"
 msgstr "按素材自动判断类型"
 
+#: src/studio/flowStore.ts
+msgid "按要求改尾帧…"
+msgstr "按要求改尾帧…"
+
 #: src/components/CoverPicker.tsx
 msgid "按要求改当前封面"
 msgstr "按要求改当前封面"
 
-#: src/studio/ui/projection.tsx
-msgid "按要求重画尾帧"
-msgstr "按要求重画尾帧"
+#: src/studio/flowStore.ts
+msgid "按要求改首帧…"
+msgstr "按要求改首帧…"
 
 #: src/studio/ui/projection.tsx
-msgid "按要求重画首帧"
-msgstr "按要求重画首帧"
+#~ msgid "按要求重画尾帧"
+#~ msgstr "按要求重画尾帧"
+
+#: src/studio/ui/projection.tsx
+#~ msgid "按要求重画首帧"
+#~ msgstr "按要求重画首帧"
 
 #: src/pages/tutor/TutorRunPage.tsx
 msgid "按课程的 AI 政策，这个问题只讲原理、不给答案"
@@ -11376,6 +11452,14 @@ msgstr "按这一段的时长自动取帧：现在是 <0>{autoFrames} 帧</0>（
 #: src/pages/RecipePage.tsx
 msgid "按这个流程做同款（丢弃上面那条流水线）"
 msgstr "按这个流程做同款（丢弃上面那条流水线）"
+
+#: src/components/flow/FrameEditBox.tsx
+msgid "按这句话改"
+msgstr "按这句话改"
+
+#: src/components/flow/FrameEditBox.tsx
+msgid "按这句话改（{costLabel}）"
+msgstr "按这句话改（{costLabel}）"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "按顺序演一遍：说话对口型、眨眼、每个对上的动作 / 表情 / 触摸区各来一次。盯着上面那块看。"
@@ -11441,6 +11525,10 @@ msgstr "换"
 #: src/pages/SupportModelNewPage.tsx
 msgid "换一个 zip"
 msgstr "换一个 zip"
+
+#: src/components/flow/FrameEditBox.tsx
+msgid "换一个表情"
+msgstr "换一个表情"
 
 #: src/components/VoiceRecorder.tsx
 msgid "换一句"
@@ -12055,6 +12143,11 @@ msgstr "收集什么、怎么用、找谁行使权利"
 msgid "改"
 msgstr "改"
 
+#. placeholder {0}: fmtTokens(ONE_IMAGE)
+#: src/studio/flowStore.ts
+msgid "改一帧要一张图的钱（{0} token），余额不够——去「我的」页充值"
+msgstr "改一帧要一张图的钱（{0} token），余额不够——去「我的」页充值"
+
 #: src/pages/CustomCardPage.tsx
 msgid "改一次图要 {refinePrice} token，余额不够——去「我的」页充值"
 msgstr "改一次图要 {refinePrice} token，余额不够——去「我的」页充值"
@@ -12096,17 +12189,26 @@ msgstr "改名"
 msgid "改哪里？例：把背景换成雨夜 / 去掉右上角的台标 / 主角衣服换成红色"
 msgstr "改哪里？例：把背景换成雨夜 / 去掉右上角的台标 / 主角衣服换成红色"
 
+#: src/components/flow/FrameEditBox.tsx
 #: src/pages/CustomCardPage.tsx
 msgid "改图中…"
 msgstr "改图中…"
 
 #: src/studio/studioStore.ts
-msgid "改图没成：{reason}"
-msgstr "改图没成：{reason}"
+#~ msgid "改图没成：{reason}"
+#~ msgstr "改图没成：{reason}"
 
 #: src/studio/studioStore.ts
-msgid "改图要 {price} token，余额不够了——去「我的」页充值。"
-msgstr "改图要 {price} token，余额不够了——去「我的」页充值。"
+#~ msgid "改图要 {price} token，余额不够了——去「我的」页充值。"
+#~ msgstr "改图要 {price} token，余额不够了——去「我的」页充值。"
+
+#: src/components/flow/FrameEditBox.tsx
+msgid "改好的帧会顶替这一张并锁住（重画这一套时不动它）。"
+msgstr "改好的帧会顶替这一张并锁住（重画这一套时不动它）。"
+
+#: src/components/flow/FrameEditBox.tsx
+msgid "改好的帧会顶替这一张并锁住（重画这一套时不动它）。想照着某张临时参考图改，就在句子里写 @它的名字。"
+msgstr "改好的帧会顶替这一张并锁住（重画这一套时不动它）。想照着某张临时参考图改，就在句子里写 @它的名字。"
 
 #: src/components/guide/tours.tsx
 msgid "改完一次提交"
@@ -12128,6 +12230,14 @@ msgstr "改完这句话可以「重新生成方案」；挑定一套之后按钮
 #: src/pages/EditPage.tsx
 msgid "改成「仅自己可见」就好"
 msgstr "改成「仅自己可见」就好"
+
+#: src/components/flow/FrameEditBox.tsx
+msgid "改成下雨天"
+msgstr "改成下雨天"
+
+#: src/components/flow/FrameEditBox.tsx
+msgid "改成夜晚"
+msgstr "改成夜晚"
 
 #: src/pages/CardDetailPage.tsx
 msgid "改的是你库里这一份。已经随作品发布、或被别人装走的那些是当时的副本，不会跟着变。"
@@ -12706,6 +12816,10 @@ msgstr "有一条超过 {maxLen} 字了，发布会被服务端拒掉。"
 #: src/studio/flowStore.ts
 msgid "有一段正在生成，等它跑完再推演下一段"
 msgstr "有一段正在生成，等它跑完再推演下一段"
+
+#: src/studio/flowStore.ts
+msgid "有一段正在生成，等它跑完再改这一帧"
+msgstr "有一段正在生成，等它跑完再改这一帧"
 
 #: src/studio/flowStore.ts
 msgid "有一段正在生成，等它跑完再炼下一段"
@@ -16339,6 +16453,10 @@ msgstr "白模段用，改成真实角色位与卡名"
 msgid "白模段的画面整个来自模板视频，导演台的构图用不上"
 msgstr "白模段的画面整个来自模板视频，导演台的构图用不上"
 
+#: src/studio/flowStore.ts
+msgid "白模段的画面整个来自模板视频，没有设定帧可改"
+msgstr "白模段的画面整个来自模板视频，没有设定帧可改"
+
 #: src/components/guide/tours.tsx
 msgid "白模那两条怎么走"
 msgstr "白模那两条怎么走"
@@ -17048,6 +17166,7 @@ msgstr "第 {0} 味音色"
 #. placeholder {0}: i + 1
 #. placeholder {0}: idx + 1
 #: src/components/flow/FlowCanvas.tsx
+#: src/components/flow/SegPlayer.tsx
 #: src/components/recipe/RecipeView.tsx
 #: src/data/videoDownload.ts
 #: src/pages/FlowPage.tsx
@@ -17179,10 +17298,30 @@ msgstr "第 {0} 段用的模板「{1}」已经不在了"
 msgid "第 {0} 段用的模板没能随配方带上"
 msgstr "第 {0} 段用的模板没能随配方带上"
 
+#. placeholder {0}: idx + 1
+#: src/studio/flowStore.ts
+msgid "第 {0} 段的尾帧改好了"
+msgstr "第 {0} 段的尾帧改好了"
+
+#. placeholder {0}: idx + 1
+#: src/studio/flowStore.ts
+msgid "第 {0} 段的尾帧没改成"
+msgstr "第 {0} 段的尾帧没改成"
+
 #. placeholder {0}: i + 1
 #: src/studio/flowStore.ts
 msgid "第 {0} 段的模板视频用不了（{refIssue}）"
 msgstr "第 {0} 段的模板视频用不了（{refIssue}）"
+
+#. placeholder {0}: idx + 1
+#: src/studio/flowStore.ts
+msgid "第 {0} 段的首帧改好了"
+msgstr "第 {0} 段的首帧改好了"
+
+#. placeholder {0}: idx + 1
+#: src/studio/flowStore.ts
+msgid "第 {0} 段的首帧没改成"
+msgstr "第 {0} 段的首帧没改成"
 
 #. placeholder {0}: index + 1
 #: src/pages/FlowPage.tsx
@@ -19847,6 +19986,10 @@ msgstr "还没有存好的文件可以交出去。"
 msgid "还没有对话。"
 msgstr "还没有对话。"
 
+#: src/components/flow/FrameEditBox.tsx
+msgid "还没有尾帧可改"
+msgstr "还没有尾帧可改"
+
 #: src/pages/SupportPage.tsx
 msgid "还没有工单"
 msgstr "还没有工单"
@@ -19915,6 +20058,10 @@ msgstr "还没有简介——点右上角「编辑」写一段。"
 msgid "还没有素材卡"
 msgstr "还没有素材卡"
 
+#: src/components/flow/SegPlayer.tsx
+msgid "还没有能用它的段（已出片的段、套模板的段放不进去）。"
+msgstr "还没有能用它的段（已出片的段、套模板的段放不进去）。"
+
 #: src/pages/DraftsPage.tsx
 msgid "还没有草稿——工坊和工作流里做到一半的工程都会存到这里"
 msgstr "还没有草稿——工坊和工作流里做到一半的工程都会存到这里"
@@ -19940,6 +20087,10 @@ msgstr "还没有课程"
 #: src/studio/cutAgent.ts
 msgid "还没有配乐——先在「音频」页签里加一条"
 msgstr "还没有配乐——先在「音频」页签里加一条"
+
+#: src/components/flow/FrameEditBox.tsx
+msgid "还没有首帧可改"
+msgstr "还没有首帧可改"
 
 #: src/components/VolcCompatToggle.tsx
 msgid "还没查到认证结果"
@@ -20110,12 +20261,12 @@ msgid "这一套方案还没有剧情——先写点什么，我才知道要画�
 msgstr "这一套方案还没有剧情——先写点什么，我才知道要画成什么样"
 
 #: src/studio/studioStore.ts
-msgid "这一套的开头帧当时没画出来，没有可改的图——点「重新生成这一套的画面」，或者直接出片（出片要用到的帧会先补画，补画的钱算在出片报价里）。"
-msgstr "这一套的开头帧当时没画出来，没有可改的图——点「重新生成这一套的画面」，或者直接出片（出片要用到的帧会先补画，补画的钱算在出片报价里）。"
+#~ msgid "这一套的开头帧当时没画出来，没有可改的图——点「重新生成这一套的画面」，或者直接出片（出片要用到的帧会先补画，补画的钱算在出片报价里）。"
+#~ msgstr "这一套的开头帧当时没画出来，没有可改的图——点「重新生成这一套的画面」，或者直接出片（出片要用到的帧会先补画，补画的钱算在出片报价里）。"
 
 #: src/studio/studioStore.ts
-msgid "这一套的结束帧当时没画出来，没有可改的图——点「重新生成这一套的画面」，或者直接出片（出片要用到的帧会先补画，补画的钱算在出片报价里）。"
-msgstr "这一套的结束帧当时没画出来，没有可改的图——点「重新生成这一套的画面」，或者直接出片（出片要用到的帧会先补画，补画的钱算在出片报价里）。"
+#~ msgid "这一套的结束帧当时没画出来，没有可改的图——点「重新生成这一套的画面」，或者直接出片（出片要用到的帧会先补画，补画的钱算在出片报价里）。"
+#~ msgstr "这一套的结束帧当时没画出来，没有可改的图——点「重新生成这一套的画面」，或者直接出片（出片要用到的帧会先补画，补画的钱算在出片报价里）。"
 
 #: src/studio/studioStore.ts
 msgid "这一套还没有剧情——先写点什么，我才知道要画成什么样"
@@ -20144,6 +20295,27 @@ msgstr "这一屏在决定三件事"
 #: src/components/guide/tours.tsx
 msgid "这一屏摆的是调好的<0>成品配方</0>：画风、运镜、分镜骨架都定好了，挑一个套上去，写一句话或者给人偶挂上你的角色卡就能出片。它和工坊的卡片市场是两回事——卡片是素材，得自己组装剧情；模板是拿来就能出片的成品。"
 msgstr "这一屏摆的是调好的<0>成品配方</0>：画风、运镜、分镜骨架都定好了，挑一个套上去，写一句话或者给人偶挂上你的角色卡就能出片。它和工坊的卡片市场是两回事——卡片是素材，得自己组装剧情；模板是拿来就能出片的成品。"
+
+#: src/studio/flowStore.ts
+msgid "这一帧改好了，但这一段的方案已经换了（或段不在了）——改动没处写回，图钱已经花掉"
+msgstr "这一帧改好了，但这一段的方案已经换了（或段不在了）——改动没处写回，图钱已经花掉"
+
+#: src/components/flow/SegPlayer.tsx
+msgid "这一帧没截下来——网络不好或链接已过期，稍后再试"
+msgstr "这一帧没截下来——网络不好或链接已过期，稍后再试"
+
+#: src/studio/flowStore.ts
+msgid "这一帧没改成（{reason}）——没扣钱，原来那张没动，可以再试一次"
+msgstr "这一帧没改成（{reason}）——没扣钱，原来那张没动，可以再试一次"
+
+#. moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格
+#: src/studio/flowStore.ts
+msgid "这一帧没改成（{reason}）。{moneyLine}原来那张没动，可以再试一次"
+msgstr "这一帧没改成（{reason}）。{moneyLine}原来那张没动，可以再试一次"
+
+#: src/components/flow/SegPlayer.tsx
+msgid "这一帧用到哪儿"
+msgstr "这一帧用到哪儿"
 
 #: src/pages/CustomCardPage.tsx
 msgid "这一张既当卡面，也当这张卡的主形象参考。"
@@ -20529,6 +20701,14 @@ msgstr "这一段还没有写字幕，没有可配音的话"
 #: src/studio/ui/FuseFrameSheet.tsx
 msgid "这一段还没有可融的图"
 msgstr "这一段还没有可融的图"
+
+#: src/studio/flowStore.ts
+msgid "这一段还没有开头帧可改——先传一张，或者直接出片（缺的帧会先补画，钱算在出片报价里）"
+msgstr "这一段还没有开头帧可改——先传一张，或者直接出片（缺的帧会先补画，钱算在出片报价里）"
+
+#: src/studio/flowStore.ts
+msgid "这一段还没有结束帧可改——先传一张，或者直接出片（缺的帧会先补画，钱算在出片报价里）"
+msgstr "这一段还没有结束帧可改——先传一张，或者直接出片（缺的帧会先补画，钱算在出片报价里）"
 
 #: src/studio/flowStore.ts
 msgid "这一段还没有能播的成片，没什么可截的"
@@ -21415,8 +21595,8 @@ msgid "这张图已经不在了"
 msgstr "这张图已经不在了"
 
 #: src/studio/studioStore.ts
-msgid "这张图改好了，但那一段已经不在流水线上了——改动没处写回（钱已经花了，抱歉）。"
-msgstr "这张图改好了，但那一段已经不在流水线上了——改动没处写回（钱已经花了，抱歉）。"
+#~ msgid "这张图改好了，但那一段已经不在流水线上了——改动没处写回（钱已经花了，抱歉）。"
+#~ msgstr "这张图改好了，但那一段已经不在流水线上了——改动没处写回（钱已经花了，抱歉）。"
 
 #: src/components/AvatarPicker.tsx
 msgid "这张图片打不开"
@@ -21443,6 +21623,10 @@ msgstr "这张图读不出来：{0}"
 #: src/pages/CustomCardPage.tsx
 msgid "这张图读不出来：{0}——换一张再试"
 msgstr "这张图读不出来：{0}——换一张再试"
+
+#: src/components/flow/FrameEditBox.tsx
+msgid "这张开头帧承接的是上一段的结尾——改了它，这一段就不再从上一段结尾起拍。"
+msgstr "这张开头帧承接的是上一段的结尾——改了它，这一段就不再从上一段结尾起拍。"
 
 #: src/data/cardViews.ts
 msgid "这张打包素材尺寸读不出来"
@@ -22456,7 +22640,6 @@ msgstr "重生成 {segCount} 段约需 {need} token，余额 {have} 不足——
 
 #: src/pages/CustomCardPage.tsx
 #: src/studio/ui/PlanBoard.tsx
-#: src/studio/ui/projection.tsx
 msgid "重画中…"
 msgstr "重画中…"
 

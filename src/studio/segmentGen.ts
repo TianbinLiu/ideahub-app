@@ -13,7 +13,7 @@
 // 计费与 store 写入**不在这里**：两边的账本与状态形状不同（flowStore 写 videoByProposal，
 // 工坊写 proposal.videoUrl），这里只负责"把一段炼出来"，纯函数式地把结果交回去。
 import { AI_REAL, ARK_REF_IMAGES_MAX, ArkTaskUnknown, VIDEO_PROMPT_MAX, composeSegments, generateCover, notesInParens, planCardRefs, prepareMaterialRefs, refCardIds, refineFrame } from "../ai";
-import { compileMentions, extraRefLines, mentionTargets, usableExtraRefs, type ExtraRef } from "../data/refMentions";
+import { compileMentions, drawExtraRefs, extraRefLines, mentionTargets, plainMentions, usableExtraRefs, type ExtraRef } from "../data/refMentions";
 import { uploadImage } from "../api/uploads";
 import { IMAGE_TOKENS, fmtTokens, r2vPriceIssue, tierOf, providerOf, clampDuration, videoTokensOfSpec, type VideoTier } from "../data/economy";
 // ★ 「模板视频自己合不合方舟窗口」的判据在 data（不在组件）：store 层这一处与
@@ -144,6 +144,13 @@ export function voicedCardsOf(o: { plot: string; materials?: Card[] }): Card[] {
   if (!hasDialogue(o.plot)) return [];
   return (o.materials ?? []).filter((c) => c.type === "character" && voiceOf(c.id)).slice(0, 3);
 }
+
+/**
+ * 圈选改图时接在要求后面的那句 —— **全仓一处**（出片前按圈选改帧、剪辑页圈选重拍、出片之前就地圈着改帧三条路共用；
+ * 2026-10-03 之前前两处各写着一份逐字相同的）。底图是画着红圈的那张标注图。
+ */
+/* i18n-frozen: 圈选改图的指令，发给出图模型 */
+export const ANN_CLAUSE = "。参考图中红色圈线标注了目标物体：只对该物体做上述处理，并彻底去掉红色圈线本身";
 
 /**
  * 「剧情里有没有台词」——与配音语义同一判据（引号内文字会被合成对白）。
@@ -1059,12 +1066,7 @@ export async function generateSegment(
   for (let k = 0; k < redrawn.length; k++) {
     const a = redrawn[k];
     prog(t`按圈选改画面 ${k + 1}/${redrawn.length}…`);
-    const edited = await refineFrame(
-      // i18n-ignore-next-line: 圈选改图的指令，发给出图模型
-      `${a.req}。参考图中红色圈线标注了目标物体：只对该物体做上述处理，并彻底去掉红色圈线本身`,
-      a.frame,
-      input.aspect,
-    );
+    const edited = await refineFrame(`${a.req}${ANN_CLAUSE}`, a.frame, input.aspect);
     if (a.atSec < half) first = edited;
     else last = edited;
   }
@@ -1211,27 +1213,9 @@ export async function generateSegment(
   // 但空≠要补——它的画面在模板视频里
   /** 这一发真画了几张设定帧（对账用：报价那边按 hasFirst / hasLast 数的就是这个） */
   let drawn = 0;
-  /**
-   * 画帧用的句子：`@点名` 一律退成名字（画帧那一发的图片编号与出片的不是同一套；名字由 drawExtras 那句接到图上）。
-   * 没有 `@` 的句子逐字节原样（compileMentions 的快路）。
-   */
-  const drawPlot = compileMentions(
-    input.plot,
-    mentionTargets({ cards: cardTargets, extras: extrasIn.map((x) => ({ id: x.id, name: x.name, n: null })), frames: {} }),
-  ).text;
-  /**
-   * AI 补画设定帧时也带上临时参考图（N1）：不带的话，帧是照着另一个样子画的，出片时帧与参考图互相打架。
-   * 排在卡片形象图**之后**（绑定句 dr.bind(0) 的编号不动），每张都由系统说一句它是什么。
-   * ★ 站位构图那一类只给**起拍画面**：尾帧也照同一张站位画，这一段就成了一动不动的定格。
-   */
-  const drawExtras = (which: "first" | "last", offset: number) => {
-    const list = extrasIn.filter((x) => which === "first" || x.role !== "layout");
-    return {
-      urls: list.map((x) => x.url),
-      // i18n-ignore-next-line: 画帧提示词里的图片编号写法，发给出图模型
-      line: extraRefLines(list.map((x, i) => ({ name: x.name, role: x.role, n: offset + i + 1 })), (n) => `<图片${n}>`),
-    };
-  };
+  /** 画帧用的句子与要带的临时参考图：规则在 data/refMentions（plainMentions / drawExtraRefs），所有画帧的路共用 */
+  const drawPlot = plainMentions(input.plot, cardTargets, extrasIn);
+  const drawExtras = (which: "first" | "last", offset: number) => drawExtraRefs(extrasIn, which, offset);
   if (!blockout && !refMode && !first) {
     const dr = await drawRefs();
     const ex = drawExtras("first", dr.refs.length);

@@ -1938,6 +1938,10 @@ msgstr "+ Insert a middle frame (splits this segment in two at that frame)"
 msgid "＋ 新建卡组"
 msgstr "+ New deck"
 
+#: src/components/flow/SegPlayer.tsx
+msgid "＋ 新开一段"
+msgstr "＋ New segment"
+
 #: src/components/blockout/BoxFramePicker.tsx
 #: src/components/blockout/VisionFramePicker.tsx
 msgid "＋ 标记这一帧"
@@ -2451,12 +2455,12 @@ msgid "✨ AI 封面（改图/生成）"
 msgstr "✨ AI cover (edit / generate)"
 
 #: src/studio/ui/projection.tsx
-msgid "✨ AI 改尾帧"
-msgstr "✨ AI edit last frame"
+#~ msgid "✨ AI 改尾帧"
+#~ msgstr "✨ AI edit last frame"
 
 #: src/studio/ui/projection.tsx
-msgid "✨ AI 改首帧"
-msgstr "✨ AI edit first frame"
+#~ msgid "✨ AI 改首帧"
+#~ msgstr "✨ AI edit first frame"
 
 #: src/pages/CutPage.tsx
 msgid "✨ 一键成片"
@@ -2481,6 +2485,14 @@ msgstr "✨ Generate character images with this scheme ({portraitCount, plural, 
 #: src/components/VideoCardAnnotator.tsx
 msgid "✨ 按这套方案炼形象图（{portraitCount} 张 · 约 {0}）"
 msgstr "✨ Generate character images with this scheme ({portraitCount, plural, one {# image} other {# images}} · about {0})"
+
+#: src/components/flow/FrameEditBox.tsx
+msgid "✨ 改尾帧"
+msgstr "✨ Edit last frame"
+
+#: src/components/flow/FrameEditBox.tsx
+msgid "✨ 改首帧"
+msgstr "✨ Edit first frame"
 
 #. placeholder {0}: pageSlots.length
 #: src/pages/CustomCardPage.tsx
@@ -2545,6 +2557,14 @@ msgstr "⬜ Blockout template · reference video about {realSecText}s (billed as
 #: src/components/VideoCardAnnotator.tsx
 msgid "⭕ 圆"
 msgstr "⭕ Circle"
+
+#: src/components/flow/FrameEditBox.tsx
+msgid "⭕ 圈出一处再改"
+msgstr "⭕ Circle a spot to edit"
+
+#: src/components/flow/FrameEditBox.tsx
+msgid "⭕ 圈出一处再改（{costLabel}）"
+msgstr "⭕ Circle a spot to edit ({costLabel})"
 
 #: src/pages/FlowPage.tsx
 msgid "⭕ 圈选"
@@ -2810,6 +2830,10 @@ msgstr "📥 Recover this segment's video (no new order, no extra charge)"
 #: src/studio/stage/StageOverlay.tsx
 msgid "📸 截图 → 融成这一段的开头帧（{price}）"
 msgstr "📸 Capture → fuse into this segment's opening frame ({price})"
+
+#: src/components/flow/SegPlayer.tsx
+msgid "📸 截这一帧"
+msgstr "📸 Capture frame"
 
 #: src/components/flow/RefStrip.tsx
 msgid "🔇 {idleNames} 带着声音样本，但「{tierLabel}」档出片无声——要配音换「高清」或「电影级」。"
@@ -4997,7 +5021,7 @@ msgstr "e.g. In the rain, the lead discovers who the letter was really meant for
 msgid "例：删除圈中的路人 / 把圈中的伞换成红色油纸伞 / 圈中的招牌改成中文"
 msgstr "e.g. remove the passer-by in the circle / make the umbrella in the circle a red oil-paper umbrella / change the sign in the circle to English"
 
-#: src/studio/ui/projection.tsx
+#: src/components/flow/FrameEditBox.tsx
 msgid "例：把伞换成红色 / 去掉背景里的路人 / 光线改成黄昏"
 msgstr "e.g. make the umbrella red / remove passers-by in the background / change the light to dusk"
 
@@ -5458,6 +5482,10 @@ msgstr "Just browse for now"
 msgctxt "离线演示作品的作者名（编出来的示例作者，不是真人）"
 msgid "光影铸造者"
 msgstr "Lightforge"
+
+#: src/components/flow/FrameEditBox.tsx
+msgid "光线改成黄昏"
+msgstr "Make the light dusk"
 
 #: src/studio/canvasAgent.ts
 msgid "免费 · 会重新合成点名句（覆盖你改过的字）"
@@ -7119,6 +7147,10 @@ msgstr "Turn on “Install unknown apps”"
 msgid "去掉"
 msgstr "Remove"
 
+#: src/components/flow/FrameEditBox.tsx
+msgid "去掉背景里的路人"
+msgstr "Remove the passers-by in the background"
+
 #: src/components/support/VoiceMixer.tsx
 msgid "去掉这一味"
 msgstr "Remove this voice"
@@ -8400,6 +8432,10 @@ msgstr "The selected area is too small (reference images need to be at least 300
 msgid "圈出要改的地方，写一句要求——AI 会重画这一格"
 msgstr "Circle what to change and write a request — the AI will redraw this slot"
 
+#: src/components/flow/FrameEditBox.tsx
+msgid "圈出要改的那一处，写一句要求——只改圈里的，改好直接顶替这一帧"
+msgstr "Circle the spot to change and write what you want — only the circled part is edited, and the result replaces this frame"
+
 #: src/pages/CutPage.tsx
 msgid "圈选"
 msgstr "Circle"
@@ -9545,6 +9581,10 @@ msgstr "{got} tokens credited"
 msgid "已加入"
 msgstr "Added"
 
+#: src/components/flow/SegPlayer.tsx
+msgid "已加进第 {seg} 段的参考图"
+msgstr "Added to segment {seg}'s references"
+
 #: src/components/flow/SkillPanel.tsx
 #: src/components/TemplateShelf.tsx
 msgid "已发布"
@@ -9747,6 +9787,14 @@ msgstr "Saved"
 #: src/components/flow/ThemeRewriteSheet.tsx
 msgid "已改写 {n} 段的剧情；你的原话、镜头字段与时长都没动"
 msgstr "{n, plural, one {Rewrote # segment's plot; your own wording, shot fields and durations are untouched} other {Rewrote # segments' plots; your own wording, shot fields and durations are untouched}}"
+
+#: src/components/flow/SegPlayer.tsx
+msgid "已放进第 {seg} 段的尾帧"
+msgstr "Set as segment {seg}'s last frame"
+
+#: src/components/flow/SegPlayer.tsx
+msgid "已放进第 {seg} 段的首帧"
+msgstr "Set as segment {seg}'s first frame"
 
 #: src/pages/PublishPage.tsx
 msgid "已替换。这条作品现在是{rev}，收藏过它的人会收到通知。"
@@ -10291,9 +10339,25 @@ msgstr "You're offline. This bullet comment is stored only on this device"
 msgid "当前网络环境（{regionName}）下 Google / GitHub 不可用，已自动隐藏"
 msgstr "Google / GitHub aren't available on the current network ({regionName}), so they've been hidden"
 
+#: src/components/flow/SegPlayer.tsx
+msgid "当参考图"
+msgstr "As a reference"
+
+#: src/components/flow/SegPlayer.tsx
+msgid "当尾帧"
+msgstr "As last frame"
+
 #: src/components/recipe/RecipeView.tsx
 msgid "当时的模型：{model}"
 msgstr "Model at the time: {model}"
+
+#: src/components/flow/SegPlayer.tsx
+msgid "当首帧"
+msgstr "As first frame"
+
+#: src/components/flow/SegPlayer.tsx
+msgid "当首帧 = 那一段从这一帧起拍（不再承接上一段的结尾）；当参考图 = 进它的参考清单，出片时一并发给模型。"
+msgstr "As first frame = that segment starts from this frame (it no longer continues from the previous segment's ending); as a reference = it joins that segment's reference list and is sent to the model when rendering."
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "录制中…（实际播这一段）"
@@ -10780,6 +10844,10 @@ msgstr "Grabbing…"
 #: src/pages/CutPage.tsx
 msgid "截取当前画面失败：{why}"
 msgstr "Couldn't capture the current frame: {why}"
+
+#: src/components/flow/SegPlayer.tsx
+msgid "截图"
+msgstr "Shot"
 
 #: src/studio/stage/StageOverlay.tsx
 msgid "截图只是构图示意，会和你挂的人物卡 / 场景卡一起融成真正的开头帧（一张图的钱）；融好的帧会钉住，重推方案不会改它，想换就再截一次。人偶站位、机位都随这一段存着，下次打开还在。"
@@ -11353,17 +11421,25 @@ msgstr "Writing character info from the reference…"
 msgid "按素材自动判断类型"
 msgstr "Detect the type from your materials"
 
+#: src/studio/flowStore.ts
+msgid "按要求改尾帧…"
+msgstr "Editing the last frame…"
+
 #: src/components/CoverPicker.tsx
 msgid "按要求改当前封面"
 msgstr "Edit current cover"
 
-#: src/studio/ui/projection.tsx
-msgid "按要求重画尾帧"
-msgstr "Redraw the last frame as requested"
+#: src/studio/flowStore.ts
+msgid "按要求改首帧…"
+msgstr "Editing the first frame…"
 
 #: src/studio/ui/projection.tsx
-msgid "按要求重画首帧"
-msgstr "Redraw the first frame as requested"
+#~ msgid "按要求重画尾帧"
+#~ msgstr "Redraw the last frame as requested"
+
+#: src/studio/ui/projection.tsx
+#~ msgid "按要求重画首帧"
+#~ msgstr "Redraw the first frame as requested"
 
 #: src/pages/tutor/TutorRunPage.tsx
 msgid "按课程的 AI 政策，这个问题只讲原理、不给答案"
@@ -11376,6 +11452,14 @@ msgstr "Frames are picked automatically from this selection's length: currently 
 #: src/pages/RecipePage.tsx
 msgid "按这个流程做同款（丢弃上面那条流水线）"
 msgstr "Remake with this process (discard the pipeline above)"
+
+#: src/components/flow/FrameEditBox.tsx
+msgid "按这句话改"
+msgstr "Edit with this"
+
+#: src/components/flow/FrameEditBox.tsx
+msgid "按这句话改（{costLabel}）"
+msgstr "Edit with this ({costLabel})"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "按顺序演一遍：说话对口型、眨眼、每个对上的动作 / 表情 / 触摸区各来一次。盯着上面那块看。"
@@ -11441,6 +11525,10 @@ msgstr "Change"
 #: src/pages/SupportModelNewPage.tsx
 msgid "换一个 zip"
 msgstr "Choose a different zip"
+
+#: src/components/flow/FrameEditBox.tsx
+msgid "换一个表情"
+msgstr "Change the expression"
 
 #: src/components/VoiceRecorder.tsx
 msgid "换一句"
@@ -12055,6 +12143,11 @@ msgstr "What we collect, how we use it, and whom to contact to exercise your rig
 msgid "改"
 msgstr "Edit"
 
+#. placeholder {0}: fmtTokens(ONE_IMAGE)
+#: src/studio/flowStore.ts
+msgid "改一帧要一张图的钱（{0} token），余额不够——去「我的」页充值"
+msgstr "Editing a frame costs one image ({0} tokens) and your balance is short — top up on the “Me” page"
+
 #: src/pages/CustomCardPage.tsx
 msgid "改一次图要 {refinePrice} token，余额不够——去「我的」页充值"
 msgstr "One edit costs {refinePrice} tokens and your balance isn't enough — top up on the “Me” page"
@@ -12096,17 +12189,26 @@ msgstr "Save"
 msgid "改哪里？例：把背景换成雨夜 / 去掉右上角的台标 / 主角衣服换成红色"
 msgstr "What to change? e.g. make the background a rainy night / remove the logo in the top-right / make the lead's outfit red"
 
+#: src/components/flow/FrameEditBox.tsx
 #: src/pages/CustomCardPage.tsx
 msgid "改图中…"
 msgstr "Editing…"
 
 #: src/studio/studioStore.ts
-msgid "改图没成：{reason}"
-msgstr "Image edit failed: {reason}"
+#~ msgid "改图没成：{reason}"
+#~ msgstr "Image edit failed: {reason}"
 
 #: src/studio/studioStore.ts
-msgid "改图要 {price} token，余额不够了——去「我的」页充值。"
-msgstr "Editing the image costs {price} tokens and your balance isn't enough — top up on the “Me” page."
+#~ msgid "改图要 {price} token，余额不够了——去「我的」页充值。"
+#~ msgstr "Editing the image costs {price} tokens and your balance isn't enough — top up on the “Me” page."
+
+#: src/components/flow/FrameEditBox.tsx
+msgid "改好的帧会顶替这一张并锁住（重画这一套时不动它）。"
+msgstr "The edited frame replaces this one and is locked (redrawing this plan won't touch it)."
+
+#: src/components/flow/FrameEditBox.tsx
+msgid "改好的帧会顶替这一张并锁住（重画这一套时不动它）。想照着某张临时参考图改，就在句子里写 @它的名字。"
+msgstr "The edited frame replaces this one and is locked (redrawing this plan won't touch it). To edit after one of your extra reference images, write @its-name in the request."
 
 #: src/components/guide/tours.tsx
 msgid "改完一次提交"
@@ -12128,6 +12230,14 @@ msgstr "After editing this you can “Regenerate plans”; the button turns back
 #: src/pages/EditPage.tsx
 msgid "改成「仅自己可见」就好"
 msgstr "Just set it to “Only me”"
+
+#: src/components/flow/FrameEditBox.tsx
+msgid "改成下雨天"
+msgstr "Make it rainy"
+
+#: src/components/flow/FrameEditBox.tsx
+msgid "改成夜晚"
+msgstr "Make it night"
 
 #: src/pages/CardDetailPage.tsx
 msgid "改的是你库里这一份。已经随作品发布、或被别人装走的那些是当时的副本，不会跟着变。"
@@ -12706,6 +12816,10 @@ msgstr "One item is over {maxLen} characters; the server will reject it on publi
 #: src/studio/flowStore.ts
 msgid "有一段正在生成，等它跑完再推演下一段"
 msgstr "A segment is generating. Wait for it to finish before drafting the next one"
+
+#: src/studio/flowStore.ts
+msgid "有一段正在生成，等它跑完再改这一帧"
+msgstr "A segment is being generated — wait until it finishes before editing this frame"
 
 #: src/studio/flowStore.ts
 msgid "有一段正在生成，等它跑完再炼下一段"
@@ -16339,6 +16453,10 @@ msgstr "For blockout segments — swap in real slot and card names"
 msgid "白模段的画面整个来自模板视频，导演台的构图用不上"
 msgstr "A blockout segment's visuals come entirely from the template video, so the stage composition can't be used"
 
+#: src/studio/flowStore.ts
+msgid "白模段的画面整个来自模板视频，没有设定帧可改"
+msgstr "A blockout segment takes its whole picture from the template video — there is no setup frame to edit"
+
 #: src/components/guide/tours.tsx
 msgid "白模那两条怎么走"
 msgstr "How the blockout routes work"
@@ -17048,6 +17166,7 @@ msgstr "Voice {0}"
 #. placeholder {0}: i + 1
 #. placeholder {0}: idx + 1
 #: src/components/flow/FlowCanvas.tsx
+#: src/components/flow/SegPlayer.tsx
 #: src/components/recipe/RecipeView.tsx
 #: src/data/videoDownload.ts
 #: src/pages/FlowPage.tsx
@@ -17179,10 +17298,30 @@ msgstr "Segment {0}'s template \"{1}\" no longer exists"
 msgid "第 {0} 段用的模板没能随配方带上"
 msgstr "Segment {0}'s template was not included in the process"
 
+#. placeholder {0}: idx + 1
+#: src/studio/flowStore.ts
+msgid "第 {0} 段的尾帧改好了"
+msgstr "Segment {0}'s last frame has been edited"
+
+#. placeholder {0}: idx + 1
+#: src/studio/flowStore.ts
+msgid "第 {0} 段的尾帧没改成"
+msgstr "Segment {0}'s last frame couldn't be edited"
+
 #. placeholder {0}: i + 1
 #: src/studio/flowStore.ts
 msgid "第 {0} 段的模板视频用不了（{refIssue}）"
 msgstr "Segment {0}'s template video is unusable ({refIssue})"
+
+#. placeholder {0}: idx + 1
+#: src/studio/flowStore.ts
+msgid "第 {0} 段的首帧改好了"
+msgstr "Segment {0}'s first frame has been edited"
+
+#. placeholder {0}: idx + 1
+#: src/studio/flowStore.ts
+msgid "第 {0} 段的首帧没改成"
+msgstr "Segment {0}'s first frame couldn't be edited"
 
 #. placeholder {0}: index + 1
 #: src/pages/FlowPage.tsx
@@ -19847,6 +19986,10 @@ msgstr "There are no saved files to hand off yet."
 msgid "还没有对话。"
 msgstr "No conversation yet."
 
+#: src/components/flow/FrameEditBox.tsx
+msgid "还没有尾帧可改"
+msgstr "No last frame to edit yet"
+
 #: src/pages/SupportPage.tsx
 msgid "还没有工单"
 msgstr "No tickets yet"
@@ -19915,6 +20058,10 @@ msgstr "No description yet — tap “Edit” in the top right to write one."
 msgid "还没有素材卡"
 msgstr "No asset cards yet"
 
+#: src/components/flow/SegPlayer.tsx
+msgid "还没有能用它的段（已出片的段、套模板的段放不进去）。"
+msgstr "No segment can take it yet (rendered segments and template segments can't)."
+
 #: src/pages/DraftsPage.tsx
 msgid "还没有草稿——工坊和工作流里做到一半的工程都会存到这里"
 msgstr "No drafts yet — half-finished projects from the Studio and Workflow are saved here"
@@ -19940,6 +20087,10 @@ msgstr "No courses yet"
 #: src/studio/cutAgent.ts
 msgid "还没有配乐——先在「音频」页签里加一条"
 msgstr "There's no music yet — add one under the Audio tab first"
+
+#: src/components/flow/FrameEditBox.tsx
+msgid "还没有首帧可改"
+msgstr "No first frame to edit yet"
 
 #: src/components/VolcCompatToggle.tsx
 msgid "还没查到认证结果"
@@ -20110,12 +20261,12 @@ msgid "这一套方案还没有剧情——先写点什么，我才知道要画�
 msgstr "This plan has no story yet — write something first so I know what to draw"
 
 #: src/studio/studioStore.ts
-msgid "这一套的开头帧当时没画出来，没有可改的图——点「重新生成这一套的画面」，或者直接出片（出片要用到的帧会先补画，补画的钱算在出片报价里）。"
-msgstr "This plan's first frame wasn't drawn, so there's no image to edit — tap “Regenerate this plan's frames”, or go ahead and generate the video (any frames the video needs are drawn first, and that cost is included in the video quote)."
+#~ msgid "这一套的开头帧当时没画出来，没有可改的图——点「重新生成这一套的画面」，或者直接出片（出片要用到的帧会先补画，补画的钱算在出片报价里）。"
+#~ msgstr "This plan's first frame wasn't drawn, so there's no image to edit — tap “Regenerate this plan's frames”, or go ahead and generate the video (any frames the video needs are drawn first, and that cost is included in the video quote)."
 
 #: src/studio/studioStore.ts
-msgid "这一套的结束帧当时没画出来，没有可改的图——点「重新生成这一套的画面」，或者直接出片（出片要用到的帧会先补画，补画的钱算在出片报价里）。"
-msgstr "This plan's last frame wasn't drawn, so there's no image to edit — tap “Regenerate this plan's frames”, or go ahead and generate the video (any frames the video needs are drawn first, and that cost is included in the video quote)."
+#~ msgid "这一套的结束帧当时没画出来，没有可改的图——点「重新生成这一套的画面」，或者直接出片（出片要用到的帧会先补画，补画的钱算在出片报价里）。"
+#~ msgstr "This plan's last frame wasn't drawn, so there's no image to edit — tap “Regenerate this plan's frames”, or go ahead and generate the video (any frames the video needs are drawn first, and that cost is included in the video quote)."
 
 #: src/studio/studioStore.ts
 msgid "这一套还没有剧情——先写点什么，我才知道要画成什么样"
@@ -20144,6 +20295,27 @@ msgstr "Three things decided here"
 #: src/components/guide/tours.tsx
 msgid "这一屏摆的是调好的<0>成品配方</0>：画风、运镜、分镜骨架都定好了，挑一个套上去，写一句话或者给人偶挂上你的角色卡就能出片。它和工坊的卡片市场是两回事——卡片是素材，得自己组装剧情；模板是拿来就能出片的成品。"
 msgstr "This screen shows tuned, <0>ready-made recipes</0>: art style, camera work and shot outline are all set. Pick one and apply it, then write a sentence or attach your character cards to the mannequins, and you can render. It's a different thing from the Workshop's card market — cards are materials, and you have to build the story yourself; a template is a finished recipe you can render with right away."
+
+#: src/studio/flowStore.ts
+msgid "这一帧改好了，但这一段的方案已经换了（或段不在了）——改动没处写回，图钱已经花掉"
+msgstr "The frame was edited, but this segment's plan has changed (or the segment is gone) — there's nowhere to write it back, and the image has already been charged"
+
+#: src/components/flow/SegPlayer.tsx
+msgid "这一帧没截下来——网络不好或链接已过期，稍后再试"
+msgstr "Couldn't capture this frame — the network is poor or the link has expired; try again later"
+
+#: src/studio/flowStore.ts
+msgid "这一帧没改成（{reason}）——没扣钱，原来那张没动，可以再试一次"
+msgstr "The frame couldn't be edited ({reason}) — nothing was charged and the original is untouched; you can try again"
+
+#. moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格
+#: src/studio/flowStore.ts
+msgid "这一帧没改成（{reason}）。{moneyLine}原来那张没动，可以再试一次"
+msgstr "The frame couldn't be edited ({reason}). {moneyLine} The original is untouched; you can try again"
+
+#: src/components/flow/SegPlayer.tsx
+msgid "这一帧用到哪儿"
+msgstr "Where to use this frame"
 
 #: src/pages/CustomCardPage.tsx
 msgid "这一张既当卡面，也当这张卡的主形象参考。"
@@ -20529,6 +20701,14 @@ msgstr "This clip has no caption yet, so there's nothing to voice"
 #: src/studio/ui/FuseFrameSheet.tsx
 msgid "这一段还没有可融的图"
 msgstr "This segment has no images to fuse yet"
+
+#: src/studio/flowStore.ts
+msgid "这一段还没有开头帧可改——先传一张，或者直接出片（缺的帧会先补画，钱算在出片报价里）"
+msgstr "This segment has no opening frame to edit yet — upload one, or just render (missing frames are drawn first, and that cost is included in the render quote)"
+
+#: src/studio/flowStore.ts
+msgid "这一段还没有结束帧可改——先传一张，或者直接出片（缺的帧会先补画，钱算在出片报价里）"
+msgstr "This segment has no ending frame to edit yet — upload one, or just render (missing frames are drawn first, and that cost is included in the render quote)"
 
 #: src/studio/flowStore.ts
 msgid "这一段还没有能播的成片，没什么可截的"
@@ -21415,8 +21595,8 @@ msgid "这张图已经不在了"
 msgstr "This image is no longer there"
 
 #: src/studio/studioStore.ts
-msgid "这张图改好了，但那一段已经不在流水线上了——改动没处写回（钱已经花了，抱歉）。"
-msgstr "The image was edited, but that segment is no longer in the pipeline — there's nowhere to save the change (the tokens have already been spent, sorry)."
+#~ msgid "这张图改好了，但那一段已经不在流水线上了——改动没处写回（钱已经花了，抱歉）。"
+#~ msgstr "The image was edited, but that segment is no longer in the pipeline — there's nowhere to save the change (the tokens have already been spent, sorry)."
 
 #: src/components/AvatarPicker.tsx
 msgid "这张图片打不开"
@@ -21443,6 +21623,10 @@ msgstr "Couldn't read this image: {0}"
 #: src/pages/CustomCardPage.tsx
 msgid "这张图读不出来：{0}——换一张再试"
 msgstr "Couldn't read this image: {0} — try another one"
+
+#: src/components/flow/FrameEditBox.tsx
+msgid "这张开头帧承接的是上一段的结尾——改了它，这一段就不再从上一段结尾起拍。"
+msgstr "This opening frame continues from the previous segment's ending — edit it and this segment will no longer start from that ending."
 
 #: src/data/cardViews.ts
 msgid "这张打包素材尺寸读不出来"
@@ -22456,7 +22640,6 @@ msgstr "Regenerating {segCount, plural, one {# segment} other {# segments}} need
 
 #: src/pages/CustomCardPage.tsx
 #: src/studio/ui/PlanBoard.tsx
-#: src/studio/ui/projection.tsx
 msgid "重画中…"
 msgstr "Redrawing…"
 
