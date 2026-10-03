@@ -2545,6 +2545,19 @@ msgstr "🃏 Cast cards"
 msgid "🃏 自选卡片"
 msgstr "🃏 Pick cards"
 
+#: src/components/recipe/RemixRewardNote.tsx
+msgid "🎁 别人照着这条作品做了同款、公开发布满 {hours} 小时，平台会奖励你 {tokens} token（每天最多 {perDay} 次，每条作品最多 {perVideo} 次）。"
+msgstr "🎁 When someone else remixes this video and their remix stays public for {hours, plural, one {# hour} other {# hours}}, the platform rewards you {tokens} tokens (up to {perDay} times a day and {perVideo} times per video)."
+
+#. placeholder {0}: fmtTokens(n.reward.tokens)
+#: src/pages/NotificationsPage.tsx
+msgid "🎁 平台奖励你 {0} token"
+msgstr "🎁 The platform rewarded you {0} tokens"
+
+#: src/pages/NotificationsPage.tsx
+msgid "🎁 平台给你发了同款奖励"
+msgstr "🎁 The platform sent you a remix reward"
+
 #: src/components/VideoCardAnnotator.tsx
 msgid "🎙 录这一段"
 msgstr "🎙 Record this clip"
@@ -4799,6 +4812,10 @@ msgstr "Hi, I'm {name}, QiMeng's AI support. Ask me about your account, charges,
 msgid "你已经举报过这一条了，管理员还在处理"
 msgstr "You've already reported this; an admin is still reviewing it"
 
+#: src/components/recipe/RemixRewardNote.tsx
+msgid "你已经拿到过 {count} 次，共 {earned} token。"
+msgstr "{count, plural, one {You've received it # time} other {You've received it # times}}, {earned} tokens in total."
+
 #: src/studio/cutAutoEdit.ts
 #: src/studio/structuredSkills.ts
 msgid "你来点头"
@@ -5061,6 +5078,10 @@ msgstr "High angle"
 msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜头运动"
 msgid "俯拍"
 msgstr "High angle"
+
+#: src/pages/NotificationsPage.tsx
+msgid "做了你的同款"
+msgstr "remixed your video"
 
 #: src/pages/FeedPage.tsx
 #: src/pages/RecipePage.tsx
@@ -15157,6 +15178,11 @@ msgstr "There are people in the photo. Video on the default tier isn't affected;
 #: src/utils/nativeCamera.ts
 msgid "照片重新编码失败"
 msgstr "Couldn't re-encode the photo"
+
+#. placeholder {0}: n.reward.originalTitle
+#: src/pages/NotificationsPage.tsx
+msgid "照的是你的《{0}》"
+msgstr "Based on your video \"{0}\""
 
 #: src/components/VoiceRecorder.tsx
 msgid "照着下面这句念（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）——出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段音色。"

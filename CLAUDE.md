@@ -84,6 +84,8 @@ src/
                `recipe.ts` = **公开配方**（制作过程）的形状与画布 → 配方的**白名单投影**（纯函数，零 store 依赖；服务端
                `schemas/branchRecipe.schemas.js` 同一形状再验一遍，加字段三处一起动），`recipes.ts` = 上行 / 读回 / 开关
                （四档结局不压档；状态变化经 `onRecipeStateChange` 广播给 videos 的缓存），HTTP 在 `api/recipes.ts`；
+               `remixReward.ts` = **同款奖励**的规则缓存（每次多少 / 两道上限 / 要挂多久，全由服务端 `GET /api/branch/remix-reward` 给，
+               App 不抄数；发不发在服务端判，这里只供 `components/recipe/RemixRewardNote` 说那一句话）；
                `cutProject.ts` = **剪辑工程**：剪辑页时间轴（片段 / 圈选 / 配乐 / 导出档 / 合并留底）与包装层
                （片段上的字幕 / 配音 / 变速 / 原声 / 闪黑，工程上的片头标题 / 片尾淡出）的数据形状与全部改法，外加
                **渲染计划**（`timelinePlan`：预览与原生导出照的同一份）与字幕分行分页（`paginateCaption`）；
@@ -462,6 +464,11 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   形状检查 / 原新对照 / 一次 chat；只改没出片的普通段，白模段不动；写回只动 title / plot，requirement 不动）；两条入口（画布「/」面板、做同款选角一屏
   的「我的主题」—— 经导航 state 带到 `FlowPage` → `FlowCanvas.autoTheme`，读一次就清）。「接在现有流水线后面」走 `flowStore.appendNodes`（只接末尾、
   不写 remixOf、段上留 `fromRecipe`）。提取器的「经典配方」车道已收（`VideoTemplateExtractor.routeOpts` 只剩白模两条，`"classic"` 分支留给本机存量）。
+  **P3b 同款奖励（同日）**：别人照着做了同款、公开发布满 24 小时，**平台**印 30k token 给原作者（不是同款作者付的 —— token 不许在用户之间流转）。
+  发不发全在服务端判（`services/remixReward.service`，判定表 `RemixReward`、账本类别 `remix_reward`），App 只做两件事：
+  ① 那一句话（`components/recipe/RemixRewardNote`，发布页 / 编辑页）—— **四个数全读 `data/remixReward` 的 rule（服务端下发），App 里不许出现写死的 30k / 10 / 50 / 24**，
+  规则没到整句不说；② 通知页认 `BRANCH_REMIX_REWARD`（金额是 `payload.tokens`，句子由 App 说；没带是谁的那种画礼物头像、点进去落到自己的原作）。
+  全文与落地时定下的七条口径在 docs/template-workflow-research.md「P3b 落地记录」。
 - **已发布作品的「回炉重做」存 `data/projects.ts`，不进草稿库**（2026-09-07）：发布（以及每一次
   回炉）成功后把当时那份工坊画布瘦身成**只含永久 URL** 的 JSON PUT 进服务端，编辑页那颗
   「🛠 回炉重做」取回来接着改，再走 `PATCH /videos/:id` 带 `segments` + `baseRevision` 换掉内容

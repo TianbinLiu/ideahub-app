@@ -22,6 +22,7 @@ import {
   type NotificationItem,
 } from "../data/notifications";
 import { relativeTime } from "../types";
+import { fmtTokens } from "../data/economy";
 
 /** 一句话说清"谁做了什么"。作品名/评论正文在下一行单独展示，这里只给动作 */
 function actionText(n: NotificationItem): MessageDescriptor | null {
@@ -42,6 +43,9 @@ function actionText(n: NotificationItem): MessageDescriptor | null {
       // ★ 主语是**作品**不是人：收件人是收藏者，他关心的是"我收藏的那条变了"，
       //   而不是"某某做了件事"。NoticeRow 那一档同理。
       return msg`重新剪辑了你收藏的作品`;
+    case "BRANCH_REMIX_REWARD":
+      // 同款奖励到账（P3b）。金额与原作在下面单独两行（见渲染那段）；没带是谁的那种走礼物头像 + 「有人做了你的同款」
+      return msg`做了你的同款`;
     case "ADMIN_NOTICE":
       // 平台口吻的那一行不走这个句式（见 NoticeRow），这里只是类型上兜全
       return msg`平台通知`;
@@ -135,6 +139,11 @@ export default function NotificationsPage() {
       navigate(`/video/${n.videoId}`, { state: { fromNotification: n.id } });
       return;
     }
+    // 同款奖励、但没带那条同款（拉黑 / 已不公开）：落到我自己那条被照着做的原作。已读同样交给打开成功的那一页
+    if (n.reward?.originalId) {
+      navigate(`/video/${n.reward.originalId}`, { state: { fromNotification: n.id } });
+      return;
+    }
     // 老师人格（M4）：到期回访 / 新版 → 那门课的上课页；评分 / 评论 → 课程列表（市场详情只在官网，App 里没有那一页）。
     // 上课页打开即算处理过，就地标已读（与工单同一条：它自己不认识通知）
     if (n.tutor) {
@@ -199,6 +208,11 @@ export default function NotificationsPage() {
                     <span className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-brand/15 text-brand">
                       <Icon name="bell" size={20} />
                     </span>
+                  ) : n.reward?.anonymous ? (
+                    // 同款奖励、服务端没带是谁（两人之间有拉黑 / 那条同款已经不公开）：不拿「有人」两个字去画字母头像
+                    <span className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-emerald-500/15 text-xl" aria-hidden>
+                      🎁
+                    </span>
                   ) : (
                     <Avatar name={n.actorName} src={n.actorAvatar} size={40} />
                   )}
@@ -238,7 +252,20 @@ export default function NotificationsPage() {
                         （"这条作品重新剪辑过了"），复用的是同一个通道。画出来的结果是
                         标题行刚说完「重新剪辑了你收藏的作品」，下一行又用评论的样子把同一句
                         重说一遍，像是作者亲手写了条评论。⇒ 整行省掉：标题行已经说清了。 */}
-                    {n.videoTitle && (
+                    {/* 同款奖励：金额一行（数是服务端发的那个，不在这里另写）、照的是我的哪一条一行。
+                        ★ 说「平台奖励」：钱不是做同款的那个人出的（token 不许在用户之间流转）。
+                        下面那行通用的作品名对这一类不画 —— 它是**那条同款**的名字，摆在「原作」下面读起来像同一件东西 */}
+                    {n.reward && (
+                      <>
+                        <div className="mt-0.5 text-xs font-semibold text-emerald-300">
+                          {n.reward.tokens > 0 ? t`🎁 平台奖励你 ${fmtTokens(n.reward.tokens)} token` : t`🎁 平台给你发了同款奖励`}
+                        </div>
+                        {n.reward.originalTitle && (
+                          <div className="mt-0.5 truncate text-xs text-slate-500"><Trans>照的是你的《{n.reward.originalTitle}》</Trans></div>
+                        )}
+                      </>
+                    )}
+                    {n.videoTitle && !n.reward && (
                       <div className="mt-0.5 truncate text-xs text-slate-500">{n.videoTitle}</div>
                     )}
                     {n.tutor && n.type !== "TUTOR_REVIEW_DUE" && (

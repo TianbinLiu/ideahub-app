@@ -35,6 +35,15 @@ export const BRANCH_NOTIFICATION_TYPES = [
    */
   "BRANCH_REVISED",
   /**
+   * **同款奖励到账**（模板体系 P3b，2026-10-02；server 写入只在 services/remixReward.service）：别人照着我的作品做了同款、
+   * 公开发布满 24 小时，平台印了一笔 token 给我。payload { tokens, originalId, originalTitle, videoId?, videoTitle? }。
+   *   · `actorId` = 同款作者、`videoId` = 那条同款（深链到 /video/:id，看别人照着做出来的片子）；
+   *   · 两人之间有拉黑、或那条同款已经不公开时**两样都不带**（画成「有人做了你的同款」，点进去落到我自己的原作）。
+   * ★ 金额是 `payload.tokens`（数），句子由这边按界面语言说 —— 服务端不拼中文句子进 commentText。
+   * ★★ 老 App（≤ 2.60）**收不到这一类**（请求层白名单，同上面 BRANCH_REVISED 那条 ★★）：币照到，只是没有这条通知。
+   */
+  "BRANCH_REMIX_REWARD",
+  /**
    * 平台通知：管理员从后台发给单个用户的自由文本（api/admin.notifyUser 那条路）。
    * ★ 正文走 `payload.commentText` —— 刻意复用评论正文那条既有通道，而不是新开一个
    *   `payload.text`：data/notifications.ts 的 toItem 只搬运它认识的字段，新开字段
@@ -98,6 +107,10 @@ export interface ApiNotification {
     count?: number;
     version?: number;
     note?: string;
+    /** 同款奖励（BRANCH_REMIX_REWARD）：发了多少 token、照的是我的哪一条 */
+    tokens?: number;
+    originalId?: string;
+    originalTitle?: string;
   } | null;
   /** null = 未读 */
   readAt?: string | number | null;

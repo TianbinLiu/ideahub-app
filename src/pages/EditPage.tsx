@@ -29,6 +29,7 @@ import type { WorkflowRecipe } from "../data/recipe";
 import Sheet from "../components/Sheet";
 import { CloseButton } from "../components/IconTapButton";
 import { RecipeCast, RecipeExcludedNote, RecipeStoryboard, RecipeSummaryRow } from "../components/recipe/RecipeView";
+import RemixRewardNote from "../components/recipe/RemixRewardNote";
 import { danmakuFetched, danmakuOf, danmakuVersion, isTruncated, subscribeDanmaku } from "../data/danmaku";
 import { useStudio } from "../studio/studioStore";
 import { useApplyTemplate } from "../components/flow/useApplyTemplate";
@@ -694,6 +695,8 @@ export default function EditPage() {
                 <p className={`mt-2 text-[11px] leading-relaxed ${recipeMsg.kind === "ok" ? "text-emerald-300" : "text-rose-300"}`}>{recipeMsg.text}</p>
               )}
             </div>
+            {/* 同款奖励（P3b）：与公不公开制作过程无关（照着分段剧本也能做同款），所以摆在这张卡外面；规则没到时什么都不画 */}
+            <RemixRewardNote className="mt-2" />
           </div>
           {recipePreview && (
             <Sheet onClose={() => setRecipePreview(null)}>

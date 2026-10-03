@@ -11,7 +11,7 @@
 //   否则弱网冷启动会出现"视频退了本地库、通知还在打远端"这种半边天。
 import * as api from "../api/notifications";
 import { remoteOn } from "./videos";
-import { currentUser } from "./account";
+import { currentUser, refreshRemoteWallet } from "./account";
 import { onViewerChange } from "./deviceOwner";
 import { t } from "@lingui/core/macro";
 
@@ -32,6 +32,12 @@ export interface NotificationItem {
   ticketId: string | null;
   /** 老师人格四类（TUTOR_*）的落点与显示（M4）：courseId 有值 → App 内 /tutor/run/:courseId；其它类型为 null */
   tutor: { personaId: string | null; personaName: string; courseId: string | null; stars: number | null; count: number | null } | null;
+  /**
+   * 同款奖励到账（BRANCH_REMIX_REWARD，P3b）；其它类型为 null。
+   * `anonymous` = 服务端没带是谁（两人之间有拉黑 / 那条同款已经不公开）：头像位画礼物、不显示名字，点进去落到 originalId（我自己的原作）。
+   * `tokens` 为 0 = 服务端没给出金额（契约问题）：那一行不说数，别编一个
+   */
+  reward: { tokens: number; originalId: string | null; originalTitle: string; anonymous: boolean } | null;
   at: number;
   read: boolean;
 }
@@ -152,6 +158,16 @@ function toItem(n: api.ApiNotification): NotificationItem | null {
     tutor: String(n.type).startsWith("TUTOR_")
       ? { personaId: typeof payload.personaId === "string" ? payload.personaId : null, personaName: payload.personaName || "", courseId: typeof payload.courseId === "string" ? payload.courseId : null, stars: typeof payload.stars === "number" ? payload.stars : null, count: typeof payload.count === "number" ? payload.count : null }
       : null,
+    // 同款奖励：金额与原作都在 payload 里（server remixReward.service 的 notify）。判否定：别的类型一律 null
+    reward:
+      n.type === "BRANCH_REMIX_REWARD"
+        ? {
+            tokens: typeof payload.tokens === "number" && payload.tokens > 0 ? payload.tokens : 0,
+            originalId: typeof payload.originalId === "string" && payload.originalId ? payload.originalId : null,
+            originalTitle: payload.originalTitle || "",
+            anonymous: !actorObj,
+          }
+        : null,
     at: toMs(n.createdAt),
     // ★ 判**未读**用「readAt 有没有值」，不是和某个哨兵值比：服务端未读写的是 null，
     //   而更老的记录里这一项可能压根不存在（undefined）。两种都必须算未读。
@@ -208,6 +224,9 @@ export async function refreshNotifications(): Promise<void> {
         supported: true,
         error: "",
       });
+      // 有没看过的同款奖励 = 余额在我们不知道的时候变过（那笔币是服务端的清扫器发的，没有哪一发请求的响应头会带回新余额）。
+      // 顺手刷一次钱包镜像：不然通知说「奖励你 30k」，回到「我的」页那个数还是老的
+      if (items.some((x) => x.reward && !x.read)) void refreshRemoteWallet();
     } catch (e) {
       if (gen !== viewerGen) return;
       set({ loading: false, error: e instanceof Error ? e.message : String(e) });
