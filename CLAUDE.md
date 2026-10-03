@@ -71,7 +71,8 @@ src/
   components/  通用组件；`flow/` = 工作流画布：`FlowCanvas.tsx`（画布壳 + 就地编辑窗 +
                agent 输入条 + 四个 portal 弹层：方案台/成片回看/选卡/选模板）、
                `DeleteSegBtn.tsx`（删段确认，与 FlowPage 那份共用一处实现）、
-               `RefStrip.tsx`（参考清单：出片时模型会收到哪些图、各是第几张 + 临时参考图 + 点图写进句子，画布与工坊方案台共用）；
+               `RefStrip.tsx`（参考清单：出片时模型会收到哪些图、各是第几张 + 临时参考图 + 点图写进句子，画布与工坊方案台共用）、
+               `FrameEditBox.tsx`（改这一帧：一句话改 / 圈着改，画布自定义车道、画布方案台、工坊方案台三处共用）；
                `support/` = AI 客服页专用：`SupportStage`（Live2D 舞台，按 modelUrl 换装）、`HoldToTalk`、
                `VoiceSheet`（声音面板，三页：单音色 / 混音 / 声音市场；存服务端，官网同步）、
                `VoiceMixer`（混音调配 + 发布成模板）、`VoiceMarket`（声音市场列表：试听 / 设为我的声音 / 点赞 / 删自己的）、
@@ -417,6 +418,17 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   **读 `extraRefs` 一律过 `usableExtraRefs`**。改名 / 删除只走 flowStore 的三个 action（顺手收拾这一段句子里的 `@名字`）；
   不进公开配方（记号复用 `mid-frames`，句子里的点名退成文字）。
   同一批顺手改的：`segmentGen.hasDialogue` 认中文弯引号（原来 “你来了” 会被配音却带不上卡的声音样本），清单里提前说「声音样本为什么带不上」。
+- **关键画面在出片之前就能改、成片里任意一帧能截出来用**（N3，2026-10-03；与已有「圈图改图」的对比在 docs/node-modes-libtv-alignment.md §六）。四条规矩：
+  ① **「按要求改这一帧」只有 `flowStore.editFrame` 一处实现**（一句话改 = 带卡片形象图锁脸 + 句子里 `@名字` 点到的临时参考图；圈着改 = 底图是画着红圈的标注图、
+  不带别的图）。画布自定义车道、画布方案台、工坊方案台画的是同一个 `FrameEditBox`；工坊的 `studioStore.refineProposalFrame` 只是转发（它本地那道 `frameRefining` 闸还要打）。
+  能改哪两张只问 `flowStore.nodeEditFrames`：这一段承接着上一段的真实结尾时，改的是那张承接帧，改完走 `setFrame` 落地（上锁、不再承接）——
+  别写成 `updateProposal`：承接还开着的话，改好的首帧出片时会被承接帧整张顶掉，图钱白花（工坊原来那份就是这么写的）。
+  ② **圈选的画板与截帧一律按画面的原比例**：`FrameAnnotator` 的画布尺寸跟着图走，回看截帧用 `drawWhole`（整帧、不裁）。别再写死 1280×720 / `drawCover` ——
+  默认画幅是竖屏，那样截出来只有中间一条，标注图还是变形的，模型拿它当底图重画。
+  ③ 圈选改图接在要求后面的那句只有 `segmentGen.ANN_CLAUSE` 一份（出片前改帧、剪辑页圈选重拍、就地圈着改帧共用）。
+  ④ **凡是画设定帧的路都带临时参考图**（推演三套 `real.generateProposals`、两面的「重画这一套」、出片前补画）：带哪几张、怎么说只问 `refMentions.drawExtraRefs`，
+  句子先过 `plainMentions`。新加一条画帧的路时别漏 —— 漏了的症状是「帧照着另一个样子画，出片时帧与参考图打架」，零报错。
+  成片回看的「📸 截这一帧」（`SegPlayer`）写入只走 `setFrame` / `addExtraRef`，去处只给还没出片、没在炼、不是白模的段。
 - **「这一段用哪个模板」是三态，且必须当场表态**（`FlowNode.tpl`）：`undefined` = 还没表态
   （退回 store 级 `template`，老草稿与单模板流靠它）、`null` = 明确没有、对象 = 这一段自己的
   快照。读**只准走 `tplOfNode`**。而 store 级那份会随 `setCursor` 换成**当前段**的快照 ——
@@ -818,7 +830,7 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 - [`docs/ONBOARDING.md`](docs/ONBOARDING.md) — 从零到能跑
 - [`docs/api-contract.md`](docs/api-contract.md) — 与 server 的接口契约（三仓共享）
 - [`docs/play-store-checklist.md`](docs/play-store-checklist.md) — 上架检查单
-- [`docs/node-modes-libtv-alignment.md`](docs/node-modes-libtv-alignment.md) — 工作流节点「自选卡片 / 自定义」对齐 LibTV 节点：调研、方案、主人拍板与落地记录（N1 参考清单 + @ 点名已落地；N3 关键画面、N2 分镜表待做）
+- [`docs/node-modes-libtv-alignment.md`](docs/node-modes-libtv-alignment.md) — 工作流节点「自选卡片 / 自定义」对齐 LibTV 节点：调研、方案、主人拍板与落地记录（N1 参考清单 + @ 点名、N3 关键画面可改可截已落地，含与已有「圈图改图」的对比；N2 分镜表待做）
 - [`docs/app-distribution.md`](docs/app-distribution.md) — 发包给别人装、应用内更新怎么走
 - [`docs/signing-keystore.md`](docs/signing-keystore.md) — 签名 keystore 换机 / 新 worktree 怎么恢复
 - [`public/perch/README.md`](public/perch/README.md) — 角色动画资源怎么生成、踩过什么坑

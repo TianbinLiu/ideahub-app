@@ -1,13 +1,14 @@
 // 卡片工坊全局状态：卡组 / NPC 对话 / 市场 / 节点树 / 相机 / 合成 / 已发布作品回炉编辑
 import { create } from "zustand";
 import { shotLineOf, V3_CARD_WIPE_MS, BranchNodeData, BranchTree, Card, CardType, DEFAULT_ASPECT, DEFAULT_VIDEO_CATEGORY, DraftVideo, NodeSlot, Proposal, VideoAspect, VideoSegment, VideoTemplate, uid } from "../types";
-import { AI_REAL, MaterialFile, deriveCharacterModels, deriveDeckCards, generateCards, generateCover, generateProposals, joinNotes, npcChat, npcChatOffline, prepareMaterialRefs, refineFrame } from "../ai";
+import { AI_REAL, MaterialFile, deriveCharacterModels, deriveDeckCards, generateCards, generateCover, generateProposals, joinNotes, npcChat, npcChatOffline, prepareMaterialRefs } from "../ai";
 import { DECK_CAM, MARKET, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
 import { acquireCard, addCards as saveCardsToAccount, canAfford, frozenNote, myCards, myDecks, plazaCards, spendTokens, walletOf, type AddCardsResult } from "../data/account";
-import { CHAT_TURN_TOKENS, DECK_MAX_3D, deriveIssue, DECK_MAX_CARDS, DEFAULT_TIER, MODEL3D_TOKENS, ONE_IMAGE, deckCardsCost, deckModel3dCost, fmtTokens, proposalsCost, realFaceIssue, styleWants3d, tierOf, videoAudioOn } from "../data/economy";
+import { CHAT_TURN_TOKENS, DECK_MAX_3D, deriveIssue, DECK_MAX_CARDS, DEFAULT_TIER, MODEL3D_TOKENS, deckCardsCost, deckModel3dCost, fmtTokens, proposalsCost, realFaceIssue, styleWants3d, tierOf, videoAudioOn } from "../data/economy";
 // 单向依赖：工坊把活动路径喂给工作流。flowStore 不认识 studioStore（见其文件头）
-import { GenNodeOpts, CUSTOM_MID_MAX, FlowMode, FlowNode, FlowTemplate, appendBlocked, appendIssue, chosenOf, recastBlocked, nodeContinues, nodeVideo, tplOfNode, useFlow, keepFirstFrame, redrawCost, usableFrames } from "./flowStore";
+import { drawExtraRefs, plainMentions } from "../data/refMentions";
+import { GenNodeOpts, CUSTOM_MID_MAX, FlowMode, FlowNode, FlowTemplate, appendBlocked, appendIssue, chosenOf, recastBlocked, nodeContinues, nodeVideo, tplOfNode, useFlow, keepFirstFrame, redrawCost } from "./flowStore";
 // ★ 依赖方向没破：canvasAgent 只认识 flowStore，不认识本模块（不会成环）
 import { forgetCanvasAgent } from "./canvasAgent";
 import { onOwnerSwitch, ownerEpoch, workOwner } from "../data/deviceOwner";
@@ -654,7 +655,7 @@ interface StudioState {
   /** 正在 AI 改图的帧（`${proposalId}:first|last`）；null=空闲 */
   frameRefining: string | null;
   /** 方案设定图选帧改图：Seedream 图生图按要求重画首/尾帧并回写方案 */
-  refineProposalFrame: (nodeId: string, proposalId: string, which: "first" | "last", req: string) => Promise<boolean>;
+  refineProposalFrame: (nodeId: string, proposalId: string, which: "first" | "last", req: string, annotated?: string) => Promise<boolean>;
 
   // ── 方案台（与工作流共用 PlanBoard 组件，见 ui/PlanBoard.tsx）────────
   /** 改某一套方案的标题/剧情/时长（只有选定的那一套可改，见 PlanBoard） */
@@ -1531,10 +1532,11 @@ export const useStudio = create<StudioState>()((set, get) => ({
     ),
 
   frameRefining: null,
-  refineProposalFrame: async (nodeId, proposalId, which, req) => {
-    // ★ 这条路上的话一律走 notice 不走 npcSay：投影窗开着时 NpcDialog 整个 return null，
-    //   而用户按下「按要求重画首/尾帧」的那一刻投影窗必然开着 —— npcSay 等于没说
-    //   （2026-09-03 两面对照抓到，与 genNodeVideo 的写法同源）。
+  refineProposalFrame: async (nodeId, proposalId, which, req, annotated) => {
+    // ★★ 2026-10-03（N3）起这里只是**转发**：改帧的唯一实现搬到了 flowStore.editFrame（画布与自定义车道此前没有这件事，
+    //   而它本来就该两面一样）。留着这一层只为工坊自己的两件事：frameRefining 这道本地闸（投影窗里几颗键的 disabled 读它），
+    //   以及把结局说成 notice（投影窗开着时 NpcDialog 不渲染，npcSay 等于没说 —— 2026-09-03 那条结论）。
+    // ★ 改的是**选定的那一套**（方案台只对选定行开编辑口）：proposalId 对不上当前选定的就不办，别改到另一套上。
     const { frameRefining } = get();
     if (frameRefining || !req.trim()) return false;
     {
@@ -1544,72 +1546,19 @@ export const useStudio = create<StudioState>()((set, get) => ({
         return false;
       }
     }
-    const path = activePath();
-    const idx = path.findIndex((n) => n.id === nodeId);
-    const node = path[idx];
-    const prop = node?.proposals.find((p) => p.id === proposalId);
-    if (!node || !prop) return false;
-    // ★ 改图是「在这张图上改」：这一帧当时没画出来（或是老草稿里的占位图）就没有可改的图 ——
-    //   放行的话要么对空图发请求被拒，要么在占位图上改出一张照样不能用的帧（出图成功就扣钱）。
-    //   帧在不在问 usableFrames（与出片、报价同一份）。
-    {
-      const frames = usableFrames(node, prop, idx > 0 ? chosenProposal(path[idx - 1]) : null);
-      if (!(which === "first" ? frames.first : frames.last)) {
-        set({
-          notice: {
-            at: Date.now(),
-            // 首 / 尾两句各写整句，别往句子里拼「开头帧 / 结束帧」这种碎片
-            text:
-              which === "first"
-                ? t`这一套的开头帧当时没画出来，没有可改的图——点「重新生成这一套的画面」，或者直接出片（出片要用到的帧会先补画，补画的钱算在出片报价里）。`
-                : t`这一套的结束帧当时没画出来，没有可改的图——点「重新生成这一套的画面」，或者直接出片（出片要用到的帧会先补画，补画的钱算在出片报价里）。`,
-          },
-        });
-        return false;
-      }
-    }
-    // 改一次图 = 一张 Seedream。以前这里既不看余额也不扣费，用户改十版是白送十张
-    if (AI_REAL && !canAfford(ONE_IMAGE)) {
-      const price = fmtTokens(ONE_IMAGE);
-      set({ notice: { at: Date.now(), text: frozenNote() ?? t`改图要 ${price} token，余额不够了——去「我的」页充值。` } });
-      return false;
-    }
+    const node = useFlow.getState().nodes.find((n) => n.id === nodeId);
+    if (!node || node.chosenId !== proposalId) return false;
     set({ frameRefining: `${proposalId}:${which}` });
     try {
-      // ★ 带上素材卡的形象参考图：改一帧最常见的写法就是"让她换个表情/转个身"，
-      //   而这类改动最容易把脸改跑。被改的那张帧恒为 <图片1>，所以绑定句 offset = 1。
-      //   （没采用哪张、为什么只锁一个角色，由 npcSay 说出来 —— 这一条路没有步骤日志）
-      // ★ 逐张参考图的提示**攒起来**接在终局那句后面：一条条 npcSay 在投影窗开着时看不见，
-      //   一条条 notice 又会互相顶掉（Toast 只有一条）—— 攒起来才是真的被看见（铁律八）。
-      // 攒下的提示在终局那句由 withRefNotes 接上（整句 + {notes}，见它的 ★）
-      const refNotes: string[] = [];
-      const mat = await prepareMaterialRefs(node.materials, "image", (n) => refNotes.push(n));
-      // 画幅跟节点走：改一次图就把竖屏方案的帧重画成横版，出片时又要被裁一刀
-      const next = await refineFrame(
-        `${req.trim()}${mat.bind(1)}`,
-        which === "first" ? prop.firstFrame : prop.lastFrame,
-        node.aspect,
-        mat.refs.length > 0 ? mat.refs : undefined,
-      );
-      if (AI_REAL) spendTokens(ONE_IMAGE); // 出图成功才扣
-      // ★★ 回包前确认**这一段还在流水线上**（单一真相版的"树还是当初那棵"）：改图要
-      //   几十秒，这期间用户完全可以打开另一条草稿/换整条流水线 —— 认 id 不认下标，
-      //   找不到就如实说，别把改动写进另一摊活里。
-      const still = useFlow.getState().nodes.find((n) => n.id === nodeId)?.proposals.some((q) => q.id === proposalId);
-      if (!still) {
-        set({ notice: { at: Date.now(), text: t`这张图改好了，但那一段已经不在流水线上了——改动没处写回（钱已经花了，抱歉）。` } });
-        return false;
+      const ok = await useFlow.getState().editFrame(nodeId, which, req, annotated);
+      if (ok) set({ notice: { at: Date.now(), text: which === "first" ? t`首帧已按你的要求重画好了。` : t`尾帧已按你的要求重画好了。` } });
+      else {
+        // 原因在流水线的 err 上（投影窗那条错误条画着它）；顺手也说成 notice，人不在投影窗上时看得见
+        const why = useFlow.getState().err;
+        if (why) set({ notice: { at: Date.now(), text: why } });
+        get().setMood(-0.4, 2200);
       }
-      // 写路只有 flowStore 一条（单一真相）：指定方案改帧
-      useFlow.getState().updateProposal(nodeId, which === "first" ? { firstFrame: next } : { lastFrame: next }, proposalId);
-      const done = which === "first" ? t`首帧已按你的要求重画好了。` : t`尾帧已按你的要求重画好了。`;
-      set({ notice: { at: Date.now(), text: withRefNotes(done, refNotes) } });
-      return true;
-    } catch (e) {
-      const reason = (e instanceof Error ? e.message : String(e)).slice(0, 90);
-      set({ notice: { at: Date.now(), text: t`改图没成：${reason}` } });
-      get().setMood(-0.4, 2200);
-      return false;
+      return ok;
     } finally {
       set({ frameRefining: null });
     }
@@ -1686,20 +1635,32 @@ export const useStudio = create<StudioState>()((set, get) => ({
       // 攒下的提示在终局那句由 withRefNotes 接上（整句 + {notes}，见它的 ★）
       const refNotes: string[] = [];
       const mat = await prepareMaterialRefs(node.materials, "image", (n) => refNotes.push(n));
-      const refUrls = mat.refs.length > 0 ? mat.refs : undefined;
+      // 临时参考图（N3）：重画的帧也照着它们画（排在卡片图后面，站位构图只给首帧）；句子里的 `@点名` 退成名字。
+      // 与 flowStore.regenProposal 同一套拼法（规则在 data/refMentions 的 drawExtraRefs / plainMentions）
+      const cardNames = (node.materials ?? []).map((c) => ({ id: c.id, name: c.name }));
+      const plotPlain = plainMentions(p.plot, cardNames, node.extraRefs);
+      const withExtras = (which: "first" | "last", offset: number) => {
+        const ex = drawExtraRefs(node.extraRefs ?? [], which, offset + mat.refs.length);
+        const urls = [...mat.refs, ...ex.urls];
+        return { line: ex.line, urls: urls.length > 0 ? urls : undefined };
+      };
       let first = p.firstFrame;
       // 首帧没有底图 → 素材卡的图就是 <图片1>，offset = 0
-      if (!keepFirst) first = await generateCover(`${p.plot.slice(0, 200)}${mat.bind(0)}`, undefined, node.aspect, refUrls);
+      if (!keepFirst) {
+        const ex = withExtras("first", 0);
+        first = await generateCover(`${plotPlain.slice(0, 200)}${mat.bind(0)}${ex.line}`, undefined, node.aspect, ex.urls);
+      }
       // 以开头帧当参考图：同一段戏的两帧必须是同一套人物/画风，各画各的会串味。
       // 有底图时它占 <图片1>，素材卡从 <图片2> 起 → offset = 1
+      const exLast = withExtras("last", first ? 1 : 0);
       const last = keepLast
         ? p.lastFrame
         : await generateCover(
             // i18n-ignore-next-line: 画结束画面的出图提示词，发给模型（进模型的文字冻结中文）
-            `${p.plot.slice(0, 180)} 的结束瞬间${mat.bind(first ? 1 : 0)}`,
+            `${plotPlain.slice(0, 180)} 的结束瞬间${mat.bind(first ? 1 : 0)}${exLast.line}`,
             first || undefined,
             node.aspect,
-            refUrls,
+            exLast.urls,
           );
       if (AI_REAL) spendTokens(cost); // 出图成功才扣，与 refineProposalFrame 同口径
       // 段还在才写回（同 refineProposalFrame 那道闸）；写路只有 flowStore 一条

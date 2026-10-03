@@ -20,7 +20,7 @@
 import { startJob } from "../data/jobs";
 import { t } from "@lingui/core/macro";
 import { create } from "zustand";
-import { castPreviewImage, frameUrlAt, fuseStageFrame, AI_REAL, ArkTaskUnknown, briefArkReason, chargeNote, chargeOnFail, generateCover, generateProposals, notesInParens, prepareMaterialRefs, recaptureSegment, takeVideoTask, transferStatus } from "../ai";
+import { castPreviewImage, frameUrlAt, fuseStageFrame, AI_REAL, ArkTaskUnknown, briefArkReason, chargeNote, chargeOnFail, generateCover, generateProposals, notesInParens, prepareMaterialRefs, recaptureSegment, refineFrame, takeVideoTask, transferStatus } from "../ai";
 import { isArkAssetUrl, transferArkVideo } from "../ai/arkClient";
 import { canAfford, frozenNote, myCards, spendTokens, tierBlockReason, walletOf } from "../data/account";
 import {
@@ -57,8 +57,21 @@ import {
 } from "../data/templates";
 import { type BlockoutCastSlot, blockoutApplySkeleton, castNameIssue, composeBlockoutPrompt } from "./blockoutPrompt";
 import { GenStep, createGenLog, splitStatus } from "./genLog";
-import { blockoutIssue, frameFree, generateSegment, redrawnAnns, refPlanOf, refVideoOn, type RefPlan } from "./segmentGen";
-import { EXTRA_REF_MAX, cleanRefName, dropMention, refNameIssue, renameMention, usableExtraRefs, type ExtraRef, type ExtraRefRole } from "../data/refMentions";
+import { ANN_CLAUSE, blockoutIssue, frameFree, generateSegment, redrawnAnns, refPlanOf, refVideoOn, type RefPlan } from "./segmentGen";
+import {
+  EXTRA_REF_MAX,
+  cleanRefName,
+  drawExtraRefs,
+  dropMention,
+  mentionTargets,
+  mentionedKeys,
+  plainMentions,
+  refNameIssue,
+  renameMention,
+  usableExtraRefs,
+  type ExtraRef,
+  type ExtraRefRole,
+} from "../data/refMentions";
 
 /** 正在后台盯转存收尾的段（settleNodeMedia）：同一段只盯一份，出片一次、打开草稿一次都可能起一份 */
 const settling = new Set<string>();
@@ -1037,6 +1050,19 @@ export function nodeRefPlan(nodes: FlowNode[], idx: number, mode: FlowMode): Ref
   });
 }
 
+/**
+ * 「改这一帧」能改的是哪两张图（N3）—— flowStore.editFrame 与界面（FrameEditBox）读同一份。
+ * 帧在不在问 usableFrames（与出片、报价同一份）；这一段承接上一段的真实结尾时，出片用的开头就是那张承接帧
+ * （哪怕方案里还存着一张设定首帧），要改也是改它 —— 改完落进本段首帧，从此不再承接（setFrame 的既有规则）。
+ */
+export function nodeEditFrames(nodes: FlowNode[], idx: number): { first: string; last: string; carriedFirst: boolean } {
+  const node = nodes[idx];
+  if (!node) return { first: "", last: "", carriedFirst: false };
+  const frames = usableFrames(node, chosenOf(node), idx > 0 ? chosenOf(nodes[idx - 1]) : null);
+  const carry = nodeCarry(nodes, idx);
+  return { first: carry || frames.first, last: frames.last, carriedFirst: !!carry };
+}
+
 /** 参考清单里「帧还没有」那一格该怎么说：true = 推演时画（自选卡片、还没推演），false = 出片前现画 */
 export function nodeFramesComeFromDerive(node: FlowNode): boolean {
   return derivesProposals(node) && planOf(node) === null && !nodeDone(node);
@@ -1349,6 +1375,17 @@ interface FlowState {
   /** 按用户改过的剧情/换过的帧，让 AI 重画**这一套**方案的画面（不重写剧情——
    *  那是用户刚敲的字，重写等于把它抹了） */
   regenProposal: (nodeId: string) => Promise<boolean>;
+  /**
+   * 按一句要求改这一段**选定方案**的首 / 尾帧（一张图的钱，economy.ONE_IMAGE）—— 画布、工坊、自定义车道共用的**唯一实现**
+   * （N3，2026-10-03；之前这件事只有工坊那一面有，实现在 studioStore.refineProposalFrame，现在那边只是转发）。
+   * 两种用法：只给一句话 = 在这一帧上按要求改（带上卡片形象图锁脸；句子里 `@名字` 点到的临时参考图一并带上）；
+   * 另给 `annotated`（FrameAnnotator 出的、画着红圈的那张）= 只改圈里那一处（不带别的图：模型得先找到红圈在哪张图上）。
+   * 成功后走 setFrame 落地：上锁（重画这一套时不动它）；改的是首帧就不再承接上一段的结尾（与上传自己的首帧同一条规则）。
+   * 被拒 / 失败回 false，整句原因在 err。
+   */
+  editFrame: (nodeId: string, which: "first" | "last", req: string, annotated?: string) => Promise<boolean>;
+  /** 正在改哪一帧（editFrame 在途）。null = 空闲 */
+  frameEdit: { nodeId: string; which: "first" | "last" } | null;
 
   /** 在末尾追加一段。★ 上一段没出片时拒绝（见 canAdvance 那段注释） */
   addNode: () => void;
@@ -2174,6 +2211,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
           // 段间衔接：承接上一段已选走向的尾帧
           startFrame: node.chain && prev ? prev.lastFrame || null : null,
           aspect: node.aspect,
+          // 临时参考图（N3）：推演时画的首尾帧也照着它们画，出片时帧与参考图才不打架
+          extraRefs: node.extraRefs,
           pathPlots: get()
             .nodes.slice(0, idx)
             .map((n) => chosenOf(n).plot)
@@ -2257,6 +2296,104 @@ export const useFlow = create<FlowState>()((set, get) => ({
       }),
     })),
 
+  frameEdit: null,
+  editFrame: async (nodeId, which, req, annotated) => {
+    const s0 = get();
+    const ask = req.trim();
+    const idx = s0.nodes.findIndex((n) => n.id === nodeId);
+    const node = s0.nodes[idx];
+    if (!node || !ask) return false;
+    if (s0.busy) {
+      set({ err: t`有一段正在生成，等它跑完再改这一帧` }); // 早退必须说话（理由同 deriveProposals 的 ★）
+      return false;
+    }
+    if (tplOfNode(node)?.refVideo) {
+      set({ err: t`白模段的画面整个来自模板视频，没有设定帧可改` });
+      return false;
+    }
+    const prop = chosenOf(node);
+    // 「在这张图上改」：这一帧当时没画出来（或是老草稿里的占位图）就没有可改的图。能改哪两张只问 nodeEditFrames（界面读的是同一份）
+    const editable = nodeEditFrames(s0.nodes, idx);
+    const base = which === "first" ? editable.first : editable.last;
+    if (!base) {
+      set({
+        err:
+          which === "first"
+            ? t`这一段还没有开头帧可改——先传一张，或者直接出片（缺的帧会先补画，钱算在出片报价里）`
+            : t`这一段还没有结束帧可改——先传一张，或者直接出片（缺的帧会先补画，钱算在出片报价里）`,
+      });
+      return false;
+    }
+    if (AI_REAL && !canAfford(ONE_IMAGE)) {
+      set({ err: frozenNote() ?? t`改一帧要一张图的钱（${fmtTokens(ONE_IMAGE)} token），余额不够——去「我的」页充值` });
+      return false;
+    }
+    const myRun = get().genRun + 1;
+    set({ busy: true, err: "", genRun: myRun, frameEdit: { nodeId, which } });
+    get().updateNode(nodeId, { status: "generating", progress: which === "first" ? t`按要求改首帧…` : t`按要求改尾帧…` });
+    /** 收尾：只有"还是我这一炉"才有资格清 busy（genRun 的既有语义） */
+    const settle = (patch: Partial<FlowState>) => {
+      get().updateNode(nodeId, { status: "idle", progress: "" });
+      set(get().genRun === myRun ? { busy: false, frameEdit: null, ...patch } : { frameEdit: null });
+    };
+    try {
+      const notes: string[] = [];
+      let next: string;
+      if (annotated) {
+        // 圈选：底图就是画着红圈的那张，**不带**卡片形象图（理由同出片前按圈选改帧那一步：再塞两张卡面，模型首先要猜红线画在哪张图上）
+        next = await refineFrame(`${ask}${ANN_CLAUSE}`, annotated, node.aspect);
+      } else {
+        // 一句话改：带上卡片形象图锁脸（「让她换个表情」最容易把脸改跑），被改的那张恒为 <图片1>，绑定句 offset = 1
+        const mat = await prepareMaterialRefs(node.materials, "image", (n) => notes.push(n));
+        const cards = (node.materials ?? []).map((c) => ({ id: c.id, name: c.name }));
+        const extras = usableExtraRefs(node.extraRefs);
+        // 句子里 `@名字` 点到的临时参考图才带（「把杯子换成 @杯子」）：没点到的与这次改动无关，带上只会分散模型
+        const hit = mentionedKeys(ask, mentionTargets({ cards, extras: extras.map((x) => ({ id: x.id, name: x.name, n: null })), frames: {} }));
+        const ex = drawExtraRefs(extras.filter((x) => hit.has(`extra:${x.id}`)), "first", 1 + mat.refs.length);
+        next = await refineFrame(
+          `${plainMentions(ask, cards, extras)}${mat.bind(1)}${ex.line}`,
+          base,
+          node.aspect,
+          mat.refs.length + ex.urls.length > 0 ? [...mat.refs, ...ex.urls] : undefined,
+        );
+      }
+      if (AI_REAL) spendTokens(ONE_IMAGE); // 出图成功才扣
+      // 期间方案可能换了 / 段被删了：以当下为准，别把帧写到另一套方案上
+      const live = get().nodes.find((n) => n.id === nodeId);
+      if (!live || live.chosenId !== prop.id) {
+        settle({ err: t`这一帧改好了，但这一段的方案已经换了（或段不在了）——改动没处写回，图钱已经花掉` });
+        return false;
+      }
+      get().setFrame(nodeId, which, next);
+      const tail = notesInParens(notes);
+      settle({
+        genNotice: {
+          ok: true,
+          msg: (which === "first" ? t`第 ${idx + 1} 段的首帧改好了` : t`第 ${idx + 1} 段的尾帧改好了`) + tail,
+        },
+      });
+      return true;
+    } catch (e) {
+      // 钱上的话按错误类型说（ai/failCharge，全仓一处）；回 null = 真的没扣
+      const money = chargeNote(chargeOnFail(e), ONE_IMAGE);
+      const reason = briefArkReason(e, 80);
+      const failed = which === "first" ? t`第 ${idx + 1} 段的首帧没改成` : t`第 ${idx + 1} 段的尾帧没改成`;
+      if (money) {
+        const moneyLine = money.line;
+        settle({
+          err: t({
+            message: `这一帧没改成（${reason}）。${moneyLine}原来那张没动，可以再试一次`,
+            comment: "moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格",
+          }),
+          genNotice: { ok: false, msg: failed },
+        });
+      } else {
+        settle({ err: t`这一帧没改成（${reason}）——没扣钱，原来那张没动，可以再试一次`, genNotice: { ok: false, msg: failed } });
+      }
+      return false;
+    }
+  },
+
   regenProposal: async (nodeId) => {
     const s0 = get();
     if (s0.busy) {
@@ -2303,24 +2440,33 @@ export const useFlow = create<FlowState>()((set, get) => ({
       const mat = await prepareMaterialRefs(node.materials, "image", (n) => notes.push(n));
       // 尾巴走共用的 ai.notesInParens（分隔符与括号进目录；中文照旧「（甲；乙）」）。★ 局部名别改：它是下面两句 msgid 里的占位符 {noteTail}
       const noteTail = notesInParens(notes);
-      const refUrls = mat.refs.length > 0 ? mat.refs : undefined;
+      // 临时参考图（N3）：重画的帧也照着它们画（排在卡片图后面，站位构图只给首帧）；句子里的 `@点名` 退成名字
+      const cardNames = (node.materials ?? []).map((c) => ({ id: c.id, name: c.name }));
+      const plotPlain = plainMentions(prop.plot, cardNames, node.extraRefs);
+      const withExtras = (which: "first" | "last", offset: number) => {
+        const ex = drawExtraRefs(node.extraRefs ?? [], which, offset + mat.refs.length);
+        const urls = [...mat.refs, ...ex.urls];
+        return { line: ex.line, urls: urls.length > 0 ? urls : undefined };
+      };
       let first = prop.firstFrame;
       // 首帧没有底图 → 素材卡的图就是 <图片1>，offset = 0
       if (!keepFirst) {
         get().updateNode(nodeId, { progress: t`重画起始画面…${noteTail}` });
-        first = await generateCover(`${prop.plot.slice(0, 200)}${mat.bind(0)}`, undefined, node.aspect, refUrls);
+        const ex = withExtras("first", 0);
+        first = await generateCover(`${plotPlain.slice(0, 200)}${mat.bind(0)}${ex.line}`, undefined, node.aspect, ex.urls);
       }
       let last = prop.lastFrame;
       if (!keepLast) {
         get().updateNode(nodeId, { progress: t`重画结束画面…${noteTail}` });
         // 以开头帧当参考图：同一段戏的两帧必须是同一套人物/画风，各画各的会串味。
         // 有底图时它占 <图片1>，素材卡从 <图片2> 起 → offset = 1
+        const ex = withExtras("last", first ? 1 : 0);
         last = await generateCover(
           // i18n-ignore-next-line: 出图提示词，发给模型（进模型的文字冻结中文）
-          `${prop.plot.slice(0, 180)} 的结束瞬间${mat.bind(first ? 1 : 0)}`,
+          `${plotPlain.slice(0, 180)} 的结束瞬间${mat.bind(first ? 1 : 0)}${ex.line}`,
           first || undefined,
           node.aspect,
-          refUrls,
+          ex.urls,
         );
       }
       if (AI_REAL) spendTokens(cost); // 出图成功才扣，与 refineProposalFrame 同口径

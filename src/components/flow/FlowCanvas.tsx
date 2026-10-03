@@ -42,6 +42,7 @@ import PlanBoard from "../../studio/ui/PlanBoard";
 import FuseFrameSheet, { fuseSourcesOf } from "../../studio/ui/FuseFrameSheet";
 import CustomFrameSlots from "./CustomFrameSlots";
 import RefStrip from "./RefStrip";
+import FrameEditBox from "./FrameEditBox";
 import { insertMention, uniqueRefName, usableExtraRefs } from "../../data/refMentions";
 import { registerMaterialVideo, uploadTemplateVideo } from "../../api/uploads";
 import { fileToFrameDataUrl } from "../../utils/image";
@@ -55,6 +56,7 @@ import {
   nodeRecastable,
   nodeRefPlan,
   nodeFramesComeFromDerive,
+  nodeEditFrames,
   planOf,
   realVideoOfNode,
   annSkipNote,
@@ -75,7 +77,7 @@ import {
   subscribeTemplates,
   templatesVersion,
 } from "../../data/templates";
-import { CHAT_TURN_TOKENS, blockoutTier, fmtTokens, modelLabel, proposalsCost, tierOf } from "../../data/economy";
+import { CHAT_TURN_TOKENS, ONE_IMAGE, blockoutTier, fmtTokens, modelLabel, proposalsCost, tierOf } from "../../data/economy";
 import { AGENT_PHRASES, executeAgentProposal, runCanvasAgent, type AgentOutcome, type AgentProposal } from "../../studio/canvasAgent";
 import { EXAMPLES, phraseText, templatePhrase } from "../../studio/agentGrammar";
 import { useLang } from "../../i18n/useLang";
@@ -780,7 +782,10 @@ function NodePanel({
     addExtraRef,
     updateExtraRef,
     removeExtraRef,
+    editFrame,
   } = useFlow();
+  /** 正在改的是不是这一段的帧（flowStore.frameEdit 记着 nodeId） */
+  const frameEditing = useFlow((s) => (s.frameEdit?.nodeId === node.id ? s.frameEdit.which : null));
   /** 要求框与它最后一次的光标位置（参考清单「点一张图写进句子」插在这里；没点过框就接在句尾） */
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const caretRef = useRef<number | null>(null);
@@ -1163,6 +1168,16 @@ function NodePanel({
                 onFrame={(which, url) => setFrame(node.id, which, url)}
                 onFuse={setFuse}
                 onError={(msg) => useFlow.setState({ err: msg })}
+              />
+              {/* 改这一帧（N3）：出片之前就把关键画面改对 —— 一句话改 / 圈着改，一张图的钱。实现只有 flowStore.editFrame 一处，
+                  工坊方案台与下面的画布方案台（PlanSheet）是同一个组件 */}
+              <FrameEditBox
+                {...nodeEditFrames(nodes, index)}
+                disabled={locked || generating || busy}
+                editing={frameEditing}
+                costLabel={AI_REAL ? fmtTokens(ONE_IMAGE) : null}
+                canMention={extraRefs.length > 0}
+                onEdit={(which, req, annotated) => editFrame(node.id, which, req, annotated)}
               />
               {/* 承接状态照实说（chain 的翻转在 setFrame / ⚙ 本段设置，这里只是把事实画出来）。
                   ★ 常驻只留状态短句，"怎么改"收进 ⓘ（ui-copy-grammar 文法③） */}
@@ -1580,6 +1595,7 @@ function NodePanel({
             carryFrame: carried ? prevP?.lastFrame : null,
             firstFrame: p.firstFrame,
             lastFrame: p.lastFrame,
+            extras: extraRefs,
           })}
           aspect={node.aspect}
           onDone={(url) => {
@@ -1626,7 +1642,8 @@ function PlanSheet({ nodeId, onClose }: { nodeId: string; onClose: () => void })
   const nodes = useFlow((s) => s.nodes);
   const busy = useFlow((s) => s.busy);
   const err = useFlow((s) => s.err);
-  const { chooseProposal, updateProposal, setFrame, regenProposal, deriveProposals } = useFlow();
+  const { chooseProposal, updateProposal, setFrame, regenProposal, deriveProposals, editFrame } = useFlow();
+  const frameEdit = useFlow((s) => s.frameEdit);
   const isLand = useIsLandscape();
   // ★ 按 id 现取（不按下标）：弹层开着期间 store 会变 —— 挑定/重画/推演在改这一段，
   //   而 agent 的 onFocus 可能把编辑窗换到别的段。认 id 才不会"就地换段"（见上面 ★★）
@@ -1704,6 +1721,7 @@ function PlanSheet({ nodeId, onClose }: { nodeId: string; onClose: () => void })
               carryFrame: carried ? prevProp?.lastFrame : null,
               firstFrame: chosenOf(node).firstFrame,
               lastFrame: chosenOf(node).lastFrame,
+              extras: usableExtraRefs(node.extraRefs),
             })}
             fuseAspect={node.aspect}
             onRegen={() => void regenProposal(node.id)}
@@ -1717,6 +1735,17 @@ function PlanSheet({ nodeId, onClose }: { nodeId: string; onClose: () => void })
             frameAspect={aspectCss(node.aspect)}
             // 横屏时弹层高度只有整屏那么点（≈375px），卡小一号才排得下
             dense={isLand}
+            // 改这一帧（N3）：画布这一面此前没有（只有工坊方案台有一句话改帧）；同一个组件、同一处实现
+            actions={() => (
+              <FrameEditBox
+                {...nodeEditFrames(nodes, index)}
+                disabled={busy || generating}
+                editing={frameEdit?.nodeId === node.id ? frameEdit.which : null}
+                costLabel={AI_REAL ? fmtTokens(ONE_IMAGE) : null}
+                canMention={usableExtraRefs(node.extraRefs).length > 0}
+                onEdit={(which, req, annotated) => editFrame(node.id, which, req, annotated)}
+              />
+            )}
           />
         </div>
       </div>

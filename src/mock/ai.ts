@@ -1,6 +1,7 @@
 // mock AI 管线：卡片生成 / 市场检索 / 三方案推演。
 // 接口形状按未来 server 端点设计（异步 + 延迟），换成真实 AI 时仅需替换实现。
 import { Card, CardRole, CardType, Proposal, VideoAspect, uid } from "../types";
+import type { ExtraRef } from "../data/refMentions";
 import { makeCover, makeFrame } from "./frames";
 import { makeRng, pick } from "./rng";
 // ★ mock 也读**同一张**图位表：它只用来告诉用户"这一档本该画几张"，而那句话一旦
@@ -295,6 +296,8 @@ export interface ProposalContext {
   pathPlots: string[];
   /** 本段画幅（竖/横）：决定设定帧的画布与构图提示词；缺省=横屏 */
   aspect?: VideoAspect;
+  /** 这一段的临时参考图（N3）：推演时画的首尾帧也带上它们（站位构图只给首帧），规则在 data/refMentions.drawExtraRefs */
+  extraRefs?: ExtraRef[];
 }
 
 const VARIANTS: Array<{ key: string; name: string; open: string[]; turn: string[]; close: string[] }> = [

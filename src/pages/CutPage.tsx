@@ -24,6 +24,7 @@ import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
 import Icon from "../components/Icon";
 import { AI_REAL, refineFrame, regenSegment } from "../ai";
+import { ANN_CLAUSE } from "../studio/segmentGen";
 import { isArkAssetUrl, requestArkTransfer, transferStatus } from "../ai/arkClient";
 import { canAfford, frozenNote, isRemoteMode, spendTokens, walletOf } from "../data/account";
 import { idbSet } from "../data/db";
@@ -1214,12 +1215,8 @@ export default function CutPage() {
           const steps = list.length;
           stopIfMoved(false);
           say(t`第 ${segNo} 段 · 按圈选改画面 ${step}/${steps}…`);
-          const edited = await refineFrame(
-            // i18n-ignore-next-line: 发给 Seedream 图生图的改图指令，提示词冻结中文（界面语言不改变模型听什么）
-            `${a.req}。参考图中红色圈线标注了目标物体：只对该物体做上述处理，并彻底去掉红色圈线本身`,
-            a.frame,
-            seg.aspect,
-          );
+          // 圈选改图那句全仓一处（segmentGen.ANN_CLAUSE）：出片前改帧、这里的圈选重拍、出片之前就地圈着改帧共用
+          const edited = await refineFrame(`${a.req}${ANN_CLAUSE}`, a.frame, seg.aspect);
           if (a.atSec < half) seg.firstFrame = edited;
           else seg.lastFrame = edited;
         }

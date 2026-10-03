@@ -25,7 +25,7 @@ import DeleteSegBtn from "../components/flow/DeleteSegBtn";
 import SegSettings from "../components/flow/SegSettings";
 import FlowCanvas from "../components/flow/FlowCanvas";
 import ForgeOverlay, { type ForgePhase } from "../components/ForgeOverlay";
-import FrameAnnotator, { drawCover } from "../components/FrameAnnotator";
+import FrameAnnotator, { drawWhole } from "../components/FrameAnnotator";
 import GenTrace from "../components/GenTrace";
 import Icon from "../components/Icon";
 import { CloseButton } from "../components/IconTapButton";
@@ -499,11 +499,10 @@ function NodeScreen({
     const v = vref.current;
     if (v && v.videoWidth) {
       v.pause();
-      const c = document.createElement("canvas");
-      c.width = 1280;
-      c.height = 720;
-      drawCover(c.getContext("2d")!, v, 1280, 720);
-      setAnnOpen({ frame: c.toDataURL("image/jpeg", 0.9), atSec: v.currentTime });
+      // 按原比例截整帧（FrameAnnotator.drawWhole 的 ★★：竖屏帧 cover 进横画布只剩中间一条）
+      const c = drawWhole(v);
+      if (c) setAnnOpen({ frame: c.toDataURL("image/jpeg", 0.9), atSec: v.currentTime });
+      else if (prop.firstFrame) setAnnOpen({ frame: prop.firstFrame, atSec: 0 });
     } else if (prop.firstFrame) {
       setAnnOpen({ frame: prop.firstFrame, atSec: 0 });
     }

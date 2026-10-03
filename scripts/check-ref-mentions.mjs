@@ -5,13 +5,14 @@
 //   编号写错一位 = 模型照着另一张图拍；没用这个功能的人的句子被动了一个字 = 存量行为悄悄变了；
 //   认不出的 `@xxx` 原样发出去 = 模型去找一个不存在的引用；`@图片3` 被摘掉 @ = 人手写的引用失效。
 // ★ 规则一条都不在这里重打：直接 import 那个模块（Node 24 只剥类型，所以它必须零运行时依赖）。
-// ★ 仓内门禁纪律：写完先造真违规试红（--module= 指向改坏的副本）。上线前逐条试过，十三条各自变红：
+// ★ 仓内门禁纪律：写完先造真违规试红（--module= 指向改坏的副本）。上线前逐条试过，十四条各自变红：
 //   ① 去掉「最长的先试」的排序（@凛的师父 被 凛 截胡）；② boundaryOk 恒真（@Ref12 被 Ref1 吃掉前半截）；
 //   ③ 去掉「模型自己的写法原样留着」（@图片3 被摘成 图片3）；③′ 编译时不留名字（递来@杯子 变成 递来（图片5））；
 //   ④ 认不出时不摘 @（@小明 原样发出去）；⑤ 去掉「紧跟字母数字的 @ 不是点名」（a@b.com 变成 ab.com）；
 //   ⑥ 没有 @ 的句子不走快路并改了字；⑦ extraRefLines 的编号写成下标（图片2 说成 图片1）；
 //   ⑧ usableExtraRefs 不滤空地址（回炉工程里的墓碑被当成一张图）；⑨ 全角 ＠ 不认；⑩ 改名不守边界（@Ref12 被连带改掉）；
-//   ⑪ 插入不补空格（@Ref1abc 认不回来）；⑫ 保留名不拦（一张图起名叫「图片1」）。
+//   ⑪ 插入不补空格（@Ref1abc 认不回来）；⑫ 保留名不拦（一张图起名叫「图片1」）；
+//   ⑬ 画结束画面也带站位构图那一类（drawExtraRefs 不滤 layout）。
 //
 // 用法：node scripts/check-ref-mentions.mjs [--module=<另一份 refMentions.ts 的路径，造违规试红用>]
 import fs from "node:fs";
@@ -180,6 +181,30 @@ for (const r of M.EXTRA_REF_ROLES) {
   ]);
   ran++;
   if (worst.length > 110) fail(`三张临时参考图全不点名时兜底句 ${worst.length} 字（上限按 110 掂量过）：再加词先重量`);
+}
+
+// ── (f2) 画帧：要带哪几张、怎么说（N3）──
+{
+  const xs = [
+    { id: "a", url: "data:image/jpeg;base64,aa", name: "站位草图", role: "layout" },
+    { id: "b", url: "https://x/cup.jpg", name: "杯子", role: "prop" },
+    { id: "c", url: "", name: "没地址", role: "scene" },
+  ];
+  const first = M.drawExtraRefs(xs, "first", 3);
+  eq("drawExtraRefs 起拍画面：都带（空地址的不算），编号接在前面那几张后面", first.urls, ["data:image/jpeg;base64,aa", "https://x/cup.jpg"]);
+  eq(
+    "drawExtraRefs 起拍画面的说明",
+    first.line,
+    `。另附参考图：<图片4>「站位草图」${M.EXTRA_ROLE_LINE.layout}；<图片5>「杯子」${M.EXTRA_ROLE_LINE.prop}`,
+  );
+  const last = M.drawExtraRefs(xs, "last", 1);
+  eq("drawExtraRefs 结束画面：站位构图那一类不带", last.urls, ["https://x/cup.jpg"]);
+  eq("drawExtraRefs 结束画面的说明", last.line, `。另附参考图：<图片2>「杯子」${M.EXTRA_ROLE_LINE.prop}`);
+  eq("drawExtraRefs 没有可带的", M.drawExtraRefs([], "first", 2), { urls: [], line: "" });
+  eq("plainMentions 点名退成名字", M.plainMentions("@凛 按@站位草图 站位，拿起@杯子", [{ id: "c1", name: "凛" }], xs), "凛 按站位草图 站位，拿起杯子");
+  ran++;
+  const plain = "凛推开门，走进雨里。";
+  if (M.plainMentions(plain, [{ id: "c1", name: "凛" }], xs) !== plain) fail("plainMentions 改了没有 @ 的句子");
 }
 
 // ── (g) 还在不在 ──

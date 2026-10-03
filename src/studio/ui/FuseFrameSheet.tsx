@@ -44,6 +44,8 @@ export function fuseSourcesOf(o: {
   carryFrame?: string | null;
   firstFrame?: string;
   lastFrame?: string;
+  /** 这一段的临时参考图（N3）：站位草图 / 道具照片也能融进这一帧 —— 帧就照着它画，出片时帧与参考图不打架 */
+  extras?: { url: string; name: string }[];
 }): FuseSource[] {
   const out: FuseSource[] = [];
   const push = (url: string | null | undefined, label: string) => {
@@ -77,6 +79,7 @@ export function fuseSourcesOf(o: {
       }
     else push(c.cover, c.name);
   }
+  for (const x of o.extras ?? []) push(x.url, x.name);
   return out;
 }
 

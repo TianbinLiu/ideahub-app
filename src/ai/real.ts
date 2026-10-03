@@ -57,6 +57,7 @@ import { noteBlobOwner } from "../data/blobOwners";
 import { isGenerated, isSheetSlot, slotCardTag, slotKey, slotPrompt as schemeSlotPrompt, slotSize, type PromptScheme } from "../data/promptSchemes";
 import { minimaxVideo, takeMinimaxTask } from "./minimaxVideo";
 import { refableViews } from "../data/cardViews";
+import { drawExtraRefs, plainMentions } from "../data/refMentions";
 // 已授权的可信素材：整张卡改发 asset:// URI（判据与拼法各只有一处，见 data/cardAsset）
 import { assetOf, assetUri } from "../data/cardAsset";
 import {
@@ -1845,7 +1846,8 @@ export async function generateProposals(
     const raw = await chat(
       // ★ 2026-09-06：加结构化镜头字段（对标 updream 分镜 Skill）——景别 / 运镜 / 情绪节拍各是短语，出片提示词按字段读
       zhPrompt`你是互动视频编剧兼分镜师。基于素材与要求，为同一段视频写 3 个不同走向（顺势推进/风云突变/柳暗花明），输出 JSON 数组：[{"title":"12字内标题","plot":"80-120字剧情，画面感强，小说式","durationSec":4到9的整数,"shot":{"size":"景别（远景/全景/中景/近景/特写）","camera":"运镜（固定/推/拉/摇/移/跟/环绕/手持，可带方向，6字内）","beat":"情绪节拍，6字内，如 压抑→爆发"}}]。只输出 JSON。`,
-      zhPrompt`这是第${ctx.index + 1}段。素材：${mats}\n要求：${ctx.requirement || "无"}\n已定前情：${ctx.pathPlots.join(" / ") || "无"}${
+      // 要求里的 `@点名` 退成名字（data/refMentions.plainMentions；没有 @ 的句子逐字节原样）
+      zhPrompt`这是第${ctx.index + 1}段。素材：${mats}\n要求：${plainMentions(ctx.requirement, ctx.materials, ctx.extraRefs) || "无"}\n已定前情：${ctx.pathPlots.join(" / ") || "无"}${
         ctx.startFrame
           ? "\n注意：本段开头画面已经确定（上一段的收尾画面），剧情必须从那一瞬间直接继续——人物、场景、天气、光线都要连贯，不要另起炉灶。"
           : ""
@@ -1905,12 +1907,15 @@ export async function generateProposals(
   const results = await mapLimit(jobs, 3, async ({ p, which }) => {
     // 有确定开头帧时尾帧也带它当参考（人物/画风连贯）；否则仅首帧带上一段色调参考
     const withFrameRef = (which === "first" || !!startFrame) && frameRefs.length > 0;
-    const useRefs = [...(withFrameRef ? frameRefs : []), ...mat.refs];
+    const baseRefs = [...(withFrameRef ? frameRefs : []), ...mat.refs];
+    // 临时参考图排在最后（承接帧与卡片图的编号不动），每张由系统说一句它是什么；站位构图只给首帧（N3，规则在 drawExtraRefs）
+    const ex = drawExtraRefs(ctx.extraRefs ?? [], which, baseRefs.length);
+    const useRefs = [...baseRefs, ...ex.urls];
     // refsOn 传**这一发实际带不带图**：卡都挂了但一张图都没准备成（mat.refs 空）时，
     // "跟随参考图"那句必须跟着消失——图没发还这么说，模型只能瞎猜（铁律五的措辞版）
-    const prompts = framePrompts(p.plot, withFrameRef, ctx.aspect, ctx.materials, useRefs.length > 0);
+    const prompts = framePrompts(plainMentions(p.plot, ctx.materials, ctx.extraRefs), withFrameRef, ctx.aspect, ctx.materials, useRefs.length > 0);
     // 绑定句里的 <图片N> 要跳过承接帧占的那一位，否则模型会去看错的那张图
-    const prompt = (which === "first" ? prompts.first : prompts.last) + mat.bind(withFrameRef ? frameRefs.length : 0);
+    const prompt = (which === "first" ? prompts.first : prompts.last) + mat.bind(withFrameRef ? frameRefs.length : 0) + ex.line;
     let frame: string | null = null;
     try {
       frame = await genImageAsDataUrl(prompt, {

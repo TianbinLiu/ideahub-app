@@ -7,7 +7,7 @@ import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { deckCoverOf, myCards, myDecks, tierBlockReason } from "../../data/account";
-import { VIDEO_TIERS, deriveIssue, fmtTokens, modelLabel, r2vBlockLines, realFaceIssue, segTokens, tierOf } from "../../data/economy";
+import { ONE_IMAGE, VIDEO_TIERS, deriveIssue, fmtTokens, modelLabel, r2vBlockLines, realFaceIssue, segTokens, tierOf } from "../../data/economy";
 import { cardFitNote } from "../segmentGen";
 import TarotCard from "../../components/TarotCard";
 import DeckCard from "../../components/DeckCard";
@@ -22,6 +22,7 @@ import SegPlayer from "../../components/flow/SegPlayer";
 import FuseFrameSheet, { fuseSourcesOf } from "./FuseFrameSheet";
 import CustomFrameSlots from "../../components/flow/CustomFrameSlots";
 import RefStrip from "../../components/flow/RefStrip";
+import FrameEditBox from "../../components/flow/FrameEditBox";
 import { insertMention, uniqueRefName, usableExtraRefs } from "../../data/refMentions";
 import { SegmentRecoverList } from "../../components/flow/SegmentRecoverCards";
 import Icon from "../../components/Icon";
@@ -34,7 +35,7 @@ import {
   rederiveKey,
   useStudio,
 } from "../studioStore";
-import { CUSTOM_MID_MAX, nodeBlank, recastBlocked, nodeDerived, nodeDone, nodeCost, tplOfNode, useFlow, type FlowNode, nodeAnnPlan, annSkipNote, redrawCost, derivesProposals, nodeLocked, deriveCostOf, nodeRefPlan, nodeFramesComeFromDerive } from "../flowStore";
+import { CUSTOM_MID_MAX, nodeBlank, recastBlocked, nodeDerived, nodeDone, nodeCost, tplOfNode, useFlow, type FlowNode, nodeAnnPlan, annSkipNote, redrawCost, derivesProposals, nodeLocked, deriveCostOf, nodeRefPlan, nodeFramesComeFromDerive, nodeEditFrames } from "../flowStore";
 import TierRow from "../../components/flow/TierRow";
 // 选模板弹层借画布那一份（铁律六：市场懒加载/分段组折叠/预览确认全在那一个实现里）。
 // FlowCanvas 不 import 本文件，方向安全（它俩只在 StudioPage/FlowPage 各自的树里出现）
@@ -43,7 +44,7 @@ import { CardPicker, TemplatePicker } from "../../components/flow/FlowCanvas";
 // 回程收口在 hooks/useCastReturn，/studio 与 /flow 都挂了它
 import { castEditorState } from "../../pages/FlowPage";
 // ★ 提示词硬顶与画布同一处（ai 层是唯一出处）——三个数各写各的那段历史见 CLAUDE.md
-import { VIDEO_PROMPT_MAX } from "../../ai";
+import { AI_REAL, VIDEO_PROMPT_MAX } from "../../ai";
 import TokenCost from "../../components/TokenCost";
 import { proposalsCost } from "../../data/economy";
 import { fileToFrameDataUrl } from "../../utils/image";
@@ -1285,6 +1286,7 @@ function ProposalsPanel() {
             carryFrame: carried ? prev?.lastFrame : null,
             firstFrame: chosen?.firstFrame,
             lastFrame: chosen?.lastFrame,
+            extras: extraRefs,
           })}
           fuseAspect={node.aspect}
           switchWarn={(p) =>
@@ -1620,8 +1622,6 @@ function PickedActions({
   const nodeGen = useStudio((s) => s.nodeGen);
   const frameRefining = useStudio((s) => s.frameRefining);
   const proposalRegen = useStudio((s) => s.proposalRegen);
-  const [refine, setRefine] = useState<"first" | "last" | null>(null);
-  const [refineReq, setRefineReq] = useState("");
   const { t } = useLingui();
   /** 另一面（画布）发起的那一炉也算 —— **响应式**读：flowNow 是 getState() 的快照，
    *  拿它当 disabled 的判据的话 busy 变了不会重渲（2026-09-03 自查）。 */
@@ -1642,52 +1642,18 @@ function PickedActions({
 
   return (
     <div className="space-y-1.5 border-t border-slate-700/60 pt-1.5">
-      {/* AI 改图：图生图按一句要求重画某一帧（保画风）。与"上传本地图"是两条不同的路——
-          一条是"让 AI 改成这样"，一条是"就用我这张" */}
+      {/* 改这一帧：一句话改 / 圈着改（一张图的钱）。与"上传本地图"是两条不同的路 —— 一条是"让 AI 改成这样"，一条是"就用我这张"。
+          ★ 2026-10-03（N3）起与画布同一个组件（FrameEditBox）、同一处实现（flowStore.editFrame，经 refineProposalFrame 转发：
+            工坊本地那道 frameRefining 闸还要它来打）；此前这里是工坊独有的一份，只有一句话那一种改法 */}
       {!blockout && (
-      <div className="flex gap-1.5">
-        {(["first", "last"] as const).map((w) => (
-          <button
-            key={w}
-            onClick={() => {
-              setRefine(refine === w ? null : w);
-              setRefineReq("");
-            }}
-            disabled={busy}
-            className={`flex-1 rounded border py-1 text-[10px] disabled:opacity-40 ${
-              refine === w ? "border-cyan-400 bg-cyan-400/10 text-cyan-100" : "border-cyan-400/40 text-cyan-200"
-            }`}
-          >
-            {frameRefining === `${proposal.id}:${w}` ? t`重画中…` : w === "first" ? t`✨ AI 改首帧` : t`✨ AI 改尾帧`}
-          </button>
-        ))}
-      </div>
-      )}
-      {!blockout && refine && (
-        <div className="rounded-lg bg-black/30 p-2">
-          <textarea
-            value={refineReq}
-            onChange={(e) => setRefineReq(e.target.value)}
-            rows={2}
-            maxLength={160}
-            placeholder={t`例：把伞换成红色 / 去掉背景里的路人 / 光线改成黄昏`}
-            className="w-full resize-none rounded border border-slate-600 bg-black/30 px-2 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-cyan-400"
-          />
-          <button
-            onClick={() =>
-              void useStudio
-                .getState()
-                .refineProposalFrame(node.id, proposal.id, refine, refineReq)
-                .then((ok) => {
-                  if (ok) setRefine(null);
-                })
-            }
-            disabled={!refineReq.trim() || busy}
-            className="mt-1.5 w-full rounded-full bg-cyan-500/80 py-1.5 text-xs font-bold text-ink disabled:opacity-40"
-          >
-            {frameRefining ? t`重画中…` : refine === "first" ? t`按要求重画首帧` : t`按要求重画尾帧`}
-          </button>
-        </div>
+        <FrameEditBox
+          {...nodeEditFrames(flowNow.nodes, nodeIdx)}
+          disabled={busy || flowBusy || !!locked}
+          editing={frameRefining?.startsWith(`${proposal.id}:`) ? (frameRefining.endsWith(":first") ? "first" : "last") : null}
+          costLabel={AI_REAL ? fmtTokens(ONE_IMAGE) : null}
+          canMention={usableExtraRefs(node.extraRefs).length > 0}
+          onEdit={(which, req, annotated) => useStudio.getState().refineProposalFrame(node.id, proposal.id, which, req, annotated)}
+        />
       )}
       {/* ★★ 删除本段 —— **共用组件**（确认两下、已出片的说清楚都在 DeleteSegBtn 一处）。
           2026-09-03 两面对照抓到：工坊此前整面没有这颗键，而工坊自己的提示语正指着它
