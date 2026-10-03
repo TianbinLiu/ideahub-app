@@ -274,6 +274,8 @@ export default function PlanBoard({
                         speakers={shotEdit.speakers}
                         canAdd={shotEdit.canAdd}
                         rows={dense ? 4 : 5}
+                        // 这一栏在手机上只有 185px 宽：「镜头 N」与 ✕ 叠到输入框上面，框才有一行 13 个字的宽度（量法见 ShotListEditor 的 stacked）
+                        stacked
                         inputClassName="novel-text w-full resize-none rounded-lg border border-slate-700 bg-black/25 px-2 py-1.5 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-gold/70 disabled:opacity-40"
                       />
                     ) : (

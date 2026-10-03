@@ -12372,6 +12372,10 @@ msgstr "Digital human look"
 msgid "整体交代（人物、地点、氛围；可不写）"
 msgstr "Overall setup (who, where, mood; optional)"
 
+#: src/components/flow/ShotListEditor.tsx
+msgid "整体交代（可不写）"
+msgstr "Overall setup (optional)"
+
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "整体再来一版"
 msgstr "Write a whole new version"

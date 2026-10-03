@@ -12372,6 +12372,10 @@ msgstr "数字人形象"
 msgid "整体交代（人物、地点、氛围；可不写）"
 msgstr "整体交代（人物、地点、氛围；可不写）"
 
+#: src/components/flow/ShotListEditor.tsx
+msgid "整体交代（可不写）"
+msgstr "整体交代（可不写）"
+
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "整体再来一版"
 msgstr "整体再来一版"
