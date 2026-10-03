@@ -13,8 +13,9 @@
 import { AI_REAL, VIDEO_PROMPT_MAX, skillChat } from "../ai";
 import { canAfford, frozenNote, spendTokens } from "../data/account";
 import { CHAT_TURN_TOKENS, clampDuration, fmtTokens } from "../data/economy";
-import { cleanShot, uid, type Card, type Proposal, type ShotSpec, type VideoAspect } from "../types";
-import { newFlowNode, type FlowNode } from "./flowStore";
+import { cleanShot, shotLineOf, uid, type Card, type Proposal, type ShotSpec, type VideoAspect } from "../types";
+import { newFlowNode, nodeDone, tplOfNode, type FlowNode } from "./flowStore";
+import { zhPrompt } from "../ai/prompts/zhPrompt";
 import type { MessageDescriptor } from "@lingui/core";
 import { msg, t } from "@lingui/core/macro";
 
@@ -175,6 +176,237 @@ export async function runScriptToShots(script: string, tierId: string, onStep: (
     throw new Error(t`模型写到一半被截断了（输出超过 ${limit} token 的上限），这一次已经计费——把剧本删短一些或分两次拆再试`);
   }
   return parseShotPlan(raw, tierId);
+}
+
+// ── 官方技能二：「按主题改写全片剧本」（2026-10-02，模板体系 P3a，docs/template-workflow-research.md §七 A）──
+//
+// 按别人的流程做同款铺过来的每一段剧情还是原作的故事；经典配方模板当年靠 `{{主题}}` 一句话换主题解决这件事，
+// 工作流模板没有它 —— 这条技能补上：一句主题 → 模型把每一段的剧情换成你的故事，**段数 / 顺序 / 镜头字段 / 时长 / 卡位不动**，
+// 原 / 新逐段对照、点头才写回。只改**还没出片**的普通段与自定义段（白模段的 plot 是点名句、画面来自模板，跳过）。
+// ★ 与「剧本 → 分镜」同一副骨架（步骤 / 形状检查 / 确认点 / 价签），同一条钱的规矩：请求成功那一拍扣一次，截断 / 形状检查失败不退也不再扣。
+// ★ 落地只改 proposal 的 title / plot（updateProposal），requirement（用户原话）不动，出片 / 报价 / 承接一行不碰。
+
+export const THEME_MIN = 2;
+export const THEME_MAX = 200;
+/** 一发最多改几段：段数再多输出就逼近上限、段与段之间开始互相串，多的分几发（每发各计一次 chat，面板先说清） */
+export const REWRITE_SEGMENTS_PER_CALL = 12;
+/**
+ * 改写那一发的输出上限（token）。每段标题 + 剧情按最长写法（12 + 120 字）约 160 token，12 段 ≈ 1,900，取 2400 与「剧本 → 分镜」同一个数
+ * （那一个是量过的：每段 93~116 token）。★ 真模型跑过之后再按实测收口（memory 里 ark 的三个脾气：重复键 / 不跟语言 / 输出长度）。
+ */
+const REWRITE_MAX_TOKENS = 2400;
+
+export const THEME_REWRITE = {
+  id: "official.theme-rewrite",
+  title: msg`按主题改写全片剧本`,
+  intro: msg`写一句你的主题，模型把每一段的剧情换成你的故事；段数、镜头字段、时长、卡位都不动，逐段对照再写回`,
+  steps: [
+    { kind: "input", title: msg`写主题`, hint: msg`一句话（${THEME_MIN}~${THEME_MAX} 字）：讲谁、讲什么、什么调子。已出片的段与白模段不会改` },
+    { kind: "model", title: msg`改写`, hint: msg`模型逐段重写剧情与标题，段数与顺序不变，人物按挂着的卡来` },
+    { kind: "check", title: msg`形状检查`, hint: msg`段数对不上就整发作废，不写回` },
+    { kind: "confirm", title: msg`你来点头`, hint: msg`原 / 新逐段对照，不想改的段勾掉；点了才写回` },
+    { kind: "apply", title: msg`写回各段`, hint: msg`只改剧情与标题；你的原话、镜头字段、时长、帧都不动` },
+  ] satisfies readonly SkillStep[],
+  confirmAt: ["confirm"] satisfies readonly SkillStepKind[],
+  /** 一发的价签 = 一次 chat 定额；段数超过 REWRITE_SEGMENTS_PER_CALL 要几发就几份（rewriteCalls） */
+  cost: CHAT_TURN_TOKENS,
+} as const;
+
+/** 送去改写的一段（从流水线上摘下来的那几格，不带帧） */
+export interface RewriteSeg {
+  nodeId: string;
+  proposalId: string;
+  /** 在流水线里的位置（从 0 起，给界面编号） */
+  index: number;
+  title: string;
+  plot: string;
+  shot?: ShotSpec;
+  durationSec: number;
+  /** 挂着的卡名（模型按它们写人物） */
+  cards: string[];
+}
+
+export interface RewriteItem {
+  nodeId: string;
+  proposalId: string;
+  index: number;
+  title: string;
+  plot: string;
+}
+
+export interface RewritePlan {
+  items: RewriteItem[];
+}
+
+/** 当前流水线里能改的段：没出片、没在炼、不是白模段（白模段的 plot 是点名句，画面来自模板） */
+export function rewritableSegs(nodes: FlowNode[]): RewriteSeg[] {
+  const out: RewriteSeg[] = [];
+  nodes.forEach((n, index) => {
+    if (nodeDone(n) || n.status === "generating" || tplOfNode(n)?.refVideo) return;
+    const p = n.proposals.find((x) => x.id === n.chosenId) ?? n.proposals[0];
+    if (!p) return;
+    out.push({
+      nodeId: n.id,
+      proposalId: p.id,
+      index,
+      title: p.title,
+      plot: p.plot,
+      ...(p.shot ? { shot: p.shot } : {}),
+      durationSec: p.durationSec,
+      cards: (n.materials ?? []).map((c) => c.name).filter(Boolean),
+    });
+  });
+  return out;
+}
+
+/** 要几发（= 价签要乘几）*/
+export function rewriteCalls(count: number): number {
+  return Math.max(1, Math.ceil(count / REWRITE_SEGMENTS_PER_CALL));
+}
+
+/* i18n-frozen: 编剧模型的系统提示词（规定输出的 JSON 形状），冻结中文 */
+const REWRITE_SYS =
+  `你是编剧。用户给出一个新主题和一条已经分好段的视频流水线（每段的编号、标题、时长、镜头、出场的卡、原剧情）。` +
+  `把每一段的剧情改写成新主题下的故事：段数、顺序与编号不变；每段保留原来镜头字段与时长对应的节奏（远景就写环境，特写就写表情）；` +
+  `人物一律用给出的卡名，没有卡名就按主题起人物；每段剧情 60~120 字，小说式、画面感强、写清人物在做什么，不写镜头术语；标题 12 字内。` +
+  `输出 JSON：{"segments":[{"index":编号,"title":"标题","plot":"剧情"}]}，段数必须与输入相同、编号一一对应。只输出 JSON，不要解释。`;
+
+/** 发给模型的流水线清单（与系统提示词同一份冻结中文，zhPrompt 标签 = 不进目录、不翻） */
+function rewriteBrief(theme: string, segs: RewriteSeg[]): string {
+  const lines = segs.map((s, i) => {
+    const shot = shotLineOf(s.shot);
+    const title = s.title || zhPrompt`（无）`;
+    const plot = s.plot || zhPrompt`（空）`;
+    return (
+      zhPrompt`${i + 1}. 标题：${title} 时长：${Math.round(s.durationSec)}秒` +
+      (shot ? zhPrompt` 镜头：${shot}` : "") +
+      (s.cards.length ? zhPrompt` 卡：${s.cards.join("、")}` : "") +
+      zhPrompt`\n原剧情：${plot}`
+    );
+  });
+  return zhPrompt`新主题：${theme}\n\n流水线（共 ${segs.length} 段）：\n${lines.join("\n")}`;
+}
+
+/**
+ * 模型输出 → 形状检查（不可信输入）。段数必须等于送进去的段数：少一段整发作废（不落地，钱已扣）；
+ * 每段 plot 非空、按 VIDEO_PROMPT_MAX 截。
+ * ★ 方舟 chat 偶尔把数组写成一个对象里重复的键（少了 `},{`，JSON.parse 只留最后一对，memory ark-api-facts）——
+ *   解析出来段数不够时按原文把 `"title"…"plot"` 成对捞回（与 cutProject.linePairs 同一招）。
+ */
+export function parseRewritePlan(raw: string, segs: RewriteSeg[]): RewritePlan {
+  const text = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "").trim();
+  let list: { title: string; plot: string }[] = [];
+  let data: unknown = null;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    const m = text.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
+    if (m) {
+      try {
+        data = JSON.parse(m[0]);
+      } catch {
+        data = null;
+      }
+    }
+  }
+  const arr = Array.isArray(data) ? data : data && typeof data === "object" ? (data as { segments?: unknown }).segments : null;
+  if (Array.isArray(arr)) {
+    list = arr.map((o) => {
+      const r = o && typeof o === "object" ? (o as Record<string, unknown>) : {};
+      return { title: typeof r.title === "string" ? r.title : "", plot: typeof r.plot === "string" ? r.plot : "" };
+    });
+  }
+  if (list.length !== segs.length) {
+    // 重复键那一档：按原文成对捞
+    const pairs: { title: string; plot: string }[] = [];
+    const re = /"title"\s*:\s*"((?:[^"\\]|\\.)*)"\s*,\s*"plot"\s*:\s*"((?:[^"\\]|\\.)*)"/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(text))) pairs.push({ title: unescapeJson(m[1]), plot: unescapeJson(m[2]) });
+    if (pairs.length === segs.length) list = pairs;
+  }
+  if (list.length !== segs.length) {
+    throw new Error(t`模型回的段数对不上（要 ${segs.length} 段，回了 ${list.length} 段），这一次没有写回——再试一次，或把主题写具体些`);
+  }
+  const items: RewriteItem[] = segs.map((s, i) => {
+    const plot = list[i].plot.trim().slice(0, VIDEO_PROMPT_MAX);
+    if (!plot) throw new Error(t`第 ${s.index + 1} 段改写出来是空的，这一次没有写回——再试一次`);
+    const title = list[i].title.trim().slice(0, 40) || s.title;
+    return { nodeId: s.nodeId, proposalId: s.proposalId, index: s.index, title, plot };
+  });
+  return { items };
+}
+
+function unescapeJson(s: string): string {
+  try {
+    return JSON.parse(`"${s}"`) as string;
+  } catch {
+    return s;
+  }
+}
+
+/** 演示构建（没配 ARK_API_KEY）的本地降级：把主题标在每段开头，只为让流程能走通看形状，**不冒充模型**（面板标「演示」） */
+function localRewrite(theme: string, segs: RewriteSeg[]): RewritePlan {
+  return {
+    items: segs.map((s) => ({
+      nodeId: s.nodeId,
+      proposalId: s.proposalId,
+      index: s.index,
+      title: s.title,
+      plot: `【${theme}】${s.plot}`.slice(0, VIDEO_PROMPT_MAX),
+    })),
+  };
+}
+
+/**
+ * 跑「按主题改写」到确认之前：门禁（长度 / 余额）→ 模型（段多分几发）→ 每发成功扣一次钱 → 形状检查。
+ * onStep 报每一步的开始。失败整句 throw（铁律八）；几发里前面成功的那几发照样计费，话里要说清。
+ */
+export async function runThemeRewrite(theme: string, segs: RewriteSeg[], onStep: (kind: SkillStepKind) => void): Promise<RewritePlan> {
+  const th = theme.trim().slice(0, THEME_MAX);
+  if (th.length < THEME_MIN) throw new Error(t`主题太短（至少 ${THEME_MIN} 字）`);
+  if (!segs.length) throw new Error(t`没有可改的段：已出片的段与白模段不会改`);
+  const calls = rewriteCalls(segs.length);
+  const price = CHAT_TURN_TOKENS * calls;
+  if (AI_REAL && !canAfford(price)) {
+    const p = fmtTokens(price);
+    throw new Error(frozenNote() ?? t`改写要 ${p} token，余额不够——去「我的」页充值`);
+  }
+  onStep("model");
+  if (!AI_REAL) {
+    onStep("check");
+    return localRewrite(th, segs);
+  }
+  const items: RewriteItem[] = [];
+  for (let c = 0; c < calls; c += 1) {
+    const chunk = segs.slice(c * REWRITE_SEGMENTS_PER_CALL, (c + 1) * REWRITE_SEGMENTS_PER_CALL);
+    const { text: raw, truncated } = await skillChat(REWRITE_SYS, rewriteBrief(th, chunk), { maxTokens: REWRITE_MAX_TOKENS, timeoutMs: SCRIPT_SHOTS_TIMEOUT_MS });
+    spendTokens(CHAT_TURN_TOKENS); // 这一发请求成功才扣；截断 / 形状检查失败不退也不再扣
+    if (truncated) {
+      const done = c;
+      throw new Error(
+        done > 0
+          ? t`第 ${done + 1} 发写到一半被截断了（前 ${done} 发已经计费、这一发也计费了），这一次没有写回——把主题写短些再试`
+          : t`模型写到一半被截断了，这一次已经计费、没有写回——把主题写短些再试`,
+      );
+    }
+    onStep("check");
+    items.push(...parseRewritePlan(raw, chunk).items);
+  }
+  return { items };
+}
+
+/** 确认之后：把勾选的段写回（只改 title / plot，认 node.id 与 proposal.id）。返回真写回的段数（世界会变：已出片 / 不在了的跳过） */
+export function applyRewrite(plan: RewritePlan, picked: Set<string>, nodes: FlowNode[], update: (nodeId: string, patch: Partial<Proposal>, proposalId: string) => void): number {
+  let n = 0;
+  for (const it of plan.items) {
+    if (!picked.has(it.nodeId)) continue;
+    const node = nodes.find((x) => x.id === it.nodeId);
+    if (!node || nodeDone(node) || node.status === "generating") continue;
+    if (!node.proposals.some((p) => p.id === it.proposalId)) continue;
+    update(it.nodeId, { title: it.title, plot: it.plot }, it.proposalId);
+    n += 1;
+  }
+  return n;
 }
 
 /** 确认之后：把分镜铺成节点（与 flowStore.remakeNodesOf 同一形状：单方案、已挑定、requirement = 剧情）。seed 由调用方经守卫做 */

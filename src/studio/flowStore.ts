@@ -154,6 +154,11 @@ export interface FlowNode {
   requirement?: string;
   /** 本段素材卡快照（工坊带过来的） */
   materials?: Card[];
+  /**
+   * 这一段是从别人公开的制作过程**接**进来的（2026-10-02 P3a「接在后面」）：只管渲染（画布卡上一行「来自 @谁 的流程」）。
+   * 整条照着做的那种署名走 flowStore.remixOf / DraftVideo.remixOf，不走这里 —— 接段的片子同时有自己的段和别人的流程，不署成同款。
+   */
+  fromRecipe?: { videoId: string; author: string };
   videoTier: string;
   /** 本段画幅（竖/横）。整片理应同一个画幅，所以新节点继承上一段的取值 */
   aspect: VideoAspect;
@@ -1168,6 +1173,12 @@ interface FlowState {
   canReplaceNodes: () => boolean;
   /** 返回 false = 被 canReplaceNodes 拒了（原因在 err） */
   seed: (nodes: FlowNode[], opts: { mode: FlowMode; origin: "studio" | "solo"; remixOf?: FlowState["remixOf"] }) => boolean;
+  /**
+   * 把几段**接在末尾**（2026-10-02 P3a：按配方做同款的「接在后面」）。不是整表覆盖（没有东西会丢，不走 useApplyTemplate），
+   * 闸与 addNode 同一组：尾段是白模段拒（appendBlocked）、在途生成拒；**不要求**尾段已出片 —— 那道门是给空段设的
+   * （承接要先有尾帧），接上来的是整条有剧情的段，第一段 chain 置 false。返回 false = 被拒，原因在 err。
+   */
+  appendNodes: (nodes: FlowNode[]) => boolean;
   /** 工作流/简约模式的空白起手：一个待填的节点 */
   seedSolo: (mode: FlowMode) => boolean;
   /** 套模板：按配方的分镜骨架铺节点、挂上模板卡组，之后只等用户写那句话。
@@ -1382,6 +1393,25 @@ export const useFlow = create<FlowState>()((set, get) => ({
       err: t`第 ${i >= 0 ? i + 1 : s.cursor + 1} 段正在生成中（钱已经在花了）——换掉流水线不会把它停下，回包时那笔钱照扣、成片却落在一条已经不存在的流水线上。等它跑完再来`,
     });
     return false;
+  },
+  appendNodes: (incoming) => {
+    const s = get();
+    if (!incoming.length) return false;
+    const blocked = appendBlocked(s.nodes, s.template);
+    if (blocked) {
+      set({ err: blocked });
+      return false;
+    }
+    if (s.busy || s.nodes.some((n) => n.status === "generating")) {
+      set({ err: t`有一段正在生成中，等它跑完再接` });
+      return false;
+    }
+    const base = s.nodes.length;
+    // 每段 tpl 显式表态（对象或 null，不留 undefined —— pinUnstatedTpl 的 ★★）；第一段不承接（前面那段可能还没出片，也可能是别的故事）
+    const nodes = incoming.map((n, i) => ({ ...n, tpl: n.tpl === undefined ? null : n.tpl, chain: i === 0 ? false : n.chain }));
+    set({ nodes: [...s.nodes, ...nodes], err: "" });
+    get().setCursor(base);
+    return true;
   },
   seed: (nodes, opts) => {
     if (!get().canReplaceNodes()) return false;

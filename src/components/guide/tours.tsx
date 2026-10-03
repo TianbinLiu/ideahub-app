@@ -499,7 +499,7 @@ export const TOURS: GuideTour[] = [
           <Trans>
             拿一段参考视频，让 AI 把它变成能反复套用的<b className="font-bold text-slate-100">模板</b>。第一步就是在这里
             <b className="font-bold text-slate-100">选做法</b>：选哪条决定后面几步长什么样，也决定花不花钱、花多少。
-            <b className="font-bold text-slate-100">上传之前</b>随时能点「‹ 换一种做法」回来换（在白模与经典之间换，已经选好的文件要重新选一次）。
+            <b className="font-bold text-slate-100">上传之前</b>随时能点「‹ 换一种做法」回来换。
             传完就定死了——要换只能取消整个重来。
           </Trans>
         ),
@@ -530,21 +530,8 @@ export const TOURS: GuideTour[] = [
           </Trans>
         ),
       },
-      {
-        // 与提取器第三条路线卡同一个叫法（VideoTemplateExtractor 的 routeOpts：「经典配方（不做白模）」，那边的注释也点了这里的名）：改名两处一起改，英文也一样（Classic recipe）
-        // ★ 2026-09-17 订正（未升 version）：原稿写「第三条，也是默认那条」。缺省选中哪条要看入口：从「我的模板」那颗上传键进来
-        //   带 defaultBlockout，探测过了就拨到第一条（VideoTemplateExtractor 挂载 effect 里的 setRoute("aiBlockout")，TemplateShelf 传的 defaultBlockout）；
-        //   只有简约出片页的「提取模板」才停在经典。引导一进这屏就弹，那时 ● 多半亮在第一条上 —— 「也是默认那条」删掉。
-        title: msg`经典配方`,
-        anchor: "extractor-routes",
-        body: (
-          <Trans>
-            第三条：AI 从整段视频里<b className="font-bold text-slate-100">均匀抽</b>几帧看（你只定抽几帧），
-            总结画风质感、运镜与分镜骨架，再提炼可复用的场景／道具卡。帧数越多认得越准，价钱不变。
-            它<b className="font-bold text-slate-100">不出片、不把你的视频传上公网，也是三条里唯一不需要付费套餐的</b>。
-          </Trans>
-        ),
-      },
+      // ★ 2026-10-02 删掉「经典配方」那一步（未升 version，订正不重弹）：那条车道从提取器收掉了（模板体系 P3a，
+      //   docs/template-workflow-research.md §七 F），它唯一的价值「一句话换主题」由工作流模板 + 「按主题改写全片剧本」接管。
       {
         title: msg`白模那两条怎么走`,
         // ★★ 这一步**故意不带锚点**（2026-08-23）：选文件那颗按钮已经搬到第 2 步，

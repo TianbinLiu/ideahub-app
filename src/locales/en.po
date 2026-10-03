@@ -87,6 +87,10 @@ msgstr " · remixed from @{0}"
 msgid " · 正在停止（当前这一段会跑完）"
 msgstr " · Stopping (the current segment will finish)"
 
+#: src/components/flow/ThemeRewriteSheet.tsx
+msgid " · 段数多，分 {calls} 发改，每发各计一次"
+msgstr " · many segments: rewritten in {calls} calls, each billed once"
+
 #: src/components/VideoCardAnnotator.tsx
 #: src/studio/ui/SchemeMarketSheet.tsx
 msgid " · 演示"
@@ -469,6 +473,10 @@ msgstr " (⚠ this segment's request is too long: the last {storyOver, plural, o
 #: src/pages/SupportModelNewPage.tsx
 msgid "（包里没有参数表，看不出来）"
 msgstr " (no parameter list in the bundle, so this can't be checked)"
+
+#: src/components/flow/ThemeRewriteSheet.tsx
+msgid "（另有 {skipped} 段已出片或是白模段，不动）"
+msgstr " ({skipped, plural, one {# other segment is rendered or a blockout segment and stays as is} other {# other segments are rendered or blockout segments and stay as they are}})"
 
 #: src/components/CommentDelete.tsx
 msgid "（它下面的回复会一起删掉）"
@@ -888,6 +896,12 @@ msgstr "{0}/{1} · passed"
 #: src/components/flow/ScriptSkillSheet.tsx
 msgid "{0}/{SCRIPT_MAX} 字 · 铺出来按当前设置：{1}档 · {2}"
 msgstr "{0}/{SCRIPT_MAX} characters · segments will use the current settings: {1} tier · {2}"
+
+#. placeholder {0}: theme.trim().length
+#. placeholder {1}: segs.length
+#: src/components/flow/ThemeRewriteSheet.tsx
+msgid "{0}/{THEME_MAX} 字 · 会改 {1} 段"
+msgstr "{0}/{THEME_MAX} chars · {1, plural, one {# segment will change} other {# segments will change}}"
 
 #. placeholder {0}: slotCards.length
 #: src/studio/ui/projection.tsx
@@ -3344,6 +3358,14 @@ msgstr "One-line summary (optional)"
 msgid "一句话：换成谁来演？例：一只戴墨镜的柴犬"
 msgstr "One sentence: who should play it? e.g. a shiba inu in sunglasses"
 
+#: src/pages/RecipePage.tsx
+msgid "一句话：讲谁、讲什么、什么调子。填了就在铺完之后把每一段的剧情改成你的故事（一次对话的价钱，到画布上再点）"
+msgstr "One sentence: who, what, and the tone. If filled, after laying out you can rewrite every segment's plot into your story (the price of one chat reply; you confirm on the canvas)"
+
+#: src/studio/structuredSkills.ts
+msgid "一句话（{THEME_MIN}~{THEME_MAX} 字）：讲谁、讲什么、什么调子。已出片的段与白模段不会改"
+msgstr "One sentence ({THEME_MIN}–{THEME_MAX} chars): who, what, and the tone. Rendered segments and blockout segments won't change"
+
 #: src/components/support/VoiceMixer.tsx
 msgid "一句话介绍（选填）"
 msgstr "One-line intro (optional)"
@@ -3451,6 +3473,10 @@ msgstr "One segment at a time"
 #: src/components/guide/tours.tsx
 msgid "一段有三种做法"
 msgstr "Three ways to make a segment"
+
+#: src/components/flow/ThemeRewriteSheet.tsx
+msgid "一段都没改（勾选的段可能已经出片或不在了）"
+msgstr "Nothing changed (the ticked segments may have been rendered or removed)"
 
 #: src/studio/studioStore.ts
 msgid "一炉最多放 {max} 张素材卡，先撤下几张再加。"
@@ -4185,6 +4211,10 @@ msgstr "Main material ready (the real-person photo), no need to upload again · 
 #: src/pages/CustomCardPage.tsx
 msgid "主素材已就位（就是那张真人照片），不用再传 · 约 {aiPriceText} token"
 msgstr "Main material ready (the real-person photo), no need to upload again · about {aiPriceText} token"
+
+#: src/studio/structuredSkills.ts
+msgid "主题太短（至少 {THEME_MIN} 字）"
+msgstr "The theme is too short (at least {THEME_MIN} chars)"
 
 #: src/pages/AdminPage.tsx
 msgid "举报"
@@ -5307,6 +5337,10 @@ msgstr "Pick a reason first"
 msgid "先选角"
 msgstr "Cast first"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "先铺一条流水线（做同款 / 拆分镜 / 加段）再改写"
+msgstr "Lay out a pipeline first (remake / split a script / add segments), then rewrite"
+
 #: src/pages/LoginPage.tsx
 msgid "先随便逛逛"
 msgstr "Just browse for now"
@@ -5324,6 +5358,10 @@ msgstr "Free · re-composes the casting line (overwrites your edits)"
 #: src/pages/ProfilePage.tsx
 msgid "免费版"
 msgstr "Free"
+
+#: src/components/flow/ThemeRewriteSheet.tsx
+msgid "全不选"
+msgstr "Select none"
 
 #: src/pages/FeedPage.tsx
 msgid "全屏"
@@ -5362,6 +5400,10 @@ msgstr "Full body"
 #: src/data/promptSchemes.ts
 msgid "全身立绘+面部特写"
 msgstr "Full body + face close-up"
+
+#: src/components/flow/ThemeRewriteSheet.tsx
+msgid "全选"
+msgstr "Select all"
 
 #: src/components/support/AdminTicketsView.tsx
 #: src/components/TemplateShelf.tsx
@@ -5486,6 +5528,7 @@ msgstr "Creators you follow haven't posted anything new"
 #: src/components/cut/CutAgentSheet.tsx
 #: src/components/DownloadSheet.tsx
 #: src/components/flow/ScriptSkillSheet.tsx
+#: src/components/flow/ThemeRewriteSheet.tsx
 #: src/components/GenerationPill.tsx
 #: src/components/IconTapButton.tsx
 #: src/components/UpdateSheet.tsx
@@ -5711,6 +5754,10 @@ msgstr "Write a form of address"
 msgid "写一句"
 msgstr "Write one"
 
+#: src/studio/structuredSkills.ts
+msgid "写一句你的主题，模型把每一段的剧情换成你的故事；段数、镜头字段、时长、卡位都不动，逐段对照再写回"
+msgstr "Write your theme in one sentence and the model turns every segment's plot into your story; segment count, shot fields, durations and card slots stay put, and you compare segment by segment before it is written back"
+
 #: src/components/flow/FlowCanvas.tsx
 #: src/studio/ui/projection.tsx
 msgid "写一句换成谁，例：换成一只戴墨镜的柴犬"
@@ -5737,9 +5784,22 @@ msgstr "Write a deck description: what kind of videos is this deck good for?"
 msgid "写下你的答案…"
 msgstr "Write your answer…"
 
+#: src/studio/structuredSkills.ts
+msgid "写主题"
+msgstr "Write the theme"
+
 #: src/pages/CutPage.tsx
 msgid "写入本地库…"
 msgstr "Saving to local storage…"
+
+#. placeholder {0}: picked.size
+#: src/components/flow/ThemeRewriteSheet.tsx
+msgid "写回 {0} 段"
+msgstr "{0, plural, one {Write back # segment} other {Write back # segments}}"
+
+#: src/studio/structuredSkills.ts
+msgid "写回各段"
+msgstr "Write back"
 
 #: src/studio/cutAutoEdit.ts
 msgid "写旁白"
@@ -6800,6 +6860,10 @@ msgstr "Card faces are done ({noteList})"
 msgid "卡面预览"
 msgstr "Card preview"
 
+#: src/studio/structuredSkills.ts
+msgid "原 / 新逐段对照，不想改的段勾掉；点了才写回"
+msgstr "Compare old and new segment by segment, untick the ones to keep; nothing is written back until you tap"
+
 #: src/pages/PublishPage.tsx
 msgid "原作品"
 msgstr "the original video"
@@ -7552,6 +7616,14 @@ msgstr "Written from the basics and questionnaire only"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "只换这个"
 msgstr "Redo just this"
+
+#: src/studio/structuredSkills.ts
+msgid "只改剧情与标题；你的原话、镜头字段、时长、帧都不动"
+msgstr "Only plots and titles change; your own wording, shot fields, durations and frames stay put"
+
+#: src/components/flow/ThemeRewriteSheet.tsx
+msgid "只改剧情与标题；每段的要求（你的原话）、镜头字段、时长、已画的帧都不动。写回之后照常逐段炼。"
+msgstr "Only plots and titles change; each segment's requirement (your own wording), shot fields, durations and drawn frames stay put. After writing back, render segment by segment as usual."
 
 #: src/pages/CreatePage.tsx
 msgid "只有一个节点：写一句话，挑个时长，直接出一条几秒的短视频。不推方案、不存草稿。"
@@ -8655,8 +8727,8 @@ msgid "存进本机卡片库…"
 msgstr "Saving to this device's card library…"
 
 #: src/components/VideoTemplateExtractor.tsx
-msgid "学画风运镜 · 不传公网 · 不要套餐"
-msgstr "Learns style and camera work · stays off the public internet · no paid plan needed"
+#~ msgid "学画风运镜 · 不传公网 · 不要套餐"
+#~ msgstr "Learns style and camera work · stays off the public internet · no paid plan needed"
 
 #: src/pages/tutor/TutorNewPage.tsx
 msgid "学科"
@@ -9491,6 +9563,11 @@ msgstr "Replaced with the subject-only image"
 msgid "已换成只留主体的这张，出片按它走（卡面封面不跟着换）"
 msgstr "Replaced with the subject-only image. Videos will use it (the card cover stays as it was)."
 
+#. placeholder {0}: nodes.length
+#: src/pages/RecipePage.tsx
+msgid "已接上 {0} 段"
+msgstr "{0, plural, one {# segment appended} other {# segments appended}}"
+
 #: src/components/VideoCardAnnotator.tsx
 #~ msgid "已接上授权素材，存卡时一并绑定"
 #~ msgstr "Authorized asset linked; it will be bound when you save the card"
@@ -9510,6 +9587,10 @@ msgstr "Received — an admin will look into it soon."
 #: src/pages/SupportPersonasPage.tsx
 msgid "已收藏"
 msgstr "Saved"
+
+#: src/components/flow/ThemeRewriteSheet.tsx
+msgid "已改写 {n} 段的剧情；你的原话、镜头字段与时长都没动"
+msgstr "{n, plural, one {Rewrote # segment's plot; your own wording, shot fields and durations are untouched} other {Rewrote # segments' plots; your own wording, shot fields and durations are untouched}}"
 
 #: src/pages/PublishPage.tsx
 msgid "已替换。这条作品现在是{rev}，收藏过它的人会收到通知。"
@@ -10473,6 +10554,10 @@ msgstr "Profile"
 msgid "我的 · 未公开"
 msgstr "Mine · not public"
 
+#: src/pages/RecipePage.tsx
+msgid "我的主题（可选）"
+msgstr "My theme (optional)"
+
 #: src/pages/SupportCreatePage.tsx
 msgid "我的作品 {count}"
 msgstr "My creations {count}"
@@ -10792,8 +10877,8 @@ msgid "抱歉没帮上，要不要转人工？"
 msgstr "Sorry that didn't help. Talk to a human?"
 
 #: src/components/VideoTemplateExtractor.tsx
-msgid "抽几帧总结画风、运镜与分镜骨架，再提炼可复用的场景/道具卡。不出片，也不把视频传上公网。"
-msgstr "Samples a few frames to sum up the art style, camera work and shot outline, then extracts reusable scene / prop cards. No render, and your video isn't put on the public internet."
+#~ msgid "抽几帧总结画风、运镜与分镜骨架，再提炼可复用的场景/道具卡。不出片，也不把视频传上公网。"
+#~ msgstr "Samples a few frames to sum up the art style, camera work and shot outline, then extracts reusable scene / prop cards. No render, and your video isn't put on the public internet."
 
 #: src/components/VideoTemplateExtractor.tsx
 msgid "抽帧 {i}/{n}…"
@@ -10914,8 +10999,12 @@ msgid "拖进度条到想要的画面，再点下面的键"
 msgstr "Drag the progress bar to the frame you want, then tap a button below"
 
 #: src/components/guide/tours.tsx
-msgid "拿一段参考视频，让 AI 把它变成能反复套用的<0>模板</0>。第一步就是在这里<1>选做法</1>：选哪条决定后面几步长什么样，也决定花不花钱、花多少。<2>上传之前</2>随时能点「‹ 换一种做法」回来换（在白模与经典之间换，已经选好的文件要重新选一次）。 传完就定死了——要换只能取消整个重来。"
-msgstr "Take a reference video and let the AI turn it into a <0>template</0> you can use over and over. The first step, right here, is to <1>pick a route</1>: the one you pick decides what the next steps look like, and whether it costs anything and how much. <2>Before you upload</2> you can come back and switch at any time with “‹ Pick a different route” (if you switch between a blockout route and the classic one, a file you've already chosen has to be chosen again). Once the upload finishes the route is locked — to change it you have to cancel and start over."
+msgid "拿一段参考视频，让 AI 把它变成能反复套用的<0>模板</0>。第一步就是在这里<1>选做法</1>：选哪条决定后面几步长什么样，也决定花不花钱、花多少。<2>上传之前</2>随时能点「‹ 换一种做法」回来换。 传完就定死了——要换只能取消整个重来。"
+msgstr "Take a reference video and let the AI turn it into a <0>template</0> you can use over and over. The first step, right here, is to <1>pick a route</1>: the one you pick decides what the next steps look like, and whether it costs anything and how much. <2>Before you upload</2> you can come back and switch at any time with “‹ Pick a different route”. Once the upload finishes the route is locked — to change it you have to cancel and start over."
+
+#: src/components/guide/tours.tsx
+#~ msgid "拿一段参考视频，让 AI 把它变成能反复套用的<0>模板</0>。第一步就是在这里<1>选做法</1>：选哪条决定后面几步长什么样，也决定花不花钱、花多少。<2>上传之前</2>随时能点「‹ 换一种做法」回来换（在白模与经典之间换，已经选好的文件要重新选一次）。 传完就定死了——要换只能取消整个重来。"
+#~ msgstr "Take a reference video and let the AI turn it into a <0>template</0> you can use over and over. The first step, right here, is to <1>pick a route</1>: the one you pick decides what the next steps look like, and whether it costs anything and how much. <2>Before you upload</2> you can come back and switch at any time with “‹ Pick a different route” (if you switch between a blockout route and the classic one, a file you've already chosen has to be chosen again). Once the upload finishes the route is locked — to change it you have to cancel and start over."
 
 #: src/components/VoiceRecorder.tsx
 msgid "拿不到麦克风权限。App 版本 ≤2.29 的安装包没带录音权限，升级到新版后在系统弹窗里点允许；拒绝过的话去系统设置 → 应用 → 启梦 → 权限里打开麦克风。"
@@ -11010,6 +11099,10 @@ msgstr "Remade with @{0}'s process: “{1}”"
 #: src/studio/studioStore.ts
 msgid "按「{q}」翻出 {count} 张。"
 msgstr "Found {count, plural, one {# card} other {# cards}} for “{q}”."
+
+#: src/studio/structuredSkills.ts
+msgid "按主题改写全片剧本"
+msgstr "Rewrite the whole script to a theme"
 
 #: src/components/support/HoldToTalk.tsx
 msgid "按住说话"
@@ -11333,6 +11426,11 @@ msgstr "Queued…"
 #: src/components/PortraitAuthPanel.tsx
 #~ msgid "接上了。"
 #~ msgstr "Linked."
+
+#. placeholder {0}: flowNodes.length
+#: src/pages/RecipePage.tsx
+msgid "接在我现在的 {0} 段后面"
+msgstr "{0, plural, one {Append after my current # segment} other {Append after my current # segments}}"
 
 #: src/studio/canvasAgent.ts
 msgid "接着写这一段的画面"
@@ -11800,6 +11898,31 @@ msgstr "Edit"
 #: src/pages/CustomCardPage.tsx
 msgid "改一次图要 {refinePrice} token，余额不够——去「我的」页充值"
 msgstr "One edit costs {refinePrice} tokens and your balance isn't enough — top up on the “Me” page"
+
+#: src/components/flow/ThemeRewriteSheet.tsx
+msgid "改主题重来"
+msgstr "Change the theme and retry"
+
+#: src/studio/structuredSkills.ts
+msgid "改写"
+msgstr "Rewrite"
+
+#: src/components/flow/ThemeRewriteSheet.tsx
+msgid "改写（{price}）"
+msgstr "Rewrite ({price})"
+
+#: src/components/flow/ThemeRewriteSheet.tsx
+msgid "改写中…"
+msgstr "Rewriting…"
+
+#. placeholder {0}: plan.items.length
+#: src/components/flow/ThemeRewriteSheet.tsx
+msgid "改写了 {0} 段，勾掉不想改的"
+msgstr "{0, plural, one {# segment rewritten — untick any you want to keep} other {# segments rewritten — untick any you want to keep}}"
+
+#: src/studio/structuredSkills.ts
+msgid "改写要 {p} token，余额不够——去「我的」页充值"
+msgstr "Rewriting costs {p} tokens and your balance isn't enough — top up on the Me page"
 
 #: src/components/flow/ScriptSkillSheet.tsx
 msgid "改剧本重拆"
@@ -12294,6 +12417,10 @@ msgstr "Update failed. Try again later"
 msgid "替换原作品"
 msgstr "Replace original video"
 
+#: src/pages/RecipePage.tsx
+msgid "替换我现在的流水线"
+msgstr "Replace my current pipeline"
+
 #. placeholder {0}: posted.droppedMentions
 #: src/components/CommentSheet.tsx
 msgid "有 {0} 个 @ 没能送达（对方不会收到通知）"
@@ -12463,6 +12590,10 @@ msgstr "A segment is generating. Wait for it to finish before attaching or remov
 #: src/studio/flowStore.ts
 msgid "有一段正在生成中，等它跑完再换走向（换走向会挪动后面的段）"
 msgstr "A segment is generating. Wait for it to finish before switching directions (switching moves the segments after it)"
+
+#: src/studio/flowStore.ts
+msgid "有一段正在生成中，等它跑完再接"
+msgstr "A segment is generating; wait for it to finish before appending"
 
 #: src/studio/flowStore.ts
 msgid "有一段正在生成中，等它跑完再改参考图"
@@ -12980,6 +13111,11 @@ msgstr "Camera · drag empty space to orbit, pinch to zoom"
 msgid "材质、颗粒与光影的近距离质感"
 msgstr "close-up texture of materials, grain and light"
 
+#. placeholder {0}: n.fromRecipe.author
+#: src/components/flow/FlowCanvas.tsx
+msgid "来自 @{0} 的流程"
+msgstr "From @{0}'s process"
+
 #: src/studio/quality.ts
 msgid "极致"
 msgstr "Ultra"
@@ -13211,6 +13347,7 @@ msgstr "Check failed"
 
 #: src/components/cut/AutoEditSheet.tsx
 #: src/components/flow/ScriptSkillSheet.tsx
+#: src/components/flow/ThemeRewriteSheet.tsx
 msgid "检查形状…"
 msgstr "Checking structure…"
 
@@ -13248,6 +13385,10 @@ msgstr "Any model"
 msgid "模型写：片头标题、每段一句话、哪几处换了场"
 msgstr "The model writes an opening title, one line per clip, and which seams are scene changes"
 
+#: src/studio/structuredSkills.ts
+msgid "模型写到一半被截断了，这一次已经计费、没有写回——把主题写短些再试"
+msgstr "The model was cut off mid-way; this run was billed and nothing was written back — shorten the theme and try again"
+
 #: src/studio/cutAutoEdit.ts
 msgid "模型写到一半被截断了（片段太多、旁白太长）——删掉几句不需要旁白的片段再试"
 msgstr "The model's answer was cut off partway (too many clips or lines that are too long) — remove a few clips that don't need narration and try again"
@@ -13271,6 +13412,12 @@ msgstr "The model bundle has been detected — go back to continue."
 #: src/studio/live2dUploadStore.ts
 msgid "模型发布失败：{text}"
 msgstr "Model publishing failed: {text}"
+
+#. placeholder {0}: segs.length
+#. placeholder {1}: list.length
+#: src/studio/structuredSkills.ts
+msgid "模型回的段数对不上（要 {0} 段，回了 {1} 段），这一次没有写回——再试一次，或把主题写具体些"
+msgstr "The model returned the wrong number of segments (expected {0}, got {1}); nothing was written back — try again, or make the theme more specific"
 
 #: src/live2d/prefetch.ts
 msgid "模型地址返回的是网页而不是模型文件"
@@ -13328,6 +13475,10 @@ msgstr "The model didn't produce usable narration this time (clip numbers didn't
 #: src/studio/cutAutoEdit.ts
 msgid "模型这一次的回话读不出来（不是约定的格式）——再试一次"
 msgstr "The model's answer couldn't be read this time (not in the agreed format) — try again"
+
+#: src/studio/structuredSkills.ts
+msgid "模型逐段重写剧情与标题，段数与顺序不变，人物按挂着的卡来"
+msgstr "The model rewrites each segment's plot and title; segment count and order stay the same, and characters follow the attached cards"
 
 #. placeholder {0}: node.tpl.title
 #: src/components/recipe/RecipeView.tsx
@@ -13759,6 +13910,10 @@ msgstr "Checking which sign-in methods are available…"
 msgid "正在确认有没有公开…"
 msgstr "Checking whether it is shared…"
 
+#: src/components/VideoTemplateExtractor.tsx
+msgid "正在确认服务器支持哪几种模板…"
+msgstr "Checking which template kinds this server supports…"
+
 #: src/data/account.ts
 #: src/pages/VideoPage.tsx
 msgid "正在确认登录状态，稍等一下再点。"
@@ -13872,6 +14027,10 @@ msgstr "Seg {0} · {1}s"
 msgid "段已删"
 msgstr "Seg deleted"
 
+#: src/studio/structuredSkills.ts
+msgid "段数对不上就整发作废，不写回"
+msgstr "If the segment count doesn't match, the whole run is discarded and nothing is written back"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "段间承接"
 msgstr "Continuity between segments"
@@ -13958,6 +14117,10 @@ msgstr "The description on each row is for <0>people using your template</0>: th
 #: src/studio/ui/NpcDialog.tsx
 msgid "每说一句扣一次"
 msgstr "Charged per message"
+
+#: src/components/flow/ThemeRewriteSheet.tsx
+msgid "比如：一只橘猫在雨夜的便利店打工，温暖、有点好笑"
+msgstr "For example: an orange cat working the night shift at a convenience store in the rain — warm, a little funny"
 
 #: src/components/cut/CutAgentSheet.tsx
 msgid "比如：把片段2放慢，片段3静音"
@@ -14177,6 +14340,10 @@ msgstr "Nothing left to redo"
 #: src/studio/cutAgent.ts
 msgid "没有可去掉的配音"
 msgstr "There's no voiceover to remove"
+
+#: src/studio/structuredSkills.ts
+msgid "没有可改的段：已出片的段与白模段不会改"
+msgstr "No segment to rewrite: rendered segments and blockout segments won't change"
 
 #: src/pages/SettingsStoragePage.tsx
 msgid "没有可清理的中间文件"
@@ -14641,6 +14808,7 @@ msgstr "Playing…"
 #: src/components/flow/FlowCanvas.tsx
 #: src/components/flow/ReviseBox.tsx
 #: src/components/flow/ScriptSkillSheet.tsx
+#: src/components/flow/ThemeRewriteSheet.tsx
 #: src/pages/CutPage.tsx
 #: src/pages/tutor/TutorRunPage.tsx
 #: src/studio/canvasAgent.ts
@@ -15188,6 +15356,10 @@ msgstr "This draft can't be opened right now"
 #: src/studio/studioStore.ts
 msgid "现在换不了这套走向，稍后再试"
 msgstr "Can't switch to this direction right now. Try again later"
+
+#: src/pages/RecipePage.tsx
+msgid "现在接不上（可能有一段正在生成中），稍后再试"
+msgstr "Can't append right now (a segment may be generating); try again later"
 
 #: src/studio/cutAgent.ts
 msgid "现在是演示模式（没有连上模型），只听得懂直白的句式。"
@@ -15955,6 +16127,10 @@ msgstr "Blockout template created"
 msgid "白模模板要先<0>逐个核对角色位</0>，再用它真出一段片，才让发布。 角色位是做模板时 AI 认的；认得不对，核对之前可以在这里让它重新识别（按次收费，价写在键上），核对过就不能再认了。"
 msgstr "Before a blockout template can be published, <0>check its roles one by one</0>, then actually render a segment with it. The roles were detected by the AI when the template was made; if they're wrong, you can have it detect them again here before checking (charged per run, price on the button) — once checked, they can't be re-detected."
 
+#: src/components/VideoTemplateExtractor.tsx
+msgid "白模模板要连上服务器才能做（这台服务器不支持，或现在没联网）。想把一条片的做法分享给别人，发布作品时公开「制作过程」就行。"
+msgstr "Blockout templates need the server (this server doesn't support them, or you're offline). To share how a video was made, just share its process when publishing."
+
 #: src/studio/segmentGen.ts
 msgid "白模段不承接上一段的尾帧（承接帧与参考视频在方舟是互斥场景）——白模模板只有一段"
 msgstr "Blockout segments don't continue from the previous segment's last frame (a continuation frame and a reference video are mutually exclusive on Ark) — a blockout template is a single segment"
@@ -16644,6 +16820,11 @@ msgstr "Step {0} of {1} · {stepLabel}"
 msgid "第 {0} 个图位还没起名字（这个名字会显示在卡片详情页上）"
 msgstr "Slot {0} has no name yet (the name appears on the card details page)"
 
+#. placeholder {0}: done + 1
+#: src/studio/structuredSkills.ts
+msgid "第 {0} 发写到一半被截断了（前 {done} 发已经计费、这一发也计费了），这一次没有写回——把主题写短些再试"
+msgstr "Call {0} was cut off mid-way (the first {done} calls were billed, and so was this one); nothing was written back — shorten the theme and try again"
+
 #. placeholder {0}: i + 1
 #: src/components/support/VoiceMixer.tsx
 msgid "第 {0} 味权重"
@@ -16736,6 +16917,11 @@ msgstr "Drafting failed for segment {0}"
 #: src/studio/flowStore.ts
 msgid "第 {0} 段推演好了三套方案"
 msgstr "Three plans drafted for segment {0}"
+
+#. placeholder {0}: s.index + 1
+#: src/studio/structuredSkills.ts
+msgid "第 {0} 段改写出来是空的，这一次没有写回——再试一次"
+msgstr "Segment {0} came back empty; nothing was written back — try again"
 
 #. placeholder {0}: i + 1
 #: src/studio/flowStore.ts
@@ -17239,8 +17425,8 @@ msgid "第三方登录未完成"
 msgstr "Third-party login wasn't completed"
 
 #: src/components/guide/tours.tsx
-msgid "第三条：AI 从整段视频里<0>均匀抽</0>几帧看（你只定抽几帧）， 总结画风质感、运镜与分镜骨架，再提炼可复用的场景／道具卡。帧数越多认得越准，价钱不变。 它<1>不出片、不把你的视频传上公网，也是三条里唯一不需要付费套餐的</1>。"
-msgstr "The third route: the AI samples a few frames <0>evenly</0> across the whole video (you only choose how many), sums up the look, camera work and shot outline, then extracts reusable scene / prop cards. More frames make it more accurate, and the price stays the same. It <1>renders no video, doesn't put your video on the public internet, and is the only one of the three that doesn't need a paid plan</1>."
+#~ msgid "第三条：AI 从整段视频里<0>均匀抽</0>几帧看（你只定抽几帧）， 总结画风质感、运镜与分镜骨架，再提炼可复用的场景／道具卡。帧数越多认得越准，价钱不变。 它<1>不出片、不把你的视频传上公网，也是三条里唯一不需要付费套餐的</1>。"
+#~ msgstr "The third route: the AI samples a few frames <0>evenly</0> across the whole video (you only choose how many), sums up the look, camera work and shot outline, then extracts reusable scene / prop cards. More frames make it more accurate, and the price stays the same. It <1>renders no video, doesn't put your video on the public internet, and is the only one of the three that doesn't need a paid plan</1>."
 
 #: src/components/guide/tours.tsx
 msgid "第二条：这段<0>已经是白模 / 人偶片</0>（你自己做好的预演片）。 不出片、不换人，只认出画面里有谁、量出他们在哪，<1>便宜两个量级</1>。 这两条我们分不出来，只能你自己选：该出片的没出，模板里全是真人；不该出片的出了，白花一次钱、画质还被二次白模化。"
@@ -17548,12 +17734,12 @@ msgid "终点 ＝当前帧"
 msgstr "End = current frame"
 
 #: src/components/guide/tours.tsx
-msgid "经典配方"
-msgstr "Classic recipe"
+#~ msgid "经典配方"
+#~ msgstr "Classic recipe"
 
 #: src/components/VideoTemplateExtractor.tsx
-msgid "经典配方（不做白模）"
-msgstr "Classic recipe (no blockout)"
+#~ msgid "经典配方（不做白模）"
+#~ msgstr "Classic recipe (no blockout)"
 
 #: src/data/templates.ts
 msgid "经典配方模板首发只存本机，不需要登记到服务器"
@@ -21262,6 +21448,10 @@ msgstr "The author deleted this template. Refresh the list to see others."
 #: src/components/support/VoiceMarket.tsx
 msgid "这条模板没有公开，只有作者自己能用。"
 msgstr "This template isn't public; only its author can use it."
+
+#: src/components/flow/ThemeRewriteSheet.tsx
+msgid "这条流水线没有可改的段：已出片的段与白模段不会改。"
+msgstr "This pipeline has no segment to rewrite: rendered segments and blockout segments won't change."
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "这条流水线还没有段——对下面的输入条说「{addExample}」"

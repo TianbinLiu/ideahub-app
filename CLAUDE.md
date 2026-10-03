@@ -458,6 +458,10 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   **P2（同日）**：工作流模板**就是**上了架的公开配方（`listed`，必须挂在已发布作品上），货架 `components/WorkflowShelf`、模板页 = 制作过程页；
   上架只许「公开 + 不过期」（服务端整句拒）。**被公开流程引用的段模板只能下架**：服务端把它退役成 `status: "retired"`（不进市场、素材不回收、
   所有人仍能读到并用它出片），App 把 `retiredRefs` 说成人话（`templates.retiredNote`）、条目留着不删 —— 别把 retired 当成 blocked 或 pending 处理。
+  **P3a（同日，主人「全认」）**：官方结构化技能二「按主题改写全片剧本」（`structuredSkills.THEME_REWRITE`，与「剧本 → 分镜」同一副骨架：段数不变 /
+  形状检查 / 原新对照 / 一次 chat；只改没出片的普通段，白模段不动；写回只动 title / plot，requirement 不动）；两条入口（画布「/」面板、做同款选角一屏
+  的「我的主题」—— 经导航 state 带到 `FlowPage` → `FlowCanvas.autoTheme`，读一次就清）。「接在现有流水线后面」走 `flowStore.appendNodes`（只接末尾、
+  不写 remixOf、段上留 `fromRecipe`）。提取器的「经典配方」车道已收（`VideoTemplateExtractor.routeOpts` 只剩白模两条，`"classic"` 分支留给本机存量）。
 - **已发布作品的「回炉重做」存 `data/projects.ts`，不进草稿库**（2026-09-07）：发布（以及每一次
   回炉）成功后把当时那份工坊画布瘦身成**只含永久 URL** 的 JSON PUT 进服务端，编辑页那颗
   「🛠 回炉重做」取回来接着改，再走 `PATCH /videos/:id` 带 `segments` + `baseRevision` 换掉内容

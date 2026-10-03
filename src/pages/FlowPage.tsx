@@ -16,7 +16,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import PageHeader from "../components/PageHeader";
 import ReviseBar from "../components/ReviseBar";
-import { Link, useNavigate } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 import { Trans, useLingui } from "@lingui/react/macro";
 import AnnStrip from "../components/flow/AnnStrip";
 import InfoTip from "../components/InfoTip";
@@ -965,6 +965,19 @@ function NodeScreen({
 
 export default function FlowPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  /**
+   * 按配方做同款时填的「我的主题」（RecipePage 经导航 state 带来，P3a）：只在挂载时读一次，读完把 state 清掉 ——
+   * 不清的话返回再进这一页、或这一页重挂（去挂卡编辑页再回来），面板会再弹一次。
+   */
+  const [autoTheme] = useState<string>(() => {
+    const st = location.state as { themeRewrite?: unknown } | null;
+    return st && typeof st.themeRewrite === "string" ? st.themeRewrite : "";
+  });
+  useEffect(() => {
+    if (autoTheme) navigate(location.pathname + location.search, { replace: true, state: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 只在挂载那一拍清一次
+  }, []);
   const { t } = useLingui();
   /**
    * 简约模式左上角那枚返回：**回到来的那一页**（模板列表 / 模板详情 / 首页「做同款」），
@@ -1543,6 +1556,7 @@ export default function FlowPage() {
              提炼卡组、清空流水线、跳剪辑页，在画布里另写一份必然与这边分叉（铁律六）。
              画布只借按钮与状态，与 onCast 同一个套路。 */
           draft={{ state: fa.saveState, onSave: fa.saveNow }}
+          autoTheme={autoTheme}
           finish={{
             allDone: fa.allDone,
             finalizing: fa.finalizing,
