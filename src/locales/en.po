@@ -171,6 +171,8 @@ msgstr ", and this run has already been charged"
 #. 列举几个名字时的分隔符
 #. 列举几个名字时的分隔符
 #. 列举几个名字时的分隔符
+#. 列举几个名字时的分隔符
+#. 列举几个名字时的分隔符
 #. 列举几个图位名 / 还缺的几项时的分隔符
 #. 列举几个文件名 / 动作组 / 表情名时的分隔符
 #. 列举几个段号时的分隔符（第 1、3 段）
@@ -471,8 +473,12 @@ msgid "（⚠ 要求太长，末尾 {plotOver} 字没能发出去——时序点
 msgstr " (⚠ the request is too long: the last {plotOver, plural, one {# character} other {# characters}} couldn't be sent — the timing lines take up {0} characters)"
 
 #: src/studio/segmentGen.ts
-msgid "（⚠ 这一段的要求太长，末尾 {storyOver} 字没能发出去：提示词上限 {VIDEO_PROMPT_MAX} 字，其中素材设定与形象点名句占了 {reserved} 字——把要求写短些，或少挂一张卡）"
-msgstr " (⚠ this segment's request is too long: the last {storyOver, plural, one {# character} other {# characters}} couldn't be sent — the prompt limit is {VIDEO_PROMPT_MAX} characters, and asset details and casting lines take up {reserved} of them; shorten the request or attach one fewer card)"
+msgid "（⚠ 这一段的要求太长，末尾 {storyOver} 字没能发出去：提示词上限 {cap} 字，其中素材设定与形象点名句占了 {reserved} 字——把要求写短些，或少挂一张卡）"
+msgstr " (⚠ this segment's request is too long: the last {storyOver, plural, one {# character} other {# characters}} couldn't be sent — the prompt limit is {cap} characters, and asset details and casting lines take up {reserved} of them; shorten the request or attach one fewer card)"
+
+#: src/studio/segmentGen.ts
+#~ msgid "（⚠ 这一段的要求太长，末尾 {storyOver} 字没能发出去：提示词上限 {VIDEO_PROMPT_MAX} 字，其中素材设定与形象点名句占了 {reserved} 字——把要求写短些，或少挂一张卡）"
+#~ msgstr " (⚠ this segment's request is too long: the last {storyOver, plural, one {# character} other {# characters}} couldn't be sent — the prompt limit is {VIDEO_PROMPT_MAX} characters, and asset details and casting lines take up {reserved} of them; shorten the request or attach one fewer card)"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "（包里没有参数表，看不出来）"
@@ -1715,6 +1721,10 @@ msgstr "“{name}” is still empty — add a few cards to it in the Workshop."
 msgid "「{names}」做不了按参考视频出片（白模模板复刻、返修都属于这一类）——这类出片只有「{openLabel}」（{openModel}）做得到"
 msgstr "“{names}” can't render from a reference video (blockout template remakes and revisions both work this way) — only “{openLabel}” ({openModel}) can"
 
+#: src/studio/segmentGen.ts
+msgid "「{names}」的声音样本这次没带上（这一档的参考音频合计最长 {capSec} 秒）——这几位的台词音色由模型定；把样本剪短些就能都带上"
+msgstr "The voice sample for {names} wasn't sent this time (on this tier all reference audio together can be at most {capSec} seconds) — the model picks the voice for their lines; trim the samples and they will all fit"
+
 #: src/data/economy.ts
 msgid "「{names}」这一档暂未开放白模模板出片，等开放后再来"
 msgstr "Blockout template videos aren't available on “{names}” yet — check back later"
@@ -1912,6 +1922,10 @@ msgstr "+ Add mannequin"
 msgid "＋ 参考图"
 msgstr "＋ Reference"
 
+#: src/components/flow/ShotListEditor.tsx
+msgid "＋ 台词"
+msgstr "＋ Line"
+
 #: src/components/blockout/BoxFramePicker.tsx
 msgid "＋ 在这里切一刀"
 msgstr "+ Cut here"
@@ -1971,6 +1985,11 @@ msgstr "+ Create your own"
 #: src/studio/ui/projection.tsx
 msgid "＋ 选卡片"
 msgstr "＋ Pick cards"
+
+#. placeholder {0}: script.shots.length
+#: src/components/flow/ShotListEditor.tsx
+msgid "＋ 镜头（{0}/{SHOT_MAX}）"
+msgstr "＋ Shot ({0}/{SHOT_MAX})"
 
 #: src/components/flow/RefFrameSheet.tsx
 msgid "＋中间帧（{midCount}/{midMax}）"
@@ -2847,6 +2866,10 @@ msgstr "🔇 {idleNames} has a voice sample, but the prompt has no dialogue — 
 msgid "🔇 {idleNames} 带着声音样本，但这一段的出片方式带不了参考音频（台词仍会配音，音色由模型定）。"
 msgstr "🔇 {idleNames} has a voice sample, but the way this segment is rendered can't carry reference audio (dialogue is still dubbed, in a voice the model picks)."
 
+#: src/components/flow/RefStrip.tsx
+msgid "🔇 {overNames} 的声音样本这次带不上：这一档的参考音频合计最长 {overCap} 秒。把样本剪短些，或少挂一张带声音的卡。"
+msgstr "🔇 The voice sample for {overNames} can't be sent this time: on this tier all reference audio together can be at most {overCap} seconds. Trim the samples, or attach one fewer card with a voice."
+
 #: src/components/BranchPlayer.tsx
 #: src/components/flow/SegPlayer.tsx
 #: src/components/SegmentPlayer.tsx
@@ -3576,6 +3599,10 @@ msgstr "Up to {EXTRA_REF_MAX} extra reference images per segment"
 #: src/studio/flowStore.ts
 msgid "一段最多 {EXTRA_REF_MAX} 张临时参考图（它们与帧、卡片形象图共用同一份参考图额度）——先删一张再加"
 msgstr "Up to {EXTRA_REF_MAX} extra reference images per segment (they share the reference-image budget with frames and card images) — remove one before adding another"
+
+#: src/components/flow/ShotListEditor.tsx
+msgid "一段最多 {SHOT_MAX} 个镜头（再多每个镜头只剩一两秒，模型顾不过来）"
+msgstr "Up to {SHOT_MAX} shots per segment (any more and each shot gets only a second or two — too much for the model)"
 
 #: src/components/guide/tours.tsx
 msgid "一段有三种做法"
@@ -5767,8 +5794,8 @@ msgstr "Make another"
 
 #: src/components/flow/FlowCanvas.tsx
 #: src/studio/ui/projection.tsx
-msgid "再写进去就超过 {VIDEO_PROMPT_MAX} 字的上限了——先删几个字"
-msgstr "Adding this would go over the {VIDEO_PROMPT_MAX}-character limit — delete a few characters first"
+msgid "再写进去就超过 {promptMax} 字的上限了——先删几个字"
+msgstr "Adding this would go over the {promptMax}-character limit — delete a few characters first"
 
 #: src/components/TagInput.tsx
 msgid "再加一个"
@@ -6404,6 +6431,10 @@ msgstr "Delete this deck"
 msgid "删掉这个角色位"
 msgstr "Delete this role slot"
 
+#: src/components/flow/ShotListEditor.tsx
+msgid "删掉这个镜头"
+msgstr "Remove this shot"
+
 #: src/pages/CardDetailPage.tsx
 msgid "删掉这张"
 msgstr "Delete this image"
@@ -6547,6 +6578,10 @@ msgstr "Others can find and download it. You can make it private again at any ti
 #: src/pages/NotificationsPage.tsx
 msgid "别人赞你、评论你、回复你、在评论里 @ 你，或平台发来通知时会出现在这里"
 msgstr "Likes, comments, replies, @mentions in comments and platform notices will show up here"
+
+#: src/components/flow/ShotListEditor.tsx
+msgid "别的人（自己写名字）"
+msgstr "Someone else (type the name)"
 
 #: src/pages/CutPage.tsx
 msgid "到这里结束 ⇥"
@@ -7949,6 +7984,14 @@ msgstr "Dialogue no longer uses the voice sample (“{0}” renders without soun
 #: src/components/flow/TierRow.tsx
 msgid "台词不再带音色样本（「{0}」档暂无配音）"
 msgstr "Dialogue no longer uses the voice sample (“{0}” has no voiceover yet)"
+
+#: src/components/flow/ShotListEditor.tsx
+msgid "台词写在引号里才会被配音；带 🔊 的卡按它自己的声音配（声音样本在卡片页上传或现场录）。"
+msgstr "Only text inside quotes is dubbed; cards marked 🔊 speak in their own voice (upload or record the voice sample on the card page)."
+
+#: src/components/flow/ShotListEditor.tsx
+msgid "台词写在引号里才会被配音。想让某个人用固定的声音说话：给这一段挂上他的人物卡，并在卡片页给卡录一段声音。"
+msgstr "Only text inside quotes is dubbed. To have someone speak in a fixed voice, attach their character card to this segment and record a voice sample for the card on the card page."
 
 #: src/pages/CutPage.tsx
 msgid "右上角可以直接去发布。想再改片段、圈选或配乐，就回到合并之前接着剪——原来的时间轴都还在，改完重新合一次（合成不花钱）。"
@@ -12325,6 +12368,10 @@ msgstr "Digital human persona"
 msgid "数字人形象"
 msgstr "Digital human look"
 
+#: src/components/flow/ShotListEditor.tsx
+msgid "整体交代（人物、地点、氛围；可不写）"
+msgstr "Overall setup (who, where, mood; optional)"
+
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "整体再来一版"
 msgstr "Write a whole new version"
@@ -15199,8 +15246,12 @@ msgid "灰"
 msgstr "gray"
 
 #: src/components/flow/CameraChips.tsx
-msgid "灰着的运镜插进去会超过 {VIDEO_PROMPT_MAX} 字的上限，想用就先删几个字"
-msgstr "The grayed-out moves would push the text past the {VIDEO_PROMPT_MAX}-character limit. Delete a few words to use them."
+#~ msgid "灰着的运镜插进去会超过 {VIDEO_PROMPT_MAX} 字的上限，想用就先删几个字"
+#~ msgstr "The grayed-out moves would push the text past the {VIDEO_PROMPT_MAX}-character limit. Delete a few words to use them."
+
+#: src/components/flow/CameraChips.tsx
+msgid "灰着的运镜插进去会超过字数上限，想用就先删几个字"
+msgstr "The grayed-out moves would push the text past the character limit. Delete a few words to use them."
 
 #: src/studio/studioStore.ts
 msgid "炉子炸了……{reason}"
@@ -19522,6 +19573,10 @@ msgstr "Who can watch"
 msgid "谁能看到"
 msgstr "Who can see this"
 
+#: src/components/flow/ShotListEditor.tsx
+msgid "谁说"
+msgstr "Speaker"
+
 #: src/components/guide/tours.tsx
 msgid "谁赞了你、谁关注了你"
 msgstr "Who liked you, who followed you"
@@ -21061,6 +21116,10 @@ msgstr "This video can't be decoded here (blockout templates only accept MP4 / M
 msgid "这个链接里只有名字，没法向服务器确认是谁 · 下面只是本次刷到的那些"
 msgstr "This link only has a name, so the server can't confirm who it is · below are only the ones seen this session"
 
+#: src/components/flow/ShotListEditor.tsx
+msgid "这个镜头：谁、做什么、镜头怎么动"
+msgstr "This shot: who, doing what, how the camera moves"
+
 #. placeholder {0}: categoryLabel(handoffHint.category)
 #: src/pages/SupportPage.tsx
 msgid "这个问题需要人工处理（{0}）。转人工会把这段对话一起交给客服，你不用再讲一遍。"
@@ -21530,6 +21589,10 @@ msgstr "This card is declared as a real person, so it can't be shared to the Wor
 msgid "这张卡声明过是真实人物，不能拿它的产出当方案示例图（示例是给所有人看的）"
 msgstr "This card is marked as a real person, so its output can't be used as a scheme example image (examples are shown to everyone)"
 
+#: src/components/flow/ShotListEditor.tsx
+msgid "这张卡带着声音样本：台词会按它的声音配音"
+msgstr "This card has a voice sample: its lines are dubbed in that voice"
+
 #: src/components/WorkshopShareBar.tsx
 msgid "这张卡挂的是第三方版权模型，未获授权前不能分享出去。"
 msgstr "This card uses a third-party copyrighted model and can't be shared without authorization."
@@ -21537,6 +21600,10 @@ msgstr "This card uses a third-party copyrighted model and can't be shared witho
 #: src/components/WorkshopShareBar.tsx
 msgid "这张卡是装来的，不能再分享一遍——广场上显示的始终是最早分享那份。想让别人看到你改过的版本，用它做一张自己的卡。"
 msgstr "This card was installed from someone else and can't be shared again; the Workshop always shows the first shared copy. To share your edited version, make your own card from it."
+
+#: src/components/flow/ShotListEditor.tsx
+msgid "这张卡没有声音样本：台词会配音，音色由模型定"
+msgstr "This card has no voice sample: its lines are dubbed in a voice the model picks"
 
 #: src/ai/real.ts
 msgid "这张卡没有能进模型的形象图（都标成了「仅展示」或读不出来）——先在上面挂一张「出片用」的图"
@@ -22867,6 +22934,11 @@ msgstr "Locks {0}."
 #: src/types.ts
 msgid "锁脸"
 msgstr "Lock face"
+
+#. placeholder {0}: i + 1
+#: src/components/flow/ShotListEditor.tsx
+msgid "镜头 {0}"
+msgstr "Shot {0}"
 
 #: src/types.ts
 msgid "镜头：{joined}"

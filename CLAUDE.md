@@ -72,7 +72,8 @@ src/
                agent 输入条 + 四个 portal 弹层：方案台/成片回看/选卡/选模板）、
                `DeleteSegBtn.tsx`（删段确认，与 FlowPage 那份共用一处实现）、
                `RefStrip.tsx`（参考清单：出片时模型会收到哪些图、各是第几张 + 临时参考图 + 点图写进句子，画布与工坊方案台共用）、
-               `FrameEditBox.tsx`（改这一帧：一句话改 / 圈着改，画布自定义车道、画布方案台、工坊方案台三处共用）；
+               `FrameEditBox.tsx`（改这一帧：一句话改 / 圈着改，画布自定义车道、画布方案台、工坊方案台三处共用）、
+               `ShotListEditor.tsx`（分镜表：一段写几个镜头 + 台词，画布自定义车道与两面方案台共用）；
                `support/` = AI 客服页专用：`SupportStage`（Live2D 舞台，按 modelUrl 换装）、`HoldToTalk`、
                `VoiceSheet`（声音面板，三页：单音色 / 混音 / 声音市场；存服务端，官网同步）、
                `VoiceMixer`（混音调配 + 发布成模板）、`VoiceMarket`（声音市场列表：试听 / 设为我的声音 / 点赞 / 删自己的）、
@@ -100,7 +101,9 @@ src/
                调模型 / 算钱 / 说人话在 `studio/cutAgent.ts`，面板 `components/cut/CutAgentSheet.tsx`）；
                改法被拒时的那句话只有一份 `studio/cutIssues.ts`；
                `refMentions.ts` = 参考清单的「@ 点名」与临时参考图的规则（认法 / 编译 / 名字 / 系统兜底句），纯函数零依赖，
-               构建里 `scripts/check-ref-mentions.mjs` 实跑
+               构建里 `scripts/check-ref-mentions.mjs` 实跑；
+               `shotScript.ts` = 分镜表的读写规则（「镜头1：…」怎么认、怎么写回、出片前收空镜头、台词骨架），同样零依赖，
+               构建里 `scripts/check-shot-script.mjs` 实跑
   hooks/
   mock/        无后端时的假数据
   pages/       路由页面（hash 路由）；`RecipePage` = 制作过程（/video/:id/recipe：四档结局 + 分镜 + 选角一屏 + 按配方做同款，
@@ -429,6 +432,16 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   ④ **凡是画设定帧的路都带临时参考图**（推演三套 `real.generateProposals`、两面的「重画这一套」、出片前补画）：带哪几张、怎么说只问 `refMentions.drawExtraRefs`，
   句子先过 `plainMentions`。新加一条画帧的路时别漏 —— 漏了的症状是「帧照着另一个样子画，出片时帧与参考图打架」，零报错。
   成片回看的「📸 截这一帧」（`SegPlayer`）写入只走 `setFrame` / `addExtraRef`，去处只给还没出片、没在炼、不是白模的段。
+- **分镜表（一段多镜头 + 台词）是那段文字的结构化编辑，不另存结构**（N2，2026-10-03；出处与取舍在 docs/node-modes-libtv-alignment.md §六）。五条规矩：
+  ① **文字是唯一真身**：读（`parseShots`）/ 写（`joinShots`）/ 出片前收空镜头（`packShots`）只在 `data/shotScript`，一个镜头时发出去的字与没用分镜表时逐字节相同。
+  别给 `Proposal` 加「镜头数组」之类的字段 —— 草稿、做同款、公开配方、对画布说话存的读的都是这段文字，加了就是第二份真相。
+  ② **不让人填每个镜头的秒数**：官方提示词指南明说模型对精确时间的支持不稳定（LibTV 的作者会写，我们以官方为准）。
+  ③ **提示词上限按档位问 `economy.promptMaxOf`**（2.x 两档 500 = 官方建议值，其余与白模段 400）：输入框、点图 / 运镜的长度闸、`segmentGen` 给正文留位、
+  `ai/real` 最后那一刀读的都是它。别再直接拿 `VIDEO_PROMPT_MAX` 当「所有档的上限」（它现在只是 1.x 两档与白模的数）。
+  ④ **台词要按人物卡的声音配，靠的是已有的两样**：卡的声音样本（`data/cardVoice`，卡片页上传 / 录音）+ 出片时按卡名点名音色（`segmentGen.voiceRefsFor`）。
+  分镜表只负责把话写成 `凛说：“……”`（说话人名字 = 卡名，引号内才会被配音）。声音样本**合计时长**有协议上限（高清 15 秒、电影级 30 秒，
+  `economy.refAudioSecOf`）：装哪几张只问 `segmentGen.fitVoices`，装不下的在参考清单里提前点名 —— 以前只数张数，三张各 8 秒就整发被拒。
+  ⑤ 直接发给视频模型的图按 `utils/image.VIDEO_REF_WINDOW` 裁（比例 [0.4, 2.5]、短边 ≥300，比出图模型的窗口窄）；卡片形象图上传还没按它收紧（记在那个常量上）。
 - **「这一段用哪个模板」是三态，且必须当场表态**（`FlowNode.tpl`）：`undefined` = 还没表态
   （退回 store 级 `template`，老草稿与单模板流靠它）、`null` = 明确没有、对象 = 这一段自己的
   快照。读**只准走 `tplOfNode`**。而 store 级那份会随 `setCursor` 换成**当前段**的快照 ——
@@ -830,7 +843,7 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 - [`docs/ONBOARDING.md`](docs/ONBOARDING.md) — 从零到能跑
 - [`docs/api-contract.md`](docs/api-contract.md) — 与 server 的接口契约（三仓共享）
 - [`docs/play-store-checklist.md`](docs/play-store-checklist.md) — 上架检查单
-- [`docs/node-modes-libtv-alignment.md`](docs/node-modes-libtv-alignment.md) — 工作流节点「自选卡片 / 自定义」对齐 LibTV 节点：调研、方案、主人拍板与落地记录（N1 参考清单 + @ 点名、N3 关键画面可改可截已落地，含与已有「圈图改图」的对比；N2 分镜表待做）
+- [`docs/node-modes-libtv-alignment.md`](docs/node-modes-libtv-alignment.md) — 工作流节点「自选卡片 / 自定义」对齐 LibTV 节点：调研、方案、主人拍板与落地记录（N1 参考清单 + @ 点名、N3 关键画面可改可截、N2 分镜表都已落地；含与已有「圈图改图」的对比、官方文档查到的几条协议事实、等主人定的两件事）
 - [`docs/app-distribution.md`](docs/app-distribution.md) — 发包给别人装、应用内更新怎么走
 - [`docs/signing-keystore.md`](docs/signing-keystore.md) — 签名 keystore 换机 / 新 worktree 怎么恢复
 - [`public/perch/README.md`](public/perch/README.md) — 角色动画资源怎么生成、踩过什么坑

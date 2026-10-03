@@ -24,6 +24,8 @@ import {
   CARD_SLOTS,
   CARD_TYPES,
   MAX_CARD_VIEWS,
+  VIDEO_PROMPT_MAX,
+  VIDEO_PROMPT_MAX_V2,
   VideoSegment,
   type Card,
   type CardSlot,
@@ -435,6 +437,28 @@ export function modelLabel(modelId: string): string {
  * ★ 报价与出片必须用同一个函数：只在出片那侧夹一下的话，用户看到的是 3 秒的价、
  *   拿到的是 4 秒的片，差 33% 且无从察觉。
  */
+/**
+ * 这一档的出片提示词上限（字符）—— **唯一判定**（输入框的 maxLength、点图 / 运镜芯片的长度闸、segmentGen 给正文留位、
+ * ai/real 最后那一刀都问它）。收参考图的两档（2.x：高清 / 电影级）= 官方建议值 500，其余 = 400（理由见 types.VIDEO_PROMPT_MAX_V2）。
+ * ★ 按**能力**判（refImg）不按档位 id 判：新加一档 2.x 模型时不用回来改这里。
+ */
+export function promptMaxOf(tierId: string | undefined): number {
+  return tierOf(tierId).refImg ? VIDEO_PROMPT_MAX_V2 : VIDEO_PROMPT_MAX;
+}
+
+/**
+ * 这一档一次最多带多长的**参考音频**（所有声音样本加起来，秒）。null = 这一档不出声 / 不收参考音频。
+ * ★ 出处（2026-10-03 查，官方「创建视频生成任务」文档音频一节）：Seedance 2.0 系列单段 2~15 秒、最多 3 段、**合计不超过 15 秒**；
+ *   Seedance 2.5 单段 2~30 秒、最多 10 段、合计不超过 30 秒。此前只按「最多 3 张带声音的卡」数，没看合计 ——
+ *   三张卡各录 8 秒就是 24 秒，高清档整发 400（不花钱，但出不了片，而那句英文报错里看不出是声音样本的事）。
+ * ★ 2.5 的张数上限我们仍按 3 张用（音色点名句只实测到 3 个人），这里只管合计秒数。
+ */
+export function refAudioSecOf(tierId: string | undefined): number | null {
+  const t = tierOf(tierId);
+  if (!t.audio || !t.refImg) return null;
+  return (t.refImagesMax ?? 0) > 9 ? 30 : 15;
+}
+
 export function clampDuration(durationSec: number, tierId?: string): number {
   const t = tierOf(tierId);
   // 按发计价的档只有价表里那几个整档时长（海螺 768P 就是 6s/10s，不是我们砍的）：

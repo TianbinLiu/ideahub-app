@@ -548,6 +548,17 @@ export const CARD_SLOTS: Record<CardType, readonly CardSlot[]> = {
  */
 export const VIDEO_PROMPT_MAX = 400;
 
+/**
+ * 2.x 两档（高清 / 电影级）的提示词上限。哪一档用哪个数只问 `economy.promptMaxOf`。
+ *
+ * ★ 出处（2026-10-03 查，官方「创建视频生成任务」文档 content.text 一节）：「中文提示词不超过 500 字，英文提示词不超过 1000 词。
+ *   字数过多易导致信息分散，模型可能忽略细节」—— 是**建议值**不是协议硬顶，所以我们顶到建议值为止、不再往上放。
+ *   上面那个 400 是 1.x 两档时期定的（2.x 没另量过）；分镜表（一段几个镜头 + 台词）在 400 里放不下：
+ *   系统自己的点名句、时序句、素材设定就要占掉两三百字。
+ * ★ 白模复刻段仍按 400 算（它的预算在 studio/blockoutPrompt 里按 400 反推过，没必要跟着动）。
+ */
+export const VIDEO_PROMPT_MAX_V2 = 500;
+
 /** 身份句上限。60 是按提示词预算反推的：8 张卡 × 60 字 = 480 已超 VIDEO_PROMPT_MAX，
  *  所以出片侧只给**人物卡**用整句，其余卡种仍是短句（见 segmentGen.materialText） */
 export const ID_LINE_MAX = 60;

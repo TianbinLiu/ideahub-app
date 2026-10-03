@@ -22,6 +22,7 @@ import { fmtTokens } from "../../data/economy";
 import { fileToFrameDataUrl } from "../../utils/image";
 import FrameCard, { CardFace, useFrameCycle } from "./FrameCard";
 import FuseFrameSheet, { type FuseSource } from "./FuseFrameSheet";
+import ShotListEditor, { type ShotSpeaker } from "../../components/flow/ShotListEditor";
 
 
 export interface PlanBoardProps {
@@ -77,6 +78,13 @@ export interface PlanBoardProps {
   fuseSources?: FuseSource[];
   /** 本段画幅：融出来的帧要跟它同比例，否则会被方舟静默裁掉一截 */
   fuseAspect?: VideoAspect;
+  /**
+   * 分镜表（N2，2026-10-03）：给了就把选定那一套的剧情框换成分镜表 —— 一个镜头时与原来的输入框一样，
+   * 「＋ 镜头 / ＋ 台词」能把这一段写成几个镜头、给台词点明谁说的（规则在 data/shotScript，文字仍是唯一真身）。
+   * max = 这一档的提示词上限（economy.promptMaxOf），canAdd = 这一档能不能分镜配台词（高清 / 电影级）。
+   * ★ 判**存在性**：不传 = 照旧是普通输入框（上限 400），老调用方零改动。
+   */
+  shotEdit?: { speakers: ShotSpeaker[]; max: number; canAdd: boolean };
 }
 
 export default function PlanBoard({
@@ -100,6 +108,7 @@ export default function PlanBoard({
   dense,
   fuseSources,
   fuseAspect,
+  shotEdit,
 }: PlanBoardProps) {
   const scroller = useRef<HTMLDivElement>(null);
   const pickedRow = useRef<HTMLDivElement>(null);
@@ -255,15 +264,29 @@ export default function PlanBoard({
                         <Trans>⚠ 这一套有帧当时没画出来：出片前会先补画要用到的帧（按张计费，已算进出片报价）</Trans>
                       </div>
                     )}
-                    <textarea
-                      value={p.plot}
-                      onChange={(e) => onPatch(p.id, { plot: e.target.value })}
-                      rows={dense ? 4 : 5}
-                      maxLength={400}
-                      disabled={busy}
-                      placeholder={t`这一段的画面与剧情（会直接作为生成提示词）`}
-                      className="novel-text w-full resize-none rounded-lg border border-slate-700 bg-black/25 px-2 py-1.5 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-gold/70"
-                    />
+                    {shotEdit ? (
+                      <ShotListEditor
+                        text={p.plot}
+                        onChange={(next) => onPatch(p.id, { plot: next })}
+                        max={shotEdit.max}
+                        disabled={busy}
+                        placeholder={t`这一段的画面与剧情（会直接作为生成提示词）`}
+                        speakers={shotEdit.speakers}
+                        canAdd={shotEdit.canAdd}
+                        rows={dense ? 4 : 5}
+                        inputClassName="novel-text w-full resize-none rounded-lg border border-slate-700 bg-black/25 px-2 py-1.5 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-gold/70 disabled:opacity-40"
+                      />
+                    ) : (
+                      <textarea
+                        value={p.plot}
+                        onChange={(e) => onPatch(p.id, { plot: e.target.value })}
+                        rows={dense ? 4 : 5}
+                        maxLength={400}
+                        disabled={busy}
+                        placeholder={t`这一段的画面与剧情（会直接作为生成提示词）`}
+                        className="novel-text w-full resize-none rounded-lg border border-slate-700 bg-black/25 px-2 py-1.5 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-gold/70"
+                      />
+                    )}
                     {shotLineDisplay(p.shot) && <p className="text-[10px] text-slate-500">{shotLineDisplay(p.shot)}</p>}
                     <div className="flex flex-wrap items-center gap-1">
                       <span className="flex-none text-[10px] text-slate-500"><Trans>时长</Trans></span>

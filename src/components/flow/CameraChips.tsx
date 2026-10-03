@@ -53,11 +53,17 @@ export default function CameraChips({
   text,
   onChange,
   disabled,
+  max = VIDEO_PROMPT_MAX,
 }: {
-  /** 当前要求/剧情全文（chips 的亮灭从它反推） */
+  /** 当前要求/剧情全文（chips 的亮灭从它反推）。分镜表下是**正在写的那个镜头**的字 */
   text: string;
   onChange: (next: string) => void;
   disabled?: boolean;
+  /**
+   * 这一栏还放得下多少字（插了会超就不许插）。缺省 = 整段的老上限；宿主按档位（economy.promptMaxOf）与
+   * 别的镜头已经占掉的字数算好传进来（N2）。
+   */
+  max?: number;
 }): ReactNode {
   const { t } = useLingui();
   const { active: lang } = useLang();
@@ -67,11 +73,11 @@ export default function CameraChips({
   const rows = CAMERA_MOVES.map((m) => {
     const on = active.includes(m.id);
     const next = on ? removeMove(text, m.id) : insertMove(text, m.id, lang);
-    const tooLong = !on && next.length > VIDEO_PROMPT_MAX;
+    const tooLong = !on && next.length > max;
     return { m, on, next, tooLong, dead: !!disabled || (!on && (full || tooLong)) };
   });
   const fullMsg = t`最多叠 ${CAMERA_MAX_STACK} 个运镜（再多模型顾不过来），先取消一个`;
-  const longMsg = t`灰着的运镜插进去会超过 ${VIDEO_PROMPT_MAX} 字的上限，想用就先删几个字`;
+  const longMsg = t`灰着的运镜插进去会超过字数上限，想用就先删几个字`;
   const hint = disabled ? "" : full ? fullMsg : rows.some((r) => r.tooLong) ? longMsg : "";
   return (
     <div className="flex flex-wrap items-center gap-1">
