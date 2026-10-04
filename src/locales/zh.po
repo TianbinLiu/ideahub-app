@@ -5337,6 +5337,10 @@ msgid "先传主素材图"
 msgstr "先传主素材图"
 
 #: src/studio/ui/projection.tsx
+msgid "先写一句视频要求"
+msgstr "先写一句视频要求"
+
+#: src/studio/ui/projection.tsx
 msgid "先写一句视频要求（缺的帧按它补画）"
 msgstr "先写一句视频要求（缺的帧按它补画）"
 
@@ -6181,6 +6185,10 @@ msgstr "出现在首页、分区和搜索里，谁都能看"
 #: src/pages/TemplateDetailPage.tsx
 msgid "出过了？刷新状态"
 msgstr "出过了？刷新状态"
+
+#: src/studio/ui/PlanBoard.tsx
+msgid "分了镜头：不用结束画面"
+msgstr "分了镜头：不用结束画面"
 
 #: src/pages/FeedPage.tsx
 msgid "分享"
@@ -17029,6 +17037,10 @@ msgid "视频模板"
 msgstr "视频模板"
 
 #: src/studio/ui/projection.tsx
+msgid "视频要求（出片提示词）"
+msgstr "视频要求（出片提示词）"
+
+#: src/studio/ui/projection.tsx
 msgid "视频要求（剧情补充）"
 msgstr "视频要求（剧情补充）"
 
@@ -17120,16 +17132,32 @@ msgid "空 = AI 按上面那句话补画（计费）"
 msgstr "空 = AI 按上面那句话补画（计费）"
 
 #: src/components/flow/CustomFrameSlots.tsx
-#: src/components/flow/FlowCanvas.tsx
-#: src/pages/FlowPage.tsx
-#: src/studio/ui/projection.tsx
 msgid "空 = AI 按提示词补画（计费）"
 msgstr "空 = AI 按提示词补画（计费）"
 
-#: src/components/flow/FlowCanvas.tsx
-#: src/studio/ui/projection.tsx
+#: src/components/flow/CustomFrameSlots.tsx
+msgid "空 = 不带开头帧"
+msgstr "空 = 不带开头帧"
+
+#: src/components/flow/CustomFrameSlots.tsx
+msgid "空 = 不画，卡片形象图直接给视频模型"
+msgstr "空 = 不画，卡片形象图直接给视频模型"
+
+#: src/components/flow/CustomFrameSlots.tsx
+msgid "空 = 不画，视频按提示词往下拍"
+msgstr "空 = 不画，视频按提示词往下拍"
+
+#: src/components/flow/CustomFrameSlots.tsx
+msgid "空 = 分了镜头，不用结束画面"
+msgstr "空 = 分了镜头，不用结束画面"
+
+#: src/components/flow/CustomFrameSlots.tsx
 msgid "空 = 承接上一段真实尾帧"
 msgstr "空 = 承接上一段真实尾帧"
+
+#: src/components/flow/CustomFrameSlots.tsx
+msgid "空 = 用真人卡的照片起拍"
+msgstr "空 = 用真人卡的照片起拍"
 
 #. placeholder {0}: i + 1
 #. placeholder {1}: CARD_TYPE_LABELS[s.type]
@@ -18078,8 +18106,17 @@ msgid "素材卡（可不选）"
 msgstr "素材卡（可不选）"
 
 #: src/studio/ui/projection.tsx
+msgid "素材卡（选） —— 形象图直接给视频模型"
+msgstr "素材卡（选） —— 形象图直接给视频模型"
+
+#: src/studio/ui/projection.tsx
 msgid "素材卡（选） —— 缺帧补画时当参考"
 msgstr "素材卡（选） —— 缺帧补画时当参考"
+
+#. placeholder {0}: slotCards.length
+#: src/studio/ui/projection.tsx
+msgid "素材卡（选） · 已选 {0} 张 —— 形象图直接给视频模型"
+msgstr "素材卡（选） · 已选 {0} 张 —— 形象图直接给视频模型"
 
 #. placeholder {0}: slotCards.length
 #: src/studio/ui/projection.tsx
@@ -18563,6 +18600,10 @@ msgstr "自定义直出"
 #: src/studio/studioStore.ts
 msgid "自定义直出也得写一句这段要拍什么——缺的帧我按这句话补画，一个字都没有我就只能瞎画了。"
 msgstr "自定义直出也得写一句这段要拍什么——缺的帧我按这句话补画，一个字都没有我就只能瞎画了。"
+
+#: src/studio/studioStore.ts
+msgid "自定义直出也得写一句这段要拍什么——这句话就是出片提示词，一个字都没有，模型只能瞎拍。"
+msgstr "自定义直出也得写一句这段要拍什么——这句话就是出片提示词，一个字都没有，模型只能瞎拍。"
 
 #: src/pages/CustomCardPage.tsx
 msgid "自己上传图片"
@@ -20335,6 +20376,14 @@ msgstr "这一句问了模型（{price} token）"
 #: src/studio/flowStore.ts
 msgid "这一套方案还没有剧情——先写点什么，我才知道要画成什么样"
 msgstr "这一套方案还没有剧情——先写点什么，我才知道要画成什么样"
+
+#: src/studio/flowStore.ts
+msgid "这一套没有要 AI 重画的画面：开头画面是承接上一段的或你自己换的，分了镜头的方案又不画结束画面"
+msgstr "这一套没有要 AI 重画的画面：开头画面是承接上一段的或你自己换的，分了镜头的方案又不画结束画面"
+
+#: src/studio/studioStore.ts
+msgid "这一套没有要我重画的画面：开头画面是承接上一段的或你自己换的，分了镜头的方案又不画结束画面。"
+msgstr "这一套没有要我重画的画面：开头画面是承接上一段的或你自己换的，分了镜头的方案又不画结束画面。"
 
 #: src/studio/studioStore.ts
 #~ msgid "这一套的开头帧当时没画出来，没有可改的图——点「重新生成这一套的画面」，或者直接出片（出片要用到的帧会先补画，补画的钱算在出片报价里）。"

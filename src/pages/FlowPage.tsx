@@ -53,6 +53,7 @@ import {
   nodeDone,
   tplOfNode,
   nodeRefOn,
+  nodeEmptyFrames,
   realVideoOfNode,
   planOf,
   annSkipNote,
@@ -752,7 +753,7 @@ function NodeScreen({
                   last={prop.lastFrame}
                   aspectCssValue={aspectCss(node.aspect)}
                   canEdit={!generating && !busy}
-                  firstEmptyNote={t`空 = AI 按提示词补画（计费）`}
+                  fates={nodeEmptyFrames(allNodes, index, mode)}
                   onFrame={(which, url) => setFrame(node.id, which, url)}
                   onFuse={setCustomFuse}
                   onError={(msg) => useFlow.setState({ err: msg })}

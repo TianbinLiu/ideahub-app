@@ -8,13 +8,15 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { useRef, useState } from "react";
 import Spinner from "../Spinner";
 import { fileToFrameDataUrl } from "../../utils/image";
+import type { EmptyFrameFate } from "../../studio/segmentGen";
 
 export default function CustomFrameSlots({
   first,
   last,
   aspectCssValue,
   canEdit,
-  firstEmptyNote,
+  fates,
+  drawNote,
   onFrame,
   onFuse,
   onError,
@@ -24,8 +26,14 @@ export default function CustomFrameSlots({
   /** CSS aspect-ratio 值（types.aspectCss 的产物）——帧格按本段画幅撑形状 */
   aspectCssValue: string;
   canEdit: boolean;
-  /** 首帧空着时那句说明（承接/AI 补画由宿主按 index/chain 定，这里不判） */
-  firstEmptyNote: string;
+  /**
+   * 两格空着时出片会怎样（宿主问 flowStore.nodeEmptyFrames —— 补不补画、是不是直出与出片、报价同源，这里不判）。
+   * ★ 2026-10-04 之前首帧那句由宿主手写、尾帧那句写死「空 = AI 按提示词补画（计费）」；「自定义」段在收参考图的两档上
+   *   不再补画之后，那两句就成了假话。
+   */
+  fates: EmptyFrameFate;
+  /** 「会补画」那句的另一种说法（简约页的提示词框在上面，说「按上面那句话」）。缺省 =「空 = AI 按提示词补画（计费）」 */
+  drawNote?: string;
   /** 写帧（传 "" = 清掉）。宿主接 flowStore.setFrame */
   onFrame: (which: "first" | "last", dataUrl: string) => void;
   /** 打开融图（宿主自己挂 FuseFrameSheet） */
@@ -43,7 +51,21 @@ export default function CustomFrameSlots({
       <div className="flex gap-2">
         {(["first", "last"] as const).map((which) => {
           const url = which === "first" ? first : last;
-          const emptyNote = which === "first" ? firstEmptyNote : t`空 = AI 按提示词补画（计费）`;
+          const draw = drawNote ?? t`空 = AI 按提示词补画（计费）`;
+          const emptyNote =
+            which === "first"
+              ? {
+                  carry: t`空 = 承接上一段真实尾帧`,
+                  draw,
+                  cards: t`空 = 不画，卡片形象图直接给视频模型`,
+                  photo: t`空 = 用真人卡的照片起拍`,
+                  none: t`空 = 不带开头帧`,
+                }[fates.first]
+              : {
+                  draw,
+                  multiShot: t`空 = 分了镜头，不用结束画面`,
+                  none: t`空 = 不画，视频按提示词往下拍`,
+                }[fates.last];
           return (
             <div key={which} className="flex-1 rounded-lg border border-slate-700/70 bg-panel p-2">
               <div className="mb-1 flex items-center justify-between">

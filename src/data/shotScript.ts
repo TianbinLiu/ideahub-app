@@ -225,18 +225,63 @@ function backTo(text: string, at: number, br: RegExp): number {
   return 0;
 }
 
-/** 这一截里点到了哪几个名字（长名字先认：「凛子」不会被认成「凛」） */
-function namesIn(s: string, byLength: readonly string[]): Set<string> {
-  const found = new Set<string>();
+/** 名字表收拾成「长的在前」：认名字时长名字先认（「凛子」不会被认成「凛」）。空名字不算 */
+function sortNames(names: readonly string[]): string[] {
+  return [...new Set(names.map((n) => (n || "").trim()).filter(Boolean))].sort((a, b) => b.length - a.length);
+}
+
+/** 这一截里按出现先后点到了哪几个名字（不重复）—— 认名字的**唯一实现**，namesIn / namesInOrder 都走它 */
+function scanNames(s: string, byLength: readonly string[]): string[] {
+  const found: string[] = [];
   let i = 0;
   while (i < s.length) {
     const hit = byLength.find((n) => s.startsWith(n, i));
     if (hit) {
-      found.add(hit);
+      if (!found.includes(hit)) found.push(hit);
       i += hit.length;
     } else i++;
   }
   return found;
+}
+
+/** 这一截里点到了哪几个名字（长名字先认：「凛子」不会被认成「凛」） */
+function namesIn(s: string, byLength: readonly string[]): Set<string> {
+  return new Set(scanNames(s, byLength));
+}
+
+/**
+ * 这段话里**按出现先后**点到了哪几个名字 —— 画帧时「这一刻里有谁」用它（segmentGen.momentCards，2026-10-04）：
+ * 出图模型只吃第一个人物的图（real.allocateRefs 规则一），所以先点到的那位排在最前。认法与 lineSpeakers 同一个。
+ */
+export function namesInOrder(text: string, names: readonly string[]): string[] {
+  return scanNames(text || "", sortNames(names));
+}
+
+/**
+ * 画**这一刻**要带哪些卡（2026-10-04，主人「开工」认的方案；调研 docs/multi-character-consistency-research.md §一：这一镜有谁就只给谁的图）。
+ * · 这一刻里点到名的人物卡按出现先后排在最前 —— 出图模型只吃第一个人物的图（real.allocateRefs 规则一），先点到的那位就是主角；
+ * · **没点到的人物卡这一张帧不带**，连文字设定也不带：「本段固定素材设定：人物卡「小枫」＝…」会把她拉进「夜川特写」
+ *   （第三次付费验证：结束画面被画成两人全身，视频为了靠上它多拍了一小段）；
+ * · 一个人物都没点到（定场镜头、空镜）时照旧全带；非人物卡（场景 / 道具 / 风格 / 背景）照旧带，次序不动。
+ * 认名字走 namesInOrder（与「台词是谁说的」同一个认法，长名字先认）。
+ * 画帧的四条路都问它：出片前补画（segmentGen）、两面的「重画这一套」（flowStore / studioStore）、推演三套（real.generateProposals）。
+ * ★ 泛型只要 `type` / `name` 两格：这个文件零运行时依赖，构建里 check-shot-script.mjs 拿普通对象直接测。
+ */
+export function momentCards<T extends { type: string; name: string }>(materials: T[] | undefined, moment: string): T[] | undefined {
+  if (!materials?.length) return materials;
+  const chars = materials.filter((c) => c.type === "character");
+  const named = namesInOrder(moment, chars.map((c) => c.name));
+  if (!named.length) return materials;
+  const picked = named.map((n) => chars.find((c) => (c.name || "").trim() === n)).filter((c): c is T => !!c);
+  return [...picked, ...materials.filter((c) => c.type !== "character")];
+}
+
+/**
+ * 这段话分了两个以上镜头吗（空镜头不算，与 packShots 同一个收法）—— data/drawPlan 的 multiShot 判据：
+ * 多镜头的段不补画结束画面（一张结束画面装不下几个镜头，见 drawPlan 文件头的规矩 ②）。
+ */
+export function isMultiShot(text: string): boolean {
+  return parseShots(packShots(text || "")).shots.length >= 2;
 }
 
 /**
@@ -253,7 +298,7 @@ function namesIn(s: string, byLength: readonly string[]): Set<string> {
  */
 export function lineSpeakers(text: string, names: readonly string[]): Set<string> | null {
   const src = text || "";
-  const byLength = [...new Set(names.map((n) => (n || "").trim()).filter(Boolean))].sort((a, b) => b.length - a.length);
+  const byLength = sortNames(names);
   const speakers = new Set<string>();
   const re = new RegExp(LINE_QUOTE.source, "g");
   for (let m = re.exec(src); m; m = re.exec(src)) {

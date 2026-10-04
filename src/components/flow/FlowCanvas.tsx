@@ -57,6 +57,8 @@ import {
   nodeDone,
   nodeRecastable,
   nodeRefPlan,
+  nodeEmptyFrames,
+  nodeNoDraw,
   nodeFramesComeFromDerive,
   nodeEditFrames,
   planOf,
@@ -1183,7 +1185,7 @@ function NodePanel({
                 last={p.lastFrame}
                 aspectCssValue={aspectCss(node.aspect)}
                 canEdit={!locked && !generating}
-                firstEmptyNote={index > 0 && node.chain ? t`空 = 承接上一段真实尾帧` : t`空 = AI 按提示词补画（计费）`}
+                fates={nodeEmptyFrames(nodes, index, mode)}
                 onFrame={(which, url) => setFrame(node.id, which, url)}
                 onFuse={setFuse}
                 onError={(msg) => useFlow.setState({ err: msg })}
@@ -1444,7 +1446,8 @@ function NodePanel({
               onChange={(next) => updateProposal(node.id, { plot: next })}
               max={promptMax}
               disabled={locked || generating}
-              placeholder={t`这一段拍什么？缺的帧按这句补画`}
+              // 收参考图的两档上自定义段不补画（flowStore.nodeNoDraw）：那时别再说「缺的帧按这句补画」
+              placeholder={nodeNoDraw(node) ? t`这一段拍什么？` : t`这一段拍什么？缺的帧按这句补画`}
               speakers={mats.filter((c) => c.type === "character").map((c) => ({ id: c.id, name: c.name, voiced: !!voiceOf(c.id) }))}
               canAdd={shotsOk}
               onActive={setActiveShot}

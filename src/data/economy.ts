@@ -35,6 +35,7 @@ import {
 } from "../types";
 // ★ 「这张卡有没有做过肖像授权」只有 cardAsset 一处判据（侧库，leaf：只依赖 ./db）
 import { hasAsset } from "./cardAsset";
+import { drawCount } from "./drawPlan";
 
 /** 观看付费的平台抽成比例（其余进创作者 add-on 余额） */
 export const PLATFORM_CUT = 0.3;
@@ -1409,6 +1410,10 @@ export function segmentCost(o: {
   hasLastFrame: boolean;
   /** 这一段走参考生视频（多图直出，不画设定帧） */
   refMode: boolean;
+  /** 这一段不补画帧（data/drawPlan 的规矩 ①：参考图直出等模式的段）。必填：漏传就按补画报价，与出片两把尺 */
+  noDraw: boolean;
+  /** 这一段的剧情分了两个以上镜头（data/drawPlan 的规矩 ②：不画结束画面）。必填，理由同上 */
+  multiShot: boolean;
   /**
    * 这一段走**白模模板**（r2v）。inputSec = 模板参考视频的时长 —— **只准从
    * `template.refVideo.durationSec`（服务端登记值镜像）读**，别拿本机 `<video>` 现探：
@@ -1429,10 +1434,17 @@ export function segmentCost(o: {
     return r2vRawTokens(o.refVideo.inputSec, worst);
   }
   const tier = tierOf(o.tierId);
-  // ★ 按发计价档（flatCost，真人档）一张设定帧都不画：首帧就是真人卡的照片本身
-  //   （segmentGen 的 minimax 分支），没有帧就整句拒，Seedream 从头到尾不参与
-  //   ——把 draws 算进去就是报了一笔永远不会发生的图钱（报价 ≠ 实扣的方向错）。
-  const draws = o.refMode || tier.flatCost ? 0 : (o.hasFirstFrame ? 0 : 1) + (tier.flf && !o.hasLastFrame ? 1 : 0);
+  // ★ 补画几张只问 data/drawPlan 一处（出片 segmentGen 与参考清单读的是同一个函数）：
+  //   按发计价档（真人档）一张不画（首帧就是真人卡的照片本身）、参考生视频一张不画、不补画的段缺的那张不补、
+  //   多镜头的段不画结束画面 —— 把不会发生的图钱算进去，就是报价 ≠ 实扣的方向错。
+  const draws = drawCount({
+    tier: { flf: tier.flf, flat: !!tier.flatCost },
+    hasFirstFrame: o.hasFirstFrame,
+    hasLastFrame: o.hasLastFrame,
+    refMode: o.refMode,
+    noDraw: o.noDraw,
+    multiShot: o.multiShot,
+  });
   return segTokens(o.durationSec, o.tierId) + draws * IMAGE_TOKENS;
 }
 

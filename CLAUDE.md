@@ -464,6 +464,22 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   外壳走 `real.generateFrame`（「视频中的一个画面」+「单一完整画面，不要分格、拼贴、对话框或字幕」），**别再借封面工坊的 `generateCover`**
   （「视频封面图：」，封面常带标题字、常是拼贴版式）；结束画面以开头画面当 <图片1> 时只沿用人物 / 服装 / 场景 / 画风，构图按这一刻来。
   构建里 `check-shot-script.mjs` 从源文件核对这几条路都走它 —— 新加一条画帧的路时要过这一关。
+- **「跟着做」模式第一期的出片规矩：补不补画帧、每张帧带谁的卡**（2026-10-04 主人「开工」；方案、分期与验证记录在 docs/guided-modes-design.md）。五条规矩：
+  ① **出片前补画哪几张只问 `data/drawPlan.framesToDraw`**（零依赖，构建里 `check-draw-plan.mjs` 实跑）：报价（`economy.segmentCost`）、出片（`segmentGen.generateSegment`）、
+  图位预留（`refSlotsOf` 的 `frameSlots`）、参考清单那几格（`refPlanOf`）读的是同一个答案 —— 三处原来各写一份条件，漏改一处就是「报了图钱没画 / 画了图没报钱 / 多留一个图位」。
+  ② **不补画帧的段（`flowStore.nodeNoDraw`，规则本身在 `noDrawFor`）**：`FlowNode.direct`（参考图直出这类模式铺的段）与「自定义」段，**只在收参考图的两档上**成立
+  （1.0 两档与真人档收不了参考图，不补画就只剩纯文字，照旧补画）。有哪张帧发哪张（只给了结束帧也只发它，图片 1 点名成「最后一帧」）、缺的不补；
+  一张都没有就走参考生视频（`refAllowedOf` = 简约模式或不补画的段）；一张都没有、卡上又没图时照常补画。直出段没有「推演三套」那一拍（`derivesProposals` 判否）。
+  ③ **参考生视频那一发一张帧都带不出去**：`segmentGen.frameFree` 连尾帧一起看（`lastFrame` 必填）—— 原来只看首帧，只给了尾帧的段会被判成直出、那张尾帧悄悄不发。
+  ④ **多镜头的段不画、也不用 AI 画的结束画面**：判据 `shotScript.isMultiShot`；已有的那张用不用只问 `drawPlan.endFrameUsed`（你自己换上的 = 上锁的照用），
+  读它的是 `flowStore.usableFrames`（出片 / 报价 / 参考清单 / 改这一帧）与方案台的显示；「重画这一套」画哪几张只问 `flowStore.redrawFrames`
+  （两面的 regenProposal 与 `redrawCost` 共用，多镜头时清掉旧的 AI 结束画面、不重画）。帧当参考图只有一张时，时序句不说「按图片编号顺序推进」
+  （后面紧跟着的是人物图，`customRefPrompt`）。
+  ⑤ **一张帧只带这一刻出现的人**（`shotScript.momentCards`，认名字与 `lineSpeakers` 同一个认法）：点到名的人物卡按出现先后排最前（出图模型只吃第一个人物的图），
+  没点到的人物卡这一张帧不带（图与文字设定都不带），一个人都没点到照旧全带。画帧的四条路都问它（`check-shot-script.mjs` 从源文件核对）；
+  **视频那一发照旧带全部人物卡**（这一段里谁都可能出场）。
+  「自定义 / 简约」两格帧位空着时那句说明只问 `flowStore.nodeEmptyFrames`（归类在 `segmentGen.emptyFrameFates`，`CustomFrameSlots` 收 `fates` 不收字符串）——
+  原来写死的「空 = AI 按提示词补画（计费）」在不补画的段上是假话。
   10-03 晚付费验过一次（¥5.39）：补画的两张都是单一完整画面，成片没再溶成拼图；但出图模型没照「特写」画结束画面，视频为了靠上它多拍了一小段（docs §六「第三次付费验证」）。
 - **「这一段用哪个模板」是三态，且必须当场表态**（`FlowNode.tpl`）：`undefined` = 还没表态
   （退回 store 级 `template`，老草稿与单模板流靠它）、`null` = 明确没有、对象 = 这一段自己的
@@ -868,7 +884,7 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 - [`docs/api-contract.md`](docs/api-contract.md) — 与 server 的接口契约（三仓共享）
 - [`docs/play-store-checklist.md`](docs/play-store-checklist.md) — 上架检查单
 - [`docs/node-modes-libtv-alignment.md`](docs/node-modes-libtv-alignment.md) — 工作流节点「自选卡片 / 自定义」对齐 LibTV 节点：调研、方案、主人拍板与落地记录（N1 参考清单 + @ 点名、N3 关键画面可改可截、N2 分镜表都已落地；含与已有「圈图改图」的对比、官方文档查到的几条协议事实、等主人定的两件事）
-- [`docs/guided-modes-design.md`](docs/guided-modes-design.md) — 工作流的「跟着做」模式（参考图直出 / 主角定妆·多镜头 / 九宫格分镜 / 推演三套 / 套模板 / 自定义）：每个模式固定步骤（2026-10-04 方案，等主人定）
+- [`docs/guided-modes-design.md`](docs/guided-modes-design.md) — 工作流的「跟着做」模式（参考图直出 / 主角定妆·多镜头 / 九宫格分镜 / 推演三套 / 套模板 / 自定义）：每个模式固定步骤（2026-10-04 方案，主人「开工」五条全认；第一期核心规则已落地，选法屏与向导是下一个 PR）
 - [`docs/multi-character-consistency-research.md`](docs/multi-character-consistency-research.md) — 多人物多镜头的人像一致与台词字幕：LibTV / updream / 官方文档 / 网上的做法（2026-10-03 调研，建议等主人定）；
   含「一张图里画多个角色一律被拒」那条老约束的真实出处（精灵图的文本敏感，不是场景里的两个人）
 - [`docs/app-distribution.md`](docs/app-distribution.md) — 发包给别人装、应用内更新怎么走
