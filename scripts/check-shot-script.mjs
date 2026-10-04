@@ -6,7 +6,7 @@
 //   空镜头带着发出去 = 模型对着一个没有内容的「镜头2：」自己编；台词骨架用错引号 = 这句话不会被配音。
 // ★ 规则一条都不在这里重打：直接 import 那个模块（Node 24 只剥类型，所以它必须零运行时依赖）；
 //   hasDialogue 所在的文件不是零依赖的，就从源文件里把正则字面量抠出来用（与 check-camera-vocab 同一招）。
-// ★ 仓内门禁纪律：写完先造真违规试红（--module= 指向改坏的副本）。逐条试过，十七条各自变红（⑫ 起是合进去当天补的，见下面的 ★★★）：
+// ★ 仓内门禁纪律：写完先造真违规试红（--module= 指向改坏的副本）。逐条试过，三十条各自变红（⑫ 起是合进去当天补的，见下面的 ★★★）：
 //   ① 去掉「从 1 起连着数」的要求（「镜头2：…镜头3：…」被拆开）；② 去掉「至少两个」的要求（只有一个「镜头1：」也拆）；
 //   ③ 不看句子开头（「他看镜头1：…」被当成标识）；④ 一个镜头时也写「镜头1：」前缀（没分镜的句子被改了字）；
 //   ⑤ packShots 不收空镜头；⑥ packShots 去掉单镜头的快路（没分镜的句子被改了字）；⑦ addShot 不封顶；
@@ -16,7 +16,11 @@
 //   ⑮ typeInto 算光标位置时漏了自己那个标识的长度；⑯ boxAt 把「刚好在标识后面」算成前一格；⑰ packShots 不收总述的首尾空白；
 //   ⑱ lineSpeakers 一小句里点到两个人也随便挑一个（「夜川对小枫说」）；⑲ 一小句里没名字时不往前看整句；
 //   ⑳ 名字不按长的先认（「凛子」被认成「凛」）；㉑ 认不出说话人时不回 null 而是跳过那一句（会把说话的人筛掉）；
-//   ㉒ LINE_QUOTE 与 segmentGen.hasDialogue 的正则不一致（「有没有台词」与「谁说的」认的不是同一批引号）。
+//   ㉒ LINE_QUOTE 与 segmentGen.hasDialogue 的正则不一致（「有没有台词」与「谁说的」认的不是同一批引号）；
+//   ㉓ frameMoment 不挑镜头、整段发给出图模型（第二次付费验证里画出三格分镜拼图的那个写法）；㉔ 结束画面取了第一个镜头；
+//   ㉕ 先去空格子再摘台词（整格只是一句台词的那一格被挑中，画面是空的）；㉖ stripLines 不连冒号一起摘（剩下「小枫说：」）；
+//   ㉗ 摘完不补逗号（「小枫说夜川点头」粘成一串）；㉘ 整体交代没有句号时不补（「雨夜的书店她推门进来」）；㉙ 丢了整体交代；
+//   ㉚ frameMoment 不去句末标点（接上「。本段固定素材设定」就是「推近。。」）。
 // ★★★ 第一版的检查全是「整串进、整串出」，没有一条是**一个键一个键敲**的 —— 于是「写回 trim、读出再 trim」这个毛病一路绿灯合了进去：
 //   分了镜之后打英文，行尾刚敲的空格当场消失，「Rin walks」变成「Rinwalks」（2026-10-03 在浏览器里逐键敲才抓到）。
 //   (g) 那一组就是为它补的：每一格里敲的每一个字（含行尾的空格 / 回车）一来一回都要原样留着。
@@ -232,10 +236,68 @@ for (const text of [
     fail("shotScript.LINE_QUOTE 与 segmentGen.hasDialogue 的正则不一致：" + M.LINE_QUOTE.source + " ≠ " + m[1]);
 }
 
+// ── (j) 画帧只画一个瞬间（2026-10-03 第二次付费验证后主人「改」：结束画面被画成了三格分镜拼图、格子里写着台词）──
+{
+  const A = "雨夜的旧书店，暖黄的灯光，木书架一直顶到天花板。\n镜头1：中景，小枫推门走进书店，收起湿漉漉的伞，镜头缓缓推近。\n镜头2：近景，小枫走到柜台前看向夜川，小枫说：“这本书还在吗？”\n镜头3：特写，夜川抬起头微笑，夜川说：“一直在等你来取。”";
+  const B = "镜头1：夜川从书架上取下一本旧书，递给小枫。\n镜头2：近景，小枫接过书翻开，小枫说：“原来它一直在这里。”";
+  // 付费验证的两段原文
+  // 回的话不带句末标点（调用方各自往后接「 的结束瞬间」「。本段固定素材设定…」）
+  eq("frameMoment 开头 = 整体交代 + 镜头1", M.frameMoment(A, "first"), "雨夜的旧书店，暖黄的灯光，木书架一直顶到天花板。中景，小枫推门走进书店，收起湿漉漉的伞，镜头缓缓推近");
+  eq("frameMoment 结尾 = 整体交代 + 最后一个镜头，台词摘掉", M.frameMoment(A, "last"), "雨夜的旧书店，暖黄的灯光，木书架一直顶到天花板。特写，夜川抬起头微笑，夜川说");
+  eq("frameMoment 没有整体交代（开头）", M.frameMoment(B, "first"), "夜川从书架上取下一本旧书，递给小枫");
+  eq("frameMoment 没有整体交代（结尾）", M.frameMoment(B, "last"), "近景，小枫接过书翻开，小枫说");
+  // 没分镜的句子：整段照旧，只摘台词（与句末标点）
+  eq("frameMoment 没分镜的句子整段照旧（开头）", M.frameMoment("雨夜，她推门进来。", "first"), "雨夜，她推门进来");
+  eq("frameMoment 没分镜的句子整段照旧（结尾）", M.frameMoment("雨夜，她推门进来。", "last"), "雨夜，她推门进来");
+  eq("frameMoment 句中的标点不动", M.frameMoment("雨夜。她推门进来！", "first"), "雨夜。她推门进来");
+  eq("frameMoment 没分镜的句子也摘台词", M.frameMoment("她推门进来，小声说：“我来了。”然后坐下。", "last"), "她推门进来，小声说，然后坐下");
+  // 摘完一个字不剩的格子不算
+  eq("frameMoment 空镜头不算", M.frameMoment("镜头1：远景\n镜头2：近景\n镜头3：", "last"), "近景");
+  eq("frameMoment 整格只是一句台词的不算", M.frameMoment("镜头1：她推门进来\n镜头2：“走吧。”", "last"), "她推门进来");
+  eq("frameMoment 一格都不剩只画整体交代", M.frameMoment("雨夜的书店\n镜头1：\n镜头2：“走吧。”", "last"), "雨夜的书店");
+  eq("frameMoment 整体交代没有句号时补一个", M.frameMoment("雨夜的书店\n镜头1：她推门进来\n镜头2：他抬头", "first"), "雨夜的书店。她推门进来");
+  eq("frameMoment 空串", M.frameMoment("", "first"), "");
+  // stripLines：留下谁在说，不留说的字
+  eq("stripLines 冒号 + 弯引号", M.stripLines("小枫说：“这本书还在吗？”"), "小枫说");
+  eq("stripLines 只有名字和冒号", M.stripLines("小枫：“你好。”"), "小枫");
+  eq("stripLines 后面接正文时补逗号", M.stripLines("小枫说：“走吧。”夜川点头：“好。”"), "小枫说，夜川点头");
+  eq("stripLines 台词后面的句号留着", M.stripLines("夜川说：“好。”。他转身离开。"), "夜川说。他转身离开。");
+  eq("stripLines 英文直引号", M.stripLines('Rin said: "hi there". Then she left.'), "Rin said. Then she left.");
+  eq("stripLines 英文，后面接正文", M.stripLines('Rin said "hi" and left'), "Rin said and left");
+  eq("stripLines 开头就是台词", M.stripLines("“走吧。”小枫转身"), "小枫转身");
+  eq("stripLines 直角引号", M.stripLines("招牌上写着「旧书店」，灯亮着"), "招牌上写着，灯亮着");
+  eq("stripLines 没有台词的句子不动", M.stripLines("雨夜的旧书店，暖黄的灯光。"), "雨夜的旧书店，暖黄的灯光。");
+
+  // 画帧的路都只问 frameMoment（从源文件里抠：出片前补画、两面的「重画这一套」、推演三套）——新加一条画帧的路时别再拿整段剧情去画
+  const src = (f) => fs.readFileSync(path.join(root, f), "utf8");
+  const code = (text) => text.split(/\r?\n/).filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l));
+  for (const f of ["src/studio/segmentGen.ts", "src/studio/flowStore.ts", "src/studio/studioStore.ts"]) {
+    const lines = code(src(f));
+    const ends = lines.filter((l) => l.includes("的结束瞬间"));
+    ran++;
+    if (!ends.length) fail(f + "：一句「的结束瞬间」的出图句都没找到（画结束画面的那一行改名了？这条检查要跟着改）");
+    for (const l of ends) {
+      ran++;
+      if (!/frameMoment\([^)]*"last"\)/.test(l)) fail(f + "：画结束画面的出图句没走 frameMoment(…, \"last\")：" + l.trim().slice(0, 120));
+    }
+    ran++;
+    if (lines.some((l) => /generateCover\(/.test(l))) fail(f + "：画帧又借了封面工坊的 generateCover（外壳是「视频封面图：」，见 real.generateFrame）");
+  }
+  {
+    const lines = code(src("src/ai/real.ts")).filter((l) => /电影分镜(首|尾)帧/.test(l));
+    ran++;
+    if (lines.length !== 2) fail("real.ts：推演三套的两句出图句（电影分镜首帧 / 尾帧）没找到两句：" + lines.length);
+    for (const l of lines) {
+      ran++;
+      if (!/frameMoment\(plot, "(first|last)"\)/.test(l)) fail("real.ts：推演三套的出图句没走 frameMoment：" + l.trim().slice(0, 120));
+    }
+  }
+}
+
 if (problems.length) {
   console.error(`\n❌ 分镜表检查没过（${problems.length} 条）：\n`);
   for (const p of problems) console.error(`   ${p}`);
   console.error("\n   改法：规则只改 src/data/shotScript.ts；改完在这里补一句正例、一句反例。\n");
   process.exit(1);
 }
-console.log(`✓ 分镜表检查通过（${ran} 条：读 ${parseCases.length} 句 + 写 / 改 / 收拾 / 台词骨架 / 逐键敲字 / 光标跟格子 / 台词是谁说的）`);
+console.log(`✓ 分镜表检查通过（${ran} 条：读 ${parseCases.length} 句 + 写 / 改 / 收拾 / 台词骨架 / 逐键敲字 / 光标跟格子 / 台词是谁说的 / 画帧只画一个瞬间）`);

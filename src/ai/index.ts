@@ -59,6 +59,13 @@ export const generateCover: typeof real.generateCover = AI_REAL
       const head = req.slice(0, 10) || t`封面`;
       return makeFrame(`cover:${req}:${Math.random()}`, t`${head} · 演示`, undefined, aspect);
     };
+/** 画一张视频帧（出片前补画 / 重画这一套；与封面分开的理由见 real.generateFrame）；mock 构建出本地占位帧 */
+export const generateFrame: typeof real.generateFrame = AI_REAL
+  ? real.generateFrame
+  : async (req, o) => {
+      const head = req.slice(0, 10) || t`画面`;
+      return makeFrame(`frame:${req}:${Math.random()}`, t`${head} · 演示`, undefined, o.aspect);
+    };
 
 /** 本片卡组提炼：真实构建 AI 对照已有素材卡，只补剧情里缺卡的实体（每类可多张）；
  *  mock 构建退化为按段派生场景卡（首帧当卡面），同名已有卡跳过 */

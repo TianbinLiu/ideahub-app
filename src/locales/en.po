@@ -16118,6 +16118,10 @@ msgstr "Quality"
 msgid "画起拍画面 {0}/{total}…"
 msgstr "Drawing opening frame {0}/{total}…"
 
+#: src/ai/index.ts
+msgid "画面"
+msgstr "Frame"
+
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "画面上<0>可能有两个人偶印着同一个号</0>，也可能<1>某个号在画面上 根本找不到</1>（实测都出现过：一段 5 人素材实出 2/2/1/1/5，3 号和 4 号整个没出现）。 这两种<2>都不用重炼</2>：把找不到的那个位子删掉就行，剩下的编号一个都不会变。"
 msgstr "The picture <0>may show two mannequins with the same number</0>, or <1>a number that can't be found anywhere</1> (both have happened in testing: a 5-person clip came out as 2/2/1/1/5, with 3 and 4 missing entirely). <2>Neither needs a re-render</2>: just delete the slot that can't be found, and none of the remaining numbers change."
