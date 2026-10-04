@@ -207,3 +207,60 @@ export const insertLine = (text: string, caret: number, speaker: string): { text
   const head = `${lead}${speaker}说：“`;
   return { text: `${before}${head}”${src.slice(at)}`, caret: at + head.length };
 };
+
+/**
+ * 一句台词（引号里那一段）的认法：与 segmentGen.hasDialogue **同一个正则**（构建里 check-shot-script.mjs 逐字比对两边的源码，
+ * 改一边不改另一边就红）—— 「有没有台词」与「台词是谁说的」认的必须是同一批引号。
+ */
+export const LINE_QUOTE = /[「『“"].{1,}?[」』”"]/g;
+
+/** 一小句的开头：句读、换行，或者上一句台词的收引号 */
+const CLAUSE_BREAK = /[，,。！？!?；;\n」』”"]/;
+/** 一整句的开头：句号类、换行，或者上一句台词的收引号（逗号不算） */
+const SENTENCE_BREAK = /[。！？!?\n」』”"]/;
+
+/** 从 at 往前找最近的一个断点，回断点之后的下标（找不到 = 0） */
+function backTo(text: string, at: number, br: RegExp): number {
+  for (let i = at - 1; i >= 0; i--) if (br.test(text[i])) return i + 1;
+  return 0;
+}
+
+/** 这一截里点到了哪几个名字（长名字先认：「凛子」不会被认成「凛」） */
+function namesIn(s: string, byLength: readonly string[]): Set<string> {
+  const found = new Set<string>();
+  let i = 0;
+  while (i < s.length) {
+    const hit = byLength.find((n) => s.startsWith(n, i));
+    if (hit) {
+      found.add(hit);
+      i += hit.length;
+    } else i++;
+  }
+  return found;
+}
+
+/**
+ * 每一句台词是谁说的 —— 「声音样本带谁的」用它（segmentGen.voicedCardsOf，2026-10-03 主人「改」：付费验证里没台词的人也带上了样本）。
+ * 回说话的人名集合；**回 null = 认不准**（有一句台词说不清是谁的）。没有台词回空集合。
+ *
+ * 认法（一句一句认）：
+ *  ① 从引号往前到这一小句的开头（逗号 / 句号 / 分号 / 问叹号 / 换行 / 上一句台词的收引号）——这一小句里**恰好点到一个**名字，就是他
+ *     （「镜头2：近景，小枫说：“……”」→ 小枫；「小枫：“……”」→ 小枫）；
+ *  ② 这一小句里一个名字都没有：往前看整句（逗号不算断点），整句里**恰好一个**名字，就是他（「小枫抬起头，轻声说：“……”」→ 小枫）；
+ *  ③ 点到两个以上（「夜川对小枫说：“……”」）或者一个都找不到 → 认不准，整段回 null。
+ * ★ 认不准就不办：调用方拿到 null 照旧带上所有带声音的卡 —— 多带一份样本不影响结果（付费验证实测），
+ *   认错了却会让真正说话的那个人拿不到自己的样本、音色随机。所以宁可回 null，也不猜。
+ */
+export function lineSpeakers(text: string, names: readonly string[]): Set<string> | null {
+  const src = text || "";
+  const byLength = [...new Set(names.map((n) => (n || "").trim()).filter(Boolean))].sort((a, b) => b.length - a.length);
+  const speakers = new Set<string>();
+  const re = new RegExp(LINE_QUOTE.source, "g");
+  for (let m = re.exec(src); m; m = re.exec(src)) {
+    const clause = namesIn(src.slice(backTo(src, m.index, CLAUSE_BREAK), m.index), byLength);
+    const pick = clause.size ? clause : namesIn(src.slice(backTo(src, m.index, SENTENCE_BREAK), m.index), byLength);
+    if (pick.size !== 1) return null;
+    speakers.add([...pick][0]);
+  }
+  return speakers;
+}
