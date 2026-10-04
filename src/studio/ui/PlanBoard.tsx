@@ -32,6 +32,11 @@ export interface PlanBoardProps {
    * clampDuration 吸附上去，按钮还亮着就是「写 3 秒、拍 4 秒、按 4 秒收」。缺省 = 不限。
    */
   minSec?: number;
+  /**
+   * 时长按钮摆哪几个（宿主传 economy.durationChoices(本段档位)：高清多 12 / 15、电影级多到 30）。
+   * ★ 判**存在性**：不传 = 老样子（types.DURATIONS），老调用方零改动。高亮按 [minSec, 这里的最大值] 夹过的值走。
+   */
+  durations?: number[];
   /** null = 三套摊开等挑（没有哪一行被放大） */
   pickedId: string | null;
   /** 这一套出片了吗（工坊读 proposal.videoUrl，工作流读 videoByProposal——形状不同，
@@ -90,6 +95,7 @@ export interface PlanBoardProps {
 export default function PlanBoard({
   proposals,
   minSec,
+  durations = DURATIONS,
   pickedId,
   isDone,
   busy,
@@ -292,7 +298,7 @@ export default function PlanBoard({
                     {shotLineDisplay(p.shot) && <p className="text-[10px] text-slate-500">{shotLineDisplay(p.shot)}</p>}
                     <div className="flex flex-wrap items-center gap-1">
                       <span className="flex-none text-[10px] text-slate-500"><Trans>时长</Trans></span>
-                      {DURATIONS.map((d) => {
+                      {durations.map((d) => {
                         const tooShort = minSec !== undefined && d < minSec;
                         return (
                           <button
@@ -302,7 +308,7 @@ export default function PlanBoard({
                             title={tooShort ? t`这一档最短 ${minSec} 秒` : undefined}
                             // 高亮跟实际会拍的时长走（同 SegSettings：吸附后的结算值），别让禁掉的 3s 还亮着
                             className={`rounded px-1.5 py-0.5 text-[10px] disabled:opacity-40 ${
-                              Math.max(minSec ?? 0, p.durationSec) === d ? "bg-gold/80 text-ink" : "bg-panel text-slate-300"
+                              Math.min(Math.max(...durations), Math.max(minSec ?? 0, p.durationSec)) === d ? "bg-gold/80 text-ink" : "bg-panel text-slate-300"
                             }`}
                           >
                             {d}s

@@ -23,6 +23,8 @@ import {
   CARD_SIZE,
   CARD_SLOTS,
   CARD_TYPES,
+  DURATIONS,
+  LONG_DURATIONS,
   MAX_CARD_VIEWS,
   VIDEO_PROMPT_MAX,
   VIDEO_PROMPT_MAX_V2,
@@ -265,6 +267,15 @@ export interface VideoTier {
    * 收在档位表里，**报价（segTokens）与出片（composeSegments）用的是同一个 clampDuration**。
    */
   minSec: number;
+  /**
+   * 这一档允许的最长时长（秒）。★ 2026-10-03 主人拍板「段时长放开」：高清（2.0-mini）15、电影级（2.5）30 ——
+   * 正好是这两个模型的协议上限（方舟「创建视频生成任务」文档：2.0 系列 [4,15]、2.5 [4,30]）；1.0 两档仍是 10（产品口径，没动），
+   * 真人档按发计价只有 6 / 10 两整档。此前全表一刀切 10。
+   * ★★ 与服务端 `config/tokens.js` 的 `VIDEO_SEC_WINDOW` **逐条相等**（跨仓契约，server tests/arkProxy.spec.js 抄了一份钉住）：
+   *   这边按 15 秒报价、那边按 10 秒夹的话就是"页面报 X、扣的是另一个数"；反过来那边会把请求整句 400（pinPlainVideoTask）。
+   * ★ 报价（segTokens）、出片（clampDuration）、协议层（arkClient 按 model 查 durationWindowOfModel）、时长按钮（durationChoices）读的都是它。
+   */
+  maxSec: number;
   desc: string;
 }
 
@@ -279,8 +290,8 @@ export const VIDEO_TIERS: VideoTier[] = [
   //   ⚠ fast 与 hd 此前是拍出来的 0.3 / 1.6，比真实成本高 7% / 4.3%（**多收用户**的方向）。
   // fast/std 是 1.0-pro：`generate_audio` 收下就扔（实测），所以 audio 显式 false ——
   // 不是"我们不给"，是这一代模型出不了（见 VideoTier.audio 的 ★★）
-  { id: "fast", get label() { return i18n._(msg`极速`); }, model: "doubao-seedance-1-0-pro-fast-251015", mult: 4.2 / 15, flf: false, refImg: false, refVid: false, r2vMult: null, audio: false, realFace: false, assetRef: false, minSec: 3, get desc() { return i18n._(msg`省 token · 首帧起拍，不锁尾帧`); } },
-  { id: "std", get label() { return i18n._(msg`标准`); }, model: "doubao-seedance-1-0-pro-250528", mult: 1, flf: true, refImg: false, refVid: false, r2vMult: null, audio: false, realFace: false, assetRef: false, minSec: 3, get desc() { return i18n._(msg`首尾帧可控（默认）`); } },
+  { id: "fast", get label() { return i18n._(msg`极速`); }, model: "doubao-seedance-1-0-pro-fast-251015", mult: 4.2 / 15, flf: false, refImg: false, refVid: false, r2vMult: null, audio: false, realFace: false, assetRef: false, minSec: 3, maxSec: 10, get desc() { return i18n._(msg`省 token · 首帧起拍，不锁尾帧`); } },
+  { id: "std", get label() { return i18n._(msg`标准`); }, model: "doubao-seedance-1-0-pro-250528", mult: 1, flf: true, refImg: false, refVid: false, r2vMult: null, audio: false, realFace: false, assetRef: false, minSec: 3, maxSec: 10, get desc() { return i18n._(msg`首尾帧可控（默认）`); } },
   // ★ desc 是给**用户**看的，不是给运维看的。原来这里写的是「需在方舟控制台开通 2.0 系列」——
   //   那是部署方的事，终端用户既看不懂也做不了（CLAUDE.md 那条「界面上摆一个用户看不懂
   //   也做不了事的东西」）。开通与否的后果由服务端 ALLOWED_MODELS 与方舟的 ModelNotOpen 负责。
@@ -290,7 +301,8 @@ export const VIDEO_TIERS: VideoTier[] = [
   //   实测 2.0-mini 真出声（-30.2dB），且开音频零额外成本，所以 desc 里如实写出来：
   //   不写的话用户只能靠"换个档试试"发现，而多数人只会以为 App 的片本来就是哑的。
   // ★ minSec 4（2026-09-30 修，此前写的是 3）：2.0 mini 不收 3 秒 —— 选 3 秒出片是同步 400，用户只会觉得这一档坏了
-  { id: "hd", get label() { return i18n._(msg`高清`); }, model: "doubao-seedance-2-0-mini-260615", mult: 23 / 15, flf: true, refImg: true, refImagesMax: 9, refVid: false, r2vMult: null, audio: true, realFace: false, assetRef: true, minSec: 4, get desc() { return i18n._(msg`新一代模型 · 画面更稳、细节更多；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音`); } },
+  // ★ maxSec 15（2026-10-03「段时长放开」）：2.0 系列的协议上限，见 VideoTier.maxSec
+  { id: "hd", get label() { return i18n._(msg`高清`); }, model: "doubao-seedance-2-0-mini-260615", mult: 23 / 15, flf: true, refImg: true, refImagesMax: 9, refVid: false, r2vMult: null, audio: true, realFace: false, assetRef: true, minSec: 4, maxSec: 15, get desc() { return i18n._(msg`新一代模型 · 画面更稳、细节更多；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音`); } },
   {
     id: "ultra",
     get label() {
@@ -315,8 +327,9 @@ export const VIDEO_TIERS: VideoTier[] = [
     // asset:// 是 Seedance 2.0/2.5 的能力（官方 docs/82379/2608626）；跟模型代次走
     assetRef: true,
     paidOnly: true,
-    // 2.5 的时长区间是 [4,30]，3 秒会被同步 400（见 VideoTier.minSec）
+    // 2.5 的时长区间是 [4,30]，3 秒会被同步 400（见 VideoTier.minSec）；上限 30 是 2026-10-03「段时长放开」开的（见 VideoTier.maxSec）
     minSec: 4,
+    maxSec: 30,
     get desc() {
       return i18n._(msg`最新一代 · 画面与运镜最好，出片带 AI 生成的环境音，单段消耗约标准档 4.7 倍（仅付费套餐）`);
     },
@@ -357,6 +370,8 @@ export const VIDEO_TIERS: VideoTier[] = [
     // asset:// 是 Seedance 2.0/2.5 的能力（官方 docs/82379/2608626）；跟模型代次走
     assetRef: false,
     minSec: 6,
+    // 按发计价只有 6 / 10 两整档（clampDuration 吸附到价表档位），这一格只给时长按钮用
+    maxSec: 10,
     get desc() {
       return i18n._(msg`唯一收真人照片的档 · 供应商按发计价（6 秒或 10 秒整档）· 用真人卡出片选它`);
     },
@@ -432,8 +447,8 @@ export function modelLabel(modelId: string): string {
 }
 
 /**
- * 真正会发给方舟的时长（秒）。上限 10 是本 app 的产品约束，下限跟着档位走
- * （见 VideoTier.minSec —— 2.5 不收 3 秒）。
+ * 真正会发给方舟的时长（秒）。上下限都跟着档位走（VideoTier.minSec / maxSec —— 2.5 不收 3 秒；
+ * 高清最长 15、电影级最长 30、1.0 两档仍是 10）。
  * ★ 报价与出片必须用同一个函数：只在出片那侧夹一下的话，用户看到的是 3 秒的价、
  *   拿到的是 4 秒的片，差 33% 且无从察觉。
  */
@@ -469,7 +484,27 @@ export function clampDuration(durationSec: number, tierId?: string): number {
     const steps = Object.keys(t.flatCost).map(Number).sort((a, b) => a - b);
     return steps.find((s) => s >= durationSec) ?? steps[steps.length - 1];
   }
-  return Math.max(t.minSec, Math.min(10, Math.round(durationSec)));
+  return Math.max(t.minSec, Math.min(t.maxSec, Math.round(durationSec)));
+}
+
+/**
+ * 时长按钮上摆哪几个（秒）—— **唯一出处**：本段设置（SegSettings）、方案台（PlanBoard，经宿主传进去）、画布自定义车道三处都读它。
+ * 所有档位都摆 types.DURATIONS 那几档，再接上这一档 maxSec 够得着的长段（types.LONG_DURATIONS：高清到 15、电影级到 30）。
+ * ★ 低于本档下限的照旧摆出来、由调用方灰掉并说明（minSec 那条 ★：藏起来用户不知道为什么没有 3 秒）。
+ */
+export function durationChoices(tierId: string | undefined): number[] {
+  const max = tierOf(tierId).maxSec;
+  return [...DURATIONS, ...LONG_DURATIONS].filter((d) => d <= max);
+}
+
+/**
+ * 按**真正发出去的 model id** 查这个模型一段视频的时长窗口 [最短, 最长]（秒）—— 给协议层（ai/arkClient 只拿得到 model）用。
+ * ★ 与 videoAudioOn 同一个理由按 model 查：档位在更上游，协议层手上只有 model；两者一一对应的保证在 VIDEO_TIERS 同一行。
+ * ★ 认不出的 model 按改版前的 [3,10]（与服务端 videoSecWindow 的兜底同一口径），往窄的一侧退是安全的。
+ */
+export function durationWindowOfModel(model: string): [number, number] {
+  const t = VIDEO_TIERS.find((x) => x.model === model);
+  return t ? [t.minSec, t.maxSec] : [3, 10];
 }
 
 /**
@@ -516,9 +551,9 @@ function r2vRawTokens(inputSec: number, mult: number): number {
  * 素材参考出片（自定义 = 多图 + 参考视频，reference 子任务）的报价。
  *
  * ★ 与白模那条 r2vRawTokens 是**两个公式**：edit 输出≈输入所以 输入×2；
- *   reference 的输出时长由用户选（3~10s），式子是 (输入 + 输出)×21,600×系数。
+ *   reference 的输出时长由用户选（这一档的时长窗口内，电影级 4~30s），式子是 (输入 + 输出)×21,600×系数。
  * ★★ 夹取区间与 server 的 tokens.materialRefTokens **逐字相等**（报价=实扣，
- *   跨仓契约）：输入夹 [4,30]、输出夹 [3,10]。系数走档位表 r2vMult（方舟按
+ *   跨仓契约）：输入夹 [4,30]、输出夹到这一档的 [minSec, maxSec]（2026-10-03 之前两边都写死 [3,10]）。系数走档位表 r2vMult（方舟按
  *   "有没有视频输入"分档，不按子任务分档 —— 与白模同一档 2.8）。
  * ★ 档位没有 r2v 价（r2vMult 为 null）时**抛错**：这是报价函数，开发期就该当场炸
  *   （与 server 那份"结算不能炸"的分工相反，理由见 server tokens.imageTokensOf 注释）。
@@ -530,7 +565,7 @@ export function materialRefCost(inputSec: number, outputSec: number, tierId?: st
     throw new Error(`档位 ${t.id} 没有 r2v 价目（r2vMult=null），不能带参考视频出片——调用方该先判 refVid`);
   }
   const i = Math.max(4, Math.min(30, Math.round(inputSec)));
-  const o = Math.max(3, Math.min(10, Math.round(outputSec)));
+  const o = Math.max(t.minSec, Math.min(t.maxSec, Math.round(outputSec)));
   return Math.round((i + o) * SEC_720P_TOKENS * t.r2vMult);
 }
 

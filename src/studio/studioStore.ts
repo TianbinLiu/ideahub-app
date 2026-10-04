@@ -1728,7 +1728,19 @@ export const useStudio = create<StudioState>()((set, get) => ({
   setRequirement: (v) => set((s) => (s.editor ? { editor: { ...s.editor, requirement: v } } : {})),
   setDurationMode: (m) => set((s) => (s.editor ? { editor: { ...s.editor, durationMode: m } } : {})),
   setDurationSec: (v) => set((s) => (s.editor ? { editor: { ...s.editor, durationSec: v } } : {})),
-  setVideoTier: (id) => set((s) => (s.editor ? { editor: { ...s.editor, videoTier: id } } : {})),
+  // 手填的时长随档位收拢到这一档的上限（高清 15、电影级 30、其余 10）：不收的话输入框写着 25、出片按 clampDuration 拍 15
+  setVideoTier: (id) =>
+    set((s) =>
+      s.editor
+        ? {
+            editor: {
+              ...s.editor,
+              videoTier: id,
+              ...(s.editor.durationMode === "manual" ? { durationSec: Math.min(tierOf(id).maxSec, s.editor.durationSec) } : {}),
+            },
+          }
+        : {},
+    ),
   setAspect: (a) => set((s) => (s.editor ? { editor: { ...s.editor, aspect: a } } : {})),
   setStartFrame: (dataUrl) => set((s) => (s.editor ? { editor: { ...s.editor, startFrame: dataUrl } } : {})),
   setEndFrame: (dataUrl) => set((s) => (s.editor ? { editor: { ...s.editor, endFrame: dataUrl } } : {})),

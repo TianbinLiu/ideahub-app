@@ -16220,8 +16220,12 @@ msgid "留空 = 跟随人格/模型：{0}"
 msgstr "留空 = 跟随人格/模型：{0}"
 
 #: src/studio/ui/projection.tsx
-msgid "留空由 AI 决定；可填 2-15"
-msgstr "留空由 AI 决定；可填 2-15"
+msgid "留空由 AI 决定；可填 2-{durMax}"
+msgstr "留空由 AI 决定；可填 2-{durMax}"
+
+#: src/studio/ui/projection.tsx
+#~ msgid "留空由 AI 决定；可填 2-15"
+#~ msgstr "留空由 AI 决定；可填 2-15"
 
 #: src/pages/LoginPage.tsx
 msgid "登录"

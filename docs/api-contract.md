@@ -2314,7 +2314,7 @@ V2 这条链路**花两次真钱**，报价页必须**两笔都写明**，不许
 |---|---|
 | `POST /images/generations` | **按 `body.model` 查表**：13,333 / 16,667 / 40,000（见上「出图档位与计价」）。认不出的按最贵档 |
 | `POST /chat/completions` | 400（一次豆包往返） |
-| `POST /contents/generations/tasks`（Seedance） | `时长×1280×720×24/1024 × 档位系数`（极速 0.3 / 标准 1 / 高清 1.6 / 电影级 4.7） |
+| `POST /contents/generations/tasks`（Seedance） | `时长×1280×720×24/1024 × 档位系数`（极速 4.2/15 / 标准 1 / 高清 23/15 / 电影级 4.7）。时长按模型的窗口夹（下面「纯视频任务的参数钉子」） |
 | `POST /contents/generations/tasks`（**r2v 白模出片**，带 `reference_video`） | `输入时长 × 2 × 21,600 × r2v 系数`（2.5 = **2.8** = 42 元/M ÷ 15）。输入时长有且只有两个可信来源：**模板登记的 `refVideo.durationSec`**（分支一）或**服务端拼的变换 URL 里那个 `du_`**（分支二，白模化）。见上「r2v 的服务端规则」 |
 | `POST /contents/generations/tasks`（Seed3D） | 160,000 |
 | `GET /contents/generations/tasks/:id` | **0**（轮询高频，按次收会把一段片的价格翻几倍） |
@@ -2327,6 +2327,24 @@ V2 这条链路**花两次真钱**，报价页必须**两笔都写明**，不许
   方舟也已经向我们计费。刻意为之，不是遗漏。
 - 每个响应都带 `X-Wallet-Plan` / `X-Wallet-Addon`（CORS `exposedHeaders` 已放行），
   App 的钱包镜像据此同步，省掉一次 `GET /api/me/wallet`
+
+### 纯视频任务的时长窗口与参数钉子（2026-10-03）
+
+一段视频能选的时长按**模型**走（server `config/tokens.VIDEO_SEC_WINDOW` ↔ app `economy.VideoTier.minSec / maxSec`，**逐条相等**，
+server `tests/arkProxy.spec.js`「跨仓时长窗口一致性」抄了一份钉住）：
+
+| 档位（模型） | 时长窗口（秒，整数） |
+|---|---|
+| 极速 / 标准（Seedance 1.0） | 3~10 |
+| 高清（Seedance 2.0-mini） | 4~15 |
+| 电影级（Seedance 2.5） | 4~30（含「自定义 + 示例视频」那条素材参考的输出时长） |
+| 认不出的模型 | 3~10 |
+
+没有参考视频的 Seedance 任务（文生 / 图生 / 参考图生视频）在扣费之前过一道钉子（`ark.routes` 的 `pinPlainVideoTask`），
+下列任一项 → **400 `VIDEO_PARAMS_NOT_ALLOWED`** 整句拒（中文整句，说明没扣费），方舟不会被调用：
+窗口外或非整数的 `duration`（含 `-1` 智能时长、字符串）、带 `frames`、`resolution` 不是 `720p`。
+不传 `duration` 照旧放行（方舟与结算的缺省都是 5 秒）。理由：结算按请求里的时长 × 720p 算、代理原样转发，
+不钉的话改一行客户端就能按短时长 / 720p 的价买长时长 / 1080p 的产出。带参考视频的任务由 r2v 那套钉子管（上面），不重复钉。
 
 ★ **定价表两边都有，必须一起改**：服务端 `src/config/tokens.js` 是**结算**口径，
 App `src/data/economy.ts` 是**报价**口径。不一致的后果是"报价 216k、余额掉了 243k"，
