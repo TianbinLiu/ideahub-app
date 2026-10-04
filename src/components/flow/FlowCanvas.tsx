@@ -1004,28 +1004,28 @@ function NodePanel({
   /** 时长那一排（自定义与参考图直出两条车道共用，写进方案的 durationSec） */
   const durationRow = (
     <>
-    {/* 时长：直接写进方案（nodeCost/genNode 读的就是它）。低于本档下限的不给点。
-        摆哪几个只问 economy.durationChoices（原来这里手写了一份 [3, 5, 8, 10]，与本段设置那排不一样）；
-        电影级的按钮多到 9 个，所以要能折行 */}
-    <div className="flex flex-wrap items-center gap-1.5">
-      <span className="flex-none text-[10px] text-slate-500"><Trans>时长</Trans></span>
-      {durationChoices(node.videoTier).map((sec) => {
-        const below = sec < (tierOf(node.videoTier).minSec ?? 3);
-        return (
-          <button
-            key={sec}
-            onClick={() => updateProposal(node.id, { durationSec: sec })}
-            disabled={locked || generating || below}
-            title={below ? t`${tierOf(node.videoTier).label}档最短 ${tierOf(node.videoTier).minSec}s` : undefined}
-            // 高亮跟 clampDuration 的结算值走（同本段设置那排）：换到上限更低的档之后，存着的 15 秒会按 10 秒出
-            className={`rounded-full px-2.5 py-1 text-[10px] disabled:opacity-40 ${
-              clampDuration(p.durationSec, node.videoTier) === sec ? "bg-brand font-bold text-ink" : "bg-panel text-slate-300"
-            }`}
-          >
-            {sec}s
-          </button>
-        );
-      })}
+    {/* 时长：直接写进方案（nodeCost/genNode 读的就是它）。低于本档下限的不给点。
+        摆哪几个只问 economy.durationChoices（原来这里手写了一份 [3, 5, 8, 10]，与本段设置那排不一样）；
+        电影级的按钮多到 9 个，所以要能折行 */}
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="flex-none text-[10px] text-slate-500"><Trans>时长</Trans></span>
+      {durationChoices(node.videoTier).map((sec) => {
+        const below = sec < (tierOf(node.videoTier).minSec ?? 3);
+        return (
+          <button
+            key={sec}
+            onClick={() => updateProposal(node.id, { durationSec: sec })}
+            disabled={locked || generating || below}
+            title={below ? t`${tierOf(node.videoTier).label}档最短 ${tierOf(node.videoTier).minSec}s` : undefined}
+            // 高亮跟 clampDuration 的结算值走（同本段设置那排）：换到上限更低的档之后，存着的 15 秒会按 10 秒出
+            className={`rounded-full px-2.5 py-1 text-[10px] disabled:opacity-40 ${
+              clampDuration(p.durationSec, node.videoTier) === sec ? "bg-brand font-bold text-ink" : "bg-panel text-slate-300"
+            }`}
+          >
+            {sec}s
+          </button>
+        );
+      })}
     </div>
     </>
   );
