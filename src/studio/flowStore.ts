@@ -1411,6 +1411,8 @@ interface FlowState {
     requirement?: string;
     /** 首帧承接上一段真实尾帧（缺省 = 有上一段就承接） */
     chain?: boolean;
+    /** 参考图直出段（FlowNode.direct）。缺省 = 普通段 */
+    direct?: boolean;
   }) => string | null;
   /** 把一段真实成片写到某套方案名下（videoByProposal + proposal.videoUrl 两处一起，
    *  两处是同一份出片的两个读法——剪辑页「只编辑本段」写回走这里，别只写一半） */
@@ -1473,6 +1475,12 @@ interface FlowState {
   /** 把某一段切进/切出「自定义直出」（FlowNode.custom 的唯一写点）。
    *  返回 false = 被拒（原因在 err，铁律八） */
   setNodeCustom: (id: string, on: boolean) => boolean;
+  /**
+   * 把某一段切进 / 切出「参考图直出」（FlowNode.direct 的唯一写点，2026-10-04「跟着做」模式）。闸与 setNodeCustom 同源：
+   * 生成中、已出片、套着模板都拒。与自定义互斥（切进来就清掉 custom，反过来 setNodeCustom 也清掉 direct）。
+   * 返回 false = 被拒（原因在 err，铁律八）
+   */
+  setNodeDirect: (id: string, on: boolean) => boolean;
   /** 自定义车道的「中间帧」：把这一段在该帧处**拆成两段**（本段到中间帧为止，
    *  紧随其后插入一段同为自定义的新段接着它）。返回 false = 被拒（原因在 err） */
   insertMidFrame: (id: string, dataUrl: string) => boolean;
@@ -1823,6 +1831,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
               cast: undefined,
               castPreview: undefined,
               chain: false, // 白模段复刻自己的素材，不走尾帧承接（applyTemplateGroup 同款 ★）
+              direct: undefined, // 套上模板就不再是参考图直出段（摘掉模板回到「自选卡片」）
               videoTier: gate.id,
               aspect: picked.refVideo!.height > picked.refVideo!.width ? "portrait" : "landscape",
             }
@@ -2655,6 +2664,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
         anns: [],
         // 新段恒"明确没有模板"（理由与 addNode 那段 ★★★ 逐字相同）
         tpl: null,
+        // 参考图直出段（工坊铸段窗的「参考图直出」车道铺的）：判否定，缺省 = 普通段
+        ...(spec.direct ? { direct: true } : {}),
       };
       newId = node.id;
       return { nodes: [...pinUnstatedTpl(s.nodes, s.template), node], cursor: i, err: "" };
@@ -2829,13 +2840,46 @@ export const useFlow = create<FlowState>()((set, get) => ({
         nodes: pinUnstatedTpl(st.nodes, st.template).map((n) =>
           // 方案台若正摊着（picking）就收起：已推演的方案**保留**（那是花过钱的），
           // chosenId 不动 —— 自定义写的帧落在当前选中那条方案上
-          n.id === id ? { ...n, custom: true, tpl: null, ...(planOf(n) === "picking" ? { plan: "picked" as const } : {}) } : n,
+          // 车道互斥：切进自定义就不再是参考图直出段（FlowNode.direct）
+          n.id === id ? { ...n, custom: true, direct: undefined, tpl: null, ...(planOf(n) === "picking" ? { plan: "picked" as const } : {}) } : n,
         ),
         err: "",
       }));
       return true;
     }
     set((st) => ({ nodes: st.nodes.map((n) => (n.id === id ? { ...n, custom: false } : n)), err: "" }));
+    return true;
+  },
+
+  setNodeDirect: (id, on) => {
+    const s = get();
+    const node = s.nodes.find((n) => n.id === id);
+    if (!node) return false;
+    // 闸与 setNodeCustom 逐条同源（理由见那边）：生成中拒、已出片拒、套着模板拒
+    if (s.busy || s.nodes.some((n) => n.status === "generating")) {
+      set({ err: t`有一段正在生成中，等它跑完再切换这一段的模式` });
+      return false;
+    }
+    if (on) {
+      if (nodeDone(node)) {
+        set({ err: t`这一段已经出片：想换做法就先删掉本段再加一段` });
+        return false;
+      }
+      if (tplOfNode(node)) {
+        set({ err: t`这一段套着模板——先「摘掉模板」（改为自选）再改成参考图直出` });
+        return false;
+      }
+      set((st) => ({
+        // tpl 写成明确的 null + 其余没表态的段同一拍钉住（理由同 setNodeCustom 的 ★）；车道互斥：不再是自定义段。
+        // 推演过的方案保留（花过钱的），摊着就收起 —— 直出写的提示词落在当前选中那条方案上
+        nodes: pinUnstatedTpl(st.nodes, st.template).map((n) =>
+          n.id === id ? { ...n, direct: true, custom: false, tpl: null, ...(planOf(n) === "picking" ? { plan: "picked" as const } : {}) } : n,
+        ),
+        err: "",
+      }));
+      return true;
+    }
+    set((st) => ({ nodes: st.nodes.map((n) => (n.id === id ? { ...n, direct: undefined } : n)), err: "" }));
     return true;
   },
 

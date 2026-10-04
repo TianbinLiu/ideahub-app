@@ -42,6 +42,9 @@ import PlanBoard from "../../studio/ui/PlanBoard";
 import FuseFrameSheet, { fuseSourcesOf } from "../../studio/ui/FuseFrameSheet";
 import CustomFrameSlots from "./CustomFrameSlots";
 import RefStrip from "./RefStrip";
+import ModePicker, { modeTierOf } from "./ModePicker";
+import Sheet from "../Sheet";
+import { modeBlock, type GuidedModeId } from "../../data/guidedModes";
 import FrameEditBox from "./FrameEditBox";
 import ShotListEditor, { type ShotListHandle } from "./ShotListEditor";
 import { parseShots, setShot } from "../../data/shotScript";
@@ -50,6 +53,8 @@ import { registerMaterialVideo, uploadTemplateVideo } from "../../api/uploads";
 import { fileToFrameDataUrl } from "../../utils/image";
 import {
   CUSTOM_MID_MAX,
+  appendIssue,
+  derivesProposals,
   chosenOf,
   clampCursor,
   nodeCost,
@@ -81,7 +86,7 @@ import {
   subscribeTemplates,
   templatesVersion,
 } from "../../data/templates";
-import { CHAT_TURN_TOKENS, ONE_IMAGE, blockoutTier, clampDuration, durationChoices, fmtTokens, modelLabel, promptMaxOf, proposalsCost, tierOf } from "../../data/economy";
+import { CHAT_TURN_TOKENS, DEFAULT_TIER, ONE_IMAGE, blockoutTier, clampDuration, durationChoices, fmtTokens, modelLabel, promptMaxOf, proposalsCost, tierOf } from "../../data/economy";
 import { AGENT_PHRASES, executeAgentProposal, runCanvasAgent, type AgentOutcome, type AgentProposal } from "../../studio/canvasAgent";
 import { EXAMPLES, phraseText, templatePhrase } from "../../studio/agentGrammar";
 import { useLang } from "../../i18n/useLang";
@@ -164,6 +169,13 @@ export default function FlowCanvas({
   const err = useFlow((s) => s.err);
   const setCursor = useFlow((s) => s.setCursor);
   const [sel, setSel] = useState<number | null>(cursor);
+  /**
+   * 「＋ 加一段」的选法屏（2026-10-04「跟着做」模式，与工坊铸段窗第①步同一个 ModePicker）：先选模型、再挑做法，
+   * 挑定才真的加一段。tier = 屏上选着的档（缺省接上一段的档）。null = 没开
+   */
+  const [addPick, setAddPick] = useState<{ tier: string } | null>(null);
+  /** 刚加的那一段要一打开就弹选模板层（选法屏里挑了「套模板」）；用掉就清 */
+  const [autoTplFor, setAutoTplFor] = useState<string | null>(null);
   /** 带着主题进来的那一次自动开面板（关了就不再开） */
   const [themeSheet, setThemeSheet] = useState<string | null>(() => (autoTheme && autoTheme.trim() ? autoTheme : null));
   // 第一次打开画布强制放一遍引导（看过一次不再自动弹；顶栏那颗 ? 随时能重看）。
@@ -349,6 +361,29 @@ export default function FlowCanvas({
    * 不平移的话点了「加一段」屏幕上什么都不动 —— 与"按钮坏了"完全一样（铁律八）。
    * ★ 只改 translate（合成层），不动 scale：用户自己捏的缩放是他的视角，别替他改。
    */
+  /** 选法屏挑定：真的加一段，再按选的档与做法把它摆好（车道的写入口都在 store：setNodeDirect / setNodeCustom / 选模板层） */
+  function pickAddMode(m: GuidedModeId, tierId: string) {
+    setAddPick(null);
+    const before = useFlow.getState().nodes.length;
+    addNode();
+    const after = useFlow.getState().nodes;
+    if (after.length === before) return; // 被拒：那句话已经在错误条上（addNode 写的）
+    const nn = after[after.length - 1];
+    const flow = useFlow.getState();
+    if (nn.videoTier !== tierId) {
+      flow.updateNode(nn.id, { videoTier: tierId });
+      // 换档同一拍把时长吸附写回（同 TierRow.apply 的 ★）
+      const dur = chosenOf(nn).durationSec;
+      const snapped = clampDuration(dur, tierId);
+      if (snapped !== dur) flow.updateProposal(nn.id, { durationSec: snapped });
+    }
+    if (m === "direct") flow.setNodeDirect(nn.id, true);
+    else if (m === "custom") flow.setNodeCustom(nn.id, true);
+    else if (m === "template") setAutoTplFor(nn.id);
+    setSel(after.length - 1);
+    panTo(after.length - 1); // 不挪的话新段在屏幕外，等于"点了没反应"
+  }
+
   function panTo(i: number) {
     // ★ ty 一并归位（第六轮评审）：整条流水线只有横向一排，用户往上下拖走之后，
     //   只改 tx 的"挪进视野"根本没把那一格挪回视野里 ——「加一段」还是"点了没反应"
@@ -645,13 +680,14 @@ export default function FlowCanvas({
                 <button
                   onClick={() => {
                     if (moved.current) return;
-                    const before = useFlow.getState().nodes.length;
-                    addNode();
-                    const after = useFlow.getState().nodes.length;
-                    if (after > before) {
-                      setSel(after - 1);
-                      panTo(after - 1); // 不挪的话新段在屏幕外，等于"点了没反应"
+                    const st = useFlow.getState();
+                    // ★ 门禁只在 store（appendIssue 与 addNode 同一组条件）：过不去就照旧让 addNode 把那句话写到错误条上，
+                    //   别先摆一屏选法、挑完了才说「先把这一段炼出来」
+                    if (appendIssue(st)) {
+                      addNode();
+                      return;
                     }
+                    setAddPick({ tier: st.nodes[st.nodes.length - 1]?.videoTier ?? DEFAULT_TIER });
                   }}
                   className="flex items-center justify-center rounded-xl border-2 border-dashed border-slate-600 text-sm text-slate-400"
                   style={{ height: CARD_H }}
@@ -732,10 +768,25 @@ export default function FlowCanvas({
               busy={busy}
               onCast={onCast}
               onClose={() => setSel(null)}
+              autoTemplate={autoTplFor === selNode.id}
+              onAutoTemplate={() => setAutoTplFor(null)}
             />
           </div>
         )}
       </div>
+      {addPick && (
+        <Sheet onClose={() => setAddPick(null)}>
+          <div className="mb-3 flex items-center justify-between">
+            <span className="text-sm font-bold text-slate-100"><Trans>加一段 · 这一段怎么拍？</Trans></span>
+            <CloseButton chip="sm" size={13} align="end" onClick={() => setAddPick(null)} />
+          </div>
+          <ModePicker
+            tierId={addPick.tier}
+            onTier={(id) => setAddPick({ tier: id })}
+            onPick={(m) => pickAddMode(m, addPick.tier)}
+          />
+        </Sheet>
+      )}
       {themeSheet !== null && <ThemeRewriteSheet initialTheme={themeSheet} onClose={() => setThemeSheet(null)} onApplied={() => setThemeSheet(null)} />}
     </div>
   );
@@ -758,10 +809,16 @@ function NodePanel({
   busy,
   onCast,
   onClose,
+  autoTemplate,
+  onAutoTemplate,
 }: {
   index: number;
   node: FlowNode;
   locked: boolean;
+  /** 一打开就弹出选模板层（「＋ 加一段」里挑了「套模板」，2026-10-04）。只在挂载那一拍读 */
+  autoTemplate?: boolean;
+  /** 上面那一下已经用掉了（宿主清掉标记，免得重开这一段时又弹一次） */
+  onAutoTemplate?: () => void;
   /** 回看本段成片（播放层在画布根一级，只有一处实现） */
   onPlay: () => void;
   cast: Record<string, string>;
@@ -776,6 +833,7 @@ function NodePanel({
     genNode,
     setNodeTemplate,
     setNodeCustom,
+    setNodeDirect,
     setCustomRefVideo: setNodeCustomRefVideo,
     removeCustomMid,
     setFrame,
@@ -847,6 +905,14 @@ function NodePanel({
   /** 自定义直出段（主人点名的第三车道）：帧自己给、跳过方案台。事实在 FlowNode.custom
    *  （setNodeCustom 唯一写点），tplMode/flatTier 在场时它让位（store 也拦） */
   const custom = !!node.custom && !tplMode && !flatTier;
+  /**
+   * 参考图直出段（2026-10-04「跟着做」模式 A，事实在 FlowNode.direct，setNodeDirect 唯一写点）：没有推演那一拍，
+   * 写的就是出片用的 plot（与自定义同一个分镜表），不摆首尾帧格子。套着模板时让位（store 也拦）。
+   * 真人档上它就是那一档本来的样子（真人卡照片起拍），所以不像自定义那样给真人档让位。
+   */
+  const direct = !!node.direct && !tplMode;
+  /** 要求框写的是出片用的 plot（不经推演）：自定义、参考图直出、真人档 */
+  const writesPlot = custom || direct;
   /** 融图开在哪一帧上（自定义车道；方案台里那份由 PlanBoard 自己带） */
   const [fuse, setFuse] = useState<"first" | "last" | null>(null);
   /** 自定义车道翻页（2026-08-30 主人点名）：第①页示例视频（可跳过）→ 第②页帧与要求。
@@ -866,7 +932,12 @@ function NodePanel({
   const [refUploading, setRefUploading] = useState("");
   /** 中间帧选图读取中（解码 + 压制那一两秒要让人看见） */
   const [midReading, setMidReading] = useState(false);
-  const [picker, setPicker] = useState(false);
+  const [picker, setPicker] = useState(!!autoTemplate);
+  // 「＋ 加一段」挑了套模板：弹层在挂载那一拍已经开了，告诉宿主这一下用掉了
+  useEffect(() => {
+    if (autoTemplate) onAutoTemplate?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 只在挂载那一拍
+  }, []);
   const [cardPick, setCardPick] = useState(false);
   const [castAsk, setCastAsk] = useState(false);
   const [stripAsk, setStripAsk] = useState(false);
@@ -899,9 +970,9 @@ function NodePanel({
   /** 分镜 / 台词只开在出声又收参考图的两档（高清 / 电影级）：别的档台词不会按卡的声音配，多镜头也没验过 */
   const shotsOk = tierOf(node.videoTier).refImg && tierOf(node.videoTier).audio === true;
   /** 运镜芯片对着哪段字：分了镜就是正在写的那个镜头，否则整段 */
-  const shotsNow = custom ? parseShots(p.plot).shots : [];
+  const shotsNow = writesPlot ? parseShots(p.plot).shots : [];
   const shotIdx = Math.min(activeShot, Math.max(0, shotsNow.length - 1));
-  const chipOnShot = custom && shotsNow.length > 1;
+  const chipOnShot = writesPlot && shotsNow.length > 1;
   /**
    * 参考清单「点一张图」→ 把 `@名字` 写进要求框的光标处（自定义车道：那一栏写的就是出片用的 plot）。
    * ★ 字数上限与 textarea 的 maxLength、运镜 chips 同一个常量：插了会超就不插并说明（超出的部分是从正文尾巴截的）。
@@ -929,6 +1000,35 @@ function NodePanel({
       el.setSelectionRange(ins.caret, ins.caret);
     });
   }
+
+  /** 时长那一排（自定义与参考图直出两条车道共用，写进方案的 durationSec） */
+  const durationRow = (
+    <>
+    {/* 时长：直接写进方案（nodeCost/genNode 读的就是它）。低于本档下限的不给点。
+        摆哪几个只问 economy.durationChoices（原来这里手写了一份 [3, 5, 8, 10]，与本段设置那排不一样）；
+        电影级的按钮多到 9 个，所以要能折行 */}
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="flex-none text-[10px] text-slate-500"><Trans>时长</Trans></span>
+      {durationChoices(node.videoTier).map((sec) => {
+        const below = sec < (tierOf(node.videoTier).minSec ?? 3);
+        return (
+          <button
+            key={sec}
+            onClick={() => updateProposal(node.id, { durationSec: sec })}
+            disabled={locked || generating || below}
+            title={below ? t`${tierOf(node.videoTier).label}档最短 ${tierOf(node.videoTier).minSec}s` : undefined}
+            // 高亮跟 clampDuration 的结算值走（同本段设置那排）：换到上限更低的档之后，存着的 15 秒会按 10 秒出
+            className={`rounded-full px-2.5 py-1 text-[10px] disabled:opacity-40 ${
+              clampDuration(p.durationSec, node.videoTier) === sec ? "bg-brand font-bold text-ink" : "bg-panel text-slate-300"
+            }`}
+          >
+            {sec}s
+          </button>
+        );
+      })}
+    </div>
+    </>
+  );
 
   return (
     <div className="flex flex-col gap-2.5 px-3 py-2.5">
@@ -974,10 +1074,10 @@ function NodePanel({
           <Trans>🧪 套模板</Trans>
         </button>
         <button
-          onClick={() => (tplMode ? setStripAsk(true) : custom ? setNodeCustom(node.id, false) : undefined)}
+          onClick={() => (tplMode ? setStripAsk(true) : custom ? setNodeCustom(node.id, false) : direct ? setNodeDirect(node.id, false) : undefined)}
           disabled={locked || generating || busy || done}
           className={`rounded-full px-3 py-1 text-[11px] disabled:opacity-40 ${
-            !tplMode && !custom ? "bg-brand font-semibold text-ink" : "text-slate-400"
+            !tplMode && !custom && !direct ? "bg-brand font-semibold text-ink" : "text-slate-400"
           }`}
         >
           <Trans>🃏 自选卡片</Trans>
@@ -991,6 +1091,16 @@ function NodePanel({
           }`}
         >
           <Trans>✍ 自定义</Trans>
+        </button>
+        {/* 参考图直出（2026-10-04「跟着做」模式 A）：能不能用问 data/guidedModes.modeBlock（与选法屏摆不摆同一个判据）。
+            套着模板时点它由 store 整句拒并指路（先摘模板），与「自定义」同一条 */}
+        <button
+          onClick={() => !direct && setNodeDirect(node.id, true)}
+          disabled={locked || generating || busy || done || (!direct && !!modeBlock("direct", modeTierOf(node.videoTier)))}
+          title={!direct && modeBlock("direct", modeTierOf(node.videoTier)) ? t`参考图直出要收参考图的模型——到 ⚙ 本段设置换成高清或电影级` : undefined}
+          className={`rounded-full px-3 py-1 text-[11px] disabled:opacity-40 ${direct ? "bg-brand font-semibold text-ink" : "text-slate-400"}`}
+        >
+          <Trans>🖼 直出</Trans>
         </button>
       </div>
       {/* ★ 已出片的段：换模板/换模式会作废这段成片，store 本来就整句拒 —— 与其让用户
@@ -1224,29 +1334,7 @@ function NodePanel({
                   </InfoTip>
                 </p>
               )}
-              {/* 时长：直接写进方案（nodeCost/genNode 读的就是它）。低于本档下限的不给点。
-                  摆哪几个只问 economy.durationChoices（原来这里手写了一份 [3, 5, 8, 10]，与本段设置那排不一样）；
-                  电影级的按钮多到 9 个，所以要能折行 */}
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="flex-none text-[10px] text-slate-500"><Trans>时长</Trans></span>
-                {durationChoices(node.videoTier).map((sec) => {
-                  const below = sec < (tierOf(node.videoTier).minSec ?? 3);
-                  return (
-                    <button
-                      key={sec}
-                      onClick={() => updateProposal(node.id, { durationSec: sec })}
-                      disabled={locked || generating || below}
-                      title={below ? t`${tierOf(node.videoTier).label}档最短 ${tierOf(node.videoTier).minSec}s` : undefined}
-                      // 高亮跟 clampDuration 的结算值走（同本段设置那排）：换到上限更低的档之后，存着的 15 秒会按 10 秒出
-                      className={`rounded-full px-2.5 py-1 text-[10px] disabled:opacity-40 ${
-                        clampDuration(p.durationSec, node.videoTier) === sec ? "bg-brand font-bold text-ink" : "bg-panel text-slate-300"
-                      }`}
-                    >
-                      {sec}s
-                    </button>
-                  );
-                })}
-              </div>
+              {durationRow}
               {/* ── 示例视频（素材参考）：传本地视频当整段参考 ──
                   挂上后整段切成「多图 + 参考视频」（reference 子任务）：首/中/尾帧变成
                   参考图，时序由默认提示词点名（segmentGen.customRefPrompt 唯一实现）。 */}
@@ -1355,54 +1443,74 @@ function NodePanel({
                   );
                 }}
               />
-              <input
-                ref={refVideoFileRef}
-                type="file"
-                accept="video/mp4,video/quicktime"
-                hidden
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  e.target.value = "";
-                  if (!f) return;
-                  void (async () => {
-                    try {
-                      setRefUploading(t`上传参考视频 0%…`);
-                      const receipt = await uploadTemplateVideo(f, (frac) =>
-                        setRefUploading(t`上传参考视频 ${Math.round(frac * 100)}%…`),
-                      );
-                      setRefUploading(t`登记素材…`);
-                      // 登记回执里的时长是服务端从 Cloudinary 取的 —— 计价输入以它为准
-                      const reg = await registerMaterialVideo(receipt.publicId);
-                      setNodeCustomRefVideo(node.id, {
-                        url: reg.url,
-                        publicId: receipt.publicId,
-                        durationSec: reg.durationSec,
-                      });
-                      // 本地地址留着给「调节首尾帧」截帧（零跨域零流量），换段即失效退回远端
-                      const local = URL.createObjectURL(f);
-                      setLocalRefUrl(local);
-                      // 自动用示例视频的首尾帧当本段首尾帧（主人点名）；失败不拦，去小窗手动取
-                      try {
-                        setRefUploading(t`取首尾帧…`);
-                        const fr = await captureFirstLast(local, reg.durationSec);
-                        setFrame(node.id, "first", fr.first);
-                        setFrame(node.id, "last", fr.last);
-                      } catch {
-                        useFlow.setState({ err: t`自动取首尾帧没成——点「🎞 调节首尾帧」手动截` });
-                      }
-                      setCustomStep("content");
-                    } catch (err) {
-                      const why = err instanceof Error ? err.message : String(err);
-                      useFlow.setState({ err: t`参考视频没挂上：${why}` });
-                    } finally {
-                      setRefUploading("");
-                    }
-                  })();
-                }}
-              />
             </>
           )}
+          {/* ★ 示例视频的选文件口挂在两步之外（2026-10-04 修）：它原来只长在第②步的片段里，第①步那颗大按钮
+              「🎬 上传一段示例视频当整段参考」点下去 ref 是空的、什么都不发生 —— 只有「跳过」那条小字能用 */}
+          {custom && (
+            <input
+              ref={refVideoFileRef}
+              type="file"
+              accept="video/mp4,video/quicktime"
+              hidden
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                e.target.value = "";
+                if (!f) return;
+                void (async () => {
+                  try {
+                    setRefUploading(t`上传参考视频 0%…`);
+                    const receipt = await uploadTemplateVideo(f, (frac) =>
+                      setRefUploading(t`上传参考视频 ${Math.round(frac * 100)}%…`),
+                    );
+                    setRefUploading(t`登记素材…`);
+                    // 登记回执里的时长是服务端从 Cloudinary 取的 —— 计价输入以它为准
+                    const reg = await registerMaterialVideo(receipt.publicId);
+                    setNodeCustomRefVideo(node.id, {
+                      url: reg.url,
+                      publicId: receipt.publicId,
+                      durationSec: reg.durationSec,
+                    });
+                    // 本地地址留着给「调节首尾帧」截帧（零跨域零流量），换段即失效退回远端
+                    const local = URL.createObjectURL(f);
+                    setLocalRefUrl(local);
+                    // 自动用示例视频的首尾帧当本段首尾帧（主人点名）；失败不拦，去小窗手动取
+                    try {
+                      setRefUploading(t`取首尾帧…`);
+                      const fr = await captureFirstLast(local, reg.durationSec);
+                      setFrame(node.id, "first", fr.first);
+                      setFrame(node.id, "last", fr.last);
+                    } catch {
+                      useFlow.setState({ err: t`自动取首尾帧没成——点「🎞 调节首尾帧」手动截` });
+                    }
+                    setCustomStep("content");
+                  } catch (err) {
+                    const why = err instanceof Error ? err.message : String(err);
+                    useFlow.setState({ err: t`参考视频没挂上：${why}` });
+                  } finally {
+                    setRefUploading("");
+                  }
+                })();
+              }}
+            />
+          )}
 
+          {direct && (
+            <>
+              {/* 这一档收不了参考图（1.0 两档）：参考图直出退回先画帧（flowStore.noDrawFor），说出来，别让人以为卡片图直接进了视频 */}
+              {!flatTier && !tierOf(node.videoTier).refImg && (
+                <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">
+                  <Trans>「{tierOf(node.videoTier).label}」档收不了参考图：这一段出片前会先按提示词画帧（计费）。想让人物图直接给视频模型，到 ⚙ 本段设置换成高清或电影级。</Trans>
+                </p>
+              )}
+              {index > 0 && node.chain && !flatTier && (
+                <p className="text-[10px] leading-relaxed text-slate-500">
+                  <Trans>接着上一段的真实结尾拍：上一段出片后，它的最后一帧当图片 1 发，不画新帧</Trans>
+                </p>
+              )}
+              {durationRow}
+            </>
+          )}
           {custom && customStep === "content" && !node.customRef && (
             <button onClick={() => setCustomStep("ref")} className="self-start text-[10px] text-slate-500 underline underline-offset-2">
               <Trans>‹ 上传示例视频当整段参考</Trans>
@@ -1421,7 +1529,7 @@ function NodePanel({
               cards={mats.map((c) => ({ id: c.id, name: c.name }))}
               tierLabel={tierOf(node.videoTier).label}
               text={p.plot}
-              onMention={custom ? mentionInto : undefined}
+              onMention={writesPlot ? mentionInto : undefined}
               pendingFromDerive={nodeFramesComeFromDerive(node)}
               canEdit={!locked && !generating}
               onAdd={(url) =>
@@ -1437,8 +1545,8 @@ function NodePanel({
               onError={(msg) => useFlow.setState({ err: msg })}
             />
           )}
-          {custom && customStep === "content" && (
-            /* 自定义车道的要求框 = 分镜表（N2）：一个镜头时就是原来那一个输入框；「＋ 镜头」写成几个镜头，「＋ 台词」点明谁说的。
+          {((custom && customStep === "content") || direct) && (
+            /* 自定义 / 参考图直出车道的要求框 = 分镜表（N2）：一个镜头时就是原来那一个输入框；「＋ 镜头」写成几个镜头，「＋ 台词」点明谁说的。
                文字是唯一真身（读写规则在 data/shotScript），写的仍是这一套方案的 plot */
             <ShotListEditor
               ref={shotRef}
@@ -1453,7 +1561,7 @@ function NodePanel({
               onActive={setActiveShot}
             />
           )}
-          {!custom && (
+          {!writesPlot && (
           <textarea
             ref={promptRef}
             onSelect={(e) => (caretRef.current = e.currentTarget.selectionStart)}
@@ -1473,11 +1581,11 @@ function NodePanel({
               插的目标与输入框的绑定完全同源（flatTier/custom 写 plot，其余写 requirement），别在这里另判一遍归属。
               分了镜的自定义段：对着**正在写的那个镜头**亮灭与插入（每个镜头各有各的运镜），字数闸按整段还剩多少算 */}
           <CameraChips
-            text={chipOnShot ? shotsNow[shotIdx] : flatTier || custom ? p.plot : (node.requirement ?? "")}
+            text={chipOnShot ? shotsNow[shotIdx] : flatTier || writesPlot ? p.plot : (node.requirement ?? "")}
             onChange={(next) =>
               chipOnShot
                 ? updateProposal(node.id, { plot: setShot(p.plot, shotIdx, next) })
-                : flatTier || custom
+                : flatTier || writesPlot
                   ? updateProposal(node.id, { plot: next })
                   : setRequirement(node.id, next)
             }
@@ -1506,7 +1614,7 @@ function NodePanel({
       <SegmentRecoverList />
 
       {/* 行动区。报价与扣费同一把尺（nodeCost/genNode、proposalsCost/deriveProposals） */}
-      {(tplMode || flatTier || custom) && !locked && (
+      {(tplMode || flatTier || custom || direct) && !locked && (
         <button
           onClick={() => void genNode(node.id)}
           disabled={busy || generating || !p.plot.trim()}
@@ -1515,7 +1623,7 @@ function NodePanel({
           {generating ? node.progress || t`生成中…` : done ? t`♻ 重新生成（${costLabel}）` : t`⚡ 生成本段（${costLabel}）`}
         </button>
       )}
-      {!tplMode && !flatTier && !custom && !locked && (
+      {!tplMode && !flatTier && !custom && !direct && !locked && (
         plan === "picking" ? (
           <>
             {/* ★ 方案台从 2026-08-21 起就在画布里挑（PlanSheet 弹层）：它需要 300~500px
@@ -2155,7 +2263,12 @@ export function CardPicker({ node, onClose }: { node: FlowNode; onClose: () => v
           <CloseButton chip="sm" size={13} align="end" onClick={onClose} />
         </div>
         <p className="mb-2 text-[10px] leading-relaxed text-slate-500">
-          <Trans>点一下选中/取消。选中的卡会当这一段的人物/场景参考，跟着提示词一起进推演与出片。</Trans>
+          {/* 不经推演的段（自定义 / 参考图直出 / 真人档 / 套模板）别说「进推演」：判据 flowStore.derivesProposals 一处 */}
+          {derivesProposals(node) ? (
+            <Trans>点一下选中/取消。选中的卡会当这一段的人物/场景参考，跟着提示词一起进推演与出片。</Trans>
+          ) : (
+            <Trans>点一下选中/取消。选中的卡会当这一段的人物/场景参考，跟着提示词一起进出片。</Trans>
+          )}
         </p>
         {/* 只有库里真有带声音的卡才摆这颗开关：空库上摆一个筛选器 = 永远筛出空列表 */}
         {all.some((c) => voiceOf(c.id)) && (
