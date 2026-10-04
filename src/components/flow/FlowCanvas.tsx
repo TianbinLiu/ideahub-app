@@ -79,7 +79,7 @@ import {
   subscribeTemplates,
   templatesVersion,
 } from "../../data/templates";
-import { CHAT_TURN_TOKENS, ONE_IMAGE, blockoutTier, fmtTokens, modelLabel, promptMaxOf, proposalsCost, tierOf } from "../../data/economy";
+import { CHAT_TURN_TOKENS, ONE_IMAGE, blockoutTier, clampDuration, durationChoices, fmtTokens, modelLabel, promptMaxOf, proposalsCost, tierOf } from "../../data/economy";
 import { AGENT_PHRASES, executeAgentProposal, runCanvasAgent, type AgentOutcome, type AgentProposal } from "../../studio/canvasAgent";
 import { EXAMPLES, phraseText, templatePhrase } from "../../studio/agentGrammar";
 import { useLang } from "../../i18n/useLang";
@@ -1222,10 +1222,12 @@ function NodePanel({
                   </InfoTip>
                 </p>
               )}
-              {/* 时长：直接写进方案（nodeCost/genNode 读的就是它）。低于本档下限的不给点 */}
-              <div className="flex items-center gap-1.5">
+              {/* 时长：直接写进方案（nodeCost/genNode 读的就是它）。低于本档下限的不给点。
+                  摆哪几个只问 economy.durationChoices（原来这里手写了一份 [3, 5, 8, 10]，与本段设置那排不一样）；
+                  电影级的按钮多到 9 个，所以要能折行 */}
+              <div className="flex flex-wrap items-center gap-1.5">
                 <span className="flex-none text-[10px] text-slate-500"><Trans>时长</Trans></span>
-                {[3, 5, 8, 10].map((sec) => {
+                {durationChoices(node.videoTier).map((sec) => {
                   const below = sec < (tierOf(node.videoTier).minSec ?? 3);
                   return (
                     <button
@@ -1233,8 +1235,9 @@ function NodePanel({
                       onClick={() => updateProposal(node.id, { durationSec: sec })}
                       disabled={locked || generating || below}
                       title={below ? t`${tierOf(node.videoTier).label}档最短 ${tierOf(node.videoTier).minSec}s` : undefined}
+                      // 高亮跟 clampDuration 的结算值走（同本段设置那排）：换到上限更低的档之后，存着的 15 秒会按 10 秒出
                       className={`rounded-full px-2.5 py-1 text-[10px] disabled:opacity-40 ${
-                        p.durationSec === sec ? "bg-brand font-bold text-ink" : "bg-panel text-slate-300"
+                        clampDuration(p.durationSec, node.videoTier) === sec ? "bg-brand font-bold text-ink" : "bg-panel text-slate-300"
                       }`}
                     >
                       {sec}s
@@ -1731,6 +1734,7 @@ function PlanSheet({ nodeId, onClose }: { nodeId: string; onClose: () => void })
           <PlanBoard
             proposals={node.proposals}
             minSec={tierOf(node.videoTier).minSec}
+            durations={durationChoices(node.videoTier)}
             // ★ 翻译：flow 的 chosenId 一直有值，"等挑"是 plan==="picking"（工坊那边是 chosenId===null）
             pickedId={picking ? null : node.chosenId}
             // ★ 工作流侧判据是 videoByProposal（工坊读 proposal.videoUrl），别抄错那一份

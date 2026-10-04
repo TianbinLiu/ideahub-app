@@ -8,9 +8,9 @@
 //   抄第二份的话，这些规则会一条一条地在另一面走样，而走样了不报错。
 // ★ 组件自己认 node.id 从 store 读（与 PlanSheet / CardPicker 同款）：宿主只给一个 id，
 //   不必把 index/nodes/mode 一路传下来，也就不会出现"传的是上一段"那类错。
-import { clampDuration, modelLabel, r2vBlockLines, realFaceIssue, tierOf } from "../../data/economy";
+import { clampDuration, durationChoices, modelLabel, r2vBlockLines, realFaceIssue, tierOf } from "../../data/economy";
 import { chosenOf, nodeDone, nodeFramed, nodeOwnFirstFrame, tplOfNode, useFlow } from "../../studio/flowStore";
-import { DURATIONS, VIDEO_ASPECTS } from "../../types";
+import { VIDEO_ASPECTS } from "../../types";
 import { Trans, useLingui } from "@lingui/react/macro";
 import TierRow from "./TierRow";
 import { cardFitNote, carryIsHard } from "../../studio/segmentGen";
@@ -70,7 +70,8 @@ export default function SegSettings({ nodeId }: { nodeId: string }) {
       ) : (
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="w-10 flex-none text-[11px] text-slate-400"><Trans>时长</Trans></span>
-          {DURATIONS.map((d) => {
+          {/* 摆哪几个只问 economy.durationChoices（高清多 12 / 15 秒、电影级多到 30 秒，2026-10-03「段时长放开」） */}
+          {durationChoices(node.videoTier).map((d) => {
             // ★ 短于本档下限的时长直接禁掉并说明：Seedance 2.5 的合法区间是 [4,30]，
             //   3 秒发过去是同步 400，用户只会觉得"这一档坏了"（见 VideoTier.minSec）
             const tooShort = d < tierOf(node.videoTier).minSec;

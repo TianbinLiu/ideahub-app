@@ -138,10 +138,13 @@ export interface AspectSpec {
   desc: string;
 }
 
-/** 一段视频可选的时长（秒）。★ 唯一一份：方案台与「本段设置」都从这里取 ——
- *  在此之前 FlowPage 与 PlanBoard 各写了一份同样的数组。
+/** 一段视频可选的时长（秒）—— 所有档位都摆的那几档。★ 按钮上摆哪几个只问 `economy.durationChoices`
+ *  （它把下面的长段几档按档位的 maxSec 接上去）；本段设置、方案台、画布自定义车道三处都读它 ——
+ *  在此之前 FlowPage 与 PlanBoard 各写了一份同样的数组，画布自定义车道还另写了一份 [3, 5, 8, 10]。
  *  ⚠ 各档位还有自己的下限（VideoTier.minSec），能不能选那一档由那边判，别在这里筛。 */
 export const DURATIONS = [3, 5, 6, 8, 10];
+/** 长段（2026-10-03 主人拍板「段时长放开」）：只有 maxSec 够得着的档位摆出来（高清到 15、电影级到 30），见 economy.durationChoices */
+export const LONG_DURATIONS = [12, 15, 20, 30];
 
 // ★ label / desc 是界面文案，用 getter 读到时现翻（理由见 liveLabels）；promptHint 进 Seedream 提示词，冻结中文
 export const VIDEO_ASPECTS: AspectSpec[] = [

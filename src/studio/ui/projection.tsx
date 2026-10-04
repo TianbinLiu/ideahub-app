@@ -7,7 +7,7 @@ import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { deckCoverOf, myCards, myDecks, tierBlockReason } from "../../data/account";
-import { ONE_IMAGE, VIDEO_TIERS, deriveIssue, fmtTokens, modelLabel, promptMaxOf, r2vBlockLines, realFaceIssue, segTokens, tierOf } from "../../data/economy";
+import { ONE_IMAGE, VIDEO_TIERS, deriveIssue, durationChoices, fmtTokens, modelLabel, promptMaxOf, r2vBlockLines, realFaceIssue, segTokens, tierOf } from "../../data/economy";
 import { voiceOf } from "../../data/cardVoice";
 import { cardFitNote } from "../segmentGen";
 import TarotCard from "../../components/TarotCard";
@@ -304,6 +304,8 @@ function EditorPanel() {
   // 表现是"铸段窗里三个选项不见了"，而不是一条报错（工坊页没有 ErrorBoundary）
   if (!editor) return null;
 
+  /** 手填时长的上限：跟着这一窗选的档位走（economy.VideoTier.maxSec：高清 15、电影级 30、其余 10） */
+  const durMax = tierOf(editor.videoTier).maxSec;
   const slotCards = editor.slots
     .map((id) => deck.find((c) => c.id === id))
     .filter((c): c is (typeof deck)[number] => !!c);
@@ -485,13 +487,14 @@ function EditorPanel() {
       ) : /* ══ 第③步：定规格（时长 / 画幅 / 档位）。整块投影归它一个，不与"拍什么"混在一屏 ══ */
       step === "spec" ? (
         <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto p-3">
-          {/* ④ 视频时长：单输入框——留空 = AI 决定，填数字 = 按用户输入（2-15 秒，失焦时收拢） */}
+          {/* ④ 视频时长：单输入框——留空 = AI 决定，填数字 = 按用户输入（2 秒到这一档的上限，失焦时收拢）。
+              上限跟着下面选的档位走（economy.VideoTier.maxSec：高清 15、电影级 30、其余 10）；换档时 studioStore.setVideoTier 顺手收拢 */}
           <div className="flex flex-none items-center gap-2.5">
             <span className="flex-none text-xs font-semibold text-slate-300"><Trans>视频时长</Trans></span>
             <input
               type="number"
               min={2}
-              max={15}
+              max={durMax}
               value={editor.durationMode === "manual" ? editor.durationSec : ""}
               placeholder={t`AI 决定`}
               onChange={(e) => {
@@ -505,11 +508,11 @@ function EditorPanel() {
               }}
               onBlur={() => {
                 if (editor.durationMode === "manual")
-                  useStudio.getState().setDurationSec(Math.min(15, Math.max(2, editor.durationSec || 2)));
+                  useStudio.getState().setDurationSec(Math.min(durMax, Math.max(2, editor.durationSec || 2)));
               }}
               className="min-w-0 flex-1 rounded-lg border border-slate-600 bg-black/30 px-2.5 py-1.5 text-xs text-cyan-100 outline-none placeholder:text-slate-500 focus:border-cyan-400"
             />
-            <span className="flex-none text-xs text-slate-400" title={t`留空由 AI 决定；可填 2-15`}>
+            <span className="flex-none text-xs text-slate-400" title={t`留空由 AI 决定；可填 2-${durMax}`}>
               <Trans>秒</Trans>
             </span>
           </div>
@@ -1259,6 +1262,7 @@ function ProposalsPanel() {
           dense
           proposals={node.proposals}
           minSec={tierOf(node.videoTier).minSec}
+          durations={durationChoices(node.videoTier)}
           pickedId={pickedId}
           isDone={proposalDone}
           busy={busy}

@@ -16,7 +16,7 @@ import { i18n } from "@lingui/core";
 import { t } from "@lingui/core/macro";
 import { API_BASE, API_ON, getToken } from "../api/client";
 import { frozenLine, syncRemoteWallet } from "../data/account";
-import { DEFAULT_IMAGE_TIER, imageTierOf, videoAudioOn } from "../data/economy";
+import { DEFAULT_IMAGE_TIER, durationWindowOfModel, imageTierOf, videoAudioOn } from "../data/economy";
 import type { GenMode } from "../types";
 
 /** 把响应头上的权威余额同步进本地镜像。头部缺失（CORS 没放行/dev 代理）时什么都不做。
@@ -579,6 +579,12 @@ export function ratioFor(model: string, mode: "frames" | "reference", want = "16
 //   「与档位能力一致」，false 恒在允许集里）。
 const BLOCKOUT_TASK = { omni_reference_task_type: "edit", duration: -1, ratio: "adaptive", generate_audio: false } as const;
 
+/** 发给方舟的时长：按模型的时长窗口夹成整数（请求体与轮询死线用同一个数，见 generateVideo） */
+function clampToModel(durationSec: number, model: string): number {
+  const [lo, hi] = durationWindowOfModel(model);
+  return Math.min(hi, Math.max(lo, Math.round(durationSec)));
+}
+
 /**
  * 一个方舟异步任务的状态（视频 / 3D / r2v 共用一个 tasks 端点）。
  * `content` 的键按任务类型不同：视频是 `video_url`，Seed3D 是 `file_url`/`url`。
@@ -918,9 +924,10 @@ export async function generateVideo(
               // ratio 不改，方舟一律按 16:9 出片，再把竖版帧裁进去。
               // 2.5 的首尾帧任务只收 adaptive，那条规则收在 ratioFor 里
               ratio: ratioFor(model, mode, opts?.ratio ?? "16:9"),
-              // [3,10] 硬夹顺带禁掉 -1（智能选时长会把单次成本上界推到 30s）；
-              // 各档更细的钳制（2.5 不收 3 秒）由调用方过 economy.clampDuration
-              duration: Math.min(10, Math.max(3, Math.round(opts?.durationSec ?? 5))),
+              // 按模型的时长窗口硬夹（economy.durationWindowOfModel：1.0 两档 [3,10]、高清 [4,15]、电影级 [4,30]），
+              // 顺带禁掉 -1（智能选时长会把单次成本推到上界，服务端的 pinPlainVideoTask 也会整句拒）；
+              // 报价与出片那一侧由调用方过 economy.clampDuration（同一张档位表），这里只是协议层的最后一道
+              duration: clampToModel(opts?.durationSec ?? 5, model),
               // ★ 仅 2.5：不显式传就是 `auto`，而 auto **判错是异步失败** —— 任务已受理、
               //   钱已经花了，几十秒后才 failed（而且不退，见 api-contract「被受理之后才失败不退」）。
               //   显式写 "reference" 判错会在**提交时同步 400**，一分钱不花。
@@ -944,7 +951,7 @@ export async function generateVideo(
   //   其余路径用夹过的 durationSec（与请求体同一套夹法）。
   const outSec = refVideoUrl && opts?.refTask !== "reference"
     ? opts?.refVideoSec ?? 15
-    : Math.min(10, Math.max(3, Math.round(opts?.durationSec ?? 5)));
+    : clampToModel(opts?.durationSec ?? 5, model);
   const deadlineMs = Math.max(12 * 60_000, outSec * 90_000 + 3 * 60_000);
   const t0 = Date.now();
   let pollFails = 0;

@@ -16220,8 +16220,12 @@ msgid "留空 = 跟随人格/模型：{0}"
 msgstr "Leave empty to follow persona/model: {0}"
 
 #: src/studio/ui/projection.tsx
-msgid "留空由 AI 决定；可填 2-15"
-msgstr "Leave empty to let the AI decide; 2–15 allowed"
+msgid "留空由 AI 决定；可填 2-{durMax}"
+msgstr "Leave empty to let the AI decide; 2–{durMax} allowed"
+
+#: src/studio/ui/projection.tsx
+#~ msgid "留空由 AI 决定；可填 2-15"
+#~ msgstr "Leave empty to let the AI decide; 2–15 allowed"
 
 #: src/pages/LoginPage.tsx
 msgid "登录"
