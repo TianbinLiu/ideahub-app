@@ -99,6 +99,11 @@ export interface PlanBoardProps {
    * ★ 判**存在性**：不传 = 照旧是普通输入框（上限 400），老调用方零改动。
    */
   shotEdit?: { speakers: ShotSpeaker[]; max: number; canAdd: boolean };
+  /**
+   * 这一段是「参考图直出」段（FlowNode.direct，2026-10-04）：不画帧，人物图直接给视频模型。
+   * 卡上那几句「AI 自拟开头帧 / 待推演」换成实话，「重新生成这一套的画面」不摆（这种段本来就不画帧）。
+   */
+  direct?: boolean;
 }
 
 export default function PlanBoard({
@@ -124,6 +129,7 @@ export default function PlanBoard({
   fuseSources,
   fuseAspect,
   shotEdit,
+  direct,
 }: PlanBoardProps) {
   const scroller = useRef<HTMLDivElement>(null);
   const pickedRow = useRef<HTMLDivElement>(null);
@@ -207,13 +213,15 @@ export default function PlanBoard({
                     <FrameCard
                       firstFrame={p.firstFrame || null}
                       lastFrame={shownLast(p) || null}
-                      emptyNote={p.degraded ? t`没画出来` : undefined}
+                      emptyNote={p.degraded ? t`没画出来` : direct ? t`不画帧` : undefined}
                       originNote={
                         p.pinned?.first
                           ? t`已用你上传的图`
                           : carriedFrom
                             ? t`承接上一段真实结尾`
-                            : t`AI 自拟开头帧`
+                            : direct
+                              ? t`不画帧，人物图直接给视频模型`
+                              : t`AI 自拟开头帧`
                       }
                       canEdit={!busy && regenId !== p.id}
                       uploaded={false}
@@ -329,7 +337,8 @@ export default function PlanBoard({
                         );
                       })}
                     </div>
-                    {/* 「按修改重画」只重画画面，不重写剧情——剧情是用户刚敲的字 */}
+                    {/* 「按修改重画」只重画画面，不重写剧情——剧情是用户刚敲的字。参考图直出段不画帧，这颗键不摆 */}
+                    {!direct && (
                     <button
                       onClick={() => onRegen(p.id)}
                       disabled={busy || !p.plot.trim()}
@@ -341,6 +350,7 @@ export default function PlanBoard({
                           ? t`✨ 重新生成这一套的画面（${fmtTokens(cost)}）`
                           : t`✨ 重新生成这一套的画面`}
                     </button>
+                    )}
                     {actions?.(p)}
                   </div>
                 </div>

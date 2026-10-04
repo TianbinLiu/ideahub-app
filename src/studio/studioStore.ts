@@ -681,6 +681,11 @@ interface StudioState {
   /** 自定义直出：不推演，把编辑器里的帧+要求铺成一张**已选定单方案**的节点卡。
    *  出片仍走方案台那颗「炼这一段视频」（generateSegment/报价一行没改） */
   layCustomNode: () => void;
+  /**
+   * 参考图直出（2026-10-04「跟着做」模式 A）：不推演、不画帧，把编辑器里挑的卡 + 一句提示词铺成一张**已选定单方案**的
+   * 参考图直出段（FlowNode.direct）。出片仍走方案台那颗「生成本段视频」（报价 / 门禁 / 出片与别的段同一条路）。
+   */
+  layDirectNode: () => void;
   /** 铸段向导第①步选「套模板」：就地落一张白模节点卡（不再把人赶去画布那一面）。
    *  规则全在 flowStore（appendNode 门禁 + setNodeTemplate 快照/闸），这里只是编排 */
   layTemplateNode: (tpl: VideoTemplate) => void;
@@ -1855,6 +1860,47 @@ export const useStudio = create<StudioState>()((set, get) => ({
     get().npcSay(
       t({
         message: "自定义方案摆上桌了——帧和提示词确认没问题，就点「⚡ 生成本段视频」。",
+        comment: "铸卡师念的话。「⚡ 生成本段视频」是工坊方案台上那颗出片键的名字（键上还带价钱），英文请引用它的英文名（不带价钱）",
+      }),
+    );
+  },
+
+  layDirectNode: () => {
+    const { editor, deck } = get();
+    if (!editor || editor.generating) return;
+    if (!editor.requirement.trim()) {
+      get().npcSay(t`参考图直出也得写一句这段要拍什么——这句话就是出片提示词，一个字都没有，模型只能瞎拍。`);
+      return;
+    }
+    const materials = editor.slots.map((id) => deck.find((c) => c.id === id)).filter((c): c is Card => !!c);
+    // ★ 一张帧都不带：编辑器里可能还留着别的车道传过的首尾帧，这条路不要它们（要用自己的帧就选「自定义」）。
+    //   承接照旧：有上一段就承接（appendNode 的缺省），出片那一拍上一段的真实尾帧当图片 1 发、不画帧（data/drawPlan）
+    const p: Proposal = {
+      id: uid("prop"),
+      // ★ 存进方案、随作品发布（VideoSegment.title）：按作者当时的界面语言定下来，与「自定义」那条同一条先例
+      title: t`参考图直出`,
+      plot: editor.requirement.trim(),
+      firstFrame: "",
+      lastFrame: "",
+      durationSec: editor.durationMode === "manual" ? editor.durationSec : 5,
+    };
+    const newId = useFlow.getState().appendNode({
+      proposals: [p],
+      chosenId: p.id,
+      materials,
+      videoTier: editor.videoTier,
+      aspect: editor.aspect,
+      requirement: editor.requirement,
+      direct: true,
+    });
+    if (!newId) {
+      get().npcSay(useFlow.getState().err || t`现在铺不了这一段，稍后再试。`);
+      return;
+    }
+    set({ spreadOpen: false, focus: { nodeId: newId }, projection: "proposals", editor: null });
+    get().npcSay(
+      t({
+        message: "参考图直出的方案摆上桌了——人物图会直接给视频模型、不画帧。提示词确认没问题，就点「⚡ 生成本段视频」。",
         comment: "铸卡师念的话。「⚡ 生成本段视频」是工坊方案台上那颗出片键的名字（键上还带价钱），英文请引用它的英文名（不带价钱）",
       }),
     );

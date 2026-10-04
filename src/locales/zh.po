@@ -1340,6 +1340,10 @@ msgstr "{segCount} 段 · 卡组 {deckCount} 张已经铸好 · {when}"
 msgid "{sentence}（{notes}）"
 msgstr "{sentence}（{notes}）"
 
+#: src/components/flow/ModePicker.tsx
+msgid "{steps} 步"
+msgstr "{steps} 步"
+
 #: src/ai/arkClient.ts
 msgid "{tierLabel}档 · {status} {sec}s"
 msgstr "{tierLabel}档 · {status} {sec}s"
@@ -1545,6 +1549,11 @@ msgstr "「{0}」档带不了参考视频——到「定规格」那一步换成
 #: src/studio/ui/projection.tsx
 msgid "「{0}」档带不了参考视频——到「定规格」那一步换成「电影级」（付费档，套餐不够会点不动），或直接跳过这一步自己给首尾帧"
 msgstr "「{0}」档带不了参考视频——到「定规格」那一步换成「电影级」（付费档，套餐不够会点不动），或直接跳过这一步自己给首尾帧"
+
+#. placeholder {0}: tierOf(node.videoTier).label
+#: src/components/flow/FlowCanvas.tsx
+msgid "「{0}」档收不了参考图：这一段出片前会先按提示词画帧（计费）。想让人物图直接给视频模型，到 ⚙ 本段设置换成高清或电影级。"
+msgstr "「{0}」档收不了参考图：这一段出片前会先按提示词画帧（计费）。想让人物图直接给视频模型，到 ⚙ 本段设置换成高清或电影级。"
 
 #. placeholder {0}: o.tier.label
 #: src/studio/segmentGen.ts
@@ -1777,10 +1786,18 @@ msgstr "「{title}」"
 msgid "「{title}」{why}"
 msgstr "「{title}」{why}"
 
+#: src/components/flow/ModePicker.tsx
+msgid "「{title}」在真人档上没有：这一档本来就是写一句话直接出片"
+msgstr "「{title}」在真人档上没有：这一档本来就是写一句话直接出片"
+
 #. placeholder {0}: hits.length
 #: src/studio/canvasAgent.ts
 msgid "「{title}」有 {0} 个候选：{names}{more}。分段组的每段是独立模板，说全名（含第几段）再来"
 msgstr "「{title}」有 {0} 个候选：{names}{more}。分段组的每段是独立模板，说全名（含第几段）再来"
+
+#: src/components/flow/ModePicker.tsx
+msgid "「{title}」要收参考图的模型：换到高清或电影级就有"
+msgstr "「{title}」要收参考图的模型：换到高清或电影级就有"
 
 #: src/studio/canvasAgent.ts
 msgid "「{u}」"
@@ -2996,6 +3013,10 @@ msgstr "🖼 更新这套方案的示例图"
 msgid "🖼 本地上传"
 msgstr "🖼 本地上传"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "🖼 直出"
+msgstr "🖼 直出"
+
 #: src/pages/FlowPage.tsx
 msgid "🖼 自定义首尾帧"
 msgstr "🖼 自定义首尾帧"
@@ -3113,6 +3134,10 @@ msgstr "0.70× 慢"
 msgid "0/{0} 段"
 msgstr "0/{0} 段"
 
+#: src/components/flow/ModePicker.tsx
+msgid "① 先选出片模型"
+msgstr "① 先选出片模型"
+
 #: src/pages/CustomCardPage.tsx
 msgid "① 卡名与简介"
 msgstr "① 卡名与简介"
@@ -3143,6 +3168,10 @@ msgstr "② 图位（{0}共 {1} 格）"
 #: src/pages/CustomCardPage.tsx
 msgid "② 图位预览"
 msgstr "② 图位预览"
+
+#: src/components/flow/ModePicker.tsx
+msgid "② 挑一种做法（每一种都是固定几步，跟着点就行）"
+msgstr "② 挑一种做法（每一种都是固定几步，跟着点就行）"
 
 #: src/studio/quality.ts
 msgid "2K 贴图 · 8 万面（推荐；她 1.9MB／他 1.8MB）"
@@ -3237,7 +3266,7 @@ msgstr "AI 将自拟开头帧"
 msgid "AI 指挥没连上（{why}），先按本地句式办了能办的。"
 msgstr "AI 指挥没连上（{why}），先按本地句式办了能办的。"
 
-#: src/studio/ui/projection.tsx
+#: src/components/flow/ModePicker.tsx
 msgid "AI 推演三套"
 msgstr "AI 推演三套"
 
@@ -4232,6 +4261,15 @@ msgstr "不用模板（退回普通段）"
 msgid "不用素材卡，直接写"
 msgstr "不用素材卡，直接写"
 
+#: src/components/flow/ModePicker.tsx
+#: src/studio/ui/PlanBoard.tsx
+msgid "不画帧"
+msgstr "不画帧"
+
+#: src/studio/ui/PlanBoard.tsx
+msgid "不画帧，人物图直接给视频模型"
+msgstr "不画帧，人物图直接给视频模型"
+
 #: src/components/CardModelFit.tsx
 msgid "不看图也能画出同一个样子的外形描述"
 msgstr "不看图也能画出同一个样子的外形描述"
@@ -4778,6 +4816,10 @@ msgstr "传 PDF / PPTX / DOCX 教材、把老师发布到市场、评分与合�
 #: src/pages/tutor/TutorHomePage.tsx
 msgid "传一份 md / txt 讲义，AI 按它铸一位老师，带你按阶段学、自检、复习。"
 msgstr "传一份 md / txt 讲义，AI 按它铸一位老师，带你按阶段学、自检、复习。"
+
+#: src/components/flow/ModePicker.tsx
+msgid "传一段示例视频，或自己给首尾帧"
+msgstr "传一段示例视频，或自己给首尾帧"
 
 #: src/components/TemplateShelf.tsx
 msgid "传一段视频做白模模板（自己做好的白模片也行）"
@@ -5466,6 +5508,10 @@ msgstr "先点下面一个格子，再点一张卡；也可以直接把卡拖到
 msgid "先炼出当前段的视频"
 msgstr "先炼出当前段的视频"
 
+#: src/components/flow/ModePicker.tsx
+msgid "先看关键画面"
+msgstr "先看关键画面"
+
 #: src/pages/RecipePage.tsx
 msgid "先空着（之后在画布上挂）"
 msgstr "先空着（之后在画布上挂）"
@@ -5552,7 +5598,7 @@ msgstr "全屏与转屏"
 msgid "全息广告那一下鸡皮疙瘩起来了"
 msgstr "全息广告那一下鸡皮疙瘩起来了"
 
-#: src/studio/ui/projection.tsx
+#: src/components/flow/ModePicker.tsx
 msgid "全按你的来"
 msgstr "全按你的来"
 
@@ -6721,6 +6767,10 @@ msgstr "加一句你自己的要求（可选，下次挂完卡合成时并进去
 msgid "加一段"
 msgstr "加一段"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "加一段 · 这一段怎么拍？"
+msgstr "加一段 · 这一段怎么拍？"
+
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "加一组"
 msgstr "加一组"
@@ -7301,6 +7351,28 @@ msgstr "参考图未被受理，该帧改用纯文字重画"
 #: src/ai/arkClient.ts
 msgid "参考图生视频（reference_image）"
 msgstr "参考图生视频（reference_image）"
+
+#: src/components/flow/ModePicker.tsx
+#: src/studio/studioStore.ts
+msgid "参考图直出"
+msgstr "参考图直出"
+
+#: src/studio/studioStore.ts
+msgid "参考图直出也得写一句这段要拍什么——这句话就是出片提示词，一个字都没有，模型只能瞎拍。"
+msgstr "参考图直出也得写一句这段要拍什么——这句话就是出片提示词，一个字都没有，模型只能瞎拍。"
+
+#. 铸卡师念的话。「⚡ 生成本段视频」是工坊方案台上那颗出片键的名字（键上还带价钱），英文请引用它的英文名（不带价钱）
+#: src/studio/studioStore.ts
+msgid "参考图直出的方案摆上桌了——人物图会直接给视频模型、不画帧。提示词确认没问题，就点「⚡ 生成本段视频」。"
+msgstr "参考图直出的方案摆上桌了——人物图会直接给视频模型、不画帧。提示词确认没问题，就点「⚡ 生成本段视频」。"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "参考图直出要收参考图的模型——到 ⚙ 本段设置换成高清或电影级"
+msgstr "参考图直出要收参考图的模型——到 ⚙ 本段设置换成高清或电影级"
+
+#: src/studio/ui/projection.tsx
+msgid "参考图直出要收参考图的模型（高清 / 电影级）"
+msgstr "参考图直出要收参考图的模型（高清 / 电影级）"
 
 #: src/types.ts
 #~ msgid "参考图预算还有余时才轮到它"
@@ -8617,6 +8689,10 @@ msgstr "垃圾营销 / 刷屏"
 msgid "基本设定"
 msgstr "基本设定"
 
+#: src/components/flow/ModePicker.tsx
+msgid "基础"
+msgstr "基础"
+
 #: src/studio/StudioPage.tsx
 msgid "填入素材与要求，AI 将推演三套走向"
 msgstr "填入素材与要求，AI 将推演三套走向"
@@ -8681,6 +8757,10 @@ msgstr "复制失败，请手动分享"
 #: src/components/ShareSheet.tsx
 msgid "复制链接"
 msgstr "复制链接"
+
+#: src/components/flow/ModePicker.tsx
+msgid "复刻"
+msgstr "复刻"
 
 #: src/components/flow/SegPlayer.tsx
 msgid "多半是刚换过走向或重推了方案。挑回原来那一套（或炼完这一套）就能回看"
@@ -8766,8 +8846,12 @@ msgid "头左右"
 msgstr "头左右"
 
 #: src/studio/ui/projection.tsx
-msgid "套一个模板，给人偶挂卡换人"
-msgstr "套一个模板，给人偶挂卡换人"
+#~ msgid "套一个模板，给人偶挂卡换人"
+#~ msgstr "套一个模板，给人偶挂卡换人"
+
+#: src/components/flow/ModePicker.tsx
+msgid "套一个模板，给人偶挂卡换人（模板按这个模型筛）"
+msgstr "套一个模板，给人偶挂卡换人（模板按这个模型筛）"
 
 #: src/pages/TemplateMarketPage.tsx
 msgid "套上模板，一句话出片"
@@ -8777,7 +8861,7 @@ msgstr "套上模板，一句话出片"
 msgid "套个模板？一句话就能出同类视频"
 msgstr "套个模板？一句话就能出同类视频"
 
-#: src/studio/ui/projection.tsx
+#: src/components/flow/ModePicker.tsx
 msgid "套模板"
 msgstr "套模板"
 
@@ -11545,6 +11629,14 @@ msgstr "挑一条现成的片子，复刻它的画面与运镜"
 msgid "挑一种创作方式"
 msgstr "挑一种创作方式"
 
+#: src/components/flow/ModePicker.tsx
+msgid "挑几张参考图（人物 / 场景卡）＋ 写提示词，人物图直接给视频模型。LibTV 作者最常用的做法"
+msgstr "挑几张参考图（人物 / 场景卡）＋ 写提示词，人物图直接给视频模型。LibTV 作者最常用的做法"
+
+#: src/components/flow/ModePicker.tsx
+msgid "挑卡＋写要求，AI 出三套带关键画面的方案，挑一套再出片"
+msgstr "挑卡＋写要求，AI 出三套带关键画面的方案，挑一套再出片"
+
 #. placeholder {0}: picked.length
 #: src/studio/ui/FuseFrameSheet.tsx
 msgid "挑参考图（{0}/{FUSE_MAX}）"
@@ -11563,8 +11655,8 @@ msgid "挑定了就进去"
 msgstr "挑定了就进去"
 
 #: src/studio/ui/projection.tsx
-msgid "挑素材卡＋写要求，三套方案挑一套"
-msgstr "挑素材卡＋写要求，三套方案挑一套"
+#~ msgid "挑素材卡＋写要求，三套方案挑一套"
+#~ msgstr "挑素材卡＋写要求，三套方案挑一套"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "挥手"
@@ -11736,6 +11828,10 @@ msgstr "排队中…"
 msgid "接在我现在的 {0} 段后面"
 msgstr "接在我现在的 {0} 段后面"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "接着上一段的真实结尾拍：上一段出片后，它的最后一帧当图片 1 发，不画新帧"
+msgstr "接着上一段的真实结尾拍：上一段出片后，它的最后一帧当图片 1 发，不画新帧"
+
 #: src/studio/canvasAgent.ts
 msgid "接着写这一段的画面"
 msgstr "接着写这一段的画面"
@@ -11743,6 +11839,11 @@ msgstr "接着写这一段的画面"
 #: src/pages/ProfilePage.tsx
 msgid "接着剪"
 msgstr "接着剪"
+
+#. placeholder {0}: fmtTokens(proposalsCost(false))
+#: src/components/flow/ModePicker.tsx
+msgid "推演 {0}，出片另算"
+msgstr "推演 {0}，出片另算"
 
 #. placeholder {0}: fmtTokens(propCost)
 #. placeholder {1}: fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0))
@@ -15311,6 +15412,10 @@ msgid "点<0>用它出片</0>就跳到出片那一屏，接下来怎么走按模
 msgstr "点<0>用它出片</0>就跳到出片那一屏，接下来怎么走按模板分两种：<1>带角色位</1>的那种，本段内容区是一颗挂卡的钮——点开把你的角色卡逐个挂到人偶身上，还能另加一句自己的要求；其余的（经典配方、没有角色位的老白模）是写一句话，配方会把它填进每一段剧情。每段要花多少写在「生成本段」那颗按钮上，点它之前不花钱。"
 
 #: src/components/flow/FlowCanvas.tsx
+msgid "点一下选中/取消。选中的卡会当这一段的人物/场景参考，跟着提示词一起进出片。"
+msgstr "点一下选中/取消。选中的卡会当这一段的人物/场景参考，跟着提示词一起进出片。"
+
+#: src/components/flow/FlowCanvas.tsx
 msgid "点一下选中/取消。选中的卡会当这一段的人物/场景参考，跟着提示词一起进推演与出片。"
 msgstr "点一下选中/取消。选中的卡会当这一段的人物/场景参考，跟着提示词一起进推演与出片。"
 
@@ -16409,7 +16514,7 @@ msgstr "白模化现在报不出价，先不能开炼（价目或开关没就绪
 msgid "白模化这一次的总消耗"
 msgstr "白模化这一次的总消耗"
 
-#: src/studio/ui/projection.tsx
+#: src/components/flow/ModePicker.tsx
 msgid "白模复刻"
 msgstr "白模复刻"
 
@@ -16696,6 +16801,10 @@ msgstr "真人"
 msgid "真人卡不用另画起拍画面：真人档直接以卡上的照片起拍"
 msgstr "真人卡不用另画起拍画面：真人档直接以卡上的照片起拍"
 
+#: src/components/flow/ModePicker.tsx
+msgid "真人卡的照片起拍，写一句话直接出片"
+msgstr "真人卡的照片起拍，写一句话直接出片"
+
 #: src/components/CardModelFit.tsx
 #: src/pages/DeckDetailPage.tsx
 msgid "真人档：{lineReal}"
@@ -16935,8 +17044,8 @@ msgid "示例视频 · 看成片"
 msgstr "示例视频 · 看成片"
 
 #: src/studio/ui/projection.tsx
-msgid "示例视频 / 自己给帧，免费铺方案直出"
-msgstr "示例视频 / 自己给帧，免费铺方案直出"
+#~ msgid "示例视频 / 自己给帧，免费铺方案直出"
+#~ msgstr "示例视频 / 自己给帧，免费铺方案直出"
 
 #: src/pages/WorkshopPage.tsx
 msgid "社区分享的卡"
@@ -18073,6 +18182,11 @@ msgstr "红"
 msgid "约 {0}"
 msgstr "约 {0}"
 
+#. placeholder {0}: fmtTokens(segTokens(5, tier.id))
+#: src/components/flow/ModePicker.tsx
+msgid "约 {0} / 5 秒，只有视频"
+msgstr "约 {0} / 5 秒，只有视频"
+
 #. placeholder {0}: fmtTokens(est)
 #: src/studio/ui/projection.tsx
 msgid "约 {0} token"
@@ -18579,8 +18693,8 @@ msgid "自动识别"
 msgstr "自动识别"
 
 #: src/components/AvatarPicker.tsx
+#: src/components/flow/ModePicker.tsx
 #: src/studio/studioStore.ts
-#: src/studio/ui/projection.tsx
 msgid "自定义"
 msgstr "自定义"
 
@@ -18686,8 +18800,8 @@ msgid "自检 {0}/{1} · 通过了，进下一阶段。"
 msgstr "自检 {0}/{1} · 通过了，进下一阶段。"
 
 #: src/studio/ui/projection.tsx
-msgid "自选卡片"
-msgstr "自选卡片"
+#~ msgid "自选卡片"
+#~ msgstr "自选卡片"
 
 #: src/pages/CustomCardPage.tsx
 msgid "至少一张图（第一张有图的格子就是卡面）"
@@ -19771,6 +19885,10 @@ msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜�
 msgid "跟拍"
 msgstr "跟拍"
 
+#: src/components/flow/ModePicker.tsx
+msgid "跟着高手做"
+msgstr "跟着高手做"
+
 #: src/components/support/VoiceMarket.tsx
 msgid "跟随"
 msgstr "跟随"
@@ -20548,6 +20666,11 @@ msgstr "这一段不是带角色位的白模段，没有可预览的挂法"
 msgid "这一段不要旁白就留空"
 msgstr "这一段不要旁白就留空"
 
+#. placeholder {0}: modelLabel(tier.model)
+#: src/components/flow/ModePicker.tsx
+msgid "这一段交给 {0} 生成"
+msgstr "这一段交给 {0} 生成"
+
 #: src/studio/segmentGen.ts
 msgid "这一段以「{name}」卡上的图起拍——去卡片页勾「真人档适用」可以换成专门画好的起拍画面"
 msgstr "这一段以「{name}」卡上的图起拍——去卡片页勾「真人档适用」可以换成专门画好的起拍画面"
@@ -20590,6 +20713,10 @@ msgid "这一段在确认之前被改过了（时长/画面/选中的走向变�
 msgstr "这一段在确认之前被改过了（时长/画面/选中的走向变了）：现在要 {nowLabel}，卡上写的是 {cardLabel}——重说一句，我按新价再摆一张卡"
 
 #: src/studio/flowStore.ts
+msgid "这一段套着模板——先「摘掉模板」（改为自选）再改成参考图直出"
+msgstr "这一段套着模板——先「摘掉模板」（改为自选）再改成参考图直出"
+
+#: src/studio/flowStore.ts
 msgid "这一段套着模板——先「摘掉模板」（改为自选）再自定义首尾帧"
 msgstr "这一段套着模板——先「摘掉模板」（改为自选）再自定义首尾帧"
 
@@ -20612,6 +20739,10 @@ msgstr "这一段已经出片，挂参考视频不会改成片——想重来就
 #: src/studio/ui/projection.tsx
 msgid "这一段已经出片，退不回去了"
 msgstr "这一段已经出片，退不回去了"
+
+#: src/studio/flowStore.ts
+msgid "这一段已经出片：想换做法就先删掉本段再加一段"
+msgstr "这一段已经出片：想换做法就先删掉本段再加一段"
 
 #: src/studio/flowStore.ts
 msgid "这一段已经出片：想改画面就先删掉本段再加一段，别在成片底下换帧"
@@ -20648,8 +20779,8 @@ msgid "这一段录得太长了，说短一点再试。"
 msgstr "这一段录得太长了，说短一点再试。"
 
 #: src/studio/ui/projection.tsx
-msgid "这一段怎么拍？挑一张"
-msgstr "这一段怎么拍？挑一张"
+#~ msgid "这一段怎么拍？挑一张"
+#~ msgstr "这一段怎么拍？挑一张"
 
 #: src/components/flow/FlowCanvas.tsx
 #: src/pages/FlowPage.tsx

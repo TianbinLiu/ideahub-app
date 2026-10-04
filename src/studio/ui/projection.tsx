@@ -22,6 +22,8 @@ import { captureFirstLast } from "../../utils/videoFrames";
 import SegPlayer from "../../components/flow/SegPlayer";
 import FuseFrameSheet, { fuseSourcesOf } from "./FuseFrameSheet";
 import CustomFrameSlots from "../../components/flow/CustomFrameSlots";
+import ModePicker, { modeTierOf } from "../../components/flow/ModePicker";
+import { modeBlock } from "../../data/guidedModes";
 import RefStrip from "../../components/flow/RefStrip";
 import FrameEditBox from "../../components/flow/FrameEditBox";
 import { insertMention, uniqueRefName, usableExtraRefs } from "../../data/refMentions";
@@ -281,7 +283,7 @@ function EditorPanel() {
   const [step, setStep] = useState<"mode" | "ref" | "content" | "spec">(() =>
     (useStudio.getState().editor?.slots.length ?? 0) > 0 ? "content" : "mode",
   );
-  const [lane, setLane] = useState<"cards" | "custom">("cards");
+  const [lane, setLane] = useState<"cards" | "custom" | "direct">("cards");
   /** 示例视频上传中的进度句 / 调帧小窗 / 选文件口（自定义·第①页） */
   const [refUploading, setRefUploading] = useState("");
   const [refSheet, setRefSheet] = useState(false);
@@ -343,16 +345,22 @@ function EditorPanel() {
   /** 这一窗的自定义段在出片时不补画帧（收参考图的两档）：卡片形象图直接给视频模型 */
   const customNoDraw = !!customDraft && nodeNoDraw(customDraft);
   // ★ 自定义车道的说明里提到「补画」的几处都读上面两个值，别再写死「缺帧补画」
-  /** 当前套餐点不动的档位各是为什么（空 = 都能选）。判断在 data/account 一处 */
-  const tierBlocks = VIDEO_TIERS.map((tier) => tierBlockReason(tier) ?? deriveIssue(tier.id)).filter(
-    (r): r is string => !!r,
-  );
+  /**
+   * 这一条车道上某一档为什么用不了（套餐之外的那一半）：推演三套 / 自定义问 economy.deriveIssue（真人档没有推演那一步）；
+   * 参考图直出不推演，问 data/guidedModes.modeBlock（1.0 两档收不了参考图）—— 与选法屏摆不摆这个模式同一个判据
+   */
+  const laneBlock = (tierId: string): string | null =>
+    lane === "direct" ? (modeBlock("direct", modeTierOf(tierId)) ? t`参考图直出要收参考图的模型（高清 / 电影级）` : null) : deriveIssue(tierId);
+  /** 当前套餐点不动的档位各是为什么（空 = 都能选）。判断在 data/account 一处。
+   *  去重：参考图直出在极速、标准两档上是同一句话，别在一行里说两遍 */
+  const tierBlocks = [...new Set(VIDEO_TIERS.map((tier) => tierBlockReason(tier) ?? laneBlock(tier.id)).filter((r): r is string => !!r))];
   /**
    * 挂着的真人卡与**当前这一档**不搭的那一句（判据 economy.realFaceIssue 一处，与生成闸同一句）。
    * ★ 2026-09-30 起真人卡过不去的档直接灰掉：没勾「火山引擎适用」时工坊里可能**一档都点不动**
    *   （真人档本来就走不了推演），只灰不说等于告诉用户"功能坏了"。印在档位那排下面，与套餐原因同一行。
    */
-  const faceNote = realFaceIssue(slotCards, editor.videoTier, { blockout: false, framed: true });
+  const laneFramed = lane !== "direct" || !!prev?.lastFrame;
+  const faceNote = realFaceIssue(slotCards, editor.videoTier, { blockout: false, framed: laneFramed });
   /** 按模型适配那句（工坊的段都要推演、都带帧 ⇒ ownFrame 恒真：真人档那半在工坊用不上） */
   const fitNote = faceNote ? null : cardFitNote(slotCards, editor.videoTier, { aspect: editor.aspect, ownFrame: true });
 
@@ -399,45 +407,25 @@ function EditorPanel() {
 
       {/* ══ 第①步：选模式。与画布编辑窗的三个页签同名同义（工作流↔工坊一套心智） ══ */}
       {step === "mode" ? (
-        /* ══ 第①步：三张**卡片**（主人点名"要有看板娘封面的卡片形式"）══
-           封面是同一位看板娘的三张场景图（design/gen-segmode-covers.mjs 出，与创作入口
-           那三张同一张定妆照——角色一致靠同一张参考图，不靠文案描述）。
-           卡框借 TarotCard：全仓卡片是同一个形，这一屏也就长得像"在选一张牌"。 */
-        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
-          <p className="flex-none text-center text-[11px] text-slate-400"><Trans>这一段怎么拍？挑一张</Trans></p>
-          {/* ★ 竖排三行、**卡按高度定尺寸**（2026-08-30 主人点名"占八成空间"）：
-              三张并排时卡是**宽度**受限的 —— 336px 宽的面板分三列，每列 104px、卡只有
-              156px 高（面板的 23%），说明文字还会被 flex-1 撑到最底下与卡脱开（实测）。
-              竖排之后每行吃掉三分之一屏高，卡自己按 aspect-[2/3] 由高度反推宽度，
-              三行合计约八成，说明文字就在卡旁边。 */}
-          <div className="flex min-h-0 flex-1 flex-col gap-2.5">
-            {(
-              [
-                ["/create/mode-tpl.jpg", t`套模板`, t`白模复刻`, t`套一个模板，给人偶挂卡换人`, () => setTplPick(true)],
-                ["/create/mode-cards.jpg", t`自选卡片`, t`AI 推演三套`, t`挑素材卡＋写要求，三套方案挑一套`, () => { setLane("cards"); setStep("content"); }],
-                ["/create/mode-custom.jpg", t`自定义`, t`全按你的来`, t`示例视频 / 自己给帧，免费铺方案直出`, () => { setLane("custom"); setStep("ref"); }],
-              ] as const
-            ).map(([cover, label, tag, desc, go]) => (
-              <button
-                key={label}
-                onClick={go}
-                className="flex min-h-0 flex-1 items-center gap-3 rounded-2xl border border-slate-600/70 bg-black/25 p-2.5 text-left transition active:scale-[.98] hover:border-cyan-400/60"
-              >
-                {/* 卡按行高定尺寸：外框 h-full + 2:3，TarotCard 自己 w-full + 同比例正好贴合 */}
-                <span className="flex h-full flex-none" style={{ aspectRatio: "2 / 3" }}>
-                  <TarotCard cover={cover} title={label} />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-center gap-2">
-                    <span className="text-base font-bold text-cyan-100">{label}</span>
-                    <span className="rounded-full px-2 py-0.5 bg-cyan-400/15 text-[10px] text-cyan-200">{tag}</span>
-                  </span>
-                  <span className="mt-1.5 block text-[11px] leading-relaxed text-slate-400">{desc}</span>
-                </span>
-                <span className="flex-none text-slate-500">›</span>
-              </button>
-            ))}
-          </div>
+        /* ══ 第①步：选法屏（2026-10-04「跟着做」模式，与画布「＋ 加一段」同一个 ModePicker）══
+           先选出片模型、再挑做法：这个模型上用不了的做法不摆（判据 data/guidedModes.modeBlock），底下说清换到哪一档就有。
+           此前这一步是三张塔罗卡（套模板 / 自选卡片 / 自定义），档位要到第③步才选 —— 而「参考图直出」只在收参考图的档上成立，
+           先挑做法再选档会让人挑了一个这一档上根本用不了的做法。 */
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-3">
+          <ModePicker
+            tierId={editor.videoTier}
+            onTier={(id) => useStudio.getState().setVideoTier(id)}
+            onPick={(m) => {
+              if (m === "template") setTplPick(true);
+              else if (m === "custom") {
+                setLane("custom");
+                setStep("ref");
+              } else {
+                setLane(m === "direct" ? "direct" : "cards");
+                setStep("content");
+              }
+            }}
+          />
         </div>
       ) : step === "ref" ? (
         /* ══ 自定义·第②步：示例视频（可跳过，跳过是小字附庸——主人点名的主从关系） ══ */
@@ -601,7 +589,7 @@ function EditorPanel() {
                 //   materials 与生成闸 studioStore.deriveProposals 同源：editor.slots 映射到牌组。
                 //   blockout 传 false 是事实：工坊建的是自定义段，白模段不走这块方案台（同那边的注释）
                 //   framed 恒真：工坊铸段就是推演、推演就是画帧（帧里的真人脸会被整发拒，见 realFaceIssue 的 framed）
-                const block = tierBlockReason(tier) ?? realFaceIssue(slotCards, tier.id, { blockout: false, framed: true }) ?? deriveIssue(tier.id);
+                const block = tierBlockReason(tier) ?? realFaceIssue(slotCards, tier.id, { blockout: false, framed: laneFramed }) ?? laneBlock(tier.id);
                 const desc = tier.desc;
                 const model = tier.model;
                 return (
@@ -855,12 +843,15 @@ function EditorPanel() {
                 ? customNoDraw
                   ? t`视频要求（出片提示词）`
                   : t`视频要求（缺的帧按这句补画，也是出片提示词）`
-                : t`视频要求（剧情补充）`}
+                : lane === "direct"
+                  ? t`视频要求（出片提示词）`
+                  : t`视频要求（剧情补充）`}
             </div>
             <textarea
               value={editor.requirement}
               onChange={(e) => useStudio.getState().setRequirement(e.target.value)}
-              maxLength={300}
+              // 参考图直出这句就是出片提示词，上限按档位（economy.promptMaxOf）；推演 / 自定义照旧 300
+              maxLength={lane === "direct" ? promptMaxOf(editor.videoTier) : 300}
               placeholder={t`例：主角在雨里发现了那封信的真正收件人……`}
               className="min-h-0 w-full flex-1 resize-none rounded-lg border border-slate-600 bg-black/30 px-2.5 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-cyan-400"
             />
@@ -934,7 +925,7 @@ function EditorPanel() {
                 </button>
               ) : (
                 <button
-                  onClick={() => useStudio.getState().layCustomNode()}
+                  onClick={() => (lane === "direct" ? useStudio.getState().layDirectNode() : useStudio.getState().layCustomNode())}
                   disabled={editor.generating || !editor.requirement.trim()}
                   title={!editor.requirement.trim() ? (customNoDraw ? t`先写一句视频要求` : t`先写一句视频要求（缺的帧按它补画）`) : undefined}
                   className="flex-1 rounded-xl bg-slate-200/90 py-2.5 text-sm font-bold text-ink disabled:opacity-40"
@@ -943,7 +934,7 @@ function EditorPanel() {
                 </button>
               )}
             </div>
-            {lane === "custom" && !editor.requirement.trim() && (
+            {lane !== "cards" && !editor.requirement.trim() && (
               <p className="mt-1 text-center text-[9px] text-slate-600"><Trans>回上一步写一句视频要求，这颗键才亮</Trans></p>
             )}
           </>
@@ -1327,6 +1318,8 @@ function ProposalsPanel() {
              chosenProposal，"待挑"时回 null，与真扣那边的 chosenOf 差出成倍的价） */
           rederiveCost={deriveCostOf(path, idx)}
           carriedFrom={carried}
+          // 参考图直出段：卡上说实话（不画帧）、不摆「重新生成这一套的画面」
+          direct={!!node.direct}
           // 预览卡的框跟本段画幅走：写死一个比例，另一种画幅的帧会被裁掉一大半
           frameAspect={aspectCss(node.aspect)}
           // 融图候选（唯一实现在 FuseFrameSheet.fuseSourcesOf，三条路共用）
