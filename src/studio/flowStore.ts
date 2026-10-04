@@ -21,7 +21,8 @@ import { startJob } from "../data/jobs";
 import { t } from "@lingui/core/macro";
 import { create } from "zustand";
 import { castPreviewImage, frameUrlAt, fuseStageFrame, AI_REAL, ArkTaskUnknown, briefArkReason, chargeNote, chargeOnFail, generateFrame, generateProposals, notesInParens, prepareMaterialRefs, recaptureSegment, refineFrame, takeVideoTask, transferStatus } from "../ai";
-import { frameMoment } from "../data/shotScript";
+import { frameMoment, isMultiShot, momentCards } from "../data/shotScript";
+import { endFrameUsed } from "../data/drawPlan";
 import { isArkAssetUrl, transferArkVideo } from "../ai/arkClient";
 import { canAfford, frozenNote, myCards, spendTokens, tierBlockReason, walletOf } from "../data/account";
 import {
@@ -58,7 +59,7 @@ import {
 } from "../data/templates";
 import { type BlockoutCastSlot, blockoutApplySkeleton, castNameIssue, composeBlockoutPrompt } from "./blockoutPrompt";
 import { GenStep, createGenLog, splitStatus } from "./genLog";
-import { ANN_CLAUSE, blockoutIssue, frameFree, generateSegment, redrawnAnns, refPlanOf, refVideoOn, type RefPlan } from "./segmentGen";
+import { ANN_CLAUSE, blockoutIssue, emptyFrameFates, frameFree, generateSegment, redrawnAnns, refPlanOf, refVideoOn, type EmptyFrameFate, type RefPlan } from "./segmentGen";
 import {
   EXTRA_REF_MAX,
   cleanRefName,
@@ -151,6 +152,13 @@ export interface FlowNode {
    *   这正是它安全的全部理由，改这里之前先想清楚会不会把第三车道变成第二套规则。
    */
   custom?: boolean;
+  /**
+   * **不补画帧**的段（2026-10-04「跟着做」模式第一期，方案 docs/guided-modes-design.md）：参考图直出 / 主角定妆·多镜头 / 九宫格分镜
+   * 这几个模式铺出来的段。有承接帧 / 自己给的帧就当参考图发、缺的那张不补；一张帧都没有就走参考生视频（卡片形象图直接喂视频模型）。
+   * ★ 判否定（缺省 = 照旧补画）：老草稿天然缺它、天然走老路，零迁移。
+   * ★ 读它一律问 `nodeNoDraw`（「自定义」段在收参考图的两档上也不补画，规则在那一处）；补不补、补几张的规则在 data/drawPlan。
+   */
+  direct?: boolean;
   /**
    * 自定义段的**素材参考**（多图 + 参考视频，主人点名的形态）：
    * url/durationSec 来自服务端登记（/uploads/material-video/register，时长服务端说了算，
@@ -479,9 +487,12 @@ export function keepFirstFrame(node: FlowNode, p: Proposal, prev: Proposal | nul
  *   当年没记是哪一张失败，所以只保住**确定是真图**的开头帧：承接来的 / 用户锁定的（keepFirstFrame），
  *   或与同段其它方案共用的那张（推演时三套共用同一张开头帧 = 上一段尾帧或上传的图，不是本方案画的）；
  *   尾帧除非锁定一律当占位。多补画一张的钱会如实进报价 —— 比拿占位图出一段片便宜得多。
+ * ★ 分了镜头的方案不用 AI 画的结束画面（data/drawPlan.endFrameUsed，2026-10-04）：那张是改成多镜头之前照着
+ *   原来的剧情画的，发出去视频会为了靠上它在最后一个镜头后多拍一截（第三次付费验证）。你自己换上的（上锁的）照用。
  */
 export function usableFrames(node: FlowNode, p: Proposal, prev: Proposal | null): { first: string; last: string } {
-  if (!(p.degraded && p.firstFrame && p.lastFrame)) return { first: p.firstFrame, last: p.lastFrame };
+  const last = endFrameUsed({ multiShot: isMultiShot(p.plot), pinned: !!p.pinned?.last }) ? p.lastFrame : "";
+  if (!(p.degraded && p.firstFrame && p.lastFrame)) return { first: p.firstFrame, last };
   const sharedStart = node.proposals.some((q) => q.id !== p.id && q.firstFrame === p.firstFrame);
   return {
     first: keepFirstFrame(node, p, prev) || sharedStart ? p.firstFrame : "",
@@ -489,10 +500,32 @@ export function usableFrames(node: FlowNode, p: Proposal, prev: Proposal | null)
   };
 }
 
+/**
+ * 「重画这一套」要重画哪几张 —— 报价（redrawCost）与两面的 regenProposal（flowStore / studioStore）读同一份。
+ * 开头帧：承接上一段真实结尾的、你自己换的不动（keepFirstFrame）。结束帧：你自己换的不动；**分了镜头的方案不画**
+ * （data/drawPlan 的规矩 ②，与出片前补画同一条 —— 画出来也发不出去，见 usableFrames），原来那张 AI 画的顺手清掉
+ * （clearLast：它画的是改成多镜头之前的剧情，留着的话改回一个镜头时它会与新画的开头对不上）。
+ */
+export function redrawFrames(
+  node: FlowNode,
+  p: Proposal,
+  prev: Proposal | null,
+): { first: boolean; last: boolean; clearLast: boolean; multiShot: boolean } {
+  const multiShot = isMultiShot(p.plot);
+  const pinnedLast = !!p.pinned?.last;
+  return {
+    first: !keepFirstFrame(node, p, prev),
+    last: !pinnedLast && !multiShot,
+    clearLast: !pinnedLast && multiShot && !!p.lastFrame,
+    multiShot,
+  };
+}
+
 /** 「按修改重画这一套」的报价。★ regenProposal 扣钱走的是同一个函数——
- *  按钮上的数字与实际扣款分两处算必然分叉（铁律六） */
+ *  按钮上的数字与实际扣款分两处算必然分叉（铁律六）。画哪几张只问 redrawFrames */
 export function redrawCost(node: FlowNode, p: Proposal, prev: Proposal | null): number {
-  return proposalRedrawCost(keepFirstFrame(node, p, prev), !!p.pinned?.last);
+  const d = redrawFrames(node, p, prev);
+  return proposalRedrawCost(!d.first, !d.last);
 }
 
 /** 把配方里的 {{主题}} 换成用户那句话（与 data/templates 的 fillBeat 同义，
@@ -788,6 +821,8 @@ export function derivesProposals(node: FlowNode): boolean {
   if (tplOfNode(node)?.refVideo) return false;
   if (deriveIssue(node.videoTier)) return false;
   if (node.custom) return false;
+  // 参考图直出这类段（FlowNode.direct）没有「推演三套」那一拍：写提示词就出片（不然参考清单会按「推演时画帧」排两格帧）
+  if (node.direct) return false;
   return true;
 }
 
@@ -967,6 +1002,9 @@ export function nodeCost(nodes: FlowNode[], idx: number, mode: FlowMode, tierOve
     hasFirstFrame: !!(frames.first || carry),
     hasLastFrame: !!frames.last,
     refMode: nodeRefOn(nodes, idx, mode, tierOverride),
+    // 补不补画、补几张：与出片（genNode → segmentGen）同一组输入，规则只在 data/drawPlan
+    noDraw: nodeNoDraw(node, tierOverride),
+    multiShot: isMultiShot(prop.plot),
     refVideo: refVideo ? { inputSec: refVideo.durationSec } : undefined,
   });
 }
@@ -994,6 +1032,32 @@ export function nodeContinues(nodes: FlowNode[], idx: number): boolean {
 }
 
 /**
+ * 这一段**不补画帧**吗（2026-10-04「跟着做」模式第一期）—— 报价（nodeCost）、参考清单（nodeRefPlan）、出片（genNode）问的同一处。
+ * · 参考图直出 / 主角定妆·多镜头 / 九宫格分镜铺出来的段（`FlowNode.direct`）；
+ * · 「自定义」段（主人 10-04 定：首帧空着时从「AI 补画」改成按参考图直出）。带示例视频的自定义段走素材参考那条路，本来就不画。
+ * ★ 只在**收参考图的两档**上成立：1.0 两档与真人档协议上收不了参考图，不补画就只剩一段纯文字生成、挂的卡一点用都没有
+ *   （1.0 上只给一张尾帧也发不出去：首尾帧那一发要有首帧）—— 所以在那几档上照旧补画，直出段换了档也一样。
+ * @param tierId 档位选择器问「换成这一档会怎样」时传（同 nodeCost 的 tierOverride）
+ */
+export function nodeNoDraw(node: FlowNode, tierId?: string): boolean {
+  return noDrawFor({ direct: node.direct, custom: node.custom, customRef: !!node.customRef, tierId: tierId ?? node.videoTier });
+}
+
+/** nodeNoDraw 的规则本身（还没落成段的地方用：工坊铸段窗的「自定义」车道、落段前那句提醒）—— 规则只写在这里 */
+export function noDrawFor(o: { direct?: boolean; custom?: boolean; customRef: boolean; tierId: string }): boolean {
+  if (!tierOf(o.tierId).refImg) return false;
+  return !!o.direct || (!!o.custom && !o.customRef);
+}
+
+/**
+ * 这一段能不能走**参考生视频**（不画帧、卡片形象图直接喂视频模型）—— 简约模式，或不补画帧的段。
+ * 报价（nodeRefOn）、参考清单、出片、真人卡门禁（nodeFramed）问的都是这一处。
+ */
+export function refAllowedOf(node: FlowNode, mode: FlowMode, tierId?: string): boolean {
+  return mode === "simple" || nodeNoDraw(node, tierId);
+}
+
+/**
  * 这一段会不会走**参考生视频** —— 报价（nodeCost）、界面上那句说明（FlowPage）、
  * 真正出片（genNode → segmentGen）问的必须是同一处。
  *
@@ -1005,15 +1069,17 @@ export function nodeContinues(nodes: FlowNode[], idx: number): boolean {
 export function nodeRefOn(nodes: FlowNode[], idx: number, mode: FlowMode, tierOverride?: string): boolean {
   const node = nodes[idx];
   if (!node) return false;
-  const prop = chosenOf(node);
+  // 帧问 usableFrames（与 genNode 发出去的同一份：老草稿里的占位图不算帧、分了镜头的方案不用 AI 画的结束画面）
+  const frames = usableFrames(node, chosenOf(node), idx > 0 ? chosenOf(nodes[idx - 1]) : null);
   return refVideoOn({
     // tierOverride：档位选择器问的是"换成这一档会怎样"，而参考生视频能不能走本身就看档位
     videoTier: tierOverride ?? node.videoTier,
     materials: node.materials,
-    firstFrame: prop.firstFrame,
+    firstFrame: frames.first,
+    lastFrame: frames.last,
     carryFrame: nodeCarry(nodes, idx),
     anns: node.anns,
-    refAllowed: mode === "simple",
+    refAllowed: refAllowedOf(node, mode, tierOverride),
     // 白模段让位：refVideoUrl 非空时 refVideoOn 恒 false——它的形象图是白模路自己
     // 混发的，不是「参考生视频」这条产品路（界面那句「省掉设定帧」不该亮）
     refVideoUrl: tplOfNode(node)?.refVideo?.url,
@@ -1042,12 +1108,26 @@ export function nodeRefPlan(nodes: FlowNode[], idx: number, mode: FlowMode): Ref
     lastFrame: frames.last,
     carryFrame: nodeCarry(nodes, idx),
     anns: node.anns,
-    refAllowed: mode === "simple",
+    refAllowed: refAllowedOf(node, mode),
+    noDraw: nodeNoDraw(node),
     refVideoUrl: tplRef?.url,
     materialRef: node.custom && node.customRef ? { url: node.customRef.url, durationSec: node.customRef.durationSec, mids: node.customRef.mids } : undefined,
     extraRefs: tplRef ? undefined : node.extraRefs,
     durationSec: prop.durationSec,
     framesComing,
+  });
+}
+
+/**
+ * 这一段的两格帧位空着时出片会怎样（「自定义」与简约那两格帧位上的说明读它，2026-10-04）——
+ * 补不补画、是不是直出都问 nodeRefPlan（与出片、报价同源），归类在 segmentGen.emptyFrameFates。
+ * 「承接」按开关说（不是第一段且开着承接）：上一段还没出片时也这么说 —— 顺序门禁保证出片那一拍它已经有了。
+ */
+export function nodeEmptyFrames(nodes: FlowNode[], idx: number, mode: FlowMode): EmptyFrameFate {
+  const node = nodes[idx];
+  return emptyFrameFates(nodeRefPlan(nodes, idx, mode), {
+    carried: idx > 0 && !!node?.chain,
+    multiShot: !!node && isMultiShot(chosenOf(node).plot),
   });
 }
 
@@ -1088,14 +1168,14 @@ function extraRefNameMsg(issue: "empty" | "reserved" | "taken"): string {
  * 真人卡门禁用（economy.realFaceIssue 的 framed：已认证真人卡在高清/电影级只有不带帧的请求过得去）。
  * ★ 判据走 segmentGen.frameFree 一处（refVideoOn 的帧那一半）；帧在不在问 usableFrames、承接问 nodeCarry ——
  *   与 genNode 真正发出去的那一份同源。老草稿里的占位图不算帧，但它出片前会被补画，补出来的一样算。
- * ★ 不在简约模式（refAllowed 为假）时恒为真：那条路上的帧不是已经在方案里，就是出片前现画。
+ * ★ 不是简约模式、也不是不补画帧的段（refAllowedOf 为假）时恒为真：那条路上的帧不是已经在方案里，就是出片前现画。
  */
 export function nodeFramed(nodes: FlowNode[], idx: number, mode: FlowMode): boolean {
   const node = nodes[idx];
   if (!node) return true;
   const prop = chosenOf(node);
   const frames = usableFrames(node, prop, idx > 0 ? chosenOf(nodes[idx - 1]) : null);
-  return !frameFree({ firstFrame: frames.first, carryFrame: nodeCarry(nodes, idx), anns: node.anns, refAllowed: mode === "simple" });
+  return !frameFree({ firstFrame: frames.first, lastFrame: frames.last, carryFrame: nodeCarry(nodes, idx), anns: node.anns, refAllowed: refAllowedOf(node, mode) });
 }
 
 /** 这一段**自己带着**首帧吗（用户传的 / 推演出的 / 承接上一段的）—— 真人档那句起拍提示用（有了就不提卡的起拍画面） */
@@ -2409,14 +2489,18 @@ export const useFlow = create<FlowState>()((set, get) => ({
       set({ err: t`这一套方案还没有剧情——先写点什么，我才知道要画成什么样` });
       return false;
     }
-    // 承接上一段真实结尾的那张开头帧、以及用户自己上传的帧，一律不动（见 Proposal.pinned）
+    // 承接上一段真实结尾的那张开头帧、以及用户自己上传的帧，一律不动（见 Proposal.pinned）；
+    // 分了镜头的方案不画结束画面 —— 画哪几张只问 redrawFrames（报价 redrawCost 读的是同一份）
     const prevNode = s0.nodes[idx - 1];
     const prev = prevNode ? chosenOf(prevNode) : null;
-    const keepFirst = keepFirstFrame(node, prop, prev);
-    const keepLast = !!prop.pinned?.last;
+    const rd = redrawFrames(node, prop, prev);
     const cost = redrawCost(node, prop, prev);
     if (cost === 0) {
-      set({ err: t`首尾帧都是你自己换的图，没有可让 AI 重画的部分（想重画就先在卡里清掉那一帧）` });
+      set({
+        err: rd.multiShot
+          ? t`这一套没有要 AI 重画的画面：开头画面是承接上一段的或你自己换的，分了镜头的方案又不画结束画面`
+          : t`首尾帧都是你自己换的图，没有可让 AI 重画的部分（想重画就先在卡里清掉那一帧）`,
+      });
       return false;
     }
     if (AI_REAL && !canAfford(cost)) {
@@ -2438,35 +2522,42 @@ export const useFlow = create<FlowState>()((set, get) => ({
       // progress 只有一行，紧接着的"重画结束画面…"在同一个同步块里就把它盖了（保留首帧
       // 只重画尾帧时正是这条路），React 连画都没画过。挂在后面那几行的行尾才看得见（铁律八）
       const notes: string[] = [];
-      const mat = await prepareMaterialRefs(node.materials, "image", (n) => notes.push(n));
-      // 尾巴走共用的 ai.notesInParens（分隔符与括号进目录；中文照旧「（甲；乙）」）。★ 局部名别改：它是下面两句 msgid 里的占位符 {noteTail}
-      const noteTail = notesInParens(notes);
+      const note = (n: string) => {
+        if (!notes.includes(n)) notes.push(n);
+      };
       // 临时参考图（N3）：重画的帧也照着它们画（排在卡片图后面，站位构图只给首帧）；句子里的 `@点名` 退成名字
       const cardNames = (node.materials ?? []).map((c) => ({ id: c.id, name: c.name }));
       const plotPlain = plainMentions(prop.plot, cardNames, node.extraRefs);
-      const withExtras = (which: "first" | "last", offset: number) => {
+      // 一张帧只画一个瞬间（shotScript.frameMoment：分了镜的段开头取第一个镜头、结尾取最后一个，台词摘掉）；
+      // 这一刻里有谁就只带谁的卡（segmentGen.momentCards）；外壳走 generateFrame 不走封面那层 —— 与出片前补画（segmentGen）、工坊 regenProposal 同一套
+      const momentFirst = frameMoment(plotPlain, "first");
+      const momentLast = frameMoment(plotPlain, "last");
+      const matFirst = rd.first ? await prepareMaterialRefs(momentCards(node.materials, momentFirst), "image", note) : null;
+      const matLast = rd.last ? await prepareMaterialRefs(momentCards(node.materials, momentLast), "image", note) : null;
+      // 尾巴走共用的 ai.notesInParens（分隔符与括号进目录；中文照旧「（甲；乙）」）。★ 局部名别改：它是下面两句 msgid 里的占位符 {noteTail}
+      const noteTail = notesInParens(notes);
+      const withExtras = (mat: { refs: string[] }, which: "first" | "last", offset: number) => {
         const ex = drawExtraRefs(node.extraRefs ?? [], which, offset + mat.refs.length);
         const urls = [...mat.refs, ...ex.urls];
         return { line: ex.line, urls: urls.length > 0 ? urls : undefined };
       };
       let first = prop.firstFrame;
-      // 一张帧只画一个瞬间（shotScript.frameMoment：分了镜的段开头取第一个镜头、结尾取最后一个，台词摘掉）；
-      // 外壳走 generateFrame 不走封面那层 —— 与出片前补画（segmentGen）、工坊 regenProposal 同一套
       // 首帧没有底图 → 素材卡的图就是 <图片1>，offset = 0
-      if (!keepFirst) {
+      if (matFirst) {
         get().updateNode(nodeId, { progress: t`重画起始画面…${noteTail}` });
-        const ex = withExtras("first", 0);
-        first = await generateFrame(`${frameMoment(plotPlain, "first").slice(0, 200)}${mat.bind(0)}${ex.line}`, { aspect: node.aspect, refs: ex.urls });
+        const ex = withExtras(matFirst, "first", 0);
+        first = await generateFrame(`${momentFirst.slice(0, 200)}${matFirst.bind(0)}${ex.line}`, { aspect: node.aspect, refs: ex.urls });
       }
-      let last = prop.lastFrame;
-      if (!keepLast) {
+      // 分了镜头的方案：原来那张 AI 结束画面清掉、不重画（redrawFrames 的 clearLast）
+      let last = rd.clearLast ? "" : prop.lastFrame;
+      if (matLast) {
         get().updateNode(nodeId, { progress: t`重画结束画面…${noteTail}` });
         // 以开头帧当参考图：同一段戏的两帧必须是同一套人物/画风，各画各的会串味。
         // 有底图时它占 <图片1>，素材卡从 <图片2> 起 → offset = 1
-        const ex = withExtras("last", first ? 1 : 0);
+        const ex = withExtras(matLast, "last", first ? 1 : 0);
         last = await generateFrame(
           // i18n-ignore-next-line: 出图提示词，发给模型（进模型的文字冻结中文）
-          `${frameMoment(plotPlain, "last").slice(0, 180)} 的结束瞬间${mat.bind(first ? 1 : 0)}${ex.line}`,
+          `${momentLast.slice(0, 180)} 的结束瞬间${matLast.bind(first ? 1 : 0)}${ex.line}`,
           { aspect: node.aspect, refs: ex.urls, base: first || undefined },
         );
       }
@@ -3400,11 +3491,11 @@ export const useFlow = create<FlowState>()((set, get) => ({
           //   而"谁换成谁"靠**角色名**在点名句与绑定句之间对上（applyCast 的重名硬拦
           //   守的就是这条连接键）。重排一次，被挤掉的那张就与编辑页提醒过的那张不是同一张。
           materials: node.materials,
-          // ★ 只有简约模式允许"卡片形象 + 一句话直出"：它按产品定义就没有方案推演、
-          //   没有首尾帧。工作流/工坊那两条路整个建立在首尾帧上（方案台预览、段间承接），
-          //   而首尾帧与参考图在方舟是互斥场景。真正的判定在 segmentGen.refVideoOn，
-          //   报价（nodeCost）问的是同一个函数
-          refAllowed: get().mode === "simple",
+          // ★ "卡片形象 + 一句话直出"（参考生视频）：简约模式，或不补画帧的段（2026-10-04「跟着做」模式；
+          //   判定 refAllowedOf / nodeNoDraw 一处，报价 nodeCost 与参考清单 nodeRefPlan 问的是同一个）。
+          //   返修不走这两位（它的参考是本段成片，帧一张不带）
+          refAllowed: !rv && refAllowedOf(node, get().mode),
+          noDraw: !rv && nodeNoDraw(node),
         },
         prog,
         // ★★ 受理即落凭据 —— 在**等结果之前**，不是在失败分支里。这一发要等最长 25.5

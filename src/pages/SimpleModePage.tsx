@@ -21,7 +21,7 @@ import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
 import { useNavigate } from "react-router";
 import SegSettings from "../components/flow/SegSettings";
-import { chosenOf, nodeCost, nodeDone, tplOfNode, useFlow } from "../studio/flowStore";
+import { chosenOf, nodeCost, nodeDone, nodeEmptyFrames, tplOfNode, useFlow } from "../studio/flowStore";
 import { fmtTokens } from "../data/economy";
 import {
   browseTemplates,
@@ -361,6 +361,9 @@ function StepGo({
   // 报价当场跟着变（nodeCost 读的就是方案上的帧）。融图 = 既有 FuseFrameSheet。
   const { t } = useLingui();
   const node = useFlow((s) => s.nodes.find((n) => n.id === nodeId));
+  // 帧位空着会怎样（补不补画 / 直出）问 flowStore.nodeEmptyFrames：先取 nodes 与 mode 再算（新对象不能进选择器）
+  const nodes = useFlow((s) => s.nodes);
+  const mode = useFlow((s) => s.mode);
   const setFrame = useFlow((s) => s.setFrame);
   const [customOpen, setCustomOpen] = useState(false);
   const [fuse, setFuse] = useState<"first" | "last" | null>(null);
@@ -410,7 +413,8 @@ function StepGo({
                 last={prop.lastFrame}
                 aspectCssValue={aspectCss(node.aspect)}
                 canEdit={!busy}
-                firstEmptyNote={t`空 = AI 按上面那句话补画（计费）`}
+                fates={nodeEmptyFrames(nodes, Math.max(0, nodes.findIndex((n) => n.id === nodeId)), mode)}
+                drawNote={t`空 = AI 按上面那句话补画（计费）`}
                 onFrame={(which, url) => setFrame(nodeId, which, url)}
                 onFuse={setFuse}
                 onError={(msg) => useFlow.setState({ err: msg })}

@@ -23,7 +23,16 @@ import { fileToFrameDataUrl } from "../../utils/image";
 import FrameCard, { CardFace, useFrameCycle } from "./FrameCard";
 import FuseFrameSheet, { type FuseSource } from "./FuseFrameSheet";
 import ShotListEditor, { type ShotSpeaker } from "../../components/flow/ShotListEditor";
+import { isMultiShot } from "../../data/shotScript";
+import { endFrameUsed } from "../../data/drawPlan";
 
+/**
+ * 卡上摆哪张结束帧：出片用不上的那张不摆（分了镜头的方案不用 AI 画的结束画面，规矩只在 data/drawPlan.endFrameUsed，
+ * 出片与报价走的 flowStore.usableFrames 问的是同一处）—— 摆着一张发不出去的图，人只会以为视频会停在那一幕上。
+ */
+function shownLast(p: Proposal): string {
+  return endFrameUsed({ multiShot: isMultiShot(p.plot), pinned: !!p.pinned?.last }) ? p.lastFrame : "";
+}
 
 export interface PlanBoardProps {
   proposals: Proposal[];
@@ -197,7 +206,7 @@ export default function PlanBoard({
                   <div className="flex-none space-y-1" style={{ width: cardW }}>
                     <FrameCard
                       firstFrame={p.firstFrame || null}
-                      lastFrame={p.lastFrame || null}
+                      lastFrame={shownLast(p) || null}
                       emptyNote={p.degraded ? t`没画出来` : undefined}
                       originNote={
                         p.pinned?.first
@@ -217,6 +226,10 @@ export default function PlanBoard({
                       aspectRatio={frameAspect}
                     />
                     <div className="text-center text-[9px] leading-3 text-slate-500"><Trans>点开卡片换图</Trans></div>
+                    {/* 分了镜头的方案不用 AI 画的结束画面（卡上也不摆它）：说一句，免得人以为结束画面丢了 */}
+                    {isMultiShot(p.plot) && !p.pinned?.last && (
+                      <div className="text-center text-[9px] leading-3 text-slate-500"><Trans>分了镜头：不用结束画面</Trans></div>
+                    )}
                     {/* 留存工程时丢掉的东西：如实说一句 + 给一条出路。
                         不说的话用户只会看到一张空框，以为方案台坏了。
                         ★★ **成片与预览图分开说**（2026-09-07 评审改）：预览图重新推演就能补回来，
@@ -342,7 +355,7 @@ export default function PlanBoard({
                       它的话在上面那一行（成片丢了跟这张预览图没关系） */}
                   <PreviewCard
                     first={p.firstFrame}
-                    last={p.lastFrame}
+                    last={shownLast(p)}
                     lost={!!(p.lost?.first || p.lost?.last || p.lost?.poster)}
                     width={cardW}
                     aspect={frameAspect}

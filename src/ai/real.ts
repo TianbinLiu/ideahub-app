@@ -59,7 +59,7 @@ import { isGenerated, isSheetSlot, slotCardTag, slotKey, slotPrompt as schemeSlo
 import { minimaxVideo, takeMinimaxTask } from "./minimaxVideo";
 import { refableViews } from "../data/cardViews";
 import { drawExtraRefs, plainMentions } from "../data/refMentions";
-import { frameMoment } from "../data/shotScript";
+import { frameMoment, momentCards } from "../data/shotScript";
 // 已授权的可信素材：整张卡改发 asset:// URI（判据与拼法各只有一处，见 data/cardAsset）
 import { assetOf, assetUri } from "../data/cardAsset";
 import {
@@ -1903,11 +1903,28 @@ export async function generateProposals(
   //   等于这句话根本没说过（铁律八：失败要"响"，写进一个没人看得见的地方不算响）。
   //   攒到开画前最后一发，它会一直挂到第一张图回来（实测 20s+），用户才真读得到。
   const matNotes: string[] = [];
-  const mat = await prepareMaterialRefs(ctx.materials, "image", (n) => matNotes.push(n));
   // 顺序固定为 [方案0首帧, 方案0尾帧, 方案1首帧, …]，与最终 results[pi*2] 取值对应
   const jobs = three.flatMap((p) =>
     (startFrame ? (["last"] as const) : (["first", "last"] as const)).map((which) => ({ p, which })),
   );
+  // 句子里的 `@点名` 退成名字（每套方案一份）
+  const plainOf = new Map(three.map((p) => [p.id, plainMentions(p.plot, ctx.materials, ctx.extraRefs)]));
+  // ★ 这一刻里有谁就只带谁的卡（shotScript.momentCards，2026-10-04 —— 与出片前补画、两面的「重画这一套」同一条规则）：
+  //   按卡的组合各备一份，**开画前一次备齐** —— 哪张没采用、为什么只锁了一个角色，要在开画前说出来（理由见上）
+  const matsOf = (p: (typeof three)[number], which: "first" | "last") =>
+    momentCards(ctx.materials, frameMoment(plainOf.get(p.id) ?? p.plot, which)) ?? [];
+  const keyOf = (cards: Card[]) => cards.map((c) => c.id).join("|");
+  const matByKey = new Map<string, Awaited<ReturnType<typeof prepareMaterialRefs>>>();
+  for (const { p, which } of jobs) {
+    const cards = matsOf(p, which);
+    if (!matByKey.has(keyOf(cards)))
+      matByKey.set(
+        keyOf(cards),
+        await prepareMaterialRefs(cards, "image", (n) => {
+          if (!matNotes.includes(n)) matNotes.push(n);
+        }),
+      );
+  }
   let doneCount = 0;
   // 设定帧的画布必须跟本段画幅走：横版帧喂竖屏视频任务会被 Seedance 裁一刀
   const frameSize = aspectOf(ctx.aspect).frameSize;
@@ -1917,6 +1934,7 @@ export async function generateProposals(
   // 都要在这几十秒里看得见 —— 这两件事一旦没说，用户只会觉得"AI 画得不像"
   if (matNotes.length) onProgress?.(joinNotes(matNotes));
   const results = await mapLimit(jobs, 3, async ({ p, which }) => {
+    const mat = matByKey.get(keyOf(matsOf(p, which)))!;
     // 有确定开头帧时尾帧也带它当参考（人物/画风连贯）；否则仅首帧带上一段色调参考
     const withFrameRef = (which === "first" || !!startFrame) && frameRefs.length > 0;
     const baseRefs = [...(withFrameRef ? frameRefs : []), ...mat.refs];
@@ -1925,7 +1943,7 @@ export async function generateProposals(
     const useRefs = [...baseRefs, ...ex.urls];
     // refsOn 传**这一发实际带不带图**：卡都挂了但一张图都没准备成（mat.refs 空）时，
     // "跟随参考图"那句必须跟着消失——图没发还这么说，模型只能瞎猜（铁律五的措辞版）
-    const plain = plainMentions(p.plot, ctx.materials, ctx.extraRefs);
+    const plain = plainOf.get(p.id) ?? p.plot;
     const prompts = framePrompts(plain, withFrameRef, ctx.aspect, ctx.materials, useRefs.length > 0);
     // 绑定句里的 <图片N> 要跳过承接帧占的那一位，否则模型会去看错的那张图
     const prompt = (which === "first" ? prompts.first : prompts.last) + mat.bind(withFrameRef ? frameRefs.length : 0) + ex.line;

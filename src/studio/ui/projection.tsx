@@ -36,7 +36,7 @@ import {
   rederiveKey,
   useStudio,
 } from "../studioStore";
-import { CUSTOM_MID_MAX, nodeBlank, recastBlocked, nodeDerived, nodeDone, nodeCost, tplOfNode, useFlow, type FlowNode, nodeAnnPlan, annSkipNote, redrawCost, derivesProposals, nodeLocked, deriveCostOf, nodeRefPlan, nodeFramesComeFromDerive, nodeEditFrames } from "../flowStore";
+import { CUSTOM_MID_MAX, nodeBlank, recastBlocked, nodeDerived, nodeDone, nodeCost, tplOfNode, useFlow, type FlowNode, nodeAnnPlan, annSkipNote, redrawCost, derivesProposals, nodeLocked, deriveCostOf, nodeRefPlan, nodeFramesComeFromDerive, nodeEditFrames, newFlowNode, nodeEmptyFrames, nodeNoDraw } from "../flowStore";
 import TierRow from "../../components/flow/TierRow";
 // 选模板弹层借画布那一份（铁律六：市场懒加载/分段组折叠/预览确认全在那一个实现里）。
 // FlowCanvas 不 import 本文件，方向安全（它俩只在 StudioPage/FlowPage 各自的树里出现）
@@ -312,6 +312,37 @@ function EditorPanel() {
   const path = activePath();
   const prev = path.length > 0 ? chosenProposal(path[path.length - 1]) : null;
   const segIndex = path.length;
+  /**
+   * 自定义车道「将要落下的那一段」（拼法照 studioStore.layCustomNode，只用来问判定、不落地）：
+   * 两格帧位空着会怎样、卡片是不是直接给视频模型，问的是 flowStore 那几处（nodeEmptyFrames / nodeNoDraw）——
+   * 与落地之后画布那一面、出片、报价同一个答案。工坊的流水线从不是简约模式（模式读一次就够：窗开着时它不会变）。
+   */
+  const customDraft =
+    lane === "custom"
+      ? newFlowNode(segIndex, {
+          custom: true,
+          tpl: null,
+          customRef: editor.refVideo
+            ? { url: editor.refVideo.url, publicId: editor.refVideo.publicId, durationSec: editor.refVideo.durationSec, mids: editor.refVideo.mids }
+            : undefined,
+          materials: slotCards,
+          videoTier: editor.videoTier,
+          aspect: editor.aspect,
+          chain: !editor.startFrame && !!prev?.lastFrame,
+        })
+      : null;
+  if (customDraft)
+    customDraft.proposals[0] = {
+      ...customDraft.proposals[0],
+      plot: editor.requirement,
+      firstFrame: editor.startFrame ?? "",
+      lastFrame: editor.endFrame ?? "",
+      pinned: { ...(editor.startFrame ? { first: true } : {}), ...(editor.endFrame ? { last: true } : {}) },
+    };
+  const customFates = customDraft ? nodeEmptyFrames([...path, customDraft], segIndex, useFlow.getState().mode) : null;
+  /** 这一窗的自定义段在出片时不补画帧（收参考图的两档）：卡片形象图直接给视频模型 */
+  const customNoDraw = !!customDraft && nodeNoDraw(customDraft);
+  // ★ 自定义车道的说明里提到「补画」的几处都读上面两个值，别再写死「缺帧补画」
   /** 当前套餐点不动的档位各是为什么（空 = 都能选）。判断在 data/account 一处 */
   const tierBlocks = VIDEO_TIERS.map((tier) => tierBlockReason(tier) ?? deriveIssue(tier.id)).filter(
     (r): r is string => !!r,
@@ -684,7 +715,7 @@ function EditorPanel() {
                 last={editor.endFrame ?? ""}
                 aspectCssValue={aspectCss(editor.aspect)}
                 canEdit={!editor.generating}
-                firstEmptyNote={prev?.lastFrame ? t`空 = 承接上一段真实尾帧` : t`空 = AI 按提示词补画（计费）`}
+                fates={customFates ?? { first: prev?.lastFrame ? "carry" : "draw", last: "draw" }}
                 onFrame={(which, url) =>
                   which === "first"
                     ? useStudio.getState().setStartFrame(url || null)
@@ -709,7 +740,14 @@ function EditorPanel() {
             >
               <span className="flex-none text-xs">🃏</span>
               <span className="min-w-0 flex-1 truncate text-[11px] text-slate-300">
-                {slotCards.length > 0 ? (
+                {/* 收参考图的两档上自定义段不补画（flowStore.nodeNoDraw）：卡的形象图直接给视频模型 */}
+                {customNoDraw ? (
+                  slotCards.length > 0 ? (
+                    <Trans>素材卡（选） · 已选 {slotCards.length} 张 —— 形象图直接给视频模型</Trans>
+                  ) : (
+                    <Trans>素材卡（选） —— 形象图直接给视频模型</Trans>
+                  )
+                ) : slotCards.length > 0 ? (
                   <Trans>素材卡（选） · 已选 {slotCards.length} 张 —— 缺帧补画时当参考</Trans>
                 ) : (
                   <Trans>素材卡（选） —— 缺帧补画时当参考</Trans>
@@ -813,7 +851,11 @@ function EditorPanel() {
           {/* ③ 视频要求：flex-1 吃掉全部剩余空白 */}
           <div className="flex min-h-[72px] flex-1 flex-col">
             <div className="mb-1.5 text-xs font-semibold text-slate-300">
-              {lane === "custom" ? t`视频要求（缺的帧按这句补画，也是出片提示词）` : t`视频要求（剧情补充）`}
+              {lane === "custom"
+                ? customNoDraw
+                  ? t`视频要求（出片提示词）`
+                  : t`视频要求（缺的帧按这句补画，也是出片提示词）`
+                : t`视频要求（剧情补充）`}
             </div>
             <textarea
               value={editor.requirement}
@@ -894,7 +936,7 @@ function EditorPanel() {
                 <button
                   onClick={() => useStudio.getState().layCustomNode()}
                   disabled={editor.generating || !editor.requirement.trim()}
-                  title={!editor.requirement.trim() ? t`先写一句视频要求（缺的帧按它补画）` : undefined}
+                  title={!editor.requirement.trim() ? (customNoDraw ? t`先写一句视频要求` : t`先写一句视频要求（缺的帧按它补画）`) : undefined}
                   className="flex-1 rounded-xl bg-slate-200/90 py-2.5 text-sm font-bold text-ink disabled:opacity-40"
                 >
                   <Trans>✍ 铺成方案（免费）</Trans>

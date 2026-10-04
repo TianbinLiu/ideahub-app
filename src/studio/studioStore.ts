@@ -2,14 +2,14 @@
 import { create } from "zustand";
 import { shotLineOf, V3_CARD_WIPE_MS, BranchNodeData, BranchTree, Card, CardType, DEFAULT_ASPECT, DEFAULT_VIDEO_CATEGORY, DraftVideo, NodeSlot, Proposal, VideoAspect, VideoSegment, VideoTemplate, uid } from "../types";
 import { AI_REAL, MaterialFile, deriveCharacterModels, deriveDeckCards, generateCards, generateFrame, generateProposals, joinNotes, npcChat, npcChatOffline, prepareMaterialRefs } from "../ai";
-import { frameMoment } from "../data/shotScript";
+import { frameMoment, momentCards } from "../data/shotScript";
 import { DECK_CAM, MARKET, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
 import { acquireCard, addCards as saveCardsToAccount, canAfford, frozenNote, myCards, myDecks, plazaCards, spendTokens, walletOf, type AddCardsResult } from "../data/account";
 import { CHAT_TURN_TOKENS, DECK_MAX_3D, deriveIssue, DECK_MAX_CARDS, DEFAULT_TIER, MODEL3D_TOKENS, deckCardsCost, deckModel3dCost, fmtTokens, proposalsCost, realFaceIssue, styleWants3d, tierOf, videoAudioOn } from "../data/economy";
 // 单向依赖：工坊把活动路径喂给工作流。flowStore 不认识 studioStore（见其文件头）
 import { drawExtraRefs, plainMentions } from "../data/refMentions";
-import { GenNodeOpts, CUSTOM_MID_MAX, FlowMode, FlowNode, FlowTemplate, appendBlocked, appendIssue, chosenOf, recastBlocked, nodeContinues, nodeVideo, tplOfNode, useFlow, keepFirstFrame, redrawCost } from "./flowStore";
+import { GenNodeOpts, CUSTOM_MID_MAX, FlowMode, FlowNode, FlowTemplate, appendBlocked, appendIssue, chosenOf, recastBlocked, nodeContinues, nodeVideo, tplOfNode, useFlow, redrawCost, redrawFrames, noDrawFor } from "./flowStore";
 // ★ 依赖方向没破：canvasAgent 只认识 flowStore，不认识本模块（不会成环）
 import { forgetCanvasAgent } from "./canvasAgent";
 import { onOwnerSwitch, ownerEpoch, workOwner } from "../data/deviceOwner";
@@ -1612,12 +1612,19 @@ export const useStudio = create<StudioState>()((set, get) => ({
     // 承接上一段真实结尾的开头帧、以及用户自己上传的帧，一律不动
     const prev = idx > 0 ? chosenProposal(path[idx - 1]) : null;
     // ★ 两条都走 flowStore 的同一处判据/同一把尺（工坊那份第二实现 2026-09-03 退役）：
-    //   keepFirstFrame 认 node.chain，redrawCost 就是画布报价用的那个函数。
-    const keepFirst = keepFirstFrame(node, p, prev);
-    const keepLast = !!p.pinned?.last;
+    //   画哪几张问 redrawFrames（keepFirstFrame 认 node.chain；分了镜头的方案不画结束画面），
+    //   redrawCost 就是画布报价用的那个函数。
+    const rd = redrawFrames(node, p, prev);
     const cost = redrawCost(node, p, prev);
     if (cost === 0) {
-      set({ notice: { at: Date.now(), text: t`首尾帧都是你自己换的图，没有可让我重画的地方——想重画就先在卡里清掉那一帧。` } });
+      set({
+        notice: {
+          at: Date.now(),
+          text: rd.multiShot
+            ? t`这一套没有要我重画的画面：开头画面是承接上一段的或你自己换的，分了镜头的方案又不画结束画面。`
+            : t`首尾帧都是你自己换的图，没有可让我重画的地方——想重画就先在卡里清掉那一帧。`,
+        },
+      });
       return false;
     }
     if (AI_REAL && !canAfford(cost)) {
@@ -1635,33 +1642,44 @@ export const useStudio = create<StudioState>()((set, get) => ({
       //   一条条 notice 又会互相顶掉（Toast 只有一条）—— 攒起来才是真的被看见（铁律八）。
       // 攒下的提示在终局那句由 withRefNotes 接上（整句 + {notes}，见它的 ★）
       const refNotes: string[] = [];
-      const mat = await prepareMaterialRefs(node.materials, "image", (n) => refNotes.push(n));
+      const note = (n: string) => {
+        if (!refNotes.includes(n)) refNotes.push(n);
+      };
       // 临时参考图（N3）：重画的帧也照着它们画（排在卡片图后面，站位构图只给首帧）；句子里的 `@点名` 退成名字。
       // 与 flowStore.regenProposal 同一套拼法（规则在 data/refMentions 的 drawExtraRefs / plainMentions）
       const cardNames = (node.materials ?? []).map((c) => ({ id: c.id, name: c.name }));
       const plotPlain = plainMentions(p.plot, cardNames, node.extraRefs);
-      const withExtras = (which: "first" | "last", offset: number) => {
+      // 一张帧只画一个瞬间（shotScript.frameMoment）、这一刻里有谁就只带谁的卡（segmentGen.momentCards）、
+      // 外壳走 generateFrame —— 与 flowStore.regenProposal 同一套
+      const momentFirst = frameMoment(plotPlain, "first");
+      const momentLast = frameMoment(plotPlain, "last");
+      const matFirst = rd.first ? await prepareMaterialRefs(momentCards(node.materials, momentFirst), "image", note) : null;
+      const matLast = rd.last ? await prepareMaterialRefs(momentCards(node.materials, momentLast), "image", note) : null;
+      const withExtras = (mat: { refs: string[] }, which: "first" | "last", offset: number) => {
         const ex = drawExtraRefs(node.extraRefs ?? [], which, offset + mat.refs.length);
         const urls = [...mat.refs, ...ex.urls];
         return { line: ex.line, urls: urls.length > 0 ? urls : undefined };
       };
       let first = p.firstFrame;
-      // 一张帧只画一个瞬间（shotScript.frameMoment）、外壳走 generateFrame —— 与 flowStore.regenProposal 同一套
       // 首帧没有底图 → 素材卡的图就是 <图片1>，offset = 0
-      if (!keepFirst) {
-        const ex = withExtras("first", 0);
-        first = await generateFrame(`${frameMoment(plotPlain, "first").slice(0, 200)}${mat.bind(0)}${ex.line}`, { aspect: node.aspect, refs: ex.urls });
+      if (matFirst) {
+        const ex = withExtras(matFirst, "first", 0);
+        first = await generateFrame(`${momentFirst.slice(0, 200)}${matFirst.bind(0)}${ex.line}`, { aspect: node.aspect, refs: ex.urls });
       }
       // 以开头帧当参考图：同一段戏的两帧必须是同一套人物/画风，各画各的会串味。
       // 有底图时它占 <图片1>，素材卡从 <图片2> 起 → offset = 1
-      const exLast = withExtras("last", first ? 1 : 0);
-      const last = keepLast
-        ? p.lastFrame
-        : await generateFrame(
-            // i18n-ignore-next-line: 画结束画面的出图提示词，发给模型（进模型的文字冻结中文）
-            `${frameMoment(plotPlain, "last").slice(0, 180)} 的结束瞬间${mat.bind(first ? 1 : 0)}${exLast.line}`,
-            { aspect: node.aspect, refs: exLast.urls, base: first || undefined },
-          );
+      const exLast = matLast ? withExtras(matLast, "last", first ? 1 : 0) : null;
+      // 分了镜头的方案：原来那张 AI 结束画面清掉、不重画（redrawFrames 的 clearLast）
+      const last =
+        !matLast || !exLast
+          ? rd.clearLast
+            ? ""
+            : p.lastFrame
+          : await generateFrame(
+              // i18n-ignore-next-line: 画结束画面的出图提示词，发给模型（进模型的文字冻结中文）
+              `${momentLast.slice(0, 180)} 的结束瞬间${matLast.bind(first ? 1 : 0)}${exLast.line}`,
+              { aspect: node.aspect, refs: exLast.urls, base: first || undefined },
+            );
       if (AI_REAL) spendTokens(cost); // 出图成功才扣，与 refineProposalFrame 同口径
       // 段还在才写回（同 refineProposalFrame 那道闸）；写路只有 flowStore 一条
       const still = useFlow.getState().nodes.find((n) => n.id === nodeId)?.proposals.some((q) => q.id === proposalId);
@@ -1773,7 +1791,12 @@ export const useStudio = create<StudioState>()((set, get) => ({
     const { editor, deck } = get();
     if (!editor || editor.generating) return;
     if (!editor.requirement.trim()) {
-      get().npcSay(t`自定义直出也得写一句这段要拍什么——缺的帧我按这句话补画，一个字都没有我就只能瞎画了。`);
+      // 收参考图的两档上自定义段不补画（规则只在 flowStore.noDrawFor：带示例视频的不算，那条路本来就不画）
+      get().npcSay(
+        noDrawFor({ custom: true, customRef: !!editor.refVideo, tierId: editor.videoTier })
+          ? t`自定义直出也得写一句这段要拍什么——这句话就是出片提示词，一个字都没有，模型只能瞎拍。`
+          : t`自定义直出也得写一句这段要拍什么——缺的帧我按这句话补画，一个字都没有我就只能瞎画了。`,
+      );
       return;
     }
     const materials = editor.slots.map((id) => deck.find((c) => c.id === id)).filter((c): c is Card => !!c);

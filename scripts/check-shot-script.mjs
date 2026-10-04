@@ -6,7 +6,7 @@
 //   空镜头带着发出去 = 模型对着一个没有内容的「镜头2：」自己编；台词骨架用错引号 = 这句话不会被配音。
 // ★ 规则一条都不在这里重打：直接 import 那个模块（Node 24 只剥类型，所以它必须零运行时依赖）；
 //   hasDialogue 所在的文件不是零依赖的，就从源文件里把正则字面量抠出来用（与 check-camera-vocab 同一招）。
-// ★ 仓内门禁纪律：写完先造真违规试红（--module= 指向改坏的副本）。逐条试过，三十条各自变红（⑫ 起是合进去当天补的，见下面的 ★★★）：
+// ★ 仓内门禁纪律：写完先造真违规试红（--module= 指向改坏的副本）。逐条试过，三十七条各自变红（⑫ 起是合进去当天补的，见下面的 ★★★）：
 //   ① 去掉「从 1 起连着数」的要求（「镜头2：…镜头3：…」被拆开）；② 去掉「至少两个」的要求（只有一个「镜头1：」也拆）；
 //   ③ 不看句子开头（「他看镜头1：…」被当成标识）；④ 一个镜头时也写「镜头1：」前缀（没分镜的句子被改了字）；
 //   ⑤ packShots 不收空镜头；⑥ packShots 去掉单镜头的快路（没分镜的句子被改了字）；⑦ addShot 不封顶；
@@ -20,7 +20,10 @@
 //   ㉓ frameMoment 不挑镜头、整段发给出图模型（第二次付费验证里画出三格分镜拼图的那个写法）；㉔ 结束画面取了第一个镜头；
 //   ㉕ 先去空格子再摘台词（整格只是一句台词的那一格被挑中，画面是空的）；㉖ stripLines 不连冒号一起摘（剩下「小枫说：」）；
 //   ㉗ 摘完不补逗号（「小枫说夜川点头」粘成一串）；㉘ 整体交代没有句号时不补（「雨夜的书店她推门进来」）；㉙ 丢了整体交代；
-//   ㉚ frameMoment 不去句末标点（接上「。本段固定素材设定」就是「推近。。」）。
+//   ㉚ frameMoment 不去句末标点（接上「。本段固定素材设定」就是「推近。。」）；
+//   ㉛ momentCards 把没点到的人物卡也带上（第三次付费验证里小枫被拉进夜川特写的那个写法）；㉜ 点到的人不排最前（出图模型只吃第一个人物的图）；
+//   ㉝ 一个人都没点到时把人物卡全丢了（定场 / 空镜头）；㉞ namesInOrder 不按长的先认；㉟ isMultiShot 不先收空镜头；
+//   ㊱ isMultiShot 一个镜头也算；㊲ 认卡名不去空格。
 // ★★★ 第一版的检查全是「整串进、整串出」，没有一条是**一个键一个键敲**的 —— 于是「写回 trim、读出再 trim」这个毛病一路绿灯合了进去：
 //   分了镜之后打英文，行尾刚敲的空格当场消失，「Rin walks」变成「Rinwalks」（2026-10-03 在浏览器里逐键敲才抓到）。
 //   (g) 那一组就是为它补的：每一格里敲的每一个字（含行尾的空格 / 回车）一来一回都要原样留着。
@@ -278,7 +281,10 @@ for (const text of [
     if (!ends.length) fail(f + "：一句「的结束瞬间」的出图句都没找到（画结束画面的那一行改名了？这条检查要跟着改）");
     for (const l of ends) {
       ran++;
-      if (!/frameMoment\([^)]*"last"\)/.test(l)) fail(f + "：画结束画面的出图句没走 frameMoment(…, \"last\")：" + l.trim().slice(0, 120));
+      // 「这一刻」也可以先存进一个变量（2026-10-04：同一句话还要拿去挑这一刻带哪些卡，见 (k)）—— 那个变量必须是 frameMoment(…, "last") 的结果
+      const id = /\$\{(\w+)\.slice\(0, \d+\)\} 的结束瞬间/.exec(l)?.[1];
+      const viaVar = !!id && lines.some((x) => new RegExp(`\\bconst ${id} = frameMoment\\([^)]*"last"\\)`).test(x));
+      if (!/frameMoment\([^)]*"last"\)/.test(l) && !viaVar) fail(f + "：画结束画面的出图句没走 frameMoment(…, \"last\")：" + l.trim().slice(0, 120));
     }
     ran++;
     if (lines.some((l) => /generateCover\(/.test(l))) fail(f + "：画帧又借了封面工坊的 generateCover（外壳是「视频封面图：」，见 real.generateFrame）");
@@ -294,10 +300,42 @@ for (const text of [
   }
 }
 
+// ── (k) 这一刻里有谁就只带谁的卡（2026-10-04 主人「开工」：第三次付费验证里小枫连图带文字被拉进了夜川的特写）──
+{
+  const C = (name, type = "character") => ({ id: name, name, type });
+  const mats = [C("小枫"), C("夜川"), C("书店", "scene"), C("旧书", "prop")];
+  const ids = (r) => (Array.isArray(r) ? r.map((c) => c.id) : r);
+  eq("namesInOrder 按出现先后", M.namesInOrder("特写，夜川抬头看着小枫", ["小枫", "夜川"]), ["夜川", "小枫"]);
+  eq("namesInOrder 不重复", M.namesInOrder("小枫看着小枫的影子", ["小枫"]), ["小枫"]);
+  eq("namesInOrder 长名字先认", M.namesInOrder("凛子走来", ["凛", "凛子"]), ["凛子"]);
+  eq("namesInOrder 空名字不算", M.namesInOrder("小枫", ["", " ", "小枫"]), ["小枫"]);
+  // 第三次付费验证的结束画面：只点到夜川 → 小枫这一张帧不带（图与文字设定都不带），场景 / 道具卡照带
+  eq("momentCards 只点到夜川：小枫不带，非人物卡照带", ids(M.momentCards(mats, "雨夜的旧书店。特写，夜川抬起头微笑，夜川说")), ["夜川", "书店", "旧书"]);
+  eq("momentCards 两人都点到：按出现先后排在最前（出图模型只吃第一个人物的图）", ids(M.momentCards(mats, "夜川把书递给小枫")), ["夜川", "小枫", "书店", "旧书"]);
+  eq("momentCards 一个人物都没点到：照旧全带、次序不动", ids(M.momentCards(mats, "雨夜的旧书店，空无一人")), ["小枫", "夜川", "书店", "旧书"]);
+  eq("momentCards 场景 / 道具卡的名字不算点到人", ids(M.momentCards(mats, "书店里的旧书")), ["小枫", "夜川", "书店", "旧书"]);
+  eq("momentCards 卡名带空格也认", ids(M.momentCards([C(" 小枫 "), C("夜川")], "小枫推门")), [" 小枫 "]);
+  eq("momentCards 没挂卡", M.momentCards(undefined, "小枫"), undefined);
+  eq("momentCards 空数组", ids(M.momentCards([], "小枫")), []);
+  // 多镜头（data/drawPlan 的规矩 ②：不画、不用结束画面）
+  eq("isMultiShot 两个镜头", M.isMultiShot("镜头1：a\n镜头2：b"), true);
+  eq("isMultiShot 一句话", M.isMultiShot("雨夜，她推门进来。"), false);
+  eq("isMultiShot 只有一个「镜头1：」", M.isMultiShot("镜头1：她推门进来"), false);
+  eq("isMultiShot 空镜头不算（与 packShots 同一个收法）", M.isMultiShot("镜头1：a\n镜头2："), false);
+  eq("isMultiShot 空串", M.isMultiShot(""), false);
+  // 画帧的四条路都拿 momentCards 挑卡（从源文件里抠：出片前补画、两面的「重画这一套」、推演三套）
+  const read = (f) => fs.readFileSync(path.join(root, f), "utf8");
+  for (const f of ["src/studio/segmentGen.ts", "src/studio/flowStore.ts", "src/studio/studioStore.ts", "src/ai/real.ts"]) {
+    ran++;
+    const lines = read(f).split(/\r?\n/).filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l));
+    if (!lines.some((l) => /momentCards\(/.test(l))) fail(f + "：画帧那几行没拿 momentCards 挑这一刻带哪些卡（新加的画帧路别再把所有卡一股脑塞进去）");
+  }
+}
+
 if (problems.length) {
   console.error(`\n❌ 分镜表检查没过（${problems.length} 条）：\n`);
   for (const p of problems) console.error(`   ${p}`);
   console.error("\n   改法：规则只改 src/data/shotScript.ts；改完在这里补一句正例、一句反例。\n");
   process.exit(1);
 }
-console.log(`✓ 分镜表检查通过（${ran} 条：读 ${parseCases.length} 句 + 写 / 改 / 收拾 / 台词骨架 / 逐键敲字 / 光标跟格子 / 台词是谁说的 / 画帧只画一个瞬间）`);
+console.log(`✓ 分镜表检查通过（${ran} 条：读 ${parseCases.length} 句 + 写 / 改 / 收拾 / 台词骨架 / 逐键敲字 / 光标跟格子 / 台词是谁说的 / 画帧只画一个瞬间 / 这一刻带谁的卡）`);
