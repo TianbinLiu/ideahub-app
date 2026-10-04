@@ -264,3 +264,52 @@ export function lineSpeakers(text: string, names: readonly string[]): Set<string
   }
   return speakers;
 }
+
+/** 句读 / 空白：摘掉一句台词之后，后面紧跟的是这些就不用补逗号 */
+const PUNCT_AFTER = /[\s，,。.！!？?；;、：:」』”"]/;
+
+/**
+ * 把引号里的台词从一句话里摘掉，留下「谁在说」：`小枫说：“这本书还在吗？”` → `小枫说`。
+ * 画帧用（frameMoment）：出图模型拿到引号里的字会把它画成字幕 / 对话框，那张帧再当参考图发给视频模型，字就被带进了成片
+ * （官方提示词指南「视频中包含字幕」那一条：参考图里不必要的文字先去掉）。引号的认法与 LINE_QUOTE 同一个。
+ * ★ 只给出图用，别拿去改发给视频模型的那句 —— 视频那边靠引号里的字配音。
+ */
+export function stripLines(text: string): string {
+  const re = new RegExp(`\\s*[：:]?\\s*(?:${LINE_QUOTE.source})`, "g");
+  const out = (text || "")
+    // 后面紧跟着正文：补一个逗号，别把「小枫说」和下一句粘成一串
+    .replace(re, (hit: string, at: number, src: string) => {
+      const next = src[at + hit.length];
+      return next && !PUNCT_AFTER.test(next) ? "，" : "";
+    })
+    // 摘完常剩下「，。」「，，」与开头的句读：收掉
+    .replace(/[，,]\s*(?=[。.！!？?；;]|$)/g, "")
+    .replace(/([，,])\s*[，,]+/g, "$1")
+    .replace(/^[\s，,。.；;：:、]+/, "");
+  return out.trim();
+}
+
+/**
+ * 画帧用的那一句：开头画面只画「整体交代 + 第一个镜头」，结束画面只画「整体交代 + 最后一个镜头」，引号里的台词摘掉（stripLines）。
+ * 出片前补画（segmentGen）、两面的「重画这一套」（flowStore / studioStore）、推演三套（real.generateProposals）都只问它。
+ * ★ 为什么（2026-10-03 第二次付费验证，主人「改」）：结束画面的出图提示词原来是整段分镜连台词
+ *   （「镜头1…镜头2…镜头3：…夜川说：“一直在等你来取。” 的结束瞬间」），出图模型画成了一张三格分镜图、格子里写着台词；
+ *   这张图当参考帧发给视频模型，成片最后 2 秒溶成了这张拼图，下一段又从它接着演。一张帧只是一个瞬间。
+ * ★ 没分镜的句子：整段照旧，只摘台词。
+ * ★ 摘完一个字不剩的格子不算（空镜头、整格只是一句台词）：开头取第一个还剩字的镜头、结尾取最后一个 ——
+ *   别退回整段（那正是要治的病），也别发一个空画面。一格都不剩就只画整体交代。
+ * ★ 回的是一句**不带句末标点**的话：调用方各自往后接（「 的结束瞬间」「。本段固定素材设定…」「。」）——
+ *   带着句号接上去就是「推近。。本段…」「进来。 的结束瞬间」（老写法拿整段剧情画帧时就这样）。
+ */
+export function frameMoment(text: string, which: "first" | "last"): string {
+  const src = text || "";
+  const s = parseShots(src);
+  const bare = (x: string) => x.replace(/[\s。.！!？?；;，,、]+$/, "");
+  if (s.shots.length <= 1) return bare(stripLines(src));
+  const shots = s.shots.map(stripLines).filter(Boolean);
+  const head = stripLines(s.lead);
+  const shot = which === "first" ? shots[0] : shots[shots.length - 1];
+  if (!shot) return bare(head);
+  if (!head) return bare(shot);
+  return bare(`${head}${/[。.！!？?；;，,、]$/.test(head) ? "" : "。"}${shot}`);
+}

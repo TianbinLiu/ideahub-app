@@ -20,7 +20,8 @@
 import { startJob } from "../data/jobs";
 import { t } from "@lingui/core/macro";
 import { create } from "zustand";
-import { castPreviewImage, frameUrlAt, fuseStageFrame, AI_REAL, ArkTaskUnknown, briefArkReason, chargeNote, chargeOnFail, generateCover, generateProposals, notesInParens, prepareMaterialRefs, recaptureSegment, refineFrame, takeVideoTask, transferStatus } from "../ai";
+import { castPreviewImage, frameUrlAt, fuseStageFrame, AI_REAL, ArkTaskUnknown, briefArkReason, chargeNote, chargeOnFail, generateFrame, generateProposals, notesInParens, prepareMaterialRefs, recaptureSegment, refineFrame, takeVideoTask, transferStatus } from "../ai";
+import { frameMoment } from "../data/shotScript";
 import { isArkAssetUrl, transferArkVideo } from "../ai/arkClient";
 import { canAfford, frozenNote, myCards, spendTokens, tierBlockReason, walletOf } from "../data/account";
 import {
@@ -2449,11 +2450,13 @@ export const useFlow = create<FlowState>()((set, get) => ({
         return { line: ex.line, urls: urls.length > 0 ? urls : undefined };
       };
       let first = prop.firstFrame;
+      // 一张帧只画一个瞬间（shotScript.frameMoment：分了镜的段开头取第一个镜头、结尾取最后一个，台词摘掉）；
+      // 外壳走 generateFrame 不走封面那层 —— 与出片前补画（segmentGen）、工坊 regenProposal 同一套
       // 首帧没有底图 → 素材卡的图就是 <图片1>，offset = 0
       if (!keepFirst) {
         get().updateNode(nodeId, { progress: t`重画起始画面…${noteTail}` });
         const ex = withExtras("first", 0);
-        first = await generateCover(`${plotPlain.slice(0, 200)}${mat.bind(0)}${ex.line}`, undefined, node.aspect, ex.urls);
+        first = await generateFrame(`${frameMoment(plotPlain, "first").slice(0, 200)}${mat.bind(0)}${ex.line}`, { aspect: node.aspect, refs: ex.urls });
       }
       let last = prop.lastFrame;
       if (!keepLast) {
@@ -2461,12 +2464,10 @@ export const useFlow = create<FlowState>()((set, get) => ({
         // 以开头帧当参考图：同一段戏的两帧必须是同一套人物/画风，各画各的会串味。
         // 有底图时它占 <图片1>，素材卡从 <图片2> 起 → offset = 1
         const ex = withExtras("last", first ? 1 : 0);
-        last = await generateCover(
+        last = await generateFrame(
           // i18n-ignore-next-line: 出图提示词，发给模型（进模型的文字冻结中文）
-          `${plotPlain.slice(0, 180)} 的结束瞬间${mat.bind(first ? 1 : 0)}${ex.line}`,
-          first || undefined,
-          node.aspect,
-          ex.urls,
+          `${frameMoment(plotPlain, "last").slice(0, 180)} 的结束瞬间${mat.bind(first ? 1 : 0)}${ex.line}`,
+          { aspect: node.aspect, refs: ex.urls, base: first || undefined },
         );
       }
       if (AI_REAL) spendTokens(cost); // 出图成功才扣，与 refineProposalFrame 同口径

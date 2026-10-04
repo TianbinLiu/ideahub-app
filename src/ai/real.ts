@@ -59,6 +59,7 @@ import { isGenerated, isSheetSlot, slotCardTag, slotKey, slotPrompt as schemeSlo
 import { minimaxVideo, takeMinimaxTask } from "./minimaxVideo";
 import { refableViews } from "../data/cardViews";
 import { drawExtraRefs, plainMentions } from "../data/refMentions";
+import { frameMoment } from "../data/shotScript";
 // 已授权的可信素材：整张卡改发 asset:// URI（判据与拼法各只有一处，见 data/cardAsset）
 import { assetOf, assetUri } from "../data/cardAsset";
 import {
@@ -569,6 +570,15 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T, i: number
 /** 每张出图都要的收尾。水印/文字混进设定帧就会被 Seedance 一起拍进视频里 */
 /* i18n-frozen: 出图提示词的收尾句，发给模型，不翻译 */
 const NO_TEXT = "无文字无水印。";
+
+/**
+ * 画视频帧时的约束词（推演三套与 generateFrame 共用）。
+ * ★ 2026-10-03 第二次付费验证：多镜头段的结束画面被画成了一张三格分镜图、格子里写着台词，视频最后 2 秒溶进了它 ——
+ *   根因是提示词里整段分镜连台词都在（已由 shotScript.frameMoment 收住），这句是第二道：官方提示词指南说约束词能压住不想要的元素。
+ *   「对话框或字幕」也点名：台词虽然摘掉了，画面里还留着「小枫说」这种话，出图模型会顺手画个对话框。
+ */
+/* i18n-frozen: 出图提示词里的约束词，发给模型，不翻译 */
+const ONE_FRAME = "单一完整画面，不要分格、拼贴、对话框或字幕，";
 
 // （厚涂画风词 ART_STYLE 2026-08-28 整个退役：帧管线交给 frameArtStyle 按挂的卡定，
 //   卡面这侧交给"参考图跟随句"——主人同日两次拍板"画风的主人是卡与素材，不是常量"）
@@ -1819,9 +1829,10 @@ function framePrompts(
   refsOn = true,
 ): { first: string; last: string } {
   const style = frameStyle(aspect, materials, refsOn);
+  // 一张帧只画一个瞬间：分了镜的剧情开头取第一个镜头、结尾取最后一个，台词摘掉（规则只在 shotScript.frameMoment）
   return {
-    first: zhPrompt`电影分镜首帧：${plot.slice(0, 100)}。${withRef ? "延续<图片1>的色调与光线氛围。" : ""}${style}`,
-    last: zhPrompt`电影分镜尾帧（这段剧情的收束瞬间）：${plot.slice(-100)}。${style}`,
+    first: zhPrompt`电影分镜首帧：${frameMoment(plot, "first").slice(0, 100)}。${withRef ? "延续<图片1>的色调与光线氛围。" : ""}${ONE_FRAME}${style}`,
+    last: zhPrompt`电影分镜尾帧（这段剧情的收束瞬间）：${frameMoment(plot, "last").slice(-100)}。${ONE_FRAME}${style}`,
   };
 }
 
@@ -1914,7 +1925,8 @@ export async function generateProposals(
     const useRefs = [...baseRefs, ...ex.urls];
     // refsOn 传**这一发实际带不带图**：卡都挂了但一张图都没准备成（mat.refs 空）时，
     // "跟随参考图"那句必须跟着消失——图没发还这么说，模型只能瞎猜（铁律五的措辞版）
-    const prompts = framePrompts(plainMentions(p.plot, ctx.materials, ctx.extraRefs), withFrameRef, ctx.aspect, ctx.materials, useRefs.length > 0);
+    const plain = plainMentions(p.plot, ctx.materials, ctx.extraRefs);
+    const prompts = framePrompts(plain, withFrameRef, ctx.aspect, ctx.materials, useRefs.length > 0);
     // 绑定句里的 <图片N> 要跳过承接帧占的那一位，否则模型会去看错的那张图
     const prompt = (which === "first" ? prompts.first : prompts.last) + mat.bind(withFrameRef ? frameRefs.length : 0) + ex.line;
     let frame: string | null = null;
@@ -1929,8 +1941,8 @@ export async function generateProposals(
         // ★ 说出来：退成纯文生图意味着这一帧**没有**用上你挂的卡，闷声重试等于骗人
         if (useRefs.length > 0) onProgress?.(t`参考图未被受理，该帧改用纯文字重画`);
         // 纯文字重试：refsOn=false——图都不发了，"跟随参考图"那句必须跟着消失；
-        // 风格卡/真人卡两档按名字点名不涉图，照常生效
-        frame = await genImageAsDataUrl(framePrompts(p.plot, false, ctx.aspect, ctx.materials, false)[which], {
+        // 风格卡/真人卡两档按名字点名不涉图，照常生效。句子与第一发同一份（`@点名` 已退成名字；原来这里传的是没退过的原文）
+        frame = await genImageAsDataUrl(framePrompts(plain, false, ctx.aspect, ctx.materials, false)[which], {
           size: frameSize,
         });
       } catch (e2) {
@@ -2712,6 +2724,33 @@ export async function generateCover(
     ? zhPrompt`在<图片1>的基础上修改这张视频封面：${req}。除要求之外保持主体、构图与整体风格不变。高细节，氛围光，无文字无水印。${spec.promptHint}。`
     : zhPrompt`视频封面图：${req}。高细节，电影感构图，氛围光，无文字无水印。${spec.promptHint}。`;
   const refs = [...(refDataUrl ? [refDataUrl] : []), ...(extraRefs ?? [])];
+  return await genImageAsDataUrl(prompt, { imageRefs: refs.length > 0 ? refs : undefined, size: spec.frameSize });
+}
+
+/**
+ * 画一张视频帧：出片前补画开头 / 结束画面（segmentGen）、两面的「重画这一套」（flowStore / studioStore）。
+ * ★ 与封面工坊的 generateCover 分开（2026-10-03 主人「改」）：这几条路原来借的是「视频封面图：…」那层外壳，
+ *   封面常带标题字、常是拼贴版式 —— 第二次付费验证里结束画面被画成了三格分镜图、格子里写着台词，视频最后 2 秒溶进了它。
+ *   画什么由调用方拼（那一刻的画面走 shotScript.frameMoment，后面接素材设定与绑定句）；这里只管外壳。
+ * ★ `base` = 这段视频的开头画面（画结束画面时当 <图片1>）：人物、服装、场景与画风沿用它，构图按这一刻来 ——
+ *   不再说「保持构图不变」（那是改封面的话）：多镜头段的最后一个镜头常常是另一个景别、另一个人。
+ *   绑定句的编号由调用方按 base 占不占 <图片1> 拼好（offset = base ? 1 : 0）。
+ */
+export async function generateFrame(
+  req: string,
+  o: {
+    /** 本段画幅 —— **必填**：漏了画出来是横的，喂给竖屏视频会被静默裁一刀（CLAUDE.md「改了画幅却发现出片还是横的」） */
+    aspect: VideoAspect | undefined;
+    /** 卡片形象图 + 临时参考图，排在 base 之后 */
+    refs?: string[];
+    base?: string;
+  },
+): Promise<string> {
+  const spec = aspectOf(o.aspect);
+  const prompt = o.base
+    ? zhPrompt`<图片1>是这段视频的开头画面。画出同一段戏里的这一刻：${req}。人物、服装、场景与画风沿用<图片1>。${ONE_FRAME}高细节，电影感构图，氛围光，${NO_TEXT}${spec.promptHint}。`
+    : zhPrompt`视频中的一个画面：${req}。${ONE_FRAME}高细节，电影感构图，氛围光，${NO_TEXT}${spec.promptHint}。`;
+  const refs = [...(o.base ? [o.base] : []), ...(o.refs ?? [])];
   return await genImageAsDataUrl(prompt, { imageRefs: refs.length > 0 ? refs : undefined, size: spec.frameSize });
 }
 

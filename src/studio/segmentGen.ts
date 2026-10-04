@@ -12,11 +12,11 @@
 //
 // 计费与 store 写入**不在这里**：两边的账本与状态形状不同（flowStore 写 videoByProposal，
 // 工坊写 proposal.videoUrl），这里只负责"把一段炼出来"，纯函数式地把结果交回去。
-import { AI_REAL, ARK_REF_IMAGES_MAX, ArkTaskUnknown, VIDEO_PROMPT_MAX, composeSegments, generateCover, notesInParens, planCardRefs, prepareMaterialRefs, refCardIds, refineFrame } from "../ai";
+import { AI_REAL, ARK_REF_IMAGES_MAX, ArkTaskUnknown, VIDEO_PROMPT_MAX, composeSegments, generateFrame, notesInParens, planCardRefs, prepareMaterialRefs, refCardIds, refineFrame } from "../ai";
 import { compileMentions, drawExtraRefs, extraRefLines, mentionTargets, plainMentions, usableExtraRefs, type ExtraRef } from "../data/refMentions";
 import { uploadImage } from "../api/uploads";
 import { IMAGE_TOKENS, fmtTokens, r2vPriceIssue, tierOf, providerOf, clampDuration, videoTokensOfSpec, promptMaxOf, refAudioSecOf, type VideoTier } from "../data/economy";
-import { lineSpeakers, packShots } from "../data/shotScript";
+import { frameMoment, lineSpeakers, packShots } from "../data/shotScript";
 // ★ 「模板视频自己合不合方舟窗口」的判据在 data（不在组件）：store 层这一处与
 //   flowStore.applyTemplate、详情页问的必须是同一个函数（铁律六）。
 import { refVideoIssue } from "../data/templates";
@@ -1332,17 +1332,17 @@ export async function generateSegment(
   /** 画帧用的句子与要带的临时参考图：规则在 data/refMentions（plainMentions / drawExtraRefs），所有画帧的路共用 */
   const drawPlot = plainMentions(input.plot, cardTargets, extrasIn);
   const drawExtras = (which: "first" | "last", offset: number) => drawExtraRefs(extrasIn, which, offset);
+  // ★ 一张帧只画一个瞬间（shotScript.frameMoment）：分了镜的段，开头画面取第一个镜头、结束画面取最后一个，引号里的台词摘掉。
+  //   外壳走 generateFrame 不走封面那层（2026-10-03 第二次付费验证：结束画面被画成三格分镜图、格子里写着台词）
   if (!blockout && !refMode && !first) {
     const dr = await drawRefs();
     const ex = drawExtras("first", dr.refs.length);
     drawn++;
     prog(t`绘制起拍画面…` + noteTail());
-    first = await generateCover(
+    first = await generateFrame(
       // 画帧只画得进分到图的那几张卡（经典路分配）；其余的有文字版形象描述就用它（按模型适配）
-      `${input.framePrompt || drawPlot.slice(0, 200)}${materialText(input.materials, idsWithout(input.materials, dr.cards))}${dr.bind(0)}${ex.line}`,
-      undefined,
-      input.aspect,
-      dr.refs.length + ex.urls.length ? [...dr.refs, ...ex.urls] : undefined,
+      `${input.framePrompt || frameMoment(drawPlot, "first").slice(0, 200)}${materialText(input.materials, idsWithout(input.materials, dr.cards))}${dr.bind(0)}${ex.line}`,
+      { aspect: input.aspect, refs: dr.refs.length + ex.urls.length ? [...dr.refs, ...ex.urls] : undefined },
     );
   }
   if (!blockout && !refMode && !last && tier.flf) {
@@ -1350,12 +1350,10 @@ export async function generateSegment(
     const ex = drawExtras("last", dr.refs.length);
     drawn++;
     prog(t`绘制结束画面…` + noteTail());
-    last = await generateCover(
+    last = await generateFrame(
       // i18n-ignore-next-line: 画结束画面的出图提示词，发给模型
-      `${drawPlot.slice(0, 180)} 的结束瞬间${materialText(input.materials, idsWithout(input.materials, dr.cards))}${dr.bind(0)}${ex.line}`,
-      undefined,
-      input.aspect,
-      dr.refs.length + ex.urls.length ? [...dr.refs, ...ex.urls] : undefined,
+      `${frameMoment(drawPlot, "last").slice(0, 180)} 的结束瞬间${materialText(input.materials, idsWithout(input.materials, dr.cards))}${dr.bind(0)}${ex.line}`,
+      { aspect: input.aspect, refs: dr.refs.length + ex.urls.length ? [...dr.refs, ...ex.urls] : undefined },
     );
   }
 

@@ -1,7 +1,8 @@
 // 卡片工坊全局状态：卡组 / NPC 对话 / 市场 / 节点树 / 相机 / 合成 / 已发布作品回炉编辑
 import { create } from "zustand";
 import { shotLineOf, V3_CARD_WIPE_MS, BranchNodeData, BranchTree, Card, CardType, DEFAULT_ASPECT, DEFAULT_VIDEO_CATEGORY, DraftVideo, NodeSlot, Proposal, VideoAspect, VideoSegment, VideoTemplate, uid } from "../types";
-import { AI_REAL, MaterialFile, deriveCharacterModels, deriveDeckCards, generateCards, generateCover, generateProposals, joinNotes, npcChat, npcChatOffline, prepareMaterialRefs } from "../ai";
+import { AI_REAL, MaterialFile, deriveCharacterModels, deriveDeckCards, generateCards, generateFrame, generateProposals, joinNotes, npcChat, npcChatOffline, prepareMaterialRefs } from "../ai";
+import { frameMoment } from "../data/shotScript";
 import { DECK_CAM, MARKET, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
 import { acquireCard, addCards as saveCardsToAccount, canAfford, frozenNote, myCards, myDecks, plazaCards, spendTokens, walletOf, type AddCardsResult } from "../data/account";
@@ -1645,22 +1646,21 @@ export const useStudio = create<StudioState>()((set, get) => ({
         return { line: ex.line, urls: urls.length > 0 ? urls : undefined };
       };
       let first = p.firstFrame;
+      // 一张帧只画一个瞬间（shotScript.frameMoment）、外壳走 generateFrame —— 与 flowStore.regenProposal 同一套
       // 首帧没有底图 → 素材卡的图就是 <图片1>，offset = 0
       if (!keepFirst) {
         const ex = withExtras("first", 0);
-        first = await generateCover(`${plotPlain.slice(0, 200)}${mat.bind(0)}${ex.line}`, undefined, node.aspect, ex.urls);
+        first = await generateFrame(`${frameMoment(plotPlain, "first").slice(0, 200)}${mat.bind(0)}${ex.line}`, { aspect: node.aspect, refs: ex.urls });
       }
       // 以开头帧当参考图：同一段戏的两帧必须是同一套人物/画风，各画各的会串味。
       // 有底图时它占 <图片1>，素材卡从 <图片2> 起 → offset = 1
       const exLast = withExtras("last", first ? 1 : 0);
       const last = keepLast
         ? p.lastFrame
-        : await generateCover(
+        : await generateFrame(
             // i18n-ignore-next-line: 画结束画面的出图提示词，发给模型（进模型的文字冻结中文）
-            `${plotPlain.slice(0, 180)} 的结束瞬间${mat.bind(first ? 1 : 0)}${exLast.line}`,
-            first || undefined,
-            node.aspect,
-            exLast.urls,
+            `${frameMoment(plotPlain, "last").slice(0, 180)} 的结束瞬间${mat.bind(first ? 1 : 0)}${exLast.line}`,
+            { aspect: node.aspect, refs: exLast.urls, base: first || undefined },
           );
       if (AI_REAL) spendTokens(cost); // 出图成功才扣，与 refineProposalFrame 同口径
       // 段还在才写回（同 refineProposalFrame 那道闸）；写路只有 flowStore 一条
