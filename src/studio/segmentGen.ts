@@ -16,7 +16,7 @@ import { AI_REAL, ARK_REF_IMAGES_MAX, ArkTaskUnknown, VIDEO_PROMPT_MAX, composeS
 import { compileMentions, drawExtraRefs, extraRefLines, mentionTargets, plainMentions, usableExtraRefs, type ExtraRef } from "../data/refMentions";
 import { uploadImage } from "../api/uploads";
 import { IMAGE_TOKENS, fmtTokens, r2vPriceIssue, tierOf, providerOf, clampDuration, videoTokensOfSpec, promptMaxOf, refAudioSecOf, type VideoTier } from "../data/economy";
-import { packShots } from "../data/shotScript";
+import { lineSpeakers, packShots } from "../data/shotScript";
 // ★ 「模板视频自己合不合方舟窗口」的判据在 data（不在组件）：store 层这一处与
 //   flowStore.applyTemplate、详情页问的必须是同一个函数（铁律六）。
 import { refVideoIssue } from "../data/templates";
@@ -143,7 +143,41 @@ export interface SegmentGenInput {
  */
 export function voicedCardsOf(o: { plot: string; materials?: Card[]; capSec?: number | null }): Card[] {
   if (!hasDialogue(o.plot)) return [];
-  return fitVoices(cardsWithVoice(o.materials), o.capSec).fit;
+  return fitVoices(speakingVoiced(o.plot, o.materials), o.capSec).fit;
+}
+
+/**
+ * 带声音样本、**而且这一段有他的台词**的人物卡（还没按合计时长筛）—— voicedCardsOf、出片时「装不下」那句点名、参考清单三处共用。
+ * ★ 2026-10-03 主人「改」：N2 付费验证的 B 段只有小枫说话，夜川的样本也带上了。谁说的由 data/shotScript.lineSpeakers 认；
+ *   **认不准（回 null）就不筛**，照旧带上所有带声音的卡 —— 多带一份样本不影响结果，认错了却会让说话的人拿不到自己的样本。
+ */
+function speakingVoiced(plot: string, materials?: Card[]): Card[] {
+  const mats = materials ?? [];
+  const speakers = lineSpeakers(
+    plot,
+    mats.filter((c) => c.type === "character").map((c) => c.name),
+  );
+  return cardsWithVoice(speakers ? mats.filter((c) => speakers.has(c.name)) : mats);
+}
+
+/** 带声音样本、但这一段**没有他的台词**的人物卡（谁说的认不准时为空：那时一张都不筛掉）—— 参考清单那一行「这次不带」用 */
+function quietVoiced(plot: string, materials?: Card[]): Card[] {
+  if (!hasDialogue(plot)) return [];
+  const speaking = new Set(speakingVoiced(plot, materials).map((c) => c.id));
+  return cardsWithVoice(materials).filter((c) => !speaking.has(c.id));
+}
+
+/**
+ * 有台词、这一发又出声时接在提示词尾巴上的那句：只配音、别把台词烧成画面字幕。
+ * ★ 2026-10-03 N2 付费验证：3 句引号台词里有 1 句被模型烧成了约 1.5 秒的硬字幕（「—这本书还在吗」）——剪辑页自己会加字幕，
+ *   成片里再有一份就重了。主人「改」。官方提示词指南里「字幕」要用【】特意写出来，所以这里只说别出字幕，不碰别的画面文字（招牌之类）。
+ * ★ 只在**出声**的请求上加（档位出声且不是白模 / 返修）：不出声的档台词只能靠画面呈现，再叫它别出字幕就等于把这句话丢了。
+ * ⚠ 这是软引导，管不管用要靠付费再验一次（还没验）。
+ */
+/* i18n-frozen: 发给视频模型的指令 */
+export const NO_SUBTITLE_LINE = "。台词只用声音说出来，画面上不要出现字幕";
+export function noSubtitleLine(o: { plot: string; tier: VideoTier; blockout: boolean }): string {
+  return !o.blockout && o.tier.audio === true && hasDialogue(o.plot) ? NO_SUBTITLE_LINE : "";
 }
 
 /**
@@ -436,7 +470,11 @@ export function refSlotsOf(o: {
       ? // 返修：有卡就发（锁住形象），没卡也能走——改的是画面不是换人
         { cap, strict: false }
       : true
-    : refMode || (framesAsRefs && !needDraw)
+    : // ★★ 帧当参考图发的段，**不管帧是现成的还是出片前现画**，卡片图都走直通分配（2026-10-03 主人「改」）：
+      //   此前「要画设定帧」时沿用出图模型那套「只喂第一个人物的图」，而那份分配被原样用在了视频请求上 ——
+      //   N2 付费验证两段都只发了小枫的图，夜川只靠文字与画好的帧（09-18 那批的 X4 比的就是这件事）。
+      //   画帧那一侧另有一份（generateSegment 的 drawRefs，target "image"），仍按出图模型的规矩来，不受这里影响。
+      refMode || framesAsRefs
       ? // ★★ 帧与临时参考图要占掉前几个图位，所以**准备时就把预算扣掉**，而不是发之前截 ——
         //   bindCompact 是按 refs 全量编号的（`张三=@图片5`），发之前截掉两张就会
         //   点名到根本没发出去的编号上：模型按"图片5"去找一张不存在的图，
@@ -486,6 +524,8 @@ export interface RefPlan {
    * capSec = 这一档的合计上限（economy.refAudioSecOf）。没有这种情况 = null。
    */
   voiceOver: { cards: Card[]; capSec: number } | null;
+  /** 带着声音样本、但这一段**没有他的台词**的卡 —— 这次不带（2026-10-03；谁说的认不准时为 null，一张都不筛掉） */
+  voiceQuiet: Card[] | null;
 }
 
 /**
@@ -496,8 +536,8 @@ export interface RefPlan {
  *   （那边出片前会拿这份计划对一次张数，对不上写一句「参考清单核对」进步骤日志）。
  * ⚠ 这是计划：帧标着「还没有」的那几格出片前才画；个别卡片图真取的时候读不出来会被跳过（那一拍会逐张点名）。
  * @param o.framesComing 界面专用：这一段**还没推演**（自选卡片车道，下一步是推演三套方案），首尾帧到出片那一拍一定已经有了。
- *   不传的话，没帧的段会按「出片时现画帧」排 —— 那条路上卡片图走的是画帧那套保守分配（只带第一张人物卡），
- *   而推演过的段出片时帧已在手、走的是直通分配：界面会对着一段还没推演的段说「第二张人物卡不带图」，推演完又变了。
+ *   不传的话，没帧的段会按「出片时现画帧」排帧那几格（缩略图标「还没有」）。卡片图的分法两种情况现在是同一套直通分配
+ *   （2026-10-03 起：现画帧也不再只带第一张人物卡，见 refSlotsOf 的 direct），这个参数只管帧那几格怎么标。
  *   出片那一侧（generateSegment 的核对）从不传它：那时帧在不在是事实。
  */
 export function refPlanOf(
@@ -515,17 +555,25 @@ export function refPlanOf(
   const textOnlyOf = (sent: ReadonlySet<string>) => mats.filter((c) => c.type !== "background" && !sent.has(c.id));
   const voiced = voicedCardsOf({ plot: o.plot, materials: mats, capSec: refAudioSecOf(o.videoTier) });
   const withVoice = cardsWithVoice(mats);
+  /** 带声音、这一段有台词（认不准时 = 全部带声音的）—— 按合计时长装的就是这一批 */
+  const speaking = speakingVoiced(o.plot, mats);
+  /** 带声音、这一段却没有他的台词 —— 这次不带 */
+  const quiet = quietVoiced(o.plot, mats);
   /** 声音样本带得上 / 带不上（判据与 voiceRefsFor 同一组：有台词 + 参考类请求 + 档位出声） */
-  const voiceBits = (referenceMode: boolean): Pick<RefPlan, "voices" | "voiceIdle" | "voiceOver"> => {
+  const voiceBits = (referenceMode: boolean): Pick<RefPlan, "voices" | "voiceIdle" | "voiceOver" | "voiceQuiet"> => {
     const ok = referenceMode && tier.audio === true && voiced.length > 0;
+    const voiceQuiet = quiet.length ? quiet : null;
     if (ok) {
-      // 合计时长装不下的那几张（与 voiceRefsFor 出片时点名的是同一批：都问 fitVoices）
+      // 合计时长装不下的那几张（与 voiceRefsFor 出片时点名的是同一批：都问 fitVoices，装的都是「说台词的」那一批）
       const capSec = refAudioSecOf(o.videoTier);
-      const over = capSec === null ? [] : fitVoices(withVoice, capSec).dropped;
-      return { voices: voiced, voiceIdle: null, voiceOver: over.length && capSec !== null ? { cards: over, capSec } : null };
+      const over = capSec === null ? [] : fitVoices(speaking, capSec).dropped;
+      return { voices: voiced, voiceIdle: null, voiceOver: over.length && capSec !== null ? { cards: over, capSec } : null, voiceQuiet };
     }
-    if (!withVoice.length) return { voices: [], voiceIdle: null, voiceOver: null };
-    return { voices: [], voiceIdle: { cards: withVoice, why: !tier.audio ? "tier" : !referenceMode ? "mode" : "quote" }, voiceOver: null };
+    // 有台词、请求也收声音样本，只是带声音的那几位都没台词：只说「这次不带」，别说成「句子里没有台词」
+    if (referenceMode && tier.audio === true && voiceQuiet && !speaking.length)
+      return { voices: [], voiceIdle: null, voiceOver: null, voiceQuiet };
+    if (!withVoice.length) return { voices: [], voiceIdle: null, voiceOver: null, voiceQuiet: null };
+    return { voices: [], voiceIdle: { cards: withVoice, why: !tier.audio ? "tier" : !referenceMode ? "mode" : "quote" }, voiceOver: null, voiceQuiet: null };
   };
   // 自定义 + 示例视频：帧当参考图，卡片的图一张都不发
   if (o.materialRef) {
@@ -825,7 +873,7 @@ function voiceRefsFor(o: {
   const notes: string[] = [];
   // 合计时长装不下的那几张要点名（否则那个人的台词音色随机，而卡上明明有声音样本）
   if (o.referenceMode && o.tier.audio === true && capSec !== null && hasDialogue(o.plot)) {
-    const dropped = fitVoices(cardsWithVoice(o.materials), capSec).dropped;
+    const dropped = fitVoices(speakingVoiced(o.plot, o.materials), capSec).dropped;
     if (dropped.length) {
       const names = dropped.map((c) => c.name).join(t({ message: "、", comment: "列举几个名字时的分隔符" }));
       notes.push(t`「${names}」的声音样本这次没带上（这一档的参考音频合计最长 ${capSec} 秒）——这几位的台词音色由模型定；把样本剪短些就能都带上`);
@@ -869,10 +917,25 @@ function voiceRefsFor(o: {
  *   仍然不让它跟正文抢配额，只是把"丢了"这件事从静默改成说出来；顺带避免发出半句
  *   （截一半的「…使用参考音」比不发更糟）。
  */
-function withVoiceLine(plot: string, voiceLine: string, cap: number): { plot: string; dropped: boolean } {
-  if (!voiceLine) return { plot, dropped: false };
-  if (plot.length + voiceLine.length <= cap) return { plot: plot + voiceLine, dropped: false };
-  return { plot, dropped: true };
+function withLineTails(
+  plot: string,
+  voiceLine: string,
+  subLine: string,
+  cap: number,
+): { plot: string; voiceDropped: boolean; subDropped: boolean } {
+  // 音色点名句先接（它丢了是音色随机），「别出字幕」那句后接（它丢了只是可能多一行字幕）；各自接得下才接
+  let out = plot;
+  let voiceDropped = false;
+  let subDropped = false;
+  if (voiceLine) {
+    if (out.length + voiceLine.length <= cap) out += voiceLine;
+    else voiceDropped = true;
+  }
+  if (subLine) {
+    if (out.length + subLine.length <= cap) out += subLine;
+    else subDropped = true;
+  }
+  return { plot: out, voiceDropped, subDropped };
 }
 
 export async function generateSegment(
@@ -984,8 +1047,14 @@ export async function generateSegment(
       blockout: false,
     });
     notes.push(...voice.notes);
-    const fitted = withVoiceLine(`${`${shotPrefix(input.shot)}${said.text}`.slice(0, room)}${tail}`, voice.voiceLine, cap);
-    if (fitted.dropped) notes.push(t`音色点名句没能发出去（提示词已经写满）——台词仍会被配音，但音色随机；把要求写短些就能带上`);
+    const fitted = withLineTails(
+      `${`${shotPrefix(input.shot)}${said.text}`.slice(0, room)}${tail}`,
+      voice.voiceLine,
+      noSubtitleLine({ plot: input.plot, tier: refTier, blockout: false }),
+      cap,
+    );
+    if (fitted.voiceDropped) notes.push(t`音色点名句没能发出去（提示词已经写满）——台词仍会被配音，但音色随机；把要求写短些就能带上`);
+    if (fitted.subDropped) notes.push(t`「台词别显示成字幕」那句没能发出去（提示词已经写满）——成片里可能出现台词字幕；把要求写短些就能带上`);
     if (extrasIn.length) {
       const extraCount = extrasIn.length;
       notes.push(t`另带 ${extraCount} 张临时参考图`);
@@ -1194,8 +1263,9 @@ export async function generateSegment(
   //   本来就是空的，画帧那侧拿不到多主体图，两头都不冲突。
   // ★ framesAsRefs 也要备图：帧改当参考图发之后，卡片形象**可以与帧同发**了 ——
   //   此前“帧齐了就不准备”是因为那条路发不出去（互斥），现在不成立了。
-  //   分配口径：要画设定帧时继续用 Seedream 那套启发式（一张图只画一个角色）；
-  //   帧已在手时走直通分配（按档位协议上限，与 refMode 同口径）。
+  //   分配口径：帧当参考图发的段一律走直通分配（按档位协议上限，与 refMode 同口径）——不管帧是现成的还是出片前现画
+  //   （2026-10-03 改：此前现画帧时沿用 Seedream 那套「只喂第一个人物」，视频请求也就只带了一个人的图）。
+  //   画帧要的那一份另备（下面的 drawRefs），仍按出图模型的规矩来。
   // ★ 帧与临时参考图占掉的图位在这一步就从预算里扣（refSlotsOf 的 direct；理由见它那段 ★★）
   const refs = slots.prepare ? await prepareMaterialRefs(input.materials, "video", (n) => notes.push(n), slots.direct) : null;
   // ── 台词音色（卡片系统 V2 阶段 2）────────────────────────────
@@ -1463,11 +1533,13 @@ export async function generateSegment(
   //   而 real.ts 那一刀从**尾巴**下刀 ⇒ 正文写满时它必然被切掉，参考音频却照发 ⇒ 音色随机，
   //   而 `cut` 那句警告一个字不数它。**必须排在下面那几行 prog 之前**：noteTail 只把
   //   此刻已经在 notes 里的话带出去，晚一行就等于这句话没说过。
-  const fitted = withVoiceLine(plot, voice.voiceLine, cap);
-  if (fitted.dropped)
+  const fitted = withLineTails(plot, voice.voiceLine, noSubtitleLine({ plot: input.plot, tier, blockout }), cap);
+  if (fitted.voiceDropped)
     notes.push(
       t`音色点名句没能发出去（提示词已经写满）——台词仍会被配音，但音色随机；把要求写短些就能带上`,
     );
+  if (fitted.subDropped)
+    notes.push(t`「台词别显示成字幕」那句没能发出去（提示词已经写满）——成片里可能出现台词字幕；把要求写短些就能带上`);
   const refSec = input.refVideo?.durationSec;
   if (blockout && input.revise)
     prog(

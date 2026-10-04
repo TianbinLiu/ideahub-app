@@ -152,6 +152,7 @@ export default function RefStrip({
   const idleNames = (plan.voiceIdle?.cards ?? []).map((c) => c.name).join(t({ message: "、", comment: "列举几个名字时的分隔符" }));
   const overNames = (plan.voiceOver?.cards ?? []).map((c) => c.name).join(t({ message: "、", comment: "列举几个名字时的分隔符" }));
   const overCap = plan.voiceOver?.capSec ?? 0;
+  const quietNames = (plan.voiceQuiet ?? []).map((c) => c.name).join(t({ message: "、", comment: "列举几个名字时的分隔符" }));
   const looseNames = loose.map((x) => `@${x}`).join(" ");
   const chip = (it: RefPlanItem) => {
     const k = keyOf(it);
@@ -340,6 +341,12 @@ export default function RefStrip({
           ) : (
             <Trans>🔇 {idleNames} 带着声音样本，但这一段的出片方式带不了参考音频（台词仍会配音，音色由模型定）。</Trans>
           )}
+        </p>
+      )}
+      {/* 带着声音样本、这一段却没有他的台词：这次不带（谁说的由 data/shotScript.lineSpeakers 认，认不准时一张都不筛，这一行也就不出现） */}
+      {plan.voiceQuiet && (
+        <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
+          <Trans>🔇 {quietNames} 在这一段没有台词，这次不带声音样本。</Trans>
         </p>
       )}
       {/* 声音样本合计太长、这几位没带上（N2）：出片之前就说，别等出片那一行进度 */}

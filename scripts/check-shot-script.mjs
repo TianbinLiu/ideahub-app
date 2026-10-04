@@ -13,7 +13,10 @@
 //   ⑧ 台词骨架用了 hasDialogue 认不出的括号（声音样本带不上）；⑨ setShot 在单镜头时 trim 掉人正在敲的空格；
 //   ⑩ 台词骨架不补逗号（「凛推开门凛说」粘成一串）；⑪ 中文数字的标识不认（「镜头一 / 镜头二」）；
 //   ⑫ joinShots 写回时 trim 每一格（行尾刚敲的空格被吃）；⑬ parseShots 读出来时 trim；⑭ 最后一格也去掉结尾的换行（在最后一格里敲不出回车）；
-//   ⑮ typeInto 算光标位置时漏了自己那个标识的长度；⑯ boxAt 把「刚好在标识后面」算成前一格；⑰ packShots 不收总述的首尾空白。
+//   ⑮ typeInto 算光标位置时漏了自己那个标识的长度；⑯ boxAt 把「刚好在标识后面」算成前一格；⑰ packShots 不收总述的首尾空白；
+//   ⑱ lineSpeakers 一小句里点到两个人也随便挑一个（「夜川对小枫说」）；⑲ 一小句里没名字时不往前看整句；
+//   ⑳ 名字不按长的先认（「凛子」被认成「凛」）；㉑ 认不出说话人时不回 null 而是跳过那一句（会把说话的人筛掉）；
+//   ㉒ LINE_QUOTE 与 segmentGen.hasDialogue 的正则不一致（「有没有台词」与「谁说的」认的不是同一批引号）。
 // ★★★ 第一版的检查全是「整串进、整串出」，没有一条是**一个键一个键敲**的 —— 于是「写回 trim、读出再 trim」这个毛病一路绿灯合了进去：
 //   分了镜之后打英文，行尾刚敲的空格当场消失，「Rin walks」变成「Rinwalks」（2026-10-03 在浏览器里逐键敲才抓到）。
 //   (g) 那一组就是为它补的：每一格里敲的每一个字（含行尾的空格 / 回车）一来一回都要原样留着。
@@ -197,10 +200,42 @@ for (const text of [
   eq("typeInto 越界不动", M.typeInto(two, 5, "x", 1).text, two);
 }
 
+// ── (i) 台词是谁说的（声音样本只带说台词的人，2026-10-03 N2 付费验证后主人「改」）──
+{
+  const N = ["小枫", "夜川"];
+  const sp = (text, names = N) => {
+    const r = M.lineSpeakers(text, names);
+    return r === null ? null : [...r].sort();
+  };
+  // 付费验证的两段原文
+  eq("lineSpeakers 两人各一句", sp("雨夜的旧书店。\n镜头1：中景，小枫推门走进书店。\n镜头2：近景，小枫走到柜台前看向夜川，小枫说：“这本书还在吗？”\n镜头3：特写，夜川抬起头微笑，夜川说：“一直在等你来取。”"), ["夜川", "小枫"].sort());
+  eq("lineSpeakers 只有小枫说话（夜川只是出场）", sp("镜头1：夜川从书架上取下一本旧书，递给小枫。\n镜头2：近景，小枫接过书翻开，小枫说：“原来它一直在这里。”"), ["小枫"]);
+  eq("lineSpeakers 冒号写法", sp("小枫：“你好。”"), ["小枫"]);
+  eq("lineSpeakers 小句里没名字就看整句", sp("小枫抬起头，轻声说：“走吧。”"), ["小枫"]);
+  eq("lineSpeakers 上一句台词的收引号也是断点", sp("小枫说：“走吧。”夜川点头：“好。”"), ["夜川", "小枫"].sort());
+  eq("lineSpeakers 长名字先认", sp("凛子说：“嗯。”", ["凛", "凛子"]), ["凛子"]);
+  eq("lineSpeakers 直引号", sp('Rin说："hi"', ["Rin"]), ["Rin"]);
+  eq("lineSpeakers 同一个人说两句", sp("小枫说：“一。”小枫又说：“二。”"), ["小枫"]);
+  eq("lineSpeakers 没有台词 = 空集合", sp("小枫推门走进书店。"), []);
+  // 认不准就不办（回 null = 调用方照旧带上所有带声音的卡）
+  eq("lineSpeakers 一小句点到两个人 → 认不准", sp("夜川对小枫说：“走吧。”"), null);
+  eq("lineSpeakers 一个名字都找不到 → 认不准", sp("“走吧。”"), null);
+  eq("lineSpeakers 有一句认不准，整段就认不准", sp("小枫说：“一。”\n“二。”"), null);
+  eq("lineSpeakers 整句里两个人、小句里没人 → 认不准", sp("小枫看着夜川，轻声说：“走吧。”"), null);
+  eq("lineSpeakers 空名字不算", sp("小枫说：“走吧。”", ["", " ", "小枫"]), ["小枫"]);
+
+  // 「有没有台词」与「谁说的」认的是同一批引号：LINE_QUOTE 的源码必须与 segmentGen.hasDialogue 里那个正则逐字相同
+  const m = /export function hasDialogue\(plot: string\): boolean \{\s*return (\/.*\/)\.test\(plot\);/.exec(fs.readFileSync(path.join(root, "src/studio/segmentGen.ts"), "utf8"));
+  ran++;
+  if (!m) fail("segmentGen.ts：抠不出 hasDialogue 的正则字面量");
+  else if (m[1].slice(1, m[1].lastIndexOf("/")) !== M.LINE_QUOTE.source)
+    fail("shotScript.LINE_QUOTE 与 segmentGen.hasDialogue 的正则不一致：" + M.LINE_QUOTE.source + " ≠ " + m[1]);
+}
+
 if (problems.length) {
   console.error(`\n❌ 分镜表检查没过（${problems.length} 条）：\n`);
   for (const p of problems) console.error(`   ${p}`);
   console.error("\n   改法：规则只改 src/data/shotScript.ts；改完在这里补一句正例、一句反例。\n");
   process.exit(1);
 }
-console.log(`✓ 分镜表检查通过（${ran} 条：读 ${parseCases.length} 句 + 写 / 改 / 收拾 / 台词骨架 / 逐键敲字 / 光标跟格子）`);
+console.log(`✓ 分镜表检查通过（${ran} 条：读 ${parseCases.length} 句 + 写 / 改 / 收拾 / 台词骨架 / 逐键敲字 / 光标跟格子 / 台词是谁说的）`);
