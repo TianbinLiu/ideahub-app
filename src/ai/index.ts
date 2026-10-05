@@ -1,7 +1,7 @@
 // AI 管线统一出口：.env.local 配了 ARK_API_KEY（真实 AI）走火山方舟，
 // 否则走 mock——store/UI 只 import 这里，实现可整体切换。
 import { t } from "@lingui/core/macro";
-import { AI_REAL } from "./arkClient";
+import { AI_REAL, imageGroupsAvailable, type ImageGroupState } from "./arkClient";
 import { DECK_MAX_CARDS } from "../data/economy";
 import * as mock from "../mock/ai";
 import { makeFrame } from "../mock/frames";
@@ -59,6 +59,45 @@ export const generateCover: typeof real.generateCover = AI_REAL
       const head = req.slice(0, 10) || t`封面`;
       return makeFrame(`cover:${req}:${Math.random()}`, t`${head} · 演示`, undefined, aspect);
     };
+/**
+ * 跟着做 C · 九宫格分镜：一次画出一组分镜画面（组图，见 real.drawShotGroup）。
+ * mock 构建一格一格画本地占位帧（看得到「画好一张多一张」的样子，卡面上写着「演示」，不装作是模型画的）；接着等一组（resumeId）没有可接的，当画坏了说。
+ */
+export const drawShotGroup: typeof real.drawShotGroup = AI_REAL
+  ? real.drawShotGroup
+  : async (o) => {
+      const s: ImageGroupState = {
+        id: `demo-${Date.now().toString(36)}`,
+        status: "running",
+        maxImages: o.shots.length,
+        images: [],
+        failures: [],
+        prepaid: 0,
+        charged: 0,
+        interrupted: false,
+        code: "",
+        message: "",
+        createdAt: Date.now(),
+      };
+      if (o.resumeId) return { ...s, status: "failed", code: "INTERRUPTED" };
+      o.onUpdate({ ...s, images: [] });
+      for (const [i, shot] of o.shots.entries()) {
+        await new Promise((r) => setTimeout(r, 300));
+        const n = i + 1;
+        const head = shot.picture.slice(0, 8);
+        s.images.push({ index: i, url: makeFrame(`grid:${shot.picture}:${i}`, t`${n}. ${head} · 演示`, undefined, o.aspect) });
+        o.onUpdate({ ...s, images: [...s.images] });
+      }
+      return { ...s, status: "done", images: [...s.images] };
+    };
+/** C 的参考图与「图几是谁」（整组与单格重画共用）；mock 构建没有参考图这回事（出图是本地占位帧） */
+export const shotGroupRefs: typeof real.shotGroupRefs = AI_REAL ? real.shotGroupRefs : async () => ({ refs: [], bind: "" });
+/** 组图的那几张：方舟临时链接 → 本机 dataURL（mock 构建本来就是 dataURL） */
+export const imageUrlToDataUrl: typeof real.imageUrlToDataUrl = AI_REAL ? real.imageUrlToDataUrl : async (u) => u;
+/** 这台机器出得了组图吗（真实构建问 arkClient：打包看服务端的能力位；mock 构建恒能：画本地占位帧） */
+export const groupsAvailable: () => Promise<boolean> = AI_REAL ? imageGroupsAvailable : async () => true;
+export { ImageGroupBusy, listImageGroups } from "./arkClient";
+export type { ImageGroupState } from "./arkClient";
 /** 画一张视频帧（出片前补画 / 重画这一套；与封面分开的理由见 real.generateFrame）；mock 构建出本地占位帧 */
 export const generateFrame: typeof real.generateFrame = AI_REAL
   ? real.generateFrame
@@ -136,7 +175,7 @@ export const deriveCharacterModels: typeof real.deriveCharacterModels = AI_REAL
  */
 export const prepareMaterialRefs: typeof real.prepareMaterialRefs = AI_REAL
   ? real.prepareMaterialRefs
-  : async () => ({ refs: [], bind: () => "", bindCompact: () => "", cards: new Set<string>() });
+  : async () => ({ refs: [], bind: () => "", bindCompact: () => "", cards: new Set<string>(), owners: [] });
 export type { MaterialRefs } from "./real";
 /** 几条提示（prepareMaterialRefs 的 onNote、铸卡的 notes…）怎么连成一串 / 括成进度行的尾巴：分隔符与括号都进目录，
  *  全仓一处（real.ts），真假两种构建同一份 —— 调用方别再自己写 `notes.join("；")` */

@@ -499,6 +499,338 @@ export async function generateImage(
   return url;
 }
 
+// ── 组图（一次出一组内容关联的图）：跟着做 C · 九宫格分镜（2026-10-05 第三期）─────────────────────────
+//
+// ★★ 两条路、一个形状（ImageGroupState），上层（studio/gridDraftStore）不分路：
+//   · 打包（正式包）→ **服务端任务**：POST /api/ark/image-groups 受理（按「单价 × 张数」预扣、回任务号）→ GET /:id 短轮询，
+//     画好一张就多一张；结束时服务端按拿到手的张数结算、多退（契约「组图」）。不能同步等：一组 6 张实测 249 秒、9 张约 6 分钟，
+//     客户端到服务端之间挡着 Cloudflare 的 125 秒读超时。
+//   · dev（vite 直连方舟，没有服务端那一层）→ **流式**：同一个请求带 stream:true，每画好一张推一条事件；
+//     钱记在本机账本上，由调用方按拿到手的张数记（与服务端「按张结算」同一个口径）。
+// ★ 能不能用只问 imageGroupsAvailable()：打包看服务端健康端点的能力位 imageGroups（老服务端没有 → 不能用，说「服务器还没更新」）。
+//   判能力只看能力位，不看状态码（文件头那条 SPA 回退）。
+
+export interface ImageGroupImage {
+  /** 方舟的 image_index（从 0 起）= 提示词里第几个镜头；被审核拦下的那一张不在这里，序号会跳 */
+  index: number;
+  /** 方舟临时链接（24 小时有效）；演示构建是本地画的 dataURL */
+  url: string;
+}
+export interface ImageGroupFailure {
+  index: number;
+  /** 方舟错误码原样（审核不过是 OutputImageSensitiveContentDetected）—— 给人看的话按码说，别照抄 message（英文） */
+  code: string;
+  message: string;
+}
+export type ImageGroupStatus = "running" | "done" | "failed";
+export interface ImageGroupState {
+  id: string;
+  status: ImageGroupStatus;
+  maxImages: number;
+  images: ImageGroupImage[];
+  failures: ImageGroupFailure[];
+  /** 服务端：受理时预扣 / 最终实收（token）。dev 直连没有服务端的账，两格都是 0（调用方按张记本机账） */
+  prepaid: number;
+  charged: number;
+  /** 没等到「画完了」就结束了（连接断了 / 超时 / 服务端重启）：画到哪张算哪张 */
+  interrupted: boolean;
+  /** 整组失败的码（方舟原样 / INTERRUPTED）与原话 */
+  code: string;
+  message: string;
+  /** 受理时刻（毫秒；不知道 = 0）。认领「受理那一发没收到回包」的那一组时按它挑：只认刚开的 */
+  createdAt: number;
+}
+export interface ImageGroupRequest {
+  model: string;
+  prompt: string;
+  /** 参考图（https 或 dataURL），顺序即「图1、图2…」 */
+  image: string[];
+  size: string;
+  maxImages: number;
+}
+
+/** 同一个人已经有一组在画（服务端 409）：带着那一组的任务号，调用方接着等它，不另开一组 */
+export class ImageGroupBusy extends Error {
+  constructor(readonly id: string | null) {
+    super("IMAGE_GROUP_BUSY");
+    this.name = "ImageGroupBusy";
+  }
+}
+
+let groupsProbe: Promise<boolean> | null = null;
+/**
+ * 这台机器出得了组图吗。dev = 配了方舟密钥（vite 直连）；打包 = 服务端健康端点报 `imageGroups: true`。
+ * ★ 结果整场会话记住（服务端不会在会话中途升级）；探测本身失败（断网）不记，下次再问。
+ */
+export function imageGroupsAvailable(): Promise<boolean> {
+  if (import.meta.env.DEV) return Promise.resolve(AI_REAL);
+  if (!API_ON) return Promise.resolve(false);
+  groupsProbe ??= fetch(`${BASE}/health`, { signal: AbortSignal.timeout(10_000) })
+    .then(async (r) => {
+      const ct = r.headers.get("content-type") ?? "";
+      if (!r.ok || !ct.includes("json")) return false;
+      const j = (await r.json().catch(() => ({}))) as { imageGroups?: unknown };
+      return j.imageGroups === true;
+    })
+    .catch(() => {
+      groupsProbe = null;
+      return false;
+    });
+  return groupsProbe;
+}
+
+const authHeaders = (): Record<string, string> => {
+  const token = getToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
+/** 服务端回的一组 → 统一形状（字段缺了按「没有」补，别让 undefined 进到界面里） */
+function groupOf(g: Record<string, unknown>): ImageGroupState {
+  const list = (v: unknown): Record<string, unknown>[] =>
+    Array.isArray(v) ? v.filter((x) => x && typeof x === "object").map((x) => x as Record<string, unknown>) : [];
+  const status: ImageGroupStatus = g.status === "done" || g.status === "failed" ? g.status : "running";
+  return {
+    id: String(g.id ?? ""),
+    status,
+    maxImages: Number(g.maxImages) || 0,
+    images: list(g.images)
+      .map((x) => ({ index: Number(x.index) || 0, url: String(x.url ?? "") }))
+      .filter((x) => !!x.url),
+    failures: list(g.failures).map((x) => ({
+      index: Number.isInteger(x.index) ? Number(x.index) : -1,
+      code: String(x.code ?? ""),
+      message: String(x.message ?? ""),
+    })),
+    prepaid: Number(g.prepaid) || 0,
+    charged: Number(g.charged) || 0,
+    interrupted: g.interrupted === true,
+    code: String(g.code ?? ""),
+    message: String(g.message ?? ""),
+    createdAt: Date.parse(String(g.createdAt ?? "")) || 0,
+  };
+}
+
+/**
+ * 受理一组（打包才走：服务端任务）。
+ * ★ 受理那一发**没收到回包**（ArkNoReply）≠ 没受理：服务端可能已经扣了钱、开画了 —— 调用方先问 listImageGroups 接回来，别直接再发一组。
+ */
+export async function startImageGroup(req: ImageGroupRequest): Promise<{ id: string; prepaid: number; unitCost: number }> {
+  // 请求体带着参考图（可能是几 MB 的 dataURL），慢网上行要给足；但别超过 Cloudflare 的 125 秒（超了也是白等）
+  const res = await fetch(`${BASE}/image-groups`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ model: req.model, prompt: req.prompt, image: req.image, size: req.size, max_images: req.maxImages }),
+    signal: AbortSignal.timeout(120_000),
+  }).catch((e) => {
+    const detail = e instanceof Error ? e.message : String(e);
+    throw new ArkNoReply(t`组图受理没收到回包：${detail}`);
+  });
+  syncWalletFromHeaders(res.headers);
+  const ct = res.headers.get("content-type") ?? "";
+  if (!ct.includes("json")) throw new Error(t`这台服务器还不能出组图（没有 /api/ark/image-groups）——等服务端更新后再试`);
+  const body = await res.text().catch(() => "");
+  let j: Record<string, unknown> = {};
+  try {
+    j = JSON.parse(body) as Record<string, unknown>;
+  } catch {
+    /* 读不出来的按状态码说 */
+  }
+  if (res.status === 202 && typeof j.id === "string") {
+    return { id: j.id, prepaid: Number(j.prepaid) || 0, unitCost: Number(j.unitCost) || 0 };
+  }
+  if (res.status === 409) throw new ImageGroupBusy(typeof j.id === "string" ? j.id : null);
+  if (res.status === 401) throw new Error(t`登录态失效，重新登录后再试`);
+  if (res.status === 501) throw new Error(t`这台服务器没有配置方舟密钥（服务端 .env 的 ARK_API_KEY）`);
+  const denial = billingDenialError(res.status, body);
+  if (denial) throw denial;
+  const status = res.status;
+  // 400 IMAGE_GROUP_PARAMS：服务端那句是中文整句（「……——当前请求未被受理，也没有扣费」），中文界面照说；英文界面说本端的
+  const code = typeof j.code === "string" ? j.code : "";
+  const serverMsg = typeof j.message === "string" ? j.message : "";
+  if (code === "IMAGE_GROUP_PARAMS" && (i18n.locale === "en" || !serverMsg)) {
+    throw new ArkHttpError(t`这一组的参数服务器不收（没有扣费）——把镜头或人物删几个再试`, status, code);
+  }
+  throw new ArkHttpError(serverMsg || t`组图受理失败（${status}）`, status, code);
+}
+
+/** 查一组的进展（不计费）。查不到（404：不是你的 / 过了 48 小时被清掉）抛 ArkHttpError(404) */
+export async function fetchImageGroup(id: string): Promise<ImageGroupState> {
+  const res = await fetch(`${BASE}/image-groups/${encodeURIComponent(id)}`, {
+    headers: authHeaders(),
+    signal: AbortSignal.timeout(20_000),
+  }).catch((e) => {
+    const detail = e instanceof Error ? e.message : String(e);
+    throw new ArkNoReply(t`查组图进展没收到回包：${detail}`);
+  });
+  syncWalletFromHeaders(res.headers);
+  const ct = res.headers.get("content-type") ?? "";
+  const status = res.status;
+  if (!ct.includes("json")) throw new Error(t`这台服务器还不能出组图（没有 /api/ark/image-groups）——等服务端更新后再试`);
+  const j = (await res.json().catch(() => ({}))) as { group?: Record<string, unknown>; message?: string };
+  if (!res.ok || !j.group) throw new ArkHttpError(j.message || t`查组图进展失败（${status}）`, status);
+  return groupOf(j.group);
+}
+
+/** 这个人最近 24 小时的几组（新的在前）：受理那一发没收到回包、或 App 丢了任务号时据此接回来。查不到就是空数组 */
+export async function listImageGroups(): Promise<ImageGroupState[]> {
+  if (import.meta.env.DEV) return [];
+  try {
+    const res = await fetch(`${BASE}/image-groups`, { headers: authHeaders(), signal: AbortSignal.timeout(20_000) });
+    const ct = res.headers.get("content-type") ?? "";
+    if (!res.ok || !ct.includes("json")) return [];
+    const j = (await res.json().catch(() => ({}))) as { groups?: unknown };
+    return Array.isArray(j.groups) ? j.groups.filter((g) => g && typeof g === "object").map((g) => groupOf(g as Record<string, unknown>)) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** 轮询间隔：一张图约 40 秒，4 秒问一次足够跟上，又远在服务端「轮询限流桶」（90 次/分钟）之内 */
+const GROUP_POLL_MS = 4_000;
+/** 最多等多久：服务端一组最多画 15 分钟、20 分钟还没结束就由懒回收结掉 —— 等到 22 分钟一定有结局 */
+const GROUP_WAIT_MS = 22 * 60_000;
+/** 连着几次查不到（断网）就先停下，把任务号交还给调用方（它记着，人回来点「接着等」） */
+const GROUP_POLL_FAILS = 5;
+
+/** 短轮询一组直到有结局（打包那条路）。每次查到都交给 onUpdate（画好一张就多一张） */
+async function pollImageGroup(id: string, onUpdate: (s: ImageGroupState) => void): Promise<ImageGroupState> {
+  const deadline = Date.now() + GROUP_WAIT_MS;
+  let fails = 0;
+  for (;;) {
+    try {
+      const s = await fetchImageGroup(id);
+      fails = 0;
+      onUpdate(s);
+      if (s.status !== "running") return s;
+    } catch (e) {
+      // 404 = 这一组没了（过期 / 不是你的），再问也一样
+      if (e instanceof ArkHttpError && e.status === 404) throw e;
+      if (++fails >= GROUP_POLL_FAILS) throw e;
+    }
+    if (Date.now() > deadline) throw new ArkNoReply(t`等了 22 分钟这一组还没画完——过一会儿回来点「接着等」，画好的图不会丢`);
+    await new Promise((r) => setTimeout(r, GROUP_POLL_MS));
+  }
+}
+
+/** dev 直连方舟的流式组图：SSE 一条一张（事件形状照官方「图片生成流式响应事件」） */
+async function streamImageGroup(req: ImageGroupRequest, onUpdate: (s: ImageGroupState) => void): Promise<ImageGroupState> {
+  const s: ImageGroupState = {
+    id: `dev-${Date.now().toString(36)}`,
+    status: "running",
+    maxImages: req.maxImages,
+    images: [],
+    failures: [],
+    prepaid: 0,
+    charged: 0,
+    interrupted: false,
+    code: "",
+    message: "",
+    createdAt: Date.now(),
+  };
+  const snapshot = (): ImageGroupState => ({ ...s, images: [...s.images], failures: [...s.failures] });
+  const res = await fetch(`${BASE}/images/generations`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "text/event-stream", ...authHeaders() },
+    body: JSON.stringify({
+      model: req.model,
+      prompt: req.prompt,
+      ...(req.image.length ? { image: req.image.length === 1 ? req.image[0] : req.image } : {}),
+      size: req.size,
+      watermark: false,
+      response_format: "url",
+      sequential_image_generation: "auto",
+      sequential_image_generation_options: { max_images: req.maxImages },
+      stream: true,
+    }),
+  }).catch((e) => {
+    const detail = e instanceof Error ? e.message : String(e);
+    throw new ArkNoReply(t`Ark /images/generations 网络失败: ${detail}`);
+  });
+  if (!res.ok || !res.body) {
+    const body = await res.text().catch(() => "");
+    const status = res.status;
+    throw new ArkHttpError(`Ark /images/generations ${status}: ${body.slice(0, 300)}`, status);
+  }
+  onUpdate(snapshot());
+  let completed = false;
+  const take = (raw: string) => {
+    if (raw === "[DONE]") return;
+    let ev: Record<string, unknown>;
+    try {
+      ev = JSON.parse(raw) as Record<string, unknown>;
+    } catch {
+      return;
+    }
+    const type = String(ev.type ?? "");
+    const at = Number.isInteger(ev.image_index) ? Number(ev.image_index) : -1;
+    if (type.endsWith("partial_succeeded") && typeof ev.url === "string") {
+      s.images.push({ index: at >= 0 ? at : s.images.length, url: ev.url });
+    } else if (type.endsWith("partial_failed")) {
+      const err = (ev.error ?? {}) as Record<string, unknown>;
+      s.failures.push({ index: at, code: String(err.code ?? ""), message: String(err.message ?? "") });
+    } else if (type.endsWith("completed")) {
+      completed = true;
+    } else if (ev.error && typeof ev.error === "object") {
+      const err = ev.error as Record<string, unknown>;
+      s.code = String(err.code ?? "");
+      s.message = String(err.message ?? "");
+    }
+    onUpdate(snapshot());
+  };
+  try {
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    let data: string[] = [];
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let nl: number;
+      while ((nl = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, nl).replace(/\r$/, "");
+        buf = buf.slice(nl + 1);
+        if (line === "") {
+          if (data.length) take(data.join("\n"));
+          data = [];
+        } else if (line.startsWith("data:")) data.push(line.slice(5).replace(/^ /, ""));
+      }
+    }
+    if (data.length) take(data.join("\n"));
+  } catch {
+    // 流中途断了：画到哪张算哪张（下面按有没有等到「画完了」判 interrupted）
+  }
+  s.interrupted = !completed && !s.code;
+  if (s.interrupted) s.code = "INTERRUPTED";
+  s.status = s.images.length > 0 ? "done" : "failed";
+  const fin = snapshot();
+  onUpdate(fin);
+  return fin;
+}
+
+/**
+ * 出一组图，直到有结局 —— 上层只调这一个（两条路见上面的 ★★）。
+ * @param req 新开一组时的请求；接着等一组（resumeId）时不需要
+ * @param o.onStarted 服务端受理那一拍交出任务号与预扣（调用方当场记下：App 被系统回收了也接得回来）
+ */
+export async function runImageGroup(
+  req: ImageGroupRequest | null,
+  o: { resumeId?: string; onUpdate: (s: ImageGroupState) => void; onStarted?: (id: string, prepaid: number) => void },
+): Promise<ImageGroupState> {
+  if (import.meta.env.DEV) {
+    if (!req) throw new Error(t`开发环境直连方舟的组图断了就接不回来（页面刷新过）——重新出一组`);
+    return streamImageGroup(req, o.onUpdate);
+  }
+  let id = o.resumeId;
+  if (!id) {
+    if (!req) throw new Error(t`没有要接着等的那一组`);
+    const started = await startImageGroup(req);
+    id = started.id;
+    o.onStarted?.(id, started.prepaid);
+  }
+  return pollImageGroup(id, o.onUpdate);
+}
+
 /** 这个模型是不是 Seedance 2.5（下面三条 2.5 专属规则都按它分叉） */
 function isSeedance25(model: string): boolean {
   return /seedance-2-5/.test(model);

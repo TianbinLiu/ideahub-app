@@ -27,6 +27,16 @@ import {
   type SceneShotsErrorCode,
 } from "../data/sceneShots";
 import { SHOT_MAX, joinShots } from "../data/shotScript";
+import {
+  GRID_SHOTS_MAX,
+  GRID_SHOTS_SYS,
+  GridShotsError,
+  gridShotsBrief,
+  parseGridShots,
+  type GridLang,
+  type GridPlan,
+  type GridShotsErrorCode,
+} from "../data/gridShots";
 import { cleanShot, shotLineOf, uid, type Card, type Proposal, type ShotSpec, type VideoAspect } from "../types";
 import { newFlowNode, nodeDone, tplOfNode, type FlowNode } from "./flowStore";
 import { zhPrompt } from "../ai/prompts/zhPrompt";
@@ -552,4 +562,109 @@ export async function runSceneToShots(o: { scene: string; cast: readonly string[
     throw new Error(t`拆出来的分镜有 ${len} 字，超过这一档出片提示词的上限 ${max} 字，这一次已经计费——把这场戏写短些再拆`);
   }
   return { text, notes: plan.notes, demo: false };
+}
+
+// ── 官方技能四：「一场戏 → 九宫格分镜」（2026-10-05，跟着做 C「九宫格分镜」第②步，方案 docs/guided-modes-design.md §二 C）──
+//
+// 一两句话的一场戏 → 4~9 格的分镜清单（每格：景别 / 画面 / 动作 / 画面里有谁），逐格可改；之后一次画成一组画面（组图）、挑格子、一格一段。
+// 与「一场戏 → 多镜头」的分别：那条是一段之内的几个镜头（一条出）；这条每一格之后都单独画一张、各出一段（LibTV 的九宫格）。
+// ★ 与前三条同一副骨架（步骤 / 形状检查 / 确认点 / 价签），同一条钱的规矩：请求成功那一拍扣一次，截断 / 形状检查失败不退也不再扣。
+// ★ 输入输出的规则在 data/gridShots（纯函数，构建里 check-grid-shots.mjs 实跑）；用哪种语言写由 data/sceneShots.sceneLang 判（与 B 同一个判据）。
+
+export const SCENE_TO_GRID = {
+  id: "official.scene-to-grid",
+  title: msg`一场戏 → 九宫格分镜`,
+  intro: msg`一两句话写一场戏，写成 4~9 格分镜（景别 / 画面 / 动作 / 画面里有谁），逐格可改，再一次画出整组画面`,
+  steps: [
+    { kind: "input", title: msg`写这场戏`, hint: msg`一两句话（${SCENE_MIN}~${SCENE_MAX} 字）：在哪、谁做了什么` },
+    { kind: "model", title: msg`写分镜`, hint: msg`模型按格写：景别 / 画面（一个瞬间）/ 动作（接下来几秒）/ 画面里有谁` },
+    { kind: "check", title: msg`形状检查`, hint: msg`形状不对整发不认；多出来的格子不收；不认识的人不进画面` },
+    { kind: "confirm", title: msg`你来点头`, hint: msg`逐格可改、可删，点了才出画面` },
+    { kind: "apply", title: msg`出画面`, hint: msg`一次画出整组画面，挑几格、每格一段` },
+  ] satisfies readonly SkillStep[],
+  confirmAt: ["confirm"] satisfies readonly SkillStepKind[],
+  /** 一次 chat 的定额（服务端按调用收） */
+  cost: CHAT_TURN_TOKENS,
+} as const;
+
+/**
+ * 写分镜那一发的输出上限（token）。按形状估：9 格 ×（画面 40 字 + 动作 25 字 + 景别 + 人名）+ 交代 40 字 ≈ 700 字，包上 JSON 约 1000~1300 token；
+ *   取 2400 封顶（与「剧本 → 分镜」同一个数：那一条 8 段实测输出 741~925）。上限只是封顶，没写满的部分谁都不花钱（服务端按调用定额收）。
+ * ★ 还没量过真模型：付费验证时量几发（含 9 格 + 英文）再收口；截断时如实说「被截断、已计费」，不去解析半截 JSON。
+ */
+const GRID_SHOTS_MAX_TOKENS = 2400;
+
+export interface GridShotsResult {
+  plan: GridPlan;
+  /** 这场戏是哪种语言写的（一格一段的视频提示词按它拼） */
+  lang: GridLang;
+  /** 演示构建：本地按句号切的，不是模型写的（面板标「演示」） */
+  demo: boolean;
+}
+
+/** 形状不对的那几种（data/gridShots 抛 code）→ 人话。这一次都已经计费（请求成功那一拍扣过） */
+function gridShotsErrorText(code: GridShotsErrorCode): string {
+  switch (code) {
+    case "noJson":
+      return t`模型没有按格式回分镜，这一次已经计费——再写一次，或把这场戏写具体些`;
+    case "badJson":
+      return t`模型回的分镜读不出来，这一次已经计费——再写一次`;
+    case "noShots":
+      return t`写出来的格子一个都没写画面，这一次已经计费——把这场戏写具体些再写`;
+    case "dupKeys":
+      return t`模型回的格式有问题（几格挤进了同一格），这一次已经计费——再写一次`;
+  }
+}
+
+/** 演示构建（没配 ARK_API_KEY）的本地降级：按句号切，最多切到上限，只为让流程走通看形状，**不冒充模型**（面板标「演示」） */
+function localGrid(scene: string, cast: readonly string[]): GridPlan {
+  /* i18n-frozen: 演示构建本地切出来的景别（与模型写的同一种值，进出图提示词） */
+  const SIZES = ["远景", "中景", "近景", "特写"];
+  const parts = scene
+    .split(/(?<=[。！？!?.\n；;])/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .slice(0, GRID_SHOTS_MAX);
+  return {
+    lead: "",
+    shots: (parts.length ? parts : [scene]).map((p, i) => ({
+      size: SIZES[i % SIZES.length],
+      picture: p,
+      action: "",
+      who: cast.filter((n) => n && p.includes(n)),
+    })),
+    notes: [],
+  };
+}
+
+/**
+ * 跑「一场戏 → 九宫格分镜」到确认之前：门禁（长度 / 余额）→ 模型 → 扣一次钱 → 形状检查。
+ * 失败整句 throw（铁律八）；网络那一档的错原样抛，钱上的话由调用方经 ai/failCharge 说。
+ * @param cast 出场人物的卡名（模型只用这几个名字写人物与「画面里有谁」）
+ * @param place 场景卡的名字（没挂场景卡 = ""）
+ */
+export async function runSceneToGrid(o: { scene: string; cast: readonly string[]; place: string }): Promise<GridShotsResult> {
+  const scene = o.scene.trim().slice(0, SCENE_MAX);
+  if (scene.length < SCENE_MIN) throw new Error(t`这场戏写得太短（至少 ${SCENE_MIN} 个字）——写清在哪、谁做了什么`);
+  if (AI_REAL && !canAfford(CHAT_TURN_TOKENS)) {
+    const price = fmtTokens(CHAT_TURN_TOKENS);
+    throw new Error(frozenNote() ?? t`写分镜要 ${price} token，余额不够——去「我的」页充值`);
+  }
+  const lang = sceneLang(scene);
+  if (!AI_REAL) return { plan: localGrid(scene, o.cast), lang, demo: true };
+  const { text: raw, truncated } = await skillChat(GRID_SHOTS_SYS, gridShotsBrief({ scene, cast: o.cast, place: o.place, lang }), {
+    maxTokens: GRID_SHOTS_MAX_TOKENS,
+    timeoutMs: SCRIPT_SHOTS_TIMEOUT_MS,
+  });
+  spendTokens(CHAT_TURN_TOKENS); // 请求成功才扣（与另三条技能同口径）；截断 / 形状检查失败都不退也不再扣
+  if (truncated) {
+    const limit = GRID_SHOTS_MAX_TOKENS;
+    throw new Error(t`模型写到一半被截断了（输出超过 ${limit} token 的上限），这一次已经计费——把这场戏写短些再写`);
+  }
+  try {
+    return { plan: parseGridShots(raw, o.cast, GRID_SHOTS_MAX), lang, demo: false };
+  } catch (e) {
+    if (e instanceof GridShotsError) throw new Error(gridShotsErrorText(e.code));
+    throw e;
+  }
 }

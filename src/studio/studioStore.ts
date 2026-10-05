@@ -9,7 +9,7 @@ import { acquireCard, addCards as saveCardsToAccount, canAfford, frozenNote, myC
 import { CHAT_TURN_TOKENS, DECK_MAX_3D, deriveIssue, DECK_MAX_CARDS, DEFAULT_TIER, MODEL3D_TOKENS, deckCardsCost, deckModel3dCost, fmtTokens, proposalsCost, realFaceIssue, styleWants3d, tierOf, videoAudioOn } from "../data/economy";
 // 单向依赖：工坊把活动路径喂给工作流。flowStore 不认识 studioStore（见其文件头）
 import { drawExtraRefs, plainMentions } from "../data/refMentions";
-import { GenNodeOpts, CUSTOM_MID_MAX, FlowMode, FlowNode, FlowTemplate, appendBlocked, appendIssue, chosenOf, recastBlocked, nodeContinues, nodeVideo, tplOfNode, useFlow, redrawCost, redrawFrames, noDrawFor } from "./flowStore";
+import { GenNodeOpts, CUSTOM_MID_MAX, FlowMode, FlowNode, FlowTemplate, type AppendSpec, appendBlocked, appendIssue, chosenOf, recastBlocked, nodeContinues, nodeVideo, tplOfNode, useFlow, redrawCost, redrawFrames, noDrawFor } from "./flowStore";
 // ★ 依赖方向没破：canvasAgent 只认识 flowStore，不认识本模块（不会成环）
 import { forgetCanvasAgent } from "./canvasAgent";
 import { leadAppendSpec, type LeadSpec } from "./leadCast";
@@ -693,6 +693,11 @@ interface StudioState {
    * 要出片由调用方接着走 genNodeVideo —— 与方案台那颗「生成本段视频」同一个入口（受理即收窗、说一句可以离开）。
    */
   layLeadNode: (spec: LeadSpec) => { ok: true; nodeId: string; proposalId: string } | { ok: false; why: string };
+  /**
+   * 跟着做 C「九宫格分镜」：挑中的几格各成一段（gridDraftStore.gridAppendSpecs 拼的那几份），落段走 flowStore.appendSpecs
+   * （门禁与 appendNode 同一处）。成了就把投影窗切到新落的第一段的方案台，要出片再由调用方走 genNodeVideo（只出第一段：逐段出、逐段看）。
+   */
+  layGridNodes: (specs: AppendSpec[]) => { ok: true; nodeIds: string[]; firstProposalId: string } | { ok: false; why: string };
   /** 铸段向导第①步选「套模板」：就地落一张白模节点卡（不再把人赶去画布那一面）。
    *  规则全在 flowStore（appendNode 门禁 + setNodeTemplate 快照/闸），这里只是编排 */
   layTemplateNode: (tpl: VideoTemplate) => void;
@@ -1911,6 +1916,17 @@ export const useStudio = create<StudioState>()((set, get) => ({
         comment: "铸卡师念的话。「⚡ 生成本段视频」是工坊方案台上那颗出片键的名字（键上还带价钱），英文请引用它的英文名（不带价钱）",
       }),
     );
+  },
+
+  layGridNodes: (specs) => {
+    const { editor } = get();
+    if (!editor || editor.generating) return { ok: false, why: t`铸段窗正忙，稍后再试` };
+    const ids = useFlow.getState().appendSpecs(specs);
+    if (!ids?.length) return { ok: false, why: useFlow.getState().err || t`现在铺不了这几段，稍后再试。` };
+    set({ spreadOpen: false, focus: { nodeId: ids[0] }, projection: "proposals", editor: null });
+    const n = ids.length;
+    get().npcSay(t`挑中的 ${n} 格各成一段了——每段拿那一格的画面当开头，按顺序一段一段出片。`);
+    return { ok: true, nodeIds: ids, firstProposalId: specs[0].proposals[0].id };
   },
 
   layLeadNode: (spec) => {

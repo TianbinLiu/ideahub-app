@@ -177,6 +177,7 @@ msgstr "，这一次已经计费"
 #. 列举几个名字时的分隔符
 #. 列举几个名字时的分隔符
 #. 列举几个名字时的分隔符
+#. 列举几个名字时的分隔符
 #. 列举几个图位名 / 还缺的几项时的分隔符
 #. 列举几个文件名 / 动作组 / 表情名时的分隔符
 #. 列举几个段号时的分隔符（第 1、3 段）
@@ -187,6 +188,7 @@ msgstr "，这一次已经计费"
 #: src/components/blockout/RoleCastBoard.tsx
 #: src/components/blockout/RoleConfirmSheet.tsx
 #: src/components/DeleteCardDialog.tsx
+#: src/components/flow/GridShotsWizard.tsx
 #: src/components/flow/LeadShotsWizard.tsx
 #: src/components/flow/RefStrip.tsx
 #: src/components/TemplateShelf.tsx
@@ -214,6 +216,8 @@ msgstr "、"
 #. 把几条「这一档为什么点不动」的原因连成一行时的分隔符
 #. 把几条「这一档为什么点不动」的原因连成一行时的分隔符
 #. 把几条说明连成一句时的分隔符
+#. 把几条说明连成一句时的分隔符
+#. 把几条说明连成一句时的分隔符
 #. 把铸卡时的几条说明连成一句时的分隔符
 #. 把铸卡时的几条说明连成一句时的分隔符
 #. 把铸卡时的几条说明连成一句时的分隔符
@@ -223,6 +227,7 @@ msgstr "、"
 #: src/live2d/bundlePreview.ts
 #: src/pages/CardDetailPage.tsx
 #: src/studio/flowStore.ts
+#: src/studio/gridDraftStore.ts
 #: src/studio/leadCast.ts
 #: src/studio/leadDraftStore.ts
 #: src/studio/ui/NpcDialog.tsx
@@ -425,6 +430,7 @@ msgstr "· 里面那 {0} 张卡<0>不会被删</0>， 它们还在你的卡片�
 msgid "· 问卷：12 项（没动过的用默认值）"
 msgstr "· 问卷：12 项（没动过的用默认值）"
 
+#: src/components/flow/GridShotsWizard.tsx
 #: src/components/flow/LeadShotsWizard.tsx
 #: src/studio/ui/projection.tsx
 msgid "‹ 上一步"
@@ -454,6 +460,7 @@ msgstr "‹ 模式"
 msgid "‹ 示例视频"
 msgstr "‹ 示例视频"
 
+#: src/components/flow/GridShotsWizard.tsx
 #: src/components/flow/LeadShotsWizard.tsx
 msgid "‹ 选法"
 msgstr "‹ 选法"
@@ -545,6 +552,10 @@ msgstr "（本地档）按直白句式帮你办了下面这些。{notes}"
 #: src/live2d/bundlePreview.ts
 msgid "（没写）"
 msgstr "（没写）"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "（没有人）"
+msgstr "（没有人）"
 
 #: src/studio/canvasAgent.ts
 #: src/studio/cutAgent.ts
@@ -1240,6 +1251,10 @@ msgstr "{list}没能存到服务器（{reason}）——这几张只留在这台�
 msgid "{looseNames} 没对上这一段的任何参考——检查名字，或点上面的图重新写进句子（发出去时它只是普通文字）。"
 msgstr "{looseNames} 没对上这一段的任何参考——检查名字，或点上面的图重新写进句子（发出去时它只是普通文字）。"
 
+#: src/studio/gridDraftStore.ts
+msgid "{missing} 格模型没画"
+msgstr "{missing} 格模型没画"
+
 #: src/live2d/bundlePreview.ts
 msgid "{mocPath} 的文件头不是 MOC3（读到 “{shown}”），这不是一份有效的 moc3。"
 msgstr "{mocPath} 的文件头不是 MOC3（读到 “{shown}”），这不是一份有效的 moc3。"
@@ -1267,6 +1282,10 @@ msgstr "{msgCount} 条"
 #: src/components/VideoTemplateExtractor.tsx
 msgid "{n} 帧"
 msgstr "{n} 帧"
+
+#: src/ai/index.ts
+msgid "{n}. {head} · 演示"
+msgstr "{n}. {head} · 演示"
 
 #: src/pages/LoginPage.tsx
 msgid "{name}登录（暂未接入）"
@@ -1341,6 +1360,10 @@ msgstr "{quotedList}{quotedName}"
 msgid "{reason}——卡在这台设备上有，但换台设备或重启后可能就没了。"
 msgstr "{reason}——卡在这台设备上有，但换台设备或重启后可能就没了。"
 
+#: src/studio/gridDraftStore.ts
+msgid "{rejected} 格没过内容审核"
+msgstr "{rejected} 格没过内容审核"
+
 #: src/pages/ProfilePage.tsx
 msgid "{segCount} 段 · {when}"
 msgstr "{segCount} 段 · {when}"
@@ -1352,6 +1375,18 @@ msgstr "{segCount} 段 · 共 {totalText}"
 #: src/pages/ProfilePage.tsx
 msgid "{segCount} 段 · 卡组 {deckCount} 张已经铸好 · {when}"
 msgstr "{segCount} 段 · 卡组 {deckCount} 张已经铸好 · {when}"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "{segN} 段 · 每段拿那一格的画面当开头，画面里的人的图一起给视频模型；不接上一段的结尾（每一格本来就是新的镜头）"
+msgstr "{segN} 段 · 每段拿那一格的画面当开头，画面里的人的图一起给视频模型；不接上一段的结尾（每一格本来就是新的镜头）"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "{segN} 段 · 每段拿那一格的画面当首帧；这一档收不了人物图，人像全看那一格画面"
+msgstr "{segN} 段 · 每段拿那一格的画面当首帧；这一档收不了人物图，人像全看那一格画面"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "{segN} 段一共约 {totalPrice}。只先出第 1 段：后面几段在流水线上按顺序一段一段出，每段出之前会再报一次价 —— 第 1 段看着不对，后面的就不用花钱。"
+msgstr "{segN} 段一共约 {totalPrice}。只先出第 1 段：后面几段在流水线上按顺序一段一段出，每段出之前会再报一次价 —— 第 1 段看着不对，后面的就不用花钱。"
 
 #. 改图 / 重画完成的提示：sentence 是一整句（已翻译），notes 是用分隔符连起来的几条参考图提示，括起来接在句子后面
 #: src/studio/studioStore.ts
@@ -1757,6 +1792,10 @@ msgstr "「{name}」的形象图一张都没能进管线（{why}），出片时�
 msgid "「{name}」还是空的——去创意工坊给它添几张卡吧。"
 msgstr "「{name}」还是空的——去创意工坊给它添几张卡吧。"
 
+#: src/components/flow/GridShotsWizard.tsx
+msgid "「{names}」不在你选的人物里，没算进画面里的人（画面照写）"
+msgstr "「{names}」不在你选的人物里，没算进画面里的人（画面照写）"
+
 #: src/components/flow/LeadShotsWizard.tsx
 msgid "「{names}」不在你选的人物里：这几句台词照收，声音由模型自己配"
 msgstr "「{names}」不在你选的人物里：这几句台词照收，声音由模型自己配"
@@ -1965,6 +2004,10 @@ msgstr "＋ 制作我的人格"
 msgid "+ 加一味（{0}/{maxMix}）"
 msgstr "+ 加一味（{0}/{maxMix}）"
 
+#: src/components/flow/GridShotsWizard.tsx
+msgid "＋ 加一格"
+msgstr "＋ 加一格"
+
 #: src/components/flow/FlowCanvas.tsx
 #: src/studio/canvasAgent.ts
 msgid "＋ 加一段"
@@ -2034,7 +2077,7 @@ msgstr "＋ 添加到我的卡片"
 msgid "＋ 添加本地音频作为 BGM"
 msgstr "＋ 添加本地音频作为 BGM"
 
-#: src/components/flow/LeadShotsWizard.tsx
+#: src/components/flow/CastPicker.tsx
 msgid "＋ 现做一个人物（一句话）"
 msgstr "＋ 现做一个人物（一句话）"
 
@@ -2377,6 +2420,10 @@ msgstr "⚡ 生成本段（{costLabel}）"
 msgid "⚡ 生成本段视频（{0}）"
 msgstr "⚡ 生成本段视频（{0}）"
 
+#: src/components/flow/GridShotsWizard.tsx
+msgid "⚡ 生成这一段（{firstPrice}）"
+msgstr "⚡ 生成这一段（{firstPrice}）"
+
 #: src/components/flow/LeadShotsWizard.tsx
 msgid "⚡ 生成这一段（{genPrice}）"
 msgstr "⚡ 生成这一段（{genPrice}）"
@@ -2392,6 +2439,10 @@ msgstr "⚡ 用这个模板出片（挂上你的角色卡）"
 #: src/pages/VideoPage.tsx
 msgid "⚡ 解锁观看"
 msgstr "⚡ 解锁观看"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "⚡ 铺成 {segN} 段，先出第 1 段（{firstPrice}）"
+msgstr "⚡ 铺成 {segN} 段，先出第 1 段（{firstPrice}）"
 
 #: src/pages/CardDetailPage.tsx
 msgid "✂ 主图只留主体"
@@ -2533,6 +2584,10 @@ msgstr "✦ 全息实体 3D"
 msgid "✦ 全息实体 3D 建模"
 msgstr "✦ 全息实体 3D 建模"
 
+#: src/components/flow/GridShotsWizard.tsx
+msgid "✨ AI 写成分镜（{writePrice}）"
+msgstr "✨ AI 写成分镜（{writePrice}）"
+
 #: src/components/CoverPicker.tsx
 msgid "✨ AI 封面（改图/生成）"
 msgstr "✨ AI 封面（改图/生成）"
@@ -2581,7 +2636,7 @@ msgstr "✨ 改尾帧"
 msgid "✨ 改首帧"
 msgstr "✨ 改首帧"
 
-#: src/components/flow/LeadShotsWizard.tsx
+#: src/components/flow/CastPicker.tsx
 msgid "✨ 现做（{forgePrice}）"
 msgstr "✨ 现做（{forgePrice}）"
 
@@ -2603,6 +2658,10 @@ msgstr "✨ 补齐剩下的 {aiTodoCount} 张图位与人物信息（{aiPriceTex
 #: src/components/VideoCardAnnotator.tsx
 msgid "✨ 补齐剩下的 {todoCount} 张形象图（约 {0}）"
 msgstr "✨ 补齐剩下的 {todoCount} 张形象图（约 {0}）"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "✨ 让 AI 写（{writePrice}，会换掉上面的分镜）"
+msgstr "✨ 让 AI 写（{writePrice}，会换掉上面的分镜）"
 
 #: src/components/flow/LeadShotsWizard.tsx
 msgid "✨ 让 AI 拆成镜头（{splitPrice}，会换掉上面的分镜）"
@@ -2719,9 +2778,17 @@ msgstr "🎙 按住跟读（长按录音）"
 msgid "🎛 按模型适配"
 msgstr "🎛 按模型适配"
 
+#: src/components/flow/GridShotsWizard.tsx
+msgid "🎞 九宫格分镜"
+msgstr "🎞 九宫格分镜"
+
 #: src/components/CoverPicker.tsx
 msgid "🎞 从成片截帧"
 msgstr "🎞 从成片截帧"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "🎞 画出这一组（{shotN} 格，最多 {groupPrice}）"
+msgstr "🎞 画出这一组（{shotN} 格，最多 {groupPrice}）"
 
 #: src/components/flow/FlowCanvas.tsx
 #: src/studio/ui/projection.tsx
@@ -2934,6 +3001,18 @@ msgstr "📸 截图 → 融成这一段的开头帧（{price}）"
 msgid "📸 截这一帧"
 msgstr "📸 截这一帧"
 
+#: src/components/flow/GridShotsWizard.tsx
+msgid "🔄 整组重出（{shotN} 格，最多 {groupPrice}，会换掉现在这几格）"
+msgstr "🔄 整组重出（{shotN} 格，最多 {groupPrice}，会换掉现在这几格）"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "🔄 重新写（{writePrice}，会换掉上面的分镜）"
+msgstr "🔄 重新写（{writePrice}，会换掉上面的分镜）"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "🔄 重新写（{writePrice}，会换掉上面的分镜和已经画好的画面）"
+msgstr "🔄 重新写（{writePrice}，会换掉上面的分镜和已经画好的画面）"
+
 #: src/components/flow/LeadShotsWizard.tsx
 msgid "🔄 重新拆（{splitPrice}，会换掉上面的分镜）"
 msgstr "🔄 重新拆（{splitPrice}，会换掉上面的分镜）"
@@ -3041,9 +3120,17 @@ msgstr "🔥 本机热度 {0}"
 msgid "🔥 社区热度 {0}"
 msgstr "🔥 社区热度 {0}"
 
+#: src/components/flow/GridShotsWizard.tsx
+msgid "🖌 单独画这一格（{redrawPrice}）"
+msgstr "🖌 单独画这一格（{redrawPrice}）"
+
 #: src/components/VideoCardAnnotator.tsx
 msgid "🖌 笔"
 msgstr "🖌 笔"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "🖌 重画这一格（{redrawPrice}）"
+msgstr "🖌 重画这一格（{redrawPrice}）"
 
 #. placeholder {0}: refPlan.items.length
 #: src/studio/ui/projection.tsx
@@ -3252,7 +3339,7 @@ msgstr "③ {0}（选填）"
 msgid "③ 人物信息"
 msgstr "③ 人物信息"
 
-#: src/components/flow/LeadShotsWizard.tsx
+#: src/components/flow/CastPicker.tsx
 msgid "3D 动画"
 msgstr "3D 动画"
 
@@ -3452,6 +3539,10 @@ msgstr "Ark {path} 回包读不出来: {detail}"
 msgid "Ark {path} 网络失败: {detail}"
 msgstr "Ark {path} 网络失败: {detail}"
 
+#: src/ai/arkClient.ts
+msgid "Ark /images/generations 网络失败: {detail}"
+msgstr "Ark /images/generations 网络失败: {detail}"
+
 #: src/components/CoverPicker.tsx
 msgid "canvas 不可用"
 msgstr "canvas 不可用"
@@ -3553,8 +3644,16 @@ msgid "zip 包 ≤25MB，向导会认出它的动作、表情和触摸区。"
 msgstr "zip 包 ≤25MB，向导会认出它的动作、表情和触摸区。"
 
 #: src/studio/structuredSkills.ts
+msgid "一两句话（{SCENE_MIN}~{SCENE_MAX} 字）：在哪、谁做了什么"
+msgstr "一两句话（{SCENE_MIN}~{SCENE_MAX} 字）：在哪、谁做了什么"
+
+#: src/studio/structuredSkills.ts
 msgid "一两句话（{SCENE_MIN}~{SCENE_MAX} 字）：在哪、谁做了什么、谁说了什么"
 msgstr "一两句话（{SCENE_MIN}~{SCENE_MAX} 字）：在哪、谁做了什么、谁说了什么"
+
+#: src/studio/structuredSkills.ts
+msgid "一两句话写一场戏，写成 4~9 格分镜（景别 / 画面 / 动作 / 画面里有谁），逐格可改，再一次画出整组画面"
+msgstr "一两句话写一场戏，写成 4~9 格分镜（景别 / 画面 / 动作 / 画面里有谁），逐格可改，再一次画出整组画面"
 
 #: src/studio/structuredSkills.ts
 msgid "一两句话写一场戏，拆成一段视频里的 2~4 个镜头（景别 / 运镜 / 画面 / 台词），逐格可改再出片"
@@ -3604,7 +3703,7 @@ msgstr "一句话：换成谁来演？例：一只戴墨镜的柴犬"
 msgid "一句话：讲谁、讲什么、什么调子。填了就在铺完之后把每一段的剧情改成你的故事（一次对话的价钱，到画布上再点）"
 msgstr "一句话：讲谁、讲什么、什么调子。填了就在铺完之后把每一段的剧情改成你的故事（一次对话的价钱，到画布上再点）"
 
-#: src/components/flow/LeadShotsWizard.tsx
+#: src/components/flow/CastPicker.tsx
 msgid "一句话：长相、发型、服装、气质。例：橙色短发、绿眼睛的少女，暗红色短披肩配绿领结"
 msgstr "一句话：长相、发型、服装、气质。例：橙色短发、绿眼睛的少女，暗红色短披肩配绿领结"
 
@@ -3652,6 +3751,10 @@ msgid "一句话说清它产出什么（选方案时会显示）"
 msgstr "一句话说清它产出什么（选方案时会显示）"
 
 #: src/studio/structuredSkills.ts
+msgid "一场戏 → 九宫格分镜"
+msgstr "一场戏 → 九宫格分镜"
+
+#: src/studio/structuredSkills.ts
 msgid "一场戏 → 多镜头"
 msgstr "一场戏 → 多镜头"
 
@@ -3677,6 +3780,10 @@ msgstr "一张分栏设定稿（素描线稿 + 色板 + 服装细节），外加
 msgid "一张卡最多存 {MAX_CARD_VIEWS} 张形象图（服务端也钉着这个数），把图位删到 {MAX_CARD_VIEWS} 个以内"
 msgstr "一张卡最多存 {MAX_CARD_VIEWS} 张形象图（服务端也钉着这个数），把图位删到 {MAX_CARD_VIEWS} 个以内"
 
+#: src/studio/gridDraftStore.ts
+msgid "一张都没画出来"
+msgstr "一张都没画出来"
+
 #: src/studio/structuredSkills.ts
 msgid "一整篇（{SCRIPT_MIN}~{SCRIPT_MAX} 字），故事梗概或分场脚本都行"
 msgstr "一整篇（{SCRIPT_MIN}~{SCRIPT_MAX} 字），故事梗概或分场脚本都行"
@@ -3697,10 +3804,22 @@ msgstr "一条评论都没有"
 msgid "一格一个角色位"
 msgstr "一格一个角色位"
 
+#: src/studio/flowStore.ts
+msgid "一格都没挑，铺不成段"
+msgstr "一格都没挑，铺不成段"
+
 #. placeholder {0}: doneRows.length
 #: src/components/DownloadSheet.tsx
 msgid "一次全给（{0} 个文件）"
 msgstr "一次全给（{0} 个文件）"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "一次画出整组：人物与光线前后一致。按实际画出来的张数收钱，没画出来的那几格不收。一组要几分钟，可以先离开，画好了会提醒你。"
+msgstr "一次画出整组：人物与光线前后一致。按实际画出来的张数收钱，没画出来的那几格不收。一组要几分钟，可以先离开，画好了会提醒你。"
+
+#: src/studio/structuredSkills.ts
+msgid "一次画出整组画面，挑几格、每格一段"
+msgstr "一次画出整组画面，挑几格、每格一段"
 
 #: src/components/DownloadSheet.tsx
 msgid "一次给多个文件时系统按「任意文件」处理，相册可能不在候选里；想进相册就一个一个来。"
@@ -3834,6 +3953,18 @@ msgstr "上一炉还在炼，等它出炉再说"
 #: src/studio/studioStore.ts
 msgid "上一炉还在跑，等它出炉再说。"
 msgstr "上一炉还在跑，等它出炉再说。"
+
+#: src/studio/gridDraftStore.ts
+msgid "上一组画面还在画"
+msgstr "上一组画面还在画"
+
+#: src/studio/gridDraftStore.ts
+msgid "上一组画面还在画（同一时间只能画一组）——几分钟后再来"
+msgstr "上一组画面还在画（同一时间只能画一组）——几分钟后再来"
+
+#: src/studio/gridDraftStore.ts
+msgid "上一组的画面没接回来：{why}"
+msgstr "上一组的画面没接回来：{why}"
 
 #: src/studio/StudioPage.tsx
 msgid "上一页"
@@ -4085,13 +4216,22 @@ msgstr "下一步：传教材"
 msgid "下一步：写内容 ›"
 msgstr "下一步：写内容 ›"
 
+#: src/components/flow/GridShotsWizard.tsx
+msgid "下一步：写分镜 ›"
+msgstr "下一步：写分镜 ›"
+
 #: src/components/flow/LeadShotsWizard.tsx
 msgid "下一步：写这场戏 ›"
 msgstr "下一步：写这场戏 ›"
 
+#: src/components/flow/GridShotsWizard.tsx
 #: src/components/flow/LeadShotsWizard.tsx
 msgid "下一步：出片 ›"
 msgstr "下一步：出片 ›"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "下一步：出画面 ›"
+msgstr "下一步：出画面 ›"
 
 #: src/pages/CustomCardPage.tsx
 msgid "下一步：定名与铸卡 ›"
@@ -4116,6 +4256,10 @@ msgstr "下一步：拆镜头 ›"
 #: src/components/VideoTemplateExtractor.tsx
 msgid "下一步：挑 AI 分析帧"
 msgstr "下一步：挑 AI 分析帧"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "下一步：挑格子 ›"
+msgstr "下一步：挑格子 ›"
 
 #: src/components/PhotoSubjectPicker.tsx
 msgid "下一步：描轮廓 ›"
@@ -4348,6 +4492,10 @@ msgstr "不演"
 msgid "不用"
 msgstr "不用"
 
+#: src/components/flow/GridShotsWizard.tsx
+msgid "不用 AI，自己一格一格写"
+msgstr "不用 AI，自己一格一格写"
+
 #: src/components/flow/LeadShotsWizard.tsx
 msgid "不用 AI，自己写镜头"
 msgstr "不用 AI，自己写镜头"
@@ -4518,6 +4666,7 @@ msgstr "主素材已就位（就是那张真人照片），不用再传 · 演�
 msgid "主素材已就位（就是那张真人照片），不用再传 · 约 {aiPriceText} token"
 msgstr "主素材已就位（就是那张真人照片），不用再传 · 约 {aiPriceText} token"
 
+#: src/components/flow/CastPicker.tsx
 #: src/components/flow/LeadShotsWizard.tsx
 msgid "主角"
 msgstr "主角"
@@ -4589,6 +4738,30 @@ msgstr "举报这条弹幕"
 msgid "举报这条评论"
 msgstr "举报这条评论"
 
+#: src/components/flow/ModePicker.tsx
+msgid "九宫格分镜"
+msgstr "九宫格分镜"
+
+#: src/studio/gridDraftStore.ts
+msgid "九宫格分镜 · 出画面"
+msgstr "九宫格分镜 · 出画面"
+
+#: src/studio/gridDraftStore.ts
+msgid "九宫格分镜 · 第 {n} 格"
+msgstr "九宫格分镜 · 第 {n} 格"
+
+#: src/studio/gridDraftStore.ts
+msgid "九宫格分镜画好了 {got} 格"
+msgstr "九宫格分镜画好了 {got} 格"
+
+#: src/studio/gridDraftStore.ts
+msgid "九宫格分镜的画面没出成，回去看原因"
+msgstr "九宫格分镜的画面没出成，回去看原因"
+
+#: src/studio/gridDraftStore.ts
+msgid "九宫格分镜的画面没接回来"
+msgstr "九宫格分镜的画面没接回来"
+
 #: src/studio/ui/NpcDialog.tsx
 msgid "也可以按左上角的返回"
 msgstr "也可以按左上角的返回"
@@ -4601,7 +4774,7 @@ msgstr "也能拖到画面上"
 msgid "二刷来了"
 msgstr "二刷来了"
 
-#: src/components/flow/LeadShotsWizard.tsx
+#: src/components/flow/CastPicker.tsx
 msgid "二次元"
 msgstr "二次元"
 
@@ -4706,6 +4879,7 @@ msgstr "人格的那一处重写好了"
 msgid "人格草稿写好了"
 msgstr "人格草稿写好了"
 
+#: src/components/flow/GridShotsWizard.tsx
 #: src/types.ts
 msgid "人物"
 msgstr "人物"
@@ -5259,6 +5433,10 @@ msgstr "例：水墨淡彩，大面积留白，镜头缓慢横移"
 msgid "例：水墨留白，淡墨皴擦，大面积留白，边缘晕染"
 msgstr "例：水墨留白，淡墨皴擦，大面积留白，边缘晕染"
 
+#: src/components/flow/GridShotsWizard.tsx
+msgid "例：清晨的海边灯塔，林夏来给沈舟送一封旧信；沈舟读完信，两人一起看日出"
+msgstr "例：清晨的海边灯塔，林夏来给沈舟送一封旧信；沈舟读完信，两人一起看日出"
+
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "例：白发、黑袍的少年"
 msgstr "例：白发、黑袍的少年"
@@ -5545,6 +5723,10 @@ msgstr "先写清楚这一段要拍什么"
 #: src/pages/FlowPage.tsx
 msgid "先写那句话"
 msgstr "先写那句话"
+
+#: src/components/flow/ModePicker.tsx
+msgid "先出一组画面"
+msgstr "先出一组画面"
 
 #: src/pages/SettingsPage.tsx
 msgid "先别退出登录"
@@ -6157,6 +6339,10 @@ msgstr "写一句话就出片"
 msgid "写一句这张{label}要什么画面（例如\"他站在门口回头，半身，暖光\"）——不写的话模型只能自己编"
 msgstr "写一句这张{label}要什么画面（例如\"他站在门口回头，半身，暖光\"）——不写的话模型只能自己编"
 
+#: src/components/flow/ModePicker.tsx
+msgid "写一场戏，AI 写成 4~9 格分镜、一次画出整组画面；挑几格，每格变成一段。LibTV 作者的做法"
+msgstr "写一场戏，AI 写成 4~9 格分镜、一次画出整组画面；挑几格，每格变成一段。LibTV 作者的做法"
+
 #: src/pages/DeckDetailPage.tsx
 msgid "写一段卡组简介：这套卡适合生成什么样的视频？"
 msgstr "写一段卡组简介：这套卡适合生成什么样的视频？"
@@ -6173,6 +6359,27 @@ msgstr "写主题"
 msgid "写入本地库…"
 msgstr "写入本地库…"
 
+#: src/studio/structuredSkills.ts
+msgid "写出来的格子一个都没写画面，这一次已经计费——把这场戏写具体些再写"
+msgstr "写出来的格子一个都没写画面，这一次已经计费——把这场戏写具体些再写"
+
+#: src/studio/structuredSkills.ts
+msgid "写分镜"
+msgstr "写分镜"
+
+#: src/components/flow/ModePicker.tsx
+msgid "写分镜 {chatPrice}，画面每格 {panelPrice}，每格一段约 {gridVideo} / {gridSec} 秒"
+msgstr "写分镜 {chatPrice}，画面每格 {panelPrice}，每格一段约 {gridVideo} / {gridSec} 秒"
+
+#. why 是失败原因整句；moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格
+#: src/studio/gridDraftStore.ts
+msgid "写分镜没成：{why}。{moneyLine}"
+msgstr "写分镜没成：{why}。{moneyLine}"
+
+#: src/studio/structuredSkills.ts
+msgid "写分镜要 {price} token，余额不够——去「我的」页充值"
+msgstr "写分镜要 {price} token，余额不够——去「我的」页充值"
+
 #. placeholder {0}: picked.size
 #: src/components/flow/ThemeRewriteSheet.tsx
 msgid "写回 {0} 段"
@@ -6181,6 +6388,10 @@ msgstr "写回 {0} 段"
 #: src/studio/structuredSkills.ts
 msgid "写回各段"
 msgstr "写回各段"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "写成 {GRID_SHOTS_MIN}~{GRID_SHOTS_MAX} 格：每格写景别、画面（一个瞬间，给画面用）、动作（接下来几秒发生什么，给视频用）和画面里有谁。写完逐格可改、可删。"
+msgstr "写成 {GRID_SHOTS_MIN}~{GRID_SHOTS_MAX} 格：每格写景别、画面（一个瞬间，给画面用）、动作（接下来几秒发生什么，给视频用）和画面里有谁。写完逐格可改、可删。"
 
 #: src/studio/cutAutoEdit.ts
 msgid "写旁白"
@@ -6228,6 +6439,10 @@ msgstr "准备上传…"
 #: src/studio/personaWizardStore.ts
 msgid "准备中…"
 msgstr "准备中…"
+
+#: src/studio/gridDraftStore.ts
+msgid "准备参考图…"
+msgstr "准备参考图…"
 
 #: src/pages/SupportModelsPage.tsx
 msgid "准备文件 {done}/{total}"
@@ -6283,6 +6498,7 @@ msgstr "出场：{leadName}（主角）"
 msgid "出场：{leadName}（主角）、{others}"
 msgstr "出场：{leadName}（主角）、{others}"
 
+#: src/components/flow/GridShotsWizard.tsx
 #: src/components/flow/LeadShotsWizard.tsx
 #: src/studio/structuredSkills.ts
 msgid "出片"
@@ -6393,6 +6609,11 @@ msgstr "出片走「高清/电影级」档、台词写在引号里时，AI 会�
 #: src/components/VisibilityPicker.tsx
 msgid "出现在首页、分区和搜索里，谁都能看"
 msgstr "出现在首页、分区和搜索里，谁都能看"
+
+#: src/components/flow/GridShotsWizard.tsx
+#: src/studio/structuredSkills.ts
+msgid "出画面"
+msgstr "出画面"
 
 #: src/pages/TemplateDetailPage.tsx
 msgid "出过了？刷新状态"
@@ -6514,9 +6735,18 @@ msgstr "分段组 · 整条已切成 {groupCount} 段各自登记（这张卡是
 msgid "分类"
 msgstr "分类"
 
+#: src/components/flow/GridShotsWizard.tsx
 #: src/pages/RecipePage.tsx
 msgid "分镜"
 msgstr "分镜"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "分镜改过"
+msgstr "分镜改过"
+
+#: src/studio/gridDraftStore.ts
+msgid "分镜里有内容没过内容审核，一张都没画出来——改改写法再画"
+msgstr "分镜里有内容没过内容审核，一张都没画出来——改改写法再画"
 
 #: src/pages/TemplateDetailPage.tsx
 msgid "分镜骨架（{THEME_TOKEN} 会换成你那句话）"
@@ -6651,6 +6881,10 @@ msgstr "删掉第 {0} 秒这一帧"
 #: src/components/blockout/VisionFramePicker.tsx
 msgid "删掉第 {at} 秒这一帧"
 msgstr "删掉第 {at} 秒这一帧"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "删掉这一格"
+msgstr "删掉这一格"
 
 #: src/components/DeleteDeckDialog.tsx
 msgid "删掉这个卡组"
@@ -7006,6 +7240,10 @@ msgstr "动作 · {name}"
 msgid "动作 {0} 段 / {1} 组 · 表情 {2} 个 · 命中区 {3} 个 · 贴图 {4} 张（最大边 {5}px）"
 msgstr "动作 {0} 段 / {1} 组 · 表情 {2} 个 · 命中区 {3} 个 · 贴图 {4} 张（最大边 {5}px）"
 
+#: src/components/flow/GridShotsWizard.tsx
+msgid "动作：接下来几秒发生什么（空着的话这一段多半是一张不动的图）"
+msgstr "动作：接下来几秒发生什么（空着的话这一段多半是一张不动的图）"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "动作「{actName}」→ {g}"
 msgstr "动作「{actName}」→ {g}"
@@ -7078,6 +7316,10 @@ msgstr "匿名"
 #: src/data/danmaku.ts
 msgid "十年前那一战"
 msgstr "十年前那一战"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "单独画一张：只带这一格里的人的卡图（没有人就只带场景卡），与整组的画风尽量一致，但不保证一模一样。"
+msgstr "单独画一张：只带这一格里的人的卡图（没有人就只带场景卡），与整组的画风尽量一致，但不保证一模一样。"
 
 #: src/components/support/VoiceSheet.tsx
 msgid "单音色"
@@ -7161,7 +7403,11 @@ msgstr "卡片工坊"
 msgid "卡片广场在服务器上，离线库里没有「别人」"
 msgstr "卡片广场在服务器上，离线库里没有「别人」"
 
-#: src/components/flow/LeadShotsWizard.tsx
+#: src/components/flow/GridShotsWizard.tsx
+msgid "卡片库里没有场景卡 —— 不挑也行，地点写进这场戏里。"
+msgstr "卡片库里没有场景卡 —— 不挑也行，地点写进这场戏里。"
+
+#: src/components/flow/CastPicker.tsx
 msgid "卡片库里还没有人物卡 —— 在下面现做一个；想用照片做（真人要先认证），去「自己传图做卡片」。"
 msgstr "卡片库里还没有人物卡 —— 在下面现做一个；想用照片做（真人要先认证），去「自己传图做卡片」。"
 
@@ -8184,6 +8430,11 @@ msgstr "只说话"
 msgid "只说话、不播动作"
 msgstr "只说话、不播动作"
 
+#: src/components/flow/GridShotsWizard.tsx
+msgid "只铺成这 {segN} 段，先不出片"
+msgstr "只铺成这 {segN} 段，先不出片"
+
+#: src/components/flow/GridShotsWizard.tsx
 #: src/components/flow/LeadShotsWizard.tsx
 msgid "只铺成这一段，先不出片"
 msgstr "只铺成这一段，先不出片"
@@ -8432,7 +8683,7 @@ msgstr "名字"
 msgid "名字（必填，≤{NAME_MAX} 字）"
 msgstr "名字（必填，≤{NAME_MAX} 字）"
 
-#: src/components/flow/LeadShotsWizard.tsx
+#: src/components/flow/CastPicker.tsx
 msgid "名字（选填；台词按这个名字认说话人）"
 msgstr "名字（选填；台词按这个名字认说话人）"
 
@@ -8673,7 +8924,7 @@ msgstr "固定"
 msgid "固定，套用后不能换"
 msgstr "固定，套用后不能换"
 
-#: src/components/flow/LeadShotsWizard.tsx
+#: src/components/flow/CastPicker.tsx
 msgid "国风"
 msgstr "国风"
 
@@ -8850,6 +9101,10 @@ msgstr "场景信息"
 #: src/types.ts
 msgid "场景卡"
 msgstr "场景卡"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "场景卡（选填，只挑一张）"
+msgstr "场景卡（选填，只挑一张）"
 
 #: src/studio/quality.ts
 msgid "均衡"
@@ -10064,6 +10319,10 @@ msgstr "已挂 {mounted}/{roleCount} 个角色位 · 点这里改"
 msgid "已按圈选修改"
 msgstr "已按圈选修改"
 
+#: src/components/flow/GridShotsWizard.tsx
+msgid "已挑 {pickN} 格"
+msgstr "已挑 {pickN} 格"
+
 #: src/pages/FlowPage.tsx
 msgid "已挑定一套 · 在上面的方案台里换首尾帧、改剧情"
 msgstr "已挑定一套 · 在上面的方案台里换首尾帧、改剧情"
@@ -10262,6 +10521,10 @@ msgstr "已经离开真人素材这条路：真人照片和火山引擎认证都
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "已经聊满 {PREVIEW_ROUNDS_MAX} 轮了"
 msgstr "已经聊满 {PREVIEW_ROUNDS_MAX} 轮了"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "已经选满 {LEAD_CAST_MAX} 个人：官方说一张图里超过 4 个人不稳。"
+msgstr "已经选满 {LEAD_CAST_MAX} 个人：官方说一张图里超过 4 个人不稳。"
 
 #: src/components/flow/LeadShotsWizard.tsx
 msgid "已经选满 {LEAD_CAST_MAX} 个人：官方说一段里超过 4 个人不稳。"
@@ -10488,6 +10751,10 @@ msgstr "建课需要联网"
 msgid "开一条新的{pendingTitle}（丢弃上面那条）"
 msgstr "开一条新的{pendingTitle}（丢弃上面那条）"
 
+#: src/ai/arkClient.ts
+msgid "开发环境直连方舟的组图断了就接不回来（页面刷新过）——重新出一组"
+msgstr "开发环境直连方舟的组图断了就接不回来（页面刷新过）——重新出一组"
+
 #: src/components/DanmakuInput.tsx
 msgid "开启弹幕显示"
 msgstr "开启弹幕显示"
@@ -10700,6 +10967,10 @@ msgstr "录制中…（实际播这一段）"
 #: src/components/VideoCardAnnotator.tsx
 msgid "录制中途被系统暂停了（多半是切到了后台）——回到这一页重新点一次「录这一段」"
 msgstr "录制中途被系统暂停了（多半是切到了后台）——回到这一页重新点一次「录这一段」"
+
+#: src/studio/structuredSkills.ts
+msgid "形状不对整发不认；多出来的格子不收；不认识的人不进画面"
+msgstr "形状不对整发不认；多出来的格子不收；不认识的人不进画面"
 
 #: src/studio/structuredSkills.ts
 msgid "形状不对整发不认；多出来的镜头不收"
@@ -11775,6 +12046,10 @@ msgstr "按模板视频逐镜头复刻出片（时长跟随模板）…"
 msgid "按现在的顺序与时长，把每个片段的画面讲给模型听"
 msgstr "按现在的顺序与时长，把每个片段的画面讲给模型听"
 
+#: src/studio/gridDraftStore.ts
+msgid "按画出来的 {got} 张收了 {price} token"
+msgstr "按画出来的 {got} 张收了 {price} token"
+
 #. placeholder {0}: i + 1
 #: src/ai/index.ts
 #: src/studio/studioStore.ts
@@ -11833,6 +12108,10 @@ msgstr "按这句话改（{costLabel}）"
 msgid "按顺序演一遍：说话对口型、眨眼、每个对上的动作 / 表情 / 触摸区各来一次。盯着上面那块看。"
 msgstr "按顺序演一遍：说话对口型、眨眼、每个对上的动作 / 表情 / 触摸区各来一次。盯着上面那块看。"
 
+#: src/components/flow/GridShotsWizard.tsx
+msgid "按顺序点要拍的格子：点的先后就是成段的先后。每一格变成一段，那一格的画面当这一段的开头。"
+msgstr "按顺序点要拍的格子：点的先后就是成段的先后。每一格变成一段，那一格的画面当这一段的开头。"
+
 #: src/pages/SimpleModePage.tsx
 msgid "挑一个模板"
 msgstr "挑一个模板"
@@ -11852,6 +12131,10 @@ msgstr "挑一条现成的片子，复刻它的画面与运镜"
 #: src/components/guide/tours.tsx
 msgid "挑一种创作方式"
 msgstr "挑一种创作方式"
+
+#: src/studio/studioStore.ts
+msgid "挑中的 {n} 格各成一段了——每段拿那一格的画面当开头，按顺序一段一段出片。"
+msgstr "挑中的 {n} 格各成一段了——每段拿那一格的画面当开头，按顺序一段一段出片。"
 
 #: src/components/flow/ModePicker.tsx
 msgid "挑几张参考图（人物 / 场景卡）＋ 写提示词，人物图直接给视频模型。LibTV 作者最常用的做法"
@@ -11877,6 +12160,10 @@ msgstr "挑定了就点卡片底部那枚按钮：工坊落到 3D 铸卡桌面�
 #: src/components/guide/tours.tsx
 msgid "挑定了就进去"
 msgstr "挑定了就进去"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "挑格子"
+msgstr "挑格子"
 
 #: src/studio/ui/projection.tsx
 #~ msgid "挑素材卡＋写要求，三套方案挑一套"
@@ -12067,6 +12354,10 @@ msgstr "接着写这一段的画面"
 #: src/pages/ProfilePage.tsx
 msgid "接着剪"
 msgstr "接着剪"
+
+#: src/studio/gridDraftStore.ts
+msgid "接着等上一组…"
+msgstr "接着等上一组…"
 
 #. placeholder {0}: fmtTokens(proposalsCost(false))
 #: src/components/flow/ModePicker.tsx
@@ -12483,7 +12774,7 @@ msgstr "收藏的这几条都打不开了：作者删了，或者改成了仅自
 msgid "收费方式"
 msgstr "收费方式"
 
-#: src/components/flow/LeadShotsWizard.tsx
+#: src/components/flow/CastPicker.tsx
 #: src/components/VideoCardAnnotator.tsx
 #: src/pages/CustomCardPage.tsx
 #: src/pages/FlowPage.tsx
@@ -12714,6 +13005,10 @@ msgstr "数字人人格"
 #: src/pages/SupportModelsPage.tsx
 msgid "数字人形象"
 msgstr "数字人形象"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "整体交代：{leadLine}"
+msgstr "整体交代：{leadLine}"
 
 #: src/components/flow/ShotListEditor.tsx
 msgid "整体交代（人物、地点、氛围；可不写）"
@@ -13028,6 +13323,10 @@ msgstr "昵称和简介"
 msgid "昵称是别人看到的名字，简介挂在主页名字底下。这两样改完要点<0>「保存资料」</0>才算数 —— 头像不用，点了就换。"
 msgstr "昵称是别人看到的名字，简介挂在主页名字底下。这两样改完要点<0>「保存资料」</0>才算数 —— 头像不用，点了就换。"
 
+#: src/components/flow/GridShotsWizard.tsx
+msgid "景别"
+msgstr "景别"
+
 #: src/components/blockout/BoxFramePicker.tsx
 #: src/components/blockout/VideoStage.tsx
 #: src/components/BranchPlayer.tsx
@@ -13146,6 +13445,10 @@ msgstr "有 {count} 个镜头没写画面，没收"
 msgid "有 {count} 张卡没有有效的卡片编号，存不进你的卡片库（多半是这条作品是老版本发布的）"
 msgstr "有 {count} 张卡没有有效的卡片编号，存不进你的卡片库（多半是这条作品是老版本发布的）"
 
+#: src/components/flow/GridShotsWizard.tsx
+msgid "有 {count} 格没写画面，没收"
+msgstr "有 {count} 格没写画面，没收"
+
 #: src/pages/VideoPage.tsx
 msgid "有 {dropped} 个 @ 没能送达（对方不会收到通知）"
 msgstr "有 {dropped} 个 @ 没能送达（对方不会收到通知）"
@@ -13244,6 +13547,10 @@ msgstr "有一段正在生成，等它跑完再重画这一套"
 msgid "有一段正在生成（画布那一面也算同一条流水线）——等它跑完再动这一段。"
 msgstr "有一段正在生成（画布那一面也算同一条流水线）——等它跑完再动这一段。"
 
+#: src/components/flow/GridShotsWizard.tsx
+msgid "有一段正在生成中，等它跑完再出（可以先铺成这几段）。"
+msgstr "有一段正在生成中，等它跑完再出（可以先铺成这几段）。"
+
 #: src/components/flow/LeadShotsWizard.tsx
 msgid "有一段正在生成中，等它跑完再出这一段（可以先铺成这一段）。"
 msgstr "有一段正在生成中，等它跑完再出这一段（可以先铺成这一段）。"
@@ -13323,6 +13630,10 @@ msgstr "有两张不同的卡都叫「{cardName}」（编号 {slotLabel} 挂的�
 #: src/data/notifications.ts
 msgid "有人"
 msgstr "有人"
+
+#: src/studio/gridDraftStore.ts
+msgid "有几格还没写画面——写上，或者删掉那几格再画"
+msgstr "有几格还没写画面——写上，或者删掉那几格再画"
 
 #: src/components/blockout/arkVideoRules.ts
 msgid "有帧标在了选中这一段的外面（允许的范围是第 0~{lastSec} 秒）。把它们删掉重标，或者切回「自动」。"
@@ -13866,6 +14177,14 @@ msgstr "查看用量 · 清理中间文件"
 msgid "查看转人工前的对话（{0} 条）"
 msgstr "查看转人工前的对话（{0} 条）"
 
+#: src/ai/arkClient.ts
+msgid "查组图进展失败（{status}）"
+msgstr "查组图进展失败（{status}）"
+
+#: src/ai/arkClient.ts
+msgid "查组图进展没收到回包：{detail}"
+msgstr "查组图进展没收到回包：{detail}"
+
 #: src/components/VolcCompatToggle.tsx
 msgid "查结果"
 msgstr "查结果"
@@ -14088,6 +14407,10 @@ msgid "模型写到一半被截断了（输出超过 {limit} token 的上限）�
 msgstr "模型写到一半被截断了（输出超过 {limit} token 的上限），这一次已经计费——把剧本删短一些或分两次拆再试"
 
 #: src/studio/structuredSkills.ts
+msgid "模型写到一半被截断了（输出超过 {limit} token 的上限），这一次已经计费——把这场戏写短些再写"
+msgstr "模型写到一半被截断了（输出超过 {limit} token 的上限），这一次已经计费——把这场戏写短些再写"
+
+#: src/studio/structuredSkills.ts
 msgid "模型写到一半被截断了（输出超过 {limit} token 的上限），这一次已经计费——把这场戏写短些再拆"
 msgstr "模型写到一半被截断了（输出超过 {limit} token 的上限），这一次已经计费——把这场戏写短些再拆"
 
@@ -14108,12 +14431,20 @@ msgid "模型发布失败：{text}"
 msgstr "模型发布失败：{text}"
 
 #: src/studio/structuredSkills.ts
+msgid "模型回的分镜读不出来，这一次已经计费——再写一次"
+msgstr "模型回的分镜读不出来，这一次已经计费——再写一次"
+
+#: src/studio/structuredSkills.ts
 msgid "模型回的分镜读不出来，这一次已经计费——再拆一次"
 msgstr "模型回的分镜读不出来，这一次已经计费——再拆一次"
 
 #: src/studio/structuredSkills.ts
 msgid "模型回的格式有问题（几个镜头或几句台词挤进了同一格），这一次已经计费——再拆一次"
 msgstr "模型回的格式有问题（几个镜头或几句台词挤进了同一格），这一次已经计费——再拆一次"
+
+#: src/studio/structuredSkills.ts
+msgid "模型回的格式有问题（几格挤进了同一格），这一次已经计费——再写一次"
+msgstr "模型回的格式有问题（几格挤进了同一格），这一次已经计费——再写一次"
 
 #. placeholder {0}: segs.length
 #. placeholder {1}: list.length
@@ -14128,6 +14459,14 @@ msgstr "模型地址返回的是网页而不是模型文件"
 #: src/components/flow/LeadShotsWizard.tsx
 msgid "模型多写了 {count} 个镜头，一段最多 {SHOT_MAX} 个，多的没收"
 msgstr "模型多写了 {count} 个镜头，一段最多 {SHOT_MAX} 个，多的没收"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "模型多写了 {count} 格，一组最多 {GRID_SHOTS_MAX} 格，多的没收"
+msgstr "模型多写了 {count} 格，一组最多 {GRID_SHOTS_MAX} 格，多的没收"
+
+#: src/studio/structuredSkills.ts
+msgid "模型按格写：景别 / 画面（一个瞬间）/ 动作（接下来几秒）/ 画面里有谁"
+msgstr "模型按格写：景别 / 画面（一个瞬间）/ 动作（接下来几秒）/ 画面里有谁"
 
 #: src/studio/structuredSkills.ts
 msgid "模型按段写：标题 / 剧情 / 时长 / 景别 · 运镜 · 情绪节拍"
@@ -14149,6 +14488,10 @@ msgstr "模型描述文件读不到（HTTP {0}）"
 #: src/pages/SupportModelsPage.tsx
 msgid "模型文件读不到（{why}），没有切换。"
 msgstr "模型文件读不到（{why}），没有切换。"
+
+#: src/studio/structuredSkills.ts
+msgid "模型没有按格式回分镜，这一次已经计费——再写一次，或把这场戏写具体些"
+msgstr "模型没有按格式回分镜，这一次已经计费——再写一次，或把这场戏写具体些"
 
 #: src/studio/structuredSkills.ts
 msgid "模型没有按格式回分镜，这一次已经计费——再拆一次，或把这场戏写具体些"
@@ -14380,6 +14723,10 @@ msgstr "正在停止…"
 #: src/pages/EditPage.tsx
 msgid "正在公开…"
 msgstr "正在公开…"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "正在写分镜…"
+msgstr "正在写分镜…"
 
 #: src/studio/personaWizardStore.ts
 msgid "正在写说话风格…"
@@ -14820,6 +15167,10 @@ msgstr "每段一套已挑定的方案，镜头字段进方案台与出片提示
 msgid "每段三选一，可回头改"
 msgstr "每段三选一，可回头改"
 
+#: src/components/flow/GridShotsWizard.tsx
+msgid "每段时长"
+msgstr "每段时长"
+
 #: src/pages/FlowPage.tsx
 msgid "每段都出片之后才能合成"
 msgstr "每段都出片之后才能合成"
@@ -15131,6 +15482,10 @@ msgstr "没有能用「{name}」（{model}）出片的模板——点搜索栏�
 #: src/components/TemplateShelf.tsx
 msgid "没有能用「{name}」（{model}）出片的模板。现有的 {hidden} 个都要按参考视频逐镜头复刻，只有「{needLabel}」（{needModel}）做得到——点搜索栏旁边那颗键换一个模型，或者选回「全部模型」。"
 msgstr "没有能用「{name}」（{model}）出片的模板。现有的 {hidden} 个都要按参考视频逐镜头复刻，只有「{needLabel}」（{needModel}）做得到——点搜索栏旁边那颗键换一个模型，或者选回「全部模型」。"
+
+#: src/ai/arkClient.ts
+msgid "没有要接着等的那一组"
+msgstr "没有要接着等的那一组"
 
 #: src/studio/cutAgent.ts
 msgid "没有要配音的句子（还没写字幕，或者都配好了）"
@@ -15496,6 +15851,7 @@ msgstr "清理缓存（可释放 {mbLabel} MB）"
 msgid "清理缓存（约 {mbLabel} MB）"
 msgstr "清理缓存（约 {mbLabel} MB）"
 
+#: src/components/flow/GridShotsWizard.tsx
 #: src/components/support/VoiceMarket.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/CustomCardPage.tsx
@@ -15540,8 +15896,10 @@ msgid "演出中…"
 msgstr "演出中…"
 
 #: src/components/cut/AutoEditSheet.tsx
+#: src/components/flow/CastPicker.tsx
 #: src/components/flow/CastPreviewCard.tsx
 #: src/components/flow/FlowCanvas.tsx
+#: src/components/flow/GridShotsWizard.tsx
 #: src/components/flow/LeadShotsWizard.tsx
 #: src/components/flow/ReviseBox.tsx
 #: src/components/flow/ScriptSkillSheet.tsx
@@ -15557,6 +15915,7 @@ msgstr "演示"
 msgid "演示：这一版不是模型写的，只是把每段画面描述的第一句摆了上来。"
 msgstr "演示：这一版不是模型写的，只是把每段画面描述的第一句摆了上来。"
 
+#: src/components/flow/GridShotsWizard.tsx
 #: src/components/flow/LeadShotsWizard.tsx
 msgid "演示：这是本地按句号切的，不是模型写的（这台机器没接上 AI）。"
 msgstr "演示：这是本地按句号切的，不是模型写的（这台机器没接上 AI）。"
@@ -16115,7 +16474,7 @@ msgstr "环绕"
 msgid "现做一个主角要 {price} token，余额不够——去「我的」页充值"
 msgstr "现做一个主角要 {price} token，余额不够——去「我的」页充值"
 
-#: src/components/flow/LeadShotsWizard.tsx
+#: src/components/flow/CastPicker.tsx
 msgid "现做一个人物"
 msgstr "现做一个人物"
 
@@ -16232,6 +16591,10 @@ msgstr "现在铺不了（可能有一段正在生成中），稍后再试"
 #: src/studio/studioStore.ts
 msgid "现在铺不了这一段，稍后再试。"
 msgstr "现在铺不了这一段，稍后再试。"
+
+#: src/studio/studioStore.ts
+msgid "现在铺不了这几段，稍后再试。"
+msgstr "现在铺不了这几段，稍后再试。"
 
 #: src/pages/EditPage.tsx
 msgid "现在铺不进工坊，稍后再试"
@@ -16420,7 +16783,7 @@ msgstr "用户说"
 msgid "用手指沿着这件东西的边描一整圈，松手自动闭合。圈外的桌面、手和别的东西，都会换成浅灰纯色底。"
 msgstr "用手指沿着这件东西的边描一整圈，松手自动闭合。圈外的桌面、手和别的东西，都会换成浅灰纯色底。"
 
-#: src/components/flow/LeadShotsWizard.tsx
+#: src/components/flow/CastPicker.tsx
 msgid "用照片做（真人要先认证）→ 自己传图做卡片"
 msgstr "用照片做（真人要先认证）→ 自己传图做卡片"
 
@@ -16509,7 +16872,7 @@ msgstr "画 2 张：主图 + 一张参考图，照着主图画同一个对象"
 msgid "画不出来的包发不了。"
 msgstr "画不出来的包发不了。"
 
-#: src/components/flow/LeadShotsWizard.tsx
+#: src/components/flow/CastPicker.tsx
 msgid "画两张：全身立绘 + 照着它画的面部特写（官方建议的「全身照 + 大头照」）。不画写实照片风：高清 / 电影级会把写实的人脸当成真人拒收。"
 msgstr "画两张：全身立绘 + 照着它画的面部特写（官方建议的「全身照 + 大头照」）。不画写实照片风：高清 / 电影级会把写实的人脸当成真人拒收。"
 
@@ -16521,10 +16884,23 @@ msgstr "画两张约 {framesPrice} token，余额不够——去「我的」页�
 msgid "画出来了。可以摸一摸她、拖一拖看看视线跟不跟手。"
 msgstr "画出来了。可以摸一摸她、拖一拖看看视线跟不跟手。"
 
+#: src/studio/gridDraftStore.ts
+msgid "画到第 {got} 张时断了，画到哪张算哪张"
+msgstr "画到第 {got} 张时断了，画到哪张算哪张"
+
+#: src/studio/gridDraftStore.ts
+msgid "画好 {k}/{n} 格（一组约几分钟，可以先离开）"
+msgstr "画好 {k}/{n} 格（一组约几分钟，可以先离开）"
+
+#: src/studio/gridDraftStore.ts
+msgid "画好了、但没取回来（{why}）——点这一格重新取"
+msgstr "画好了、但没取回来（{why}）——点这一格重新取"
+
 #: src/data/projects.ts
 msgid "画布里还有本机地址，换台设备取回来会是空的"
 msgstr "画布里还有本机地址，换台设备取回来会是空的"
 
+#: src/components/flow/GridShotsWizard.tsx
 #: src/components/flow/LeadShotsWizard.tsx
 #: src/components/flow/SegSettings.tsx
 #: src/studio/ui/projection.tsx
@@ -16540,9 +16916,17 @@ msgstr "画质"
 msgid "画起拍画面 {0}/{total}…"
 msgstr "画起拍画面 {0}/{total}…"
 
+#: src/studio/gridDraftStore.ts
+msgid "画这一组最多要 {price} token，余额不够——去「我的」页充值"
+msgstr "画这一组最多要 {price} token，余额不够——去「我的」页充值"
+
 #: src/ai/index.ts
 msgid "画面"
 msgstr "画面"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "画面：一个瞬间，谁在哪、什么姿势和表情"
+msgstr "画面：一个瞬间，谁在哪、什么姿势和表情"
 
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "画面上<0>可能有两个人偶印着同一个号</0>，也可能<1>某个号在画面上 根本找不到</1>（实测都出现过：一段 5 人素材实出 2/2/1/1/5，3 号和 4 号整个没出现）。 这两种<2>都不用重炼</2>：把找不到的那个位子删掉就行，剩下的编号一个都不会变。"
@@ -16562,9 +16946,26 @@ msgstr "画面与运镜整个来自模板视频——写好那句话（或挂完
 msgid "画面尺寸（{0}×{1}）与时长是这台设备解出来的； 上传后服务器会按它自己读到的值再核一次，对不上会在开始计算<0>之前</0>拒掉（不扣费）。"
 msgstr "画面尺寸（{0}×{1}）与时长是这台设备解出来的； 上传后服务器会按它自己读到的值再核一次，对不上会在开始计算<0>之前</0>拒掉（不扣费）。"
 
+#: src/components/flow/GridShotsWizard.tsx
+msgid "画面已经按这个画幅画了（每一格之后就是那一段的开头画面）；要换画幅得整组重出。"
+msgstr "画面已经按这个画幅画了（每一格之后就是那一段的开头画面）；要换画幅得整组重出。"
+
 #: src/components/guide/tours.tsx
 msgid "画面正下方这一排格子，<0>一格就是这个模板的一个角色位</0>； 格子上的「人物1 / 人物2」只是它的名字，<1>不表示画面里从左到右的次序</1>。 挂卡分两下：<2>先点一格选中它，再点上面那排卡里的一张</2>； 也可以直接把上面那排卡<3>往下拖到格子上</3> —— 拖到格子上是直接落，不会再问一遍。 画面上画得出落点框的模板，点中一格时<4>画面上对应的那个框会亮起来</4>， 想知道这一格是画面里的哪一个就看它。挂卡这条路任何模板都有，与画面里有没有画框无关。 卡片只列人物卡：人偶要换成的是角色，场景卡、道具卡挂上去没有意义。"
 msgstr "画面正下方这一排格子，<0>一格就是这个模板的一个角色位</0>； 格子上的「人物1 / 人物2」只是它的名字，<1>不表示画面里从左到右的次序</1>。 挂卡分两下：<2>先点一格选中它，再点上面那排卡里的一张</2>； 也可以直接把上面那排卡<3>往下拖到格子上</3> —— 拖到格子上是直接落，不会再问一遍。 画面上画得出落点框的模板，点中一格时<4>画面上对应的那个框会亮起来</4>， 想知道这一格是画面里的哪一个就看它。挂卡这条路任何模板都有，与画面里有没有画框无关。 卡片只列人物卡：人偶要换成的是角色，场景卡、道具卡挂上去没有意义。"
+
+#: src/studio/gridDraftStore.ts
+msgid "画面没出成：{why}"
+msgstr "画面没出成：{why}"
+
+#. why 是失败原因整句；moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格
+#: src/studio/gridDraftStore.ts
+msgid "画面没出成：{why}。{moneyLine}"
+msgstr "画面没出成：{why}。{moneyLine}"
+
+#: src/studio/gridDraftStore.ts
+msgid "画面没出成：{why}（一张都没画出来，钱全退了）"
+msgstr "画面没出成：{why}（一张都没画出来，钱全退了）"
 
 #: src/pages/TemplateDetailPage.tsx
 msgid "画面质感与运镜"
@@ -16588,6 +16989,10 @@ msgstr "画面里怎么认出这个人偶（这句话会进出片提示词）"
 msgid "画面里是真实人物（真人）"
 msgstr "画面里是真实人物（真人）"
 
+#: src/components/flow/GridShotsWizard.tsx
+msgid "画面里有："
+msgstr "画面里有："
+
 #: src/components/VideoTemplateExtractor.tsx
 msgid "画面里的水印、台标、字幕会被<0>复刻进每一次出片</0>， 下一步用裁剪框把它框到画面外。"
 msgstr "画面里的水印、台标、字幕会被<0>复刻进每一次出片</0>， 下一步用裁剪框把它框到画面外。"
@@ -16596,7 +17001,7 @@ msgstr "画面里的水印、台标、字幕会被<0>复刻进每一次出片</0
 msgid "画面里还有人没列出来，加一个"
 msgstr "画面里还有人没列出来，加一个"
 
-#: src/components/flow/LeadShotsWizard.tsx
+#: src/components/flow/CastPicker.tsx
 msgid "画风"
 msgstr "画风"
 
@@ -17947,6 +18352,10 @@ msgstr "第 {0}/{count} 段"
 msgid "第 {0}/{total} 段"
 msgstr "第 {0}/{total} 段"
 
+#: src/components/flow/GridShotsWizard.tsx
+msgid "第 {focusN} 格"
+msgstr "第 {focusN} 格"
+
 #: src/ai/real.ts
 msgid "第 {n} 张参考图未采用（「{name}」的{view}，比例越界或读不出来）"
 msgstr "第 {n} 张参考图未采用（「{name}」的{view}，比例越界或读不出来）"
@@ -17954,6 +18363,10 @@ msgstr "第 {n} 张参考图未采用（「{name}」的{view}，比例越界或�
 #: src/pages/CutPage.tsx
 msgid "第 {n}/{total} 句…"
 msgstr "第 {n}/{total} 句…"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "第 {order} 段"
+msgstr "第 {order} 段"
 
 #: src/components/VideoTemplateExtractor.tsx
 msgid "第 {partIndex} 段 · {partTitle}"
@@ -18322,6 +18735,10 @@ msgstr "等了 {secs} 秒还没画出来。包可能太大，或者贴图 / moc3
 msgid "等了 12 分钟还没出片（任务还在方舟那边跑，不是失败）。"
 msgstr "等了 12 分钟还没出片（任务还在方舟那边跑，不是失败）。"
 
+#: src/ai/arkClient.ts
+msgid "等了 22 分钟这一组还没画完——过一会儿回来点「接着等」，画好的图不会丢"
+msgstr "等了 22 分钟这一组还没画完——过一会儿回来点「接着等」，画好的图不会丢"
+
 #: src/data/videoDownload.ts
 msgid "等了 60 秒一个字节都没来，当断了处理。再点一次接着试。"
 msgstr "等了 60 秒一个字节都没来，当断了处理。再点一次接着试。"
@@ -18600,6 +19017,14 @@ msgstr "紫"
 msgid "组卡组：怎么加、怎么改"
 msgstr "组卡组：怎么加、怎么改"
 
+#: src/ai/arkClient.ts
+msgid "组图受理失败（{status}）"
+msgstr "组图受理失败（{status}）"
+
+#: src/ai/arkClient.ts
+msgid "组图受理没收到回包：{detail}"
+msgstr "组图受理没收到回包：{detail}"
+
 #: src/hooks/useFlowActions.ts
 msgid "组稿中…"
 msgstr "组稿中…"
@@ -18678,7 +19103,7 @@ msgstr "绘制结束画面…"
 msgid "绘制起拍画面…"
 msgstr "绘制起拍画面…"
 
-#: src/components/flow/LeadShotsWizard.tsx
+#: src/components/flow/CastPicker.tsx
 msgid "绘本"
 msgstr "绘本"
 
@@ -19254,6 +19679,10 @@ msgstr "融图中…"
 #: src/api/admin.ts
 msgid "血腥暴力"
 msgstr "血腥暴力"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "补一句要求（选填）：例「沈舟只出现一次」「门是蓝色的」"
+msgstr "补一句要求（选填）：例「沈舟只出现一次」「门是蓝色的」"
 
 #: src/types.ts
 msgid "补充参考"
@@ -20470,6 +20899,10 @@ msgstr "还没取回的白模化结果暂时拉不到（网络不稳），稍后
 msgid "还没同步到服务端（{issue}）——换台设备暂时看不到，下次登录会自动补传。"
 msgstr "还没同步到服务端（{issue}）——换台设备暂时看不到，下次登录会自动补传。"
 
+#: src/components/flow/GridShotsWizard.tsx
+msgid "还没挑"
+msgstr "还没挑"
+
 #: src/components/ForgeOverlay.tsx
 msgid "还没接到成片"
 msgstr "还没接到成片"
@@ -20905,6 +21338,18 @@ msgstr "这一排就是出片时视频模型会收到的图，按发送顺序编
 msgid "这一格放原片裁剪本身，不调模型、不计费。"
 msgstr "这一格放原片裁剪本身，不调模型、不计费。"
 
+#: src/studio/gridDraftStore.ts
+msgid "这一格没画出来（没收这一张的钱）——单独重画一次"
+msgstr "这一格没画出来（没收这一张的钱）——单独重画一次"
+
+#: src/studio/gridDraftStore.ts
+msgid "这一格没过内容审核，没画出来（没收这一张的钱）——改改画面写法再单独重画"
+msgstr "这一格没过内容审核，没画出来（没收这一张的钱）——改改画面写法再单独重画"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "这一格的分镜在画好之后改过：画面还是按原来那版画的，重画一下才对得上。"
+msgstr "这一格的分镜在画好之后改过：画面还是按原来那版画的，重画一下才对得上。"
+
 #: src/studio/ui/PlanBoard.tsx
 msgid "这一格的预览图没有留存"
 msgstr "这一格的预览图没有留存"
@@ -20912,6 +21357,10 @@ msgstr "这一格的预览图没有留存"
 #: src/studio/ui/SchemeEditorSheet.tsx
 msgid "这一格要画成什么样？（画风句会自动接上）"
 msgstr "这一格要画成什么样？（画风句会自动接上）"
+
+#: src/studio/gridDraftStore.ts
+msgid "这一格还没写画面"
+msgstr "这一格还没写画面"
 
 #: src/ai/arkClient.ts
 msgid "这一档不对当前套餐开放，去「我的」页升级套餐后再试"
@@ -21357,6 +21806,10 @@ msgstr "这一秒已经标过了（播放头刚好落回同一帧）。"
 #: src/pages/TemplateDetailPage.tsx
 msgid "这一组模板暂时套不了"
 msgstr "这一组模板暂时套不了"
+
+#: src/ai/arkClient.ts
+msgid "这一组的参数服务器不收（没有扣费）——把镜头或人物删几个再试"
+msgstr "这一组的参数服务器不收（没有扣费）——把镜头或人物删几个再试"
 
 #: src/pages/tutor/TutorRunPage.tsx
 msgid "这一阶段没有分步讲解，让老师直接讲。"
@@ -21912,6 +22365,14 @@ msgstr "这台服务器还不支持解封（需要升级服务端）"
 msgid "这台服务器还不支持重新上架（需要升级服务端）"
 msgstr "这台服务器还不支持重新上架（需要升级服务端）"
 
+#: src/components/flow/GridShotsWizard.tsx
+msgid "这台服务器还不能一次出一组画面（服务端更新之后就有）。"
+msgstr "这台服务器还不能一次出一组画面（服务端更新之后就有）。"
+
+#: src/ai/arkClient.ts
+msgid "这台服务器还不能出组图（没有 /api/ark/image-groups）——等服务端更新后再试"
+msgstr "这台服务器还不能出组图（没有 /api/ark/image-groups）——等服务端更新后再试"
+
 #: src/api/admin.ts
 msgid "这台服务器还不认识「{label}」这个理由（服务端版本比 App 旧）。你可以改选「其他」，把情况写在补充说明里，也可以直接发信到 {email}。"
 msgstr "这台服务器还不认识「{label}」这个理由（服务端版本比 App 旧）。你可以改选「其他」，把情况写在补充说明里，也可以直接发信到 {email}。"
@@ -22056,13 +22517,22 @@ msgstr "这台设备解出来的时长是 {0} 秒，服务器登记的是 {1} �
 msgid "这台设备解出来的画面是 {0}×{1}，服务器登记的却是 {w}×{h}。两边对不上时，你在这里框住的位置很可能不是服务器真正裁到的那一块（常见于手机竖拍、带旋转标记的视频），而白模化这一步的钱在开始计算后是退不了的——为免白花，请换一个已经转正的 mp4 再来。"
 msgstr "这台设备解出来的画面是 {0}×{1}，服务器登记的却是 {w}×{h}。两边对不上时，你在这里框住的位置很可能不是服务器真正裁到的那一块（常见于手机竖拍、带旋转标记的视频），而白模化这一步的钱在开始计算后是退不了的——为免白花，请换一个已经转正的 mp4 再来。"
 
+#: src/components/flow/GridShotsWizard.tsx
 #: src/components/flow/LeadShotsWizard.tsx
 msgid "这场戏"
 msgstr "这场戏"
 
 #: src/studio/structuredSkills.ts
+msgid "这场戏写得太短（至少 {SCENE_MIN} 个字）——写清在哪、谁做了什么"
+msgstr "这场戏写得太短（至少 {SCENE_MIN} 个字）——写清在哪、谁做了什么"
+
+#: src/studio/structuredSkills.ts
 msgid "这场戏写得太短（至少 {SCENE_MIN} 个字）——写清在哪、谁做了什么、谁说了什么"
 msgstr "这场戏写得太短（至少 {SCENE_MIN} 个字）——写清在哪、谁做了什么、谁说了什么"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "这场戏改过了，下面的分镜还是按原来那句写的 —— 点「重新写」按新的写，或者直接在下面改。"
+msgstr "这场戏改过了，下面的分镜还是按原来那句写的 —— 点「重新写」按新的写，或者直接在下面改。"
 
 #: src/components/flow/LeadShotsWizard.tsx
 msgid "这场戏改过了，下面的分镜还是按原来那句拆的 —— 点「重新拆」按新的拆，或者直接在下面改。"
@@ -22759,6 +23229,10 @@ msgstr "连内容一起删掉，不可撤销"
 msgid "连圈多张，打包成一组"
 msgstr "连圈多张，打包成一组"
 
+#: src/studio/gridDraftStore.ts
+msgid "连接断了，一张都没画出来"
+msgstr "连接断了，一张都没画出来"
+
 #: src/data/danmaku.ts
 msgid "追！"
 msgstr "追！"
@@ -22822,6 +23296,10 @@ msgstr "退回铸段窗重选模式？"
 #: src/components/flow/LeadShotsWizard.tsx
 msgid "选 1~{LEAD_CAST_MAX} 个人，第一个是主角。人物图会直接给视频模型、不画帧 —— 人像以卡上的图为准。"
 msgstr "选 1~{LEAD_CAST_MAX} 个人，第一个是主角。人物图会直接给视频模型、不画帧 —— 人像以卡上的图为准。"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "选 1~{LEAD_CAST_MAX} 个会出场的人，可以再挑一张场景卡当地点。画面会照着卡上的图画，每一格只画分镜里写到的人。"
+msgstr "选 1~{LEAD_CAST_MAX} 个会出场的人，可以再挑一张场景卡当地点。画面会照着卡上的图画，每一格只画分镜里写到的人。"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "选「用通用参数演」= 不挂你的 exp3，改用我们那套参数（眉毛、嘴角、脸红）去凑 —— 模型没有对应表情文件时这条更稳。"
@@ -22976,6 +23454,10 @@ msgstr "逐句都能改；太长念不完的会标出来"
 #: src/pages/CustomCardPage.tsx
 msgid "逐格传自己的图 · 不花钱"
 msgstr "逐格传自己的图 · 不花钱"
+
+#: src/studio/structuredSkills.ts
+msgid "逐格可改、可删，点了才出画面"
+msgstr "逐格可改、可删，点了才出画面"
 
 #: src/data/danmaku.ts
 msgid "递剑的那只手…"
@@ -23180,6 +23662,10 @@ msgstr "重新加载预览"
 msgid "重新发布"
 msgstr "重新发布"
 
+#: src/components/flow/GridShotsWizard.tsx
+msgid "重新取这一张（不再收钱）"
+msgstr "重新取这一张（不再收钱）"
+
 #: src/components/flow/CastPreviewCard.tsx
 msgid "重新合成预览（{price}）"
 msgstr "重新合成预览（{price}）"
@@ -23256,6 +23742,10 @@ msgstr "重来"
 msgid "重生成 {segCount} 段约需 {need} token，余额 {have} 不足——去「我的」页充值"
 msgstr "重生成 {segCount} 段约需 {need} token，余额 {have} 不足——去「我的」页充值"
 
+#: src/studio/gridDraftStore.ts
+msgid "重画一格要 {price} token，余额不够——去「我的」页充值"
+msgstr "重画一格要 {price} token，余额不够——去「我的」页充值"
+
 #: src/pages/CustomCardPage.tsx
 #: src/studio/ui/PlanBoard.tsx
 msgid "重画中…"
@@ -23273,6 +23763,15 @@ msgstr "重画好了，但那一段已经不在流水线上了——没处写回
 #: src/studio/studioStore.ts
 msgid "重画没成：{reason}"
 msgstr "重画没成：{reason}"
+
+#: src/studio/gridDraftStore.ts
+msgid "重画没成：{why}"
+msgstr "重画没成：{why}"
+
+#. why 是失败原因整句；moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格
+#: src/studio/gridDraftStore.ts
+msgid "重画没成：{why}。{moneyLine}"
+msgstr "重画没成：{why}。{moneyLine}"
 
 #: src/studio/flowStore.ts
 msgid "重画结束画面…{noteTail}"
