@@ -912,6 +912,8 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 - [`docs/play-store-checklist.md`](docs/play-store-checklist.md) — 上架检查单
 - [`docs/node-modes-libtv-alignment.md`](docs/node-modes-libtv-alignment.md) — 工作流节点「自选卡片 / 自定义」对齐 LibTV 节点：调研、方案、主人拍板与落地记录（N1 参考清单 + @ 点名、N3 关键画面可改可截、N2 分镜表都已落地；含与已有「圈图改图」的对比、官方文档查到的几条协议事实、等主人定的两件事）
 - [`docs/guided-modes-design.md`](docs/guided-modes-design.md) — 工作流的「跟着做」模式（参考图直出 / 主角定妆·多镜头 / 九宫格分镜 / 推演三套 / 套模板 / 自定义）：每个模式固定步骤（2026-10-04 方案，主人「开工」五条全认；第一期 A、第二期 B、第三期 C 已落地，A、B 各付费验过一次；C 的服务端组图任务等「合」）
+- [`docs/canvas-platforms-ecosystem-research.md`](docs/canvas-platforms-ecosystem-research.md) — TapNow / RunningHub 调研（2026-10-05，不登录不花钱）：两家模板的十种套路、各出片模型的官方能力表（2.0 mini 官方支持参考视频 / 编辑 / 延长而我们没开）、
+  按模型新增的模式（四组，新增「修这一段」）、把模式做成可发布的「玩法」生态与奖励（只发平台 token），等主人定
 - [`docs/multi-character-consistency-research.md`](docs/multi-character-consistency-research.md) — 多人物多镜头的人像一致与台词字幕：LibTV / updream / 官方文档 / 网上的做法（2026-10-03 调研，建议等主人定）；
   含「一张图里画多个角色一律被拒」那条老约束的真实出处（精灵图的文本敏感，不是场景里的两个人）
 - [`docs/app-distribution.md`](docs/app-distribution.md) — 发包给别人装、应用内更新怎么走
