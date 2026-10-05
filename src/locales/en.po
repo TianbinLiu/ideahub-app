@@ -13825,6 +13825,10 @@ msgstr "brown"
 msgid "模型：{0}"
 msgstr "Model: {0}"
 
+#: src/components/flow/DirectTips.tsx
+msgid "模型不记得上一段在哪：把地点、时间和光线再写一遍（例：「还是雨夜的旧书店，暖黄的灯光」），不然切镜头之后可能换个地方。"
+msgstr "The model doesn’t remember where the last segment took place: write the location, time of day and lighting again (e.g. “still the old bookshop on a rainy night, warm yellow light”), or it may move somewhere else after a cut."
+
 #: src/components/TemplateShelf.tsx
 msgid "模型不限"
 msgstr "Any model"
@@ -19090,6 +19094,10 @@ msgstr "What to include"
 #: src/pages/SimpleModePage.tsx
 msgid "要拍什么"
 msgstr "What to film"
+
+#: src/components/flow/DirectTips.tsx
+msgid "要拍好几段的话，再挂一张场景卡：卡面会当定场参考图发给视频模型，切镜头之后地点也有图可依。"
+msgstr "Making several segments? Add a scene card too: its image goes to the video model as the establishing reference, so the location still has a picture to follow after a cut."
 
 #: src/components/PortraitAuthPanel.tsx
 #~ msgid "要授权的是<0>别人</0>？让他用自己的手机扫这个码 —— 活体认证必须在<1>他本人</1>的手机上、用他自己的火山账号做， 这正是这份授权有效的原因。"

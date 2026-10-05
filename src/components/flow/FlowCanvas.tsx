@@ -43,6 +43,7 @@ import FuseFrameSheet, { fuseSourcesOf } from "../../studio/ui/FuseFrameSheet";
 import CustomFrameSlots from "./CustomFrameSlots";
 import RefStrip from "./RefStrip";
 import ModePicker, { modeTierOf } from "./ModePicker";
+import { RestatePlaceTip, SceneCardTip } from "./DirectTips";
 import Sheet from "../Sheet";
 import { modeBlock, type GuidedModeId } from "../../data/guidedModes";
 import FrameEditBox from "./FrameEditBox";
@@ -1503,6 +1504,8 @@ function NodePanel({
                   <Trans>「{tierOf(node.videoTier).label}」档收不了参考图：这一段出片前会先按提示词画帧（计费）。想让人物图直接给视频模型，到 ⚙ 本段设置换成高清或电影级。</Trans>
                 </p>
               )}
+              {/* 紧挨着上面那排素材卡：推荐挂一张场景卡（说不说的判断在 DirectTips 一处，工坊铸段窗同一份） */}
+              <SceneCardTip cards={mats} tierId={node.videoTier} />
               {index > 0 && node.chain && !flatTier && (
                 <p className="text-[10px] leading-relaxed text-slate-500">
                   <Trans>接着上一段的真实结尾拍：上一段出片后，它的最后一帧当图片 1 发，不画新帧</Trans>
@@ -1545,6 +1548,8 @@ function NodePanel({
               onError={(msg) => useFlow.setState({ err: msg })}
             />
           )}
+          {/* 参考图直出接在上一段后面：写之前提醒把地点 / 时间 / 光线再写一遍（2026-10-04 付费验证：切镜之后场景漂了，见 DirectTips） */}
+          {direct && <RestatePlaceTip chained={index > 0 && !!node.chain} />}
           {((custom && customStep === "content") || direct) && (
             /* 自定义 / 参考图直出车道的要求框 = 分镜表（N2）：一个镜头时就是原来那一个输入框；「＋ 镜头」写成几个镜头，「＋ 台词」点明谁说的。
                文字是唯一真身（读写规则在 data/shotScript），写的仍是这一套方案的 plot */
