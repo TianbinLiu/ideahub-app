@@ -25,8 +25,10 @@ import CustomFrameSlots from "../../components/flow/CustomFrameSlots";
 import ModePicker, { modeTierOf } from "../../components/flow/ModePicker";
 import { RestatePlaceTip, SceneCardTip } from "../../components/flow/DirectTips";
 import LeadShotsWizard from "../../components/flow/LeadShotsWizard";
+import GridShotsWizard from "../../components/flow/GridShotsWizard";
 import { leadAppendSpec } from "../leadCast";
 import { resetLeadScene } from "../leadDraftStore";
+import { resetGridScene } from "../gridDraftStore";
 import { modeBlock } from "../../data/guidedModes";
 import RefStrip from "../../components/flow/RefStrip";
 import FrameEditBox from "../../components/flow/FrameEditBox";
@@ -42,7 +44,7 @@ import {
   rederiveKey,
   useStudio,
 } from "../studioStore";
-import { appendQuote, CUSTOM_MID_MAX, nodeBlank, recastBlocked, nodeDerived, nodeDone, nodeCost, tplOfNode, useFlow, type FlowNode, nodeAnnPlan, annSkipNote, redrawCost, derivesProposals, nodeLocked, deriveCostOf, nodeRefPlan, nodeFramesComeFromDerive, nodeEditFrames, newFlowNode, nodeEmptyFrames, nodeNoDraw } from "../flowStore";
+import { appendQuote, appendSpecsQuote, CUSTOM_MID_MAX, nodeBlank, recastBlocked, nodeDerived, nodeDone, nodeCost, tplOfNode, useFlow, type FlowNode, nodeAnnPlan, annSkipNote, redrawCost, derivesProposals, nodeLocked, deriveCostOf, nodeRefPlan, nodeFramesComeFromDerive, nodeEditFrames, newFlowNode, nodeEmptyFrames, nodeNoDraw } from "../flowStore";
 import TierRow from "../../components/flow/TierRow";
 // 选模板弹层借画布那一份（铁律六：市场懒加载/分段组折叠/预览确认全在那一个实现里）。
 // FlowCanvas 不 import 本文件，方向安全（它俩只在 StudioPage/FlowPage 各自的树里出现）
@@ -287,7 +289,7 @@ function EditorPanel() {
   const [step, setStep] = useState<"mode" | "ref" | "content" | "spec">(() =>
     (useStudio.getState().editor?.slots.length ?? 0) > 0 ? "content" : "mode",
   );
-  const [lane, setLane] = useState<"cards" | "custom" | "direct" | "lead">("cards");
+  const [lane, setLane] = useState<"cards" | "custom" | "direct" | "lead" | "grid">("cards");
   /**
    * 跟着做 B「主角定妆 · 多镜头」（lane === "lead"）：向导整块接管②③两步（components/flow/LeadShotsWizard，与画布同一份），
    * 走完由 studioStore.layLeadNode 落段、要出片再走 genNodeVideo。下面这几样给向导用（★ hook 排在早退之前）
@@ -295,7 +297,7 @@ function EditorPanel() {
   const flowNodes = useFlow((s) => s.nodes);
   const flowMode = useFlow((s) => s.mode);
   const flowBusy = useFlow((s) => s.busy || s.nodes.some((n) => n.status === "generating"));
-  /** 落段被拒的原因（appendNode 的门禁）：向导在最后一步画它 */
+  /** 落段被拒的原因（appendNode / appendSpecs 的门禁）：向导在最后一步画它（B、C 两个向导共用这一格） */
   const [leadErr, setLeadErr] = useState("");
   /** 示例视频上传中的进度句 / 调帧小窗 / 选文件口（自定义·第①页） */
   const [refUploading, setRefUploading] = useState("");
@@ -408,7 +410,7 @@ function EditorPanel() {
           </button>
         )}
         <h3 className="flex-none text-sm font-bold text-cyan-100"><Trans>铸造节点卡 · 第 {segIndex + 1} 段</Trans></h3>
-        {lane === "lead" && step !== "mode" ? null : stepCrumb}
+        {(lane === "lead" || lane === "grid") && step !== "mode" ? null : stepCrumb}
         <button
           onClick={() => useStudio.getState().closeProjection()}
           disabled={editor.generating}
@@ -430,8 +432,8 @@ function EditorPanel() {
             onTier={(id) => useStudio.getState().setVideoTier(id)}
             onPick={(m) => {
               if (m === "template") setTplPick(true);
-              else if (m === "lead") {
-                setLane("lead");
+              else if (m === "lead" || m === "grid") {
+                setLane(m);
                 setLeadErr("");
                 setStep("content");
               } else if (m === "custom") {
@@ -462,6 +464,28 @@ function EditorPanel() {
               }
               resetLeadScene();
               if (generate) void useStudio.getState().genNodeVideo(r.nodeId, r.proposalId);
+            }}
+            err={leadErr}
+            busy={flowBusy}
+          />
+        </div>
+      ) : lane === "grid" ? (
+        /* ══ 跟着做 C：向导整块接管（人物和场景 → 分镜 → 画面 → 挑格子 → 出片），自己带步骤条与脚 ══
+           走完由 studioStore.layGridNodes 落段（挑中的几格各成一段），要出片只出第一段（genNodeVideo）——后面几段按顺序一段一段出 */
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-3">
+          <GridShotsWizard
+            tierId={editor.videoTier}
+            defaultAspect={editor.aspect}
+            quote={(specs) => appendSpecsQuote(flowNodes, flowMode, specs)}
+            onBack={() => setStep("mode")}
+            onFinish={(specs, generate) => {
+              const r = useStudio.getState().layGridNodes(specs);
+              if (!r.ok) {
+                setLeadErr(r.why);
+                return;
+              }
+              resetGridScene();
+              if (generate) void useStudio.getState().genNodeVideo(r.nodeIds[0], r.firstProposalId);
             }}
             err={leadErr}
             busy={flowBusy}
@@ -905,7 +929,7 @@ function EditorPanel() {
       </div>
       )}
 
-      {lane === "lead" && step !== "mode" ? null : (
+      {(lane === "lead" || lane === "grid") && step !== "mode" ? null : (
       <div className="border-t border-cyan-400/20 px-3 pb-3 pt-2">
         {/* 三步各自的脚：①没有脚（✕ 随时整块关掉）；②只有「上一步/下一步」——真花钱的键
             不在这一屏；③报价 + 那颗键（价钱贴在最后要按的键旁，ui-copy-grammar 文法②）。

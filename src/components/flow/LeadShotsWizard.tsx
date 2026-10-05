@@ -7,11 +7,11 @@
 // ★ 报价由宿主给（quote）：宿主拿 flowStore.appendQuote 照着「真会落下的那一段」算（leadCast.leadAppendSpec 拼的同一份），
 //   与 genNode 真扣同一把尺。这里不自己算钱。
 // ★ 落成的是一段参考图直出段（人物图直接给视频模型、不画帧）：出片规则与 A 完全相同，B 只是先把人定死、再把剧本写成多镜头。
+// ★ 第①步的人物网格与「现做一个人物」在 CastPicker（与 C 九宫格分镜共用，2026-10-05 抽出）；这里只塞 B 自己的那几句（换主角 / 声音样本 / 真人卡）。
 import type { MessageDescriptor } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useSyncExternalStore } from "react";
-import { useNavigate } from "react-router";
 import { AI_REAL } from "../../ai";
 import { myCards } from "../../data/account";
 import { subscribeVoices, voiceOf, voicesVersion } from "../../data/cardVoice";
@@ -19,11 +19,12 @@ import { CHAT_TURN_TOKENS, clampDuration, durationChoices, fmtTokens, promptMaxO
 import { LEAD_CAST_MAX, LEAD_DEFAULT_SEC, SCENE_MAX, SCENE_MIN, type SceneNote } from "../../data/sceneShots";
 import { LINE_QUOTE, SHOT_MAX, packShots, parseShots } from "../../data/shotScript";
 import { useAccountVersion } from "../../hooks/useAccount";
-import { LEAD_DESC_MAX, LEAD_DESC_MIN, LEAD_NAME_MAX, leadForgeCost, type LeadSpec } from "../../studio/leadCast";
-import { LEAD_STEPS, forgeIntoCast, makeLead, setLead, splitScene, toggleCast, useLeadDraft, type LeadStep } from "../../studio/leadDraftStore";
+import type { LeadSpec } from "../../studio/leadCast";
+import { LEAD_STEPS, makeLead, setLead, splitScene, useLeadDraft, type LeadStep } from "../../studio/leadDraftStore";
 import { VIDEO_ASPECTS, type Card, type VideoAspect } from "../../types";
 import Spinner from "../Spinner";
 import TokenCost from "../TokenCost";
+import CastPicker from "./CastPicker";
 import ShotListEditor from "./ShotListEditor";
 
 const STEP_LABEL: Record<LeadStep, MessageDescriptor> = {
@@ -32,12 +33,6 @@ const STEP_LABEL: Record<LeadStep, MessageDescriptor> = {
   shots: msg`拆镜头`,
   spec: msg`出片`,
 };
-
-type StyleId = "anime" | "toon3d" | "picture" | "ink";
-const STYLE_IDS: readonly StyleId[] = ["anime", "toon3d", "picture", "ink"];
-/* i18n-frozen: 画风芯片交给铸卡师的原话（出图提示词的一部分），冻结中文 */
-const STYLE_PROMPT: Record<StyleId, string> = { anime: "二次元动漫", toon3d: "3D 动画", picture: "绘本插画", ink: "国风水墨" };
-const STYLE_LABEL: Record<StyleId, MessageDescriptor> = { anime: msg`二次元`, toon3d: msg`3D 动画`, picture: msg`绘本`, ink: msg`国风` };
 
 export default function LeadShotsWizard({
   tierId,
@@ -68,7 +63,6 @@ export default function LeadShotsWizard({
   busy?: boolean;
 }) {
   const { t } = useLingui();
-  const navigate = useNavigate();
   useAccountVersion();
   useSyncExternalStore(subscribeVoices, voicesVersion, () => 0);
   const d = useLeadDraft();
@@ -83,19 +77,15 @@ export default function LeadShotsWizard({
   /** 选中的人（按选的先后，第一个是主角）；卡片库里已经删掉的不算 */
   const cast = d.castIds.map((id) => chars.find((c) => c.id === id)).filter((c): c is Card => !!c);
   const full = cast.length >= LEAD_CAST_MAX;
-  /** 卡片库里还在的人物卡（选人只数它们：选过又被删掉的卡不占名额） */
-  const liveIds = new Set(chars.map((c) => c.id));
   const dur = clampDuration(d.durationSec ?? LEAD_DEFAULT_SEC, tierId);
   const promptMax = promptMaxOf(tierId);
   /** 分镜 / 台词只开在出声又收参考图的两档（与画布那颗「＋ 镜头」同一个判据） */
   const shotsOk = !!tier.refImg && tier.audio === true;
   const faceNote = realFaceIssue(cast, tierId, { framed: chained });
-  const forgeCost = leadForgeCost();
   /** 按钮上印的价（演示构建写「演示」，与画布那颗「⚡ 生成本段」同一个写法）：先取成值再进句子 */
   const price = (n: number | null) => (n === null ? "—" : AI_REAL ? fmtTokens(n) : t`演示`);
   const spec: LeadSpec = { cast, scene: d.scene, script: d.script, durationSec: dur, aspect };
   const splitPrice = price(CHAT_TURN_TOKENS);
-  const forgePrice = price(forgeCost);
   const genTokens = quote(spec);
   const genPrice = price(genTokens);
   const castN = cast.length;
@@ -150,154 +140,39 @@ export default function LeadShotsWizard({
           <p className="text-[11px] leading-relaxed text-slate-400">
             <Trans>选 1~{LEAD_CAST_MAX} 个人，第一个是主角。人物图会直接给视频模型、不画帧 —— 人像以卡上的图为准。</Trans>
           </p>
-          {chars.length > 0 ? (
-            <div className="grid grid-cols-4 gap-2">
-              {chars.map((c) => {
-                const at = d.castIds.indexOf(c.id);
-                const on = at >= 0;
-                return (
+          <CastPicker>
+            {cast.length > 1 && (
+              <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-slate-500">
+                <span>
+                  <Trans>点名字换主角：</Trans>
+                </span>
+                {cast.map((c, i) => (
                   <button
                     key={c.id}
-                    onClick={() => toggleCast(c.id, LEAD_CAST_MAX, liveIds)}
-                    disabled={!on && full}
-                    className={`relative overflow-hidden rounded-lg border text-left disabled:opacity-40 ${on ? "border-brand ring-1 ring-brand" : "border-slate-700 opacity-80"}`}
+                    onClick={() => makeLead(c.id)}
+                    disabled={i === 0}
+                    className={`rounded-full px-2 py-0.5 text-[10px] ${i === 0 ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-300"}`}
                   >
-                    <div className="aspect-[3/4] bg-black/40">
-                      {c.cover && <img src={c.cover} alt="" className="h-full w-full object-cover" draggable={false} />}
-                    </div>
-                    <div className="truncate px-1 py-0.5 text-[9px] text-slate-200">
-                      {voiceOf(c.id) ? "🔊 " : ""}
-                      {c.name}
-                    </div>
-                    {on && (
-                      <span className="absolute left-1 top-1 rounded-full bg-brand px-1.5 py-0.5 text-[9px] font-bold text-ink">
-                        {at === 0 ? t`主角` : at + 1}
-                      </span>
-                    )}
+                    {i === 0 ? "★ " : ""}
+                    {c.name}
                   </button>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="rounded-xl border border-slate-700/70 bg-panel p-3 text-[11px] leading-relaxed text-slate-400">
-              <Trans>卡片库里还没有人物卡 —— 在下面现做一个；想用照片做（真人要先认证），去「自己传图做卡片」。</Trans>
-            </p>
-          )}
-          {cast.length > 1 && (
-            <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-slate-500">
-              <span>
-                <Trans>点名字换主角：</Trans>
-              </span>
-              {cast.map((c, i) => (
-                <button
-                  key={c.id}
-                  onClick={() => makeLead(c.id)}
-                  disabled={i === 0}
-                  className={`rounded-full px-2 py-0.5 text-[10px] ${i === 0 ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-300"}`}
-                >
-                  {i === 0 ? "★ " : ""}
-                  {c.name}
-                </button>
-              ))}
-            </div>
-          )}
-          {full && (
-            <p className="text-[10px] leading-relaxed text-slate-500">
-              <Trans>已经选满 {LEAD_CAST_MAX} 个人：官方说一段里超过 4 个人不稳。</Trans>
-            </p>
-          )}
-          {cast.some((c) => !voiceOf(c.id)) && cast.length > 0 && (
-            <p className="text-[10px] leading-relaxed text-slate-500">
-              <Trans>🔊 = 卡上有声音样本：台词按它的声音配；没有的，声音由模型自己配（在卡片页录一段就能固定）。</Trans>
-            </p>
-          )}
-          {faceNote && (
-            <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">{faceNote}</p>
-          )}
-          {d.forgeNote && (
-            <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">{d.forgeNote}</p>
-          )}
-
-          {/* 现做一个人物：一句话 → 定妆两张（全身立绘 + 面部特写），画成就收进卡片库并选上（studio/leadCast.forgeLead） */}
-          {d.makerOpen || chars.length === 0 || d.forging ? (
-            <div className="space-y-2 rounded-xl border border-slate-700/70 bg-panel p-3">
-              <div className="flex items-center">
-                <span className="text-xs font-semibold text-slate-300">
-                  <Trans>现做一个人物</Trans>
-                </span>
-                <span className="flex-1" />
-                {chars.length > 0 && !d.forging && (
-                  <button onClick={() => setLead({ makerOpen: false })} className="text-[10px] text-slate-500">
-                    <Trans>收起</Trans>
-                  </button>
-                )}
+                ))}
               </div>
-              <input
-                value={d.makerName}
-                onChange={(e) => setLead({ makerName: e.target.value })}
-                maxLength={LEAD_NAME_MAX}
-                disabled={!!d.forging}
-                placeholder={t`名字（选填；台词按这个名字认说话人）`}
-                className="w-full rounded-lg border border-slate-700 bg-black/30 px-2.5 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand disabled:opacity-40"
-              />
-              <textarea
-                value={d.makerDesc}
-                onChange={(e) => setLead({ makerDesc: e.target.value })}
-                maxLength={LEAD_DESC_MAX}
-                rows={3}
-                disabled={!!d.forging}
-                placeholder={t`一句话：长相、发型、服装、气质。例：橙色短发、绿眼睛的少女，暗红色短披肩配绿领结`}
-                className="w-full resize-none rounded-lg border border-slate-700 bg-black/30 px-2.5 py-1.5 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand disabled:opacity-40"
-              />
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-[10px] text-slate-500">
-                  <Trans>画风</Trans>
-                </span>
-                {STYLE_IDS.map((id) => {
-                  const on = d.makerStyle === STYLE_PROMPT[id];
-                  return (
-                    <button
-                      key={id}
-                      onClick={() => setLead({ makerStyle: on ? null : STYLE_PROMPT[id] })}
-                      disabled={!!d.forging}
-                      className={`rounded-full px-3 py-1 text-[11px] disabled:opacity-40 ${on ? "bg-brand font-semibold text-ink" : "bg-black/30 text-slate-300"}`}
-                    >
-                      {t(STYLE_LABEL[id])}
-                    </button>
-                  );
-                })}
-              </div>
+            )}
+            {full && (
               <p className="text-[10px] leading-relaxed text-slate-500">
-                <Trans>画两张：全身立绘 + 照着它画的面部特写（官方建议的「全身照 + 大头照」）。不画写实照片风：高清 / 电影级会把写实的人脸当成真人拒收。</Trans>
+                <Trans>已经选满 {LEAD_CAST_MAX} 个人：官方说一段里超过 4 个人不稳。</Trans>
               </p>
-              <button
-                onClick={() => void forgeIntoCast(LEAD_CAST_MAX, liveIds)}
-                disabled={!!d.forging || d.makerDesc.trim().length < LEAD_DESC_MIN || forgeCost === null}
-                className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-brand/90 py-2.5 text-sm font-bold text-ink disabled:opacity-40"
-              >
-                {d.forging ? (
-                  <>
-                    <Spinner size="xs" />
-                    <span className="truncate">{d.forging}</span>
-                  </>
-                ) : (
-                  <Trans>✨ 现做（{forgePrice}）</Trans>
-                )}
-              </button>
-              {d.forgeErr && <p className="text-[11px] leading-relaxed text-rose-300">{d.forgeErr}</p>}
-              <button onClick={() => navigate("/custom-card")} className="text-[10px] text-slate-500 underline underline-offset-2">
-                <Trans>用照片做（真人要先认证）→ 自己传图做卡片</Trans>
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => setLead({ makerOpen: true, forgeErr: "" })}
-              disabled={full}
-              className="w-full rounded-xl border border-dashed border-slate-600 py-2.5 text-xs text-slate-300 disabled:opacity-40"
-            >
-              <Trans>＋ 现做一个人物（一句话）</Trans>
-            </button>
-          )}
+            )}
+            {cast.some((c) => !voiceOf(c.id)) && cast.length > 0 && (
+              <p className="text-[10px] leading-relaxed text-slate-500">
+                <Trans>🔊 = 卡上有声音样本：台词按它的声音配；没有的，声音由模型自己配（在卡片页录一段就能固定）。</Trans>
+              </p>
+            )}
+            {faceNote && (
+              <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">{faceNote}</p>
+            )}
+          </CastPicker>
 
           <div className="flex gap-2">
             <button onClick={onBack} className="rounded-xl bg-slate-700/70 px-4 py-2.5 text-sm text-slate-200">

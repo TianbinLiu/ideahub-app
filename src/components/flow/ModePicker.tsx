@@ -10,8 +10,9 @@ import type { MessageDescriptor } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { tierBlockReason } from "../../data/account";
-import { CHAT_TURN_TOKENS, clampDuration, fmtTokens, modelLabel, proposalsCost, segTokens, tierOf, VIDEO_TIERS } from "../../data/economy";
+import { CHAT_TURN_TOKENS, clampDuration, fmtTokens, IMAGE_TOKENS, modelLabel, proposalsCost, segTokens, tierOf, VIDEO_TIERS } from "../../data/economy";
 import { GUIDED_GROUPS, GUIDED_MODES, modeBlock, type GuidedGroup, type GuidedModeId, type ModeTier } from "../../data/guidedModes";
+import { GRID_DEFAULT_SEC } from "../../data/gridShots";
 import { LEAD_DEFAULT_SEC } from "../../data/sceneShots";
 
 const GROUP_LABEL: Record<GuidedGroup, MessageDescriptor> = {
@@ -33,6 +34,12 @@ const MODE_TEXT: Record<GuidedModeId, { icon: string; title: MessageDescriptor; 
     title: msg`主角定妆 · 多镜头`,
     tag: msg`先定人、再拆镜头`,
     desc: msg`选好（或现做）主角，写一场戏，AI 拆成 2~4 个镜头带台词，一条出。updream 作者的做法`,
+  },
+  grid: {
+    icon: "🎞",
+    title: msg`九宫格分镜`,
+    tag: msg`先出一组画面`,
+    desc: msg`写一场戏，AI 写成 4~9 格分镜、一次画出整组画面；挑几格，每格变成一段。LibTV 作者的做法`,
   },
   cards: { icon: "🃏", title: msg`AI 推演三套`, tag: msg`先看关键画面`, desc: msg`挑卡＋写要求，AI 出三套带关键画面的方案，挑一套再出片` },
   template: { icon: "🧪", title: msg`套模板`, tag: msg`白模复刻`, desc: msg`套一个模板，给人偶挂卡换人（模板按这个模型筛）` },
@@ -104,7 +111,11 @@ export default function ModePicker({
                 const steps = m.steps;
                 // 只摆「这一步大概花多少」：参考图直出 = 只有视频（真人档按发计价）；推演三套 = 推演那一笔（出片另算）
                 // 主角定妆 · 多镜头 = 拆镜头那一次对话 + 默认 12 秒的视频（现做主角要另花图钱，在向导里那颗键上报）
+                // 九宫格分镜 = 写分镜那一次对话 + 每格一张画面（按实际画出的张数收）+ 每格一段的视频（逐段出、逐段报）
                 const chatPrice = fmtTokens(CHAT_TURN_TOKENS);
+                const panelPrice = fmtTokens(IMAGE_TOKENS);
+                const gridSec = clampDuration(GRID_DEFAULT_SEC, tier.id);
+                const gridVideo = fmtTokens(segTokens(gridSec, tier.id));
                 const leadSec = clampDuration(LEAD_DEFAULT_SEC, tier.id);
                 const leadVideo = fmtTokens(segTokens(leadSec, tier.id));
                 const price =
@@ -112,6 +123,8 @@ export default function ModePicker({
                     ? t`约 ${fmtTokens(segTokens(5, tier.id))} / 5 秒，只有视频`
                     : m.id === "lead"
                       ? t`拆镜头 ${chatPrice}，视频约 ${leadVideo} / ${leadSec} 秒`
+                      : m.id === "grid"
+                      ? t`写分镜 ${chatPrice}，画面每格 ${panelPrice}，每格一段约 ${gridVideo} / ${gridSec} 秒`
                       : m.id === "cards"
                       ? t`推演 ${fmtTokens(proposalsCost(false))}，出片另算`
                       : null;

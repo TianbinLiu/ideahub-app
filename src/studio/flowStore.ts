@@ -939,6 +939,16 @@ export function appendQuote(nodes: FlowNode[], mode: FlowMode, spec: AppendSpec)
   return nodeCost([...nodes, appendedNode(nodes, spec)], nodes.length, mode);
 }
 
+/**
+ * 照这几份 spec 接在末尾落几段、**每段**出片各要多少（跟着做 C：挑中的几格各成一段，逐段出、逐段报）。
+ * 节点逐段用 appendedNode 拼 —— 与 appendSpecs 真落的是同一批；价钱与 genNode 真扣同一把尺 nodeCost。
+ */
+export function appendSpecsQuote(nodes: FlowNode[], mode: FlowMode, specs: AppendSpec[]): number[] {
+  const all = [...nodes];
+  for (const sp of specs) all.push(appendedNode(all, sp));
+  return specs.map((_, i) => nodeCost(all, nodes.length + i, mode));
+}
+
 /** 素材参考模式下中间帧参考图的上限（首/尾帧另算，共 4 张图 —— 方舟 2.5 收 1–30，
  *  取小是给提示词点名句留字数：每多一张就多一句「图片N是…」） */
 export const CUSTOM_MID_MAX = 2;
@@ -1449,6 +1459,12 @@ interface FlowState {
    * 返回 false = 被拒（原因在 err，铁律八）。
    */
   appendNode: (spec: AppendSpec) => string | null;
+  /**
+   * 一次接几段在末尾（跟着做 C「九宫格分镜」：挑中的几格各成一段，2026-10-05）。门禁与 appendNode 同一处（appendIssue：
+   * 白模尾段拒 / 末段未出片拒 / 生成中拒），每段用 appendedNode 拼（与 appendSpecsQuote 报价的同一批）。
+   * 返回新段的 id（按顺序）；被拒 = null，原因在 err。
+   */
+  appendSpecs: (specs: AppendSpec[]) => string[] | null;
   /** 把一段真实成片写到某套方案名下（videoByProposal + proposal.videoUrl 两处一起，
    *  两处是同一份出片的两个读法——剪辑页「只编辑本段」写回走这里，别只写一半） */
   setProposalVideo: (nodeId: string, proposalId: string, url: string) => void;
@@ -2687,6 +2703,21 @@ export const useFlow = create<FlowState>()((set, get) => ({
       return { nodes: [...pinUnstatedTpl(s.nodes, s.template), node], cursor: i, err: "" };
     });
     return newId;
+  },
+
+  appendSpecs: (specs) => {
+    let ids: string[] | null = null;
+    set((s) => {
+      const issue = appendIssue(s);
+      if (issue) return { err: issue };
+      if (!specs.length || specs.some((sp) => sp.proposals.length === 0)) return { err: t`一格都没挑，铺不成段` };
+      const built: FlowNode[] = [];
+      for (const sp of specs) built.push(appendedNode([...s.nodes, ...built], sp));
+      ids = built.map((n) => n.id);
+      // 光标停在新落的第一段（与 appendNode 同一个写法）；pinUnstatedTpl 同拍（理由见 addNode 的 ★★★）
+      return { nodes: [...pinUnstatedTpl(s.nodes, s.template), ...built], cursor: s.nodes.length, err: "" };
+    });
+    return ids;
   },
 
   setNodeProposals: (nodeId, proposals) =>

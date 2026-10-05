@@ -45,8 +45,10 @@ import RefStrip from "./RefStrip";
 import ModePicker, { modeTierOf } from "./ModePicker";
 import { RestatePlaceTip, SceneCardTip } from "./DirectTips";
 import LeadShotsWizard from "./LeadShotsWizard";
+import GridShotsWizard from "./GridShotsWizard";
 import { leadAppendSpec, type LeadSpec } from "../../studio/leadCast";
 import { resetLeadScene } from "../../studio/leadDraftStore";
+import { resetGridScene } from "../../studio/gridDraftStore";
 import Sheet from "../Sheet";
 import { modeBlock, type GuidedModeId } from "../../data/guidedModes";
 import FrameEditBox from "./FrameEditBox";
@@ -59,6 +61,8 @@ import {
   CUSTOM_MID_MAX,
   appendIssue,
   appendQuote,
+  appendSpecsQuote,
+  type AppendSpec,
   derivesProposals,
   chosenOf,
   clampCursor,
@@ -185,6 +189,11 @@ export default function FlowCanvas({
    *   向导自己的状态在 studio/leadDraftStore，关了再开原样还在。
    */
   const [leadSheet, setLeadSheet] = useState<{ tier: string; aspect: VideoAspect } | null>(null);
+  /**
+   * 跟着做 C「九宫格分镜」的向导开在哪一档上（选法屏挑了它）；null = 没开。画幅是画面的缺省（接上一段的），在向导第③步画之前能换。
+   * ★ 与 B 同一条：向导走完才落段（finishGrid，挑中的几格各成一段）；向导自己的状态在 studio/gridDraftStore，关了再开原样还在。
+   */
+  const [gridSheet, setGridSheet] = useState<{ tier: string; aspect: VideoAspect } | null>(null);
   const flowMode = useFlow((s) => s.mode);
   /** 刚加的那一段要一打开就弹选模板层（选法屏里挑了「套模板」）；用掉就清 */
   const [autoTplFor, setAutoTplFor] = useState<string | null>(null);
@@ -383,6 +392,12 @@ export default function FlowCanvas({
       setLeadSheet({ tier: tierId, aspect: st.nodes[st.nodes.length - 1]?.aspect ?? DEFAULT_ASPECT });
       return;
     }
+    if (m === "grid") {
+      const st = useFlow.getState();
+      useFlow.setState({ err: "" }); // 理由同上（finishGrid 的拒绝也画在向导最后一步）
+      setGridSheet({ tier: tierId, aspect: st.nodes[st.nodes.length - 1]?.aspect ?? DEFAULT_ASPECT });
+      return;
+    }
     const before = useFlow.getState().nodes.length;
     addNode();
     const after = useFlow.getState().nodes;
@@ -419,6 +434,24 @@ export default function FlowCanvas({
     setCursor(i);
     panTo(i);
     if (generate) void useFlow.getState().genNode(id);
+  }
+
+  /**
+   * C 的向导点了「铺成 N 段，先出第 1 段」/「只铺成这几段」：挑中的几格各落一段（appendSpecs：门禁与「＋ 加一段」同源），
+   * 要出片只出第一段（genNode，与这一面那颗「⚡ 生成本段」同一个入口）—— 后面几段照顺序门禁一段一段出。
+   * 被拒时原因在 store.err：向导盖在错误条上面，自己画着那句话。
+   */
+  function finishGrid(specs: AppendSpec[], generate: boolean) {
+    if (!gridSheet) return;
+    const ids = useFlow.getState().appendSpecs(specs);
+    if (!ids?.length) return;
+    setGridSheet(null);
+    resetGridScene();
+    const i = useFlow.getState().nodes.findIndex((n) => n.id === ids[0]);
+    setSel(i);
+    setCursor(i);
+    panTo(i);
+    if (generate) void useFlow.getState().genNode(ids[0]);
   }
 
   function panTo(i: number) {
@@ -841,6 +874,26 @@ export default function FlowCanvas({
               setAddPick({ tier });
             }}
             onFinish={finishLead}
+            err={err}
+            busy={busy || nodes.some((n) => n.status === "generating")}
+          />
+        </Sheet>
+      )}
+      {gridSheet && (
+        <Sheet onClose={() => setGridSheet(null)}>
+          <div className="mb-2 flex justify-end">
+            <CloseButton chip="sm" size={13} align="end" onClick={() => setGridSheet(null)} />
+          </div>
+          <GridShotsWizard
+            tierId={gridSheet.tier}
+            defaultAspect={gridSheet.aspect}
+            quote={(specs) => appendSpecsQuote(nodes, flowMode, specs)}
+            onBack={() => {
+              const tier = gridSheet.tier;
+              setGridSheet(null);
+              setAddPick({ tier });
+            }}
+            onFinish={finishGrid}
             err={err}
             busy={busy || nodes.some((n) => n.status === "generating")}
           />

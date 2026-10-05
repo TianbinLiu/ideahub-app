@@ -60,6 +60,7 @@ import { minimaxVideo, takeMinimaxTask } from "./minimaxVideo";
 import { refableViews } from "../data/cardViews";
 import { drawExtraRefs, plainMentions } from "../data/refMentions";
 import { frameMoment, momentCards } from "../data/shotScript";
+import { groupBindLine, groupPrompt, groupRefsCap, type GridShot, type GroupRef } from "../data/gridShots";
 // 已授权的可信素材：整张卡改发 asset:// URI（判据与拼法各只有一处，见 data/cardAsset）
 import { assetOf, assetUri } from "../data/cardAsset";
 import {
@@ -83,6 +84,9 @@ import {
   generateImage,
   generateVideo,
   isArkAssetUrl,
+  MODELS,
+  runImageGroup,
+  type ImageGroupState,
 } from "./arkClient";
 // 界面文案（铸卡 / 推演 / 提卡 / 出片产线的进度、报错、逐张点名的提示、契约核对）走宏；发给模型的指令仍冻结中文——本文件的宏只用于界面文案
 import { t } from "@lingui/core/macro";
@@ -1233,6 +1237,12 @@ export interface MaterialRefs {
    * 文字版形象描述（Card.textDesc）替代图片（studio/segmentGen.materialText）。
    */
   cards: ReadonlySet<string>;
+  /**
+   * 每一张参考图是**哪张卡**的（与 `refs` 逐张对齐）。组图（drawShotGroup）用它自己拼「图几是谁」那一句 ——
+   * ★ 必须按**真正发出去的**这批图对出来：取图那一拍个别图会读不出来被跳过（编号随之前移），拿分配的计划（planCardRefs）
+   *   去拼的话，绑定句就点名到没发出去的编号上（CLAUDE.md「帧一律当参考图发」那条的坑 ②）。
+   */
+  owners: readonly Card[];
 }
 
 /**
@@ -1268,7 +1278,7 @@ export async function prepareMaterialRefs(
   onNote?: (note: string) => void,
   direct: boolean | { cap?: number; strict: boolean } = false,
 ): Promise<MaterialRefs> {
-  const empty: MaterialRefs = { refs: [], bind: () => "", bindCompact: () => "", cards: new Set() };
+  const empty: MaterialRefs = { refs: [], bind: () => "", bindCompact: () => "", cards: new Set(), owners: [] };
   if (!materials?.length) return empty;
   // 布尔 true = 白模的老调用形态（严格闸 + 2.5 上限）；对象 = 带档位协议上限的直通路
   const d = direct === true ? { cap: undefined as number | undefined, strict: true } : direct || null;
@@ -1412,6 +1422,7 @@ export async function prepareMaterialRefs(
   return {
     refs: good.map((p) => p.url),
     cards: new Set(good.map((p) => p.card.id)),
+    owners: good.map((p) => p.card),
     bindCompact: compact,
     bind: (offset = 0) => {
       if (multiChar) return compact(offset);
@@ -2770,6 +2781,74 @@ export async function generateFrame(
     : zhPrompt`视频中的一个画面：${req}。${ONE_FRAME}高细节，电影感构图，氛围光，${NO_TEXT}${spec.promptHint}。`;
   const refs = [...(o.base ? [o.base] : []), ...(o.refs ?? [])];
   return await genImageAsDataUrl(prompt, { imageRefs: refs.length > 0 ? refs : undefined, size: spec.frameSize });
+}
+
+/**
+ * 跟着做 C · 九宫格分镜：一次画出一组分镜画面（组图，2026-10-05 第三期）。挑参考图、拼提示词在这里，出图走 arkClient.runImageGroup
+ * （打包 = 服务端任务 + 短轮询，dev = 直连方舟流式），画好一张就交一张给 onUpdate。
+ * ★ 参考图：人物卡 + 场景卡走**直通分配**（先每个人一张、场景一张，预算还有余才给每个人补第二张 —— allocateRefs 的分轮规则），
+ *   上限 = 15 − 张数（官方：参考图 + 出图 ≤ 15，data/gridShots.groupRefsCap）。
+ * ★★ 「图几是谁」那一句按**真正发出去的**参考图逐张对（MaterialRefs.owners），不按分配计划拼 —— 取图那一拍个别图读不出来会被跳过、
+ *   编号随之前移，按计划拼就点名到没发出去的编号上（「帧一律当参考图发」那条的坑 ②）。
+ * ★ 写法用付费对比里验过的「图1、图2 是林夏（…）」，不用视频那边的 `@图片N` 紧凑式（那是 Seedance 的 A/B，Seedream 没验过）。
+ * ★ 出图模型 = 画帧的默认档（MODELS.image，今天 Seedream 4.0）：单格重画走 generateFrame 也是它，一组里重画的那一格与别的格子同一个模型。
+ * @param o.resumeId 接着等的那一组（App 重开 / 受理那一发没收到回包后接回来的）：直接轮询，不再挑图、不再受理
+ */
+export async function shotGroupRefs(o: {
+  cast: Card[];
+  place: Card | null;
+  /** 这一发要画几张（整组 = 格数，单格重画 = 1）：参考图的上限 = 15 − 它 */
+  panels: number;
+  onNote?: (note: string) => void;
+}): Promise<{ refs: string[]; bind: string }> {
+  const cards = [...o.cast, ...(o.place ? [o.place] : [])];
+  const cap = groupRefsCap(o.panels, o.cast.length, o.place ? 1 : 0);
+  const mat = cap > 0 && cards.length ? await prepareMaterialRefs(cards, "image", o.onNote, { cap, strict: false }) : null;
+  // 同一张卡的图在 refs 里是连号的（allocateRefs 最后按卡归拢），按卡收拢成「图1、图2 是谁」
+  const byCard = new Map<Card, number[]>();
+  (mat?.owners ?? []).forEach((c, i) => byCard.set(c, [...(byCard.get(c) ?? []), i + 1]));
+  const refs: GroupRef[] = [...byCard].map(([c, nums]) => ({ name: c.name, type: c.type, nums, idLine: idLineOf(c) }));
+  return { refs: mat?.refs ?? [], bind: groupBindLine(refs) };
+}
+
+/** 跟着做 C：一次画出整组（见上面那段 ★）。参考图与「图几是谁」走 shotGroupRefs（单格重画也走它，一处实现） */
+export async function drawShotGroup(o: {
+  shots: readonly GridShot[];
+  lead: string;
+  cast: Card[];
+  place: Card | null;
+  aspect: VideoAspect | undefined;
+  resumeId?: string;
+  onUpdate: (s: ImageGroupState) => void;
+  onStarted?: (id: string, prepaid: number) => void;
+  onNote?: (note: string) => void;
+}): Promise<ImageGroupState> {
+  if (o.resumeId) return runImageGroup(null, { resumeId: o.resumeId, onUpdate: o.onUpdate });
+  const { refs, bind } = await shotGroupRefs({ cast: o.cast, place: o.place, panels: o.shots.length, onNote: o.onNote });
+  const spec = aspectOf(o.aspect);
+  return runImageGroup(
+    {
+      model: MODELS.image,
+      prompt: groupPrompt({ lead: o.lead, shots: o.shots, bind, framing: spec.promptHint }),
+      image: refs,
+      size: spec.frameSize,
+      maxImages: o.shots.length,
+    },
+    { onUpdate: o.onUpdate, onStarted: o.onStarted },
+  );
+}
+
+/**
+ * 方舟的图片临时链接 → 本机 dataURL（24 小时后链接就失效；帧在本机一律存 dataURL，出片那一拍才转存）。
+ * ★ 组图的那几张已经按张计过费，取不回来要抛 ArkBadReply（「已计费、结果用不上」那一档，与 genImageAsDataUrl 同一条）。
+ */
+export async function imageUrlToDataUrl(url: string): Promise<string> {
+  if (url.startsWith("data:")) return url;
+  try {
+    return await toDataUrl(url);
+  } catch (e) {
+    throw new ArkBadReply(e instanceof Error ? e.message : String(e));
+  }
 }
 
 /** 单段合成结果：url 缺席时 error 说明原因；firstFrame/lastFrame 带回"真实"帧

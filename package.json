@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && lingui extract && node scripts/check-guides.mjs && node scripts/check-hook-order.mjs && node scripts/check-agent-grammar.mjs && node scripts/check-cut-project.mjs && node scripts/check-cut-grammar.mjs && node scripts/check-camera-vocab.mjs && node scripts/check-ref-mentions.mjs && node scripts/check-shot-script.mjs && node scripts/check-draw-plan.mjs && node scripts/check-guided-modes.mjs && node scripts/check-scene-shots.mjs && node scripts/check-slot-ids.mjs && node scripts/check-i18n.mjs && vite build",
+    "build": "tsc && lingui extract && node scripts/check-guides.mjs && node scripts/check-hook-order.mjs && node scripts/check-agent-grammar.mjs && node scripts/check-cut-project.mjs && node scripts/check-cut-grammar.mjs && node scripts/check-camera-vocab.mjs && node scripts/check-ref-mentions.mjs && node scripts/check-shot-script.mjs && node scripts/check-draw-plan.mjs && node scripts/check-guided-modes.mjs && node scripts/check-scene-shots.mjs && node scripts/check-grid-shots.mjs && node scripts/check-slot-ids.mjs && node scripts/check-i18n.mjs && vite build",
     "i18n:extract": "lingui extract",
     "i18n": "node scripts/check-i18n.mjs",
     "preview": "vite preview",
@@ -25,6 +25,7 @@
     "draw-plan": "node scripts/check-draw-plan.mjs",
     "guided-modes": "node scripts/check-guided-modes.mjs",
     "scene-shots": "node scripts/check-scene-shots.mjs",
+    "grid-shots": "node scripts/check-grid-shots.mjs",
     "camera-vocab": "node scripts/check-camera-vocab.mjs",
     "slot-ids": "node scripts/check-slot-ids.mjs",
     "land": "node scripts/land.mjs"
