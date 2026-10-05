@@ -174,6 +174,9 @@ msgstr ", and this run has already been charged"
 #. 列举几个名字时的分隔符
 #. 列举几个名字时的分隔符
 #. 列举几个名字时的分隔符
+#. 列举几个名字时的分隔符
+#. 列举几个名字时的分隔符
+#. 列举几个名字时的分隔符
 #. 列举几个图位名 / 还缺的几项时的分隔符
 #. 列举几个文件名 / 动作组 / 表情名时的分隔符
 #. 列举几个段号时的分隔符（第 1、3 段）
@@ -184,6 +187,7 @@ msgstr ", and this run has already been charged"
 #: src/components/blockout/RoleCastBoard.tsx
 #: src/components/blockout/RoleConfirmSheet.tsx
 #: src/components/DeleteCardDialog.tsx
+#: src/components/flow/LeadShotsWizard.tsx
 #: src/components/flow/RefStrip.tsx
 #: src/components/TemplateShelf.tsx
 #: src/components/VideoCardAnnotator.tsx
@@ -194,6 +198,7 @@ msgstr ", and this run has already been charged"
 #: src/pages/CutPage.tsx
 #: src/pages/SupportModelNewPage.tsx
 #: src/studio/flowStore.ts
+#: src/studio/leadDraftStore.ts
 #: src/studio/segmentGen.ts
 #: src/studio/signOutGuard.ts
 #: src/studio/studioStore.ts
@@ -208,6 +213,8 @@ msgstr ", "
 #. 把几条「这一档为什么点不动」的原因连成一行时的分隔符
 #. 把几条「这一档为什么点不动」的原因连成一行时的分隔符
 #. 把几条「这一档为什么点不动」的原因连成一行时的分隔符
+#. 把几条说明连成一句时的分隔符
+#. 把铸卡时的几条说明连成一句时的分隔符
 #. 把铸卡时的几条说明连成一句时的分隔符
 #. 把铸卡时的几条说明连成一句时的分隔符
 #: src/ai/real.ts
@@ -216,6 +223,8 @@ msgstr ", "
 #: src/live2d/bundlePreview.ts
 #: src/pages/CardDetailPage.tsx
 #: src/studio/flowStore.ts
+#: src/studio/leadCast.ts
+#: src/studio/leadDraftStore.ts
 #: src/studio/ui/NpcDialog.tsx
 #: src/studio/ui/projection.tsx
 msgid "；"
@@ -416,6 +425,7 @@ msgstr "· The {0, plural, one {# card} other {# cards}} in it <0>won't be delet
 msgid "· 问卷：12 项（没动过的用默认值）"
 msgstr "· Questionnaire: 12 items (untouched ones use defaults)"
 
+#: src/components/flow/LeadShotsWizard.tsx
 #: src/studio/ui/projection.tsx
 msgid "‹ 上一步"
 msgstr "‹ Back"
@@ -443,6 +453,10 @@ msgstr "‹ Mode"
 #: src/studio/ui/projection.tsx
 msgid "‹ 示例视频"
 msgstr "‹ Example video"
+
+#: src/components/flow/LeadShotsWizard.tsx
+msgid "‹ 选法"
+msgstr "‹ Methods"
 
 #: src/components/PhotoSubjectPicker.tsx
 msgid "‹ 重新描"
@@ -1213,6 +1227,10 @@ msgstr "Not marked “Volcengine verified”: {lack}. The “{label}” tier onl
 msgid "{list} 等 {count} 张没能存到服务器（{reason}）——这几张只留在这台设备上，换设备或者重新登录就没了。想留住的话，回卡片详情页把它重新挂一次。"
 msgstr "{count} images including {list} couldn't be saved to the server ({reason}) — they're only on this device now, and switching devices or signing in again will lose them. To keep them, open the card's detail page and attach them again."
 
+#: src/studio/leadDraftStore.ts
+msgid "{list}没能存到服务器（{reason}）——只留在这台设备上；想留住的话，回卡片详情页把它重新挂一次"
+msgstr "{list} couldn’t be saved to the server ({reason}) — they stay only on this device; to keep them, re-attach them on the card’s detail page"
+
 #. 铸卡师念的话。list 是丢的那几张（最多三张）的名字，reason 是失败原因整句
 #: src/studio/studioStore.ts
 msgid "{list}没能存到服务器（{reason}）——这几张只留在这台设备上，换设备或者重新登录就没了。想留住的话，回卡片详情页把它重新挂一次。"
@@ -1339,6 +1357,10 @@ msgstr "{segCount, plural, one {# segment} other {# segments}} · deck of {deckC
 #: src/studio/studioStore.ts
 msgid "{sentence}（{notes}）"
 msgstr "{sentence} ({notes})"
+
+#: src/components/flow/LeadShotsWizard.tsx
+msgid "{shotN} 个镜头 · 台词 {lineN} 句 · {castN} 个人的图直接给视频模型，不画帧"
+msgstr "{shotN, plural, one {# shot} other {# shots}} · {lineN, plural, one {# line} other {# lines}} · images of {castN, plural, one {# person} other {# people}} go straight to the video model, no frames drawn"
 
 #: src/components/flow/ModePicker.tsx
 msgid "{steps} 步"
@@ -1653,9 +1675,17 @@ msgstr "“{name}” 3D model: generating {sec}s"
 msgid "「{name}」归你了，好眼光。"
 msgstr "“{name}” is yours now. Good eye."
 
+#: src/studio/leadDraftStore.ts
+msgid "「{name}」没同步到服务器（{reason}）——这次打开 App 期间能用，换设备或重开 App 就没了"
+msgstr "“{name}” didn’t sync to the server ({reason}) — usable while the app stays open, but gone on another device or after you reopen the app"
+
 #: src/studio/studioStore.ts
 msgid "「{name}」没能装进你的卡片库：{why}"
 msgstr "“{name}” couldn't be added to your card library: {why}"
+
+#: src/studio/leadDraftStore.ts
+msgid "「{name}」画好了，已收进卡片库"
+msgstr "“{name}” is ready and saved to your card library"
 
 #: src/ai/real.ts
 msgid "「{name}」的{label}没画成（{reason}），先用你交上来的原图顶着"
@@ -1726,6 +1756,10 @@ msgstr "“{name}” needs a reference image — add one on the card's details p
 #: src/studio/studioStore.ts
 msgid "「{name}」还是空的——去创意工坊给它添几张卡吧。"
 msgstr "“{name}” is still empty — add a few cards to it in the Workshop."
+
+#: src/components/flow/LeadShotsWizard.tsx
+msgid "「{names}」不在你选的人物里：这几句台词照收，声音由模型自己配"
+msgstr "“{names}” isn’t among the people you picked: those lines are kept, and the model picks the voice"
 
 #: src/data/economy.ts
 msgid "「{names}」做不了按参考视频出片（白模模板复刻、返修都属于这一类）——这类出片只有「{openLabel}」（{openModel}）做得到"
@@ -1999,6 +2033,10 @@ msgstr "+ Add to my cards"
 #: src/pages/CutPage.tsx
 msgid "＋ 添加本地音频作为 BGM"
 msgstr "+ Add local audio as background music"
+
+#: src/components/flow/LeadShotsWizard.tsx
+msgid "＋ 现做一个人物（一句话）"
+msgstr "＋ Make a character now (one sentence)"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "＋ 自建一套"
@@ -2339,6 +2377,10 @@ msgstr "⚡ Generate this segment ({costLabel})"
 msgid "⚡ 生成本段视频（{0}）"
 msgstr "⚡ Generate this segment's video ({0})"
 
+#: src/components/flow/LeadShotsWizard.tsx
+msgid "⚡ 生成这一段（{genPrice}）"
+msgstr "⚡ Generate this segment ({genPrice})"
+
 #: src/pages/TemplateDetailPage.tsx
 msgid "⚡ 用这个模板出片（只需一句话）"
 msgstr "⚡ Make a video with this template (just one sentence)"
@@ -2495,6 +2537,10 @@ msgstr "✦ Holographic 3D model"
 msgid "✨ AI 封面（改图/生成）"
 msgstr "✨ AI cover (edit / generate)"
 
+#: src/components/flow/LeadShotsWizard.tsx
+msgid "✨ AI 拆成镜头（{splitPrice}）"
+msgstr "✨ Split into shots with AI ({splitPrice})"
+
 #: src/studio/ui/projection.tsx
 #~ msgid "✨ AI 改尾帧"
 #~ msgstr "✨ AI edit last frame"
@@ -2535,6 +2581,10 @@ msgstr "✨ Edit last frame"
 msgid "✨ 改首帧"
 msgstr "✨ Edit first frame"
 
+#: src/components/flow/LeadShotsWizard.tsx
+msgid "✨ 现做（{forgePrice}）"
+msgstr "✨ Make it ({forgePrice})"
+
 #. placeholder {0}: pageSlots.length
 #: src/pages/CustomCardPage.tsx
 msgid "✨ 生成 {0} 张图位与人物信息"
@@ -2553,6 +2603,10 @@ msgstr "✨ Generate the remaining {aiTodoCount, plural, one {# slot image} othe
 #: src/components/VideoCardAnnotator.tsx
 msgid "✨ 补齐剩下的 {todoCount} 张形象图（约 {0}）"
 msgstr "✨ Generate the remaining {todoCount, plural, one {# character image} other {# character images}} (about {0})"
+
+#: src/components/flow/LeadShotsWizard.tsx
+msgid "✨ 让 AI 拆成镜头（{splitPrice}，会换掉上面的分镜）"
+msgstr "✨ Let AI split it into shots ({splitPrice}; replaces the shots above)"
 
 #: src/pages/CustomCardPage.tsx
 msgid "✨ 让 AI 按主体填写"
@@ -2753,6 +2807,10 @@ msgstr "🎬 Example video {0}s"
 msgid "🎬 示例视频 {0}s · 中间帧 {1}/{CUSTOM_MID_MAX}"
 msgstr "🎬 Example video {0}s · middle frames {1}/{CUSTOM_MID_MAX}"
 
+#: src/components/flow/LeadShotsWizard.tsx
+msgid "🎭 主角定妆 · 多镜头"
+msgstr "🎭 Lead first · multi-shot"
+
 #: src/components/VideoCardAnnotator.tsx
 msgid "🎯 从视频提取卡片"
 msgstr "🎯 Extract cards from a video"
@@ -2876,6 +2934,10 @@ msgstr "📸 Capture → fuse into this segment's opening frame ({price})"
 msgid "📸 截这一帧"
 msgstr "📸 Capture frame"
 
+#: src/components/flow/LeadShotsWizard.tsx
+msgid "🔄 重新拆（{splitPrice}，会换掉上面的分镜）"
+msgstr "🔄 Split again ({splitPrice}; replaces the shots above)"
+
 #: src/components/flow/RefStrip.tsx
 msgid "🔇 {idleNames} 带着声音样本，但「{tierLabel}」档出片无声——要配音换「高清」或「电影级」。"
 msgstr "🔇 {idleNames} has a voice sample, but the “{tierLabel}” tier renders without sound — switch to “HD” or “Cinematic” for dubbing."
@@ -2905,6 +2967,10 @@ msgstr "🔇 Muted"
 #: src/components/blockout/VideoStage.tsx
 msgid "🔇 静音中"
 msgstr "🔇 Muted"
+
+#: src/components/flow/LeadShotsWizard.tsx
+msgid "🔊 = 卡上有声音样本：台词按它的声音配；没有的，声音由模型自己配（在卡片页录一段就能固定）。"
+msgstr "🔊 = the card has a voice sample, and its lines use that voice. For the others the model picks a voice (record one on the card page to fix it)."
 
 #: src/pages/CardDetailPage.tsx
 msgid "🔊 人物声音"
@@ -3185,6 +3251,10 @@ msgstr "③ {0} (optional)"
 #: src/pages/CustomCardPage.tsx
 msgid "③ 人物信息"
 msgstr "③ Character info"
+
+#: src/components/flow/LeadShotsWizard.tsx
+msgid "3D 动画"
+msgstr "3D animation"
 
 #: src/studio/studioStore.ts
 msgid "3D 建模需 {price} token，余额不足，跳过"
@@ -3482,6 +3552,18 @@ msgstr "zip bundle · up to 25MB"
 msgid "zip 包 ≤25MB，向导会认出它的动作、表情和触摸区。"
 msgstr "Zip package up to 25MB; the wizard detects its motions, expressions and touch areas."
 
+#: src/studio/structuredSkills.ts
+msgid "一两句话（{SCENE_MIN}~{SCENE_MAX} 字）：在哪、谁做了什么、谁说了什么"
+msgstr "A sentence or two ({SCENE_MIN}–{SCENE_MAX} characters): where, who does what, who says what"
+
+#: src/studio/structuredSkills.ts
+msgid "一两句话写一场戏，拆成一段视频里的 2~4 个镜头（景别 / 运镜 / 画面 / 台词），逐格可改再出片"
+msgstr "Write a scene in a sentence or two; it’s split into 2–4 shots within one video (shot size / camera move / picture / lines), each editable before rendering"
+
+#: src/components/flow/LeadShotsWizard.tsx
+msgid "一两句话就够：在哪、什么时候、谁做了什么、谁说了什么。AI 会拆成几个镜头，台词挂到说话的人身上。"
+msgstr "A sentence or two is enough: where, when, who does what, who says what. AI splits it into shots and gives each line to the person saying it."
+
 #: src/components/guide/tours.tsx
 msgid "一个框搜两样"
 msgstr "One box searches two things"
@@ -3521,6 +3603,10 @@ msgstr "One sentence: who should play it? e.g. a shiba inu in sunglasses"
 #: src/pages/RecipePage.tsx
 msgid "一句话：讲谁、讲什么、什么调子。填了就在铺完之后把每一段的剧情改成你的故事（一次对话的价钱，到画布上再点）"
 msgstr "One sentence: who, what, and the tone. If filled, after laying out you can rewrite every segment's plot into your story (the price of one chat reply; you confirm on the canvas)"
+
+#: src/components/flow/LeadShotsWizard.tsx
+msgid "一句话：长相、发型、服装、气质。例：橙色短发、绿眼睛的少女，暗红色短披肩配绿领结"
+msgstr "One sentence: looks, hair, clothes, vibe. E.g. a girl with short orange hair and green eyes, a dark-red short cape and a green bow tie"
 
 #: src/studio/structuredSkills.ts
 msgid "一句话（{THEME_MIN}~{THEME_MAX} 字）：讲谁、讲什么、什么调子。已出片的段与白模段不会改"
@@ -3564,6 +3650,10 @@ msgstr "Who they are, in one sentence"
 #: src/studio/ui/SchemeEditorSheet.tsx
 msgid "一句话说清它产出什么（选方案时会显示）"
 msgstr "One line on what it produces (shown when choosing a scheme)"
+
+#: src/studio/structuredSkills.ts
+msgid "一场戏 → 多镜头"
+msgstr "Scene → shots"
 
 #: src/components/DraftSheet.tsx
 msgid "一屏一段、逐段生成"
@@ -3806,6 +3896,7 @@ msgid "上传后自动用它的首尾帧当本段首尾帧，之后还能细调�
 msgstr "After upload, its first and last frames become this segment's first and last frames; you can fine-tune them and add middle frames later"
 
 #: src/pages/CustomCardPage.tsx
+#: src/studio/leadDraftStore.ts
 #: src/studio/studioStore.ts
 msgid "上传失败"
 msgstr "Upload failed"
@@ -3994,6 +4085,14 @@ msgstr "Next: upload materials"
 msgid "下一步：写内容 ›"
 msgstr "Next: write content ›"
 
+#: src/components/flow/LeadShotsWizard.tsx
+msgid "下一步：写这场戏 ›"
+msgstr "Next: write the scene ›"
+
+#: src/components/flow/LeadShotsWizard.tsx
+msgid "下一步：出片 ›"
+msgstr "Next: render ›"
+
 #: src/pages/CustomCardPage.tsx
 msgid "下一步：定名与铸卡 ›"
 msgstr "Next: name and mint ›"
@@ -4009,6 +4108,10 @@ msgstr "Next: specs ›"
 #: src/pages/SupportModelNewPage.tsx
 msgid "下一步：对映射"
 msgstr "Next: check the mapping"
+
+#: src/components/flow/LeadShotsWizard.tsx
+msgid "下一步：拆镜头 ›"
+msgstr "Next: split into shots ›"
 
 #: src/components/VideoTemplateExtractor.tsx
 msgid "下一步：挑 AI 分析帧"
@@ -4245,6 +4348,10 @@ msgstr "None"
 msgid "不用"
 msgstr "Don't use"
 
+#: src/components/flow/LeadShotsWizard.tsx
+msgid "不用 AI，自己写镜头"
+msgstr "Write the shots myself, no AI"
+
 #: src/components/guide/tours.tsx
 msgid "不用挂满：挂几个换几个，剩下的通常照旧是人偶（切镜多的素材例外，第 1 步说过）。挂过的位子随时能换 —— <0>点中那一格，再点另一张卡</0>就换掉了； 那一格挂着卡时，上面卡片那一行的右端会出现<1>「取下」</1>。都弄好之后点底部的<2>「完成挂卡」</2>，就带着这份对应关系回到上一步去炼视频。"
 msgstr "You don't have to fill every slot: the ones you fill get swapped, and the rest usually stay mannequins (footage with many shot changes is the exception, as step 1 said). A filled slot can be changed any time — <0>select that slot, then tap another card</0> and it's replaced; while the selected slot has a card, <1>“Remove”</1> appears at the right end of the card row above. When everything's set, tap <2>“Done casting”</2> at the bottom to take this mapping back to the previous step and render the video."
@@ -4411,6 +4518,27 @@ msgstr "Main material ready (the real-person photo), no need to upload again · 
 msgid "主素材已就位（就是那张真人照片），不用再传 · 约 {aiPriceText} token"
 msgstr "Main material ready (the real-person photo), no need to upload again · about {aiPriceText} token"
 
+#: src/components/flow/LeadShotsWizard.tsx
+msgid "主角"
+msgstr "Lead"
+
+#: src/studio/studioStore.ts
+msgid "主角和分镜都定好了——人物图会直接给视频模型、不画帧，几个镜头一条出。"
+msgstr "Lead and shots are set — the character images go straight to the video model, no frames drawn, all the shots in one render."
+
+#: src/components/flow/ModePicker.tsx
+#: src/studio/leadCast.ts
+msgid "主角定妆 · 多镜头"
+msgstr "Lead first · multi-shot"
+
+#: src/studio/leadCast.ts
+msgid "主角的形象图没画成，这张卡没收进卡片库。已经画出来、只是没取回来的图仍会计费，实扣以「我的」页余额为准——可以再试一次"
+msgstr "The lead’s images weren’t drawn, so the card wasn’t saved to your library. Images that were drawn but couldn’t be fetched are still charged — check your balance on the “Me” page. You can try again"
+
+#: src/studio/leadCast.ts
+msgid "主角的形象图没画成（{why}），这张卡没收进卡片库。已经画出来、只是没取回来的图仍会计费，实扣以「我的」页余额为准——可以再试一次"
+msgstr "The lead’s images weren’t drawn ({why}), so the card wasn’t saved to your library. Images that were drawn but couldn’t be fetched are still charged — check your balance on the “Me” page. You can try again"
+
 #: src/studio/structuredSkills.ts
 msgid "主题太短（至少 {THEME_MIN} 字）"
 msgstr "The theme is too short (at least {THEME_MIN} chars)"
@@ -4472,6 +4600,10 @@ msgstr "Or drag onto the picture"
 #: src/data/danmaku.ts
 msgid "二刷来了"
 msgstr "second watch, here I am"
+
+#: src/components/flow/LeadShotsWizard.tsx
+msgid "二次元"
+msgstr "Anime"
 
 #: src/data/danmaku.ts
 msgid "云海倒卷这一下太燃了"
@@ -4602,6 +4734,10 @@ msgstr "Character card"
 #: src/components/guide/tours.tsx
 msgid "人物卡的图位由<0>方案</0>决定（格数也随方案走）；其余卡种由卡种决定 （一把剑不该有「{fullBody}」）。<1>第一格既是卡面也是主形象参考</1>： 卡框是竖版 2:3，别的比例会居中显示，不裁你的图。人物卡已有图的格子可以<2>⭕ 圈选改图</2>：圈出要改的地方写一句要求，AI 重画这一格 （单张图的价，价钱印在那颗键上）。"
 msgstr "A character card's slots are set by its <0>scheme</0> (so is the number of slots); other card types get theirs from the type (a sword shouldn't have a “{fullBody}” slot). <1>The first slot is both the card face and the main look reference</1>: the card frame is a 2:3 portrait, and other ratios are shown centered — your image isn't cropped. On a character card, a slot that already has an image offers <2>⭕ Circle to edit</2>: circle what to change and write a request, and the AI redraws that slot (at the price of one image, printed on the button)."
+
+#: src/studio/structuredSkills.ts
+msgid "人物图直接给视频模型、不画帧，一条出"
+msgstr "Character images go straight to the video model, no frames drawn, one render"
 
 #: src/pages/SupportCreatePage.tsx
 msgid "人物模型"
@@ -5143,6 +5279,10 @@ msgstr "e.g. White dress, short hair, a seashell earring in her left ear, slende
 msgid "例：计算机网络"
 msgstr "e.g. Computer Networks"
 
+#: src/components/flow/LeadShotsWizard.tsx
+msgid "例：雨夜的旧书店，小枫推门进来，问柜台后的夜川那本书还在不在；夜川笑着把书递给她"
+msgstr "E.g. An old bookshop on a rainy night. Feng walks in and asks Ye, behind the counter, whether the book is still there; Ye smiles and hands it to her"
+
 #: src/pages/CustomCardPage.tsx
 msgid "例：雨夜的旧城小巷，两侧霓虹招牌，积水的地面反光"
 msgstr "e.g. An old-town alley on a rainy night, neon signs on both sides, puddles reflecting the light"
@@ -5394,6 +5534,10 @@ msgstr "Write what to shoot first (or bring material cards from the Studio) so I
 msgid "先写一句要改什么（例：把背景换成雨夜 / 去掉右上角的台标）"
 msgstr "Write what to change first (e.g. make the background a rainy night / remove the logo in the top right)"
 
+#: src/studio/leadCast.ts
+msgid "先写一句这个人长什么样（至少 {LEAD_DESC_MIN} 个字）"
+msgstr "First write a sentence about how this person looks (at least {LEAD_DESC_MIN} characters)"
+
 #: src/studio/flowStore.ts
 msgid "先写清楚这一段要拍什么"
 msgstr "Write what this segment should show first"
@@ -5443,6 +5587,10 @@ msgstr "Save it for now, circle everything you want to change, then regenerate a
 #: src/components/DownloadSheet.tsx
 msgid "先存进 App，再选去处。"
 msgstr "Files go into the app first, then you pick where they go."
+
+#: src/components/flow/ModePicker.tsx
+msgid "先定人、再拆镜头"
+msgstr "Cast first, then shots"
 
 #: src/pages/FlowPage.tsx
 msgid "先把当前这段炼出来"
@@ -6050,6 +6198,10 @@ msgstr "The info the AI reads"
 msgid "写这一版要问一次模型（{price} token）；写出来的每一句你都能改，不满意可以不用——那一次对话的钱不退。"
 msgstr "Writing this draft takes one model call ({price} tokens). You can edit every line it writes, or not use it at all — that one call isn't refunded."
 
+#: src/studio/structuredSkills.ts
+msgid "写这场戏"
+msgstr "Write the scene"
+
 #: src/studio/cutAutoEdit.ts
 msgid "写进剪辑台"
 msgstr "Apply to the editor"
@@ -6072,6 +6224,7 @@ msgstr "Preparing to upload…"
 #: src/pages/CustomCardPage.tsx
 #: src/pages/CutPage.tsx
 #: src/studio/flowStore.ts
+#: src/studio/leadDraftStore.ts
 #: src/studio/personaWizardStore.ts
 msgid "准备中…"
 msgstr "Preparing…"
@@ -6121,6 +6274,19 @@ msgstr "Anyone with the link"
 #: src/components/ShareSheet.tsx
 msgid "凭链接可见：不进首页和搜索，但<0>拿到链接的人都能看，也能转给别人</0>。"
 msgstr "Anyone with the link: not in Home or search, but <0>anyone who has the link can watch it and pass it on</0>."
+
+#: src/components/flow/LeadShotsWizard.tsx
+msgid "出场：{leadName}（主角）"
+msgstr "Cast: {leadName} (lead)"
+
+#: src/components/flow/LeadShotsWizard.tsx
+msgid "出场：{leadName}（主角）、{others}"
+msgstr "Cast: {leadName} (lead), {others}"
+
+#: src/components/flow/LeadShotsWizard.tsx
+#: src/studio/structuredSkills.ts
+msgid "出片"
+msgstr "Render"
 
 #: src/components/guide/tours.tsx
 msgid "出片、出图、铸卡、解锁付费作品，扣的都是它。点开看余额、买套餐或直充 ——<0>套餐按月给且先扣，直充的不过期</0>。"
@@ -6994,6 +7160,10 @@ msgstr "Studio"
 #: src/pages/WorkshopPage.tsx
 msgid "卡片广场在服务器上，离线库里没有「别人」"
 msgstr "Shared cards live on the server; the offline library has no “others”"
+
+#: src/components/flow/LeadShotsWizard.tsx
+msgid "卡片库里还没有人物卡 —— 在下面现做一个；想用照片做（真人要先认证），去「自己传图做卡片」。"
+msgstr "No character cards in your library yet — make one below. To make one from a photo (real people need verification first), go to “Make a card from your own images”."
 
 #: src/pages/CardDetailPage.tsx
 msgid "卡片详情"
@@ -8014,6 +8184,10 @@ msgstr "Speak only"
 msgid "只说话、不播动作"
 msgstr "speak only, no motion"
 
+#: src/components/flow/LeadShotsWizard.tsx
+msgid "只铺成这一段，先不出片"
+msgstr "Just add the segment, don’t render yet"
+
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "叫什么名字"
 msgstr "What's their name"
@@ -8258,6 +8432,10 @@ msgstr "Name"
 msgid "名字（必填，≤{NAME_MAX} 字）"
 msgstr "Name (required, up to {NAME_MAX} characters)"
 
+#: src/components/flow/LeadShotsWizard.tsx
+msgid "名字（选填；台词按这个名字认说话人）"
+msgstr "Name (optional; lines are matched to speakers by this name)"
+
 #. placeholder {0}: jobs.length
 #: src/studio/signOutGuard.ts
 msgid "后台还有 {0} 件活在跑（{names}），等它们跑完再退出登录，结果才会落在这个账号里。"
@@ -8494,6 +8672,10 @@ msgstr "Static"
 #: src/pages/TemplateDetailPage.tsx
 msgid "固定，套用后不能换"
 msgstr "Fixed — can't be changed once applied"
+
+#: src/components/flow/LeadShotsWizard.tsx
+msgid "国风"
+msgstr "Chinese ink"
 
 #: src/components/guide/tours.tsx
 msgid "图会被怎么处理"
@@ -10081,6 +10263,14 @@ msgstr "You’ve left the real-person route: the real-person photo and the Volce
 msgid "已经聊满 {PREVIEW_ROUNDS_MAX} 轮了"
 msgstr "All {PREVIEW_ROUNDS_MAX} rounds used"
 
+#: src/components/flow/LeadShotsWizard.tsx
+msgid "已经选满 {LEAD_CAST_MAX} 个人：官方说一段里超过 4 个人不稳。"
+msgstr "{LEAD_CAST_MAX} people is the limit: the official guide says more than 4 in one segment gets unstable."
+
+#: src/studio/leadDraftStore.ts
+msgid "已经选满 {max} 个人，「{name}」收进了卡片库但没选上——先取下一个再点它"
+msgstr "You’ve already picked {max} people, so “{name}” was saved to your library but not picked — remove someone first, then tap it"
+
 #: src/studio/ui/projection.tsx
 msgid "已自动取它的首尾帧当本段首尾帧；可细调、加中间帧（最多 {CUSTOM_MID_MAX} 张）"
 msgstr "Its first and last frames are now this segment's first and last frames; you can fine-tune them and add middle frames (up to {CUSTOM_MID_MAX})"
@@ -10510,6 +10700,10 @@ msgstr "Recording… (playing this clip)"
 #: src/components/VideoCardAnnotator.tsx
 msgid "录制中途被系统暂停了（多半是切到了后台）——回到这一页重新点一次「录这一段」"
 msgstr "Recording was paused by the system (most likely the app went to the background) — come back to this page and tap “Record this clip” again"
+
+#: src/studio/structuredSkills.ts
+msgid "形状不对整发不认；多出来的镜头不收"
+msgstr "If the format is wrong the whole reply is rejected; extra shots are dropped"
 
 #: src/studio/cutAutoEdit.ts
 #: src/studio/structuredSkills.ts
@@ -11257,8 +11451,16 @@ msgid "抽帧中…"
 msgstr "Grabbing frames…"
 
 #: src/studio/structuredSkills.ts
+msgid "拆出来的分镜有 {len} 字，超过这一档出片提示词的上限 {max} 字，这一次已经计费——把这场戏写短些再拆"
+msgstr "The split comes to {len} characters, over this tier’s {max}-character prompt limit. This run has already been charged — make the scene shorter and split again"
+
+#: src/studio/structuredSkills.ts
 msgid "拆出来的段一段都不合形状（剧情太短或缺字段）——把剧本写具体些再试"
 msgstr "None of the split segments had the right shape (story too short or fields missing) — make the script more specific and try again"
+
+#: src/studio/structuredSkills.ts
+msgid "拆出来的镜头一个都没写画面，这一次已经计费——把这场戏写具体些再拆"
+msgstr "None of the shots came back with a picture. This run has already been charged — make the scene more specific and split again"
 
 #: src/studio/structuredSkills.ts
 msgid "拆分镜"
@@ -11277,9 +11479,31 @@ msgstr "Splitting into shots costs {price} tokens and your balance is too low �
 msgid "拆成 {0} 段"
 msgstr "Split into {0, plural, one {# segment} other {# segments}}"
 
+#: src/components/flow/LeadShotsWizard.tsx
+msgid "拆成 2~{SHOT_MAX} 个镜头：每个镜头写景别、运镜、画面，台词挂说话人；不写每个镜头几秒（官方说模型按剧情自己分配节奏更稳）。拆完逐格可改。"
+msgstr "Splits into 2–{SHOT_MAX} shots, each with shot size, camera move and picture, and lines tied to their speakers. No per-shot seconds (the official guide says pacing is steadier when the model follows the story). Every shot is editable afterwards."
+
 #: src/components/flow/ScriptSkillSheet.tsx
 msgid "拆成分镜（{price}）"
 msgstr "Split into shots ({price})"
+
+#: src/components/flow/LeadShotsWizard.tsx
+#: src/studio/structuredSkills.ts
+msgid "拆镜头"
+msgstr "Split into shots"
+
+#: src/components/flow/ModePicker.tsx
+msgid "拆镜头 {chatPrice}，视频约 {leadVideo} / {leadSec} 秒"
+msgstr "Shot split {chatPrice}, video about {leadVideo} / {leadSec}s"
+
+#. why 是失败原因整句；moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格
+#: src/studio/leadDraftStore.ts
+msgid "拆镜头没成：{why}。{moneyLine}"
+msgstr "The shot split didn’t work: {why}. {moneyLine}"
+
+#: src/studio/structuredSkills.ts
+msgid "拆镜头要 {price} token，余额不够——去「我的」页充值"
+msgstr "Splitting into shots costs {price} tokens — not enough balance. Top up on the “Me” page"
 
 #: src/components/flow/SkillPanel.tsx
 msgid "拉取中…"
@@ -11828,6 +12052,10 @@ msgstr "Queued…"
 msgid "接在我现在的 {0} 段后面"
 msgstr "{0, plural, one {Append after my current # segment} other {Append after my current # segments}}"
 
+#: src/components/flow/LeadShotsWizard.tsx
+msgid "接着上一段的真实结尾往下拍：上一段的最后一帧也会一起发过去。"
+msgstr "Continues from the previous segment’s actual ending: its last frame is sent along too."
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "接着上一段的真实结尾拍：上一段出片后，它的最后一帧当图片 1 发，不画新帧"
 msgstr "Continues from the previous segment's actual ending: once that segment renders, its last frame is sent as image 1 and no new frame is drawn"
@@ -12255,6 +12483,7 @@ msgstr "None of these saved videos can be opened: the creators deleted them or s
 msgid "收费方式"
 msgstr "Pricing"
 
+#: src/components/flow/LeadShotsWizard.tsx
 #: src/components/VideoCardAnnotator.tsx
 #: src/pages/CustomCardPage.tsx
 #: src/pages/FlowPage.tsx
@@ -12737,6 +12966,7 @@ msgstr "No preview frame"
 
 #: src/components/blockout/TrimBar.tsx
 #: src/components/flow/FlowCanvas.tsx
+#: src/components/flow/LeadShotsWizard.tsx
 #: src/components/flow/SegSettings.tsx
 #: src/studio/ui/PlanBoard.tsx
 msgid "时长"
@@ -12908,6 +13138,10 @@ msgstr "{collectGone, plural, one {# saved video can't be opened: the creator ma
 msgid "有 {collectUnknown} 条这会儿没取回来（网络没通）——它们还在，不是被删了。"
 msgstr "{collectUnknown, plural, one {# saved video couldn't be loaded right now (no network) — it's still there, not deleted.} other {# saved videos couldn't be loaded right now (no network) — they're still there, not deleted.}}"
 
+#: src/components/flow/LeadShotsWizard.tsx
+msgid "有 {count} 个镜头没写画面，没收"
+msgstr "{count, plural, one {# shot had no picture and was dropped} other {# shots had no picture and were dropped}}"
+
 #: src/data/account.ts
 msgid "有 {count} 张卡没有有效的卡片编号，存不进你的卡片库（多半是这条作品是老版本发布的）"
 msgstr "{count, plural, one {# card has no valid card ID and can't be saved to your card library} other {# cards have no valid card ID and can't be saved to your card library}} (most likely this video was published with an older version of the app)"
@@ -13009,6 +13243,10 @@ msgstr "A segment is generating. Wait for it to finish before redrawing this pla
 #: src/studio/studioStore.ts
 msgid "有一段正在生成（画布那一面也算同一条流水线）——等它跑完再动这一段。"
 msgstr "A segment is generating (the canvas counts as the same pipeline) — wait for it to finish before changing this segment."
+
+#: src/components/flow/LeadShotsWizard.tsx
+msgid "有一段正在生成中，等它跑完再出这一段（可以先铺成这一段）。"
+msgstr "A segment is generating — wait for it to finish before rendering this one (you can add the segment now)."
 
 #: src/studio/flowStore.ts
 msgid "有一段正在生成中，等它跑完再切换这一段的模式"
@@ -13849,6 +14087,10 @@ msgstr "The model's answer was cut off partway (too many clips or lines that are
 msgid "模型写到一半被截断了（输出超过 {limit} token 的上限），这一次已经计费——把剧本删短一些或分两次拆再试"
 msgstr "The model's output was cut off midway (it went past the {limit}-token output limit). This run has already been charged — shorten the script or split it into two runs and try again."
 
+#: src/studio/structuredSkills.ts
+msgid "模型写到一半被截断了（输出超过 {limit} token 的上限），这一次已经计费——把这场戏写短些再拆"
+msgstr "The model’s output was cut off midway (it went past the {limit}-token output limit). This run has already been charged — make the scene shorter and split again"
+
 #: src/api/uploads.ts
 msgid "模型包最大 {maxMb}MB（这份约 {curMb}MB），请先压小再传。"
 msgstr "Model packages can be at most {maxMb}MB (this one is about {curMb}MB). Make it smaller before uploading."
@@ -13865,6 +14107,14 @@ msgstr "The model bundle has been detected — go back to continue."
 msgid "模型发布失败：{text}"
 msgstr "Model publishing failed: {text}"
 
+#: src/studio/structuredSkills.ts
+msgid "模型回的分镜读不出来，这一次已经计费——再拆一次"
+msgstr "The model’s shots couldn’t be read. This run has already been charged — split again"
+
+#: src/studio/structuredSkills.ts
+msgid "模型回的格式有问题（几个镜头或几句台词挤进了同一格），这一次已经计费——再拆一次"
+msgstr "The model’s reply was malformed (several shots or lines were squeezed into one field). This run has already been charged — split again"
+
 #. placeholder {0}: segs.length
 #. placeholder {1}: list.length
 #: src/studio/structuredSkills.ts
@@ -13875,9 +14125,17 @@ msgstr "The model returned the wrong number of segments (expected {0}, got {1});
 msgid "模型地址返回的是网页而不是模型文件"
 msgstr "The model address returned a web page instead of a model file"
 
+#: src/components/flow/LeadShotsWizard.tsx
+msgid "模型多写了 {count} 个镜头，一段最多 {SHOT_MAX} 个，多的没收"
+msgstr "The model wrote {count, plural, one {# extra shot} other {# extra shots}}; a segment holds at most {SHOT_MAX}, so the extras were dropped"
+
 #: src/studio/structuredSkills.ts
 msgid "模型按段写：标题 / 剧情 / 时长 / 景别 · 运镜 · 情绪节拍"
 msgstr "The model writes each segment: title / story / duration / shot size · camera move · emotional beat"
+
+#: src/studio/structuredSkills.ts
+msgid "模型按镜头写：景别 / 运镜 / 画面 / 台词（挂说话人）"
+msgstr "The model writes per shot: shot size / camera move / picture / lines (tied to speakers)"
 
 #: src/live2d/prefetch.ts
 msgid "模型描述文件不是合法的 JSON"
@@ -13891,6 +14149,10 @@ msgstr "Can't read the model description file (HTTP {0})"
 #: src/pages/SupportModelsPage.tsx
 msgid "模型文件读不到（{why}），没有切换。"
 msgstr "Couldn't read the model files ({why}); nothing was switched."
+
+#: src/studio/structuredSkills.ts
+msgid "模型没有按格式回分镜，这一次已经计费——再拆一次，或把这场戏写具体些"
+msgstr "The model didn’t return shots in the expected format. This run has already been charged — split again, or make the scene more specific"
 
 #: src/studio/cutAgent.ts
 msgid "模型没有按约定的格式回话，这一句一件都没办——换个说法再试"
@@ -14309,6 +14571,10 @@ msgstr "Splitting the whole video into {count, plural, one {# segment} other {# 
 #: src/pages/PublishPage.tsx
 msgid "正在把本片卡组存进你的工坊…"
 msgstr "Saving this video's deck to your Studio…"
+
+#: src/components/flow/LeadShotsWizard.tsx
+msgid "正在拆镜头…"
+msgstr "Splitting into shots…"
 
 #: src/data/templates.ts
 msgid "正在提交：AI 先看 {frames} 帧认出画面里有哪些人，再把这一段发去出片…"
@@ -14971,6 +15237,7 @@ msgid "没能取回这条作品的工坊工程（{fetchErr}）。本机还留着
 msgstr "Couldn't get this video's Studio project ({fetchErr}). If this device still has that version's canvas, tap “Keep this version again” above first; otherwise you'll have to publish a new video."
 
 #: src/data/account.ts
+#: src/studio/leadCast.ts
 msgid "没能同步到服务器"
 msgstr "Couldn't sync to the server"
 
@@ -14994,6 +15261,10 @@ msgstr "Couldn't process it. Please try again"
 #: src/data/account.ts
 msgid "没能存进你的卡片库：登录态可能已经失效。"
 msgstr "Couldn't save to your card library: your sign-in may have expired."
+
+#: src/studio/leadCast.ts
+msgid "没能存进你的卡片库：登录态可能已经失效。重新登录后再做一次"
+msgstr "Couldn’t save it to your card library: your login may have expired. Log in again and make it again"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "没能存进你的卡片库：登录态可能已经失效。重新登录后再点一次（圈好的图还在）。"
@@ -15271,6 +15542,7 @@ msgstr "Playing…"
 #: src/components/cut/AutoEditSheet.tsx
 #: src/components/flow/CastPreviewCard.tsx
 #: src/components/flow/FlowCanvas.tsx
+#: src/components/flow/LeadShotsWizard.tsx
 #: src/components/flow/ReviseBox.tsx
 #: src/components/flow/ScriptSkillSheet.tsx
 #: src/components/flow/ThemeRewriteSheet.tsx
@@ -15284,6 +15556,10 @@ msgstr "demo"
 #: src/components/cut/AutoEditSheet.tsx
 msgid "演示：这一版不是模型写的，只是把每段画面描述的第一句摆了上来。"
 msgstr "Demo: this draft wasn't written by a model — it just uses the first sentence of each clip's description."
+
+#: src/components/flow/LeadShotsWizard.tsx
+msgid "演示：这是本地按句号切的，不是模型写的（这台机器没接上 AI）。"
+msgstr "Demo: this was split locally at sentence breaks, not written by the model (this device isn’t connected to AI)."
 
 #: src/ai/index.ts
 msgid "演示场景"
@@ -15507,6 +15783,10 @@ msgstr "Tap “Edit” in the top right to pick some cards"
 #: src/pages/FlowPage.tsx
 msgid "点名句"
 msgstr "Casting line"
+
+#: src/components/flow/LeadShotsWizard.tsx
+msgid "点名字换主角："
+msgstr "Tap a name to make them the lead:"
 
 #: src/studio/stage/StageOverlay.tsx
 msgid "点地面把选中的挪过去；点人偶换选中"
@@ -15831,6 +16111,22 @@ msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜�
 msgid "环绕"
 msgstr "Orbit"
 
+#: src/studio/leadCast.ts
+msgid "现做一个主角要 {price} token，余额不够——去「我的」页充值"
+msgstr "Making a lead costs {price} tokens — not enough balance. Top up on the “Me” page"
+
+#: src/components/flow/LeadShotsWizard.tsx
+msgid "现做一个人物"
+msgstr "Make a character now"
+
+#: src/studio/leadDraftStore.ts
+msgid "现做主角"
+msgstr "Make a lead"
+
+#: src/studio/leadDraftStore.ts
+msgid "现做主角没成，回去看原因"
+msgstr "Making the lead didn’t work — go back to see why"
+
 #: src/components/DraftSheet.tsx
 msgid "现在打不开这条草稿"
 msgstr "This draft can't be opened right now"
@@ -16124,6 +16420,10 @@ msgstr "User says"
 msgid "用手指沿着这件东西的边描一整圈，松手自动闭合。圈外的桌面、手和别的东西，都会换成浅灰纯色底。"
 msgstr "Trace all the way around the object's edge with your finger; lifting it closes the loop. The table, hands and anything else outside the loop become a plain light-gray background."
 
+#: src/components/flow/LeadShotsWizard.tsx
+msgid "用照片做（真人要先认证）→ 自己传图做卡片"
+msgstr "Use a photo (real people need verification first) → Make a card from your own images"
+
 #: src/pages/CustomCardPage.tsx
 msgid "用真人素材做卡片"
 msgstr "Make a card from real-person material"
@@ -16209,6 +16509,10 @@ msgstr "Draws 2 images: the main image + a reference image of the same subject, 
 msgid "画不出来的包发不了。"
 msgstr "A bundle that doesn't render can't be published."
 
+#: src/components/flow/LeadShotsWizard.tsx
+msgid "画两张：全身立绘 + 照着它画的面部特写（官方建议的「全身照 + 大头照」）。不画写实照片风：高清 / 电影级会把写实的人脸当成真人拒收。"
+msgstr "Draws two: a full-body illustration + a face close-up drawn from it (the official “full-body + headshot” advice). No photorealistic style: HD and Cinematic reject realistic faces as real people."
+
 #: src/components/CardModelFit.tsx
 msgid "画两张约 {framesPrice} token，余额不够——去「我的」页充值"
 msgstr "Drawing both takes about {framesPrice} token and your balance is too low — top up on the Me page"
@@ -16221,6 +16525,7 @@ msgstr "It renders. Try touching her, or drag to see whether her gaze follows."
 msgid "画布里还有本机地址，换台设备取回来会是空的"
 msgstr "The canvas still contains local addresses, so it would be empty when retrieved on another device"
 
+#: src/components/flow/LeadShotsWizard.tsx
 #: src/components/flow/SegSettings.tsx
 #: src/studio/ui/projection.tsx
 msgid "画幅"
@@ -16290,6 +16595,10 @@ msgstr "Watermarks, channel logos and subtitles in the picture get <0>copied int
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "画面里还有人没列出来，加一个"
 msgstr "Someone in the picture isn't listed — add one"
+
+#: src/components/flow/LeadShotsWizard.tsx
+msgid "画风"
+msgstr "Style"
 
 #: src/components/flow/RefStrip.tsx
 msgctxt "临时参考图的用途：没在句子里点名时，系统按它替这张图说一句"
@@ -18369,6 +18678,10 @@ msgstr "Drawing the ending frame…"
 msgid "绘制起拍画面…"
 msgstr "Drawing the opening frame…"
 
+#: src/components/flow/LeadShotsWizard.tsx
+msgid "绘本"
+msgstr "Picture book"
+
 #. placeholder {0}: tpl!.roles!.length
 #. placeholder {0}: tpl.roles!.length
 #: src/components/flow/FlowCanvas.tsx
@@ -18911,6 +19224,10 @@ msgstr "The draft has no name yet — go back a step and add one before chatting
 #: src/pages/ProfilePage.tsx
 msgid "获赞"
 msgstr "Likes"
+
+#: src/studio/structuredSkills.ts
+msgid "落进分镜表逐格可改，点了才出片"
+msgstr "Lands in the shot list, editable shot by shot; renders only when you tap"
 
 #: src/data/templates.ts
 msgctxt "人偶的主色（挂卡提醒那句话里显示）"
@@ -20608,6 +20925,10 @@ msgstr "This tier doesn't use the plan board."
 msgid "这一档最短 {minSec} 秒"
 msgstr "This tier needs at least {minSec}s"
 
+#: src/studio/leadCast.ts
+msgid "这一档暂时报不出价，换个时间再试"
+msgstr "This tier can’t be priced right now — try again later"
+
 #: src/studio/ui/NpcDialog.tsx
 msgid "这一档暂时报不出价，换个档位再试"
 msgstr "This tier can't be priced right now; try another tier"
@@ -20995,6 +21316,7 @@ msgstr "This run has no plans, so no segment can be forged"
 msgid "这一炉推演失败了：{reason}——歇口气再点一次「🎲 推演三套方案」。"
 msgstr "Drafting failed this time: {reason} — take a breath and tap “🎲 Draft three plans” again."
 
+#: src/studio/leadCast.ts
 #: src/studio/studioStore.ts
 msgid "这一炉是上一个登录的账号开的，已作废。"
 msgstr "This batch was started by the previously signed-in account and has been discarded."
@@ -21733,6 +22055,18 @@ msgstr "This device decoded a duration of {0}s, but the server registered {1}s. 
 #: src/components/blockout/BlockoutTrimmer.tsx
 msgid "这台设备解出来的画面是 {0}×{1}，服务器登记的却是 {w}×{h}。两边对不上时，你在这里框住的位置很可能不是服务器真正裁到的那一块（常见于手机竖拍、带旋转标记的视频），而白模化这一步的钱在开始计算后是退不了的——为免白花，请换一个已经转正的 mp4 再来。"
 msgstr "This device decoded the picture as {0}×{1}, but the server registered {w}×{h}. When they don't match, the area you box here is probably not what the server actually crops (common with portrait phone videos that carry a rotation flag), and blockout charges can't be refunded once processing starts — to avoid wasting money, use an MP4 that's already been rotated upright."
+
+#: src/components/flow/LeadShotsWizard.tsx
+msgid "这场戏"
+msgstr "The scene"
+
+#: src/studio/structuredSkills.ts
+msgid "这场戏写得太短（至少 {SCENE_MIN} 个字）——写清在哪、谁做了什么、谁说了什么"
+msgstr "The scene is too short (at least {SCENE_MIN} characters) — say where, who does what, who says what"
+
+#: src/components/flow/LeadShotsWizard.tsx
+msgid "这场戏改过了，下面的分镜还是按原来那句拆的 —— 点「重新拆」按新的拆，或者直接在下面改。"
+msgstr "The scene changed, but the shots below were split from the old version — tap “Split again” to use the new one, or edit below."
 
 #: src/components/PhotoSubjectPicker.tsx
 msgid "这块太小了：折算只有 {cutBest} px，至少 {REF_SHORT_REJECT} px——框大一点再继续"
@@ -22485,6 +22819,10 @@ msgstr "Return to the segment window to choose another mode"
 msgid "退回铸段窗重选模式？"
 msgstr "Go back and choose another mode?"
 
+#: src/components/flow/LeadShotsWizard.tsx
+msgid "选 1~{LEAD_CAST_MAX} 个人，第一个是主角。人物图会直接给视频模型、不画帧 —— 人像以卡上的图为准。"
+msgstr "Pick 1–{LEAD_CAST_MAX} people; the first is the lead. Their images go straight to the video model with no frames drawn — faces follow the card images."
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "选「用通用参数演」= 不挂你的 exp3，改用我们那套参数（眉毛、嘴角、脸红）去凑 —— 模型没有对应表情文件时这条更稳。"
 msgstr "“Use generic parameters” means your exp3 isn't used; the expression is approximated with our parameter set (brows, mouth corners, blush) instead — more reliable when the model has no matching expression file."
@@ -22552,6 +22890,10 @@ msgstr "After choosing an image, box this prop and trace around its edge — onl
 #: src/pages/CustomCardPage.tsx
 msgid "选填"
 msgstr "Optional"
+
+#: src/components/flow/ModePicker.tsx
+msgid "选好（或现做）主角，写一场戏，AI 拆成 2~4 个镜头带台词，一条出。updream 作者的做法"
+msgstr "Pick (or make) your lead, write a scene, and AI splits it into 2–4 shots with lines, rendered in one go. The updream creators’ way"
 
 #: src/components/blockout/DetectRolesEntry.tsx
 msgid "选定场景/人物数量变化的特定帧，让 AI 分析每一段视频中的人物。"
@@ -23081,6 +23423,10 @@ msgstr "Minting failed: {0}"
 #: src/pages/tutor/TutorNewPage.tsx
 msgid "铸好了，正在进教室…"
 msgstr "Ready, entering the classroom…"
+
+#: src/studio/studioStore.ts
+msgid "铸段窗正忙，稍后再试"
+msgstr "The segment window is busy — try again shortly"
 
 #. placeholder {0}: title.trim() || course.title
 #: src/pages/tutor/TutorNewPage.tsx

@@ -892,6 +892,53 @@ export function appendIssue(s: Pick<FlowState, "nodes" | "template" | "busy">): 
   return null;
 }
 
+/** appendNode 收的那一段（工坊铸段窗各车道、跟着做 B 的向导都从这里落段） */
+export interface AppendSpec {
+  proposals: Proposal[];
+  /** null = 三套待挑（plan:"picking"） */
+  chosenId: string | null;
+  materials?: Card[];
+  videoTier?: string;
+  aspect?: VideoAspect;
+  requirement?: string;
+  /** 首帧承接上一段真实尾帧（缺省 = 有上一段就承接） */
+  chain?: boolean;
+  /** 参考图直出段（FlowNode.direct）。缺省 = 普通段 */
+  direct?: boolean;
+}
+
+/**
+ * appendNode 落下的那一段**长什么样** —— 唯一实现（纯函数，不碰 store、不判门禁）：appendNode 落它，
+ * 报价（appendQuote）也拿它算。★ 报价必须照着「真会落下的那一段」算（2026-10-04 跟着做 B：向导最后一步先报价、点了才落段出片）——
+ * 在宿主里另拼一个「差不多的」节点去问 nodeCost，哪天这里多一位影响价钱的字段，报价与实扣就悄悄分叉。
+ */
+export function appendedNode(nodes: FlowNode[], spec: AppendSpec): FlowNode {
+  const prev = nodes[nodes.length - 1];
+  return {
+    id: uid("fn"),
+    proposals: spec.proposals,
+    chosenId: spec.chosenId ?? spec.proposals[0].id,
+    plan: spec.chosenId === null ? "picking" : "picked",
+    requirement: spec.requirement ?? "",
+    videoTier: spec.videoTier ?? prev?.videoTier ?? DEFAULT_TIER,
+    aspect: spec.aspect ?? prev?.aspect ?? DEFAULT_ASPECT,
+    materials: spec.materials,
+    chain: spec.chain ?? !!prev,
+    videoByProposal: Object.fromEntries(spec.proposals.filter((p) => p.videoUrl).map((p) => [p.id, p.videoUrl as string])),
+    status: "idle",
+    anns: [],
+    // 新段恒"明确没有模板"（理由与 addNode 那段 ★★★ 逐字相同）
+    tpl: null,
+    // 参考图直出段（工坊铸段窗的「参考图直出」车道、跟着做 B 铺的）：判否定，缺省 = 普通段
+    ...(spec.direct ? { direct: true } : {}),
+  };
+}
+
+/** 照这份 spec 落一段、出片要多少（与 genNode 真扣同一把尺 nodeCost，节点同一个 appendedNode） */
+export function appendQuote(nodes: FlowNode[], mode: FlowMode, spec: AppendSpec): number {
+  return nodeCost([...nodes, appendedNode(nodes, spec)], nodes.length, mode);
+}
+
 /** 素材参考模式下中间帧参考图的上限（首/尾帧另算，共 4 张图 —— 方舟 2.5 收 1–30，
  *  取小是给提示词点名句留字数：每多一张就多一句「图片N是…」） */
 export const CUSTOM_MID_MAX = 2;
@@ -1401,19 +1448,7 @@ interface FlowState {
    * 门禁与 addNode 完全同源：末段必须已出片、生成中拒、白模段后拒、pinUnstatedTpl 同拍。
    * 返回 false = 被拒（原因在 err，铁律八）。
    */
-  appendNode: (spec: {
-    proposals: Proposal[];
-    /** null = 三套待挑（plan:"picking"） */
-    chosenId: string | null;
-    materials?: Card[];
-    videoTier?: string;
-    aspect?: VideoAspect;
-    requirement?: string;
-    /** 首帧承接上一段真实尾帧（缺省 = 有上一段就承接） */
-    chain?: boolean;
-    /** 参考图直出段（FlowNode.direct）。缺省 = 普通段 */
-    direct?: boolean;
-  }) => string | null;
+  appendNode: (spec: AppendSpec) => string | null;
   /** 把一段真实成片写到某套方案名下（videoByProposal + proposal.videoUrl 两处一起，
    *  两处是同一份出片的两个读法——剪辑页「只编辑本段」写回走这里，别只写一半） */
   setProposalVideo: (nodeId: string, proposalId: string, url: string) => void;
@@ -2639,7 +2674,6 @@ export const useFlow = create<FlowState>()((set, get) => ({
       // 门禁与 addNode 逐条同源（白模段后拒 = appendBlocked 一处 / 末段未出片拒 /
       // 生成中拒 / pinUnstatedTpl 同拍）。分开成两个 action 是因为出生形态不同：
       // addNode 生空白段，这里落**推演好的成品段**（工坊铸段：三套方案或自定义单方案已经在手）
-      const prev = s.nodes[s.nodes.length - 1];
       {
         // 三条门禁收在 appendIssue 一处：工坊铸段窗「推演三套」扣钱之前问的也是它（见那个函数的 ★★）
         const issue = appendIssue(s);
@@ -2647,26 +2681,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
       }
       if (spec.proposals.length === 0) return { err: t`这一炉一个方案都没有，铸不成段` };
       const i = s.nodes.length;
-      const node: FlowNode = {
-        id: uid("fn"),
-        proposals: spec.proposals,
-        chosenId: spec.chosenId ?? spec.proposals[0].id,
-        plan: spec.chosenId === null ? "picking" : "picked",
-        requirement: spec.requirement ?? "",
-        videoTier: spec.videoTier ?? prev?.videoTier ?? DEFAULT_TIER,
-        aspect: spec.aspect ?? prev?.aspect ?? DEFAULT_ASPECT,
-        materials: spec.materials,
-        chain: spec.chain ?? !!prev,
-        videoByProposal: Object.fromEntries(
-          spec.proposals.filter((p) => p.videoUrl).map((p) => [p.id, p.videoUrl as string]),
-        ),
-        status: "idle",
-        anns: [],
-        // 新段恒"明确没有模板"（理由与 addNode 那段 ★★★ 逐字相同）
-        tpl: null,
-        // 参考图直出段（工坊铸段窗的「参考图直出」车道铺的）：判否定，缺省 = 普通段
-        ...(spec.direct ? { direct: true } : {}),
-      };
+      // 落下的这一段长什么样只在 appendedNode 一处（报价 appendQuote 问的是同一个节点）
+      const node = appendedNode(s.nodes, spec);
       newId = node.id;
       return { nodes: [...pinUnstatedTpl(s.nodes, s.template), node], cursor: i, err: "" };
     });

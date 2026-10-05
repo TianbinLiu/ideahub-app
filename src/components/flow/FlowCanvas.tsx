@@ -44,6 +44,9 @@ import CustomFrameSlots from "./CustomFrameSlots";
 import RefStrip from "./RefStrip";
 import ModePicker, { modeTierOf } from "./ModePicker";
 import { RestatePlaceTip, SceneCardTip } from "./DirectTips";
+import LeadShotsWizard from "./LeadShotsWizard";
+import { leadAppendSpec, type LeadSpec } from "../../studio/leadCast";
+import { resetLeadScene } from "../../studio/leadDraftStore";
 import Sheet from "../Sheet";
 import { modeBlock, type GuidedModeId } from "../../data/guidedModes";
 import FrameEditBox from "./FrameEditBox";
@@ -55,6 +58,7 @@ import { fileToFrameDataUrl } from "../../utils/image";
 import {
   CUSTOM_MID_MAX,
   appendIssue,
+  appendQuote,
   derivesProposals,
   chosenOf,
   clampCursor,
@@ -97,7 +101,7 @@ import { requestLandscape } from "../../hooks/useOrientationLock";
 // ★ VIDEO_PROMPT_MAX 与线性视图取自同一处（ai 层是提示词硬顶的唯一出处）：
 //   在这里另抄一个 400，改上限时画布就开始说假话
 import { AI_REAL, VIDEO_PROMPT_MAX } from "../../ai";
-import { aspectCss, type VideoTemplate } from "../../types";
+import { DEFAULT_ASPECT, aspectCss, type VideoAspect, type VideoTemplate } from "../../types";
 import { carryIsHard } from "../../studio/segmentGen";
 
 const CARD_W = 216;
@@ -175,6 +179,13 @@ export default function FlowCanvas({
    * 挑定才真的加一段。tier = 屏上选着的档（缺省接上一段的档）。null = 没开
    */
   const [addPick, setAddPick] = useState<{ tier: string } | null>(null);
+  /**
+   * 跟着做 B「主角定妆 · 多镜头」的向导开在哪一档上（选法屏挑了它）；null = 没开。画幅在向导最后一步定（缺省接上一段的）。
+   * ★ 向导走完才落段（finishLead）：不先加一段空段 —— 向导半途关掉的话，画布上就多了一张什么都没有的卡。
+   *   向导自己的状态在 studio/leadDraftStore，关了再开原样还在。
+   */
+  const [leadSheet, setLeadSheet] = useState<{ tier: string; aspect: VideoAspect } | null>(null);
+  const flowMode = useFlow((s) => s.mode);
   /** 刚加的那一段要一打开就弹选模板层（选法屏里挑了「套模板」）；用掉就清 */
   const [autoTplFor, setAutoTplFor] = useState<string | null>(null);
   /** 带着主题进来的那一次自动开面板（关了就不再开） */
@@ -365,6 +376,13 @@ export default function FlowCanvas({
   /** 选法屏挑定：真的加一段，再按选的档与做法把它摆好（车道的写入口都在 store：setNodeDirect / setNodeCustom / 选模板层） */
   function pickAddMode(m: GuidedModeId, tierId: string) {
     setAddPick(null);
+    if (m === "lead") {
+      const st = useFlow.getState();
+      // 旧的整句拒绝别带进向导（它在向导最后一步画 store.err，见 finishLead）
+      useFlow.setState({ err: "" });
+      setLeadSheet({ tier: tierId, aspect: st.nodes[st.nodes.length - 1]?.aspect ?? DEFAULT_ASPECT });
+      return;
+    }
     const before = useFlow.getState().nodes.length;
     addNode();
     const after = useFlow.getState().nodes;
@@ -383,6 +401,24 @@ export default function FlowCanvas({
     else if (m === "template") setAutoTplFor(nn.id);
     setSel(after.length - 1);
     panTo(after.length - 1); // 不挪的话新段在屏幕外，等于"点了没反应"
+  }
+
+  /**
+   * B 的向导点了「生成这一段」/「只铺成这一段」：照向导的结果落一段（appendNode：门禁与「＋ 加一段」同源），要出片就接着走 genNode
+   * （与这一面那颗「⚡ 生成本段」同一个入口，报价是向导里那个 appendQuote —— 同一个节点、同一把尺）。
+   * 被拒时原因在 store.err：向导盖在错误条上面，自己画着那句话，人不用关掉向导就能看到。
+   */
+  function finishLead(spec: LeadSpec, generate: boolean) {
+    if (!leadSheet) return;
+    const id = useFlow.getState().appendNode(leadAppendSpec(spec, leadSheet.tier));
+    if (!id) return;
+    setLeadSheet(null);
+    resetLeadScene();
+    const i = useFlow.getState().nodes.findIndex((n) => n.id === id);
+    setSel(i);
+    setCursor(i);
+    panTo(i);
+    if (generate) void useFlow.getState().genNode(id);
   }
 
   function panTo(i: number) {
@@ -785,6 +821,28 @@ export default function FlowCanvas({
             tierId={addPick.tier}
             onTier={(id) => setAddPick({ tier: id })}
             onPick={(m) => pickAddMode(m, addPick.tier)}
+          />
+        </Sheet>
+      )}
+      {leadSheet && (
+        <Sheet onClose={() => setLeadSheet(null)}>
+          <div className="mb-2 flex justify-end">
+            <CloseButton chip="sm" size={13} align="end" onClick={() => setLeadSheet(null)} />
+          </div>
+          <LeadShotsWizard
+            tierId={leadSheet.tier}
+            aspect={leadSheet.aspect}
+            onAspect={(a) => setLeadSheet({ ...leadSheet, aspect: a })}
+            chained={nodes.length > 0}
+            quote={(spec) => appendQuote(nodes, flowMode, leadAppendSpec(spec, leadSheet.tier))}
+            onBack={() => {
+              const tier = leadSheet.tier;
+              setLeadSheet(null);
+              setAddPick({ tier });
+            }}
+            onFinish={finishLead}
+            err={err}
+            busy={busy || nodes.some((n) => n.status === "generating")}
           />
         </Sheet>
       )}

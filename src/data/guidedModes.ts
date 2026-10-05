@@ -5,11 +5,11 @@
 //
 // ★★ 主人 10-04「六个模式也需要根据用户选择的模型来选择性显示」：模式能不能用**按档位的能力判**（收不收参考图、是不是按发计价的真人档、
 //   能不能推演三套），不按档位名判 —— 价目表改了、加了一档，这里不用跟着改。档位的能力由调用方从 economy.VideoTier 读出来传进来。
-// ★ 还没做出来的模式（B 主角定妆·多镜头、C 九宫格分镜）**不进清单**：摆一个点不动的选项，用户只会觉得功能坏了（CLAUDE.md 已知的坑那一格）。
+// ★ 还没做出来的模式（C 九宫格分镜）**不进清单**：摆一个点不动的选项，用户只会觉得功能坏了（CLAUDE.md 已知的坑那一格）。
 //   做出来的那一期再加一行，判定写在 modeBlock 里。
 
-/** 模式 id（与设计稿的字母对照：direct = A、custom = F、cards = D、template = E） */
-export type GuidedModeId = "direct" | "custom" | "cards" | "template";
+/** 模式 id（与设计稿的字母对照：direct = A、lead = B、custom = F、cards = D、template = E） */
+export type GuidedModeId = "direct" | "lead" | "custom" | "cards" | "template";
 
 /** 选法屏上的三组：基础 / 跟着高手做 / 复刻 */
 export type GuidedGroup = "basic" | "pro" | "replica";
@@ -27,6 +27,8 @@ export interface GuidedModeDef {
 export const GUIDED_MODES: readonly GuidedModeDef[] = [
   { id: "direct", letter: "A", group: "basic", steps: 3 },
   { id: "custom", letter: "F", group: "basic", steps: 4 },
+  // B 主角定妆 · 多镜头（第二期，2026-10-04）：定主角 → 写这场戏 → AI 拆镜头 → 规格 · 出片
+  { id: "lead", letter: "B", group: "pro", steps: 4 },
   { id: "cards", letter: "D", group: "pro", steps: 3 },
   { id: "template", letter: "E", group: "replica", steps: 2 },
 ];
@@ -46,12 +48,16 @@ export interface ModeTier {
  * · refImg —— 这一档收不了参考图：「参考图直出」只剩一段纯文字生成（1.0 两档）；
  * · flat —— 真人档：没有推演三套那一步（economy.deriveIssue），「自定义」也没意义（本来就是直出，画布那颗页签同样灰着）。
  * ★ 真人档上「参考图直出」**能用**：它就是这一档本来的样子（真人卡的照片起拍、写一句话直接出片），出片规则在 segmentGen 的真人档那一支。
+ * ★ 「主角定妆 · 多镜头」只在收参考图的档上（高清 / 电影级）：它的出片就是参考图直出（主角图直接给视频模型、不画帧）加一段多镜头带台词的剧本 ——
+ *   1.0 两档收不了参考图（只剩纯文字，「先把人定死」那一步白做）；真人档不收参考图、也没有多镜头台词这回事（只拿真人卡的照片起拍）。
  * ★ 「套模板」不按档位挡：模板能在哪几档跑由模板自己说（data/templates.templateRunsOn），货架按选的模型筛。
  */
 export function modeBlock(id: GuidedModeId, tier: ModeTier): "refImg" | "flat" | null {
   switch (id) {
     case "direct":
       return tier.refImg || tier.flat ? null : "refImg";
+    case "lead":
+      return tier.refImg ? null : "refImg";
     case "custom":
     case "cards":
       return tier.flat ? "flat" : null;
