@@ -488,6 +488,13 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   直出车道的两句提示（推荐挂场景卡、接在上一段后面时把地点 / 时间 / 光线再写一遍）只在 `components/flow/DirectTips` 一处，两面共用：
   10-04 付费验过 A（¥5.01）人物与接缝都好，但第二段切镜之后场景漂了（提示词没写地点）；场景卡只锁空间、不锁时间光线，所以两句都要。
   10-03 晚付费验过一次（¥5.39）：补画的两张都是单一完整画面，成片没再溶成拼图；但出图模型没照「特写」画结束画面，视频为了靠上它多拍了一小段（docs §六「第三次付费验证」）。
+  ⑦ **B 主角定妆 · 多镜头（第二期，2026-10-04）**：向导只有一份 `components/flow/LeadShotsWizard`（工坊铸段窗 lane `lead` 整块接管②③两步、画布「＋ 加一段」开抽屉，
+  **走完才落段**），状态在 `studio/leadDraftStore`（关了再开原样还在、换账号分开暂存、出完一段只清这场戏和分镜、留着主角）。
+  拆镜头是第三条官方结构化技能（`structuredSkills.runSceneToShots`，一次对话）：输入输出的规则只在 `data/sceneShots`（零依赖，构建里 `check-scene-shots.mjs` 实跑），
+  几个镜头拼成一段话只走 `shotScript.joinShots`（别在 sceneShots 里再抄一份「镜头N：」）。现做主角走铸卡师那条（`studio/leadCast.forgeLead`：定妆两张、只收一句话、
+  交代「不要照片写实」—— 写实人脸会被高清 / 电影级整发拒，用照片做真人走「自己传图做卡片」），画成就入库并选上。
+  落成的就是一段参考图直出段（出片规则与 A 同一份，别另开一种段）：落什么只在 `leadCast.leadAppendSpec`，报价 `flowStore.appendQuote` 与 `appendNode` 落的是同一个
+  `appendedNode`，出片走两面原有的入口（工坊 `layLeadNode` + `genNodeVideo`、画布 `appendNode` + `genNode`）。
 - **「这一段用哪个模板」是三态，且必须当场表态**（`FlowNode.tpl`）：`undefined` = 还没表态
   （退回 store 级 `template`，老草稿与单模板流靠它）、`null` = 明确没有、对象 = 这一段自己的
   快照。读**只准走 `tplOfNode`**。而 store 级那份会随 `setCursor` 换成**当前段**的快照 ——
@@ -891,7 +898,7 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 - [`docs/api-contract.md`](docs/api-contract.md) — 与 server 的接口契约（三仓共享）
 - [`docs/play-store-checklist.md`](docs/play-store-checklist.md) — 上架检查单
 - [`docs/node-modes-libtv-alignment.md`](docs/node-modes-libtv-alignment.md) — 工作流节点「自选卡片 / 自定义」对齐 LibTV 节点：调研、方案、主人拍板与落地记录（N1 参考清单 + @ 点名、N3 关键画面可改可截、N2 分镜表都已落地；含与已有「圈图改图」的对比、官方文档查到的几条协议事实、等主人定的两件事）
-- [`docs/guided-modes-design.md`](docs/guided-modes-design.md) — 工作流的「跟着做」模式（参考图直出 / 主角定妆·多镜头 / 九宫格分镜 / 推演三套 / 套模板 / 自定义）：每个模式固定步骤（2026-10-04 方案，主人「开工」五条全认；第一期核心规则已落地，选法屏与向导是下一个 PR）
+- [`docs/guided-modes-design.md`](docs/guided-modes-design.md) — 工作流的「跟着做」模式（参考图直出 / 主角定妆·多镜头 / 九宫格分镜 / 推演三套 / 套模板 / 自定义）：每个模式固定步骤（2026-10-04 方案，主人「开工」五条全认；第一期 A 与第二期 B 已落地，A 付费验过一次）
 - [`docs/multi-character-consistency-research.md`](docs/multi-character-consistency-research.md) — 多人物多镜头的人像一致与台词字幕：LibTV / updream / 官方文档 / 网上的做法（2026-10-03 调研，建议等主人定）；
   含「一张图里画多个角色一律被拒」那条老约束的真实出处（精灵图的文本敏感，不是场景里的两个人）
 - [`docs/app-distribution.md`](docs/app-distribution.md) — 发包给别人装、应用内更新怎么走

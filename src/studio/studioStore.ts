@@ -12,6 +12,7 @@ import { drawExtraRefs, plainMentions } from "../data/refMentions";
 import { GenNodeOpts, CUSTOM_MID_MAX, FlowMode, FlowNode, FlowTemplate, appendBlocked, appendIssue, chosenOf, recastBlocked, nodeContinues, nodeVideo, tplOfNode, useFlow, redrawCost, redrawFrames, noDrawFor } from "./flowStore";
 // ★ 依赖方向没破：canvasAgent 只认识 flowStore，不认识本模块（不会成环）
 import { forgetCanvasAgent } from "./canvasAgent";
+import { leadAppendSpec, type LeadSpec } from "./leadCast";
 import { onOwnerSwitch, ownerEpoch, workOwner } from "../data/deviceOwner";
 import { DraftMode, WorkDraft, WorkDraftMeta, deleteDraft, getDraftMeta, readRemixOf as remixOfSnapshot, saveDraft } from "../data/drafts";
 import { showToast } from "../data/toast";
@@ -686,6 +687,12 @@ interface StudioState {
    * 参考图直出段（FlowNode.direct）。出片仍走方案台那颗「生成本段视频」（报价 / 门禁 / 出片与别的段同一条路）。
    */
   layDirectNode: () => void;
+  /**
+   * 跟着做 B「主角定妆 · 多镜头」的向导走完（2026-10-04 第二期）：把定好的主角 + 多镜头分镜铺成一段参考图直出段
+   * （落什么只在 leadCast.leadAppendSpec，与画布那一面同一份）。回新段与方案的 id；被拒回原因（appendNode 写的 err）。
+   * 要出片由调用方接着走 genNodeVideo —— 与方案台那颗「生成本段视频」同一个入口（受理即收窗、说一句可以离开）。
+   */
+  layLeadNode: (spec: LeadSpec) => { ok: true; nodeId: string; proposalId: string } | { ok: false; why: string };
   /** 铸段向导第①步选「套模板」：就地落一张白模节点卡（不再把人赶去画布那一面）。
    *  规则全在 flowStore（appendNode 门禁 + setNodeTemplate 快照/闸），这里只是编排 */
   layTemplateNode: (tpl: VideoTemplate) => void;
@@ -1904,6 +1911,17 @@ export const useStudio = create<StudioState>()((set, get) => ({
         comment: "铸卡师念的话。「⚡ 生成本段视频」是工坊方案台上那颗出片键的名字（键上还带价钱），英文请引用它的英文名（不带价钱）",
       }),
     );
+  },
+
+  layLeadNode: (spec) => {
+    const { editor } = get();
+    if (!editor || editor.generating) return { ok: false, why: t`铸段窗正忙，稍后再试` };
+    const append = leadAppendSpec(spec, editor.videoTier);
+    const newId = useFlow.getState().appendNode(append);
+    if (!newId) return { ok: false, why: useFlow.getState().err || t`现在铺不了这一段，稍后再试。` };
+    set({ spreadOpen: false, focus: { nodeId: newId }, projection: "proposals", editor: null });
+    get().npcSay(t`主角和分镜都定好了——人物图会直接给视频模型、不画帧，几个镜头一条出。`);
+    return { ok: true, nodeId: newId, proposalId: append.proposals[0].id };
   },
 
   /**

@@ -10,8 +10,9 @@ import type { MessageDescriptor } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { tierBlockReason } from "../../data/account";
-import { fmtTokens, modelLabel, proposalsCost, segTokens, tierOf, VIDEO_TIERS } from "../../data/economy";
+import { CHAT_TURN_TOKENS, clampDuration, fmtTokens, modelLabel, proposalsCost, segTokens, tierOf, VIDEO_TIERS } from "../../data/economy";
 import { GUIDED_GROUPS, GUIDED_MODES, modeBlock, type GuidedGroup, type GuidedModeId, type ModeTier } from "../../data/guidedModes";
+import { LEAD_DEFAULT_SEC } from "../../data/sceneShots";
 
 const GROUP_LABEL: Record<GuidedGroup, MessageDescriptor> = {
   basic: msg`基础`,
@@ -27,6 +28,12 @@ const MODE_TEXT: Record<GuidedModeId, { icon: string; title: MessageDescriptor; 
     desc: msg`挑几张参考图（人物 / 场景卡）＋ 写提示词，人物图直接给视频模型。LibTV 作者最常用的做法`,
   },
   custom: { icon: "✍", title: msg`自定义`, tag: msg`全按你的来`, desc: msg`传一段示例视频，或自己给首尾帧` },
+  lead: {
+    icon: "🎭",
+    title: msg`主角定妆 · 多镜头`,
+    tag: msg`先定人、再拆镜头`,
+    desc: msg`选好（或现做）主角，写一场戏，AI 拆成 2~4 个镜头带台词，一条出。updream 作者的做法`,
+  },
   cards: { icon: "🃏", title: msg`AI 推演三套`, tag: msg`先看关键画面`, desc: msg`挑卡＋写要求，AI 出三套带关键画面的方案，挑一套再出片` },
   template: { icon: "🧪", title: msg`套模板`, tag: msg`白模复刻`, desc: msg`套一个模板，给人偶挂卡换人（模板按这个模型筛）` },
 };
@@ -96,10 +103,16 @@ export default function ModePicker({
                 const text = MODE_TEXT[m.id];
                 const steps = m.steps;
                 // 只摆「这一步大概花多少」：参考图直出 = 只有视频（真人档按发计价）；推演三套 = 推演那一笔（出片另算）
+                // 主角定妆 · 多镜头 = 拆镜头那一次对话 + 默认 12 秒的视频（现做主角要另花图钱，在向导里那颗键上报）
+                const chatPrice = fmtTokens(CHAT_TURN_TOKENS);
+                const leadSec = clampDuration(LEAD_DEFAULT_SEC, tier.id);
+                const leadVideo = fmtTokens(segTokens(leadSec, tier.id));
                 const price =
                   m.id === "direct"
                     ? t`约 ${fmtTokens(segTokens(5, tier.id))} / 5 秒，只有视频`
-                    : m.id === "cards"
+                    : m.id === "lead"
+                      ? t`拆镜头 ${chatPrice}，视频约 ${leadVideo} / ${leadSec} 秒`
+                      : m.id === "cards"
                       ? t`推演 ${fmtTokens(proposalsCost(false))}，出片另算`
                       : null;
                 return (
