@@ -23,6 +23,7 @@ import SegPlayer from "../../components/flow/SegPlayer";
 import FuseFrameSheet, { fuseSourcesOf } from "./FuseFrameSheet";
 import CustomFrameSlots from "../../components/flow/CustomFrameSlots";
 import ModePicker, { modeTierOf } from "../../components/flow/ModePicker";
+import { RestatePlaceTip, SceneCardTip } from "../../components/flow/DirectTips";
 import { modeBlock } from "../../data/guidedModes";
 import RefStrip from "../../components/flow/RefStrip";
 import FrameEditBox from "../../components/flow/FrameEditBox";
@@ -833,6 +834,8 @@ function EditorPanel() {
                 </div>
               </div>
             )}
+            {/* 参考图直出：推荐挂一张场景卡（说不说的判断在 DirectTips 一处，与画布「🖼 直出」页签同一份） */}
+            {lane === "direct" && <SceneCardTip cards={slotCards} tierId={editor.videoTier} className="mt-1.5" />}
           </div>
           )}
 
@@ -847,6 +850,8 @@ function EditorPanel() {
                   ? t`视频要求（出片提示词）`
                   : t`视频要求（剧情补充）`}
             </div>
+            {/* 参考图直出接在上一段后面（appendNode 的缺省：有上一段就承接）：提醒把地点 / 时间 / 光线再写一遍 */}
+            {lane === "direct" && <RestatePlaceTip chained={!!prev} className="mb-1.5" />}
             <textarea
               value={editor.requirement}
               onChange={(e) => useStudio.getState().setRequirement(e.target.value)}
