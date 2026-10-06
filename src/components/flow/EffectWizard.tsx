@@ -388,7 +388,8 @@ export default function EffectWizard({
               disabled={busy || !spec || d.drawing || stale}
               className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
             >
-              <Trans>⚡ 生成这一段（{segPrice}）</Trans>
+              {/* 关键帧还没画（spec 为空）时不摆价签：那时报的是 0（界面走查看到「生成这一段（0）」）。这一段要花多少在选法屏上已经说过 */}
+              {spec ? <Trans>⚡ 生成这一段（{segPrice}）</Trans> : <Trans>⚡ 生成这一段</Trans>}
             </button>
           </div>
           <button

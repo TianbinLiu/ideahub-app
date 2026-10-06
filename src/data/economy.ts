@@ -205,8 +205,19 @@ export interface VideoTier {
    * 唯一诚实的做法是既不报价也不开炼，同 imageTierPriceIssue 那条）。
    * ultra = ULTRA_R2V_MULT（2.8，实测账单核过）；hd 将来若开闸备选 0.93
    * （2.0-mini 含视频输入 14 元/M 刊例价），前置是 A6 参数行为实测 + 账单核对。
+   * A6 已在 2026-10-05 付费探测（design/video-input-probe.mjs）里答了：mini 认 omni_reference_task_type，参考 / 编辑 / 延长
+   * 三种都一次受理，用量与 2.5 同一个式子（(输入 + 输出) × 21,600，输入按整秒往下取）。还差**账单核对**（是不是按 14 元/M 收）。
    */
   r2vMult: number | null;
+  /**
+   * 能不能「往后延长」（「修这一段」那一栏的 ⏩，extend 子任务）。★ 与 refVid **分开**一位，别拿 refVid 代替：
+   *   2026-10-05 付费探测 —— 高清（2.0 mini）延长照样受理、出片，但产物的第一帧比原片最后一帧拉远了一大截（接缝处画面跳一下，
+   *   半秒后才推回去）；电影级（2.5）两轮延长都接得上。将来给高清开视频参考（重拍、参考视频出片那两发效果都好），
+   *   延长也不能顺带开 —— 单独验过再翻这一位。
+   * ★ 逐档显式写（同 refImg/refVid 的理由）。读它的三处：flowStore.extendIssue（「修这一段」那一栏亮不亮、extendNode 落不落）、
+   *   genNode 出片之前、segmentGen 的延长那一支（最后一道）—— 三处都与 refVid / r2vMult 并列判，别只改其中一处。
+   */
+  extendOk: boolean;
   /**
    * 这一档的出片**带不带 AI 生成的环境音**（协议侧发 `generate_audio: true`）。
    *
@@ -291,19 +302,19 @@ export const VIDEO_TIERS: VideoTier[] = [
   //   ⚠ fast 与 hd 此前是拍出来的 0.3 / 1.6，比真实成本高 7% / 4.3%（**多收用户**的方向）。
   // fast/std 是 1.0-pro：`generate_audio` 收下就扔（实测），所以 audio 显式 false ——
   // 不是"我们不给"，是这一代模型出不了（见 VideoTier.audio 的 ★★）
-  { id: "fast", get label() { return i18n._(msg`极速`); }, model: "doubao-seedance-1-0-pro-fast-251015", mult: 4.2 / 15, flf: false, refImg: false, refVid: false, r2vMult: null, audio: false, realFace: false, assetRef: false, minSec: 3, maxSec: 10, get desc() { return i18n._(msg`省 token · 首帧起拍，不锁尾帧`); } },
-  { id: "std", get label() { return i18n._(msg`标准`); }, model: "doubao-seedance-1-0-pro-250528", mult: 1, flf: true, refImg: false, refVid: false, r2vMult: null, audio: false, realFace: false, assetRef: false, minSec: 3, maxSec: 10, get desc() { return i18n._(msg`首尾帧可控（默认）`); } },
+  { id: "fast", get label() { return i18n._(msg`极速`); }, model: "doubao-seedance-1-0-pro-fast-251015", mult: 4.2 / 15, flf: false, refImg: false, refVid: false, r2vMult: null, extendOk: false, audio: false, realFace: false, assetRef: false, minSec: 3, maxSec: 10, get desc() { return i18n._(msg`省 token · 首帧起拍，不锁尾帧`); } },
+  { id: "std", get label() { return i18n._(msg`标准`); }, model: "doubao-seedance-1-0-pro-250528", mult: 1, flf: true, refImg: false, refVid: false, r2vMult: null, extendOk: false, audio: false, realFace: false, assetRef: false, minSec: 3, maxSec: 10, get desc() { return i18n._(msg`首尾帧可控（默认）`); } },
   // ★ desc 是给**用户**看的，不是给运维看的。原来这里写的是「需在方舟控制台开通 2.0 系列」——
   //   那是部署方的事，终端用户既看不懂也做不了（CLAUDE.md 那条「界面上摆一个用户看不懂
   //   也做不了事的东西」）。开通与否的后果由服务端 ALLOWED_MODELS 与方舟的 ModelNotOpen 负责。
-  // hd 的 r2vMult 刻意留 null（不是忘了）：0.93 只是刊例折算的备选，A6（mini 对
-  // omni_reference_task_type 的行为）与账单都没核过 —— 没核过的价不进表（见文件头）。
+  // hd 的 r2vMult 刻意留 null（不是忘了）：0.93 只是刊例折算的备选。A6（mini 对 omni_reference_task_type 的行为）
+  // 2026-10-05 付费探测核过了（认，三种子任务都一次受理），账单还没核 —— 没核过的价不进表（见文件头）。
   // ★ hd 的 audio: true 是**免费套餐也听得到声音**的那条路（paidOnly 只挡 ultra）——
   //   实测 2.0-mini 真出声（-30.2dB），且开音频零额外成本，所以 desc 里如实写出来：
   //   不写的话用户只能靠"换个档试试"发现，而多数人只会以为 App 的片本来就是哑的。
   // ★ minSec 4（2026-09-30 修，此前写的是 3）：2.0 mini 不收 3 秒 —— 选 3 秒出片是同步 400，用户只会觉得这一档坏了
   // ★ maxSec 15（2026-10-03「段时长放开」）：2.0 系列的协议上限，见 VideoTier.maxSec
-  { id: "hd", get label() { return i18n._(msg`高清`); }, model: "doubao-seedance-2-0-mini-260615", mult: 23 / 15, flf: true, refImg: true, refImagesMax: 9, refVid: false, r2vMult: null, audio: true, realFace: false, assetRef: true, minSec: 4, maxSec: 15, get desc() { return i18n._(msg`新一代模型 · 画面更稳、细节更多；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音`); } },
+  { id: "hd", get label() { return i18n._(msg`高清`); }, model: "doubao-seedance-2-0-mini-260615", mult: 23 / 15, flf: true, refImg: true, refImagesMax: 9, refVid: false, r2vMult: null, extendOk: false, audio: true, realFace: false, assetRef: true, minSec: 4, maxSec: 15, get desc() { return i18n._(msg`新一代模型 · 画面更稳、细节更多；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音`); } },
   {
     id: "ultra",
     get label() {
@@ -321,6 +332,8 @@ export const VIDEO_TIERS: VideoTier[] = [
     //   VIDEO_MULT_R2V 逐条相等（arkProxy.spec 有跨仓钉子）。
     refVid: true,
     r2vMult: ULTRA_R2V_MULT,
+    // 延长两轮都接得上（2026-10-05 付费探测 U1 / U2，见 VideoTier.extendOk）
+    extendOk: true,
     // 2.5 实测出声（-27.5dB），且与无声两发的用量/单价逐位相同（见 VideoTier.audio）
     audio: true,
     // 最贵一档也一样收不了真人照片：方舟的两套真人探测器不分档位（见 VideoTier.realFace）
@@ -364,6 +377,7 @@ export const VIDEO_TIERS: VideoTier[] = [
     refImg: false,
     refVid: false,
     r2vMult: null,
+    extendOk: false,
     // 海螺出片有没有原生音频没实测过——先按无声报（往少承诺的方向错，铁律八的精神）
     audio: false,
     // ★ 全表唯一的 true：realFaceIssue 靠它放行（唯一判定处）
