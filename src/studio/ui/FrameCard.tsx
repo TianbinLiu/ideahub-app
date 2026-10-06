@@ -56,8 +56,14 @@ export function CardFace({
 }) {
   const { t } = useLingui();
   const both = !!first && !!last;
+  // ★ 定位由调用方给就用调用方的（FrameCard 传 `absolute inset-0` 铺满卡框），没给才用 relative 当两张图的定位上下文。
+  //   2026-10-05 之前两个写在同一串里：Tailwind 生成的 .relative 排在 .absolute 后面、总是它赢，于是这个盒子成了
+  //   relative + 0 高（里面只有绝对定位的图）——方案台「选定那一套」、铸段窗那一格、点开的放大态，帧都画不出来，零报错
+  //   （界面走查时量到 img 高 0 才发现；按 08-09 引入时的写法推，从那天起就是这样）。PlanBoard 里另一处用法给的是
+  //   w-full + aspect-ratio、不带定位，不受影响。
+  const positioned = /\b(absolute|fixed|sticky)\b/.test(className);
   return (
-    <div className={`relative overflow-hidden ${className}`} style={style}>
+    <div className={`${positioned ? "" : "relative "}overflow-hidden ${className}`} style={style}>
       {first && (
         <img
           src={first}

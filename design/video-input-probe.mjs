@@ -17,6 +17,7 @@
 //
 // 用法（仓库根目录）：node design/video-input-probe.mjs <输出目录> [--real] [--only=H1,U3] [--budget=50]
 //   不带 --real 只打印要发的请求与逐发预估价，一分钱不花。U2 用 U1 的产物当输入（读同一份 log）。
+// 2026-10-05 主人「花」跑过一次（六发全成，实扣约 ¥36.67）：读数与结论在 docs/canvas-platforms-ecosystem-research.md 第九节。
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { join, resolve } from "node:path";

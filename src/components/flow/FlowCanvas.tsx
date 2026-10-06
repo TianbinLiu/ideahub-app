@@ -1274,50 +1274,54 @@ function NodePanel({
 
       {/* 模式切换：**三个并排选项**（主人点名的形状——自定义与另两个是同级选项，
           不是藏在自选里的开关）。切换是真操作（套/摘模板、setNodeCustom），不是换皮。
-          摘模板的确认在下面那块；套着模板点「自定义」由 store 整句拒并指路（先摘）。 */}
-      <div data-guide="canvas-modes" className="flex gap-1 self-start rounded-full bg-panel p-0.5">
-        <button
-          onClick={() => !tplMode && setPicker(true)}
-          disabled={locked || generating || busy || done}
-          className={`rounded-full px-3 py-1 text-[11px] disabled:opacity-40 ${
-            tplMode ? "bg-brand font-semibold text-ink" : "text-slate-400"
-          }`}
-        >
-          <Trans>🧪 套模板</Trans>
-        </button>
-        <button
-          onClick={() => (tplMode ? setStripAsk(true) : custom ? setNodeCustom(node.id, false) : direct ? setNodeDirect(node.id, false) : undefined)}
-          disabled={locked || generating || busy || done}
-          className={`rounded-full px-3 py-1 text-[11px] disabled:opacity-40 ${
-            !tplMode && !custom && !direct ? "bg-brand font-semibold text-ink" : "text-slate-400"
-          }`}
-        >
-          <Trans>🃏 自选卡片</Trans>
-        </button>
-        <button
-          onClick={() => !custom && setNodeCustom(node.id, true)}
-          disabled={locked || generating || busy || done || flatTier}
-          title={flatTier ? t`真人档本来就是直出，不需要再切自定义` : undefined}
-          className={`rounded-full px-3 py-1 text-[11px] disabled:opacity-40 ${
-            custom ? "bg-brand font-semibold text-ink" : "text-slate-400"
-          }`}
-        >
-          <Trans>✍ 自定义</Trans>
-        </button>
-        {/* 参考图直出（2026-10-04「跟着做」模式 A）：能不能用问 data/guidedModes.modeBlock（与选法屏摆不摆同一个判据）。
-            套着模板时点它由 store 整句拒并指路（先摘模板），与「自定义」同一条 */}
-        <button
-          onClick={() => !direct && setNodeDirect(node.id, true)}
-          disabled={locked || generating || busy || done || (!direct && !!modeBlock("direct", modeTierOf(node.videoTier)))}
-          title={!direct && modeBlock("direct", modeTierOf(node.videoTier)) ? t`参考图直出要收参考图的模型——到 ⚙ 本段设置换成高清或电影级` : undefined}
-          className={`rounded-full px-3 py-1 text-[11px] disabled:opacity-40 ${direct ? "bg-brand font-semibold text-ink" : "text-slate-400"}`}
-        >
-          <Trans>🖼 直出</Trans>
-        </button>
-      </div>
+          摘模板的确认在下面那块；套着模板点「自定义」由 store 整句拒并指路（先摘）。
+          ★ 延长段不摆（2026-10-05 界面走查）：切到别的页签之后它照样按延长出片（genNode 认 extendFrom），屏幕上却是另一种做法；
+            store 那三个入口也对延长段整句拒，下面的横幅说清「想换就删段重加」。 */}
+      {!extend && (
+        <div data-guide="canvas-modes" className="flex gap-1 self-start rounded-full bg-panel p-0.5">
+          <button
+            onClick={() => !tplMode && setPicker(true)}
+            disabled={locked || generating || busy || done}
+            className={`rounded-full px-3 py-1 text-[11px] disabled:opacity-40 ${
+              tplMode ? "bg-brand font-semibold text-ink" : "text-slate-400"
+            }`}
+          >
+            <Trans>🧪 套模板</Trans>
+          </button>
+          <button
+            onClick={() => (tplMode ? setStripAsk(true) : custom ? setNodeCustom(node.id, false) : direct ? setNodeDirect(node.id, false) : undefined)}
+            disabled={locked || generating || busy || done}
+            className={`rounded-full px-3 py-1 text-[11px] disabled:opacity-40 ${
+              !tplMode && !custom && !direct ? "bg-brand font-semibold text-ink" : "text-slate-400"
+            }`}
+          >
+            <Trans>🃏 自选卡片</Trans>
+          </button>
+          <button
+            onClick={() => !custom && setNodeCustom(node.id, true)}
+            disabled={locked || generating || busy || done || flatTier}
+            title={flatTier ? t`真人档本来就是直出，不需要再切自定义` : undefined}
+            className={`rounded-full px-3 py-1 text-[11px] disabled:opacity-40 ${
+              custom ? "bg-brand font-semibold text-ink" : "text-slate-400"
+            }`}
+          >
+            <Trans>✍ 自定义</Trans>
+          </button>
+          {/* 参考图直出（2026-10-04「跟着做」模式 A）：能不能用问 data/guidedModes.modeBlock（与选法屏摆不摆同一个判据）。
+              套着模板时点它由 store 整句拒并指路（先摘模板），与「自定义」同一条 */}
+          <button
+            onClick={() => !direct && setNodeDirect(node.id, true)}
+            disabled={locked || generating || busy || done || (!direct && !!modeBlock("direct", modeTierOf(node.videoTier)))}
+            title={!direct && modeBlock("direct", modeTierOf(node.videoTier)) ? t`参考图直出要收参考图的模型——到 ⚙ 本段设置换成高清或电影级` : undefined}
+            className={`rounded-full px-3 py-1 text-[11px] disabled:opacity-40 ${direct ? "bg-brand font-semibold text-ink" : "text-slate-400"}`}
+          >
+            <Trans>🖼 直出</Trans>
+          </button>
+        </div>
+      )}
       {/* ★ 已出片的段：换模板/换模式会作废这段成片，store 本来就整句拒 —— 与其让用户
           点开弹层再被拒（而那句话正好被弹层盖住），不如在这里就说清为什么点不动 */}
-      {done && !locked && (
+      {done && !locked && !extend && (
         <p className="text-[10px] leading-relaxed text-slate-500"><Trans>已出片：换模板/模式会作废本段（想换先删段重加）</Trans></p>
       )}
       {stripAsk && (
@@ -1711,9 +1715,9 @@ function NodePanel({
             <>
               <p className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-sky-200">
                 {extendSrcN > 0 ? (
-                  <Trans>⏩ 延长段：接着第 {extendSrcN} 段成片的最后一帧往后拍（那段成片当参考视频，挂的人物卡一起发）。新拍的这一截单独成一段。</Trans>
+                  <Trans>⏩ 延长段：接着第 {extendSrcN} 段成片的最后一帧往后拍（那段成片当参考视频，挂的人物卡一起发）。新拍的这一截单独成一段。做法是固定的：想换做法就删掉这一段，再加一段。</Trans>
                 ) : (
-                  <Trans>⏩ 延长段：接着一段已经删掉的成片往后拍（那段成片当参考视频，挂的人物卡一起发）。</Trans>
+                  <Trans>⏩ 延长段：接着一段已经删掉的成片往后拍（那段成片当参考视频，挂的人物卡一起发）。做法是固定的：想换做法就删掉这一段，再加一段。</Trans>
                 )}
               </p>
               {durationRow}

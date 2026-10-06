@@ -269,7 +269,7 @@ export function extendSourceOf(nodes: FlowNode[], node: FlowNode): { url: string
  * 这一段**能不能往后延长**（null = 能；否则整句原因）—— 唯一实现：「修这一段」那一栏的延长键与 extendNode 都问它。
  * ① 只延长最后一段：延长的产物接在它后面成为新的一段，接在中间会把后面那几段的接缝打断；
  * ② 出过片、成片已经转存成永久地址（服务端只认这个账号自己的成片当参考视频；方舟临时链接 24 小时就失效）；
- * ③ 这一档能带参考视频出片（今天只有电影级；高清的视频参考等付费探测与账单核对之后再开）；
+ * ③ 这一档能延长（economy.VideoTier.extendOk，今天只有电影级）：高清在 2026-10-05 付费探测里接缝会跳，将来高清开了视频参考也不跟着开；
  * ④ 被延长的成片要在方舟参考视频的窗口里（4~30 秒等，与返修同一把尺 refVideoIssue）。
  */
 export function extendIssue(nodes: FlowNode[], idx: number): string | null {
@@ -281,7 +281,7 @@ export function extendIssue(nodes: FlowNode[], idx: number): string | null {
   if (isArkAssetUrl(url)) return t`成片还在转存（换成永久地址），转存完才能延长——稍等一会儿再来`;
   const tier = tierOf(node.videoTier);
   const label = tier.label;
-  if (!tier.refVid || tier.r2vMult === null) return t`「${label}」档还不能延长（要能带参考视频出片的档）——用电影级出的段才能延长`;
+  if (!tier.refVid || tier.r2vMult === null || !tier.extendOk) return t`「${label}」档还不能延长（要能带参考视频出片的档）——用电影级出的段才能延长`;
   const [w, h] = aspectOf(node.aspect).frameSize.split("x").map(Number);
   const issue = refVideoIssue({ url, durationSec: reviseSecOf(chosenOf(node)), width: w, height: h });
   if (issue) return t`这一段延长不了：${issue}`;
@@ -318,6 +318,15 @@ export function extendSpec(nodes: FlowNode[], idx: number, o: { text: string; du
     direct: true,
     extendFrom: { nodeId: node.id, url, durationSec: reviseSecOf(chosenOf(node)) },
   };
+}
+
+/**
+ * 延长段的做法是固定的（2026-10-05 界面走查发现）：套模板 / 切自定义 / 切出直出这三个入口对它整句拒 —— 切过去之后
+ * genNode 照样认 extendFrom 按延长出片（报价也按延长），屏幕上却摆着另一种做法的面板。画布那排页签对延长段也不摆。
+ * 想换做法只有一条路：删掉这一段再加一段。
+ */
+function extendLaneLocked(node: FlowNode): string | null {
+  return node.extendFrom ? t`这是延长段（接着上一段的成片往后拍），做法是固定的——想换做法就删掉这一段，再加一段` : null;
 }
 
 /** 套用中的模板快照（草稿要整份存下来，所以单独成型）。
@@ -1924,6 +1933,11 @@ export const useFlow = create<FlowState>()((set, get) => ({
       set({ err: t`这一段已经出片：换模板会作废这段成片。想换就删除本段重加，或先接受重炼这一段的花费` });
       return false;
     }
+    const extLocked = picked ? extendLaneLocked(node) : null;
+    if (extLocked) {
+      set({ err: extLocked });
+      return false;
+    }
     if (!picked) {
       // ★★ 本来就没套模板 → 整句拒（2026-08-21 第六轮对抗评审确认的 high）。
       //   这一支不是"什么都不做"，它会清掉 materials/cast 并把 plot 清空、时长退回 5s。
@@ -2979,6 +2993,11 @@ export const useFlow = create<FlowState>()((set, get) => ({
       return false;
     }
     if (on) {
+      const extLocked = extendLaneLocked(node);
+      if (extLocked) {
+        set({ err: extLocked });
+        return false;
+      }
       // 已出片的段拒（与面板上"换模板/换模式"对 done 禁用同一条理由）：
       // 改帧不会改成片，还会把下一段的承接帧换成假的 —— nodeCarry 读的是
       // chosenOf(prev).lastFrame，而出片时它已被真实尾帧顶替
@@ -3038,6 +3057,11 @@ export const useFlow = create<FlowState>()((set, get) => ({
         err: "",
       }));
       return true;
+    }
+    const extLocked = extendLaneLocked(node);
+    if (extLocked) {
+      set({ err: extLocked });
+      return false;
     }
     set((st) => ({ nodes: st.nodes.map((n) => (n.id === id ? { ...n, direct: undefined } : n)), err: "" }));
     return true;
@@ -3575,7 +3599,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
       }
       const extTier = tierOf(node.videoTier);
       const extLabel = extTier.label;
-      if (!extTier.refVid || extTier.r2vMult === null) {
+      if (!extTier.refVid || extTier.r2vMult === null || !extTier.extendOk) {
         set({ err: t`「${extLabel}」档还不能延长——去 ⚙ 本段设置换成「电影级」档` });
         return false;
       }

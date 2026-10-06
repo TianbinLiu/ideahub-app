@@ -2271,12 +2271,12 @@ msgid "<0>这一步不是每次都全对。</0>实测每隔几发就会有 1~2 �
 msgstr "<0>This step isn't always fully right.</0> In testing, every few runs 1–2 people <1>weren't turned into mannequins at all</1> (they still look the same) — most often <2>the one in the middle of the frame who looks most like the lead</2>. Once the video is made, count across the picture from left to right: just delete any slot that doesn't match (no re-render, no charge); getting every slot right means re-rendering (<3>re-rendering costs again</3>). <4>The fewer people in the picture, the more accurate it is</4>, and you can mark more frames below so the AI misses fewer people."
 
 #: src/components/flow/FlowCanvas.tsx
-msgid "⏩ 延长段：接着一段已经删掉的成片往后拍（那段成片当参考视频，挂的人物卡一起发）。"
-msgstr "⏩ Extension: continues a clip that has since been deleted (that clip is sent as the reference video, together with the attached character cards)."
+msgid "⏩ 延长段：接着一段已经删掉的成片往后拍（那段成片当参考视频，挂的人物卡一起发）。做法是固定的：想换做法就删掉这一段，再加一段。"
+msgstr "⏩ Extension: continues a clip that has since been deleted (that clip is sent as the reference video, together with the attached character cards). Its method is fixed: to use a different method, delete this segment and add a new one."
 
 #: src/components/flow/FlowCanvas.tsx
-msgid "⏩ 延长段：接着第 {extendSrcN} 段成片的最后一帧往后拍（那段成片当参考视频，挂的人物卡一起发）。新拍的这一截单独成一段。"
-msgstr "⏩ Extension: continues from the last frame of segment {extendSrcN} (that clip is sent as the reference video, together with the attached character cards). The new part is its own segment."
+msgid "⏩ 延长段：接着第 {extendSrcN} 段成片的最后一帧往后拍（那段成片当参考视频，挂的人物卡一起发）。新拍的这一截单独成一段。做法是固定的：想换做法就删掉这一段，再加一段。"
+msgstr "⏩ Extension: continues from the last frame of segment {extendSrcN} (that clip is sent as the reference video, together with the attached character cards). The new part is its own segment. Its method is fixed: to use a different method, delete this segment and add a new one."
 
 #: src/components/flow/FixSegmentBox.tsx
 msgid "⏩ 往后延长"
@@ -2514,6 +2514,10 @@ msgstr "⚡ Generate this segment ({costLabel})"
 #: src/studio/ui/projection.tsx
 msgid "⚡ 生成本段视频（{0}）"
 msgstr "⚡ Generate this segment's video ({0})"
+
+#: src/components/flow/EffectWizard.tsx
+msgid "⚡ 生成这一段"
+msgstr "⚡ Generate this segment"
 
 #: src/components/flow/DialogueWizard.tsx
 #: src/components/flow/GridShotsWizard.tsx
@@ -12393,17 +12397,17 @@ msgstr "No microphone permission. Tap Allow in the system prompt. If you denied 
 msgid "拿真人卡的照片起拍，照着「{title}」动起来（真人档按发计价）。"
 msgstr "Starts from the real-person card’s photo and moves like “{title}” (the Real-person tier is priced per run)."
 
+#: src/components/flow/FixSegmentBox.tsx
+msgid "拿这一段成片当参考视频重拍，主要改第 {a}~{b} 秒里你写的地方，其余几秒尽量照原样（同一个连续的动作常会整段一起改）；整段一起重新生成（时长跟随成片 {sec}s，按整段计价），出声（原片的声音会照着重做，接近但不完全一样）；上一版留一份可还原"
+msgstr "Reshoots this segment using its clip as the reference video, changing what you wrote mainly in seconds {a}–{b} and keeping the rest as close as possible (one continuous action is often changed as a whole); the whole segment is regenerated (the length follows the clip, {sec}s, and it’s priced for the whole segment) with sound (the original audio is remade to match it — close, but not identical); the previous version is kept so you can restore it"
+
 #: src/components/flow/ReviseBox.tsx
 #~ msgid "拿这一段成片当参考视频重拍，只改你写的地方；时长跟随成片（{sec}s），产物<0>无声</0>（合并时可外挂音轨）；上一版会留一份可还原"
 #~ msgstr "Reshoots using this segment's video as the reference and changes only what you write. Length follows the video ({sec}s) and the result is <0>silent</0> (you can add an audio track when merging). The previous version is kept so you can restore it"
 
 #: src/components/flow/FixSegmentBox.tsx
-msgid "拿这一段成片当参考视频重拍，只改你写的地方；时长跟随成片（{sec}s），出声（原片的声音会一起重做，可能与原片略有不同）；上一版留一份可还原"
-msgstr "Reshoots this segment using its clip as the reference video and changes only what you wrote; the length follows the clip ({sec}s) and it has sound (the original audio is redone too and may differ slightly); the previous version is kept so you can restore it"
-
-#: src/components/flow/FixSegmentBox.tsx
-msgid "拿这一段成片当参考视频重拍，只改第 {a}~{b} 秒里你写的地方、其余几秒照原样；整段一起重新生成（时长跟随成片 {sec}s，按整段计价），出声（原片的声音会一起重做，可能与原片略有不同）；上一版留一份可还原"
-msgstr "Reshoots this segment using its clip as the reference video and changes what you wrote only in seconds {a}–{b}, keeping the rest as is; the whole segment is regenerated (the length follows the clip, {sec}s, and it’s priced for the whole segment) with sound (the original audio is redone too and may differ slightly); the previous version is kept so you can restore it"
+msgid "拿这一段成片当参考视频重拍，只改你写的地方；时长跟随成片（{sec}s），出声（原片的声音会照着重做，接近但不完全一样）；上一版留一份可还原"
+msgstr "Reshoots this segment using its clip as the reference video and changes only what you wrote; the length follows the clip ({sec}s) and it has sound (the original audio is remade to match it — close, but not identical); the previous version is kept so you can restore it"
 
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "拿这份草稿聊几句看看像不像。聊 {PREVIEW_ROUNDS_MAX} 轮，已经聊了 {rounds} 轮。"
@@ -23590,6 +23594,10 @@ msgstr "This is the one-time cost of making the template; every time someone lat
 #: src/components/guide/tours.tsx
 msgid "这是另一条路"
 msgstr "The other way to mint"
+
+#: src/studio/flowStore.ts
+msgid "这是延长段（接着上一段的成片往后拍），做法是固定的——想换做法就删掉这一段，再加一段"
+msgstr "This is an extension segment (it continues from the previous segment’s clip), so its method is fixed — to use a different method, delete this segment and add a new one"
 
 #: src/components/ShareSheet.tsx
 msgid "这是私密作品：链接只有你自己打得开。想给别人看，去编辑里改成「凭链接可见」或「公开」。"

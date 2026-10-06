@@ -1080,7 +1080,7 @@ export async function generateSegment(
   // 产物只有新的一截，所以它就是流水线上新的一段：剪辑页按顺序拼起来就接上了。
   if (input.extendRef) {
     const refTier = tierOf(input.videoTier);
-    if (!refTier.refVid || refTier.r2vMult === null) {
+    if (!refTier.refVid || refTier.r2vMult === null || !refTier.extendOk) {
       const tierLabel = refTier.label;
       throw new Error(t`「${tierLabel}」档还不能延长——去 ⚙ 本段设置换成「电影级」档`);
     }

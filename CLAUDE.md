@@ -524,11 +524,14 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   三个跟着做向导（C / G / I）在工坊落段都走 `studioStore.layWizardNodes(specs, say)`（看板娘那句由调用方给）。
   ⑪ **修这一段（第一批：片段重拍 + 往后延长）**：挂在已出片的段上（`components/flow/FixSegmentBox`，画布四个车道都摆、工坊在 PickedActions），**不进「加一段」的选法屏**。
   片段重拍 = 返修升级（见上面「返修」）。**往后延长**：产物**只有新的一截**（2026-10-05 拿官方 2.5 提示词指南延长示例的三个文件量过：输入 15.05s、产物 5.00s、
-  拼接后 20.08s），所以它就是流水线上**新的一段**（`FlowNode.extendFrom`）：只延长最后一段（接在中间会打断后面的接缝）、成片已转存成永久地址、档位能带参考视频
-  （今天只有电影级）—— 判据只在 `flowStore.extendIssue`，落什么只在 `extendSpec`（报价 `appendQuote` 照着它算），落段 `extendNode`，「接的是哪一段成片」只问
+  拼接后 20.08s），所以它就是流水线上**新的一段**（`FlowNode.extendFrom`）：只延长最后一段（接在中间会打断后面的接缝）、成片已转存成永久地址、档位能延长
+  （`economy.VideoTier.extendOk`，今天只有电影级）—— 判据只在 `flowStore.extendIssue`，落什么只在 `extendSpec`（报价 `appendQuote` 照着它算），落段 `extendNode`，「接的是哪一段成片」只问
   `extendSourceOf`（那一段返修过就接新那一版）。出片走契约的新模式 `extend`（`arkClient` 的 omni extend + adaptive + 窗口内整数时长，报价与素材参考同一个式子
-  (输入 + 输出) × 系数，服务端结算 `tokens.materialRefTokens`）。⚠ 生产上要服务端 PR TianbinLiu/ideahub-server#107（参考视频认「本人自己的成片」）上线才通，
-  在那之前正式包里的返修 / 延长会被服务端整句拒（不扣钱）。高清档（2.0 mini）的视频参考等付费探测 `design/video-input-probe.mjs` 与账单核对之后再开。
+  (输入 + 输出) × 系数，服务端结算 `tokens.materialRefTokens`）。服务端那一半是 TianbinLiu/ideahub-server#107（参考视频认「本人自己的成片」），2026-10-05 已上线。
+  ★ 2026-10-05 付费探测（`design/video-input-probe.mjs`，结果在 docs/canvas-platforms-ecosystem-research.md 第九节）：电影级延长两轮都接得上、高清那一发接缝会跳
+  ⇒ 「能不能延长」是档位自己的一位 `extendOk`，**别拿 refVid 代替**（高清以后开视频参考也不顺带开延长）；按时间段重拍时同一个连续动作会整段一起改、
+  声音是照着原片重做的 —— 文案只说到这一步（`FixSegmentBox` 头上记着）。延长段的做法是固定的：套模板 / 切自定义 / 切出直出三个入口整句拒
+  （`flowStore.extendLaneLocked`），画布不摆那排页签。高清的重拍 / 参考视频出片效果都好，等账单核对（按 14 还是 23 元/M 收）与主人点头再开。
 - **「这一段用哪个模板」是三态，且必须当场表态**（`FlowNode.tpl`）：`undefined` = 还没表态
   （退回 store 级 `template`，老草稿与单模板流靠它）、`null` = 明确没有、对象 = 这一段自己的
   快照。读**只准走 `tplOfNode`**。而 store 级那份会随 `setCursor` 换成**当前段**的快照 ——
