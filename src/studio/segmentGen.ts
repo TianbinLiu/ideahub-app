@@ -99,6 +99,14 @@ export interface SegmentGenInput {
    */
   materialRef?: { url: string; durationSec: number; mids?: string[] };
   /**
+   * **延长**（2026-10-05「修这一段 · 延长」）：被延长那一段的成片（永久地址）与它的时长（计价输入，整数秒）。
+   * 有它 = 这一段走 extend 子任务：那段成片当参考视频（视频1），接着它的最后一帧往后拍 durationSec 秒，**产物只有新的一截**
+   * （官方 2.5 提示词指南的示例量过：15.05s 输入 → 5.00s 产物，另附「拼接后的视频」20.08s）。
+   * 一张帧都不带（参考视频与首尾帧互斥）；挂的人物卡照样发形象图（官方「向后延长 + 主体参考」），声音样本照常带。
+   * ★ 与 refVideoUrl（白模 / 返修）、materialRef（素材参考）互斥：调用方只给一样（flowStore.genNode 按节点事实分流）。
+   */
+  extendRef?: { url: string; durationSec: number };
+  /**
    * **临时参考图**（N1，2026-10-03）：不是卡的一次性图（站位草图、道具照片…），只在这一段生效。
    * 只在「参考」类请求上发得出去（高清 / 电影级的帧当参考图那条、参考卡片直出、自定义 + 示例视频）；排在帧之后、
    * 卡片形象图之前，预算在准备卡片图那一步就扣掉（refSlotsOf）。句子里用 `@名字` 点到的换成「图片N」，
@@ -358,12 +366,35 @@ const BLOCKOUT_SWAP =
   "。将视频中的红色小人替换为下列角色，严格保留视频中的背景、道具与运镜，画面中不要出现任何水印、台标、字幕或角标";
 /**
  * 返修的尾句（与 BLOCKOUT_SWAP 同一位置、同一条 edit 路）：参考视频是本段自己的成片，正文是作者的改法。
- * ★ 同样是尽力而为（edit 的立身之本是"保住主体、复刻其余"，改法是软引导）；产物无声（arkClient 的 BLOCKOUT_TASK
- *   钉着 generate_audio:false），UI 上必须说。
+ * ★ 同样是尽力而为（edit 的立身之本是"保住主体、复刻其余"，改法是软引导）。
+ * ★ 2026-10-05 起返修**出声**（arkClient.REVISE_TASK）：原来跟白模共用 BLOCKOUT_TASK 的 generate_audio:false，返修完的片子是哑的。
  */
 /* i18n-frozen: 返修提示词的尾句，发给视频模型 */
 const REVISE_TAIL =
   "。以上是要改的地方：在参考视频的基础上只做这些修改，其余画面、人物形象、动作、运镜与时长保持不变，画面中不要出现任何水印、台标、字幕或角标";
+
+/**
+ * 返修的正文（「修这一段 · 片段重拍」，2026-10-05）：作者的改法 +（可选）时间段。时间段的写法照官方 2.5 提示词指南的编辑示例
+ * （「把视频 1 中 4-6 秒……改为……，其余内容不要变化」）：整秒、从 0 起；不给时间段 = 整段都按这句改。
+ * ★ 编辑任务的触发词（编辑视频 / 增加 / 删除 / 修改 / 替换 / 改成）由 REVISE_TAIL 带着（「修改」），这里不再加。
+ * ★ 只给出片用（flowStore.genNode 拼好当 plot 传进来）；取回凭据上那一行仍记作者的原话。
+ */
+/* i18n-frozen: 返修正文里的时间段写法，发给视频模型 */
+export const revisePlotOf = (instruction: string, range?: { from: number; to: number } | null): string => {
+  const text = instruction.trim();
+  if (!range) return text;
+  const a = Math.max(0, Math.floor(range.from));
+  const b = Math.max(a + 1, Math.ceil(range.to));
+  return `只改视频1中第${a}-${b}秒：${text.replace(/[。.！!？?…]+$/, "")}。这几秒以外的内容不要变化`;
+};
+
+/**
+ * 延长那一发的开头（「修这一段 · 延长」，2026-10-05）：官方 2.5 的触发词「向前 / 向后延长、延续、续写」要有其一
+ * （显式 extend 时缺了它提交就 400），示例写法是「在 @视频 1 的基础上续写 5 秒的视频，讲……」。参考视频在提示词里叫「视频1」
+ * （它不占图片编号，见 arkClient 拼 content 那段 ★）。「画面与声音无缝衔接」照官方能力表的说法（可要求画面 / 音频无缝衔接）。
+ */
+/* i18n-frozen: 延长的开头句，发给视频模型 */
+const EXTEND_HEAD = "向后延长视频1：从视频1的最后一帧接着往下拍，画面、人物与声音无缝衔接。接下来：";
 
 /**
  * 白模（blockout r2v）这一段**为什么走不成** —— 条件的唯一实现（铁律六）。
@@ -1024,8 +1055,8 @@ export async function generateSegment(
   /** 进度行的尾巴。★ 不能单独 prog：同一个同步块里的下一行 prog 会立刻把它盖掉
    *  （连法与括号走共用的 ai.notesInParens：铸卡 / 重画 / 改图那几处是同一份，别再各写一遍） */
   const noteTail = () => notesInParens(notes);
-  /** 这一段挂的临时参考图（N1）。白模 / 返修不带：那两条路的参考是模板视频与成片本身 */
-  const extrasIn = input.refVideoUrl ? [] : usableExtraRefs(input.extraRefs);
+  /** 这一段挂的临时参考图（N1）。白模 / 返修 / 延长不带：那几条路的参考是模板视频与成片本身 */
+  const extrasIn = input.refVideoUrl || input.extendRef ? [] : usableExtraRefs(input.extraRefs);
   const cardTargets = (input.materials ?? []).map((c) => ({ id: c.id, name: c.name }));
   /** 写了 `@` 却没对上的要说出来：发出去时它们只是普通文字，不说的话人以为点上了 */
   const noteLoose = (loose: string[]) => {
@@ -1042,6 +1073,79 @@ export async function generateSegment(
   if (blockout) {
     const issue = blockoutIssue(input);
     if (issue) throw new Error(issue);
+  }
+
+  // ── 延长（「修这一段 · 延长」，extend 子任务）────────────────────────────
+  // 被延长那一段的成片当参考视频（视频1），挂的人物卡照样发形象图锁长相（直通分配，与参考图直出同一套规矩）；一张帧都不带（互斥）。
+  // 产物只有新的一截，所以它就是流水线上新的一段：剪辑页按顺序拼起来就接上了。
+  if (input.extendRef) {
+    const refTier = tierOf(input.videoTier);
+    if (!refTier.refVid || refTier.r2vMult === null) {
+      const tierLabel = refTier.label;
+      throw new Error(t`「${tierLabel}」档还不能延长——去 ⚙ 本段设置换成「电影级」档`);
+    }
+    if (input.anns.length) throw new Error(t`延长段没有设定帧可圈选——先清掉圈选标注，想改画面就改那句话`);
+    const refs = await prepareMaterialRefs(input.materials, "video", (n) => notes.push(n), { cap: refTier.refImagesMax, strict: false });
+    // 绑定句前置（与参考图直出同一个紧凑式）；参考视频不占图片编号（arkClient 拼 content 那段 ★），所以 offset 是 0
+    const bindHead = refs.bindCompact(0).replace(/^。/, "");
+    const said = compileMentions(input.plot, mentionTargets({ cards: cardTargets, extras: [], frames: {} }));
+    noteLoose(said.loose);
+    const mats = materialText(input.materials, idsWithout(input.materials, refs.cards));
+    const voice = voiceRefsFor({ plot: input.plot, materials: input.materials, tier: refTier, referenceMode: true, blockout: false });
+    notes.push(...voice.notes);
+    /** 这一档的提示词上限（延长只在电影级上，500）：开头句与绑定句先留位，截的是正文（与别的路同一条纪律） */
+    const cap = promptMaxOf(input.videoTier);
+    const head = `${bindHead}${EXTEND_HEAD}`;
+    const body = `${shotPrefix(input.shot)}${said.text}`;
+    const room = Math.max(0, cap - head.length - mats.length);
+    const over = body.length - room;
+    const headLen = head.length;
+    const cut = over > 0 ? t`（⚠ 要求太长，末尾 ${over} 字没能发出去——开头的延长句与形象点名句要占 ${headLen} 字）` : "";
+    const kept = body.slice(0, room);
+    const fitted = withLineTails(
+      `${head}${kept}${/[。！？!?.…]$/.test(kept) && mats.startsWith("。") ? mats.slice(1) : mats}`,
+      voice.voiceLine,
+      noSubtitleLine({ plot: input.plot, tier: refTier, blockout: false }),
+      cap,
+    );
+    if (fitted.voiceDropped) notes.push(t`音色点名句没能发出去（提示词已经写满）——台词仍会被配音，但音色随机；把要求写短些就能带上`);
+    if (fitted.subDropped) notes.push(t`「台词别显示成字幕」那句没能发出去（提示词已经写满）——成片里可能出现台词字幕；把要求写短些就能带上`);
+    const inSec = input.extendRef.durationSec;
+    const outSec = clampDuration(input.durationSec, input.videoTier);
+    prog(t`接着上一段往后拍 ${outSec} 秒（输入 ${inSec}s + 输出 ${outSec}s 计价）…` + cut + noteTail());
+    {
+      const cl = contractLine({ quoted: input.quotedTokens, mode: "extend", durationSec: input.durationSec, tierId: input.videoTier, refVideoSec: inSec, images: 0 });
+      if (cl) prog(cl);
+    }
+    const [res] = await composeSegments(
+      [
+        {
+          mode: "extend",
+          plot: fitted.plot,
+          firstFrame: "",
+          lastFrame: "",
+          durationSec: input.durationSec,
+          videoTier: input.videoTier,
+          aspect: input.aspect,
+          refImages: refs.refs.length ? refs.refs : undefined,
+          refAudios: voice.refAudios,
+          refVideoUrl: input.extendRef.url,
+          refTask: "extend",
+          refVideoSec: inSec,
+        },
+      ],
+      (_d, _t, status) => prog(status),
+      // ★ 受理回调**必须给**：不给就没有凭据，「没接到结果」这一支等于不存在
+      (taskId) => onTask?.(taskId),
+    );
+    settleSegment(res);
+    return {
+      url: res?.url,
+      firstFrame: res?.firstFrame || "",
+      lastFrame: res?.lastFrame || "",
+      poster: res?.poster,
+      realDurationSec: res?.durationSec,
+    };
   }
 
   // ── 素材参考（自定义 = 多图 + 参考视频，reference 子任务）──────────────
@@ -1641,7 +1745,7 @@ export async function generateSegment(
   const refSec = input.refVideo?.durationSec;
   if (blockout && input.revise)
     prog(
-      (refSec ? t`按你的改法返修这一段（时长跟随成片 ${refSec} 秒，产物无声）…` : t`按你的改法返修这一段（时长跟随成片，产物无声）…`) +
+      (refSec ? t`按你的改法返修这一段（时长跟随成片 ${refSec} 秒，出声）…` : t`按你的改法返修这一段（时长跟随成片，出声）…`) +
         noteTail() +
         cut,
     );
@@ -1720,6 +1824,8 @@ export async function generateSegment(
         // 模板时长只喂给轮询死线定尺寸（arkClient 按输出秒数放弃，不再一刀切 10 分钟），
         // 不是下单参数 —— duration 在白模路上由 BLOCKOUT_TASK 的 -1 接管
         refVideoSec: input.refVideo?.durationSec,
+        // 返修走出声的那一份 edit 参数（arkClient.REVISE_TASK）；白模照旧 BLOCKOUT_TASK（不出声，版权拦截换来的）
+        ...(input.revise ? { refTask: "revise" as const } : {}),
       },
     ],
     (_d, _t, status) => prog(status),

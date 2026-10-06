@@ -535,7 +535,8 @@ export function segTokens(durationSec: number, tierId?: string): number {
  */
 export function videoTokensOfSpec(o: { mode: GenMode; durationSec: number; tierId?: string; refVideoSec?: number }): number | null {
   if (o.mode === "edit") return r2vTokens(o.refVideoSec ?? 0, o.tierId);
-  if (o.mode === "reference") {
+  // 延长与素材参考同一个式子：(输入 + 输出) × 系数（服务端 resolveR2v 的延长那一支结算走 tokens.materialRefTokens）
+  if (o.mode === "reference" || o.mode === "extend") {
     if (tierOf(o.tierId).r2vMult === null) return null;
     return materialRefCost(o.refVideoSec ?? 0, o.durationSec, o.tierId);
   }
@@ -665,7 +666,7 @@ function joinTierNames(labels: string[]): string {
  *     读起来像是别的档过一阵也会放开 —— 而 1.0 两档与真人档在协议上就没有参考视频这一项，等多久都不会有；
  *     用户该做的是换到做得到的那一档（或者按自己能用的模型去挑模板，见模板货架的「出片模型」筛选），不是等。
  *   · 一档都没开（闸门全关）⇒ 才是真的「暂未开放」，原句保留。
- * ★ 这句话三处都在用：白模段的档位那一排（r2vBlockLines）、返修（ReviseBox）、出片闸（segmentGen.blockoutIssue）——
+ * ★ 这句话三处都在用：白模段的档位那一排（r2vBlockLines）、返修（FixSegmentBox 的片段重拍）、出片闸（segmentGen.blockoutIssue）——
  *   所以不写成"这个模板…"：返修那一处根本没有模板。括号里把两种用法都点了名。
  */
 function r2vBlockText(block: R2vBlock, labels: string[]): string {

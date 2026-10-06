@@ -37,6 +37,20 @@ import {
   type GridPlan,
   type GridShotsErrorCode,
 } from "../data/gridShots";
+import {
+  DIALOGUE_LINES_MAX,
+  DIALOGUE_SYS,
+  DialogueError,
+  SITUATION_MAX,
+  SITUATION_MIN,
+  defaultAngle,
+  dialogueBrief,
+  parseDialogue,
+  type DialogueErrorCode,
+  type DialogueLang,
+  type DialogueLine,
+  type DialoguePlan,
+} from "../data/dialogueShots";
 import { cleanShot, shotLineOf, uid, type Card, type Proposal, type ShotSpec, type VideoAspect } from "../types";
 import { newFlowNode, nodeDone, tplOfNode, type FlowNode } from "./flowStore";
 import { zhPrompt } from "../ai/prompts/zhPrompt";
@@ -665,6 +679,104 @@ export async function runSceneToGrid(o: { scene: string; cast: readonly string[]
     return { plan: parseGridShots(raw, o.cast, GRID_SHOTS_MAX), lang, demo: false };
   } catch (e) {
     if (e instanceof GridShotsError) throw new Error(gridShotsErrorText(e.code));
+    throw e;
+  }
+}
+
+// ── 官方技能五：「一个情境 → 对白」（2026-10-05，跟着做 I「对话正反打」第②步，方案 docs/canvas-platforms-ecosystem-research.md §五）──
+//
+// 一个情境 + 两个人 → 2~6 句对白（每句：谁说 / 说什么 / 说的时候在做什么），逐句可改；之后一句拍成一段（三个机位轮着用）。
+// ★ 与前四条同一副骨架（步骤 / 形状检查 / 确认点 / 价签），同一条钱的规矩：请求成功那一拍扣一次，截断 / 形状检查失败不退也不再扣。
+// ★ 输入输出的规则在 data/dialogueShots（纯函数，构建里 check-dialogue-shots.mjs 实跑）；用哪种语言写由 data/sceneShots.sceneLang 判（与 B / C 同一个判据）。
+
+export const SITUATION_TO_DIALOGUE = {
+  id: "official.situation-to-dialogue",
+  title: msg`一个情境 → 对白`,
+  intro: msg`写一个情境，两个人你一句我一句写成 2~6 句对白（谁说 / 说什么 / 说的时候在做什么），逐句可改，一句拍成一段`,
+  steps: [
+    { kind: "input", title: msg`写情境`, hint: msg`一两句话（${SITUATION_MIN}~${SITUATION_MAX} 字）：两个人在哪、为什么说这番话` },
+    { kind: "model", title: msg`写对白`, hint: msg`模型按句写：谁说 / 台词 / 说的时候的动作或表情` },
+    { kind: "check", title: msg`形状检查`, hint: msg`形状不对整发不认；多出来的句子不收；说话人不是这两个人的那一句不收` },
+    { kind: "confirm", title: msg`你来点头`, hint: msg`逐句可改、可删，点了才画机位` },
+    { kind: "apply", title: msg`出片`, hint: msg`三个机位轮着用，一句一段，按卡上的声音说出来` },
+  ] satisfies readonly SkillStep[],
+  confirmAt: ["confirm"] satisfies readonly SkillStepKind[],
+  /** 一次 chat 的定额（服务端按调用收） */
+  cost: CHAT_TURN_TOKENS,
+} as const;
+
+/**
+ * 写对白那一发的输出上限（token）。按形状估：6 句 ×（台词 20 字 + 动作 12 字 + 人名）+ 交代 40 字 ≈ 300 字，包上 JSON 约 400~600 token；
+ *   取 1500 封顶（与「一场戏 → 多镜头」同一个数）。上限只是封顶，没写满的部分谁都不花钱（服务端按调用定额收）。
+ * ★ 还没量过真模型：付费验证时量几发（含 6 句 + 英文）再收口；截断时如实说「被截断、已计费」，不去解析半截 JSON。
+ */
+const DIALOGUE_MAX_TOKENS = 1500;
+
+export interface DialogueResult {
+  plan: DialoguePlan;
+  /** 情境是哪种语言写的（一句一段的视频提示词按它拼） */
+  lang: DialogueLang;
+  /** 演示构建：本地按句号切的，不是模型写的（面板标「演示」） */
+  demo: boolean;
+}
+
+/** 形状不对的那几种（data/dialogueShots 抛 code）→ 人话。这一次都已经计费（请求成功那一拍扣过） */
+function dialogueErrorText(code: DialogueErrorCode): string {
+  switch (code) {
+    case "noJson":
+      return t`模型没有按格式回对白，这一次已经计费——再写一次，或把情境写具体些`;
+    case "badJson":
+      return t`模型回的对白读不出来，这一次已经计费——再写一次`;
+    case "noLines":
+      return t`写出来的对白一句都用不上（没有台词，或说话人不是这两个人），这一次已经计费——再写一次`;
+    case "dupKeys":
+      return t`模型回的格式有问题（几句挤进了同一格），这一次已经计费——再写一次`;
+  }
+}
+
+/** 演示构建（没配 ARK_API_KEY）的本地降级：情境按句号切，两人轮流各说一截，只为让流程走通看形状，**不冒充模型**（面板标「演示」） */
+function localDialogue(situation: string): DialoguePlan {
+  const parts = situation
+    .split(/(?<=[。！？!?.\n；;])/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .slice(0, DIALOGUE_LINES_MAX);
+  const texts = parts.length >= 2 ? parts : [situation, situation];
+  const lines: DialogueLine[] = texts.map((text, i) => {
+    const who = (i % 2) as 0 | 1;
+    return { who, text: text.slice(0, 40), act: "", angle: defaultAngle(i, who) };
+  });
+  return { lead: "", lines, notes: [] };
+}
+
+/**
+ * 跑「一个情境 → 对白」到确认之前：门禁（长度 / 余额）→ 模型 → 扣一次钱 → 形状检查。
+ * 失败整句 throw（铁律八）；网络那一档的错原样抛，钱上的话由调用方经 ai/failCharge 说。
+ * @param names 两个人的卡名（按点的先后）：模型只用这两个名字写说话人
+ * @param place 场景卡的名字（没挂场景卡 = ""）
+ */
+export async function runDialogue(o: { situation: string; names: readonly [string, string]; place: string }): Promise<DialogueResult> {
+  const situation = o.situation.trim().slice(0, SITUATION_MAX);
+  if (situation.length < SITUATION_MIN) throw new Error(t`情境写得太短（至少 ${SITUATION_MIN} 个字）——写清两个人在哪、为什么说这番话`);
+  if (AI_REAL && !canAfford(CHAT_TURN_TOKENS)) {
+    const price = fmtTokens(CHAT_TURN_TOKENS);
+    throw new Error(frozenNote() ?? t`写对白要 ${price} token，余额不够——去「我的」页充值`);
+  }
+  const lang = sceneLang(situation);
+  if (!AI_REAL) return { plan: localDialogue(situation), lang, demo: true };
+  const { text: raw, truncated } = await skillChat(DIALOGUE_SYS, dialogueBrief({ situation, names: o.names, place: o.place, lang }), {
+    maxTokens: DIALOGUE_MAX_TOKENS,
+    timeoutMs: SCRIPT_SHOTS_TIMEOUT_MS,
+  });
+  spendTokens(CHAT_TURN_TOKENS); // 请求成功才扣（与另四条技能同口径）；截断 / 形状检查失败都不退也不再扣
+  if (truncated) {
+    const limit = DIALOGUE_MAX_TOKENS;
+    throw new Error(t`模型写到一半被截断了（输出超过 ${limit} token 的上限），这一次已经计费——把情境写短些再写`);
+  }
+  try {
+    return { plan: parseDialogue(raw, o.names, DIALOGUE_LINES_MAX), lang, demo: false };
+  } catch (e) {
+    if (e instanceof DialogueError) throw new Error(dialogueErrorText(e.code));
     throw e;
   }
 }

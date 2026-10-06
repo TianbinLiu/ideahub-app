@@ -932,6 +932,7 @@ export type GenMode =
   | "ref-images" // 参考图生视频（reference_image：卡片形象图 / 设定帧当参考图）
   | "reference" // 参考视频 + 参考图（素材参考，reference 子任务）
   | "edit" // 参考视频逐镜复刻（白模 / 返修，edit 子任务）
+  | "extend" // 参考视频向后延长（extend 子任务；产物只有新的一截，2026-10-05「修这一段 · 延长」）
   | "minimax"; // 真人档首帧图生视频（MiniMax）
 
 /**

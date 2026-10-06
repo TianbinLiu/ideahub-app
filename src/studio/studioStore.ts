@@ -694,10 +694,17 @@ interface StudioState {
    */
   layLeadNode: (spec: LeadSpec) => { ok: true; nodeId: string; proposalId: string } | { ok: false; why: string };
   /**
-   * 跟着做 C「九宫格分镜」：挑中的几格各成一段（gridDraftStore.gridAppendSpecs 拼的那几份），落段走 flowStore.appendSpecs
-   * （门禁与 appendNode 同一处）。成了就把投影窗切到新落的第一段的方案台，要出片再由调用方走 genNodeVideo（只出第一段：逐段出、逐段看）。
+   * 跟着做的几个向导走完（C 九宫格分镜 / G 特效同款 / I 对话正反打）：向导拼好的那几份（gridAppendSpecs / effectAppendSpec / dialogueAppendSpecs）
+   * 各成一段，落段走 flowStore.appendSpecs（门禁与 appendNode 同一处）。成了就把投影窗切到新落的第一段的方案台、看板娘说一句 say，
+   * 要出片再由调用方走 genNodeVideo（只出第一段：逐段出、逐段看）。
+   * @param say 看板娘那一句（各个向导说的不一样：「挑中的几格各成一段了」「三句对白各成一段了」…）—— 必填：落了几段、按什么起拍只有调用方知道
    */
-  layGridNodes: (specs: AppendSpec[]) => { ok: true; nodeIds: string[]; firstProposalId: string } | { ok: false; why: string };
+  layWizardNodes: (specs: AppendSpec[], say: string) => { ok: true; nodeIds: string[]; firstProposalId: string } | { ok: false; why: string };
+  /**
+   * 「修这一段 · 延长」（2026-10-05）：投影窗那一栏的延长键 —— 落段走 flowStore.extendNode（门禁与拼法都在那边），
+   * 成了就把投影窗切到新落的这一段的方案台、看板娘说一句；要出片由调用方接着走 genNodeVideo（受理即收窗）。
+   */
+  extendSegment: (nodeId: string, o: { text: string; durationSec: number }) => { ok: true; nodeId: string; proposalId: string } | { ok: false; why: string };
   /** 铸段向导第①步选「套模板」：就地落一张白模节点卡（不再把人赶去画布那一面）。
    *  规则全在 flowStore（appendNode 门禁 + setNodeTemplate 快照/闸），这里只是编排 */
   layTemplateNode: (tpl: VideoTemplate) => void;
@@ -1918,15 +1925,23 @@ export const useStudio = create<StudioState>()((set, get) => ({
     );
   },
 
-  layGridNodes: (specs) => {
+  layWizardNodes: (specs, say) => {
     const { editor } = get();
     if (!editor || editor.generating) return { ok: false, why: t`铸段窗正忙，稍后再试` };
     const ids = useFlow.getState().appendSpecs(specs);
     if (!ids?.length) return { ok: false, why: useFlow.getState().err || t`现在铺不了这几段，稍后再试。` };
     set({ spreadOpen: false, focus: { nodeId: ids[0] }, projection: "proposals", editor: null });
-    const n = ids.length;
-    get().npcSay(t`挑中的 ${n} 格各成一段了——每段拿那一格的画面当开头，按顺序一段一段出片。`);
+    get().npcSay(say);
     return { ok: true, nodeIds: ids, firstProposalId: specs[0].proposals[0].id };
+  },
+
+  extendSegment: (nodeId, o) => {
+    const newId = useFlow.getState().extendNode(nodeId, o);
+    if (!newId) return { ok: false, why: useFlow.getState().err || t`现在接不上这一段，稍后再试。` };
+    const node = useFlow.getState().nodes.find((n) => n.id === newId);
+    set({ focus: { nodeId: newId }, projection: "proposals" });
+    get().npcSay(t`接在最后一段后面了——新拍的这一截单独成一段，画面和声音接着上一段往下走。`);
+    return { ok: true, nodeId: newId, proposalId: node?.chosenId ?? "" };
   },
 
   layLeadNode: (spec) => {

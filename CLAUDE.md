@@ -192,7 +192,8 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   （`FlowNode.castPreview`，`flowStore.makeCastPreview`，两面共用 `components/flow/CastPreviewCard`）：只是可审核的中间物，
   **绝不写进 firstFrame**（blockoutIssue 会整句拒），换模板 / 改挂法时作废。**返修**（`genNode(id, { revise })`）是同一条
   出片路的一个可选项：本段成片当参考视频走 edit、`REVISE_TAIL` 代替白模的换人句、不要求挂人物卡；门禁 / 计费 / 凭据 / 写回
-  与正常出片一份实现，只留最近一版（`Proposal.prevVideoUrl`）可还原。**导演台**（`studio/stage/`，2026-09-06 对标 LibTV）：
+  与正常出片一份实现，只留最近一版（`Proposal.prevVideoUrl`）可还原。2026-10-05 起返修**出声**（`arkClient.REVISE_TASK`，白模照旧 `BLOCKOUT_TASK` 不出声）、
+  可以只改其中几秒（`segmentGen.revisePlotOf`），界面在「修这一段」那一栏（见下面「跟着做」的 ⑪）。**导演台**（`studio/stage/`，2026-09-06 对标 LibTV）：
   投影窗 / 画布上「🎬 导演台」开一层自己的 `<Canvas>`（不碰 TableScene 那台演出用相机；`preserveDrawingBuffer` 不开截图是黑的），
   摆灰人偶、拧机位；截图**不直接**当出片输入（人偶会被原样画进去）—— `flowStore.applyStageShot` 拿它与人物卡 / 场景卡走
   `real.fuseStageFrame`（导演台专用提示词，**别借 fuseFrame 的外壳**：那句"与各参考图人物一致"会把人偶当人物，实测画出塑料人偶 +
@@ -508,6 +509,26 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   单格重画也带这一格里的**所有**人（不走画帧那条「只带第一个人物」的老规矩）。落段只在 `gridDraftStore.gridAppendSpecs` → `flowStore.appendSpecs`
   （门禁与 `appendNode` 同一处 `appendIssue`；报价 `appendSpecsQuote` 逐段、与真落的同一批 `appendedNode`）：每格一段**参考图直出段**、那一格当开头帧上锁（`pinned.first`）、
   **不承接**（承接会拿上一段尾帧把这一格整张顶掉）、素材只挂这一格里的人 + 场景卡；只先出第一段（顺序门禁照旧）。
+  ⑨ **G 特效同款（第一批，2026-10-05，主人「按你的建议做第一批」，方案 docs/canvas-platforms-ecosystem-research.md §五）**：向导只有一份 `components/flow/EffectWizard`
+  （工坊 lane `effect`、画布抽屉），状态在 `studio/effectDraftStore`。三步：挑特效 → 挑主角（人物卡；产品走道具卡或传一张照片）→ 画关键帧 · 出片。
+  预设只在 `data/effectPresets`（零依赖，构建里 `check-effect-presets.mjs` 实跑）：每条两句冻结中文 —— 关键帧（那一刻，给出图）与动作（接下来几秒，给视频，**一镜到底、
+  不写「镜头N：」**，否则被当成多镜头）；界面上的名字 / 一句话在向导的 `PRESET_TEXT`。哪一档能用哪几条只问 `effectsOn`：**真人档不画关键帧**（照片起拍），只摆不靠换场景
+  也成立的 `realOk` 那几条。落段 `effectAppendSpec`：参考图直出段、关键帧当开头帧上锁、不承接。
+  ⑩ **I 对话正反打（第一批）**：向导只有一份 `components/flow/DialogueWizard`（工坊 lane `dialogue`、画布抽屉），状态在 `studio/dialogueDraftStore`。
+  四步：两个人（点的先后 = 第一个、第二个人）+ 场景卡 → 写对白（第五条官方结构化技能 `structuredSkills.runDialogue`，或自己写）→ 画三个机位 → 一句一段。
+  规则只在 `data/dialogueShots`（零依赖，构建里 `check-dialogue-shots.mjs` 实跑，拿 `shotScript.lineSpeakers` 本尊核对每一句认得出说话人）。三条要守：
+  ① 三个机位**一张接一张画、不走组图**：先画双人镜头，再拿它当图1 画两个过肩（`ai/real.shotGroupRefs` 的 `before` 让卡图从图2 起编号）—— 过肩要与双人同地方同光线，
+  而且不依赖服务端 #106；② 一句的视频提示词里说话人**紧挨在引号前那一小句**（动作单写一句放前面；英文用分号隔开，`lineSpeakers` 不把英文句号当断点），
+  拍听的人时写「画外传来某某的声音」；③ 站位守 180 度线（双人镜头 A 左 B 右、过肩的前景肩膀在对侧），两个过肩接起来视线才对得上。
+  落段 `dialogueAppendSpecs`：一句一段、机位画面当开头帧上锁、不承接、挂两个人 + 场景卡；落完 `resetDialogueLines` **留着三个机位**（同一个地方接着往下说不用再画）。
+  三个跟着做向导（C / G / I）在工坊落段都走 `studioStore.layWizardNodes(specs, say)`（看板娘那句由调用方给）。
+  ⑪ **修这一段（第一批：片段重拍 + 往后延长）**：挂在已出片的段上（`components/flow/FixSegmentBox`，画布四个车道都摆、工坊在 PickedActions），**不进「加一段」的选法屏**。
+  片段重拍 = 返修升级（见上面「返修」）。**往后延长**：产物**只有新的一截**（2026-10-05 拿官方 2.5 提示词指南延长示例的三个文件量过：输入 15.05s、产物 5.00s、
+  拼接后 20.08s），所以它就是流水线上**新的一段**（`FlowNode.extendFrom`）：只延长最后一段（接在中间会打断后面的接缝）、成片已转存成永久地址、档位能带参考视频
+  （今天只有电影级）—— 判据只在 `flowStore.extendIssue`，落什么只在 `extendSpec`（报价 `appendQuote` 照着它算），落段 `extendNode`，「接的是哪一段成片」只问
+  `extendSourceOf`（那一段返修过就接新那一版）。出片走契约的新模式 `extend`（`arkClient` 的 omni extend + adaptive + 窗口内整数时长，报价与素材参考同一个式子
+  (输入 + 输出) × 系数，服务端结算 `tokens.materialRefTokens`）。⚠ 生产上要服务端 PR TianbinLiu/ideahub-server#107（参考视频认「本人自己的成片」）上线才通，
+  在那之前正式包里的返修 / 延长会被服务端整句拒（不扣钱）。高清档（2.0 mini）的视频参考等付费探测 `design/video-input-probe.mjs` 与账单核对之后再开。
 - **「这一段用哪个模板」是三态，且必须当场表态**（`FlowNode.tpl`）：`undefined` = 还没表态
   （退回 store 级 `template`，老草稿与单模板流靠它）、`null` = 明确没有、对象 = 这一段自己的
   快照。读**只准走 `tplOfNode`**。而 store 级那份会随 `setCursor` 换成**当前段**的快照 ——
