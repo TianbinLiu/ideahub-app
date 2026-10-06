@@ -136,6 +136,16 @@ const ULTRA_MULT = 4.7;
  */
 const ULTRA_R2V_MULT = 2.8;
 
+/**
+ * 高清（Seedance 2.0 mini）**含视频输入**档的系数：官方刊例 14 元/百万 token ÷ 15 = 14/15。
+ * 2026-10-05 主人「合」开高清的片段重拍 + 参考视频出片。付费探测（design/video-input-probe.mjs）：mini 认 omni_reference_task_type，
+ * 参考 / 编辑 / 延长都一次受理，用量与 2.5 同一个式子（(输入 + 输出) × 21,600，输入按整秒往下取）。
+ * ⚠ 与 ULTRA_R2V_MULT 不同，这个数**还没对过账单**：探测那三个任务（2026-10-06 10:43~10:50 北京时间）每个原价 ¥3.04 = 14 元/M、
+ *   ¥4.99 = 23 元/M。核出来不是 14 就两仓一起改（server config/tokens.js 的 VIDEO_MULT_R2V 同一个数，arkProxy.spec 钉着）。
+ *   促销价（4 折）不入表，只写刊例（与服务端那张表同一条规矩）。
+ */
+const HD_R2V_MULT = 14 / 15;
+
 /** Seedance 档位：id 持久化在 VideoSegment.videoTier / EditorState.videoTier */
 export interface VideoTier {
   id: string;
@@ -218,6 +228,16 @@ export interface VideoTier {
    *   genNode 出片之前、segmentGen 的延长那一支（最后一道）—— 三处都与 refVid / r2vMult 并列判，别只改其中一处。
    */
   extendOk: boolean;
+  /**
+   * 能不能跑**白模模板**（参考视频 edit 逐镜头复刻、只换主体；模板对出片模型是硬要求，见 data/templates.templateTiers）。
+   * ★ 与 refVid **分开**一位（2026-10-05 主人「合」给高清开了视频参考）：refVid 现在说的是「能不能带参考视频出片」
+   *   （片段重拍 / 自定义的示例视频），高清与电影级都能；白模模板仍然只有电影级 —— 白模化那一发由服务端钉在 2.5，
+   *   模板上的角色位、时长窗口都是照着 2.5 量出来的。原来 blockoutTier 取「第一个 refVid 为真的档」，高清排在电影级前面，
+   *   只翻 refVid 的话白模模板会被悄悄换到高清（报 A 档的价、按 B 档结算 —— 那个函数头上写着「开第二档时这里必须改」）。
+   * ★ 逐档显式写（同 refImg/refVid 的理由）。读它的：blockoutTier、blockoutPriceIssue（白模段的档位行与出片闸）、
+   *   real.validateGenSpec（白模那一发的最后一道）。
+   */
+  blockoutOk: boolean;
   /**
    * 这一档的出片**带不带 AI 生成的环境音**（协议侧发 `generate_audio: true`）。
    *
@@ -302,19 +322,19 @@ export const VIDEO_TIERS: VideoTier[] = [
   //   ⚠ fast 与 hd 此前是拍出来的 0.3 / 1.6，比真实成本高 7% / 4.3%（**多收用户**的方向）。
   // fast/std 是 1.0-pro：`generate_audio` 收下就扔（实测），所以 audio 显式 false ——
   // 不是"我们不给"，是这一代模型出不了（见 VideoTier.audio 的 ★★）
-  { id: "fast", get label() { return i18n._(msg`极速`); }, model: "doubao-seedance-1-0-pro-fast-251015", mult: 4.2 / 15, flf: false, refImg: false, refVid: false, r2vMult: null, extendOk: false, audio: false, realFace: false, assetRef: false, minSec: 3, maxSec: 10, get desc() { return i18n._(msg`省 token · 首帧起拍，不锁尾帧`); } },
-  { id: "std", get label() { return i18n._(msg`标准`); }, model: "doubao-seedance-1-0-pro-250528", mult: 1, flf: true, refImg: false, refVid: false, r2vMult: null, extendOk: false, audio: false, realFace: false, assetRef: false, minSec: 3, maxSec: 10, get desc() { return i18n._(msg`首尾帧可控（默认）`); } },
+  { id: "fast", get label() { return i18n._(msg`极速`); }, model: "doubao-seedance-1-0-pro-fast-251015", mult: 4.2 / 15, flf: false, refImg: false, refVid: false, r2vMult: null, extendOk: false, blockoutOk: false, audio: false, realFace: false, assetRef: false, minSec: 3, maxSec: 10, get desc() { return i18n._(msg`省 token · 首帧起拍，不锁尾帧`); } },
+  { id: "std", get label() { return i18n._(msg`标准`); }, model: "doubao-seedance-1-0-pro-250528", mult: 1, flf: true, refImg: false, refVid: false, r2vMult: null, extendOk: false, blockoutOk: false, audio: false, realFace: false, assetRef: false, minSec: 3, maxSec: 10, get desc() { return i18n._(msg`首尾帧可控（默认）`); } },
   // ★ desc 是给**用户**看的，不是给运维看的。原来这里写的是「需在方舟控制台开通 2.0 系列」——
   //   那是部署方的事，终端用户既看不懂也做不了（CLAUDE.md 那条「界面上摆一个用户看不懂
   //   也做不了事的东西」）。开通与否的后果由服务端 ALLOWED_MODELS 与方舟的 ModelNotOpen 负责。
-  // hd 的 r2vMult 刻意留 null（不是忘了）：0.93 只是刊例折算的备选。A6（mini 对 omni_reference_task_type 的行为）
-  // 2026-10-05 付费探测核过了（认，三种子任务都一次受理），账单还没核 —— 没核过的价不进表（见文件头）。
+  // ★ hd 的视频参考 2026-10-05 开（主人「合」）：refVid true、r2vMult = HD_R2V_MULT（刊例 14 元/M，见那个常量）。
+  //   片段重拍与自定义的示例视频能用；延长不开（extendOk，接缝会跳）；白模模板不开（blockoutOk，只有电影级）。
   // ★ hd 的 audio: true 是**免费套餐也听得到声音**的那条路（paidOnly 只挡 ultra）——
   //   实测 2.0-mini 真出声（-30.2dB），且开音频零额外成本，所以 desc 里如实写出来：
   //   不写的话用户只能靠"换个档试试"发现，而多数人只会以为 App 的片本来就是哑的。
   // ★ minSec 4（2026-09-30 修，此前写的是 3）：2.0 mini 不收 3 秒 —— 选 3 秒出片是同步 400，用户只会觉得这一档坏了
   // ★ maxSec 15（2026-10-03「段时长放开」）：2.0 系列的协议上限，见 VideoTier.maxSec
-  { id: "hd", get label() { return i18n._(msg`高清`); }, model: "doubao-seedance-2-0-mini-260615", mult: 23 / 15, flf: true, refImg: true, refImagesMax: 9, refVid: false, r2vMult: null, extendOk: false, audio: true, realFace: false, assetRef: true, minSec: 4, maxSec: 15, get desc() { return i18n._(msg`新一代模型 · 画面更稳、细节更多；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音`); } },
+  { id: "hd", get label() { return i18n._(msg`高清`); }, model: "doubao-seedance-2-0-mini-260615", mult: 23 / 15, flf: true, refImg: true, refImagesMax: 9, refVid: true, r2vMult: HD_R2V_MULT, extendOk: false, blockoutOk: false, audio: true, realFace: false, assetRef: true, minSec: 4, maxSec: 15, get desc() { return i18n._(msg`新一代模型 · 画面更稳、细节更多；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音`); } },
   {
     id: "ultra",
     get label() {
@@ -334,6 +354,8 @@ export const VIDEO_TIERS: VideoTier[] = [
     r2vMult: ULTRA_R2V_MULT,
     // 延长两轮都接得上（2026-10-05 付费探测 U1 / U2，见 VideoTier.extendOk）
     extendOk: true,
+    // 白模模板只有这一档（白模化那一发由服务端钉在 2.5，见 VideoTier.blockoutOk）
+    blockoutOk: true,
     // 2.5 实测出声（-27.5dB），且与无声两发的用量/单价逐位相同（见 VideoTier.audio）
     audio: true,
     // 最贵一档也一样收不了真人照片：方舟的两套真人探测器不分档位（见 VideoTier.realFace）
@@ -378,6 +400,7 @@ export const VIDEO_TIERS: VideoTier[] = [
     refVid: false,
     r2vMult: null,
     extendOk: false,
+    blockoutOk: false,
     // 海螺出片有没有原生音频没实测过——先按无声报（往少承诺的方向错，铁律八的精神）
     audio: false,
     // ★ 全表唯一的 true：realFaceIssue 靠它放行（唯一判定处）
@@ -632,11 +655,24 @@ export function r2vTokens(inputSec: number, tierId?: string): number | null {
  *   诚实 —— ultra 的价其实已经钉死了，没开的是链路。
  * ★ 为什么非有这句：价目/闸门不满足时唯一诚实的做法是既不报价也不开炼。放过去只有
  *   两个下场 —— 静默退回首尾帧（背景/运镜全丢、钱照收，偷换商品），或按错的系数收。
+ * ★ 2026-10-05 起它只管「能不能**带参考视频**出片」（片段重拍、自定义的示例视频）：高清开了视频参考，
+ *   但跑不了白模模板 —— 白模那件事问 blockoutPriceIssue（判据 VideoTier.blockoutOk），两件事别再用同一句判。
  */
 export function r2vPriceIssue(tierId?: string): string | null {
   const tier = tierOf(tierId);
   const block = r2vBlockOfTier(tier);
-  return block ? r2vBlockText(block, [tier.label]) : null;
+  return block ? r2vBlockText(block, [tier.label], "refVideo") : null;
+}
+
+/**
+ * 「这一档能不能跑**白模模板**」—— null = 能，否则整句原因。白模段的档位那一排（TierRow / r2vBlockLines）、
+ * 出片闸（segmentGen.blockoutIssue 的非返修那一支）、模板详情页的出片键都只问它。
+ * 判据：VideoTier.blockoutOk（只有电影级，理由见那一位）+ 价签（r2vMult）。
+ */
+export function blockoutPriceIssue(tierId?: string): string | null {
+  const tier = tierOf(tierId);
+  const block = blockoutBlockOfTier(tier);
+  return block ? r2vBlockText(block, [tier.label], "blockout") : null;
 }
 
 /** 走不了白模（r2v）的两种原因：闸门没开（closed），或闸开了但价签没钉（unpriced，model 是括号里点名的模型显示名） */
@@ -662,6 +698,16 @@ function r2vBlockOfTier(tier: VideoTier): R2vBlock | null {
   return null;
 }
 
+/** 白模模板的判据本体（与 r2vBlockOfTier 同形，闸门换成 blockoutOk）。收档位对象的理由同上 */
+function blockoutBlockOfTier(tier: VideoTier): R2vBlock | null {
+  if (!tier.blockoutOk) return { kind: "closed" };
+  if (tier.r2vMult === null) return { kind: "unpriced", model: modelLabel(tier.model) };
+  return null;
+}
+
+/** 这句话说的是哪件事：带参考视频出片（返修 / 示例视频），还是跑白模模板 */
+type R2vScope = "refVideo" | "blockout";
+
 /** 几个档位名接成一串：整串外面那对引号由整句自己带（中文「极速」「标准」，英文 “Fast”, “Standard”） */
 function joinTierNames(labels: string[]): string {
   return labels.join(
@@ -680,33 +726,43 @@ function joinTierNames(labels: string[]): string {
  *     读起来像是别的档过一阵也会放开 —— 而 1.0 两档与真人档在协议上就没有参考视频这一项，等多久都不会有；
  *     用户该做的是换到做得到的那一档（或者按自己能用的模型去挑模板，见模板货架的「出片模型」筛选），不是等。
  *   · 一档都没开（闸门全关）⇒ 才是真的「暂未开放」，原句保留。
- * ★ 这句话三处都在用：白模段的档位那一排（r2vBlockLines）、返修（FixSegmentBox 的片段重拍）、出片闸（segmentGen.blockoutIssue）——
- *   所以不写成"这个模板…"：返修那一处根本没有模板。括号里把两种用法都点了名。
+ * ★ 2026-10-05 起分两种用途（scope）各说各的：高清能带参考视频（片段重拍、自定义的示例视频），但跑不了白模模板。
+ *   「blockout」= 白模段的档位那一排（r2vBlockLines）与白模出片闸；「refVideo」= 返修（FixSegmentBox 的片段重拍）与示例视频。
+ *   原来一句话包两件事（「白模模板复刻、返修都属于这一类——只有电影级做得到」），高清开了之后那句话一半是错的。
  */
-function r2vBlockText(block: R2vBlock, labels: string[]): string {
+function r2vBlockText(block: R2vBlock, labels: string[], scope: R2vScope): string {
   const names = joinTierNames(labels);
   if (block.kind === "closed") {
-    const open = blockoutTier();
-    if (!open) return t`「${names}」这一档暂未开放白模模板出片，等开放后再来`;
-    const openLabel = open.label;
-    const openModel = modelLabel(open.model);
-    return t`「${names}」做不了按参考视频出片（白模模板复刻、返修都属于这一类）——这类出片只有「${openLabel}」（${openModel}）做得到`;
+    if (scope === "blockout") {
+      const open = blockoutTier();
+      if (!open) return t`「${names}」这一档暂未开放白模模板出片，等开放后再来`;
+      const openLabel = open.label;
+      const openModel = modelLabel(open.model);
+      return t`「${names}」跑不了白模模板（模板对出片模型是硬要求）——白模模板只有「${openLabel}」（${openModel}）跑得了`;
+    }
+    const open = VIDEO_TIERS.filter((x) => !r2vBlockOfTier(x));
+    if (!open.length) return t`「${names}」这一档暂未开放按参考视频出片，等开放后再来`;
+    const openNames = joinTierNames(open.map((x) => x.label));
+    return t`「${names}」做不了按参考视频出片（片段重拍、自定义的示例视频都属于这一类）——这类出片只有「${openNames}」做得到`;
   }
   const model = block.model;
-  return t`「${names}」这一档的白模出片暂时报不出价（${model} 的 r2v 单价未核账），先用别的档位`;
+  return scope === "blockout"
+    ? t`「${names}」这一档的白模出片暂时报不出价（${model} 的 r2v 单价未核账），先用别的档位`
+    : t`「${names}」这一档的参考视频出片暂时报不出价（${model} 的单价未核账），先用别的档位`;
 }
 
 /**
  * 白模段上「哪几档点不动、为什么」—— 同一个原因只说一句，档位名并到一起。本段设置抽屉与工坊 TierBlockNote 两面共用。
  * ★ 2026-08-23 抽屉修过"每句带着自己的档位名、字面各不相同 ⇒ 去重恒失效、同一件事糊四遍"，
  *   工坊那一面一直是逐档各印一句 —— 收成这一处，两面说的是同一串话。
- * ★ 不收档位表参数，只走 VIDEO_TIERS，原因与档位名从同一个档位对象上取（r2vBlockOfTier）：
+ * ★ 不收档位表参数，只走 VIDEO_TIERS，原因与档位名从同一个档位对象上取（blockoutBlockOfTier）：
  *   收一份外来的表、原因却按 id 回全局表里查的话，两者可以悄悄对不上。
+ * ★ 两个调用方（本段设置抽屉、工坊 TierBlockNote）都只在白模段上问它，所以按白模判据（blockoutOk），不是 refVid。
  */
 export function r2vBlockLines(): string[] {
   const groups = new Map<string, { block: R2vBlock; labels: string[] }>();
   for (const tier of VIDEO_TIERS) {
-    const block = r2vBlockOfTier(tier);
+    const block = blockoutBlockOfTier(tier);
     if (!block) continue;
     // 报不出价的按模型分开说（括号里点名的是各自的模型），暂未开放的并成一句
     const key = block.kind === "unpriced" ? `unpriced:${block.model}` : block.kind;
@@ -714,12 +770,14 @@ export function r2vBlockLines(): string[] {
     if (hit) hit.labels.push(tier.label);
     else groups.set(key, { block, labels: [tier.label] });
   }
-  return [...groups.values()].map((g) => r2vBlockText(g.block, g.labels));
+  return [...groups.values()].map((g) => r2vBlockText(g.block, g.labels, "blockout"));
 }
 
 /**
  * 「白模那条路实际走哪一档」—— 用户在白模链路上**没有档位选择器**（出片模型由链路本身
- * 决定，不是节点卡上选的），所以这件事得有一个统一的出处：**开着 refVid 的那一档**。
+ * 决定，不是节点卡上选的），所以这件事得有一个统一的出处：**blockoutOk 的那一档**。
+ * ★ 2026-10-05 从 `find(refVid)` 改成 `find(blockoutOk)`：主人「合」给高清开了视频参考（refVid），而高清排在电影级前面 ——
+ *   不改的话白模模板会被悄悄换到高清。下面「同时最多只有一档开着」那条假设现在落在 blockoutOk 上（今天只有电影级）。
  *
  * ★ 返回 null = 全表都没开闸（refVid 全 false，首发时的状态）。调用方据此既不报价也不开炼，
  *   人话走 blockoutizeIssue。
@@ -735,7 +793,7 @@ export function r2vBlockLines(): string[] {
  *   是 data/templates.templateTiers（货架筛选、卡面与详情页的标注问的都是它）。
  */
 export function blockoutTier(): VideoTier | null {
-  return VIDEO_TIERS.find((t) => t.refVid) ?? null;
+  return VIDEO_TIERS.find((t) => t.blockoutOk) ?? null;
 }
 
 /**

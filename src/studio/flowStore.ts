@@ -269,7 +269,7 @@ export function extendSourceOf(nodes: FlowNode[], node: FlowNode): { url: string
  * 这一段**能不能往后延长**（null = 能；否则整句原因）—— 唯一实现：「修这一段」那一栏的延长键与 extendNode 都问它。
  * ① 只延长最后一段：延长的产物接在它后面成为新的一段，接在中间会把后面那几段的接缝打断；
  * ② 出过片、成片已经转存成永久地址（服务端只认这个账号自己的成片当参考视频；方舟临时链接 24 小时就失效）；
- * ③ 这一档能延长（economy.VideoTier.extendOk，今天只有电影级）：高清在 2026-10-05 付费探测里接缝会跳，将来高清开了视频参考也不跟着开；
+ * ③ 这一档能延长（economy.VideoTier.extendOk，今天只有电影级）：高清在 2026-10-05 付费探测里接缝会跳 —— 同一天高清开了视频参考（重拍 / 示例视频），延长照旧不开；
  * ④ 被延长的成片要在方舟参考视频的窗口里（4~30 秒等，与返修同一把尺 refVideoIssue）。
  */
 export function extendIssue(nodes: FlowNode[], idx: number): string | null {
@@ -281,7 +281,7 @@ export function extendIssue(nodes: FlowNode[], idx: number): string | null {
   if (isArkAssetUrl(url)) return t`成片还在转存（换成永久地址），转存完才能延长——稍等一会儿再来`;
   const tier = tierOf(node.videoTier);
   const label = tier.label;
-  if (!tier.refVid || tier.r2vMult === null || !tier.extendOk) return t`「${label}」档还不能延长（要能带参考视频出片的档）——用电影级出的段才能延长`;
+  if (!tier.refVid || tier.r2vMult === null || !tier.extendOk) return t`「${label}」档还不能延长——用电影级出的段才能延长`;
   const [w, h] = aspectOf(node.aspect).frameSize.split("x").map(Number);
   const issue = refVideoIssue({ url, durationSec: reviseSecOf(chosenOf(node)), width: w, height: h });
   if (issue) return t`这一段延长不了：${issue}`;

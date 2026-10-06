@@ -16,7 +16,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
 import { Link } from "react-router";
 import { tierBlockReason } from "../../data/account";
-import { clampDuration, deriveIssue, fmtTokens, r2vPriceIssue, realFaceIssue, tierOf, VIDEO_TIERS } from "../../data/economy";
+import { blockoutPriceIssue, clampDuration, deriveIssue, fmtTokens, realFaceIssue, tierOf, VIDEO_TIERS } from "../../data/economy";
 import { chosenOf, nodeCost, nodeFramed, tplOfNode, useFlow } from "../../studio/flowStore";
 import { carryIsHard } from "../../studio/segmentGen";
 
@@ -123,9 +123,10 @@ export default function TierRow({
         <span className="w-10 flex-none text-[11px] text-slate-400"><Trans>画质</Trans></span>
         {/* ★ 回调参数叫 tier 不叫 t：t 是 useLingui 给的翻译函数，同名会把它遮住 */}
         {VIDEO_TIERS.map((tier) => {
-          // ★ 白模节点上，不支持 r2v 的档位也要禁掉（判断在 economy.r2vPriceIssue 一处）：
+          // ★ 白模节点上，跑不了白模模板的档位也要禁掉（判断在 economy.blockoutPriceIssue 一处；2026-10-05 起不再问 r2vPriceIssue ——
+          //   高清能带参考视频、但跑不了白模模板，问错那一句高清就会在白模段上变成可选）：
           //   切过去出片必被门禁整句拒，让人选一个必失败的档不如当场说不能选
-          const r2vBlock = blockout ? r2vPriceIssue(tier.id) : null;
+          const r2vBlock = blockout ? blockoutPriceIssue(tier.id) : null;
           // ★ 按发计价档（真人）走不了推演（判定在 economy.deriveIssue 一处）——工坊这一面
           //   的主路正是推演，切过去之后「重新推演三套」必被拒。宿主是画布时那条路还在
           //   （画布可以直出），所以这一条只在**需要推演**的宿主上拦：由 prop 决定。

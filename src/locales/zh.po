@@ -1610,8 +1610,13 @@ msgstr "「{0}」档不支持参考图，改为先按描述画一张设定帧再
 
 #. placeholder {0}: refTier.label
 #: src/studio/segmentGen.ts
-msgid "「{0}」档不支持带参考视频出片——去 ⚙ 本段设置换成「电影级」档，或移除参考视频"
-msgstr "「{0}」档不支持带参考视频出片——去 ⚙ 本段设置换成「电影级」档，或移除参考视频"
+#~ msgid "「{0}」档不支持带参考视频出片——去 ⚙ 本段设置换成「电影级」档，或移除参考视频"
+#~ msgstr "「{0}」档不支持带参考视频出片——去 ⚙ 本段设置换成「电影级」档，或移除参考视频"
+
+#. placeholder {0}: refTier.label
+#: src/studio/segmentGen.ts
+msgid "「{0}」档不支持带参考视频出片——去 ⚙ 本段设置换成「高清」或「电影级」档，或移除参考视频"
+msgstr "「{0}」档不支持带参考视频出片——去 ⚙ 本段设置换成「高清」或「电影级」档，或移除参考视频"
 
 #. placeholder {0}: o.tier.label
 #: src/studio/segmentGen.ts
@@ -1630,13 +1635,23 @@ msgstr "「{0}」档带不了参考视频"
 
 #. placeholder {0}: tierOf(editor.videoTier).label
 #: src/studio/ui/projection.tsx
-msgid "「{0}」档带不了参考视频——到「定规格」那一步换成「电影级」，或直接跳过这一步自己给首尾帧"
-msgstr "「{0}」档带不了参考视频——到「定规格」那一步换成「电影级」，或直接跳过这一步自己给首尾帧"
+#~ msgid "「{0}」档带不了参考视频——到「定规格」那一步换成「电影级」，或直接跳过这一步自己给首尾帧"
+#~ msgstr "「{0}」档带不了参考视频——到「定规格」那一步换成「电影级」，或直接跳过这一步自己给首尾帧"
 
 #. placeholder {0}: tierOf(editor.videoTier).label
 #: src/studio/ui/projection.tsx
-msgid "「{0}」档带不了参考视频——到「定规格」那一步换成「电影级」（付费档，套餐不够会点不动），或直接跳过这一步自己给首尾帧"
-msgstr "「{0}」档带不了参考视频——到「定规格」那一步换成「电影级」（付费档，套餐不够会点不动），或直接跳过这一步自己给首尾帧"
+#~ msgid "「{0}」档带不了参考视频——到「定规格」那一步换成「电影级」（付费档，套餐不够会点不动），或直接跳过这一步自己给首尾帧"
+#~ msgstr "「{0}」档带不了参考视频——到「定规格」那一步换成「电影级」（付费档，套餐不够会点不动），或直接跳过这一步自己给首尾帧"
+
+#. placeholder {0}: tierOf(editor.videoTier).label
+#: src/studio/ui/projection.tsx
+msgid "「{0}」档带不了参考视频——到「定规格」那一步换成「高清」（「电影级」是付费档），或直接跳过这一步自己给首尾帧"
+msgstr "「{0}」档带不了参考视频——到「定规格」那一步换成「高清」（「电影级」是付费档），或直接跳过这一步自己给首尾帧"
+
+#. placeholder {0}: tierOf(editor.videoTier).label
+#: src/studio/ui/projection.tsx
+msgid "「{0}」档带不了参考视频——到「定规格」那一步换成「高清」或「电影级」，或直接跳过这一步自己给首尾帧"
+msgstr "「{0}」档带不了参考视频——到「定规格」那一步换成「高清」或「电影级」，或直接跳过这一步自己给首尾帧"
 
 #. placeholder {0}: tierOf(node.videoTier).label
 #: src/components/flow/FlowCanvas.tsx
@@ -1708,8 +1723,8 @@ msgid "「{label}」档按发直出（起拍画面就是真人卡的照片），
 msgstr "「{label}」档按发直出（起拍画面就是真人卡的照片），没有推演三套方案这一步——写好一句话直接生成，或换回其它档再推演。"
 
 #: src/studio/flowStore.ts
-msgid "「{label}」档还不能延长（要能带参考视频出片的档）——用电影级出的段才能延长"
-msgstr "「{label}」档还不能延长（要能带参考视频出片的档）——用电影级出的段才能延长"
+msgid "「{label}」档还不能延长——用电影级出的段才能延长"
+msgstr "「{label}」档还不能延长——用电影级出的段才能延长"
 
 #: src/data/economy.ts
 msgid "「{label}」这一档暂时报不出价（{model} 不在价目表里），先用别的档位"
@@ -1844,16 +1859,32 @@ msgid "「{names}」不在你选的人物里：这几句台词照收，声音由
 msgstr "「{names}」不在你选的人物里：这几句台词照收，声音由模型自己配"
 
 #: src/data/economy.ts
-msgid "「{names}」做不了按参考视频出片（白模模板复刻、返修都属于这一类）——这类出片只有「{openLabel}」（{openModel}）做得到"
-msgstr "「{names}」做不了按参考视频出片（白模模板复刻、返修都属于这一类）——这类出片只有「{openLabel}」（{openModel}）做得到"
+msgid "「{names}」做不了按参考视频出片（片段重拍、自定义的示例视频都属于这一类）——这类出片只有「{openNames}」做得到"
+msgstr "「{names}」做不了按参考视频出片（片段重拍、自定义的示例视频都属于这一类）——这类出片只有「{openNames}」做得到"
+
+#: src/data/economy.ts
+#~ msgid "「{names}」做不了按参考视频出片（白模模板复刻、返修都属于这一类）——这类出片只有「{openLabel}」（{openModel}）做得到"
+#~ msgstr "「{names}」做不了按参考视频出片（白模模板复刻、返修都属于这一类）——这类出片只有「{openLabel}」（{openModel}）做得到"
 
 #: src/studio/segmentGen.ts
 msgid "「{names}」的声音样本这次没带上（这一档的参考音频合计最长 {capSec} 秒）——这几位的台词音色由模型定；把样本剪短些就能都带上"
 msgstr "「{names}」的声音样本这次没带上（这一档的参考音频合计最长 {capSec} 秒）——这几位的台词音色由模型定；把样本剪短些就能都带上"
 
 #: src/data/economy.ts
+msgid "「{names}」跑不了白模模板（模板对出片模型是硬要求）——白模模板只有「{openLabel}」（{openModel}）跑得了"
+msgstr "「{names}」跑不了白模模板（模板对出片模型是硬要求）——白模模板只有「{openLabel}」（{openModel}）跑得了"
+
+#: src/data/economy.ts
+msgid "「{names}」这一档暂未开放按参考视频出片，等开放后再来"
+msgstr "「{names}」这一档暂未开放按参考视频出片，等开放后再来"
+
+#: src/data/economy.ts
 msgid "「{names}」这一档暂未开放白模模板出片，等开放后再来"
 msgstr "「{names}」这一档暂未开放白模模板出片，等开放后再来"
+
+#: src/data/economy.ts
+msgid "「{names}」这一档的参考视频出片暂时报不出价（{model} 的单价未核账），先用别的档位"
+msgstr "「{names}」这一档的参考视频出片暂时报不出价（{model} 的单价未核账），先用别的档位"
 
 #: src/data/economy.ts
 msgid "「{names}」这一档的白模出片暂时报不出价（{model} 的 r2v 单价未核账），先用别的档位"
@@ -1893,12 +1924,20 @@ msgid "「{tierLabel}」档协议上不收参考图：卡片形象只用来画�
 msgstr "「{tierLabel}」档协议上不收参考图：卡片形象只用来画首尾帧，出片时模型看到的只有首尾帧。想让模型直接看到卡片形象与临时参考图，换「高清」或「电影级」。"
 
 #: src/components/flow/RefStrip.tsx
-msgid "「{tierLabel}」档带不了示例视频——换成「电影级」之后这里才排得出清单。"
-msgstr "「{tierLabel}」档带不了示例视频——换成「电影级」之后这里才排得出清单。"
+msgid "「{tierLabel}」档带不了示例视频——换成「高清」或「电影级」之后这里才排得出清单。"
+msgstr "「{tierLabel}」档带不了示例视频——换成「高清」或「电影级」之后这里才排得出清单。"
+
+#: src/ai/real.ts
+msgid "「{tierLabel}」档跑不了白模模板（模板对出片模型是硬要求）"
+msgstr "「{tierLabel}」档跑不了白模模板（模板对出片模型是硬要求）"
 
 #: src/studio/segmentGen.ts
 msgid "「{tierLabel}」档还不能延长——去 ⚙ 本段设置换成「电影级」档"
 msgstr "「{tierLabel}」档还不能延长——去 ⚙ 本段设置换成「电影级」档"
+
+#: src/ai/real.ts
+msgid "「{tierLabel}」档还不能延长——用电影级出的段才能延长"
+msgstr "「{tierLabel}」档还不能延长——用电影级出的段才能延长"
 
 #. 个人页「还没传到服务器」横幅：只有作品标题（这一条没记下没传上去的原因）
 #: src/pages/ProfilePage.tsx
@@ -2453,8 +2492,13 @@ msgstr "⚠ 这条是<0>简约模式</0>：它按设计不进草稿库（一次�
 
 #. placeholder {0}: tierOf(node.videoTier).label
 #: src/components/flow/FlowCanvas.tsx
-msgid "⚠「{0}」档带不了参考视频——去 ⚙ 本段设置换成「电影级」，否则生成会被整句拒。"
-msgstr "⚠「{0}」档带不了参考视频——去 ⚙ 本段设置换成「电影级」，否则生成会被整句拒。"
+#~ msgid "⚠「{0}」档带不了参考视频——去 ⚙ 本段设置换成「电影级」，否则生成会被整句拒。"
+#~ msgstr "⚠「{0}」档带不了参考视频——去 ⚙ 本段设置换成「电影级」，否则生成会被整句拒。"
+
+#. placeholder {0}: tierOf(node.videoTier).label
+#: src/components/flow/FlowCanvas.tsx
+msgid "⚠「{0}」档带不了参考视频——去 ⚙ 本段设置换成「高清」或「电影级」，否则生成会被整句拒。"
+msgstr "⚠「{0}」档带不了参考视频——去 ⚙ 本段设置换成「高清」或「电影级」，否则生成会被整句拒。"
 
 #. placeholder {0}: tierOf(editor.videoTier).label
 #: src/studio/ui/projection.tsx
