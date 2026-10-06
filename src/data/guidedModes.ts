@@ -8,8 +8,8 @@
 // ★ 还没做出来的模式**不进清单**：摆一个点不动的选项，用户只会觉得功能坏了（CLAUDE.md 已知的坑那一格）。
 //   做出来的那一期再加一行，判定写在 modeBlock 里（C 九宫格分镜在第三期 2026-10-05 加上）。
 
-/** 模式 id（与设计稿的字母对照：direct = A、lead = B、grid = C、custom = F、cards = D、template = E） */
-export type GuidedModeId = "direct" | "lead" | "grid" | "custom" | "cards" | "template";
+/** 模式 id（与设计稿的字母对照：direct = A、lead = B、grid = C、custom = F、cards = D、template = E、effect = G、dialogue = I） */
+export type GuidedModeId = "direct" | "lead" | "grid" | "dialogue" | "custom" | "cards" | "template" | "effect";
 
 /** 选法屏上的三组：基础 / 跟着高手做 / 复刻 */
 export type GuidedGroup = "basic" | "pro" | "replica";
@@ -17,7 +17,7 @@ export type GuidedGroup = "basic" | "pro" | "replica";
 export interface GuidedModeDef {
   id: GuidedModeId;
   /** 设计稿里的字母，方便对照 docs/guided-modes-design.md */
-  letter: "A" | "B" | "C" | "D" | "E" | "F";
+  letter: "A" | "B" | "C" | "D" | "E" | "F" | "G" | "I";
   group: GuidedGroup;
   /** 固定步骤数（选法屏上写「N 步」；与向导的步骤条同一个数） */
   steps: number;
@@ -31,7 +31,11 @@ export const GUIDED_MODES: readonly GuidedModeDef[] = [
   { id: "lead", letter: "B", group: "pro", steps: 4 },
   // C 九宫格分镜（第三期，2026-10-05）：选人物和场景 → 写这场戏（AI 写分镜清单）→ 出分镜画面（一组图）→ 挑格子 → 一格一段 · 出片
   { id: "grid", letter: "C", group: "pro", steps: 5 },
+  // I 对话正反打（2026-10-05 第一批，docs/canvas-platforms-ecosystem-research.md §五）：两个人和场景 → 写对白 → 画三个机位（双人 + 两个过肩）→ 一句一段 · 出片
+  { id: "dialogue", letter: "I", group: "pro", steps: 4 },
   { id: "cards", letter: "D", group: "pro", steps: 3 },
+  // G 特效同款（2026-10-05 第一批）：挑一个特效 → 挑主角 → 关键帧 · 出片。复刻 · 同款这一组里最常用，排第一
+  { id: "effect", letter: "G", group: "replica", steps: 3 },
   { id: "template", letter: "E", group: "replica", steps: 2 },
 ];
 
@@ -43,6 +47,8 @@ export interface ModeTier {
   refImg: boolean;
   /** 按发计价的档（真人档）：起拍画面就是真人卡的照片，一张设定帧都不画 */
   flat: boolean;
+  /** 出片带声音（economy.VideoTier.audio）：台词说得出来 */
+  audio: boolean;
 }
 
 /**
@@ -56,7 +62,7 @@ export interface ModeTier {
  *   1.0 两档那一格当首帧硬约束（标准档照旧补画结束帧，flowStore.noDrawFor）；真人档的起拍画面只能是真人卡的照片，一格画面放不进去。
  * ★ 「套模板」不按档位挡：模板能在哪几档跑由模板自己说（data/templates.templateRunsOn），货架按选的模型筛。
  */
-export function modeBlock(id: GuidedModeId, tier: ModeTier): "refImg" | "flat" | null {
+export function modeBlock(id: GuidedModeId, tier: ModeTier): "refImg" | "flat" | "audio" | null {
   switch (id) {
     case "direct":
       return tier.refImg || tier.flat ? null : "refImg";
@@ -68,6 +74,12 @@ export function modeBlock(id: GuidedModeId, tier: ModeTier): "refImg" | "flat" |
       return tier.flat ? "flat" : null;
     case "template":
       return null;
+    // 特效同款每一档都能用：1.0 两档关键帧当首帧、2.x 帧当参考图、真人档只摆照片起拍也成立的几条（effectPresets.effectsOn 一处判）
+    case "effect":
+      return null;
+    // 对话正反打的看点就是台词：出不了声的档（1.0 两档、真人档）上三句话一个字都说不出来
+    case "dialogue":
+      return tier.audio ? null : "audio";
   }
 }
 

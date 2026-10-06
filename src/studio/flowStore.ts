@@ -59,7 +59,7 @@ import {
 } from "../data/templates";
 import { type BlockoutCastSlot, blockoutApplySkeleton, castNameIssue, composeBlockoutPrompt } from "./blockoutPrompt";
 import { GenStep, createGenLog, splitStatus } from "./genLog";
-import { ANN_CLAUSE, blockoutIssue, emptyFrameFates, frameFree, generateSegment, redrawnAnns, refPlanOf, refVideoOn, type EmptyFrameFate, type RefPlan } from "./segmentGen";
+import { ANN_CLAUSE, blockoutIssue, emptyFrameFates, frameFree, generateSegment, redrawnAnns, refPlanOf, refVideoOn, revisePlotOf, type EmptyFrameFate, type RefPlan } from "./segmentGen";
 import {
   EXTRA_REF_MAX,
   cleanRefName,
@@ -168,6 +168,14 @@ export interface FlowNode {
    */
   customRef?: { url: string; publicId: string; durationSec: number; mids: string[] };
   /**
+   * **延长段**（2026-10-05「修这一段 · 延长」，方案 docs/canvas-platforms-ecosystem-research.md §五）：接着上一段的成片往后拍几秒 ——
+   * 那段成片当参考视频走 extend 子任务，产物**只有新的一截**（官方 2.5 提示词指南的示例量过：15.05s 输入 → 5.00s 产物），所以它就是新的一段。
+   * url 是被延长那一段的永久地址（出片即转存的那份；服务端只认这个账号自己的成片），durationSec 是它的时长（计价输入，整数秒）。
+   * ★ 读它一律问 `extendSourceOf`：被延长那一段还在、还出着片，就以它**现在**的成片为准（它返修过的话接的是新那一版）。
+   * ★ 落段只走 `extendNode`（门禁 extendIssue：只延长最后一段、成片已转存、档位能带参考视频）。判否定：老草稿天然缺它。
+   */
+  extendFrom?: { nodeId: string; url: string; durationSec: number };
+  /**
    * **临时参考图**（N1，2026-10-03 对标 LibTV 节点的参考清单）：不是卡的一次性图（站位草图、道具照片…），只在这一段生效。
    * 出片时排在帧之后、卡片形象图之前当参考图发（segmentGen 的 extraRefs）；句子里 `@名字` 点到的换成「图片N」，
    * 没点到的由系统按用途补一句（规则只在 data/refMentions）。
@@ -231,12 +239,85 @@ export type FlowMode = "workflow" | "simple";
  * ★ 放在 genNode 里而不是另写一个 action：出片的门禁 / 计费 / 凭据 / 写回是一份实现（铁律六），返修只改"发什么"。
  */
 export interface GenNodeOpts {
-  revise?: { instruction: string };
+  /**
+   * range = 只改其中几秒（「修这一段 · 片段重拍」，2026-10-05；整秒、从 0 起，写法在 segmentGen.revisePlotOf）。null / 缺省 = 整段按这句改。
+   * 2026-10-05 起返修**出声**（arkClient.REVISE_TASK）。
+   */
+  revise?: { instruction: string; range?: { from: number; to: number } | null };
 }
 
 /** 返修的输入时长（秒）：成片实测优先，退回申报值；报价与 refVideo 校验读同一个数 */
 export function reviseSecOf(p: Proposal): number {
   return Math.max(1, Math.round(p.realDurationSec ?? p.durationSec));
+}
+
+/**
+ * 延长段接的是**哪一段成片** —— 唯一实现，报价（nodeCost）与出片（genNode）都只问它。
+ * 被延长那一段还在流水线上、还出着片（而且已经是永久地址）：以它**现在**的成片为准 —— 它返修过的话接的是新那一版，时长也按新那一版；
+ * 它被删了 / 成片没了：退回落段那一拍记下的那份（永久地址，删段不回收）。记下的那份也空了（回炉工程瘦身会把不是永久地址的清成空串）= null。
+ */
+export function extendSourceOf(nodes: FlowNode[], node: FlowNode): { url: string; durationSec: number } | null {
+  const ef = node.extendFrom;
+  if (!ef) return null;
+  const src = nodes.find((n) => n.id === ef.nodeId);
+  const live = src ? realVideoOfNode(src) : undefined;
+  if (src && live && !isArkAssetUrl(live)) return { url: live, durationSec: reviseSecOf(chosenOf(src)) };
+  return ef.url ? { url: ef.url, durationSec: ef.durationSec } : null;
+}
+
+/**
+ * 这一段**能不能往后延长**（null = 能；否则整句原因）—— 唯一实现：「修这一段」那一栏的延长键与 extendNode 都问它。
+ * ① 只延长最后一段：延长的产物接在它后面成为新的一段，接在中间会把后面那几段的接缝打断；
+ * ② 出过片、成片已经转存成永久地址（服务端只认这个账号自己的成片当参考视频；方舟临时链接 24 小时就失效）；
+ * ③ 这一档能带参考视频出片（今天只有电影级；高清的视频参考等付费探测与账单核对之后再开）；
+ * ④ 被延长的成片要在方舟参考视频的窗口里（4~30 秒等，与返修同一把尺 refVideoIssue）。
+ */
+export function extendIssue(nodes: FlowNode[], idx: number): string | null {
+  const node = nodes[idx];
+  if (!node) return t`找不到这一段`;
+  if (idx !== nodes.length - 1) return t`只能延长最后一段：延长出来的是接在它后面的新一段，接在中间会把后面那几段的接缝打断`;
+  const url = realVideoOfNode(node);
+  if (!url) return t`这一段还没有成片`;
+  if (isArkAssetUrl(url)) return t`成片还在转存（换成永久地址），转存完才能延长——稍等一会儿再来`;
+  const tier = tierOf(node.videoTier);
+  const label = tier.label;
+  if (!tier.refVid || tier.r2vMult === null) return t`「${label}」档还不能延长（要能带参考视频出片的档）——用电影级出的段才能延长`;
+  const [w, h] = aspectOf(node.aspect).frameSize.split("x").map(Number);
+  const issue = refVideoIssue({ url, durationSec: reviseSecOf(chosenOf(node)), width: w, height: h });
+  if (issue) return t`这一段延长不了：${issue}`;
+  return null;
+}
+
+/**
+ * 延长要落的那一段（纯函数，不判门禁）：extendNode 落它，「修这一段」那一栏上印的价拿它问 appendQuote —— 报价照着「真会落下的那一段」算。
+ * ★ 不承接（chain:false：接的是成片本身，不是它的尾帧）、不补画帧（direct）、挂的卡照抄被延长那一段（形象图一起发，锁长相）。
+ * ★ 方案标题存进作品，按作者当时的界面语言定下来（与跟着做几个向导同一条先例）。
+ */
+export function extendSpec(nodes: FlowNode[], idx: number, o: { text: string; durationSec: number }): AppendSpec | null {
+  const node = nodes[idx];
+  const url = node ? realVideoOfNode(node) : undefined;
+  if (!node || !url) return null;
+  const n = idx + 1;
+  const text = o.text.trim();
+  const p: Proposal = {
+    id: uid("prop"),
+    title: t`延长 · 接着第 ${n} 段往后拍`,
+    plot: text,
+    firstFrame: "",
+    lastFrame: "",
+    durationSec: clampDuration(o.durationSec, node.videoTier),
+  };
+  return {
+    proposals: [p],
+    chosenId: p.id,
+    materials: node.materials,
+    videoTier: node.videoTier,
+    aspect: node.aspect,
+    requirement: text,
+    chain: false,
+    direct: true,
+    extendFrom: { nodeId: node.id, url, durationSec: reviseSecOf(chosenOf(node)) },
+  };
 }
 
 /** 套用中的模板快照（草稿要整份存下来，所以单独成型）。
@@ -905,6 +986,8 @@ export interface AppendSpec {
   chain?: boolean;
   /** 参考图直出段（FlowNode.direct）。缺省 = 普通段 */
   direct?: boolean;
+  /** 延长段（FlowNode.extendFrom，只由 extendSpec 拼）。缺省 = 不是 */
+  extendFrom?: FlowNode["extendFrom"];
 }
 
 /**
@@ -931,6 +1014,7 @@ export function appendedNode(nodes: FlowNode[], spec: AppendSpec): FlowNode {
     tpl: null,
     // 参考图直出段（工坊铸段窗的「参考图直出」车道、跟着做 B 铺的）：判否定，缺省 = 普通段
     ...(spec.direct ? { direct: true } : {}),
+    ...(spec.extendFrom ? { extendFrom: spec.extendFrom } : {}),
   };
 }
 
@@ -1030,6 +1114,13 @@ export function nodeCost(nodes: FlowNode[], idx: number, mode: FlowMode, tierOve
   const carry = nodeCarry(nodes, idx);
   // ★ 帧在不在问 usableFrames（genNode 发的也是这一份）：老草稿里的占位图不算帧，出片前要补画、补画要进报价
   const frames = usableFrames(node, prop, idx > 0 ? chosenOf(nodes[idx - 1]) : null);
+  // ── 延长段：(输入 + 输出)×系数，与素材参考同一个式子（服务端 resolveR2v 延长那一支按 tokens.materialRefTokens 结算）──
+  // ★ 输入秒数问 extendSourceOf（genNode 真发的是同一份）；档位没有 r2v 价时报 0（渲染路径不能炸，genNode 门口会整句拒并指路）
+  if (node.extendFrom) {
+    const src = extendSourceOf(nodes, node);
+    const tierId = tierOverride ?? node.videoTier;
+    return src && tierOf(tierId).r2vMult !== null ? materialRefCost(src.durationSec, prop.durationSec, tierId) : 0;
+  }
   // ── 素材参考（自定义 = 多图 + 参考视频）：(输入 + 输出)×系数，与真扣同一个函数 ──
   // ★ 档位没有 r2v 价（r2vMult null，即 hd/std/fast）时**按纯帧模式报**：materialRefCost
   //   在那种档上是 throw（报价函数开发期就该炸），而这里是渲染路径不能炸 ——
@@ -1465,6 +1556,12 @@ interface FlowState {
    * 返回新段的 id（按顺序）；被拒 = null，原因在 err。
    */
   appendSpecs: (specs: AppendSpec[]) => string[] | null;
+  /**
+   * 「修这一段 · 延长」（2026-10-05）：在流水线末尾接一段**延长段**（FlowNode.extendFrom），接着最后一段的成片往后拍 durationSec 秒。
+   * 门禁 extendIssue（只延长最后一段 / 成片已转存 / 档位能带参考视频）+ appendNode 自己那一道（appendIssue）；落什么只在 extendSpec。
+   * **只落段不出片**：出片由宿主接着走 genNode / studioStore.genNodeVideo（受理即收窗、凭据、写回都是原来那一份）。回新段 id；被拒 = null，原因在 err。
+   */
+  extendNode: (nodeId: string, o: { text: string; durationSec: number }) => string | null;
   /** 把一段真实成片写到某套方案名下（videoByProposal + proposal.videoUrl 两处一起，
    *  两处是同一份出片的两个读法——剪辑页「只编辑本段」写回走这里，别只写一半） */
   setProposalVideo: (nodeId: string, proposalId: string, url: string) => void;
@@ -2720,6 +2817,22 @@ export const useFlow = create<FlowState>()((set, get) => ({
     return ids;
   },
 
+  extendNode: (nodeId, o) => {
+    const s = get();
+    const idx = s.nodes.findIndex((n) => n.id === nodeId);
+    const issue = extendIssue(s.nodes, idx);
+    if (issue) {
+      set({ err: issue });
+      return null;
+    }
+    if (!o.text.trim()) {
+      set({ err: t`写一句接下来发生什么（例：她转身走向门口，雨越下越大）` });
+      return null;
+    }
+    const spec = extendSpec(s.nodes, idx, o);
+    return spec ? get().appendNode(spec) : null;
+  },
+
   setNodeProposals: (nodeId, proposals) =>
     set((s) => {
       if (proposals.length === 0) return {};
@@ -3449,6 +3562,24 @@ export const useFlow = create<FlowState>()((set, get) => ({
     /** 返修：本段自己的成片当参考视频。校验与白模模板视频同一把尺（refVideoIssue：4~30 秒、有真实地址） */
     // ★ 宽高只喂给 refVideoIssue 的边长 / 画幅校验（成片本身由方舟按地址去取）：按本段画幅取名义尺寸，
     //   成片实际是 720p（1280×720 / 720×1280），同样落在 ARK_EDIT_RULES 的边长与画幅窗口里
+    /** 延长段：接的是哪一段成片（与 nodeCost 同一份，extendSourceOf）。返修优先（返修的参考是这一段自己的成片） */
+    const ext = rv ? null : extendSourceOf(s0.nodes, node);
+    if (!rv && node.extendFrom && !ext) {
+      set({ err: t`要接的那段成片找不到了（被删了，或者没存下来）——删掉这一段，回最后一段重新延长` });
+      return false;
+    }
+    if (ext) {
+      if (isArkAssetUrl(ext.url)) {
+        set({ err: t`要接的那段成片还在转存（换成永久地址），转存完才能延长——稍等一会儿再来` });
+        return false;
+      }
+      const extTier = tierOf(node.videoTier);
+      const extLabel = extTier.label;
+      if (!extTier.refVid || extTier.r2vMult === null) {
+        set({ err: t`「${extLabel}」档还不能延长——去 ⚙ 本段设置换成「电影级」档` });
+        return false;
+      }
+    }
     const reviseRef = rv
       ? (() => {
           const [w, h] = aspectOf(node.aspect).frameSize.split("x").map(Number);
@@ -3469,6 +3600,14 @@ export const useFlow = create<FlowState>()((set, get) => ({
         set({ err: t`这一段返修不了：${issue}` });
         return false;
       }
+      if (rv.range) {
+        const sec = reviseSecOf(prop);
+        const { from, to } = rv.range;
+        if (!(from >= 0 && to <= sec && to - from >= 1)) {
+          set({ err: t`只改的那几秒不对：要在 0~${sec} 秒之内、至少 1 秒` });
+          return false;
+        }
+      }
     }
     // 付费档位的门禁。UI 上那一档本来就点不动，会走到这里的是"草稿里存着这一档、
     // 而套餐后来降了"这种存量情况 —— 与其让它飞到服务端换一句 403，不如当场说人话。
@@ -3485,7 +3624,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
     //   blockout 位按本段事实传（白模节点上「换真人档」是死路，出路那半句要换说法）
     // framed 按本段事实问（nodeFramed，与下面真正发出去的帧同源）：带帧的请求里真人脸会被整发拒
     const realFaceBlocked = realFaceIssue(node.materials, node.videoTier, {
-      blockout: !!rv || !!tplOfNode(node)?.refVideo,
+      blockout: !!rv || !!tplOfNode(node)?.refVideo || !!ext,
       framed: nodeFramed(s0.nodes, idx, s0.mode),
     });
     if (realFaceBlocked) {
@@ -3539,28 +3678,30 @@ export const useFlow = create<FlowState>()((set, get) => ({
       const tplRef = nodeTpl?.refVideo;
       const res = await generateSegment(
         {
-          // 返修：正文是作者的改法，帧一张不带（参考视频与首尾帧在方舟互斥），其余走成片自己
-          plot: rv ? rv.instruction.trim() : prop.plot,
+          // 返修：正文是作者的改法（只改其中几秒时带上时间段，segmentGen.revisePlotOf），帧一张不带（参考视频与首尾帧在方舟互斥），其余走成片自己
+          plot: rv ? revisePlotOf(rv.instruction, rv.range) : prop.plot,
           // 报价 ↔ 契约对账（segmentGen.contractLine）：扣的就是这个 cost；演示构建没有报价，明说 null
           quotedTokens: AI_REAL ? cost : null,
-          firstFrame: rv ? "" : frames.first,
-          lastFrame: rv ? "" : frames.last,
+          firstFrame: rv || ext ? "" : frames.first,
+          lastFrame: rv || ext ? "" : frames.last,
           durationSec: prop.durationSec,
           videoTier: node.videoTier,
           aspect: node.aspect,
           shot: rv ? undefined : prop.shot,
           anns: rv ? [] : node.anns,
-          carryFrame: rv ? null : carry,
+          carryFrame: rv || ext ? null : carry,
           refVideoUrl: rv ? reviseRef!.url : tplRef?.url,
           revise: !!rv,
           // 自定义段的素材参考（多图+参考视频）：报价（上面 nodeCost 的 materialRefCost
           // 分支）与这里必须同进同出 —— 报了 (输入+输出) 的价就必须真发参考视频
           materialRef:
-            !rv && node.custom && node.customRef
+            !rv && !ext && node.custom && node.customRef
               ? { url: node.customRef.url, durationSec: node.customRef.durationSec, mids: node.customRef.mids }
               : undefined,
-          // 临时参考图（N1）：返修与白模段不带（参考是成片 / 模板视频本身）。与界面上的参考清单读同一份（nodeRefPlan）
-          extraRefs: rv || tplRef ? undefined : node.extraRefs,
+          // 临时参考图（N1）：返修、白模段与延长段不带（参考是成片 / 模板视频本身）。与界面上的参考清单读同一份（nodeRefPlan）
+          extraRefs: rv || tplRef || ext ? undefined : node.extraRefs,
+          // 延长段：被延长那一段的成片当参考视频（extend 子任务，产物只有新的一截）
+          ...(ext ? { extendRef: ext } : {}),
           // ★ 登记值**整份**透传（不只时长）：出片门口那道「模板视频自己合不合方舟窗口」
           //   的判据要读 realDurationSec ?? durationSec，在这里只挑一个数传下去，
           //   segmentGen 就得自己拼那个 `??` —— 那是同一条规则的第二份实现。
@@ -3585,7 +3726,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
           // ★ "卡片形象 + 一句话直出"（参考生视频）：简约模式，或不补画帧的段（2026-10-04「跟着做」模式；
           //   判定 refAllowedOf / nodeNoDraw 一处，报价 nodeCost 与参考清单 nodeRefPlan 问的是同一个）。
           //   返修不走这两位（它的参考是本段成片，帧一张不带）
-          refAllowed: !rv && refAllowedOf(node, get().mode),
+          refAllowed: !rv && !ext && refAllowedOf(node, get().mode),
           noDraw: !rv && nodeNoDraw(node),
         },
         prog,

@@ -2799,14 +2799,20 @@ export async function shotGroupRefs(o: {
   place: Card | null;
   /** 这一发要画几张（整组 = 格数，单格重画 = 1）：参考图的上限 = 15 − 它 */
   panels: number;
+  /**
+   * 调用方排在这批卡图**前面**的参考图有几张（对话正反打画过肩时，双人镜头放在图1）：「图几是谁」从它之后接着编号，
+   * 张数上限也让出这几张。缺省 0。★ 编号与发出去的顺序必须一致：调用方要把那几张放在 refs 的最前面
+   */
+  before?: number;
   onNote?: (note: string) => void;
 }): Promise<{ refs: string[]; bind: string }> {
   const cards = [...o.cast, ...(o.place ? [o.place] : [])];
-  const cap = groupRefsCap(o.panels, o.cast.length, o.place ? 1 : 0);
+  const before = Math.max(0, o.before ?? 0);
+  const cap = groupRefsCap(o.panels + before, o.cast.length, o.place ? 1 : 0);
   const mat = cap > 0 && cards.length ? await prepareMaterialRefs(cards, "image", o.onNote, { cap, strict: false }) : null;
   // 同一张卡的图在 refs 里是连号的（allocateRefs 最后按卡归拢），按卡收拢成「图1、图2 是谁」
   const byCard = new Map<Card, number[]>();
-  (mat?.owners ?? []).forEach((c, i) => byCard.set(c, [...(byCard.get(c) ?? []), i + 1]));
+  (mat?.owners ?? []).forEach((c, i) => byCard.set(c, [...(byCard.get(c) ?? []), before + i + 1]));
   const refs: GroupRef[] = [...byCard].map(([c, nums]) => ({ name: c.name, type: c.type, nums, idLine: idLineOf(c) }));
   return { refs: mat?.refs ?? [], bind: groupBindLine(refs) };
 }
@@ -3137,8 +3143,11 @@ export interface GenSpec {
   refVideoSec?: number;
   /** 人物卡声音样本（台词音色参考）。只在参考生视频段有意义 */
   refAudios?: string[];
-  /** 参考视频的子任务（透传 arkClient）：缺省 edit（白模复刻 / 返修）；"reference" = 素材参考 */
-  refTask?: "edit" | "reference";
+  /**
+   * 参考视频的子任务（透传 arkClient）：缺省 edit（白模复刻）；"revise" = 返修（edit 子任务、出声）；"reference" = 素材参考；
+   * "extend" = 向后延长（产物只有新的一截）。判模式只问 genModeOf
+   */
+  refTask?: "edit" | "revise" | "reference" | "extend";
 }
 
 // 生成模式的人话 GEN_MODE_LABEL 2026-09-16 搬去 ./arkClient（与契约事件 GenEvent 放一起：步骤日志渲染契约行也要读它），这里照旧引用
@@ -3150,7 +3159,7 @@ export interface GenSpec {
  */
 export function genModeOf(sg: Omit<GenSpec, "mode">): GenMode {
   if (providerOf(sg.videoTier) === "minimax") return "minimax";
-  if (sg.refVideoUrl) return sg.refTask === "reference" ? "reference" : "edit";
+  if (sg.refVideoUrl) return sg.refTask === "reference" ? "reference" : sg.refTask === "extend" ? "extend" : "edit";
   if (sg.refImages?.length) return "ref-images";
   if (sg.firstFrame) return sg.lastFrame && tierOf(sg.videoTier).flf ? "flf" : "i2v";
   return "t2v";
@@ -3176,10 +3185,10 @@ export function validateGenSpec(sg: GenSpec): void {
     );
   }
   if (!sg.plot.trim()) throw new Error(t`生成契约不完整：提示词是空的`);
-  const refMedia = sg.mode === "ref-images" || sg.mode === "reference" || sg.mode === "edit";
+  const refMedia = sg.mode === "ref-images" || sg.mode === "reference" || sg.mode === "edit" || sg.mode === "extend";
   if (refMedia && (sg.firstFrame || sg.lastFrame)) throw new Error(t`生成契约不一致：参考图 / 参考视频与首尾帧不能混发（方舟三种场景互斥）`);
   if (sg.mode === "ref-images" && !tier.refImg) throw new Error(t`「${tierLabel}」档协议上不收参考图，不能按参考图生视频出片`);
-  if ((sg.mode === "edit" || sg.mode === "reference") && !tier.refVid) throw new Error(t`「${tierLabel}」档不支持带参考视频出片`);
+  if ((sg.mode === "edit" || sg.mode === "reference" || sg.mode === "extend") && !tier.refVid) throw new Error(t`「${tierLabel}」档不支持带参考视频出片`);
   if (sg.mode === "reference" && !sg.refImages?.length) throw new Error(t`生成契约不完整：素材参考模式至少要一张参考图`);
   if (sg.refAudios?.length && !refMedia) throw new Error(t`生成契约不一致：参考音频只能随参考图 / 参考视频发（首尾帧任务混参考媒体是 400）`);
   if (sg.mode === "minimax" && (sg.refImages?.length || sg.refVideoUrl || sg.refAudios?.length))
@@ -3289,7 +3298,7 @@ export async function composeSegments(
         continue;
       }
       // 参考媒体类模式：一句话直出，**首尾帧一张都不给**（三种场景互斥）。判据只读契约的 mode（validateGenSpec 刚核对过）
-      const refMode = sg.mode === "ref-images" || sg.mode === "reference" || sg.mode === "edit";
+      const refMode = sg.mode === "ref-images" || sg.mode === "reference" || sg.mode === "edit" || sg.mode === "extend";
       // 最后一道硬顶：按档位问 economy.promptMaxOf（2.x 两档 500，其余 400）；白模复刻段仍按 400（它的预算是按 400 反推的）
       const promptCap = sg.mode === "edit" ? VIDEO_PROMPT_MAX : promptMaxOf(sg.videoTier);
       const url = await generateVideo(sg.plot.slice(0, promptCap), refMode ? "" : await shrinkFrameFor720p(first), {

@@ -18,7 +18,7 @@ import { LEAD_DEFAULT_SEC } from "../../data/sceneShots";
 const GROUP_LABEL: Record<GuidedGroup, MessageDescriptor> = {
   basic: msg`基础`,
   pro: msg`跟着高手做`,
-  replica: msg`复刻`,
+  replica: msg`复刻 · 同款`,
 };
 
 const MODE_TEXT: Record<GuidedModeId, { icon: string; title: MessageDescriptor; tag: MessageDescriptor; desc: MessageDescriptor }> = {
@@ -41,14 +41,26 @@ const MODE_TEXT: Record<GuidedModeId, { icon: string; title: MessageDescriptor; 
     tag: msg`先出一组画面`,
     desc: msg`写一场戏，AI 写成 4~9 格分镜、一次画出整组画面；挑几格，每格变成一段。LibTV 作者的做法`,
   },
+  dialogue: {
+    icon: "💬",
+    title: msg`对话正反打`,
+    tag: msg`你一句我一句`,
+    desc: msg`两个人＋一个场景，写几句对白，AI 画出双人镜头和两个过肩镜头，一句一段、按卡上的声音说出来。影视对话戏的标准拍法`,
+  },
   cards: { icon: "🃏", title: msg`AI 推演三套`, tag: msg`先看关键画面`, desc: msg`挑卡＋写要求，AI 出三套带关键画面的方案，挑一套再出片` },
+  effect: {
+    icon: "✨",
+    title: msg`特效同款`,
+    tag: msg`换上你的主角就出`,
+    desc: msg`挑一个特效（时间冻结、环绕亮相、走出壁画、产品亮相……），换上你的人物或产品，一段 5~6 秒的大片`,
+  },
   template: { icon: "🧪", title: msg`套模板`, tag: msg`白模复刻`, desc: msg`套一个模板，给人偶挂卡换人（模板按这个模型筛）` },
 };
 
 /** economy.VideoTier → 判定要的那几位能力（判据只在 guidedModes.modeBlock） */
 export function modeTierOf(tierId: string): ModeTier {
   const tier = tierOf(tierId);
-  return { refImg: !!tier.refImg, flat: !!tier.flatCost };
+  return { refImg: !!tier.refImg, flat: !!tier.flatCost, audio: !!tier.audio };
 }
 
 export default function ModePicker({
@@ -118,6 +130,9 @@ export default function ModePicker({
                 const gridVideo = fmtTokens(segTokens(gridSec, tier.id));
                 const leadSec = clampDuration(LEAD_DEFAULT_SEC, tier.id);
                 const leadVideo = fmtTokens(segTokens(leadSec, tier.id));
+                // 特效同款 = 一张关键帧 + 一段视频（真人档没有关键帧、按发计价）；对话正反打 = 写对白一次对话 + 三张画面 + 三段
+                const fxSec = clampDuration(5, tier.id);
+                const fxVideo = fmtTokens(segTokens(fxSec, tier.id));
                 const price =
                   m.id === "direct"
                     ? t`约 ${fmtTokens(segTokens(5, tier.id))} / 5 秒，只有视频`
@@ -125,6 +140,12 @@ export default function ModePicker({
                       ? t`拆镜头 ${chatPrice}，视频约 ${leadVideo} / ${leadSec} 秒`
                       : m.id === "grid"
                       ? t`写分镜 ${chatPrice}，画面每格 ${panelPrice}，每格一段约 ${gridVideo} / ${gridSec} 秒`
+                      : m.id === "dialogue"
+                      ? t`写对白 ${chatPrice}，三个机位每张 ${panelPrice}，每句一段约 ${gridVideo} / ${gridSec} 秒`
+                      : m.id === "effect"
+                      ? caps.flat
+                        ? t`照片起拍，视频约 ${fxVideo} / 一发`
+                        : t`关键帧 ${panelPrice}，视频约 ${fxVideo} / ${fxSec} 秒`
                       : m.id === "cards"
                       ? t`推演 ${fmtTokens(proposalsCost(false))}，出片另算`
                       : null;
@@ -162,7 +183,9 @@ export default function ModePicker({
                 <p key={m.id}>
                   {modeBlock(m.id, caps) === "refImg"
                     ? t`「${title}」要收参考图的模型：换到高清或电影级就有`
-                    : t`「${title}」在真人档上没有：这一档本来就是写一句话直接出片`}
+                    : modeBlock(m.id, caps) === "audio"
+                      ? t`「${title}」要能出声的模型（台词得说出来）：换到高清或电影级就有`
+                      : t`「${title}」在真人档上没有：这一档本来就是写一句话直接出片`}
                 </p>
               );
             })}

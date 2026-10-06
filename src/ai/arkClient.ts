@@ -911,6 +911,16 @@ export function ratioFor(model: string, mode: "frames" | "reference", want = "16
 //   「与档位能力一致」，false 恒在允许集里）。
 const BLOCKOUT_TASK = { omni_reference_task_type: "edit", duration: -1, ratio: "adaptive", generate_audio: false } as const;
 
+/**
+ * 返修（「修这一段 · 片段重拍」，2026-10-05）：与白模**同一个 edit 子任务**（时长跟随成片、画幅自适应），唯一的分别是**出声** ——
+ * 参考视频是这一段自己的成片：里面的台词与环境音是模型自己生成的，撞不上 BLOCKOUT_TASK 头上那条版权拦截；
+ * 而关掉声音的代价是返修完的片子是哑的（对话正反打那种一句一段的戏，返修一次台词就没了）。
+ * 官方 2.5 提示词指南：编辑任务「对原视频的画面或音频进行编辑操作」，声音本来就在编辑的范围里。
+ * ⚠ 出声之后原片的台词留不留得住、与原片差多少，等付费探测（design/video-input-probe.mjs 的 U3）看过再写死文案。
+ * generate_audio 不写在这里：走请求体上那一行（能出声的档一律出声），服务端 resolveR2v 的返修那一支收它。
+ */
+const REVISE_TASK = { omni_reference_task_type: "edit", duration: -1, ratio: "adaptive" } as const;
+
 /** 发给方舟的时长：按模型的时长窗口夹成整数（请求体与轮询死线用同一个数，见 generateVideo） */
 function clampToModel(durationSec: number, model: string): number {
   const [lo, hi] = durationWindowOfModel(model);
@@ -1054,6 +1064,9 @@ export const GEN_MODE_LABEL: Record<GenMode, string> = {
   get edit() {
     return t`参考视频逐镜复刻（edit）`;
   },
+  get extend() {
+    return t`参考视频向后延长（extend）`;
+  },
   get minimax() {
     return t`真人档首帧图生视频（MiniMax）`;
   },
@@ -1124,9 +1137,10 @@ export async function generateVideo(
      * edit 的输出时长与画幅都跟随源片，是协议行为不是我们的参数）。
      */
     refVideoUrl?: string;
-    /** 参考视频的子任务：缺省 "edit"（白模复刻，BLOCKOUT_TASK 接管参数）；
-     *  "reference" = 素材参考（用户视频 + 多图，输出时长用户选、画幅照传）。 */
-    refTask?: "edit" | "reference";
+    /** 参考视频的子任务：缺省 "edit"（白模复刻，BLOCKOUT_TASK 接管参数）；"revise" = 返修（REVISE_TASK：同一个 edit、出声）；
+     *  "reference" = 素材参考（用户视频 + 多图，输出时长用户选、画幅照传）；
+     *  "extend" = 向后延长（omni extend、画幅自适应、时长用户选；产物只有新的一截，2026-10-05 官方示例量过）。 */
+    refTask?: "edit" | "revise" | "reference" | "extend";
     /** 白模参考视频的源片时长（秒）。只用来给轮询死线定尺寸（见下），不进请求体 */
     refVideoSec?: number;
     /**
@@ -1243,10 +1257,17 @@ export async function generateVideo(
         //     而那是版权拦截换来的，理由见那个常量头上那段 ★★ —— 要改先读它。
         ...(videoAudioOn(model) ? { generate_audio: true } : {}),
         watermark: false,
-        ...(refVideoUrl && opts?.refTask !== "reference"
+        ...(refVideoUrl && opts?.refTask === "extend"
+          ? // 延长：omni 显式 extend（判错是提交时同步 400、一分钱不花，理由同下面 reference 那行）；
+            // 画幅必须 adaptive（官方：锁定输出视频的宽高比，严格对齐待延长视频）；时长用户选，按模型窗口夹成整数、不收 -1
+            // （服务端 resolveR2v 延长那一支钉的就是这三件：窗口内整数 / adaptive / 720p）
+            { omni_reference_task_type: "extend", ratio: "adaptive", duration: clampToModel(opts?.durationSec ?? 5, model) }
+          : refVideoUrl && opts?.refTask === "revise"
+          ? REVISE_TASK
+          : refVideoUrl && opts?.refTask !== "reference"
           ? // 白模：duration / ratio / omni_reference_task_type 三件由 BLOCKOUT_TASK 整体
-            // 接管（理由钉在那个常量上）。duration:-1 在**且仅在**这条展开里出现 ——
-            // 结构上就保证了别的路径传不出 -1。
+            // 接管（理由钉在那个常量上）。duration:-1 只出现在 edit 子任务的两个常量里（BLOCKOUT_TASK / REVISE_TASK）——
+            // 结构上就保证了别的路径传不出 -1（延长那一支的时长照样过 clampToModel）。
             // ★ refTask:"reference"（素材参考：用户视频 + 多图 + 提示词点名首中尾帧）
             //   走下面的普通参数分支：输出时长用户选、画幅照传、omni 显式 reference ——
             //   这三件正是服务端素材钉子（resolveR2v 分支三）钉住的计价假设。
@@ -1281,7 +1302,7 @@ export async function generateVideo(
   //   短段保底 12 分钟。放弃线只是放弃线：成功早到早返回，代价只是真卡死时多等一会。
   //   白模段的输出时长跟模板走（refVideoSec；没传按上传窗口上限 15s 取保守值），
   //   其余路径用夹过的 durationSec（与请求体同一套夹法）。
-  const outSec = refVideoUrl && opts?.refTask !== "reference"
+  const outSec = refVideoUrl && opts?.refTask !== "reference" && opts?.refTask !== "extend"
     ? opts?.refVideoSec ?? 15
     : clampToModel(opts?.durationSec ?? 5, model);
   const deadlineMs = Math.max(12 * 60_000, outSec * 90_000 + 3 * 60_000);

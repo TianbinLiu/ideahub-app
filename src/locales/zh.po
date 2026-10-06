@@ -178,6 +178,8 @@ msgstr "，这一次已经计费"
 #. 列举几个名字时的分隔符
 #. 列举几个名字时的分隔符
 #. 列举几个名字时的分隔符
+#. 列举几个名字时的分隔符
+#. 列举几个名字时的分隔符
 #. 列举几个图位名 / 还缺的几项时的分隔符
 #. 列举几个文件名 / 动作组 / 表情名时的分隔符
 #. 列举几个段号时的分隔符（第 1、3 段）
@@ -188,6 +190,8 @@ msgstr "，这一次已经计费"
 #: src/components/blockout/RoleCastBoard.tsx
 #: src/components/blockout/RoleConfirmSheet.tsx
 #: src/components/DeleteCardDialog.tsx
+#: src/components/flow/DialogueWizard.tsx
+#: src/components/flow/EffectWizard.tsx
 #: src/components/flow/GridShotsWizard.tsx
 #: src/components/flow/LeadShotsWizard.tsx
 #: src/components/flow/RefStrip.tsx
@@ -218,6 +222,8 @@ msgstr "、"
 #. 把几条说明连成一句时的分隔符
 #. 把几条说明连成一句时的分隔符
 #. 把几条说明连成一句时的分隔符
+#. 把几条说明连成一句时的分隔符
+#. 把几条说明连成一句时的分隔符
 #. 把铸卡时的几条说明连成一句时的分隔符
 #. 把铸卡时的几条说明连成一句时的分隔符
 #. 把铸卡时的几条说明连成一句时的分隔符
@@ -226,6 +232,7 @@ msgstr "、"
 #: src/components/flow/TierRow.tsx
 #: src/live2d/bundlePreview.ts
 #: src/pages/CardDetailPage.tsx
+#: src/studio/dialogueDraftStore.ts
 #: src/studio/flowStore.ts
 #: src/studio/gridDraftStore.ts
 #: src/studio/leadCast.ts
@@ -430,6 +437,8 @@ msgstr "· 里面那 {0} 张卡<0>不会被删</0>， 它们还在你的卡片�
 msgid "· 问卷：12 项（没动过的用默认值）"
 msgstr "· 问卷：12 项（没动过的用默认值）"
 
+#: src/components/flow/DialogueWizard.tsx
+#: src/components/flow/EffectWizard.tsx
 #: src/components/flow/GridShotsWizard.tsx
 #: src/components/flow/LeadShotsWizard.tsx
 #: src/studio/ui/projection.tsx
@@ -460,6 +469,8 @@ msgstr "‹ 模式"
 msgid "‹ 示例视频"
 msgstr "‹ 示例视频"
 
+#: src/components/flow/DialogueWizard.tsx
+#: src/components/flow/EffectWizard.tsx
 #: src/components/flow/GridShotsWizard.tsx
 #: src/components/flow/LeadShotsWizard.tsx
 msgid "‹ 选法"
@@ -488,6 +499,10 @@ msgstr "（{joined}）"
 #: src/pages/SupportModelNewPage.tsx
 msgid "（{texList}）"
 msgstr "（{texList}）"
+
+#: src/studio/segmentGen.ts
+msgid "（⚠ 要求太长，末尾 {over} 字没能发出去——开头的延长句与形象点名句要占 {headLen} 字）"
+msgstr "（⚠ 要求太长，末尾 {over} 字没能发出去——开头的延长句与形象点名句要占 {headLen} 字）"
 
 #. placeholder {0}: tail.length
 #: src/studio/segmentGen.ts
@@ -1279,6 +1294,10 @@ msgstr "{motion}（包里没有）"
 msgid "{msgCount} 条"
 msgstr "{msgCount} 条"
 
+#: src/studio/ui/projection.tsx
+msgid "{n} 句对白各成一段了——每段拿那一句的机位画面当开头，按顺序一段一段出片。"
+msgstr "{n} 句对白各成一段了——每段拿那一句的机位画面当开头，按顺序一段一段出片。"
+
 #: src/components/VideoTemplateExtractor.tsx
 msgid "{n} 帧"
 msgstr "{n} 帧"
@@ -1351,6 +1370,10 @@ msgstr "{names}还有参考图没带上（预算 {budget} 张已被更要紧的�
 msgid "{nextLabel}没有「{goneNames}」这一格，你传的那张已经取下来了——需要的话换回{curLabel}再传一次。"
 msgstr "{nextLabel}没有「{goneNames}」这一格，你传的那张已经取下来了——需要的话换回{curLabel}再传一次。"
 
+#: src/components/flow/DialogueWizard.tsx
+msgid "{noVoice} 没有声音样本：每一段的嗓音由模型定，前后可能不一样。"
+msgstr "{noVoice} 没有声音样本：每一段的嗓音由模型定，前后可能不一样。"
+
 #. 往一串带引号的卡名后面再接一个：中文直接相连（「甲」「乙」），英文用逗号加空格隔开（“A”, “B”）
 #: src/ai/real.ts
 msgid "{quotedList}{quotedName}"
@@ -1384,6 +1407,10 @@ msgstr "{segN} 段 · 每段拿那一格的画面当开头，画面里的人的�
 msgid "{segN} 段 · 每段拿那一格的画面当首帧；这一档收不了人物图，人像全看那一格画面"
 msgstr "{segN} 段 · 每段拿那一格的画面当首帧；这一档收不了人物图，人像全看那一格画面"
 
+#: src/components/flow/DialogueWizard.tsx
+msgid "{segN} 段一共约 {totalPrice}。只先出第 1 段：后面几段在流水线上按顺序一段一段出，每段出之前会再报一次价 —— 第 1 段的人物或声音不对，后面的就不用花钱。"
+msgstr "{segN} 段一共约 {totalPrice}。只先出第 1 段：后面几段在流水线上按顺序一段一段出，每段出之前会再报一次价 —— 第 1 段的人物或声音不对，后面的就不用花钱。"
+
 #: src/components/flow/GridShotsWizard.tsx
 msgid "{segN} 段一共约 {totalPrice}。只先出第 1 段：后面几段在流水线上按顺序一段一段出，每段出之前会再报一次价 —— 第 1 段看着不对，后面的就不用花钱。"
 msgstr "{segN} 段一共约 {totalPrice}。只先出第 1 段：后面几段在流水线上按顺序一段一段出，每段出之前会再报一次价 —— 第 1 段看着不对，后面的就不用花钱。"
@@ -1396,6 +1423,10 @@ msgstr "{sentence}（{notes}）"
 #: src/components/flow/LeadShotsWizard.tsx
 msgid "{shotN} 个镜头 · 台词 {lineN} 句 · {castN} 个人的图直接给视频模型，不画帧"
 msgstr "{shotN} 个镜头 · 台词 {lineN} 句 · {castN} 个人的图直接给视频模型，不画帧"
+
+#: src/components/flow/DialogueWizard.tsx
+msgid "{speaker}：{text}"
+msgstr "{speaker}：{text}"
 
 #: src/components/flow/ModePicker.tsx
 msgid "{steps} 步"
@@ -1664,6 +1695,10 @@ msgstr "「{0}」铸好了"
 msgid "「{ch}」"
 msgstr "「{ch}」"
 
+#: src/studio/flowStore.ts
+msgid "「{extLabel}」档还不能延长——去 ⚙ 本段设置换成「电影级」档"
+msgstr "「{extLabel}」档还不能延长——去 ⚙ 本段设置换成「电影级」档"
+
 #: src/data/account.ts
 msgid "「{label}」单段消耗超过免费版整月额度（{quota}），升级套餐后可用"
 msgstr "「{label}」单段消耗超过免费版整月额度（{quota}），升级套餐后可用"
@@ -1672,9 +1707,17 @@ msgstr "「{label}」单段消耗超过免费版整月额度（{quota}），升�
 msgid "「{label}」档按发直出（起拍画面就是真人卡的照片），没有推演三套方案这一步——写好一句话直接生成，或换回其它档再推演。"
 msgstr "「{label}」档按发直出（起拍画面就是真人卡的照片），没有推演三套方案这一步——写好一句话直接生成，或换回其它档再推演。"
 
+#: src/studio/flowStore.ts
+msgid "「{label}」档还不能延长（要能带参考视频出片的档）——用电影级出的段才能延长"
+msgstr "「{label}」档还不能延长（要能带参考视频出片的档）——用电影级出的段才能延长"
+
 #: src/data/economy.ts
 msgid "「{label}」这一档暂时报不出价（{model} 不在价目表里），先用别的档位"
 msgstr "「{label}」这一档暂时报不出价（{model} 不在价目表里），先用别的档位"
+
+#: src/components/flow/DialogueWizard.tsx
+msgid "「{missingText}」还没画好 —— 回上一步画出来，或者把用到它的句子换个机位。"
+msgstr "「{missingText}」还没画好 —— 回上一步画出来，或者把用到它的句子换个机位。"
 
 #. 给一个名字（卡名）加引号：中文「」，英文用弯引号
 #. 给一个名字（卡名）加引号：中文「」，英文用弯引号
@@ -1829,6 +1872,10 @@ msgstr "「{piece}」"
 msgid "「{q}」没有。换个词。"
 msgstr "「{q}」没有。换个词。"
 
+#: src/components/flow/DialogueWizard.tsx
+msgid "「{staleText}」过期了（人、整体交代或双人镜头改过）—— 回上一步重画一下。"
+msgstr "「{staleText}」过期了（人、整体交代或双人镜头改过）—— 回上一步重画一下。"
+
 #: src/pages/FlowPage.tsx
 msgid "「{tierLabel}」档不支持参考图：会先按描述画一张设定帧再出片。想直接用卡片形象，在「⚙ 本段设置」里换成「高清」或「电影级」"
 msgstr "「{tierLabel}」档不支持参考图：会先按描述画一张设定帧再出片。想直接用卡片形象，在「⚙ 本段设置」里换成「高清」或「电影级」"
@@ -1849,6 +1896,10 @@ msgstr "「{tierLabel}」档协议上不收参考图：卡片形象只用来画�
 msgid "「{tierLabel}」档带不了示例视频——换成「电影级」之后这里才排得出清单。"
 msgstr "「{tierLabel}」档带不了示例视频——换成「电影级」之后这里才排得出清单。"
 
+#: src/studio/segmentGen.ts
+msgid "「{tierLabel}」档还不能延长——去 ⚙ 本段设置换成「电影级」档"
+msgstr "「{tierLabel}」档还不能延长——去 ⚙ 本段设置换成「电影级」档"
+
 #. 个人页「还没传到服务器」横幅：只有作品标题（这一条没记下没传上去的原因）
 #: src/pages/ProfilePage.tsx
 msgid "「{title}」"
@@ -1868,13 +1919,33 @@ msgstr "「{title}」在真人档上没有：这一档本来就是写一句话�
 msgid "「{title}」有 {0} 个候选：{names}{more}。分段组的每段是独立模板，说全名（含第几段）再来"
 msgstr "「{title}」有 {0} 个候选：{names}{more}。分段组的每段是独立模板，说全名（含第几段）再来"
 
+#: src/components/flow/EffectWizard.tsx
+msgid "「{title}」的主角是一件产品：挑一张道具卡，或者传一张产品照片。"
+msgstr "「{title}」的主角是一件产品：挑一张道具卡，或者传一张产品照片。"
+
+#: src/components/flow/EffectWizard.tsx
+msgid "「{title}」要一个人：点选这一个人。"
+msgstr "「{title}」要一个人：点选这一个人。"
+
+#: src/components/flow/EffectWizard.tsx
+msgid "「{title}」要两个人：按点的先后，先点的是第一个人。"
+msgstr "「{title}」要两个人：按点的先后，先点的是第一个人。"
+
 #: src/components/flow/ModePicker.tsx
 msgid "「{title}」要收参考图的模型：换到高清或电影级就有"
 msgstr "「{title}」要收参考图的模型：换到高清或电影级就有"
 
+#: src/components/flow/ModePicker.tsx
+msgid "「{title}」要能出声的模型（台词得说出来）：换到高清或电影级就有"
+msgstr "「{title}」要能出声的模型（台词得说出来）：换到高清或电影级就有"
+
 #: src/studio/canvasAgent.ts
 msgid "「{u}」"
 msgstr "「{u}」"
+
+#: src/components/flow/DialogueWizard.tsx
+msgid "「{who}」不是这两个人，他说的那几句没收"
+msgstr "「{who}」不是这两个人，他说的那几句没收"
 
 #: src/pages/tutor/TutorNewPage.tsx
 msgid "「不确定」的教材可以自己学，铸出的老师不能发布到市场。"
@@ -1979,6 +2050,10 @@ msgstr "↻ 再炼一炉（{0}）"
 msgid "↻ 重新配音"
 msgstr "↻ 重新配音"
 
+#: src/components/flow/EffectWizard.tsx
+msgid "↻ 重画关键帧（{keyPrice}）"
+msgstr "↻ 重画关键帧（{keyPrice}）"
+
 #: src/pages/CutPage.tsx
 msgid "⇤ 从这里开始"
 msgstr "⇤ 从这里开始"
@@ -1998,6 +2073,10 @@ msgstr "＋ 再标一张脸部特写（可选，出片时锁面部特征更稳�
 #: src/pages/SupportPersonasPage.tsx
 msgid "＋ 制作我的人格"
 msgstr "＋ 制作我的人格"
+
+#: src/components/flow/DialogueWizard.tsx
+msgid "＋ 加一句"
+msgstr "＋ 加一句"
 
 #. placeholder {0}: rows.length
 #: src/components/support/VoiceMixer.tsx
@@ -2190,6 +2269,22 @@ msgstr "<0>素材有分镜切换、或者人会进出画面时用这个</0>：�
 #: src/components/blockout/VisionFramePicker.tsx
 msgid "<0>这一步不是每次都全对。</0>实测每隔几发就会有 1~2 个人<1>根本没被换成人偶</1>（还是原来的样子） —— 最常出错的是<2>画面正中央、看起来最像主角的那一个</2>。 出片之后你要对着画面从左往右数一遍：对不上的位子删掉就行（不用重炼、不花钱）， 要全对上只能重炼（<3>重炼要再花一次钱</3>）。<4>画面里的人越少越准</4>，也可以在下面多标几帧让 AI 少看漏人。"
 msgstr "<0>这一步不是每次都全对。</0>实测每隔几发就会有 1~2 个人<1>根本没被换成人偶</1>（还是原来的样子） —— 最常出错的是<2>画面正中央、看起来最像主角的那一个</2>。 出片之后你要对着画面从左往右数一遍：对不上的位子删掉就行（不用重炼、不花钱）， 要全对上只能重炼（<3>重炼要再花一次钱</3>）。<4>画面里的人越少越准</4>，也可以在下面多标几帧让 AI 少看漏人。"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "⏩ 延长段：接着一段已经删掉的成片往后拍（那段成片当参考视频，挂的人物卡一起发）。"
+msgstr "⏩ 延长段：接着一段已经删掉的成片往后拍（那段成片当参考视频，挂的人物卡一起发）。"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "⏩ 延长段：接着第 {extendSrcN} 段成片的最后一帧往后拍（那段成片当参考视频，挂的人物卡一起发）。新拍的这一截单独成一段。"
+msgstr "⏩ 延长段：接着第 {extendSrcN} 段成片的最后一帧往后拍（那段成片当参考视频，挂的人物卡一起发）。新拍的这一截单独成一段。"
+
+#: src/components/flow/FixSegmentBox.tsx
+msgid "⏩ 往后延长"
+msgstr "⏩ 往后延长"
+
+#: src/components/flow/FixSegmentBox.tsx
+msgid "⏩ 往后延长 {outSec} 秒（{extPrice}）"
+msgstr "⏩ 往后延长 {outSec} 秒（{extPrice}）"
 
 #: src/pages/CutPage.tsx
 msgid "■ 停"
@@ -2420,6 +2515,7 @@ msgstr "⚡ 生成本段（{costLabel}）"
 msgid "⚡ 生成本段视频（{0}）"
 msgstr "⚡ 生成本段视频（{0}）"
 
+#: src/components/flow/DialogueWizard.tsx
 #: src/components/flow/GridShotsWizard.tsx
 msgid "⚡ 生成这一段（{firstPrice}）"
 msgstr "⚡ 生成这一段（{firstPrice}）"
@@ -2427,6 +2523,10 @@ msgstr "⚡ 生成这一段（{firstPrice}）"
 #: src/components/flow/LeadShotsWizard.tsx
 msgid "⚡ 生成这一段（{genPrice}）"
 msgstr "⚡ 生成这一段（{genPrice}）"
+
+#: src/components/flow/EffectWizard.tsx
+msgid "⚡ 生成这一段（{segPrice}）"
+msgstr "⚡ 生成这一段（{segPrice}）"
 
 #: src/pages/TemplateDetailPage.tsx
 msgid "⚡ 用这个模板出片（只需一句话）"
@@ -2440,6 +2540,7 @@ msgstr "⚡ 用这个模板出片（挂上你的角色卡）"
 msgid "⚡ 解锁观看"
 msgstr "⚡ 解锁观看"
 
+#: src/components/flow/DialogueWizard.tsx
 #: src/components/flow/GridShotsWizard.tsx
 msgid "⚡ 铺成 {segN} 段，先出第 1 段（{firstPrice}）"
 msgstr "⚡ 铺成 {segN} 段，先出第 1 段（{firstPrice}）"
@@ -2499,13 +2600,21 @@ msgstr "✎ 拍摄要求"
 msgid "✎ 模板信息（只有你能改）"
 msgstr "✎ 模板信息（只有你能改）"
 
-#: src/components/flow/ReviseBox.tsx
-msgid "✎ 返修（{price}）"
-msgstr "✎ 返修（{price}）"
+#: src/components/flow/FixSegmentBox.tsx
+msgid "✎ 片段重拍"
+msgstr "✎ 片段重拍"
 
 #: src/components/flow/ReviseBox.tsx
-msgid "✎ 返修这一段"
-msgstr "✎ 返修这一段"
+#~ msgid "✎ 返修（{price}）"
+#~ msgstr "✎ 返修（{price}）"
+
+#: src/components/flow/ReviseBox.tsx
+#~ msgid "✎ 返修这一段"
+#~ msgstr "✎ 返修这一段"
+
+#: src/components/flow/FixSegmentBox.tsx
+msgid "✎ 重拍这一段（{revisePrice}）"
+msgstr "✎ 重拍这一段（{revisePrice}）"
 
 #: src/pages/DeckDetailPage.tsx
 #: src/pages/VideoPage.tsx
@@ -2584,6 +2693,10 @@ msgstr "✦ 全息实体 3D"
 msgid "✦ 全息实体 3D 建模"
 msgstr "✦ 全息实体 3D 建模"
 
+#: src/components/flow/DialogueWizard.tsx
+msgid "✨ AI 写对白（{writePrice}）"
+msgstr "✨ AI 写对白（{writePrice}）"
+
 #: src/components/flow/GridShotsWizard.tsx
 msgid "✨ AI 写成分镜（{writePrice}）"
 msgstr "✨ AI 写成分镜（{writePrice}）"
@@ -2636,6 +2749,10 @@ msgstr "✨ 改尾帧"
 msgid "✨ 改首帧"
 msgstr "✨ 改首帧"
 
+#: src/components/flow/EffectWizard.tsx
+msgid "✨ 特效同款"
+msgstr "✨ 特效同款"
+
 #: src/components/flow/CastPicker.tsx
 msgid "✨ 现做（{forgePrice}）"
 msgstr "✨ 现做（{forgePrice}）"
@@ -2662,6 +2779,10 @@ msgstr "✨ 补齐剩下的 {todoCount} 张形象图（约 {0}）"
 #: src/components/flow/GridShotsWizard.tsx
 msgid "✨ 让 AI 写（{writePrice}，会换掉上面的分镜）"
 msgstr "✨ 让 AI 写（{writePrice}，会换掉上面的分镜）"
+
+#: src/components/flow/DialogueWizard.tsx
+msgid "✨ 让 AI 写（{writePrice}，会换掉上面的对白）"
+msgstr "✨ 让 AI 写（{writePrice}，会换掉上面的对白）"
 
 #: src/components/flow/LeadShotsWizard.tsx
 msgid "✨ 让 AI 拆成镜头（{splitPrice}，会换掉上面的分镜）"
@@ -2799,9 +2920,17 @@ msgstr "🎞 调节首尾帧 / 加中间帧"
 msgid "🎤 取一段他的声音（可选，{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒 · 出片时台词可用这个音色）"
 msgstr "🎤 取一段他的声音（可选，{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒 · 出片时台词可用这个音色）"
 
+#: src/components/flow/DialogueWizard.tsx
+msgid "🎥 画三个机位（最多 {anglesPrice}）"
+msgstr "🎥 画三个机位（最多 {anglesPrice}）"
+
 #: src/pages/AdminPage.tsx
 msgid "🎧 客服工单"
 msgstr "🎧 客服工单"
+
+#: src/components/flow/EffectWizard.tsx
+msgid "🎨 画关键帧（{keyPrice}）"
+msgstr "🎨 画关键帧（{keyPrice}）"
 
 #: src/components/flow/CustomFrameSlots.tsx
 msgid "🎨 融图合成这一帧"
@@ -2948,6 +3077,10 @@ msgstr "🎵 配乐建议：{0}（在「音频」页签里挑一条自己的）"
 msgid "💬 对剪辑台说"
 msgstr "💬 对剪辑台说"
 
+#: src/components/flow/DialogueWizard.tsx
+msgid "💬 对话正反打"
+msgstr "💬 对话正反打"
+
 #: src/studio/ui/NpcDialog.tsx
 msgid "💬 记录"
 msgstr "💬 记录"
@@ -2993,6 +3126,10 @@ msgstr "📥 取回这一段的成片（不重新下单，不再花钱）"
 #~ msgid "📱 就是我本人 · 在这台手机上完成授权"
 #~ msgstr "📱 就是我本人 · 在这台手机上完成授权"
 
+#: src/components/flow/EffectWizard.tsx
+msgid "📷 传一张产品照片"
+msgstr "📷 传一张产品照片"
+
 #: src/studio/stage/StageOverlay.tsx
 msgid "📸 截图 → 融成这一段的开头帧（{price}）"
 msgstr "📸 截图 → 融成这一段的开头帧（{price}）"
@@ -3000,6 +3137,10 @@ msgstr "📸 截图 → 融成这一段的开头帧（{price}）"
 #: src/components/flow/SegPlayer.tsx
 msgid "📸 截这一帧"
 msgstr "📸 截这一帧"
+
+#: src/components/flow/DialogueWizard.tsx
+msgid "🔄 三个一起重画（最多 {anglesPrice}，会换掉现在这几张）"
+msgstr "🔄 三个一起重画（最多 {anglesPrice}，会换掉现在这几张）"
 
 #: src/components/flow/GridShotsWizard.tsx
 msgid "🔄 整组重出（{shotN} 格，最多 {groupPrice}，会换掉现在这几格）"
@@ -3012,6 +3153,10 @@ msgstr "🔄 重新写（{writePrice}，会换掉上面的分镜）"
 #: src/components/flow/GridShotsWizard.tsx
 msgid "🔄 重新写（{writePrice}，会换掉上面的分镜和已经画好的画面）"
 msgstr "🔄 重新写（{writePrice}，会换掉上面的分镜和已经画好的画面）"
+
+#: src/components/flow/DialogueWizard.tsx
+msgid "🔄 重新写（{writePrice}，会换掉上面的对白）"
+msgstr "🔄 重新写（{writePrice}，会换掉上面的对白）"
 
 #: src/components/flow/LeadShotsWizard.tsx
 msgid "🔄 重新拆（{splitPrice}，会换掉上面的分镜）"
@@ -3120,6 +3265,10 @@ msgstr "🔥 本机热度 {0}"
 msgid "🔥 社区热度 {0}"
 msgstr "🔥 社区热度 {0}"
 
+#: src/components/flow/DialogueWizard.tsx
+msgid "🖌 单独画这一张（{anglePrice}）"
+msgstr "🖌 单独画这一张（{anglePrice}）"
+
 #: src/components/flow/GridShotsWizard.tsx
 msgid "🖌 单独画这一格（{redrawPrice}）"
 msgstr "🖌 单独画这一格（{redrawPrice}）"
@@ -3127,6 +3276,10 @@ msgstr "🖌 单独画这一格（{redrawPrice}）"
 #: src/components/VideoCardAnnotator.tsx
 msgid "🖌 笔"
 msgstr "🖌 笔"
+
+#: src/components/flow/DialogueWizard.tsx
+msgid "🖌 重画这一张（{anglePrice}）"
+msgstr "🖌 重画这一张（{anglePrice}）"
 
 #: src/components/flow/GridShotsWizard.tsx
 msgid "🖌 重画这一格（{redrawPrice}）"
@@ -3652,6 +3805,10 @@ msgid "一两句话（{SCENE_MIN}~{SCENE_MAX} 字）：在哪、谁做了什么�
 msgstr "一两句话（{SCENE_MIN}~{SCENE_MAX} 字）：在哪、谁做了什么、谁说了什么"
 
 #: src/studio/structuredSkills.ts
+msgid "一两句话（{SITUATION_MIN}~{SITUATION_MAX} 字）：两个人在哪、为什么说这番话"
+msgstr "一两句话（{SITUATION_MIN}~{SITUATION_MAX} 字）：两个人在哪、为什么说这番话"
+
+#: src/studio/structuredSkills.ts
 msgid "一两句话写一场戏，写成 4~9 格分镜（景别 / 画面 / 动作 / 画面里有谁），逐格可改，再一次画出整组画面"
 msgstr "一两句话写一场戏，写成 4~9 格分镜（景别 / 画面 / 动作 / 画面里有谁），逐格可改，再一次画出整组画面"
 
@@ -3662,6 +3819,14 @@ msgstr "一两句话写一场戏，拆成一段视频里的 2~4 个镜头（景�
 #: src/components/flow/LeadShotsWizard.tsx
 msgid "一两句话就够：在哪、什么时候、谁做了什么、谁说了什么。AI 会拆成几个镜头，台词挂到说话的人身上。"
 msgstr "一两句话就够：在哪、什么时候、谁做了什么、谁说了什么。AI 会拆成几个镜头，台词挂到说话的人身上。"
+
+#: src/components/flow/EffectWizard.tsx
+msgid "一个人"
+msgstr "一个人"
+
+#: src/studio/structuredSkills.ts
+msgid "一个情境 → 对白"
+msgstr "一个情境 → 对白"
 
 #: src/components/guide/tours.tsx
 msgid "一个框搜两样"
@@ -3682,6 +3847,14 @@ msgstr "一个节点，一条短片"
 #: src/studio/flowStore.ts
 msgid "一个角色位都没挂卡：白模出片全靠卡上的形象图说明「换成谁」，一张都不挂的话出不了片——回去至少挂一张"
 msgstr "一个角色位都没挂卡：白模出片全靠卡上的形象图说明「换成谁」，一张都不挂的话出不了片——回去至少挂一张"
+
+#: src/components/flow/EffectWizard.tsx
+msgid "一件产品"
+msgstr "一件产品"
+
+#: src/components/flow/DialogueWizard.tsx
+msgid "一句一段：那一句的机位画面当开头，按卡上的声音说出来。点机位可以换（拍听的人也行：说话的人在画外说）。"
+msgstr "一句一段：那一句的机位画面当开头，按卡上的声音说出来。点机位可以换（拍听的人也行：说话的人在画外说）。"
 
 #: src/pages/CustomCardPage.tsx
 msgid "一句主体描述（选）：例「银白长发的星星发夹少女」"
@@ -3888,6 +4061,14 @@ msgstr "万一<0>两个人偶站得几乎重叠</0>、从左往右数不出先�
 #: src/data/danmaku.ts
 msgid "万剑埋骨之地"
 msgstr "万剑埋骨之地"
+
+#: src/components/flow/DialogueWizard.tsx
+msgid "三个机位是照着这句画的：改了它，机位就得重画。"
+msgstr "三个机位是照着这句画的：改了它，机位就得重画。"
+
+#: src/studio/structuredSkills.ts
+msgid "三个机位轮着用，一句一段，按卡上的声音说出来"
+msgstr "三个机位轮着用，一句一段，按卡上的声音说出来"
 
 #: src/components/guide/tours.tsx
 #~ msgid "三个页签各管一摊"
@@ -4220,10 +4401,16 @@ msgstr "下一步：写内容 ›"
 msgid "下一步：写分镜 ›"
 msgstr "下一步：写分镜 ›"
 
+#: src/components/flow/DialogueWizard.tsx
+msgid "下一步：写对白 ›"
+msgstr "下一步：写对白 ›"
+
 #: src/components/flow/LeadShotsWizard.tsx
 msgid "下一步：写这场戏 ›"
 msgstr "下一步：写这场戏 ›"
 
+#: src/components/flow/DialogueWizard.tsx
+#: src/components/flow/EffectWizard.tsx
 #: src/components/flow/GridShotsWizard.tsx
 #: src/components/flow/LeadShotsWizard.tsx
 msgid "下一步：出片 ›"
@@ -4276,6 +4463,14 @@ msgstr "下一步：标切段刀"
 #: src/pages/tutor/TutorNewPage.tsx
 msgid "下一步：生成"
 msgstr "下一步：生成"
+
+#: src/components/flow/EffectWizard.tsx
+msgid "下一步：画关键帧 ›"
+msgstr "下一步：画关键帧 ›"
+
+#: src/components/flow/DialogueWizard.tsx
+msgid "下一步：画机位 ›"
+msgstr "下一步：画机位 ›"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "下一步：自动识别"
@@ -4492,6 +4687,10 @@ msgstr "不演"
 msgid "不用"
 msgstr "不用"
 
+#: src/components/flow/DialogueWizard.tsx
+msgid "不用 AI，自己一句一句写"
+msgstr "不用 AI，自己一句一句写"
+
 #: src/components/flow/GridShotsWizard.tsx
 msgid "不用 AI，自己一格一格写"
 msgstr "不用 AI，自己一格一格写"
@@ -4515,6 +4714,10 @@ msgstr "不用模板（退回普通段）"
 #: src/pages/CreatePage.tsx
 msgid "不用素材卡，直接写"
 msgstr "不用素材卡，直接写"
+
+#: src/components/flow/EffectWizard.tsx
+msgid "不用这张"
+msgstr "不用这张"
 
 #: src/components/flow/ModePicker.tsx
 #: src/studio/ui/PlanBoard.tsx
@@ -4572,6 +4775,23 @@ msgstr "与素材同分辨率，最快"
 #: src/data/economy.ts
 msgid "专业套餐"
 msgstr "专业套餐"
+
+#: src/components/flow/DialogueWizard.tsx
+#: src/components/flow/EffectWizard.tsx
+msgid "两个人"
+msgstr "两个人"
+
+#: src/components/flow/ModePicker.tsx
+msgid "两个人＋一个场景，写几句对白，AI 画出双人镜头和两个过肩镜头，一句一段、按卡上的声音说出来。影视对话戏的标准拍法"
+msgstr "两个人＋一个场景，写几句对白，AI 画出双人镜头和两个过肩镜头，一句一段、按卡上的声音说出来。影视对话戏的标准拍法"
+
+#: src/components/flow/DialogueWizard.tsx
+msgid "两个人的名字一样，台词分不清是谁说的 —— 给其中一张卡改个名。"
+msgstr "两个人的名字一样，台词分不清是谁说的 —— 给其中一张卡改个名。"
+
+#: src/components/flow/EffectWizard.tsx
+msgid "两人在雨中天台对峙，雷声一响同时冲向对方"
+msgstr "两人在雨中天台对峙，雷声一响同时冲向对方"
 
 #: src/pages/tutor/TutorNewPage.tsx
 msgid "严厉度"
@@ -4671,6 +4891,10 @@ msgstr "主素材已就位（就是那张真人照片），不用再传 · 约 {
 msgid "主角"
 msgstr "主角"
 
+#: src/components/flow/EffectWizard.tsx
+msgid "主角一动不动，身边的人流车流飞速流过"
+msgstr "主角一动不动，身边的人流车流飞速流过"
+
 #: src/studio/studioStore.ts
 msgid "主角和分镜都定好了——人物图会直接给视频模型、不画帧，几个镜头一条出。"
 msgstr "主角和分镜都定好了——人物图会直接给视频模型、不画帧，几个镜头一条出。"
@@ -4679,6 +4903,10 @@ msgstr "主角和分镜都定好了——人物图会直接给视频模型、不
 #: src/studio/leadCast.ts
 msgid "主角定妆 · 多镜头"
 msgstr "主角定妆 · 多镜头"
+
+#: src/components/flow/EffectWizard.tsx
+msgid "主角或画幅改过了"
+msgstr "主角或画幅改过了"
 
 #: src/studio/leadCast.ts
 msgid "主角的形象图没画成，这张卡没收进卡片库。已经画出来、只是没取回来的图仍会计费，实扣以「我的」页余额为准——可以再试一次"
@@ -4836,9 +5064,21 @@ msgstr "交给铸卡师炼卡"
 msgid "产出里不含可辨认的人脸（白模台 / 剪影 / 人脸与服装分离）"
 msgstr "产出里不含可辨认的人脸（白模台 / 剪影 / 人脸与服装分离）"
 
+#: src/components/flow/EffectWizard.tsx
+msgid "产品亮相"
+msgstr "产品亮相"
+
+#: src/components/flow/EffectWizard.tsx
+msgid "产品拆解"
+msgstr "产品拆解"
+
 #: src/data/templates.ts
 msgid "产物已过期：AI 出片的产物只在服务器上留 24 小时，现在已经取不回来了，这一发已经付过的费用无法挽回（不是超时重来——重开一发是再花一次钱）。"
 msgstr "产物已过期：AI 出片的产物只在服务器上留 24 小时，现在已经取不回来了，这一发已经付过的费用无法挽回（不是超时重来——重开一发是再花一次钱）。"
+
+#: src/components/flow/DialogueWizard.tsx
+msgid "人、整体交代或画幅在画好之后改过：这一张还是按原来那版画的，重画一下才对得上。"
+msgstr "人、整体交代或画幅在画好之后改过：这一张还是按原来那版画的，重画一下才对得上。"
 
 #. placeholder {0}: stage.figures.length
 #: src/studio/stage/StageOverlay.tsx
@@ -5001,6 +5241,14 @@ msgstr "从视频提取卡组"
 #: src/components/VideoCardAnnotator.tsx
 msgid "从视频里圈选提取（{0}）"
 msgstr "从视频里圈选提取（{0}）"
+
+#: src/components/flow/FixSegmentBox.tsx
+msgid "从第"
+msgstr "从第"
+
+#: src/components/flow/EffectWizard.tsx
+msgid "从面部特写一路拉远，露出云海和山巅"
+msgstr "从面部特写一路拉远，露出云海和山巅"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "从预览截一张"
@@ -5292,6 +5540,10 @@ msgstr "你 10 分钟内已经提交过工单 #{short}，这次的内容已并�
 msgid "你：{0}"
 msgstr "你：{0}"
 
+#: src/components/flow/ModePicker.tsx
+msgid "你一句我一句"
+msgstr "你一句我一句"
+
 #: src/pages/CutPage.tsx
 msgid "你动过片段（裁剪 / 删段 / 换序），而配乐是自动预置的原片音轨——它按原片从头混，合出来会和画面对不上。想对齐就在「音频」里换一条自己的，或把片段改回原样。"
 msgstr "你动过片段（裁剪 / 删段 / 换序），而配乐是自动预置的原片音轨——它按原片从头混，合出来会和画面对不上。想对齐就在「音频」里换一条自己的，或把片段改回原样。"
@@ -5432,6 +5684,14 @@ msgstr "例：水墨淡彩，大面积留白，镜头缓慢横移"
 #: src/pages/CustomCardPage.tsx
 msgid "例：水墨留白，淡墨皴擦，大面积留白，边缘晕染"
 msgstr "例：水墨留白，淡墨皴擦，大面积留白，边缘晕染"
+
+#: src/components/flow/DialogueWizard.tsx
+msgid "例：深夜的旧车站，林夏等了沈舟一整夜，沈舟终于来了"
+msgstr "例：深夜的旧车站，林夏等了沈舟一整夜，沈舟终于来了"
+
+#: src/components/flow/DialogueWizard.tsx
+msgid "例：深夜的旧车站，站台灯昏黄，下着小雨"
+msgstr "例：深夜的旧车站，站台灯昏黄，下着小雨"
 
 #: src/components/flow/GridShotsWizard.tsx
 msgid "例：清晨的海边灯塔，林夏来给沈舟送一封旧信；沈舟读完信，两人一起看日出"
@@ -5578,6 +5838,10 @@ msgstr "信使小满在废土集市用三封信换回了一个秘密。轻松治
 msgid "信里居然是记忆"
 msgstr "信里居然是记忆"
 
+#: src/components/flow/FixSegmentBox.tsx
+msgid "修这一段"
+msgstr "修这一段"
+
 #: src/studio/stage/stageState.ts
 msgid "俯拍"
 msgstr "俯拍"
@@ -5628,6 +5892,10 @@ msgstr "停下"
 #: src/pages/SupportPage.tsx
 msgid "停止"
 msgstr "停止"
+
+#: src/components/flow/EffectWizard.tsx
+msgid "偶像舞台"
+msgstr "偶像舞台"
 
 #: src/pages/SettingsPage.tsx
 msgid "儿童安全标准"
@@ -5774,6 +6042,10 @@ msgstr "先存进 App，再选去处。"
 msgid "先定人、再拆镜头"
 msgstr "先定人、再拆镜头"
 
+#: src/studio/dialogueDraftStore.ts
+msgid "先把双人镜头画出来：过肩要照着它画"
+msgstr "先把双人镜头画出来：过肩要照着它画"
+
 #: src/pages/FlowPage.tsx
 msgid "先把当前这段炼出来"
 msgstr "先把当前这段炼出来"
@@ -5837,6 +6109,18 @@ msgstr "先点下面一个格子，再点一张卡；也可以直接把卡拖到
 #: src/studio/scene/TableScene.tsx
 msgid "先炼出当前段的视频"
 msgstr "先炼出当前段的视频"
+
+#: src/components/flow/EffectWizard.tsx
+msgid "先画关键帧：看着对了再出片，不对就重画一张（只花一张图的钱）。"
+msgstr "先画关键帧：看着对了再出片，不对就重画一张（只花一张图的钱）。"
+
+#: src/components/flow/DialogueWizard.tsx
+msgid "先画双人镜头，再照着它画两个过肩（地方、光线、两人的衣服都对得上）。按画成的张数收钱，约一分钟，可以先离开，画好了会提醒你。"
+msgstr "先画双人镜头，再照着它画两个过肩（地方、光线、两人的衣服都对得上）。按画成的张数收钱，约一分钟，可以先离开，画好了会提醒你。"
+
+#: src/studio/dialogueDraftStore.ts
+msgid "先画双人镜头…"
+msgstr "先画双人镜头…"
 
 #: src/components/flow/ModePicker.tsx
 msgid "先看关键画面"
@@ -6077,6 +6361,31 @@ msgstr "关注关系"
 msgid "关注的创作者还没有新作品"
 msgstr "关注的创作者还没有新作品"
 
+#: src/components/flow/ModePicker.tsx
+msgid "关键帧 {panelPrice}，视频约 {fxVideo} / {fxSec} 秒"
+msgstr "关键帧 {panelPrice}，视频约 {fxVideo} / {fxSec} 秒"
+
+#: src/components/flow/EffectWizard.tsx
+msgid "关键帧（这一段的开头）"
+msgstr "关键帧（这一段的开头）"
+
+#: src/components/flow/EffectWizard.tsx
+msgid "关键帧当这一段的开头，主角的卡图一起给视频模型；不接上一段的结尾（特效是一条独立的片子）。"
+msgstr "关键帧当这一段的开头，主角的卡图一起给视频模型；不接上一段的结尾（特效是一条独立的片子）。"
+
+#: src/components/flow/EffectWizard.tsx
+msgid "关键帧当这一段的首帧；这一档收不了人物图，人像全看关键帧。"
+msgstr "关键帧当这一段的首帧；这一档收不了人物图，人像全看关键帧。"
+
+#: src/studio/effectDraftStore.ts
+msgid "关键帧没画成：{why}"
+msgstr "关键帧没画成：{why}"
+
+#. why 是失败原因整句；moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格
+#: src/studio/effectDraftStore.ts
+msgid "关键帧没画成：{why}。{moneyLine}"
+msgstr "关键帧没画成：{why}。{moneyLine}"
+
 #: src/components/cut/AutoEditSheet.tsx
 #: src/components/cut/CutAgentSheet.tsx
 #: src/components/DownloadSheet.tsx
@@ -6309,6 +6618,10 @@ msgstr "最火"
 msgid "最火作品"
 msgstr "最火作品"
 
+#: src/studio/structuredSkills.ts
+msgid "写一个情境，两个人你一句我一句写成 2~6 句对白（谁说 / 说什么 / 说的时候在做什么），逐句可改，一句拍成一段"
+msgstr "写一个情境，两个人你一句我一句写成 2~6 句对白（谁说 / 说什么 / 说的时候在做什么），逐句可改，一句拍成一段"
+
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "写一个称呼"
 msgstr "写一个称呼"
@@ -6325,6 +6638,10 @@ msgstr "写一句你的主题，模型把每一段的剧情换成你的故事；
 #: src/studio/ui/projection.tsx
 msgid "写一句换成谁，例：换成一只戴墨镜的柴犬"
 msgstr "写一句换成谁，例：换成一只戴墨镜的柴犬"
+
+#: src/studio/flowStore.ts
+msgid "写一句接下来发生什么（例：她转身走向门口，雨越下越大）"
+msgstr "写一句接下来发生什么（例：她转身走向门口，雨越下越大）"
 
 #: src/pages/CreatePage.tsx
 #: src/pages/SimpleModePage.tsx
@@ -6360,6 +6677,10 @@ msgid "写入本地库…"
 msgstr "写入本地库…"
 
 #: src/studio/structuredSkills.ts
+msgid "写出来的对白一句都用不上（没有台词，或说话人不是这两个人），这一次已经计费——再写一次"
+msgstr "写出来的对白一句都用不上（没有台词，或说话人不是这两个人），这一次已经计费——再写一次"
+
+#: src/studio/structuredSkills.ts
 msgid "写出来的格子一个都没写画面，这一次已经计费——把这场戏写具体些再写"
 msgstr "写出来的格子一个都没写画面，这一次已经计费——把这场戏写具体些再写"
 
@@ -6388,6 +6709,31 @@ msgstr "写回 {0} 段"
 #: src/studio/structuredSkills.ts
 msgid "写回各段"
 msgstr "写回各段"
+
+#: src/studio/structuredSkills.ts
+msgid "写对白"
+msgstr "写对白"
+
+#: src/components/flow/ModePicker.tsx
+msgid "写对白 {chatPrice}，三个机位每张 {panelPrice}，每句一段约 {gridVideo} / {gridSec} 秒"
+msgstr "写对白 {chatPrice}，三个机位每张 {panelPrice}，每句一段约 {gridVideo} / {gridSec} 秒"
+
+#. why 是失败原因整句；moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格
+#: src/studio/dialogueDraftStore.ts
+msgid "写对白没成：{why}。{moneyLine}"
+msgstr "写对白没成：{why}。{moneyLine}"
+
+#: src/studio/structuredSkills.ts
+msgid "写对白要 {price} token，余额不够——去「我的」页充值"
+msgstr "写对白要 {price} token，余额不够——去「我的」页充值"
+
+#: src/studio/structuredSkills.ts
+msgid "写情境"
+msgstr "写情境"
+
+#: src/components/flow/DialogueWizard.tsx
+msgid "写成 {DIALOGUE_LINES_MIN}~{DIALOGUE_LINES_MAX} 句，两人轮流说：每句写谁说、说什么、说的时候在做什么。写完逐句可改、可删。一句之后拍成一段。"
+msgstr "写成 {DIALOGUE_LINES_MIN}~{DIALOGUE_LINES_MAX} 句，两人轮流说：每句写谁说、说什么、说的时候在做什么。写完逐句可改、可删。一句之后拍成一段。"
 
 #: src/components/flow/GridShotsWizard.tsx
 msgid "写成 {GRID_SHOTS_MIN}~{GRID_SHOTS_MAX} 格：每格写景别、画面（一个瞬间，给画面用）、动作（接下来几秒发生什么，给视频用）和画面里有谁。写完逐格可改、可删。"
@@ -6498,6 +6844,8 @@ msgstr "出场：{leadName}（主角）"
 msgid "出场：{leadName}（主角）、{others}"
 msgstr "出场：{leadName}（主角）、{others}"
 
+#: src/components/flow/DialogueWizard.tsx
+#: src/components/flow/EffectWizard.tsx
 #: src/components/flow/GridShotsWizard.tsx
 #: src/components/flow/LeadShotsWizard.tsx
 #: src/studio/structuredSkills.ts
@@ -6881,6 +7229,10 @@ msgstr "删掉第 {0} 秒这一帧"
 #: src/components/blockout/VisionFramePicker.tsx
 msgid "删掉第 {at} 秒这一帧"
 msgstr "删掉第 {at} 秒这一帧"
+
+#: src/components/flow/DialogueWizard.tsx
+msgid "删掉这一句"
+msgstr "删掉这一句"
 
 #: src/components/flow/GridShotsWizard.tsx
 msgid "删掉这一格"
@@ -7403,9 +7755,17 @@ msgstr "卡片工坊"
 msgid "卡片广场在服务器上，离线库里没有「别人」"
 msgstr "卡片广场在服务器上，离线库里没有「别人」"
 
+#: src/components/flow/DialogueWizard.tsx
+msgid "卡片库里没有场景卡 —— 不挑也行，地点写进下一步的整体交代里。"
+msgstr "卡片库里没有场景卡 —— 不挑也行，地点写进下一步的整体交代里。"
+
 #: src/components/flow/GridShotsWizard.tsx
 msgid "卡片库里没有场景卡 —— 不挑也行，地点写进这场戏里。"
 msgstr "卡片库里没有场景卡 —— 不挑也行，地点写进这场戏里。"
+
+#: src/components/flow/EffectWizard.tsx
+msgid "卡片库里没有道具卡 —— 传一张产品照片就行（只用来画关键帧，不会存进卡片库）。"
+msgstr "卡片库里没有道具卡 —— 传一张产品照片就行（只用来画关键帧，不会存进卡片库）。"
 
 #: src/components/flow/CastPicker.tsx
 msgid "卡片库里还没有人物卡 —— 在下面现做一个；想用照片做（真人要先认证），去「自己传图做卡片」。"
@@ -7819,6 +8179,10 @@ msgstr "参考画面特征"
 msgid "参考视频 + 参考图（reference）"
 msgstr "参考视频 + 参考图（reference）"
 
+#: src/ai/arkClient.ts
+msgid "参考视频向后延长（extend）"
+msgstr "参考视频向后延长（extend）"
+
 #: src/components/VideoTemplateExtractor.tsx
 msgid "参考视频没传上"
 msgstr "参考视频没传上"
@@ -7843,6 +8207,22 @@ msgstr "参考答案"
 #: src/studio/ui/SchemeEditorSheet.tsx
 msgid "参考脸部裁剪"
 msgstr "参考脸部裁剪"
+
+#: src/components/flow/DialogueWizard.tsx
+msgid "双人镜头"
+msgstr "双人镜头"
+
+#: src/studio/dialogueDraftStore.ts
+msgid "双人镜头{err}——两个过肩要照着它画，先没开画"
+msgstr "双人镜头{err}——两个过肩要照着它画，先没开画"
+
+#: src/studio/dialogueDraftStore.ts
+msgid "双人镜头画好了，正在画两个过肩…"
+msgstr "双人镜头画好了，正在画两个过肩…"
+
+#: src/components/flow/DialogueWizard.tsx
+msgid "双人镜头重画之后，两个过肩会标成过期（它们是照着双人镜头画的），要不要跟着重画你来定。"
+msgstr "双人镜头重画之后，两个过肩会标成过期（它们是照着双人镜头画的），要不要跟着重画你来定。"
 
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "发"
@@ -8338,6 +8718,10 @@ msgstr "只按设定和问卷写的"
 msgid "只换这个"
 msgstr "只换这个"
 
+#: src/components/flow/FixSegmentBox.tsx
+msgid "只改其中几秒"
+msgstr "只改其中几秒"
+
 #: src/studio/structuredSkills.ts
 msgid "只改剧情与标题；你的原话、镜头字段、时长、帧都不动"
 msgstr "只改剧情与标题；你的原话、镜头字段、时长、帧都不动"
@@ -8345,6 +8729,10 @@ msgstr "只改剧情与标题；你的原话、镜头字段、时长、帧都不
 #: src/components/flow/ThemeRewriteSheet.tsx
 msgid "只改剧情与标题；每段的要求（你的原话）、镜头字段、时长、已画的帧都不动。写回之后照常逐段炼。"
 msgstr "只改剧情与标题；每段的要求（你的原话）、镜头字段、时长、已画的帧都不动。写回之后照常逐段炼。"
+
+#: src/studio/flowStore.ts
+msgid "只改的那几秒不对：要在 0~{sec} 秒之内、至少 1 秒"
+msgstr "只改的那几秒不对：要在 0~{sec} 秒之内、至少 1 秒"
 
 #: src/pages/CreatePage.tsx
 msgid "只有一个节点：写一句话，挑个时长，直接出一条几秒的短视频。不推方案、不存草稿。"
@@ -8418,6 +8806,10 @@ msgstr "只能发布自己库里的技能"
 msgid "只能发布自己自建的方案（内置那几套本来就人人都有）"
 msgstr "只能发布自己自建的方案（内置那几套本来就人人都有）"
 
+#: src/studio/flowStore.ts
+msgid "只能延长最后一段：延长出来的是接在它后面的新一段，接在中间会把后面那几段的接缝打断"
+msgstr "只能延长最后一段：延长出来的是接在它后面的新一段，接在中间会把后面那几段的接缝打断"
+
 #: src/components/VideoTemplateExtractor.tsx
 msgid "只认人、不出片 · 约 {ownRefPrice}"
 msgstr "只认人、不出片 · 约 {ownRefPrice}"
@@ -8430,10 +8822,13 @@ msgstr "只说话"
 msgid "只说话、不播动作"
 msgstr "只说话、不播动作"
 
+#: src/components/flow/DialogueWizard.tsx
 #: src/components/flow/GridShotsWizard.tsx
 msgid "只铺成这 {segN} 段，先不出片"
 msgstr "只铺成这 {segN} 段，先不出片"
 
+#: src/components/flow/DialogueWizard.tsx
+#: src/components/flow/EffectWizard.tsx
 #: src/components/flow/GridShotsWizard.tsx
 #: src/components/flow/LeadShotsWizard.tsx
 msgid "只铺成这一段，先不出片"
@@ -8489,6 +8884,10 @@ msgstr "可跨帧跨段圈多处，最后一次性重新生成——那一步才
 msgid "台上现在不是你的模型（预览没画出来），截下来的会是官方看板娘。先点「重新加载预览」，画出来了再截。"
 msgstr "台上现在不是你的模型（预览没画出来），截下来的会是官方看板娘。先点「重新加载预览」，画出来了再截。"
 
+#: src/components/flow/DialogueWizard.tsx
+msgid "台词（不用加引号）"
+msgstr "台词（不用加引号）"
+
 #. placeholder {0}: next.label
 #: src/components/flow/TierRow.tsx
 msgid "台词不再带音色样本（「{0}」档出片无声）"
@@ -8506,6 +8905,10 @@ msgstr "台词写在引号里才会被配音；带 🔊 的卡按它自己的声
 #: src/components/flow/ShotListEditor.tsx
 msgid "台词写在引号里才会被配音。想让某个人用固定的声音说话：给这一段挂上他的人物卡，并在卡片页给卡录一段声音。"
 msgstr "台词写在引号里才会被配音。想让某个人用固定的声音说话：给这一段挂上他的人物卡，并在卡片页给卡录一段声音。"
+
+#: src/components/flow/DialogueWizard.tsx
+msgid "台词按卡上的声音样本说（名字前有 🔊 的卡）。{noVoice} 还没有声音样本：每一段的嗓音可能不一样 —— 去卡片页录一段就稳了。"
+msgstr "台词按卡上的声音样本说（名字前有 🔊 的卡）。{noVoice} 还没有声音样本：每一段的嗓音可能不一样 —— 去卡片页录一段就稳了。"
 
 #: src/pages/CutPage.tsx
 msgid "右上角可以直接去发布。想再改片段、圈选或配乐，就回到合并之前接着剪——原来的时间轴都还在，改完重新合一次（合成不花钱）。"
@@ -9102,6 +9505,7 @@ msgstr "场景信息"
 msgid "场景卡"
 msgstr "场景卡"
 
+#: src/components/flow/DialogueWizard.tsx
 #: src/components/flow/GridShotsWizard.tsx
 msgid "场景卡（选填，只挑一张）"
 msgstr "场景卡（选填，只挑一张）"
@@ -9121,6 +9525,10 @@ msgstr "坚定"
 #: src/api/admin.ts
 msgid "垃圾营销 / 刷屏"
 msgstr "垃圾营销 / 刷屏"
+
+#: src/components/flow/EffectWizard.tsx
+msgid "城市延时"
+msgstr "城市延时"
 
 #: src/studio/personaWizardStore.ts
 msgid "基本设定"
@@ -9143,6 +9551,10 @@ msgstr "填入默认写法（填完还能改）"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "填过的设定、导入的素材、生成出来的草稿和试聊记录都会清掉，回到第一步。已经发布出去的人格不受影响。"
 msgstr "填过的设定、导入的素材、生成出来的草稿和试聊记录都会清掉，回到第一步。已经发布出去的人格不受影响。"
+
+#: src/components/flow/EffectWizard.tsx
+msgid "墙上的壁画活过来，一步跨到街上"
+msgstr "墙上的壁画活过来，一步跨到街上"
 
 #: src/pages/SupportModelNewPage.tsx
 #: src/pages/SupportPage.tsx
@@ -9196,8 +9608,16 @@ msgid "复制链接"
 msgstr "复制链接"
 
 #: src/components/flow/ModePicker.tsx
-msgid "复刻"
-msgstr "复刻"
+#~ msgid "复刻"
+#~ msgstr "复刻"
+
+#: src/components/flow/ModePicker.tsx
+msgid "复刻 · 同款"
+msgstr "复刻 · 同款"
+
+#: src/components/flow/EffectWizard.tsx
+msgid "夕阳下腾空翻板，落地滑向镜头"
+msgstr "夕阳下腾空翻板，落地滑向镜头"
 
 #: src/components/flow/SegPlayer.tsx
 msgid "多半是刚换过走向或重推了方案。挑回原来那一套（或炼完这一套）就能回看"
@@ -9626,6 +10046,10 @@ msgctxt "Live2D 表情槽名"
 msgid "害羞"
 msgstr "害羞"
 
+#: src/components/flow/EffectWizard.tsx
+msgid "宿敌对峙"
+msgstr "宿敌对峙"
+
 #: src/pages/LoginPage.tsx
 msgid "密码"
 msgstr "密码"
@@ -9659,13 +10083,49 @@ msgstr "对画布说话"
 msgid "对画布说话：{0}"
 msgstr "对画布说话：{0}"
 
+#: src/components/flow/DialogueWizard.tsx
+msgid "对白"
+msgstr "对白"
+
+#: src/components/flow/DialogueWizard.tsx
+msgid "对白里用到的「{missingText}」还没画好。"
+msgstr "对白里用到的「{missingText}」还没画好。"
+
 #: src/components/guide/tours.tsx
 msgid "对着视频逐行核对"
 msgstr "对着视频逐行核对"
 
+#: src/components/flow/DialogueWizard.tsx
+msgid "对话只要两个人 —— 取消几个，留下两个再往下。"
+msgstr "对话只要两个人 —— 取消几个，留下两个再往下。"
+
 #: src/pages/SupportPage.tsx
 msgid "对话未开通"
 msgstr "对话未开通"
+
+#: src/components/flow/ModePicker.tsx
+msgid "对话正反打"
+msgstr "对话正反打"
+
+#: src/studio/dialogueDraftStore.ts
+msgid "对话正反打 · 画机位"
+msgstr "对话正反打 · 画机位"
+
+#: src/studio/dialogueDraftStore.ts
+msgid "对话正反打 · 第 {n} 句"
+msgstr "对话正反打 · 第 {n} 句"
+
+#: src/studio/dialogueDraftStore.ts
+msgid "对话正反打有 {failed} 个机位没画成，回去看原因"
+msgstr "对话正反打有 {failed} 个机位没画成，回去看原因"
+
+#: src/studio/dialogueDraftStore.ts
+msgid "对话正反打的三个机位画好了"
+msgstr "对话正反打的三个机位画好了"
+
+#: src/studio/dialogueDraftStore.ts
+msgid "对话正反打的机位没画成，回去看原因"
+msgstr "对话正反打的机位没画成，回去看原因"
 
 #: src/pages/SupportPage.tsx
 msgid "对话记录"
@@ -9982,6 +10442,10 @@ msgstr "左臂"
 #: src/pages/SupportModelNewPage.tsx
 msgid "左边是模型自己的命中区（HitAreas），右边是摸到这里播哪个动作。想验证对没对上，直接在上面的预览里摸一下 —— 屏幕上会写「刚点到：…」。"
 msgstr "左边是模型自己的命中区（HitAreas），右边是摸到这里播哪个动作。想验证对没对上，直接在上面的预览里摸一下 —— 屏幕上会写「刚点到：…」。"
+
+#: src/components/flow/EffectWizard.tsx
+msgid "巨兽来袭"
+msgstr "巨兽来袭"
 
 #. placeholder {0}: file.name
 #. placeholder {1}: extracted.chars
@@ -10727,6 +11191,18 @@ msgstr "废土行者"
 msgid "废土集市奇遇记"
 msgstr "废土集市奇遇记"
 
+#: src/components/flow/EffectWizard.tsx
+msgid "废墟城市里回头，巨兽从云层里探出头"
+msgstr "废墟城市里回头，巨兽从云层里探出头"
+
+#: src/studio/flowStore.ts
+msgid "延长 · 接着第 {n} 段往后拍"
+msgstr "延长 · 接着第 {n} 段往后拍"
+
+#: src/studio/segmentGen.ts
+msgid "延长段没有设定帧可圈选——先清掉圈选标注，想改画面就改那句话"
+msgstr "延长段没有设定帧可圈选——先清掉圈选标注，想改画面就改那句话"
+
 #: src/pages/WorkshopPage.tsx
 msgid "建一个把常用素材归到一起"
 msgstr "建一个把常用素材归到一起"
@@ -10967,6 +11443,10 @@ msgstr "录制中…（实际播这一段）"
 #: src/components/VideoCardAnnotator.tsx
 msgid "录制中途被系统暂停了（多半是切到了后台）——回到这一页重新点一次「录这一段」"
 msgstr "录制中途被系统暂停了（多半是切到了后台）——回到这一页重新点一次「录这一段」"
+
+#: src/studio/structuredSkills.ts
+msgid "形状不对整发不认；多出来的句子不收；说话人不是这两个人的那一句不收"
+msgstr "形状不对整发不认；多出来的句子不收；说话人不是这两个人的那一句不收"
 
 #: src/studio/structuredSkills.ts
 msgid "形状不对整发不认；多出来的格子不收；不认识的人不进画面"
@@ -11215,6 +11695,18 @@ msgstr "恢复默认"
 msgid "恢复默认人格"
 msgstr "恢复默认人格"
 
+#: src/components/flow/DialogueWizard.tsx
+msgid "情境"
+msgstr "情境"
+
+#: src/studio/structuredSkills.ts
+msgid "情境写得太短（至少 {SITUATION_MIN} 个字）——写清两个人在哪、为什么说这番话"
+msgstr "情境写得太短（至少 {SITUATION_MIN} 个字）——写清两个人在哪、为什么说这番话"
+
+#: src/components/flow/DialogueWizard.tsx
+msgid "情境改过了，下面的对白还是按原来那句写的 —— 点「重新写」按新的写，或者直接在下面改。"
+msgstr "情境改过了，下面的对白还是按原来那句写的 —— 点「重新写」按新的写，或者直接在下面改。"
+
 #: src/types.ts
 msgid "情感互动"
 msgstr "情感互动"
@@ -11315,6 +11807,10 @@ msgstr "成片转存中（换成永久地址）"
 #: src/studio/genLog.ts
 msgid "成片转存没成（{reason}）——先用方舟临时链接，预览帧稍后自动补上"
 msgstr "成片转存没成（{reason}）——先用方舟临时链接，预览帧稍后自动补上"
+
+#: src/studio/flowStore.ts
+msgid "成片还在转存（换成永久地址），转存完才能延长——稍等一会儿再来"
+msgstr "成片还在转存（换成永久地址），转存完才能延长——稍等一会儿再来"
 
 #: src/components/CoverPicker.tsx
 msgid "成片还在载入，稍等一下再截"
@@ -11568,6 +12064,10 @@ msgstr "执行中…"
 msgid "扫脸认证新的"
 msgstr "扫脸认证新的"
 
+#: src/studio/flowStore.ts
+msgid "找不到这一段"
+msgstr "找不到这一段"
+
 #: src/api/blocking.ts
 msgid "找不到这个人（账号可能已经注销了）。"
 msgstr "找不到这个人（账号可能已经注销了）。"
@@ -11785,6 +12285,10 @@ msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜�
 msgid "拉远"
 msgstr "拉远"
 
+#: src/components/flow/EffectWizard.tsx
+msgid "拉远开场"
+msgstr "拉远开场"
+
 #: src/studio/studioStore.ts
 msgid "拉远视角"
 msgstr "拉远视角"
@@ -11800,6 +12304,14 @@ msgstr "拉黑「{who}」？"
 #: src/pages/SettingsBlockedPage.tsx
 msgid "拉黑是双向的：你们不会再看见彼此的作品、评论和弹幕，也不会收到对方的任何通知。解除之后立刻恢复。"
 msgstr "拉黑是双向的：你们不会再看见彼此的作品、评论和弹幕，也不会收到对方的任何通知。解除之后立刻恢复。"
+
+#: src/components/flow/DialogueWizard.tsx
+msgid "拍{nameA}"
+msgstr "拍{nameA}"
+
+#: src/components/flow/DialogueWizard.tsx
+msgid "拍{nameB}"
+msgstr "拍{nameB}"
 
 #: src/pages/CustomCardPage.tsx
 msgid "拍一张，AI 按照片填卡名和简介（演示档不花钱）；上传本地图片进表单后也能再点识别"
@@ -11877,9 +12389,21 @@ msgstr "拿不到麦克风权限。App 版本 ≤2.29 的安装包没带录音�
 msgid "拿不到麦克风权限。在系统弹窗里点允许；拒绝过的话去系统设置 → 应用 → 启梦 → 权限里打开麦克风。"
 msgstr "拿不到麦克风权限。在系统弹窗里点允许；拒绝过的话去系统设置 → 应用 → 启梦 → 权限里打开麦克风。"
 
+#: src/components/flow/EffectWizard.tsx
+msgid "拿真人卡的照片起拍，照着「{title}」动起来（真人档按发计价）。"
+msgstr "拿真人卡的照片起拍，照着「{title}」动起来（真人档按发计价）。"
+
 #: src/components/flow/ReviseBox.tsx
-msgid "拿这一段成片当参考视频重拍，只改你写的地方；时长跟随成片（{sec}s），产物<0>无声</0>（合并时可外挂音轨）；上一版会留一份可还原"
-msgstr "拿这一段成片当参考视频重拍，只改你写的地方；时长跟随成片（{sec}s），产物<0>无声</0>（合并时可外挂音轨）；上一版会留一份可还原"
+#~ msgid "拿这一段成片当参考视频重拍，只改你写的地方；时长跟随成片（{sec}s），产物<0>无声</0>（合并时可外挂音轨）；上一版会留一份可还原"
+#~ msgstr "拿这一段成片当参考视频重拍，只改你写的地方；时长跟随成片（{sec}s），产物<0>无声</0>（合并时可外挂音轨）；上一版会留一份可还原"
+
+#: src/components/flow/FixSegmentBox.tsx
+msgid "拿这一段成片当参考视频重拍，只改你写的地方；时长跟随成片（{sec}s），出声（原片的声音会一起重做，可能与原片略有不同）；上一版留一份可还原"
+msgstr "拿这一段成片当参考视频重拍，只改你写的地方；时长跟随成片（{sec}s），出声（原片的声音会一起重做，可能与原片略有不同）；上一版留一份可还原"
+
+#: src/components/flow/FixSegmentBox.tsx
+msgid "拿这一段成片当参考视频重拍，只改第 {a}~{b} 秒里你写的地方、其余几秒照原样；整段一起重新生成（时长跟随成片 {sec}s，按整段计价），出声（原片的声音会一起重做，可能与原片略有不同）；上一版留一份可还原"
+msgstr "拿这一段成片当参考视频重拍，只改第 {a}~{b} 秒里你写的地方、其余几秒照原样；整段一起重新生成（时长跟随成片 {sec}s，按整段计价），出声（原片的声音会一起重做，可能与原片略有不同）；上一版留一份可还原"
 
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "拿这份草稿聊几句看看像不像。聊 {PREVIEW_ROUNDS_MAX} 轮，已经聊了 {rounds} 轮。"
@@ -11988,12 +12512,20 @@ msgid "按你的改动重画好了。不满意就再改剧情、或者直接换�
 msgstr "按你的改动重画好了。不满意就再改剧情、或者直接换成你自己的图。"
 
 #: src/studio/segmentGen.ts
-msgid "按你的改法返修这一段（时长跟随成片 {refSec} 秒，产物无声）…"
-msgstr "按你的改法返修这一段（时长跟随成片 {refSec} 秒，产物无声）…"
+#~ msgid "按你的改法返修这一段（时长跟随成片 {refSec} 秒，产物无声）…"
+#~ msgstr "按你的改法返修这一段（时长跟随成片 {refSec} 秒，产物无声）…"
 
 #: src/studio/segmentGen.ts
-msgid "按你的改法返修这一段（时长跟随成片，产物无声）…"
-msgstr "按你的改法返修这一段（时长跟随成片，产物无声）…"
+msgid "按你的改法返修这一段（时长跟随成片 {refSec} 秒，出声）…"
+msgstr "按你的改法返修这一段（时长跟随成片 {refSec} 秒，出声）…"
+
+#: src/studio/segmentGen.ts
+#~ msgid "按你的改法返修这一段（时长跟随成片，产物无声）…"
+#~ msgstr "按你的改法返修这一段（时长跟随成片，产物无声）…"
+
+#: src/studio/segmentGen.ts
+msgid "按你的改法返修这一段（时长跟随成片，出声）…"
+msgstr "按你的改法返修这一段（时长跟随成片，出声）…"
 
 #: src/studio/flowStore.ts
 msgid "按修改重画画面…"
@@ -12116,6 +12648,18 @@ msgstr "按顺序点要拍的格子：点的先后就是成段的先后。每一
 msgid "挑一个模板"
 msgstr "挑一个模板"
 
+#: src/components/flow/EffectWizard.tsx
+msgid "挑一个特效：AI 先把你的主角放进这个画面（关键帧，可以重画），再照着它出一段。"
+msgstr "挑一个特效：AI 先把你的主角放进这个画面（关键帧，可以重画），再照着它出一段。"
+
+#: src/components/flow/EffectWizard.tsx
+msgid "挑一个特效：真人卡的照片起拍，照着这个特效动起来。真人档只摆不用换场景也成立的几个。"
+msgstr "挑一个特效：真人卡的照片起拍，照着这个特效动起来。真人档只摆不用换场景也成立的几个。"
+
+#: src/components/flow/ModePicker.tsx
+msgid "挑一个特效（时间冻结、环绕亮相、走出壁画、产品亮相……），换上你的人物或产品，一段 5~6 秒的大片"
+msgstr "挑一个特效（时间冻结、环绕亮相、走出壁画、产品亮相……），换上你的人物或产品，一段 5~6 秒的大片"
+
 #: src/studio/ui/projection.tsx
 msgid "挑一套 → 可换首尾帧/改剧情 → 炼出本段视频，桌面上才会亮出下一段的卡位"
 msgstr "挑一套 → 可换首尾帧/改剧情 → 炼出本段视频，桌面上才会亮出下一段的卡位"
@@ -12132,9 +12676,13 @@ msgstr "挑一条现成的片子，复刻它的画面与运镜"
 msgid "挑一种创作方式"
 msgstr "挑一种创作方式"
 
-#: src/studio/studioStore.ts
+#: src/studio/ui/projection.tsx
 msgid "挑中的 {n} 格各成一段了——每段拿那一格的画面当开头，按顺序一段一段出片。"
 msgstr "挑中的 {n} 格各成一段了——每段拿那一格的画面当开头，按顺序一段一段出片。"
+
+#: src/components/flow/EffectWizard.tsx
+msgid "挑主角"
+msgstr "挑主角"
 
 #: src/components/flow/ModePicker.tsx
 msgid "挑几张参考图（人物 / 场景卡）＋ 写提示词，人物图直接给视频模型。LibTV 作者最常用的做法"
@@ -12164,6 +12712,10 @@ msgstr "挑定了就进去"
 #: src/components/flow/GridShotsWizard.tsx
 msgid "挑格子"
 msgstr "挑格子"
+
+#: src/components/flow/EffectWizard.tsx
+msgid "挑特效"
+msgstr "挑特效"
 
 #: src/studio/ui/projection.tsx
 #~ msgid "挑素材卡＋写要求，三套方案挑一套"
@@ -12206,6 +12758,10 @@ msgstr "换一套"
 msgid "换一张"
 msgstr "换一张"
 
+#: src/components/flow/EffectWizard.tsx
+msgid "换一张照片"
+msgstr "换一张照片"
+
 #: src/components/cut/AutoEditSheet.tsx
 msgid "换一版（{price}）"
 msgstr "换一版（{price}）"
@@ -12217,6 +12773,10 @@ msgstr "换一种说话风格，官网同步"
 #: src/pages/SupportPersonasPage.tsx
 msgid "换一种说话风格，客服页与官网首页共用同一份设置；人格自带嗓子的话声音也会跟着换。"
 msgstr "换一种说话风格，客服页与官网首页共用同一份设置；人格自带嗓子的话声音也会跟着换。"
+
+#: src/components/flow/ModePicker.tsx
+msgid "换上你的主角就出"
+msgstr "换上你的主角就出"
 
 #: src/studio/ui/AvatarSwapButton.tsx
 msgid "换个形象"
@@ -12334,10 +12894,22 @@ msgstr "排队中…"
 #~ msgid "接上了。"
 #~ msgstr "接上了。"
 
+#: src/components/flow/FixSegmentBox.tsx
+msgid "接下来发生什么？例：她转身走向门口，推开门，外面在下雨"
+msgstr "接下来发生什么？例：她转身走向门口，推开门，外面在下雨"
+
+#: src/studio/studioStore.ts
+msgid "接在最后一段后面了——新拍的这一截单独成一段，画面和声音接着上一段往下走。"
+msgstr "接在最后一段后面了——新拍的这一截单独成一段，画面和声音接着上一段往下走。"
+
 #. placeholder {0}: flowNodes.length
 #: src/pages/RecipePage.tsx
 msgid "接在我现在的 {0} 段后面"
 msgstr "接在我现在的 {0} 段后面"
+
+#: src/studio/segmentGen.ts
+msgid "接着上一段往后拍 {outSec} 秒（输入 {inSec}s + 输出 {outSec}s 计价）…"
+msgstr "接着上一段往后拍 {outSec} 秒（输入 {inSec}s + 输出 {outSec}s 计价）…"
 
 #: src/components/flow/LeadShotsWizard.tsx
 msgid "接着上一段的真实结尾往下拍：上一段的最后一帧也会一起发过去。"
@@ -12358,6 +12930,10 @@ msgstr "接着剪"
 #: src/studio/gridDraftStore.ts
 msgid "接着等上一组…"
 msgstr "接着等上一组…"
+
+#: src/components/flow/FixSegmentBox.tsx
+msgid "接着这一段的最后一帧往后拍 {outSec} 秒，画面和声音接上；新拍的这一截单独成一段，接在最后。挂的人物卡照样一起发，锁住长相。按输入 {inSec} 秒 + 输出 {outSec} 秒计价"
+msgstr "接着这一段的最后一帧往后拍 {outSec} 秒，画面和声音接上；新拍的这一截单独成一段，接在最后。挂的人物卡照样一起发，锁住长相。按输入 {inSec} 秒 + 输出 {outSec} 秒计价"
 
 #. placeholder {0}: fmtTokens(proposalsCost(false))
 #: src/components/flow/ModePicker.tsx
@@ -12866,7 +13442,7 @@ msgstr "改剧本重拆"
 msgid "改名"
 msgstr "改名"
 
-#: src/components/flow/ReviseBox.tsx
+#: src/components/flow/FixSegmentBox.tsx
 msgid "改哪里？例：把背景换成雨夜 / 去掉右上角的台标 / 主角衣服换成红色"
 msgstr "改哪里？例：把背景换成雨夜 / 去掉右上角的台标 / 主角衣服换成红色"
 
@@ -13006,6 +13582,7 @@ msgstr "数字人人格"
 msgid "数字人形象"
 msgstr "数字人形象"
 
+#: src/components/flow/DialogueWizard.tsx
 #: src/components/flow/GridShotsWizard.tsx
 msgid "整体交代：{leadLine}"
 msgstr "整体交代：{leadLine}"
@@ -13017,6 +13594,10 @@ msgstr "整体交代（人物、地点、氛围；可不写）"
 #: src/components/flow/ShotListEditor.tsx
 msgid "整体交代（可不写）"
 msgstr "整体交代（可不写）"
+
+#: src/components/flow/DialogueWizard.tsx
+msgid "整体交代（地点、时间、光线）"
+msgstr "整体交代（地点、时间、光线）"
 
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "整体再来一版"
@@ -13260,6 +13841,7 @@ msgid "无预览帧"
 msgstr "无预览帧"
 
 #: src/components/blockout/TrimBar.tsx
+#: src/components/flow/EffectWizard.tsx
 #: src/components/flow/FlowCanvas.tsx
 #: src/components/flow/LeadShotsWizard.tsx
 #: src/components/flow/SegSettings.tsx
@@ -13274,6 +13856,10 @@ msgstr "时长跟随参考片"
 #: src/studio/genLog.ts
 msgid "时长跟随参考片 {refSec}s"
 msgstr "时长跟随参考片 {refSec}s"
+
+#: src/components/flow/EffectWizard.tsx
+msgid "时间冻结"
+msgstr "时间冻结"
 
 #: src/studio/cutIssues.ts
 msgid "时间轴上只剩这一个片段了，不能再删。"
@@ -13429,6 +14015,10 @@ msgstr "有 {0} 帧落在选段外面（选段后来被拖动过——标的时�
 msgid "有 {0} 帧落在选段外面（选段后来被拖动过），<0>不会被采用、也不计费</0>——把它们删掉，或者把选段拖回去（它们在原片的第 {1} 处）。"
 msgstr "有 {0} 帧落在选段外面（选段后来被拖动过），<0>不会被采用、也不计费</0>——把它们删掉，或者把选段拖回去（它们在原片的第 {1} 处）。"
 
+#: src/components/flow/DialogueWizard.tsx
+msgid "有 {blankLines} 句还没写台词 —— 写上，或者删掉。"
+msgstr "有 {blankLines} 句还没写台词 —— 写上，或者删掉。"
+
 #: src/pages/ProfilePage.tsx
 msgid "有 {collectGone} 条收藏打不开了：作者可能把它删了，或者改成了仅自己可见。"
 msgstr "有 {collectGone} 条收藏打不开了：作者可能把它删了，或者改成了仅自己可见。"
@@ -13440,6 +14030,10 @@ msgstr "有 {collectUnknown} 条这会儿没取回来（网络没通）——它
 #: src/components/flow/LeadShotsWizard.tsx
 msgid "有 {count} 个镜头没写画面，没收"
 msgstr "有 {count} 个镜头没写画面，没收"
+
+#: src/components/flow/DialogueWizard.tsx
+msgid "有 {count} 句没写台词，没收"
+msgstr "有 {count} 句没写台词，没收"
 
 #: src/data/account.ts
 msgid "有 {count} 张卡没有有效的卡片编号，存不进你的卡片库（多半是这条作品是老版本发布的）"
@@ -13456,6 +14050,10 @@ msgstr "有 {dropped} 个 @ 没能送达（对方不会收到通知）"
 #: src/components/VideoTemplateExtractor.tsx
 msgid "有 {droppedCount} 刀落不下去，已被忽略：第 {droppedSecs} 秒——离片头、片尾或相邻的刀不足 {partMinSec} 秒，切出来会有短于 {partMinSec} 秒的段（AI 引擎收不下）。把这几刀删掉，或挪远一点再标。"
 msgstr "有 {droppedCount} 刀落不下去，已被忽略：第 {droppedSecs} 秒——离片头、片尾或相邻的刀不足 {partMinSec} 秒，切出来会有短于 {partMinSec} 秒的段（AI 引擎收不下）。把这几刀删掉，或挪远一点再标。"
+
+#: src/studio/dialogueDraftStore.ts
+msgid "有 {failed} 个过肩没画成——点那一张单独重画"
+msgstr "有 {failed} 个过肩没画成——点那一张单独重画"
 
 #: src/pages/CutPage.tsx
 msgid "有 {failed} 句没配上：{why}"
@@ -13547,6 +14145,11 @@ msgstr "有一段正在生成，等它跑完再重画这一套"
 msgid "有一段正在生成（画布那一面也算同一条流水线）——等它跑完再动这一段。"
 msgstr "有一段正在生成（画布那一面也算同一条流水线）——等它跑完再动这一段。"
 
+#: src/components/flow/EffectWizard.tsx
+msgid "有一段正在生成中，等它跑完再出（可以先铺成这一段）。"
+msgstr "有一段正在生成中，等它跑完再出（可以先铺成这一段）。"
+
+#: src/components/flow/DialogueWizard.tsx
 #: src/components/flow/GridShotsWizard.tsx
 msgid "有一段正在生成中，等它跑完再出（可以先铺成这几段）。"
 msgstr "有一段正在生成中，等它跑完再出（可以先铺成这几段）。"
@@ -14100,9 +14703,17 @@ msgstr "本片卡组"
 msgid "本片弹幕 {othersCount} 条"
 msgstr "本片弹幕 {othersCount} 条"
 
+#: src/components/flow/DialogueWizard.tsx
+msgid "机位"
+msgstr "机位"
+
 #: src/studio/stage/StageOverlay.tsx
 msgid "机位 · 空处拖动环绕，两指拉远拉近"
 msgstr "机位 · 空处拖动环绕，两指拉远拉近"
+
+#: src/components/flow/DialogueWizard.tsx
+msgid "机位已经按这个画幅画了（每一张都是几段的开头画面）；要换画幅得三个一起重画。"
+msgstr "机位已经按这个画幅画了（每一张都是几段的开头画面）；要换画幅得三个一起重画。"
 
 #: src/types.ts
 msgid "材质、颗粒与光影的近距离质感"
@@ -14113,6 +14724,10 @@ msgstr "材质、颗粒与光影的近距离质感"
 msgid "来自 @{0} 的流程"
 msgstr "来自 @{0} 的流程"
 
+#: src/components/flow/EffectWizard.tsx
+msgid "极简展台，一道光扫过，环绕推近看细节"
+msgstr "极简展台，一道光扫过，环绕推近看细节"
+
 #: src/studio/quality.ts
 msgid "极致"
 msgstr "极致"
@@ -14120,6 +14735,10 @@ msgstr "极致"
 #: src/data/economy.ts
 msgid "极速"
 msgstr "极速"
+
+#: src/components/flow/EffectWizard.tsx
+msgid "极限滑板"
+msgstr "极限滑板"
 
 #: src/components/support/HoldToTalk.tsx
 msgid "松开发送"
@@ -14407,6 +15026,10 @@ msgid "模型写到一半被截断了（输出超过 {limit} token 的上限）�
 msgstr "模型写到一半被截断了（输出超过 {limit} token 的上限），这一次已经计费——把剧本删短一些或分两次拆再试"
 
 #: src/studio/structuredSkills.ts
+msgid "模型写到一半被截断了（输出超过 {limit} token 的上限），这一次已经计费——把情境写短些再写"
+msgstr "模型写到一半被截断了（输出超过 {limit} token 的上限），这一次已经计费——把情境写短些再写"
+
+#: src/studio/structuredSkills.ts
 msgid "模型写到一半被截断了（输出超过 {limit} token 的上限），这一次已经计费——把这场戏写短些再写"
 msgstr "模型写到一半被截断了（输出超过 {limit} token 的上限），这一次已经计费——把这场戏写短些再写"
 
@@ -14439,8 +15062,16 @@ msgid "模型回的分镜读不出来，这一次已经计费——再拆一次"
 msgstr "模型回的分镜读不出来，这一次已经计费——再拆一次"
 
 #: src/studio/structuredSkills.ts
+msgid "模型回的对白读不出来，这一次已经计费——再写一次"
+msgstr "模型回的对白读不出来，这一次已经计费——再写一次"
+
+#: src/studio/structuredSkills.ts
 msgid "模型回的格式有问题（几个镜头或几句台词挤进了同一格），这一次已经计费——再拆一次"
 msgstr "模型回的格式有问题（几个镜头或几句台词挤进了同一格），这一次已经计费——再拆一次"
+
+#: src/studio/structuredSkills.ts
+msgid "模型回的格式有问题（几句挤进了同一格），这一次已经计费——再写一次"
+msgstr "模型回的格式有问题（几句挤进了同一格），这一次已经计费——再写一次"
 
 #: src/studio/structuredSkills.ts
 msgid "模型回的格式有问题（几格挤进了同一格），这一次已经计费——再写一次"
@@ -14460,9 +15091,17 @@ msgstr "模型地址返回的是网页而不是模型文件"
 msgid "模型多写了 {count} 个镜头，一段最多 {SHOT_MAX} 个，多的没收"
 msgstr "模型多写了 {count} 个镜头，一段最多 {SHOT_MAX} 个，多的没收"
 
+#: src/components/flow/DialogueWizard.tsx
+msgid "模型多写了 {count} 句，最多 {DIALOGUE_LINES_MAX} 句，多的没收"
+msgstr "模型多写了 {count} 句，最多 {DIALOGUE_LINES_MAX} 句，多的没收"
+
 #: src/components/flow/GridShotsWizard.tsx
 msgid "模型多写了 {count} 格，一组最多 {GRID_SHOTS_MAX} 格，多的没收"
 msgstr "模型多写了 {count} 格，一组最多 {GRID_SHOTS_MAX} 格，多的没收"
+
+#: src/studio/structuredSkills.ts
+msgid "模型按句写：谁说 / 台词 / 说的时候的动作或表情"
+msgstr "模型按句写：谁说 / 台词 / 说的时候的动作或表情"
 
 #: src/studio/structuredSkills.ts
 msgid "模型按格写：景别 / 画面（一个瞬间）/ 动作（接下来几秒）/ 画面里有谁"
@@ -14496,6 +15135,10 @@ msgstr "模型没有按格式回分镜，这一次已经计费——再写一次
 #: src/studio/structuredSkills.ts
 msgid "模型没有按格式回分镜，这一次已经计费——再拆一次，或把这场戏写具体些"
 msgstr "模型没有按格式回分镜，这一次已经计费——再拆一次，或把这场戏写具体些"
+
+#: src/studio/structuredSkills.ts
+msgid "模型没有按格式回对白，这一次已经计费——再写一次，或把情境写具体些"
+msgstr "模型没有按格式回对白，这一次已经计费——再写一次，或把情境写具体些"
 
 #: src/studio/cutAgent.ts
 msgid "模型没有按约定的格式回话，这一句一件都没办——换个说法再试"
@@ -14728,6 +15371,10 @@ msgstr "正在公开…"
 msgid "正在写分镜…"
 msgstr "正在写分镜…"
 
+#: src/components/flow/DialogueWizard.tsx
+msgid "正在写对白…"
+msgstr "正在写对白…"
+
 #: src/studio/personaWizardStore.ts
 msgid "正在写说话风格…"
 msgstr "正在写说话风格…"
@@ -14950,6 +15597,14 @@ msgstr "正在点亮魔法书房…"
 #: src/studio/flowStore.ts
 msgid "正在生成中，等它跑完再换模板"
 msgstr "正在生成中，等它跑完再换模板"
+
+#: src/studio/effectDraftStore.ts
+msgid "正在画…"
+msgstr "正在画…"
+
+#: src/components/flow/EffectWizard.tsx
+msgid "正在画关键帧，约 20~30 秒（可以先离开，画好的图会留在这里）"
+msgstr "正在画关键帧，约 20~30 秒（可以先离开，画好的图会留在这里）"
 
 #: src/components/VideoTemplateExtractor.tsx
 msgid "正在登记——这一步在跑，跑完再关：现在关掉会把已经传上去的那段素材删掉，而服务器正拿它切段。"
@@ -15507,6 +16162,15 @@ msgstr "没有选择去处。文件还在 App 里，随时可以再点「分享 
 msgid "没画出来"
 msgstr "没画出来"
 
+#: src/studio/dialogueDraftStore.ts
+msgid "没画成：{why}"
+msgstr "没画成：{why}"
+
+#. why 是失败原因整句；moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格
+#: src/studio/dialogueDraftStore.ts
+msgid "没画成：{why}。{moneyLine}"
+msgstr "没画成：{why}。{moneyLine}"
+
 #: src/components/CardModelFit.tsx
 msgid "没画成（{why}），没有扣钱。"
 msgstr "没画成（{why}），没有扣钱。"
@@ -15887,6 +16551,10 @@ msgstr "温和"
 msgid "渲染视频"
 msgstr "渲染视频"
 
+#: src/components/flow/EffectWizard.tsx
+msgid "游戏英雄登场"
+msgstr "游戏英雄登场"
+
 #: src/components/guide/tours.tsx
 msgid "满意了点右上角「完成视频」，去剪辑页收尾、发布。<0>简约不进草稿库</0>：中途退出这一段就不在了—— 想细做、想留草稿，回创作入口换工坊（工作流画布是它的另一面）。"
 msgstr "满意了点右上角「完成视频」，去剪辑页收尾、发布。<0>简约不进草稿库</0>：中途退出这一段就不在了—— 想细做、想留草稿，回创作入口换工坊（工作流画布是它的另一面）。"
@@ -15898,10 +16566,12 @@ msgstr "演出中…"
 #: src/components/cut/AutoEditSheet.tsx
 #: src/components/flow/CastPicker.tsx
 #: src/components/flow/CastPreviewCard.tsx
+#: src/components/flow/DialogueWizard.tsx
+#: src/components/flow/EffectWizard.tsx
+#: src/components/flow/FixSegmentBox.tsx
 #: src/components/flow/FlowCanvas.tsx
 #: src/components/flow/GridShotsWizard.tsx
 #: src/components/flow/LeadShotsWizard.tsx
-#: src/components/flow/ReviseBox.tsx
 #: src/components/flow/ScriptSkillSheet.tsx
 #: src/components/flow/ThemeRewriteSheet.tsx
 #: src/pages/CutPage.tsx
@@ -15915,6 +16585,7 @@ msgstr "演示"
 msgid "演示：这一版不是模型写的，只是把每段画面描述的第一句摆了上来。"
 msgstr "演示：这一版不是模型写的，只是把每段画面描述的第一句摆了上来。"
 
+#: src/components/flow/DialogueWizard.tsx
 #: src/components/flow/GridShotsWizard.tsx
 #: src/components/flow/LeadShotsWizard.tsx
 msgid "演示：这是本地按句号切的，不是模型写的（这台机器没接上 AI）。"
@@ -16266,6 +16937,10 @@ msgstr "照做约 {0} token（不含推演与画面）"
 msgid "照原作的卡挂在各段上；之后在画布上随时能换成自己的。"
 msgstr "照原作的卡挂在各段上；之后在画布上随时能换成自己的。"
 
+#: src/components/flow/ModePicker.tsx
+msgid "照片起拍，视频约 {fxVideo} / 一发"
+msgstr "照片起拍，视频约 {fxVideo} / 一发"
+
 #: src/pages/CustomCardPage.tsx
 msgid "照片里有人：默认档出片不受影响；高清 / 超清档可能被方舟拒掉（没受理不扣视频钱）"
 msgstr "照片里有人：默认档出片不受影响；高清 / 超清档可能被方舟拒掉（没受理不扣视频钱）"
@@ -16282,6 +16957,10 @@ msgstr "照的是你的《{0}》"
 #: src/components/VoiceRecorder.tsx
 msgid "照着下面这句念（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）——出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段音色。"
 msgstr "照着下面这句念（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）——出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段音色。"
+
+#: src/components/flow/DialogueWizard.tsx
+msgid "照着现在这张双人镜头画：地方、光线、两人的衣服都照它。"
+msgstr "照着现在这张双人镜头画：地方、光线、两人的衣服都照它。"
 
 #: src/components/cut/AutoEditSheet.tsx
 #: src/pages/CutPage.tsx
@@ -16461,6 +17140,34 @@ msgstr "物理 没有"
 msgid "特写"
 msgstr "特写"
 
+#: src/components/flow/EffectWizard.tsx
+msgid "特效"
+msgstr "特效"
+
+#: src/components/flow/ModePicker.tsx
+msgid "特效同款"
+msgstr "特效同款"
+
+#: src/components/flow/EffectWizard.tsx
+msgid "特效同款 · {title}"
+msgstr "特效同款 · {title}"
+
+#: src/studio/effectDraftStore.ts
+msgid "特效同款 · 画关键帧"
+msgstr "特效同款 · 画关键帧"
+
+#: src/studio/effectDraftStore.ts
+msgid "特效同款的关键帧没画成，回去看原因"
+msgstr "特效同款的关键帧没画成，回去看原因"
+
+#: src/studio/effectDraftStore.ts
+msgid "特效同款的关键帧画好了"
+msgstr "特效同款的关键帧画好了"
+
+#: src/studio/ui/projection.tsx
+msgid "特效那一段铺好了——关键帧当开头。"
+msgstr "特效那一段铺好了——关键帧当开头。"
+
 #: src/ai/real.ts
 msgid "状态：{status}——过几分钟再点一次「取回」。这一发的钱已经花过了，取回不再花一分钱"
 msgstr "状态：{status}——过几分钟再点一次「取回」。这一发的钱已经花过了，取回不再花一分钱"
@@ -16469,6 +17176,10 @@ msgstr "状态：{status}——过几分钟再点一次「取回」。这一发�
 msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜头运动"
 msgid "环绕"
 msgstr "环绕"
+
+#: src/components/flow/EffectWizard.tsx
+msgid "环绕亮相"
+msgstr "环绕亮相"
 
 #: src/studio/leadCast.ts
 msgid "现做一个主角要 {price} token，余额不够——去「我的」页充值"
@@ -16497,6 +17208,10 @@ msgstr "现在换不了这套走向，稍后再试"
 #: src/pages/RecipePage.tsx
 msgid "现在接不上（可能有一段正在生成中），稍后再试"
 msgstr "现在接不上（可能有一段正在生成中），稍后再试"
+
+#: src/studio/studioStore.ts
+msgid "现在接不上这一段，稍后再试。"
+msgstr "现在接不上这一段，稍后再试。"
 
 #: src/studio/cutAgent.ts
 msgid "现在是演示模式（没有连上模型），只听得懂直白的句式。"
@@ -16580,6 +17295,14 @@ msgstr "现在连不上服务器，只能读这台手机上的数据，而它没
 #: src/data/templates.ts
 msgid "现在连不上服务器，模板暂时没登记——联网后在模板详情页点「重新登记」"
 msgstr "现在连不上服务器，模板暂时没登记——联网后在模板详情页点「重新登记」"
+
+#: src/components/flow/EffectWizard.tsx
+msgid "现在选了 {castN} 个人（{castNames}），这个特效只要 {need} 个 —— 取消几个再往下。"
+msgstr "现在选了 {castN} 个人（{castNames}），这个特效只要 {need} 个 —— 取消几个再往下。"
+
+#: src/components/flow/DialogueWizard.tsx
+msgid "现在选的不是两个人（或两个人同名）—— 回第一步重新选。"
+msgstr "现在选的不是两个人（或两个人同名）—— 回第一步重新选。"
 
 #: src/components/flow/ScriptSkillSheet.tsx
 #: src/pages/FeedPage.tsx
@@ -16868,6 +17591,10 @@ msgstr "男声"
 msgid "画 2 张：主图 + 一张参考图，照着主图画同一个对象"
 msgstr "画 2 张：主图 + 一张参考图，照着主图画同一个对象"
 
+#: src/studio/dialogueDraftStore.ts
+msgid "画三个机位最多要 {price} token，余额不够——去「我的」页充值"
+msgstr "画三个机位最多要 {price} token，余额不够——去「我的」页充值"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "画不出来的包发不了。"
 msgstr "画不出来的包发不了。"
@@ -16879,6 +17606,10 @@ msgstr "画两张：全身立绘 + 照着它画的面部特写（官方建议的
 #: src/components/CardModelFit.tsx
 msgid "画两张约 {framesPrice} token，余额不够——去「我的」页充值"
 msgstr "画两张约 {framesPrice} token，余额不够——去「我的」页充值"
+
+#: src/studio/effectDraftStore.ts
+msgid "画关键帧要 {price} token，余额不够——去「我的」页充值"
+msgstr "画关键帧要 {price} token，余额不够——去「我的」页充值"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "画出来了。可以摸一摸她、拖一拖看看视线跟不跟手。"
@@ -16900,6 +17631,8 @@ msgstr "画好了、但没取回来（{why}）——点这一格重新取"
 msgid "画布里还有本机地址，换台设备取回来会是空的"
 msgstr "画布里还有本机地址，换台设备取回来会是空的"
 
+#: src/components/flow/DialogueWizard.tsx
+#: src/components/flow/EffectWizard.tsx
 #: src/components/flow/GridShotsWizard.tsx
 #: src/components/flow/LeadShotsWizard.tsx
 #: src/components/flow/SegSettings.tsx
@@ -17933,6 +18666,14 @@ msgstr "科幻"
 msgid "秒"
 msgstr "秒"
 
+#: src/components/flow/FixSegmentBox.tsx
+msgid "秒（这一段共 {sec} 秒）"
+msgstr "秒（这一段共 {sec} 秒）"
+
+#: src/components/flow/FixSegmentBox.tsx
+msgid "秒到第"
+msgstr "秒到第"
+
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "称呼"
 msgstr "称呼"
@@ -18052,10 +18793,18 @@ msgstr "竖屏"
 msgid "竖屏时编辑窗从下面升起，横屏时它挪到右边、画布留给左边 —— 段多的时候横过来看更痛快。 旁边那颗 💾 随时把这条片存成草稿，回头接着做。"
 msgstr "竖屏时编辑窗从下面升起，横屏时它挪到右边、画布留给左边 —— 段多的时候横过来看更痛快。 旁边那颗 💾 随时把这条片存成草稿，回头接着做。"
 
+#: src/components/flow/EffectWizard.tsx
+msgid "站上格斗竞技场，一拳打出发光的冲击波"
+msgstr "站上格斗竞技场，一拳打出发光的冲击波"
+
 #: src/components/flow/RefStrip.tsx
 msgctxt "临时参考图的用途：没在句子里点名时，系统按它替这张图说一句"
 msgid "站位构图"
 msgstr "站位构图"
+
+#: src/components/flow/EffectWizard.tsx
+msgid "站在演唱会舞台中央，跟着节拍跳一段"
+msgstr "站在演唱会舞台中央，跟着节拍跳一段"
 
 #. placeholder {0}: stepIdx + 1
 #. placeholder {1}: steps.length
@@ -19684,6 +20433,10 @@ msgstr "血腥暴力"
 msgid "补一句要求（选填）：例「沈舟只出现一次」「门是蓝色的」"
 msgstr "补一句要求（选填）：例「沈舟只出现一次」「门是蓝色的」"
 
+#: src/components/flow/DialogueWizard.tsx
+msgid "补一句要求（选填）：例「沈舟戴着眼镜」「两人隔着一张桌子」"
+msgstr "补一句要求（选填）：例「沈舟戴着眼镜」「两人隔着一张桌子」"
+
 #: src/types.ts
 msgid "补充参考"
 msgstr "补充参考"
@@ -19848,6 +20601,14 @@ msgstr "要拍好几段的话，再挂一张场景卡：卡面会当定场参考
 #: src/components/PortraitAuthPanel.tsx
 #~ msgid "要授权的是<0>别人</0>？让他用自己的手机扫这个码 —— 活体认证必须在<1>他本人</1>的手机上、用他自己的火山账号做， 这正是这份授权有效的原因。"
 #~ msgstr "要授权的是<0>别人</0>？让他用自己的手机扫这个码 —— 活体认证必须在<1>他本人</1>的手机上、用他自己的火山账号做， 这正是这份授权有效的原因。"
+
+#: src/studio/flowStore.ts
+msgid "要接的那段成片找不到了（被删了，或者没存下来）——删掉这一段，回最后一段重新延长"
+msgstr "要接的那段成片找不到了（被删了，或者没存下来）——删掉这一段，回最后一段重新延长"
+
+#: src/studio/flowStore.ts
+msgid "要接的那段成片还在转存（换成永久地址），转存完才能延长——稍等一会儿再来"
+msgstr "要接的那段成片还在转存（换成永久地址），转存完才能延长——稍等一会儿再来"
 
 #: src/api/companion.ts
 msgid "要检查的模型包既没有文件也没有直传编号（这是调用方的 bug）"
@@ -20308,6 +21069,10 @@ msgstr "说点什么"
 msgid "说点什么，@ 可以叫上别人"
 msgstr "说点什么，@ 可以叫上别人"
 
+#: src/components/flow/DialogueWizard.tsx
+msgid "说的时候在做什么（选填）：例「放下杯子」「笑了笑」"
+msgstr "说的时候在做什么（选填）：例「放下杯子」「笑了笑」"
+
 #: src/pages/SupportPage.tsx
 msgid "说话中"
 msgstr "说话中"
@@ -20425,6 +21190,7 @@ msgstr "读不到音色目录"
 
 #: src/components/CoverPicker.tsx
 #: src/components/flow/CustomFrameSlots.tsx
+#: src/components/flow/EffectWizard.tsx
 #: src/components/LocalStoreIssue.tsx
 #: src/components/support/AdminTicketsView.tsx
 #: src/components/support/VoiceMarket.tsx
@@ -20613,6 +21379,10 @@ msgstr "赞了你的作品"
 msgid "赞了你的评论"
 msgstr "赞了你的评论"
 
+#: src/components/flow/EffectWizard.tsx
+msgid "走出壁画"
+msgstr "走出壁画"
+
 #: src/components/CardModelFit.tsx
 msgid "起拍画面画好了，但没能存上（{why}）——这两张已计费，再勾一次会重新画、再花一次钱。"
 msgstr "起拍画面画好了，但没能存上（{why}）——这两张已计费，再勾一次会重新画、再花一次钱。"
@@ -20757,6 +21527,10 @@ msgstr "输入该用户的用户名 <0>{0}</0> 以确认："
 msgid "边界"
 msgstr "边界"
 
+#: src/components/flow/DialogueWizard.tsx
+msgid "过期了"
+msgstr "过期了"
+
 #: src/components/flow/CameraChips.tsx
 msgid "运镜"
 msgstr "运镜"
@@ -20831,7 +21605,7 @@ msgstr "还剩 {m} 分钟可以取回——AI 出片的产物只在服务器上�
 msgid "还剩 {m} 分钟可以取回——方舟的成片只留 24 小时，过期就没了。这一发的钱在提交那一刻就已经花掉了，取回不再花一分钱；点「重新生成」是重新下一单、会再花一次。"
 msgstr "还剩 {m} 分钟可以取回——方舟的成片只留 24 小时，过期就没了。这一发的钱在提交那一刻就已经花掉了，取回不再花一分钱；点「重新生成」是重新下一单、会再花一次。"
 
-#: src/components/flow/ReviseBox.tsx
+#: src/components/flow/FixSegmentBox.tsx
 msgid "还原上一版"
 msgstr "还原上一版"
 
@@ -21105,6 +21879,11 @@ msgstr "还没标刀——不标就自动对半切到每段 ≤30 秒。想自�
 msgid "还没生成老师"
 msgstr "还没生成老师"
 
+#: src/components/flow/DialogueWizard.tsx
+#: src/components/flow/EffectWizard.tsx
+msgid "还没画"
+msgstr "还没画"
+
 #: src/data/account.ts
 msgid "还没登录，删不了。"
 msgstr "还没登录，删不了。"
@@ -21322,6 +22101,10 @@ msgstr "这一帧用到哪儿"
 msgid "这一张既当卡面，也当这张卡的主形象参考。"
 msgstr "这一张既当卡面，也当这张卡的主形象参考。"
 
+#: src/components/flow/DialogueWizard.tsx
+msgid "这一张是照着之前那张双人镜头画的（或者人、整体交代改过）：重画一下，地方和光线才与现在的双人镜头对得上。"
+msgstr "这一张是照着之前那张双人镜头画的（或者人、整体交代改过）：重画一下，地方和光线才与现在的双人镜头对得上。"
+
 #: src/pages/tutor/TutorRunPage.tsx
 msgid "这一批没整理出东西。"
 msgstr "这一批没整理出东西。"
@@ -21373,6 +22156,10 @@ msgstr "这一档不经过方案台。"
 #: src/studio/ui/PlanBoard.tsx
 msgid "这一档最短 {minSec} 秒"
 msgstr "这一档最短 {minSec} 秒"
+
+#: src/components/flow/DialogueWizard.tsx
+msgid "这一档出片不出声，台词说不出来 —— 换到高清或电影级。"
+msgstr "这一档出片不出声，台词说不出来 —— 换到高清或电影级。"
 
 #: src/studio/leadCast.ts
 msgid "这一档暂时报不出价，换个时间再试"
@@ -21551,6 +22338,10 @@ msgstr "这一段带不了声音样本（本档的出片方式与参考音频互
 #: src/studio/flowStore.ts
 msgid "这一段带着参考视频，出片时不接受圈选改画面——这 {0} 处得先清掉才能开炼（它们也不计费）。"
 msgstr "这一段带着参考视频，出片时不接受圈选改画面——这 {0} 处得先清掉才能开炼（它们也不计费）。"
+
+#: src/studio/flowStore.ts
+msgid "这一段延长不了：{issue}"
+msgstr "这一段延长不了：{issue}"
 
 #: src/components/support/HoldToTalk.tsx
 msgid "这一段录得太长了，说短一点再试。"
@@ -21739,6 +22530,10 @@ msgstr "这一段还没有可融的图"
 #: src/studio/flowStore.ts
 msgid "这一段还没有开头帧可改——先传一张，或者直接出片（缺的帧会先补画，钱算在出片报价里）"
 msgstr "这一段还没有开头帧可改——先传一张，或者直接出片（缺的帧会先补画，钱算在出片报价里）"
+
+#: src/studio/flowStore.ts
+msgid "这一段还没有成片"
+msgstr "这一段还没有成片"
 
 #: src/studio/flowStore.ts
 msgid "这一段还没有结束帧可改——先传一张，或者直接出片（缺的帧会先补画，钱算在出片报价里）"
@@ -22666,6 +23461,7 @@ msgstr "这张图太大了（上限 5MB）"
 msgid "这张图太小了，AI 认不出里面的东西"
 msgstr "这张图太小了，AI 认不出里面的东西"
 
+#: src/components/flow/EffectWizard.tsx
 #: src/components/flow/RefStrip.tsx
 msgid "这张图太长 / 太宽，已居中裁过"
 msgstr "这张图太长 / 太宽，已居中裁过"
@@ -23329,6 +24125,10 @@ msgstr "选一段本地视频"
 msgid "选一段视频（传完再框选）"
 msgstr "选一段视频（传完再框选）"
 
+#: src/components/flow/DialogueWizard.tsx
+msgid "选两个说话的人：先点的是第一个人（站在画面左边），后点的是第二个人。可以再挑一张场景卡当地点。"
+msgstr "选两个说话的人：先点的是第一个人（站在画面左边），后点的是第二个人。可以再挑一张场景卡当地点。"
+
 #: src/components/AvatarPicker.tsx
 msgid "选个头像"
 msgstr "选个头像"
@@ -23446,6 +24246,10 @@ msgstr "透明度组 有"
 #: src/pages/SupportModelNewPage.tsx
 msgid "透明度组 没有"
 msgstr "透明度组 没有"
+
+#: src/studio/structuredSkills.ts
+msgid "逐句可改、可删，点了才画机位"
+msgstr "逐句可改、可删，点了才画机位"
 
 #: src/studio/cutAutoEdit.ts
 msgid "逐句都能改；太长念不完的会标出来"
@@ -23742,6 +24546,10 @@ msgstr "重来"
 msgid "重生成 {segCount} 段约需 {need} token，余额 {have} 不足——去「我的」页充值"
 msgstr "重生成 {segCount} 段约需 {need} token，余额 {have} 不足——去「我的」页充值"
 
+#: src/studio/dialogueDraftStore.ts
+msgid "重画一张要 {price} token，余额不够——去「我的」页充值"
+msgstr "重画一张要 {price} token，余额不够——去「我的」页充值"
+
 #: src/studio/gridDraftStore.ts
 msgid "重画一格要 {price} token，余额不够——去「我的」页充值"
 msgstr "重画一格要 {price} token，余额不够——去「我的」页充值"
@@ -23998,6 +24806,10 @@ msgstr "镜头 {0}"
 msgid "镜头：{joined}"
 msgstr "镜头：{joined}"
 
+#: src/components/flow/EffectWizard.tsx
+msgid "镜头绕一整圈，正面、侧面、背面的造型都看到"
+msgstr "镜头绕一整圈，正面、侧面、背面的造型都看到"
+
 #: src/pages/SupportPage.tsx
 msgid "问{name}：哪里不对？"
 msgstr "问{name}：哪里不对？"
@@ -24059,6 +24871,14 @@ msgstr "雨停三秒这个设定绝了"
 #: src/data/videos.ts
 msgid "雨夜霓虹：迷失信使"
 msgstr "雨夜霓虹：迷失信使"
+
+#: src/components/flow/EffectWizard.tsx
+msgid "雨滴和落叶停在半空，只有镜头绕着主角转"
+msgstr "雨滴和落叶停在半空，只有镜头绕着主角转"
+
+#: src/components/flow/EffectWizard.tsx
+msgid "零件缓缓分开成爆炸图，再合回原样"
+msgstr "零件缓缓分开成爆炸图，再合回原样"
 
 #. placeholder {0}: fmtTokens(cost)
 #. placeholder {1}: fmtTokens((wallet?.plan ?? 0) + (wallet?.addon ?? 0))

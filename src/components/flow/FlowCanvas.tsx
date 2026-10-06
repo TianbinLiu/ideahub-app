@@ -26,7 +26,7 @@ import ReviseBar from "../ReviseBar";
 import CameraChips from "./CameraChips";
 import DeleteSegBtn from "./DeleteSegBtn";
 import CastPreviewCard from "./CastPreviewCard";
-import ReviseBox from "./ReviseBox";
+import FixSegmentBox from "./FixSegmentBox";
 import StageOverlay from "../../studio/stage/StageOverlay";
 import { SegmentRecoverList } from "./SegmentRecoverCards";
 import SegSettings from "./SegSettings";
@@ -46,9 +46,13 @@ import ModePicker, { modeTierOf } from "./ModePicker";
 import { RestatePlaceTip, SceneCardTip } from "./DirectTips";
 import LeadShotsWizard from "./LeadShotsWizard";
 import GridShotsWizard from "./GridShotsWizard";
+import EffectWizard from "./EffectWizard";
+import DialogueWizard from "./DialogueWizard";
 import { leadAppendSpec, type LeadSpec } from "../../studio/leadCast";
 import { resetLeadScene } from "../../studio/leadDraftStore";
 import { resetGridScene } from "../../studio/gridDraftStore";
+import { resetEffect } from "../../studio/effectDraftStore";
+import { resetDialogueLines } from "../../studio/dialogueDraftStore";
 import Sheet from "../Sheet";
 import { modeBlock, type GuidedModeId } from "../../data/guidedModes";
 import FrameEditBox from "./FrameEditBox";
@@ -194,6 +198,10 @@ export default function FlowCanvas({
    * ★ 与 B 同一条：向导走完才落段（finishGrid，挑中的几格各成一段）；向导自己的状态在 studio/gridDraftStore，关了再开原样还在。
    */
   const [gridSheet, setGridSheet] = useState<{ tier: string; aspect: VideoAspect } | null>(null);
+  /** 跟着做 G「特效同款」的向导开在哪一档上；null = 没开。与 C 同一条：走完才落段（finishEffect），状态在 studio/effectDraftStore */
+  const [effectSheet, setEffectSheet] = useState<{ tier: string; aspect: VideoAspect } | null>(null);
+  /** 跟着做 I「对话正反打」的向导开在哪一档上；null = 没开。与 C 同一条：走完才落段（finishDialogue），状态在 studio/dialogueDraftStore */
+  const [dialogueSheet, setDialogueSheet] = useState<{ tier: string; aspect: VideoAspect } | null>(null);
   const flowMode = useFlow((s) => s.mode);
   /** 刚加的那一段要一打开就弹选模板层（选法屏里挑了「套模板」）；用掉就清 */
   const [autoTplFor, setAutoTplFor] = useState<string | null>(null);
@@ -398,6 +406,18 @@ export default function FlowCanvas({
       setGridSheet({ tier: tierId, aspect: st.nodes[st.nodes.length - 1]?.aspect ?? DEFAULT_ASPECT });
       return;
     }
+    if (m === "effect") {
+      const st = useFlow.getState();
+      useFlow.setState({ err: "" }); // 理由同上（finishEffect 的拒绝画在向导最后一步）
+      setEffectSheet({ tier: tierId, aspect: st.nodes[st.nodes.length - 1]?.aspect ?? DEFAULT_ASPECT });
+      return;
+    }
+    if (m === "dialogue") {
+      const st = useFlow.getState();
+      useFlow.setState({ err: "" }); // 理由同上（finishDialogue 的拒绝画在向导最后一步）
+      setDialogueSheet({ tier: tierId, aspect: st.nodes[st.nodes.length - 1]?.aspect ?? DEFAULT_ASPECT });
+      return;
+    }
     const before = useFlow.getState().nodes.length;
     addNode();
     const after = useFlow.getState().nodes;
@@ -447,6 +467,34 @@ export default function FlowCanvas({
     if (!ids?.length) return;
     setGridSheet(null);
     resetGridScene();
+    const i = useFlow.getState().nodes.findIndex((n) => n.id === ids[0]);
+    setSel(i);
+    setCursor(i);
+    panTo(i);
+    if (generate) void useFlow.getState().genNode(ids[0]);
+  }
+
+  /** G 的向导点了「生成这一段」/「只铺成这一段」：与 C 同一对入口（appendSpecs 落段 + genNode 出片），落完清掉这一次的关键帧 */
+  function finishEffect(specs: AppendSpec[], generate: boolean) {
+    if (!effectSheet) return;
+    const ids = useFlow.getState().appendSpecs(specs);
+    if (!ids?.length) return;
+    setEffectSheet(null);
+    resetEffect();
+    const i = useFlow.getState().nodes.findIndex((n) => n.id === ids[0]);
+    setSel(i);
+    setCursor(i);
+    panTo(i);
+    if (generate) void useFlow.getState().genNode(ids[0]);
+  }
+
+  /** I 的向导点了「铺成 N 段」：与 C 同一对入口（appendSpecs 落段 + genNode 出第一段），落完清掉这一次的对白（三个机位留着，接着往下说不用再画） */
+  function finishDialogue(specs: AppendSpec[], generate: boolean) {
+    if (!dialogueSheet) return;
+    const ids = useFlow.getState().appendSpecs(specs);
+    if (!ids?.length) return;
+    setDialogueSheet(null);
+    resetDialogueLines();
     const i = useFlow.getState().nodes.findIndex((n) => n.id === ids[0]);
     setSel(i);
     setCursor(i);
@@ -838,6 +886,11 @@ export default function FlowCanvas({
               busy={busy}
               onCast={onCast}
               onClose={() => setSel(null)}
+              onFocusSeg={(i) => {
+                setSel(i);
+                setCursor(i);
+                panTo(i);
+              }}
               autoTemplate={autoTplFor === selNode.id}
               onAutoTemplate={() => setAutoTplFor(null)}
             />
@@ -899,6 +952,46 @@ export default function FlowCanvas({
           />
         </Sheet>
       )}
+      {effectSheet && (
+        <Sheet onClose={() => setEffectSheet(null)}>
+          <div className="mb-2 flex justify-end">
+            <CloseButton chip="sm" size={13} align="end" onClick={() => setEffectSheet(null)} />
+          </div>
+          <EffectWizard
+            tierId={effectSheet.tier}
+            defaultAspect={effectSheet.aspect}
+            quote={(specs) => appendSpecsQuote(nodes, flowMode, specs)}
+            onBack={() => {
+              const tier = effectSheet.tier;
+              setEffectSheet(null);
+              setAddPick({ tier });
+            }}
+            onFinish={finishEffect}
+            err={err}
+            busy={busy || nodes.some((n) => n.status === "generating")}
+          />
+        </Sheet>
+      )}
+      {dialogueSheet && (
+        <Sheet onClose={() => setDialogueSheet(null)}>
+          <div className="mb-2 flex justify-end">
+            <CloseButton chip="sm" size={13} align="end" onClick={() => setDialogueSheet(null)} />
+          </div>
+          <DialogueWizard
+            tierId={dialogueSheet.tier}
+            defaultAspect={dialogueSheet.aspect}
+            quote={(specs) => appendSpecsQuote(nodes, flowMode, specs)}
+            onBack={() => {
+              const tier = dialogueSheet.tier;
+              setDialogueSheet(null);
+              setAddPick({ tier });
+            }}
+            onFinish={finishDialogue}
+            err={err}
+            busy={busy || nodes.some((n) => n.status === "generating")}
+          />
+        </Sheet>
+      )}
       {themeSheet !== null && <ThemeRewriteSheet initialTheme={themeSheet} onClose={() => setThemeSheet(null)} onApplied={() => setThemeSheet(null)} />}
     </div>
   );
@@ -921,6 +1014,7 @@ function NodePanel({
   busy,
   onCast,
   onClose,
+  onFocusSeg,
   autoTemplate,
   onAutoTemplate,
 }: {
@@ -937,6 +1031,8 @@ function NodePanel({
   busy: boolean;
   onCast: (tpl: NonNullable<FlowTemplate>, value: Record<string, string>) => void;
   onClose: () => void;
+  /** 定位到第 i 段（开窗 + 挪过去）：延长落下新的一段之后用它（与 agent 条的 onFocus 同一套写法） */
+  onFocusSeg: (i: number) => void;
 }) {
   const { t } = useLingui();
   const {
@@ -1023,6 +1119,10 @@ function NodePanel({
    * 真人档上它就是那一档本来的样子（真人卡照片起拍），所以不像自定义那样给真人档让位。
    */
   const direct = !!node.direct && !tplMode;
+  /** 延长段（「修这一段 · 延长」落的，FlowNode.extendFrom）：照直出段画，只是不摆场景卡提示 / 参考清单，换成一句它接的是哪一段 */
+  const extend = !!node.extendFrom;
+  /** 它接的那一段现在是第几段（那一段被删了 = 0） */
+  const extendSrcN = extend ? allNodes.findIndex((n) => n.id === node.extendFrom?.nodeId) + 1 : 0;
   /** 要求框写的是出片用的 plot（不经推演）：自定义、参考图直出、真人档 */
   const writesPlot = custom || direct;
   /** 融图开在哪一帧上（自定义车道；方案台里那份由 PlanBoard 自己带） */
@@ -1607,7 +1707,19 @@ function NodePanel({
             />
           )}
 
-          {direct && (
+          {direct && extend && (
+            <>
+              <p className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-sky-200">
+                {extendSrcN > 0 ? (
+                  <Trans>⏩ 延长段：接着第 {extendSrcN} 段成片的最后一帧往后拍（那段成片当参考视频，挂的人物卡一起发）。新拍的这一截单独成一段。</Trans>
+                ) : (
+                  <Trans>⏩ 延长段：接着一段已经删掉的成片往后拍（那段成片当参考视频，挂的人物卡一起发）。</Trans>
+                )}
+              </p>
+              {durationRow}
+            </>
+          )}
+          {direct && !extend && (
             <>
               {/* 这一档收不了参考图（1.0 两档）：参考图直出退回先画帧（flowStore.noDrawFor），说出来，别让人以为卡片图直接进了视频 */}
               {!flatTier && !tierOf(node.videoTier).refImg && (
@@ -1636,7 +1748,7 @@ function NodePanel({
           {/* 参考清单（N1）：出片时模型会收到哪些图、各是第几张；＋ 临时参考图；点一张把它写进句子。
               两个车道共用一份（自选卡片那一栏写的是推演要求，不插点名——方案的剧情里手写 @名字 一样认）。
               排队编号只问 flowStore.nodeRefPlan（与 genNode 发出去的那一份同源） */}
-          {!(custom && customStep === "ref") && (
+          {!(custom && customStep === "ref") && !extend && (
             <RefStrip
               plan={nodeRefPlan(nodes, index, mode)}
               extras={extraRefs}
@@ -1793,14 +1905,6 @@ function NodePanel({
                 )}
               </button>
             )}
-            {/* 返修：已出片才有（ReviseBox 自己判有没有能播的成片）；投影窗同款，一份实现 */}
-            {done && (
-              <ReviseBox
-                node={node}
-                disabled={busy || generating}
-                onRun={(instruction) => void genNode(node.id, { revise: { instruction } })}
-              />
-            )}
           </>
         ) : (
           <button
@@ -1811,6 +1915,22 @@ function NodePanel({
             {generating ? node.progress || t`推演中…` : t`🎲 推演三套方案（${propCostLabel}）`}
           </button>
         )
+      )}
+
+      {/* 修这一段（片段重拍 / 往后延长）：已出片才有，四个车道都摆（FixSegmentBox 自己判有没有能播的成片）；投影窗同款，一份实现。
+          延长落下新的一段之后定位过去、接着出片（genNode：与这一段的生成键同一个入口） */}
+      {done && !locked && (
+        <FixSegmentBox
+          node={node}
+          disabled={busy || generating}
+          onRevise={(instruction, range) => void genNode(node.id, { revise: { instruction, range } })}
+          onExtend={(text, durationSec) => {
+            const id = useFlow.getState().extendNode(node.id, { text, durationSec });
+            if (!id) return;
+            onFocusSeg(useFlow.getState().nodes.findIndex((n) => n.id === id));
+            void genNode(id);
+          }}
+        />
       )}
 
       {/* 删除本段。★ 门禁在 store 的 removeNode（只剩一段而且**已出片**时不许删；还没出片的删了就是退回去重来，

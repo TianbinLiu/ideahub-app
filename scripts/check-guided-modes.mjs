@@ -9,6 +9,7 @@
 //   ④ 自定义在真人档也摆；⑤ 套模板按档位挡（应由货架按模板自己的档位筛）。
 //   第二期（2026-10-04）加的两条也各自变红：⑥ 主角定妆·多镜头在 1.0 档也摆；⑦ 主角定妆·多镜头在真人档也摆。
 //   第三期（2026-10-05）加的两条也各自变红：⑧ 九宫格分镜在真人档也摆；⑨ 九宫格分镜在 1.0 档不摆（那一格可以当首帧）。
+//   第一批（2026-10-05，G 特效同款 / I 对话正反打）加的两条也各自变红：⑩ 对话正反打在 1.0 档也摆（出不了声）；⑪ 特效同款在真人档不摆。
 //
 // 用法：node scripts/check-guided-modes.mjs [--module=<另一份 guidedModes.ts 的路径，造违规试红用>]
 import fs from "node:fs";
@@ -37,19 +38,19 @@ fs.readFileSync(modPath, "utf8")
   });
 
 const TIERS = {
-  fast: { refImg: false, flat: false }, // 极速（1.0 pro fast）
-  std: { refImg: false, flat: false }, // 标准（1.0 pro）
-  hd: { refImg: true, flat: false }, // 高清（2.0 mini）
-  ultra: { refImg: true, flat: false }, // 电影级（2.5）
-  real: { refImg: false, flat: true }, // 真人（MiniMax，按发计价）
+  fast: { refImg: false, flat: false, audio: false }, // 极速（1.0 pro fast）
+  std: { refImg: false, flat: false, audio: false }, // 标准（1.0 pro）
+  hd: { refImg: true, flat: false, audio: true }, // 高清（2.0 mini）
+  ultra: { refImg: true, flat: false, audio: true }, // 电影级（2.5）
+  real: { refImg: false, flat: true, audio: false }, // 真人（MiniMax，按发计价；海螺出不出声没实测，按无声报）
 };
 const ids = (tier) => M.modesOn(tier).map((m) => m.id);
 
-eq("极速档：自定义 / 九宫格分镜 / 推演三套 / 套模板", ids(TIERS.fast), ["custom", "grid", "cards", "template"]);
-eq("标准档：同极速", ids(TIERS.std), ["custom", "grid", "cards", "template"]);
-eq("高清档：六个都能用，参考图直出排第一、主角定妆·多镜头与九宫格分镜排在推演三套之前", ids(TIERS.hd), ["direct", "custom", "lead", "grid", "cards", "template"]);
-eq("电影级：六个都能用", ids(TIERS.ultra), ["direct", "custom", "lead", "grid", "cards", "template"]);
-eq("真人档：参考图直出（真人照片起拍）/ 套模板", ids(TIERS.real), ["direct", "template"]);
+eq("极速档：自定义 / 九宫格分镜 / 推演三套 / 特效同款 / 套模板", ids(TIERS.fast), ["custom", "grid", "cards", "effect", "template"]);
+eq("标准档：同极速", ids(TIERS.std), ["custom", "grid", "cards", "effect", "template"]);
+eq("高清档：八个都能用，参考图直出排第一、跟着高手做那几个排在推演三套之前、特效同款排在套模板之前", ids(TIERS.hd), ["direct", "custom", "lead", "grid", "dialogue", "cards", "effect", "template"]);
+eq("电影级：八个都能用", ids(TIERS.ultra), ["direct", "custom", "lead", "grid", "dialogue", "cards", "effect", "template"]);
+eq("真人档：参考图直出（真人照片起拍）/ 特效同款（照片起拍的那几条）/ 套模板", ids(TIERS.real), ["direct", "effect", "template"]);
 eq("为什么：1.0 档上的参考图直出", M.modeBlock("direct", TIERS.std), "refImg");
 eq("为什么：真人档上的推演三套", M.modeBlock("cards", TIERS.real), "flat");
 eq("为什么：真人档上的自定义", M.modeBlock("custom", TIERS.real), "flat");
@@ -59,6 +60,11 @@ eq("主角定妆·多镜头是第二组（跟着高手做）、四步", M.GUIDED
 eq("为什么：真人档上的九宫格分镜（起拍画面只能是真人卡的照片）", M.modeBlock("grid", TIERS.real), "flat");
 eq("1.0 档上的九宫格分镜能用（那一格当首帧）", M.modeBlock("grid", TIERS.std), null);
 eq("九宫格分镜是第二组（跟着高手做）、五步", M.GUIDED_MODES.find((m) => m.id === "grid"), { id: "grid", letter: "C", group: "pro", steps: 5 });
+eq("为什么：1.0 档上的对话正反打（出不了声，台词说不出来）", M.modeBlock("dialogue", TIERS.std), "audio");
+eq("为什么：真人档上的对话正反打（同样按无声报）", M.modeBlock("dialogue", TIERS.real), "audio");
+eq("特效同款在真人档上能用（照片起拍的那几条，判据在 effectPresets.effectsOn）", M.modeBlock("effect", TIERS.real), null);
+eq("对话正反打是第二组（跟着高手做）、四步", M.GUIDED_MODES.find((m) => m.id === "dialogue"), { id: "dialogue", letter: "I", group: "pro", steps: 4 });
+eq("特效同款是第三组（复刻 · 同款）、三步", M.GUIDED_MODES.find((m) => m.id === "effect"), { id: "effect", letter: "G", group: "replica", steps: 3 });
 
 // 清单本身：id 不重复、每组至少一个、步骤数是正整数
 {

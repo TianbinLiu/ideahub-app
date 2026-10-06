@@ -26,6 +26,10 @@ import ModePicker, { modeTierOf } from "../../components/flow/ModePicker";
 import { RestatePlaceTip, SceneCardTip } from "../../components/flow/DirectTips";
 import LeadShotsWizard from "../../components/flow/LeadShotsWizard";
 import GridShotsWizard from "../../components/flow/GridShotsWizard";
+import EffectWizard from "../../components/flow/EffectWizard";
+import { resetEffect } from "../effectDraftStore";
+import DialogueWizard from "../../components/flow/DialogueWizard";
+import { resetDialogueLines } from "../dialogueDraftStore";
 import { leadAppendSpec } from "../leadCast";
 import { resetLeadScene } from "../leadDraftStore";
 import { resetGridScene } from "../gridDraftStore";
@@ -61,7 +65,7 @@ import { computeChain } from "../scene/TableScene";
 import { CHAIN, focusCam } from "../scene/layout";
 import DeleteSegBtn from "../../components/flow/DeleteSegBtn";
 import CastPreviewCard from "../../components/flow/CastPreviewCard";
-import ReviseBox from "../../components/flow/ReviseBox";
+import FixSegmentBox from "../../components/flow/FixSegmentBox";
 import StageOverlay from "../stage/StageOverlay";
 import ConfirmDialog from "../../components/ConfirmDialog";
 
@@ -289,7 +293,9 @@ function EditorPanel() {
   const [step, setStep] = useState<"mode" | "ref" | "content" | "spec">(() =>
     (useStudio.getState().editor?.slots.length ?? 0) > 0 ? "content" : "mode",
   );
-  const [lane, setLane] = useState<"cards" | "custom" | "direct" | "lead" | "grid">("cards");
+  const [lane, setLane] = useState<"cards" | "custom" | "direct" | "lead" | "grid" | "dialogue" | "effect">("cards");
+  /** 向导整块接管第②③步的那几条车道（B / C / I / G）：铸段窗自己的步骤条与脚这时不画（向导自己带） */
+  const wizardLane = lane === "lead" || lane === "grid" || lane === "dialogue" || lane === "effect";
   /**
    * 跟着做 B「主角定妆 · 多镜头」（lane === "lead"）：向导整块接管②③两步（components/flow/LeadShotsWizard，与画布同一份），
    * 走完由 studioStore.layLeadNode 落段、要出片再走 genNodeVideo。下面这几样给向导用（★ hook 排在早退之前）
@@ -410,7 +416,7 @@ function EditorPanel() {
           </button>
         )}
         <h3 className="flex-none text-sm font-bold text-cyan-100"><Trans>铸造节点卡 · 第 {segIndex + 1} 段</Trans></h3>
-        {(lane === "lead" || lane === "grid") && step !== "mode" ? null : stepCrumb}
+        {wizardLane && step !== "mode" ? null : stepCrumb}
         <button
           onClick={() => useStudio.getState().closeProjection()}
           disabled={editor.generating}
@@ -432,7 +438,7 @@ function EditorPanel() {
             onTier={(id) => useStudio.getState().setVideoTier(id)}
             onPick={(m) => {
               if (m === "template") setTplPick(true);
-              else if (m === "lead" || m === "grid") {
+              else if (m === "lead" || m === "grid" || m === "dialogue" || m === "effect") {
                 setLane(m);
                 setLeadErr("");
                 setStep("content");
@@ -471,7 +477,7 @@ function EditorPanel() {
         </div>
       ) : lane === "grid" ? (
         /* ══ 跟着做 C：向导整块接管（人物和场景 → 分镜 → 画面 → 挑格子 → 出片），自己带步骤条与脚 ══
-           走完由 studioStore.layGridNodes 落段（挑中的几格各成一段），要出片只出第一段（genNodeVideo）——后面几段按顺序一段一段出 */
+           走完由 studioStore.layWizardNodes 落段（挑中的几格各成一段），要出片只出第一段（genNodeVideo）——后面几段按顺序一段一段出 */
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-3">
           <GridShotsWizard
             tierId={editor.videoTier}
@@ -479,12 +485,56 @@ function EditorPanel() {
             quote={(specs) => appendSpecsQuote(flowNodes, flowMode, specs)}
             onBack={() => setStep("mode")}
             onFinish={(specs, generate) => {
-              const r = useStudio.getState().layGridNodes(specs);
+              const n = specs.length;
+              const r = useStudio.getState().layWizardNodes(specs, t`挑中的 ${n} 格各成一段了——每段拿那一格的画面当开头，按顺序一段一段出片。`);
               if (!r.ok) {
                 setLeadErr(r.why);
                 return;
               }
               resetGridScene();
+              if (generate) void useStudio.getState().genNodeVideo(r.nodeIds[0], r.firstProposalId);
+            }}
+            err={leadErr}
+            busy={flowBusy}
+          />
+        </div>
+      ) : lane === "dialogue" ? (
+        /* ══ 跟着做 I：向导整块接管（两个人 → 对白 → 三个机位 → 一句一段），自己带步骤条与脚；落段与 C 同一个 layWizardNodes ══ */
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-3">
+          <DialogueWizard
+            tierId={editor.videoTier}
+            defaultAspect={editor.aspect}
+            quote={(specs) => appendSpecsQuote(flowNodes, flowMode, specs)}
+            onBack={() => setStep("mode")}
+            onFinish={(specs, generate) => {
+              const n = specs.length;
+              const r = useStudio.getState().layWizardNodes(specs, t`${n} 句对白各成一段了——每段拿那一句的机位画面当开头，按顺序一段一段出片。`);
+              if (!r.ok) {
+                setLeadErr(r.why);
+                return;
+              }
+              resetDialogueLines();
+              if (generate) void useStudio.getState().genNodeVideo(r.nodeIds[0], r.firstProposalId);
+            }}
+            err={leadErr}
+            busy={flowBusy}
+          />
+        </div>
+      ) : lane === "effect" ? (
+        /* ══ 跟着做 G：向导整块接管（挑特效 → 挑主角 → 关键帧 · 出片），自己带步骤条与脚；落段与 C 同一个 layWizardNodes ══ */
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-3">
+          <EffectWizard
+            tierId={editor.videoTier}
+            defaultAspect={editor.aspect}
+            quote={(specs) => appendSpecsQuote(flowNodes, flowMode, specs)}
+            onBack={() => setStep("mode")}
+            onFinish={(specs, generate) => {
+              const r = useStudio.getState().layWizardNodes(specs, t`特效那一段铺好了——关键帧当开头。`);
+              if (!r.ok) {
+                setLeadErr(r.why);
+                return;
+              }
+              resetEffect();
               if (generate) void useStudio.getState().genNodeVideo(r.nodeIds[0], r.firstProposalId);
             }}
             err={leadErr}
@@ -929,7 +979,7 @@ function EditorPanel() {
       </div>
       )}
 
-      {(lane === "lead" || lane === "grid") && step !== "mode" ? null : (
+      {wizardLane && step !== "mode" ? null : (
       <div className="border-t border-cyan-400/20 px-3 pb-3 pt-2">
         {/* 三步各自的脚：①没有脚（✕ 随时整块关掉）；②只有「上一步/下一步」——真花钱的键
             不在这一屏；③报价 + 那颗键（价钱贴在最后要按的键旁，ui-copy-grammar 文法②）。
@@ -1429,7 +1479,7 @@ function ProposalsPanel() {
       )}
       {/* 参考清单（N1，与画布同一份 RefStrip）：出片时模型会收到哪些图、各是第几张；＋ 临时参考图；点一张把 @名字 接到这一套剧情的句尾。
           排队编号只问 flowStore.nodeRefPlan（与 genNode 发出去的那一份同源）；白模段不摆（它的参考是模板视频 + 挂卡） */}
-      {!blockout && refPlan && (
+      {!blockout && !node.extendFrom && refPlan && (
         <div className="flex-none px-3 pt-1.5">
           <button
             onClick={() => setRefsOpen((v) => !v)}
@@ -1870,12 +1920,16 @@ function PickedActions({
           </button>
         )}
       </div>
-      {/* 返修：已出片才有（ReviseBox 自己判有没有能播的成片）。走 studioStore.genNodeVideo 是为了顺带收窗（提交出片即收窗） */}
+      {/* 修这一段（片段重拍 / 往后延长）：已出片才有（FixSegmentBox 自己判有没有能播的成片）。走 studioStore 是为了顺带收窗 / 切到新的那一段 */}
       {done && !locked && (
-        <ReviseBox
+        <FixSegmentBox
           node={node}
           disabled={busy || node.status === "generating"}
-          onRun={(instruction) => void useStudio.getState().genNodeVideo(node.id, proposal.id, { revise: { instruction } })}
+          onRevise={(instruction, range) => void useStudio.getState().genNodeVideo(node.id, proposal.id, { revise: { instruction, range } })}
+          onExtend={(text, durationSec) => {
+            const r = useStudio.getState().extendSegment(node.id, { text, durationSec });
+            if (r.ok) void useStudio.getState().genNodeVideo(r.nodeId, r.proposalId);
+          }}
         />
       )}
     </div>

@@ -4,7 +4,7 @@
 // 五步：① 人物和场景（与 B 同一批人，可再挑一张场景卡）→ ② 写这场戏，AI 写成 4~9 格分镜（景别 / 画面 / 动作 / 画面里有谁，逐格可改）
 //   → ③ 一次画出整组画面（组图，摆成九宫格；单格可重画）→ ④ 按顺序挑几格 → ⑤ 每格变成一段：那一格的画面当开头帧，逐段出片。
 // ★ 状态全在 studio/gridDraftStore（人物在 leadDraftStore），这里只画。落段与出片由宿主做（onFinish）：
-//   工坊走 studioStore.layGridNodes + genNodeVideo，画布走 flowStore.appendSpecs + genNode —— 两面原有的出片入口，不另写一份。
+//   工坊走 studioStore.layWizardNodes + genNodeVideo，画布走 flowStore.appendSpecs + genNode —— 两面原有的出片入口，不另写一份。
 // ★ 报价由宿主给（quote）：宿主拿 flowStore.appendSpecsQuote 照着「真会落下的那几段」逐段算（gridAppendSpecs 拼的同一份），
 //   与 genNode 真扣同一把尺。画面那一笔（组图 / 单格重画）按张，价钱在 gridDraftStore 一处。
 // ★ 只出第一段：每段都有自己的开头画面，但「炼出本段才开下一段」照旧（flowStore 的顺序门禁）—— 第一段人物就不对的话，后面几段不用花钱。
