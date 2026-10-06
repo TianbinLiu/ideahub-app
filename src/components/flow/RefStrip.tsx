@@ -224,7 +224,7 @@ export default function RefStrip({
           {plan.why === "real" ? (
             <Trans>真人档只认一张起拍画面，不收参考图：卡片与临时参考图只按文字参与。</Trans>
           ) : plan.why === "refvid" ? (
-            <Trans>「{tierLabel}」档带不了示例视频——换成「电影级」之后这里才排得出清单。</Trans>
+            <Trans>「{tierLabel}」档带不了示例视频——换成「高清」或「电影级」之后这里才排得出清单。</Trans>
           ) : (
             <Trans>「{tierLabel}」档协议上不收参考图：卡片形象只用来画首尾帧，出片时模型看到的只有首尾帧。想让模型直接看到卡片形象与临时参考图，换「高清」或「电影级」。</Trans>
           )}

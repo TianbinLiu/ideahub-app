@@ -850,7 +850,10 @@ function supportsRefImage(model: string): boolean {
 }
 
 /**
- * 支持 `reference_video`（白模模板 r2v）的模型 —— **只有 Seedance 2.5**。
+ * 支持 `reference_video`（参考视频：白模 / 返修 / 示例视频 / 延长）的模型 —— Seedance 2.5 与 2.0 系列。
+ * ★ 2026-10-05 起含 2.0 系列（主人「合」开高清的片段重拍 + 参考视频出片）：下面那段「A6 测完前宁可炸掉」的 A6 当天付费探测答了 ——
+ *   mini 认 omni_reference_task_type，参考 / 编辑 / 延长都一次受理（design/video-input-probe.mjs）。哪一档能做哪一件仍由
+ *   economy 的 refVid / extendOk / blockoutOk 分开管（高清：能带参考视频，不能延长、不能跑白模模板）。
  *
  * ★ 与 supportsRefImage 同款双层结构：这是**协议层的兜底白名单**，业务层那道在
  *   data/economy 的 `VideoTier.refVid`（界面按它决定能不能选，并把原因说出来）。
@@ -861,7 +864,7 @@ function supportsRefImage(model: string): boolean {
  *   无关的片、照收钱 —— 那不是降级是偷换商品。A6 测完前宁可在这里响亮地炸掉。
  */
 function supportsRefVideo(model: string): boolean {
-  return isSeedance25(model);
+  return /seedance-2-[05]/.test(model);
 }
 
 /**
@@ -1284,7 +1287,9 @@ export async function generateVideo(
               // ★ 仅 2.5：不显式传就是 `auto`，而 auto **判错是异步失败** —— 任务已受理、
               //   钱已经花了，几十秒后才 failed（而且不退，见 api-contract「被受理之后才失败不退」）。
               //   显式写 "reference" 判错会在**提交时同步 400**，一分钱不花。
-              ...(mode === "reference" && isSeedance25(model) ? { omni_reference_task_type: "reference" } : {}),
+              // ★ 带示例视频（素材参考）时 2.0 系列也显式写（2026-10-05 起高清能带参考视频；付费探测 H1 证实 mini 认这个参数）——
+              //   只有参考图、不带视频的那种 2.0 照旧不写（没测过 mini 在纯参考图任务上收不收它，别顺手改）
+              ...(mode === "reference" && (isSeedance25(model) || (!!refVideoUrl && supportsRefVideo(model))) ? { omni_reference_task_type: "reference" } : {}),
             }),
       }),
     },

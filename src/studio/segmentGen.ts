@@ -15,7 +15,7 @@
 import { AI_REAL, ARK_REF_IMAGES_MAX, ArkTaskUnknown, VIDEO_PROMPT_MAX, composeSegments, generateFrame, notesInParens, planCardRefs, prepareMaterialRefs, refCardIds, refineFrame } from "../ai";
 import { compileMentions, drawExtraRefs, extraRefLines, mentionTargets, plainMentions, usableExtraRefs, type ExtraRef } from "../data/refMentions";
 import { uploadImage } from "../api/uploads";
-import { IMAGE_TOKENS, fmtTokens, r2vPriceIssue, tierOf, providerOf, clampDuration, videoTokensOfSpec, promptMaxOf, refAudioSecOf, type VideoTier } from "../data/economy";
+import { IMAGE_TOKENS, blockoutPriceIssue, fmtTokens, r2vPriceIssue, tierOf, providerOf, clampDuration, videoTokensOfSpec, promptMaxOf, refAudioSecOf, type VideoTier } from "../data/economy";
 import { frameMoment, isMultiShot, lineSpeakers, momentCards, packShots } from "../data/shotScript";
 import { frameSlotsOf, framesToDraw, type DrawInput } from "../data/drawPlan";
 // ★ 「模板视频自己合不合方舟窗口」的判据在 data（不在组件）：store 层这一处与
@@ -422,7 +422,8 @@ export function blockoutIssue(o: {
   /** 返修：不要求挂人物卡（改的是画面，不是换人） */
   revise?: boolean;
 }): string | null {
-  const price = r2vPriceIssue(o.videoTier);
+  // 返修（本段成片当参考视频）问「能不能带参考视频」，白模模板问「能不能跑白模模板」—— 2026-10-05 起是两件事（高清能前者、不能后者）
+  const price = o.revise ? r2vPriceIssue(o.videoTier) : blockoutPriceIssue(o.videoTier);
   if (price) return price;
   // ★ 排在价目之后、其它条件之前：这一条是"这个模板根本用不了"，与用户挂没挂卡无关 ——
   //   先让他去换模板，而不是先催他挂卡、挂完再告诉他这个模板本来就废了。
@@ -1154,7 +1155,7 @@ export async function generateSegment(
   if (input.materialRef) {
     const refTier = tierOf(input.videoTier);
     if (!refTier.refVid) {
-      throw new Error(t`「${refTier.label}」档不支持带参考视频出片——去 ⚙ 本段设置换成「电影级」档，或移除参考视频`);
+      throw new Error(t`「${refTier.label}」档不支持带参考视频出片——去 ⚙ 本段设置换成「高清」或「电影级」档，或移除参考视频`);
     }
     if (input.anns.length) {
       throw new Error(t`带参考视频的自定义段暂不支持圈选改画面——清掉圈选标注再出片`);
@@ -1204,7 +1205,7 @@ export async function generateSegment(
     // 三截各自以「。」开头、时序句又以「。」收尾：逐截去掉重复的那个句号（没有临时参考图时，素材设定直接接在时序句后面，原来会拼出「。。」）
     const extraTail = afterStop(roles, extraLines);
     const tail = `${roles}${extraTail}${afterStop(`${roles}${extraTail}`, mats)}`;
-    /** 这一档的提示词上限（economy.promptMaxOf：带示例视频的只有电影级，500） */
+    /** 这一档的提示词上限（economy.promptMaxOf：带得了示例视频的是高清 / 电影级，2.x 两档都是 500） */
     const cap = promptMaxOf(input.videoTier);
     const room = Math.max(0, cap - tail.length);
     const plotOver = said.text.length - room;

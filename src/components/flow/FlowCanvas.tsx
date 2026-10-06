@@ -1609,7 +1609,7 @@ function NodePanel({
                   </div>
                   {!tierOf(node.videoTier).refVid && (
                     <p className="mt-1 text-[9px] leading-relaxed text-amber-300">
-                      <Trans>⚠「{tierOf(node.videoTier).label}」档带不了参考视频——去 ⚙ 本段设置换成「电影级」，否则生成会被整句拒。</Trans>
+                      <Trans>⚠「{tierOf(node.videoTier).label}」档带不了参考视频——去 ⚙ 本段设置换成「高清」或「电影级」，否则生成会被整句拒。</Trans>
                     </p>
                   )}
                 </div>

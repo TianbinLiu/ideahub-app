@@ -54,7 +54,7 @@ import {
   templateTiers,
   updateTemplate,
 } from "../data/templates";
-import { blockoutTier, fmtTokens, modelLabel, r2vPriceIssue, r2vTokens } from "../data/economy";
+import { blockoutPriceIssue, blockoutTier, fmtTokens, modelLabel, r2vTokens } from "../data/economy";
 import { useCurrentUser } from "../hooks/useAccount";
 import { useBackOr } from "../hooks/useBackOr";
 import { useFlow } from "../studio/flowStore";
@@ -157,7 +157,7 @@ function blockoutIssue(tpl: VideoTemplate): string | null {
   const gate = blockoutTier();
   // 模块级函数拿不到 useLingui：用 i18n._(msg) 在调用那一刻按当前语言翻
   if (!gate) return i18n._(msg`白模模板出片暂未开放：还没有档位支持白模（r2v）出片，等开放后再来`);
-  return r2vPriceIssue(gate.id) ?? refVideoIssue(tpl.refVideo);
+  return blockoutPriceIssue(gate.id) ?? refVideoIssue(tpl.refVideo);
 }
 
 /** 白模区：参考视频预览 + 套用成本行。`isOwner` 只影响**措辞**（坏模板对作者要说清
@@ -171,7 +171,7 @@ function BlockoutInfo({ t: tpl, isOwner }: { t: VideoTemplate; isOwner: boolean 
   /** 这个账号的套餐用不了模板要求的那一档（null = 用得了，或还不知道套餐）。
    *  ★ 目录侧的拒绝（issue）排在前面：闸没开 / 模板视频坏了的时候说「升级套餐后可用」，是把人骗去付钱 */
   const planIssue = issue === null ? templatePlanIssue(tpl) : null;
-  // issue 为 null 时 gate 必然存在且报得出价（r2vPriceIssue 先查 refVid 再查 r2vMult）
+  // issue 为 null 时 gate 必然存在且报得出价（blockoutPriceIssue 先查 blockoutOk 再查 r2vMult）
   const tokens = issue === null ? r2vTokens(tpl.refVideo.durationSec, gate!.id) : null;
   const realSec = refVideoRealSec(tpl.refVideo);
   const ownerNote = isOwner ? refVideoOwnerNote(tpl.refVideo) : null;

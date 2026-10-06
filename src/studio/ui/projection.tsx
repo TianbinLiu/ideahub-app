@@ -569,10 +569,11 @@ function EditorPanel() {
               </button>
               {!tierOf(editor.videoTier).refVid && (
                 <p className="text-center text-[10px] leading-relaxed text-amber-300/90">
+                  {/* 2026-10-05 起高清也带得了参考视频（免费档也能用）；电影级是付费档，套餐不够时只指高清 */}
                   {tierBlockReason(tierOf("ultra")) ? (
-                    <Trans>「{tierOf(editor.videoTier).label}」档带不了参考视频——到「定规格」那一步换成「电影级」（付费档，套餐不够会点不动），或直接跳过这一步自己给首尾帧</Trans>
+                    <Trans>「{tierOf(editor.videoTier).label}」档带不了参考视频——到「定规格」那一步换成「高清」（「电影级」是付费档），或直接跳过这一步自己给首尾帧</Trans>
                   ) : (
-                    <Trans>「{tierOf(editor.videoTier).label}」档带不了参考视频——到「定规格」那一步换成「电影级」，或直接跳过这一步自己给首尾帧</Trans>
+                    <Trans>「{tierOf(editor.videoTier).label}」档带不了参考视频——到「定规格」那一步换成「高清」或「电影级」，或直接跳过这一步自己给首尾帧</Trans>
                   )}
                 </p>
               )}

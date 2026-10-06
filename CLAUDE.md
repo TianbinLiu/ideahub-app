@@ -175,7 +175,7 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   AI 照着照片写的「窝在房间里握着手柄」就成了每一段都要画出手柄和房间的硬约束。
 - **模板对出片模型是硬要求，口径只有一处**（2026-10-02 主人拍板，全文 docs/template-workflow-research.md §三 B 与「P0 落地记录」）：
   「这个模板能在哪几个出片模型上跑」只问 `data/templates.templateTiers` —— 白模模板恰好一档（`economy.blockoutTier`，今天是电影级 /
-  Seedance 2.5），经典配方 = 不限（它存的 `recipe.videoTier` 是提取器写死的默认值、**不是事实**，别拿它固定档位）。货架那颗「出片模型」
+  Seedance 2.5；判据是档位表的 `blockoutOk`，2026-10-05 与 `refVid` 拆开 —— 高清能带参考视频、跑不了白模模板），经典配方 = 不限（它存的 `recipe.videoTier` 是提取器写死的默认值、**不是事实**，别拿它固定档位）。货架那颗「出片模型」
   筛选（`templateRunsOn`，只在市场页签生效、写进地址栏 `?model=`）、卡面与详情页的标注、套用时把档位钉在哪（flowStore 三个套用入口）
   读的都是这一份。**不给「解除固定」的出口**：换到别的模型不是效果差一点，是出不了片 —— 用户该做的是按自己能用的模型挑模板。
   套餐用不了那一档时在**选模板那一步**就说（`templatePlanIssue` = `templateTiers` + `account.tierBlockReason`；货架「用它出片」领去详情页、
@@ -531,7 +531,10 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   ★ 2026-10-05 付费探测（`design/video-input-probe.mjs`，结果在 docs/canvas-platforms-ecosystem-research.md 第九节）：电影级延长两轮都接得上、高清那一发接缝会跳
   ⇒ 「能不能延长」是档位自己的一位 `extendOk`，**别拿 refVid 代替**（高清以后开视频参考也不顺带开延长）；按时间段重拍时同一个连续动作会整段一起改、
   声音是照着原片重做的 —— 文案只说到这一步（`FixSegmentBox` 头上记着）。延长段的做法是固定的：套模板 / 切自定义 / 切出直出三个入口整句拒
-  （`flowStore.extendLaneLocked`），画布不摆那排页签。高清的重拍 / 参考视频出片效果都好，等账单核对（按 14 还是 23 元/M 收）与主人点头再开。
+  （`flowStore.extendLaneLocked`），画布不摆那排页签。**高清 2026-10-05 开了片段重拍与参考视频出片**（主人「合」；`economy.HD_R2V_MULT` 按刊例 14/15，
+  与服务端 `VIDEO_MULT_R2V` 逐条相等，账单还待逐行核对）：「能带参考视频」（`refVid`）、「能延长」（`extendOk`）、「能跑白模模板」（`blockoutOk`）
+  是档位表上**三位**，高清只有第一位 —— 判白模段的档位行 / 出片闸问 `blockoutPriceIssue`，返修与示例视频问 `r2vPriceIssue`，别混用
+  （混用的症状：高清在白模段上变成可选、真按高清复刻模板）。
 - **「这一段用哪个模板」是三态，且必须当场表态**（`FlowNode.tpl`）：`undefined` = 还没表态
   （退回 store 级 `template`，老草稿与单模板流靠它）、`null` = 明确没有、对象 = 这一段自己的
   快照。读**只准走 `tplOfNode`**。而 store 级那份会随 `setCursor` 换成**当前段**的快照 ——

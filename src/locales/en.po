@@ -1610,8 +1610,13 @@ msgstr "The “{0}” tier doesn't support reference images, so a setup frame wi
 
 #. placeholder {0}: refTier.label
 #: src/studio/segmentGen.ts
-msgid "「{0}」档不支持带参考视频出片——去 ⚙ 本段设置换成「电影级」档，或移除参考视频"
-msgstr "The “{0}” tier can't render with a reference video — switch to “Cinematic” in ⚙ Segment settings, or remove the reference video"
+#~ msgid "「{0}」档不支持带参考视频出片——去 ⚙ 本段设置换成「电影级」档，或移除参考视频"
+#~ msgstr "The “{0}” tier can't render with a reference video — switch to “Cinematic” in ⚙ Segment settings, or remove the reference video"
+
+#. placeholder {0}: refTier.label
+#: src/studio/segmentGen.ts
+msgid "「{0}」档不支持带参考视频出片——去 ⚙ 本段设置换成「高清」或「电影级」档，或移除参考视频"
+msgstr "The “{0}” tier can't render with a reference video — switch to “HD” or “Cinematic” in ⚙ Segment settings, or remove the reference video"
 
 #. placeholder {0}: o.tier.label
 #: src/studio/segmentGen.ts
@@ -1630,13 +1635,23 @@ msgstr "The “{0}” tier can't take a reference video"
 
 #. placeholder {0}: tierOf(editor.videoTier).label
 #: src/studio/ui/projection.tsx
-msgid "「{0}」档带不了参考视频——到「定规格」那一步换成「电影级」，或直接跳过这一步自己给首尾帧"
-msgstr "The “{0}” tier can't take a reference video — switch to “Cinematic” in the Specs step, or skip this step and provide the first and last frames yourself"
+#~ msgid "「{0}」档带不了参考视频——到「定规格」那一步换成「电影级」，或直接跳过这一步自己给首尾帧"
+#~ msgstr "The “{0}” tier can't take a reference video — switch to “Cinematic” in the Specs step, or skip this step and provide the first and last frames yourself"
 
 #. placeholder {0}: tierOf(editor.videoTier).label
 #: src/studio/ui/projection.tsx
-msgid "「{0}」档带不了参考视频——到「定规格」那一步换成「电影级」（付费档，套餐不够会点不动），或直接跳过这一步自己给首尾帧"
-msgstr "The “{0}” tier can't take a reference video — switch to “Cinematic” in the Specs step (a paid tier; it's disabled if your plan doesn't cover it), or skip this step and provide the first and last frames yourself"
+#~ msgid "「{0}」档带不了参考视频——到「定规格」那一步换成「电影级」（付费档，套餐不够会点不动），或直接跳过这一步自己给首尾帧"
+#~ msgstr "The “{0}” tier can't take a reference video — switch to “Cinematic” in the Specs step (a paid tier; it's disabled if your plan doesn't cover it), or skip this step and provide the first and last frames yourself"
+
+#. placeholder {0}: tierOf(editor.videoTier).label
+#: src/studio/ui/projection.tsx
+msgid "「{0}」档带不了参考视频——到「定规格」那一步换成「高清」（「电影级」是付费档），或直接跳过这一步自己给首尾帧"
+msgstr "The “{0}” tier can't take a reference video — switch to “HD” in the Specs step (“Cinematic” is a paid tier), or skip this step and provide the first and last frames yourself"
+
+#. placeholder {0}: tierOf(editor.videoTier).label
+#: src/studio/ui/projection.tsx
+msgid "「{0}」档带不了参考视频——到「定规格」那一步换成「高清」或「电影级」，或直接跳过这一步自己给首尾帧"
+msgstr "The “{0}” tier can't take a reference video — switch to “HD” or “Cinematic” in the Specs step, or skip this step and provide the first and last frames yourself"
 
 #. placeholder {0}: tierOf(node.videoTier).label
 #: src/components/flow/FlowCanvas.tsx
@@ -1708,8 +1723,8 @@ msgid "「{label}」档按发直出（起拍画面就是真人卡的照片），
 msgstr "The “{label}” tier renders each clip directly (the opening shot is the real-person card's photo), so there's no step that drafts three plans — write one sentence and generate right away, or switch back to another tier to draft plans."
 
 #: src/studio/flowStore.ts
-msgid "「{label}」档还不能延长（要能带参考视频出片的档）——用电影级出的段才能延长"
-msgstr "The “{label}” tier can’t extend yet (it needs a tier that renders with a reference video) — only segments rendered on Cinematic can be extended"
+msgid "「{label}」档还不能延长——用电影级出的段才能延长"
+msgstr "The “{label}” tier can’t extend yet — only segments rendered on Cinematic can be extended"
 
 #: src/data/economy.ts
 msgid "「{label}」这一档暂时报不出价（{model} 不在价目表里），先用别的档位"
@@ -1844,16 +1859,32 @@ msgid "「{names}」不在你选的人物里：这几句台词照收，声音由
 msgstr "“{names}” isn’t among the people you picked: those lines are kept, and the model picks the voice"
 
 #: src/data/economy.ts
-msgid "「{names}」做不了按参考视频出片（白模模板复刻、返修都属于这一类）——这类出片只有「{openLabel}」（{openModel}）做得到"
-msgstr "“{names}” can't render from a reference video (blockout template remakes and revisions both work this way) — only “{openLabel}” ({openModel}) can"
+msgid "「{names}」做不了按参考视频出片（片段重拍、自定义的示例视频都属于这一类）——这类出片只有「{openNames}」做得到"
+msgstr "“{names}” can't render from a reference video (reshoots and custom sample videos both work this way) — only “{openNames}” can"
+
+#: src/data/economy.ts
+#~ msgid "「{names}」做不了按参考视频出片（白模模板复刻、返修都属于这一类）——这类出片只有「{openLabel}」（{openModel}）做得到"
+#~ msgstr "“{names}” can't render from a reference video (blockout template remakes and revisions both work this way) — only “{openLabel}” ({openModel}) can"
 
 #: src/studio/segmentGen.ts
 msgid "「{names}」的声音样本这次没带上（这一档的参考音频合计最长 {capSec} 秒）——这几位的台词音色由模型定；把样本剪短些就能都带上"
 msgstr "The voice sample for {names} wasn't sent this time (on this tier all reference audio together can be at most {capSec} seconds) — the model picks the voice for their lines; trim the samples and they will all fit"
 
 #: src/data/economy.ts
+msgid "「{names}」跑不了白模模板（模板对出片模型是硬要求）——白模模板只有「{openLabel}」（{openModel}）跑得了"
+msgstr "“{names}” can't run blockout templates (a template requires a specific video model) — only “{openLabel}” ({openModel}) can"
+
+#: src/data/economy.ts
+msgid "「{names}」这一档暂未开放按参考视频出片，等开放后再来"
+msgstr "Rendering from a reference video isn't available on “{names}” yet — check back later"
+
+#: src/data/economy.ts
 msgid "「{names}」这一档暂未开放白模模板出片，等开放后再来"
 msgstr "Blockout template videos aren't available on “{names}” yet — check back later"
+
+#: src/data/economy.ts
+msgid "「{names}」这一档的参考视频出片暂时报不出价（{model} 的单价未核账），先用别的档位"
+msgstr "Reference-video renders on “{names}” can't be priced yet (the rate for {model} hasn't been reconciled) — use another tier for now"
 
 #: src/data/economy.ts
 msgid "「{names}」这一档的白模出片暂时报不出价（{model} 的 r2v 单价未核账），先用别的档位"
@@ -1893,12 +1924,20 @@ msgid "「{tierLabel}」档协议上不收参考图：卡片形象只用来画�
 msgstr "The “{tierLabel}” tier doesn't accept reference images: card images are only used to draw the first and last frames, and those frames are all the video model sees. To let the model see card images and extra reference images directly, switch to “HD” or “Cinematic”."
 
 #: src/components/flow/RefStrip.tsx
-msgid "「{tierLabel}」档带不了示例视频——换成「电影级」之后这里才排得出清单。"
-msgstr "The “{tierLabel}” tier can't take a sample video — switch to “Cinematic” and the list will show up here."
+msgid "「{tierLabel}」档带不了示例视频——换成「高清」或「电影级」之后这里才排得出清单。"
+msgstr "The “{tierLabel}” tier can't take a sample video — switch to “HD” or “Cinematic” and the list will show up here."
+
+#: src/ai/real.ts
+msgid "「{tierLabel}」档跑不了白模模板（模板对出片模型是硬要求）"
+msgstr "The “{tierLabel}” tier can't run blockout templates (a template requires a specific video model)"
 
 #: src/studio/segmentGen.ts
 msgid "「{tierLabel}」档还不能延长——去 ⚙ 本段设置换成「电影级」档"
 msgstr "The “{tierLabel}” tier can’t extend yet — switch to “Cinematic” in ⚙ Segment settings"
+
+#: src/ai/real.ts
+msgid "「{tierLabel}」档还不能延长——用电影级出的段才能延长"
+msgstr "The “{tierLabel}” tier can’t extend yet — only segments rendered on Cinematic can be extended"
 
 #. 个人页「还没传到服务器」横幅：只有作品标题（这一条没记下没传上去的原因）
 #: src/pages/ProfilePage.tsx
@@ -2453,8 +2492,13 @@ msgstr "⚠ This one is in <0>Simple mode</0>: by design it isn't saved to draft
 
 #. placeholder {0}: tierOf(node.videoTier).label
 #: src/components/flow/FlowCanvas.tsx
-msgid "⚠「{0}」档带不了参考视频——去 ⚙ 本段设置换成「电影级」，否则生成会被整句拒。"
-msgstr "⚠ The “{0}” tier can't take a reference video — switch to “Cinematic” in ⚙ Segment settings, or generation will be rejected."
+#~ msgid "⚠「{0}」档带不了参考视频——去 ⚙ 本段设置换成「电影级」，否则生成会被整句拒。"
+#~ msgstr "⚠ The “{0}” tier can't take a reference video — switch to “Cinematic” in ⚙ Segment settings, or generation will be rejected."
+
+#. placeholder {0}: tierOf(node.videoTier).label
+#: src/components/flow/FlowCanvas.tsx
+msgid "⚠「{0}」档带不了参考视频——去 ⚙ 本段设置换成「高清」或「电影级」，否则生成会被整句拒。"
+msgstr "⚠ The “{0}” tier can't take a reference video — switch to “HD” or “Cinematic” in ⚙ Segment settings, or generation will be rejected."
 
 #. placeholder {0}: tierOf(editor.videoTier).label
 #: src/studio/ui/projection.tsx
