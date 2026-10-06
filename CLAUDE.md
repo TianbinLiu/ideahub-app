@@ -530,7 +530,8 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   (输入 + 输出) × 系数，服务端结算 `tokens.materialRefTokens`）。服务端那一半是 TianbinLiu/ideahub-server#107（参考视频认「本人自己的成片」），2026-10-05 已上线。
   ★ 2026-10-05 付费探测（`design/video-input-probe.mjs`，结果在 docs/canvas-platforms-ecosystem-research.md 第九节）：电影级延长两轮都接得上、高清那一发接缝会跳
   ⇒ 「能不能延长」是档位自己的一位 `extendOk`，**别拿 refVid 代替**（高清以后开视频参考也不顺带开延长）；按时间段重拍时同一个连续动作会整段一起改、
-  声音是照着原片重做的 —— 文案只说到这一步（`FixSegmentBox` 头上记着）。延长段的做法是固定的：套模板 / 切自定义 / 切出直出三个入口整句拒
+  声音是照着原片重做的 —— 文案只说到这一步（`FixSegmentBox` 头上记着）。2026-10-06 在 App 的真实请求路径上端到端付费验过一遍（¥45.42：G 两条、I 三句、
+  重拍、延长；延长接缝看不出来；开发构建直连方舟、没走到服务端那一层），结果同在第九节。延长段的做法是固定的：套模板 / 切自定义 / 切出直出三个入口整句拒
   （`flowStore.extendLaneLocked`），画布不摆那排页签。**高清 2026-10-05 开了片段重拍与参考视频出片**（主人「合」；`economy.HD_R2V_MULT` 按刊例 14/15，
   与服务端 `VIDEO_MULT_R2V` 逐条相等，账单还待逐行核对）：「能带参考视频」（`refVid`）、「能延长」（`extendOk`）、「能跑白模模板」（`blockoutOk`）
   是档位表上**三位**，高清只有第一位 —— 判白模段的档位行 / 出片闸问 `blockoutPriceIssue`，返修与示例视频问 `r2vPriceIssue`，别混用
