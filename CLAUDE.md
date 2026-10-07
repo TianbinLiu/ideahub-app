@@ -509,6 +509,8 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   单格重画也带这一格里的**所有**人（不走画帧那条「只带第一个人物」的老规矩）。落段只在 `gridDraftStore.gridAppendSpecs` → `flowStore.appendSpecs`
   （门禁与 `appendNode` 同一处 `appendIssue`；报价 `appendSpecsQuote` 逐段、与真落的同一批 `appendedNode`）：每格一段**参考图直出段**、那一格当开头帧上锁（`pinned.first`）、
   **不承接**（承接会拿上一段尾帧把这一格整张顶掉）、素材只挂这一格里的人 + 场景卡；只先出第一段（顺序门禁照旧）。
+  2026-10-06 走正式路径付费验过（¥4.50，docs 第三期那一节）。⚠ 已知问题：接着等组图（App 重开）时向导里选的人不还原 ——
+  `leadDraftStore.castIds` 不落盘、`gridGroup.v1` 也没存它 ⇒ 第 3 步的单格重画一张卡图都不带、落段时人物卡挂空，等主人「改」。
   ⑨ **G 特效同款（第一批，2026-10-05，主人「按你的建议做第一批」，方案 docs/canvas-platforms-ecosystem-research.md §五）**：向导只有一份 `components/flow/EffectWizard`
   （工坊 lane `effect`、画布抽屉），状态在 `studio/effectDraftStore`。三步：挑特效 → 挑主角（人物卡；产品走道具卡或传一张照片）→ 画关键帧 · 出片。
   预设只在 `data/effectPresets`（零依赖，构建里 `check-effect-presets.mjs` 实跑）：每条两句冻结中文 —— 关键帧（那一刻，给出图）与动作（接下来几秒，给视频，**一镜到底、
@@ -939,7 +941,7 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 - [`docs/api-contract.md`](docs/api-contract.md) — 与 server 的接口契约（三仓共享）
 - [`docs/play-store-checklist.md`](docs/play-store-checklist.md) — 上架检查单
 - [`docs/node-modes-libtv-alignment.md`](docs/node-modes-libtv-alignment.md) — 工作流节点「自选卡片 / 自定义」对齐 LibTV 节点：调研、方案、主人拍板与落地记录（N1 参考清单 + @ 点名、N3 关键画面可改可截、N2 分镜表都已落地；含与已有「圈图改图」的对比、官方文档查到的几条协议事实、等主人定的两件事）
-- [`docs/guided-modes-design.md`](docs/guided-modes-design.md) — 工作流的「跟着做」模式（参考图直出 / 主角定妆·多镜头 / 九宫格分镜 / 推演三套 / 套模板 / 自定义）：每个模式固定步骤（2026-10-04 方案，主人「开工」五条全认；第一期 A、第二期 B、第三期 C 已落地，A、B 各付费验过一次；C 的服务端组图任务 server#106 2026-10-06 已合并上线，C 的付费验证还没做）
+- [`docs/guided-modes-design.md`](docs/guided-modes-design.md) — 工作流的「跟着做」模式（参考图直出 / 主角定妆·多镜头 / 九宫格分镜 / 推演三套 / 套模板 / 自定义）：每个模式固定步骤（2026-10-04 方案，主人「开工」五条全认；第一期 A、第二期 B、第三期 C 已落地，A、B 各付费验过一次；C 的服务端组图任务 server#106 2026-10-06 已合并上线，C 同日付费验过（¥4.50；App 重开后向导里选的人会丢，等改））
 - [`docs/canvas-platforms-ecosystem-research.md`](docs/canvas-platforms-ecosystem-research.md) — TapNow / RunningHub 调研（2026-10-05，不登录不花钱）：两家模板的十种套路、各出片模型的官方能力表（2.0 mini 官方支持参考视频 / 编辑 / 延长而我们没开）、
   按模型新增的模式（四组，新增「修这一段」）、把模式做成可发布的「玩法」生态与奖励（只发平台 token），等主人定
 - [`docs/multi-character-consistency-research.md`](docs/multi-character-consistency-research.md) — 多人物多镜头的人像一致与台词字幕：LibTV / updream / 官方文档 / 网上的做法（2026-10-03 调研，建议等主人定）；
