@@ -435,7 +435,8 @@ export async function drawGroup(o: { cast: Card[]; place: Card | null }): Promis
       await resumeGroup();
       return;
     } else {
-      const why = e instanceof Error ? e.message : String(e);
+      // 受理那一发就连不上（网关 / 代理回 502~504）：说人话，不摆「Ark … 504: {…}」（判据见 upstreamDown）
+      const why = upstreamDown(e) ? t`这次没连上出图服务（多半是网络抖了一下），再点一次就行` : e instanceof Error ? e.message : String(e);
       const money = chargeNote(chargeOnFail(e), cost);
       const moneyLine = money?.line ?? "";
       writeFor(who, {
@@ -474,25 +475,46 @@ async function finishGroup(
 ): Promise<void> {
   await Promise.all(pending);
   writeParked(who, null);
+  const got = st.images.length;
   // 本机账本（dev 直连 / 离线账本）按拿到手的张数记；正式包是服务端结算，这一行是空操作（account.spendTokens）
-  if (AI_REAL && st.images.length && !st.prepaid) spendTokens(st.images.length * IMAGE_TOKENS);
+  if (AI_REAL && got && !st.prepaid) spendTokens(got * IMAGE_TOKENS);
   const sep = t({ message: "；", comment: "把几条说明连成一句时的分隔符" });
-  const note = [groupNote(st, asked), ...notes].filter(Boolean).join(sep);
+  // 一张都没有时，下面那句失败的话已经说全了：groupNote 的「N 格模型没画」在连不上 / 断了的时候还会误导（模型根本没收到）
+  const note = [got ? groupNote(st, asked) : "", ...notes].filter(Boolean).join(sep);
   writeFor(who, { groupId: "", drawNote: note });
-  if (!st.images.length) {
-    // 方舟的原话是英文（「The request failed because the input text may contain sensitive information.」）：认码说人话，认不出才照抄
-    const why =
-      st.code === "INTERRUPTED"
-        ? t`连接断了，一张都没画出来`
-        : /Sensitive/i.test(st.code)
-          ? t`分镜里有内容没过内容审核，一张都没画出来——改改写法再画`
-          : st.message || st.code || t`一张都没画出来`;
-    writeFor(who, { drawErr: t`画面没出成：${why}（一张都没画出来，钱全退了）` });
+  if (!got) {
+    writeFor(who, { drawErr: groupFailLine(st) });
     job.fail(t`九宫格分镜的画面没出成，回去看原因`);
     return;
   }
-  const got = st.images.length;
   job.done({ msg: t`九宫格分镜画好了 ${got} 格`, silent: who === ownerOfDraft() && useGridDraft.getState().mounted });
+}
+
+/**
+ * 这一发没到方舟：服务端连不上出图服务（一张都没画、预扣全退，再点一次就行）。
+ * ★ 认码：上游回 5xx、回包里又读不出错误码时，组图任务记成 `HTTP_<状态>`。**线上这版（server dfaa77c）连不上时码是空的**，原话是网关那句固定的机器话
+ *   `ark upstream <错误名>`（services/arkGateway：Node fetch 连不上 / 超时 —— 2026-10-06 付费验证撞到 TypeError，10.6 秒 = 连接超时），
+ *   所以码空时再认这句兜底。它不是界面文案、不进目录；哪天措辞变了只会退回照抄原话，不会把别的失败认成连不上。
+ */
+function groupUpstreamDown(st: ImageGroupState): boolean {
+  return /^HTTP_50[234]$/.test(st.code) || (!st.code && /^ark upstream \w/.test(st.message));
+}
+
+/** 单张出图（单格重画）的同一种失败：服务端网关回 502/503/504。认状态码，不认 message */
+function upstreamDown(e: unknown): boolean {
+  return e instanceof ArkHttpError && e.status >= 502 && e.status <= 504;
+}
+
+/**
+ * 一张都没画出来时给人看的那一句（0 张 = 预扣全退 / 没扣）。认码说人话，认不出才照抄原话。
+ * ★ 方舟的原话是英文（「The request failed because the input text may contain sensitive information.」）；连不上时是网关的机器话 —— 都别原样摆。
+ */
+function groupFailLine(st: ImageGroupState): string {
+  if (groupUpstreamDown(st)) return t`画面没出成：这次没连上出图服务（多半是网络抖了一下），一张都没画、钱全退了——再点一次「画出这一组」就行`;
+  if (st.code === "INTERRUPTED") return t`画面没出成：连接断了，一张都没收到、钱全退了——再点一次「画出这一组」就行`;
+  if (/Sensitive/i.test(st.code)) return t`画面没出成：分镜里有内容没过内容审核，一张都没画、钱全退了——改改写法再画`;
+  const why = st.message || st.code || t`原因不明`;
+  return t`画面没出成：${why}（一张都没画出来，钱全退了）`;
 }
 
 /**
@@ -595,7 +617,8 @@ export async function redrawPanel(i: number, o: { cast: Card[]; place: Card | nu
     if (AI_REAL) spendTokens(PANEL_REDRAW_TOKENS); // 出图成功才扣，与「重画这一套」同口径
     patchPanel(who, i, () => ({ image, key: shotKey(shot) }));
   } catch (e) {
-    const why = e instanceof Error ? e.message : String(e);
+    // 连不上出图服务时原话是「Ark /images/generations 504: {"message":"ark upstream TypeError"}」—— 说人话（判据见 upstreamDown）
+    const why = upstreamDown(e) ? t`这次没连上出图服务（多半是网络抖了一下），再点一次就行` : e instanceof Error ? e.message : String(e);
     const money = chargeNote(chargeOnFail(e), PANEL_REDRAW_TOKENS);
     const moneyLine = money?.line ?? "";
     const err = money

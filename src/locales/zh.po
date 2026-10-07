@@ -4001,10 +4001,6 @@ msgstr "一张分栏设定稿（素描线稿 + 色板 + 服装细节），外加
 msgid "一张卡最多存 {MAX_CARD_VIEWS} 张形象图（服务端也钉着这个数），把图位删到 {MAX_CARD_VIEWS} 个以内"
 msgstr "一张卡最多存 {MAX_CARD_VIEWS} 张形象图（服务端也钉着这个数），把图位删到 {MAX_CARD_VIEWS} 个以内"
 
-#: src/studio/gridDraftStore.ts
-msgid "一张都没画出来"
-msgstr "一张都没画出来"
-
 #: src/studio/structuredSkills.ts
 msgid "一整篇（{SCRIPT_MIN}~{SCRIPT_MAX} 字），故事梗概或分场脚本都行"
 msgstr "一整篇（{SCRIPT_MIN}~{SCRIPT_MAX} 字），故事梗概或分场脚本都行"
@@ -7140,10 +7136,6 @@ msgstr "分镜"
 msgid "分镜改过"
 msgstr "分镜改过"
 
-#: src/studio/gridDraftStore.ts
-msgid "分镜里有内容没过内容审核，一张都没画出来——改改写法再画"
-msgstr "分镜里有内容没过内容审核，一张都没画出来——改改写法再画"
-
 #: src/pages/TemplateDetailPage.tsx
 msgid "分镜骨架（{THEME_TOKEN} 会换成你那句话）"
 msgstr "分镜骨架（{THEME_TOKEN} 会换成你那句话）"
@@ -7992,6 +7984,7 @@ msgstr "原因：{0}。<0>它现在只在这次会话里活着</0> —— 你现
 #: src/data/projects.ts
 #: src/data/videos.ts
 #: src/pages/EditPage.tsx
+#: src/studio/gridDraftStore.ts
 msgid "原因不明"
 msgstr "原因不明"
 
@@ -17748,6 +17741,18 @@ msgstr "画面没出成：{why}。{moneyLine}"
 msgid "画面没出成：{why}（一张都没画出来，钱全退了）"
 msgstr "画面没出成：{why}（一张都没画出来，钱全退了）"
 
+#: src/studio/gridDraftStore.ts
+msgid "画面没出成：分镜里有内容没过内容审核，一张都没画、钱全退了——改改写法再画"
+msgstr "画面没出成：分镜里有内容没过内容审核，一张都没画、钱全退了——改改写法再画"
+
+#: src/studio/gridDraftStore.ts
+msgid "画面没出成：这次没连上出图服务（多半是网络抖了一下），一张都没画、钱全退了——再点一次「画出这一组」就行"
+msgstr "画面没出成：这次没连上出图服务（多半是网络抖了一下），一张都没画、钱全退了——再点一次「画出这一组」就行"
+
+#: src/studio/gridDraftStore.ts
+msgid "画面没出成：连接断了，一张都没收到、钱全退了——再点一次「画出这一组」就行"
+msgstr "画面没出成：连接断了，一张都没收到、钱全退了——再点一次「画出这一组」就行"
+
 #: src/pages/TemplateDetailPage.tsx
 msgid "画面质感与运镜"
 msgstr "画面质感与运镜"
@@ -23931,6 +23936,10 @@ msgstr "这次没取到这张卡：{0}"
 msgid "这次没能向服务器确认这条作品，内容没有被替换。合成稿还留在「我的」里，稍后再试一次。"
 msgstr "这次没能向服务器确认这条作品，内容没有被替换。合成稿还留在「我的」里，稍后再试一次。"
 
+#: src/studio/gridDraftStore.ts
+msgid "这次没连上出图服务（多半是网络抖了一下），再点一次就行"
+msgstr "这次没连上出图服务（多半是网络抖了一下），再点一次就行"
+
 #: src/data/videos.ts
 msgid "这次没连上服务器，内容没有被替换。合成稿还留在「我的」里，联网后再试一次。"
 msgstr "这次没连上服务器，内容没有被替换。合成稿还留在「我的」里，联网后再试一次。"
@@ -24076,10 +24085,6 @@ msgstr "连内容一起删掉，不可撤销"
 #: src/pages/WorkshopPage.tsx
 msgid "连圈多张，打包成一组"
 msgstr "连圈多张，打包成一组"
-
-#: src/studio/gridDraftStore.ts
-msgid "连接断了，一张都没画出来"
-msgstr "连接断了，一张都没画出来"
 
 #: src/data/danmaku.ts
 msgid "追！"
