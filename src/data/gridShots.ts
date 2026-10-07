@@ -1,7 +1,9 @@
 // 「一场戏 → 九宫格分镜」—— 跟着做 C（九宫格分镜）的输入与输出规则，唯一实现（2026-10-05 第三期，方案 docs/guided-modes-design.md §二 C、§七）：
 //   ① 第②步那一发对话（一场戏 → 4~9 个镜头的分镜清单）怎么问、回话怎么收；
-//   ② 第③步那一发组图（一次画出全部镜头）的提示词与参考图怎么点名；
-//   ③ 单格重画画哪个瞬间、一格变成一段时视频提示词怎么写。
+//   ② 第③步怎么画：哪几格进组图、哪几格单画（gridDrawPlan），组图与单画的提示词、参考图怎么点名，画完怎么看图核对；
+//   ③ 一格变成一段时视频提示词怎么写。
+// ★ ② 的写法 2026-10-07 换过一次（主人「改」，付费验证在 docs/seedream-grid-fix-research.md 第七节）：组图压短 + 参考图标用途、
+//   空镜与特写拆出来单画、单画正面写画幅、画完核对人数 / 两个一样的人 / 分格。
 //
 // 纯函数、零运行时依赖（只许 import type）：构建里 scripts/check-grid-shots.mjs 直接 import 它跑正反例。
 // ★ 调模型、扣钱、说人话在 studio/structuredSkills（runSceneToGrid）与 studio/gridDraftStore；出图在 ai/real（drawShotGroup / 单格走 generateFrame）。
@@ -52,7 +54,14 @@ export type GridNote =
   /** 画面是空的镜头，整个没收 */
   | { kind: "empty"; count: number }
   /** who 里有不在给出的卡名里的人（多半是路人）：从 who 里拿掉，画面照写 */
-  | { kind: "strangers"; names: string[] };
+  | { kind: "strangers"; names: string[] }
+  /**
+   * 画面描述里点到了名字、who 里却没有的出场人物：补进 who（names 是补进去的人）。
+   * ★ 2026-10-07 付费验证：「沈舟站在车厢门口…目光落在林夏身上」、who 只有沈舟 —— 四遍里四遍都把林夏画了进去；
+   *   不补的话她一张卡图都带不上（单格重画、落段都按 who 带图），画出来是个陌生人。补了至少人是对的。
+   *   只补本来就有人的格子（空镜里的名字多半是「林夏的房间」这种所有格，见 parseGridShots）。
+   */
+  | { kind: "named"; names: string[] };
 export interface GridPlan {
   /** 整体交代（地点、时间、光线与氛围）。可空 */
   lead: string;
@@ -79,7 +88,9 @@ export const GRID_SHOTS_SYS =
   `"picture":"这一格的画面：一个瞬间，谁在哪、什么姿势和表情，40字内","action":"画面之后接下来几秒发生的动作，25字内",` +
   `"who":["画面里出现的人名"]}]}。` +
   `规矩：人物只用给出的名字，不另起名字，不写长相与服装（长相由人物参考图定）；画面只写一个瞬间，动作写这个瞬间之后接着发生什么；` +
-  `画面里没有人的镜头 who 给空数组；景别要有变化，别每格都是同一个景别；不写台词、不写秒数、不写「镜头1」之类的编号；画面与动作里不要出现引号。` +
+  `画面里没有人的镜头 who 给空数组；画面只写这一格里看得见的人，不在 who 里的人名字不要出现在画面里（看向画外的人就写望向画外）；` +
+  `景别是特写的那一格，画面写清拍的是哪个局部（例：林夏的手指捏着旧信纸），不写整个人在做什么；` +
+  `景别要有变化，别每格都是同一个景别；不写台词、不写秒数、不写「镜头1」之类的编号；画面与动作里不要出现引号。` +
   `只输出 JSON，不要解释。`;
 
 /* i18n-frozen: 发给分镜模型的这场戏（语言那一行按 sceneLang 明说），冻结中文 */
@@ -142,6 +153,7 @@ export function parseGridShots(raw: string, cast: readonly string[], max: number
 
   const names = new Set(cast.map((n) => (n || "").trim()).filter(Boolean));
   const strangers: string[] = [];
+  const named: string[] = [];
   const shots: GridShot[] = [];
   let empty = 0;
   for (const it of arr) {
@@ -161,13 +173,23 @@ export function parseGridShots(raw: string, cast: readonly string[], max: number
       }
       who.push(n);
     }
-    shots.push({ size: word(o.size, SIZE_MAX), picture, action: clean(o.action, ACTION_MAX), who });
+    // 画面里点到名、who 里没有的出场人物补进 who（见 GridNote 的 named）：模型照着画面描述画人，who 只决定带谁的图。
+    // ★ 只补本来就有人的格子：who 给了空数组的是模型明说的空镜，画面里的名字多半是「林夏的房间」这种所有格 —— 补进去反倒把人画进空镜。
+    //   那种由向导在那一格下面提醒一句（namedOutside），让人自己定。
+    const shot: GridShot = { size: word(o.size, SIZE_MAX), picture, action: clean(o.action, ACTION_MAX), who };
+    if (who.length)
+      for (const n of namedOutside(shot, [...names])) {
+        who.push(n);
+        if (!named.includes(n)) named.push(n);
+      }
+    shots.push(shot);
   }
   if (!shots.length) throw new GridShotsError("noShots");
   const notes: GridNote[] = [];
   if (shots.length > max) notes.push({ kind: "dropped", count: shots.length - max });
   if (empty) notes.push({ kind: "empty", count: empty });
   if (strangers.length) notes.push({ kind: "strangers", names: strangers });
+  if (named.length) notes.push({ kind: "named", names: named });
   return { lead: clean(obj?.lead, LEAD_MAX), shots: shots.slice(0, Math.max(1, max)), notes };
 }
 
@@ -196,11 +218,16 @@ export interface GroupRef {
   type: string;
   /** 这张卡占的图号（从 1 起） */
   nums: number[];
+  /** 每张图是这张卡的哪一类图（与 nums 逐个对齐；types.CardView.kind：face / body / detail）。不知道就空串 */
+  kinds: string[];
   /** 出片句（types.idLineOf；没写就是卡名，那时不重复） */
   idLine: string;
 }
 
-/** 组图提示词里点名参考图的那一句（「图1、图2 是林夏（…）；图3 是场景「灯塔」…」） */
+/**
+ * 点名参考图的那一句（「图1、图2 是林夏（…）；图3 是场景「灯塔」…」）—— **对话正反打与特效同款**在用（ai/real.shotGroupRefs 的 bind）。
+ * ★ 九宫格自己 2026-10-07 起改用 labeledBindLine（标用途、不写外貌）；这两个向导各自付费验过，没跟着换。
+ */
 /* i18n-frozen: 组图提示词里点名参考图的那一句，进出图模型，冻结中文 */
 export const groupBindLine = (refs: readonly GroupRef[]): string =>
   refs
@@ -212,44 +239,145 @@ export const groupBindLine = (refs: readonly GroupRef[]): string =>
     })
     .join("；");
 
-/* i18n-frozen: 一格里有谁（进出图模型），冻结中文 */
-const whoLine = (who: readonly string[]): string => (who.length ? `画面里：${who.join("、")}` : "画面里没有人");
+/* i18n-frozen: 参考图「这张管什么」的说法，进出图模型，冻结中文 */
+const KIND_ROLE: Record<string, string> = { face: "的脸", body: "的服装和身形", detail: "的细节" };
 
 /**
- * 组图那一发的提示词（2026-10-05 付费对比里用的写法 + 两处补丁）：一个请求按顺序一张一个镜头。
- * ★ 两处补丁都来自那次对比：「每个人在一张画面里只出现一次」（第 6 张多画了一个林夏）；「画面里有谁」逐格写明（空镜就真的没有人）。
- * ★ 「单独完整的画面，不要分格、拼贴…」照留：真九宫格那一路模型会排成漫画式的分格，组图要的是一格一张完整的画面。
- * @param bind groupBindLine 的结果（没有参考图时为空串）
- * @param framing 画幅那一句（types.VIDEO_ASPECTS[].promptHint）
+ * 九宫格用的点名那一句：**逐张标用途**、不写外貌文字（「图1是林夏的脸，图2是林夏的服装和身形，图3是沈舟」）。
+ * ★ 2026-10-07 付费验证（docs/seedream-grid-fix-research.md 第七节）：照官方 Seedance 指南的写法给图标用途（面部参考图 1、妆造参考图 2），
+ *   外貌交给图 —— 组图里同一个人画两次的没再出现；单格重画 6/6 干净（原写法 3 张里 1 张沈舟画了两次）。
+ * ★ 一张卡带了两张同一类的图（两张全身）就标不出谁管什么，退回「图1、图2是林夏」。
+ */
+/* i18n-frozen: 九宫格点名参考图的那一句，进出图模型，冻结中文 */
+export const labeledBindLine = (refs: readonly GroupRef[]): string =>
+  refs
+    .map((r) => {
+      const nums = r.nums.map((n) => `图${n}`).join("、");
+      if (r.type === "character") {
+        if (r.nums.length === 1) return `图${r.nums[0]}是${r.name}`;
+        const roles = r.nums.map((_, i) => KIND_ROLE[r.kinds[i] ?? ""]);
+        const distinct = roles.every(Boolean) && new Set(roles).size === roles.length;
+        return distinct ? r.nums.map((n, i) => `图${n}是${r.name}${roles[i]}`).join("，") : `${nums}是${r.name}`;
+      }
+      if (r.type === "scene") return `${nums}是场景「${r.name}」（只用来定地点的样子，构图照分镜来）`;
+      return `${nums}是「${r.name}」`;
+    })
+    .join("，");
+
+/**
+ * 画幅那一句，正面写（「竖版9:16」）。★ 不再接 types.VIDEO_ASPECTS 那句「主体居中偏上，上下留出呼吸空间」：
+ *   10-06 单格重画画成上下两格拼图那一次，猜是这句给了往下面再塞一格的空（官方：给视频用的帧写「视频静帧画面」）。
+ * @param ratio types.VIDEO_ASPECTS[].ratio
+ */
+/* i18n-frozen: 九宫格画幅那一句，进出图模型，冻结中文 */
+export const gridFraming = (ratio: string): string => (ratio === "16:9" ? "横版16:9" : ratio === "9:16" ? "竖版9:16" : ratio);
+
+/** 景别是不是特写（中文「特写 / 大特写」，英文 close-up / CU / ECU） */
+const CLOSE_SIZE = /特写|close[\s-]?up|\bE?CU\b/i;
+export const isCloseUp = (size: string): boolean => CLOSE_SIZE.test(size);
+
+/**
+ * 一格怎么画：普通格进组图；**空镜**（画面里没有人）与**特写**不进组图，组图画完之后单画（panelPrompt）。
+ * ★ 2026-10-07 付费验证：组图的参考图对整组生效（没有「这张图只给第几格」的参数），空镜那一格手里照样拿着两个人的照片 —— 10-06 画进了两个人；
+ *   单画、拿组图里的一格定画风、不带人物图之后 4/4 没有主角入镜。特写在组图里画成了两人中景，单画、只带这一格的人之后都只剩那个人
+ *   （但还是半身 —— 写分镜时得写明拍的是哪个局部，见 GRID_SHOTS_SYS）。官方示例代码同样把组图拆成单图。
+ */
+export type PanelKind = "group" | "empty" | "close" | "single";
+export function panelKindOf(shot: GridShot): Exclude<PanelKind, "single"> {
+  if (!shot.who.length) return "empty";
+  return isCloseUp(shot.size) ? "close" : "group";
+}
+
+/**
+ * 一组画面的画法：哪几格进组图（下标，按原顺序），哪几格之后单画。
+ * ★ 进组图的不到两格就不开组图了：一张图走组图只是多等几分钟，那一格改成单画（kind = single，写法同单格重画）。
+ */
+export function gridDrawPlan(shots: readonly GridShot[]): { group: number[]; singles: { index: number; kind: Exclude<PanelKind, "group"> }[] } {
+  const kinds = shots.map(panelKindOf);
+  const group = kinds.flatMap((k, i) => (k === "group" ? [i] : []));
+  const asGroup = group.length >= 2;
+  const singles: { index: number; kind: Exclude<PanelKind, "group"> }[] = [];
+  kinds.forEach((k, i) => {
+    if (k !== "group") singles.push({ index: i, kind: k });
+    else if (!asGroup) singles.push({ index: i, kind: "single" });
+  });
+  // 空镜排在最后单画：它要拿别的格子定画风（styleRefIndex），没开组图时得先把别的格子画出来
+  singles.sort((a, b) => Number(a.kind === "empty") - Number(b.kind === "empty") || a.index - b.index);
+  return { group: asGroup ? group : [], singles };
+}
+
+/* i18n-frozen: 景别的写法（认分镜里的景别字段），冻结中文 */
+const SIZE_RANK: Record<string, number> = { 远景: 0, 全景: 1, 中景: 2, 近景: 3, 特写: 4, 大特写: 5 };
+
+/**
+ * 空镜单画时拿哪一格当「地点 / 光线 / 画风」参考：已经画好的格子里景别最宽的（一样宽挑人少的）；一格都没画好就回 -1（那就不带）。
+ * ★ 2026-10-07 付费验证：拿组图第 1 格（远景、只有林夏）定画风，空镜 4/4 没画进主角、画风光线接得上；不带的话画风会跑
+ *   （人物卡是二次元的，空镜手里一张图都没有）。
+ * @param drawn 每一格画好了没有（与 shots 对齐）；exclude = 要画的那一格自己
+ */
+export function styleRefIndex(shots: readonly GridShot[], drawn: readonly boolean[], exclude: number): number {
+  const rank = (k: number) => (SIZE_RANK[shots[k]?.size ?? ""] ?? 2) * 10 + Math.min(9, shots[k]?.who.length ?? 0);
+  let best = -1;
+  shots.forEach((_, k) => {
+    if (k === exclude || !drawn[k]) return;
+    if (best < 0 || rank(k) < rank(best)) best = k;
+  });
+  return best;
+}
+
+/** 组图里一格的「有谁」：画面描述已经点到全部在场的人、且不止一个时不再重复（省字数）；只有一个人的格子照写「只有某某」——描述里常带着画外的人 */
+/* i18n-frozen: 组图里一格有谁，进出图模型，冻结中文 */
+const groupWho = (s: GridShot): string =>
+  !s.who.length ? "（画面里没有人）" : s.who.length === 1 ? `（只有${s.who[0]}）` : s.who.every((n) => s.picture.includes(n)) ? "" : `（${s.who.join("、")}）`;
+
+/**
+ * 组图那一发的提示词（2026-10-07 付费验证里的新写法）：一个请求按顺序一张一个镜头。
+ * ★ 压到 300 字上下（官方：中文提示词不超过 300 字，多了模型会丢细节 —— 10-06 那份 8 格 575 字，空镜与特写正是被丢掉的细节）：
+ *   全局规矩只说一次、不写外貌（交给参考图）、画幅正面写；空镜与特写不在这一发里（gridDrawPlan）。
+ * ★ 「每人在一张里只出现一次，不出现两个长相、着装一样的人」照留（10-05 付费对比第 6 张多画了一个林夏；后半句是官方 Seedance 指南里防双胞胎的写法）。
+ * @param bind labeledBindLine 的结果（没有参考图时为空串）
+ * @param framing gridFraming(画幅)
  */
 /* i18n-frozen: 组图的出图提示词，进出图模型，冻结中文 */
 export const groupPrompt = (o: { lead: string; shots: readonly GridShot[]; bind: string; framing: string }): string => {
-  const list = o.shots
-    .map((s, i) => `${i + 1}. ${s.size ? `${s.size}：` : ""}${s.picture.replace(TAIL_PUNCT, "")}（${whoLine(s.who)}）`)
-    .join("；");
-  const head = o.bind ? `根据参考图（${o.bind}），` : "";
+  const list = o.shots.map((s, i) => `${i + 1}.${s.size ? `${s.size}，` : ""}${s.picture.replace(TAIL_PUNCT, "")}${groupWho(s)}`).join("；");
   const lead = o.lead.trim().replace(TAIL_PUNCT, "");
   return (
-    `${head}生成 ${o.shots.length} 张连续的电影分镜画面，按下面的顺序一张一个镜头：${list}。` +
-    `每张都是一张单独完整的画面（不要分格、拼贴、边框、文字、对话框、字幕）；每个人在一张画面里只出现一次；` +
-    `人物的长相、发型与服装在每张里都与参考图一致；${lead ? `${lead}，` : ""}同一个场景与光线贯穿始终。` +
-    `高细节，电影感构图，氛围光。${o.framing}。`
+    `${o.bind ? `${o.bind}。` : ""}按顺序生成${o.shots.length}张视频静帧，一张一个镜头：${list}。` +
+    `${lead ? `${lead}。` : ""}每张${o.framing}、单个完整画面；每人在一张里只出现一次，不出现两个长相、着装一样的人；无文字。`
   );
 };
 
 /**
- * 单格重画画哪个瞬间（交给 ai/real.generateFrame 的 req；外壳「视频中的一个画面…单一完整画面」由它加）。
- * @param ask 人补的一句要求（「沈舟只出现一次」）；空 = 照分镜重画
+ * 单画一格的提示词：组图之后单画的空镜 / 特写 / 落单的那一格，与**单格重画**是同一个函数（2026-10-07 付费验证里的新写法）。
+ * 直接交给出图模型（ai/real.drawGridPanel），**不走 generateFrame 的外壳**：那层带「上下留出呼吸空间」与「不要分格、拼贴」的否定句。
+ * ★ 空镜：图1 是这一组里另一格的画面，只拿来定地点、光线、色调和画风（styleRef）；一张人物图都不带。
+ * ★ 普通格：写清画面上下各是什么、整张是同一个连续的场景（正面写，替掉「不要分格」）。
+ * @param bind labeledBindLine 的结果（编号已经让出 styleRef 占的图1）
+ * @param ask 人补的一句要求（「沈舟只出现一次」）；空 = 照分镜画
  */
-/* i18n-frozen: 单格重画的出图句，进出图模型，冻结中文 */
-export const panelMoment = (shot: GridShot, lead: string, ask = ""): string => {
-  const l = lead.trim().replace(TAIL_PUNCT, "");
-  const who = shot.who.length ? `画面里只有${shot.who.join("、")}，每个人只出现一次` : "画面里没有人";
-  const extra = ask.trim() ? `。要求：${ask.trim()}` : "";
-  return `${l ? `${l}。` : ""}${shot.size ? `${shot.size}，` : ""}${shot.picture.replace(TAIL_PUNCT, "")}（${who}）${extra}`;
+/* i18n-frozen: 九宫格单画一格的出图提示词，进出图模型，冻结中文 */
+export const panelPrompt = (o: { shot: GridShot; lead: string; ask: string; bind: string; framing: string; styleRef: boolean }): string => {
+  const s = o.shot;
+  const size = s.size ? `${s.size}，` : "";
+  const pic = s.picture.replace(TAIL_PUNCT, "");
+  const lead = o.lead.trim().replace(TAIL_PUNCT, "");
+  const leadLine = lead ? `${lead}。` : "";
+  const ask = o.ask.trim() ? `要求：${o.ask.trim().replace(TAIL_PUNCT, "")}。` : "";
+  const style = o.styleRef ? "图1只用来参考地点、光线、色调和画风，不要画出图1里的人。" : "";
+  const bind = o.bind ? `${o.bind}。` : "";
+  const kind = panelKindOf(s);
+  if (kind === "empty")
+    return `${style}${bind}一张${o.framing}的视频静帧，单个完整画面：${size}${pic}。${leadLine}画面里没有任何人（没有人物、人影或剪影）；${ask}无文字。`;
+  if (kind === "close")
+    return `${style}${bind}一张${o.framing}的视频静帧，单个完整画面：特写镜头，只拍局部，主体占满画面：${pic}（只有${s.who.join("、")}）。${leadLine}${ask}无文字。`;
+  return (
+    `${style}${bind}一张${o.framing}的视频静帧，整张是同一个连续的场景：${size}${pic}（画面里只有${s.who.join("、")}）。${leadLine}` +
+    `画面上方是场景的背景，下方是地面。${ask}每人只出现一次，不出现两个长相、着装一样的人；电影感光影，无文字。`
+  );
 };
 
-/** 单格重画接在画面后面的那一句（参考图点名，与组图同一套写法）；没有参考图时为空 */
+/** 单格重画接在画面后面的那一句（参考图点名）；没有参考图时为空。★ 九宫格 2026-10-07 起不再用它（panelPrompt），特效同款还在用 */
 /* i18n-frozen: 单格重画的参考图点名句，进出图模型，冻结中文 */
 export const panelRefLine = (bind: string): string => (bind ? `。参考图：${bind}；人物的长相、发型与服装与参考图一致` : "");
 
@@ -277,5 +405,65 @@ export function castGaps(shots: readonly GridShot[], cast: readonly string[]): s
   const have = new Set(cast);
   const out: string[] = [];
   for (const s of shots) for (const n of s.who) if (!have.has(n) && !out.includes(n)) out.push(n);
+  return out;
+}
+
+/**
+ * 画面描述里点到了名字、「画面里有」却没有的出场人物（按名单的先后）。收模型回话时补进 who（parseGridShots，GridNote 的 named），
+ * 人自己改分镜时由向导在那一格下面提醒一句。★ 认名字就是在句子里找卡名：「林夏」写进了画面，模型就会画她（10-07 付费验证四遍里四遍）。
+ */
+export function namedOutside(shot: GridShot, cast: readonly string[]): string[] {
+  return cast.filter((n) => n && !shot.who.includes(n) && shot.picture.includes(n));
+}
+
+// ── 画完让对话模型看一遍（2026-10-07 付费验证里的办法 D）─────────────────────────────
+
+/**
+ * 看图核对的系统提示词：只问三件事 —— 分成了几格、一共几个人、有没有两个一样的人。
+ * ★ 不给它看分镜要求（先入为主会跟着要求答）；判对错在代码里按分镜算（panelIssues）。
+ * ★ JSON 的样子要写成能直接 parse 的（数字、true/false）：付费验证那一次把「景别」写成没加引号的中文，51 次里 7 次读不出来。
+ * ★ 景别、有没有字**不问**：那次景别误报 6 次、一次都没多抓到；「有字」会把站名牌、信纸上的字都算进去。
+ */
+/* i18n-frozen: 看图核对的系统提示词，进对话模型，冻结中文 */
+export const PANEL_CHECK_SYS =
+  '你是视频分镜画面的质检员。只按这一张图里实际看到的回答，不要猜。只输出一个 JSON 对象，不要别的字，格式：{"panels": 1, "people": 0, "duplicate": false}。' +
+  "panels = 画面被边框或明显的分界线分成了几格（单个完整画面就是 1）；" +
+  "people = 画面里一共能看到几个人（背影、侧影、远处很小的人、窗户里的人影都算，只露出手或身体局部的也算 1 个，没有人就是 0）；" +
+  "duplicate = 有没有两个长相、发型、衣着几乎一样的人同时出现（true 或 false）。";
+/* i18n-frozen: 看图核对时给对话模型的那一句，冻结中文 */
+export const PANEL_CHECK_ASK = "看这张图。";
+
+export interface PanelCheck {
+  panels: number;
+  people: number;
+  duplicate: boolean;
+}
+
+/** 核对的回话 → 三个数。按键名逐个抠（不整段 JSON.parse：模型偶尔给值加引号、偶尔不加）；panels 与 people 抠不出来就当没核对上 */
+export function parsePanelCheck(raw: string): PanelCheck | null {
+  const text = String(raw ?? "");
+  const num = (k: string): number | null => {
+    const m = text.match(new RegExp(`"${k}"\\s*:\\s*"?(\\d+)`));
+    return m ? Number(m[1]) : null;
+  };
+  const panels = num("panels");
+  const people = num("people");
+  if (panels === null || people === null) return null;
+  const dup = text.match(/"duplicate"\s*:\s*"?(true|false)/i);
+  return { panels, people, duplicate: !!dup && dup[1].toLowerCase() === "true" };
+}
+
+export type PanelIssue = { kind: "panels"; got: number } | { kind: "people"; got: number; want: number } | { kind: "duplicate" };
+
+/**
+ * 按这一格的分镜判：分成了几格、人数对不对、有没有两个一样的人。空 = 没看出问题。
+ * ★ 付费验证里不合格的 13 张全落在这三项上（空镜里有人、多画了一个、同一个人两次、拼图、伞下叠了一张半透明的脸），全抓到；
+ *   合格的里这三项一次都没误报。车窗里的小人影也会被数进去 —— 标出来由人看一眼，不自动重画。
+ */
+export function panelIssues(c: PanelCheck, shot: GridShot): PanelIssue[] {
+  const out: PanelIssue[] = [];
+  if (c.panels > 1) out.push({ kind: "panels", got: c.panels });
+  if (c.people !== shot.who.length) out.push({ kind: "people", got: c.people, want: shot.who.length });
+  if (c.duplicate) out.push({ kind: "duplicate" });
   return out;
 }
