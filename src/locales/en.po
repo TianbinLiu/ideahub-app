@@ -181,6 +181,7 @@ msgstr ", and this run has already been charged"
 #. 列举几个名字时的分隔符
 #. 列举几个名字时的分隔符
 #. 列举几个名字时的分隔符
+#. 列举几个名字时的分隔符
 #. 列举几个图位名 / 还缺的几项时的分隔符
 #. 列举几个文件名 / 动作组 / 表情名时的分隔符
 #. 列举几个段号时的分隔符（第 1、3 段）
@@ -221,6 +222,7 @@ msgstr ", "
 #. 把几条「这一档为什么点不动」的原因连成一行时的分隔符
 #. 把几条「这一档为什么点不动」的原因连成一行时的分隔符
 #. 把几条「这一档为什么点不动」的原因连成一行时的分隔符
+#. 把几条说明连成一句时的分隔符
 #. 把几条说明连成一句时的分隔符
 #. 把几条说明连成一句时的分隔符
 #. 把几条说明连成一句时的分隔符
@@ -3696,6 +3698,10 @@ msgstr "Generating the full set with AI costs about {aiPriceText} tokens, and yo
 msgid "AI 画竖横两张约 {framesPrice} token"
 msgstr "AI draws portrait + landscape for about {framesPrice} token"
 
+#: src/components/flow/GridShotsWizard.tsx
+msgid "AI 看了一遍画面：第 {flaggedList} 格可能和分镜不一样（点开那一格看原因）。要重画就点开、补一句要求再重画；不重画也能接着往下走。"
+msgstr "AI checked the pictures: panel {flaggedList} may not match the storyboard (open it to see why). To redraw, open it, add a note and redraw — or just keep going without redrawing."
+
 #: src/components/blockout/VisionFramePicker.tsx
 #: src/components/guide/tours.tsx
 msgid "AI 看哪几帧"
@@ -4033,8 +4039,12 @@ msgid "一次全给（{0} 个文件）"
 msgstr "Share all at once ({0, plural, one {# file} other {# files}})"
 
 #: src/components/flow/GridShotsWizard.tsx
-msgid "一次画出整组：人物与光线前后一致。按实际画出来的张数收钱，没画出来的那几格不收。一组要几分钟，可以先离开，画好了会提醒你。"
-msgstr "The whole set is drawn at once, so characters and lighting stay consistent. You pay only for the panels actually drawn. A set takes a few minutes — you can leave; we’ll let you know when it’s done."
+#~ msgid "一次画出整组：人物与光线前后一致。按实际画出来的张数收钱，没画出来的那几格不收。一组要几分钟，可以先离开，画好了会提醒你。"
+#~ msgstr "The whole set is drawn at once, so characters and lighting stay consistent. You pay only for the panels actually drawn. A set takes a few minutes — you can leave; we’ll let you know when it’s done."
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "一次画出整组：人物与光线前后一致。没有人的格子和特写不放进这一组（放进去容易画进别人），整组画完再一格一格单独画。每画好一格，AI 会看一遍几个人、有没有画重、是不是拼图，有问题的格子会标出来，由你决定要不要重画。按实际画出来的张数收钱，没画出来的那几格不收。一组要几分钟，可以先离开，画好了会提醒你。"
+msgstr "Draws the whole set in one go, so the characters and lighting stay consistent. Panels with nobody in them and close-ups are left out of the set (inside it they tend to pick up extra people) and drawn one by one after it. After each panel is drawn, AI checks how many people are in it, whether anyone appears twice and whether it came out as a collage; panels with problems get flagged and you decide whether to redraw. You’re charged only for the pictures actually drawn. A set takes a few minutes — you can leave and we’ll let you know when it’s done."
 
 #: src/studio/structuredSkills.ts
 msgid "一次画出整组画面，挑几格、每格一段"
@@ -7716,8 +7726,16 @@ msgid "十年前那一战"
 msgstr "that battle ten years ago"
 
 #: src/components/flow/GridShotsWizard.tsx
-msgid "单独画一张：只带这一格里的人的卡图（没有人就只带场景卡），与整组的画风尽量一致，但不保证一模一样。"
-msgstr "Drawn on its own: only the card images of the people in this panel go along (just the scene card if nobody’s in it). It aims to match the rest of the set, but may not match exactly."
+msgid "单独画一张：只带这一格里的人的卡图；没有人的格子拿这一组里另一格定画风、一张人物图都不带。与整组的画风尽量一致，但不保证一模一样。画完 AI 会看一遍（价钱里含这一次）。"
+msgstr "Draws this one picture on its own, sending only the card images of the people in this panel; a panel with nobody in it uses another panel of the set for the look and sends no character images. It tries to match the rest of the set but may not be identical. AI checks it once it’s drawn (included in the price)."
+
+#: src/components/flow/GridShotsWizard.tsx
+#~ msgid "单独画一张：只带这一格里的人的卡图（没有人就只带场景卡），与整组的画风尽量一致，但不保证一模一样。"
+#~ msgstr "Drawn on its own: only the card images of the people in this panel go along (just the scene card if nobody’s in it). It aims to match the rest of the set, but may not match exactly."
+
+#: src/ai/index.ts
+msgid "单画一格 · 演示"
+msgstr "Single panel · demo"
 
 #: src/components/support/VoiceSheet.tsx
 msgid "单音色"
@@ -9096,6 +9114,10 @@ msgstr "A composed preview costs one image ({0} tokens) and your balance isn't e
 #: src/pages/tutor/TutorNewPage.tsx
 msgid "合计约 {0} token"
 msgstr "About {0} tokens in total"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "同一个人出现了两次"
+msgstr "the same person appears twice"
 
 #: src/components/guide/tours.tsx
 msgid "同一条片的另一面"
@@ -14285,6 +14307,10 @@ msgstr "Two different cards are both named “{cardName}” (number {slotLabel} 
 msgid "有人"
 msgstr "Someone"
 
+#: src/components/flow/GridShotsWizard.tsx
+msgid "有几格的画面写到了「{names}」，已把他们算进那几格画面里的人（不想让他们入镜，就改掉画面里的名字）"
+msgstr "Some panels mention “{names}” in the picture, so they were added to the people in those panels (if you don’t want them in shot, change the names in the picture)"
+
 #: src/studio/gridDraftStore.ts
 msgid "有几格还没写画面——写上，或者删掉那几格再画"
 msgstr "Some panels have no picture yet — fill them in, or delete those panels, then draw"
@@ -17691,6 +17717,10 @@ msgstr "The canvas still contains local addresses, so it would be empty when ret
 msgid "画幅"
 msgstr "Aspect"
 
+#: src/components/flow/GridShotsWizard.tsx
+msgid "画成了 {got} 格拼图"
+msgstr "came out as a {got}-panel collage"
+
 #: src/components/flow/TierRow.tsx
 msgid "画质"
 msgstr "Quality"
@@ -17777,6 +17807,10 @@ msgstr "Graphics quality"
 msgid "画面还没就绪——等视频出画面再点"
 msgstr "The picture isn't ready yet. Wait until the video shows, then tap again"
 
+#: src/components/flow/GridShotsWizard.tsx
+msgid "画面里写到了「{outside}」，上面却没选：画的时候多半会把他们画进去、还带不上卡图 —— 要他们入镜就点上，不要就把名字改成「画外的人」。"
+msgstr "The picture mentions “{outside}”, who aren’t selected above: they’ll most likely be drawn in without their card images. Select them if they should be in shot; otherwise change the name to “someone off-screen”."
+
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "画面里怎么认出这个人偶（这句话会进出片提示词）"
 msgstr "How to spot this mannequin in the picture (this sentence goes into the render prompt)"
@@ -17784,6 +17818,14 @@ msgstr "How to spot this mannequin in the picture (this sentence goes into the r
 #: src/components/VideoCardAnnotator.tsx
 msgid "画面里是真实人物（真人）"
 msgstr "A real person is in the picture"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "画面里有 {got} 个人（这一格应该是 {want} 个）"
+msgstr "{got} people in the picture (this panel should have {want})"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "画面里有 {got} 个人（这一格应该没有人）"
+msgstr "{got} people in the picture (this panel should have nobody)"
 
 #: src/components/flow/GridShotsWizard.tsx
 msgid "画面里有："
@@ -19167,6 +19209,10 @@ msgstr "Segment {0}/{total}"
 #: src/components/flow/GridShotsWizard.tsx
 msgid "第 {focusN} 格"
 msgstr "Panel {focusN}"
+
+#: src/studio/gridDraftStore.ts
+msgid "第 {list} 格是空镜或特写，不放进组图：点开那一格单独画"
+msgstr "Panel {list} has nobody in it or is a close-up, so it isn’t part of the set: open it to draw it on its own"
 
 #: src/ai/real.ts
 msgid "第 {n} 张参考图未采用（「{name}」的{view}，比例越界或读不出来）"
@@ -22180,13 +22226,30 @@ msgstr "There are no files to save in this batch."
 msgid "这一排就是出片时视频模型会收到的图，按发送顺序编号。素材卡是谁、哪几张图是他，由系统自动写进提示词；你另加的参考图没在句子里点名时，系统按「用途」替它说一句。想自己说清楚某张图管什么，就在句子里写 @名字（或点这一排上的图）——出片时会在名字后面接上模型认的编号「图片N」。"
 msgstr "This row is exactly what the video model receives when the segment is rendered, numbered in sending order. Which card is who, and which images belong to them, is written into the prompt automatically; for an extra reference image you add without mentioning it, the system describes it by its “purpose”. To say what an image is for yourself, write @name in the prompt (or tap an image in this row) — at render time the model's own number (image N) is appended after the name."
 
+#: src/components/flow/GridShotsWizard.tsx
+msgid "这一格可能有问题"
+msgstr "This panel may have a problem"
+
 #: src/studio/ui/SchemeEditorSheet.tsx
 msgid "这一格放原片裁剪本身，不调模型、不计费。"
 msgstr "This slot holds the original crop itself — no model call, no charge."
 
+#: src/components/flow/GridShotsWizard.tsx
+msgid "这一格没核对上（AI 没看成），要看就自己看一眼。"
+msgstr "This panel wasn’t checked (the AI check didn’t go through) — have a look yourself."
+
 #: src/studio/gridDraftStore.ts
 msgid "这一格没画出来（没收这一张的钱）——单独重画一次"
 msgstr "This panel wasn’t drawn (you weren’t charged for it) — draw it again on its own"
+
+#: src/studio/gridDraftStore.ts
+msgid "这一格没画成：{why}"
+msgstr "This panel wasn’t drawn: {why}"
+
+#. why 是失败原因整句；moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格
+#: src/studio/gridDraftStore.ts
+msgid "这一格没画成：{why}。{moneyLine}"
+msgstr "This panel wasn’t drawn: {why}. {moneyLine}"
 
 #: src/studio/gridDraftStore.ts
 msgid "这一格没过内容审核，没画出来（没收这一张的钱）——改改画面写法再单独重画"

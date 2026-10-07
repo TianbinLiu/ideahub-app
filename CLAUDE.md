@@ -506,7 +506,15 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   契约「组图」，要服务端 `imageGroups` 能力位）；dev = 直连方舟流式。能不能出只问 `ai.groupsAvailable()`。受理那一拍任务号连同那一版分镜记进 localStorage
   （按账号），App 重开后向导一打开就接着等 —— 那几张已经按张付过钱。⚠ 单张出图那条路（`/images/generations`）服务端只出一张：组图参数整句 400。
   参考图与「图几是谁」只在 `ai/real.shotGroupRefs`（整组与单格重画共用）：直通分配、上限 15 − 张数，点名按**真正发出去的**那批图（`MaterialRefs.owners`）对，
-  单格重画也带这一格里的**所有**人（不走画帧那条「只带第一个人物」的老规矩）。落段只在 `gridDraftStore.gridAppendSpecs` → `flowStore.appendSpecs`
+  单格重画也带这一格里的**所有**人（不走画帧那条「只带第一个人物」的老规矩）。
+  **画法 2026-10-07 换过**（主人「改」，付费验证在 docs/seedream-grid-fix-research.md 第七节）：① 普通格进组图，**空镜与特写组图之后单画**（`gridShots.gridDrawPlan`，
+  空镜排最后、拿画好的格子里最宽的那一格定画风 `styleRefIndex`、一张人物图都不带；特写只带这一格的人）——组图的参考图对整组生效，空镜在组图里会被画进人；
+  ② 单画与单格重画是同一个函数 `gridDraftStore.drawPanelAt`（提示词 `gridShots.panelPrompt`、出图 `real.drawGridPanel`，**不走 generateFrame 的外壳**：那层带「上下留出呼吸空间」和否定句）；
+  ③ 九宫格的参考图**标用途**（`shotGroupRefs` 的 `labeled`：「图1是林夏的脸，图2是林夏的服装和身形」，靠 `MaterialRefs.views`），对话正反打 / 特效同款仍用老写法 `bind`（各自付费验过）；
+  组图提示词压到 300 字上下（官方建议上限）；④ 写分镜补两条规矩（画外的人不写进画面、特写写明拍的是哪个局部），收回话时画面点到名、who 没有的人补进 who
+  （**只补本来就有人的格子**：空镜里的名字多半是「林夏的房间」这种所有格），人自己改分镜时向导提醒（`namedOutside`）；
+  ⑤ **画完每格让对话模型看一遍**（`checkPanel` → `real.checkGridPanel`，图缩到 720 宽、一次一张）：只判几格 / 几个人 / 有没有两个一样的人（`panelIssues`；景别与「有字」不判 —— 验证里只会误报），
+  标在那一格上、**由人决定重画**，价钱算进报价（`PANEL_CHECK_TOKENS` = 一次对话）。组图的落盘记录多存 `cells`（组图第 k 张是第几格），接着等时照它摆；接着等完不替人单画空镜 / 特写。落段只在 `gridDraftStore.gridAppendSpecs` → `flowStore.appendSpecs`
   （门禁与 `appendNode` 同一处 `appendIssue`；报价 `appendSpecsQuote` 逐段、与真落的同一批 `appendedNode`）：每格一段**参考图直出段**、那一格当开头帧上锁（`pinned.first`）、
   **不承接**（承接会拿上一段尾帧把这一格整张顶掉）、素材只挂这一格里的人 + 场景卡；只先出第一段（顺序门禁照旧）。
   2026-10-06 走正式路径付费验过（¥4.50，docs 第三期那一节）。**接着等组图（App 重开）时人物还原**（2026-10-07 主人「改」）：

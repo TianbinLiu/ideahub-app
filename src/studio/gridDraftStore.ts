@@ -21,8 +21,9 @@ import {
   ImageGroupBusy,
   chargeNote,
   chargeOnFail,
+  checkGridPanel,
+  drawGridPanel,
   drawShotGroup,
-  generateFrame,
   imageUrlToDataUrl,
   listImageGroups,
   shotGroupRefs,
@@ -32,9 +33,25 @@ import { ArkHttpError } from "../ai/arkClient";
 import { canAfford, frozenNote, spendTokens } from "../data/account";
 import { onOwnerSwitch, workOwner } from "../data/deviceOwner";
 import { CHAT_TURN_TOKENS, IMAGE_TOKENS, fmtTokens } from "../data/economy";
-import { GRID_SHOTS_MAX, castGaps, panelMoment, panelPlot, panelRefLine, shotKey, type GridLang, type GridNote, type GridShot } from "../data/gridShots";
+import {
+  GRID_SHOTS_MAX,
+  castGaps,
+  gridDrawPlan,
+  gridFraming,
+  panelIssues,
+  panelKindOf,
+  panelPlot,
+  panelPrompt,
+  parsePanelCheck,
+  shotKey,
+  styleRefIndex,
+  type GridLang,
+  type GridNote,
+  type GridShot,
+  type PanelIssue,
+} from "../data/gridShots";
 import { currentRoute, startJob } from "../data/jobs";
-import { uid, type Card, type Proposal, type VideoAspect } from "../types";
+import { aspectOf, uid, type Card, type Proposal, type VideoAspect } from "../types";
 import type { AppendSpec } from "./flowStore";
 import { restoreCast } from "./leadDraftStore";
 import { runSceneToGrid } from "./structuredSkills";
@@ -54,6 +71,12 @@ export interface GridPanel {
   busy?: "fetch" | "redraw";
   /** 这一格没画成 / 没取回来的原因（整句人话） */
   err?: string;
+  /**
+   * 画完之后对话模型看的那一遍（data/gridShots：分成几格、几个人、有没有两个一样的人；2026-10-07 主人「改」）。
+   * done 的 issues 空 = 没看出问题；failed = 没核对上（why 是钱上的那句，没扣钱时为空）。缺省 = 还没看 / 演示构建不看。
+   * ★ 只标出来、不自动重画：重画要花钱，由人看过再点（车窗里的小人影这种也会被数进去）。
+   */
+  check?: { state: "running" } | { state: "done"; issues: PanelIssue[] } | { state: "failed"; why: string };
 }
 
 export interface GridDraft {
@@ -182,6 +205,11 @@ interface ParkedGroup {
   castIds?: string[];
   /** 画这一组时挑的场景卡；null = 没挑。同上，老记录没有 */
   placeId?: string | null;
+  /**
+   * 组图里的第 k 张是第几格（gridDrawPlan 的 group：空镜与特写不进组图，2026-10-07 起）。老记录没有 = 一格一张、顺序对应。
+   * ★ 接着等时照它把图摆回格子：按下标直接摆的话，空镜那一格会拿到下一格的画面
+   */
+  cells?: number[];
 }
 /** 方舟的图片链接 24 小时就失效：超过这么久的记录不再接 */
 const PARKED_TTL_MS = 23 * 3600 * 1000;
@@ -217,7 +245,10 @@ export function parkedGroupOf(owner = ownerOfDraft()): ParkedGroup | null {
   // 人物与场景卡读不对形状就当没记（还原不了 → gridCastIssue 拦下），别把一个坏值写进向导
   const castIds = Array.isArray(g.castIds) && g.castIds.every((x) => typeof x === "string") ? g.castIds : undefined;
   const placeId = typeof g.placeId === "string" ? g.placeId : null;
-  return { ...g, castIds, placeId };
+  // 格子对照读不对形状就当老记录（一格一张、顺序对应）
+  const cells =
+    Array.isArray(g.cells) && g.cells.every((x) => Number.isInteger(x) && x >= 0 && x < g.shots.length) ? g.cells : undefined;
+  return { ...g, castIds, placeId, cells };
 }
 
 /**
@@ -328,14 +359,24 @@ export function addShot(): void {
   useGridDraft.setState({ shots: [...s.shots, { size: "", picture: "", action: "", who: [] }], panels: [...s.panels, null] });
 }
 
-// ── 第③步：出一组画面 / 单格重画 ──────────────────────────────────────────────
+// ── 第③步：出一组画面 / 单画一格 / 看一遍 ────────────────────────────────────────
+//
+// ★★ 2026-10-07 主人「改」（付费验证在 docs/seedream-grid-fix-research.md 第七节）：
+//   ① 普通格进组图（gridDrawPlan），**空镜与特写组图之后单画**：组图的参考图对整组生效，空镜那一格会被画进人、特写会画成两人中景；
+//   ② 单画与单格重画是同一个函数（drawPanelAt），提示词 gridShots.panelPrompt（正面写画幅、参考图标用途）；
+//   ③ 每画好一格让对话模型看一遍（checkPanel）：分成几格、几个人、有没有两个一样的人。有问题标在那一格上，**由人决定重画**，不自动花钱。
 
-/** 一组画面最多要多少（按上限报：方舟只收画出来的那几张，没画出来的退回 —— 契约「组图」） */
+/**
+ * 看一遍要多少：一次看图对话（服务端对 chat 按调用次数定额收 CHAT_TURN_TOKENS，与塞几张图无关 —— 所以一次只看一张，见 ai/real.checkGridPanel）。
+ * 算进报价里：一组 = 每格一张图 + 看一遍；重画一格同理。
+ */
+export const PANEL_CHECK_TOKENS = CHAT_TURN_TOKENS;
+/** 一组画面最多要多少（按上限报：方舟只收画出来的那几张，没画出来的退回 —— 契约「组图」；每格再加看一遍） */
 export function groupQuote(n: number): number {
-  return IMAGE_TOKENS * n;
+  return (IMAGE_TOKENS + PANEL_CHECK_TOKENS) * n;
 }
-/** 单格重画一张 */
-export const PANEL_REDRAW_TOKENS = IMAGE_TOKENS;
+/** 单画 / 重画一格：一张图 + 看一遍 */
+export const PANEL_REDRAW_TOKENS = IMAGE_TOKENS + PANEL_CHECK_TOKENS;
 
 /** 审核没过的码（方舟原样）→ 一句人话 */
 function failLine(code: string): string {
@@ -344,29 +385,76 @@ function failLine(code: string): string {
 
 /**
  * 把这一组的最新进展落进格子里：新画好的那几张去取回来（方舟链接 → 本机 dataURL），没画成的那几格写上原因。
- * ★ 轮询每一次都回整份列表，取过的不再取（fetched 记着）；两张并行取，别把手机的流量一下子占满。
+ * ★ 组图里的第 k 张是 cells[k] 那一格（空镜与特写不进组图，gridDrawPlan）：按下标直接摆的话，空镜那一格会拿到下一格的画面。
+ * ★ 轮询每一次都回整份列表，取过的不再取（fetched 记着组图里的下标）。
  */
-function absorb(who: string, keys: string[], st: ImageGroupState, fetched: Set<number>, pending: Promise<void>[]): void {
+function absorb(
+  who: string,
+  keys: string[],
+  cells: readonly number[],
+  shots: readonly GridShot[],
+  st: ImageGroupState,
+  fetched: Set<number>,
+  pending: Promise<void>[],
+): void {
   for (const f of st.failures) {
-    if (f.index < 0 || f.index >= keys.length) continue;
-    patchPanel(who, f.index, (p) => (p?.image ? p : { image: "", key: keys[f.index], err: failLine(f.code) }));
+    const i = cells[f.index];
+    if (i === undefined) continue;
+    patchPanel(who, i, (p) => (p?.image ? p : { image: "", key: keys[i], err: failLine(f.code) }));
   }
   for (const img of st.images) {
-    const i = img.index;
-    if (i < 0 || i >= keys.length || fetched.has(i)) continue;
-    fetched.add(i);
+    const i = cells[img.index];
+    if (i === undefined || fetched.has(img.index)) continue;
+    fetched.add(img.index);
     patchPanel(who, i, () => ({ image: "", url: img.url, key: keys[i], busy: "fetch" }));
-    pending.push(fetchPanel(who, i, img.url, keys[i]));
+    pending.push(fetchPanel(who, i, img.url, keys[i], shots[i]));
   }
 }
 
-async function fetchPanel(who: string, i: number, url: string, key: string): Promise<void> {
+async function fetchPanel(who: string, i: number, url: string, key: string, shot: GridShot | undefined): Promise<void> {
   try {
     const image = await imageUrlToDataUrl(url);
     patchPanel(who, i, () => ({ image, url, key }));
+    if (shot) void checkPanel(who, i, shot, image);
   } catch (e) {
     const why = e instanceof Error ? e.message : String(e);
     patchPanel(who, i, () => ({ image: "", url, key, err: t`画好了、但没取回来（${why}）——点这一格重新取` }));
+  }
+}
+
+/** 同时最多看两格：一组画完那一拍别一下子并发七八次对话 */
+let checking = 0;
+const checkWaiters: (() => void)[] = [];
+async function checkSlot(): Promise<() => void> {
+  while (checking >= 2) await new Promise<void>((r) => checkWaiters.push(r));
+  checking++;
+  return () => {
+    checking--;
+    checkWaiters.shift()?.();
+  };
+}
+
+/**
+ * 画好一格之后让对话模型看一遍（ai/real.checkGridPanel），按这一格的分镜判（gridShots.panelIssues），结论挂在这一格上（GridPanel.check）。
+ * ★ 认图不认下标：看完的时候这一格可能已经重画过了（image 换了）—— 那份结论作废、不写。
+ * ★ 钱：对话回了（2xx）那一拍服务端已经按一次对话收了钱，本机账本同拍记一次（正式包上是空操作）；读不懂回话也照算。失败按类型说（ai/failCharge）。
+ * ★ 演示构建不看（没有对话模型）：check 缺省 = 界面什么都不标。
+ */
+async function checkPanel(who: string, i: number, shot: GridShot, image: string): Promise<void> {
+  if (!AI_REAL || !image) return;
+  patchPanel(who, i, (p) => (p && p.image === image ? { ...p, check: { state: "running" } } : p));
+  const release = await checkSlot();
+  try {
+    const raw = await checkGridPanel(image);
+    spendTokens(PANEL_CHECK_TOKENS);
+    const c = parsePanelCheck(raw);
+    const check: GridPanel["check"] = c ? { state: "done", issues: panelIssues(c, shot) } : { state: "failed", why: "" };
+    patchPanel(who, i, (p) => (p && p.image === image ? { ...p, check } : p));
+  } catch (e) {
+    const money = chargeNote(chargeOnFail(e), PANEL_CHECK_TOKENS);
+    patchPanel(who, i, (p) => (p && p.image === image ? { ...p, check: { state: "failed", why: money?.line ?? "" } } : p));
+  } finally {
+    release();
   }
 }
 
@@ -389,8 +477,25 @@ function groupNote(st: ImageGroupState, asked: number): string {
   return parts.join(sep);
 }
 
+/** 这个人的向导里画好了几格 */
+function drawnOf(who: string): number {
+  return (stateFor(who)?.panels ?? []).filter((p) => !!p?.image).length;
+}
+
+/** 后台任务票收尾：一格都没画好算失败（原因已经写在向导里），否则报画好了几格 */
+function closeJob(who: string, job: ReturnType<typeof startJob>): void {
+  const got = drawnOf(who);
+  if (!got) {
+    job.fail(t`九宫格分镜的画面没出成，回去看原因`);
+    return;
+  }
+  job.done({ msg: t`九宫格分镜画好了 ${got} 格`, silent: who === ownerOfDraft() && useGridDraft.getState().mounted });
+}
+
 /**
- * 出一组画面（组图）—— 领一张后台任务票，画好一张多一张。结果写回开工那一拍那个人的向导。
+ * 出一组画面 —— 领一张后台任务票，画好一张多一张。结果写回开工那一拍那个人的向导。
+ * 先出组图（普通格），再一格一格单画空镜 / 特写 / 落单的那一格（gridDrawPlan）；组图一张都没出来时不再单画
+ * （多半是连不上，单画也一样 —— 人再点一次「画出这一组」整组重来）。
  * @param o.cast 出场人物（卡），o.place 场景卡；画幅在 draft.aspect（画之前定）
  */
 export async function drawGroup(o: { cast: Card[]; place: Card | null }): Promise<void> {
@@ -420,67 +525,86 @@ export async function drawGroup(o: { cast: Card[]; place: Card | null }): Promis
   /** 跟着分镜一起记下来的人物与场景卡（App 重开后接着等时还原） */
   const castIds = o.cast.map((c) => c.id);
   const placeId = o.place?.id ?? null;
+  const plan = gridDrawPlan(shots);
   useGridDraft.setState({ drawing: t`准备参考图…`, drawErr: "", drawNote: "", panels: shots.map(() => null), picks: [] });
-  const fetched = new Set<number>();
-  const pending: Promise<void>[] = [];
-  const notes: string[] = [];
-  const onUpdate = (st: ImageGroupState) => {
-    absorb(who, keys, st, fetched, pending);
-    const k = st.images.length;
-    const n = shots.length;
+  const n = shots.length;
+  const say = () => {
+    const k = drawnOf(who);
     const line = t`画好 ${k}/${n} 格（一组约几分钟，可以先离开）`;
     writeFor(who, { drawing: line });
     job.update(line);
   };
+  const notes: string[] = [];
   try {
-    const st = await drawShotGroup({
-      shots,
-      lead: s.lead,
-      cast: o.cast,
-      place: o.place,
-      aspect,
-      onNote: (n) => notes.push(n),
-      onUpdate,
-      onStarted: (id) => {
-        writeFor(who, { groupId: id });
-        writeParked(who, { id, at: Date.now(), scene: s.scene, shots, lead: s.lead, lang: s.lang, aspect, castIds, placeId });
-      },
-    });
-    await finishGroup(who, st, shots.length, pending, job, notes);
-  } catch (e) {
-    if (e instanceof ImageGroupBusy && e.id) {
-      // 服务端说这个人已经有一组在画：是上一次受理过、还没取回来的那一组就接着等它（它记着自己的那一版分镜），否则说清楚
-      const g = parkedGroupOf(who);
-      if (g && g.id === e.id) {
-        job.done({ silent: true });
-        writeFor(who, { drawing: "" });
-        await resumeGroup();
+    if (plan.group.length) {
+      const fetched = new Set<number>();
+      const pending: Promise<void>[] = [];
+      let got = 0;
+      try {
+        const st = await drawShotGroup({
+          shots: plan.group.map((i) => shots[i]),
+          lead: s.lead,
+          cast: o.cast,
+          place: o.place,
+          aspect,
+          onNote: (x) => notes.push(x),
+          onUpdate: (u) => {
+            absorb(who, keys, plan.group, shots, u, fetched, pending);
+            say();
+          },
+          onStarted: (id) => {
+            writeFor(who, { groupId: id });
+            writeParked(who, { id, at: Date.now(), scene: s.scene, shots, lead: s.lead, lang: s.lang, aspect, castIds, placeId, cells: plan.group });
+          },
+        });
+        got = await settleGroup(who, st, plan.group.length, pending, notes);
+      } catch (e) {
+        await Promise.all(pending);
+        if (e instanceof ImageGroupBusy && e.id) {
+          // 服务端说这个人已经有一组在画：是上一次受理过、还没取回来的那一组就接着等它（它记着自己的那一版分镜），否则说清楚
+          const g = parkedGroupOf(who);
+          if (g && g.id === e.id) {
+            job.done({ silent: true });
+            writeFor(who, { drawing: "" });
+            await resumeGroup();
+            return;
+          }
+          writeFor(who, { drawErr: t`上一组画面还在画（同一时间只能画一组）——几分钟后再来` });
+          job.fail(t`上一组画面还在画`);
+          return;
+        }
+        if (e instanceof ArkNoReply && !import.meta.env.DEV && (await adoptLost(who, shots, s, aspect, castIds, placeId, plan.group))) {
+          // 受理那一发没收到回包、但服务端其实受理了：接回来接着等
+          job.done({ silent: true });
+          writeFor(who, { drawing: "" });
+          await resumeGroup();
+          return;
+        }
+        // 受理那一发就连不上（网关 / 代理回 502~504）：说人话，不摆「Ark … 504: {…}」（判据见 upstreamDown）
+        const why = upstreamDown(e) ? t`这次没连上出图服务（多半是网络抖了一下），再点一次就行` : e instanceof Error ? e.message : String(e);
+        const money = chargeNote(chargeOnFail(e), IMAGE_TOKENS * plan.group.length);
+        const moneyLine = money?.line ?? "";
+        writeFor(who, {
+          drawErr: money
+            ? t({
+                message: `画面没出成：${why}。${moneyLine}`,
+                comment: "why 是失败原因整句；moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格",
+              })
+            : t`画面没出成：${why}`,
+        });
+        job.fail(t`九宫格分镜的画面没出成，回去看原因`);
         return;
       }
-      writeFor(who, { drawErr: t`上一组画面还在画（同一时间只能画一组）——几分钟后再来` });
-      job.fail(t`上一组画面还在画`);
-    } else if (e instanceof ArkNoReply && !import.meta.env.DEV && (await adoptLost(who, shots, s, aspect, castIds, placeId))) {
-      // 受理那一发没收到回包、但服务端其实受理了：接回来接着等
-      job.done({ silent: true });
-      writeFor(who, { drawing: "" });
-      await resumeGroup();
-      return;
-    } else {
-      // 受理那一发就连不上（网关 / 代理回 502~504）：说人话，不摆「Ark … 504: {…}」（判据见 upstreamDown）
-      const why = upstreamDown(e) ? t`这次没连上出图服务（多半是网络抖了一下），再点一次就行` : e instanceof Error ? e.message : String(e);
-      const money = chargeNote(chargeOnFail(e), cost);
-      const moneyLine = money?.line ?? "";
-      writeFor(who, {
-        drawErr: money
-          ? t({
-              message: `画面没出成：${why}。${moneyLine}`,
-              comment: "why 是失败原因整句；moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格",
-            })
-          : t`画面没出成：${why}`,
-      });
-      job.fail(t`九宫格分镜的画面没出成，回去看原因`);
+      if (!got) {
+        job.fail(t`九宫格分镜的画面没出成，回去看原因`);
+        return;
+      }
     }
-    await Promise.all(pending);
+    for (const sg of plan.singles) {
+      say();
+      await drawPanelAt(who, sg.index, shots[sg.index], { cast: o.cast, place: o.place, ask: "", aspect, lead: s.lead });
+    }
+    closeJob(who, job);
   } finally {
     writeFor(who, { drawing: "" });
   }
@@ -488,22 +612,24 @@ export async function drawGroup(o: { cast: Card[]; place: Card | null }): Promis
 
 /** 受理那一发没收到回包：问服务端这个人最近的几组里有没有刚开的那一组（张数对得上、三分钟内受理的），有就认领（任务号 + 这一版分镜记下来，接着等）。
  *  ★ 必须卡时间：服务端其实没受理的话，最近的那一组是十几分钟前的旧一组 —— 认成它，旧图就按新分镜的下标摆进格子里了 */
-async function adoptLost(who: string, shots: GridShot[], s: GridDraft, aspect: VideoAspect, castIds: string[], placeId: string | null): Promise<boolean> {
+async function adoptLost(
+  who: string,
+  shots: GridShot[],
+  s: GridDraft,
+  aspect: VideoAspect,
+  castIds: string[],
+  placeId: string | null,
+  cells: number[],
+): Promise<boolean> {
   const recent = await listImageGroups();
-  const hit = recent.find((g) => g.maxImages === shots.length && g.createdAt > 0 && Date.now() - g.createdAt < 3 * 60_000);
+  const hit = recent.find((g) => g.maxImages === cells.length && g.createdAt > 0 && Date.now() - g.createdAt < 3 * 60_000);
   if (!hit) return false;
-  writeParked(who, { id: hit.id, at: Date.now(), scene: s.scene, shots, lead: s.lead, lang: s.lang, aspect, castIds, placeId });
+  writeParked(who, { id: hit.id, at: Date.now(), scene: s.scene, shots, lead: s.lead, lang: s.lang, aspect, castIds, placeId, cells });
   return true;
 }
 
-async function finishGroup(
-  who: string,
-  st: ImageGroupState,
-  asked: number,
-  pending: Promise<void>[],
-  job: ReturnType<typeof startJob>,
-  notes: string[],
-): Promise<void> {
+/** 一组画完（或接着等完）：等取图收尾、撤掉落盘记录、本机账本按拿到手的张数记、写结局那一句（一张都没有时写失败原因）。回拿到手几张 */
+async function settleGroup(who: string, st: ImageGroupState, asked: number, pending: Promise<void>[], notes: string[]): Promise<number> {
   await Promise.all(pending);
   writeParked(who, null);
   const got = st.images.length;
@@ -513,12 +639,8 @@ async function finishGroup(
   // 一张都没有时，下面那句失败的话已经说全了：groupNote 的「N 格模型没画」在连不上 / 断了的时候还会误导（模型根本没收到）
   const note = [got ? groupNote(st, asked) : "", ...notes].filter(Boolean).join(sep);
   writeFor(who, { groupId: "", drawNote: note });
-  if (!got) {
-    writeFor(who, { drawErr: groupFailLine(st) });
-    job.fail(t`九宫格分镜的画面没出成，回去看原因`);
-    return;
-  }
-  job.done({ msg: t`九宫格分镜画好了 ${got} 格`, silent: who === ownerOfDraft() && useGridDraft.getState().mounted });
+  if (!got) writeFor(who, { drawErr: groupFailLine(st) });
+  return got;
 }
 
 /**
@@ -531,7 +653,7 @@ function groupUpstreamDown(st: ImageGroupState): boolean {
   return /^HTTP_50[234]$/.test(st.code) || (!st.code && /^ark upstream \w/.test(st.message));
 }
 
-/** 单张出图（单格重画）的同一种失败：服务端网关回 502/503/504。认状态码，不认 message */
+/** 单张出图（单画一格）的同一种失败：服务端网关回 502/503/504。认状态码，不认 message */
 function upstreamDown(e: unknown): boolean {
   return e instanceof ArkHttpError && e.status >= 502 && e.status <= 504;
 }
@@ -550,9 +672,10 @@ function groupFailLine(st: ImageGroupState): string {
 
 /**
  * 接着等上一组（向导打开时发现 localStorage 里有受理过、还没取回来的那一组）：恢复那一版分镜，轮询到有结局、把图取回来。
- * ★ 当时那一版分镜原样恢复（格子与图按下标对应）：人在这期间改过的分镜会被换回去 —— 画面就是按那一版画的。
+ * ★ 当时那一版分镜原样恢复（格子与图按 cells 对应）：人在这期间改过的分镜会被换回去 —— 画面就是按那一版画的。
  * ★ 当时选的人与场景卡一并还原（只在向导里那一项空着时：App 重开后它们本来就是空的；人这一次已经重新选过就不替他改）。
  *   还原不了的（老记录没记、卡被删了）由 gridCastIssue 在重画与落段那一步拦下。
+ * ★ 空镜与特写不在组图里：接着等完**不替人单画**（App 重开过，别在人没点的时候花钱），在结局那句里说一声、让人点开那一格自己画。
  */
 export async function resumeGroup(): Promise<void> {
   const who = ownerOfDraft();
@@ -560,6 +683,7 @@ export async function resumeGroup(): Promise<void> {
   const s = useGridDraft.getState();
   if (!g || s.drawing) return;
   const keys = g.shots.map(shotKey);
+  const cells = g.cells ?? g.shots.map((_, i) => i);
   const job = startJob({ kind: "grid-draw", title: t`九宫格分镜 · 出画面`, page: currentRoute(), route: currentRoute(), progress: t`接着等上一组…` });
   if (g.castIds) restoreCast(g.castIds);
   useGridDraft.setState({
@@ -580,24 +704,32 @@ export async function resumeGroup(): Promise<void> {
   });
   const fetched = new Set<number>();
   const pending: Promise<void>[] = [];
+  const n = g.shots.length;
   try {
     const st = await drawShotGroup({
-      shots: g.shots,
+      shots: cells.map((i) => g.shots[i]),
       lead: g.lead,
       cast: [],
       place: null,
       aspect: g.aspect ?? undefined,
       resumeId: g.id,
       onUpdate: (u) => {
-        absorb(who, keys, u, fetched, pending);
-        const k = u.images.length;
-        const n = g.shots.length;
+        absorb(who, keys, cells, g.shots, u, fetched, pending);
+        const k = drawnOf(who);
         const line = t`画好 ${k}/${n} 格（一组约几分钟，可以先离开）`;
         writeFor(who, { drawing: line });
         job.update(line);
       },
     });
-    await finishGroup(who, st, g.shots.length, pending, job, []);
+    const got = await settleGroup(who, st, cells.length, pending, []);
+    const rest = g.shots.map((_, i) => i).filter((i) => !cells.includes(i));
+    if (got && rest.length) {
+      const list = rest.map((i) => i + 1).join(t({ message: "、", comment: "列举几个名字时的分隔符" }));
+      const sep = t({ message: "；", comment: "把几条说明连成一句时的分隔符" });
+      const before = stateFor(who)?.drawNote ?? "";
+      writeFor(who, { drawNote: [before, t`第 ${list} 格是空镜或特写，不放进组图：点开那一格单独画`].filter(Boolean).join(sep) });
+    }
+    closeJob(who, job);
   } catch (e) {
     const why = e instanceof Error ? e.message : String(e);
     // 查不到了（过期 / 不是这个账号的）就别再记着；断网之类的留着，下次打开再接
@@ -613,18 +745,76 @@ export async function resumeGroup(): Promise<void> {
 /** 取图失败的那一格再取一次（图已经付过钱，链接 24 小时内还在） */
 export async function refetchPanel(i: number): Promise<void> {
   const who = ownerOfDraft();
-  const p = useGridDraft.getState().panels[i];
+  const s = useGridDraft.getState();
+  const p = s.panels[i];
   if (!p?.url || p.busy) return;
   patchPanel(who, i, (x) => (x ? { ...x, busy: "fetch", err: undefined } : x));
-  await fetchPanel(who, i, p.url, p.key);
+  await fetchPanel(who, i, p.url, p.key, s.shots[i]);
 }
 
 /**
- * 单格重画（一张图）：带这一格里的人的卡图（没有人就只带场景卡）+ 这一格的画面 +（可选）补一句要求，走 generateFrame（与画帧同一个外壳）。
- * ★ 「这一格里有谁」认 shot.who（模型明说的），不按名字在句子里找：空镜就真的一张人物图都不带（gridShots 文件头）。
- * ★ 参考图与「图几是谁」与整组同一份（ai/real.shotGroupRefs：这一格里的人**都**带、逐张点名）—— 不走画帧那条「只带第一个人物」的老规矩：
- *   重画的这一格要与整组里的别的格子是同一批人，2026-10-05 付费对比里逐格重画就是这么带的（格子裁图 + 两个人的图），照文字改对了人。
- * ★ 钱：成功才扣（AI_REAL 下记本机账本；正式包服务端按调用结算）；失败按类型说钱花没花（ai/failCharge）。
+ * 单画一格：组图之后的空镜 / 特写 / 落单的那一格，与单格重画**同一个函数**。提示词 gridShots.panelPrompt，出图 ai/real.drawGridPanel，画完看一遍。
+ * ★ 带什么图：空镜 = 这一组里定画风的那一格（gridShots.styleRefIndex）+ 场景卡，**一张人物图都不带**；特写 = 只带这一格里的人；
+ *   别的格 = 这一格里的人 + 场景卡。人物与场景的图、「图几是什么」走 ai/real.shotGroupRefs（这一格里的人**都**带、逐张标用途）。
+ * ★ 「这一格里有谁」认 shot.who（模型明说的），不按名字在句子里找（gridShots 文件头）。
+ * ★ 钱：出图成功才扣（AI_REAL 下记本机账本；正式包服务端按调用结算）；失败按类型说钱花没花（ai/failCharge）。看一遍那一笔在 checkPanel 里另记。
+ * @returns 画成没有
+ */
+async function drawPanelAt(
+  who: string,
+  i: number,
+  shot: GridShot,
+  o: { cast: Card[]; place: Card | null; ask: string; aspect: VideoAspect; lead: string },
+): Promise<boolean> {
+  const before = stateFor(who)?.panels[i] ?? null;
+  patchPanel(who, i, (p) => ({ image: p?.image ?? "", url: p?.url, key: p?.key ?? "", busy: "redraw" }));
+  try {
+    const kind = panelKindOf(shot);
+    let styleRef = "";
+    if (kind === "empty") {
+      const cur = stateFor(who);
+      const k = cur ? styleRefIndex(cur.shots, cur.panels.map((p) => !!p?.image), i) : -1;
+      styleRef = k >= 0 ? (cur?.panels[k]?.image ?? "") : "";
+    }
+    const { refs, labeled } = await shotGroupRefs({
+      cast: kind === "empty" ? [] : castOfShot(o.cast, shot),
+      place: kind === "close" ? null : o.place,
+      panels: 1,
+      before: styleRef ? 1 : 0,
+    });
+    const prompt = panelPrompt({ shot, lead: o.lead, ask: o.ask, bind: labeled, framing: gridFraming(aspectOf(o.aspect).ratio), styleRef: !!styleRef });
+    const image = await drawGridPanel(prompt, { aspect: o.aspect, refs: [...(styleRef ? [styleRef] : []), ...refs] });
+    if (AI_REAL) spendTokens(IMAGE_TOKENS); // 出图成功才扣，与「重画这一套」同口径
+    patchPanel(who, i, () => ({ image, key: shotKey(shot) }));
+    void checkPanel(who, i, shot, image);
+    return true;
+  } catch (e) {
+    // 连不上出图服务时原话是「Ark /images/generations 504: {"message":"ark upstream TypeError"}」—— 说人话（判据见 upstreamDown）
+    const why = upstreamDown(e) ? t`这次没连上出图服务（多半是网络抖了一下），再点一次就行` : e instanceof Error ? e.message : String(e);
+    const money = chargeNote(chargeOnFail(e), IMAGE_TOKENS);
+    const moneyLine = money?.line ?? "";
+    const again = !!before?.image;
+    const err = money
+      ? again
+        ? t({
+            message: `重画没成：${why}。${moneyLine}`,
+            comment: "why 是失败原因整句；moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格",
+          })
+        : t({
+            message: `这一格没画成：${why}。${moneyLine}`,
+            comment: "why 是失败原因整句；moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格",
+          })
+      : again
+        ? t`重画没成：${why}`
+        : t`这一格没画成：${why}`;
+    patchPanel(who, i, () => (before ? { ...before, busy: undefined, err } : { image: "", key: "", err }));
+    return false;
+  }
+}
+
+/**
+ * 单格重画（一张图）：人点开那一格、（可选）补一句要求、点「重画这一格」。画法与组图之后的单画同一个函数（drawPanelAt）。
+ * ★ 闸都在这里：这一格还没写画面 / 这一格里的人没选上（gridCastIssue）/ 余额不够 —— 都在花钱之前拦下。
  */
 export async function redrawPanel(i: number, o: { cast: Card[]; place: Card | null; ask: string }): Promise<void> {
   const s = useGridDraft.getState();
@@ -645,31 +835,7 @@ export async function redrawPanel(i: number, o: { cast: Card[]; place: Card | nu
     patchPanel(ownerOfDraft(), i, (p) => ({ image: p?.image ?? "", key: p?.key ?? "", err: frozenNote() ?? t`重画一格要 ${price} token，余额不够——去「我的」页充值` }));
     return;
   }
-  const who = ownerOfDraft();
-  const before = s.panels[i];
-  patchPanel(who, i, (p) => ({ image: p?.image ?? "", url: p?.url, key: p?.key ?? "", busy: "redraw" }));
-  try {
-    const notes: string[] = [];
-    const { refs, bind } = await shotGroupRefs({ cast: castOfShot(o.cast, shot), place: o.place, panels: 1, onNote: (n) => notes.push(n) });
-    const image = await generateFrame(`${panelMoment(shot, s.lead, o.ask)}${panelRefLine(bind)}`, {
-      aspect: s.aspect,
-      refs: refs.length ? refs : undefined,
-    });
-    if (AI_REAL) spendTokens(PANEL_REDRAW_TOKENS); // 出图成功才扣，与「重画这一套」同口径
-    patchPanel(who, i, () => ({ image, key: shotKey(shot) }));
-  } catch (e) {
-    // 连不上出图服务时原话是「Ark /images/generations 504: {"message":"ark upstream TypeError"}」—— 说人话（判据见 upstreamDown）
-    const why = upstreamDown(e) ? t`这次没连上出图服务（多半是网络抖了一下），再点一次就行` : e instanceof Error ? e.message : String(e);
-    const money = chargeNote(chargeOnFail(e), PANEL_REDRAW_TOKENS);
-    const moneyLine = money?.line ?? "";
-    const err = money
-      ? t({
-          message: `重画没成：${why}。${moneyLine}`,
-          comment: "why 是失败原因整句；moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格",
-        })
-      : t`重画没成：${why}`;
-    patchPanel(who, i, () => (before ? { ...before, busy: undefined, err } : { image: "", key: "", err }));
-  }
+  await drawPanelAt(ownerOfDraft(), i, shot, { cast: o.cast, place: o.place, ask: o.ask, aspect: s.aspect, lead: s.lead });
 }
 
 /** 挑中的那几格的分镜（按挑的先后；挑的格子已经不在了的跳过） */

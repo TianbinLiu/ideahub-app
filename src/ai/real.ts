@@ -60,7 +60,8 @@ import { minimaxVideo, takeMinimaxTask } from "./minimaxVideo";
 import { refableViews } from "../data/cardViews";
 import { drawExtraRefs, plainMentions } from "../data/refMentions";
 import { frameMoment, momentCards } from "../data/shotScript";
-import { groupBindLine, groupPrompt, groupRefsCap, type GridShot, type GroupRef } from "../data/gridShots";
+import { PANEL_CHECK_ASK, PANEL_CHECK_SYS, gridFraming, groupBindLine, groupPrompt, groupRefsCap, labeledBindLine, type GridShot, type GroupRef } from "../data/gridShots";
+import { shrinkDataUrl } from "../utils/image";
 // 已授权的可信素材：整张卡改发 asset:// URI（判据与拼法各只有一处，见 data/cardAsset）
 import { assetOf, assetUri } from "../data/cardAsset";
 import {
@@ -1243,6 +1244,8 @@ export interface MaterialRefs {
    *   去拼的话，绑定句就点名到没发出去的编号上（CLAUDE.md「帧一律当参考图发」那条的坑 ②）。
    */
   owners: readonly Card[];
+  /** 每一张参考图是那张卡的**哪一张图**（与 `refs` 逐张对齐）。九宫格拿它给参考图标用途（「图1是林夏的脸，图2是林夏的服装和身形」） */
+  views: readonly CardView[];
 }
 
 /**
@@ -1278,7 +1281,7 @@ export async function prepareMaterialRefs(
   onNote?: (note: string) => void,
   direct: boolean | { cap?: number; strict: boolean } = false,
 ): Promise<MaterialRefs> {
-  const empty: MaterialRefs = { refs: [], bind: () => "", bindCompact: () => "", cards: new Set(), owners: [] };
+  const empty: MaterialRefs = { refs: [], bind: () => "", bindCompact: () => "", cards: new Set(), owners: [], views: [] };
   if (!materials?.length) return empty;
   // 布尔 true = 白模的老调用形态（严格闸 + 2.5 上限）；对象 = 带档位协议上限的直通路
   const d = direct === true ? { cap: undefined as number | undefined, strict: true } : direct || null;
@@ -1423,6 +1426,7 @@ export async function prepareMaterialRefs(
     refs: good.map((p) => p.url),
     cards: new Set(good.map((p) => p.card.id)),
     owners: good.map((p) => p.card),
+    views: good.map((p) => p.view),
     bindCompact: compact,
     bind: (offset = 0) => {
       if (multiChar) return compact(offset);
@@ -2790,8 +2794,9 @@ export async function generateFrame(
  *   上限 = 15 − 张数（官方：参考图 + 出图 ≤ 15，data/gridShots.groupRefsCap）。
  * ★★ 「图几是谁」那一句按**真正发出去的**参考图逐张对（MaterialRefs.owners），不按分配计划拼 —— 取图那一拍个别图读不出来会被跳过、
  *   编号随之前移，按计划拼就点名到没发出去的编号上（「帧一律当参考图发」那条的坑 ②）。
- * ★ 写法用付费对比里验过的「图1、图2 是林夏（…）」，不用视频那边的 `@图片N` 紧凑式（那是 Seedance 的 A/B，Seedream 没验过）。
- * ★ 出图模型 = 画帧的默认档（MODELS.image，今天 Seedream 4.0）：单格重画走 generateFrame 也是它，一组里重画的那一格与别的格子同一个模型。
+ * ★ 写法：九宫格用 labeled（「图1是林夏的脸，图2是林夏的服装和身形」，2026-10-07 付费验证），对话正反打 / 特效同款用 bind
+ *   （「图1、图2 是林夏（…）」，各自验过）；都不用视频那边的 `@图片N` 紧凑式（那是 Seedance 的 A/B，Seedream 没验过）。
+ * ★ 出图模型 = 画帧的默认档（MODELS.image，今天 Seedream 4.0）：单画一格（drawGridPanel）也是它，一组里单画 / 重画的那一格与别的格子同一个模型。
  * @param o.resumeId 接着等的那一组（App 重开 / 受理那一发没收到回包后接回来的）：直接轮询，不再挑图、不再受理
  */
 export async function shotGroupRefs(o: {
@@ -2805,16 +2810,22 @@ export async function shotGroupRefs(o: {
    */
   before?: number;
   onNote?: (note: string) => void;
-}): Promise<{ refs: string[]; bind: string }> {
+}): Promise<{ refs: string[]; bind: string; labeled: string }> {
   const cards = [...o.cast, ...(o.place ? [o.place] : [])];
   const before = Math.max(0, o.before ?? 0);
   const cap = groupRefsCap(o.panels + before, o.cast.length, o.place ? 1 : 0);
   const mat = cap > 0 && cards.length ? await prepareMaterialRefs(cards, "image", o.onNote, { cap, strict: false }) : null;
-  // 同一张卡的图在 refs 里是连号的（allocateRefs 最后按卡归拢），按卡收拢成「图1、图2 是谁」
-  const byCard = new Map<Card, number[]>();
-  (mat?.owners ?? []).forEach((c, i) => byCard.set(c, [...(byCard.get(c) ?? []), before + i + 1]));
-  const refs: GroupRef[] = [...byCard].map(([c, nums]) => ({ name: c.name, type: c.type, nums, idLine: idLineOf(c) }));
-  return { refs: mat?.refs ?? [], bind: groupBindLine(refs) };
+  // 同一张卡的图在 refs 里是连号的（allocateRefs 最后按卡归拢），按卡收拢成「图1、图2 是谁」；每张是哪一类图（脸 / 全身）跟着记下
+  const byCard = new Map<Card, { nums: number[]; kinds: string[] }>();
+  (mat?.owners ?? []).forEach((c, i) => {
+    const e = byCard.get(c) ?? { nums: [], kinds: [] };
+    e.nums.push(before + i + 1);
+    e.kinds.push(mat?.views[i]?.kind ?? "");
+    byCard.set(c, e);
+  });
+  const refs: GroupRef[] = [...byCard].map(([c, e]) => ({ name: c.name, type: c.type, nums: e.nums, kinds: e.kinds, idLine: idLineOf(c) }));
+  // bind = 对话正反打 / 特效同款用的老写法（各自付费验过，没跟着换）；labeled = 九宫格 2026-10-07 起的写法（标用途、不写外貌）
+  return { refs: mat?.refs ?? [], bind: groupBindLine(refs), labeled: labeledBindLine(refs) };
 }
 
 /** 跟着做 C：一次画出整组（见上面那段 ★）。参考图与「图几是谁」走 shotGroupRefs（单格重画也走它，一处实现） */
@@ -2830,18 +2841,41 @@ export async function drawShotGroup(o: {
   onNote?: (note: string) => void;
 }): Promise<ImageGroupState> {
   if (o.resumeId) return runImageGroup(null, { resumeId: o.resumeId, onUpdate: o.onUpdate });
-  const { refs, bind } = await shotGroupRefs({ cast: o.cast, place: o.place, panels: o.shots.length, onNote: o.onNote });
+  const { refs, labeled } = await shotGroupRefs({ cast: o.cast, place: o.place, panels: o.shots.length, onNote: o.onNote });
   const spec = aspectOf(o.aspect);
   return runImageGroup(
     {
       model: MODELS.image,
-      prompt: groupPrompt({ lead: o.lead, shots: o.shots, bind, framing: spec.promptHint }),
+      prompt: groupPrompt({ lead: o.lead, shots: o.shots, bind: labeled, framing: gridFraming(spec.ratio) }),
       image: refs,
       size: spec.frameSize,
       maxImages: o.shots.length,
     },
     { onUpdate: o.onUpdate, onStarted: o.onStarted },
   );
+}
+
+/**
+ * 九宫格单画一格：组图之后单画的空镜 / 特写，以及单格重画（提示词整段由 data/gridShots.panelPrompt 拼好）。
+ * ★ 不走 generateFrame：那层外壳带「上下留出呼吸空间」与「不要分格、拼贴」，2026-10-07 付费验证里的新写法把画幅改成了正面写
+ *   （单格重画 6/6 干净，原写法 3 张里 1 张同一个人画了两次）。出图模型与组图同一个（MODELS.image）。
+ * @param o.refs 参考图，顺序与 panelPrompt 里「图几是什么」的编号一致（空镜那张定画风的图在最前）
+ */
+export async function drawGridPanel(prompt: string, o: { aspect: VideoAspect | undefined; refs?: string[] }): Promise<string> {
+  const spec = aspectOf(o.aspect);
+  return genImageAsDataUrl(prompt, { imageRefs: o.refs?.length ? o.refs : undefined, size: spec.frameSize });
+}
+
+/**
+ * 九宫格画完一格之后让对话模型看一遍（data/gridShots.PANEL_CHECK_SYS：分成几格、几个人、有没有两个一样的人），回原话；
+ * 判对错在调用方按这一格的分镜算（panelIssues）。
+ * ★ 图先缩到 720 宽再发：原图 1440×2560 一张四千多输入 token，缩完 1,500 上下（2026-10-07 付费验证 51 次的实测），数人、认拼图够用。
+ * ★ 一次对话只看一张：服务端对 chat 按调用次数定额收（CHAT_TURN_TOKENS），一次塞八张，方舟那边是八倍的输入、我们只收一次；
+ *   一张一张问也更准，判错只错一格。
+ */
+export async function checkGridPanel(image: string): Promise<string> {
+  const small = image.startsWith("data:") ? (await shrinkDataUrl(image, 720, 0.82)) || image : image;
+  return chatVision(PANEL_CHECK_SYS, PANEL_CHECK_ASK, [small]);
 }
 
 /**

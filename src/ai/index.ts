@@ -91,7 +91,15 @@ export const drawShotGroup: typeof real.drawShotGroup = AI_REAL
       return { ...s, status: "done", images: [...s.images] };
     };
 /** C 的参考图与「图几是谁」（整组与单格重画共用）；mock 构建没有参考图这回事（出图是本地占位帧） */
-export const shotGroupRefs: typeof real.shotGroupRefs = AI_REAL ? real.shotGroupRefs : async () => ({ refs: [], bind: "" });
+export const shotGroupRefs: typeof real.shotGroupRefs = AI_REAL ? real.shotGroupRefs : async () => ({ refs: [], bind: "", labeled: "" });
+/** C 单画一格（组图之后的空镜 / 特写、单格重画；提示词由 data/gridShots.panelPrompt 拼）；mock 构建出本地占位帧 */
+export const drawGridPanel: typeof real.drawGridPanel = AI_REAL
+  ? real.drawGridPanel
+  : async (prompt, o) => {
+      return makeFrame(`panel:${prompt}:${Math.random()}`, t`单画一格 · 演示`, undefined, o.aspect);
+    };
+/** C 画完一格让对话模型看一遍（回原话）；mock 构建不看（回空串 = 没核对，界面什么都不标） */
+export const checkGridPanel: typeof real.checkGridPanel = AI_REAL ? real.checkGridPanel : async () => "";
 /** 组图的那几张：方舟临时链接 → 本机 dataURL（mock 构建本来就是 dataURL） */
 export const imageUrlToDataUrl: typeof real.imageUrlToDataUrl = AI_REAL ? real.imageUrlToDataUrl : async (u) => u;
 /** 这台机器出得了组图吗（真实构建问 arkClient：打包看服务端的能力位；mock 构建恒能：画本地占位帧） */
@@ -175,7 +183,7 @@ export const deriveCharacterModels: typeof real.deriveCharacterModels = AI_REAL
  */
 export const prepareMaterialRefs: typeof real.prepareMaterialRefs = AI_REAL
   ? real.prepareMaterialRefs
-  : async () => ({ refs: [], bind: () => "", bindCompact: () => "", cards: new Set<string>(), owners: [] });
+  : async () => ({ refs: [], bind: () => "", bindCompact: () => "", cards: new Set<string>(), owners: [], views: [] });
 export type { MaterialRefs } from "./real";
 /** 几条提示（prepareMaterialRefs 的 onNote、铸卡的 notes…）怎么连成一串 / 括成进度行的尾巴：分隔符与括号都进目录，
  *  全仓一处（real.ts），真假两种构建同一份 —— 调用方别再自己写 `notes.join("；")` */

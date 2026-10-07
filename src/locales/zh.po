@@ -181,6 +181,7 @@ msgstr "，这一次已经计费"
 #. 列举几个名字时的分隔符
 #. 列举几个名字时的分隔符
 #. 列举几个名字时的分隔符
+#. 列举几个名字时的分隔符
 #. 列举几个图位名 / 还缺的几项时的分隔符
 #. 列举几个文件名 / 动作组 / 表情名时的分隔符
 #. 列举几个段号时的分隔符（第 1、3 段）
@@ -221,6 +222,7 @@ msgstr "、"
 #. 把几条「这一档为什么点不动」的原因连成一行时的分隔符
 #. 把几条「这一档为什么点不动」的原因连成一行时的分隔符
 #. 把几条「这一档为什么点不动」的原因连成一行时的分隔符
+#. 把几条说明连成一句时的分隔符
 #. 把几条说明连成一句时的分隔符
 #. 把几条说明连成一句时的分隔符
 #. 把几条说明连成一句时的分隔符
@@ -3696,6 +3698,10 @@ msgstr "AI 生成整套约 {aiPriceText} token，余额 {balance} 不够——�
 msgid "AI 画竖横两张约 {framesPrice} token"
 msgstr "AI 画竖横两张约 {framesPrice} token"
 
+#: src/components/flow/GridShotsWizard.tsx
+msgid "AI 看了一遍画面：第 {flaggedList} 格可能和分镜不一样（点开那一格看原因）。要重画就点开、补一句要求再重画；不重画也能接着往下走。"
+msgstr "AI 看了一遍画面：第 {flaggedList} 格可能和分镜不一样（点开那一格看原因）。要重画就点开、补一句要求再重画；不重画也能接着往下走。"
+
 #: src/components/blockout/VisionFramePicker.tsx
 #: src/components/guide/tours.tsx
 msgid "AI 看哪几帧"
@@ -4033,8 +4039,12 @@ msgid "一次全给（{0} 个文件）"
 msgstr "一次全给（{0} 个文件）"
 
 #: src/components/flow/GridShotsWizard.tsx
-msgid "一次画出整组：人物与光线前后一致。按实际画出来的张数收钱，没画出来的那几格不收。一组要几分钟，可以先离开，画好了会提醒你。"
-msgstr "一次画出整组：人物与光线前后一致。按实际画出来的张数收钱，没画出来的那几格不收。一组要几分钟，可以先离开，画好了会提醒你。"
+#~ msgid "一次画出整组：人物与光线前后一致。按实际画出来的张数收钱，没画出来的那几格不收。一组要几分钟，可以先离开，画好了会提醒你。"
+#~ msgstr "一次画出整组：人物与光线前后一致。按实际画出来的张数收钱，没画出来的那几格不收。一组要几分钟，可以先离开，画好了会提醒你。"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "一次画出整组：人物与光线前后一致。没有人的格子和特写不放进这一组（放进去容易画进别人），整组画完再一格一格单独画。每画好一格，AI 会看一遍几个人、有没有画重、是不是拼图，有问题的格子会标出来，由你决定要不要重画。按实际画出来的张数收钱，没画出来的那几格不收。一组要几分钟，可以先离开，画好了会提醒你。"
+msgstr "一次画出整组：人物与光线前后一致。没有人的格子和特写不放进这一组（放进去容易画进别人），整组画完再一格一格单独画。每画好一格，AI 会看一遍几个人、有没有画重、是不是拼图，有问题的格子会标出来，由你决定要不要重画。按实际画出来的张数收钱，没画出来的那几格不收。一组要几分钟，可以先离开，画好了会提醒你。"
 
 #: src/studio/structuredSkills.ts
 msgid "一次画出整组画面，挑几格、每格一段"
@@ -7716,8 +7726,16 @@ msgid "十年前那一战"
 msgstr "十年前那一战"
 
 #: src/components/flow/GridShotsWizard.tsx
-msgid "单独画一张：只带这一格里的人的卡图（没有人就只带场景卡），与整组的画风尽量一致，但不保证一模一样。"
-msgstr "单独画一张：只带这一格里的人的卡图（没有人就只带场景卡），与整组的画风尽量一致，但不保证一模一样。"
+msgid "单独画一张：只带这一格里的人的卡图；没有人的格子拿这一组里另一格定画风、一张人物图都不带。与整组的画风尽量一致，但不保证一模一样。画完 AI 会看一遍（价钱里含这一次）。"
+msgstr "单独画一张：只带这一格里的人的卡图；没有人的格子拿这一组里另一格定画风、一张人物图都不带。与整组的画风尽量一致，但不保证一模一样。画完 AI 会看一遍（价钱里含这一次）。"
+
+#: src/components/flow/GridShotsWizard.tsx
+#~ msgid "单独画一张：只带这一格里的人的卡图（没有人就只带场景卡），与整组的画风尽量一致，但不保证一模一样。"
+#~ msgstr "单独画一张：只带这一格里的人的卡图（没有人就只带场景卡），与整组的画风尽量一致，但不保证一模一样。"
+
+#: src/ai/index.ts
+msgid "单画一格 · 演示"
+msgstr "单画一格 · 演示"
 
 #: src/components/support/VoiceSheet.tsx
 msgid "单音色"
@@ -9096,6 +9114,10 @@ msgstr "合成预览要一张图的钱（{0} token），余额不够——去「
 #: src/pages/tutor/TutorNewPage.tsx
 msgid "合计约 {0} token"
 msgstr "合计约 {0} token"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "同一个人出现了两次"
+msgstr "同一个人出现了两次"
 
 #: src/components/guide/tours.tsx
 msgid "同一条片的另一面"
@@ -14285,6 +14307,10 @@ msgstr "有两张不同的卡都叫「{cardName}」（编号 {slotLabel} 挂的�
 msgid "有人"
 msgstr "有人"
 
+#: src/components/flow/GridShotsWizard.tsx
+msgid "有几格的画面写到了「{names}」，已把他们算进那几格画面里的人（不想让他们入镜，就改掉画面里的名字）"
+msgstr "有几格的画面写到了「{names}」，已把他们算进那几格画面里的人（不想让他们入镜，就改掉画面里的名字）"
+
 #: src/studio/gridDraftStore.ts
 msgid "有几格还没写画面——写上，或者删掉那几格再画"
 msgstr "有几格还没写画面——写上，或者删掉那几格再画"
@@ -17691,6 +17717,10 @@ msgstr "画布里还有本机地址，换台设备取回来会是空的"
 msgid "画幅"
 msgstr "画幅"
 
+#: src/components/flow/GridShotsWizard.tsx
+msgid "画成了 {got} 格拼图"
+msgstr "画成了 {got} 格拼图"
+
 #: src/components/flow/TierRow.tsx
 msgid "画质"
 msgstr "画质"
@@ -17777,6 +17807,10 @@ msgstr "画面质量"
 msgid "画面还没就绪——等视频出画面再点"
 msgstr "画面还没就绪——等视频出画面再点"
 
+#: src/components/flow/GridShotsWizard.tsx
+msgid "画面里写到了「{outside}」，上面却没选：画的时候多半会把他们画进去、还带不上卡图 —— 要他们入镜就点上，不要就把名字改成「画外的人」。"
+msgstr "画面里写到了「{outside}」，上面却没选：画的时候多半会把他们画进去、还带不上卡图 —— 要他们入镜就点上，不要就把名字改成「画外的人」。"
+
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "画面里怎么认出这个人偶（这句话会进出片提示词）"
 msgstr "画面里怎么认出这个人偶（这句话会进出片提示词）"
@@ -17784,6 +17818,14 @@ msgstr "画面里怎么认出这个人偶（这句话会进出片提示词）"
 #: src/components/VideoCardAnnotator.tsx
 msgid "画面里是真实人物（真人）"
 msgstr "画面里是真实人物（真人）"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "画面里有 {got} 个人（这一格应该是 {want} 个）"
+msgstr "画面里有 {got} 个人（这一格应该是 {want} 个）"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "画面里有 {got} 个人（这一格应该没有人）"
+msgstr "画面里有 {got} 个人（这一格应该没有人）"
 
 #: src/components/flow/GridShotsWizard.tsx
 msgid "画面里有："
@@ -19167,6 +19209,10 @@ msgstr "第 {0}/{total} 段"
 #: src/components/flow/GridShotsWizard.tsx
 msgid "第 {focusN} 格"
 msgstr "第 {focusN} 格"
+
+#: src/studio/gridDraftStore.ts
+msgid "第 {list} 格是空镜或特写，不放进组图：点开那一格单独画"
+msgstr "第 {list} 格是空镜或特写，不放进组图：点开那一格单独画"
 
 #: src/ai/real.ts
 msgid "第 {n} 张参考图未采用（「{name}」的{view}，比例越界或读不出来）"
@@ -22180,13 +22226,30 @@ msgstr "这一批里没有可保存的文件。"
 msgid "这一排就是出片时视频模型会收到的图，按发送顺序编号。素材卡是谁、哪几张图是他，由系统自动写进提示词；你另加的参考图没在句子里点名时，系统按「用途」替它说一句。想自己说清楚某张图管什么，就在句子里写 @名字（或点这一排上的图）——出片时会在名字后面接上模型认的编号「图片N」。"
 msgstr "这一排就是出片时视频模型会收到的图，按发送顺序编号。素材卡是谁、哪几张图是他，由系统自动写进提示词；你另加的参考图没在句子里点名时，系统按「用途」替它说一句。想自己说清楚某张图管什么，就在句子里写 @名字（或点这一排上的图）——出片时会在名字后面接上模型认的编号「图片N」。"
 
+#: src/components/flow/GridShotsWizard.tsx
+msgid "这一格可能有问题"
+msgstr "这一格可能有问题"
+
 #: src/studio/ui/SchemeEditorSheet.tsx
 msgid "这一格放原片裁剪本身，不调模型、不计费。"
 msgstr "这一格放原片裁剪本身，不调模型、不计费。"
 
+#: src/components/flow/GridShotsWizard.tsx
+msgid "这一格没核对上（AI 没看成），要看就自己看一眼。"
+msgstr "这一格没核对上（AI 没看成），要看就自己看一眼。"
+
 #: src/studio/gridDraftStore.ts
 msgid "这一格没画出来（没收这一张的钱）——单独重画一次"
 msgstr "这一格没画出来（没收这一张的钱）——单独重画一次"
+
+#: src/studio/gridDraftStore.ts
+msgid "这一格没画成：{why}"
+msgstr "这一格没画成：{why}"
+
+#. why 是失败原因整句；moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格
+#: src/studio/gridDraftStore.ts
+msgid "这一格没画成：{why}。{moneyLine}"
+msgstr "这一格没画成：{why}。{moneyLine}"
 
 #: src/studio/gridDraftStore.ts
 msgid "这一格没过内容审核，没画出来（没收这一张的钱）——改改画面写法再单独重画"

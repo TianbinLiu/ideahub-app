@@ -15,7 +15,7 @@ import { useEffect, useRef, useState } from "react";
 import { AI_REAL, groupsAvailable } from "../../ai";
 import { myCards } from "../../data/account";
 import { CHAT_TURN_TOKENS, clampDuration, durationChoices, fmtTokens, realFaceIssue, tierOf } from "../../data/economy";
-import { GRID_DEFAULT_SEC, GRID_SHOTS_MAX, GRID_SHOTS_MIN, shotKey, type GridNote } from "../../data/gridShots";
+import { GRID_DEFAULT_SEC, GRID_SHOTS_MAX, GRID_SHOTS_MIN, namedOutside, shotKey, type GridNote, type PanelIssue } from "../../data/gridShots";
 import { LEAD_CAST_MAX, SCENE_MAX, SCENE_MIN } from "../../data/sceneShots";
 import { useAccountVersion } from "../../hooks/useAccount";
 import type { AppendSpec } from "../../studio/flowStore";
@@ -166,8 +166,25 @@ export default function GridShotsWizard({
       return t`有 ${count} 格没写画面，没收`;
     }
     const names = n.names.join(sep);
+    if (n.kind === "named") return t`有几格的画面写到了「${names}」，已把他们算进那几格画面里的人（不想让他们入镜，就改掉画面里的名字）`;
     return t`「${names}」不在你选的人物里，没算进画面里的人（画面照写）`;
   };
+  /** 看一遍发现的问题（gridShots.panelIssues）→ 一句人话 */
+  const issueText = (x: PanelIssue): string => {
+    if (x.kind === "panels") {
+      const got = x.got;
+      return t`画成了 ${got} 格拼图`;
+    }
+    if (x.kind === "duplicate") return t`同一个人出现了两次`;
+    const got = x.got;
+    const want = x.want;
+    return want === 0 ? t`画面里有 ${got} 个人（这一格应该没有人）` : t`画面里有 ${got} 个人（这一格应该是 ${want} 个）`;
+  };
+  /** 单独摆出来的那一句首字母大写（英文的问题句是按「接在逗号后面」写的小写开头；中文不受影响） */
+  const capFirst = (x: string): string => x.charAt(0).toUpperCase() + x.slice(1);
+  /** 看出问题的那几格（第几格，从 1 起） */
+  const flagged = d.panels.flatMap((p, i) => (p?.image && p.check?.state === "done" && p.check.issues.length ? [i + 1] : []));
+  const flaggedList = flagged.join(sep);
 
   const backBtn = (to: () => void) => (
     <button onClick={to} className="rounded-xl bg-slate-700/70 px-4 py-2.5 text-sm text-slate-200">
@@ -326,6 +343,8 @@ export default function GridShotsWizard({
               <div className="space-y-2">
                 {d.shots.map((s, i) => {
                   const n = i + 1;
+                  // 画面里写到了名字、「画面里有」却没选的人：模型照着画面画人（10-07 付费验证四遍四遍），who 只决定带谁的卡图
+                  const outside = namedOutside(s, cast.map((c) => c.name)).join(sep);
                   return (
                     <div key={i} className="space-y-1.5 rounded-xl border border-slate-700/70 bg-panel p-2.5">
                       <div className="flex items-center gap-2">
@@ -388,6 +407,13 @@ export default function GridShotsWizard({
                           </span>
                         )}
                       </div>
+                      {outside && (
+                        <p className="text-[10px] leading-relaxed text-amber-200">
+                          <Trans>
+                            画面里写到了「{outside}」，上面却没选：画的时候多半会把他们画进去、还带不上卡图 —— 要他们入镜就点上，不要就把名字改成「画外的人」。
+                          </Trans>
+                        </p>
+                      )}
                     </div>
                   );
                 })}
@@ -499,10 +525,28 @@ export default function GridShotsWizard({
                       <Trans>分镜改过</Trans>
                     </span>
                   )}
+                  {/* 看一遍发现了问题（人数不对 / 同一个人两次 / 拼图）：点开这一格看原因，要不要重画由人定 */}
+                  {!!p?.image && p.check?.state === "done" && p.check.issues.length > 0 && (
+                    <span className="absolute right-1 top-1 rounded-full bg-amber-500/90 px-1.5 py-0.5 text-[9px] font-bold text-ink" aria-label={t`这一格可能有问题`}>
+                      ⚠
+                    </span>
+                  )}
+                  {!!p?.image && p.check?.state === "running" && (
+                    <span className="absolute right-1 top-1">
+                      <Spinner size="xs" />
+                    </span>
+                  )}
                 </button>
               );
             })}
           </div>
+
+          {/* 看完一遍的汇总：有问题的格子编号（每格的原因点开看） */}
+          {flagged.length > 0 && !d.drawing && (
+            <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">
+              <Trans>AI 看了一遍画面：第 {flaggedList} 格可能和分镜不一样（点开那一格看原因）。要重画就点开、补一句要求再重画；不重画也能接着往下走。</Trans>
+            </p>
+          )}
 
           {focus !== null && d.shots[focus] && (
             <div className="space-y-2 rounded-xl border border-slate-700/70 bg-panel p-3">
@@ -519,6 +563,24 @@ export default function GridShotsWizard({
                 </p>
               )}
               {d.panels[focus]?.err && <p className="text-[11px] leading-relaxed text-rose-300">{d.panels[focus]?.err}</p>}
+              {/* 看一遍的结论（gridDraftStore.checkPanel）：有问题逐条说；没核对上就说一声（钱上的那句跟着） */}
+              {(() => {
+                const c = d.panels[focus]?.image ? d.panels[focus]?.check : undefined;
+                if (c?.state === "done" && c.issues.length)
+                  return (
+                    <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-200">
+                      {capFirst(c.issues.map(issueText).join(sep))}
+                    </p>
+                  );
+                if (c?.state === "failed")
+                  return (
+                    <p className="text-[10px] leading-relaxed text-slate-500">
+                      <Trans>这一格没核对上（AI 没看成），要看就自己看一眼。</Trans>
+                      {c.why ? ` ${c.why}` : ""}
+                    </p>
+                  );
+                return null;
+              })()}
               {d.panels[focus]?.err && d.panels[focus]?.url && !d.panels[focus]?.image ? (
                 <button
                   onClick={() => void refetchPanel(focus)}
@@ -546,7 +608,9 @@ export default function GridShotsWizard({
                     {d.panels[focus]?.image ? <Trans>🖌 重画这一格（{redrawPrice}）</Trans> : <Trans>🖌 单独画这一格（{redrawPrice}）</Trans>}
                   </button>
                   <p className="text-[10px] leading-relaxed text-slate-500">
-                    <Trans>单独画一张：只带这一格里的人的卡图（没有人就只带场景卡），与整组的画风尽量一致，但不保证一模一样。</Trans>
+                    <Trans>
+                      单独画一张：只带这一格里的人的卡图；没有人的格子拿这一组里另一格定画风、一张人物图都不带。与整组的画风尽量一致，但不保证一模一样。画完 AI 会看一遍（价钱里含这一次）。
+                    </Trans>
                   </p>
                 </>
               )}
@@ -579,7 +643,10 @@ export default function GridShotsWizard({
             )}
           </button>
           <p className="text-[10px] leading-relaxed text-slate-500">
-            <Trans>一次画出整组：人物与光线前后一致。按实际画出来的张数收钱，没画出来的那几格不收。一组要几分钟，可以先离开，画好了会提醒你。</Trans>
+            <Trans>
+              一次画出整组：人物与光线前后一致。没有人的格子和特写不放进这一组（放进去容易画进别人），整组画完再一格一格单独画。每画好一格，AI
+              会看一遍几个人、有没有画重、是不是拼图，有问题的格子会标出来，由你决定要不要重画。按实际画出来的张数收钱，没画出来的那几格不收。一组要几分钟，可以先离开，画好了会提醒你。
+            </Trans>
           </p>
           <div className="flex gap-2">
             {backBtn(() => go("shots"))}
