@@ -4001,10 +4001,6 @@ msgstr "A spec sheet (sketch, palette, outfit details) plus a face close-up and 
 msgid "一张卡最多存 {MAX_CARD_VIEWS} 张形象图（服务端也钉着这个数），把图位删到 {MAX_CARD_VIEWS} 个以内"
 msgstr "A card can store at most {MAX_CARD_VIEWS} reference images (the server enforces this too) — remove slots until there are {MAX_CARD_VIEWS} or fewer"
 
-#: src/studio/gridDraftStore.ts
-msgid "一张都没画出来"
-msgstr "not a single panel was drawn"
-
 #: src/studio/structuredSkills.ts
 msgid "一整篇（{SCRIPT_MIN}~{SCRIPT_MAX} 字），故事梗概或分场脚本都行"
 msgstr "A whole script ({SCRIPT_MIN}–{SCRIPT_MAX} characters); a synopsis or a scene-by-scene script both work"
@@ -7140,10 +7136,6 @@ msgstr "Storyboard"
 msgid "分镜改过"
 msgstr "Edited"
 
-#: src/studio/gridDraftStore.ts
-msgid "分镜里有内容没过内容审核，一张都没画出来——改改写法再画"
-msgstr "Something in the storyboard failed the content review, so nothing was drawn — reword it and draw again"
-
 #: src/pages/TemplateDetailPage.tsx
 msgid "分镜骨架（{THEME_TOKEN} 会换成你那句话）"
 msgstr "Shot outline ({THEME_TOKEN} is replaced with your sentence)"
@@ -7992,6 +7984,7 @@ msgstr "Reason: {0}. <0>It only exists in this session right now</0> — you can
 #: src/data/projects.ts
 #: src/data/videos.ts
 #: src/pages/EditPage.tsx
+#: src/studio/gridDraftStore.ts
 msgid "原因不明"
 msgstr "Unknown reason"
 
@@ -17748,6 +17741,18 @@ msgstr "The panels weren’t drawn: {why}. {moneyLine}"
 msgid "画面没出成：{why}（一张都没画出来，钱全退了）"
 msgstr "The panels weren’t drawn: {why} (nothing was drawn, so everything was refunded)"
 
+#: src/studio/gridDraftStore.ts
+msgid "画面没出成：分镜里有内容没过内容审核，一张都没画、钱全退了——改改写法再画"
+msgstr "The panels weren’t drawn: something in the storyboard failed the content review. Nothing was drawn, so everything was refunded — reword it and draw again"
+
+#: src/studio/gridDraftStore.ts
+msgid "画面没出成：这次没连上出图服务（多半是网络抖了一下），一张都没画、钱全退了——再点一次「画出这一组」就行"
+msgstr "The panels weren’t drawn: we couldn’t reach the image service this time (most likely a brief network hiccup). Nothing was drawn, so everything was refunded — just tap “Draw this set” again"
+
+#: src/studio/gridDraftStore.ts
+msgid "画面没出成：连接断了，一张都没收到、钱全退了——再点一次「画出这一组」就行"
+msgstr "The panels weren’t drawn: the connection dropped before any panel arrived, so everything was refunded — just tap “Draw this set” again"
+
 #: src/pages/TemplateDetailPage.tsx
 msgid "画面质感与运镜"
 msgstr "Look and camera moves"
@@ -23931,6 +23936,10 @@ msgstr "Couldn't get this card this time: {0}"
 msgid "这次没能向服务器确认这条作品，内容没有被替换。合成稿还留在「我的」里，稍后再试一次。"
 msgstr "Couldn't confirm this work with the server this time, so the content wasn't replaced. The merged draft is still on the Me page — try again later."
 
+#: src/studio/gridDraftStore.ts
+msgid "这次没连上出图服务（多半是网络抖了一下），再点一次就行"
+msgstr "we couldn’t reach the image service this time (most likely a brief network hiccup) — just try again"
+
 #: src/data/videos.ts
 msgid "这次没连上服务器，内容没有被替换。合成稿还留在「我的」里，联网后再试一次。"
 msgstr "Couldn't reach the server this time, so the content wasn't replaced. The merged draft is still on the Me page — try again once you're online."
@@ -24076,10 +24085,6 @@ msgstr "Deletes the content too; can't be undone"
 #: src/pages/WorkshopPage.tsx
 msgid "连圈多张，打包成一组"
 msgstr "Circle several and bundle them into a deck"
-
-#: src/studio/gridDraftStore.ts
-msgid "连接断了，一张都没画出来"
-msgstr "the connection dropped before any panel was drawn"
 
 #: src/data/danmaku.ts
 msgid "追！"
