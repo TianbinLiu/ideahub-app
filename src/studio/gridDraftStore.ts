@@ -8,6 +8,9 @@
 //   记进 localStorage（按账号分开），下次打开向导就接着等、把图取回来 —— 不记的话那几张已经付过钱的图就找不回来了。
 //   dev 直连方舟（流式）的那种接不回来，不记。
 // ★ 人物用 leadDraftStore 的那一份（castIds + 现做一个人物）：B 与 C 是同一批人（「先把人定死」，下一段多半还是这几个人）。这里只多一张场景卡。
+//   ★★ 那份名单只在内存里：一组画面受理那一拍，选了哪些人、哪张场景卡跟着分镜一起记进 localStorage，接着等时还原（2026-10-07 补，
+//   此前只记分镜：App 重开后单格重画一张卡图都不带、落段时人物卡挂空）。分镜里点到的人不在选上的人物里时，出一组 / 单格重画 / 落段
+//   一律先拦下（gridCastIssue 一处）—— 老记录没记人、卡被删了、人在第 1 步取下了谁，都落在这一道上。
 // ★ 表单是**谁的**（leadDraftStore 同一招）：换账号那一拍把上一个人的收进暗格；在跑的长活回来时认「开工那一拍是谁」，写回他自己的那份。
 // ★ 依赖方向：data → store → 组件。这里认 ai / data / structuredSkills（它们都不认组件）。
 import { t } from "@lingui/core/macro";
@@ -29,10 +32,11 @@ import { ArkHttpError } from "../ai/arkClient";
 import { canAfford, frozenNote, spendTokens } from "../data/account";
 import { onOwnerSwitch, workOwner } from "../data/deviceOwner";
 import { CHAT_TURN_TOKENS, IMAGE_TOKENS, fmtTokens } from "../data/economy";
-import { GRID_SHOTS_MAX, panelMoment, panelPlot, panelRefLine, shotKey, type GridLang, type GridNote, type GridShot } from "../data/gridShots";
+import { GRID_SHOTS_MAX, castGaps, panelMoment, panelPlot, panelRefLine, shotKey, type GridLang, type GridNote, type GridShot } from "../data/gridShots";
 import { currentRoute, startJob } from "../data/jobs";
 import { uid, type Card, type Proposal, type VideoAspect } from "../types";
 import type { AppendSpec } from "./flowStore";
+import { restoreCast } from "./leadDraftStore";
 import { runSceneToGrid } from "./structuredSkills";
 
 /** 向导的五步：选人物和场景 → 写这场戏（AI 写分镜清单）→ 出分镜画面 → 挑格子 → 一格一段 · 出片 */
@@ -174,6 +178,10 @@ interface ParkedGroup {
   lead: string;
   lang: GridLang;
   aspect: VideoAspect | null;
+  /** 画这一组时选上的人物卡 id（按选的先后）。2026-10-07 之前的记录没有这一位 —— 接着等时就还原不了，由 gridCastIssue 拦下、请人回第 1 步选 */
+  castIds?: string[];
+  /** 画这一组时挑的场景卡；null = 没挑。同上，老记录没有 */
+  placeId?: string | null;
 }
 /** 方舟的图片链接 24 小时就失效：超过这么久的记录不再接 */
 const PARKED_TTL_MS = 23 * 3600 * 1000;
@@ -206,7 +214,22 @@ export function parkedGroupOf(owner = ownerOfDraft()): ParkedGroup | null {
     writeParked(owner, null);
     return null;
   }
-  return g;
+  // 人物与场景卡读不对形状就当没记（还原不了 → gridCastIssue 拦下），别把一个坏值写进向导
+  const castIds = Array.isArray(g.castIds) && g.castIds.every((x) => typeof x === "string") ? g.castIds : undefined;
+  const placeId = typeof g.placeId === "string" ? g.placeId : null;
+  return { ...g, castIds, placeId };
+}
+
+/**
+ * 分镜里点到的人不在选上的人物里时那一句（null = 都在）。出一组 / 单格重画 / 落段（gridAppendSpecs）都先问它：
+ * 不拦的话那几个人一张卡图都带不上，画出来是陌生人、落段时人物卡挂空（data/gridShots.castGaps 头上记着 10-06 那次）。
+ * @param shots 要画 / 要落的那几格；cast 选上的人物（卡片库里还在的）
+ */
+export function gridCastIssue(shots: readonly GridShot[], cast: readonly Card[]): string | null {
+  const gaps = castGaps(shots, cast.map((c) => c.name));
+  if (!gaps.length) return null;
+  const names = gaps.join(t({ message: "、", comment: "列举几个名字时的分隔符" }));
+  return t`分镜里写到的「${names}」不在选上的人物里：画面带不上他们的卡图，会画成陌生人——回第 1 步把人选上（或者在分镜里把他们从画面里去掉）`;
 }
 
 // ── 第①②步：场景卡、这场戏、分镜清单 ─────────────────────────────────────────
@@ -378,6 +401,11 @@ export async function drawGroup(o: { cast: Card[]; place: Card | null }): Promis
     useGridDraft.setState({ drawErr: t`有几格还没写画面——写上，或者删掉那几格再画` });
     return;
   }
+  const castIssue = gridCastIssue(shots, o.cast);
+  if (castIssue) {
+    useGridDraft.setState({ drawErr: castIssue });
+    return;
+  }
   const cost = groupQuote(shots.length);
   if (AI_REAL && !canAfford(cost)) {
     const price = fmtTokens(cost);
@@ -389,6 +417,9 @@ export async function drawGroup(o: { cast: Card[]; place: Card | null }): Promis
   const job = startJob({ kind: "grid-draw", title: t`九宫格分镜 · 出画面`, page, route: page, progress: t`准备参考图…` });
   const keys = shots.map(shotKey);
   const aspect = s.aspect;
+  /** 跟着分镜一起记下来的人物与场景卡（App 重开后接着等时还原） */
+  const castIds = o.cast.map((c) => c.id);
+  const placeId = o.place?.id ?? null;
   useGridDraft.setState({ drawing: t`准备参考图…`, drawErr: "", drawNote: "", panels: shots.map(() => null), picks: [] });
   const fetched = new Set<number>();
   const pending: Promise<void>[] = [];
@@ -412,7 +443,7 @@ export async function drawGroup(o: { cast: Card[]; place: Card | null }): Promis
       onUpdate,
       onStarted: (id) => {
         writeFor(who, { groupId: id });
-        writeParked(who, { id, at: Date.now(), scene: s.scene, shots, lead: s.lead, lang: s.lang, aspect });
+        writeParked(who, { id, at: Date.now(), scene: s.scene, shots, lead: s.lead, lang: s.lang, aspect, castIds, placeId });
       },
     });
     await finishGroup(who, st, shots.length, pending, job, notes);
@@ -428,7 +459,7 @@ export async function drawGroup(o: { cast: Card[]; place: Card | null }): Promis
       }
       writeFor(who, { drawErr: t`上一组画面还在画（同一时间只能画一组）——几分钟后再来` });
       job.fail(t`上一组画面还在画`);
-    } else if (e instanceof ArkNoReply && !import.meta.env.DEV && (await adoptLost(who, shots, s, aspect))) {
+    } else if (e instanceof ArkNoReply && !import.meta.env.DEV && (await adoptLost(who, shots, s, aspect, castIds, placeId))) {
       // 受理那一发没收到回包、但服务端其实受理了：接回来接着等
       job.done({ silent: true });
       writeFor(who, { drawing: "" });
@@ -457,11 +488,11 @@ export async function drawGroup(o: { cast: Card[]; place: Card | null }): Promis
 
 /** 受理那一发没收到回包：问服务端这个人最近的几组里有没有刚开的那一组（张数对得上、三分钟内受理的），有就认领（任务号 + 这一版分镜记下来，接着等）。
  *  ★ 必须卡时间：服务端其实没受理的话，最近的那一组是十几分钟前的旧一组 —— 认成它，旧图就按新分镜的下标摆进格子里了 */
-async function adoptLost(who: string, shots: GridShot[], s: GridDraft, aspect: VideoAspect): Promise<boolean> {
+async function adoptLost(who: string, shots: GridShot[], s: GridDraft, aspect: VideoAspect, castIds: string[], placeId: string | null): Promise<boolean> {
   const recent = await listImageGroups();
   const hit = recent.find((g) => g.maxImages === shots.length && g.createdAt > 0 && Date.now() - g.createdAt < 3 * 60_000);
   if (!hit) return false;
-  writeParked(who, { id: hit.id, at: Date.now(), scene: s.scene, shots, lead: s.lead, lang: s.lang, aspect });
+  writeParked(who, { id: hit.id, at: Date.now(), scene: s.scene, shots, lead: s.lead, lang: s.lang, aspect, castIds, placeId });
   return true;
 }
 
@@ -520,6 +551,8 @@ function groupFailLine(st: ImageGroupState): string {
 /**
  * 接着等上一组（向导打开时发现 localStorage 里有受理过、还没取回来的那一组）：恢复那一版分镜，轮询到有结局、把图取回来。
  * ★ 当时那一版分镜原样恢复（格子与图按下标对应）：人在这期间改过的分镜会被换回去 —— 画面就是按那一版画的。
+ * ★ 当时选的人与场景卡一并还原（只在向导里那一项空着时：App 重开后它们本来就是空的；人这一次已经重新选过就不替他改）。
+ *   还原不了的（老记录没记、卡被删了）由 gridCastIssue 在重画与落段那一步拦下。
  */
 export async function resumeGroup(): Promise<void> {
   const who = ownerOfDraft();
@@ -528,7 +561,9 @@ export async function resumeGroup(): Promise<void> {
   if (!g || s.drawing) return;
   const keys = g.shots.map(shotKey);
   const job = startJob({ kind: "grid-draw", title: t`九宫格分镜 · 出画面`, page: currentRoute(), route: currentRoute(), progress: t`接着等上一组…` });
+  if (g.castIds) restoreCast(g.castIds);
   useGridDraft.setState({
+    placeId: s.placeId ?? g.placeId ?? null,
     scene: s.scene || g.scene,
     shots: g.shots,
     lead: g.lead,
@@ -599,6 +634,12 @@ export async function redrawPanel(i: number, o: { cast: Card[]; place: Card | nu
     patchPanel(ownerOfDraft(), i, (p) => ({ image: p?.image ?? "", key: p?.key ?? "", err: t`这一格还没写画面` }));
     return;
   }
+  // 这一格里的人有谁没选上：一张卡图都带不上、会画成陌生人（10-06 付费验证那 ¥0.20 就是这么白花的）—— 先拦下，不花钱
+  const castIssue = gridCastIssue([shot], o.cast);
+  if (castIssue) {
+    patchPanel(ownerOfDraft(), i, (p) => (p ? { ...p, err: castIssue } : { image: "", key: "", err: castIssue }));
+    return;
+  }
   if (AI_REAL && !canAfford(PANEL_REDRAW_TOKENS)) {
     const price = fmtTokens(PANEL_REDRAW_TOKENS);
     patchPanel(ownerOfDraft(), i, (p) => ({ image: p?.image ?? "", key: p?.key ?? "", err: frozenNote() ?? t`重画一格要 ${price} token，余额不够——去「我的」页充值` }));
@@ -631,6 +672,11 @@ export async function redrawPanel(i: number, o: { cast: Card[]; place: Card | nu
   }
 }
 
+/** 挑中的那几格的分镜（按挑的先后；挑的格子已经不在了的跳过） */
+export function pickedShots(d: Pick<GridDraft, "picks" | "shots">): GridShot[] {
+  return d.picks.map((i) => d.shots[i]).filter((s): s is GridShot => !!s);
+}
+
 /** 这一格里的人（卡），按 shot.who 的先后（= 模型写的出场先后）排：出图 / 出片都按这个顺序给图 */
 function castOfShot(cast: Card[], shot: GridShot): Card[] {
   return shot.who.map((n) => cast.find((c) => c.name === n)).filter((c): c is Card => !!c);
@@ -659,11 +705,14 @@ export function resetGridScene(): void {
  *   收参考图的两档上帧当参考图发、画面里的人的图一起发、不补画；1.0 两档这一格当首帧硬约束（标准档照旧补画结束帧，报价里有）。
  * ★ 素材只挂**这一格里的人** + 场景卡（「这一镜有谁就只给谁的图」，multi-character 调研的结论）：一格一个镜头，多带别人的图只会把别人画进来。
  * ★ 方案标题存进作品（VideoSegment.title），按作者当时的界面语言定下来（与 B 的「主角定妆 · 多镜头」同一条先例）。
+ * ★ 挑中的格子里有人没选上（gridCastIssue）就一段都不落：那一段的人物卡会挂空，出片时那个人的样子由视频模型自己编。
+ *   向导把同一句话摆在出片键旁边（键因为没有可落的段而灰着）。
  */
 export function gridAppendSpecs(
   d: Pick<GridDraft, "picks" | "shots" | "panels" | "lead" | "lang" | "scene">,
   o: { cast: Card[]; place: Card | null; tierId: string; aspect: VideoAspect; durationSec: number },
 ): AppendSpec[] {
+  if (gridCastIssue(pickedShots(d), o.cast)) return [];
   return d.picks.flatMap((i) => {
     const shot = d.shots[i];
     const panel = d.panels[i];

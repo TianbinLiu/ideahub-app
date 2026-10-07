@@ -180,6 +180,7 @@ msgstr "，这一次已经计费"
 #. 列举几个名字时的分隔符
 #. 列举几个名字时的分隔符
 #. 列举几个名字时的分隔符
+#. 列举几个名字时的分隔符
 #. 列举几个图位名 / 还缺的几项时的分隔符
 #. 列举几个文件名 / 动作组 / 表情名时的分隔符
 #. 列举几个段号时的分隔符（第 1、3 段）
@@ -204,6 +205,7 @@ msgstr "，这一次已经计费"
 #: src/pages/CutPage.tsx
 #: src/pages/SupportModelNewPage.tsx
 #: src/studio/flowStore.ts
+#: src/studio/gridDraftStore.ts
 #: src/studio/leadDraftStore.ts
 #: src/studio/segmentGen.ts
 #: src/studio/signOutGuard.ts
@@ -7136,6 +7138,10 @@ msgstr "分镜"
 msgid "分镜改过"
 msgstr "分镜改过"
 
+#: src/studio/gridDraftStore.ts
+msgid "分镜里写到的「{names}」不在选上的人物里：画面带不上他们的卡图，会画成陌生人——回第 1 步把人选上（或者在分镜里把他们从画面里去掉）"
+msgstr "分镜里写到的「{names}」不在选上的人物里：画面带不上他们的卡图，会画成陌生人——回第 1 步把人选上（或者在分镜里把他们从画面里去掉）"
+
 #: src/pages/TemplateDetailPage.tsx
 msgid "分镜骨架（{THEME_TOKEN} 会换成你那句话）"
 msgstr "分镜骨架（{THEME_TOKEN} 会换成你那句话）"
@@ -7995,6 +8001,10 @@ msgstr "原图长宽比超过 3:1，已居中裁切——Seedream 不收超出�
 #: src/pages/CutPage.tsx
 msgid "原声"
 msgstr "原声"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "原来挑的那张场景卡已经不在卡片库里了：重画和出片都不再带它。"
+msgstr "原来挑的那张场景卡已经不在卡片库里了：重画和出片都不再带它。"
 
 #. 内置方案的图位名：≤24 个字符（另存为后原样成为用户方案的图位名，服务端上限 24）
 #: src/types.ts
