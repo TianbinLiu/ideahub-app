@@ -137,6 +137,16 @@ export function toggleCast(id: string, max: number, live: ReadonlySet<string>): 
   else if (ids.length < max) useLeadDraft.setState({ castIds: [...ids, id] });
 }
 
+/**
+ * 接着等一组九宫格画面时，把画那一组时选的人还原回来（只由 studio/gridDraftStore.resumeGroup 调）。
+ * ★ 名单只活在内存里：App 被回收 / 重开之后是空的，而那一组的分镜写的就是这几个人 —— 不还原的话单格重画一张卡图都带不上、落段时人物卡挂空。
+ * ★ 只在名单空着时还原：人这一次已经重新选过的话不替他改（缺了谁由 gridDraftStore.gridCastIssue 当面说、拦下重画与落段）。
+ */
+export function restoreCast(ids: readonly string[]): void {
+  if (!ids.length || useLeadDraft.getState().castIds.length) return;
+  useLeadDraft.setState({ castIds: [...ids] });
+}
+
 /** 把某个人换成主角（挪到第一个） */
 export function makeLead(id: string): void {
   const s = useLeadDraft.getState();

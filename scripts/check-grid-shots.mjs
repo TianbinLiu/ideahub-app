@@ -7,7 +7,8 @@
 //   规则一条都不在这里重打：直接 import 那个模块（Node 只剥类型，所以它必须零运行时依赖），并拿 data/shotScript 的读法核对 ——
 //   一格变成一段的那段话，分镜表必须读成一个镜头、读不出台词。
 // ★ 仓内门禁纪律：写完先造真违规试红（--module= 指向改坏的副本）。逐条试过，下面几条各自变红：
-//   ① 去掉重复键检查；② 画面里不摘引号；③ who 里不剔路人；④ 组图提示词去掉「只出现一次」；⑤ 空镜不写「没有人」；⑥ 一格一段写成「镜头1：」。
+//   ① 去掉重复键检查；② 画面里不摘引号；③ who 里不剔路人；④ 组图提示词去掉「只出现一次」；⑤ 空镜不写「没有人」；⑥ 一格一段写成「镜头1：」；
+//   ⑦ castGaps 永远回空（2026-10-07 补：App 重开后人物没还原，重画 / 落段带不上卡图的那道闸）。
 //
 // 用法：node scripts/check-grid-shots.mjs [--module=<另一份 gridShots.ts 的路径，造违规试红用>]
 import fs from "node:fs";
@@ -217,10 +218,23 @@ ok("协议上限是 15（与服务端 config/tokens.GROUP_MAX_IMAGES 同一个�
   ok("画面里的人改了要算过期", M.shotKey(a) !== M.shotKey({ ...a, who: ["沈舟", "林夏"] }));
 }
 
+// ── 分镜里点到、却没选上的人（出一组 / 单格重画 / 落段之前拦下；2026-10-06 付费验证：App 重开后名单是空的，重画画出陌生人）──
+{
+  const a = { size: "中景", picture: "林夏和沈舟对望", action: "", who: ["林夏", "沈舟"] };
+  const b = { size: "全景", picture: "火车进站", action: "", who: [] };
+  const c = { size: "近景", picture: "沈舟递信给林夏", action: "", who: ["沈舟", "林夏"] };
+  eq("人都选上了：一个都不缺", M.castGaps([a, b, c], CAST), []);
+  eq("名单是空的（App 重开后）：按出现先后、去重", M.castGaps([a, b, c], []), ["林夏", "沈舟"]);
+  eq("第 1 步取下了沈舟：只缺沈舟", M.castGaps([a, c], ["林夏"]), ["沈舟"]);
+  eq("空镜那一格不缺人", M.castGaps([b], []), []);
+  eq("没有格子就不缺人", M.castGaps([], []), []);
+  eq("名单里多出来的人不算缺", M.castGaps([b, c], ["沈舟", "林夏", "路人"]), []);
+}
+
 if (problems.length) {
   console.error(`\n❌ 九宫格分镜检查没过（${problems.length} 条）：\n`);
   for (const p of problems) console.error(`   ${p}`);
   console.error("\n   改法：规则只改 src/data/gridShots.ts；改完在这里补一句正例、一句反例。\n");
   process.exit(1);
 }
-console.log(`✓ 九宫格分镜检查通过（${ran} 条：问法 / 收法 / 坏回话 / 路人与引号 / 参考图预算 / 组图提示词 / 单格重画 / 一格一段 / 画面过期）`);
+console.log(`✓ 九宫格分镜检查通过（${ran} 条：问法 / 收法 / 坏回话 / 路人与引号 / 参考图预算 / 组图提示词 / 单格重画 / 一格一段 / 画面过期 / 缺人）`);

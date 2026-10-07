@@ -26,8 +26,10 @@ import {
   drawGroup,
   editShot,
   gridAppendSpecs,
+  gridCastIssue,
   groupQuote,
   parkedGroupOf,
+  pickedShots,
   redrawPanel,
   refetchPanel,
   removeShot,
@@ -119,6 +121,12 @@ export default function GridShotsWizard({
   /** 选中的人（与 B 同一批，按选的先后）；卡片库里已经删掉的不算 */
   const cast = lead.castIds.map((id) => chars.find((c) => c.id === id)).filter((c): c is Card => !!c);
   const place = scenes.find((c) => c.id === d.placeId) ?? null;
+  /** 挑过的场景卡已经不在卡片库里了（被删了）：重画与出片都带不上它 —— 说一句，不拦 */
+  const placeLost = !!d.placeId && !place;
+  // 分镜里点到、却不在选上的人物里的人（判据与拦截都在 gridDraftStore.gridCastIssue，这里只画出来、把键灰掉）
+  const drawCastIssue = d.step === "draw" ? gridCastIssue(d.shots, cast) : null;
+  const focusCastIssue = d.step === "draw" && focus !== null && d.shots[focus] ? gridCastIssue([d.shots[focus]], cast) : null;
+  const layCastIssue = d.step === "spec" ? gridCastIssue(pickedShots(d), cast) : null;
   const full = cast.length >= LEAD_CAST_MAX;
   // 每一格都带画面帧（那一格的画面当开头帧）：真人卡在带帧的请求里会被整发拒（economy.realFaceIssue 的 framed）
   const faceNote = realFaceIssue(cast, tierId, { framed: true });
@@ -137,10 +145,13 @@ export default function GridShotsWizard({
   const sep = t({ message: "、", comment: "列举几个名字时的分隔符" });
   const specs = d.step === "spec" ? gridAppendSpecs(d, { cast, place, tierId, aspect, durationSec: dur }) : [];
   const costs = specs.length ? quote(specs) : [];
-  const firstPrice = price(costs[0] ?? 0);
+  /** 真能落下几段（被 gridCastIssue 拦下时是 0：出片键灰着） */
+  const canLay = specs.length > 0;
+  // 被拦下时键上照挑的格数说、价钱写「—」：写成「生成这一段（0）」像是不要钱、又数错了段数
+  const firstPrice = layCastIssue ? "—" : price(costs[0] ?? 0);
   const total = costs.reduce((a, b) => a + b, 0);
   const totalPrice = price(total);
-  const segN = specs.length;
+  const segN = canLay ? specs.length : layCastIssue ? d.picks.length : 0;
   /** 句子里的数先取成值再进句子（Lingui 的占位符按名字认） */
   const focusN = (focus ?? 0) + 1;
   const pickN = d.picks.length;
@@ -445,6 +456,16 @@ export default function GridShotsWizard({
             )}
           </div>
 
+          {/* 分镜里写到的人没选上（App 重开前画的那一组没记下人 / 卡被删了 / 第 1 步取下了谁）：整组重出与那几格的重画都灰着，这里说为什么 */}
+          {drawCastIssue && (
+            <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">{drawCastIssue}</p>
+          )}
+          {placeLost && (
+            <p className="text-[10px] leading-relaxed text-slate-500">
+              <Trans>原来挑的那张场景卡已经不在卡片库里了：重画和出片都不再带它。</Trans>
+            </p>
+          )}
+
           <div className={`grid gap-1.5 ${aspect === "landscape" ? "grid-cols-2" : "grid-cols-3"}`}>
             {d.shots.map((s, i) => {
               const p = d.panels[i] ?? null;
@@ -518,7 +539,7 @@ export default function GridShotsWizard({
                   />
                   <button
                     onClick={() => void redrawPanel(focus, { cast, place, ask })}
-                    disabled={!!d.drawing || !!d.panels[focus]?.busy || !canDraw}
+                    disabled={!!d.drawing || !!d.panels[focus]?.busy || !canDraw || !!focusCastIssue}
                     className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-brand/90 py-2.5 text-sm font-bold text-ink disabled:opacity-40"
                   >
                     {d.panels[focus]?.busy === "redraw" ? <Spinner size="xs" /> : null}
@@ -548,7 +569,7 @@ export default function GridShotsWizard({
           {d.drawNote && !d.drawing && <p className="text-[10px] leading-relaxed text-slate-400">{d.drawNote}</p>}
           <button
             onClick={() => void drawGroup({ cast, place })}
-            disabled={!!d.drawing || d.writing || !shotN || !canDraw}
+            disabled={!!d.drawing || d.writing || !shotN || !canDraw || !!drawCastIssue}
             className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
           >
             {anyPanel ? (
@@ -649,18 +670,28 @@ export default function GridShotsWizard({
                 ))}
             </div>
           </div>
-          <p className="text-[11px] leading-relaxed text-slate-400">
-            {tier.refImg ? (
-              <Trans>{segN} 段 · 每段拿那一格的画面当开头，画面里的人的图一起给视频模型；不接上一段的结尾（每一格本来就是新的镜头）</Trans>
-            ) : (
-              <Trans>{segN} 段 · 每段拿那一格的画面当首帧；这一档收不了人物图，人像全看那一格画面</Trans>
-            )}
-          </p>
+          {/* 挑中的格子里有人没选上：gridAppendSpecs 一段都不落（出片键因此灰着），这里说为什么 */}
+          {layCastIssue ? (
+            <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">{layCastIssue}</p>
+          ) : (
+            <p className="text-[11px] leading-relaxed text-slate-400">
+              {tier.refImg ? (
+                <Trans>{segN} 段 · 每段拿那一格的画面当开头，画面里的人的图一起给视频模型；不接上一段的结尾（每一格本来就是新的镜头）</Trans>
+              ) : (
+                <Trans>{segN} 段 · 每段拿那一格的画面当首帧；这一档收不了人物图，人像全看那一格画面</Trans>
+              )}
+            </p>
+          )}
+          {placeLost && (
+            <p className="text-[10px] leading-relaxed text-slate-500">
+              <Trans>原来挑的那张场景卡已经不在卡片库里了：重画和出片都不再带它。</Trans>
+            </p>
+          )}
           {faceNote && (
             <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">{faceNote}</p>
           )}
-          <TokenCost tokens={costs[0] ?? 0} />
-          {segN > 1 && (
+          {canLay && <TokenCost tokens={costs[0] ?? 0} />}
+          {canLay && segN > 1 && (
             <p className="text-[10px] leading-relaxed text-slate-500">
               <Trans>
                 {segN} 段一共约 {totalPrice}。只先出第 1 段：后面几段在流水线上按顺序一段一段出，每段出之前会再报一次价 —— 第 1 段看着不对，后面的就不用花钱。
@@ -677,7 +708,7 @@ export default function GridShotsWizard({
             {backBtn(() => go("pick"))}
             <button
               onClick={() => onFinish(specs, true)}
-              disabled={busy || !segN}
+              disabled={busy || !canLay}
               className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
             >
               {segN > 1 ? <Trans>⚡ 铺成 {segN} 段，先出第 1 段（{firstPrice}）</Trans> : <Trans>⚡ 生成这一段（{firstPrice}）</Trans>}
@@ -685,7 +716,7 @@ export default function GridShotsWizard({
           </div>
           <button
             onClick={() => onFinish(specs, false)}
-            disabled={!segN}
+            disabled={!canLay}
             className="text-[11px] text-slate-500 underline underline-offset-2 disabled:opacity-40"
           >
             {segN > 1 ? <Trans>只铺成这 {segN} 段，先不出片</Trans> : <Trans>只铺成这一段，先不出片</Trans>}

@@ -266,3 +266,16 @@ export function panelPlot(shot: GridShot, lead: string, lang: GridLang): string 
 export function shotKey(shot: GridShot): string {
   return JSON.stringify([shot.size, shot.picture, [...shot.who]]);
 }
+
+/**
+ * 这几格里点到名（who）、却不在选上的人物里的人（按出现先后、去重）。出一组 / 单格重画 / 落段之前都问它，有就拦下
+ * （人话在 studio/gridDraftStore.gridCastIssue）。
+ * ★ 2026-10-06 付费验证撞到：App 重开后接着等一组，向导里选的人没还原 —— 单格重画一张卡图都没带、画出两个陌生人（那一张的钱白花），
+ *   落段时「只挂这一格里的人」挂空。名字写在分镜里、卡图一张都带不上，全程零报错；回第 1 步取下一个人之后再画也是同一个样子。
+ */
+export function castGaps(shots: readonly GridShot[], cast: readonly string[]): string[] {
+  const have = new Set(cast);
+  const out: string[] = [];
+  for (const s of shots) for (const n of s.who) if (!have.has(n) && !out.includes(n)) out.push(n);
+  return out;
+}
