@@ -189,7 +189,7 @@ export interface VideoTierSpec {
   /**
    * 这一档收不收**真人照片素材**（声明过 `Card.realPerson` 的卡当参考图）。
    * ★★ 方舟各档全 false 是**实测结论**（2026-08-24）：方舟对真人参考图两套探测器全拦（名人按版权、普通人按隐私），整发拒收。
-   *   只有 MiniMax 真人档是 true —— 门禁（economy.realFaceIssue）靠它放行，本表之外不许再翻 realPerson。
+   *   只有 MiniMax 真人档是 true —— 门禁（account.realFaceIssue）靠它放行，本表之外不许再翻 realPerson。
    */
   realFace: boolean;
   /**

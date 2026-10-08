@@ -16,20 +16,56 @@ export interface ServerCaps {
   res480: boolean;
   /** 电影级「样片」两步（draft:true 与 draft_task 定稿） */
   draftMode: boolean;
-  /** 受理之后失败的出片按次退回 token（GenTaskCharge） */
+  /** 受理之后**方舟**明说失败的出片按次退回 token（GenTaskCharge） */
   failRefund: boolean;
+  /**
+   * 受理之后**真人档（MiniMax）**明说失败的那一发也退（服务端开关 MINIMAX_FAIL_REFUND，缺省开；健康端点的 `minimaxFailRefund`）。
+   * ★ 与方舟那一位分开（2026-10-07 评审抓到）：`failRefund` 只说方舟（无条件退），运维关掉 MiniMax 退款时，
+   *   取回卡还在许诺「万一没出成会自动退回」就是空话。服务端没报这一位 = 当成开着（服务端契约的口径），但前提是它会退方舟的（failRefund）。
+   */
+  failRefundMinimax: boolean;
   /** 组图任务（九宫格分镜） */
   imageGroups: boolean;
+  /**
+   * 此刻免费版能出普通片的档（健康端点的 `freeVideo`：[{ model, resolution }]）；"legacy" = 服务端关了免费档限制（`freeVideoGate: false`，
+   * 运维开关 FREE_VIDEO_GATE=off）—— 那时服务端退回改版前的口径：**只挡电影级（Seedance 2.5）**，别的档免费版都能用；
+   * `freeVideo` 那张清单不看开关、照旧只列两档，所以先看这一位。
+   * null = 服务端没报（老服务端 / 直连 / 还没探到）—— 那时按档位表的 freeOk 判（account.tierFreeOk）。
+   * ★ 为什么要读它（2026-10-07 评审抓到）：运维总开关 FREE_VIDEO_GATE=off 只放开了服务端，新 App 只看本机的 freeOk，
+   *   照样把标准 / 高清灰着写「会员档」—— 开关对新 App 不起作用。判据在服务端，App 照它画。
+   */
+  freeVideo: "legacy" | { model: string; resolution: string }[] | null;
 }
 
-const CAP_KEYS: (keyof ServerCaps)[] = ["res480", "draftMode", "failRefund", "imageGroups"];
+/** 布尔的那几位（serverSupports 只答这几样） */
+export type BoolCap = "res480" | "draftMode" | "failRefund" | "failRefundMinimax" | "imageGroups";
+
+/** 健康端点的 JSON → ServerCaps（形状不对的位一律按「没有」）。**唯一解析处** */
+function capsOf(j: Record<string, unknown>): ServerCaps {
+  const fv = j.freeVideo;
+  const list = Array.isArray(fv)
+    ? fv
+        .filter((x): x is { model: string; resolution: string } => !!x && typeof x === "object" && typeof (x as { model?: unknown }).model === "string" && typeof (x as { resolution?: unknown }).resolution === "string")
+        .map((x) => ({ model: x.model, resolution: x.resolution }))
+    : null;
+  return {
+    res480: j.res480 === true,
+    draftMode: j.draftMode === true,
+    failRefund: j.failRefund === true,
+    failRefundMinimax: j.failRefund === true && j.minimaxFailRefund !== false,
+    imageGroups: j.imageGroups === true,
+    freeVideo: j.freeVideoGate === false ? "legacy" : list,
+  };
+}
 
 let caps: ServerCaps | null = null;
 let probe: Promise<ServerCaps | null> | null = null;
 /** 上一次探测没答上来（断网 / 5xx / 429）的时刻：之后 30 秒内不再重探 —— serverSupports 在 render 里被问，不节流就是每画一次发一发 */
 let failedAt = 0;
 const RETRY_MS = 30_000;
-const NONE: ServerCaps = { res480: false, draftMode: false, failRefund: false, imageGroups: false };
+const NONE: ServerCaps = { res480: false, draftMode: false, failRefund: false, failRefundMinimax: false, imageGroups: false, freeVideo: null };
+/** 直连 / 离线：没有服务端那一层，能力全在；免费档清单按档位表（freeVideo null） */
+const ALL: ServerCaps = { res480: true, draftMode: true, failRefund: true, failRefundMinimax: true, imageGroups: true, freeVideo: null };
 const listeners = new Set<() => void>();
 
 /** 没有服务端那一层（dev 直连方舟 / 离线演示包）：能力全在 */
@@ -47,7 +83,7 @@ export function subscribeServerCaps(fn: () => void): () => void {
  * ★ 直连 / 离线时不发请求，直接回「全在」。
  */
 export function probeServerCaps(): Promise<ServerCaps | null> {
-  if (direct()) return Promise.resolve({ res480: true, draftMode: true, failRefund: true, imageGroups: true });
+  if (direct()) return Promise.resolve(ALL);
   if (caps) return Promise.resolve(caps);
   if (!probe && Date.now() - failedAt < RETRY_MS) return Promise.resolve(null);
   probe ??= fetch(`${API_BASE}/api/ark/health`, { signal: AbortSignal.timeout(10_000) })
@@ -59,7 +95,7 @@ export function probeServerCaps(): Promise<ServerCaps | null> {
       // 其余非 2xx（404：没有这个端点）或不是 JSON（SPA 回退的 200 + index.html）= 确实没有这几样
       if (!r.ok || !ct.includes("json")) return NONE;
       const j = (await r.json().catch(() => ({}))) as Record<string, unknown>;
-      return Object.fromEntries(CAP_KEYS.map((k) => [k, j[k] === true])) as unknown as ServerCaps;
+      return capsOf(j);
     })
     .then((c) => {
       if (!c) {
@@ -83,9 +119,20 @@ export function probeServerCaps(): Promise<ServerCaps | null> {
  * 这台服务端会不会这一样：true / false / null（还不知道）。**同步**，render 里能调；第一次问的时候顺手发起探测。
  * ★ null 时调用方放行（见文件头）。别把 null 当 false：探测慢半拍就把免费用户唯一的档藏起来，比放行一次必然同步 400 的请求更坏。
  */
-export function serverSupports(cap: keyof ServerCaps): boolean | null {
+export function serverSupports(cap: BoolCap): boolean | null {
   if (direct()) return true;
   if (caps) return caps[cap];
+  void probeServerCaps();
+  return null;
+}
+
+/**
+ * 此刻免费版能用哪几档出普通片（服务端说的；见 ServerCaps.freeVideo）。null = 服务端没说 / 还不知道 —— 调用方按档位表的 freeOk 判。
+ * 同步、render 里能调；第一次问的时候顺手发起探测（同 serverSupports）。
+ */
+export function serverFreeVideo(): ServerCaps["freeVideo"] {
+  if (direct()) return null;
+  if (caps) return caps.freeVideo;
   void probeServerCaps();
   return null;
 }

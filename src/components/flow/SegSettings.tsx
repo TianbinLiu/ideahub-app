@@ -8,7 +8,8 @@
 //   抄第二份的话，这些规则会一条一条地在另一面走样，而走样了不报错。
 // ★ 组件自己认 node.id 从 store 读（与 PlanSheet / CardPicker 同款）：宿主只给一个 id，
 //   不必把 index/nodes/mode 一路传下来，也就不会出现"传的是上一段"那类错。
-import { clampDuration, durationChoices, r2vBlockLines, realFaceIssue, tierModelId, tierModelLabel, tierOf } from "../../data/economy";
+import { clampDuration, durationChoices, r2vBlockLines, tierModelId, tierModelLabel, tierOf } from "../../data/economy";
+import { realFaceIssue } from "../../data/account";
 import { chosenOf, nodeDone, nodeFramed, nodeOwnFirstFrame, tplOfNode, useFlow } from "../../studio/flowStore";
 import { VIDEO_ASPECTS } from "../../types";
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -39,7 +40,7 @@ export default function SegSettings({ nodeId }: { nodeId: string }) {
    */
   const r2vBlocks = blockout ? r2vBlockLines() : [];
   /**
-   * 真人卡 × 档位的门禁原因（判断在 economy.realFaceIssue 一处，铁律六）——生成闸
+   * 真人卡 × 档位的门禁原因（判断在 account.realFaceIssue 一处，铁律六）——生成闸
    * （flowStore.genNode / deriveProposals）拒的就是这一句，这里提前印出来，
    * 免得用户写完一大段要求、点了生成才第一次听说真人卡过不去。
    * 按当前档位问一次就够：今天四档 realFace 全 false，逐档问只会把同一句糊四遍

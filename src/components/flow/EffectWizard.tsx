@@ -11,8 +11,8 @@ import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useRef, useState } from "react";
 import { AI_REAL } from "../../ai";
-import { myCards } from "../../data/account";
-import { clampDuration, durationChoices, fmtTokens, realFaceIssue, tierOf } from "../../data/economy";
+import { myCards, realFaceIssue } from "../../data/account";
+import { clampDuration, durationChoices, fmtTokens, tierOf } from "../../data/economy";
 import { castCountOf, effectById, effectsOn, type EffectPreset } from "../../data/effectPresets";
 import { showToast } from "../../data/toast";
 import { useAccountVersion } from "../../hooks/useAccount";
@@ -117,7 +117,7 @@ export default function EffectWizard({
   const stepIdx = EFFECT_STEPS.indexOf(d.step);
   const castOk = !preset ? false : preset.subject === "product" ? !!productCard || !!d.productImage : cast.length === need;
   const stale = !!d.keyframe && d.keyframeKey !== effectKeyOf({ ...d, aspect }, cast);
-  // 关键帧（2.x 两档当参考图发、1.0 两档当首帧）里画着真人脸：方舟视频那一侧会整发拒（economy.realFaceIssue 的 framed）
+  // 关键帧（2.x 两档当参考图发、1.0 两档当首帧）里画着真人脸：方舟视频那一侧会整发拒（account.realFaceIssue 的 framed）
   const faceNote = preset && preset.subject !== "product" ? realFaceIssue(cast, tierId, { framed: !real }) : null;
   const title = preset ? t(PRESET_TEXT[preset.id]?.title ?? msg`特效`) : "";
   const spec =

@@ -13,8 +13,8 @@ import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useRef, useState } from "react";
 import { AI_REAL, groupsAvailable } from "../../ai";
-import { myCards } from "../../data/account";
-import { CHAT_TURN_TOKENS, clampDuration, durationChoices, fmtTokens, realFaceIssue, tierOf } from "../../data/economy";
+import { myCards, realFaceIssue } from "../../data/account";
+import { CHAT_TURN_TOKENS, clampDuration, durationChoices, fmtTokens, tierOf } from "../../data/economy";
 import { GRID_DEFAULT_SEC, GRID_SHOTS_MAX, GRID_SHOTS_MIN, namedOutside, shotKey, type GridNote, type PanelIssue } from "../../data/gridShots";
 import { LEAD_CAST_MAX, SCENE_MAX, SCENE_MIN } from "../../data/sceneShots";
 import { useAccountVersion } from "../../hooks/useAccount";
@@ -128,7 +128,7 @@ export default function GridShotsWizard({
   const focusCastIssue = d.step === "draw" && focus !== null && d.shots[focus] ? gridCastIssue([d.shots[focus]], cast) : null;
   const layCastIssue = d.step === "spec" ? gridCastIssue(pickedShots(d), cast) : null;
   const full = cast.length >= LEAD_CAST_MAX;
-  // 每一格都带画面帧（那一格的画面当开头帧）：真人卡在带帧的请求里会被整发拒（economy.realFaceIssue 的 framed）
+  // 每一格都带画面帧（那一格的画面当开头帧）：真人卡在带帧的请求里会被整发拒（account.realFaceIssue 的 framed）
   const faceNote = realFaceIssue(cast, tierId, { framed: true });
   const aspect = d.aspect ?? defaultAspect;
   const dur = clampDuration(d.durationSec ?? GRID_DEFAULT_SEC, tierId);

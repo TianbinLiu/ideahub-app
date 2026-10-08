@@ -1326,7 +1326,7 @@ function NodePanel({
                     const names = n.usable || n.member;
                     return n.usable
                       ? t`参考图直出要收参考图的模型——到 ⚙ 本段设置换成「${names}」`
-                      : t`参考图直出要收参考图的模型——「${names}」是会员档，开通会员套餐后可用`;
+                      : t`参考图直出要收参考图的模型——「${names}」是会员档，开通会员套餐（或充值过任意一笔）后可用`;
                   })()
                 : undefined
             }

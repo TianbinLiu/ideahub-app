@@ -26,11 +26,12 @@ import Icon from "../components/Icon";
 import { AI_REAL, ArkTaskFailed, ArkTaskUnknown, SegmentGenFailed, chargeNote, chargeOnFail, refineFrame, regenSegment, unwrapFailure } from "../ai";
 import { ANN_CLAUSE } from "../studio/segmentGen";
 import { isArkAssetUrl, requestArkTransfer, transferStatus } from "../ai/arkClient";
-import { canAfford, frozenNote, isRemoteMode, spendTokens, tierBlockReason, walletOf } from "../data/account";
+import { canAfford, frozenNote, isRemoteMode, spendTokens, tierBlockReason, tierOffered, walletOf } from "../data/account";
+import UpgradeLink from "../components/UpgradeLink";
 import { idbSet } from "../data/db";
 import { dropVideoJob } from "../data/videoJobs";
 import { ownerEpoch } from "../data/deviceOwner";
-import { annRedrawCost, fmtTokens, segTokens, tierOf } from "../data/economy";
+import { annRedrawCost, fmtTokens, segTokens, tierOf, tierRetireDay, tierRetired } from "../data/economy";
 import { publishedExit, useStudio } from "../studio/studioStore";
 import { useCut } from "../studio/cutStore";
 import {
@@ -283,6 +284,8 @@ export default function CutPage() {
     const st = loc.state as { warn?: unknown } | null;
     return typeof st?.warn === "string" ? st.warn : "";
   });
+  /** 哪一句报错旁边要摆「去升级」（套餐那一类原因）：记的是那一句本身，err 换成别的话时链接自己就不摆了 */
+  const [errUpgrade, setErrUpgrade] = useState("");
   const dragClip = useRef<string | null>(null);
 
   // 预览播放器：播当前片段的源视频（代理 blob 供圈选截帧），到出点自动跳下一片段
@@ -1164,10 +1167,23 @@ export default function CutPage() {
     // ★ 档位门禁（2026-10-07 免费档限制）：重拍是真出片，而这几段的档这个人现在用不了（会员档 / 已停用）的话，
     //   改图的钱先花出去、重拍那一发才被服务端 403。判据只在 account.tierBlockReason（工作流出片问的是同一句）
     for (const segIndex of bySeg.keys()) {
-      const blocked = segs[segIndex] ? tierBlockReason(tierOf(segs[segIndex].videoTier)) : null;
-      if (blocked) {
+      const tier = segs[segIndex] ? tierOf(segs[segIndex].videoTier) : null;
+      const blocked = tier ? tierBlockReason(tier) : null;
+      if (tier && blocked) {
         const segNo = segIndex + 1;
-        setErr(t`第 ${segNo} 段重拍不了：${blocked}`);
+        const label = tier.label;
+        // ★ 剪辑页换不了档：tierBlockReason 里「换一档再出片」那种出路在这一页不存在（2026-10-07 评审抓到）。
+        //   摆不出来的档（停用 / 这台服务端不支持）说这一页能走的路；套餐那一道照说原句，并给「去升级」（errUpgrade 认的是这一句）
+        if (tierRetired(tier)) {
+          const day = tierRetireDay(tier);
+          setErr(t`第 ${segNo} 段是「${label}」档，模型已于 ${day}停用，这里重拍不了——回工作流把这一段换一档重新出片（会重新计费）`);
+        } else if (!tierOffered(tier)) {
+          setErr(t`第 ${segNo} 段是「${label}」档，这台服务器还不支持它（服务端需要更新），这里重拍不了`);
+        } else {
+          const line = t`第 ${segNo} 段重拍不了：${blocked}`;
+          setErr(line);
+          setErrUpgrade(line);
+        }
         return;
       }
     }
@@ -2181,7 +2197,15 @@ export default function CutPage() {
         <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-3">
           {err && (
             <div className="mb-2.5 flex items-start gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
-              <span className="min-w-0 flex-1">{err}</span>
+              <span className="min-w-0 flex-1">
+                {err}
+                {err === errUpgrade && (
+                  <>
+                    {"　"}
+                    <UpgradeLink />
+                  </>
+                )}
+              </span>
               <button onClick={() => setErr("")} className="flex-none">
                 <Icon name="close" size={14} />
               </button>

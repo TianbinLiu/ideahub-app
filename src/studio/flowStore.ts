@@ -24,7 +24,7 @@ import { castPreviewImage, frameUrlAt, fuseStageFrame, AI_REAL, ArkTaskFailed, A
 import { frameMoment, isMultiShot, momentCards } from "../data/shotScript";
 import { endFrameUsed } from "../data/drawPlan";
 import { isArkAssetUrl, transferArkVideo } from "../ai/arkClient";
-import { canAfford, defaultTierId, draftModeIssue, draftModeOffered, frozenNote, myCards, spendTokens, tierBlockReason, tierGo, usableTierId, walletOf } from "../data/account";
+import { canAfford, defaultTierId, draftModeIssue, draftModeOffered, frozenNote, myCards, realFaceIssue, spendTokens, tierBlockReason, tierGo, tierOffered, usableTierId, walletOf } from "../data/account";
 import { showToast } from "../data/toast";
 import {
   r2vTokens,
@@ -37,7 +37,6 @@ import {
   fmtTokens,
   proposalRedrawCost,
   proposalsCost,
-  realFaceIssue,
   segmentCost,
   tierOf,
   tierRetired,
@@ -889,8 +888,10 @@ function tierSwapNote(i: number, from: string, to: string): string {
   if (a.id !== from) return t`第 ${n} 段原来的档位已经下线，改用「${b}」档`;
   const label = a.label;
   if (tierRetired(a)) return t`第 ${n} 段原来是「${label}」档（模型已停用），改用「${b}」档`;
-  if (!a.freeOk) return t`第 ${n} 段原来是「${label}」档（会员档），改用你能用的「${b}」档——开通会员套餐后可以换回去`;
-  return t`第 ${n} 段原来是「${label}」档（这台服务器还不支持），改用「${b}」档`;
+  // ★ 摆不出来的（停用之外只剩「这台服务端不支持」）先判，剩下的才是套餐那一道 —— 判据与 tierBlockReason 同一个顺序
+  //   （原来按目录的 freeOk 判会员档：服务端关了免费档限制时这句话就说错了；account.tierFreeOk 那条 ★）
+  if (!tierOffered(a)) return t`第 ${n} 段原来是「${label}」档（这台服务器还不支持），改用「${b}」档`;
+  return t`第 ${n} 段原来是「${label}」档（会员档），改用你能用的「${b}」档——开通会员套餐（或充值过任意一笔）后可以换回去`;
 }
 
 /** 这条作品够不够格「做同款」：至少一段带剧本文字（纯上传/无剧本的作品没有配方可抄） */
@@ -1477,7 +1478,7 @@ function extraRefNameMsg(issue: "empty" | "reserved" | "taken"): string {
 
 /**
  * 这一段出片会不会**带画面帧**（设定首帧 / 承接帧 / 圈选，或工作流里推演、补画出来的帧）——
- * 真人卡门禁用（economy.realFaceIssue 的 framed：已认证真人卡在高清/电影级只有不带帧的请求过得去）。
+ * 真人卡门禁用（account.realFaceIssue 的 framed：已认证真人卡在高清/电影级只有不带帧的请求过得去）。
  * ★ 判据走 segmentGen.frameFree 一处（refVideoOn 的帧那一半）；帧在不在问 usableFrames、承接问 nodeCarry ——
  *   与 genNode 真正发出去的那一份同源。老草稿里的占位图不算帧，但它出片前会被补画，补出来的一样算。
  * ★ 不是简约模式、也不是不补画帧的段（refAllowedOf 为假）时恒为真：那条路上的帧不是已经在方案里，就是出片前现画。
@@ -2589,7 +2590,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
       set({ err: t`先写一句要拍什么（或从工坊带素材卡过来），我才好推演走向` });
       return false;
     }
-    // ★ 真人卡门禁（判断在 economy.realFaceIssue 一处，铁律六）：推演画首尾帧同样把
+    // ★ 真人卡门禁（判断在 account.realFaceIssue 一处，铁律六）：推演画首尾帧同样把
     //   素材卡的形象参考喂给方舟（generateProposals → prepareMaterialRefs），真人照片
     //   一样整发被拒 —— 而这条路是**先扣费后开跑**（下面 spendTokens 在 await 之前），
     //   门禁必须立在扣费之前，不然就是"钱扣了、供应商拒了"。
@@ -3881,7 +3882,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
       set({ err: blocked });
       return false;
     }
-    // ★ 真人卡门禁（判断在 economy.realFaceIssue 一处，铁律六）：现有方舟档位对真人
+    // ★ 真人卡门禁（判断在 account.realFaceIssue 一处，铁律六）：现有方舟档位对真人
     //   参考图两套探测器全拦、整发拒收（见 VideoTier.realFace 的实测依据）——与其飞到
     //   方舟中途换回一句英文报错，不如当场说人话（同上面 tierBlockReason 的处置）。
     //   SegSettings 在档位区印的是同一句；r2v/白模路也从这里走，天然同一道门。

@@ -12,10 +12,10 @@ import { V3_CARD_WIPE_MS, Card, SHARE_NOTE_MAX, uid, viewTag, type CardView } fr
 import { MARKET_DECKS, marketCardsByName } from "../mock/ai";
 import { claimPendingTerms, reconcileTermsWithServer } from "./agreements";
 import { claimLegacyVoices, removeVoice } from "./cardVoice";
-import { adoptRemoteAssets, assetOf, claimLegacyAssets, removeAsset, saveAsset, setAssetSyncIssue, type CardAsset } from "./cardAsset";
+import { adoptRemoteAssets, assetOf, claimLegacyAssets, hasAsset, removeAsset, saveAsset, setAssetSyncIssue, type CardAsset } from "./cardAsset";
 import { PLANS, PLATFORM_CUT, VIDEO_TIERS, fmtTokens, joinTierNames, planOf, tierOf, tierRetireDay, tierRetired, type VideoTier } from "./economy";
-import { serverSupports, subscribeServerCaps } from "./serverCaps";
-import { FREE_DEFAULT_CHAIN, PAID_DEFAULT_CHAIN, firstLiveTierId } from "./videoTierTable";
+import { serverFreeVideo, serverSupports, subscribeServerCaps } from "./serverCaps";
+import { FREE_DEFAULT_CHAIN, PAID_DEFAULT_CHAIN, SEEDANCE_2_5, firstLiveTierId } from "./videoTierTable";
 import { idbGet, idbRead, idbSet } from "./db";
 // 转存（dataURL → 永久 URL）的唯一入口，与发布/换封面/详情页加图共用（铁律六）
 import { toPermanentUrl } from "./publishAssets";
@@ -723,8 +723,9 @@ export async function refreshRemoteWallet(): Promise<void> {
   if (!remoteOn() || !getToken()) return;
   try {
     const r = await walletApi.fetchWallet();
-    // paid / free 服务端放在 wallet 里或回包顶层都认（见 WalletResp 的 ★）
-    syncRemoteWallet({ ...r.wallet, paid: r.wallet.paid ?? r.paid, free: r.wallet.free ?? r.free });
+    // paid / free 认回包顶层（契约：`{ wallet: {…, paidEver}, plans, paid, free }`；顶层 paid = 服务端 isPaidUser 的结论），
+    // wallet 里那一格只是兜底（见 WalletResp 的 ★）。wallet.paidEver 不拿来顶：它只是「付过任何一笔」那一半，套餐那一半在 planId 上
+    syncRemoteWallet({ ...r.wallet, paid: r.paid ?? r.wallet.paid, free: r.free ?? r.wallet.free });
   } catch (e) {
     emitApiError("refreshWallet", e);
   }
@@ -944,6 +945,19 @@ export function offeredTiers(): VideoTier[] {
   return VIDEO_TIERS.filter(tierOffered);
 }
 
+/**
+ * 这一档**免费用户**能不能用（不看停用 / 服务端支不支持，那是 tierOffIssue 的事）—— 免费档清单的唯一读法。
+ * ★ 判据跟着服务端走（2026-10-07 评审抓到）：健康端点报了 freeVideo 就照它；运维关掉 FREE_VIDEO_GATE 时（freeVideoGate: false）
+ *   服务端退回改版前的口径 —— 只挡电影级（Seedance 2.5），新 App 跟着放开（原来只看本机 freeOk，开关对新 App 不起作用）；
+ *   没报（老服务端 / 直连 / 还没探到）按档位表的 freeOk。按（模型, 分辨率）认，不按模型：「草稿」与「高清」是同一个模型。
+ */
+export function tierFreeOk(tier: VideoTier): boolean {
+  const fv = serverFreeVideo();
+  if (fv === "legacy") return tier.model !== SEEDANCE_2_5;
+  if (fv) return fv.some((x) => x.model === tier.model && x.resolution === tier.resolution);
+  return tier.freeOk;
+}
+
 /** 「会员档」那一整句：一档或几档并成一句（档位那一排、选法屏、工坊铸段窗都只说这一句，别一档一句糊四遍） */
 function memberLine(labels: string[]): string {
   const names = joinTierNames(labels);
@@ -968,7 +982,7 @@ function memberLine(labels: string[]): string {
 export function tierBlockReason(tier: VideoTier): string | null {
   const off = tierOffIssue(tier);
   if (off) return off;
-  if (tier.freeOk) return null;
+  if (tierFreeOk(tier)) return null;
   // true（付过钱 / 管理员）或 null（还不知道）都放行
   if (payingNow() !== false) return null;
   return memberLine([tier.label]);
@@ -980,7 +994,7 @@ export function tierBlockReason(tier: VideoTier): string | null {
  */
 export function memberTiersLine(): string | null {
   if (payingNow() !== false) return null;
-  const labels = offeredTiers().filter((x) => !x.freeOk).map((x) => x.label);
+  const labels = offeredTiers().filter((x) => !tierFreeOk(x)).map((x) => x.label);
   return labels.length ? memberLine(labels) : null;
 }
 
@@ -1022,7 +1036,7 @@ export function draftModeIssue(tier: VideoTier): string | null {
  * 免费档的名字按能力现算（freeOk 且摆得出来的），不写死 —— 11-24 极速停用后自己少一档。
  */
 export function planRequiredLine(): string {
-  const free = joinTierNames(offeredTiers().filter((x) => x.freeOk).map((x) => x.label));
+  const free = joinTierNames(offeredTiers().filter(tierFreeOk).map((x) => x.label));
   return free
     ? t`这一档是会员档——开通会员套餐（或充值过任意一笔）后可用；免费版能用「${free}」档出片`
     : t`这一档是会员档——开通会员套餐（或充值过任意一笔）后可用`;
@@ -1035,6 +1049,109 @@ export function planRequiredLine(): string {
 export function tierGo(pred: (t: VideoTier) => boolean): { names: string; member: boolean } {
   const n = tierNamesFor(pred);
   return n.usable ? { names: n.usable, member: false } : { names: n.member, member: true };
+}
+
+/**
+ * 「这些素材卡挂在这一档上，真人照片过不过得去」—— **唯一实现**（铁律六），
+ * null = 没问题，否则是一句给用户看的整句原因。形状照 r2vPriceIssue / imageTierPriceIssue：
+ * 界面（SegSettings 把原因印在页面上）与生成闸（flowStore 的 genNode / deriveProposals）
+ * 都只问这一句，不许各自去翻 `realPerson` 或档位表 —— 各翻一遍就是"界面说能出、
+ * 生成闸拒了"这种两面打架。
+ *
+ * ★★ 2026-10-07 从 economy 搬到这里（评审抓到）：出路那半句要点名「换到哪一档」，而免费档限制之后「真人」「高清」「电影级」都是会员档 ——
+ *   economy 是纯目录、不认识套餐，原来那句话把免费用户指去一个点不动的「真人」档（灰着、写着会员档），又按目录列出
+ *   「草稿」「高清」「电影级」三档。档名现在从 tierGo / tierBlockReason 取：先给这个人用得了的，用不了的标明是会员档、怎么开。
+ *   account 已经 import economy，反过来会成环，所以只能放这一侧（同 tierBlockReason 的 ★）。
+ * ★ 为什么在**素材 × 档位**上判，不是只看档位：非真人素材在任何档都照常走；真人素材
+ *   只有 realFace 档能收（今天一档都没有，见 VideoTier.realFace 的实测依据）——
+ *   两个输入缺一个都答不了"这一段现在能不能生成"。
+ * ★ realPerson 判**肯定**（`=== true`）：缺省 = 老卡 = 非真人，照常放行
+ *   （types.Card.realPerson 那条 ★ 的读侧约定，别改成对 false 的等值判）。
+ * ★ r2v/白模路不用单独设闸：它与经典路都从 genNode 那道门走，天然被盖住。
+ * ★ 原因句不点名 MiniMax/Runway：对用户那是没上线的内部选型，说了也做不了任何事；
+ *   接入哪家写在 VideoTier.realFace 的注释里，给接入的人看。
+ * ★ `blockout` 只改**出路那半句**（2026-08-24 真机走查抓到）：白模节点上「真人」档
+ *   整个按不动（没有 r2v 能力，r2vPriceIssue 拦着），默认那句「换成真人档就能出」
+ *   在那儿是一条死路 —— 两行提示并排自相矛盾，用户照着点只会发现按钮不生效。
+ *   真人卡 × 白模模板是**双向都无解**的组合，出路只有取卡或去模板，就照实说。
+ * ★★ `framed` = 这一发会带画面帧（flowStore.nodeFramed / 推演与工坊恒真）。2026-09-30 付费实测：
+ *   可信素材只救得了**卡片那一张**，同一发里只要还有别的写实人脸图 —— 推演或补画出来的设定帧、
+ *   上一段接过来的承接画面、用户自己传的首帧 —— 方舟照样整发拒（400
+ *   `InputImageSensitiveContentDetected.PrivacyInformation`，点名的是那张正脸的帧，不是 asset），
+ *   哪怕帧是 Seedream 画的、哪怕同一个人的 asset 就在同一发里。所以收 asset:// 的档只在**不带帧**
+ *   时放行；白模段不算带帧（它发的是模板视频，由 blockout 那几句管）。
+ */
+export function realFaceIssue(
+  materials: Card[] | undefined,
+  tierId: string | undefined,
+  opts?: { blockout?: boolean; framed?: boolean },
+): string | null {
+  const real = (materials ?? []).filter((c) => c.realPerson === true);
+  if (real.length === 0) return null;
+  const tier = tierOf(tierId);
+  // 这一档本身就收真人照片（MiniMax 真人档）——不用绕方舟那套
+  if (tier.realFace === true) return null;
+
+  // ★★ 方舟合规通道：真人卡**做过肖像授权、拿到了可信素材 ID** 时，出片走的是
+  //   `asset://<id>` 而不是那张照片，方舟的人脸审核因此不适用（官方三条路之一，
+  //   docs/backlog.md §1）。所以这里放行的前提是**两件事同时成立**：
+  //     ① 每一张真人卡都有可信素材（缺一张就等于那个人要靠照片进模型 → 必被拒）；
+  //     ② 这一档的模型收 asset://（Seedance 2.0/2.5 收，1.0 不收，见 VideoTier.assetRef）。
+  //   ⚠ 判据只有这一处：别在界面或 segmentGen 里另翻一遍 hasAsset。
+  const noAsset = real.filter((c) => !hasAsset(c.id));
+  const framed = !!opts?.framed && !opts?.blockout;
+  if (tier.assetRef === true && noAsset.length === 0 && !framed) return null;
+
+  // ★ 三种出路各是一整句（2026-09-11 多语言）：原来是「开头半句 + ；而… / ——换成…」两段拼，英文没法照着拼。
+  //   卡名按界面语言的列举方式连（quotedNames）；句中点名的档位名从档位表现读（tierOf().label），不写死中文档名。
+  //   「本人授权过」原来两边带着 ** —— 没有任何地方渲染 markdown，用户看到的就是两对星号，这次一并去掉。
+  const label = tier.label;
+  // 「真人」档：它是会员档（freeOk 为假）。免费用户读到「换真人档」要同时知道怎么开 —— 不说的话这是一条点不动的路
+  const realTier = tierOf("real");
+  const realLabel = realTier.label;
+  const realMember = !!tierBlockReason(realTier);
+  /** 「换『真人』档」那一截（含去哪儿用、要不要先开会员）。两种说法各是一整截，别把「会员档」当半句拼 */
+  const realPath = realMember
+    ? t`「${realLabel}」档（会员档：开通会员套餐或充值过任意一笔后可用，在「工作流」或「简约模式」里直出）`
+    : t`「${realLabel}」档（在「工作流」或「简约模式」里直出）`;
+  const names = quotedNames(real.map((c) => c.name));
+  // 这一档收 asset://，只是有卡还没做授权 —— 出路是"去做授权"，与"换档位"完全不同，
+  // 说错的话用户会去换一个同样出不了的档（铁律五：指路必须指对）
+  if (tier.assetRef === true) {
+    // 带帧的路：勾没勾「火山引擎适用」都过不去，先说这一条（别让人去详情页勾完了还是被拒）
+    if (framed) {
+      return t`${names}是真人卡：「${label}」档只在「简约模式」不带首帧时可用（推演帧、承接画面、上传的首帧里有真人脸，会被整发拒）——去「简约模式」直出，或换${realPath}`;
+    }
+    const lack = quotedNames(noAsset.map((c) => c.name));
+    // ★ 2026-09-30 起授权的界面入口就是卡上那个「火山引擎适用」勾选框（components/VolcCompatToggle），
+    //   原因句只指那一个地方（铁律五：指路必须指对 —— 此前这里指的"填素材 ID"那套界面已经没了）
+    // ★ 不认证也有路：「真人」档收真人照片。但白模段上那一档做不了复刻（见下面 blockout 那句），那时不往那儿指
+    return opts?.blockout
+      ? t`${lack}没有勾选「火山引擎适用」——「${label}」档只收做过火山引擎认证的真人卡。去卡片详情页勾选「火山引擎适用」，或先把这张卡取下`
+      : t`${lack}没有勾选「火山引擎适用」——「${label}」档只收做过火山引擎认证的真人卡。去卡片详情页勾选「火山引擎适用」，或换${realPath}`;
+  }
+  if (opts?.blockout) {
+    return realMember
+      ? t`${names}是声明过的真人素材，「${label}」档的供应商拒收真人照片（实测名人按版权拦、普通人按隐私拦，整发被拒）；而「${realLabel}」档做不了白模复刻——真人卡与白模模板不能同用：把真人卡取下换一张非真人卡，或不用模板、换「${realLabel}」档以卡上照片起拍直出（「${realLabel}」是会员档：开通会员套餐或充值过任意一笔后可用）`
+      : t`${names}是声明过的真人素材，「${label}」档的供应商拒收真人照片（实测名人按版权拦、普通人按隐私拦，整发被拒）；而「${realLabel}」档做不了白模复刻——真人卡与白模模板不能同用：把真人卡取下换一张非真人卡，或不用模板、换「${realLabel}」档以卡上照片起拍直出`;
+  }
+  // 收授权素材的那几档（assetRef：Seedance 2.0 / 2.5 系列 —— 2026-10-07 起多了「草稿」）。按能力 + 这个人用不用得了现算（tierGo）：
+  // 先给他用得了的（免费用户是「草稿」），一档都用不了才列会员档并标出来 —— 原来按目录列「草稿」「高清」「电影级」，免费用户被指去两个点不动的档
+  const asset = tierGo((x) => x.assetRef);
+  const assetPath = asset.member ? t`「${asset.names}」档（会员档）` : t`「${asset.names}」档`;
+  // ★ 「真人」档只在画布（工作流 / 简约模式）上能直出 —— 工坊整个建立在推演上，那一档在工坊是灰的（deriveIssue）。
+  //   这句话画布、工坊方案台、工坊节点卡三处都会印，所以把去哪儿用它说在句子里，别指一条在工坊里走不通的路
+  // 带帧的路上「勾了火山引擎适用就能换高清」不成立，得把"只在简约模式不带首帧"一起说出来
+  if (framed) {
+    return t`${names}是真人卡，「${label}」档不收真人照片——换${realPath}；${assetPath}只在「简约模式」不带首帧、且卡勾了「火山引擎适用」时可用`;
+  }
+  return t`${names}是真人卡，「${label}」档不收真人照片——换${realPath}；或给卡勾选「火山引擎适用」后换${assetPath}`;
+}
+
+/** 几张卡的名字各加一对引号、按界面语言的列举分隔符连起来（中文「凛」、「樱」，英文 “Rin”, “Sakura”） */
+function quotedNames(names: string[]): string {
+  const sep = t({ message: "、", comment: "列举几个名字时的分隔符" });
+  return names.map((name) => t({ message: `「${name}」`, comment: "给一个名字（卡名）加引号：中文「」，英文用弯引号" })).join(sep);
 }
 
 /**
@@ -1055,6 +1172,17 @@ export function defaultTierId(): string {
  */
 export function usableTierId(id: string | undefined): string {
   if (id && tierOf(id).id === id && !tierBlockReason(tierOf(id))) return id;
+  // ★ 换到**能力最接近**的那一档（2026-10-07 评审抓到）：原来一律落默认档 —— 免费用户照做一份「高清」配方落在「极速」上，
+  //   参考图、声音、首尾帧一样都没了；而「草稿」与「高清」是同一个模型、只差分辨率，那些全都在。所以先找一档收不收参考图、
+  //   出不出声都与原档一样、这个人现在用得了的（按档位表的顺序取第一个 —— 便宜的排在前面），找不到才退回默认档。
+  //   只在方舟的档里找：真人档按发计价、做不了推演，不该被「换过去」。
+  const want = id ? tierOf(id) : null;
+  if (want && want.id === id) {
+    const near = offeredTiers().find(
+      (x) => !x.flatCost && x.refImg === want.refImg && x.audio === want.audio && !tierBlockReason(x),
+    );
+    if (near) return near.id;
+  }
   return defaultTierId();
 }
 

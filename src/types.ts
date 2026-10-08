@@ -578,7 +578,7 @@ export const TEXT_DESC_MAX = 100;
  * 出片时取起拍画面（segmentGen.startSourceOf）、本段设置里那句提示（cardFitNote）都只问它。
  * · 只有"画面主体"画得出一个开场镜头：人物 / 场景 / 道具（风格卡是一种画法，背景卡只以文字参与）；
  * · ★ 真人卡不给（2.57 发版复核抓到）：真人档本来就拿卡上的**照片**起拍 —— 那正是这一档存在的理由；
- *   而画起拍画面要把那张照片当参考图交给方舟 Seedream，方舟拒收真人照片（见 economy.realFaceIssue 那几句实测），
+ *   而画起拍画面要把那张照片当参考图交给方舟 Seedream，方舟拒收真人照片（见 account.realFaceIssue 那几句实测），
  *   勾了只会失败。更糟的是 cardFitNote 原来会在每一段「真人卡 + 真人档」上提示去勾它 —— 把这一档的主用法往死路上引。
  */
 export function startFramesAllowed(

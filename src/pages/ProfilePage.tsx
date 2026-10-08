@@ -77,6 +77,7 @@ import { cardsLoadIssue,
   isFollowing,
   myCards,
   payingNow,
+  tierFreeOk,
   tierNamesFor,
   myDecks,
   buyWithPlay,
@@ -1736,13 +1737,13 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
       </div>
 
       {/* ★ 免费额度怎么来、能用哪几档（2026-10-07 主人拍板：新人一次 + 每天补，免费用户只能用免费档出片）。
-          数字读服务端下发的规则（account.freeQuota），档名按能力现算（freeOk 且还没停用的）——不写死「极速」「草稿」，11-24 极速停用后这句话自己少一档。
+          数字读服务端下发的规则（account.freeQuota），档名按能力现算（account.tierFreeOk 且还没停用的）——不写死「极速」「草稿」，11-24 极速停用后这句话自己少一档。
           只对「确定没付过钱」的人说（payingNow() === false）：还不知道的时候说了就可能是错的 */}
       {payingNow() === false && (() => {
         const q = freeQuota();
         const daily = fmtTokens(q.dailyTokens);
         const cap = fmtTokens(q.dailyCapTokens);
-        const names = tierNamesFor((x) => x.freeOk).usable;
+        const names = tierNamesFor(tierFreeOk).usable;
         return (
           <div className="mb-4 rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-[11px] leading-relaxed text-sky-100">
             <Trans>

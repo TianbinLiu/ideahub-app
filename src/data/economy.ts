@@ -29,12 +29,9 @@ import {
   VIDEO_PROMPT_MAX,
   VIDEO_PROMPT_MAX_V2,
   VideoSegment,
-  type Card,
   type CardSlot,
   type CardType,
 } from "../types";
-// ★ 「这张卡有没有做过肖像授权」只有 cardAsset 一处判据（侧库，leaf：只依赖 ./db）
-import { hasAsset } from "./cardAsset";
 import { drawCount } from "./drawPlan";
 import {
   DRAFT_FINAL_MULT,
@@ -720,95 +717,6 @@ export function r2vBlockLines(): string[] {
  */
 export function blockoutTier(): VideoTier | null {
   return VIDEO_TIERS.find((t) => t.blockoutOk) ?? null;
-}
-
-/**
- * 「这些素材卡挂在这一档上，真人照片过不过得去」—— **唯一实现**（铁律六），
- * null = 没问题，否则是一句给用户看的整句原因。形状照 r2vPriceIssue / imageTierPriceIssue：
- * 界面（SegSettings 把原因印在页面上）与生成闸（flowStore 的 genNode / deriveProposals）
- * 都只问这一句，不许各自去翻 `realPerson` 或档位表 —— 各翻一遍就是"界面说能出、
- * 生成闸拒了"这种两面打架。
- *
- * ★ 为什么在**素材 × 档位**上判，不是只看档位：非真人素材在任何档都照常走；真人素材
- *   只有 realFace 档能收（今天一档都没有，见 VideoTier.realFace 的实测依据）——
- *   两个输入缺一个都答不了"这一段现在能不能生成"。
- * ★ realPerson 判**肯定**（`=== true`）：缺省 = 老卡 = 非真人，照常放行
- *   （types.Card.realPerson 那条 ★ 的读侧约定，别改成对 false 的等值判）。
- * ★ r2v/白模路不用单独设闸：它与经典路都从 genNode 那道门走，天然被盖住。
- * ★ 原因句不点名 MiniMax/Runway：对用户那是没上线的内部选型，说了也做不了任何事；
- *   接入哪家写在 VideoTier.realFace 的注释里，给接入的人看。
- * ★ `blockout` 只改**出路那半句**（2026-08-24 真机走查抓到）：白模节点上「真人」档
- *   整个按不动（没有 r2v 能力，r2vPriceIssue 拦着），默认那句「换成真人档就能出」
- *   在那儿是一条死路 —— 两行提示并排自相矛盾，用户照着点只会发现按钮不生效。
- *   真人卡 × 白模模板是**双向都无解**的组合，出路只有取卡或去模板，就照实说。
- * ★★ `framed` = 这一发会带画面帧（flowStore.nodeFramed / 推演与工坊恒真）。2026-09-30 付费实测：
- *   可信素材只救得了**卡片那一张**，同一发里只要还有别的写实人脸图 —— 推演或补画出来的设定帧、
- *   上一段接过来的承接画面、用户自己传的首帧 —— 方舟照样整发拒（400
- *   `InputImageSensitiveContentDetected.PrivacyInformation`，点名的是那张正脸的帧，不是 asset），
- *   哪怕帧是 Seedream 画的、哪怕同一个人的 asset 就在同一发里。所以收 asset:// 的档只在**不带帧**
- *   时放行；白模段不算带帧（它发的是模板视频，由 blockout 那几句管）。
- */
-export function realFaceIssue(
-  materials: Card[] | undefined,
-  tierId: string | undefined,
-  opts?: { blockout?: boolean; framed?: boolean },
-): string | null {
-  const real = (materials ?? []).filter((c) => c.realPerson === true);
-  if (real.length === 0) return null;
-  const tier = tierOf(tierId);
-  // 这一档本身就收真人照片（MiniMax 真人档）——不用绕方舟那套
-  if (tier.realFace === true) return null;
-
-  // ★★ 方舟合规通道：真人卡**做过肖像授权、拿到了可信素材 ID** 时，出片走的是
-  //   `asset://<id>` 而不是那张照片，方舟的人脸审核因此不适用（官方三条路之一，
-  //   docs/backlog.md §1）。所以这里放行的前提是**两件事同时成立**：
-  //     ① 每一张真人卡都有可信素材（缺一张就等于那个人要靠照片进模型 → 必被拒）；
-  //     ② 这一档的模型收 asset://（Seedance 2.0/2.5 收，1.0 不收，见 VideoTier.assetRef）。
-  //   ⚠ 判据只有这一处：别在界面或 segmentGen 里另翻一遍 hasAsset。
-  const noAsset = real.filter((c) => !hasAsset(c.id));
-  const framed = !!opts?.framed && !opts?.blockout;
-  if (tier.assetRef === true && noAsset.length === 0 && !framed) return null;
-
-  // ★ 三种出路各是一整句（2026-09-11 多语言）：原来是「开头半句 + ；而… / ——换成…」两段拼，英文没法照着拼。
-  //   卡名按界面语言的列举方式连（quotedNames）；句中点名的档位名从档位表现读（tierOf().label），不写死中文档名。
-  //   「本人授权过」原来两边带着 ** —— 没有任何地方渲染 markdown，用户看到的就是两对星号，这次一并去掉。
-  const label = tier.label;
-  // 这一档收 asset://，只是有卡还没做授权 —— 出路是"去做授权"，与"换档位"完全不同，
-  // 说错的话用户会去换一个同样出不了的档（铁律五：指路必须指对）
-  const realTier = tierOf("real").label;
-  const names = quotedNames(real.map((c) => c.name));
-  if (tier.assetRef === true) {
-    // 带帧的路：勾没勾「火山引擎适用」都过不去，先说这一条（别让人去详情页勾完了还是被拒）
-    if (framed) {
-      return t`${names}是真人卡：「${label}」档只在「简约模式」不带首帧时可用（推演帧、承接画面、上传的首帧里有真人脸，会被整发拒）——去「简约模式」直出，或换「${realTier}」档（在「工作流」或「简约模式」里直出）`;
-    }
-    const lack = quotedNames(noAsset.map((c) => c.name));
-    // ★ 2026-09-30 起授权的界面入口就是卡上那个「火山引擎适用」勾选框（components/VolcCompatToggle），
-    //   原因句只指那一个地方（铁律五：指路必须指对 —— 此前这里指的"填素材 ID"那套界面已经没了）
-    // ★ 不认证也有路：「真人」档收真人照片。但白模段上那一档做不了复刻（见下面 blockout 那句），那时不往那儿指
-    return opts?.blockout
-      ? t`${lack}没有勾选「火山引擎适用」——「${label}」档只收做过火山引擎认证的真人卡。去卡片详情页勾选「火山引擎适用」，或先把这张卡取下`
-      : t`${lack}没有勾选「火山引擎适用」——「${label}」档只收做过火山引擎认证的真人卡。去卡片详情页勾选「火山引擎适用」，或换「${realTier}」档（在「工作流」或「简约模式」里直出）`;
-  }
-  if (opts?.blockout) {
-    return t`${names}是声明过的真人素材，「${label}」档的供应商拒收真人照片（实测名人按版权拦、普通人按隐私拦，整发被拒）；而「${realTier}」档做不了白模复刻——真人卡与白模模板不能同用：把真人卡取下换一张非真人卡，或不用模板、换「${realTier}」档以卡上照片起拍直出`;
-  }
-  // 收授权素材的那几档（assetRef：Seedance 2.0 / 2.5 系列 —— 2026-10-07 起多了「草稿」）。按能力现算、不写死档名：
-  // 原来这里逐个点名「高清」「电影级」，加了「草稿」之后那句话就少说了一档（而且是免费用户唯一能用的那一档）
-  const assetTiers = joinTierNames(VIDEO_TIERS.filter((x) => x.assetRef && !tierRetired(x)).map((x) => x.label));
-  // ★ 「真人」档只在画布（工作流 / 简约模式）上能直出 —— 工坊整个建立在推演上，那一档在工坊是灰的（deriveIssue）。
-  //   这句话画布、工坊方案台、工坊节点卡三处都会印，所以把去哪儿用它说在句子里，别指一条在工坊里走不通的路
-  // 带帧的路上「勾了火山引擎适用就能换高清」不成立，得把"只在简约模式不带首帧"一起说出来
-  if (framed) {
-    return t`${names}是真人卡，「${label}」档不收真人照片——换「${realTier}」档（在「工作流」或「简约模式」里直出）；「${assetTiers}」档只在「简约模式」不带首帧、且卡勾了「火山引擎适用」时可用`;
-  }
-  return t`${names}是真人卡，「${label}」档不收真人照片——换「${realTier}」档（在「工作流」或「简约模式」里直出）；或给卡勾选「火山引擎适用」后换「${assetTiers}」档`;
-}
-
-/** 几张卡的名字各加一对引号、按界面语言的列举分隔符连起来（中文「凛」、「樱」，英文 “Rin”, “Sakura”） */
-function quotedNames(names: string[]): string {
-  const sep = t({ message: "、", comment: "列举几个名字时的分隔符" });
-  return names.map((name) => t({ message: `「${name}」`, comment: "给一个名字（卡名）加引号：中文「」，英文用弯引号" })).join(sep);
 }
 
 // ── 出图模型与铸卡档位 ─────────────────────────────────────────

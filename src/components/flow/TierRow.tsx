@@ -14,8 +14,8 @@ import type { MessageDescriptor } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
-import { memberTiersLine, tierBlockReason, tierOffered } from "../../data/account";
-import { blockoutPriceIssue, clampDuration, deriveIssue, fmtTokens, realFaceIssue, tierModelId, tierOf, VIDEO_TIERS } from "../../data/economy";
+import { memberTiersLine, realFaceIssue, tierBlockReason, tierOffered } from "../../data/account";
+import { blockoutPriceIssue, clampDuration, deriveIssue, fmtTokens, tierModelId, tierOf, VIDEO_TIERS } from "../../data/economy";
 import { useAccountVersion } from "../../hooks/useAccount";
 import UpgradeLink from "../UpgradeLink";
 import { chosenOf, nodeCost, nodeFramed, tplOfNode, useFlow } from "../../studio/flowStore";
@@ -140,7 +140,7 @@ export default function TierRow({
           //   的主路正是推演，切过去之后「重新推演三套」必被拒。宿主是画布时那条路还在
           //   （画布可以直出），所以这一条只在**需要推演**的宿主上拦：由 prop 决定。
           // ★★ 这一段挂着的真人卡在这一档过不过得去（2026-09-30 主人拍板：过不去的档**直接灰掉**，
-          //   不是选了再报错）。判据只有 economy.realFaceIssue 一处，与出片闸（flowStore.genNode /
+          //   不是选了再报错）。判据只有 account.realFaceIssue 一处，与出片闸（flowStore.genNode /
           //   deriveProposals）问的是同一句 —— 界面说能选、闸却拒，就是两面打架。
           //   没勾「火山引擎适用」的真人卡：只收认证素材的档（高清 / 电影级）灰；1.0 两档本来就不收真人照片，也灰。
           //   勾了的也只在不带帧时放行（framed，2026-09-30 付费实测：帧里的真人脸会被整发拒）。

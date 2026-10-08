@@ -1368,7 +1368,7 @@ export default function CustomCardPage() {
                         //   「有 pendingAsset 但 declareReal 为假」的状态：屏幕说"铸卡时绑定"、
                         //   mint 一行都不写，而那张真人照片照样进卡（见 clearAuthBinding 的 ★★）。
                         // ★★ 上传的那张也要撤：留着它，就是一张真人照片进了一张**没声明真人**的卡——
-                        //   economy.realFaceIssue 认不出它，任何档位都会放行
+                        //   account.realFaceIssue 认不出它，任何档位都会放行
                         const hadReal = !!useCardDraft.getState().realShot;
                         clearRealShot();
                         clearAuthBinding(t`已经离开真人素材这条路：真人照片和火山引擎认证都撤掉了。`);
@@ -1474,7 +1474,7 @@ export default function CustomCardPage() {
       {/* ── 真人素材页（选「真人素材」才进）。★★ 2026-09-30 主人拍板：这一页的主体是**上传真人照片**；
           火山引擎认证退成照片下方一个小勾选框「火山引擎适用」（components/VolcCompatToggle）。
           ★ 这一页**不写**"哪一档需不需要认证"之类的说明：能用哪几档由档位按钮本身可不可点表达
-            （TierRow 读 economy.realFaceIssue —— 判据只有那一处）。
+            （TierRow 读 account.realFaceIssue —— 判据只有那一处）。
           跟读只在这一页有（主人点名）；其它方案在表单里只有传本地音频。 */}
       {step === "real" && (
         <>
