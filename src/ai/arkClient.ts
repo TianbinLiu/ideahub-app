@@ -507,6 +507,39 @@ export function billingDenialError(status: number, body: string): Error | null {
   return null;
 }
 
+/**
+ * 服务端在**转发之前**就拒了的 400（2026-10-07 那一版出片新路的几道闸）→ 一句能直接显示的整句（同 billingDenialError 的口径）；
+ * 认不得的回 null，交回 arkFetch 原来那一支。
+ *   - `MODEL_RETIRED`：这一档的模型停用了（11-24 13:00 之后；设备时钟慢几分钟时 App 还摆着这一档，由服务端拦下）；
+ *   - `VIDEO_PARAMS_NOT_ALLOWED`：出片请求的参数不收（最常见的是用户自己在提示词里打了 `--dur 10` / `--rs 720p` 这类写法）；
+ *   - `DRAFT_FINAL_NOT_ALLOWED`：样片转不了成片（过期 / 方舟那边查不到了 / 两份时长对不上……）。
+ * ★ 这几句服务端都说了「没有扣费」，钱上的判定不用改（ArkHttpError → ai/failCharge 的「没扣」）；要改的是**话**：原来它们走
+ *   `Ark <path> 400: {"ok":false,"code":…,"message":…}` 那一支，屏幕上是一截 JSON，英文界面还得读里面那句中文（2026-10-07 评审抓到）。
+ * ★ 中文界面照旧原样说服务端那句（它最清楚是哪一条没过）；英文界面认 **code** 说本端的整句（D7 a：服务端给码、App 说话）。
+ */
+export function requestRefusalError(status: number, body: string): Error | null {
+  if (status !== 400) return null;
+  let code = "";
+  let serverMsg = "";
+  try {
+    const j = JSON.parse(body) as { code?: unknown; message?: unknown } | null;
+    if (j && typeof j.code === "string") code = j.code;
+    if (j && typeof j.message === "string") serverMsg = j.message;
+  } catch {
+    return null;
+  }
+  const ourByCode: Record<string, () => string> = {
+    MODEL_RETIRED: () => t`这一档用的模型已经停止服务了，请换一档再出片——这一次没有受理，也没有扣费。`,
+    VIDEO_PARAMS_NOT_ALLOWED: () =>
+      t`出片请求里有服务器不收的参数（常见的是在提示词里写了 --dur、--rs 这类参数：分辨率、画幅、时长由档位与时长设置决定，请从提示词里删掉）——这一次没有受理，也没有扣费。`,
+    DRAFT_FINAL_NOT_ALLOWED: () =>
+      t`这条样片现在转不了成片（可能已经过了有效期、方舟那边查不到了，或者时长对不上）——这一次没有受理，也没有扣费，可以重新出一条样片。`,
+  };
+  const ours = ourByCode[code];
+  if (!ours) return null;
+  return new ArkHttpError(serverMsg && i18n.locale !== "en" ? serverMsg : ours(), status, code);
+}
+
 /** 带超时的 Ark 请求。fetch 没有默认超时——网络一卡整个工坊就"假死"在加载态。
  *  429（限流，请求未被受理）自动退避重试一次；其他错误直接抛给上层做回退/播报。 */
 async function arkFetch<T>(path: string, init?: RequestInit, timeoutMs = 90_000): Promise<T> {
@@ -573,6 +606,9 @@ async function arkFetch<T>(path: string, init?: RequestInit, timeoutMs = 90_000)
       // 402 / 403 / 429 = 计费代理的拒绝（余额 / 套餐 / 冻结 / 每日上限）：整句与错误类型都在 billingDenialError 一处
       const denial = billingDenialError(res.status, body);
       if (denial) throw denial;
+      // 400 里服务端自己那几道闸（停用 / 参数不收 / 样片转不了）：整句话，不是一截 JSON（requestRefusalError 的 ★）
+      const refusal = requestRefusalError(res.status, body);
+      if (refusal) throw refusal;
       // 服务端自己的业务码只认**顶层**的 code（`{ ok:false, code:"NOT_FOUND" }`）：方舟原生错误的码在 error.code 里，不进这一位（见 ArkHttpError.code）
       let code = "";
       try {
