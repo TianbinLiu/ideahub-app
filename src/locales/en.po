@@ -200,7 +200,7 @@ msgstr ", and this run has already been charged"
 #: src/components/TemplateShelf.tsx
 #: src/components/VideoCardAnnotator.tsx
 #: src/components/VideoTemplateExtractor.tsx
-#: src/data/economy.ts
+#: src/data/account.ts
 #: src/pages/AdminPage.tsx
 #: src/pages/CustomCardPage.tsx
 #: src/pages/CutPage.tsx
@@ -1252,13 +1252,17 @@ msgstr "{label} is too large ({sizeMb}MB; the limit is 5MB)"
 #~ msgid "{lack}是声明过的真人素材，但还没有方舟可信素材 ID —— 「{label}」档不收直接上传的真人照片，只收本人授权过的素材。去卡片详情页按提示做一次肖像授权并填上素材 ID，或先把这张卡取下"
 #~ msgstr "{lack}: declared as real-person material, but there's no Ark trusted asset ID yet — the “{label}” tier doesn't accept directly uploaded photos of real people, only assets the person has authorized. Go to the card details page, follow the prompts to complete portrait authorization and fill in the asset ID, or remove the card for now"
 
-#: src/data/economy.ts
+#: src/data/account.ts
 msgid "{lack}没有勾选「火山引擎适用」——「{label}」档只收做过火山引擎认证的真人卡。去卡片详情页勾选「火山引擎适用」，或先把这张卡取下"
 msgstr "Not marked “Volcengine verified”: {lack}. The “{label}” tier only takes real-person cards verified through Volcengine — tick “Volcengine verified” on the card’s detail page, or take the card off."
 
+#: src/data/account.ts
+msgid "{lack}没有勾选「火山引擎适用」——「{label}」档只收做过火山引擎认证的真人卡。去卡片详情页勾选「火山引擎适用」，或换{realPath}"
+msgstr "Not marked “Volcengine verified”: {lack}. The “{label}” tier only takes real-person cards verified through Volcengine — tick “Volcengine verified” on the card’s detail page, or switch to {realPath}."
+
 #: src/data/economy.ts
-msgid "{lack}没有勾选「火山引擎适用」——「{label}」档只收做过火山引擎认证的真人卡。去卡片详情页勾选「火山引擎适用」，或换「{realTier}」档（在「工作流」或「简约模式」里直出）"
-msgstr "Not marked “Volcengine verified”: {lack}. The “{label}” tier only takes real-person cards verified through Volcengine — tick “Volcengine verified” on the card’s detail page, or switch to the “{realTier}” tier (generate directly in Workflow or Simple mode)."
+#~ msgid "{lack}没有勾选「火山引擎适用」——「{label}」档只收做过火山引擎认证的真人卡。去卡片详情页勾选「火山引擎适用」，或换「{realTier}」档（在「工作流」或「简约模式」里直出）"
+#~ msgstr "Not marked “Volcengine verified”: {lack}. The “{label}” tier only takes real-person cards verified through Volcengine — tick “Volcengine verified” on the card’s detail page, or switch to the “{realTier}” tier (generate directly in Workflow or Simple mode)."
 
 #. 铸卡师念的话。list 是前三张的名字（已用分隔符连好），count 是丢的总张数（大于 3），reason 是失败原因整句
 #: src/studio/studioStore.ts
@@ -1346,33 +1350,45 @@ msgstr "{names}: this tier can’t receive their images (setup frames only fit t
 #~ msgid "{names}是声明过的真人素材，「{label}」档的供应商拒收真人照片（实测名人按版权拦、普通人按隐私拦，整发被拒）——换成「{hdTier}」「{ultraTier}」档并给这张卡做肖像授权，或换「{realTier}」档，或先把真人卡取下"
 #~ msgstr "{names}: declared as real-person material, and the “{label}” tier's provider rejects photos of real people (in testing, celebrities are blocked for copyright and everyone else for privacy, and the whole request is rejected) — switch to “{hdTier}” or “{ultraTier}” and set up portrait authorization for this card, or switch to “{realTier}”, or remove the real-person card for now"
 
+#: src/data/account.ts
+msgid "{names}是声明过的真人素材，「{label}」档的供应商拒收真人照片（实测名人按版权拦、普通人按隐私拦，整发被拒）；而「{realLabel}」档做不了白模复刻——真人卡与白模模板不能同用：把真人卡取下换一张非真人卡，或不用模板、换「{realLabel}」档以卡上照片起拍直出"
+msgstr "{names}: declared as real-person material, and the “{label}” tier's provider rejects photos of real people (in testing, celebrities are blocked for copyright and everyone else for privacy, and the whole request is rejected); meanwhile the “{realLabel}” tier can't do blockout remakes — real-person cards and blockout templates can't be used together: swap the real-person card for a non-real-person card, or drop the template and switch to “{realLabel}” to start from the card's photo and render directly"
+
+#: src/data/account.ts
+msgid "{names}是声明过的真人素材，「{label}」档的供应商拒收真人照片（实测名人按版权拦、普通人按隐私拦，整发被拒）；而「{realLabel}」档做不了白模复刻——真人卡与白模模板不能同用：把真人卡取下换一张非真人卡，或不用模板、换「{realLabel}」档以卡上照片起拍直出（「{realLabel}」是会员档：开通会员套餐或充值过任意一笔后可用）"
+msgstr "{names}: declared as real-person material, and the “{label}” tier's provider rejects photos of real people (in testing, celebrities are blocked for copyright and everyone else for privacy, and the whole request is rejected); meanwhile the “{realLabel}” tier can't do blockout remakes — real-person cards and blockout templates can't be used together: swap the real-person card for a non-real-person card, or drop the template and switch to “{realLabel}” to start from the card's photo and render directly (“{realLabel}” is member-only: available once you subscribe to a plan or make any top-up)"
+
 #: src/data/economy.ts
-msgid "{names}是声明过的真人素材，「{label}」档的供应商拒收真人照片（实测名人按版权拦、普通人按隐私拦，整发被拒）；而「{realTier}」档做不了白模复刻——真人卡与白模模板不能同用：把真人卡取下换一张非真人卡，或不用模板、换「{realTier}」档以卡上照片起拍直出"
-msgstr "{names}: declared as real-person material, and the “{label}” tier's provider rejects photos of real people (in testing, celebrities are blocked for copyright and everyone else for privacy, and the whole request is rejected); meanwhile the “{realTier}” tier can't do blockout remakes — real-person cards and blockout templates can't be used together: swap the real-person card for a non-real-person card, or drop the template and switch to “{realTier}” to start from the card's photo and render directly"
+#~ msgid "{names}是声明过的真人素材，「{label}」档的供应商拒收真人照片（实测名人按版权拦、普通人按隐私拦，整发被拒）；而「{realTier}」档做不了白模复刻——真人卡与白模模板不能同用：把真人卡取下换一张非真人卡，或不用模板、换「{realTier}」档以卡上照片起拍直出"
+#~ msgstr "{names}: declared as real-person material, and the “{label}” tier's provider rejects photos of real people (in testing, celebrities are blocked for copyright and everyone else for privacy, and the whole request is rejected); meanwhile the “{realTier}” tier can't do blockout remakes — real-person cards and blockout templates can't be used together: swap the real-person card for a non-real-person card, or drop the template and switch to “{realTier}” to start from the card's photo and render directly"
+
+#: src/data/account.ts
+msgid "{names}是真人卡，「{label}」档不收真人照片——换{realPath}；{assetPath}只在「简约模式」不带首帧、且卡勾了「火山引擎适用」时可用"
+msgstr "Real-person cards: {names}. The “{label}” tier doesn’t take real-person photos — switch to {realPath}. {assetPath} can only be used in Simple mode with no opening frame, on cards marked “Volcengine verified”."
+
+#: src/data/account.ts
+msgid "{names}是真人卡，「{label}」档不收真人照片——换{realPath}；或给卡勾选「火山引擎适用」后换{assetPath}"
+msgstr "Real-person cards: {names}. The “{label}” tier doesn’t take real-person photos — switch to {realPath}, or tick “Volcengine verified” on the card and use {assetPath}."
 
 #: src/data/economy.ts
 #~ msgid "{names}是真人卡，「{label}」档不收真人照片——换「{realTier}」档；或给卡勾选「火山引擎适用」后换「{hdTier}」「{ultraTier}」档"
 #~ msgstr "Real-person cards: {names}. The “{label}” tier doesn’t take real-person photos — switch to “{realTier}”, or tick “Volcengine verified” on the card and use “{hdTier}” or “{ultraTier}”."
 
 #: src/data/economy.ts
-msgid "{names}是真人卡，「{label}」档不收真人照片——换「{realTier}」档（在「工作流」或「简约模式」里直出）；「{assetTiers}」档只在「简约模式」不带首帧、且卡勾了「火山引擎适用」时可用"
-msgstr "Real-person cards: {names}. The “{label}” tier doesn’t take real-person photos — switch to “{realTier}” (generate directly in Workflow or Simple mode). “{assetTiers}” only work in Simple mode with no opening frame, on cards marked “Volcengine verified”."
-
-#: src/data/economy.ts
 #~ msgid "{names}是真人卡，「{label}」档不收真人照片——换「{realTier}」档（在「工作流」或「简约模式」里直出）；「{hdTier}」「{ultraTier}」档只在「简约模式」不带首帧、且卡勾了「火山引擎适用」时可用"
 #~ msgstr "Real-person cards: {names}. The “{label}” tier doesn’t take real-person photos — switch to “{realTier}” (generate directly in Workflow or Simple mode). “{hdTier}” and “{ultraTier}” only work in Simple mode with no opening frame, on cards marked “Volcengine verified”."
-
-#: src/data/economy.ts
-msgid "{names}是真人卡，「{label}」档不收真人照片——换「{realTier}」档（在「工作流」或「简约模式」里直出）；或给卡勾选「火山引擎适用」后换「{assetTiers}」档"
-msgstr "Real-person cards: {names}. The “{label}” tier doesn’t take real-person photos — switch to “{realTier}” (generate directly in Workflow or Simple mode), or tick “Volcengine verified” on the card and use “{assetTiers}”."
 
 #: src/data/economy.ts
 #~ msgid "{names}是真人卡，「{label}」档不收真人照片——换「{realTier}」档（在「工作流」或「简约模式」里直出）；或给卡勾选「火山引擎适用」后换「{hdTier}」「{ultraTier}」档"
 #~ msgstr "Real-person cards: {names}. The “{label}” tier doesn’t take real-person photos — switch to “{realTier}” (generate directly in Workflow or Simple mode), or tick “Volcengine verified” on the card and use “{hdTier}” or “{ultraTier}”."
 
+#: src/data/account.ts
+msgid "{names}是真人卡：「{label}」档只在「简约模式」不带首帧时可用（推演帧、承接画面、上传的首帧里有真人脸，会被整发拒）——去「简约模式」直出，或换{realPath}"
+msgstr "Real-person cards: {names}. The “{label}” tier only works in Simple mode with no opening frame — derived frames, carried-over frames and uploaded opening frames show a real face, and the whole request gets rejected. Generate directly in Simple mode, or switch to {realPath}."
+
 #: src/data/economy.ts
-msgid "{names}是真人卡：「{label}」档只在「简约模式」不带首帧时可用（推演帧、承接画面、上传的首帧里有真人脸，会被整发拒）——去「简约模式」直出，或换「{realTier}」档（在「工作流」或「简约模式」里直出）"
-msgstr "Real-person cards: {names}. The “{label}” tier only works in Simple mode with no opening frame — derived frames, carried-over frames and uploaded opening frames show a real face, and the whole request gets rejected. Generate directly in Simple mode, or switch to “{realTier}” (generate directly in Workflow or Simple mode)."
+#~ msgid "{names}是真人卡：「{label}」档只在「简约模式」不带首帧时可用（推演帧、承接画面、上传的首帧里有真人脸，会被整发拒）——去「简约模式」直出，或换「{realTier}」档（在「工作流」或「简约模式」里直出）"
+#~ msgstr "Real-person cards: {names}. The “{label}” tier only works in Simple mode with no opening frame — derived frames, carried-over frames and uploaded opening frames show a real face, and the whole request gets rejected. Generate directly in Simple mode, or switch to “{realTier}” (generate directly in Workflow or Simple mode)."
 
 #: src/ai/real.ts
 msgid "{names}的形象参考图这次没带上（一次最多 {budget} 张，方舟的协议上限）——提示词里只剩它们的名字，画面上那几个人会由 AI 自己编，想换成卡上的样子就少挂几张卡"
@@ -1628,6 +1644,16 @@ msgstr "“{0}” has {1} stages due for review"
 msgid "「{0}」有阶段该回访了"
 msgstr "“{0}” has stages due for review"
 
+#. placeholder {0}: asset.names
+#: src/data/account.ts
+msgid "「{0}」档"
+msgstr "“{0}”"
+
+#. placeholder {0}: asset.names
+#: src/data/account.ts
+msgid "「{0}」档（会员档）"
+msgstr "“{0}” (member-only)"
+
 #. placeholder {0}: tier.label
 #: src/studio/segmentGen.ts
 msgid "「{0}」档不支持参考图，改为先按描述画一张设定帧再出片（想直接用卡片形象请选「{names}」）"
@@ -1661,7 +1687,7 @@ msgstr "The “{0}” tier can't render with a reference video — switch to “
 #. placeholder {0}: refTier.label
 #: src/studio/segmentGen.ts
 msgid "「{0}」档不支持带参考视频出片——带得了的「{names}」是会员档；移除参考视频，或开通会员套餐（或充值过任意一笔）"
-msgstr "The “{0}” tier can't render with a reference video — the tiers that can (“{names}”) are member tiers; remove the reference video, or subscribe to a plan (or make any top-up once)"
+msgstr "The “{0}” tier can't render with a reference video — that needs a member tier (“{names}”); remove the reference video, or subscribe to a plan (or make any top-up once)"
 
 #. placeholder {0}: o.tier.label
 #: src/studio/segmentGen.ts
@@ -1781,7 +1807,7 @@ msgstr "The “{cur}” tier can't take a reference video — switch to “{usab
 
 #: src/studio/ui/projection.tsx
 msgid "「{cur}」档带不了参考视频；带得了的「{member}」是会员档，开通会员套餐（或充值过任意一笔）后可用——或直接跳过这一步自己给首尾帧"
-msgstr "The “{cur}” tier can't take a reference video; the tiers that can (“{member}”) are member tiers, available once you subscribe to a plan (or make any top-up once) — or skip this step and provide the first and last frames yourself"
+msgstr "The “{cur}” tier can't take a reference video; that needs a member tier (“{member}”), available once you subscribe to a plan (or make any top-up once) — or skip this step and provide the first and last frames yourself"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "「{cur}」档收不了参考图：这一段出片前会先按提示词画帧（计费）。人物图直接给视频模型要「{names}」（会员档）。"
@@ -1801,7 +1827,7 @@ msgstr "The “{extLabel}” tier can’t extend yet — switch to “{names}”
 
 #: src/studio/flowStore.ts
 msgid "「{extLabel}」档还不能延长——能延长的「{names}」是会员档（开通会员套餐或充值过任意一笔后可用）"
-msgstr "The “{extLabel}” tier can’t extend yet — the tiers that can (“{names}”) are member tiers (available once you subscribe to a plan or make any top-up once)"
+msgstr "The “{extLabel}” tier can’t extend yet — extending needs a member tier (“{names}”), available once you subscribe to a plan or make any top-up once"
 
 #: src/data/account.ts
 #~ msgid "「{label}」单段消耗超过免费版整月额度（{quota}），升级套餐后可用"
@@ -1847,7 +1873,7 @@ msgstr "“{missingText}” isn’t drawn yet — go back a step and draw it, or
 #. 给一个名字（卡名）加引号：中文「」，英文用弯引号
 #. 给一个名字（卡名）加引号：中文「」，英文用弯引号
 #: src/ai/real.ts
-#: src/data/economy.ts
+#: src/data/account.ts
 #: src/studio/segmentGen.ts
 msgid "「{name}」"
 msgstr "“{name}”"
@@ -1888,6 +1914,11 @@ msgstr "“{name}” couldn't be added to your card library: {why}"
 #: src/studio/leadDraftStore.ts
 msgid "「{name}」画好了，已收进卡片库"
 msgstr "“{name}” is ready and saved to your card library"
+
+#. placeholder {0}: note.line
+#: src/studio/studioStore.ts
+msgid "「{name}」的 3D 建模没出成：{0}"
+msgstr "The 3D model for “{name}” didn't come out: {0}"
 
 #: src/ai/real.ts
 msgid "「{name}」的{label}没画成（{reason}），先用你交上来的原图顶着"
@@ -1977,7 +2008,7 @@ msgstr "“{names}” can't render from a reference video (reshoots and custom s
 
 #: src/data/account.ts
 msgid "「{names}」是会员档——开通会员套餐（或充值过任意一笔）就能用"
-msgstr "“{names}” are member tiers — subscribe to a plan (or make any top-up once) to use them"
+msgstr "Member-only: “{names}” — subscribe to a plan (or make any top-up once) to use it"
 
 #: src/studio/segmentGen.ts
 msgid "「{names}」的声音样本这次没带上（这一档的参考音频合计最长 {capSec} 秒）——这几位的台词音色由模型定；把样本剪短些就能都带上"
@@ -2015,6 +2046,14 @@ msgstr "“{piece}”"
 #: src/studio/studioStore.ts
 msgid "「{q}」没有。换个词。"
 msgstr "Nothing for “{q}”. Try another word."
+
+#: src/data/account.ts
+msgid "「{realLabel}」档（会员档：开通会员套餐或充值过任意一笔后可用，在「工作流」或「简约模式」里直出）"
+msgstr "“{realLabel}” (member-only: available once you subscribe to a plan or make any top-up; generate directly in Workflow or Simple mode)"
+
+#: src/data/account.ts
+msgid "「{realLabel}」档（在「工作流」或「简约模式」里直出）"
+msgstr "“{realLabel}” (generate directly in Workflow or Simple mode)"
 
 #: src/components/flow/DialogueWizard.tsx
 msgid "「{staleText}」过期了（人、整体交代或双人镜头改过）—— 回上一步重画一下。"
@@ -2062,7 +2101,7 @@ msgstr "The “{tierLabel}” tier can't take a sample video — switch to “{v
 
 #: src/components/flow/RefStrip.tsx
 msgid "「{tierLabel}」档带不了示例视频；带得了的「{vidMember}」是会员档（开通会员套餐或充值过任意一笔后可用）。"
-msgstr "The “{tierLabel}” tier can't take a sample video; the tiers that can (“{vidMember}”) are member tiers (available once you subscribe to a plan or make any top-up once)."
+msgstr "The “{tierLabel}” tier can't take a sample video; that needs a member tier (“{vidMember}”), available once you subscribe to a plan or make any top-up once."
 
 #: src/ai/real.ts
 msgid "「{tierLabel}」档没有样片模式"
@@ -2094,7 +2133,7 @@ msgstr "The “{tierLabel}” tier can’t extend yet — only segments rendered
 
 #: src/studio/segmentGen.ts
 msgid "「{tierLabel}」档还不能延长——能延长的「{names}」是会员档（开通会员套餐或充值过任意一笔后可用）"
-msgstr "The “{tierLabel}” tier can’t extend yet — the tiers that can (“{names}”) are member tiers (available once you subscribe to a plan or make any top-up once)"
+msgstr "The “{tierLabel}” tier can’t extend yet — extending needs a member tier (“{names}”), available once you subscribe to a plan or make any top-up once"
 
 #. 个人页「还没传到服务器」横幅：只有作品标题（这一条没记下没传上去的原因）
 #: src/pages/ProfilePage.tsx
@@ -2129,7 +2168,7 @@ msgstr "“{title}” needs two people: the one you tap first is the first perso
 
 #: src/components/flow/ModePicker.tsx
 msgid "「{title}」要收参考图的模型：「{member}」才有（会员档）"
-msgstr "“{title}” needs a model that takes reference images: only “{member}” have it (member tiers)"
+msgstr "“{title}” needs a model that takes reference images — only on a member tier (“{member}”)"
 
 #: src/components/flow/ModePicker.tsx
 msgid "「{title}」要收参考图的模型：换到「{usable}」就有"
@@ -2141,7 +2180,7 @@ msgstr "“{title}” needs a model that takes reference images: switch to “{u
 
 #: src/components/flow/ModePicker.tsx
 msgid "「{title}」要能出声的模型（台词得说出来）：「{member}」才有（会员档）"
-msgstr "“{title}” needs a model with sound (the lines have to be spoken): only “{member}” have it (member tiers)"
+msgstr "“{title}” needs a model with sound (the lines have to be spoken) — only on a member tier (“{member}”)"
 
 #: src/components/flow/ModePicker.tsx
 msgid "「{title}」要能出声的模型（台词得说出来）：换到「{usable}」就有"
@@ -2636,6 +2675,11 @@ msgstr "⚠ <0>{unsaved, plural, one {# rendered segment hasn't} other {# render
 
 #. placeholder {0}: o.images
 #: src/studio/segmentGen.ts
+msgid "⚠ 契约核对：界面报价 {quotedLabel}，按契约应为 {impliedLabel}（视频 {videoLabel} + 出图 {0} 张）——实际扣多少以服务器结算为准（看「我的」页的 token 余额），请把这句话反馈给我们"
+msgstr "⚠ Spec check: the quoted price is {quotedLabel}, but the spec implies {impliedLabel} (video {videoLabel} + {0, plural, one {# image} other {# images}}) — the actual charge is whatever the server settles (check the token balance on the “Me” page); please send us this line"
+
+#. placeholder {0}: o.images
+#: src/studio/segmentGen.ts
 msgid "⚠ 契约核对：界面报价 {quotedLabel}，按契约应为 {impliedLabel}（视频 {videoLabel} + 出图 {0} 张）——本次仍按报价扣，请把这句话反馈给我们"
 msgstr "⚠ Spec check: the quoted price is {quotedLabel}, but the spec implies {impliedLabel} (video {videoLabel} + {0, plural, one {# image} other {# images}}) — this run is still charged at the quoted price; please send us this line"
 
@@ -2702,7 +2746,7 @@ msgstr "⚠ The “{cur}” tier can't take a reference video — choose “{usa
 #: src/components/flow/FlowCanvas.tsx
 #: src/studio/ui/projection.tsx
 msgid "⚠「{cur}」档带不了参考视频，而带得了的「{member}」是会员档——摘掉示例视频，或开通会员套餐（或充值过任意一笔）"
-msgstr "⚠ The “{cur}” tier can't take a reference video, and the tiers that can (“{member}”) are member tiers — remove the sample video, or subscribe to a plan (or make any top-up once)"
+msgstr "⚠ The “{cur}” tier can't take a reference video, and that needs a member tier (“{member}”) — remove the sample video, or subscribe to a plan (or make any top-up once)"
 
 #. placeholder {0}: fmtTokens(lockPrice)
 #: src/pages/FeedPage.tsx
@@ -2895,6 +2939,10 @@ msgstr "✓ Saved"
 #: src/components/DownloadSheet.tsx
 msgid "✓ 已存（之前存过）"
 msgstr "✓ Saved (already saved before)"
+
+#: src/components/flow/DraftModeBox.tsx
+msgid "✓ 已定稿成 1080p。"
+msgstr "✓ Finalized at 1080p."
 
 #: src/components/flow/DraftModeBox.tsx
 msgid "✓ 已定稿成 1080p。上一版（480p 样片）在「修这一段」的「还原上一版」里。"
@@ -5639,6 +5687,11 @@ msgstr "Low angle"
 #: src/ai/real.ts
 msgid "任务创建中…"
 msgstr "Creating the job…"
+
+#. placeholder {0}: job.taskId
+#: src/components/flow/SegmentRecoverCards.tsx
+msgid "任务号：{0}"
+msgstr "Task ID: {0}"
 
 #: src/ai/arkClient.ts
 msgid "任务被取消了"
@@ -8530,8 +8583,8 @@ msgid "参考图直出的方案摆上桌了——人物图会直接给视频模�
 msgstr "The direct plan is on the table — the character images go straight to the video model and no frames are drawn. Once the prompt looks right, tap “⚡ Generate this segment's video”."
 
 #: src/components/flow/FlowCanvas.tsx
-msgid "参考图直出要收参考图的模型——「{names}」是会员档，开通会员套餐后可用"
-msgstr "Direct from reference images needs a model that takes reference images — “{names}” are member tiers, available once you subscribe to a plan"
+msgid "参考图直出要收参考图的模型——「{names}」是会员档，开通会员套餐（或充值过任意一笔）后可用"
+msgstr "Direct from reference images needs a model that takes reference images — that's member-only (“{names}”), available once you subscribe to a plan (or make any top-up once)"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "参考图直出要收参考图的模型——到 ⚙ 本段设置换成「{names}」"
@@ -15379,8 +15432,8 @@ msgid "标题进详情页"
 msgstr "Tap the title for details"
 
 #: src/components/flow/DraftModeBox.tsx
-msgid "样片 {step1}（视频那一半，出片前补画的画面另算），看效果对不对；满意再花 {step2} 把同一份样片升成 1080p。不满意就改了重出样片，省下成片的钱。样片 7 天内可以定稿。"
-msgstr "A preview draft costs {step1} (the video part; frames drawn before it are charged separately) so you can check how it looks; if you like it, {step2} upgrades that same draft to 1080p. If not, change it and make another draft instead of paying for a full video. Drafts can be finalized within 7 days."
+msgid "样片 {step1}（视频那一半，出片前补画的画面另算），看效果对不对；满意再花 {step2} 把同一份样片升成 1080p。不满意就改了重出样片，省下成片的钱。样片出来之后约 7 天内可以定稿（到期前 1 小时截止）。"
+msgstr "A preview draft costs {step1} (the video part; frames drawn before it are charged separately) so you can check how it looks; if you like it, {step2} upgrades that same draft to 1080p. If not, change it and make another draft instead of paying for a full video. A draft can be finalized for about 7 days after it's made (until 1 hour before it expires)."
 
 #: src/ai/arkClient.ts
 msgid "样片（480p 预览，满意再定稿）"
@@ -15391,8 +15444,8 @@ msgid "样片定稿（升成 1080p）"
 msgstr "Finalize preview draft (upgrade to 1080p)"
 
 #: src/components/flow/DraftModeBox.tsx
-msgid "样片已经过了 7 天有效期，不能再定稿了——要成片就重新生成（会重新计费）。"
-msgstr "This preview draft is past its 7-day limit and can no longer be finalized — regenerate it if you want the full video (charged again)."
+msgid "样片已经过了定稿期限（方舟的样片只留 7 天，我们在到期前 1 小时停止定稿），不能再定稿了——要成片就重新生成（会重新计费）。"
+msgstr "This preview draft is past its finalize deadline (Ark keeps drafts for 7 days, and we stop finalizing 1 hour before they expire) — regenerate it if you want the full video (charged again)."
 
 #: src/pages/tutor/TutorNewPage.tsx
 msgid "核对中…"
@@ -19758,8 +19811,8 @@ msgid "第 {n} 张参考图未采用（「{name}」的{view}，比例越界或�
 msgstr "Reference image {n} wasn't used (“{name}”, “{view}”: its aspect ratio is out of range or it couldn't be read)"
 
 #: src/studio/flowStore.ts
-msgid "第 {n} 段原来是「{label}」档（会员档），改用你能用的「{b}」档——开通会员套餐后可以换回去"
-msgstr "Segment {n} was on “{label}” (a member tier); switched to “{b}”, which you can use — subscribe to a plan to switch back"
+msgid "第 {n} 段原来是「{label}」档（会员档），改用你能用的「{b}」档——开通会员套餐（或充值过任意一笔）后可以换回去"
+msgstr "Segment {n} was on “{label}” (a member tier); switched to “{b}”, which you can use — subscribe to a plan (or make any top-up once) to switch back"
 
 #: src/studio/flowStore.ts
 msgid "第 {n} 段原来是「{label}」档（模型已停用），改用「{b}」档"
@@ -19778,12 +19831,17 @@ msgid "第 {n} 段定稿完成（1080p）"
 msgstr "Segment {n} finalized (1080p)"
 
 #: src/studio/flowStore.ts
-msgid "第 {n} 段没出成，token 已退回"
-msgstr "Segment {n} didn't come out — tokens refunded"
+msgid "第 {n} 段没出成"
+msgstr "Segment {n} didn't come out"
 
 #: src/studio/flowStore.ts
 msgid "第 {n} 段没出成：{why}。{moneyLine}重新生成会重新计费。"
 msgstr "Segment {n} didn't come out: {why}. {moneyLine} Regenerating is charged again."
+
+#. placeholder {0}: money.brief
+#: src/studio/flowStore.ts
+msgid "第 {n} 段没出成（{0}）"
+msgstr "Segment {n} didn't come out ({0})"
 
 #: src/studio/flowStore.ts
 msgid "第 {n} 段生成失败"
@@ -19796,6 +19854,11 @@ msgstr "Segment {n} failed to generate: {why}"
 #: src/studio/flowStore.ts
 msgid "第 {n} 段生成失败：{why}。{moneyLine}"
 msgstr "Segment {n} failed to generate: {why}. {moneyLine}"
+
+#. placeholder {0}: money.brief
+#: src/studio/flowStore.ts
+msgid "第 {n} 段生成失败（{0}）"
+msgstr "Segment {n} failed to generate ({0})"
 
 #: src/studio/flowStore.ts
 msgid "第 {n} 段的样片出好了——看着满意就定稿成 1080p"
@@ -20063,6 +20126,14 @@ msgstr "Moving segment {segNo} to permanent storage…"
 #: src/pages/CutPage.tsx
 msgid "第 {segNo} 段成片转存中（换成永久地址）· 已等 {secs} 秒…"
 msgstr "Moving segment {segNo} to permanent storage · waited {secs}s…"
+
+#: src/pages/CutPage.tsx
+msgid "第 {segNo} 段是「{label}」档，模型已于 {day}停用，这里重拍不了——回工作流把这一段换一档重新出片（会重新计费）"
+msgstr "Segment {segNo} is on “{label}”, whose model was retired on {day}, so it can't be re-shot here — go back to the workflow, switch this segment to another tier and generate it again (charged again)"
+
+#: src/pages/CutPage.tsx
+msgid "第 {segNo} 段是「{label}」档，这台服务器还不支持它（服务端需要更新），这里重拍不了"
+msgstr "Segment {segNo} is on “{label}”, which this server doesn't support yet (the server needs an update), so it can't be re-shot here"
 
 #: src/pages/CutPage.tsx
 msgid "第 {segNo} 段是已经合好的本机成片，不能再合一次——去发布页发它，或回工作流重做一条"
@@ -20851,7 +20922,7 @@ msgstr "Background card"
 
 #: src/components/flow/FixSegmentBox.tsx
 msgid "能按参考视频出片的「{refNames}」是会员档——开通会员套餐（或充值过任意一笔）后可用"
-msgstr "“{refNames}”, the tiers that can generate from a reference video, are member tiers — available once you subscribe to a plan (or make any top-up once)"
+msgstr "Generating from a reference video needs a member tier (“{refNames}”) — available once you subscribe to a plan (or make any top-up once)"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "脸红"
@@ -21496,6 +21567,10 @@ msgstr "Use as my voice"
 #: src/components/flow/RefFrameSheet.tsx
 msgid "设为首帧"
 msgstr "Set as first frame"
+
+#: src/studio/segmentGen.ts
+msgid "设定帧没能传上去，样片这一发没有发出去（退回首尾帧的话画幅只能按「自适应」结算，会比报价贵）——过一会儿再点一次生成"
+msgstr "The setup frames couldn't be uploaded, so this preview draft wasn't sent (falling back to first/last frames would bill the “adaptive” aspect ratio, which costs more than the quote) — try generating again in a moment"
 
 #: src/studio/segmentGen.ts
 msgid "设定帧没能转成参考图，这一段退回首尾帧模式出片（卡片形象图这次发不出去，台词音色样本也带不了）"
@@ -22687,6 +22762,14 @@ msgid "这一发已经付过费，但服务器没说结果能留到什么时候�
 msgstr "This job has already been paid for, but the server didn't say how long the result will be kept — recover it as soon as you can."
 
 #: src/data/videoJobs.ts
+msgid "这一发已经取不回来了，成片在服务器上过期了。这一发本来就没有扣 token，点「知道了」消掉这条就好。"
+msgstr "This job can no longer be recovered — the video has expired on the server. No tokens were charged for it; tap “Got it” to clear this."
+
+#: src/data/videoJobs.ts
+msgid "这一发已经取不回来了，我们也一直没能向上游确认它的结局，所以没有自动退回——把下面的任务号发给客服，由人工核对这笔钱；重新生成是再花一次钱。"
+msgstr "This job can no longer be recovered, and we never managed to confirm its outcome upstream, so it wasn't refunded automatically — send the task ID below to support so someone can check the charge by hand; regenerating costs again."
+
+#: src/data/videoJobs.ts
 msgid "这一发已经取不回来了：方舟的成片只在服务器上留 24 小时，现在已经过期。如果方舟那边其实是失败了，扣的 token 会自动退回（到账时会通知你）；如果是出成了却没来得及取回，这笔钱就无法挽回了——重新生成是再花一次钱。"
 msgstr "This job can no longer be recovered: Ark keeps videos on its servers for only 24 hours, and it has expired. If it actually failed on Ark's side, the tokens are refunded automatically (you'll get a notification when they land); if it succeeded but wasn't recovered in time, that money can't be recovered — regenerating costs again."
 
@@ -22945,7 +23028,7 @@ msgstr "This tier needs at least {minSec}s"
 
 #: src/components/flow/DialogueWizard.tsx
 msgid "这一档出片不出声，台词说不出来 —— 出声的「{names}」是会员档。"
-msgstr "This tier renders without sound, so the lines can’t be spoken — the tiers with sound (“{names}”) are member tiers."
+msgstr "This tier renders without sound, so the lines can’t be spoken — sound needs a member tier (“{names}”)."
 
 #: src/components/flow/DialogueWizard.tsx
 msgid "这一档出片不出声，台词说不出来 —— 换到「{names}」。"
@@ -24584,8 +24667,8 @@ msgid "这条样片已经定稿过一次：1080p 成片在「修这一段」的�
 msgstr "This preview draft has already been finalized once: the 1080p video is under “Restore previous version” in “Fix this segment” — tap it to go back, no need to pay again."
 
 #: src/studio/flowStore.ts
-msgid "这条样片已经过了 7 天有效期，不能再定稿了——要成片就重新生成（会重新计费）"
-msgstr "This preview draft is past its 7-day limit and can no longer be finalized — regenerate it if you want the full video (charged again)"
+msgid "这条样片已经过了定稿期限（方舟的样片只留 7 天，我们在到期前 1 小时停止定稿）——要成片就重新生成（会重新计费）"
+msgstr "This preview draft is past its finalize deadline (Ark keeps drafts for 7 days, and we stop finalizing 1 hour before they expire) — regenerate it if you want the full video (charged again)"
 
 #: src/components/support/VoiceMarket.tsx
 msgid "这条模板已经被作者删了，刷新列表看看别的。"
