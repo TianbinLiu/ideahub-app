@@ -2638,12 +2638,16 @@ async function glbFromArkZip(zipUrl: string): Promise<Blob> {
  * GLB 36MB 级——存 IndexedDB blob 仓（key=model3d:<cardId>），卡上只挂 `idb:` 指针
  * （塞 dataURL 会把嵌进作品的卡组 JSON 撑到几十 MB）。CardHologram 会解析该指针。
  * 上限 maxCount 张、单张失败不阻断其余（建模挂了卡本身还在）。
+ * ★ 失败的那几张**原样交回**（2026-10-07 评审抓到）：受理之后 Seed3D 明说失败的那一发，服务端会把钱退回 —— 而退款发生在本人自己的
+ *   那次轮询里，服务端不另发通知（通知只给「人不在场」的那种）。原来这里只 console.warn，余额就这么无声地变了一笔。
+ *   钱上的话由调用方按 ai/failCharge 说（这一层不认识界面），错误对象原样不包，类型不丢。
  */
 export async function deriveCharacterModels(
   cards: Card[],
   maxCount = 2,
   onProgress?: (status: string) => void,
-): Promise<void> {
+): Promise<{ failed: { name: string; error: unknown }[] }> {
+  const failed: { name: string; error: unknown }[] = [];
   const targets = cards.filter((c) => c.type === "character" && !c.modelUrl).slice(0, maxCount);
   for (let i = 0; i < targets.length; i++) {
     const card = targets[i];
@@ -2668,8 +2672,10 @@ export async function deriveCharacterModels(
       card.modelUrl = `idb:${key}`;
     } catch (e) {
       console.warn(`[ai] 角色卡「${card.name}」建模失败（跳过）:`, e);
+      failed.push({ name, error: e });
     }
   }
+  return { failed };
 }
 
 /**
@@ -3529,7 +3535,7 @@ export async function takeVideoTask(
       // ★ 说「无法挽回」之前先问服务端那一笔账（2026-10-07）：这一发要是失败了，清扫器可能早就替他退过钱 ——
       //   那时它就是一发「没出成、钱已退」的失败（ArkTaskFailed，调用方据此结案 + 说那句退款的话），不是「钱没了」
       const charge = await fetchTaskCharge(taskId);
-      if (charge && (charge.state === "refunded" || charge.state === "refunding")) {
+      if (charge && charge !== "none" && (charge.state === "refunded" || charge.state === "refunding")) {
         const reason = t`方舟那边已经查不到这一发了`;
         throw new ArkTaskFailed(t`方舟没出成这一发（${reason}）`, taskId, "failed", "", charge, reason, "ark");
       }

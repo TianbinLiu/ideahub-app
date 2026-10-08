@@ -174,7 +174,7 @@ export const extractTemplateFromVideo: typeof real.extractTemplateFromVideo = AI
 /** 3D 风格视频角色卡自动建模（Seed3D，约 2.4 元/张）；mock 构建为空操作 */
 export const deriveCharacterModels: typeof real.deriveCharacterModels = AI_REAL
   ? real.deriveCharacterModels
-  : async () => {};
+  : async () => ({ failed: [] });
 /**
  * 素材卡 → Seedream 参考图 + 绑定句（多图参考）。
  *

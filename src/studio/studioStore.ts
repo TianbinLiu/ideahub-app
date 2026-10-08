@@ -1,7 +1,7 @@
 // 卡片工坊全局状态：卡组 / NPC 对话 / 市场 / 节点树 / 相机 / 合成 / 已发布作品回炉编辑
 import { create } from "zustand";
 import { shotLineOf, V3_CARD_WIPE_MS, BranchNodeData, BranchTree, Card, CardType, DEFAULT_ASPECT, DEFAULT_VIDEO_CATEGORY, DraftVideo, NodeSlot, Proposal, VideoAspect, VideoSegment, VideoTemplate, uid } from "../types";
-import { AI_REAL, MaterialFile, deriveCharacterModels, deriveDeckCards, generateCards, generateFrame, generateProposals, joinNotes, npcChat, npcChatOffline, prepareMaterialRefs } from "../ai";
+import { AI_REAL, MaterialFile, chargeNote, chargeOnFail, deriveCharacterModels, deriveDeckCards, generateCards, generateFrame, generateProposals, joinNotes, npcChat, npcChatOffline, prepareMaterialRefs } from "../ai";
 import { frameMoment, momentCards } from "../data/shotScript";
 import { DECK_CAM, MARKET, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
@@ -2494,9 +2494,19 @@ export const useStudio = create<StudioState>()((set, get) => ({
               if (moved()) throw new Error("owner-moved");
               say(t`这是 3D 画风，顺便铸 ${want} 个建模（${price} token）…`);
               const before = fresh.filter((c) => c.modelUrl).length;
-              await deriveCharacterModels(fresh, DECK_MAX_3D, say);
+              const built = await deriveCharacterModels(fresh, DECK_MAX_3D, say);
               const minted = fresh.filter((c) => c.modelUrl).length - before;
               if (AI_REAL && minted > 0) spendTokens(minted * MODEL3D_TOKENS);
+              // ★ 没建成的那几张：钱上的话只走 ai/failCharge（受理之后明说失败的已经退回 / 会退回；没等到回包的可能扣了）。
+              //   不说的话余额无声地变一笔（服务端对本人自己那次轮询里退的钱不发通知）。一句轻提示，不拦组稿（卡本身还在）
+              const lines = built.failed
+                .map((f) => {
+                  const note = chargeNote(chargeOnFail(f.error), MODEL3D_TOKENS);
+                  const name = f.name;
+                  return note ? t`「${name}」的 3D 建模没出成：${note.line}` : "";
+                })
+                .filter(Boolean);
+              if (lines.length) showToast(lines.join(" "), 8000);
             }
           }
         }

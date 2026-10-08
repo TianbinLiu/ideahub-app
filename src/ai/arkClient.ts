@@ -554,7 +554,15 @@ async function arkFetch<T>(path: string, init?: RequestInit, timeoutMs = 90_000)
       // 402 / 403 / 429 = 计费代理的拒绝（余额 / 套餐 / 冻结 / 每日上限）：整句与错误类型都在 billingDenialError 一处
       const denial = billingDenialError(res.status, body);
       if (denial) throw denial;
-      throw new ArkHttpError(`Ark ${path} ${res.status}: ${body.slice(0, 300)}`, res.status);
+      // 服务端自己的业务码只认**顶层**的 code（`{ ok:false, code:"NOT_FOUND" }`）：方舟原生错误的码在 error.code 里，不进这一位（见 ArkHttpError.code）
+      let code = "";
+      try {
+        const j = JSON.parse(body) as { code?: unknown } | null;
+        if (j && typeof j.code === "string") code = j.code;
+      } catch {
+        /* 不是 JSON：没有业务码 */
+      }
+      throw new ArkHttpError(`Ark ${path} ${res.status}: ${body.slice(0, 300)}`, res.status, code);
     }
     try {
       return (await res.json()) as T;
@@ -1074,15 +1082,19 @@ export async function fetchArkTask(id: string, opts?: { transfer?: boolean }): P
  * 这一发（本人的）退没退钱 —— `GET /api/ark/task-charges/:taskId`（2026-10-07，只回本人的账）。不计费。
  * ★ 用在「方舟那边已经查不到这一发了」那几处（产物过期 / 404）：说「钱无法挽回」之前先问一句 —— 服务端的清扫器可能
  *   早就替他退过了（App 被杀、没人再来问的那些），那时说「无法挽回」是往吓人的方向说错。
- * ★ null = 问不出来（老服务端没有这个端点、没有这一笔账、网络不通）—— 调用方照旧说原来那句，别把 null 当「没退」。
+ * ★ "none" = 服务端**明说**没有这一笔账（404 `NOT_FOUND`：自动退款上线之前提交的任务、或者不是你的）—— 这一发**不会**自动退回。
+ *   与「问不出来」分开（2026-10-07 评审抓到）：原来两样都压成 null，而 null 时取回卡照样许诺「失败了会自动退回」，对上线之前的那些任务是空话。
+ *   认的是服务端的业务码，不是状态码本身：老服务端没有这个端点时回的 404 不带这个码，照旧算「问不出来」。
+ * ★ null = 问不出来（老服务端没有这个端点、网络不通、回包形状不对）—— 调用方照旧说原来那句，别把 null 当「没退」。
  * ★ dev 下 /api/ark 由 vite 直连方舟，这个端点不存在（404 → null），与打包后连老服务端同一个结论。
  */
-export async function fetchTaskCharge(taskId: string): Promise<TaskRefund | null> {
+export async function fetchTaskCharge(taskId: string): Promise<TaskRefund | "none" | null> {
   try {
     const r = await arkFetch<unknown>(`/task-charges/${encodeURIComponent(taskId)}`, undefined, 15_000);
     const obj = r as { charge?: unknown } | null;
     return taskRefundOf(obj && typeof obj === "object" && "charge" in obj ? obj.charge : r);
-  } catch {
+  } catch (e) {
+    if (e instanceof ArkHttpError && e.status === 404 && e.code === "NOT_FOUND") return "none";
     return null;
   }
 }

@@ -174,6 +174,13 @@ export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean
         </p>
       )}
       {issue && <p className="mt-1 text-[10px] leading-relaxed text-rose-300">{issue}</p>}
+      {/* 过期的卡把任务号摆出来（可长按复制）：那几句话里说的「把下面的任务号发给客服」要真的在下面 ——
+          服务端问不出结局（lost）、真人档不再跟进的那几种，找客服核对这笔钱只能靠它 */}
+      {expired && (
+        <p className="mt-1 select-all break-all text-[10px] text-slate-500">
+          <Trans>任务号：{job.taskId}</Trans>
+        </p>
+      )}
       {expired ? (
         <button
           onClick={() => dismissVideoJob(job)}

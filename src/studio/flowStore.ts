@@ -49,7 +49,7 @@ import { aspectOf, Card, DEFAULT_ASPECT, Proposal, TemplateRecipe, VideoAspect, 
 import type { WorkflowRecipe } from "../data/recipe";
 // ★ 角色位上限（服务端那个数的镜像）与"哪几个能挂卡"只有一处实现，在 data 层 ——
 //   store 不该 import 组件（依赖方向 data → store → 组件）
-import { dropVideoJob, rememberVideoJob, setVideoJobWaiting, type VideoJob } from "../data/videoJobs";
+import { dropVideoJob, pendingVideoJobs, rememberVideoJob, setVideoJobWaiting, type VideoJob } from "../data/videoJobs";
 import { onOwnerSwitch, ownerEpoch } from "../data/deviceOwner";
 // 导演台的状态与融图指令（纯数据 / 纯函数，见 stage/stageState 头部的 ★）
 import { stageFuseInstruction, type StageState } from "./stage/stageState";
@@ -4201,7 +4201,6 @@ export const useFlow = create<FlowState>()((set, get) => ({
       const inner = unwrapFailure(e);
       /** 一句给人看的原因：上游明说失败的那种已经按错误码说成人话（arkFailReason），别把方舟的英文原话整段贴上来 */
       const why = inner instanceof ArkTaskFailed ? inner.reason : msg.slice(0, 240);
-      const back = fc.tier === "refunded" || fc.tier === "refunding";
       // 失败也留在日志里：卡在哪一步、跑了多久，比一句"生成失败"有用得多
       log.fail(money ? t`失败：${why.slice(0, 160)}（${money.brief}）` : t`失败：${why.slice(0, 160)}`);
       patchNode({ status: "failed", progress: "", error: (money ? t`${why}（${money.brief}）` : why).slice(0, 240) });
@@ -4218,7 +4217,19 @@ export const useFlow = create<FlowState>()((set, get) => ({
                   : money
                     ? t`第 ${n} 段生成失败：${why}。${moneyLine}`
                     : t`第 ${n} 段生成失败：${why}`,
-              genNotice: { ok: false, msg: back ? t`第 ${n} 段没出成，token 已退回` : t`第 ${n} 段生成失败` },
+              // ★ 胶囊里那句也只说 chargeNote 的那个短语（2026-10-07 评审抓到）：原来手写「token 已退回」，
+              //   而服务端说的可能只是「会退回」（还没到账），出片前画好的画面也退不到 —— 钱上的话全仓只走 ai/failCharge
+              genNotice: {
+                ok: false,
+                msg:
+                  inner instanceof ArkTaskFailed
+                    ? money
+                      ? t`第 ${n} 段没出成（${money.brief}）`
+                      : t`第 ${n} 段没出成`
+                    : money
+                      ? t`第 ${n} 段生成失败（${money.brief}）`
+                      : t`第 ${n} 段生成失败`,
+              },
             }
           : {},
       );
@@ -4303,7 +4314,26 @@ export const useFlow = create<FlowState>()((set, get) => ({
         //   亲手点「知道了」（data/videoJobs.dismissVideoJob）。
         const inner = unwrapFailure(e);
         const st = inner instanceof ArkTaskFailed ? inner.refund?.state : undefined;
-        if (st === "refunded" || st === "refunding" || st === "skipped") dropVideoJob(job.taskId);
+        if (st === "refunded" || st === "refunding" || st === "skipped") {
+          dropVideoJob(job.taskId);
+          // ★ 原来那一段还挂着 genNode 留下的「pending · 用下面的「取回」领回来，别重新生成」（2026-10-07 评审抓到）：凭据结案之后
+          //   那张取回卡就没了，而这句话会一直挂在段上、跟着进草稿 —— 指向一个已经不存在的出口。改成「没出成」+ 钱上那个短语
+          //   （与 genNode 失败那一支同一套：原因走 arkFailReason，钱走 ai/failCharge）。只动**还挂着 pending、而这一段已经没有别的凭据**的那一段
+          //   （同一段先后没接到两发的话，另一张取回卡还在，那句「用下面的取回」仍然成立）。
+          const cur = get().nodes.find((n) => n.id === job.nodeId);
+          const stillWaiting = pendingVideoJobs().some((j) => j.nodeId === job.nodeId);
+          if (cur && cur.status === "pending" && !stillWaiting && inner instanceof ArkTaskFailed) {
+            const money = chargeNote(chargeOnFail(e), job.cost);
+            const why = inner.reason;
+            set((s2) => ({
+              nodes: s2.nodes.map((n) =>
+                n.id === job.nodeId
+                  ? { ...n, status: "failed" as const, progress: "", error: (money ? t`${why}（${money.brief}）` : why).slice(0, 240) }
+                  : n,
+              ),
+            }));
+          }
+        }
       }
       throw e;
     }
