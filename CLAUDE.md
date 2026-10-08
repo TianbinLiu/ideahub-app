@@ -196,13 +196,13 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   「现在放的是样片 / 成片」按地址现算（`draftStageOf`），**别存一个 stage 字段**（还原上一版 / 返修都会换掉现在放的那一条）。界面只有一份 `components/flow/DraftModeBox`（两面都挂）。
   1080p 是 10 bit H.265，按钮旁照实说，不转码（播放兼容另验）。
   ④ **受理之后上游明说失败（方舟 failed / cancelled / expired、真人档 Fail）的那一发由服务端退回** —— App 侧只认类型：`arkClient.ArkTaskFailed`（带服务端在回包上说的 `refund`），
-  composeSegments / settleSegment **原样**带着失败对象（外面包 `SegmentGenFailed` = 失败的是视频那一发 + 出片前已结算的画面张数；`ArkTaskUnknown` 永不包）。
+  composeSegments / settleSegment **原样**带着失败对象（外面包 `SegmentGenFailed` = 失败的是视频那一发 + 出片前已结算的画面张数；`ArkTaskUnknown` 永不包）。出片前某张画面（圈选改帧 / 补画设定帧）失败也包这一层、`failedCall: "image"`（钱上按出图说「已经画好的 N 张 + 失败的这一张」）；这一次补画好的设定帧随错误带出去（`kept`），genNode 写回方案（不上锁），重试不再重画、不再收图钱。
   钱上那句话只走 `ai/failCharge`（`taskFailed`：退了 / 会退 / 服务端没说三档；出片前的画面按张单说）。**从不**自己往钱包镜像上加退款（只刷一次钱包）。
   ⑤ 退了钱的取回凭据当场结案（`flowStore.takeJob`），取回卡那句话改用轻提示（卡当场就卸载了）；说「钱无法挽回」之前先问 `GET /api/ark/task-charges/:id`
   （`videoJobs.checkVideoJobCharge`，清扫器可能早就退过了；404 `NOT_FOUND` = 没有这一笔账、不会退，`lost` = 交人工、不会自动退）；许诺「万一没出成会自动退回」
   只在能力位为真时，**按供应商分开问**（方舟 `failRefund`，真人档 `failRefundMinimax` = 健康端点的 `minimaxFailRefund`）。站内通知 `GEN_TASK_REFUND` 点进去开钱包。
   ⑥ **样片第一步只走参考图那一种请求**：帧转参考图失败时普通出片退回首尾帧，而 2.5 的首尾帧任务只收 `ratio: "adaptive"`，服务端按 480p 那一行最贵的一格结算 ——
-  样片那一发在花钱之前整句拒（`segmentGen` 的样片闸，`arkClient` 另有一道协议断言），报价才等于实扣。契约核对那句在远端模式说「以服务器结算为准」（钱不按本机报价扣）。
+  样片那一发在花钱之前整句拒（`segmentGen` 的样片闸，`arkClient` 另有一道协议断言），报价才等于实扣；拒之前补画好的帧照 ④ 留在方案上，再点一次只重传、不重画。契约核对那句在远端模式说「以服务器结算为准」（钱不按本机报价扣）。
 - **方案有结构化镜头字段**（`types.ShotSpec`：景别 / 运镜 / 情绪节拍，2026-09-06 对标 updream 分镜 Skill）：推演按字段写、
   `segmentGen.shotPrefix` 把它拼在正文最前、方案台显示、发布时折进 `VideoSegment.plot`。**一段出片的生成契约**是
   `real.GenSpec`（composeSegments 的入参），提交前 `describeGenSpec` 写一行「生成契约 · 模式 · 档 · 画幅 · 时长 · 参考图 N」进步骤日志——
