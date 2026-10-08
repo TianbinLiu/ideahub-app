@@ -2052,6 +2052,7 @@ function NodePanel({
             extras: extraRefs,
           })}
           aspect={node.aspect}
+          tierIssue={tierBlockReason(tierOf(node.videoTier))}
           onDone={(url) => {
             setFrame(node.id, fuse, url);
             setFuse(null);
@@ -2179,6 +2180,7 @@ function PlanSheet({ nodeId, onClose }: { nodeId: string; onClose: () => void })
               extras: usableExtraRefs(node.extraRefs),
             })}
             fuseAspect={node.aspect}
+            fuseTierIssue={tierBlockReason(tierOf(node.videoTier))}
             onRegen={() => void regenProposal(node.id)}
             // ★ 报价一律走 store 的同一处实现，不在画布里重算（铁律六）
             regenCost={(pp) => redrawCost(node, pp, prevProp)}

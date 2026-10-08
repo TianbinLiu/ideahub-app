@@ -93,6 +93,11 @@ export interface PlanBoardProps {
   /** 本段画幅：融出来的帧要跟它同比例，否则会被方舟静默裁掉一截 */
   fuseAspect?: VideoAspect;
   /**
+   * 这一段出不了片的原因（宿主拿本段的档问 account.tierBlockReason；null = 出得了）—— 原样交给 FuseFrameSheet，非空就不融（那张图的钱会白花）。
+   * **必填**（2026-10-07 评审补）：本组件不认识 store，漏传就是零症状地绕过门禁。
+   */
+  fuseTierIssue: string | null;
+  /**
    * 分镜表（N2，2026-10-03）：给了就把选定那一套的剧情框换成分镜表 —— 一个镜头时与原来的输入框一样，
    * 「＋ 镜头 / ＋ 台词」能把这一段写成几个镜头、给台词点明谁说的（规则在 data/shotScript，文字仍是唯一真身）。
    * max = 这一档的提示词上限（economy.promptMaxOf），canAdd = 这一档能不能分镜配台词（高清 / 电影级）。
@@ -128,6 +133,7 @@ export default function PlanBoard({
   dense,
   fuseSources,
   fuseAspect,
+  fuseTierIssue,
   shotEdit,
   direct,
 }: PlanBoardProps) {
@@ -402,6 +408,7 @@ export default function PlanBoard({
           which={fusing.which}
           sources={fuseSources ?? []}
           aspect={fuseAspect ?? "portrait"}
+          tierIssue={fuseTierIssue}
           onDone={(url) => onFrame(fusing.id, fusing.which, url)}
           onClose={() => setFusing(null)}
         />

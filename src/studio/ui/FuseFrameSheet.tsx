@@ -87,12 +87,19 @@ export default function FuseFrameSheet({
   which,
   sources,
   aspect,
+  tierIssue,
   onDone,
   onClose,
 }: {
   which: "first" | "last";
   sources: FuseSource[];
   aspect: VideoAspect;
+  /**
+   * 这一段出不了片的原因（档位门禁：宿主拿这一段的档问 account.tierBlockReason）；null = 出得了。
+   * 非空就不融、当场说这句话 —— 融好的帧落在一段出不了片的段上，那一张图的钱白花（2026-10-07 评审补，同 flowStore.editFrame 那道）。
+   * **必填**：本组件不认识 store，漏传就是零症状地绕过门禁。
+   */
+  tierIssue: string | null;
   /** 融好的那张（dataUrl）。宿主拿它调 onFrame 落地 */
   onDone: (dataUrl: string) => void;
   onClose: () => void;
@@ -124,6 +131,10 @@ export default function FuseFrameSheet({
     }
     if (!instruction.trim()) {
       setErr(t`写一句这张${label}要什么画面（例如"他站在门口回头，半身，暖光"）——不写的话模型只能自己编`);
+      return;
+    }
+    if (tierIssue) {
+      setErr(tierIssue);
       return;
     }
     if (AI_REAL && !canAfford(price)) {

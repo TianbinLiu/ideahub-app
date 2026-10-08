@@ -37,7 +37,7 @@ import VideoTemplateExtractor from "../components/VideoTemplateExtractor";
 // ★ VIDEO_PROMPT_MAX 取自 ai 层（提示词硬顶的唯一出处）：白模 V2 的输入框里装的是
 //   真正发出去的那段话，在这里另抄一个 400 出来，改上限时这里就开始说假话
 import { AI_REAL, VIDEO_PROMPT_MAX } from "../ai";
-import { balanceNote, tierGo } from "../data/account";
+import { balanceNote, tierBlockReason, tierGo } from "../data/account";
 import { markSpecOf, myTemplates, splitCastRoles, templateGroupOf } from "../data/templates";
 // ★ 取回那一整块 2026-08-31 搬去 components/flow/SegmentRecoverCards（三个宿主共用，
 //   理由见那边的 ★★：它原来只长在这一页的 simple 闸里，画布与工坊一个像素都看不到）
@@ -616,6 +616,7 @@ function NodeScreen({
                 lastFrame: prop.lastFrame,
               })}
               fuseAspect={node.aspect}
+              fuseTierIssue={tierBlockReason(tierOf(node.videoTier))}
               onRegen={() => void regenProposal(node.id)}
               regenCost={(p) => redrawCost(node, p, prevProp)}
               onRederive={() => void deriveProposals(node.id)}
@@ -924,6 +925,7 @@ function NodeScreen({
             lastFrame: prop.lastFrame,
           })}
           aspect={node.aspect}
+          tierIssue={tierBlockReason(tierOf(node.videoTier))}
           onDone={(url) => {
             setFrame(node.id, customFuse, url);
             setCustomFuse(null);

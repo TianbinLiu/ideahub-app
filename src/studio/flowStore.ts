@@ -3447,6 +3447,14 @@ export const useFlow = create<FlowState>()((set, get) => ({
       set({ err: t`还没给任何人偶挂卡，先去挂卡再合成预览` });
       return false;
     }
+    // 档位门禁（同 editFrame / regenProposal，2026-10-07 评审补）：这一段出不了片的话，花一张图的钱合成的预览也用不上
+    {
+      const blocked = tierBlockReason(tierOf(node.videoTier));
+      if (blocked) {
+        set({ err: blocked });
+        return false;
+      }
+    }
     const frame = frameUrlAt(tpl.refVideo.url, tpl.markBoxAtSec ?? 1);
     if (!frame) {
       set({ err: t`模板视频还没转存到图床，做不了合成预览（稍后再试）` });
@@ -3502,6 +3510,14 @@ export const useFlow = create<FlowState>()((set, get) => ({
     if (!shot.startsWith("data:image/")) {
       set({ err: t`导演台截图不是一张图（截图失败了，再试一次）` });
       return false;
+    }
+    // 档位门禁（同 editFrame / regenProposal，2026-10-07 评审补）：这一段出不了片的话，融好的开头帧也用不上 —— 别先收一张图的钱
+    {
+      const blocked = tierBlockReason(tierOf(node.videoTier));
+      if (blocked) {
+        set({ err: blocked });
+        return false;
+      }
     }
     // 参考图最多 3 张（fuseFrame 同一条经验）：截图 + 主角人物卡形象 + 场景卡定场图。背景卡是文字，不当参考（V3 规则）
     const mats = node.materials ?? [];

@@ -22,7 +22,8 @@ import PageHeader from "../components/PageHeader";
 import { useNavigate } from "react-router";
 import SegSettings from "../components/flow/SegSettings";
 import { chosenOf, nodeCost, nodeDone, nodeEmptyFrames, tplOfNode, useFlow } from "../studio/flowStore";
-import { fmtTokens } from "../data/economy";
+import { fmtTokens, tierOf } from "../data/economy";
+import { tierBlockReason } from "../data/account";
 import {
   browseTemplates,
   groupRows,
@@ -433,6 +434,7 @@ function StepGo({
             lastFrame: prop.lastFrame,
           })}
           aspect={node.aspect}
+          tierIssue={tierBlockReason(tierOf(node.videoTier))}
           onDone={(url) => {
             setFrame(nodeId, fuse, url);
             setFuse(null);

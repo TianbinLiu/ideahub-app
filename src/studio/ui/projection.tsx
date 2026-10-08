@@ -1141,6 +1141,7 @@ function EditorPanel() {
             lastFrame: editor.endFrame ?? undefined,
           })}
           aspect={editor.aspect}
+          tierIssue={tierBlockReason(tierOf(editor.videoTier))}
           onDone={(url) => {
             if (fuse === "first") useStudio.getState().setStartFrame(url);
             else useStudio.getState().setEndFrame(url);
@@ -1506,6 +1507,7 @@ function ProposalsPanel() {
             extras: extraRefs,
           })}
           fuseAspect={node.aspect}
+          fuseTierIssue={tierBlockReason(tierOf(node.videoTier))}
           /* 分镜表（N2，与画布方案台同一份）：选定那一套的剧情框能写成几个镜头、给台词点明谁说的；上限按档位 */
           shotEdit={{
             speakers: (node.materials ?? []).filter((c) => c.type === "character").map((c) => ({ id: c.id, name: c.name, voiced: !!voiceOf(c.id) })),
