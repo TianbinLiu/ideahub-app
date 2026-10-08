@@ -666,6 +666,22 @@ export async function drawGroup(o: { cast: Card[]; place: Card | null }): Promis
   const castIds = o.cast.map((c) => c.id);
   const placeId = o.place?.id ?? null;
   const plan = gridDrawPlan(shots);
+  /**
+   * 开画前那一版格子：新的一组没受理、也不会有哪一组来接管格子的那几种出口，原样放回去（restoreBefore）。
+   * ★ 为什么（2.62 发版复核留下的一条，10-08 补）：下面这一行开画就把格子清空了，而 409「上一组还在画」、余额 / 敏感词 / 套餐那类 4xx、5xx、
+   *   参考图准备失败都发生在受理之前 —— 一分钱没花，人上一组付过钱的图却从屏幕上没了（向导不落盘，这一进程里再也找不回来）。
+   * ★ 这几种出口**不放回**（都有一组会来接管格子）：受理过了（started：新的一组按张付过钱、正在画，格子归它）；没收到回包、要去问服务端
+   *   收没收到（askLost：认领回来的那一组会把格子换掉 / 记下来下次再问，这时摆回旧图只会让两组的图在格子里打架）；
+   *   409 而那一组正是「没收到回包的那一次」（claimLost 接管格子）。
+   * ★ dev 直连时没收到回包也放回：那一支不去问服务端（askLost 只在打包后成立），没有哪一组会来接管格子。
+   * ★ 只在这期间分镜没换过（shots 还是同一份）、格子也还空着时放回：格子跟着分镜的下标走，分镜换了旧图就对不上号了。
+   */
+  const before = { shots: s.shots, panels: s.panels, picks: s.picks };
+  const restoreBefore = () => {
+    const cur = stateFor(who);
+    if (!cur || cur.shots !== before.shots || cur.panels.some((p) => !!p)) return;
+    writeFor(who, { panels: before.panels, picks: before.picks });
+  };
   useGridDraft.setState({ drawing: t`准备参考图…`, drawErr: "", drawNote: "", panels: shots.map(() => null), picks: [] });
   const n = shots.length;
   const say = () => {
@@ -716,6 +732,8 @@ export async function drawGroup(o: { cast: Card[]; place: Card | null }): Promis
             await claimLost(who, lost, e.id);
             return;
           }
+          // 新的这一组没受理（一分没花）：上一版格子摆回去（restoreBefore 的 ★）
+          restoreBefore();
           writeFor(who, { drawErr: t`上一组画面还在画（同一时间只能画一组）——几分钟后再来` });
           job.fail(t`上一组画面还在画`);
           return;
@@ -734,7 +752,9 @@ export async function drawGroup(o: { cast: Card[]; place: Card | null }): Promis
         const why = upstreamDown(e) ? t`这次没连上出图服务（多半是网络抖了一下），再点一次就行` : e instanceof Error ? e.message : String(e);
         const money = chargeNote(chargeOnFail(e), IMAGE_TOKENS * plan.group.length);
         const moneyLine = money?.line ?? "";
-        if (!started && e instanceof ArkNoReply && !import.meta.env.DEV) {
+        /** 受理那一发没收到回包、要去问服务端收没收到（adoptLost）：收到了的那一组会接管格子，所以这一支不摆回上一版（restoreBefore 的 ★） */
+        const askLost = !started && e instanceof ArkNoReply && !import.meta.env.DEV;
+        if (askLost) {
           // 受理那一发没收到回包 ≠ 没受理：问服务端收没收到（adoptLost）。收到了就接回来接着等；**没问到**就把这一次记下来（任务号空着），
           // 下次接着等时再问 —— 原来没问到也当「没受理」，那一组付过钱却再也没人去取（2.62 发版评审抓到）
           writeFor(who, { drawing: t`这一组发出去没收到回包，正在问服务端收没收到…` });
@@ -763,6 +783,9 @@ export async function drawGroup(o: { cast: Card[]; place: Card | null }): Promis
           // 这一次记在内存里（lostAttempts）：「没有」可能只是服务端还没落库，人再点「画出这一组」时再对一次
           lostAttempts.set(who, rec);
         }
+        // 新的这一组没受理、也不会有哪一组来接管格子（4xx / 5xx / 参考图没准备好）：上一版格子摆回去。
+        // 问过服务端说「没有」的那一次不摆 —— 它记在 lostAttempts 里，下次还会再对、认领回来就换掉格子（restoreBefore 的 ★）
+        if (!started && !askLost) restoreBefore();
         writeFor(who, {
           drawErr: money
             ? t({

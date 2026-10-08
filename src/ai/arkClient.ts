@@ -373,6 +373,14 @@ export interface KeptFrames {
 }
 
 /**
+ * 带出来的设定帧有几张（每张是一次出图调用）—— 离线账本记几张（flowStore.genNode 的失败那一支）与 ai/failCharge 离线时说「已经画好的 N 张
+ * 已按张计费」数的是**同一个数**，只准从这里取：两处各数一遍，哪天 KeptFrames 多一格，就是账本扣的与屏幕上说的对不上。
+ */
+export function keptFrameCount(k: KeptFrames | null | undefined): number {
+  return (k?.first ? 1 : 0) + (k?.last ? 1 : 0);
+}
+
+/**
  * 一段出片的**视频那一发**失败了（创建 / 轮询 / 契约核对）；在它之前可能已经画好了几张画面（补画设定帧 / 圈选改帧，
  * 每张是一次各自结算的出图调用，framesSettled 张）。
  * ★ 与 ArkBatchPartial 分开：那个是「同一种调用」的一批（逐格出图，前后单价相同）；这个是「几张图 + 一段视频」——

@@ -20,7 +20,7 @@
 import { startJob } from "../data/jobs";
 import { t } from "@lingui/core/macro";
 import { create } from "zustand";
-import { castPreviewImage, frameUrlAt, fuseStageFrame, AI_REAL, ArkTaskFailed, ArkTaskUnknown, SegmentGenFailed, briefArkReason, chargeNote, chargeOnFail, generateFrame, generateProposals, notesInParens, prepareMaterialRefs, recaptureSegment, refineFrame, takeVideoTask, transferStatus, unwrapFailure } from "../ai";
+import { castPreviewImage, frameUrlAt, fuseStageFrame, AI_REAL, ArkTaskFailed, ArkTaskUnknown, SegmentGenFailed, briefArkReason, chargeNote, chargeOnFail, generateFrame, generateProposals, keptFrameCount, notesInParens, prepareMaterialRefs, recaptureSegment, refineFrame, takeVideoTask, transferStatus, unwrapFailure } from "../ai";
 import { frameMoment, isMultiShot, momentCards } from "../data/shotScript";
 import { endFrameUsed } from "../data/drawPlan";
 import { isArkAssetUrl, transferArkVideo } from "../ai/arkClient";
@@ -50,7 +50,7 @@ import { aspectOf, Card, DEFAULT_ASPECT, Proposal, TemplateRecipe, VideoAspect, 
 import type { WorkflowRecipe } from "../data/recipe";
 // ★ 角色位上限（服务端那个数的镜像）与"哪几个能挂卡"只有一处实现，在 data 层 ——
 //   store 不该 import 组件（依赖方向 data → store → 组件）
-import { dropVideoJob, pendingVideoJobs, rememberVideoJob, setVideoJobWaiting, type VideoJob } from "../data/videoJobs";
+import { dropVideoJob, pendingVideoJobs, rememberVideoJob, setVideoJobWaiting, videoJobRefunded, type VideoJob } from "../data/videoJobs";
 import { onOwnerSwitch, ownerEpoch } from "../data/deviceOwner";
 // 导演台的状态与融图指令（纯数据 / 纯函数，见 stage/stageState 头部的 ★）
 import { stageFuseInstruction, type StageState } from "./stage/stageState";
@@ -458,6 +458,56 @@ export function draftPatchOfJob(job: VideoJob, url: string, cur?: Proposal): Par
   return {};
 }
 
+/** 一条返修出来的成片自己有没有声 —— 按出片的那一档判（economy.videoAudioOn，与组稿算 hasAudio 同一个判据）。genNode 受理那一拍定一次 */
+function reviseAudioOf(tierId: string | undefined): "voiced" | "silent" {
+  return videoAudioOn(tierOf(tierId).model) ? "voiced" : "silent";
+}
+
+/**
+ * 一条**返修**成片落到方案上时，「有声 / 无声」那份名单要补的那一格（Proposal.voicedVideos / silentVideos）——
+ * genNode 当场写回、takeJob 落回原位、placeRescuedSegment 新开一段**三处共用**（唯一实现）。
+ * ★ 为什么取回也要补（2.62 发版复核留下的一条，10-08 补）：原来只有当场写回那一处记，取回落回原位的那条有声返修于是被当成
+ *   无声白模段 —— 回看叠一层模板原声（两层声）、组稿 hasAudio=false 让剪辑页藏掉它自己的原声滑杆。reshotWithSound 认的就是这份名单。
+ * @param audio 受理那一拍定下的（genNode 的 reviseAudio / 凭据上的 VideoJob.reviseAudio）；undefined = 不是返修（老凭据也是）→ 什么都不补
+ * ★ 只留最近 4 条：够覆盖「返修 → 再返修 → 还原」（同 Proposal.silentVideos 的 ★）
+ */
+export function reviseAudioPatch(audio: VideoJob["reviseAudio"], url: string | undefined, cur?: Proposal): Partial<Proposal> {
+  if (!audio || !url) return {};
+  return audio === "voiced"
+    ? { voicedVideos: [...(cur?.voicedVideos ?? []), url].slice(-4) }
+    : { silentVideos: [...(cur?.silentVideos ?? []), url].slice(-4) };
+}
+
+/**
+ * 一发**退了钱**的失败（上游明说没出成，服务端已经退回 / 正在退 / 本来没扣）落到它那一段上 —— 唯一实现，两处共用：
+ * takeJob 结案那一拍（点「知道了」核对到了），与取回卡**第一次认出「退了钱」**的那一拍（SegmentRecoverCard，账是挂上时问来的）。
+ * 那一段还挂着 genNode 留下的「pending · 用下面的「取回」领回来，别重新生成」时，改成「没出成」+ 钱上那个短语
+ * （原因走 ArkTaskFailed.reason，钱只走 ai/failCharge —— 与 genNode 失败那一支同一套）。
+ * ★ 为什么卡片那一拍也要改（2.62 发版复核留下的一条，10-08 补）：原来只在 takeJob 里改，而退了钱的卡一挂上就说「没出成、钱退了」——
+ *   段上那句「别重新生成、用下面的取回」要一直挂到人点「知道了」才换，两句话同时在屏幕上打架，草稿里存的也是那句旧的。
+ * ★ 只动**还挂着 pending、而且这一段已经没有别的、还能取的凭据**的那一段：同一段先后没接到两发的话，另一张取回卡还在，
+ *   那句「用下面的取回」仍然成立。别的凭据自己也退了钱的不算（它没有成片可取，那句话对它同样不成立）。
+ * ★ 改过一次就不再改（不再是 pending）：卡片那一拍写的原因是「这一发没出成」，点「知道了」核对到上游的原因时不回头换 —— 段上那句话已经说对了，钱上那个短语也一样。
+ * @param e 上游明说失败的那个错误（takeVideoTask 抛的，或 data/videoJobs.videoJobRefundFailure 照账造的）；里面不是 ArkTaskFailed 就什么都不做
+ */
+export function settleRefundedPending(job: VideoJob, e: unknown): void {
+  const inner = unwrapFailure(e);
+  if (!(inner instanceof ArkTaskFailed)) return;
+  const cur = useFlow.getState().nodes.find((n) => n.id === job.nodeId);
+  if (!cur || cur.status !== "pending") return;
+  const stillWaiting = pendingVideoJobs().some((j) => j.nodeId === job.nodeId && j.taskId !== job.taskId && !videoJobRefunded(j));
+  if (stillWaiting) return;
+  const money = chargeNote(chargeOnFail(e), job.cost);
+  const why = inner.reason;
+  useFlow.setState((s) => ({
+    nodes: s.nodes.map((n) =>
+      n.id === job.nodeId && n.status === "pending"
+        ? { ...n, status: "failed" as const, progress: "", error: (money ? t`${why}（${money.brief}）` : why).slice(0, 240) }
+        : n,
+    ),
+  }));
+}
+
 /** 套用中的模板快照（草稿要整份存下来，所以单独成型）。
  *  refVideo 是白模模板的参考视频登记值镜像，跟着快照进草稿：报价（nodeCost）与出片
  *  （genNode）都只从这里读——存在性判定（`!refVideo` 走经典路，types.ts 同一条 ★），
@@ -814,6 +864,9 @@ export function placeRescuedSegment(
     ...(measured ? { realDurationSec: res.durationSec } : {}),
     // 样片两步那几格（第一步取回来还能定稿；第二步那一段直接是已定稿的成片）
     ...draftPatchOfJob(job, res.url),
+    // 返修那一发有声 / 无声（与当场写回、落回原位同一处实现）：新开的这一段 tpl 恒 null，有声的那条本来也判得对，
+    // 记上是让三条路落下的方案长得一样 —— reshotWithSound 不必知道这一段是怎么来的
+    ...reviseAudioPatch(job.reviseAudio, res.url),
     videoUrl: res.url,
   };
   const node = newFlowNode(at, {
@@ -3928,6 +3981,11 @@ export const useFlow = create<FlowState>()((set, get) => ({
     }
     /** 这一发记在哪一档上：定稿永远是出样片的那一档（这一段后来换了档也一样，定稿只认样片任务号） */
     const genTier = fin ? draftTierId() : node.videoTier;
+    /**
+     * 返修出的这一条有没有声，**受理之前**就定下来（undefined = 不是返修）：当场写回与凭据（VideoJob.reviseAudio）读同一个值 ——
+     * 取回可能在几小时后，那时这一段的档位可能已经换过了，现问会问错（reviseAudioPatch 的 ★）
+     */
+    const reviseAudio = rv ? reviseAudioOf(genTier) : undefined;
     // 档位门禁（会员档 / 已停用 / 服务端不支持）。UI 上那一档本来就点不动，会走到这里的是"草稿里存着这一档、
     // 而套餐后来降了 / 模型停用了"这种存量情况 —— 与其让它飞到服务端换一句 403，不如当场说人话。
     // ★ 判断本身在 data/account.tierBlockReason，这里只是调用点（铁律六）。定稿的那一道 draftFinalIssue 已经问过了
@@ -4111,9 +4169,12 @@ export const useFlow = create<FlowState>()((set, get) => ({
             //   不存这一位它的模板原声就永久没了，而白模成片自己是无声的
             // ★ 出声的返修不存（2.62 发版评审抓到，同 Proposal.voicedVideos 的 ★）：那一发自带声音，取回新开一段时带上这一位，
             //   那一段就被当成无声白模 —— 组稿报「没声音」、回看与合并再叠一层模板原声
-            ...(!(rv && videoAudioOn(tierOf(genTier).model)) && (tplOfNode(node)?.group?.sourceUrl || tplOfNode(node)?.refVideo?.url)
+            ...(reviseAudio !== "voiced" && (tplOfNode(node)?.group?.sourceUrl || tplOfNode(node)?.refVideo?.url)
               ? { tplRefVideo: tplOfNode(node)?.group?.sourceUrl || tplOfNode(node)?.refVideo?.url }
               : {}),
+            // ★ 返修那一发自己有没有声跟着凭据走（VideoJob.reviseAudio 的 ★★）：取回落回原位 / 新开一段时照它补进有声 / 无声名单，
+            //   不补的话有声的返修被当成无声白模段，回看再叠一层模板原声
+            ...(reviseAudio ? { reviseAudio } : {}),
             createdAt: Date.now(),
           });
           // ★ 这一炉正在等它：取回卡先别摆（显示门在 data/videoJobs.setVideoJobWaiting，
@@ -4167,11 +4228,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
         //   走 generate_audio:false 的 edit 任务出的，确实无声，读那一侧照旧认
         // ★ 出声的那一条另记一份（Proposal.voicedVideos）：白模段的有声无声原来全按模板判，返修过之后不单记的话
         //   组稿照样报「没声音」、回看与合并照样叠模板原声（两层声）—— 判据只问 reshotWithSound
-        ...(rv && res.url
-          ? videoAudioOn(tierOf(genTier).model)
-            ? { voicedVideos: [...(cur.voicedVideos ?? []), res.url].slice(-4) }
-            : { silentVideos: [...(cur.silentVideos ?? []), res.url].slice(-4) }
-          : {}),
+        // ★ 补那一格只有 reviseAudioPatch 一处（取回落回原位 / 新开一段用的是同一个）；reviseAudio 受理之前就定了，与凭据上记的是同一个值
+        ...reviseAudioPatch(reviseAudio, res.url, cur),
         // 样片两步认「现在放的是哪一条」靠这两个地址（draftStageOf）；第一步把定稿要的那几样一起记下
         ...(fin && res.url ? { finalUrl: res.url } : {}),
         ...(draftOn && res.url
@@ -4273,14 +4331,16 @@ export const useFlow = create<FlowState>()((set, get) => ({
       //   不上锁（AI 画的，「重画这一套」照样能重画它们）；这几分钟里这一套的帧被人动过（或已经换了一套）就不写，以人为准。
       //   老草稿的占位图（degraded 且两格都有图，usableFrames 的同一个判据）：没画到的那一格换成它「能用的」值（多半是空），
       //   标记一并摘掉 —— 不摘的话写回去的真帧还会被当成占位图、再画一遍。
-      // ★ 离线（本机账本）**不为留下的这几张记账**，是有意的（2.62 发版评审，复核判它只影响开发 / 离线构建）：
-      //   发版构建里 AI_REAL = API_ON，这几张图在服务端按调用真扣过、恰好一次（留下来反而省掉了重试时再画、再扣的那一遍）；
-      //   本机账本只在「npm run dev 直连方舟、没配 VITE_API_BASE」时才是真在记的那一本，而那一本是假钱（离线充值直接加数）。
-      //   下一次成片到手时 spendTokens(cost) 也不会补记它们：cost = nodeCost，而 nodeCost 按 usableFrames 只算还要画的帧。
-      //   要改成照逐格出图那条规矩记（PortraitViewsPartial）：这里 spendTokens(留下的张数 × ONE_IMAGE)，同时 ai/failCharge.chargeOnFail
-      //   离线分支对 SegmentGenFailed 回 paidBefore = 留下的张数 —— 两处必须一起改，只改一处屏幕上的话就与账本对不上。
       {
         const kept = e instanceof SegmentGenFailed ? e.kept : null;
+        // ★ 离线（本机账本）按张记上随错误带出来的这几张，照逐格出图那条规矩（real.PortraitViewsPartial 的 ★★；2.62 发版复核留下的一条，10-08 补）：
+        //   原来一张都不记 —— 下一次成片到手时 spendTokens(cost) 也补不上（cost = nodeCost，按 usableFrames 只算还要画的帧），
+        //   于是留在方案上的帧离线是白拿的。张数只从 keptFrameCount 取：ai/failCharge 离线时说「出片前画好的 N 张已按张计费」数的是同一个，
+        //   两处各数一遍就是账本与屏幕对不上。
+        // ★ 写没写回方案（下面那道「帧没被人动过」的闸）都记：画是真画了，远端模式下服务端也照样按调用收过；没写回只是这几分钟里人改过
+        //   这一套的帧、以人为准。远端模式这一行是空操作（钱在服务端按调用结算过、恰好一次）。
+        //   中途换过账号（genRun 变了）不记：spendTokens 记在**现在登录的这个人**头上，而图是上一个人画的
+        if (AI_REAL && get().genRun === myRun && keptFrameCount(kept) > 0) spendTokens(keptFrameCount(kept) * ONE_IMAGE);
         const live = kept && !rv && !fin && !ext ? get().nodes.find((n) => n.id === id) : undefined;
         const lp = live?.chosenId === prop.id ? live.proposals.find((q) => q.id === prop.id) : undefined;
         if (kept && lp && lp.firstFrame === prop.firstFrame && lp.lastFrame === prop.lastFrame) {
@@ -4375,33 +4435,39 @@ export const useFlow = create<FlowState>()((set, get) => ({
         get().setCursor(placed.at);
       } else {
         set((st) => ({
-          nodes: st.nodes.map((n) =>
-            n.id !== job.nodeId
-              ? n
-              : {
-                  ...n,
-                  status: "idle",
-                  progress: "",
-                  error: undefined,
-                  anns: [],
-                  videoByProposal: { ...n.videoByProposal, [job.proposalId]: url },
-                  proposals: n.proposals.map((p) =>
-                    p.id === job.proposalId
-                      ? {
-                          ...p,
-                          // 样片两步那几格（第一步的任务号 / 时长 / 画幅、第二步把样片留成上一版）——与当场出片同一个写回
-                          ...draftPatchOfJob(job, url, p),
-                          videoUrl: url,
-                          // 定稿不换尾帧（理由同 genNode 写回那一行的 ★）
-                          ...(lastFrame && job.draftStep !== "final" ? { lastFrame } : {}),
-                          ...(poster ? { poster } : {}),
-                          ...(res.durationSec ? { realDurationSec: res.durationSec } : {}),
-                          degraded: undefined,
-                        }
-                      : p,
-                  ),
-                },
-          ),
+          nodes: st.nodes.map((n) => {
+            if (n.id !== job.nodeId) return n;
+            /** 这一套此刻放的那条（返修落回来时它成了「上一版」；mock 占位不算） */
+            const before = n.videoByProposal[job.proposalId];
+            const prevReal = before && !before.startsWith("mock:") && before !== url ? before : undefined;
+            return {
+              ...n,
+              status: "idle",
+              progress: "",
+              error: undefined,
+              anns: [],
+              videoByProposal: { ...n.videoByProposal, [job.proposalId]: url },
+              proposals: n.proposals.map((p) =>
+                p.id === job.proposalId
+                  ? {
+                      ...p,
+                      // 样片两步那几格（第一步的任务号 / 时长 / 画幅、第二步把样片留成上一版）——与当场出片同一个写回
+                      ...draftPatchOfJob(job, url, p),
+                      // ★ 返修那一发：有声 / 无声记进名单（与当场写回同一处实现 reviseAudioPatch，VideoJob.reviseAudio 的 ★★），
+                      //   上一版留一份可还原（同 genNode 写回那一行：返修只留最近一版）。老凭据没有 reviseAudio，两样都照旧不补
+                      ...reviseAudioPatch(job.reviseAudio, url, p),
+                      ...(job.reviseAudio && prevReal ? { prevVideoUrl: prevReal } : {}),
+                      videoUrl: url,
+                      // 定稿不换尾帧（理由同 genNode 写回那一行的 ★）
+                      ...(lastFrame && job.draftStep !== "final" ? { lastFrame } : {}),
+                      ...(poster ? { poster } : {}),
+                      ...(res.durationSec ? { realDurationSec: res.durationSec } : {}),
+                      degraded: undefined,
+                    }
+                  : p,
+              ),
+            };
+          }),
         }));
       }
       // 成片已经落到节点上，凭据结案
@@ -4425,22 +4491,9 @@ export const useFlow = create<FlowState>()((set, get) => ({
         if (st === "refunded" || st === "refunding" || st === "skipped") {
           dropVideoJob(job.taskId);
           // ★ 原来那一段还挂着 genNode 留下的「pending · 用下面的「取回」领回来，别重新生成」（2026-10-07 评审抓到）：凭据结案之后
-          //   那张取回卡就没了，而这句话会一直挂在段上、跟着进草稿 —— 指向一个已经不存在的出口。改成「没出成」+ 钱上那个短语
-          //   （与 genNode 失败那一支同一套：原因走 arkFailReason，钱走 ai/failCharge）。只动**还挂着 pending、而这一段已经没有别的凭据**的那一段
-          //   （同一段先后没接到两发的话，另一张取回卡还在，那句「用下面的取回」仍然成立）。
-          const cur = get().nodes.find((n) => n.id === job.nodeId);
-          const stillWaiting = pendingVideoJobs().some((j) => j.nodeId === job.nodeId);
-          if (cur && cur.status === "pending" && !stillWaiting && inner instanceof ArkTaskFailed) {
-            const money = chargeNote(chargeOnFail(e), job.cost);
-            const why = inner.reason;
-            set((s2) => ({
-              nodes: s2.nodes.map((n) =>
-                n.id === job.nodeId
-                  ? { ...n, status: "failed" as const, progress: "", error: (money ? t`${why}（${money.brief}）` : why).slice(0, 240) }
-                  : n,
-              ),
-            }));
-          }
+          //   那张取回卡就没了，而这句话会一直挂在段上、跟着进草稿 —— 指向一个已经不存在的出口。改成「没出成」+ 钱上那个短语。
+          //   与取回卡第一次认出「退了钱」那一拍同一处实现（settleRefundedPending；卡片那一拍多半已经改过了，这里就是空转）
+          settleRefundedPending(job, e);
         }
       }
       throw e;
