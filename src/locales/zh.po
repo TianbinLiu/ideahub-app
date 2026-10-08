@@ -2578,6 +2578,15 @@ msgstr "★ 当前"
 msgid "♻ 都不满意，重新推演三套（{propCostLabel}）"
 msgstr "♻ 都不满意，重新推演三套（{propCostLabel}）"
 
+#. placeholder {0}: fmtTokens(cost)
+#: src/studio/ui/projection.tsx
+msgid "♻ 重新出样片（{0}）"
+msgstr "♻ 重新出样片（{0}）"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "♻ 重新出样片（{costLabel}）"
+msgstr "♻ 重新出样片（{costLabel}）"
+
 #: src/studio/ui/PlanBoard.tsx
 msgid "♻ 重新推演三套"
 msgstr "♻ 重新推演三套"
@@ -2887,6 +2896,10 @@ msgstr "✓ 已存"
 msgid "✓ 已存（之前存过）"
 msgstr "✓ 已存（之前存过）"
 
+#: src/components/flow/DraftModeBox.tsx
+msgid "✓ 已定稿成 1080p。上一版（480p 样片）在「修这一段」的「还原上一版」里。"
+msgstr "✓ 已定稿成 1080p。上一版（480p 样片）在「修这一段」的「还原上一版」里。"
+
 #: src/components/flow/RefFrameSheet.tsx
 msgid "✓ 已设为尾帧"
 msgstr "✓ 已设为尾帧"
@@ -3058,6 +3071,10 @@ msgstr "⟳ 转横屏"
 #: src/components/blockout/BlockoutTrimmer.tsx
 msgid "⤢ 铺满整幅"
 msgstr "⤢ 铺满整幅"
+
+#: src/components/flow/DraftModeBox.tsx
+msgid "⬆ 定稿成 1080p（{price}）"
+msgstr "⬆ 定稿成 1080p（{price}）"
 
 #: src/pages/TemplateDetailPage.tsx
 msgid "⬜ 白模模板 · 参考视频 {billSec}s"
@@ -3375,6 +3392,27 @@ msgstr "📸 截图 → 融成这一段的开头帧（{price}）"
 #: src/components/flow/SegPlayer.tsx
 msgid "📸 截这一帧"
 msgstr "📸 截这一帧"
+
+#. placeholder {0}: fmtTokens(cost)
+#: src/studio/ui/projection.tsx
+msgid "📼 先出样片（{0}）"
+msgstr "📼 先出样片（{0}）"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "📼 先出样片（{costLabel}）"
+msgstr "📼 先出样片（{costLabel}）"
+
+#: src/components/flow/DraftModeBox.tsx
+msgid "📼 先出样片（480p 预览，满意再定稿成 1080p）"
+msgstr "📼 先出样片（480p 预览，满意再定稿成 1080p）"
+
+#: src/components/flow/DraftModeBox.tsx
+msgid "📼 这是 480p 样片"
+msgstr "📼 这是 480p 样片"
+
+#: src/components/flow/DraftModeBox.tsx
+msgid "📼 重新生成时也先出样片"
+msgstr "📼 重新生成时也先出样片"
 
 #: src/components/flow/DialogueWizard.tsx
 msgid "🔄 三个一起重画（最多 {anglesPrice}，会换掉现在这几张）"
@@ -4955,6 +4993,10 @@ msgstr "不推荐"
 #: src/components/CardModelFit.tsx
 msgid "不收真人照片"
 msgstr "不收真人照片"
+
+#: src/components/flow/DraftModeBox.tsx
+msgid "不满意就改了重新出样片（每次按样片的价）。1080p 成片是 H.265（10 位色深）编码，个别旧手机可能放不出来。"
+msgstr "不满意就改了重新出样片（每次按样片的价）。1080p 成片是 H.265（10 位色深）编码，个别旧手机可能放不出来。"
 
 #: src/pages/SupportModelNewPage.tsx
 msgctxt "Live2D 动作槽：这个语义动作不播任何动作"
@@ -10389,6 +10431,15 @@ msgstr "官方技能"
 msgid "定妆"
 msgstr "定妆"
 
+#. placeholder {0}: prop.plot.trim().slice(0, 20) || prop.title
+#: src/studio/flowStore.ts
+msgid "定稿 1080p：{0}"
+msgstr "定稿 1080p：{0}"
+
+#: src/studio/flowStore.ts
+msgid "定稿与重拍不能同时做——先定稿，满意了再重拍"
+msgstr "定稿与重拍不能同时做——先定稿，满意了再重拍"
+
 #: src/components/support/AdminTicketsView.tsx
 #: src/pages/SupportPage.tsx
 msgid "客服"
@@ -12569,6 +12620,10 @@ msgstr "把整篇剧本贴进来：谁在哪儿做什么、接着发生什么…
 #: src/studio/flowStore.ts
 msgid "把构图示意融成开头帧…"
 msgstr "把构图示意融成开头帧…"
+
+#: src/studio/segmentGen.ts
+msgid "把样片升成 1080p 成片（{finSec} 秒，画面、动作、声音都照样片）…"
+msgstr "把样片升成 1080p 成片（{finSec} 秒，画面、动作、声音都照样片）…"
 
 #: src/pages/SupportCreatePage.tsx
 msgid "把自己的课件交给 AI，铸一位按你的材料讲课的老师，在 App 里上课；勾了「同时发布为启梦人格」的老师还会开口说话。"
@@ -15323,6 +15378,10 @@ msgstr "标题不能为空"
 msgid "标题进详情页"
 msgstr "标题进详情页"
 
+#: src/components/flow/DraftModeBox.tsx
+msgid "样片 {step1}（视频那一半，出片前补画的画面另算），看效果对不对；满意再花 {step2} 把同一份样片升成 1080p。不满意就改了重出样片，省下成片的钱。样片 7 天内可以定稿。"
+msgstr "样片 {step1}（视频那一半，出片前补画的画面另算），看效果对不对；满意再花 {step2} 把同一份样片升成 1080p。不满意就改了重出样片，省下成片的钱。样片 7 天内可以定稿。"
+
 #: src/ai/arkClient.ts
 msgid "样片（480p 预览，满意再定稿）"
 msgstr "样片（480p 预览，满意再定稿）"
@@ -15330,6 +15389,10 @@ msgstr "样片（480p 预览，满意再定稿）"
 #: src/ai/arkClient.ts
 msgid "样片定稿（升成 1080p）"
 msgstr "样片定稿（升成 1080p）"
+
+#: src/components/flow/DraftModeBox.tsx
+msgid "样片已经过了 7 天有效期，不能再定稿了——要成片就重新生成（会重新计费）。"
+msgstr "样片已经过了 7 天有效期，不能再定稿了——要成片就重新生成（会重新计费）。"
 
 #: src/pages/tutor/TutorNewPage.tsx
 msgid "核对中…"
@@ -17015,6 +17078,7 @@ msgstr "演出中…"
 #: src/components/flow/CastPicker.tsx
 #: src/components/flow/CastPreviewCard.tsx
 #: src/components/flow/DialogueWizard.tsx
+#: src/components/flow/DraftModeBox.tsx
 #: src/components/flow/EffectWizard.tsx
 #: src/components/flow/FixSegmentBox.tsx
 #: src/components/flow/FlowCanvas.tsx
@@ -18759,6 +18823,18 @@ msgstr "看看别人看到的"
 msgid "看看这句话变成了什么"
 msgstr "看看这句话变成了什么"
 
+#: src/components/flow/DraftModeBox.tsx
+msgid "看着满意就定稿：把这同一份样片升成 1080p 成片（画面、动作、声音都照样片，不重新抽卡）。还剩 {days} 天 {hours} 小时可以定稿。"
+msgstr "看着满意就定稿：把这同一份样片升成 1080p 成片（画面、动作、声音都照样片，不重新抽卡）。还剩 {days} 天 {hours} 小时可以定稿。"
+
+#: src/components/flow/DraftModeBox.tsx
+msgid "看着满意就定稿：把这同一份样片升成 1080p 成片（画面、动作、声音都照样片，不重新抽卡）。还剩 {hours} 小时可以定稿。"
+msgstr "看着满意就定稿：把这同一份样片升成 1080p 成片（画面、动作、声音都照样片，不重新抽卡）。还剩 {hours} 小时可以定稿。"
+
+#: src/components/flow/DraftModeBox.tsx
+msgid "看着满意就定稿：把这同一份样片升成 1080p 成片（画面、动作、声音都照样片，不重新抽卡）。还剩 {mins} 分钟可以定稿。"
+msgstr "看着满意就定稿：把这同一份样片升成 1080p 成片（画面、动作、声音都照样片，不重新抽卡）。还剩 {mins} 分钟可以定稿。"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "看这一段成片"
 msgstr "看这一段成片"
@@ -19698,6 +19774,10 @@ msgid "第 {n} 段原来的档位已经下线，改用「{b}」档"
 msgstr "第 {n} 段原来的档位已经下线，改用「{b}」档"
 
 #: src/studio/flowStore.ts
+msgid "第 {n} 段定稿完成（1080p）"
+msgstr "第 {n} 段定稿完成（1080p）"
+
+#: src/studio/flowStore.ts
 msgid "第 {n} 段没出成，token 已退回"
 msgstr "第 {n} 段没出成，token 已退回"
 
@@ -19716,6 +19796,10 @@ msgstr "第 {n} 段生成失败：{why}"
 #: src/studio/flowStore.ts
 msgid "第 {n} 段生成失败：{why}。{moneyLine}"
 msgstr "第 {n} 段生成失败：{why}。{moneyLine}"
+
+#: src/studio/flowStore.ts
+msgid "第 {n} 段的样片出好了——看着满意就定稿成 1080p"
+msgstr "第 {n} 段的样片出好了——看着满意就定稿成 1080p"
 
 #: src/pages/CutPage.tsx
 msgid "第 {n}/{total} 句…"
@@ -22590,6 +22674,10 @@ msgstr "这一份正在被另一次保存写入，等它跑完再点一次。"
 msgid "这一份还没有本机地址，重新保存一次再试。"
 msgstr "这一份还没有本机地址，重新保存一次再试。"
 
+#: src/studio/segmentGen.ts
+msgid "这一发先出 480p 样片：看着满意，再把同一份样片升成 1080p 成片（另计一笔）；不满意就改了重出样片"
+msgstr "这一发先出 480p 样片：看着满意，再把同一份样片升成 1080p 成片（另计一笔）；不满意就改了重出样片"
+
 #: src/data/templates.ts
 msgid "这一发已经付过费，但服务器没说结果能留到什么时候——建议尽快取回。"
 msgstr "这一发已经付过费，但服务器没说结果能留到什么时候——建议尽快取回。"
@@ -23125,6 +23213,10 @@ msgid "这一段正在生成，等它跑完再改。"
 msgstr "这一段正在生成，等它跑完再改。"
 
 #: src/studio/flowStore.ts
+msgid "这一段正在生成，等它跑完再改「先出样片」"
+msgstr "这一段正在生成，等它跑完再改「先出样片」"
+
+#: src/studio/flowStore.ts
 msgid "这一段正在生成中，等它跑完再改参考图"
 msgstr "这一段正在生成中，等它跑完再改参考图"
 
@@ -23139,6 +23231,10 @@ msgstr "这一段没下完（原因见下面那行原文）。再点一次会从
 #: src/studio/flowStore.ts
 msgid "这一段没有套可挂卡的白模模板（角色位只有白模模板才有）——在这一段的编辑窗点「🧪 套模板」选一个，别去模板市场重套（那会整条流水线重铺）"
 msgstr "这一段没有套可挂卡的白模模板（角色位只有白模模板才有）——在这一段的编辑窗点「🧪 套模板」选一个，别去模板市场重套（那会整条流水线重铺）"
+
+#: src/studio/segmentGen.ts
+msgid "这一段没有样片的任务号，定不了稿——重新出一次样片再定稿"
+msgstr "这一段没有样片的任务号，定不了稿——重新出一次样片再定稿"
 
 #: src/studio/studioStore.ts
 msgid "这一段没炼成"
@@ -23161,9 +23257,17 @@ msgstr "这一段炼好了，但自动存草稿失败（存储空间不足或浏
 msgid "这一段现在删不掉"
 msgstr "这一段现在删不掉"
 
+#: src/studio/flowStore.ts
+msgid "这一段现在放的不是样片，没有可以定稿的"
+msgstr "这一段现在放的不是样片，没有可以定稿的"
+
 #: src/components/flow/SegPlayer.tsx
 msgid "这一段现在选中的走向还没有成片"
 msgstr "这一段现在选中的走向还没有成片"
+
+#: src/studio/segmentGen.ts
+msgid "这一段的做法走不了样片（样片不收参考视频，也不走真人档）——关掉「先出样片」再生成"
+msgstr "这一段的做法走不了样片（样片不收参考视频，也不走真人档）——关掉「先出样片」再生成"
 
 #. placeholder {0}: res.status
 #: src/data/videoDownload.ts
@@ -24470,6 +24574,10 @@ msgstr "这条是 webm 格式，部分相册应用打不开；保存时选文件
 #: src/components/DownloadSheet.tsx
 msgid "这条有 {0} 段，会存成 {1} 个文件。"
 msgstr "这条有 {0} 段，会存成 {1} 个文件。"
+
+#: src/studio/flowStore.ts
+msgid "这条样片已经过了 7 天有效期，不能再定稿了——要成片就重新生成（会重新计费）"
+msgstr "这条样片已经过了 7 天有效期，不能再定稿了——要成片就重新生成（会重新计费）"
 
 #: src/components/support/VoiceMarket.tsx
 msgid "这条模板已经被作者删了，刷新列表看看别的。"

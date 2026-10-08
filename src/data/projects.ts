@@ -443,7 +443,8 @@ function isLocalAsset(v: string): boolean {
 
 /** 这几格的「没有」值是 `undefined`（类型上就是可选的），其余一律空串 —— 塞对象是禁止的
  *  （见 types.Proposal.lost 的 ★★：会打坏承接判定 / refVideoOn / blockoutIssue 三条规则） */
-const OPTIONAL_URL_KEYS = new Set(["videoUrl", "prevVideoUrl", "modelUrl", "poster", "sourceUrl", "castPreview"]);
+// ★ draftUrl / finalUrl（样片两步，2026-10-07）同属可选：缺了只是「定稿」那颗键不摆，不是一格空图
+const OPTIONAL_URL_KEYS = new Set(["videoUrl", "prevVideoUrl", "modelUrl", "poster", "sourceUrl", "castPreview", "draftUrl", "finalUrl"]);
 
 /**
  * 就地重写：命中映射表的换成永久 URL，没命中的资产地址一律**墓碑化**（置成该字段本来

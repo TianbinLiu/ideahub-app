@@ -27,6 +27,7 @@ import CameraChips from "./CameraChips";
 import DeleteSegBtn from "./DeleteSegBtn";
 import CastPreviewCard from "./CastPreviewCard";
 import FixSegmentBox from "./FixSegmentBox";
+import DraftModeBox from "./DraftModeBox";
 import StageOverlay from "../../studio/stage/StageOverlay";
 import { SegmentRecoverList } from "./SegmentRecoverCards";
 import SegSettings from "./SegSettings";
@@ -74,6 +75,7 @@ import {
   nodeDerived,
   nodeDone,
   nodeRecastable,
+  nodeDraftOn,
   nodeRefPlan,
   nodeEmptyFrames,
   nodeNoDraw,
@@ -1169,6 +1171,8 @@ function NodePanel({
   const propCost = proposalsCost(carried);
   /** 按钮上印的价（演示构建写「演示」）：先取成值再进句子，别把它拼进模板串里 */
   const costLabel = AI_REAL ? fmtTokens(cost) : t`演示`;
+  /** 这一下先出样片（电影级，判定只在 flowStore.nodeDraftOn —— 上面那个 cost 已经按样片的价报了）：按钮上的字要跟着说 */
+  const draftOn = nodeDraftOn(node);
   const propCostLabel = AI_REAL ? fmtTokens(propCost) : t`演示`;
   const plan = planOf(node);
   const mats = node.materials ?? [];
@@ -1891,7 +1895,15 @@ function NodePanel({
           disabled={busy || generating || !p.plot.trim()}
           className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:bg-slate-700 disabled:text-slate-400"
         >
-          {generating ? node.progress || t`生成中…` : done ? t`♻ 重新生成（${costLabel}）` : t`⚡ 生成本段（${costLabel}）`}
+          {generating
+            ? node.progress || t`生成中…`
+            : draftOn
+              ? done
+                ? t`♻ 重新出样片（${costLabel}）`
+                : t`📼 先出样片（${costLabel}）`
+              : done
+                ? t`♻ 重新生成（${costLabel}）`
+                : t`⚡ 生成本段（${costLabel}）`}
         </button>
       )}
       {!tplMode && !flatTier && !custom && !direct && !locked && (
@@ -1922,7 +1934,15 @@ function NodePanel({
               disabled={busy || generating}
               className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:bg-slate-700 disabled:text-slate-400"
             >
-              {generating ? node.progress || t`生成中…` : done ? t`♻ 重新生成（${costLabel}）` : t`⚡ 炼这一段视频（${costLabel}）`}
+              {generating
+                ? node.progress || t`生成中…`
+                : draftOn
+                  ? done
+                    ? t`♻ 重新出样片（${costLabel}）`
+                    : t`📼 先出样片（${costLabel}）`
+                  : done
+                    ? t`♻ 重新生成（${costLabel}）`
+                    : t`⚡ 炼这一段视频（${costLabel}）`}
             </button>
             {/* 挑定之后仍要能回方案台：换首尾帧、逐字改剧情、重新推演都在那里
                 （入口只有一处 —— 这些编辑口 PlanBoard 只对选定行开，见它自己的 ★） */}
@@ -1959,6 +1979,10 @@ function NodePanel({
           </button>
         )
       )}
+
+      {/* 电影级「样片」那一栏（先出样片的开关 / 样片的倒计时与定稿 / 已定稿）：投影窗同款，一份实现。
+          它自己判摆不摆（这一档有没有样片、这一段的做法走不走得了、现在放的是不是样片）；定稿走 genNode（与这一段的生成键同一个入口） */}
+      {!locked && <DraftModeBox node={node} disabled={busy || generating} onFinalize={() => void genNode(node.id, { finalizeDraft: true })} />}
 
       {/* 修这一段（片段重拍 / 往后延长）：已出片才有，四个车道都摆（FixSegmentBox 自己判有没有能播的成片）；投影窗同款，一份实现。
           延长落下新的一段之后定位过去、接着出片（genNode：与这一段的生成键同一个入口） */}

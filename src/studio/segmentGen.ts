@@ -24,6 +24,7 @@ import { refVideoIssue } from "../data/templates";
 import { ShotSpec, shotLineOf, CardType, ID_LINE_MAX, CARD_TYPE_PROMPT, idLineOf, viewsOf, feedsModel, TEXT_DESC_MAX, aspectOf, startFramesAllowed, type Card, type GenMode, type VideoAspect, type VideoTemplate } from "../types";
 import { voiceOf } from "../data/cardVoice";
 import { tierGo } from "../data/account";
+import { ratioFor } from "../ai/arkClient";
 import { t } from "@lingui/core/macro";
 
 export interface SegmentAnn {
@@ -128,6 +129,16 @@ export interface SegmentGenInput {
    *   就成了同一条规则的第二处实现（而且与用户改过的那份必然分叉）。
    */
   roles?: { label: string; desc: string }[];
+  /**
+   * 电影级「样片」（2026-10-07 主人拍板；判定在 flowStore.nodeDraftOn / draftFinalIssue，这里只照着发）：
+   *   "draft"  = 第一步：槽位照普通出片摆（帧 / 参考图 / 补画都一样），只是按 480p + draft:true 发、按 economy.draftStepTokens 计价；
+   *   finalOf  = 第二步：把这条样片升成 1080p —— 请求只带样片任务号（画面 / 动作 / 声音都照样片，方舟规定重传就报错），
+   *              上面那些输入一律不看；durationSec / ratio 是样片当初那两样（报价对账用）；
+   *   null     = 普通出片。
+   * **必填**：可选的话漏传就悄悄按 720p 出片、按样片的价报（契约核对会说出来，但钱已经按另一把尺扣了）。
+   * ★ 只有普通出片那条路能走样片：白模 / 返修 / 延长 / 示例视频都带视频输入（方舟：样片不收视频输入），真人档是另一家 —— 下面开头整句拒。
+   */
+  draftMode: null | "draft" | { finalOf: { taskId: string; durationSec: number; ratio?: string } };
 }
 
 /**
@@ -1078,6 +1089,33 @@ export async function generateSegment(
   // 分镜表（N2）：空镜头拿掉、编号重排之后再往下走（没分镜的句子逐字节原样，data/shotScript.packShots）
   input = { ...input, plot: packShots(input.plot) };
   const prog = (s: string) => onProgress?.(s);
+
+  // ── 电影级「样片」第二步：把样片升成 1080p（2026-10-07）──────────────────────
+  // 请求只带样片任务号（arkClient 拼最小形状）；上面那些输入一律不看 —— 画面、动作、声音都照样片，方舟规定重传一个就报错。
+  // 放在最前面：后面每一条支路都会去准备帧 / 参考图 / 声音，有的还要花钱（补画），定稿一样都用不上。
+  const dm = input.draftMode;
+  if (dm && typeof dm === "object") {
+    const fin = dm.finalOf;
+    if (!fin.taskId) throw new Error(t`这一段没有样片的任务号，定不了稿——重新出一次样片再定稿`);
+    const finSec = fin.durationSec;
+    prog(t`把样片升成 1080p 成片（${finSec} 秒，画面、动作、声音都照样片）…`);
+    {
+      const cl = contractLine({ quoted: input.quotedTokens, mode: "draftFinal", durationSec: finSec, tierId: input.videoTier, images: 0, ratio: fin.ratio });
+      if (cl) prog(cl);
+    }
+    const [res] = await composeSegments(
+      [{ mode: "draftFinal", plot: "", firstFrame: "", lastFrame: "", durationSec: finSec, videoTier: input.videoTier, aspect: input.aspect, draftTaskId: fin.taskId }],
+      (_d, _t, status) => prog(status),
+      // ★ 受理回调**必须给**（同另外几条支路）：没有凭据，「没接到结果」这一支就等于不存在
+      (taskId) => onTask?.(taskId),
+    );
+    settleSegment(res, 0); // 定稿一张画面都不画
+    return { url: res?.url, firstFrame: "", lastFrame: res?.lastFrame || "", poster: res?.poster, realDurationSec: res?.durationSec };
+  }
+  // 样片第一步只走普通出片那条路（理由见 draftMode 的 ★）。界面那几道闸（nodeDraftEligible）已经按同一个口径拦过，这里是最后一道
+  if (dm === "draft" && (input.refVideoUrl || input.extendRef || input.materialRef || providerOf(input.videoTier) === "minimax")) {
+    throw new Error(t`这一段的做法走不了样片（样片不收参考视频，也不走真人档）——关掉「先出样片」再生成`);
+  }
   let first = input.firstFrame;
   let last = input.lastFrame;
   /** 这一段一路攒下的「顺带说一句」。**声明必须在最顶上**：素材参考那条支路在中途就 return，
@@ -1833,8 +1871,8 @@ export async function generateSegment(
       prog(line);
     }
   }
-  /** 这一发的生成模式（契约的声明；槽位与它是否一致由 real.validateGenSpec 在花钱之前核对） */
-  const mode: GenMode = blockout
+  /** 这一发按什么形状拼请求（槽位推出来的；样片第一步也照它拼，real.slotModeOf 同一个判法） */
+  const slotMode: GenMode = blockout
     ? "edit"
     : refMode || sendFrameRefs
       ? "ref-images"
@@ -1843,6 +1881,9 @@ export async function generateSegment(
           ? "flf"
           : "i2v"
         : "t2v";
+  /** 这一发的生成模式（契约的声明；槽位与它是否一致由 real.validateGenSpec 在花钱之前核对）。先出样片 = "draft"（按 480p 的价、480p 发） */
+  const mode: GenMode = input.draftMode === "draft" ? "draft" : slotMode;
+  if (mode === "draft") prog(t`这一发先出 480p 样片：看着满意，再把同一份样片升成 1080p 成片（另计一笔）；不满意就改了重出样片`);
   {
     const cl = contractLine({
       quoted: input.quotedTokens,
@@ -1851,7 +1892,9 @@ export async function generateSegment(
       tierId: input.videoTier,
       refVideoSec: input.refVideo?.durationSec,
       images: drawn + redrawn.length,
-      ratio: aspectOf(input.aspect).ratio,
+      // ★ 按**真正送进请求体**的画幅对账（arkClient.ratioFor：2.5 走首帧 / 首尾帧时只收 adaptive）：480p 的每秒数按画幅不同，
+      //   adaptive 按那一行最贵的一格结算 —— 帧转参考图失败退回首尾帧的那种，样片会比报价贵一点，要说出来
+      ratio: ratioFor(tier.model, slotMode === "edit" || slotMode === "ref-images" ? "reference" : "frames", aspectOf(input.aspect).ratio),
     });
     if (cl) prog(cl);
   }
@@ -1861,7 +1904,7 @@ export async function generateSegment(
   //   （ref-images，首帧本来就空）于是带着一张尾帧去找 validateGenSpec，被整句拒「参考图 / 参考视频与首尾帧
   //   不能混发」：已经出过片的白模段从此重炼不了（不花钱，但只能删段重套模板）。2.45 的 composeSegments 是
   //   在这两种模式下**静默忽略** lastFrame 的；契约校验加上之后，这一侧得真的不带。
-  const refSend = mode === "edit" || mode === "ref-images";
+  const refSend = slotMode === "edit" || slotMode === "ref-images";
   const [res] = await composeSegments(
     [
       {
@@ -1887,6 +1930,8 @@ export async function generateSegment(
         refVideoSec: input.refVideo?.durationSec,
         // 返修走出声的那一份 edit 参数（arkClient.REVISE_TASK）；白模照旧 BLOCKOUT_TASK（不出声，版权拦截换来的）
         ...(input.revise ? { refTask: "revise" as const } : {}),
+        // 样片第一步：同一副槽位，按 480p + draft:true 发（arkClient 钉）
+        ...(mode === "draft" ? { draft: true } : {}),
       },
     ],
     (_d, _t, status) => prog(status),

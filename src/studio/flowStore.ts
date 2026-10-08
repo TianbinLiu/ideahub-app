@@ -24,7 +24,7 @@ import { castPreviewImage, frameUrlAt, fuseStageFrame, AI_REAL, ArkTaskFailed, A
 import { frameMoment, isMultiShot, momentCards } from "../data/shotScript";
 import { endFrameUsed } from "../data/drawPlan";
 import { isArkAssetUrl, transferArkVideo } from "../ai/arkClient";
-import { canAfford, defaultTierId, frozenNote, myCards, spendTokens, tierBlockReason, tierGo, usableTierId, walletOf } from "../data/account";
+import { canAfford, defaultTierId, draftModeIssue, draftModeOffered, frozenNote, myCards, spendTokens, tierBlockReason, tierGo, usableTierId, walletOf } from "../data/account";
 import { showToast } from "../data/toast";
 import {
   r2vTokens,
@@ -42,6 +42,9 @@ import {
   tierOf,
   tierRetired,
   deriveIssue,
+  DRAFT_VALID_MS,
+  draftFinalTokens,
+  draftTierId,
 } from "../data/economy";
 import { aspectOf, Card, DEFAULT_ASPECT, Proposal, TemplateRecipe, VideoAspect, VideoSegment, VideoTemplate, aspectFromSize, uid, viewsOf } from "../types";
 import type { WorkflowRecipe } from "../data/recipe";
@@ -177,6 +180,14 @@ export interface FlowNode {
    */
   extendFrom?: { nodeId: string; url: string; durationSec: number };
   /**
+   * 「先出样片」开关（电影级的 draft 模式，2026-10-07 主人拍板）：开着的话「炼这一段」先出一段 480p 样片（便宜、快），
+   * 看着满意再在「样片」那一栏把**同一份样片**升成 1080p 成片（genNode 的 finalizeDraft；不重新抽卡）。
+   * ★ 只是一个意愿：真走不走样片只问 `nodeDraftOn`（档位有没有样片能力 / 这台服务端会不会 / 这一段的做法能不能走），
+   *   报价（nodeCost）与出片（genNode）问的是同一个函数。换到没有样片的档，开关留着但不生效（换回来接着用）。
+   * ★ 判否定（缺省 = 不出样片）：老草稿天然缺它。写只走 setDraftFirst。
+   */
+  draftFirst?: boolean;
+  /**
    * **临时参考图**（N1，2026-10-03 对标 LibTV 节点的参考清单）：不是卡的一次性图（站位草图、道具照片…），只在这一段生效。
    * 出片时排在帧之后、卡片形象图之前当参考图发（segmentGen 的 extraRefs）；句子里 `@名字` 点到的换成「图片N」，
    * 没点到的由系统按用途补一句（规则只在 data/refMentions）。
@@ -245,6 +256,12 @@ export interface GenNodeOpts {
    * 2026-10-05 起返修**出声**（arkClient.REVISE_TASK）。
    */
   revise?: { instruction: string; range?: { from: number; to: number } | null };
+  /**
+   * 把这一段现在放着的**样片**升成 1080p 成片（电影级样片的第二步，2026-10-07）。请求只带样片任务号（画面 / 动作 / 声音都照样片），
+   * 价钱 = 样片时长 × 1080p × 77/15（economy.draftFinalTokens）。门禁在 draftFinalIssue 一处。
+   * ★ 放在 genNode 里而不是另写一个 action：门禁 / 计费 / 凭据 / 写回 / 进度日志都是同一份实现（与返修同一个理由）。
+   */
+  finalizeDraft?: boolean;
 }
 
 /** 返修的输入时长（秒）：成片实测优先，退回申报值；报价与 refVideo 校验读同一个数 */
@@ -335,6 +352,89 @@ export function extendSpec(nodes: FlowNode[], idx: number, o: { text: string; du
  */
 function extendLaneLocked(node: FlowNode): string | null {
   return node.extendFrom ? t`这是延长段（接着上一段的成片往后拍），做法是固定的——想换做法就删掉这一段，再加一段` : null;
+}
+
+// ── 电影级「样片」（2026-10-07 主人拍板）────────────────────────────────
+// 第一步：先出一段 480p 样片（方舟 2.5 的 draft 模式，按 480p × 电影级系数计价）；第二步：满意再把同一个样片任务号升成 1080p 成片
+// （按样片时长 × 1080p × 77/15 计价，服务端按自己登记的那一发结算）。两步各是一单，各自走 genNode 的门禁 / 计费 / 凭据 / 写回。
+// 界面只有一份（components/flow/DraftModeBox，两面都挂）。
+
+/**
+ * 这一套方案现在放的是**样片**、**定稿出来的成片**，还是都不是 —— 唯一判据（见 Proposal.draftTaskId 的 ★★：按「现在放的是哪一条」现算，不存状态）。
+ */
+export function draftStageOf(p: Proposal): "draft" | "final" | null {
+  if (!p.draftTaskId || !p.videoUrl) return null;
+  if (p.draftUrl && p.videoUrl === p.draftUrl) return "draft";
+  if (p.finalUrl && p.videoUrl === p.finalUrl) return "final";
+  return null;
+}
+
+/**
+ * 这一段的**做法**能不能走样片（不看开关、不看档位）：只有普通出片那条路 —— 白模模板 / 延长 / 示例视频都带视频输入（方舟：样片不收视频输入），
+ * 真人档是另一家供应商。
+ */
+export function nodeDraftEligible(node: FlowNode): boolean {
+  if (tplOfNode(node)?.refVideo) return false;
+  if (node.extendFrom) return false;
+  if (node.custom && node.customRef) return false;
+  return providerOf(node.videoTier) !== "minimax";
+}
+
+/**
+ * 「炼这一段」这一下**会不会先出样片** —— 唯一判定：报价（nodeCost）、出片（genNode）、按钮上的字与 DraftModeBox 读的都是它。
+ * 开关开着 + 这一段的做法走得了 + 这一档有样片能力且摆得出来（account.draftModeOffered：档位能力 + 服务端能力位）。
+ * 套餐那一道（免费版不能用电影级）不在这里：那是 tierBlockReason / draftModeIssue 的事，genNode 门口整句拒并指路。
+ * @param tierOverride 按另一档问（换档报价那几处）
+ */
+export function nodeDraftOn(node: FlowNode, tierOverride?: string): boolean {
+  return !!node.draftFirst && nodeDraftEligible(node) && draftModeOffered(tierOf(tierOverride ?? node.videoTier));
+}
+
+/** 样片还能定稿多久（ms；≤ 0 = 过期了）。按受理时刻算，服务端另有权威的一道（它按自己的登记与方舟的 created_at 取早的那个） */
+export function draftValidLeft(p: Proposal, now = Date.now()): number {
+  return (p.draftAt ?? 0) + DRAFT_VALID_MS - now;
+}
+
+/** 定稿这一下的报价（与 genNode 扣的同一个数；画幅缺省 / adaptive 按 1080p 最贵的一格报）。没有样片时长就按申报时长 */
+export function draftFinalQuote(p: Proposal): number {
+  return draftFinalTokens(p.draftDur ?? p.durationSec, p.draftRatio);
+}
+
+/**
+ * 这一段现在能不能定稿（null = 能）—— 唯一判据：「定稿」那颗键与 genNode 的门口问的都是它。
+ * ★ 档位门禁问的是**出样片的那一档**（economy.draftTierId），不是这一段现在挂的档：定稿只认样片任务号，换了档也照样升得了。
+ */
+export function draftFinalIssue(node: FlowNode, now = Date.now()): string | null {
+  const p = chosenOf(node);
+  if (draftStageOf(p) !== "draft") return t`这一段现在放的不是样片，没有可以定稿的`;
+  if (draftValidLeft(p, now) <= 0) return t`这条样片已经过了 7 天有效期，不能再定稿了——要成片就重新生成（会重新计费）`;
+  return draftModeIssue(tierOf(draftTierId()));
+}
+
+/**
+ * 取回来的那一发是样片两步之一时，方案上要补的那几格（凭据 data/videoJobs.VideoJob.draftStep）—— takeJob 落回原位与新开一段安放共用。
+ * ★ 第一步：把样片的任务号 / 时刻 / 时长 / 画幅原样落回（不落的话这条样片就只是一段 480p 普通片，7 天内本来还能定稿）。
+ * ★ 第二步：上一版是那条样片（与当场定稿同一个写回）。
+ */
+export function draftPatchOfJob(job: VideoJob, url: string, cur?: Proposal): Partial<Proposal> {
+  if (job.draftStep === "draft") {
+    return {
+      draftTaskId: job.taskId,
+      draftAt: job.createdAt,
+      ...(job.draftDur ? { draftDur: job.draftDur } : {}),
+      ...(job.draftRatio ? { draftRatio: job.draftRatio } : {}),
+      draftUrl: url,
+      finalUrl: undefined,
+    };
+  }
+  if (job.draftStep === "final") {
+    return {
+      ...(job.draftOf ? { draftTaskId: job.draftOf } : {}),
+      finalUrl: url,
+      ...(cur?.videoUrl && cur.videoUrl !== url ? { prevVideoUrl: cur.videoUrl } : {}),
+    };
+  }
+  return {};
 }
 
 /** 套用中的模板快照（草稿要整份存下来，所以单独成型）。
@@ -672,6 +772,8 @@ export function placeRescuedSegment(
     durationSec: job.durationSec ?? measured ?? 5,
     ...(res.poster ? { poster: res.poster } : {}),
     ...(measured ? { realDurationSec: res.durationSec } : {}),
+    // 样片两步那几格（第一步取回来还能定稿；第二步那一段直接是已定稿的成片）
+    ...draftPatchOfJob(job, res.url),
     videoUrl: res.url,
   };
   const node = newFlowNode(at, {
@@ -1198,6 +1300,8 @@ export function nodeCost(nodes: FlowNode[], idx: number, mode: FlowMode, tierOve
     noDraw: nodeNoDraw(node, tierOverride),
     multiShot: isMultiShot(prop.plot),
     refVideo: refVideo ? { inputSec: refVideo.durationSec } : undefined,
+    // 先出样片：视频那一半按 480p 样片的价报（与 genNode 发的同一个判定）
+    draft: nodeDraftOn(node, tierOverride),
   });
 }
 
@@ -1705,6 +1809,8 @@ interface FlowState {
   genNode: (id: string, opts?: GenNodeOpts) => Promise<boolean>;
   /** 返修后还原上一版成片（Proposal.prevVideoUrl ↔ videoUrl 对调，videoByProposal 同拍） */
   restoreProposalVideo: (nodeId: string) => boolean;
+  /** 「先出样片」开关（FlowNode.draftFirst）。正在生成时整句拒（这一发按哪种出片已经定了） */
+  setDraftFirst: (nodeId: string, on: boolean) => boolean;
 
   /**
    * 出片结束（成/败）留下的"待读通知"。给全局悬浮胶囊（GenerationPill）读的：
@@ -3267,6 +3373,17 @@ export const useFlow = create<FlowState>()((set, get) => ({
       ),
     })),
 
+  setDraftFirst: (nodeId, on) => {
+    const node = get().nodes.find((n) => n.id === nodeId);
+    if (!node) return false;
+    if (node.status === "generating") {
+      set({ err: t`这一段正在生成，等它跑完再改「先出样片」` });
+      return false;
+    }
+    get().updateNode(nodeId, { draftFirst: on || undefined });
+    return true;
+  },
+
   restoreProposalVideo: (nodeId) => {
     const s = get();
     const node = s.nodes.find((n) => n.id === nodeId);
@@ -3625,6 +3742,12 @@ export const useFlow = create<FlowState>()((set, get) => ({
   genNode: async (id, opts) => {
     const s0 = get();
     const rv = opts?.revise;
+    /** 把这一段的样片升成 1080p（样片第二步）。与返修互斥：两样都是「拿这一段现有的成片做文章」，一次只做一件 */
+    const fin = !!opts?.finalizeDraft;
+    if (fin && rv) {
+      set({ err: t`定稿与重拍不能同时做——先定稿，满意了再重拍` });
+      return false;
+    }
     if (s0.busy) {
       set({ err: t`有一段正在生成，等它跑完再炼下一段` }); // 理由同 deriveProposals 的 ★（不许静默）
       return false;
@@ -3652,7 +3775,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
       set({ err: t`先从三套方案里挑一套（点方案卡），再生成本段` });
       return false;
     }
-    if (!rv && !prop.plot.trim()) {
+    // 定稿不看剧情（画面 / 动作 / 声音都照样片）
+    if (!rv && !fin && !prop.plot.trim()) {
       set({ err: t`先写清楚这一段要拍什么` });
       return false;
     }
@@ -3660,8 +3784,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
     // ★ 宽高只喂给 refVideoIssue 的边长 / 画幅校验（成片本身由方舟按地址去取）：按本段画幅取名义尺寸，
     //   成片实际是 720p（1280×720 / 720×1280），同样落在 ARK_EDIT_RULES 的边长与画幅窗口里
     /** 延长段：接的是哪一段成片（与 nodeCost 同一份，extendSourceOf）。返修优先（返修的参考是这一段自己的成片） */
-    const ext = rv ? null : extendSourceOf(s0.nodes, node);
-    if (!rv && node.extendFrom && !ext) {
+    const ext = rv || fin ? null : extendSourceOf(s0.nodes, node);
+    if (!rv && !fin && node.extendFrom && !ext) {
       set({ err: t`要接的那段成片找不到了（被删了，或者没存下来）——删掉这一段，回最后一段重新延长` });
       return false;
     }
@@ -3712,10 +3836,31 @@ export const useFlow = create<FlowState>()((set, get) => ({
         }
       }
     }
+    // ── 电影级「样片」（2026-10-07）──
+    // 定稿：现在放的得是样片、样片没过期、出样片那一档能用（判据只在 draftFinalIssue）
+    if (fin) {
+      const issue = draftFinalIssue(node);
+      if (issue) {
+        set({ err: issue });
+        return false;
+      }
+    }
+    /** 这一发先出样片（判定只在 nodeDraftOn —— 上面那颗键上印的价 nodeCost 读的也是它） */
+    const draftOn = !rv && !fin && nodeDraftOn(node);
+    if (draftOn) {
+      // 套餐那一道（免费版没有电影级）与服务端能力位：开关开着、档位也摆得出来，但这个人用不了 —— 当场说人话
+      const issue = draftModeIssue(tierOf(node.videoTier));
+      if (issue) {
+        set({ err: issue });
+        return false;
+      }
+    }
+    /** 这一发记在哪一档上：定稿永远是出样片的那一档（这一段后来换了档也一样，定稿只认样片任务号） */
+    const genTier = fin ? draftTierId() : node.videoTier;
     // 档位门禁（会员档 / 已停用 / 服务端不支持）。UI 上那一档本来就点不动，会走到这里的是"草稿里存着这一档、
     // 而套餐后来降了 / 模型停用了"这种存量情况 —— 与其让它飞到服务端换一句 403，不如当场说人话。
-    // ★ 判断本身在 data/account.tierBlockReason，这里只是调用点（铁律六）
-    const blocked = tierBlockReason(tierOf(node.videoTier));
+    // ★ 判断本身在 data/account.tierBlockReason，这里只是调用点（铁律六）。定稿的那一道 draftFinalIssue 已经问过了
+    const blocked = fin ? null : tierBlockReason(tierOf(node.videoTier));
     if (blocked) {
       set({ err: blocked });
       return false;
@@ -3726,16 +3871,24 @@ export const useFlow = create<FlowState>()((set, get) => ({
     //   SegSettings 在档位区印的是同一句；r2v/白模路也从这里走，天然同一道门。
     //   blockout 位按本段事实传（白模节点上「换真人档」是死路，出路那半句要换说法）
     // framed 按本段事实问（nodeFramed，与下面真正发出去的帧同源）：带帧的请求里真人脸会被整发拒
-    const realFaceBlocked = realFaceIssue(node.materials, node.videoTier, {
-      blockout: !!rv || !!tplOfNode(node)?.refVideo || !!ext,
-      framed: nodeFramed(s0.nodes, idx, s0.mode),
-    });
+    // 定稿不带任何新输入（只有样片任务号），真人卡那道门与它无关
+    const realFaceBlocked = fin
+      ? null
+      : realFaceIssue(node.materials, node.videoTier, {
+          blockout: !!rv || !!tplOfNode(node)?.refVideo || !!ext,
+          framed: nodeFramed(s0.nodes, idx, s0.mode),
+        });
     if (realFaceBlocked) {
       set({ err: realFaceBlocked });
       return false;
     }
-    // 返修按 r2v 报价（输入 = 成片时长，与 ReviseBox 上印的同一把尺）；否则照旧 nodeCost
-    const cost = rv && reviseRef ? (r2vTokens(reviseRef.durationSec, node.videoTier) ?? 0) : nodeCost(s0.nodes, idx, s0.mode);
+    // 返修按 r2v 报价（输入 = 成片时长，与 ReviseBox 上印的同一把尺）；定稿按样片时长 × 1080p（与「定稿」键上印的同一个函数）；
+    // 否则照旧 nodeCost（先出样片的话它已经按样片的价报了）
+    const cost = fin
+      ? draftFinalQuote(prop)
+      : rv && reviseRef
+        ? (r2vTokens(reviseRef.durationSec, node.videoTier) ?? 0)
+        : nodeCost(s0.nodes, idx, s0.mode);
     if (AI_REAL && !canAfford(cost)) {
       const w = walletOf();
       set({
@@ -3764,6 +3917,11 @@ export const useFlow = create<FlowState>()((set, get) => ({
     set({ genStarted: { id, at: Date.now() } });
     /** 这一发的方舟任务号（受理之后才有）。空 = 还没被受理，也就一分钱都没花 */
     let taskId = "";
+    /** 受理时刻（样片的 7 天有效期从这一刻起算，写进 Proposal.draftAt） */
+    let acceptedAt = 0;
+    /** 样片第一步送进请求体的整数时长与画幅（定稿报价按它们算；服务端结算定稿时读的也是这两样） */
+    const draftDur = clampDuration(prop.durationSec, node.videoTier);
+    const draftRatio = aspectOf(node.aspect).ratio;
     try {
       // 承接判定走**唯一实现** nodeCarry（报价那边读的就是它）。
       // ★★ 2026-09-XX 收口：这里原来手抄了一份逐字相同的判断。判据相同的时候它只是冗余，
@@ -3785,10 +3943,16 @@ export const useFlow = create<FlowState>()((set, get) => ({
           plot: rv ? revisePlotOf(rv.instruction, rv.range) : prop.plot,
           // 报价 ↔ 契约对账（segmentGen.contractLine）：扣的就是这个 cost；演示构建没有报价，明说 null
           quotedTokens: AI_REAL ? cost : null,
-          firstFrame: rv || ext ? "" : frames.first,
-          lastFrame: rv || ext ? "" : frames.last,
+          firstFrame: rv || ext || fin ? "" : frames.first,
+          lastFrame: rv || ext || fin ? "" : frames.last,
           durationSec: prop.durationSec,
-          videoTier: node.videoTier,
+          videoTier: genTier,
+          // 电影级样片：第一步按 480p + draft 发；第二步只带样片任务号（segmentGen 在最前面分流）
+          draftMode: fin
+            ? { finalOf: { taskId: prop.draftTaskId ?? "", durationSec: prop.draftDur ?? draftDur, ratio: prop.draftRatio } }
+            : draftOn
+              ? "draft"
+              : null,
           aspect: node.aspect,
           shot: rv ? undefined : prop.shot,
           anns: rv ? [] : node.anns,
@@ -3845,6 +4009,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
         //   只在那边落凭据只会攒下一堆没人能取的记录。
         (id2) => {
           taskId = id2;
+          acceptedAt = Date.now();
           rememberVideoJob({
             taskId: id2,
             // ★ 记下这一发是哪家出的：取回按它分流。分错家会让方舟那条 404 分支
@@ -3857,12 +4022,19 @@ export const useFlow = create<FlowState>()((set, get) => ({
             //   重复一遍只会挤掉真正有辨识度的那半句（套的哪个模板 / 这一段讲什么）
             //   ★ 用 `||` 不是 `??`：空标题/空剧情是空**串**不是 undefined，`??` 接不住，
             //   结果是卡片上一行空白（而这张卡的用处就是让人认出是哪一发）
-            label: rv ? t`返修：${rv.instruction.trim().slice(0, 20)}` : get().template?.title || prop.plot.trim().slice(0, 24) || prop.title || t`第 ${idx + 1} 段`,
+            label: rv
+              ? t`返修：${rv.instruction.trim().slice(0, 20)}`
+              : fin
+                ? t`定稿 1080p：${prop.plot.trim().slice(0, 20) || prop.title}`
+                : get().template?.title || prop.plot.trim().slice(0, 24) || prop.title || t`第 ${idx + 1} 段`,
             cost,
             // ★ 原节点不在了也能安放（重启 + 那一段从没存过草稿）：新开的那一段按这几样长（见 placeRescuedSegment）
             durationSec: prop.durationSec,
             aspect: node.aspect,
-            videoTier: node.videoTier,
+            videoTier: genTier,
+            // 样片两步：取回来要把样片的那几样落回方案上（flowStore.draftPatchOfJob），定稿要把样片留成上一版
+            ...(draftOn ? { draftStep: "draft" as const, draftDur, draftRatio } : {}),
+            ...(fin && prop.draftTaskId ? { draftStep: "final" as const, draftOf: prop.draftTaskId } : {}),
             plot: rv ? rv.instruction : prop.plot,
             // ★ 原声地址（见 VideoJob.tplRefVideo 的 ★★）：取回安放的段 tpl 恒 null，
             //   不存这一位它的模板原声就永久没了，而白模成片自己是无声的
@@ -3903,17 +4075,24 @@ export const useFlow = create<FlowState>()((set, get) => ({
       // 真实帧顶替设定帧：节点卡显示的就是视频里实际的画面，也是下一段的起拍帧。
       // videoUrl 同时挂在方案上——工坊侧的节点卡读的就是它（两个模式共用同一份出片）
       patchProp({
-        // 返修：上一版留一份可还原（只留最近一版）；成片首帧原本就空，别用返修结果的空串盖掉设定帧
-        ...(rv ? { prevVideoUrl: realVideoOfNode(node) ?? undefined } : {}),
+        // 返修 / 定稿：上一版留一份可还原（只留最近一版；定稿的上一版就是那条 480p 样片）；成片首帧原本就空，别用结果的空串盖掉设定帧
+        ...(rv || fin ? { prevVideoUrl: realVideoOfNode(node) ?? undefined } : {}),
         // 返修出的这一条本身无声（edit 任务钉着 generate_audio:false）：记下地址，组稿时据此如实说「没有声音」（见 Proposal.silentVideos）
         ...(rv && res.url ? { silentVideos: [...(prop.silentVideos ?? []), res.url].slice(-4) } : {}),
-        firstFrame: rv ? prop.firstFrame : res.firstFrame,
-        lastFrame: res.lastFrame,
+        // 样片两步认「现在放的是哪一条」靠这两个地址（draftStageOf）；第一步把定稿要的那几样一起记下
+        ...(fin && res.url ? { finalUrl: res.url } : {}),
+        ...(draftOn && res.url
+          ? { draftTaskId: taskId, draftAt: acceptedAt || Date.now(), draftDur, draftRatio, draftUrl: res.url, finalUrl: undefined }
+          : {}),
+        firstFrame: rv || fin ? prop.firstFrame : res.firstFrame,
+        // ★ 定稿不换尾帧：成片就是同一份样片升的分辨率，画面一样；换了的话下一段那张承接来的开头帧就认不出亲了
+        //   （承接判定 p.firstFrame === prev.lastFrame，recaptureNode 那段 ★★ 同一个坑）。转存之后的重截会连同承接关系一起换
+        lastFrame: fin ? prop.lastFrame : res.lastFrame,
         // 成片第一帧只管显示（白模/参考直出段没有设定首帧，卡面靠它）；这一炉没截到就清掉
-        // 上一炉的旧图，别让卡面挂着另一发的画面
-        poster: res.poster,
+        // 上一炉的旧图，别让卡面挂着另一发的画面（定稿没截到就留着样片那张：画面是同一个）
+        poster: fin ? res.poster || prop.poster : res.poster,
         // 实测时长同源（截帧那一步读的）：剪辑页按它铺片段出点，别再按申报值切短 20 秒的片子
-        realDurationSec: res.realDurationSec,
+        realDurationSec: fin ? (res.realDurationSec ?? prop.realDurationSec) : res.realDurationSec,
         // mock 构建下 Seedance 不返回地址：这里和 videoByProposal 用同一个 "mock:" 占位串，
         // 否则同一段在工作流里算"已出片"、回工坊却算"没出片"（工坊读的是 proposal.videoUrl），
         // 于是演示模式下桌面永远开不出下一张卡。需要"能播的地址"的地方走 realVideoOf 过滤
@@ -3931,7 +4110,15 @@ export const useFlow = create<FlowState>()((set, get) => ({
       // 下次进来也会清 —— 在这里判"人在不在"反而是第二处路由判断
       // ★ 只有"还是我这一炉"才有资格清 busy（见 genRun 的 ★★）：作废的回包清掉的话，
       //   新那一炉跑着而闸开着，可以并发出第三炉
-      set(get().genRun === myRun ? { busy: false, genNotice: { ok: true, msg: t`第 ${idx + 1} 段出片完成` } } : {});
+      {
+        const n = idx + 1;
+        const doneMsg = fin
+          ? t`第 ${n} 段定稿完成（1080p）`
+          : draftOn
+            ? t`第 ${n} 段的样片出好了——看着满意就定稿成 1080p`
+            : t`第 ${idx + 1} 段出片完成`;
+        set(get().genRun === myRun ? { busy: false, genNotice: { ok: true, msg: doneMsg } } : {});
+      }
       // ★ 转存没赶上（还是方舟临时链接）或预览帧没截到：后台盯着转存收尾，拿到永久地址就换上并补截
       //   （2026-09-06 主人真机：截帧在 120s 超时上死掉，卡片上永远是「成片预览没截到」）
       {
@@ -4073,8 +4260,11 @@ export const useFlow = create<FlowState>()((set, get) => ({
                     p.id === job.proposalId
                       ? {
                           ...p,
+                          // 样片两步那几格（第一步的任务号 / 时长 / 画幅、第二步把样片留成上一版）——与当场出片同一个写回
+                          ...draftPatchOfJob(job, url, p),
                           videoUrl: url,
-                          ...(lastFrame ? { lastFrame } : {}),
+                          // 定稿不换尾帧（理由同 genNode 写回那一行的 ★）
+                          ...(lastFrame && job.draftStep !== "final" ? { lastFrame } : {}),
                           ...(poster ? { poster } : {}),
                           ...(res.durationSec ? { realDurationSec: res.durationSec } : {}),
                           degraded: undefined,
@@ -4126,6 +4316,9 @@ function adoptPermanentUrl(nodeId: string, proposalId: string, fromUrl: string, 
   if (p.silentVideos?.includes(fromUrl)) {
     useFlow.getState().updateProposal(nodeId, { silentVideos: p.silentVideos.map((u) => (u === fromUrl ? toUrl : u)) }, proposalId);
   }
+  // 样片两步认「现在放的是哪一条」靠地址（draftStageOf）：地址换了、这两格不跟着换，转存一完成「定稿」那颗键就消失了
+  if (p.draftUrl === fromUrl) useFlow.getState().updateProposal(nodeId, { draftUrl: toUrl }, proposalId);
+  if (p.finalUrl === fromUrl) useFlow.getState().updateProposal(nodeId, { finalUrl: toUrl }, proposalId);
   return true;
 }
 

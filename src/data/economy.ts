@@ -50,6 +50,9 @@ import {
   type VideoTierSpec,
 } from "./videoTierTable";
 
+/** 样片任务号还能定稿多久（7 天差 1 小时，与服务端同一个数）—— 唯一出处在 videoTierTable，这里只是转出（界面与 store 从 economy 引） */
+export { DRAFT_VALID_MS } from "./videoTierTable";
+
 /** 观看付费的平台抽成比例（其余进创作者 add-on 余额） */
 export const PLATFORM_CUT = 0.3;
 
@@ -1413,6 +1416,12 @@ export function segmentCost(o: {
   /** 这一段送进请求体的画幅（"9:16" / "16:9"）：480p 的每秒数按画幅不同（segTokens 的 ★）。缺省按最贵的一格报 */
   ratio?: string;
   /**
+   * 这一段先出**样片**（电影级的 draft 模式，2026-10-07）：视频那一半按 2.5 的 480p × 电影级系数报（draftStepTokens），
+   * 不按这一档的 720p。补画的帧照常算（样片的槽位与普通出片一样摆）。
+   * **必填**（判定只在 flowStore.nodeDraftOn）：可选的话漏传就按 720p 报价、按 480p 出片 —— 报价与实扣两把尺，零症状。
+   */
+  draft: boolean;
+  /**
    * 这一段走**白模模板**（r2v）。inputSec = 模板参考视频的时长 —— **只准从
    * `template.refVideo.durationSec`（服务端登记值镜像）读**，别拿本机 `<video>` 现探：
    * server 按同一份登记值结算，两端要算同一个数（见 r2vTokens 的 ★）。
@@ -1443,7 +1452,7 @@ export function segmentCost(o: {
     noDraw: o.noDraw,
     multiShot: o.multiShot,
   });
-  return segTokens(o.durationSec, o.tierId, o.ratio) + draws * IMAGE_TOKENS;
+  return (o.draft ? draftStepTokens(o.durationSec, o.ratio) : segTokens(o.durationSec, o.tierId, o.ratio)) + draws * IMAGE_TOKENS;
 }
 
 /** 整片合成的 token 估算：只算还没有真视频的段 */

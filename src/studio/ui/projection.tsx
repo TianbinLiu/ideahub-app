@@ -50,7 +50,7 @@ import {
   rederiveKey,
   useStudio,
 } from "../studioStore";
-import { appendQuote, appendSpecsQuote, CUSTOM_MID_MAX, nodeBlank, recastBlocked, nodeDerived, nodeDone, nodeCost, tplOfNode, useFlow, type FlowNode, nodeAnnPlan, annSkipNote, redrawCost, derivesProposals, nodeLocked, deriveCostOf, nodeRefPlan, nodeFramesComeFromDerive, nodeEditFrames, newFlowNode, nodeEmptyFrames, nodeNoDraw } from "../flowStore";
+import { appendQuote, appendSpecsQuote, CUSTOM_MID_MAX, nodeBlank, recastBlocked, nodeDerived, nodeDone, nodeCost, tplOfNode, useFlow, type FlowNode, nodeAnnPlan, annSkipNote, redrawCost, derivesProposals, nodeLocked, deriveCostOf, nodeRefPlan, nodeFramesComeFromDerive, nodeEditFrames, newFlowNode, nodeEmptyFrames, nodeNoDraw, nodeDraftOn } from "../flowStore";
 import TierRow from "../../components/flow/TierRow";
 // 选模板弹层借画布那一份（铁律六：市场懒加载/分段组折叠/预览确认全在那一个实现里）。
 // FlowCanvas 不 import 本文件，方向安全（它俩只在 StudioPage/FlowPage 各自的树里出现）
@@ -68,6 +68,7 @@ import { CHAIN, focusCam } from "../scene/layout";
 import DeleteSegBtn from "../../components/flow/DeleteSegBtn";
 import CastPreviewCard from "../../components/flow/CastPreviewCard";
 import FixSegmentBox from "../../components/flow/FixSegmentBox";
+import DraftModeBox from "../../components/flow/DraftModeBox";
 import StageOverlay from "../stage/StageOverlay";
 import ConfirmDialog from "../../components/ConfirmDialog";
 
@@ -1858,6 +1859,8 @@ function PickedActions({
   const cost = nodeCost(flowNow.nodes, nodeIdx, flowNow.mode);
   /** 圈选里有几条真会重画 —— 与上面那个 cost 同源（flowStore 一处实现，见它的 ★★）*/
   const annPlan = nodeAnnPlan(flowNow.nodes, nodeIdx);
+  /** 这一下先出样片（电影级，判定只在 flowStore.nodeDraftOn；上面那个 cost 已经按样片的价报了） */
+  const draftOn = nodeDraftOn(node);
   /** 白模段（r2v）：改帧/圈选整条不通（画面来自模板视频，segmentGen 的 blockoutIssue
    *  整句拒）——按钮摆出来就是死路（铁律五）。回看照常给（SegPlayer 自己会藏圈选键） */
   const blockout = !!tplOfNode(node)?.refVideo;
@@ -1942,11 +1945,15 @@ function PickedActions({
         >
           {mine
             ? t`炼制中…`
-            : done
-              ? annPlan.redrawn
-                ? t`♻ 重炼本段（含 ${annPlan.redrawn} 处圈选改图 · ${fmtTokens(cost)}）`
-                : t`♻ 重炼本段（${fmtTokens(cost)}）`
-              : t`⚡ 生成本段视频（${fmtTokens(cost)}）`}
+            : draftOn
+              ? done
+                ? t`♻ 重新出样片（${fmtTokens(cost)}）`
+                : t`📼 先出样片（${fmtTokens(cost)}）`
+              : done
+                ? annPlan.redrawn
+                  ? t`♻ 重炼本段（含 ${annPlan.redrawn} 处圈选改图 · ${fmtTokens(cost)}）`
+                  : t`♻ 重炼本段（${fmtTokens(cost)}）`
+                : t`⚡ 生成本段视频（${fmtTokens(cost)}）`}
         </button>
         )}
         {done && (
@@ -1974,6 +1981,14 @@ function PickedActions({
           </button>
         )}
       </div>
+      {/* 电影级「样片」那一栏（与画布同一份组件）：定稿走 studioStore.genNodeVideo（顺带收窗，与这一段的生成键同一个入口） */}
+      {!locked && (
+        <DraftModeBox
+          node={node}
+          disabled={busy || node.status === "generating"}
+          onFinalize={() => void useStudio.getState().genNodeVideo(node.id, proposal.id, { finalizeDraft: true })}
+        />
+      )}
       {/* 修这一段（片段重拍 / 往后延长）：已出片才有（FixSegmentBox 自己判有没有能播的成片）。走 studioStore 是为了顺带收窗 / 切到新的那一段 */}
       {done && !locked && (
         <FixSegmentBox

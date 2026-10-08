@@ -43,7 +43,7 @@ import { t } from "@lingui/core/macro";
 import { API_BASE, apiGet, getToken } from "../api/client";
 import { fetchTaskCharge, type TaskRefund } from "../ai/arkClient";
 import { deviceOwner, mayClaimLegacy, onViewerChange, workOwner } from "./deviceOwner";
-import { fmtTokens, tierIdOf } from "./economy";
+import { draftTierId, fmtTokens, tierIdOf } from "./economy";
 import { serverSupports } from "./serverCaps";
 
 export const VIDEO_JOB_TTL_MS = 24 * 3600_000;
@@ -562,8 +562,13 @@ export async function importServerVideoJobs(): Promise<number> {
       cost: 0, // 服务端受理那一刻已经扣过，取回不再花钱；本机镜像也不必再扣一次
       ...(task.durationSec && Number.isFinite(task.durationSec) ? { durationSec: task.durationSec } : {}),
       ...(aspectOfRatio(task.ratio) ? { aspect: aspectOfRatio(task.ratio) } : {}),
-      // 是哪一档按（模型, 分辨率）认（economy.tierIdOf）：不写的话取回安放的那一段落在兜底档上，之后的重拍 / 延长按错的档报价
-      ...(tierIdOf(task.model, task.resolution) ? { videoTier: tierIdOf(task.model, task.resolution) } : {}),
+      // 是哪一档按（模型, 分辨率）认（economy.tierIdOf）：不写的话取回安放的那一段落在兜底档上，之后的重拍 / 延长按错的档报价。
+      // 样片两步（480p 样片 / 1080p 定稿）不在档位表的（模型, 分辨率）里：它们属于出样片的那一档（economy.draftTierId）
+      ...(task.draft || task.draftOf
+        ? { videoTier: draftTierId() }
+        : tierIdOf(task.model, task.resolution)
+          ? { videoTier: tierIdOf(task.model, task.resolution) }
+          : {}),
       ...(task.prompt ? { plot: task.prompt } : {}),
       // 样片两步：取回来要把样片的那几样落回方案上（见 VideoJob.draftStep）。时长 / 画幅取登记值（服务端结算定稿时读的也是它们）
       ...(task.draft
