@@ -5139,6 +5139,10 @@ msgid "不画帧"
 msgstr "No frames drawn"
 
 #: src/studio/ui/PlanBoard.tsx
+msgid "不画帧——开头接着上一段的真实结尾"
+msgstr "No frames drawn — it opens on the previous segment’s actual last frame"
+
+#: src/studio/ui/PlanBoard.tsx
 msgid "不画帧，人物图直接给视频模型"
 msgstr "No frames drawn; character images go straight to the video model"
 
@@ -14746,6 +14750,7 @@ msgstr "You have a half-edited video"
 msgid "有一条超过 {maxLen} 字了，发布会被服务端拒掉。"
 msgstr "One item is over {maxLen} characters; the server will reject it on publish."
 
+#: src/components/flow/GridShotsWizard.tsx
 #: src/studio/gridDraftStore.ts
 msgid "有一格正在单独画——等它画完再整组重出（这一下还没花钱）"
 msgstr "A panel is still being drawn on its own — wait for it to finish before redrawing the whole set (nothing has been charged for this)"

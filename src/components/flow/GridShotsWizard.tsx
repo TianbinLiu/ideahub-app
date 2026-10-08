@@ -781,6 +781,12 @@ export default function GridShotsWizard({
               )}
             </button>
           )}
+          {/* 那颗键在有一格单独画的时候灰着（gridDraftStore.drawGroup 同一道闸）：灰着就得说为什么 */}
+          {!parked && panelBusy && (
+            <p className="text-[10px] leading-relaxed text-amber-200">
+              <Trans>有一格正在单独画——等它画完再整组重出（这一下还没花钱）</Trans>
+            </p>
+          )}
           <p className="text-[10px] leading-relaxed text-slate-500">
             <Trans>
               一次画出整组：人物与光线前后一致。没有人的格子和特写不放进这一组（放进去容易画进别人），整组画完再一格一格单独画。每画好一格，AI

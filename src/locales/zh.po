@@ -5143,6 +5143,10 @@ msgid "不画帧"
 msgstr "不画帧"
 
 #: src/studio/ui/PlanBoard.tsx
+msgid "不画帧——开头接着上一段的真实结尾"
+msgstr "不画帧——开头接着上一段的真实结尾"
+
+#: src/studio/ui/PlanBoard.tsx
 msgid "不画帧，人物图直接给视频模型"
 msgstr "不画帧，人物图直接给视频模型"
 
@@ -14754,6 +14758,7 @@ msgstr "有一条剪到一半的成片"
 msgid "有一条超过 {maxLen} 字了，发布会被服务端拒掉。"
 msgstr "有一条超过 {maxLen} 字了，发布会被服务端拒掉。"
 
+#: src/components/flow/GridShotsWizard.tsx
 #: src/studio/gridDraftStore.ts
 msgid "有一格正在单独画——等它画完再整组重出（这一下还没花钱）"
 msgstr "有一格正在单独画——等它画完再整组重出（这一下还没花钱）"

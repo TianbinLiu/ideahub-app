@@ -637,7 +637,11 @@ export async function drawGroup(o: { cast: Card[]; place: Card | null }): Promis
   if (await reclaimLost(who)) return;
   // 问的那几秒里向导被别处动过（换了账号 / 又在画了）就不画：下面全按这一刻的那份
   const s = useGridDraft.getState();
-  if (s.drawing || s.writing || panelsBusy(s) || !s.shots.length || !s.aspect || ownerOfDraft() !== who) return;
+  if (panelsBusy(s) && ownerOfDraft() === who) {
+    useGridDraft.setState({ drawErr: t`有一格正在单独画——等它画完再整组重出（这一下还没花钱）` });
+    return;
+  }
+  if (s.drawing || s.writing || !s.shots.length || !s.aspect || ownerOfDraft() !== who) return;
   const shots = s.shots.filter((x) => x.picture.trim());
   if (shots.length !== s.shots.length) {
     useGridDraft.setState({ drawErr: t`有几格还没写画面——写上，或者删掉那几格再画` });

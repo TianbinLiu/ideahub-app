@@ -227,7 +227,10 @@ export default function PlanBoard({
                         p.degraded
                           ? undefined
                           : direct === "noDraw"
-                            ? t`不画帧，人物图直接给视频模型`
+                            ? // 承接上一段时开头就是那张真实结尾；极速 / 标准不收参考图，人物图根本发不出去 —— 别说「人物图直接给视频模型」（评审第五轮）
+                              carriedFrom
+                              ? t`不画帧——开头接着上一段的真实结尾`
+                              : t`不画帧，人物图直接给视频模型`
                             : direct === "draws"
                               ? t`出片前按提示词补画（计费）`
                               : undefined
