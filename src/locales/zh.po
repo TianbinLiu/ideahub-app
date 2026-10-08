@@ -3866,8 +3866,12 @@ msgid "6 位验证码"
 msgstr "6 位验证码"
 
 #: src/pages/ProfilePage.tsx
-msgid "add-on token · 直充/创作收益"
-msgstr "add-on token · 直充/创作收益"
+msgid "add-on token · 直充 / 新人额度 / 创作收益，不过期"
+msgstr "add-on token · 直充 / 新人额度 / 创作收益，不过期"
+
+#: src/pages/ProfilePage.tsx
+#~ msgid "add-on token · 直充/创作收益"
+#~ msgstr "add-on token · 直充/创作收益"
 
 #: src/components/CardModelFit.tsx
 msgid "AI 写一段约 {textPrice} token"
@@ -7261,8 +7265,12 @@ msgid "出片"
 msgstr "出片"
 
 #: src/components/guide/tours.tsx
-msgid "出片、出图、铸卡、解锁付费作品，扣的都是它。点开看余额、买套餐或直充 ——<0>套餐按月给且先扣，直充的不过期</0>。"
-msgstr "出片、出图、铸卡、解锁付费作品，扣的都是它。点开看余额、买套餐或直充 ——<0>套餐按月给且先扣，直充的不过期</0>。"
+#~ msgid "出片、出图、铸卡、解锁付费作品，扣的都是它。点开看余额、买套餐或直充 ——<0>套餐按月给且先扣，直充的不过期</0>。"
+#~ msgstr "出片、出图、铸卡、解锁付费作品，扣的都是它。点开看余额、买套餐或直充 ——<0>套餐按月给且先扣，直充的不过期</0>。"
+
+#: src/components/guide/tours.tsx
+msgid "出片、出图、铸卡、解锁付费作品，扣的都是它。点开看余额、买套餐或直充 ——<0>套餐额度先扣（付费套餐按月给，免费版每天补一点），直充和新人额度不过期</0>。"
+msgstr "出片、出图、铸卡、解锁付费作品，扣的都是它。点开看余额、买套餐或直充 ——<0>套餐额度先扣（付费套餐按月给，免费版每天补一点），直充和新人额度不过期</0>。"
 
 #: src/studio/segmentGen.ts
 msgid "出片中…"

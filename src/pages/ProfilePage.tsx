@@ -765,7 +765,7 @@ export default function ProfilePage() {
           )
         )}
 
-        {/* token 钱包：生成视频/解锁付费内容的通货。套餐额度优先扣，add-on 直充/创作收益不过期。
+        {/* token 钱包：生成视频/解锁付费内容的通货。套餐额度优先扣，add-on（直充 / 新人额度 / 创作收益）不过期。
             ★ 入口按 `self` 显示而**不是** `wallet &&`：远端模式下 walletOf() 在
               /api/me/wallet 那一发请求失败时就一直是 null（refreshRemoteWallet 把错误吞进
               无人监听的 emitApiError），于是弱网下冷启动一次失败 = 整个会话看不到余额、
@@ -1732,7 +1732,7 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
         </div>
         <div className="rounded-xl border border-slate-700/70 bg-panel p-3">
           <div className="text-lg font-bold tabular-nums text-gold">{fmtTokens(wallet.addon)}</div>
-          <div className="text-[11px] text-slate-500"><Trans>add-on token · 直充/创作收益</Trans></div>
+          <div className="text-[11px] text-slate-500"><Trans>add-on token · 直充 / 新人额度 / 创作收益，不过期</Trans></div>
         </div>
       </div>
 

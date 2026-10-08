@@ -3866,8 +3866,8 @@ msgid "6 位验证码"
 msgstr "6-digit code"
 
 #: src/pages/ProfilePage.tsx
-msgid "add-on token · 直充/创作收益"
-msgstr "Add-on tokens · top-ups / creator earnings"
+msgid "add-on token · 直充 / 新人额度 / 创作收益，不过期"
+msgstr "Add-on tokens · top-ups / welcome tokens / creator earnings, never expire"
 
 #: src/components/CardModelFit.tsx
 msgid "AI 写一段约 {textPrice} token"
@@ -7261,8 +7261,8 @@ msgid "出片"
 msgstr "Render"
 
 #: src/components/guide/tours.tsx
-msgid "出片、出图、铸卡、解锁付费作品，扣的都是它。点开看余额、买套餐或直充 ——<0>套餐按月给且先扣，直充的不过期</0>。"
-msgstr "Rendering videos, generating images, minting cards and unlocking paid videos all spend these. Tap to see your balance, buy a plan or top up — <0>plan tokens come monthly and are used first; topped-up tokens don't expire</0>."
+msgid "出片、出图、铸卡、解锁付费作品，扣的都是它。点开看余额、买套餐或直充 ——<0>套餐额度先扣（付费套餐按月给，免费版每天补一点），直充和新人额度不过期</0>。"
+msgstr "Rendering videos, generating images, minting cards and unlocking paid videos all spend these. Tap to see your balance, buy a plan or top up — <0>plan tokens are used first (paid plans refill monthly, the free plan adds a little each day); top-ups and welcome tokens don't expire</0>."
 
 #: src/studio/segmentGen.ts
 msgid "出片中…"

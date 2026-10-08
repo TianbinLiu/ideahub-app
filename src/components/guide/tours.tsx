@@ -927,7 +927,7 @@ export const TOURS: GuideTour[] = [
         body: (
           <Trans>
             出片、出图、铸卡、解锁付费作品，扣的都是它。点开看余额、买套餐或直充 ——
-            <b className="font-bold text-slate-100">套餐按月给且先扣，直充的不过期</b>。
+            <b className="font-bold text-slate-100">套餐额度先扣（付费套餐按月给，免费版每天补一点），直充和新人额度不过期</b>。
           </Trans>
         ),
       },
