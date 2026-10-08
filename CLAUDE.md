@@ -182,12 +182,15 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   详情页出片键灰掉并给「去升级」），别等人挂完卡点了生成才第一次听说。卡这一侧的同一条口径在 `data/cardFit`（卡片页「按模型适配」那一格
   与卡组页的摘要读同一份状态，页面只负责说成句子）。
 - **免费档限制 / 「草稿」档 / 电影级「样片」/ 失败退回 token**（2026-10-07 主人拍板，契约见 docs/api-contract.md「视频档位」「纯任务的参数钉子、样片两步、停用」
-  「受理之后失败的退款」）。五条规矩：
+  「受理之后失败的退款」）。六条规矩：
   ① **档位的能力 / 价目 / 分辨率只在 `data/videoTierTable`**（零依赖，构建里 `check-video-tiers.mjs` 核对，服务端 `config/tokens.js` 逐条相等）。
   「草稿」与「高清」是**同一个模型**（2.0 mini），只差分辨率（480p / 720p）与谁能用 —— 一律按 **(模型, 分辨率)** 认（`economy.tierIdOf` / `tierModelLabel`），
   480p / 1080p 的价按官方像素表 × 画幅（`perSecTokens`，画幅缺省按最贵一格），720p 照旧 21,600。
-  ② **谁能用哪一档只问 `account.tierBlockReason`**：免费档白名单（`freeOk`：极速、草稿）+ 付过钱（套餐价 > 0 **或** 钱包的 `paid`）+ 停用（极速 / 标准 2026-11-24 13:00）
-  + 服务端能力位（`data/serverCaps` 一处探测）；默认档 `account.defaultTierId`。会员档并成一句 + 共用的「去升级」（`components/UpgradeLink`）。
+  ② **谁能用哪一档只问 `account.tierBlockReason`**：免费档白名单（`account.tierFreeOk`：健康端点报了 `freeVideo` / `freeVideoGate` 就照服务端，
+  没报按档位表的 `freeOk` —— 运维关掉 `FREE_VIDEO_GATE` 时新 App 跟着放开）+ 付过钱（套餐价 > 0 **或** 钱包回包顶层的 `paid`）+ 停用（极速 / 标准 2026-11-24 13:00）
+  + 服务端能力位（`data/serverCaps` 一处探测、`capsOf` 一处解析）；默认档 `account.defaultTierId`；抄别人的档换不了就换**能力最接近**的（`usableTierId`：高清 → 草稿）。
+  会员档并成一句 + 共用的「去升级」（`components/UpgradeLink`）。「换到哪一档就有」的句子一律从 `account.tierGo` / `tierNamesFor` 取（先说用得了的）——
+  真人卡那几句（`account.realFaceIssue`，2026-10-07 从 economy 搬过来）也是：economy 是纯目录、不认识套餐，原来把免费用户指去点不动的「真人」档。
   ③ **样片两步**：段上一个开关（`FlowNode.draftFirst`，写只走 `setDraftFirst`）；真走不走只问 `flowStore.nodeDraftOn`（报价 nodeCost / segmentCost 的必填 `draft` 与 genNode 读同一个）；
   定稿 = `genNode(id, { finalizeDraft })`，门禁 `draftFinalIssue`、报价 `draftFinalQuote`；契约 mode `draft` / `draftFinal`（genModeOf / validateGenSpec / videoTokensOfSpec 一处）。
   「现在放的是样片 / 成片」按地址现算（`draftStageOf`），**别存一个 stage 字段**（还原上一版 / 返修都会换掉现在放的那一条）。界面只有一份 `components/flow/DraftModeBox`（两面都挂）。
@@ -196,7 +199,10 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   composeSegments / settleSegment **原样**带着失败对象（外面包 `SegmentGenFailed` = 失败的是视频那一发 + 出片前已结算的画面张数；`ArkTaskUnknown` 永不包）。
   钱上那句话只走 `ai/failCharge`（`taskFailed`：退了 / 会退 / 服务端没说三档；出片前的画面按张单说）。**从不**自己往钱包镜像上加退款（只刷一次钱包）。
   ⑤ 退了钱的取回凭据当场结案（`flowStore.takeJob`），取回卡那句话改用轻提示（卡当场就卸载了）；说「钱无法挽回」之前先问 `GET /api/ark/task-charges/:id`
-  （`videoJobs.checkVideoJobCharge`，清扫器可能早就退过了）；许诺「万一没出成会自动退回」只在能力位 `failRefund` 为真时。站内通知 `GEN_TASK_REFUND` 点进去开钱包。
+  （`videoJobs.checkVideoJobCharge`，清扫器可能早就退过了；404 `NOT_FOUND` = 没有这一笔账、不会退，`lost` = 交人工、不会自动退）；许诺「万一没出成会自动退回」
+  只在能力位为真时，**按供应商分开问**（方舟 `failRefund`，真人档 `failRefundMinimax` = 健康端点的 `minimaxFailRefund`）。站内通知 `GEN_TASK_REFUND` 点进去开钱包。
+  ⑥ **样片第一步只走参考图那一种请求**：帧转参考图失败时普通出片退回首尾帧，而 2.5 的首尾帧任务只收 `ratio: "adaptive"`，服务端按 480p 那一行最贵的一格结算 ——
+  样片那一发在花钱之前整句拒（`segmentGen` 的样片闸，`arkClient` 另有一道协议断言），报价才等于实扣。契约核对那句在远端模式说「以服务器结算为准」（钱不按本机报价扣）。
 - **方案有结构化镜头字段**（`types.ShotSpec`：景别 / 运镜 / 情绪节拍，2026-09-06 对标 updream 分镜 Skill）：推演按字段写、
   `segmentGen.shotPrefix` 把它拼在正文最前、方案台显示、发布时折进 `VideoSegment.plot`。**一段出片的生成契约**是
   `real.GenSpec`（composeSegments 的入参），提交前 `describeGenSpec` 写一行「生成契约 · 模式 · 档 · 画幅 · 时长 · 参考图 N」进步骤日志——
