@@ -695,6 +695,11 @@ msgstr "{0} · the video and images upload one at a time before others can see t
 msgid "{0} · 第 {1} 段"
 msgstr "{0} · Segment {1}"
 
+#. placeholder {0}: p.desc
+#: src/pages/ProfilePage.tsx
+msgid "{0} · 能用「{freeTierNames}」档出片"
+msgstr "{0} · can generate on “{freeTierNames}”"
+
 #. placeholder {0}: effective.coverEmoji || "🎭"
 #. placeholder {1}: effective.name
 #: src/pages/SupportPersonasPage.tsx
@@ -3849,8 +3854,8 @@ msgid "④ 标签（选填）"
 msgstr "④ Tags (optional)"
 
 #: src/data/economy.ts
-msgid "480p 省钱档 · 与「{hd}」同一个模型、画面小一号；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音 · 免费可用"
-msgstr "Budget 480p tier · same model as “{hd}” at a smaller size; can render straight from the cards' reference images · videos come with AI-generated ambient sound · free to use"
+msgid "480p 省钱档 · 与「{hd}」同一个模型、画面小一号；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音"
+msgstr "Budget 480p tier · same model as “{hd}” at a smaller size; can render straight from the cards' reference images · videos come with AI-generated ambient sound"
 
 #: src/studio/quality.ts
 msgid "4K 贴图 · 15 万面 · 最清楚但吃显存（她 3.9MB／他 3.8MB）"
@@ -7006,8 +7011,8 @@ msgstr "Newest"
 #~ msgstr "Latest generation · best picture and camera movement, videos come with AI-generated ambient sound, each segment costs about 4.7× the Standard tier (paid plans only)"
 
 #: src/data/economy.ts
-msgid "最新一代 · 画面与运镜最好，出片带 AI 生成的环境音，每秒消耗约「{hd}」档的 {x} 倍（会员档）"
-msgstr "Latest generation · best picture and camera movement, videos come with AI-generated ambient sound, costs about {x}× the “{hd}” tier per second (member tier)"
+msgid "最新一代 · 画面与运镜最好，出片带 AI 生成的环境音，每秒消耗约「{hd}」档的 {x} 倍"
+msgstr "Latest generation · best picture and camera movement, videos come with AI-generated ambient sound, costs about {x}× the “{hd}” tier per second"
 
 #: src/pages/DiscoverPage.tsx
 msgid "最新作品"
@@ -7363,6 +7368,10 @@ msgstr "Missing the starting image: no first frame and no reference image"
 #: src/components/guide/tours.tsx
 msgid "出片花的就是这些 token"
 msgstr "These tokens pay for rendering"
+
+#: src/ai/arkClient.ts
+msgid "出片请求里有服务器不收的参数（常见的是在提示词里写了 --dur、--rs 这类参数：分辨率、画幅、时长由档位与时长设置决定，请从提示词里删掉）——这一次没有受理，也没有扣费。"
+msgstr "The video request has a parameter the server doesn't accept (usually something like --dur or --rs typed into the prompt: resolution, aspect ratio and length come from the tier and duration settings, so remove them from the prompt) — this request wasn't accepted and nothing was charged."
 
 #. placeholder {0}: voiceTierNames()
 #: src/pages/CardDetailPage.tsx
@@ -9617,12 +9626,8 @@ msgid "唤起指令句式（也可以输入 /）"
 msgstr "Open command phrases (or type /)"
 
 #: src/data/economy.ts
-#~ msgid "唯一收真人照片的档 · 供应商按发计价（6 秒或 10 秒整档）· 用真人卡出片选它"
-#~ msgstr "The only tier that accepts photos of real people · the provider prices per clip (6s or 10s only) · choose it to render with real-person cards"
-
-#: src/data/economy.ts
-msgid "唯一收真人照片的档 · 供应商按发计价（6 秒或 10 秒整档）· 用真人卡出片选它 · 会员档"
-msgstr "The only tier that accepts photos of real people · the provider prices per clip (6s or 10s only) · choose it to render with real-person cards · member tier"
+msgid "唯一收真人照片的档 · 供应商按发计价（6 秒或 10 秒整档）· 用真人卡出片选它"
+msgstr "The only tier that accepts photos of real people · the provider prices per clip (6s or 10s only) · choose it to render with real-person cards"
 
 #: src/pages/SupportCreatePage.tsx
 #: src/pages/SupportPersonasPage.tsx
@@ -14209,16 +14214,12 @@ msgid "新"
 msgstr "New"
 
 #: src/data/economy.ts
-#~ msgid "新一代模型 · 画面更稳、细节更多；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音"
-#~ msgstr "Newer-generation model · steadier picture, more detail; can render straight from the cards' reference images · videos come with AI-generated ambient sound"
+msgid "新一代模型 · 画面更稳、细节更多；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音"
+msgstr "Newer-generation model · steadier picture, more detail; can render straight from the cards' reference images · videos come with AI-generated ambient sound"
 
 #: src/data/economy.ts
-msgid "新一代模型 · 画面更稳、细节更多；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音 · 会员档"
-msgstr "Newer-generation model · steadier picture, more detail; can render straight from the cards' reference images · videos come with AI-generated ambient sound · member tier"
-
-#: src/data/economy.ts
-msgid "新人一次 {welcome} + 每天 {daily}（最多攒 {days} 天）· 能用「{names}」档出片"
-msgstr "{welcome} once when you join + {daily} a day (saves up to {days} days) · can generate on “{names}”"
+msgid "新人一次 {welcome} + 每天 {daily}（最多攒 {days} 天）"
+msgstr "{welcome} once when you join + {daily} a day (saves up to {days} days)"
 
 #: src/pages/LoginPage.tsx
 msgid "新密码（至少 6 位）"
@@ -14318,8 +14319,16 @@ msgid "方舟那边已经查不到这一发了"
 msgstr "Ark no longer has any record of this run"
 
 #: src/ai/real.ts
+msgid "方舟那边查不到这一发了（任务号查无此物）——多半是产物已经过了 24 小时被清掉，这一段取不回来了。这一发本来就没有扣 token；重新生成是重新下一单。"
+msgstr "Ark can't find this run anymore (no task with that ID) — most likely the output passed its 24 hours and was cleaned up, so this segment can't be recovered. No tokens were charged for this run; regenerating places a new order."
+
+#: src/ai/real.ts
 msgid "方舟那边查不到这一发了（任务号查无此物）——多半是产物已经过了 24 小时被清掉。真是这样的话这一段取不回来了，已经花掉的钱无法挽回；重新生成是重新下一单、会再花一次钱"
 msgstr "Ark can't find this run anymore (no task with that ID) — most likely the output passed its 24 hours and was cleaned up. If so, this segment can't be recovered and the money already spent can't be recovered either; regenerating places a new order and costs again"
+
+#: src/ai/real.ts
+msgid "方舟那边查不到这一发了（任务号查无此物），我们也一直没能向上游确认它的结局，所以没有自动退回——把任务号 {taskId} 发给客服，由人工核对这笔钱；重新生成是重新下一单、会再花一次钱"
+msgstr "Ark can't find this run anymore (no task with that ID), and we never managed to confirm its outcome upstream, so it wasn't refunded automatically — send task ID {taskId} to support so someone can check the charge by hand; regenerating places a new order and costs again"
 
 #. placeholder {0}: usableFound.length
 #: src/components/PortraitAuthPanel.tsx
@@ -18821,8 +18830,8 @@ msgstr "Couldn't save the camera photo (storage may be full)"
 #~ msgstr "Saves tokens · starts from the first frame, doesn't lock the last frame"
 
 #: src/data/economy.ts
-msgid "省 token · 首帧起拍，不锁尾帧 · 免费可用 · 模型 {day}起停用"
-msgstr "Saves tokens · starts from the first frame, doesn't lock the last frame · free to use · model retires {day}"
+msgid "省 token · 首帧起拍，不锁尾帧 · 模型 {day}起停用"
+msgstr "Saves tokens · starts from the first frame, doesn't lock the last frame · model retires {day}"
 
 #: src/studio/cutAutoEdit.ts
 msgid "看一遍你排好的片段：起个片头标题、每段写一句旁白（也是字幕）、挑出该转场的地方——你看过、改过再用"
@@ -21569,6 +21578,10 @@ msgid "设为首帧"
 msgstr "Set as first frame"
 
 #: src/studio/segmentGen.ts
+msgid "设定帧没能传上去，样片这一发没有发出去（退回首尾帧的话画幅只能按「自适应」结算，会比报价贵）——刚画好的设定帧已经留在这一段上，过一会儿再点一次生成，不会重画"
+msgstr "The setup frames couldn't be uploaded, so this preview draft wasn't sent (falling back to first/last frames would bill the “adaptive” aspect ratio, which costs more than the quote) — the setup frames just drawn are kept on this segment, so try generating again in a moment; they won't be redrawn"
+
+#: src/studio/segmentGen.ts
 msgid "设定帧没能传上去，样片这一发没有发出去（退回首尾帧的话画幅只能按「自适应」结算，会比报价贵）——过一会儿再点一次生成"
 msgstr "The setup frames couldn't be uploaded, so this preview draft wasn't sent (falling back to first/last frames would bill the “adaptive” aspect ratio, which costs more than the quote) — try generating again in a moment"
 
@@ -22378,6 +22391,10 @@ msgid "还剩 {h} 小时 {m} 分钟可以取回——AI 出片的产物只在服
 msgstr "{h, plural, one {# hour} other {# hours}} {m, plural, one {# minute} other {# minutes}} left to recover it — AI video output is kept on the server for only 24 hours and can't be recovered after it expires, and this job has already been paid for."
 
 #: src/data/videoJobs.ts
+msgid "还剩 {h} 小时 {m} 分钟可以取回——方舟的成片只留 24 小时，过期就没了。这一发没有扣 token，取回也不花钱；点「重新生成」是重新下一单。"
+msgstr "{h, plural, one {# hour} other {# hours}} {m, plural, one {# minute} other {# minutes}} left to recover — Ark keeps videos for only 24 hours, then they're gone. No tokens were charged for this job and recovering is free; tapping “Regenerate” places a new order."
+
+#: src/data/videoJobs.ts
 msgid "还剩 {h} 小时 {m} 分钟可以取回——方舟的成片只留 24 小时，过期就没了。这一发的钱在提交那一刻就已经扣了，万一最后没出成会自动退回；取回不再花一分钱，点「重新生成」是重新下一单、会再花一次。"
 msgstr "{h, plural, one {# hour} other {# hours}} {m, plural, one {# minute} other {# minutes}} left to recover — Ark keeps videos for only 24 hours, then they're gone. This job was charged the moment it was submitted, and if it ends up failing it's refunded automatically; recovering costs nothing more, and tapping “Regenerate” places a new order and costs again."
 
@@ -22392,6 +22409,10 @@ msgstr "{left, plural, one {# still didn't upload} other {# still didn't upload}
 #: src/data/templates.ts
 msgid "还剩 {m} 分钟可以取回——AI 出片的产物只在服务器上留 24 小时，过期就取不回来了，而这一发的钱已经付过。"
 msgstr "{m, plural, one {# minute} other {# minutes}} left to recover it — AI video output is kept on the server for only 24 hours and can't be recovered after it expires, and this job has already been paid for."
+
+#: src/data/videoJobs.ts
+msgid "还剩 {m} 分钟可以取回——方舟的成片只留 24 小时，过期就没了。这一发没有扣 token，取回也不花钱；点「重新生成」是重新下一单。"
+msgstr "{m, plural, one {# minute} other {# minutes}} left to recover — Ark keeps videos for only 24 hours, then they're gone. No tokens were charged for this job and recovering is free; tapping “Regenerate” places a new order."
 
 #: src/data/videoJobs.ts
 msgid "还剩 {m} 分钟可以取回——方舟的成片只留 24 小时，过期就没了。这一发的钱在提交那一刻就已经扣了，万一最后没出成会自动退回；取回不再花一分钱，点「重新生成」是重新下一单、会再花一次。"
@@ -22821,6 +22842,10 @@ msgstr "This run didn't come out, and the tokens charged have been refunded — 
 msgid "这一发没出成，扣的 token 已经退回。"
 msgstr "This run didn't produce a result; the tokens charged for it have been refunded."
 
+#: src/data/videoJobs.ts
+msgid "这一发没有扣 token，任务多半还在上游跑 —— 点「取回」把它领回来；点「重新生成」是重新下一单。出片通常 1~2 分钟，隔一会儿再点一次。"
+msgstr "No tokens were charged for this job, and it's most likely still running upstream — tap “Recover” to collect it; tapping “Regenerate” places a new order. Videos usually take 1–2 minutes, so tap again in a little while."
+
 #: src/components/TemplateShelf.tsx
 msgid "这一发白模化已经取不回来了"
 msgstr "This blockout job can no longer be recovered"
@@ -23053,6 +23078,10 @@ msgstr "This tier can’t be priced right now — try again later"
 #: src/studio/ui/NpcDialog.tsx
 msgid "这一档暂时报不出价，换个档位再试"
 msgstr "This tier can't be priced right now; try another tier"
+
+#: src/ai/arkClient.ts
+msgid "这一档用的模型已经停止服务了，请换一档再出片——这一次没有受理，也没有扣费。"
+msgstr "The model behind this tier has been shut down — pick another tier and generate again. This request wasn't accepted and nothing was charged."
 
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "这一次会拿什么去写"
@@ -24670,6 +24699,10 @@ msgstr "This preview draft has already been finalized once: the 1080p video is u
 msgid "这条样片已经过了定稿期限（方舟的样片只留 7 天，我们在到期前 1 小时停止定稿）——要成片就重新生成（会重新计费）"
 msgstr "This preview draft is past its finalize deadline (Ark keeps drafts for 7 days, and we stop finalizing 1 hour before they expire) — regenerate it if you want the full video (charged again)"
 
+#: src/ai/arkClient.ts
+msgid "这条样片现在转不了成片（可能已经过了有效期、方舟那边查不到了，或者时长对不上）——这一次没有受理，也没有扣费，可以重新出一条样片。"
+msgstr "This preview draft can't be turned into the final video right now (it may have expired, Ark may no longer have it, or its length doesn't match) — this request wasn't accepted and nothing was charged. You can make a new preview draft."
+
 #: src/components/support/VoiceMarket.tsx
 msgid "这条模板已经被作者删了，刷新列表看看别的。"
 msgstr "The author deleted this template. Refresh the list to see others."
@@ -25957,8 +25990,8 @@ msgid "首尾帧会改成\"参考图 + 提示词点名\"发出去（换来的是
 msgstr "First and last frames will be sent as “reference image + prompt mention” (asset card looks can go along; the trade-off is that start and end frames are no longer hard constraints)"
 
 #: src/data/economy.ts
-msgid "首尾帧可控 · 会员档 · 模型 {day}起停用"
-msgstr "First and last frames controllable · member tier · model retires {day}"
+msgid "首尾帧可控 · 模型 {day}起停用"
+msgstr "First and last frames controllable · model retires {day}"
 
 #: src/data/economy.ts
 #~ msgid "首尾帧可控（默认）"
