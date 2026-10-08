@@ -1257,7 +1257,8 @@ export default function CutPage() {
         const { url, lastFrame, poster, taskId } = await regenSegment(seg, reqAll, (s) => say(t`第 ${segNo} 段 · ${s}`)).catch((e: unknown) => {
           // 视频那一发失败了：包一层带上这一段刚改好的画面张数（list.length 次改图，每次各自结算）—— 钱上的话要把它们单独说
           // （ai/failCharge 的 SegmentGenFailed）。没接到结果（ArkTaskUnknown）不包：它不是失败，凭据留着
-          throw e instanceof ArkTaskUnknown ? e : new SegmentGenFailed(e, list.length);
+          // 剪辑页重拍不补画设定帧（帧是这一段原有的 + 圈选改过的），没有要留下的新帧
+          throw e instanceof ArkTaskUnknown ? e : new SegmentGenFailed(e, list.length, "video", null);
         });
         stopIfMoved(true);
         // ★ 成片到手，这一发结案（2026-09-18）：服务端登记表不知道谁取回了哪一发，不结案的话下次进创作入口

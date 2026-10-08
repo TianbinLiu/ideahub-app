@@ -12,7 +12,7 @@
 //
 // 计费与 store 写入**不在这里**：两边的账本与状态形状不同（flowStore 写 videoByProposal，
 // 工坊写 proposal.videoUrl），这里只负责"把一段炼出来"，纯函数式地把结果交回去。
-import { AI_REAL, ARK_REF_IMAGES_MAX, ArkTaskUnknown, SegmentGenFailed, VIDEO_PROMPT_MAX, composeSegments, generateFrame, notesInParens, planCardRefs, prepareMaterialRefs, refCardIds, refineFrame } from "../ai";
+import { AI_REAL, ARK_REF_IMAGES_MAX, ArkTaskUnknown, SegmentGenFailed, VIDEO_PROMPT_MAX, composeSegments, generateFrame, notesInParens, planCardRefs, prepareMaterialRefs, refCardIds, refineFrame, type KeptFrames } from "../ai";
 import { compileMentions, drawExtraRefs, extraRefLines, mentionTargets, plainMentions, usableExtraRefs, type ExtraRef } from "../data/refMentions";
 import { uploadImage } from "../api/uploads";
 import { IMAGE_TOKENS, blockoutPriceIssue, blockoutTier, fmtTokens, r2vPriceIssue, tierOf, providerOf, clampDuration, videoTokensOfSpec, promptMaxOf, refAudioSecOf, type VideoTier } from "../data/economy";
@@ -976,6 +976,11 @@ function settleSegment(
    * 钱上那句话会把画好的那几张说成「没扣」（与 onTask 那条「漏传零症状」同一个教训）。没画的支路显式传 0。
    */
   framesSettled: number,
+  /**
+   * 这一次新补画好的设定帧（arkClient.KeptFrames）：视频那一发失败时随错误交给 genNode 留在方案上，重试不再重画、不再收一次图钱。
+   * **必填**（理由同上）：没补画的支路显式传 null。
+   */
+  kept: KeptFrames | null,
 ): void {
   // 「没接到结果」要**原样保持它的类型**往上抛：调用方据此决定凭据留不留
   // （留 = 亮取回入口，销毁 = 只剩「重新生成」= 再花一次钱）。★ 它永远不包壳（genNode 靠 instanceof 认它）
@@ -985,8 +990,9 @@ function settleSegment(
   //   「受理之后方舟明说失败（现在会退钱）」「没等到回包（可能扣了）」「服务端明说拒了（没扣）」三种在 genNode 那里长得一模一样，
   //   钱上那句话只能一个字都不说。外面包一层 SegmentGenFailed：说明失败的是**视频那一发**，并带上出片前已经结算的画面张数
   //   （钱上的话要把那几张单独说，ai/failCharge）；0 张也包（理由见那个类的 ★）。
-  if (res?.failure !== undefined) throw new SegmentGenFailed(res.failure, framesSettled);
-  if (res?.error) throw new Error(res.error);
+  if (res?.failure !== undefined) throw new SegmentGenFailed(res.failure, framesSettled, "video", kept);
+  // 只有字符串没有错误对象（演示构建）：同样包一层，补画的帧照样留下
+  if (res?.error) throw new SegmentGenFailed(new Error(res.error), framesSettled, "video", kept);
 }
 
 /**
@@ -1113,7 +1119,7 @@ export async function generateSegment(
       // ★ 受理回调**必须给**（同另外几条支路）：没有凭据，「没接到结果」这一支就等于不存在
       (taskId) => onTask?.(taskId),
     );
-    settleSegment(res, 0); // 定稿一张画面都不画
+    settleSegment(res, 0, null); // 定稿一张画面都不画
     return { url: res?.url, firstFrame: "", lastFrame: res?.lastFrame || "", poster: res?.poster, realDurationSec: res?.durationSec };
   }
   // 样片第一步只走普通出片那条路（理由见 draftMode 的 ★）。界面那几道闸（nodeDraftEligible）已经按同一个口径拦过，这里是最后一道
@@ -1218,7 +1224,7 @@ export async function generateSegment(
       // ★ 受理回调**必须给**：不给就没有凭据，「没接到结果」这一支等于不存在
       (taskId) => onTask?.(taskId),
     );
-    settleSegment(res, 0); // 延长段一张画面都不画
+    settleSegment(res, 0, null); // 延长段一张画面都不画
     return {
       url: res?.url,
       firstFrame: res?.firstFrame || "",
@@ -1347,7 +1353,7 @@ export async function generateSegment(
       // ★ 受理回调**必须给**：不给就没有凭据，"没接到结果"这一支等于不存在
       (taskId) => onTask?.(taskId),
     );
-    settleSegment(res, 0); // 素材参考：帧是用户给的，不画（上传不计费）
+    settleSegment(res, 0, null); // 素材参考：帧是用户给的，不画（上传不计费）
     return {
       url: res?.url,
       firstFrame: res?.firstFrame || firstRef || input.firstFrame,
@@ -1421,7 +1427,7 @@ export async function generateSegment(
     //   节点打成 pending、屏幕上写「用下面的「取回」领回来」，而 rememberVideoJob 一次都没跑、
     //   取回卡一张不画，连能发给客服的任务号都看不到（比不改更坏）。零报错、类型也过 ——
     //   因为 composeSegments 的第三参当时是可选的。**现在它是必填的**，同样的漏法编译期就红。
-    settleSegment(res, 0); // 真人档一张设定帧都不画
+    settleSegment(res, 0, null); // 真人档一张设定帧都不画
     return { url: res?.url, firstFrame: firstSrc, lastFrame: res?.lastFrame || firstSrc, poster: res?.poster, realDurationSec: res?.durationSec };
   }
 
@@ -1442,10 +1448,29 @@ export async function generateSegment(
       t`本段承接上一段的结尾画面，开头画面不重画——你圈在前半段的 ${skippedAnns} 处只作为文字要求写进出片提示词（这几处不计费）`,
     );
   }
+  /** 视频那一发之前**已经结算**的出图张数（画成了才 +1：失败的那一张钱扣没扣由 ai/failCharge 按类型说） */
+  let imagesSettled = 0;
+  /** 这一次新补画好的设定帧（arkClient.KeptFrames）：后面任何一步失败都随错误交给 genNode 留在方案上 */
+  const kept: KeptFrames = {};
+  const keptOrNull = (): KeptFrames | null => (kept.first || kept.last ? { ...kept } : null);
+  /**
+   * 出片之前的一次出图（圈选改帧 / 补画设定帧）。失败时包成 SegmentGenFailed（failedCall: "image"）带上已经结算的张数与已经画好的帧
+   * （2026-10-07 评审抓到：原来这几发的失败原样往上抛，钱上那句话只说「这一张」—— 同一次里已经画好、已经结算的几张一个字不提，
+   * 画好的帧也跟着丢了，重试再画一遍、再收一遍）
+   */
+  async function imageStep(run: () => Promise<string>): Promise<string> {
+    try {
+      const url = await run();
+      imagesSettled++;
+      return url;
+    } catch (e) {
+      throw new SegmentGenFailed(e, imagesSettled, "image", keptOrNull());
+    }
+  }
   for (let k = 0; k < redrawn.length; k++) {
     const a = redrawn[k];
     prog(t`按圈选改画面 ${k + 1}/${redrawn.length}…`);
-    const edited = await refineFrame(`${a.req}${ANN_CLAUSE}`, a.frame, input.aspect);
+    const edited = await imageStep(() => refineFrame(`${a.req}${ANN_CLAUSE}`, a.frame, input.aspect));
     if (a.atSec < half) first = edited;
     else last = edited;
   }
@@ -1625,31 +1650,38 @@ export async function generateSegment(
   //   外壳走 generateFrame 不走封面那层（2026-10-03 第二次付费验证：结束画面被画成三格分镜图、格子里写着台词）
   // ★ 这一刻里有谁就只带谁的卡（momentCards，2026-10-04）：结束画面「特写，夜川…」只带夜川，
   //   不再把排在第一位的小枫连图带文字一起塞进去（第三次付费验证：她被拉进了夜川的特写）
+  // 准备参考图（drawRefs）也包在 imageStep 里：它失败时前面画好的那一张照样要留下（它自己不花钱，所以不计张数）
   if (draw.first) {
-    const moment = input.framePrompt || frameMoment(drawPlot, "first");
-    const mats = momentCards(input.materials, moment);
-    const dr = await drawRefs(mats);
-    const ex = drawExtras("first", dr.refs.length);
-    drawn++;
-    prog(t`绘制起拍画面…` + noteTail());
-    first = await generateFrame(
-      // 画帧只画得进分到图的那几张卡（经典路分配）；其余的有文字版形象描述就用它（按模型适配）
-      `${input.framePrompt || moment.slice(0, 200)}${materialText(mats, idsWithout(mats, dr.cards))}${dr.bind(0)}${ex.line}`,
-      { aspect: input.aspect, refs: dr.refs.length + ex.urls.length ? [...dr.refs, ...ex.urls] : undefined },
-    );
+    first = await imageStep(async () => {
+      const moment = input.framePrompt || frameMoment(drawPlot, "first");
+      const mats = momentCards(input.materials, moment);
+      const dr = await drawRefs(mats);
+      const ex = drawExtras("first", dr.refs.length);
+      drawn++;
+      prog(t`绘制起拍画面…` + noteTail());
+      return generateFrame(
+        // 画帧只画得进分到图的那几张卡（经典路分配）；其余的有文字版形象描述就用它（按模型适配）
+        `${input.framePrompt || moment.slice(0, 200)}${materialText(mats, idsWithout(mats, dr.cards))}${dr.bind(0)}${ex.line}`,
+        { aspect: input.aspect, refs: dr.refs.length + ex.urls.length ? [...dr.refs, ...ex.urls] : undefined },
+      );
+    });
+    kept.first = first;
   }
   if (draw.last) {
-    const moment = frameMoment(drawPlot, "last");
-    const mats = momentCards(input.materials, moment);
-    const dr = await drawRefs(mats);
-    const ex = drawExtras("last", dr.refs.length);
-    drawn++;
-    prog(t`绘制结束画面…` + noteTail());
-    last = await generateFrame(
-      // i18n-ignore-next-line: 画结束画面的出图提示词，发给模型
-      `${moment.slice(0, 180)} 的结束瞬间${materialText(mats, idsWithout(mats, dr.cards))}${dr.bind(0)}${ex.line}`,
-      { aspect: input.aspect, refs: dr.refs.length + ex.urls.length ? [...dr.refs, ...ex.urls] : undefined },
-    );
+    last = await imageStep(async () => {
+      const moment = frameMoment(drawPlot, "last");
+      const mats = momentCards(input.materials, moment);
+      const dr = await drawRefs(mats);
+      const ex = drawExtras("last", dr.refs.length);
+      drawn++;
+      prog(t`绘制结束画面…` + noteTail());
+      return generateFrame(
+        // i18n-ignore-next-line: 画结束画面的出图提示词，发给模型
+        `${moment.slice(0, 180)} 的结束瞬间${materialText(mats, idsWithout(mats, dr.cards))}${dr.bind(0)}${ex.line}`,
+        { aspect: input.aspect, refs: dr.refs.length + ex.urls.length ? [...dr.refs, ...ex.urls] : undefined },
+      );
+    });
+    kept.last = last;
   }
 
   // ── 帧 → 参考图（framesAsRefs 的落地）────────────────────────────
@@ -1895,10 +1927,19 @@ export async function generateSegment(
   //   （竖屏 5 秒报价 225,776、实扣 236,034），按钮上那个数就成了少报。报价按不了「发出去才知道的画幅」，所以在这里拦：
   //   视频那一发还没发出去 = 一分没扣；之前补画 / 圈选改过的那几张已经各自结算过，交给 SegmentGenFailed 带上去由 ai/failCharge 说清。
   //   普通出片照旧退回首尾帧（它在 720p 上，720p 一律按 1280×720 结算，画幅不影响价钱）。
+  // ★ 这一次补画好的帧随错误交出去（kept），genNode 把它们留在方案上：再点一次只重传、不重画（2026-10-07 评审抓到：
+  //   原来每拒一次就丢掉刚画好的两张，下一次照 framesToDraw 再画、再收两张图的钱 —— 比这道闸防的那点差价还多）
   if (mode === "draft" && sentRatio !== wantRatio) {
+    const keptNow = keptOrNull();
     throw new SegmentGenFailed(
-      new Error(t`设定帧没能传上去，样片这一发没有发出去（退回首尾帧的话画幅只能按「自适应」结算，会比报价贵）——过一会儿再点一次生成`),
-      drawn + redrawn.length,
+      new Error(
+        keptNow
+          ? t`设定帧没能传上去，样片这一发没有发出去（退回首尾帧的话画幅只能按「自适应」结算，会比报价贵）——刚画好的设定帧已经留在这一段上，过一会儿再点一次生成，不会重画`
+          : t`设定帧没能传上去，样片这一发没有发出去（退回首尾帧的话画幅只能按「自适应」结算，会比报价贵）——过一会儿再点一次生成`,
+      ),
+      imagesSettled,
+      "video",
+      keptNow,
     );
   }
   if (mode === "draft") prog(t`这一发先出 480p 样片：看着满意，再把同一份样片升成 1080p 成片（另计一笔）；不满意就改了重出样片`);
@@ -1954,7 +1995,7 @@ export async function generateSegment(
     (_d, _t, status) => prog(status),
     (taskId) => onTask?.(taskId),
   );
-  settleSegment(res, drawn + redrawn.length); // 与另外几条支路同一处实现（见 settleSegment 的 ★★）
+  settleSegment(res, imagesSettled, keptOrNull()); // 与另外几条支路同一处实现（见 settleSegment 的 ★★）
   return {
     url: res?.url,
     firstFrame: res?.firstFrame || first,

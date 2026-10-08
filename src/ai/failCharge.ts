@@ -13,7 +13,8 @@
 //        （ArkTaskFailed.refund）：退了 / 正在退 / 没说（老服务端不退）三档各一句话。**App 从不自己把退款加进钱包镜像**，
 //        只刷一次钱包（2026-08-10 双计数那次的教训：余额只认服务端给的数）；
 //     ⑥ 一段出片里视频之前已经画好的几张画面（SegmentGenFailed：补画设定帧 / 圈选改帧）—— 那几次出图各自结算过，
-//        视频退了也退不到它们头上：话要分开说「视频那部分 / 出片前画好的 N 张」。
+//        视频退了也退不到它们头上：话要分开说「视频那部分 / 出片前画好的 N 张」。失败的若是其中一张画面（failedCall: "image"），
+//        就按出图说「已经画好的 N 张 + 失败的这一张」（离线时 genNode 一张都没记账，照 paidBefore 的 ★ 不说已计费）。
 //   收口之前，自传图做卡片的圈选改图 / AI 生成图位 / 人物信息、提取窗的炼形象图、导演台融图五处的 catch 一律说
 //   「没扣钱」，只有 CustomCardPage.recognize 一处自己抄了一遍三档 —— 而且它指给用户的「钱包流水」在 App 里并不存在。
 // ★★ 一律认错误的**类型**，绝不去 message 里找字（CLAUDE.md「按错误 message 里的中文关键词判」那一格：
@@ -74,11 +75,12 @@ export interface FailCharge {
  *   放在这里而不是留给调用点：漏掉它没有任何症状。charged 与 paidBefore 那几发都拿到过 2xx，余额已经随响应头同步过。
  */
 export function chargeOnFail(e: unknown): FailCharge {
-  // 外面那层壳：逐格出图（同一种调用）/ 一段出片（前面是画面、失败的是视频）。拆一层就够 —— 两种壳不互相套
+  // 外面那层壳：逐格出图（同一种调用）/ 一段出片（前面是画面、失败的是视频或其中一张画面）。拆一层就够 —— 两种壳不互相套
   const frames = e instanceof SegmentGenFailed;
   const failure = e instanceof ArkBatchPartial || e instanceof SegmentGenFailed ? e.failure : e;
   const settled = e instanceof ArkBatchPartial ? e.settledBefore : e instanceof SegmentGenFailed ? e.framesSettled : 0;
-  const video = frames || failure instanceof ArkTaskFailed;
+  // 出片之前的某一张画面失败（failedCall: "image"）不算视频：话按出图的价说「已经画好的 N 张 + 失败的这一张」（chargeNote 的非视频那一半）
+  const video = (frames && e.failedCall === "video") || failure instanceof ArkTaskFailed;
   const shape: FailCharge["shape"] =
     failure instanceof ArkNoReply ? "noReply" : failure instanceof ArkBadReply ? "badReply" : failure instanceof ArkTaskFailed ? "taskFailed" : "other";
   // 离线：失败的这一发没扣；之前那几发只有逐格出图的算（见 paidBefore 的 ★）

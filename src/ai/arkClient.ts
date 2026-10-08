@@ -363,6 +363,16 @@ export class ArkTaskFailed extends Error {
 }
 
 /**
+ * 一段出片里**这一次新补画好**的设定帧（只有出片前补画的那几张，不含圈选改过的 —— 圈选还挂在段上，写回去会被再改一遍）。
+ * ★ 出片失败时交给 genNode 留在方案上（不上锁）：那几张已经按张结算过了，不留的话下一次点生成照 framesToDraw 再画一遍、再收一遍图钱
+ *   （2026-10-07 评审抓到：样片第一步帧传不上去被拒时，每拒一次就多花两张图的钱）。
+ */
+export interface KeptFrames {
+  first?: string;
+  last?: string;
+}
+
+/**
  * 一段出片的**视频那一发**失败了（创建 / 轮询 / 契约核对）；在它之前可能已经画好了几张画面（补画设定帧 / 圈选改帧，
  * 每张是一次各自结算的出图调用，framesSettled 张）。
  * ★ 与 ArkBatchPartial 分开：那个是「同一种调用」的一批（逐格出图，前后单价相同）；这个是「几张图 + 一段视频」——
@@ -372,13 +382,22 @@ export class ArkTaskFailed extends Error {
  *   出片前的某一张画面 —— 前者的「可能扣了」按视频的价说，后者按一张图的价说。
  *   `ArkTaskUnknown` **永远不包**：genNode 靠 instanceof 认它留凭据。
  * ★ 钱上的话只问 ai/failCharge（它会拆这层壳）；要原因问 briefArkReason（同样会拆）。别对它直接 instanceof 里面那一层。
+ * ★ 出片之前的某一张画面失败了（补画设定帧 / 圈选改帧，2026-10-07 评审补）也包这一层，`failedCall: "image"`：
+ *   原来那种失败原样往上抛，genNode 拿到的是一个裸错误 —— 钱上那句话只说「这一张」，同一次里已经画好、已经结算的几张一个字不提。
  */
 export class SegmentGenFailed extends Error {
   constructor(
-    /** 视频那一发抛的错（原样，类型不丢） */
+    /** 失败的那一发抛的错（原样，类型不丢） */
     readonly failure: unknown,
-    /** 出片之前已经结算的出图次数 */
+    /** 失败那一发之前已经结算的出图次数 */
     readonly framesSettled: number,
+    /**
+     * 失败的是哪一发：`video` = 视频那一发（受理之后失败的现在会退回）；`image` = 出片之前的某一张画面 ——
+     * 钱上那句话按出图单价说「已经画好的 N 张 + 失败的这一张」（ai/failCharge）。**必填**：漏传会把画面的失败按视频的价说
+     */
+    readonly failedCall: "video" | "image",
+    /** 这一次新补画好的设定帧（见 KeptFrames）；没画 = null */
+    readonly kept: KeptFrames | null,
   ) {
     super(failure instanceof Error ? failure.message : String(failure));
     this.name = "SegmentGenFailed";

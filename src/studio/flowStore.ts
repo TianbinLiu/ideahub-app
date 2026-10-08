@@ -4199,6 +4199,31 @@ export const useFlow = create<FlowState>()((set, get) => ({
       // ★ 凭据要销毁 —— 留一颗点了必然失败的「取回」比不给更坏（同 templates 那边
       //   "过期的不给按钮"）。没受理过的那些 taskId 为空，这一行本来就是空转。
       if (taskId) dropVideoJob(taskId);
+      // ★★ 这一次补画好的设定帧留在方案上（2026-10-07 评审抓到）：那几张已经按张结算过了，不写回的话下一次点生成
+      //   照 framesToDraw 再画一遍、再收一遍图钱（样片第一步帧传不上去被拒时尤其如此：每拒一次多花两张图）。
+      //   不上锁（AI 画的，「重画这一套」照样能重画它们）；这几分钟里这一套的帧被人动过（或已经换了一套）就不写，以人为准。
+      //   老草稿的占位图（degraded 且两格都有图，usableFrames 的同一个判据）：没画到的那一格换成它「能用的」值（多半是空），
+      //   标记一并摘掉 —— 不摘的话写回去的真帧还会被当成占位图、再画一遍。
+      {
+        const kept = e instanceof SegmentGenFailed ? e.kept : null;
+        const live = kept && !rv && !fin && !ext ? get().nodes.find((n) => n.id === id) : undefined;
+        const lp = live?.chosenId === prop.id ? live.proposals.find((q) => q.id === prop.id) : undefined;
+        if (kept && lp && lp.firstFrame === prop.firstFrame && lp.lastFrame === prop.lastFrame) {
+          const placeholders = !!(prop.degraded && prop.firstFrame && prop.lastFrame);
+          const usable = placeholders ? usableFrames(node, prop, idx > 0 ? chosenOf(s0.nodes[idx - 1]) : null) : null;
+          const firstFrame = kept.first ?? usable?.first;
+          const lastFrame = kept.last ?? usable?.last;
+          get().updateProposal(
+            id,
+            {
+              ...(firstFrame !== undefined ? { firstFrame } : {}),
+              ...(lastFrame !== undefined ? { lastFrame } : {}),
+              ...(prop.degraded ? { degraded: undefined } : {}),
+            },
+            prop.id,
+          );
+        }
+      }
       // ★★ 钱上那句话（2026-10-07，主人「做生成失败返回 token」）：只认类型、只走 ai/failCharge。
       //   原来这一支对钱一个字都不说，而远端模式下受理之后才失败的那一发是**扣过钱**的 —— 现在服务端会退回，
       //   退没退、退了多少只认服务端在回包上说的那一句；出片前画好的画面另说（它们各自结算过，退不到）。
