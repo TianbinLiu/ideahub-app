@@ -223,7 +223,6 @@ msgstr "、"
 #. 把几条「这一档为什么点不动」的原因连成一行时的分隔符
 #. 把几条「这一档为什么点不动」的原因连成一行时的分隔符
 #. 把几条「这一档为什么点不动」的原因连成一行时的分隔符
-#. 把几条「这一档为什么点不动」的原因连成一行时的分隔符
 #. 把几条说明连成一句时的分隔符
 #. 把几条说明连成一句时的分隔符
 #. 把几条说明连成一句时的分隔符
@@ -235,7 +234,6 @@ msgstr "、"
 #. 把铸卡时的几条说明连成一句时的分隔符
 #: src/ai/real.ts
 #: src/components/flow/SegSettings.tsx
-#: src/components/flow/TierRow.tsx
 #: src/live2d/bundlePreview.ts
 #: src/pages/CardDetailPage.tsx
 #: src/pages/FeedPage.tsx
@@ -911,6 +909,12 @@ msgstr "{0} 等 {1} 张没能同步（{2}）。卡本身在服务器上，只有
 #: src/studio/flowStore.ts
 msgid "{0}，这一段改成了普通段（剧情要自己写）"
 msgstr "{0}，这一段改成了普通段（剧情要自己写）"
+
+#. placeholder {0}: refImgTierList()
+#: src/components/CardModelFit.tsx
+#: src/pages/DeckDetailPage.tsx
+msgid "{0}：{line2x}"
+msgstr "{0}：{line2x}"
 
 #. placeholder {0}: c.name
 #: src/studio/ui/FuseFrameSheet.tsx
@@ -1621,8 +1625,23 @@ msgstr "「{0}」有阶段该回访了"
 
 #. placeholder {0}: tier.label
 #: src/studio/segmentGen.ts
-msgid "「{0}」档不支持参考图，改为先按描述画一张设定帧再出片（想直接用卡片形象请选「高清」或「电影级」）"
-msgstr "「{0}」档不支持参考图，改为先按描述画一张设定帧再出片（想直接用卡片形象请选「高清」或「电影级」）"
+msgid "「{0}」档不支持参考图，改为先按描述画一张设定帧再出片（想直接用卡片形象请选「{names}」）"
+msgstr "「{0}」档不支持参考图，改为先按描述画一张设定帧再出片（想直接用卡片形象请选「{names}」）"
+
+#. placeholder {0}: tier.label
+#: src/studio/segmentGen.ts
+#~ msgid "「{0}」档不支持参考图，改为先按描述画一张设定帧再出片（想直接用卡片形象请选「高清」或「电影级」）"
+#~ msgstr "「{0}」档不支持参考图，改为先按描述画一张设定帧再出片（想直接用卡片形象请选「高清」或「电影级」）"
+
+#. placeholder {0}: tier.label
+#: src/studio/segmentGen.ts
+msgid "「{0}」档不支持参考图，改为先按描述画一张设定帧再出片（直接用卡片形象要「{names}」，会员档）"
+msgstr "「{0}」档不支持参考图，改为先按描述画一张设定帧再出片（直接用卡片形象要「{names}」，会员档）"
+
+#. placeholder {0}: refTier.label
+#: src/studio/segmentGen.ts
+msgid "「{0}」档不支持带参考视频出片——去 ⚙ 本段设置换成「{names}」档，或移除参考视频"
+msgstr "「{0}」档不支持带参考视频出片——去 ⚙ 本段设置换成「{names}」档，或移除参考视频"
 
 #. placeholder {0}: refTier.label
 #: src/studio/segmentGen.ts
@@ -1631,18 +1650,43 @@ msgstr "「{0}」档不支持参考图，改为先按描述画一张设定帧再
 
 #. placeholder {0}: refTier.label
 #: src/studio/segmentGen.ts
-msgid "「{0}」档不支持带参考视频出片——去 ⚙ 本段设置换成「高清」或「电影级」档，或移除参考视频"
-msgstr "「{0}」档不支持带参考视频出片——去 ⚙ 本段设置换成「高清」或「电影级」档，或移除参考视频"
+#~ msgid "「{0}」档不支持带参考视频出片——去 ⚙ 本段设置换成「高清」或「电影级」档，或移除参考视频"
+#~ msgstr "「{0}」档不支持带参考视频出片——去 ⚙ 本段设置换成「高清」或「电影级」档，或移除参考视频"
+
+#. placeholder {0}: refTier.label
+#: src/studio/segmentGen.ts
+msgid "「{0}」档不支持带参考视频出片——带得了的「{names}」是会员档；移除参考视频，或开通会员套餐（或充值过任意一笔）"
+msgstr "「{0}」档不支持带参考视频出片——带得了的「{names}」是会员档；移除参考视频，或开通会员套餐（或充值过任意一笔）"
 
 #. placeholder {0}: o.tier.label
 #: src/studio/segmentGen.ts
-msgid "「{0}」档出片无声，台词不会被配音（要声音选「高清」或「电影级」）"
-msgstr "「{0}」档出片无声，台词不会被配音（要声音选「高清」或「电影级」）"
+msgid "「{0}」档出片无声，台词不会被配音（要声音得用「{names}」，会员档）"
+msgstr "「{0}」档出片无声，台词不会被配音（要声音得用「{names}」，会员档）"
+
+#. placeholder {0}: o.tier.label
+#: src/studio/segmentGen.ts
+msgid "「{0}」档出片无声，台词不会被配音（要声音选「{names}」）"
+msgstr "「{0}」档出片无声，台词不会被配音（要声音选「{names}」）"
+
+#. placeholder {0}: o.tier.label
+#: src/studio/segmentGen.ts
+#~ msgid "「{0}」档出片无声，台词不会被配音（要声音选「高清」或「电影级」）"
+#~ msgstr "「{0}」档出片无声，台词不会被配音（要声音选「高清」或「电影级」）"
 
 #. placeholder {0}: tier.label
 #: src/studio/segmentGen.ts
-msgid "「{0}」档协议上不收参考图，临时参考图这次没发出去（想用它们换「高清」或「电影级」）"
-msgstr "「{0}」档协议上不收参考图，临时参考图这次没发出去（想用它们换「高清」或「电影级」）"
+msgid "「{0}」档协议上不收参考图，临时参考图这次没发出去（想用它们换「{names}」）"
+msgstr "「{0}」档协议上不收参考图，临时参考图这次没发出去（想用它们换「{names}」）"
+
+#. placeholder {0}: tier.label
+#: src/studio/segmentGen.ts
+#~ msgid "「{0}」档协议上不收参考图，临时参考图这次没发出去（想用它们换「高清」或「电影级」）"
+#~ msgstr "「{0}」档协议上不收参考图，临时参考图这次没发出去（想用它们换「高清」或「电影级」）"
+
+#. placeholder {0}: tier.label
+#: src/studio/segmentGen.ts
+msgid "「{0}」档协议上不收参考图，临时参考图这次没发出去（用它们要「{names}」，会员档）"
+msgstr "「{0}」档协议上不收参考图，临时参考图这次没发出去（用它们要「{names}」，会员档）"
 
 #. placeholder {0}: tierOf(editor.videoTier).label
 #: src/studio/ui/projection.tsx
@@ -1661,18 +1705,18 @@ msgstr "「{0}」档带不了参考视频"
 
 #. placeholder {0}: tierOf(editor.videoTier).label
 #: src/studio/ui/projection.tsx
-msgid "「{0}」档带不了参考视频——到「定规格」那一步换成「高清」（「电影级」是付费档），或直接跳过这一步自己给首尾帧"
-msgstr "「{0}」档带不了参考视频——到「定规格」那一步换成「高清」（「电影级」是付费档），或直接跳过这一步自己给首尾帧"
+#~ msgid "「{0}」档带不了参考视频——到「定规格」那一步换成「高清」（「电影级」是付费档），或直接跳过这一步自己给首尾帧"
+#~ msgstr "「{0}」档带不了参考视频——到「定规格」那一步换成「高清」（「电影级」是付费档），或直接跳过这一步自己给首尾帧"
 
 #. placeholder {0}: tierOf(editor.videoTier).label
 #: src/studio/ui/projection.tsx
-msgid "「{0}」档带不了参考视频——到「定规格」那一步换成「高清」或「电影级」，或直接跳过这一步自己给首尾帧"
-msgstr "「{0}」档带不了参考视频——到「定规格」那一步换成「高清」或「电影级」，或直接跳过这一步自己给首尾帧"
+#~ msgid "「{0}」档带不了参考视频——到「定规格」那一步换成「高清」或「电影级」，或直接跳过这一步自己给首尾帧"
+#~ msgstr "「{0}」档带不了参考视频——到「定规格」那一步换成「高清」或「电影级」，或直接跳过这一步自己给首尾帧"
 
 #. placeholder {0}: tierOf(node.videoTier).label
 #: src/components/flow/FlowCanvas.tsx
-msgid "「{0}」档收不了参考图：这一段出片前会先按提示词画帧（计费）。想让人物图直接给视频模型，到 ⚙ 本段设置换成高清或电影级。"
-msgstr "「{0}」档收不了参考图：这一段出片前会先按提示词画帧（计费）。想让人物图直接给视频模型，到 ⚙ 本段设置换成高清或电影级。"
+#~ msgid "「{0}」档收不了参考图：这一段出片前会先按提示词画帧（计费）。想让人物图直接给视频模型，到 ⚙ 本段设置换成高清或电影级。"
+#~ msgstr "「{0}」档收不了参考图：这一段出片前会先按提示词画帧（计费）。想让人物图直接给视频模型，到 ⚙ 本段设置换成高清或电影级。"
 
 #. placeholder {0}: o.tier.label
 #: src/studio/segmentGen.ts
@@ -1726,9 +1770,33 @@ msgstr "「{0}」铸好了"
 msgid "「{ch}」"
 msgstr "「{ch}」"
 
+#: src/studio/ui/projection.tsx
+msgid "「{cur}」档带不了参考视频——到「定规格」那一步换成「{usable}」，或直接跳过这一步自己给首尾帧"
+msgstr "「{cur}」档带不了参考视频——到「定规格」那一步换成「{usable}」，或直接跳过这一步自己给首尾帧"
+
+#: src/studio/ui/projection.tsx
+msgid "「{cur}」档带不了参考视频；带得了的「{member}」是会员档，开通会员套餐（或充值过任意一笔）后可用——或直接跳过这一步自己给首尾帧"
+msgstr "「{cur}」档带不了参考视频；带得了的「{member}」是会员档，开通会员套餐（或充值过任意一笔）后可用——或直接跳过这一步自己给首尾帧"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "「{cur}」档收不了参考图：这一段出片前会先按提示词画帧（计费）。人物图直接给视频模型要「{names}」（会员档）。"
+msgstr "「{cur}」档收不了参考图：这一段出片前会先按提示词画帧（计费）。人物图直接给视频模型要「{names}」（会员档）。"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "「{cur}」档收不了参考图：这一段出片前会先按提示词画帧（计费）。想让人物图直接给视频模型，到 ⚙ 本段设置换成「{names}」。"
+msgstr "「{cur}」档收不了参考图：这一段出片前会先按提示词画帧（计费）。想让人物图直接给视频模型，到 ⚙ 本段设置换成「{names}」。"
+
 #: src/studio/flowStore.ts
-msgid "「{extLabel}」档还不能延长——去 ⚙ 本段设置换成「电影级」档"
-msgstr "「{extLabel}」档还不能延长——去 ⚙ 本段设置换成「电影级」档"
+msgid "「{extLabel}」档还不能延长——去 ⚙ 本段设置换成「{names}」档"
+msgstr "「{extLabel}」档还不能延长——去 ⚙ 本段设置换成「{names}」档"
+
+#: src/studio/flowStore.ts
+#~ msgid "「{extLabel}」档还不能延长——去 ⚙ 本段设置换成「电影级」档"
+#~ msgstr "「{extLabel}」档还不能延长——去 ⚙ 本段设置换成「电影级」档"
+
+#: src/studio/flowStore.ts
+msgid "「{extLabel}」档还不能延长——能延长的「{names}」是会员档（开通会员套餐或充值过任意一笔后可用）"
+msgstr "「{extLabel}」档还不能延长——能延长的「{names}」是会员档（开通会员套餐或充值过任意一笔后可用）"
 
 #: src/data/account.ts
 #~ msgid "「{label}」单段消耗超过免费版整月额度（{quota}），升级套餐后可用"
@@ -1743,8 +1811,16 @@ msgid "「{label}」档的模型已于 {day}停用——换一档再出片"
 msgstr "「{label}」档的模型已于 {day}停用——换一档再出片"
 
 #: src/studio/flowStore.ts
-msgid "「{label}」档还不能延长——用电影级出的段才能延长"
-msgstr "「{label}」档还不能延长——用电影级出的段才能延长"
+msgid "「{label}」档还不能延长——用「{names}」出的段才能延长"
+msgstr "「{label}」档还不能延长——用「{names}」出的段才能延长"
+
+#: src/studio/flowStore.ts
+msgid "「{label}」档还不能延长——用「{names}」出的段才能延长（会员档）"
+msgstr "「{label}」档还不能延长——用「{names}」出的段才能延长（会员档）"
+
+#: src/studio/flowStore.ts
+#~ msgid "「{label}」档还不能延长——用电影级出的段才能延长"
+#~ msgstr "「{label}」档还不能延长——用电影级出的段才能延长"
 
 #: src/data/economy.ts
 msgid "「{label}」这一档暂时报不出价（{model} 不在价目表里），先用别的档位"
@@ -1932,8 +2008,16 @@ msgid "「{staleText}」过期了（人、整体交代或双人镜头改过）�
 msgstr "「{staleText}」过期了（人、整体交代或双人镜头改过）—— 回上一步重画一下。"
 
 #: src/pages/FlowPage.tsx
-msgid "「{tierLabel}」档不支持参考图：会先按描述画一张设定帧再出片。想直接用卡片形象，在「⚙ 本段设置」里换成「高清」或「电影级」"
-msgstr "「{tierLabel}」档不支持参考图：会先按描述画一张设定帧再出片。想直接用卡片形象，在「⚙ 本段设置」里换成「高清」或「电影级」"
+msgid "「{tierLabel}」档不支持参考图：会先按描述画一张设定帧再出片。想直接用卡片形象，在「⚙ 本段设置」里换成「{names}」"
+msgstr "「{tierLabel}」档不支持参考图：会先按描述画一张设定帧再出片。想直接用卡片形象，在「⚙ 本段设置」里换成「{names}」"
+
+#: src/pages/FlowPage.tsx
+#~ msgid "「{tierLabel}」档不支持参考图：会先按描述画一张设定帧再出片。想直接用卡片形象，在「⚙ 本段设置」里换成「高清」或「电影级」"
+#~ msgstr "「{tierLabel}」档不支持参考图：会先按描述画一张设定帧再出片。想直接用卡片形象，在「⚙ 本段设置」里换成「高清」或「电影级」"
+
+#: src/pages/FlowPage.tsx
+msgid "「{tierLabel}」档不支持参考图：会先按描述画一张设定帧再出片。直接用卡片形象要「{names}」（会员档）"
+msgstr "「{tierLabel}」档不支持参考图：会先按描述画一张设定帧再出片。直接用卡片形象要「{names}」（会员档）"
 
 #: src/ai/real.ts
 msgid "「{tierLabel}」档不支持带参考视频出片"
@@ -1944,24 +2028,52 @@ msgid "「{tierLabel}」档协议上不收参考图，不能按参考图生视�
 msgstr "「{tierLabel}」档协议上不收参考图，不能按参考图生视频出片"
 
 #: src/components/flow/RefStrip.tsx
-msgid "「{tierLabel}」档协议上不收参考图：卡片形象只用来画首尾帧，出片时模型看到的只有首尾帧。想让模型直接看到卡片形象与临时参考图，换「高清」或「电影级」。"
-msgstr "「{tierLabel}」档协议上不收参考图：卡片形象只用来画首尾帧，出片时模型看到的只有首尾帧。想让模型直接看到卡片形象与临时参考图，换「高清」或「电影级」。"
+msgid "「{tierLabel}」档协议上不收参考图：卡片形象只用来画首尾帧，出片时模型看到的只有首尾帧。想让模型直接看到卡片形象与临时参考图，换「{imgUsable}」。"
+msgstr "「{tierLabel}」档协议上不收参考图：卡片形象只用来画首尾帧，出片时模型看到的只有首尾帧。想让模型直接看到卡片形象与临时参考图，换「{imgUsable}」。"
 
 #: src/components/flow/RefStrip.tsx
-msgid "「{tierLabel}」档带不了示例视频——换成「高清」或「电影级」之后这里才排得出清单。"
-msgstr "「{tierLabel}」档带不了示例视频——换成「高清」或「电影级」之后这里才排得出清单。"
+#~ msgid "「{tierLabel}」档协议上不收参考图：卡片形象只用来画首尾帧，出片时模型看到的只有首尾帧。想让模型直接看到卡片形象与临时参考图，换「高清」或「电影级」。"
+#~ msgstr "「{tierLabel}」档协议上不收参考图：卡片形象只用来画首尾帧，出片时模型看到的只有首尾帧。想让模型直接看到卡片形象与临时参考图，换「高清」或「电影级」。"
+
+#: src/components/flow/RefStrip.tsx
+msgid "「{tierLabel}」档协议上不收参考图：卡片形象只用来画首尾帧，出片时模型看到的只有首尾帧。让模型直接看到卡片形象与临时参考图要「{imgMember}」（会员档）。"
+msgstr "「{tierLabel}」档协议上不收参考图：卡片形象只用来画首尾帧，出片时模型看到的只有首尾帧。让模型直接看到卡片形象与临时参考图要「{imgMember}」（会员档）。"
+
+#: src/components/flow/RefStrip.tsx
+msgid "「{tierLabel}」档带不了示例视频——换成「{vidUsable}」之后这里才排得出清单。"
+msgstr "「{tierLabel}」档带不了示例视频——换成「{vidUsable}」之后这里才排得出清单。"
+
+#: src/components/flow/RefStrip.tsx
+#~ msgid "「{tierLabel}」档带不了示例视频——换成「高清」或「电影级」之后这里才排得出清单。"
+#~ msgstr "「{tierLabel}」档带不了示例视频——换成「高清」或「电影级」之后这里才排得出清单。"
+
+#: src/components/flow/RefStrip.tsx
+msgid "「{tierLabel}」档带不了示例视频；带得了的「{vidMember}」是会员档（开通会员套餐或充值过任意一笔后可用）。"
+msgstr "「{tierLabel}」档带不了示例视频；带得了的「{vidMember}」是会员档（开通会员套餐或充值过任意一笔后可用）。"
 
 #: src/ai/real.ts
 msgid "「{tierLabel}」档跑不了白模模板（模板对出片模型是硬要求）"
 msgstr "「{tierLabel}」档跑不了白模模板（模板对出片模型是硬要求）"
 
 #: src/studio/segmentGen.ts
-msgid "「{tierLabel}」档还不能延长——去 ⚙ 本段设置换成「电影级」档"
-msgstr "「{tierLabel}」档还不能延长——去 ⚙ 本段设置换成「电影级」档"
+msgid "「{tierLabel}」档还不能延长——去 ⚙ 本段设置换成「{names}」档"
+msgstr "「{tierLabel}」档还不能延长——去 ⚙ 本段设置换成「{names}」档"
+
+#: src/studio/segmentGen.ts
+#~ msgid "「{tierLabel}」档还不能延长——去 ⚙ 本段设置换成「电影级」档"
+#~ msgstr "「{tierLabel}」档还不能延长——去 ⚙ 本段设置换成「电影级」档"
 
 #: src/ai/real.ts
-msgid "「{tierLabel}」档还不能延长——用电影级出的段才能延长"
-msgstr "「{tierLabel}」档还不能延长——用电影级出的段才能延长"
+msgid "「{tierLabel}」档还不能延长——用「{names}」出的段才能延长"
+msgstr "「{tierLabel}」档还不能延长——用「{names}」出的段才能延长"
+
+#: src/ai/real.ts
+#~ msgid "「{tierLabel}」档还不能延长——用电影级出的段才能延长"
+#~ msgstr "「{tierLabel}」档还不能延长——用电影级出的段才能延长"
+
+#: src/studio/segmentGen.ts
+msgid "「{tierLabel}」档还不能延长——能延长的「{names}」是会员档（开通会员套餐或充值过任意一笔后可用）"
+msgstr "「{tierLabel}」档还不能延长——能延长的「{names}」是会员档（开通会员套餐或充值过任意一笔后可用）"
 
 #. 个人页「还没传到服务器」横幅：只有作品标题（这一条没记下没传上去的原因）
 #: src/pages/ProfilePage.tsx
@@ -1995,12 +2107,28 @@ msgid "「{title}」要两个人：按点的先后，先点的是第一个人。
 msgstr "「{title}」要两个人：按点的先后，先点的是第一个人。"
 
 #: src/components/flow/ModePicker.tsx
-msgid "「{title}」要收参考图的模型：换到高清或电影级就有"
-msgstr "「{title}」要收参考图的模型：换到高清或电影级就有"
+msgid "「{title}」要收参考图的模型：「{member}」才有（会员档）"
+msgstr "「{title}」要收参考图的模型：「{member}」才有（会员档）"
 
 #: src/components/flow/ModePicker.tsx
-msgid "「{title}」要能出声的模型（台词得说出来）：换到高清或电影级就有"
-msgstr "「{title}」要能出声的模型（台词得说出来）：换到高清或电影级就有"
+msgid "「{title}」要收参考图的模型：换到「{usable}」就有"
+msgstr "「{title}」要收参考图的模型：换到「{usable}」就有"
+
+#: src/components/flow/ModePicker.tsx
+#~ msgid "「{title}」要收参考图的模型：换到高清或电影级就有"
+#~ msgstr "「{title}」要收参考图的模型：换到高清或电影级就有"
+
+#: src/components/flow/ModePicker.tsx
+msgid "「{title}」要能出声的模型（台词得说出来）：「{member}」才有（会员档）"
+msgstr "「{title}」要能出声的模型（台词得说出来）：「{member}」才有（会员档）"
+
+#: src/components/flow/ModePicker.tsx
+msgid "「{title}」要能出声的模型（台词得说出来）：换到「{usable}」就有"
+msgstr "「{title}」要能出声的模型（台词得说出来）：换到「{usable}」就有"
+
+#: src/components/flow/ModePicker.tsx
+#~ msgid "「{title}」要能出声的模型（台词得说出来）：换到高清或电影级就有"
+#~ msgstr "「{title}」要能出声的模型（台词得说出来）：换到高清或电影级就有"
 
 #: src/studio/canvasAgent.ts
 msgid "「{u}」"
@@ -2179,7 +2307,7 @@ msgstr "＋ 存为技能"
 #~ msgid "＋ 已在控制台授权过？直接填 asset ID"
 #~ msgstr "＋ 已在控制台授权过？直接填 asset ID"
 
-#. placeholder {0}: modelLabel(tier.model)
+#. placeholder {0}: tierModelLabel(tier)
 #. placeholder {1}: fmtTokens(videoTokens)
 #: src/components/blockout/BlockoutTrimmer.tsx
 msgid "+ 把这 {durSec} 秒整段换成白模人偶（{0} · {1}）"
@@ -2521,13 +2649,30 @@ msgstr "⚠ 这条是<0>简约模式</0>：它按设计不进草稿库（一次�
 
 #. placeholder {0}: tierOf(node.videoTier).label
 #: src/components/flow/FlowCanvas.tsx
-msgid "⚠「{0}」档带不了参考视频——去 ⚙ 本段设置换成「高清」或「电影级」，否则生成会被整句拒。"
-msgstr "⚠「{0}」档带不了参考视频——去 ⚙ 本段设置换成「高清」或「电影级」，否则生成会被整句拒。"
+#~ msgid "⚠「{0}」档带不了参考视频——去 ⚙ 本段设置换成「高清」或「电影级」，否则生成会被整句拒。"
+#~ msgstr "⚠「{0}」档带不了参考视频——去 ⚙ 本段设置换成「高清」或「电影级」，否则生成会被整句拒。"
 
 #. placeholder {0}: tierOf(editor.videoTier).label
 #: src/studio/ui/projection.tsx
-msgid "⚠「{0}」档带不了参考视频——选「电影级」，否则出片会被整句拒"
-msgstr "⚠「{0}」档带不了参考视频——选「电影级」，否则出片会被整句拒"
+#~ msgid "⚠「{0}」档带不了参考视频——选「电影级」，否则出片会被整句拒"
+#~ msgstr "⚠「{0}」档带不了参考视频——选「电影级」，否则出片会被整句拒"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "⚠「{cur}」档带不了参考视频——去 ⚙ 本段设置换成「{usable}」，否则生成会被整句拒。"
+msgstr "⚠「{cur}」档带不了参考视频——去 ⚙ 本段设置换成「{usable}」，否则生成会被整句拒。"
+
+#: src/studio/ui/projection.tsx
+msgid "⚠「{cur}」档带不了参考视频——选「{usable}」，否则出片会被整句拒"
+msgstr "⚠「{cur}」档带不了参考视频——选「{usable}」，否则出片会被整句拒"
+
+#: src/components/flow/FlowCanvas.tsx
+#: src/studio/ui/projection.tsx
+msgid "⚠「{cur}」档带不了参考视频，而带得了的「{member}」是会员档——摘掉示例视频，或开通会员套餐（或充值过任意一笔）"
+msgstr "⚠「{cur}」档带不了参考视频，而带得了的「{member}」是会员档——摘掉示例视频，或开通会员套餐（或充值过任意一笔）"
+
+#: src/components/flow/FlowCanvas.tsx
+#~ msgid "⚠「{cur}」档带不了参考视频，而带得了的「{member}」是会员档——摘掉示例视频，或开通会员套餐（或充值过任意一笔）。"
+#~ msgstr "⚠「{cur}」档带不了参考视频，而带得了的「{member}」是会员档——摘掉示例视频，或开通会员套餐（或充值过任意一笔）。"
 
 #. placeholder {0}: fmtTokens(lockPrice)
 #: src/pages/FeedPage.tsx
@@ -3235,8 +3380,16 @@ msgid "🔄 重新拆（{splitPrice}，会换掉上面的分镜）"
 msgstr "🔄 重新拆（{splitPrice}，会换掉上面的分镜）"
 
 #: src/components/flow/RefStrip.tsx
-msgid "🔇 {idleNames} 带着声音样本，但「{tierLabel}」档出片无声——要配音换「高清」或「电影级」。"
-msgstr "🔇 {idleNames} 带着声音样本，但「{tierLabel}」档出片无声——要配音换「高清」或「电影级」。"
+msgid "🔇 {idleNames} 带着声音样本，但「{tierLabel}」档出片无声——要配音换「{audioUsable}」。"
+msgstr "🔇 {idleNames} 带着声音样本，但「{tierLabel}」档出片无声——要配音换「{audioUsable}」。"
+
+#: src/components/flow/RefStrip.tsx
+#~ msgid "🔇 {idleNames} 带着声音样本，但「{tierLabel}」档出片无声——要配音换「高清」或「电影级」。"
+#~ msgstr "🔇 {idleNames} 带着声音样本，但「{tierLabel}」档出片无声——要配音换「高清」或「电影级」。"
+
+#: src/components/flow/RefStrip.tsx
+msgid "🔇 {idleNames} 带着声音样本，但「{tierLabel}」档出片无声——配音要「{audioMember}」（会员档）。"
+msgstr "🔇 {idleNames} 带着声音样本，但「{tierLabel}」档出片无声——配音要「{audioMember}」（会员档）。"
 
 #: src/components/flow/RefStrip.tsx
 msgid "🔇 {idleNames} 带着声音样本，但句子里没有台词——把台词写进引号（「」或 “”）里，才会按这张卡的声音配音。"
@@ -6106,9 +6259,14 @@ msgstr "先去看作品"
 msgid "先去逛逛，好了叫我"
 msgstr "先去逛逛，好了叫我"
 
+#. placeholder {0}: voiceTierNames()
 #: src/components/VideoCardAnnotator.tsx
-msgid "先听一遍：要的是<0>这个人说话</0>的干净片段。出片走「高清/电影级」且台词写在引号里时， 会把这段声音发给 AI 作音色参考（免费）。样本只存在这台设备上，分享卡片不带它。"
-msgstr "先听一遍：要的是<0>这个人说话</0>的干净片段。出片走「高清/电影级」且台词写在引号里时， 会把这段声音发给 AI 作音色参考（免费）。样本只存在这台设备上，分享卡片不带它。"
+msgid "先听一遍：要的是<0>这个人说话</0>的干净片段。出片走「{0}」且台词写在引号里时， 会把这段声音发给 AI 作音色参考（免费）。样本只存在这台设备上，分享卡片不带它。"
+msgstr "先听一遍：要的是<0>这个人说话</0>的干净片段。出片走「{0}」且台词写在引号里时， 会把这段声音发给 AI 作音色参考（免费）。样本只存在这台设备上，分享卡片不带它。"
+
+#: src/components/VideoCardAnnotator.tsx
+#~ msgid "先听一遍：要的是<0>这个人说话</0>的干净片段。出片走「高清/电影级」且台词写在引号里时， 会把这段声音发给 AI 作音色参考（免费）。样本只存在这台设备上，分享卡片不带它。"
+#~ msgstr "先听一遍：要的是<0>这个人说话</0>的干净片段。出片走「高清/电影级」且台词写在引号里时， 会把这段声音发给 AI 作音色参考（免费）。样本只存在这台设备上，分享卡片不带它。"
 
 #: src/pages/CutPage.tsx
 msgid "先存起来，圈完所有要改的地方再一次性重新生成"
@@ -6275,6 +6433,10 @@ msgstr "免费 · 会重新合成点名句（覆盖你改过的字）"
 #: src/pages/ProfilePage.tsx
 msgid "免费版"
 msgstr "免费版"
+
+#: src/pages/ProfilePage.tsx
+msgid "免费版：每天自动补 {daily} 套餐 token（最多攒到 {cap}），能用「{names}」档出片。开通会员套餐或充值任意一笔，全部档位都能用。"
+msgstr "免费版：每天自动补 {daily} 套餐 token（最多攒到 {cap}），能用「{names}」档出片。开通会员套餐或充值任意一笔，全部档位都能用。"
 
 #: src/components/flow/ThemeRewriteSheet.tsx
 msgid "全不选"
@@ -7030,13 +7192,23 @@ msgstr "出片缺少起拍画面：既没有首帧也没有参考图"
 msgid "出片花的就是这些 token"
 msgstr "出片花的就是这些 token"
 
+#. placeholder {0}: voiceTierNames()
 #: src/pages/CardDetailPage.tsx
-msgid "出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段声音的音色（尽力而为，不是复刻）。样本只存在这台设备上，分享卡片不带它。"
-msgstr "出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段声音的音色（尽力而为，不是复刻）。样本只存在这台设备上，分享卡片不带它。"
+msgid "出片走「{0}」档、台词写在引号里时，AI 会参考这段声音的音色（尽力而为，不是复刻）。样本只存在这台设备上，分享卡片不带它。"
+msgstr "出片走「{0}」档、台词写在引号里时，AI 会参考这段声音的音色（尽力而为，不是复刻）。样本只存在这台设备上，分享卡片不带它。"
+
+#. placeholder {0}: voiceTierNames()
+#: src/pages/CustomCardPage.tsx
+msgid "出片走「{0}」档、台词写在引号里时，AI 会参考这段音色说话。样本只存在这台设备上，不随分享带走。"
+msgstr "出片走「{0}」档、台词写在引号里时，AI 会参考这段音色说话。样本只存在这台设备上，不随分享带走。"
+
+#: src/pages/CardDetailPage.tsx
+#~ msgid "出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段声音的音色（尽力而为，不是复刻）。样本只存在这台设备上，分享卡片不带它。"
+#~ msgstr "出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段声音的音色（尽力而为，不是复刻）。样本只存在这台设备上，分享卡片不带它。"
 
 #: src/pages/CustomCardPage.tsx
-msgid "出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段音色说话。样本只存在这台设备上，不随分享带走。"
-msgstr "出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段音色说话。样本只存在这台设备上，不随分享带走。"
+#~ msgid "出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段音色说话。样本只存在这台设备上，不随分享带走。"
+#~ msgstr "出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段音色说话。样本只存在这台设备上，不随分享带走。"
 
 #: src/components/VisibilityPicker.tsx
 msgid "出现在首页、分区和搜索里，谁都能看"
@@ -8097,8 +8269,7 @@ msgstr "去创意工坊铸几张"
 msgid "去制作"
 msgstr "去制作"
 
-#: src/components/flow/TierRow.tsx
-#: src/pages/TemplateDetailPage.tsx
+#: src/components/UpgradeLink.tsx
 msgid "去升级"
 msgstr "去升级"
 
@@ -8240,12 +8411,24 @@ msgid "参考图直出的方案摆上桌了——人物图会直接给视频模�
 msgstr "参考图直出的方案摆上桌了——人物图会直接给视频模型、不画帧。提示词确认没问题，就点「⚡ 生成本段视频」。"
 
 #: src/components/flow/FlowCanvas.tsx
-msgid "参考图直出要收参考图的模型——到 ⚙ 本段设置换成高清或电影级"
-msgstr "参考图直出要收参考图的模型——到 ⚙ 本段设置换成高清或电影级"
+msgid "参考图直出要收参考图的模型——「{names}」是会员档，开通会员套餐后可用"
+msgstr "参考图直出要收参考图的模型——「{names}」是会员档，开通会员套餐后可用"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "参考图直出要收参考图的模型——到 ⚙ 本段设置换成「{names}」"
+msgstr "参考图直出要收参考图的模型——到 ⚙ 本段设置换成「{names}」"
+
+#: src/components/flow/FlowCanvas.tsx
+#~ msgid "参考图直出要收参考图的模型——到 ⚙ 本段设置换成高清或电影级"
+#~ msgstr "参考图直出要收参考图的模型——到 ⚙ 本段设置换成高清或电影级"
 
 #: src/studio/ui/projection.tsx
-msgid "参考图直出要收参考图的模型（高清 / 电影级）"
-msgstr "参考图直出要收参考图的模型（高清 / 电影级）"
+msgid "参考图直出要收参考图的模型（「{refImgList}」）"
+msgstr "参考图直出要收参考图的模型（「{refImgList}」）"
+
+#: src/studio/ui/projection.tsx
+#~ msgid "参考图直出要收参考图的模型（高清 / 电影级）"
+#~ msgstr "参考图直出要收参考图的模型（高清 / 电影级）"
 
 #: src/types.ts
 #~ msgid "参考图预算还有余时才轮到它"
@@ -14772,7 +14955,7 @@ msgstr "本段开头"
 msgid "本段承接上一段的结尾画面，开头画面不重画——你圈在前半段的 {skippedAnns} 处只作为文字要求写进出片提示词（这几处不计费）"
 msgstr "本段承接上一段的结尾画面，开头画面不重画——你圈在前半段的 {skippedAnns} 处只作为文字要求写进出片提示词（这几处不计费）"
 
-#. placeholder {0}: modelLabel(tierOf(node.videoTier).model)
+#. placeholder {0}: tierModelLabel(tierOf(node.videoTier))
 #: src/components/flow/SegSettings.tsx
 msgid "本段模型：{0}"
 msgstr "本段模型：{0}"
@@ -15113,7 +15296,7 @@ msgctxt "人偶的主色（挂卡提醒那句话里显示）"
 msgid "棕"
 msgstr "棕"
 
-#. placeholder {0}: modelLabel(tierOf(editor.videoTier).model)
+#. placeholder {0}: tierModelLabel(tierOf(editor.videoTier))
 #: src/studio/ui/projection.tsx
 msgid "模型：{0}"
 msgstr "模型：{0}"
@@ -16255,6 +16438,10 @@ msgstr "没有能用「{name}」（{model}）出片的模板——点搜索栏�
 msgid "没有能用「{name}」（{model}）出片的模板。现有的 {hidden} 个都要按参考视频逐镜头复刻，只有「{needLabel}」（{needModel}）做得到——点搜索栏旁边那颗键换一个模型，或者选回「全部模型」。"
 msgstr "没有能用「{name}」（{model}）出片的模板。现有的 {hidden} 个都要按参考视频逐镜头复刻，只有「{needLabel}」（{needModel}）做得到——点搜索栏旁边那颗键换一个模型，或者选回「全部模型」。"
 
+#: src/components/TemplateShelf.tsx
+msgid "没有能用「{name}」（{model}）出片的模板。现有的 {hidden} 个都要按参考视频逐镜头复刻，只有「{needLabel}」（{needModel}）做得到，而它是会员档——开通会员套餐（或充值过任意一笔）后可用，或者选回「全部模型」看看。"
+msgstr "没有能用「{name}」（{model}）出片的模板。现有的 {hidden} 个都要按参考视频逐镜头复刻，只有「{needLabel}」（{needModel}）做得到，而它是会员档——开通会员套餐（或充值过任意一笔）后可用，或者选回「全部模型」看看。"
+
 #: src/ai/arkClient.ts
 msgid "没有要接着等的那一组"
 msgstr "没有要接着等的那一组"
@@ -17059,8 +17246,12 @@ msgid "照片起拍，视频约 {fxVideo} / 一发"
 msgstr "照片起拍，视频约 {fxVideo} / 一发"
 
 #: src/pages/CustomCardPage.tsx
-msgid "照片里有人：默认档出片不受影响；高清 / 超清档可能被方舟拒掉（没受理不扣视频钱）"
-msgstr "照片里有人：默认档出片不受影响；高清 / 超清档可能被方舟拒掉（没受理不扣视频钱）"
+msgid "照片里有人：「{refTiers}」档直接收参考图，出片可能被方舟拒掉（没受理不扣视频钱）；别的档不受影响"
+msgstr "照片里有人：「{refTiers}」档直接收参考图，出片可能被方舟拒掉（没受理不扣视频钱）；别的档不受影响"
+
+#: src/pages/CustomCardPage.tsx
+#~ msgid "照片里有人：默认档出片不受影响；高清 / 超清档可能被方舟拒掉（没受理不扣视频钱）"
+#~ msgstr "照片里有人：默认档出片不受影响；高清 / 超清档可能被方舟拒掉（没受理不扣视频钱）"
 
 #: src/utils/nativeCamera.ts
 msgid "照片重新编码失败"
@@ -17071,9 +17262,14 @@ msgstr "照片重新编码失败"
 msgid "照的是你的《{0}》"
 msgstr "照的是你的《{0}》"
 
+#. placeholder {0}: voiceTierNames()
 #: src/components/VoiceRecorder.tsx
-msgid "照着下面这句念（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）——出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段音色。"
-msgstr "照着下面这句念（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）——出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段音色。"
+msgid "照着下面这句念（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）——出片走「{0}」档、台词写在引号里时，AI 会参考这段音色。"
+msgstr "照着下面这句念（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）——出片走「{0}」档、台词写在引号里时，AI 会参考这段音色。"
+
+#: src/components/VoiceRecorder.tsx
+#~ msgid "照着下面这句念（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）——出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段音色。"
+#~ msgstr "照着下面这句念（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）——出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段音色。"
 
 #: src/components/flow/DialogueWizard.tsx
 msgid "照着现在这张双人镜头画：地方、光线、两人的衣服都照它。"
@@ -17716,9 +17912,14 @@ msgstr "画三个机位最多要 {price} token，余额不够——去「我的�
 msgid "画不出来的包发不了。"
 msgstr "画不出来的包发不了。"
 
+#. placeholder {0}: tierNamesWhere((x) => x.refImg)
 #: src/components/flow/CastPicker.tsx
-msgid "画两张：全身立绘 + 照着它画的面部特写（官方建议的「全身照 + 大头照」）。不画写实照片风：高清 / 电影级会把写实的人脸当成真人拒收。"
-msgstr "画两张：全身立绘 + 照着它画的面部特写（官方建议的「全身照 + 大头照」）。不画写实照片风：高清 / 电影级会把写实的人脸当成真人拒收。"
+msgid "画两张：全身立绘 + 照着它画的面部特写（官方建议的「全身照 + 大头照」）。不画写实照片风：「{0}」档会把写实的人脸当成真人拒收。"
+msgstr "画两张：全身立绘 + 照着它画的面部特写（官方建议的「全身照 + 大头照」）。不画写实照片风：「{0}」档会把写实的人脸当成真人拒收。"
+
+#: src/components/flow/CastPicker.tsx
+#~ msgid "画两张：全身立绘 + 照着它画的面部特写（官方建议的「全身照 + 大头照」）。不画写实照片风：高清 / 电影级会把写实的人脸当成真人拒收。"
+#~ msgstr "画两张：全身立绘 + 照着它画的面部特写（官方建议的「全身照 + 大头照」）。不画写实照片风：高清 / 电影级会把写实的人脸当成真人拒收。"
 
 #: src/components/CardModelFit.tsx
 msgid "画两张约 {framesPrice} token，余额不够——去「我的」页充值"
@@ -18190,8 +18391,12 @@ msgid "白模模板做好了，去「我的模板」看看"
 msgstr "白模模板做好了，去「我的模板」看看"
 
 #: src/studio/segmentGen.ts
-msgid "白模模板出片只在方舟档（真人档没有 r2v 能力）——这一段换回「电影级」档，或换掉模板"
-msgstr "白模模板出片只在方舟档（真人档没有 r2v 能力）——这一段换回「电影级」档，或换掉模板"
+msgid "白模模板出片只在方舟档（真人档没有 r2v 能力）——这一段换回「{bt}」档，或换掉模板"
+msgstr "白模模板出片只在方舟档（真人档没有 r2v 能力）——这一段换回「{bt}」档，或换掉模板"
+
+#: src/studio/segmentGen.ts
+#~ msgid "白模模板出片只在方舟档（真人档没有 r2v 能力）——这一段换回「电影级」档，或换掉模板"
+#~ msgstr "白模模板出片只在方舟档（真人档没有 r2v 能力）——这一段换回「电影级」档，或换掉模板"
 
 #: src/studio/flowStore.ts
 msgid "白模模板出片暂未开放：还没有档位支持白模（r2v）出片"
@@ -19552,6 +19757,10 @@ msgstr "第 {segNo} 段还不是永久地址，合成用不了——回到工作
 #: src/pages/CutPage.tsx
 msgid "第 {segNo} 段还没有视频（只有设定帧），合成做不了——先把这一段炼出来"
 msgstr "第 {segNo} 段还没有视频（只有设定帧），合成做不了——先把这一段炼出来"
+
+#: src/pages/CutPage.tsx
+msgid "第 {segNo} 段重拍不了：{blocked}"
+msgstr "第 {segNo} 段重拍不了：{blocked}"
 
 #: src/components/blockout/arkVideoRules.ts
 msgid "第 {startSec} 秒起 {durSec} 秒 · 裁后 {cropW}×{cropH}（{pixels} 像素，比例 {ratio}）"
@@ -22341,8 +22550,8 @@ msgid "这一格还没写画面"
 msgstr "这一格还没写画面"
 
 #: src/ai/arkClient.ts
-msgid "这一档不对当前套餐开放，去「我的」页升级套餐后再试"
-msgstr "这一档不对当前套餐开放，去「我的」页升级套餐后再试"
+#~ msgid "这一档不对当前套餐开放，去「我的」页升级套餐后再试"
+#~ msgstr "这一档不对当前套餐开放，去「我的」页升级套餐后再试"
 
 #: src/studio/flowStore.ts
 msgid "这一档不经过方案台。"
@@ -22353,8 +22562,24 @@ msgid "这一档最短 {minSec} 秒"
 msgstr "这一档最短 {minSec} 秒"
 
 #: src/components/flow/DialogueWizard.tsx
-msgid "这一档出片不出声，台词说不出来 —— 换到高清或电影级。"
-msgstr "这一档出片不出声，台词说不出来 —— 换到高清或电影级。"
+msgid "这一档出片不出声，台词说不出来 —— 出声的「{names}」是会员档。"
+msgstr "这一档出片不出声，台词说不出来 —— 出声的「{names}」是会员档。"
+
+#: src/components/flow/DialogueWizard.tsx
+msgid "这一档出片不出声，台词说不出来 —— 换到「{names}」。"
+msgstr "这一档出片不出声，台词说不出来 —— 换到「{names}」。"
+
+#: src/components/flow/DialogueWizard.tsx
+#~ msgid "这一档出片不出声，台词说不出来 —— 换到高清或电影级。"
+#~ msgstr "这一档出片不出声，台词说不出来 —— 换到高清或电影级。"
+
+#: src/data/account.ts
+msgid "这一档是会员档——开通会员套餐（或充值过任意一笔）后可用"
+msgstr "这一档是会员档——开通会员套餐（或充值过任意一笔）后可用"
+
+#: src/data/account.ts
+msgid "这一档是会员档——开通会员套餐（或充值过任意一笔）后可用；免费版能用「{free}」档出片"
+msgstr "这一档是会员档——开通会员套餐（或充值过任意一笔）后可用；免费版能用「{free}」档出片"
 
 #: src/studio/leadCast.ts
 msgid "这一档暂时报不出价，换个时间再试"
@@ -22426,7 +22651,7 @@ msgstr "这一段不是带角色位的白模段，没有可预览的挂法"
 msgid "这一段不要旁白就留空"
 msgstr "这一段不要旁白就留空"
 
-#. placeholder {0}: modelLabel(tier.model)
+#. placeholder {0}: tierModelLabel(tier)
 #: src/components/flow/ModePicker.tsx
 msgid "这一段交给 {0} 生成"
 msgstr "这一段交给 {0} 生成"
@@ -23636,9 +23861,14 @@ msgstr "这张卡说的那一段已经不在第 {seg} 位了（流水线被改�
 msgid "这张卡还没写出片句 —— 出片时提示词里只有卡名，长相由 AI 自己编（每一段都可能不一样）。"
 msgstr "这张卡还没写出片句 —— 出片时提示词里只有卡名，长相由 AI 自己编（每一段都可能不一样）。"
 
+#. placeholder {0}: voiceTierNames()
 #: src/pages/CardDetailPage.tsx
-msgid "这张卡还没有声音样本。在工坊「从视频提取」圈选人物时可以顺手取一段（2~15 秒）——出片走「高清/电影级」档且台词写在引号里时，AI 会参考这段声音的音色。"
-msgstr "这张卡还没有声音样本。在工坊「从视频提取」圈选人物时可以顺手取一段（2~15 秒）——出片走「高清/电影级」档且台词写在引号里时，AI 会参考这段声音的音色。"
+msgid "这张卡还没有声音样本。在工坊「从视频提取」圈选人物时可以顺手取一段（2~15 秒）——出片走「{0}」档且台词写在引号里时，AI 会参考这段声音的音色。"
+msgstr "这张卡还没有声音样本。在工坊「从视频提取」圈选人物时可以顺手取一段（2~15 秒）——出片走「{0}」档且台词写在引号里时，AI 会参考这段声音的音色。"
+
+#: src/pages/CardDetailPage.tsx
+#~ msgid "这张卡还没有声音样本。在工坊「从视频提取」圈选人物时可以顺手取一段（2~15 秒）——出片走「高清/电影级」档且台词写在引号里时，AI 会参考这段声音的音色。"
+#~ msgstr "这张卡还没有声音样本。在工坊「从视频提取」圈选人物时可以顺手取一段（2~15 秒）——出片走「高清/电影级」档且台词写在引号里时，AI 会参考这段声音的音色。"
 
 #: src/data/cardViews.ts
 msgid "这张图在你处理的时候变了（可能在别的设备上改过），刷新后再试"
@@ -25307,8 +25537,8 @@ msgstr "高清"
 
 #: src/components/CardModelFit.tsx
 #: src/pages/DeckDetailPage.tsx
-msgid "高清 / 电影级：{line2x}"
-msgstr "高清 / 电影级：{line2x}"
+#~ msgid "高清 / 电影级：{line2x}"
+#~ msgstr "高清 / 电影级：{line2x}"
 
 #: src/components/support/HoldToTalk.tsx
 #: src/components/VoiceRecorder.tsx

@@ -26,11 +26,11 @@ import Icon from "../components/Icon";
 import { AI_REAL, refineFrame, regenSegment } from "../ai";
 import { ANN_CLAUSE } from "../studio/segmentGen";
 import { isArkAssetUrl, requestArkTransfer, transferStatus } from "../ai/arkClient";
-import { canAfford, frozenNote, isRemoteMode, spendTokens, walletOf } from "../data/account";
+import { canAfford, frozenNote, isRemoteMode, spendTokens, tierBlockReason, walletOf } from "../data/account";
 import { idbSet } from "../data/db";
 import { dropVideoJob } from "../data/videoJobs";
 import { ownerEpoch } from "../data/deviceOwner";
-import { annRedrawCost, fmtTokens, segTokens } from "../data/economy";
+import { annRedrawCost, fmtTokens, segTokens, tierOf } from "../data/economy";
 import { publishedExit, useStudio } from "../studio/studioStore";
 import { useCut } from "../studio/cutStore";
 import {
@@ -597,7 +597,8 @@ export default function CutPage() {
   const annCost = useMemo(
     () =>
       [...annBySeg.entries()].reduce(
-        (s, [i, n]) => s + (segs[i] ? segTokens(segs[i].durationSec, segs[i].videoTier) + annRedrawCost(n) : 0),
+        // 画幅跟着这一段（480p 的每秒数按画幅不同；regenSegment 发的是同一个 aspect）
+        (s, [i, n]) => s + (segs[i] ? segTokens(segs[i].durationSec, segs[i].videoTier, aspectOf(segs[i].aspect).ratio) + annRedrawCost(n) : 0),
         0,
       ),
     [annBySeg, segs],
@@ -1160,6 +1161,16 @@ export default function CutPage() {
     if (busy || liveAnns.length === 0) return;
     const bySeg = new Map<number, Ann[]>();
     for (const a of liveAnns) bySeg.set(a.segIndex, [...(bySeg.get(a.segIndex) ?? []), a]);
+    // ★ 档位门禁（2026-10-07 免费档限制）：重拍是真出片，而这几段的档这个人现在用不了（会员档 / 已停用）的话，
+    //   改图的钱先花出去、重拍那一发才被服务端 403。判据只在 account.tierBlockReason（工作流出片问的是同一句）
+    for (const segIndex of bySeg.keys()) {
+      const blocked = segs[segIndex] ? tierBlockReason(tierOf(segs[segIndex].videoTier)) : null;
+      if (blocked) {
+        const segNo = segIndex + 1;
+        setErr(t`第 ${segNo} 段重拍不了：${blocked}`);
+        return;
+      }
+    }
     if (AI_REAL && !canAfford(annCost)) {
       const w = walletOf();
       const segCount = bySeg.size;
@@ -1234,7 +1245,7 @@ export default function CutPage() {
         // ★ 必须判 AI_REAL：演示模式下根本没调方舟，却照样扣本地余额，
         //   用户在 mock 里点几次就"没钱"了，还查不出钱花在哪
         // ★ 与按钮上那个数同源：视频那一半 + 每处圈选一张改图（annRedrawCost 唯一实现）
-        if (AI_REAL) spendTokens(segTokens(seg.durationSec, seg.videoTier) + annRedrawCost(list.length));
+        if (AI_REAL) spendTokens(segTokens(seg.durationSec, seg.videoTier, aspectOf(seg.aspect).ratio) + annRedrawCost(list.length));
         nextSegs[segIndex] = seg;
         // ★★ **每段一落地**（2026-08-21 第九轮扫描的 high）：原来整轮跑完才 setState 一次，
         //   中途失败（第 3 段撞上敏感词/超时）前面两段**钱已经扣了**，成片却随

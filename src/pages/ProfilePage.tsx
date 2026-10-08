@@ -73,8 +73,11 @@ import { cardsLoadIssue,
   billingExempt,
   buyPlan,
   deckCoverOf,
+  freeQuota,
   isFollowing,
   myCards,
+  payingNow,
+  tierNamesFor,
   myDecks,
   buyWithPlay,
   sweepPlayPurchases,
@@ -165,7 +168,7 @@ function useStranger(userId: string | null, reloadKey: number): Stranger {
 
 export default function ProfilePage() {
   const { author: routeAuthor, userId: routeUserId } = useParams<{ author?: string; userId?: string }>();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const loc = useLocation();
   const navigate = useNavigate();
   const backOrHome = useBackOr("/");
@@ -185,6 +188,15 @@ export default function ProfilePage() {
   const [pickDraft, setPickDraft] = useState<WorkDraftMeta | null>(null);
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [walletOpen, setWalletOpen] = useState(false);
+  // 「去升级」（components/UpgradeLink）落到 `/me?wallet=1`：直接打开钱包抽屉（套餐与充值都在里面），再把这一格从地址栏抹掉 ——
+  // 留着的话关了抽屉一刷新又弹出来。只对「我的」生效（别人的主页没有钱包）
+  useEffect(() => {
+    if (searchParams.get("wallet") !== "1") return;
+    if (!routeAuthor && !routeUserId) setWalletOpen(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete("wallet");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams, routeAuthor, routeUserId]);
   const [followListOpen, setFollowListOpen] = useState(false);
 
   // /u/<我自己>、/user/<我自己的 id> 也走「我的」那套：同一个人不该因为从哪个入口
@@ -1723,6 +1735,23 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
         </div>
       </div>
 
+      {/* ★ 免费额度怎么来、能用哪几档（2026-10-07 主人拍板：新人一次 + 每天补，免费用户只能用免费档出片）。
+          数字读服务端下发的规则（account.freeQuota），档名按能力现算（freeOk 且还没停用的）——不写死「极速」「草稿」，11-24 极速停用后这句话自己少一档。
+          只对「确定没付过钱」的人说（payingNow() === false）：还不知道的时候说了就可能是错的 */}
+      {payingNow() === false && (() => {
+        const q = freeQuota();
+        const daily = fmtTokens(q.dailyTokens);
+        const cap = fmtTokens(q.dailyCapTokens);
+        const names = tierNamesFor((x) => x.freeOk).usable;
+        return (
+          <div className="mb-4 rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-[11px] leading-relaxed text-sky-100">
+            <Trans>
+              免费版：每天自动补 {daily} 套餐 token（最多攒到 {cap}），能用「{names}」档出片。开通会员套餐或充值任意一笔，全部档位都能用。
+            </Trans>
+          </div>
+        );
+      })()}
+
       {/* ★ 下单结果必须如实显示。远端模式下点这些按钮**只是下单**，钱一分没付、
           余额一分没变；而且现在服务端一个支付渠道都没接，这单根本付不了。
           原来这里写的是"额度立即发放，演示模拟支付"、点完就刷新余额 ——
@@ -1757,7 +1786,8 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
                   {current && <span className="ml-1.5 rounded bg-brand/20 px-1.5 py-0.5 text-[9px] text-brand"><Trans>当前</Trans></span>}
                 </div>
                 <div className="text-[11px] text-slate-500">
-                  <Trans>{fmtTokens(p.monthlyTokens)} token/月 · {p.desc}</Trans>
+                  {/* 免费版不按月发（monthlyTokens 0）：它的额度规则整句写在 desc 里，别印出一个「0 token/月」 */}
+                  {p.monthlyTokens > 0 ? <Trans>{fmtTokens(p.monthlyTokens)} token/月 · {p.desc}</Trans> : p.desc}
                 </div>
               </div>
               <button

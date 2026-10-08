@@ -17,7 +17,7 @@ import { AI_REAL, briefArkReason, chargeNote, chargeOnFail, describeCardForText,
 import { uploadImage } from "../api/uploads";
 import { cardFitOf } from "../data/cardFit";
 import { canAfford, frozenNote, isRemoteMode, spendTokens, updateCardMeta } from "../data/account";
-import { CHAT_TURN_TOKENS, ONE_IMAGE, fmtTokens } from "../data/economy";
+import { CHAT_TURN_TOKENS, ONE_IMAGE, fmtTokens, refImgTierList } from "../data/economy";
 import { TEXT_DESC_MAX, startFramesAllowed, type Card, type VideoAspect } from "../types";
 
 const ASPECTS: VideoAspect[] = ["portrait", "landscape"];
@@ -142,7 +142,8 @@ export default function CardModelFit({ card, owned }: { card: Card; owned: boole
     <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
       <div className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>🎛 按模型适配</Trans></div>
       <ul className="mb-2 space-y-0.5 text-[10px] leading-relaxed text-slate-400">
-        <li><Trans>高清 / 电影级：{line2x}</Trans></li>
+        {/* 行首按能力现算（economy.refImgTierList）：2026-10-07 加了「草稿」，写死「高清 / 电影级」就少说一档 */}
+        <li><Trans>{refImgTierList()}：{line2x}</Trans></li>
         <li><Trans>标准 / 极速：{line10}</Trans></li>
         <li><Trans>真人档：{lineReal}</Trans></li>
       </ul>

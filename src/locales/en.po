@@ -223,7 +223,6 @@ msgstr ", "
 #. 把几条「这一档为什么点不动」的原因连成一行时的分隔符
 #. 把几条「这一档为什么点不动」的原因连成一行时的分隔符
 #. 把几条「这一档为什么点不动」的原因连成一行时的分隔符
-#. 把几条「这一档为什么点不动」的原因连成一行时的分隔符
 #. 把几条说明连成一句时的分隔符
 #. 把几条说明连成一句时的分隔符
 #. 把几条说明连成一句时的分隔符
@@ -235,7 +234,6 @@ msgstr ", "
 #. 把铸卡时的几条说明连成一句时的分隔符
 #: src/ai/real.ts
 #: src/components/flow/SegSettings.tsx
-#: src/components/flow/TierRow.tsx
 #: src/live2d/bundlePreview.ts
 #: src/pages/CardDetailPage.tsx
 #: src/pages/FeedPage.tsx
@@ -911,6 +909,12 @@ msgstr "{0} and others ({1, plural, one {# image} other {# images}} in total) co
 #: src/studio/flowStore.ts
 msgid "{0}，这一段改成了普通段（剧情要自己写）"
 msgstr "{0}, so this segment became a regular one (write the plot yourself)"
+
+#. placeholder {0}: refImgTierList()
+#: src/components/CardModelFit.tsx
+#: src/pages/DeckDetailPage.tsx
+msgid "{0}：{line2x}"
+msgstr "{0}: {line2x}"
 
 #. placeholder {0}: c.name
 #: src/studio/ui/FuseFrameSheet.tsx
@@ -1621,8 +1625,23 @@ msgstr "“{0}” has stages due for review"
 
 #. placeholder {0}: tier.label
 #: src/studio/segmentGen.ts
-msgid "「{0}」档不支持参考图，改为先按描述画一张设定帧再出片（想直接用卡片形象请选「高清」或「电影级」）"
-msgstr "The “{0}” tier doesn't support reference images, so a setup frame will be drawn from the description first (to use the card images directly, choose “HD” or “Cinematic”)"
+msgid "「{0}」档不支持参考图，改为先按描述画一张设定帧再出片（想直接用卡片形象请选「{names}」）"
+msgstr "The “{0}” tier doesn't support reference images, so a setup frame will be drawn from the description first (to use the card images directly, choose “{names}”)"
+
+#. placeholder {0}: tier.label
+#: src/studio/segmentGen.ts
+#~ msgid "「{0}」档不支持参考图，改为先按描述画一张设定帧再出片（想直接用卡片形象请选「高清」或「电影级」）"
+#~ msgstr "The “{0}” tier doesn't support reference images, so a setup frame will be drawn from the description first (to use the card images directly, choose “HD” or “Cinematic”)"
+
+#. placeholder {0}: tier.label
+#: src/studio/segmentGen.ts
+msgid "「{0}」档不支持参考图，改为先按描述画一张设定帧再出片（直接用卡片形象要「{names}」，会员档）"
+msgstr "The “{0}” tier doesn't support reference images, so a setup frame will be drawn from the description first (using the card images directly needs “{names}”, a member tier)"
+
+#. placeholder {0}: refTier.label
+#: src/studio/segmentGen.ts
+msgid "「{0}」档不支持带参考视频出片——去 ⚙ 本段设置换成「{names}」档，或移除参考视频"
+msgstr "The “{0}” tier can't render with a reference video — switch to “{names}” in ⚙ Segment settings, or remove the reference video"
 
 #. placeholder {0}: refTier.label
 #: src/studio/segmentGen.ts
@@ -1631,18 +1650,43 @@ msgstr "The “{0}” tier doesn't support reference images, so a setup frame wi
 
 #. placeholder {0}: refTier.label
 #: src/studio/segmentGen.ts
-msgid "「{0}」档不支持带参考视频出片——去 ⚙ 本段设置换成「高清」或「电影级」档，或移除参考视频"
-msgstr "The “{0}” tier can't render with a reference video — switch to “HD” or “Cinematic” in ⚙ Segment settings, or remove the reference video"
+#~ msgid "「{0}」档不支持带参考视频出片——去 ⚙ 本段设置换成「高清」或「电影级」档，或移除参考视频"
+#~ msgstr "The “{0}” tier can't render with a reference video — switch to “HD” or “Cinematic” in ⚙ Segment settings, or remove the reference video"
+
+#. placeholder {0}: refTier.label
+#: src/studio/segmentGen.ts
+msgid "「{0}」档不支持带参考视频出片——带得了的「{names}」是会员档；移除参考视频，或开通会员套餐（或充值过任意一笔）"
+msgstr "The “{0}” tier can't render with a reference video — the tiers that can (“{names}”) are member tiers; remove the reference video, or subscribe to a plan (or make any top-up once)"
 
 #. placeholder {0}: o.tier.label
 #: src/studio/segmentGen.ts
-msgid "「{0}」档出片无声，台词不会被配音（要声音选「高清」或「电影级」）"
-msgstr "The “{0}” tier renders without sound, so dialogue won't be voiced (choose “HD” or “Cinematic” for sound)"
+msgid "「{0}」档出片无声，台词不会被配音（要声音得用「{names}」，会员档）"
+msgstr "The “{0}” tier renders without sound, so dialogue won't be voiced (sound needs “{names}”, a member tier)"
+
+#. placeholder {0}: o.tier.label
+#: src/studio/segmentGen.ts
+msgid "「{0}」档出片无声，台词不会被配音（要声音选「{names}」）"
+msgstr "The “{0}” tier renders without sound, so dialogue won't be voiced (choose “{names}” for sound)"
+
+#. placeholder {0}: o.tier.label
+#: src/studio/segmentGen.ts
+#~ msgid "「{0}」档出片无声，台词不会被配音（要声音选「高清」或「电影级」）"
+#~ msgstr "The “{0}” tier renders without sound, so dialogue won't be voiced (choose “HD” or “Cinematic” for sound)"
 
 #. placeholder {0}: tier.label
 #: src/studio/segmentGen.ts
-msgid "「{0}」档协议上不收参考图，临时参考图这次没发出去（想用它们换「高清」或「电影级」）"
-msgstr "The “{0}” tier doesn't accept reference images, so the extra reference images weren't sent this time (switch to “HD” or “Cinematic” to use them)"
+msgid "「{0}」档协议上不收参考图，临时参考图这次没发出去（想用它们换「{names}」）"
+msgstr "The “{0}” tier doesn't accept reference images, so the extra reference images weren't sent this time (switch to “{names}” to use them)"
+
+#. placeholder {0}: tier.label
+#: src/studio/segmentGen.ts
+#~ msgid "「{0}」档协议上不收参考图，临时参考图这次没发出去（想用它们换「高清」或「电影级」）"
+#~ msgstr "The “{0}” tier doesn't accept reference images, so the extra reference images weren't sent this time (switch to “HD” or “Cinematic” to use them)"
+
+#. placeholder {0}: tier.label
+#: src/studio/segmentGen.ts
+msgid "「{0}」档协议上不收参考图，临时参考图这次没发出去（用它们要「{names}」，会员档）"
+msgstr "The “{0}” tier doesn't accept reference images, so the extra reference images weren't sent this time (using them needs “{names}”, a member tier)"
 
 #. placeholder {0}: tierOf(editor.videoTier).label
 #: src/studio/ui/projection.tsx
@@ -1661,18 +1705,18 @@ msgstr "The “{0}” tier can't take a reference video"
 
 #. placeholder {0}: tierOf(editor.videoTier).label
 #: src/studio/ui/projection.tsx
-msgid "「{0}」档带不了参考视频——到「定规格」那一步换成「高清」（「电影级」是付费档），或直接跳过这一步自己给首尾帧"
-msgstr "The “{0}” tier can't take a reference video — switch to “HD” in the Specs step (“Cinematic” is a paid tier), or skip this step and provide the first and last frames yourself"
+#~ msgid "「{0}」档带不了参考视频——到「定规格」那一步换成「高清」（「电影级」是付费档），或直接跳过这一步自己给首尾帧"
+#~ msgstr "The “{0}” tier can't take a reference video — switch to “HD” in the Specs step (“Cinematic” is a paid tier), or skip this step and provide the first and last frames yourself"
 
 #. placeholder {0}: tierOf(editor.videoTier).label
 #: src/studio/ui/projection.tsx
-msgid "「{0}」档带不了参考视频——到「定规格」那一步换成「高清」或「电影级」，或直接跳过这一步自己给首尾帧"
-msgstr "The “{0}” tier can't take a reference video — switch to “HD” or “Cinematic” in the Specs step, or skip this step and provide the first and last frames yourself"
+#~ msgid "「{0}」档带不了参考视频——到「定规格」那一步换成「高清」或「电影级」，或直接跳过这一步自己给首尾帧"
+#~ msgstr "The “{0}” tier can't take a reference video — switch to “HD” or “Cinematic” in the Specs step, or skip this step and provide the first and last frames yourself"
 
 #. placeholder {0}: tierOf(node.videoTier).label
 #: src/components/flow/FlowCanvas.tsx
-msgid "「{0}」档收不了参考图：这一段出片前会先按提示词画帧（计费）。想让人物图直接给视频模型，到 ⚙ 本段设置换成高清或电影级。"
-msgstr "The “{0}” tier can't take reference images: frames will be drawn from the prompt before this segment renders (charged). To send the character images straight to the video model, switch to HD or Cinematic in ⚙ Segment settings."
+#~ msgid "「{0}」档收不了参考图：这一段出片前会先按提示词画帧（计费）。想让人物图直接给视频模型，到 ⚙ 本段设置换成高清或电影级。"
+#~ msgstr "The “{0}” tier can't take reference images: frames will be drawn from the prompt before this segment renders (charged). To send the character images straight to the video model, switch to HD or Cinematic in ⚙ Segment settings."
 
 #. placeholder {0}: o.tier.label
 #: src/studio/segmentGen.ts
@@ -1726,9 +1770,33 @@ msgstr "“{0}” is minted"
 msgid "「{ch}」"
 msgstr "“{ch}”"
 
+#: src/studio/ui/projection.tsx
+msgid "「{cur}」档带不了参考视频——到「定规格」那一步换成「{usable}」，或直接跳过这一步自己给首尾帧"
+msgstr "The “{cur}” tier can't take a reference video — switch to “{usable}” in the Specs step, or skip this step and provide the first and last frames yourself"
+
+#: src/studio/ui/projection.tsx
+msgid "「{cur}」档带不了参考视频；带得了的「{member}」是会员档，开通会员套餐（或充值过任意一笔）后可用——或直接跳过这一步自己给首尾帧"
+msgstr "The “{cur}” tier can't take a reference video; the tiers that can (“{member}”) are member tiers, available once you subscribe to a plan (or make any top-up once) — or skip this step and provide the first and last frames yourself"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "「{cur}」档收不了参考图：这一段出片前会先按提示词画帧（计费）。人物图直接给视频模型要「{names}」（会员档）。"
+msgstr "The “{cur}” tier can't take reference images: frames will be drawn from the prompt before this segment renders (charged). Sending the character images straight to the video model needs “{names}” (member tier)."
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "「{cur}」档收不了参考图：这一段出片前会先按提示词画帧（计费）。想让人物图直接给视频模型，到 ⚙ 本段设置换成「{names}」。"
+msgstr "The “{cur}” tier can't take reference images: frames will be drawn from the prompt before this segment renders (charged). To send the character images straight to the video model, switch to “{names}” in ⚙ Segment settings."
+
 #: src/studio/flowStore.ts
-msgid "「{extLabel}」档还不能延长——去 ⚙ 本段设置换成「电影级」档"
-msgstr "The “{extLabel}” tier can’t extend yet — switch to “Cinematic” in ⚙ Segment settings"
+msgid "「{extLabel}」档还不能延长——去 ⚙ 本段设置换成「{names}」档"
+msgstr "The “{extLabel}” tier can’t extend yet — switch to “{names}” in ⚙ Segment settings"
+
+#: src/studio/flowStore.ts
+#~ msgid "「{extLabel}」档还不能延长——去 ⚙ 本段设置换成「电影级」档"
+#~ msgstr "The “{extLabel}” tier can’t extend yet — switch to “Cinematic” in ⚙ Segment settings"
+
+#: src/studio/flowStore.ts
+msgid "「{extLabel}」档还不能延长——能延长的「{names}」是会员档（开通会员套餐或充值过任意一笔后可用）"
+msgstr "The “{extLabel}” tier can’t extend yet — the tiers that can (“{names}”) are member tiers (available once you subscribe to a plan or make any top-up once)"
 
 #: src/data/account.ts
 #~ msgid "「{label}」单段消耗超过免费版整月额度（{quota}），升级套餐后可用"
@@ -1743,8 +1811,16 @@ msgid "「{label}」档的模型已于 {day}停用——换一档再出片"
 msgstr "The model behind the “{label}” tier was retired on {day} — pick another tier to generate"
 
 #: src/studio/flowStore.ts
-msgid "「{label}」档还不能延长——用电影级出的段才能延长"
-msgstr "The “{label}” tier can’t extend yet — only segments rendered on Cinematic can be extended"
+msgid "「{label}」档还不能延长——用「{names}」出的段才能延长"
+msgstr "The “{label}” tier can’t extend yet — only segments rendered on “{names}” can be extended"
+
+#: src/studio/flowStore.ts
+msgid "「{label}」档还不能延长——用「{names}」出的段才能延长（会员档）"
+msgstr "The “{label}” tier can’t extend yet — only segments rendered on “{names}” (member tier) can be extended"
+
+#: src/studio/flowStore.ts
+#~ msgid "「{label}」档还不能延长——用电影级出的段才能延长"
+#~ msgstr "The “{label}” tier can’t extend yet — only segments rendered on Cinematic can be extended"
 
 #: src/data/economy.ts
 msgid "「{label}」这一档暂时报不出价（{model} 不在价目表里），先用别的档位"
@@ -1932,8 +2008,16 @@ msgid "「{staleText}」过期了（人、整体交代或双人镜头改过）�
 msgstr "“{staleText}” is out of date (the people, the setting or the two-shot changed) — go back a step and redraw it."
 
 #: src/pages/FlowPage.tsx
-msgid "「{tierLabel}」档不支持参考图：会先按描述画一张设定帧再出片。想直接用卡片形象，在「⚙ 本段设置」里换成「高清」或「电影级」"
-msgstr "The “{tierLabel}” tier doesn't support reference images: a setup frame is drawn from the description before rendering. To use the card images directly, switch to HD or Cinematic in “⚙ segment settings”"
+msgid "「{tierLabel}」档不支持参考图：会先按描述画一张设定帧再出片。想直接用卡片形象，在「⚙ 本段设置」里换成「{names}」"
+msgstr "The “{tierLabel}” tier doesn't support reference images: a setup frame is drawn from the description before rendering. To use the card images directly, switch to “{names}” in “⚙ segment settings”"
+
+#: src/pages/FlowPage.tsx
+#~ msgid "「{tierLabel}」档不支持参考图：会先按描述画一张设定帧再出片。想直接用卡片形象，在「⚙ 本段设置」里换成「高清」或「电影级」"
+#~ msgstr "The “{tierLabel}” tier doesn't support reference images: a setup frame is drawn from the description before rendering. To use the card images directly, switch to HD or Cinematic in “⚙ segment settings”"
+
+#: src/pages/FlowPage.tsx
+msgid "「{tierLabel}」档不支持参考图：会先按描述画一张设定帧再出片。直接用卡片形象要「{names}」（会员档）"
+msgstr "The “{tierLabel}” tier doesn't support reference images: a setup frame is drawn from the description before rendering. Using the card images directly needs “{names}” (member tier)"
 
 #: src/ai/real.ts
 msgid "「{tierLabel}」档不支持带参考视频出片"
@@ -1944,24 +2028,52 @@ msgid "「{tierLabel}」档协议上不收参考图，不能按参考图生视�
 msgstr "The “{tierLabel}” tier's protocol doesn't accept reference images, so it can't render from reference images"
 
 #: src/components/flow/RefStrip.tsx
-msgid "「{tierLabel}」档协议上不收参考图：卡片形象只用来画首尾帧，出片时模型看到的只有首尾帧。想让模型直接看到卡片形象与临时参考图，换「高清」或「电影级」。"
-msgstr "The “{tierLabel}” tier doesn't accept reference images: card images are only used to draw the first and last frames, and those frames are all the video model sees. To let the model see card images and extra reference images directly, switch to “HD” or “Cinematic”."
+msgid "「{tierLabel}」档协议上不收参考图：卡片形象只用来画首尾帧，出片时模型看到的只有首尾帧。想让模型直接看到卡片形象与临时参考图，换「{imgUsable}」。"
+msgstr "The “{tierLabel}” tier doesn't accept reference images: card images are only used to draw the first and last frames, and those frames are all the video model sees. To let the model see card images and extra reference images directly, switch to “{imgUsable}”."
 
 #: src/components/flow/RefStrip.tsx
-msgid "「{tierLabel}」档带不了示例视频——换成「高清」或「电影级」之后这里才排得出清单。"
-msgstr "The “{tierLabel}” tier can't take a sample video — switch to “HD” or “Cinematic” and the list will show up here."
+#~ msgid "「{tierLabel}」档协议上不收参考图：卡片形象只用来画首尾帧，出片时模型看到的只有首尾帧。想让模型直接看到卡片形象与临时参考图，换「高清」或「电影级」。"
+#~ msgstr "The “{tierLabel}” tier doesn't accept reference images: card images are only used to draw the first and last frames, and those frames are all the video model sees. To let the model see card images and extra reference images directly, switch to “HD” or “Cinematic”."
+
+#: src/components/flow/RefStrip.tsx
+msgid "「{tierLabel}」档协议上不收参考图：卡片形象只用来画首尾帧，出片时模型看到的只有首尾帧。让模型直接看到卡片形象与临时参考图要「{imgMember}」（会员档）。"
+msgstr "The “{tierLabel}” tier doesn't accept reference images: card images are only used to draw the first and last frames, and those frames are all the video model sees. Letting the model see card images and extra reference images directly needs “{imgMember}” (member tier)."
+
+#: src/components/flow/RefStrip.tsx
+msgid "「{tierLabel}」档带不了示例视频——换成「{vidUsable}」之后这里才排得出清单。"
+msgstr "The “{tierLabel}” tier can't take a sample video — switch to “{vidUsable}” and the list will show up here."
+
+#: src/components/flow/RefStrip.tsx
+#~ msgid "「{tierLabel}」档带不了示例视频——换成「高清」或「电影级」之后这里才排得出清单。"
+#~ msgstr "The “{tierLabel}” tier can't take a sample video — switch to “HD” or “Cinematic” and the list will show up here."
+
+#: src/components/flow/RefStrip.tsx
+msgid "「{tierLabel}」档带不了示例视频；带得了的「{vidMember}」是会员档（开通会员套餐或充值过任意一笔后可用）。"
+msgstr "The “{tierLabel}” tier can't take a sample video; the tiers that can (“{vidMember}”) are member tiers (available once you subscribe to a plan or make any top-up once)."
 
 #: src/ai/real.ts
 msgid "「{tierLabel}」档跑不了白模模板（模板对出片模型是硬要求）"
 msgstr "The “{tierLabel}” tier can't run blockout templates (a template requires a specific video model)"
 
 #: src/studio/segmentGen.ts
-msgid "「{tierLabel}」档还不能延长——去 ⚙ 本段设置换成「电影级」档"
-msgstr "The “{tierLabel}” tier can’t extend yet — switch to “Cinematic” in ⚙ Segment settings"
+msgid "「{tierLabel}」档还不能延长——去 ⚙ 本段设置换成「{names}」档"
+msgstr "The “{tierLabel}” tier can’t extend yet — switch to “{names}” in ⚙ Segment settings"
+
+#: src/studio/segmentGen.ts
+#~ msgid "「{tierLabel}」档还不能延长——去 ⚙ 本段设置换成「电影级」档"
+#~ msgstr "The “{tierLabel}” tier can’t extend yet — switch to “Cinematic” in ⚙ Segment settings"
 
 #: src/ai/real.ts
-msgid "「{tierLabel}」档还不能延长——用电影级出的段才能延长"
-msgstr "The “{tierLabel}” tier can’t extend yet — only segments rendered on Cinematic can be extended"
+msgid "「{tierLabel}」档还不能延长——用「{names}」出的段才能延长"
+msgstr "The “{tierLabel}” tier can’t extend yet — only segments rendered on “{names}” can be extended"
+
+#: src/ai/real.ts
+#~ msgid "「{tierLabel}」档还不能延长——用电影级出的段才能延长"
+#~ msgstr "The “{tierLabel}” tier can’t extend yet — only segments rendered on Cinematic can be extended"
+
+#: src/studio/segmentGen.ts
+msgid "「{tierLabel}」档还不能延长——能延长的「{names}」是会员档（开通会员套餐或充值过任意一笔后可用）"
+msgstr "The “{tierLabel}” tier can’t extend yet — the tiers that can (“{names}”) are member tiers (available once you subscribe to a plan or make any top-up once)"
 
 #. 个人页「还没传到服务器」横幅：只有作品标题（这一条没记下没传上去的原因）
 #: src/pages/ProfilePage.tsx
@@ -1995,12 +2107,28 @@ msgid "「{title}」要两个人：按点的先后，先点的是第一个人。
 msgstr "“{title}” needs two people: the one you tap first is the first person."
 
 #: src/components/flow/ModePicker.tsx
-msgid "「{title}」要收参考图的模型：换到高清或电影级就有"
-msgstr "“{title}” needs a model that takes reference images: switch to HD or Cinematic to get it"
+msgid "「{title}」要收参考图的模型：「{member}」才有（会员档）"
+msgstr "“{title}” needs a model that takes reference images: only “{member}” have it (member tiers)"
 
 #: src/components/flow/ModePicker.tsx
-msgid "「{title}」要能出声的模型（台词得说出来）：换到高清或电影级就有"
-msgstr "“{title}” needs a model with sound (the lines have to be spoken): switch to HD or Cinematic"
+msgid "「{title}」要收参考图的模型：换到「{usable}」就有"
+msgstr "“{title}” needs a model that takes reference images: switch to “{usable}” to get it"
+
+#: src/components/flow/ModePicker.tsx
+#~ msgid "「{title}」要收参考图的模型：换到高清或电影级就有"
+#~ msgstr "“{title}” needs a model that takes reference images: switch to HD or Cinematic to get it"
+
+#: src/components/flow/ModePicker.tsx
+msgid "「{title}」要能出声的模型（台词得说出来）：「{member}」才有（会员档）"
+msgstr "“{title}” needs a model with sound (the lines have to be spoken): only “{member}” have it (member tiers)"
+
+#: src/components/flow/ModePicker.tsx
+msgid "「{title}」要能出声的模型（台词得说出来）：换到「{usable}」就有"
+msgstr "“{title}” needs a model with sound (the lines have to be spoken): switch to “{usable}”"
+
+#: src/components/flow/ModePicker.tsx
+#~ msgid "「{title}」要能出声的模型（台词得说出来）：换到高清或电影级就有"
+#~ msgstr "“{title}” needs a model with sound (the lines have to be spoken): switch to HD or Cinematic"
 
 #: src/studio/canvasAgent.ts
 msgid "「{u}」"
@@ -2179,7 +2307,7 @@ msgstr "+ Save as skill"
 #~ msgid "＋ 已在控制台授权过？直接填 asset ID"
 #~ msgstr "+ Already authorized in the console? Enter the asset ID"
 
-#. placeholder {0}: modelLabel(tier.model)
+#. placeholder {0}: tierModelLabel(tier)
 #. placeholder {1}: fmtTokens(videoTokens)
 #: src/components/blockout/BlockoutTrimmer.tsx
 msgid "+ 把这 {durSec} 秒整段换成白模人偶（{0} · {1}）"
@@ -2521,13 +2649,30 @@ msgstr "⚠ This one is in <0>Simple mode</0>: by design it isn't saved to draft
 
 #. placeholder {0}: tierOf(node.videoTier).label
 #: src/components/flow/FlowCanvas.tsx
-msgid "⚠「{0}」档带不了参考视频——去 ⚙ 本段设置换成「高清」或「电影级」，否则生成会被整句拒。"
-msgstr "⚠ The “{0}” tier can't take a reference video — switch to “HD” or “Cinematic” in ⚙ Segment settings, or generation will be rejected."
+#~ msgid "⚠「{0}」档带不了参考视频——去 ⚙ 本段设置换成「高清」或「电影级」，否则生成会被整句拒。"
+#~ msgstr "⚠ The “{0}” tier can't take a reference video — switch to “HD” or “Cinematic” in ⚙ Segment settings, or generation will be rejected."
 
 #. placeholder {0}: tierOf(editor.videoTier).label
 #: src/studio/ui/projection.tsx
-msgid "⚠「{0}」档带不了参考视频——选「电影级」，否则出片会被整句拒"
-msgstr "⚠ The “{0}” tier can't take a reference video — choose “Cinematic”, or generation will be rejected"
+#~ msgid "⚠「{0}」档带不了参考视频——选「电影级」，否则出片会被整句拒"
+#~ msgstr "⚠ The “{0}” tier can't take a reference video — choose “Cinematic”, or generation will be rejected"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "⚠「{cur}」档带不了参考视频——去 ⚙ 本段设置换成「{usable}」，否则生成会被整句拒。"
+msgstr "⚠ The “{cur}” tier can't take a reference video — switch to “{usable}” in ⚙ Segment settings, or generation will be rejected."
+
+#: src/studio/ui/projection.tsx
+msgid "⚠「{cur}」档带不了参考视频——选「{usable}」，否则出片会被整句拒"
+msgstr "⚠ The “{cur}” tier can't take a reference video — choose “{usable}”, or generation will be rejected"
+
+#: src/components/flow/FlowCanvas.tsx
+#: src/studio/ui/projection.tsx
+msgid "⚠「{cur}」档带不了参考视频，而带得了的「{member}」是会员档——摘掉示例视频，或开通会员套餐（或充值过任意一笔）"
+msgstr "⚠ The “{cur}” tier can't take a reference video, and the tiers that can (“{member}”) are member tiers — remove the sample video, or subscribe to a plan (or make any top-up once)"
+
+#: src/components/flow/FlowCanvas.tsx
+#~ msgid "⚠「{cur}」档带不了参考视频，而带得了的「{member}」是会员档——摘掉示例视频，或开通会员套餐（或充值过任意一笔）。"
+#~ msgstr ""
 
 #. placeholder {0}: fmtTokens(lockPrice)
 #: src/pages/FeedPage.tsx
@@ -3235,8 +3380,16 @@ msgid "🔄 重新拆（{splitPrice}，会换掉上面的分镜）"
 msgstr "🔄 Split again ({splitPrice}; replaces the shots above)"
 
 #: src/components/flow/RefStrip.tsx
-msgid "🔇 {idleNames} 带着声音样本，但「{tierLabel}」档出片无声——要配音换「高清」或「电影级」。"
-msgstr "🔇 {idleNames} has a voice sample, but the “{tierLabel}” tier renders without sound — switch to “HD” or “Cinematic” for dubbing."
+msgid "🔇 {idleNames} 带着声音样本，但「{tierLabel}」档出片无声——要配音换「{audioUsable}」。"
+msgstr "🔇 {idleNames} has a voice sample, but the “{tierLabel}” tier renders without sound — switch to “{audioUsable}” for dubbing."
+
+#: src/components/flow/RefStrip.tsx
+#~ msgid "🔇 {idleNames} 带着声音样本，但「{tierLabel}」档出片无声——要配音换「高清」或「电影级」。"
+#~ msgstr "🔇 {idleNames} has a voice sample, but the “{tierLabel}” tier renders without sound — switch to “HD” or “Cinematic” for dubbing."
+
+#: src/components/flow/RefStrip.tsx
+msgid "🔇 {idleNames} 带着声音样本，但「{tierLabel}」档出片无声——配音要「{audioMember}」（会员档）。"
+msgstr "🔇 {idleNames} has a voice sample, but the “{tierLabel}” tier renders without sound — dubbing needs “{audioMember}” (member tier)."
 
 #: src/components/flow/RefStrip.tsx
 msgid "🔇 {idleNames} 带着声音样本，但句子里没有台词——把台词写进引号（「」或 “”）里，才会按这张卡的声音配音。"
@@ -6106,9 +6259,14 @@ msgstr "View the video first"
 msgid "先去逛逛，好了叫我"
 msgstr "Look around, tell me when it's done"
 
+#. placeholder {0}: voiceTierNames()
 #: src/components/VideoCardAnnotator.tsx
-msgid "先听一遍：要的是<0>这个人说话</0>的干净片段。出片走「高清/电影级」且台词写在引号里时， 会把这段声音发给 AI 作音色参考（免费）。样本只存在这台设备上，分享卡片不带它。"
-msgstr "Listen to it first: you want a clean clip of <0>this person speaking</0>. When a video renders on the HD or Cinematic tier with dialogue in quotes, this clip is sent to the AI as a voice reference (free). The sample stays on this device and isn't included when you share the card."
+msgid "先听一遍：要的是<0>这个人说话</0>的干净片段。出片走「{0}」且台词写在引号里时， 会把这段声音发给 AI 作音色参考（免费）。样本只存在这台设备上，分享卡片不带它。"
+msgstr "Listen to it first: you want a clean clip of <0>this person speaking</0>. When a video renders on the “{0}” tier with dialogue in quotes, this clip is sent to the AI as a voice reference (free). The sample stays on this device and isn't included when you share the card."
+
+#: src/components/VideoCardAnnotator.tsx
+#~ msgid "先听一遍：要的是<0>这个人说话</0>的干净片段。出片走「高清/电影级」且台词写在引号里时， 会把这段声音发给 AI 作音色参考（免费）。样本只存在这台设备上，分享卡片不带它。"
+#~ msgstr "Listen to it first: you want a clean clip of <0>this person speaking</0>. When a video renders on the HD or Cinematic tier with dialogue in quotes, this clip is sent to the AI as a voice reference (free). The sample stays on this device and isn't included when you share the card."
 
 #: src/pages/CutPage.tsx
 msgid "先存起来，圈完所有要改的地方再一次性重新生成"
@@ -6275,6 +6433,10 @@ msgstr "Free · re-composes the casting line (overwrites your edits)"
 #: src/pages/ProfilePage.tsx
 msgid "免费版"
 msgstr "Free"
+
+#: src/pages/ProfilePage.tsx
+msgid "免费版：每天自动补 {daily} 套餐 token（最多攒到 {cap}），能用「{names}」档出片。开通会员套餐或充值任意一笔，全部档位都能用。"
+msgstr "Free plan: {daily} plan tokens are added every day (saving up to {cap}), and you can generate on “{names}”. Subscribe to a plan or make any top-up once to unlock every tier."
 
 #: src/components/flow/ThemeRewriteSheet.tsx
 msgid "全不选"
@@ -7030,13 +7192,23 @@ msgstr "Missing the starting image: no first frame and no reference image"
 msgid "出片花的就是这些 token"
 msgstr "These tokens pay for rendering"
 
+#. placeholder {0}: voiceTierNames()
 #: src/pages/CardDetailPage.tsx
-msgid "出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段声音的音色（尽力而为，不是复刻）。样本只存在这台设备上，分享卡片不带它。"
-msgstr "When a video renders on the HD or Cinematic tier with dialogue in quotes, the AI uses this clip as a voice reference (best effort, not a clone). The sample stays on this device and isn't included when you share the card."
+msgid "出片走「{0}」档、台词写在引号里时，AI 会参考这段声音的音色（尽力而为，不是复刻）。样本只存在这台设备上，分享卡片不带它。"
+msgstr "When a video renders on the “{0}” tier with dialogue in quotes, the AI uses this clip as a voice reference (best effort, not a clone). The sample stays on this device and isn't included when you share the card."
+
+#. placeholder {0}: voiceTierNames()
+#: src/pages/CustomCardPage.tsx
+msgid "出片走「{0}」档、台词写在引号里时，AI 会参考这段音色说话。样本只存在这台设备上，不随分享带走。"
+msgstr "On the “{0}” tier, with dialogue written in quotes, the AI uses this voice as a reference. The sample stays on this device and isn't included when you share."
+
+#: src/pages/CardDetailPage.tsx
+#~ msgid "出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段声音的音色（尽力而为，不是复刻）。样本只存在这台设备上，分享卡片不带它。"
+#~ msgstr "When a video renders on the HD or Cinematic tier with dialogue in quotes, the AI uses this clip as a voice reference (best effort, not a clone). The sample stays on this device and isn't included when you share the card."
 
 #: src/pages/CustomCardPage.tsx
-msgid "出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段音色说话。样本只存在这台设备上，不随分享带走。"
-msgstr "On the “HD / Cinematic” tier, with dialogue written in quotes, the AI uses this voice as a reference. The sample stays on this device and isn't included when you share."
+#~ msgid "出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段音色说话。样本只存在这台设备上，不随分享带走。"
+#~ msgstr "On the “HD / Cinematic” tier, with dialogue written in quotes, the AI uses this voice as a reference. The sample stays on this device and isn't included when you share."
 
 #: src/components/VisibilityPicker.tsx
 msgid "出现在首页、分区和搜索里，谁都能看"
@@ -8097,8 +8269,7 @@ msgstr "Mint some in the Workshop"
 msgid "去制作"
 msgstr "Create"
 
-#: src/components/flow/TierRow.tsx
-#: src/pages/TemplateDetailPage.tsx
+#: src/components/UpgradeLink.tsx
 msgid "去升级"
 msgstr "Upgrade"
 
@@ -8240,12 +8411,24 @@ msgid "参考图直出的方案摆上桌了——人物图会直接给视频模�
 msgstr "The direct plan is on the table — the character images go straight to the video model and no frames are drawn. Once the prompt looks right, tap “⚡ Generate this segment's video”."
 
 #: src/components/flow/FlowCanvas.tsx
-msgid "参考图直出要收参考图的模型——到 ⚙ 本段设置换成高清或电影级"
-msgstr "Direct from reference images needs a model that takes reference images — switch to HD or Cinematic in ⚙ Segment settings"
+msgid "参考图直出要收参考图的模型——「{names}」是会员档，开通会员套餐后可用"
+msgstr "Direct from reference images needs a model that takes reference images — “{names}” are member tiers, available once you subscribe to a plan"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "参考图直出要收参考图的模型——到 ⚙ 本段设置换成「{names}」"
+msgstr "Direct from reference images needs a model that takes reference images — switch to “{names}” in ⚙ Segment settings"
+
+#: src/components/flow/FlowCanvas.tsx
+#~ msgid "参考图直出要收参考图的模型——到 ⚙ 本段设置换成高清或电影级"
+#~ msgstr "Direct from reference images needs a model that takes reference images — switch to HD or Cinematic in ⚙ Segment settings"
 
 #: src/studio/ui/projection.tsx
-msgid "参考图直出要收参考图的模型（高清 / 电影级）"
-msgstr "Direct from reference images needs a model that takes reference images (HD / Cinematic)"
+msgid "参考图直出要收参考图的模型（「{refImgList}」）"
+msgstr "Direct from reference images needs a model that takes reference images (“{refImgList}”)"
+
+#: src/studio/ui/projection.tsx
+#~ msgid "参考图直出要收参考图的模型（高清 / 电影级）"
+#~ msgstr "Direct from reference images needs a model that takes reference images (HD / Cinematic)"
 
 #: src/types.ts
 #~ msgid "参考图预算还有余时才轮到它"
@@ -14772,7 +14955,7 @@ msgstr "This opening"
 msgid "本段承接上一段的结尾画面，开头画面不重画——你圈在前半段的 {skippedAnns} 处只作为文字要求写进出片提示词（这几处不计费）"
 msgstr "This segment continues from the previous segment's ending frame, so the opening frame isn't redrawn — {skippedAnns, plural, one {the # circle you drew in the first half goes} other {the # circles you drew in the first half go}} into the video prompt as text only (no charge for {skippedAnns, plural, one {it} other {them}})"
 
-#. placeholder {0}: modelLabel(tierOf(node.videoTier).model)
+#. placeholder {0}: tierModelLabel(tierOf(node.videoTier))
 #: src/components/flow/SegSettings.tsx
 msgid "本段模型：{0}"
 msgstr "Model: {0}"
@@ -15113,7 +15296,7 @@ msgctxt "人偶的主色（挂卡提醒那句话里显示）"
 msgid "棕"
 msgstr "brown"
 
-#. placeholder {0}: modelLabel(tierOf(editor.videoTier).model)
+#. placeholder {0}: tierModelLabel(tierOf(editor.videoTier))
 #: src/studio/ui/projection.tsx
 msgid "模型：{0}"
 msgstr "Model: {0}"
@@ -16255,6 +16438,10 @@ msgstr "No templates render on “{name}” ({model}) — tap the button next to
 msgid "没有能用「{name}」（{model}）出片的模板。现有的 {hidden} 个都要按参考视频逐镜头复刻，只有「{needLabel}」（{needModel}）做得到——点搜索栏旁边那颗键换一个模型，或者选回「全部模型」。"
 msgstr "No templates render on “{name}” ({model}). {hidden, plural, one {The # template here remakes} other {All # templates here remake}} a reference video shot by shot, which only “{needLabel}” ({needModel}) can do — tap the button next to the search box to pick another model, or go back to “All models”."
 
+#: src/components/TemplateShelf.tsx
+msgid "没有能用「{name}」（{model}）出片的模板。现有的 {hidden} 个都要按参考视频逐镜头复刻，只有「{needLabel}」（{needModel}）做得到，而它是会员档——开通会员套餐（或充值过任意一笔）后可用，或者选回「全部模型」看看。"
+msgstr "No templates render on “{name}” ({model}). {hidden, plural, one {The # template here remakes} other {All # templates here remake}} a reference video shot by shot, which only “{needLabel}” ({needModel}) can do, and it is a member tier — available once you subscribe to a plan (or make any top-up once), or go back to “All models” to browse."
+
 #: src/ai/arkClient.ts
 msgid "没有要接着等的那一组"
 msgstr "There’s no set to pick up"
@@ -17059,8 +17246,12 @@ msgid "照片起拍，视频约 {fxVideo} / 一发"
 msgstr "Starts from the photo, video about {fxVideo} per run"
 
 #: src/pages/CustomCardPage.tsx
-msgid "照片里有人：默认档出片不受影响；高清 / 超清档可能被方舟拒掉（没受理不扣视频钱）"
-msgstr "There are people in the photo. Video on the default tier isn't affected; HD / Ultra HD may be rejected by Ark (you aren't charged for video that isn't accepted)"
+msgid "照片里有人：「{refTiers}」档直接收参考图，出片可能被方舟拒掉（没受理不扣视频钱）；别的档不受影响"
+msgstr "There are people in the photo. “{refTiers}” take reference images directly, so the video may be rejected by Ark (you aren't charged for video that isn't accepted); other tiers aren't affected"
+
+#: src/pages/CustomCardPage.tsx
+#~ msgid "照片里有人：默认档出片不受影响；高清 / 超清档可能被方舟拒掉（没受理不扣视频钱）"
+#~ msgstr "There are people in the photo. Video on the default tier isn't affected; HD / Ultra HD may be rejected by Ark (you aren't charged for video that isn't accepted)"
 
 #: src/utils/nativeCamera.ts
 msgid "照片重新编码失败"
@@ -17071,9 +17262,14 @@ msgstr "Couldn't re-encode the photo"
 msgid "照的是你的《{0}》"
 msgstr "Based on your video \"{0}\""
 
+#. placeholder {0}: voiceTierNames()
 #: src/components/VoiceRecorder.tsx
-msgid "照着下面这句念（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）——出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段音色。"
-msgstr "Read the sentence below ({VOICE_MIN_SEC}–{VOICE_MAX_SEC}s). When a segment renders on the HD or Cinematic tier with dialogue in quotes, AI uses this voice as a reference."
+msgid "照着下面这句念（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）——出片走「{0}」档、台词写在引号里时，AI 会参考这段音色。"
+msgstr "Read the sentence below ({VOICE_MIN_SEC}–{VOICE_MAX_SEC}s). When a segment renders on the “{0}” tier with dialogue in quotes, AI uses this voice as a reference."
+
+#: src/components/VoiceRecorder.tsx
+#~ msgid "照着下面这句念（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）——出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段音色。"
+#~ msgstr "Read the sentence below ({VOICE_MIN_SEC}–{VOICE_MAX_SEC}s). When a segment renders on the HD or Cinematic tier with dialogue in quotes, AI uses this voice as a reference."
 
 #: src/components/flow/DialogueWizard.tsx
 msgid "照着现在这张双人镜头画：地方、光线、两人的衣服都照它。"
@@ -17716,9 +17912,14 @@ msgstr "Drawing the three angles costs up to {price} tokens — not enough balan
 msgid "画不出来的包发不了。"
 msgstr "A bundle that doesn't render can't be published."
 
+#. placeholder {0}: tierNamesWhere((x) => x.refImg)
 #: src/components/flow/CastPicker.tsx
-msgid "画两张：全身立绘 + 照着它画的面部特写（官方建议的「全身照 + 大头照」）。不画写实照片风：高清 / 电影级会把写实的人脸当成真人拒收。"
-msgstr "Draws two: a full-body illustration + a face close-up drawn from it (the official “full-body + headshot” advice). No photorealistic style: HD and Cinematic reject realistic faces as real people."
+msgid "画两张：全身立绘 + 照着它画的面部特写（官方建议的「全身照 + 大头照」）。不画写实照片风：「{0}」档会把写实的人脸当成真人拒收。"
+msgstr "Draws two: a full-body illustration + a face close-up drawn from it (the official “full-body + headshot” advice). No photorealistic style: “{0}” reject realistic faces as real people."
+
+#: src/components/flow/CastPicker.tsx
+#~ msgid "画两张：全身立绘 + 照着它画的面部特写（官方建议的「全身照 + 大头照」）。不画写实照片风：高清 / 电影级会把写实的人脸当成真人拒收。"
+#~ msgstr "Draws two: a full-body illustration + a face close-up drawn from it (the official “full-body + headshot” advice). No photorealistic style: HD and Cinematic reject realistic faces as real people."
 
 #: src/components/CardModelFit.tsx
 msgid "画两张约 {framesPrice} token，余额不够——去「我的」页充值"
@@ -18190,8 +18391,12 @@ msgid "白模模板做好了，去「我的模板」看看"
 msgstr "Blockout template ready — check it in “My templates”"
 
 #: src/studio/segmentGen.ts
-msgid "白模模板出片只在方舟档（真人档没有 r2v 能力）——这一段换回「电影级」档，或换掉模板"
-msgstr "Blockout templates only render on Ark tiers (the real-person tier has no r2v support) — switch this segment back to “Cinematic”, or change the template"
+msgid "白模模板出片只在方舟档（真人档没有 r2v 能力）——这一段换回「{bt}」档，或换掉模板"
+msgstr "Blockout templates only render on Ark tiers (the real-person tier has no r2v support) — switch this segment back to “{bt}”, or change the template"
+
+#: src/studio/segmentGen.ts
+#~ msgid "白模模板出片只在方舟档（真人档没有 r2v 能力）——这一段换回「电影级」档，或换掉模板"
+#~ msgstr "Blockout templates only render on Ark tiers (the real-person tier has no r2v support) — switch this segment back to “Cinematic”, or change the template"
 
 #: src/studio/flowStore.ts
 msgid "白模模板出片暂未开放：还没有档位支持白模（r2v）出片"
@@ -19552,6 +19757,10 @@ msgstr "Segment {segNo} isn't at a permanent address yet, so it can't be merged 
 #: src/pages/CutPage.tsx
 msgid "第 {segNo} 段还没有视频（只有设定帧），合成做不了——先把这一段炼出来"
 msgstr "Segment {segNo} has no video yet (only setup frames), so it can't be merged — render that segment first"
+
+#: src/pages/CutPage.tsx
+msgid "第 {segNo} 段重拍不了：{blocked}"
+msgstr "Segment {segNo} can't be re-shot: {blocked}"
 
 #: src/components/blockout/arkVideoRules.ts
 msgid "第 {startSec} 秒起 {durSec} 秒 · 裁后 {cropW}×{cropH}（{pixels} 像素，比例 {ratio}）"
@@ -22341,8 +22550,8 @@ msgid "这一格还没写画面"
 msgstr "This panel has no picture yet"
 
 #: src/ai/arkClient.ts
-msgid "这一档不对当前套餐开放，去「我的」页升级套餐后再试"
-msgstr "This tier isn't available on your current plan — upgrade your plan on the Me page and try again"
+#~ msgid "这一档不对当前套餐开放，去「我的」页升级套餐后再试"
+#~ msgstr "This tier isn't available on your current plan — upgrade your plan on the Me page and try again"
 
 #: src/studio/flowStore.ts
 msgid "这一档不经过方案台。"
@@ -22353,8 +22562,24 @@ msgid "这一档最短 {minSec} 秒"
 msgstr "This tier needs at least {minSec}s"
 
 #: src/components/flow/DialogueWizard.tsx
-msgid "这一档出片不出声，台词说不出来 —— 换到高清或电影级。"
-msgstr "This tier renders without sound, so the lines can’t be spoken — switch to HD or Cinematic."
+msgid "这一档出片不出声，台词说不出来 —— 出声的「{names}」是会员档。"
+msgstr "This tier renders without sound, so the lines can’t be spoken — the tiers with sound (“{names}”) are member tiers."
+
+#: src/components/flow/DialogueWizard.tsx
+msgid "这一档出片不出声，台词说不出来 —— 换到「{names}」。"
+msgstr "This tier renders without sound, so the lines can’t be spoken — switch to “{names}”."
+
+#: src/components/flow/DialogueWizard.tsx
+#~ msgid "这一档出片不出声，台词说不出来 —— 换到高清或电影级。"
+#~ msgstr "This tier renders without sound, so the lines can’t be spoken — switch to HD or Cinematic."
+
+#: src/data/account.ts
+msgid "这一档是会员档——开通会员套餐（或充值过任意一笔）后可用"
+msgstr "This is a member tier — available once you subscribe to a plan (or make any top-up once)"
+
+#: src/data/account.ts
+msgid "这一档是会员档——开通会员套餐（或充值过任意一笔）后可用；免费版能用「{free}」档出片"
+msgstr "This is a member tier — available once you subscribe to a plan (or make any top-up once); on the free plan you can generate on “{free}”"
 
 #: src/studio/leadCast.ts
 msgid "这一档暂时报不出价，换个时间再试"
@@ -22426,7 +22651,7 @@ msgstr "This segment isn't a blockout segment with role slots, so there's no cas
 msgid "这一段不要旁白就留空"
 msgstr "Leave empty for no narration on this clip"
 
-#. placeholder {0}: modelLabel(tier.model)
+#. placeholder {0}: tierModelLabel(tier)
 #: src/components/flow/ModePicker.tsx
 msgid "这一段交给 {0} 生成"
 msgstr "This segment will be generated by {0}"
@@ -23636,9 +23861,14 @@ msgstr "The segment this card is about is no longer segment {seg} (the pipeline 
 msgid "这张卡还没写出片句 —— 出片时提示词里只有卡名，长相由 AI 自己编（每一段都可能不一样）。"
 msgstr "This card has no video line yet — prompts then carry only its name, and the AI invents the look (differently in each segment)."
 
+#. placeholder {0}: voiceTierNames()
 #: src/pages/CardDetailPage.tsx
-msgid "这张卡还没有声音样本。在工坊「从视频提取」圈选人物时可以顺手取一段（2~15 秒）——出片走「高清/电影级」档且台词写在引号里时，AI 会参考这段声音的音色。"
-msgstr "This card has no voice sample yet. You can grab a clip (2–15s) while circling a character with “Extract from video” in the Studio — when a video renders on the HD or Cinematic tier with dialogue in quotes, the AI uses it as a voice reference."
+msgid "这张卡还没有声音样本。在工坊「从视频提取」圈选人物时可以顺手取一段（2~15 秒）——出片走「{0}」档且台词写在引号里时，AI 会参考这段声音的音色。"
+msgstr "This card has no voice sample yet. You can grab a clip (2–15s) while circling a character with “Extract from video” in the Studio — when a video renders on the “{0}” tier with dialogue in quotes, the AI uses it as a voice reference."
+
+#: src/pages/CardDetailPage.tsx
+#~ msgid "这张卡还没有声音样本。在工坊「从视频提取」圈选人物时可以顺手取一段（2~15 秒）——出片走「高清/电影级」档且台词写在引号里时，AI 会参考这段声音的音色。"
+#~ msgstr "This card has no voice sample yet. You can grab a clip (2–15s) while circling a character with “Extract from video” in the Studio — when a video renders on the HD or Cinematic tier with dialogue in quotes, the AI uses it as a voice reference."
 
 #: src/data/cardViews.ts
 msgid "这张图在你处理的时候变了（可能在别的设备上改过），刷新后再试"
@@ -25307,8 +25537,8 @@ msgstr "HD"
 
 #: src/components/CardModelFit.tsx
 #: src/pages/DeckDetailPage.tsx
-msgid "高清 / 电影级：{line2x}"
-msgstr "HD / Cinematic: {line2x}"
+#~ msgid "高清 / 电影级：{line2x}"
+#~ msgstr "HD / Cinematic: {line2x}"
 
 #: src/components/support/HoldToTalk.tsx
 #: src/components/VoiceRecorder.tsx

@@ -43,7 +43,7 @@ import {
   blockoutizeCost,
   blockoutizeIssue,
   fmtTokens,
-  modelLabel,
+  tierModelLabel,
   r2vTokens,
 } from "../../data/economy";
 import { autoVisionFrames, visionFrameCount } from "../../data/templates";
@@ -468,7 +468,7 @@ export default function BlockoutTrimmer({
               {videoTokens !== null && tier && (
                 <>
                   {" "}
-                  <Trans>+ 把这 {durSec} 秒整段换成白模人偶（{modelLabel(tier.model)} · {fmtTokens(videoTokens)}）</Trans>
+                  <Trans>+ 把这 {durSec} 秒整段换成白模人偶（{tierModelLabel(tier)} · {fmtTokens(videoTokens)}）</Trans>
                 </>
               )}
               {t({ message: "。", comment: "句末句号，收住上面那一两句报价说明" })}

@@ -15,7 +15,7 @@
 import { i18n } from "@lingui/core";
 import { t } from "@lingui/core/macro";
 import { API_BASE, API_ON, getToken } from "../api/client";
-import { frozenLine, syncRemoteWallet } from "../data/account";
+import { frozenLine, planRequiredLine, syncRemoteWallet } from "../data/account";
 import { probeServerCaps } from "../data/serverCaps";
 import type { TierResolution } from "../data/videoTierTable";
 import { DEFAULT_IMAGE_TIER, durationWindowOfModel, imageTierOf, videoAudioOn } from "../data/economy";
@@ -349,7 +349,7 @@ export function billingDenialError(status: number, body: string): Error | null {
       need ? t`token 余额不足：这一步需要 ${need}，余额 ${have}——去「我的」页充值` : t`token 余额不足：这一步需要更多，余额 ${have}——去「我的」页充值`,
     );
   }
-  // 403 = 服务端的套餐门禁（PLAN_REQUIRED，见 server config/tokens.js 的 paidOnlyDenial）或欠额冻结（WALLET_FROZEN）。
+  // 403 = 服务端的套餐门禁（PLAN_REQUIRED，见 server config/tokens.js 的 videoPlanDenial：没付过钱的用户只能用免费档出片）或欠额冻结（WALLET_FROZEN）。
   // ★ message 是服务端拼好的**整句话**，原样带出去：这里既不重拼一遍文案（那是第二处
   //   实现，两边措辞一分叉就没人知道以哪份为准），也不能让它裹在 JSON 里交给上层——
   //   `Ark <path> 403: {…}` 光是前缀就 80 多字符，而 flowStore 还要
@@ -367,7 +367,7 @@ export function billingDenialError(status: number, body: string): Error | null {
     // ★ 欠额那句与出片前预检（data/account.frozenNote）是同一句：account.frozenLine 一处实现
     const owed = Number(/"debt":\s*(\d+)/.exec(body)?.[1] ?? 0);
     const ourByCode: Record<string, string> = {
-      PLAN_REQUIRED: t`这一档不对当前套餐开放，去「我的」页升级套餐后再试`,
+      PLAN_REQUIRED: planRequiredLine(),
       WALLET_FROZEN: frozenLine(owed),
       DAILY_LIMIT: t`今天的生成额度用完了，明天 0 点（UTC）重置`,
     };

@@ -12,7 +12,7 @@ import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { AI_REAL } from "../../ai";
-import { myCards } from "../../data/account";
+import { myCards, tierGo } from "../../data/account";
 import { subscribeVoices, voiceOf, voicesVersion } from "../../data/cardVoice";
 import {
   DIALOGUE_LEAD_MAX,
@@ -593,11 +593,21 @@ export default function DialogueWizard({
               );
             })}
           </div>
-          {!tier.audio && (
-            <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">
-              <Trans>这一档出片不出声，台词说不出来 —— 换到高清或电影级。</Trans>
-            </p>
-          )}
+          {!tier.audio &&
+            (() => {
+              // 出声的档按能力现算、先说这个人用得了的（account.tierGo；原来写死「高清或电影级」，免费用户能用的「草稿」没提）
+              const go = tierGo((x) => x.audio && x.refImg);
+              const names = go.names;
+              return (
+                <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">
+                  {go.member ? (
+                    <Trans>这一档出片不出声，台词说不出来 —— 出声的「{names}」是会员档。</Trans>
+                  ) : (
+                    <Trans>这一档出片不出声，台词说不出来 —— 换到「{names}」。</Trans>
+                  )}
+                </p>
+              );
+            })()}
           {noVoice && (
             <p className="text-[10px] leading-relaxed text-slate-500">
               <Trans>{noVoice} 没有声音样本：每一段的嗓音由模型定，前后可能不一样。</Trans>

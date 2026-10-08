@@ -14,7 +14,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { AI_REAL, PortraitViewsPartial, briefArkReason, chargeNote, chargeOnFail, portraitViews } from "../ai";
 import { addCards, bindCardAsset, canAfford, createDeck, frozenNote, spendTokens } from "../data/account";
-import { ONE_IMAGE, fmtTokens, schemeCost } from "../data/economy";
+import { ONE_IMAGE, fmtTokens, schemeCost, voiceTierNames } from "../data/economy";
 import { VOICE_MAX_SEC, VOICE_MIN_SEC, saveVoice } from "../data/cardVoice";
 import { startJob } from "../data/jobs";
 import { deviceOwner, workOwner } from "../data/deviceOwner";
@@ -1186,7 +1186,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                   <audio controls src={pendingVoice.dataUrl} className="h-8 w-full" />
                   <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
                     <Trans>
-                      先听一遍：要的是<b className="font-bold text-slate-300">这个人说话</b>的干净片段。出片走「高清/电影级」且台词写在引号里时，
+                      先听一遍：要的是<b className="font-bold text-slate-300">这个人说话</b>的干净片段。出片走「{voiceTierNames()}」且台词写在引号里时，
                       会把这段声音发给 AI 作音色参考（免费）。样本只存在这台设备上，分享卡片不带它。
                     </Trans>
                   </p>

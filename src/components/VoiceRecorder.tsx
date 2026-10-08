@@ -17,6 +17,7 @@ import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useRef, useState } from "react";
 import { VOICE_MAX_SEC, VOICE_MIN_SEC } from "../data/cardVoice";
+import { voiceTierNames } from "../data/economy";
 import { pcmToVoiceWav } from "../utils/wav";
 
 /**
@@ -184,7 +185,7 @@ export default function VoiceRecorder({
   return (
     <div className="rounded-lg border border-slate-700 bg-black/25 p-2.5">
       <p className="text-[10px] leading-relaxed text-slate-400">
-        <Trans>照着下面这句念（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）——出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段音色。</Trans>
+        <Trans>照着下面这句念（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）——出片走「{voiceTierNames()}」档、台词写在引号里时，AI 会参考这段音色。</Trans>
       </p>
       <div className="mt-1.5 flex items-start gap-2">
         <p className="flex-1 rounded-lg bg-ink/60 px-2.5 py-2 text-xs leading-relaxed text-slate-200">

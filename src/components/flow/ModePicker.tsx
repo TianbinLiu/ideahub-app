@@ -9,8 +9,10 @@
 import type { MessageDescriptor } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { tierBlockReason } from "../../data/account";
-import { CHAT_TURN_TOKENS, clampDuration, fmtTokens, IMAGE_TOKENS, modelLabel, proposalsCost, segTokens, tierOf, VIDEO_TIERS } from "../../data/economy";
+import { memberTiersLine, tierBlockReason, tierNamesFor, tierOffered } from "../../data/account";
+import { CHAT_TURN_TOKENS, clampDuration, fmtTokens, IMAGE_TOKENS, proposalsCost, segTokens, tierModelId, tierModelLabel, tierOf, VIDEO_TIERS } from "../../data/economy";
+import { useAccountVersion } from "../../hooks/useAccount";
+import UpgradeLink from "../UpgradeLink";
 import { GUIDED_GROUPS, GUIDED_MODES, modeBlock, type GuidedGroup, type GuidedModeId, type ModeTier } from "../../data/guidedModes";
 import { GRID_DEFAULT_SEC } from "../../data/gridShots";
 import { LEAD_DEFAULT_SEC } from "../../data/sceneShots";
@@ -76,25 +78,37 @@ export default function ModePicker({
   onPick: (id: GuidedModeId) => void;
 }) {
   const { t } = useLingui();
+  // 套餐 / 付没付过钱 / 服务端能力位都是异步到的：订阅账号的版本号，到了就重画
+  useAccountVersion();
   const tier = tierOf(tierId);
   const caps = modeTierOf(tierId);
-  /** 套餐点不动的档各是为什么（印在页面上：手机没有 hover，与 TierRow 同一条理由） */
-  const blocks = VIDEO_TIERS.map((x) => tierBlockReason(x)).filter((r): r is string => !!r);
+  /** 套餐点不动的那几档并成一句（account.memberTiersLine，与 TierRow 同一句）+「去升级」 */
+  const memberLine = memberTiersLine();
+  /**
+   * 宿主递进来的这一档本身就用不了（会员档 / 已停用 / 服务端不支持）—— 宿主的默认档本来都按 usableTierId 给，这里是最后一道：
+   * 把原因说在最上面，并把下面的模式全灰掉 —— 不然挑了模式就进向导，写分镜 / 画画面的钱先花出去，出片那一步才被拦下。
+   */
+  const tierIssue = tierBlockReason(tier);
+  /** 摆哪几档：停用的、服务端不支持的不摆（account.tierOffered）；正选着的那一档例外（藏起来就不知道自己在哪一档） */
+  const shown = VIDEO_TIERS.filter((x) => tierOffered(x) || x.id === tier.id);
   const hidden = GUIDED_MODES.filter((m) => modeBlock(m.id, caps) !== null);
+  /** 「换到哪一档就有」：按这个人用得了的说（account.tierNamesFor）；一档都用不了时说那几档是会员档 */
+  const refNames = tierNamesFor((x) => x.refImg);
+  const audioNames = tierNamesFor((x) => x.audio && x.refImg);
   return (
     <div className="space-y-3">
       <div>
         <div className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>① 先选出片模型</Trans></div>
         <div className="no-scrollbar flex gap-1.5 overflow-x-auto">
           {/* ★ 回调参数叫 x 不叫 t：t 是 useLingui 给的翻译函数，同名会把它遮住 */}
-          {VIDEO_TIERS.map((x) => {
+          {shown.map((x) => {
             const blocked = !!tierBlockReason(x);
             return (
               <button
                 key={x.id}
                 onClick={() => onTier(x.id)}
                 disabled={blocked}
-                title={x.model}
+                title={tierModelId(x)}
                 className={`flex-none rounded-full px-3 py-1 text-[11px] disabled:opacity-40 ${
                   x.id === tier.id ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-300"
                 }`}
@@ -105,9 +119,16 @@ export default function ModePicker({
           })}
         </div>
         <p className="mt-1 text-[10px] text-slate-500">
-          <Trans>这一段交给 {modelLabel(tier.model)} 生成</Trans>
+          <Trans>这一段交给 {tierModelLabel(tier)} 生成</Trans>
         </p>
-        {blocks.length > 0 && <p className="mt-0.5 text-[10px] leading-relaxed text-slate-500">{blocks[0]}</p>}
+        {tierIssue && <p className="mt-0.5 text-[10px] leading-relaxed text-amber-300/90">{tierIssue}</p>}
+        {memberLine && (
+          <p className="mt-0.5 text-[10px] leading-relaxed text-slate-500">
+            {memberLine}
+            {"　"}
+            <UpgradeLink />
+          </p>
+        )}
       </div>
 
       <div className="space-y-2.5">
@@ -153,7 +174,8 @@ export default function ModePicker({
                   <button
                     key={m.id}
                     onClick={() => onPick(m.id)}
-                    className="flex w-full items-start gap-2.5 rounded-xl border border-slate-700/70 bg-panel p-3 text-left active:opacity-60"
+                    disabled={!!tierIssue}
+                    className="flex w-full items-start gap-2.5 rounded-xl border border-slate-700/70 bg-panel p-3 text-left active:opacity-60 disabled:opacity-40"
                   >
                     <span className="flex-none text-lg leading-none">{text.icon}</span>
                     <span className="min-w-0 flex-1">
@@ -179,12 +201,28 @@ export default function ModePicker({
           <div className="space-y-0.5 text-[10px] leading-relaxed text-slate-500">
             {hidden.map((m) => {
               const title = t(MODE_TEXT[m.id].title);
+              const why = modeBlock(m.id, caps);
+              // 档名按能力现算、按这个人用不用得了分两种说法（2026-10-07：原来写死「高清或电影级」，免费用户被指去两个点不动的档）
+              const names = why === "refImg" ? refNames : why === "audio" ? audioNames : null;
+              if (names && !names.usable && names.member) {
+                const member = names.member;
+                return (
+                  <p key={m.id}>
+                    {why === "refImg"
+                      ? t`「${title}」要收参考图的模型：「${member}」才有（会员档）`
+                      : t`「${title}」要能出声的模型（台词得说出来）：「${member}」才有（会员档）`}
+                    {"　"}
+                    <UpgradeLink />
+                  </p>
+                );
+              }
+              const usable = names?.usable ?? "";
               return (
                 <p key={m.id}>
-                  {modeBlock(m.id, caps) === "refImg"
-                    ? t`「${title}」要收参考图的模型：换到高清或电影级就有`
-                    : modeBlock(m.id, caps) === "audio"
-                      ? t`「${title}」要能出声的模型（台词得说出来）：换到高清或电影级就有`
+                  {why === "refImg"
+                    ? t`「${title}」要收参考图的模型：换到「${usable}」就有`
+                    : why === "audio"
+                      ? t`「${title}」要能出声的模型（台词得说出来）：换到「${usable}」就有`
                       : t`「${title}」在真人档上没有：这一档本来就是写一句话直接出片`}
                 </p>
               );

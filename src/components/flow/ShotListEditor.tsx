@@ -37,7 +37,7 @@ const ShotListEditor = forwardRef<
     placeholder?: string;
     /** 这一段挂的人物卡（「＋ 台词」里选说话人） */
     speakers: ShotSpeaker[];
-    /** 这一档能不能分镜 / 配台词（高清 / 电影级）。false = 只画成普通输入框（已经分了镜的照样逐行显示，只是不给加） */
+    /** 这一档能不能分镜 / 配台词（出声又收参考图的档：草稿 / 高清 / 电影级）。false = 只画成普通输入框（已经分了镜的照样逐行显示，只是不给加） */
     canAdd: boolean;
     /** 外面要知道现在写的是第几个镜头（运镜芯片跟着它亮灭、往它里面插） */
     onActive?: (index: number) => void;

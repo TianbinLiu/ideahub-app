@@ -40,6 +40,7 @@ fs.readFileSync(modPath, "utf8")
 const TIERS = {
   fast: { refImg: false, flat: false, audio: false }, // 极速（1.0 pro fast）
   std: { refImg: false, flat: false, audio: false }, // 标准（1.0 pro）
+  draft: { refImg: true, flat: false, audio: true }, // 草稿（2.0 mini 480p，2026-10-07 加：与高清同样的能力，免费档）
   hd: { refImg: true, flat: false, audio: true }, // 高清（2.0 mini）
   ultra: { refImg: true, flat: false, audio: true }, // 电影级（2.5）
   real: { refImg: false, flat: true, audio: false }, // 真人（MiniMax，按发计价；海螺出不出声没实测，按无声报）
@@ -50,6 +51,7 @@ eq("极速档：自定义 / 九宫格分镜 / 推演三套 / 特效同款 / 套�
 eq("标准档：同极速", ids(TIERS.std), ["custom", "grid", "cards", "effect", "template"]);
 eq("高清档：八个都能用，参考图直出排第一、跟着高手做那几个排在推演三套之前、特效同款排在套模板之前", ids(TIERS.hd), ["direct", "custom", "lead", "grid", "dialogue", "cards", "effect", "template"]);
 eq("电影级：八个都能用", ids(TIERS.ultra), ["direct", "custom", "lead", "grid", "dialogue", "cards", "effect", "template"]);
+eq("草稿：八个都能用（与高清同一个模型、同样的能力 —— 免费用户唯一收参考图、能出声的档）", ids(TIERS.draft), ["direct", "custom", "lead", "grid", "dialogue", "cards", "effect", "template"]);
 eq("真人档：参考图直出（真人照片起拍）/ 特效同款（照片起拍的那几条）/ 套模板", ids(TIERS.real), ["direct", "effect", "template"]);
 eq("为什么：1.0 档上的参考图直出", M.modeBlock("direct", TIERS.std), "refImg");
 eq("为什么：真人档上的推演三套", M.modeBlock("cards", TIERS.real), "flat");
@@ -86,4 +88,4 @@ if (problems.length) {
   console.error("\n改法：规则只在 src/data/guidedModes.ts 的 modeBlock；选法屏只画它的答案。\n");
   process.exit(1);
 }
-console.log(`✓ 「跟着做」模式检查通过（${ran} 条：五档各能用哪几个模式 / 为什么不能用 / 清单形状）`);
+console.log(`✓ 「跟着做」模式检查通过（${ran} 条：六档各能用哪几个模式 / 为什么不能用 / 清单形状）`);

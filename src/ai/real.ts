@@ -45,6 +45,7 @@ import {
   imageTierOf,
   providerOf,
   slotsFor,
+  tierNamesWhere,
   tierOf,
   type CardMintCap,
   type ImageTier,
@@ -3226,7 +3227,11 @@ export function validateGenSpec(sg: GenSpec): void {
   if (sg.mode === "ref-images" && !tier.refImg) throw new Error(t`「${tierLabel}」档协议上不收参考图，不能按参考图生视频出片`);
   if ((sg.mode === "edit" || sg.mode === "reference" || sg.mode === "extend") && !tier.refVid) throw new Error(t`「${tierLabel}」档不支持带参考视频出片`);
   // 2026-10-05 起「能带参考视频」≠「能延长」≠「能跑白模模板」（高清只有第一样）：三件分开核，判据各在档位表的一位上
-  if (sg.mode === "extend" && !tier.extendOk) throw new Error(t`「${tierLabel}」档还不能延长——用电影级出的段才能延长`);
+  if (sg.mode === "extend" && !tier.extendOk) {
+    // 能延长的档按能力现算（extendOk；目录口径 —— 能走到这一步的人，界面那几道闸已经按套餐说过了）
+    const names = tierNamesWhere((x) => x.extendOk);
+    throw new Error(t`「${tierLabel}」档还不能延长——用「${names}」出的段才能延长`);
+  }
   if (sg.mode === "edit" && sg.refTask !== "revise" && !tier.blockoutOk) throw new Error(t`「${tierLabel}」档跑不了白模模板（模板对出片模型是硬要求）`);
   if (sg.mode === "reference" && !sg.refImages?.length) throw new Error(t`生成契约不完整：素材参考模式至少要一张参考图`);
   if (sg.refAudios?.length && !refMedia) throw new Error(t`生成契约不一致：参考音频只能随参考图 / 参考视频发（首尾帧任务混参考媒体是 400）`);

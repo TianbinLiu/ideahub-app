@@ -975,6 +975,26 @@ export function tierNamesFor(pred: (t: VideoTier) => boolean): { usable: string;
 }
 
 /**
+ * 服务端 403 PLAN_REQUIRED 的本端整句（英文界面用；中文界面照旧原样说服务端那句，见 arkClient.billingDenialError）。
+ * 免费档的名字按能力现算（freeOk 且摆得出来的），不写死 —— 11-24 极速停用后自己少一档。
+ */
+export function planRequiredLine(): string {
+  const free = joinTierNames(offeredTiers().filter((x) => x.freeOk).map((x) => x.label));
+  return free
+    ? t`这一档是会员档——开通会员套餐（或充值过任意一笔）后可用；免费版能用「${free}」档出片`
+    : t`这一档是会员档——开通会员套餐（或充值过任意一笔）后可用`;
+}
+
+/**
+ * 「去换哪几档」那一串：先给这个人**用得了的**；一档都用不了时给那几档会员档的名字，并标出来（member = true，调用方换一句「是会员档」的说法）。
+ * 句子都是整句、两种说法各一条（多语言）：别把「（会员档）」当半句拼上去。
+ */
+export function tierGo(pred: (t: VideoTier) => boolean): { names: string; member: boolean } {
+  const n = tierNamesFor(pred);
+  return n.usable ? { names: n.usable, member: false } : { names: n.member, member: true };
+}
+
+/**
  * 新段的默认档 —— **唯一实现**（新段、工坊铸段窗、画布「＋ 加一段」、拆分镜技能铺的段都问它）。
  * 付过钱（或管理员）：「标准」，它停用之后「高清」；免费用户**或还不知道**：「极速」，它停用之后「草稿」（主人 10-07 拍板）。
  * ★ 不知道时落在免费档上：冷启动镜像慢半拍时，免费用户一出生就在一个点不动的会员档上，推演 / 画帧的钱会先花出去再被出片闸拦下；

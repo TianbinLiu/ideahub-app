@@ -24,7 +24,7 @@ import { castPreviewImage, frameUrlAt, fuseStageFrame, AI_REAL, ArkTaskUnknown, 
 import { frameMoment, isMultiShot, momentCards } from "../data/shotScript";
 import { endFrameUsed } from "../data/drawPlan";
 import { isArkAssetUrl, transferArkVideo } from "../ai/arkClient";
-import { canAfford, defaultTierId, frozenNote, myCards, spendTokens, tierBlockReason, usableTierId, walletOf } from "../data/account";
+import { canAfford, defaultTierId, frozenNote, myCards, spendTokens, tierBlockReason, tierGo, usableTierId, walletOf } from "../data/account";
 import { showToast } from "../data/toast";
 import {
   r2vTokens,
@@ -282,7 +282,14 @@ export function extendIssue(nodes: FlowNode[], idx: number): string | null {
   if (isArkAssetUrl(url)) return t`成片还在转存（换成永久地址），转存完才能延长——稍等一会儿再来`;
   const tier = tierOf(node.videoTier);
   const label = tier.label;
-  if (!tier.refVid || tier.r2vMult === null || !tier.extendOk) return t`「${label}」档还不能延长——用电影级出的段才能延长`;
+  if (!tier.refVid || tier.r2vMult === null || !tier.extendOk) {
+    // 能延长的档按能力现算（extendOk）；这个人一档都用不了时说那是会员档（account.tierGo）
+    const go = tierGo((x) => x.extendOk);
+    const names = go.names;
+    return go.member
+      ? t`「${label}」档还不能延长——用「${names}」出的段才能延长（会员档）`
+      : t`「${label}」档还不能延长——用「${names}」出的段才能延长`;
+  }
   const [w, h] = aspectOf(node.aspect).frameSize.split("x").map(Number);
   const issue = refVideoIssue({ url, durationSec: reviseSecOf(chosenOf(node)), width: w, height: h });
   if (issue) return t`这一段延长不了：${issue}`;
@@ -3666,7 +3673,13 @@ export const useFlow = create<FlowState>()((set, get) => ({
       const extTier = tierOf(node.videoTier);
       const extLabel = extTier.label;
       if (!extTier.refVid || extTier.r2vMult === null || !extTier.extendOk) {
-        set({ err: t`「${extLabel}」档还不能延长——去 ⚙ 本段设置换成「电影级」档` });
+        const go = tierGo((x) => x.extendOk);
+        const names = go.names;
+        set({
+          err: go.member
+            ? t`「${extLabel}」档还不能延长——能延长的「${names}」是会员档（开通会员套餐或充值过任意一笔后可用）`
+            : t`「${extLabel}」档还不能延长——去 ⚙ 本段设置换成「${names}」档`,
+        });
         return false;
       }
     }

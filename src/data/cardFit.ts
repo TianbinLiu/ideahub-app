@@ -12,7 +12,7 @@
 import { assetOf } from "./cardAsset";
 import { startFramesAllowed, type Card } from "../types";
 
-/** 高清 / 电影级：image = 形象图直接进模型；asset = 真人卡以火山引擎认证素材进模型；needAsset = 真人卡还没认证，进不了 */
+/** 收参考图的 2.x 档（草稿 / 高清 / 电影级）：image = 形象图直接进模型；asset = 真人卡以火山引擎认证素材进模型；needAsset = 真人卡还没认证，进不了 */
 export type FitRef = "image" | "asset" | "needAsset";
 /** 标准 / 极速：text = 有文字版形象描述；frameOnly = 只经由设定帧起作用；noRealFace = 真人卡（这两档不收真人照片） */
 export type FitFrames = "text" | "frameOnly" | "noRealFace";

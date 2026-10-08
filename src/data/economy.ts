@@ -438,6 +438,11 @@ export function tierModelLabel(tier: Pick<VideoTierSpec, "model" | "resolution">
   return tier.resolution === "720p" ? name : `${name} · ${tier.resolution}`;
 }
 
+/** 同上，但用完整的模型 id（档位按钮的 title：要查证的人看的那一份）。同一个模型的两档靠分辨率分开 */
+export function tierModelId(tier: Pick<VideoTierSpec, "model" | "resolution">): string {
+  return tier.resolution === "720p" ? tier.model : `${tier.model} · ${tier.resolution}`;
+}
+
 /**
  * 按**生成契约**报视频那半的价（2026-09-06 §四 1）：报价（flowStore.nodeCost）与出片（segmentGen）各自算出的数要在
  * 出片前对得上 —— segmentGen 在 composeSegments 之前拿它与 quotedTokens 对账，对不上把差额写进步骤日志。
@@ -599,6 +604,24 @@ export function joinTierNames(labels: string[]): string {
  */
 export function tierNamesWhere(pred: (t: VideoTier) => boolean): string {
   return joinTierNames(VIDEO_TIERS.filter((x) => pred(x) && !tierRetired(x)).map((x) => x.label));
+}
+
+/**
+ * 出片会参考卡上声音样本的那几档（出声 + 收参考媒体：2.x 的「草稿」「高清」「电影级」）。卡片页 / 录音 / 圈选取声音几处说明共用，
+ * 原来各写「高清/电影级」—— 加了「草稿」之后那几句都少说一档。目录口径（说的是「哪几档会用它」，不看套餐）。
+ */
+export function voiceTierNames(): string {
+  return tierNamesWhere((x) => x.audio && x.refImg);
+}
+
+/**
+ * 「按模型适配」那一格的行首（卡片页 / 卡组页）：**收参考图的方舟档**有哪几档（2.x：草稿 / 高清 / 电影级）。
+ * 用「 / 」并列（这是分类的名字，不是指路的句子，不加引号）。目录口径、不看套餐：说的是「卡在这几档上怎么起作用」。
+ */
+export function refImgTierList(): string {
+  return VIDEO_TIERS.filter((x) => x.refImg && !x.flatCost && !tierRetired(x))
+    .map((x) => x.label)
+    .join(" / ");
 }
 
 /**

@@ -15,7 +15,7 @@
 import { AI_REAL, ARK_REF_IMAGES_MAX, ArkTaskUnknown, VIDEO_PROMPT_MAX, composeSegments, generateFrame, notesInParens, planCardRefs, prepareMaterialRefs, refCardIds, refineFrame } from "../ai";
 import { compileMentions, drawExtraRefs, extraRefLines, mentionTargets, plainMentions, usableExtraRefs, type ExtraRef } from "../data/refMentions";
 import { uploadImage } from "../api/uploads";
-import { IMAGE_TOKENS, blockoutPriceIssue, fmtTokens, r2vPriceIssue, tierOf, providerOf, clampDuration, videoTokensOfSpec, promptMaxOf, refAudioSecOf, type VideoTier } from "../data/economy";
+import { IMAGE_TOKENS, blockoutPriceIssue, blockoutTier, fmtTokens, r2vPriceIssue, tierOf, providerOf, clampDuration, videoTokensOfSpec, promptMaxOf, refAudioSecOf, type VideoTier } from "../data/economy";
 import { frameMoment, isMultiShot, lineSpeakers, momentCards, packShots } from "../data/shotScript";
 import { frameSlotsOf, framesToDraw, type DrawInput } from "../data/drawPlan";
 // ★ 「模板视频自己合不合方舟窗口」的判据在 data（不在组件）：store 层这一处与
@@ -23,6 +23,7 @@ import { frameSlotsOf, framesToDraw, type DrawInput } from "../data/drawPlan";
 import { refVideoIssue } from "../data/templates";
 import { ShotSpec, shotLineOf, CardType, ID_LINE_MAX, CARD_TYPE_PROMPT, idLineOf, viewsOf, feedsModel, TEXT_DESC_MAX, aspectOf, startFramesAllowed, type Card, type GenMode, type VideoAspect, type VideoTemplate } from "../types";
 import { voiceOf } from "../data/cardVoice";
+import { tierGo } from "../data/account";
 import { t } from "@lingui/core/macro";
 
 export interface SegmentAnn {
@@ -996,7 +997,14 @@ function voiceRefsFor(o: {
       notes.push(
         o.tier.flatCost
           ? t`「${o.tier.label}」档暂无配音，台词只以画面呈现`
-          : t`「${o.tier.label}」档出片无声，台词不会被配音（要声音选「高清」或「电影级」）`,
+          : (() => {
+              // 出声的档按能力现算、先说这个人用得了的（account.tierGo；原来写死「高清」「电影级」）
+              const go = tierGo((x) => x.audio && x.refImg);
+              const names = go.names;
+              return go.member
+                ? t`「${o.tier.label}」档出片无声，台词不会被配音（要声音得用「${names}」，会员档）`
+                : t`「${o.tier.label}」档出片无声，台词不会被配音（要声音选「${names}」）`;
+            })(),
       );
     else if (!o.referenceMode)
       // ★ 能走到这里的只有白模段（它自己就是 r2v，且 tier.audio 为真的两档都收参考图）——
@@ -1092,7 +1100,14 @@ export async function generateSegment(
     const refTier = tierOf(input.videoTier);
     if (!refTier.refVid || refTier.r2vMult === null || !refTier.extendOk) {
       const tierLabel = refTier.label;
-      throw new Error(t`「${tierLabel}」档还不能延长——去 ⚙ 本段设置换成「电影级」档`);
+      // 能延长的档按能力现算（extendOk），这个人一档都用不了时说那是会员档（account.tierGo）
+      const go = tierGo((x) => x.extendOk);
+      const names = go.names;
+      throw new Error(
+        go.member
+          ? t`「${tierLabel}」档还不能延长——能延长的「${names}」是会员档（开通会员套餐或充值过任意一笔后可用）`
+          : t`「${tierLabel}」档还不能延长——去 ⚙ 本段设置换成「${names}」档`,
+      );
     }
     if (input.anns.length) throw new Error(t`延长段没有设定帧可圈选——先清掉圈选标注，想改画面就改那句话`);
     const refs = await prepareMaterialRefs(input.materials, "video", (n) => notes.push(n), { cap: refTier.refImagesMax, strict: false });
@@ -1164,7 +1179,13 @@ export async function generateSegment(
   if (input.materialRef) {
     const refTier = tierOf(input.videoTier);
     if (!refTier.refVid) {
-      throw new Error(t`「${refTier.label}」档不支持带参考视频出片——去 ⚙ 本段设置换成「高清」或「电影级」档，或移除参考视频`);
+      const go = tierGo((x) => x.refVid);
+      const names = go.names;
+      throw new Error(
+        go.member
+          ? t`「${refTier.label}」档不支持带参考视频出片——带得了的「${names}」是会员档；移除参考视频，或开通会员套餐（或充值过任意一笔）`
+          : t`「${refTier.label}」档不支持带参考视频出片——去 ⚙ 本段设置换成「${names}」档，或移除参考视频`,
+      );
     }
     if (input.anns.length) {
       throw new Error(t`带参考视频的自定义段暂不支持圈选改画面——清掉圈选标注再出片`);
@@ -1286,7 +1307,11 @@ export async function generateSegment(
   // 首帧就是真人卡的照片（或用户设定帧/承接帧），提示词驱动它动起来 —— 三发探针
   // 验证过的 i2v 形态。出片调用的分流在 composeSegments（尾帧捕获/承接共用那条产线）。
   if (providerOf(input.videoTier) === "minimax") {
-    if (blockout) throw new Error(t`白模模板出片只在方舟档（真人档没有 r2v 能力）——这一段换回「电影级」档，或换掉模板`);
+    if (blockout) {
+      // 跑得了白模模板的那一档只问 economy.blockoutTier（唯一实现），别写死「电影级」
+      const bt = blockoutTier()?.label ?? "";
+      throw new Error(t`白模模板出片只在方舟档（真人档没有 r2v 能力）——这一段换回「${bt}」档，或换掉模板`);
+    }
     if (input.anns.length) throw new Error(t`真人档暂不支持圈选改画面（改图引擎会拒收真人脸）——清掉圈选标注再出片`);
     // 优先取声明过真人的卡（这一档存在的理由），再退任意有图的卡
     const byReal = (input.materials ?? []).filter((c) => c.realPerson === true).concat(input.materials ?? []);
@@ -1418,7 +1443,13 @@ export async function generateSegment(
     prog(
       tier.refImg
         ? t`素材卡上没有可用的形象参考图，改为先按描述画一张设定帧再出片（多花约一张出图的钱）`
-        : t`「${tier.label}」档不支持参考图，改为先按描述画一张设定帧再出片（想直接用卡片形象请选「高清」或「电影级」）`,
+        : (() => {
+            const go = tierGo((x) => x.refImg);
+            const names = go.names;
+            return go.member
+              ? t`「${tier.label}」档不支持参考图，改为先按描述画一张设定帧再出片（直接用卡片形象要「${names}」，会员档）`
+              : t`「${tier.label}」档不支持参考图，改为先按描述画一张设定帧再出片（想直接用卡片形象请选「${names}」）`;
+          })(),
     );
   }
   // 素材卡的形象参考图，两种用法**互斥**（方舟文档：图生视频-首帧、图生视频-首尾帧、
@@ -1616,7 +1647,13 @@ export async function generateSegment(
     notes.push(
       tier.refImg
         ? t`这一段没走参考图出片，临时参考图这次没发出去`
-        : t`「${tier.label}」档协议上不收参考图，临时参考图这次没发出去（想用它们换「高清」或「电影级」）`,
+        : (() => {
+            const go = tierGo((x) => x.refImg);
+            const names = go.names;
+            return go.member
+              ? t`「${tier.label}」档协议上不收参考图，临时参考图这次没发出去（用它们要「${names}」，会员档）`
+              : t`「${tier.label}」档协议上不收参考图，临时参考图这次没发出去（想用它们换「${names}」）`;
+          })(),
     );
   }
   /** 临时参考图排在帧之后、卡片形象图之前：它们的编号从这里起 */

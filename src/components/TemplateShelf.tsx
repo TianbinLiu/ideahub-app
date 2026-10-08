@@ -52,8 +52,8 @@ import {
   templatesVersion,
   type BlockoutJob,
 } from "../data/templates";
-import { tierBlockReason } from "../data/account";
-import { VIDEO_TIERS, blockoutTier, modelLabel } from "../data/economy";
+import { tierBlockReason, tierOffered } from "../data/account";
+import { VIDEO_TIERS, blockoutTier, tierModelLabel, type VideoTier } from "../data/economy";
 import { remoteOn } from "../data/videos";
 import { useFlow } from "../studio/flowStore";
 import { useApplyTemplate } from "./flow/useApplyTemplate";
@@ -799,12 +799,13 @@ export default function TemplateShelf({
                 setTierSheet(false);
               }}
             />
-            {VIDEO_TIERS.map((tier) => (
+            {/* 停用的、这台服务端不支持的档不摆（account.tierOffered）：拿它们筛只会得到一个永远空的货架 */}
+            {VIDEO_TIERS.filter((tier) => tierOffered(tier) || tierPicked?.id === tier.id).map((tier) => (
               <TierOption
                 key={tier.id}
                 on={tierPicked?.id === tier.id}
                 label={tier.label}
-                sub={modelLabel(tier.model)}
+                sub={tierModelLabel(tier)}
                 count={tierCounts.get(tier.id) ?? 0}
                 // 这个账号的套餐用不了这一档（account.tierBlockReason，唯一实现）：照样能选来逛，只是把话说在前面
                 note={tierBlockReason(tier)}
@@ -827,16 +828,21 @@ export default function TemplateShelf({
  * ★ 「它们要的是哪一档」只问 economy.blockoutTier（唯一实现）；选的正是那一档还一个不剩，就只说没有。
  * ★ 模块级函数拿不到 useLingui：用 i18n._(msg) 在调用那一刻按当前语言翻（与 TemplateDetailPage.blockoutIssue 同一种写法）。
  */
-function tierEmptyText(picked: { id: string; label: string; model: string }, hidden: number): string {
+function tierEmptyText(picked: VideoTier, hidden: number): string {
   const name = picked.label;
-  const model = modelLabel(picked.model);
+  const model = tierModelLabel(picked);
   const need = blockoutTier();
   if (need && need.id !== picked.id) {
     const needLabel = need.label;
-    const needModel = modelLabel(need.model);
-    return i18n._(
-      msg`没有能用「${name}」（${model}）出片的模板。现有的 ${hidden} 个都要按参考视频逐镜头复刻，只有「${needLabel}」（${needModel}）做得到——点搜索栏旁边那颗键换一个模型，或者选回「全部模型」。`,
-    );
+    const needModel = tierModelLabel(need);
+    // 那一档这个人用不了（会员档，2026-10-07 免费档限制）：照实说「它是会员档」，别只叫人换过去
+    return tierBlockReason(need)
+      ? i18n._(
+          msg`没有能用「${name}」（${model}）出片的模板。现有的 ${hidden} 个都要按参考视频逐镜头复刻，只有「${needLabel}」（${needModel}）做得到，而它是会员档——开通会员套餐（或充值过任意一笔）后可用，或者选回「全部模型」看看。`,
+        )
+      : i18n._(
+          msg`没有能用「${name}」（${model}）出片的模板。现有的 ${hidden} 个都要按参考视频逐镜头复刻，只有「${needLabel}」（${needModel}）做得到——点搜索栏旁边那颗键换一个模型，或者选回「全部模型」。`,
+        );
   }
   return i18n._(msg`没有能用「${name}」（${model}）出片的模板——点搜索栏旁边那颗键换一个模型，或者选回「全部模型」。`);
 }

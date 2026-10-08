@@ -54,7 +54,8 @@ import {
   templateTiers,
   updateTemplate,
 } from "../data/templates";
-import { blockoutPriceIssue, blockoutTier, fmtTokens, modelLabel, r2vTokens } from "../data/economy";
+import { blockoutPriceIssue, blockoutTier, fmtTokens, r2vTokens, tierModelLabel } from "../data/economy";
+import UpgradeLink from "../components/UpgradeLink";
 import { useCurrentUser } from "../hooks/useAccount";
 import { useBackOr } from "../hooks/useBackOr";
 import { useFlow } from "../studio/flowStore";
@@ -232,14 +233,12 @@ function BlockoutInfo({ t: tpl, isOwner }: { t: VideoTemplate; isOwner: boolean 
       )}
       {/* ★ 套餐用不了这一档：说在出片键上方（那颗键此时是灰的），并给一条能走的路。
           排在价钱之后而不是替掉它：价钱是"这个模板要花多少"，这一句是"你现在的套餐用不了"，两件事都该看见。
-          充值解决不了这道门（得换套餐），所以链接指向的是套餐，不是充值。 */}
+          2026-10-07 起付过任何一笔（套餐或充值）都算付费用户，「去升级」直接打开钱包抽屉（两样都在里面）。 */}
       {planIssue && (
         <p className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-300/90">
           {planIssue}
           {"　"}
-          <Link to="/me" className="underline underline-offset-2">
-            <Trans>去升级</Trans>
-          </Link>
+          <UpgradeLink />
         </p>
       )}
     </div>
@@ -264,7 +263,7 @@ function ModelRow({ t: tpl }: { t: VideoTemplate }) {
       {tiers ? (
         tiers.map((tier) => (
           <span key={tier.id} className="rounded-full bg-panel px-2.5 py-1 text-[11px] text-slate-300">
-            {tier.label} · {modelLabel(tier.model)}
+            {tier.label} · {tierModelLabel(tier)}
           </span>
         ))
       ) : (

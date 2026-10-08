@@ -8,6 +8,7 @@
 import { i18n } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { usableTierId } from "../../data/account";
 import { fmtTokens, tierOf } from "../../data/economy";
 import { recipeSummary, recipeVideoCost, type RecipeNode, type RecipeNodeFlag, type RecipeSlotWhy, type WorkflowRecipe } from "../../data/recipe";
 import { CARD_TYPE_LABELS, formatDuration, shotLineDisplay } from "../../types";
@@ -49,7 +50,8 @@ export function flagText(flag: RecipeNodeFlag): string {
 export function RecipeSummaryRow({ recipe }: { recipe: WorkflowRecipe }) {
   const { t } = useLingui();
   const s = recipeSummary(recipe);
-  const cost = recipeVideoCost(recipe);
+  // 普通段按「照做时真会落在哪一档」报（免费用户照做会员档的配方会落在免费档上，与 recipeNodesOf 同一个 usableTierId）
+  const cost = recipeVideoCost(recipe, usableTierId);
   const chip = "rounded-full bg-panel px-2.5 py-1 text-[11px] text-slate-300";
   return (
     <div className="flex flex-wrap gap-1.5">
