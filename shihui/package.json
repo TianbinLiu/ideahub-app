@@ -11,7 +11,7 @@
     "release": "node scripts/release.mjs"
   },
   "dependencies": {
-    "@capacitor/android": "^8.5.0",
+    "@capacitor/android": "^8.5.1",
     "@capacitor/app": "^8.1.1",
     "@capacitor/core": "^8.5.0",
     "react": "^19.2.0",
