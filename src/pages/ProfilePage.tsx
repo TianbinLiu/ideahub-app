@@ -1779,6 +1779,7 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
             免费档的「领取」不是付款，留着。 */}
         {PLANS.filter((p) => !playItems || p.price === 0).map((p) => {
           const current = wallet.planId === p.id;
+          const freeTierNames = p.price === 0 ? tierNamesFor(tierFreeOk).usable : "";
           return (
             <div key={p.id} className="flex items-center gap-3 rounded-xl border border-slate-700/70 bg-panel p-3">
               <div className="min-w-0 flex-1">
@@ -1787,8 +1788,15 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
                   {current && <span className="ml-1.5 rounded bg-brand/20 px-1.5 py-0.5 text-[9px] text-brand"><Trans>当前</Trans></span>}
                 </div>
                 <div className="text-[11px] text-slate-500">
-                  {/* 免费版不按月发（monthlyTokens 0）：它的额度规则整句写在 desc 里，别印出一个「0 token/月」 */}
-                  {p.monthlyTokens > 0 ? <Trans>{fmtTokens(p.monthlyTokens)} token/月 · {p.desc}</Trans> : p.desc}
+                  {/* 免费版不按月发（monthlyTokens 0）：它的额度规则整句写在 desc 里，别印出一个「0 token/月」。
+                      免费版能用哪几档在这里按 account.tierFreeOk 现拼（跟着服务端开关走，与上面那条免费版提示同一个判据）——economy 不认识服务端 */}
+                  {p.monthlyTokens > 0 ? (
+                    <Trans>{fmtTokens(p.monthlyTokens)} token/月 · {p.desc}</Trans>
+                  ) : freeTierNames ? (
+                    <Trans>{p.desc} · 能用「{freeTierNames}」档出片</Trans>
+                  ) : (
+                    p.desc
+                  )}
                 </div>
               </div>
               <button

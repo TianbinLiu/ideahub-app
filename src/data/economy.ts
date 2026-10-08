@@ -108,12 +108,13 @@ export const PLANS: TokenPlan[] = [
     welcomeTokens: 170_000,
     dailyTokens: 2_000,
     dailyCapTokens: 14_000,
+    // ★ 只说额度，**不说**能用哪几档（2026-10-07 评审抓到）：那要跟着服务端的开关走（account.tierFreeOk），economy 是纯目录、
+    //   不认识它 —— 原来照本机 freeOk 列出「极速」「草稿」，运维关掉免费档限制时同一张钱包抽屉里两行说法打架。档名由「我的」页按 account 现拼
     get desc() {
       const welcome = fmtTokens(this.welcomeTokens ?? 0);
       const daily = fmtTokens(this.dailyTokens ?? 0);
       const days = Math.round((this.dailyCapTokens ?? 0) / Math.max(1, this.dailyTokens ?? 1));
-      const names = joinTierNames(VIDEO_TIERS.filter((x) => x.freeOk && !tierRetired(x)).map((x) => x.label));
-      return i18n._(msg`新人一次 ${welcome} + 每天 ${daily}（最多攒 ${days} 天）· 能用「${names}」档出片`);
+      return i18n._(msg`新人一次 ${welcome} + 每天 ${daily}（最多攒 ${days} 天）`);
     },
   },
   {
@@ -186,45 +187,48 @@ function ultraVsHd(): string {
 //   英文档名与画布指挥认的档位词对齐（studio/agentGrammar：fast / standard / hd / cinematic + tier）。
 //   ⚠「草稿」带 context：同一个字在草稿箱（Drafts）与模板状态（Draft）里各有一条，这里是一档的名字（英文叫 Lite，别与电影级的「样片」撞名）。
 //   ⚠ 别把「草稿」加进 agentGrammar 的档位词：「存草稿」会被认成改档位。
+//   ★ desc 里**不写**「免费可用 / 会员档」（2026-10-07 评审抓到）：谁能用哪一档跟着服务端走（account.tierFreeOk 读健康端点的
+//   freeVideoGate / freeVideo），而这里是纯目录、不认识当前用户与服务端开关 —— 运维关掉免费档限制时，写死的「会员档」就和点得动的按钮打架。
+//   这一档这个人用不了时按钮的 title 换成 tierBlockReason 那句，会员档那几档另由选择器下面那一句（memberTiersLine）说。
 const TIER_TEXT: Record<string, { label: () => string; desc: () => string }> = {
   fast: {
     label: () => i18n._(msg`极速`),
     desc: () => {
       const day = tierRetireDay(tierOf("fast"));
-      return i18n._(msg`省 token · 首帧起拍，不锁尾帧 · 免费可用 · 模型 ${day}起停用`);
+      return i18n._(msg`省 token · 首帧起拍，不锁尾帧 · 模型 ${day}起停用`);
     },
   },
   draft: {
     label: () => i18n._(msg({ message: "草稿", context: "画质档位名：Seedance 2.0 mini 480p 的省钱档（不是草稿箱的草稿，也不是电影级的样片）" })),
     desc: () => {
       const hd = tierOf("hd").label;
-      return i18n._(msg`480p 省钱档 · 与「${hd}」同一个模型、画面小一号；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音 · 免费可用`);
+      return i18n._(msg`480p 省钱档 · 与「${hd}」同一个模型、画面小一号；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音`);
     },
   },
   std: {
     label: () => i18n._(msg`标准`),
     desc: () => {
       const day = tierRetireDay(tierOf("std"));
-      return i18n._(msg`首尾帧可控 · 会员档 · 模型 ${day}起停用`);
+      return i18n._(msg`首尾帧可控 · 模型 ${day}起停用`);
     },
   },
   // ★ desc 是给**用户**看的，不是给运维看的（原来写过「需在方舟控制台开通 2.0 系列」—— 那是部署方的事）
   hd: {
     label: () => i18n._(msg`高清`),
-    desc: () => i18n._(msg`新一代模型 · 画面更稳、细节更多；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音 · 会员档`),
+    desc: () => i18n._(msg`新一代模型 · 画面更稳、细节更多；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音`),
   },
   ultra: {
     label: () => i18n._(msg`电影级`),
     desc: () => {
       const x = ultraVsHd();
       const hd = tierOf("hd").label;
-      return i18n._(msg`最新一代 · 画面与运镜最好，出片带 AI 生成的环境音，每秒消耗约「${hd}」档的 ${x} 倍（会员档）`);
+      return i18n._(msg`最新一代 · 画面与运镜最好，出片带 AI 生成的环境音，每秒消耗约「${hd}」档的 ${x} 倍`);
     },
   },
   real: {
     // ★ 带 context：「真人」在别处是真人卡 / 真人照片里的形容词，这里是一档的名字，英文不是同一个词
     label: () => i18n._(msg({ message: "真人", context: "画质档位名：唯一收真人照片的那一档（不是「真人卡」「真人照片」里的形容词）" })),
-    desc: () => i18n._(msg`唯一收真人照片的档 · 供应商按发计价（6 秒或 10 秒整档）· 用真人卡出片选它 · 会员档`),
+    desc: () => i18n._(msg`唯一收真人照片的档 · 供应商按发计价（6 秒或 10 秒整档）· 用真人卡出片选它`),
   },
 };
 
