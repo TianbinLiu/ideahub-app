@@ -1864,7 +1864,9 @@ export const useStudio = create<StudioState>()((set, get) => ({
       chain: !editor.startFrame && !!prev?.lastFrame && first === prev.lastFrame,
     });
     if (!newId) {
-      get().npcSay(useFlow.getState().err || t`现在铺不了这一段，稍后再试。`);
+      // ★ 走 notice 不走 npcSay（2026-10-07 评审抓到）：这颗键长在铸段窗里，铸段窗开着时 NpcDialog 整个 return null ——
+      //   原来被拒（会员档 / 档位停用 / 末段还没出片）就是「点了没反应」
+      set({ notice: { text: useFlow.getState().err || t`现在铺不了这一段，稍后再试。`, at: Date.now() } });
       return;
     }
     // ★★ 车道开关**无条件打**（2026-08-30 修）：`FlowNode.custom` 记的是"这一段属于自定义
@@ -1924,7 +1926,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
       direct: true,
     });
     if (!newId) {
-      get().npcSay(useFlow.getState().err || t`现在铺不了这一段，稍后再试。`);
+      // notice 不走 npcSay：理由同 layCustomNode 那一句（铸段窗开着时 NpcDialog 不渲染）
+      set({ notice: { text: useFlow.getState().err || t`现在铺不了这一段，稍后再试。`, at: Date.now() } });
       return;
     }
     set({ spreadOpen: false, focus: { nodeId: newId }, projection: "proposals", editor: null });
@@ -2142,23 +2145,30 @@ export const useStudio = create<StudioState>()((set, get) => ({
         ? !!tail2 && tail2.id === anchor.id && tail2.chosenId === anchor.chosenId
         : path2.length === 0;
       if (!anchorOk) {
-        get().npcSay(t`推演期间桌面已经变样，这一炉先作废——按现在的走向重新生成吧。`);
+        // ★ 走 notice 不走 npcSay：铸段窗开着时 NpcDialog 整个 return null（见 notice 的 ★），那句话等于没说
+        set({ notice: { text: t`推演期间桌面已经变样，这一炉先作废——按现在的走向重新生成吧。`, at: Date.now() } });
         get().setMood(-0.5, 2200);
         return;
       }
       // 素材快照存进节点：发布时聚合成"本片卡组"，观众可收入同款素材复刻；
       // 档位随节点走，合成该段时按它选 Seedance 模型与计费。落地走 appendNode（单一真相）
-      const newId = useFlow.getState().appendNode({
-        proposals,
-        chosenId: null, // 三套摊开等挑（plan:"picking"）
-        materials,
-        videoTier: editor.videoTier,
-        aspect: editor.aspect,
-        requirement: editor.requirement,
-        chain: !editor.startFrame && !!prev?.lastFrame, // 承接与否只看"帧是不是上一段给的"，与报价那个 startFrame 差一位（用户自己传图时不算承接）
-      });
+      const newId = useFlow.getState().appendNode(
+        {
+          proposals,
+          chosenId: null, // 三套摊开等挑（plan:"picking"）
+          materials,
+          videoTier: editor.videoTier,
+          aspect: editor.aspect,
+          requirement: editor.requirement,
+          chain: !editor.startFrame && !!prev?.lastFrame, // 承接与否只看"帧是不是上一段给的"，与报价那个 startFrame 差一位（用户自己传图时不算承接）
+        },
+        // ★★ 推演费已经扣了：落段不再问档位门禁（扣钱之前问过了；这几分钟里答案变了的话，方案照样落下来，
+        //   出片那一拍 genNode 再拦并说清楚、档位行能换档 —— 见 flowStore.appendNode 那段 ★★）
+        { tierGate: false },
+      );
       if (!newId) {
-        get().npcSay(useFlow.getState().err || t`推演好了，但现在铺不上桌——稍后再试。`);
+        // ★ 走 notice 不走 npcSay：铸段窗开着时 NpcDialog 整个 return null（见 notice 的 ★），那句话等于没说
+        set({ notice: { text: useFlow.getState().err || t`推演好了，但现在铺不上桌——稍后再试。`, at: Date.now() } });
         get().setMood(-0.5, 2200);
         return;
       }

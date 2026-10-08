@@ -1713,8 +1713,10 @@ interface FlowState {
    * 追加一个**成品段**（带着推演好的方案落地，工坊铸段用；与 addNode 的空白段互补）。
    * 门禁与 addNode 完全同源：末段必须已出片、生成中拒、白模段后拒、pinUnstatedTpl 同拍。
    * 返回 false = 被拒（原因在 err，铁律八）。
+   * `opts.tierGate: false` = 不问档位门禁：**只给已经花了钱才来落地的那一条**（工坊「推演三套」：方案出炉才落段），
+   * 理由见实现里那段 ★★。缺省问。
    */
-  appendNode: (spec: AppendSpec) => string | null;
+  appendNode: (spec: AppendSpec, opts?: { tierGate?: boolean }) => string | null;
   /**
    * 一次接几段在末尾（跟着做 C「九宫格分镜」：挑中的几格各成一段，2026-10-05）。门禁与 appendNode 同一处（appendIssue：
    * 白模尾段拒 / 末段未出片拒 / 生成中拒），每段用 appendedNode 拼（与 appendSpecsQuote 报价的同一批）。
@@ -2983,7 +2985,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
       return { nodes: [...pinUnstatedTpl(s.nodes, s.template), node], cursor: i, err: "" };
     }),
 
-  appendNode: (spec) => {
+  appendNode: (spec, opts) => {
     let newId: string | null = null;
     set((s) => {
       // 门禁与 addNode 逐条同源（白模段后拒 = appendBlocked 一处 / 末段未出片拒 /
@@ -2999,8 +3001,14 @@ export const useFlow = create<FlowState>()((set, get) => ({
       // 落下的这一段长什么样只在 appendedNode 一处（报价 appendQuote 问的是同一个节点）
       const node = appendedNode(s.nodes, spec);
       // 档位门禁（同 deriveProposals 那条 ★★）：落一段这个人出不了片的段没有意义（向导的选法屏本来就只给选用得了的档，这是最后一道）
-      const tierIssue = tierBlockReason(tierOf(node.videoTier));
-      if (tierIssue) return { err: tierIssue };
+      // ★★ 但**已经花了钱才来落地的**不问（opts.tierGate === false，只有工坊「推演三套」这么传，2026-10-07 评审抓到）：
+      //   那条路先扣推演费、等几分钟方案出炉才 appendNode，而这一道的答案在这几分钟里会变 —— 套餐状态还不知道时一律放行、
+      //   钱包回来才知道没付过钱；或者推演正好跨过停用时刻（11-24 13:00）。这里一拒，三套付过钱的方案只活在内存里、当场作废。
+      //   落下来没有坏处：出片那一拍 genNode 照样拦并说清楚，这一段的档位行能换到用得了的档，方案留着。
+      if (opts?.tierGate !== false) {
+        const tierIssue = tierBlockReason(tierOf(node.videoTier));
+        if (tierIssue) return { err: tierIssue };
+      }
       newId = node.id;
       return { nodes: [...pinUnstatedTpl(s.nodes, s.template), node], cursor: i, err: "" };
     });
