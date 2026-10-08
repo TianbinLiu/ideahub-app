@@ -31,7 +31,7 @@ export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: st
   const src = useMediaUrl(url);
   /**
    * ★★ 白模出片本身无声（ai/arkClient.BLOCKOUT_TASK 钉着 generate_audio:false —— edit 会连参考视频的歌一起复刻，
-   *   带歌模板会被方舟在输出端整发拒掉、钱不退），于是拿「有声音的模板」出的片在这里放出来是哑的、播放器上的
+   *   带歌模板会被方舟在输出端整发拒掉、片子出不来），于是拿「有声音的模板」出的片在这里放出来是哑的、播放器上的
    *   声音键灰着（2026-09-06 主人真机）。回看时把模板那一段的**原片音轨**叠上去：refVideo.url 正是与这一段
    *   对齐的那段裁剪（分段组的每一段各自一份），从 0 秒起跟着视频走；合并成片时 CutPage 回填的也是同一条
    *   （studioStore.draftAudioHint）。

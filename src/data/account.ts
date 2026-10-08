@@ -12,8 +12,10 @@ import { V3_CARD_WIPE_MS, Card, SHARE_NOTE_MAX, uid, viewTag, type CardView } fr
 import { MARKET_DECKS, marketCardsByName } from "../mock/ai";
 import { claimPendingTerms, reconcileTermsWithServer } from "./agreements";
 import { claimLegacyVoices, removeVoice } from "./cardVoice";
-import { adoptRemoteAssets, assetOf, claimLegacyAssets, removeAsset, saveAsset, setAssetSyncIssue, type CardAsset } from "./cardAsset";
-import { PLANS, PLATFORM_CUT, fmtTokens, type VideoTier } from "./economy";
+import { adoptRemoteAssets, assetOf, claimLegacyAssets, hasAsset, removeAsset, saveAsset, setAssetSyncIssue, type CardAsset } from "./cardAsset";
+import { PLANS, PLATFORM_CUT, VIDEO_TIERS, fmtTokens, joinTierNames, planOf, tierOf, tierRetireDay, tierRetired, type VideoTier } from "./economy";
+import { serverFreeVideo, serverSupports, subscribeServerCaps } from "./serverCaps";
+import { FREE_DEFAULT_CHAIN, PAID_DEFAULT_CHAIN, SEEDANCE_2_5, firstLiveTierId } from "./videoTierTable";
 import { idbGet, idbRead, idbSet } from "./db";
 // 转存（dataURL → 永久 URL）的唯一入口，与发布/换封面/详情页加图共用（铁律六）
 import { toPermanentUrl } from "./publishAssets";
@@ -41,8 +43,13 @@ export interface User {
   following: string[];
   /** 收藏的视频 id（老账号可能缺字段，读写处 ??= 兜底） */
   collects?: string[];
-  /** token 钱包：plan=套餐额度（每月发放，优先扣），addon=直充/创作收益（不过期） */
-  wallet?: { plan: number; addon: number };
+  /**
+   * token 钱包：plan=套餐额度（付费套餐每月发放；免费版每天补，优先扣），addon=直充/创作收益/新人额度（不过期）。
+   * day = 免费额度上一次补到哪一天（UTC 自然日 YYYY-MM-DD，离线账本才用；服务端那份在 tokenWallet.day）。
+   */
+  wallet?: { plan: number; addon: number; day?: string };
+  /** 离线账本：付过钱没有（充值 / 买付费套餐过一次就是 true，再也不回 false）—— 服务端 tokenWallet.paidEver 的离线镜像 */
+  paidEver?: boolean;
   /** 当前订阅套餐 id（data/economy PLANS）；缺省=free */
   planId?: string;
   /** 已解锁的付费内容，键 `${videoId}:${partIndex}` */
@@ -664,8 +671,16 @@ export function isCollected(videoId: string): boolean {
 // 离线模式（没配 API_BASE）下，下面这套仍然是**唯一**的账本——那种包本来就不出网，
 // 也就不存在"骗谁的钱"。
 
-/** 远端模式的钱包镜像。null = 还没取到（未登录/请求未回来） */
-let remoteWallet: { plan: number; addon: number; planId: string; debt: number; frozen: boolean } | null = null;
+/** 远端模式的钱包镜像。null = 还没取到（未登录/请求未回来）。paid / free 只由 GET /api/me/wallet 写（响应头不带） */
+let remoteWallet: {
+  plan: number;
+  addon: number;
+  planId: string;
+  debt: number;
+  frozen: boolean;
+  paid?: boolean;
+  free?: walletApi.FreeQuota;
+} | null = null;
 
 /**
  * 镜像里的 planId 是不是**服务端说过的**。
@@ -681,7 +696,9 @@ let remoteWallet: { plan: number; addon: number; planId: string; debt: number; f
 let planIdConfirmed = false;
 
 /** 用服务端的权威值覆盖镜像。由 /api/ark 的响应头与 GET /api/me/wallet 调用 */
-export function syncRemoteWallet(next: { plan: number; addon: number; planId?: string; debt?: number; frozen?: boolean } | null): void {
+export function syncRemoteWallet(
+  next: { plan: number; addon: number; planId?: string; debt?: number; frozen?: boolean; paid?: boolean; free?: walletApi.FreeQuota } | null,
+): void {
   if (!next) return;
   if (next.planId) planIdConfirmed = true;
   // ★ debt 缺省时**保留镜像里的旧值**而不是清零：/api/ark 的响应头在不欠钱时根本不发
@@ -694,6 +711,9 @@ export function syncRemoteWallet(next: { plan: number; addon: number; planId?: s
     planId: next.planId ?? remoteWallet?.planId ?? "free",
     debt,
     frozen: next.frozen ?? debt > 0,
+    // ★ 响应头不带这两格：缺省时**保留旧值**（同 debt 那条）—— 清掉的话每出一次片，付过钱的人就被打回「不知道付没付过」
+    paid: next.paid ?? remoteWallet?.paid,
+    free: next.free ?? remoteWallet?.free,
   };
   emit();
 }
@@ -703,28 +723,105 @@ export async function refreshRemoteWallet(): Promise<void> {
   if (!remoteOn() || !getToken()) return;
   try {
     const r = await walletApi.fetchWallet();
-    syncRemoteWallet(r.wallet);
+    // paid / free 认回包顶层（契约：`{ wallet: {…, paidEver}, plans, paid, free }`；顶层 paid = 服务端 isPaidUser 的结论），
+    // wallet 里那一格只是兜底（见 WalletResp 的 ★）。wallet.paidEver 不拿来顶：它只是「付过任何一笔」那一半，套餐那一半在 planId 上
+    syncRemoteWallet({ ...r.wallet, paid: r.paid ?? r.wallet.paid, free: r.free ?? r.wallet.free });
   } catch (e) {
     emitApiError("refreshWallet", e);
   }
 }
 
+/** UTC 自然日（YYYY-MM-DD）。★ 免费额度按 UTC 日补，与服务端（以及原来的每日上限）同一条日界线 */
+function utcDay(ms: number = Date.now()): string {
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
+/**
+ * 离线账本的钱包（远端模式下这里不管钱，见上面那段 ★★）。照服务端的免费额度规则走（2026-10-07 主人拍板）：
+ *   · **新开**的钱包：新人额度进 add-on（170k，永不过期）+ 第一天的 2k 进套餐额度；
+ *   · 免费版每过一个 UTC 日往套餐额度里补 2k，补到 14k（最多攒 7 天）为止；本来就比 14k 多的不扣回来；
+ *   · 已经有钱包的老账号**不补**新人额度（服务端也一样），只从今天起开始按天补；
+ *   · 付费套餐不按天补（买的时候一次加一个月的量，见 buyPlan）。
+ * ★ 在 render 里也会被调（walletOf）：补额度只改内存、不落盘也不广播 —— 它只看「上次补到哪天」与「今天」，
+ *   没落盘的话下次照样补到同一个数（幂等），下一次真写钱包（spendTokens 等）时一起落盘。
+ */
 function ensureWallet(u: User): NonNullable<User["wallet"]> {
+  const free = planOf("free");
   if (!u.wallet) {
-    // 老账号/新账号首次触达：发免费套餐的当月额度
-    u.wallet = { plan: PLANS[0].monthlyTokens, addon: 0 };
+    u.wallet = { plan: free.dailyTokens ?? 0, addon: free.welcomeTokens ?? 0, day: utcDay() };
     u.planId ??= "free";
   }
-  return u.wallet;
+  const w = u.wallet;
+  const today = utcDay();
+  if (!w.day) w.day = today;
+  else if (w.day < today) {
+    const plan = planOf(u.planId);
+    if (plan.price <= 0 && (plan.dailyTokens ?? 0) > 0) {
+      const days = Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${w.day}T00:00:00Z`)) / 86_400_000);
+      const cap = plan.dailyCapTokens ?? Number.POSITIVE_INFINITY;
+      w.plan = Math.max(w.plan, Math.min(cap, w.plan + days * (plan.dailyTokens ?? 0)));
+    }
+    w.day = today;
+  }
+  return w;
 }
 
 /** 当前用户钱包快照（未登录返回 null）。远端模式读镜像，离线模式读本地账本 */
-export function walletOf(): { plan: number; addon: number; planId: string; debt?: number; frozen?: boolean } | null {
+export function walletOf(): { plan: number; addon: number; planId: string; debt?: number; frozen?: boolean; paid?: boolean } | null {
   if (remoteOn()) return currentUser() ? remoteWallet : null;
   const u = currentUser();
   if (!u || !db) return null;
   const w = ensureWallet(u);
-  return { plan: w.plan, addon: w.addon, planId: u.planId ?? "free" };
+  return { plan: w.plan, addon: w.addon, planId: u.planId ?? "free", paid: u.paidEver === true };
+}
+
+/**
+ * 免费额度的三个数（新人一次 / 每天补多少 / 补到多少为止）。远端模式优先读服务端下发的（GET /api/me/wallet 的 free），
+ * 没有（老服务端 / 离线）就读 economy.PLANS 免费版那一行 —— 两仓逐条相等。「我的」页照它说「每天补多少」。
+ */
+export function freeQuota(): walletApi.FreeQuota {
+  const remote = remoteOn() ? remoteWallet?.free : undefined;
+  if (remote) return remote;
+  const free = planOf("free");
+  return { welcomeTokens: free.welcomeTokens ?? 0, dailyTokens: free.dailyTokens ?? 0, dailyCapTokens: free.dailyCapTokens ?? 0 };
+}
+
+/**
+ * 这个人**付过钱没有**（true = 套餐价 > 0 或付过任何一笔；false = 免费用户；null = 还不知道）—— 免费档限制的判据，**唯一实现**。
+ * ★ 与服务端 isPaidUser 同一个口径（主人 10-07：付费用户 = 有付费套餐，或者买过任何东西）。套餐 id 认不出时当免费版
+ *   （economy.planOf，与服务端 planOf 的兜底一致：反过来当付费的话，界面放行、服务端 403，而推演 / 画帧的钱那时已经花了）。
+ * ★ 管理员当付费（服务端对他跳过套餐门禁与扣费，见 tierBlockReason 那段 ★★）。
+ * ★ 远端模式下套餐没被服务端确认过（planIdConfirmed）就是「还不知道」：响应头只带余额，镜像里的 "free" 可能是我们自己填的。
+ */
+export function payingNow(): boolean | null {
+  if (billingExempt()) return true;
+  const w = walletOf();
+  if (!w) {
+    nudgeWallet();
+    return null;
+  }
+  if (remoteOn() && !planIdConfirmed) {
+    nudgeWallet();
+    return null;
+  }
+  return planOf(w.planId).price > 0 || w.paid === true;
+}
+
+/** 上一次因为「还不知道付没付过钱」去补拉钱包的时刻（节流用） */
+let walletNudgedAt = 0;
+
+/**
+ * 「还不知道付没付过钱」时补拉一次钱包（节流 30 秒）。
+ * ★ 为什么要有：登录 / 冷启动那一发 refreshRemoteWallet 失败（错误被吞进 emitApiError，全 app 没人听）之后，整场会话都停在「不知道」——
+ *   免费档限制之后这一位决定新段的默认档（不知道 = 落在免费档上），付费用户会一直被摆在免费档上、自己换。
+ *   这里在被问到的那一刻顺手再拉一次（render 里也会被问到，所以节流；同 serverCaps.serverSupports 第一次被问到时发起探测）。
+ */
+function nudgeWallet(): void {
+  if (!remoteOn() || !getToken() || !currentUser()) return;
+  const now = Date.now();
+  if (now - walletNudgedAt < 30_000) return;
+  walletNudgedAt = now;
+  void refreshRemoteWallet();
 }
 
 /**
@@ -818,37 +915,275 @@ export function balanceNote(): string {
   return t`余额 ${amount}`;
 }
 
+// 能力位探测到了 / 变了：订阅了账号的界面一起重画（「草稿」档在老服务端上要藏起来，探测是异步的）
+subscribeServerCaps(() => emit());
+
+/**
+ * 这一档**眼下根本用不了**的原因（与套餐无关）：模型已经停用（retireAt），或者这台服务端还不支持它（480p 的「草稿」档要服务端 res480 能力位）。
+ * null = 用得了。★ 这两种档界面上**不摆**（offeredTiers），这句话是给「这一段早就挂着这一档」的情形说的（老草稿、做同款抄来的、停用那一刻正摆着的）。
+ * ★ 服务端还没探到（serverSupports 回 null）时放行：提交那一刻服务端会同步 400、一分钱不花，比慢半拍把免费用户唯一的档藏起来好。
+ */
+function tierOffIssue(tier: VideoTier): string | null {
+  const label = tier.label;
+  if (tierRetired(tier)) {
+    const day = tierRetireDay(tier);
+    return t`「${label}」档的模型已于 ${day}停用——换一档再出片`;
+  }
+  if (tier.resolution !== "720p" && serverSupports("res480") === false) {
+    return t`这台服务器还不支持「${label}」档（服务端需要更新）——先换一档出片`;
+  }
+  return null;
+}
+
+/** 这一档现在摆不摆出来（没停用、这台服务端支持）。档位那一排、选法屏、货架的「出片模型」筛选都只摆这些 */
+export function tierOffered(tier: VideoTier): boolean {
+  return tierOffIssue(tier) === null;
+}
+
+/** 现在摆得出来的那几档（顺序同档位表）。★ 判据只在 tierOffIssue：界面别自己拿 retireAt 或能力位去筛 */
+export function offeredTiers(): VideoTier[] {
+  return VIDEO_TIERS.filter(tierOffered);
+}
+
+/**
+ * 这一档**免费用户**能不能用（不看停用 / 服务端支不支持，那是 tierOffIssue 的事）—— 免费档清单的唯一读法。
+ * ★ 判据跟着服务端走（2026-10-07 评审抓到）：健康端点报了 freeVideo 就照它；运维关掉 FREE_VIDEO_GATE 时（freeVideoGate: false）
+ *   服务端退回改版前的口径 —— 只挡电影级（Seedance 2.5），新 App 跟着放开（原来只看本机 freeOk，开关对新 App 不起作用）；
+ *   没报（老服务端 / 直连 / 还没探到）按档位表的 freeOk。按（模型, 分辨率）认，不按模型：「草稿」与「高清」是同一个模型。
+ */
+export function tierFreeOk(tier: VideoTier): boolean {
+  const fv = serverFreeVideo();
+  if (fv === "legacy") return tier.model !== SEEDANCE_2_5;
+  if (fv) return fv.some((x) => x.model === tier.model && x.resolution === tier.resolution);
+  return tier.freeOk;
+}
+
+/** 「会员档」那一整句：一档或几档并成一句（档位那一排、选法屏、工坊铸段窗都只说这一句，别一档一句糊四遍） */
+function memberLine(labels: string[]): string {
+  const names = joinTierNames(labels);
+  return t`「${names}」是会员档——开通会员套餐（或充值过任意一笔）就能用`;
+}
+
 /**
  * 「这一档现在能不能用」——**唯一实现**。返回 null = 能用，否则是一句给用户看的原因。
  *
+ * ★★ 2026-10-07 从黑名单（paidOnly 只挡电影级）改成**白名单**（主人拍板）：没付过钱的用户只能用 freeOk 的档（「极速」「草稿」），
+ *   别的档（标准 / 高清 / 电影级含样片 / 真人）付过钱才能用。「付过钱」的判据在 payingNow（套餐价 > 0 或付过任何一笔）。
+ *   另外两种「用不了」与套餐无关、谁都拦（管理员也拦：服务端对停用的模型一律拒）：模型停用、这台服务端不支持（tierOffIssue）。
  * ★ 为什么放在 account 而不是 economy：判据是**当前用户的套餐**，而 economy 是纯目录
  *   （account 已经 import 它，反过来会成环）。UI 与 store 都调这一处：
- *   档位按钮禁用要它、genNode 出片前也要它，两边各写一遍必然分叉（铁律六）。
- * ★ 这只是**提示**，不是安全边界。客户端禁用一个按钮拦不住改过的包，真正的拦截在
- *   服务端（按 JWT 里的用户查套餐，免费版调 2.5 直接拒）。
- * ★ 套餐还不知道（远端模式镜像没回来 / 未登录）时**放行**，与 canAfford 同一套乐观口径：
+ *   档位按钮禁用要它、genNode / 推演 / 重画 / 落段 / 剪辑页重拍出片前也要它，各写一遍必然分叉（铁律六）。
+ * ★ 这只是**提示**，不是安全边界。真正的拦截在服务端（videoPlanDenial，403 PLAN_REQUIRED）。
+ * ★ 付没付过钱还不知道（远端模式镜像没回来 / 未登录）时**放行**，与 canAfford 同一套乐观口径：
  *   宁可让请求打出去由服务端说了算，也不能因为镜像慢半拍就把付费用户的档位锁死
- *   ——那会表现成"我明明买了套餐却点不动"，而且刷新也好不了。
+ *   ——那会表现成"我明明买了套餐却点不动"，而且刷新也好不了。新段的默认档在不知道时落在免费档上（defaultTierId），两头都不吃亏。
+ * ★★ 管理员放行（服务端的 billedForward 对 admin 同时跳过套餐门禁与扣费；这边灰着就是给他看一句与事实相反的话）—— 在 payingNow 里。
  */
-export function tierBlockReason(tier: Pick<VideoTier, "label" | "paidOnly">): string | null {
-  if (!tier.paidOnly) return null;
-  // ★★ 管理员放行。这里原来写着"故意不开口子，因为服务端是分开判的"——那句话**是错的**：
-  //   服务端的 billedForward 对 admin **同时**跳过套餐门禁与扣费（门禁守的也是钱，
-  //   不跳的话免费档的管理员会在 seedance-2.5 上被 403）。所以这边继续灰着，
-  //   就是给管理员看一句与事实相反的「升级套餐后可用」——反向假特权，
-  //   而且他没有任何办法验证到底是谁在拦（铁律五、八）。
-  //   服务端仍是唯一的安全边界：客户端放行只是别再撒谎。
-  if (billingExempt()) return null;
-  const w = walletOf();
-  if (!w) return null; // 还不知道套餐，交给服务端判
-  // 远端模式下镜像里的 planId 可能是**我们自己填的** "free"（响应头只带余额不带套餐，
-  // 见 planIdConfirmed）。没被服务端确认过就等同于"还不知道"，一律放行。
-  if (remoteOn() && !planIdConfirmed) return null;
-  if (w.planId !== "free") return null;
-  // 说清楚"为什么"，不是只把按钮灰掉：免费版每月 300k，而这一档最短的一段就要 30 万+
+export function tierBlockReason(tier: VideoTier): string | null {
+  const off = tierOffIssue(tier);
+  if (off) return off;
+  if (tierFreeOk(tier)) return null;
+  // true（付过钱 / 管理员）或 null（还不知道）都放行
+  if (payingNow() !== false) return null;
+  return memberLine([tier.label]);
+}
+
+/**
+ * 这一排里**因为套餐**点不动的那几档并成一句（null = 没有）。档位那一排（TierRow）、选法屏（ModePicker）、工坊铸段窗都只印这一句 + 「去升级」，
+ * 不再一档一句（四档同一个原因糊四遍，同 economy.r2vBlockLines 治过的那件事）。停用 / 服务端不支持的档本来就不摆，不在这句里。
+ */
+export function memberTiersLine(): string | null {
+  if (payingNow() !== false) return null;
+  const labels = offeredTiers().filter((x) => !tierFreeOk(x)).map((x) => x.label);
+  return labels.length ? memberLine(labels) : null;
+}
+
+/**
+ * 有某种能力的档、**按这个人用不用得了**分两串名字（都只算摆得出来的档）：usable = 现在就能换过去的，member = 开通会员才能用的。
+ * 空串 = 没有。★ 句子里「换到哪一档就有」一律从这里取（economy.tierNamesWhere 是不看套餐的目录版）：写死「高清或电影级」的话，
+ *   免费用户被指去两个点不动的档，而他唯一能用的「草稿」一个字都没提（2026-10-07 加免费档限制时清点过二十来处）。
+ */
+export function tierNamesFor(pred: (t: VideoTier) => boolean): { usable: string; member: string } {
+  const offered = offeredTiers().filter(pred);
+  return {
+    usable: joinTierNames(offered.filter((x) => !tierBlockReason(x)).map((x) => x.label)),
+    member: joinTierNames(offered.filter((x) => !!tierBlockReason(x)).map((x) => x.label)),
+  };
+}
+
+/**
+ * 「样片」模式（电影级：先出 480p 样片看效果，满意再按同一份样片升成 1080p 成片）**摆不摆出来** —— 档位有这一项（VideoTierSpec.draftOk）、
+ * 这一档摆得出来、这台服务端会（能力位 draftMode；还不知道时照摆，提交那一刻服务端会同步说清楚）。套餐挡住的照样摆、灰着说为什么（draftModeIssue）。
+ * ★ 界面那颗开关与出片那一半在 A2（components/flow/DraftModeBox），判据只问这两个函数。
+ */
+export function draftModeOffered(tier: VideoTier): boolean {
+  return tier.draftOk && tierOffered(tier) && serverSupports("draftMode") !== false;
+}
+
+/** 这一段现在能不能走样片（null = 能）：摆不出来的说为什么，摆得出来的再过套餐那一道（会员档，与 tierBlockReason 同一句） */
+export function draftModeIssue(tier: VideoTier): string | null {
+  if (!tier.draftOk) {
+    const label = tier.label;
+    const names = joinTierNames(offeredTiers().filter((x) => x.draftOk).map((x) => x.label));
+    return names ? t`「${label}」档没有样片模式（只有「${names}」有）` : t`「${label}」档没有样片模式`;
+  }
+  if (serverSupports("draftMode") === false) return t`这台服务器还不支持样片模式（服务端需要更新）`;
+  return tierBlockReason(tier);
+}
+
+/**
+ * 服务端 403 PLAN_REQUIRED 的本端整句（英文界面用；中文界面照旧原样说服务端那句，见 arkClient.billingDenialError）。
+ * 免费档的名字按能力现算（freeOk 且摆得出来的），不写死 —— 11-24 极速停用后自己少一档。
+ */
+export function planRequiredLine(): string {
+  const free = joinTierNames(offeredTiers().filter(tierFreeOk).map((x) => x.label));
+  return free
+    ? t`这一档是会员档——开通会员套餐（或充值过任意一笔）后可用；免费版能用「${free}」档出片`
+    : t`这一档是会员档——开通会员套餐（或充值过任意一笔）后可用`;
+}
+
+/**
+ * 「去换哪几档」那一串：先给这个人**用得了的**；一档都用不了时给那几档会员档的名字，并标出来（member = true，调用方换一句「是会员档」的说法）。
+ * 句子都是整句、两种说法各一条（多语言）：别把「（会员档）」当半句拼上去。
+ */
+export function tierGo(pred: (t: VideoTier) => boolean): { names: string; member: boolean } {
+  const n = tierNamesFor(pred);
+  return n.usable ? { names: n.usable, member: false } : { names: n.member, member: true };
+}
+
+/**
+ * 「这些素材卡挂在这一档上，真人照片过不过得去」—— **唯一实现**（铁律六），
+ * null = 没问题，否则是一句给用户看的整句原因。形状照 r2vPriceIssue / imageTierPriceIssue：
+ * 界面（SegSettings 把原因印在页面上）与生成闸（flowStore 的 genNode / deriveProposals）
+ * 都只问这一句，不许各自去翻 `realPerson` 或档位表 —— 各翻一遍就是"界面说能出、
+ * 生成闸拒了"这种两面打架。
+ *
+ * ★★ 2026-10-07 从 economy 搬到这里（评审抓到）：出路那半句要点名「换到哪一档」，而免费档限制之后「真人」「高清」「电影级」都是会员档 ——
+ *   economy 是纯目录、不认识套餐，原来那句话把免费用户指去一个点不动的「真人」档（灰着、写着会员档），又按目录列出
+ *   「草稿」「高清」「电影级」三档。档名现在从 tierGo / tierBlockReason 取：先给这个人用得了的，用不了的标明是会员档、怎么开。
+ *   account 已经 import economy，反过来会成环，所以只能放这一侧（同 tierBlockReason 的 ★）。
+ * ★ 为什么在**素材 × 档位**上判，不是只看档位：非真人素材在任何档都照常走；真人素材
+ *   只有 realFace 档能收（今天一档都没有，见 VideoTier.realFace 的实测依据）——
+ *   两个输入缺一个都答不了"这一段现在能不能生成"。
+ * ★ realPerson 判**肯定**（`=== true`）：缺省 = 老卡 = 非真人，照常放行
+ *   （types.Card.realPerson 那条 ★ 的读侧约定，别改成对 false 的等值判）。
+ * ★ r2v/白模路不用单独设闸：它与经典路都从 genNode 那道门走，天然被盖住。
+ * ★ 原因句不点名 MiniMax/Runway：对用户那是没上线的内部选型，说了也做不了任何事；
+ *   接入哪家写在 VideoTier.realFace 的注释里，给接入的人看。
+ * ★ `blockout` 只改**出路那半句**（2026-08-24 真机走查抓到）：白模节点上「真人」档
+ *   整个按不动（没有 r2v 能力，r2vPriceIssue 拦着），默认那句「换成真人档就能出」
+ *   在那儿是一条死路 —— 两行提示并排自相矛盾，用户照着点只会发现按钮不生效。
+ *   真人卡 × 白模模板是**双向都无解**的组合，出路只有取卡或去模板，就照实说。
+ * ★★ `framed` = 这一发会带画面帧（flowStore.nodeFramed / 推演与工坊恒真）。2026-09-30 付费实测：
+ *   可信素材只救得了**卡片那一张**，同一发里只要还有别的写实人脸图 —— 推演或补画出来的设定帧、
+ *   上一段接过来的承接画面、用户自己传的首帧 —— 方舟照样整发拒（400
+ *   `InputImageSensitiveContentDetected.PrivacyInformation`，点名的是那张正脸的帧，不是 asset），
+ *   哪怕帧是 Seedream 画的、哪怕同一个人的 asset 就在同一发里。所以收 asset:// 的档只在**不带帧**
+ *   时放行；白模段不算带帧（它发的是模板视频，由 blockout 那几句管）。
+ */
+export function realFaceIssue(
+  materials: Card[] | undefined,
+  tierId: string | undefined,
+  opts?: { blockout?: boolean; framed?: boolean },
+): string | null {
+  const real = (materials ?? []).filter((c) => c.realPerson === true);
+  if (real.length === 0) return null;
+  const tier = tierOf(tierId);
+  // 这一档本身就收真人照片（MiniMax 真人档）——不用绕方舟那套
+  if (tier.realFace === true) return null;
+
+  // ★★ 方舟合规通道：真人卡**做过肖像授权、拿到了可信素材 ID** 时，出片走的是
+  //   `asset://<id>` 而不是那张照片，方舟的人脸审核因此不适用（官方三条路之一，
+  //   docs/backlog.md §1）。所以这里放行的前提是**两件事同时成立**：
+  //     ① 每一张真人卡都有可信素材（缺一张就等于那个人要靠照片进模型 → 必被拒）；
+  //     ② 这一档的模型收 asset://（Seedance 2.0/2.5 收，1.0 不收，见 VideoTier.assetRef）。
+  //   ⚠ 判据只有这一处：别在界面或 segmentGen 里另翻一遍 hasAsset。
+  const noAsset = real.filter((c) => !hasAsset(c.id));
+  const framed = !!opts?.framed && !opts?.blockout;
+  if (tier.assetRef === true && noAsset.length === 0 && !framed) return null;
+
+  // ★ 三种出路各是一整句（2026-09-11 多语言）：原来是「开头半句 + ；而… / ——换成…」两段拼，英文没法照着拼。
+  //   卡名按界面语言的列举方式连（quotedNames）；句中点名的档位名从档位表现读（tierOf().label），不写死中文档名。
+  //   「本人授权过」原来两边带着 ** —— 没有任何地方渲染 markdown，用户看到的就是两对星号，这次一并去掉。
   const label = tier.label;
-  const quota = fmtTokens(PLANS[0].monthlyTokens);
-  return t`「${label}」单段消耗超过免费版整月额度（${quota}），升级套餐后可用`;
+  // 「真人」档：它是会员档（freeOk 为假）。免费用户读到「换真人档」要同时知道怎么开 —— 不说的话这是一条点不动的路
+  const realTier = tierOf("real");
+  const realLabel = realTier.label;
+  const realMember = !!tierBlockReason(realTier);
+  /** 「换『真人』档」那一截（含去哪儿用、要不要先开会员）。两种说法各是一整截，别把「会员档」当半句拼 */
+  const realPath = realMember
+    ? t`「${realLabel}」档（会员档：开通会员套餐或充值过任意一笔后可用，在「工作流」或「简约模式」里直出）`
+    : t`「${realLabel}」档（在「工作流」或「简约模式」里直出）`;
+  const names = quotedNames(real.map((c) => c.name));
+  // 这一档收 asset://，只是有卡还没做授权 —— 出路是"去做授权"，与"换档位"完全不同，
+  // 说错的话用户会去换一个同样出不了的档（铁律五：指路必须指对）
+  if (tier.assetRef === true) {
+    // 带帧的路：勾没勾「火山引擎适用」都过不去，先说这一条（别让人去详情页勾完了还是被拒）
+    if (framed) {
+      return t`${names}是真人卡：「${label}」档只在「简约模式」不带首帧时可用（推演帧、承接画面、上传的首帧里有真人脸，会被整发拒）——去「简约模式」直出，或换${realPath}`;
+    }
+    const lack = quotedNames(noAsset.map((c) => c.name));
+    // ★ 2026-09-30 起授权的界面入口就是卡上那个「火山引擎适用」勾选框（components/VolcCompatToggle），
+    //   原因句只指那一个地方（铁律五：指路必须指对 —— 此前这里指的"填素材 ID"那套界面已经没了）
+    // ★ 不认证也有路：「真人」档收真人照片。但白模段上那一档做不了复刻（见下面 blockout 那句），那时不往那儿指
+    return opts?.blockout
+      ? t`${lack}没有勾选「火山引擎适用」——「${label}」档只收做过火山引擎认证的真人卡。去卡片详情页勾选「火山引擎适用」，或先把这张卡取下`
+      : t`${lack}没有勾选「火山引擎适用」——「${label}」档只收做过火山引擎认证的真人卡。去卡片详情页勾选「火山引擎适用」，或换${realPath}`;
+  }
+  if (opts?.blockout) {
+    return realMember
+      ? t`${names}是声明过的真人素材，「${label}」档的供应商拒收真人照片（实测名人按版权拦、普通人按隐私拦，整发被拒）；而「${realLabel}」档做不了白模复刻——真人卡与白模模板不能同用：把真人卡取下换一张非真人卡，或不用模板、换「${realLabel}」档以卡上照片起拍直出（「${realLabel}」是会员档：开通会员套餐或充值过任意一笔后可用）`
+      : t`${names}是声明过的真人素材，「${label}」档的供应商拒收真人照片（实测名人按版权拦、普通人按隐私拦，整发被拒）；而「${realLabel}」档做不了白模复刻——真人卡与白模模板不能同用：把真人卡取下换一张非真人卡，或不用模板、换「${realLabel}」档以卡上照片起拍直出`;
+  }
+  // 收授权素材的那几档（assetRef：Seedance 2.0 / 2.5 系列 —— 2026-10-07 起多了「草稿」）。按能力 + 这个人用不用得了现算（tierGo）：
+  // 先给他用得了的（免费用户是「草稿」），一档都用不了才列会员档并标出来 —— 原来按目录列「草稿」「高清」「电影级」，免费用户被指去两个点不动的档
+  const asset = tierGo((x) => x.assetRef);
+  const assetPath = asset.member ? t`「${asset.names}」档（会员档）` : t`「${asset.names}」档`;
+  // ★ 「真人」档只在画布（工作流 / 简约模式）上能直出 —— 工坊整个建立在推演上，那一档在工坊是灰的（deriveIssue）。
+  //   这句话画布、工坊方案台、工坊节点卡三处都会印，所以把去哪儿用它说在句子里，别指一条在工坊里走不通的路
+  // 带帧的路上「勾了火山引擎适用就能换高清」不成立，得把"只在简约模式不带首帧"一起说出来
+  if (framed) {
+    return t`${names}是真人卡，「${label}」档不收真人照片——换${realPath}；${assetPath}只在「简约模式」不带首帧、且卡勾了「火山引擎适用」时可用`;
+  }
+  return t`${names}是真人卡，「${label}」档不收真人照片——换${realPath}；或给卡勾选「火山引擎适用」后换${assetPath}`;
+}
+
+/** 几张卡的名字各加一对引号、按界面语言的列举分隔符连起来（中文「凛」、「樱」，英文 “Rin”, “Sakura”） */
+function quotedNames(names: string[]): string {
+  const sep = t({ message: "、", comment: "列举几个名字时的分隔符" });
+  return names.map((name) => t({ message: `「${name}」`, comment: "给一个名字（卡名）加引号：中文「」，英文用弯引号" })).join(sep);
+}
+
+/**
+ * 新段的默认档 —— **唯一实现**（新段、工坊铸段窗、画布「＋ 加一段」、拆分镜技能铺的段都问它）。
+ * 付过钱（或管理员）：「标准」，它停用之后「高清」；免费用户**或还不知道**：「极速」，它停用之后「草稿」（主人 10-07 拍板）。
+ * ★ 不知道时落在免费档上：冷启动镜像慢半拍时，免费用户一出生就在一个点不动的会员档上，推演 / 画帧的钱会先花出去再被出片闸拦下；
+ *   付费用户只是多点一下换档。★ 链上的档停用 / 这台服务端不支持就往后退（firstLiveTierId）。
+ */
+export function defaultTierId(): string {
+  const chain = payingNow() === true ? PAID_DEFAULT_CHAIN : FREE_DEFAULT_CHAIN;
+  return firstLiveTierId(chain, Date.now(), (id) => tierOffIssue(tierOf(id)) === null);
+}
+
+/**
+ * 「这一档这个人现在能不能用；不能就换成能用的默认档」—— 抄别人的东西（做同款、按配方做同款、经典模板、承接上一段的档位）时都过它。
+ * ★ 换了档的调用方要**说出来**（「第 2 段原来是高清（会员档），换成了草稿」）：照原作的档位报价、悄悄按另一档出片，是两把尺。
+ * ★ 认不出的 id / 缺省 → 默认档。还不知道付没付过钱时 tierBlockReason 放行，所以不会把付费用户的「高清」误降成「草稿」。
+ */
+export function usableTierId(id: string | undefined): string {
+  if (id && tierOf(id).id === id && !tierBlockReason(tierOf(id))) return id;
+  // ★ 换到**能力最接近**的那一档（2026-10-07 评审抓到）：原来一律落默认档 —— 免费用户照做一份「高清」配方落在「极速」上，
+  //   参考图、声音、首尾帧一样都没了；而「草稿」与「高清」是同一个模型、只差分辨率，那些全都在。所以先找一档收不收参考图、
+  //   出不出声都与原档一样、这个人现在用得了的（按档位表的顺序取第一个 —— 便宜的排在前面），找不到才退回默认档。
+  //   只在方舟的档里找：真人档按发计价、做不了推演，不该被「换过去」。
+  const want = id ? tierOf(id) : null;
+  if (want && want.id === id) {
+    const near = offeredTiers().find(
+      (x) => !x.flatCost && x.refImg === want.refImg && x.audio === want.audio && !tierBlockReason(x),
+    );
+    if (near) return near.id;
+  }
+  return defaultTierId();
 }
 
 /**
@@ -939,6 +1274,8 @@ export async function rechargeAddon(tokens: number): Promise<RechargeResult> {
   const u = currentUser();
   if (!u || !db || tokens <= 0) return { kind: "login" };
   ensureWallet(u).addon += tokens;
+  // 付过一次钱 = 全部档位都能用（服务端 paidEver 的离线镜像，见 payingNow）
+  u.paidEver = true;
   persist();
   return { kind: "credited" };
 }
@@ -966,6 +1303,7 @@ export async function buyPlan(planId: string): Promise<RechargeResult> {
   if (!u || !db) return { kind: "login" };
   ensureWallet(u).plan += plan.monthlyTokens;
   u.planId = plan.id;
+  if (plan.price > 0) u.paidEver = true;
   persist();
   return { kind: "credited" };
 }
@@ -2113,6 +2451,7 @@ function adoptUser(remote: authApi.ApiUser): User {
   // 不 await —— 余额是个数字，晚半秒显示出来没关系，但不能拖慢登录跳转。
   remoteWallet = null;
   planIdConfirmed = false; // 换了人，上一个人的套餐更不能拿来判门禁
+  walletNudgedAt = Date.now(); // 这一拍已经在拉了，别让 payingNow 的补拉马上再发一发
   void refreshRemoteWallet();
   return user;
 }

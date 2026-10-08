@@ -18,6 +18,7 @@ import SocialPanel, { useCountView, useSocialVersion } from "../components/Socia
 import WorkshopShareBar, { shareBlockReason } from "../components/WorkshopShareBar";
 import CardHologram, { CARD_MODELS, useHologramModel } from "../studio/ui/CardHologram";
 import { acquireCard, bindCardAsset, cardsReady, fetchSharedCard, isRemoteMode, myCards, myDecks, removeCard, shareCard, unbindCardAsset, updateCardMeta } from "../data/account";
+import { voiceTierNames } from "../data/economy";
 import {
   addCardView,
   addPreparedCardView,
@@ -176,7 +177,7 @@ function pipelineNoteFor(type: CardType, views: CardView[]): string {
  *
  * ★★ 2026-09-30 主人拍板改成勾选框：勾着 = 这张卡做过火山引擎认证，只收授权素材的档位
  *   （高清 / 电影级）才对它开放；取消勾选 = 当场解绑。**不写**"哪一档需要认证"的说明——
- *   能用哪几档由档位按钮本身可不可点表达（TierRow 读 economy.realFaceIssue）。
+ *   能用哪几档由档位按钮本身可不可点表达（TierRow 读 account.realFaceIssue）。
  *   （2026-08-28 那一版是"只在坏了时出现、绑上即消失"的窄条；勾选框要一直在，勾着本身就是状态。）
  * ★ 认证是**异步**的：本人可能隔天才扫码、照片还可能被内容审核拒掉 —— 造卡时没接上的真人卡
  *   总得有个就地补的地方，不能逼人删卡重来。
@@ -246,7 +247,7 @@ function CardVoiceSection({ card, owned }: { card: Card; owned: boolean }) {
       <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
         <span className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>🔊 人物声音</Trans></span>
         <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
-          <Trans>这张卡还没有声音样本。在工坊「从视频提取」圈选人物时可以顺手取一段（2~15 秒）——出片走「高清/电影级」档且台词写在引号里时，AI 会参考这段声音的音色。</Trans>
+          <Trans>这张卡还没有声音样本。在工坊「从视频提取」圈选人物时可以顺手取一段（2~15 秒）——出片走「{voiceTierNames()}」档且台词写在引号里时，AI 会参考这段声音的音色。</Trans>
         </p>
       </div>
     );
@@ -281,7 +282,7 @@ function CardVoiceSection({ card, owned }: { card: Card; owned: boolean }) {
       <audio controls src={v.dataUrl} className="h-9 w-full" />
       <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
         {v.note ? `${v.note} · ` : ""}
-        <Trans>出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段声音的音色（尽力而为，不是复刻）。样本只存在这台设备上，分享卡片不带它。</Trans>
+        <Trans>出片走「{voiceTierNames()}」档、台词写在引号里时，AI 会参考这段声音的音色（尽力而为，不是复刻）。样本只存在这台设备上，分享卡片不带它。</Trans>
       </p>
     </div>
   );

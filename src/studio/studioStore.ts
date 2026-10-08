@@ -1,12 +1,12 @@
 // 卡片工坊全局状态：卡组 / NPC 对话 / 市场 / 节点树 / 相机 / 合成 / 已发布作品回炉编辑
 import { create } from "zustand";
 import { shotLineOf, V3_CARD_WIPE_MS, BranchNodeData, BranchTree, Card, CardType, DEFAULT_ASPECT, DEFAULT_VIDEO_CATEGORY, DraftVideo, NodeSlot, Proposal, VideoAspect, VideoSegment, VideoTemplate, uid } from "../types";
-import { AI_REAL, MaterialFile, deriveCharacterModels, deriveDeckCards, generateCards, generateFrame, generateProposals, joinNotes, npcChat, npcChatOffline, prepareMaterialRefs } from "../ai";
+import { AI_REAL, MaterialFile, chargeNote, chargeOnFail, deriveCharacterModels, deriveDeckCards, generateCards, generateFrame, generateProposals, joinNotes, npcChat, npcChatOffline, prepareMaterialRefs } from "../ai";
 import { frameMoment, momentCards } from "../data/shotScript";
 import { DECK_CAM, MARKET, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
-import { acquireCard, addCards as saveCardsToAccount, canAfford, frozenNote, myCards, myDecks, plazaCards, spendTokens, walletOf, type AddCardsResult } from "../data/account";
-import { CHAT_TURN_TOKENS, DECK_MAX_3D, deriveIssue, DECK_MAX_CARDS, DEFAULT_TIER, MODEL3D_TOKENS, deckCardsCost, deckModel3dCost, fmtTokens, proposalsCost, realFaceIssue, styleWants3d, tierOf, videoAudioOn } from "../data/economy";
+import { acquireCard, addCards as saveCardsToAccount, canAfford, defaultTierId, frozenNote, myCards, myDecks, plazaCards, realFaceIssue, spendTokens, tierBlockReason, walletOf, type AddCardsResult } from "../data/account";
+import { CHAT_TURN_TOKENS, DECK_MAX_3D, deriveIssue, DECK_MAX_CARDS, fallbackTierId, MODEL3D_TOKENS, deckCardsCost, deckModel3dCost, fmtTokens, proposalsCost, styleWants3d, tierOf, videoAudioOn } from "../data/economy";
 // 单向依赖：工坊把活动路径喂给工作流。flowStore 不认识 studioStore（见其文件头）
 import { drawExtraRefs, plainMentions } from "../data/refMentions";
 import { GenNodeOpts, CUSTOM_MID_MAX, FlowMode, FlowNode, FlowTemplate, type AppendSpec, appendBlocked, appendIssue, chosenOf, recastBlocked, nodeContinues, nodeVideo, tplOfNode, useFlow, redrawCost, redrawFrames, noDrawFor } from "./flowStore";
@@ -377,7 +377,8 @@ function flowFromRoot(root: NodeSlot): { nodes: FlowNode[]; alts: Record<string,
       chosenId: slot.chosenId ?? slot.proposals[0]?.id ?? "",
       plan: slot.chosenId == null ? "picking" : "picked",
       requirement: slot.requirement ?? "",
-      videoTier: slot.videoTier ?? DEFAULT_TIER,
+      // 老草稿里没写档位 = 当年的默认档（目录兜底 fallbackTierId：「标准」，停用后「高清」）——这是换算存量，不是替人挑新档
+      videoTier: slot.videoTier ?? fallbackTierId(),
       aspect: slot.aspect ?? "landscape",
       materials: slot.materials,
       chain: chainIndex > 0,
@@ -896,7 +897,8 @@ const DEFAULT_EDITOR: EditorState = {
   requirement: "",
   durationMode: "ai",
   durationSec: 6,
-  videoTier: DEFAULT_TIER,
+  // 占位：真正的默认档在 freshEditor 里按套餐现取（这个常量在模块加载那一刻求值，那时还不知道这个人付没付过钱）
+  videoTier: fallbackTierId(),
   aspect: DEFAULT_ASPECT,
   startFrame: null,
   endFrame: null,
@@ -910,7 +912,8 @@ const DEFAULT_EDITOR: EditorState = {
 function freshEditor(slots: string[]): EditorState {
   const path = activePath();
   const prev = path[path.length - 1];
-  return { ...DEFAULT_EDITOR, slots, aspect: prev?.aspect ?? DEFAULT_ASPECT };
+  // ★ 档位按**这个人的套餐**现取（account.defaultTierId）：免费用户落在免费档上，不然铸段窗一打开就停在一个点不动的会员档上
+  return { ...DEFAULT_EDITOR, slots, aspect: prev?.aspect ?? DEFAULT_ASPECT, videoTier: defaultTierId() };
 }
 
 // 市场检索的请求序号：过期响应直接丢弃，防止慢请求乱序覆盖新结果
@@ -1629,6 +1632,14 @@ export const useStudio = create<StudioState>()((set, get) => ({
     const node = path[idx];
     const p = node?.proposals.find((q) => q.id === proposalId);
     if (!node || !p) return false;
+    {
+      // 档位门禁（与 flowStore.regenProposal 同一句，判据 account.tierBlockReason）：重画真花钱，画出来的帧在用不了的档上出不了片
+      const blocked = tierBlockReason(tierOf(node.videoTier));
+      if (blocked) {
+        set({ notice: { text: blocked, at: Date.now() } });
+        return false;
+      }
+    }
     if (!p.plot.trim()) {
       set({ notice: { text: t`这一套还没有剧情——先写点什么，我才知道要画成什么样`, at: Date.now() } });
       return false;
@@ -1853,7 +1864,9 @@ export const useStudio = create<StudioState>()((set, get) => ({
       chain: !editor.startFrame && !!prev?.lastFrame && first === prev.lastFrame,
     });
     if (!newId) {
-      get().npcSay(useFlow.getState().err || t`现在铺不了这一段，稍后再试。`);
+      // ★ 走 notice 不走 npcSay（2026-10-07 评审抓到）：这颗键长在铸段窗里，铸段窗开着时 NpcDialog 整个 return null ——
+      //   原来被拒（会员档 / 档位停用 / 末段还没出片）就是「点了没反应」
+      set({ notice: { text: useFlow.getState().err || t`现在铺不了这一段，稍后再试。`, at: Date.now() } });
       return;
     }
     // ★★ 车道开关**无条件打**（2026-08-30 修）：`FlowNode.custom` 记的是"这一段属于自定义
@@ -1913,7 +1926,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
       direct: true,
     });
     if (!newId) {
-      get().npcSay(useFlow.getState().err || t`现在铺不了这一段，稍后再试。`);
+      // notice 不走 npcSay：理由同 layCustomNode 那一句（铸段窗开着时 NpcDialog 不渲染）
+      set({ notice: { text: useFlow.getState().err || t`现在铺不了这一段，稍后再试。`, at: Date.now() } });
       return;
     }
     set({ spreadOpen: false, focus: { nodeId: newId }, projection: "proposals", editor: null });
@@ -2014,6 +2028,15 @@ export const useStudio = create<StudioState>()((set, get) => ({
       const issue = appendIssue(useFlow.getState());
       if (issue) {
         set({ notice: { text: issue, at: Date.now() } });
+        return;
+      }
+    }
+    {
+      // ★ 档位门禁（2026-10-07 免费档限制）：下面先扣推演费、方案出炉后才 appendNode —— 这一档这个人用不了的话，
+      //   钱花在三套出不了片的方案上。判据只在 account.tierBlockReason（flowStore.deriveProposals 问的是同一句）
+      const blocked = tierBlockReason(tierOf(editor.videoTier));
+      if (blocked) {
+        set({ notice: { text: blocked, at: Date.now() } });
         return;
       }
     }
@@ -2122,23 +2145,30 @@ export const useStudio = create<StudioState>()((set, get) => ({
         ? !!tail2 && tail2.id === anchor.id && tail2.chosenId === anchor.chosenId
         : path2.length === 0;
       if (!anchorOk) {
-        get().npcSay(t`推演期间桌面已经变样，这一炉先作废——按现在的走向重新生成吧。`);
+        // ★ 走 notice 不走 npcSay：铸段窗开着时 NpcDialog 整个 return null（见 notice 的 ★），那句话等于没说
+        set({ notice: { text: t`推演期间桌面已经变样，这一炉先作废——按现在的走向重新生成吧。`, at: Date.now() } });
         get().setMood(-0.5, 2200);
         return;
       }
       // 素材快照存进节点：发布时聚合成"本片卡组"，观众可收入同款素材复刻；
       // 档位随节点走，合成该段时按它选 Seedance 模型与计费。落地走 appendNode（单一真相）
-      const newId = useFlow.getState().appendNode({
-        proposals,
-        chosenId: null, // 三套摊开等挑（plan:"picking"）
-        materials,
-        videoTier: editor.videoTier,
-        aspect: editor.aspect,
-        requirement: editor.requirement,
-        chain: !editor.startFrame && !!prev?.lastFrame, // 承接与否只看"帧是不是上一段给的"，与报价那个 startFrame 差一位（用户自己传图时不算承接）
-      });
+      const newId = useFlow.getState().appendNode(
+        {
+          proposals,
+          chosenId: null, // 三套摊开等挑（plan:"picking"）
+          materials,
+          videoTier: editor.videoTier,
+          aspect: editor.aspect,
+          requirement: editor.requirement,
+          chain: !editor.startFrame && !!prev?.lastFrame, // 承接与否只看"帧是不是上一段给的"，与报价那个 startFrame 差一位（用户自己传图时不算承接）
+        },
+        // ★★ 推演费已经扣了：落段不再问档位门禁（扣钱之前问过了；这几分钟里答案变了的话，方案照样落下来，
+        //   出片那一拍 genNode 再拦并说清楚、档位行能换档 —— 见 flowStore.appendNode 那段 ★★）
+        { tierGate: false },
+      );
       if (!newId) {
-        get().npcSay(useFlow.getState().err || t`推演好了，但现在铺不上桌——稍后再试。`);
+        // ★ 走 notice 不走 npcSay：铸段窗开着时 NpcDialog 整个 return null（见 notice 的 ★），那句话等于没说
+        set({ notice: { text: useFlow.getState().err || t`推演好了，但现在铺不上桌——稍后再试。`, at: Date.now() } });
         get().setMood(-0.5, 2200);
         return;
       }
@@ -2212,7 +2242,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
             ...(p.poster ? { poster: p.poster } : {}),
             durationSec: p.durationSec,
             ...(p.realDurationSec ? { realDurationSec: p.realDurationSec } : {}),
-            videoTier: slot.videoTier ?? DEFAULT_TIER,
+            videoTier: slot.videoTier ?? fallbackTierId(),
             aspect: slot.aspect,
             // 必须过 realVideoOf：mock 构建下 videoUrl 是 "mock:" 占位串，交给剪辑页的
             // <video> 只会得到一个报错的播放器（resolveMediaUrl 会把未知 scheme 原样透出）
@@ -2474,9 +2504,23 @@ export const useStudio = create<StudioState>()((set, get) => ({
               if (moved()) throw new Error("owner-moved");
               say(t`这是 3D 画风，顺便铸 ${want} 个建模（${price} token）…`);
               const before = fresh.filter((c) => c.modelUrl).length;
-              await deriveCharacterModels(fresh, DECK_MAX_3D, say);
+              const built = await deriveCharacterModels(fresh, DECK_MAX_3D, say);
               const minted = fresh.filter((c) => c.modelUrl).length - before;
               if (AI_REAL && minted > 0) spendTokens(minted * MODEL3D_TOKENS);
+              // ★ 没建成的那几张：钱上的话只走 ai/failCharge（没等到回包的可能扣了、2xx 却用不上的已计费）。一句轻提示，不拦组稿（卡本身还在）
+              // ★ 受理之后明说失败、服务端已经退回 / 会退回的那几张**不在这里说**（2026-10-07 评审：两边各说一次是同一笔钱的两条消息）：
+              //   服务端对 3D 建模（kind "3d"）的退款**本人轮询退的也发**站内通知 GEN_TASK_REFUND（server taskRefund.followUp），
+              //   退款只走那一个渠道 —— 通知页认这一类，金额是服务端的数
+              const lines = built.failed
+                .map((f) => {
+                  const fc = chargeOnFail(f.error);
+                  if (fc.tier === "refunded" || fc.tier === "refunding") return "";
+                  const note = chargeNote(fc, MODEL3D_TOKENS);
+                  const name = f.name;
+                  return note ? t`「${name}」的 3D 建模没出成：${note.line}` : "";
+                })
+                .filter(Boolean);
+              if (lines.length) showToast(lines.join(" "), 8000);
             }
           }
         }

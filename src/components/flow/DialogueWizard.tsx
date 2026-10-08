@@ -12,7 +12,7 @@ import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { AI_REAL } from "../../ai";
-import { myCards } from "../../data/account";
+import { myCards, realFaceIssue, tierGo } from "../../data/account";
 import { subscribeVoices, voiceOf, voicesVersion } from "../../data/cardVoice";
 import {
   DIALOGUE_LEAD_MAX,
@@ -26,7 +26,7 @@ import {
   type DialogueAngle,
   type DialogueNote,
 } from "../../data/dialogueShots";
-import { CHAT_TURN_TOKENS, fmtTokens, realFaceIssue, tierOf } from "../../data/economy";
+import { CHAT_TURN_TOKENS, fmtTokens, tierOf } from "../../data/economy";
 import { useAccountVersion } from "../../hooks/useAccount";
 import {
   ANGLES_TOKENS,
@@ -115,7 +115,7 @@ export default function DialogueWizard({
   /** 两个人同名：台词认不出是谁说的（shotScript.lineSpeakers 按名字认） */
   const sameName = two && names[0].trim() === names[1].trim();
   const castOk = two && !sameName;
-  // 每一段都带机位画面（当开头帧）：真人卡在带帧的请求里会被整发拒（economy.realFaceIssue 的 framed）
+  // 每一段都带机位画面（当开头帧）：真人卡在带帧的请求里会被整发拒（account.realFaceIssue 的 framed）
   const faceNote = realFaceIssue(cast, tierId, { framed: true });
   const aspect = d.aspect ?? defaultAspect;
   /** 按钮上印的价（演示构建写「演示」）：先取成值再进句子 */
@@ -593,11 +593,21 @@ export default function DialogueWizard({
               );
             })}
           </div>
-          {!tier.audio && (
-            <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">
-              <Trans>这一档出片不出声，台词说不出来 —— 换到高清或电影级。</Trans>
-            </p>
-          )}
+          {!tier.audio &&
+            (() => {
+              // 出声的档按能力现算、先说这个人用得了的（account.tierGo；原来写死「高清或电影级」，免费用户能用的「草稿」没提）
+              const go = tierGo((x) => x.audio && x.refImg);
+              const names = go.names;
+              return (
+                <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">
+                  {go.member ? (
+                    <Trans>这一档出片不出声，台词说不出来 —— 出声的「{names}」是会员档。</Trans>
+                  ) : (
+                    <Trans>这一档出片不出声，台词说不出来 —— 换到「{names}」。</Trans>
+                  )}
+                </p>
+              );
+            })()}
           {noVoice && (
             <p className="text-[10px] leading-relaxed text-slate-500">
               <Trans>{noVoice} 没有声音样本：每一段的嗓音由模型定，前后可能不一样。</Trans>

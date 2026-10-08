@@ -707,8 +707,8 @@ export const TOURS: GuideTour[] = [
         body: (
           <Trans>
             框出哪一段、裁出哪一块，就是 AI 真正拿去白模化的全部内容；再加上下面
-            「AI 看哪几帧」，决定它认不认得全画面里的人。<b className="font-bold text-slate-100">这一发多少钱</b>只看时长（越长越贵，多看几帧不额外收费），
-            而钱一开始算就退不了。
+            「AI 看哪几帧」，决定它认不认得全画面里的人。<b className="font-bold text-slate-100">这一发多少钱</b>只看时长（越长越贵，多看几帧不额外收费）；
+            开炼那一刻就扣钱，「AI 看帧」那一笔不论成败都照收。
           </Trans>
         ),
       },
@@ -927,7 +927,7 @@ export const TOURS: GuideTour[] = [
         body: (
           <Trans>
             出片、出图、铸卡、解锁付费作品，扣的都是它。点开看余额、买套餐或直充 ——
-            <b className="font-bold text-slate-100">套餐按月给且先扣，直充的不过期</b>。
+            <b className="font-bold text-slate-100">套餐额度先扣（付费套餐按月给，免费版每天补一点），直充和新人额度不过期</b>。
           </Trans>
         ),
       },

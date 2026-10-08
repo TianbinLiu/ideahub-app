@@ -419,10 +419,20 @@ export function recipeSummary(r: WorkflowRecipe): RecipeSummary {
  *   （套模板时写进 durationSec 的正是它）。
  * ★ 只是视频那一半：推演方案、画设定帧、圈选改图按各人的做法另算，所以界面上要写「约」「不含画面与推演」。
  */
-export function recipeVideoCost(r: WorkflowRecipe): number | null {
+export function recipeVideoCost(
+  r: WorkflowRecipe,
+  /**
+   * 普通段照做时**真会落在哪一档**（调用方传 account.usableTierId —— 按配方做同款的建料 flowStore.recipeNodesOf 换档用的是同一个函数）。
+   * ★ 必填（2026-10-07 免费档限制）：免费用户照做一份「高清」配方会落在「草稿」上，按原作的档位报价就是报 A 的价、出 B 的片。
+   *   这个文件零 store 依赖，所以由调用方递进来，不在这里 import account。
+   */
+  tierFor: (tierId: string) => string,
+): number | null {
   let sum = 0;
   for (const n of r.nodes) {
-    const t = n.kind === "blockout" ? r2vTokens(Math.round(n.durationSec), n.tier) : segTokens(n.durationSec, n.tier);
+    // 画幅照原作（480p 的每秒数按画幅不同，见 economy.segTokens 的 ★；这份配方只有横 / 竖两种）
+    const ratio = n.aspect === "portrait" ? "9:16" : "16:9";
+    const t = n.kind === "blockout" ? r2vTokens(Math.round(n.durationSec), n.tier) : segTokens(n.durationSec, tierFor(n.tier), ratio);
     if (t === null) return null;
     sum += t;
   }

@@ -15,7 +15,10 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
 import { AI_REAL } from "../../ai";
+import { tierBlockReason, tierGo, tierOffered } from "../../data/account";
 import { durationChoices, fmtTokens, r2vPriceIssue, r2vTokens, tierOf } from "../../data/economy";
+import { useAccountVersion } from "../../hooks/useAccount";
+import UpgradeLink from "../UpgradeLink";
 import {
   appendQuote,
   chosenOf,
@@ -46,6 +49,8 @@ export default function FixSegmentBox({
   onExtend: (text: string, durationSec: number) => void;
 }) {
   const { t } = useLingui();
+  // 付没付过钱 / 服务端能力位是异步到的：订阅账号的版本号，到了就重画（下面那道套餐门槛要跟着变）
+  useAccountVersion();
   const nodes = useFlow((s) => s.nodes);
   const mode = useFlow((s) => s.mode);
   /** 展开哪一件（两件都收着时只摆一行小标题 + 两颗键，别让每一段已出片的卡下面都拖一大块） */
@@ -62,6 +67,27 @@ export default function FixSegmentBox({
   const tier = tierOf(node.videoTier);
   const index = nodes.findIndex((n) => n.id === node.id);
   const isLast = index >= 0 && index === nodes.length - 1;
+  /**
+   * 这一段的档这个人现在用不了（会员档 / 已停用 / 服务端不支持；判据只在 account.tierBlockReason）：重拍与延长都是真出片，
+   * genNode / appendNode 门口会整句拒 —— 在这里就说，别让人写完改法、看着价钱点下去才第一次听说（2026-10-07 免费档限制：
+   * 10-07 之前免费用户在「高清」上出过的片，现在点「修这一段」就是这种情形）。挡住他的是套餐（档还摆得出来）时给「去升级」。
+   */
+  const planIssue = tierBlockReason(tier);
+  const planUpgradeable = !!planIssue && tierOffered(tier);
+  /** 能按参考视频出片的档（重拍 / 示例视频那一类）：这个人一档都用不了时，r2v 那句话后面说清它们是会员档 */
+  const refGo = tierGo((x) => x.refVid && x.r2vMult !== null);
+  const refNames = refGo.names;
+  const planNote = planIssue ? (
+    <p className="text-[11px] leading-relaxed text-amber-200">
+      {planIssue}
+      {planUpgradeable && (
+        <>
+          {"　"}
+          <UpgradeLink />
+        </>
+      )}
+    </p>
+  ) : null;
 
   // ── 片段重拍 ──
   const priceIssue = r2vPriceIssue(node.videoTier);
@@ -70,7 +96,7 @@ export default function FixSegmentBox({
   const a = Math.max(0, Math.min(from, sec - 1));
   const b = Math.max(a + 1, Math.min(to, sec));
   const range = ranged ? { from: a, to: b } : null;
-  const canRevise = !priceIssue && reviseCost !== null && text.trim().length > 0 && !disabled;
+  const canRevise = !planIssue && !priceIssue && reviseCost !== null && text.trim().length > 0 && !disabled;
   const revisePrice = AI_REAL && reviseCost !== null ? fmtTokens(reviseCost) : t`演示`;
 
   // ── 往后延长 ──
@@ -82,7 +108,7 @@ export default function FixSegmentBox({
   const extPrice = AI_REAL ? fmtTokens(extCost) : t`演示`;
   /** 计价输入（被延长那一段的时长）：extendSpec 记下的那个数，落段之后 nodeCost / genNode 经 extendSourceOf 读到的也是它 */
   const inSec = spec?.extendFrom?.durationSec ?? sec;
-  const canExtend = !!spec && extText.trim().length > 0 && !disabled;
+  const canExtend = !planIssue && !!spec && extText.trim().length > 0 && !disabled;
 
   const chip = (k: "revise" | "extend", label: string) => (
     <button
@@ -113,8 +139,19 @@ export default function FixSegmentBox({
       </div>
 
       {open === "revise" &&
+        (planNote ??
         (priceIssue ? (
-          <p className="text-[11px] leading-relaxed text-amber-200">{priceIssue}</p>
+          <p className="text-[11px] leading-relaxed text-amber-200">
+            {priceIssue}
+            {refGo.member && refNames && (
+              <>
+                {"　"}
+                {t`能按参考视频出片的「${refNames}」是会员档——开通会员套餐（或充值过任意一笔）后可用`}
+                {"　"}
+                <UpgradeLink />
+              </>
+            )}
+          </p>
         ) : (
           <>
             <textarea
@@ -172,9 +209,10 @@ export default function FixSegmentBox({
               <Trans>✎ 重拍这一段（{revisePrice}）</Trans>
             </button>
           </>
-        ))}
+        )))}
 
       {open === "extend" && isLast &&
+        (planNote ??
         (extIssue ? (
           <p className="text-[11px] leading-relaxed text-amber-200">{extIssue}</p>
         ) : (
@@ -213,7 +251,7 @@ export default function FixSegmentBox({
               <Trans>⏩ 往后延长 {outSec} 秒（{extPrice}）</Trans>
             </button>
           </>
-        ))}
+        )))}
     </div>
   );
 }

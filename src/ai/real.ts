@@ -45,6 +45,7 @@ import {
   imageTierOf,
   providerOf,
   slotsFor,
+  tierNamesWhere,
   tierOf,
   type CardMintCap,
   type ImageTier,
@@ -68,7 +69,10 @@ import {
   ArkBadReply,
   ArkBatchPartial,
   ArkHttpError,
+  ArkTaskFailed,
   ArkTaskUnknown,
+  arkTaskFailedOf,
+  fetchTaskCharge,
   briefArkReason,
   type ArkTaskState,
   type GenEvent,
@@ -2634,12 +2638,16 @@ async function glbFromArkZip(zipUrl: string): Promise<Blob> {
  * GLB 36MB 级——存 IndexedDB blob 仓（key=model3d:<cardId>），卡上只挂 `idb:` 指针
  * （塞 dataURL 会把嵌进作品的卡组 JSON 撑到几十 MB）。CardHologram 会解析该指针。
  * 上限 maxCount 张、单张失败不阻断其余（建模挂了卡本身还在）。
+ * ★ 失败的那几张**原样交回**（2026-10-07 评审抓到）：受理之后 Seed3D 明说失败的那一发，服务端会把钱退回 —— 而退款发生在本人自己的
+ *   那次轮询里，服务端不另发通知（通知只给「人不在场」的那种）。原来这里只 console.warn，余额就这么无声地变了一笔。
+ *   钱上的话由调用方按 ai/failCharge 说（这一层不认识界面），错误对象原样不包，类型不丢。
  */
 export async function deriveCharacterModels(
   cards: Card[],
   maxCount = 2,
   onProgress?: (status: string) => void,
-): Promise<void> {
+): Promise<{ failed: { name: string; error: unknown }[] }> {
+  const failed: { name: string; error: unknown }[] = [];
   const targets = cards.filter((c) => c.type === "character" && !c.modelUrl).slice(0, maxCount);
   for (let i = 0; i < targets.length; i++) {
     const card = targets[i];
@@ -2664,8 +2672,10 @@ export async function deriveCharacterModels(
       card.modelUrl = `idb:${key}`;
     } catch (e) {
       console.warn(`[ai] 角色卡「${card.name}」建模失败（跳过）:`, e);
+      failed.push({ name, error: e });
     }
   }
+  return { failed };
 }
 
 /**
@@ -2717,6 +2727,8 @@ export async function regenSegment(
     durationSec: clampDuration(seg.durationSec, seg.videoTier),
     lastFrameUrl: tier.flf ? await shrinkFrameFor720p(seg.lastFrame) : undefined,
     model: tier.model,
+    // ★ 分辨率跟着档位走（「草稿」= 480p）：剪辑页按 segTokens(…, 这一档) 报价扣钱，漏了这一行就是按 480p 收、按 720p 出（2026-10-07）
+    resolution: tier.resolution,
     // 重拍必须沿用原画幅：这里漏了它，圈选改一次画面就把竖屏段悄悄拍成横屏
     ratio: aspectOf(seg.aspect).ratio,
     // 剪辑页只有一行 busy 文案、没有步骤日志：事件在这里就写成句子（唯一实现 arkClient.describeArkProgress）
@@ -2911,6 +2923,14 @@ export interface SegmentResult {
    *   （那种判断改一次文案就静默失效，而判错的代价是让用户再付一次钱）。
    */
   pendingTaskId?: string;
+  /**
+   * 这一段失败时抛出来的**原样错误对象**（2026-10-07）。
+   * ★★ 为什么必须带着它：上面那个 `error` 是字符串，类型在这里一压就没了 —— 上层分不出「受理之后上游明说失败」
+   *   （ArkTaskFailed：钱扣过、现在会退回）、「没等到回包」（ArkNoReply：可能扣了）、「服务端明说拒了」（ArkHttpError 400/402/403：没扣）。
+   *   钱上那句话只认类型（ai/failCharge），所以 segmentGen.settleSegment 原样抛它，而不是拿 `error` 新造一个裸 Error。
+   * ★ 只在真失败时有；`pendingTaskId` 那种（没接到）同样带着（就是那个 ArkTaskUnknown 本身）。
+   */
+  failure?: unknown;
 }
 
 /**
@@ -3182,6 +3202,16 @@ export interface GenSpec {
    * "extend" = 向后延长（产物只有新的一截）。判模式只问 genModeOf
    */
   refTask?: "edit" | "revise" | "reference" | "extend";
+  /**
+   * 电影级「样片」第一步（2026-10-07）：槽位照普通出片摆（帧 / 参考图），只是按 480p + draft:true 发、按 economy.draftStepTokens 计价。
+   * 有它 = 契约的 mode 是 "draft"（genModeOf 一处判）。
+   */
+  draft?: boolean;
+  /**
+   * 电影级「样片」第二步：要升成 1080p 的那条样片的任务号。有它 = mode "draftFinal"，**别的槽位一律空着**
+   * （方舟规定提示词 / 图 / 时长 / 画幅都由样片沿用、重传就报错）；durationSec 写样片的时长，只用来报价对账与轮询死线。
+   */
+  draftTaskId?: string;
 }
 
 // 生成模式的人话 GEN_MODE_LABEL 2026-09-16 搬去 ./arkClient（与契约事件 GenEvent 放一起：步骤日志渲染契约行也要读它），这里照旧引用
@@ -3192,6 +3222,17 @@ export interface GenSpec {
  * 顺序就是方舟的优先级：供应商 → 参考视频 → 参考图 → 帧；尾帧只有 VideoTier.flf 的档才真发（composeSegments 同口径）。
  */
 export function genModeOf(sg: Omit<GenSpec, "mode">): GenMode {
+  // 样片两步先认：第二步只带任务号（槽位全空），第一步的槽位照普通出片摆、真正怎么拼由 slotModeOf 说
+  if (sg.draftTaskId) return "draftFinal";
+  if (sg.draft) return "draft";
+  return slotModeOf(sg);
+}
+
+/**
+ * 不看样片那一位、只看槽位：这一发**按什么形状拼请求**（首帧 / 首尾帧 / 参考图 / 参考视频 / 真人档）。
+ * genModeOf 的普通出片就是它；样片第一步（mode "draft"）的请求形状也问它 —— composeSegments 拼请求、validateGenSpec 查互斥都读这一份。
+ */
+export function slotModeOf(sg: Omit<GenSpec, "mode">): GenMode {
   if (providerOf(sg.videoTier) === "minimax") return "minimax";
   if (sg.refVideoUrl) return sg.refTask === "reference" ? "reference" : sg.refTask === "extend" ? "extend" : "edit";
   if (sg.refImages?.length) return "ref-images";
@@ -3218,19 +3259,38 @@ export function validateGenSpec(sg: GenSpec): void {
       t`生成契约不一致：这一段声明按「${declared}」出片，而槽位里实际是「${actual}」（报价与请求会是两把尺）——没有花钱，请把这句话反馈给我们`,
     );
   }
+  // 样片两步：这一档要真有样片能力（economy.VideoTier.draftOk；方舟只给 2.5 开了 draft）
+  if ((sg.mode === "draft" || sg.mode === "draftFinal") && !tier.draftOk) {
+    const names = tierNamesWhere((x) => x.draftOk);
+    throw new Error(names ? t`「${tierLabel}」档没有样片模式（只有「${names}」有）` : t`「${tierLabel}」档没有样片模式`);
+  }
+  if (sg.mode === "draftFinal") {
+    // 第二步只带样片任务号：方舟规定提示词 / 图 / 声音都由样片沿用，**重传一个就报错**（哪怕值一样）
+    if (sg.firstFrame || sg.lastFrame || sg.refImages?.length || sg.refVideoUrl || sg.refAudios?.length)
+      throw new Error(t`生成契约不一致：样片定稿只带样片本身（提示词、画面、声音都由样片沿用，重传会被方舟拒）`);
+    return;
+  }
   if (!sg.plot.trim()) throw new Error(t`生成契约不完整：提示词是空的`);
-  const refMedia = sg.mode === "ref-images" || sg.mode === "reference" || sg.mode === "edit" || sg.mode === "extend";
+  /** 请求按什么形状拼（样片第一步的槽位照普通出片摆，互斥规则与普通出片同一套） */
+  const shape = sg.mode === "draft" ? slotModeOf(sg) : sg.mode;
+  if (sg.mode === "draft" && (shape === "edit" || shape === "reference" || shape === "extend" || shape === "minimax"))
+    throw new Error(t`生成契约不一致：样片不收参考视频（方舟只对不带视频输入的出片开了样片）`);
+  const refMedia = shape === "ref-images" || shape === "reference" || shape === "edit" || shape === "extend";
   if (refMedia && (sg.firstFrame || sg.lastFrame)) throw new Error(t`生成契约不一致：参考图 / 参考视频与首尾帧不能混发（方舟三种场景互斥）`);
-  if (sg.mode === "ref-images" && !tier.refImg) throw new Error(t`「${tierLabel}」档协议上不收参考图，不能按参考图生视频出片`);
-  if ((sg.mode === "edit" || sg.mode === "reference" || sg.mode === "extend") && !tier.refVid) throw new Error(t`「${tierLabel}」档不支持带参考视频出片`);
+  if (shape === "ref-images" && !tier.refImg) throw new Error(t`「${tierLabel}」档协议上不收参考图，不能按参考图生视频出片`);
+  if ((shape === "edit" || shape === "reference" || shape === "extend") && !tier.refVid) throw new Error(t`「${tierLabel}」档不支持带参考视频出片`);
   // 2026-10-05 起「能带参考视频」≠「能延长」≠「能跑白模模板」（高清只有第一样）：三件分开核，判据各在档位表的一位上
-  if (sg.mode === "extend" && !tier.extendOk) throw new Error(t`「${tierLabel}」档还不能延长——用电影级出的段才能延长`);
-  if (sg.mode === "edit" && sg.refTask !== "revise" && !tier.blockoutOk) throw new Error(t`「${tierLabel}」档跑不了白模模板（模板对出片模型是硬要求）`);
-  if (sg.mode === "reference" && !sg.refImages?.length) throw new Error(t`生成契约不完整：素材参考模式至少要一张参考图`);
+  if (shape === "extend" && !tier.extendOk) {
+    // 能延长的档按能力现算（extendOk；目录口径 —— 能走到这一步的人，界面那几道闸已经按套餐说过了）
+    const names = tierNamesWhere((x) => x.extendOk);
+    throw new Error(t`「${tierLabel}」档还不能延长——用「${names}」出的段才能延长`);
+  }
+  if (shape === "edit" && sg.refTask !== "revise" && !tier.blockoutOk) throw new Error(t`「${tierLabel}」档跑不了白模模板（模板对出片模型是硬要求）`);
+  if (shape === "reference" && !sg.refImages?.length) throw new Error(t`生成契约不完整：素材参考模式至少要一张参考图`);
   if (sg.refAudios?.length && !refMedia) throw new Error(t`生成契约不一致：参考音频只能随参考图 / 参考视频发（首尾帧任务混参考媒体是 400）`);
-  if (sg.mode === "minimax" && (sg.refImages?.length || sg.refVideoUrl || sg.refAudios?.length))
+  if (shape === "minimax" && (sg.refImages?.length || sg.refVideoUrl || sg.refAudios?.length))
     throw new Error(t`生成契约不一致：真人档只收首帧，不收参考图 / 参考视频 / 参考音频`);
-  if (sg.mode === "minimax" && !sg.firstFrame) throw new Error(t`生成契约不完整：真人档需要一张起拍画面`);
+  if (shape === "minimax" && !sg.firstFrame) throw new Error(t`生成契约不完整：真人档需要一张起拍画面`);
 }
 
 /**
@@ -3302,6 +3362,31 @@ export async function composeSegments(
       validateGenSpec({ ...sg, firstFrame: first, lastFrame: last });
       onProgress?.(i, segments.length, t`任务创建中…`);
       const tier = tierOf(sg.videoTier);
+      // ── 样片第二步（升成 1080p）：请求只带样片任务号（arkClient 拼最小形状），尾帧捕获照走下面同一条兜底 ──
+      if (sg.mode === "draftFinal") {
+        const url3 = await generateVideo("", "", {
+          model: tier.model,
+          draftTaskId: sg.draftTaskId,
+          // 只拿来给轮询死线定尺寸（不进请求体：时长由样片沿用）
+          durationSec: sg.durationSec,
+          onTask: (taskId) => onTask?.(taskId, i),
+          onProgress: (ev) => onProgress?.(i, segments.length, encodeGenEvent({ ...ev, tier: tier.id })),
+        });
+        res.url = url3;
+        try {
+          onProgress?.(i, segments.length, t`捕获本段真实尾帧…`);
+          const cap = await captureVideoHeadTail(url3);
+          res.lastFrame = cap.tail;
+          res.poster = cap.head;
+          res.durationSec = cap.durationSec;
+          carryTail = cap.tail;
+        } catch (e2) {
+          // ⚠ 1080p 成片在方舟直链上是 10 bit 的 H.265：有的手机 WebView 解不了，截帧会失败（服务端转存时转成 H.264，换上永久地址之后补截）—— 原因进步骤日志
+          onProgress?.(i, segments.length, captureIssueLine(e2));
+        }
+        out.push(res);
+        continue;
+      }
       // ── 真人档（MiniMax）在这里分流 ────────────────────────────
       // 出片调用换供应商，但**尾帧捕获/段间承接/进度**都走下面同一条产线——
       // 分流点选在这里而不是 segmentGen，就是为了这三样不抄第二份（铁律六）。
@@ -3334,18 +3419,20 @@ export async function composeSegments(
         out.push(res);
         continue;
       }
-      // 参考媒体类模式：一句话直出，**首尾帧一张都不给**（三种场景互斥）。判据只读契约的 mode（validateGenSpec 刚核对过）
-      const refMode = sg.mode === "ref-images" || sg.mode === "reference" || sg.mode === "edit" || sg.mode === "extend";
+      // 参考媒体类模式：一句话直出，**首尾帧一张都不给**（三种场景互斥）。判据只读契约（validateGenSpec 刚核对过）：
+      // 样片第一步的请求形状照槽位来（slotModeOf），其余就是声明的 mode
+      const shape = sg.mode === "draft" ? slotModeOf(sg) : sg.mode;
+      const refMode = shape === "ref-images" || shape === "reference" || shape === "edit" || shape === "extend";
       // 最后一道硬顶：按档位问 economy.promptMaxOf（2.x 两档 500，其余 400）；白模复刻段仍按 400（它的预算是按 400 反推的）
-      const promptCap = sg.mode === "edit" ? VIDEO_PROMPT_MAX : promptMaxOf(sg.videoTier);
+      const promptCap = shape === "edit" ? VIDEO_PROMPT_MAX : promptMaxOf(sg.videoTier);
       const url = await generateVideo(sg.plot.slice(0, promptCap), refMode ? "" : await shrinkFrameFor720p(first), {
         // ★ 时长按档位夹（2.5 不收 3 秒）。与 economy.segTokens 用的是同一个函数 ——
         //   只在这一侧夹的话，界面报 3 秒的价、方舟出 4 秒的片。
         //   （白模段不受影响：refVideoUrl 非空时 arkClient 走 BLOCKOUT_TASK 的 duration:-1，
         //   这里传的值根本不上桌 —— 时长跟模板走，报价侧 r2vTokens 同一个口径。）
         durationSec: clampDuration(sg.durationSec, sg.videoTier),
-        // 极速档（pro-fast）不支持首尾帧任务（实测 400 task_type flf2v）——只给首帧起拍；判据就是契约的 mode
-        lastFrameUrl: sg.mode === "flf" ? await shrinkFrameFor720p(last) : undefined,
+        // 极速档（pro-fast）不支持首尾帧任务（实测 400 task_type flf2v）——只给首帧起拍；判据就是契约的请求形状
+        lastFrameUrl: shape === "flf" ? await shrinkFrameFor720p(last) : undefined,
         refImages: sg.refImages,
         refAudios: sg.refAudios,
         // 白模参考视频：透传而已，判定与拼装都不在这层（见字段注释）
@@ -3353,6 +3440,10 @@ export async function composeSegments(
         refVideoSec: sg.refVideoSec,
         refTask: sg.refTask,
         model: tier.model,
+        // 分辨率跟着档位走（「草稿」= 480p，报价 segTokens 按同一格算）；带参考视频的几条路由 arkClient 钉回 720p；
+        // 样片第一步由 arkClient 钉 480p（draft 只收 480p）
+        resolution: tier.resolution,
+        draft: sg.mode === "draft",
         ratio: aspectOf(sg.aspect).ratio,
         onTask: (taskId) => onTask?.(taskId, i),
         onProgress: (ev) => onProgress?.(i, segments.length, encodeGenEvent({ ...ev, tier: tier.id })),
@@ -3374,6 +3465,8 @@ export async function composeSegments(
       }
     } catch (e) {
       res.error = e instanceof Error ? e.message : String(e);
+      // ★ 原样错误对象跟着走（见 SegmentResult.failure 的 ★★）：钱上那句话只认类型
+      res.failure = e;
       // ★ 「没接到结果」与「这一发废了」在这里就分岔（判据是**类型**，不是文案里的关键词）：
       //   前者把任务号带上去，调用方据此留住凭据、亮出取回入口；后者什么都不带，
       //   凭据当场销毁。混成一个 error 字符串的话，两种情况在上层就再也分不开了。
@@ -3397,10 +3490,11 @@ export async function composeSegments(
  *   还没有取消键，等于把刚刚那 25 分钟的等待再来一遍。没出完就如实说"还在出片中，
  *   过几分钟再点一次" —— 凭据还在，点几次都不花钱。
  * ★ 抛什么决定的是**这句话怎么说**（"一会儿再来" vs "多半没了"）：
- *   还在跑 / 网络不通 → `ArkTaskUnknown`；方舟明说 failed / 查无此任务 / 成功却没地址 →
- *   普通 Error。★★ 但**凭据一律不在这里销毁**，调用方也不该因为取回失败就摘掉它 ——
- *   失败恰恰是那条"这一发花过钱"的记录最该留在屏幕上的时候（templates 那边同一条：
- *   `dropPendingJob` 只在成功时调）。真正的销毁只有两处：取回成功，与过期后用户亲手消掉。
+ *   还在跑 / 网络不通 → `ArkTaskUnknown`；方舟明说 failed / cancelled / expired → `ArkTaskFailed`
+ *   （带服务端的退款结论）；查无此任务 → 先问服务端那一笔账（退过钱就同样是 ArkTaskFailed），否则普通 Error；
+ *   成功却没地址 → `ArkBadReply`（已计费）。
+ * ★★ 凭据在这里一律不销毁 —— 留不留由调用方按类型定（flowStore.takeJob）：**退了钱**的失败结案（没有成片可取，
+ *   钱也回来了，留着只会是一张永远关不掉的「取回」卡）；其余失败照旧留在屏幕上（「这一发花过钱」的记录最该被看见）。
  */
 export async function takeVideoTask(
   taskId: string,
@@ -3438,6 +3532,23 @@ export async function takeVideoTask(
     //   永远不会成功的按钮；说成"没了"又可能吓跑一发其实还在的。所以两句话分开说，
     //   而且都不下"绝对"的断语。
     if (e instanceof ArkHttpError && e.status === 404) {
+      // ★ 说「无法挽回」之前先问服务端那一笔账（2026-10-07）：这一发要是失败了，清扫器可能早就替他退过钱 ——
+      //   那时它就是一发「没出成、钱已退」的失败（ArkTaskFailed，调用方据此结案 + 说那句退款的话），不是「钱没了」
+      const charge = await fetchTaskCharge(taskId);
+      if (charge && charge !== "none" && (charge.state === "refunded" || charge.state === "refunding")) {
+        const reason = t`方舟那边已经查不到这一发了`;
+        throw new ArkTaskFailed(t`方舟没出成这一发（${reason}）`, taskId, "failed", "", charge, reason, "ark");
+      }
+      // ★ 另外两种结局也不许说成「无法挽回」（2026-10-07 评审抓到）：skipped = 本来就没扣（管理员免单）；
+      //   lost = 服务端一直问不出上游的结局、交给人工 —— 把任务号给客服还有机会（与过期取回卡那句同一个口径，videoJobs.videoJobNote）
+      if (charge && charge !== "none" && charge.state === "skipped") {
+        throw new Error(t`方舟那边查不到这一发了（任务号查无此物）——多半是产物已经过了 24 小时被清掉，这一段取不回来了。这一发本来就没有扣 token；重新生成是重新下一单。`);
+      }
+      if (charge && charge !== "none" && charge.state === "lost") {
+        throw new Error(
+          t`方舟那边查不到这一发了（任务号查无此物），我们也一直没能向上游确认它的结局，所以没有自动退回——把任务号 ${taskId} 发给客服，由人工核对这笔钱；重新生成是重新下一单、会再花一次钱`,
+        );
+      }
       throw new Error(
         t`方舟那边查不到这一发了（任务号查无此物）——多半是产物已经过了 24 小时被清掉。真是这样的话这一段取不回来了，已经花掉的钱无法挽回；重新生成是重新下一单、会再花一次钱`,
       );
@@ -3450,15 +3561,10 @@ export async function takeVideoTask(
     throw new ArkTaskUnknown(t`这一发的状态暂时查不到（${why}）——联网后再点一次「取回」，凭据还在，也不花钱`, taskId);
   }
   const status = st.status;
-  if (status === "failed" || status === "cancelled") {
-    // 真失败。★ 必须把"钱不退"写进整句里（契约：受理之后才失败不退）——
-    //   不说的话用户只会理解成"再点一次就好了"，而那是再花一次钱
-    const detail = st.error?.message;
-    throw new Error(
-      detail
-        ? t`方舟报这一发没能出片（${status}：${detail}）。任务被受理之后才失败的，费用不退；要这一段的话只能重新生成（重新下一单、再花一次钱）`
-        : t`方舟报这一发没能出片（${status}）。任务被受理之后才失败的，费用不退；要这一段的话只能重新生成（重新下一单、再花一次钱）`,
-    );
+  if (status === "failed" || status === "cancelled" || status === "expired") {
+    // 真失败：抛类型（带服务端在同一个回包里说的退款结论）。钱退没退、「重新生成会再花一次」那半句由调用方按 ai/failCharge 说 ——
+    // ★ 原来这里写死「费用不退」：2026-10-07 起服务端会把受理之后失败的那一发退回，老服务端才不退，只有 failCharge 分得清
+    throw arkTaskFailedOf(taskId, st);
   }
   if (status !== "succeeded") {
     // 排队 / 出片中 / 其它状态各一句整话（原样报方舟的状态词），不拼「还在排队——」那样的半句
@@ -3473,9 +3579,9 @@ export async function takeVideoTask(
   }
   const url = st.content?.video_url;
   if (!url) {
-    // 成功却没有地址：再查一次也是同一个答复，所以话要说死（普通 Error），
-    // 别让用户对着一颗永远不会成功的「取回」反复点
-    throw new Error(t`方舟说这一发成功了，却没有给视频地址——这一段取不回来了（费用已经花过，重新生成是再花一次钱）`);
+    // 成功却没有地址：再查一次也是同一个答复，所以话要说死（不是 ArkTaskUnknown），
+    // 别让用户对着一颗永远不会成功的「取回」反复点。★ 方舟对成功的任务照收钱 —— 2xx 之后才坏的那一档（ArkBadReply）
+    throw new ArkBadReply(t`方舟说这一发成功了，却没有给视频地址——这一段取不回来了（费用已经花过，重新生成是再花一次钱）`);
   }
   let lastFrame: string | undefined;
   let poster: string | undefined;

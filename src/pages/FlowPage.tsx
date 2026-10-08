@@ -37,7 +37,7 @@ import VideoTemplateExtractor from "../components/VideoTemplateExtractor";
 // ★ VIDEO_PROMPT_MAX 取自 ai 层（提示词硬顶的唯一出处）：白模 V2 的输入框里装的是
 //   真正发出去的那段话，在这里另抄一个 400 出来，改上限时这里就开始说假话
 import { AI_REAL, VIDEO_PROMPT_MAX } from "../ai";
-import { balanceNote } from "../data/account";
+import { balanceNote, tierBlockReason, tierGo } from "../data/account";
 import { markSpecOf, myTemplates, splitCastRoles, templateGroupOf } from "../data/templates";
 // ★ 取回那一整块 2026-08-31 搬去 components/flow/SegmentRecoverCards（三个宿主共用，
 //   理由见那边的 ★★：它原来只长在这一页的 simple 闸里，画布与工坊一个像素都看不到）
@@ -616,6 +616,7 @@ function NodeScreen({
                 lastFrame: prop.lastFrame,
               })}
               fuseAspect={node.aspect}
+              fuseTierIssue={tierBlockReason(tierOf(node.videoTier))}
               onRegen={() => void regenProposal(node.id)}
               regenCost={(p) => redrawCost(node, p, prevProp)}
               onRederive={() => void deriveProposals(node.id)}
@@ -724,7 +725,14 @@ function NodeScreen({
                   ? t`直接把素材卡的形象参考图交给「${tierLabel}」档出片，不再画设定帧（更快也更省）`
                   : tierOf(node.videoTier).refImg
                     ? t`素材卡上还没有形象参考图（去卡片详情页加几张），这次只能先按描述画一张设定帧再出片`
-                    : t`「${tierLabel}」档不支持参考图：会先按描述画一张设定帧再出片。想直接用卡片形象，在「⚙ 本段设置」里换成「高清」或「电影级」`}
+                    : (() => {
+                        // 收参考图的档按能力现算、先说这个人用得了的（account.tierGo）
+                        const go = tierGo((x) => x.refImg);
+                        const names = go.names;
+                        return go.member
+                          ? t`「${tierLabel}」档不支持参考图：会先按描述画一张设定帧再出片。直接用卡片形象要「${names}」（会员档）`
+                          : t`「${tierLabel}」档不支持参考图：会先按描述画一张设定帧再出片。想直接用卡片形象，在「⚙ 本段设置」里换成「${names}」`;
+                      })()}
               </p>
             )}
             {/* ── 自定义首尾帧（选填，主人点名的第三车道·简约面）──
@@ -917,6 +925,7 @@ function NodeScreen({
             lastFrame: prop.lastFrame,
           })}
           aspect={node.aspect}
+          tierIssue={tierBlockReason(tierOf(node.videoTier))}
           onDone={(url) => {
             setFrame(node.id, customFuse, url);
             setCustomFuse(null);

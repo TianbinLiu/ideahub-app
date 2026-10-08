@@ -13,6 +13,7 @@ import * as uploadsApi from "../api/uploads";
 //   mock），而白模化整条链路本来就只在"真的有服务端"时才存在（remoteOn + 能力探测
 //   两道门）。轮询一个真实存在的方舟任务没有 mock 版本可言，走开关只会平添一层空实现。
 import { fetchArkTask } from "../ai/arkClient";
+import { serverSupports } from "./serverCaps";
 import { canAfford, currentUser, frozenNote, refreshRemoteWallet, tierBlockReason } from "./account";
 import { blockoutTier, blockoutizeCost, blockoutizeIssue, fmtTokens, type VideoTier } from "./economy";
 import { toPermanentUrl } from "./publishAssets";
@@ -1889,8 +1890,8 @@ export function templateRunsOn(tpl: Pick<VideoTemplate, "refVideo">, tierId: str
  *
  * ★ 判据一条没新写：哪一档由 templateTiers 说，套餐由 account.tierBlockReason 说，这里只把两者接起来
  *   （形状同下面的 blockoutizeBlockReason —— 那是"能不能**做**模板"，这是"能不能**用**模板"）。
- * ★ 为什么要有它：模板要求的那一档（电影级）是仅付费套餐的一档。此前免费用户套上模板、挂完卡、写完点名句，
- *   点「生成」才第一次听说用不了 —— 而充值解决不了（得换套餐）。这句话要在**选模板那一步**就说出口。
+ * ★ 为什么要有它：模板要求的那一档（电影级）是会员档。此前免费用户套上模板、挂完卡、写完点名句，
+ *   点「生成」才第一次听说用不了。这句话要在**选模板那一步**就说出口（2026-10-07 起开通套餐或充值任意一笔都能用）。
  * ★ 要求的档里有一档用得了就算用得了（今天恰好一档；写成 every 是给"不止一档"那天留的）。
  * ★ 只是提示，不是安全边界：真正的拦截在服务端（免费套餐调 2.5 是 403）。
  */
@@ -2265,8 +2266,8 @@ export function markDescOfLabel(
  * ★★ 为什么不能只问 `economy.blockoutizeIssue()`：那一个只回答**目录侧**的一半
  *   （闸门开没开、这一档有没有 r2v 价），它认不出"当前用户的套餐" —— economy 是纯目录，
  *   account 已经 import 它，反过来 import 会成环（Vite 下会拿到半初始化的模块）。
- *   而白模化**钉死走 SEEDANCE_2_5**，那正是 `paidOnly` 的那一档：免费套餐在服务端是
- *   403 PLAN_REQUIRED，而且**充值解决不了**（得换套餐）。
+ *   而白模化**钉死走 SEEDANCE_2_5**，那是会员档（freeOk 为假）：没付过钱的用户在服务端是
+ *   403 PLAN_REQUIRED（2026-10-07 起付过任何一笔就算付费用户，充值也能过这道门）。
  * ★★ 2026-08-15 对抗审查抓到的形状就是这里：整条白模化路一次都没调过
  *   `account.tierBlockReason`（全仓唯一实现，另外四个出片入口都调了），于是免费用户
  *   传完一段最大 100MB 的视频、框完选段、读完报价，**点下去才在服务端吃 403** ——
@@ -2292,7 +2293,7 @@ export function blockoutizeBlockReason(): string | null {
 //
 // ★★ 白模化 2026-08-15 起是**两阶段**的（此前是一条同步等到底的长请求）：
 //     ① `startBlockoutize`   服务端做完归属校验/拼变换 URL/预热/看帧/发 r2v，落一条**凭据**；
-//        —— 钱在这一刻花掉（看帧 + r2v 受理，受理后失败不退）
+//        —— 钱在这一刻扣掉（看帧 + r2v 受理；2026-10-07 起 r2v 那一笔在方舟明说失败时由服务端退回，看帧那一笔不退）
 //     ② 客户端**轮询**既有的 `GET /api/ark/contents/generations/tasks/:id`（不计费、
 //        已有独立限流桶）等出片；**不新造轮询端点**
 //     ③ `finishBlockoutize`  服务端自己向方舟核实 → 转存产物 → 建模板
@@ -2381,6 +2382,11 @@ export function blockoutJobNote(job: BlockoutJob): string {
   if (at <= 0) return t`这一发已经付过费，但服务器没说结果能留到什么时候——建议尽快取回。`;
   const left = at - Date.now();
   if (left <= 0) {
+    // ★ 会退钱的服务端上（能力位 failRefund，2026-10-07）两种情况都说：AI 那边要是失败了，出片那一笔会被自动退回
+    //   （服务端退的时候会把这张单改成 failed、换上退款那句话 —— 走到这里说明还没看到）；出成了却没取回才是真的无法挽回。
+    //   与服务端 BlockoutJob 过期那句同一个口径。老服务端照旧那一句
+    if (serverSupports("failRefund") === true)
+      return t`产物已过期：AI 出片的产物只在服务器上留 24 小时，现在已经取不回来了。如果 AI 那边其实是失败了，出片那一笔会自动退回（到账时会通知你）；如果是出成了却没来得及取回，这一发的费用无法挽回（重开一发是再花一次钱）。`;
     return t`产物已过期：AI 出片的产物只在服务器上留 24 小时，现在已经取不回来了，这一发已经付过的费用无法挽回（不是超时重来——重开一发是再花一次钱）。`;
   }
   const h = Math.floor(left / 3600_000);
@@ -2599,8 +2605,8 @@ const BLOCKOUT_POLL_TOLERATE = 5;
 
 type TaskOutcome =
   | { kind: "succeeded" }
-  /** 方舟明说这一发失败/取消了。★ 仍然要去 finish：由服务端向方舟核实并结案，
-   *  「到底扣没扣钱」那句话只能由服务端说（客户端报的数不作数） */
+  /** 方舟明说这一发失败 / 取消 / 过期了。★ 仍然要去 finish：由服务端向方舟核实并结案（2026-10-07 起出片那一笔在这一步退回），
+   *  「到底退没退钱」那句话只能由服务端说（客户端报的数不作数） */
   | { kind: "failed" }
   /** 轮不动 / 等到点了 —— **不许当成失败**（结果可能好好的，只是我们没看到） */
   | { kind: "unknown"; note: string };
@@ -2654,7 +2660,8 @@ async function waitBlockoutTask(taskId: string, prog: (s: string) => void): Prom
           : t`AI 正在把画面里的人换成一模一样的纯白色人偶：${status} ${sec}s（可以退出，24 小时内都能回「我的模板」取回结果）`,
     );
     if (st.status === "succeeded") return { kind: "succeeded" };
-    if (st.status === "failed" || st.status === "cancelled") return { kind: "failed" };
+    // expired（超过 execution_expires_after 被方舟终止）也是终态：原来不认它，这里会一直等到 12 分钟再说「没接到」
+    if (st.status === "failed" || st.status === "cancelled" || st.status === "expired") return { kind: "failed" };
   }
   return { kind: "unknown", note: t`等了 12 分钟还没出片（任务还在方舟那边跑，不是失败）。` };
 }
@@ -2716,6 +2723,21 @@ function adoptBlockoutTemplate(api: branch.ApiBranchTemplate): VideoTemplate {
 }
 
 /**
+ * 取回结果（finish）那一发；**失败时顺手刷一次钱包**。
+ * ★ 2026-10-07 起方舟明说失败的那一发，服务端在 finish 这一步把出片那一笔退回（BlockoutJob 的结局那句话会说「已退回」），
+ *   而这条回包不带钱包响应头 —— 不刷的话通知 / 那句话说「退了」，「我的」页那个数还是扣之后的。钱包镜像只认服务端的数，
+ *   App 从不自己往上加（account.syncRemoteWallet 那条 ★）。只读、不花钱，失败的每一种都刷（判不准哪一种退了钱，多刷一次永远安全）。
+ */
+async function finishAndSync(jobId: string): ReturnType<typeof branch.finishBlockoutize> {
+  try {
+    return await branch.finishBlockoutize(jobId);
+  } catch (e) {
+    void refreshRemoteWallet();
+    throw e;
+  }
+}
+
+/**
  * 「等出片 → 取回结果」这后半段 —— **唯一实现**：刚开炼的那一发与从恢复入口领回来的
  * 那一发走的是同一段代码（铁律六）。两处各写一遍的话，"取回失败之后凭据还留不留"
  * 这种事必然分叉，而分叉的代价是用户的钱。
@@ -2739,7 +2761,7 @@ async function takeBlockoutResult(job: BlockoutJob, prog: (s: string) => void): 
     }
   }
   prog(t`正在取回结果：服务端会自己向方舟核实，再把产物转存下来（这一步不额外花钱）…`);
-  const res = await branch.finishBlockoutize(job.jobId);
+  const res = await finishAndSync(job.jobId);
   dropPendingJob(job.jobId);
   prog(t`白模模板已生成`);
   return adoptBlockoutTemplate(res.template);
@@ -2765,7 +2787,7 @@ export async function resumeBlockoutize(
     // 缓存里没有（列表还没到货 / 换了设备）也不该拦着：jobId 在手就能取，
     // 归属由服务端按 ownerId 把关。这时没有 taskId，直接去 finish 让服务端核实。
     prog(t`正在取回结果…`);
-    const res = await branch.finishBlockoutize(jobId);
+    const res = await finishAndSync(jobId);
     dropPendingJob(jobId);
     return adoptBlockoutTemplate(res.template);
   }
@@ -2841,7 +2863,7 @@ export interface BlockoutizeInput {
  *     两份一起漂时没有任何症状。而且窗口不满足是 **400 且 billed:false** ——
  *     不涉及钱，不需要客户端多设一道闸。
  * ★ 不做真人脸门禁：浏览器 FaceDetector 覆盖率极低，漏报比不检查更坏。开炼前那句
- *   「含真人面孔时 AI 可能受理后才拒绝、费用不退」由 BlockoutTrimmer 常驻告知（方案 §三），
+ *   「含真人面孔时 AI 可能受理后才拒绝」（出片那笔退回、看帧那笔不退；老服务端都不退）由 BlockoutTrimmer 常驻告知（方案 §三），
  *   这里只负责把服务端回的 `billed` 原样带给调用方（branch.BlockoutizeError）。
  * @throws message 可直接显示；`branch.BlockoutizeError` 还带一位 `billed`
  */
@@ -2995,7 +3017,7 @@ export async function blockoutizeTemplate(o: BlockoutizeInput): Promise<VideoTem
     expiresAt: toMs(started.job.expiresAt) ?? 0,
     createdAt: Date.now(),
   };
-  // ★★ 到这一行为止，钱**已经花掉了**（看帧 + r2v 受理，受理后失败不退）。所以这一行
+  // ★★ 到这一行为止，钱**已经扣了**（看帧 + r2v 受理；之后方舟明说失败的话 r2v 那一笔由服务端退回）。所以这一行
   //   要做的第一件事不是"接着等"，而是把这一发**记成一条待取回的凭据**：从现在起
   //   无论轮询挂掉、用户切后台、还是进程被系统回收，「我的模板」那个恢复入口都在。
   //   （本机这份只是让入口**当场**就亮起来；真正保命的是服务端那份 —— 进程被回收时

@@ -23,14 +23,15 @@ import FrameAnnotator, { drawCover } from "../components/FrameAnnotator";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
 import Icon from "../components/Icon";
-import { AI_REAL, refineFrame, regenSegment } from "../ai";
+import { AI_REAL, ArkTaskFailed, ArkTaskUnknown, SegmentGenFailed, chargeNote, chargeOnFail, refineFrame, regenSegment, unwrapFailure } from "../ai";
 import { ANN_CLAUSE } from "../studio/segmentGen";
 import { isArkAssetUrl, requestArkTransfer, transferStatus } from "../ai/arkClient";
-import { canAfford, frozenNote, isRemoteMode, spendTokens, walletOf } from "../data/account";
+import { canAfford, frozenNote, isRemoteMode, spendTokens, tierBlockReason, tierOffered, walletOf } from "../data/account";
+import UpgradeLink from "../components/UpgradeLink";
 import { idbSet } from "../data/db";
 import { dropVideoJob } from "../data/videoJobs";
 import { ownerEpoch } from "../data/deviceOwner";
-import { annRedrawCost, fmtTokens, segTokens } from "../data/economy";
+import { annRedrawCost, fmtTokens, segTokens, tierOf, tierRetireDay, tierRetired } from "../data/economy";
 import { publishedExit, useStudio } from "../studio/studioStore";
 import { useCut } from "../studio/cutStore";
 import {
@@ -283,6 +284,8 @@ export default function CutPage() {
     const st = loc.state as { warn?: unknown } | null;
     return typeof st?.warn === "string" ? st.warn : "";
   });
+  /** 哪一句报错旁边要摆「去升级」（套餐那一类原因）：记的是那一句本身，err 换成别的话时链接自己就不摆了 */
+  const [errUpgrade, setErrUpgrade] = useState("");
   const dragClip = useRef<string | null>(null);
 
   // 预览播放器：播当前片段的源视频（代理 blob 供圈选截帧），到出点自动跳下一片段
@@ -597,7 +600,8 @@ export default function CutPage() {
   const annCost = useMemo(
     () =>
       [...annBySeg.entries()].reduce(
-        (s, [i, n]) => s + (segs[i] ? segTokens(segs[i].durationSec, segs[i].videoTier) + annRedrawCost(n) : 0),
+        // 画幅跟着这一段（480p 的每秒数按画幅不同；regenSegment 发的是同一个 aspect）
+        (s, [i, n]) => s + (segs[i] ? segTokens(segs[i].durationSec, segs[i].videoTier, aspectOf(segs[i].aspect).ratio) + annRedrawCost(n) : 0),
         0,
       ),
     [annBySeg, segs],
@@ -1160,6 +1164,29 @@ export default function CutPage() {
     if (busy || liveAnns.length === 0) return;
     const bySeg = new Map<number, Ann[]>();
     for (const a of liveAnns) bySeg.set(a.segIndex, [...(bySeg.get(a.segIndex) ?? []), a]);
+    // ★ 档位门禁（2026-10-07 免费档限制）：重拍是真出片，而这几段的档这个人现在用不了（会员档 / 已停用）的话，
+    //   改图的钱先花出去、重拍那一发才被服务端 403。判据只在 account.tierBlockReason（工作流出片问的是同一句）
+    for (const segIndex of bySeg.keys()) {
+      const tier = segs[segIndex] ? tierOf(segs[segIndex].videoTier) : null;
+      const blocked = tier ? tierBlockReason(tier) : null;
+      if (tier && blocked) {
+        const segNo = segIndex + 1;
+        const label = tier.label;
+        // ★ 剪辑页换不了档：tierBlockReason 里「换一档再出片」那种出路在这一页不存在（2026-10-07 评审抓到）。
+        //   摆不出来的档（停用 / 这台服务端不支持）说这一页能走的路；套餐那一道照说原句，并给「去升级」（errUpgrade 认的是这一句）
+        if (tierRetired(tier)) {
+          const day = tierRetireDay(tier);
+          setErr(t`第 ${segNo} 段是「${label}」档，模型已于 ${day}停用，这里重拍不了——回工作流把这一段换一档重新出片（会重新计费）`);
+        } else if (!tierOffered(tier)) {
+          setErr(t`第 ${segNo} 段是「${label}」档，这台服务器还不支持它（服务端需要更新），这里重拍不了`);
+        } else {
+          const line = t`第 ${segNo} 段重拍不了：${blocked}`;
+          setErr(line);
+          setErrUpgrade(line);
+        }
+        return;
+      }
+    }
     if (AI_REAL && !canAfford(annCost)) {
       const w = walletOf();
       const segCount = bySeg.size;
@@ -1198,6 +1225,8 @@ export default function CutPage() {
       setBusy(line);
       job.update(line);
     };
+    /** 最近一段视频的报价（失败时钱上那句话用；见下面 catch） */
+    let lastVideoTokens = 0;
     try {
       const nextSegs = own!.segments.slice();
       let n = 0;
@@ -1223,7 +1252,14 @@ export default function CutPage() {
         stopIfMoved(false);
         say(t`第 ${segNo} 段 · 重拍视频（${n}/${segTotal} 段）…`);
         const reqAll = list.map((a) => a.req).join("；");
-        const { url, lastFrame, poster, taskId } = await regenSegment(seg, reqAll, (s) => say(t`第 ${segNo} 段 · ${s}`));
+        /** 这一段视频那一半的价（与下面成功时记账、按钮上那个数同源）：失败时钱上那句话「可能扣了」按它说 */
+        lastVideoTokens = segTokens(seg.durationSec, seg.videoTier, aspectOf(seg.aspect).ratio);
+        const { url, lastFrame, poster, taskId } = await regenSegment(seg, reqAll, (s) => say(t`第 ${segNo} 段 · ${s}`)).catch((e: unknown) => {
+          // 视频那一发失败了：包一层带上这一段刚改好的画面张数（list.length 次改图，每次各自结算）—— 钱上的话要把它们单独说
+          // （ai/failCharge 的 SegmentGenFailed）。没接到结果（ArkTaskUnknown）不包：它不是失败，凭据留着
+          // 剪辑页重拍不补画设定帧（帧是这一段原有的 + 圈选改过的），没有要留下的新帧
+          throw e instanceof ArkTaskUnknown ? e : new SegmentGenFailed(e, list.length, "video", null);
+        });
         stopIfMoved(true);
         // ★ 成片到手，这一发结案（2026-09-18）：服务端登记表不知道谁取回了哪一发，不结案的话下次进创作入口
         //   它会被补成一张「还没取回」的卡（data/videoJobs.importServerVideoJobs）
@@ -1234,7 +1270,7 @@ export default function CutPage() {
         // ★ 必须判 AI_REAL：演示模式下根本没调方舟，却照样扣本地余额，
         //   用户在 mock 里点几次就"没钱"了，还查不出钱花在哪
         // ★ 与按钮上那个数同源：视频那一半 + 每处圈选一张改图（annRedrawCost 唯一实现）
-        if (AI_REAL) spendTokens(segTokens(seg.durationSec, seg.videoTier) + annRedrawCost(list.length));
+        if (AI_REAL) spendTokens(segTokens(seg.durationSec, seg.videoTier, aspectOf(seg.aspect).ratio) + annRedrawCost(list.length));
         nextSegs[segIndex] = seg;
         // ★★ **每段一落地**（2026-08-21 第九轮扫描的 high）：原来整轮跑完才 setState 一次，
         //   中途失败（第 3 段撞上敏感词/超时）前面两段**钱已经扣了**，成片却随
@@ -1263,9 +1299,20 @@ export default function CutPage() {
       else job.done({ msg: t`按圈选重做好了，回剪辑页看看`, route: "/cut" });
     } catch (e) {
       setBusy("");
+      const inner = unwrapFailure(e);
+      // ★ 上游明说没出成：这一发结案（没有成片可取了）—— 不结案的话服务端登记表下次会把它补成一张取回卡
+      //   （老服务端那种钱没退的也结案：失败那句话就在这里说给人听了，取回卡只会对着它再说一遍）
+      if (inner instanceof ArkTaskFailed) dropVideoJob(inner.taskId);
       // ★ 说清"前面几段已经保住了"：不说的话用户以为整轮白花，会再点一次（再收一遍）
-      const why = (e instanceof Error ? e.message : String(e)).slice(0, 110);
-      const line = t`重新生成中断：${why}。已经改好的段已经保住了（它们的圈选也清掉了），再点一次只会重做剩下的那几段`;
+      const why = (inner instanceof ArkTaskFailed ? inner.reason : e instanceof Error ? e.message : String(e)).slice(0, 110);
+      // ★ 钱上那句话（2026-10-07）：只认类型、只走 ai/failCharge —— 受理之后上游明说失败的那一发现在会退回，
+      //   这一段刚改好的画面另说（它们各自结算过）。视频那一发之前的失败（改图本身失败）按一张图的价说
+      const fc = chargeOnFail(e);
+      const money = chargeNote(fc, fc.video ? lastVideoTokens : annRedrawCost(1));
+      const moneyLine = money?.line ?? "";
+      const line = money
+        ? t`重新生成中断：${why}。${moneyLine}已经改好的段已经保住了（它们的圈选也清掉了），再点一次只会重做剩下的那几段`
+        : t`重新生成中断：${why}。已经改好的段已经保住了（它们的圈选也清掉了），再点一次只会重做剩下的那几段`;
       setErr(line);
       if (aliveRef.current) job.done({ silent: true });
       else job.fail(line, "/cut");
@@ -2151,7 +2198,15 @@ export default function CutPage() {
         <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-3">
           {err && (
             <div className="mb-2.5 flex items-start gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
-              <span className="min-w-0 flex-1">{err}</span>
+              <span className="min-w-0 flex-1">
+                {err}
+                {err === errUpgrade && (
+                  <>
+                    {"　"}
+                    <UpgradeLink />
+                  </>
+                )}
+              </span>
               <button onClick={() => setErr("")} className="flex-none">
                 <Icon name="close" size={14} />
               </button>

@@ -62,7 +62,7 @@ import {
 import { chatVision } from "../ai/arkClient";
 import { CARD_SCOPE, ID_LINE_SPEC } from "../ai/cardScope";
 import FrameAnnotator from "../components/FrameAnnotator";
-import { CHAT_TURN_TOKENS, ONE_IMAGE, fmtTokens, schemeCost } from "../data/economy";
+import { CHAT_TURN_TOKENS, ONE_IMAGE, fmtTokens, schemeCost, tierNamesWhere, voiceTierNames } from "../data/economy";
 import { saveVoice } from "../data/cardVoice";
 import { startJob } from "../data/jobs";
 // ★★ 这一页的表单状态全在 store 里（理由见 customCardStore 文件头）：AI 出图 / 铸卡上传
@@ -1056,7 +1056,9 @@ export default function CustomCardPage() {
       if (!s.idLine.trim() && r.idLine) setIdLine(r.idLine.slice(0, ID_LINE_MAX));
       if (!s.tagText.trim() && r.tags.length > 0) setTagText(r.tags.slice(0, TAG_MAX).join(" "));
       if (startType === "scene" && r.hasPeople) {
-        setRecogMsg({ tone: "warn", text: t`照片里有人：默认档出片不受影响；高清 / 超清档可能被方舟拒掉（没受理不扣视频钱）` });
+        // 会被拒的是「直接收参考图」的那几档（2.x），按能力现算（原来写的「高清 / 超清」—— 超清这一档从来不存在）
+        const refTiers = tierNamesWhere((x) => x.refImg);
+        setRecogMsg({ tone: "warn", text: t`照片里有人：「${refTiers}」档直接收参考图，出片可能被方舟拒掉（没受理不扣视频钱）；别的档不受影响` });
       }
       job.done({ msg: t`识别好了，回去看看填得对不对`, silent: s.mounted });
     } catch (e) {
@@ -1366,7 +1368,7 @@ export default function CustomCardPage() {
                         //   「有 pendingAsset 但 declareReal 为假」的状态：屏幕说"铸卡时绑定"、
                         //   mint 一行都不写，而那张真人照片照样进卡（见 clearAuthBinding 的 ★★）。
                         // ★★ 上传的那张也要撤：留着它，就是一张真人照片进了一张**没声明真人**的卡——
-                        //   economy.realFaceIssue 认不出它，任何档位都会放行
+                        //   account.realFaceIssue 认不出它，任何档位都会放行
                         const hadReal = !!useCardDraft.getState().realShot;
                         clearRealShot();
                         clearAuthBinding(t`已经离开真人素材这条路：真人照片和火山引擎认证都撤掉了。`);
@@ -1472,7 +1474,7 @@ export default function CustomCardPage() {
       {/* ── 真人素材页（选「真人素材」才进）。★★ 2026-09-30 主人拍板：这一页的主体是**上传真人照片**；
           火山引擎认证退成照片下方一个小勾选框「火山引擎适用」（components/VolcCompatToggle）。
           ★ 这一页**不写**"哪一档需不需要认证"之类的说明：能用哪几档由档位按钮本身可不可点表达
-            （TierRow 读 economy.realFaceIssue —— 判据只有那一处）。
+            （TierRow 读 account.realFaceIssue —— 判据只有那一处）。
           跟读只在这一页有（主人点名）；其它方案在表单里只有传本地音频。 */}
       {step === "real" && (
         <>
@@ -2195,7 +2197,7 @@ export default function CustomCardPage() {
             </div>
           )}
           <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
-            <Trans>出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段音色说话。样本只存在这台设备上，不随分享带走。</Trans>
+            <Trans>出片走「{voiceTierNames()}」档、台词写在引号里时，AI 会参考这段音色说话。样本只存在这台设备上，不随分享带走。</Trans>
           </p>
         </section>
       )}

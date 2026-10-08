@@ -12,10 +12,10 @@
 //
 // 计费与 store 写入**不在这里**：两边的账本与状态形状不同（flowStore 写 videoByProposal，
 // 工坊写 proposal.videoUrl），这里只负责"把一段炼出来"，纯函数式地把结果交回去。
-import { AI_REAL, ARK_REF_IMAGES_MAX, ArkTaskUnknown, VIDEO_PROMPT_MAX, composeSegments, generateFrame, notesInParens, planCardRefs, prepareMaterialRefs, refCardIds, refineFrame } from "../ai";
+import { AI_REAL, ARK_REF_IMAGES_MAX, ArkTaskUnknown, SegmentGenFailed, VIDEO_PROMPT_MAX, composeSegments, generateFrame, notesInParens, planCardRefs, prepareMaterialRefs, refCardIds, refineFrame, type KeptFrames } from "../ai";
 import { compileMentions, drawExtraRefs, extraRefLines, mentionTargets, plainMentions, usableExtraRefs, type ExtraRef } from "../data/refMentions";
 import { uploadImage } from "../api/uploads";
-import { IMAGE_TOKENS, blockoutPriceIssue, fmtTokens, r2vPriceIssue, tierOf, providerOf, clampDuration, videoTokensOfSpec, promptMaxOf, refAudioSecOf, type VideoTier } from "../data/economy";
+import { IMAGE_TOKENS, blockoutPriceIssue, blockoutTier, fmtTokens, r2vPriceIssue, tierOf, providerOf, clampDuration, videoTokensOfSpec, promptMaxOf, refAudioSecOf, type VideoTier } from "../data/economy";
 import { frameMoment, isMultiShot, lineSpeakers, momentCards, packShots } from "../data/shotScript";
 import { frameSlotsOf, framesToDraw, type DrawInput } from "../data/drawPlan";
 // ★ 「模板视频自己合不合方舟窗口」的判据在 data（不在组件）：store 层这一处与
@@ -23,6 +23,8 @@ import { frameSlotsOf, framesToDraw, type DrawInput } from "../data/drawPlan";
 import { refVideoIssue } from "../data/templates";
 import { ShotSpec, shotLineOf, CardType, ID_LINE_MAX, CARD_TYPE_PROMPT, idLineOf, viewsOf, feedsModel, TEXT_DESC_MAX, aspectOf, startFramesAllowed, type Card, type GenMode, type VideoAspect, type VideoTemplate } from "../types";
 import { voiceOf } from "../data/cardVoice";
+import { isRemoteMode, tierGo } from "../data/account";
+import { ratioFor } from "../ai/arkClient";
 import { t } from "@lingui/core/macro";
 
 export interface SegmentAnn {
@@ -127,6 +129,16 @@ export interface SegmentGenInput {
    *   就成了同一条规则的第二处实现（而且与用户改过的那份必然分叉）。
    */
   roles?: { label: string; desc: string }[];
+  /**
+   * 电影级「样片」（2026-10-07 主人拍板；判定在 flowStore.nodeDraftOn / draftFinalIssue，这里只照着发）：
+   *   "draft"  = 第一步：槽位照普通出片摆（帧 / 参考图 / 补画都一样），只是按 480p + draft:true 发、按 economy.draftStepTokens 计价；
+   *   finalOf  = 第二步：把这条样片升成 1080p —— 请求只带样片任务号（画面 / 动作 / 声音都照样片，方舟规定重传就报错），
+   *              上面那些输入一律不看；durationSec / ratio 是样片当初那两样（报价对账用）；
+   *   null     = 普通出片。
+   * **必填**：可选的话漏传就悄悄按 720p 出片、按样片的价报（契约核对会说出来，但钱已经按另一把尺扣了）。
+   * ★ 只有普通出片那条路能走样片：白模 / 返修 / 延长 / 示例视频都带视频输入（方舟：样片不收视频输入），真人档是另一家 —— 下面开头整句拒。
+   */
+  draftMode: null | "draft" | { finalOf: { taskId: string; durationSec: number; ratio?: string } };
 }
 
 /**
@@ -240,7 +252,7 @@ export function cardsWithVoice(materials?: Card[]): Card[] {
  * 这一段出片**一张画面帧都不带**吗（允许参考图直出 = 简约模式或不补画帧的段，且没有首帧、没有尾帧、没有承接帧、没有圈选）——
  * refVideoOn 去掉「档位收不收参考图」「卡有没有图」两条之后剩下的**帧那一半**，唯一实现。
  * ★ 抽出来给真人卡门禁用（2026-09-30 付费实测）：已认证真人卡在高清/电影级上只有不带帧的请求过得去 ——
- *   帧里的写实人脸会被方舟整发拒（见 economy.realFaceIssue 的 framed）。门禁与出片问的必须是同一句：
+ *   帧里的写实人脸会被方舟整发拒（见 account.realFaceIssue 的 framed）。门禁与出片问的必须是同一句：
  *   界面说能选、出片却走了带帧那条，就是两面打架。
  * ★ 尾帧也算（2026-10-04）：参考生视频那一发**一张帧都发不出去**（与首尾帧是方舟互斥的两种场景）。此前只看首帧，
  *   只给了尾帧的段会被判成直出、那张尾帧悄悄不发 —— 简约页那句「给了自己的帧就走首尾帧模式，清掉两帧才回到那条路」
@@ -924,16 +936,29 @@ export type SegmentTaskAccepted = (taskId: string) => void;
  * 对不上**不拦**（钱在服务端按调用结算，这里拦只会把已经画好的帧作废），但要说出来并进控制台。
  * 视频那半按 economy.videoTokensOfSpec（与报价同一张价目表），出图那半按"这一发真画了几张"。
  */
-function contractLine(o: { quoted: number | null; mode: GenMode; durationSec: number; tierId: string; refVideoSec?: number; images: number }): string {
+function contractLine(o: {
+  quoted: number | null;
+  mode: GenMode;
+  durationSec: number;
+  tierId: string;
+  refVideoSec?: number;
+  images: number;
+  /** 这一发的画幅（480p 的每秒数按画幅不同，报价 nodeCost 也按它算） */
+  ratio?: string;
+}): string {
   if (o.quoted === null) return "";
-  const video = videoTokensOfSpec({ mode: o.mode, durationSec: o.durationSec, tierId: o.tierId, refVideoSec: o.refVideoSec });
+  const video = videoTokensOfSpec({ mode: o.mode, durationSec: o.durationSec, tierId: o.tierId, refVideoSec: o.refVideoSec, ratio: o.ratio });
   if (video === null) return "";
   const implied = video + o.images * IMAGE_TOKENS;
   if (implied === o.quoted) return "";
   const quotedLabel = fmtTokens(o.quoted);
   const impliedLabel = fmtTokens(implied);
   const videoLabel = fmtTokens(video);
-  const line = t`⚠ 契约核对：界面报价 ${quotedLabel}，按契约应为 ${impliedLabel}（视频 ${videoLabel} + 出图 ${o.images} 张）——本次仍按报价扣，请把这句话反馈给我们`;
+  // ★ 「按什么扣」分两种说（2026-10-07 评审抓到）：远端模式（正式包）钱在服务端按**它自己算的**价结算，App 的报价管不着 ——
+  //   原来一律说「本次仍按报价扣」，在正式包上是假话。离线 / 演示构建的账本在本机，genNode 成片到手时按报价记，那句才成立。
+  const line = isRemoteMode()
+    ? t`⚠ 契约核对：界面报价 ${quotedLabel}，按契约应为 ${impliedLabel}（视频 ${videoLabel} + 出图 ${o.images} 张）——实际扣多少以服务器结算为准（看「我的」页的 token 余额），请把这句话反馈给我们`
+    : t`⚠ 契约核对：界面报价 ${quotedLabel}，按契约应为 ${impliedLabel}（视频 ${videoLabel} + 出图 ${o.images} 张）——本次仍按报价扣，请把这句话反馈给我们`;
   console.warn("[segmentGen] " + line);
   return line;
 }
@@ -944,11 +969,30 @@ function afterStop(prev: string, s: string): string {
   return prev.endsWith("。") && s.startsWith("。") ? s.slice(1) : s;
 }
 
-function settleSegment(res: { error?: string; pendingTaskId?: string } | undefined): void {
+function settleSegment(
+  res: { error?: string; pendingTaskId?: string; failure?: unknown } | undefined,
+  /**
+   * 这一段在视频那一发之前**已经结算**的出图次数（补画设定帧 + 圈选改帧）。**必填**：可选的话新支路漏传就是 0，
+   * 钱上那句话会把画好的那几张说成「没扣」（与 onTask 那条「漏传零症状」同一个教训）。没画的支路显式传 0。
+   */
+  framesSettled: number,
+  /**
+   * 这一次新补画好的设定帧（arkClient.KeptFrames）：视频那一发失败时随错误交给 genNode 留在方案上，重试不再重画、不再收一次图钱。
+   * **必填**（理由同上）：没补画的支路显式传 null。
+   */
+  kept: KeptFrames | null,
+): void {
   // 「没接到结果」要**原样保持它的类型**往上抛：调用方据此决定凭据留不留
-  // （留 = 亮取回入口，销毁 = 只剩「重新生成」= 再花一次钱）。
+  // （留 = 亮取回入口，销毁 = 只剩「重新生成」= 再花一次钱）。★ 它永远不包壳（genNode 靠 instanceof 认它）
+  if (res?.failure instanceof ArkTaskUnknown) throw res.failure;
   if (res?.pendingTaskId) throw new ArkTaskUnknown(res.error ?? t`没接到这一段的出片结果`, res.pendingTaskId);
-  if (res?.error) throw new Error(res.error);
+  // ★★ 其余失败也**原样**往上抛（2026-10-07）：原来这里拿 res.error 新造一个裸 Error，类型就此丢掉 ——
+  //   「受理之后方舟明说失败（现在会退钱）」「没等到回包（可能扣了）」「服务端明说拒了（没扣）」三种在 genNode 那里长得一模一样，
+  //   钱上那句话只能一个字都不说。外面包一层 SegmentGenFailed：说明失败的是**视频那一发**，并带上出片前已经结算的画面张数
+  //   （钱上的话要把那几张单独说，ai/failCharge）；0 张也包（理由见那个类的 ★）。
+  if (res?.failure !== undefined) throw new SegmentGenFailed(res.failure, framesSettled, "video", kept);
+  // 只有字符串没有错误对象（演示构建）：同样包一层，补画的帧照样留下
+  if (res?.error) throw new SegmentGenFailed(new Error(res.error), framesSettled, "video", kept);
 }
 
 /**
@@ -987,7 +1031,14 @@ function voiceRefsFor(o: {
       notes.push(
         o.tier.flatCost
           ? t`「${o.tier.label}」档暂无配音，台词只以画面呈现`
-          : t`「${o.tier.label}」档出片无声，台词不会被配音（要声音选「高清」或「电影级」）`,
+          : (() => {
+              // 出声的档按能力现算、先说这个人用得了的（account.tierGo；原来写死「高清」「电影级」）
+              const go = tierGo((x) => x.audio && x.refImg);
+              const names = go.names;
+              return go.member
+                ? t`「${o.tier.label}」档出片无声，台词不会被配音（要声音得用「${names}」，会员档）`
+                : t`「${o.tier.label}」档出片无声，台词不会被配音（要声音选「${names}」）`;
+            })(),
       );
     else if (!o.referenceMode)
       // ★ 能走到这里的只有白模段（它自己就是 r2v，且 tier.audio 为真的两档都收参考图）——
@@ -1048,6 +1099,33 @@ export async function generateSegment(
   // 分镜表（N2）：空镜头拿掉、编号重排之后再往下走（没分镜的句子逐字节原样，data/shotScript.packShots）
   input = { ...input, plot: packShots(input.plot) };
   const prog = (s: string) => onProgress?.(s);
+
+  // ── 电影级「样片」第二步：把样片升成 1080p（2026-10-07）──────────────────────
+  // 请求只带样片任务号（arkClient 拼最小形状）；上面那些输入一律不看 —— 画面、动作、声音都照样片，方舟规定重传一个就报错。
+  // 放在最前面：后面每一条支路都会去准备帧 / 参考图 / 声音，有的还要花钱（补画），定稿一样都用不上。
+  const dm = input.draftMode;
+  if (dm && typeof dm === "object") {
+    const fin = dm.finalOf;
+    if (!fin.taskId) throw new Error(t`这一段没有样片的任务号，定不了稿——重新出一次样片再定稿`);
+    const finSec = fin.durationSec;
+    prog(t`把样片升成 1080p 成片（${finSec} 秒，画面、动作、声音都照样片）…`);
+    {
+      const cl = contractLine({ quoted: input.quotedTokens, mode: "draftFinal", durationSec: finSec, tierId: input.videoTier, images: 0, ratio: fin.ratio });
+      if (cl) prog(cl);
+    }
+    const [res] = await composeSegments(
+      [{ mode: "draftFinal", plot: "", firstFrame: "", lastFrame: "", durationSec: finSec, videoTier: input.videoTier, aspect: input.aspect, draftTaskId: fin.taskId }],
+      (_d, _t, status) => prog(status),
+      // ★ 受理回调**必须给**（同另外几条支路）：没有凭据，「没接到结果」这一支就等于不存在
+      (taskId) => onTask?.(taskId),
+    );
+    settleSegment(res, 0, null); // 定稿一张画面都不画
+    return { url: res?.url, firstFrame: "", lastFrame: res?.lastFrame || "", poster: res?.poster, realDurationSec: res?.durationSec };
+  }
+  // 样片第一步只走普通出片那条路（理由见 draftMode 的 ★）。界面那几道闸（nodeDraftEligible）已经按同一个口径拦过，这里是最后一道
+  if (dm === "draft" && (input.refVideoUrl || input.extendRef || input.materialRef || providerOf(input.videoTier) === "minimax")) {
+    throw new Error(t`这一段的做法走不了样片（样片不收参考视频，也不走真人档）——关掉「先出样片」再生成`);
+  }
   let first = input.firstFrame;
   let last = input.lastFrame;
   /** 这一段一路攒下的「顺带说一句」。**声明必须在最顶上**：素材参考那条支路在中途就 return，
@@ -1083,7 +1161,14 @@ export async function generateSegment(
     const refTier = tierOf(input.videoTier);
     if (!refTier.refVid || refTier.r2vMult === null || !refTier.extendOk) {
       const tierLabel = refTier.label;
-      throw new Error(t`「${tierLabel}」档还不能延长——去 ⚙ 本段设置换成「电影级」档`);
+      // 能延长的档按能力现算（extendOk），这个人一档都用不了时说那是会员档（account.tierGo）
+      const go = tierGo((x) => x.extendOk);
+      const names = go.names;
+      throw new Error(
+        go.member
+          ? t`「${tierLabel}」档还不能延长——能延长的「${names}」是会员档（开通会员套餐或充值过任意一笔后可用）`
+          : t`「${tierLabel}」档还不能延长——去 ⚙ 本段设置换成「${names}」档`,
+      );
     }
     if (input.anns.length) throw new Error(t`延长段没有设定帧可圈选——先清掉圈选标注，想改画面就改那句话`);
     const refs = await prepareMaterialRefs(input.materials, "video", (n) => notes.push(n), { cap: refTier.refImagesMax, strict: false });
@@ -1139,7 +1224,7 @@ export async function generateSegment(
       // ★ 受理回调**必须给**：不给就没有凭据，「没接到结果」这一支等于不存在
       (taskId) => onTask?.(taskId),
     );
-    settleSegment(res);
+    settleSegment(res, 0, null); // 延长段一张画面都不画
     return {
       url: res?.url,
       firstFrame: res?.firstFrame || "",
@@ -1155,7 +1240,13 @@ export async function generateSegment(
   if (input.materialRef) {
     const refTier = tierOf(input.videoTier);
     if (!refTier.refVid) {
-      throw new Error(t`「${refTier.label}」档不支持带参考视频出片——去 ⚙ 本段设置换成「高清」或「电影级」档，或移除参考视频`);
+      const go = tierGo((x) => x.refVid);
+      const names = go.names;
+      throw new Error(
+        go.member
+          ? t`「${refTier.label}」档不支持带参考视频出片——带得了的「${names}」是会员档；移除参考视频，或开通会员套餐（或充值过任意一笔）`
+          : t`「${refTier.label}」档不支持带参考视频出片——去 ⚙ 本段设置换成「${names}」档，或移除参考视频`,
+      );
     }
     if (input.anns.length) {
       throw new Error(t`带参考视频的自定义段暂不支持圈选改画面——清掉圈选标注再出片`);
@@ -1262,7 +1353,7 @@ export async function generateSegment(
       // ★ 受理回调**必须给**：不给就没有凭据，"没接到结果"这一支等于不存在
       (taskId) => onTask?.(taskId),
     );
-    settleSegment(res);
+    settleSegment(res, 0, null); // 素材参考：帧是用户给的，不画（上传不计费）
     return {
       url: res?.url,
       firstFrame: res?.firstFrame || firstRef || input.firstFrame,
@@ -1277,7 +1368,11 @@ export async function generateSegment(
   // 首帧就是真人卡的照片（或用户设定帧/承接帧），提示词驱动它动起来 —— 三发探针
   // 验证过的 i2v 形态。出片调用的分流在 composeSegments（尾帧捕获/承接共用那条产线）。
   if (providerOf(input.videoTier) === "minimax") {
-    if (blockout) throw new Error(t`白模模板出片只在方舟档（真人档没有 r2v 能力）——这一段换回「电影级」档，或换掉模板`);
+    if (blockout) {
+      // 跑得了白模模板的那一档只问 economy.blockoutTier（唯一实现），别写死「电影级」
+      const bt = blockoutTier()?.label ?? "";
+      throw new Error(t`白模模板出片只在方舟档（真人档没有 r2v 能力）——这一段换回「${bt}」档，或换掉模板`);
+    }
     if (input.anns.length) throw new Error(t`真人档暂不支持圈选改画面（改图引擎会拒收真人脸）——清掉圈选标注再出片`);
     // 优先取声明过真人的卡（这一档存在的理由），再退任意有图的卡
     const byReal = (input.materials ?? []).filter((c) => c.realPerson === true).concat(input.materials ?? []);
@@ -1332,7 +1427,7 @@ export async function generateSegment(
     //   节点打成 pending、屏幕上写「用下面的「取回」领回来」，而 rememberVideoJob 一次都没跑、
     //   取回卡一张不画，连能发给客服的任务号都看不到（比不改更坏）。零报错、类型也过 ——
     //   因为 composeSegments 的第三参当时是可选的。**现在它是必填的**，同样的漏法编译期就红。
-    settleSegment(res);
+    settleSegment(res, 0, null); // 真人档一张设定帧都不画
     return { url: res?.url, firstFrame: firstSrc, lastFrame: res?.lastFrame || firstSrc, poster: res?.poster, realDurationSec: res?.durationSec };
   }
 
@@ -1353,10 +1448,29 @@ export async function generateSegment(
       t`本段承接上一段的结尾画面，开头画面不重画——你圈在前半段的 ${skippedAnns} 处只作为文字要求写进出片提示词（这几处不计费）`,
     );
   }
+  /** 视频那一发之前**已经结算**的出图张数（画成了才 +1：失败的那一张钱扣没扣由 ai/failCharge 按类型说） */
+  let imagesSettled = 0;
+  /** 这一次新补画好的设定帧（arkClient.KeptFrames）：后面任何一步失败都随错误交给 genNode 留在方案上 */
+  const kept: KeptFrames = {};
+  const keptOrNull = (): KeptFrames | null => (kept.first || kept.last ? { ...kept } : null);
+  /**
+   * 出片之前的一次出图（圈选改帧 / 补画设定帧）。失败时包成 SegmentGenFailed（failedCall: "image"）带上已经结算的张数与已经画好的帧
+   * （2026-10-07 评审抓到：原来这几发的失败原样往上抛，钱上那句话只说「这一张」—— 同一次里已经画好、已经结算的几张一个字不提，
+   * 画好的帧也跟着丢了，重试再画一遍、再收一遍）
+   */
+  async function imageStep(run: () => Promise<string>): Promise<string> {
+    try {
+      const url = await run();
+      imagesSettled++;
+      return url;
+    } catch (e) {
+      throw new SegmentGenFailed(e, imagesSettled, "image", keptOrNull());
+    }
+  }
   for (let k = 0; k < redrawn.length; k++) {
     const a = redrawn[k];
     prog(t`按圈选改画面 ${k + 1}/${redrawn.length}…`);
-    const edited = await refineFrame(`${a.req}${ANN_CLAUSE}`, a.frame, input.aspect);
+    const edited = await imageStep(() => refineFrame(`${a.req}${ANN_CLAUSE}`, a.frame, input.aspect));
     if (a.atSec < half) first = edited;
     else last = edited;
   }
@@ -1409,7 +1523,13 @@ export async function generateSegment(
     prog(
       tier.refImg
         ? t`素材卡上没有可用的形象参考图，改为先按描述画一张设定帧再出片（多花约一张出图的钱）`
-        : t`「${tier.label}」档不支持参考图，改为先按描述画一张设定帧再出片（想直接用卡片形象请选「高清」或「电影级」）`,
+        : (() => {
+            const go = tierGo((x) => x.refImg);
+            const names = go.names;
+            return go.member
+              ? t`「${tier.label}」档不支持参考图，改为先按描述画一张设定帧再出片（直接用卡片形象要「${names}」，会员档）`
+              : t`「${tier.label}」档不支持参考图，改为先按描述画一张设定帧再出片（想直接用卡片形象请选「${names}」）`;
+          })(),
     );
   }
   // 素材卡的形象参考图，两种用法**互斥**（方舟文档：图生视频-首帧、图生视频-首尾帧、
@@ -1491,8 +1611,8 @@ export async function generateSegment(
   };
   // ★ 白模：形象图一张都没准备成（图裂了/跨域读不出来）→ **整句失败，不降级**。
   //   refImg 那条能退回首尾帧（拍的还是这段剧情），白模退无可退：没有形象图的 r2v
-  //   任务要么被方舟拒、要么受理后拍出一段没换主体的复刻片——受理后失败不退费，
-  //   替用户把这笔钱按住的唯一办法就是在这里响亮地停下（铁律八）。
+  //   任务要么被方舟拒、要么受理后拍出一段没换主体的复刻片——后者是**出成了**的片子（方舟照收钱，
+  //   失败退款管不到它），替用户把这笔钱按住的唯一办法就是在这里响亮地停下（铁律八）。
   // ★ 返修不在此列（2026-09-18，2.46 发版前复核抓到）：它改的是画面不是换人 —— blockoutIssue 与上面
   //   prepareMaterialRefs 的 strict:false 都已经给它开了「没卡也能走」的口子，唯独这道闸漏了，
   //   于是没挂卡的段（电影级经典段 / 自定义段）点返修必被这句拒，而返修框上的键是亮的。
@@ -1501,7 +1621,7 @@ export async function generateSegment(
   }
   // ★ 走到这一步才发现一张参考图都没准备成（图裂了/跨域读不出来）：**退回首尾帧模式**
   //   而不是发一个没有参考图的"参考生视频"任务——那个任务方舟会拒，或者更糟：受理了
-  //   然后拍出一段与卡片毫无关系的片子，钱照扣（受理后失败不退）。
+  //   然后拍出一段与卡片毫无关系的片子 —— 那是出成了的片，钱照扣（失败退款只管上游明说失败的那种）。
   if (refMode && !refUrls) {
     refMode = false;
     prog(t`素材卡的形象参考图一张都没能用上，改为先按描述画一张设定帧再出片（多花约一张出图的钱）`);
@@ -1530,31 +1650,38 @@ export async function generateSegment(
   //   外壳走 generateFrame 不走封面那层（2026-10-03 第二次付费验证：结束画面被画成三格分镜图、格子里写着台词）
   // ★ 这一刻里有谁就只带谁的卡（momentCards，2026-10-04）：结束画面「特写，夜川…」只带夜川，
   //   不再把排在第一位的小枫连图带文字一起塞进去（第三次付费验证：她被拉进了夜川的特写）
+  // 准备参考图（drawRefs）也包在 imageStep 里：它失败时前面画好的那一张照样要留下（它自己不花钱，所以不计张数）
   if (draw.first) {
-    const moment = input.framePrompt || frameMoment(drawPlot, "first");
-    const mats = momentCards(input.materials, moment);
-    const dr = await drawRefs(mats);
-    const ex = drawExtras("first", dr.refs.length);
-    drawn++;
-    prog(t`绘制起拍画面…` + noteTail());
-    first = await generateFrame(
-      // 画帧只画得进分到图的那几张卡（经典路分配）；其余的有文字版形象描述就用它（按模型适配）
-      `${input.framePrompt || moment.slice(0, 200)}${materialText(mats, idsWithout(mats, dr.cards))}${dr.bind(0)}${ex.line}`,
-      { aspect: input.aspect, refs: dr.refs.length + ex.urls.length ? [...dr.refs, ...ex.urls] : undefined },
-    );
+    first = await imageStep(async () => {
+      const moment = input.framePrompt || frameMoment(drawPlot, "first");
+      const mats = momentCards(input.materials, moment);
+      const dr = await drawRefs(mats);
+      const ex = drawExtras("first", dr.refs.length);
+      drawn++;
+      prog(t`绘制起拍画面…` + noteTail());
+      return generateFrame(
+        // 画帧只画得进分到图的那几张卡（经典路分配）；其余的有文字版形象描述就用它（按模型适配）
+        `${input.framePrompt || moment.slice(0, 200)}${materialText(mats, idsWithout(mats, dr.cards))}${dr.bind(0)}${ex.line}`,
+        { aspect: input.aspect, refs: dr.refs.length + ex.urls.length ? [...dr.refs, ...ex.urls] : undefined },
+      );
+    });
+    kept.first = first;
   }
   if (draw.last) {
-    const moment = frameMoment(drawPlot, "last");
-    const mats = momentCards(input.materials, moment);
-    const dr = await drawRefs(mats);
-    const ex = drawExtras("last", dr.refs.length);
-    drawn++;
-    prog(t`绘制结束画面…` + noteTail());
-    last = await generateFrame(
-      // i18n-ignore-next-line: 画结束画面的出图提示词，发给模型
-      `${moment.slice(0, 180)} 的结束瞬间${materialText(mats, idsWithout(mats, dr.cards))}${dr.bind(0)}${ex.line}`,
-      { aspect: input.aspect, refs: dr.refs.length + ex.urls.length ? [...dr.refs, ...ex.urls] : undefined },
-    );
+    last = await imageStep(async () => {
+      const moment = frameMoment(drawPlot, "last");
+      const mats = momentCards(input.materials, moment);
+      const dr = await drawRefs(mats);
+      const ex = drawExtras("last", dr.refs.length);
+      drawn++;
+      prog(t`绘制结束画面…` + noteTail());
+      return generateFrame(
+        // i18n-ignore-next-line: 画结束画面的出图提示词，发给模型
+        `${moment.slice(0, 180)} 的结束瞬间${materialText(mats, idsWithout(mats, dr.cards))}${dr.bind(0)}${ex.line}`,
+        { aspect: input.aspect, refs: dr.refs.length + ex.urls.length ? [...dr.refs, ...ex.urls] : undefined },
+      );
+    });
+    kept.last = last;
   }
 
   // ── 帧 → 参考图（framesAsRefs 的落地）────────────────────────────
@@ -1607,7 +1734,13 @@ export async function generateSegment(
     notes.push(
       tier.refImg
         ? t`这一段没走参考图出片，临时参考图这次没发出去`
-        : t`「${tier.label}」档协议上不收参考图，临时参考图这次没发出去（想用它们换「高清」或「电影级」）`,
+        : (() => {
+            const go = tierGo((x) => x.refImg);
+            const names = go.names;
+            return go.member
+              ? t`「${tier.label}」档协议上不收参考图，临时参考图这次没发出去（用它们要「${names}」，会员档）`
+              : t`「${tier.label}」档协议上不收参考图，临时参考图这次没发出去（想用它们换「${names}」）`;
+          })(),
     );
   }
   /** 临时参考图排在帧之后、卡片形象图之前：它们的编号从这里起 */
@@ -1774,8 +1907,8 @@ export async function generateSegment(
       prog(line);
     }
   }
-  /** 这一发的生成模式（契约的声明；槽位与它是否一致由 real.validateGenSpec 在花钱之前核对） */
-  const mode: GenMode = blockout
+  /** 这一发按什么形状拼请求（槽位推出来的；样片第一步也照它拼，real.slotModeOf 同一个判法） */
+  const slotMode: GenMode = blockout
     ? "edit"
     : refMode || sendFrameRefs
       ? "ref-images"
@@ -1784,6 +1917,32 @@ export async function generateSegment(
           ? "flf"
           : "i2v"
         : "t2v";
+  /** 这一发的生成模式（契约的声明；槽位与它是否一致由 real.validateGenSpec 在花钱之前核对）。先出样片 = "draft"（按 480p 的价、480p 发） */
+  const mode: GenMode = input.draftMode === "draft" ? "draft" : slotMode;
+  /** 真正送进请求体的画幅（arkClient.ratioFor：2.5 走首帧 / 首尾帧时只收 adaptive）—— 对账与下面那道样片闸读同一个值 */
+  const wantRatio = aspectOf(input.aspect).ratio;
+  const sentRatio = ratioFor(tier.model, slotMode === "edit" || slotMode === "ref-images" ? "reference" : "frames", wantRatio);
+  // ★★ 样片第一步**不许**退回首尾帧（2026-10-07 评审抓到）：帧转参考图失败时 2.5 这一发会退成首帧 / 首尾帧任务，
+  //   而那种任务只收 ratio:"adaptive" —— 480p 的每秒数按画幅不同，服务端对 adaptive 按那一行**最贵**的一格结算
+  //   （竖屏 5 秒报价 225,776、实扣 236,034），按钮上那个数就成了少报。报价按不了「发出去才知道的画幅」，所以在这里拦：
+  //   视频那一发还没发出去 = 一分没扣；之前补画 / 圈选改过的那几张已经各自结算过，交给 SegmentGenFailed 带上去由 ai/failCharge 说清。
+  //   普通出片照旧退回首尾帧（它在 720p 上，720p 一律按 1280×720 结算，画幅不影响价钱）。
+  // ★ 这一次补画好的帧随错误交出去（kept），genNode 把它们留在方案上：再点一次只重传、不重画（2026-10-07 评审抓到：
+  //   原来每拒一次就丢掉刚画好的两张，下一次照 framesToDraw 再画、再收两张图的钱 —— 比这道闸防的那点差价还多）
+  if (mode === "draft" && sentRatio !== wantRatio) {
+    const keptNow = keptOrNull();
+    throw new SegmentGenFailed(
+      new Error(
+        keptNow
+          ? t`设定帧没能传上去，样片这一发没有发出去（退回首尾帧的话画幅只能按「自适应」结算，会比报价贵）——刚画好的设定帧已经留在这一段上，过一会儿再点一次生成，不会重画`
+          : t`设定帧没能传上去，样片这一发没有发出去（退回首尾帧的话画幅只能按「自适应」结算，会比报价贵）——过一会儿再点一次生成`,
+      ),
+      imagesSettled,
+      "video",
+      keptNow,
+    );
+  }
+  if (mode === "draft") prog(t`这一发先出 480p 样片：看着满意，再把同一份样片升成 1080p 成片（另计一笔）；不满意就改了重出样片`);
   {
     const cl = contractLine({
       quoted: input.quotedTokens,
@@ -1792,6 +1951,8 @@ export async function generateSegment(
       tierId: input.videoTier,
       refVideoSec: input.refVideo?.durationSec,
       images: drawn + redrawn.length,
+      // ★ 按**真正送进请求体**的画幅对账：480p 的每秒数按画幅不同，adaptive 按那一行最贵的一格结算（样片那一种上面已经拦了）
+      ratio: sentRatio,
     });
     if (cl) prog(cl);
   }
@@ -1801,7 +1962,7 @@ export async function generateSegment(
   //   （ref-images，首帧本来就空）于是带着一张尾帧去找 validateGenSpec，被整句拒「参考图 / 参考视频与首尾帧
   //   不能混发」：已经出过片的白模段从此重炼不了（不花钱，但只能删段重套模板）。2.45 的 composeSegments 是
   //   在这两种模式下**静默忽略** lastFrame 的；契约校验加上之后，这一侧得真的不带。
-  const refSend = mode === "edit" || mode === "ref-images";
+  const refSend = slotMode === "edit" || slotMode === "ref-images";
   const [res] = await composeSegments(
     [
       {
@@ -1827,12 +1988,14 @@ export async function generateSegment(
         refVideoSec: input.refVideo?.durationSec,
         // 返修走出声的那一份 edit 参数（arkClient.REVISE_TASK）；白模照旧 BLOCKOUT_TASK（不出声，版权拦截换来的）
         ...(input.revise ? { refTask: "revise" as const } : {}),
+        // 样片第一步：同一副槽位，按 480p + draft:true 发（arkClient 钉）
+        ...(mode === "draft" ? { draft: true } : {}),
       },
     ],
     (_d, _t, status) => prog(status),
     (taskId) => onTask?.(taskId),
   );
-  settleSegment(res); // 与另外两条支路同一处实现（见 settleSegment 的 ★★）
+  settleSegment(res, imagesSettled, keptOrNull()); // 与另外几条支路同一处实现（见 settleSegment 的 ★★）
   return {
     url: res?.url,
     firstFrame: res?.firstFrame || first,

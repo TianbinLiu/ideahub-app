@@ -73,8 +73,12 @@ import { cardsLoadIssue,
   billingExempt,
   buyPlan,
   deckCoverOf,
+  freeQuota,
   isFollowing,
   myCards,
+  payingNow,
+  tierFreeOk,
+  tierNamesFor,
   myDecks,
   buyWithPlay,
   sweepPlayPurchases,
@@ -165,7 +169,7 @@ function useStranger(userId: string | null, reloadKey: number): Stranger {
 
 export default function ProfilePage() {
   const { author: routeAuthor, userId: routeUserId } = useParams<{ author?: string; userId?: string }>();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const loc = useLocation();
   const navigate = useNavigate();
   const backOrHome = useBackOr("/");
@@ -185,6 +189,15 @@ export default function ProfilePage() {
   const [pickDraft, setPickDraft] = useState<WorkDraftMeta | null>(null);
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [walletOpen, setWalletOpen] = useState(false);
+  // 「去升级」（components/UpgradeLink）落到 `/me?wallet=1`：直接打开钱包抽屉（套餐与充值都在里面），再把这一格从地址栏抹掉 ——
+  // 留着的话关了抽屉一刷新又弹出来。只对「我的」生效（别人的主页没有钱包）
+  useEffect(() => {
+    if (searchParams.get("wallet") !== "1") return;
+    if (!routeAuthor && !routeUserId) setWalletOpen(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete("wallet");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams, routeAuthor, routeUserId]);
   const [followListOpen, setFollowListOpen] = useState(false);
 
   // /u/<我自己>、/user/<我自己的 id> 也走「我的」那套：同一个人不该因为从哪个入口
@@ -752,7 +765,7 @@ export default function ProfilePage() {
           )
         )}
 
-        {/* token 钱包：生成视频/解锁付费内容的通货。套餐额度优先扣，add-on 直充/创作收益不过期。
+        {/* token 钱包：生成视频/解锁付费内容的通货。套餐额度优先扣，add-on（直充 / 新人额度 / 创作收益）不过期。
             ★ 入口按 `self` 显示而**不是** `wallet &&`：远端模式下 walletOf() 在
               /api/me/wallet 那一发请求失败时就一直是 null（refreshRemoteWallet 把错误吞进
               无人监听的 emitApiError），于是弱网下冷启动一次失败 = 整个会话看不到余额、
@@ -1719,9 +1732,26 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
         </div>
         <div className="rounded-xl border border-slate-700/70 bg-panel p-3">
           <div className="text-lg font-bold tabular-nums text-gold">{fmtTokens(wallet.addon)}</div>
-          <div className="text-[11px] text-slate-500"><Trans>add-on token · 直充/创作收益</Trans></div>
+          <div className="text-[11px] text-slate-500"><Trans>add-on token · 直充 / 新人额度 / 创作收益，不过期</Trans></div>
         </div>
       </div>
+
+      {/* ★ 免费额度怎么来、能用哪几档（2026-10-07 主人拍板：新人一次 + 每天补，免费用户只能用免费档出片）。
+          数字读服务端下发的规则（account.freeQuota），档名按能力现算（account.tierFreeOk 且还没停用的）——不写死「极速」「草稿」，11-24 极速停用后这句话自己少一档。
+          只对「确定没付过钱」的人说（payingNow() === false）：还不知道的时候说了就可能是错的 */}
+      {payingNow() === false && (() => {
+        const q = freeQuota();
+        const daily = fmtTokens(q.dailyTokens);
+        const cap = fmtTokens(q.dailyCapTokens);
+        const names = tierNamesFor(tierFreeOk).usable;
+        return (
+          <div className="mb-4 rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-[11px] leading-relaxed text-sky-100">
+            <Trans>
+              免费版：每天自动补 {daily} 套餐 token（最多攒到 {cap}），能用「{names}」档出片。开通会员套餐或充值任意一笔，全部档位都能用。
+            </Trans>
+          </div>
+        );
+      })()}
 
       {/* ★ 下单结果必须如实显示。远端模式下点这些按钮**只是下单**，钱一分没付、
           余额一分没变；而且现在服务端一个支付渠道都没接，这单根本付不了。
@@ -1749,6 +1779,7 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
             免费档的「领取」不是付款，留着。 */}
         {PLANS.filter((p) => !playItems || p.price === 0).map((p) => {
           const current = wallet.planId === p.id;
+          const freeTierNames = p.price === 0 ? tierNamesFor(tierFreeOk).usable : "";
           return (
             <div key={p.id} className="flex items-center gap-3 rounded-xl border border-slate-700/70 bg-panel p-3">
               <div className="min-w-0 flex-1">
@@ -1757,7 +1788,15 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
                   {current && <span className="ml-1.5 rounded bg-brand/20 px-1.5 py-0.5 text-[9px] text-brand"><Trans>当前</Trans></span>}
                 </div>
                 <div className="text-[11px] text-slate-500">
-                  <Trans>{fmtTokens(p.monthlyTokens)} token/月 · {p.desc}</Trans>
+                  {/* 免费版不按月发（monthlyTokens 0）：它的额度规则整句写在 desc 里，别印出一个「0 token/月」。
+                      免费版能用哪几档在这里按 account.tierFreeOk 现拼（跟着服务端开关走，与上面那条免费版提示同一个判据）——economy 不认识服务端 */}
+                  {p.monthlyTokens > 0 ? (
+                    <Trans>{fmtTokens(p.monthlyTokens)} token/月 · {p.desc}</Trans>
+                  ) : freeTierNames ? (
+                    <Trans>{p.desc} · 能用「{freeTierNames}」档出片</Trans>
+                  ) : (
+                    p.desc
+                  )}
                 </div>
               </div>
               <button

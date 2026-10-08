@@ -21,11 +21,30 @@ export interface WalletSnapshot {
    */
   debt?: number;
   frozen?: boolean;
+  /**
+   * 这个人**付过钱没有**（2026-10-07）：套餐价 > 0，或者有一张**还作数的**订单（server tokenWallet.hasLivePayment：已付 / 已结算、
+   * 没被退款或拒付收回、不是 Play 测试购买；部分退款还剩没退的份也算 —— 唯一一笔被退了就不再算，见 docs/api-contract.md「钱包」的「付过钱」）。
+   * 免费用户只能用「极速」「草稿」出片，付过钱的全部档位都能用 —— 判据是服务端的 isPaidUser，App 的 account.payingNow 照它镜像（套餐价 > 0 || paid）。
+   * ★ 老服务端没有这一位 ⇒ undefined ⇒ 只看套餐（服务端先发，所以这只是兜底）。
+   */
+  paid?: boolean;
+  /** 免费额度的规则（新人一次 / 每天补多少 / 补到多少为止）—— 服务端的权威值，「我的」页照它说。老服务端没有 ⇒ 用 economy.PLANS 免费版那一行 */
+  free?: FreeQuota;
+}
+
+/** 免费额度的三个数（服务端 config/tokens.js 的 PLANS 免费版那一行） */
+export interface FreeQuota {
+  welcomeTokens: number;
+  dailyTokens: number;
+  dailyCapTokens: number;
 }
 
 interface WalletResp {
   ok: boolean;
   wallet: WalletSnapshot;
+  /** ★ 服务端也可能把这两格放在回包顶层（与 wallet 平级）—— 两处都认，account.refreshRemoteWallet 合一下 */
+  paid?: boolean;
+  free?: FreeQuota;
 }
 
 export function fetchWallet(): Promise<WalletResp> {

@@ -9,7 +9,7 @@ import { useNavigate } from "react-router";
 import { AI_REAL } from "../../ai";
 import { myCards } from "../../data/account";
 import { subscribeVoices, voiceOf, voicesVersion } from "../../data/cardVoice";
-import { fmtTokens } from "../../data/economy";
+import { fmtTokens, tierNamesWhere } from "../../data/economy";
 import { LEAD_CAST_MAX } from "../../data/sceneShots";
 import { useAccountVersion } from "../../hooks/useAccount";
 import { LEAD_DESC_MAX, LEAD_DESC_MIN, LEAD_NAME_MAX, leadForgeCost } from "../../studio/leadCast";
@@ -130,7 +130,7 @@ export default function CastPicker({ leadBadge = true, children }: { leadBadge?:
             })}
           </div>
           <p className="text-[10px] leading-relaxed text-slate-500">
-            <Trans>画两张：全身立绘 + 照着它画的面部特写（官方建议的「全身照 + 大头照」）。不画写实照片风：高清 / 电影级会把写实的人脸当成真人拒收。</Trans>
+            <Trans>画两张：全身立绘 + 照着它画的面部特写（官方建议的「全身照 + 大头照」）。不画写实照片风：「{tierNamesWhere((x) => x.refImg)}」档会把写实的人脸当成真人拒收。</Trans>
           </p>
           <button
             onClick={() => void forgeIntoCast(LEAD_CAST_MAX, liveIds)}

@@ -7,7 +7,7 @@
 //   这一步要「只写一句话就画得出来」，而自传图那条必须先有一张照片。铸卡师那条按图位表画，人物卡在「定妆」档正好两张 ——
 //   全身立绘 + 照着它画的面部特写（types.CARD_SLOTS / economy.slotsFor），就是官方说的「全身照 + 大头照」。
 // ★★ 只收一句话、不收照片，并且交代「不要照片写实的真人风格」：写实的人脸图会被高清 / 电影级整发拒
-//   （400 InputImageSensitiveContentDetected.PrivacyInformation —— 2026-09-30 付费实测，**哪怕是 Seedream 画的**，见 economy.realFaceIssue 的 ★★）。
+//   （400 InputImageSensitiveContentDetected.PrivacyInformation —— 2026-09-30 付费实测，**哪怕是 Seedream 画的**，见 account.realFaceIssue 的 ★★）。
 //   B 的出片恰好只在这两档上（data/guidedModes.modeBlock），在这里画一张写实脸 = 付了图钱、出片那一刻被拒。
 //   用照片做真人主角要走「自传图做卡片」的真人认证（火山引擎适用），那一套不在这一步里重做 —— 向导里给一条去那儿的路。
 // ★ 钱：报价 economy.forgeCost(1, "character", 定妆)，实扣 forgeSettle(minted)（离线账本；远端模式服务端按调用结算），与素材窗同一对函数。

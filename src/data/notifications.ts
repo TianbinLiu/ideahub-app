@@ -38,6 +38,12 @@ export interface NotificationItem {
    * `tokens` 为 0 = 服务端没给出金额（契约问题）：那一行不说数，别编一个
    */
   reward: { tokens: number; originalId: string | null; originalTitle: string; anonymous: boolean } | null;
+  /**
+   * 生成失败、token 已退回（GEN_TASK_REFUND，2026-10-07）；其它类型为 null。
+   * `kind` 原样（video / draft / draftFinal / 3d / blockout / minimax；认不出的照样留着，界面按「一次生成」说）。
+   * `tokens` 为 0 = 服务端没给出金额：那一行不说数，别编一个
+   */
+  refund: { tokens: number; kind: string } | null;
   at: number;
   read: boolean;
 }
@@ -168,6 +174,11 @@ function toItem(n: api.ApiNotification): NotificationItem | null {
             anonymous: !actorObj,
           }
         : null,
+    // 生成失败退款：金额与是哪一种生成都在 payload 里（server taskRefund.service 的 followUp）。判否定：别的类型一律 null
+    refund:
+      n.type === "GEN_TASK_REFUND"
+        ? { tokens: typeof payload.tokens === "number" && payload.tokens > 0 ? payload.tokens : 0, kind: typeof payload.kind === "string" ? payload.kind : "" }
+        : null,
     at: toMs(n.createdAt),
     // ★ 判**未读**用「readAt 有没有值」，不是和某个哨兵值比：服务端未读写的是 null，
     //   而更老的记录里这一项可能压根不存在（undefined）。两种都必须算未读。
@@ -224,9 +235,9 @@ export async function refreshNotifications(): Promise<void> {
         supported: true,
         error: "",
       });
-      // 有没看过的同款奖励 = 余额在我们不知道的时候变过（那笔币是服务端的清扫器发的，没有哪一发请求的响应头会带回新余额）。
-      // 顺手刷一次钱包镜像：不然通知说「奖励你 30k」，回到「我的」页那个数还是老的
-      if (items.some((x) => x.reward && !x.read)) void refreshRemoteWallet();
+      // 有没看过的同款奖励 / 失败退款 = 余额在我们不知道的时候变过（那笔币是服务端的清扫器发的，没有哪一发请求的响应头会带回新余额）。
+      // 顺手刷一次钱包镜像：不然通知说「奖励你 30k」「退回 200k」，回到「我的」页那个数还是老的
+      if (items.some((x) => (x.reward || x.refund) && !x.read)) void refreshRemoteWallet();
     } catch (e) {
       if (gen !== viewerGen) return;
       set({ loading: false, error: e instanceof Error ? e.message : String(e) });

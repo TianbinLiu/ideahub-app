@@ -578,7 +578,7 @@ export const TEXT_DESC_MAX = 100;
  * 出片时取起拍画面（segmentGen.startSourceOf）、本段设置里那句提示（cardFitNote）都只问它。
  * · 只有"画面主体"画得出一个开场镜头：人物 / 场景 / 道具（风格卡是一种画法，背景卡只以文字参与）；
  * · ★ 真人卡不给（2.57 发版复核抓到）：真人档本来就拿卡上的**照片**起拍 —— 那正是这一档存在的理由；
- *   而画起拍画面要把那张照片当参考图交给方舟 Seedream，方舟拒收真人照片（见 economy.realFaceIssue 那几句实测），
+ *   而画起拍画面要把那张照片当参考图交给方舟 Seedream，方舟拒收真人照片（见 account.realFaceIssue 那几句实测），
  *   勾了只会失败。更糟的是 cardFitNote 原来会在每一段「真人卡 + 真人档」上提示去勾它 —— 把这一档的主用法往死路上引。
  */
 export function startFramesAllowed(
@@ -933,7 +933,11 @@ export type GenMode =
   | "reference" // 参考视频 + 参考图（素材参考，reference 子任务）
   | "edit" // 参考视频逐镜复刻（白模 / 返修，edit 子任务）
   | "extend" // 参考视频向后延长（extend 子任务；产物只有新的一截，2026-10-05「修这一段 · 延长」）
-  | "minimax"; // 真人档首帧图生视频（MiniMax）
+  | "minimax" // 真人档首帧图生视频（MiniMax）
+  // 电影级「样片」两步（2026-10-07）：draft = 第一步（槽位照普通出片摆，480p + draft:true，价钱按 economy.draftStepTokens）；
+  // draftFinal = 第二步（只带样片任务号，升成 1080p，价钱按 economy.draftFinalTokens）。判定仍只在 real.genModeOf
+  | "draft"
+  | "draftFinal";
 
 /**
  * 一套方案的**结构化镜头字段**（2026-09-06，对标 updream 分镜 Skill 输出的六个字段里我们缺的三个）。
@@ -1002,8 +1006,26 @@ export interface Proposal {
   pinned?: { first?: boolean; last?: boolean };
   /** 结构化镜头字段（景别 / 运镜 / 情绪节拍），见 ShotSpec */
   shot?: ShotSpec;
-  /** 返修（flowStore.genNode 的 opts.revise）之前那一版成片地址：返修一次覆盖一次，只留最近一版可还原（restoreProposalVideo） */
+  /** 返修（flowStore.genNode 的 opts.revise）之前那一版成片地址：返修一次覆盖一次，只留最近一版可还原（restoreProposalVideo）。
+   *  样片定稿也走这一格：定稿之后上一版就是那条 480p 样片 */
   prevVideoUrl?: string;
+  /**
+   * 电影级「样片」（2026-10-07 主人拍板）：先出一段 480p 样片（方舟 2.5 的 draft 模式）看效果，满意再按**同一个任务号**升成 1080p 成片。
+   * 这几格是第一步出片那一拍写下的（flowStore.genNode / 取回时 draftPatchOfJob）：
+   *   draftTaskId 样片的方舟任务号 —— 定稿只认它（方舟规定样片 7 天有效，我们放到差 1 小时，economy.DRAFT_VALID_MS）；
+   *   draftAt     受理时刻（ms），倒计时按它算（服务端另按自己的登记与方舟的 created_at 取早的那个，客户端只是提示）；
+   *   draftDur / draftRatio 第一步送进请求体的整数时长与画幅 —— 定稿报价（economy.draftFinalTokens）按它们算，服务端按同样两样结算；
+   *   draftUrl    样片那一条成片现在的地址；finalUrl 定稿出来的那一条（1080p）。
+   * ★★ 「这一段现在放的是样片 / 成片」**不存一个状态字段**，按「现在放的是哪一条」现算（flowStore.draftStageOf）：
+   *   「还原上一版」会把 videoUrl 与 prevVideoUrl 对调、返修会换成第三条 —— 存一个 stage 的话三条路各要记得改它，漏一条就是
+   *   对着一段返修过的 720p 片子摆「定稿」键（付费升的是另一条样片）。两个地址跟着转存一起换（flowStore.adoptPermanentUrl）。
+   */
+  draftTaskId?: string;
+  draftAt?: number;
+  draftDur?: number;
+  draftRatio?: string;
+  draftUrl?: string;
+  finalUrl?: string;
   /**
    * 由**返修**出的那几条成片的地址（返修走白模同一条 edit 任务，钉着 generate_audio:false —— 这几条文件本身无声）。
    * ★ 为什么记地址不记一个布尔（2026-09-18，2.46 发版复核抓到「返修段的『没有声音』提示不准」）：「还原上一版」会把

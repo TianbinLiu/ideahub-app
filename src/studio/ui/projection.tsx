@@ -6,8 +6,10 @@
 import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { deckCoverOf, myCards, myDecks, tierBlockReason } from "../../data/account";
-import { ONE_IMAGE, VIDEO_TIERS, deriveIssue, durationChoices, fmtTokens, modelLabel, promptMaxOf, r2vBlockLines, realFaceIssue, segTokens, tierOf } from "../../data/economy";
+import { deckCoverOf, memberTiersLine, myCards, myDecks, realFaceIssue, tierBlockReason, tierNamesFor, tierOffered } from "../../data/account";
+import { ONE_IMAGE, VIDEO_TIERS, deriveIssue, durationChoices, fmtTokens, promptMaxOf, r2vBlockLines, segTokens, tierModelId, tierModelLabel, tierOf } from "../../data/economy";
+import { useAccountVersion } from "../../hooks/useAccount";
+import UpgradeLink from "../../components/UpgradeLink";
 import { voiceOf } from "../../data/cardVoice";
 import { cardFitNote } from "../segmentGen";
 import TarotCard from "../../components/TarotCard";
@@ -48,7 +50,7 @@ import {
   rederiveKey,
   useStudio,
 } from "../studioStore";
-import { appendQuote, appendSpecsQuote, CUSTOM_MID_MAX, nodeBlank, recastBlocked, nodeDerived, nodeDone, nodeCost, tplOfNode, useFlow, type FlowNode, nodeAnnPlan, annSkipNote, redrawCost, derivesProposals, nodeLocked, deriveCostOf, nodeRefPlan, nodeFramesComeFromDerive, nodeEditFrames, newFlowNode, nodeEmptyFrames, nodeNoDraw } from "../flowStore";
+import { appendQuote, appendSpecsQuote, CUSTOM_MID_MAX, nodeBlank, recastBlocked, nodeDerived, nodeDone, nodeCost, tplOfNode, useFlow, type FlowNode, nodeAnnPlan, annSkipNote, redrawCost, derivesProposals, nodeLocked, deriveCostOf, nodeRefPlan, nodeFramesComeFromDerive, nodeEditFrames, newFlowNode, nodeEmptyFrames, nodeNoDraw, nodeDraftOn } from "../flowStore";
 import TierRow from "../../components/flow/TierRow";
 // 选模板弹层借画布那一份（铁律六：市场懒加载/分段组折叠/预览确认全在那一个实现里）。
 // FlowCanvas 不 import 本文件，方向安全（它俩只在 StudioPage/FlowPage 各自的树里出现）
@@ -66,6 +68,7 @@ import { CHAIN, focusCam } from "../scene/layout";
 import DeleteSegBtn from "../../components/flow/DeleteSegBtn";
 import CastPreviewCard from "../../components/flow/CastPreviewCard";
 import FixSegmentBox from "../../components/flow/FixSegmentBox";
+import DraftModeBox from "../../components/flow/DraftModeBox";
 import StageOverlay from "../stage/StageOverlay";
 import ConfirmDialog from "../../components/ConfirmDialog";
 
@@ -321,6 +324,8 @@ function EditorPanel() {
   /** 自定义车道的融图开在哪一帧上（候选与画布同一处 fuseSourcesOf） */
   const [fuse, setFuse] = useState<"first" | "last" | null>(null);
   const { t } = useLingui();
+  // 套餐 / 付没付过钱 / 服务端能力位都是异步到的：订阅账号的版本号，到了就重画档位那一排
+  useAccountVersion();
   // ★★ hook 一律排在早退**之前**（本文件两处栽过，2026-08-30 同日各修一次）：
   // editor 从 null 变非 null 的那一拍 hook 数就对不上，React 抛
   // 「Rendered more hooks than during the previous render」——整个投影窗当场崩掉，
@@ -370,13 +375,25 @@ function EditorPanel() {
    * 这一条车道上某一档为什么用不了（套餐之外的那一半）：推演三套 / 自定义问 economy.deriveIssue（真人档没有推演那一步）；
    * 参考图直出不推演，问 data/guidedModes.modeBlock（1.0 两档收不了参考图）—— 与选法屏摆不摆这个模式同一个判据
    */
+  // 收参考图的那几档按能力现算（2026-10-07 加了「草稿」：原来写死「高清 / 电影级」）—— 优先说这个人用得了的，一档都用不了才说会员档
+  const refImgNames = tierNamesFor((x) => x.refImg);
+  const refImgList = refImgNames.usable || refImgNames.member;
   const laneBlock = (tierId: string): string | null =>
-    lane === "direct" ? (modeBlock("direct", modeTierOf(tierId)) ? t`参考图直出要收参考图的模型（高清 / 电影级）` : null) : deriveIssue(tierId);
-  /** 当前套餐点不动的档位各是为什么（空 = 都能选）。判断在 data/account 一处。
-   *  去重：参考图直出在极速、标准两档上是同一句话，别在一行里说两遍 */
-  const tierBlocks = [...new Set(VIDEO_TIERS.map((tier) => tierBlockReason(tier) ?? laneBlock(tier.id)).filter((r): r is string => !!r))];
+    lane === "direct" ? (modeBlock("direct", modeTierOf(tierId)) ? t`参考图直出要收参考图的模型（「${refImgList}」）` : null) : deriveIssue(tierId);
+  /** 这一窗摆哪几档：停用的、服务端不支持的不摆（account.tierOffered）；正选着的那一档例外（藏起来就不知道自己在哪一档） */
+  const shownTiers = VIDEO_TIERS.filter((tier) => tierOffered(tier) || tier.id === editor.videoTier);
+  /** 套餐那一类原因并成一句（account.memberTiersLine，与 TierRow / 选法屏同一句）+「去升级」 */
+  const memberLine = memberTiersLine();
+  /** 车道那一类原因（套餐之外）。去重：参考图直出在极速、标准两档上是同一句话，别在一行里说两遍；
+   *  套餐挡住的档不再各说一句（并进 memberLine）；正选着的那一档本身用不了（停用 / 服务端不支持）时说它那一句 */
+  const curTierOff = tierOffered(tierOf(editor.videoTier)) ? null : tierBlockReason(tierOf(editor.videoTier));
+  const tierBlocks = [
+    ...new Set(
+      [curTierOff, ...shownTiers.filter((tier) => !tierBlockReason(tier)).map((tier) => laneBlock(tier.id))].filter((r): r is string => !!r),
+    ),
+  ];
   /**
-   * 挂着的真人卡与**当前这一档**不搭的那一句（判据 economy.realFaceIssue 一处，与生成闸同一句）。
+   * 挂着的真人卡与**当前这一档**不搭的那一句（判据 account.realFaceIssue 一处，与生成闸同一句）。
    * ★ 2026-09-30 起真人卡过不去的档直接灰掉：没勾「火山引擎适用」时工坊里可能**一档都点不动**
    *   （真人档本来就走不了推演），只灰不说等于告诉用户"功能坏了"。印在档位那排下面，与套餐原因同一行。
    */
@@ -567,16 +584,28 @@ function EditorPanel() {
               >
                 {refUploading || t`🎬 上传一段示例视频当整段参考`}
               </button>
-              {!tierOf(editor.videoTier).refVid && (
-                <p className="text-center text-[10px] leading-relaxed text-amber-300/90">
-                  {/* 2026-10-05 起高清也带得了参考视频（免费档也能用）；电影级是付费档，套餐不够时只指高清 */}
-                  {tierBlockReason(tierOf("ultra")) ? (
-                    <Trans>「{tierOf(editor.videoTier).label}」档带不了参考视频——到「定规格」那一步换成「高清」（「电影级」是付费档），或直接跳过这一步自己给首尾帧</Trans>
-                  ) : (
-                    <Trans>「{tierOf(editor.videoTier).label}」档带不了参考视频——到「定规格」那一步换成「高清」或「电影级」，或直接跳过这一步自己给首尾帧</Trans>
-                  )}
-                </p>
-              )}
+              {!tierOf(editor.videoTier).refVid &&
+                (() => {
+                  // 带得了参考视频的档按能力现算、按这个人用不用得了分两种说法（2026-10-07：高清也成了会员档，免费用户一档都没有 ——
+                  // 原来那句「换成高清」对他是一条走不通的路）
+                  const cur = tierOf(editor.videoTier).label;
+                  const vid = tierNamesFor((x) => x.refVid);
+                  const usable = vid.usable;
+                  const member = vid.member;
+                  return (
+                    <p className="text-center text-[10px] leading-relaxed text-amber-300/90">
+                      {usable ? (
+                        <Trans>「{cur}」档带不了参考视频——到「定规格」那一步换成「{usable}」，或直接跳过这一步自己给首尾帧</Trans>
+                      ) : (
+                        <>
+                          <Trans>「{cur}」档带不了参考视频；带得了的「{member}」是会员档，开通会员套餐（或充值过任意一笔）后可用——或直接跳过这一步自己给首尾帧</Trans>
+                          {"　"}
+                          <UpgradeLink />
+                        </>
+                      )}
+                    </p>
+                  );
+                })()}
               <p className="text-center text-[10px] text-slate-500"><Trans>上传后自动用它的首尾帧当本段首尾帧，之后还能细调、加中间帧</Trans></p>
               <button onClick={() => setStep("content")} className="mx-auto text-[11px] text-slate-500 underline underline-offset-2">
                 <Trans>不上传，直接给首尾帧 ›</Trans>
@@ -692,28 +721,30 @@ function EditorPanel() {
               <span className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>视频档位</Trans></span>
               <span className="text-[10px] text-slate-500"><Trans>合成本段预计消耗</Trans></span>
             </div>
-            <div className="flex gap-1.5">
-              {VIDEO_TIERS.map((tier) => {
-                const est = segTokens(editor.durationMode === "manual" ? editor.durationSec : 6, tier.id);
+            {/* ★ 三列网格（2026-10-07 加了「草稿」之后最多六档）：一行 flex-1 挤六个，375 宽的屏上每颗只剩五十来像素、价钱折成两行 */}
+            <div className="grid grid-cols-3 gap-1.5">
+              {shownTiers.map((tier) => {
+                // 按这一窗的画幅报价（480p 的每秒数按画幅不同，见 economy.segTokens 的 ★）
+                const est = segTokens(editor.durationMode === "manual" ? editor.durationSec : 6, tier.id, aspectOf(editor.aspect).ratio);
                 const on = editor.videoTier === tier.id;
                 // 付费档位门禁：判断只有一处（data/account.tierBlockReason），
                 // 这里只负责把它画出来 —— 灰着但不说为什么等于告诉用户"功能坏了"
                 // 工坊铸段整个建立在推演上，按发直出档（真人档）走不了——判定与话术
                 // 都在 economy.deriveIssue 一处（flowStore/studioStore 的闸用的同一句）
-                // ★★ 真人卡过不去的档直接灰（与 TierRow 同一条；判据 economy.realFaceIssue 一处）。
+                // ★★ 真人卡过不去的档直接灰（与 TierRow 同一条；判据 account.realFaceIssue 一处）。
                 //   materials 与生成闸 studioStore.deriveProposals 同源：editor.slots 映射到牌组。
                 //   blockout 传 false 是事实：工坊建的是自定义段，白模段不走这块方案台（同那边的注释）
                 //   framed 恒真：工坊铸段就是推演、推演就是画帧（帧里的真人脸会被整发拒，见 realFaceIssue 的 framed）
                 const block = tierBlockReason(tier) ?? realFaceIssue(slotCards, tier.id, { blockout: false, framed: laneFramed }) ?? laneBlock(tier.id);
                 const desc = tier.desc;
-                const model = tier.model;
+                const model = tierModelId(tier);
                 return (
                   <button
                     key={tier.id}
                     onClick={() => useStudio.getState().setVideoTier(tier.id)}
                     disabled={editor.generating || !!block}
                     title={block ?? t`${desc}（${model}）`}
-                    className={`flex-1 rounded-lg border px-1 py-1 text-center transition disabled:opacity-40 ${
+                    className={`rounded-lg border px-1 py-1 text-center transition disabled:opacity-40 ${
                       on
                         ? "border-cyan-400 bg-cyan-400/10 text-cyan-100"
                         : "border-slate-600 text-slate-400 hover:border-slate-400"
@@ -733,6 +764,13 @@ function EditorPanel() {
                 {[...tierBlocks, ...(faceNote ? [faceNote] : [])].join(t({ message: "；", comment: "把几条「这一档为什么点不动」的原因连成一行时的分隔符" }))}
               </p>
             )}
+            {memberLine && (
+              <p className="mt-1 text-[9px] leading-[13px] text-amber-300/80">
+                {memberLine}
+                {"　"}
+                <UpgradeLink />
+              </p>
+            )}
             {fitNote && <p className="mt-1 text-[9px] leading-[13px] text-slate-400">{fitNote}</p>}
             {/* ★ 写出**真正会被调用的那个模型**。「极速/标准/高清」只说了画质档次，
                 没说这一段交给谁生成 —— 而 1.0 与 2.0 的观感差别很大，用户对不上账时
@@ -740,9 +778,9 @@ function EditorPanel() {
                 不会出现"界面写着一个、实际跑另一个"。完整 id 放在 title 里。 */}
             <div
               className="mt-1 text-center text-[9px] text-slate-500"
-              title={tierOf(editor.videoTier).model}
+              title={tierModelId(tierOf(editor.videoTier))}
             >
-              <Trans>模型：{modelLabel(tierOf(editor.videoTier).model)}</Trans>
+              <Trans>模型：{tierModelLabel(tierOf(editor.videoTier))}</Trans>
             </div>
           </div>
         </div>
@@ -1005,11 +1043,27 @@ function EditorPanel() {
           </div>
         ) : step === "spec" ? (
           <>
-            {lane === "custom" && editor.refVideo && !tierOf(editor.videoTier).refVid && (
-              <p className="mb-1.5 text-center text-[10px] leading-relaxed text-amber-300">
-                <Trans>⚠「{tierOf(editor.videoTier).label}」档带不了参考视频——选「电影级」，否则出片会被整句拒</Trans>
-              </p>
-            )}
+            {lane === "custom" && editor.refVideo && !tierOf(editor.videoTier).refVid &&
+              (() => {
+                // 带得了参考视频的档按能力现算（原来写死「电影级」，2026-10-05 起高清也带得了）；这个人一档都用不了时说会员档 +「去升级」
+                const cur = tierOf(editor.videoTier).label;
+                const vid = tierNamesFor((x) => x.refVid);
+                const usable = vid.usable;
+                const member = vid.member;
+                return (
+                  <p className="mb-1.5 text-center text-[10px] leading-relaxed text-amber-300">
+                    {usable ? (
+                      <Trans>⚠「{cur}」档带不了参考视频——选「{usable}」，否则出片会被整句拒</Trans>
+                    ) : (
+                      <>
+                        <Trans>⚠「{cur}」档带不了参考视频，而带得了的「{member}」是会员档——摘掉示例视频，或开通会员套餐（或充值过任意一笔）</Trans>
+                        {"　"}
+                        <UpgradeLink />
+                      </>
+                    )}
+                  </p>
+                );
+              })()}
             {lane === "cards" ? (
               (() => {
                 // ★ 与真扣共用同一份开头帧判定（studioStore.nextStartFrame）——这里自己
@@ -1087,6 +1141,7 @@ function EditorPanel() {
             lastFrame: editor.endFrame ?? undefined,
           })}
           aspect={editor.aspect}
+          tierIssue={tierBlockReason(tierOf(editor.videoTier))}
           onDone={(url) => {
             if (fuse === "first") useStudio.getState().setStartFrame(url);
             else useStudio.getState().setEndFrame(url);
@@ -1452,6 +1507,7 @@ function ProposalsPanel() {
             extras: extraRefs,
           })}
           fuseAspect={node.aspect}
+          fuseTierIssue={tierBlockReason(tierOf(node.videoTier))}
           /* 分镜表（N2，与画布方案台同一份）：选定那一套的剧情框能写成几个镜头、给台词点明谁说的；上限按档位 */
           shotEdit={{
             speakers: (node.materials ?? []).filter((c) => c.type === "character").map((c) => ({ id: c.id, name: c.name, voiced: !!voiceOf(c.id) })),
@@ -1805,6 +1861,8 @@ function PickedActions({
   const cost = nodeCost(flowNow.nodes, nodeIdx, flowNow.mode);
   /** 圈选里有几条真会重画 —— 与上面那个 cost 同源（flowStore 一处实现，见它的 ★★）*/
   const annPlan = nodeAnnPlan(flowNow.nodes, nodeIdx);
+  /** 这一下先出样片（电影级，判定只在 flowStore.nodeDraftOn；上面那个 cost 已经按样片的价报了） */
+  const draftOn = nodeDraftOn(node);
   /** 白模段（r2v）：改帧/圈选整条不通（画面来自模板视频，segmentGen 的 blockoutIssue
    *  整句拒）——按钮摆出来就是死路（铁律五）。回看照常给（SegPlayer 自己会藏圈选键） */
   const blockout = !!tplOfNode(node)?.refVideo;
@@ -1889,11 +1947,15 @@ function PickedActions({
         >
           {mine
             ? t`炼制中…`
-            : done
-              ? annPlan.redrawn
-                ? t`♻ 重炼本段（含 ${annPlan.redrawn} 处圈选改图 · ${fmtTokens(cost)}）`
-                : t`♻ 重炼本段（${fmtTokens(cost)}）`
-              : t`⚡ 生成本段视频（${fmtTokens(cost)}）`}
+            : draftOn
+              ? done
+                ? t`♻ 重新出样片（${fmtTokens(cost)}）`
+                : t`📼 先出样片（${fmtTokens(cost)}）`
+              : done
+                ? annPlan.redrawn
+                  ? t`♻ 重炼本段（含 ${annPlan.redrawn} 处圈选改图 · ${fmtTokens(cost)}）`
+                  : t`♻ 重炼本段（${fmtTokens(cost)}）`
+                : t`⚡ 生成本段视频（${fmtTokens(cost)}）`}
         </button>
         )}
         {done && (
@@ -1921,6 +1983,14 @@ function PickedActions({
           </button>
         )}
       </div>
+      {/* 电影级「样片」那一栏（与画布同一份组件）：定稿走 studioStore.genNodeVideo（顺带收窗，与这一段的生成键同一个入口） */}
+      {!locked && (
+        <DraftModeBox
+          node={node}
+          disabled={busy || node.status === "generating"}
+          onFinalize={() => void useStudio.getState().genNodeVideo(node.id, proposal.id, { finalizeDraft: true })}
+        />
+      )}
       {/* 修这一段（片段重拍 / 往后延长）：已出片才有（FixSegmentBox 自己判有没有能播的成片）。走 studioStore 是为了顺带收窗 / 切到新的那一段 */}
       {done && !locked && (
         <FixSegmentBox

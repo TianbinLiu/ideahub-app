@@ -16,17 +16,20 @@ import { useEffect, useRef, useState } from "react";
 import { showToast } from "../../data/toast";
 import { useSyncExternalStore } from "react";
 import {
+  checkVideoJobCharge,
   dismissVideoJob,
   importServerVideoJobs,
   recoverableVideoJobs,
   subscribeVideoJobs,
   videoJobExpired,
   videoJobFromServer,
+  videoJobKnown,
   videoJobNote,
   videoJobsVersion,
   type VideoJob,
 } from "../../data/videoJobs";
-import { useFlow } from "../../studio/flowStore";
+import { ArkTaskFailed, briefArkReason, chargeNote, chargeOnFail, unwrapFailure } from "../../ai";
+import { jobLandsInPlace, useFlow } from "../../studio/flowStore";
 import { useStudio } from "../../studio/studioStore";
 import { draftsLoadIssue, draftsUnavailableText } from "../../data/drafts";
 
@@ -38,7 +41,7 @@ export function useVideoJobs(): number {
 /**
  * ★★ **「取回这一段」—— 这一整块是当初那次改造的目的本身。**
  *
- * 出片是先扣钱后等的（受理即计费，受理之后失败不退，见 docs/api-contract.md「扣费」），
+ * 出片是先扣钱后等的（受理即计费，见 docs/api-contract.md「扣费」；2026-10-07 起受理之后上游明说失败的那一发由服务端退回），
  * 而等待窗口最长 25.5 分钟。在这块 UI 之前，客户端没接到结果 = 节点被打成
  * `failed` = 屏幕上唯一可点的是「♻ 重新生成（N token）」，也就是**再花一次钱**——
  * 而那一发的成片往往在方舟那边好好地存在着（2026-08-18 实测：15s 模板方舟约 13 分钟
@@ -76,6 +79,26 @@ export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean
     return () => clearInterval(id);
   }, []);
   const expired = videoJobExpired(job);
+  // 说钱之前先问服务端这一发的账（data/videoJobs.checkVideoJobCharge；到了 emit，这张卡重画）：过期的卡要知道退没退，
+  // 没过期的卡要知道该不该许诺「万一没出成会自动退回」（上线之前受理的没有这一笔账、管理员免单的根本没扣）
+  useEffect(() => {
+    void checkVideoJobCharge(job);
+  }, [job]);
+
+  /**
+   * 取回失败那一句话。上游明说没出成（ArkTaskFailed）的那种要带上钱：退了 / 会退 / 没退各一句（只走 ai/failCharge），
+   * 再接一句「重新生成会重新计费」—— 原来这里说的是写死的「费用不退」。其余失败（还在跑、查不动）原样说 data / ai 层给的整句。
+   */
+  function failLine(e: unknown): string {
+    const inner = unwrapFailure(e);
+    if (!(inner instanceof ArkTaskFailed)) return e instanceof Error ? e.message : String(e);
+    const why = briefArkReason(inner, 80);
+    const money = chargeNote(chargeOnFail(e), job.cost);
+    const moneyLine = money?.line ?? "";
+    return job.seg > 0
+      ? t`第 ${job.seg} 段那一发没出成（${why}）。${moneyLine}要这一段的话重新生成（会重新计费）。`
+      : t`服务器登记的那一发没出成（${why}）。${moneyLine}要这一段的话重新生成（会重新计费）。`;
+  }
 
   async function take() {
     setIssue("");
@@ -85,7 +108,13 @@ export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean
         if (alive.current) setWorking(st);
       });
     } catch (e) {
-      const why = e instanceof Error ? e.message : String(e);
+      const why = failLine(e);
+      // ★★ 凭据被结案了（上游明说没出成、服务端已经退了钱 —— flowStore.takeJob 的 ★★）：这张卡在下一次重画时就卸载了，
+      //   写进 setIssue 的话**没人看得见**（此刻 alive 多半还是 true，卸载在下一拍）。所以这一种一律用轻提示说，不看 alive。
+      if (!videoJobKnown(job.taskId)) {
+        showToast(why, 8000);
+        return;
+      }
       if (alive.current) {
         setIssue(why);
         setWorking("");
@@ -146,6 +175,13 @@ export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean
         </p>
       )}
       {issue && <p className="mt-1 text-[10px] leading-relaxed text-rose-300">{issue}</p>}
+      {/* 过期的卡把任务号摆出来（可长按复制）：那几句话里说的「把下面的任务号发给客服」要真的在下面 ——
+          服务端问不出结局（lost）、真人档不再跟进的那几种，找客服核对这笔钱只能靠它 */}
+      {expired && (
+        <p className="mt-1 select-all break-all text-[10px] text-slate-500">
+          <Trans>任务号：{job.taskId}</Trans>
+        </p>
+      )}
       {expired ? (
         <button
           onClick={() => dismissVideoJob(job)}
@@ -204,13 +240,10 @@ export function SegmentRecoverList({ className = "" }: { className?: string }) {
   //   "每次生成视频出片之前都弹『还没取回』"——凭据受理即落盘，等的时候它就在名单里）
   const jobs = recoverableVideoJobs();
   if (jobs.length === 0) return null;
-  /** 这一发落得回来吗：它当初炼的那一段那一套走向，还在**这条**工作流里。
-   *  ★ 这只是**显示**的门（决定按钮亮不亮），判据必须与 `flowStore.takeJob` 里那道
-   *    真拦截**逐字一致** —— 那边问的就是 `s.nodes` 上有没有这个 node+proposal。
-   *    在这儿放宽（比如把 alts 里归档的旧走向也算上）会让按钮亮起来、点下去被拒，
-   *    而用户读到的是"这个功能坏了"。 */
-  const mine = (j: VideoJob) =>
-    nodes.some((n) => n.id === j.nodeId && n.proposals.some((pp) => pp.id === j.proposalId));
+  /** 这一发落得回来吗：它当初炼的那一段那一套走向，还在**这条**工作流里（样片定稿那一发还要那一套挂的还是那条样片）。
+   *  ★ 这只是**显示**的门（按钮上说「取回这一段」还是「新开一段」），判据与 `flowStore.takeJob` 真落的那一处是**同一个函数**
+   *    （`jobLandsInPlace`）—— 两处各写一遍的话，按钮说落回原位、点下去却新开一段（或反过来），用户读到的是"这个功能坏了"。 */
+  const mine = (j: VideoJob) => jobLandsInPlace(nodes, j);
   return (
     <div className={`space-y-1.5 ${className}`}>
       {jobs.map((j) => (

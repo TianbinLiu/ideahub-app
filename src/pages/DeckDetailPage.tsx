@@ -10,6 +10,7 @@ import SocialPanel, { useCountView, useSocialVersion } from "../components/Socia
 import WorkshopShareBar, { shareBlockReason } from "../components/WorkshopShareBar";
 import { deckCoverOf, isRemoteMode, myCards, myDecks, shareDeck, updateDeck } from "../data/account";
 import { deckFitOf } from "../data/cardFit";
+import { refImgTierList } from "../data/economy";
 import { formatHeat, heatOf } from "../data/social";
 import { useAccountVersion } from "../hooks/useAccount";
 import { CARD_TYPE_LABELS, SHARE_NOTE_MAX, type Card } from "../types";
@@ -52,7 +53,7 @@ function DeckModelFit({ cards }: { cards: Card[] }) {
     <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
       <div className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>🎛 按模型适配</Trans></div>
       <ul className="space-y-0.5 text-[10px] leading-relaxed text-slate-400">
-        <li><Trans>高清 / 电影级：{line2x}</Trans></li>
+        <li><Trans>{refImgTierList()}：{line2x}</Trans></li>
         <li><Trans>标准 / 极速：{line10}</Trans></li>
         <li><Trans>真人档：{lineReal}</Trans></li>
       </ul>

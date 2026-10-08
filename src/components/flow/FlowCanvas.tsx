@@ -27,6 +27,7 @@ import CameraChips from "./CameraChips";
 import DeleteSegBtn from "./DeleteSegBtn";
 import CastPreviewCard from "./CastPreviewCard";
 import FixSegmentBox from "./FixSegmentBox";
+import DraftModeBox from "./DraftModeBox";
 import StageOverlay from "../../studio/stage/StageOverlay";
 import { SegmentRecoverList } from "./SegmentRecoverCards";
 import SegSettings from "./SegSettings";
@@ -74,6 +75,7 @@ import {
   nodeDerived,
   nodeDone,
   nodeRecastable,
+  nodeDraftOn,
   nodeRefPlan,
   nodeEmptyFrames,
   nodeNoDraw,
@@ -88,7 +90,8 @@ import {
   type FlowNode,
   type FlowTemplate,
 } from "../../studio/flowStore";
-import { myCards, tierBlockReason } from "../../data/account";
+import { myCards, tierBlockReason, tierNamesFor, usableTierId } from "../../data/account";
+import UpgradeLink from "../UpgradeLink";
 import { useAccountVersion } from "../../hooks/useAccount";
 import {
   browseTemplates,
@@ -99,7 +102,7 @@ import {
   subscribeTemplates,
   templatesVersion,
 } from "../../data/templates";
-import { CHAT_TURN_TOKENS, DEFAULT_TIER, ONE_IMAGE, blockoutTier, clampDuration, durationChoices, fmtTokens, modelLabel, promptMaxOf, proposalsCost, tierOf } from "../../data/economy";
+import { CHAT_TURN_TOKENS, ONE_IMAGE, blockoutTier, clampDuration, durationChoices, fmtTokens, promptMaxOf, proposalsCost, tierModelLabel, tierOf } from "../../data/economy";
 import { AGENT_PHRASES, executeAgentProposal, runCanvasAgent, type AgentOutcome, type AgentProposal } from "../../studio/canvasAgent";
 import { EXAMPLES, phraseText, templatePhrase } from "../../studio/agentGrammar";
 import { useLang } from "../../i18n/useLang";
@@ -805,7 +808,8 @@ export default function FlowCanvas({
                       addNode();
                       return;
                     }
-                    setAddPick({ tier: st.nodes[st.nodes.length - 1]?.videoTier ?? DEFAULT_TIER });
+                    // 选法屏打开时停在上一段的档上；这个人现在用不了那一档（会员档 / 已停用）就落到他能用的默认档
+                    setAddPick({ tier: usableTierId(st.nodes[st.nodes.length - 1]?.videoTier) });
                   }}
                   className="flex items-center justify-center rounded-xl border-2 border-dashed border-slate-600 text-sm text-slate-400"
                   style={{ height: CARD_H }}
@@ -1167,6 +1171,8 @@ function NodePanel({
   const propCost = proposalsCost(carried);
   /** 按钮上印的价（演示构建写「演示」）：先取成值再进句子，别把它拼进模板串里 */
   const costLabel = AI_REAL ? fmtTokens(cost) : t`演示`;
+  /** 这一下先出样片（电影级，判定只在 flowStore.nodeDraftOn —— 上面那个 cost 已经按样片的价报了）：按钮上的字要跟着说 */
+  const draftOn = nodeDraftOn(node);
   const propCostLabel = AI_REAL ? fmtTokens(propCost) : t`演示`;
   const plan = planOf(node);
   const mats = node.materials ?? [];
@@ -1179,7 +1185,7 @@ function NodePanel({
   const extraRefs = usableExtraRefs(node.extraRefs);
   /** 这一档的提示词上限（economy.promptMaxOf：2.x 两档 500、其余 400；套模板的段另按 400，不走这里） */
   const promptMax = promptMaxOf(node.videoTier);
-  /** 分镜 / 台词只开在出声又收参考图的两档（高清 / 电影级）：别的档台词不会按卡的声音配，多镜头也没验过 */
+  /** 分镜 / 台词只开在出声又收参考图的档（草稿 / 高清 / 电影级）：别的档台词不会按卡的声音配，多镜头也没验过 */
   const shotsOk = tierOf(node.videoTier).refImg && tierOf(node.videoTier).audio === true;
   /** 运镜芯片对着哪段字：分了镜就是正在写的那个镜头，否则整段 */
   const shotsNow = writesPlot ? parseShots(p.plot).shots : [];
@@ -1312,7 +1318,18 @@ function NodePanel({
           <button
             onClick={() => !direct && setNodeDirect(node.id, true)}
             disabled={locked || generating || busy || done || (!direct && !!modeBlock("direct", modeTierOf(node.videoTier)))}
-            title={!direct && modeBlock("direct", modeTierOf(node.videoTier)) ? t`参考图直出要收参考图的模型——到 ⚙ 本段设置换成高清或电影级` : undefined}
+            title={
+              !direct && modeBlock("direct", modeTierOf(node.videoTier))
+                ? (() => {
+                    // 收参考图的档按能力现算、先说这个人用得了的（2026-10-07：原来写死「高清或电影级」，免费用户能用的「草稿」没提）
+                    const n = tierNamesFor((x) => x.refImg);
+                    const names = n.usable || n.member;
+                    return n.usable
+                      ? t`参考图直出要收参考图的模型——到 ⚙ 本段设置换成「${names}」`
+                      : t`参考图直出要收参考图的模型——「${names}」是会员档，开通会员套餐（或充值过任意一笔）后可用`;
+                  })()
+                : undefined
+            }
             className={`rounded-full px-3 py-1 text-[11px] disabled:opacity-40 ${direct ? "bg-brand font-semibold text-ink" : "text-slate-400"}`}
           >
             <Trans>🖼 直出</Trans>
@@ -1607,11 +1624,27 @@ function NodePanel({
                       </button>
                     )}
                   </div>
-                  {!tierOf(node.videoTier).refVid && (
-                    <p className="mt-1 text-[9px] leading-relaxed text-amber-300">
-                      <Trans>⚠「{tierOf(node.videoTier).label}」档带不了参考视频——去 ⚙ 本段设置换成「高清」或「电影级」，否则生成会被整句拒。</Trans>
-                    </p>
-                  )}
+                  {!tierOf(node.videoTier).refVid &&
+                    (() => {
+                      // 带得了参考视频的档按能力现算、按这个人用不用得了分两种说法（免费用户一档都没有：高清 / 电影级都是会员档）
+                      const cur = tierOf(node.videoTier).label;
+                      const vid = tierNamesFor((x) => x.refVid);
+                      const usable = vid.usable;
+                      const member = vid.member;
+                      return (
+                        <p className="mt-1 text-[9px] leading-relaxed text-amber-300">
+                          {usable ? (
+                            <Trans>⚠「{cur}」档带不了参考视频——去 ⚙ 本段设置换成「{usable}」，否则生成会被整句拒。</Trans>
+                          ) : (
+                            <>
+                              <Trans>⚠「{cur}」档带不了参考视频，而带得了的「{member}」是会员档——摘掉示例视频，或开通会员套餐（或充值过任意一笔）</Trans>
+                              {"　"}
+                              <UpgradeLink />
+                            </>
+                          )}
+                        </p>
+                      );
+                    })()}
                 </div>
               ) : (
                 <>
@@ -1728,7 +1761,17 @@ function NodePanel({
               {/* 这一档收不了参考图（1.0 两档）：参考图直出退回先画帧（flowStore.noDrawFor），说出来，别让人以为卡片图直接进了视频 */}
               {!flatTier && !tierOf(node.videoTier).refImg && (
                 <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">
-                  <Trans>「{tierOf(node.videoTier).label}」档收不了参考图：这一段出片前会先按提示词画帧（计费）。想让人物图直接给视频模型，到 ⚙ 本段设置换成高清或电影级。</Trans>
+                  {(() => {
+                    // 收参考图的档按能力现算（先说这个人用得了的；一档都用不了时那几档是会员档）
+                    const cur = tierOf(node.videoTier).label;
+                    const n = tierNamesFor((x) => x.refImg);
+                    const names = n.usable || n.member;
+                    return n.usable ? (
+                      <Trans>「{cur}」档收不了参考图：这一段出片前会先按提示词画帧（计费）。想让人物图直接给视频模型，到 ⚙ 本段设置换成「{names}」。</Trans>
+                    ) : (
+                      <Trans>「{cur}」档收不了参考图：这一段出片前会先按提示词画帧（计费）。人物图直接给视频模型要「{names}」（会员档）。</Trans>
+                    );
+                  })()}
                 </p>
               )}
               {/* 紧挨着上面那排素材卡：推荐挂一张场景卡（说不说的判断在 DirectTips 一处，工坊铸段窗同一份） */}
@@ -1852,7 +1895,15 @@ function NodePanel({
           disabled={busy || generating || !p.plot.trim()}
           className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:bg-slate-700 disabled:text-slate-400"
         >
-          {generating ? node.progress || t`生成中…` : done ? t`♻ 重新生成（${costLabel}）` : t`⚡ 生成本段（${costLabel}）`}
+          {generating
+            ? node.progress || t`生成中…`
+            : draftOn
+              ? done
+                ? t`♻ 重新出样片（${costLabel}）`
+                : t`📼 先出样片（${costLabel}）`
+              : done
+                ? t`♻ 重新生成（${costLabel}）`
+                : t`⚡ 生成本段（${costLabel}）`}
         </button>
       )}
       {!tplMode && !flatTier && !custom && !direct && !locked && (
@@ -1883,7 +1934,15 @@ function NodePanel({
               disabled={busy || generating}
               className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:bg-slate-700 disabled:text-slate-400"
             >
-              {generating ? node.progress || t`生成中…` : done ? t`♻ 重新生成（${costLabel}）` : t`⚡ 炼这一段视频（${costLabel}）`}
+              {generating
+                ? node.progress || t`生成中…`
+                : draftOn
+                  ? done
+                    ? t`♻ 重新出样片（${costLabel}）`
+                    : t`📼 先出样片（${costLabel}）`
+                  : done
+                    ? t`♻ 重新生成（${costLabel}）`
+                    : t`⚡ 炼这一段视频（${costLabel}）`}
             </button>
             {/* 挑定之后仍要能回方案台：换首尾帧、逐字改剧情、重新推演都在那里
                 （入口只有一处 —— 这些编辑口 PlanBoard 只对选定行开，见它自己的 ★） */}
@@ -1920,6 +1979,10 @@ function NodePanel({
           </button>
         )
       )}
+
+      {/* 电影级「样片」那一栏（先出样片的开关 / 样片的倒计时与定稿 / 已定稿）：投影窗同款，一份实现。
+          它自己判摆不摆（这一档有没有样片、这一段的做法走不走得了、现在放的是不是样片）；定稿走 genNode（与这一段的生成键同一个入口） */}
+      {!locked && <DraftModeBox node={node} disabled={busy || generating} onFinalize={() => void genNode(node.id, { finalizeDraft: true })} />}
 
       {/* 修这一段（片段重拍 / 往后延长）：已出片才有，四个车道都摆（FixSegmentBox 自己判有没有能播的成片）；投影窗同款，一份实现。
           延长落下新的一段之后定位过去、接着出片（genNode：与这一段的生成键同一个入口） */}
@@ -1989,6 +2052,7 @@ function NodePanel({
             extras: extraRefs,
           })}
           aspect={node.aspect}
+          tierIssue={tierBlockReason(tierOf(node.videoTier))}
           onDone={(url) => {
             setFrame(node.id, fuse, url);
             setFuse(null);
@@ -2116,6 +2180,7 @@ function PlanSheet({ nodeId, onClose }: { nodeId: string; onClose: () => void })
               extras: usableExtraRefs(node.extraRefs),
             })}
             fuseAspect={node.aspect}
+            fuseTierIssue={tierBlockReason(tierOf(node.videoTier))}
             onRegen={() => void regenProposal(node.id)}
             // ★ 报价一律走 store 的同一处实现，不在画布里重算（铁律六）
             regenCost={(pp) => redrawCost(node, pp, prevProp)}
@@ -2646,7 +2711,7 @@ export function TemplatePicker({
   useAccountVersion();
   const need = blockoutTier();
   const needLabel = need?.label ?? "";
-  const needModel = need ? modelLabel(need.model) : "";
+  const needModel = need ? tierModelLabel(need) : "";
   const needIssue = need ? tierBlockReason(need) : null;
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60" onClick={onClose}>
@@ -2662,7 +2727,14 @@ export function TemplatePicker({
         {need && (
           <p className="mb-1.5 flex-none text-[11px] leading-relaxed text-slate-400">
             <Trans>白模模板固定用「{needLabel}」（{needModel}）出片：选了之后这一段不能换别的画质档。</Trans>
-            {needIssue && <span className="text-amber-300/90"> {needIssue}</span>}
+            {needIssue && (
+              <span className="text-amber-300/90">
+                {" "}
+                {needIssue}
+                {"　"}
+                <UpgradeLink />
+              </span>
+            )}
           </p>
         )}
         {err && <p className="mb-1.5 flex-none text-[11px] leading-relaxed text-rose-300">{err}</p>}

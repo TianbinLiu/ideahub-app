@@ -14,9 +14,10 @@ import type { MessageDescriptor } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
-import { Link } from "react-router";
-import { tierBlockReason } from "../../data/account";
-import { blockoutPriceIssue, clampDuration, deriveIssue, fmtTokens, realFaceIssue, tierOf, VIDEO_TIERS } from "../../data/economy";
+import { memberTiersLine, realFaceIssue, tierBlockReason, tierOffered } from "../../data/account";
+import { blockoutPriceIssue, clampDuration, deriveIssue, fmtTokens, tierModelId, tierOf, VIDEO_TIERS } from "../../data/economy";
+import { useAccountVersion } from "../../hooks/useAccount";
+import UpgradeLink from "../UpgradeLink";
 import { chosenOf, nodeCost, nodeFramed, tplOfNode, useFlow } from "../../studio/flowStore";
 import { carryIsHard } from "../../studio/segmentGen";
 
@@ -79,6 +80,8 @@ export default function TierRow({
   needsDerive?: boolean;
 }) {
   const { t } = useLingui();
+  // 套餐 / 付没付过钱 / 服务端能力位都是异步到的：订阅账号的版本号，到了就重画（不然免费用户的会员档要等下一次别的重画才灰）
+  useAccountVersion();
   const nodes = useFlow((s) => s.nodes);
   const mode = useFlow((s) => s.mode);
   const index = nodes.findIndex((n) => n.id === nodeId);
@@ -93,7 +96,13 @@ export default function TierRow({
   const blockout = !!tplOfNode(node)?.refVideo;
   /** 这一段出片会不会带画面帧（flowStore.nodeFramed）；宿主主路是推演（工坊）时恒真 —— 推演就是画帧 */
   const framed = !!needsDerive || nodeFramed(nodes, index, mode);
-  const tierBlocks = VIDEO_TIERS.map((tier) => tierBlockReason(tier)).filter((r): r is string => !!r);
+  // ★ 摆哪几档：停用的、这台服务端不支持的不摆（account.tierOffered）—— 只有这一段**正挂着**的那一档例外：
+  //   藏起来的话这一排一个高亮都没有，人不知道自己在哪一档、为什么出不了片（它会灰着，原因印在下面）
+  const shown = VIDEO_TIERS.filter((tier) => tierOffered(tier) || tier.id === node.videoTier);
+  // 套餐那一类原因并成一句（account.memberTiersLine）+「去升级」；这一段挂着的档本身用不了（停用 / 服务端不支持）另说一句
+  const memberLine = memberTiersLine();
+  const curTier = tierOf(node.videoTier);
+  const curOff = tierOffered(curTier) ? null : tierBlockReason(curTier);
 
   /** 真正落地：换档 + 时长吸附写回 + 清掉带不动的东西。
    *  ★ 从确认卡来的那一路会先核对 nodeId（见 ask 的注释）——对不上就整句拒，不静默照做 */
@@ -122,7 +131,7 @@ export default function TierRow({
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="w-10 flex-none text-[11px] text-slate-400"><Trans>画质</Trans></span>
         {/* ★ 回调参数叫 tier 不叫 t：t 是 useLingui 给的翻译函数，同名会把它遮住 */}
-        {VIDEO_TIERS.map((tier) => {
+        {shown.map((tier) => {
           // ★ 白模节点上，跑不了白模模板的档位也要禁掉（判断在 economy.blockoutPriceIssue 一处；2026-10-05 起不再问 r2vPriceIssue ——
           //   高清能带参考视频、但跑不了白模模板，问错那一句高清就会在白模段上变成可选）：
           //   切过去出片必被门禁整句拒，让人选一个必失败的档不如当场说不能选
@@ -131,14 +140,14 @@ export default function TierRow({
           //   的主路正是推演，切过去之后「重新推演三套」必被拒。宿主是画布时那条路还在
           //   （画布可以直出），所以这一条只在**需要推演**的宿主上拦：由 prop 决定。
           // ★★ 这一段挂着的真人卡在这一档过不过得去（2026-09-30 主人拍板：过不去的档**直接灰掉**，
-          //   不是选了再报错）。判据只有 economy.realFaceIssue 一处，与出片闸（flowStore.genNode /
+          //   不是选了再报错）。判据只有 account.realFaceIssue 一处，与出片闸（flowStore.genNode /
           //   deriveProposals）问的是同一句 —— 界面说能选、闸却拒，就是两面打架。
           //   没勾「火山引擎适用」的真人卡：只收认证素材的档（高清 / 电影级）灰；1.0 两档本来就不收真人照片，也灰。
           //   勾了的也只在不带帧时放行（framed，2026-09-30 付费实测：帧里的真人脸会被整发拒）。
           const faceBlock = realFaceIssue(node.materials, tier.id, { blockout, framed });
           const block = tierBlockReason(tier) ?? r2vBlock ?? faceBlock ?? (needsDerive ? deriveIssue(tier.id) : null);
           const desc = tier.desc;
-          const model = tier.model;
+          const model = tierModelId(tier);
           return (
             <button
               key={tier.id}
@@ -165,14 +174,13 @@ export default function TierRow({
           这排按钮归本组件，理由跟着按钮走 —— 宿主再写一份就会两处都印（实测本段设置抽屉
           里出现过两遍）。宿主自己的别的理由（r2v 闸、真人卡）仍由宿主印，那是另一件事。
           「去升级」只治得了套餐门槛那一类原因，所以跟着 tierBlocks 一起出现。 */}
-      {tierBlocks.length > 0 && (
+      {curOff && <p className="text-[10px] leading-relaxed text-amber-300/80">{curOff}</p>}
+      {memberLine && (
         <p className="text-[10px] leading-relaxed text-amber-300/80">
-          {tierBlocks.join(t({ message: "；", comment: "把几条「这一档为什么点不动」的原因连成一行时的分隔符" }))}
+          {memberLine}
           {/* 间隔用全角空格字面量——JSX 会把行间换行整个吃掉，靠折行留空隙留不住 */}
           {"　"}
-          <Link to="/me" className="underline underline-offset-2">
-            <Trans>去升级</Trans>
-          </Link>
+          <UpgradeLink />
         </p>
       )}
       {/* 换档的代价：**换之前**说，说的是这一段真的有的东西（tierSwitchLoss 一处判定） */}
