@@ -20849,6 +20849,10 @@ msgstr "Background"
 msgid "背景卡"
 msgstr "Background card"
 
+#: src/components/flow/FixSegmentBox.tsx
+msgid "能按参考视频出片的「{refNames}」是会员档——开通会员套餐（或充值过任意一笔）后可用"
+msgstr "“{refNames}”, the tiers that can generate from a reference video, are member tiers — available once you subscribe to a plan (or make any top-up once)"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "脸红"
 msgstr "Blush"

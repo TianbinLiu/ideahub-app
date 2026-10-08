@@ -20849,6 +20849,10 @@ msgstr "背景"
 msgid "背景卡"
 msgstr "背景卡"
 
+#: src/components/flow/FixSegmentBox.tsx
+msgid "能按参考视频出片的「{refNames}」是会员档——开通会员套餐（或充值过任意一笔）后可用"
+msgstr "能按参考视频出片的「{refNames}」是会员档——开通会员套餐（或充值过任意一笔）后可用"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "脸红"
 msgstr "脸红"
