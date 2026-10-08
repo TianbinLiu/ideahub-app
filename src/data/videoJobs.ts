@@ -280,7 +280,8 @@ export function videoJobExpired(job: VideoJob): boolean {
  */
 export function videoJobNote(job: VideoJob): string {
   // 这台服务端会不会把受理之后明说失败的那一发退回（能力位 failRefund，2026-10-07）。不知道（还没探到）按不会说 ——
-  // 许一个兑现不了的「会退回」比少说一句坏
+  // 许一个兑现不了的「会退回」比少说一句坏。⚠ dev 直连方舟时能力位恒真而其实没人退（serverCaps.direct）：只影响开发机，
+  // 与 ai/failCharge 文件头「dev 的一处不等价」同一条
   const refunds = serverSupports("failRefund") === true;
   // ★★ 真人档**不许出现任何小时数**：24 小时那个数是方舟产物 TOS 签名地址的物理事实，
   //   我们从没量过 MiniMax 那边留多久，仓里也没有任何一处记过。编一个数出来，

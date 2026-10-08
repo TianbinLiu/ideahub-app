@@ -24575,6 +24575,10 @@ msgstr "This video is WebM, which some gallery apps can't open; a file manager i
 msgid "这条有 {0} 段，会存成 {1} 个文件。"
 msgstr "{0, plural, one {This video has # segment} other {This video has # segments}}, saved as {1, plural, one {# file} other {# files}}."
 
+#: src/components/flow/DraftModeBox.tsx
+msgid "这条样片已经定稿过一次：1080p 成片在「修这一段」的「还原上一版」里，点它就回去了，不用再花钱。"
+msgstr "This preview draft has already been finalized once: the 1080p video is under “Restore previous version” in “Fix this segment” — tap it to go back, no need to pay again."
+
 #: src/studio/flowStore.ts
 msgid "这条样片已经过了 7 天有效期，不能再定稿了——要成片就重新生成（会重新计费）"
 msgstr "This preview draft is past its 7-day limit and can no longer be finalized — regenerate it if you want the full video (charged again)"

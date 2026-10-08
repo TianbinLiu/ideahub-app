@@ -14,6 +14,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useState } from "react";
 import { AI_REAL } from "../../ai";
 import { draftModeIssue, draftModeOffered } from "../../data/account";
+import { serverSupports } from "../../data/serverCaps";
 import { draftFinalTokens, draftStepTokens, fmtTokens, tierOf } from "../../data/economy";
 import { aspectOf } from "../../types";
 import {
@@ -54,6 +55,8 @@ export default function DraftModeBox({
   // 「先出样片」开关（三种样子都摆：样片 / 成片在屏幕上时，它管的是下一次「重新生成」出不出样片）
   const ratio = aspectOf(node.aspect).ratio;
   const blocked = draftModeIssue(tier);
+  /** 挡住他的是套餐（「去升级」走得通），不是服务端还不会（那种升级也没用 —— 别指一条走不通的路） */
+  const upgradeable = serverSupports("draftMode") !== false;
   const toggle = offered ? (
     <>
       <label className="flex items-center gap-1.5 text-[11px] text-slate-200">
@@ -68,7 +71,7 @@ export default function DraftModeBox({
       </label>
       {blocked && (
         <p className="text-[10px] leading-relaxed text-amber-200">
-          {blocked} <UpgradeLink />
+          {blocked} {upgradeable && <UpgradeLink />}
         </p>
       )}
     </>
@@ -110,9 +113,15 @@ export default function DraftModeBox({
             <Trans>看着满意就定稿：把这同一份样片升成 1080p 成片（画面、动作、声音都照样片，不重新抽卡）。还剩 {mins} 分钟可以定稿。</Trans>
           )}
         </p>
+        {/* 还原上一版之后又回到了样片：这条样片定稿过，成片就在「还原上一版」里 —— 别让人再花一次定稿的钱去换一条差不多的 */}
+        {prop.finalUrl && prop.prevVideoUrl === prop.finalUrl && (
+          <p className="text-[11px] leading-relaxed text-emerald-300">
+            <Trans>这条样片已经定稿过一次：1080p 成片在「修这一段」的「还原上一版」里，点它就回去了，不用再花钱。</Trans>
+          </p>
+        )}
         {issue && left > 0 && (
           <p className="text-[11px] leading-relaxed text-amber-200">
-            {issue} <UpgradeLink />
+            {issue} {upgradeable && <UpgradeLink />}
           </p>
         )}
         {left > 0 && (
