@@ -4117,7 +4117,10 @@ export const useFlow = create<FlowState>()((set, get) => ({
       // videoUrl 同时挂在方案上——工坊侧的节点卡读的就是它（两个模式共用同一份出片）
       patchProp({
         // 返修 / 定稿：上一版留一份可还原（只留最近一版；定稿的上一版就是那条 480p 样片）；成片首帧原本就空，别用结果的空串盖掉设定帧
-        ...(rv || fin ? { prevVideoUrl: realVideoOfNode(node) ?? undefined } : {}),
+        // ★ 读**写回这一刻**的节点（still），不读开炼时的快照 node（2026-10-07 评审抓到）：定稿要跑几分钟，样片若还是方舟临时链接，
+        //   这期间 settleNodeMedia 会把它换成转存后的永久地址（adoptPermanentUrl 连 draftUrl 一起换）。读旧快照的话上一版记的是
+        //   那条 24 小时就过期的临时链接、与 draftUrl 对不上 —— 「还原上一版」那句提示消失，一天后还原出一条死链、样片那一格也认不出了
+        ...(rv || fin ? { prevVideoUrl: realVideoOfNode(still) ?? undefined } : {}),
         // 返修出的这一条本身无声（edit 任务钉着 generate_audio:false）：记下地址，组稿时据此如实说「没有声音」（见 Proposal.silentVideos）
         ...(rv && res.url ? { silentVideos: [...(prop.silentVideos ?? []), res.url].slice(-4) } : {}),
         // 样片两步认「现在放的是哪一条」靠这两个地址（draftStageOf）；第一步把定稿要的那几样一起记下
