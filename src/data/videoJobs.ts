@@ -41,6 +41,7 @@ import type { VideoAspect } from "../types";
 import { t } from "@lingui/core/macro";
 import { API_BASE, apiGet, getToken } from "../api/client";
 import { deviceOwner, mayClaimLegacy, onViewerChange, workOwner } from "./deviceOwner";
+import { tierIdOf } from "./economy";
 
 export const VIDEO_JOB_TTL_MS = 24 * 3600_000;
 
@@ -404,6 +405,8 @@ interface ServerVideoTask {
   taskId: string;
   createdAt: string | number;
   model?: string;
+  /** 2026-10-07 起服务端登记（「草稿」与「高清」同一个模型，只差这一格）；老服务端没有 = 720p */
+  resolution?: string;
   durationSec?: number;
   ratio?: string;
   prompt?: string;
@@ -483,6 +486,8 @@ export async function importServerVideoJobs(): Promise<number> {
       cost: 0, // 服务端受理那一刻已经扣过，取回不再花钱；本机镜像也不必再扣一次
       ...(task.durationSec && Number.isFinite(task.durationSec) ? { durationSec: task.durationSec } : {}),
       ...(aspectOfRatio(task.ratio) ? { aspect: aspectOfRatio(task.ratio) } : {}),
+      // 是哪一档按（模型, 分辨率）认（economy.tierIdOf）：不写的话取回安放的那一段落在兜底档上，之后的重拍 / 延长按错的档报价
+      ...(tierIdOf(task.model, task.resolution) ? { videoTier: tierIdOf(task.model, task.resolution) } : {}),
       ...(task.prompt ? { plot: task.prompt } : {}),
       createdAt,
       owner,

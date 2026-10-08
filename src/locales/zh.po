@@ -1807,6 +1807,14 @@ msgid "「{label}」档按发直出（起拍画面就是真人卡的照片），
 msgstr "「{label}」档按发直出（起拍画面就是真人卡的照片），没有推演三套方案这一步——写好一句话直接生成，或换回其它档再推演。"
 
 #: src/data/account.ts
+msgid "「{label}」档没有样片模式"
+msgstr "「{label}」档没有样片模式"
+
+#: src/data/account.ts
+msgid "「{label}」档没有样片模式（只有「{names}」有）"
+msgstr "「{label}」档没有样片模式（只有「{names}」有）"
+
+#: src/data/account.ts
 msgid "「{label}」档的模型已于 {day}停用——换一档再出片"
 msgstr "「{label}」档的模型已于 {day}停用——换一档再出片"
 
@@ -2669,10 +2677,6 @@ msgstr "⚠「{cur}」档带不了参考视频——选「{usable}」，否则�
 #: src/studio/ui/projection.tsx
 msgid "⚠「{cur}」档带不了参考视频，而带得了的「{member}」是会员档——摘掉示例视频，或开通会员套餐（或充值过任意一笔）"
 msgstr "⚠「{cur}」档带不了参考视频，而带得了的「{member}」是会员档——摘掉示例视频，或开通会员套餐（或充值过任意一笔）"
-
-#: src/components/flow/FlowCanvas.tsx
-#~ msgid "⚠「{cur}」档带不了参考视频，而带得了的「{member}」是会员档——摘掉示例视频，或开通会员套餐（或充值过任意一笔）。"
-#~ msgstr "⚠「{cur}」档带不了参考视频，而带得了的「{member}」是会员档——摘掉示例视频，或开通会员套餐（或充值过任意一笔）。"
 
 #. placeholder {0}: fmtTokens(lockPrice)
 #: src/pages/FeedPage.tsx
@@ -23559,6 +23563,10 @@ msgstr "这台服务器还不支持按作者取作品 · 下面只是本次刷�
 #: src/components/MentionInput.tsx
 msgid "这台服务器还不支持搜人，@ 可能收不到"
 msgstr "这台服务器还不支持搜人，@ 可能收不到"
+
+#: src/data/account.ts
+msgid "这台服务器还不支持样片模式（服务端需要更新）"
+msgstr "这台服务器还不支持样片模式（服务端需要更新）"
 
 #: src/data/templates.ts
 msgid "这台服务器还不支持核对角色位（回包形状不对，可能需要升级服务端）"

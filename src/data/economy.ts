@@ -438,6 +438,17 @@ export function tierModelLabel(tier: Pick<VideoTierSpec, "model" | "resolution">
   return tier.resolution === "720p" ? name : `${name} · ${tier.resolution}`;
 }
 
+/**
+ * 服务端登记表里的一发（只有模型与分辨率，没有档位 id）→ 是哪一档。认不出 = undefined（调用方别写 videoTier，交给 tierOf 兜底）。
+ * ★ 必须连分辨率一起认：「草稿」与「高清」是同一个模型 —— 只按模型认的话，取回来的 480p 成片会被当成「高清」，之后的重拍 / 延长按错的档报价。
+ *   分辨率缺省（老服务端不登记这一格）= 720p（2026-10-07 之前只有 720p）。
+ */
+export function tierIdOf(model: string | undefined, resolution: string | undefined): string | undefined {
+  if (!model) return undefined;
+  const res = resolution || "720p";
+  return VIDEO_TIERS.find((t) => t.model === model && t.resolution === res)?.id;
+}
+
 /** 同上，但用完整的模型 id（档位按钮的 title：要查证的人看的那一份）。同一个模型的两档靠分辨率分开 */
 export function tierModelId(tier: Pick<VideoTierSpec, "model" | "resolution">): string {
   return tier.resolution === "720p" ? tier.model : `${tier.model} · ${tier.resolution}`;

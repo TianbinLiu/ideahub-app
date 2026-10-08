@@ -1632,6 +1632,14 @@ export const useStudio = create<StudioState>()((set, get) => ({
     const node = path[idx];
     const p = node?.proposals.find((q) => q.id === proposalId);
     if (!node || !p) return false;
+    {
+      // 档位门禁（与 flowStore.regenProposal 同一句，判据 account.tierBlockReason）：重画真花钱，画出来的帧在用不了的档上出不了片
+      const blocked = tierBlockReason(tierOf(node.videoTier));
+      if (blocked) {
+        set({ notice: { text: blocked, at: Date.now() } });
+        return false;
+      }
+    }
     if (!p.plot.trim()) {
       set({ notice: { text: t`这一套还没有剧情——先写点什么，我才知道要画成什么样`, at: Date.now() } });
       return false;

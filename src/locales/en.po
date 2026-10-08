@@ -1807,6 +1807,14 @@ msgid "「{label}」档按发直出（起拍画面就是真人卡的照片），
 msgstr "The “{label}” tier renders each clip directly (the opening shot is the real-person card's photo), so there's no step that drafts three plans — write one sentence and generate right away, or switch back to another tier to draft plans."
 
 #: src/data/account.ts
+msgid "「{label}」档没有样片模式"
+msgstr "The “{label}” tier has no preview-draft mode"
+
+#: src/data/account.ts
+msgid "「{label}」档没有样片模式（只有「{names}」有）"
+msgstr "The “{label}” tier has no preview-draft mode (only “{names}” has it)"
+
+#: src/data/account.ts
 msgid "「{label}」档的模型已于 {day}停用——换一档再出片"
 msgstr "The model behind the “{label}” tier was retired on {day} — pick another tier to generate"
 
@@ -2669,10 +2677,6 @@ msgstr "⚠ The “{cur}” tier can't take a reference video — choose “{usa
 #: src/studio/ui/projection.tsx
 msgid "⚠「{cur}」档带不了参考视频，而带得了的「{member}」是会员档——摘掉示例视频，或开通会员套餐（或充值过任意一笔）"
 msgstr "⚠ The “{cur}” tier can't take a reference video, and the tiers that can (“{member}”) are member tiers — remove the sample video, or subscribe to a plan (or make any top-up once)"
-
-#: src/components/flow/FlowCanvas.tsx
-#~ msgid "⚠「{cur}」档带不了参考视频，而带得了的「{member}」是会员档——摘掉示例视频，或开通会员套餐（或充值过任意一笔）。"
-#~ msgstr ""
 
 #. placeholder {0}: fmtTokens(lockPrice)
 #: src/pages/FeedPage.tsx
@@ -23559,6 +23563,10 @@ msgstr "This server can't list videos by creator yet · below are only the ones 
 #: src/components/MentionInput.tsx
 msgid "这台服务器还不支持搜人，@ 可能收不到"
 msgstr "This server can't search for people yet, so @mentions may not reach them"
+
+#: src/data/account.ts
+msgid "这台服务器还不支持样片模式（服务端需要更新）"
+msgstr "This server doesn't support preview-draft mode yet (the server needs an update)"
 
 #: src/data/templates.ts
 msgid "这台服务器还不支持核对角色位（回包形状不对，可能需要升级服务端）"

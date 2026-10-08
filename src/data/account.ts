@@ -795,9 +795,32 @@ export function freeQuota(): walletApi.FreeQuota {
 export function payingNow(): boolean | null {
   if (billingExempt()) return true;
   const w = walletOf();
-  if (!w) return null;
-  if (remoteOn() && !planIdConfirmed) return null;
+  if (!w) {
+    nudgeWallet();
+    return null;
+  }
+  if (remoteOn() && !planIdConfirmed) {
+    nudgeWallet();
+    return null;
+  }
   return planOf(w.planId).price > 0 || w.paid === true;
+}
+
+/** 上一次因为「还不知道付没付过钱」去补拉钱包的时刻（节流用） */
+let walletNudgedAt = 0;
+
+/**
+ * 「还不知道付没付过钱」时补拉一次钱包（节流 30 秒）。
+ * ★ 为什么要有：登录 / 冷启动那一发 refreshRemoteWallet 失败（错误被吞进 emitApiError，全 app 没人听）之后，整场会话都停在「不知道」——
+ *   免费档限制之后这一位决定新段的默认档（不知道 = 落在免费档上），付费用户会一直被摆在免费档上、自己换。
+ *   这里在被问到的那一刻顺手再拉一次（render 里也会被问到，所以节流；同 serverCaps.serverSupports 第一次被问到时发起探测）。
+ */
+function nudgeWallet(): void {
+  if (!remoteOn() || !getToken() || !currentUser()) return;
+  const now = Date.now();
+  if (now - walletNudgedAt < 30_000) return;
+  walletNudgedAt = now;
+  void refreshRemoteWallet();
 }
 
 /**
@@ -972,6 +995,26 @@ export function tierNamesFor(pred: (t: VideoTier) => boolean): { usable: string;
     usable: joinTierNames(offered.filter((x) => !tierBlockReason(x)).map((x) => x.label)),
     member: joinTierNames(offered.filter((x) => !!tierBlockReason(x)).map((x) => x.label)),
   };
+}
+
+/**
+ * 「样片」模式（电影级：先出 480p 样片看效果，满意再按同一份样片升成 1080p 成片）**摆不摆出来** —— 档位有这一项（VideoTierSpec.draftOk）、
+ * 这一档摆得出来、这台服务端会（能力位 draftMode；还不知道时照摆，提交那一刻服务端会同步说清楚）。套餐挡住的照样摆、灰着说为什么（draftModeIssue）。
+ * ★ 界面那颗开关与出片那一半在 A2（components/flow/DraftModeBox），判据只问这两个函数。
+ */
+export function draftModeOffered(tier: VideoTier): boolean {
+  return tier.draftOk && tierOffered(tier) && serverSupports("draftMode") !== false;
+}
+
+/** 这一段现在能不能走样片（null = 能）：摆不出来的说为什么，摆得出来的再过套餐那一道（会员档，与 tierBlockReason 同一句） */
+export function draftModeIssue(tier: VideoTier): string | null {
+  if (!tier.draftOk) {
+    const label = tier.label;
+    const names = joinTierNames(offeredTiers().filter((x) => x.draftOk).map((x) => x.label));
+    return names ? t`「${label}」档没有样片模式（只有「${names}」有）` : t`「${label}」档没有样片模式`;
+  }
+  if (serverSupports("draftMode") === false) return t`这台服务器还不支持样片模式（服务端需要更新）`;
+  return tierBlockReason(tier);
 }
 
 /**
@@ -2280,6 +2323,7 @@ function adoptUser(remote: authApi.ApiUser): User {
   // 不 await —— 余额是个数字，晚半秒显示出来没关系，但不能拖慢登录跳转。
   remoteWallet = null;
   planIdConfirmed = false; // 换了人，上一个人的套餐更不能拿来判门禁
+  walletNudgedAt = Date.now(); // 这一拍已经在拉了，别让 payingNow 的补拉马上再发一发
   void refreshRemoteWallet();
   return user;
 }
