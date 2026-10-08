@@ -10,7 +10,7 @@ import type { MessageDescriptor } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { memberTiersLine, tierBlockReason, tierNamesFor, tierOffered } from "../../data/account";
-import { CHAT_TURN_TOKENS, clampDuration, fmtTokens, IMAGE_TOKENS, proposalsCost, segTokens, tierModelId, tierModelLabel, tierOf, VIDEO_TIERS } from "../../data/economy";
+import { CHAT_TURN_TOKENS, clampDuration, fmtTokens, GRID_PANEL_TOKENS, IMAGE_TOKENS, proposalsCost, segTokens, tierModelId, tierModelLabel, tierOf, VIDEO_TIERS } from "../../data/economy";
 import { useAccountVersion } from "../../hooks/useAccount";
 import UpgradeLink from "../UpgradeLink";
 import { GUIDED_GROUPS, GUIDED_MODES, modeBlock, type GuidedGroup, type GuidedModeId, type ModeTier } from "../../data/guidedModes";
@@ -144,9 +144,11 @@ export default function ModePicker({
                 const steps = m.steps;
                 // 只摆「这一步大概花多少」：参考图直出 = 只有视频（真人档按发计价）；推演三套 = 推演那一笔（出片另算）
                 // 主角定妆 · 多镜头 = 拆镜头那一次对话 + 默认 12 秒的视频（现做主角要另花图钱，在向导里那颗键上报）
-                // 九宫格分镜 = 写分镜那一次对话 + 每格一张画面（按实际画出的张数收）+ 每格一段的视频（逐段出、逐段报）
+                // 九宫格分镜 = 写分镜那一次对话 + 每格一张画面与画完 AI 看一遍（按实际画出的张数收）+ 每格一段的视频（逐段出、逐段报）
+                // ★ 每格的价只读 economy.GRID_PANEL_TOKENS（向导的组图报价与单格重画也读它）；对话正反打 / 特效同款的画面不看一遍，仍是只有图的价
                 const chatPrice = fmtTokens(CHAT_TURN_TOKENS);
                 const panelPrice = fmtTokens(IMAGE_TOKENS);
+                const gridPanelPrice = fmtTokens(GRID_PANEL_TOKENS);
                 const gridSec = clampDuration(GRID_DEFAULT_SEC, tier.id);
                 const gridVideo = fmtTokens(segTokens(gridSec, tier.id));
                 const leadSec = clampDuration(LEAD_DEFAULT_SEC, tier.id);
@@ -160,7 +162,7 @@ export default function ModePicker({
                     : m.id === "lead"
                       ? t`拆镜头 ${chatPrice}，视频约 ${leadVideo} / ${leadSec} 秒`
                       : m.id === "grid"
-                      ? t`写分镜 ${chatPrice}，画面每格 ${panelPrice}，每格一段约 ${gridVideo} / ${gridSec} 秒`
+                      ? t`写分镜 ${chatPrice}，画面每格 ${gridPanelPrice}（含 AI 看一遍），每格一段约 ${gridVideo} / ${gridSec} 秒`
                       : m.id === "dialogue"
                       ? t`写对白 ${chatPrice}，三个机位每张 ${panelPrice}，每句一段约 ${gridVideo} / ${gridSec} 秒`
                       : m.id === "effect"

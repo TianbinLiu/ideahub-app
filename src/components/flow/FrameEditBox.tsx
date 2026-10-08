@@ -128,9 +128,11 @@ export default function FrameEditBox({
               {costLabel ? t`⭕ 圈出一处再改（${costLabel}）` : t`⭕ 圈出一处再改`}
             </button>
           </div>
+          {/* ★ @名字 只对「按这句话改」管用（flowStore.editFrame）：圈着改的底图是画着红圈的那张、一张别的图都不带（2.62 发版评审抓到：
+              原来这句话压在两颗键底下，照着它在圈选窗里写 @名字，模型拿到的只是一个名字、根本没见过那张图） */}
           <p className="text-[10px] leading-relaxed text-slate-500">
             {canMention ? (
-              <Trans>改好的帧会顶替这一张并锁住（重画这一套时不动它）。想照着某张临时参考图改，就在句子里写 @它的名字。</Trans>
+              <Trans>改好的帧会顶替这一张并锁住（重画这一套时不动它）。想照着某张临时参考图改，就用「按这句话改」，在句子里写 @它的名字（圈着改只看圈里那一处，不带参考图）。</Trans>
             ) : (
               <Trans>改好的帧会顶替这一张并锁住（重画这一套时不动它）。</Trans>
             )}

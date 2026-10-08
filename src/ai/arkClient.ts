@@ -681,7 +681,8 @@ export async function generateImage(
 //     客户端到服务端之间挡着 Cloudflare 的 125 秒读超时。
 //   · dev（vite 直连方舟，没有服务端那一层）→ **流式**：同一个请求带 stream:true，每画好一张推一条事件；
 //     钱记在本机账本上，由调用方按拿到手的张数记（与服务端「按张结算」同一个口径）。
-// ★ 能不能用只问 imageGroupsAvailable()：打包看服务端健康端点的能力位 imageGroups（老服务端没有 → 不能用，说「服务器还没更新」）。
+// ★ 能不能用只问 imageGroupsAvailable()：打包看服务端健康端点的能力位 imageGroups（老服务端没有 → 不能用，说「服务器还没更新」）；
+//   探测本身没答上来（断网 / 5xx / 429）回 null = 不知道 —— 别说成「服务器还没更新」（data/serverCaps 文件头那条口径）。
 //   判能力只看能力位，不看状态码（文件头那条 SPA 回退）。
 
 export interface ImageGroupImage {
@@ -732,13 +733,16 @@ export class ImageGroupBusy extends Error {
 }
 
 /**
- * 这台机器出得了组图吗。dev = 配了方舟密钥（vite 直连）；打包 = 服务端健康端点报 `imageGroups: true`。
+ * 这台机器出得了组图吗：true / false / null（这一刻没问到）。dev = 配了方舟密钥（vite 直连）；打包 = 服务端健康端点报 `imageGroups: true`。
  * ★ 探测只有 data/serverCaps 一处（2026-10-07 抽出来，与「草稿」档的 480p 能力位共用一次请求）：结果整场会话记住，探测本身失败（断网）不记、下次再问。
+ * ★★ 三态，别压成两态（2.62 发版评审抓到）：原来 `?.imageGroups === true` 把「探测没答上来」也答成 false，九宫格向导就对着一台
+ *   能出组图的服务器说「服务端更新之后就有」、把键灰到关掉重开为止。null 时调用方说「没问到」、过一会儿再问（serverCaps 的口径是放行）。
  */
-export async function imageGroupsAvailable(): Promise<boolean> {
+export async function imageGroupsAvailable(): Promise<boolean | null> {
   if (import.meta.env.DEV) return AI_REAL;
   if (!API_ON) return false;
-  return (await probeServerCaps())?.imageGroups === true;
+  const caps = await probeServerCaps();
+  return caps ? caps.imageGroups : null;
 }
 
 const authHeaders = (): Record<string, string> => {
@@ -833,17 +837,23 @@ export async function fetchImageGroup(id: string): Promise<ImageGroupState> {
   return groupOf(j.group);
 }
 
-/** 这个人最近 24 小时的几组（新的在前）：受理那一发没收到回包、或 App 丢了任务号时据此接回来。查不到就是空数组 */
-export async function listImageGroups(): Promise<ImageGroupState[]> {
+/**
+ * 这个人最近 24 小时的几组（新的在前）：受理那一发没收到回包、或 App 丢了任务号时据此接回来。
+ * ★★ 三态（2.62 发版评审抓到）：`[]` = 服务端说了「没有」；**null = 没问到**（断网 / 超时 / 非 2xx / 不是 JSON / 读不出 groups）。
+ *   原来一律回 []：「受理那一发没收到回包」时紧跟着的这一问多半也断在同一条网上，于是「没问到」被当成「服务端没受理」，
+ *   付过钱的那一组就再也没人去取。调用方拿到 null 不许下「没有」的结论。
+ */
+export async function listImageGroups(): Promise<ImageGroupState[] | null> {
   if (import.meta.env.DEV) return [];
   try {
     const res = await fetch(`${BASE}/image-groups`, { headers: authHeaders(), signal: AbortSignal.timeout(20_000) });
     const ct = res.headers.get("content-type") ?? "";
-    if (!res.ok || !ct.includes("json")) return [];
-    const j = (await res.json().catch(() => ({}))) as { groups?: unknown };
-    return Array.isArray(j.groups) ? j.groups.filter((g) => g && typeof g === "object").map((g) => groupOf(g as Record<string, unknown>)) : [];
+    if (!res.ok || !ct.includes("json")) return null;
+    const j = (await res.json()) as { groups?: unknown };
+    if (!j || !Array.isArray(j.groups)) return null;
+    return j.groups.filter((g) => g && typeof g === "object").map((g) => groupOf(g as Record<string, unknown>));
   } catch {
-    return [];
+    return null;
   }
 }
 
@@ -851,7 +861,10 @@ export async function listImageGroups(): Promise<ImageGroupState[]> {
 const GROUP_POLL_MS = 4_000;
 /** 最多等多久：服务端一组最多画 15 分钟、20 分钟还没结束就由懒回收结掉 —— 等到 22 分钟一定有结局 */
 const GROUP_WAIT_MS = 22 * 60_000;
-/** 连着几次查不到（断网）就先停下，把任务号交还给调用方（它记着，人回来点「接着等」） */
+/**
+ * 连着几次查不到（断网）就先停下，把错误交还给调用方。任务号调用方受理那一拍就记下了（studio/gridDraftStore 的落盘记录）：
+ * 回到九宫格分镜那一页会自动接着等，也可以点那一页上的「接着等上一组」。
+ */
 const GROUP_POLL_FAILS = 5;
 
 /** 短轮询一组直到有结局（打包那条路）。每次查到都交给 onUpdate（画好一张就多一张） */
@@ -869,7 +882,8 @@ async function pollImageGroup(id: string, onUpdate: (s: ImageGroupState) => void
       if (e instanceof ArkHttpError && e.status === 404) throw e;
       if (++fails >= GROUP_POLL_FAILS) throw e;
     }
-    if (Date.now() > deadline) throw new ArkNoReply(t`等了 22 分钟这一组还没画完——过一会儿回来点「接着等」，画好的图不会丢`);
+    // ★ 只说事实：接下来怎么办（「接着等上一组」、图不会丢）由调用方说 —— 那颗键长在向导里，这一层不该替它许诺
+    if (Date.now() > deadline) throw new ArkNoReply(t`等了 22 分钟这一组还没画完`);
     await new Promise((r) => setTimeout(r, GROUP_POLL_MS));
   }
 }
@@ -1019,7 +1033,7 @@ function supportsRefImage(model: string): boolean {
  *
  * ★ 与 supportsRefImage 同款双层结构：这是**协议层的兜底白名单**，业务层那道在
  *   data/economy 的 `VideoTier.refVid`（界面按它决定能不能选，并把原因说出来）。
- * ★ 为什么 2.0 系列不在名单里（refImage 那条它在）：白模路是三件绑死的
+ * ★（历史，2026-10-05 之前）为什么 2.0 系列曾经不在名单里（refImage 那条它在）—— 上面那条 ★ 记着这件事后来怎么答的：白模路是三件绑死的
  *   `omni_reference_task_type:"edit" + duration:-1 + ratio:"adaptive"`（见 BLOCKOUT_TASK），
  *   而 omni_reference_task_type 官方只写 2.5 支持 —— mini 收到它是 400 还是**静默忽略**
  *   没人验证过（实测清单 A6）。若是忽略，任务照样被受理：模板视频整个被扔掉、拍一段
@@ -1054,11 +1068,12 @@ export function ratioFor(model: string, mode: "frames" | "reference", want = "16
  *   显式值判错是提交时同步 400、一分钱不扣。
  * · `duration: -1`：edit 的输出时长**跟随输入**（协议行为，A2 实测 14.04s 输入 →
  *   13.67s 计费时长），-1 = 让它跟随。**-1 只许这条路传**：纯任务/参考图路上 -1 是
- *   "模型自选时长"，会把单次成本上界推到 30s —— 那条路照旧走 [3,10] 硬夹（见下）。
+ *   "模型自选时长"，会把单次成本上界推到 30s —— 那条路按模型的时长窗口硬夹（clampToModel → economy.durationWindowOfModel：
+ *   1.0 两档 [3,10]、高清 [4,15]、电影级 [4,30]，见下）。
  *   白模路的成本上界由**模板登记时长**卡住（模板视频窗口 [4,30]s，服务端在建模板时
  *   对产物现查复核 —— 白模化的**输入**另有一条更严的 [5,30]s，见 data/templates 的
  *   BLOCKOUT_MIN_INPUT_SEC），不失控；
- *   也因此白模不过 clampDuration 的 10s 上限 —— 那是纯 t2v 档位的产品约束，报价侧
+ *   也因此白模不过 clampDuration 的按档时长窗口 —— 那是普通出片的产品约束，报价侧
  *   （economy.r2vTokens）同一句注释。
  * · `ratio: "adaptive"`：画幅自适应源片（A2 实测输出 1266×728 跟着源片走）。edit 连
  *   镜头都在复刻源片，指定别的 ratio 没有意义，还会引一刀裁切。

@@ -25,10 +25,11 @@ import {
   videoJobFromServer,
   videoJobKnown,
   videoJobNote,
+  videoJobRefunded,
   videoJobsVersion,
   type VideoJob,
 } from "../../data/videoJobs";
-import { ArkTaskFailed, briefArkReason, chargeNote, chargeOnFail, unwrapFailure } from "../../ai";
+import { ArkTaskFailed, ArkTaskUnknown, briefArkReason, chargeNote, chargeOnFail, unwrapFailure } from "../../ai";
 import { jobLandsInPlace, useFlow } from "../../studio/flowStore";
 import { useStudio } from "../../studio/studioStore";
 import { draftsLoadIssue, draftsUnavailableText } from "../../data/drafts";
@@ -84,6 +85,22 @@ export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean
   useEffect(() => {
     void checkVideoJobCharge(job);
   }, [job]);
+  /**
+   * 没过期、但服务端已经说「没出成、钱退了 / 正在退」（data/videoJobs.videoJobRefunded，与 videoJobNote 读同一份账）：
+   * 没有成片可取了 —— 标题、按钮都跟着那句话走，摆「知道了」不摆「📥 取回」（2.62 发版评审抓到：话说「点知道了」，下面却只有一颗「取回」）。
+   * ★ 这颗「知道了」走的仍是 take() → flowStore.takeJob，**不**直接 dismissVideoJob：takeJob 会当场再向上游核对一次（不花钱），
+   *   确认没出成才结案，并把那一段挂着的「用下面的「取回」领回来，别重新生成」改成「没出成」—— 直接消掉的话，那句话会一直指着一颗
+   *   已经不存在的「取回」（dismissVideoJob 的 ★）。
+   * ★ 服务端登记表补来的那种（videoJobFromServer）例外，「知道了」直接在本机消掉（2.62 发版评审第三轮抓到）：它没有挂在哪一段上，
+   *   上面那两条理由都不成立 —— 没有段上那句话要改；服务端只在上游明说没出成时才退钱，退了 / 正在退都翻不回「出成了」。
+   *   而走 takeJob 要向上游跑一趟：查不动、或回包没带退款结论时卡就收不起来，原来一点就能消掉的卡变成要挂满 24 小时。
+   *   （不给它摆「这一发我已经拿到了」那颗：退了钱的那一发根本没有成片，那句话是假的。）
+   */
+  const refunded = !expired && videoJobRefunded(job);
+  /** 退了钱、又是服务端登记表补来的：「知道了」不核对、本机直接消（见上面的 ★） */
+  const localClose = refunded && videoJobFromServer(job);
+  /** 这张卡已经没有成片可取了（过期 / 退了钱）：灰底、不摆取回、不摆「不是这条流水线的」那句 */
+  const closed = expired || refunded;
 
   /**
    * 取回失败那一句话。上游明说没出成（ArkTaskFailed）的那种要带上钱：退了 / 会退 / 没退各一句（只走 ai/failCharge），
@@ -100,17 +117,25 @@ export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean
       : t`服务器登记的那一发没出成（${why}）。${moneyLine}要这一段的话重新生成（会重新计费）。`;
   }
 
-  async function take() {
+  /** @param closing 退了钱的那张卡点「知道了」：同一条 takeJob，只是话按「收起这一条」说（见上面 refunded 的 ★） */
+  async function take(closing = false) {
     setIssue("");
-    setWorking(t`正在取回…`);
+    setWorking(closing ? t`正在核对…` : t`正在取回…`);
     try {
       await takeJob(job, (st) => {
         if (alive.current) setWorking(st);
       });
     } catch (e) {
-      const why = failLine(e);
       // ★★ 凭据被结案了（上游明说没出成、服务端已经退了钱 —— flowStore.takeJob 的 ★★）：这张卡在下一次重画时就卸载了，
       //   写进 setIssue 的话**没人看得见**（此刻 alive 多半还是 true，卸载在下一拍）。所以这一种一律用轻提示说，不看 alive。
+      // ★ 「知道了」没能收起、而且是**没核对到结局**（ArkTaskUnknown：断网、查不动、上游还没给终态 —— 方舟与真人档两家都抛这个类型）：
+      //   不复述取回那几句（里面说的是「再点一次『取回』」，这张卡上没有那颗键），也不另说钱 —— 钱上那句卡上已经照服务端的账说过了。
+      // ★ 只这一种（2.62 发版评审第二轮抓到）：其余没收起的照原因说 —— 上游明说没出成、只是这次回包没带退款结论（ArkTaskFailed，
+      //   failLine 照 ai/failCharge 说钱）、取回期间换了账号、正忙着别的，都是 failLine 给的那句真话；一律说成「没核对到」是把原因说错了
+      const why =
+        closing && videoJobKnown(job.taskId) && unwrapFailure(e) instanceof ArkTaskUnknown
+          ? t`这一条暂时收不起来：没能向上游核对到这一发的结局——过一会儿再点一次「知道了」（核对不花钱）。`
+          : failLine(e);
       if (!videoJobKnown(job.taskId)) {
         showToast(why, 8000);
         return;
@@ -146,21 +171,25 @@ export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean
   return (
     <div
       className={`rounded-lg border px-2.5 py-2 ${
-        expired ? "border-slate-600/60 bg-black/25" : "border-amber-500/50 bg-amber-500/10"
+        closed ? "border-slate-600/60 bg-black/25" : "border-amber-500/50 bg-amber-500/10"
       }`}
     >
       <div className="text-[11px] font-bold text-amber-200">
-        {/* seg=0 = 服务端登记表补来的（本机没认领过它属于哪一段） */}
+        {/* seg=0 = 服务端登记表补来的（本机没认领过它属于哪一段）。退了钱的那种不说「还没取回」：没有成片可取了（钱上那句在下面的 note 里） */}
         {expired
           ? job.seg > 0
             ? t`第 ${job.seg} 段那一发已经取不回来了`
             : t`有一发成片已经取不回来了`
-          : job.seg > 0
-            ? t`第 ${job.seg} 段有一发成片还没取回`
-            : t`服务器上有一发你付过钱的成片还没取回`}
+          : refunded
+            ? job.seg > 0
+              ? t`第 ${job.seg} 段那一发没出成`
+              : t`服务器上有一发成片没出成`
+            : job.seg > 0
+              ? t`第 ${job.seg} 段有一发成片还没取回`
+              : t`服务器上有一发你付过钱的成片还没取回`}
       </div>
       <div className="mt-0.5 truncate text-[10px] text-slate-400">{job.label}</div>
-      <p className={`mt-1 text-[10px] leading-relaxed ${expired ? "text-slate-400" : "text-amber-200/90"}`}>
+      <p className={`mt-1 text-[10px] leading-relaxed ${closed ? "text-slate-400" : "text-amber-200/90"}`}>
         {videoJobNote(job)}
       </p>
       {/* ★ 「这一发不是这条工作流的」要说出来，而且**不给按钮**：凭据跨草稿存活，
@@ -169,7 +198,7 @@ export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean
       {/* ★ 不是这条流水线炼的（原节点没了：重启后没打开草稿、或那一段从没存过草稿）——**照样能取**，
           取回来会新开一段安放（flowStore.placeRescuedSegment）。以前这里把键灰掉并指路"去打开那条草稿"，
           而最常见的情形正是根本没有那条草稿（2026-09-05 主人真机） */}
-      {!expired && !mine && (
+      {!closed && !mine && (
         <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
           <Trans>当初炼它的那一段不在这条流水线里（重启后没打开原草稿，或那一段从没存过草稿）：取回来会作为新的一段落在流水线里，之后照常剪辑、发布。凭据还在，没有浪费。</Trans>
         </p>
@@ -189,6 +218,16 @@ export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean
         >
           <Trans>知道了，不用再提醒我这一发</Trans>
         </button>
+      ) : refunded ? (
+        // 同一句「知道了」，走的是 take(true)（理由见上面 refunded 的 ★）；与取回键同一道 busy 闸：takeJob 在忙的时候整句拒。
+        // 服务端补来的那种本机直接消（localClose），不看 busy；取回还在路上（working）时照旧灰着 —— 别和那一趟抢着结案
+        <button
+          onClick={() => (localClose ? dismissVideoJob(job) : void take(true))}
+          disabled={!!working || (!localClose && busy)}
+          className="mt-1.5 w-full rounded-full border border-slate-600 py-1.5 text-[11px] text-slate-300 disabled:opacity-40"
+        >
+          {working ? <Trans>核对中…</Trans> : <Trans>知道了，不用再提醒我这一发</Trans>}
+        </button>
       ) : (
         <button
           onClick={() => void take()}
@@ -207,7 +246,7 @@ export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean
       {/* ★ 服务端登记表补来的那种没过期也能消掉（data/videoJobs.videoJobFromServer 的 ★，2026-09-18）：
           登记表不知道谁取回了哪一发，这一发很可能在别的设备 / 官网上早就拿到了 —— 只给「取回」一颗键，
           等于逼他把一段已经有了的片子再落一遍流水线。本机自己交的那种照旧只在过期后给「知道了」。 */}
-      {!expired && videoJobFromServer(job) && !working && (
+      {!closed && videoJobFromServer(job) && !working && (
         <button
           onClick={() => dismissVideoJob(job)}
           className="mt-1 w-full rounded-full py-1 text-[10px] text-slate-400 underline underline-offset-2"

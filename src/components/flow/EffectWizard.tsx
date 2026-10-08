@@ -102,7 +102,15 @@ export default function EffectWizard({
   const tier = tierOf(tierId);
   const real = !!tier.flatCost;
   const presets = effectsOn({ flat: real });
-  const preset: EffectPreset | null = effectById(d.presetId);
+  // ★ 上次挑的预设要按**这一档**重新筛：草稿关了不清（付过钱的关键帧要留着），而选法屏换个档位再进来，向导会停在上次那一步。
+  //   不筛的话，在高清上挑的「游戏英雄登场」能在真人档上落成一段 —— 照片在原地动、竞技场根本不会出现，这一发照收钱（effectsOn 要挡的正是它）。
+  //   这一档用不了就退回第①步重挑；只改这里看到的，不清 store：换回原来那一档，那张关键帧还在。
+  const preset: EffectPreset | null = presets.find((p) => p.id === d.presetId) ?? null;
+  const step: EffectStep = preset ? d.step : "pick";
+  // ★ 被这一档筛掉的那一个要当面说：不说的话，「从没挑过」和「挑过、甚至付钱画过关键帧，只是这一档用不了」长得一模一样，
+  //   人在这里随手另挑一个，pickPreset 就把那张关键帧清掉了。
+  const unavailable = preset ? null : effectById(d.presetId);
+  const unavailableTitle = unavailable ? t(PRESET_TEXT[unavailable.id]?.title ?? msg`特效`) : "";
   const need = preset ? castCountOf(preset) : 0;
   const all = myCards();
   const chars = all.filter((c) => c.type === "character");
@@ -114,14 +122,14 @@ export default function EffectWizard({
   const dur = clampDuration(d.durationSec ?? preset?.sec ?? 5, tierId);
   const price = (n: number) => (AI_REAL ? fmtTokens(n) : t`演示`);
   const keyPrice = price(KEYFRAME_TOKENS);
-  const stepIdx = EFFECT_STEPS.indexOf(d.step);
+  const stepIdx = EFFECT_STEPS.indexOf(step);
   const castOk = !preset ? false : preset.subject === "product" ? !!productCard || !!d.productImage : cast.length === need;
   const stale = !!d.keyframe && d.keyframeKey !== effectKeyOf({ ...d, aspect }, cast);
   // 关键帧（2.x 两档当参考图发、1.0 两档当首帧）里画着真人脸：方舟视频那一侧会整发拒（account.realFaceIssue 的 framed）
   const faceNote = preset && preset.subject !== "product" ? realFaceIssue(cast, tierId, { framed: !real }) : null;
   const title = preset ? t(PRESET_TEXT[preset.id]?.title ?? msg`特效`) : "";
   const spec =
-    d.step === "go" && preset ? effectAppendSpec(d, { cast, productCard, tierId, aspect, durationSec: dur, real, title: t`特效同款 · ${title}` }) : null;
+    step === "go" && preset ? effectAppendSpec(d, { cast, productCard, tierId, aspect, durationSec: dur, real, title: t`特效同款 · ${title}` }) : null;
   const costs = spec ? quote([spec]) : [];
   const segPrice = price(costs[0] ?? 0);
   const castNames = cast.map((c) => c.name).join(t({ message: "、", comment: "列举几个名字时的分隔符" }));
@@ -149,7 +157,7 @@ export default function EffectWizard({
         ))}
       </div>
 
-      {d.step === "pick" && (
+      {step === "pick" && (
         <>
           <p className="text-[11px] leading-relaxed text-slate-400">
             {real ? (
@@ -158,6 +166,25 @@ export default function EffectWizard({
               <Trans>挑一个特效：AI 先把你的主角放进这个画面（关键帧，可以重画），再照着它出一段。</Trans>
             )}
           </p>
+          {unavailable && (
+            <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">
+              {/* 只在关键帧真的在手时才许诺「还留着」：还在画的那一张可能画不成（画的时候由下面那一行说） */}
+              {d.keyframe ? (
+                <Trans>
+                  上次挑的「{unavailableTitle}」这一档用不了。换回原来那一档再进来，它的关键帧还留着；在这里另挑一个特效，那张关键帧会被清掉。
+                </Trans>
+              ) : (
+                <Trans>上次挑的「{unavailableTitle}」这一档用不了，在这里另挑一个吧。</Trans>
+              )}
+            </p>
+          )}
+          {/* 画关键帧的时候换不了特效（pickPreset 会拒）：按钮全灰，原因要摆在这一步，不能只摆在第③步 */}
+          {d.drawing && (
+            <p className="flex items-center gap-1.5 text-[10px] leading-relaxed text-slate-500">
+              <Spinner size="xs" />
+              <Trans>关键帧还在画（约 20~30 秒），画完才能另挑特效。</Trans>
+            </p>
+          )}
           <div className="space-y-1.5">
             {presets.map((p) => {
               const text = PRESET_TEXT[p.id];
@@ -192,7 +219,7 @@ export default function EffectWizard({
         </>
       )}
 
-      {d.step === "cast" && preset && (
+      {step === "cast" && preset && (
         <>
           <p className="text-[11px] leading-relaxed text-slate-400">
             {preset.subject === "product" ? (
@@ -294,7 +321,7 @@ export default function EffectWizard({
               </div>
             </div>
           )}
-          {d.drawErr && d.step === "cast" && <p className="text-[11px] leading-relaxed text-rose-300">{d.drawErr}</p>}
+          {d.drawErr && step === "cast" && <p className="text-[11px] leading-relaxed text-rose-300">{d.drawErr}</p>}
           <div className="flex gap-2">
             {backBtn("pick")}
             <button
@@ -308,7 +335,7 @@ export default function EffectWizard({
         </>
       )}
 
-      {d.step === "go" && preset && (
+      {step === "go" && preset && (
         <>
           {!real && (
             <div className="space-y-1.5">
@@ -325,7 +352,8 @@ export default function EffectWizard({
                 )}
                 {stale && (
                   <span className="absolute left-1 top-1 rounded-full bg-amber-500/90 px-1.5 py-0.5 text-[9px] font-bold text-ink">
-                    <Trans>主角或画幅改过了</Trans>
+                    {/* 产品预设的过期只看产品与画幅（effectKeyOf 不算人），话也照实说 */}
+                    {preset.subject === "product" ? <Trans>产品或画幅改过了</Trans> : <Trans>主角或画幅改过了</Trans>}
                   </span>
                 )}
               </div>
@@ -376,9 +404,10 @@ export default function EffectWizard({
           )}
           {spec && <TokenCost tokens={costs[0] ?? 0} />}
           {err && <p className="text-[11px] leading-relaxed text-rose-300">{err}</p>}
+          {/* ★ 别说「可以先铺成」：只铺成也要过 flowStore.appendIssue，它拒的正是同一个 busy（同一时刻只炼一段），所以下面那颗也灰掉 */}
           {busy && (
             <p className="text-[10px] leading-relaxed text-slate-500">
-              <Trans>有一段正在生成中，等它跑完再出（可以先铺成这一段）。</Trans>
+              <Trans>有一段正在生成中，等它跑完再出。</Trans>
             </p>
           )}
           <div className="flex gap-2">
@@ -394,7 +423,7 @@ export default function EffectWizard({
           </div>
           <button
             onClick={() => spec && onFinish([spec], false)}
-            disabled={!spec || d.drawing || stale}
+            disabled={busy || !spec || d.drawing || stale}
             className="text-[11px] text-slate-500 underline underline-offset-2 disabled:opacity-40"
           >
             <Trans>只铺成这一段，先不出片</Trans>

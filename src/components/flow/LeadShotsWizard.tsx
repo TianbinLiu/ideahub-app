@@ -358,9 +358,10 @@ export default function LeadShotsWizard({
           )}
           <TokenCost tokens={genTokens} />
           {err && <p className="text-[11px] leading-relaxed text-rose-300">{err}</p>}
+          {/* ★ 别说「可以先铺成」：只铺成也要过 flowStore.appendIssue，它拒的正是同一个 busy（同一时刻只炼一段），所以下面那颗也灰掉 */}
           {busy && (
             <p className="text-[10px] leading-relaxed text-slate-500">
-              <Trans>有一段正在生成中，等它跑完再出这一段（可以先铺成这一段）。</Trans>
+              <Trans>有一段正在生成中，等它跑完再出这一段。</Trans>
             </p>
           )}
           <div className="flex gap-2">
@@ -375,7 +376,7 @@ export default function LeadShotsWizard({
           </div>
           <button
             onClick={() => onFinish(spec, false)}
-            disabled={!packed || cast.length === 0}
+            disabled={busy || !packed || cast.length === 0}
             className="text-[11px] text-slate-500 underline underline-offset-2 disabled:opacity-40"
           >
             <Trans>只铺成这一段，先不出片</Trans>

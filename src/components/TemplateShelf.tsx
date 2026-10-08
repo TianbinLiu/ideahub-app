@@ -528,7 +528,7 @@ export default function TemplateShelf({
     }
   }, [tab, ver, remoteLive]);
 
-  /** 套用模板。applyTemplate 返回 false = 被整句拒绝（白模在 refVid 全关时，或**模板视频
+  /** 套用模板。applyTemplate 返回 false = 被整句拒绝（白模在 blockoutOk 全关时，或**模板视频
    *  本身不满足方舟窗口** —— 2026-08-16 起多了这一条），这时改跳详情页：那里印着拒绝的
    *  原因（r2vPriceIssue / refVideoIssue 各自的整句），留在市场干瞪眼不行。
    *  ★ 卡片上那个「暂时不可用」角标只是把这件事提前画出来，不是第二处判断 */

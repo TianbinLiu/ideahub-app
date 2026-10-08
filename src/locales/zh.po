@@ -182,6 +182,7 @@ msgstr "，这一次已经计费"
 #. 列举几个名字时的分隔符
 #. 列举几个名字时的分隔符
 #. 列举几个名字时的分隔符
+#. 列举几个名字时的分隔符
 #. 列举几个图位名 / 还缺的几项时的分隔符
 #. 列举几个文件名 / 动作组 / 表情名时的分隔符
 #. 列举几个段号时的分隔符（第 1、3 段）
@@ -2542,6 +2543,10 @@ msgstr "⏩ 往后延长"
 msgid "⏩ 往后延长 {outSec} 秒（{extPrice}）"
 msgstr "⏩ 往后延长 {outSec} 秒（{extPrice}）"
 
+#: src/components/flow/GridShotsWizard.tsx
+msgid "⏳ 接着等上一组（图不再收钱）"
+msgstr "⏳ 接着等上一组（图不再收钱）"
+
 #: src/pages/CutPage.tsx
 msgid "■ 停"
 msgstr "■ 停"
@@ -4509,12 +4514,40 @@ msgid "上一炉还在跑，等它出炉再说。"
 msgstr "上一炉还在跑，等它出炉再说。"
 
 #: src/studio/gridDraftStore.ts
+msgid "上一组（发出去没收到回包的那一次）服务端其实收到了、照样在画：点下面「接着等上一组」把图取回来（图不再收钱），不用再画一组"
+msgstr "上一组（发出去没收到回包的那一次）服务端其实收到了、照样在画：点下面「接着等上一组」把图取回来（图不再收钱），不用再画一组"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "上一组发出去没收到回包，还不知道服务端收没收到：先问一下（不收钱），收到了就接着取回来，没收到就可以重新画。"
+msgstr "上一组发出去没收到回包，还不知道服务端收没收到：先问一下（不收钱），收到了就接着取回来，没收到就可以重新画。"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "上一组发出去没收到回包、还没问到服务端收没收到：铺成之后就不再去问了（服务端要是收到了，照样按画出来的张数结算）。想先问一下，回第 3 步点「接着等上一组」。"
+msgstr "上一组发出去没收到回包、还没问到服务端收没收到：铺成之后就不再去问了（服务端要是收到了，照样按画出来的张数结算）。想先问一下，回第 3 步点「接着等上一组」。"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "上一组发出去没收到回包：要是服务端其实收到了，它照样会画完，照样按画出来的张数收钱（不退）。放弃之后这里就不再去问、也不再取回。之后可以按现在的分镜重新画一组（另外收钱）；服务端那一组还在画的话，要等它画完才能开新的一组。"
+msgstr "上一组发出去没收到回包：要是服务端其实收到了，它照样会画完，照样按画出来的张数收钱（不退）。放弃之后这里就不再去问、也不再取回。之后可以按现在的分镜重新画一组（另外收钱）；服务端那一组还在画的话，要等它画完才能开新的一组。"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "上一组服务端受理过、画面还没取回来：服务端照样在画，画好的图留 24 小时。先接回来，再决定要不要整组重出。"
+msgstr "上一组服务端受理过、画面还没取回来：服务端照样在画，画好的图留 24 小时。先接回来，再决定要不要整组重出。"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "上一组服务端受理过：它照样会画完，照样按画出来的张数收钱（不退）。放弃之后这里就不再取回那几张图。之后可以按现在的分镜重新画一组（另外收钱）；上一组还没画完的话，要等它画完才能开新的一组。"
+msgstr "上一组服务端受理过：它照样会画完，照样按画出来的张数收钱（不退）。放弃之后这里就不再取回那几张图。之后可以按现在的分镜重新画一组（另外收钱）；上一组还没画完的话，要等它画完才能开新的一组。"
+
+#: src/studio/gridDraftStore.ts
 msgid "上一组画面还在画"
 msgstr "上一组画面还在画"
 
 #: src/studio/gridDraftStore.ts
 msgid "上一组画面还在画（同一时间只能画一组）——几分钟后再来"
 msgstr "上一组画面还在画（同一时间只能画一组）——几分钟后再来"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "上一组画面还没取回来（服务端按画出来的张数结算）：铺成之后就不再取回了。想要那几张，先回第 3 步点「接着等上一组」。"
+msgstr "上一组画面还没取回来（服务端按画出来的张数结算）：铺成之后就不再取回了。想要那几张，先回第 3 步点「接着等上一组」。"
 
 #: src/studio/gridDraftStore.ts
 msgid "上一组的画面没接回来：{why}"
@@ -4678,6 +4711,14 @@ msgstr "上次在🎴 工坊"
 #: src/pages/DraftsPage.tsx
 msgid "上次在🧩 工作流"
 msgstr "上次在🧩 工作流"
+
+#: src/components/flow/EffectWizard.tsx
+msgid "上次挑的「{unavailableTitle}」这一档用不了，在这里另挑一个吧。"
+msgstr "上次挑的「{unavailableTitle}」这一档用不了，在这里另挑一个吧。"
+
+#: src/components/flow/EffectWizard.tsx
+msgid "上次挑的「{unavailableTitle}」这一档用不了。换回原来那一档再进来，它的关键帧还留着；在这里另挑一个特效，那张关键帧会被清掉。"
+msgstr "上次挑的「{unavailableTitle}」这一档用不了。换回原来那一档再进来，它的关键帧还留着；在这里另挑一个特效，那张关键帧会被清掉。"
 
 #: src/components/DownloadSheet.tsx
 msgid "上次有 {n} 段没下完，那些半截文件已经清掉了，这次会重下。"
@@ -5360,12 +5401,28 @@ msgid "九宫格分镜画好了 {got} 格"
 msgstr "九宫格分镜画好了 {got} 格"
 
 #: src/studio/gridDraftStore.ts
+msgid "九宫格分镜的上一组在服务端没找到"
+msgstr "九宫格分镜的上一组在服务端没找到"
+
+#: src/studio/gridDraftStore.ts
+msgid "九宫格分镜的上一组还没问到"
+msgstr "九宫格分镜的上一组还没问到"
+
+#: src/studio/gridDraftStore.ts
 msgid "九宫格分镜的画面没出成，回去看原因"
 msgstr "九宫格分镜的画面没出成，回去看原因"
 
 #: src/studio/gridDraftStore.ts
 msgid "九宫格分镜的画面没接回来"
 msgstr "九宫格分镜的画面没接回来"
+
+#: src/studio/gridDraftStore.ts
+msgid "九宫格分镜的画面还没取回来——回到那一页接着取"
+msgstr "九宫格分镜的画面还没取回来——回到那一页接着取"
+
+#: src/studio/gridDraftStore.ts
+msgid "九宫格分镜的画面还没确认——回到那一页接着问"
+msgstr "九宫格分镜的画面还没确认——回到那一页接着问"
 
 #: src/studio/ui/NpcDialog.tsx
 msgid "也可以按左上角的返回"
@@ -5444,6 +5501,10 @@ msgstr "产出里不含可辨认的人脸（白模台 / 剪影 / 人脸与服装
 #: src/components/flow/EffectWizard.tsx
 msgid "产品亮相"
 msgstr "产品亮相"
+
+#: src/components/flow/EffectWizard.tsx
+msgid "产品或画幅改过了"
+msgstr "产品或画幅改过了"
 
 #: src/components/flow/EffectWizard.tsx
 msgid "产品拆解"
@@ -6794,6 +6855,10 @@ msgstr "关键帧没画成：{why}"
 msgid "关键帧没画成：{why}。{moneyLine}"
 msgstr "关键帧没画成：{why}。{moneyLine}"
 
+#: src/components/flow/EffectWizard.tsx
+msgid "关键帧还在画（约 20~30 秒），画完才能另挑特效。"
+msgstr "关键帧还在画（约 20~30 秒），画完才能另挑特效。"
+
 #: src/components/cut/AutoEditSheet.tsx
 #: src/components/cut/CutAgentSheet.tsx
 #: src/components/DownloadSheet.tsx
@@ -7101,8 +7166,8 @@ msgid "写分镜"
 msgstr "写分镜"
 
 #: src/components/flow/ModePicker.tsx
-msgid "写分镜 {chatPrice}，画面每格 {panelPrice}，每格一段约 {gridVideo} / {gridSec} 秒"
-msgstr "写分镜 {chatPrice}，画面每格 {panelPrice}，每格一段约 {gridVideo} / {gridSec} 秒"
+msgid "写分镜 {chatPrice}，画面每格 {gridPanelPrice}（含 AI 看一遍），每格一段约 {gridVideo} / {gridSec} 秒"
+msgstr "写分镜 {chatPrice}，画面每格 {gridPanelPrice}（含 AI 看一遍），每格一段约 {gridVideo} / {gridSec} 秒"
 
 #. why 是失败原因整句；moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格
 #: src/studio/gridDraftStore.ts
@@ -7288,6 +7353,10 @@ msgstr "出片前先看一眼：把你挂的角色放进白模画面，站位不
 msgid "出片前必须把它们取下。"
 msgstr "出片前必须把它们取下。"
 
+#: src/studio/ui/PlanBoard.tsx
+msgid "出片前按提示词补画（计费）"
+msgstr "出片前按提示词补画（计费）"
+
 #. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
 #: src/ai/failCharge.ts
 msgid "出片前画好的 {count} 张画面（共 {paid} token）与视频那一发（{price} token）都已计费。"
@@ -7302,6 +7371,10 @@ msgstr "出片前画好的 {count} 张画面已按张计费（共 {paid} token�
 #: src/ai/failCharge.ts
 msgid "出片前画好的 {count} 张画面已按张计费（共 {paid} token）；视频那一发可能也扣了 {price} token——以「我的」页的 token 余额为准。"
 msgstr "出片前画好的 {count} 张画面已按张计费（共 {paid} token）；视频那一发可能也扣了 {price} token——以「我的」页的 token 余额为准。"
+
+#: src/studio/ui/PlanBoard.tsx
+msgid "出片前补画"
+msgstr "出片前补画"
 
 #: src/components/guide/tours.tsx
 msgid "出片前这里显示你给的<0>开头帧</0>（没给就先空着），出片后就地回放这一段。 不满意就改下面那句话（或换圈选）再来一次。"
@@ -8223,6 +8296,14 @@ msgstr "卡片库里没有道具卡 —— 传一张产品照片就行（只用�
 #: src/components/flow/CastPicker.tsx
 msgid "卡片库里还没有人物卡 —— 在下面现做一个；想用照片做（真人要先认证），去「自己传图做卡片」。"
 msgstr "卡片库里还没有人物卡 —— 在下面现做一个；想用照片做（真人要先认证），去「自己传图做卡片」。"
+
+#: src/studio/segmentGen.ts
+msgid "卡片形象图一张都没能用上，改画了设定帧；样片这一发没有发出去（这一次帧没法当参考图发，退回首尾帧的话画幅只能按「自适应」结算，会比报价贵）——刚画好的设定帧已经留在这一段上，再点一次生成会把它们当参考图发出去，不会重画"
+msgstr "卡片形象图一张都没能用上，改画了设定帧；样片这一发没有发出去（这一次帧没法当参考图发，退回首尾帧的话画幅只能按「自适应」结算，会比报价贵）——刚画好的设定帧已经留在这一段上，再点一次生成会把它们当参考图发出去，不会重画"
+
+#: src/studio/segmentGen.ts
+msgid "卡片形象图一张都没能用上，样片这一发没有发出去（退回首尾帧的话画幅只能按「自适应」结算，会比报价贵）——给卡换一张形象图，或过一会儿再点一次生成"
+msgstr "卡片形象图一张都没能用上，样片这一发没有发出去（退回首尾帧的话画幅只能按「自适应」结算，会比报价贵）——给卡换一张形象图，或过一会儿再点一次生成"
 
 #: src/pages/CardDetailPage.tsx
 msgid "卡片详情"
@@ -13412,6 +13493,10 @@ msgstr "排队中…"
 msgid "接下来发生什么？例：她转身走向门口，推开门，外面在下雨"
 msgstr "接下来发生什么？例：她转身走向门口，推开门，外面在下雨"
 
+#: src/components/flow/GridShotsWizard.tsx
+msgid "接回来会换回画那一组时的分镜：之后改过的分镜和单独画的格子会被换掉。"
+msgstr "接回来会换回画那一组时的分镜：之后改过的分镜和单独画的格子会被换掉。"
+
 #: src/studio/studioStore.ts
 msgid "接在最后一段后面了——新拍的这一截单独成一段，画面和声音接着上一段往下走。"
 msgstr "接在最后一段后面了——新拍的这一截单独成一段，画面和声音接着上一段往下走。"
@@ -13978,8 +14063,8 @@ msgid "改好的帧会顶替这一张并锁住（重画这一套时不动它）�
 msgstr "改好的帧会顶替这一张并锁住（重画这一套时不动它）。"
 
 #: src/components/flow/FrameEditBox.tsx
-msgid "改好的帧会顶替这一张并锁住（重画这一套时不动它）。想照着某张临时参考图改，就在句子里写 @它的名字。"
-msgstr "改好的帧会顶替这一张并锁住（重画这一套时不动它）。想照着某张临时参考图改，就在句子里写 @它的名字。"
+msgid "改好的帧会顶替这一张并锁住（重画这一套时不动它）。想照着某张临时参考图改，就用「按这句话改」，在句子里写 @它的名字（圈着改只看圈里那一处，不带参考图）。"
+msgstr "改好的帧会顶替这一张并锁住（重画这一套时不动它）。想照着某张临时参考图改，就用「按这句话改」，在句子里写 @它的名字（圈着改只看圈里那一处，不带参考图）。"
 
 #: src/components/guide/tours.tsx
 msgid "改完一次提交"
@@ -14034,9 +14119,18 @@ msgstr "改错了不用重炼"
 msgid "放大再框"
 msgstr "放大再框"
 
+#: src/components/flow/GridShotsWizard.tsx
 #: src/pages/PublishPage.tsx
 msgid "放弃"
 msgstr "放弃"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "放弃上一组，按现在的分镜重新画"
+msgstr "放弃上一组，按现在的分镜重新画"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "放弃上一组画面？"
+msgstr "放弃上一组画面？"
 
 #: src/pages/PublishPage.tsx
 msgid "放弃本次合成"
@@ -14476,6 +14570,10 @@ msgstr "暂时没能拉黑（网络或服务器忙）——过一会儿再试一
 msgid "暂时没能解除（网络或服务器忙）——过一会儿再试一次。"
 msgstr "暂时没能解除（网络或服务器忙）——过一会儿再试一次。"
 
+#: src/components/flow/GridShotsWizard.tsx
+msgid "暂时没问到服务器能不能一次出一组画面（网络不稳），过一会儿会再问；也可以直接点，服务器不支持会直接说。"
+msgstr "暂时没问到服务器能不能一次出一组画面（网络不稳），过一会儿会再问；也可以直接点，服务器不支持会直接说。"
+
 #: src/pages/EditPage.tsx
 msgid "暂时问不到服务器，没能确认这条作品有没有留存工坊工程。"
 msgstr "暂时问不到服务器，没能确认这条作品有没有留存工坊工程。"
@@ -14656,6 +14754,14 @@ msgstr "有一条剪到一半的成片"
 msgid "有一条超过 {maxLen} 字了，发布会被服务端拒掉。"
 msgstr "有一条超过 {maxLen} 字了，发布会被服务端拒掉。"
 
+#: src/studio/gridDraftStore.ts
+msgid "有一格正在单独画——等它画完再重写分镜（这一下还没花钱）"
+msgstr "有一格正在单独画——等它画完再重写分镜（这一下还没花钱）"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "有一格正在画，画完再接。"
+msgstr "有一格正在画，画完再接。"
+
 #: src/studio/flowStore.ts
 msgid "有一段正在生成，等它跑完再推演下一段"
 msgstr "有一段正在生成，等它跑完再推演下一段"
@@ -14684,18 +14790,15 @@ msgstr "有一段正在生成，等它跑完再重画这一套"
 msgid "有一段正在生成（画布那一面也算同一条流水线）——等它跑完再动这一段。"
 msgstr "有一段正在生成（画布那一面也算同一条流水线）——等它跑完再动这一段。"
 
-#: src/components/flow/EffectWizard.tsx
-msgid "有一段正在生成中，等它跑完再出（可以先铺成这一段）。"
-msgstr "有一段正在生成中，等它跑完再出（可以先铺成这一段）。"
-
 #: src/components/flow/DialogueWizard.tsx
+#: src/components/flow/EffectWizard.tsx
 #: src/components/flow/GridShotsWizard.tsx
-msgid "有一段正在生成中，等它跑完再出（可以先铺成这几段）。"
-msgstr "有一段正在生成中，等它跑完再出（可以先铺成这几段）。"
+msgid "有一段正在生成中，等它跑完再出。"
+msgstr "有一段正在生成中，等它跑完再出。"
 
 #: src/components/flow/LeadShotsWizard.tsx
-msgid "有一段正在生成中，等它跑完再出这一段（可以先铺成这一段）。"
-msgstr "有一段正在生成中，等它跑完再出这一段（可以先铺成这一段）。"
+msgid "有一段正在生成中，等它跑完再出这一段。"
+msgstr "有一段正在生成中，等它跑完再出这一段。"
 
 #: src/studio/flowStore.ts
 msgid "有一段正在生成中，等它跑完再切换这一段的模式"
@@ -14843,6 +14946,10 @@ msgstr "服务器一张都没收下（{count} 张）——这些卡只在这台�
 msgid "服务器上有一发你付过钱的成片还没取回"
 msgstr "服务器上有一发你付过钱的成片还没取回"
 
+#: src/components/flow/SegmentRecoverCards.tsx
+msgid "服务器上有一发成片没出成"
+msgstr "服务器上有一发成片没出成"
+
 #. placeholder {0}: (s.file ? s.file.size / 1024 / 1024 : 0).toFixed(1)
 #: src/pages/SupportModelNewPage.tsx
 msgid "服务器会解开包、数出它会哪些动作和表情，并给一份自动映射（下一步你可以改）。这一步会把包传上去（约 {0}MB），传完之后不会立刻公开。"
@@ -14925,6 +15032,15 @@ msgstr "服务器返回 {status}"
 #: src/studio/cutNarration.ts
 msgid "服务器还没有开通语音合成，配音暂时用不了"
 msgstr "服务器还没有开通语音合成，配音暂时用不了"
+
+#: src/studio/gridDraftStore.ts
+msgid "服务端最近的几组里没找到上一组，多半是没收到——重新画这一组就行"
+msgstr "服务端最近的几组里没找到上一组，多半是没收到——重新画这一组就行"
+
+#. moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格
+#: src/studio/gridDraftStore.ts
+msgid "服务端最近的几组里没找到上一组，多半是没收到。{moneyLine}要画就重新画这一组"
+msgstr "服务端最近的几组里没找到上一组，多半是没收到。{moneyLine}要画就重新画这一组"
 
 #: src/components/support/VoiceMixer.tsx
 #: src/pages/SupportPage.tsx
@@ -15464,6 +15580,7 @@ msgstr "样片定稿（升成 1080p）"
 msgid "样片已经过了定稿期限（方舟的样片只留 7 天，我们在到期前 1 小时停止定稿），不能再定稿了——要成片就重新生成（会重新计费）。"
 msgstr "样片已经过了定稿期限（方舟的样片只留 7 天，我们在到期前 1 小时停止定稿），不能再定稿了——要成片就重新生成（会重新计费）。"
 
+#: src/components/flow/SegmentRecoverCards.tsx
 #: src/pages/tutor/TutorNewPage.tsx
 msgid "核对中…"
 msgstr "核对中…"
@@ -16156,6 +16273,10 @@ msgstr "正在替换…"
 #: src/components/VideoCardAnnotator.tsx
 msgid "正在标「脸部特写」：拖到看得清脸的一帧，圈住面部"
 msgstr "正在标「脸部特写」：拖到看得清脸的一帧，圈住面部"
+
+#: src/components/flow/SegmentRecoverCards.tsx
+msgid "正在核对…"
+msgstr "正在核对…"
 
 #: src/studio/StudioPage.tsx
 msgid "正在点亮魔法书房…"
@@ -16955,6 +17076,10 @@ msgstr "没读出识别结果。{moneyLine}可以自己填，或者再识别一�
 msgid "没过审核："
 msgstr "没过审核："
 
+#: src/studio/gridDraftStore.ts
+msgid "没连上出图服务"
+msgstr "没连上出图服务"
+
 #: src/components/SeedBadge.tsx
 msgid "没连上服务器时显示的示例内容，不是真实用户作品"
 msgstr "没连上服务器时显示的示例内容，不是真实用户作品"
@@ -16966,6 +17091,10 @@ msgstr "没连上网，这一段没下完。再点一次会从头重下这一段
 #: src/pages/SettingsVoicePage.tsx
 msgid "没配云端语音时退回系统内置合成器（需装中文语音包）。"
 msgstr "没配云端语音时退回系统内置合成器（需装中文语音包）。"
+
+#: src/studio/gridDraftStore.ts
+msgid "没问到服务端收没收到上一组（网络断了一下）—— 为了不让同一组画面付两次钱，这一次先不开新的一组；过一会儿再点一次（问一下不花钱）"
+msgstr "没问到服务端收没收到上一组（网络断了一下）—— 为了不让同一组画面付两次钱，这一次先不开新的一组；过一会儿再点一次（问一下不花钱）"
 
 #: src/pages/tutor/TutorRunPage.tsx
 msgid "没问题，去自检"
@@ -19727,6 +19856,11 @@ msgstr "第 {0} 段那一发已经取不回来了"
 
 #. placeholder {0}: job.seg
 #: src/components/flow/SegmentRecoverCards.tsx
+msgid "第 {0} 段那一发没出成"
+msgstr "第 {0} 段那一发没出成"
+
+#. placeholder {0}: job.seg
+#: src/components/flow/SegmentRecoverCards.tsx
 msgid "第 {0} 段那一发没出成（{why}）。{moneyLine}要这一段的话重新生成（会重新计费）。"
 msgstr "第 {0} 段那一发没出成（{why}）。{moneyLine}要这一段的话重新生成（会重新计费）。"
 
@@ -19820,8 +19954,16 @@ msgid "第 {focusN} 格"
 msgstr "第 {focusN} 格"
 
 #: src/studio/gridDraftStore.ts
+msgid "第 {list} 格你之前单独画过，留着你画的那一张；这一组里这几格也画了（按画出来的张数结算时算在里面），没有换上去"
+msgstr "第 {list} 格你之前单独画过，留着你画的那一张；这一组里这几格也画了（按画出来的张数结算时算在里面），没有换上去"
+
+#: src/studio/gridDraftStore.ts
 msgid "第 {list} 格是空镜或特写，不放进组图：点开那一格单独画"
 msgstr "第 {list} 格是空镜或特写，不放进组图：点开那一格单独画"
+
+#: src/studio/gridDraftStore.ts
+msgid "第 {list} 格的分镜在画好之后改过，画面还是按原来那版画的——回第 3 步重画，或者回第 4 步把它取下"
+msgstr "第 {list} 格的分镜在画好之后改过，画面还是按原来那版画的——回第 3 步重画，或者回第 4 步把它取下"
 
 #: src/ai/real.ts
 msgid "第 {n} 张参考图未采用（「{name}」的{view}，比例越界或读不出来）"
@@ -20269,8 +20411,8 @@ msgid "等了 12 分钟还没出片（任务还在方舟那边跑，不是失败
 msgstr "等了 12 分钟还没出片（任务还在方舟那边跑，不是失败）。"
 
 #: src/ai/arkClient.ts
-msgid "等了 22 分钟这一组还没画完——过一会儿回来点「接着等」，画好的图不会丢"
-msgstr "等了 22 分钟这一组还没画完——过一会儿回来点「接着等」，画好的图不会丢"
+msgid "等了 22 分钟这一组还没画完"
+msgstr "等了 22 分钟这一组还没画完"
 
 #: src/data/videoDownload.ts
 msgid "等了 60 秒一个字节都没来，当断了处理。再点一次接着试。"
@@ -22478,6 +22620,10 @@ msgstr "还是先按「仅自己可见」发出去吧"
 msgid "还是没能同步到服务器"
 msgstr "还是没能同步到服务器"
 
+#: src/studio/gridDraftStore.ts
+msgid "还是没问到服务端收没收到上一组（网络不稳）——网好了再点「接着等上一组」"
+msgstr "还是没问到服务端收没收到上一组（网络不稳）——网好了再点「接着等上一组」"
+
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "还有 {emptyCount} 个角色位没挂卡 —— <0>可以直接出片</0>，没挂的通常保持白色人偶的样子。 ⚠ 素材里<1>镜头切换多</1>时例外：实测 AI 可能拿已挂的卡把没挂的位子也换掉（同一个角色出现两份）。 要稳就把每个位子都挂上（同一张卡可以挂多个位子），或选一镜到底的素材。"
 msgstr "还有 {emptyCount} 个角色位没挂卡 —— <0>可以直接出片</0>，没挂的通常保持白色人偶的样子。 ⚠ 素材里<1>镜头切换多</1>时例外：实测 AI 可能拿已挂的卡把没挂的位子也换掉（同一个角色出现两份）。 要稳就把每个位子都挂上（同一张卡可以挂多个位子），或选一镜到底的素材。"
@@ -22651,8 +22797,8 @@ msgid "还没有素材卡"
 msgstr "还没有素材卡"
 
 #: src/components/flow/SegPlayer.tsx
-msgid "还没有能用它的段（已出片的段、套模板的段放不进去）。"
-msgstr "还没有能用它的段（已出片的段、套模板的段放不进去）。"
+msgid "还没有能用它的段（已出片的段、套模板的段、延长段放不进去）。"
+msgstr "还没有能用它的段（已出片的段、套模板的段、延长段放不进去）。"
 
 #: src/pages/DraftsPage.tsx
 msgid "还没有草稿——工坊和工作流里做到一半的工程都会存到这里"
@@ -22921,9 +23067,17 @@ msgstr "这一套方案还没有剧情——先写点什么，我才知道要画
 msgid "这一套没有要 AI 重画的画面：开头画面是承接上一段的或你自己换的，分了镜头的方案又不画结束画面"
 msgstr "这一套没有要 AI 重画的画面：开头画面是承接上一段的或你自己换的，分了镜头的方案又不画结束画面"
 
+#: src/studio/flowStore.ts
+msgid "这一套没有要 AI 重画的画面：开头画面是承接上一段的或你自己换的，这一档出片又只用开头画面"
+msgstr "这一套没有要 AI 重画的画面：开头画面是承接上一段的或你自己换的，这一档出片又只用开头画面"
+
 #: src/studio/studioStore.ts
 msgid "这一套没有要我重画的画面：开头画面是承接上一段的或你自己换的，分了镜头的方案又不画结束画面。"
 msgstr "这一套没有要我重画的画面：开头画面是承接上一段的或你自己换的，分了镜头的方案又不画结束画面。"
+
+#: src/studio/studioStore.ts
+msgid "这一套没有要我重画的画面：开头画面是承接上一段的或你自己换的，这一档出片又只用开头画面。"
+msgstr "这一套没有要我重画的画面：开头画面是承接上一段的或你自己换的，这一档出片又只用开头画面。"
 
 #: src/studio/studioStore.ts
 #~ msgid "这一套的开头帧当时没画出来，没有可改的图——点「重新生成这一套的画面」，或者直接出片（出片要用到的帧会先补画，补画的钱算在出片报价里）。"
@@ -23002,9 +23156,17 @@ msgstr "这一批里没有可保存的文件。"
 msgid "这一排就是出片时视频模型会收到的图，按发送顺序编号。素材卡是谁、哪几张图是他，由系统自动写进提示词；你另加的参考图没在句子里点名时，系统按「用途」替它说一句。想自己说清楚某张图管什么，就在句子里写 @名字（或点这一排上的图）——出片时会在名字后面接上模型认的编号「图片N」。"
 msgstr "这一排就是出片时视频模型会收到的图，按发送顺序编号。素材卡是谁、哪几张图是他，由系统自动写进提示词；你另加的参考图没在句子里点名时，系统按「用途」替它说一句。想自己说清楚某张图管什么，就在句子里写 @名字（或点这一排上的图）——出片时会在名字后面接上模型认的编号「图片N」。"
 
+#: src/components/flow/SegmentRecoverCards.tsx
+msgid "这一条暂时收不起来：没能向上游核对到这一发的结局——过一会儿再点一次「知道了」（核对不花钱）。"
+msgstr "这一条暂时收不起来：没能向上游核对到这一发的结局——过一会儿再点一次「知道了」（核对不花钱）。"
+
 #: src/components/flow/GridShotsWizard.tsx
 msgid "这一格可能有问题"
 msgstr "这一格可能有问题"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "这一格在上一组里（那一组按画出来的张数结算）：先点下面「接着等上一组」把它取回来，不满意再重画。现在单独画的话，上一组里这一格的图就用不上了。"
+msgstr "这一格在上一组里（那一组按画出来的张数结算）：先点下面「接着等上一组」把它取回来，不满意再重画。现在单独画的话，上一组里这一格的图就用不上了。"
 
 #: src/studio/ui/SchemeEditorSheet.tsx
 msgid "这一格放原片裁剪本身，不调模型、不计费。"
@@ -23537,6 +23699,19 @@ msgstr "这一秒已经标过了。把播放头挪到别处再标（人物入场
 msgid "这一秒已经标过了（播放头刚好落回同一帧）。"
 msgstr "这一秒已经标过了（播放头刚好落回同一帧）。"
 
+#. why 是失败原因整句；moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格
+#: src/studio/gridDraftStore.ts
+msgid "这一组发出去没收到回包，也没问到服务端收没收到（{why}）。{moneyLine}点下面「接着等上一组」再问一次：收到了就接着取回来（图不再收钱），没收到再画"
+msgstr "这一组发出去没收到回包，也没问到服务端收没收到（{why}）。{moneyLine}点下面「接着等上一组」再问一次：收到了就接着取回来（图不再收钱），没收到再画"
+
+#: src/studio/gridDraftStore.ts
+msgid "这一组发出去没收到回包，也没问到服务端收没收到（{why}）。点下面「接着等上一组」再问一次：收到了就接着取回来（图不再收钱），没收到再画"
+msgstr "这一组发出去没收到回包，也没问到服务端收没收到（{why}）。点下面「接着等上一组」再问一次：收到了就接着取回来（图不再收钱），没收到再画"
+
+#: src/studio/gridDraftStore.ts
+msgid "这一组发出去没收到回包，正在问服务端收没收到…"
+msgstr "这一组发出去没收到回包，正在问服务端收没收到…"
+
 #: src/components/TemplateShelf.tsx
 #: src/pages/TemplateDetailPage.tsx
 msgid "这一组模板暂时套不了"
@@ -23545,6 +23720,10 @@ msgstr "这一组模板暂时套不了"
 #: src/ai/arkClient.ts
 msgid "这一组的参数服务器不收（没有扣费）——把镜头或人物删几个再试"
 msgstr "这一组的参数服务器不收（没有扣费）——把镜头或人物删几个再试"
+
+#: src/studio/gridDraftStore.ts
+msgid "这一组的进展暂时没查到（{why}）——服务端照样在画，画好的图在服务端留 24 小时：点下面「接着等上一组」接着取回来（图不再收钱），别整组重出"
+msgstr "这一组的进展暂时没查到（{why}）——服务端照样在画，画好的图在服务端留 24 小时：点下面「接着等上一组」接着取回来（图不再收钱），别整组重出"
 
 #: src/pages/tutor/TutorRunPage.tsx
 msgid "这一阶段没有分步讲解，让老师直接讲。"
@@ -25443,6 +25622,10 @@ msgstr "重新发布"
 msgid "重新取这一张（不再收钱）"
 msgstr "重新取这一张（不再收钱）"
 
+#: src/components/flow/GridShotsWizard.tsx
+msgid "重新取这一张（图不再收钱；取回后 AI 看一遍 {checkPrice}）"
+msgstr "重新取这一张（图不再收钱；取回后 AI 看一遍 {checkPrice}）"
+
 #: src/components/flow/CastPreviewCard.tsx
 msgid "重新合成预览（{price}）"
 msgstr "重新合成预览（{price}）"
@@ -25803,6 +25986,10 @@ msgstr "问小梦，解决不了转人工"
 #: src/pages/tutor/TutorRunPage.tsx
 msgid "问得太快了，稍等几秒再发。"
 msgstr "问得太快了，稍等几秒再发。"
+
+#: src/studio/gridDraftStore.ts
+msgid "问服务端收没收到上一组…"
+msgstr "问服务端收没收到上一组…"
 
 #: src/pages/tutor/TutorRunPage.tsx
 msgid "问老师这一步…"

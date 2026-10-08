@@ -44,7 +44,7 @@ import { API_BASE, apiGet, getToken } from "../api/client";
 import { fetchTaskCharge, type TaskRefund } from "../ai/arkClient";
 import { deviceOwner, mayClaimLegacy, onViewerChange, workOwner } from "./deviceOwner";
 import { draftTierId, fmtTokens, tierIdOf } from "./economy";
-import { serverSupports } from "./serverCaps";
+import { serverSupports, type BoolCap } from "./serverCaps";
 
 export const VIDEO_JOB_TTL_MS = 24 * 3600_000;
 
@@ -289,7 +289,7 @@ export function videoJobNote(job: VideoJob): string {
   // （服务端 MINIMAX_FAIL_REFUND，serverCaps.failRefundMinimax），关掉时这里还许诺「会自动退回」就是空话。
   // 不知道（还没探到）按不会说 —— 许一个兑现不了的「会退回」比少说一句坏。⚠ dev 直连方舟时能力位恒真而其实没人退（serverCaps.direct）：
   // 只影响开发机，与 ai/failCharge 文件头「dev 的一处不等价」同一条
-  const refunds = serverSupports(flat ? "failRefundMinimax" : "failRefund") === true;
+  const refunds = refundsOn(job);
   const left = expiresAt(job) - Date.now();
   // ★★ 说钱之前先问服务端那一笔账（2026-10-07；过期与没过期的卡都问 —— 评审抓到没过期的那半只看能力位）：
   //   这一发要是在方舟那边失败了，清扫器早就替他退过钱（对一笔已经退回来的钱说「无法挽回」是往吓人的方向说错）；
@@ -371,10 +371,38 @@ export function videoJobCharge(taskId: string): TaskRefund | "none" | null | und
   return v === "asking" ? undefined : v;
 }
 
+/**
+ * 这一发归哪一个能力位管（按供应商分开：真人档那一家另有一个开关，见 videoJobNote 里那一段）—— **唯一实现**。
+ * ★ refundsOn（话与键）与 checkVideoJobCharge（去不去问那一笔账）都从这里取（2.62 发版评审抓到 checkVideoJobCharge 手抄了一份）：
+ *   只改一处的话（比如再接一家供应商），一边认「会退」、另一边压根不去问账 —— 账永远没问到，退了钱的卡就永远翻不成「知道了」，零报错
+ */
+function refundCapOf(job: VideoJob): BoolCap {
+  return job.provider === "minimax" ? "failRefundMinimax" : "failRefund";
+}
+
+/** 这台服务端会不会退这一家受理之后明说失败的那一发（能力位，按供应商分开问；理由见 videoJobNote 里那一段）。
+ *  videoJobNote 与 videoJobRefunded 共用这一道闸 —— 两处各判一遍的话，话说「已经退回」、键却还按没退画（或反过来） */
+function refundsOn(job: VideoJob): boolean {
+  return serverSupports(refundCapOf(job)) === true;
+}
+
+/**
+ * 服务端已经给了这一发「没出成、钱退了 / 正在退」的结局吗 —— 是的话**没有成片可取了**：取回卡（SegmentRecoverCard）
+ * 不再摆「📥 取回这一段的成片」、改摆「知道了」，标题也不再说「还没取回」。
+ * ★ 为什么要有它（2.62 发版评审抓到）：videoJobNote 对 refunded 说「没有成片可取了，点「知道了」消掉这条就好」，这句话**不看过不过期** ——
+ *   而卡片只在过期之后才摆「知道了」：没过期的那张卡同时说着「还没取回」「没有成片可取」「点知道了」，下面却只有一颗「取回」。
+ * ★ 读的是与 videoJobNote **同一份**问过的账、同一道能力位闸（refundsOn）：话与键必须一起翻。
+ * ★ skipped（管理员免单）不算：没过期的那种任务多半还在跑、成片还取得回来，话里说的也是「点取回」。
+ */
+export function videoJobRefunded(job: VideoJob): boolean {
+  const c = refundsOn(job) ? videoJobCharge(job.taskId) : null;
+  return !!c && c !== "none" && (c.state === "refunded" || c.state === "refunding");
+}
+
 /** 去问一次这一发的账（取回卡挂上时调，过期没过期都问）。到了 emit，卡片重画 */
 export async function checkVideoJobCharge(job: VideoJob): Promise<void> {
   if (jobCharges.has(job.taskId)) return;
-  if (!API_BASE || !getToken() || serverSupports(job.provider === "minimax" ? "failRefundMinimax" : "failRefund") === false) {
+  if (!API_BASE || !getToken() || serverSupports(refundCapOf(job)) === false) {
     jobCharges.set(job.taskId, null);
     return;
   }
@@ -424,6 +452,11 @@ export function dropVideoJob(taskId: string): void {
  *   把它藏起来正是这整个文件存在意义的反面（templates.dismissBlockoutJob 同一条门禁，
  *   那边写得更长，理由一模一样）。谁把这道门放宽，症状是用户再也看不到自己有一发能领，
  *   而且零报错。
+ * ★ 没过期、服务端说已经退了钱的那种（videoJobRefunded）**也不从这里消**（2.62 发版评审时定的）：卡上那颗「知道了」走的是
+ *   flowStore.takeJob —— 它当场再向上游核对一次（不花钱），确认没出成才结案，并把那一段挂着的「用下面的「取回」领回来」改成「没出成」。
+ *   从这里直接消的话凭的是卡片挂上时问来的一份旧答案，而且段上那句话会一直指着一颗已经不存在的「取回」。
+ *   服务端登记表补来的那种（videoJobFromServer）除外，退了钱的也从这里消：它不挂在哪一段上、没有那句话要改，
+ *   退了 / 正在退的账也翻不回「出成了」（SegmentRecoverCard 的 localClose）。
  */
 export function dismissVideoJob(job: VideoJob): void {
   if (!videoJobExpired(job) && !videoJobFromServer(job)) return;

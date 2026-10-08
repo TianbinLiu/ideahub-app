@@ -9,7 +9,7 @@ import { acquireCard, addCards as saveCardsToAccount, canAfford, defaultTierId, 
 import { CHAT_TURN_TOKENS, DECK_MAX_3D, deriveIssue, DECK_MAX_CARDS, fallbackTierId, MODEL3D_TOKENS, deckCardsCost, deckModel3dCost, fmtTokens, proposalsCost, styleWants3d, tierOf, videoAudioOn } from "../data/economy";
 // 单向依赖：工坊把活动路径喂给工作流。flowStore 不认识 studioStore（见其文件头）
 import { drawExtraRefs, plainMentions } from "../data/refMentions";
-import { GenNodeOpts, CUSTOM_MID_MAX, FlowMode, FlowNode, FlowTemplate, type AppendSpec, appendBlocked, appendIssue, chosenOf, recastBlocked, nodeContinues, nodeVideo, tplOfNode, useFlow, redrawCost, redrawFrames, noDrawFor } from "./flowStore";
+import { GenNodeOpts, CUSTOM_MID_MAX, FlowMode, FlowNode, FlowTemplate, type AppendSpec, appendBlocked, appendIssue, chosenOf, recastBlocked, nodeContinues, nodeVideo, tplOfNode, useFlow, redrawCost, redrawFrames, noDrawFor, reshotWithSound } from "./flowStore";
 // ★ 依赖方向没破：canvasAgent 只认识 flowStore，不认识本模块（不会成环）
 import { forgetCanvasAgent } from "./canvasAgent";
 import { leadAppendSpec, type LeadSpec } from "./leadCast";
@@ -18,7 +18,7 @@ import { DraftMode, WorkDraft, WorkDraftMeta, deleteDraft, getDraftMeta, readRem
 import { showToast } from "../data/toast";
 import { t } from "@lingui/core/macro";
 import { cutSessionLoadIssue, dropCutSession, saveCutSession } from "../data/cutSession";
-import { unmarkMerged } from "../data/cutProject";
+import { freshProject, unmarkMerged } from "../data/cutProject";
 import { useCut } from "./cutStore";
 import type { CanvasSnapshot as ProjectCanvas } from "../data/projects";
 import { GenStep } from "./genLog";
@@ -1657,7 +1657,9 @@ export const useStudio = create<StudioState>()((set, get) => ({
           at: Date.now(),
           text: rd.multiShot
             ? t`这一套没有要我重画的画面：开头画面是承接上一段的或你自己换的，分了镜头的方案又不画结束画面。`
-            : t`首尾帧都是你自己换的图，没有可让我重画的地方——想重画就先在卡里清掉那一帧。`,
+            : rd.endUnused
+              ? t`这一套没有要我重画的画面：开头画面是承接上一段的或你自己换的，这一档出片又只用开头画面。`
+              : t`首尾帧都是你自己换的图，没有可让我重画的地方——想重画就先在卡里清掉那一帧。`,
         },
       });
       return false;
@@ -1704,7 +1706,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
       // 以开头帧当参考图：同一段戏的两帧必须是同一套人物/画风，各画各的会串味。
       // 有底图时它占 <图片1>，素材卡从 <图片2> 起 → offset = 1
       const exLast = matLast ? withExtras(matLast, "last", first ? 1 : 0) : null;
-      // 分了镜头的方案：原来那张 AI 结束画面清掉、不重画（redrawFrames 的 clearLast）
+      // 分了镜头的方案、或这一档不收结束帧（极速）：原来那张 AI 结束画面清掉、不重画（redrawFrames 的 clearLast）
       const last =
         !matLast || !exLast
           ? rd.clearLast
@@ -2431,16 +2433,20 @@ export const useStudio = create<StudioState>()((set, get) => ({
         ...(p.realDurationSec ? { realDurationSec: p.realDurationSec } : {}),
         videoTier: n.videoTier,
         // 这一段自己出不出声（见 types.VideoSegment.hasAudio 的 ★★）：白模复刻走 r2v、
-        // 服务端钉死 generate_audio:false，恒无声；普通段看档位（videoAudioOn 是唯一实现）
+        // App 钉死 generate_audio:false（arkClient.BLOCKOUT_TASK），恒无声；普通段看档位（videoAudioOn 是唯一实现）
+        // ★ 例外排在最前：现在放的这条是**出声的返修**（flowStore.reshotWithSound，2026-10-05 起返修走 REVISE_TASK）——
+        //   白模段返修过也是有声的，再按模板判成无声的话剪辑页会藏掉它的原声滑杆（2.62 发版评审抓到）
         // ★ 另外两种也恒无声（2026-09-18，2.46 发版复核抓到：原来只看档位与模板，这两种被报成「有声」，
         //   剪辑页那句「整条都没有声音」就被压掉了）：
-        //   · 现在放的这条是**返修**出的（Proposal.silentVideos，返修走 generate_audio:false 的 edit 任务）；
+        //   · 现在放的这条是**无声的返修**（Proposal.silentVideos：2026-10-05 之前的返修走 generate_audio:false 的 edit 任务，
+        //     全都无声；之后的返修档位能出声就出声，genNode 只在出不了声时才记进去）；
         //   · **取回的白模段**：取回安放时 tpl 写死 null（模板归属恢复不了），白模的身份只剩 audioHint 这一位
         hasAudio:
-          !tplOfNode(n)?.refVideo &&
-          !n.audioHint &&
-          !(real && p.silentVideos?.includes(real)) &&
-          videoAudioOn(tierOf(n.videoTier).model),
+          reshotWithSound(n) ||
+          (!tplOfNode(n)?.refVideo &&
+            !n.audioHint &&
+            !(real && p.silentVideos?.includes(real)) &&
+            videoAudioOn(tierOf(n.videoTier).model)),
         // 这一段是不是接着上一段拍的（见 types.VideoSegment.carried）：剪辑页拿它判这条接缝该不该加转场。
         // 每一段都明写 true / false —— 缺省留给老剪辑稿，那是「不知道」
         carried: nodeContinues(nodes, ni),
@@ -2544,9 +2550,40 @@ export const useStudio = create<StudioState>()((set, get) => ({
       }
     }
     if (moved()) return false;
+    // 模板原声（见下面 draftAudioHint 那段 ★）。tplAudioOf = 这一段的模板原声在哪（分段组取整条源片、普通白模取 refVideo、
+    // 取回安放的白模段取凭据带回来的 audioHint）
+    const tplAudioOf = (n: FlowNode): string => {
+      const tp = tplOfNode(n);
+      return tp?.group?.sourceUrl || tp?.refVideo?.url || n.audioHint || "";
+    };
+    /** 剪辑页的候选（draftAudioHint）：第一条有模板原声的段的那条，与原来同一个取法 */
+    const firstTplNode = nodes.find((n) => !!tplAudioOf(n));
+    const audioCandidate = firstTplNode ? tplAudioOf(firstTplNode) : null;
+    /**
+     * 自动挂上的那条模板原声（null = 不自动挂，只当候选）。2.62 发版评审抓到两轮：
+     * ★ 第一条有模板原声的段现在放的是**出声的返修**（flowStore.reshotWithSound）时不自动挂：那一段自带重做的声音
+     *   （2026-10-05 起返修走 REVISE_TASK），再叠模板原声就是两层声。但候选照样给（draftAudioHint 仍是那条地址）：
+     *   人想要模板原声，剪辑页音频页签那颗「🔊 用模板原声」一点就回来 —— 整个不给的话，那首歌就成了「只能失去、不能取回」的东西
+     *   （CLAUDE.md「剪辑页『音频』只有一个入口」那格）。
+     * ★ **不往后找别的段的那条**：合并把配乐从成片第 0 秒铺起（还会循环），而普通白模模板的 refVideo 是与**它那一段**对齐的那截裁剪 ——
+     *   往后取第二个模板（B）的话，第一段叠上 B 的歌、第二段听到的 B 又错开了第一段那么长，比原来预置第一段那条（A）还错。
+     *   唯一的例外是**分段组的整条源片**（group.sourceUrl）：它本来就从第 0 秒跨着各段铺，组里只返修了第一段时，
+     *   后面没返修的同组段照样要它 —— 第一段上仍是两层声，但组稿已经把它报成有声（hasAudio），剪辑页能把它自己的原声调低或静音。
+     */
+    const groupSrcOf = (n: FlowNode): string => tplOfNode(n)?.group?.sourceUrl || "";
+    const autoAudio = !firstTplNode
+      ? null
+      : !reshotWithSound(firstTplNode)
+        ? audioCandidate
+        : groupSrcOf(firstTplNode) &&
+            nodes.some((n) => n !== firstTplNode && !reshotWithSound(n) && groupSrcOf(n) === groupSrcOf(firstTplNode))
+          ? audioCandidate
+          : null;
     // ★ 新稿子配一份新的剪辑工程（上一条稿子的时间轴 / 圈选 / 配乐不许跟过来）。规矩同 draftAudioHint：
     //   产出新稿子的每一处都要交代这一格，见 cutStore 文件头。剪辑页进页时会按这份稿子现开一份
-    useCut.getState().load(null);
+    //   （cutStore.ensure 拿 draftAudioHint 有没有来判自动预置）—— 唯独「有候选、却不该自动挂」这一种在这里先开好一份不带预置的：
+    //   ensure 见工程配得上这份稿子就原样留着，不会再按候选挂上去
+    useCut.getState().load(audioCandidate && !autoAudio ? freshProject(segments, false, () => uid("clip")) : null);
     set({
       // ★ 新的合成稿一出现，上一次发布就翻篇（publishedWorkId 的清零规则只有这一条：
       //   "draft 被赋新值"。openSegmentEdit 是另一个赋新值的地方，同样清）
@@ -2573,13 +2610,10 @@ export const useStudio = create<StudioState>()((set, get) => ({
       //   多段作品里只预置第一条模板的那份，后面的段在音频页自己调。
       // ★ `n.audioHint` 排在最后当**兜底**：取回安放的段 tpl 恒为 null（flowStore
       //   placeRescuedSegment 的 ★），模板原声只能从凭据里带回来的那一位问
-      draftAudioHint:
-        nodes
-          .map((n) => {
-            const t = tplOfNode(n);
-            return t?.group?.sourceUrl || t?.refVideo?.url || n.audioHint || "";
-          })
-          .find(Boolean) ?? null,
+      //   （以上几条的取法都在上面的 tplAudioOf）
+      // ★ 出声的返修段**也给**（剪辑页「🔊 用模板原声」那颗候选读的就是这一位，不给的话人想要模板原声也拿不回来）；
+      //   只是不**自动**预置 —— 那一半在上面 load 剪辑工程那一拍判（autoAudio）
+      draftAudioHint: audioCandidate,
       draft: {
         title: "",
         category: DEFAULT_VIDEO_CATEGORY,

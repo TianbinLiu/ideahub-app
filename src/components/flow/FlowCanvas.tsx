@@ -1758,25 +1758,13 @@ function NodePanel({
           )}
           {direct && !extend && (
             <>
-              {/* 这一档收不了参考图（1.0 两档）：参考图直出退回先画帧（flowStore.noDrawFor），说出来，别让人以为卡片图直接进了视频 */}
-              {!flatTier && !tierOf(node.videoTier).refImg && (
-                <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">
-                  {(() => {
-                    // 收参考图的档按能力现算（先说这个人用得了的；一档都用不了时那几档是会员档）
-                    const cur = tierOf(node.videoTier).label;
-                    const n = tierNamesFor((x) => x.refImg);
-                    const names = n.usable || n.member;
-                    return n.usable ? (
-                      <Trans>「{cur}」档收不了参考图：这一段出片前会先按提示词画帧（计费）。想让人物图直接给视频模型，到 ⚙ 本段设置换成「{names}」。</Trans>
-                    ) : (
-                      <Trans>「{cur}」档收不了参考图：这一段出片前会先按提示词画帧（计费）。人物图直接给视频模型要「{names}」（会员档）。</Trans>
-                    );
-                  })()}
-                </p>
-              )}
+              {/* 这一档收不了参考图（1.0 两档）：参考图直出退回先画帧 —— 说出来（判据与那句话只在 DirectNoRefNote 一处，工坊方案台同一份） */}
+              <DirectNoRefNote node={node} />
               {/* 紧挨着上面那排素材卡：推荐挂一张场景卡（说不说的判断在 DirectTips 一处，工坊铸段窗同一份） */}
               <SceneCardTip cards={mats} tierId={node.videoTier} />
-              {index > 0 && node.chain && !flatTier && (
+              {/* ★ 只在真的不补画帧时说（判据 flowStore.nodeNoDraw，与报价 / 出片同一个；2.62 发版评审抓到）：换到极速 / 标准之后
+                  承接帧走首帧参数、结束画面照样补画并计费，这句「当图片 1 发，不画新帧」就与上面那条黄字、生成键上的价钱对着干 */}
+              {index > 0 && node.chain && nodeNoDraw(node) && (
                 <p className="text-[10px] leading-relaxed text-slate-500">
                   <Trans>接着上一段的真实结尾拍：上一段出片后，它的最后一帧当图片 1 发，不画新帧</Trans>
                 </p>
@@ -2538,6 +2526,38 @@ function AgentPalette({ draft, onClose, onPick }: { draft: string; onClose: () =
       </div>
     </div>,
     document.body,
+  );
+}
+
+/**
+ * 参考图直出段落在**收不了参考图**的档上（1.0 两档）时的那句话 —— 画布本段面板与工坊方案台**共用的唯一实现**
+ * （导出的理由与 TemplatePicker 同一条）：这种段出片前退回先按提示词画帧（flowStore.noDrawFor），卡片形象图进不了视频，
+ * 说出来，别让人以为卡片图直接给了视频模型。
+ * ★ 工坊那一面为什么要它（2.62 发版评审抓到）：方案台在这种段上不再说「不画帧」（那是假话，会补画、会计费），
+ *   卡面于是退回推演段的说法（「待推演」「AI 会在推演时自拟首尾帧」）—— 而直出段根本没有推演那一步。这一句把「什么时候画、收不收钱」说清。
+ * ★ 只在真的会补画时说（nodeRefPlan 的 draws，与报价 / 出片同一份判定）：首帧已经有了、这一档又不画结束画面时一张都不画，
+ *   「出片前会先按提示词画帧（计费）」就是假话（原来画布按「收不收参考图」一刀切地说）。真人档（flatCost）照片起拍、不在此列；延长段另有说法。
+ */
+export function DirectNoRefNote({ node, className = "" }: { node: FlowNode; className?: string }) {
+  const nodes = useFlow((s) => s.nodes);
+  const mode = useFlow((s) => s.mode);
+  const tier = tierOf(node.videoTier);
+  if (!node.direct || node.extendFrom || tier.flatCost || tier.refImg) return null;
+  const idx = nodes.findIndex((n) => n.id === node.id);
+  const draws = idx >= 0 ? nodeRefPlan(nodes, idx, mode)?.draws : undefined;
+  if (!draws || (!draws.first && !draws.last)) return null;
+  // 收参考图的档按能力现算（先说这个人用得了的；一档都用不了时那几档是会员档）
+  const cur = tier.label;
+  const n = tierNamesFor((x) => x.refImg);
+  const names = n.usable || n.member;
+  return (
+    <p className={`rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200 ${className}`}>
+      {n.usable ? (
+        <Trans>「{cur}」档收不了参考图：这一段出片前会先按提示词画帧（计费）。想让人物图直接给视频模型，到 ⚙ 本段设置换成「{names}」。</Trans>
+      ) : (
+        <Trans>「{cur}」档收不了参考图：这一段出片前会先按提示词画帧（计费）。人物图直接给视频模型要「{names}」（会员档）。</Trans>
+      )}
+    </p>
   );
 }
 

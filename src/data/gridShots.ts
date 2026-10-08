@@ -6,7 +6,8 @@
 //   空镜与特写拆出来单画、单画正面写画幅、画完核对人数 / 两个一样的人 / 分格。
 //
 // 纯函数、零运行时依赖（只许 import type）：构建里 scripts/check-grid-shots.mjs 直接 import 它跑正反例。
-// ★ 调模型、扣钱、说人话在 studio/structuredSkills（runSceneToGrid）与 studio/gridDraftStore；出图在 ai/real（drawShotGroup / 单格走 generateFrame）。
+// ★ 调模型、扣钱、说人话在 studio/structuredSkills（runSceneToGrid）与 studio/gridDraftStore；出图在 ai/real：组图走 drawShotGroup，
+//   组图之后单画的那几格与单格重画都走 drawGridPanel（提示词 panelPrompt，入口 gridDraftStore.drawPanelAt）—— **不走 generateFrame 的外壳**。
 // ★★ 每一格写两样（2026-10-05 付费对比的结论 1）：**画面**（这一格画哪个瞬间，给出图）与**动作**（接下来几秒发生什么，给视频）——
 //   只写画面的那一格（「木门打开，沈舟站在门里」）出片是一张几乎不动的图：一格是一个瞬间，视频要的是接下来发生什么。
 // ★★ 模型输出是不可信输入（与 data/sceneShots 同一副骨架）：形状不对整发不认（钱在请求成功那一拍扣过一次，不再扣第二次）；

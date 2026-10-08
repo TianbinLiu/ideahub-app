@@ -7,7 +7,7 @@
 // ★ 调模型、扣钱、说人话在 studio/structuredSkills（runDialogue）与 studio/dialogueDraftStore；出图走 ai/real.generateFrame（单张）。
 // ★★ 三个机位**一张接一张**画，不走组图：先画双人镜头，再拿它当图1 画两个过肩 ——
 //   ① 过肩那两张要与双人镜头是同一个地方、同一道光、两人同一身衣服，拿双人那张当参考图是最直接的锚；
-//   ② 不依赖服务端的组图任务（ideahub-server#106 还没合）：单张出图今天就能用。
+//   ② 不依赖服务端的组图任务（ideahub-server#106 已于 2026-10-06 上线，这里仍有意一张接一张画：过肩要拿画好的双人镜头当图1，组图做不到这一步）。
 // ★★ 一句一段，台词写成「名字说：“……”」：segmentGen.hasDialogue 认引号配音、shotScript.lineSpeakers 认出是谁说的
 //   （只带那个人卡上的声音样本；出声的档再加「别出字幕」那一句）。这两处的规矩不在这里另写一份，只照它们认的形状写，
 //   构建里那份检查拿 lineSpeakers 的认法逐句核对（check-dialogue-shots.mjs 的 (e)）。

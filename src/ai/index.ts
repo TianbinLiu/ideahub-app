@@ -102,8 +102,11 @@ export const drawGridPanel: typeof real.drawGridPanel = AI_REAL
 export const checkGridPanel: typeof real.checkGridPanel = AI_REAL ? real.checkGridPanel : async () => "";
 /** 组图的那几张：方舟临时链接 → 本机 dataURL（mock 构建本来就是 dataURL） */
 export const imageUrlToDataUrl: typeof real.imageUrlToDataUrl = AI_REAL ? real.imageUrlToDataUrl : async (u) => u;
-/** 这台机器出得了组图吗（真实构建问 arkClient：打包看服务端的能力位；mock 构建恒能：画本地占位帧） */
-export const groupsAvailable: () => Promise<boolean> = AI_REAL ? imageGroupsAvailable : async () => true;
+/**
+ * 这台机器出得了组图吗：true / false / null = 这一刻没问到（真实构建问 arkClient：打包看服务端的能力位；mock 构建恒能：画本地占位帧）。
+ * ★ null 不是 false：别说成「服务器还没更新」，过一会儿再问（arkClient.imageGroupsAvailable 的 ★★）
+ */
+export const groupsAvailable: () => Promise<boolean | null> = AI_REAL ? imageGroupsAvailable : async () => true;
 export { ImageGroupBusy, listImageGroups } from "./arkClient";
 export type { ImageGroupState } from "./arkClient";
 /** 画一张视频帧（出片前补画 / 重画这一套；与封面分开的理由见 real.generateFrame）；mock 构建出本地占位帧 */
