@@ -3381,7 +3381,7 @@ export async function composeSegments(
           res.durationSec = cap.durationSec;
           carryTail = cap.tail;
         } catch (e2) {
-          // ⚠ 1080p 成片是 10 bit 的 H.265：有的手机 WebView 解不了，截帧会失败 —— 成片本身不受影响，原因进步骤日志
+          // ⚠ 1080p 成片在方舟直链上是 10 bit 的 H.265：有的手机 WebView 解不了，截帧会失败（服务端转存时转成 H.264，换上永久地址之后补截）—— 原因进步骤日志
           onProgress?.(i, segments.length, captureIssueLine(e2));
         }
         out.push(res);

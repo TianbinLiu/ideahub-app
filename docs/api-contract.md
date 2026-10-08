@@ -2241,7 +2241,9 @@ body 只发 `{ text, voice, rate? }`（`voice` 取自 `/api/tts/voices` 的目�
   `DRAFT_FINAL_NOT_ALLOWED` 不转、不扣费（2026-10-07 评审改：原来只信登记，而第一步提示词里夹一句 `--dur 30`、方舟又听了的话，样片其实是 30 秒）；
   只认得出一份就用那一份；方舟只回 `frames` 不回 `duration`（按帧数定长的样片）→ 400。画幅取方舟回的实际画幅（认不出按 1080p 最大一格）。
   App 把成片换上、样片留成「上一版」（可还原）；「现在放的是样片还是成片」按地址现算（`flowStore.draftStageOf`），不存状态。
-- **1080p 是 10 bit 的 H.265**（方舟官方）：个别旧手机的 WebView 放不出来。App 在定稿按钮旁照实说，不转码（播放兼容另验）。
+- **1080p 是 10 bit 的 H.265**（方舟官方；2026-10-07 付费实测 1080×1920 `yuv420p10le`）：App 的 WebView 在模拟器上只有声音、解不出画面 ⇒
+  **服务端转存进图床时转成 8 bit H.264**（`videoAsset.uploadVideoBuffer`，转码失败按原样存）。转存之前那几分钟放的是方舟直链（仍是 H.265），
+  App 在定稿按钮旁照实说。另：方舟按实际帧数计用量（4 秒 97 帧，比按秒算多约 1%，在系数余量里）。
 - 两步都落取回凭据（`VideoJob.draftStep / draftDur / draftRatio / draftOf`）；`GET /api/ark/video-tasks` 的每一条多带 `draft` / `draftOf` / `costTokens`，
   App 补凭据时据此把样片的那几格原样落回。
 

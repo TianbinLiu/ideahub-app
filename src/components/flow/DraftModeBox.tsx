@@ -8,8 +8,9 @@
 //   ③ 现在放的是定稿出来的成片：一句「已定稿」，上一版（样片）在「修这一段」的「还原上一版」里。
 // ★ 判据全在 flowStore（nodeDraftOn / draftStageOf / draftFinalIssue / draftFinalQuote）与 account（draftModeOffered / draftModeIssue）：
 //   这里只把答案画出来。开关只写 setDraftFirst；定稿由宿主决定走 flowStore.genNode 还是 studioStore.genNodeVideo（工坊那面要顺带收窗）。
-// ★ 1080p 成片是 10 bit 的 H.265（方舟官方：2.5 的 1080p 一律 10 bit / HEVC）：个别旧手机放不出来。播放兼容另验（主人 10-07），
-//   不转码 —— 但要在按钮旁边说出来（铁律八）。
+// ★ 1080p 成片是 10 bit 的 H.265（方舟官方：2.5 的 1080p 一律 10 bit / HEVC；2026-10-07 付费实测 1080×1920 yuv420p10le）。
+//   模拟器 WebView 上放起来只有声音、一帧画面都解不出（canPlayType 对 Main 10 回空）⇒ 服务端转存进图床时转成 8 bit H.264
+//   （server videoAsset.uploadVideoBuffer）。转存之前那几分钟放的还是方舟直链 —— 按钮旁边把这一段说出来（铁律八）。
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useState } from "react";
 import { AI_REAL } from "../../ai";
@@ -139,7 +140,7 @@ export default function DraftModeBox({
           </button>
         )}
         <p className="text-[10px] leading-relaxed text-slate-500">
-          <Trans>不满意就改了重新出样片（每次按样片的价）。1080p 成片是 H.265（10 位色深）编码，个别旧手机可能放不出来。</Trans>
+          <Trans>不满意就改了重新出样片（每次按样片的价）。1080p 成片存好时会转成通用格式；转好之前（一般几分钟）个别手机可能只有声音、没有画面。</Trans>
         </p>
         {toggle}
       </div>

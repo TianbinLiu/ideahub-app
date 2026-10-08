@@ -194,7 +194,7 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   ③ **样片两步**：段上一个开关（`FlowNode.draftFirst`，写只走 `setDraftFirst`）；真走不走只问 `flowStore.nodeDraftOn`（报价 nodeCost / segmentCost 的必填 `draft` 与 genNode 读同一个）；
   定稿 = `genNode(id, { finalizeDraft })`，门禁 `draftFinalIssue`、报价 `draftFinalQuote`；契约 mode `draft` / `draftFinal`（genModeOf / validateGenSpec / videoTokensOfSpec 一处）。
   「现在放的是样片 / 成片」按地址现算（`draftStageOf`），**别存一个 stage 字段**（还原上一版 / 返修都会换掉现在放的那一条）。界面只有一份 `components/flow/DraftModeBox`（两面都挂）。
-  1080p 是 10 bit H.265，按钮旁照实说，不转码（播放兼容另验）。
+  1080p 是 10 bit H.265：模拟器 WebView 只有声音、解不出画面（10-07 付费实测），服务端转存时转成 8 bit H.264（server `videoAsset.uploadVideoBuffer`）；转好之前放的是方舟直链，按钮旁照实说。
   ④ **受理之后上游明说失败（方舟 failed / cancelled / expired、真人档 Fail）的那一发由服务端退回** —— App 侧只认类型：`arkClient.ArkTaskFailed`（带服务端在回包上说的 `refund`），
   composeSegments / settleSegment **原样**带着失败对象（外面包 `SegmentGenFailed` = 失败的是视频那一发 + 出片前已结算的画面张数；`ArkTaskUnknown` 永不包）。出片前某张画面（圈选改帧 / 补画设定帧）失败也包这一层、`failedCall: "image"`（钱上按出图说「已经画好的 N 张 + 失败的这一张」）；这一次补画好的设定帧随错误带出去（`kept`），genNode 写回方案（不上锁），重试不再重画、不再收图钱。
   钱上那句话只走 `ai/failCharge`（`taskFailed`：退了 / 会退 / 服务端没说三档；出片前的画面按张单说）。**从不**自己往钱包镜像上加退款（只刷一次钱包）。
