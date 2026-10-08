@@ -1859,8 +1859,10 @@ export function refVideoOwnerNote(ref: VideoTemplate["refVideo"]): string | null
  * 货架的「出片模型」筛选、卡面与详情页的标注、按段选模板时那句说明，问的都是这一句；
  * 「套上之后档位钉在哪」（flowStore 的三个套用入口）读的是同一个 economy.blockoutTier。
  *
- *   · 白模（示例视频）模板 ⇒ **恰好一档**：它的商品是"按参考视频逐镜头复刻、只换主体"，只有开着 refVid 的那一档做得到
+ *   · 白模（示例视频）模板 ⇒ **恰好一档**：它的商品是"按参考视频逐镜头复刻、只换主体"，只有开着 blockoutOk 的那一档做得到
  *     （economy.blockoutTier，今天是电影级 / Seedance 2.5）。闸门全关 ⇒ 空数组 = 现在哪一档都跑不了。
+ *     ⚠ 别拿 refVid 判：它只说明这一档能带参考视频（高清 2026-10-05 起也开着），而白模化那一发由服务端钉在 2.5，
+ *       高清跑不了白模模板 —— 两位在档位表上是分开的（videoTierTable 的 blockoutOk 那条 ★）。
  *   · 经典配方模板（一句话换主题）⇒ **null = 不限**。
  *     ⚠ 它存着的 `recipe.videoTier` **不是事实**：那是提取器写死的默认值（VideoTemplateExtractor 里的 "hd"，
  *       apiToTemplate 的兜底也是 "hd"），没有任何一次出片为它作证 —— 拿它当"适用档位"就是替作者编了一个承诺。
@@ -1869,7 +1871,7 @@ export function refVideoOwnerNote(ref: VideoTemplate["refVideo"]): string | null
  * ★ 不给「解除固定」的出口（主人 2026-10-02 明确否掉）：换到别的模型不是"效果差一点"，是那个模型根本没有
  *   这项生成能力、出片直接失败。用户该做的是**按自己能用的模型去挑模板**（货架那颗筛选），不是在模板上换模型。
  * ★ 返回档位**对象**（不是 id）：调用方要印名字与模型名，再按 id 回表里查一次就是第二次判断。
- * ★ 哪天"不止一档"了（开了第二档 refVid，或者工作流模板进市场）：那时"哪几档"要改成**由事实定** ——
+ * ★ 哪天"不止一档"了（开了第二档 blockoutOk，或者工作流模板进市场）：那时"哪几档"要改成**由事实定** ——
  *   服务端试炼闸记下的 provenModels、作品逐段记的 videoTier —— 而不是在这里猜。见 docs/template-workflow-research.md §三 B。
  */
 export function templateTiers(tpl: Pick<VideoTemplate, "refVideo">): VideoTier[] | null {

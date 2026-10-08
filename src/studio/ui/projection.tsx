@@ -50,11 +50,11 @@ import {
   rederiveKey,
   useStudio,
 } from "../studioStore";
-import { appendQuote, appendSpecsQuote, CUSTOM_MID_MAX, nodeBlank, recastBlocked, nodeDerived, nodeDone, nodeCost, tplOfNode, useFlow, type FlowNode, nodeAnnPlan, annSkipNote, redrawCost, derivesProposals, nodeLocked, deriveCostOf, nodeRefPlan, nodeFramesComeFromDerive, nodeEditFrames, newFlowNode, nodeEmptyFrames, nodeNoDraw, nodeDraftOn } from "../flowStore";
+import { appendQuote, appendSpecsQuote, CUSTOM_MID_MAX, nodeBlank, recastBlocked, nodeDerived, nodeDone, nodeCost, tplOfNode, useFlow, type FlowNode, nodeAnnPlan, annSkipNote, redrawCost, derivesProposals, nodeLocked, deriveCostOf, nodeRefPlan, nodeFramesComeFromDerive, nodeEditFrames, newFlowNode, nodeEmptyFrames, nodeNoDraw, nodeDraftOn, nodeFramed } from "../flowStore";
 import TierRow from "../../components/flow/TierRow";
 // 选模板弹层借画布那一份（铁律六：市场懒加载/分段组折叠/预览确认全在那一个实现里）。
 // FlowCanvas 不 import 本文件，方向安全（它俩只在 StudioPage/FlowPage 各自的树里出现）
-import { CardPicker, TemplatePicker } from "../../components/flow/FlowCanvas";
+import { CardPicker, DirectNoRefNote, TemplatePicker } from "../../components/flow/FlowCanvas";
 // 「进挂卡编辑页要带什么」只有 FlowPage 一处实现（模板详情页也从那儿取）；
 // 回程收口在 hooks/useCastReturn，/studio 与 /flow 都挂了它
 import { castEditorState } from "../../pages/FlowPage";
@@ -397,9 +397,23 @@ function EditorPanel() {
    * ★ 2026-09-30 起真人卡过不去的档直接灰掉：没勾「火山引擎适用」时工坊里可能**一档都点不动**
    *   （真人档本来就走不了推演），只灰不说等于告诉用户"功能坏了"。印在档位那排下面，与套餐原因同一行。
    */
-  const laneFramed = lane !== "direct" || !!prev?.lastFrame;
-  const faceNote = realFaceIssue(slotCards, editor.videoTier, { blockout: false, framed: laneFramed });
-  /** 按模型适配那句（工坊的段都要推演、都带帧 ⇒ ownFrame 恒真：真人档那半在工坊用不上） */
+  /**
+   * 这一窗落下的段在 tierId 档上出片会不会带画面帧（帧里的真人脸会被整发拒，见 realFaceIssue 的 framed）。
+   * 推演三套 = 恒带（推演就是画帧）；参考图直出 = 只有承接上一段尾帧时带；
+   * ★ 自定义车道按档问 flowStore.nodeFramed（与 genNode 的真人卡门禁同一个判据，2.62 发版评审抓到）：收参考图的档上
+   *   自定义段不补画帧，两格帧位空着、又不承接时一张帧都不带 —— 原来一律当带帧，挂着「火山引擎适用」真人卡时高清 / 电影级被灰掉，
+   *   而落下去之后在画布上明明出得了片
+   */
+  const laneFramedFor = (tierId: string): boolean =>
+    customDraft
+      ? nodeFramed([...path, { ...customDraft, videoTier: tierId }], segIndex, useFlow.getState().mode)
+      : lane !== "direct" || !!prev?.lastFrame;
+  const faceNote = realFaceIssue(slotCards, editor.videoTier, { blockout: false, framed: laneFramedFor(editor.videoTier) });
+  /**
+   * 按模型适配那句。ownFrame 只管**真人档**那半句（起拍画面来自没勾「真人档适用」的卡时提醒，segmentGen.cardFitNote）——
+   * 这一窗用到它的三条车道都选不了真人档（推演三套 / 自定义被 deriveIssue 挡，参考图直出被 modeBlock 挡；跟着做的几条车道由向导自己管，不读它），所以恒传真 = 不说那半句。
+   * ⚠ 别读成「工坊的段都带帧」：自定义 / 直出在收参考图的档上可以一张帧都不带（见上面 laneFramedFor）
+   */
   const fitNote = faceNote ? null : cardFitNote(slotCards, editor.videoTier, { aspect: editor.aspect, ownFrame: true });
 
   const crumbSteps = lane === "custom" ? (["mode", "ref", "content", "spec"] as const) : (["mode", "content", "spec"] as const);
@@ -734,8 +748,8 @@ function EditorPanel() {
                 // ★★ 真人卡过不去的档直接灰（与 TierRow 同一条；判据 account.realFaceIssue 一处）。
                 //   materials 与生成闸 studioStore.deriveProposals 同源：editor.slots 映射到牌组。
                 //   blockout 传 false 是事实：工坊建的是自定义段，白模段不走这块方案台（同那边的注释）
-                //   framed 恒真：工坊铸段就是推演、推演就是画帧（帧里的真人脸会被整发拒，见 realFaceIssue 的 framed）
-                const block = tierBlockReason(tier) ?? realFaceIssue(slotCards, tier.id, { blockout: false, framed: laneFramed }) ?? laneBlock(tier.id);
+                //   framed 按车道与这一档问（laneFramedFor）：推演三套恒带帧；直出与自定义在收参考图的档上可以一张帧都不带
+                const block = tierBlockReason(tier) ?? realFaceIssue(slotCards, tier.id, { blockout: false, framed: laneFramedFor(tier.id) }) ?? laneBlock(tier.id);
                 const desc = tier.desc;
                 const model = tierModelId(tier);
                 return (
@@ -1366,8 +1380,10 @@ function ProposalsPanel() {
       {tierOpen && (
         <div className="flex-none border-b border-cyan-400/15 px-3 py-2">
           {/* key 认 node.id：换段时整块重挂，档位卡上的待确认状态不会跨段残留 */}
-          {/* needsDerive：工坊这一面的主路是「推演三套」，走不了推演的档一并禁掉 */}
-          <TierRow key={node.id} nodeId={node.id} needsDerive onDone={() => setTierOpen(false)} />
+          {/* needsDerive：这一段的主路是「推演三套」时，走不了推演的档一并禁掉。★ 按段问 derivesProposals（2.62 发版评审抓到）：
+              参考图直出 / 主角定妆 / 自定义段不推演，原来一律传真 —— TierRow 就把它们当成带帧的段，挂着「火山引擎适用」真人卡时
+              每一档都灰掉，而画布那一面（SegSettings，不传）同一段在高清 / 电影级上出得了片 */}
+          <TierRow key={node.id} nodeId={node.id} needsDerive={derivesProposals(node)} onDone={() => setTierOpen(false)} />
           {/* ★ 宿主要印自己那两类「为什么点不动」（套餐门槛那类归 TierRow）：
               白模段上不支持 r2v 的档、真人卡与本段不搭 —— 工坊这面此前一个字都没印，
               用户只看到一排灰按钮（CLAUDE.md「永远点不动的选项」） */}
@@ -1459,6 +1475,10 @@ function ProposalsPanel() {
         </div>
       )}
 
+      {/* 参考图直出段落在收不了参考图的档上（极速 / 标准）：出片前会先补画帧、计费 —— 与画布本段面板同一句（DirectNoRefNote 一处）。
+          ★ 2.62 发版评审抓到：下面方案台在这种段上不再说「不画帧」（那是假话），卡面退回推演段的说法（「待推演」），
+          而直出段没有推演那一步 —— 这一句把「什么时候画、收不收钱」说清 */}
+      {!blockout && <DirectNoRefNote node={node} className="mx-3 mt-2 flex-none" />}
       {/* 方案台：与工作流页共用同一个组件（铁律六）。工坊这边的"未选定"天然就是
           chosenId === null——不需要另一套标记。白模段没有方案台（上面那段 ★）——走专属面板 */}
       {blockout && chosen ? (
@@ -1493,9 +1513,16 @@ function ProposalsPanel() {
           /* ★ 与真扣同一处实现：flowStore.deriveCostOf（收口之前这里的 prev 用的是
              chosenProposal，"待挑"时回 null，与真扣那边的 chosenOf 差出成倍的价） */
           rederiveCost={deriveCostOf(path, idx)}
-          carriedFrom={carried}
-          // 参考图直出段：卡上说实话（不画帧）、不摆「重新生成这一套的画面」
-          direct={!!node.direct}
+          // 直出段的设定首帧恒空，`carried`（首帧 === 上一段尾帧）认不出承接 —— 另问承接的唯一实现（nodeEditFrames.carriedFirst = nodeCarry）
+          carriedFrom={carried || (!!node.direct && nodeEditFrames(path, idx).carriedFirst)}
+          // 参考图直出段：卡上说实话（不画帧 / 出片前补画）、不摆「重新生成这一套的画面」。
+          // ★ 说的话认「出片前到底画不画」，直接读报价 / 出片用的那份计划（refPlan = flowStore.nodeRefPlan，它的 draws 来自
+          //   drawPlan.framesToDraw、承接认的是真承接 nodeCarry）。别换成 nodeEmptyFrames：那边按「承接开关」认承接，
+          //   上一段尾帧没截到时开关开着、其实要补画（评审第五轮抓到）—— 卡上说「不画帧」、价签里却有一张图钱。不是只看 nodeNoDraw（2.62 发版评审第四轮抓到：承接上一段的直出段落在极速上，
+          //   开头是承接帧、极速又不收结束帧，其实一张都不画，原来照样写「出片前按提示词补画（计费）」）；真人档照片起拍也算不画。
+          // ★★ 「重新生成这一套的画面」两种都不摆：评审第三轮抓到，摆出来的话承接上一段的直出段在极速 / 标准上
+          //   会为开头帧付一张图钱，而出片时承接帧把它整张顶掉（segmentGen 的 carryFrame）—— 收钱不交货。
+          direct={node.direct ? (refPlan && (refPlan.draws.first || refPlan.draws.last) ? "draws" : "noDraw") : undefined}
           // 预览卡的框跟本段画幅走：写死一个比例，另一种画幅的帧会被裁掉一大半
           frameAspect={aspectCss(node.aspect)}
           // 融图候选（唯一实现在 FuseFrameSheet.fuseSourcesOf，三条路共用）
@@ -1630,12 +1657,16 @@ function ProposalsPanel() {
  */
 function TierBlockNote({ node }: { node: FlowNode }) {
   const { t } = useLingui();
+  const nodes = useFlow((s) => s.nodes);
+  const mode = useFlow((s) => s.mode);
   const blockout = !!tplOfNode(node)?.refVideo;
   // ★ 同一个原因只说一句、档位名并到一起（economy.r2vBlockLines，与本段设置抽屉共用）：
   //   此前这里逐档各印一句，白模段上四档都是「暂未开放」时同一件事印四遍
   const r2vBlocks = blockout ? r2vBlockLines() : [];
-  // framed 恒真：工坊的段都是推演出来的（带帧），与 TierRow 的 needsDerive 同一口径
-  const realFaceBlock = realFaceIssue(node.materials, node.videoTier, { blockout, framed: true });
+  // framed 与 TierRow 同一口径：推演的段恒带帧（推演就是画帧），不推演的段（参考图直出 / 主角定妆 / 自定义）问 flowStore.nodeFramed ——
+  // 原来写死恒真，在不带帧的段上说「只在简约模式不带首帧时可用……去简约模式直出」，指向一个用不着的出口（2.62 发版评审抓到）
+  const framed = derivesProposals(node) || nodeFramed(nodes, nodes.findIndex((n) => n.id === node.id), mode);
+  const realFaceBlock = realFaceIssue(node.materials, node.videoTier, { blockout, framed });
   const all = [...r2vBlocks, ...(realFaceBlock ? [realFaceBlock] : [])];
   if (all.length === 0) return null;
   return <p className="mt-1 text-[10px] leading-relaxed text-amber-300/80">{all.join(t({ message: "；", comment: "把几条「这一档为什么点不动」的原因连成一行时的分隔符" }))}</p>;

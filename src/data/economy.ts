@@ -704,14 +704,14 @@ export function r2vBlockLines(): string[] {
  * 「白模那条路实际走哪一档」—— 用户在白模链路上**没有档位选择器**（出片模型由链路本身
  * 决定，不是节点卡上选的），所以这件事得有一个统一的出处：**blockoutOk 的那一档**。
  * ★ 2026-10-05 从 `find(refVid)` 改成 `find(blockoutOk)`：主人「合」给高清开了视频参考（refVid），而高清排在电影级前面 ——
- *   不改的话白模模板会被悄悄换到高清。下面「同时最多只有一档开着」那条假设现在落在 blockoutOk 上（今天只有电影级）。
+ *   不改的话白模模板会被悄悄换到高清。refVid 只说「能带参考视频」，今天高清与电影级两档都开着，所以**不能**再拿它判白模。
  *
- * ★ 返回 null = 全表都没开闸（refVid 全 false，首发时的状态）。调用方据此既不报价也不开炼，
+ * ★ 返回 null = 全表都没开闸（blockoutOk 全 false）。调用方据此既不报价也不开炼，
  *   人话走 blockoutizeIssue。
- * ★ 为什么用 `find(refVid)` 而不是写死 `"ultra"`：refVid 是**闸门**（开闸 = 仓库主人只翻
+ * ★ 为什么用 `find(blockoutOk)` 而不是写死 `"ultra"`：blockoutOk 是**闸门**（开闸 = 仓库主人只翻
  *   那一个布尔的 commit），写死 id 就等于把闸门抄了第二份 —— 翻了布尔却没改这里，
  *   表现是"闸开了但白模链路还按老档报价"，两个方向都不报错。
- * ⚠ 这里假设**同时最多只有一档开着 refVid**（今天成立：方舟只有 2.5 支持 edit 子任务，
+ * ⚠ 这里假设**同时最多只有一档开着 blockoutOk**（今天只有电影级：方舟只有 2.5 支持 edit 子任务，
  *   而白模化那一发的模型由**服务端**的 blockoutize 端点钉死，能对上正是因为只有一个候选）。
  *   哪天开了第二档，这个函数就不再够用 —— 那时必须改成「服务端告诉我们这一发用了哪一档」，
  *   **不许在这里猜**：猜错就是报 A 档的价、按 B 档结算。
@@ -997,6 +997,21 @@ export const CARD_META_TOKENS = 400;
  *   上线前必须照方舟账单校一次。（这里原来写着"真实结算走接口返回的用量"—— 不对，服务端收的就是这个定额。）
  */
 export const CHAT_TURN_TOKENS = 400;
+
+/**
+ * 九宫格分镜画完一格让对话模型看一遍的价（一次看图对话：服务端对 chat 按调用次数定额收 CHAT_TURN_TOKENS，塞几张图都一样）。
+ * ★ 只在这里定义（2.62 发版评审第三轮抓到）：原来 gridDraftStore.PANEL_CHECK_TOKENS 另写一份 = CHAT_TURN_TOKENS，
+ *   一格的价（GRID_PANEL_TOKENS）又各自硬写一遍 —— 改一处，「重新取这一张」那颗键上的看图价与组图报价就分家。
+ */
+export const GRID_CHECK_TOKENS = CHAT_TURN_TOKENS;
+
+/**
+ * 九宫格分镜（跟着做 C）画好一格的价：一张图 + 画完让对话模型看一遍（一次对话，studio/gridDraftStore.checkPanel）。
+ * ★ 一处定义（2.62 发版评审抓到）：向导里组图报价 / 单格重画（gridDraftStore.groupQuote / PANEL_REDRAW_TOKENS）与选法屏那一行
+ *   （components/flow/ModePicker）原来各算各的，10-07 加了「每格看一遍」只改了向导那一份，选法屏还报只有图的价。
+ *   放在这里而不是 gridDraftStore：选法屏只认 props 和 data，不该为了一个数去 import 一个 store。
+ */
+export const GRID_PANEL_TOKENS = IMAGE_TOKENS + GRID_CHECK_TOKENS;
 
 /**
  * 老师人格三个单价（M4，tutor 仓 docs/06 §6.1「economy.ts 镜像 tutor_turn / distill / extract」）—— 这是**报价**那一半；

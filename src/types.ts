@@ -1027,12 +1027,25 @@ export interface Proposal {
   draftUrl?: string;
   finalUrl?: string;
   /**
-   * 由**返修**出的那几条成片的地址（返修走白模同一条 edit 任务，钉着 generate_audio:false —— 这几条文件本身无声）。
+   * 由**返修**出的、文件本身**无声**的那几条成片的地址。2026-10-05 之前返修走白模同一条 edit 任务、钉着 generate_audio:false，
+   * 每一条返修都无声、都记在这里；之后返修走 arkClient.REVISE_TASK、档位能出声就出声，只有出不了声的那一档才记
+   * （flowStore.genNode，判据 economy.videoAudioOn）。老草稿里已有的条目照旧认 —— 它们确实无声。
    * ★ 为什么记地址不记一个布尔（2026-09-18，2.46 发版复核抓到「返修段的『没有声音』提示不准」）：「还原上一版」会把
    *   videoUrl 与 prevVideoUrl 对调，布尔跟不上这一对调；记地址的话「现在放的这条是不是返修出的」只要问它在不在这里。
    * ★ 只给组稿那一拍算 VideoSegment.hasAudio 用（studioStore.finalizeInner）；最多留几条，够覆盖「返修 → 再返修 → 还原」。
    */
   silentVideos?: string[];
+  /**
+   * 由**返修**出的、文件本身**有声**的那几条成片的地址 —— 与 silentVideos 是一对：2026-10-05 起返修走 arkClient.REVISE_TASK，
+   * flowStore.genNode 按 economy.videoAudioOn 二选一记进其中一份；转存换地址时两份一起换（flowStore.adoptPermanentUrl）。
+   * ★ 为什么要单记（2.62 发版评审抓到）：**白模段**（以及取回安放的白模段）「有没有声」原来全按模板判 —— 白模成片走
+   *   BLOCKOUT_TASK 的 generate_audio:false、恒无声，所以组稿报 hasAudio=false（剪辑页藏掉它的原声滑杆）、回看叠模板原声、
+   *   合并预置模板原声。返修过之后现在放的这条自带 AI 重做的声音，照老规矩办就是两层声，而这一段自己的声音还调不了。
+   *   普通段本来就按档位判，记不记都一样（记着也对）。
+   * ★ 「现在放的这条是不是出声的返修」只问 flowStore.reshotWithSound（组稿 hasAudio / 回看叠不叠模板原声 / 合并预置三处共用）；
+   *   记地址不记布尔，理由同 silentVideos（「还原上一版」会把两条地址对调）。
+   */
+  voicedVideos?: string[];
   /**
    * 成片的**第一帧**（出片时从视频里截的，与 lastFrame 同一次解码），**只管显示**。
    *

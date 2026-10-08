@@ -26,7 +26,10 @@ export interface EffectPreset {
   motion: string;
   /** 缺省时长（秒）：按档位的窗口夹（economy.clampDuration） */
   sec: number;
-  /** 缺省画幅 */
+  /**
+   * 缺省画幅。⚠ 今天**没有人读它**（只有 check-effect-presets.mjs 核对取值）：effectDraftStore.pickPreset 有意沿用向导眼下的画幅
+   * （人改过的，或接上一段的），不换成这里的缺省。要让它生效是产品决定，不是补一行代码（2.62 发版评审记下）。
+   */
   aspect: "portrait" | "landscape";
   /** 真人档能不能用（见文件头 ★ 真人档那条） */
   realOk: boolean;

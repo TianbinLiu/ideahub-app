@@ -15,25 +15,31 @@ import { useEffect, useRef, useState } from "react";
 import { AI_REAL, groupsAvailable } from "../../ai";
 import { myCards, realFaceIssue } from "../../data/account";
 import { CHAT_TURN_TOKENS, clampDuration, durationChoices, fmtTokens, tierOf } from "../../data/economy";
-import { GRID_DEFAULT_SEC, GRID_SHOTS_MAX, GRID_SHOTS_MIN, namedOutside, shotKey, type GridNote, type PanelIssue } from "../../data/gridShots";
+import { GRID_DEFAULT_SEC, GRID_SHOTS_MAX, GRID_SHOTS_MIN, namedOutside, type GridNote, type PanelIssue } from "../../data/gridShots";
 import { LEAD_CAST_MAX, SCENE_MAX, SCENE_MIN } from "../../data/sceneShots";
 import { useAccountVersion } from "../../hooks/useAccount";
 import type { AppendSpec } from "../../studio/flowStore";
 import {
   GRID_STEPS,
+  PANEL_CHECK_TOKENS,
   PANEL_REDRAW_TOKENS,
   addShot,
+  discardParkedGroup,
   drawGroup,
   editShot,
   gridAppendSpecs,
   gridCastIssue,
+  gridStaleIssue,
   groupQuote,
+  panelStale,
   parkedGroupOf,
   pickedShots,
   redrawPanel,
   refetchPanel,
+  refetchWillCheck,
   removeShot,
   resumeGroup,
+  resumeReplacesDraft,
   setGrid,
   togglePick,
   togglePlace,
@@ -44,6 +50,7 @@ import {
 } from "../../studio/gridDraftStore";
 import { setLead, useLeadDraft } from "../../studio/leadDraftStore";
 import { VIDEO_ASPECTS, type Card, type VideoAspect } from "../../types";
+import ConfirmDialog from "../ConfirmDialog";
 import Spinner from "../Spinner";
 import TokenCost from "../TokenCost";
 import CastPicker from "./CastPicker";
@@ -87,8 +94,14 @@ export default function GridShotsWizard({
   /** 第③步点开的那一格（下面摆它的分镜、补一句要求、重画）；null = 没点 */
   const [focus, setFocus] = useState<number | null>(null);
   const [ask, setAsk] = useState("");
-  /** 这台机器出得了组图吗（打包看服务端的能力位）；null = 还在问 */
-  const [canDraw, setCanDraw] = useState<boolean | null>(null);
+  /** 「放弃上一组」的确认卡开着没有（钱上的话在卡里当面说） */
+  const [discardAsk, setDiscardAsk] = useState(false);
+  /**
+   * 这台机器出得了组图吗（打包看服务端的能力位）：true / false / null = 这一刻没问到（断网 / 5xx / 429）；"asking" = 第一次还在问。
+   * ★ null 不是 false（2.62 发版评审抓到）：原来没问到也说「服务端更新之后就有」、键灰到关掉重开为止。现在 null 时说「没问到」、
+   *   每 31 秒再问一次（data/serverCaps 失败后 30 秒内不重探），并照 serverCaps 的口径**放行**：服务端真不支持时受理那一发会直接说、不扣钱
+   */
+  const [canDraw, setCanDraw] = useState<boolean | null | "asking">("asking");
   // 挂没挂着（两张后台任务票 —— 出画面、现做主角 —— 据此决定要不要弹通知）。★ 挂载时置回 true：StrictMode 下 effect 会 mount → unmount → mount
   useEffect(() => {
     setGrid({ mounted: true });
@@ -100,18 +113,31 @@ export default function GridShotsWizard({
   }, []);
   useEffect(() => {
     let live = true;
-    void groupsAvailable().then((ok) => live && setCanDraw(ok));
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const ask = () =>
+      void groupsAvailable().then((ok) => {
+        if (!live) return;
+        setCanDraw(ok);
+        if (ok === null) timer = setTimeout(ask, 31_000);
+      });
+    ask();
     return () => {
       live = false;
+      if (timer) clearTimeout(timer);
     };
   }, []);
-  // 上一次受理过、还没取回来的那一组（App 被回收 / 重开过）：一打开就接着等。只接一次（StrictMode 下 effect 会跑两遍）
+  // 上一次受理过、还没取回来的那一组（App 被回收 / 重开过、或这一进程里轮询断了）：一打开就接着等。只接一次（StrictMode 下 effect 会跑两遍）
+  // ★ 只在不会换掉向导里现在的分镜时自动接（resumeReplacesDraft）：人在接回失败之后改过分镜的话，由他点那颗写明「会换回去」的键
+  // ★ 只在前三步自动接（第三轮评审抓到）：接回失败之后 groupId 清了，这一进程里关了抽屉再打开也会走到这里 —— 人已经拿着画好的那几格
+  //   走到第④⑤步时，resumeGroup 会把他拽回第③步，第⑤步落段（resetGridScene 换掉整份向导）的同时还会往格子里写图。
+  //   想接就回第③步点那颗键；第⑤步出片键旁边那句（parkedAtLay）也是这么说的
   const resumed = useRef(false);
   useEffect(() => {
     if (resumed.current) return;
     resumed.current = true;
     const s = useGridDraft.getState();
-    if (!s.drawing && !s.groupId && parkedGroupOf()) void resumeGroup();
+    const early = s.step === "cast" || s.step === "shots" || s.step === "draw";
+    if (early && !s.drawing && !s.groupId && parkedGroupOf() && !resumeReplacesDraft()) void resumeGroup();
   }, []);
 
   const tier = tierOf(tierId);
@@ -127,6 +153,36 @@ export default function GridShotsWizard({
   const drawCastIssue = d.step === "draw" ? gridCastIssue(d.shots, cast) : null;
   const focusCastIssue = d.step === "draw" && focus !== null && d.shots[focus] ? gridCastIssue([d.shots[focus]], cast) : null;
   const layCastIssue = d.step === "spec" ? gridCastIssue(pickedShots(d), cast) : null;
+  // 挑中的格子里有画面过期的（分镜在画好之后改过）：gridAppendSpecs 一段都不落（判据在 gridDraftStore.gridStaleIssue），这里画出来
+  const layStaleIssue = d.step === "spec" ? gridStaleIssue(d) : null;
+  /** 落段被拦下的那一句（人没选上 / 画面过期）；null = 能落 */
+  const layIssue = layCastIssue ?? layStaleIssue;
+  /**
+   * 还有一组受理过、没取回来（落盘记录在）：第③步那颗主键换成「接着等上一组」—— 不再开新的一组（gridDraftStore.drawGroup 同一条规矩的兜底）。
+   * 读 localStorage，所以在画的时候不问（那时键本来就灰着）
+   */
+  const parked = d.step === "draw" && !d.drawing ? parkedGroupOf() : null;
+  /** 接着等会把向导里现在的分镜换回画那一组时的那一版（人在接回失败之后改过分镜） */
+  const parkedReplaces = !!parked && resumeReplacesDraft();
+  /** 有一格正在单独画 / 取图：接着等会把那一格清掉、两头抢同一格 —— 那颗键灰着（gridDraftStore.resumeGroup 同一道闸） */
+  const panelBusy = d.panels.some((p) => !!p?.busy);
+  /**
+   * 点开的这一格在上一组里（服务端受理过、同一版分镜、还没画面）：单独画之前先说一句 —— 那一组里这一格的图照样按张结算，
+   * 现在单独画就是同一格付两次、上一组那张用不上（第二轮评审抓到）。任务号空着的那种不知道服务端画没画，不说
+   */
+  const focusInParked =
+    !!parked?.id &&
+    !parkedReplaces &&
+    focus !== null &&
+    !d.panels[focus]?.image &&
+    // 组图已经报了这一格失败（审核没过之类）：接着等也等不来，那一格自己的报错写着单独重画 —— 别再指人去等（第三轮评审）
+    !d.panels[focus]?.err &&
+    (parked.cells ?? parked.shots.map((_, i) => i)).includes(focus);
+  /**
+   * 第⑤步：还有一组没取回来（落盘记录在）。铺成之后 resetGridScene 会撤掉它 —— 出片键旁边先当面说「铺成之后就不再取回」，
+   * 想要那几张就先回第③步接着等
+   */
+  const parkedAtLay = d.step === "spec" ? parkedGroupOf() : null;
   const full = cast.length >= LEAD_CAST_MAX;
   // 每一格都带画面帧（那一格的画面当开头帧）：真人卡在带帧的请求里会被整发拒（account.realFaceIssue 的 framed）
   const faceNote = realFaceIssue(cast, tierId, { framed: true });
@@ -138,6 +194,7 @@ export default function GridShotsWizard({
   const shotN = d.shots.length;
   const groupPrice = price(groupQuote(shotN));
   const redrawPrice = price(PANEL_REDRAW_TOKENS);
+  const checkPrice = price(PANEL_CHECK_TOKENS);
   const drawn = d.panels.filter((p) => !!p?.image).length;
   const anyPanel = d.panels.some((p) => !!p);
   const stepIdx = GRID_STEPS.indexOf(d.step);
@@ -145,13 +202,13 @@ export default function GridShotsWizard({
   const sep = t({ message: "、", comment: "列举几个名字时的分隔符" });
   const specs = d.step === "spec" ? gridAppendSpecs(d, { cast, place, tierId, aspect, durationSec: dur }) : [];
   const costs = specs.length ? quote(specs) : [];
-  /** 真能落下几段（被 gridCastIssue 拦下时是 0：出片键灰着） */
+  /** 真能落下几段（被 gridCastIssue / gridStaleIssue 拦下时是 0：出片键灰着） */
   const canLay = specs.length > 0;
   // 被拦下时键上照挑的格数说、价钱写「—」：写成「生成这一段（0）」像是不要钱、又数错了段数
-  const firstPrice = layCastIssue ? "—" : price(costs[0] ?? 0);
+  const firstPrice = layIssue ? "—" : price(costs[0] ?? 0);
   const total = costs.reduce((a, b) => a + b, 0);
   const totalPrice = price(total);
-  const segN = canLay ? specs.length : layCastIssue ? d.picks.length : 0;
+  const segN = canLay ? specs.length : layIssue ? d.picks.length : 0;
   /** 句子里的数先取成值再进句子（Lingui 的占位符按名字认） */
   const focusN = (focus ?? 0) + 1;
   const pickN = d.picks.length;
@@ -208,7 +265,7 @@ export default function GridShotsWizard({
         ))}
       </div>
 
-      {/* 这台服务器出不了组图（服务端还没更新）：第①步就说，别让人写完分镜才在第③步撞上一颗灰键 */}
+      {/* 这台服务器出不了组图（服务端明说没有这一位）：第①步就说，别让人写完分镜才在第③步撞上一颗灰键。没问到（null）不在这里说 */}
       {canDraw === false && d.step !== "draw" && (
         <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">
           <Trans>这台服务器还不能一次出一组画面（服务端更新之后就有）。</Trans>
@@ -360,7 +417,8 @@ export default function GridShotsWizard({
                         <span className="flex-1" />
                         <button
                           onClick={() => removeShot(i)}
-                          disabled={!!d.drawing || shotN <= 1}
+                          // 有一格正在单独画时不许删格：写回按格号落，删了前面一格那一格就落到隔壁（gridDraftStore.panelsBusy）
+                          disabled={!!d.drawing || panelBusy || shotN <= 1}
                           aria-label={t`删掉这一格`}
                           className="rounded-full px-2 py-0.5 text-[11px] text-slate-500 disabled:opacity-40"
                         >
@@ -428,7 +486,7 @@ export default function GridShotsWizard({
                 </button>
                 <button
                   onClick={() => void writeShots({ cast: cast.map((c) => c.name), place: place?.name ?? "" })}
-                  disabled={d.writing || !!d.drawing || d.scene.trim().length < SCENE_MIN}
+                  disabled={d.writing || !!d.drawing || panelBusy || d.scene.trim().length < SCENE_MIN}
                   className="flex items-center gap-1.5 rounded-full bg-slate-700/60 px-3 py-1 text-[11px] text-slate-200 disabled:opacity-40"
                 >
                   {d.writing ? <Spinner size="xs" /> : null}
@@ -495,7 +553,7 @@ export default function GridShotsWizard({
           <div className={`grid gap-1.5 ${aspect === "landscape" ? "grid-cols-2" : "grid-cols-3"}`}>
             {d.shots.map((s, i) => {
               const p = d.panels[i] ?? null;
-              const stale = !!p?.image && p.key !== shotKey(s);
+              const stale = panelStale(p, s);
               const n = i + 1;
               return (
                 <button
@@ -557,7 +615,7 @@ export default function GridShotsWizard({
                 {d.shots[focus].size ? `${d.shots[focus].size} · ` : ""}
                 {d.shots[focus].picture}
               </p>
-              {d.panels[focus]?.image && d.panels[focus]?.key !== shotKey(d.shots[focus]) && (
+              {panelStale(d.panels[focus], d.shots[focus]) && (
                 <p className="text-[10px] leading-relaxed text-amber-200">
                   <Trans>这一格的分镜在画好之后改过：画面还是按原来那版画的，重画一下才对得上。</Trans>
                 </p>
@@ -587,7 +645,13 @@ export default function GridShotsWizard({
                   disabled={!!d.panels[focus]?.busy}
                   className="w-full rounded-xl bg-slate-700/70 py-2.5 text-sm text-slate-200 disabled:opacity-40"
                 >
-                  <Trans>重新取这一张（不再收钱）</Trans>
+                  {/* ★ 图付过钱了，取回来之后 AI 还要看一遍（一次对话，gridDraftStore.checkPanel）：别写成「不再收钱」（2.62 发版评审抓到）。
+                      这一张之前已经看过的（结论留在这一格 / 落盘记录里）取回来不再看，才是真的不再收钱（refetchWillCheck）。演示构建不看 */}
+                  {AI_REAL && refetchWillCheck(focus) ? (
+                    <Trans>重新取这一张（图不再收钱；取回后 AI 看一遍 {checkPrice}）</Trans>
+                  ) : (
+                    <Trans>重新取这一张（不再收钱）</Trans>
+                  )}
                 </button>
               ) : (
                 <>
@@ -599,9 +663,17 @@ export default function GridShotsWizard({
                     placeholder={t`补一句要求（选填）：例「沈舟只出现一次」「门是蓝色的」`}
                     className="w-full rounded-lg border border-slate-700 bg-black/30 px-2.5 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand disabled:opacity-40"
                   />
+                  {focusInParked && (
+                    <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">
+                      <Trans>
+                        这一格在上一组里（那一组按画出来的张数结算）：先点下面「接着等上一组」把它取回来，不满意再重画。现在单独画的话，上一组里这一格的图就用不上了。
+                      </Trans>
+                    </p>
+                  )}
                   <button
                     onClick={() => void redrawPanel(focus, { cast, place, ask })}
-                    disabled={!!d.drawing || !!d.panels[focus]?.busy || !canDraw || !!focusCastIssue}
+                    // ★ 不看 canDraw：单画一格走单张出图（drawGridPanel），与服务端能不能出组图无关
+                    disabled={!!d.drawing || !!d.panels[focus]?.busy || !!focusCastIssue}
                     className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-brand/90 py-2.5 text-sm font-bold text-ink disabled:opacity-40"
                   >
                     {d.panels[focus]?.busy === "redraw" ? <Spinner size="xs" /> : null}
@@ -617,12 +689,17 @@ export default function GridShotsWizard({
             </div>
           )}
 
-          {canDraw === false && (
+          {canDraw === false && !parked && (
             <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">
               <Trans>这台服务器还不能一次出一组画面（服务端更新之后就有）。</Trans>
             </p>
           )}
-          {/* ↑ 第③步那一句就是开头那一条的同一句话：这一步的键灰着，得在键旁边再说一次 */}
+          {/* ↑ 第③步那一句就是开头那一条的同一句话：这一步的键灰着，得在键旁边再说一次。↓ 没问到（null）≠ 没有：照 serverCaps 的口径放行，只说一声 */}
+          {canDraw === null && !parked && (
+            <p className="text-[10px] leading-relaxed text-slate-500">
+              <Trans>暂时没问到服务器能不能一次出一组画面（网络不稳），过一会儿会再问；也可以直接点，服务器不支持会直接说。</Trans>
+            </p>
+          )}
           {d.drawing && (
             <p className="flex items-center gap-1.5 text-[11px] leading-relaxed text-slate-300">
               <Spinner size="xs" />
@@ -631,17 +708,85 @@ export default function GridShotsWizard({
           )}
           {d.drawErr && <p className="text-[11px] leading-relaxed text-rose-300">{d.drawErr}</p>}
           {d.drawNote && !d.drawing && <p className="text-[10px] leading-relaxed text-slate-400">{d.drawNote}</p>}
-          <button
-            onClick={() => void drawGroup({ cast, place })}
-            disabled={!!d.drawing || d.writing || !shotN || !canDraw || !!drawCastIssue}
-            className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
-          >
-            {anyPanel ? (
-              <Trans>🔄 整组重出（{shotN} 格，最多 {groupPrice}，会换掉现在这几格）</Trans>
-            ) : (
-              <Trans>🎞 画出这一组（{shotN} 格，最多 {groupPrice}）</Trans>
-            )}
-          </button>
+          {parked ? (
+            <>
+              {/* 还有一组受理过、没取回来：不开新的一组（那一组按张付过钱），先接回来 —— 规矩在 gridDraftStore.drawGroup / resumeGroup */}
+              <button
+                onClick={() => void resumeGroup()}
+                disabled={!!d.drawing || d.writing || panelBusy}
+                className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
+              >
+                <Trans>⏳ 接着等上一组（图不再收钱）</Trans>
+              </button>
+              <p className="text-[10px] leading-relaxed text-slate-500">
+                {parked.id ? (
+                  <Trans>上一组服务端受理过、画面还没取回来：服务端照样在画，画好的图留 24 小时。先接回来，再决定要不要整组重出。</Trans>
+                ) : (
+                  <Trans>上一组发出去没收到回包，还不知道服务端收没收到：先问一下（不收钱），收到了就接着取回来，没收到就可以重新画。</Trans>
+                )}
+                {parkedReplaces ? (
+                  <>
+                    {" "}
+                    <Trans>接回来会换回画那一组时的分镜：之后改过的分镜和单独画的格子会被换掉。</Trans>
+                  </>
+                ) : null}
+                {panelBusy ? (
+                  <>
+                    {" "}
+                    <Trans>有一格正在画，画完再接。</Trans>
+                  </>
+                ) : null}
+              </p>
+              {/* ★ 出口（第二轮评审抓到）：只有「接着等」一条路的话，人重写过的分镜只能被换回去，问不到服务端的那种还会把出一组挡上 23 小时 */}
+              <button
+                onClick={() => setDiscardAsk(true)}
+                disabled={!!d.drawing || d.writing}
+                className="text-[11px] text-slate-500 underline underline-offset-2 disabled:opacity-40"
+              >
+                <Trans>放弃上一组，按现在的分镜重新画</Trans>
+              </button>
+              {discardAsk && (
+                <ConfirmDialog
+                  title={t`放弃上一组画面？`}
+                  confirmLabel={t`放弃`}
+                  danger
+                  onConfirm={() => {
+                    discardParkedGroup();
+                    setDiscardAsk(false);
+                  }}
+                  onClose={() => setDiscardAsk(false)}
+                >
+                  {parked.id ? (
+                    <Trans>
+                      上一组服务端受理过：它照样会画完，照样按画出来的张数收钱（不退）。放弃之后这里就不再取回那几张图。之后可以按现在的分镜重新画一组（另外收钱）；上一组还没画完的话，要等它画完才能开新的一组。
+                    </Trans>
+                  ) : (
+                    <Trans>
+                      上一组发出去没收到回包：要是服务端其实收到了，它照样会画完，照样按画出来的张数收钱（不退）。放弃之后这里就不再去问、也不再取回。之后可以按现在的分镜重新画一组（另外收钱）；服务端那一组还在画的话，要等它画完才能开新的一组。
+                    </Trans>
+                  )}
+                </ConfirmDialog>
+              )}
+            </>
+          ) : (
+            <button
+              onClick={() => void drawGroup({ cast, place })}
+              disabled={!!d.drawing || d.writing || panelBusy || !shotN || canDraw === false || canDraw === "asking" || !!drawCastIssue}
+              className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
+            >
+              {anyPanel ? (
+                <Trans>🔄 整组重出（{shotN} 格，最多 {groupPrice}，会换掉现在这几格）</Trans>
+              ) : (
+                <Trans>🎞 画出这一组（{shotN} 格，最多 {groupPrice}）</Trans>
+              )}
+            </button>
+          )}
+          {/* 那颗键在有一格单独画的时候灰着（gridDraftStore.drawGroup 同一道闸）：灰着就得说为什么 */}
+          {!parked && panelBusy && (
+            <p className="text-[10px] leading-relaxed text-amber-200">
+              <Trans>有一格正在单独画——等它画完再整组重出（这一下还没花钱）</Trans>
+            </p>
+          )}
           <p className="text-[10px] leading-relaxed text-slate-500">
             <Trans>
               一次画出整组：人物与光线前后一致。没有人的格子和特写不放进这一组（放进去容易画进别人），整组画完再一格一格单独画。每画好一格，AI
@@ -672,6 +817,8 @@ export default function GridShotsWizard({
               const at = d.picks.indexOf(i);
               const n = i + 1;
               const order = at + 1;
+              // 与第③步、落段的闸同一个判据（gridDraftStore.panelStale）：画面是按改之前那版分镜画的（挑上了也落不了段，gridStaleIssue）
+              const stale = panelStale(p, s);
               return (
                 <button
                   key={i}
@@ -688,6 +835,11 @@ export default function GridShotsWizard({
                   {at >= 0 && (
                     <span className="absolute right-1 top-1 rounded-full bg-brand px-2 py-0.5 text-[10px] font-bold text-ink">
                       <Trans>第 {order} 段</Trans>
+                    </span>
+                  )}
+                  {stale && (
+                    <span className="absolute bottom-1 left-1 rounded-full bg-amber-500/90 px-1.5 py-0.5 text-[9px] font-bold text-ink">
+                      <Trans>分镜改过</Trans>
                     </span>
                   )}
                 </button>
@@ -737,9 +889,9 @@ export default function GridShotsWizard({
                 ))}
             </div>
           </div>
-          {/* 挑中的格子里有人没选上：gridAppendSpecs 一段都不落（出片键因此灰着），这里说为什么 */}
-          {layCastIssue ? (
-            <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">{layCastIssue}</p>
+          {/* 挑中的格子里有人没选上 / 画面过期：gridAppendSpecs 一段都不落（出片键因此灰着），这里说为什么 */}
+          {layIssue ? (
+            <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">{layIssue}</p>
           ) : (
             <p className="text-[11px] leading-relaxed text-slate-400">
               {tier.refImg ? (
@@ -765,10 +917,23 @@ export default function GridShotsWizard({
               </Trans>
             </p>
           )}
+          {/* 还有一组没取回来：铺成之后就撤掉它（gridDraftStore.resetGridScene），先当面说 —— 那一组的钱照样按画出来的张数结算 */}
+          {parkedAtLay && (
+            <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">
+              {parkedAtLay.id ? (
+                <Trans>上一组画面还没取回来（服务端按画出来的张数结算）：铺成之后就不再取回了。想要那几张，先回第 3 步点「接着等上一组」。</Trans>
+              ) : (
+                <Trans>
+                  上一组发出去没收到回包、还没问到服务端收没收到：铺成之后就不再去问了（服务端要是收到了，照样按画出来的张数结算）。想先问一下，回第 3 步点「接着等上一组」。
+                </Trans>
+              )}
+            </p>
+          )}
           {err && <p className="text-[11px] leading-relaxed text-rose-300">{err}</p>}
+          {/* ★ 别说「可以先铺成」：只铺成也要过 flowStore.appendIssue，它拒的正是同一个 busy（同一时刻只炼一段），所以下面那颗也灰掉（2.62 发版评审抓到） */}
           {busy && (
             <p className="text-[10px] leading-relaxed text-slate-500">
-              <Trans>有一段正在生成中，等它跑完再出（可以先铺成这几段）。</Trans>
+              <Trans>有一段正在生成中，等它跑完再出。</Trans>
             </p>
           )}
           <div className="flex gap-2">
@@ -783,7 +948,7 @@ export default function GridShotsWizard({
           </div>
           <button
             onClick={() => onFinish(specs, false)}
-            disabled={!canLay}
+            disabled={busy || !canLay}
             className="text-[11px] text-slate-500 underline underline-offset-2 disabled:opacity-40"
           >
             {segN > 1 ? <Trans>只铺成这 {segN} 段，先不出片</Trans> : <Trans>只铺成这一段，先不出片</Trans>}

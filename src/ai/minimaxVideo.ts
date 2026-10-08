@@ -114,8 +114,11 @@ export async function takeMinimaxTask(
     st = await jsonOf(await fetch(`${BASE}/video/${encodeURIComponent(taskId)}`, { headers: authHeaders() }), "poll");
   } catch (e) {
     // 查不动 ≠ 取不回。凭据必须留着，话也不能说死。
+    // ★ 抛 **ArkTaskUnknown**（与方舟那条 real.takeVideoTask 查不动 / 还在跑同一个类型，2.62 发版评审）：「这一发的结局还没核对到」
+    //   要靠**类型**认，不靠这句话的措辞 —— 取回卡上退了钱的那颗「知道了」据此决定说「暂时收不起来、再点一次」还是原样说别的原因
+    //  （SegmentRecoverCard.take）。普通 Error 的话两家对同一件事一个认得出、一个认不出
     const why = e instanceof Error ? e.message.slice(0, 60) : t`查询失败`;
-    throw new Error(t`暂时查不到这一发（${why}）——凭据还在，过一会儿再点一次，查询不花钱。`);
+    throw new ArkTaskUnknown(t`暂时查不到这一发（${why}）——凭据还在，过一会儿再点一次，查询不花钱。`, taskId);
   }
   const status = String(st.status ?? "");
   if (status === "Success") return { url: await minimaxFileUrl(st) };
@@ -126,7 +129,8 @@ export async function takeMinimaxTask(
     throw minimaxFailed(taskId, st);
   }
   const shown = status || t`未知`;
-  throw new Error(t`这一发还在上游排队或生成中（当前状态：${shown}）——过几分钟再点一次「取回」，查询不花钱、凭据也还在。`);
+  // 还没有结局：同上，ArkTaskUnknown（方舟那条 queued / running 也是它）
+  throw new ArkTaskUnknown(t`这一发还在上游排队或生成中（当前状态：${shown}）——过几分钟再点一次「取回」，查询不花钱、凭据也还在。`, taskId);
 }
 
 /**
@@ -190,8 +194,7 @@ export async function minimaxVideo(o: {
     if (Date.now() > deadline) {
       // ★★ 抛 **ArkTaskUnknown**（2026-08-31）：这不是失败，是"我们没接到"。
       //   凭据留着、取回入口亮起来 —— 而在这之前唯一亮着的是「重新生成」= 再扣一次
-      //   整档的钱（真人档按发计价，10 秒档 143.2k，是免费版整月额度 300k 的一半：
-      //   按下去这个月就去掉一半，而那一发的成片其实还在）。
+      //   整档的钱（真人档按发计价，10 秒档 143.2k，一按就是一大笔，而那一发的成片其实还在）。
       //   ⚠ 这一行与下面那个 pollFails 分支**必须同时**是 ArkTaskUnknown：
       //   只改一个的话，另一个仍抛普通 Error → flowStore 的真失败分支
       //   `if (taskId) dropVideoJob(taskId)` 会把刚落的凭据当场删掉，比不改更坏。

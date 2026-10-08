@@ -182,6 +182,7 @@ msgstr ", and this run has already been charged"
 #. 列举几个名字时的分隔符
 #. 列举几个名字时的分隔符
 #. 列举几个名字时的分隔符
+#. 列举几个名字时的分隔符
 #. 列举几个图位名 / 还缺的几项时的分隔符
 #. 列举几个文件名 / 动作组 / 表情名时的分隔符
 #. 列举几个段号时的分隔符（第 1、3 段）
@@ -2542,6 +2543,10 @@ msgstr "⏩ Extend"
 msgid "⏩ 往后延长 {outSec} 秒（{extPrice}）"
 msgstr "⏩ Extend by {outSec}s ({extPrice})"
 
+#: src/components/flow/GridShotsWizard.tsx
+msgid "⏳ 接着等上一组（图不再收钱）"
+msgstr "⏳ Pick up the previous set (pictures aren’t charged again)"
+
 #: src/pages/CutPage.tsx
 msgid "■ 停"
 msgstr "■ Stop"
@@ -4505,12 +4510,40 @@ msgid "上一炉还在跑，等它出炉再说。"
 msgstr "The previous run is still going — wait for it to finish."
 
 #: src/studio/gridDraftStore.ts
+msgid "上一组（发出去没收到回包的那一次）服务端其实收到了、照样在画：点下面「接着等上一组」把图取回来（图不再收钱），不用再画一组"
+msgstr "The server did get the previous set after all (the one sent without a reply back) and is still drawing it: tap “Pick up the previous set” below to get the pictures (they aren’t charged again) — no need to draw another set"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "上一组发出去没收到回包，还不知道服务端收没收到：先问一下（不收钱），收到了就接着取回来，没收到就可以重新画。"
+msgstr "The previous set was sent but no reply came back, so we don’t know yet whether the server got it. Ask first (free): if it did, we’ll pick the pictures up; if not, you can draw again."
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "上一组发出去没收到回包、还没问到服务端收没收到：铺成之后就不再去问了（服务端要是收到了，照样按画出来的张数结算）。想先问一下，回第 3 步点「接着等上一组」。"
+msgstr "The previous set was sent without a reply back, and we haven’t managed to ask the server whether it got it: once you lay out these segments, we won’t ask anymore (if the server did get it, it still charges for each picture drawn). To ask first, go back to step 3 and tap “Pick up the previous set”."
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "上一组发出去没收到回包：要是服务端其实收到了，它照样会画完，照样按画出来的张数收钱（不退）。放弃之后这里就不再去问、也不再取回。之后可以按现在的分镜重新画一组（另外收钱）；服务端那一组还在画的话，要等它画完才能开新的一组。"
+msgstr "The previous set was sent without a reply back: if the server did get it, it will still finish drawing and still charge for each picture drawn (no refund). Once you drop it, we stop asking and won’t pick anything up. You can then draw a new set from the current storyboard (charged separately); if the server is still drawing that set, a new one can only start once it finishes."
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "上一组服务端受理过、画面还没取回来：服务端照样在画，画好的图留 24 小时。先接回来，再决定要不要整组重出。"
+msgstr "The server accepted the previous set, but the pictures haven’t been picked up yet: the server keeps drawing, and finished pictures are kept for 24 hours. Pick them up first, then decide whether to redraw the whole set."
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "上一组服务端受理过：它照样会画完，照样按画出来的张数收钱（不退）。放弃之后这里就不再取回那几张图。之后可以按现在的分镜重新画一组（另外收钱）；上一组还没画完的话，要等它画完才能开新的一组。"
+msgstr "The server accepted the previous set: it will still finish drawing and still charge for each picture drawn (no refund). Once you drop it, those pictures won’t be picked up here. You can then draw a new set from the current storyboard (charged separately); if the previous set is still being drawn, a new one can only start once it finishes."
+
+#: src/studio/gridDraftStore.ts
 msgid "上一组画面还在画"
 msgstr "The previous set is still being drawn"
 
 #: src/studio/gridDraftStore.ts
 msgid "上一组画面还在画（同一时间只能画一组）——几分钟后再来"
 msgstr "The previous set is still being drawn (only one set at a time) — come back in a few minutes"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "上一组画面还没取回来（服务端按画出来的张数结算）：铺成之后就不再取回了。想要那几张，先回第 3 步点「接着等上一组」。"
+msgstr "The previous set’s pictures haven’t been picked up yet (the server charges for each picture drawn): once you lay out these segments, they won’t be picked up anymore. To keep them, go back to step 3 first and tap “Pick up the previous set”."
 
 #: src/studio/gridDraftStore.ts
 msgid "上一组的画面没接回来：{why}"
@@ -4674,6 +4707,14 @@ msgstr "Last opened in 🎴 Studio"
 #: src/pages/DraftsPage.tsx
 msgid "上次在🧩 工作流"
 msgstr "Last opened in 🧩 Workflow"
+
+#: src/components/flow/EffectWizard.tsx
+msgid "上次挑的「{unavailableTitle}」这一档用不了，在这里另挑一个吧。"
+msgstr "The effect you picked last time, “{unavailableTitle}”, isn’t available on this tier — pick another one here."
+
+#: src/components/flow/EffectWizard.tsx
+msgid "上次挑的「{unavailableTitle}」这一档用不了。换回原来那一档再进来，它的关键帧还留着；在这里另挑一个特效，那张关键帧会被清掉。"
+msgstr "The effect you picked last time, “{unavailableTitle}”, isn’t available on this tier. Switch back to the tier you used and its keyframe is still there; picking another effect here clears that keyframe."
 
 #: src/components/DownloadSheet.tsx
 msgid "上次有 {n} 段没下完，那些半截文件已经清掉了，这次会重下。"
@@ -5098,6 +5139,10 @@ msgid "不画帧"
 msgstr "No frames drawn"
 
 #: src/studio/ui/PlanBoard.tsx
+msgid "不画帧——开头接着上一段的真实结尾"
+msgstr "No frames drawn — it opens on the previous segment’s actual last frame"
+
+#: src/studio/ui/PlanBoard.tsx
 msgid "不画帧，人物图直接给视频模型"
 msgstr "No frames drawn; character images go straight to the video model"
 
@@ -5356,12 +5401,28 @@ msgid "九宫格分镜画好了 {got} 格"
 msgstr "Storyboard grid: {got, plural, one {# panel} other {# panels}} drawn"
 
 #: src/studio/gridDraftStore.ts
+msgid "九宫格分镜的上一组在服务端没找到"
+msgstr "The previous storyboard set wasn’t found on the server"
+
+#: src/studio/gridDraftStore.ts
+msgid "九宫格分镜的上一组还没问到"
+msgstr "Couldn’t confirm the previous storyboard set yet"
+
+#: src/studio/gridDraftStore.ts
 msgid "九宫格分镜的画面没出成，回去看原因"
 msgstr "The storyboard panels weren’t drawn — go back to see why"
 
 #: src/studio/gridDraftStore.ts
 msgid "九宫格分镜的画面没接回来"
 msgstr "Couldn’t pick up the storyboard panels"
+
+#: src/studio/gridDraftStore.ts
+msgid "九宫格分镜的画面还没取回来——回到那一页接着取"
+msgstr "The storyboard panels haven’t been picked up yet — go back to that page to pick them up"
+
+#: src/studio/gridDraftStore.ts
+msgid "九宫格分镜的画面还没确认——回到那一页接着问"
+msgstr "The storyboard panels aren’t confirmed yet — go back to that page to check again"
 
 #: src/studio/ui/NpcDialog.tsx
 msgid "也可以按左上角的返回"
@@ -5440,6 +5501,10 @@ msgstr "The output contains no recognizable faces (mannequin / silhouette / face
 #: src/components/flow/EffectWizard.tsx
 msgid "产品亮相"
 msgstr "Product reveal"
+
+#: src/components/flow/EffectWizard.tsx
+msgid "产品或画幅改过了"
+msgstr "Product or aspect changed"
 
 #: src/components/flow/EffectWizard.tsx
 msgid "产品拆解"
@@ -6790,6 +6855,10 @@ msgstr "The keyframe wasn’t drawn: {why}"
 msgid "关键帧没画成：{why}。{moneyLine}"
 msgstr "The keyframe wasn’t drawn: {why}. {moneyLine}"
 
+#: src/components/flow/EffectWizard.tsx
+msgid "关键帧还在画（约 20~30 秒），画完才能另挑特效。"
+msgstr "The keyframe is still being drawn (about 20–30 seconds) — you can pick another effect once it’s done."
+
 #: src/components/cut/AutoEditSheet.tsx
 #: src/components/cut/CutAgentSheet.tsx
 #: src/components/DownloadSheet.tsx
@@ -7097,8 +7166,8 @@ msgid "写分镜"
 msgstr "Write the storyboard"
 
 #: src/components/flow/ModePicker.tsx
-msgid "写分镜 {chatPrice}，画面每格 {panelPrice}，每格一段约 {gridVideo} / {gridSec} 秒"
-msgstr "Storyboard {chatPrice}, {panelPrice} per panel picture, about {gridVideo} per {gridSec}s segment"
+msgid "写分镜 {chatPrice}，画面每格 {gridPanelPrice}（含 AI 看一遍），每格一段约 {gridVideo} / {gridSec} 秒"
+msgstr "Storyboard {chatPrice}, {gridPanelPrice} per panel picture (includes an AI check), about {gridVideo} per {gridSec}s segment"
 
 #. why 是失败原因整句；moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格
 #: src/studio/gridDraftStore.ts
@@ -7280,6 +7349,10 @@ msgstr "Check before rendering: your cast is placed into the blockout frame, and
 msgid "出片前必须把它们取下。"
 msgstr "You must remove them before rendering."
 
+#: src/studio/ui/PlanBoard.tsx
+msgid "出片前按提示词补画（计费）"
+msgstr "Drawn from the prompt before rendering (charged)"
+
 #. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
 #: src/ai/failCharge.ts
 msgid "出片前画好的 {count} 张画面（共 {paid} token）与视频那一发（{price} token）都已计费。"
@@ -7294,6 +7367,10 @@ msgstr "{count, plural, one {The # frame drawn before the video was charged} oth
 #: src/ai/failCharge.ts
 msgid "出片前画好的 {count} 张画面已按张计费（共 {paid} token）；视频那一发可能也扣了 {price} token——以「我的」页的 token 余额为准。"
 msgstr "{count, plural, one {The # frame drawn before the video was charged} other {The # frames drawn before the video were charged per image}} ({paid} tokens in total); the video itself may also have been charged {price} tokens — check your token balance on the “Me” page."
+
+#: src/studio/ui/PlanBoard.tsx
+msgid "出片前补画"
+msgstr "Drawn before rendering"
 
 #: src/components/guide/tours.tsx
 msgid "出片前这里显示你给的<0>开头帧</0>（没给就先空着），出片后就地回放这一段。 不满意就改下面那句话（或换圈选）再来一次。"
@@ -8215,6 +8292,14 @@ msgstr "No prop cards in your library — just upload a product photo (it’s on
 #: src/components/flow/CastPicker.tsx
 msgid "卡片库里还没有人物卡 —— 在下面现做一个；想用照片做（真人要先认证），去「自己传图做卡片」。"
 msgstr "No character cards in your library yet — make one below. To make one from a photo (real people need verification first), go to “Make a card from your own images”."
+
+#: src/studio/segmentGen.ts
+msgid "卡片形象图一张都没能用上，改画了设定帧；样片这一发没有发出去（这一次帧没法当参考图发，退回首尾帧的话画幅只能按「自适应」结算，会比报价贵）——刚画好的设定帧已经留在这一段上，再点一次生成会把它们当参考图发出去，不会重画"
+msgstr "None of the card images could be used, so setup frames were drawn instead; this preview draft wasn't sent (this time the frames couldn't go out as reference images, and falling back to first/last frames would bill the “adaptive” aspect ratio, which costs more than the quote) — the setup frames just drawn are kept on this segment, so generating again will send them as reference images without redrawing them"
+
+#: src/studio/segmentGen.ts
+msgid "卡片形象图一张都没能用上，样片这一发没有发出去（退回首尾帧的话画幅只能按「自适应」结算，会比报价贵）——给卡换一张形象图，或过一会儿再点一次生成"
+msgstr "None of the card images could be used, so this preview draft wasn't sent (falling back to first/last frames would bill the “adaptive” aspect ratio, which costs more than the quote) — give the card a new image, or try generating again in a moment"
 
 #: src/pages/CardDetailPage.tsx
 msgid "卡片详情"
@@ -13404,6 +13489,10 @@ msgstr "Queued…"
 msgid "接下来发生什么？例：她转身走向门口，推开门，外面在下雨"
 msgstr "What happens next? e.g. she turns to the door, opens it, and it’s raining outside"
 
+#: src/components/flow/GridShotsWizard.tsx
+msgid "接回来会换回画那一组时的分镜：之后改过的分镜和单独画的格子会被换掉。"
+msgstr "Picking it up switches back to the storyboard that set was drawn from: storyboard edits and panels drawn on their own since then will be replaced."
+
 #: src/studio/studioStore.ts
 msgid "接在最后一段后面了——新拍的这一截单独成一段，画面和声音接着上一段往下走。"
 msgstr "Added after the last segment — the new part is its own segment, and the picture and sound carry on from the previous one."
@@ -13970,8 +14059,8 @@ msgid "改好的帧会顶替这一张并锁住（重画这一套时不动它）�
 msgstr "The edited frame replaces this one and is locked (redrawing this plan won't touch it)."
 
 #: src/components/flow/FrameEditBox.tsx
-msgid "改好的帧会顶替这一张并锁住（重画这一套时不动它）。想照着某张临时参考图改，就在句子里写 @它的名字。"
-msgstr "The edited frame replaces this one and is locked (redrawing this plan won't touch it). To edit after one of your extra reference images, write @its-name in the request."
+msgid "改好的帧会顶替这一张并锁住（重画这一套时不动它）。想照着某张临时参考图改，就用「按这句话改」，在句子里写 @它的名字（圈着改只看圈里那一处，不带参考图）。"
+msgstr "The edited frame replaces this one and is locked (redrawing this plan won't touch it). To edit after one of your extra reference images, use “Edit with this” and write @its-name in the request (“Circle a spot to edit” only looks inside the circle and sends no reference images)."
 
 #: src/components/guide/tours.tsx
 msgid "改完一次提交"
@@ -14026,9 +14115,18 @@ msgstr "Mistakes can be fixed without re-rendering"
 msgid "放大再框"
 msgstr "Zoom in to box"
 
+#: src/components/flow/GridShotsWizard.tsx
 #: src/pages/PublishPage.tsx
 msgid "放弃"
 msgstr "Discard"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "放弃上一组，按现在的分镜重新画"
+msgstr "Drop the previous set and draw again from the current storyboard"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "放弃上一组画面？"
+msgstr "Drop the previous set?"
 
 #: src/pages/PublishPage.tsx
 msgid "放弃本次合成"
@@ -14468,6 +14566,10 @@ msgstr "Couldn't block right now (network or server busy) — try again in a mom
 msgid "暂时没能解除（网络或服务器忙）——过一会儿再试一次。"
 msgstr "Couldn't unblock right now (network or server busy) — try again in a moment."
 
+#: src/components/flow/GridShotsWizard.tsx
+msgid "暂时没问到服务器能不能一次出一组画面（网络不稳），过一会儿会再问；也可以直接点，服务器不支持会直接说。"
+msgstr "Couldn’t check yet whether the server can draw a whole set at once (unstable network); we’ll ask again shortly. You can also just tap — if the server doesn’t support it, it’ll say so."
+
 #: src/pages/EditPage.tsx
 msgid "暂时问不到服务器，没能确认这条作品有没有留存工坊工程。"
 msgstr "Couldn't reach the server, so we couldn't check whether this video has a kept Studio project."
@@ -14648,6 +14750,19 @@ msgstr "You have a half-edited video"
 msgid "有一条超过 {maxLen} 字了，发布会被服务端拒掉。"
 msgstr "One item is over {maxLen} characters; the server will reject it on publish."
 
+#: src/components/flow/GridShotsWizard.tsx
+#: src/studio/gridDraftStore.ts
+msgid "有一格正在单独画——等它画完再整组重出（这一下还没花钱）"
+msgstr "A panel is still being drawn on its own — wait for it to finish before redrawing the whole set (nothing has been charged for this)"
+
+#: src/studio/gridDraftStore.ts
+msgid "有一格正在单独画——等它画完再重写分镜（这一下还没花钱）"
+msgstr "A panel is still being drawn on its own — wait for it to finish before rewriting the storyboard (nothing has been charged for this)"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "有一格正在画，画完再接。"
+msgstr "A panel is still being drawn — pick up the set once it’s done."
+
 #: src/studio/flowStore.ts
 msgid "有一段正在生成，等它跑完再推演下一段"
 msgstr "A segment is generating. Wait for it to finish before drafting the next one"
@@ -14676,18 +14791,15 @@ msgstr "A segment is generating. Wait for it to finish before redrawing this pla
 msgid "有一段正在生成（画布那一面也算同一条流水线）——等它跑完再动这一段。"
 msgstr "A segment is generating (the canvas counts as the same pipeline) — wait for it to finish before changing this segment."
 
-#: src/components/flow/EffectWizard.tsx
-msgid "有一段正在生成中，等它跑完再出（可以先铺成这一段）。"
-msgstr "A segment is generating — wait for it to finish before rendering (you can add this segment now)."
-
 #: src/components/flow/DialogueWizard.tsx
+#: src/components/flow/EffectWizard.tsx
 #: src/components/flow/GridShotsWizard.tsx
-msgid "有一段正在生成中，等它跑完再出（可以先铺成这几段）。"
-msgstr "A segment is generating — wait for it to finish before rendering (you can add the segments now)."
+msgid "有一段正在生成中，等它跑完再出。"
+msgstr "A segment is generating — wait for it to finish before rendering."
 
 #: src/components/flow/LeadShotsWizard.tsx
-msgid "有一段正在生成中，等它跑完再出这一段（可以先铺成这一段）。"
-msgstr "A segment is generating — wait for it to finish before rendering this one (you can add the segment now)."
+msgid "有一段正在生成中，等它跑完再出这一段。"
+msgstr "A segment is generating — wait for it to finish before rendering this one."
 
 #: src/studio/flowStore.ts
 msgid "有一段正在生成中，等它跑完再切换这一段的模式"
@@ -14835,6 +14947,10 @@ msgstr "{count, plural, one {The server didn't accept the card (# card) — it's
 msgid "服务器上有一发你付过钱的成片还没取回"
 msgstr "A video you paid for is still waiting on the server to be recovered"
 
+#: src/components/flow/SegmentRecoverCards.tsx
+msgid "服务器上有一发成片没出成"
+msgstr "A video on the server didn't come out"
+
 #. placeholder {0}: (s.file ? s.file.size / 1024 / 1024 : 0).toFixed(1)
 #: src/pages/SupportModelNewPage.tsx
 msgid "服务器会解开包、数出它会哪些动作和表情，并给一份自动映射（下一步你可以改）。这一步会把包传上去（约 {0}MB），传完之后不会立刻公开。"
@@ -14917,6 +15033,15 @@ msgstr "server returned {status}"
 #: src/studio/cutNarration.ts
 msgid "服务器还没有开通语音合成，配音暂时用不了"
 msgstr "The server doesn't have speech synthesis set up yet, so voiceover isn't available right now"
+
+#: src/studio/gridDraftStore.ts
+msgid "服务端最近的几组里没找到上一组，多半是没收到——重新画这一组就行"
+msgstr "The previous set isn’t among the server’s recent sets, so it most likely never arrived — just draw this set again"
+
+#. moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格
+#: src/studio/gridDraftStore.ts
+msgid "服务端最近的几组里没找到上一组，多半是没收到。{moneyLine}要画就重新画这一组"
+msgstr "The previous set isn’t among the server’s recent sets, so it most likely never arrived. {moneyLine} Draw this set again if you want it"
 
 #: src/components/support/VoiceMixer.tsx
 #: src/pages/SupportPage.tsx
@@ -15456,6 +15581,7 @@ msgstr "Finalize preview draft (upgrade to 1080p)"
 msgid "样片已经过了定稿期限（方舟的样片只留 7 天，我们在到期前 1 小时停止定稿），不能再定稿了——要成片就重新生成（会重新计费）。"
 msgstr "This preview draft is past its finalize deadline (Ark keeps drafts for 7 days, and we stop finalizing 1 hour before they expire) — regenerate it if you want the full video (charged again)."
 
+#: src/components/flow/SegmentRecoverCards.tsx
 #: src/pages/tutor/TutorNewPage.tsx
 msgid "核对中…"
 msgstr "Checking…"
@@ -16148,6 +16274,10 @@ msgstr "Replacing…"
 #: src/components/VideoCardAnnotator.tsx
 msgid "正在标「脸部特写」：拖到看得清脸的一帧，圈住面部"
 msgstr "Marking the face close-up: drag to a frame where the face is clear, then circle the face"
+
+#: src/components/flow/SegmentRecoverCards.tsx
+msgid "正在核对…"
+msgstr "Checking…"
 
 #: src/studio/StudioPage.tsx
 msgid "正在点亮魔法书房…"
@@ -16947,6 +17077,10 @@ msgstr "The recognition result couldn't be read. {moneyLine} Fill it in yourself
 msgid "没过审核："
 msgstr "failed review: "
 
+#: src/studio/gridDraftStore.ts
+msgid "没连上出图服务"
+msgstr "Couldn’t reach the image service"
+
 #: src/components/SeedBadge.tsx
 msgid "没连上服务器时显示的示例内容，不是真实用户作品"
 msgstr "Sample content shown when the server isn't reachable — not a real user's work"
@@ -16958,6 +17092,10 @@ msgstr "No network connection, so this segment didn't finish downloading. Tappin
 #: src/pages/SettingsVoicePage.tsx
 msgid "没配云端语音时退回系统内置合成器（需装中文语音包）。"
 msgstr "Without cloud voice, the system's built-in speech synthesizer is used instead (requires a Chinese voice pack)."
+
+#: src/studio/gridDraftStore.ts
+msgid "没问到服务端收没收到上一组（网络断了一下）—— 为了不让同一组画面付两次钱，这一次先不开新的一组；过一会儿再点一次（问一下不花钱）"
+msgstr "Couldn't check whether the server received the previous set (the connection dropped) — so you don't pay twice for the same set, no new set was started; tap again in a moment (checking is free)"
 
 #: src/pages/tutor/TutorRunPage.tsx
 msgid "没问题，去自检"
@@ -19719,6 +19857,11 @@ msgstr "Segment {0}'s video can no longer be recovered"
 
 #. placeholder {0}: job.seg
 #: src/components/flow/SegmentRecoverCards.tsx
+msgid "第 {0} 段那一发没出成"
+msgstr "Segment {0}'s video didn't come out"
+
+#. placeholder {0}: job.seg
+#: src/components/flow/SegmentRecoverCards.tsx
 msgid "第 {0} 段那一发没出成（{why}）。{moneyLine}要这一段的话重新生成（会重新计费）。"
 msgstr "That run for segment {0} didn't come out ({why}). {moneyLine} Regenerate it if you still want this segment (charged again)."
 
@@ -19812,8 +19955,16 @@ msgid "第 {focusN} 格"
 msgstr "Panel {focusN}"
 
 #: src/studio/gridDraftStore.ts
+msgid "第 {list} 格你之前单独画过，留着你画的那一张；这一组里这几格也画了（按画出来的张数结算时算在里面），没有换上去"
+msgstr "Panel {list}: you’d already drawn it on its own, so your picture stays; the set drew it too (that counts toward the per-picture charge) but didn’t replace yours"
+
+#: src/studio/gridDraftStore.ts
 msgid "第 {list} 格是空镜或特写，不放进组图：点开那一格单独画"
 msgstr "Panel {list} has nobody in it or is a close-up, so it isn’t part of the set: open it to draw it on its own"
+
+#: src/studio/gridDraftStore.ts
+msgid "第 {list} 格的分镜在画好之后改过，画面还是按原来那版画的——回第 3 步重画，或者回第 4 步把它取下"
+msgstr "Panel {list}: the storyboard was edited after the picture was drawn, so the picture still follows the old version — go back to step 3 to redraw it, or to step 4 to deselect it"
 
 #: src/ai/real.ts
 msgid "第 {n} 张参考图未采用（「{name}」的{view}，比例越界或读不出来）"
@@ -20261,8 +20412,8 @@ msgid "等了 12 分钟还没出片（任务还在方舟那边跑，不是失败
 msgstr "Still no video after 12 minutes (the job is still running on Ark — it hasn't failed)."
 
 #: src/ai/arkClient.ts
-msgid "等了 22 分钟这一组还没画完——过一会儿回来点「接着等」，画好的图不会丢"
-msgstr "This set still isn’t done after 22 minutes — come back later to pick it up; the panels already drawn won’t be lost"
+msgid "等了 22 分钟这一组还没画完"
+msgstr "This set still isn’t done after 22 minutes"
 
 #: src/data/videoDownload.ts
 msgid "等了 60 秒一个字节都没来，当断了处理。再点一次接着试。"
@@ -22470,6 +22621,10 @@ msgstr "Publish it as “Only me” for now instead"
 msgid "还是没能同步到服务器"
 msgstr "Still couldn't sync to the server"
 
+#: src/studio/gridDraftStore.ts
+msgid "还是没问到服务端收没收到上一组（网络不稳）——网好了再点「接着等上一组」"
+msgstr "Still couldn’t find out whether the server got the previous set (unstable network) — once the network is back, tap “Pick up the previous set” again"
+
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "还有 {emptyCount} 个角色位没挂卡 —— <0>可以直接出片</0>，没挂的通常保持白色人偶的样子。 ⚠ 素材里<1>镜头切换多</1>时例外：实测 AI 可能拿已挂的卡把没挂的位子也换掉（同一个角色出现两份）。 要稳就把每个位子都挂上（同一张卡可以挂多个位子），或选一镜到底的素材。"
 msgstr "{emptyCount, plural, one {# role slot has} other {# role slots have}} no card — <0>you can render anyway</0>; empty slots usually stay white mannequins. ⚠ The exception is footage with <1>many shot changes</1>: in testing the AI sometimes used attached cards to replace empty slots too (the same character appearing twice). To be safe, attach a card to every slot (one card can go on several slots), or pick single-take footage."
@@ -22643,8 +22798,8 @@ msgid "还没有素材卡"
 msgstr "No asset cards yet"
 
 #: src/components/flow/SegPlayer.tsx
-msgid "还没有能用它的段（已出片的段、套模板的段放不进去）。"
-msgstr "No segment can take it yet (rendered segments and template segments can't)."
+msgid "还没有能用它的段（已出片的段、套模板的段、延长段放不进去）。"
+msgstr "No segment can take it yet (rendered segments, template segments and extensions can't)."
 
 #: src/pages/DraftsPage.tsx
 msgid "还没有草稿——工坊和工作流里做到一半的工程都会存到这里"
@@ -22913,9 +23068,17 @@ msgstr "This plan has no story yet — write something first so I know what to d
 msgid "这一套没有要 AI 重画的画面：开头画面是承接上一段的或你自己换的，分了镜头的方案又不画结束画面"
 msgstr "There's nothing in this option for the AI to redraw: the opening frame is carried over from the previous segment or swapped in by you, and an option split into shots doesn't draw an end frame"
 
+#: src/studio/flowStore.ts
+msgid "这一套没有要 AI 重画的画面：开头画面是承接上一段的或你自己换的，这一档出片又只用开头画面"
+msgstr "There's nothing in this option for the AI to redraw: the opening frame is carried over from the previous segment or swapped in by you, and this tier only uses the opening frame for the video"
+
 #: src/studio/studioStore.ts
 msgid "这一套没有要我重画的画面：开头画面是承接上一段的或你自己换的，分了镜头的方案又不画结束画面。"
 msgstr "There's nothing in this option for me to redraw: the opening frame is carried over from the previous segment or swapped in by you, and an option split into shots doesn't draw an end frame."
+
+#: src/studio/studioStore.ts
+msgid "这一套没有要我重画的画面：开头画面是承接上一段的或你自己换的，这一档出片又只用开头画面。"
+msgstr "There's nothing in this option for me to redraw: the opening frame is carried over from the previous segment or swapped in by you, and this tier only uses the opening frame for the video."
 
 #: src/studio/studioStore.ts
 #~ msgid "这一套的开头帧当时没画出来，没有可改的图——点「重新生成这一套的画面」，或者直接出片（出片要用到的帧会先补画，补画的钱算在出片报价里）。"
@@ -22994,9 +23157,17 @@ msgstr "There are no files to save in this batch."
 msgid "这一排就是出片时视频模型会收到的图，按发送顺序编号。素材卡是谁、哪几张图是他，由系统自动写进提示词；你另加的参考图没在句子里点名时，系统按「用途」替它说一句。想自己说清楚某张图管什么，就在句子里写 @名字（或点这一排上的图）——出片时会在名字后面接上模型认的编号「图片N」。"
 msgstr "This row is exactly what the video model receives when the segment is rendered, numbered in sending order. Which card is who, and which images belong to them, is written into the prompt automatically; for an extra reference image you add without mentioning it, the system describes it by its “purpose”. To say what an image is for yourself, write @name in the prompt (or tap an image in this row) — at render time the model's own number (image N) is appended after the name."
 
+#: src/components/flow/SegmentRecoverCards.tsx
+msgid "这一条暂时收不起来：没能向上游核对到这一发的结局——过一会儿再点一次「知道了」（核对不花钱）。"
+msgstr "Can't dismiss this one yet: we couldn't confirm this run's outcome with upstream — tap “Got it” again in a moment (checking is free)."
+
 #: src/components/flow/GridShotsWizard.tsx
 msgid "这一格可能有问题"
 msgstr "This panel may have a problem"
+
+#: src/components/flow/GridShotsWizard.tsx
+msgid "这一格在上一组里（那一组按画出来的张数结算）：先点下面「接着等上一组」把它取回来，不满意再重画。现在单独画的话，上一组里这一格的图就用不上了。"
+msgstr "This panel is part of the previous set (charged for each picture drawn): tap “Pick up the previous set” below to get it first, and redraw if you don’t like it. If you draw it on its own now, the set’s picture for this panel goes unused."
 
 #: src/studio/ui/SchemeEditorSheet.tsx
 msgid "这一格放原片裁剪本身，不调模型、不计费。"
@@ -23529,6 +23700,19 @@ msgstr "This second is already marked. Move the playhead somewhere else to mark 
 msgid "这一秒已经标过了（播放头刚好落回同一帧）。"
 msgstr "This second is already marked (the playhead landed on the same frame)."
 
+#. why 是失败原因整句；moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格
+#: src/studio/gridDraftStore.ts
+msgid "这一组发出去没收到回包，也没问到服务端收没收到（{why}）。{moneyLine}点下面「接着等上一组」再问一次：收到了就接着取回来（图不再收钱），没收到再画"
+msgstr "This set was sent but no reply came back, and we couldn’t find out whether the server got it ({why}). {moneyLine} Tap “Pick up the previous set” below to ask again: if it did, we’ll pick the pictures up (they aren’t charged again); if not, draw again"
+
+#: src/studio/gridDraftStore.ts
+msgid "这一组发出去没收到回包，也没问到服务端收没收到（{why}）。点下面「接着等上一组」再问一次：收到了就接着取回来（图不再收钱），没收到再画"
+msgstr "This set was sent but no reply came back, and we couldn’t find out whether the server got it ({why}). Tap “Pick up the previous set” below to ask again: if it did, we’ll pick the pictures up (they aren’t charged again); if not, draw again"
+
+#: src/studio/gridDraftStore.ts
+msgid "这一组发出去没收到回包，正在问服务端收没收到…"
+msgstr "This set was sent but no reply came back — asking the server whether it got it…"
+
 #: src/components/TemplateShelf.tsx
 #: src/pages/TemplateDetailPage.tsx
 msgid "这一组模板暂时套不了"
@@ -23537,6 +23721,10 @@ msgstr "This template group can't be used right now"
 #: src/ai/arkClient.ts
 msgid "这一组的参数服务器不收（没有扣费）——把镜头或人物删几个再试"
 msgstr "The server didn’t accept this set’s settings (nothing was charged) — remove a few panels or characters and try again"
+
+#: src/studio/gridDraftStore.ts
+msgid "这一组的进展暂时没查到（{why}）——服务端照样在画，画好的图在服务端留 24 小时：点下面「接着等上一组」接着取回来（图不再收钱），别整组重出"
+msgstr "Couldn’t check this set’s progress for now ({why}) — the server keeps drawing, and finished pictures are kept there for 24 hours: tap “Pick up the previous set” below to pick them up (they aren’t charged again) instead of redrawing the whole set"
 
 #: src/pages/tutor/TutorRunPage.tsx
 msgid "这一阶段没有分步讲解，让老师直接讲。"
@@ -25435,6 +25623,10 @@ msgstr "Publish again"
 msgid "重新取这一张（不再收钱）"
 msgstr "Fetch this one again (no extra charge)"
 
+#: src/components/flow/GridShotsWizard.tsx
+msgid "重新取这一张（图不再收钱；取回后 AI 看一遍 {checkPrice}）"
+msgstr "Fetch this one again (the picture isn’t charged again; AI checks it once fetched, {checkPrice})"
+
 #: src/components/flow/CastPreviewCard.tsx
 msgid "重新合成预览（{price}）"
 msgstr "Recompose preview ({price})"
@@ -25795,6 +25987,10 @@ msgstr "Ask Xiaomeng; anything unresolved goes to a human agent"
 #: src/pages/tutor/TutorRunPage.tsx
 msgid "问得太快了，稍等几秒再发。"
 msgstr "You're asking too fast. Wait a few seconds and send again."
+
+#: src/studio/gridDraftStore.ts
+msgid "问服务端收没收到上一组…"
+msgstr "Asking the server whether it got the previous set…"
 
 #: src/pages/tutor/TutorRunPage.tsx
 msgid "问老师这一步…"

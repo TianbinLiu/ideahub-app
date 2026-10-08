@@ -44,6 +44,7 @@ import {
   DRAFT_VALID_MS,
   draftFinalTokens,
   draftTierId,
+  videoAudioOn,
 } from "../data/economy";
 import { aspectOf, Card, DEFAULT_ASPECT, Proposal, TemplateRecipe, VideoAspect, VideoSegment, VideoTemplate, aspectFromSize, uid, viewsOf } from "../types";
 import type { WorkflowRecipe } from "../data/recipe";
@@ -246,7 +247,8 @@ export type FlowMode = "workflow" | "simple";
 
 /**
  * genNode 的可选项。`revise` = **返修**（2026-09-06 对标 LibTV 片段重拍）：本段成片当参考视频、作者的改法当正文，
- * 走与白模同一条 edit 路、同一套结算与取回凭据；产物无声（edit 子任务不出声）、时长跟随成片。
+ * 走与白模同一条 edit 路、同一套结算与取回凭据；时长跟随成片。2026-10-05 之前产物无声（走白模那份钉着 generate_audio:false 的任务），
+ * 之后走 arkClient.REVISE_TASK、档位能出声就出声（见下面 revise 那一位）。
  * ★ 放在 genNode 里而不是另写一个 action：出片的门禁 / 计费 / 凭据 / 写回是一份实现（铁律六），返修只改"发什么"。
  */
 export interface GenNodeOpts {
@@ -293,6 +295,10 @@ export function extendIssue(nodes: FlowNode[], idx: number): string | null {
   const node = nodes[idx];
   if (!node) return t`找不到这一段`;
   if (idx !== nodes.length - 1) return t`只能延长最后一段：延长出来的是接在它后面的新一段，接在中间会把后面那几段的接缝打断`;
+  // ★ 延长落段走 appendNode，它那道「能不能接一段」的闸（appendBlocked：最后一段是白模复刻段时整句拒）这里也要问（2.62 发版评审抓到）：
+  //   不问的话白模段（电影级，extendOk 为真）上那一栏会印着价钱摆出「⏩ 往后延长」，点下去必被 appendNode 拒 —— 一颗永远点不成的键
+  const blocked = appendBlocked(nodes, null);
+  if (blocked) return blocked;
   const url = realVideoOfNode(node);
   if (!url) return t`这一段还没有成片`;
   if (isArkAssetUrl(url)) return t`成片还在转存（换成永久地址），转存完才能延长——稍等一会儿再来`;
@@ -603,6 +609,18 @@ export function realVideoOfNode(node: FlowNode): string | undefined {
   return v && !v.startsWith("mock:") ? v : undefined;
 }
 
+/**
+ * 这一段**现在放的**是不是一条**出声的返修**（Proposal.voicedVideos）—— 唯一判据。三处共用：组稿算 VideoSegment.hasAudio
+ * （studioStore.finalizeInner）、回看叠不叠模板原声（SegPlayer）、合并的模板原声预置（studioStore.draftAudioHint）。
+ * ★ 只对白模段（与取回安放的白模段）改变答案：那种段原来全按模板判成「无声、配模板原声」，返修过之后现在放的这条自带声音
+ *   （2.62 发版评审抓到：照老规矩办是两层声，剪辑页还把这一段的原声滑杆藏掉）。
+ * ★ 认地址不认布尔：「还原上一版」把 videoUrl 与 prevVideoUrl 对调之后，放回去的那条没在名单里，答案跟着变回「否」。
+ */
+export function reshotWithSound(node: FlowNode): boolean {
+  const real = realVideoOfNode(node);
+  return !!real && !!chosenOf(node).voicedVideos?.includes(real);
+}
+
 /** 方案台状态（带老草稿兜底）：多方案却没有 plan 字段的节点是旧版数据，那时的方案都是
  *  选定过的，按 "picked" 算——否则打开旧草稿会要求每段重挑一遍。 */
 export function planOf(node: FlowNode): "picking" | "picked" | null {
@@ -718,19 +736,26 @@ export function usableFrames(node: FlowNode, p: Proposal, prev: Proposal | null)
  * 开头帧：承接上一段真实结尾的、你自己换的不动（keepFirstFrame）。结束帧：你自己换的不动；**分了镜头的方案不画**
  * （data/drawPlan 的规矩 ②，与出片前补画同一条 —— 画出来也发不出去，见 usableFrames），原来那张 AI 画的顺手清掉
  * （clearLast：它画的是改成多镜头之前的剧情，留着的话改回一个镜头时它会与新画的开头对不上）。
+ * ★ **这一档收不收结束帧也要问**（economy.VideoTier.flf；2.62 发版评审抓到）：极速档只发开头帧（real.composeSegments 的 flf 判据），
+ *   原来照样重画结束帧、按两张收钱，而出片前补画（data/drawPlan.framesToDraw）在这一档只画一张 —— 同一张帧两处两个价。
+ *   参考图直出段落在极速 / 标准上时这颗键也摆出来了，于是更容易撞上。这一档上不重画结束帧，原来那张 AI 画的顺手清掉
+ *   （endUnused；理由同 clearLast：开头换了新的，它与新开头对不上，之后换到收结束帧的档出片就会把这一对错配的帧发出去 ——
+ *   清掉之后由出片前补画按新开头补一张，那一张会如实进报价）。你自己换上的（上锁的）照留。
  */
 export function redrawFrames(
   node: FlowNode,
   p: Proposal,
   prev: Proposal | null,
-): { first: boolean; last: boolean; clearLast: boolean; multiShot: boolean } {
+): { first: boolean; last: boolean; clearLast: boolean; multiShot: boolean; endUnused: boolean } {
   const multiShot = isMultiShot(p.plot);
   const pinnedLast = !!p.pinned?.last;
+  const endUnused = !tierOf(node.videoTier).flf;
   return {
     first: !keepFirstFrame(node, p, prev),
-    last: !pinnedLast && !multiShot,
-    clearLast: !pinnedLast && multiShot && !!p.lastFrame,
+    last: !pinnedLast && !multiShot && !endUnused,
+    clearLast: !pinnedLast && (multiShot || endUnused) && !!p.lastFrame,
     multiShot,
+    endUnused,
   };
 }
 
@@ -2774,7 +2799,10 @@ export const useFlow = create<FlowState>()((set, get) => ({
       let next: string;
       if (annotated) {
         // 圈选：底图就是画着红圈的那张，**不带**卡片形象图（理由同出片前按圈选改帧那一步：再塞两张卡面，模型首先要猜红线画在哪张图上）
-        next = await refineFrame(`${ask}${ANN_CLAUSE}`, annotated, node.aspect);
+        // ★ 句子照样过 plainMentions（2.62 发版评审抓到）：这一条路一张临时参考图都不带，句子里的 `@名字` 原样发出去，模型会去找一个
+        //   不存在的引用（N1 规矩 ③）—— 退成名字。界面上「写 @名字」那句提示也只说给「按这句话改」（FrameEditBox）
+        const cards = (node.materials ?? []).map((c) => ({ id: c.id, name: c.name }));
+        next = await refineFrame(`${plainMentions(ask, cards, node.extraRefs)}${ANN_CLAUSE}`, annotated, node.aspect);
       } else {
         // 一句话改：带上卡片形象图锁脸（「让她换个表情」最容易把脸改跑），被改的那张恒为 <图片1>，绑定句 offset = 1
         const mat = await prepareMaterialRefs(node.materials, "image", (n) => notes.push(n));
@@ -2859,7 +2887,9 @@ export const useFlow = create<FlowState>()((set, get) => ({
       set({
         err: rd.multiShot
           ? t`这一套没有要 AI 重画的画面：开头画面是承接上一段的或你自己换的，分了镜头的方案又不画结束画面`
-          : t`首尾帧都是你自己换的图，没有可让 AI 重画的部分（想重画就先在卡里清掉那一帧）`,
+          : rd.endUnused
+            ? t`这一套没有要 AI 重画的画面：开头画面是承接上一段的或你自己换的，这一档出片又只用开头画面`
+            : t`首尾帧都是你自己换的图，没有可让 AI 重画的部分（想重画就先在卡里清掉那一帧）`,
       });
       return false;
     }
@@ -2908,7 +2938,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
         const ex = withExtras(matFirst, "first", 0);
         first = await generateFrame(`${momentFirst.slice(0, 200)}${matFirst.bind(0)}${ex.line}`, { aspect: node.aspect, refs: ex.urls });
       }
-      // 分了镜头的方案：原来那张 AI 结束画面清掉、不重画（redrawFrames 的 clearLast）
+      // 分了镜头的方案、或这一档不收结束帧（极速）：原来那张 AI 结束画面清掉、不重画（redrawFrames 的 clearLast）
       let last = rd.clearLast ? "" : prop.lastFrame;
       if (matLast) {
         get().updateNode(nodeId, { progress: t`重画结束画面…${noteTail}` });
@@ -4079,7 +4109,9 @@ export const useFlow = create<FlowState>()((set, get) => ({
             plot: rv ? rv.instruction : prop.plot,
             // ★ 原声地址（见 VideoJob.tplRefVideo 的 ★★）：取回安放的段 tpl 恒 null，
             //   不存这一位它的模板原声就永久没了，而白模成片自己是无声的
-            ...(tplOfNode(node)?.group?.sourceUrl || tplOfNode(node)?.refVideo?.url
+            // ★ 出声的返修不存（2.62 发版评审抓到，同 Proposal.voicedVideos 的 ★）：那一发自带声音，取回新开一段时带上这一位，
+            //   那一段就被当成无声白模 —— 组稿报「没声音」、回看与合并再叠一层模板原声
+            ...(!(rv && videoAudioOn(tierOf(genTier).model)) && (tplOfNode(node)?.group?.sourceUrl || tplOfNode(node)?.refVideo?.url)
               ? { tplRefVideo: tplOfNode(node)?.group?.sourceUrl || tplOfNode(node)?.refVideo?.url }
               : {}),
             createdAt: Date.now(),
@@ -4115,28 +4147,46 @@ export const useFlow = create<FlowState>()((set, get) => ({
       if (taskId) dropVideoJob(taskId);
       // 真实帧顶替设定帧：节点卡显示的就是视频里实际的画面，也是下一段的起拍帧。
       // videoUrl 同时挂在方案上——工坊侧的节点卡读的就是它（两个模式共用同一份出片）
+      /**
+       * 这一套方案**写回这一刻**的样子（2.62 发版评审抓到）：返修 / 定稿要跑几分钟，这期间转存收尾（settleNodeMedia →
+       * recaptureNode）照样会重截这一段的尾帧 / 预览 / 时长，并把下一段承接来的开头帧连同承接关系一起换掉，上一段的重截也会
+       * 换掉这一段承接来的开头帧。「保留原样」的那几格要从这里读 —— 读开炼时的快照 prop 会把重截前的旧图写回去，承接关系断掉
+       * （下一段「重画这一套」会多收一张注定被承接帧顶掉的图钱），样片自己没截到尾帧时还会写回一个空的。与上面 prevVideoUrl 读 still 同一个理由
+       */
+      const cur = still.proposals.find((p) => p.id === node.chosenId) ?? prop;
       patchProp({
         // 返修 / 定稿：上一版留一份可还原（只留最近一版；定稿的上一版就是那条 480p 样片）；成片首帧原本就空，别用结果的空串盖掉设定帧
         // ★ 读**写回这一刻**的节点（still），不读开炼时的快照 node（2026-10-07 评审抓到）：定稿要跑几分钟，样片若还是方舟临时链接，
         //   这期间 settleNodeMedia 会把它换成转存后的永久地址（adoptPermanentUrl 连 draftUrl 一起换）。读旧快照的话上一版记的是
         //   那条 24 小时就过期的临时链接、与 draftUrl 对不上 —— 「还原上一版」那句提示消失，一天后还原出一条死链、样片那一格也认不出了
         ...(rv || fin ? { prevVideoUrl: realVideoOfNode(still) ?? undefined } : {}),
-        // 返修出的这一条本身无声（edit 任务钉着 generate_audio:false）：记下地址，组稿时据此如实说「没有声音」（见 Proposal.silentVideos）
-        ...(rv && res.url ? { silentVideos: [...(prop.silentVideos ?? []), res.url].slice(-4) } : {}),
+        // 返修出的这一条无声时记下地址，组稿时据此如实说「没有声音」（见 Proposal.silentVideos）。
+        // ★ 2026-10-05 起返修走 arkClient.REVISE_TASK、**出声**（档位能出声就带 generate_audio:true）—— 只在这一档本身出不了声时才记
+        //   （判据 videoAudioOn，与组稿算 hasAudio 同一个）。原来无条件记：返修过的段在剪辑页被说成「画面本身没有声音」、原声滑杆藏掉，
+        //   整条都是返修段时发布页还会说「这条成片没有声音」（2.62 发版评审抓到）。老草稿里已经记下的那几条是 2026-10-05 之前
+        //   走 generate_audio:false 的 edit 任务出的，确实无声，读那一侧照旧认
+        // ★ 出声的那一条另记一份（Proposal.voicedVideos）：白模段的有声无声原来全按模板判，返修过之后不单记的话
+        //   组稿照样报「没声音」、回看与合并照样叠模板原声（两层声）—— 判据只问 reshotWithSound
+        ...(rv && res.url
+          ? videoAudioOn(tierOf(genTier).model)
+            ? { voicedVideos: [...(cur.voicedVideos ?? []), res.url].slice(-4) }
+            : { silentVideos: [...(cur.silentVideos ?? []), res.url].slice(-4) }
+          : {}),
         // 样片两步认「现在放的是哪一条」靠这两个地址（draftStageOf）；第一步把定稿要的那几样一起记下
         ...(fin && res.url ? { finalUrl: res.url } : {}),
         ...(draftOn && res.url
           ? { draftTaskId: taskId, draftAt: acceptedAt || Date.now(), draftDur, draftRatio, draftUrl: res.url, finalUrl: undefined }
           : {}),
-        firstFrame: rv || fin ? prop.firstFrame : res.firstFrame,
+        firstFrame: rv || fin ? cur.firstFrame : res.firstFrame,
         // ★ 定稿不换尾帧：成片就是同一份样片升的分辨率，画面一样；换了的话下一段那张承接来的开头帧就认不出亲了
-        //   （承接判定 p.firstFrame === prev.lastFrame，recaptureNode 那段 ★★ 同一个坑）。转存之后的重截会连同承接关系一起换
-        lastFrame: fin ? prop.lastFrame : res.lastFrame,
+        //   （承接判定 p.firstFrame === prev.lastFrame，recaptureNode 那段 ★★ 同一个坑）。转存之后的重截会连同承接关系一起换。
+        //   读写回这一刻的那张（cur，见上）；样片自己一张都没截到时才用定稿这一发截的 —— 那时下一段不可能承接过它，换上不打断任何接缝
+        lastFrame: fin ? cur.lastFrame || res.lastFrame : res.lastFrame,
         // 成片第一帧只管显示（白模/参考直出段没有设定首帧，卡面靠它）；这一炉没截到就清掉
         // 上一炉的旧图，别让卡面挂着另一发的画面（定稿没截到就留着样片那张：画面是同一个）
-        poster: fin ? res.poster || prop.poster : res.poster,
+        poster: fin ? res.poster || cur.poster : res.poster,
         // 实测时长同源（截帧那一步读的）：剪辑页按它铺片段出点，别再按申报值切短 20 秒的片子
-        realDurationSec: fin ? (res.realDurationSec ?? prop.realDurationSec) : res.realDurationSec,
+        realDurationSec: fin ? (res.realDurationSec ?? cur.realDurationSec) : res.realDurationSec,
         // mock 构建下 Seedance 不返回地址：这里和 videoByProposal 用同一个 "mock:" 占位串，
         // 否则同一段在工作流里算"已出片"、回工坊却算"没出片"（工坊读的是 proposal.videoUrl），
         // 于是演示模式下桌面永远开不出下一张卡。需要"能播的地址"的地方走 realVideoOf 过滤
@@ -4223,6 +4273,12 @@ export const useFlow = create<FlowState>()((set, get) => ({
       //   不上锁（AI 画的，「重画这一套」照样能重画它们）；这几分钟里这一套的帧被人动过（或已经换了一套）就不写，以人为准。
       //   老草稿的占位图（degraded 且两格都有图，usableFrames 的同一个判据）：没画到的那一格换成它「能用的」值（多半是空），
       //   标记一并摘掉 —— 不摘的话写回去的真帧还会被当成占位图、再画一遍。
+      // ★ 离线（本机账本）**不为留下的这几张记账**，是有意的（2.62 发版评审，复核判它只影响开发 / 离线构建）：
+      //   发版构建里 AI_REAL = API_ON，这几张图在服务端按调用真扣过、恰好一次（留下来反而省掉了重试时再画、再扣的那一遍）；
+      //   本机账本只在「npm run dev 直连方舟、没配 VITE_API_BASE」时才是真在记的那一本，而那一本是假钱（离线充值直接加数）。
+      //   下一次成片到手时 spendTokens(cost) 也不会补记它们：cost = nodeCost，而 nodeCost 按 usableFrames 只算还要画的帧。
+      //   要改成照逐格出图那条规矩记（PortraitViewsPartial）：这里 spendTokens(留下的张数 × ONE_IMAGE)，同时 ai/failCharge.chargeOnFail
+      //   离线分支对 SegmentGenFailed 回 paidBefore = 留下的张数 —— 两处必须一起改，只改一处屏幕上的话就与账本对不上。
       {
         const kept = e instanceof SegmentGenFailed ? e.kept : null;
         const live = kept && !rv && !fin && !ext ? get().nodes.find((n) => n.id === id) : undefined;
@@ -4359,11 +4415,11 @@ export const useFlow = create<FlowState>()((set, get) => ({
       if (ownerEpoch() === epochAtStart) {
         set({ busy: false });
         // ★★ 上游明说没出成、而服务端已经把钱退了（或正在退 / 本来就没扣）：这一发没有成片可取、钱也回来了 ——
-        //   凭据结案（2026-10-07）。留着的话这张卡没过期就只有一颗「取回」、点下去永远是同一句话，而且关不掉
-        //   （dismissVideoJob 只放过期的）。卡上那句话不会跟着丢：SegmentRecoverCard 见凭据没了就用轻提示说（它的 ★★）。
+        //   凭据结案（2026-10-07）。卡上那句话不会跟着丢：SegmentRecoverCard 见凭据没了就用轻提示说（它的 ★★）。
+        //   （2.62 起退了钱的卡没过期也摆「知道了」，点的就是这里：take(true) → takeJob 走到这一支结案。）
         // ★ 其余失败照旧**一律不动**：没接到（ArkTaskUnknown）要留着再来取；服务端没说退的那种（老服务端）要留在屏幕上
-        //   让用户看见钱没退 —— 销毁它等于把这句话一起吞了。真正的销毁还有两处：取回成功（上面那行）与过期后用户
-        //   亲手点「知道了」（data/videoJobs.dismissVideoJob）。
+        //   让用户看见钱没退 —— 销毁它等于把这句话一起吞了。其余销毁的路：取回成功（上面那行）、过期后用户亲手点「知道了」
+        //   与服务端补来的凭据点「这一发我已经拿到了」（都在 data/videoJobs.dismissVideoJob；退了钱的那几种由它放行）。
         const inner = unwrapFailure(e);
         const st = inner instanceof ArkTaskFailed ? inner.refund?.state : undefined;
         if (st === "refunded" || st === "refunding" || st === "skipped") {
@@ -4397,8 +4453,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
  * ★★ 只在这一段这套方案**此刻放的还是 fromUrl** 时才换（2026-09-18，2.46 发版复核抓到）：换地址之前要先 await 一次
  *   转存状态，这几百毫秒里重新生成或「还原上一版」可能已经落下 —— 原来无条件 setProposalVideo，会把旧那条的永久地址
  *   盖到刚付过钱的新成片上。换不上回 false，调用方就此收手。
- * ★ 「这一条是返修出的、本身无声」的记号跟着地址换（Proposal.silentVideos）：地址变了记号还挂在老地址上，
- *   组稿时就认不出它是无声的。只在这里换，不在 setProposalVideo 里换 —— 那边还接剪辑页写回的**另一条**成片。
+ * ★ 「这一条是返修出的、本身无声 / 有声」的记号跟着地址换（Proposal.silentVideos / voicedVideos）：地址变了记号还挂在老地址上，
+ *   组稿时就认不出它是哪一种。只在这里换，不在 setProposalVideo 里换 —— 那边还接剪辑页写回的**另一条**成片。
  */
 function adoptPermanentUrl(nodeId: string, proposalId: string, fromUrl: string, toUrl: string): boolean {
   const node = useFlow.getState().nodes.find((n) => n.id === nodeId);
@@ -4407,6 +4463,10 @@ function adoptPermanentUrl(nodeId: string, proposalId: string, fromUrl: string, 
   useFlow.getState().setProposalVideo(nodeId, proposalId, toUrl);
   if (p.silentVideos?.includes(fromUrl)) {
     useFlow.getState().updateProposal(nodeId, { silentVideos: p.silentVideos.map((u) => (u === fromUrl ? toUrl : u)) }, proposalId);
+  }
+  // 「出声的返修」那一份同理（Proposal.voicedVideos）：不跟着换的话，转存一完成白模段又被当成无声、回看重新叠上模板原声
+  if (p.voicedVideos?.includes(fromUrl)) {
+    useFlow.getState().updateProposal(nodeId, { voicedVideos: p.voicedVideos.map((u) => (u === fromUrl ? toUrl : u)) }, proposalId);
   }
   // 样片两步认「现在放的是哪一条」靠地址（draftStageOf）：地址换了、这两格不跟着换，转存一完成「定稿」那颗键就消失了
   if (p.draftUrl === fromUrl) useFlow.getState().updateProposal(nodeId, { draftUrl: toUrl }, proposalId);

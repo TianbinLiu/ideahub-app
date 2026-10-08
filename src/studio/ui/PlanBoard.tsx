@@ -105,10 +105,13 @@ export interface PlanBoardProps {
    */
   shotEdit?: { speakers: ShotSpeaker[]; max: number; canAdd: boolean };
   /**
-   * 这一段是「参考图直出」段（FlowNode.direct，2026-10-04）：不画帧，人物图直接给视频模型。
-   * 卡上那几句「AI 自拟开头帧 / 待推演」换成实话，「重新生成这一套的画面」不摆（这种段本来就不画帧）。
+   * 这一段是「参考图直出」段（FlowNode.direct，2026-10-04）—— 两种情况，卡上说的实话不一样：
+   * · `"noDraw"`：真的不画帧，人物图直接给视频模型（收参考图的档；真人档照片起拍也算）；
+   * · `"draws"`：直出段落在收不了参考图的档上（极速 / 标准），出片前会按提示词补画帧、计费（flowStore.nodeNoDraw 判否）。
+   * 两种都**不摆**「重新生成这一套的画面」（与画布一致：直出段没有推演这一拍；承接上一段的段，开头那张出片时会被
+   * 承接帧整张顶掉，重画它就是白收图钱 —— 2.62 发版评审抓到）。卡上那几句「AI 自拟开头帧 / 待推演」换成实话。
    */
-  direct?: boolean;
+  direct?: "noDraw" | "draws";
 }
 
 export default function PlanBoard({
@@ -219,15 +222,29 @@ export default function PlanBoard({
                     <FrameCard
                       firstFrame={p.firstFrame || null}
                       lastFrame={shownLast(p) || null}
-                      emptyNote={p.degraded ? t`没画出来` : direct ? t`不画帧` : undefined}
+                      emptyNote={p.degraded ? t`没画出来` : direct === "noDraw" ? t`不画帧` : direct === "draws" ? t`出片前补画` : undefined}
+                      emptyHint={
+                        p.degraded
+                          ? undefined
+                          : direct === "noDraw"
+                            ? // 承接上一段时开头就是那张真实结尾；极速 / 标准不收参考图，人物图根本发不出去 —— 别说「人物图直接给视频模型」（评审第五轮）
+                              carriedFrom
+                              ? t`不画帧——开头接着上一段的真实结尾`
+                              : t`不画帧，人物图直接给视频模型`
+                            : direct === "draws"
+                              ? t`出片前按提示词补画（计费）`
+                              : undefined
+                      }
                       originNote={
                         p.pinned?.first
                           ? t`已用你上传的图`
                           : carriedFrom
                             ? t`承接上一段真实结尾`
-                            : direct
+                            : direct === "noDraw"
                               ? t`不画帧，人物图直接给视频模型`
-                              : t`AI 自拟开头帧`
+                              : direct === "draws"
+                                ? t`出片前按提示词补画（计费）`
+                                : t`AI 自拟开头帧`
                       }
                       canEdit={!busy && regenId !== p.id}
                       uploaded={false}

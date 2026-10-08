@@ -106,6 +106,7 @@ export default function FrameCard({
   framed,
   framedTitle,
   emptyNote,
+  emptyHint,
 }: {
   firstFrame: string | null;
   lastFrame: string | null;
@@ -131,6 +132,10 @@ export default function FrameCard({
   /** 两帧都没有时那句话。缺省按「还没推演」说；方案台上推演过、只是帧没画出来的那一套传「没画出来」——
    *  否则一张推演过的方案卡角上写着「待推演」，与旁边那条提示自相矛盾 */
   emptyNote?: string;
+  /** 放大之后两帧都没有时那一整句（缺省 =「{emptyNote}——出片前会先补画要用到的帧」）。
+   *  ★ 参考图直出段要自己给（2.62 发版评审抓到）：缺省那句接在「不画帧」后面就成了「不画帧——出片前会先补画要用到的帧」，
+   *    一句话里自相矛盾，还暗示有一笔不存在的图钱。 */
+  emptyHint?: string;
 }) {
   const [zoom, setZoom] = useState(false);
   const { t } = useLingui();
@@ -227,7 +232,7 @@ export default function FrameCard({
                 />
               ) : (
                 <div className="flex h-full w-full items-center justify-center text-xs text-slate-500">
-                  {emptyNote ? t`${emptyNote}——出片前会先补画要用到的帧` : t`还没有画面——AI 会在推演时自拟首尾帧`}
+                  {emptyHint ?? (emptyNote ? t`${emptyNote}——出片前会先补画要用到的帧` : t`还没有画面——AI 会在推演时自拟首尾帧`)}
                 </div>
               )}
               <span className="absolute left-2 top-2 rounded bg-black/65 px-2 py-0.5 text-[11px] text-cyan-200">

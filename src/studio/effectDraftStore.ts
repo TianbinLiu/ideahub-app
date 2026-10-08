@@ -33,7 +33,7 @@ export interface EffectDraft {
   durationSec: number | null;
   /** 关键帧（本机 dataURL）；"" = 还没画 */
   keyframe: string;
-  /** 关键帧是按哪一版画的（effectKeyOf）：换了预设 / 主角 / 画幅就过期，界面提醒重画 */
+  /** 关键帧是按哪一版画的（effectKeyOf）：换了预设 / 主角（产品预设是产品）/ 画幅就过期，界面提醒重画 */
   keyframeKey: string;
   drawing: boolean;
   drawErr: string;
@@ -89,7 +89,11 @@ export function setEffect(patch: Partial<EffectDraft>): void {
   useEffectDraft.setState(patch);
 }
 
-/** 挑一个特效：换了预设就清掉旧的关键帧（画的是另一个画面），画幅换成新预设的缺省 */
+/**
+ * 挑一个特效：换了预设就清掉旧的关键帧（画的是另一个画面）与时长（回到新预设的缺省）。
+ * ★ 画幅**不**换成预设的缺省（`EffectPreset.aspect` 今天没人读）：沿用向导眼下的那个（传进来的 aspect = 人改过的，或者接上一段的），
+ *   这样一条片子里前后几段的画幅不会被一个预设悄悄翻成横的。真要让预设的画幅生效是产品决定，不是改这一处注释。
+ */
 export function pickPreset(p: EffectPreset, aspect: VideoAspect): void {
   const s = useEffectDraft.getState();
   if (s.drawing) return;
@@ -108,10 +112,16 @@ export function setProductImage(dataUrl: string): void {
   useEffectDraft.setState({ productImage: dataUrl, productCardId: dataUrl ? null : useEffectDraft.getState().productCardId });
 }
 
-/** 关键帧是按哪一版画的：预设 + 主角（按点选的先后）+ 产品 + 画幅。照片只取长度与头尾（整串 dataURL 太长，比较没有意义） */
+/**
+ * 关键帧是按哪一版画的：预设 + 主角（按点选的先后）+ 产品 + 画幅。照片只取长度与头尾（整串 dataURL 太长，比较没有意义）。
+ * ★ 产品预设不算人物：它的关键帧只喂道具卡 / 照片（drawKeyframe），落段也只挂道具卡（effectAppendSpec）—— 人进不了图也进不了段。
+ *   而 cast 是 leadDraftStore 那一份、B / C / I 共用：算进来的话，去别的向导点了个人再回来，付过钱的产品关键帧就被判成过期、两颗出片键都灰掉，
+ *   产品和画幅一点没变也只能花钱重画。drawKeyframe 与向导判过期都走这一个函数，改这一处两边一起对。
+ */
 export function effectKeyOf(d: Pick<EffectDraft, "presetId" | "productCardId" | "productImage" | "aspect">, cast: readonly Card[]): string {
   const photo = d.productImage ? `${d.productImage.length}:${d.productImage.slice(-24)}` : "";
-  return JSON.stringify([d.presetId, cast.map((c) => c.id), d.productCardId, photo, d.aspect]);
+  const castIds = effectById(d.presetId)?.subject === "product" ? [] : cast.map((c) => c.id);
+  return JSON.stringify([d.presetId, castIds, d.productCardId, photo, d.aspect]);
 }
 
 /** 画一张关键帧多少钱（与真扣同一个数：出图成功才扣一张） */

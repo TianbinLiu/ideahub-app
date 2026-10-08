@@ -2638,9 +2638,12 @@ async function glbFromArkZip(zipUrl: string): Promise<Blob> {
  * GLB 36MB 级——存 IndexedDB blob 仓（key=model3d:<cardId>），卡上只挂 `idb:` 指针
  * （塞 dataURL 会把嵌进作品的卡组 JSON 撑到几十 MB）。CardHologram 会解析该指针。
  * 上限 maxCount 张、单张失败不阻断其余（建模挂了卡本身还在）。
- * ★ 失败的那几张**原样交回**（2026-10-07 评审抓到）：受理之后 Seed3D 明说失败的那一发，服务端会把钱退回 —— 而退款发生在本人自己的
- *   那次轮询里，服务端不另发通知（通知只给「人不在场」的那种）。原来这里只 console.warn，余额就这么无声地变了一笔。
- *   钱上的话由调用方按 ai/failCharge 说（这一层不认识界面），错误对象原样不包，类型不丢。
+ * ★ 失败的那几张**原样交回**（2026-10-07 评审抓到）：调用方（studioStore 组稿那一拍）只对**没退**的那几种（没等到回包 /
+ *   2xx 却用不上）按 ai/failCharge 说一句；受理之后 Seed3D 明说失败、服务端已退 / 会退的那几张**界面上不另说** ——
+ *   服务端对 kind "3d" 的退款**本人轮询退的也发**站内通知 GEN_TASK_REFUND（server taskRefund.followUp；api-contract
+ *   「受理之后失败的退款」），那是这笔钱唯一的一条消息。⚠ 别在这里或调用方再补一句「已退回」：同一笔钱就成了两条消息
+ *   （2.62 发版评审抓到这里原先写的是「服务端不另发通知」，与服务端的实际做法正相反）。
+ *   这一层不认识界面，错误对象原样不包，类型不丢（调用方按类型分档）。
  */
 export async function deriveCharacterModels(
   cards: Card[],

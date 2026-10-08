@@ -7,6 +7,13 @@
 // ★★ 一组画面画到一半 App 被系统回收 / 重开：服务端那一组照样画完、照样按张结算（契约「组图」）。受理那一拍把任务号连同那一版分镜
 //   记进 localStorage（按账号分开），下次打开向导就接着等、把图取回来 —— 不记的话那几张已经付过钱的图就找不回来了。
 //   dev 直连方舟（流式）的那种接不回来，不记。
+//   ★★ 这份记录在，就**不再开新的一组**（drawGroup 先接着等它，向导那颗键也换成「接着等上一组」）：受理之后轮询断了 / 等满 22 分钟，
+//   都只是「这一头没查到」，服务端那一组照样在画、按张结算 —— 原来那条路说「画面没出成」、groupId 也不清，这一进程里再也不自动接，
+//   人一点「整组重出」就另开一组再付一次钱、把记录盖掉（2.62 发版评审抓到）。受理那一发没收到回包、又没问到服务端收没收到时，
+//   也记一份（任务号空着），下次接着等时先去问（adoptLost）。
+//   ★ 出口有两个，都要当面说清钱：「放弃上一组」（discardParkedGroup：那一组照样按画出来的张数结算、这里不再取回）与落段收尾
+//   （resetGridScene：第⑤步铺成之前那一页先说「铺成之后就不再取回」）—— 只有「接着等」一条路的话，接回失败之后人重写过的分镜
+//   （付过一次写分镜的钱）只能被换回去，任务号空着、服务端又一直问不到的那种还会把出一组整整挡 23 小时（2.62 发版评审第二轮抓到）。
 // ★ 人物用 leadDraftStore 的那一份（castIds + 现做一个人物）：B 与 C 是同一批人（「先把人定死」，下一段多半还是这几个人）。这里只多一张场景卡。
 //   ★★ 那份名单只在内存里：一组画面受理那一拍，选了哪些人、哪张场景卡跟着分镜一起记进 localStorage，接着等时还原（2026-10-07 补，
 //   此前只记分镜：App 重开后单格重画一张卡图都不带、落段时人物卡挂空）。分镜里点到的人不在选上的人物里时，出一组 / 单格重画 / 落段
@@ -29,10 +36,10 @@ import {
   shotGroupRefs,
   type ImageGroupState,
 } from "../ai";
-import { ArkHttpError } from "../ai/arkClient";
+import { ArkHttpError, fetchImageGroup } from "../ai/arkClient";
 import { canAfford, frozenNote, spendTokens } from "../data/account";
 import { onOwnerSwitch, workOwner } from "../data/deviceOwner";
-import { CHAT_TURN_TOKENS, IMAGE_TOKENS, fmtTokens } from "../data/economy";
+import { CHAT_TURN_TOKENS, GRID_CHECK_TOKENS, GRID_PANEL_TOKENS, IMAGE_TOKENS, fmtTokens } from "../data/economy";
 import {
   GRID_SHOTS_MAX,
   castGaps,
@@ -193,8 +200,12 @@ export function setGrid(patch: Partial<GridDraft>): void {
 // ── 在画的那一组记进 localStorage（App 被回收 / 重开后接着等） ─────────────────────────────
 
 const PARKED_KEY = "ideahub-app.gridGroup.v1";
+/** 看一遍的结论（存进落盘记录用：只存有结局的那两种） */
+type StoredCheck = Exclude<GridPanel["check"], { state: "running" } | undefined>;
 interface ParkedGroup {
+  /** 服务端任务号；"" = 受理那一发没收到回包、还没确认服务端收没收到（接着等时先按 at 去问，adoptLost） */
   id: string;
+  /** 受理时刻（任务号空着时 = 没收到回包的那一刻：认领时按它对服务端的 createdAt） */
   at: number;
   scene: string;
   shots: GridShot[];
@@ -210,11 +221,32 @@ interface ParkedGroup {
    * ★ 接着等时照它把图摆回格子：按下标直接摆的话，空镜那一格会拿到下一格的画面
    */
   cells?: number[];
+  /**
+   * 已经看过一遍的那几张（按方舟图片链接记）。接着等时这几张取回来直接摆上结论，**不再看一遍、不再收那一次对话的钱** ——
+   * 原来接着等会把整组重新取一遍、每张再看一遍（2.62 发版评审抓到：超出按钮上「最多」那个数）。
+   */
+  checks?: Record<string, StoredCheck>;
 }
 /** 方舟的图片链接 24 小时就失效：超过这么久的记录不再接 */
 const PARKED_TTL_MS = 23 * 3600 * 1000;
 
+/**
+ * 受理那一发没收到回包、问服务端时它说「没有这一组」的那一次（按账号；只在这一进程里，不落盘）。
+ * ★★ 为什么还留着（2.62 发版评审第二轮抓到）：「没有」可能只是服务端还没落库（请求体还没收完，问的那一发先到了），或两边时钟差得多、
+ *   受理时刻没对上 —— 那一组之后照样开画、按张收钱。人再点「画出这一组」时拿它再对一次（reclaimLost：先问最近的几组；
+ *   受理那一发回 409 时对 409 带来的那一组），对上了就认领、接着等，不另开一组再付一次钱。
+ *   落盘记录在的时候用不上它（drawGroup 一开头就接着等那份记录去了）；人放弃上一组 / 落段收尾时一并忘掉。
+ */
+const lostAttempts = new Map<string, ParkedGroup>();
+
+/**
+ * localStorage 写不进去时（满了 / 被禁用）的退路：记录改记在内存里，这一进程里照样接得回来（App 重开就没了）。
+ * ★ 为什么要有它：向导那几句话指人去点「接着等上一组」，那颗键只在有记录时才出现 —— 记录写丢了，那句话就指向一颗不存在的键。
+ *   非 null 时它就是全部记录（下一次写进 localStorage 成功时连它一起写进去、再清掉）。
+ */
+let memParked: Record<string, ParkedGroup> | null = null;
 function readParked(): Record<string, ParkedGroup> {
+  if (memParked) return { ...memParked };
   try {
     const raw = localStorage.getItem(PARKED_KEY);
     const j = raw ? (JSON.parse(raw) as Record<string, ParkedGroup>) : {};
@@ -224,13 +256,14 @@ function readParked(): Record<string, ParkedGroup> {
   }
 }
 function writeParked(owner: string, v: ParkedGroup | null): void {
+  const all = readParked();
+  if (v) all[owner] = v;
+  else delete all[owner];
   try {
-    const all = readParked();
-    if (v) all[owner] = v;
-    else delete all[owner];
     localStorage.setItem(PARKED_KEY, JSON.stringify(all));
+    memParked = null;
   } catch {
-    /* 存不进去：这一组只是接不回来（画面照样在内存里），不拦正事 */
+    memParked = all;
   }
 }
 
@@ -248,7 +281,59 @@ export function parkedGroupOf(owner = ownerOfDraft()): ParkedGroup | null {
   // 格子对照读不对形状就当老记录（一格一张、顺序对应）
   const cells =
     Array.isArray(g.cells) && g.cells.every((x) => Number.isInteger(x) && x >= 0 && x < g.shots.length) ? g.cells : undefined;
-  return { ...g, castIds, placeId, cells };
+  // 看过一遍的结论读不对形状的那几条当没看过（大不了再看一遍），别把坏值摆进格子里
+  const checks: Record<string, StoredCheck> = {};
+  if (g.checks && typeof g.checks === "object") {
+    for (const [url, c] of Object.entries(g.checks as Record<string, unknown>)) {
+      const x = c as { state?: unknown; issues?: unknown; why?: unknown } | null;
+      if (x?.state === "done" && Array.isArray(x.issues)) checks[url] = { state: "done", issues: x.issues as PanelIssue[] };
+      else if (x?.state === "failed" && typeof x.why === "string") checks[url] = { state: "failed", why: x.why };
+    }
+  }
+  return { ...g, castIds, placeId, cells, checks };
+}
+
+/** 看完一遍的结论记进这个人那份落盘记录（接着等时据此不再看第二遍）。记录已经撤了（这一组结过了）就不记：不会再接着等了 */
+function rememberCheck(owner: string, url: string, check: StoredCheck): void {
+  const g = readParked()[owner];
+  if (!g) return;
+  writeParked(owner, { ...g, checks: { ...(g.checks ?? {}), [url]: check } });
+}
+
+/**
+ * 两份分镜画出来的画面是不是同一版（逐格比 shotKey：景别 / 画面 / 画面里有谁）。
+ * ★ 动作与整体交代不在比较里（shotKey 不认它们，改了也不算画面过期）：所以比出「同一版」时，接着等**留着向导里现在的那一份**
+ *   （resumeGroup），不拿记录里的去盖 —— 原来一律换回记录里的，人只改了动作 / 整体交代也会被悄悄换回去（2.62 发版评审第二轮抓到）。
+ */
+function sameShots(a: readonly GridShot[], b: readonly GridShot[]): boolean {
+  return a.length === b.length && a.every((x, i) => shotKey(x) === shotKey(b[i]));
+}
+
+/**
+ * 接着等上一组会不会换掉向导里现在的分镜：向导里有分镜、画面那几样又不是记录里那一版（接回失败之后人改过 / 重写过）。
+ * 空的向导（App 重开过）不算；只改过动作 / 整体交代也不算（接着等时留着现在的，见 sameShots）。
+ * 向导打开时只在它为假时自动接；为真时由人点「接着等上一组」（那颗键上写明会换回去），或者「放弃上一组」。
+ */
+export function resumeReplacesDraft(owner = ownerOfDraft()): boolean {
+  const g = parkedGroupOf(owner);
+  const s = stateFor(owner);
+  return !!g && !!s && s.shots.length > 0 && !sameShots(s.shots, g.shots);
+}
+
+/**
+ * 放弃上一组（向导第③步「放弃上一组」，确认卡上当面说过钱）：撤掉落盘记录，之后可以按现在的分镜另画一组。
+ * ★ 钱：服务端那一组照样画完、照样按画出来的张数结算（预扣多退）—— 放弃只是这一边不再去取，不退、也不多收。确认卡照这个说。
+ * ★ 一并忘掉「没收到回包、服务端当时说没有」的那一次（lostAttempts）：人说了放弃，就别再替他认领回来、把分镜换回去。
+ * ★ 在画 / 在接着等的时候不许放弃：那一头还在用这份记录（结局时它自己会撤）。
+ */
+export function discardParkedGroup(): void {
+  const s = useGridDraft.getState();
+  if (s.drawing || s.writing) return;
+  const who = ownerOfDraft();
+  writeParked(who, null);
+  lostAttempts.delete(who);
+  // 向导里那几句指着「接着等上一组」的话一并撤掉：那颗键没了，留着就是指向一颗不存在的键
+  useGridDraft.setState({ drawErr: "", groupId: "" });
 }
 
 /**
@@ -276,9 +361,22 @@ export function togglePlace(id: string): void {
  * ★ 写出新的分镜 = 换掉整张清单：已经画好的画面与挑的格子一起作废（下标对不上了）—— 界面那颗键上写明这一点。
  * ★ 钱上的话按错误**类型**说（ai/failCharge 一处）：形状不对 / 截断那几句自己就说了「已计费」，网络那一档由 chargeNote 补一句。
  */
+/**
+ * 有一格正在单独画 / 取图吗 —— 这时不许改分镜的**格数与顺序**（删一格、整篇重写、自己写一格）。
+ * ★ 为什么（2.62 发版评审第三轮抓到）：单格出图写回是**按格号**落的（drawPanelAt），中途删掉前面一格，
+ *   那一格就落到隔壁、原来那格的 busy 永远清不掉 ——「接着等上一组」从此灰着，只剩放弃那一组（付过钱的）一条路。
+ */
+export function panelsBusy(s: { panels: (GridPanel | null)[] }): boolean {
+  return s.panels.some((p) => !!p?.busy);
+}
+
 export async function writeShots(o: { cast: string[]; place: string }): Promise<void> {
   const s = useGridDraft.getState();
   if (s.writing || s.drawing) return;
+  if (panelsBusy(s)) {
+    useGridDraft.setState({ writeErr: t`有一格正在单独画——等它画完再重写分镜（这一下还没花钱）` });
+    return;
+  }
   const who = ownerOfDraft();
   const scene = s.scene;
   useGridDraft.setState({ writing: true, writeErr: "" });
@@ -317,7 +415,7 @@ export async function writeShots(o: { cast: string[]; place: string }): Promise<
 /** 不用 AI：把这场戏当成第一格，自己往下加 */
 export function writeShotsByHand(): void {
   const s = useGridDraft.getState();
-  if (s.writing || s.drawing) return;
+  if (s.writing || s.drawing || panelsBusy(s)) return;
   const first: GridShot = { size: "", picture: s.scene.trim(), action: "", who: [] };
   useGridDraft.setState({
     shots: [first],
@@ -344,7 +442,7 @@ export function editShot(i: number, patch: Partial<GridShot>): void {
 /** 删掉一格（连同它的画面；挑中的格子跟着重新编号） */
 export function removeShot(i: number): void {
   const s = useGridDraft.getState();
-  if (s.drawing || i < 0 || i >= s.shots.length) return;
+  if (s.drawing || panelsBusy(s) || i < 0 || i >= s.shots.length) return;
   useGridDraft.setState({
     shots: s.shots.filter((_, k) => k !== i),
     panels: s.panels.filter((_, k) => k !== i),
@@ -370,13 +468,13 @@ export function addShot(): void {
  * 看一遍要多少：一次看图对话（服务端对 chat 按调用次数定额收 CHAT_TURN_TOKENS，与塞几张图无关 —— 所以一次只看一张，见 ai/real.checkGridPanel）。
  * 算进报价里：一组 = 每格一张图 + 看一遍；重画一格同理。
  */
-export const PANEL_CHECK_TOKENS = CHAT_TURN_TOKENS;
-/** 一组画面最多要多少（按上限报：方舟只收画出来的那几张，没画出来的退回 —— 契约「组图」；每格再加看一遍） */
+export const PANEL_CHECK_TOKENS = GRID_CHECK_TOKENS;
+/** 一组画面最多要多少（按上限报：方舟只收画出来的那几张，没画出来的退回 —— 契约「组图」；每格再加看一遍）。每格的价只在 economy.GRID_PANEL_TOKENS（选法屏也读它） */
 export function groupQuote(n: number): number {
-  return (IMAGE_TOKENS + PANEL_CHECK_TOKENS) * n;
+  return GRID_PANEL_TOKENS * n;
 }
 /** 单画 / 重画一格：一张图 + 看一遍 */
-export const PANEL_REDRAW_TOKENS = IMAGE_TOKENS + PANEL_CHECK_TOKENS;
+export const PANEL_REDRAW_TOKENS = GRID_PANEL_TOKENS;
 
 /** 审核没过的码（方舟原样）→ 一句人话 */
 function failLine(code: string): string {
@@ -387,6 +485,12 @@ function failLine(code: string): string {
  * 把这一组的最新进展落进格子里：新画好的那几张去取回来（方舟链接 → 本机 dataURL），没画成的那几格写上原因。
  * ★ 组图里的第 k 张是 cells[k] 那一格（空镜与特写不进组图，gridDrawPlan）：按下标直接摆的话，空镜那一格会拿到下一格的画面。
  * ★ 轮询每一次都回整份列表，取过的不再取（fetched 记着组图里的下标）。
+ * ★ 那一格**已经有画面**的不取、不再看一遍（接着等之前已经取回来的 / 接回失败之后人单独画过、付过钱的）：原来接着等会把格子整张清空、
+ *   重新取一遍、每张再看一遍 —— 人付过钱的单画被盖掉，看图的钱再收一次（2.62 发版评审抓到）。drawGroup 开画前把格子清空了，那条路不受影响。
+ *   ★ 留着的若是**人单独画的那一张**（不是这一组的同一张：链接对不上），这一组里那一格的图服务端照样画了、照样算进按张结算 ——
+ *   记进 kept，由结局那一句当面说（第二轮评审抓到：原来不声不响，「按画出来的 N 张收了」里的 N 比看得见的多）。
+ * @param checks 落盘记录里已经看过一遍的那几张（按图片链接）：取回来直接摆上结论，不再看
+ * @param kept 收「留着人单独画的那张、这一组的图没换上去」的那几格
  */
 function absorb(
   who: string,
@@ -396,6 +500,8 @@ function absorb(
   st: ImageGroupState,
   fetched: Set<number>,
   pending: Promise<void>[],
+  checks?: Readonly<Record<string, StoredCheck>>,
+  kept?: Set<number>,
 ): void {
   for (const f of st.failures) {
     const i = cells[f.index];
@@ -406,19 +512,27 @@ function absorb(
     const i = cells[img.index];
     if (i === undefined || fetched.has(img.index)) continue;
     fetched.add(img.index);
+    const cur = stateFor(who)?.panels[i];
+    if (cur?.image) {
+      if (cur.url !== img.url) kept?.add(i);
+      continue;
+    }
     patchPanel(who, i, () => ({ image: "", url: img.url, key: keys[i], busy: "fetch" }));
-    pending.push(fetchPanel(who, i, img.url, keys[i], shots[i]));
+    pending.push(fetchPanel(who, i, img.url, keys[i], shots[i], checks?.[img.url]));
   }
 }
 
-async function fetchPanel(who: string, i: number, url: string, key: string, shot: GridShot | undefined): Promise<void> {
+/** 把一张组图取回来（方舟链接 → 本机 dataURL；不计费）。取成之后看一遍 —— 落盘记录里已经有这一张的结论（known）就直接摆上，不再看 */
+async function fetchPanel(who: string, i: number, url: string, key: string, shot: GridShot | undefined, known?: StoredCheck): Promise<void> {
   try {
     const image = await imageUrlToDataUrl(url);
-    patchPanel(who, i, () => ({ image, url, key }));
-    if (shot) void checkPanel(who, i, shot, image);
+    patchPanel(who, i, () => ({ image, url, key, ...(known ? { check: known } : {}) }));
+    if (shot && !known) void checkPanel(who, i, shot, image, url);
   } catch (e) {
     const why = e instanceof Error ? e.message : String(e);
-    patchPanel(who, i, () => ({ image: "", url, key, err: t`画好了、但没取回来（${why}）——点这一格重新取` }));
+    // 看过一遍的结论跟着留在这一格上（没有画面时界面不画它）：「重新取」时照它摆，不再看一遍（knownCheckOf）——
+    // 落盘记录在这一组结过之后就撤了，只靠记录的话，接着等完再点「重新取」又要多收一次看图的钱（第三轮评审抓到）
+    patchPanel(who, i, () => ({ image: "", url, key, err: t`画好了、但没取回来（${why}）——点这一格重新取`, ...(known ? { check: known } : {}) }));
   }
 }
 
@@ -439,8 +553,9 @@ async function checkSlot(): Promise<() => void> {
  * ★ 认图不认下标：看完的时候这一格可能已经重画过了（image 换了）—— 那份结论作废、不写。
  * ★ 钱：对话回了（2xx）那一拍服务端已经按一次对话收了钱，本机账本同拍记一次（正式包上是空操作）；读不懂回话也照算。失败按类型说（ai/failCharge）。
  * ★ 演示构建不看（没有对话模型）：check 缺省 = 界面什么都不标。
+ * @param url 这张图是组图里取回来的（方舟链接）：结论记进落盘记录，接着等时不再看第二遍（rememberCheck）。单画的那几格不进记录，不传
  */
-async function checkPanel(who: string, i: number, shot: GridShot, image: string): Promise<void> {
+async function checkPanel(who: string, i: number, shot: GridShot, image: string, url?: string): Promise<void> {
   if (!AI_REAL || !image) return;
   patchPanel(who, i, (p) => (p && p.image === image ? { ...p, check: { state: "running" } } : p));
   const release = await checkSlot();
@@ -448,11 +563,15 @@ async function checkPanel(who: string, i: number, shot: GridShot, image: string)
     const raw = await checkGridPanel(image);
     spendTokens(PANEL_CHECK_TOKENS);
     const c = parsePanelCheck(raw);
-    const check: GridPanel["check"] = c ? { state: "done", issues: panelIssues(c, shot) } : { state: "failed", why: "" };
+    const check: StoredCheck = c ? { state: "done", issues: panelIssues(c, shot) } : { state: "failed", why: "" };
+    if (url) rememberCheck(who, url, check);
     patchPanel(who, i, (p) => (p && p.image === image ? { ...p, check } : p));
   } catch (e) {
     const money = chargeNote(chargeOnFail(e), PANEL_CHECK_TOKENS);
-    patchPanel(who, i, (p) => (p && p.image === image ? { ...p, check: { state: "failed", why: money?.line ?? "" } } : p));
+    const check: StoredCheck = { state: "failed", why: money?.line ?? "" };
+    // 没看成也记：这一发可能已经收了钱（钱上那句就在 why 里），接着等时再看一遍就是可能再收一次
+    if (url) rememberCheck(who, url, check);
+    patchPanel(who, i, (p) => (p && p.image === image ? { ...p, check } : p));
   } finally {
     release();
   }
@@ -496,11 +615,33 @@ function closeJob(who: string, job: ReturnType<typeof startJob>): void {
  * 出一组画面 —— 领一张后台任务票，画好一张多一张。结果写回开工那一拍那个人的向导。
  * 先出组图（普通格），再一格一格单画空镜 / 特写 / 落单的那一格（gridDrawPlan）；组图一张都没出来时不再单画
  * （多半是连不上，单画也一样 —— 人再点一次「画出这一组」整组重来）。
+ * ★★ 还有一组受理过、没取回来（落盘记录在）就**不开新的一组**，先接着等它（resumeGroup）：那一组按张付过钱，开新的一组要再付一次，
+ *   还会把记录盖掉、那几张就再也取不回来。向导那颗键此时写的是「接着等上一组」（旁边另有「放弃上一组」），这里是同一条规矩的兜底。
+ *   这一进程里有一次「没收到回包、服务端当时说没有」（lostAttempts）时，开画之前先再对一次（reclaimLost）。
  * @param o.cast 出场人物（卡），o.place 场景卡；画幅在 draft.aspect（画之前定）
  */
 export async function drawGroup(o: { cast: Card[]; place: Card | null }): Promise<void> {
+  const s0 = useGridDraft.getState();
+  if (s0.drawing || s0.writing || !s0.shots.length || !s0.aspect) return;
+  // 有一格正在单独画就不开一组（2.62 发版评审第四轮）：整组重出会先把格子清空，单画那张回来落在清空后的格子上，
+  // 组图同一格那张就被跳过 —— 按张收了钱、却一眼都没给人看（panelsBusy 头上的 ★ 是同一个缘故）
+  if (panelsBusy(s0)) {
+    useGridDraft.setState({ drawErr: t`有一格正在单独画——等它画完再整组重出（这一下还没花钱）` });
+    return;
+  }
+  const who = ownerOfDraft();
+  if (parkedGroupOf(who)) {
+    await resumeGroup();
+    return;
+  }
+  if (await reclaimLost(who)) return;
+  // 问的那几秒里向导被别处动过（换了账号 / 又在画了）就不画：下面全按这一刻的那份
   const s = useGridDraft.getState();
-  if (s.drawing || s.writing || !s.shots.length || !s.aspect) return;
+  if (panelsBusy(s) && ownerOfDraft() === who) {
+    useGridDraft.setState({ drawErr: t`有一格正在单独画——等它画完再整组重出（这一下还没花钱）` });
+    return;
+  }
+  if (s.drawing || s.writing || !s.shots.length || !s.aspect || ownerOfDraft() !== who) return;
   const shots = s.shots.filter((x) => x.picture.trim());
   if (shots.length !== s.shots.length) {
     useGridDraft.setState({ drawErr: t`有几格还没写画面——写上，或者删掉那几格再画` });
@@ -517,7 +658,6 @@ export async function drawGroup(o: { cast: Card[]; place: Card | null }): Promis
     useGridDraft.setState({ drawErr: frozenNote() ?? t`画这一组最多要 ${price} token，余额不够——去「我的」页充值` });
     return;
   }
-  const who = ownerOfDraft();
   const page = currentRoute();
   const job = startJob({ kind: "grid-draw", title: t`九宫格分镜 · 出画面`, page, route: page, progress: t`准备参考图…` });
   const keys = shots.map(shotKey);
@@ -535,6 +675,8 @@ export async function drawGroup(o: { cast: Card[]; place: Card | null }): Promis
     job.update(line);
   };
   const notes: string[] = [];
+  /** 服务端受理过这一组了（onStarted 跑过：按张预扣、任务号已记下）。之后再出错只是「这一头没查到」，不是「没出成」 */
+  let started = false;
   try {
     if (plan.group.length) {
       const fetched = new Set<number>();
@@ -553,6 +695,9 @@ export async function drawGroup(o: { cast: Card[]; place: Card | null }): Promis
             say();
           },
           onStarted: (id) => {
+            started = true;
+            // 新的一组受理了：先前那一次「服务端说没有」不用再对（开画之前 reclaimLost 已经对过一次；真在画的话这一发会回 409 而不是受理）
+            lostAttempts.delete(who);
             writeFor(who, { groupId: id });
             writeParked(who, { id, at: Date.now(), scene: s.scene, shots, lead: s.lead, lang: s.lang, aspect, castIds, placeId, cells: plan.group });
           },
@@ -561,29 +706,63 @@ export async function drawGroup(o: { cast: Card[]; place: Card | null }): Promis
       } catch (e) {
         await Promise.all(pending);
         if (e instanceof ImageGroupBusy && e.id) {
-          // 服务端说这个人已经有一组在画：是上一次受理过、还没取回来的那一组就接着等它（它记着自己的那一版分镜），否则说清楚
-          const g = parkedGroupOf(who);
-          if (g && g.id === e.id) {
+          // 服务端说这个人已经有一组在画。落盘记录在的话走不到这里（drawGroup 一开头就接着等它去了），所以能认的只剩一种：
+          // 这一进程里「没收到回包、服务端当时说没有」的那一次（lostAttempts）其实收到了 —— 张数与受理时刻对得上（busyIsOurs）就认领、接着等。
+          // 对不上（同一个账号在别的设备上开的那一组 / 人放弃过的那一组）就说清楚，不认
+          const lost = lostAttempts.get(who);
+          if (lost && (await busyIsOurs(e.id, lost))) {
             job.done({ silent: true });
             writeFor(who, { drawing: "" });
-            await resumeGroup();
+            await claimLost(who, lost, e.id);
             return;
           }
           writeFor(who, { drawErr: t`上一组画面还在画（同一时间只能画一组）——几分钟后再来` });
           job.fail(t`上一组画面还在画`);
           return;
         }
-        if (e instanceof ArkNoReply && !import.meta.env.DEV && (await adoptLost(who, shots, s, aspect, castIds, placeId, plan.group))) {
-          // 受理那一发没收到回包、但服务端其实受理了：接回来接着等
-          job.done({ silent: true });
-          writeFor(who, { drawing: "" });
-          await resumeGroup();
+        const gone = e instanceof ArkHttpError && e.status === 404;
+        if (started && !gone) {
+          // ★★ 受理过了（按张预扣过、服务端照样在画、画完按拿到手的张数结算）：轮询断了几次 / 等满 22 分钟只是「这一头没查到」。
+          //   落盘记录留着、groupId 在 finally 里清掉（向导打开时据此自动接着等）；不说「画面没出成」、不另说钱 —— 钱的结局在接回来那一拍按服务端的账说
+          writeFor(who, { drawErr: stillDrawingLine(e) });
+          job.fail(t`九宫格分镜的画面还没取回来——回到那一页接着取`);
           return;
         }
+        // 受理过、但这一组在服务端没了（404：过期 / 不是这个账号的）：记录留着也接不回来
+        if (started) writeParked(who, null);
         // 受理那一发就连不上（网关 / 代理回 502~504）：说人话，不摆「Ark … 504: {…}」（判据见 upstreamDown）
         const why = upstreamDown(e) ? t`这次没连上出图服务（多半是网络抖了一下），再点一次就行` : e instanceof Error ? e.message : String(e);
         const money = chargeNote(chargeOnFail(e), IMAGE_TOKENS * plan.group.length);
         const moneyLine = money?.line ?? "";
+        if (!started && e instanceof ArkNoReply && !import.meta.env.DEV) {
+          // 受理那一发没收到回包 ≠ 没受理：问服务端收没收到（adoptLost）。收到了就接回来接着等；**没问到**就把这一次记下来（任务号空着），
+          // 下次接着等时再问 —— 原来没问到也当「没受理」，那一组付过钱却再也没人去取（2.62 发版评审抓到）
+          writeFor(who, { drawing: t`这一组发出去没收到回包，正在问服务端收没收到…` });
+          const rec: ParkedGroup = { id: "", at: Date.now(), scene: s.scene, shots, lead: s.lead, lang: s.lang, aspect, castIds, placeId, cells: plan.group };
+          const r = await adoptLost(who, rec);
+          if (typeof r === "object") {
+            job.done({ silent: true });
+            writeFor(who, { drawing: "" });
+            await resumeGroup();
+            return;
+          }
+          if (r === "unknown") {
+            writeParked(who, rec);
+            writeFor(who, {
+              drawErr: money
+                ? t({
+                    message: `这一组发出去没收到回包，也没问到服务端收没收到（${why}）。${moneyLine}点下面「接着等上一组」再问一次：收到了就接着取回来（图不再收钱），没收到再画`,
+                    comment: "why 是失败原因整句；moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格",
+                  })
+                : t`这一组发出去没收到回包，也没问到服务端收没收到（${why}）。点下面「接着等上一组」再问一次：收到了就接着取回来（图不再收钱），没收到再画`,
+            });
+            job.fail(t`九宫格分镜的画面还没确认——回到那一页接着问`);
+            return;
+          }
+          // "none"：服务端说了没有这一组 —— 照下面那句说（钱上那句仍按「没收到回包」那一档，以余额为准）。
+          // 这一次记在内存里（lostAttempts）：「没有」可能只是服务端还没落库，人再点「画出这一组」时再对一次
+          lostAttempts.set(who, rec);
+        }
         writeFor(who, {
           drawErr: money
             ? t({
@@ -606,26 +785,103 @@ export async function drawGroup(o: { cast: Card[]; place: Card | null }): Promis
     }
     closeJob(who, job);
   } finally {
-    writeFor(who, { drawing: "" });
+    // groupId 一并清掉（与 resumeGroup 同）：留着的话向导打开时那道「自动接着等」的闸（!groupId）这一进程里再也不成立
+    writeFor(who, { drawing: "", groupId: "" });
   }
 }
 
-/** 受理那一发没收到回包：问服务端这个人最近的几组里有没有刚开的那一组（张数对得上、三分钟内受理的），有就认领（任务号 + 这一版分镜记下来，接着等）。
- *  ★ 必须卡时间：服务端其实没受理的话，最近的那一组是十几分钟前的旧一组 —— 认成它，旧图就按新分镜的下标摆进格子里了 */
-async function adoptLost(
-  who: string,
-  shots: GridShot[],
-  s: GridDraft,
-  aspect: VideoAspect,
-  castIds: string[],
-  placeId: string | null,
-  cells: number[],
-): Promise<boolean> {
+/** 受理之后这一头没查到进展（轮询断了 / 等满 22 分钟 / 接着等又断了）时那一句：服务端照样在画，指人去点「接着等上一组」 */
+function stillDrawingLine(e: unknown): string {
+  const why = upstreamDown(e) ? t`没连上出图服务` : e instanceof Error ? e.message : String(e);
+  return t`这一组的进展暂时没查到（${why}）——服务端照样在画，画好的图在服务端留 24 小时：点下面「接着等上一组」接着取回来（图不再收钱），别整组重出`;
+}
+
+/**
+ * 这一组在服务端的样子与「没收到回包的那一次」对得上吗：张数一样、受理时刻离没收到回包的那一刻三分钟以内。
+ * ★ 拿手机时钟（rec.at）对服务端时钟（createdAt）：两边差得多时对不上的那一组也可能就是它 —— 所以「对不上」只能说成
+ *   「没找到」，不能说成「服务端没收到」（resumeGroup 的 none 那一句）。按服务端时间对要读回包的 Date 头，跨源时 WebView 读不到（不在 CORS 白名单里）
+ */
+function matchesAttempt(g: Pick<ImageGroupState, "maxImages" | "createdAt">, rec: ParkedGroup): boolean {
+  const cells = rec.cells ?? rec.shots.map((_, i) => i);
+  return g.maxImages === cells.length && g.createdAt > 0 && Math.abs(g.createdAt - rec.at) < 3 * 60_000;
+}
+
+/** 服务端回 409 带来的那一组是不是 rec 那一次（lostAttempts 里那一次；查一次进展，不计费；查不到就当不是 —— 同一个账号在别的设备上开的那一组不认） */
+async function busyIsOurs(id: string, rec: ParkedGroup): Promise<boolean> {
+  try {
+    return matchesAttempt(await fetchImageGroup(id), rec);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 认领：rec 那一次（没收到回包、服务端当时说没有）其实是服务端的 id 那一组 —— 记进落盘记录（任务号补上），接着等。
+ * ★ 向导里的分镜已经不是那一版了（人在这期间改过 / 重写过）就**不替人换回去**：只记下来，摆出「接着等上一组」那颗键
+ *   （键旁写明会换回去）和「放弃上一组」，由人定。换过账号的（who 不是向导现在的主人）也只记下来，等那个人打开向导时自动接。
+ */
+async function claimLost(who: string, rec: ParkedGroup, id: string): Promise<void> {
+  lostAttempts.delete(who);
+  writeParked(who, { ...rec, id });
+  if (who === ownerOfDraft() && !resumeReplacesDraft(who)) {
+    await resumeGroup();
+    return;
+  }
+  writeFor(who, { drawErr: claimedLine() });
+}
+
+/** 那一次（没收到回包）服务端其实收到了、记录已经补上任务号，但这一刻不替人接（分镜改过 / 换了账号）时那一句：指人去点「接着等上一组」 */
+function claimedLine(): string {
+  return t`上一组（发出去没收到回包的那一次）服务端其实收到了、照样在画：点下面「接着等上一组」把图取回来（图不再收钱），不用再画一组`;
+}
+
+/**
+ * 开新的一组之前：这一进程里有「没收到回包、服务端当时说没有」的那一次（lostAttempts）就再问一次服务端最近的几组（不计费）。
+ * 对上了就认领（claimLost）、回 true —— 不另开一组、不再付一次钱（那一组要是已经画完了，受理新的一组时不会回 409，只有在这里才对得上）。
+ * 服务端又说了一次没有就不再记、照常往下画。
+ * ★★ **没问到就不画**（2.62 发版评审第三轮抓到）：原来没问到也照常往下画 —— 可那一组要是已经画完了，受理新的一组时不会回 409，
+ *   服务端照收第二组的钱，onStarted 又把这条记录删掉，前一组付过钱的图从此对不上号、取不回来。没问到 = 不知道，
+ *   宁可让人过一会儿再点一次（不花钱），也别冒着付两次的风险开新的一组。
+ */
+async function reclaimLost(who: string): Promise<boolean> {
+  const lost = lostAttempts.get(who);
+  if (!lost) return false;
+  writeFor(who, { drawing: t`问服务端收没收到上一组…`, drawErr: "" });
   const recent = await listImageGroups();
-  const hit = recent.find((g) => g.maxImages === cells.length && g.createdAt > 0 && Date.now() - g.createdAt < 3 * 60_000);
-  if (!hit) return false;
-  writeParked(who, { id: hit.id, at: Date.now(), scene: s.scene, shots, lead: s.lead, lang: s.lang, aspect, castIds, placeId, cells });
+  writeFor(who, { drawing: "" });
+  const hit = recent?.find((g) => matchesAttempt(g, lost));
+  if (hit) {
+    await claimLost(who, lost, hit.id);
+    return true;
+  }
+  if (recent) {
+    lostAttempts.delete(who);
+    return false;
+  }
+  writeFor(who, {
+    drawErr: t`没问到服务端收没收到上一组（网络断了一下）—— 为了不让同一组画面付两次钱，这一次先不开新的一组；过一会儿再点一次（问一下不花钱）`,
+  });
   return true;
+}
+
+/**
+ * 受理那一发没收到回包：问服务端这个人最近的几组里有没有那一组（matchesAttempt），有就认领（任务号写进 rec 落盘，接着等）。
+ * ★ 必须卡时间：服务端其实没受理的话，最近的那一组是十几分钟前的旧一组 —— 认成它，旧图就按新分镜的下标摆进格子里了
+ * ★★ 三个结局分开（2.62 发版评审抓到）：{ id } = 认领了（任务号）；none = 服务端说了没有；unknown = **没问到**（listImageGroups 回 null，
+ *   隔几秒再问、一共问三次）—— 原来没问到也当「没有」，付过钱的那一组就没人去取了。unknown 时调用方把这一次记下来（任务号空着），接着等时再问。
+ */
+async function adoptLost(who: string, rec: ParkedGroup): Promise<{ id: string } | "none" | "unknown"> {
+  for (let k = 0; ; k++) {
+    const recent = await listImageGroups();
+    if (recent) {
+      const hit = recent.find((g) => matchesAttempt(g, rec));
+      if (!hit) return "none";
+      writeParked(who, { ...rec, id: hit.id });
+      return { id: hit.id };
+    }
+    if (k >= 2) return "unknown";
+    await new Promise((r) => setTimeout(r, 3_000 * (k + 1)));
+  }
 }
 
 /** 一组画完（或接着等完）：等取图收尾、撤掉落盘记录、本机账本按拿到手的张数记、写结局那一句（一张都没有时写失败原因）。回拿到手几张 */
@@ -671,50 +927,125 @@ function groupFailLine(st: ImageGroupState): string {
 }
 
 /**
- * 接着等上一组（向导打开时发现 localStorage 里有受理过、还没取回来的那一组）：恢复那一版分镜，轮询到有结局、把图取回来。
- * ★ 当时那一版分镜原样恢复（格子与图按 cells 对应）：人在这期间改过的分镜会被换回去 —— 画面就是按那一版画的。
+ * 接着等上一组（向导打开时发现 localStorage 里有受理过、还没取回来的那一组，或人点「接着等上一组」）：恢复那一版分镜，轮询到有结局、把图取回来。
+ * ★ 向导里的分镜在画面那几样（景别 / 画面 / 有谁）上改过时，恢复当时那一版（格子与图按 cells 对应）—— 画面就是按那一版画的。
+ *   所以向导只在不会换掉什么的时候自动接（resumeReplacesDraft 为假），否则由人点那颗写明「会换回去」的键，或者放弃上一组。
+ * ★★ 向导里还是同一版分镜时（接回失败之后人没改过分镜），**已经有画面的格子留着**：之前取回来的、人单独画过（付过钱）的都不清，
+ *   absorb 也不再取、不再看一遍；落盘记录里看过一遍的那几张直接摆上结论（checks）。原来一律整张清空、重取、每张再看一遍
+ *   （2.62 发版评审抓到：单画的钱白花、看图的钱收两次，超出按钮上「最多」那个数）。分镜本身也留着向导里现在的那一份（动作 / 整体交代
+ *   改过的不换回去，sameShots）；留着人单独画的那一张、这一组的图没换上去的格子，结局那一句当面说（它们也算在按张结算里）。
+ * ★ 有一格正在单独画 / 取图时不接（向导那颗键也灰着）：接着等会把那一格清掉，单画回来又跟这一组抢同一格（第二轮评审抓到）。
  * ★ 当时选的人与场景卡一并还原（只在向导里那一项空着时：App 重开后它们本来就是空的；人这一次已经重新选过就不替他改）。
  *   还原不了的（老记录没记、卡被删了）由 gridCastIssue 在重画与落段那一步拦下。
+ * ★ 任务号空着的记录（受理那一发没收到回包、当时没问到服务端收没收到）：先问（adoptLost）—— 收到了就认领、接着等；
+ *   服务端最近的几组里没找到就撤掉记录（那一次记进内存 lostAttempts：再点「画出这一组」时再对一次）；还是没问到就留着，下次再问。
+ *   ★★ 接回来会换掉向导里现在的分镜时（resumeReplacesDraft），**先问、问到了才换**（2.62 发版评审第三轮抓到）：原来一律先换再问，
+ *   而这种记录多半是服务端压根没收到 —— 问回来「没有 / 没问到」时，人改过的分镜和单独画过（付过钱）的格子已经白白被换掉了。
+ *   换不掉什么的时候（向导是空的 —— App 重开过 / 还是同一版分镜）照旧先换：问回来「没有」时，人至少拿回了那一版分镜、能直接重新画。
  * ★ 空镜与特写不在组图里：接着等完**不替人单画**（App 重开过，别在人没点的时候花钱），在结局那句里说一声、让人点开那一格自己画。
  */
 export async function resumeGroup(): Promise<void> {
   const who = ownerOfDraft();
   const g = parkedGroupOf(who);
-  const s = useGridDraft.getState();
-  if (!g || s.drawing) return;
-  const keys = g.shots.map(shotKey);
+  const s0 = useGridDraft.getState();
+  if (!g || s0.drawing || s0.writing || s0.panels.some((p) => !!p?.busy)) return;
   const cells = g.cells ?? g.shots.map((_, i) => i);
-  const job = startJob({ kind: "grid-draw", title: t`九宫格分镜 · 出画面`, page: currentRoute(), route: currentRoute(), progress: t`接着等上一组…` });
-  if (g.castIds) restoreCast(g.castIds);
-  useGridDraft.setState({
-    placeId: s.placeId ?? g.placeId ?? null,
-    scene: s.scene || g.scene,
-    shots: g.shots,
-    lead: g.lead,
-    lang: g.lang,
-    aspect: g.aspect ?? s.aspect,
-    shotsScene: s.shotsScene || g.scene,
-    panels: g.shots.map(() => null),
-    picks: [],
-    groupId: g.id,
-    step: "draw",
-    drawing: t`接着等上一组…`,
-    drawErr: "",
-    drawNote: "",
-  });
+  const asking = !g.id;
+  const firstLine = asking ? t`问服务端收没收到上一组…` : t`接着等上一组…`;
+  const job = startJob({ kind: "grid-draw", title: t`九宫格分镜 · 出画面`, page: currentRoute(), route: currentRoute(), progress: firstLine });
+  /**
+   * 把向导换成接回来用的那一份，回接回来用的分镜：同一版就是向导里现在那一份（画面那几样逐格一样，动作 / 整体交代按人改过的），
+   * 否则换回画这一组时的那一版。留下的格子：同一版分镜、有画面、按的正是这一格这一版（panelStale 判否）。
+   */
+  const swapIn = (id: string, line: string): GridShot[] => {
+    const s = useGridDraft.getState();
+    const same = sameShots(s.shots, g.shots);
+    const shots = same ? s.shots : g.shots;
+    const panels = shots.map((shot, i) => {
+      const p = same ? (s.panels[i] ?? null) : null;
+      return p?.image && !panelStale(p, shot) ? p : null;
+    });
+    if (g.castIds) restoreCast(g.castIds);
+    useGridDraft.setState({
+      placeId: s.placeId ?? g.placeId ?? null,
+      scene: s.scene || g.scene,
+      shots,
+      lead: same ? s.lead : g.lead,
+      lang: same ? s.lang : g.lang,
+      aspect: g.aspect ?? s.aspect,
+      shotsScene: s.shotsScene || g.scene,
+      panels,
+      picks: same ? s.picks.filter((i) => !!panels[i]) : [],
+      groupId: id,
+      step: "draw",
+      drawing: line,
+      drawErr: "",
+      drawNote: "",
+    });
+    return shots;
+  };
+  /** null = 还没换（先问、问到了才换）。问的那几秒里 drawing 亮着：改分镜 / 单画 / 写分镜那几条路都被它挡着，换的时候向导还是这一份 */
+  let resumed: GridShot[] | null = asking && resumeReplacesDraft(who) ? null : swapIn(g.id, firstLine);
+  if (!resumed) writeFor(who, { step: "draw", drawing: firstLine, drawErr: "" });
   const fetched = new Set<number>();
   const pending: Promise<void>[] = [];
-  const n = g.shots.length;
+  /** 留着人单独画的那张、这一组的图没换上去的格子（absorb 收，结局那一句说） */
+  const kept = new Set<number>();
   try {
+    let id = g.id;
+    if (!id) {
+      const r = await adoptLost(who, g);
+      if (r === "none") {
+        writeParked(who, null);
+        // 「没有」可能只是服务端还没落库：记进内存，人再点「画出这一组」时再对一次（lostAttempts）
+        lostAttempts.set(who, g);
+        // ★ 只说「没找到」，不说「没收到」（第三轮评审抓到）：认领按受理时刻对（matchesAttempt：手机时钟对服务端时钟、前后三分钟，
+        //   只看最近的几组），两边时钟差得多时，服务端收到了、照样在画、照样按张收钱的那一组也对不上。
+        //   钱上那句照受理那一发的那一档说（这份记录只在受理那一发没收到回包时才会是任务号空着的，drawGroup）—— ai/failCharge 一处，指去余额核对
+        const money = chargeNote(chargeOnFail(new ArkNoReply("")), IMAGE_TOKENS * cells.length);
+        const moneyLine = money?.line ?? "";
+        writeFor(who, {
+          drawErr: money
+            ? t({
+                message: `服务端最近的几组里没找到上一组，多半是没收到。${moneyLine}要画就重新画这一组`,
+                comment: "moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格",
+              })
+            : t`服务端最近的几组里没找到上一组，多半是没收到——重新画这一组就行`,
+        });
+        job.fail(t`九宫格分镜的上一组在服务端没找到`);
+        return;
+      }
+      if (r === "unknown") {
+        writeFor(who, { drawErr: t`还是没问到服务端收没收到上一组（网络不稳）——网好了再点「接着等上一组」` });
+        job.fail(t`九宫格分镜的上一组还没问到`);
+        return;
+      }
+      id = r.id;
+      const line = t`接着等上一组…`;
+      if (!resumed) {
+        // 问的那几秒里换了账号：记录已经补上任务号（adoptLost），不往别人的向导里换 —— 等那个人打开向导时由他接（claimLost 同一条）
+        if (ownerOfDraft() !== who) {
+          writeFor(who, { drawErr: claimedLine() });
+          job.fail(t`九宫格分镜的画面还没取回来——回到那一页接着取`);
+          return;
+        }
+        resumed = swapIn(id, line);
+      } else writeFor(who, { groupId: id, drawing: line });
+      job.update(line);
+    }
+    // 走到这里一定换过了（先换的那条路一开头就换了，先问的那条路问到了才换）—— ?? 只是让类型认得出来
+    const shots = resumed ?? swapIn(id, t`接着等上一组…`);
+    const keys = shots.map(shotKey);
+    const n = shots.length;
     const st = await drawShotGroup({
-      shots: cells.map((i) => g.shots[i]),
+      shots: cells.map((i) => shots[i]),
       lead: g.lead,
       cast: [],
       place: null,
       aspect: g.aspect ?? undefined,
-      resumeId: g.id,
+      resumeId: id,
       onUpdate: (u) => {
-        absorb(who, keys, cells, g.shots, u, fetched, pending);
+        absorb(who, keys, cells, shots, u, fetched, pending, g.checks, kept);
         const k = drawnOf(who);
         const line = t`画好 ${k}/${n} 格（一组约几分钟，可以先离开）`;
         writeFor(who, { drawing: line });
@@ -722,34 +1053,69 @@ export async function resumeGroup(): Promise<void> {
       },
     });
     const got = await settleGroup(who, st, cells.length, pending, []);
-    const rest = g.shots.map((_, i) => i).filter((i) => !cells.includes(i));
+    const listSep = t({ message: "、", comment: "列举几个名字时的分隔符" });
+    const sep = t({ message: "；", comment: "把几条说明连成一句时的分隔符" });
+    const extra: string[] = [];
+    if (kept.size) {
+      const list = [...kept]
+        .sort((a, b) => a - b)
+        .map((i) => i + 1)
+        .join(listSep);
+      extra.push(t`第 ${list} 格你之前单独画过，留着你画的那一张；这一组里这几格也画了（按画出来的张数结算时算在里面），没有换上去`);
+    }
+    // 只说还空着的那几格（人之前已经单独画过的不用再画）
+    const rest = shots.map((_, i) => i).filter((i) => !cells.includes(i) && !stateFor(who)?.panels[i]?.image);
     if (got && rest.length) {
-      const list = rest.map((i) => i + 1).join(t({ message: "、", comment: "列举几个名字时的分隔符" }));
-      const sep = t({ message: "；", comment: "把几条说明连成一句时的分隔符" });
+      const list = rest.map((i) => i + 1).join(listSep);
+      extra.push(t`第 ${list} 格是空镜或特写，不放进组图：点开那一格单独画`);
+    }
+    if (extra.length) {
       const before = stateFor(who)?.drawNote ?? "";
-      writeFor(who, { drawNote: [before, t`第 ${list} 格是空镜或特写，不放进组图：点开那一格单独画`].filter(Boolean).join(sep) });
+      writeFor(who, { drawNote: [before, ...extra].filter(Boolean).join(sep) });
     }
     closeJob(who, job);
   } catch (e) {
-    const why = e instanceof Error ? e.message : String(e);
-    // 查不到了（过期 / 不是这个账号的）就别再记着；断网之类的留着，下次打开再接
-    if (e instanceof ArkHttpError && e.status === 404) writeParked(who, null);
-    writeFor(who, { drawErr: t`上一组的画面没接回来：${why}` });
-    job.fail(t`九宫格分镜的画面没接回来`);
     await Promise.all(pending);
+    if (e instanceof ArkHttpError && e.status === 404) {
+      // 查不到了（过期 / 不是这个账号的）就别再记着
+      writeParked(who, null);
+      const why = e.message;
+      writeFor(who, { drawErr: t`上一组的画面没接回来：${why}` });
+      job.fail(t`九宫格分镜的画面没接回来`);
+      return;
+    }
+    // 断网之类的：记录留着（服务端照样在画），点「接着等上一组」或下次打开再接
+    writeFor(who, { drawErr: stillDrawingLine(e) });
+    job.fail(t`九宫格分镜的画面还没取回来——回到那一页接着取`);
   } finally {
     writeFor(who, { drawing: "", groupId: "" });
   }
 }
 
-/** 取图失败的那一格再取一次（图已经付过钱，链接 24 小时内还在） */
+/**
+ * 这张组图已经看过一遍的结论（取回来就直接摆上、不再看）：取图失败时留在那一格上的（fetchPanel），或落盘记录里按链接记的（rememberCheck）。
+ * ★ 「重新取」那条路只问它（第三轮评审抓到：原来不传，上一进程看过的那一张重新取回来又看一遍，多收一次看图的钱）
+ */
+function knownCheckOf(who: string, p: GridPanel): StoredCheck | undefined {
+  if (p.check && p.check.state !== "running") return p.check;
+  return p.url ? parkedGroupOf(who)?.checks?.[p.url] : undefined;
+}
+
+/** 重新取这一格时 AI 还要不要看一遍（要看就多一次对话的钱）：向导那颗「重新取」键照它说价钱 */
+export function refetchWillCheck(i: number): boolean {
+  const p = useGridDraft.getState().panels[i];
+  return !!p && !knownCheckOf(ownerOfDraft(), p);
+}
+
+/** 取图失败的那一格再取一次（图已经付过钱，链接 24 小时内还在）。看过一遍的不再看（knownCheckOf） */
 export async function refetchPanel(i: number): Promise<void> {
   const who = ownerOfDraft();
   const s = useGridDraft.getState();
   const p = s.panels[i];
   if (!p?.url || p.busy) return;
+  const known = knownCheckOf(who, p);
   patchPanel(who, i, (x) => (x ? { ...x, busy: "fetch", err: undefined } : x));
-  await fetchPanel(who, i, p.url, p.key, s.shots[i]);
+  await fetchPanel(who, i, p.url, p.key, s.shots[i], known);
 }
 
 /**
@@ -838,6 +1204,32 @@ export async function redrawPanel(i: number, o: { cast: Card[]; place: Card | nu
   await drawPanelAt(ownerOfDraft(), i, shot, { cast: o.cast, place: o.place, ask: o.ask, aspect: s.aspect, lead: s.lead });
 }
 
+/**
+ * 挑中的格子里，画面是按**改之前**那版分镜画的那几格（第几格，从 1 起；按挑的先后）。
+ * ★ 与对话正反打（DialogueWizard 的 stale）同一条规矩：过期的画面不许落段 —— 那张旧图会被钉成开头帧（上锁），
+ *   而这一段的剧情与挂的人物卡按的是新分镜（比如画面里有沈舟、卡却按新分镜没挂他），出片时帧与卡对不上（2.62 发版评审抓到）。
+ */
+function stalePicks(d: Pick<GridDraft, "picks" | "shots" | "panels">): number[] {
+  return d.picks.filter((i) => panelStale(d.panels[i], d.shots[i])).map((i) => i + 1);
+}
+
+/**
+ * 这一格的画面是不是按**改之前**那版分镜画的（画面那几样改过：shotKey 对不上）—— 判据只有这一处（第三轮评审抓到原来抄了三份）。
+ * 落段的闸（stalePicks / gridStaleIssue）、接着等时留哪几格（resumeGroup）、向导第③④步的「分镜改过」都问它：抄成几份的话，
+ * 第④步的标记与落段的闸会对不上（标着没过期、落段却被拦下，或者反过来）。
+ */
+export function panelStale(p: GridPanel | null | undefined, shot: GridShot | undefined): boolean {
+  return !!shot && !!p?.image && p.key !== shotKey(shot);
+}
+
+/** 挑中的格子里有过期画面时那一句（null = 没有）。落段（gridAppendSpecs）与向导的出片键问的都是它 */
+export function gridStaleIssue(d: Pick<GridDraft, "picks" | "shots" | "panels">): string | null {
+  const stale = stalePicks(d);
+  if (!stale.length) return null;
+  const list = stale.join(t({ message: "、", comment: "列举几个名字时的分隔符" }));
+  return t`第 ${list} 格的分镜在画好之后改过，画面还是按原来那版画的——回第 3 步重画，或者回第 4 步把它取下`;
+}
+
 /** 挑中的那几格的分镜（按挑的先后；挑的格子已经不在了的跳过） */
 export function pickedShots(d: Pick<GridDraft, "picks" | "shots">): GridShot[] {
   return d.picks.map((i) => d.shots[i]).filter((s): s is GridShot => !!s);
@@ -858,9 +1250,17 @@ export function togglePick(i: number): void {
   useGridDraft.setState({ picks: s.picks.includes(i) ? s.picks.filter((k) => k !== i) : [...s.picks, i] });
 }
 
-/** 落成几段之后：清这场戏、分镜与画面、回到第①步，**留着场景卡**（人在 leadDraftStore，本来就留着） */
+/**
+ * 落成几段之后：清这场戏、分镜与画面、回到第①步，**留着场景卡**（人在 leadDraftStore，本来就留着）。
+ * ★ 还没取回来的那一组（落盘记录）与「服务端当时说没有」的那一次一并撤掉：人已经拿这一场戏落了段，留着的话下次打开向导会自动接着等、
+ *   把这一场的旧分镜整张换回来、跳回第③步（第二轮评审抓到）。那一组的钱照样按画出来的张数结算 —— 第⑤步的出片键旁边先当面说过
+ *   「铺成之后就不再取回」（GridShotsWizard 的 parkedAtLay），想要那几张就先回第③步接着等。
+ */
 export function resetGridScene(): void {
   const s = useGridDraft.getState();
+  const who = ownerOfDraft();
+  writeParked(who, null);
+  lostAttempts.delete(who);
   useGridDraft.setState({ ...initialGridDraft(s.placeId), mounted: s.mounted }, true);
 }
 
@@ -873,12 +1273,13 @@ export function resetGridScene(): void {
  * ★ 方案标题存进作品（VideoSegment.title），按作者当时的界面语言定下来（与 B 的「主角定妆 · 多镜头」同一条先例）。
  * ★ 挑中的格子里有人没选上（gridCastIssue）就一段都不落：那一段的人物卡会挂空，出片时那个人的样子由视频模型自己编。
  *   向导把同一句话摆在出片键旁边（键因为没有可落的段而灰着）。
+ * ★ 挑中的格子里有画面过期的（gridStaleIssue：分镜在画好之后改过）同样一段都不落，理由同上。
  */
 export function gridAppendSpecs(
   d: Pick<GridDraft, "picks" | "shots" | "panels" | "lead" | "lang" | "scene">,
   o: { cast: Card[]; place: Card | null; tierId: string; aspect: VideoAspect; durationSec: number },
 ): AppendSpec[] {
-  if (gridCastIssue(pickedShots(d), o.cast)) return [];
+  if (gridCastIssue(pickedShots(d), o.cast) || gridStaleIssue(d)) return [];
   return d.picks.flatMap((i) => {
     const shot = d.shots[i];
     const panel = d.panels[i];

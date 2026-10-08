@@ -6,7 +6,7 @@
 // ★ 三种情形：
 //   · dev（vite 直连方舟）/ 离线演示包（没配 VITE_API_BASE，走 mock）：**没有服务端那一层**，能力全在（true）；
 //   · 打包、探到了：照能力位答（老服务端没有这一位 = false）；
-//   · 打包、还没探到 / 探测失败（断网、5xx、429）：null = 不知道 —— 调用方一律**放行**（与套餐镜像没回来时同一个乐观口径：服务端会说清楚，
+//   · 打包、还没探到 / 探测失败（断网、5xx、429、正文读到一半断了或读不成 JSON）：null = 不知道 —— 调用方一律**放行**（与套餐镜像没回来时同一个乐观口径：服务端会说清楚，
 //     而且这几样都是在提交那一刻同步 400、一分钱不花）。探测失败不记结果，30 秒后再问。
 import { API_BASE, API_ON } from "../api/client";
 
@@ -60,7 +60,7 @@ function capsOf(j: Record<string, unknown>): ServerCaps {
 
 let caps: ServerCaps | null = null;
 let probe: Promise<ServerCaps | null> | null = null;
-/** 上一次探测没答上来（断网 / 5xx / 429）的时刻：之后 30 秒内不再重探 —— serverSupports 在 render 里被问，不节流就是每画一次发一发 */
+/** 上一次探测没答上来（断网 / 5xx / 429 / 正文读不出来）的时刻：之后 30 秒内不再重探 —— serverSupports 在 render 里被问，不节流就是每画一次发一发 */
 let failedAt = 0;
 const RETRY_MS = 30_000;
 const NONE: ServerCaps = { res480: false, draftMode: false, failRefund: false, failRefundMinimax: false, imageGroups: false, freeVideo: null };
@@ -94,8 +94,17 @@ export function probeServerCaps(): Promise<ServerCaps | null> {
       const ct = r.headers.get("content-type") ?? "";
       // 其余非 2xx（404：没有这个端点）或不是 JSON（SPA 回退的 200 + index.html）= 确实没有这几样
       if (!r.ok || !ct.includes("json")) return NONE;
-      const j = (await r.json().catch(() => ({}))) as Record<string, unknown>;
-      return capsOf(j);
+      // ★ 正文读不出来（头到了、正文在半路断了 / 读到一半撞上那 10 秒超时 / 截断的 JSON）同样是「这一刻没听清」，不是「这台服务端不会」：
+      //   原来 `.catch(() => ({}))` 把它当成一个空对象 → 全 false 记一整场会话，与上面 502 那一格同一个后果（2.62 发版评审抓到）。
+      //   只有**读得出来的 JSON 对象**里没有某一位，才算真的没有那一样
+      let j: unknown;
+      try {
+        j = await r.json();
+      } catch {
+        return null;
+      }
+      if (!j || typeof j !== "object" || Array.isArray(j)) return NONE;
+      return capsOf(j as Record<string, unknown>);
     })
     .then((c) => {
       if (!c) {

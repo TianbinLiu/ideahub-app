@@ -8,7 +8,7 @@ import { CloseButton } from "../IconTapButton";
 import { createPortal } from "react-dom";
 import Icon from "../Icon";
 import FrameAnnotator, { drawWhole } from "../FrameAnnotator";
-import { appendIssue, chosenOf, nodeDone, realVideoOfNode, tplOfNode, useFlow } from "../../studio/flowStore";
+import { appendIssue, chosenOf, nodeDone, realVideoOfNode, reshotWithSound, tplOfNode, useFlow } from "../../studio/flowStore";
 import { resolveMediaUrl, useMediaUrl } from "../../utils/mediaUrl";
 import { uniqueRefName, usableExtraRefs } from "../../data/refMentions";
 import { showToast } from "../../data/toast";
@@ -36,10 +36,12 @@ export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: st
    *   对齐的那段裁剪（分段组的每一段各自一份），从 0 秒起跟着视频走；合并成片时 CutPage 回填的也是同一条
    *   （studioStore.draftAudioHint）。
    * ★ 只对白模段叠（有 refVideo 的段）：别的档位成片自带 AI 环境音，叠上去是两层声。
+   * ★ 白模段**返修过**、现在放的是出声的那一条时也不叠（flowStore.reshotWithSound，2.62 发版评审抓到）：2026-10-05 起返修走
+   *   REVISE_TASK、自带重做的声音，叠上模板原声就是两层声，那句「白模成片本身无声」也成了假话。
    */
   // ★ `node.audioHint` 是兜底：取回安放的段 tpl 恒为 null（flowStore.placeRescuedSegment 的 ★），
   //   它的模板原声只存在凭据带回来的那一位里 —— 不兜的话回看里这一段是彻底哑的
-  const tplAudioUrl = node ? tplOfNode(node)?.refVideo?.url || node.audioHint : undefined;
+  const tplAudioUrl = node && !reshotWithSound(node) ? tplOfNode(node)?.refVideo?.url || node.audioHint : undefined;
   const audioSrc = useMediaUrl(tplAudioUrl);
   const aref = useRef<HTMLAudioElement>(null);
   const [audioOn, setAudioOn] = useState(true);
@@ -173,10 +175,14 @@ export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: st
     if (!node) onClose(); // 这一段被删了：别留一个放不出东西的黑框
   }, [node, onClose]);
   if (!node) return null;
-  /** 这一帧能放进去的段：别的、还没出片、没在炼、不是白模段的（白模段的画面与参考整个来自模板视频） */
+  /**
+   * 这一帧能放进去的段：别的、还没出片、没在炼、不是白模段的（白模段的画面与参考整个来自模板视频）、不是延长段的
+   * （延长段接的是上一段成片本身，出片一张帧、一张临时参考图都不带 —— genNode 的 ext 分支；它的面板上也没有帧位与参考清单，
+   *  放进去了看不见、删不掉，而轻提示还说「已放进」。2.62 发版评审抓到：延长段落下后那一发被拒 / 失败，它就成了默认目标）
+   */
   const shotTargets = nodes
     .map((n, i) => ({ n, i }))
-    .filter(({ n, i }) => i !== idx && !nodeDone(n) && n.status !== "generating" && !tplOfNode(n)?.refVideo);
+    .filter(({ n, i }) => i !== idx && !nodeDone(n) && n.status !== "generating" && !tplOfNode(n)?.refVideo && !n.extendFrom);
   const shotTo = shotTargets.find((x) => x.n.id === shotTarget) ?? shotTargets.find((x) => x.i > idx) ?? shotTargets[0] ?? null;
   /** 没有能放的段时：能不能当场新开一段（判据 flowStore.appendIssue 一处，与画布「＋ 加一段」同一个） */
   const appendWhyNot = appendIssue(useFlow.getState());
@@ -332,7 +338,7 @@ export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: st
                 ) : (
                   <>
                     <p className="text-xs leading-relaxed text-slate-400">
-                      <Trans>还没有能用它的段（已出片的段、套模板的段放不进去）。</Trans>
+                      <Trans>还没有能用它的段（已出片的段、套模板的段、延长段放不进去）。</Trans>
                     </p>
                     {appendWhyNot ? (
                       <p className="text-[10px] leading-relaxed text-slate-500">{appendWhyNot}</p>
