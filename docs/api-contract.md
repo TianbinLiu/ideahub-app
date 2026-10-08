@@ -694,6 +694,8 @@ VoiceTemplate 形状：`{ _id, author: { _id, username }|string, name, descripti
   没有作品 deeplink（App 点进去打开钱包看余额）。`payload = { tokens, kind, taskId, provider }`，`kind` ∈
   `video` / `draft`（样片第一步）/ `draftFinal`（样片定稿）/ `3d` / `blockout` / `minimax`（认不出的 App 按「一段视频」说）。
   只在钱**不是**在本人自己那次轮询里退的时候发（清扫器替他退的、App 被杀了）—— 轮询回包上已经带了 `refund` 的那一次不重复通知。
+  **例外：3D 建模（`kind: "3d"`）本人轮询退的也发**（2026-10-07 评审补，server `taskRefund.followUp`）—— 建模那条路随组稿出模型、不把 `refund` 摆给人；
+  App 那边对退了 / 会退的 3D 失败**不再**另弹轻提示（`studioStore` 调 `deriveCharacterModels` 那一处），同一笔钱只走这一条通知。
   金额是数、句子由 App 说。⚠ 老 App（≤ 2.61）**收不到**这一类（请求层白名单，同 `BRANCH_REVISED`）：钱照退，只是没有这条通知。
 - `Notification.type` 另增 **`BRANCH_REVISED`**（2026-09-07，「回炉重做」）：作者换掉了成片内容，
   发给**该作品的收藏者**（`BranchCollect`，上限 500，超了只发前 500 并 `console.warn` 留痕）。
@@ -2171,7 +2173,9 @@ body 只发 `{ text, voice, rate? }`（`voice` 取自 `/api/tts/voices` 的目�
   报价（`segTokens`）与出片（`composeSegments`）用同一个 `clampDuration`。
 - **免费版（没付过钱）只能用「极速」「草稿」出普通片**（2026-10-07 主人拍板）：标准 / 高清 / 电影级（含样片两步）/
   真人档（MiniMax、Runway）/ 一切带参考视频的出片（白模、返修、延长、素材参考）都要**付过钱** ——
-  有付费套餐（月费 > 0）**或者**付过任何一笔钱（充值包、套餐、Play 购买；钱包上的 `paidEver`，`GET /api/me/wallet` 下发 `paid`）。
+  有付费套餐（月费 > 0）**或者**付过钱（钱包上的 `paidEver`，`GET /api/me/wallet` 下发 `paid`）。「付过钱」按**还作数的订单**算
+  （server `tokenWallet.hasLivePayment`：`paid` / `settled`、没被回收、不是 Play 测试购买；Play 部分退款还剩没退的份也算），
+  退款 / 拒付回收之后按订单重算（唯一一笔被退了就不再算）—— 见「钱包」一节的「付过钱」。
   判据服务端只有 `config/tokens.videoPlanDenial` 一处；它只管出视频，出图 / 对话 / 语音 / Seed3D 照常开放。
   拒绝回 **403** `{ code: "PLAN_REQUIRED", message, planId, allowed: ["极速","草稿"] }`：`message` 是能直接显示的整句中文，
   `allowed` 是此刻免费版能用的档名（英文界面不显示服务端的中文句子，App 按 code 说自己的整句 `account.planRequiredLine`）。
@@ -2197,11 +2201,19 @@ body 只发 `{ text, voice, rate? }`（`voice` 取自 `/api/tts/voices` 的目�
   App 按档位表的 `resolution` 发（`arkClient.generateVideo` 的 `resolution` 参数；带参考视频的几条路钉 720p）。
 - **`draft: true`（电影级样片第一步）**：只给 2.5，且必须**显式** `resolution: "480p"` 与整数 `duration`；带参考视频的出片不收 `draft`。
 - `content[]` 只认 `text` / `image_url` / `audio_url`（`video_url` 由 r2v 那道闸接走，`draft_task` 由样片第二步那道闸接走）。
+- **提示词里不许写参数**（2026-10-07 评审补）：方舟允许把 `resolution` / `ratio` / `duration` / `frames` / `seed` / `camera_fixed` / `watermark`
+  用「弱校验」写法追加在提示词后面（`--rs 720p --rt 16:9 --dur 5 --seed 11 --cf false --wm true`，长写法 `--resolution` 等同理），
+  而且没说与请求体冲突时听谁的。门禁与计价都按请求体判，所以文字条目里出现这些（外加旧文档的 `--fps` / `--framespersecond`）一律
+  400 `VIDEO_PARAMS_NOT_ALLOWED`（没有扣费），句子以「提示词里不能用 …」开头。**带参考视频的任务（r2v）同样过这一道**；Seed3D 不归它管
+  （它就是用 `--subdivisionlevel` 这种写法传参的）。App 从来不拼这种写法；撞上的多半是用户自己在提示词里打了这几个字 ——
+  App 把这一码说成整句（`arkClient.requestRefusalError`：中文界面原样说服务端那句，英文界面说本端的），`MODEL_RETIRED` / `DRAFT_FINAL_NOT_ALLOWED` 同。
 - **停用**：`doubao-seedance-1-0-pro-250528` 与 `doubao-seedance-1-0-pro-fast-251015` 自 **2026-11-24 13:00（北京时间）**起
   新任务一律 400 `{ code: "MODEL_RETIRED" }`（方舟 14:00 停服，我们提前一小时）。App 同一刻把这两档藏起来、默认档往后退（`economy.tierRetired`）。
 
 **每一发 Seedance 任务**转发前由服务端钉死 `execution_expires_after: 86400`（排队 / 运行超过 24 小时方舟标 `expired` —— 失败退款按它退），
-剥掉 `callback_url` 与 `service_tier`。
+剥掉 `callback_url`（拿我们的 key 往任意地址 POST）、`service_tier`（flex 半价但排队以天计，我们按在线价收）、`tools`（2.x 的联网搜索，
+按搜索次数另外计费、我们没定价；2026-10-07 评审补）与 `priority`（0~9，同一个接入点上插到所有低优先级任务前面 —— 所有人的任务挂在同一把 key 下；同上）。
+这几个字段在 Seed3D 任务上也剥；Seed3D 不套 `execution_expires_after`。唯一实现 server `arkGateway.withServerTaskFields`。
 
 **电影级「样片」两步**（App：段上的「先出样片」开关 `FlowNode.draftFirst` + `components/flow/DraftModeBox`；判定 `flowStore.nodeDraftOn` /
 `draftFinalIssue`，两步各走一次 `genNode`，契约 mode `draft` / `draftFinal`）：
@@ -2219,7 +2231,9 @@ body 只发 `{ text, voice, rate? }`（`voice` 取自 `/api/tts/voices` 的目�
 
   时长、画幅、提示词、图、视频、音频、种子、音频开关、任务类型**一个都不许带**（方舟规定沿用样片、重传即报错）→ 400 `DRAFT_FINAL_NOT_ALLOWED`。
   服务端（`resolveDraftFinal`）只认**本人、经我们这里出的样片**；有效期 **7 天差 1 小时**（方舟 7 天）；向方舟 GET 一次确认 `succeeded`；
-  **计价** = `round(样片时长 × 2.5 的 1080p 每秒 × 77/15)`（`economy.draftFinalTokens`）—— 时长取**样片登记的** `durationSec`，画幅取方舟回的实际画幅。
+  **计价** = `round(样片时长 × 2.5 的 1080p 每秒 × 77/15)`（`economy.draftFinalTokens`）—— 时长看**样片登记的** `durationSec` 与**方舟回的** `duration`（不信请求体）：两份都认得出时**必须相等**，对不上 → 400
+  `DRAFT_FINAL_NOT_ALLOWED` 不转、不扣费（2026-10-07 评审改：原来只信登记，而第一步提示词里夹一句 `--dur 30`、方舟又听了的话，样片其实是 30 秒）；
+  只认得出一份就用那一份；方舟只回 `frames` 不回 `duration`（按帧数定长的样片）→ 400。画幅取方舟回的实际画幅（认不出按 1080p 最大一格）。
   App 把成片换上、样片留成「上一版」（可还原）；「现在放的是样片还是成片」按地址现算（`flowStore.draftStageOf`），不存状态。
 - **1080p 是 10 bit 的 H.265**（方舟官方）：个别旧手机的 WebView 放不出来。App 在定稿按钮旁照实说，不转码（播放兼容另验）。
 - 两步都落取回凭据（`VideoJob.draftStep / draftDur / draftRatio / draftOf`）；`GET /api/ark/video-tasks` 的每一条多带 `draft` / `draftOf` / `costTokens`，
@@ -2423,26 +2437,29 @@ V2 这条链路**花两次真钱**，报价页必须**两笔都写明**，不许
 出片前画好的画面按张单说；**从不**自己往钱包镜像上加钱（只刷一次 `GET /api/me/wallet`）。退了钱的取回凭据当场结案（`flowStore.takeJob`），
 那句话用轻提示说（卡当场就卸载了），原来那一段的「pending · 用下面的取回」同一拍改成「没出成（钱上那个短语）」。服务端能力位为真时取回卡与白模化风险提示才许诺「万一没出成会自动退回」——
 **按供应商分开问**：方舟看 `failRefund`，真人档看 `failRefund && minimaxFailRefund !== false`（`serverCaps.failRefundMinimax`）。
-Seed3D 建模失败退的钱没有通知（退在本人自己那次轮询里）：App 在组稿那一拍按 `ai/failCharge` 说一句轻提示（`studioStore` 调 `deriveCharacterModels` 那一处）。
+Seed3D 建模失败退的钱：服务端**本人轮询退的也发**站内通知 `GEN_TASK_REFUND`（`kind: "3d"`，见「通知」），退款只走这一个渠道 ——
+App 在组稿那一拍（`studioStore` 调 `deriveCharacterModels` 那一处）只对**没退**的那几种（没等到回包 / 2xx 却用不上）按 `ai/failCharge` 说一句轻提示，
+退了 / 会退的不再另说（原来两边各说一次，是同一笔钱的两条消息）。
 
 ### 旧版 App（≤ 2.61）在这一版服务端上会怎样（2026-10-07 的门禁 / 额度 / 停用）
 
-与 server `docs/api-contract.md` 同名一节逐条相同。请求里**没有版本号**，服务端分不出新旧包；下面这些是旧包里写死的东西与新服务端碰在一起的结果：
+（照抄 server `docs/api-contract.md` 同名一节，以那一节为准；改的话两份一起改。）请求里**没有版本号**，服务端分不出新旧包；下面这些是旧包里写死的东西与新服务端碰在一起的结果（2026-10-07 评审逐条核过 app `origin/main`）：
 
 1. **免费版用户每一段都从「标准」开始**（旧包 `DEFAULT_TIER = "std"`、档位表只把电影级标成付费），标准 / 高清 / 真人都点得动。
    推演（对话 + 出图）与出片前补画设定帧**不归门禁管**（`videoPlanDenial` 只管出视频）—— 这几笔照扣，到出视频那一发才 403 `PLAN_REQUIRED`。
-   旧包（中文界面）把服务端的整句原样显示，句子里说了只能用「极速」「草稿」、看不到草稿就先更新 App；
+   旧包（中文界面）把服务端的整句原样显示（`billingDenialError`；英文界面说它自己的「这一档不对当前套餐开放」），句子里说了只能用「极速」「草稿」、看不到草稿就先更新 App；
    但在他换到「极速」之前，**每试一次都会白花推演与画帧的钱**。
 2. **额度的说法是旧的**：旧包「我的」页照自己的 `PLANS` 说免费版「300.0k token/月 · 每月刷新」、标准 2,000,000 / 专业 8,000,000；
    服务端实际是新人一次 170,000 + 每天 2,000（最多 14,000）、标准 1,660,000、专业 5,800,000。余额数字本身来自服务端（余额头），是对的。
    旧包电影级置灰那句还写着「免费版整月额度（300.0k）」。
 3. **旧包没有「草稿」**。2026-11-24 13:00 之后极速 / 标准 400 `MODEL_RETIRED`，旧包把 400 原样显示成 `Ark /contents/generations/tasks 400: {…}`
-   —— 那之后**免费版用户在旧包里一档都用不了**，付过钱的还有高清 / 电影级。
+   （句子在 JSON 里，说了请换档、看不到草稿就更新 App）—— 那之后**免费版用户在旧包里一档都用不了**，付过钱的还有高清 / 电影级。
 4. 受理之后的失败照退（见上「受理之后失败的退款」），但旧包会说「受理之后的失败不退款」，也不认 `GEN_TASK_REFUND` 通知。
 
-⚠ **缓解要主人定**（两仓都还没做）：① 新版 App 与这一版服务端**同一天上线**，发版说明里请大家更新；
+⚠ **缓解要主人定**（服务端只在拒绝那两句话里补了「看不到草稿就先更新 App」）：① 新版 App 与这一版服务端**同一天上线**，发版说明里请大家更新；
 ② 给更新清单加「强制更新 / 最低版本」（App 侧与发版流程的事）；③ 或者在旧包普及新版之前先把 `FREE_VIDEO_GATE=off`
-（旧包本来就只挡电影级；新版 App 读 `freeVideoGate` 跟着放开，见上「免费版」那条）。
+（旧包本来就只挡电影级，关闸对它们是真的恢复原样；新版 App 读到 `freeVideoGate: false` 也跟着放开，见上「免费版」那条 ——
+关闸就是把免费档限制整个撤掉，代价是这段时间里免费版又能用标准 / 高清）。
 
 ### 纯视频任务的时长窗口与参数钉子（2026-10-03）
 
@@ -2528,7 +2545,7 @@ App `src/data/economy.ts` 是**报价**口径。不一致的后果是"报价 216
   `running` 时 images 是已经画好的那几张；结束（done = 至少一张 / failed = 一张没有）后带余额头。
   `GET /api/ark/image-groups` 回这个人最近 24 小时的 5 组（新的在前），App 丢了任务号时据此接回来。
 - **钱**：受理时预扣 `unitCost × maxImages`；结束时按**拿到手的张数**结算（不按方舟 `usage.generated_images`，两者不等时只记日志对账 ——
-  流中途断开时方舟可能还画了几张，那几张用户拿不到，差价我们吃）。一张没拿到 → 预扣**全退进 addon**（同「上游没受理」）；
+  流中途断开时方舟可能还画了几张，那几张用户拿不到，差价我们吃）。一张没拿到 → 预扣**按扣的那两桶原样全退**（`took` 记在这一组上；字段上线之前的老组退进 addon）；
   拿到 k 张 → 多扣的 `(maxImages − k) × unitCost` **冲正回 plan**（`settleOverCharge`；不进 addon —— 否则「要 15 张、只画 1 张」
   就是把当月额度洗成永久余额的路）。`charged` 是最终实收。
 - **中途断开 / 进程没了**：流断了（超时 15 分钟 / 连接重置）→ 画到哪张算哪张，`interrupted: true`、`code: "INTERRUPTED"`。
@@ -2580,7 +2597,7 @@ AK/SK 只在服务端（`VOLC_AK`/`VOLC_SK`），**永不进 app 包**。
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/me/wallet` | `{ wallet: { plan, addon, planId, cycle, day, debt, debtSince, frozen, paidEver }, plans, paid, free: { welcomeTokens, dailyTokens, dailyCapTokens } }`。顺带完成初始化、跨月刷新与免费版的每日补给。顶层 `paid`（2026-10-07）= 算不算付费用户（套餐价 > 0 **或**付过任何一笔：充值包 / 套餐 / Play；服务端 `isPaidUser` 唯一判据）—— 免费档门禁的判据；`wallet.paidEver` 是「付过任何一笔」那一半的原始记号；`free` = 免费额度的三条规则（App 的「我的」页照它说，不抄数）。App 认顶层 `paid`（兜底读 `wallet.paid`，`api/wallet.ts`） |
+| GET | `/api/me/wallet` | `{ wallet: { plan, addon, planId, cycle, day, debt, debtSince, frozen, paidEver }, plans, paid, free: { welcomeTokens, dailyTokens, dailyCapTokens } }`。顺带完成初始化、跨月刷新与免费版的每日补给。顶层 `paid`（2026-10-07）= 算不算付费用户（套餐价 > 0 **或**付过钱 —— 按还作数的订单算，见下「付过钱」；服务端 `isPaidUser` 唯一判据）—— 免费档门禁的判据；`wallet.paidEver` 是「付过钱」那一半的原始记号（退款之后会被置回）；`free` = 免费额度的三条规则（App 的「我的」页照它说，不抄数）。App 认顶层 `paid`（兜底读 `wallet.paid`，`api/wallet.ts`） |
 | GET | `/api/me/wallet/ledger?limit=` | token 流水（"我的钱花哪儿了"） |
 | POST | `/api/me/wallet/recharge` | **已改为下单**（见下「充值」）。`{ tokens }` → **202** + 订单，余额不变 |
 | POST | `/api/me/wallet/plan` | **已改为下单**。`{ planId }` → **202** + 订单，余额不变 |
@@ -2591,6 +2608,13 @@ AK/SK 只在服务端（`VOLC_AK`/`VOLC_SK`），**永不进 app 包**。
   免费版：**新人一次 170,000**（进 addon）+ **每天补 2,000**（进 plan，按 UTC 日，最多攒到 **14,000** = 7 天；
   不会把比这更多的余额往下拉）—— 取代原来的 30 万/月。老账号不补新人额度。两仓 `PLANS` 逐条相等（`payOrder.spec.js` 钉着）
 - **失败退款**按扣的那两桶原样退（`refundSplit`）—— 不全退进 addon：退进 addon 等于把当月 plan 洗成永不过期的余额
+- **付过钱**：`tokenWallet.paidEver`，充值（`recharge`）与买套餐（`plan_buy`）在同一次原子更新里置真。事实来源是**订单**（`tokenWallet.hasLivePayment`）：
+  有一张 `paid` / `settled`、没被回收（`revokedAt` 为空）、不是 Play 测试购买（`isTest`）的订单；Play 部分退款还剩没退的份也算。
+  - **退款 / 拒付回收之后按订单重算**（`refreshPaidEver`，Play `revokeByToken` 调）：唯一一笔被退了 → 不再算付费用户（2026-10-07 评审补：
+    原来「从不置回」，买一包、找 Google 退款，付费档与付费档日上限就永远对他开着）。
+  - **Play 测试购买**（许可测试员，一分钱没付）照常发币，但**不算**付过钱。
+  - 老钱包第一次被读到时按订单回填一次（原来按账本 `recharge` / `plan_buy` 流水 —— 账本记不了退款，下单系统之前的模拟充值也留过 `recharge`）。
+  日上限也按「付费用户」分档（付过钱的免费版用户吃付费档的上限）。
 - 用户文档**刻意没有 `tokenWallet` 的 schema default**：有没有这个字段就是"要不要初始化"的
   判据本身（`{$exists:false}` 条件原子更新抢占初始化并补一条 `grant` 流水）。给了 default，
   老账号读出来就凭空有余额、却没有对应流水，账本和余额从第一天起就对不上

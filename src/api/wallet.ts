@@ -22,8 +22,9 @@ export interface WalletSnapshot {
   debt?: number;
   frozen?: boolean;
   /**
-   * 这个人**付过钱没有**（2026-10-07）：套餐价 > 0，或者付过任何一笔（充值包 / 套餐 / Play 购买）。免费用户只能用「极速」「草稿」出片，
-   * 付过钱的全部档位都能用 —— 判据是服务端的 isPaidUser，App 的 account.payingNow 照它镜像（套餐价 > 0 || paid）。
+   * 这个人**付过钱没有**（2026-10-07）：套餐价 > 0，或者有一张**还作数的**订单（server tokenWallet.hasLivePayment：已付 / 已结算、
+   * 没被退款或拒付收回、不是 Play 测试购买；部分退款还剩没退的份也算 —— 唯一一笔被退了就不再算，见 docs/api-contract.md「钱包」的「付过钱」）。
+   * 免费用户只能用「极速」「草稿」出片，付过钱的全部档位都能用 —— 判据是服务端的 isPaidUser，App 的 account.payingNow 照它镜像（套餐价 > 0 || paid）。
    * ★ 老服务端没有这一位 ⇒ undefined ⇒ 只看套餐（服务端先发，所以这只是兜底）。
    */
   paid?: boolean;
