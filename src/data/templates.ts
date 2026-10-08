@@ -2723,6 +2723,21 @@ function adoptBlockoutTemplate(api: branch.ApiBranchTemplate): VideoTemplate {
 }
 
 /**
+ * 取回结果（finish）那一发；**失败时顺手刷一次钱包**。
+ * ★ 2026-10-07 起方舟明说失败的那一发，服务端在 finish 这一步把出片那一笔退回（BlockoutJob 的结局那句话会说「已退回」），
+ *   而这条回包不带钱包响应头 —— 不刷的话通知 / 那句话说「退了」，「我的」页那个数还是扣之后的。钱包镜像只认服务端的数，
+ *   App 从不自己往上加（account.syncRemoteWallet 那条 ★）。只读、不花钱，失败的每一种都刷（判不准哪一种退了钱，多刷一次永远安全）。
+ */
+async function finishAndSync(jobId: string): ReturnType<typeof branch.finishBlockoutize> {
+  try {
+    return await branch.finishBlockoutize(jobId);
+  } catch (e) {
+    void refreshRemoteWallet();
+    throw e;
+  }
+}
+
+/**
  * 「等出片 → 取回结果」这后半段 —— **唯一实现**：刚开炼的那一发与从恢复入口领回来的
  * 那一发走的是同一段代码（铁律六）。两处各写一遍的话，"取回失败之后凭据还留不留"
  * 这种事必然分叉，而分叉的代价是用户的钱。
@@ -2746,7 +2761,7 @@ async function takeBlockoutResult(job: BlockoutJob, prog: (s: string) => void): 
     }
   }
   prog(t`正在取回结果：服务端会自己向方舟核实，再把产物转存下来（这一步不额外花钱）…`);
-  const res = await branch.finishBlockoutize(job.jobId);
+  const res = await finishAndSync(job.jobId);
   dropPendingJob(job.jobId);
   prog(t`白模模板已生成`);
   return adoptBlockoutTemplate(res.template);
@@ -2772,7 +2787,7 @@ export async function resumeBlockoutize(
     // 缓存里没有（列表还没到货 / 换了设备）也不该拦着：jobId 在手就能取，
     // 归属由服务端按 ownerId 把关。这时没有 taskId，直接去 finish 让服务端核实。
     prog(t`正在取回结果…`);
-    const res = await branch.finishBlockoutize(jobId);
+    const res = await finishAndSync(jobId);
     dropPendingJob(jobId);
     return adoptBlockoutTemplate(res.template);
   }
