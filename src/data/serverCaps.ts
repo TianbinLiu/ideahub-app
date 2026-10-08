@@ -6,8 +6,8 @@
 // ★ 三种情形：
 //   · dev（vite 直连方舟）/ 离线演示包（没配 VITE_API_BASE，走 mock）：**没有服务端那一层**，能力全在（true）；
 //   · 打包、探到了：照能力位答（老服务端没有这一位 = false）；
-//   · 打包、还没探到 / 探测失败（断网）：null = 不知道 —— 调用方一律**放行**（与套餐镜像没回来时同一个乐观口径：服务端会说清楚，
-//     而且这几样都是在提交那一刻同步 400、一分钱不花）。探测失败不记，下次再问。
+//   · 打包、还没探到 / 探测失败（断网、5xx、429）：null = 不知道 —— 调用方一律**放行**（与套餐镜像没回来时同一个乐观口径：服务端会说清楚，
+//     而且这几样都是在提交那一刻同步 400、一分钱不花）。探测失败不记结果，30 秒后再问。
 import { API_BASE, API_ON } from "../api/client";
 
 /** 健康端点上我们关心的能力位（缺 = 老服务端，没有这一样） */
@@ -26,6 +26,10 @@ const CAP_KEYS: (keyof ServerCaps)[] = ["res480", "draftMode", "failRefund", "im
 
 let caps: ServerCaps | null = null;
 let probe: Promise<ServerCaps | null> | null = null;
+/** 上一次探测没答上来（断网 / 5xx / 429）的时刻：之后 30 秒内不再重探 —— serverSupports 在 render 里被问，不节流就是每画一次发一发 */
+let failedAt = 0;
+const RETRY_MS = 30_000;
+const NONE: ServerCaps = { res480: false, draftMode: false, failRefund: false, imageGroups: false };
 const listeners = new Set<() => void>();
 
 /** 没有服务端那一层（dev 直连方舟 / 离线演示包）：能力全在 */
@@ -45,20 +49,31 @@ export function subscribeServerCaps(fn: () => void): () => void {
 export function probeServerCaps(): Promise<ServerCaps | null> {
   if (direct()) return Promise.resolve({ res480: true, draftMode: true, failRefund: true, imageGroups: true });
   if (caps) return Promise.resolve(caps);
+  if (!probe && Date.now() - failedAt < RETRY_MS) return Promise.resolve(null);
   probe ??= fetch(`${API_BASE}/api/ark/health`, { signal: AbortSignal.timeout(10_000) })
-    .then(async (r) => {
+    .then(async (r): Promise<ServerCaps | null> => {
+      // ★ 5xx / 429（网关错误页、部署那几秒、限流）是「这一刻没答上来」，不是「这台服务端不会」：记成不知道、过一会儿再问。
+      //   原来一律记成全 false 并记一整场会话 —— 一次 502 就把「草稿」档藏到 App 重启（11-24 之后那是免费用户唯一的档）
+      if (r.status >= 500 || r.status === 429) return null;
       const ct = r.headers.get("content-type") ?? "";
-      if (!r.ok || !ct.includes("json")) return { res480: false, draftMode: false, failRefund: false, imageGroups: false };
+      // 其余非 2xx（404：没有这个端点）或不是 JSON（SPA 回退的 200 + index.html）= 确实没有这几样
+      if (!r.ok || !ct.includes("json")) return NONE;
       const j = (await r.json().catch(() => ({}))) as Record<string, unknown>;
       return Object.fromEntries(CAP_KEYS.map((k) => [k, j[k] === true])) as unknown as ServerCaps;
     })
     .then((c) => {
+      if (!c) {
+        probe = null;
+        failedAt = Date.now();
+        return null;
+      }
       caps = c;
       for (const fn of listeners) fn();
       return c;
     })
     .catch(() => {
       probe = null;
+      failedAt = Date.now();
       return null;
     });
   return probe;
