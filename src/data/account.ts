@@ -13,7 +13,9 @@ import { MARKET_DECKS, marketCardsByName } from "../mock/ai";
 import { claimPendingTerms, reconcileTermsWithServer } from "./agreements";
 import { claimLegacyVoices, removeVoice } from "./cardVoice";
 import { adoptRemoteAssets, assetOf, claimLegacyAssets, removeAsset, saveAsset, setAssetSyncIssue, type CardAsset } from "./cardAsset";
-import { PLANS, PLATFORM_CUT, fmtTokens, type VideoTier } from "./economy";
+import { PLANS, PLATFORM_CUT, VIDEO_TIERS, fmtTokens, joinTierNames, planOf, tierOf, tierRetireDay, tierRetired, type VideoTier } from "./economy";
+import { serverSupports, subscribeServerCaps } from "./serverCaps";
+import { FREE_DEFAULT_CHAIN, PAID_DEFAULT_CHAIN, firstLiveTierId } from "./videoTierTable";
 import { idbGet, idbRead, idbSet } from "./db";
 // 转存（dataURL → 永久 URL）的唯一入口，与发布/换封面/详情页加图共用（铁律六）
 import { toPermanentUrl } from "./publishAssets";
@@ -41,8 +43,13 @@ export interface User {
   following: string[];
   /** 收藏的视频 id（老账号可能缺字段，读写处 ??= 兜底） */
   collects?: string[];
-  /** token 钱包：plan=套餐额度（每月发放，优先扣），addon=直充/创作收益（不过期） */
-  wallet?: { plan: number; addon: number };
+  /**
+   * token 钱包：plan=套餐额度（付费套餐每月发放；免费版每天补，优先扣），addon=直充/创作收益/新人额度（不过期）。
+   * day = 免费额度上一次补到哪一天（UTC 自然日 YYYY-MM-DD，离线账本才用；服务端那份在 tokenWallet.day）。
+   */
+  wallet?: { plan: number; addon: number; day?: string };
+  /** 离线账本：付过钱没有（充值 / 买付费套餐过一次就是 true，再也不回 false）—— 服务端 tokenWallet.paidEver 的离线镜像 */
+  paidEver?: boolean;
   /** 当前订阅套餐 id（data/economy PLANS）；缺省=free */
   planId?: string;
   /** 已解锁的付费内容，键 `${videoId}:${partIndex}` */
@@ -664,8 +671,16 @@ export function isCollected(videoId: string): boolean {
 // 离线模式（没配 API_BASE）下，下面这套仍然是**唯一**的账本——那种包本来就不出网，
 // 也就不存在"骗谁的钱"。
 
-/** 远端模式的钱包镜像。null = 还没取到（未登录/请求未回来） */
-let remoteWallet: { plan: number; addon: number; planId: string; debt: number; frozen: boolean } | null = null;
+/** 远端模式的钱包镜像。null = 还没取到（未登录/请求未回来）。paid / free 只由 GET /api/me/wallet 写（响应头不带） */
+let remoteWallet: {
+  plan: number;
+  addon: number;
+  planId: string;
+  debt: number;
+  frozen: boolean;
+  paid?: boolean;
+  free?: walletApi.FreeQuota;
+} | null = null;
 
 /**
  * 镜像里的 planId 是不是**服务端说过的**。
@@ -681,7 +696,9 @@ let remoteWallet: { plan: number; addon: number; planId: string; debt: number; f
 let planIdConfirmed = false;
 
 /** 用服务端的权威值覆盖镜像。由 /api/ark 的响应头与 GET /api/me/wallet 调用 */
-export function syncRemoteWallet(next: { plan: number; addon: number; planId?: string; debt?: number; frozen?: boolean } | null): void {
+export function syncRemoteWallet(
+  next: { plan: number; addon: number; planId?: string; debt?: number; frozen?: boolean; paid?: boolean; free?: walletApi.FreeQuota } | null,
+): void {
   if (!next) return;
   if (next.planId) planIdConfirmed = true;
   // ★ debt 缺省时**保留镜像里的旧值**而不是清零：/api/ark 的响应头在不欠钱时根本不发
@@ -694,6 +711,9 @@ export function syncRemoteWallet(next: { plan: number; addon: number; planId?: s
     planId: next.planId ?? remoteWallet?.planId ?? "free",
     debt,
     frozen: next.frozen ?? debt > 0,
+    // ★ 响应头不带这两格：缺省时**保留旧值**（同 debt 那条）—— 清掉的话每出一次片，付过钱的人就被打回「不知道付没付过」
+    paid: next.paid ?? remoteWallet?.paid,
+    free: next.free ?? remoteWallet?.free,
   };
   emit();
 }
@@ -703,28 +723,81 @@ export async function refreshRemoteWallet(): Promise<void> {
   if (!remoteOn() || !getToken()) return;
   try {
     const r = await walletApi.fetchWallet();
-    syncRemoteWallet(r.wallet);
+    // paid / free 服务端放在 wallet 里或回包顶层都认（见 WalletResp 的 ★）
+    syncRemoteWallet({ ...r.wallet, paid: r.wallet.paid ?? r.paid, free: r.wallet.free ?? r.free });
   } catch (e) {
     emitApiError("refreshWallet", e);
   }
 }
 
+/** UTC 自然日（YYYY-MM-DD）。★ 免费额度按 UTC 日补，与服务端（以及原来的每日上限）同一条日界线 */
+function utcDay(ms: number = Date.now()): string {
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
+/**
+ * 离线账本的钱包（远端模式下这里不管钱，见上面那段 ★★）。照服务端的免费额度规则走（2026-10-07 主人拍板）：
+ *   · **新开**的钱包：新人额度进 add-on（170k，永不过期）+ 第一天的 2k 进套餐额度；
+ *   · 免费版每过一个 UTC 日往套餐额度里补 2k，补到 14k（最多攒 7 天）为止；本来就比 14k 多的不扣回来；
+ *   · 已经有钱包的老账号**不补**新人额度（服务端也一样），只从今天起开始按天补；
+ *   · 付费套餐不按天补（买的时候一次加一个月的量，见 buyPlan）。
+ * ★ 在 render 里也会被调（walletOf）：补额度只改内存、不落盘也不广播 —— 它只看「上次补到哪天」与「今天」，
+ *   没落盘的话下次照样补到同一个数（幂等），下一次真写钱包（spendTokens 等）时一起落盘。
+ */
 function ensureWallet(u: User): NonNullable<User["wallet"]> {
+  const free = planOf("free");
   if (!u.wallet) {
-    // 老账号/新账号首次触达：发免费套餐的当月额度
-    u.wallet = { plan: PLANS[0].monthlyTokens, addon: 0 };
+    u.wallet = { plan: free.dailyTokens ?? 0, addon: free.welcomeTokens ?? 0, day: utcDay() };
     u.planId ??= "free";
   }
-  return u.wallet;
+  const w = u.wallet;
+  const today = utcDay();
+  if (!w.day) w.day = today;
+  else if (w.day < today) {
+    const plan = planOf(u.planId);
+    if (plan.price <= 0 && (plan.dailyTokens ?? 0) > 0) {
+      const days = Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${w.day}T00:00:00Z`)) / 86_400_000);
+      const cap = plan.dailyCapTokens ?? Number.POSITIVE_INFINITY;
+      w.plan = Math.max(w.plan, Math.min(cap, w.plan + days * (plan.dailyTokens ?? 0)));
+    }
+    w.day = today;
+  }
+  return w;
 }
 
 /** 当前用户钱包快照（未登录返回 null）。远端模式读镜像，离线模式读本地账本 */
-export function walletOf(): { plan: number; addon: number; planId: string; debt?: number; frozen?: boolean } | null {
+export function walletOf(): { plan: number; addon: number; planId: string; debt?: number; frozen?: boolean; paid?: boolean } | null {
   if (remoteOn()) return currentUser() ? remoteWallet : null;
   const u = currentUser();
   if (!u || !db) return null;
   const w = ensureWallet(u);
-  return { plan: w.plan, addon: w.addon, planId: u.planId ?? "free" };
+  return { plan: w.plan, addon: w.addon, planId: u.planId ?? "free", paid: u.paidEver === true };
+}
+
+/**
+ * 免费额度的三个数（新人一次 / 每天补多少 / 补到多少为止）。远端模式优先读服务端下发的（GET /api/me/wallet 的 free），
+ * 没有（老服务端 / 离线）就读 economy.PLANS 免费版那一行 —— 两仓逐条相等。「我的」页照它说「每天补多少」。
+ */
+export function freeQuota(): walletApi.FreeQuota {
+  const remote = remoteOn() ? remoteWallet?.free : undefined;
+  if (remote) return remote;
+  const free = planOf("free");
+  return { welcomeTokens: free.welcomeTokens ?? 0, dailyTokens: free.dailyTokens ?? 0, dailyCapTokens: free.dailyCapTokens ?? 0 };
+}
+
+/**
+ * 这个人**付过钱没有**（true = 套餐价 > 0 或付过任何一笔；false = 免费用户；null = 还不知道）—— 免费档限制的判据，**唯一实现**。
+ * ★ 与服务端 isPaidUser 同一个口径（主人 10-07：付费用户 = 有付费套餐，或者买过任何东西）。套餐 id 认不出时当免费版
+ *   （economy.planOf，与服务端 planOf 的兜底一致：反过来当付费的话，界面放行、服务端 403，而推演 / 画帧的钱那时已经花了）。
+ * ★ 管理员当付费（服务端对他跳过套餐门禁与扣费，见 tierBlockReason 那段 ★★）。
+ * ★ 远端模式下套餐没被服务端确认过（planIdConfirmed）就是「还不知道」：响应头只带余额，镜像里的 "free" 可能是我们自己填的。
+ */
+export function payingNow(): boolean | null {
+  if (billingExempt()) return true;
+  const w = walletOf();
+  if (!w) return null;
+  if (remoteOn() && !planIdConfirmed) return null;
+  return planOf(w.planId).price > 0 || w.paid === true;
 }
 
 /**
@@ -818,37 +891,108 @@ export function balanceNote(): string {
   return t`余额 ${amount}`;
 }
 
+// 能力位探测到了 / 变了：订阅了账号的界面一起重画（「草稿」档在老服务端上要藏起来，探测是异步的）
+subscribeServerCaps(() => emit());
+
+/**
+ * 这一档**眼下根本用不了**的原因（与套餐无关）：模型已经停用（retireAt），或者这台服务端还不支持它（480p 的「草稿」档要服务端 res480 能力位）。
+ * null = 用得了。★ 这两种档界面上**不摆**（offeredTiers），这句话是给「这一段早就挂着这一档」的情形说的（老草稿、做同款抄来的、停用那一刻正摆着的）。
+ * ★ 服务端还没探到（serverSupports 回 null）时放行：提交那一刻服务端会同步 400、一分钱不花，比慢半拍把免费用户唯一的档藏起来好。
+ */
+function tierOffIssue(tier: VideoTier): string | null {
+  const label = tier.label;
+  if (tierRetired(tier)) {
+    const day = tierRetireDay(tier);
+    return t`「${label}」档的模型已于 ${day}停用——换一档再出片`;
+  }
+  if (tier.resolution !== "720p" && serverSupports("res480") === false) {
+    return t`这台服务器还不支持「${label}」档（服务端需要更新）——先换一档出片`;
+  }
+  return null;
+}
+
+/** 这一档现在摆不摆出来（没停用、这台服务端支持）。档位那一排、选法屏、货架的「出片模型」筛选都只摆这些 */
+export function tierOffered(tier: VideoTier): boolean {
+  return tierOffIssue(tier) === null;
+}
+
+/** 现在摆得出来的那几档（顺序同档位表）。★ 判据只在 tierOffIssue：界面别自己拿 retireAt 或能力位去筛 */
+export function offeredTiers(): VideoTier[] {
+  return VIDEO_TIERS.filter(tierOffered);
+}
+
+/** 「会员档」那一整句：一档或几档并成一句（档位那一排、选法屏、工坊铸段窗都只说这一句，别一档一句糊四遍） */
+function memberLine(labels: string[]): string {
+  const names = joinTierNames(labels);
+  return t`「${names}」是会员档——开通会员套餐（或充值过任意一笔）就能用`;
+}
+
 /**
  * 「这一档现在能不能用」——**唯一实现**。返回 null = 能用，否则是一句给用户看的原因。
  *
+ * ★★ 2026-10-07 从黑名单（paidOnly 只挡电影级）改成**白名单**（主人拍板）：没付过钱的用户只能用 freeOk 的档（「极速」「草稿」），
+ *   别的档（标准 / 高清 / 电影级含样片 / 真人）付过钱才能用。「付过钱」的判据在 payingNow（套餐价 > 0 或付过任何一笔）。
+ *   另外两种「用不了」与套餐无关、谁都拦（管理员也拦：服务端对停用的模型一律拒）：模型停用、这台服务端不支持（tierOffIssue）。
  * ★ 为什么放在 account 而不是 economy：判据是**当前用户的套餐**，而 economy 是纯目录
  *   （account 已经 import 它，反过来会成环）。UI 与 store 都调这一处：
- *   档位按钮禁用要它、genNode 出片前也要它，两边各写一遍必然分叉（铁律六）。
- * ★ 这只是**提示**，不是安全边界。客户端禁用一个按钮拦不住改过的包，真正的拦截在
- *   服务端（按 JWT 里的用户查套餐，免费版调 2.5 直接拒）。
- * ★ 套餐还不知道（远端模式镜像没回来 / 未登录）时**放行**，与 canAfford 同一套乐观口径：
+ *   档位按钮禁用要它、genNode / 推演 / 重画 / 落段 / 剪辑页重拍出片前也要它，各写一遍必然分叉（铁律六）。
+ * ★ 这只是**提示**，不是安全边界。真正的拦截在服务端（videoPlanDenial，403 PLAN_REQUIRED）。
+ * ★ 付没付过钱还不知道（远端模式镜像没回来 / 未登录）时**放行**，与 canAfford 同一套乐观口径：
  *   宁可让请求打出去由服务端说了算，也不能因为镜像慢半拍就把付费用户的档位锁死
- *   ——那会表现成"我明明买了套餐却点不动"，而且刷新也好不了。
+ *   ——那会表现成"我明明买了套餐却点不动"，而且刷新也好不了。新段的默认档在不知道时落在免费档上（defaultTierId），两头都不吃亏。
+ * ★★ 管理员放行（服务端的 billedForward 对 admin 同时跳过套餐门禁与扣费；这边灰着就是给他看一句与事实相反的话）—— 在 payingNow 里。
  */
-export function tierBlockReason(tier: Pick<VideoTier, "label" | "paidOnly">): string | null {
-  if (!tier.paidOnly) return null;
-  // ★★ 管理员放行。这里原来写着"故意不开口子，因为服务端是分开判的"——那句话**是错的**：
-  //   服务端的 billedForward 对 admin **同时**跳过套餐门禁与扣费（门禁守的也是钱，
-  //   不跳的话免费档的管理员会在 seedance-2.5 上被 403）。所以这边继续灰着，
-  //   就是给管理员看一句与事实相反的「升级套餐后可用」——反向假特权，
-  //   而且他没有任何办法验证到底是谁在拦（铁律五、八）。
-  //   服务端仍是唯一的安全边界：客户端放行只是别再撒谎。
-  if (billingExempt()) return null;
-  const w = walletOf();
-  if (!w) return null; // 还不知道套餐，交给服务端判
-  // 远端模式下镜像里的 planId 可能是**我们自己填的** "free"（响应头只带余额不带套餐，
-  // 见 planIdConfirmed）。没被服务端确认过就等同于"还不知道"，一律放行。
-  if (remoteOn() && !planIdConfirmed) return null;
-  if (w.planId !== "free") return null;
-  // 说清楚"为什么"，不是只把按钮灰掉：免费版每月 300k，而这一档最短的一段就要 30 万+
-  const label = tier.label;
-  const quota = fmtTokens(PLANS[0].monthlyTokens);
-  return t`「${label}」单段消耗超过免费版整月额度（${quota}），升级套餐后可用`;
+export function tierBlockReason(tier: VideoTier): string | null {
+  const off = tierOffIssue(tier);
+  if (off) return off;
+  if (tier.freeOk) return null;
+  // true（付过钱 / 管理员）或 null（还不知道）都放行
+  if (payingNow() !== false) return null;
+  return memberLine([tier.label]);
+}
+
+/**
+ * 这一排里**因为套餐**点不动的那几档并成一句（null = 没有）。档位那一排（TierRow）、选法屏（ModePicker）、工坊铸段窗都只印这一句 + 「去升级」，
+ * 不再一档一句（四档同一个原因糊四遍，同 economy.r2vBlockLines 治过的那件事）。停用 / 服务端不支持的档本来就不摆，不在这句里。
+ */
+export function memberTiersLine(): string | null {
+  if (payingNow() !== false) return null;
+  const labels = offeredTiers().filter((x) => !x.freeOk).map((x) => x.label);
+  return labels.length ? memberLine(labels) : null;
+}
+
+/**
+ * 有某种能力的档、**按这个人用不用得了**分两串名字（都只算摆得出来的档）：usable = 现在就能换过去的，member = 开通会员才能用的。
+ * 空串 = 没有。★ 句子里「换到哪一档就有」一律从这里取（economy.tierNamesWhere 是不看套餐的目录版）：写死「高清或电影级」的话，
+ *   免费用户被指去两个点不动的档，而他唯一能用的「草稿」一个字都没提（2026-10-07 加免费档限制时清点过二十来处）。
+ */
+export function tierNamesFor(pred: (t: VideoTier) => boolean): { usable: string; member: string } {
+  const offered = offeredTiers().filter(pred);
+  return {
+    usable: joinTierNames(offered.filter((x) => !tierBlockReason(x)).map((x) => x.label)),
+    member: joinTierNames(offered.filter((x) => !!tierBlockReason(x)).map((x) => x.label)),
+  };
+}
+
+/**
+ * 新段的默认档 —— **唯一实现**（新段、工坊铸段窗、画布「＋ 加一段」、拆分镜技能铺的段都问它）。
+ * 付过钱（或管理员）：「标准」，它停用之后「高清」；免费用户**或还不知道**：「极速」，它停用之后「草稿」（主人 10-07 拍板）。
+ * ★ 不知道时落在免费档上：冷启动镜像慢半拍时，免费用户一出生就在一个点不动的会员档上，推演 / 画帧的钱会先花出去再被出片闸拦下；
+ *   付费用户只是多点一下换档。★ 链上的档停用 / 这台服务端不支持就往后退（firstLiveTierId）。
+ */
+export function defaultTierId(): string {
+  const chain = payingNow() === true ? PAID_DEFAULT_CHAIN : FREE_DEFAULT_CHAIN;
+  return firstLiveTierId(chain, Date.now(), (id) => tierOffIssue(tierOf(id)) === null);
+}
+
+/**
+ * 「这一档这个人现在能不能用；不能就换成能用的默认档」—— 抄别人的东西（做同款、按配方做同款、经典模板、承接上一段的档位）时都过它。
+ * ★ 换了档的调用方要**说出来**（「第 2 段原来是高清（会员档），换成了草稿」）：照原作的档位报价、悄悄按另一档出片，是两把尺。
+ * ★ 认不出的 id / 缺省 → 默认档。还不知道付没付过钱时 tierBlockReason 放行，所以不会把付费用户的「高清」误降成「草稿」。
+ */
+export function usableTierId(id: string | undefined): string {
+  if (id && tierOf(id).id === id && !tierBlockReason(tierOf(id))) return id;
+  return defaultTierId();
 }
 
 /**
@@ -939,6 +1083,8 @@ export async function rechargeAddon(tokens: number): Promise<RechargeResult> {
   const u = currentUser();
   if (!u || !db || tokens <= 0) return { kind: "login" };
   ensureWallet(u).addon += tokens;
+  // 付过一次钱 = 全部档位都能用（服务端 paidEver 的离线镜像，见 payingNow）
+  u.paidEver = true;
   persist();
   return { kind: "credited" };
 }
@@ -966,6 +1112,7 @@ export async function buyPlan(planId: string): Promise<RechargeResult> {
   if (!u || !db) return { kind: "login" };
   ensureWallet(u).plan += plan.monthlyTokens;
   u.planId = plan.id;
+  if (plan.price > 0) u.paidEver = true;
   persist();
   return { kind: "credited" };
 }

@@ -2717,6 +2717,8 @@ export async function regenSegment(
     durationSec: clampDuration(seg.durationSec, seg.videoTier),
     lastFrameUrl: tier.flf ? await shrinkFrameFor720p(seg.lastFrame) : undefined,
     model: tier.model,
+    // ★ 分辨率跟着档位走（「草稿」= 480p）：剪辑页按 segTokens(…, 这一档) 报价扣钱，漏了这一行就是按 480p 收、按 720p 出（2026-10-07）
+    resolution: tier.resolution,
     // 重拍必须沿用原画幅：这里漏了它，圈选改一次画面就把竖屏段悄悄拍成横屏
     ratio: aspectOf(seg.aspect).ratio,
     // 剪辑页只有一行 busy 文案、没有步骤日志：事件在这里就写成句子（唯一实现 arkClient.describeArkProgress）
@@ -3353,6 +3355,8 @@ export async function composeSegments(
         refVideoSec: sg.refVideoSec,
         refTask: sg.refTask,
         model: tier.model,
+        // 分辨率跟着档位走（「草稿」= 480p，报价 segTokens 按同一格算）；带参考视频的几条路由 arkClient 钉回 720p
+        resolution: tier.resolution,
         ratio: aspectOf(sg.aspect).ratio,
         onTask: (taskId) => onTask?.(taskId, i),
         onProgress: (ev) => onProgress?.(i, segments.length, encodeGenEvent({ ...ev, tier: tier.id })),

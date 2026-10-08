@@ -5,8 +5,8 @@ import { AI_REAL, MaterialFile, deriveCharacterModels, deriveDeckCards, generate
 import { frameMoment, momentCards } from "../data/shotScript";
 import { DECK_CAM, MARKET, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
-import { acquireCard, addCards as saveCardsToAccount, canAfford, frozenNote, myCards, myDecks, plazaCards, spendTokens, walletOf, type AddCardsResult } from "../data/account";
-import { CHAT_TURN_TOKENS, DECK_MAX_3D, deriveIssue, DECK_MAX_CARDS, DEFAULT_TIER, MODEL3D_TOKENS, deckCardsCost, deckModel3dCost, fmtTokens, proposalsCost, realFaceIssue, styleWants3d, tierOf, videoAudioOn } from "../data/economy";
+import { acquireCard, addCards as saveCardsToAccount, canAfford, defaultTierId, frozenNote, myCards, myDecks, plazaCards, spendTokens, tierBlockReason, walletOf, type AddCardsResult } from "../data/account";
+import { CHAT_TURN_TOKENS, DECK_MAX_3D, deriveIssue, DECK_MAX_CARDS, fallbackTierId, MODEL3D_TOKENS, deckCardsCost, deckModel3dCost, fmtTokens, proposalsCost, realFaceIssue, styleWants3d, tierOf, videoAudioOn } from "../data/economy";
 // 单向依赖：工坊把活动路径喂给工作流。flowStore 不认识 studioStore（见其文件头）
 import { drawExtraRefs, plainMentions } from "../data/refMentions";
 import { GenNodeOpts, CUSTOM_MID_MAX, FlowMode, FlowNode, FlowTemplate, type AppendSpec, appendBlocked, appendIssue, chosenOf, recastBlocked, nodeContinues, nodeVideo, tplOfNode, useFlow, redrawCost, redrawFrames, noDrawFor } from "./flowStore";
@@ -377,7 +377,8 @@ function flowFromRoot(root: NodeSlot): { nodes: FlowNode[]; alts: Record<string,
       chosenId: slot.chosenId ?? slot.proposals[0]?.id ?? "",
       plan: slot.chosenId == null ? "picking" : "picked",
       requirement: slot.requirement ?? "",
-      videoTier: slot.videoTier ?? DEFAULT_TIER,
+      // 老草稿里没写档位 = 当年的默认档（目录兜底 fallbackTierId：「标准」，停用后「高清」）——这是换算存量，不是替人挑新档
+      videoTier: slot.videoTier ?? fallbackTierId(),
       aspect: slot.aspect ?? "landscape",
       materials: slot.materials,
       chain: chainIndex > 0,
@@ -896,7 +897,8 @@ const DEFAULT_EDITOR: EditorState = {
   requirement: "",
   durationMode: "ai",
   durationSec: 6,
-  videoTier: DEFAULT_TIER,
+  // 占位：真正的默认档在 freshEditor 里按套餐现取（这个常量在模块加载那一刻求值，那时还不知道这个人付没付过钱）
+  videoTier: fallbackTierId(),
   aspect: DEFAULT_ASPECT,
   startFrame: null,
   endFrame: null,
@@ -910,7 +912,8 @@ const DEFAULT_EDITOR: EditorState = {
 function freshEditor(slots: string[]): EditorState {
   const path = activePath();
   const prev = path[path.length - 1];
-  return { ...DEFAULT_EDITOR, slots, aspect: prev?.aspect ?? DEFAULT_ASPECT };
+  // ★ 档位按**这个人的套餐**现取（account.defaultTierId）：免费用户落在免费档上，不然铸段窗一打开就停在一个点不动的会员档上
+  return { ...DEFAULT_EDITOR, slots, aspect: prev?.aspect ?? DEFAULT_ASPECT, videoTier: defaultTierId() };
 }
 
 // 市场检索的请求序号：过期响应直接丢弃，防止慢请求乱序覆盖新结果
@@ -2017,6 +2020,15 @@ export const useStudio = create<StudioState>()((set, get) => ({
         return;
       }
     }
+    {
+      // ★ 档位门禁（2026-10-07 免费档限制）：下面先扣推演费、方案出炉后才 appendNode —— 这一档这个人用不了的话，
+      //   钱花在三套出不了片的方案上。判据只在 account.tierBlockReason（flowStore.deriveProposals 问的是同一句）
+      const blocked = tierBlockReason(tierOf(editor.videoTier));
+      if (blocked) {
+        set({ notice: { text: blocked, at: Date.now() } });
+        return;
+      }
+    }
     const materials = editor.slots
       .map((id) => deck.find((c) => c.id === id))
       .filter((c): c is Card => !!c);
@@ -2212,7 +2224,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
             ...(p.poster ? { poster: p.poster } : {}),
             durationSec: p.durationSec,
             ...(p.realDurationSec ? { realDurationSec: p.realDurationSec } : {}),
-            videoTier: slot.videoTier ?? DEFAULT_TIER,
+            videoTier: slot.videoTier ?? fallbackTierId(),
             aspect: slot.aspect,
             // 必须过 realVideoOf：mock 构建下 videoUrl 是 "mock:" 占位串，交给剪辑页的
             // <video> 只会得到一个报错的播放器（resolveMediaUrl 会把未知 scheme 原样透出）

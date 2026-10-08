@@ -214,6 +214,8 @@ msgstr ", and this run has already been charged"
 msgid "、"
 msgstr ", "
 
+#. 几条「第 N 段换了档」的说明连成一行时的分隔符
+#. 几条「第 N 段换了档」的说明连成一行时的分隔符
 #. 几条提示连成一串时的分隔符（出片 / 铸卡 / 推演 / 改图的进度行与完成提示共用）
 #. 列举「每个图位锁什么」时的分隔符
 #. 列举包里缺的几个文件时的分隔符
@@ -236,6 +238,8 @@ msgstr ", "
 #: src/components/flow/TierRow.tsx
 #: src/live2d/bundlePreview.ts
 #: src/pages/CardDetailPage.tsx
+#: src/pages/FeedPage.tsx
+#: src/pages/VideoPage.tsx
 #: src/studio/dialogueDraftStore.ts
 #: src/studio/flowStore.ts
 #: src/studio/gridDraftStore.ts
@@ -1347,12 +1351,20 @@ msgstr "{names}: declared as real-person material, and the “{label}” tier's 
 #~ msgstr "Real-person cards: {names}. The “{label}” tier doesn’t take real-person photos — switch to “{realTier}”, or tick “Volcengine verified” on the card and use “{hdTier}” or “{ultraTier}”."
 
 #: src/data/economy.ts
-msgid "{names}是真人卡，「{label}」档不收真人照片——换「{realTier}」档（在「工作流」或「简约模式」里直出）；「{hdTier}」「{ultraTier}」档只在「简约模式」不带首帧、且卡勾了「火山引擎适用」时可用"
-msgstr "Real-person cards: {names}. The “{label}” tier doesn’t take real-person photos — switch to “{realTier}” (generate directly in Workflow or Simple mode). “{hdTier}” and “{ultraTier}” only work in Simple mode with no opening frame, on cards marked “Volcengine verified”."
+msgid "{names}是真人卡，「{label}」档不收真人照片——换「{realTier}」档（在「工作流」或「简约模式」里直出）；「{assetTiers}」档只在「简约模式」不带首帧、且卡勾了「火山引擎适用」时可用"
+msgstr "Real-person cards: {names}. The “{label}” tier doesn’t take real-person photos — switch to “{realTier}” (generate directly in Workflow or Simple mode). “{assetTiers}” only work in Simple mode with no opening frame, on cards marked “Volcengine verified”."
 
 #: src/data/economy.ts
-msgid "{names}是真人卡，「{label}」档不收真人照片——换「{realTier}」档（在「工作流」或「简约模式」里直出）；或给卡勾选「火山引擎适用」后换「{hdTier}」「{ultraTier}」档"
-msgstr "Real-person cards: {names}. The “{label}” tier doesn’t take real-person photos — switch to “{realTier}” (generate directly in Workflow or Simple mode), or tick “Volcengine verified” on the card and use “{hdTier}” or “{ultraTier}”."
+#~ msgid "{names}是真人卡，「{label}」档不收真人照片——换「{realTier}」档（在「工作流」或「简约模式」里直出）；「{hdTier}」「{ultraTier}」档只在「简约模式」不带首帧、且卡勾了「火山引擎适用」时可用"
+#~ msgstr "Real-person cards: {names}. The “{label}” tier doesn’t take real-person photos — switch to “{realTier}” (generate directly in Workflow or Simple mode). “{hdTier}” and “{ultraTier}” only work in Simple mode with no opening frame, on cards marked “Volcengine verified”."
+
+#: src/data/economy.ts
+msgid "{names}是真人卡，「{label}」档不收真人照片——换「{realTier}」档（在「工作流」或「简约模式」里直出）；或给卡勾选「火山引擎适用」后换「{assetTiers}」档"
+msgstr "Real-person cards: {names}. The “{label}” tier doesn’t take real-person photos — switch to “{realTier}” (generate directly in Workflow or Simple mode), or tick “Volcengine verified” on the card and use “{assetTiers}”."
+
+#: src/data/economy.ts
+#~ msgid "{names}是真人卡，「{label}」档不收真人照片——换「{realTier}」档（在「工作流」或「简约模式」里直出）；或给卡勾选「火山引擎适用」后换「{hdTier}」「{ultraTier}」档"
+#~ msgstr "Real-person cards: {names}. The “{label}” tier doesn’t take real-person photos — switch to “{realTier}” (generate directly in Workflow or Simple mode), or tick “Volcengine verified” on the card and use “{hdTier}” or “{ultraTier}”."
 
 #: src/data/economy.ts
 msgid "{names}是真人卡：「{label}」档只在「简约模式」不带首帧时可用（推演帧、承接画面、上传的首帧里有真人脸，会被整发拒）——去「简约模式」直出，或换「{realTier}」档（在「工作流」或「简约模式」里直出）"
@@ -1719,12 +1731,16 @@ msgid "「{extLabel}」档还不能延长——去 ⚙ 本段设置换成「电�
 msgstr "The “{extLabel}” tier can’t extend yet — switch to “Cinematic” in ⚙ Segment settings"
 
 #: src/data/account.ts
-msgid "「{label}」单段消耗超过免费版整月额度（{quota}），升级套餐后可用"
-msgstr "One segment on the “{label}” tier costs more than the Free plan's entire monthly token allowance ({quota}) — upgrade your plan to use it"
+#~ msgid "「{label}」单段消耗超过免费版整月额度（{quota}），升级套餐后可用"
+#~ msgstr "One segment on the “{label}” tier costs more than the Free plan's entire monthly token allowance ({quota}) — upgrade your plan to use it"
 
 #: src/data/economy.ts
 msgid "「{label}」档按发直出（起拍画面就是真人卡的照片），没有推演三套方案这一步——写好一句话直接生成，或换回其它档再推演。"
 msgstr "The “{label}” tier renders each clip directly (the opening shot is the real-person card's photo), so there's no step that drafts three plans — write one sentence and generate right away, or switch back to another tier to draft plans."
+
+#: src/data/account.ts
+msgid "「{label}」档的模型已于 {day}停用——换一档再出片"
+msgstr "The model behind the “{label}” tier was retired on {day} — pick another tier to generate"
 
 #: src/studio/flowStore.ts
 msgid "「{label}」档还不能延长——用电影级出的段才能延长"
@@ -1869,6 +1885,10 @@ msgstr "“{names}” can't render from a reference video (reshoots and custom s
 #: src/data/economy.ts
 #~ msgid "「{names}」做不了按参考视频出片（白模模板复刻、返修都属于这一类）——这类出片只有「{openLabel}」（{openModel}）做得到"
 #~ msgstr "“{names}” can't render from a reference video (blockout template remakes and revisions both work this way) — only “{openLabel}” ({openModel}) can"
+
+#: src/data/account.ts
+msgid "「{names}」是会员档——开通会员套餐（或充值过任意一笔）就能用"
+msgstr "“{names}” are member tiers — subscribe to a plan (or make any top-up once) to use them"
 
 #: src/studio/segmentGen.ts
 msgid "「{names}」的声音样本这次没带上（这一档的参考音频合计最长 {capSec} 秒）——这几位的台词音色由模型定；把样本剪短些就能都带上"
@@ -3567,6 +3587,10 @@ msgstr "④ Name and finish"
 #: src/pages/CustomCardPage.tsx
 msgid "④ 标签（选填）"
 msgstr "④ Tags (optional)"
+
+#: src/data/economy.ts
+msgid "480p 省钱档 · 与「{hd}」同一个模型、画面小一号；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音 · 免费可用"
+msgstr "Budget 480p tier · same model as “{hd}” at a smaller size; can render straight from the cards' reference images · videos come with AI-generated ambient sound · free to use"
 
 #: src/studio/quality.ts
 msgid "4K 贴图 · 15 万面 · 最清楚但吃显存（她 3.9MB／他 3.8MB）"
@@ -6659,8 +6683,12 @@ msgid "最新"
 msgstr "Newest"
 
 #: src/data/economy.ts
-msgid "最新一代 · 画面与运镜最好，出片带 AI 生成的环境音，单段消耗约标准档 4.7 倍（仅付费套餐）"
-msgstr "Latest generation · best picture and camera movement, videos come with AI-generated ambient sound, each segment costs about 4.7× the Standard tier (paid plans only)"
+#~ msgid "最新一代 · 画面与运镜最好，出片带 AI 生成的环境音，单段消耗约标准档 4.7 倍（仅付费套餐）"
+#~ msgstr "Latest generation · best picture and camera movement, videos come with AI-generated ambient sound, each segment costs about 4.7× the Standard tier (paid plans only)"
+
+#: src/data/economy.ts
+msgid "最新一代 · 画面与运镜最好，出片带 AI 生成的环境音，每秒消耗约「{hd}」档的 {x} 倍（会员档）"
+msgstr "Latest generation · best picture and camera movement, videos come with AI-generated ambient sound, costs about {x}× the “{hd}” tier per second (member tier)"
 
 #: src/pages/DiscoverPage.tsx
 msgid "最新作品"
@@ -9234,8 +9262,12 @@ msgid "唤起指令句式（也可以输入 /）"
 msgstr "Open command phrases (or type /)"
 
 #: src/data/economy.ts
-msgid "唯一收真人照片的档 · 供应商按发计价（6 秒或 10 秒整档）· 用真人卡出片选它"
-msgstr "The only tier that accepts photos of real people · the provider prices per clip (6s or 10s only) · choose it to render with real-person cards"
+#~ msgid "唯一收真人照片的档 · 供应商按发计价（6 秒或 10 秒整档）· 用真人卡出片选它"
+#~ msgstr "The only tier that accepts photos of real people · the provider prices per clip (6s or 10s only) · choose it to render with real-person cards"
+
+#: src/data/economy.ts
+msgid "唯一收真人照片的档 · 供应商按发计价（6 秒或 10 秒整档）· 用真人卡出片选它 · 会员档"
+msgstr "The only tier that accepts photos of real people · the provider prices per clip (6s or 10s only) · choose it to render with real-person cards · member tier"
 
 #: src/pages/SupportCreatePage.tsx
 #: src/pages/SupportPersonasPage.tsx
@@ -13781,8 +13813,16 @@ msgid "新"
 msgstr "New"
 
 #: src/data/economy.ts
-msgid "新一代模型 · 画面更稳、细节更多；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音"
-msgstr "Newer-generation model · steadier picture, more detail; can render straight from the cards' reference images · videos come with AI-generated ambient sound"
+#~ msgid "新一代模型 · 画面更稳、细节更多；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音"
+#~ msgstr "Newer-generation model · steadier picture, more detail; can render straight from the cards' reference images · videos come with AI-generated ambient sound"
+
+#: src/data/economy.ts
+msgid "新一代模型 · 画面更稳、细节更多；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音 · 会员档"
+msgstr "Newer-generation model · steadier picture, more detail; can render straight from the cards' reference images · videos come with AI-generated ambient sound · member tier"
+
+#: src/data/economy.ts
+msgid "新人一次 {welcome} + 每天 {daily}（最多攒 {days} 天）· 能用「{names}」档出片"
+msgstr "{welcome} once when you join + {daily} a day (saves up to {days} days) · can generate on “{names}”"
 
 #: src/pages/LoginPage.tsx
 msgid "新密码（至少 6 位）"
@@ -16480,8 +16520,8 @@ msgid "沿边描出轮廓"
 msgstr "Trace the outline"
 
 #: src/data/economy.ts
-msgid "注册即得，每月刷新"
-msgstr "Included when you sign up, refreshed monthly"
+#~ msgid "注册即得，每月刷新"
+#~ msgstr "Included when you sign up, refreshed monthly"
 
 #: src/pages/LoginPage.tsx
 msgid "注册新账号"
@@ -18280,8 +18320,12 @@ msgid "相机照片存不下来（存储可能已满）"
 msgstr "Couldn't save the camera photo (storage may be full)"
 
 #: src/data/economy.ts
-msgid "省 token · 首帧起拍，不锁尾帧"
-msgstr "Saves tokens · starts from the first frame, doesn't lock the last frame"
+#~ msgid "省 token · 首帧起拍，不锁尾帧"
+#~ msgstr "Saves tokens · starts from the first frame, doesn't lock the last frame"
+
+#: src/data/economy.ts
+msgid "省 token · 首帧起拍，不锁尾帧 · 免费可用 · 模型 {day}起停用"
+msgstr "Saves tokens · starts from the first frame, doesn't lock the last frame · free to use · model retires {day}"
 
 #: src/studio/cutAutoEdit.ts
 msgid "看一遍你排好的片段：起个片头标题、每段写一句旁白（也是字幕）、挑出该转场的地方——你看过、改过再用"
@@ -19014,8 +19058,8 @@ msgstr "Segment {0} video ready"
 
 #. placeholder {0}: i + 1
 #: src/studio/flowStore.ts
-msgid "第 {0} 段原来的档位已经下线，改用默认档"
-msgstr "Segment {0}'s original tier is retired; using the default tier"
+#~ msgid "第 {0} 段原来的档位已经下线，改用默认档"
+#~ msgstr "Segment {0}'s original tier is retired; using the default tier"
 
 #. placeholder {0}: idx + 1
 #: src/studio/flowStore.ts
@@ -19217,6 +19261,22 @@ msgstr "Panel {list} has nobody in it or is a close-up, so it isn’t part of th
 #: src/ai/real.ts
 msgid "第 {n} 张参考图未采用（「{name}」的{view}，比例越界或读不出来）"
 msgstr "Reference image {n} wasn't used (“{name}”, “{view}”: its aspect ratio is out of range or it couldn't be read)"
+
+#: src/studio/flowStore.ts
+msgid "第 {n} 段原来是「{label}」档（会员档），改用你能用的「{b}」档——开通会员套餐后可以换回去"
+msgstr "Segment {n} was on “{label}” (a member tier); switched to “{b}”, which you can use — subscribe to a plan to switch back"
+
+#: src/studio/flowStore.ts
+msgid "第 {n} 段原来是「{label}」档（模型已停用），改用「{b}」档"
+msgstr "Segment {n} was on “{label}” (model retired); switched to “{b}”"
+
+#: src/studio/flowStore.ts
+msgid "第 {n} 段原来是「{label}」档（这台服务器还不支持），改用「{b}」档"
+msgstr "Segment {n} was on “{label}” (not supported by this server yet); switched to “{b}”"
+
+#: src/studio/flowStore.ts
+msgid "第 {n} 段原来的档位已经下线，改用「{b}」档"
+msgstr "Segment {n}'s original tier is retired; switched to “{b}”"
 
 #: src/pages/CutPage.tsx
 msgid "第 {n}/{total} 句…"
@@ -19781,8 +19841,12 @@ msgid "约 {0} token"
 msgstr "about {0} tokens"
 
 #: src/data/economy.ts
-msgid "约可生成 15 段标准档视频"
-msgstr "Enough for about 15 Standard-tier video segments"
+msgid "约可生成 {n} 段 5 秒「{hd}」档视频 · 全部档位都能用"
+msgstr "Enough for about {n} five-second “{hd}” segments · every tier unlocked"
+
+#: src/data/economy.ts
+#~ msgid "约可生成 15 段标准档视频"
+#~ msgstr "Enough for about 15 Standard-tier video segments"
 
 #: src/components/flow/SegSettings.tsx
 #: src/studio/ui/projection.tsx
@@ -20467,6 +20531,11 @@ msgstr "Draft"
 msgctxt "主页页签：我存下的那些草稿（名词，整个页签的名字；不是某一条的「草稿」状态角标）"
 msgid "草稿"
 msgstr "Drafts"
+
+#: src/data/economy.ts
+msgctxt "画质档位名：Seedance 2.0 mini 480p 的省钱档（不是草稿箱的草稿，也不是电影级的样片）"
+msgid "草稿"
+msgstr "Lite"
 
 #: src/hooks/useFlowActions.ts
 msgid "草稿保存失败（存储空间不足或浏览器隐私模式）"
@@ -23197,6 +23266,10 @@ msgstr "This server has no speech configured; lips move, no voice"
 msgid "这台服务器还不会解析 Live2D 模型包（需要更新服务端），暂时传不了。"
 msgstr "This server can't parse Live2D model packages yet (it needs a server update), so uploading isn't possible for now."
 
+#: src/data/account.ts
+msgid "这台服务器还不支持「{label}」档（服务端需要更新）——先换一档出片"
+msgstr "This server doesn't support the “{label}” tier yet (the server needs an update) — pick another tier for now"
+
 #: src/api/admin.ts
 msgid "这台服务器还不支持下架（需要升级服务端）"
 msgstr "This server doesn't support takedowns yet (it needs a server upgrade)"
@@ -24565,8 +24638,12 @@ msgid "重圈"
 msgstr "Reselect"
 
 #: src/data/economy.ts
-msgid "重度创作，约 60 段标准档"
-msgstr "For heavy use, about 60 Standard-tier segments"
+msgid "重度创作，约 {n} 段 5 秒「{hd}」档 · 全部档位都能用"
+msgstr "For heavy use, about {n} five-second “{hd}” segments · every tier unlocked"
+
+#: src/data/economy.ts
+#~ msgid "重度创作，约 60 段标准档"
+#~ msgstr "For heavy use, about 60 Standard-tier segments"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "重截预览"
@@ -25151,8 +25228,12 @@ msgid "首尾帧会改成\"参考图 + 提示词点名\"发出去（换来的是
 msgstr "First and last frames will be sent as “reference image + prompt mention” (asset card looks can go along; the trade-off is that start and end frames are no longer hard constraints)"
 
 #: src/data/economy.ts
-msgid "首尾帧可控（默认）"
-msgstr "First and last frames controllable (default)"
+msgid "首尾帧可控 · 会员档 · 模型 {day}起停用"
+msgstr "First and last frames controllable · member tier · model retires {day}"
+
+#: src/data/economy.ts
+#~ msgid "首尾帧可控（默认）"
+#~ msgstr "First and last frames controllable (default)"
 
 #: src/ai/arkClient.ts
 msgid "首尾帧图生视频"

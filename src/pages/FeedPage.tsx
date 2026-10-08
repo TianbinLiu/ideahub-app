@@ -46,6 +46,7 @@ import SeedBadge from "../components/SeedBadge";
 import Icon, { type IconName } from "../components/Icon";
 import CharacterPerch, { usePerchBurst, type PerchPose } from "../components/CharacterPerch";
 import { remakeNodesOf, remakeableOf, useFlow } from "../studio/flowStore";
+import { showToast } from "../data/toast";
 import { useApplyTemplate } from "../components/flow/useApplyTemplate";
 import { VideoAspect, VideoItem, aspectFromSize, aspectOf, formatDuration, segsTotal, videoCategoryLabel } from "../types";
 import { useMediaUrl } from "../utils/mediaUrl";
@@ -452,12 +453,15 @@ function FeedItem({
   function remake() {
     remakeGuard(
       () => {
-        const ok = useFlow.getState().seed(remakeNodesOf(video.segments, video.deck?.cards ?? []), {
+        const built = remakeNodesOf(video.segments, video.deck?.cards ?? []);
+        const ok = useFlow.getState().seed(built.nodes, {
           mode: "workflow",
           origin: "solo",
           // 同款署名（2026-10-02）：发布时随稿子上行，原作页据它记一次「N 人做了同款」
           remixOf: { videoId: video.id, title: video.title, author: video.author },
         });
+        // 换了档（原作用的是会员档 / 已停用的档）要说出来（remakeNodesOf 的 ★）
+        if (ok && built.notes.length) showToast(built.notes.join(t({ message: "；", comment: "几条「第 N 段换了档」的说明连成一行时的分隔符" })), 6000);
         if (ok) navigate("/flow");
         else {
           setRemakeErr(useFlow.getState().err || t`现在铺不了（可能有一段正在生成中），稍后再试`);

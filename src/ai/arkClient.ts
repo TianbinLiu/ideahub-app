@@ -16,6 +16,8 @@ import { i18n } from "@lingui/core";
 import { t } from "@lingui/core/macro";
 import { API_BASE, API_ON, getToken } from "../api/client";
 import { frozenLine, syncRemoteWallet } from "../data/account";
+import { probeServerCaps } from "../data/serverCaps";
+import type { TierResolution } from "../data/videoTierTable";
 import { DEFAULT_IMAGE_TIER, durationWindowOfModel, imageTierOf, videoAudioOn } from "../data/economy";
 import type { GenMode } from "../types";
 
@@ -557,26 +559,14 @@ export class ImageGroupBusy extends Error {
   }
 }
 
-let groupsProbe: Promise<boolean> | null = null;
 /**
  * 这台机器出得了组图吗。dev = 配了方舟密钥（vite 直连）；打包 = 服务端健康端点报 `imageGroups: true`。
- * ★ 结果整场会话记住（服务端不会在会话中途升级）；探测本身失败（断网）不记，下次再问。
+ * ★ 探测只有 data/serverCaps 一处（2026-10-07 抽出来，与「草稿」档的 480p 能力位共用一次请求）：结果整场会话记住，探测本身失败（断网）不记、下次再问。
  */
-export function imageGroupsAvailable(): Promise<boolean> {
-  if (import.meta.env.DEV) return Promise.resolve(AI_REAL);
-  if (!API_ON) return Promise.resolve(false);
-  groupsProbe ??= fetch(`${BASE}/health`, { signal: AbortSignal.timeout(10_000) })
-    .then(async (r) => {
-      const ct = r.headers.get("content-type") ?? "";
-      if (!r.ok || !ct.includes("json")) return false;
-      const j = (await r.json().catch(() => ({}))) as { imageGroups?: unknown };
-      return j.imageGroups === true;
-    })
-    .catch(() => {
-      groupsProbe = null;
-      return false;
-    });
-  return groupsProbe;
+export async function imageGroupsAvailable(): Promise<boolean> {
+  if (import.meta.env.DEV) return AI_REAL;
+  if (!API_ON) return false;
+  return (await probeServerCaps())?.imageGroups === true;
 }
 
 const authHeaders = (): Record<string, string> => {
@@ -1115,8 +1105,14 @@ export async function generateVideo(
   opts?: {
     durationSec?: number;
     lastFrameUrl?: string;
-    /** 覆盖默认视频模型（节点卡选档：极速/标准/高清/电影级） */
+    /** 覆盖默认视频模型（节点卡选档；档位表见 data/videoTierTable） */
     model?: string;
+    /**
+     * 分辨率（档位表的 VideoTierSpec.resolution；缺省 720p = 本参数出现之前的写死值）。2026-10-07 加：「草稿」档与「高清」同一个模型，
+     * 只差这一格 —— 不传的话「草稿」按 480p 报价、按 720p 出片，钱包多扣一倍多（服务端按请求体里的分辨率结算）。
+     * ★ 带参考视频的几条路（白模 / 返修 / 素材参考 / 延长）**一律 720p**：服务端 resolveR2v 钉死 720p，这里照钉，传进来的值不上桌。
+     */
+    resolution?: TierResolution;
     /** 画幅（"9:16" 竖 / "16:9" 横）。缺省横屏 = 本参数出现之前的写死值。
      *  最终发出去的值由 ratioFor 决定（2.5 首尾帧任务会被改成 adaptive） */
     ratio?: string;
@@ -1232,7 +1228,8 @@ export async function generateVideo(
       body: JSON.stringify({
         model,
         content,
-        resolution: "720p",
+        // 纯任务按档位的分辨率发（报价 economy.segTokens 按同一格算）；带参考视频的几条路服务端钉 720p（见 opts.resolution 的 ★）
+        resolution: refVideoUrl ? "720p" : (opts?.resolution ?? "720p"),
         // ★★ 音频：**开着不多花一分钱**，所以能出声的档一律出声。
         //   ⚠ 这一行原来是 `generate_audio: false // 无声更省 tokens（0.008 vs 0.016 元/千）`
         //     —— 那两个单价**查无实据**（账单里没有、方舟公开价目里也没有），却让我们白白

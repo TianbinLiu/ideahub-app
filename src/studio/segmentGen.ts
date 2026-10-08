@@ -924,9 +924,18 @@ export type SegmentTaskAccepted = (taskId: string) => void;
  * 对不上**不拦**（钱在服务端按调用结算，这里拦只会把已经画好的帧作废），但要说出来并进控制台。
  * 视频那半按 economy.videoTokensOfSpec（与报价同一张价目表），出图那半按"这一发真画了几张"。
  */
-function contractLine(o: { quoted: number | null; mode: GenMode; durationSec: number; tierId: string; refVideoSec?: number; images: number }): string {
+function contractLine(o: {
+  quoted: number | null;
+  mode: GenMode;
+  durationSec: number;
+  tierId: string;
+  refVideoSec?: number;
+  images: number;
+  /** 这一发的画幅（480p 的每秒数按画幅不同，报价 nodeCost 也按它算） */
+  ratio?: string;
+}): string {
   if (o.quoted === null) return "";
-  const video = videoTokensOfSpec({ mode: o.mode, durationSec: o.durationSec, tierId: o.tierId, refVideoSec: o.refVideoSec });
+  const video = videoTokensOfSpec({ mode: o.mode, durationSec: o.durationSec, tierId: o.tierId, refVideoSec: o.refVideoSec, ratio: o.ratio });
   if (video === null) return "";
   const implied = video + o.images * IMAGE_TOKENS;
   if (implied === o.quoted) return "";
@@ -1792,6 +1801,7 @@ export async function generateSegment(
       tierId: input.videoTier,
       refVideoSec: input.refVideo?.durationSec,
       images: drawn + redrawn.length,
+      ratio: aspectOf(input.aspect).ratio,
     });
     if (cl) prog(cl);
   }

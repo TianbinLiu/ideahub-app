@@ -5,7 +5,8 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { AI_REAL } from "../../ai";
-import { DEFAULT_TIER, fmtTokens, tierOf } from "../../data/economy";
+import { usableTierId } from "../../data/account";
+import { fmtTokens, tierOf } from "../../data/economy";
 import { showToast } from "../../data/toast";
 import { useFlow } from "../../studio/flowStore";
 import {
@@ -25,7 +26,8 @@ export default function ScriptSkillSheet({ onClose, onApplied }: { onClose: () =
   const { t } = useLingui();
   // 档位 / 画幅 / 挂的卡都跟着当前流水线的第一段走：铺出来的段与它同一套设置，用户不用再逐段调
   const first = useFlow((s) => s.nodes[0]);
-  const tierId = first?.videoTier ?? DEFAULT_TIER;
+  // ★ 第一段的档这个人现在用不了（会员档 / 已停用）就落到他能用的默认档（account.usableTierId）：铺出来一整排点不动的段没有意义
+  const tierId = usableTierId(first?.videoTier);
   const aspect = first?.aspect ?? DEFAULT_ASPECT;
   const [script, setScript] = useState("");
   const [step, setStep] = useState<SkillStepKind>("input");

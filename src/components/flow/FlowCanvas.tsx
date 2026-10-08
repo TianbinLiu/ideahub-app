@@ -88,7 +88,7 @@ import {
   type FlowNode,
   type FlowTemplate,
 } from "../../studio/flowStore";
-import { myCards, tierBlockReason } from "../../data/account";
+import { myCards, tierBlockReason, usableTierId } from "../../data/account";
 import { useAccountVersion } from "../../hooks/useAccount";
 import {
   browseTemplates,
@@ -99,7 +99,7 @@ import {
   subscribeTemplates,
   templatesVersion,
 } from "../../data/templates";
-import { CHAT_TURN_TOKENS, DEFAULT_TIER, ONE_IMAGE, blockoutTier, clampDuration, durationChoices, fmtTokens, modelLabel, promptMaxOf, proposalsCost, tierOf } from "../../data/economy";
+import { CHAT_TURN_TOKENS, ONE_IMAGE, blockoutTier, clampDuration, durationChoices, fmtTokens, modelLabel, promptMaxOf, proposalsCost, tierOf } from "../../data/economy";
 import { AGENT_PHRASES, executeAgentProposal, runCanvasAgent, type AgentOutcome, type AgentProposal } from "../../studio/canvasAgent";
 import { EXAMPLES, phraseText, templatePhrase } from "../../studio/agentGrammar";
 import { useLang } from "../../i18n/useLang";
@@ -805,7 +805,8 @@ export default function FlowCanvas({
                       addNode();
                       return;
                     }
-                    setAddPick({ tier: st.nodes[st.nodes.length - 1]?.videoTier ?? DEFAULT_TIER });
+                    // 选法屏打开时停在上一段的档上；这个人现在用不了那一档（会员档 / 已停用）就落到他能用的默认档
+                    setAddPick({ tier: usableTierId(st.nodes[st.nodes.length - 1]?.videoTier) });
                   }}
                   className="flex items-center justify-center rounded-xl border-2 border-dashed border-slate-600 text-sm text-slate-400"
                   style={{ height: CARD_H }}
