@@ -29,7 +29,7 @@ import {
   type VideoJob,
 } from "../../data/videoJobs";
 import { ArkTaskFailed, briefArkReason, chargeNote, chargeOnFail, unwrapFailure } from "../../ai";
-import { useFlow } from "../../studio/flowStore";
+import { jobLandsInPlace, useFlow } from "../../studio/flowStore";
 import { useStudio } from "../../studio/studioStore";
 import { draftsLoadIssue, draftsUnavailableText } from "../../data/drafts";
 
@@ -232,13 +232,10 @@ export function SegmentRecoverList({ className = "" }: { className?: string }) {
   //   "每次生成视频出片之前都弹『还没取回』"——凭据受理即落盘，等的时候它就在名单里）
   const jobs = recoverableVideoJobs();
   if (jobs.length === 0) return null;
-  /** 这一发落得回来吗：它当初炼的那一段那一套走向，还在**这条**工作流里。
-   *  ★ 这只是**显示**的门（决定按钮亮不亮），判据必须与 `flowStore.takeJob` 里那道
-   *    真拦截**逐字一致** —— 那边问的就是 `s.nodes` 上有没有这个 node+proposal。
-   *    在这儿放宽（比如把 alts 里归档的旧走向也算上）会让按钮亮起来、点下去被拒，
-   *    而用户读到的是"这个功能坏了"。 */
-  const mine = (j: VideoJob) =>
-    nodes.some((n) => n.id === j.nodeId && n.proposals.some((pp) => pp.id === j.proposalId));
+  /** 这一发落得回来吗：它当初炼的那一段那一套走向，还在**这条**工作流里（样片定稿那一发还要那一套挂的还是那条样片）。
+   *  ★ 这只是**显示**的门（按钮上说「取回这一段」还是「新开一段」），判据与 `flowStore.takeJob` 真落的那一处是**同一个函数**
+   *    （`jobLandsInPlace`）—— 两处各写一遍的话，按钮说落回原位、点下去却新开一段（或反过来），用户读到的是"这个功能坏了"。 */
+  const mine = (j: VideoJob) => jobLandsInPlace(nodes, j);
   return (
     <div className={`space-y-1.5 ${className}`}>
       {jobs.map((j) => (

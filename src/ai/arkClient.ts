@@ -1345,6 +1345,12 @@ export async function generateVideo(
     // i18n-ignore-next-line: 开发期断言（方舟：样片不收视频输入；服务端 resolveR2v 同样整句拒）
     throw new Error("样片不收参考视频，不该走到这里");
   }
+  if (opts?.draft && mode === "frames") {
+    // 响亮地失败：2.5 的首帧 / 首尾帧任务画幅只能 adaptive（ratioFor），服务端对 adaptive 按 480p 那一行最贵的一格结算 ——
+    // 样片的报价按段的画幅算，放出门就是少报。调用方（segmentGen 帧转参考图失败那一支）已经在花钱之前整句拒过，这里是协议层最后一道
+    // i18n-ignore-next-line: 开发期断言
+    throw new Error("样片第一步只走参考图那一种请求（首帧 / 首尾帧任务的画幅只能 adaptive，与报价对不上）——不该走到这里");
+  }
   if (refVideoUrl && !supportsRefVideo(model)) {
     // 响亮地失败（同下面 refImage 那条）：静默忽略参考视频 = 模板整个被扔掉、
     // 拍一段无关的片、照收钱 —— 那不是降级，是偷换商品（铁律八）

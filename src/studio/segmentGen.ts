@@ -23,7 +23,7 @@ import { frameSlotsOf, framesToDraw, type DrawInput } from "../data/drawPlan";
 import { refVideoIssue } from "../data/templates";
 import { ShotSpec, shotLineOf, CardType, ID_LINE_MAX, CARD_TYPE_PROMPT, idLineOf, viewsOf, feedsModel, TEXT_DESC_MAX, aspectOf, startFramesAllowed, type Card, type GenMode, type VideoAspect, type VideoTemplate } from "../types";
 import { voiceOf } from "../data/cardVoice";
-import { tierGo } from "../data/account";
+import { isRemoteMode, tierGo } from "../data/account";
 import { ratioFor } from "../ai/arkClient";
 import { t } from "@lingui/core/macro";
 
@@ -954,7 +954,11 @@ function contractLine(o: {
   const quotedLabel = fmtTokens(o.quoted);
   const impliedLabel = fmtTokens(implied);
   const videoLabel = fmtTokens(video);
-  const line = t`⚠ 契约核对：界面报价 ${quotedLabel}，按契约应为 ${impliedLabel}（视频 ${videoLabel} + 出图 ${o.images} 张）——本次仍按报价扣，请把这句话反馈给我们`;
+  // ★ 「按什么扣」分两种说（2026-10-07 评审抓到）：远端模式（正式包）钱在服务端按**它自己算的**价结算，App 的报价管不着 ——
+  //   原来一律说「本次仍按报价扣」，在正式包上是假话。离线 / 演示构建的账本在本机，genNode 成片到手时按报价记，那句才成立。
+  const line = isRemoteMode()
+    ? t`⚠ 契约核对：界面报价 ${quotedLabel}，按契约应为 ${impliedLabel}（视频 ${videoLabel} + 出图 ${o.images} 张）——实际扣多少以服务器结算为准（看「我的」页的 token 余额），请把这句话反馈给我们`
+    : t`⚠ 契约核对：界面报价 ${quotedLabel}，按契约应为 ${impliedLabel}（视频 ${videoLabel} + 出图 ${o.images} 张）——本次仍按报价扣，请把这句话反馈给我们`;
   console.warn("[segmentGen] " + line);
   return line;
 }
@@ -1883,6 +1887,20 @@ export async function generateSegment(
         : "t2v";
   /** 这一发的生成模式（契约的声明；槽位与它是否一致由 real.validateGenSpec 在花钱之前核对）。先出样片 = "draft"（按 480p 的价、480p 发） */
   const mode: GenMode = input.draftMode === "draft" ? "draft" : slotMode;
+  /** 真正送进请求体的画幅（arkClient.ratioFor：2.5 走首帧 / 首尾帧时只收 adaptive）—— 对账与下面那道样片闸读同一个值 */
+  const wantRatio = aspectOf(input.aspect).ratio;
+  const sentRatio = ratioFor(tier.model, slotMode === "edit" || slotMode === "ref-images" ? "reference" : "frames", wantRatio);
+  // ★★ 样片第一步**不许**退回首尾帧（2026-10-07 评审抓到）：帧转参考图失败时 2.5 这一发会退成首帧 / 首尾帧任务，
+  //   而那种任务只收 ratio:"adaptive" —— 480p 的每秒数按画幅不同，服务端对 adaptive 按那一行**最贵**的一格结算
+  //   （竖屏 5 秒报价 225,776、实扣 236,034），按钮上那个数就成了少报。报价按不了「发出去才知道的画幅」，所以在这里拦：
+  //   视频那一发还没发出去 = 一分没扣；之前补画 / 圈选改过的那几张已经各自结算过，交给 SegmentGenFailed 带上去由 ai/failCharge 说清。
+  //   普通出片照旧退回首尾帧（它在 720p 上，720p 一律按 1280×720 结算，画幅不影响价钱）。
+  if (mode === "draft" && sentRatio !== wantRatio) {
+    throw new SegmentGenFailed(
+      new Error(t`设定帧没能传上去，样片这一发没有发出去（退回首尾帧的话画幅只能按「自适应」结算，会比报价贵）——过一会儿再点一次生成`),
+      drawn + redrawn.length,
+    );
+  }
   if (mode === "draft") prog(t`这一发先出 480p 样片：看着满意，再把同一份样片升成 1080p 成片（另计一笔）；不满意就改了重出样片`);
   {
     const cl = contractLine({
@@ -1892,9 +1910,8 @@ export async function generateSegment(
       tierId: input.videoTier,
       refVideoSec: input.refVideo?.durationSec,
       images: drawn + redrawn.length,
-      // ★ 按**真正送进请求体**的画幅对账（arkClient.ratioFor：2.5 走首帧 / 首尾帧时只收 adaptive）：480p 的每秒数按画幅不同，
-      //   adaptive 按那一行最贵的一格结算 —— 帧转参考图失败退回首尾帧的那种，样片会比报价贵一点，要说出来
-      ratio: ratioFor(tier.model, slotMode === "edit" || slotMode === "ref-images" ? "reference" : "frames", aspectOf(input.aspect).ratio),
+      // ★ 按**真正送进请求体**的画幅对账：480p 的每秒数按画幅不同，adaptive 按那一行最贵的一格结算（样片那一种上面已经拦了）
+      ratio: sentRatio,
     });
     if (cl) prog(cl);
   }

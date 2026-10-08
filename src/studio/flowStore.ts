@@ -407,8 +407,24 @@ export function draftFinalQuote(p: Proposal): number {
 export function draftFinalIssue(node: FlowNode, now = Date.now()): string | null {
   const p = chosenOf(node);
   if (draftStageOf(p) !== "draft") return t`这一段现在放的不是样片，没有可以定稿的`;
-  if (draftValidLeft(p, now) <= 0) return t`这条样片已经过了 7 天有效期，不能再定稿了——要成片就重新生成（会重新计费）`;
+  // ★ 我们的期限是 7 天差 1 小时（DRAFT_VALID_MS，服务端同一个数）：别说成「过了 7 天」—— 6 天 23 小时半回来的人读到的是一句自相矛盾的话
+  if (draftValidLeft(p, now) <= 0) return t`这条样片已经过了定稿期限（方舟的样片只留 7 天，我们在到期前 1 小时停止定稿）——要成片就重新生成（会重新计费）`;
   return draftModeIssue(tierOf(draftTierId()));
+}
+
+/**
+ * 取回来的这一发**落不落得回原位** —— 唯一判定（takeJob 真落、取回卡上那颗键说「取回这一段」还是「新开一段」读的是同一个）。
+ *   落得回 = 原来那一段那一套走向还在这条流水线里（成片按 proposalId 落，不按"当前选中的走向"：这几十分钟里用户完全可能
+ *   纵向切过走向，videoByProposal 按方案分键本来就是为这件事存在的）；落不回 → **新开一段安放它**（placeRescuedSegment 的 ★★）。
+ *   以前这一支整句拒并把键灰掉，而"不在"最常见的原因是 App 被重启且那一段从没存过草稿 —— 没有任何一条路能回去。
+ * ★ 样片定稿那一发（draftStep "final"）还要这一套此刻挂的**还是那条样片**（2026-10-07 评审抓到）：定稿在途时这一段是 pending、
+ *   生成键是亮的 —— 人完全可能又出了一条新样片。那时把旧样片的 1080p 落回去，方案上就成了「新样片的地址 / 时长 / 画幅 + 旧样片的任务号」：
+ *   还原上一版之后那颗「定稿」升级的是旧样片，报价按新样片的时长、服务端按旧样片登记的时长扣，两把尺。所以对不上就当原位已经不在了。
+ */
+export function jobLandsInPlace(nodes: FlowNode[], job: VideoJob): boolean {
+  const p = nodes.find((n) => n.id === job.nodeId)?.proposals.find((x) => x.id === job.proposalId);
+  if (!p) return false;
+  return !(job.draftStep === "final" && job.draftOf && p.draftTaskId !== job.draftOf);
 }
 
 /**
@@ -4220,15 +4236,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
     // 下面按原来那一段算好的 orphan / node 全是悬空的）—— 成片不许落进去、凭据不许销毁（留给原来那个人，
     // 他再登录时取回卡上还在），busy 也不归这一发清。按换人代数判，见 deviceOwner.ownerEpoch
     const epochAtStart = ownerEpoch();
-    const node = s0.nodes.find((n) => n.id === job.nodeId) ?? null;
-    /**
-     * 原来那一段那一套走向还在不在这条流水线里。
-     *   在 → 成片**落回原位**（按 proposalId 落，不按"当前选中的走向"：这几十分钟里用户完全可能
-     *        纵向切过走向，videoByProposal 按方案分键本来就是为这件事存在的）；
-     *   不在 → **新开一段安放它**（placeRescuedSegment 的 ★★）。以前这一支整句拒并把键灰掉，
-     *        而"不在"最常见的原因是 App 被重启且那一段从没存过草稿 —— 没有任何一条路能回去。
-     */
-    const orphan = !node || !node.proposals.some((p) => p.id === job.proposalId);
+    /** 落不回原位（jobLandsInPlace 的 ★：原来那一段那一套不在了，或者样片已经换过）→ 新开一段安放它 */
+    const orphan = !jobLandsInPlace(s0.nodes, job);
     set({ busy: true, err: "" });
     try {
       const res = await takeVideoTask(job.taskId, prog, job.provider);

@@ -82,7 +82,12 @@ export default function DraftModeBox({
     return (
       <div className="space-y-1 rounded-lg border border-slate-700/70 bg-black/25 px-2.5 py-2">
         <p className="text-[11px] leading-relaxed text-emerald-300">
-          <Trans>✓ 已定稿成 1080p。上一版（480p 样片）在「修这一段」的「还原上一版」里。</Trans>
+          {/* 「上一版在还原上一版里」只在它真的在那儿时说：取回来新开一段安放的定稿（placeRescuedSegment）没有上一版可还原 */}
+          {prop.prevVideoUrl && prop.prevVideoUrl === prop.draftUrl ? (
+            <Trans>✓ 已定稿成 1080p。上一版（480p 样片）在「修这一段」的「还原上一版」里。</Trans>
+          ) : (
+            <Trans>✓ 已定稿成 1080p。</Trans>
+          )}
         </p>
         {toggle}
       </div>
@@ -104,7 +109,7 @@ export default function DraftModeBox({
         </p>
         <p className="text-[11px] leading-relaxed text-sky-200/90">
           {left <= 0 ? (
-            <Trans>样片已经过了 7 天有效期，不能再定稿了——要成片就重新生成（会重新计费）。</Trans>
+            <Trans>样片已经过了定稿期限（方舟的样片只留 7 天，我们在到期前 1 小时停止定稿），不能再定稿了——要成片就重新生成（会重新计费）。</Trans>
           ) : days > 0 ? (
             <Trans>看着满意就定稿：把这同一份样片升成 1080p 成片（画面、动作、声音都照样片，不重新抽卡）。还剩 {days} 天 {hours} 小时可以定稿。</Trans>
           ) : hours > 0 ? (
@@ -150,7 +155,7 @@ export default function DraftModeBox({
       {!blocked && (
         <p className="text-[10px] leading-relaxed text-slate-500">
           <Trans>
-            样片 {step1}（视频那一半，出片前补画的画面另算），看效果对不对；满意再花 {step2} 把同一份样片升成 1080p。不满意就改了重出样片，省下成片的钱。样片 7 天内可以定稿。
+            样片 {step1}（视频那一半，出片前补画的画面另算），看效果对不对；满意再花 {step2} 把同一份样片升成 1080p。不满意就改了重出样片，省下成片的钱。样片出来之后约 7 天内可以定稿（到期前 1 小时截止）。
           </Trans>
         </p>
       )}
