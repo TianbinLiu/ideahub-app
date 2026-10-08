@@ -2507,11 +2507,15 @@ export const useStudio = create<StudioState>()((set, get) => ({
               const built = await deriveCharacterModels(fresh, DECK_MAX_3D, say);
               const minted = fresh.filter((c) => c.modelUrl).length - before;
               if (AI_REAL && minted > 0) spendTokens(minted * MODEL3D_TOKENS);
-              // ★ 没建成的那几张：钱上的话只走 ai/failCharge（受理之后明说失败的已经退回 / 会退回；没等到回包的可能扣了）。
-              //   不说的话余额无声地变一笔（服务端对本人自己那次轮询里退的钱不发通知）。一句轻提示，不拦组稿（卡本身还在）
+              // ★ 没建成的那几张：钱上的话只走 ai/failCharge（没等到回包的可能扣了、2xx 却用不上的已计费）。一句轻提示，不拦组稿（卡本身还在）
+              // ★ 受理之后明说失败、服务端已经退回 / 会退回的那几张**不在这里说**（2026-10-07 评审：两边各说一次是同一笔钱的两条消息）：
+              //   服务端对 3D 建模（kind "3d"）的退款**本人轮询退的也发**站内通知 GEN_TASK_REFUND（server taskRefund.followUp），
+              //   退款只走那一个渠道 —— 通知页认这一类，金额是服务端的数
               const lines = built.failed
                 .map((f) => {
-                  const note = chargeNote(chargeOnFail(f.error), MODEL3D_TOKENS);
+                  const fc = chargeOnFail(f.error);
+                  if (fc.tier === "refunded" || fc.tier === "refunding") return "";
+                  const note = chargeNote(fc, MODEL3D_TOKENS);
                   const name = f.name;
                   return note ? t`「${name}」的 3D 建模没出成：${note.line}` : "";
                 })
