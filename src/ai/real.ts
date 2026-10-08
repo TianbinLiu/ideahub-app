@@ -3539,6 +3539,16 @@ export async function takeVideoTask(
         const reason = t`方舟那边已经查不到这一发了`;
         throw new ArkTaskFailed(t`方舟没出成这一发（${reason}）`, taskId, "failed", "", charge, reason, "ark");
       }
+      // ★ 另外两种结局也不许说成「无法挽回」（2026-10-07 评审抓到）：skipped = 本来就没扣（管理员免单）；
+      //   lost = 服务端一直问不出上游的结局、交给人工 —— 把任务号给客服还有机会（与过期取回卡那句同一个口径，videoJobs.videoJobNote）
+      if (charge && charge !== "none" && charge.state === "skipped") {
+        throw new Error(t`方舟那边查不到这一发了（任务号查无此物）——多半是产物已经过了 24 小时被清掉，这一段取不回来了。这一发本来就没有扣 token；重新生成是重新下一单。`);
+      }
+      if (charge && charge !== "none" && charge.state === "lost") {
+        throw new Error(
+          t`方舟那边查不到这一发了（任务号查无此物），我们也一直没能向上游确认它的结局，所以没有自动退回——把任务号 ${taskId} 发给客服，由人工核对这笔钱；重新生成是重新下一单、会再花一次钱`,
+        );
+      }
       throw new Error(
         t`方舟那边查不到这一发了（任务号查无此物）——多半是产物已经过了 24 小时被清掉。真是这样的话这一段取不回来了，已经花掉的钱无法挽回；重新生成是重新下一单、会再花一次钱`,
       );

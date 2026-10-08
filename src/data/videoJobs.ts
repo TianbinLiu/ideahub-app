@@ -291,32 +291,38 @@ export function videoJobNote(job: VideoJob): string {
   // 只影响开发机，与 ai/failCharge 文件头「dev 的一处不等价」同一条
   const refunds = serverSupports(flat ? "failRefundMinimax" : "failRefund") === true;
   const left = expiresAt(job) - Date.now();
+  // ★★ 说钱之前先问服务端那一笔账（2026-10-07；过期与没过期的卡都问 —— 评审抓到没过期的那半只看能力位）：
+  //   这一发要是在方舟那边失败了，清扫器早就替他退过钱（对一笔已经退回来的钱说「无法挽回」是往吓人的方向说错）；
+  //   自动退款上线之前受理的任务没有那一笔账（404 NOT_FOUND = "none"），不会自动退；管理员免单的（skipped）根本没扣 ——
+  //   对这两种许诺「万一没出成会自动退回」/ 说「钱已经扣了」都是错话。问的结果缓存在 jobCharges（卡片挂上时 checkVideoJobCharge 去问）
+  const asked = refunds ? videoJobCharge(job.taskId) : null;
+  /** 服务端明说「没有这一笔账」（自动退款上线之前的任务）：不会自动退 */
+  const noRecord = asked === "none";
+  const charge = asked === "none" ? null : asked;
+  // 服务端已经给了退款结局的：与过不过期无关，照实说（没有成片可取了）
+  if (charge?.state === "refunded") {
+    const n = fmtTokens(charge.tokens);
+    return charge.tokens > 0
+      ? t`这一发没出成，扣的 ${n} token 已经退回——没有成片可取了，点「知道了」消掉这条就好。`
+      : t`这一发没出成，扣的 token 已经退回——没有成片可取了，点「知道了」消掉这条就好。`;
+  }
+  if (charge?.state === "refunding") return t`这一发没出成，扣的 token 会退回（到账以「我的」页的 token 余额为准）——没有成片可取了。`;
+  /**
+   * 许不许诺「万一没出成会自动退回」：服务端会退（能力位）、有这一笔账、而且还没有别的结局 —— 只给「还没结局（pending）/ 问不到（null）/
+   * 正在问（undefined）」。settled（出成了）、lost（交人工）、skipped（本来没扣）、没有这一笔账都不会自动退
+   */
+  const promise = refunds && !noRecord && (!charge || charge.state === "pending");
   if (left <= 0) {
     // ★ 登记表补来的那种不能断言"钱白花了"：它很可能在别的设备 / 官网上早就取到了（见 videoJobFromServer）
     if (videoJobFromServer(job))
       return t`服务器登记的这一发已经过了 24 小时，成片取不到了。如果你当时已经在别处拿到了它，忽略这条就好。`;
-    // ★★ 说「无法挽回」之前先问服务端那一笔账（2026-10-07）：这一发要是在方舟那边失败了，清扫器早就替他退过钱 ——
-    //   对一笔已经退回来的钱说「无法挽回」是往吓人的方向说错。问的结果缓存在 jobCharges（卡片挂上时 checkVideoJobCharge 去问）
-    const asked = refunds ? videoJobCharge(job.taskId) : null;
-    /** 服务端明说「没有这一笔账」（自动退款上线之前的任务）：不会自动退 —— 走下面「无法挽回」那句 */
-    const noRecord = asked === "none";
-    const charge = asked === "none" ? null : asked;
-    if (charge?.state === "refunded") {
-      const n = fmtTokens(charge.tokens);
-      return charge.tokens > 0
-        ? t`这一发没出成，扣的 ${n} token 已经退回——没有成片可取了，点「知道了」消掉这条就好。`
-        : t`这一发没出成，扣的 token 已经退回——没有成片可取了，点「知道了」消掉这条就好。`;
-    }
-    if (charge?.state === "refunding") return t`这一发没出成，扣的 token 会退回（到账以「我的」页的 token 余额为准）——没有成片可取了。`;
     // 管理员免单（服务端本来就没扣）：没有钱可说「无法挽回」
     if (charge?.state === "skipped") return t`这一发已经取不回来了，成片在服务器上过期了。这一发本来就没有扣 token，点「知道了」消掉这条就好。`;
     // ★ lost = 服务端一直问不出上游的结局（超过 8 天），交给人工、**不会**自动退 —— 不许许诺「会自动退回」（2026-10-07 评审抓到）
     if (charge?.state === "lost") {
       return t`这一发已经取不回来了，我们也一直没能向上游确认它的结局，所以没有自动退回——把下面的任务号发给客服，由人工核对这笔钱；重新生成是再花一次钱。`;
     }
-    // ★ 两种情况都说的那句只给「还没结局（pending）/ 问不到（null）」：settled（出成了）、没有这一笔账（上线之前的任务）都不会退，
-    //   走下面「无法挽回」那句
-    if (refunds && !noRecord && charge?.state !== "settled") {
+    if (promise) {
       // 服务端还没给结局（或问不到）：两种情况都说，别替上游宣判（与服务端白模化取件单过期那句同一个口径）
       return flat
         ? t`这一发我们不再跟进了：任务号还在下面，如果一直没取回来，把它发给客服还有机会。如果上游那边其实是失败了，扣的 token 会自动退回（到账时会通知你）；如果是出成了却没取回，这笔钱就无法挽回了——重新生成是再花一次钱。`
@@ -328,14 +334,22 @@ export function videoJobNote(job: VideoJob): string {
   }
   const h = Math.floor(left / 3600_000);
   const m = Math.floor((left % 3600_000) / 60_000);
+  // 管理员免单（skipped）：这一发没扣钱，不说「钱已经扣了」
+  if (charge?.state === "skipped") {
+    if (flat)
+      return t`这一发没有扣 token，任务多半还在上游跑 —— 点「取回」把它领回来；点「重新生成」是重新下一单。出片通常 1~2 分钟，隔一会儿再点一次。`;
+    return h > 0
+      ? t`还剩 ${h} 小时 ${m} 分钟可以取回——方舟的成片只留 24 小时，过期就没了。这一发没有扣 token，取回也不花钱；点「重新生成」是重新下一单。`
+      : t`还剩 ${m} 分钟可以取回——方舟的成片只留 24 小时，过期就没了。这一发没有扣 token，取回也不花钱；点「重新生成」是重新下一单。`;
+  }
   // ★ 会退钱的服务端上多说半句「万一最后没出成会自动退回」：钱在提交那一刻是扣着的，但不是白扔 —— 不说的话人会以为
-  //   这一发要是废了钱就没了，于是不敢等、去点「重新生成」（那才是真的再花一次）。老服务端不退，不许这么说
+  //   这一发要是废了钱就没了，于是不敢等、去点「重新生成」（那才是真的再花一次）。老服务端不退、没有这一笔账的任务不退，不许这么说
   if (flat) {
-    return refunds
+    return promise
       ? t`这一发的钱在提交那一刻就已经扣了，任务多半还在上游跑；万一最后没出成，会自动退回 —— 点「取回」不重新下单、不再花一分钱；点「重新生成」是重新下一单、会再花一次。出片通常 1~2 分钟，隔一会儿再点一次。`
       : t`这一发的钱在提交那一刻就已经花掉了，任务多半还在上游跑 —— 点「取回」不重新下单、不再花一分钱；点「重新生成」是重新下一单、会再花一次。出片通常 1~2 分钟，隔一会儿再点一次。`;
   }
-  if (refunds) {
+  if (promise) {
     return h > 0
       ? t`还剩 ${h} 小时 ${m} 分钟可以取回——方舟的成片只留 24 小时，过期就没了。这一发的钱在提交那一刻就已经扣了，万一最后没出成会自动退回；取回不再花一分钱，点「重新生成」是重新下一单、会再花一次。`
       : t`还剩 ${m} 分钟可以取回——方舟的成片只留 24 小时，过期就没了。这一发的钱在提交那一刻就已经扣了，万一最后没出成会自动退回；取回不再花一分钱，点「重新生成」是重新下一单、会再花一次。`;
@@ -346,7 +360,7 @@ export function videoJobNote(job: VideoJob): string {
 }
 
 // ── 「这一发退没退钱」（GET /api/ark/task-charges/:id）────────────────────
-// ★ 只为过期的那几张卡问（videoJobNote 说「无法挽回」之前），一个任务号一个会话只问一次；问不到（老服务端 / 断网）记 null，
+// ★ 取回卡一挂上就问（videoJobNote 说钱之前；过期没过期都问），一个任务号一个会话只问一次；问不到（老服务端 / 断网）记 null，
 //   照旧说那句两种情况都说的话（服务端会退的话）或原来那句（服务端不退的话）。
 // ★ 不落盘：退款状态是服务端的真相，下次冷启动再问一次就是了（一次 GET，不计费）。
 const jobCharges = new Map<string, TaskRefund | "none" | null | "asking">();
@@ -357,7 +371,7 @@ export function videoJobCharge(taskId: string): TaskRefund | "none" | null | und
   return v === "asking" ? undefined : v;
 }
 
-/** 去问一次这一发的账（卡片挂上、而凭据已经过期时调）。到了 emit，卡片重画 */
+/** 去问一次这一发的账（取回卡挂上时调，过期没过期都问）。到了 emit，卡片重画 */
 export async function checkVideoJobCharge(job: VideoJob): Promise<void> {
   if (jobCharges.has(job.taskId)) return;
   if (!API_BASE || !getToken() || serverSupports(job.provider === "minimax" ? "failRefundMinimax" : "failRefund") === false) {

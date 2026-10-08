@@ -79,10 +79,11 @@ export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean
     return () => clearInterval(id);
   }, []);
   const expired = videoJobExpired(job);
-  // 过期了：说「钱无法挽回」之前先问服务端这一发退没退（data/videoJobs.checkVideoJobCharge；到了 emit，这张卡重画）
+  // 说钱之前先问服务端这一发的账（data/videoJobs.checkVideoJobCharge；到了 emit，这张卡重画）：过期的卡要知道退没退，
+  // 没过期的卡要知道该不该许诺「万一没出成会自动退回」（上线之前受理的没有这一笔账、管理员免单的根本没扣）
   useEffect(() => {
-    if (expired) void checkVideoJobCharge(job);
-  }, [expired, job]);
+    void checkVideoJobCharge(job);
+  }, [job]);
 
   /**
    * 取回失败那一句话。上游明说没出成（ArkTaskFailed）的那种要带上钱：退了 / 会退 / 没退各一句（只走 ai/failCharge），
