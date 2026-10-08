@@ -1932,7 +1932,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
     // （segmentGen 第②步），而首尾帧与参考媒体是方舟三大互斥场景——第 2 段要么发不出
     // r2v 任务、要么砍掉承接（那衔接就断了）。不发明新的承接规则，直接砍成单段。
     if (tmpl.refVideo) {
-      // 档位钳到 refVid=true 的档（首发只有 ultra；免费用户吃 paidOnly 的既有拦截）。
+      // 档位钳到 blockoutOk 的那一档（今天只有 ultra，会员档：没付过钱的用户由 account.tierBlockReason / 服务端 403 拦下）。
       // ★ 四档全 false 的今天，这里就是**闸门本身**：整句拒绝、什么都不铺。
       //   开闸 = 仓库主人翻 economy 里 ultra.refVid 那一个布尔的 commit，这里自动放行
       //   ——refVid 的唯一出处是 VIDEO_TIERS，别在这里另记一份"开没开"。

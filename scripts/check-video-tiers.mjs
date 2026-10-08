@@ -133,6 +133,9 @@ for (const t of T) {
   const q = (sec, perSec, mult) => Math.round(sec * perSec * mult);
   eq("草稿 4 秒 9:16", q(4, ps(draft.model, draft.resolution, "9:16"), draft.mult), 61603);
   eq("草稿 5 秒 9:16", q(5, ps(draft.model, draft.resolution, "9:16"), draft.mult), 77004);
+  // 样片第一步 = 2.5 的 480p × 电影级系数（主人 10-07：与电影级同一个系数）。4 × 480×854×24÷1024 × 4.7 = 180,621 整
+  //   （方案稿里写的 180,620 是笔误；服务端 config/tokens.segTokens(4, 2.5, "480p", "9:16") × 4.7 实跑也是 180,621）
+  eq("样片第一步 4 秒 9:16", q(4, ps(M.SEEDANCE_2_5, "480p", "9:16"), M.ULTRA_MULT), 180621);
   eq("样片定稿 4 秒 9:16", q(4, ps(M.SEEDANCE_2_5, "1080p", "9:16"), M.DRAFT_FINAL_MULT), 997920);
   eq("样片定稿 5 秒 9:16", q(5, ps(M.SEEDANCE_2_5, "1080p", "9:16"), M.DRAFT_FINAL_MULT), 1247400);
   eq("高清 5 秒（720p，改之前的数）", q(5, ps(byId.get("hd").model, "720p"), byId.get("hd").mult), 165600);

@@ -1373,7 +1373,7 @@ export function blockoutizeCost(frameCount: number, durSec: number): number | nu
  * ★ 与 blockoutizeCost 一一对应：那边返回 null 时，这边必然有一句话可说（反之亦然）。
  *
  * ★★ **它只是门禁的一半**（目录侧：闸门 + 价目），认不出"当前用户的套餐" —— 而白模化
- *   钉死走的 ultra 是 `paidOnly` 的一档，免费套餐在服务端是 403。要问「这个账号现在
+ *   钉死走的 ultra 是会员档（freeOk 为假：2026-10-07 起免费用户只能用「极速」「草稿」），没付过钱的用户在服务端是 403 PLAN_REQUIRED。要问「这个账号现在
  *   能不能开炼」，一律问 **`data/templates.blockoutizeBlockReason()`**（那边把本函数与
  *   `account.tierBlockReason` 接成一句话，是全 app 唯一的那处）。
  *   为什么这里不自己补上套餐那一半：本模块是**纯目录**，account 已经 import 它，
