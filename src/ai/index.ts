@@ -211,6 +211,12 @@ export const takeVideoTask: typeof real.takeVideoTask = AI_REAL
     };
 /** 「没接到结果 ≠ 这一发废了」的那个错误类型 —— 调用方据它决定凭据留不留（见 arkClient） */
 export { ArkBadReply, ArkNoReply, ArkTaskUnknown } from "./arkClient";
+/**
+ * 「上游明说这一发失败了」（带服务端的退款结论）与「出片之前已经画好了几张画面」两种失败的类型（2026-10-07）。
+ * 钱上的话只问 chargeOnFail；要按类型分叉（结案凭据、换句话说）的地方先过 unwrapFailure 拆壳。
+ */
+export { ArkTaskFailed, SegmentGenFailed, unwrapFailure, fetchTaskCharge } from "./arkClient";
+export type { TaskRefund, TaskRefundState } from "./arkClient";
 /** 「这次失败钱花没花」的唯一判定 + 钱上的那几句话。catch 里要提钱就走它，别自己对着 ArkNoReply / ArkBadReply 分档 */
 export { chargeNote, chargeOnFail } from "./failCharge";
 export type { ChargeNote, FailCharge } from "./failCharge";

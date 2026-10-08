@@ -933,7 +933,11 @@ export type GenMode =
   | "reference" // 参考视频 + 参考图（素材参考，reference 子任务）
   | "edit" // 参考视频逐镜复刻（白模 / 返修，edit 子任务）
   | "extend" // 参考视频向后延长（extend 子任务；产物只有新的一截，2026-10-05「修这一段 · 延长」）
-  | "minimax"; // 真人档首帧图生视频（MiniMax）
+  | "minimax" // 真人档首帧图生视频（MiniMax）
+  // 电影级「样片」两步（2026-10-07）：draft = 第一步（槽位照普通出片摆，480p + draft:true，价钱按 economy.draftStepTokens）；
+  // draftFinal = 第二步（只带样片任务号，升成 1080p，价钱按 economy.draftFinalTokens）。判定仍只在 real.genModeOf
+  | "draft"
+  | "draftFinal";
 
 /**
  * 一套方案的**结构化镜头字段**（2026-09-06，对标 updream 分镜 Skill 输出的六个字段里我们缺的三个）。

@@ -1540,6 +1540,11 @@ msgstr "{why}——卡在这台设备上有，但换台设备或重启后可能�
 msgid "{why}——这些位子挂的卡不能生效，它们会保持人偶原样。回挂卡那一屏点「取下这几张」再完成挂卡"
 msgstr "{why}——这些位子挂的卡不能生效，它们会保持人偶原样。回挂卡那一屏点「取下这几张」再完成挂卡"
 
+#. placeholder {0}: money.brief
+#: src/studio/flowStore.ts
+msgid "{why}（{0}）"
+msgstr "{why}（{0}）"
+
 #: src/data/templates.ts
 msgid "{why}（模板已经建好了，可以在「我的模板」里点「识别角色位」重试）"
 msgstr "{why}（模板已经建好了，可以在「我的模板」里点「识别角色位」重试）"
@@ -2058,6 +2063,14 @@ msgstr "「{tierLabel}」档带不了示例视频——换成「{vidUsable}」�
 #: src/components/flow/RefStrip.tsx
 msgid "「{tierLabel}」档带不了示例视频；带得了的「{vidMember}」是会员档（开通会员套餐或充值过任意一笔后可用）。"
 msgstr "「{tierLabel}」档带不了示例视频；带得了的「{vidMember}」是会员档（开通会员套餐或充值过任意一笔后可用）。"
+
+#: src/ai/real.ts
+msgid "「{tierLabel}」档没有样片模式"
+msgstr "「{tierLabel}」档没有样片模式"
+
+#: src/ai/real.ts
+msgid "「{tierLabel}」档没有样片模式（只有「{names}」有）"
+msgstr "「{tierLabel}」档没有样片模式（只有「{names}」有）"
 
 #: src/ai/real.ts
 msgid "「{tierLabel}」档跑不了白模模板（模板对出片模型是硬要求）"
@@ -2637,6 +2650,10 @@ msgstr "⚠ 换成这一套，现在这套走向后面的段会整段收起（�
 #: src/pages/PublishPage.tsx
 msgid "⚠ 渐变回退"
 msgstr "⚠ 渐变回退"
+
+#: src/components/blockout/BlockoutTrimmer.tsx
+msgid "⚠ 视频里有<0>真人面孔</0>时，AI 可能在<1>受理之后</1>才拒绝这一发 —— 那时<2>出片那一笔会自动退回</2>， 但「AI 看帧」那一笔不退，几分钟也白等了（实测：创建时不拒，只能中途失败）。真人素材请自己掂量； 动画、游戏画面、自己拍的白模预演不受影响。"
+msgstr "⚠ 视频里有<0>真人面孔</0>时，AI 可能在<1>受理之后</1>才拒绝这一发 —— 那时<2>出片那一笔会自动退回</2>， 但「AI 看帧」那一笔不退，几分钟也白等了（实测：创建时不拒，只能中途失败）。真人素材请自己掂量； 动画、游戏画面、自己拍的白模预演不受影响。"
 
 #: src/components/blockout/BlockoutTrimmer.tsx
 msgid "⚠ 视频里有<0>真人面孔</0>时，AI 可能在<1>受理之后</1>才拒绝这一发 —— 那时算力已经开始消耗，<2>这笔费用不退</2>（实测：创建时不拒，只能中途失败）。真人素材请自己掂量；动画、游戏画面、 自己拍的白模预演不受影响。"
@@ -3970,12 +3987,12 @@ msgid "QQ 这次没有给回授权码，请再点一次，或者用手机号、�
 msgstr "QQ 这次没有给回授权码，请再点一次，或者用手机号、邮箱登录。"
 
 #: src/ai/arkClient.ts
-msgid "Seedance 任务{status}"
-msgstr "Seedance 任务{status}"
+#~ msgid "Seedance 任务{status}"
+#~ msgstr "Seedance 任务{status}"
 
 #: src/ai/arkClient.ts
-msgid "Seedance 任务{status}: {detail}"
-msgstr "Seedance 任务{status}: {detail}"
+#~ msgid "Seedance 任务{status}: {detail}"
+#~ msgstr "Seedance 任务{status}: {detail}"
 
 #: src/ai/arkClient.ts
 msgid "Seedance 任务成功但无视频 URL"
@@ -4214,10 +4231,18 @@ msgstr "一格一个角色位"
 msgid "一格都没挑，铺不成段"
 msgstr "一格都没挑，铺不成段"
 
+#: src/pages/NotificationsPage.tsx
+msgid "一次 3D 建模没出成"
+msgstr "一次 3D 建模没出成"
+
 #. placeholder {0}: doneRows.length
 #: src/components/DownloadSheet.tsx
 msgid "一次全给（{0} 个文件）"
 msgstr "一次全给（{0} 个文件）"
+
+#: src/pages/NotificationsPage.tsx
+msgid "一次样片定稿（1080p）没出成"
+msgstr "一次样片定稿（1080p）没出成"
 
 #: src/components/flow/GridShotsWizard.tsx
 #~ msgid "一次画出整组：人物与光线前后一致。按实际画出来的张数收钱，没画出来的那几格不收。一组要几分钟，可以先离开，画好了会提醒你。"
@@ -4230,6 +4255,10 @@ msgstr "一次画出整组：人物与光线前后一致。没有人的格子和
 #: src/studio/structuredSkills.ts
 msgid "一次画出整组画面，挑几格、每格一段"
 msgstr "一次画出整组画面，挑几格、每格一段"
+
+#: src/pages/NotificationsPage.tsx
+msgid "一次白模化没出成"
+msgstr "一次白模化没出成"
 
 #: src/components/DownloadSheet.tsx
 msgid "一次给多个文件时系统按「任意文件」处理，相册可能不在候选里；想进相册就一个一个来。"
@@ -4264,6 +4293,18 @@ msgstr "一段最多 {SHOT_MAX} 个镜头（再多每个镜头只剩一两秒，
 #: src/components/guide/tours.tsx
 msgid "一段有三种做法"
 msgstr "一段有三种做法"
+
+#: src/pages/NotificationsPage.tsx
+msgid "一段样片（480p 预览）没出成"
+msgstr "一段样片（480p 预览）没出成"
+
+#: src/pages/NotificationsPage.tsx
+msgid "一段真人档视频没出成"
+msgstr "一段真人档视频没出成"
+
+#: src/pages/NotificationsPage.tsx
+msgid "一段视频没出成"
+msgstr "一段视频没出成"
 
 #: src/components/flow/ThemeRewriteSheet.tsx
 msgid "一段都没改（勾选的段可能已经出片或不在了）"
@@ -4582,8 +4623,8 @@ msgid "上游未说明原因"
 msgstr "上游未说明原因"
 
 #: src/ai/minimaxVideo.ts
-msgid "上游说这一发失败了：{why}。按约定，受理之后的失败不退款；重新生成会再花一次钱。"
-msgstr "上游说这一发失败了：{why}。按约定，受理之后的失败不退款；重新生成会再花一次钱。"
+#~ msgid "上游说这一发失败了：{why}。按约定，受理之后的失败不退款；重新生成会再花一次钱。"
+#~ msgstr "上游说这一发失败了：{why}。按约定，受理之后的失败不退款；重新生成会再花一次钱。"
 
 #: src/pages/tutor/TutorRunPage.tsx
 msgid "上课"
@@ -5313,6 +5354,10 @@ msgstr "产品拆解"
 msgid "产物已过期：AI 出片的产物只在服务器上留 24 小时，现在已经取不回来了，这一发已经付过的费用无法挽回（不是超时重来——重开一发是再花一次钱）。"
 msgstr "产物已过期：AI 出片的产物只在服务器上留 24 小时，现在已经取不回来了，这一发已经付过的费用无法挽回（不是超时重来——重开一发是再花一次钱）。"
 
+#: src/data/templates.ts
+msgid "产物已过期：AI 出片的产物只在服务器上留 24 小时，现在已经取不回来了。如果 AI 那边其实是失败了，出片那一笔会自动退回（到账时会通知你）；如果是出成了却没来得及取回，这一发的费用无法挽回（重开一发是再花一次钱）。"
+msgstr "产物已过期：AI 出片的产物只在服务器上留 24 小时，现在已经取不回来了。如果 AI 那边其实是失败了，出片那一笔会自动退回（到账时会通知你）；如果是出成了却没来得及取回，这一发的费用无法挽回（重开一发是再花一次钱）。"
+
 #: src/components/flow/DialogueWizard.tsx
 msgid "人、整体交代或画幅在画好之后改过：这一张还是按原来那版画的，重画一下才对得上。"
 msgstr "人、整体交代或画幅在画好之后改过：这一张还是按原来那版画的，重画一下才对得上。"
@@ -5553,6 +5598,14 @@ msgstr "仰拍"
 msgid "任务创建中…"
 msgstr "任务创建中…"
 
+#: src/ai/arkClient.ts
+msgid "任务被取消了"
+msgstr "任务被取消了"
+
+#: src/ai/arkClient.ts
+msgid "任务超时没跑完，方舟把它自动终止了"
+msgstr "任务超时没跑完，方舟把它自动终止了"
+
 #: src/components/VideoTemplateExtractor.tsx
 msgid "任意视频都行 · 要花钱"
 msgstr "任意视频都行 · 要花钱"
@@ -5603,6 +5656,11 @@ msgstr "会表情"
 #: src/data/danmaku.ts
 msgid "会说谎的罗盘"
 msgstr "会说谎的罗盘"
+
+#: src/ai/failCharge.ts
+msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
+msgid "会退回"
+msgstr "会退回"
 
 #: src/pages/tutor/TutorHomePage.tsx
 msgid "传 PDF / PPTX / DOCX 教材、把老师发布到市场、评分与合并新版、复习卡，都在官网。App 里先做 md / txt 建课与上课。"
@@ -7121,6 +7179,21 @@ msgstr "出片前先看一眼：把你挂的角色放进白模画面，站位不
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "出片前必须把它们取下。"
 msgstr "出片前必须把它们取下。"
+
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "出片前画好的 {count} 张画面（共 {paid} token）与视频那一发（{price} token）都已计费。"
+msgstr "出片前画好的 {count} 张画面（共 {paid} token）与视频那一发（{price} token）都已计费。"
+
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "出片前画好的 {count} 张画面已按张计费（共 {paid} token），视频那一发没扣钱。"
+msgstr "出片前画好的 {count} 张画面已按张计费（共 {paid} token），视频那一发没扣钱。"
+
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "出片前画好的 {count} 张画面已按张计费（共 {paid} token）；视频那一发可能也扣了 {price} token——以「我的」页的 token 余额为准。"
+msgstr "出片前画好的 {count} 张画面已按张计费（共 {paid} token）；视频那一发可能也扣了 {price} token——以「我的」页的 token 余额为准。"
 
 #: src/components/guide/tours.tsx
 msgid "出片前这里显示你给的<0>开头帧</0>（没给就先空着），出片后就地回放这一段。 不满意就改下面那句话（或换圈选）再来一次。"
@@ -9944,10 +10017,16 @@ msgstr "太短了，按住多说一会儿再松手。"
 msgid "太短了（{0}s）——按住别松，照着示例词念够 {VOICE_MIN_SEC} 秒再放手。"
 msgstr "太短了（{0}s）——按住别松，照着示例词念够 {VOICE_MIN_SEC} 秒再放手。"
 
-#. placeholder {0}: msg.slice(0, 160)
+#. placeholder {0}: why.slice(0, 160)
 #: src/studio/flowStore.ts
 msgid "失败：{0}"
 msgstr "失败：{0}"
+
+#. placeholder {0}: why.slice(0, 160)
+#. placeholder {1}: money.brief
+#: src/studio/flowStore.ts
+msgid "失败：{0}（{1}）"
+msgstr "失败：{0}（{1}）"
 
 #: src/pages/tutor/TutorNewPage.tsx
 msgid "失败案例 → 原则"
@@ -11340,6 +11419,11 @@ msgstr "已连接服务器：请用密码登录"
 msgid "已连接服务器：账号与作品跨设备同步。"
 msgstr "已连接服务器：账号与作品跨设备同步。"
 
+#: src/ai/failCharge.ts
+msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
+msgid "已退回"
+msgstr "已退回"
+
 #: src/studio/ui/PlanBoard.tsx
 msgid "已选定 · 可换首尾帧、改剧情，改完点这一套的「重新生成」"
 msgstr "已选定 · 可换首尾帧、改剧情，改完点这一套的「重新生成」"
@@ -12047,6 +12131,10 @@ msgstr "成片最大 {maxMb}MB（这份约 {curMb}MB），请先压小再传。"
 msgid "成片写入本地库失败（存储配额？）"
 msgstr "成片写入本地库失败（存储配额？）"
 
+#: src/ai/arkClient.ts
+msgid "成片可能涉及版权（常见于带版权的音乐、角色），没过方舟的审核"
+msgstr "成片可能涉及版权（常见于带版权的音乐、角色），没过方舟的审核"
+
 #: src/pages/CutPage.tsx
 msgid "成片合好了，但剪辑中的稿子已经关掉或换成了别的，这一条没有接上——回到那份稿子再合一次（合成不花钱）"
 msgstr "成片合好了，但剪辑中的稿子已经关掉或换成了别的，这一条没有接上——回到那份稿子再合一次（合成不花钱）"
@@ -12082,6 +12170,10 @@ msgstr "成片已经落回流水线，但自动存草稿没成（存储空间不
 #: src/components/flow/SegmentRecoverCards.tsx
 #~ msgid "成片已落回流水线，正在存草稿…"
 #~ msgstr "成片已落回流水线，正在存草稿…"
+
+#: src/ai/arkClient.ts
+msgid "成片没过方舟的内容审核"
+msgstr "成片没过方舟的内容审核"
 
 #: src/components/CoverPicker.tsx
 msgid "成片解码失败——换「本地上传」或下面各段的首尾帧"
@@ -12334,6 +12426,15 @@ msgstr "打开草稿"
 #: src/components/DraftSheet.tsx
 msgid "打开这条草稿（丢弃上面那条流水线）"
 msgstr "打开这条草稿（丢弃上面那条流水线）"
+
+#. placeholder {0}: fmtTokens(n.refund.tokens)
+#: src/pages/NotificationsPage.tsx
+msgid "扣的 {0} token 已经退回"
+msgstr "扣的 {0} token 已经退回"
+
+#: src/pages/NotificationsPage.tsx
+msgid "扣的 token 已经退回"
+msgstr "扣的 token 已经退回"
 
 #. placeholder {0}: p.costLabel
 #: src/components/flow/FlowCanvas.tsx
@@ -14080,12 +14181,21 @@ msgid "方舟报这一发没能出片，正在向服务器核实到底怎么回�
 msgstr "方舟报这一发没能出片，正在向服务器核实到底怎么回事…"
 
 #: src/ai/real.ts
-msgid "方舟报这一发没能出片（{status}：{detail}）。任务被受理之后才失败的，费用不退；要这一段的话只能重新生成（重新下一单、再花一次钱）"
-msgstr "方舟报这一发没能出片（{status}：{detail}）。任务被受理之后才失败的，费用不退；要这一段的话只能重新生成（重新下一单、再花一次钱）"
+#~ msgid "方舟报这一发没能出片（{status}：{detail}）。任务被受理之后才失败的，费用不退；要这一段的话只能重新生成（重新下一单、再花一次钱）"
+#~ msgstr "方舟报这一发没能出片（{status}：{detail}）。任务被受理之后才失败的，费用不退；要这一段的话只能重新生成（重新下一单、再花一次钱）"
 
 #: src/ai/real.ts
-msgid "方舟报这一发没能出片（{status}）。任务被受理之后才失败的，费用不退；要这一段的话只能重新生成（重新下一单、再花一次钱）"
-msgstr "方舟报这一发没能出片（{status}）。任务被受理之后才失败的，费用不退；要这一段的话只能重新生成（重新下一单、再花一次钱）"
+#~ msgid "方舟报这一发没能出片（{status}）。任务被受理之后才失败的，费用不退；要这一段的话只能重新生成（重新下一单、再花一次钱）"
+#~ msgstr "方舟报这一发没能出片（{status}）。任务被受理之后才失败的，费用不退；要这一段的话只能重新生成（重新下一单、再花一次钱）"
+
+#: src/ai/arkClient.ts
+#: src/ai/real.ts
+msgid "方舟没出成这一发（{reason}）"
+msgstr "方舟没出成这一发（{reason}）"
+
+#: src/ai/arkClient.ts
+msgid "方舟没有给出原因"
+msgstr "方舟没有给出原因"
 
 #: src/components/PortraitAuthPanel.tsx
 #~ msgid "方舟没给原因"
@@ -14094,6 +14204,10 @@ msgstr "方舟报这一发没能出片（{status}）。任务被受理之后才�
 #: src/ai/real.ts
 msgid "方舟说这一发成功了，却没有给视频地址——这一段取不回来了（费用已经花过，重新生成是再花一次钱）"
 msgstr "方舟说这一发成功了，却没有给视频地址——这一段取不回来了（费用已经花过，重新生成是再花一次钱）"
+
+#: src/ai/real.ts
+msgid "方舟那边已经查不到这一发了"
+msgstr "方舟那边已经查不到这一发了"
 
 #: src/ai/real.ts
 msgid "方舟那边查不到这一发了（任务号查无此物）——多半是产物已经过了 24 小时被清掉。真是这样的话这一段取不回来了，已经花掉的钱无法挽回；重新生成是重新下一单、会再花一次钱"
@@ -14671,6 +14785,10 @@ msgstr "服务器没能删掉这条作品（{why}）。本地这份先留着—�
 msgid "服务器登记的这一发已经过了 24 小时，成片取不到了。如果你当时已经在别处拿到了它，忽略这条就好。"
 msgstr "服务器登记的这一发已经过了 24 小时，成片取不到了。如果你当时已经在别处拿到了它，忽略这条就好。"
 
+#: src/components/flow/SegmentRecoverCards.tsx
+msgid "服务器登记的那一发没出成（{why}）。{moneyLine}要这一段的话重新生成（会重新计费）。"
+msgstr "服务器登记的那一发没出成（{why}）。{moneyLine}要这一段的话重新生成（会重新计费）。"
+
 #: src/api/branch.ts
 msgid "服务器说结果取回成功了，却没有返回模板信息（可能是旧版服务端）。这一步本身不花钱，钱在开炼那一步已经付过——去「我的模板」确认一下有没有新模板，没有的话请把这句话反馈给我们。"
 msgstr "服务器说结果取回成功了，却没有返回模板信息（可能是旧版服务端）。这一步本身不花钱，钱在开炼那一步已经付过——去「我的模板」确认一下有没有新模板，没有的话请把这句话反馈给我们。"
@@ -14849,8 +14967,8 @@ msgid "未经同意的私密影像"
 msgstr "未经同意的私密影像"
 
 #: src/ai/minimaxVideo.ts
-msgid "未说明原因"
-msgstr "未说明原因"
+#~ msgid "未说明原因"
+#~ msgstr "未说明原因"
 
 #: src/components/CoverPicker.tsx
 msgid "未选封面"
@@ -15205,6 +15323,14 @@ msgstr "标题不能为空"
 msgid "标题进详情页"
 msgstr "标题进详情页"
 
+#: src/ai/arkClient.ts
+msgid "样片（480p 预览，满意再定稿）"
+msgstr "样片（480p 预览，满意再定稿）"
+
+#: src/ai/arkClient.ts
+msgid "样片定稿（升成 1080p）"
+msgstr "样片定稿（升成 1080p）"
+
 #: src/pages/tutor/TutorNewPage.tsx
 msgid "核对中…"
 msgstr "核对中…"
@@ -15238,8 +15364,12 @@ msgid "核对角色位编号"
 msgstr "核对角色位编号"
 
 #: src/components/guide/tours.tsx
-msgid "框出哪一段、裁出哪一块，就是 AI 真正拿去白模化的全部内容；再加上下面 「AI 看哪几帧」，决定它认不认得全画面里的人。<0>这一发多少钱</0>只看时长（越长越贵，多看几帧不额外收费）， 而钱一开始算就退不了。"
-msgstr "框出哪一段、裁出哪一块，就是 AI 真正拿去白模化的全部内容；再加上下面 「AI 看哪几帧」，决定它认不认得全画面里的人。<0>这一发多少钱</0>只看时长（越长越贵，多看几帧不额外收费）， 而钱一开始算就退不了。"
+#~ msgid "框出哪一段、裁出哪一块，就是 AI 真正拿去白模化的全部内容；再加上下面 「AI 看哪几帧」，决定它认不认得全画面里的人。<0>这一发多少钱</0>只看时长（越长越贵，多看几帧不额外收费）， 而钱一开始算就退不了。"
+#~ msgstr "框出哪一段、裁出哪一块，就是 AI 真正拿去白模化的全部内容；再加上下面 「AI 看哪几帧」，决定它认不认得全画面里的人。<0>这一发多少钱</0>只看时长（越长越贵，多看几帧不额外收费）， 而钱一开始算就退不了。"
+
+#: src/components/guide/tours.tsx
+msgid "框出哪一段、裁出哪一块，就是 AI 真正拿去白模化的全部内容；再加上下面 「AI 看哪几帧」，决定它认不认得全画面里的人。<0>这一发多少钱</0>只看时长（越长越贵，多看几帧不额外收费）； 开炼那一刻就扣钱，「AI 看帧」那一笔不论成败都照收。"
+msgstr "框出哪一段、裁出哪一块，就是 AI 真正拿去白模化的全部内容；再加上下面 「AI 看哪几帧」，决定它认不认得全画面里的人。<0>这一发多少钱</0>只看时长（越长越贵，多看几帧不额外收费）； 开炼那一刻就扣钱，「AI 看帧」那一笔不论成败都照收。"
 
 #: src/components/PhotoSubjectPicker.tsx
 msgid "框出这件道具"
@@ -16462,6 +16592,16 @@ msgstr "没有解析结果。"
 msgid "没有进行中的工单"
 msgstr "没有进行中的工单"
 
+#: src/ai/failCharge.ts
+msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
+msgid "没有退回"
+msgstr "没有退回"
+
+#: src/ai/failCharge.ts
+msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
+msgid "没有退回，画面 {count} 张也已计费"
+msgstr "没有退回，画面 {count} 张也已计费"
+
 #: src/data/videoDownload.ts
 msgid "没有选择去处。文件还在 App 里，随时可以再点「分享 / 另存为」。"
 msgstr "没有选择去处。文件还在 App 里，随时可以再点「分享 / 另存为」。"
@@ -17661,6 +17801,10 @@ msgstr "生成中"
 msgid "生成中…"
 msgstr "生成中…"
 
+#: src/pages/NotificationsPage.tsx
+msgid "生成失败，token 已退回"
+msgstr "生成失败，token 已退回"
+
 #. placeholder {0}: err.slice(0, 140)
 #: src/components/CoverPicker.tsx
 msgid "生成失败：{0}"
@@ -17681,6 +17825,14 @@ msgstr "生成契约不一致：参考图 / 参考视频与首尾帧不能混发
 #: src/ai/real.ts
 msgid "生成契约不一致：参考音频只能随参考图 / 参考视频发（首尾帧任务混参考媒体是 400）"
 msgstr "生成契约不一致：参考音频只能随参考图 / 参考视频发（首尾帧任务混参考媒体是 400）"
+
+#: src/ai/real.ts
+msgid "生成契约不一致：样片不收参考视频（方舟只对不带视频输入的出片开了样片）"
+msgstr "生成契约不一致：样片不收参考视频（方舟只对不带视频输入的出片开了样片）"
+
+#: src/ai/real.ts
+msgid "生成契约不一致：样片定稿只带样片本身（提示词、画面、声音都由样片沿用，重传会被方舟拒）"
+msgstr "生成契约不一致：样片定稿只带样片本身（提示词、画面、声音都由样片沿用，重传会被方舟拒）"
 
 #: src/ai/real.ts
 msgid "生成契约不一致：真人档只收首帧，不收参考图 / 参考视频 / 参考音频"
@@ -17983,6 +18135,16 @@ msgstr "画这一组最多要 {price} token，余额不够——去「我的」�
 msgid "画面"
 msgstr "画面"
 
+#: src/ai/failCharge.ts
+msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
+msgid "画面 {count} 张已计费，视频可能也扣了"
+msgstr "画面 {count} 张已计费，视频可能也扣了"
+
+#: src/ai/failCharge.ts
+msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
+msgid "画面 {count} 张已计费，视频没扣钱"
+msgstr "画面 {count} 张已计费，视频没扣钱"
+
 #: src/components/flow/GridShotsWizard.tsx
 msgid "画面：一个瞬间，谁在哪、什么姿势和表情"
 msgstr "画面：一个瞬间，谁在哪、什么姿势和表情"
@@ -17994,6 +18156,11 @@ msgstr "画面上<0>可能有两个人偶印着同一个号</0>，也可能<1>�
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "画面上还有一个白色人偶没列出来？把它加回来"
 msgstr "画面上还有一个白色人偶没列出来？把它加回来"
+
+#: src/ai/failCharge.ts
+msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
+msgid "画面与视频都已计费"
+msgstr "画面与视频都已计费"
 
 #: src/studio/ui/projection.tsx
 msgid "画面与运镜整个来自模板视频——写好那句话（或挂完卡）就能开炼"
@@ -18055,6 +18222,10 @@ msgstr "画面还没就绪——等视频出画面再点"
 #: src/components/flow/GridShotsWizard.tsx
 msgid "画面里写到了「{outside}」，上面却没选：画的时候多半会把他们画进去、还带不上卡图 —— 要他们入镜就点上，不要就把名字改成「画外的人」。"
 msgstr "画面里写到了「{outside}」，上面却没选：画的时候多半会把他们画进去、还带不上卡图 —— 要他们入镜就点上，不要就把名字改成「画外的人」。"
+
+#: src/ai/arkClient.ts
+msgid "画面里可能有真人，被方舟拒了"
+msgstr "画面里可能有真人，被方舟拒了"
 
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "画面里怎么认出这个人偶（这句话会进出片提示词）"
@@ -18652,8 +18823,12 @@ msgid "真人档出片取件失败（HTTP {status}）：{body}"
 msgstr "真人档出片取件失败（HTTP {status}）：{body}"
 
 #: src/ai/minimaxVideo.ts
-msgid "真人档出片失败：{why}"
-msgstr "真人档出片失败：{why}"
+msgid "真人档出片失败：{reason}"
+msgstr "真人档出片失败：{reason}"
+
+#: src/ai/minimaxVideo.ts
+#~ msgid "真人档出片失败：{why}"
+#~ msgstr "真人档出片失败：{why}"
 
 #: src/ai/minimaxVideo.ts
 msgid "真人档出片成功却没有文件号——上游协议变了，把这句话反馈给我们"
@@ -18971,6 +19146,16 @@ msgstr "视频要求（缺的帧按这句补画，也是出片提示词）"
 msgid "视频读不出来"
 msgstr "视频读不出来"
 
+#: src/ai/failCharge.ts
+msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
+msgid "视频费会退回，画面 {count} 张已计费"
+msgstr "视频费会退回，画面 {count} 张已计费"
+
+#: src/ai/failCharge.ts
+msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
+msgid "视频费已退回，画面 {count} 张已计费"
+msgstr "视频费已退回，画面 {count} 张已计费"
+
 #: src/pages/CutPage.tsx
 msgid "视频载入中…"
 msgstr "视频载入中…"
@@ -18978,6 +19163,26 @@ msgstr "视频载入中…"
 #: src/api/uploads.ts
 msgid "视频边长至少 {minEdge} 像素（当前 {width}×{height}）：比这更小的画面，裁剪框怎么拉都达不到 AI 引擎的下限。"
 msgstr "视频边长至少 {minEdge} 像素（当前 {width}×{height}）：比这更小的画面，裁剪框怎么拉都达不到 AI 引擎的下限。"
+
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "视频那一发扣的 token 没有退回，出片前画好的 {count} 张画面也已按张计费（共 {paid} token）——以「我的」页的 token 余额为准。"
+msgstr "视频那一发扣的 token 没有退回，出片前画好的 {count} 张画面也已按张计费（共 {paid} token）——以「我的」页的 token 余额为准。"
+
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "视频那部分扣的 {n} token 已经退回；出片前画好的 {count} 张画面已按张计费（共 {paid} token）。"
+msgstr "视频那部分扣的 {n} token 已经退回；出片前画好的 {count} 张画面已按张计费（共 {paid} token）。"
+
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "视频那部分扣的 token 会退回（到账以「我的」页的 token 余额为准）；出片前画好的 {count} 张画面已按张计费（共 {paid} token）。"
+msgstr "视频那部分扣的 token 会退回（到账以「我的」页的 token 余额为准）；出片前画好的 {count} 张画面已按张计费（共 {paid} token）。"
+
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "视频那部分扣的 token 已经退回；出片前画好的 {count} 张画面已按张计费（共 {paid} token）。"
+msgstr "视频那部分扣的 token 已经退回；出片前画好的 {count} 张画面已按张计费（共 {paid} token）。"
 
 #: src/pages/tutor/TutorNewPage.tsx
 msgid "禁止"
@@ -19312,14 +19517,14 @@ msgstr "第 {0} 段没有套可挂卡的白模模板（角色位只有白模模�
 
 #. placeholder {0}: idx + 1
 #: src/studio/flowStore.ts
-msgid "第 {0} 段生成失败"
-msgstr "第 {0} 段生成失败"
+#~ msgid "第 {0} 段生成失败"
+#~ msgstr "第 {0} 段生成失败"
 
 #. placeholder {0}: idx + 1
 #. placeholder {1}: msg.slice(0, 240)
 #: src/studio/flowStore.ts
-msgid "第 {0} 段生成失败：{1}"
-msgstr "第 {0} 段生成失败：{1}"
+#~ msgid "第 {0} 段生成失败：{1}"
+#~ msgstr "第 {0} 段生成失败：{1}"
 
 #. placeholder {0}: i + 1
 #. placeholder {1}: rn.tpl.title
@@ -19373,6 +19578,11 @@ msgstr "第 {0} 段还没轮到（前面的段先炼完才解锁），挂不了�
 #: src/components/flow/SegmentRecoverCards.tsx
 msgid "第 {0} 段那一发已经取不回来了"
 msgstr "第 {0} 段那一发已经取不回来了"
+
+#. placeholder {0}: job.seg
+#: src/components/flow/SegmentRecoverCards.tsx
+msgid "第 {0} 段那一发没出成（{why}）。{moneyLine}要这一段的话重新生成（会重新计费）。"
+msgstr "第 {0} 段那一发没出成（{why}）。{moneyLine}要这一段的话重新生成（会重新计费）。"
 
 #. placeholder {0}: i + 1
 #: src/studio/flowStore.ts
@@ -19486,6 +19696,26 @@ msgstr "第 {n} 段原来是「{label}」档（这台服务器还不支持），
 #: src/studio/flowStore.ts
 msgid "第 {n} 段原来的档位已经下线，改用「{b}」档"
 msgstr "第 {n} 段原来的档位已经下线，改用「{b}」档"
+
+#: src/studio/flowStore.ts
+msgid "第 {n} 段没出成，token 已退回"
+msgstr "第 {n} 段没出成，token 已退回"
+
+#: src/studio/flowStore.ts
+msgid "第 {n} 段没出成：{why}。{moneyLine}重新生成会重新计费。"
+msgstr "第 {n} 段没出成：{why}。{moneyLine}重新生成会重新计费。"
+
+#: src/studio/flowStore.ts
+msgid "第 {n} 段生成失败"
+msgstr "第 {n} 段生成失败"
+
+#: src/studio/flowStore.ts
+msgid "第 {n} 段生成失败：{why}"
+msgstr "第 {n} 段生成失败：{why}"
+
+#: src/studio/flowStore.ts
+msgid "第 {n} 段生成失败：{why}。{moneyLine}"
+msgstr "第 {n} 段生成失败：{why}。{moneyLine}"
 
 #: src/pages/CutPage.tsx
 msgid "第 {n}/{total} 句…"
@@ -21905,6 +22135,10 @@ msgstr "输入条里先打好那句话，再来存成技能"
 msgid "输入用户名确认"
 msgstr "输入用户名确认"
 
+#: src/ai/arkClient.ts
+msgid "输入的文字或图片没过方舟的内容审核"
+msgstr "输入的文字或图片没过方舟的内容审核"
+
 #: src/pages/SettingsDeactivatePage.tsx
 msgid "输入的用户名还对不上"
 msgstr "输入的用户名还对不上"
@@ -21981,6 +22215,10 @@ msgid "还剩 {h} 小时 {m} 分钟可以取回——AI 出片的产物只在服
 msgstr "还剩 {h} 小时 {m} 分钟可以取回——AI 出片的产物只在服务器上留 24 小时，过期就取不回来了，而这一发的钱已经付过。"
 
 #: src/data/videoJobs.ts
+msgid "还剩 {h} 小时 {m} 分钟可以取回——方舟的成片只留 24 小时，过期就没了。这一发的钱在提交那一刻就已经扣了，万一最后没出成会自动退回；取回不再花一分钱，点「重新生成」是重新下一单、会再花一次。"
+msgstr "还剩 {h} 小时 {m} 分钟可以取回——方舟的成片只留 24 小时，过期就没了。这一发的钱在提交那一刻就已经扣了，万一最后没出成会自动退回；取回不再花一分钱，点「重新生成」是重新下一单、会再花一次。"
+
+#: src/data/videoJobs.ts
 msgid "还剩 {h} 小时 {m} 分钟可以取回——方舟的成片只留 24 小时，过期就没了。这一发的钱在提交那一刻就已经花掉了，取回不再花一分钱；点「重新生成」是重新下一单、会再花一次。"
 msgstr "还剩 {h} 小时 {m} 分钟可以取回——方舟的成片只留 24 小时，过期就没了。这一发的钱在提交那一刻就已经花掉了，取回不再花一分钱；点「重新生成」是重新下一单、会再花一次。"
 
@@ -21991,6 +22229,10 @@ msgstr "还剩 {left} 条没成功"
 #: src/data/templates.ts
 msgid "还剩 {m} 分钟可以取回——AI 出片的产物只在服务器上留 24 小时，过期就取不回来了，而这一发的钱已经付过。"
 msgstr "还剩 {m} 分钟可以取回——AI 出片的产物只在服务器上留 24 小时，过期就取不回来了，而这一发的钱已经付过。"
+
+#: src/data/videoJobs.ts
+msgid "还剩 {m} 分钟可以取回——方舟的成片只留 24 小时，过期就没了。这一发的钱在提交那一刻就已经扣了，万一最后没出成会自动退回；取回不再花一分钱，点「重新生成」是重新下一单、会再花一次。"
+msgstr "还剩 {m} 分钟可以取回——方舟的成片只留 24 小时，过期就没了。这一发的钱在提交那一刻就已经扣了，万一最后没出成会自动退回；取回不再花一分钱，点「重新生成」是重新下一单、会再花一次。"
 
 #: src/data/videoJobs.ts
 msgid "还剩 {m} 分钟可以取回——方舟的成片只留 24 小时，过期就没了。这一发的钱在提交那一刻就已经花掉了，取回不再花一分钱；点「重新生成」是重新下一单、会再花一次。"
@@ -22353,8 +22595,16 @@ msgid "这一发已经付过费，但服务器没说结果能留到什么时候�
 msgstr "这一发已经付过费，但服务器没说结果能留到什么时候——建议尽快取回。"
 
 #: src/data/videoJobs.ts
+msgid "这一发已经取不回来了：方舟的成片只在服务器上留 24 小时，现在已经过期。如果方舟那边其实是失败了，扣的 token 会自动退回（到账时会通知你）；如果是出成了却没来得及取回，这笔钱就无法挽回了——重新生成是再花一次钱。"
+msgstr "这一发已经取不回来了：方舟的成片只在服务器上留 24 小时，现在已经过期。如果方舟那边其实是失败了，扣的 token 会自动退回（到账时会通知你）；如果是出成了却没来得及取回，这笔钱就无法挽回了——重新生成是再花一次钱。"
+
+#: src/data/videoJobs.ts
 msgid "这一发已经取不回来了：方舟的成片只在服务器上留 24 小时，现在已经过期。已经花掉的钱无法挽回——这不是超时重来，重新生成是再花一次钱。"
 msgstr "这一发已经取不回来了：方舟的成片只在服务器上留 24 小时，现在已经过期。已经花掉的钱无法挽回——这不是超时重来，重新生成是再花一次钱。"
+
+#: src/data/videoJobs.ts
+msgid "这一发我们不再跟进了：任务号还在下面，如果一直没取回来，把它发给客服还有机会。如果上游那边其实是失败了，扣的 token 会自动退回（到账时会通知你）；如果是出成了却没取回，这笔钱就无法挽回了——重新生成是再花一次钱。"
+msgstr "这一发我们不再跟进了：任务号还在下面，如果一直没取回来，把它发给客服还有机会。如果上游那边其实是失败了，扣的 token 会自动退回（到账时会通知你）；如果是出成了却没取回，这笔钱就无法挽回了——重新生成是再花一次钱。"
 
 #: src/data/videoJobs.ts
 msgid "这一发我们不再跟进了：任务号还在下面，如果一直没取回来，把它发给客服还有机会。已经花掉的钱我们这边退不了——重新生成是再花一次钱。"
@@ -22363,6 +22613,38 @@ msgstr "这一发我们不再跟进了：任务号还在下面，如果一直没
 #: src/components/flow/SegmentRecoverCards.tsx
 msgid "这一发我已经拿到了，不用再提醒"
 msgstr "这一发我已经拿到了，不用再提醒"
+
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "这一发扣的 token 没有退回——以「我的」页的 token 余额为准。"
+msgstr "这一发扣的 token 没有退回——以「我的」页的 token 余额为准。"
+
+#: src/data/videoJobs.ts
+msgid "这一发没出成，扣的 {n} token 已经退回——没有成片可取了，点「知道了」消掉这条就好。"
+msgstr "这一发没出成，扣的 {n} token 已经退回——没有成片可取了，点「知道了」消掉这条就好。"
+
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "这一发没出成，扣的 {n} token 已经退回。"
+msgstr "这一发没出成，扣的 {n} token 已经退回。"
+
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "这一发没出成，扣的 token 会退回——到账以「我的」页的 token 余额为准。"
+msgstr "这一发没出成，扣的 token 会退回——到账以「我的」页的 token 余额为准。"
+
+#: src/data/videoJobs.ts
+msgid "这一发没出成，扣的 token 会退回（到账以「我的」页的 token 余额为准）——没有成片可取了。"
+msgstr "这一发没出成，扣的 token 会退回（到账以「我的」页的 token 余额为准）——没有成片可取了。"
+
+#: src/data/videoJobs.ts
+msgid "这一发没出成，扣的 token 已经退回——没有成片可取了，点「知道了」消掉这条就好。"
+msgstr "这一发没出成，扣的 token 已经退回——没有成片可取了，点「知道了」消掉这条就好。"
+
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "这一发没出成，扣的 token 已经退回。"
+msgstr "这一发没出成，扣的 token 已经退回。"
 
 #: src/components/TemplateShelf.tsx
 msgid "这一发白模化已经取不回来了"
@@ -22375,6 +22657,10 @@ msgstr "这一发白模化预估要 {price} token（看帧认人 + 一次真实�
 #: src/ai/real.ts
 msgid "这一发的状态暂时查不到（{why}）——联网后再点一次「取回」，凭据还在，也不花钱"
 msgstr "这一发的状态暂时查不到（{why}）——联网后再点一次「取回」，凭据还在，也不花钱"
+
+#: src/data/videoJobs.ts
+msgid "这一发的钱在提交那一刻就已经扣了，任务多半还在上游跑；万一最后没出成，会自动退回 —— 点「取回」不重新下单、不再花一分钱；点「重新生成」是重新下一单、会再花一次。出片通常 1~2 分钟，隔一会儿再点一次。"
+msgstr "这一发的钱在提交那一刻就已经扣了，任务多半还在上游跑；万一最后没出成，会自动退回 —— 点「取回」不重新下单、不再花一分钱；点「重新生成」是重新下一单、会再花一次。出片通常 1~2 分钟，隔一会儿再点一次。"
 
 #: src/data/videoJobs.ts
 msgid "这一发的钱在提交那一刻就已经花掉了，任务多半还在上游跑 —— 点「取回」不重新下单、不再花一分钱；点「重新生成」是重新下一单、会再花一次。出片通常 1~2 分钟，隔一会儿再点一次。"
@@ -22624,10 +22910,12 @@ msgid "这一步不花钱：框好要用的那一段点「下一步」，下一�
 msgstr "这一步不花钱：框好要用的那一段点「下一步」，下一步在<0>框出来的这一段</0>上标帧，报价也在那一步、按「做成模板」之前整句报出。"
 
 #. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
 #: src/ai/failCharge.ts
 msgid "这一步可能已经扣了 {price} token——以「我的」页的 token 余额为准。"
 msgstr "这一步可能已经扣了 {price} token——以「我的」页的 token 余额为准。"
 
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
 #. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
 #: src/ai/failCharge.ts
 msgid "这一步已计费 {price} token。"
@@ -24958,6 +25246,10 @@ msgstr "重新核对编号"
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "重新核对编号 —— 画面上有两个一样的号？有个号找不着？点这里改，不用重炼"
 msgstr "重新核对编号 —— 画面上有两个一样的号？有个号找不着？点这里改，不用重炼"
+
+#: src/pages/CutPage.tsx
+msgid "重新生成中断：{why}。{moneyLine}已经改好的段已经保住了（它们的圈选也清掉了），再点一次只会重做剩下的那几段"
+msgstr "重新生成中断：{why}。{moneyLine}已经改好的段已经保住了（它们的圈选也清掉了），再点一次只会重做剩下的那几段"
 
 #: src/pages/CutPage.tsx
 msgid "重新生成中断：{why}。已经改好的段已经保住了（它们的圈选也清掉了），再点一次只会重做剩下的那几段"

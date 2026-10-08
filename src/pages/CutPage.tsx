@@ -23,7 +23,7 @@ import FrameAnnotator, { drawCover } from "../components/FrameAnnotator";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
 import Icon from "../components/Icon";
-import { AI_REAL, refineFrame, regenSegment } from "../ai";
+import { AI_REAL, ArkTaskFailed, ArkTaskUnknown, SegmentGenFailed, chargeNote, chargeOnFail, refineFrame, regenSegment, unwrapFailure } from "../ai";
 import { ANN_CLAUSE } from "../studio/segmentGen";
 import { isArkAssetUrl, requestArkTransfer, transferStatus } from "../ai/arkClient";
 import { canAfford, frozenNote, isRemoteMode, spendTokens, tierBlockReason, walletOf } from "../data/account";
@@ -1209,6 +1209,8 @@ export default function CutPage() {
       setBusy(line);
       job.update(line);
     };
+    /** 最近一段视频的报价（失败时钱上那句话用；见下面 catch） */
+    let lastVideoTokens = 0;
     try {
       const nextSegs = own!.segments.slice();
       let n = 0;
@@ -1234,7 +1236,13 @@ export default function CutPage() {
         stopIfMoved(false);
         say(t`第 ${segNo} 段 · 重拍视频（${n}/${segTotal} 段）…`);
         const reqAll = list.map((a) => a.req).join("；");
-        const { url, lastFrame, poster, taskId } = await regenSegment(seg, reqAll, (s) => say(t`第 ${segNo} 段 · ${s}`));
+        /** 这一段视频那一半的价（与下面成功时记账、按钮上那个数同源）：失败时钱上那句话「可能扣了」按它说 */
+        lastVideoTokens = segTokens(seg.durationSec, seg.videoTier, aspectOf(seg.aspect).ratio);
+        const { url, lastFrame, poster, taskId } = await regenSegment(seg, reqAll, (s) => say(t`第 ${segNo} 段 · ${s}`)).catch((e: unknown) => {
+          // 视频那一发失败了：包一层带上这一段刚改好的画面张数（list.length 次改图，每次各自结算）—— 钱上的话要把它们单独说
+          // （ai/failCharge 的 SegmentGenFailed）。没接到结果（ArkTaskUnknown）不包：它不是失败，凭据留着
+          throw e instanceof ArkTaskUnknown ? e : new SegmentGenFailed(e, list.length);
+        });
         stopIfMoved(true);
         // ★ 成片到手，这一发结案（2026-09-18）：服务端登记表不知道谁取回了哪一发，不结案的话下次进创作入口
         //   它会被补成一张「还没取回」的卡（data/videoJobs.importServerVideoJobs）
@@ -1274,9 +1282,20 @@ export default function CutPage() {
       else job.done({ msg: t`按圈选重做好了，回剪辑页看看`, route: "/cut" });
     } catch (e) {
       setBusy("");
+      const inner = unwrapFailure(e);
+      // ★ 上游明说没出成：这一发结案（没有成片可取了）—— 不结案的话服务端登记表下次会把它补成一张取回卡
+      //   （老服务端那种钱没退的也结案：失败那句话就在这里说给人听了，取回卡只会对着它再说一遍）
+      if (inner instanceof ArkTaskFailed) dropVideoJob(inner.taskId);
       // ★ 说清"前面几段已经保住了"：不说的话用户以为整轮白花，会再点一次（再收一遍）
-      const why = (e instanceof Error ? e.message : String(e)).slice(0, 110);
-      const line = t`重新生成中断：${why}。已经改好的段已经保住了（它们的圈选也清掉了），再点一次只会重做剩下的那几段`;
+      const why = (inner instanceof ArkTaskFailed ? inner.reason : e instanceof Error ? e.message : String(e)).slice(0, 110);
+      // ★ 钱上那句话（2026-10-07）：只认类型、只走 ai/failCharge —— 受理之后上游明说失败的那一发现在会退回，
+      //   这一段刚改好的画面另说（它们各自结算过）。视频那一发之前的失败（改图本身失败）按一张图的价说
+      const fc = chargeOnFail(e);
+      const money = chargeNote(fc, fc.video ? lastVideoTokens : annRedrawCost(1));
+      const moneyLine = money?.line ?? "";
+      const line = money
+        ? t`重新生成中断：${why}。${moneyLine}已经改好的段已经保住了（它们的圈选也清掉了），再点一次只会重做剩下的那几段`
+        : t`重新生成中断：${why}。已经改好的段已经保住了（它们的圈选也清掉了），再点一次只会重做剩下的那几段`;
       setErr(line);
       if (aliveRef.current) job.done({ silent: true });
       else job.fail(line, "/cut");

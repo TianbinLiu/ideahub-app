@@ -12,7 +12,7 @@
 //
 // 计费与 store 写入**不在这里**：两边的账本与状态形状不同（flowStore 写 videoByProposal，
 // 工坊写 proposal.videoUrl），这里只负责"把一段炼出来"，纯函数式地把结果交回去。
-import { AI_REAL, ARK_REF_IMAGES_MAX, ArkTaskUnknown, VIDEO_PROMPT_MAX, composeSegments, generateFrame, notesInParens, planCardRefs, prepareMaterialRefs, refCardIds, refineFrame } from "../ai";
+import { AI_REAL, ARK_REF_IMAGES_MAX, ArkTaskUnknown, SegmentGenFailed, VIDEO_PROMPT_MAX, composeSegments, generateFrame, notesInParens, planCardRefs, prepareMaterialRefs, refCardIds, refineFrame } from "../ai";
 import { compileMentions, drawExtraRefs, extraRefLines, mentionTargets, plainMentions, usableExtraRefs, type ExtraRef } from "../data/refMentions";
 import { uploadImage } from "../api/uploads";
 import { IMAGE_TOKENS, blockoutPriceIssue, blockoutTier, fmtTokens, r2vPriceIssue, tierOf, providerOf, clampDuration, videoTokensOfSpec, promptMaxOf, refAudioSecOf, type VideoTier } from "../data/economy";
@@ -954,10 +954,23 @@ function afterStop(prev: string, s: string): string {
   return prev.endsWith("。") && s.startsWith("。") ? s.slice(1) : s;
 }
 
-function settleSegment(res: { error?: string; pendingTaskId?: string } | undefined): void {
+function settleSegment(
+  res: { error?: string; pendingTaskId?: string; failure?: unknown } | undefined,
+  /**
+   * 这一段在视频那一发之前**已经结算**的出图次数（补画设定帧 + 圈选改帧）。**必填**：可选的话新支路漏传就是 0，
+   * 钱上那句话会把画好的那几张说成「没扣」（与 onTask 那条「漏传零症状」同一个教训）。没画的支路显式传 0。
+   */
+  framesSettled: number,
+): void {
   // 「没接到结果」要**原样保持它的类型**往上抛：调用方据此决定凭据留不留
-  // （留 = 亮取回入口，销毁 = 只剩「重新生成」= 再花一次钱）。
+  // （留 = 亮取回入口，销毁 = 只剩「重新生成」= 再花一次钱）。★ 它永远不包壳（genNode 靠 instanceof 认它）
+  if (res?.failure instanceof ArkTaskUnknown) throw res.failure;
   if (res?.pendingTaskId) throw new ArkTaskUnknown(res.error ?? t`没接到这一段的出片结果`, res.pendingTaskId);
+  // ★★ 其余失败也**原样**往上抛（2026-10-07）：原来这里拿 res.error 新造一个裸 Error，类型就此丢掉 ——
+  //   「受理之后方舟明说失败（现在会退钱）」「没等到回包（可能扣了）」「服务端明说拒了（没扣）」三种在 genNode 那里长得一模一样，
+  //   钱上那句话只能一个字都不说。外面包一层 SegmentGenFailed：说明失败的是**视频那一发**，并带上出片前已经结算的画面张数
+  //   （钱上的话要把那几张单独说，ai/failCharge）；0 张也包（理由见那个类的 ★）。
+  if (res?.failure !== undefined) throw new SegmentGenFailed(res.failure, framesSettled);
   if (res?.error) throw new Error(res.error);
 }
 
@@ -1163,7 +1176,7 @@ export async function generateSegment(
       // ★ 受理回调**必须给**：不给就没有凭据，「没接到结果」这一支等于不存在
       (taskId) => onTask?.(taskId),
     );
-    settleSegment(res);
+    settleSegment(res, 0); // 延长段一张画面都不画
     return {
       url: res?.url,
       firstFrame: res?.firstFrame || "",
@@ -1292,7 +1305,7 @@ export async function generateSegment(
       // ★ 受理回调**必须给**：不给就没有凭据，"没接到结果"这一支等于不存在
       (taskId) => onTask?.(taskId),
     );
-    settleSegment(res);
+    settleSegment(res, 0); // 素材参考：帧是用户给的，不画（上传不计费）
     return {
       url: res?.url,
       firstFrame: res?.firstFrame || firstRef || input.firstFrame,
@@ -1366,7 +1379,7 @@ export async function generateSegment(
     //   节点打成 pending、屏幕上写「用下面的「取回」领回来」，而 rememberVideoJob 一次都没跑、
     //   取回卡一张不画，连能发给客服的任务号都看不到（比不改更坏）。零报错、类型也过 ——
     //   因为 composeSegments 的第三参当时是可选的。**现在它是必填的**，同样的漏法编译期就红。
-    settleSegment(res);
+    settleSegment(res, 0); // 真人档一张设定帧都不画
     return { url: res?.url, firstFrame: firstSrc, lastFrame: res?.lastFrame || firstSrc, poster: res?.poster, realDurationSec: res?.durationSec };
   }
 
@@ -1531,8 +1544,8 @@ export async function generateSegment(
   };
   // ★ 白模：形象图一张都没准备成（图裂了/跨域读不出来）→ **整句失败，不降级**。
   //   refImg 那条能退回首尾帧（拍的还是这段剧情），白模退无可退：没有形象图的 r2v
-  //   任务要么被方舟拒、要么受理后拍出一段没换主体的复刻片——受理后失败不退费，
-  //   替用户把这笔钱按住的唯一办法就是在这里响亮地停下（铁律八）。
+  //   任务要么被方舟拒、要么受理后拍出一段没换主体的复刻片——后者是**出成了**的片子（方舟照收钱，
+  //   失败退款管不到它），替用户把这笔钱按住的唯一办法就是在这里响亮地停下（铁律八）。
   // ★ 返修不在此列（2026-09-18，2.46 发版前复核抓到）：它改的是画面不是换人 —— blockoutIssue 与上面
   //   prepareMaterialRefs 的 strict:false 都已经给它开了「没卡也能走」的口子，唯独这道闸漏了，
   //   于是没挂卡的段（电影级经典段 / 自定义段）点返修必被这句拒，而返修框上的键是亮的。
@@ -1541,7 +1554,7 @@ export async function generateSegment(
   }
   // ★ 走到这一步才发现一张参考图都没准备成（图裂了/跨域读不出来）：**退回首尾帧模式**
   //   而不是发一个没有参考图的"参考生视频"任务——那个任务方舟会拒，或者更糟：受理了
-  //   然后拍出一段与卡片毫无关系的片子，钱照扣（受理后失败不退）。
+  //   然后拍出一段与卡片毫无关系的片子 —— 那是出成了的片，钱照扣（失败退款只管上游明说失败的那种）。
   if (refMode && !refUrls) {
     refMode = false;
     prog(t`素材卡的形象参考图一张都没能用上，改为先按描述画一张设定帧再出片（多花约一张出图的钱）`);
@@ -1879,7 +1892,7 @@ export async function generateSegment(
     (_d, _t, status) => prog(status),
     (taskId) => onTask?.(taskId),
   );
-  settleSegment(res); // 与另外两条支路同一处实现（见 settleSegment 的 ★★）
+  settleSegment(res, drawn + redrawn.length); // 与另外几条支路同一处实现（见 settleSegment 的 ★★）
   return {
     url: res?.url,
     firstFrame: res?.firstFrame || first,

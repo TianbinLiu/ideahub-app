@@ -23,6 +23,28 @@ import {
 } from "../data/notifications";
 import { relativeTime } from "../types";
 import { fmtTokens } from "../data/economy";
+import { UPGRADE_HREF } from "../components/UpgradeLink";
+
+/**
+ * 退款通知里「哪一种生成」的人话（payload.kind 原样，server taskRefund.service 的 kind）。
+ * 认不出的一律按「一次视频生成」说 —— 服务端以后加一种 kind，这边旧版本照样说得通，只是不够具体。
+ */
+function refundKindText(kind: string): MessageDescriptor {
+  switch (kind) {
+    case "draft":
+      return msg`一段样片（480p 预览）没出成`;
+    case "draftFinal":
+      return msg`一次样片定稿（1080p）没出成`;
+    case "3d":
+      return msg`一次 3D 建模没出成`;
+    case "blockout":
+      return msg`一次白模化没出成`;
+    case "minimax":
+      return msg`一段真人档视频没出成`;
+    default:
+      return msg`一段视频没出成`;
+  }
+}
 
 /** 一句话说清"谁做了什么"。作品名/评论正文在下一行单独展示，这里只给动作 */
 function actionText(n: NotificationItem): MessageDescriptor | null {
@@ -46,6 +68,9 @@ function actionText(n: NotificationItem): MessageDescriptor | null {
     case "BRANCH_REMIX_REWARD":
       // 同款奖励到账（P3b）。金额与原作在下面单独两行（见渲染那段）；没带是谁的那种走礼物头像 + 「有人做了你的同款」
       return msg`做了你的同款`;
+    case "GEN_TASK_REFUND":
+      // 平台口吻的那一行不走这个句式（见渲染那段：主语是「这一次生成」，金额单独一行），这里只是类型上兜全
+      return msg`生成失败，token 已退回`;
     case "ADMIN_NOTICE":
       // 平台口吻的那一行不走这个句式（见 NoticeRow），这里只是类型上兜全
       return msg`平台通知`;
@@ -144,6 +169,12 @@ export default function NotificationsPage() {
       navigate(`/video/${n.reward.originalId}`, { state: { fromNotification: n.id } });
       return;
     }
+    // 生成失败退款：没有作品可去 —— 打开钱包看余额（钱就退在那里）。钱包抽屉打开即算看过，就地标已读
+    if (n.refund) {
+      void markNotificationRead(n.id);
+      navigate(UPGRADE_HREF);
+      return;
+    }
     // 老师人格（M4）：到期回访 / 新版 → 那门课的上课页；评分 / 评论 → 课程列表（市场详情只在官网，App 里没有那一页）。
     // 上课页打开即算处理过，就地标已读（与工单同一条：它自己不认识通知）
     if (n.tutor) {
@@ -208,6 +239,11 @@ export default function NotificationsPage() {
                     <span className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-brand/15 text-brand">
                       <Icon name="bell" size={20} />
                     </span>
+                  ) : n.refund ? (
+                    // 生成失败退款：平台口径，没有 actor（同 ADMIN_NOTICE 的铃铛：不拿「有人」两个字去画字母头像）
+                    <span className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-emerald-500/15 text-xl" aria-hidden>
+                      ↩️
+                    </span>
                   ) : n.reward?.anonymous ? (
                     // 同款奖励、服务端没带是谁（两人之间有拉黑 / 那条同款已经不公开）：不拿「有人」两个字去画字母头像
                     <span className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-emerald-500/15 text-xl" aria-hidden>
@@ -220,6 +256,9 @@ export default function NotificationsPage() {
                     <div className="text-sm text-slate-200">
                       {n.type === "ADMIN_NOTICE" ? (
                         <span className="font-semibold"><Trans>平台通知</Trans></span>
+                      ) : n.refund ? (
+                        // 主语是那一次生成（不是「有人」）：哪一种生成没出成，金额在下一行
+                        <span className="font-semibold">{t(refundKindText(n.refund.kind))}</span>
                       ) : n.type === "TUTOR_REVIEW_DUE" ? (
                         // 回访到期是系统发的（没有 actor）：主语是那门课，不是「有人」
                         <span className="font-semibold">{n.tutor?.count ? t`「${n.tutor.personaName}」有 ${n.tutor.count} 个阶段该回访了` : t`「${n.tutor?.personaName ?? ""}」有阶段该回访了`}</span>
@@ -264,6 +303,12 @@ export default function NotificationsPage() {
                           <div className="mt-0.5 truncate text-xs text-slate-500"><Trans>照的是你的《{n.reward.originalTitle}》</Trans></div>
                         )}
                       </>
+                    )}
+                    {/* 生成失败退款：金额一行（服务端的数，不在这里另写）。★ 说「已退回」不说「已到账」以外的承诺：钱是服务端退的，这里只是告诉你 */}
+                    {n.refund && (
+                      <div className="mt-0.5 text-xs font-semibold text-emerald-300">
+                        {n.refund.tokens > 0 ? t`扣的 ${fmtTokens(n.refund.tokens)} token 已经退回` : t`扣的 token 已经退回`}
+                      </div>
                     )}
                     {n.videoTitle && !n.reward && (
                       <div className="mt-0.5 truncate text-xs text-slate-500">{n.videoTitle}</div>

@@ -1540,6 +1540,11 @@ msgstr "{why} — the cards are on this device, but they may be gone after you s
 msgid "{why}——这些位子挂的卡不能生效，它们会保持人偶原样。回挂卡那一屏点「取下这几张」再完成挂卡"
 msgstr "{why} — cards on these slots won't take effect, and they'll stay as mannequins. Go back to the casting screen, tap “Remove these”, then finish casting"
 
+#. placeholder {0}: money.brief
+#: src/studio/flowStore.ts
+msgid "{why}（{0}）"
+msgstr "{why} ({0})"
+
 #: src/data/templates.ts
 msgid "{why}（模板已经建好了，可以在「我的模板」里点「识别角色位」重试）"
 msgstr "{why} (the template has already been created — you can retry with “Detect roles” in “My templates”)"
@@ -2058,6 +2063,14 @@ msgstr "The “{tierLabel}” tier can't take a sample video — switch to “{v
 #: src/components/flow/RefStrip.tsx
 msgid "「{tierLabel}」档带不了示例视频；带得了的「{vidMember}」是会员档（开通会员套餐或充值过任意一笔后可用）。"
 msgstr "The “{tierLabel}” tier can't take a sample video; the tiers that can (“{vidMember}”) are member tiers (available once you subscribe to a plan or make any top-up once)."
+
+#: src/ai/real.ts
+msgid "「{tierLabel}」档没有样片模式"
+msgstr "The “{tierLabel}” tier has no preview-draft mode"
+
+#: src/ai/real.ts
+msgid "「{tierLabel}」档没有样片模式（只有「{names}」有）"
+msgstr "The “{tierLabel}” tier has no preview-draft mode (only “{names}” has it)"
 
 #: src/ai/real.ts
 msgid "「{tierLabel}」档跑不了白模模板（模板对出片模型是硬要求）"
@@ -2637,6 +2650,10 @@ msgstr "⚠ Switching to this plan folds away the segments after the current dir
 #: src/pages/PublishPage.tsx
 msgid "⚠ 渐变回退"
 msgstr "⚠ Fade fallback"
+
+#: src/components/blockout/BlockoutTrimmer.tsx
+msgid "⚠ 视频里有<0>真人面孔</0>时，AI 可能在<1>受理之后</1>才拒绝这一发 —— 那时<2>出片那一笔会自动退回</2>， 但「AI 看帧」那一笔不退，几分钟也白等了（实测：创建时不拒，只能中途失败）。真人素材请自己掂量； 动画、游戏画面、自己拍的白模预演不受影响。"
+msgstr "⚠ If the video contains <0>real human faces</0>, the AI may reject the job <1>after accepting it</1> — <2>the video charge is then refunded automatically</2>, but the “frames the AI looks at” charge isn't, and the few minutes of waiting are lost (tested: it isn't rejected at creation, it only fails partway). Use real-person footage at your own discretion; animation, game footage and blockout previs you shot yourself aren't affected."
 
 #: src/components/blockout/BlockoutTrimmer.tsx
 msgid "⚠ 视频里有<0>真人面孔</0>时，AI 可能在<1>受理之后</1>才拒绝这一发 —— 那时算力已经开始消耗，<2>这笔费用不退</2>（实测：创建时不拒，只能中途失败）。真人素材请自己掂量；动画、游戏画面、 自己拍的白模预演不受影响。"
@@ -3970,12 +3987,12 @@ msgid "QQ 这次没有给回授权码，请再点一次，或者用手机号、�
 msgstr "QQ didn't send back an authorization code this time. Tap again, or sign in with your phone number or e-mail."
 
 #: src/ai/arkClient.ts
-msgid "Seedance 任务{status}"
-msgstr "Seedance task {status}"
+#~ msgid "Seedance 任务{status}"
+#~ msgstr "Seedance task {status}"
 
 #: src/ai/arkClient.ts
-msgid "Seedance 任务{status}: {detail}"
-msgstr "Seedance task {status}: {detail}"
+#~ msgid "Seedance 任务{status}: {detail}"
+#~ msgstr "Seedance task {status}: {detail}"
 
 #: src/ai/arkClient.ts
 msgid "Seedance 任务成功但无视频 URL"
@@ -4214,10 +4231,18 @@ msgstr "One slot per role"
 msgid "一格都没挑，铺不成段"
 msgstr "No panels picked, so there’s nothing to add"
 
+#: src/pages/NotificationsPage.tsx
+msgid "一次 3D 建模没出成"
+msgstr "A 3D modeling run didn't come out"
+
 #. placeholder {0}: doneRows.length
 #: src/components/DownloadSheet.tsx
 msgid "一次全给（{0} 个文件）"
 msgstr "Share all at once ({0, plural, one {# file} other {# files}})"
+
+#: src/pages/NotificationsPage.tsx
+msgid "一次样片定稿（1080p）没出成"
+msgstr "A preview-draft finalization (1080p) didn't come out"
 
 #: src/components/flow/GridShotsWizard.tsx
 #~ msgid "一次画出整组：人物与光线前后一致。按实际画出来的张数收钱，没画出来的那几格不收。一组要几分钟，可以先离开，画好了会提醒你。"
@@ -4230,6 +4255,10 @@ msgstr "Draws the whole set in one go, so the characters and lighting stay consi
 #: src/studio/structuredSkills.ts
 msgid "一次画出整组画面，挑几格、每格一段"
 msgstr "Draw the whole set at once, pick a few panels, one segment per panel"
+
+#: src/pages/NotificationsPage.tsx
+msgid "一次白模化没出成"
+msgstr "A blockout run didn't come out"
 
 #: src/components/DownloadSheet.tsx
 msgid "一次给多个文件时系统按「任意文件」处理，相册可能不在候选里；想进相册就一个一个来。"
@@ -4264,6 +4293,18 @@ msgstr "Up to {SHOT_MAX} shots per segment (any more and each shot gets only a s
 #: src/components/guide/tours.tsx
 msgid "一段有三种做法"
 msgstr "Three ways to make a segment"
+
+#: src/pages/NotificationsPage.tsx
+msgid "一段样片（480p 预览）没出成"
+msgstr "A preview draft (480p) didn't come out"
+
+#: src/pages/NotificationsPage.tsx
+msgid "一段真人档视频没出成"
+msgstr "A Real-person tier video didn't come out"
+
+#: src/pages/NotificationsPage.tsx
+msgid "一段视频没出成"
+msgstr "A video run didn't come out"
 
 #: src/components/flow/ThemeRewriteSheet.tsx
 msgid "一段都没改（勾选的段可能已经出片或不在了）"
@@ -4582,8 +4623,8 @@ msgid "上游未说明原因"
 msgstr "upstream gave no reason"
 
 #: src/ai/minimaxVideo.ts
-msgid "上游说这一发失败了：{why}。按约定，受理之后的失败不退款；重新生成会再花一次钱。"
-msgstr "Upstream says this run failed: {why}. As agreed, failures after a job is accepted aren't refunded; regenerating will cost again."
+#~ msgid "上游说这一发失败了：{why}。按约定，受理之后的失败不退款；重新生成会再花一次钱。"
+#~ msgstr "Upstream says this run failed: {why}. As agreed, failures after a job is accepted aren't refunded; regenerating will cost again."
 
 #: src/pages/tutor/TutorRunPage.tsx
 msgid "上课"
@@ -5313,6 +5354,10 @@ msgstr "Product teardown"
 msgid "产物已过期：AI 出片的产物只在服务器上留 24 小时，现在已经取不回来了，这一发已经付过的费用无法挽回（不是超时重来——重开一发是再花一次钱）。"
 msgstr "The output has expired: AI video output is kept on the server for only 24 hours, so it can no longer be recovered. The money already paid for this job can't be recovered (this isn't a timeout you can retry — starting a new job costs again)."
 
+#: src/data/templates.ts
+msgid "产物已过期：AI 出片的产物只在服务器上留 24 小时，现在已经取不回来了。如果 AI 那边其实是失败了，出片那一笔会自动退回（到账时会通知你）；如果是出成了却没来得及取回，这一发的费用无法挽回（重开一发是再花一次钱）。"
+msgstr "The output has expired: AI video output is kept on the server for only 24 hours, so it can no longer be recovered. If the AI actually failed, the video charge is refunded automatically (you'll get a notification when it lands); if it succeeded but wasn't recovered in time, the money for this job can't be recovered (starting a new job costs again)."
+
 #: src/components/flow/DialogueWizard.tsx
 msgid "人、整体交代或画幅在画好之后改过：这一张还是按原来那版画的，重画一下才对得上。"
 msgstr "The people, the setting or the aspect changed after this was drawn: it still shows the old version — redraw it to match."
@@ -5553,6 +5598,14 @@ msgstr "Low angle"
 msgid "任务创建中…"
 msgstr "Creating the job…"
 
+#: src/ai/arkClient.ts
+msgid "任务被取消了"
+msgstr "the task was cancelled"
+
+#: src/ai/arkClient.ts
+msgid "任务超时没跑完，方舟把它自动终止了"
+msgstr "the task ran out of time and Ark stopped it automatically"
+
 #: src/components/VideoTemplateExtractor.tsx
 msgid "任意视频都行 · 要花钱"
 msgstr "Any video works · costs tokens"
@@ -5603,6 +5656,11 @@ msgstr "Expressions"
 #: src/data/danmaku.ts
 msgid "会说谎的罗盘"
 msgstr "the compass that lies"
+
+#: src/ai/failCharge.ts
+msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
+msgid "会退回"
+msgstr "refund on the way"
 
 #: src/pages/tutor/TutorHomePage.tsx
 msgid "传 PDF / PPTX / DOCX 教材、把老师发布到市场、评分与合并新版、复习卡，都在官网。App 里先做 md / txt 建课与上课。"
@@ -7121,6 +7179,21 @@ msgstr "Check before rendering: your cast is placed into the blockout frame, and
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "出片前必须把它们取下。"
 msgstr "You must remove them before rendering."
+
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "出片前画好的 {count} 张画面（共 {paid} token）与视频那一发（{price} token）都已计费。"
+msgstr "{count, plural, one {The # frame drawn before the video} other {The # frames drawn before the video}} ({paid} tokens in total) and the video itself ({price} tokens) have all been charged."
+
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "出片前画好的 {count} 张画面已按张计费（共 {paid} token），视频那一发没扣钱。"
+msgstr "{count, plural, one {The # frame drawn before the video was charged} other {The # frames drawn before the video were charged per image}} ({paid} tokens in total); the video itself wasn't charged."
+
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "出片前画好的 {count} 张画面已按张计费（共 {paid} token）；视频那一发可能也扣了 {price} token——以「我的」页的 token 余额为准。"
+msgstr "{count, plural, one {The # frame drawn before the video was charged} other {The # frames drawn before the video were charged per image}} ({paid} tokens in total); the video itself may also have been charged {price} tokens — check your token balance on the “Me” page."
 
 #: src/components/guide/tours.tsx
 msgid "出片前这里显示你给的<0>开头帧</0>（没给就先空着），出片后就地回放这一段。 不满意就改下面那句话（或换圈选）再来一次。"
@@ -9944,10 +10017,16 @@ msgstr "Too short. Keep holding and talk a little longer before releasing."
 msgid "太短了（{0}s）——按住别松，照着示例词念够 {VOICE_MIN_SEC} 秒再放手。"
 msgstr "Too short ({0}s). Keep holding and read the sample for at least {VOICE_MIN_SEC}s before letting go."
 
-#. placeholder {0}: msg.slice(0, 160)
+#. placeholder {0}: why.slice(0, 160)
 #: src/studio/flowStore.ts
 msgid "失败：{0}"
 msgstr "Failed: {0}"
+
+#. placeholder {0}: why.slice(0, 160)
+#. placeholder {1}: money.brief
+#: src/studio/flowStore.ts
+msgid "失败：{0}（{1}）"
+msgstr "Failed: {0} ({1})"
 
 #: src/pages/tutor/TutorNewPage.tsx
 msgid "失败案例 → 原则"
@@ -11340,6 +11419,11 @@ msgstr "Connected to the server: sign in with your password"
 msgid "已连接服务器：账号与作品跨设备同步。"
 msgstr "Connected to the server: your account and videos sync across devices."
 
+#: src/ai/failCharge.ts
+msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
+msgid "已退回"
+msgstr "refunded"
+
 #: src/studio/ui/PlanBoard.tsx
 msgid "已选定 · 可换首尾帧、改剧情，改完点这一套的「重新生成」"
 msgstr "Selected · swap frames or edit the story, then tap this plan's “Regenerate”"
@@ -12047,6 +12131,10 @@ msgstr "Finished videos can be at most {maxMb}MB (this one is about {curMb}MB). 
 msgid "成片写入本地库失败（存储配额？）"
 msgstr "Couldn't save the video to local storage (out of space?)"
 
+#: src/ai/arkClient.ts
+msgid "成片可能涉及版权（常见于带版权的音乐、角色），没过方舟的审核"
+msgstr "the output may involve copyrighted material (often copyrighted music or characters) and didn't pass Ark's review"
+
 #: src/pages/CutPage.tsx
 msgid "成片合好了，但剪辑中的稿子已经关掉或换成了别的，这一条没有接上——回到那份稿子再合一次（合成不花钱）"
 msgstr "The video was merged, but the draft being edited was closed or replaced, so it wasn't attached — go back to that draft and merge again (merging is free)"
@@ -12082,6 +12170,10 @@ msgstr "The video is back in the pipeline, but the automatic draft save failed (
 #: src/components/flow/SegmentRecoverCards.tsx
 #~ msgid "成片已落回流水线，正在存草稿…"
 #~ msgstr "The video is back in the pipeline. Saving draft…"
+
+#: src/ai/arkClient.ts
+msgid "成片没过方舟的内容审核"
+msgstr "the output didn't pass Ark's content review"
 
 #: src/components/CoverPicker.tsx
 msgid "成片解码失败——换「本地上传」或下面各段的首尾帧"
@@ -12334,6 +12426,15 @@ msgstr "open the draft"
 #: src/components/DraftSheet.tsx
 msgid "打开这条草稿（丢弃上面那条流水线）"
 msgstr "Open this draft (discard the pipeline above)"
+
+#. placeholder {0}: fmtTokens(n.refund.tokens)
+#: src/pages/NotificationsPage.tsx
+msgid "扣的 {0} token 已经退回"
+msgstr "The {0} tokens charged have been refunded"
+
+#: src/pages/NotificationsPage.tsx
+msgid "扣的 token 已经退回"
+msgstr "The tokens charged have been refunded"
 
 #. placeholder {0}: p.costLabel
 #: src/components/flow/FlowCanvas.tsx
@@ -14080,12 +14181,21 @@ msgid "方舟报这一发没能出片，正在向服务器核实到底怎么回�
 msgstr "Ark reported that this job didn't produce a video; checking with the server what actually happened…"
 
 #: src/ai/real.ts
-msgid "方舟报这一发没能出片（{status}：{detail}）。任务被受理之后才失败的，费用不退；要这一段的话只能重新生成（重新下一单、再花一次钱）"
-msgstr "Ark reports this run didn't produce a video ({status}: {detail}). It failed after the job was accepted, so the charge isn't refunded; to get this segment you'll have to regenerate it (a new order that costs again)"
+#~ msgid "方舟报这一发没能出片（{status}：{detail}）。任务被受理之后才失败的，费用不退；要这一段的话只能重新生成（重新下一单、再花一次钱）"
+#~ msgstr "Ark reports this run didn't produce a video ({status}: {detail}). It failed after the job was accepted, so the charge isn't refunded; to get this segment you'll have to regenerate it (a new order that costs again)"
 
 #: src/ai/real.ts
-msgid "方舟报这一发没能出片（{status}）。任务被受理之后才失败的，费用不退；要这一段的话只能重新生成（重新下一单、再花一次钱）"
-msgstr "Ark reports this run didn't produce a video ({status}). It failed after the job was accepted, so the charge isn't refunded; to get this segment you'll have to regenerate it (a new order that costs again)"
+#~ msgid "方舟报这一发没能出片（{status}）。任务被受理之后才失败的，费用不退；要这一段的话只能重新生成（重新下一单、再花一次钱）"
+#~ msgstr "Ark reports this run didn't produce a video ({status}). It failed after the job was accepted, so the charge isn't refunded; to get this segment you'll have to regenerate it (a new order that costs again)"
+
+#: src/ai/arkClient.ts
+#: src/ai/real.ts
+msgid "方舟没出成这一发（{reason}）"
+msgstr "Ark couldn't produce this run ({reason})"
+
+#: src/ai/arkClient.ts
+msgid "方舟没有给出原因"
+msgstr "Ark gave no reason"
 
 #: src/components/PortraitAuthPanel.tsx
 #~ msgid "方舟没给原因"
@@ -14094,6 +14204,10 @@ msgstr "Ark reports this run didn't produce a video ({status}). It failed after 
 #: src/ai/real.ts
 msgid "方舟说这一发成功了，却没有给视频地址——这一段取不回来了（费用已经花过，重新生成是再花一次钱）"
 msgstr "Ark says this run succeeded but gave no video address — this segment can't be recovered (the charge was already spent; regenerating costs again)"
+
+#: src/ai/real.ts
+msgid "方舟那边已经查不到这一发了"
+msgstr "Ark no longer has any record of this run"
 
 #: src/ai/real.ts
 msgid "方舟那边查不到这一发了（任务号查无此物）——多半是产物已经过了 24 小时被清掉。真是这样的话这一段取不回来了，已经花掉的钱无法挽回；重新生成是重新下一单、会再花一次钱"
@@ -14671,6 +14785,10 @@ msgstr "The server couldn't delete this video ({why}). The copy on this device s
 msgid "服务器登记的这一发已经过了 24 小时，成片取不到了。如果你当时已经在别处拿到了它，忽略这条就好。"
 msgstr "This job from the server's records is more than 24 hours old, so its video can no longer be fetched. If you already got it somewhere else back then, just ignore this."
 
+#: src/components/flow/SegmentRecoverCards.tsx
+msgid "服务器登记的那一发没出成（{why}）。{moneyLine}要这一段的话重新生成（会重新计费）。"
+msgstr "The run registered on the server didn't come out ({why}). {moneyLine} Regenerate it if you still want this segment (charged again)."
+
 #: src/api/branch.ts
 msgid "服务器说结果取回成功了，却没有返回模板信息（可能是旧版服务端）。这一步本身不花钱，钱在开炼那一步已经付过——去「我的模板」确认一下有没有新模板，没有的话请把这句话反馈给我们。"
 msgstr "The server said the result was recovered, but it didn't return the template info (it may be an older server version). This step itself costs nothing — the charge was already paid when the blockout started. Check “My templates” for a new template, and if there isn't one, please send us this message."
@@ -14849,8 +14967,8 @@ msgid "未经同意的私密影像"
 msgstr "Non-consensual intimate imagery"
 
 #: src/ai/minimaxVideo.ts
-msgid "未说明原因"
-msgstr "no reason given"
+#~ msgid "未说明原因"
+#~ msgstr "no reason given"
 
 #: src/components/CoverPicker.tsx
 msgid "未选封面"
@@ -15205,6 +15323,14 @@ msgstr "The title can't be empty"
 msgid "标题进详情页"
 msgstr "Tap the title for details"
 
+#: src/ai/arkClient.ts
+msgid "样片（480p 预览，满意再定稿）"
+msgstr "Preview draft (480p, finalize if you like it)"
+
+#: src/ai/arkClient.ts
+msgid "样片定稿（升成 1080p）"
+msgstr "Finalize preview draft (upgrade to 1080p)"
+
 #: src/pages/tutor/TutorNewPage.tsx
 msgid "核对中…"
 msgstr "Checking…"
@@ -15238,8 +15364,12 @@ msgid "核对角色位编号"
 msgstr "Check role slot numbers"
 
 #: src/components/guide/tours.tsx
-msgid "框出哪一段、裁出哪一块，就是 AI 真正拿去白模化的全部内容；再加上下面 「AI 看哪几帧」，决定它认不认得全画面里的人。<0>这一发多少钱</0>只看时长（越长越贵，多看几帧不额外收费）， 而钱一开始算就退不了。"
-msgstr "The part you select and the area you crop are everything the AI actually turns into a blockout; “Frames for the AI to look at” below decides whether it catches everyone in the shot. <0>What this run costs</0> depends only on the duration (longer costs more; looking at more frames costs nothing extra), and once charging starts it can't be refunded."
+#~ msgid "框出哪一段、裁出哪一块，就是 AI 真正拿去白模化的全部内容；再加上下面 「AI 看哪几帧」，决定它认不认得全画面里的人。<0>这一发多少钱</0>只看时长（越长越贵，多看几帧不额外收费）， 而钱一开始算就退不了。"
+#~ msgstr "The part you select and the area you crop are everything the AI actually turns into a blockout; “Frames for the AI to look at” below decides whether it catches everyone in the shot. <0>What this run costs</0> depends only on the duration (longer costs more; looking at more frames costs nothing extra), and once charging starts it can't be refunded."
+
+#: src/components/guide/tours.tsx
+msgid "框出哪一段、裁出哪一块，就是 AI 真正拿去白模化的全部内容；再加上下面 「AI 看哪几帧」，决定它认不认得全画面里的人。<0>这一发多少钱</0>只看时长（越长越贵，多看几帧不额外收费）； 开炼那一刻就扣钱，「AI 看帧」那一笔不论成败都照收。"
+msgstr "The part you select and the area you crop are everything the AI actually turns into a blockout; “Frames for the AI to look at” below decides whether it catches everyone in the shot. <0>What this run costs</0> depends only on the duration (longer costs more; looking at more frames costs nothing extra); it's charged the moment you start, and the “frames the AI looks at” charge stays charged whether or not the run succeeds."
 
 #: src/components/PhotoSubjectPicker.tsx
 msgid "框出这件道具"
@@ -16462,6 +16592,16 @@ msgstr "Nothing was parsed."
 msgid "没有进行中的工单"
 msgstr "No active tickets"
 
+#: src/ai/failCharge.ts
+msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
+msgid "没有退回"
+msgstr "not refunded"
+
+#: src/ai/failCharge.ts
+msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
+msgid "没有退回，画面 {count} 张也已计费"
+msgstr "{count, plural, one {not refunded, and the # frame was charged too} other {not refunded, and the # frames were charged too}}"
+
 #: src/data/videoDownload.ts
 msgid "没有选择去处。文件还在 App 里，随时可以再点「分享 / 另存为」。"
 msgstr "No destination chosen. The file is still in the app — tap “Share / Save as” again anytime."
@@ -17661,6 +17801,10 @@ msgstr "Generating"
 msgid "生成中…"
 msgstr "Generating…"
 
+#: src/pages/NotificationsPage.tsx
+msgid "生成失败，token 已退回"
+msgstr "A generation failed and its tokens were refunded"
+
 #. placeholder {0}: err.slice(0, 140)
 #: src/components/CoverPicker.tsx
 msgid "生成失败：{0}"
@@ -17681,6 +17825,14 @@ msgstr "Generation spec mismatch: reference images / a reference video can't be 
 #: src/ai/real.ts
 msgid "生成契约不一致：参考音频只能随参考图 / 参考视频发（首尾帧任务混参考媒体是 400）"
 msgstr "Generation spec mismatch: reference audio can only go with reference images / a reference video (mixing reference media into a first/last-frame job is a 400)"
+
+#: src/ai/real.ts
+msgid "生成契约不一致：样片不收参考视频（方舟只对不带视频输入的出片开了样片）"
+msgstr "Generation contract mismatch: preview drafts don't take a reference video (Ark only offers preview drafts for jobs without video input)"
+
+#: src/ai/real.ts
+msgid "生成契约不一致：样片定稿只带样片本身（提示词、画面、声音都由样片沿用，重传会被方舟拒）"
+msgstr "Generation contract mismatch: finalizing a preview draft sends only the draft itself (the prompt, frames and audio are all reused from the draft; sending them again is rejected by Ark)"
 
 #: src/ai/real.ts
 msgid "生成契约不一致：真人档只收首帧，不收参考图 / 参考视频 / 参考音频"
@@ -17983,6 +18135,16 @@ msgstr "Drawing this set costs up to {price} tokens — not enough balance. Top 
 msgid "画面"
 msgstr "Frame"
 
+#: src/ai/failCharge.ts
+msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
+msgid "画面 {count} 张已计费，视频可能也扣了"
+msgstr "{count, plural, one {# frame charged, the video may also have been charged} other {# frames charged, the video may also have been charged}}"
+
+#: src/ai/failCharge.ts
+msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
+msgid "画面 {count} 张已计费，视频没扣钱"
+msgstr "{count, plural, one {# frame charged, the video wasn't charged} other {# frames charged, the video wasn't charged}}"
+
 #: src/components/flow/GridShotsWizard.tsx
 msgid "画面：一个瞬间，谁在哪、什么姿势和表情"
 msgstr "Picture: one moment — who is where, their pose and expression"
@@ -17994,6 +18156,11 @@ msgstr "The picture <0>may show two mannequins with the same number</0>, or <1>a
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "画面上还有一个白色人偶没列出来？把它加回来"
 msgstr "Another white mannequin in the picture isn't listed? Add it back"
+
+#: src/ai/failCharge.ts
+msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
+msgid "画面与视频都已计费"
+msgstr "frames and video both charged"
 
 #: src/studio/ui/projection.tsx
 msgid "画面与运镜整个来自模板视频——写好那句话（或挂完卡）就能开炼"
@@ -18055,6 +18222,10 @@ msgstr "The picture isn't ready yet. Wait until the video shows, then tap again"
 #: src/components/flow/GridShotsWizard.tsx
 msgid "画面里写到了「{outside}」，上面却没选：画的时候多半会把他们画进去、还带不上卡图 —— 要他们入镜就点上，不要就把名字改成「画外的人」。"
 msgstr "The picture mentions “{outside}”, who aren’t selected above: they’ll most likely be drawn in without their card images. Select them if they should be in shot; otherwise change the name to “someone off-screen”."
+
+#: src/ai/arkClient.ts
+msgid "画面里可能有真人，被方舟拒了"
+msgstr "the frames may show a real person, so Ark rejected it"
 
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "画面里怎么认出这个人偶（这句话会进出片提示词）"
@@ -18652,8 +18823,12 @@ msgid "真人档出片取件失败（HTTP {status}）：{body}"
 msgstr "Real-person tier: fetching the file failed (HTTP {status}): {body}"
 
 #: src/ai/minimaxVideo.ts
-msgid "真人档出片失败：{why}"
-msgstr "Real-person tier video failed: {why}"
+msgid "真人档出片失败：{reason}"
+msgstr "Real-person video failed: {reason}"
+
+#: src/ai/minimaxVideo.ts
+#~ msgid "真人档出片失败：{why}"
+#~ msgstr "Real-person tier video failed: {why}"
 
 #: src/ai/minimaxVideo.ts
 msgid "真人档出片成功却没有文件号——上游协议变了，把这句话反馈给我们"
@@ -18971,6 +19146,16 @@ msgstr "Video request (missing frames are drawn from it; it's also the video pro
 msgid "视频读不出来"
 msgstr "Couldn't read the video"
 
+#: src/ai/failCharge.ts
+msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
+msgid "视频费会退回，画面 {count} 张已计费"
+msgstr "{count, plural, one {video refund on the way, # frame charged} other {video refund on the way, # frames charged}}"
+
+#: src/ai/failCharge.ts
+msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
+msgid "视频费已退回，画面 {count} 张已计费"
+msgstr "{count, plural, one {video refunded, # frame charged} other {video refunded, # frames charged}}"
+
 #: src/pages/CutPage.tsx
 msgid "视频载入中…"
 msgstr "Loading video…"
@@ -18978,6 +19163,26 @@ msgstr "Loading video…"
 #: src/api/uploads.ts
 msgid "视频边长至少 {minEdge} 像素（当前 {width}×{height}）：比这更小的画面，裁剪框怎么拉都达不到 AI 引擎的下限。"
 msgstr "Each side of the video must be at least {minEdge} pixels (this one is {width}×{height}): with a smaller frame, no crop box can reach the AI engine's minimum."
+
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "视频那一发扣的 token 没有退回，出片前画好的 {count} 张画面也已按张计费（共 {paid} token）——以「我的」页的 token 余额为准。"
+msgstr "The tokens charged for the video weren't refunded, and {count, plural, one {the # frame drawn before it was charged too} other {the # frames drawn before it were charged per image too}} ({paid} tokens in total) — check your token balance on the “Me” page."
+
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "视频那部分扣的 {n} token 已经退回；出片前画好的 {count} 张画面已按张计费（共 {paid} token）。"
+msgstr "The {n} tokens charged for the video have been refunded; {count, plural, one {the # frame drawn before it was charged} other {the # frames drawn before it were charged per image}} ({paid} tokens in total)."
+
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "视频那部分扣的 token 会退回（到账以「我的」页的 token 余额为准）；出片前画好的 {count} 张画面已按张计费（共 {paid} token）。"
+msgstr "The tokens charged for the video will be refunded (check your token balance on the “Me” page); {count, plural, one {the # frame drawn before it was charged} other {the # frames drawn before it were charged per image}} ({paid} tokens in total)."
+
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "视频那部分扣的 token 已经退回；出片前画好的 {count} 张画面已按张计费（共 {paid} token）。"
+msgstr "The tokens charged for the video have been refunded; {count, plural, one {the # frame drawn before it was charged} other {the # frames drawn before it were charged per image}} ({paid} tokens in total)."
 
 #: src/pages/tutor/TutorNewPage.tsx
 msgid "禁止"
@@ -19312,14 +19517,14 @@ msgstr "Segment {0} has no blockout template to place cards on (only blockout te
 
 #. placeholder {0}: idx + 1
 #: src/studio/flowStore.ts
-msgid "第 {0} 段生成失败"
-msgstr "Segment {0} failed to generate"
+#~ msgid "第 {0} 段生成失败"
+#~ msgstr "Segment {0} failed to generate"
 
 #. placeholder {0}: idx + 1
 #. placeholder {1}: msg.slice(0, 240)
 #: src/studio/flowStore.ts
-msgid "第 {0} 段生成失败：{1}"
-msgstr "Segment {0} failed to generate: {1}"
+#~ msgid "第 {0} 段生成失败：{1}"
+#~ msgstr "Segment {0} failed to generate: {1}"
 
 #. placeholder {0}: i + 1
 #. placeholder {1}: rn.tpl.title
@@ -19373,6 +19578,11 @@ msgstr "Segment {0} isn't unlocked yet (earlier segments must be rendered first)
 #: src/components/flow/SegmentRecoverCards.tsx
 msgid "第 {0} 段那一发已经取不回来了"
 msgstr "Segment {0}'s video can no longer be recovered"
+
+#. placeholder {0}: job.seg
+#: src/components/flow/SegmentRecoverCards.tsx
+msgid "第 {0} 段那一发没出成（{why}）。{moneyLine}要这一段的话重新生成（会重新计费）。"
+msgstr "That run for segment {0} didn't come out ({why}). {moneyLine} Regenerate it if you still want this segment (charged again)."
 
 #. placeholder {0}: i + 1
 #: src/studio/flowStore.ts
@@ -19486,6 +19696,26 @@ msgstr "Segment {n} was on “{label}” (not supported by this server yet); swi
 #: src/studio/flowStore.ts
 msgid "第 {n} 段原来的档位已经下线，改用「{b}」档"
 msgstr "Segment {n}'s original tier is retired; switched to “{b}”"
+
+#: src/studio/flowStore.ts
+msgid "第 {n} 段没出成，token 已退回"
+msgstr "Segment {n} didn't come out — tokens refunded"
+
+#: src/studio/flowStore.ts
+msgid "第 {n} 段没出成：{why}。{moneyLine}重新生成会重新计费。"
+msgstr "Segment {n} didn't come out: {why}. {moneyLine} Regenerating is charged again."
+
+#: src/studio/flowStore.ts
+msgid "第 {n} 段生成失败"
+msgstr "Segment {n} failed to generate"
+
+#: src/studio/flowStore.ts
+msgid "第 {n} 段生成失败：{why}"
+msgstr "Segment {n} failed to generate: {why}"
+
+#: src/studio/flowStore.ts
+msgid "第 {n} 段生成失败：{why}。{moneyLine}"
+msgstr "Segment {n} failed to generate: {why}. {moneyLine}"
 
 #: src/pages/CutPage.tsx
 msgid "第 {n}/{total} 句…"
@@ -21905,6 +22135,10 @@ msgstr "Type the instruction in the input bar first, then save it as a skill"
 msgid "输入用户名确认"
 msgstr "Type the username to confirm"
 
+#: src/ai/arkClient.ts
+msgid "输入的文字或图片没过方舟的内容审核"
+msgstr "the text or images you gave didn't pass Ark's content review"
+
 #: src/pages/SettingsDeactivatePage.tsx
 msgid "输入的用户名还对不上"
 msgstr "The username you typed doesn't match yet"
@@ -21981,6 +22215,10 @@ msgid "还剩 {h} 小时 {m} 分钟可以取回——AI 出片的产物只在服
 msgstr "{h, plural, one {# hour} other {# hours}} {m, plural, one {# minute} other {# minutes}} left to recover it — AI video output is kept on the server for only 24 hours and can't be recovered after it expires, and this job has already been paid for."
 
 #: src/data/videoJobs.ts
+msgid "还剩 {h} 小时 {m} 分钟可以取回——方舟的成片只留 24 小时，过期就没了。这一发的钱在提交那一刻就已经扣了，万一最后没出成会自动退回；取回不再花一分钱，点「重新生成」是重新下一单、会再花一次。"
+msgstr "{h, plural, one {# hour} other {# hours}} {m, plural, one {# minute} other {# minutes}} left to recover — Ark keeps videos for only 24 hours, then they're gone. This job was charged the moment it was submitted, and if it ends up failing it's refunded automatically; recovering costs nothing more, and tapping “Regenerate” places a new order and costs again."
+
+#: src/data/videoJobs.ts
 msgid "还剩 {h} 小时 {m} 分钟可以取回——方舟的成片只留 24 小时，过期就没了。这一发的钱在提交那一刻就已经花掉了，取回不再花一分钱；点「重新生成」是重新下一单、会再花一次。"
 msgstr "{h, plural, one {# hour} other {# hours}} {m, plural, one {# minute} other {# minutes}} left to recover — Ark keeps videos for only 24 hours, then they're gone. This job was paid for the moment it was submitted, so recovering costs nothing more; tapping “Regenerate” places a new order and costs again."
 
@@ -21991,6 +22229,10 @@ msgstr "{left, plural, one {# still didn't upload} other {# still didn't upload}
 #: src/data/templates.ts
 msgid "还剩 {m} 分钟可以取回——AI 出片的产物只在服务器上留 24 小时，过期就取不回来了，而这一发的钱已经付过。"
 msgstr "{m, plural, one {# minute} other {# minutes}} left to recover it — AI video output is kept on the server for only 24 hours and can't be recovered after it expires, and this job has already been paid for."
+
+#: src/data/videoJobs.ts
+msgid "还剩 {m} 分钟可以取回——方舟的成片只留 24 小时，过期就没了。这一发的钱在提交那一刻就已经扣了，万一最后没出成会自动退回；取回不再花一分钱，点「重新生成」是重新下一单、会再花一次。"
+msgstr "{m, plural, one {# minute} other {# minutes}} left to recover — Ark keeps videos for only 24 hours, then they're gone. This job was charged the moment it was submitted, and if it ends up failing it's refunded automatically; recovering costs nothing more, and tapping “Regenerate” places a new order and costs again."
 
 #: src/data/videoJobs.ts
 msgid "还剩 {m} 分钟可以取回——方舟的成片只留 24 小时，过期就没了。这一发的钱在提交那一刻就已经花掉了，取回不再花一分钱；点「重新生成」是重新下一单、会再花一次。"
@@ -22353,8 +22595,16 @@ msgid "这一发已经付过费，但服务器没说结果能留到什么时候�
 msgstr "This job has already been paid for, but the server didn't say how long the result will be kept — recover it as soon as you can."
 
 #: src/data/videoJobs.ts
+msgid "这一发已经取不回来了：方舟的成片只在服务器上留 24 小时，现在已经过期。如果方舟那边其实是失败了，扣的 token 会自动退回（到账时会通知你）；如果是出成了却没来得及取回，这笔钱就无法挽回了——重新生成是再花一次钱。"
+msgstr "This job can no longer be recovered: Ark keeps videos on its servers for only 24 hours, and it has expired. If it actually failed on Ark's side, the tokens are refunded automatically (you'll get a notification when they land); if it succeeded but wasn't recovered in time, that money can't be recovered — regenerating costs again."
+
+#: src/data/videoJobs.ts
 msgid "这一发已经取不回来了：方舟的成片只在服务器上留 24 小时，现在已经过期。已经花掉的钱无法挽回——这不是超时重来，重新生成是再花一次钱。"
 msgstr "This job can no longer be recovered: Ark keeps videos on its servers for only 24 hours, and it has expired. The money already spent can't be recovered — this isn't a timeout retry, and regenerating costs again."
+
+#: src/data/videoJobs.ts
+msgid "这一发我们不再跟进了：任务号还在下面，如果一直没取回来，把它发给客服还有机会。如果上游那边其实是失败了，扣的 token 会自动退回（到账时会通知你）；如果是出成了却没取回，这笔钱就无法挽回了——重新生成是再花一次钱。"
+msgstr "We've stopped tracking this job: the task ID is still below, and if you never got the video, sending it to support may still help. If it actually failed upstream, the tokens are refunded automatically (you'll get a notification when they land); if it succeeded but wasn't recovered, that money can't be recovered — regenerating costs again."
 
 #: src/data/videoJobs.ts
 msgid "这一发我们不再跟进了：任务号还在下面，如果一直没取回来，把它发给客服还有机会。已经花掉的钱我们这边退不了——重新生成是再花一次钱。"
@@ -22363,6 +22613,38 @@ msgstr "We've stopped tracking this job: the job ID is below, and if it never co
 #: src/components/flow/SegmentRecoverCards.tsx
 msgid "这一发我已经拿到了，不用再提醒"
 msgstr "I already have this one, don't remind me"
+
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "这一发扣的 token 没有退回——以「我的」页的 token 余额为准。"
+msgstr "The tokens charged for this run weren't refunded — check your token balance on the “Me” page."
+
+#: src/data/videoJobs.ts
+msgid "这一发没出成，扣的 {n} token 已经退回——没有成片可取了，点「知道了」消掉这条就好。"
+msgstr "This run didn't come out, and the {n} tokens charged have been refunded — there's no video to recover, so just tap “Got it” to dismiss this."
+
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "这一发没出成，扣的 {n} token 已经退回。"
+msgstr "This run didn't produce a result, so the {n} tokens charged for it have been refunded."
+
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "这一发没出成，扣的 token 会退回——到账以「我的」页的 token 余额为准。"
+msgstr "This run didn't produce a result; the tokens will be refunded — check the token balance on the “Me” page."
+
+#: src/data/videoJobs.ts
+msgid "这一发没出成，扣的 token 会退回（到账以「我的」页的 token 余额为准）——没有成片可取了。"
+msgstr "This run didn't come out; the tokens will be refunded (check the token balance on the “Me” page) — there's no video to recover."
+
+#: src/data/videoJobs.ts
+msgid "这一发没出成，扣的 token 已经退回——没有成片可取了，点「知道了」消掉这条就好。"
+msgstr "This run didn't come out, and the tokens charged have been refunded — there's no video to recover, so just tap “Got it” to dismiss this."
+
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "这一发没出成，扣的 token 已经退回。"
+msgstr "This run didn't produce a result; the tokens charged for it have been refunded."
 
 #: src/components/TemplateShelf.tsx
 msgid "这一发白模化已经取不回来了"
@@ -22375,6 +22657,10 @@ msgstr "This blockout is estimated at {price} tokens (looking at frames to ident
 #: src/ai/real.ts
 msgid "这一发的状态暂时查不到（{why}）——联网后再点一次「取回」，凭据还在，也不花钱"
 msgstr "Can't look up this run's status right now ({why}) — once you're online, tap “Recover” again; the receipt is still there and it costs nothing"
+
+#: src/data/videoJobs.ts
+msgid "这一发的钱在提交那一刻就已经扣了，任务多半还在上游跑；万一最后没出成，会自动退回 —— 点「取回」不重新下单、不再花一分钱；点「重新生成」是重新下一单、会再花一次。出片通常 1~2 分钟，隔一会儿再点一次。"
+msgstr "This job was charged the moment it was submitted, and it's most likely still running upstream; if it ends up failing it's refunded automatically — tapping “Recover” doesn't place a new order and costs nothing more; tapping “Regenerate” places a new order and costs again. Videos usually take 1–2 minutes, so tap again in a little while."
 
 #: src/data/videoJobs.ts
 msgid "这一发的钱在提交那一刻就已经花掉了，任务多半还在上游跑 —— 点「取回」不重新下单、不再花一分钱；点「重新生成」是重新下一单、会再花一次。出片通常 1~2 分钟，隔一会儿再点一次。"
@@ -22624,10 +22910,12 @@ msgid "这一步不花钱：框好要用的那一段点「下一步」，下一�
 msgstr "This step costs nothing: box the part you want and tap “Next”; on the next step you'll mark frames on <0>the part you boxed</0>, and the price is spelled out in full there, before “Make template”."
 
 #. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
 #: src/ai/failCharge.ts
 msgid "这一步可能已经扣了 {price} token——以「我的」页的 token 余额为准。"
 msgstr "This step may already have been charged {price} tokens — check your token balance on the “Me” page."
 
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
 #. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
 #: src/ai/failCharge.ts
 msgid "这一步已计费 {price} token。"
@@ -24958,6 +25246,10 @@ msgstr "Re-check numbers"
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "重新核对编号 —— 画面上有两个一样的号？有个号找不着？点这里改，不用重炼"
 msgstr "Re-check numbers — two identical numbers in the picture? A number you can't find? Tap here to fix it, no re-render needed"
+
+#: src/pages/CutPage.tsx
+msgid "重新生成中断：{why}。{moneyLine}已经改好的段已经保住了（它们的圈选也清掉了），再点一次只会重做剩下的那几段"
+msgstr "Regeneration stopped: {why}. {moneyLine} The segments already redone are kept (their selections are cleared too), so tapping again only redoes the remaining ones"
 
 #: src/pages/CutPage.tsx
 msgid "重新生成中断：{why}。已经改好的段已经保住了（它们的圈选也清掉了），再点一次只会重做剩下的那几段"

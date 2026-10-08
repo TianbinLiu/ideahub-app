@@ -707,8 +707,8 @@ export const TOURS: GuideTour[] = [
         body: (
           <Trans>
             框出哪一段、裁出哪一块，就是 AI 真正拿去白模化的全部内容；再加上下面
-            「AI 看哪几帧」，决定它认不认得全画面里的人。<b className="font-bold text-slate-100">这一发多少钱</b>只看时长（越长越贵，多看几帧不额外收费），
-            而钱一开始算就退不了。
+            「AI 看哪几帧」，决定它认不认得全画面里的人。<b className="font-bold text-slate-100">这一发多少钱</b>只看时长（越长越贵，多看几帧不额外收费）；
+            开炼那一刻就扣钱，「AI 看帧」那一笔不论成败都照收。
           </Trans>
         ),
       },

@@ -1,9 +1,10 @@
 // 「一发**已经付过钱、还没取回成片**的出片任务」—— 本机凭据与那个 24 小时取回入口。
 //
 // ══ 为什么要有这一整个文件 ═══════════════════════════════════════════════
-// 出片是**先扣钱、再等**的：契约「先扣钱、再转发；上游没受理就原路退回」+「受理之后才
-// 失败不退」（docs/api-contract.md「扣费」）。也就是说任务一被方舟受理，这一发的钱就
-// 已经花掉了，而后面还要等最长 25.5 分钟（死线按输出秒数缩放，见 arkClient）。
+// 出片是**先扣钱、再等**的：契约「先扣钱、再转发；上游没受理就原路退回」（docs/api-contract.md「扣费」）。
+// 也就是说任务一被方舟受理，这一发的钱就已经扣了，而后面还要等最长 25.5 分钟（死线按输出秒数缩放，见 arkClient）。
+// （2026-10-07 起受理之后上游**明说失败**的那一发由服务端按原桶退回；但"没接到结果"不是失败 —— 成片多半好好的，
+//  钱也不会退，取回它才是不再花钱的那条路。）
 // 这段时间里手机切后台、弱网断线、**App 进程被系统回收**，任何一条都会让客户端接不到结果。
 //
 // 在这个文件之前，接不到结果 = `throw` → 节点被打成 `status:"failed"` → 界面上唯一
@@ -40,8 +41,10 @@
 import type { VideoAspect } from "../types";
 import { t } from "@lingui/core/macro";
 import { API_BASE, apiGet, getToken } from "../api/client";
+import { fetchTaskCharge, type TaskRefund } from "../ai/arkClient";
 import { deviceOwner, mayClaimLegacy, onViewerChange, workOwner } from "./deviceOwner";
-import { tierIdOf } from "./economy";
+import { fmtTokens, tierIdOf } from "./economy";
+import { serverSupports } from "./serverCaps";
 
 export const VIDEO_JOB_TTL_MS = 24 * 3600_000;
 
@@ -117,6 +120,18 @@ export interface VideoJob {
    * ★ 只存地址不存整个模板：模板对象带 refVideo/roles/cards，塞 localStorage 会顶配额。
    */
   tplRefVideo?: string;
+  /**
+   * 电影级「样片」两步（2026-10-07）：这一发是哪一步。缺省 = 普通出片（老凭据天然没有 —— 判否定）。
+   * ★ 取回时要把样片的那几样（任务号 / 时刻 / 时长 / 画幅）原样落回方案上（flowStore.draftPatchOf）：
+   *   不落的话取回来的样片就只是一段 480p 的普通片，「定稿」那颗键再也找不到它的任务号 —— 7 天内本来还能升成 1080p。
+   *   "final" 那一步取回来要把样片留成「上一版」（与当场出片同一个写回）。
+   */
+  draftStep?: "draft" | "final";
+  /** 样片第一步：送进请求体的画幅与整数时长（定稿报价按它们算，服务端按同样两样结算） */
+  draftRatio?: string;
+  draftDur?: number;
+  /** 样片第二步：升的是哪条样片（服务端登记表的 draftOf） */
+  draftOf?: string;
   createdAt: number;
   /**
    * 这一发是**谁付的钱**（user.id，见 data/deviceOwner）—— 取回卡只摆给他看、只有他取得回。
@@ -264,6 +279,9 @@ export function videoJobExpired(job: VideoJob): boolean {
  *   "无法挽回"比让他以为随时能回来取要好得多（templates.blockoutJobNote 同一条理由）。
  */
 export function videoJobNote(job: VideoJob): string {
+  // 这台服务端会不会把受理之后明说失败的那一发退回（能力位 failRefund，2026-10-07）。不知道（还没探到）按不会说 ——
+  // 许一个兑现不了的「会退回」比少说一句坏
+  const refunds = serverSupports("failRefund") === true;
   // ★★ 真人档**不许出现任何小时数**：24 小时那个数是方舟产物 TOS 签名地址的物理事实，
   //   我们从没量过 MiniMax 那边留多久，仓里也没有任何一处记过。编一个数出来，
   //   用户会照着它决定"还来得及，明天再取" —— 而那正是最坏的一种错。
@@ -275,18 +293,73 @@ export function videoJobNote(job: VideoJob): string {
     // ★ 登记表补来的那种不能断言"钱白花了"：它很可能在别的设备 / 官网上早就取到了（见 videoJobFromServer）
     if (videoJobFromServer(job))
       return t`服务器登记的这一发已经过了 24 小时，成片取不到了。如果你当时已经在别处拿到了它，忽略这条就好。`;
+    // ★★ 说「无法挽回」之前先问服务端那一笔账（2026-10-07）：这一发要是在方舟那边失败了，清扫器早就替他退过钱 ——
+    //   对一笔已经退回来的钱说「无法挽回」是往吓人的方向说错。问的结果缓存在 jobCharges（卡片挂上时 checkVideoJobCharge 去问）
+    const charge = refunds ? videoJobCharge(job.taskId) : null;
+    if (charge?.state === "refunded") {
+      const n = fmtTokens(charge.tokens);
+      return charge.tokens > 0
+        ? t`这一发没出成，扣的 ${n} token 已经退回——没有成片可取了，点「知道了」消掉这条就好。`
+        : t`这一发没出成，扣的 token 已经退回——没有成片可取了，点「知道了」消掉这条就好。`;
+    }
+    if (charge?.state === "refunding") return t`这一发没出成，扣的 token 会退回（到账以「我的」页的 token 余额为准）——没有成片可取了。`;
+    if (refunds && charge?.state !== "settled") {
+      // 服务端还没给结局（或问不到）：两种情况都说，别替上游宣判（与服务端白模化取件单过期那句同一个口径）
+      return flat
+        ? t`这一发我们不再跟进了：任务号还在下面，如果一直没取回来，把它发给客服还有机会。如果上游那边其实是失败了，扣的 token 会自动退回（到账时会通知你）；如果是出成了却没取回，这笔钱就无法挽回了——重新生成是再花一次钱。`
+        : t`这一发已经取不回来了：方舟的成片只在服务器上留 24 小时，现在已经过期。如果方舟那边其实是失败了，扣的 token 会自动退回（到账时会通知你）；如果是出成了却没来得及取回，这笔钱就无法挽回了——重新生成是再花一次钱。`;
+    }
     return flat
       ? t`这一发我们不再跟进了：任务号还在下面，如果一直没取回来，把它发给客服还有机会。已经花掉的钱我们这边退不了——重新生成是再花一次钱。`
       : t`这一发已经取不回来了：方舟的成片只在服务器上留 24 小时，现在已经过期。已经花掉的钱无法挽回——这不是超时重来，重新生成是再花一次钱。`;
   }
   const h = Math.floor(left / 3600_000);
   const m = Math.floor((left % 3600_000) / 60_000);
+  // ★ 会退钱的服务端上多说半句「万一最后没出成会自动退回」：钱在提交那一刻是扣着的，但不是白扔 —— 不说的话人会以为
+  //   这一发要是废了钱就没了，于是不敢等、去点「重新生成」（那才是真的再花一次）。老服务端不退，不许这么说
   if (flat) {
-    return t`这一发的钱在提交那一刻就已经花掉了，任务多半还在上游跑 —— 点「取回」不重新下单、不再花一分钱；点「重新生成」是重新下一单、会再花一次。出片通常 1~2 分钟，隔一会儿再点一次。`;
+    return refunds
+      ? t`这一发的钱在提交那一刻就已经扣了，任务多半还在上游跑；万一最后没出成，会自动退回 —— 点「取回」不重新下单、不再花一分钱；点「重新生成」是重新下一单、会再花一次。出片通常 1~2 分钟，隔一会儿再点一次。`
+      : t`这一发的钱在提交那一刻就已经花掉了，任务多半还在上游跑 —— 点「取回」不重新下单、不再花一分钱；点「重新生成」是重新下一单、会再花一次。出片通常 1~2 分钟，隔一会儿再点一次。`;
+  }
+  if (refunds) {
+    return h > 0
+      ? t`还剩 ${h} 小时 ${m} 分钟可以取回——方舟的成片只留 24 小时，过期就没了。这一发的钱在提交那一刻就已经扣了，万一最后没出成会自动退回；取回不再花一分钱，点「重新生成」是重新下一单、会再花一次。`
+      : t`还剩 ${m} 分钟可以取回——方舟的成片只留 24 小时，过期就没了。这一发的钱在提交那一刻就已经扣了，万一最后没出成会自动退回；取回不再花一分钱，点「重新生成」是重新下一单、会再花一次。`;
   }
   return h > 0
     ? t`还剩 ${h} 小时 ${m} 分钟可以取回——方舟的成片只留 24 小时，过期就没了。这一发的钱在提交那一刻就已经花掉了，取回不再花一分钱；点「重新生成」是重新下一单、会再花一次。`
     : t`还剩 ${m} 分钟可以取回——方舟的成片只留 24 小时，过期就没了。这一发的钱在提交那一刻就已经花掉了，取回不再花一分钱；点「重新生成」是重新下一单、会再花一次。`;
+}
+
+// ── 「这一发退没退钱」（GET /api/ark/task-charges/:id）────────────────────
+// ★ 只为过期的那几张卡问（videoJobNote 说「无法挽回」之前），一个任务号一个会话只问一次；问不到（老服务端 / 断网）记 null，
+//   照旧说那句两种情况都说的话（服务端会退的话）或原来那句（服务端不退的话）。
+// ★ 不落盘：退款状态是服务端的真相，下次冷启动再问一次就是了（一次 GET，不计费）。
+const jobCharges = new Map<string, TaskRefund | null | "asking">();
+
+/** 问过的结果（undefined = 还没问 / 正在问；null = 问不到） */
+export function videoJobCharge(taskId: string): TaskRefund | null | undefined {
+  const v = jobCharges.get(taskId);
+  return v === "asking" ? undefined : v;
+}
+
+/** 去问一次这一发的账（卡片挂上、而凭据已经过期时调）。到了 emit，卡片重画 */
+export async function checkVideoJobCharge(job: VideoJob): Promise<void> {
+  if (jobCharges.has(job.taskId)) return;
+  if (!API_BASE || !getToken() || serverSupports("failRefund") === false) {
+    jobCharges.set(job.taskId, null);
+    return;
+  }
+  jobCharges.set(job.taskId, "asking");
+  const r = await fetchTaskCharge(job.taskId);
+  jobCharges.set(job.taskId, r);
+  emit();
+}
+
+/** 这条凭据还在不在本机（取回失败之后卡片据此判断「凭据是不是刚被结案」—— 结案了卡就卸载了，那句话要改用轻提示说） */
+export function videoJobKnown(taskId: string): boolean {
+  return jobs.some((j) => j.taskId === taskId);
 }
 
 /**
@@ -411,6 +484,9 @@ interface ServerVideoTask {
   ratio?: string;
   prompt?: string;
   r2v?: boolean;
+  /** 2026-10-07 起服务端登记：这一发是电影级样片的第一步 / 第二步升的是哪条样片（见 VideoJob.draftStep） */
+  draft?: boolean;
+  draftOf?: string;
 }
 
 function aspectOfRatio(ratio: string | undefined): VideoAspect | undefined {
@@ -489,6 +565,16 @@ export async function importServerVideoJobs(): Promise<number> {
       // 是哪一档按（模型, 分辨率）认（economy.tierIdOf）：不写的话取回安放的那一段落在兜底档上，之后的重拍 / 延长按错的档报价
       ...(tierIdOf(task.model, task.resolution) ? { videoTier: tierIdOf(task.model, task.resolution) } : {}),
       ...(task.prompt ? { plot: task.prompt } : {}),
+      // 样片两步：取回来要把样片的那几样落回方案上（见 VideoJob.draftStep）。时长 / 画幅取登记值（服务端结算定稿时读的也是它们）
+      ...(task.draft
+        ? {
+            draftStep: "draft" as const,
+            ...(task.ratio ? { draftRatio: task.ratio } : {}),
+            ...(task.durationSec && Number.isFinite(task.durationSec) ? { draftDur: task.durationSec } : {}),
+          }
+        : task.draftOf
+          ? { draftStep: "final" as const, draftOf: task.draftOf }
+          : {}),
       createdAt,
       owner,
     };

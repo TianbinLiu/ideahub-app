@@ -305,6 +305,113 @@ export class ArkBatchPartial extends Error {
 }
 
 /**
+ * 服务端对「这一发失败了，钱怎么样了」的回答（GET tasks/:id 回包上的 `refund`、GET /api/ark/task-charges/:id 的回包，
+ * server services/taskRefund.service 的 refundView）。**原样的状态词**，怎么说成人话只在 ai/failCharge 一处。
+ *   refunded  已经按原桶退回（tokens = 退了多少，服务端的数）
+ *   refunding 退款正在办（另一方刚抢到，或者搁浅了等清扫器续办）—— 会退，只是还没到账
+ *   pending   服务端还不知道结局（这一发对它来说还没失败；或真人档退款开关关着）
+ *   settled   上游出成了，钱照收
+ *   skipped   没有要退的（管理员免单 / 一分没扣）
+ *   lost      一直问不出结局，交给人工
+ * ★ 认不出的状态词 = null（当成服务端什么都没说）：宁可按「没退」说（往吓人的方向错），也不许把没退说成退了。
+ */
+export type TaskRefundState = "refunded" | "refunding" | "pending" | "settled" | "skipped" | "lost";
+export interface TaskRefund {
+  state: TaskRefundState;
+  tokens: number;
+}
+const TASK_REFUND_STATES: readonly string[] = ["refunded", "refunding", "pending", "settled", "skipped", "lost"];
+
+/** 回包里的那一小块 → TaskRefund（形状不对 = null）。**唯一解析处**：轮询、取回、task-charges 查询都走它 */
+export function taskRefundOf(x: unknown): TaskRefund | null {
+  const r = x as { state?: unknown; tokens?: unknown } | null | undefined;
+  if (!r || typeof r !== "object" || typeof r.state !== "string" || !TASK_REFUND_STATES.includes(r.state)) return null;
+  const n = Number(r.tokens);
+  return { state: r.state as TaskRefundState, tokens: Number.isFinite(n) && n > 0 ? Math.round(n) : 0 };
+}
+
+/**
+ * 上游**明说**这一发失败了：方舟 `failed` / `cancelled` / `expired`，真人档（MiniMax）`Fail`。
+ *
+ * ★★ 为什么要单独一个类（2026-10-07，主人「做生成失败返回 token」）：原来这一支抛的是裸 Error，到了 composeSegments
+ *   又被压成一个字符串 —— 上层分不出「受理之后才失败（钱扣过、现在会退回）」与「根本没受理（一分没扣）」，
+ *   genNode 的失败那句话于是对钱一个字都不说。钱上的话只认类型（ai/failCharge），所以这里必须是一个类。
+ * ★ `refund` = 服务端在**同一个回包**上说的退款结论（null = 没说：老服务端 / 上线之前的任务 / 不是本人的任务）。
+ *   App **绝不**自己往钱包镜像上加这笔钱（2026-08-10 那次双计数的教训，account.spendTokens 头上）：余额只从响应头 / GET /api/me/wallet 来。
+ * ★ 与 ArkTaskUnknown 是两件事：那个是「我们没看到结局」（凭据留着），这个是「上游给了结局」（没有成片可取了）。
+ * ★ `expired` 也是终态（任务排队 / 运行超过 execution_expires_after —— 服务端给每一发钉了 24 小时 —— 被方舟自动终止）：
+ *   原来没人认它，生成循环会一直等到死线再说「没接到」，取回卡会永远说「过几分钟再点一次」。
+ */
+export class ArkTaskFailed extends Error {
+  constructor(
+    message: string,
+    /** 上游任务号（结案凭据、查退款都靠它） */
+    readonly taskId: string,
+    /** 上游原样的状态词（failed / cancelled / expired / Fail） */
+    readonly status: string,
+    /** 上游的错误码（方舟 error.code；没有 = 空串）。给人看的原因已经写进 reason，这一位只给对账 / 日志 */
+    readonly code: string,
+    /** 服务端的退款结论（见 TaskRefund；null = 服务端没说） */
+    readonly refund: TaskRefund | null,
+    /** 一句给人看的原因（不带「失败」两个字的那半句，调用方自己接整句）*/
+    readonly reason: string,
+    readonly provider: "ark" | "minimax" = "ark",
+  ) {
+    super(message);
+    this.name = "ArkTaskFailed";
+  }
+}
+
+/**
+ * 一段出片的**视频那一发**失败了（创建 / 轮询 / 契约核对）；在它之前可能已经画好了几张画面（补画设定帧 / 圈选改帧，
+ * 每张是一次各自结算的出图调用，framesSettled 张）。
+ * ★ 与 ArkBatchPartial 分开：那个是「同一种调用」的一批（逐格出图，前后单价相同）；这个是「几张图 + 一段视频」——
+ *   前面那几发按出图的价结算，失败的那一发是视频（受理之后失败的现在会退回）。混成一个类的话，钱上那句话
+ *   要么把画面按视频的价报、要么把视频说成「这一张」。
+ * ★ 视频那一发的失败**一律**包（0 张也包，segmentGen.settleSegment）：调用方（genNode）据此知道失败的是视频那一发而不是
+ *   出片前的某一张画面 —— 前者的「可能扣了」按视频的价说，后者按一张图的价说。
+ *   `ArkTaskUnknown` **永远不包**：genNode 靠 instanceof 认它留凭据。
+ * ★ 钱上的话只问 ai/failCharge（它会拆这层壳）；要原因问 briefArkReason（同样会拆）。别对它直接 instanceof 里面那一层。
+ */
+export class SegmentGenFailed extends Error {
+  constructor(
+    /** 视频那一发抛的错（原样，类型不丢） */
+    readonly failure: unknown,
+    /** 出片之前已经结算的出图次数 */
+    readonly framesSettled: number,
+  ) {
+    super(failure instanceof Error ? failure.message : String(failure));
+    this.name = "SegmentGenFailed";
+  }
+}
+
+/** 拆掉包装（SegmentGenFailed / ArkBatchPartial），拿到真正失败的那一发 —— 要按类型分叉的地方一律先过它 */
+export function unwrapFailure(e: unknown): unknown {
+  if (e instanceof SegmentGenFailed || e instanceof ArkBatchPartial) return unwrapFailure(e.failure);
+  return e;
+}
+
+/**
+ * 上游失败码 → 一句给人看的原因 —— **唯一实现**（出片轮询、取回、真人档共用）。
+ * ★ 认**码的形状**（方舟错误码表 code_error-codes：Output…/Input…SensitiveContentDetected、….PolicyViolation、….PrivacyInformation），
+ *   不认 message 的措辞；认不出就照抄上游原话的前一截（总比「失败」两个字有用），再没有就说没给原因。
+ * ★ 原样的英文原话不再整段贴给用户（「Seedance 任务failed: The request failed because the output video may…」）：
+ *   读不懂，还把后半句钱上的话挤出可视区。
+ */
+export function arkFailReason(o: { status: string; code?: string; detail?: string }): string {
+  const code = o.code ?? "";
+  if (o.status === "expired") return t`任务超时没跑完，方舟把它自动终止了`;
+  if (o.status === "cancelled") return t`任务被取消了`;
+  if (/PolicyViolation/i.test(code)) return t`成片可能涉及版权（常见于带版权的音乐、角色），没过方舟的审核`;
+  if (/PrivacyInformation/i.test(code)) return t`画面里可能有真人，被方舟拒了`;
+  if (/^Output\w*SensitiveContentDetected/i.test(code)) return t`成片没过方舟的内容审核`;
+  if (/^(Input\w*)?SensitiveContentDetected/i.test(code)) return t`输入的文字或图片没过方舟的内容审核`;
+  const detail = (o.detail ?? "").trim();
+  if (detail) return detail.slice(0, 80);
+  return t`方舟没有给出原因`;
+}
+
+/**
  * 一句**能给用户看**的失败原因 —— 唯一实现（出片轮询与取回都用它）。
  *
  * ★ 存在的理由是那一坨方舟原文：`Ark /contents/generations/tasks/cgt-… 404: {"error":
@@ -317,8 +424,10 @@ export class ArkBatchPartial extends Error {
  *   原话是「token 余额不足：这一步需要 N，余额 M——去「我的」页充值」，按 40 字截会把「去充值」那半句截掉。
  */
 export function briefArkReason(e: unknown, max = 40): string {
-  // 批量那层壳先拆掉：原因在里面那一发上（不拆的话「没等到回包」会读成一串 `Ark /images/… 网络失败`）
-  if (e instanceof ArkBatchPartial) return briefArkReason(e.failure, max);
+  // 批量 / 出片前画面那层壳先拆掉：原因在里面那一发上（不拆的话「没等到回包」会读成一串 `Ark /images/… 网络失败`）
+  if (e instanceof ArkBatchPartial || e instanceof SegmentGenFailed) return briefArkReason(e.failure, max);
+  // 上游明说失败：原因已经按错误码说成人话了（arkFailReason）
+  if (e instanceof ArkTaskFailed) return e.reason.slice(0, Math.max(max, 80));
   if (e instanceof ArkHttpError) {
     const status = e.status;
     return t`服务器返回 ${status}`;
@@ -878,7 +987,8 @@ export function ratioFor(model: string, mode: "frames" | "reference", want = "16
  * · `omni_reference_task_type: "edit"`：A2 实拍用同素材对拍过 reference vs edit ——
  *   reference 把 14s 源片压进 5s，节奏运镜全毁；**edit 全时长逐镜头复刻，压倒性胜出**。
  *   显式传值还有一层保险（同下面 "reference" 那行的注释）：不传就是 auto，auto 判错
- *   是异步失败且不退费，显式值判错是提交时同步 400、一分钱不花。
+ *   是受理之后的异步失败（2026-10-07 起服务端会退回那一发，但人白等了几十秒、还得重来），
+ *   显式值判错是提交时同步 400、一分钱不扣。
  * · `duration: -1`：edit 的输出时长**跟随输入**（协议行为，A2 实测 14.04s 输入 →
  *   13.67s 计费时长），-1 = 让它跟随。**-1 只许这条路传**：纯任务/参考图路上 -1 是
  *   "模型自选时长"，会把单次成本上界推到 30s —— 那条路照旧走 [3,10] 硬夹（见下）。
@@ -896,11 +1006,11 @@ export function ratioFor(model: string, mode: "frames" | "reference", want = "16
 // ★★ generate_audio 显式 **false**（2026-08-21 真机实拍换来的）：2.5 不传这个参数的
 //   缺省行为是**出声**，而 edit 模式会连参考视频的音频一起复刻 —— 参考视频带版权歌曲
 //   （《What a Day》白模）时，方舟在输出端直接整发拒掉：
-//   `OutputAudioSensitiveContentDetected.PolicyViolation`（受理后失败，钱不退）。
+//   `OutputAudioSensitiveContentDetected.PolicyViolation`（受理后失败；当时钱不退，2026-10-07 起服务端会退回，但片子照样出不来）。
 //   之前的模板都没音轨，模型自造环境音撞不上版权检测，这颗雷一直没响。
 //   关掉零损失：白模成片的音轨本来就由合并页回填原片音频（CutPage 的「原视频音轨」预置），
 //   模型生成的那份从来没人要。代价是无音轨模板的成片少了 AI 环境音 —— 与"带歌模板
-//   整发被拒、钱不退"相比不值一提。server 的 resolveR2v 收显式 false（它钉的是
+//   整发被拒、白等一场"相比不值一提（退款只管钱，管不了那几分钟和那一段出不来的片）。server 的 resolveR2v 收显式 false（它钉的是
 //   「与档位能力一致」，false 恒在允许集里）。
 const BLOCKOUT_TASK = { omni_reference_task_type: "edit", duration: -1, ratio: "adaptive", generate_audio: false } as const;
 
@@ -927,7 +1037,13 @@ function clampToModel(durationSec: number, model: string): number {
 export interface ArkTaskState {
   status: string;
   content?: { video_url?: string; file_url?: string; url?: string };
-  error?: { message?: string };
+  /** 方舟的错误：code 是错误码表里的码（OutputVideoSensitiveContentDetected…），message 是原话（英文） */
+  error?: { message?: string; code?: string };
+  /**
+   * 服务端看见这一发失败时顺手办的退款（2026-10-07，server services/taskRefund.service）：只给任务的主人、只在失败的回包上带。
+   * 形状由 taskRefundOf 解析；老服务端没有这一位。
+   */
+  refund?: unknown;
   /**
    * 服务端顺手转存的进度（只有带 `transfer:true` 问的时候才有，见 fetchArkTask 的 ★★）。
    * `state:"done"` 时 `url` 就是能全球播的永久地址 —— 拿到它，出片那一拍就不必再单独跑一趟转存。
@@ -955,6 +1071,33 @@ export async function fetchArkTask(id: string, opts?: { transfer?: boolean }): P
 }
 
 /**
+ * 这一发（本人的）退没退钱 —— `GET /api/ark/task-charges/:taskId`（2026-10-07，只回本人的账）。不计费。
+ * ★ 用在「方舟那边已经查不到这一发了」那几处（产物过期 / 404）：说「钱无法挽回」之前先问一句 —— 服务端的清扫器可能
+ *   早就替他退过了（App 被杀、没人再来问的那些），那时说「无法挽回」是往吓人的方向说错。
+ * ★ null = 问不出来（老服务端没有这个端点、没有这一笔账、网络不通）—— 调用方照旧说原来那句，别把 null 当「没退」。
+ * ★ dev 下 /api/ark 由 vite 直连方舟，这个端点不存在（404 → null），与打包后连老服务端同一个结论。
+ */
+export async function fetchTaskCharge(taskId: string): Promise<TaskRefund | null> {
+  try {
+    const r = await arkFetch<unknown>(`/task-charges/${encodeURIComponent(taskId)}`, undefined, 15_000);
+    const obj = r as { charge?: unknown } | null;
+    return taskRefundOf(obj && typeof obj === "object" && "charge" in obj ? obj.charge : r);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 方舟回包里的一个终态（failed / cancelled / expired）→ ArkTaskFailed —— **唯一构造处**（出片轮询与取回共用，
+ * 原因说成人话走 arkFailReason，退款结论走 taskRefundOf）。
+ */
+export function arkTaskFailedOf(taskId: string, st: ArkTaskState): ArkTaskFailed {
+  const status = st.status;
+  const reason = arkFailReason({ status, code: st.error?.code, detail: st.error?.message });
+  return new ArkTaskFailed(t`方舟没出成这一发（${reason}）`, taskId, status, st.error?.code ?? "", taskRefundOf(st.refund), reason, "ark");
+}
+
+/**
  * 「**我们不知道这一发怎么样了**」—— 轮询没能盯到结果时抛它，**不是"失败"**。
  *
  * ★★ 为什么必须是一个类而不是一句话：调用方要据此分叉（继续留着取回凭据 vs 当场销毁），
@@ -963,7 +1106,7 @@ export async function fetchArkTask(id: string, opts?: { transfer?: boolean }): P
  *   连同凭据一起扔掉，界面上只剩「♻ 重新生成」（= 再下一单、再花一次钱）。
  * ★ 两种情形抛它，共同点是「任务已经被方舟受理、钱已经花了，只是我们没看到结果」：
  *   ① 等到死线还没出片；② 连查五次都查不动（网断了，任务在云端好好跑着）。
- *   反过来，**方舟明说 failed/cancelled 不抛它** —— 那是真失败，取回也取不回什么。
+ *   反过来，**方舟明说 failed/cancelled/expired 不抛它**（抛 ArkTaskFailed）—— 那是真失败，取回也取不回什么。
  * ★ 与 data/templates 的 `TaskOutcome.unknown` 是同一件事的两个形态：那边是两阶段
  *   白模化（凭据在服务端），这边是客户端自己建的出片任务（凭据在本机 data/videoJobs）。
  */
@@ -1063,6 +1206,12 @@ export const GEN_MODE_LABEL: Record<GenMode, string> = {
   get minimax() {
     return t`真人档首帧图生视频（MiniMax）`;
   },
+  get draft() {
+    return t`样片（480p 预览，满意再定稿）`;
+  },
+  get draftFinal() {
+    return t`样片定稿（升成 1080p）`;
+  },
 };
 
 /**
@@ -1151,8 +1300,22 @@ export async function generateVideo(
      */
     refAudios?: string[];
     /**
-     * 任务**刚被方舟受理**就把任务号交出去 —— 在这之前一分钱没花，在这之后钱已经花了
-     * （契约「先扣钱、再转发；上游没受理就原路退回」+「受理之后才失败不退」）。
+     * 电影级「样片」第一步（2026-10-07）：`draft:true` + 480p —— 先出一段 480p 预览，满意再按同一个任务号升成 1080p（draftTaskId）。
+     * ★ 方舟只给 2.5 开了 draft，且只收 480p、不收视频输入；服务端 pinPlainVideoTask 按同样三条钉（外加时长必须是显式整数）。
+     *   这里只是协议层的最后一道（不对就当场炸，别让一发必然 400 的请求出门）；该不该走样片由 flowStore.nodeDraftOn 判。
+     * ★ 价钱 = 2.5 的 480p 像素 × 电影级系数（economy.draftStepTokens），与普通 720p 那一发不是一个数 —— 报价按契约的 mode "draft" 算。
+     */
+    draft?: boolean;
+    /**
+     * 电影级「样片」第二步：把这条样片升成 1080p 成片。请求体**只有** model + 一条 draft_task（+ 1080p、无水印）——
+     * 方舟规定提示词 / 图 / 时长 / 画幅 / 声音都由样片沿用，**重传一个都会报错**（哪怕值一样），所以上面那些参数在这条路上一律不上桌
+     * （durationSec 只拿来给轮询死线定尺寸）。服务端 resolveDraftFinal 按自己登记的样片时长 × 1080p 计价，归属也只认本人的样片。
+     */
+    draftTaskId?: string;
+    /**
+     * 任务**刚被方舟受理**就把任务号交出去 —— 在这之前一分钱没花，在这之后钱已经扣了
+     * （契约「先扣钱、再转发；上游没受理就原路退回」；受理之后上游明说失败的，2026-10-07 起由服务端按原桶退回 ——
+     * 但那要等结局出来，这一拍钱是扣着的）。
      *
      * ★★ 它必须在**开始等待之前**回调，而不是等出片、也不是在失败分支里给：
      *   这一发要等最长 25.5 分钟，而这段时间里最典型的丢结果方式是**进程被系统回收**
@@ -1171,6 +1334,17 @@ export async function generateVideo(
   const refs = opts?.refImages ?? [];
   const refVideoUrl = opts?.refVideoUrl;
   const mode: "frames" | "reference" = refs.length > 0 || refVideoUrl ? "reference" : "frames";
+  /** 样片第二步（升成 1080p）：请求体整个换成最小形状，下面那几道输入校验与它无关 */
+  const draftFinal = opts?.draftTaskId ?? "";
+  if ((draftFinal || opts?.draft) && !isSeedance25(model)) {
+    // 响亮地失败（同下面几条）：方舟只给 2.5 开了 draft —— 放出门就是一发必然 400 的请求
+    // i18n-ignore-next-line: 开发期断言（判据在 economy 的 VideoTier.draftOk；调用方 real.validateGenSpec 已按档位整句拒过）
+    throw new Error(`模型 ${model} 没有样片模式，不该走到这里（能力表见 data/economy 的 VideoTier.draftOk）`);
+  }
+  if (opts?.draft && refVideoUrl) {
+    // i18n-ignore-next-line: 开发期断言（方舟：样片不收视频输入；服务端 resolveR2v 同样整句拒）
+    throw new Error("样片不收参考视频，不该走到这里");
+  }
   if (refVideoUrl && !supportsRefVideo(model)) {
     // 响亮地失败（同下面 refImage 那条）：静默忽略参考视频 = 模板整个被扔掉、
     // 拍一段无关的片、照收钱 —— 那不是降级，是偷换商品（铁律八）
@@ -1182,7 +1356,7 @@ export async function generateVideo(
     // i18n-ignore-next-line: 开发期断言（同上）
     throw new Error(`模型 ${model} 不支持参考生视频，不该走到这里（能力表见 data/economy 的 VideoTier.refImg）`);
   }
-  if (mode === "frames" && !firstFrameUrl) {
+  if (!draftFinal && mode === "frames" && !firstFrameUrl) {
     throw new Error(t`出片缺少起拍画面：既没有首帧也没有参考图`);
   }
   const refAudios = opts?.refAudios ?? [];
@@ -1225,11 +1399,20 @@ export async function generateVideo(
     "/contents/generations/tasks",
     {
       method: "POST",
-      body: JSON.stringify({
+      body: JSON.stringify(draftFinal ? {
+        // 样片第二步：只有这几样（理由见 opts.draftTaskId）。服务端 resolveDraftFinal 会把请求体整体重写成同一个形状
+        model,
+        content: [{ type: "draft_task", draft_task: { id: draftFinal } }],
+        resolution: "1080p",
+        watermark: false,
+      } : {
         model,
         content,
-        // 纯任务按档位的分辨率发（报价 economy.segTokens 按同一格算）；带参考视频的几条路服务端钉 720p（见 opts.resolution 的 ★）
-        resolution: refVideoUrl ? "720p" : (opts?.resolution ?? "720p"),
+        // 纯任务按档位的分辨率发（报价 economy.segTokens 按同一格算）；带参考视频的几条路服务端钉 720p（见 opts.resolution 的 ★）；
+        // 样片第一步只能 480p（方舟：开了 draft 用别的分辨率直接报错）
+        resolution: opts?.draft ? "480p" : refVideoUrl ? "720p" : (opts?.resolution ?? "720p"),
+        // 样片：显式写 true（缺省 false = 正常出片）。时长在下面那一支照样是窗口内的整数 —— 服务端钉子要的就是显式整数
+        ...(opts?.draft ? { draft: true } : {}),
         // ★★ 音频：**开着不多花一分钱**，所以能出声的档一律出声。
         //   ⚠ 这一行原来是 `generate_audio: false // 无声更省 tokens（0.008 vs 0.016 元/千）`
         //     —— 那两个单价**查无实据**（账单里没有、方舟公开价目里也没有），却让我们白白
@@ -1282,8 +1465,8 @@ export async function generateVideo(
               // 报价与出片那一侧由调用方过 economy.clampDuration（同一张档位表），这里只是协议层的最后一道
               duration: clampToModel(opts?.durationSec ?? 5, model),
               // ★ 仅 2.5：不显式传就是 `auto`，而 auto **判错是异步失败** —— 任务已受理、
-              //   钱已经花了，几十秒后才 failed（而且不退，见 api-contract「被受理之后才失败不退」）。
-              //   显式写 "reference" 判错会在**提交时同步 400**，一分钱不花。
+              //   钱已经扣了，几十秒后才 failed（2026-10-07 起服务端会把这一发退回，但人白等一场、还得重来）。
+              //   显式写 "reference" 判错会在**提交时同步 400**，一分钱不扣。
               // ★ 带示例视频（素材参考）时 2.0 系列也显式写（2026-10-05 起高清能带参考视频；付费探测 H1 证实 mini 认这个参数）——
               //   只有参考图、不带视频的那种 2.0 照旧不写（没测过 mini 在纯参考图任务上收不收它，别顺手改）
               ...(mode === "reference" && (isSeedance25(model) || (!!refVideoUrl && supportsRefVideo(model))) ? { omni_reference_task_type: "reference" } : {}),
@@ -1333,7 +1516,9 @@ export async function generateVideo(
     opts?.onProgress?.({ kind: "poll", status: st.status, sec });
     if (st.status === "succeeded") {
       const url = st.content?.video_url;
-      if (!url) throw new Error(t`Seedance 任务成功但无视频 URL`);
+      // ★ 成功却没有地址：方舟对成功的任务照收钱 —— 这是「2xx 之后才坏」那一档（ArkBadReply：已计费），
+      //   别抛裸 Error 让 failCharge 把它归进「没扣钱」
+      if (!url) throw new ArkBadReply(t`Seedance 任务成功但无视频 URL`);
       // ★ 出片一成马上换成永久地址（理由见 transferArkVideo 的 ★）。这里是**唯一**收口：
       //   composeSegments / regenSegment / 未来任何调用方都自动拿到能全球播的地址。
       //   失败不挡出片 —— 退回方舟直链（24h 内有效，发布时服务端还会再转存一次），但要说出来。
@@ -1355,11 +1540,10 @@ export async function generateVideo(
       }
       return url;
     }
-    if (st.status === "failed" || st.status === "cancelled") {
-      const status = st.status;
-      const detail = st.error?.message ?? "";
-      // 方舟没给原因时另一句整话（改之前尾巴挂着一个空的「: 」）
-      throw new Error(detail ? t`Seedance 任务${status}: ${detail}` : t`Seedance 任务${status}`);
+    // ★ 三个终态：failed / cancelled / expired（expired = 超过 execution_expires_after 被方舟终止；原来没人认它，
+    //   这一发会一直等到死线再报「没接到」）。抛 ArkTaskFailed 带上服务端在同一个回包里说的退款结论（见那个类的 ★★）
+    if (st.status === "failed" || st.status === "cancelled" || st.status === "expired") {
+      throw arkTaskFailedOf(id, st);
     }
   }
   // ★ 这句话只准写**用户真能拿它做点什么**的内容。原来那版写了「任务号 xxx」与
@@ -1413,12 +1597,12 @@ export async function generate3dModel(
     if (st.status === "succeeded") {
       const url = st.content?.file_url ?? st.content?.url ?? st.content?.video_url;
       // i18n-ignore-next-line: 只进 console.warn（唯一调用方 real.deriveCharacterModels 整段 try/catch 吞掉、跳过这张卡）
-      if (!url) throw new Error("Seed3D 任务成功但未返回文件 URL");
+      if (!url) throw new ArkBadReply("Seed3D 任务成功但未返回文件 URL");
       return url;
     }
-    if (st.status === "failed" || st.status === "cancelled") {
-      // i18n-ignore-next-line: 同上，只进 console.warn
-      throw new Error(`Seed3D 任务${st.status}: ${st.error?.message ?? ""}`);
+    if (st.status === "failed" || st.status === "cancelled" || st.status === "expired") {
+      // 与出片同一个类型（受理之后上游明说失败 —— 2026-10-07 起服务端会退回这一次建模的钱）。唯一调用方只进 console.warn
+      throw arkTaskFailedOf(created.id, st);
     }
   }
   // i18n-ignore-next-line: 同上，只进 console.warn

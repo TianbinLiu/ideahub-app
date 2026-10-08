@@ -16,16 +16,19 @@ import { useEffect, useRef, useState } from "react";
 import { showToast } from "../../data/toast";
 import { useSyncExternalStore } from "react";
 import {
+  checkVideoJobCharge,
   dismissVideoJob,
   importServerVideoJobs,
   recoverableVideoJobs,
   subscribeVideoJobs,
   videoJobExpired,
   videoJobFromServer,
+  videoJobKnown,
   videoJobNote,
   videoJobsVersion,
   type VideoJob,
 } from "../../data/videoJobs";
+import { ArkTaskFailed, briefArkReason, chargeNote, chargeOnFail, unwrapFailure } from "../../ai";
 import { useFlow } from "../../studio/flowStore";
 import { useStudio } from "../../studio/studioStore";
 import { draftsLoadIssue, draftsUnavailableText } from "../../data/drafts";
@@ -38,7 +41,7 @@ export function useVideoJobs(): number {
 /**
  * ★★ **「取回这一段」—— 这一整块是当初那次改造的目的本身。**
  *
- * 出片是先扣钱后等的（受理即计费，受理之后失败不退，见 docs/api-contract.md「扣费」），
+ * 出片是先扣钱后等的（受理即计费，见 docs/api-contract.md「扣费」；2026-10-07 起受理之后上游明说失败的那一发由服务端退回），
  * 而等待窗口最长 25.5 分钟。在这块 UI 之前，客户端没接到结果 = 节点被打成
  * `failed` = 屏幕上唯一可点的是「♻ 重新生成（N token）」，也就是**再花一次钱**——
  * 而那一发的成片往往在方舟那边好好地存在着（2026-08-18 实测：15s 模板方舟约 13 分钟
@@ -76,6 +79,25 @@ export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean
     return () => clearInterval(id);
   }, []);
   const expired = videoJobExpired(job);
+  // 过期了：说「钱无法挽回」之前先问服务端这一发退没退（data/videoJobs.checkVideoJobCharge；到了 emit，这张卡重画）
+  useEffect(() => {
+    if (expired) void checkVideoJobCharge(job);
+  }, [expired, job]);
+
+  /**
+   * 取回失败那一句话。上游明说没出成（ArkTaskFailed）的那种要带上钱：退了 / 会退 / 没退各一句（只走 ai/failCharge），
+   * 再接一句「重新生成会重新计费」—— 原来这里说的是写死的「费用不退」。其余失败（还在跑、查不动）原样说 data / ai 层给的整句。
+   */
+  function failLine(e: unknown): string {
+    const inner = unwrapFailure(e);
+    if (!(inner instanceof ArkTaskFailed)) return e instanceof Error ? e.message : String(e);
+    const why = briefArkReason(inner, 80);
+    const money = chargeNote(chargeOnFail(e), job.cost);
+    const moneyLine = money?.line ?? "";
+    return job.seg > 0
+      ? t`第 ${job.seg} 段那一发没出成（${why}）。${moneyLine}要这一段的话重新生成（会重新计费）。`
+      : t`服务器登记的那一发没出成（${why}）。${moneyLine}要这一段的话重新生成（会重新计费）。`;
+  }
 
   async function take() {
     setIssue("");
@@ -85,7 +107,13 @@ export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean
         if (alive.current) setWorking(st);
       });
     } catch (e) {
-      const why = e instanceof Error ? e.message : String(e);
+      const why = failLine(e);
+      // ★★ 凭据被结案了（上游明说没出成、服务端已经退了钱 —— flowStore.takeJob 的 ★★）：这张卡在下一次重画时就卸载了，
+      //   写进 setIssue 的话**没人看得见**（此刻 alive 多半还是 true，卸载在下一拍）。所以这一种一律用轻提示说，不看 alive。
+      if (!videoJobKnown(job.taskId)) {
+        showToast(why, 8000);
+        return;
+      }
       if (alive.current) {
         setIssue(why);
         setWorking("");

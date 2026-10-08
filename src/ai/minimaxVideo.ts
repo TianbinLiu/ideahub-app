@@ -13,7 +13,7 @@
 import { t } from "@lingui/core/macro";
 import { API_BASE } from "../api/client";
 import { getToken } from "../api/client";
-import { ArkTaskUnknown, billingDenialError, syncWalletFromHeaders, type ArkProgress } from "./arkClient";
+import { ArkTaskFailed, ArkTaskUnknown, billingDenialError, syncWalletFromHeaders, taskRefundOf, type ArkProgress } from "./arkClient";
 
 /** 上游受理回执的业务码：0 = 成功。非 0 时 status_msg 是给人看的原因 */
 interface BaseResp {
@@ -73,6 +73,16 @@ function baseRespOf(j: Record<string, unknown>): BaseResp | null {
   return b && typeof b.status_code === "number" ? b : null;
 }
 
+/**
+ * 上游明说 `Fail` → ArkTaskFailed（与方舟那边同一个类型，钱上那句话由 ai/failCharge 按它说）—— **唯一构造处**（出片轮询与取回共用）。
+ * ★ 退款结论读服务端在同一个回包上带的 `refund`（server 的真人档轮询路由看见 Fail 时结账；开关 MINIMAX_FAIL_REFUND）。
+ *   没带 = 服务端没说（老服务端 / 开关关着 / 上线之前的任务）—— failCharge 按「没有退回」说，不替它许诺。
+ */
+function minimaxFailed(taskId: string, st: Record<string, unknown>): ArkTaskFailed {
+  const reason = baseRespOf(st)?.status_msg || t`上游未说明原因`;
+  return new ArkTaskFailed(t`真人档出片失败：${reason}`, taskId, "Fail", String(baseRespOf(st)?.status_code ?? ""), taskRefundOf(st.refund), reason, "minimax");
+}
+
 /** 一条 Success 的任务状态 → 下载地址。**唯一实现**：出片主路径与「取回」共用 */
 async function minimaxFileUrl(st: Record<string, unknown>): Promise<string> {
   const fileId = String(st.file_id ?? "");
@@ -110,10 +120,10 @@ export async function takeMinimaxTask(
   const status = String(st.status ?? "");
   if (status === "Success") return { url: await minimaxFileUrl(st) };
   if (status === "Fail") {
-    // 上游明说失败：这时候"受理之后失败不退"是真的，必须照说 —— 藏起来会让用户
-    // 以为重试免费，而重试是重新下一单
-    const why = baseRespOf(st)?.status_msg || t`未说明原因`;
-    throw new Error(t`上游说这一发失败了：${why}。按约定，受理之后的失败不退款；重新生成会再花一次钱。`);
+    // 上游明说失败：抛类型（ArkTaskFailed），钱退没退由调用方问 ai/failCharge 说 —— 不在这里写死「不退款」
+    //（2026-10-07 起服务端会把这一发退回；老服务端不退，那时 failCharge 照实说「没有退回」）。
+    // ★ 重新生成会再花一次钱这半句仍然由调用方接上：藏起来会让用户以为重试免费
+    throw minimaxFailed(taskId, st);
   }
   const shown = status || t`未知`;
   throw new Error(t`这一发还在上游排队或生成中（当前状态：${shown}）——过几分钟再点一次「取回」，查询不花钱、凭据也还在。`);
@@ -173,7 +183,7 @@ export async function minimaxVideo(o: {
   // ★★ 单次查询抖动**不放弃整发**（2026-08-31 补，照 arkClient 的同一条纪律）：
   //   原来这一行是裸的 `await jsonOf(fetch(...))`，`jsonOf` 对任何非 2xx / 非 JSON
   //   当场抛 —— 手机在 5G/WiFi 之间切一下、或代理吃到一次上游 504，整发就被判死。
-  //   而**钱在提交那一刻就已经扣掉且不退**，任务在 MiniMax 那边照跑照出片。
+  //   而**钱在提交那一刻就已经扣掉**（没出结局之前谈不上退），任务在 MiniMax 那边照跑照出片。
   //   连查五次才放弃，与方舟侧同一个数。
   let pollFails = 0;
   for (;;) {
@@ -211,10 +221,7 @@ export async function minimaxVideo(o: {
     // 空状态按排队报（改之前也是这么兜的）。读秒句因此与方舟各档同一份（arkClient.describeArkProgress）
     const shown = status === "Queueing" || !status ? "queued" : status === "Preparing" || status === "Processing" ? "running" : status;
     prog({ kind: "poll", status: shown, sec: Math.round((Date.now() - t0) / 1000) });
-    if (status === "Fail") {
-      const why = baseRespOf(st)?.status_msg || t`上游未说明原因`;
-      throw new Error(t`真人档出片失败：${why}`);
-    }
+    if (status === "Fail") throw minimaxFailed(taskId, st);
     if (status === "Success") {
       const url = await minimaxFileUrl(st);
       return url;

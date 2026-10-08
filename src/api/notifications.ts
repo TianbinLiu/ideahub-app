@@ -44,6 +44,16 @@ export const BRANCH_NOTIFICATION_TYPES = [
    */
   "BRANCH_REMIX_REWARD",
   /**
+   * **生成失败、token 已退回**（2026-10-07 主人「做生成失败返回 token」；server 写入只在 services/taskRefund.service 的 followUp）：
+   * 受理之后上游明说这一发失败了，服务端按原桶退了钱，而退款**不是**在本人自己那次轮询里发生的（清扫器替他退的 / App 被杀了 /
+   * 别的设备在问）—— 那时没有任何一个回包能把这句话带给他，只能发一条通知。payload { tokens, kind, taskId, provider }。
+   *   · kind = video / draft（样片第一步）/ draftFinal（样片定稿）/ 3d / blockout（白模化）/ minimax（真人档）；
+   *   · 平台口径，没有 actor（头像位画一枚退款图标，与 ADMIN_NOTICE 的铃铛同一个理由）；没有深链目标 —— 点进去打开钱包看余额。
+   * ★ 金额是 `payload.tokens`（数），句子由这边按界面语言说（与同款奖励同一条：服务端不拼中文句子）。
+   * ★★ 老 App（≤ 2.61）**收不到这一类**（请求层白名单，同上面 BRANCH_REVISED 那条 ★★）：钱照退，只是没有这条通知。
+   */
+  "GEN_TASK_REFUND",
+  /**
    * 平台通知：管理员从后台发给单个用户的自由文本（api/admin.notifyUser 那条路）。
    * ★ 正文走 `payload.commentText` —— 刻意复用评论正文那条既有通道，而不是新开一个
    *   `payload.text`：data/notifications.ts 的 toItem 只搬运它认识的字段，新开字段
@@ -107,8 +117,12 @@ export interface ApiNotification {
     count?: number;
     version?: number;
     note?: string;
-    /** 同款奖励（BRANCH_REMIX_REWARD）：发了多少 token、照的是我的哪一条 */
+    /** 同款奖励（BRANCH_REMIX_REWARD）：发了多少 token、照的是我的哪一条；生成失败退款（GEN_TASK_REFUND）：退了多少 */
     tokens?: number;
+    /** 生成失败退款（GEN_TASK_REFUND）：哪一种生成、上游任务号、哪一家 */
+    kind?: string;
+    taskId?: string;
+    provider?: string;
     originalId?: string;
     originalTitle?: string;
   } | null;

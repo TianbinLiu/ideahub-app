@@ -20,7 +20,7 @@
 import { startJob } from "../data/jobs";
 import { t } from "@lingui/core/macro";
 import { create } from "zustand";
-import { castPreviewImage, frameUrlAt, fuseStageFrame, AI_REAL, ArkTaskUnknown, briefArkReason, chargeNote, chargeOnFail, generateFrame, generateProposals, notesInParens, prepareMaterialRefs, recaptureSegment, refineFrame, takeVideoTask, transferStatus } from "../ai";
+import { castPreviewImage, frameUrlAt, fuseStageFrame, AI_REAL, ArkTaskFailed, ArkTaskUnknown, SegmentGenFailed, briefArkReason, chargeNote, chargeOnFail, generateFrame, generateProposals, notesInParens, prepareMaterialRefs, recaptureSegment, refineFrame, takeVideoTask, transferStatus, unwrapFailure } from "../ai";
 import { frameMoment, isMultiShot, momentCards } from "../data/shotScript";
 import { endFrameUsed } from "../data/drawPlan";
 import { isArkAssetUrl, transferArkVideo } from "../ai/arkClient";
@@ -3983,19 +3983,38 @@ export const useFlow = create<FlowState>()((set, get) => ({
         });
         return false;
       }
-      // 真失败：方舟明说 failed/cancelled，或者根本没走到受理那一步。
+      // 真失败：方舟明说 failed/cancelled/expired，或者根本没走到受理那一步。
       // ★ 凭据要销毁 —— 留一颗点了必然失败的「取回」比不给更坏（同 templates 那边
       //   "过期的不给按钮"）。没受理过的那些 taskId 为空，这一行本来就是空转。
       if (taskId) dropVideoJob(taskId);
+      // ★★ 钱上那句话（2026-10-07，主人「做生成失败返回 token」）：只认类型、只走 ai/failCharge。
+      //   原来这一支对钱一个字都不说，而远端模式下受理之后才失败的那一发是**扣过钱**的 —— 现在服务端会退回，
+      //   退没退、退了多少只认服务端在回包上说的那一句；出片前画好的画面另说（它们各自结算过，退不到）。
+      //   单价：失败的是视频那一发 → 按这一段报价里视频那一半说「可能扣了 / 已计费」；失败的是出片前的某张画面 → 按一张图说。
+      const fc = chargeOnFail(e);
+      const framesSettled = e instanceof SegmentGenFailed ? e.framesSettled : 0;
+      const money = chargeNote(fc, fc.video ? Math.max(0, cost - framesSettled * ONE_IMAGE) : ONE_IMAGE);
+      const inner = unwrapFailure(e);
+      /** 一句给人看的原因：上游明说失败的那种已经按错误码说成人话（arkFailReason），别把方舟的英文原话整段贴上来 */
+      const why = inner instanceof ArkTaskFailed ? inner.reason : msg.slice(0, 240);
+      const back = fc.tier === "refunded" || fc.tier === "refunding";
       // 失败也留在日志里：卡在哪一步、跑了多久，比一句"生成失败"有用得多
-      log.fail(t`失败：${msg.slice(0, 160)}`);
-      patchNode({ status: "failed", progress: "", error: msg.slice(0, 240) });
+      log.fail(money ? t`失败：${why.slice(0, 160)}（${money.brief}）` : t`失败：${why.slice(0, 160)}`);
+      patchNode({ status: "failed", progress: "", error: (money ? t`${why}（${money.brief}）` : why).slice(0, 240) });
+      const n = idx + 1;
+      const moneyLine = money?.line ?? "";
       set(
         get().genRun === myRun
           ? {
               busy: false,
-              err: t`第 ${idx + 1} 段生成失败：${msg.slice(0, 240)}`,
-              genNotice: { ok: false, msg: t`第 ${idx + 1} 段生成失败` },
+              // 上游明说失败：「没出成」+ 原因 + 钱 + 「重新生成会重新计费」（退回来的钱不会自动变成下一发）
+              err:
+                inner instanceof ArkTaskFailed
+                  ? t`第 ${n} 段没出成：${why}。${moneyLine}重新生成会重新计费。`
+                  : money
+                    ? t`第 ${n} 段生成失败：${why}。${moneyLine}`
+                    : t`第 ${n} 段生成失败：${why}`,
+              genNotice: { ok: false, msg: back ? t`第 ${n} 段没出成，token 已退回` : t`第 ${n} 段生成失败` },
             }
           : {},
       );
@@ -4074,11 +4093,18 @@ export const useFlow = create<FlowState>()((set, get) => ({
       const placedId = orphan ? (get().nodes[get().cursor]?.id ?? "") : job.nodeId;
       if (placedId) get().settleNodeMedia(placedId);
     } catch (e) {
-      if (ownerEpoch() === epochAtStart) set({ busy: false });
-      // ★ 凭据在这里**一律不动**：takeVideoTask 已经把"还能再来取"与"真没了"分成了
-      //   两种抛法，但两者的善后都不是"悄悄删掉" —— 真失败那一条要留在屏幕上让用户
-      //   看见"钱不退"，销毁它等于把这句话也一起吞了。真正的销毁只发生在取回成功
-      //   （上面那行）与过期后用户亲手点「知道了」（data/videoJobs.dismissVideoJob）。
+      if (ownerEpoch() === epochAtStart) {
+        set({ busy: false });
+        // ★★ 上游明说没出成、而服务端已经把钱退了（或正在退 / 本来就没扣）：这一发没有成片可取、钱也回来了 ——
+        //   凭据结案（2026-10-07）。留着的话这张卡没过期就只有一颗「取回」、点下去永远是同一句话，而且关不掉
+        //   （dismissVideoJob 只放过期的）。卡上那句话不会跟着丢：SegmentRecoverCard 见凭据没了就用轻提示说（它的 ★★）。
+        // ★ 其余失败照旧**一律不动**：没接到（ArkTaskUnknown）要留着再来取；服务端没说退的那种（老服务端）要留在屏幕上
+        //   让用户看见钱没退 —— 销毁它等于把这句话一起吞了。真正的销毁还有两处：取回成功（上面那行）与过期后用户
+        //   亲手点「知道了」（data/videoJobs.dismissVideoJob）。
+        const inner = unwrapFailure(e);
+        const st = inner instanceof ArkTaskFailed ? inner.refund?.state : undefined;
+        if (st === "refunded" || st === "refunding" || st === "skipped") dropVideoJob(job.taskId);
+      }
       throw e;
     }
   },

@@ -423,8 +423,11 @@ export function draftFinalTokens(durationSec: number, ratio?: string): number {
   return Math.round(sec * perSecTokens(SEEDANCE_2_5, "1080p", ratio) * DRAFT_FINAL_MULT);
 }
 
-/** 走得了「样片」的那一档（draftOk；今天是电影级）。一档都没有时回电影级的 id（报价照电影级的窗口夹，开不开由 draftOk 判） */
-function draftTierId(): string {
+/**
+ * 走得了「样片」的那一档（draftOk；今天是电影级）。一档都没有时回电影级的 id（报价照电影级的窗口夹，开不开由 draftOk 判）。
+ * ★ 导出给「定稿」那一步用：样片是在这一档上出的，之后这一段换了档也不影响定稿（定稿只认样片任务号）—— 门禁问的是这一档，不是段上现在的档。
+ */
+export function draftTierId(): string {
   return VIDEO_TIERS.find((t) => t.draftOk)?.id ?? "ultra";
 }
 
@@ -462,6 +465,9 @@ export function tierModelId(tier: Pick<VideoTierSpec, "model" | "resolution">): 
  */
 export function videoTokensOfSpec(o: { mode: GenMode; durationSec: number; tierId?: string; refVideoSec?: number; ratio?: string }): number | null {
   if (o.mode === "edit") return r2vTokens(o.refVideoSec ?? 0, o.tierId);
+  // 电影级「样片」两步（2026-10-07）：第一步 480p × 电影级系数；第二步 = 样片的时长 × 1080p × 77/15（服务端按自己登记的样片时长结算）
+  if (o.mode === "draft") return draftStepTokens(o.durationSec, o.ratio);
+  if (o.mode === "draftFinal") return draftFinalTokens(o.durationSec, o.ratio);
   // 延长与素材参考同一个式子：(输入 + 输出) × 系数（服务端 resolveR2v 的延长那一支结算走 tokens.materialRefTokens）
   if (o.mode === "reference" || o.mode === "extend") {
     if (tierOf(o.tierId).r2vMult === null) return null;
