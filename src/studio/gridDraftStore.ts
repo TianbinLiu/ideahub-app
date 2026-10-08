@@ -623,6 +623,12 @@ function closeJob(who: string, job: ReturnType<typeof startJob>): void {
 export async function drawGroup(o: { cast: Card[]; place: Card | null }): Promise<void> {
   const s0 = useGridDraft.getState();
   if (s0.drawing || s0.writing || !s0.shots.length || !s0.aspect) return;
+  // 有一格正在单独画就不开一组（2.62 发版评审第四轮）：整组重出会先把格子清空，单画那张回来落在清空后的格子上，
+  // 组图同一格那张就被跳过 —— 按张收了钱、却一眼都没给人看（panelsBusy 头上的 ★ 是同一个缘故）
+  if (panelsBusy(s0)) {
+    useGridDraft.setState({ drawErr: t`有一格正在单独画——等它画完再整组重出（这一下还没花钱）` });
+    return;
+  }
   const who = ownerOfDraft();
   if (parkedGroupOf(who)) {
     await resumeGroup();
@@ -631,7 +637,7 @@ export async function drawGroup(o: { cast: Card[]; place: Card | null }): Promis
   if (await reclaimLost(who)) return;
   // 问的那几秒里向导被别处动过（换了账号 / 又在画了）就不画：下面全按这一刻的那份
   const s = useGridDraft.getState();
-  if (s.drawing || s.writing || !s.shots.length || !s.aspect || ownerOfDraft() !== who) return;
+  if (s.drawing || s.writing || panelsBusy(s) || !s.shots.length || !s.aspect || ownerOfDraft() !== who) return;
   const shots = s.shots.filter((x) => x.picture.trim());
   if (shots.length !== s.shots.length) {
     useGridDraft.setState({ drawErr: t`有几格还没写画面——写上，或者删掉那几格再画` });

@@ -1513,13 +1513,22 @@ function ProposalsPanel() {
           /* ★ 与真扣同一处实现：flowStore.deriveCostOf（收口之前这里的 prev 用的是
              chosenProposal，"待挑"时回 null，与真扣那边的 chosenOf 差出成倍的价） */
           rederiveCost={deriveCostOf(path, idx)}
-          carriedFrom={carried}
-          // 参考图直出段：卡上说实话（不画帧）、不摆「重新生成这一套的画面」。
-          // ★ 说的话认「真的不画帧」（2.62 发版评审抓到）：直出段换到极速 / 标准（收不了参考图）之后出片前照样补画帧、
-          //   照样收图钱（判据 flowStore.nodeNoDraw，与报价 / 出片同一个）；真人档一张帧都不画（照片起拍），也算不画。
-          // ★★ 但「重新生成这一套的画面」两种都不摆：评审第二轮抓到，按 nodeNoDraw 摆出来之后，承接上一段的直出段在极速 / 标准上
+          // 直出段的设定首帧恒空，`carried`（首帧 === 上一段尾帧）认不出承接 —— 另问承接的唯一实现（nodeEditFrames.carriedFirst = nodeCarry）
+          carriedFrom={carried || (!!node.direct && nodeEditFrames(path, idx).carriedFirst)}
+          // 参考图直出段：卡上说实话（不画帧 / 出片前补画）、不摆「重新生成这一套的画面」。
+          // ★ 说的话认「出片前到底画不画」，与报价 / 出片读同一份计划（flowStore.nodeEmptyFrames → segmentGen.emptyFrameFates，
+          //   底下是 drawPlan.framesToDraw）—— 不是只看 nodeNoDraw（2.62 发版评审第四轮抓到：承接上一段的直出段落在极速上，
+          //   开头是承接帧、极速又不收结束帧，其实一张都不画，原来照样写「出片前按提示词补画（计费）」）；真人档照片起拍也算不画。
+          // ★★ 「重新生成这一套的画面」两种都不摆：评审第三轮抓到，摆出来的话承接上一段的直出段在极速 / 标准上
           //   会为开头帧付一张图钱，而出片时承接帧把它整张顶掉（segmentGen 的 carryFrame）—— 收钱不交货。
-          direct={node.direct ? (nodeNoDraw(node) || !!tierOf(node.videoTier).flatCost ? "noDraw" : "draws") : undefined}
+          direct={
+            node.direct
+              ? (() => {
+                  const f = nodeEmptyFrames(path, idx, flowMode);
+                  return f.first === "draw" || f.last === "draw" ? "draws" : "noDraw";
+                })()
+              : undefined
+          }
           // 预览卡的框跟本段画幅走：写死一个比例，另一种画幅的帧会被裁掉一大半
           frameAspect={aspectCss(node.aspect)}
           // 融图候选（唯一实现在 FuseFrameSheet.fuseSourcesOf，三条路共用）

@@ -223,6 +223,15 @@ export default function PlanBoard({
                       firstFrame={p.firstFrame || null}
                       lastFrame={shownLast(p) || null}
                       emptyNote={p.degraded ? t`没画出来` : direct === "noDraw" ? t`不画帧` : direct === "draws" ? t`出片前补画` : undefined}
+                      emptyHint={
+                        p.degraded
+                          ? undefined
+                          : direct === "noDraw"
+                            ? t`不画帧，人物图直接给视频模型`
+                            : direct === "draws"
+                              ? t`出片前按提示词补画（计费）`
+                              : undefined
+                      }
                       originNote={
                         p.pinned?.first
                           ? t`已用你上传的图`

@@ -124,7 +124,9 @@ export default function EffectWizard({
   const keyPrice = price(KEYFRAME_TOKENS);
   const stepIdx = EFFECT_STEPS.indexOf(step);
   const castOk = !preset ? false : preset.subject === "product" ? !!productCard || !!d.productImage : cast.length === need;
-  const stale = !!d.keyframe && d.keyframeKey !== effectKeyOf({ ...d, aspect }, cast);
+  // 真人档不画关键帧（照片起拍），别的档上留下的那张关键帧在这一档用不上 —— 不拿它判「过期」，否则两颗生成键灰着、
+  // 屏幕上一个字都不说为什么（2.62 发版评审第四轮）。关键帧还留在暂存里，换回能画关键帧的档照旧判
+  const stale = !real && !!d.keyframe && d.keyframeKey !== effectKeyOf({ ...d, aspect }, cast);
   // 关键帧（2.x 两档当参考图发、1.0 两档当首帧）里画着真人脸：方舟视频那一侧会整发拒（account.realFaceIssue 的 framed）
   const faceNote = preset && preset.subject !== "product" ? realFaceIssue(cast, tierId, { framed: !real }) : null;
   const title = preset ? t(PRESET_TEXT[preset.id]?.title ?? msg`特效`) : "";

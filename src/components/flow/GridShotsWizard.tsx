@@ -771,7 +771,7 @@ export default function GridShotsWizard({
           ) : (
             <button
               onClick={() => void drawGroup({ cast, place })}
-              disabled={!!d.drawing || d.writing || !shotN || canDraw === false || canDraw === "asking" || !!drawCastIssue}
+              disabled={!!d.drawing || d.writing || panelBusy || !shotN || canDraw === false || canDraw === "asking" || !!drawCastIssue}
               className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
             >
               {anyPanel ? (

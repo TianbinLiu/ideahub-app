@@ -14755,6 +14755,10 @@ msgid "有一条超过 {maxLen} 字了，发布会被服务端拒掉。"
 msgstr "有一条超过 {maxLen} 字了，发布会被服务端拒掉。"
 
 #: src/studio/gridDraftStore.ts
+msgid "有一格正在单独画——等它画完再整组重出（这一下还没花钱）"
+msgstr "有一格正在单独画——等它画完再整组重出（这一下还没花钱）"
+
+#: src/studio/gridDraftStore.ts
 msgid "有一格正在单独画——等它画完再重写分镜（这一下还没花钱）"
 msgstr "有一格正在单独画——等它画完再重写分镜（这一下还没花钱）"
 

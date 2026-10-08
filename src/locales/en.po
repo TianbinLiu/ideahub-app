@@ -14747,6 +14747,10 @@ msgid "有一条超过 {maxLen} 字了，发布会被服务端拒掉。"
 msgstr "One item is over {maxLen} characters; the server will reject it on publish."
 
 #: src/studio/gridDraftStore.ts
+msgid "有一格正在单独画——等它画完再整组重出（这一下还没花钱）"
+msgstr "A panel is still being drawn on its own — wait for it to finish before redrawing the whole set (nothing has been charged for this)"
+
+#: src/studio/gridDraftStore.ts
 msgid "有一格正在单独画——等它画完再重写分镜（这一下还没花钱）"
 msgstr "A panel is still being drawn on its own — wait for it to finish before rewriting the storyboard (nothing has been charged for this)"
 
