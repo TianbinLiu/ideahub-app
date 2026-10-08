@@ -2,9 +2,12 @@
 //
 // ★ 这里只管"一句话 → 一条声音"。排在成片的第几秒、念不完怎么办、要不要压配乐，都在 data/cutProject.timelinePlan
 //   （纯函数，预览与导出照同一份）；哪一句要配、配完写回哪个片段，由剪辑页管。
-// ★ 钱（主人 2026-09-30 定）：配音现在**不向用户收 token**，但它按字符计费，是平台的真成本 —— 所以限量：
+// ★ 钱（主人 2026-09-30 定「免费 + 限量」）：配音**不向用户收 token**，但它按字符计费，是平台的真成本 —— 所以限量：
 //   一段一句（数据形状就是这样：CutClip.line 只有一条）、字数按这一段的时长封顶（cutProject.lineCap，
-//   合成之前在这里把关）、服务端每个账号每分钟 30 次（原来就有）。看成本再定价。
+//   合成之前在这里把关）、服务端每个账号每分钟 30 次、**每个账号每天几个字**（服务端定，`/api/tts/voices` 的 narrationFree）。
+// ★★ 免费是**服务端**说了算，靠请求里的 `purpose: "cut-narration"`（NARRATION_PURPOSE）：/api/tts 从 2026-09-25 起按字扣钱，
+//   2.58 ~ 2.62 的剪辑页没带这个标记、却写着「现在免费」—— 界面说不要钱、实际扣了（2026-10-08 才补上）。
+//   所以界面上那个「免费」只在服务端的音色目录里**看见能力位**时才说（loadNarration 的 freeDaily），老服务端上一个字都不提。
 // ★ 念不完本段：先按字数估，估着念不完就直接提一档语速合成；量出来还超、而语速还有余量，就按量到的比例再提一次
 //   （最多重合成这一次）。还超就原样交回去 —— 不悄悄截断，超出多少由计划算出来、剪辑页标出来让人改短。
 // ★ 合成回来的声音先**切掉首尾的静音**再量、再存（tidy，判据在 cutProject.voiceBounds）：2026-10-01 拿真的语音合成量过，
@@ -35,14 +38,27 @@ export interface Narrator {
   group: "female" | "male";
 }
 
-let narratorsCache: Narrator[] | null = null;
+/** 请求体里的用途标记：服务端认它走旁白的免费额度（不带就按字扣钱）。值与服务端 tts.routes 的 NARRATION 逐字相同 */
+export const NARRATION_PURPOSE = "cut-narration" as const;
+
+export interface NarrationCatalog {
+  narrators: Narrator[];
+  /**
+   * 旁白免费、每个账号每天几个字 —— 服务端音色目录里的能力位（`narrationFree.dailyChars`）。
+   * null = 服务端没说（老服务端：那里旁白是按字扣钱的）⇒ 界面**不许**说「免费」。
+   */
+  freeDaily: number | null;
+}
+
+let catalogCache: NarrationCatalog | null = null;
 
 /**
  * 可选的旁白音色：服务端的音色目录（/api/tts/voices）—— 2.0 单音色 + 那批逐个验证过能出声的 1.0 音色
- * （1.0 的原本是混音原料，单独念也行；男声只有这一批里有）。目录取不到时抛，调用方把话说出来。
+ * （1.0 的原本是混音原料，单独念也行；男声只有这一批里有）；顺带读旁白免不免费（同一份目录里的能力位）。
+ * 目录取不到时抛，调用方把话说出来。
  */
-export async function listNarrators(): Promise<Narrator[]> {
-  if (narratorsCache) return narratorsCache;
+export async function loadNarration(): Promise<NarrationCatalog> {
+  if (catalogCache) return catalogCache;
   const cat = await getTtsVoices();
   const out: Narrator[] = [];
   const seen = new Set<string>();
@@ -54,8 +70,10 @@ export async function listNarrators(): Promise<Narrator[]> {
   // 2.0 目录里目前全是女声（id 里带 female）；将来加了男声按 id 分
   for (const v of cat.voices ?? []) add(v.id, v.name, /_male_/.test(v.id) ? "male" : "female");
   for (const v of cat.mixable ?? []) add(v.id, v.name, v.gender === "male" ? "male" : "female");
-  narratorsCache = out;
-  return out;
+  // 判否定：认不出的形状一律当「没说」（不说免费），而不是当成免费
+  const daily = Number(cat.narrationFree?.dailyChars);
+  catalogCache = { narrators: out, freeDaily: Number.isInteger(daily) && daily > 0 ? daily : null };
+  return catalogCache;
 }
 
 /**
@@ -67,9 +85,13 @@ const MAX_RATE = 30;
 /** 解码配音用的采样率：语音合成给的就是 24kHz 单声道，照这个数解，存出来的 WAV 不白白放大 */
 const VOICE_RATE = 24000;
 
-/** 一句配音没合成出来的原因 —— 剪辑页据此决定说什么、给什么出路 */
+/**
+ * 一句配音没合成出来的原因 —— 剪辑页据此决定说什么、给什么出路。
+ * `quota` = 今天的免费额度 / 用量上限用完了，`money` = 钱包不让扣（只在老服务端上会有：那里旁白按字扣钱）——
+ * 这两种与 auth / rate / unsupported / network 一样，后面的句子也一样会失败，一批里撞上就停。
+ */
 export class NarrationError extends Error {
-  readonly kind: "empty" | "too-long" | "auth" | "rate" | "unsupported" | "network" | "upstream" | "store";
+  readonly kind: "empty" | "too-long" | "auth" | "rate" | "quota" | "money" | "unsupported" | "network" | "upstream" | "store";
   constructor(kind: NarrationError["kind"], message: string) {
     super(message);
     this.name = "NarrationError";
@@ -124,6 +146,12 @@ function monoOf(buf: AudioBuffer): Float32Array {
 function explain(e: unknown): NarrationError {
   if (e instanceof NarrationError) return e;
   if (e instanceof ApiError) {
+    // ★ 认 code 不认 message（CLAUDE.md 坑表「按错误 message 里的中文关键词判」）。403 与 429 各有两种意思：
+    //   钱包被冻结 / 套餐不够也是 403、每日上限也是 429 —— 原来一律说成「登录失效」「每分钟 30 句」，人照着做也解决不了
+    if (e.code === "NARRATION_DAILY_LIMIT") return new NarrationError("quota", t`今天的免费配音用完了（每个账号每天限量），明天再接着配——字幕照样能烧进画面`);
+    if (e.code === "DAILY_LIMIT") return new NarrationError("quota", t`今天的 token 用量到上限了，明天再接着配`);
+    if (e.status === 402 || e.code === "INSUFFICIENT_TOKENS") return new NarrationError("money", t`token 余额不够，配音没合成`);
+    if (e.code === "WALLET_FROZEN" || e.code === "PLAN_REQUIRED") return new NarrationError("money", t`这个账号的钱包现在不能扣费（有欠额或套餐不够），配音没合成`);
     if (e.status === 401 || e.status === 403) return new NarrationError("auth", t`登录已失效，重新登录之后再配音`);
     if (e.status === 429) return new NarrationError("rate", t`配音合成得太快了（每分钟最多 30 句），等一分钟再接着配`);
     if (e.status === 501) return new NarrationError("unsupported", t`服务器还没有开通语音合成，配音暂时用不了`);
@@ -142,7 +170,7 @@ export async function synthLine(text: string, voiceId: string, availSec: number,
   const line = text.trim();
   if (!line) throw new NarrationError("empty", t`这一段还没有写字幕，没有可配音的话`);
   // 这一句念出来有多长（一个汉字算 1、一个字母算 0.4，见 cutProject.lineUnits）。超过这一段念得完的量就不合成 ——
-  // 这是配音免费期的那道限量，把关的位置就在花钱的这一发之前
+  // 这是免费配音的那道限量（每天的总量另由服务端把关），把关的位置就在花钱的这一发之前
   const units = Math.ceil(lineUnits(line));
   const cap = lineCap(availSec);
   if (units > cap) {
@@ -154,14 +182,21 @@ export async function synthLine(text: string, voiceId: string, availSec: number,
   const est = lineUnits(line) / TTS_SPEECH_CPS;
   let rate = est > room ? Math.min(MAX_RATE, Math.ceil((est / room - 1) * 100)) : 0;
   try {
-    let { blob, dur } = await tidy(await synthesizeSpeech({ text: line, voice: voiceId, ...(rate ? { rate } : {}) }, signal));
+    let { blob, dur } = await tidy(await synthesizeSpeech({ text: line, voice: voiceId, purpose: NARRATION_PURPOSE, ...(rate ? { rate } : {}) }, signal));
     if (dur > room + 0.05 && rate < MAX_RATE) {
       // 量出来还是念不完：按量到的比例再提一档，重合成一次（只这一次）
       const need = Math.ceil(((1 + rate / 100) * (dur / room) - 1) * 100) + 2;
       const faster = Math.min(MAX_RATE, need);
       if (faster > rate) {
-        const again = await tidy(await synthesizeSpeech({ text: line, voice: voiceId, rate: faster }, signal));
-        if (again.dur < dur) {
+        // ★ 提速重配这一发是锦上添花：它没成（今天的免费额度刚好用完、网断了一下）就留着第一发 ——
+        //   第一发已经合成好了、也已经占过额度，扔掉它让整句失败，只会让人对着一句"没配上"再配一次。念不完多少由计划标出来
+        let again: { blob: Blob; dur: number } | null = null;
+        try {
+          again = await tidy(await synthesizeSpeech({ text: line, voice: voiceId, purpose: NARRATION_PURPOSE, rate: faster }, signal));
+        } catch (e) {
+          if ((e as { name?: string } | null)?.name === "AbortError") throw e;
+        }
+        if (again && again.dur < dur) {
           blob = again.blob;
           dur = again.dur;
           rate = faster;

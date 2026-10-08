@@ -3582,6 +3582,11 @@ msgstr "🔊 Use template audio"
 
 #. placeholder {0}: voiceTodo.length
 #: src/pages/CutPage.tsx
+msgid "🔊 给 {0} 句配音"
+msgstr "🔊 Voice {0} line(s)"
+
+#. placeholder {0}: voiceTodo.length
+#: src/pages/CutPage.tsx
 msgid "🔊 给 {0} 句配音（现在免费）"
 msgstr "🔊 Voice {0} line(s) (free for now)"
 
@@ -4125,6 +4130,10 @@ msgstr "Topics they won't discuss. The platform's safety baseline is added separ
 #: src/pages/ProfilePage.tsx
 msgid "TA 还没有发布作品"
 msgstr "They haven't published any videos yet"
+
+#: src/studio/cutNarration.ts
+msgid "token 余额不够，配音没合成"
+msgstr "Not enough tokens — the voiceover wasn't made"
 
 #: src/ai/arkClient.ts
 msgid "token 余额不足：这一步需要 {need}，余额 {have}——去「我的」页充值"
@@ -5633,6 +5642,14 @@ msgstr "Only me {0}"
 #: src/components/VoiceRecorder.tsx
 msgid "今天天气不错，我在院子里晒了会儿太阳，顺手把花也浇了。"
 msgstr "The weather is lovely today, so I sat in the yard in the sun for a while and watered the flowers too."
+
+#: src/studio/cutNarration.ts
+msgid "今天的 token 用量到上限了，明天再接着配"
+msgstr "You've hit today's token usage limit — continue tomorrow"
+
+#: src/studio/cutNarration.ts
+msgid "今天的免费配音用完了（每个账号每天限量），明天再接着配——字幕照样能烧进画面"
+msgstr "Today's free voiceover allowance is used up (each account gets a daily limit) — continue tomorrow. Captions can still be burned into the video"
 
 #: src/ai/arkClient.ts
 msgid "今天的生成额度用完了，明天 0 点（UTC）重置"
@@ -18192,6 +18209,10 @@ msgstr "Use this template"
 msgid "用完就配音（{voiceName}，现在免费）"
 msgstr "Add voiceover right after applying ({voiceName}, free for now)"
 
+#: src/components/cut/AutoEditSheet.tsx
+msgid "用完就配音（{voiceName}）"
+msgstr "Add voiceover right after applying ({voiceName})"
+
 #: src/pages/AdminPage.tsx
 #: src/pages/DiscoverPage.tsx
 msgid "用户"
@@ -24011,6 +24032,10 @@ msgstr "This video can't be decoded here (try an MP4 or WebM file)"
 msgid "这个视频浏览器解不开（白模模板只收 mp4 / mov）"
 msgstr "This video can't be decoded here (blockout templates only accept MP4 / MOV)"
 
+#: src/studio/cutNarration.ts
+msgid "这个账号的钱包现在不能扣费（有欠额或套餐不够），配音没合成"
+msgstr "This account's wallet can't be charged right now (an outstanding balance, or the plan doesn't cover it) — the voiceover wasn't made"
+
 #: src/pages/ProfilePage.tsx
 msgid "这个链接里只有名字，没法向服务器确认是谁 · 下面只是本次刷到的那些"
 msgstr "This link only has a name, so the server can't confirm who it is · below are only the ones seen this session"
@@ -24142,6 +24167,10 @@ msgstr "No app on this phone can receive videos. The file is already in the app 
 #: src/components/BootFailed.tsx
 msgid "这台手机上的本地数据库这会儿打不开"
 msgstr "The local database on this phone can't be opened right now"
+
+#: src/pages/CutPage.tsx
+msgid "这台服务器上的配音按字数扣 token。"
+msgstr "On this server, voiceover is charged in tokens per character."
 
 #: src/data/templates.ts
 msgid "这台服务器不支持分段登记（回包没有 parts，可能需要升级服务端）——模板没有创建，本次没有花钱。"
@@ -25538,6 +25567,10 @@ msgstr "Music volume {pct}%"
 #: src/pages/CutPage.tsx
 msgid "配音"
 msgstr "Voiceover"
+
+#: src/pages/CutPage.tsx
+msgid "配音免费，每个账号每天 {voiceFree} 字（念不完提速重配的那一遍也算）。"
+msgstr "Voiceover is free, up to {voiceFree} characters per account per day (a line re-voiced faster to fit also counts)."
 
 #: src/pages/CutPage.tsx
 msgid "配音合成中…"

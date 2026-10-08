@@ -6,8 +6,8 @@
 //   输入（时间轴，现成的）→ 模型 → 形状检查 → 确认（人点头）→ 落地。
 // ★ 这里只管「问模型」这一段：清单长什么样、回话里哪些能信、信了之后怎么写进工程，都在 data/cutProject
 //   （autoBrief / parseAutoPlan / applyAutoPlan，纯函数，构建里实跑）；确认卡在 components/cut/AutoEditSheet。
-// ★ 钱：一次运行 = 一次 chat = CHAT_TURN_TOKENS（服务端按调用定额收，写多写少都是它）。之后的配音现在不收 token
-//   （见 studio/cutNarration 头上那段）。失败时钱花没花，由调用方交给 ai/failCharge 说 —— 所以这里的失败要抛对类型：
+// ★ 钱：一次运行 = 一次 chat = CHAT_TURN_TOKENS（服务端按调用定额收，写多写少都是它）。之后的配音不收 token、每天限量
+//   （服务端认 purpose 标记，见 studio/cutNarration 头上那段）。失败时钱花没花，由调用方交给 ai/failCharge 说 —— 所以这里的失败要抛对类型：
 //   **回包拿到了却用不上**（被截断 / 读不出 JSON / 一句能用的都没有）抛 ArkBadReply（远端模式下这一发已经结算），
 //   离线账本则只在整件事成了之后才记（failCharge 文件头规定的次序：先成、后扣）。
 import { msg, t } from "@lingui/core/macro";
