@@ -685,17 +685,19 @@ export async function drawGroup(o: { cast: Card[]; place: Card | null }): Promis
    *   原样摆回去就是一个永远转着的圈。撤掉之后还在看的那几格看完照常写上（checkPanel 认的是同一张图）
    */
   const before = { shots: s.shots, panels: s.panels, picks: s.picks };
-  const restoreBefore = () => {
+  /** 摆回去了回 true（调用方据此说一句「上一版摆回去了」，别再报「画好了 N 格」—— 那 N 格是上一版的） */
+  const restoreBefore = (): boolean => {
     // 上一版一张图都没有（头一次画）就不动：摆回去只是把这一次逐格的失败原因抹掉
-    if (!before.panels.some((p) => !!p?.image || !!p?.url)) return;
+    if (!before.panels.some((p) => !!p?.image || !!p?.url)) return false;
     const cur = stateFor(who);
-    if (!cur || cur.shots !== before.shots || cur.panels.some((p) => !!p?.image || !!p?.url || !!p?.busy)) return;
+    if (!cur || cur.shots !== before.shots || cur.panels.some((p) => !!p?.image || !!p?.url || !!p?.busy)) return false;
     const panels = before.panels.map((p) => {
       if (p?.check?.state !== "running") return p;
       const { check: _running, ...rest } = p;
       return rest;
     });
     writeFor(who, { panels, picks: before.picks });
+    return true;
   };
   useGridDraft.setState({ drawing: t`准备参考图…`, drawErr: "", drawNote: "", panels: shots.map(() => null), picks: [] });
   const n = shots.length;
@@ -827,8 +829,20 @@ export async function drawGroup(o: { cast: Card[]; place: Card | null }): Promis
       await drawPanelAt(who, sg.index, shots[sg.index], { cast: o.cast, place: o.place, ask: "", aspect, lead: s.lead });
     }
     // 一张新图都没画出来（整组都是单画的格子 —— 只有一两格有人、或者全是空镜 / 特写 —— 而它们全没画成）：上一版格子摆回去。
-    // 组图出过图的话格子里有新图，restoreBefore 自己就不动
-    restoreBefore();
+    // 组图出过图的话格子里有新图，restoreBefore 自己就不动。
+    // ★ 摆回去会把这一次逐格写的失败原因（带钱上那句：可能已经扣了 / 已计费）一起盖掉，而这条路上没有别处写 drawErr ——
+    //   先把它们收起来、说在 drawErr 里；票也按「没出成」结（closeJob 会把摆回来的旧图数成「画好了 N 格」）
+    const singleErrs = [...new Set((stateFor(who)?.panels ?? []).map((p) => p?.err ?? "").filter(Boolean))];
+    if (plan.singles.length && restoreBefore()) {
+      const why = singleErrs.join(t({ message: "；", comment: "把几条说明连成一句时的分隔符" }));
+      writeFor(who, {
+        drawErr: why
+          ? t({ message: `这一次一格都没画成（${why}）——上一版的图原样摆回去了`, comment: "why 是逐格的失败原因（可能带钱上的那句），用分号连起来" })
+          : t`这一次一格都没画成——上一版的图原样摆回去了`,
+      });
+      job.fail(t`九宫格分镜的画面没出成，回去看原因`);
+      return;
+    }
     closeJob(who, job);
   } finally {
     // groupId 一并清掉（与 resumeGroup 同）：留着的话向导打开时那道「自动接着等」的闸（!groupId）这一进程里再也不成立

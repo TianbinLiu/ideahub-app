@@ -230,6 +230,7 @@ msgstr ", "
 #. 把几条说明连成一句时的分隔符
 #. 把几条说明连成一句时的分隔符
 #. 把几条说明连成一句时的分隔符
+#. 把几条说明连成一句时的分隔符
 #. 把铸卡时的几条说明连成一句时的分隔符
 #. 把铸卡时的几条说明连成一句时的分隔符
 #. 把铸卡时的几条说明连成一句时的分隔符
@@ -23265,6 +23266,15 @@ msgstr "This tier can't be priced right now; try another tier"
 #: src/ai/arkClient.ts
 msgid "这一档用的模型已经停止服务了，请换一档再出片——这一次没有受理，也没有扣费。"
 msgstr "The model behind this tier has been shut down — pick another tier and generate again. This request wasn't accepted and nothing was charged."
+
+#: src/studio/gridDraftStore.ts
+msgid "这一次一格都没画成——上一版的图原样摆回去了"
+msgstr "None of the panels came out this time — the previous set has been put back"
+
+#. why 是逐格的失败原因（可能带钱上的那句），用分号连起来
+#: src/studio/gridDraftStore.ts
+msgid "这一次一格都没画成（{why}）——上一版的图原样摆回去了"
+msgstr "None of the panels came out this time ({why}) — the previous set has been put back"
 
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "这一次会拿什么去写"
