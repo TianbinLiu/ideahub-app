@@ -19983,6 +19983,10 @@ msgstr "第 {list} 格的分镜在画好之后改过，画面还是按原来那�
 msgid "第 {n} 张参考图未采用（「{name}」的{view}，比例越界或读不出来）"
 msgstr "第 {n} 张参考图未采用（「{name}」的{view}，比例越界或读不出来）"
 
+#: src/studio/gridDraftStore.ts
+msgid "第 {n} 格：{err}"
+msgstr "第 {n} 格：{err}"
+
 #: src/studio/flowStore.ts
 msgid "第 {n} 段原来是「{label}」档（会员档），改用你能用的「{b}」档——开通会员套餐（或充值过任意一笔）后可以换回去"
 msgstr "第 {n} 段原来是「{label}」档（会员档），改用你能用的「{b}」档——开通会员套餐（或充值过任意一笔）后可以换回去"

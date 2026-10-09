@@ -19975,6 +19975,10 @@ msgstr "Panel {list}: the storyboard was edited after the picture was drawn, so 
 msgid "第 {n} 张参考图未采用（「{name}」的{view}，比例越界或读不出来）"
 msgstr "Reference image {n} wasn't used (“{name}”, “{view}”: its aspect ratio is out of range or it couldn't be read)"
 
+#: src/studio/gridDraftStore.ts
+msgid "第 {n} 格：{err}"
+msgstr "Panel {n}: {err}"
+
 #: src/studio/flowStore.ts
 msgid "第 {n} 段原来是「{label}」档（会员档），改用你能用的「{b}」档——开通会员套餐（或充值过任意一笔）后可以换回去"
 msgstr "Segment {n} was on “{label}” (a member tier); switched to “{b}”, which you can use — subscribe to a plan (or make any top-up once) to switch back"

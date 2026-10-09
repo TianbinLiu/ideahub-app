@@ -831,8 +831,15 @@ export async function drawGroup(o: { cast: Card[]; place: Card | null }): Promis
     // 一张新图都没画出来（整组都是单画的格子 —— 只有一两格有人、或者全是空镜 / 特写 —— 而它们全没画成）：上一版格子摆回去。
     // 组图出过图的话格子里有新图，restoreBefore 自己就不动。
     // ★ 摆回去会把这一次逐格写的失败原因（带钱上那句：可能已经扣了 / 已计费）一起盖掉，而这条路上没有别处写 drawErr ——
-    //   先把它们收起来、说在 drawErr 里；票也按「没出成」结（closeJob 会把摆回来的旧图数成「画好了 N 格」）
-    const singleErrs = [...new Set((stateFor(who)?.panels ?? []).map((p) => p?.err ?? "").filter(Boolean))];
+    //   先把它们收起来、说在 drawErr 里；票也按「没出成」结（closeJob 会把摆回来的旧图数成「画好了 N 格」）。
+    // ★ 一格一句、带格号，**不去重**：每一句里的钱是那一格自己的一次出图（按一张的价说），几格失败的原因一模一样时
+    //   合成一句就成了「只扣了一张的钱」，而实际是几张各扣了一次（往放心的方向说错，failCharge 那条规矩）
+    const singleErrs = (stateFor(who)?.panels ?? []).flatMap((p, i) => {
+      const err = p?.err;
+      if (!err) return [];
+      const n = i + 1;
+      return [t`第 ${n} 格：${err}`];
+    });
     if (plan.singles.length && restoreBefore()) {
       const why = singleErrs.join(t({ message: "；", comment: "把几条说明连成一句时的分隔符" }));
       writeFor(who, {
