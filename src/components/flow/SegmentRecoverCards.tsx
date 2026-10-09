@@ -26,11 +26,12 @@ import {
   videoJobKnown,
   videoJobNote,
   videoJobRefunded,
+  videoJobRefundFailure,
   videoJobsVersion,
   type VideoJob,
 } from "../../data/videoJobs";
 import { ArkTaskFailed, ArkTaskUnknown, briefArkReason, chargeNote, chargeOnFail, unwrapFailure } from "../../ai";
-import { jobLandsInPlace, useFlow } from "../../studio/flowStore";
+import { jobLandsInPlace, settleRefundedPending, useFlow } from "../../studio/flowStore";
 import { useStudio } from "../../studio/studioStore";
 import { draftsLoadIssue, draftsUnavailableText } from "../../data/drafts";
 
@@ -99,6 +100,21 @@ export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean
   const refunded = !expired && videoJobRefunded(job);
   /** 退了钱、又是服务端登记表补来的：「知道了」不核对、本机直接消（见上面的 ★） */
   const localClose = refunded && videoJobFromServer(job);
+  /**
+   * 第一次认出「退了钱」的那一拍：把那一段挂着的 genNode「没接到 · 用下面的「取回」领回来，别重新生成」
+   * 当场改成「没出成」+ 钱上那个短语（flowStore.settleRefundedPending —— 与 takeJob 结案那一拍同一处实现，只动还挂着 pending 的那一段），
+   * 页顶那句「点下面那颗「取回」」一并撤掉。
+   * ★ 不看 mine（10-09 复核）：段删了 / 那一套方案没了（重新推演过）时 mine 为假，可页顶那句照样挂着、指着一张已经说「钱退了」的卡。
+   *   段那一半由 settleRefundedPending 自己判（找不到段 / 不在 pending / 这一段还有别的、能取的凭据就不动）。
+   * ★ 原来要等人点「知道了」才换（2.62 发版复核留下的一条，10-08 补）：这张卡一挂上就说「没出成、钱退了」，段上那句却还叫人别重新生成、
+   *   去点一颗这张卡上根本没有的「取回」，草稿里存的也是那句旧的。
+   * ★ 只认这张卡挂上时问来的那份账（videoJobRefundFailure），不另跑一趟上游：改的只是段上那句话，凭据照旧等「知道了」核对过再结案（dismissVideoJob 的 ★）。
+   */
+  useEffect(() => {
+    if (!refunded) return;
+    const failure = videoJobRefundFailure(job);
+    if (failure) settleRefundedPending(job, failure);
+  }, [refunded, job]);
   /** 这张卡已经没有成片可取了（过期 / 退了钱）：灰底、不摆取回、不摆「不是这条流水线的」那句 */
   const closed = expired || refunded;
 
@@ -132,10 +148,18 @@ export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean
       //   不复述取回那几句（里面说的是「再点一次『取回』」，这张卡上没有那颗键），也不另说钱 —— 钱上那句卡上已经照服务端的账说过了。
       // ★ 只这一种（2.62 发版评审第二轮抓到）：其余没收起的照原因说 —— 上游明说没出成、只是这次回包没带退款结论（ArkTaskFailed，
       //   failLine 照 ai/failCharge 说钱）、取回期间换了账号、正忙着别的，都是 failLine 给的那句真话；一律说成「没核对到」是把原因说错了
+      // ★ 上游这一次明说没出成、可回包里**没带退款结论**（ArkTaskFailed，refund 为空或不是「退了 / 正在退 / 本来没扣」—— 是那三种的话 takeJob
+      //   早就结案了，走不到「凭据还在」这一支），而这张卡挂上时问到的账说的是退了钱（videoJobRefunded）：照 failLine 说就是「这一发扣的 token 没有退回」，
+      //   紧贴在卡上那句「已经退回」底下（2.62 发版复核留下的一条，10-08 补）。这一趟只是没拿到退款结论，不是钱没退 —— 换成「暂时收不起来」那一种说法。
+      //   卡上的账没说退（老服务端 / 真没退）时照旧 failLine：那时「没有退回」就是真话。
+      const inner = unwrapFailure(e);
+      const known = closing && videoJobKnown(job.taskId);
       const why =
-        closing && videoJobKnown(job.taskId) && unwrapFailure(e) instanceof ArkTaskUnknown
+        known && inner instanceof ArkTaskUnknown
           ? t`这一条暂时收不起来：没能向上游核对到这一发的结局——过一会儿再点一次「知道了」（核对不花钱）。`
-          : failLine(e);
+          : known && inner instanceof ArkTaskFailed && videoJobRefunded(job)
+            ? t`这一条暂时收不起来：上游确认这一发没出成，但这次没带回退款的结论——过一会儿再点一次「知道了」（核对不花钱）。`
+            : failLine(e);
       if (!videoJobKnown(job.taskId)) {
         showToast(why, 8000);
         return;

@@ -196,9 +196,11 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   「现在放的是样片 / 成片」按地址现算（`draftStageOf`），**别存一个 stage 字段**（还原上一版 / 返修都会换掉现在放的那一条）。界面只有一份 `components/flow/DraftModeBox`（两面都挂）。
   1080p 是 10 bit H.265：模拟器 WebView 只有声音、解不出画面（10-07 付费实测），服务端转存时转成 8 bit H.264（server `videoAsset.uploadVideoBuffer`）；转好之前放的是方舟直链，按钮旁照实说。
   ④ **受理之后上游明说失败（方舟 failed / cancelled / expired、真人档 Fail）的那一发由服务端退回** —— App 侧只认类型：`arkClient.ArkTaskFailed`（带服务端在回包上说的 `refund`），
-  composeSegments / settleSegment **原样**带着失败对象（外面包 `SegmentGenFailed` = 失败的是视频那一发 + 出片前已结算的画面张数；`ArkTaskUnknown` 永不包）。出片前某张画面（圈选改帧 / 补画设定帧）失败也包这一层、`failedCall: "image"`（钱上按出图说「已经画好的 N 张 + 失败的这一张」）；这一次补画好的设定帧随错误带出去（`kept`），genNode 写回方案（不上锁），重试不再重画、不再收图钱。
+  composeSegments / settleSegment **原样**带着失败对象（外面包 `SegmentGenFailed` = 失败的是视频那一发 + 出片前已结算的画面张数；`ArkTaskUnknown` 永不包）。出片前某张画面（圈选改帧 / 补画设定帧）失败也包这一层、`failedCall: "image"`（钱上按出图说「已经画好的 N 张 + 失败的这一张」）；这一次补画好的设定帧随错误带出去（`kept`），genNode 写回方案（不上锁），重试不再重画、不再收图钱；离线账本按张记上它们（张数只从 `arkClient.keptFrameCount` 取，`failCharge` 离线时说的「已按张计费」数的是同一个）。
   钱上那句话只走 `ai/failCharge`（`taskFailed`：退了 / 会退 / 服务端没说三档；出片前的画面按张单说）。**从不**自己往钱包镜像上加退款（只刷一次钱包）。
-  ⑤ 退了钱的取回凭据当场结案（`flowStore.takeJob`），取回卡那句话改用轻提示（卡当场就卸载了）；说「钱无法挽回」之前先问 `GET /api/ark/task-charges/:id`
+  ⑤ 退了钱的取回凭据当场结案（`flowStore.takeJob`），取回卡那句话改用轻提示（卡当场就卸载了）；段上 genNode 留下的「没接到 · 用下面的取回」
+  在取回卡第一次认出「退了钱」时就改成「没出成」（`flowStore.settleRefundedPending`，与 takeJob 结案共用）；返修的取回照凭据上的 `reviseAudio`
+  记进有声 / 无声名单（`flowStore.reviseAudioPatch`，当场写回 / 落回原位 / 新开一段三处共用）；说「钱无法挽回」之前先问 `GET /api/ark/task-charges/:id`
   （`videoJobs.checkVideoJobCharge`，清扫器可能早就退过了；404 `NOT_FOUND` = 没有这一笔账、不会退，`lost` = 交人工、不会自动退）；许诺「万一没出成会自动退回」
   只在能力位为真时，**按供应商分开问**（方舟 `failRefund`，真人档 `failRefundMinimax` = 健康端点的 `minimaxFailRefund`）。站内通知 `GEN_TASK_REFUND` 点进去开钱包。
   ⑥ **样片第一步只走参考图那一种请求**：帧转参考图失败时普通出片退回首尾帧，而 2.5 的首尾帧任务只收 `ratio: "adaptive"`，服务端按 480p 那一行最贵的一格结算 ——

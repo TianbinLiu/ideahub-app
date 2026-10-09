@@ -41,7 +41,7 @@
 import type { VideoAspect } from "../types";
 import { t } from "@lingui/core/macro";
 import { API_BASE, apiGet, getToken } from "../api/client";
-import { fetchTaskCharge, type TaskRefund } from "../ai/arkClient";
+import { ArkTaskFailed, fetchTaskCharge, type TaskRefund } from "../ai/arkClient";
 import { deviceOwner, mayClaimLegacy, onViewerChange, workOwner } from "./deviceOwner";
 import { draftTierId, fmtTokens, tierIdOf } from "./economy";
 import { serverSupports, type BoolCap } from "./serverCaps";
@@ -132,6 +132,14 @@ export interface VideoJob {
   draftDur?: number;
   /** 样片第二步：升的是哪条样片（服务端登记表的 draftOf） */
   draftOf?: string;
+  /**
+   * 这一发是**返修**、出来的成片自己有没有声（2.62 发版复核留下的一条，10-08 补）。**有这一位 = 返修**；缺省 = 普通出片（老凭据天然没有 —— 判否定）。
+   * ★ 受理那一拍按出片的那一档定下来（flowStore.genNode 的 reviseAudio，判据 economy.videoAudioOn）：取回时那一档可能已经换过了，现问会问错。
+   * ★★ 为什么要存：取回落回原位的那条返修原来不记进 Proposal.voicedVideos / silentVideos —— 白模段上一条**有声**的返修被取回之后，
+   *   回看照样叠一层模板原声（两层声），组稿把 hasAudio 判成 false、剪辑页藏掉它自己的原声滑杆。判据只问 flowStore.reshotWithSound，它认的就是那份名单。
+   *   补那一格只有一处实现（flowStore.reviseAudioPatch，当场写回 / 落回原位 / 新开一段共用）。
+   */
+  reviseAudio?: "voiced" | "silent";
   createdAt: number;
   /**
    * 这一发是**谁付的钱**（user.id，见 data/deviceOwner）—— 取回卡只摆给他看、只有他取得回。
@@ -395,8 +403,28 @@ function refundsOn(job: VideoJob): boolean {
  * ★ skipped（管理员免单）不算：没过期的那种任务多半还在跑、成片还取得回来，话里说的也是「点取回」。
  */
 export function videoJobRefunded(job: VideoJob): boolean {
+  return refundedChargeOf(job) !== null;
+}
+
+/** 问过的账里「没出成、退了 / 正在退」的那一笔（videoJobRefunded 与 videoJobRefundFailure 共用这一处判断） */
+function refundedChargeOf(job: VideoJob): TaskRefund | null {
   const c = refundsOn(job) ? videoJobCharge(job.taskId) : null;
-  return !!c && c !== "none" && (c.state === "refunded" || c.state === "refunding");
+  return !!c && c !== "none" && (c.state === "refunded" || c.state === "refunding") ? c : null;
+}
+
+/**
+ * 卡片挂上时问来的那一笔「退了钱」的账 → 一个 ArkTaskFailed（与取回时上游明说失败抛的是同一个类型，带同一份退款结论）。
+ * 没退 / 没问到 = null。
+ * ★ 为什么要造它（2.62 发版复核留下的一条，10-08 补）：取回卡第一次认出「退了钱」的那一拍，要把那一段挂着的 genNode「没接到 ·
+ *   用下面的「取回」领回来」改成「没出成」（flowStore.settleRefundedPending，与 takeJob 结案那一拍同一处实现）。钱上那个短语
+ *   只能走 ai/failCharge，而它只认错误类型 —— 所以这里给的是同一个类型，不是另拼一句「已退回」。
+ * ★ 原因写「这一发没出成」：账上只记着退了钱，上游的原因要点「知道了」核对那一趟才拿得到（拿到也不再改这一句，见 settleRefundedPending）。
+ */
+export function videoJobRefundFailure(job: VideoJob): ArkTaskFailed | null {
+  const c = refundedChargeOf(job);
+  if (!c) return null;
+  const reason = t`这一发没出成`;
+  return new ArkTaskFailed(reason, job.taskId, "failed", "", c, reason, job.provider === "minimax" ? "minimax" : "ark");
 }
 
 /** 去问一次这一发的账（取回卡挂上时调，过期没过期都问）。到了 emit，卡片重画 */

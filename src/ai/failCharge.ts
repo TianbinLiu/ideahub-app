@@ -14,7 +14,7 @@
 //        只刷一次钱包（2026-08-10 双计数那次的教训：余额只认服务端给的数）；
 //     ⑥ 一段出片里视频之前已经画好的几张画面（SegmentGenFailed：补画设定帧 / 圈选改帧）—— 那几次出图各自结算过，
 //        视频退了也退不到它们头上：话要分开说「视频那部分 / 出片前画好的 N 张」。失败的若是其中一张画面（failedCall: "image"），
-//        就按出图说「已经画好的 N 张 + 失败的这一张」（离线时 genNode 一张都没记账，照 paidBefore 的 ★ 不说已计费）。
+//        就按出图说「已经画好的 N 张 + 失败的这一张」（离线时只说 genNode 真记进本机账本的那几张 —— 随错误带出来的设定帧，见 paidBefore 的 ★）。
 //   收口之前，自传图做卡片的圈选改图 / AI 生成图位 / 人物信息、提取窗的炼形象图、导演台融图五处的 catch 一律说
 //   「没扣钱」，只有 CustomCardPage.recognize 一处自己抄了一遍三档 —— 而且它指给用户的「钱包流水」在 App 里并不存在。
 // ★★ 一律认错误的**类型**，绝不去 message 里找字（CLAUDE.md「按错误 message 里的中文关键词判」那一格：
@@ -48,7 +48,9 @@ export interface FailCharge {
    * 同一批里在这一发之前已经各自结算的调用次数（逐格出图：已经画好、交给调用方留下的那几张；一段出片：视频之前画好的那几张画面）。
    * 不是批量调用、或管理员免扣费时恒 0。
    * ★ 离线账本：逐格出图那几张算（调用方收下时当场按张记进本机账本，real.PortraitViewsPartial 的 ★★）；
-   *   出片前的画面**不算**（genNode 只在成片到手时按整段报价记一次，失败时一张都没记）。
+   *   一段出片只算**随错误带出来、真记进了本机账本的设定帧**（SegmentGenFailed.keptCharged：genNode 记账成功那一拍写，没记上就是 0）—— genNode 失败那一支按张记进本机账本的就是它们
+   *   （2.62 发版复核留下的一条，10-08 补；原来离线一张都不记，留在方案上的帧从此不花钱）。圈选改过的那几张不在 kept 里（圈选还挂在段上、
+   *   下一次照样重改），离线不记、也不说；远端模式下它们照样在 framesSettled 里、照服务端的账说。剪辑页重拍不带 kept，离线照旧是 0。
    */
   paidBefore: number;
   /**
@@ -69,6 +71,7 @@ export interface FailCharge {
  * ★★ 批量里**之前画好的那几发**（paidBefore）离线时照样算已计费（2026-09-17 起）：逐格出图半途失败时调用方不再丢掉那几张图，
  *   而是收下、并在离线账本里按张记上 —— 不记的话离线用户能白拿图（主人点名）。所以离线分支带 settledBefore 回去，
  *   chargeNote 说出来的是「已经画好的 N 张已按张计费」，与本机账本真扣的那一笔一致。
+ *   一段出片失败时随错误带出来、留在方案上的设定帧（SegmentGenFailed.kept）同一条规矩（10-08 起，genNode 失败那一支记账）。
  *   离线的管理员这一档不存在（role 只从服务端的账号来），不必为它分支。
  * ★ 副作用：判成 maybe 时顺手去刷一次钱包。这一档恰恰是**没有回包**的那一档，响应头带不回余额（arkFetch 的
  *   syncWalletFromHeaders 没机会跑），不刷的话「我的」页上那个数还是扣之前的 —— 而我们正要用户去看它。
@@ -83,8 +86,10 @@ export function chargeOnFail(e: unknown): FailCharge {
   const video = (frames && e.failedCall === "video") || failure instanceof ArkTaskFailed;
   const shape: FailCharge["shape"] =
     failure instanceof ArkNoReply ? "noReply" : failure instanceof ArkBadReply ? "badReply" : failure instanceof ArkTaskFailed ? "taskFailed" : "other";
-  // 离线：失败的这一发没扣；之前那几发只有逐格出图的算（见 paidBefore 的 ★）
-  if (!isRemoteMode()) return { shape, tier: "none", paidBefore: frames ? 0 : settled, video, refunded: 0 };
+  // 离线：失败的这一发没扣；之前那几发只算调用方收下、并按张记进本机账本的那几张（见 paidBefore 的 ★）——
+  // 逐格出图是画好的全部（settledBefore），一段出片是随错误带出来、genNode 真记上账的那几张（keptCharged —— 不是 kept 的张数：记没记上还要看
+  // 演示构建、换没换账号、本机余额够不够，屏幕上说的只能是真扣了的）
+  if (!isRemoteMode()) return { shape, tier: "none", paidBefore: frames ? e.keptCharged : settled, video, refunded: 0 };
   if (billingExempt()) return { shape, tier: "none", paidBefore: 0, video, refunded: 0 };
   if (shape === "noReply") void refreshRemoteWallet();
   if (failure instanceof ArkTaskFailed) {

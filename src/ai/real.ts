@@ -52,6 +52,8 @@ import {
 } from "../data/economy";
 import { idbSet } from "../data/db";
 import { noteBlobOwner } from "../data/blobOwners";
+import { API_ON } from "../api/client";
+import { serverSupports } from "../data/serverCaps";
 // 方案的提示词拼装与"这一格要不要调模型"都在 data/promptSchemes 一处实现（铁律六）：
 // 风格那句由 slotPrompt 统一拼，方案作者改不掉；isGenerated 与 economy.schemeCost 同源。
 // ★ 别名 schemeSlotPrompt：本文件下面已经有一个**铸卡**用的 slotPrompt(type,name,...)，
@@ -3494,7 +3496,8 @@ export async function composeSegments(
  *   过几分钟再点一次" —— 凭据还在，点几次都不花钱。
  * ★ 抛什么决定的是**这句话怎么说**（"一会儿再来" vs "多半没了"）：
  *   还在跑 / 网络不通 → `ArkTaskUnknown`；方舟明说 failed / cancelled / expired → `ArkTaskFailed`
- *   （带服务端的退款结论）；查无此任务 → 先问服务端那一笔账（退过钱就同样是 ArkTaskFailed），否则普通 Error；
+ *   （带服务端的退款结论）；查无此任务 → 先问服务端那一笔账（退过钱就同样是 ArkTaskFailed；会退钱的服务端上**没问到**
+ *   是 ArkTaskUnknown —— 不知道退没退，不说死），否则普通 Error；
  *   成功却没地址 → `ArkBadReply`（已计费）。
  * ★★ 凭据在这里一律不销毁 —— 留不留由调用方按类型定（flowStore.takeJob）：**退了钱**的失败结案（没有成片可取，
  *   钱也回来了，留着只会是一张永远关不掉的「取回」卡）；其余失败照旧留在屏幕上（「这一发花过钱」的记录最该被看见）。
@@ -3550,6 +3553,18 @@ export async function takeVideoTask(
       if (charge && charge !== "none" && charge.state === "lost") {
         throw new Error(
           t`方舟那边查不到这一发了（任务号查无此物），我们也一直没能向上游确认它的结局，所以没有自动退回——把任务号 ${taskId} 发给客服，由人工核对这笔钱；重新生成是重新下一单、会再花一次钱`,
+        );
+      }
+      // ★ **没问到**那一笔账（null：断网、5xx、429）而这台服务端是会退钱的：不知道 ≠ 没退，不许落进下面那句「钱无法挽回」
+      //   （2.62 发版复核留下的一条，10-08 补）。原来照样说死 —— 一张已经说着「钱退回了」的卡，点「知道了」时恰好这一问没问到，
+      //   卡上就同时摆着「已经退回」与「无法挽回」。抛 ArkTaskUnknown：凭据留着（takeJob 只结案退了钱的），过一会儿再点一次（查询不花钱）。
+      // ★ 只在真有服务端那一层、而它会退方舟的钱时这么判：dev 直连方舟 / 离线构建没有那一笔账可问（fetchTaskCharge 恒为 null），
+      //   老服务端不退 —— 那几种照旧说下面那句，不然一发真没了的任务会一直被说成「过一会儿再来」。能力位还没探到（null）按会退算：
+      //   往「再问一次」那边错，代价只是多点一下
+      if (charge === null && API_ON && !import.meta.env.DEV && serverSupports("failRefund") !== false) {
+        throw new ArkTaskUnknown(
+          t`方舟那边查不到这一发了，这次也没能向服务器问到它退没退钱——过一会儿再点一次（查询不花钱），凭据还在`,
+          taskId,
         );
       }
       throw new Error(
