@@ -32,6 +32,11 @@ interface Props {
   lens: ReadonlyArray<number>;
   /** 配音这会儿能不能用（要连着服务端）。不能用时那颗开关不摆，只写字幕 */
   canVoice: boolean;
+  /**
+   * 旁白免费、每个账号每天几个字（服务端音色目录里的能力位，studio/cutNarration.loadNarration）。
+   * 只有是数字时才说「免费」：undefined = 还没取到、null = 服务端没说（老服务端上配音按字扣钱）
+   */
+  voiceFree: number | null | undefined;
   /** 现在选的旁白音色的名字（只是告诉人会用哪把嗓子；换音色回「字幕」页签） */
   voiceName: string;
   onClose: () => void;
@@ -39,7 +44,7 @@ interface Props {
   onApply: (next: CutProject, opts: { voice: boolean }) => void;
 }
 
-export default function AutoEditSheet({ project, segs, lens, canVoice, voiceName, onClose, onApply }: Props) {
+export default function AutoEditSheet({ project, segs, lens, canVoice, voiceFree, voiceName, onClose, onApply }: Props) {
   const { t } = useLingui();
   const [step, setStep] = useState<SkillStepKind>("input");
   const [busy, setBusy] = useState(false);
@@ -244,7 +249,11 @@ export default function AutoEditSheet({ project, segs, lens, canVoice, voiceName
                 <label className="flex items-center gap-2">
                   <input type="checkbox" className="accent-brand" checked={voice} onChange={(e) => setVoice(e.target.checked)} />
                   <span className="min-w-0 flex-1">
-                    <Trans>用完就配音（{voiceName}，现在免费）</Trans>
+                    {typeof voiceFree === "number" ? (
+                      <Trans>用完就配音（{voiceName}，现在免费）</Trans>
+                    ) : (
+                      <Trans>用完就配音（{voiceName}）</Trans>
+                    )}
                   </span>
                 </label>
               )}

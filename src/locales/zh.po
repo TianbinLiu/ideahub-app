@@ -3582,6 +3582,11 @@ msgstr "🔊 用模板原声"
 
 #. placeholder {0}: voiceTodo.length
 #: src/pages/CutPage.tsx
+msgid "🔊 给 {0} 句配音"
+msgstr "🔊 给 {0} 句配音"
+
+#. placeholder {0}: voiceTodo.length
+#: src/pages/CutPage.tsx
 msgid "🔊 给 {0} 句配音（现在免费）"
 msgstr "🔊 给 {0} 句配音（现在免费）"
 
@@ -4129,6 +4134,10 @@ msgstr "TA 自己不聊的东西。平台的安全底线是另外固定注入的
 #: src/pages/ProfilePage.tsx
 msgid "TA 还没有发布作品"
 msgstr "TA 还没有发布作品"
+
+#: src/studio/cutNarration.ts
+msgid "token 余额不够，配音没合成"
+msgstr "token 余额不够，配音没合成"
 
 #: src/ai/arkClient.ts
 msgid "token 余额不足：这一步需要 {need}，余额 {have}——去「我的」页充值"
@@ -5637,6 +5646,14 @@ msgstr "仅自己可见 {0}"
 #: src/components/VoiceRecorder.tsx
 msgid "今天天气不错，我在院子里晒了会儿太阳，顺手把花也浇了。"
 msgstr "今天天气不错，我在院子里晒了会儿太阳，顺手把花也浇了。"
+
+#: src/studio/cutNarration.ts
+msgid "今天的 token 用量到上限了，明天再接着配"
+msgstr "今天的 token 用量到上限了，明天再接着配"
+
+#: src/studio/cutNarration.ts
+msgid "今天的免费配音用完了（每个账号每天限量），明天再接着配——字幕照样能烧进画面"
+msgstr "今天的免费配音用完了（每个账号每天限量），明天再接着配——字幕照样能烧进画面"
 
 #: src/ai/arkClient.ts
 msgid "今天的生成额度用完了，明天 0 点（UTC）重置"
@@ -18200,6 +18217,10 @@ msgstr "用它出片"
 msgid "用完就配音（{voiceName}，现在免费）"
 msgstr "用完就配音（{voiceName}，现在免费）"
 
+#: src/components/cut/AutoEditSheet.tsx
+msgid "用完就配音（{voiceName}）"
+msgstr "用完就配音（{voiceName}）"
+
 #: src/pages/AdminPage.tsx
 #: src/pages/DiscoverPage.tsx
 msgid "用户"
@@ -24019,6 +24040,10 @@ msgstr "这个视频浏览器解不开（换 mp4/webm 试试）"
 msgid "这个视频浏览器解不开（白模模板只收 mp4 / mov）"
 msgstr "这个视频浏览器解不开（白模模板只收 mp4 / mov）"
 
+#: src/studio/cutNarration.ts
+msgid "这个账号的钱包现在不能扣费（有欠额或套餐不够），配音没合成"
+msgstr "这个账号的钱包现在不能扣费（有欠额或套餐不够），配音没合成"
+
 #: src/pages/ProfilePage.tsx
 msgid "这个链接里只有名字，没法向服务器确认是谁 · 下面只是本次刷到的那些"
 msgstr "这个链接里只有名字，没法向服务器确认是谁 · 下面只是本次刷到的那些"
@@ -24150,6 +24175,10 @@ msgstr "这台手机上没有能接收视频的应用。文件已经在 App 内�
 #: src/components/BootFailed.tsx
 msgid "这台手机上的本地数据库这会儿打不开"
 msgstr "这台手机上的本地数据库这会儿打不开"
+
+#: src/pages/CutPage.tsx
+msgid "这台服务器上的配音按字数扣 token。"
+msgstr "这台服务器上的配音按字数扣 token。"
 
 #: src/data/templates.ts
 msgid "这台服务器不支持分段登记（回包没有 parts，可能需要升级服务端）——模板没有创建，本次没有花钱。"
@@ -25546,6 +25575,10 @@ msgstr "配乐音量 {pct}%"
 #: src/pages/CutPage.tsx
 msgid "配音"
 msgstr "配音"
+
+#: src/pages/CutPage.tsx
+msgid "配音免费，每个账号每天 {voiceFree} 字（念不完提速重配的那一遍也算）。"
+msgstr "配音免费，每个账号每天 {voiceFree} 字（念不完提速重配的那一遍也算）。"
 
 #: src/pages/CutPage.tsx
 msgid "配音合成中…"

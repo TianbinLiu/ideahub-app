@@ -84,7 +84,7 @@ import {
   type CutProject,
   type CutResult,
 } from "../data/cutProject";
-import { NarrationError, listNarrators, narratorOf, synthLine, type Narrator } from "../studio/cutNarration";
+import { NarrationError, loadNarration, narratorOf, synthLine, type Narrator } from "../studio/cutNarration";
 import CutPreviewLayer from "../components/cut/CutPreviewLayer";
 import AutoEditSheet from "../components/cut/AutoEditSheet";
 import CutAgentSheet from "../components/cut/CutAgentSheet";
@@ -230,17 +230,25 @@ export default function CutPage() {
   /** 「💬 对剪辑台说」的面板开着没有 */
   const [agentOpen, setAgentOpen] = useState(false);
   const auditionRef = useRef<HTMLAudioElement | null>(null);
-  /** 可选的旁白音色（服务端目录，进「字幕」页签时取一次）。null = 还没取到 */
+  /** 可选的旁白音色（服务端目录，进这一页时取一次）。null = 还没取到 */
   const [narrators, setNarrators] = useState<Narrator[] | null>(null);
+  /**
+   * 旁白免费、每个账号每天几个字（同一份目录里的能力位，studio/cutNarration.loadNarration）。
+   * undefined = 还没取到；null = 服务端没说（老服务端，那里配音按字扣钱）—— 只有是数字时界面才说「免费」。
+   */
+  const [voiceFree, setVoiceFree] = useState<number | null | undefined>(undefined);
   const [narratorErr, setNarratorErr] = useState("");
   /** 配音要打服务端的语音合成：离线 / 演示构建里没有它（字幕照常能用） */
   const canVoice = isRemoteMode();
+  // ★ 进页就取（原来等进「字幕」页签才取）：「✨ 一键成片」与「💬 说一句」也会配音，它们那一屏要知道免不免费
   useEffect(() => {
-    if (tab !== "text" || narrators || !canVoice) return;
+    if (narrators || !canVoice) return;
     let alive = true;
-    listNarrators()
-      .then((list) => {
-        if (alive) setNarrators(list);
+    loadNarration()
+      .then((cat) => {
+        if (!alive) return;
+        setNarrators(cat.narrators);
+        setVoiceFree(cat.freeDaily);
       })
       .catch((e) => {
         if (alive) setNarratorErr(e instanceof Error ? e.message : String(e));
@@ -248,7 +256,7 @@ export default function CutPage() {
     return () => {
       alive = false;
     };
-  }, [tab, narrators, canVoice]);
+  }, [narrators, canVoice]);
   // 离开这一页：试听的那一句收声
   useEffect(
     () => () => {
@@ -951,8 +959,9 @@ export default function CutPage() {
           } catch (e) {
             failed++;
             if (!why) why = e instanceof Error ? e.message : String(e);
-            // 这几种不是这一句的问题：后面的句子也一样会失败，别一句一句撞过去（限流那种还会越撞越久）
-            if (e instanceof NarrationError && ["auth", "rate", "unsupported", "network"].includes(e.kind)) {
+            // 这几种不是这一句的问题：后面的句子也一样会失败，别一句一句撞过去（限流那种还会越撞越久；
+            // 今天的免费额度用完了也一样 —— 再撞每一句都是同一个 429）
+            if (e instanceof NarrationError && ["auth", "rate", "quota", "money", "unsupported", "network"].includes(e.kind)) {
               failed += ids.length - k - 1;
               break;
             }
@@ -2713,7 +2722,9 @@ export default function CutPage() {
                     {voicing.size > 0
                       ? t`配音合成中…`
                       : voiceTodo.length > 0
-                        ? t`🔊 给 ${voiceTodo.length} 句配音（现在免费）`
+                        ? typeof voiceFree === "number"
+                          ? t`🔊 给 ${voiceTodo.length} 句配音（现在免费）`
+                          : t`🔊 给 ${voiceTodo.length} 句配音`
                         : t`✓ 能配的句子都配好了`}
                   </button>
                 )
@@ -2724,6 +2735,17 @@ export default function CutPage() {
               )}
               <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
                 <Trans>一段一句，字数按这一段的时长封顶。有配音时，配乐会自动压到 {Math.round(BGM_DUCK * 100)}%、这一段的原声压到 {Math.round(BED_GAIN * 100)}%（配音为主）。</Trans>
+                {canVoice && typeof voiceFree === "number" ? (
+                  <>
+                    {" "}
+                    <Trans>配音免费，每个账号每天 {voiceFree} 字（念不完提速重配的那一遍也算）。</Trans>
+                  </>
+                ) : canVoice && voiceFree === null ? (
+                  <>
+                    {" "}
+                    <Trans>这台服务器上的配音按字数扣 token。</Trans>
+                  </>
+                ) : null}
               </p>
             </>
           )}
@@ -2879,6 +2901,7 @@ export default function CutPage() {
           segs={segs}
           lens={lens}
           canVoice={canVoice}
+          voiceFree={voiceFree}
           voiceName={narratorName(voiceId)}
           onClose={() => setAutoOpen(false)}
           onApply={applyAuto}

@@ -646,7 +646,7 @@ App 接 caps 之前，那条告知在 App 侧等于不存在 —— 这是已知
 | POST | `/api/personas/generate` | required | **第 4 步**（扩参，向后兼容）：`{ chatText?(≥20 字), hint?, basics?: {name, role, relation, intro, addressUser}, questionnaire?: {extroversion, rationality, formality, humor, talkative, politeness, emotional, catchphrase, addressUser, language, emoji, taboos…}（≤30 项、键 ≤40 字；值 string(≤200) \| number \| boolean \| string[](≤12 条 × ≤60 字)）, analysis?, only?: string[], draft? }`（chatText / analysis / basics 至少一个；`only` 必须带 `draft`，取值只能是 `name`/`description`/`tags`/`summary`/`catchphrases`/`stanceHint`/`tone`/`addressUser`/`greeting`/`examples`/`boundaries`）→ `{ ok, draft: { name, description, coverEmoji, tags, style: { summary, catchphrases, stats, stanceHint, tone, addressUser, greeting, examples: [{user, reply}], boundaries } }, model }`；5 次/分钟。⚠ **七根滑杆的方向由服务端 `personaAi.service.QUESTIONNAIRE_LABELS` 定义，客户端必须逐条对齐**：`extroversion` 0 外向 100 内向、`rationality` 0 理性 100 感性、`formality` 0 正式 100 随意、`talkative` 0 话多 100 话少（**这四根是双极轴，两端说的是「哪一极」而不是「某项的程度」**）；`humor` / `politeness` / `emotional` 才是「这一项的程度 0～100」。反了是**零报错**的：页面、请求、回包全都正常，只是生成出来的人格与用户拉的滑杆相反（2026-09-07 App 侧抓到过一次，四根全反）。`basics` 各字段上限：`name` ≤120、`role` ≤60、`relation` ≤120、`intro` ≤300、`addressUser` ≤60 |
 | POST | `/api/personas/preview-chat` | required | **第 5 步 试聊**：`{ draft: { name, description?, coverEmoji?, tags?, style? }, messages: [{role, content}] (≤20 条，最后一条须 user；单条 `content` 1～2000 字), lang? }` → SSE，事件与 `/api/companion/chat` 相同（`sentence` / `token` / `done` / `error`）；草稿不落库；20 次/分钟 |
 | POST / PUT | `/api/personas` `/api/personas/:id` | required | 字段上限（`persona.schemas.js`，2026-09-07 逐条登记）：`name` 1～120、`description` ≤1000、`coverEmoji` ≤8、`coverImageUrl` ≤2000、`tags` 数组或逗号串（草稿那侧 ≤12 条 × ≤30 字）、`price` 0～100000 整数；`style` = `summary`(≤2000) / `catchphrases`(≤50 条 × ≤120) / `stats`(≤30) / `stanceHint`(≤500)，外加 `tone`(≤300) / `addressUser`(≤60) / `greeting`(≤300) / `examples`(≤12 组，各 ≤300) / `boundaries`(≤12 条 × ≤120)。⚠ **客户端别把这几个数再往小里收**：其中大半是 AI 生成之后填进表单的，收小了屏幕上就红着一句「超了 N 字」，而它其实发得出去（假警报比没警报更坏）——App 侧一处实现在 `companion/personaWizard.PERSONA_LIMITS`。`remixable` 与 `license` **服务端还没有**（治理 P5），z.object 默认 strip，发了是静默丢掉，界面上也不许说「已留痕」；回包 `style` 同样带这些字段，`styleDescriptor` 拼进语气 / 称呼 / 边界；Persona 多 `takenDown`。列表 `GET /api/personas` 现在在数据库里搜索 / 排序 / 分页，`q` 大小写不敏感匹配 name / description / tags |
-| GET | `/api/tts/voices` | 无 | 豆包音色目录 `{ ok, voices: [{ id, name, why, expressive?, rate?, generation: "2.0", mixable: false }], mixable: [{ id, name, gender: "female"\|"male", generation: "1.0", mixable: true }], defaultVoiceId, maxMixVoices: 3 }`。`voices` = 19 个 2.0 单音色（目录之外的 id 也允许；App 的「单音色」页列的是 `studio/voices.ts` 那份清单）；`mixable` = 23 个逐个验证过的 1.0 音色，**混音配方只能从这里选**（2026-09-04 起；老服务端没有 `mixable` / `maxMixVoices`，App 的「混音」页据此提示服务端要更新） |
+| GET | `/api/tts/voices` | 无 | 豆包音色目录 `{ ok, voices: [{ id, name, why, expressive?, rate?, generation: "2.0", mixable: false }], mixable: [{ id, name, gender: "female"\|"male", generation: "1.0", mixable: true }], defaultVoiceId, maxMixVoices: 3 }`。`voices` = 19 个 2.0 单音色（目录之外的 id 也允许；App 的「单音色」页列的是 `studio/voices.ts` 那份清单）；`mixable` = 23 个逐个验证过的 1.0 音色，**混音配方只能从这里选**（2026-09-04 起；老服务端没有 `mixable` / `maxMixVoices`，App 的「混音」页据此提示服务端要更新）。另带能力位 `narrationFree: { dailyChars }`（2026-10-08：剪辑页旁白免费、每个账号每天几个字；老服务端没有 = 旁白照样按字扣钱，剪辑页不说「免费」） |
 | GET | `/api/voice-templates` | optional | **声音市场**（混音模板）列表：`?page&limit(≤40)&sort=new\|hot&q(≤80)&scope=all\|mine` → `{ ok, templates: VoiceTemplate[], total, page, limit, totalPages }`。`all` 只有公开的；`mine` 未登录 401 |
 | GET | `/api/voice-templates/:id` | optional | `{ ok, template }`；私有且非作者 403 |
 | POST | `/api/voice-templates` | required | `{ name(1..60), description?(≤300), recipe: VoiceMixEntry[](1..3 味，每味都得在 `mixable` 目录里), rate?, pitch?, instruct?(≤200), expressive?, shared?(默认 false) }` → **201** `{ ok, template }`。2.0 id / 超 3 味 → 400，`message` 是中文人话（App 直接展示）。限流 10/分钟 |
@@ -2079,7 +2079,7 @@ openid 由服务端拿 AppKey 向 `graph.qq.com` 换取，客户端没有机会�
 | 方法 | 路径 | 鉴权 | 说明 |
 |---|---|---|---|
 | GET | `/api/tts/health` | 无 | `{ ok, tts: boolean }` —— 这台服务器配没配 `TTS_API_KEY`。不回密钥本身 |
-| POST | `/api/tts` | **必须** | 合成一句台词，回 `audio/mpeg`。按用户限流 30 次/分钟 |
+| POST | `/api/tts` | **必须** | 合成一句台词，回 `audio/mpeg`。按用户限流 30 次/分钟。**按字计费**（2026-09-25 起），剪辑页旁白（`purpose:"cut-narration"`）除外，见下「第三个调用方」 |
 
 请求体（除 `text` 外都可省）：
 
@@ -2091,7 +2091,8 @@ openid 由服务端拿 AppKey 向 `graph.qq.com` 换取，客户端没有机会�
   "emotion": "happy", "instruct": "用更冷静的语气",
   "rate": 0,        // [-50,100]，0 = 1.0 倍
   "pitch": -1,      // [-12,12]
-  "expressive": true // 2.0 ICL 音色专属；<cot> 标签生效的前提
+  "expressive": true, // 2.0 ICL 音色专属；<cot> 标签生效的前提
+  "purpose": "cut-narration" // 可省。只认这一个值（剪辑页旁白，走免费额度；只收「只念字」—— 带混音 / 表现力 / 语调指令 / 情绪整句 400 NARRATION_SHAPE）；别的值 400 TTS_PURPOSE
 }
 ```
 
@@ -2101,12 +2102,17 @@ openid 由服务端拿 AppKey 向 `graph.qq.com` 换取，客户端没有机会�
 - `502/504` 上游偶发失败 → 只是这一句没出声，不关云端（下一句照常重试）
 - `400` 空文本
 
-★ **第三个调用方：剪辑页的配音**（2026-09-30，App `studio/cutNarration.synthLine`）—— 服务端一个字没改，用的就是上面这份契约：
-body 只发 `{ text, voice, rate? }`（`voice` 取自 `/api/tts/voices` 的目录，2.0 单音色与 1.0 可混音那批都当单音色用；
-`rate` 只在一句话在片段里念不完时才带，最大 30）。它**不向用户收 token**（主人 09-30 定的免费期），限量靠三样：
-一个片段一句、长度按片段时长封顶（App 在请求之前把关）、这里原有的 30 次/分钟。一句念不完时 App 会提语速**重合成一次**，
-所以一句话最多 2 次调用。状态码在这条路上的含义：`401/403` 让人重新登录、`429` 说"等一分钟"、`501` 说服务器没开通、
-其余当这一句没成；回包 `Content-Type` 不是 `audio/` 一律当服务端没有这个功能。
+★ **第三个调用方：剪辑页的配音**（2026-09-30，App `studio/cutNarration.synthLine`）：
+body 发 `{ text, voice, rate?, purpose: "cut-narration" }`（`voice` 取自 `/api/tts/voices` 的目录，2.0 单音色与 1.0 可混音那批都当单音色用；
+`rate` 只在一句话在片段里念不完时才带，最大 30）。它**不向用户收 token**（主人 09-30 定「免费 + 限量」），限量靠四样：
+一个片段一句、长度按片段时长封顶（App 在请求之前把关）、这里原有的 30 次/分钟、**每个账号每个 UTC 日几个字**
+（服务端 `config/tokens.NARRATION_FREE_DAILY_CHARS`，App 从 `GET /voices` 的 `narrationFree.dailyChars` 读，界面只有看见它才说「免费」）。
+一句念不完时 App 会提语速**重合成一次**（那一遍也占额度；它没成就留着第一遍），所以一句话最多 2 次调用。
+★★ 免费只认 `purpose` 这个标记：`/api/tts` 从 2026-09-25 起按字扣钱，**2.58 ~ 2.62 的剪辑页没带标记、却写着「现在免费」**，
+2026-10-08 才补上（服务端认标记 + App 发标记）。这些老版本在新服务端上**照旧按字扣**，要更新才免费。
+状态码在这条路上的含义（认 `code` 不认文案）：`429 NARRATION_DAILY_LIMIT` 说今天的免费额度用完了（一批里撞上就停）、
+其余 `429` 说"等一分钟"、`401/403` 让人重新登录、`501` 说服务器没开通、其余当这一句没成；`402` / `WALLET_FROZEN` / `PLAN_REQUIRED` / `DAILY_LIMIT`
+只会在没认标记的老服务端上出现（那里按字扣钱），照实说钱包的事。回包 `Content-Type` 不是 `audio/` 一律当服务端没有这个功能。
 ⚠ 哪天要给配音定价：服务端在这个端点上结算、App 在 `data/economy` 报价，两边逐条相等（两仓价目表那条）。
 
 ★ **这个端点必须在服务端，不能只留在 app 仓 `vite.config.ts` 的 dev 中间件里**：
