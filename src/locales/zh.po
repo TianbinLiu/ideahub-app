@@ -5651,9 +5651,17 @@ msgstr "今天天气不错，我在院子里晒了会儿太阳，顺手把花也
 msgid "今天的 token 用量到上限了，明天再接着配"
 msgstr "今天的 token 用量到上限了，明天再接着配"
 
+#: src/pages/CutPage.tsx
+msgid "今天的免费配音剩下的字不够这几句——改短一点，或者明天再配"
+msgstr "今天的免费配音剩下的字不够这几句——改短一点，或者明天再配"
+
 #: src/studio/cutNarration.ts
 msgid "今天的免费配音用完了（每个账号每天限量），明天再接着配——字幕照样能烧进画面"
 msgstr "今天的免费配音用完了（每个账号每天限量），明天再接着配——字幕照样能烧进画面"
+
+#: src/studio/cutNarration.ts
+msgid "今天的免费配音还剩 {left} 字，这一句要 {need} 字放不下——改短一点，或者明天再配"
+msgstr "今天的免费配音还剩 {left} 字，这一句要 {need} 字放不下——改短一点，或者明天再配"
 
 #: src/ai/arkClient.ts
 msgid "今天的生成额度用完了，明天 0 点（UTC）重置"
@@ -23053,6 +23061,10 @@ msgstr "这一发的钱在提交那一刻就已经花掉了，任务多半还在
 #: src/ai/minimaxVideo.ts
 msgid "这一发还在上游排队或生成中（当前状态：{shown}）——过几分钟再点一次「取回」，查询不花钱、凭据也还在。"
 msgstr "这一发还在上游排队或生成中（当前状态：{shown}）——过几分钟再点一次「取回」，查询不花钱、凭据也还在。"
+
+#: src/studio/cutNarration.ts
+msgid "这一句刚才没占上今天的免费配音额度（同时在配的别的句子占着），再配一次就好"
+msgstr "这一句刚才没占上今天的免费配音额度（同时在配的别的句子占着），再配一次就好"
 
 #: src/components/cut/AutoEditSheet.tsx
 msgid "这一句在这一段里念不完——改短一点，不然配不了音（字幕照样会出）。"
