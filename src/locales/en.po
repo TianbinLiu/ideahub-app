@@ -5651,6 +5651,10 @@ msgstr "You've hit today's token usage limit — continue tomorrow"
 msgid "今天的免费配音用完了（每个账号每天限量），明天再接着配——字幕照样能烧进画面"
 msgstr "Today's free voiceover allowance is used up (each account gets a daily limit) — continue tomorrow. Captions can still be burned into the video"
 
+#: src/studio/cutNarration.ts
+msgid "今天的免费配音还剩 {left} 字，这一句要 {need} 字放不下——改短一点，或者明天再配"
+msgstr "Only {left} characters of today's free voiceover are left, and this line needs {need} — shorten it or voice it tomorrow"
+
 #: src/ai/arkClient.ts
 msgid "今天的生成额度用完了，明天 0 点（UTC）重置"
 msgstr "You have used up today's generation allowance. It resets at 00:00 UTC."

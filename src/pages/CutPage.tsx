@@ -960,7 +960,8 @@ export default function CutPage() {
             failed++;
             if (!why) why = e instanceof Error ? e.message : String(e);
             // 这几种不是这一句的问题：后面的句子也一样会失败，别一句一句撞过去（限流那种还会越撞越久；
-            // 今天的免费额度用完了也一样 —— 再撞每一句都是同一个 429）
+            // 今天的免费额度用完了也一样 —— 再撞每一句都是同一个 429）。
+            // ★ 「line-quota」（额度还剩一些、只是这一句放不下）不在里面：只跳过这一句，后面短一点的照样配
             if (e instanceof NarrationError && ["auth", "rate", "quota", "money", "unsupported", "network"].includes(e.kind)) {
               failed += ids.length - k - 1;
               break;

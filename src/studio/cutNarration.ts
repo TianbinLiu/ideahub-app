@@ -89,9 +89,12 @@ const VOICE_RATE = 24000;
  * 一句配音没合成出来的原因 —— 剪辑页据此决定说什么、给什么出路。
  * `quota` = 今天的免费额度 / 用量上限用完了，`money` = 钱包不让扣（只在老服务端上会有：那里旁白按字扣钱）——
  * 这两种与 auth / rate / unsupported / network 一样，后面的句子也一样会失败，一批里撞上就停。
+ * `line-quota` = 今天的免费额度**还剩一些**、只是这一句放不下（服务端两种都回 NARRATION_DAILY_LIMIT，靠回包里的
+ * limit / used / need 分开）—— 只跳过这一句，后面短一点的句子照样配；原来一律说成「今天用完了」并停下整批，
+ * 剩下的几十个字白白作废，人还被告知明天再来（2026-10-09 核查）。
  */
 export class NarrationError extends Error {
-  readonly kind: "empty" | "too-long" | "auth" | "rate" | "quota" | "money" | "unsupported" | "network" | "upstream" | "store";
+  readonly kind: "empty" | "too-long" | "auth" | "rate" | "quota" | "line-quota" | "money" | "unsupported" | "network" | "upstream" | "store";
   constructor(kind: NarrationError["kind"], message: string) {
     super(message);
     this.name = "NarrationError";
@@ -148,7 +151,16 @@ function explain(e: unknown): NarrationError {
   if (e instanceof ApiError) {
     // ★ 认 code 不认 message（CLAUDE.md 坑表「按错误 message 里的中文关键词判」）。403 与 429 各有两种意思：
     //   钱包被冻结 / 套餐不够也是 403、每日上限也是 429 —— 原来一律说成「登录失效」「每分钟 30 句」，人照着做也解决不了
-    if (e.code === "NARRATION_DAILY_LIMIT") return new NarrationError("quota", t`今天的免费配音用完了（每个账号每天限量），明天再接着配——字幕照样能烧进画面`);
+    if (e.code === "NARRATION_DAILY_LIMIT") {
+      // 回包的 details 里有 limit / used / need（server #113 起）；没有这几个数的老服务端只能当「用完了」说 —— 往保守那边错
+      const d = (e.details ?? {}) as { limit?: unknown; used?: unknown; need?: unknown };
+      const left = typeof d.limit === "number" && typeof d.used === "number" ? Math.max(0, d.limit - d.used) : 0;
+      const need = typeof d.need === "number" ? d.need : 0;
+      if (left > 0 && need > left) {
+        return new NarrationError("line-quota", t`今天的免费配音还剩 ${left} 字，这一句要 ${need} 字放不下——改短一点，或者明天再配`);
+      }
+      return new NarrationError("quota", t`今天的免费配音用完了（每个账号每天限量），明天再接着配——字幕照样能烧进画面`);
+    }
     if (e.code === "DAILY_LIMIT") return new NarrationError("quota", t`今天的 token 用量到上限了，明天再接着配`);
     if (e.status === 402 || e.code === "INSUFFICIENT_TOKENS") return new NarrationError("money", t`token 余额不够，配音没合成`);
     if (e.code === "WALLET_FROZEN" || e.code === "PLAN_REQUIRED") return new NarrationError("money", t`这个账号的钱包现在不能扣费（有欠额或套餐不够），配音没合成`);
