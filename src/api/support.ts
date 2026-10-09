@@ -175,6 +175,11 @@ export interface TtsRequest {
   expressive?: boolean;
   rate?: number;
   pitch?: number;
+  /**
+   * 这一句是哪种用途。只有一个值：剪辑页旁白（studio/cutNarration.synthLine），服务端据此走每天限量的免费额度、不扣钱；
+   * 不带 = 按字计费（客服、看板娘、试听）。★ 服务端对认不出的值整句 400，别往这里塞别的。
+   */
+  purpose?: "cut-narration";
 }
 
 /**
