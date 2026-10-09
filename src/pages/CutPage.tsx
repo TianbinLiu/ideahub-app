@@ -137,6 +137,11 @@ function outSize(long: number, portrait: boolean): { w: number; h: number } {
 
 type Tab = "cut" | "text" | "mark" | "audio";
 
+/** 今天是哪个 UTC 日（"YYYY-MM-DD"）—— 服务端免费配音额度按它换日（tokenWallet.currentDay），runVoices 拿它判「余量那个上界还作不作数」 */
+function utcDay(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export default function CutPage() {
   const navigate = useNavigate();
   const { t } = useLingui();
@@ -938,9 +943,13 @@ export default function CutPage() {
     let failed = 0;
     let why = "";
     // 服务端说过「今天还剩几个字」之后，比它长的句子必然放不下：不再发请求（每一发都占每分钟 30 句的名额，
-    // 长批里白撞一串会把后面的人撞成「太快了」）。余量只会越用越少，所以拿它当上界跳过是安全的
+    // 长批里白撞一串会把后面的人撞成「太快了」）。同一个 UTC 日里余量只会越用越少（之后每配成一句再从上界里减掉它的字数），
+    // 所以拿它当上界跳过是安全的；跨过 UTC 0 点额度重置，上界作废（quotaDay）
     let quotaLeft: number | null = null;
+    let quotaDay = "";
     let lineQuotaWhy = "";
+    // 「放不下」那句话里的余量是被拒那一刻的数；之后又配成了句子，那个数就偏大了 —— 摘要改说一句不带数的（quotaStale）
+    let quotaStale = false;
     try {
       for (let k = 0; k < ids.length; k++) {
         const id = ids[k];
@@ -951,6 +960,7 @@ export default function CutPage() {
         if (clip && text.trim()) {
           const n = k + 1;
           job?.update(t`第 ${n}/${total} 句…`);
+          if (quotaLeft !== null && quotaDay !== utcDay()) quotaLeft = null;
           if (quotaLeft !== null && text.trim().length > quotaLeft) {
             failed++;
             if (!why) why = lineQuotaWhy;
@@ -972,6 +982,11 @@ export default function CutPage() {
               useCut.getState().apply(r.project, { coalesce: `voice:${batch}` });
               done++;
             }
+            // 配成了就占掉了这几个字（念不完重配的那一遍还会再占，所以减完仍是上界）；说过的那个余量从此偏大
+            if (quotaLeft !== null) {
+              quotaLeft = Math.max(0, quotaLeft - text.trim().length);
+              quotaStale = true;
+            }
           } catch (e) {
             failed++;
             const msg = e instanceof Error ? e.message : String(e);
@@ -984,7 +999,11 @@ export default function CutPage() {
             else if (e instanceof NarrationError && e.kind === "line-quota") {
               lineQuotaWhy = msg;
               why = msg;
-              if (typeof e.left === "number") quotaLeft = quotaLeft === null ? e.left : Math.min(quotaLeft, e.left);
+              quotaStale = false;
+              if (typeof e.left === "number") {
+                quotaLeft = quotaLeft === null ? e.left : Math.min(quotaLeft, e.left);
+                quotaDay = utcDay();
+              }
             } else if (!why) why = msg;
             if (stops) {
               failed += ids.length - k - 1;
@@ -1003,6 +1022,8 @@ export default function CutPage() {
     } finally {
       useCut.getState().seal();
       if (aliveRef.current) setVoicing(new Set());
+      // 「还剩 N 字」说完之后又配成了句子：N 已经不准了，换成不带数的那句（人照着旧数改短还是放不下）
+      if (quotaStale && why === lineQuotaWhy) why = t`今天的免费配音剩下的字不够这几句——改短一点，或者明天再配`;
       const line =
         failed > 0
           ? many

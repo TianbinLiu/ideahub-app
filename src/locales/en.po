@@ -5647,6 +5647,10 @@ msgstr "The weather is lovely today, so I sat in the yard in the sun for a while
 msgid "今天的 token 用量到上限了，明天再接着配"
 msgstr "You've hit today's token usage limit — continue tomorrow"
 
+#: src/pages/CutPage.tsx
+msgid "今天的免费配音剩下的字不够这几句——改短一点，或者明天再配"
+msgstr "What is left of today's free voiceover allowance isn't enough for these lines — shorten them or voice them tomorrow"
+
 #: src/studio/cutNarration.ts
 msgid "今天的免费配音用完了（每个账号每天限量），明天再接着配——字幕照样能烧进画面"
 msgstr "Today's free voiceover allowance is used up (each account gets a daily limit) — continue tomorrow. Captions can still be burned into the video"
