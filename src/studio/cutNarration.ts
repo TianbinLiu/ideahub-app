@@ -95,10 +95,13 @@ const VOICE_RATE = 24000;
  */
 export class NarrationError extends Error {
   readonly kind: "empty" | "too-long" | "auth" | "rate" | "quota" | "line-quota" | "money" | "unsupported" | "network" | "upstream" | "store";
-  constructor(kind: NarrationError["kind"], message: string) {
+  /** line-quota 时服务端报的「今天还剩几个字」：一批里比它长的句子必然放不下，不用再去撞一次（撞一次也占每分钟 30 句的名额） */
+  readonly left?: number;
+  constructor(kind: NarrationError["kind"], message: string, left?: number) {
     super(message);
     this.name = "NarrationError";
     this.kind = kind;
+    if (left !== undefined) this.left = left;
   }
 }
 
@@ -157,7 +160,11 @@ function explain(e: unknown): NarrationError {
       const left = typeof d.limit === "number" && typeof d.used === "number" ? Math.max(0, d.limit - d.used) : 0;
       const need = typeof d.need === "number" ? d.need : 0;
       if (left > 0 && need > left) {
-        return new NarrationError("line-quota", t`今天的免费配音还剩 ${left} 字，这一句要 ${need} 字放不下——改短一点，或者明天再配`);
+        return new NarrationError("line-quota", t`今天的免费配音还剩 ${left} 字，这一句要 ${need} 字放不下——改短一点，或者明天再配`, left);
+      }
+      // 余量明明够这一句却被拒：同一个人别的句子正同时在配、刚好占着（极罕见，服务端也这么说）—— 不是用完了，不停整批
+      if (left > 0 && need > 0) {
+        return new NarrationError("upstream", t`这一句刚才没占上今天的免费配音额度（同时在配的别的句子占着），再配一次就好`);
       }
       return new NarrationError("quota", t`今天的免费配音用完了（每个账号每天限量），明天再接着配——字幕照样能烧进画面`);
     }

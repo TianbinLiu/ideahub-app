@@ -937,6 +937,10 @@ export default function CutPage() {
     let done = 0;
     let failed = 0;
     let why = "";
+    // 服务端说过「今天还剩几个字」之后，比它长的句子必然放不下：不再发请求（每一发都占每分钟 30 句的名额，
+    // 长批里白撞一串会把后面的人撞成「太快了」）。余量只会越用越少，所以拿它当上界跳过是安全的
+    let quotaLeft: number | null = null;
+    let lineQuotaWhy = "";
     try {
       for (let k = 0; k < ids.length; k++) {
         const id = ids[k];
@@ -947,6 +951,18 @@ export default function CutPage() {
         if (clip && text.trim()) {
           const n = k + 1;
           job?.update(t`第 ${n}/${total} 句…`);
+          if (quotaLeft !== null && text.trim().length > quotaLeft) {
+            failed++;
+            if (!why) why = lineQuotaWhy;
+            if (aliveRef.current) {
+              setVoicing((prev) => {
+                const next = new Set(prev);
+                next.delete(id);
+                return next;
+              });
+            }
+            continue;
+          }
           try {
             const voice = await synthLine(text, narratorOf(cur), clipOutDur(clip, lensRef.current));
             const now = useCut.getState().project;
@@ -958,11 +974,19 @@ export default function CutPage() {
             }
           } catch (e) {
             failed++;
-            if (!why) why = e instanceof Error ? e.message : String(e);
+            const msg = e instanceof Error ? e.message : String(e);
             // 这几种不是这一句的问题：后面的句子也一样会失败，别一句一句撞过去（限流那种还会越撞越久；
             // 今天的免费额度用完了也一样 —— 再撞每一句都是同一个 429）。
             // ★ 「line-quota」（额度还剩一些、只是这一句放不下）不在里面：只跳过这一句，后面短一点的照样配
-            if (e instanceof NarrationError && ["auth", "rate", "quota", "money", "unsupported", "network"].includes(e.kind)) {
+            const stops = e instanceof NarrationError && ["auth", "rate", "quota", "money", "unsupported", "network"].includes(e.kind);
+            // ★ 摘要里说哪一句：让整批停下的那一个说了算；「放不下」那句的余量会越配越少，留最新的一句，不留最早那句的旧数
+            if (stops) why = msg;
+            else if (e instanceof NarrationError && e.kind === "line-quota") {
+              lineQuotaWhy = msg;
+              why = msg;
+              if (typeof e.left === "number") quotaLeft = quotaLeft === null ? e.left : Math.min(quotaLeft, e.left);
+            } else if (!why) why = msg;
+            if (stops) {
               failed += ids.length - k - 1;
               break;
             }

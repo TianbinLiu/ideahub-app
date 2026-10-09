@@ -23050,6 +23050,10 @@ msgstr "This job was paid for the moment it was submitted, and it's most likely 
 msgid "这一发还在上游排队或生成中（当前状态：{shown}）——过几分钟再点一次「取回」，查询不花钱、凭据也还在。"
 msgstr "This run is still queued or generating upstream (current status: {shown}) — tap “Recover” again in a few minutes. Checking is free and the receipt is still there."
 
+#: src/studio/cutNarration.ts
+msgid "这一句刚才没占上今天的免费配音额度（同时在配的别的句子占着），再配一次就好"
+msgstr "This line just missed today's free voiceover allowance (another line being voiced at the same time was holding it) — try voicing it again"
+
 #: src/components/cut/AutoEditSheet.tsx
 msgid "这一句在这一段里念不完——改短一点，不然配不了音（字幕照样会出）。"
 msgstr "This line can't be read within this clip — shorten it, or it can't be voiced (the caption still shows)."
