@@ -265,7 +265,7 @@
     客服页、上课页右上角的 🔊 和工坊铸卡师对话框里的声音键是**同一个开关**，默认开着；关掉之后客服 / 数字人、老师、铸卡师自动说的话不再念、不再扣（铸卡师会变成嘴动没声音）；**试听、配音是自己点的，不受这个开关管**：试听点一次扣一次；配音按句扣（一次给几段配音就扣几句，一句念不完自动提速重合成的那一次另扣）；云端语音没出声（上游没给音频）的那一次自动退回 — `server\src\routes\tts.routes.js`；`server\src\config\tokens.js`（TTS_TOKENS_PER_CHAR）
   - 「按住说话」的语音识别按录音时长另扣（见 §4.5）
 
-### 4.4c 余额不足与管理员账号
+### 4.4c 余额不足（402）与管理员免扣费
 - 管理员账号 **AI 生成免扣费**，界面上会如实写出来 — `app\src\data\account.ts:305-313`；`app\src\pages\SettingsPage.tsx:82-84`
 - 余额不足时的整句：「推演一次约 X token，余额 Y 不足——去「我的」页充值」 — `app\src\studio\flowStore.ts:1519`
 - 服务端余额不足 → **402 `INSUFFICIENT_TOKENS`**，方舟根本不会被调用 — `app\docs\api-contract.md:1877`
