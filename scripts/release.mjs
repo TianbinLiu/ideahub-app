@@ -12,8 +12,11 @@
 //                                 缓存没过期，照样"发布成功"，而所有人收不到更新
 //     ⑤ 清单里的 sha256 与 apkUrl 和真实文件对得上
 //                              —— 对不上：下完校验不过被丢弃，用户看到"更新失败"
-//   四件事全靠人记，迟早漏一件；而漏了之后**你不会知道**——你手上的 App 是好的，
-//   坏的是所有已经装了旧版的人。所以这里逐条检查，最后再从公网**真的拉一遍**清单核对。
+//     ⑥ 镜像上的安装包在清单指向它**之前**就已经完整落位
+//                              —— 先发清单再传包：传到一半被人下走的半截包会被 Cloudflare
+//                                 按 immutable 缓存一年，这一版对那批用户永久更新不了
+//   这几件事全靠人记，迟早漏一件；而漏了之后**你不会知道**——你手上的 App 是好的，
+//   坏的是所有已经装了旧版的人。所以这里逐条检查，最后再从公网**真的拉一遍**清单与整个包核对。
 //
 // 用法（仓库根目录）：
 //   npm run release            出包 + 发布
@@ -58,7 +61,13 @@ const APP_MANIFEST_URL = "https://api.ideahubs.org/api/app/latest.json";
  *   不一致时插件会丢弃并报「校验不通过」—— 那种失败比下不动更难查。
  */
 const APK_MIRROR_HOST = process.env.APK_MIRROR_HOST || "deploy@8.217.8.225";
-const APK_MIRROR_DIR = process.env.APK_MIRROR_DIR || "/var/www/ideahub-server/releases";
+const APK_MIRROR_DIR_DEFAULT = "/var/www/ideahub-server/releases";
+const APK_MIRROR_DIR = process.env.APK_MIRROR_DIR || APK_MIRROR_DIR_DEFAULT;
+/**
+ * 镜像对外的地址前缀 = 服务端的 APP_APK_BASE（`GET /api/app/file/:name`，经 Cloudflare）。
+ * 发完之后从这里把**整个包**拉一遍比 sha256 —— 用户下的就是这条路。
+ */
+const APK_MIRROR_PUBLIC = "https://api.ideahubs.org/api/app/file";
 
 const APK = path.join(root, "android/app/build/outputs/apk/sideload/release/app-sideload-release.apk");
 const AAB = path.join(root, "android/app/build/outputs/bundle/playRelease/app-play-release.aab");
@@ -119,9 +128,146 @@ const publishedManifest = () => readManifest(MANIFEST_URL);
 
 const sha256 = (buf) => createHash("sha256").update(buf).digest("hex");
 
+// ── 安装包镜像（ssh / scp）──────────────────────────────────
+
+/**
+ * ★★ Git Bash 会改写以 / 开头的环境变量（2026-10-08 发 2.62 时踩到）：
+ *   `APK_MIRROR_DIR=/var/www/… npm run release` 在 Git Bash 里，传到 node 手上已经是
+ *   `C:/Program Files/Git/var/www/…` —— MSYS 把它当成"要交给 Windows 程序的本机路径"翻译了。
+ *   远端 `mkdir -p` 于是在 deploy 的家目录里建出 `C:/Program`、`Files/Git/…` 两串空目录，
+ *   scp 失败，而当时的脚本已经先把 Release 建好了。现在镜像排在 Release 之前，失败不再伤人，
+ *   但仍要**当场**说清原因：对着一句 scp 报错，没人猜得到是 shell 改了变量。
+ * ★ 顺带把路径限死在"不带空格、引号的绝对路径"：它要原样拼进远端那句 shell。
+ */
+function checkMirrorDir() {
+  const d = APK_MIRROR_DIR;
+  if (d.includes(":") || d.includes("\\") || /program files/i.test(d)) {
+    die(`APK_MIRROR_DIR 被改写成了 Windows 路径：${d}\n` +
+        `这是 Git Bash 的 MSYS 路径转换干的（以 / 开头的值会被当成本机路径翻译）。命令前面加 MSYS_NO_PATHCONV=1：\n` +
+        `  MSYS_NO_PATHCONV=1 APK_MIRROR_DIR=${APK_MIRROR_DIR_DEFAULT} npm run release\n` +
+        `（不设 APK_MIRROR_DIR 就用默认的 ${APK_MIRROR_DIR_DEFAULT}，那个值在 node 里，不会被改写。）`);
+  }
+  if (!/^\/[\w./-]+$/.test(d)) {
+    die(`APK_MIRROR_DIR 只接受不带空格、引号的绝对路径（它要原样拼进远端 shell）：${d}`);
+  }
+}
+
+/** 远端 shell 里的单引号字面量。调用方保证串里没有单引号（checkMirrorDir 与文件名校验） */
+const rq = (s) => `'${s}'`;
+
+/**
+ * 在镜像机上跑一句 shell，返回 stdout。
+ * ★ 不走 runShell：ssh / scp 在 Windows 上是真 .exe，用不着 cmd.exe；过 shell 等于
+ *   在远端那句（单引号、分号、重定向）外面再套一层本地转义，两层叠着迟早出错。
+ * ★ `-n`：别把本地 stdin 转发过去。口令提示走终端本身，不受影响。
+ */
+function ssh(remoteCmd, timeout = 120_000) {
+  return execFileSync("ssh", ["-n", APK_MIRROR_HOST, remoteCmd], {
+    encoding: "utf8",
+    timeout,
+    stdio: ["ignore", "pipe", "inherit"],
+    maxBuffer: 1024 * 1024,
+  });
+}
+
+/**
+ * 镜像上这个文件现在的 sha256；不存在回 null。
+ * ★ 比 sha256 不比大小：同一个版本号换了内容的包，大小经常一字节不差（改一行字的那种）。
+ */
+function mirrorSha(file) {
+  const out = ssh(`if [ -e ${rq(file)} ]; then sha256sum -- ${rq(file)}; else echo MISSING; fi`).trim();
+  if (out === "MISSING") return null;
+  const m = /^([0-9a-f]{64})\s/.exec(out);
+  if (!m) throw new Error(`读不懂远端 sha256sum 的输出：${out.slice(0, 200)}`);
+  return m[1];
+}
+
+/**
+ * 把安装包**原子地**放上镜像：先传成 `<名字>.part`，远端 sha256 对上清单，才改成正名。
+ *
+ * ★★ 为什么不直接 scp 到正名（2.62 之前就是那么写的）：
+ *   `GET /api/app/file/:name` 对**任何存在的** .apk 都回 `max-age=1y, immutable`，
+ *   Cloudflare 照单缓存一年。scp 是在正名上就地写 —— 写到一半有人来下，拿到的是半截包，
+ *   边缘把这半截存一年；每个从那个节点下的人都校验失败，唯一出路是涨版本号重发。
+ *   旧顺序里清单还先一步翻到了新版（Release 先建），等于主动把人往半截包上送。
+ * ★ `.part` 这个名字服务端**根本不给**（路由只认 `^[\w.-]+\.apk$`，这里结尾是 .part ⇒ 400），
+ *   所以它在没写完、没校验之前对外不存在。
+ * ★ 改名用 `ln` + `rm` 而不是 `mv`：`mv` 会**静默覆盖**已存在的正名，而一个已存在的正名
+ *   可能已经被边缘缓存住；`ln` 遇到已存在的目标直接失败。同一个目录 = 同一个文件系统，
+ *   硬链接是一次原子的目录项操作，正名一出现就是完整的那份。
+ */
+function uploadMirror(localFile, file, expectSha) {
+  const part = `${file}.part`;
+  ssh(`mkdir -p ${rq(APK_MIRROR_DIR)}`);
+  // stdio 接到终端上：几十 MB 传到香港要几分钟，scp 自己的进度条得让人看得见
+  execFileSync("scp", [localFile, `${APK_MIRROR_HOST}:${part}`], { stdio: "inherit", timeout: 60 * 60_000 });
+  const got = mirrorSha(part);
+  if (got !== expectSha) {
+    try { ssh(`rm -f -- ${rq(part)}`); } catch { /* 删不掉也无妨：.part 对外不可见，下次会被覆盖 */ }
+    throw new Error(`传完的 .part 校验不过（远端 ${got ? got.slice(0, 12) + "…" : "没有这个文件"} / 清单 ${expectSha.slice(0, 12)}…），` +
+      `已删掉 .part，正名没有动`);
+  }
+  ssh(`ln -- ${rq(part)} ${rq(file)} && rm -f -- ${rq(part)}`);
+  if (mirrorSha(file) !== expectSha) {
+    throw new Error(`改名之后读回来的 sha256 不对：${APK_MIRROR_HOST}:${file} —— 正名上现在这份来路不明，先 ssh 上去查清、删掉它`);
+  }
+}
+
+/**
+ * 经 Cloudflare 把镜像上的包**整个**下一遍，边下边算 sha256。
+ * ★ 不加 cb= 之类的随机串（与读清单那里正相反）：要验的正是**边缘缓存里那一份**——
+ *   用户拿到的就是它，而它一旦存错就是一年。顺带也把这一份完整的包预热进了离你最近的边缘。
+ * ⚠ 只验得到离这台机器最近的那个边缘节点。别的节点上的那份靠的是 uploadMirror 那条：
+ *   正名出现之前内容已经完整，而清单要到那之后才指过去 —— 不是靠这次下载。
+ * ★ 按"多久没收到一个字节"判卡死，不按总时长：整包几十 MB，网速差别能差出一个数量级。
+ */
+async function downloadSha(url, expectBytes) {
+  const STALL_MS = 60_000;
+  const ctl = new AbortController();
+  let timer;
+  const arm = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => ctl.abort(new Error(`${STALL_MS / 1000} 秒没收到一个字节`)), STALL_MS);
+  };
+  arm();
+  try {
+    const res = await fetch(url, { redirect: "follow", signal: ctl.signal });
+    const meta = {
+      status: res.status,
+      type: res.headers.get("content-type") || "",
+      cache: res.headers.get("cf-cache-status") || "（没有 cf-cache-status = 没经过 CF 缓存）",
+    };
+    if (!res.ok) {
+      await res.body?.cancel();
+      return meta;
+    }
+    const h = createHash("sha256");
+    let bytes = 0;
+    let shown = -1;
+    for await (const chunk of res.body) {
+      h.update(chunk);
+      bytes += chunk.length;
+      arm();
+      const pct = expectBytes ? Math.floor((bytes / expectBytes) * 100) : 0;
+      if (pct !== shown) {
+        shown = pct;
+        process.stdout.write(`  下载中 ${(bytes / 1048576).toFixed(1)}MB（${pct}%）\r`);
+      }
+    }
+    process.stdout.write("\n");
+    return { ...meta, bytes, sha: h.digest("hex") };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function main() {
+  // 最先查：纯本地、不花时间，--dry 也要拦住（不然要等正式跑到上传那一步才露馅）
+  checkMirrorDir();
   const bt = buildTools();
   const { versionCode, versionName } = readVersion();
+  // 文件名要原样拼进远端 shell 与 URL —— 只放行这几种字符
+  if (!/^[\w.-]+$/.test(versionName)) die(`versionName 里有文件名不该有的字符：${versionName}`);
   const tag = `v${versionName}`;
   console.log(`\n准备发布 ${tag}（versionCode ${versionCode}）\n`);
 
@@ -217,12 +363,68 @@ async function main() {
         `  或者先去 Cloudflare 清掉 /api/app/file/${apkAsset} 那条缓存，再回来重跑。`);
   }
 
+  // ── 5c. 镜像上这个文件名现在是什么（只读；--dry 也查）────────────
+  //    ★ 第 5b 步只比得了 GitHub 那一份；镜像是**另一个**文件，可以单独错 ——
+  //      最常见的是上一次没跑完：包已经传上去了，Release 没建成，然后又重新出了一次包。
+  //      同一个文件名换内容的后果与 5b 一样（immutable 一年），所以同样当场拒。
+  const mirrorFile = `${APK_MIRROR_DIR}/${apkAsset}`;
+  let mirrorHave;
+  try {
+    mirrorHave = mirrorSha(mirrorFile);
+  } catch (e) {
+    if (!DRY) {
+      die(`连不上安装包镜像 ${APK_MIRROR_HOST}（${e.message}）。\n` + (exists
+        ? `${tag} 的 Release 早就建好了，镜像上有没有这一份现在查不到 —— 修好 ssh 重跑，把镜像与验证做完。`
+        : `这一步排在建 Release 之前，线上什么都还没变 —— 修好 ssh 再重跑。`));
+    }
+    console.log(`⚠ 连不上安装包镜像 ${APK_MIRROR_HOST}（${e.message}）\n` +
+      `  正式跑会停在这一步${exists ? "" : "（那时还什么都没发布）"}—— 先把 ssh 修好。`);
+  }
+  if (mirrorHave && mirrorHave !== manifest.sha256) {
+    die(exists
+      ? `镜像上的 ${apkAsset} 与已经发布的这一版**内容不同**` +
+        `（镜像 ${mirrorHave.slice(0, 12)}… / 本次 ${manifest.sha256.slice(0, 12)}…）。\n` +
+        `用户下的正是镜像那份，校验必然失败；而它在 Cloudflare 上是 immutable 缓存一年，光换服务器上的文件不够。\n` +
+        `→ 涨一档 versionName/versionCode 重新出包重发（推荐）；\n` +
+        `  或者把镜像换成正确的那份，再去 Cloudflare 清掉 /api/app/file/${apkAsset} 的缓存，回来重跑本脚本验证。`
+      : `镜像上已经有一份同名但**内容不同**的 ${apkAsset}` +
+        `（镜像 ${mirrorHave.slice(0, 12)}… / 本次 ${manifest.sha256.slice(0, 12)}…），多半是上一次没跑完留下的。\n` +
+        `同一个文件名不能换内容（理由同第 5b 步：Cloudflare 上 immutable 一年）。\n` +
+        `→ 涨一档 versionName/versionCode 重新出包（推荐）；\n` +
+        `  或者确认这一版从没发布过（清单从没指向它），ssh 上去删掉 ${mirrorFile}、\n` +
+        `  再去 Cloudflare 清掉 /api/app/file/${apkAsset} 的缓存（文件名猜得到，可能被人拉过），回来重跑。`);
+  }
+  if (mirrorHave === manifest.sha256) console.log(`✓ 镜像上已经有这一份（sha256 一致），不用再传`);
+  else if (mirrorHave === null) console.log(`✓ 镜像上还没有 ${apkAsset}，${DRY ? "正式跑时" : "下面"}先传上去（在建 Release 之前）`);
+
   if (DRY) {
-    console.log("\n--dry：检查全部通过，没有发布。\n");
+    console.log(mirrorHave === undefined
+      ? "\n--dry：没有发布。其余检查都通过了，但镜像没查成（见上面的 ⚠）。\n"
+      : "\n--dry：检查全部通过，没有发布。\n");
     return;
   }
 
-  // ── 6. 发布 ──────────────────────────────────────────────
+  // ── 6. 先把安装包放上镜像（国内下载源）——**在建 Release 之前** ──────────
+  //    ★★ 顺序就是这条修复本身（2026-10-08 发 2.62 时定位）：建 Release 的那一刻，
+  //      /releases/latest/download/latest.json 立刻翻到新版，服务端那份 60 秒内跟上，
+  //      App 与官网下载页随即开始去拿镜像上的包。包要是这之后才传，那几分钟里来的人
+  //      拿到的是 404 或者**半截包**——半截的那份会被 Cloudflare 存一年（见 uploadMirror）。
+  //      反过来，包先在、清单后指：任何时候按清单去拿，拿到的都是完整的那份。
+  //    ★ 重跑（tag 已存在）也走这里：镜像上已有同一份就跳过，缺了就照样原子地补上。
+  if (mirrorHave !== manifest.sha256) {
+    console.log(`\n上传安装包镜像（先传 .part，远端 sha256 对上才改成正名）…`);
+    try {
+      uploadMirror(path.join(out, apkAsset), mirrorFile, manifest.sha256);
+    } catch (e) {
+      // ★ 话要按 Release 在不在分开说：重跑时清单早就指着这个文件了，"线上什么都没变"是假话
+      die(`安装包镜像没传上去（${e.message}）。\n` + (exists
+        ? `${tag} 的 Release 早就建好了、清单正指着这个文件，镜像上却还没有它 —— 这段时间用户点更新拿到的是 404，尽快修好重跑 npm run release。`
+        : `这一步排在建 Release 之前，清单还没指向这个文件 —— 修好再重跑 npm run release。`));
+    }
+    console.log(`✓ 已传到 ${APK_MIRROR_HOST}:${mirrorFile}（sha256 已在远端核对）`);
+  }
+
+  // ── 7. 发布 ──────────────────────────────────────────────
   //    tag 已存在就跳过创建直接去验证（第 4 步算过了）
   if (exists) {
     console.log(`\n${tag} 已存在，跳过创建，直接验证`);
@@ -241,22 +443,7 @@ async function main() {
       "--repo", REPO]);
   }
 
-  // ── 6.5 传安装包镜像（国内下载源）──────────────────────────
-  //    ★ 排在验证之前：下面那一步会**真的去下载**它，传晚了自检必然失败。
-  console.log("");
-  console.log("上传安装包镜像…");
-  try {
-    runShell("ssh", [APK_MIRROR_HOST, `mkdir -p ${APK_MIRROR_DIR}`]);
-    runShell("scp", [path.join(out, apkAsset), `${APK_MIRROR_HOST}:${APK_MIRROR_DIR}/`]);
-    console.log(`✓ 已传到 ${APK_MIRROR_HOST}:${APK_MIRROR_DIR}/${apkAsset}`);
-  } catch (e) {
-    die(
-      `安装包镜像没传上去（${e.message}）—— 不传的话国内用户点更新会卡在 GitHub 下载失败。
-手动补：scp "${path.join(out, apkAsset)}" ${APK_MIRROR_HOST}:${APK_MIRROR_DIR}/`,
-    );
-  }
-
-  // ── 7. ★ 回头验证：从公网真的拉一遍，确认老用户能看到、能下 ──
+  // ── 8. ★ 回头验证：从公网真的拉一遍，确认老用户能看到、能下 ──
   //    这一步才是这个脚本存在的意义 —— 前面每一条都可能"看着对但线上是错的"。
   console.log("\n验证更新链…");
   // ★ 重试而不是"睡 3 秒看一眼"：GitHub 把 /latest 指到新 Release 要几秒到几十秒。
@@ -298,7 +485,7 @@ async function main() {
 
   // ★★ 下载源必须**不是 GitHub**（2026-08-30 事故的那条断言）：
   //   这个脚本的全部意义是「这次更新能不能到老用户手里」，而它一直跑在**能连 GitHub
-  //   的机器上** —— 于是 apkUrl 指着 github.com 时下面那个 HEAD 照样绿灯，国内用户却
+  //   的机器上** —— 于是 apkUrl 指着 github.com 时下面那次下载照样绿灯，国内用户却
   //   一个都下不动。机器连得上 ≠ 用户连得上，这条得显式判。
   if (new URL(app.apkUrl).hostname.toLowerCase().endsWith("github.com")) {
     die(
@@ -308,17 +495,63 @@ async function main() {
     );
   }
 
-  const head = await fetch(app.apkUrl, { method: "HEAD", redirect: "follow" });
-  if (!head.ok) die(`清单里的 apkUrl 下不动（HTTP ${head.status}）：${app.apkUrl}`);
-  const len = Number(head.headers.get("content-length") || 0);
-  if (len && len !== manifest.sizeBytes) {
-    die(`apkUrl 指向的文件大小对不上（清单 ${manifest.sizeBytes} / 实际 ${len}）`);
-  }
   if (check.sha256 !== manifest.sha256) die("线上清单里的 sha256 和刚发的包对不上");
+  // App 拿来校验下载结果的是**服务端转的那份**里的 sha256，所以它也得对
+  if (app.sha256 !== manifest.sha256) die(`App 用的清单（${APP_MANIFEST_URL}）里的 sha256 和刚发的包对不上`);
+
+  // ★ 清单指的必须正是本脚本刚喂过的那个镜像：指到别处的话，用户下的那份不是我们放的，
+  //   上面那一串「先传 .part、核对、再改名」就保不到它
+  const mirrorUrl = `${APK_MIRROR_PUBLIC}/${apkAsset}`;
+  if (app.apkUrl !== mirrorUrl) {
+    die(`清单里的下载地址不是本脚本上传的那个镜像：\n  清单 ${app.apkUrl}\n  镜像 ${mirrorUrl}\n` +
+        `服务端的 APP_APK_BASE 改过的话，这里的 APK_MIRROR_PUBLIC / APK_MIRROR_HOST / APK_MIRROR_DIR 要一起改。`);
+  }
+
+  // ★★ 把整个包经 Cloudflare 下一遍比 sha256（2.62 之前只发一个 HEAD）：
+  //   HEAD 只看得到大小，而这里要回答的是「用户下到手的那份能不能过校验」——
+  //   边缘缓存里只要存的不是这一份，就是一年的校验失败，这件事只有真下一遍才知道。
+  //   只有"没下成"（断线、卡住、非 2xx）才重来；**下完了**（服务器说多长就收了多长）
+  //   而长度或 sha256 不对，一次就够定案、不重来：边缘那份是缓存住的，再下还是它。
+  //   ⚠ 别把"比清单短"当成网络问题去重试 —— 那恰恰是边缘缓存了一个半截包的样子
+  //     （它的 Content-Length 就是半截的长度，传输本身完整无误）。中途真断了 fetch 会抛。
+  console.log(`经 Cloudflare 下载整个安装包核对 sha256：${mirrorUrl}`);
+  let dl = null;
+  let why = "";
+  for (let i = 0; i < 3; i++) {
+    if (i) await new Promise((r) => setTimeout(r, 10_000));
+    try {
+      dl = await downloadSha(mirrorUrl, manifest.sizeBytes);
+    } catch (e) {
+      why = e?.cause?.message || e?.message || String(e);
+      console.log(`  第 ${i + 1} 次没下完：${why}`);
+      dl = null;
+      continue;
+    }
+    if (dl.status >= 200 && dl.status < 300) break;
+    why = `HTTP ${dl.status}`;
+    console.log(`  第 ${i + 1} 次：${why}`);
+  }
+  if (!dl || dl.status < 200 || dl.status >= 300) {
+    die(`经 Cloudflare 下不动镜像上的包（${why}）：${mirrorUrl}\n` +
+        `镜像机上的文件刚才已经在远端核对过 sha256。` +
+        `HTTP 404 的话多半是边缘缓存了更早的一次 404（重跑时补传的那种），过几分钟重跑 npm run release；\n` +
+        `其他情况先自己 curl 一遍这个地址看看。`);
+  }
+  if (dl.bytes !== manifest.sizeBytes || dl.sha !== manifest.sha256) {
+    die(`经 Cloudflare 下到的 ${apkAsset} 与清单**对不上**` +
+        `（下到 ${dl.bytes} 字节 / sha256 ${dl.sha.slice(0, 12)}…，清单 ${manifest.sizeBytes} 字节 / ${manifest.sha256.slice(0, 12)}…；cf-cache-status ${dl.cache}）。\n` +
+        `镜像机上的文件刚才在远端核对过，所以坏的是边缘缓存那份 —— 它是 immutable 一年，所有从那里下的人都会「校验不通过」。\n` +
+        `→ 立刻去 Cloudflare 清掉 ${mirrorUrl} 的缓存（Caching → Purge by URL），清完重跑 npm run release 验证；\n` +
+        `  清不干净就涨一档版本号重发。`);
+  }
+  if (!/^application\/vnd\.android\.package-archive\b/i.test(dl.type)) {
+    console.log(`⚠ 安装包的 Content-Type 是「${dl.type}」，不是 apk 的类型 —— 官网下载页上有些机型会存成装不了的文件`);
+  }
 
   console.log(`\n✅ ${tag} 发布完成，更新链已验证：`);
-  console.log(`   清单 ${MANIFEST_URL} → ${check.versionName}(${check.versionCode})`);
-  console.log(`   安装包 ${check.apkUrl}`);
+  console.log(`   清单 ${APP_MANIFEST_URL} → ${app.versionName}(${app.versionCode})`);
+  console.log(`   安装包 ${mirrorUrl}（整包 sha256 已核对，cf-cache-status ${dl.cache}）`);
+  console.log(`   GitHub 归档 ${check.apkUrl}`);
   console.log(`   已装 ${live ? live.versionName : "旧版"} 的用户下次打开 App 就会收到提示。\n`);
 }
 
