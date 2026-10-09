@@ -679,14 +679,23 @@ export async function drawGroup(o: { cast: Card[]; place: Card | null }): Promis
    * ★ 只在这期间分镜没换过（shots 还是同一份）、格子里也还没有一张新图（也没有哪一格正在取 / 重画）时放回：格子跟着分镜的下标走，
    *   分镜换了旧图就对不上号了。只写着「这一格没画成」的格子不算有图（absorb 把组图的逐格失败写成 { image: "", err }）——
    *   原来判的是「格子是不是 null」，一组被内容审核整组拒掉时每格都挂着那句失败，上一组的图就摆不回来。
+   * ★ 「有图」= 本机有这张图（image）**或者**手里还攥着它的方舟链接（url：画好了、没取回来，点那一格能免费重新取，24 小时内有效）——
+   *   上一组付过钱、只是取图失败的那几格也要摆回去，丢了链接就再也取不回来（落盘记录在那一组结过之后已经撤了）。
+   * ★ 摆回去时撤掉「正在看图」那一态（check.running）：开画那一拍正在看的那几格，看完写回时格子已经清空、结论落了空，
+   *   原样摆回去就是一个永远转着的圈。撤掉之后还在看的那几格看完照常写上（checkPanel 认的是同一张图）
    */
   const before = { shots: s.shots, panels: s.panels, picks: s.picks };
   const restoreBefore = () => {
     // 上一版一张图都没有（头一次画）就不动：摆回去只是把这一次逐格的失败原因抹掉
-    if (!before.panels.some((p) => !!p?.image)) return;
+    if (!before.panels.some((p) => !!p?.image || !!p?.url)) return;
     const cur = stateFor(who);
-    if (!cur || cur.shots !== before.shots || cur.panels.some((p) => !!p?.image || !!p?.busy)) return;
-    writeFor(who, { panels: before.panels, picks: before.picks });
+    if (!cur || cur.shots !== before.shots || cur.panels.some((p) => !!p?.image || !!p?.url || !!p?.busy)) return;
+    const panels = before.panels.map((p) => {
+      if (p?.check?.state !== "running") return p;
+      const { check: _running, ...rest } = p;
+      return rest;
+    });
+    writeFor(who, { panels, picks: before.picks });
   };
   useGridDraft.setState({ drawing: t`准备参考图…`, drawErr: "", drawNote: "", panels: shots.map(() => null), picks: [] });
   const n = shots.length;
@@ -817,6 +826,9 @@ export async function drawGroup(o: { cast: Card[]; place: Card | null }): Promis
       say();
       await drawPanelAt(who, sg.index, shots[sg.index], { cast: o.cast, place: o.place, ask: "", aspect, lead: s.lead });
     }
+    // 一张新图都没画出来（整组都是单画的格子 —— 只有一两格有人、或者全是空镜 / 特写 —— 而它们全没画成）：上一版格子摆回去。
+    // 组图出过图的话格子里有新图，restoreBefore 自己就不动
+    restoreBefore();
     closeJob(who, job);
   } finally {
     // groupId 一并清掉（与 resumeGroup 同）：留着的话向导打开时那道「自动接着等」的闸（!groupId）这一进程里再也不成立

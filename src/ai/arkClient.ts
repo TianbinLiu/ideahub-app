@@ -413,6 +413,7 @@ export class SegmentGenFailed extends Error {
   }
   /**
    * kept 里有几张**真记进了本机账本**（离线 / dev 直连那一本）—— 只由 flowStore.genNode 失败那一支在 spendTokens 成功那一拍写，别处恒 0。
+   * ⚠ 远端模式下 spendTokens 什么都不记、也回非 null，这一位照样会写上：只在离线时读它（ai/failCharge 的离线分支），远端模式钱的话按服务端的账说。
    * ★ 为什么不让 ai/failCharge 自己拿 keptFrameCount(kept) 数（2.62 发版复核留下的一条，10-08 补）：记不记账还要看演示构建（AI_REAL）、
    *   这一炉是不是现在这个人的（genRun）、本机余额够不够（spendTokens 回 null）—— 数出来的张数与真扣的对不上时，屏幕上说「已按张计费」
    *   而账本一分没动；剪辑页重拍等别的调用方也不记账，按 kept 数就是替它们说了一句假话。所以只认「记上了几张」这一个事实
