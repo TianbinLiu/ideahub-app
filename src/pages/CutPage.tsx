@@ -982,10 +982,13 @@ export default function CutPage() {
               useCut.getState().apply(r.project, { coalesce: `voice:${batch}` });
               done++;
             }
-            // 配成了就占掉了这几个字（念不完重配的那一遍还会再占，所以减完仍是上界）；说过的那个余量从此偏大
+            // 配成了就占掉了这几个字（念不完重配的那一遍还会再占，所以减完仍是上界）；说过的那个余量从此偏大。
+            // ★ 减到 0 就不再按它跳过：下一句照常发，由服务端回「用完了」（quota，整批停、说「明天再配」）——
+            //   按上界跳过的话，摘要会叫人去改短句子，而一个字都不剩了，改多短都放不下
             if (quotaLeft !== null) {
               quotaLeft = Math.max(0, quotaLeft - text.trim().length);
               quotaStale = true;
+              if (quotaLeft === 0) quotaLeft = null;
             }
           } catch (e) {
             failed++;
