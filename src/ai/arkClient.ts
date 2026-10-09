@@ -373,8 +373,9 @@ export interface KeptFrames {
 }
 
 /**
- * 带出来的设定帧有几张（每张是一次出图调用）—— 离线账本记几张（flowStore.genNode 的失败那一支）与 ai/failCharge 离线时说「已经画好的 N 张
- * 已按张计费」数的是**同一个数**，只准从这里取：两处各数一遍，哪天 KeptFrames 多一格，就是账本扣的与屏幕上说的对不上。
+ * 带出来的设定帧有几张（每张是一次出图调用）—— 离线账本记几张（flowStore.genNode 的失败那一支）只准从这里数。
+ * ai/failCharge 离线时说「已经画好的 N 张已按张计费」**不再自己数**：读的是记账成功那一拍写下的 SegmentGenFailed.keptCharged
+ * （没记上 —— 演示构建、换过账号、本机余额不够 —— 就是 0，屏幕上也就不说已计费）。
  */
 export function keptFrameCount(k: KeptFrames | null | undefined): number {
   return (k?.first ? 1 : 0) + (k?.last ? 1 : 0);
@@ -410,6 +411,13 @@ export class SegmentGenFailed extends Error {
     super(failure instanceof Error ? failure.message : String(failure));
     this.name = "SegmentGenFailed";
   }
+  /**
+   * kept 里有几张**真记进了本机账本**（离线 / dev 直连那一本）—— 只由 flowStore.genNode 失败那一支在 spendTokens 成功那一拍写，别处恒 0。
+   * ★ 为什么不让 ai/failCharge 自己拿 keptFrameCount(kept) 数（2.62 发版复核留下的一条，10-08 补）：记不记账还要看演示构建（AI_REAL）、
+   *   这一炉是不是现在这个人的（genRun）、本机余额够不够（spendTokens 回 null）—— 数出来的张数与真扣的对不上时，屏幕上说「已按张计费」
+   *   而账本一分没动；剪辑页重拍等别的调用方也不记账，按 kept 数就是替它们说了一句假话。所以只认「记上了几张」这一个事实
+   */
+  keptCharged = 0;
 }
 
 /** 拆掉包装（SegmentGenFailed / ArkBatchPartial），拿到真正失败的那一发 —— 要按类型分叉的地方一律先过它 */

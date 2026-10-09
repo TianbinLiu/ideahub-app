@@ -668,18 +668,24 @@ export async function drawGroup(o: { cast: Card[]; place: Card | null }): Promis
   const plan = gridDrawPlan(shots);
   /**
    * 开画前那一版格子：新的一组没受理、也不会有哪一组来接管格子的那几种出口，原样放回去（restoreBefore）。
-   * ★ 为什么（2.62 发版复核留下的一条，10-08 补）：下面这一行开画就把格子清空了，而 409「上一组还在画」、余额 / 敏感词 / 套餐那类 4xx、5xx、
-   *   参考图准备失败都发生在受理之前 —— 一分钱没花，人上一组付过钱的图却从屏幕上没了（向导不落盘，这一进程里再也找不回来）。
-   * ★ 这几种出口**不放回**（都有一组会来接管格子）：受理过了（started：新的一组按张付过钱、正在画，格子归它）；没收到回包、要去问服务端
+   * ★ 为什么（2.62 发版复核留下的一条，10-08 补）：下面这一行开画就把格子清空了，而这一次常常一张新图都没有 —— 人上一组付过钱的图
+   *   却从屏幕上没了（向导不落盘，这一进程里再也找不回来）。两类：① 受理之前就被拒（409「上一组还在画」、余额 / 套餐那类 4xx、5xx、
+   *   参考图准备失败），一分没花；② 受理了、却一张都没画出来（!got：分镜没过内容审核、连不上出图服务、连接断了 —— 敏感词是这样到的，
+   *   不是受理前的 4xx；预扣全退），或者受理过的这一组在服务端没了（404：过期 / 不是这个账号的，记录也接不回来）。
+   * ★ 这几种出口**不放回**（都有一组会来接管格子）：受理过、还在画（started 且不是 404：新的一组按张付过钱，格子归它）；没收到回包、要去问服务端
    *   收没收到（askLost：认领回来的那一组会把格子换掉 / 记下来下次再问，这时摆回旧图只会让两组的图在格子里打架）；
    *   409 而那一组正是「没收到回包的那一次」（claimLost 接管格子）。
    * ★ dev 直连时没收到回包也放回：那一支不去问服务端（askLost 只在打包后成立），没有哪一组会来接管格子。
-   * ★ 只在这期间分镜没换过（shots 还是同一份）、格子也还空着时放回：格子跟着分镜的下标走，分镜换了旧图就对不上号了。
+   * ★ 只在这期间分镜没换过（shots 还是同一份）、格子里也还没有一张新图（也没有哪一格正在取 / 重画）时放回：格子跟着分镜的下标走，
+   *   分镜换了旧图就对不上号了。只写着「这一格没画成」的格子不算有图（absorb 把组图的逐格失败写成 { image: "", err }）——
+   *   原来判的是「格子是不是 null」，一组被内容审核整组拒掉时每格都挂着那句失败，上一组的图就摆不回来。
    */
   const before = { shots: s.shots, panels: s.panels, picks: s.picks };
   const restoreBefore = () => {
+    // 上一版一张图都没有（头一次画）就不动：摆回去只是把这一次逐格的失败原因抹掉
+    if (!before.panels.some((p) => !!p?.image)) return;
     const cur = stateFor(who);
-    if (!cur || cur.shots !== before.shots || cur.panels.some((p) => !!p)) return;
+    if (!cur || cur.shots !== before.shots || cur.panels.some((p) => !!p?.image || !!p?.busy)) return;
     writeFor(who, { panels: before.panels, picks: before.picks });
   };
   useGridDraft.setState({ drawing: t`准备参考图…`, drawErr: "", drawNote: "", panels: shots.map(() => null), picks: [] });
@@ -746,8 +752,11 @@ export async function drawGroup(o: { cast: Card[]; place: Card | null }): Promis
           job.fail(t`九宫格分镜的画面还没取回来——回到那一页接着取`);
           return;
         }
-        // 受理过、但这一组在服务端没了（404：过期 / 不是这个账号的）：记录留着也接不回来
-        if (started) writeParked(who, null);
+        // 受理过、但这一组在服务端没了（404：过期 / 不是这个账号的）：记录留着也接不回来；也没有哪一组会来接管格子，上一版摆回去
+        if (started) {
+          writeParked(who, null);
+          restoreBefore();
+        }
         // 受理那一发就连不上（网关 / 代理回 502~504）：说人话，不摆「Ark … 504: {…}」（判据见 upstreamDown）
         const why = upstreamDown(e) ? t`这次没连上出图服务（多半是网络抖了一下），再点一次就行` : e instanceof Error ? e.message : String(e);
         const money = chargeNote(chargeOnFail(e), IMAGE_TOKENS * plan.group.length);
@@ -798,6 +807,8 @@ export async function drawGroup(o: { cast: Card[]; place: Card | null }): Promis
         return;
       }
       if (!got) {
+        // 受理了、一张都没画出来（敏感词 / 连不上 / 断了，预扣全退）：上一版格子摆回去（restoreBefore 的 ★）
+        restoreBefore();
         job.fail(t`九宫格分镜的画面没出成，回去看原因`);
         return;
       }

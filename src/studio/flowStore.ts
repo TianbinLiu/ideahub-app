@@ -479,6 +479,14 @@ export function reviseAudioPatch(audio: VideoJob["reviseAudio"], url: string | u
 }
 
 /**
+ * genNode「没接到结果」那一支写进 store.err 的那一句，和它说的是哪一发（任务号）。
+ * ★ 为什么要记（2.62 发版复核留下的一条，10-08 补）：那句话指人去点「取回」、别重新生成；这一发后来认出是退了钱的失败时，取回卡改说「没出成、
+ *   钱退了」，段上那句也由 settleRefundedPending 改掉 —— 而页面顶上这一条原来一直挂着，同一屏上两句话相反。认人只认这里记下的这一句：
+ *   err 是全局的一格，后来写进去的别的话（另一段、另一发）不归这里撤。只活在内存里：App 重开之后 err 本来就是空的
+ */
+let pendingErrNote: { taskId: string; text: string } | null = null;
+
+/**
  * 一发**退了钱**的失败（上游明说没出成，服务端已经退回 / 正在退 / 本来没扣）落到它那一段上 —— 唯一实现，两处共用：
  * takeJob 结案那一拍（点「知道了」核对到了），与取回卡**第一次认出「退了钱」**的那一拍（SegmentRecoverCard，账是挂上时问来的）。
  * 那一段还挂着 genNode 留下的「pending · 用下面的「取回」领回来，别重新生成」时，改成「没出成」+ 钱上那个短语
@@ -493,6 +501,13 @@ export function reviseAudioPatch(audio: VideoJob["reviseAudio"], url: string | u
 export function settleRefundedPending(job: VideoJob, e: unknown): void {
   const inner = unwrapFailure(e);
   if (!(inner instanceof ArkTaskFailed)) return;
+  // 页面顶上那条整句（store.err）还是 genNode 没接到这一发时说的「点下面那颗「取回」把它领回来」：一并撤掉。
+  // ★ 只认**这一发**说的那一句、而且一个字没变过（pendingErrNote 的 ★）；段上那句下面照常改，这一条不看段在不在 / 还挂不挂 pending ——
+  //   段删了，这句话照样指着一张已经说「钱退了」的卡
+  if (pendingErrNote && pendingErrNote.taskId === job.taskId) {
+    if (useFlow.getState().err === pendingErrNote.text) useFlow.setState({ err: "" });
+    pendingErrNote = null;
+  }
   const cur = useFlow.getState().nodes.find((n) => n.id === job.nodeId);
   if (!cur || cur.status !== "pending") return;
   const stillWaiting = pendingVideoJobs().some((j) => j.nodeId === job.nodeId && j.taskId !== job.taskId && !videoJobRefunded(j));
@@ -4312,14 +4327,14 @@ export const useFlow = create<FlowState>()((set, get) => ({
         // ★ 只有「还是我这一炉」才动 busy / err（见 genRun 的 ★★）：换过账号的话这一炉是上一个人的，
         //   这句话（连同「点下面那颗取回」）不该出现在新登录的这个人屏幕上 —— 他的取回卡里没有这一发
         if (get().genRun !== myRun) return false;
-        set({
-          busy: false,
-          // ★ 24 小时是**方舟产物**的物理事实；真人档那边我们没量过留存，不许编一个数
-          //   （同 videoJobNote 里那条 ★★）
-          err: flat
-            ? t`第 ${idx + 1} 段${msg.slice(0, 240)}点下面那颗「取回」把它领回来，不再花一分钱；「重新生成」是重新下一单、会再花一次。`
-            : t`第 ${idx + 1} 段${msg.slice(0, 240)}成片 24 小时内都能取回：点下面那颗「取回」，不再花一分钱；「重新生成」是重新下一单、会再花一次。`,
-        });
+        // ★ 24 小时是**方舟产物**的物理事实；真人档那边我们没量过留存，不许编一个数
+        //   （同 videoJobNote 里那条 ★★）
+        const pendingErr = flat
+          ? t`第 ${idx + 1} 段${msg.slice(0, 240)}点下面那颗「取回」把它领回来，不再花一分钱；「重新生成」是重新下一单、会再花一次。`
+          : t`第 ${idx + 1} 段${msg.slice(0, 240)}成片 24 小时内都能取回：点下面那颗「取回」，不再花一分钱；「重新生成」是重新下一单、会再花一次。`;
+        // 记下这一句说的是哪一发：后来认出它退了钱时由 settleRefundedPending 撤掉（pendingErrNote 的 ★）
+        pendingErrNote = taskId ? { taskId, text: pendingErr } : null;
+        set({ busy: false, err: pendingErr });
         return false;
       }
       // 真失败：方舟明说 failed/cancelled/expired，或者根本没走到受理那一步。
@@ -4335,12 +4350,13 @@ export const useFlow = create<FlowState>()((set, get) => ({
         const kept = e instanceof SegmentGenFailed ? e.kept : null;
         // ★ 离线（本机账本）按张记上随错误带出来的这几张，照逐格出图那条规矩（real.PortraitViewsPartial 的 ★★；2.62 发版复核留下的一条，10-08 补）：
         //   原来一张都不记 —— 下一次成片到手时 spendTokens(cost) 也补不上（cost = nodeCost，按 usableFrames 只算还要画的帧），
-        //   于是留在方案上的帧离线是白拿的。张数只从 keptFrameCount 取：ai/failCharge 离线时说「出片前画好的 N 张已按张计费」数的是同一个，
-        //   两处各数一遍就是账本与屏幕对不上。
+        //   于是留在方案上的帧离线是白拿的。记上了就把张数写回错误上（SegmentGenFailed.keptCharged）：ai/failCharge 离线时说
+        //   「出片前画好的 N 张已按张计费」只认它 —— 没记上（演示构建 / 换过账号 / 本机余额不够）屏幕上就不说已计费。
         // ★ 写没写回方案（下面那道「帧没被人动过」的闸）都记：画是真画了，远端模式下服务端也照样按调用收过；没写回只是这几分钟里人改过
         //   这一套的帧、以人为准。远端模式这一行是空操作（钱在服务端按调用结算过、恰好一次）。
         //   中途换过账号（genRun 变了）不记：spendTokens 记在**现在登录的这个人**头上，而图是上一个人画的
-        if (AI_REAL && get().genRun === myRun && keptFrameCount(kept) > 0) spendTokens(keptFrameCount(kept) * ONE_IMAGE);
+        const keptN = keptFrameCount(kept);
+        if (AI_REAL && get().genRun === myRun && keptN > 0 && e instanceof SegmentGenFailed && spendTokens(keptN * ONE_IMAGE)) e.keptCharged = keptN;
         const live = kept && !rv && !fin && !ext ? get().nodes.find((n) => n.id === id) : undefined;
         const lp = live?.chosenId === prop.id ? live.proposals.find((q) => q.id === prop.id) : undefined;
         if (kept && lp && lp.firstFrame === prop.firstFrame && lp.lastFrame === prop.lastFrame) {
