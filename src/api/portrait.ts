@@ -4,7 +4,7 @@
 //   被拍者扫）、轮询授权状态拿 asset id。密钥全在服务端，app 只见链接与状态。
 // ★ 未开通（服务端没配 AK/SK）时 server 回 503 —— 调用方据此退回"去方舟控制台手工创建
 //   资产组 + 手工粘贴 asset id"那条老路（cardAsset 那颗手填按钮一直在）。
-import { API_BASE, apiGet, apiPost, getToken } from "./client";
+import { API_BASE, apiGet, apiPost, getToken, withAppVersion } from "./client";
 
 /** 一条邀约：uuid + 可渲染成二维码的 H5 链接 + 授权有效期（秒级时间戳） */
 export interface PortraitInvite {
@@ -80,8 +80,9 @@ export async function fetchPortraitAssets(groupId?: string): Promise<{ totalCoun
  */
 export async function fetchPortraitAssetImage(assetId: string): Promise<Blob> {
   const token = getToken();
-  const res = await fetch(`${API_BASE}/api/ark/portrait/assets/${encodeURIComponent(assetId)}/image`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  const url = `${API_BASE}/api/ark/portrait/assets/${encodeURIComponent(assetId)}/image`;
+  const res = await fetch(url, {
+    headers: withAppVersion(url, token ? { Authorization: `Bearer ${token}` } : {}),
   });
   if (!res.ok) {
     let msg = `HTTP ${res.status}`;

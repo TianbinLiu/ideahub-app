@@ -36,7 +36,7 @@ import {
   shotGroupRefs,
   type ImageGroupState,
 } from "../ai";
-import { ArkHttpError, fetchImageGroup } from "../ai/arkClient";
+import { ArkHttpError, fetchImageGroup, modelGoneCode } from "../ai/arkClient";
 import { canAfford, frozenNote, spendTokens } from "../data/account";
 import { onOwnerSwitch, workOwner } from "../data/deviceOwner";
 import { CHAT_TURN_TOKENS, GRID_CHECK_TOKENS, GRID_PANEL_TOKENS, IMAGE_TOKENS, fmtTokens } from "../data/economy";
@@ -988,6 +988,8 @@ function upstreamDown(e: unknown): boolean {
 function groupFailLine(st: ImageGroupState): string {
   if (groupUpstreamDown(st)) return t`画面没出成：这次没连上出图服务（多半是网络抖了一下），一张都没画、钱全退了——再点一次「画出这一组」就行`;
   if (st.code === "INTERRUPTED") return t`画面没出成：连接断了，一张都没收到、钱全退了——再点一次「画出这一组」就行`;
+  // 出图模型用不了了（方舟下线 / 服务端不认，判据只在 arkClient.modelGoneCode）：再点也一样，只有更新 App 能解（2026-10-10）
+  if (modelGoneCode(st.code, st.message)) return t`画面没出成：出图用的模型现在用不了了（多半是已经停用），一张都没画、钱全退了——请把 App 更新到最新版再画`;
   if (/Sensitive/i.test(st.code)) return t`画面没出成：分镜里有内容没过内容审核，一张都没画、钱全退了——改改写法再画`;
   const why = st.message || st.code || t`原因不明`;
   return t`画面没出成：${why}（一张都没画出来，钱全退了）`;

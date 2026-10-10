@@ -11,7 +11,7 @@
 // 那才是真口型。下面这套是在"只有文本、没有音频流"的前提下能做到的最好近似。
 import type { Viseme } from "./scene/faceExpr";
 import { currentInstruct, currentRate, currentVoice, emotionFor } from "./voices";
-import { API_BASE, getToken } from "../api/client";
+import { API_BASE, getToken, withAppVersion } from "../api/client";
 // ★ 界面语言只从 i18n/switch 的 activeLang 读（「当前生效的语言」的唯一读法，不是偏好）。
 //   依赖方向没破：i18n 是叶子模块，不会反过来认识本文件
 import type { Lang } from "../i18n/locale";
@@ -271,7 +271,7 @@ async function speakCloud(text: string, sy: Syl[], me: number): Promise<boolean>
     const tk = getToken();
     const res = await fetch(TTS_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...(tk ? { Authorization: `Bearer ${tk}` } : {}) },
+      headers: withAppVersion(TTS_URL, { "Content-Type": "application/json", ...(tk ? { Authorization: `Bearer ${tk}` } : {}) }),
       body: JSON.stringify({
         text,
         voice: ENV_VOICE || voice.id,

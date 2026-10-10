@@ -13,7 +13,7 @@
 // ★ 服务端这两个端点早就在线、Cloudinary 也早就配好了（2026-08-10 实测：
 //   传一张 1x1 png 回的是 res.cloudinary.com 的永久 URL）。缺的一直只是 App 去用它。
 import { t } from "@lingui/core/macro";
-import { API_BASE, ApiError, apiPost, getToken } from "./client";
+import { API_BASE, ApiError, apiPost, getToken, withAppVersion } from "./client";
 
 /** 与服务端 middleware/upload.js 的上限一致。超了就别发出去，省一次必然失败的往返 */
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -121,11 +121,12 @@ async function postFormData(
   }
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}${path}`, {
+    const url = `${API_BASE}${path}`;
+    res = await fetch(url, {
       method: "POST",
       // ★ 不要手写 Content-Type：multipart 的 boundary 由浏览器生成，
       //   自己填一个会让服务端解析不出文件（multer 直接判定没有 file）。
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      headers: withAppVersion(url, token ? { Authorization: `Bearer ${token}` } : {}),
       body: fd,
       signal: ctrl.signal,
     });
@@ -873,12 +874,13 @@ export async function deleteTemplateVideo(publicId: string): Promise<void> {
   }, 20_000);
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}/api/uploads/template-video`, {
+    const url = `${API_BASE}/api/uploads/template-video`;
+    res = await fetch(url, {
       method: "DELETE",
-      headers: {
+      headers: withAppVersion(url, {
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
+      }),
       body: JSON.stringify({ publicId }),
       signal: ctrl.signal,
     });
@@ -907,9 +909,10 @@ export async function deleteTemplateVideo(publicId: string): Promise<void> {
  */
 export async function registerMaterialVideo(publicId: string): Promise<{ url: string; durationSec: number }> {
   const token = getToken();
-  const res = await fetch(`${API_BASE}/api/uploads/material-video/register`, {
+  const url = `${API_BASE}/api/uploads/material-video/register`;
+  const res = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    headers: withAppVersion(url, { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }),
     body: JSON.stringify({ publicId }),
     signal: AbortSignal.timeout(30_000),
   });

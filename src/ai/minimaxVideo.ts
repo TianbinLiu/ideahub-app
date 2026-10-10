@@ -12,7 +12,7 @@
 //   （Capacitor 的 SPA 回退对未命中路径回 200 + index.html，CLAUDE.md 有专条）。
 import { t } from "@lingui/core/macro";
 import { API_BASE } from "../api/client";
-import { getToken } from "../api/client";
+import { getToken, withAppVersion } from "../api/client";
 import { ArkTaskFailed, ArkTaskUnknown, billingDenialError, syncWalletFromHeaders, taskRefundOf, type ArkProgress } from "./arkClient";
 
 /** 上游受理回执的业务码：0 = 成功。非 0 时 status_msg 是给人看的原因 */
@@ -23,10 +23,16 @@ interface BaseResp {
 
 const BASE = `${API_BASE}/api/minimax`;
 
-function authHeaders(): Record<string, string> {
+/** @param url 这一发打到哪儿 —— 只为了让 withAppVersion 判要不要带版本头（自家服务器的 /api/ 才带） */
+function authHeaders(url: string): Record<string, string> {
   // 生产（server 代理）要带登录态；dev 的 vite 代理会忽略这个头，无害
   const tk = getToken();
-  return { "Content-Type": "application/json", ...(tk ? { Authorization: `Bearer ${tk}` } : {}) };
+  return withAppVersion(url, { "Content-Type": "application/json", ...(tk ? { Authorization: `Bearer ${tk}` } : {}) });
+}
+
+/** 查询类 GET（查进度 / 取下载地址）：不计费 */
+function getJson(url: string): Promise<Response> {
+  return fetch(url, { headers: authHeaders(url) });
 }
 
 /** 真人档一发的三步：建任务 / 查进度 / 取下载地址。报错按步整句各写一份，不拿动词往句子里拼 */
@@ -87,7 +93,7 @@ function minimaxFailed(taskId: string, st: Record<string, unknown>): ArkTaskFail
 async function minimaxFileUrl(st: Record<string, unknown>): Promise<string> {
   const fileId = String(st.file_id ?? "");
   if (!fileId) throw new Error(t`真人档出片成功却没有文件号——上游协议变了，把这句话反馈给我们`);
-  const f = await jsonOf(await fetch(`${BASE}/file/${encodeURIComponent(fileId)}`, { headers: authHeaders() }), "file");
+  const f = await jsonOf(await getJson(`${BASE}/file/${encodeURIComponent(fileId)}`), "file");
   const file = f.file as { download_url?: string; backup_download_url?: string } | undefined;
   const url = file?.download_url || file?.backup_download_url;
   if (!url) throw new Error(t`真人档取件失败：上游没有返回下载地址`);
@@ -111,7 +117,7 @@ export async function takeMinimaxTask(
   onProgress?.(t`正在向上游核对这一发的状态…（查询不花钱）`);
   let st: Record<string, unknown>;
   try {
-    st = await jsonOf(await fetch(`${BASE}/video/${encodeURIComponent(taskId)}`, { headers: authHeaders() }), "poll");
+    st = await jsonOf(await getJson(`${BASE}/video/${encodeURIComponent(taskId)}`), "poll");
   } catch (e) {
     // 查不动 ≠ 取不回。凭据必须留着，话也不能说死。
     // ★ 抛 **ArkTaskUnknown**（与方舟那条 real.takeVideoTask 查不动 / 还在跑同一个类型，2.62 发版评审）：「这一发的结局还没核对到」
@@ -159,7 +165,7 @@ export async function minimaxVideo(o: {
   const created = await jsonOf(
     await fetch(`${BASE}/video`, {
       method: "POST",
-      headers: authHeaders(),
+      headers: authHeaders(`${BASE}/video`),
       body: JSON.stringify({
         model: o.model,
         prompt: o.prompt,
@@ -206,7 +212,7 @@ export async function minimaxVideo(o: {
     await new Promise((r) => setTimeout(r, 8000));
     let st: Record<string, unknown>;
     try {
-      st = await jsonOf(await fetch(`${BASE}/video/${encodeURIComponent(taskId)}`, { headers: authHeaders() }), "poll");
+      st = await jsonOf(await getJson(`${BASE}/video/${encodeURIComponent(taskId)}`), "poll");
       pollFails = 0;
     } catch (e) {
       if (++pollFails >= 5) {

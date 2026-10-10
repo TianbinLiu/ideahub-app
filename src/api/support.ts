@@ -10,7 +10,7 @@
  */
 import { i18n, type MessageDescriptor } from "@lingui/core";
 import { msg, t } from "@lingui/core/macro";
-import { API_BASE, ApiError, apiGet, apiPatch, apiPost } from "./client";
+import { API_BASE, ApiError, apiGet, apiPatch, apiPost, withAppVersion } from "./client";
 import type { Live2dModelItem, PersonaSource, PersonaSummary, VoiceMixEntry, VoiceSettings } from "./companion";
 import { authHeaders, streamSseRequest, throwHttp } from "./stream";
 import type { CompanionSentence } from "../companion/protocol";
@@ -211,9 +211,10 @@ export function ttsBodyFor(config: SupportConfig | null, sentence: CompanionSent
  * rate = speech_rate [-50,100]（倍速 1 + r/100），pitch = post_process.pitch [-12,12]；缺省 = 不传（原速原调）。
  */
 export async function synthesizeSpeech(body: TtsRequest, signal?: AbortSignal): Promise<Blob> {
-  const res = await fetch(`${API_BASE}/api/tts`, {
+  const url = `${API_BASE}/api/tts`;
+  const res = await fetch(url, {
     method: "POST",
-    headers: authHeaders({ "Content-Type": "application/json" }),
+    headers: withAppVersion(url, authHeaders({ "Content-Type": "application/json" })),
     body: JSON.stringify(body),
     signal,
   });
@@ -235,9 +236,10 @@ export function rateSupportAnswer(body: { question: string; answer: string; rati
  */
 export async function transcribeAudio(blob: Blob, format: "wav" | "mp3" | "ogg" = "wav", signal?: AbortSignal): Promise<{ text: string; durationMs: number }> {
   const mime = format === "wav" ? "audio/wav" : format === "mp3" ? "audio/mpeg" : "audio/ogg";
-  const res = await fetch(`${API_BASE}/api/asr?format=${format}`, {
+  const url = `${API_BASE}/api/asr?format=${format}`;
+  const res = await fetch(url, {
     method: "POST",
-    headers: authHeaders({ "Content-Type": mime }),
+    headers: withAppVersion(url, authHeaders({ "Content-Type": mime })),
     body: blob,
     signal,
   });

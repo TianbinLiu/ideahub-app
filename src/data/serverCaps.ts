@@ -8,7 +8,7 @@
 //   · 打包、探到了：照能力位答（老服务端没有这一位 = false）；
 //   · 打包、还没探到 / 探测失败（断网、5xx、429、正文读到一半断了或读不成 JSON）：null = 不知道 —— 调用方一律**放行**（与套餐镜像没回来时同一个乐观口径：服务端会说清楚，
 //     而且这几样都是在提交那一刻同步 400、一分钱不花）。探测失败不记结果，30 秒后再问。
-import { API_BASE, API_ON } from "../api/client";
+import { API_BASE, API_ON, withAppVersion } from "../api/client";
 
 /** 健康端点上我们关心的能力位（缺 = 老服务端，没有这一样） */
 export interface ServerCaps {
@@ -86,7 +86,7 @@ export function probeServerCaps(): Promise<ServerCaps | null> {
   if (direct()) return Promise.resolve(ALL);
   if (caps) return Promise.resolve(caps);
   if (!probe && Date.now() - failedAt < RETRY_MS) return Promise.resolve(null);
-  probe ??= fetch(`${API_BASE}/api/ark/health`, { signal: AbortSignal.timeout(10_000) })
+  probe ??= fetch(`${API_BASE}/api/ark/health`, { headers: withAppVersion(`${API_BASE}/api/ark/health`), signal: AbortSignal.timeout(10_000) })
     .then(async (r): Promise<ServerCaps | null> => {
       // ★ 5xx / 429（网关错误页、部署那几秒、限流）是「这一刻没答上来」，不是「这台服务端不会」：记成不知道、过一会儿再问。
       //   原来一律记成全 false 并记一整场会话 —— 一次 502 就把「草稿」档藏到 App 重启（11-24 之后那是免费用户唯一的档）

@@ -1,6 +1,29 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import { lingui } from "@lingui/vite-plugin";
+import fs from "node:fs";
+import path from "node:path";
+
+/**
+ * 这一包的版本「<versionName>+<versionCode>」（如 2.63+75）—— 每个打到自家服务器 /api/ 的请求都带它（X-App-Version，
+ * src/api/client.ts 的 withAppVersion）。
+ *
+ * ★ 只有一个出处：android/app/build.gradle 的 defaultConfig。发版脚本（scripts/release.mjs 的 readVersion）读的也是它，
+ *   并且拿 APK 里的版本号逐字比对 —— 所以「头上报的版本」与「装在手机上的那个包」是同一个数，不会各说各的。
+ *   为什么不在运行时问原生（AppVersion.describe）：那是异步的，而开机第一发请求（探活、读作品库）就要带上它；
+ *   浏览器里（npm run dev）也没有原生可问。package.json 的 version 一直是 0.0.1，不是真版本号，别拿它。
+ * ★ 读不出来就**当场构建失败**，不退成一个空串 / 0：头上报错版本号的后果是服务端按错的版本给这台 App 定规矩
+ *   （比如按老包的口径换模型、结算），全程零报错。
+ */
+function appVersionFromGradle(): string {
+  // 与 loadEnv 同一个根（npm 脚本都在仓库根目录跑）
+  const file = path.resolve(process.cwd(), "android/app/build.gradle");
+  const g = fs.readFileSync(file, "utf8");
+  const code = /versionCode\s+(\d+)/.exec(g)?.[1];
+  const name = /versionName\s+"([^"]+)"/.exec(g)?.[1];
+  if (!code || !name) throw new Error(`读不出 ${file} 里的 versionCode / versionName（X-App-Version 的唯一出处）`);
+  return `${name}+${code}`;
+}
 
 // 火山方舟代理：API Key 只存在于 .env.local 的 ARK_API_KEY（无 VITE_ 前缀=永不进客户端包），
 // 由 dev 服务器在转发时注入 Authorization——浏览器端与仓库都接触不到 Key。
@@ -299,6 +322,8 @@ export default defineConfig(({ mode }) => {
       __AI_REAL__: JSON.stringify(arkKey.length > 0),
       // 同理：客户端只知道"有没有云端嗓子"，不知道凭据本身
       __TTS_REAL__: JSON.stringify(ttsKey.length > 0),
+      // 这一包的版本（X-App-Version 头），出处只有 build.gradle（见 appVersionFromGradle 的 ★）
+      __APP_VERSION__: JSON.stringify(appVersionFromGradle()),
     },
     build: {
       // 显式关闭 sourcemap：生产包不携带源码映射（默认虽同为 false，此处固化意图防误开）

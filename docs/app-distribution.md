@@ -46,6 +46,8 @@ npm run release -- --dry
 # 5. ★ 发版前复核：只看**这一版新增的 diff**（见下）—— 绿了再走第 6 步
 # 6. 发布 + 自检（镜像先落好，再建 Release，最后经 Cloudflare 整包下一遍核对）
 npm run release
+#    这一版起要**强制更新**（比某个 versionCode 老的包一打开就只能更新）的话，显式带上门槛，见下面「强制更新」：
+npm run release -- --min-version-code=75
 ```
 
 ⚠ 在 Git Bash 里跑、又要改 `APK_MIRROR_DIR` 的话，前面必须加 `MSYS_NO_PATHCONV=1`
@@ -103,6 +105,7 @@ tag + 内容不同），第 5c 步对镜像上那个同名文件做同样的事�
 | APK 里的版本号 == 源码里的 | 改了 build.gradle 但忘了重新出包 → **发了个旧包** |
 | 签名证书指纹 == 历史版本 | 换过 keystore → 老用户点更新，装到最后只说「应用未安装」 |
 | versionCode > 线上那一版 | 不涨 → 所有人的更新检查都判不出有新版，**等于没发** |
+| `minVersionCode`：不带参数就沿用上一版的；只能往上拧、不能超过这一版的 versionCode（第 4b 步） | 顺手发一版就把门槛丢了 = 悄悄取消了强制更新；门槛比这一版还高 = 所有人锁在关不掉的弹层前面、无版可装 |
 | 镜像上的安装包在**建 Release 之前**就完整落位（`.part` → 远端 sha256 → 改名） | 先发清单再传包：传到一半被人下走的半截包，被 Cloudflare 按 immutable 存一年 |
 | 镜像上同名文件内容不同就拒（第 5c 步，`--dry` 也查） | 上一次没跑完留下的另一份包被当成这一版发出去 |
 | 发布**之后**再从公网拉一遍 `latest.json` | Release 被标成 draft/pre-release，或漏传 `latest.json` → 固定地址 404，客户端安静地什么都不做 |
@@ -168,8 +171,30 @@ CI 是绿的、仓库看着也正常，只有所有已安装用户的「检查�
 2. `versionCode` 比自己大就弹「有新版本」，显示版本、大小、更新说明；
 3. 点「立即更新」→ 原生下载（带进度）→ 校验 sha256 → 拉起系统安装器；
 4. 用户点「以后再说」的话，**这一个版本**不再打扰，出了更新的才再提。
+5. **强制更新**：清单里写了 `minVersionCode`、而手上这一版比它老 —— 弹层上没有「以后再说」、没有「关闭」，点遮罩、按返回键都关不掉；
+   下不动 / 装不上时留着「重试」，另给一条「在浏览器里打开官网下载页」（<https://ideahubs.org/download>）。见下一节。
 
 设置页底部还有一个手动的「检查更新」。
+
+### 强制更新（`minVersionCode`，2026-10-10 起，App 2.63+）
+
+清单（`latest.json`）多一个**可选**的整数 `minVersionCode` = 「versionCode 比它小的包，必须先更新才能接着用」。
+
+| 谁 | 怎么做 |
+|---|---|
+| 原生（`android/app/src/sideload/…/AppUpdaterPlugin.java` 的 `check`） | 读 `minVersionCode`（没有 / 不是非负整数 = 0），回 `minVersionCode` 与 `mandatory = 有更新可装 && 当前版本 < minVersionCode` |
+| Web（`src/data/appUpdate.ts` 的 `isMandatory`，唯一判据） | 强制的那一版**不认**「以后再说」的记录；`components/UpdateSheet` 关不掉、压在引导层之上，永远留着「重试」+「官网下载页」两条路 |
+| 发版脚本（`scripts/release.mjs` 第 4b 步） | **只在显式要求时写新值**（`--min-version-code=N` 或环境变量 `RELEASE_MIN_VERSION_CODE=N`），不带就**沿用上一版清单里的值**；N 比上一版的小 → 当场停（门槛只能往上拧）；N 比这一版的 versionCode 大 → 当场停（连刚发的这一版也会被判成必须更新、无版可装）；拉不到上一版清单又没显式给 → 正式跑当场停（写不写都可能错）；重跑已发过的 tag 时不能改它。发完会核对 GitHub 那份与 App 实际读的那份（服务端转的）里的 `minVersionCode` 都对 |
+
+几条要知道的：
+
+- **只对 2.63 及以后的包有效**。2.62 及以前的原生代码只读自己认识的那几格，多出来的 `minVersionCode` 被直接忽略 —— 它们照旧看到一个能「以后再说」的普通提示。
+  要拦住那批老包，只能靠服务端按请求头 `X-App-Version`（2.63 起才有；没有这个头 = 老包）认出它们（见 `docs/api-contract.md`「请求头 X-App-Version」）。
+- **Play 渠道不受影响**（`selfUpdate: false`，整套更新 UI 都不出现；商店版靠商店更新）。
+- 只在**冷启动**那一次检查时弹（启动后 3 秒）：App 一直开着时上调了门槛，要等下一次冷启动。
+- 门槛 N 的意思是「versionCode < N 的都必须更新」：比如想让 2.63（75）及以前的都必须更新，就写 76（这一版的 versionCode 得 ≥ 76）。
+  写成这一版自己的 versionCode = 所有更老的包都必须更新。
+- 服务端那一跳（`appRelease.routes.js`）是 `{ ...body, apkUrl }` 原样透传，`minVersionCode` 跟着走；哪天改成逐字段重建，发版脚本最后那步核对会红。
 
 ### 用户那边会卡住的地方
 

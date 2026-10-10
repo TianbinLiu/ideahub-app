@@ -139,11 +139,20 @@ public class AppUpdaterPlugin extends Plugin {
                 JSObject cur = AppVersion.describe(getContext());
                 long mine = cur == null ? 0 : cur.getLong("versionCode");
                 long theirs = j.optLong("versionCode", 0);
+                // ★ 强制更新（2026-10-10，方舟 11-24 下线那一批）：清单里可选的 minVersionCode = 「比它老的包必须更新才能接着用」。
+                //   老清单没有这一格 → 0 → 谁都不强制，行为与改之前一字不差。
+                //   ★ 只认非负整数：写成字符串 / 小数 / 负数一律当没写（optLong 对非数字回缺省值），宁可不强制，也不把所有人锁在门外。
+                //   ★ 老包（2.62 及以前）读同一份清单不受影响：它们只 optXxx 自己认识的那几格，多一格 minVersionCode 直接被忽略。
+                long min = Math.max(0, j.optLong("minVersionCode", 0));
 
                 JSObject ret = new JSObject();
                 ret.put("hasUpdate", theirs > mine);
                 ret.put("currentVersionCode", mine);
                 ret.put("versionCode", theirs);
+                ret.put("minVersionCode", min);
+                // ★ 只有「真有更新可装」时才算强制：清单上的新版不比手上这版新（发版脚本拦着，但清单是外部输入），
+                //   强制了也没有东西可装 —— 那是把人锁死在一张关不掉的弹层前面。
+                ret.put("mandatory", theirs > mine && mine < min);
                 ret.put("versionName", j.optString("versionName", ""));
                 ret.put("apkUrl", j.optString("apkUrl", ""));
                 ret.put("sha256", j.optString("sha256", ""));

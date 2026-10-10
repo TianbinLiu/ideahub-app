@@ -19,6 +19,33 @@ export const API_BASE: string = String(import.meta.env.VITE_API_BASE ?? "")
 /** true = 远端模式。data 层用它决定走 API 还是 IndexedDB */
 export const API_ON: boolean = API_BASE.length > 0;
 
+declare const __APP_VERSION__: string;
+
+/**
+ * 这一包的版本「<versionName>+<versionCode>」（如 2.63+75）。构建期由 vite.config.ts 从 android/app/build.gradle 读出来
+ * （唯一出处，理由见那边 appVersionFromGradle 的 ★）；Node 直接跑的构建检查脚本里没有这个常量 → 空串（那里不发请求）。
+ */
+export const APP_VERSION: string = typeof __APP_VERSION__ === "string" ? __APP_VERSION__ : "";
+
+/**
+ * 给**自家服务器 /api/ 下**的请求加上 `X-App-Version` 头 —— 全仓唯一的判定（2026-10-10，方舟 11-24 下线那一批）。
+ *
+ * ★ 为什么要报版本：服务端要知道「这一发是哪一版 App 发的」—— 下线的模型在出口改发继任型号、该不该提示强制更新、
+ *   老包报的价按老包的口径结算，都得先认出是谁。原来只能从请求体里的模型 id 去猜。
+ * ★★ 只发给 `${API_BASE}/api/…`，别的地址一个都不带（调用方不用自己判，传 URL 进来就行）：
+ *   · 第三方（Cloudinary 直传、dev 下 vite 代理直连的方舟、CDN、GitHub）—— 版本号与他们无关，也不该外泄；
+ *   · 自家服务器的 `/uploads/…` 静态目录 —— 那一层的 CORS 只放行 `Content-Type`（server app.js），多一个自定义头
+ *     预检就被拒，整张图取不回来。`/api/…` 走全局的 cors()（不设 allowedHeaders = 按预检请求的头原样放行）。
+ * ★ 加了这个头之后，原来不带 Authorization 的 GET（探活、未登录逛首页）也会先发一次 CORS 预检 ——
+ *   服务端 cors() 配上 maxAge 就只多这一次往返（见 docs/api-contract.md「X-App-Version」）。
+ */
+export const APP_VERSION_HEADER = "X-App-Version";
+
+export function withAppVersion(url: string, headers: Record<string, string> = {}): Record<string, string> {
+  if (!APP_VERSION || !API_ON || !url.startsWith(`${API_BASE}/api/`)) return headers;
+  return { ...headers, [APP_VERSION_HEADER]: APP_VERSION };
+}
+
 /** JWT 存放的 localStorage 键 */
 export const TOKEN_KEY = "ideahub-app.token";
 
@@ -155,10 +182,11 @@ async function request<T>(
   opts.signal?.addEventListener("abort", onExternalAbort);
 
   let res: Response;
+  const url = buildUrl(path, opts.query);
   try {
-    res = await fetch(buildUrl(path, opts.query), {
+    res = await fetch(url, {
       method,
-      headers,
+      headers: withAppVersion(url, headers),
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: ctrl.signal,
     });

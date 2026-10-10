@@ -35,7 +35,7 @@ import {
   type PresetVoice,
 } from "../studio/voices";
 import { speak } from "../studio/speech";
-import { API_BASE, getToken } from "../api/client";
+import { API_BASE, getToken, withAppVersion } from "../api/client";
 
 /* i18n-frozen: 试听句发给火山的中文音色（没配云端时退回系统中文语音包），与铸卡师在工坊里说的台词同一种语言 */
 const PREVIEW_LINE = "欢迎来到卡片工坊，把你的素材交给我，我为你炼成卡片。";
@@ -63,9 +63,10 @@ export default function SettingsVoicePage() {
     setBusy(v.id);
     try {
       const tk = getToken();
-      const res = await fetch(`${API_BASE}/api/tts`, {
+      const ttsUrl = `${API_BASE}/api/tts`;
+      const res = await fetch(ttsUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...(tk ? { Authorization: `Bearer ${tk}` } : {}) },
+        headers: withAppVersion(ttsUrl, { "Content-Type": "application/json", ...(tk ? { Authorization: `Bearer ${tk}` } : {}) }),
         body: JSON.stringify({
           text: PREVIEW_LINE,
           voice: v.id,

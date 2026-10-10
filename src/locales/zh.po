@@ -4937,6 +4937,10 @@ msgstr "下下来的大小对不上（{gotSize} / 应为 {wantSize}），这一�
 msgid "下下来的文件不见了，这一次没算数。再点一次。"
 msgstr "下下来的文件不见了，这一次没算数。再点一次。"
 
+#: src/components/UpdateSheet.tsx
+msgid "下不动、装不上？在浏览器里打开官网下载页"
+msgstr "下不动、装不上？在浏览器里打开官网下载页"
+
 #: src/pages/ProfilePage.tsx
 msgid "下单失败"
 msgstr "下单失败"
@@ -6057,6 +6061,10 @@ msgstr "你已经举报过这一条了，管理员还在处理"
 #: src/components/recipe/RemixRewardNote.tsx
 msgid "你已经拿到过 {count} 次，共 {earned} token。"
 msgstr "你已经拿到过 {count} 次，共 {earned} token。"
+
+#: src/components/UpdateSheet.tsx
+msgid "你手上这一版已经停止支持了，更新之后才能接着用。"
+msgstr "你手上这一版已经停止支持了，更新之后才能接着用。"
 
 #: src/studio/cutAutoEdit.ts
 #: src/studio/structuredSkills.ts
@@ -7342,6 +7350,26 @@ msgstr "凭链接可见"
 #: src/components/ShareSheet.tsx
 msgid "凭链接可见：不进首页和搜索，但<0>拿到链接的人都能看，也能转给别人</0>。"
 msgstr "凭链接可见：不进首页和搜索，但<0>拿到链接的人都能看，也能转给别人</0>。"
+
+#: src/ai/arkClient.ts
+msgid "出图模型 {label} 出不了组图，这是 App 的配置问题——请把 App 更新到最新版再试（这一次没有发出去）"
+msgstr "出图模型 {label} 出不了组图，这是 App 的配置问题——请把 App 更新到最新版再试（这一次没有发出去）"
+
+#: src/ai/arkClient.ts
+msgid "出图模型已停用，请更新 App"
+msgstr "出图模型已停用，请更新 App"
+
+#: src/ai/arkClient.ts
+msgid "出图用的模型（{label}）现在用不了了，多半是已经停用——请把 App 更新到最新版再试；已经是最新版的话，过一会儿再试"
+msgstr "出图用的模型（{label}）现在用不了了，多半是已经停用——请把 App 更新到最新版再试；已经是最新版的话，过一会儿再试"
+
+#: src/ai/arkClient.ts
+msgid "出图请求没被受理（服务器返回 {status}：{up}）"
+msgstr "出图请求没被受理（服务器返回 {status}：{up}）"
+
+#: src/ai/arkClient.ts
+msgid "出图请求没被受理（服务器返回 {status}）"
+msgstr "出图请求没被受理（服务器返回 {status}）"
 
 #: src/components/flow/LeadShotsWizard.tsx
 msgid "出场：{leadName}（主角）"
@@ -8730,6 +8758,10 @@ msgstr "参考图直出要收参考图的模型（「{refImgList}」）"
 #~ msgid "参考图直出要收参考图的模型（高清 / 电影级）"
 #~ msgstr "参考图直出要收参考图的模型（高清 / 电影级）"
 
+#: src/ai/arkClient.ts
+msgid "参考图里可能有真人，被方舟拒了"
+msgstr "参考图里可能有真人，被方舟拒了"
+
 #: src/types.ts
 #~ msgid "参考图预算还有余时才轮到它"
 #~ msgstr "参考图预算还有余时才轮到它"
@@ -9657,8 +9689,8 @@ msgid "同时上架到模板市场（工作流模板）"
 msgstr "同时上架到模板市场（工作流模板）"
 
 #: src/data/economy.ts
-msgid "同样 2 张，换最新旗舰模型来画 · 形象更准、细节更实，出图较慢"
-msgstr "同样 2 张，换最新旗舰模型来画 · 形象更准、细节更实，出图较慢"
+#~ msgid "同样 2 张，换最新旗舰模型来画 · 形象更准、细节更实，出图较慢"
+#~ msgstr "同样 2 张，换最新旗舰模型来画 · 形象更准、细节更实，出图较慢"
 
 #: src/components/flow/RefStrip.tsx
 #: src/pages/SupportModelNewPage.tsx
@@ -10605,8 +10637,8 @@ msgid "官方技能"
 msgstr "官方技能"
 
 #: src/data/economy.ts
-msgid "定妆"
-msgstr "定妆"
+#~ msgid "定妆"
+#~ msgstr "定妆"
 
 #. placeholder {0}: prop.plot.trim().slice(0, 20) || prop.title
 #: src/studio/flowStore.ts
@@ -17057,6 +17089,10 @@ msgstr "没能开始播放：{0}"
 msgid "没能打开{app}的授权页。确认装的是正式版{app}并且版本不太旧，或者用手机号、邮箱登录。"
 msgstr "没能打开{app}的授权页。确认装的是正式版{app}并且版本不太旧，或者用手机号、邮箱登录。"
 
+#: src/components/UpdateSheet.tsx
+msgid "没能打开浏览器。可以手动访问：{DOWNLOAD_PAGE_URL}"
+msgstr "没能打开浏览器。可以手动访问：{DOWNLOAD_PAGE_URL}"
+
 #: src/pages/SettingsPage.tsx
 #: src/pages/tutor/TutorHomePage.tsx
 #: src/pages/tutor/TutorNewPage.tsx
@@ -18363,8 +18399,12 @@ msgid "男声"
 msgstr "男声"
 
 #: src/data/economy.ts
-msgid "画 2 张：主图 + 一张参考图，照着主图画同一个对象"
-msgstr "画 2 张：主图 + 一张参考图，照着主图画同一个对象"
+#~ msgid "画 2 张：主图 + 一张参考图，照着主图画同一个对象"
+#~ msgstr "画 2 张：主图 + 一张参考图，照着主图画同一个对象"
+
+#: src/data/economy.ts
+msgid "画 2 张：主图 + 一张参考图，用最新旗舰模型来画 · 形象更准、细节更实，出图较慢"
+msgstr "画 2 张：主图 + 一张参考图，用最新旗舰模型来画 · 形象更准、细节更实，出图较慢"
 
 #: src/studio/dialogueDraftStore.ts
 msgid "画三个机位最多要 {price} token，余额不够——去「我的」页充值"
@@ -18376,8 +18416,13 @@ msgstr "画不出来的包发不了。"
 
 #. placeholder {0}: tierNamesWhere((x) => x.refImg)
 #: src/components/flow/CastPicker.tsx
-msgid "画两张：全身立绘 + 照着它画的面部特写（官方建议的「全身照 + 大头照」）。不画写实照片风：「{0}」档会把写实的人脸当成真人拒收。"
-msgstr "画两张：全身立绘 + 照着它画的面部特写（官方建议的「全身照 + 大头照」）。不画写实照片风：「{0}」档会把写实的人脸当成真人拒收。"
+msgid "画两张：全身立绘 + 照着它画的面部特写（官方建议的「全身照 + 大头照」），用「{leadTier}」档的模型画，两张要几分钟。不画写实照片风：「{0}」档会把写实的人脸当成真人拒收。"
+msgstr "画两张：全身立绘 + 照着它画的面部特写（官方建议的「全身照 + 大头照」），用「{leadTier}」档的模型画，两张要几分钟。不画写实照片风：「{0}」档会把写实的人脸当成真人拒收。"
+
+#. placeholder {0}: tierNamesWhere((x) => x.refImg)
+#: src/components/flow/CastPicker.tsx
+#~ msgid "画两张：全身立绘 + 照着它画的面部特写（官方建议的「全身照 + 大头照」）。不画写实照片风：「{0}」档会把写实的人脸当成真人拒收。"
+#~ msgstr "画两张：全身立绘 + 照着它画的面部特写（官方建议的「全身照 + 大头照」）。不画写实照片风：「{0}」档会把写实的人脸当成真人拒收。"
 
 #: src/components/flow/CastPicker.tsx
 #~ msgid "画两张：全身立绘 + 照着它画的面部特写（官方建议的「全身照 + 大头照」）。不画写实照片风：高清 / 电影级会把写实的人脸当成真人拒收。"
@@ -18394,6 +18439,10 @@ msgstr "画关键帧要 {price} token，余额不够——去「我的」页充�
 #: src/pages/SupportModelNewPage.tsx
 msgid "画出来了。可以摸一摸她、拖一拖看看视线跟不跟手。"
 msgstr "画出来了。可以摸一摸她、拖一拖看看视线跟不跟手。"
+
+#: src/ai/arkClient.ts
+msgid "画出来的图没过方舟的内容审核"
+msgstr "画出来的图没过方舟的内容审核"
 
 #: src/studio/gridDraftStore.ts
 msgid "画到第 {got} 张时断了，画到哪张算哪张"
@@ -18498,6 +18547,10 @@ msgstr "画面没出成：{why}。{moneyLine}"
 #: src/studio/gridDraftStore.ts
 msgid "画面没出成：{why}（一张都没画出来，钱全退了）"
 msgstr "画面没出成：{why}（一张都没画出来，钱全退了）"
+
+#: src/studio/gridDraftStore.ts
+msgid "画面没出成：出图用的模型现在用不了了（多半是已经停用），一张都没画、钱全退了——请把 App 更新到最新版再画"
+msgstr "画面没出成：出图用的模型现在用不了了（多半是已经停用），一张都没画、钱全退了——请把 App 更新到最新版再画"
 
 #: src/studio/gridDraftStore.ts
 msgid "画面没出成：分镜里有内容没过内容审核，一张都没画、钱全退了——改改写法再画"
@@ -23187,6 +23240,10 @@ msgstr "这一帧没改成（{reason}）——没扣钱，原来那张没动，�
 msgid "这一帧没改成（{reason}）。{moneyLine}原来那张没动，可以再试一次"
 msgstr "这一帧没改成（{reason}）。{moneyLine}原来那张没动，可以再试一次"
 
+#: src/ai/real.ts
+msgid "这一帧没画成（{why}），改用纯文字再画一次"
+msgstr "这一帧没画成（{why}），改用纯文字再画一次"
+
 #: src/components/flow/SegPlayer.tsx
 msgid "这一帧用到哪儿"
 msgstr "这一帧用到哪儿"
@@ -25107,6 +25164,10 @@ msgstr "这次没能向服务器确认这条作品，内容没有被替换。合
 msgid "这次没连上出图服务（多半是网络抖了一下），再点一次就行"
 msgstr "这次没连上出图服务（多半是网络抖了一下），再点一次就行"
 
+#: src/ai/arkClient.ts
+msgid "这次没连上出图服务（服务器返回 {status}），过一会儿再试"
+msgstr "这次没连上出图服务（服务器返回 {status}），过一会儿再试"
+
 #: src/data/videos.ts
 msgid "这次没连上服务器，内容没有被替换。合成稿还留在「我的」里，联网后再试一次。"
 msgstr "这次没连上服务器，内容没有被替换。合成稿还留在「我的」里，联网后再试一次。"
@@ -26133,6 +26194,10 @@ msgstr "需要 {0} token，余额 {1} 不够——去「我的」页充值"
 #: src/data/account.ts
 msgid "需要先连接服务器并登录"
 msgstr "需要先连接服务器并登录"
+
+#: src/components/UpdateSheet.tsx
+msgid "需要更新到 {versionName}"
+msgstr "需要更新到 {versionName}"
 
 #: src/data/templates.ts
 msgctxt "人偶的主色（挂卡提醒那句话里显示）"

@@ -11,8 +11,15 @@
 //
 // ★ 浏览器里跑（npm run dev）没有这个插件，全部接口安静地退化成"没有更新"——
 //   开发时不该被一个装不了的更新提示打断。
+//
+// ★★ 强制更新（2026-10-10，方舟 11-24 下线那一批）：清单里可选的 `minVersionCode` = 比它老的包必须先更新才能接着用。
+//   原生那侧（AppUpdaterPlugin.check）算好 `mandatory`（有更新可装 且 手上这版 < minVersionCode），这里只认它：
+//   强制的那一版**不认「以后再说」的记录**（SKIP_KEY），弹层也关不掉（components/UpdateSheet）。
+//   老清单没有这一格 → mandatory 恒 false，一切照旧；Play 渠道（selfUpdate:false）根本走不到这里。
+//   哪一版要设 minVersionCode 由发版时显式指定（scripts/release.mjs 的 --min-version-code），见 docs/app-distribution.md。
 import { registerPlugin } from "@capacitor/core";
 import { Capacitor } from "@capacitor/core";
+import { SITE_BASE } from "../utils/shareLink";
 
 export interface UpdateInfo {
   hasUpdate: boolean;
@@ -23,6 +30,21 @@ export interface UpdateInfo {
   sha256: string;
   sizeBytes: number;
   notes: string;
+  /** 清单上的最低可用版本（没写 = 0），原生回的原值 —— 只留作排查；判强制只看 mandatory（isMandatory） */
+  minVersionCode?: number;
+  /** 必须更新才能接着用（原生算好的：有更新可装 且 当前版本 < minVersionCode）。缺省 = 不强制 */
+  mandatory?: boolean;
+}
+
+/**
+ * 官网下载页 —— 应用内更新走不通时（下不动、校验不过、装不上）的另一条路：在系统浏览器里打开，从那儿下新包装上。
+ * ★ 用不带版本号的那一页（docs/app-distribution.md「官网下载页」）：版本、大小、sha256 全是现取清单的，发版之后不用改这里。
+ */
+export const DOWNLOAD_PAGE_URL = `${SITE_BASE}/download`;
+
+/** 这一版是不是必须更新（强制的那一版：弹层关不掉、不认「以后再说」）。判据只有原生回的 mandatory 一处 */
+export function isMandatory(info: UpdateInfo | null | undefined): boolean {
+  return !!info && info.hasUpdate && info.mandatory === true;
 }
 
 interface AppUpdaterPlugin {
@@ -101,10 +123,11 @@ export async function checkUpdate(silent = true): Promise<UpdateInfo | null> {
   }
 }
 
-/** 启动时那次自动检查：已经被用户跳过的版本不再冒头 */
+/** 启动时那次自动检查：已经被用户跳过的版本不再冒头 —— **强制的那一版除外**（跳过的记录对它不算数） */
 export async function checkUpdateForPrompt(): Promise<UpdateInfo | null> {
   const info = await checkUpdate(true);
   if (!info) return null;
+  if (isMandatory(info)) return info;
   try {
     if (localStorage.getItem(SKIP_KEY) === String(info.versionCode)) return null;
   } catch {
@@ -114,6 +137,7 @@ export async function checkUpdateForPrompt(): Promise<UpdateInfo | null> {
 }
 
 export function skipVersion(versionCode: number): void {
+  // 强制的那一版界面上根本没有「以后再说」；这里不另设闸 —— 真被记下了，checkUpdateForPrompt 也不认它
   try {
     localStorage.setItem(SKIP_KEY, String(versionCode));
   } catch {

@@ -71,6 +71,8 @@ import {
   ArkBadReply,
   ArkBatchPartial,
   ArkHttpError,
+  ArkImageModelGone,
+  ArkImageRefused,
   ArkTaskFailed,
   ArkTaskUnknown,
   arkTaskFailedOf,
@@ -1954,6 +1956,9 @@ export async function generateProposals(
   // 参考图的实情放在开画前最后一发（理由见上）：哪张没采用、为什么只锁了一个角色，
   // 都要在这几十秒里看得见 —— 这两件事一旦没说，用户只会觉得"AI 画得不像"
   if (matNotes.length) onProgress?.(joinNotes(matNotes));
+  /** 出图模型用不了了（ArkImageModelGone）—— 记下第一发，全部没画成时整句抛出去（见下面 ★★） */
+  // `as`：它在回调里赋值，TS 不跟踪 —— 不这么写的话下面那句判断会被收窄成恒为 null
+  let modelGone = null as ArkImageModelGone | null;
   const results = await mapLimit(jobs, 3, async ({ p, which }) => {
     const mat = matByKey.get(keyOf(matsOf(p, which)))!;
     // 有确定开头帧时尾帧也带它当参考（人物/画风连贯）；否则仅首帧带上一段色调参考
@@ -1974,11 +1979,25 @@ export async function generateProposals(
         imageRefs: useRefs.length > 0 ? useRefs : undefined,
         size: frameSize,
       });
-    } catch {
+    } catch (e) {
+      // ★★ 出图模型用不了了（2026-10-10，方舟 11-24 下线那一批）：去掉参考图再画也是同一个模型、必然再错一次 —— 不重试，
+      //   话也不再说成「参考图未被受理」（原来不管什么原因一律这么说：模型下线、审核不过、上游连不上都成了「参考图的事」）
+      if (e instanceof ArkImageModelGone) {
+        modelGone ??= e;
+        doneCount++;
+        onProgress?.(e.message);
+        return null;
+      }
       try {
         // 带参考图失败可能是参考图本身不被受理——去掉参考图再试一次。
         // ★ 说出来：退成纯文生图意味着这一帧**没有**用上你挂的卡，闷声重试等于骗人
-        if (useRefs.length > 0) onProgress?.(t`参考图未被受理，该帧改用纯文字重画`);
+        // ★ 原因照实说（2026-10-10）：只有方舟明说是**输入的图**不过（InputImage… / 参考图里有真人）才说「参考图未被受理」；
+        //   别的失败（上游连不上、审核的是文字…）说它自己的原因（ArkImageRefused.reason / briefArkReason），重试照旧
+        if (useRefs.length > 0) {
+          const refsToBlame = e instanceof ArkImageRefused && /^InputImage|PrivacyInformation/i.test(e.upstreamCode);
+          const why = briefArkReason(e);
+          onProgress?.(refsToBlame ? t`参考图未被受理，该帧改用纯文字重画` : t`这一帧没画成（${why}），改用纯文字再画一次`);
+        }
         // 纯文字重试：refsOn=false——图都不发了，"跟随参考图"那句必须跟着消失；
         // 风格卡/真人卡两档按名字点名不涉图，照常生效。句子与第一发同一份（`@点名` 已退成名字；原来这里传的是没退过的原文）
         frame = await genImageAsDataUrl(framePrompts(plain, false, ctx.aspect, ctx.materials, false)[which], {
@@ -1992,6 +2011,10 @@ export async function generateProposals(
     onProgress?.(t`绘制画面 ${doneCount}/${total}…`);
     return frame;
   });
+  // ★★ 一张都没画成、而且是因为出图模型用不了了：整句抛出去（推演失败那句话就是「请更新 App」）。
+  //   照旧交回三套没有帧的方案的话，屏幕上只说「有 3 个方案的首尾帧没画出来，出片前会先补画」—— 而补画是同一个模型，
+  //   人要到点了出片才第一次听见真正的原因。画成了一部分（模型还在，只是个别失败）照旧交回去。
+  if (modelGone && results.every((f) => !f)) throw modelGone;
 
   const per = startFrame ? 1 : 2;
   return three.map((p, pi) => {

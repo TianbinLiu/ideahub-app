@@ -4933,6 +4933,10 @@ msgstr "The downloaded size doesn't match ({gotSize} / expected {wantSize}), so 
 msgid "下下来的文件不见了，这一次没算数。再点一次。"
 msgstr "The downloaded file is gone, so this attempt doesn't count. Tap again."
 
+#: src/components/UpdateSheet.tsx
+msgid "下不动、装不上？在浏览器里打开官网下载页"
+msgstr "Can’t download or install it? Open the download page on our website in your browser"
+
 #: src/pages/ProfilePage.tsx
 msgid "下单失败"
 msgstr "Couldn't place the order"
@@ -6053,6 +6057,10 @@ msgstr "You've already reported this; an admin is still reviewing it"
 #: src/components/recipe/RemixRewardNote.tsx
 msgid "你已经拿到过 {count} 次，共 {earned} token。"
 msgstr "{count, plural, one {You've received it # time} other {You've received it # times}}, {earned} tokens in total."
+
+#: src/components/UpdateSheet.tsx
+msgid "你手上这一版已经停止支持了，更新之后才能接着用。"
+msgstr "This version is no longer supported. Update to keep using the app."
 
 #: src/studio/cutAutoEdit.ts
 #: src/studio/structuredSkills.ts
@@ -7338,6 +7346,26 @@ msgstr "Anyone with the link"
 #: src/components/ShareSheet.tsx
 msgid "凭链接可见：不进首页和搜索，但<0>拿到链接的人都能看，也能转给别人</0>。"
 msgstr "Anyone with the link: not in Home or search, but <0>anyone who has the link can watch it and pass it on</0>."
+
+#: src/ai/arkClient.ts
+msgid "出图模型 {label} 出不了组图，这是 App 的配置问题——请把 App 更新到最新版再试（这一次没有发出去）"
+msgstr "The image model {label} can’t draw image groups — that’s a problem with the app’s setup. Please update the app to the latest version and try again (nothing was sent this time)."
+
+#: src/ai/arkClient.ts
+msgid "出图模型已停用，请更新 App"
+msgstr "the image model has been retired — please update the app"
+
+#: src/ai/arkClient.ts
+msgid "出图用的模型（{label}）现在用不了了，多半是已经停用——请把 App 更新到最新版再试；已经是最新版的话，过一会儿再试"
+msgstr "The image model ({label}) can’t be used any more — most likely it has been retired. Please update the app to the latest version and try again; if you’re already on the latest version, try again in a little while."
+
+#: src/ai/arkClient.ts
+msgid "出图请求没被受理（服务器返回 {status}：{up}）"
+msgstr "the image request wasn’t accepted (server returned {status}: {up})"
+
+#: src/ai/arkClient.ts
+msgid "出图请求没被受理（服务器返回 {status}）"
+msgstr "the image request wasn’t accepted (server returned {status})"
 
 #: src/components/flow/LeadShotsWizard.tsx
 msgid "出场：{leadName}（主角）"
@@ -8722,6 +8750,10 @@ msgstr "Direct from reference images needs a model that takes reference images (
 #~ msgid "参考图直出要收参考图的模型（高清 / 电影级）"
 #~ msgstr "Direct from reference images needs a model that takes reference images (HD / Cinematic)"
 
+#: src/ai/arkClient.ts
+msgid "参考图里可能有真人，被方舟拒了"
+msgstr "the reference image may show a real person, so Ark rejected it"
+
 #: src/types.ts
 #~ msgid "参考图预算还有余时才轮到它"
 #~ msgstr "Only used when there's room left in the reference-image budget"
@@ -9649,8 +9681,8 @@ msgid "同时上架到模板市场（工作流模板）"
 msgstr "Also list in the Template market (workflow template)"
 
 #: src/data/economy.ts
-msgid "同样 2 张，换最新旗舰模型来画 · 形象更准、细节更实，出图较慢"
-msgstr "The same 2 images, drawn by the latest flagship model · more accurate look, more solid detail, slower to draw"
+#~ msgid "同样 2 张，换最新旗舰模型来画 · 形象更准、细节更实，出图较慢"
+#~ msgstr "The same 2 images, drawn by the latest flagship model · more accurate look, more solid detail, slower to draw"
 
 #: src/components/flow/RefStrip.tsx
 #: src/pages/SupportModelNewPage.tsx
@@ -10597,8 +10629,8 @@ msgid "官方技能"
 msgstr "Official skills"
 
 #: src/data/economy.ts
-msgid "定妆"
-msgstr "Refined"
+#~ msgid "定妆"
+#~ msgstr "Refined"
 
 #. placeholder {0}: prop.plot.trim().slice(0, 20) || prop.title
 #: src/studio/flowStore.ts
@@ -17049,6 +17081,10 @@ msgstr "Couldn't start playback: {0}"
 msgid "没能打开{app}的授权页。确认装的是正式版{app}并且版本不太旧，或者用手机号、邮箱登录。"
 msgstr "Couldn't open {app}'s sign-in page. Make sure you have the official {app} app and that it isn't too old, or sign in with your phone number or e-mail."
 
+#: src/components/UpdateSheet.tsx
+msgid "没能打开浏览器。可以手动访问：{DOWNLOAD_PAGE_URL}"
+msgstr "Couldn’t open the browser. You can visit it yourself: {DOWNLOAD_PAGE_URL}"
+
 #: src/pages/SettingsPage.tsx
 #: src/pages/tutor/TutorHomePage.tsx
 #: src/pages/tutor/TutorNewPage.tsx
@@ -18355,8 +18391,12 @@ msgid "男声"
 msgstr "Male voices"
 
 #: src/data/economy.ts
-msgid "画 2 张：主图 + 一张参考图，照着主图画同一个对象"
-msgstr "Draws 2 images: the main image + a reference image of the same subject, drawn from the main image"
+#~ msgid "画 2 张：主图 + 一张参考图，照着主图画同一个对象"
+#~ msgstr "Draws 2 images: the main image + a reference image of the same subject, drawn from the main image"
+
+#: src/data/economy.ts
+msgid "画 2 张：主图 + 一张参考图，用最新旗舰模型来画 · 形象更准、细节更实，出图较慢"
+msgstr "Draws 2 images: the main image + a reference image, by the latest flagship model · more accurate look, more solid detail, slower to draw"
 
 #: src/studio/dialogueDraftStore.ts
 msgid "画三个机位最多要 {price} token，余额不够——去「我的」页充值"
@@ -18368,8 +18408,13 @@ msgstr "A bundle that doesn't render can't be published."
 
 #. placeholder {0}: tierNamesWhere((x) => x.refImg)
 #: src/components/flow/CastPicker.tsx
-msgid "画两张：全身立绘 + 照着它画的面部特写（官方建议的「全身照 + 大头照」）。不画写实照片风：「{0}」档会把写实的人脸当成真人拒收。"
-msgstr "Draws two: a full-body illustration + a face close-up drawn from it (the official “full-body + headshot” advice). No photorealistic style: “{0}” reject realistic faces as real people."
+msgid "画两张：全身立绘 + 照着它画的面部特写（官方建议的「全身照 + 大头照」），用「{leadTier}」档的模型画，两张要几分钟。不画写实照片风：「{0}」档会把写实的人脸当成真人拒收。"
+msgstr "Draws two: a full-body illustration + a face close-up drawn from it (the official “full-body + headshot” advice), with the “{leadTier}” tier’s model — the two take a few minutes. No photorealistic style: “{0}” reject realistic faces as real people."
+
+#. placeholder {0}: tierNamesWhere((x) => x.refImg)
+#: src/components/flow/CastPicker.tsx
+#~ msgid "画两张：全身立绘 + 照着它画的面部特写（官方建议的「全身照 + 大头照」）。不画写实照片风：「{0}」档会把写实的人脸当成真人拒收。"
+#~ msgstr "Draws two: a full-body illustration + a face close-up drawn from it (the official “full-body + headshot” advice). No photorealistic style: “{0}” reject realistic faces as real people."
 
 #: src/components/flow/CastPicker.tsx
 #~ msgid "画两张：全身立绘 + 照着它画的面部特写（官方建议的「全身照 + 大头照」）。不画写实照片风：高清 / 电影级会把写实的人脸当成真人拒收。"
@@ -18386,6 +18431,10 @@ msgstr "Drawing the keyframe costs {price} tokens — not enough balance. Top up
 #: src/pages/SupportModelNewPage.tsx
 msgid "画出来了。可以摸一摸她、拖一拖看看视线跟不跟手。"
 msgstr "It renders. Try touching her, or drag to see whether her gaze follows."
+
+#: src/ai/arkClient.ts
+msgid "画出来的图没过方舟的内容审核"
+msgstr "the drawn image didn’t pass Ark’s content review"
 
 #: src/studio/gridDraftStore.ts
 msgid "画到第 {got} 张时断了，画到哪张算哪张"
@@ -18490,6 +18539,10 @@ msgstr "The panels weren’t drawn: {why}. {moneyLine}"
 #: src/studio/gridDraftStore.ts
 msgid "画面没出成：{why}（一张都没画出来，钱全退了）"
 msgstr "The panels weren’t drawn: {why} (nothing was drawn, so everything was refunded)"
+
+#: src/studio/gridDraftStore.ts
+msgid "画面没出成：出图用的模型现在用不了了（多半是已经停用），一张都没画、钱全退了——请把 App 更新到最新版再画"
+msgstr "The panels weren’t drawn: the image model can’t be used any more (most likely it has been retired). Nothing was drawn, so everything was refunded — please update the app to the latest version and draw again"
 
 #: src/studio/gridDraftStore.ts
 msgid "画面没出成：分镜里有内容没过内容审核，一张都没画、钱全退了——改改写法再画"
@@ -23179,6 +23232,10 @@ msgstr "The frame couldn't be edited ({reason}) — nothing was charged and the 
 msgid "这一帧没改成（{reason}）。{moneyLine}原来那张没动，可以再试一次"
 msgstr "The frame couldn't be edited ({reason}). {moneyLine} The original is untouched; you can try again"
 
+#: src/ai/real.ts
+msgid "这一帧没画成（{why}），改用纯文字再画一次"
+msgstr "This frame wasn’t drawn ({why}), so it’s being drawn again from text only"
+
 #: src/components/flow/SegPlayer.tsx
 msgid "这一帧用到哪儿"
 msgstr "Where to use this frame"
@@ -25099,6 +25156,10 @@ msgstr "Couldn't confirm this work with the server this time, so the content was
 msgid "这次没连上出图服务（多半是网络抖了一下），再点一次就行"
 msgstr "we couldn’t reach the image service this time (most likely a brief network hiccup) — just try again"
 
+#: src/ai/arkClient.ts
+msgid "这次没连上出图服务（服务器返回 {status}），过一会儿再试"
+msgstr "we couldn’t reach the image service this time (server returned {status}) — try again in a little while"
+
 #: src/data/videos.ts
 msgid "这次没连上服务器，内容没有被替换。合成稿还留在「我的」里，联网后再试一次。"
 msgstr "Couldn't reach the server this time, so the content wasn't replaced. The merged draft is still on the Me page — try again once you're online."
@@ -26125,6 +26186,10 @@ msgstr "This needs {0} tokens and your balance of {1} isn't enough — top up on
 #: src/data/account.ts
 msgid "需要先连接服务器并登录"
 msgstr "You need a server connection and sign-in first"
+
+#: src/components/UpdateSheet.tsx
+msgid "需要更新到 {versionName}"
+msgstr "Update to {versionName} required"
 
 #: src/data/templates.ts
 msgctxt "人偶的主色（挂卡提醒那句话里显示）"

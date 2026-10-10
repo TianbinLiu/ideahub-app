@@ -113,6 +113,10 @@ function OrientationGuard() {
  *   这时候插一发下载清单只会让首屏更慢；而"有新版"这件事晚三秒说完全不影响。
  * ★ 查不到一律安静收场（没网、清单还没发都会走到这儿）。手动检查那条路
  *   （设置页）才会把失败原因显示出来 —— 两种场景对"安静"的容忍度不一样。
+ * ★ 强制更新（清单的 minVersionCode，2026-10-10）也从这里弹：那一版不认「以后再说」的记录、弹层关不掉（onClose 不会被调到，
+ *   见 components/UpdateSheet 文件头 ★★）。它挂在 <Routes> 外面，安卓返回键退的是底下那一页，退不掉它。
+ *   ⚠ 只在冷启动查一次（延后 3 秒那一发）：App 一直开着时清单上调了 minVersionCode，要等下一次冷启动才弹 ——
+ *   真要拦住还开着的老包只能靠服务端按请求头 X-App-Version 认出它（docs/api-contract.md），这里只是把话说在前面、把路指给人。
  */
 function UpdateGate() {
   const [info, setInfo] = useState<UpdateInfo | null>(null);

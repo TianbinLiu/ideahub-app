@@ -21,6 +21,9 @@
 // 用法（仓库根目录）：
 //   npm run release            出包 + 发布
 //   npm run release -- --dry   只检查不发布（改完 versionCode 想先看一眼时用）
+//   npm run release -- --min-version-code=75
+//                              这一版起**强制更新**：versionCode < 75 的包一打开就只能更新（清单的 minVersionCode，见 parseMinFlag 的 ★★）。
+//                              不传 = 沿用上一版清单里的值（没有就是不强制）。也可以用环境变量 RELEASE_MIN_VERSION_CODE=75。
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
@@ -29,6 +32,25 @@ import url from "node:url";
 
 const root = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), "..");
 const DRY = process.argv.includes("--dry");
+
+/**
+ * 这一次**显式**要的 minVersionCode（`--min-version-code=N` 或环境变量 RELEASE_MIN_VERSION_CODE）；没给 = undefined（沿用上一版的）。
+ *
+ * ★★ 为什么要有这一格（2026-10-10，方舟 11-24 下线那一批）：清单里的 minVersionCode = 「比它老的包必须先更新才能接着用」
+ *   （App 侧 AppUpdaterPlugin.check 算 mandatory，弹层关不掉、不认「以后再说」）。它是一把**只能往上拧**的锁：
+ *   · 只在显式要求时才写新值 —— 默认沿用上一版清单里的那个数。顺手发一版就把它丢了 = 悄悄取消了强制更新，
+ *     而还没更新的老包就此又能一直用下去，全程没人知道；
+ *   · 不许比上一版的小（同一个理由，往回降要有人当面改清单，不该是脚本的一个默认值）；
+ *   · 不许比这一版的 versionCode 大 —— 那等于连刚发的这一版也被判成「必须更新」，所有人锁在一张关不掉的弹层前面、无版可装。
+ * ★ 0 = 不强制（清单里就不写这一格，老清单本来就没有它）。
+ */
+function parseMinFlag() {
+  const arg = process.argv.find((a) => a.startsWith("--min-version-code="));
+  const raw = arg ? arg.slice("--min-version-code=".length) : process.env.RELEASE_MIN_VERSION_CODE;
+  if (raw === undefined || raw === "") return undefined;
+  if (!/^\d+$/.test(raw.trim())) die(`--min-version-code 只收非负整数（versionCode），收到的是「${raw}」`);
+  return Number(raw.trim());
+}
 
 /**
  * 签名证书指纹。★ 钉死在这里是**故意的**：它是"老用户还能不能装上这次更新"的唯一保证。
@@ -320,6 +342,44 @@ async function main() {
     console.log("⚠ 拉不到线上清单（首次发布，或者网络不通）—— 跳过版本号递增检查");
   }
 
+  // ── 4b. 最低可用版本（强制更新）—— 只往上拧（见 parseMinFlag 的 ★★）─────────
+  const asked = parseMinFlag();
+  const liveMin = live && Number.isInteger(live.minVersionCode) && live.minVersionCode > 0 ? live.minVersionCode : 0;
+  let minVersionCode;
+  if (exists) {
+    // 重跑：清单早就随 Release 发出去了（这一步不会再传 latest.json），只能沿用线上那份；显式要一个不同的数 = 改不了，别假装改了
+    if (!live) die(`${tag} 已经发过了，可线上清单拉不到 —— 不知道它的 minVersionCode，先把网络修好再重跑`);
+    if (asked !== undefined && asked !== liveMin) {
+      die(`${tag} 已经发过了，它的清单里 minVersionCode 是 ${liveMin || "（没写，不强制）"}，重跑改不了它。\n` +
+          `要换强制更新的门槛，涨一档版本号重新出包，再带 --min-version-code 发。`);
+    }
+    minVersionCode = liveMin;
+  } else if (asked !== undefined) {
+    if (!live) console.log(`⚠ 拉不到线上清单：核对不了 ${asked} 是不是比上一版的 minVersionCode 小（只能往上拧）`);
+    else if (asked < liveMin) {
+      die(`--min-version-code=${asked} 比上一版清单里的 ${liveMin} 小 —— 强制更新的门槛只能往上拧。\n` +
+          `真要放宽（让更老的包也能接着用），先想清楚为什么，再手工改清单；不要靠发版脚本的一个参数。`);
+    }
+    minVersionCode = asked;
+  } else if (live) {
+    minVersionCode = liveMin;
+  } else {
+    // 拉不到上一版清单又没显式给：写不写都可能错 —— 不写就把上一版的门槛丢了（悄悄取消强制更新）
+    if (!DRY) {
+      die(`拉不到线上清单，不知道上一版的 minVersionCode。照这样发，清单里就没有这一格 = 取消了强制更新。\n` +
+          `修好网络重跑；或者显式带上 --min-version-code=N（N = 0 表示确实不强制）。`);
+    }
+    console.log("⚠ 拉不到线上清单，也没给 --min-version-code —— 正式跑会停在这一步");
+    minVersionCode = 0;
+  }
+  if (minVersionCode > versionCode) {
+    die(`minVersionCode ${minVersionCode} 比这一版的 versionCode ${versionCode} 还大 —— 刚发的这一版也会被判成「必须更新」，\n` +
+        `所有人都被锁在一张关不掉的弹层前面、却没有版本可装。最大只能是 ${versionCode}。`);
+  }
+  console.log(minVersionCode > 0
+    ? `✓ minVersionCode = ${minVersionCode}：versionCode < ${minVersionCode} 的包打开后只能更新${asked !== undefined && !exists ? "" : "（沿用线上清单里的值）"}`
+    : "✓ 不强制更新（清单里不写 minVersionCode）");
+
   // ── 5. 写清单 ────────────────────────────────────────────
   const apkBuf = fs.readFileSync(APK);
   const notesFile = path.join(root, "RELEASE_NOTES.md");
@@ -333,6 +393,8 @@ async function main() {
     sizeBytes: apkBuf.length,
     sha256: sha256(apkBuf),
     notes,
+    // 0 = 不强制：不写这一格（与老清单同形，老包、服务端都不用认识它）
+    ...(minVersionCode > 0 ? { minVersionCode } : {}),
   };
   const out = path.join(root, "android/app/build/outputs");
   fs.writeFileSync(path.join(out, "latest.json"), JSON.stringify(manifest, null, 2) + "\n");
@@ -498,6 +560,13 @@ async function main() {
   if (check.sha256 !== manifest.sha256) die("线上清单里的 sha256 和刚发的包对不上");
   // App 拿来校验下载结果的是**服务端转的那份**里的 sha256，所以它也得对
   if (app.sha256 !== manifest.sha256) die(`App 用的清单（${APP_MANIFEST_URL}）里的 sha256 和刚发的包对不上`);
+  // ★ 强制更新的门槛也得原样到了 App 手里：服务端那一跳是 `{ ...body, apkUrl }` 透传，哪天改成逐字段重建就会把它丢掉 —— 零报错，强制更新悄悄失效
+  const minOf = (m) => (Number.isInteger(m?.minVersionCode) && m.minVersionCode > 0 ? m.minVersionCode : 0);
+  if (minOf(check) !== minVersionCode) die(`线上清单里的 minVersionCode 是 ${minOf(check)}，本次要的是 ${minVersionCode}`);
+  if (minOf(app) !== minVersionCode) {
+    die(`App 用的清单（${APP_MANIFEST_URL}）里的 minVersionCode 是 ${minOf(app)}，本次要的是 ${minVersionCode} —— ` +
+        `服务端转清单时把这一格丢了（server src/routes/appRelease.routes.js），强制更新不会生效`);
+  }
 
   // ★ 清单指的必须正是本脚本刚喂过的那个镜像：指到别处的话，用户下的那份不是我们放的，
   //   上面那一串「先传 .part、核对、再改名」就保不到它
@@ -552,7 +621,10 @@ async function main() {
   console.log(`   清单 ${APP_MANIFEST_URL} → ${app.versionName}(${app.versionCode})`);
   console.log(`   安装包 ${mirrorUrl}（整包 sha256 已核对，cf-cache-status ${dl.cache}）`);
   console.log(`   GitHub 归档 ${check.apkUrl}`);
-  console.log(`   已装 ${live ? live.versionName : "旧版"} 的用户下次打开 App 就会收到提示。\n`);
+  console.log(`   已装 ${live ? live.versionName : "旧版"} 的用户下次打开 App 就会收到提示。`);
+  console.log(minVersionCode > 0
+    ? `   强制更新：versionCode < ${minVersionCode} 的包打开后只能更新（2.63 之前的包不认这一格，照旧是可以跳过的提示）。\n`
+    : "   不强制更新。\n");
 }
 
 main().catch((e) => die(e?.message || String(e)));
