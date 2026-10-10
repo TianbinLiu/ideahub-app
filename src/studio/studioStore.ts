@@ -1783,7 +1783,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
   setRequirement: (v) => set((s) => (s.editor ? { editor: { ...s.editor, requirement: v } } : {})),
   setDurationMode: (m) => set((s) => (s.editor ? { editor: { ...s.editor, durationMode: m } } : {})),
   setDurationSec: (v) => set((s) => (s.editor ? { editor: { ...s.editor, durationSec: v } } : {})),
-  // 手填的时长随档位收拢到这一档的上限（高清 15、电影级 30、其余 10）：不收的话输入框写着 25、出片按 clampDuration 拍 15
+  // 手填的时长随档位收拢到这一档的窗口（economy.VideoTier.minSec / maxSec）：不收的话输入框写着 25、出片按 clampDuration 拍 15；
+  // 下限同理（2026-10-10 补）：极速上填的 3 换到「草稿」会被出片悄悄抬到 4，而输入框还写着 3
   setVideoTier: (id) =>
     set((s) =>
       s.editor
@@ -1791,7 +1792,9 @@ export const useStudio = create<StudioState>()((set, get) => ({
             editor: {
               ...s.editor,
               videoTier: id,
-              ...(s.editor.durationMode === "manual" ? { durationSec: Math.min(tierOf(id).maxSec, s.editor.durationSec) } : {}),
+              ...(s.editor.durationMode === "manual"
+                ? { durationSec: Math.min(tierOf(id).maxSec, Math.max(tierOf(id).minSec, s.editor.durationSec)) }
+                : {}),
             },
           }
         : {},
@@ -2115,6 +2118,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
       set({ editor: live });
       return true;
     };
+    /** 帧一张都没画成、因为出图模型用不了了（real.generateProposals 的 onFramesGone）：剧情照收，原因说在下面 */
+    let framesGone = "";
     try {
       if (AI_REAL) spendTokens(propCost); // 推演真跑起来才扣
       const proposals = await generateProposals(
@@ -2131,6 +2136,9 @@ export const useStudio = create<StudioState>()((set, get) => ({
           pathPlots: path.map((n) => chosenProposal(n)?.plot ?? "").filter(Boolean),
         },
         (status) => patchLive({ progress: status }),
+        (gone) => {
+          framesGone = gone.message;
+        },
       );
       // 只有发起时的编辑器仍然打开才由本次生成负责关闭（取消后重开的新表单不受影响）
       const editorPatch = get().editor === live ? { editor: null as EditorState | null } : {};
@@ -2177,9 +2185,13 @@ export const useStudio = create<StudioState>()((set, get) => ({
       set({ spreadOpen: false, focus: { nodeId: newId }, projection: "proposals", ...editorPatch });
       const degraded = proposals.filter((p) => p.degraded).length;
       get().npcSay(
-        degraded > 0
-          ? t`三种走向推演完毕，但有 ${degraded} 个方案的首尾帧没画出来（出片前会先补画要用到的帧，补画的钱算在出片报价里）。点开看看剧情，选定一个。`
-          : t`三种走向推演完毕，已经投影在你面前——点开看看各自的首尾帧和剧情，选定一个。`,
+        // ★ 帧一张都没画成、因为出图模型用不了了（2026-10-10）：别说「出片前会先补画」—— 补画是同一个模型，照样画不出来；
+        //   说真正的原因（「请更新 App」）。剧情照样摆出来：推演那一发对话付过钱
+        framesGone
+          ? t`三种走向的剧情推演好了，但首尾帧一张都没画出来：${framesGone}。剧情先留着，点开看看。`
+          : degraded > 0
+            ? t`三种走向推演完毕，但有 ${degraded} 个方案的首尾帧没画出来（出片前会先补画要用到的帧，补画的钱算在出片报价里）。点开看看剧情，选定一个。`
+            : t`三种走向推演完毕，已经投影在你面前——点开看看各自的首尾帧和剧情，选定一个。`,
       );
     } catch (e) {
       // 此前任何异常都会静默炸掉整个 Promise——按钮复位却没有任何解释，像"点了没反应"
@@ -2307,7 +2319,12 @@ export const useStudio = create<StudioState>()((set, get) => ({
   nodeGen: null,
   genNodeVideo: async (nodeId, proposalId, opts) => {
     const { nodeGen } = get();
-    if (nodeGen) return false; // 同一时刻只炼一段：并发跑几段既烧钱又抢方舟并发额度
+    if (nodeGen) {
+      // 同一时刻只炼一段：并发跑几段既烧钱又抢方舟并发额度。
+      // ★ 早退要说一句（CLAUDE.md「store 的 action 撞上全局 busy 时静默 return false」那格）：原来一个字不说，点了就是没反应
+      set({ notice: { text: t`上一炉还在炼，等它出炉再炼下一段。`, at: Date.now() } });
+      return false;
+    }
     const flow = useFlow.getState();
     const slot = flow.nodes.find((n) => n.id === nodeId);
     if (!slot || !slot.proposals.some((p) => p.id === proposalId)) return false;

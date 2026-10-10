@@ -17,12 +17,20 @@ import { AGREEMENTS, TERMS_UPDATED, type AgreementId } from "../data/agreements"
 import { signOut, isAdmin, isRemoteMode } from "../data/account";
 import { signOutBlocker } from "../studio/signOutGuard";
 import { useCurrentUser } from "../hooks/useAccount";
+import { useBackOr } from "../hooks/useBackOr";
 import { resetGuidesSeen } from "../data/guide";
 import { childSafetyUrl } from "../utils/shareLink";
 import { openExternal } from "../utils/openExternal";
 import { getQuality, qualityLabel } from "../studio/quality";
 import { currentVoice } from "../studio/voices";
-import { checkUpdate, currentVersion, selfUpdateSupported, type UpdateInfo } from "../data/appUpdate";
+import {
+  checkUpdate,
+  currentVersion,
+  isMandatory,
+  raiseForcedUpdate,
+  selfUpdateSupported,
+  type UpdateInfo,
+} from "../data/appUpdate";
 import UpdateSheet from "../components/UpdateSheet";
 import Sheet from "../components/Sheet";
 import { CloseButton } from "../components/IconTapButton";
@@ -34,6 +42,8 @@ import { useLang } from "../i18n/useLang";
 export default function SettingsPage() {
   const user = useCurrentUser();
   const navigate = useNavigate();
+  // 返回键只走 useBackOr：深链冷启动没有上一页时退回「我的」（设置的入口在那一页），别退出 App
+  const back = useBackOr("/me");
   const [signOutOpen, setSignOutOpen] = useState(false);
   /** 退出被拦下的原因（还有花钱的活在跑，见 studio/signOutGuard）。空串 = 没拦 */
   const [signOutWhy, setSignOutWhy] = useState("");
@@ -46,7 +56,7 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-full px-4 pb-10">
-      <PageHeader sticky inset onBack={() => navigate(-1)} title={t`设置`} />
+      <PageHeader sticky inset onBack={back} title={t`设置`} />
 
       {/* ── 个性化 ────────────────────────────────────────────── */}
       <Group>
@@ -398,6 +408,8 @@ function GuideRow() {
 // ★ 手动检查失败要把原因说出来——和启动时那次静默检查不同：用户主动点了，
 //   "已是最新"和"根本没查成"必须分得开（铁律八）。
 // ★ 浏览器里跑没有版本号可显示，整行不出现。
+// ★ 查到的是**强制**的那一版时不在这里画（2026-10-10 评审抓到）：交给 App 根上的 UpdateGate（raiseForcedUpdate）。
+//   画在这一页里的话，安卓返回键（WebView 后退）把设置页连同那张「关不掉」的弹层一起卸掉 —— 见 data/appUpdate 那一对的 ★。
 function VersionRow() {
   const { t } = useLingui();
   const [ver, setVer] = useState<{ versionCode: number; versionName: string } | null>(null);
@@ -433,7 +445,8 @@ function VersionRow() {
             setNote("");
             void checkUpdate(false)
               .then((r) => {
-                if (r) setInfo(r);
+                if (r && isMandatory(r)) raiseForcedUpdate(r);
+                else if (r) setInfo(r);
                 else setNote(t`已经是最新版本`);
               })
               .catch((e) => setNote(e instanceof Error ? e.message : t`检查失败`))

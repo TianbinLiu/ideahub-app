@@ -205,6 +205,25 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   只在能力位为真时，**按供应商分开问**（方舟 `failRefund`，真人档 `failRefundMinimax` = 健康端点的 `minimaxFailRefund`）。站内通知 `GEN_TASK_REFUND` 点进去开钱包。
   ⑥ **样片第一步只走参考图那一种请求**：帧转参考图失败时普通出片退回首尾帧，而 2.5 的首尾帧任务只收 `ratio: "adaptive"`，服务端按 480p 那一行最贵的一格结算 ——
   样片那一发在花钱之前整句拒（`segmentGen` 的样片闸，`arkClient` 另有一道协议断言），报价才等于实扣；拒之前补画好的帧照 ④ 留在方案上，再点一次只重传、不重画。契约核对那句在远端模式说「以服务器结算为准」（钱不按本机报价扣）。
+- **方舟第十批下线（2026-11-24 14:00）的 App 这一半**（2026-10-10 主人拍板，2.63；契约见 docs/api-contract.md「出图模型下线与改发」「请求头 X-App-Version」，
+  强制更新见 docs/app-distribution.md「强制更新」）。五条规矩：
+  ① **出图型号只认价目表里那两个**（`economy.IMAGE_TOKENS_BY_MODEL`：速写 = `doubao-seedream-4-0-20260415`（4.0 的继任，13,333，沿用 4.0 的价、待账单核）、
+  精绘 = 5.0 pro）。非铸卡路径（帧 / 推演 / 九宫格组图 / 封面…）跟着默认档走（`arkClient.MODELS.image`）。构建里 `check-image-tiers.mjs` 钉着价目表、
+  档位都有价、默认档能出组图（`ImageTier.groupOk`，5.0 pro 出不了；`runImageGroup` 发之前问 `economy.imageGroupOk`），并扫 src 的代码里有没有停用的出图型号。
+  ② **「定妆」（`studio`，4.5）撤了**：老卡上的 `imageTier: "studio"` 原样留着，`imageTierOf` 落到默认档；B「现做一个主角」改用精绘（`leadCast.LEAD_IMAGE_TIER`，
+  报价 / 余额门 / 出图 / 结算都读它）。老 App 发来的老型号由**服务端在出口改发**，App 什么都不用做。
+  ③ **出图被拒说人话**：`/images/generations` 与组图受理的非 2xx 走 `arkClient.imageRefusalError`（`ArkImageRefused`，模型用不了是子类 `ArkImageModelGone`，
+  判据只在 `modelGoneCode`；服务端白名单那句 `model not allowed` **不带码**、是现行形态，别把判据收拾成只认码）—— 仍是 `ArkHttpError`，钱上的判定不变；
+  推演那一处只有方舟明说是**输入的图**不过才说「参考图未被受理」，模型用不了就不重试；一张都没画成时**剧情照交**（那一发对话付过钱），
+  原因经 `generateProposals` 的 `onFramesGone` 交给两个调用方说在推演结果旁边（别改回整句抛：抛在计费之后、丢掉付过钱的剧情）。
+  ④ **`X-App-Version: <versionName>+<versionCode>`** 只给 `${API_BASE}/api/…`（判定只在 `api/client.withAppVersion`）。值是**装着的那一包**：
+  开机时问原生（`api/appVersion`，main.tsx 在加载 App 之前并排等它，debug 包带 `-debug`），问不到才用 vite.config 烤进来的 `__APP_VERSION__`（build.gradle defaultConfig）。
+  服务端**只记日志**、不拿它做任何判断（客户端写的、能伪造；改发与结算认请求体里的模型 id）—— 别指望靠它拦老包。
+  新写一个打自家服务器的裸 fetch 要过它；第三方与 `/uploads/…`（那层 CORS 只放行 Content-Type）一律不带。服务端 CORS 先放行这个头，再发带它的包。
+  ⑤ **强制更新**只有 `appUpdate.isMandatory` 一个判据（原生 `check` 回的 `mandatory`；debug 包永远不强制 —— 它更新装的是另一个包名）；
+  弹层只由 App 根上的 `UpdateGate` 画（设置页查到的也经 `raiseForcedUpdate` 交过去，画在设置页里返回键能把它退掉），关不掉但永远留着
+  「重试」+「官网下载页」+「GitHub 上的同一个包」（官网那条拉的是同一个镜像，镜像坏了只有 GitHub 那条是另一个源）；
+  发版脚本只在显式 `--min-version-code` 时写新门槛、只能往上拧，认不出的参数当场停。
 - **方案有结构化镜头字段**（`types.ShotSpec`：景别 / 运镜 / 情绪节拍，2026-09-06 对标 updream 分镜 Skill）：推演按字段写、
   `segmentGen.shotPrefix` 把它拼在正文最前、方案台显示、发布时折进 `VideoSegment.plot`。**一段出片的生成契约**是
   `real.GenSpec`（composeSegments 的入参），提交前 `describeGenSpec` 写一行「生成契约 · 模式 · 档 · 画幅 · 时长 · 参考图 N」进步骤日志——
@@ -519,7 +538,7 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   ⑦ **B 主角定妆 · 多镜头（第二期，2026-10-04）**：向导只有一份 `components/flow/LeadShotsWizard`（工坊铸段窗 lane `lead` 整块接管②③两步、画布「＋ 加一段」开抽屉，
   **走完才落段**），状态在 `studio/leadDraftStore`（关了再开原样还在、换账号分开暂存、出完一段只清这场戏和分镜、留着主角）。
   拆镜头是第三条官方结构化技能（`structuredSkills.runSceneToShots`，一次对话）：输入输出的规则只在 `data/sceneShots`（零依赖，构建里 `check-scene-shots.mjs` 实跑），
-  几个镜头拼成一段话只走 `shotScript.joinShots`（别在 sceneShots 里再抄一份「镜头N：」）。现做主角走铸卡师那条（`studio/leadCast.forgeLead`：定妆两张、只收一句话、
+  几个镜头拼成一段话只走 `shotScript.joinShots`（别在 sceneShots 里再抄一份「镜头N：」）。现做主角走铸卡师那条（`studio/leadCast.forgeLead`：精绘档两张（2.63 起；原来是定妆，4.5 下线撤了）、只收一句话、
   交代「不要照片写实」—— 写实人脸会被高清 / 电影级整发拒，用照片做真人走「自己传图做卡片」），画成就入库并选上。
   落成的就是一段参考图直出段（出片规则与 A 同一份，别另开一种段）：落什么只在 `leadCast.leadAppendSpec`，报价 `flowStore.appendQuote` 与 `appendNode` 落的是同一个
   `appendedNode`，出片走两面原有的入口（工坊 `layLeadNode` + `genNodeVideo`、画布 `appendNode` + `genNode`）。
@@ -985,7 +1004,7 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   官方说法（300 字上限、组图参考图对整组生效、官方示例拆单图）、别家做法、能试的办法；**第七节：10-07 付费验证结果**（约 ¥8.48：
   新写法让空镜、同一个人画两次好了，「只有沈舟」那一格因为分镜文字点了林夏还是错、特写成了半身；看图核对 13 张不合格全抓到，景别那一条只会误报）；
   **第六节：方舟第十批下线 11-24 停服，我们的默认出图 Seedream 4.0、4.5 与「极速」「标准」两档在名单上**（5.0 lite 也在 —— 10-06 写漏了，10-07 更正；
-  能出组图的三个型号全下线，4.0 的替换型号 `4-0-20260415` 能调、能出组图），等主人定迁移
+  能出组图的三个型号全下线，4.0 的替换型号 `4-0-20260415` 能调、能出组图）。**10-10 主人已拍板**：速写换 `4-0-20260415`、撤「定妆」、服务端出口改发、2.63 加强制更新与版本头（见上面「方舟第十批下线的 App 这一半」）
 - [`docs/video-model-naming-research.md`](docs/video-model-naming-research.md) — 视频模型怎么命名、怎么让人选（2026-10-07，国内外两路公开资料）：主流是「模型名 + Fast/mini/Pro 后缀 +
   一句卖点 + 价钱」，只给抽象档名不露模型名的只剩单模型产品；用不了的组合与下线换代各家怎么说；11-24 之后还能调的 Seedance 与 5 秒价钱、
   三种改档走法（建议露模型名），等主人定

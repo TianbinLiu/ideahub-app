@@ -18,7 +18,7 @@
 import { useRef, useState } from "react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import PageHeader from "../components/PageHeader";
-import { useNavigate } from "react-router";
+import { useBackOr } from "../hooks/useBackOr";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
 import { useCurrentUser } from "../hooks/useAccount";
@@ -35,14 +35,14 @@ import {
   type PresetVoice,
 } from "../studio/voices";
 import { speak } from "../studio/speech";
-import { API_BASE, getToken } from "../api/client";
+import { API_BASE, getToken, withAppVersion } from "../api/client";
 
 /* i18n-frozen: 试听句发给火山的中文音色（没配云端时退回系统中文语音包），与铸卡师在工坊里说的台词同一种语言 */
 const PREVIEW_LINE = "欢迎来到卡片工坊，把你的素材交给我，我为你炼成卡片。";
 
 export default function SettingsVoicePage() {
   const user = useCurrentUser();
-  const navigate = useNavigate();
+  const back = useBackOr("/settings");
   const [id, setId] = useState(() => currentVoice().id);
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
@@ -63,9 +63,10 @@ export default function SettingsVoicePage() {
     setBusy(v.id);
     try {
       const tk = getToken();
-      const res = await fetch(`${API_BASE}/api/tts`, {
+      const ttsUrl = `${API_BASE}/api/tts`;
+      const res = await fetch(ttsUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...(tk ? { Authorization: `Bearer ${tk}` } : {}) },
+        headers: withAppVersion(ttsUrl, { "Content-Type": "application/json", ...(tk ? { Authorization: `Bearer ${tk}` } : {}) }),
         body: JSON.stringify({
           text: PREVIEW_LINE,
           voice: v.id,
@@ -103,7 +104,7 @@ export default function SettingsVoicePage() {
 
   return (
     <div className="min-h-full px-4 pb-10">
-      <PageHeader sticky inset onBack={() => navigate(-1)} title={t`铸卡师的声音`} right={<HelpButton tour="setvoice" />} />
+      <PageHeader sticky inset onBack={back} title={t`铸卡师的声音`} right={<HelpButton tour="setvoice" />} />
 
       {/* 条件触发的降级说明，留在页面上（没配云端语音的设备靠它解释"怎么换了把嗓子"） */}
       <p className="mb-3 text-[11px] leading-relaxed text-slate-500"><Trans>没配云端语音时退回系统内置合成器（需装中文语音包）。</Trans></p>

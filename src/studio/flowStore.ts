@@ -17,7 +17,7 @@
 //   三套方案以前藏在「本段设置」抽屉里的一枚小按钮后面，绝大多数用户根本没见过它，
 //   于是工作流退化成"写一句话直接出片"——最贵的那一步（出片）反而没有选择余地。
 //   现在它是主路径：便宜的一步（推演 ~80k token）摆在前面挑，贵的一步（出片）挑完再走。
-import { startJob } from "../data/jobs";
+import { currentRoute, startJob } from "../data/jobs";
 import { t } from "@lingui/core/macro";
 import { create } from "zustand";
 import { castPreviewImage, frameUrlAt, fuseStageFrame, AI_REAL, ArkTaskFailed, ArkTaskUnknown, SegmentGenFailed, briefArkReason, chargeNote, chargeOnFail, generateFrame, generateProposals, keptFrameCount, notesInParens, prepareMaterialRefs, recaptureSegment, refineFrame, takeVideoTask, transferStatus, unwrapFailure } from "../ai";
@@ -1932,6 +1932,12 @@ interface FlowState {
    */
   genNotice: { ok: boolean; msg: string } | null;
   /**
+   * 最近一炉是从哪一页开的（data/jobs.currentRoute，开跑那一拍记；null = 这个会话还没开过）。
+   * ★ 全局出片胶囊「点击返回 / 回去看看」只认它（2026-10-10 浏览器走查抓到）：原来写死回 /flow —— 在 3D 工坊（/studio）
+   *   炼的段，点胶囊会被送进 FlowPage 那一面、3D 场景整个卸掉；简约页（/simple）同理。两个宿主是同一条流水线，回哪一面要看从哪一面来。
+   */
+  genFrom: string | null;
+  /**
    * 「现在跑着的是哪一炉」的令牌 —— 每次开跑 +1。
    * ★★ 为什么需要（2026-08-21 第七轮扫描的 high）：出片是几分钟的异步，而这期间用户
    *   完全可以把整条流水线换掉或删掉那一段。老那一炉回来时会照旧 `set({ busy: false })`
@@ -1969,6 +1975,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
   busy: false,
   err: "",
   genNotice: null,
+  genFrom: null,
   genRun: 0,
   genStarted: null,
   mediaRev: 0,
@@ -2712,9 +2719,11 @@ export const useFlow = create<FlowState>()((set, get) => ({
       return false;
     }
     const myRun = get().genRun + 1;
-    set({ busy: true, err: "", genRun: myRun });
+    set({ busy: true, err: "", genRun: myRun, genFrom: currentRoute() });
     if (AI_REAL) spendTokens(propCost);
     get().updateNode(nodeId, { status: "generating", progress: t`推演三种走向…` });
+    /** 帧一张都没画成、因为出图模型用不了了（real.generateProposals 的 onFramesGone）：剧情照收，原因说在下面 */
+    let framesGone = "";
     try {
       const prevNode = get().nodes[idx - 1];
       const prev = prevNode ? chosenOf(prevNode) : null;
@@ -2737,6 +2746,9 @@ export const useFlow = create<FlowState>()((set, get) => ({
             .filter(Boolean),
         },
         (status) => get().updateNode(nodeId, { progress: status }),
+        (gone) => {
+          framesGone = gone.message;
+        },
       );
       // ★ 只保留**丢了就补不回来**的旧走向：已经炼出成片的（真金白银 + 几分钟），
       //   以及**名下归档着分支续链的**（alts 挂在方案 id 上，方案没了那条链就成了孤儿，
@@ -2774,6 +2786,20 @@ export const useFlow = create<FlowState>()((set, get) => ({
       //   而它一分钟级——用户正是在这段时间退出去逛（胶囊上就印着「点击返回」）。
       //   不写的话胶囊只是无声消失：钱花了、成没成没人告诉他（铁律八）。
       // ★ 只有"还是我这一炉"才有资格清 busy（见 genRun 的 ★★）
+      // ★ 帧一张都没画成、因为出图模型用不了了（2026-10-10）：剧情已经落下（推演那一发对话付过钱，不能丢），
+      //   真正的原因（「请更新 App」）写进 err —— 不写的话方案台只说「出片前会先补画」，而补画是同一个模型，要到出片才第一次听见原因
+      if (framesGone) {
+        set(
+          get().genRun === myRun
+            ? {
+                busy: false,
+                err: t`第 ${idx + 1} 段的三套剧情推演好了，但首尾帧一张都没画出来：${framesGone}`,
+                genNotice: { ok: false, msg: t`第 ${idx + 1} 段推演好了剧情，但首尾帧没画出来` },
+              }
+            : {},
+        );
+        return true;
+      }
       set(get().genRun === myRun ? { busy: false, genNotice: { ok: true, msg: t`第 ${idx + 1} 段推演好了三套方案` } } : {});
       return true;
     } catch (e) {
@@ -2855,7 +2881,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
       return false;
     }
     const myRun = get().genRun + 1;
-    set({ busy: true, err: "", genRun: myRun, frameEdit: { nodeId, which } });
+    set({ busy: true, err: "", genRun: myRun, genFrom: currentRoute(), frameEdit: { nodeId, which } });
     get().updateNode(nodeId, { status: "generating", progress: which === "first" ? t`按要求改首帧…` : t`按要求改尾帧…` });
     /** 收尾：只有"还是我这一炉"才有资格清 busy（genRun 的既有语义） */
     const settle = (patch: Partial<FlowState>) => {
@@ -2969,7 +2995,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
       return false;
     }
     const myRun = get().genRun + 1;
-    set({ busy: true, err: "", genRun: myRun });
+    set({ busy: true, err: "", genRun: myRun, genFrom: currentRoute() });
     get().updateNode(nodeId, { status: "generating", progress: t`按修改重画画面…`, regenning: true });
     try {
       // ★ 必须把本段画幅递下去：Seedream 的画布比例得与视频画幅一致，缺了它重画出来的
@@ -4056,7 +4082,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
       if (detail) log.detail(detail, event);
     };
     const myRun = get().genRun + 1;
-    set({ busy: true, err: "", genRun: myRun });
+    set({ busy: true, err: "", genRun: myRun, genFrom: currentRoute() });
     patchNode({ status: "generating", progress: t`准备中…`, error: undefined, steps: [] });
     set({ genStarted: { id, at: Date.now() } });
     /** 这一发的方舟任务号（受理之后才有）。空 = 还没被受理，也就一分钱都没花 */

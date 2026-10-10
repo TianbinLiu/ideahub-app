@@ -11,8 +11,15 @@
 //
 // ★ 浏览器里跑（npm run dev）没有这个插件，全部接口安静地退化成"没有更新"——
 //   开发时不该被一个装不了的更新提示打断。
+//
+// ★★ 强制更新（2026-10-10，方舟 11-24 下线那一批）：清单里可选的 `minVersionCode` = 比它老的包必须先更新才能接着用。
+//   原生那侧（AppUpdaterPlugin.check）算好 `mandatory`（有更新可装 且 手上这版 < minVersionCode），这里只认它：
+//   强制的那一版**不认「以后再说」的记录**（SKIP_KEY），弹层也关不掉（components/UpdateSheet）。
+//   老清单没有这一格 → mandatory 恒 false，一切照旧；Play 渠道（selfUpdate:false）根本走不到这里。
+//   哪一版要设 minVersionCode 由发版时显式指定（scripts/release.mjs 的 --min-version-code），见 docs/app-distribution.md。
 import { registerPlugin } from "@capacitor/core";
 import { Capacitor } from "@capacitor/core";
+import { SITE_BASE } from "../utils/shareLink";
 
 export interface UpdateInfo {
   hasUpdate: boolean;
@@ -23,6 +30,70 @@ export interface UpdateInfo {
   sha256: string;
   sizeBytes: number;
   notes: string;
+  /** 清单上的最低可用版本（没写 = 0），原生回的原值 —— 只留作排查；判强制只看 mandatory（isMandatory） */
+  minVersionCode?: number;
+  /** 必须更新才能接着用（原生算好的：有更新可装 且 当前版本 < minVersionCode）。缺省 = 不强制 */
+  mandatory?: boolean;
+}
+
+/**
+ * 官网下载页 —— 应用内更新在**这台手机上**走不通时（本 App 没有「安装未知应用」的授权、原生下载器出毛病）的另一条路：
+ * 在系统浏览器里打开，从那儿下新包装上。
+ * ⚠ 它**不是**第二个下载源：那一页的下载键 302 到的是同一个镜像文件、同一个 Cloudflare 边缘 —— 镜像坏了它一起坏，那时靠 githubApkUrl。
+ * ★ 用不带版本号的那一页（docs/app-distribution.md「官网下载页」）：版本、大小、sha256 全是现取清单的，发版之后不用改这里。
+ */
+export const DOWNLOAD_PAGE_URL = `${SITE_BASE}/download`;
+
+/** 这一版是不是必须更新（强制的那一版：弹层关不掉、不认「以后再说」）。判据只有原生回的 mandatory 一处 */
+export function isMandatory(info: UpdateInfo | null | undefined): boolean {
+  return !!info && info.hasUpdate && info.mandatory === true;
+}
+
+/**
+ * GitHub Release 上这一版的安装包 —— 强制更新时「镜像也下不动」的那条备用路（components/UpdateSheet）。
+ *
+ * ★★ 为什么要它（2026-10-10 评审抓到）：应用内更新与官网下载页（/download → /api/app/download → 302）拉的是**同一个**镜像文件、
+ *   走**同一个** Cloudflare 边缘（docs/app-distribution.md「更新源现在长什么样」）。镜像上没有这个文件、边缘缓存了一份 404 /
+ *   坏的副本时两条路一起坏 —— 而强制的那一版关不掉，人就被整个锁在 App 外面。GitHub Release 是发版脚本传上去的**权威**那份
+ *   （镜像与它逐字节相同），换的是另一套机器。
+ * ⚠ 国内网络常常打不开 GitHub（2026-08-30 那次事故正是因此才改走镜像）—— 它只是备用，界面上照实说。
+ * ⚠ 地址的拼法与 scripts/release.mjs 的 `tag = v<versionName>`、`apkAsset = qimeng-<versionName>.apk` 是同一条规矩（那边改名这里一起改，
+ *   那边的注释点着这里）。清单经服务端转手时 apkUrl 已被改写成镜像地址，拿不到 GitHub 那一份原值，只能照规矩拼。
+ * 回 null = 版本号里有拼不进地址的字符（发版脚本只放行 [\w.-]，这里同一个口径）。
+ */
+export function githubApkUrl(info: UpdateInfo): string | null {
+  const v = info.versionName;
+  if (!v || !/^[\w.-]+$/.test(v)) return null;
+  return `https://github.com/TianbinLiu/ideahub-app/releases/download/v${v}/qimeng-${v}.apk`;
+}
+
+/**
+ * 强制更新那张弹层只挂在**一处**：App.tsx 的 UpdateGate（路由之外，安卓返回键退不掉它）。
+ * ★ 为什么要这一对（2026-10-10 评审抓到）：设置页的「检查更新」原来在设置页**里面**自己画一张 UpdateSheet —— 查到的是强制的那一版时，
+ *   安卓返回键（WebView 后退）把设置页连同那张「关不掉」的弹层一起卸掉，人照常用一个已经停止支持的版本。
+ *   开机那一次检查又是静默的（没网就什么都不说、之后不再查），所以设置页恰恰常是强制更新**第一次**露面的地方。
+ *   现在任何地方查到强制的那一版都交给这里（raiseForcedUpdate），由 UpdateGate 画。普通更新照旧各画各的（关得掉，无所谓挂在哪）。
+ */
+let forcedInfo: UpdateInfo | null = null;
+const forcedListeners = new Set<() => void>();
+
+/** 交一份强制更新给 App 根上那张弹层画（不是强制的直接忽略） */
+export function raiseForcedUpdate(info: UpdateInfo): void {
+  if (!isMandatory(info)) return;
+  forcedInfo = info;
+  forcedListeners.forEach((fn) => fn());
+}
+
+/** 现在挂着的强制更新（没有 = null）。给 useSyncExternalStore 用 */
+export function forcedUpdate(): UpdateInfo | null {
+  return forcedInfo;
+}
+
+export function subscribeForcedUpdate(fn: () => void): () => void {
+  forcedListeners.add(fn);
+  return () => {
+    forcedListeners.delete(fn);
+  };
 }
 
 interface AppUpdaterPlugin {
@@ -101,10 +172,11 @@ export async function checkUpdate(silent = true): Promise<UpdateInfo | null> {
   }
 }
 
-/** 启动时那次自动检查：已经被用户跳过的版本不再冒头 */
+/** 启动时那次自动检查：已经被用户跳过的版本不再冒头 —— **强制的那一版除外**（跳过的记录对它不算数） */
 export async function checkUpdateForPrompt(): Promise<UpdateInfo | null> {
   const info = await checkUpdate(true);
   if (!info) return null;
+  if (isMandatory(info)) return info;
   try {
     if (localStorage.getItem(SKIP_KEY) === String(info.versionCode)) return null;
   } catch {
@@ -114,6 +186,7 @@ export async function checkUpdateForPrompt(): Promise<UpdateInfo | null> {
 }
 
 export function skipVersion(versionCode: number): void {
+  // 强制的那一版界面上根本没有「以后再说」；这里不另设闸 —— 真被记下了，checkUpdateForPrompt 也不认它
   try {
     localStorage.setItem(SKIP_KEY, String(versionCode));
   } catch {

@@ -19,6 +19,7 @@ import { cancelPendingStop, stopSpeakingSoon } from "./speech";
 import { useStudioBack } from "./useStudioBack";
 import { useCastReturn } from "../hooks/useCastReturn";
 import { useFlowActions } from "../hooks/useFlowActions";
+import { showToast } from "../data/toast";
 // 工作流画布现在是工坊里的一层全屏浮层（2026-08-30 合并：创作入口不再有「工作流模式」）
 import FlowCanvas from "../components/flow/FlowCanvas";
 import { castEditorState } from "../pages/FlowPage";
@@ -295,12 +296,14 @@ export default function StudioPage() {
               （2026-08-30 主人点名：此前只有画布→工坊单向有键，反向只剩法阵那条隐路）。
               只在流水线上真有段时亮：0 段时 /flow 会把人弹回创作入口，摆一颗必弹走的
               键就是"永远点不动的选项"的变体；0 段时铺流水线本来就是法阵的差事 */}
+          {/* ★ 点不动的理由要**说出来**而不是只写在 title 里（2026-10-10 浏览器走查抓到）：手机 WebView 没有悬停，title 一个字都看不见，
+              `disabled` 的键在手机上就是「点了没反应」。所以不设 disabled：空桌面时按下去用轻提示说一句为什么（画成灰的照旧） */}
           <button
-            onClick={() => setCanvasOpen(true)}
-            disabled={!hasWork}
+            onClick={() => (hasWork ? setCanvasOpen(true) : showToast(t`桌面还空着——先点虚线卡位铸一段`))}
+            aria-disabled={!hasWork}
             title={hasWork ? t`工作流画布：同一条流水线的另一面` : t`桌面还空着——先点虚线卡位铸一段`}
             aria-label={t`工作流画布`}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-panel/85 text-base backdrop-blur disabled:opacity-40"
+            className={`flex h-9 w-9 items-center justify-center rounded-full bg-panel/85 text-base backdrop-blur ${hasWork ? "" : "opacity-40"}`}
           >
             🧩
           </button>
@@ -315,8 +318,10 @@ export default function StudioPage() {
             /* 存草稿只留图标；**四种状态仍要看得出来**（保存中/成功/失败不能只靠一个静态图标
                ——那等于把"存住了没有"藏起来，铁律八）：图标换字符 + title 说全 */
             <button
-              onClick={flowActions.saveNow}
-              disabled={!hasWork || flowActions.saveState === "saving"}
+              // 空桌面时按下去说一句为什么（同上面 🧩 那颗的 ★：title 在手机上看不见）；保存中才是真的禁用
+              onClick={() => (hasWork ? flowActions.saveNow() : showToast(t`桌面还空着，没什么可存`))}
+              aria-disabled={!hasWork}
+              disabled={hasWork && flowActions.saveState === "saving"}
               title={
                 !hasWork
                   ? t`桌面还空着，没什么可存`
@@ -329,7 +334,7 @@ export default function StudioPage() {
                         : t`存草稿`
               }
               aria-label={t`存草稿`}
-              className={`flex h-9 w-9 items-center justify-center rounded-full bg-panel/85 text-sm backdrop-blur disabled:opacity-40 ${
+              className={`flex h-9 w-9 items-center justify-center rounded-full bg-panel/85 text-sm backdrop-blur disabled:opacity-40 ${hasWork ? "" : "opacity-40"} ${
                 flowActions.saveState === "failed"
                   ? "text-rose-300"
                   : flowActions.saveState === "saved"

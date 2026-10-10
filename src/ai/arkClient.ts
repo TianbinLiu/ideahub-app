@@ -14,11 +14,11 @@
 // 密钥永远不进前端包：APK 解一下就拿到了（铁律三）。
 import { i18n } from "@lingui/core";
 import { t } from "@lingui/core/macro";
-import { API_BASE, API_ON, getToken } from "../api/client";
+import { API_BASE, API_ON, getToken, withAppVersion } from "../api/client";
 import { frozenLine, planRequiredLine, syncRemoteWallet } from "../data/account";
 import { probeServerCaps } from "../data/serverCaps";
 import type { TierResolution } from "../data/videoTierTable";
-import { DEFAULT_IMAGE_TIER, durationWindowOfModel, imageTierOf, videoAudioOn } from "../data/economy";
+import { DEFAULT_IMAGE_TIER, durationWindowOfModel, imageGroupOk, imageTierOf, modelLabel, videoAudioOn } from "../data/economy";
 import type { GenMode } from "../types";
 
 /** 把响应头上的权威余额同步进本地镜像。头部缺失（CORS 没放行/dev 代理）时什么都不做。
@@ -58,6 +58,17 @@ export const AI_REAL = import.meta.env.DEV
 const BASE = import.meta.env.DEV ? "/api/ark" : `${API_BASE}/api/ark`;
 
 /**
+ * 打到 BASE 的请求头：登录态 + 版本头（X-App-Version）。
+ * ★ 版本头要不要带只由 api/client.withAppVersion 判（自家服务器的 /api/ 才带）：dev 下 BASE 是 vite 代理、直连方舟，
+ *   那一发拿不到版本头 —— 方舟是第三方。所以每个调用点都把**真打的那个地址**传进来，别图省事传 BASE。
+ * ★ dev 的 vite 代理不认 Authorization（它自己注入方舟密钥），带上也无害。
+ */
+function authHeaders(url: string, extra: Record<string, string> = {}): Record<string, string> {
+  const token = getToken();
+  return withAppVersion(url, { ...extra, ...(token ? { Authorization: `Bearer ${token}` } : {}) });
+}
+
+/**
  * 取方舟产物（图片/视频/3D zip）的**唯一**入口。
  *
  * 方舟产物在 TOS 域且不带 CORS 头，浏览器直连读不到二进制，而三件事都需要二进制：
@@ -81,8 +92,9 @@ export async function fetchArkAsset(url: string, timeoutMs: number): Promise<Res
   // dev 的中间件挂在 /api/asset（vite.config.ts）；服务端挂在 /api/ark/asset（同一个路由文件）
   const endpoint = import.meta.env.DEV ? "/api/asset" : `${BASE}/asset`;
   const token = getToken();
-  const res = await fetch(`${endpoint}?url=${encodeURIComponent(url)}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  const proxied = `${endpoint}?url=${encodeURIComponent(url)}`;
+  const res = await fetch(proxied, {
+    headers: withAppVersion(proxied, token ? { Authorization: `Bearer ${token}` } : {}),
     signal: AbortSignal.timeout(timeoutMs),
   });
   // ★ 同上：真机上不存在的端点回 200 + text/html，`res.ok` 骗得过所有调用方。
@@ -121,10 +133,9 @@ export function isArkAssetUrl(url: string | undefined): boolean {
  * ★ 超时 180s：服务端要拉最多 80MB 再跨境传 Cloudinary，60s 不够它做完两头。
  */
 export async function transferArkVideo(url: string): Promise<string> {
-  const token = getToken();
   const res = await fetch(`${BASE}/transfer-video`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    headers: authHeaders(`${BASE}/transfer-video`, { "Content-Type": "application/json" }),
     body: JSON.stringify({ url }),
     signal: AbortSignal.timeout(180_000),
   });
@@ -151,10 +162,9 @@ export async function transferArkVideo(url: string): Promise<string> {
 export async function requestArkTransfer(
   url: string,
 ): Promise<{ state: "done" | "pending" | "failed"; url?: string; message?: string }> {
-  const token = getToken();
   const res = await fetch(`${BASE}/transfer-video`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    headers: authHeaders(`${BASE}/transfer-video`, { "Content-Type": "application/json" }),
     body: JSON.stringify({ url, wait: false }),
     signal: AbortSignal.timeout(20_000),
   });
@@ -175,10 +185,9 @@ export async function requestArkTransfer(
 export async function transferStatus(
   urls: string[],
 ): Promise<Record<string, { state: "done" | "pending" | "failed" | "none"; url?: string; message?: string }>> {
-  const token = getToken();
   const res = await fetch(`${BASE}/transfer-video/status`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    headers: authHeaders(`${BASE}/transfer-video/status`, { "Content-Type": "application/json" }),
     body: JSON.stringify({ urls }),
     signal: AbortSignal.timeout(20_000),
   });
@@ -208,11 +217,19 @@ export const MODELS = {
    *   **查不到**（server 的 config/tokens.js 因此专门留了一张 LEGACY 表垫着，
    *   把差价吃在我们自己这边）。
    * ★ 铸卡路径**不读这个值**：它按用户选的出图档位走（generateImage 的 opts.model）。
+   * ★ 2026-10-10（2.63）起是 `doubao-seedream-4-0-20260415`：方舟第十批下线（2026-11-24 14:00）带走了 4.0 / 4.5 / 5.0 lite 三个老型号，
+   *   这是 4.0 的继任型号（10-10 付费验过：写实人脸的图生图照收、卡面 1728×2304 与竖屏帧 1440×2560 都出得来、像素窗口与 4.0 相同、能出组图；
+   *   耗时（单次，量级参考）卡面约 12~15 秒、竖屏帧约 34 秒 —— 都在客户端出图超时之内）。
+   *   九宫格分镜的组图也用它（runImageGroup 那道 groupOk 闸）。老 App 发来的老型号由服务端在出口改发继任型号，见 docs/api-contract.md。
    */
   image: imageTierOf(DEFAULT_IMAGE_TIER).model,
-  // 默认视频模型 = 标准档；档位目录见 data/economy VIDEO_TIERS，
-  // generateVideo 可传 opts.model 覆盖（节点卡里用户选档）
-  video: "doubao-seedance-1-0-pro-250528",
+  /**
+   * 兜底视频模型 —— **今天没有调用方会落到它上**：每一条出片路都从档位（economy.VIDEO_TIERS）拿 model 传进 generateVideo。
+   * ★ 2026-10-10 从 Seedance 1.0 pro（标准档）换成 2.0 mini：1.0 pro 2026-11-24 下线（服务端 13:00 起整句拒 MODEL_RETIRED），
+   *   留着它当兜底，哪天有人漏传 opts.model 就会悄悄发一个停用的型号。换成仍在服务、协议最宽的那一个（高清 / 草稿档的模型）。
+   *   ⚠ 它不是「默认档」：默认档只问 account.defaultTierId，报价也只认档位 —— 别拿这个值去报价。
+   */
+  video: "doubao-seedance-2-0-mini-260615",
   chat: "doubao-seed-2-1-turbo-260628",
   // 3D 建模：2.4 元/次出带纹理+PBR 的 3D 文件（2026-08-06 /models 列表确认在册）
   model3d: "doubao-seed3d-2-0-260328",
@@ -464,6 +481,8 @@ export function briefArkReason(e: unknown, max = 40): string {
   if (e instanceof ArkBatchPartial || e instanceof SegmentGenFailed) return briefArkReason(e.failure, max);
   // 上游明说失败：原因已经按错误码说成人话了（arkFailReason）
   if (e instanceof ArkTaskFailed) return e.reason.slice(0, Math.max(max, 80));
+  // 出图被拒：原因已经按码说成人话了（imageRefusalError）—— 尤其「模型停用、请更新 App」那句不能退成「服务器返回 400」
+  if (e instanceof ArkImageRefused) return e.reason.slice(0, Math.max(max, 60));
   if (e instanceof ArkHttpError) {
     const status = e.status;
     return t`服务器返回 ${status}`;
@@ -557,21 +576,129 @@ export function requestRefusalError(status: number, body: string): Error | null 
   return new ArkHttpError(serverMsg && i18n.locale !== "en" ? serverMsg : ours(), status, code);
 }
 
+/**
+ * 出图（`/images/generations` 与组图受理）被拒了 —— 带一句**给人看的**原因（2026-10-10，方舟 11-24 下线那一批）。
+ *
+ * ★★ 为什么要它：原来出图的非 2xx 一律走 arkFetch 最后那一支，屏幕上是一截 `Ark /images/generations 400: {"error":{…}}`
+ *   （英文、带 request id、把后半句可行动的话挤出去）；`briefArkReason` 又只给「服务器返回 400」，推演那一处还一律把它说成
+ *   「参考图未被受理」—— 模型下线、审核不过、上游连不上，三种完全不同的事说成同一句错话。
+ * ★ 仍是 ArkHttpError（status / code 原样）：钱上的判定只认类型（ai/failCharge：服务端明说失败 = 没扣），一个字不变；
+ *   gridDraftStore.upstreamDown 认 502~504 也照旧。
+ * @param upstreamCode 方舟原样的错误码（回包里 `error.code`）；没有 = 空串。按它判「是不是参考图惹的」，别去 message 里找字
+ * @param reason 短的那半句（briefArkReason 拿它，好塞进别人的整句里）；message 是能单独显示的整句
+ */
+export class ArkImageRefused extends ArkHttpError {
+  constructor(
+    message: string,
+    status: number,
+    code: string,
+    readonly upstreamCode: string,
+    readonly reason: string,
+  ) {
+    super(message, status, code);
+    this.name = "ArkImageRefused";
+  }
+}
+
+/**
+ * 出图用的模型**用不了了**（方舟下线 / 我们服务端不认 / 方舟查无此模型）—— 再试多少次都一样，只有更新 App 能解。
+ * ★ 单独一个类：推演那一处见它就不再「去掉参考图再试一次」（同一个模型，必然再错一次），九宫格的组图也按它说话。
+ */
+export class ArkImageModelGone extends ArkImageRefused {
+  constructor(message: string, status: number, code: string, upstreamCode: string, reason: string) {
+    super(message, status, code, upstreamCode, reason);
+    this.name = "ArkImageModelGone";
+  }
+}
+
+/**
+ * 「这个模型用不了」的几种说法 —— 全仓唯一判定（九宫格组图任务的整组失败码也问它）：
+ *   · 我们服务端：出图型号不在白名单时回 `{ ok:false, message:"model not allowed" }`，**不带 code** —— 这是**现行**形态，
+ *     不是老服务端的遗留（server services/arkGateway；2026-10-10 那一批的服务端改动也没给它加码）。那一句是固定的机器话、
+ *     不是界面文案、不进目录，所以认它不算「去 message 里找字」。我们自己的 `MODEL_RETIRED` 今天只有**视频**那条路会回
+ *     （server routes/ark 的 pinPlainVideoTask），留在这里是因为它的意思就是「停用了」，哪天出图那条也回它不用再改这里；
+ *   · 方舟：`InvalidEndpointOrModel.*`（查无此模型 / 无权访问）、`ModelNotOpen`（账号没开通）、`…ModelIDAccessDisabled`、
+ *     `…ClosedEndpoint` 与几种「已下线 / 不支持」的写法（错误码表 code_error-codes）。
+ * ⚠ 别把它「收拾」成只认码：服务端白名单那一句就是没有码的，收拾掉之后每一次白名单拒绝都退回成泛泛的
+ *   「出图请求没被受理（服务器返回 400）」，人不知道该去更新 App（2026-10-10 评审抓到：这里原来写着一个服务端从没发过的
+ *   `MODEL_NOT_ALLOWED`，还把那句没码的话叫成「老服务端」，照着收拾就是这个结果）。
+ *   反过来，哪天服务端给它加了码而 message 没变，码不认识也照样认得出（message 那一支不再只在「码空」时才看）。
+ * ★ 认不出的一律当别的失败（不往「请更新 App」上靠）：把审核不过说成「模型停用了」，人会去更新一个已经是最新的 App。
+ */
+const MODEL_GONE_CODE =
+  /^MODEL_RETIRED$|^InvalidEndpointOrModel|^ModelNotOpen|ModelIDAccessDisabled|ClosedEndpoint|ModelNotFound|ModelDeprecated|ModelRetired|UnsupportedModel/i;
+export function modelGoneCode(code: string, message = ""): boolean {
+  if (code && MODEL_GONE_CODE.test(code)) return true;
+  return /^model not allowed$/i.test(message.trim());
+}
+
+/** 非 2xx 回包里的几样：我们服务端的顶层 `code` / `message`，方舟原样透传的 `error.code` / `error.message` */
+function errorBodyOf(body: string): { code: string; message: string; upstreamCode: string } {
+  const str = (v: unknown) => (typeof v === "string" ? v : "");
+  try {
+    const j = JSON.parse(body) as Record<string, unknown> | null;
+    if (!j || typeof j !== "object") return { code: "", message: "", upstreamCode: "" };
+    const err = j.error && typeof j.error === "object" ? (j.error as Record<string, unknown>) : {};
+    return { code: str(j.code), message: str(j.message), upstreamCode: str(err.code) };
+  } catch {
+    return { code: "", message: "", upstreamCode: "" };
+  }
+}
+
+/** 出图模型用不了了 → ArkImageModelGone；别的失败回 null（组图受理那一支只要这一句，其余照它自己的说法） */
+export function imageModelGoneError(status: number, body: string, model: string): ArkImageModelGone | null {
+  const p = errorBodyOf(body);
+  if (!modelGoneCode(p.code, p.message) && !(p.upstreamCode && MODEL_GONE_CODE.test(p.upstreamCode))) return null;
+  const label = modelLabel(model);
+  return new ArkImageModelGone(
+    t`出图用的模型（${label}）现在用不了了，多半是已经停用——请把 App 更新到最新版再试；已经是最新版的话，过一会儿再试`,
+    status,
+    p.code,
+    p.upstreamCode,
+    t`出图模型已停用，请更新 App`,
+  );
+}
+
+/**
+ * 出图（`/images/generations`）的非 2xx → 一句人话（ArkImageRefused / ArkImageModelGone）—— **唯一实现**（arkFetch 的 refusal、
+ * dev 直连方舟的流式组图都走它）。回 null = 不归它说：计费代理的拒绝（402 余额 / 429 限流与每日上限 / 带我们顶层码或整句的 403）
+ * 由 billingDenialError 说，那几句早就是整句，还带着「去充值 / 明天再来」。
+ * ★ 认码不认 message 的措辞；我们服务端自己的整句（顶层 message）中文界面照说，英文界面说本端的。
+ */
+export function imageRefusalError(status: number, body: string, model: string): ArkHttpError | null {
+  const gone = imageModelGoneError(status, body, model);
+  if (gone) return gone;
+  const p = errorBodyOf(body);
+  if (status === 402 || status === 429 || (status === 403 && (p.code || p.message))) return null;
+  const up = p.upstreamCode;
+  let line: string;
+  if (/PrivacyInformation/i.test(up)) line = t`参考图里可能有真人，被方舟拒了`;
+  else if (/^Output\w*SensitiveContentDetected/i.test(up)) line = t`画出来的图没过方舟的内容审核`;
+  else if (/SensitiveContentDetected/i.test(up)) line = t`输入的文字或图片没过方舟的内容审核`;
+  else if (status >= 500) line = t`这次没连上出图服务（服务器返回 ${status}），过一会儿再试`;
+  else if (p.message && p.code && i18n.locale !== "en") line = p.message;
+  else line = up ? t`出图请求没被受理（服务器返回 ${status}：${up}）` : t`出图请求没被受理（服务器返回 ${status}）`;
+  return new ArkImageRefused(line, status, p.code, up, line);
+}
+
 /** 带超时的 Ark 请求。fetch 没有默认超时——网络一卡整个工坊就"假死"在加载态。
- *  429（限流，请求未被受理）自动退避重试一次；其他错误直接抛给上层做回退/播报。 */
-async function arkFetch<T>(path: string, init?: RequestInit, timeoutMs = 90_000): Promise<T> {
+ *  429（限流，请求未被受理）自动退避重试一次；其他错误直接抛给上层做回退/播报。
+ * @param describeRefusal 这条路自己的非 2xx 翻译（出图那条给 imageRefusalError）：排在 401 / 501 之后、计费代理那几句之前，
+ *   回 null = 不归它说，照旧往下走。★ 它要自己让开计费代理的拒绝（402 / 429 / 带我们顶层码的 403）—— 见 imageRefusalError */
+async function arkFetch<T>(
+  path: string,
+  init?: Omit<RequestInit, "headers" | "signal">,
+  timeoutMs = 90_000,
+  describeRefusal?: (status: number, body: string) => Error | null,
+): Promise<T> {
   // 服务端的 /api/ark 是 requireAuth 的（每次调用都真烧钱，不能裸奔）。
-  // dev 走 vite 代理，那里不认这个头，带上也无害。
-  const token = getToken();
+  // dev 走 vite 代理，那里不认这个头，带上也无害。版本头只给自家服务器（authHeaders → withAppVersion）
+  const url = `${BASE}${path}`;
   for (let attempt = 0; ; attempt++) {
-    const res = await fetch(`${BASE}${path}`, {
+    const res = await fetch(url, {
       ...init,
       signal: AbortSignal.timeout(timeoutMs),
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...(init?.headers ?? {}),
-      },
+      headers: authHeaders(url, { "Content-Type": "application/json" }),
     }).catch((e) => {
       // 类型见 ArkNoReply 的 ★★：没收到回包 ≠ 没扣钱
       const detail = e instanceof Error ? e.message : String(e);
@@ -620,6 +747,9 @@ async function arkFetch<T>(path: string, init?: RequestInit, timeoutMs = 90_000)
       // 401/403/429/501 —— 都带 message，原样抛给上层做回退与播报（铁律八）
       if (res.status === 501) throw new Error(t`这台服务器没有配置方舟密钥（服务端 .env 的 ARK_API_KEY）`);
       if (res.status === 401) throw new Error(t`登录态失效，重新登录后再试`);
+      // 这条路自己的翻译（出图：模型停用 / 审核 / 上游连不上……说成人话，见 imageRefusalError）
+      const own = describeRefusal?.(res.status, body);
+      if (own) throw own;
       // 402 / 403 / 429 = 计费代理的拒绝（余额 / 套餐 / 冻结 / 每日上限）：整句与错误类型都在 billingDenialError 一处
       const denial = billingDenialError(res.status, body);
       if (denial) throw denial;
@@ -666,8 +796,9 @@ export async function generateImage(
   prompt: string,
   opts?: { size?: string; imageRefs?: string[]; model?: string },
 ): Promise<string> {
+  const model = opts?.model ?? MODELS.image;
   const body: Record<string, unknown> = {
-    model: opts?.model ?? MODELS.image,
+    model,
     prompt,
     size: opts?.size ?? "2K",
     response_format: "url",
@@ -683,6 +814,8 @@ export async function generateImage(
     //   AbortSignal 掐断的只有我们这一头，服务端那条请求**照样跑完**并按 2xx 计费不退，
     //   用户却收到一句"没画成"。宁可多等 20 秒，也不能报一句假话（铁律五/八）。
     170_000,
+    // 非 2xx 说成人话（模型停用 → 请更新 App；审核不过；上游连不上），见 imageRefusalError
+    (status, text) => imageRefusalError(status, text, model),
   );
   const url = out.data?.[0]?.url;
   // ★ ArkBadReply 不是裸 Error：走到这一行说明回包是 2xx，服务端已经结算，只是里面没有图 ——「已计费、结果用不上」那一档
@@ -762,11 +895,6 @@ export async function imageGroupsAvailable(): Promise<boolean | null> {
   return caps ? caps.imageGroups : null;
 }
 
-const authHeaders = (): Record<string, string> => {
-  const token = getToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
-};
-
 /** 服务端回的一组 → 统一形状（字段缺了按「没有」补，别让 undefined 进到界面里） */
 function groupOf(g: Record<string, unknown>): ImageGroupState {
   const list = (v: unknown): Record<string, unknown>[] =>
@@ -801,7 +929,7 @@ export async function startImageGroup(req: ImageGroupRequest): Promise<{ id: str
   // 请求体带着参考图（可能是几 MB 的 dataURL），慢网上行要给足；但别超过 Cloudflare 的 125 秒（超了也是白等）
   const res = await fetch(`${BASE}/image-groups`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
+    headers: authHeaders(`${BASE}/image-groups`, { "Content-Type": "application/json" }),
     body: JSON.stringify({ model: req.model, prompt: req.prompt, image: req.image, size: req.size, max_images: req.maxImages }),
     signal: AbortSignal.timeout(120_000),
   }).catch((e) => {
@@ -824,6 +952,9 @@ export async function startImageGroup(req: ImageGroupRequest): Promise<{ id: str
   if (res.status === 409) throw new ImageGroupBusy(typeof j.id === "string" ? j.id : null);
   if (res.status === 401) throw new Error(t`登录态失效，重新登录后再试`);
   if (res.status === 501) throw new Error(t`这台服务器没有配置方舟密钥（服务端 .env 的 ARK_API_KEY）`);
+  // 出图模型停用 / 服务端不认（老服务端的白名单拒绝是一句英文机器话）：说成「请更新 App」，别把那句英文原样摆出来
+  const gone = imageModelGoneError(res.status, body, req.model);
+  if (gone) throw gone;
   const denial = billingDenialError(res.status, body);
   if (denial) throw denial;
   const status = res.status;
@@ -839,7 +970,7 @@ export async function startImageGroup(req: ImageGroupRequest): Promise<{ id: str
 /** 查一组的进展（不计费）。查不到（404：不是你的 / 过了 48 小时被清掉）抛 ArkHttpError(404) */
 export async function fetchImageGroup(id: string): Promise<ImageGroupState> {
   const res = await fetch(`${BASE}/image-groups/${encodeURIComponent(id)}`, {
-    headers: authHeaders(),
+    headers: authHeaders(`${BASE}/image-groups/${encodeURIComponent(id)}`),
     signal: AbortSignal.timeout(20_000),
   }).catch((e) => {
     const detail = e instanceof Error ? e.message : String(e);
@@ -863,7 +994,7 @@ export async function fetchImageGroup(id: string): Promise<ImageGroupState> {
 export async function listImageGroups(): Promise<ImageGroupState[] | null> {
   if (import.meta.env.DEV) return [];
   try {
-    const res = await fetch(`${BASE}/image-groups`, { headers: authHeaders(), signal: AbortSignal.timeout(20_000) });
+    const res = await fetch(`${BASE}/image-groups`, { headers: authHeaders(`${BASE}/image-groups`), signal: AbortSignal.timeout(20_000) });
     const ct = res.headers.get("content-type") ?? "";
     if (!res.ok || !ct.includes("json")) return null;
     const j = (await res.json()) as { groups?: unknown };
@@ -923,7 +1054,7 @@ async function streamImageGroup(req: ImageGroupRequest, onUpdate: (s: ImageGroup
   const snapshot = (): ImageGroupState => ({ ...s, images: [...s.images], failures: [...s.failures] });
   const res = await fetch(`${BASE}/images/generations`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "text/event-stream", ...authHeaders() },
+    headers: authHeaders(`${BASE}/images/generations`, { "Content-Type": "application/json", Accept: "text/event-stream" }),
     body: JSON.stringify({
       model: req.model,
       prompt: req.prompt,
@@ -942,7 +1073,8 @@ async function streamImageGroup(req: ImageGroupRequest, onUpdate: (s: ImageGroup
   if (!res.ok || !res.body) {
     const body = await res.text().catch(() => "");
     const status = res.status;
-    throw new ArkHttpError(`Ark /images/generations ${status}: ${body.slice(0, 300)}`, status);
+    // 与单张出图同一句人话（imageRefusalError）；它让开的那几种（计费代理的拒绝）在 dev 直连方舟时不会出现，兜底照旧
+    throw imageRefusalError(status, body, req.model) ?? new ArkHttpError(`Ark /images/generations ${status}: ${body.slice(0, 300)}`, status);
   }
   onUpdate(snapshot());
   let completed = false;
@@ -1010,6 +1142,13 @@ export async function runImageGroup(
   req: ImageGroupRequest | null,
   o: { resumeId?: string; onUpdate: (s: ImageGroupState) => void; onStarted?: (id: string, prepaid: number) => void },
 ): Promise<ImageGroupState> {
+  // ★ 只有能出组图的模型才发（economy.ImageTier.groupOk —— 5.0 pro 就出不了；2026-10-10 换默认出图模型时加的闸）。
+  //   发一个出不了组图的模型过去，最好的结局是整发 400，坏的是只回一张、按一张结算，九宫格空着八格还说不清为什么。
+  //   一分钱没花就拦在这里：这是 App 自己的配置错，话也照实说
+  if (req && !imageGroupOk(req.model)) {
+    const label = modelLabel(req.model);
+    throw new Error(t`出图模型 ${label} 出不了组图，这是 App 的配置问题——请把 App 更新到最新版再试（这一次没有发出去）`);
+  }
   if (import.meta.env.DEV) {
     if (!req) throw new Error(t`开发环境直连方舟的组图断了就接不回来（页面刷新过）——重新出一组`);
     return streamImageGroup(req, o.onUpdate);
@@ -1612,7 +1751,9 @@ export async function generateVideo(
       //   「盯不住这一发的进度了」那一支同一个判断
       if (++pollFails >= 5) {
         const why = briefArkReason(e);
-        throw new ArkTaskUnknown(t`盯不住这一发的进度了（${why}）。任务还在方舟那边跑，不是失败：钱在提交那一刻就已经花掉了。`, id);
+        // ★ 钱的话不在这里说（CLAUDE.md：钱上的话只走 ai/failCharge）：这一句进步骤日志，而管理员免扣费 / 离线构建下
+        //   「钱已经花掉了」是假的；扣没扣由取回卡按服务端的账说（data/videoJobs.videoJobNote）
+        throw new ArkTaskUnknown(t`盯不住这一发的进度了（${why}）。任务还在方舟那边跑，不是失败。`, id);
       }
       continue;
     }
@@ -1661,7 +1802,8 @@ export async function generateVideo(
   //   那一方**接着说（flowStore.genNode 的 pending 分支 + 段卡上的取回卡）。
   // ★ 任务号也不写进这句话：用户抄不动它，也不需要抄（取回按凭据走，不要人输号）。
   const minutes = Math.round((Date.now() - t0) / 60_000);
-  throw new ArkTaskUnknown(t`等了 ${minutes} 分钟还没出片。这不是失败：任务还在方舟那边跑，钱在提交那一刻就已经花掉了。`, id);
+  // ★ 钱的话不在这里说（同上面 pollFails 那一支）：扣没扣由取回卡按服务端的账说
+  throw new ArkTaskUnknown(t`等了 ${minutes} 分钟还没出片。这不是失败：任务还在方舟那边跑。`, id);
 }
 
 /**

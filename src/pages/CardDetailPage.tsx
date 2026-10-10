@@ -7,7 +7,8 @@ import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
 import DeleteCardDialog from "../components/DeleteCardDialog";
 import { createPortal } from "react-dom";
-import { Link, useLocation, useNavigate, useParams } from "react-router";
+import { Link, useLocation, useParams } from "react-router";
+import { useBackOr } from "../hooks/useBackOr";
 // ★ 出片管线的规则一律**从管线本身取**，这一页不再抄一份（铁律六）。
 //   抄的那份漏过规则一（只有第一张人物卡进参考图），于是「出片用」这个标签会对着
 //   一张从来不进模型的图亮起来 —— 用户为它多付了钱，界面还告诉他钱花在了出片上。
@@ -18,7 +19,7 @@ import SocialPanel, { useCountView, useSocialVersion } from "../components/Socia
 import WorkshopShareBar, { shareBlockReason } from "../components/WorkshopShareBar";
 import CardHologram, { CARD_MODELS, useHologramModel } from "../studio/ui/CardHologram";
 import { acquireCard, bindCardAsset, cardsReady, fetchSharedCard, isRemoteMode, myCards, myDecks, removeCard, shareCard, unbindCardAsset, updateCardMeta } from "../data/account";
-import { voiceTierNames } from "../data/economy";
+import { refImgTierList, voiceTierNames } from "../data/economy";
 import {
   addCardView,
   addPreparedCardView,
@@ -156,19 +157,26 @@ function hintFor(type: CardType): string {
 function pipelineNoteFor(type: CardType, views: CardView[]): string {
   if (type !== "character") {
     const first = views[0] ? viewTag(type, views[0]) : CARD_SLOTS[type][0].label;
-    // ★ P2-a（2026-08-29）后直通路的预算跟档位协议走（9/30），3 张那句只描述经典路 —— 末尾括号里那句说的就是这件事
+    // ★ 两条路分开说（2026-10-10 文案复核改）：3 张那句只管**出片前补画设定帧那一步**与收不到参考图的档位；
+    //   收参考图的档（草稿 / 高清 / 电影级，segmentGen.refSlotsOf 一律直通分配）与白模挂卡，参考图直接进视频模型、上限按档位协议走。
+    //   原来写成「出片时…最多 3 张」再在末尾括号里补一句例外，读起来像所有档都只带 3 张 —— 11-24 之后方舟档没有一档再是那样
+    const tiers = refImgTierList();
     return i18n._(
-      msg`出片时这类卡先保证第 1 张（${first}）喂给 AI；同一段里参考图总共最多 ${MAX_REF_IMAGES} 张，预算还有余才一轮一轮地轮到第 2、第 3 张 —— 也就是同段挂的卡越少，它越可能真的进模型。预算不够时「先被丢的就是各卡靠后的那几张」，卡再多下去整张卡都会带不上（两种情况生成步骤里都会逐张点名）。（白模挂卡与简约参考图直出那两条路更宽：参考图直接进视频模型，上限按所选档位的协议走。）`,
+      msg`出片时这类卡先保证第 1 张（${first}）喂给 AI。出片前补画设定帧那一步（以及收不到参考图的档位）：同一段里参考图总共最多 ${MAX_REF_IMAGES} 张，预算还有余才一轮一轮地轮到第 2、第 3 张 —— 同段挂的卡越少，它越可能真的进模型；预算不够时先被丢的是各卡靠后的那几张，卡再多下去整张卡都会带不上（生成步骤里会逐张点名）。收参考图的档位（${tiers}）与白模挂卡：参考图直接进视频模型，各卡一张一张轮着带，上限按所选档位的协议走。`,
     );
   }
   const face = slotLabel("character", "face");
   const body = slotLabel("character", "body");
   const detail = slotLabel("character", "detail");
-  // ★ 不画设定帧的两条路是**例外**，必须说（倒数第二个括号那句）：白模 r2v 与简约参考图直出（P2-a 放宽后）
-  //   的参考图直接进视频模型，"一张图里画多个角色被拒"根本不适用，每张人物卡各带各的
-  //   形象图。不说这一句，用户会照上面那半句自我设限：以为挂第 2 张人物卡没用。
+  // ★ 两条路分开说（2026-10-10 文案复核改）：
+  //   · 收参考图的档（草稿 / 高清 / 电影级）与白模挂卡：segmentGen.refSlotsOf 一律直通分配，**每张**人物卡各带自己的形象图
+  //     （先每卡 1 张、预算有余再补第 2 张，上限按档位协议：高清 / 草稿 9、电影级 30）；
+  //   · 出片前补画设定帧那一步（以及收不到参考图的档）：出图模型只吃第一个人物的图 —— 「只有第一张人物卡」那半句只管这里。
+  //   原来整段按经典路写、把直通路塞在末尾括号里，还说「一张图里画多个角色会被方舟整条拒掉」—— 那条约束本仓已撤回
+  //   （docs/multi-character-consistency-research.md：被拒的是精灵图写法）。用户按旧那句自我设限，以为挂第 2 张人物卡没用。
+  const tiers = refImgTierList();
   return i18n._(
-    msg`出片时一段里只有「第一张人物卡」能带形象参考图：先取 ${MAX_CHAR_REFS} 张（优先${face} + ${body}），标成「出片用」的第 3 张要等同段每张卡都拿到第 1 张之后，预算还有余才补得上；同一段里的其余人物卡一张都不带，只按文字设定参与——一张图里画多个角色会被方舟整条拒掉。所以上面的「出片用」是按"这张卡就是那第一张人物卡"标的：它排在别的人物卡后面时，标着出片用的那几张同样进不了模型（生成步骤里会点名说明）。（两条不画设定帧的路是例外——白模模板挂卡、简约模式的参考图直出：每张人物卡都各带自己的形象图。）${detail}这一格铸卡不会自动出图，只能自己传。`,
+    msg`收参考图的档位（${tiers}）与白模模板挂卡：每张人物卡都各带自己的形象图（先每卡 1 张，预算有余再补第 2 张；一段最多几张按所选档位的协议走）。出片前补画设定帧那一步（以及收不到参考图的档位）：一段里只有「第一张人物卡」能带形象参考图——先取 ${MAX_CHAR_REFS} 张（优先${face} + ${body}），标成「出片用」的第 3 张要等同段每张卡都拿到第 1 张之后，预算还有余才补得上；其余人物卡在那一步只按文字设定参与（画帧的出图模型只吃第一个人物的图）。所以上面的「出片用 / 仅展示」是按补画设定帧那一步、按"这张卡就是那第一张人物卡"标的：它排在别的人物卡后面时，标着出片用的那几张在那一步同样进不了模型（生成步骤里会点名说明）。${detail}这一格铸卡不会自动出图，只能自己传。`,
   );
 }
 
@@ -600,7 +608,8 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
                   ⚠ 这两个 3 哪天不相等了（或者这里改成传 ctx 的多卡视角），那一档就要补回来：
                   那时用户刚点完开关，读到的会是一句像在说"没生效"的话。 */}
               <span className={`ml-2 text-[11px] ${used[zoom] ? "text-brand" : "text-slate-500"}`}>
-                {used[zoom] ? t`· 出片时会喂给 AI（同一段挂的卡多时可能让位）` : t`· 只在这一页展示，出片用不到`}
+                {/* 「出片用 / 仅展示」是按补画设定帧那一步（经典路预算）标的；收参考图的档位直通分配、各卡按协议上限轮着带 —— 说清是哪一步（2026-10-10） */}
+                {used[zoom] ? t`· 补画设定帧那一步会喂给 AI（同一段挂的卡多时可能让位）` : t`· 补画设定帧那一步用不到；收参考图的档位按协议上限各卡轮着带`}
               </span>
             </div>
             {/* ★ 作者的那一票（CardView.role）。背景卡不摆：它的图永远不进模型（故事背景只以文字参与出片，
@@ -667,7 +676,8 @@ export default function CardDetailPage() {
   const accountV = useAccountVersion();
   useSocialVersion(); // 热度到货后重渲染（服务端计数是懒加载的）
   const { id } = useParams();
-  const nav = useNavigate();
+  // 返回：有上一页就回去（工坊 / 卡组 / 作品页），分享链接冷启动没有上一页时退回工坊；删卡之后退页也走它
+  const back = useBackOr("/workshop");
   const loc = useLocation();
   const { t } = useLingui();
   useCountView("card", id);
@@ -775,7 +785,7 @@ export default function CardDetailPage() {
 
   return (
     <div className="min-h-full px-4 pb-10">
-      <PageHeader sticky inset onBack={() => nav(-1)} title={t`卡片详情`} />
+      <PageHeader sticky inset onBack={back} title={t`卡片详情`} />
 
       {/* 大卡面 / 全息建模 双栏 */}
       <div className="mb-4 flex justify-center gap-3">
@@ -1091,8 +1101,8 @@ export default function CardDetailPage() {
             const why = await removeCard(card.id);
             if (why) return why;
             setAsk(false);
-            // 卡没了，这一页就是死页 —— replace 回上一屏（多半是工坊/卡组），别留一格
-            nav(-1);
+            // 卡没了，这一页就是死页 —— 回上一屏（多半是工坊/卡组），别留一格；没有上一屏时退回工坊
+            back();
             return null;
           }}
         />

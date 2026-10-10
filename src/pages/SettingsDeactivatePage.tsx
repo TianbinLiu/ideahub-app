@@ -15,11 +15,14 @@ import { useNavigate } from "react-router";
 import { deactivateAccount, isRemoteMode } from "../data/account";
 import { SUPPORT_EMAIL } from "../data/agreements";
 import { useCurrentUser } from "../hooks/useAccount";
+import { useBackOr } from "../hooks/useBackOr";
 import { signOutBlocker } from "../studio/signOutGuard";
 
 export default function SettingsDeactivatePage() {
   const user = useCurrentUser();
   const navigate = useNavigate();
+  // 两个分支（离线说明 / 注销表单）的返回键共用这一份；深链冷启动没有上一页时退回设置页
+  const back = useBackOr("/settings");
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -32,7 +35,7 @@ export default function SettingsDeactivatePage() {
   if (!isRemoteMode()) {
     return (
       <div className="min-h-full px-4 pb-10">
-        <Header onBack={() => navigate(-1)} />
+        <Header onBack={back} />
         <p className="rounded-xl border border-slate-700 bg-panel p-4 text-sm leading-relaxed text-slate-300">
           <Trans>
             当前是本地账号：没有服务器，也就没有可注销的云端账号。
@@ -69,7 +72,7 @@ export default function SettingsDeactivatePage() {
 
   return (
     <div className="min-h-full px-4 pb-10">
-      <Header onBack={() => navigate(-1)} />
+      <Header onBack={back} />
 
       <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 p-4">
         <p className="text-sm font-bold text-rose-200"><Trans>注销后会发生什么</Trans></p>

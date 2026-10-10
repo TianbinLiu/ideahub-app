@@ -11,7 +11,7 @@
  * ★ `error` 事件与非 2xx 都 reject；正常读完 resolve。abort 由调用方给 signal，原样抛 AbortError。
  */
 import { t } from "@lingui/core/macro";
-import { API_BASE, ApiError, getToken } from "./client";
+import { API_BASE, ApiError, getToken, withAppVersion } from "./client";
 import { createSseParser, type SseEvent } from "../companion/sse";
 
 /** 有 token 就带上（游客只拿服务端默认）。与 client.ts 同一个 token 来源 */
@@ -103,9 +103,10 @@ export async function streamSseRequest(
   try {
     let res: Response;
     try {
-      res = await fetch(`${API_BASE}${path}`, {
+      const url = `${API_BASE}${path}`;
+      res = await fetch(url, {
         method: "POST",
-        headers: authHeaders({ "Content-Type": "application/json", Accept: "text/event-stream" }),
+        headers: withAppVersion(url, authHeaders({ "Content-Type": "application/json", Accept: "text/event-stream" })),
         body: JSON.stringify(body),
         signal: ctrl.signal,
       });
