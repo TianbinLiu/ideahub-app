@@ -141,7 +141,8 @@ public class AppUpdaterPlugin extends Plugin {
                 long theirs = j.optLong("versionCode", 0);
                 // ★ 强制更新（2026-10-10，方舟 11-24 下线那一批）：清单里可选的 minVersionCode = 「比它老的包必须更新才能接着用」。
                 //   老清单没有这一格 → 0 → 谁都不强制，行为与改之前一字不差。
-                //   ★ 只认非负整数：写成字符串 / 小数 / 负数一律当没写（optLong 对非数字回缺省值），宁可不强制，也不把所有人锁在门外。
+                //   ★ 读不出数就当没写：optLong 对非数字回缺省值 0（数字字符串、小数它会照转成整数 —— 发版脚本只写整数），
+                //     负数夹到 0。宁可不强制，也不把所有人锁在门外。
                 //   ★ 老包（2.62 及以前）读同一份清单不受影响：它们只 optXxx 自己认识的那几格，多一格 minVersionCode 直接被忽略。
                 long min = Math.max(0, j.optLong("minVersionCode", 0));
 

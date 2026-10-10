@@ -182,7 +182,7 @@ CI 是绿的、仓库看着也正常，只有所有已安装用户的「检查�
 
 | 谁 | 怎么做 |
 |---|---|
-| 原生（`android/app/src/sideload/…/AppUpdaterPlugin.java` 的 `check`） | 读 `minVersionCode`（没有 / 不是非负整数 = 0），回 `minVersionCode` 与 `mandatory = 有更新可装 && 当前版本 < minVersionCode` |
+| 原生（`android/app/src/sideload/…/AppUpdaterPlugin.java` 的 `check`） | 读 `minVersionCode`（没有 / 读不出数 = 0，负数夹到 0；发版脚本只写整数），回 `minVersionCode` 与 `mandatory = 有更新可装 && 当前版本 < minVersionCode` |
 | Web（`src/data/appUpdate.ts` 的 `isMandatory`，唯一判据） | 强制的那一版**不认**「以后再说」的记录；`components/UpdateSheet` 关不掉、压在引导层之上，永远留着「重试」+「官网下载页」两条路 |
 | 发版脚本（`scripts/release.mjs` 第 4b 步） | **只在显式要求时写新值**（`--min-version-code=N` 或环境变量 `RELEASE_MIN_VERSION_CODE=N`），不带就**沿用上一版清单里的值**；N 比上一版的小 → 当场停（门槛只能往上拧）；N 比这一版的 versionCode 大 → 当场停（连刚发的这一版也会被判成必须更新、无版可装）；拉不到上一版清单又没显式给 → 正式跑当场停（写不写都可能错）；重跑已发过的 tag 时不能改它。发完会核对 GitHub 那份与 App 实际读的那份（服务端转的）里的 `minVersionCode` 都对 |
 
