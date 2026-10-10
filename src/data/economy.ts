@@ -646,6 +646,18 @@ export function refImgTierList(): string {
 }
 
 /**
+ * 同一格的另一行：**收不到形象图的方舟档**（今天是 1.0 的「标准 / 极速」：卡只经由设定帧或文字版形象描述起作用）。
+ * 空串 = 一档都不剩（2026-11-24 13:00 那两档停用之后）—— 调用方整行不画、勾选框不再点名。
+ * ★ 原来卡片页 / 卡组页 / segmentGen 三处写死「标准 / 极速」（2026-10-10 文案复核抓到）：停用之后档位选择器里早没有它们了，
+ *   这几句却还在说一整行、还在让人去勾「标准/极速适用」。按能力现算就跟着表走，与上面 refImgTierList 同一把尺。
+ */
+export function noRefImgTierList(): string {
+  return VIDEO_TIERS.filter((x) => !x.refImg && !x.flatCost && !tierRetired(x))
+    .map((x) => x.label)
+    .join(" / ");
+}
+
+/**
  * 同一个原因、一档或几档合成一整句（labels 是档位的界面名）。单档（r2vPriceIssue）与合并（r2vBlockLines）读同一份措辞。
  *
  * ★★ 「closed」分两种说法（2026-10-02 主人拍板：模板对出片模型是**硬要求**，不是"还没轮到"）：

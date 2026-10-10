@@ -205,7 +205,8 @@ export async function minimaxVideo(o: {
       //   只改一个的话，另一个仍抛普通 Error → flowStore 的真失败分支
       //   `if (taskId) dropVideoJob(taskId)` 会把刚落的凭据当场删掉，比不改更坏。
       throw new ArkTaskUnknown(
-        t`真人档出片 10 分钟没出结果——任务多半还在上游跑，不是失败：钱在提交那一刻就已经花掉了。`,
+        // 钱的话不在这里说（CLAUDE.md：只走 ai/failCharge；取回卡按服务端的账说扣没扣）
+        t`真人档出片 10 分钟没出结果——任务多半还在上游跑，不是失败。`,
         taskId,
       );
     }

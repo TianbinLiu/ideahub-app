@@ -18,7 +18,7 @@
 import { useRef, useState } from "react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import PageHeader from "../components/PageHeader";
-import { useNavigate } from "react-router";
+import { useBackOr } from "../hooks/useBackOr";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
 import { useCurrentUser } from "../hooks/useAccount";
@@ -42,7 +42,7 @@ const PREVIEW_LINE = "欢迎来到卡片工坊，把你的素材交给我，我�
 
 export default function SettingsVoicePage() {
   const user = useCurrentUser();
-  const navigate = useNavigate();
+  const back = useBackOr("/settings");
   const [id, setId] = useState(() => currentVoice().id);
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
@@ -104,7 +104,7 @@ export default function SettingsVoicePage() {
 
   return (
     <div className="min-h-full px-4 pb-10">
-      <PageHeader sticky inset onBack={() => navigate(-1)} title={t`铸卡师的声音`} right={<HelpButton tour="setvoice" />} />
+      <PageHeader sticky inset onBack={back} title={t`铸卡师的声音`} right={<HelpButton tour="setvoice" />} />
 
       {/* 条件触发的降级说明，留在页面上（没配云端语音的设备靠它解释"怎么换了把嗓子"） */}
       <p className="mb-3 text-[11px] leading-relaxed text-slate-500"><Trans>没配云端语音时退回系统内置合成器（需装中文语音包）。</Trans></p>

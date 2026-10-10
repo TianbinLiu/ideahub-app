@@ -29,6 +29,7 @@ import Spinner from "../components/Spinner";
 import PageHeader from "../components/PageHeader";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router";
+import { useBackOr } from "../hooks/useBackOr";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { msg } from "@lingui/core/macro";
 import type { MessageDescriptor } from "@lingui/core";
@@ -137,6 +138,8 @@ function parseTags(raw: string): string[] {
 
 export default function CustomCardPage() {
   const nav = useNavigate();
+  // 顶栏返回：从工坊「自己传图做卡片」进来；深链冷启动没有上一页时退回工坊
+  const back = useBackOr("/workshop");
   const [resetAsk, setResetAsk] = useState(false);
   const remote = isRemoteMode();
 
@@ -1267,7 +1270,7 @@ export default function CustomCardPage() {
       {/* ★ 标题跟着走的那条路改口：真人路上照片是**授权取回来的**，挂着「自己传图」
             正是主人两次引用的那句话（"为什么说没取到授权照片还需要再上传"）。 */}
       <PageHeader sticky inset
-        onBack={() => nav(-1)}
+        onBack={back}
         title={realPerson || pendingAsset ? t`用真人素材做卡片` : t`自己传图做卡片`}
         right={
           <>

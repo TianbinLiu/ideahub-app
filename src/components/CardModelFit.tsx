@@ -17,7 +17,7 @@ import { AI_REAL, briefArkReason, chargeNote, chargeOnFail, describeCardForText,
 import { uploadImage } from "../api/uploads";
 import { cardFitOf } from "../data/cardFit";
 import { canAfford, frozenNote, isRemoteMode, spendTokens, updateCardMeta } from "../data/account";
-import { CHAT_TURN_TOKENS, ONE_IMAGE, fmtTokens, refImgTierList } from "../data/economy";
+import { CHAT_TURN_TOKENS, ONE_IMAGE, fmtTokens, noRefImgTierList, refImgTierList } from "../data/economy";
 import { TEXT_DESC_MAX, startFramesAllowed, type Card, type VideoAspect } from "../types";
 
 const ASPECTS: VideoAspect[] = ["portrait", "landscape"];
@@ -138,13 +138,16 @@ export default function CardModelFit({ card, owned }: { card: Card; owned: boole
     }
   }
 
+  /** 收不到形象图的方舟档（今天是「标准 / 极速」）：2026-11-24 停用后是空串，那一行与勾选框的档名跟着消失（economy.noRefImgTierList） */
+  const noRefNames = noRefImgTierList();
   return (
     <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
       <div className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>🎛 按模型适配</Trans></div>
       <ul className="mb-2 space-y-0.5 text-[10px] leading-relaxed text-slate-400">
-        {/* 行首按能力现算（economy.refImgTierList）：2026-10-07 加了「草稿」，写死「高清 / 电影级」就少说一档 */}
+        {/* 行首按能力现算（economy.refImgTierList / noRefImgTierList）：2026-10-07 加了「草稿」，写死「高清 / 电影级」就少说一档；
+            「标准 / 极速」原来也是写死的，11-24 停用之后还会在这里说一整行（2026-10-10 文案复核抓到） */}
         <li><Trans>{refImgTierList()}：{line2x}</Trans></li>
-        <li><Trans>标准 / 极速：{line10}</Trans></li>
+        {noRefNames && <li><Trans>{noRefNames}：{line10}</Trans></li>}
         <li><Trans>真人档：{lineReal}</Trans></li>
       </ul>
 
@@ -169,7 +172,9 @@ export default function CardModelFit({ card, owned }: { card: Card; owned: boole
               }}
               className="h-3.5 w-3.5 flex-none accent-brand"
             />
-            <Trans>标准/极速适用</Trans>
+            {/* 文字版形象描述给收不到形象图的档位用（真人档里不当起拍画面的卡也读它，segmentGen.materialText）：
+                档名现算，1.0 两档停用后这里不再点它们的名 */}
+            {noRefNames ? <Trans>文字版形象描述（{noRefNames}、真人档用）</Trans> : <Trans>文字版形象描述（收不到形象图时用）</Trans>}
             {!textOn && AI_REAL && <span className="text-[10px] text-slate-500"><Trans>AI 写一段约 {textPrice} token</Trans></span>}
           </label>
           {busy === "text" && <p className="mt-1 pl-5 text-[10px] text-slate-400"><Trans>正在看图写文字版形象描述…</Trans></p>}

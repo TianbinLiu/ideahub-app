@@ -1751,7 +1751,9 @@ export async function generateVideo(
       //   「盯不住这一发的进度了」那一支同一个判断
       if (++pollFails >= 5) {
         const why = briefArkReason(e);
-        throw new ArkTaskUnknown(t`盯不住这一发的进度了（${why}）。任务还在方舟那边跑，不是失败：钱在提交那一刻就已经花掉了。`, id);
+        // ★ 钱的话不在这里说（CLAUDE.md：钱上的话只走 ai/failCharge）：这一句进步骤日志，而管理员免扣费 / 离线构建下
+        //   「钱已经花掉了」是假的；扣没扣由取回卡按服务端的账说（data/videoJobs.videoJobNote）
+        throw new ArkTaskUnknown(t`盯不住这一发的进度了（${why}）。任务还在方舟那边跑，不是失败。`, id);
       }
       continue;
     }
@@ -1800,7 +1802,8 @@ export async function generateVideo(
   //   那一方**接着说（flowStore.genNode 的 pending 分支 + 段卡上的取回卡）。
   // ★ 任务号也不写进这句话：用户抄不动它，也不需要抄（取回按凭据走，不要人输号）。
   const minutes = Math.round((Date.now() - t0) / 60_000);
-  throw new ArkTaskUnknown(t`等了 ${minutes} 分钟还没出片。这不是失败：任务还在方舟那边跑，钱在提交那一刻就已经花掉了。`, id);
+  // ★ 钱的话不在这里说（同上面 pollFails 那一支）：扣没扣由取回卡按服务端的账说
+  throw new ArkTaskUnknown(t`等了 ${minutes} 分钟还没出片。这不是失败：任务还在方舟那边跑。`, id);
 }
 
 /**

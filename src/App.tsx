@@ -238,7 +238,9 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   const auth = useAuthState();
   const loc = useLocation();
   if (auth === "pending") return <AuthPending />;
-  if (auth === "out") return <Navigate to={`/login?next=${encodeURIComponent(loc.pathname)}`} replace />;
+  // ★ 回跳地址连 query 一起带：/support?tab=tickets&ticket=…、/me?wallet=1、/tutor/new?course=… 登录一圈回来要落在同一屏上
+  //   （LoginPage 的 next 经 useSearchParams 解码后原样 navigate，带 ? 的地址走得通；个人页的关注键是同一写法）
+  if (auth === "out") return <Navigate to={`/login?next=${encodeURIComponent(`${loc.pathname}${loc.search}`)}`} replace />;
   return <>{children}</>;
 }
 

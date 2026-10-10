@@ -242,7 +242,7 @@
 - 「跟着做 · 主角定妆」里的「现做一个人物」2.63 起按**精绘**画两张（全身 + 特写），报价按精绘算 — `app\src\studio\leadCast.ts`（LEAD_IMAGE_TIER）
 - `DEFAULT_IMAGE_TIER = "sketch"` — `app\src\data\economy.ts`
 - 出图耗时实测：4.0 新版本出一张卡面（1728×2304）约 12-15 秒、一张竖屏画面（1440×2560）约 34 秒（2026-10-10）；5.0-pro ≈95.7s@1728×2304 — `app\src\ai\arkClient.ts`（MODELS.image 的 ★）；`app\src\data\economy.ts`（IMAGE_TIERS 上面那段实测）
-- 精绘档一张卡三张图串行 ≈ 将近 5 分钟，客户端出图超时 170s — `app\src\data\economy.ts`（同一段实测）
+- 精绘档一张卡两张图串行 ≈ 3 分多钟（每张约 96 秒），客户端出图超时 170s — `app\src\data\economy.ts`（同一段实测；IMAGE_TIERS 的 master.views = 2）
 - 出图用的模型停用了 / 服务器不认时（多半是 App 太旧），会说「出图用的模型现在用不了了……请把 App 更新到最新版再试」；这种被拒的不扣钱 — `app\src\ai\arkClient.ts`（imageModelGoneError）
 - 档位有几个看用户手上的版本：2.62 及更早是三档（速写 / 定妆 / 精绘），2.63 起是两档。分不清时以用户铸卡窗里实际看到的为准（设置页能看到版本号），别替用户断言少了一档是出了问题
 

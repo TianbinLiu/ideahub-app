@@ -1783,7 +1783,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
   setRequirement: (v) => set((s) => (s.editor ? { editor: { ...s.editor, requirement: v } } : {})),
   setDurationMode: (m) => set((s) => (s.editor ? { editor: { ...s.editor, durationMode: m } } : {})),
   setDurationSec: (v) => set((s) => (s.editor ? { editor: { ...s.editor, durationSec: v } } : {})),
-  // 手填的时长随档位收拢到这一档的上限（高清 15、电影级 30、其余 10）：不收的话输入框写着 25、出片按 clampDuration 拍 15
+  // 手填的时长随档位收拢到这一档的窗口（economy.VideoTier.minSec / maxSec）：不收的话输入框写着 25、出片按 clampDuration 拍 15；
+  // 下限同理（2026-10-10 补）：极速上填的 3 换到「草稿」会被出片悄悄抬到 4，而输入框还写着 3
   setVideoTier: (id) =>
     set((s) =>
       s.editor
@@ -1791,7 +1792,9 @@ export const useStudio = create<StudioState>()((set, get) => ({
             editor: {
               ...s.editor,
               videoTier: id,
-              ...(s.editor.durationMode === "manual" ? { durationSec: Math.min(tierOf(id).maxSec, s.editor.durationSec) } : {}),
+              ...(s.editor.durationMode === "manual"
+                ? { durationSec: Math.min(tierOf(id).maxSec, Math.max(tierOf(id).minSec, s.editor.durationSec)) }
+                : {}),
             },
           }
         : {},
@@ -2316,7 +2319,12 @@ export const useStudio = create<StudioState>()((set, get) => ({
   nodeGen: null,
   genNodeVideo: async (nodeId, proposalId, opts) => {
     const { nodeGen } = get();
-    if (nodeGen) return false; // 同一时刻只炼一段：并发跑几段既烧钱又抢方舟并发额度
+    if (nodeGen) {
+      // 同一时刻只炼一段：并发跑几段既烧钱又抢方舟并发额度。
+      // ★ 早退要说一句（CLAUDE.md「store 的 action 撞上全局 busy 时静默 return false」那格）：原来一个字不说，点了就是没反应
+      set({ notice: { text: t`上一炉还在炼，等它出炉再炼下一段。`, at: Date.now() } });
+      return false;
+    }
     const flow = useFlow.getState();
     const slot = flow.nodes.find((n) => n.id === nodeId);
     if (!slot || !slot.proposals.some((p) => p.id === proposalId)) return false;

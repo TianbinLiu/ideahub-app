@@ -2392,6 +2392,8 @@ function AgentBar({ onFocus }: { onFocus: (i: number) => void }) {
             setText(v);
           }}
           onKeyDown={(e) => e.key === "Enter" && void send()}
+          // ★ 与 canvasAgent.runCanvasAgent 的 slice(0, VIDEO_PROMPT_MAX) 同一个数：不拦的话超出的那截被静默切掉、零提示
+          maxLength={VIDEO_PROMPT_MAX}
           // ★ placeholder 只留一句示例（文法⑦）；"/" 的入口是旁边那颗魔杖钮本身
           placeholder={t`对画布说话：${AI_REAL ? EXAMPLES[lang].template : EXAMPLES[lang].describe}`}
           className="min-w-0 flex-1 bg-transparent text-xs text-slate-100 outline-none placeholder:text-slate-500"
@@ -2449,7 +2451,11 @@ function AgentPalette({ draft, onClose, onPick }: { draft: string; onClose: () =
         style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))" }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>指令句式（点一个填进输入框，接着改）</Trans></div>
+        {/* 关闭键照抽屉的规矩走 CloseButton（2026-10-10 浏览器走查抓到：这张抽屉原来只能点遮罩关，而遮罩在手机上只剩顶上那三成） */}
+        <div className="mb-1.5 flex items-center justify-between">
+          <div className="text-xs font-semibold text-slate-300"><Trans>指令句式（点一个填进输入框，接着改）</Trans></div>
+          <CloseButton chip="sm" size={13} align="end" onClick={onClose} />
+        </div>
         <div className="grid grid-cols-2 gap-1.5">
           {AGENT_PHRASES.map((p) => (
             <button

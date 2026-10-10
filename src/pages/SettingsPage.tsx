@@ -17,6 +17,7 @@ import { AGREEMENTS, TERMS_UPDATED, type AgreementId } from "../data/agreements"
 import { signOut, isAdmin, isRemoteMode } from "../data/account";
 import { signOutBlocker } from "../studio/signOutGuard";
 import { useCurrentUser } from "../hooks/useAccount";
+import { useBackOr } from "../hooks/useBackOr";
 import { resetGuidesSeen } from "../data/guide";
 import { childSafetyUrl } from "../utils/shareLink";
 import { openExternal } from "../utils/openExternal";
@@ -41,6 +42,8 @@ import { useLang } from "../i18n/useLang";
 export default function SettingsPage() {
   const user = useCurrentUser();
   const navigate = useNavigate();
+  // 返回键只走 useBackOr：深链冷启动没有上一页时退回「我的」（设置的入口在那一页），别退出 App
+  const back = useBackOr("/me");
   const [signOutOpen, setSignOutOpen] = useState(false);
   /** 退出被拦下的原因（还有花钱的活在跑，见 studio/signOutGuard）。空串 = 没拦 */
   const [signOutWhy, setSignOutWhy] = useState("");
@@ -53,7 +56,7 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-full px-4 pb-10">
-      <PageHeader sticky inset onBack={() => navigate(-1)} title={t`设置`} />
+      <PageHeader sticky inset onBack={back} title={t`设置`} />
 
       {/* ── 个性化 ────────────────────────────────────────────── */}
       <Group>

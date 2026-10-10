@@ -8,7 +8,7 @@
 import { useRef, useState } from "react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import PageHeader from "../components/PageHeader";
-import { useNavigate } from "react-router";
+import { useBackOr } from "../hooks/useBackOr";
 import Icon from "../components/Icon";
 import Avatar from "../components/Avatar";
 import AvatarPicker from "../components/AvatarPicker";
@@ -26,7 +26,7 @@ const BIO_MAX = 120;
 
 export default function SettingsProfilePage() {
   const user = useCurrentUser();
-  const navigate = useNavigate();
+  const back = useBackOr("/settings");
   const [name, setName] = useState(user?.name ?? "");
   const [bio, setBio] = useState(user?.bio ?? "");
   const [saved, setSaved] = useState(false);
@@ -64,7 +64,7 @@ export default function SettingsProfilePage() {
 
   return (
     <div className="min-h-full px-4 pb-10">
-      <PageHeader sticky inset onBack={() => navigate(-1)} title={t`编辑资料`} right={<HelpButton tour="setprofile" />} />
+      <PageHeader sticky inset onBack={back} title={t`编辑资料`} right={<HelpButton tour="setprofile" />} />
 
       {/* ── 头像 ──────────────────────────────────────────────── */}
       <section data-guide="setprofile-avatar" className="mb-7 flex flex-col items-center">

@@ -21,6 +21,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { BackButton } from "../components/IconTapButton";
 import LangChip from "../components/LangChip";
 import { Link, useNavigate, useSearchParams } from "react-router";
+import { useBackOr } from "../hooks/useBackOr";
 import ConfirmDialog from "../components/ConfirmDialog";
 import InfoDialog from "../components/InfoDialog";
 import Icon from "../components/Icon";
@@ -65,6 +66,9 @@ function deadReason(k: BrandName): string {
 export default function LoginPage() {
   const remote = isRemoteMode();
   const navigate = useNavigate();
+  // ★ 返回键的兜底是首页：被 RequireAuth 弹到这里的人、或从分享链接冷启动的人历史里没有上一页，
+  //   裸 navigate(-1) 在 WebView 里就是退出到白屏；首页游客照常能逛
+  const back = useBackOr("/");
   const { t } = useLingui();
   const [params] = useSearchParams();
   const next = params.get("next") || "/";
@@ -286,7 +290,7 @@ export default function LoginPage() {
       {/* ★ 位置与 PageHeader 同一条线（状态栏 + 10px 呼吸，48px 行内居中）：此前 `absolute top-3`
           是相对容器顶边算的，容器的 safe-top 留白被它跳过，真机上箭头压在状态栏里 */}
       <div className="absolute left-4 flex h-12 items-center" style={{ top: "calc(env(safe-area-inset-top, 0px) + 10px)" }}>
-        <BackButton size={22} tone="text-slate-400" onClick={() => navigate(-1)} />
+        <BackButton size={22} tone="text-slate-400" onClick={back} />
       </div>
       {/* 右上角：没登录也能换界面语言（设置页在 RequireAuth 后面，进不去）。与返回键同一条线 */}
       <div className="absolute right-4 flex h-12 items-center" style={{ top: "calc(env(safe-area-inset-top, 0px) + 10px)" }}>
