@@ -1860,10 +1860,13 @@ function framePrompts(
 }
 
 /** 三方案推演：豆包写三种走向的剧情 → Seedream 出首尾帧（首帧带上一段尾帧参考承接）。
- *  onProgress 逐阶段播报——整个过程实测约 1-1.5 分钟，没有进度就是"卡死"体感。 */
+ *  onProgress 逐阶段播报——整个过程实测约 1-1.5 分钟，没有进度就是"卡死"体感。
+ *  @param onFramesGone 帧**一张都没画成**、而且是因为出图模型用不了了（ArkImageModelGone）时调一次 —— 剧情照样交回去，
+ *    调用方拿它把真正的原因（「请更新 App」）说在推演结果旁边（见函数末尾那段 ★★）。画成了一部分 / 别的原因失败时不调。 */
 export async function generateProposals(
   ctx: ProposalContext,
   onProgress?: (status: string) => void,
+  onFramesGone?: (e: ArkImageModelGone) => void,
 ): Promise<Proposal[]> {
   const fallback = await mock.generateProposals(ctx);
   let plots: Array<{ title: string; plot: string; durationSec: number; shot?: unknown }>;
@@ -1956,7 +1959,7 @@ export async function generateProposals(
   // 参考图的实情放在开画前最后一发（理由见上）：哪张没采用、为什么只锁了一个角色，
   // 都要在这几十秒里看得见 —— 这两件事一旦没说，用户只会觉得"AI 画得不像"
   if (matNotes.length) onProgress?.(joinNotes(matNotes));
-  /** 出图模型用不了了（ArkImageModelGone）—— 记下第一发，全部没画成时整句抛出去（见下面 ★★） */
+  /** 出图模型用不了了（ArkImageModelGone）—— 记下第一发，全部没画成时交给 onFramesGone（见下面 ★★） */
   // `as`：它在回调里赋值，TS 不跟踪 —— 不这么写的话下面那句判断会被收窄成恒为 null
   let modelGone = null as ArkImageModelGone | null;
   const results = await mapLimit(jobs, 3, async ({ p, which }) => {
@@ -2011,10 +2014,14 @@ export async function generateProposals(
     onProgress?.(t`绘制画面 ${doneCount}/${total}…`);
     return frame;
   });
-  // ★★ 一张都没画成、而且是因为出图模型用不了了：整句抛出去（推演失败那句话就是「请更新 App」）。
-  //   照旧交回三套没有帧的方案的话，屏幕上只说「有 3 个方案的首尾帧没画出来，出片前会先补画」—— 而补画是同一个模型，
-  //   人要到点了出片才第一次听见真正的原因。画成了一部分（模型还在，只是个别失败）照旧交回去。
-  if (modelGone && results.every((f) => !f)) throw modelGone;
+  // ★★ 一张都没画成、而且是因为出图模型用不了了：剧情**照样交回去**，原因交给 onFramesGone，由调用方说在推演结果旁边。
+  //   · 不能只交回三套没有帧的方案就完：屏幕上只会说「有 3 个方案的首尾帧没画出来，出片前会先补画」—— 而补画是同一个模型，
+  //     人要到点了出片才第一次听见真正的原因（「请更新 App」）。
+  //   · 也不能整句抛（2.63 第一版就是抛的，2026-10-10 评审抓到）：抛在**推演那一发对话已经计费之后**（远端模式服务端按调用结算，
+  //     离线账本在开跑前就扣了），三套付过钱的剧情一起丢掉，两个调用方都只说「推演失败」、一个字不提钱，工坊那句还叫人「再点一次」——
+  //     每点一次再付一次对话的钱。出图那几发是服务端明说拒了的（failCharge：没扣），钱上没有别的话要说。
+  //   画成了一部分（模型还在，只是个别失败）照旧交回去、不调它。
+  if (modelGone && results.every((f) => !f)) onFramesGone?.(modelGone);
 
   const per = startFrame ? 1 : 2;
   return three.map((p, pi) => {

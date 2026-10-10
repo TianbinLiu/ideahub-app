@@ -2115,6 +2115,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
       set({ editor: live });
       return true;
     };
+    /** 帧一张都没画成、因为出图模型用不了了（real.generateProposals 的 onFramesGone）：剧情照收，原因说在下面 */
+    let framesGone = "";
     try {
       if (AI_REAL) spendTokens(propCost); // 推演真跑起来才扣
       const proposals = await generateProposals(
@@ -2131,6 +2133,9 @@ export const useStudio = create<StudioState>()((set, get) => ({
           pathPlots: path.map((n) => chosenProposal(n)?.plot ?? "").filter(Boolean),
         },
         (status) => patchLive({ progress: status }),
+        (gone) => {
+          framesGone = gone.message;
+        },
       );
       // 只有发起时的编辑器仍然打开才由本次生成负责关闭（取消后重开的新表单不受影响）
       const editorPatch = get().editor === live ? { editor: null as EditorState | null } : {};
@@ -2177,9 +2182,13 @@ export const useStudio = create<StudioState>()((set, get) => ({
       set({ spreadOpen: false, focus: { nodeId: newId }, projection: "proposals", ...editorPatch });
       const degraded = proposals.filter((p) => p.degraded).length;
       get().npcSay(
-        degraded > 0
-          ? t`三种走向推演完毕，但有 ${degraded} 个方案的首尾帧没画出来（出片前会先补画要用到的帧，补画的钱算在出片报价里）。点开看看剧情，选定一个。`
-          : t`三种走向推演完毕，已经投影在你面前——点开看看各自的首尾帧和剧情，选定一个。`,
+        // ★ 帧一张都没画成、因为出图模型用不了了（2026-10-10）：别说「出片前会先补画」—— 补画是同一个模型，照样画不出来；
+        //   说真正的原因（「请更新 App」）。剧情照样摆出来：推演那一发对话付过钱
+        framesGone
+          ? t`三种走向的剧情推演好了，但首尾帧一张都没画出来：${framesGone}。剧情先留着，点开看看。`
+          : degraded > 0
+            ? t`三种走向推演完毕，但有 ${degraded} 个方案的首尾帧没画出来（出片前会先补画要用到的帧，补画的钱算在出片报价里）。点开看看剧情，选定一个。`
+            : t`三种走向推演完毕，已经投影在你面前——点开看看各自的首尾帧和剧情，选定一个。`,
       );
     } catch (e) {
       // 此前任何异常都会静默炸掉整个 Promise——按钮复位却没有任何解释，像"点了没反应"

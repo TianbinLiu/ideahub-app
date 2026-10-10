@@ -2157,16 +2157,22 @@ body 发 `{ text, voice, rate?, purpose: "cut-narration" }`（`voice` 取自 `/a
 
 ### 请求头 `X-App-Version`（2026-10-10，App 2.63 起）
 
-App 打到自家服务器 **`/api/` 下**的每一个请求都带 `X-App-Version: <versionName>+<versionCode>`（如 `2.63+75`）。
+App 打到自家服务器 **`/api/` 下**的每一个请求都带 `X-App-Version: <versionName>+<versionCode>`（如 `2.63+75`，debug 包 `2.63-debug+75`）。
 
-- **出处只有一个**：`android/app/build.gradle` 的 `versionName` / `versionCode`，构建期由 `vite.config.ts` 读进来（`__APP_VERSION__`）——
-  发版脚本 `scripts/release.mjs` 也从那里读、并拿 APK 里的版本号逐字比对，所以头上报的就是装在手机上的那一包。
-  浏览器（`npm run dev`）里同样带，报的是这棵源码树的版本。
+- **报的是装在手机上的那一包**：开机时问原生（`@capacitor/app` 的 `App.getInfo`，读 PackageManager —— debug 包的 versionName 带着
+  build.gradle 的 `versionNameSuffix "-debug"`），在加载 App 之前、与激活语言并排等它（`app/src/api/appVersion.ts`，最多等几百毫秒）。
+  问不到时（浏览器 `npm run dev`、原生没回话）用构建期烤进前端包的那一个：`android/app/build.gradle` defaultConfig 的
+  `versionName` / `versionCode`（`vite.config.ts` 的 `__APP_VERSION__`）—— 它**不带** `-debug`，前端包比 build.gradle 旧时它也是旧号
+  （发版脚本只比 APK 与 build.gradle，不看前端包里这个数），所以只当兜底。
 - **只给 `${API_BASE}/api/…`**（判定只在 `app/src/api/client.ts` 的 `withAppVersion`）。第三方一个都不带：Cloudinary 直传、
   dev 下 vite 代理直连的方舟、CDN、GitHub；自家服务器的 `/uploads/…` 静态目录也不带 —— 那一层的 CORS 只放行 `Content-Type`，
   多一个自定义头预检就被拒、整张图取不回来。
-- **缺失 = 2.62 及以前的老包**（它们一个都不发）。服务端拿它认版本（下线型号改发、强制更新、按老包口径结算……），
+- **缺失 = 2.62 及以前的老包**（它们一个都不发）。服务端（`middleware/appVersion`）把它解析成 `req.appVersion`，**只进日志**
+  （例：哪些版本还在发方舟下线了的出图 id —— 决定接班表与老价目什么时候能删），**不拿它做任何放行 / 计价 / 门禁判断**：
+  头是客户端写的、谁都能伪造。下线型号的改发与老包的结算认的是**请求体里的模型 id**（见「出图模型下线与改发」），与这个头无关。
   不能拿「没有这个头」当错误拒掉 —— 那会把所有还没更新的人一起关在门外。
+- **要拦老包，走更新清单的 `minVersionCode`**（侧载包自己拦，见 `docs/app-distribution.md`「强制更新」），不靠这个头。
+  2.62 及以前的包认不得 `minVersionCode`、也不发这个头 —— 服务端没有任何办法把它们挡在门外，它们靠的是服务端在出口改发型号。
 - ⚠ **部署顺序：服务端的 CORS 先放行这个头，再发 2.63。** WebView 的源是 `https://localhost`，打 `api.ideahubs.org` 是跨域：
   带自定义头的请求先发预检，预检回包的 `Access-Control-Allow-Headers` 里没有它 = 浏览器直接拦下、**这一包的每一个请求都失败**。
   今天 `app.js` 的 `cors()` 没设 `allowedHeaders`（按预检请求的头原样放行），所以已经放行；哪天改成显式清单，**这一项必须在里面**。
@@ -2425,8 +2431,9 @@ V2 这条链路**花两次真钱**，报价页必须**两笔都写明**，不许
   ⚠ 所以**服务端先部署**（白名单里要先有 `4-0-20260415`），再发 2.63 —— 反过来的话，2.63 在老服务端上出图整条 400 `model not allowed`
   （App 会说「出图模型用不了了，请更新 App」，而那时它已经是最新的）。
 - App 侧的人话：出图被拒（`/images/generations` 与组图受理）不再是一截 `Ark /images/generations 400: {…}`，而是按码说的一句话
-  （`arkClient.imageRefusalError`）；「这个模型用不了」（我们的 `MODEL_RETIRED` / `MODEL_NOT_ALLOWED` / 老服务端那句 `model not allowed`，
-  方舟的 `InvalidEndpointOrModel.*` / `ModelNotOpen` …，判据只在 `arkClient.modelGoneCode`）一律说「请把 App 更新到最新版」。
+  （`arkClient.imageRefusalError`）；「这个模型用不了」（我们服务端白名单那句 `{ ok:false, message:"model not allowed" }` —— **不带 code**，
+  这是现行形态、不是老服务端的遗留；`MODEL_RETIRED` 今天只有视频那条路回；方舟的 `InvalidEndpointOrModel.*` / `ModelNotOpen` …，
+  判据只在 `arkClient.modelGoneCode`）一律说「请把 App 更新到最新版」。⚠ 服务端没有 `MODEL_NOT_ALLOWED` 这个码，别照着它把判据收拾成只认码。
   错误**类型**不变（仍是 `ArkHttpError`），钱上的判定（`ai/failCharge`：服务端明说失败 = 没扣）不变。
 
 状态码约定（客户端据此决策，见 `app/src/ai/arkClient.ts`）：

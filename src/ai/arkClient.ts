@@ -218,7 +218,8 @@ export const MODELS = {
    *   把差价吃在我们自己这边）。
    * ★ 铸卡路径**不读这个值**：它按用户选的出图档位走（generateImage 的 opts.model）。
    * ★ 2026-10-10（2.63）起是 `doubao-seedream-4-0-20260415`：方舟第十批下线（2026-11-24 14:00）带走了 4.0 / 4.5 / 5.0 lite 三个老型号，
-   *   这是 4.0 的继任型号（10-10 付费验过：写实人脸的图生图照收、卡面 1728×2304 与竖屏帧 1440×2560 都出得来、像素窗口与 4.0 相同、能出组图）。
+   *   这是 4.0 的继任型号（10-10 付费验过：写实人脸的图生图照收、卡面 1728×2304 与竖屏帧 1440×2560 都出得来、像素窗口与 4.0 相同、能出组图；
+   *   耗时（单次，量级参考）卡面约 12~15 秒、竖屏帧约 34 秒 —— 都在客户端出图超时之内）。
    *   九宫格分镜的组图也用它（runImageGroup 那道 groupOk 闸）。老 App 发来的老型号由服务端在出口改发继任型号，见 docs/api-contract.md。
    */
   image: imageTierOf(DEFAULT_IMAGE_TIER).model,
@@ -611,17 +612,23 @@ export class ArkImageModelGone extends ArkImageRefused {
 }
 
 /**
- * 「这个模型用不了」的几种说法 —— **只认码**（全仓唯一判定；九宫格组图任务的整组失败码也问它）：
- *   · 我们服务端：`MODEL_RETIRED`（停用）/ `MODEL_NOT_ALLOWED`（不在白名单）；老服务端的白名单拒绝**没有码**，
- *     只有一句固定的机器话 `model not allowed`（server services/arkGateway：不是界面文案、不进目录）—— 码空时才认这一句；
+ * 「这个模型用不了」的几种说法 —— 全仓唯一判定（九宫格组图任务的整组失败码也问它）：
+ *   · 我们服务端：出图型号不在白名单时回 `{ ok:false, message:"model not allowed" }`，**不带 code** —— 这是**现行**形态，
+ *     不是老服务端的遗留（server services/arkGateway；2026-10-10 那一批的服务端改动也没给它加码）。那一句是固定的机器话、
+ *     不是界面文案、不进目录，所以认它不算「去 message 里找字」。我们自己的 `MODEL_RETIRED` 今天只有**视频**那条路会回
+ *     （server routes/ark 的 pinPlainVideoTask），留在这里是因为它的意思就是「停用了」，哪天出图那条也回它不用再改这里；
  *   · 方舟：`InvalidEndpointOrModel.*`（查无此模型 / 无权访问）、`ModelNotOpen`（账号没开通）、`…ModelIDAccessDisabled`、
  *     `…ClosedEndpoint` 与几种「已下线 / 不支持」的写法（错误码表 code_error-codes）。
+ * ⚠ 别把它「收拾」成只认码：服务端白名单那一句就是没有码的，收拾掉之后每一次白名单拒绝都退回成泛泛的
+ *   「出图请求没被受理（服务器返回 400）」，人不知道该去更新 App（2026-10-10 评审抓到：这里原来写着一个服务端从没发过的
+ *   `MODEL_NOT_ALLOWED`，还把那句没码的话叫成「老服务端」，照着收拾就是这个结果）。
+ *   反过来，哪天服务端给它加了码而 message 没变，码不认识也照样认得出（message 那一支不再只在「码空」时才看）。
  * ★ 认不出的一律当别的失败（不往「请更新 App」上靠）：把审核不过说成「模型停用了」，人会去更新一个已经是最新的 App。
  */
 const MODEL_GONE_CODE =
-  /^(MODEL_RETIRED|MODEL_NOT_ALLOWED)$|^InvalidEndpointOrModel|^ModelNotOpen|ModelIDAccessDisabled|ClosedEndpoint|ModelNotFound|ModelDeprecated|ModelRetired|UnsupportedModel/i;
+  /^MODEL_RETIRED$|^InvalidEndpointOrModel|^ModelNotOpen|ModelIDAccessDisabled|ClosedEndpoint|ModelNotFound|ModelDeprecated|ModelRetired|UnsupportedModel/i;
 export function modelGoneCode(code: string, message = ""): boolean {
-  if (code) return MODEL_GONE_CODE.test(code);
+  if (code && MODEL_GONE_CODE.test(code)) return true;
   return /^model not allowed$/i.test(message.trim());
 }
 

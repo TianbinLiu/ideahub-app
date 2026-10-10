@@ -5,15 +5,18 @@ import fs from "node:fs";
 import path from "node:path";
 
 /**
- * 这一包的版本「<versionName>+<versionCode>」（如 2.63+75）—— 每个打到自家服务器 /api/ 的请求都带它（X-App-Version，
- * src/api/client.ts 的 withAppVersion）。
+ * 这一包的版本「<versionName>+<versionCode>」（如 2.63+75）—— 请求头 X-App-Version 的**兜底值**（src/api/appVersion.ts）。
  *
- * ★ 只有一个出处：android/app/build.gradle 的 defaultConfig。发版脚本（scripts/release.mjs 的 readVersion）读的也是它，
- *   并且拿 APK 里的版本号逐字比对 —— 所以「头上报的版本」与「装在手机上的那个包」是同一个数，不会各说各的。
- *   为什么不在运行时问原生（AppVersion.describe）：那是异步的，而开机第一发请求（探活、读作品库）就要带上它；
- *   浏览器里（npm run dev）也没有原生可问。package.json 的 version 一直是 0.0.1，不是真版本号，别拿它。
- * ★ 读不出来就**当场构建失败**，不退成一个空串 / 0：头上报错版本号的后果是服务端按错的版本给这台 App 定规矩
- *   （比如按老包的口径换模型、结算），全程零报错。
+ * ★ 在手机上，头上报的是**装着的那一包**自己的版本（原生 App.getInfo，开机时问，见 src/api/appVersion 的 ★★）；
+ *   这里烤进前端包的这个数只在问不到原生时用：浏览器里（npm run dev）、原生没回话 / 回得太慢的那几发。
+ *   ⚠ 别把它当成「装着的那一包」：它是 `vite build` 那一刻 build.gradle **defaultConfig** 的值 ——
+ *   debug 包的 versionNameSuffix（"-debug"）不在里面（这时候还不知道 gradle 打哪个构建类型）；先出前端包、后涨 build.gradle
+ *   再直接跑 gradlew 的话它还是旧号。发版脚本（scripts/release.mjs 第 2 步）只比了 APK 与 build.gradle，**没有**核对它
+ *   （2026-10-10 评审改：这里原来说「发版脚本比对过，所以头上的就是装着的那一包」，那一道其实不看前端包）。
+ *   package.json 的 version 一直是 0.0.1，不是真版本号，别拿它。
+ * ★ 读不出来就**当场构建失败**，不退成一个空串 / 0：浏览器里没有原生可问，那时它就是唯一的值。
+ *   这个头服务端只记日志、不做判断（docs/api-contract.md「请求头 X-App-Version」），报错版本的后果是日志认错版本 ——
+ *   而那份日志正是用来定「方舟下线了的老型号什么时候能从接班表里删」的。
  */
 function appVersionFromGradle(): string {
   // 与 loadEnv 同一个根（npm 脚本都在仓库根目录跑）

@@ -4470,6 +4470,10 @@ msgstr "Three directions are drafted, but the first and last frames of {degraded
 msgid "三种走向推演完毕，已经投影在你面前——点开看看各自的首尾帧和剧情，选定一个。"
 msgstr "Three directions are drafted and projected in front of you — open them to see each one's first and last frames and story, then pick one."
 
+#: src/studio/studioStore.ts
+msgid "三种走向的剧情推演好了，但首尾帧一张都没画出来：{framesGone}。剧情先留着，点开看看。"
+msgstr "The stories for three directions are drafted, but none of the first or last frames could be drawn: {framesGone}. The stories are kept — open them to take a look."
+
 #. placeholder {0}: pv.lateSec.toFixed(1)
 #: src/pages/CutPage.tsx
 msgid "上一句还没念完，这一句晚 {0} 秒开始。"
@@ -10627,6 +10631,10 @@ msgstr "Couldn't load the official looks (this server may not have them yet)."
 #: src/components/flow/FlowCanvas.tsx
 msgid "官方技能"
 msgstr "Official skills"
+
+#: src/components/UpdateSheet.tsx
+msgid "官网也下不动？从 GitHub 下载这一版（备用，国内网络可能打不开）"
+msgstr "Website download not working either? Get this version from GitHub (backup; may not open on networks in mainland China)"
 
 #: src/data/economy.ts
 #~ msgid "定妆"
@@ -17082,8 +17090,8 @@ msgid "没能打开{app}的授权页。确认装的是正式版{app}并且版本
 msgstr "Couldn't open {app}'s sign-in page. Make sure you have the official {app} app and that it isn't too old, or sign in with your phone number or e-mail."
 
 #: src/components/UpdateSheet.tsx
-msgid "没能打开浏览器。可以手动访问：{DOWNLOAD_PAGE_URL}"
-msgstr "Couldn’t open the browser. You can visit it yourself: {DOWNLOAD_PAGE_URL}"
+msgid "没能打开浏览器。可以手动访问：{linkFailed}"
+msgstr "Couldn’t open the browser. You can visit it yourself: {linkFailed}"
 
 #: src/pages/SettingsPage.tsx
 #: src/pages/tutor/TutorHomePage.tsx
@@ -19848,6 +19856,11 @@ msgstr "Drafting failed for segment {0}"
 msgid "第 {0} 段推演好了三套方案"
 msgstr "Three plans drafted for segment {0}"
 
+#. placeholder {0}: idx + 1
+#: src/studio/flowStore.ts
+msgid "第 {0} 段推演好了剧情，但首尾帧没画出来"
+msgstr "Stories drafted for segment {0}, but the frames couldn’t be drawn"
+
 #. placeholder {0}: s.index + 1
 #: src/studio/structuredSkills.ts
 msgid "第 {0} 段改写出来是空的，这一次没有写回——再试一次"
@@ -19899,6 +19912,11 @@ msgstr "Segment {0}'s template \"{1}\" no longer exists"
 #: src/studio/flowStore.ts
 msgid "第 {0} 段用的模板没能随配方带上"
 msgstr "Segment {0}'s template was not included in the process"
+
+#. placeholder {0}: idx + 1
+#: src/studio/flowStore.ts
+msgid "第 {0} 段的三套剧情推演好了，但首尾帧一张都没画出来：{framesGone}"
+msgstr "Three stories are drafted for segment {0}, but none of the first or last frames could be drawn: {framesGone}"
 
 #. placeholder {0}: idx + 1
 #: src/studio/flowStore.ts

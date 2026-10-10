@@ -153,7 +153,13 @@ public class AppUpdaterPlugin extends Plugin {
                 ret.put("minVersionCode", min);
                 // ★ 只有「真有更新可装」时才算强制：清单上的新版不比手上这版新（发版脚本拦着，但清单是外部输入），
                 //   强制了也没有东西可装 —— 那是把人锁死在一张关不掉的弹层前面。
-                ret.put("mandatory", theirs > mine && mine < min);
+                // ★ debug 包（build.gradle 的 applicationIdSuffix ".debug"）**永远不强制**（2026-10-10 评审抓到）：
+                //   「立即更新」与两条浏览器下载装的都是正式包 —— 另一个包名，并排装上，这个 debug 包自己的 versionCode
+                //   一辈子到不了门槛（versionCode 只在 main 上涨，门槛之前切出去的 worktree 出的包就落在下面）。
+                //   强制的话它每次冷启动都是一张关不掉的弹层，整个包不能用。按包名判，因为原因就是「装的是另一个包」。
+                //   普通的「有新版」提示照旧（关得掉）。
+                boolean updatesElsewhere = getContext().getPackageName().endsWith(".debug");
+                ret.put("mandatory", !updatesElsewhere && theirs > mine && mine < min);
                 ret.put("versionName", j.optString("versionName", ""));
                 ret.put("apkUrl", j.optString("apkUrl", ""));
                 ret.put("sha256", j.optString("sha256", ""));
@@ -248,12 +254,26 @@ public class AppUpdaterPlugin extends Plugin {
         String base = url.substring(url.lastIndexOf("/") + 1).replaceAll("[^\\w.-]", "_");
         if (base.isEmpty()) base = "update.apk";
         final File part = new File(dir, base + ".part");
+        // 下完、校验过、改好名的那一个（安装器要一个正常后缀的文件）
+        final File apk = new File(dir, base.endsWith(".apk") ? base : base + ".apk");
         File[] stale = dir.listFiles();
         if (stale != null) {
             for (File f : stale) {
-                if (!f.getName().equals(part.getName())) //noinspection ResultOfMethodCallIgnored
+                // ★ 这一版自己的**成品**也留着（2026-10-10 评审抓到）：原来只留 .part，于是「下完 → 安装器弹出来 → 人点了取消 /
+                //   Play Protect 扫描时退了出来 → 再点一次「立即更新」」会把上次下好、校验过的整包删掉，60MB 从 0 重下。
+                //   强制更新那一版这张弹层关不掉，这一次重下期间人什么都干不了。
+                if (!f.getName().equals(part.getName()) && !f.getName().equals(apk.getName())) //noinspection ResultOfMethodCallIgnored
                     f.delete();
             }
+        }
+
+        // ★ 上次已经下好的成品：摘要对得上就直接拿去装，不再下一遍。
+        //   只在清单给了 sha256 时才复用 —— 没有摘要就证明不了它完整、没被改过，那就照老样子重下。
+        //   对不上 = 不是这一版 / 坏了，删掉重下。
+        if (apk.exists() && expectSha != null && !expectSha.isEmpty()) {
+            if (sha256Hex(apk).equalsIgnoreCase(expectSha)) return apk;
+            //noinspection ResultOfMethodCallIgnored
+            apk.delete();
         }
 
         boolean done = false;
@@ -261,8 +281,10 @@ public class AppUpdaterPlugin extends Plugin {
             try {
                 done = fetchInto(url, part);
             } catch (PermanentDownloadError e) {
-                // ★ 再试也不会好：当场抛，别让用户白等 15 秒重试，更别许一个不存在的出口
-                throw new Exception(e.getMessage() + "。这个地址上没有这一版的包了，等下一版或者去官网重下。");
+                // ★ 再试也不会好：当场抛，别让用户白等 15 秒重试，更别许一个不存在的出口 ——
+                //   原来这句指人「去官网重下」，而官网下载页 302 到的正是同一个镜像文件（2026-10-10 评审抓到）。
+                //   强制更新那一版的弹层上另摆着 GitHub 那条备用路（components/UpdateSheet），这里不再替它指路
+                throw new Exception(e.getMessage() + "。这个地址上没有这一版的包了，等下一版出来再更新。");
             } catch (Exception e) {
                 // ★ 断了就接着试，**不删残包** —— 它正是下一轮要接着下的那一半。
                 //   最后一轮还不成才把原因抛上去，并如实说这一半在不在（见 resumeTail）。
@@ -288,15 +310,7 @@ public class AppUpdaterPlugin extends Plugin {
 
         // ★ 校验放在最后、对整个文件算：续传拼出来的包与一次下完的包走同一道闸
         if (expectSha != null && !expectSha.isEmpty()) {
-            MessageDigest sha = MessageDigest.getInstance("SHA-256");
-            try (InputStream in = new FileInputStream(part)) {
-                byte[] buf = new byte[64 * 1024];
-                int n;
-                while ((n = in.read(buf)) > 0) sha.update(buf, 0, n);
-            }
-            StringBuilder hex = new StringBuilder();
-            for (byte b : sha.digest()) hex.append(String.format("%02x", b));
-            if (!hex.toString().equalsIgnoreCase(expectSha)) {
+            if (!sha256Hex(part).equalsIgnoreCase(expectSha)) {
                 // ★ 校验不过**必须删**：留着它，下一次会被当成"下了一半"接着下，
                 //   而它本来就是坏的 —— 用户会陷进一个永远修不好的循环。
                 //noinspection ResultOfMethodCallIgnored
@@ -305,12 +319,23 @@ public class AppUpdaterPlugin extends Plugin {
             }
         }
 
-        // 安装器要一个正常后缀的文件
-        File apk = new File(dir, base.endsWith(".apk") ? base : base + ".apk");
         //noinspection ResultOfMethodCallIgnored
         apk.delete();
         if (!part.renameTo(apk)) throw new Exception("下载完了但改名失败，存储可能已满");
         return apk;
+    }
+
+    /** 整个文件的 SHA-256（小写十六进制）。60MB 顺序读在手机上不到一秒；下完校验与复用上次的成品走同一个函数 */
+    private static String sha256Hex(File f) throws Exception {
+        MessageDigest sha = MessageDigest.getInstance("SHA-256");
+        try (InputStream in = new FileInputStream(f)) {
+            byte[] buf = new byte[64 * 1024];
+            int n;
+            while ((n = in.read(buf)) > 0) sha.update(buf, 0, n);
+        }
+        StringBuilder hex = new StringBuilder();
+        for (byte b : sha.digest()) hex.append(String.format("%02x", b));
+        return hex.toString();
     }
 
     /**

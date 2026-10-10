@@ -24,6 +24,7 @@
 //   npm run release -- --min-version-code=75
 //                              这一版起**强制更新**：versionCode < 75 的包一打开就只能更新（清单的 minVersionCode，见 parseMinFlag 的 ★★）。
 //                              不传 = 沿用上一版清单里的值（没有就是不强制）。也可以用环境变量 RELEASE_MIN_VERSION_CODE=75。
+//                              `--min-version-code 75`（空格隔开）也认；认不出的参数一律当场停（见 parseArgs 的 ★★）。
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
@@ -31,10 +32,78 @@ import path from "node:path";
 import url from "node:url";
 
 const root = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), "..");
-const DRY = process.argv.includes("--dry");
 
 /**
- * 这一次**显式**要的 minVersionCode（`--min-version-code=N` 或环境变量 RELEASE_MIN_VERSION_CODE）；没给 = undefined（沿用上一版的）。
+ * 命令行参数 —— 只认这几种写法：`--dry`、`--min-version-code=N`、`--min-version-code N`；**别的一律当场停**。
+ *
+ * ★★ 为什么要严（2026-10-10 评审抓到）：原来只认 `--min-version-code=N` 这一种写法，其余写法**被悄悄忽略**：
+ *   · `npm run release -- --min-version-code 76`（空格）→ 没认出来 → 沿用上一版的门槛（多半是 0）→ 强制更新悄悄没发出去；
+ *   · `npm run release --min-version-code=76`（少了 `--`）→ npm 把它吞成自己的配置（环境变量 npm_config_min_version_code），
+ *     脚本根本收不到，结局同上。`npm run release --dry` 同理：npm 吞掉 `--dry`，脚本**照常正式发布**。
+ *   全程只多一行「✓ 不强制更新」，发完的核对也照着那个沿用的数核、一路全绿；而同一个版本号发出去就改不了（重跑不许改门槛），
+ *   要补只能再涨一版。所以：认不出就停；npm 吞掉的那两个从它的环境变量里捡回来，并当面说一句。
+ */
+function parseArgs() {
+  const argv = process.argv.slice(2);
+  let dry = false;
+  /** @type {string | undefined} */
+  let minRaw;
+  let minFrom = "";
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === "--dry") dry = true;
+    else if (a.startsWith("--min-version-code=")) {
+      minRaw = a.slice("--min-version-code=".length);
+      minFrom = a;
+    } else if (a === "--min-version-code") {
+      const v = argv[i + 1];
+      if (v === undefined || v.startsWith("-")) die("--min-version-code 后面要跟一个整数（versionCode），例：--min-version-code=76");
+      minRaw = v;
+      minFrom = `${a} ${v}`;
+      i++;
+    } else {
+      die(`不认识的参数「${a}」。只认：--dry、--min-version-code=N（或 --min-version-code N）。\n` +
+          `写错的参数不会被悄悄忽略 —— 那正是强制更新没发出去、却一路显示成功的那种错。`);
+    }
+  }
+  // npm 吞掉的写法（少了 `--`）：值在 npm_config_* 里。捡回来，但要说出来 —— 下次照着文档写 `npm run release -- …`
+  // ★ `--dry` 会被 npm 按缩写认成它自己的 `--dry-run`（npm 11 实测：npm_config_dry_run=true，npm_config_dry 不出现），两个都看。
+  //   `--min-version-code 76`（少了 `--`、空格隔开）npm 会把 76 当成位置参数传进来 —— 上面那条「不认识的参数」会停在它上面
+  const truthy = (v) => v !== undefined && v !== "" && v !== "false";
+  if (truthy(process.env.npm_config_dry) || truthy(process.env.npm_config_dry_run)) {
+    console.log("⚠ 看到 npm 吞掉的 --dry（写成了 npm run release --dry，少了 `--`）—— 按「只检查不发布」跑。下次写 npm run release -- --dry");
+    dry = true;
+  }
+  const npmMin = process.env.npm_config_min_version_code;
+  if (npmMin !== undefined && npmMin !== "") {
+    if (minRaw !== undefined && minRaw.trim() !== npmMin.trim()) {
+      die(`两处给了不同的 min-version-code：${minFrom} 与 npm 吞掉的那一个（${npmMin}）。只给一处。`);
+    }
+    if (minRaw === undefined) {
+      console.log(`⚠ 看到 npm 吞掉的 --min-version-code=${npmMin}（少了 \`--\`）—— 照它算。下次写 npm run release -- --min-version-code=${npmMin}`);
+      minRaw = npmMin;
+      minFrom = `npm_config_min_version_code=${npmMin}`;
+    }
+  }
+  const envMin = process.env.RELEASE_MIN_VERSION_CODE;
+  if (envMin !== undefined && envMin !== "") {
+    if (minRaw !== undefined && minRaw.trim() !== envMin.trim()) {
+      die(`两处给了不同的 min-version-code：${minFrom} 与环境变量 RELEASE_MIN_VERSION_CODE=${envMin}。只给一处。`);
+    }
+    if (minRaw === undefined) {
+      minRaw = envMin;
+      minFrom = `RELEASE_MIN_VERSION_CODE=${envMin}`;
+    }
+  }
+  return { dry, minRaw };
+}
+
+const ARGS = parseArgs();
+const DRY = ARGS.dry;
+
+/**
+ * 这一次**显式**要的 minVersionCode（命令行 / npm 吞掉的那一个 / 环境变量 RELEASE_MIN_VERSION_CODE，收集在 parseArgs）；
+ * 没给 = undefined（沿用上一版的）。
  *
  * ★★ 为什么要有这一格（2026-10-10，方舟 11-24 下线那一批）：清单里的 minVersionCode = 「比它老的包必须先更新才能接着用」
  *   （App 侧 AppUpdaterPlugin.check 算 mandatory，弹层关不掉、不认「以后再说」）。它是一把**只能往上拧**的锁：
@@ -45,12 +114,13 @@ const DRY = process.argv.includes("--dry");
  * ★ 0 = 不强制（清单里就不写这一格，老清单本来就没有它）。
  */
 function parseMinFlag() {
-  const arg = process.argv.find((a) => a.startsWith("--min-version-code="));
-  const raw = arg ? arg.slice("--min-version-code=".length) : process.env.RELEASE_MIN_VERSION_CODE;
+  const raw = ARGS.minRaw;
   if (raw === undefined || raw === "") return undefined;
   if (!/^\d+$/.test(raw.trim())) die(`--min-version-code 只收非负整数（versionCode），收到的是「${raw}」`);
   return Number(raw.trim());
 }
+/** 一开跑就核对写法（写错了别等到出完包、拉完清单才停） */
+const ASKED_MIN = parseMinFlag();
 
 /**
  * 签名证书指纹。★ 钉死在这里是**故意的**：它是"老用户还能不能装上这次更新"的唯一保证。
@@ -343,7 +413,7 @@ async function main() {
   }
 
   // ── 4b. 最低可用版本（强制更新）—— 只往上拧（见 parseMinFlag 的 ★★）─────────
-  const asked = parseMinFlag();
+  const asked = ASKED_MIN;
   const liveMin = live && Number.isInteger(live.minVersionCode) && live.minVersionCode > 0 ? live.minVersionCode : 0;
   let minVersionCode;
   if (exists) {
@@ -376,15 +446,19 @@ async function main() {
     die(`minVersionCode ${minVersionCode} 比这一版的 versionCode ${versionCode} 还大 —— 刚发的这一版也会被判成「必须更新」，\n` +
         `所有人都被锁在一张关不掉的弹层前面、却没有版本可装。最大只能是 ${versionCode}。`);
   }
+  // ★ 「这个数是显式给的，还是沿用的」要说出来：想发强制更新却写错了参数时，这一行是唯一的线索（parseArgs 的 ★★）
+  const carried = exists || (asked === undefined && !!live);
   console.log(minVersionCode > 0
-    ? `✓ minVersionCode = ${minVersionCode}：versionCode < ${minVersionCode} 的包打开后只能更新${asked !== undefined && !exists ? "" : "（沿用线上清单里的值）"}`
-    : "✓ 不强制更新（清单里不写 minVersionCode）");
+    ? `✓ minVersionCode = ${minVersionCode}：versionCode < ${minVersionCode} 的包打开后只能更新${carried ? "（沿用线上清单里的值）" : ""}`
+    : `✓ 不强制更新（清单里不写 minVersionCode）${carried ? "—— 没带 --min-version-code，沿用上一版（它也不强制）" : ""}`);
 
   // ── 5. 写清单 ────────────────────────────────────────────
   const apkBuf = fs.readFileSync(APK);
   const notesFile = path.join(root, "RELEASE_NOTES.md");
   const notes = fs.existsSync(notesFile) ? fs.readFileSync(notesFile, "utf8").trim() : "";
   if (!notes) console.log("⚠ 没有 RELEASE_NOTES.md —— 更新弹窗里将没有「这一版改了什么」");
+  // ⚠ tag（v<versionName>）与这个资产名 App 里也照着拼了一份：强制更新时的 GitHub 备用下载（src/data/appUpdate.githubApkUrl）——
+  //   清单经服务端转手时 apkUrl 被改写成镜像地址，App 拿不到下面这个原值。这里改名，那边一起改
   const apkAsset = `qimeng-${versionName}.apk`;
   const manifest = {
     versionCode,

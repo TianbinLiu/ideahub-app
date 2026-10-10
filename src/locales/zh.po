@@ -4474,6 +4474,10 @@ msgstr "三种走向推演完毕，但有 {degraded} 个方案的首尾帧没画
 msgid "三种走向推演完毕，已经投影在你面前——点开看看各自的首尾帧和剧情，选定一个。"
 msgstr "三种走向推演完毕，已经投影在你面前——点开看看各自的首尾帧和剧情，选定一个。"
 
+#: src/studio/studioStore.ts
+msgid "三种走向的剧情推演好了，但首尾帧一张都没画出来：{framesGone}。剧情先留着，点开看看。"
+msgstr "三种走向的剧情推演好了，但首尾帧一张都没画出来：{framesGone}。剧情先留着，点开看看。"
+
 #. placeholder {0}: pv.lateSec.toFixed(1)
 #: src/pages/CutPage.tsx
 msgid "上一句还没念完，这一句晚 {0} 秒开始。"
@@ -10635,6 +10639,10 @@ msgstr "官方形象读不到（这台服务器可能还没有）。"
 #: src/components/flow/FlowCanvas.tsx
 msgid "官方技能"
 msgstr "官方技能"
+
+#: src/components/UpdateSheet.tsx
+msgid "官网也下不动？从 GitHub 下载这一版（备用，国内网络可能打不开）"
+msgstr "官网也下不动？从 GitHub 下载这一版（备用，国内网络可能打不开）"
 
 #: src/data/economy.ts
 #~ msgid "定妆"
@@ -17090,8 +17098,8 @@ msgid "没能打开{app}的授权页。确认装的是正式版{app}并且版本
 msgstr "没能打开{app}的授权页。确认装的是正式版{app}并且版本不太旧，或者用手机号、邮箱登录。"
 
 #: src/components/UpdateSheet.tsx
-msgid "没能打开浏览器。可以手动访问：{DOWNLOAD_PAGE_URL}"
-msgstr "没能打开浏览器。可以手动访问：{DOWNLOAD_PAGE_URL}"
+msgid "没能打开浏览器。可以手动访问：{linkFailed}"
+msgstr "没能打开浏览器。可以手动访问：{linkFailed}"
 
 #: src/pages/SettingsPage.tsx
 #: src/pages/tutor/TutorHomePage.tsx
@@ -19856,6 +19864,11 @@ msgstr "第 {0} 段推演失败"
 msgid "第 {0} 段推演好了三套方案"
 msgstr "第 {0} 段推演好了三套方案"
 
+#. placeholder {0}: idx + 1
+#: src/studio/flowStore.ts
+msgid "第 {0} 段推演好了剧情，但首尾帧没画出来"
+msgstr "第 {0} 段推演好了剧情，但首尾帧没画出来"
+
 #. placeholder {0}: s.index + 1
 #: src/studio/structuredSkills.ts
 msgid "第 {0} 段改写出来是空的，这一次没有写回——再试一次"
@@ -19907,6 +19920,11 @@ msgstr "第 {0} 段用的模板「{1}」已经不在了"
 #: src/studio/flowStore.ts
 msgid "第 {0} 段用的模板没能随配方带上"
 msgstr "第 {0} 段用的模板没能随配方带上"
+
+#. placeholder {0}: idx + 1
+#: src/studio/flowStore.ts
+msgid "第 {0} 段的三套剧情推演好了，但首尾帧一张都没画出来：{framesGone}"
+msgstr "第 {0} 段的三套剧情推演好了，但首尾帧一张都没画出来：{framesGone}"
 
 #. placeholder {0}: idx + 1
 #: src/studio/flowStore.ts

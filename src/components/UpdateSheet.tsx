@@ -8,9 +8,15 @@
 //
 // ★★ 强制更新（清单的 minVersionCode，判据只在 data/appUpdate.isMandatory，2026-10-10）：这张弹层就是这一版唯一的出口 ——
 //   · 关不掉：没有「以后再说」、没有「关闭」，点遮罩不关；安卓返回键（全 app 没人监听 backButton，默认是 WebView 后退）
-//     只退得动底下那一页，这张弹层挂在路由之外（App.tsx 的 UpdateGate），退不掉它。
-//   · 但**永远有路可走**：下不动 / 校验不过 / 装不上都留着「重试」，另给一条「在浏览器里打开官网下载页」（DOWNLOAD_PAGE_URL）——
-//     应用内更新整条走不通的时候（镜像挂了、存储满了、系统不让装），人还能从官网把新包装上。打不开浏览器就把地址写出来。
+//     只退得动底下那一页，这张弹层挂在路由之外（App.tsx 的 UpdateGate），退不掉它。**强制的那一版只在那里画**：
+//     设置页查到的也交过去（data/appUpdate.raiseForcedUpdate）—— 画在设置页里的话返回键连页带弹层一起退掉（2026-10-10 评审抓到）。
+//   · 但**永远有路可走**：下不动 / 校验不过 / 装不上都留着「重试」，另给两条在浏览器里下的路，管的是两类不同的坏法：
+//     ① 官网下载页（DOWNLOAD_PAGE_URL）—— 坏在**这台手机上的应用内那一条**时用：本 App 没拿到「安装未知应用」的授权、
+//       原生下载器在这台机器上出毛病。⚠ 它**不是**第二个下载源：官网那颗键 302 到的是同一个镜像文件、同一个 Cloudflare 边缘
+//       （docs/app-distribution.md「更新源现在长什么样」）。原来这里写着「镜像挂了也能从官网装」，是错的（2026-10-10 评审抓到）。
+//     ② GitHub Release 上的同一个包（githubApkUrl）—— 坏在**镜像**时用：镜像上没有这个文件（404 → 原生那句「去官网重下」）、
+//       Cloudflare 缓存了一份 404 或坏的副本。那是另一套机器，发版脚本传上去的权威那份；国内网络常打不开它，所以照实说是备用。
+//     打不开浏览器就把那个地址写出来。
 //   · 层级压在引导层（GUIDE_Z = 90）之上：引导会在各屏自己弹出来，盖住这张卡的话人只看得见引导、点不到更新。
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useState } from "react";
@@ -20,6 +26,7 @@ import {
   canInstall,
   downloadAndInstall,
   fmtSize,
+  githubApkUrl,
   isMandatory,
   openInstallPermission,
   skipVersion,
@@ -36,16 +43,18 @@ export default function UpdateSheet({ info, onClose }: { info: UpdateInfo; onClo
   const [err, setErr] = useState("");
   /** 强制更新：这一版关不掉（见文件头 ★★） */
   const forced = isMandatory(info);
-  /** 打不开浏览器（被拦 / 没有浏览器）：把官网下载页的地址写出来，让人自己去 */
-  const [linkFailed, setLinkFailed] = useState(false);
+  /** 打不开浏览器（被拦 / 没有浏览器）时打不开的那个地址：写出来，让人自己去。空串 = 没有失败 */
+  const [linkFailed, setLinkFailed] = useState("");
   const versionName = info.versionName;
+  /** 镜像也坏了时的备用源（文件头 ★★ 的 ②）；版本号拼不进地址时没有这一条 */
+  const githubUrl = githubApkUrl(info);
 
-  async function openDownloadPage() {
-    setLinkFailed(false);
+  async function openLink(url: string) {
+    setLinkFailed("");
     try {
-      await openExternal(DOWNLOAD_PAGE_URL);
+      await openExternal(url);
     } catch {
-      setLinkFailed(true);
+      setLinkFailed(url);
     }
   }
 
@@ -169,19 +178,27 @@ export default function UpdateSheet({ info, onClose }: { info: UpdateInfo; onClo
           </button>
         </div>
 
-        {/* 另一条路：官网下载页（只给强制的那一版：它关不掉，应用内那条整个走不通时人还得有路可走；
-            普通更新照旧一字不变 —— 关掉弹层、过两天再点就是它的出路） */}
+        {/* 另外两条路（只给强制的那一版：它关不掉，应用内那条整个走不通时人还得有路可走；
+            普通更新照旧一字不变 —— 关掉弹层、过两天再点就是它的出路）。两条各管什么见文件头 ★★ */}
         {forced && (
-          <div className="mt-2 text-center">
+          <div className="mt-2 flex flex-col items-center gap-1.5 text-center">
             <button
-              onClick={() => void openDownloadPage()}
+              onClick={() => void openLink(DOWNLOAD_PAGE_URL)}
               className="text-[11px] text-brand underline underline-offset-2"
             >
               <Trans>下不动、装不上？在浏览器里打开官网下载页</Trans>
             </button>
+            {githubUrl && (
+              <button
+                onClick={() => void openLink(githubUrl)}
+                className="text-[11px] text-brand underline underline-offset-2"
+              >
+                <Trans>官网也下不动？从 GitHub 下载这一版（备用，国内网络可能打不开）</Trans>
+              </button>
+            )}
             {linkFailed && (
-              <p className="mt-1 select-all text-[11px] leading-relaxed text-rose-300">
-                <Trans>没能打开浏览器。可以手动访问：{DOWNLOAD_PAGE_URL}</Trans>
+              <p className="select-all break-all text-[11px] leading-relaxed text-rose-300">
+                <Trans>没能打开浏览器。可以手动访问：{linkFailed}</Trans>
               </p>
             )}
           </div>

@@ -213,10 +213,17 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   ② **「定妆」（`studio`，4.5）撤了**：老卡上的 `imageTier: "studio"` 原样留着，`imageTierOf` 落到默认档；B「现做一个主角」改用精绘（`leadCast.LEAD_IMAGE_TIER`，
   报价 / 余额门 / 出图 / 结算都读它）。老 App 发来的老型号由**服务端在出口改发**，App 什么都不用做。
   ③ **出图被拒说人话**：`/images/generations` 与组图受理的非 2xx 走 `arkClient.imageRefusalError`（`ArkImageRefused`，模型用不了是子类 `ArkImageModelGone`，
-  判据只在 `modelGoneCode`）—— 仍是 `ArkHttpError`，钱上的判定不变；推演那一处只有方舟明说是**输入的图**不过才说「参考图未被受理」，模型用不了就不重试、一张都没画成时整句抛。
-  ④ **`X-App-Version: <versionName>+<versionCode>`** 只给 `${API_BASE}/api/…`（判定只在 `api/client.withAppVersion`，版本只从 build.gradle 来 —— vite.config 的 `__APP_VERSION__`）：
+  判据只在 `modelGoneCode`；服务端白名单那句 `model not allowed` **不带码**、是现行形态，别把判据收拾成只认码）—— 仍是 `ArkHttpError`，钱上的判定不变；
+  推演那一处只有方舟明说是**输入的图**不过才说「参考图未被受理」，模型用不了就不重试；一张都没画成时**剧情照交**（那一发对话付过钱），
+  原因经 `generateProposals` 的 `onFramesGone` 交给两个调用方说在推演结果旁边（别改回整句抛：抛在计费之后、丢掉付过钱的剧情）。
+  ④ **`X-App-Version: <versionName>+<versionCode>`** 只给 `${API_BASE}/api/…`（判定只在 `api/client.withAppVersion`）。值是**装着的那一包**：
+  开机时问原生（`api/appVersion`，main.tsx 在加载 App 之前并排等它，debug 包带 `-debug`），问不到才用 vite.config 烤进来的 `__APP_VERSION__`（build.gradle defaultConfig）。
+  服务端**只记日志**、不拿它做任何判断（客户端写的、能伪造；改发与结算认请求体里的模型 id）—— 别指望靠它拦老包。
   新写一个打自家服务器的裸 fetch 要过它；第三方与 `/uploads/…`（那层 CORS 只放行 Content-Type）一律不带。服务端 CORS 先放行这个头，再发带它的包。
-  ⑤ **强制更新**只有 `appUpdate.isMandatory` 一个判据（原生 `check` 回的 `mandatory`）；弹层关不掉但永远留着「重试」+「官网下载页」；发版脚本只在显式 `--min-version-code` 时写新门槛、只能往上拧。
+  ⑤ **强制更新**只有 `appUpdate.isMandatory` 一个判据（原生 `check` 回的 `mandatory`；debug 包永远不强制 —— 它更新装的是另一个包名）；
+  弹层只由 App 根上的 `UpdateGate` 画（设置页查到的也经 `raiseForcedUpdate` 交过去，画在设置页里返回键能把它退掉），关不掉但永远留着
+  「重试」+「官网下载页」+「GitHub 上的同一个包」（官网那条拉的是同一个镜像，镜像坏了只有 GitHub 那条是另一个源）；
+  发版脚本只在显式 `--min-version-code` 时写新门槛、只能往上拧，认不出的参数当场停。
 - **方案有结构化镜头字段**（`types.ShotSpec`：景别 / 运镜 / 情绪节拍，2026-09-06 对标 updream 分镜 Skill）：推演按字段写、
   `segmentGen.shotPrefix` 把它拼在正文最前、方案台显示、发布时折进 `VideoSegment.plot`。**一段出片的生成契约**是
   `real.GenSpec`（composeSegments 的入参），提交前 `describeGenSpec` 写一行「生成契约 · 模式 · 档 · 画幅 · 时长 · 参考图 N」进步骤日志——
