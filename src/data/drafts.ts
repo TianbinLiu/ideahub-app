@@ -28,6 +28,7 @@
 //   别的账号草稿里引用着的成片与 GLB 会被当孤儿删掉。
 import { t } from "@lingui/core/macro";
 import { idbDel, idbGet, idbRead, idbSet } from "./db";
+import { showToast } from "./toast";
 import { deviceOwner, mayClaimLegacy, onViewerChange, workOwner } from "./deviceOwner";
 import { shrinkDataUrl } from "../utils/image";
 import { Card, NodeSlot, uid } from "../types";
@@ -316,6 +317,12 @@ export async function saveDraft(input: {
     const dropped = mine.filter((d) => !keep.some((k) => k.id === d.id));
     index = index.filter((d) => !dropped.some((x) => x.id === d.id));
     for (const d of dropped) void idbDel(bodyKey(d.id));
+    // ★ 淘汰要说出来（sommerville-requirements-8，2026-10-15 拍板）：被挤掉的正文直接删、原来零提示 —— 而每条草稿里都可能
+    //   躺着花过钱的成片。一条轻提示挡不住淘汰（上限仍是 MAX_DRAFTS，改按字节预算淘汰要先量过配额），但人至少知道是哪一条没了。
+    if (dropped.length > 0) {
+      const title = dropped[0].title || t`未命名`;
+      showToast(t`草稿满 ${MAX_DRAFTS} 条，最旧的「${title}」已清掉`, 6000);
+    }
   }
   persistIndex();
   emit();

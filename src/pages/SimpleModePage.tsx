@@ -48,7 +48,13 @@ export default function SimpleModePage() {
   const err = useFlow((s) => s.err);
   const busy = useFlow((s) => s.busy);
   const { seedSolo, setNodeTemplate, updateProposal, genNode } = useFlow();
-  const [step, setStep] = useState<Step>("start");
+  // ★ 从生成中途退出来再回来（出片胶囊「回去看看」只回这一页）直接站到第③步（2026-10-15 发版前复核抓到）：10-14 起胶囊在开炉的那一面
+  //   不画，而这一页原来一律从第①步起 —— 段正在炼、屏幕上却是「想怎么开始？」，没有一个字说正在生成；炼完的也一样回第③步看结果
+  const [step, setStep] = useState<Step>(() => {
+    const st = useFlow.getState();
+    const n = st.mode === "simple" && st.nodes.length === 1 ? st.nodes[0] : undefined;
+    return n && (n.status === "generating" || nodeDone(n)) ? "go" : "start";
+  });
   /** 走哪条路。null = 还没选（第 1 屏） */
   const [route, setRoute] = useState<"template" | "custom" | null>(null);
 

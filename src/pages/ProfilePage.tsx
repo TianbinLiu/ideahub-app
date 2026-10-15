@@ -672,7 +672,7 @@ export default function ProfilePage() {
         {uidNum != null && (
           <button
             onClick={copyUid}
-            className="mt-1 flex items-center gap-1.5 text-[11px] tabular-nums text-slate-600 active:opacity-60"
+            className="mt-1 flex items-center gap-1.5 text-[11px] tabular-nums text-slate-400 active:opacity-60"
           >
             <span>UID {uidNum}</span>
             <span className="text-slate-700"><Trans>点按复制</Trans></span>
@@ -1848,7 +1848,7 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
               </button>
             ))}
       </div>
-      <p className="mt-3 text-center text-[10px] leading-relaxed text-slate-600">
+      <p className="mt-3 text-center text-[10px] leading-relaxed text-slate-400">
         {playItems
           ? t`通过 Google Play 付款，额度付完即到账；套餐订阅暂未在这个渠道开放`
           : payable === false

@@ -589,7 +589,7 @@ export type FlowTemplate = {
  */
 function clearTemplate(): Pick<
   FlowState,
-  "template" | "subject" | "cast" | "castErr" | "castFallback" | "castBusy" | "castNodeId" | "deckOff" | "alts" | "reviseOf" | "remixOf"
+  "template" | "subject" | "cast" | "castErr" | "castFallback" | "castBusy" | "castNodeId" | "deckOff" | "alts" | "reviseOf" | "remixOf" | "segTrash"
 > {
   // deckOff 也在这里回默认：本函数的调用点恰好就是全部「整表换流水线/复位」点，
   // 而「只出片不出卡组」是**每条片各自**的选择，不该跟到下一条片上。
@@ -598,7 +598,9 @@ function clearTemplate(): Pick<
   // reviseOf 同理，而且它比前两位更要命：这几处全是**整表换掉 nodes**，
   // 留着它等于让下一条不相干的流水线拿着"替换那条已发布作品"的权力去发布（见 FlowState.reviseOf 的 ★★）
   // remixOf（按谁的流程做的同款）同理：整表换掉 nodes 之后就不再是那条的同款 —— 留着会把一条不相干的片署成别人的同款
-  return { template: null, subject: "", cast: {}, castErr: "", castFallback: "", castBusy: false, castNodeId: null, deckOff: true, alts: {}, reviseOf: null, remixOf: null };
+  // segTrash（最近删掉的段，供「撤销」放回）同理：它记的下标与归档都是**旧那条**流水线上的，流水线换掉之后放回去
+  //   就是把一段不相干的内容插进新流水线（reset / seed / 换账号三条路都经这里，见 FlowState.segTrash 的 ★）
+  return { template: null, subject: "", cast: {}, castErr: "", castFallback: "", castBusy: false, castNodeId: null, deckOff: true, alts: {}, reviseOf: null, remixOf: null, segTrash: null };
 }
 
 /**
@@ -1945,7 +1947,27 @@ interface FlowState {
   addExtraRef: (nodeId: string, ref: { url: string; name: string; role: ExtraRefRole }) => string | null;
   updateExtraRef: (nodeId: string, refId: string, patch: { name?: string; role?: ExtraRefRole }) => boolean;
   removeExtraRef: (nodeId: string, refId: string) => void;
+  /**
+   * 删段。能不能删的门禁都在这里（只剩一段且已出片 / 在途生成），拒了原因在 err。
+   * ★ 2026-10-15（教材人格评审 norman-interaction-5，按 10-14「先做、再给撤销」的口径）：删掉的段停进 `segTrash`，
+   *   `restoreNode` 能原样放回去。界面上那条带「撤销」的轻提示只有一份（components/flow/DeleteSegBtn.removeNodeWithUndo）。
+   */
   removeNode: (id: string) => void;
+  /**
+   * 最近一次删掉的段（**只在内存里**，不进草稿、不落盘）：段本身、它原来的下标、它名下的分支归档，以及删的时刻。
+   * ★ 只存最近一条：轻提示上的「撤销」也只有最近一条（新来的顶掉旧的），存一叠等于给一个不存在的入口备货。
+   * ★ 跟着 `clearTemplate()` 清（整表换流水线 / 复位 / 换账号）：下标与归档都是**那条**流水线上的，流水线没了它就是指着空处的死链，
+   *   放回去会把一段不相干的内容插进新流水线。
+   * ★ `template` 只在「删到一段不剩」那一拍记（removeNode 那时顺手清掉了 store 级模板快照），放回去时只有流水线仍然空着才还原 ——
+   *   中间又加过段的话，store 级模板已经是那一段的事了。
+   */
+  segTrash: { node: FlowNode; index: number; alts?: Record<string, FlowNode[]>; template?: FlowTemplate | null; at: number } | null;
+  /**
+   * 把 `segTrash` 里那一段放回原位（下标越界就接在末尾）、归档一并放回，然后走 setCursor 站到它上面。
+   * 整句拒（原因在 err、回 false）：busy / 有段在生成中（与 removeNode 同一道闸：genNode 的闭包捏着 idx，这时往前插一段，
+   * 回包就写到别的段上）、垃圾桶是空的、同 id 的段已经在流水线上。
+   */
+  restoreNode: (id: string) => boolean;
   setCursor: (i: number) => void;
   shiftCursor: (dir: 1 | -1) => void;
 
@@ -2018,6 +2040,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
   genFrom: null,
   genRun: 0,
   genStarted: null,
+  segTrash: null,
   mediaRev: 0,
   clearGenNotice: () => set({ genNotice: null }),
   template: null,
@@ -3792,12 +3815,66 @@ export const useFlow = create<FlowState>()((set, get) => ({
     //   那个模板；而 placeholderVisible 问的是 appendBlocked(nodes, null)（亮）、appendNode 问的是
     //   appendBlocked(nodes, s.template)（拒「白模复刻段只有一段」）—— 用户在铸段窗付完推演费、三套方案落桌
     //   那一拍才被拒，钱已花、方案没处放（铁律五的钱坑，零报错）。空流水线没有模板，这里就是唯一的清点。
-    set({ nodes: rest, alts, ...(rest.length === 0 ? { template: null, cast: {} } : {}) });
+    // ★ 删掉的段停进 segTrash（只在真删掉一段时；id 不在流水线上什么都不记），连同它的下标、归档，
+    //   以及"删到一段不剩"那一拍顺手清掉的 store 级模板 —— restoreNode 放回去时这几样一起还原，撤销才是真的撤销
+    const trash: FlowState["segTrash"] =
+      i >= 0
+        ? { node: s.nodes[i], index: i, ...(s.alts[id] ? { alts: s.alts[id] } : {}), ...(rest.length === 0 ? { template: s.template } : {}), at: Date.now() }
+        : s.segTrash;
+    set({ nodes: rest, alts, segTrash: trash, ...(rest.length === 0 ? { template: null, cast: {} } : {}) });
     // ★★ 走 setCursor，别自己 set 一个下标（2026-08-21 第三轮验证）：换段这件事还要把
     //   store 级模板与挂卡缓冲换成那一段自己的。自己 set 的话，删完之后这两样还停在
     //   **被删那一段**上 —— 线性视图的挂卡区按已经不存在的角色位渲染，挂法直接串段。
     //   画布那面靠"删完关窗、再点格子补齐"绕过去了，线性那面没有这个绕法。
     get().setCursor(Math.max(0, i));
+  },
+
+  restoreNode: (id) => {
+    const s = get();
+    const trash = s.segTrash;
+    // ★ 早退一律说人话（铁律八，与 removeNode 同一条）：轻提示上那颗「撤销」拿 err 当回执，静默 false 就是「点了没反应」
+    if (!trash) {
+      set({ err: t`没有可以恢复的段（流水线换过了，或者已经恢复过）` });
+      return false;
+    }
+    // ★ 只放回点名的那一段（2026-10-15 发版前复核抓到）：垃圾桶只有一格，这 6 秒里别的路也会往里写（工坊「‹ 回铸段窗」的
+    //   recastNode、套模板失败的回滚、对画布说「删掉第 N 段」）—— 不认 id 的话，提示上写着「已删掉第 2 段」，按下去放回来的是
+    //   另一段，而铸段窗正要把那一段再铸一遍（重复），零报错
+    if (trash.node.id !== id) {
+      set({ err: t`提示上那一段已经不在垃圾桶里了（之后又删过别的段），没有恢复` });
+      return false;
+    }
+    // ★ 与 removeNode 同一道闸：genNode 的闭包里捏着 idx，这时往前面插回一段，回包就写到另一段上（钱扣了、成片落错位）
+    if (s.busy || s.nodes.some((n) => n.status === "generating")) {
+      set({ err: t`有一段正在生成中，等它跑完再恢复（现在放回去的话，那一炉的成片会写到别的段上）` });
+      return false;
+    }
+    if (s.nodes.some((n) => n.id === trash.node.id)) {
+      set({ err: t`这一段已经在流水线上了` });
+      return false;
+    }
+    // 原位放回；中间删过别的段、下标越界就接在末尾
+    const at = Math.min(trash.index, s.nodes.length);
+    // ★ 守住 appendBlocked 的那条不变量（2026-10-15 发版前复核抓到）：白模复刻段只有一段、而且只能是末段（画面整个来自模板视频，
+    //   没有可续的下一段）。删掉白模段 T 之后这 6 秒里「＋ 加一段」能过（末段已不是 T），撤销一放回就是两段白模、后面那段还接在白模后面 ——
+    //   别的入口一个都不允许的形状。放回的是白模段：它必须仍是末段且全线没有第二段白模；放回的是普通段：它前面那一段不能是白模段
+    const blockout = (n: FlowNode) => !!tplOfNode(n)?.refVideo;
+    if (blockout(trash.node) ? at !== s.nodes.length || s.nodes.some(blockout) : at > 0 && blockout(s.nodes[at - 1])) {
+      set({ err: t`白模复刻段只有一段、而且只能是末段：这一段放不回原位了` });
+      return false;
+    }
+    const nodes = [...s.nodes.slice(0, at), trash.node, ...s.nodes.slice(at)];
+    set({
+      nodes,
+      alts: trash.alts ? { ...s.alts, [trash.node.id]: trash.alts } : s.alts,
+      // 删到一段不剩时清掉的 store 级模板：流水线仍然空着才还原（见 FlowState.segTrash 的 ★）
+      ...(trash.template !== undefined && s.nodes.length === 0 ? { template: trash.template } : {}),
+      segTrash: null,
+      err: "",
+    });
+    // ★★ 走 setCursor（理由同 removeNode 末尾那段）：站到放回的这一段上，store 级模板快照与挂卡缓冲换成它自己的
+    get().setCursor(at);
+    return true;
   },
 
   setCursor: (i) =>

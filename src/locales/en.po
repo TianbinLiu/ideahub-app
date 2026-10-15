@@ -1172,7 +1172,11 @@ msgid "{display} 的主页"
 msgstr "{display}'s profile"
 
 #: src/pages/CutPage.tsx
-msgid "{done} 句配音合成好了，回剪辑页听听"
+#~ msgid "{done} 句配音合成好了，回剪辑页听听"
+#~ msgstr "{done} voiceover line(s) ready — go back to the editor to listen"
+
+#: src/pages/CutPage.tsx
+msgid "{done} 句配音好了，回剪辑页听听"
 msgstr "{done} voiceover line(s) ready — go back to the editor to listen"
 
 #: src/data/videoDownload.ts
@@ -4204,8 +4208,12 @@ msgid "TA 还没有发布作品"
 msgstr "They haven't published any videos yet"
 
 #: src/studio/cutNarration.ts
-msgid "token 余额不够，配音没合成"
+msgid "token 余额不够，配音没做成"
 msgstr "Not enough tokens — the voiceover wasn't made"
+
+#: src/studio/cutNarration.ts
+#~ msgid "token 余额不够，配音没合成"
+#~ msgstr "Not enough tokens — the voiceover wasn't made"
 
 #: src/ai/arkClient.ts
 msgid "token 余额不足：这一步需要 {need}，余额 {have}——去「我的」页充值"
@@ -4555,8 +4563,12 @@ msgid "上一张还没拍完"
 msgstr "The previous photo isn't finished yet"
 
 #: src/studio/cutAgent.ts
-msgid "上一批配音还在合成，等它配完再说"
-msgstr "The previous batch of voiceovers is still being synthesized — say it again once it's done"
+#~ msgid "上一批配音还在合成，等它配完再说"
+#~ msgstr "The previous batch of voiceovers is still being synthesized — say it again once it's done"
+
+#: src/studio/cutAgent.ts
+msgid "上一批配音还在生成，等它配完再说"
+msgstr "The previous batch of voiceovers is still being made — say it again once it's done"
 
 #: src/hooks/useFlowActions.ts
 msgid "上一条剪到一半的成片这会儿没读出来（本机数据库没打开），现在组稿会把它顶掉。先去「我的」点「重试」，读出来之后再来组这一条。"
@@ -7869,8 +7881,8 @@ msgstr "Delete"
 
 #. placeholder {0}: meta.title
 #: src/components/DraftSheet.tsx
-msgid "删掉「{0}」？这条还没有出片的段，不会有钱白花，但写好的分镜找不回来。"
-msgstr "Delete “{0}”? No segment in it has been rendered yet, so no money is lost, but the shots you wrote can't be recovered."
+#~ msgid "删掉「{0}」？这条还没有出片的段，不会有钱白花，但写好的分镜找不回来。"
+#~ msgstr "Delete “{0}”? No segment in it has been rendered yet, so no money is lost, but the shots you wrote can't be recovered."
 
 #. placeholder {0}: meta.title
 #. placeholder {1}: meta.doneCount
@@ -9334,7 +9346,11 @@ msgid "取消发布"
 msgstr "Unpublish"
 
 #: src/pages/CutPage.tsx
-msgid "取消合并"
+#~ msgid "取消合并"
+#~ msgstr "Cancel merge"
+
+#: src/pages/CutPage.tsx
+msgid "取消合成"
 msgstr "Cancel merge"
 
 #: src/pages/LoginPage.tsx
@@ -9361,8 +9377,8 @@ msgid "取消点赞"
 msgstr "Unlike"
 
 #: src/pages/VideoPage.tsx
-msgid "取消点赞 · {likes}"
-msgstr "Unlike · {likes}"
+#~ msgid "取消点赞 · {likes}"
+#~ msgstr "Unlike · {likes}"
 
 #: src/studio/studioStore.ts
 msgid "取消铸段"
@@ -9750,12 +9766,12 @@ msgid "各段不挂原作的卡，之后自己挂。"
 msgstr "Segments start without the original's cards; attach your own later."
 
 #: src/pages/CutPage.tsx
-msgid "合并失败：{raw}"
-msgstr "Merge failed: {raw}"
+#~ msgid "合并失败：{raw}"
+#~ msgstr "Merge failed: {raw}"
 
 #: src/pages/CutPage.tsx
-msgid "合并失败：第 {segList} 段的视频取不到了（HTTP {http}）。这几段揣的还是方舟的临时链接、当初没能转存成永久地址，而那种链接只活 24 小时——过期之后合成器也拉不到。这条片子现在合不了：回「我的 → 草稿」打开草稿把这几段重新出片（会再花一次钱），或者删掉它们再合。"
-msgstr "Merge failed: the video for segment {segList} can't be fetched any more (HTTP {http}). These segments still hold Ark's temporary links, which never got moved to permanent storage, and those links live only 24 hours — once expired the compositor can't pull them either. This video can't be merged right now: open the draft under “Me → Drafts” and regenerate those segments (this costs again), or delete them and merge."
+#~ msgid "合并失败：第 {segList} 段的视频取不到了（HTTP {http}）。这几段揣的还是方舟的临时链接、当初没能转存成永久地址，而那种链接只活 24 小时——过期之后合成器也拉不到。这条片子现在合不了：回「我的 → 草稿」打开草稿把这几段重新出片（会再花一次钱），或者删掉它们再合。"
+#~ msgstr "Merge failed: the video for segment {segList} can't be fetched any more (HTTP {http}). These segments still hold Ark's temporary links, which never got moved to permanent storage, and those links live only 24 hours — once expired the compositor can't pull them either. This video can't be merged right now: open the draft under “Me → Drafts” and regenerate those segments (this costs again), or delete them and merge."
 
 #: src/pages/CutPage.tsx
 #~ msgid "合并失败：第 {segList} 段的视频取不到了（HTTP {http}）。这几段揣的还是方舟的临时链接、当初没能转存成永久地址，而那种链接只活 24 小时——过期之后合成器也拉不到。这条片子现在合不了：回工作流把这几段重新出片（会再花一次钱），或者删掉它们再合。"
@@ -9771,13 +9787,20 @@ msgstr "Merging — changes here won't be included in this merge"
 
 #: src/components/flow/CastPreviewCard.tsx
 #: src/components/PhotoSubjectPicker.tsx
-#: src/pages/CutPage.tsx
 msgid "合成中…"
 msgstr "Composing…"
 
 #: src/pages/FlowPage.tsx
 msgid "合成中…（一次对话，几秒）"
 msgstr "Composing… (one chat call, a few seconds)"
+
+#: src/pages/CutPage.tsx
+msgid "合成失败：{raw}"
+msgstr "Merge failed: {raw}"
+
+#: src/pages/CutPage.tsx
+msgid "合成失败：第 {segList} 段的视频取不到了（HTTP {http}）。这几段揣的还是方舟的临时链接、当初没能转存成永久地址，而那种链接只活 24 小时——过期之后合成器也拉不到。这条片子现在合不了：回「我的 → 草稿」打开草稿把这几段重新出片（会再花一次钱），或者删掉它们再合。"
+msgstr "Merge failed: the video for segment {segList} can't be fetched any more (HTTP {http}). These segments still hold Ark's temporary links, which never got moved to permanent storage, and those links live only 24 hours — once expired the compositor can't pull them either. This video can't be merged right now: open the draft under “Me → Drafts” and regenerate those segments (this costs again), or delete them and merge."
 
 #: src/pages/CutPage.tsx
 msgid "合成并去发布"
@@ -11416,6 +11439,10 @@ msgstr "Deleted {0, plural, one {# file} other {# files}}, freeing {1}"
 msgid "已删掉「{0}」"
 msgstr "Deleted “{0}”"
 
+#: src/components/flow/DeleteSegBtn.tsx
+msgid "已删掉第 {n} 段"
+msgstr "Deleted segment {n}"
+
 #: src/pages/AdminPage.tsx
 msgid "已删除"
 msgstr "Deleted"
@@ -11511,7 +11538,11 @@ msgid "已取消公开：别人看不到制作过程了"
 msgstr "Unshared: others can no longer see the process"
 
 #: src/pages/CutPage.tsx
-msgid "已取消合并。片段、圈选和配乐都还在，随时可以重新开始。"
+#~ msgid "已取消合并。片段、圈选和配乐都还在，随时可以重新开始。"
+#~ msgstr "Merge canceled. Your clips, circles and music are all still here, so you can start again anytime."
+
+#: src/pages/CutPage.tsx
+msgid "已取消合成。片段、圈选和配乐都还在，随时可以重新开始。"
 msgstr "Merge canceled. Your clips, circles and music are all still here, so you can start again anytime."
 
 #: src/pages/CustomCardPage.tsx
@@ -12492,6 +12523,10 @@ msgstr "Required · {0}"
 msgid "忘记密码？"
 msgstr "Forgot password?"
 
+#: src/utils/oauth.ts
+msgid "忽略了一条不是本机发起的登录链接"
+msgstr "Ignored a sign-in link this device did not start"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "思考"
 msgstr "Think"
@@ -12513,6 +12548,10 @@ msgstr "Summarized visual requirements"
 #: src/studio/ui/FrameCard.tsx
 msgid "恢复"
 msgstr "Reset"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "恢复 1:1"
+msgstr "Reset to 1:1"
 
 #: src/components/support/VoiceSheet.tsx
 #: src/pages/SupportPersonasPage.tsx
@@ -12627,6 +12666,10 @@ msgstr "Your video is merged — go publish it"
 #: src/api/uploads.ts
 msgid "成片太大（{mb}MB，这台服务器的上限是 20MB）——先在剪辑页压一档画质再发。"
 msgstr "The finished video is too big ({mb}MB; this server's limit is 20MB) — lower the quality by one step on the editing page, then publish."
+
+#: src/ai/minimaxVideo.ts
+msgid "成片已经出来了，取下载地址时没收到回包——凭据还在，过一会儿再点「取回」，不花钱。"
+msgstr "The video is done, but there was no reply when fetching its download link — the receipt is still here; tap “Recover” again in a little while, at no cost."
 
 #: src/components/flow/SegmentRecoverCards.tsx
 msgid "成片已经取回，放进了流水线，也存进了草稿"
@@ -14001,6 +14044,10 @@ msgstr "Extracting this video's deck…"
 msgid "提炼模板素材卡…"
 msgstr "Extracting the template's material cards…"
 
+#: src/studio/flowStore.ts
+msgid "提示上那一段已经不在垃圾桶里了（之后又删过别的段），没有恢复"
+msgstr "The segment named in the notice is no longer in the bin (another segment was deleted since) — nothing was restored"
+
 #: src/studio/blockoutPrompt.ts
 msgid "提示词合成失败：AI 什么都没返回——这一段的要求请自己写，或用下面那份默认写法。"
 msgstr "Couldn't compose the prompt: the AI returned nothing — write this segment's request yourself, or use the default version below."
@@ -14169,6 +14216,7 @@ msgstr "Remove {0}"
 
 #: src/components/blockout/RoleConfirmSheet.tsx
 #: src/components/DraftSheet.tsx
+#: src/components/flow/DeleteSegBtn.tsx
 msgid "撤销"
 msgstr "Undo"
 
@@ -14203,6 +14251,7 @@ msgid "播放头不在选中的片段里——先点一下这个片段（它会�
 msgstr "The playhead isn't in the selected clip — tap the clip first (it plays from the start), then try again."
 
 #: src/components/SegmentPlayer.tsx
+#: src/pages/FeedPage.tsx
 msgid "播放进度"
 msgstr "Playback progress"
 
@@ -14438,6 +14487,10 @@ msgstr "Edit this card's name, intro and video line"
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "改错了不用重炼"
 msgstr "Mistakes can be fixed without re-rendering"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "放大"
+msgstr "Zoom in"
 
 #: src/components/PhotoSubjectPicker.tsx
 msgid "放大再框"
@@ -15158,6 +15211,10 @@ msgid "有一段正在生成中，等它跑完再加下一段（它炼完你才�
 msgstr "A segment is generating. Wait for it to finish before adding the next one (only then will you know which frame the next segment continues from)"
 
 #: src/studio/flowStore.ts
+msgid "有一段正在生成中，等它跑完再恢复（现在放回去的话，那一炉的成片会写到别的段上）"
+msgstr "A segment is still generating — wait for it before restoring (putting it back now would write that run's video into another segment)"
+
+#: src/studio/flowStore.ts
 msgid "有一段正在生成中，等它跑完再拆段（现在拆会让写回打在另一段上）"
 msgstr "A segment is generating. Wait for it to finish before splitting (splitting now would write the result to the wrong segment)"
 
@@ -15499,6 +15556,7 @@ msgid "未发布"
 msgstr "Unpublished"
 
 #: src/components/VideoCardAnnotator.tsx
+#: src/data/drafts.ts
 #: src/pages/CustomCardPage.tsx
 msgid "未命名"
 msgstr "Untitled"
@@ -16519,6 +16577,10 @@ msgstr "Grabbing this frame…"
 msgid "正在取这一段的视频地址…"
 msgstr "Getting this segment's video address…"
 
+#: src/pages/CutPage.tsx
+msgid "正在合成成片…"
+msgstr "Merging the video…"
+
 #: src/studio/signOutGuard.ts
 msgid "正在合成挂卡的点名句，等它跑完再退出登录。"
 msgstr "Writing the casting lines for the attached cards. Wait for it to finish before logging out."
@@ -16752,6 +16814,10 @@ msgstr "Reading image…"
 #: src/components/UpdateSheet.tsx
 msgid "正在连接…"
 msgstr "Connecting…"
+
+#: src/pages/CutPage.tsx
+msgid "正在配音…"
+msgstr "Voicing…"
 
 #: src/studio/personaWizardStore.ts
 msgid "正在重写这一处…"
@@ -17121,6 +17187,10 @@ msgstr "No matching comments"
 msgid "没有叫「{q}」的卡组"
 msgstr "No deck called “{q}”"
 
+#: src/studio/flowStore.ts
+msgid "没有可以恢复的段（流水线换过了，或者已经恢复过）"
+msgstr "Nothing to restore (the pipeline was replaced, or it was already restored)"
+
 #: src/pages/CutPage.tsx
 msgid "没有可以撤销的步骤了"
 msgstr "Nothing left to undo"
@@ -17384,6 +17454,10 @@ msgstr "Couldn't complete that. Please try again"
 #: src/components/blockout/VideoStage.tsx
 msgid "没能开始播放：{0}"
 msgstr "Couldn't start playback: {0}"
+
+#: src/components/flow/DeleteSegBtn.tsx
+msgid "没能恢复这一段"
+msgstr "Couldn't restore this segment"
 
 #: src/components/DraftSheet.tsx
 msgid "没能恢复这条草稿"
@@ -18764,6 +18838,10 @@ msgstr "the connection dropped after {got, plural, one {# panel} other {# panels
 msgid "画好 {k}/{n} 格（一组约几分钟，可以先离开）"
 msgstr "{k}/{n} panels drawn (a set takes a few minutes — you can leave)"
 
+#: src/components/flow/DialogueWizard.tsx
+msgid "画好之后看一眼：每张里应该只有这两个人。多出一个人就点那一张单独重画。"
+msgstr "Once drawn, take a look: each image should show only these two people. If an extra person appears, tap that image and redraw it on its own."
+
 #: src/studio/gridDraftStore.ts
 msgid "画好了、但没取回来（{why}）——点这一格重新取"
 msgstr "Drawn, but couldn’t be fetched ({why}) — tap this panel to fetch it again"
@@ -19067,6 +19145,11 @@ msgstr "Connect to the server to browse decks others have shared"
 msgid "登录状态过期了，重新登录之后再试。"
 msgstr "Your sign-in has expired. Sign in again and retry."
 
+#. placeholder {0}: Math.round(STATE_TTL_MS / 60_000)
+#: src/utils/oauth.ts
+msgid "登录链接过期了（超过 {0} 分钟），请重新登录"
+msgstr "The sign-in link expired (more than {0} minutes) — please sign in again"
+
 #. placeholder {0}: res.status
 #: src/api/uploads.ts
 msgid "登记失败（{0}）"
@@ -19191,6 +19274,10 @@ msgstr "Blockout segment"
 #: src/components/flow/FlowCanvas.tsx
 msgid "白模复刻段（还没出片）"
 msgstr "Blockout remake segment (not rendered yet)"
+
+#: src/studio/flowStore.ts
+msgid "白模复刻段只有一段、而且只能是末段：这一段放不回原位了"
+msgstr "A blockout copy segment must be the only one and the last one — this segment can't go back where it was"
 
 #: src/studio/flowStore.ts
 msgid "白模复刻段只有一段：画面与运镜整个来自模板视频，没有可续的下一段"
@@ -21429,6 +21516,10 @@ msgstr "These three buttons at the top of the editor switch how <0>this segment<
 msgid "编辑资料"
 msgstr "Edit profile"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "缩小"
+msgstr "Zoom out"
+
 #: src/components/AvatarPicker.tsx
 msgid "缩放"
 msgstr "Zoom"
@@ -21803,6 +21894,10 @@ msgstr "The draft is ready — you can try chatting next."
 #: src/pages/DraftsPage.tsx
 msgid "草稿只存在这台设备上；超过 {MAX_DRAFTS} 条会从最旧的清起。每炼成一段都会自动存进当前草稿。"
 msgstr "Drafts are stored only on this device; beyond {MAX_DRAFTS}, the oldest are removed first. Every rendered segment is saved to the current draft automatically."
+
+#: src/data/drafts.ts
+msgid "草稿满 {MAX_DRAFTS} 条，最旧的「{title}」已清掉"
+msgstr "Drafts are at the {MAX_DRAFTS} limit — the oldest, “{title}”, was removed"
 
 #: src/pages/DraftsPage.tsx
 msgid "草稿箱"
@@ -23944,6 +24039,10 @@ msgstr "This segment already has a video: changing the template discards it. To 
 msgid "这一段已经出片了，退不回铸段窗——想换就删掉这一段再铸"
 msgstr "This segment already has a video, so it can't go back to the segment window — to change it, delete this segment and forge it again"
 
+#: src/studio/flowStore.ts
+msgid "这一段已经在流水线上了"
+msgstr "This segment is already in the pipeline"
+
 #: src/pages/CutPage.tsx
 #~ msgid "这一段已经改好、钱也扣过了，但{why}"
 #~ msgstr "This segment is done and has been charged, but {why}"
@@ -24564,8 +24663,12 @@ msgid "这个视频浏览器解不开（白模模板只收 mp4 / mov）"
 msgstr "This video can't be decoded here (blockout templates only accept MP4 / MOV)"
 
 #: src/studio/cutNarration.ts
-msgid "这个账号的钱包现在不能扣费（有欠额或套餐不够），配音没合成"
-msgstr "This account's wallet can't be charged right now (an outstanding balance, or the plan doesn't cover it) — the voiceover wasn't made"
+msgid "这个账号的钱包现在不能扣费（有欠额或套餐不够），配音没做成"
+msgstr "This account's wallet can't be charged right now (overdue balance or plan too small) — the voiceover wasn't made"
+
+#: src/studio/cutNarration.ts
+#~ msgid "这个账号的钱包现在不能扣费（有欠额或套餐不够），配音没合成"
+#~ msgstr "This account's wallet can't be charged right now (an outstanding balance, or the plan doesn't cover it) — the voiceover wasn't made"
 
 #: src/pages/ProfilePage.tsx
 msgid "这个链接里只有名字，没法向服务器确认是谁 · 下面只是本次刷到的那些"
@@ -26123,17 +26226,21 @@ msgstr "Music volume {pct}%"
 msgid "配音"
 msgstr "Voiceover"
 
+#: src/studio/cutNarration.ts
+msgid "配音做好了，但没能存进本地库（存储空间不足？）——清一清空间再配一次"
+msgstr "The voiceover was made but couldn't be saved locally (out of storage?) — free up some space and voice it again"
+
 #: src/pages/CutPage.tsx
 msgid "配音免费，每个账号每天 {voiceFree} 字（念不完提速重配的那一遍也算）。"
 msgstr "Voiceover is free, up to {voiceFree} characters per account per day (a line re-voiced faster to fit also counts)."
 
 #: src/pages/CutPage.tsx
-msgid "配音合成中…"
-msgstr "Synthesizing voiceover…"
+#~ msgid "配音合成中…"
+#~ msgstr "Synthesizing voiceover…"
 
 #: src/studio/cutNarration.ts
-msgid "配音合成好了，但没能存进本地库（存储空间不足？）——清一清空间再配一次"
-msgstr "The voiceover was synthesized but couldn't be saved locally (out of storage?) — free up some space and redo it"
+#~ msgid "配音合成好了，但没能存进本地库（存储空间不足？）——清一清空间再配一次"
+#~ msgstr "The voiceover was synthesized but couldn't be saved locally (out of storage?) — free up some space and redo it"
 
 #: src/studio/cutNarration.ts
 msgid "配音合成得太快了（每分钟最多 30 句），等一分钟再接着配"

@@ -124,11 +124,23 @@ function minimaxFailed(taskId: string, st: Record<string, unknown>): ArkTaskFail
   return new ArkTaskFailed(t`真人档出片失败：${reason}`, taskId, "Fail", String(baseRespOf(st)?.status_code ?? ""), taskRefundOf(st.refund), reason, "minimax");
 }
 
-/** 一条 Success 的任务状态 → 下载地址。**唯一实现**：出片主路径与「取回」共用 */
-async function minimaxFileUrl(st: Record<string, unknown>): Promise<string> {
+/**
+ * 一条 Success 的任务状态 → 下载地址。**唯一实现**：出片主路径与「取回」共用。
+ * ★ 取件那一发**没收到回包**抛 ArkTaskUnknown 而不是 ArkNoReply（2026-10-15 教材人格评审第五节「另议」拍板）：任务已经 Success、
+ *   产物在上游好好地存着，只是「文件号 → 下载地址」这一跳没答上来。归 ArkNoReply 的话 failCharge 说「可能已扣」、节点打 failed、
+ *   屏幕上唯一能点的是重新下一单（再花一次钱）；归 ArkTaskUnknown 凭据留着、节点 pending、取回卡再点一次就从这一跳接着取
+ *   （查询与取件都不计费，见 takeMinimaxTask 头上的 ★）。只有「没收到回包」这一档改口：HTTP 非 2xx、回包里没地址仍是整句失败。
+ */
+async function minimaxFileUrl(taskId: string, st: Record<string, unknown>): Promise<string> {
   const fileId = String(st.file_id ?? "");
   if (!fileId) throw new Error(t`真人档出片成功却没有文件号——上游协议变了，把这句话反馈给我们`);
-  const f = await jsonOf(await getJson(`${BASE}/file/${encodeURIComponent(fileId)}`, "file"), "file");
+  let f: Record<string, unknown>;
+  try {
+    f = await jsonOf(await getJson(`${BASE}/file/${encodeURIComponent(fileId)}`, "file"), "file");
+  } catch (e) {
+    if (!(e instanceof ArkNoReply)) throw e;
+    throw new ArkTaskUnknown(t`成片已经出来了，取下载地址时没收到回包——凭据还在，过一会儿再点「取回」，不花钱。`, taskId);
+  }
   const file = f.file as { download_url?: string; backup_download_url?: string } | undefined;
   const url = file?.download_url || file?.backup_download_url;
   if (!url) throw new Error(t`真人档取件失败：上游没有返回下载地址`);
@@ -162,7 +174,7 @@ export async function takeMinimaxTask(
     throw new ArkTaskUnknown(t`暂时查不到这一发（${why}）——凭据还在，过一会儿再点一次，查询不花钱。`, taskId);
   }
   const status = String(st.status ?? "");
-  if (status === "Success") return { url: await minimaxFileUrl(st) };
+  if (status === "Success") return { url: await minimaxFileUrl(taskId, st) };
   if (status === "Fail") {
     // 上游明说失败：抛类型（ArkTaskFailed），钱退没退由调用方问 ai/failCharge 说 —— 不在这里写死「不退款」
     //（2026-10-07 起服务端会把这一发退回；老服务端不退，那时 failCharge 照实说「没有退回」）。
@@ -276,7 +288,7 @@ export async function minimaxVideo(o: {
     prog({ kind: "poll", status: shown, sec: Math.round((Date.now() - t0) / 1000) });
     if (status === "Fail") throw minimaxFailed(taskId, st);
     if (status === "Success") {
-      const url = await minimaxFileUrl(st);
+      const url = await minimaxFileUrl(taskId, st);
       return url;
     }
   }

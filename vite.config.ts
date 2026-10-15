@@ -242,9 +242,12 @@ const ttsPlugin = (apiKey: string) => ({
 // 各指令的由来：
 //   - script-src 'wasm-unsafe-eval'：MeshoptDecoder / ammojs 要实例化 WebAssembly；不含 'unsafe-eval'，内联与外域脚本一律禁止（XSS 主防线）。
 //   - style-src 'unsafe-inline'：React/r3f 大量 style 属性 + Tailwind 注入，样式内联不可避免。
-//   - img/media/connect-src 收窄到 https:（+data:/blob:）：AI 产物在 *.volces.com / *.volccdn.com，
-//     服务器域名按部署可变，故先禁明文 http 与任意 scheme；域名固定后可进一步收窄成白名单。
-//   - frame-ancestors/X-Frame-Options 无法用 <meta> 表达，Web 部署时由服务器响应头补（见 docs/security-checklist.md）。
+//   - img/media/connect-src 今天仍放行任意 https:（+data:/blob:）。收窄成白名单是 2026-10-15 教材人格评审拍板要做的
+//     （owasp-security-3，排在 2.63 之后、单独一个 PR）：先只收 connect-src，域名表以服务端 videoAsset.service 为准（Cloudinary、
+//     方舟临时链接 *.volces.com / *.volccdn.com、MiniMax、三家登录头像 CDN、GitHub 与镜像那两个更新源），装机把出片 / 直传 /
+//     市场换装 / 真人档各走一遍再合 —— 漏一个域名的症状是图片 / 视频静默不出，所以不搭发版一起上。
+//   - frame-ancestors/X-Frame-Options 无法用 <meta> 表达，Web 部署时由服务器响应头（nginx）补。
+//     ⚠ 原来这里引的 docs/security-checklist.md 从来没存在过（2026-10-15 核实），别再去找。
 const CSP = [
   "default-src 'self'",
   "base-uri 'self'",
@@ -336,7 +339,9 @@ export default defineConfig(({ mode }) => {
           // 3D 引擎与 React 各自成块：改业务代码不会让用户重新下载 3MB 的 three/ammo，
           // 首页（非 3D 页）也不用等 3D 块下完
           manualChunks(id: string) {
-            if (/node_modules[\\/](three|@pixiv|ammojs-typed|@react-three)[\\/]/.test(id)) return "vendor-3d";
+            // ★ ammojs-typed 不在这张表里（mcconnell-performance-1，2026-10-15 拍板）：全仓只有 studio/scene/rigidBones 动态 import 它，
+            //   不点名就由 Rollup 自己切成独立 chunk、第一次进 3D 工坊才拉；原来写进 vendor-3d 等于让每次冷启动都解析这份 wasm 胶水。
+            if (/node_modules[\\/](three|@pixiv|@react-three)[\\/]/.test(id)) return "vendor-3d";
             if (/node_modules[\\/](react|react-dom|react-router|react-router-dom|scheduler|zustand)[\\/]/.test(id)) return "vendor-react";
           },
         },

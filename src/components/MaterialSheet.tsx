@@ -236,7 +236,7 @@ export default function MaterialSheet({
           allDecks.length === 0 ? (
             empty(t`还没有卡组`, t`去创意工坊建一组`)
           ) : decks.length === 0 ? (
-            <p className="py-7 text-center text-xs text-slate-600"><Trans>没有匹配的卡组</Trans></p>
+            <p className="py-7 text-center text-xs text-slate-400"><Trans>没有匹配的卡组</Trans></p>
           ) : (
             <>
               <div className="mb-1.5 text-[11px] text-slate-500"><Trans>拖一整组 = 组里的卡全加进来</Trans></div>
@@ -261,7 +261,7 @@ export default function MaterialSheet({
         ) : allCards.length === 0 ? (
           empty(t`还没有素材卡`, t`去创意工坊铸几张`)
         ) : cards.length === 0 ? (
-          <p className="py-7 text-center text-xs text-slate-600"><Trans>没有匹配的卡片</Trans></p>
+          <p className="py-7 text-center text-xs text-slate-400"><Trans>没有匹配的卡片</Trans></p>
         ) : (
           <div className={`${rail(cards.length)} no-scrollbar`} style={{ touchAction: "pan-x" }}>
             {cards.map((c) => (
@@ -398,7 +398,7 @@ export function MaterialStrip({ materials, onRemove }: { materials: Card[]; onRe
       <div className="mb-1.5 flex items-center gap-2">
         <span className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>本段素材</Trans></span>
         <span className="text-[11px] text-slate-500"><Trans>{materials.length} 张</Trans></span>
-        {materials.length > 0 && <span className="text-[10px] text-slate-600"><Trans>· 点 ✕ 移出本段</Trans></span>}
+        {materials.length > 0 && <span className="text-[10px] text-slate-400"><Trans>· 点 ✕ 移出本段</Trans></span>}
       </div>
       {materials.length === 0 ? (
         <div className="flex h-[104px] items-center justify-center rounded-xl border border-dashed border-slate-700 text-[11px] text-slate-500">

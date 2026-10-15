@@ -21,7 +21,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import AnnStrip from "../components/flow/AnnStrip";
 import InfoTip from "../components/InfoTip";
 import { useApplyTemplate } from "../components/flow/useApplyTemplate";
-import DeleteSegBtn from "../components/flow/DeleteSegBtn";
+import DeleteSegBtn, { removeNodeWithUndo } from "../components/flow/DeleteSegBtn";
 import SegSettings from "../components/flow/SegSettings";
 import FlowCanvas from "../components/flow/FlowCanvas";
 import ForgeOverlay, { type ForgePhase } from "../components/ForgeOverlay";
@@ -1069,7 +1069,6 @@ export default function FlowPage() {
     setDeckOff,
     setCursor,
     addNode,
-    removeNode,
     addMaterials,
     removeMaterial,
   } = useFlow();
@@ -1531,7 +1530,8 @@ export default function FlowPage() {
                       done={nodeDone(node)}
                       derived={nodeDerived(node)}
                       disabled={busy || nodes.length <= 1}
-                      onConfirm={() => removeNode(node.id)}
+                      /* 删 + 「撤销」轻提示只有 removeNodeWithUndo 一份；这一面删完不用关什么，回值不管 */
+                      onConfirm={() => void removeNodeWithUndo(node.id)}
                       className="rounded bg-rose-500/15 px-2 py-1 text-rose-300 disabled:opacity-40"
                     />
                     <span className="min-w-0 flex-1 truncate text-right text-slate-500">

@@ -239,7 +239,14 @@ export default function LoginPage() {
    *  （冷启动时本页可能早就不在了，见 utils/oauth 文件头） */
   async function thirdParty(provider: string) {
     setErr("");
-    await startOauth(provider, (msg) => setErr(msg));
+    // ★ 跳系统浏览器的那几秒置 busy（2026-10-15 发版前复核抓到）：下面那排键按 busy 灰掉，而这条路原来从不置 busy —— 连点两下开两个
+    //   自定义标签页，而 2.63 起本机只记最后一次的 state，先开的那页登完回来会被当成「不是本机发起」丢掉。Browser.open 在标签页拉起后就回来
+    setBusy(true);
+    try {
+      await startOauth(provider, (msg) => setErr(msg));
+    } finally {
+      setBusy(false);
+    }
   }
 
   /**
@@ -566,7 +573,7 @@ export default function LoginPage() {
             QQ 已接入，但只在 App 壳里能用——浏览器里同样给出真实原因（见 deadReason）。 */}
         {remote && !capsLoading && (
           <>
-            <div className="flex items-center gap-3 pt-1 text-[11px] text-slate-600">
+            <div className="flex items-center gap-3 pt-1 text-[11px] text-slate-400">
               <span className="h-px flex-1 bg-slate-800" />
               <Trans>其他方式</Trans>
               <span className="h-px flex-1 bg-slate-800" />
@@ -614,7 +621,7 @@ export default function LoginPage() {
             </div>
             {!caps?.oauthEnabled && (
               // 说清楚少的是哪两个，别让用户以为整栏都坏了（微信/QQ 明明还在）
-              <p className="text-center text-[11px] leading-relaxed text-slate-600">
+              <p className="text-center text-[11px] leading-relaxed text-slate-400">
                 <Trans>当前网络环境（{regionName}）下 Google / GitHub 不可用，已自动隐藏</Trans>
               </p>
             )}

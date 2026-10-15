@@ -983,7 +983,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                     const issue = exampleIssue({ scheme: sc, realPerson });
                     if (issue) {
                       // 内置那条不必啰嗦（用户没主动想存），只有真人那条值得说
-                      return realPerson ? <p className="text-[9px] leading-relaxed text-slate-600">{issue}</p> : null;
+                      return realPerson ? <p className="text-[9px] leading-relaxed text-slate-400">{issue}</p> : null;
                     }
                     return (
                       <button
@@ -1063,7 +1063,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                               ))}
                             </span>
                           )}
-                          <span className="mt-0.5 block text-[9px] text-slate-600">
+                          <span className="mt-0.5 block text-[9px] text-slate-400">
                             {sc.slots.map((x) => x.tag).join(" · ")}
                             {AI_REAL ? t` · 约 ${fmtTokens(schemeCost(sc.slots))}` : t` · 演示`}
                           </span>

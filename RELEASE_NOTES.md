@@ -1,3 +1,35 @@
+启梦 2.63
+
+· 请尽快更新：11 月 24 日方舟停服一批模型。这一版出图「速写」换成同系列的新型号（画风接近、细节更多），「定妆」档撤掉（原来定妆出的卡照旧能用），「现做一个主角」改用精绘。「极速」「标准」两档到那天会自动收起。
+· 以后遇到必须更新的版本，App 会直接提示、关不掉，但一定留着官网与 GitHub 两个下载源。
+· 剪辑页配音现在真的免费：每个账号每天 1,000 字；放不下的那一句跳过，其余照配。
+· 删草稿、删段不再先问一句：删掉之后 6 秒内可以「撤销」（花过钱的段仍要点两下）。
+· 出错不再整页白屏：哪一块没画出来只换那一块，带「重载这一块」与「回首页」。
+· 第三方登录（Google / GitHub）回到 App 那一步加了核对：不是本机刚发起的登录链接一律忽略。
+· 工作流画布多了缩小 / 恢复 1:1 / 放大三颗键；首页进度条支持读屏与键盘调整；「加一段」被拒时先说原因。
+· 真人档出片：请求超时、取件没回包都说清钱有没有扣；取件没回包的那一发稍后可以「取回」。
+· 九宫格分镜：整组被拒或一张没出时，上一组画面摆回去，逐格说原因。
+· 登录页勾选框改成方的、注册入口摆出来；设置页分组；「我的」页页签加名字；剪辑页「下一步」改成「合成并去发布」，取消 / 失败的提示也统一叫「合成」。
+· 返回键：从链接冷启动进来再按返回不再白屏；出片完成的提示回到开炉的那一面（工坊或画布）。
+· 自更新：清单不完整时不下不装。
+· 修复：注册时昵称没存上会当场说；出图被模型拒绝时说人话；草稿满 20 条清掉最旧一条时会提示；小字说明调亮了一档。
+
+QiMeng 2.63
+
+· Please update: Ark retires a batch of models on November 24. This version switches the "Sketch" image model to its successor in the same family (similar style, finer detail), retires the "Studio" tier (cards made with it keep working), and "Make a lead now" uses "Fine" instead. The "Fast" and "Standard" video tiers disappear that day.
+· When a future version is mandatory, the app says so and can't be dismissed, but always keeps two download sources (website and GitHub).
+· Editor voiceover is now really free: 1,000 characters per account per day; a line that doesn't fit is skipped, the rest still get voiced.
+· Deleting a draft or a segment no longer asks first: you get 6 seconds to "Undo" (segments that cost money still need two taps).
+· Errors no longer blank the whole page: only the block that failed is replaced, with "Reload this block" and "Go home".
+· Third-party login (Google / GitHub) now checks the return into the app: a login link this device didn't just start is ignored.
+· The workflow canvas has zoom out / 1:1 / zoom in buttons; the home progress bar works with screen readers and the keyboard; "Add a segment" explains first when it's refused.
+· Real-person tier: timeouts and a missing reply when fetching the file say whether tokens were charged; that render can be recovered later.
+· Storyboard grid: when a set is refused or a panel fails, the previous set comes back and each panel explains why.
+· Login page checkboxes are square and sign-up is visible; settings are grouped; profile tabs have names; the editor's "Next" is now "Merge & go to publish", and its cancel / failure messages match.
+· Back button: no more blank screen when returning after a cold start from a link; the render-done pill returns to the side you started from (Studio or canvas).
+· Self-update: an incomplete manifest is neither downloaded nor installed.
+· Fixes: a nickname that didn't save at sign-up is reported right away; image refusals are explained in plain words; a notice when the oldest draft is removed past the 20-draft limit; small helper text is one shade brighter.
+
 启梦 2.62
 
 · 请尽快更新：服务端从今天起按下面的新规则走；旧版 App 里没有「草稿」档，额度和退款的说法也还是旧的。

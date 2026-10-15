@@ -106,7 +106,7 @@ export default function SchemeMarketSheet({
                       )}
                     </div>
                     <p className="mt-0.5 line-clamp-2 text-[10px] leading-relaxed text-slate-500">{sc.intro}</p>
-                    <p className="mt-0.5 text-[9px] text-slate-600">
+                    <p className="mt-0.5 text-[9px] text-slate-400">
                       {sc.slots.map((x) => x.tag).join(" · ")}
                       {AI_REAL ? t` · 约 ${fmtTokens(schemeCost(sc.slots))}` : t` · 演示`}
                       {sc.author ? ` · by ${sc.author}` : ""}

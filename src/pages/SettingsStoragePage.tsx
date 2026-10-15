@@ -183,7 +183,7 @@ function CacheSweeper({ onDone }: { onDone: () => void }) {
     void planSweep().then(setPlan);
   }, []);
 
-  if (!plan) return <p className="mt-2 text-[11px] text-slate-600"><Trans>正在算可清理的空间…</Trans></p>;
+  if (!plan) return <p className="mt-2 text-[11px] text-slate-400"><Trans>正在算可清理的空间…</Trans></p>;
 
   const mb = plan.bytes / 1048576;
   const mbLabel = mb < 1 ? "<1" : mb.toFixed(0);
@@ -197,7 +197,7 @@ function CacheSweeper({ onDone }: { onDone: () => void }) {
         </p>
       );
     }
-    return <p className="mt-2 text-[11px] text-slate-600">{note || t`没有可清理的中间文件`}</p>;
+    return <p className="mt-2 text-[11px] text-slate-400">{note || t`没有可清理的中间文件`}</p>;
   }
 
   function run() {

@@ -926,7 +926,7 @@ export default function SupportModelNewPage() {
                   {s.inspect.completeness.recommended.map((r) => (
                     <span
                       key={`rec-${r.slot}`}
-                      className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] ${r.ok ? "bg-slate-900 text-slate-300" : "bg-slate-900 text-slate-600"}`}
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] ${r.ok ? "bg-slate-900 text-slate-300" : "bg-slate-900 text-slate-400"}`}
                     >
                       {r.ok ? "✓" : "—"} {slotLabel(r.slot)}
                     </span>

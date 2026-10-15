@@ -228,6 +228,7 @@ export default function CreatePage() {
                     {m.bullets.map((b) => (
                       <li
                         key={b.id}
+                        // contrast-ok: 亮底封面（m.light）上 slate-600 是深字，对比度够；暗底那支走 slate-400（check-contrast）
                         className={`flex gap-2 text-xs leading-relaxed ${m.light ? "text-slate-600" : "text-slate-400"}`}
                       >
                         <span className="flex-none">·</span>

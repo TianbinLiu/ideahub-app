@@ -67,7 +67,7 @@ import { proposalsCost } from "../../data/economy";
 import { fileToFrameDataUrl } from "../../utils/image";
 import { computeChain } from "../scene/TableScene";
 import { CHAIN, focusCam } from "../scene/layout";
-import DeleteSegBtn from "../../components/flow/DeleteSegBtn";
+import DeleteSegBtn, { removeNodeWithUndo } from "../../components/flow/DeleteSegBtn";
 import CastPreviewCard from "../../components/flow/CastPreviewCard";
 import FixSegmentBox from "../../components/flow/FixSegmentBox";
 import DraftModeBox from "../../components/flow/DraftModeBox";
@@ -348,7 +348,8 @@ function EditorPanel() {
    * （下面 cards 车道的 TokenCost 读的也是它），承接时三套共用开头帧、图量减半 —— 原来 ModePicker 自己按 proposalsCost(false) 报的是不承接的上限
    */
   const deriveStart = nextStartFrame(editor.startFrame);
-  const derivePrice = { tokens: proposalsCost(!!deriveStart), carried: !!deriveStart };
+  // carried 说的是「承接上段尾帧」：自己传了开头帧的段价钱一样（也只画尾帧），但那句括号不该说成承接（2026-10-15 发版前复核抓到）
+  const derivePrice = { tokens: proposalsCost(!!deriveStart), carried: !editor.startFrame && !!deriveStart };
   const path = activePath();
   const prev = path.length > 0 ? chosenProposal(path[path.length - 1]) : null;
   const segIndex = path.length;
@@ -1137,7 +1138,7 @@ function EditorPanel() {
               )}
             </div>
             {lane !== "cards" && !editor.requirement.trim() && (
-              <p className="mt-1 text-center text-[9px] text-slate-600"><Trans>回上一步写一句视频要求，这颗键才亮</Trans></p>
+              <p className="mt-1 text-center text-[9px] text-slate-400"><Trans>回上一步写一句视频要求，这颗键才亮</Trans></p>
             )}
           </>
         ) : null}
@@ -1944,11 +1945,9 @@ function PickedActions({
             onConfirm={() => {
               // ★ removeNode 会整句拒（生成中、只剩一段…），拒了就**别关窗** ——
               //   无条件关窗会让"删失败"长得和"删成功"一模一样（2026-09-03 复核抓到）。
-              //   判据看真实结果：段还在不在（store 的 err 由下面那条错误条画出来）。
-              useFlow.getState().removeNode(node.id);
-              if (!useFlow.getState().nodes.some((n) => n.id === node.id)) {
-                useStudio.getState().closeProjection();
-              }
+              //   判据看真实结果：段还在不在（removeNodeWithUndo 回的就是它；store 的 err 由下面那条错误条画出来）。
+              //   删 + 「撤销」轻提示只有 removeNodeWithUndo 一份（DeleteSegBtn 那个文件）。
+              if (removeNodeWithUndo(node.id)) useStudio.getState().closeProjection();
             }}
             className="rounded-full bg-rose-500/15 px-2.5 py-1 text-[11px] text-rose-300 disabled:opacity-40"
           />

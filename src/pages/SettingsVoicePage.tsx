@@ -160,7 +160,7 @@ export default function SettingsVoicePage() {
             aria-label={t`语速`}
             className="w-full accent-brand"
           />
-          <div className="mt-0.5 flex justify-between text-[10px] text-slate-600">
+          <div className="mt-0.5 flex justify-between text-[10px] text-slate-400">
             <span><Trans>0.70× 慢</Trans></span>
             <span>1.00×</span>
             <span><Trans>1.20× 快</Trans></span>

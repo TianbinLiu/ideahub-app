@@ -3,15 +3,20 @@
 // ★ 挂在 App 根上（Routes 外面）：这件事与哪一页无关。只说一次 —— 关掉才清记号，没关就下次开机再说。
 // ★ 措辞只说能确定的：只存在这台设备上的东西没了、救不回来；远端模式下服务器上的不受影响。
 //   不说"可以恢复"：文件已经被系统删掉了，给一句做不到的承诺比不说更坏（铁律八）。
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import InfoDialog from "./InfoDialog";
+import { reportClientEvent } from "../data/clientEvents";
 import { dismissDataLoss, pendingDataLoss } from "../data/db";
 import { remoteOn } from "../data/videos";
 
 export default function DataLossNotice() {
   const { t } = useLingui();
   const [loss, setLoss] = useState(pendingDataLoss);
+  // 失败上报（humble-delivery-4）：本机库被系统清空这件事此前只有这台手机上的人知道；hook 排在早退之前，一场会话只报一次（clientEvents 去重）
+  useEffect(() => {
+    if (loss) reportClientEvent("idb-dataloss");
+  }, [loss]);
   if (!loss) return null;
   return (
     <InfoDialog

@@ -74,16 +74,6 @@ export interface RegisterInput {
   password: string;
 }
 
-/** POST /api/auth/register（server 要求 password ≥ 6 位；用户名/邮箱冲突返回 409） */
-export async function register(input: RegisterInput): Promise<AuthResult> {
-  const res = await apiPost<{ token?: string; user?: ApiUser }>("/api/auth/register", input, {
-    auth: false,
-  });
-  const out = readAuth(res);
-  setToken(out.token);
-  return out;
-}
-
 /**
  * GET /api/me/profile（requireAuth）
  * /api/auth/me 只返回登录态需要的字段，昵称/简介/头像要从这条拿。
@@ -261,10 +251,14 @@ export async function phoneLoginVerify(phone: string, code: string): Promise<Aut
  * ★ 这个地址【不能】在应用内 WebView 里打开：Google 对嵌入式 WebView 的 OAuth 请求
  *   直接返 disallowed_useragent（是策略，不是 bug）。必须交给系统浏览器，
  *   登完由服务端深链回 App —— 见 utils/oauth.ts。
+ * @param state 本机生成的一次性 state（utils/oauth.startOauth；判定表 data/oauthState）：服务端把它放进自己签名的 state、
+ *   成功 / 失败两种回跳都原样回带 `state=`，App 据此只认本机发起的那一条回程。老服务端忽略这个参数（回跳不回带）。
+ *   契约 docs/api-contract.md「第三方登录深链的 state 绑定」
  */
-export function oauthStartUrl(provider: string, redirect: string): string {
+export function oauthStartUrl(provider: string, redirect: string, state?: string): string {
   const u = new URL(`${API_BASE}/api/auth/oauth/${encodeURIComponent(provider)}`);
   u.searchParams.set("next", redirect);
+  if (state) u.searchParams.set("state", state);
   return u.toString();
 }
 

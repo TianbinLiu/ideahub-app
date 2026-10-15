@@ -53,6 +53,7 @@ import TutorRunPage from "./pages/tutor/TutorRunPage";
 import StudioPage from "./studio/StudioPage";
 import TabBar from "./components/TabBar";
 import { bootData, type BootFailure } from "./data/boot";
+import { installGlobalFailureHooks } from "./data/clientEvents";
 import BootFailed from "./components/BootFailed";
 import DataLossNotice from "./components/DataLossNotice";
 import {
@@ -262,6 +263,8 @@ export default function App() {
     void bootData().then(setBoot);
   }, []);
   useEffect(load, [load]);
+  // 失败上报（humble-delivery-4）：window 的 error / unhandledrejection 只在 App 根挂一次（幂等），只带错误类型名 —— 实现与「发不发」都在 data/clientEvents
+  useEffect(installGlobalFailureHooks, []);
 
   if (!boot) {
     return (

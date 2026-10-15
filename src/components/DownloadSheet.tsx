@@ -182,7 +182,7 @@ export default function DownloadSheet({
                       {rowRight(row, known ?? null)}
                     </span>
                   </div>
-                  <p className="mt-0.5 break-all text-[10px] text-slate-600">{t.fileName}</p>
+                  <p className="mt-0.5 break-all text-[10px] text-slate-400">{t.fileName}</p>
                   {row?.err && <p className="mt-1 text-[11px] leading-relaxed text-rose-300">{row.err}</p>}
                   {row?.raw && <p className="mt-0.5 break-all text-[10px] text-slate-500">{row.raw}</p>}
                   {row?.unverified && (

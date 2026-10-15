@@ -207,7 +207,7 @@ export default function UpdateSheet({ info, onClose }: { info: UpdateInfo; onClo
         {/* ★ 签名不一致的情况提前说：早期发出去的测试包如果是 debug 签名，
             换成正式签名的包时系统会直接拒绝安装，而它给的提示（"应用未安装"）
             完全看不出原因 */}
-        <p className="mt-3 text-center text-[10px] leading-relaxed text-slate-600">
+        <p className="mt-3 text-center text-[10px] leading-relaxed text-slate-400">
           <Trans>若安装时提示「应用未安装」，多半是早期测试包的签名不同，先卸载旧版再装即可</Trans>
           {!forced && (
             <button onClick={onClose} className="ml-1 inline-flex items-center text-slate-500 underline underline-offset-2">

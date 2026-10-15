@@ -30,8 +30,7 @@ import {
 } from "../api/portrait";
 import { normalizeAssetId } from "../data/cardAsset";
 import { relativeTime } from "../types";
-import { isNative } from "../utils/oauth";
-import { openExternal } from "../utils/openExternal";
+import { onBrowserFinished, openExternal } from "../utils/openExternal";
 import QrCode from "./QrCode";
 
 /** 等火山结果的慢轮询：间隔与上限。★ 上限到了就停，别让一张忘在后台的页一直打方舟的 OpenAPI */
@@ -203,18 +202,15 @@ export default function VolcCompatToggle({
     };
     document.addEventListener("visibilitychange", onVisible);
     let dead = false;
-    let handle: { remove: () => Promise<void> } | null = null;
-    if (isNative()) {
-      void import("@capacitor/browser")
-        .then(async ({ Browser }) => {
-          const h = await Browser.addListener("browserFinished", () => void checkNew());
-          if (dead) void h.remove();
-          else handle = h;
-        })
-        .catch(() => {
-          /* 监听挂不上就靠可见性与轮询，不影响主路 */
-        });
-    }
+    let off: (() => void) | null = null;
+    // 系统浏览器那一页关掉就查一次（utils/openExternal.onBrowserFinished；网页里是空操作）。挂不上就靠可见性与轮询，不影响主路。
+    // ★ 不再在这里 import("@capacitor/browser")：页面 / 组件不直接碰原生插件（import 方向规则④，2026-10-15 装进 check-import-direction）
+    void onBrowserFinished(() => void checkNew())
+      .then((f) => {
+        if (dead) f();
+        else off = f;
+      })
+      .catch(() => {});
     const startedAt = Date.now();
     const timer = window.setInterval(() => {
       if (Date.now() - startedAt > POLL_LIMIT_MS) {
@@ -226,7 +222,7 @@ export default function VolcCompatToggle({
     return () => {
       dead = true;
       document.removeEventListener("visibilitychange", onVisible);
-      void handle?.remove();
+      off?.();
       window.clearInterval(timer);
     };
     // checkNew 读的都是 ref 与 setter，跟着 phase 重挂就够

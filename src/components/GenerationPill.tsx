@@ -12,6 +12,7 @@
 //   点掉即走，不常驻。
 // ★ 只动 transform/opacity 做进出场（合成层，首页视频流滚动时不触发重排）。
 // ★ 同时只画一条：进行中优先（最新发起的那条），其次是最早的一条结局；关掉一条下一条顶上来。
+import { useEffect } from "react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useLocation, useNavigate } from "react-router";
 import Spinner from "./Spinner";
@@ -35,6 +36,12 @@ export default function GenerationPill() {
   const nav = useNavigate();
   const loc = useLocation();
   const here = loc.pathname;
+  // ★ 人就在开炉的那一面时，结果通知当场清掉（2026-10-15 发版前复核抓到）：那一面自己画了结果（工坊的 npcSay、简约页第③步），而胶囊
+  //   在那儿不画 —— 不清的话它会跟着人跑到下一页（首页上冒出「✓ 第 1 段出片了 · 回去看看」，早就看过了）。/flow 那一面由 FlowPage 自己的
+  //   effect 清（那边还要管「在这一页上看着炼完」的那一条），这里管另两个宿主
+  useEffect(() => {
+    if (notice && here === genFrom && here !== "/flow") clearNotice();
+  }, [notice, here, genFrom, clearNotice]);
 
   const items: Item[] = [];
   // 出片：人就在工作流页上时页面自己有完整的进度/结果 UI，胶囊只会挡视线。

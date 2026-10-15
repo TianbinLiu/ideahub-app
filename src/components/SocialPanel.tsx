@@ -100,7 +100,7 @@ export default function SocialPanel({ kind, id }: { kind: SocialKind; id: string
         </div>
       </div>
       {/* 这几个数字是哪来的，必须说清楚。措辞与热度那一行的「本机计数」对齐 */}
-      <p className="mt-1 text-center text-[10px] text-slate-600">
+      <p className="mt-1 text-center text-[10px] text-slate-400">
         {r.source === "server" ? (
           <Trans>浏览 / 点赞 / 收藏为社区计数；评论只存在这台设备上</Trans>
         ) : (

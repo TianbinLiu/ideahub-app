@@ -14,7 +14,10 @@
 //      值 import 只许来自表里另一个零依赖模块（CLAUDE.md「几个镜头拼成一段话只走 shotScript.joinShots」允许这种）；
 //   ③′ recipe.ts 按 CLAUDE.md 的原话是「零 **store** 依赖」不是零依赖（它值引用 economy / refMentions，economy 又引 lingui）：
 //      只禁 import src/studio。
-//   不管的（另立提案）：pages / components 直接 import @capacitor/*（CutPage 今天就有一处）；agentGrammar / cutGrammar / cameraVocab
+//   ④ src/pages/** 与 src/components/** 不直接 import `@capacitor/*`（2026-10-15 装上，教材人格评审第五节「另议」拍板）：原生能力从 utils / data 借 ——
+//      插件换版本、web 垫片行为不同只改一处；装之前把 CutPage 的 convertFileSrc 与 VolcCompatToggle 的 browserFinished 各搬进 utils
+//      （nativeMerge.nativeFileSrc / openExternal.onBrowserFinished）。
+//   不管的：agentGrammar / cutGrammar / cameraVocab
 //   的「只准 import type」由各自的 check 脚本 (a) 段管着。
 // ★ 仓内门禁纪律：写完先造真违规试红。上线前试过三处，各自变红：往 src/data/danmaku.ts 加 `import { useFlow } from "../studio/flowStore"`；
 //   往 flowStore.ts 加 `import type { X } from "./studioStore"`；把 src/data/drawPlan.ts 的 `import type` 改成 `import`。
@@ -44,6 +47,7 @@ const ZERO_DEP = [
   "src/data/effectPresets.ts",
   "src/data/videoTierTable.ts",
   "src/data/guidedModes.ts",
+  "src/data/oauthState.ts",
 ];
 /** ③′ 零 store 依赖（纯函数、不认识 store，但可以用同层的 data 模块） */
 const NO_STORE = ["src/data/recipe.ts"];
@@ -105,14 +109,20 @@ let scanned = 0;
 for (const file of files) {
   const me = rel(file);
   const inData = me.startsWith("src/data/");
+  const inUi = me.startsWith("src/pages/") || me.startsWith("src/components/");
   const zeroDep = ZERO_DEP.includes(me);
   const noStore = NO_STORE.includes(me);
   const isFlow = me === FLOW_STORE;
-  if (!inData && !zeroDep && !noStore && !isFlow) continue;
+  if (!inData && !zeroDep && !noStore && !isFlow && !inUi) continue;
   scanned++;
   for (const imp of importsOf(file)) {
     const target = resolveSpec(file, imp.spec);
     const where = `${me}:${imp.line}  ${imp.kind} ${JSON.stringify(imp.spec)}`;
+    // ④ 页面 / 组件不直接碰原生插件
+    if (inUi && imp.spec.startsWith("@capacitor/")) {
+      fail(`${where}
+      pages / components 不许直接 import @capacitor/*：原生能力从 utils / data 借（utils/nativeMerge.nativeFileSrc、utils/openExternal.onBrowserFinished 那样抽一个），插件换版本只改一处`);
+    }
     // ① data 不许反向引 store / 页面 / 组件 / hook
     if (inData && target && UPSTREAM_OF_DATA.some((d) => target.startsWith(d))) {
       fail(`${where}\n      data 层不许 import ${target}（依赖方向单向：data → store → 组件；要共用的逻辑往 data 或 types 挪）`);
