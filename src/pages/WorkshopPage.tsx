@@ -104,13 +104,15 @@ function CardTile({ card, onRemove, to }: { card: Card; onRemove?: () => void; t
           🔊
         </span>
       )}
+      {/* 一直显示、命中区 40px（2026-10-14 UX 课走查）：原来 hover 才出现，而手机上没有 hover —— 这颗键在真机上从没显示过，
+          点卡面只会进详情页 */}
       {onRemove && (
         <button
           onClick={onRemove}
           aria-label={t`移除`}
-          className="absolute right-1.5 top-1.5 hidden h-6 w-6 items-center justify-center rounded-full bg-black/70 text-xs text-slate-200 group-hover:flex"
+          className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/70 text-xs text-slate-200 after:absolute after:-inset-2 after:content-[''] active:scale-95"
         >
-          <Icon name="close" size={16} />
+          <Icon name="close" size={14} />
         </button>
       )}
     </div>
@@ -421,7 +423,8 @@ export default function WorkshopPage() {
                               }
                             }}
                             disabled={owned || busyCard === c.cardId}
-                            className="mt-1 w-full text-center text-[10px] text-slate-400 disabled:text-slate-600"
+                            // 与下面卡组那颗「＋ 添加」同一副样子（2026-10-14 UX 课走查）：原来是一行 10px 灰字，不像能点
+                            className="mt-1.5 w-full rounded-full bg-brand py-1.5 text-center text-[11px] font-semibold text-ink active:opacity-60 disabled:bg-panel disabled:text-slate-500"
                           >
                             {c.isOwner ? t`我发的` : owned ? t`已拥有` : busyCard === c.cardId ? t`添加中…` : t`＋ 添加`}
                           </button>
@@ -525,10 +528,17 @@ export default function WorkshopPage() {
                       className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-slate-100 outline-none"
                     />
                     <span className="text-[11px] text-slate-500"><Trans>{d.cardIds.length} 张</Trans></span>
-                    <button onClick={() => setEditing(open ? null : d.id)} className="text-xs text-brand">
+                    {/* 两颗做成胶囊（原来是两段 16px 高的裸文字并排，手指点不准、也分不出哪个是键） */}
+                    <button
+                      onClick={() => setEditing(open ? null : d.id)}
+                      className="rounded-full bg-panel px-3 py-1.5 text-xs text-brand ring-1 ring-slate-700 active:opacity-60"
+                    >
                       {open ? t`完成` : t`编辑`}
                     </button>
-                    <button onClick={() => setAskDeck(d)} className="text-xs text-rose-400">
+                    <button
+                      onClick={() => setAskDeck(d)}
+                      className="rounded-full border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 text-xs text-rose-300 active:opacity-60"
+                    >
                       <Trans>删除</Trans>
                     </button>
                   </div>

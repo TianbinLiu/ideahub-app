@@ -10,6 +10,7 @@ import { deckCoverOf, memberTiersLine, myCards, myDecks, realFaceIssue, tierBloc
 import { ONE_IMAGE, VIDEO_TIERS, deriveIssue, durationChoices, fmtTokens, promptMaxOf, r2vBlockLines, segTokens, tierModelId, tierModelLabel, tierOf } from "../../data/economy";
 import { useAccountVersion } from "../../hooks/useAccount";
 import UpgradeLink from "../../components/UpgradeLink";
+import { CloseButton } from "../../components/IconTapButton";
 import { voiceOf } from "../../data/cardVoice";
 import { cardFitNote } from "../segmentGen";
 import TarotCard from "../../components/TarotCard";
@@ -450,13 +451,14 @@ function EditorPanel() {
         )}
         <h3 className="flex-none text-sm font-bold text-cyan-100"><Trans>铸造节点卡 · 第 {segIndex + 1} 段</Trans></h3>
         {wizardLane && step !== "mode" ? null : stepCrumb}
-        <button
+        {/* 关闭键走 CloseButton（44px 命中区 + 读屏名）：原来是一个裸的 ✕ 字，约 14×20px，手机上要戳好几下 */}
+        <CloseButton
+          chip="sm"
+          size={13}
+          align="end"
           onClick={() => useStudio.getState().closeProjection()}
           disabled={editor.generating}
-          className="text-slate-400 hover:text-white disabled:opacity-40"
-        >
-          ✕
-        </button>
+        />
       </div>
 
       {/* ══ 第①步：选模式。与画布编辑窗的三个页签同名同义（工作流↔工坊一套心智） ══ */}
@@ -1335,15 +1337,15 @@ function ProposalsPanel() {
         <button
           onClick={() => setTierOpen((v) => !v)}
           title={t`这一段的画质档`}
-          className={`flex-none rounded-full px-2 py-1 text-[10px] ${
+          aria-expanded={tierOpen}
+          // 带 ▾：它是开合一排档位的开关，不带箭头看着像一枚只读的状态标签（2026-10-14 UX 课的惯例）
+          className={`flex-none rounded-full px-2.5 py-1.5 text-[11px] active:opacity-60 ${
             tierOpen ? "bg-cyan-400/20 text-cyan-100" : "bg-slate-700/60 text-slate-300"
           }`}
         >
-          {tierOf(node.videoTier).label}
+          {tierOf(node.videoTier).label} {tierOpen ? "▴" : "▾"}
         </button>
-        <button onClick={() => useStudio.getState().closeProjection()} className="flex-none text-slate-400 hover:text-white">
-          ✕
-        </button>
+        <CloseButton chip="sm" size={13} align="end" onClick={() => useStudio.getState().closeProjection()} />
       </div>
       {/* ★ 空白占位段（还没推演）：这一行就是它的「上一步」——退回铸段窗重选模式 / 改要求，
           不花钱。没有它的话，用户被困在一张空白卡上：顶栏那枚 ‹ 是"上一段"（第 1 段时灰着），

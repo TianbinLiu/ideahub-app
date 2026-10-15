@@ -686,7 +686,7 @@ function r2vBlockText(block: R2vBlock, labels: string[], scope: R2vScope): strin
   }
   const model = block.model;
   return scope === "blockout"
-    ? t`「${names}」这一档的白模出片暂时报不出价（${model} 的 r2v 单价未核账），先用别的档位`
+    ? t`「${names}」这一档的白模出片暂时报不出价（${model} 的单价未核账），先用别的档位`
     : t`「${names}」这一档的参考视频出片暂时报不出价（${model} 的单价未核账），先用别的档位`;
 }
 

@@ -831,7 +831,9 @@ export default function ProfilePage() {
         )}
       </div>
 
-      {/* ── 页签：只有图标 + 计数（TikTok 同款），sticky 在顶栏正下方 ────── */}
+      {/* ── 页签：图标 + 计数，图标下面一行 10px 的名字，sticky 在顶栏正下方 ──────
+          ★ 2026-10-14（CSCI 187 UX 课的「可扫视」）：原来只有图标（TikTok 同款），但五枚里草稿是把锁、卡片与卡组两枚长得几乎一样，
+            新用户认不出哪格是哪格；名字写出来之后 aria-label 照留（读屏念的还是它） */}
       <div
         data-guide="profile-tabs"
         className="sticky z-10 mt-4 flex border-b border-slate-700/60 bg-ink"
@@ -849,12 +851,15 @@ export default function ProfilePage() {
               onClick={() => setTab(k)}
               aria-label={m.label}
               title={m.label}
-              className={`relative flex min-h-[44px] flex-1 items-center justify-center gap-1 transition ${
+              className={`relative flex min-h-[48px] flex-1 flex-col items-center justify-center gap-0.5 py-1 transition ${
                 on ? "text-slate-100" : "text-slate-500"
               }`}
             >
-              <Icon name={m.icon} size={20} filled={on && k === "collects"} />
-              {m.n > 0 && <span className="text-[11px] tabular-nums">{m.n}</span>}
+              <span className="flex items-center gap-1">
+                <Icon name={m.icon} size={20} filled={on && k === "collects"} />
+                {m.n > 0 && <span className="text-[11px] tabular-nums">{m.n}</span>}
+              </span>
+              <span className="text-[10px] leading-none">{m.label}</span>
               {on && <span className="absolute inset-x-[28%] bottom-0 h-0.5 rounded-full bg-slate-100" />}
             </button>
           );
@@ -908,7 +913,10 @@ export default function ProfilePage() {
             ) : (
               // ★ 没问到就**不许**说"还没有发布作品"（铁律八）：那句话会让人以为作品没了，
               //   而"仅自己可见"的那些在 app 里没有第二个入口
-              <Empty text={myWorks?.status === "failed" ? t`没能取到你的作品：${myWorks.error}` : t`正在取你的作品…`} />
+              <Empty
+                loading={myWorks?.status !== "failed"}
+                text={myWorks?.status === "failed" ? t`没能取到你的作品：${myWorks.error}` : t`正在取你的作品…`}
+              />
             )
           ) : (
             <StrangerWorks
@@ -1058,6 +1066,7 @@ export default function ProfilePage() {
             //   "正在取"，而这一趟其实已经取完、effect 不会再跑，那句话**永远停在那儿**。
             //   在一次专门消灭"编出来的空状态"的改动里，从另一头又造了一个。
             <Empty
+              loading={collectUnknown === 0 && collectGone === 0}
               text={
                 collectUnknown > 0
                   ? t`这会儿没取回来，网络通了再试一次`
@@ -1850,6 +1859,7 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
   );
 }
 
-function Empty({ text, cta, to }: { text: string; cta?: string; to?: string }) {
-  return <EmptyState text={text} cta={cta && to ? { label: cta, to } : undefined} />;
+/** `loading`：「正在取…」那几句要配加载圈 —— 没有圈的一行字分不出"在取"和"卡住了"（2026-10-14 UX 课走查） */
+function Empty({ text, cta, to, loading }: { text: string; cta?: string; to?: string; loading?: boolean }) {
+  return <EmptyState text={text} loading={loading} cta={cta && to ? { label: cta, to } : undefined} />;
 }

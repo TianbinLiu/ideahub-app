@@ -723,7 +723,8 @@ function FeedItem({
               <button
                 onClick={() => setFollowing(toggleFollow(video.author))}
                 aria-label={t({ message: "关注", context: "作者头像下那颗关注按钮（动作：关注这个人）" })}
-                className="absolute -bottom-2 left-1/2 flex h-5 w-5 -translate-x-1/2 items-center justify-center rounded-full bg-rose-500 text-white transition active:scale-90"
+                // 画着 20px、命中区放到 44px（after 伪元素外扩 12px）：它贴着头像键，点偏一点就进了主页（2026-10-14 UX 课走查）
+                className="absolute -bottom-2 left-1/2 flex h-5 w-5 -translate-x-1/2 items-center justify-center rounded-full bg-rose-500 text-white transition after:absolute after:-inset-3 after:content-[''] active:scale-90"
               >
                 <Icon name="plus" size={12} strokeWidth={3} />
               </button>
@@ -1118,7 +1119,10 @@ export default function FeedPage() {
           }
           cta={
             feed === "following"
-              ? { label: t`去推荐流看看`, onClick: () => setFeed("recommend") }
+              ? user
+                ? { label: t`去推荐流看看`, onClick: () => setFeed("recommend") }
+                // 没登录时那句说的是「登录后…」，键就该是登录（原来给的是「去推荐流」，话和键对不上；2026-10-14 UX 课走查）
+                : { label: t`登录`, to: "/login?next=%2F", primary: true }
               : { label: t`去卡片工坊创作`, to: "/studio", primary: true }
           }
         />

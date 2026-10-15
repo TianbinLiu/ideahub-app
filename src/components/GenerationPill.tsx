@@ -37,8 +37,10 @@ export default function GenerationPill() {
   const here = loc.pathname;
 
   const items: Item[] = [];
-  // 出片：人就在工作流页上时页面自己有完整的进度/结果 UI，胶囊只会挡视线
-  if (here !== "/flow") {
+  // 出片：人就在工作流页上时页面自己有完整的进度/结果 UI，胶囊只会挡视线。
+  // ★ 开炉的那一面（genFrom：3D 工坊 / 简约页）同理 —— 它们各自画着这一段的进度，胶囊在那儿只会压住顶栏那排键
+  //   （2026-10-14 UX 课走查：简约页「第 1/3 步」、工坊 🧩 💾 都被它盖过）
+  if (here !== "/flow" && here !== genFrom) {
     // ★ 回哪一面看这一炉是从哪一面开的（flowStore.genFrom）：3D 工坊 / 简约页 / 工作流页是同一条流水线的几个宿主，
     //   原来写死 /flow，在工坊炼的段点「回去看看」会被送进 FlowPage、3D 场景整个卸掉。老会话没记过的（null）照旧回 /flow
     const flowRoute = genFrom ?? "/flow";
@@ -103,9 +105,10 @@ export default function GenerationPill() {
               </span>
             )}
           </button>
-          {/* 不想回去也得能把它关掉：一条关不掉的通知横在每一页顶上，比没有更坏 */}
-          <button onClick={show.dismiss} className="flex-none rounded-full p-1.5 text-slate-400" aria-label={t`关闭`}>
-            <Icon name="close" size={12} />
+          {/* 不想回去也得能把它关掉：一条关不掉的通知横在每一页顶上，比没有更坏。
+              命中区 36px（原来 24px 紧贴着「回去看看」，点偏一点就被带走了） */}
+          <button onClick={show.dismiss} className="-my-1 flex-none rounded-full p-2.5 text-slate-400 active:scale-95" aria-label={t`关闭`}>
+            <Icon name="close" size={14} />
           </button>
         </div>
       )}

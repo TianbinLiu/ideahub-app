@@ -2156,7 +2156,8 @@ async function pushPublish(item: VideoItem, draft: DraftVideo): Promise<void> {
     // ★ 说给用户听要走 toast：这一刻他可能已经不在发布页上了，写进任何页面的 state 都白写
     //   （本仓那格坑：话要说在用户接下来会看的那一屏上）。
     if (!(await queuePending((e as MaterializeError).partial ?? sending, uploadFailOf(e)))) {
-      showToast(t`这条作品既没传上去、也没能存进待发队列——先别关 App，清点一下存储空间再发一次`);
+      // 一句 30 多个字，缺省 1.8 秒根本读不完（2026-10-14 UX 课走查）
+      showToast(t`这条作品既没传上去、也没能存进待发队列——先别关 App，清点一下存储空间再发一次`, 7000);
     }
   }
 }

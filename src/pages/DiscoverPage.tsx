@@ -324,6 +324,17 @@ export default function DiscoverPage() {
         </div>
       </div>
 
+      {/* ★ 四种结局分开说（与本页搜人那半同一条理由）：在搜 / 没搜成 / 真的没有 / 这个分区没有。
+          原来只有最后两种，于是"服务器没搜成"被画成了"没有找到相关作品"。
+          ★ 摆在网格**上面**（2026-10-14 UX 课走查）：「没搜成」时下面照样铺着本机那几十条兜底结果，这句原来排在网格之后、
+            一屏都滚不到，等于没说 */}
+      {vidBusy && results.length === 0 ? (
+        <EmptyState loading text={t`正在搜…`} />
+      ) : vidErr ? (
+        <EmptyState error text={t`没搜成：${vidErr}`} hint={t`下面列的是这台设备上已有的那几条，不是全部结果。`} />
+      ) : results.length === 0 ? (
+        <EmptyState icon="search" text={key ? t`没有找到「${key}」相关的作品` : cat ? t`「${videoCategoryLabel(cat)}」还没有作品` : t`还没有作品`} />
+      ) : null}
       <div className="grid grid-cols-2 gap-3 pb-4">
         {results.map((v) => (
           <Link key={v.id} to={`/video/${v.id}`} className="group">
@@ -359,15 +370,6 @@ export default function DiscoverPage() {
           </Link>
         ))}
       </div>
-      {/* ★ 四种结局分开说（与本页搜人那半同一条理由）：在搜 / 没搜成 / 真的没有 / 这个分区没有。
-          原来只有最后两种，于是"服务器没搜成"被画成了"没有找到相关作品"。 */}
-      {vidBusy && results.length === 0 ? (
-        <EmptyState loading text={t`正在搜…`} />
-      ) : vidErr ? (
-        <EmptyState error text={t`没搜成：${vidErr}`} hint={t`上面列的是这台设备上已有的那几条，不是全部结果。`} />
-      ) : results.length === 0 ? (
-        <EmptyState icon="search" text={key ? t`没有找到「${key}」相关的作品` : cat ? t`「${videoCategoryLabel(cat)}」还没有作品` : t`还没有作品`} />
-      ) : null}
     </div>
   );
 }

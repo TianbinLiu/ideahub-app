@@ -59,7 +59,7 @@ export default function SettingsPage() {
       <PageHeader sticky inset onBack={back} title={t`设置`} />
 
       {/* ── 个性化 ────────────────────────────────────────────── */}
-      <Group>
+      <Group title={t`个性化`}>
         <NavRow to="/settings/profile" emoji="🪪" title={t`编辑资料`} sub={t`头像 · 昵称 · 简介`} />
         {/* 行上报「当前用的是哪把」：这一节的信息价值九成在它（拆页前收起态就这么画） */}
         <NavRow to="/settings/voice" emoji="🎙️" title={t`铸卡师的声音`} sub={currentVoice().name} />
@@ -69,12 +69,12 @@ export default function SettingsPage() {
 
       {/* ── 账号 · 安全 ────────────────────────────────────────
           ★ 拉黑是**账号级**的（跟着人走、换设备还在），所以不放在下面「本机」那一组里 */}
-      <Group>
+      <Group title={t`账号`}>
         <NavRow to="/settings/blocked" emoji="🚫" title={t`已拉黑的人`} sub={t`看名单 · 随时解除`} />
       </Group>
 
       {/* ── 本机 ─────────────────────────────────────────────── */}
-      <Group>
+      <Group title={t`这台设备`}>
         <NavRow
           to="/settings/storage"
           emoji="🧹"
@@ -86,7 +86,7 @@ export default function SettingsPage() {
       </Group>
 
       {/* ── 帮助 ─────────────────────────────────────────────── */}
-      <Group>
+      <Group title={t`帮助与 AI 伙伴`}>
         <NavRow to="/support" emoji="🎧" title={t`AI 客服 · 帮助与反馈`} sub={t`问小梦，解决不了转人工`} />
         {/* 数字人的形象 / 人格：主入口在客服页顶栏那一列小键，这里再给一条找得到的路（设置存服务端，官网同步） */}
         <NavRow to="/support/models" emoji="👗" title={t`数字人形象`} sub={t`给小梦换一套 Live2D 形象`} />
@@ -101,7 +101,7 @@ export default function SettingsPage() {
 
       {/* ── 协议与须知 ────────────────────────────────────────────
           应用商店与监管都要求协议在应用内可随时找到；文本只有 data/agreements 一份 */}
-      <Group>
+      <Group title={t`协议与须知`}>
         <DocRow id="terms" emoji="📜" sub={t`使用本应用的约定`} />
         <DocRow id="privacy" emoji="🔒" sub={t`收集什么、怎么用、找谁行使权利`} />
         <DocRow id="aigc" emoji="🏷️" sub={t`标识、素材授权与违规处理`} />
@@ -125,7 +125,7 @@ export default function SettingsPage() {
           ★ 「免扣费」是管理员才成立的条件事实，留在行上说（不进引导弹窗）：
             不说的话他会把"这一步免费"当成产品事实（各处报价旁边也有同一句，见 TokenCost）。 */}
       {isAdmin() && (
-        <Group>
+        <Group title={t`管理`}>
           <NavRow to="/admin" emoji="🛡️" title={t`管理后台`} sub={t`处理举报（下架 / 驳回 / 删除）· 平台数据`} />
           <p className="px-4 pb-3 text-[11px] leading-relaxed text-slate-500">
             <Trans>你的账号是管理员：AI 生成走的是免扣费通道，消耗不从钱包里扣。</Trans>
@@ -187,11 +187,14 @@ export default function SettingsPage() {
   );
 }
 
-/** 一组入口行：一个圆角框，行间细分隔线（比每行各自一张卡安静得多） */
-function Group({ children }: { children: React.ReactNode }) {
+/** 一组入口行：一个圆角框，行间细分隔线（比每行各自一张卡安静得多）。
+ *  `title` 画在框上方（2026-10-14 CSCI 187 UX 课的「布局要可扫视」）：五个框原来只靠空隙分组，分组名只写在源码注释里，
+ *  读的人得逐行看才知道这一框是什么 —— 名字摆出来，扫一眼就能跳到要找的那一组 */
+function Group({ title, children }: { title?: string; children: React.ReactNode }) {
   return (
-    <div className="mb-4 divide-y divide-slate-800 overflow-hidden rounded-xl border border-slate-700/70 bg-panel">
-      {children}
+    <div className="mb-4">
+      {title && <div className="mb-1.5 px-1 text-xs font-semibold text-slate-500">{title}</div>}
+      <div className="divide-y divide-slate-800 overflow-hidden rounded-xl border border-slate-700/70 bg-panel">{children}</div>
     </div>
   );
 }

@@ -24,24 +24,26 @@ const GROUP_LABEL: Record<GuidedGroup, MessageDescriptor> = {
 };
 
 const MODE_TEXT: Record<GuidedModeId, { icon: string; title: MessageDescriptor; tag: MessageDescriptor; desc: MessageDescriptor }> = {
+  // ★ 说明只讲「你要做什么、会得到什么」（2026-10-14 按 CSCI 187 UX 课的「信息要简洁、无行话」收口）：
+  //   原来几条末尾挂着「LibTV / updream 作者的做法」—— 对标记录归 docs，用户不认识那两个站，摆在选项上只是噪音。
   direct: {
     icon: "🖼",
     title: msg`参考图直出`,
     tag: msg`不画帧`,
-    desc: msg`挑几张参考图（人物 / 场景卡）＋ 写提示词，人物图直接给视频模型。LibTV 作者最常用的做法`,
+    desc: msg`挑几张参考图（人物 / 场景卡）＋ 写提示词，人物图直接给视频模型`,
   },
   custom: { icon: "✍", title: msg`自定义`, tag: msg`全按你的来`, desc: msg`传一段示例视频，或自己给首尾帧` },
   lead: {
     icon: "🎭",
     title: msg`主角定妆 · 多镜头`,
     tag: msg`先定人、再拆镜头`,
-    desc: msg`选好（或现做）主角，写一场戏，AI 拆成 2~4 个镜头带台词，一条出。updream 作者的做法`,
+    desc: msg`选好（或现做）主角，写一场戏，AI 拆成 2~4 个镜头带台词，一条出`,
   },
   grid: {
     icon: "🎞",
     title: msg`九宫格分镜`,
     tag: msg`先出一组画面`,
-    desc: msg`写一场戏，AI 写成 4~9 格分镜、一次画出整组画面；挑几格，每格变成一段。LibTV 作者的做法`,
+    desc: msg`写一场戏，AI 写成 4~9 格分镜、一次画出整组画面；挑几格，每格变成一段`,
   },
   dialogue: {
     icon: "💬",
@@ -56,7 +58,8 @@ const MODE_TEXT: Record<GuidedModeId, { icon: string; title: MessageDescriptor; 
     tag: msg`换上你的主角就出`,
     desc: msg`挑一个特效（时间冻结、环绕亮相、走出壁画、产品亮相……），换上你的人物或产品，一段 5~6 秒的大片`,
   },
-  template: { icon: "🧪", title: msg`套模板`, tag: msg`白模复刻`, desc: msg`套一个模板，给人偶挂卡换人（模板按这个模型筛）` },
+  // 「白模 / 人偶挂卡」是模板那一屏才教的词，这里先用人话说清结果：换的是人，场景与运镜照模板
+  template: { icon: "🧪", title: msg`套模板`, tag: msg`换人不换景`, desc: msg`挑一条模板片，把画面里的人换成你的角色，场景与运镜照它走（模板按这个模型筛）` },
 };
 
 /** economy.VideoTier → 判定要的那几位能力（判据只在 guidedModes.modeBlock） */
@@ -109,7 +112,8 @@ export default function ModePicker({
                 onClick={() => onTier(x.id)}
                 disabled={blocked}
                 title={tierModelId(x)}
-                className={`flex-none rounded-full px-3 py-1 text-[11px] disabled:opacity-40 ${
+                // 常规档的芯片（px-3.5 py-1.5 text-xs）：这排是这一屏的第一个决定，紧凑档 22px 高手指点不准（2026-10-14 UX 课收口）
+                className={`flex-none rounded-full px-3.5 py-1.5 text-xs transition active:opacity-60 disabled:opacity-40 ${
                   x.id === tier.id ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-300"
                 }`}
               >

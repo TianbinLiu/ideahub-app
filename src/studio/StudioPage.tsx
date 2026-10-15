@@ -285,12 +285,15 @@ export default function StudioPage() {
           {hasWork ? (
             <DraftTitle from="studio" collapsed className="bg-panel/85 backdrop-blur" />
           ) : (
-            <span
-              title={t`铸出第一段之后就能给这条工程起名`}
+            // 与旁边 🧩 💾 同一套（2026-10-10）：按下用轻提示说为什么 —— 手机上看不见 title
+            <button
+              aria-disabled
+              aria-label={t`给工程起名`}
+              onClick={() => showToast(t`铸出第一段之后就能给这条工程起名`)}
               className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-panel/50 opacity-45 backdrop-blur"
             >
               <Icon name="pen" size={15} className="text-slate-400" />
-            </span>
+            </button>
           )}
           {/* 「🧩 工作流」：同一条流水线换到画布那一面 —— 与画布顶栏「🎴 工坊」对称
               （2026-08-30 主人点名：此前只有画布→工坊单向有键，反向只剩法阵那条隐路）。
