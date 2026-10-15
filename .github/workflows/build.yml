@@ -29,8 +29,10 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          # 跟开发机对齐（本地 v24.15.0）。不写死小版本，拿 24.x 最新
-          node-version: "24"
+          # ★ 钉到 .nvmrc 里那个小版本（2026-10-15 教材人格评审，humble-delivery-8）：原来只钉大版本、拿 24.x 最新 ——
+          #   而 build 串里十几道 check-*.mjs 靠的是 Node 把 .ts 的类型剥掉直接 import 跑，小版本一变、剥类型的行为
+          #   可能变，CI 与开发机就不是同一台「机器」。版本只有 .nvmrc 一处（package.json 的 engines 跟着它）。
+          node-version-file: .nvmrc
           cache: npm
 
       # 用 ci 而不是 install：严格按 package-lock.json 装，锁文件与 package.json

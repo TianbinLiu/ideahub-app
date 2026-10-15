@@ -15,6 +15,15 @@
 //     ⑥ 镜像上的安装包在清单指向它**之前**就已经完整落位
 //                              —— 先发清单再传包：传到一半被人下走的半截包会被 Cloudflare
 //                                 按 immutable 缓存一年，这一版对那批用户永久更新不了
+//   （下面四条是 2026-10-15 教材人格评审补的：原来写在 docs 里让人 unzip / git log 对一眼，人迟早漏）
+//     ⑦ 出包的源码就是 origin/main 上那一份、工作区干净（第 0 步）
+//                              —— tag 建在远端 main 的 HEAD 上、包是本地 HEAD 出的，对不上就是「tag 指着一份源码、用户装的是另一份」
+//     ⑧ 包里的内容是本次构建的、受保护模型只有自有那几个、权限表没漂、入仓的 jar 有来源（第 2b～2d 步）
+//                              —— 版本号对而内容旧不报错；第三方模型随包发出去不报错；插件偷带的权限不报错
+//     ⑨ GitHub Release 上那份 APK 与清单逐字节相同（第 7b 步）
+//                              —— 它是强制更新弹层上「镜像也下不动」时唯一的备用下载源，原来三份产物只验了两份
+//     ⑩ 撤回过的版本（pre-release）也要被这一版的 versionCode 压过（第 4c 步）
+//                              —— 撤回让 /latest 退回上一版，可已经装上坏版的人只认更大的 versionCode
 //   这几件事全靠人记，迟早漏一件；而漏了之后**你不会知道**——你手上的 App 是好的，
 //   坏的是所有已经装了旧版的人。所以这里逐条检查，最后再从公网**真的拉一遍**清单与整个包核对。
 //
@@ -25,16 +34,22 @@
 //                              这一版起**强制更新**：versionCode < 75 的包一打开就只能更新（清单的 minVersionCode，见 parseMinFlag 的 ★★）。
 //                              不传 = 沿用上一版清单里的值（没有就是不强制）。也可以用环境变量 RELEASE_MIN_VERSION_CODE=75。
 //                              `--min-version-code 75`（空格隔开）也认；认不出的参数一律当场停（见 parseArgs 的 ★★）。
+//   npm run release -- --withdraw v2.63
+//                              **发错了，止血**：把那一版标成 pre-release，/latest 当场退回上一版（见 withdraw 的 ★★ 与
+//                              docs/app-distribution.md「发错了」）。只做这一步，并把它做不到的三件事当面说出来。单独用，不与别的参数搭。
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import url from "node:url";
+import { apkPermissions, entryJsOf, inspectWebBundle, jarProvenance, manifestPermissions, permissionDiff } from "./lib/app-package.mjs";
+import { OWN_PROTECTED_MODELS, PROTECTED_DIR } from "./lib/protected-models.mjs";
+import { changesOf } from "./worktree-changes.mjs";
 
 const root = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), "..");
 
 /**
- * 命令行参数 —— 只认这几种写法：`--dry`、`--min-version-code=N`、`--min-version-code N`；**别的一律当场停**。
+ * 命令行参数 —— 只认这几种写法：`--dry`、`--min-version-code=N`、`--min-version-code N`、`--withdraw <tag>`；**别的一律当场停**。
  *
  * ★★ 为什么要严（2026-10-10 评审抓到）：原来只认 `--min-version-code=N` 这一种写法，其余写法**被悄悄忽略**：
  *   · `npm run release -- --min-version-code 76`（空格）→ 没认出来 → 沿用上一版的门槛（多半是 0）→ 强制更新悄悄没发出去；
@@ -42,6 +57,8 @@ const root = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), ".."
  *     脚本根本收不到，结局同上。`npm run release --dry` 同理：npm 吞掉 `--dry`，脚本**照常正式发布**。
  *   全程只多一行「✓ 不强制更新」，发完的核对也照着那个沿用的数核、一路全绿；而同一个版本号发出去就改不了（重跑不许改门槛），
  *   要补只能再涨一版。所以：认不出就停；npm 吞掉的那两个从它的环境变量里捡回来，并当面说一句。
+ * ★ `--withdraw`（2026-10-15 教材人格评审）同一条纪律：被 npm 吞掉而没认出来的后果是**照常发一版**，比没发更坏，所以也从
+ *   npm_config_withdraw 里捡；它与 --dry / --min-version-code 不搭 —— 撤回不出包、不发布。
  */
 function parseArgs() {
   const argv = process.argv.slice(2);
@@ -49,6 +66,8 @@ function parseArgs() {
   /** @type {string | undefined} */
   let minRaw;
   let minFrom = "";
+  /** @type {string | undefined} */
+  let withdraw;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--dry") dry = true;
@@ -61,8 +80,15 @@ function parseArgs() {
       minRaw = v;
       minFrom = `${a} ${v}`;
       i++;
+    } else if (a.startsWith("--withdraw=")) {
+      withdraw = a.slice("--withdraw=".length);
+    } else if (a === "--withdraw") {
+      const v = argv[i + 1];
+      if (v === undefined || v.startsWith("-")) die("--withdraw 后面要跟要撤回的 tag（v<versionName>），例：--withdraw v2.63");
+      withdraw = v;
+      i++;
     } else {
-      die(`不认识的参数「${a}」。只认：--dry、--min-version-code=N（或 --min-version-code N）。\n` +
+      die(`不认识的参数「${a}」。只认：--dry、--min-version-code=N（或 --min-version-code N）、--withdraw <tag>。\n` +
           `写错的参数不会被悄悄忽略 —— 那正是强制更新没发出去、却一路显示成功的那种错。`);
     }
   }
@@ -74,6 +100,15 @@ function parseArgs() {
     console.log("⚠ 看到 npm 吞掉的 --dry（写成了 npm run release --dry，少了 `--`）—— 按「只检查不发布」跑。下次写 npm run release -- --dry");
     dry = true;
   }
+  const npmWithdraw = process.env.npm_config_withdraw;
+  if (truthy(npmWithdraw)) {
+    // `npm run release --withdraw=v2.63` → 值在这里；`--withdraw v2.63`（空格）→ 这里是 "true"、v2.63 成了位置参数（上面已经停在它上面）
+    if (!/^v[\w.-]+$/.test(npmWithdraw)) die("--withdraw 被 npm 吞掉了（少了 `--`）：写成 npm run release -- --withdraw v2.63");
+    if (withdraw !== undefined && withdraw !== npmWithdraw) die(`两处给了不同的 --withdraw：${withdraw} 与 npm 吞掉的 ${npmWithdraw}。只给一处。`);
+    console.log(`⚠ 看到 npm 吞掉的 --withdraw=${npmWithdraw}（少了 \`--\`）—— 照它办。下次写 npm run release -- --withdraw ${npmWithdraw}`);
+    withdraw = npmWithdraw;
+  }
+  if (withdraw !== undefined && (dry || minRaw !== undefined)) die("--withdraw 单独用：撤回不出包、不发布，与 --dry / --min-version-code 不搭。");
   const npmMin = process.env.npm_config_min_version_code;
   if (npmMin !== undefined && npmMin !== "") {
     if (minRaw !== undefined && minRaw.trim() !== npmMin.trim()) {
@@ -95,7 +130,7 @@ function parseArgs() {
       minFrom = `RELEASE_MIN_VERSION_CODE=${envMin}`;
     }
   }
-  return { dry, minRaw };
+  return { dry, minRaw, withdraw };
 }
 
 const ARGS = parseArgs();
@@ -163,11 +198,55 @@ const APK_MIRROR_PUBLIC = "https://api.ideahubs.org/api/app/file";
 
 const APK = path.join(root, "android/app/build/outputs/apk/sideload/release/app-sideload-release.apk");
 const AAB = path.join(root, "android/app/build/outputs/bundle/playRelease/app-play-release.aab");
+/** AAB 是 protobuf 清单、aapt2 读不了：上架那份的权限表看同一次 gradle 跑出来的合并清单 */
+const PLAY_MERGED_MANIFEST = path.join(root, "android/app/build/intermediates/merged_manifests/playRelease/processPlayReleaseManifest/AndroidManifest.xml");
+/** 手工入仓的第三方 jar（QQ 互联 SDK），来源与 sha256 记在同目录 README.md 的表里 */
+const LIBS_DIR = path.join(root, "android/app/libs");
+const DIST_INDEX = path.join(root, "dist/index.html");
+
+/**
+ * 两个渠道的权限允许表（2026-10-15 教材人格评审，owasp-security-4）。整表相等才过：多一条、少一条都停。
+ *
+ * ★★ 为什么钉成表、而不是「grep 一下有没有 INSTALL」：插件的 manifest 是合并进来的，你不会提前知道它想加哪一条 ——
+ *   2026-09-07 换 media3 硬件合成器时 WAKE_LOCK 与 ACCESS_NETWORK_STATE 就这么漂进来了，而 docs 的期望表停在三条；
+ *   按那份文档逐条比的人分不出「意料之中的漂移」与「某个插件偷带的 CAMERA / READ_MEDIA_*」。表在这里一处，
+ *   docs/play-store-checklist.md 的期望表照抄这里（来源也写在那边）。
+ * ★ 每一条是谁要的：INTERNET / RECORD_AUDIO（按住说话）/ MODIFY_AUDIO_SETTINGS（录音路由）是 src/main 自己声明的；
+ *   ACCESS_NETWORK_STATE / WAKE_LOCK 来自 androidx.media3:media3-exoplayer（normal 级，Play 不需申报）；
+ *   com.ideahub.branchvideo.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION 由 androidx.core 自动生成（签名级、本应用自己声明并使用）；
+ *   REQUEST_INSTALL_PACKAGES 只在 sideload（自更新，src/sideload/ 声明、src/play/ 用 tools:node="remove" 摘掉）；
+ *   com.android.vending.BILLING 只在 play（Play Billing，有意为之；sideload 渠道走别的支付）。
+ */
+const SIDELOAD_PERMISSIONS = [
+  "android.permission.ACCESS_NETWORK_STATE",
+  "android.permission.INTERNET",
+  "android.permission.MODIFY_AUDIO_SETTINGS",
+  "android.permission.RECORD_AUDIO",
+  "android.permission.REQUEST_INSTALL_PACKAGES",
+  "android.permission.WAKE_LOCK",
+  "com.ideahub.branchvideo.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION",
+];
+const PLAY_PERMISSIONS = [
+  "android.permission.ACCESS_NETWORK_STATE",
+  "android.permission.INTERNET",
+  "android.permission.MODIFY_AUDIO_SETTINGS",
+  "android.permission.RECORD_AUDIO",
+  "android.permission.WAKE_LOCK",
+  "com.android.vending.BILLING",
+  "com.ideahub.branchvideo.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION",
+];
 
 function die(msg) {
   console.error(`\n❌ ${msg}\n`);
   process.exit(1);
 }
+
+// 列前 10 条：真改动可能成百上千条，全倒出来就把那句话淹了（与 land.mjs 同一个写法）
+const listOf = (paths) =>
+  [...paths.slice(0, 10), ...(paths.length > 10 ? [`…还有 ${paths.length - 10} 条`] : [])].map((p) => `    ${p}`).join("\n");
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+/** 清单里的最低可用版本（没写 / 不是正整数 = 0 = 不强制） */
+const minOf = (m) => (Number.isInteger(m?.minVersionCode) && m.minVersionCode > 0 ? m.minVersionCode : 0);
 
 /** Android SDK 的 build-tools（apksigner / aapt2）。允许用 ANDROID_BUILD_TOOLS 覆盖 */
 function buildTools() {
@@ -194,6 +273,237 @@ function run(cmd, args) {
 /** 过 shell 跑（gh 这类在 Windows 上是 .cmd 包装） */
 function runShell(cmd, args) {
   return execFileSync(cmd, args.map((x) => `"${x}"`), { encoding: "utf8", shell: true, maxBuffer: 32 * 1024 * 1024 });
+}
+
+/** 本仓的 git：stdout 原样回；失败抛一句（stderr 第一行）—— 调用方决定是停还是只提醒 */
+function git(...args) {
+  try {
+    return execFileSync("git", ["-C", root, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  } catch (e) {
+    throw new Error(String(e.stderr || e.message || e).trim().split("\n")[0]);
+  }
+}
+
+/** build-tools 里的 aapt2；不在就 null（第 2c 步只提醒不拦：核不了 ≠ 漂了，但要当面说） */
+function aapt2Bin(bt) {
+  for (const n of ["aapt2", "aapt2.exe"]) {
+    const p = path.join(bt, n);
+    if (fs.existsSync(p)) return p;
+  }
+  return null;
+}
+
+/**
+ * 第 0 步：出包的源码就是 origin/main 上那一份、工作区干净（2026-10-15 教材人格评审，humble-delivery-7）。
+ *
+ * ★★ 为什么：tag 由 gh 建在**远端默认分支的 HEAD** 上，包是**本地 HEAD** 出的 —— 两者之间原来没有任何核对，守住它的是 CLAUDE.md
+ *   「出包前 git log -1 对一眼」那句人工纪律（近 8 版实查都对上了，但靠的是人）。对不上的后果零报错：tag 指着一份源码、
+ *   用户装的是另一份，之后按 tag 回溯 bug 看的就是错的代码。
+ * ★ 比**树**不比提交：本地 HEAD 可能是刚 land 完的分支提交（与 main 树相同、提交不同），那也是同一份源码。
+ * ★ 「干净」按**内容**判（worktree-changes.changesOf）、不用 git status：Windows autocrlf 下刚构建完 .po 只差行尾，
+ *   porcelain 会把每一次发版都拦在这一步（CLAUDE.md 坑表第 4 行、land.mjs 同一道闸）。只差 stat 的不算脏。
+ * ★ 远端已经有这个 tag（Release 发过 = 重跑；或者人先手工 push 了 tag —— 那时 gh 的 --target 会被 GitHub 忽略）：
+ *   不比 main，改验「这个 tag 指着的源码 == 本地 HEAD」—— 重跑要站在发那一版时的源码上。
+ * ★ --dry 只警告不停：它的用途就是「改完 versionCode 先看一眼」，那一刻改动多半还没提交。正式跑一律停。
+ */
+function assertSourceState(tag, exists) {
+  const soft = (msg) => (DRY ? console.log(`⚠ ${msg}\n  正式跑会停在这一步。`) : die(msg));
+  let fetched = false;
+  try {
+    git("fetch", "--quiet", "origin", "main");
+    fetched = true;
+  } catch (e) {
+    soft(`git fetch origin main 没成（${e.message}）—— 核对不了出包的提交是不是 main 上那一个。修好网络 / 远端再来。`);
+  }
+  const headTree = git("rev-parse", "HEAD^{tree}").trim();
+  let remoteTag = "";
+  try {
+    remoteTag = git("ls-remote", "--tags", "origin", `refs/tags/${tag}`).trim();
+  } catch (e) {
+    soft(`git ls-remote 没成（${e.message}）—— 看不到远端有没有 ${tag}。`);
+  }
+  if (remoteTag) {
+    try {
+      git("fetch", "--quiet", "--no-tags", "origin", `+refs/tags/${tag}:refs/tags/${tag}`);
+      const tagTree = git("rev-parse", `${tag}^{tree}`).trim();
+      if (tagTree !== headTree) {
+        soft(`远端已经有 ${tag}，而本地 HEAD 的源码与它不是同一份（树 ${headTree.slice(0, 12)}… ≠ ${tagTree.slice(0, 12)}…）。\n` +
+             (exists
+               ? `  重跑只是把上次那一版验证完，得站在发它时的源码上：git checkout ${tag} 之后重新出包、重跑；真要发新内容就涨版本号。`
+               : `  tag 是人先 push 上去的，建 Release 时 --target 不起作用、就按它 —— 要么 git checkout ${tag} 重新出包，要么删掉远端这个 tag 再来。`));
+      } else {
+        console.log(`✓ 本地源码与远端 ${tag} 指向的提交一致（树相同）${exists ? "" : "—— tag 已由人先 push，建 Release 时按它"}`);
+      }
+    } catch (e) {
+      soft(`取不到远端的 tag ${tag}（${e.message}）—— 核对不了本地源码是不是它指着的那份。`);
+    }
+  } else if (fetched) {
+    const mainTree = git("rev-parse", "origin/main^{tree}").trim();
+    if (headTree !== mainTree) {
+      soft(`出包的提交不是 origin/main 上那一个（HEAD 的树 ${headTree.slice(0, 12)}… ≠ origin/main 的树 ${mainTree.slice(0, 12)}…）。\n` +
+           `  tag 会建在 main 的 HEAD 上，而包是本地这份源码出的 —— 两边不同就是「tag 指着一份源码、用户装的是另一份」。\n` +
+           `  → 先 npm run land（或把这次改动合进 main 并推上去），站在那个提交上重新出包，再重跑 npm run release。`);
+    } else {
+      console.log("✓ 出包的源码与 origin/main 一致（树相同）");
+    }
+  }
+  if (exists && !remoteTag) soft(`${tag} 的 Release 在、远端却没有这个 tag —— 去 GitHub 看一眼这个 Release（多半是 draft，或者 tag 被人删了）。`);
+  const { real, stale } = changesOf(root);
+  if (real.length) {
+    soft(`工作区还有没提交的改动（按内容判，不是 .po 行尾那种假阳性）：\n${listOf(real)}\n` +
+         `  → 先提交并合进 main（npm run land），站在那个提交上重新出包。发出去的包要能按 tag 找回同一份源码。`);
+  } else {
+    console.log(`✓ 工作区干净${stale.length ? `（${stale.length} 个文件只差索引里的 stat、内容没变）` : ""}`);
+  }
+}
+
+/** 第 2c 步：一份权限表与允许表逐条比，不等就停、并说清下一步 */
+function assertPermissions(label, got, want) {
+  const { extra, missing } = permissionDiff(got, want);
+  if (!extra.length && !missing.length) {
+    console.log(`✓ ${label}：权限表与允许表一致（${want.length} 条）`);
+    return;
+  }
+  die(`${label} 的权限表与允许表不一致：` +
+      (extra.length ? `\n  多了 ${extra.join("、")}` : "") +
+      (missing.length ? `\n  少了 ${missing.join("、")}` : "") +
+      `\n  权限多半是哪个插件的 manifest 合并进来的（media3 带进 WAKE_LOCK / ACCESS_NETWORK_STATE 就是这么来的），你不会提前知道它想加哪一条。\n` +
+      `  → 先弄清这一条是谁带进来的、为什么要（android/app/build/outputs/logs/ 里的 manifest-merger 报告写着来源）；\n` +
+      `    该要的：加进 scripts/release.mjs 的 SIDELOAD_PERMISSIONS / PLAY_PERMISSIONS，并把 docs/play-store-checklist.md 的期望表改成同一份；\n` +
+      `    不该要的（CAMERA / READ_MEDIA_* 这类）：去掉带进它的插件，或在 src/main/AndroidManifest.xml 用 tools:node="remove" 摘掉，重新出包。`);
+}
+
+/** dist/index.html 引的入口 js（本次构建的那份）；没有 dist 就停 —— 首次发布要核「包里的是本次 dist 的」 */
+function distEntryJs() {
+  if (!fs.existsSync(DIST_INDEX)) die(`dist/index.html 不存在 —— 没法核对包里的 web 资产是不是本次构建的。先 npm run apk:release 与 npm run aab（它们会先 build）。`);
+  const entry = entryJsOf(fs.readFileSync(DIST_INDEX, "utf8"));
+  if (!entry) die("dist/index.html 里读不出入口 js（assets/index-*.js）—— vite 的产物形状变了？同步改 scripts/lib/app-package.mjs 的 entryJsOf");
+  return entry;
+}
+
+/**
+ * 第 4c 步要用：撤回过的版本（标成了 pre-release 的 Release）各自的 versionCode。
+ * ★ 本仓没有 beta 那种 pre-release —— pre-release 只有一个含义：发错了、被 --withdraw 撤下来的那一版（docs「发错了」）。
+ *   列不出 / 清单拉不到只提醒不拦（与第 4 步拉不到线上清单同一个口径），但要当面说。
+ */
+async function withdrawnVersions() {
+  let list;
+  try {
+    list = JSON.parse(runShell("gh", ["release", "list", "--repo", REPO, "--limit", "30", "--json", "tagName,isPrerelease,isDraft"]));
+  } catch (e) {
+    console.log(`⚠ 列不出 GitHub 的 Release（${String(e.message).split("\n")[0]}）—— 核对不了有没有撤回过的版本要压过`);
+    return [];
+  }
+  const out = [];
+  for (const r of list.filter((x) => x.isPrerelease && !x.isDraft)) {
+    const m = await readManifest(`https://github.com/${REPO}/releases/download/${r.tagName}/latest.json`);
+    if (m && Number.isInteger(m.versionCode)) out.push({ tag: r.tagName, versionCode: m.versionCode, versionName: m.versionName });
+    else console.log(`⚠ 撤回过的 ${r.tagName} 的清单拉不到，它的 versionCode 没法比`);
+  }
+  return out;
+}
+
+/** 顺着跳转拿到最终那一跳的 Content-Length（只看头，不收正文）；非 2xx 回 NaN */
+async function remoteLength(u) {
+  const res = await fetch(u, { redirect: "follow" });
+  const len = Number(res.headers.get("content-length"));
+  await res.body?.cancel();
+  return res.ok ? len : Number.NaN;
+}
+
+/**
+ * 第 7b 步：GitHub Release 上那份 APK 与清单逐字节相同（2026-10-15 教材人格评审，humble-delivery-2）。
+ * ★★ 为什么：它是强制更新弹层上「镜像也下不动」时唯一的备用下载源（src/data/appUpdate.githubApkUrl），而原来三份产物只验了两份
+ *   （镜像整包下一遍、两份清单比 sha），GitHub 那份只在收尾打印一个地址 —— 上传半截、事后被人手工 --clobber 换过都没人发现，
+ *   弹层上「GitHub 上的同一个包」那句承诺没有任何机器背书。GitHub 现在对资产回 digest（sha256:…），核对代价是一次 API 调用。
+ * ★ 老 Release 不回 digest：退回「大小 + 顺着跳转看一次 Content-Length」—— 看得到长度看不到内容，照实说。
+ */
+async function assertGithubAsset(tag, name, manifest) {
+  let assets;
+  try {
+    assets = JSON.parse(runShell("gh", ["release", "view", tag, "--repo", REPO, "--json", "assets"])).assets ?? [];
+  } catch (e) {
+    die(`读不到 ${tag} 的资产列表（${String(e.message).split("\n")[0]}）—— GitHub 上那份备用安装包核不了。修好 gh 重跑 npm run release。`);
+  }
+  const fix = `→ gh release upload ${tag} android/app/build/outputs/${name} --clobber --repo ${REPO}，传完重跑 npm run release 验证`;
+  const a = assets.find((x) => x.name === name);
+  if (!a) die(`GitHub Release ${tag} 上没有 ${name} 这个资产 —— 强制更新弹层上「GitHub 上的同一个包」那条备用路是空的。\n${fix}`);
+  if (a.size !== manifest.sizeBytes) die(`GitHub 上的 ${name} 大小 ${a.size} ≠ 清单 ${manifest.sizeBytes} 字节（多半上传了半截）。\n${fix}`);
+  if (typeof a.digest === "string" && a.digest) {
+    if (a.digest !== `sha256:${manifest.sha256}`) {
+      die(`GitHub 上的 ${name} 内容与清单不同（digest ${a.digest.slice(0, 19)}… / 清单 sha256:${manifest.sha256.slice(0, 12)}…）—— 事后被 --clobber 换过？\n${fix}`);
+    }
+    console.log(`✓ GitHub 上的 ${name} 与清单逐字节相同（digest 一致）`);
+    return;
+  }
+  const len = await remoteLength(a.url);
+  if (len !== manifest.sizeBytes) die(`GitHub 没回 ${name} 的 digest，退回比大小：拉到 Content-Length ${len}，清单 ${manifest.sizeBytes}。\n${fix}`);
+  console.log(`⚠ GitHub 没回这个资产的 digest，只核了大小（${len} 字节，与清单一致）—— 内容没法核`);
+}
+
+/**
+ * `--withdraw <tag>`：发错了，止血 —— 把那一版标成 pre-release，/releases/latest 当场退回上一版（GitHub 几秒到一分钟内，
+ * 服务端那份缓存 60 秒跟上），新装 / 还没更新的人不再拿到坏包（2026-10-15 教材人格评审，humble-delivery-6）。
+ *
+ * ★★ 为什么要有一条命令：2.51–2.55（2026-09-25 → 09-30）连发五版都是坏包（worktree 里没有受保护模型、一进工坊整页白屏），
+ *   每一版照常进 /latest、照常推给老用户 —— 当时「撤回」只在失败清单里作为一种故障出现，没有一个地方写发错了先做什么。
+ *   止血应当是一条命令，不是一段回忆。
+ * ★ 它只做这一步。另外三件它做不到、要当面说（见末尾）：已更新的人退不回、强制更新的门槛跟着退回、镜像上的坏包不删。
+ * ★ 下一次正常发版：第 4 步按退回后的 /latest 比，第 4c 步另外要求 versionCode 也压过每一个撤回过的版本（已装坏版的人只认更大的数）。
+ */
+async function withdraw(tag) {
+  if (!/^v[\w.-]+$/.test(tag)) die(`--withdraw 后面要跟 tag（v<versionName>，例：--withdraw v2.63），收到的是「${tag}」`);
+  const vName = tag.slice(1);
+  let view;
+  try {
+    view = JSON.parse(runShell("gh", ["release", "view", tag, "--repo", REPO, "--json", "tagName,isPrerelease,isDraft,isLatest"]));
+  } catch (e) {
+    die(`GitHub 上没有 ${tag} 这个 Release（或 gh 没登录）：${String(e.message).split("\n")[0]}`);
+  }
+  if (view.isDraft) die(`${tag} 是 draft —— 它从来没进过 /latest，没什么可撤的。`);
+  const before = await publishedManifest();
+  console.log(`\n撤回 ${tag}（撤回前 /latest 是 ${before ? `${before.versionName}(${before.versionCode})` : "拉不到"}）\n`);
+  if (view.isPrerelease) {
+    console.log(`✓ ${tag} 已经是 pre-release 了（之前撤回过），下面只做验证`);
+  } else {
+    runShell("gh", ["release", "edit", tag, "--prerelease", "--repo", REPO]);
+    console.log(`✓ ${tag} 已标成 pre-release（GitHub 的 /latest 会跳过它）`);
+  }
+
+  // 等 /latest 退回去：固定地址不该再回这一版
+  let m = null;
+  for (let i = 0; i < 12; i++) {
+    m = await publishedManifest();
+    if (m && m.versionName !== vName) break;
+    process.stdout.write(`  等 /latest 退回上一版…（${(i + 1) * 5}s）\r`);
+    await sleep(5000);
+  }
+  console.log("");
+  if (!m) die(`撤回之后 /releases/latest/download/latest.json 拉不到了 —— ${tag} 之前可能没有别的正式版可退（首版？），或者网络不通。去 GitHub 的 Releases 页看一眼。`);
+  if (m.versionName === vName) die(`等了 60 秒，/latest 还是 ${vName} —— 撤回没生效？去 GitHub 的 Releases 页看一眼 ${tag} 是不是 pre-release。`);
+  console.log(`✓ /latest 现在是 ${m.versionName}(${m.versionCode})${before && before.versionName !== vName ? `（撤回前就不是 ${vName}：${tag} 本来也不是最新的那一版）` : ""}`);
+
+  // App 实际打的那份（服务端转手、缓存 60 秒）也得退回去，否则还没更新的人照样拿到坏版
+  let app = null;
+  for (let i = 0; i < 12; i++) {
+    app = await readManifest(APP_MANIFEST_URL);
+    if (app && app.versionName !== vName) break;
+    process.stdout.write(`  等服务端缓存过期…（${(i + 1) * 10}s）\r`);
+    await sleep(10000);
+  }
+  console.log("");
+  if (!app || app.versionName === vName) {
+    die(`App 用的清单（${APP_MANIFEST_URL}）两分钟后还是 ${app ? app.versionName : "拉不到"} —— 服务端那份没跟上，还没更新的人仍会拿到坏版。查服务端 appRelease 那一跳。`);
+  }
+  console.log(`✓ App 用的清单也退回 ${app.versionName}(${app.versionCode})`);
+
+  console.log(`\n✅ ${tag} 已撤回：新装 / 还没更新的人拿到的是 ${app.versionName}。撤回只止住了这一半，另外三件它做不到：\n` +
+    `   ① 已经更新到 ${vName} 的人**退不回去**（Android 不装 versionCode 更低的包）。只能修好之后**涨版本号**重发（roll-forward），\n` +
+    `      而且新版的 versionCode 要比 ${vName} 的还大 —— 下次 npm run release 的第 4c 步会核这一条（第 4 步只按退回后的 /latest 比）。\n` +
+    `   ② ${vName} 要是带了新的 minVersionCode（强制更新），门槛跟着 /latest 一起退回上一版清单里的值（现在是 ${minOf(app) || "不强制"}）；\n` +
+    `      想保住强制更新，重发的那一版再带一次 --min-version-code。\n` +
+    `   ③ 镜像上的 qimeng-${vName}.apk 与 GitHub 上的资产**不删**：Cloudflare 那份是 immutable 缓存一年，删了源站边缘也还在；\n` +
+    `      清单不再指向它就够了，留着还能当归档。${tag} 保持 pre-release，别删。\n`);
 }
 
 /** 从 build.gradle 读版本号 —— 以**源码**为准，不让人在命令行上另填一遍 */
@@ -363,6 +673,18 @@ async function main() {
   const tag = `v${versionName}`;
   console.log(`\n准备发布 ${tag}（versionCode ${versionCode}）\n`);
 
+  // ── 0. 这个 tag 发过没有（好几步都按它分叉：重跑 = 把上次那一版验证完，不是发新版）──
+  let exists = false;
+  try {
+    runShell("gh", ["release", "view", tag, "--repo", REPO]);
+    exists = true;
+  } catch {
+    /* 不存在 */
+  }
+
+  // ── 0b. 出包的源码就是 origin/main 上那一份、工作区干净（见 assertSourceState 的 ★★）──
+  assertSourceState(tag, exists);
+
   // ── 1. 产物在不在 ────────────────────────────────────────
   for (const [label, f] of [["直装 APK", APK], ["上架 AAB", AAB]]) {
     if (!fs.existsSync(f)) die(`${label} 不存在：${f}\n先跑 npm run apk:release 与 npm run aab`);
@@ -375,6 +697,56 @@ async function main() {
   const apkName = /versionName='([^']*)'/.exec(badging)?.[1];
   if (apkCode !== versionCode || apkName !== versionName) {
     die(`APK 里是 ${apkName}(${apkCode})，源码里是 ${versionName}(${versionCode}) —— 包是旧的，重新出包`);
+  }
+
+  // ── 2b. 开包看内容：入口 js 是本次 dist 的、受保护模型恰好是白名单（2026-10-15 教材人格评审，humble-delivery-1）──
+  //    ★★ 为什么：第 2 步只比版本号，而「版本号对、内容旧」不报错（2026-08-16 差点发出一个 2.8 号 2.7 内容的包：
+  //      直接跑 gradle 跳过了 cap sync，打进去的是上一次 sync 的 web 资产）；prune-app-assets 的裁剪表是黑名单，
+  //      新丢进 protected/ 的 .glbx 默认随包发（第三方素材的授权不含分发）。这两条原来写在 docs 里让人 unzip 看，现在机器看。
+  //    ★ 入口 js 只在首次发布核：重跑是「失败后不重新出包、直接重跑」的恢复路，那时 worktree 里的 dist 可能已经是别的构建，
+  //      照核会把恢复路堵死。白名单每次都核（重跑核出第三方模型 = 发出去的那份就是坏的，该撤回）。
+  //    ★ AAB 同样带 assets/public/（前缀 base/）：上架那份也不许夹第三方模型，一起核。
+  const distEntry = exists ? null : distEntryJs();
+  for (const [label, f, prefix] of [["直装 APK", APK, "assets/public/"], ["上架 AAB", AAB, "base/assets/public/"]]) {
+    const got = await inspectWebBundle(f, prefix);
+    if (!got.hasIndex) die(`${label} 里没有 ${prefix}index.html —— web 资产没打进去（cap sync 没跑？）。重跑 npm run apk:release 与 npm run aab`);
+    const extra = got.protectedFiles.filter((n) => !OWN_PROTECTED_MODELS.includes(n));
+    const missing = OWN_PROTECTED_MODELS.filter((n) => !got.protectedFiles.includes(n));
+    if (extra.length || missing.length) {
+      die(`${label} 里 ${prefix}${PROTECTED_DIR}/ 不是恰好白名单那几个：` +
+          (extra.length ? `多了 ${extra.join("、")}（第三方版权素材不许随包发）` : "") +
+          (extra.length && missing.length ? "；" : "") +
+          (missing.length ? `少了 ${missing.join("、")}（默认铸卡师不在 = 一进工坊整页白屏）` : "") +
+          `\n  白名单只有一处：scripts/lib/protected-models.mjs（出包闸 prune-app-assets 核的也是它）。这包不能发：重跑 npm run build:app 出包` +
+          (exists ? `；${tag} 已经发出去了 —— 先 npm run release -- --withdraw ${tag} 止血，再涨版本号重发` : ""));
+    }
+    if (distEntry) {
+      if (!got.entryJs || !got.hasEntryFile) die(`${label} 的 index.html 里读不出入口 js（或那个文件不在包里）—— web 资产残缺，重跑 npm run build:app 出包`);
+      if (got.entryJs !== distEntry) {
+        die(`${label} 里的 web 资产不是本次构建的：包里引的是 ${got.entryJs}，dist/index.html 是 ${distEntry}。\n` +
+            `  多半是绕过 npm run build:app 直接跑了 gradle（cap sync 没跑，android/ 里还是上一次同步的资产），或者出包之后又 build 了一次。\n` +
+            `  → 重跑 npm run apk:release 与 npm run aab（都从 build:app 起），再来。`);
+      }
+    }
+    console.log(`✓ ${label}：${PROTECTED_DIR}/ 只有 ${OWN_PROTECTED_MODELS.join("、")}${distEntry ? `，入口 ${got.entryJs} 与本次 dist 一致` : ""}`);
+  }
+
+  // ── 2c. 权限表没漂（见 SIDELOAD_PERMISSIONS 的 ★★）──
+  //    APK 问 aapt2（看的是包本身）；AAB 是 protobuf 清单、aapt2 读不了，看同一次 gradle 跑出来的合并清单。
+  //    两份工具 / 文件不在时只提醒不拦：核不了 ≠ 漂了，但要当面说，并指去 docs 手工比。
+  const aapt2 = aapt2Bin(bt);
+  if (aapt2) assertPermissions("直装 APK", apkPermissions(run, aapt2, APK), SIDELOAD_PERMISSIONS);
+  else console.log("⚠ build-tools 里找不到 aapt2，直装 APK 的权限表没核 —— 照 docs/play-store-checklist.md 手工 dump 一遍再发");
+  if (fs.existsSync(PLAY_MERGED_MANIFEST)) assertPermissions("上架 AAB（合并清单）", manifestPermissions(PLAY_MERGED_MANIFEST), PLAY_PERMISSIONS);
+  else console.log("⚠ 没有 playRelease 的合并清单（android/app/build/intermediates/merged_manifests/…）—— AAB 的权限表没核，上传 Play 前照 docs/play-store-checklist.md 手工比一遍");
+
+  // ── 2d. 手工入仓的 jar 有来源、sha256 对得上（2026-10-15 教材人格评审，humble-delivery-8）──
+  //    QQ 登录 SDK 是手工下载进 android/app/libs/ 的，经 fileTree(include: ['*.jar']) 进包，处理的是登录；
+  //    来源与校验值记在同目录 README.md 的表里（机读那两格）。表里没有的 jar = 来路不明，当场停。
+  {
+    const jars = jarProvenance(LIBS_DIR, sha256);
+    for (const line of jars.ok) console.log(`✓ ${line}`);
+    if (jars.problems.length) die(`android/app/libs/ 里的 jar 核不过：\n  ${jars.problems.join("\n  ")}`);
   }
 
   // ── 3. 签名必须还是那一把 ────────────────────────────────
@@ -390,15 +762,8 @@ async function main() {
   console.log(`✓ 签名与历史版本一致`);
 
   // ── 4. versionCode 必须比线上那版大 ─────────────────────
-  //    ★ 例外：这个 tag 已经发过了（上次跑到一半失败，这次是原地重跑）——
+  //    ★ 例外：这个 tag 已经发过了（上次跑到一半失败，这次是原地重跑；第 0 步查的）——
   //      那就不是"要发一个新版"，而是"把上次那一版验证完"，不该被递增检查挡住。
-  let exists = false;
-  try {
-    runShell("gh", ["release", "view", tag, "--repo", REPO]);
-    exists = true;
-  } catch {
-    /* 不存在 */
-  }
   const live = await publishedManifest();
   if (exists) {
     console.log(`✓ ${tag} 已经发过了 —— 本次是重跑，只做验证`);
@@ -410,6 +775,20 @@ async function main() {
     }
   } else {
     console.log("⚠ 拉不到线上清单（首次发布，或者网络不通）—— 跳过版本号递增检查");
+  }
+
+  // ── 4c. 撤回过的版本也要压过（2026-10-15 教材人格评审：--withdraw 带来的洞）────────
+  //    撤回 = 把坏版标成 pre-release，/latest 退回上一版；上面第 4 步于是按退回后的 live 比 —— 可已经装上坏版的人
+  //    只认 versionCode 更大的包（Android 不装更低的）。这一版的 versionCode 必须也比每一个撤回过的版本大。
+  if (!exists) {
+    const withdrawn = await withdrawnVersions();
+    const blocking = withdrawn.filter((w) => w.versionCode >= versionCode);
+    if (blocking.length) {
+      die(`versionCode ${versionCode} 没压过撤回过的 ${blocking.map((w) => `${w.tag}(${w.versionCode})`).join("、")} —— ` +
+          `已经更新到那一版的人收不到这次更新（Android 不装 versionCode 更低或相同的包）。\n` +
+          `先把 android/app/build.gradle 的 versionCode 改到比它大，重新出包。`);
+    }
+    if (withdrawn.length) console.log(`✓ 压过了撤回过的 ${withdrawn.map((w) => `${w.tag}(${w.versionCode})`).join("、")}`);
   }
 
   // ── 4b. 最低可用版本（强制更新）—— 只往上拧（见 parseMinFlag 的 ★★）─────────
@@ -566,11 +945,15 @@ async function main() {
     console.log(`\n${tag} 已存在，跳过创建，直接验证`);
   } else {
     console.log(`\n正在发布 ${tag}…`);
+    // ★ --target 钉到 origin/main 的那个提交（第 0b 步刚核过它的树 == 本地 HEAD 的树）：不带的话 tag 落在「那一刻」远端默认分支的
+    //   HEAD 上 —— 有人在这几分钟里往 main 推了一笔，tag 就指到了一份没出过包的源码。远端已有同名 tag 时 GitHub 忽略它（第 0b 步按 tag 核过）
+    const target = git("rev-parse", "origin/main").trim();
     runShell("gh", ["release", "create", tag,
       path.join(out, apkAsset),
       path.join(out, `qimeng-${versionName}-play-store.aab`),
       path.join(out, "latest.json"),
       "--title", `启梦 ${versionName}`,
+      "--target", target,
       // ★ notes 走 --notes-file 而不是 --notes 内联（2026-08-24 发 2.25 时炸出来的）：
       //   runShell 是 shell:true + 外包一层双引号，notes 里出现英文双引号就把参数
       //   当场截断，后半段被 shell 当 glob 炸掉（v2.24 的 notes 恰好全用「」没踩到）。
@@ -578,6 +961,9 @@ async function main() {
       ...(fs.existsSync(notesFile) ? ["--notes-file", notesFile] : ["--notes", `启梦 ${versionName}`]),
       "--repo", REPO]);
   }
+
+  // ── 7b. GitHub 上那份 APK 与清单逐字节相同（见 assertGithubAsset 的 ★★）——重跑也核：发过的那份就该是对的 ──
+  await assertGithubAsset(tag, apkAsset, manifest);
 
   // ── 8. ★ 回头验证：从公网真的拉一遍，确认老用户能看到、能下 ──
   //    这一步才是这个脚本存在的意义 —— 前面每一条都可能"看着对但线上是错的"。
@@ -635,7 +1021,6 @@ async function main() {
   // App 拿来校验下载结果的是**服务端转的那份**里的 sha256，所以它也得对
   if (app.sha256 !== manifest.sha256) die(`App 用的清单（${APP_MANIFEST_URL}）里的 sha256 和刚发的包对不上`);
   // ★ 强制更新的门槛也得原样到了 App 手里：服务端那一跳是 `{ ...body, apkUrl }` 透传，哪天改成逐字段重建就会把它丢掉 —— 零报错，强制更新悄悄失效
-  const minOf = (m) => (Number.isInteger(m?.minVersionCode) && m.minVersionCode > 0 ? m.minVersionCode : 0);
   if (minOf(check) !== minVersionCode) die(`线上清单里的 minVersionCode 是 ${minOf(check)}，本次要的是 ${minVersionCode}`);
   if (minOf(app) !== minVersionCode) {
     die(`App 用的清单（${APP_MANIFEST_URL}）里的 minVersionCode 是 ${minOf(app)}，本次要的是 ${minVersionCode} —— ` +
@@ -694,11 +1079,12 @@ async function main() {
   console.log(`\n✅ ${tag} 发布完成，更新链已验证：`);
   console.log(`   清单 ${APP_MANIFEST_URL} → ${app.versionName}(${app.versionCode})`);
   console.log(`   安装包 ${mirrorUrl}（整包 sha256 已核对，cf-cache-status ${dl.cache}）`);
-  console.log(`   GitHub 归档 ${check.apkUrl}`);
+  console.log(`   GitHub 归档 / 备用下载 ${check.apkUrl}（第 7b 步已核对与清单一致）`);
   console.log(`   已装 ${live ? live.versionName : "旧版"} 的用户下次打开 App 就会收到提示。`);
   console.log(minVersionCode > 0
-    ? `   强制更新：versionCode < ${minVersionCode} 的包打开后只能更新（2.63 之前的包不认这一格，照旧是可以跳过的提示）。\n`
-    : "   不强制更新。\n");
+    ? `   强制更新：versionCode < ${minVersionCode} 的包打开后只能更新（2.63 之前的包不认这一格，照旧是可以跳过的提示）。`
+    : "   不强制更新。");
+  console.log(`   发错了：npm run release -- --withdraw ${tag}（止血，见 docs/app-distribution.md「发错了」）。\n`);
 }
 
-main().catch((e) => die(e?.message || String(e)));
+(ARGS.withdraw !== undefined ? withdraw(ARGS.withdraw) : main()).catch((e) => die(e?.message || String(e)));

@@ -23,7 +23,7 @@ import { onRecipeStateChange } from "./recipes";
 import { dropLocalDanmaku } from "./danmaku";
 import { showToast } from "./toast";
 import { currentUser, readyAccount, subscribeAccount } from "./account";
-import { mayClaimLegacy } from "./deviceOwner";
+import { deviceOwner, mayClaimLegacy } from "./deviceOwner";
 import { API_ON, ApiError, emitApiError } from "../api/client";
 import * as branch from "../api/branch";
 import { resolveMentionSpans, type MentionPick } from "../utils/mention";
@@ -310,10 +310,11 @@ let cacheOwner: string | null = null;
 /** 上一次看到的当前用户显示名。用来发现"同一个人改了名"（见下） */
 let cacheOwnerName: string | null = null;
 
-function ownerKey(): string {
-  const u = currentUser();
-  return u ? `${u.id}` : "";
-}
+// 「现在给谁看」只问 data/deviceOwner 的 deviceOwner()（2026-10-15 教材人格评审收口）：这里原来自己留着一份
+// 私有的 `ownerKey() = currentUser()?.id`，与它逐字相同、只差 DEV 下 `__deviceOwner` 那个顶替位 —— 于是浏览器里验「换账号」
+// 那一批隔离时，点赞名单与待发队列的主人盖不到。同一条规则第二处实现，值今天相同，分叉零报错。
+// ⚠ DEV 的 `__deviceOwner(...)` 只触发 deviceOwner 自己的订阅，不经 account 的 emit —— 下面 subscribeAccount 里那段
+//   「换人了就清 cache」要等下一次账号事件才会看见顶替后的值；正式包里主人只从账号事件变，不受影响。
 
 /**
  * 改名之后，把内存里**我自己那些作品**的作者名改过来。
@@ -342,7 +343,7 @@ function renameMyVideos(newName: string): void {
 
 if (typeof window !== "undefined") {
   subscribeAccount(() => {
-    const now = ownerKey();
+    const now = deviceOwner();
     if (cacheOwner !== null && now === cacheOwner) {
       // 还是同一个人 —— 但他可能改了名字
       const name = currentUser()?.name ?? null;
@@ -405,7 +406,7 @@ export async function readyVideos(): Promise<void> {
     })()
       .then(
         () => {
-          cacheOwner = ownerKey(); // 记下这份 cache 是给谁装的，换人时才知道要清
+          cacheOwner = deviceOwner(); // 记下这份 cache 是给谁装的，换人时才知道要清
           cacheOwnerName = currentUser()?.name ?? null; // 改名时靠它发现"名字变了"
         },
         (e) => {
@@ -1553,13 +1554,13 @@ interface LikedStore {
 async function loadLiked(): Promise<void> {
   if (remoteOn()) return;
   // ★ 必须先等账号库装完。App 是 Promise.all([readyVideos(), readyAccount(), …])
-  //   并发起的，谁先完成不确定；账号还没装好时 ownerKey() 是空串，和存下来的 owner
+  //   并发起的，谁先完成不确定；账号还没装好时 deviceOwner() 是空串，和存下来的 owner
   //   对不上，这份点赞态就被**静默丢掉**了 —— 表现是冷启动后爱心全空、点赞又能刷，
   //   而且时灵时不灵（跟两个 IndexedDB 读的快慢有关），最难查的那一类。
   //   readyAccount() 自己是幂等的（内部复用同一个 Promise），重复 await 不多花一次读。
   await readyAccount();
   const saved = await idbGet<LikedStore>(LIKED_KEY);
-  if (!saved || !Array.isArray(saved.ids) || saved.owner !== ownerKey()) return;
+  if (!saved || !Array.isArray(saved.ids) || saved.owner !== deviceOwner()) return;
   for (const id of saved.ids) likedIds.add(id);
   // ★ 演示作品不落盘（见 save），likes 每次开机都从 0 造起；而"我赞过没有"是**落盘**的 ——
   //   不补这一下，冷启动后演示作品上会出现「红心亮着、赞数 0」这种自相矛盾的读数。
@@ -1570,7 +1571,7 @@ async function loadLiked(): Promise<void> {
 
 function saveLiked(): void {
   if (remoteOn()) return;
-  void idbSet(LIKED_KEY, { owner: ownerKey(), ids: [...likedIds] });
+  void idbSet(LIKED_KEY, { owner: deviceOwner(), ids: [...likedIds] });
 }
 
 // ── 远端模式实现 ─────────────────────────────────────────
@@ -1767,11 +1768,11 @@ export async function refreshFeed(opts: { minAgeMs?: number } = {}): Promise<boo
   if (feedRefreshing) return feedRefreshing;
   // 发请求时是谁：回包时已经换了人的话，这一份是**上一个人**的推荐流（里面有他自己的私密 / 仅链接可见作品），
   // 不许并进新账号的首页（2026-09-18 发版复核抓到：原来只判 cache 还在不在，换号 + readyRemote 重装得比回包快就漏过去）
-  const owner = ownerKey();
+  const owner = deviceOwner();
   feedRefreshing = (async () => {
     try {
       const res = await branch.listVideos({ feed: "recommend", limit: 30 });
-      if (!cache || ownerKey() !== owner) return false;
+      if (!cache || deviceOwner() !== owner) return false;
       const fresh = res.items.map(toVideoItem);
       const freshIds = new Set(fresh.map((v) => v.id));
       const localOnly = cache.filter((v) => !onServer(v) && !freshIds.has(v.id));
@@ -1801,11 +1802,11 @@ export async function refreshFollowingFeed(opts: { minAgeMs?: number } = {}): Pr
   const minAge = opts.minAgeMs ?? 0;
   if (minAge > 0 && Date.now() - followingFetchedAt < minAge) return false;
   if (followingRefreshing) return followingRefreshing;
-  const owner = ownerKey(); // 同 refreshFeed：回包时换过人就作废（关注流更是按人算的）
+  const owner = deviceOwner(); // 同 refreshFeed：回包时换过人就作废（关注流更是按人算的）
   followingRefreshing = (async () => {
     try {
       const res = await branch.listVideos({ feed: "following", limit: 30 });
-      if (!cache || ownerKey() !== owner) return false;
+      if (!cache || deviceOwner() !== owner) return false;
       const feedNow = cache;
       followingCache = res.items.map((raw) => {
         const item = toVideoItem(raw);
@@ -2082,7 +2083,7 @@ async function loadDetail(item: VideoItem): Promise<void> {
 async function pushPublish(item: VideoItem, draft: DraftVideo): Promise<void> {
   let sending = draft;
   // 这一条是谁发的：上传几十秒到几分钟，中途换了账号的话后面那几发请求带的就是**别人的** token（见下面 createVideo 前那一句）
-  const ownerAtStart = ownerKey();
+  const ownerAtStart = deviceOwner();
   try {
     // ★★ **先入队，成了再出队**（2026-08-21 第十轮扫描）：上传一条三段片要逐个传
     //   1MB 级的帧与 1.5MB 级的成片，慢网上一两分钟。原来只在 catch 里入队 ——
@@ -2105,7 +2106,7 @@ async function pushPublish(item: VideoItem, draft: DraftVideo): Promise<void> {
     //   的 token，而服务端 `author: req.user._id` 只认 token —— A 花钱炼的片子会挂到 B 名下进广场（与 PendingPublish.owner 的 ★★
     //   同一个事故形状，那边防的是冷启动补发，这里防的是正在传的这一发）。抛出去落进 catch：条目留在待发队列、主人仍是 A
     //   （queuePending 保留第一次入队时记的主人），A 再登录时照常补发。
-    if (ownerKey() !== ownerAtStart) throw ownerMovedError();
+    if (deviceOwner() !== ownerAtStart) throw ownerMovedError();
     const v = await branch.createVideo(sending);
     // ★★ **`null` 是失败，不是成功**（2026-08-21 第十轮扫描）：`createVideo` 对
     //   「200 + 形状不对」的回包返回 null（`request()` 不抛错：JSON.parse 失败就把
@@ -2376,12 +2377,12 @@ async function queuePending(draft: DraftVideo, why: PendingWhy, opts?: { insuran
   // ★ owner 必须在**入队**这一刻写死（见 PendingPublish.owner 的 ★★）：flush 那会儿
   //   登录的可能已经是另一个人了，那时候再问 currentUser() 正好问到错的那个。
   // ★★ 同一条（clientId）**第一次**入队时记的主人要保留（2026-09-18）：发布是「先上保险、失败再入队一次」，
-  //   第二次入队发生在失败那一拍 —— 途中换了账号的话，那时的 ownerKey() 是 B，按它重写就把 A 的待发作品记到 B 名下，
+  //   第二次入队发生在失败那一拍 —— 途中换了账号的话，那时的 deviceOwner() 是 B，按它重写就把 A 的待发作品记到 B 名下，
   //   随后由 B 的 flushPending 带着 B 的 token 发出去。
   const firstOwner = list.find((p) => p.draft.clientId === draft.clientId)?.owner;
   // 只留最近 5 条，别把配额吃光
   // ★ 存的是码 + 原话（只有 other 才有），不是翻好的一句（见 PendingErrorCode 的 ★★）
-  return await writePending([...rest, { draft, ...pendingFields(why), at: Date.now(), owner: firstOwner ?? ownerKey() }].slice(-5));
+  return await writePending([...rest, { draft, ...pendingFields(why), at: Date.now(), owner: firstOwner ?? deviceOwner() }].slice(-5));
 }
 
 /**
@@ -2408,7 +2409,7 @@ export interface PendingPublish {
   error?: string;
   at: number;
   /**
-   * 这条是**谁的**（`ownerKey()`，即 user.id）。
+   * 这条是**谁的**（`deviceOwner()`，即 user.id）。
    *
    * ★★ 2026-08-31 补。没有这一位的后果不是"少显示一个字段"，而是**换账号后 A 的
    *   付费成片被自动发布成 B 的作品**：队列存在设备级单键（PENDING_KEY）里，
@@ -2445,7 +2446,7 @@ export function publishUploadStatus(): typeof uploadStatus {
  *   登进来的是临时的本机账号，不许它认领（deviceOwner.mayClaimLegacy 的 ★★）。
  */
 function pendingMine(p: PendingPublish): boolean {
-  return p.owner ? p.owner === ownerKey() : mayClaimLegacy();
+  return p.owner ? p.owner === deviceOwner() : mayClaimLegacy();
 }
 
 /** 老版本存的是裸 DraftVideo[]，读的时候归一 */
@@ -2560,12 +2561,16 @@ const PENDING_ERROR_MSG: Record<Exclude<PendingErrorCode, "other">, MessageDescr
     message: "上次没传上去",
     comment: "个人页「还没传到服务器」横幅：接在作品标题后面的原因（老版本存下的条目，没记具体原因）。句末不加句号",
   }),
+  // ★ 这两句只说**已知的事**（2026-10-15 教材人格评审）：原来括号里是「服务器的请求体上限」「网关把请求兜到了静态页」这类
+  //   给开发者看的诊断，断网也落到 network 这一句（uploadFailOf 把 Failed to fetch 也归进来），「请求体上限」对断网就是个错原因。
+  //   诊断留在 console（badShapeError 的英文 message、emitApiError 的 console.warn），屏幕上只说出了什么事；
+  //   出路（「立即重试」键与「作品还在本机」那句）横幅上已有，这里不重复
   "bad-shape": msg({
-    message: "服务器没有正常返回这条作品（多半是服务器地址配错了，或网关把请求兜到了静态页）",
+    message: "服务器没有收下这条作品（一直这样的话，把这句话发给客服）",
     comment: "个人页「还没传到服务器」横幅：接在作品标题后面的原因。一整句，句末不加句号",
   }),
   network: msg({
-    message: "上传被拒（作品体积较大，可能是服务器的请求体上限）",
+    message: "上传没成功（网络断了，或者作品太大、传到一半被掐断）",
     comment:
       "上传失败的原因，两处用：① 个人页「还没传到服务器」横幅上接在作品标题后面；② 回炉失败的回执里嵌进另一句（中文放在括号里）。一整句，句末不加句号",
   }),
@@ -2643,7 +2648,7 @@ function uploadFailText(why: PendingWhy): string {
  */
 function ownerMovedError(): Error {
   return new Error(
-    ownerKey()
+    deviceOwner()
       ? t`上传途中换了登录的账号，这一条先不发——等原来那个账号再登录时会自动补发`
       : t`上传途中登录失效了，这一条先不发——重新登录这个账号后会自动补发`,
   );
@@ -2669,10 +2674,10 @@ async function flushPending(): Promise<void> {
    * 下一发 createVideo 带的是 **B 的 token** —— A 花钱炼的片子挂到 B 名下进广场（pushPublish 那道同款闸）。
    * 换过人就不再发，没发的原样留下、主人照旧记在 A 名下。
    */
-  const flushOwner = ownerKey();
+  const flushOwner = deviceOwner();
   const left: PendingPublish[] = [];
   for (const p of list) {
-    if (ownerKey() !== flushOwner) {
+    if (deviceOwner() !== flushOwner) {
       left.push({ ...p, owner: p.owner || flushOwner });
       continue;
     }
@@ -2684,7 +2689,7 @@ async function flushPending(): Promise<void> {
         emitVideos();
       });
       uploadStatus = null;
-      if (ownerKey() !== flushOwner) throw ownerMovedError();
+      if (deviceOwner() !== flushOwner) throw ownerMovedError();
       const v = await branch.createVideo(sending);
       // ★★ 与 pushPublish 同一条：`null` 是失败。原来 `if (v && cache)` 把 null 当成功，
       //   于是那条队列项**不会进 left**，`writePending(left)` 之后就永久删掉了 ——

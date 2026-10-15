@@ -10,10 +10,11 @@
 //   （err），和"没配云端语音时退回系统合成器"——后者是条件触发的降级解释，
 //   藏进看一遍就不弹的引导里等于静默失败（tours.tsx 文件头 ❌ 那条）。
 //
-// ★ 必须走 API_BASE 而不是同源 /api/tts。真机上 WebView 的源是 https://localhost，
-//   而 Capacitor 的本地静态服务器对未命中的路径做 SPA 回退：POST /api/tts 拿回的是
-//   **200 + index.html**，不是 404（真机 CDP 实测）。于是按 404 分支的判断永远
-//   不成立，代码把一段 HTML 当音频塞进 <audio> 去播——静悄悄地失败。
+// ★ /api/tts 只经 api/support.synthesizeSpeech 这一个网关（2026-10-15 教材人格评审收口，此前这里手拼一份 fetch）：
+//   地址必须走 API_BASE 而不是同源 /api/tts —— 真机上 WebView 的源是 https://localhost，而 Capacitor 的本地静态服务器
+//   对未命中的路径做 SPA 回退：POST /api/tts 拿回的是 **200 + index.html**，不是 404（真机 CDP 实测）。于是按 404 分支的
+//   判断永远不成立，一段 HTML 会被当音频塞进 <audio> 去播——静悄悄地失败。那个网关在 res.ok 之后还查 Content-Type 是不是
+//   audio/，回的不是音频抛 501 的 ApiError，正好落进「没有云端嗓子 → 退回系统合成器」那一档（studio/speech.noCloudVoice）。
 //   dev 时 API_BASE 是空串，同源就落回 vite 的 dev 中间件。
 import { useRef, useState } from "react";
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -34,8 +35,9 @@ import {
   setVoice,
   type PresetVoice,
 } from "../studio/voices";
-import { speak } from "../studio/speech";
-import { API_BASE, getToken, withAppVersion } from "../api/client";
+import { TTS_SENTENCE_MS, noCloudVoice, presetMix, speak } from "../studio/speech";
+import { ApiError } from "../api/client";
+import { synthesizeSpeech } from "../api/support";
 
 /* i18n-frozen: 试听句发给火山的中文音色（没配云端时退回系统中文语音包），与铸卡师在工坊里说的台词同一种语言 */
 const PREVIEW_LINE = "欢迎来到卡片工坊，把你的素材交给我，我为你炼成卡片。";
@@ -62,34 +64,35 @@ export default function SettingsVoicePage() {
     setErr("");
     setBusy(v.id);
     try {
-      const tk = getToken();
-      const ttsUrl = `${API_BASE}/api/tts`;
-      const res = await fetch(ttsUrl, {
-        method: "POST",
-        headers: withAppVersion(ttsUrl, { "Content-Type": "application/json", ...(tk ? { Authorization: `Bearer ${tk}` } : {}) }),
-        body: JSON.stringify({
-          text: PREVIEW_LINE,
-          voice: v.id,
-          mix: v.mix,
-          rate: rate ?? v.rate,
-          pitch: v.pitch,
-          expressive: v.expressive,
-          instruct,
-        }),
-      });
-      // ★ 这台服务器就是没有云端嗓子（404 没挂路由 / 501 没配密钥 / 401 掉登录）：
-      //   **真的退回系统合成器**，而不是只弹一句错误。上面那行小字向用户承诺过
-      //   "没配云端语音时退回系统内置合成器"，不实现的话点一下静悄悄，跟坏了一模一样。
-      if (res.status === 404 || res.status === 501 || res.status === 401 || res.status === 403) {
-        if (!speak(PREVIEW_LINE)) setErr(t`这台设备既没有云端语音，系统也没装中文语音包，试听不了`);
-        return;
-      }
-      if (!res.ok) {
-        setErr(t`云端语音没出声（${res.status}）：稍后再试，或到火山控制台看额度`);
-        return;
+      let blob: Blob;
+      try {
+        // /api/tts 只经 api/support.synthesizeSpeech 一个网关（2026-10-15 教材人格评审收口：原来这里手拼 fetch，
+        // 没有「回的是不是音频」那道守卫，SPA 回退的 200 + HTML 会被当成音频塞进 <audio>，静悄悄地失败）
+        blob = await synthesizeSpeech(
+          { text: PREVIEW_LINE, voice: v.id, mix: presetMix(v), rate: rate ?? v.rate, pitch: v.pitch, expressive: v.expressive, instruct },
+          AbortSignal.timeout(TTS_SENTENCE_MS),
+        );
+      } catch (e) {
+        // ★ 这台服务器就是没有云端嗓子（判据 studio/speech.noCloudVoice 一处：404 没挂路由 / 501 没配密钥或回的不是音频 / 401·403 掉登录）：
+        //   **真的退回系统合成器**，而不是只弹一句错误。上面那行小字向用户承诺过
+        //   "没配云端语音时退回系统内置合成器"，不实现的话点一下静悄悄，跟坏了一模一样。
+        if (noCloudVoice(e)) {
+          if (!speak(PREVIEW_LINE)) setErr(t`这台设备既没有云端语音，系统也没装中文语音包，试听不了`);
+          return;
+        }
+        if (e instanceof ApiError) {
+          setErr(t`云端语音没出声（${e.status}）：稍后再试，或到火山控制台看额度`);
+          return;
+        }
+        if (e instanceof DOMException && (e.name === "TimeoutError" || e.name === "AbortError")) {
+          const secs = Math.round(TTS_SENTENCE_MS / 1000);
+          setErr(t`云端语音没回应（等了 ${secs} 秒），稍后再试`);
+          return;
+        }
+        throw e;
       }
       audioRef.current?.pause();
-      const url = URL.createObjectURL(await res.blob());
+      const url = URL.createObjectURL(blob);
       const a = new Audio(url);
       // 试听一次几十 KB，切着音色连点十几下就是十几个悬着的 blob——播完就放掉
       a.addEventListener("ended", () => URL.revokeObjectURL(url), { once: true });
@@ -153,6 +156,8 @@ export default function SettingsVoicePage() {
               setRateState(v);
               setRate(v);
             }}
+            // 上面那个「语速」是裸 span，读屏对着滑杆念不出名字（2026-10-15 教材人格评审，对照 blockout/VisionFramePicker 的写法）
+            aria-label={t`语速`}
             className="w-full accent-brand"
           />
           <div className="mt-0.5 flex justify-between text-[10px] text-slate-600">

@@ -10,7 +10,7 @@ import type { MessageDescriptor } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { memberTiersLine, tierBlockReason, tierNamesFor, tierOffered } from "../../data/account";
-import { CHAT_TURN_TOKENS, clampDuration, fmtTokens, GRID_PANEL_TOKENS, IMAGE_TOKENS, proposalsCost, segTokens, tierModelId, tierModelLabel, tierOf, VIDEO_TIERS } from "../../data/economy";
+import { CHAT_TURN_TOKENS, clampDuration, fmtTokens, GRID_PANEL_TOKENS, IMAGE_TOKENS, segTokens, tierModelId, tierModelLabel, tierOf, VIDEO_TIERS } from "../../data/economy";
 import { useAccountVersion } from "../../hooks/useAccount";
 import UpgradeLink from "../UpgradeLink";
 import { GUIDED_GROUPS, GUIDED_MODES, modeBlock, type GuidedGroup, type GuidedModeId, type ModeTier } from "../../data/guidedModes";
@@ -72,6 +72,7 @@ export default function ModePicker({
   tierId,
   onTier,
   onPick,
+  derivePrice,
 }: {
   /** 现在选着的出片档位（economy.VideoTier.id） */
   tierId: string;
@@ -79,6 +80,14 @@ export default function ModePicker({
   onTier: (id: string) => void;
   /** 挑定一个模式 */
   onPick: (id: GuidedModeId) => void;
+  /**
+   * 「AI 推演三套」那行估价，由宿主按**将要落的那一段**算一次传进来（必填：漏传是零症状的，所以不给缺省）。
+   * ★ 2026-10-15 教材人格评审（norman-interaction-4）：原来这里自己按 proposalsCost(false) 报不承接的上限 —— 从第 2 段起真正的价
+   *   （承接上段尾帧、三套共用开头帧、只画尾帧）是它的一半，同一笔钱选法屏印一个数、下一屏方案台印另一个数；而且同屏其它模式都带「约」，
+   *   唯独这条没有。宿主怎么算：画布按 proposalsCost(!!chosenOf(last)?.lastFrame)（新段 chain 恒为 !!prev，与 flowStore.deriveCostOf 同一条件），
+   *   工坊按 studioStore.nextStartFrame（真扣那一处读的就是它）。carried 为真时这里顺带说一句「承接、只画尾帧」。
+   */
+  derivePrice: { tokens: number; carried: boolean };
 }) {
   const { t } = useLingui();
   // 套餐 / 付没付过钱 / 服务端能力位都是异步到的：订阅账号的版本号，到了就重画
@@ -174,7 +183,9 @@ export default function ModePicker({
                         ? t`照片起拍，视频约 ${fxVideo} / 一发`
                         : t`关键帧 ${panelPrice}，视频约 ${fxVideo} / ${fxSec} 秒`
                       : m.id === "cards"
-                      ? t`推演 ${fmtTokens(proposalsCost(false))}，出片另算`
+                      ? derivePrice.carried
+                        ? t`推演约 ${fmtTokens(derivePrice.tokens)}（承接上段尾帧，三套共用开头帧、只画尾帧），出片另算`
+                        : t`推演约 ${fmtTokens(derivePrice.tokens)}，出片另算`
                       : null;
                 return (
                   <button

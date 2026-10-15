@@ -14,13 +14,32 @@
 > ⚠️ **两个渠道不是一回事**：直装版带「应用内自更新」（下载 APK 并拉起安装器），
 > 而 Google Play **禁止**这种行为。隔离靠 product flavor 做在构建里，不靠人记得删，
 > 细节见 [`app-distribution.md`](app-distribution.md)。上传 Play 前确认 AAB 里
-> 没有 `REQUEST_INSTALL_PACKAGES`：
-> `aapt2 dump permissions <aab 解出来的 base.apk>` —— **把整表与上一版逐条比对**，
+> 没有 `REQUEST_INSTALL_PACKAGES`，而且**整表**与下面这张期望表逐条相等 ——
 > 不要只 `grep INSTALL`。理由：装第三方插件时权限是**插件的 manifest 合并进来的**，
-> 你不会提前知道它想加哪一条（2026-09-07 装 `@capacitor/filesystem` + `@capacitor/share`
-> 时逐个解包核过，两者的 `AndroidManifest.xml` 都是空 `<manifest></manifest>`，
-> 所以这一版整表应当仍然只有 `INTERNET` / `RECORD_AUDIO` / `MODIFY_AUDIO_SETTINGS` 三条）。
+> 你不会提前知道它想加哪一条（2026-09-07 换 media3 硬件合成器时 `WAKE_LOCK` 与
+> `ACCESS_NETWORK_STATE` 就这么漂进来了，而这里原来写着「应当仍然只有三条」——
+> 按旧表比的人分不出「意料之中的漂移」与「某个插件偷带的 `CAMERA` / `READ_MEDIA_*`」）。
 > `grep INSTALL` 只查得出你已经想到的那一条。
+>
+> **期望表（2026-10-15 教材人格评审按 playRelease / sideloadRelease 的合并清单核过；唯一真相是 `scripts/release.mjs` 的
+> `PLAY_PERMISSIONS` / `SIDELOAD_PERMISSIONS`，这里照抄、改一起改）**：
+>
+> | 权限 | 谁要的 | play | sideload | Play 要申报吗 |
+> |---|---|---|---|---|
+> | `android.permission.INTERNET` | 我们自己（`src/main/AndroidManifest.xml`） | ✅ | ✅ | 不需 |
+> | `android.permission.RECORD_AUDIO` | 我们自己（按住说话） | ✅ | ✅ | 需（危险权限，Data safety 的「音频」那一行） |
+> | `android.permission.MODIFY_AUDIO_SETTINGS` | 我们自己（录音路由） | ✅ | ✅ | 不需 |
+> | `android.permission.ACCESS_NETWORK_STATE` | `androidx.media3:media3-exoplayer`（2026-09-07 换硬件合成器带进来） | ✅ | ✅ | 不需（normal 级） |
+> | `android.permission.WAKE_LOCK` | 同上，media3 | ✅ | ✅ | 不需（normal 级） |
+> | `com.android.vending.BILLING` | Play Billing，有意为之（只在 play 渠道） | ✅ | ❌ | 不需申报权限（Billing 走商品配置） |
+> | `com.ideahub.branchvideo.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` | `androidx.core` 自动生成的签名级权限（本应用自己声明、自己用） | ✅ | ✅ | 不需 |
+> | `android.permission.REQUEST_INSTALL_PACKAGES` | 自更新，只在 `src/sideload/`；`src/play/` 用 `tools:node="remove"` 摘掉 | ❌ | ✅ | **Play 版绝不能有** |
+>
+> **谁来核**：`npm run release` 第 2c 步 —— 直装 APK 问 `aapt2 dump permissions`（看的是包本身）；AAB 是 protobuf 清单、aapt2 读不了，
+> 看同一次 gradle 跑出来的合并清单 `android/app/build/intermediates/merged_manifests/playRelease/processPlayReleaseManifest/AndroidManifest.xml`。
+> 两张表与允许表不相等（多一条、少一条）就停发。aapt2 或合并清单不在时脚本只提醒 —— 那时按老法子手工比：
+> `aapt2 dump permissions <aab 解出来的 base.apk>`（`bundletool build-apks` 解）。
+> 多出来的权限先去 `android/app/build/outputs/logs/` 的 manifest-merger 报告里看是谁带的，再决定是加进表还是去掉来源。
 
 ## 一、账号与资质
 
@@ -201,8 +220,9 @@ Console 的 App access 里除了账号密码，还要写清怎么走到那几屏
 出包机器上必须存在这两样（都被 gitignore，**换机器/重装系统前务必备份**）：
 - `.env.local`（含 `VITE_ASSET_KEY`，构建时注入解密密钥）——**丢失后已加密的 .glbx 全部无法解开**，
   和 keystore 同等级重要，一起备份。
-- `public/models/protected/*.glbx`（milltina-opt / rin-opt 加密模型本体）。
-缺任何一个时 `npm run build:app` 产物里模型加载会失败——出包后先装真机看一眼工坊 NPC 是否正常。
+- `public/models/protected/*.glbx`（milltina-opt 加密模型本体；rin / gratia 那几个只给本机 DEV 试穿，**绝不进包**）。
+缺任何一个时 `npm run build:app` 的出包闸（`scripts/prune-app-assets.mjs` 末尾）当场 exit 1；`npm run release` 第 2b 步再开包核一遍
+`assets/public/models/protected/` 恰好是 `scripts/lib/protected-models.mjs` 的白名单（APK 与 AAB 都核）。装真机看一眼工坊 NPC 仍然值得做，但不再是唯一的闸。
 
 ### 9. 版本号递增
 - 每次上传新包必须递增 `android/app/build.gradle` 里的 `versionCode`（当前 5），

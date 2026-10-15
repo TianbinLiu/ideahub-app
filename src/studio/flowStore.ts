@@ -660,18 +660,35 @@ export function nodeDone(node: FlowNode): boolean {
 }
 
 /**
+ * mock 构建（没配 ARK_API_KEY）下 Seedance 不返回地址时写进 `Proposal.videoUrl` / `videoByProposal` 的占位串。
+ * ★ 2026-10-15 教材人格评审（Martin：唯一实现回潮）：这个串原来在 genNode 的两处写入与五处 `!startsWith("mock:")` 判断里各写各的，
+ *   收成一个常量 + 下面那个谓词 —— 写只在 genNode 那两行、判只在 isRealVideoUrl 一处。
+ */
+export const MOCK_VIDEO_URL = "mock:";
+
+/**
+ * 这个地址**能不能播**（滤掉 mock 占位串）—— 「能不能播」这条判据的**唯一实现**。
+ * realVideoOfNode（收段）与 studioStore.realVideoOf（收方案）只是两种形状的入口，裸字符串（归档链 / videoByProposal 的值）直接问它。
+ * ★ 2026-08-21 收口过一次，之后 studioStore.finalizeInner 与 takeJob 又各长回一份逐字相同的判断（2026-10-15 教材人格评审抓到）：
+ *   判据相同时只是冗余，漂了就是「这一面能播、那一面不能」零报错 —— 所以这次把谓词本身导出去，别再抄那半行。
+ */
+export function isRealVideoUrl(u: string | null | undefined): boolean {
+  return !!u && !u.startsWith(MOCK_VIDEO_URL);
+}
+
+/**
  * 这一段**能不能播**（≠ 出没出片）。
  * ★★ 与 nodeDone 是两个问题：mock 构建（没配 ARK_API_KEY）下 Seedance 不返回地址，
- *   两边一致写 `"mock:"` 占位串 —— 那种段 `nodeDone` 为真、地址却是假的，
+ *   两边一致写 `MOCK_VIDEO_URL` 占位串 —— 那种段 `nodeDone` 为真、地址却是假的，
  *   直接塞给 <video> 就是一块黑（CLAUDE.md「一段视频只有一份」那条）。
- * ★ **唯一实现**（2026-08-21 收口）：画布与线性视图都调它。收之前两个面各写了一份
+ * ★ **唯一实现**（2026-08-21 收口）：画布与工坊都调它（线性视图 2026-08-23 已下线）。收之前两个面各写了一份
  *   `!startsWith("mock:")`，而画布那份的注释还写着"判据只有这一处" —— 正是本仓
- *   反复记的那种"抄一份必然分叉、而分叉了不报错"的形状。
- *   （studioStore 的 `realVideoOf` 收的是 `Proposal`，形状不同，是另一条路。）
+ *   反复记的那种"抄一份必然分叉、而分叉了不报错"的形状。判断本身在 isRealVideoUrl（见上）。
+ *   （studioStore 的 `realVideoOf` 收的是 `Proposal`，形状不同，是另一条路，同样只调 isRealVideoUrl。）
  */
 export function realVideoOfNode(node: FlowNode): string | undefined {
   const v = nodeVideo(node);
-  return v && !v.startsWith("mock:") ? v : undefined;
+  return isRealVideoUrl(v) ? v : undefined;
 }
 
 /**
@@ -774,12 +791,22 @@ export function keepFirstFrame(node: FlowNode, p: Proposal, prev: Proposal | nul
 }
 
 /**
+ * 这一套方案上的帧是不是**老草稿 / 回炉工程里的占位图**（`degraded` 为真而两张帧都不空）—— 判据的唯一实现。
+ * usableFrames 用它决定哪张帧不能拿去出片；genNode 失败写回补画好的帧那一拍也用它（没画到的那一格要换成「能用的」值、标记一并摘掉）。
+ * ★ 2026-10-15 教材人格评审（gof-domain-model-7）：原来两处各写一遍 `p.degraded && p.firstFrame && p.lastFrame`，
+ *   types.ts 上那格注释又还在讲一条已删的重画路 —— 同一个字段三份说法。新推演里失败的帧是空串、`degraded` 只管渲染（types.Proposal.degraded）。
+ */
+export function placeholderFrames(p: Proposal): boolean {
+  return !!(p.degraded && p.firstFrame && p.lastFrame);
+}
+
+/**
  * 这一套方案里**能拿去出片**的首尾帧（空串 = 没有、出片前要补画）—— 报价 `nodeCost`、出片 `genNode`、
  * 工坊「AI 改首/尾帧」三处读的是这一份，别在调用点直接读 `p.firstFrame` 判帧在不在。
  * ★★ 为什么要有它（2026-09-10）：推演时没画出来的帧，以前填的是一张本地占位图（烧着「第N段 · … · 首帧」
  *   「AI 预览帧」），而出片与报价都只问「帧在不在」⇒ 占位图被当真帧发给 Seedance，钱照收、拍出来的是渐变图。
  *   新推演已经改成留空（ai/real 推演那一段的 ★★），但**老草稿 / 回炉工程里的占位图还躺在字段里**。
- * ★ 老数据怎么认：`degraded` 为真而两张帧**都不空** = 占位图还在（新数据里失败的那张一定是空串）。
+ * ★ 老数据怎么认：`degraded` 为真而两张帧**都不空** = 占位图还在（新数据里失败的那张一定是空串）—— 判据在 placeholderFrames 一处。
  *   当年没记是哪一张失败，所以只保住**确定是真图**的开头帧：承接来的 / 用户锁定的（keepFirstFrame），
  *   或与同段其它方案共用的那张（推演时三套共用同一张开头帧 = 上一段尾帧或上传的图，不是本方案画的）；
  *   尾帧除非锁定一律当占位。多补画一张的钱会如实进报价 —— 比拿占位图出一段片便宜得多。
@@ -788,7 +815,7 @@ export function keepFirstFrame(node: FlowNode, p: Proposal, prev: Proposal | nul
  */
 export function usableFrames(node: FlowNode, p: Proposal, prev: Proposal | null): { first: string; last: string } {
   const last = endFrameUsed({ multiShot: isMultiShot(p.plot), pinned: !!p.pinned?.last }) ? p.lastFrame : "";
-  if (!(p.degraded && p.firstFrame && p.lastFrame)) return { first: p.firstFrame, last };
+  if (!placeholderFrames(p)) return { first: p.firstFrame, last };
   const sharedStart = node.proposals.some((q) => q.id !== p.id && q.firstFrame === p.firstFrame);
   return {
     first: keepFirstFrame(node, p, prev) || sharedStart ? p.firstFrame : "",
@@ -1218,11 +1245,24 @@ export function appendBlocked(nodes: FlowNode[], template: FlowTemplate | null):
  *   这类入口绕过了它 —— 所以预检要落在花钱的那一步本身，而不是只靠入口别亮。
  */
 export function appendIssue(s: Pick<FlowState, "nodes" | "template" | "busy">): string | null {
-  const blocked = appendBlocked(s.nodes, s.template);
-  if (blocked) return blocked;
-  const prev = s.nodes[s.nodes.length - 1];
-  if (prev && !nodeDone(prev)) return t`先把这一段炼出来，再铸下一段`;
+  const fixed = appendIssueStatic(s.nodes, s.template);
+  if (fixed) return fixed;
   if (s.busy || s.nodes.some((n) => n.status === "generating")) return t`有一段正在生成中，等它跑完再铸下一段`;
+  return null;
+}
+
+/**
+ * appendIssue 里**不随在途生成变**的那两档（白模段只有一段 / 末段还没出片）—— 画布「＋ 加一段」渲染时读它：
+ * 非空就把那颗键换成只说原因的状态框，别让人点了才挨拒。
+ * ★ 2026-10-15 教材人格评审（Norman：约束要摆在动作之前）：工坊的虚线卡位早按 appendBlocked 不亮，画布那颗键却恒亮、
+ *   点了才由错误条说 —— 两面不一致。拆成两段而不是让画布直接调 appendIssue：「有一段正在生成中」那一档画布上已有进度条在说，
+ *   状态框再画一遍就是同屏两处；那一档照旧由 addNode 把话写到错误条上。闸本身（appendIssue / addNode）一字没动。
+ */
+export function appendIssueStatic(nodes: FlowNode[], template: FlowTemplate | null): string | null {
+  const blocked = appendBlocked(nodes, template);
+  if (blocked) return blocked;
+  const prev = nodes[nodes.length - 1];
+  if (prev && !nodeDone(prev)) return t`先把这一段炼出来，再铸下一段`;
   return null;
 }
 
@@ -1393,7 +1433,7 @@ export function nodeCost(nodes: FlowNode[], idx: number, mode: FlowMode, tierOve
   //   圈选都会跑一次 refineFrame（segmentGen 里那个 for 循环，一次真的 Seedream 图生图），
   //   而这里原来只算视频那一半 —— 圈 5 处就少报 5 张图的钱，按钮上的数比实扣少一大截。
   //   ★ 白模段没有这一笔：那条路整个不接受圈选（segmentGen 的 blockoutIssue 会整句拒）。
-  // ★★ 数的是**真会重画**的那几条，不是圈选总数（2026-09-XX 修，backlog §2.11.2①）：
+  // ★★ 数的是**真会重画**的那几条，不是圈选总数（2026-09-03 修，backlog §2.11.2①）：
   //   承接段的开头画面由上一段真实尾帧顶替，圈在前半段的那几条重画出来就被整张覆盖 ——
   //   原来按总数收，等于为一张必然作废的图收钱。判据只有一处：segmentGen.redrawnAnns，
   //   出片那边的循环遍历的就是它（两处各写一遍 = 本仓头号事故形状）。
@@ -3650,8 +3690,9 @@ export const useFlow = create<FlowState>()((set, get) => ({
     const styleCard = mats.find((c) => c.type === "style");
     const imageOf = (c: Card | undefined): string => {
       if (!c) return "";
-      const u = (viewsOf(c)[0]?.url || c.cover || "").trim();
-      return u && !u.startsWith("mock:") ? u : "";
+      // 只判空：卡片形象图 / 卡面从不写 MOCK_VIDEO_URL（那个占位串只写进 videoUrl / videoByProposal），
+      // 原来这里那半句 `!startsWith("mock:")` 是永远为假的死判据（2026-10-15 教材人格评审收掉：少一份看起来像判据的东西）
+      return (viewsOf(c)[0]?.url || c.cover || "").trim();
     };
     const heroUrl = imageOf(hero);
     const sceneUrl = imageOf(scene);
@@ -4094,7 +4135,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
     const draftRatio = aspectOf(node.aspect).ratio;
     try {
       // 承接判定走**唯一实现** nodeCarry（报价那边读的就是它）。
-      // ★★ 2026-09-XX 收口：这里原来手抄了一份逐字相同的判断。判据相同的时候它只是冗余，
+      // ★★ 2026-09-03 收口：这里原来手抄了一份逐字相同的判断。判据相同的时候它只是冗余，
       //   但从这一版起**报价依赖它**了（annsCost 按"真会重画的圈选"数，而那取决于有没有
       //   承接帧）—— 两份一旦漂移就是报价与实扣两把尺，本仓头号事故形状。
       const carry = nodeCarry(get().nodes, idx);
@@ -4286,17 +4327,17 @@ export const useFlow = create<FlowState>()((set, get) => ({
         poster: fin ? res.poster || cur.poster : res.poster,
         // 实测时长同源（截帧那一步读的）：剪辑页按它铺片段出点，别再按申报值切短 20 秒的片子
         realDurationSec: fin ? (res.realDurationSec ?? cur.realDurationSec) : res.realDurationSec,
-        // mock 构建下 Seedance 不返回地址：这里和 videoByProposal 用同一个 "mock:" 占位串，
+        // mock 构建下 Seedance 不返回地址：这里和 videoByProposal 用同一个 MOCK_VIDEO_URL 占位串，
         // 否则同一段在工作流里算"已出片"、回工坊却算"没出片"（工坊读的是 proposal.videoUrl），
-        // 于是演示模式下桌面永远开不出下一张卡。需要"能播的地址"的地方走 realVideoOf 过滤
-        videoUrl: res.url || "mock:",
+        // 于是演示模式下桌面永远开不出下一张卡。需要"能播的地址"的地方走 isRealVideoUrl（realVideoOf / realVideoOfNode）过滤
+        videoUrl: res.url || MOCK_VIDEO_URL,
         degraded: undefined,
       });
       patchNode({
         status: "idle",
         progress: "",
         // mock 构建没有真视频：占位串让 nodeDone 成立，播放器回退首尾帧渐变
-        videoByProposal: { ...still.videoByProposal, [node.chosenId]: res.url || "mock:" },
+        videoByProposal: { ...still.videoByProposal, [node.chosenId]: res.url || MOCK_VIDEO_URL },
         anns: [],
       });
       // 通知无条件设：人在页上的话 FlowPage 一直挂着，胶囊不渲染（按路由判），
@@ -4370,7 +4411,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
       // ★★ 这一次补画好的设定帧留在方案上（2026-10-07 评审抓到）：那几张已经按张结算过了，不写回的话下一次点生成
       //   照 framesToDraw 再画一遍、再收一遍图钱（样片第一步帧传不上去被拒时尤其如此：每拒一次多花两张图）。
       //   不上锁（AI 画的，「重画这一套」照样能重画它们）；这几分钟里这一套的帧被人动过（或已经换了一套）就不写，以人为准。
-      //   老草稿的占位图（degraded 且两格都有图，usableFrames 的同一个判据）：没画到的那一格换成它「能用的」值（多半是空），
+      //   老草稿的占位图（placeholderFrames，与 usableFrames 同一个判据）：没画到的那一格换成它「能用的」值（多半是空），
       //   标记一并摘掉 —— 不摘的话写回去的真帧还会被当成占位图、再画一遍。
       {
         const kept = e instanceof SegmentGenFailed ? e.kept : null;
@@ -4386,8 +4427,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
         const live = kept && !rv && !fin && !ext ? get().nodes.find((n) => n.id === id) : undefined;
         const lp = live?.chosenId === prop.id ? live.proposals.find((q) => q.id === prop.id) : undefined;
         if (kept && lp && lp.firstFrame === prop.firstFrame && lp.lastFrame === prop.lastFrame) {
-          const placeholders = !!(prop.degraded && prop.firstFrame && prop.lastFrame);
-          const usable = placeholders ? usableFrames(node, prop, idx > 0 ? chosenOf(s0.nodes[idx - 1]) : null) : null;
+          const usable = placeholderFrames(prop) ? usableFrames(node, prop, idx > 0 ? chosenOf(s0.nodes[idx - 1]) : null) : null;
           const firstFrame = kept.first ?? usable?.first;
           const lastFrame = kept.last ?? usable?.last;
           get().updateProposal(
@@ -4479,9 +4519,9 @@ export const useFlow = create<FlowState>()((set, get) => ({
         set((st) => ({
           nodes: st.nodes.map((n) => {
             if (n.id !== job.nodeId) return n;
-            /** 这一套此刻放的那条（返修落回来时它成了「上一版」；mock 占位不算） */
+            /** 这一套此刻放的那条（返修落回来时它成了「上一版」；mock 占位不算 —— 判据只在 isRealVideoUrl） */
             const before = n.videoByProposal[job.proposalId];
-            const prevReal = before && !before.startsWith("mock:") && before !== url ? before : undefined;
+            const prevReal = isRealVideoUrl(before) && before !== url ? before : undefined;
             return {
               ...n,
               status: "idle",
@@ -4592,7 +4632,12 @@ onOwnerSwitch(() => {
   }));
 });
 
-// DEV 调试/E2E 挂钩
-if (import.meta.env.DEV) {
+// DEV 调试/E2E 挂钩。
+// ★ 2026-10-15 教材人格评审（feathers-testing-7）：`vite build --mode e2e` 的联调包也要留这道缝 —— 它的 NODE_ENV 仍是 production、
+//   DEV 为假（这是**有意**的：正式路径付费验证靠 DEV 为假走服务端任务那条路，别顺手把别的 DEV 分叉也改了），装机 / 模拟器验证
+//   原来只能经 CDP 手写 IndexedDB。e2e 包只装 debug 变体；正式包 mode=production，这一行一字不变、整段照旧被剥掉。
+//   写成字面量的 import.meta.env.* 而不是从别处 import 一个布尔：Vite 只对站在原地的字面量做静态替换 + 死码消除，
+//   出包闸对 dist 产物 grep `__flow` 的断言要靠这一点才成立。
+if (import.meta.env.DEV || import.meta.env.MODE === "e2e") {
   (window as unknown as Record<string, unknown>).__flow = useFlow;
 }

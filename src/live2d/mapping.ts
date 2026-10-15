@@ -121,7 +121,9 @@ export async function loadCompanionMapping(modelUrl: string): Promise<CompanionM
   if (preview) return preview;
   if (!/^https?:\/\//i.test(modelUrl)) return null;
   try {
-    const res = await fetch(new URL("companion.json", modelUrl).toString(), { cache: "no-cache" });
+    // ★ 带上限（2026-10-15 教材人格评审，原来裸 fetch 没有）：这是几 KB 的 JSON，15 秒还没回就当没有 —— 任何失败都当没有，
+    //   而「永不 settle」不是失败，是换装那一步整个挂住
+    const res = await fetch(new URL("companion.json", modelUrl).toString(), { cache: "no-cache", signal: AbortSignal.timeout(15_000) });
     if (!res.ok) return null;
     const data = (await res.json()) as Partial<CompanionMapping> | null;
     if (!data || typeof data !== "object" || data.version !== 1) return null;

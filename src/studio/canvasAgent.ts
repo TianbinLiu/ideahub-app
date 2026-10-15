@@ -11,10 +11,10 @@
 //   （studio/agentGrammar.parseLocal，中英两套句式并联）——能办多少办多少，并说清自己是哪一档（铁律八：不静默）。
 import { AI_REAL, VIDEO_PROMPT_MAX, canvasAgentChat } from "../ai";
 import { canAfford, myCards, spendTokens, walletFrozen } from "../data/account";
-import { CHAT_TURN_TOKENS, fmtTokens, proposalsCost } from "../data/economy";
+import { CHAT_TURN_TOKENS, fmtTokens } from "../data/economy";
 import { BLOCKOUT_MAX_ROLES, browseTemplates, markSpecOf, myTemplates } from "../data/templates";
 import type { Card, VideoTemplate } from "../types";
-import { chosenOf, clampCursor, nodeCost, nodeDone, planOf, tplOfNode, useFlow, type FlowNode } from "./flowStore";
+import { chosenOf, clampCursor, deriveCostOf, nodeCost, nodeDone, planOf, tplOfNode, useFlow, type FlowNode } from "./flowStore";
 import { i18n, type MessageDescriptor } from "@lingui/core";
 import { msg, t } from "@lingui/core/macro";
 import { matchByName, normName } from "./nameMatch";
@@ -105,7 +105,8 @@ export const AGENT_PHRASES: ReadonlyArray<{ id: PhraseId; label: MessageDescript
   { id: "add", label: msg`＋ 加一段`, hint: msg`在末尾追加` },
   // ★ hint 要说真话（2026-09-10 对着 applyOps 的 remove_segment 核过）：未出片的段直接删、不摆确认卡；
   //   已出片的整句拒，指路去编辑窗底部那颗要点两下的「删除本段」。说的是 AI 指挥档 —— 本地档自己在回话里说它办不了
-  { id: "remove", label: msg`🗑 删掉某段`, hint: msg`未出片的段直接删，已出片的段不代删` },
+  // 2026-10-15 教材人格评审（Krug：同一条流程里同一个词）：上一行注释指路的那颗键叫「删除本段」，芯片原来写「删掉」
+  { id: "remove", label: msg`🗑 删除某段`, hint: msg`未出片的段直接删，已出片的段不代删` },
   { id: "derive", label: msg`🎲 重演方案`, hint: msg`花钱操作，会先摆确认卡` },
   { id: "generate", label: msg`⚡ 生成本段`, hint: msg`花钱操作，会先摆确认卡` },
 ];
@@ -532,16 +533,17 @@ function applyOps(ops: Op[]): { applied: string[]; refused: string[]; proposals:
           refused.push(t`第 ${seg} 段还没写拍摄要求——先说「第 ${seg} 段 拍什么」`);
           break;
         }
-        const prev = o.seg >= 2 ? chosenOf(useFlow.getState().nodes[o.seg - 2]) : null;
-        const carried = !!(node.chain && prev?.lastFrame);
+        // ★ 价签与 deriveProposals 真扣的钱同一处实现 flowStore.deriveCostOf（2026-10-15 教材人格评审：这里原来手抄了一份
+        //   proposalsCost(!!(node.chain && prev?.lastFrame)) —— 逐字相同时只是冗余，deriveCostOf 头上 ★★ 记着 2026-09-03 两个 prev 差出成倍价的事）
+        const cost = deriveCostOf(useFlow.getState().nodes, o.seg - 1);
         proposals.push({
           kind: "derive",
           seg: o.seg,
           display: planOf(node)
             ? t`第 ${seg} 段按要求推演三套方案（会替换现有那三套）`
             : t`第 ${seg} 段按要求推演三套方案`,
-          costLabel: AI_REAL ? fmtTokens(proposalsCost(carried)) : t`演示`,
-          cost: proposalsCost(carried),
+          costLabel: AI_REAL ? fmtTokens(cost) : t`演示`,
+          cost,
           nodeId: node.id,
         });
         break;
@@ -719,14 +721,14 @@ export async function executeAgentProposal(p: AgentProposal): Promise<{ ok: bool
   }
 
   // ★★ 价签复核：卡摆着的这段时间里，用户完全可能去方案台改了时长/首尾帧/选中的走向，
-  //   而那三样正是计价输入（nodeCost / proposalsCost 读的就是它们）。不复核的话，
+  //   而那三样正是计价输入（nodeCost / deriveCostOf 读的就是它们）。不复核的话，
   //   点下去扣的是新价、屏幕上写的是旧价 —— 报价 ≠ 实扣，且零报错。
-  //   复核用**同一把尺**（不是另写一份算法），对不上就整句拒并请用户重说一句。
+  //   复核与真扣**同一处实现**（deriveCostOf / nodeCost，不是另写一份算法），对不上就整句拒并请用户重说一句。
+  //   2026-10-15 教材人格评审：这段注释原来就写着「同一把尺」，代码却又抄了一遍 proposalsCost(!!(node.chain && prev?.lastFrame))。
   {
-    const prev = p.seg >= 2 ? chosenOf(useFlow.getState().nodes[p.seg - 2]) : null;
     const now =
       p.kind === "derive"
-        ? proposalsCost(!!(node.chain && prev?.lastFrame))
+        ? deriveCostOf(useFlow.getState().nodes, p.seg - 1)
         : p.kind === "generate"
           ? nodeCost(useFlow.getState().nodes, p.seg - 1, useFlow.getState().mode)
           : 0;

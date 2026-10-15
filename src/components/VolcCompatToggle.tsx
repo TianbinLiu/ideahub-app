@@ -31,6 +31,7 @@ import {
 import { normalizeAssetId } from "../data/cardAsset";
 import { relativeTime } from "../types";
 import { isNative } from "../utils/oauth";
+import { openExternal } from "../utils/openExternal";
 import QrCode from "./QrCode";
 
 /** 等火山结果的慢轮询：间隔与上限。★ 上限到了就停，别让一张忘在后台的页一直打方舟的 OpenAPI */
@@ -108,14 +109,14 @@ export default function VolcCompatToggle({
     onBoundRef.current(id, note);
   }
 
+  /**
+   * 在系统浏览器里打开火山那一页。打开站外网页只有 utils/openExternal 一份实现（2026-10-15 教材人格评审收口：
+   * 原来这里抄了它那个 if —— 网页分支不看 window.open 的返回值，弹窗被拦时静默；现在被拦也走下面同一条退路）。
+   * 「系统浏览器关掉就查一次」那个 browserFinished 监听是另一件事，仍在下面的 effect 里。
+   */
   async function openHere(url: string) {
-    if (!isNative()) {
-      window.open(url, "_blank", "noopener,noreferrer");
-      return;
-    }
     try {
-      const { Browser } = await import("@capacitor/browser");
-      await Browser.open({ url });
+      await openExternal(url);
     } catch (e) {
       setMsg(t`打不开系统浏览器（${e instanceof Error ? e.message : String(e)}）`);
       setQr(true); // 打不开就把链接与二维码摆出来，至少还能复制或扫

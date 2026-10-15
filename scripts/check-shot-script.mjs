@@ -32,6 +32,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import url from "node:url";
+import { regexStringIssues } from "./lib/regex-shape.mjs";
 
 const root = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), "..");
 const modArg = process.argv.find((a) => a.startsWith("--module="))?.slice("--module=".length);
@@ -53,6 +54,8 @@ src.split(/\r?\n/).forEach((ln, i) => {
   if (/^\s*import\s+(?!type\b)/.test(ln)) fail(`shotScript.ts:${i + 1}  只准 import type（这个文件要能被 Node 直接 import 跑正反例）`);
   if (/@lingui/.test(ln) && !/^\s*(\/\/|\*)/.test(ln)) fail(`shotScript.ts:${i + 1}  不许引 @lingui：这里的字是发给模型的，不是界面文案`);
 });
+// :303 / :323 从 LINE_QUOTE.source 派生（放行）；要是哪天写成普通模板串里的 \s，这里红（scripts/lib/regex-shape.mjs，2026-10-15 教材人格评审）
+regexStringIssues(src, "shotScript.ts").forEach(fail);
 
 // ── (b) 读：哪些算分镜 ──
 const parseCases = [

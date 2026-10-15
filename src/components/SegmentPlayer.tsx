@@ -112,13 +112,17 @@ export default function SegmentPlayer({ segments, cover }: { segments: VideoSegm
     if (Math.abs(v.currentTime - want) > 0.4) v.currentTime = want;
   }, [local, seg?.videoUrl]);
 
+  /** 跳到第几秒：点条与键盘都走它（夹进 [0, total]，「还没开始」也算开始） */
+  function seekTo(sec: number) {
+    setTime(Math.min(total, Math.max(0, sec)));
+    setStarted(true);
+  }
   function seek(clientX: number) {
     const bar = barRef.current;
     if (!bar) return;
     const rect = bar.getBoundingClientRect();
     const r = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
-    setTime(r * total);
-    setStarted(true);
+    seekTo(r * total);
   }
 
   // 段落分界刻度位置
@@ -155,6 +159,8 @@ export default function SegmentPlayer({ segments, cover }: { segments: VideoSegm
               setPlaying(true);
             }}
             className="absolute inset-0 flex items-center justify-center bg-black/30"
+            // 里面只有一个 aria-hidden 的图标（Icon.tsx），没名字的话读屏念出来是一颗空按钮（2026-10-15 教材人格评审，WCAG 2.2 · 4.1.2）
+            aria-label={t`播放`}
           >
             <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white/90 pl-1 text-ink shadow-xl">
               <Icon name="play" size={30} filled />
@@ -213,7 +219,33 @@ export default function SegmentPlayer({ segments, cover }: { segments: VideoSegm
             }`}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="-my-2 py-2" onClick={(e) => seek(e.clientX)}>
+            {/* 进度条是自绘的 div，ARIA 与键盘都要手补（2026-10-15 教材人格评审，WCAG 2.2 · 4.1.2 / 2.1.1 / 2.5.8）：
+                role=slider + 当前值，valuetext 读成 mm:ss 而不是百分比；← → ↑ ↓ 一下 1 秒 —— 读数 formatDuration 就是整秒，
+                再小听不出差别、再大会跳过下面 marks 画出来的段落分界；Home / End 到头。不换成 <input type=range>：分界刻度没处画。
+                触控盒 -my-3 py-3（原 -my-2 py-2）：条本身 6px，上下各 12px 内边距、负外边距抵回去，版面一个像素不动。
+                有效命中高度 = 上 12 + 条 6 + 下 6 = 24px，恰好到 2.5.8 的 24px 下限 —— 下面只算 6px（按钮行的 mt-1.5 间距），
+                再往下那 6px 内边距落在按钮行的盒子里：它是后来的兄弟节点、画在这一层上面，点在那儿落到的是它不是这里。
+                焦点落上来顺手把控制条唤出来：控制条淡出后仍在 Tab 顺序里，焦点停在一个看不见的东西上就是 2.4.7 说的那种。 */}
+            <div
+              role="slider"
+              tabIndex={0}
+              aria-label={t`播放进度`}
+              aria-valuemin={0}
+              aria-valuemax={Math.round(total)}
+              aria-valuenow={Math.min(Math.round(total), Math.round(time))}
+              aria-valuetext={formatDuration(time)}
+              className="-my-3 py-3"
+              onClick={(e) => seek(e.clientX)}
+              onFocus={() => setCtrl(true)}
+              onKeyDown={(e) => {
+                const step =
+                  e.key === "ArrowRight" || e.key === "ArrowUp" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowDown" ? -1 : 0;
+                const to = step ? time + step : e.key === "Home" ? 0 : e.key === "End" ? total : null;
+                if (to === null) return;
+                e.preventDefault();
+                seekTo(to);
+              }}
+            >
             <div ref={barRef} className="relative h-1.5 w-full cursor-pointer rounded-full bg-white/25">
               <div className="absolute inset-y-0 left-0 rounded-full bg-brand" style={{ width: `${(time / total) * 100}%` }} />
               {marks.map((mk, i) => (

@@ -120,7 +120,9 @@ export const useCut = create<CutState>((set, get) => ({
 // 与 studioStore 那边清合成稿是同一条规矩（见 data/deviceOwner 文件头）——各 store 在自己文件里订阅
 onOwnerSwitch(() => useCut.getState().load(null));
 
-// DEV 调试/E2E 挂钩（与 __studio / __flow 同款）：自动化脚本要读写与剪辑页同实例的工程
-if (import.meta.env.DEV) {
+// DEV 调试/E2E 挂钩（与 __studio / __flow 同款）：自动化脚本要读写与剪辑页同实例的工程。
+// ★ `--mode e2e` 的联调包也开（2026-10-15 教材人格评审，为什么见 flowStore 末尾 __flow 那段）：模拟器上验合并原来要经 CDP
+//   手写 IndexedDB 造一条多段稿子（CLAUDE.md「验剪辑页的合并」第 4 步）。正式包 mode=production 一字不变；字面量写在原地才保证被剥掉。
+if (import.meta.env.DEV || import.meta.env.MODE === "e2e") {
   (window as unknown as Record<string, unknown>).__cut = useCut;
 }

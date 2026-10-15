@@ -65,7 +65,7 @@ import { CARD_SCOPE, ID_LINE_SPEC } from "../ai/cardScope";
 import FrameAnnotator from "../components/FrameAnnotator";
 import { CHAT_TURN_TOKENS, ONE_IMAGE, fmtTokens, schemeCost, tierNamesWhere, voiceTierNames } from "../data/economy";
 import { saveVoice } from "../data/cardVoice";
-import { startJob } from "../data/jobs";
+import { heartbeatJob, startJob } from "../data/jobs";
 // ★★ 这一页的表单状态全在 store 里（理由见 customCardStore 文件头）：AI 出图 / 铸卡上传
 //   退出这一页也不断，人回来时原样还在；胶囊（GenerationPill）负责人不在时的通知
 import { type Shot, draftBusy, draftDirty, freshSubjectPick, resetCardDraft, useCardDraft, useDraftField } from "../studio/customCardStore";
@@ -262,6 +262,7 @@ export default function CustomCardPage() {
   /** 换卡种时被丢掉的图位（必须说，见 changeType） */
   const [dropped, setDropped] = useDraftField("dropped");
   const [minting, setMinting] = useDraftField("minting");
+  const [mintNote, setMintNote] = useDraftField("mintNote");
   /** 铸成了、但有图没能存到服务器 —— 停在这一页把话说完，不自动跳走 */
   /**
    * 铸完之后**没有全成**的那个状态。
@@ -1118,13 +1119,12 @@ export default function CustomCardPage() {
     setPartial(null);
     // ★ 登记成后台任务（远端模式要串行传几张图，弱网几十秒）：退出这一页照传，胶囊接手；
     //   页不在时结局走通知（铸成 → 点通知直达卡片；没全成 → 回来看这一页上的说明）
-    const job = startJob({
-      kind: "card-mint",
-      title: t`铸卡上传`,
-      page: "/custom-card",
-      progress: remote ? t`存卡并把图传到服务器…` : t`存进本机卡片库…`,
-    });
+    const head = remote ? t`存卡并把图传到服务器…` : t`存进本机卡片库…`;
+    const job = startJob({ kind: "card-mint", title: t`铸卡上传`, page: "/custom-card", progress: head });
     const here = () => useCardDraft.getState().mounted;
+    // ★ 心跳（2026-10-15 教材人格评审 norman-interaction-8）：addCards 是 POST → 逐张转存 → PATCH 一串，没有逐张回调，
+    //   此前票上这句从 startJob 起一个字不动，与卡死分不开。铸卡键下那一行（mintNote）与票同一个串；逐张进度另立提案。
+    const stop = heartbeatJob(job, head, setMintNote);
     try {
       const id = uid("card");
       // ★ 顺序**照图位表**（重要性降序），不照用户上传的先后：出片管线取的是
@@ -1249,6 +1249,8 @@ export default function CustomCardPage() {
       setErr(t`铸卡没成：${detail.slice(0, 120)}`);
       job.fail(t`铸卡没成，回去看原因`, "/custom-card");
     } finally {
+      stop();
+      setMintNote("");
       setMinting(false);
     }
   }
@@ -2395,9 +2397,10 @@ export default function CustomCardPage() {
       </button>
       {/* ★ 灰按钮必须**说出为什么**（CLAUDE.md「界面上摆一个永远点不动的选项」那条） */}
       {minting ? (
-        // 远端模式这一步要串行上传几张图，弱网下几十秒是常事。不说的话用户会以为卡住了
+        // 远端模式这一步要串行上传几张图，弱网下几十秒是常事。不说的话用户会以为卡住了；
+        // 第一跳心跳（5 秒）之后换成与胶囊同一个串的「… · 已等 N 秒」（mintNote），一个会动的数比一句话更能说明没卡死
         <p className="mt-1.5 text-center text-[11px] text-slate-500">
-          {remote ? t`正在存卡，并把图上传到服务器（手机上行慢时要几十秒）…` : t`正在存进本机卡片库…`}
+          {mintNote || (remote ? t`正在存卡，并把图上传到服务器（手机上行慢时要几十秒）…` : t`正在存进本机卡片库…`)}
         </p>
       ) : partial ? null : offlineButConfigured ? (
         // ★ 这一条排在 missing 之前：填不填得完整都不该让他填 —— 先说真正的拦路原因

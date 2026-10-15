@@ -216,7 +216,9 @@ const ZH_END_FADE = /(?:片尾|结尾)(?:加上?|要|加个)?淡出|淡出(?:片
 const EN_END_FADE_OFF = /\b(?:remove|no|drop|cancel)\s+(?:the\s+)?(?:end(?:ing)?\s+fade(?:\s*out)?|fade\s*-?out)\b/i;
 const EN_END_FADE = /\bfade\s*-?out(?:\s+at\s+the\s+end)?\b|\bend(?:ing)?\s+fade\b/i;
 const ZH_FADE_OFF = /(?:去掉|取消|不要)\s*(?:的)?\s*(?:闪黑|转场|淡入)|(?:闪黑|转场|淡入)\s*(?:去掉|取消|不要了?)/;
-const ZH_FADE = /(?:加上?|加个|要)?\s*(?:闪黑|转场|淡入)|从黑里(?:进来|淡入)/;
+// ★ `(?<!的)`：「片段2的闪黑」只有效果名没有动词（多半是在说它、不是要它），带「的」的所有格不认 → 落到「没听懂」那一档
+//   （2026-10-15 教材人格评审补的反例；「加上闪黑」「片段2闪黑」照旧认）
+const ZH_FADE = /(?:加上?|加个|要)?\s*(?<!的)(?:闪黑|转场|淡入)|从黑里(?:进来|淡入)/;
 const EN_FADE_OFF = /\b(?:remove|no|drop|cancel)\s+(?:the\s+)?(?:fade(?:\s*-?in)?|transition)\b/i;
 const EN_FADE = /\b(?:add\s+)?(?:a\s+)?(?:fade(?:\s*-?in)?(?:\s+from\s+black)?|fade\s+through\s+black|transition)\b/i;
 

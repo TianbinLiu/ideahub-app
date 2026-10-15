@@ -36,8 +36,9 @@ export const FUSE_MAX = 3;
  * ★ 各写一份的下场是三个面给出的候选图不一样，而用户完全看不出为什么这一面少一张。
  * ★ 顺序即优先级：承接帧 → 本段现有首尾帧 → 素材卡形象图。前两者是"接缝在哪"的
  *   直接依据，卡的形象图是"这个人长什么样"的依据 —— 融图最常见的用法正是把两者合起来。
- * ★ 只收 http(s)/dataURL 的**真图**：`mock:` 这类占位串混进去会让模型收到一个 404
- *   （或整发 400），而那一步是花钱的。
+ * ★ 只收非空的图地址。这里原来还多判一句 `!startsWith("mock:")`（2026-10-15 教材人格评审收掉）：那个占位串只写进
+ *   `Proposal.videoUrl` / `videoByProposal`（flowStore.MOCK_VIDEO_URL），帧与卡片形象图从不带它 —— 那半句是永远为假的死判据，
+ *   留着只会让人以为帧地址也有一种 mock 形态。
  */
 export function fuseSourcesOf(o: {
   materials?: { name: string; type: CardType; views?: { url: string; tag?: string }[]; cover?: string }[];
@@ -50,7 +51,7 @@ export function fuseSourcesOf(o: {
   const out: FuseSource[] = [];
   const push = (url: string | null | undefined, label: string) => {
     const u = (url || "").trim();
-    if (!u || u.startsWith("mock:") || out.some((x) => x.url === u)) return;
+    if (!u || out.some((x) => x.url === u)) return;
     out.push({ url: u, label });
   };
   // 模块级函数拿不到 useLingui：候选图的名字用 i18n._ 在调用那一刻（宿主渲染时）翻

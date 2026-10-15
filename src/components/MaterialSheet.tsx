@@ -23,6 +23,7 @@ import Icon from "./Icon";
 import MascotStage from "./MascotStage";
 import TarotCard from "./TarotCard";
 import DeckCard from "./DeckCard";
+import EmptyState from "./EmptyState";
 import { deckCoverOf, myCards, myDecks } from "../data/account";
 import { useAccountVersion } from "../hooks/useAccount";
 import { CARD_TYPE_LABELS, type Card } from "../types";
@@ -177,14 +178,10 @@ export default function MaterialSheet({
   const rail = (n: number) =>
     `grid ${n > 4 ? "grid-rows-2" : "grid-rows-1"} grid-flow-col justify-start gap-2.5 overflow-x-auto pb-1 pr-1`;
 
-  const empty = (text: string, cta: string) => (
-    <div className="flex flex-col items-center gap-2 py-7">
-      <p className="text-xs text-slate-500">{text}</p>
-      <a href="#/workshop" className="rounded-full bg-panel px-3.5 py-1.5 text-[11px] text-slate-300">
-        {cta}
-      </a>
-    </div>
-  );
+  /** 空态走全 app 那一份 EmptyState（compact：这是弹层里的空态）。2026-10-15 教材人格评审收口：原来手拼了一份
+   *  `py-7 + 胶囊 <a href="#/workshop">`，与别处的空态不是一副面孔。CTA 给 `to` = Link：这块面板是 portal，
+   *  React 上下文还在、hash 路由照走，与原来的 <a href="#/workshop"> 落点相同 */
+  const empty = (text: string, cta: string) => <EmptyState compact text={text} cta={{ label: cta, to: "/workshop" }} />;
 
   return (
     <>

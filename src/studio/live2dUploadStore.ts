@@ -38,7 +38,7 @@ import type { Dispatch, SetStateAction } from "react";
 import { create } from "zustand";
 import type { MessageDescriptor } from "@lingui/core";
 import { msg, t } from "@lingui/core/macro";
-import { currentRoute, startJob } from "../data/jobs";
+import { currentRoute, heartbeatJob, startJob } from "../data/jobs";
 import { onOwnerSwitch, workOwner } from "../data/deviceOwner";
 import { companionBus } from "../companion/bus";
 import { setPreviewMapping, type CompanionMapping } from "../live2d/mapping";
@@ -608,7 +608,13 @@ export async function submitLive2dModel(): Promise<void> {
   }
   const job = startJob({ kind: "live2d-publish", title: t`发布模型`, page: currentRoute(), progress: t`正在发布…` });
   const slot = draftSlot(ownerOfDraft());
-  set({ busy: "publish", publishErr: "", progress: s.bundleRef ? t`正在发布…` : t`正在上传并发布（这条路要把包传过我们的服务器，大包会慢）…` });
+  const head = s.bundleRef ? t`正在发布…` : t`正在上传并发布（这条路要把包传过我们的服务器，大包会慢）…`;
+  set({ busy: "publish", publishErr: "", progress: head });
+  // ★ 心跳（2026-10-15 教材人格评审 norman-interaction-8）：直传过的包这一步只是服务端建模型（秒级），但 multipart 退路
+  //   （服务器没有 /bundle/sign、503、或上一次发布失败清掉了 bundleRef）要在这里把 25MB 推上去、最长等 600 秒 ——
+  //   此前这整段时间票上只有一句不动的「正在发布…」，与卡死分不开。页内 progress 与票写同一个串（data/jobs.heartbeatJob）；
+  //   分块直传 / XHR 百分比那一半另立提案，这里只做「还活着」。
+  const stop = heartbeatJob(job, head, (text) => slot.set({ progress: text }));
   try {
     const result = await createLive2dModel({
       name: s.name.trim(),
@@ -649,6 +655,9 @@ export async function submitLive2dModel(): Promise<void> {
     slot.set({ busy: "", progress: "", publishErr: text, ...(refGone ? { bundleRef: "", directOn: false } : {}) });
     if (slot.get()?.mounted) job.done({ silent: true });
     else job.fail(t`模型发布失败：${text}`, "/support/models/new");
+  } finally {
+    // 结局之后别再跳：心跳晚一拍会把「已经发布好了」那句盖回「已等 N 秒」
+    stop();
   }
 }
 

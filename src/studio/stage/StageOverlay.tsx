@@ -17,6 +17,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { clone as skeletonClone } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { AI_REAL } from "../../ai";
+import ErrorBoundary from "../../components/ErrorBoundary";
 import { CloseButton } from "../../components/IconTapButton";
 import { ONE_IMAGE, fmtTokens } from "../../data/economy";
 import { aspectOf, uid } from "../../types";
@@ -345,6 +346,9 @@ export default function StageOverlay({ nodeId, onClose }: { nodeId: string; onCl
           onPointerUp={onWrapPointerUp}
           onPointerCancel={onWrapPointerUp}
         >
+          {/* ★ 渲染边界只包 Canvas（2026-10-15 教材人格评审）：人偶模型解不开 / 子树渲染抛错时只换掉舞台这一块，整张导演台与
+              下面的人偶 / 机位面板、关闭键都还在；useFrame（CamRig）里抛的不经 React 树、接不到。 */}
+          <ErrorBoundary label={t`导演台`}>
           <Canvas dpr={1} gl={{ preserveDrawingBuffer: true, antialias: true }} camera={{ fov: 42, near: 0.1, far: 100, position: camPosition(stage.cam) }}>
             <color attach="background" args={[STAGE_BG]} />
             <ambientLight intensity={0.9} />
@@ -384,6 +388,7 @@ export default function StageOverlay({ nodeId, onClose }: { nodeId: string; onCl
               ))}
             </Suspense>
           </Canvas>
+          </ErrorBoundary>
         </div>
       </div>
 
