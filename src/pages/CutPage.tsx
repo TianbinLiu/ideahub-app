@@ -95,7 +95,7 @@ import { cutIssueText } from "../studio/cutIssues";
 import { VideoSegment, aspectOf, formatDuration, segLen, uid } from "../types";
 import { resolveMediaUrl, useMediaUrl } from "../utils/mediaUrl";
 import { captureVideoFrame, loadVideoAt, probeDuration } from "../utils/videoFrames";
-import { Capacitor } from "@capacitor/core";
+import { nativeFileSrc } from "../utils/nativeMerge"; // 页面不直接碰 @capacitor/*（import 方向规则④）
 // 合并走原生硬件编解码器（见 utils/nativeMerge 头部的 ★★）
 import {
   cancelNativeMerge,
@@ -1078,7 +1078,7 @@ export default function CutPage() {
         }
         if (job) {
           if (line) job.fail(line, "/cut");
-          else job.done({ msg: t`${done} 句配音合成好了，回剪辑页听听`, route: "/cut" });
+          else job.done({ msg: t`${done} 句配音好了，回剪辑页听听`, route: "/cut" });
         }
       }
     }
@@ -1557,7 +1557,7 @@ export default function CutPage() {
         }
         if (cancelRef.current) {
           setBusy("");
-          setErr(t`已取消合并。片段、圈选和配乐都还在，随时可以重新开始。`);
+          setErr(t`已取消合成。片段、圈选和配乐都还在，随时可以重新开始。`);
           return;
         }
         mergeSegs = next;
@@ -1609,7 +1609,7 @@ export default function CutPage() {
         }
         if (cancelRef.current) {
           setBusy("");
-          setErr(t`已取消合并。片段、圈选和配乐都还在，随时可以重新开始。`);
+          setErr(t`已取消合成。片段、圈选和配乐都还在，随时可以重新开始。`);
           return;
         }
       }
@@ -1714,10 +1714,10 @@ export default function CutPage() {
       //   取消了照样把整条合完，几十秒白跑，而屏幕上写着「正在停止」）
       if (cancelRef.current) {
         setBusy("");
-        setErr(t`已取消合并。片段、圈选和配乐都还在，随时可以重新开始。`);
+        setErr(t`已取消合成。片段、圈选和配乐都还在，随时可以重新开始。`);
         return;
       }
-      say(t`合成中…`);
+      say(t`正在合成成片…`);
       const merged = await runNativeMerge(
         {
           clips,
@@ -1749,7 +1749,7 @@ export default function CutPage() {
       );
       if (cancelRef.current) {
         setBusy("");
-        setErr(t`已取消合并。片段、圈选和配乐都还在，随时可以重新开始。`);
+        setErr(t`已取消合成。片段、圈选和配乐都还在，随时可以重新开始。`);
         return;
       }
 
@@ -1761,7 +1761,7 @@ export default function CutPage() {
       // 成片第一帧（本机文件，解码一帧很便宜）。截不到不挡发布，缩略图退回段的设定帧
       let poster = "";
       try {
-        poster = await captureVideoFrame(Capacitor.convertFileSrc(merged.uri), 0.05);
+        poster = await captureVideoFrame(nativeFileSrc(merged.uri), 0.05);
       } catch (e) {
         console.warn("[cut] 成片首帧没截到:", e);
       }
@@ -1898,9 +1898,9 @@ export default function CutPage() {
       const code = (e as { code?: string } | null)?.code;
       const raw = (e instanceof Error ? e.message : String(e)).slice(0, 160);
       if (cancelRef.current) {
-        setErr(t`已取消合并。片段、圈选和配乐都还在，随时可以重新开始。`);
+        setErr(t`已取消合成。片段、圈选和配乐都还在，随时可以重新开始。`);
       } else if (code === "BUSY") {
-        // ★ 这**不是失败**：那一炉好好地在跑（原生那句话自带出路）。加"合并失败："
+        // ★ 这**不是失败**：那一炉好好地在跑（原生那句话自带出路）。加「合成失败：」（用户可见的一律叫「合成」，2026-10-15 拍板；代码里的「合并」是内部叫法）
         //   等于报一次并不存在的失败，还把用户推向最不该走的那条路 —— 再合一次。
         setErr(raw);
       } else {
@@ -1915,8 +1915,8 @@ export default function CutPage() {
         const segList = stillArk.join(t({ message: "、", comment: "列举几个段号时的分隔符（第 1、3 段）" }));
         const failMsg =
           (http === "403" || http === "404") && stillArk.length
-            ? t`合并失败：第 ${segList} 段的视频取不到了（HTTP ${http}）。这几段揣的还是方舟的临时链接、当初没能转存成永久地址，而那种链接只活 24 小时——过期之后合成器也拉不到。这条片子现在合不了：回「我的 → 草稿」打开草稿把这几段重新出片（会再花一次钱），或者删掉它们再合。`
-            : t`合并失败：${raw}`;
+            ? t`合成失败：第 ${segList} 段的视频取不到了（HTTP ${http}）。这几段揣的还是方舟的临时链接、当初没能转存成永久地址，而那种链接只活 24 小时——过期之后合成器也拉不到。这条片子现在合不了：回「我的 → 草稿」打开草稿把这几段重新出片（会再花一次钱），或者删掉它们再合。`
+            : t`合成失败：${raw}`;
         if (aliveRef.current) {
           setErr(failMsg);
           job.done({ silent: true }); // 这一页自己会画这句话，不用再弹一次
@@ -2203,7 +2203,7 @@ export default function CutPage() {
                     }}
                     className="rounded-full border border-slate-500 px-4 py-1.5 text-[11px] text-slate-200"
                   >
-                    <Trans>取消合并</Trans>
+                    <Trans>取消合成</Trans>
                   </button>
                 </>
               )}
@@ -2739,7 +2739,7 @@ export default function CutPage() {
                           {making ? (
                             <span className="flex items-center gap-1.5 text-[11px] text-slate-300">
                               <Spinner size="xs" />
-                              <Trans>配音合成中…</Trans>
+                              <Trans>正在配音…</Trans>
                             </span>
                           ) : v ? (
                             <>
@@ -2825,7 +2825,7 @@ export default function CutPage() {
                     className="mt-2.5 w-full rounded-xl bg-cyan-500/85 py-2.5 text-sm font-bold text-ink disabled:opacity-40"
                   >
                     {voicing.size > 0
-                      ? t`配音合成中…`
+                      ? t`正在配音…`
                       : voiceTodo.length > 0
                         ? typeof voiceFree === "number"
                           ? t`🔊 给 ${voiceTodo.length} 句配音（现在免费）`

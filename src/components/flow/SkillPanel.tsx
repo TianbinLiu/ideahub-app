@@ -125,7 +125,7 @@ export default function SkillPanel({ draft, onPick }: { draft: string; onPick: (
         </div>
       )}
       {mine.length === 0 && !saving && (
-        <p className="text-[10px] leading-relaxed text-slate-600"><Trans>还没有技能——输入条写好常用指令，点「＋ 存为技能」。</Trans></p>
+        <p className="text-[10px] leading-relaxed text-slate-400"><Trans>还没有技能——输入条写好常用指令，点「＋ 存为技能」。</Trans></p>
       )}
       {mine.length > 0 && (
         <div className="space-y-1">
@@ -177,7 +177,7 @@ export default function SkillPanel({ draft, onPick }: { draft: string; onPick: (
         <div className="mt-1 space-y-1">
           {busy && <p className="text-[10px] text-slate-500"><Trans>拉取中…</Trans></p>}
           {!busy && sharedSkills().length === 0 && !marketErr && (
-            <p className="text-[10px] text-slate-600"><Trans>广场上还没有人发布技能——发布你的第一条？</Trans></p>
+            <p className="text-[10px] text-slate-400"><Trans>广场上还没有人发布技能——发布你的第一条？</Trans></p>
           )}
           {sharedSkills().map((s) => {
             const installed = mine.some((m) => m.id === s.id);

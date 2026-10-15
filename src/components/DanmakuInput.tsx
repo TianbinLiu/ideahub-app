@@ -353,7 +353,7 @@ export default function DanmakuInput({
           </p>
         ) : (
           !danmakuIsShared() && (
-            <p className="px-4 pb-1 text-[10px] text-slate-600">
+            <p className="px-4 pb-1 text-[10px] text-slate-400">
               <Trans>当前离线，这条弹幕只存在这台设备上</Trans>
             </p>
           )

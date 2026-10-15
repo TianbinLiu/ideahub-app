@@ -363,7 +363,7 @@ const AVATARS = ["🦊", "🐺", "🐱", "🦉", "🐙", "🦋", "🌙", "⭐", 
 /**
  * 登录或注册（本地账号：account 不存在即注册）。密码在本地阶段不校验，留参数位给 server。
  *
- * ★ 远端模式下 LoginPage 走的是异步的 signInWithPassword / signUpWithPassword，
+ * ★ 远端模式下 LoginPage 走的是异步的 signInWithPassword / registerWithEmailOtp（密码注册那条 2026-10-15 删了：全仓零调用方），
  *   不会调到这里。这里只保留一条兜底：已有有效 token 就直接返回当前用户，
  *   否则 throw——绝不伪造登录态（伪造的后果是进得去工坊、每次写都 401 被踢，更难查）。
  *   服务器不可达时 remoteOn() 为 false，会落到下面的本地分支，离线照常能用。
@@ -2823,7 +2823,7 @@ export async function signInWithPassword(account: string, password: string): Pro
 /**
  * 注册时填的昵称：注册端点不收 displayName（controller 只解构 username / email / password / role，
  * 契约 docs/api-contract.md 的 /register 与 /email/register/verify 同一条），所以昵称要在注册成功之后**补一次**
- * PUT /api/me/profile —— 两条注册路共用这一份（signUpWithPassword / registerWithEmailOtp）。
+ * PUT /api/me/profile —— 注册只剩验证码一条路（registerWithEmailOtp）；密码注册 signUpWithPassword 2026-10-15 删了（零调用方，留着就是第二份收尾实现）。
  *
  * ★★ 这一发 PUT 就是昵称的**唯一真相**（2026-10-15 教材人格评审）：远端模式 persist() 一个字节都不落盘（见它的 ★），
  *   内存里那份 `local.name` 活不过重启。原来写成 `void updateProfile().catch(emitApiError)` —— 全 app 没有任何地方监听
@@ -2850,24 +2850,6 @@ function settleSignUpNick(local: User, nick: string | undefined): void {
       showToast(t`账号建好了，昵称没存上 —— 去「我的 → 编辑资料」再填一次`, 7000);
     },
   );
-}
-
-/**
- * 密码注册（server 强制 username + email + password，password ≥ 6 位）。
- * ⚠ 2026-10-15 核实：全仓没有调用方 —— LoginPage 的注册走 registerWithEmailOtp（服务端要先验邮箱验证码）。留着是因为
- *   「LoginPage 接上密码框后改调这两个」那条注释还在；真不要了连这一段一起删。昵称的补发与验证码注册同一份（settleSignUpNick）。
- */
-export async function signUpWithPassword(
-  input: authApi.RegisterInput & { displayName?: string }
-): Promise<User> {
-  if (!API_ON) return signIn(input.username, input.displayName);
-  const { username, email, password, displayName } = input;
-  const { user } = await authApi.register({ username, email, password });
-  // ★ 走同一个收尾。新号确实没有资产也没有 displayName，但"四条登录路里有一条不一样"
-  //   正是上一个 bug 的成因，不留第二份实现（铁律六）。
-  const local = await finishRemoteSignIn(user);
-  settleSignUpNick(local, displayName);
-  return local;
 }
 
 /**

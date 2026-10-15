@@ -2015,7 +2015,7 @@ body `{ roles: [{ label, desc }] }`（**1~9 条**，见上面 `roles` 的铁则 
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/auth/oauth/:provider?next=<目标>` | `provider` ∈ 服务端 `providers`（google / github）。授权完成后 302 带 token 回 `next` |
+| GET | `/api/auth/oauth/:provider?next=<目标>&state=<一次性 state，可选>` | `provider` ∈ 服务端 `providers`（google / github）。授权完成后 302 带 token 回 `next`；带了 `state` 的，成功 / 失败两种回跳都原样回带（2026-10-15，见下「第三方登录深链的 state 绑定」） |
 
 `next` 只接受两类值，其余一律被 `safeNextPath()` 打回 `/`：
 
@@ -2036,6 +2036,38 @@ server 的 `APP_OAUTH_SCHEME`、app 的 `src/utils/oauth.ts` `APP_SCHEME`、
 ★ Google Cloud Console 里登记的授权回调**只有服务端那一个**
 （`<SERVER_BASE_URL>/api/auth/oauth/google/callback`）。自定义 scheme 不需要、也不能
 登记到 Google —— 它是服务端拿到 token **之后**自己发起的第二跳。
+
+### 第三方登录深链的 state 绑定（2026-10-15）
+
+（教材人格评审 owasp-security-1：此前任何 App / 网页投一条 `ideahub://oauth?token=…` 就能把用户换成**别人的**登录态，
+垃圾 token 还会先盖掉本机 JWT 再被 401 清掉 = 静默登出。服务端 PR 待发，下面是两边各自实现的同一份规格。）
+
+| 谁 | 做什么 |
+|---|---|
+| App 起跳（`utils/oauth.startOauth`） | 每次用 `crypto.getRandomValues` 生成 16 字节随机数、hex 成 32 位当 **`state`**，连同 `Date.now()` 记在本机 `localStorage`（`ideahub-app.oauth.state.v1`），拼进起跳地址 `…?next=<目标>&state=<state>`（`api/auth.oauthStartUrl`）。web 与原生两条起跳路都带 |
+| 服务端 `GET /api/auth/oauth/:provider` | `state` 只收 **`/^[A-Za-z0-9_-]{8,128}$/`**（不合形状当没带），放进**自己签名的** link-state 里一起带去提供商；回调时取出来，**成功 / 失败两种回跳都原样回带 `state=`**，web 与 App 两种目标都是：web `CLIENT_BASE_URL/oauth/callback?token=…&next=…&state=…` / `…/oauth/callback?error=…&state=…`，App `ideahub://oauth?token=…&state=…` / `ideahub://oauth?error=…&state=…`。⚠ passport 的 `failureRedirect`（`/oauth/fail`）那条路拿不到 state、回带不了 —— App 这边按「没回带」处理 |
+| App 收回程（`utils/oauth.acceptOauthReturn`，**深链与 web 回跳唯一的闸**） | 取出本机记的那条（**一次性**：取即删，一条 state 只判一条回程 —— 判过的留着就能拿来放行后面投进来的任何一条），按下表判；拒了就 `console.warn` 一行（只记结论，不记 token / state 的值）+ 轻提示「忽略了一条不是本机发起的登录链接」，然后**什么都不做**：不交付、不跳转、不碰 token，`?error=` 的文字也不上屏（那段文字同样可以由别人投进来） |
+
+App 的判定表（`data/oauthState.decideOauthReturn`，零依赖，构建里 `scripts/check-oauth-state.mjs` 实跑）：
+
+| 本机记着的 state | 回程带的 `state` | 结论 |
+|---|---|---|
+| 没有 | 任意 | **拒**（unsolicited：这台设备近期没发起过登录 —— 链接是别人投进来的，或上一条已经用掉） |
+| 有，但距 startOauth 超过 **15 分钟**（`STATE_TTL_MS`；正好 15 分钟还算数） | 任意 | **拒**（stale） |
+| 有、没过期 | 带、与本机的不等 | **拒**（mismatch） |
+| 有、没过期 | 带、相等 | 收 |
+| 有、没过期 | **没带**（老服务端、或 `/oauth/fail` 那条） | **收**（暂且放行，见下） |
+
+- **TTL 15 分钟**是整个系统浏览器往返（挑账号、敲密码、两步验证，期间 App 进程随时被回收 —— 所以记在 localStorage 而不是只记内存）。
+  服务端自己那份签名 link-state 的 **10 分钟**是另一件事：那是它在「送去提供商」到「提供商回调它」之间的绑定，过期由服务端判、以失败回跳回来，
+  而失败回跳也要本机还记着 state 才能上屏 —— 所以 App 的 TTL 只能比它长。
+- **老服务端（还没发这一版）忽略 `state`、回跳不回带**：App 只在**本机 TTL 之内确实调过 startOauth** 时才收它 —— 这一道就是「本机近期发起过登录」的闸，
+  今天就挡住了「别人投一条深链换登录态」（他投进来时本机没记 state → unsolicited）。两边都向后兼容：老 App 不带 state，服务端不回带。
+- **后一版 App 把「没带」也改成拒**（`decideOauthReturn` 里标着 ⚠ 的那一支）：服务端这一版普及之后再收紧，否则收紧那天所有人登不上第三方账号。
+- 同一条深链只收一次（`utils/oauth.onDeepLink`）：launch URL 在进程活着的期间一直是那一条，WebView 重载 / 系统改语言重建 Activity 之后
+  `getLaunchUrl` 会把登过的那条再给一次 —— 收过的记下来（localStorage 只记 SHA-256 摘要：深链里带 token，原文不落盘），再来不算第二条回程，
+  也就不会对着一次成功的登录说「不是本机发起的」。
+- 部署顺序：服务端先发；App 这一版随后；再后一版 App 才要求回带。
 
 ### QQ 登录（原生 SDK，**不走上面那条回跳**）
 
@@ -2133,7 +2165,7 @@ body 发 `{ text, voice, rate?, purpose: "cut-narration" }`（`voice` 取自 `/a
 
 | 方法 | 路径 | 鉴权 | 限流 | 说明 |
 |---|---|---|---|---|
-| GET | `/api/ark/health` | 无 | — | `{ ok, ark, imageGroups, res480, draftMode, failRefund, freeVideo: [{label, model, resolution}], freeVideoGate, minimaxFailRefund }`：配没配 key + 能力位（老服务端没有的位 = 没有这个能力，App 据此藏起对应的东西 —— `app/src/data/serverCaps` 一处探测、一处解析 `capsOf`；判能力只看能力位，不看状态码）。`failRefund` 只说**方舟**任务；最后两位是运维开关的现状（没有 = 当成开着）：`freeVideoGate: false` = 服务端退回改版前只挡电影级的口径（App 的 `account.tierFreeOk` 跟着放开，`freeVideo` 那张清单不看开关、只在开着时作数）；`minimaxFailRefund: false` = 真人档受理之后的失败不退（App 的取回卡据此不许诺「会自动退回」，`serverCaps.failRefundMinimax`） |
+| GET | `/api/ark/health` | 无 | — | `{ ok, ark, imageGroups, res480, draftMode, failRefund, freeVideo: [{label, model, resolution}], freeVideoGate, minimaxFailRefund, clientEvents }`：配没配 key + 能力位（老服务端没有的位 = 没有这个能力，App 据此藏起对应的东西 —— `app/src/data/serverCaps` 一处探测、一处解析 `capsOf`；判能力只看能力位，不看状态码）。`failRefund` 只说**方舟**任务；最后两位是运维开关的现状（没有 = 当成开着）：`freeVideoGate: false` = 服务端退回改版前只挡电影级的口径（App 的 `account.tierFreeOk` 跟着放开，`freeVideo` 那张清单不看开关、只在开着时作数）；`minimaxFailRefund: false` = 真人档受理之后的失败不退（App 的取回卡据此不许诺「会自动退回」，`serverCaps.failRefundMinimax`）；`clientEvents: true` = 收客户端失败上报 `POST /api/client-events`（2026-10-15，见下「客户端失败上报」，`serverCaps.clientEvents`） |
 | GET | `/api/ark/task-charges/:taskId` | required | 同轮询 | **本人的**这一发生成退没退钱（2026-10-07，不计费）：`{ state, tokens }`，见下「受理之后失败的退款」。不是本人的 / 没有这笔账 → 非 2xx（App 一律当「问不到」，照旧说原来那句，`arkClient.fetchTaskCharge`） |
 | POST | `/api/ark/images/generations` | required | 30/min | Seedream 出图（卡面 / 首尾帧） |
 | POST | `/api/ark/contents/generations/tasks` | required | 30/min | Seedance 出视频 / Seed3D 建模（同一个异步任务端点） |
@@ -2179,6 +2211,34 @@ App 打到自家服务器 **`/api/` 下**的每一个请求都带 `X-App-Version
   另：原来不带 `Authorization` 的 GET（探活、未登录逛首页）加了这个头之后也要先预检一次 —— `cors()` 配上 `maxAge` 就只多这一次往返。
   自检：`curl -si -X OPTIONS https://api.ideahubs.org/api/health -H "Origin: https://localhost" -H "Access-Control-Request-Method: GET" -H "Access-Control-Request-Headers: x-app-version"`
   的回包里 `Access-Control-Allow-Headers` 要含 `x-app-version`。
+
+### 客户端失败上报 `POST /api/client-events`（2026-10-15）
+
+（教材人格评审 humble-delivery-4：此前客户端唯一进服务端的信号是上面那个请求头 —— 2.51–2.55 五版一进工坊就白屏、发出去 5 天，
+服务端日志里没有一行能看出来，全靠主人真机撞上。服务端 PR 待发，下面是两边各自实现的同一份规格。）
+
+| 方法 | 路径 | 鉴权 | 限流 | 说明 |
+|---|---|---|---|---|
+| POST | `/api/client-events` | **无** | 按 IP 10/分钟 → 429 | body `{ kind, version, where?, name? }` → **204**；形状不对 400。服务端**只写一行日志** `[client-event] kind=… version=… where=… name=… ip=…`：不进库、不认账号、不做任何判断 —— 与 `X-App-Version` 同一个口径（也同样是客户端写的、能伪造，所以只能当线索） |
+
+body（服务端 zod 与 App 的 `data/clientEvents` 逐条相等）：
+
+| 字段 | 形状 | 说明 |
+|---|---|---|
+| `kind` | `"render-error" \| "unhandled-rejection" \| "update-failed" \| "idb-dataloss" \| "boot-blocked"` | 渲染边界接住的抛错（含 window 的 `error`）/ 没人接手的 Promise 拒绝 / 应用内更新失败 / 本机 IndexedDB 被系统判损坏、清空重建 / 开机被整页拦住。加一种两仓一起加 |
+| `version` | string 1..40 | 就是请求头 `X-App-Version` 的值（`<versionName>+<versionCode>`，装着的那一包） |
+| `where` | string 1..64，`/^[A-Za-z0-9/_.:-]+$/` | 路由或步骤名：`/studio:3D`、`manifest-sha`、`download-install`、`storage:videos.account` |
+| `name` | string 1..40，`/^[A-Za-z0-9_.-]+$/` | 错误**类型名**（`Error.name`、原生插件的 code 如 `NEED_PERMISSION`） |
+
+- **永远不带错误 message**（里面常有文件名、地址、用户输入）、不带账号（无鉴权是故意的：登录态坏掉那一刻也要报得出去）。
+- 能力位：`GET /api/ark/health` 回 **`clientEvents: true`**。App 只认这一位（`data/serverCaps`），老服务端没有 = 不发 ——
+  真机上不存在的路径回 200 + index.html，状态码试不出来。
+- App 侧（`data/clientEvents.reportClientEvent`，**唯一发送处**）：离线 / dev 直连不发；一场会话同一件事（kind + where + name）只报一次、合计最多 8 条
+  （渲染错多半是确定性的，人点一次「重载这一块」就再抛一次）；上报本身失败一律吞掉 —— 它正是在别的东西坏掉时被调的，再抛一个没人接手的拒绝
+  就被 `unhandledrejection` 那只手接住再报一次；探不到能力位（断网、5xx）的那一条就丢，不排队、不重试。
+  五处挂钩：`components/ErrorBoundary`（render-error，where = 路由:标签）、App 根的 window `error` / `unhandledrejection`（只带 name）、
+  `data/appUpdate`（update-failed，where = `manifest-sha` / `download-install`）、`components/DataLossNotice`（idb-dataloss）、
+  `data/boot`（boot-blocked，where = 原因:哪几样）。
 
 ### 视频档位与模型能力（写死在两边的表里，不靠运行时探测）
 
@@ -2283,7 +2343,11 @@ App 打到自家服务器 **`/api/` 下**的每一个请求都带 `X-App-Version
 - 两步都落取回凭据（`VideoJob.draftStep / draftDur / draftRatio / draftOf`）；`GET /api/ark/video-tasks` 的每一条多带 `draft` / `draftOf` / `costTokens`，
   App 补凭据时据此把样片的那几格原样落回。
 
-### r2v（白模出片）的服务端规则 —— `reference_video` 只有两条合法来源
+### r2v（参考视频出片）的服务端规则 —— `reference_video` 只有四条合法来源（2026-10-15 照 server#107 / #108 重写）
+
+> 2026-10-15 之前这一节只写了前两条来源、「首发只有 2.5」、「omni_reference_task_type 必须是 edit」—— 2026-08-28 的素材参考、
+> 2026-10-05 的本人成片（返修 / 片段重拍 / 延长，server#107）与高清开 r2v（server#108）都没写进来，契约失去了验收依据的资格
+>（教材人格评审 sommerville-requirements-2）。下面逐条对照 `ark.routes.js` 的 `resolveR2v` 与 `config/tokens.js` 抄。
 
 任务体 `content[]` 里带 **`video_url` 形状条目**（`type:"video_url"` 或带 `video_url`
 键——按**形状**判不按 `role` 判：`role` 是客户端可控字符串，只认 `role` 会被"去掉
@@ -2293,50 +2357,34 @@ role 的 video_url"绕过、按纯任务价放行）的请求，代理在计费�
 先过三条共同的门：
 
 1. 条目必须带规范的 `role:"reference_video"`（有 `video_url` 却没有 → 400），且只许一条。
-2. `model` 必须在 `VIDEO_MULT_R2V` 价目表里（首发只有 Seedance 2.5 = 2.8），不在 →
-   400。**绝不静默按纯任务系数（4.7）结算** —— 那是不含视频输入的价，
-   等于输入时长一分不收、账目全瞎。
-3. **生成参数钉死在计价假设上**：`omni_reference_task_type` 必须是 `"edit"`、
-   `duration` 只能缺省或 `-1`、`resolution` 只能缺省或 `"720p"`、`ratio` 只能缺省或
-   `"adaptive"`，越出任一条 → 400。计费是 (输入时长×2)×720p×24fps，而代理原样转发
-   请求体——不钉的话改一行客户端就能按 4s 模板的价买 30s/1080p 的产出（reference
-   子任务 duration 自由、-1 上探 30s，A7 实测），差额全进我们的方舟账单且零症状。
-   `generate_audio` 钉的是「**与该模型的支持情况一致**」（`config/tokens.VIDEO_AUDIO`
-   与 App `VideoTier.audio` 逐条相等）：支持的档允许 `true`，不支持的档只许 `false`/缺省
-   —— 1.x 收下参数却静默忽略，传了会让两边都以为"这一发有声"。⚠ 开音频**零额外成本**
-   （2026-08-15 费用中心逐行核对：同素材有声/无声两发用量与单价逐位相同），
-   所以它**不进任何计价公式**。
+2. `model` 必须在 `VIDEO_MULT_R2V` 价目表里，不在 → 400。**绝不静默按纯任务系数结算** ——
+   那是不含视频输入的价，等于输入时长一分不收、账目全瞎。今天两行：
+   | 模型 | 系数 | 出处 |
+   |---|---|---|
+   | Seedance 2.5（电影级） | 2.8 | 2026-08-16 账单实证（¥0.042/千token ⇒ 42/15） |
+   | Seedance 2.0 mini（高清） | 14/15 | 2026-10-05 主人「合」开高清的片段重拍 + 参考视频出片；按官方刊例 14 元/M，**账单还没逐行核过**（App `economy.HD_R2V_MULT` 同一个数，核出来不是 14 就两仓一起改） |
+3. `generate_audio` 钉的是「**与该模型的支持情况一致**」（`config/tokens.VIDEO_AUDIO` 与 App `VideoTier.audio`
+   逐条相等）：支持的档允许 `true`，不支持的档只许 `false`/缺省。⚠ 开音频**零额外成本**
+   （2026-08-15 费用中心逐行核对），所以它**不进任何计价公式**。
 
-**分支一：已登记的白模模板**（套用出片 / 作者试炼）
+然后按 `video_url.url` 的来源分四条分支，**各自的子任务、钉子与计价公式不同** —— 别把 edit 的钉子套在 reference / extend 头上
+（`duration:-1` 在那两种子任务上会推到 30s 上界，A7 实测，那正是"按小价买大产出"的口子）：
 
-按 `video_url.url` **等值反查** `BranchTemplate.refVideo.url`（唯一索引，存的是
-Cloudinary `secure_url` 规范形态——塞一段 transformation 也绕不开）。
-`blocked` 的模板不能用；**未发布**的模板只有作者本人能用（那正是发布前的试炼一步，
-别人拿到 URL 也蹭不了）。计价输入时长**只从服务端登记的 `refVideo.durationSec` 读**，
-请求体里客户端说什么都不作数；流水 memo 追加 ` r2v tpl:<id>`；任务受理后落试炼追踪。
+| 分支 | 来源怎么认 | 子任务 | 计价 | 钉子（越出任一条 → 400，不扣费） |
+|---|---|---|---|---|
+| 一 · 已登记的白模模板（套用出片 / 作者试炼） | `url` 等值反查 `BranchTemplate.refVideo.url`（唯一索引、Cloudinary 规范形态）；`blocked` 不能用；未发布只有作者能用 | `edit` | `r2vTokens`：(登记的 `refVideo.durationSec` × 2) × 720p 锚 × 系数 | `omni_reference_task_type:"edit"`、`duration` 缺省或 `-1`、`resolution` 缺省或 `"720p"`、`ratio` 缺省或 `"adaptive"` |
+| 二 · 本账号刚传、尚未登记的托管素材（白模化那一发的输入） | `parseOwnClipUrl`：服务端自己拼的裁剪变换地址（`so_`/`du_`/`c_crop`、`publicId` 归本账号）；没有 `du_` 不认；已登记过的素材不许走 | `edit` | `r2vTokens`，输入时长 = URL 里的 `du_` | 同分支一；另有 `6 次/分` 限流（每发都打一次 Cloudinary Admin API） |
+| 三 · 已登记的用户素材参考视频（工作流「自定义 = 多图 + 参考视频」） | `MaterialRefVideo.findOne({ url })`，**私有**：登记者本人才能用 | `reference` | `materialRefTokens`：(登记的输入时长 + 用户选的输出时长) × 720p 锚 × 系数 | `duration` 必须是 `videoSecWindow(model)` 里的**整数**（不收 -1）、`resolution` 缺省或 `"720p"`、`ratio` 缺省或 `16:9` / `9:16` / `adaptive` |
+| 四 · 本人自己出的成片（App「修这一段」：返修 / 片段重拍 / 延长，2026-10-05） | `parseOwnBranchVideoUrl`：出片即转存的 `ideahub/branch-videos/<userId>-<毫秒>-seg`，目录 + 文件名以本人 id 开头（与服务端合并认段落的同一个判据）；时长由服务端向 Cloudinary 查（`ownSegmentMeta`，缓存一天），客户端报的数不信 | `edit` → `ownEdit`；`extend` → `ownExtend`；`reference` 这一期不开 | `ownEdit` 同分支一（输入 × 2）；`ownExtend` 同分支三（输入 + 输出） | `ownEdit` 同分支一的钉子；`ownExtend`：`duration` 为窗口内整数、`resolution` 缺省或 `"720p"`、`ratio` 缺省或 `"adaptive"`（延长跟随原片画幅） |
 
-**分支二：本账号刚传、尚未登记的托管素材**（**白模化那一发的输入**，V2 新增）
+四条都不中 → **400 `R2V_NOT_ALLOWED` 整句拒**，方舟不会被调用、不扣费。流水 memo：分支一追加 ` r2v tpl:<模板id>`，其余三条 ` r2v src:<publicId>`（`arkGateway.service` 一处拼）；
+分支一落试炼追踪，二 / 三 / 四的 `templateId` 为 `null`、不落试炼。
+公式只有 `config/tokens.r2vTokens` 与 `materialRefTokens` 两处（**不加新公式**）；结算时 `kind` 由 `resolveR2v` 定（`material` / `ownExtend` 走
+(输入 + 输出)，其余走输入 × 2）。
 
-白模化的输入是"用户刚传的素材裁出来的那一段"，此时世上还没有任何模板，分支一必然落空。
-⚠ **绝不能**为了过闸门先把用户原视频登记成一个"模板"：那会污染模板库、撞 `refVideo.url`
-唯一索引，还让试炼闸对着中间物计数。所以开第二条分支：
-
-- URL 必须是**服务端自己拼的那种裁剪变换地址**（`utils/templateVideoAsset.parseOwnClipUrl`
-  解得出 `publicId` + `so_`/`du_` + `c_crop` 四组数，且 `publicId` 归属本账号）。
-  **没有 `du_` 的地址一律不认** —— 那等于把整条原片（最长 600s）喂进去却只按纯任务价收。
-- 已经被登记过的素材不许走这条（否则"加一段裁剪变换"就绕开了 blocked / 未发布两道门禁）。
-- 裁后那一段要过 **② 号窗口**；再现查一次 Cloudinary 资源详情，确认 `public_id` 真的存在、
-  裁剪框没超出原片（`c_crop` 超界时 Cloudinary 自己裁到边界而不是报错）。
-- **计价输入时长 = URL 里的 `du_` 那个数**，理由是它**自洽**：Cloudinary 照这条变换投递，
-  方舟拿到的就是这么长的一段 —— 同一个字符串同时决定了"上游收到多长"和"我们收多少钱"，
-  客户端拼不出"少付多得"。公式仍只有 `config/tokens.r2vTokens` 一处（**不加新公式**）。
-- 这一路 `templateId` 为 `null`：**不落试炼追踪**（模板还不存在）。流水 memo 追加
-  ` r2v src:<publicId>`（对账时分得出白模化那一发）。
-- 额外限流：`6 次/分`（`ark-r2v-source` 桶，**串在** genLimit 后面）—— 每一发都要打一次
-  Cloudinary Admin API，而免费档 Admin API 是**全局** 500 次/小时，不限的话一个账号能把
-  全 App 的建模板能力一起刷停摆。
-
-两条都不中 → **400 `R2V_NOT_ALLOWED` 整句拒**，方舟不会被调用、不扣费。
+App 侧对应：档位表 `data/videoTierTable` 上「能带参考视频」（`refVid`）、「能延长」（`extendOk`）、「能跑白模模板」（`blockoutOk`）是**三位**
+（高清只有第一位），四种子任务的请求形状在 `ai/arkClient.refTask`；报价读 `economy.r2vMult` / `HD_R2V_MULT`，与这里的 `VIDEO_MULT_R2V`
+逐条相等（钉在 `arkProxy.spec.js`）。
 
 为什么要收窄到这两条：r2v 的输入视频时长计进 token，「输入多长」只能有可信来源
 （服务端登记值 / 服务端自己拼的 `du_`）。代价是封死了"拿任意视频二创"这类非模板 r2v ——

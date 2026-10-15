@@ -12,3 +12,15 @@ export async function openExternal(url: string): Promise<void> {
   }
   if (!window.open(url, "_blank", "noopener")) throw new Error("popup blocked");
 }
+
+/**
+ * 系统浏览器那一页被关掉时叫一声（原生 Browser 的 browserFinished）；回「拆掉监听」的函数。网页里没有这回事，回空操作，
+ * 调用方照旧靠可见性与轮询。
+ * ★ 住在这里而不是各页自己 import("@capacitor/browser")（import 方向规则④，2026-10-15）：页面 / 组件不直接碰原生插件，
+ *   原生能力都从 utils / data 借 —— 插件换版本、web 垫片行为不同（见上面 window.open 那段）只改一处。
+ */
+export async function onBrowserFinished(cb: () => void): Promise<() => void> {
+  if (!isNative()) return () => {};
+  const h = await Browser.addListener("browserFinished", cb);
+  return () => void h.remove();
+}

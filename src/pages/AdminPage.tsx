@@ -123,7 +123,7 @@ export default function AdminPage() {
             </span>
             <Icon name="chevron" size={16} className="text-slate-600" />
           </button>
-          <p className="mt-8 text-center text-[10px] leading-relaxed text-slate-600">
+          <p className="mt-8 text-center text-[10px] leading-relaxed text-slate-400">
             <Trans>
               这里的每一个动作都由服务端按 role 重新鉴权一次。
               <br />
@@ -227,7 +227,7 @@ function StatCell({ label, v, accent = false, onOpen }: { label: string; v: numb
         <div className={`text-lg font-bold tabular-nums ${accent && (v ?? 0) > 0 ? "text-amber-300" : "text-slate-100"}`}>
           {v === null ? "—" : v}
         </div>
-        <span className="text-xs text-slate-600">›</span>
+        <span aria-hidden className="text-xs text-slate-600">›</span>
       </div>
       <div className="text-[11px] text-slate-500">{label}</div>
     </button>

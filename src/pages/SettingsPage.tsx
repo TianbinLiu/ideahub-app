@@ -300,7 +300,7 @@ function DocRow({ id, emoji, sub }: { id: AgreementId; emoji: string; sub: strin
         <span className="text-lg">{emoji}</span>
         <span className="min-w-0 flex-1">
           <span className="block text-sm text-slate-100">
-            {doc.title} <span className="text-[10px] text-slate-600">{TERMS_UPDATED}</span>
+            {doc.title} <span className="text-[10px] text-slate-400">{TERMS_UPDATED}</span>
           </span>
           <span className="block truncate text-[11px] text-slate-500">{sub}</span>
         </span>

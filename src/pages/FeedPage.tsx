@@ -254,11 +254,9 @@ function FeedItem({
     e.stopPropagation();
     setScrub(ratioAt(e.clientX));
   }
-  function scrubEnd(e: React.PointerEvent) {
-    if (scrub == null) return;
-    e.stopPropagation();
-    // 全局进度 → 段 + 段内偏移；跨段时切段并挂起待 seek（新元素 loadedmetadata 后落位）
-    const target = scrub * durTotal;
+  /** 全局进度（0~1）→ 段 + 段内偏移：同一段直接 seek，跨段时切段并挂起待 seek（新元素 loadedmetadata 后落位）。拖动与键盘共用 */
+  function seekRatio(ratio: number) {
+    const target = ratio * durTotal;
     let acc = 0;
     let j = 0;
     let local = 0;
@@ -277,7 +275,30 @@ function FeedItem({
       pendingSeek.current = local;
       setSi(j);
     }
+  }
+  function scrubEnd(e: React.PointerEvent) {
+    if (scrub == null) return;
+    e.stopPropagation();
+    seekRatio(scrub);
     setScrub(null);
+  }
+  /**
+   * 键盘 / 读屏的替代（wcag-a11y-i18n-2 的一半，2026-10-15 拍板）：进度条是 role=slider，左右键 5 秒、Home / End 到头。
+   * ★ 触控盒的几何（h-5、底缘 50 / 86 / 104 三个联动量过的数）这一轮**不动**：那要在真机上一起重量再改，见 CLAUDE.md「动了首页底缘」那格。
+   */
+  function onBarKey(e: React.KeyboardEvent) {
+    if (durTotal <= 0) return;
+    const now = durBefore + prog.t;
+    const step = 5;
+    let next: number | null = null;
+    if (e.key === "ArrowRight" || e.key === "ArrowUp") next = Math.min(durTotal, now + step);
+    else if (e.key === "ArrowLeft" || e.key === "ArrowDown") next = Math.max(0, now - step);
+    else if (e.key === "Home") next = 0;
+    else if (e.key === "End") next = durTotal;
+    if (next == null) return;
+    e.preventDefault();
+    e.stopPropagation();
+    seekRatio(next / durTotal);
   }
   /**
    * 播放量：**真看够 PLAY_MIN_SEC 秒**才记，而且一次会话只记一次（去重在 videos.ts）。
@@ -608,9 +629,18 @@ function FeedItem({
               {formatDuration(scrub != null ? scrub * durTotal : durBefore + prog.t)} / {formatDuration(durTotal)}
             </span>
           </div>
+          {/* 读屏 / 键盘上它是真滑杆（值与右上角的读数同源）；几何没动，见 onBarKey 的 ★ */}
           <div
             ref={barRef}
-            className="relative mx-2 h-5 touch-none"
+            role="slider"
+            tabIndex={0}
+            aria-label={t`播放进度`}
+            aria-valuemin={0}
+            aria-valuemax={Math.round(durTotal)}
+            aria-valuenow={Math.round(scrub != null ? scrub * durTotal : durBefore + prog.t)}
+            aria-valuetext={formatDuration(scrub != null ? scrub * durTotal : durBefore + prog.t)}
+            onKeyDown={onBarKey}
+            className="relative mx-2 h-5 touch-none outline-none focus-visible:ring-2 focus-visible:ring-white/60"
             onPointerDown={scrubStart}
             onPointerMove={scrubMove}
             onPointerUp={scrubEnd}

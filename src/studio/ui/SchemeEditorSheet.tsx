@@ -253,7 +253,7 @@ export default function SchemeEditorSheet({
         )}
 
         {/* 画风那条硬规则要明说：作者会以为自己能在提示词里指定画风，实际会被自动接上的那句盖住 */}
-        <p className="mt-2 text-[9px] leading-relaxed text-slate-600">
+        <p className="mt-2 text-[9px] leading-relaxed text-slate-400">
           <Trans>
             每一格的提示词后面都会自动接上「保持参考图的画风与人物长相一致」——真人截图出写实、动漫截图出同风格插画。这一条不开放修改，免得真人素材被画成另一个画风。
           </Trans>
@@ -284,7 +284,7 @@ function SlotPromptMeter({ text }: { text: string }) {
   const han = (text.match(/\p{Script=Han}/gu) ?? []).length;
   const long = han > SLOT_PROMPT_SOFT_HAN;
   return (
-    <p className={`mt-0.5 text-right text-[9px] tabular-nums ${long ? "text-amber-300" : "text-slate-600"}`}>
+    <p className={`mt-0.5 text-right text-[9px] tabular-nums ${long ? "text-amber-300" : "text-slate-400"}`}>
       {long ? (
         <Trans>
           {used}/{SCHEME_SLOT_PROMPT_MAX} · 超过 {SLOT_PROMPT_SOFT_HAN} 个汉字，模型可能顾不上后面的细节

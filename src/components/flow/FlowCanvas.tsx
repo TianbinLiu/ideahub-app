@@ -25,7 +25,7 @@ import AnnStrip from "./AnnStrip";
 import DraftTitle from "../DraftTitle";
 import ReviseBar from "../ReviseBar";
 import CameraChips from "./CameraChips";
-import DeleteSegBtn from "./DeleteSegBtn";
+import DeleteSegBtn, { removeNodeWithUndo } from "./DeleteSegBtn";
 import CastPreviewCard from "./CastPreviewCard";
 import FixSegmentBox from "./FixSegmentBox";
 import DraftModeBox from "./DraftModeBox";
@@ -122,6 +122,14 @@ const CARD_W = 216;
 const CARD_H = 158;
 const GAP_X = 72;
 const TOP_Y = 72;
+/** 缩放范围只有这一处：捏合、滚轮、三颗缩放键都夹进来（原来捏合与滚轮各写一遍 `Math.min(2, Math.max(0.4, …))`） */
+const ZOOM_MIN = 0.4;
+const ZOOM_MAX = 2;
+/** 缩放键每按一下乘 / 除的倍数（滚轮一格是 1.12 / 0.9，键按得少、一步要走得远一点） */
+const ZOOM_STEP = 1.25;
+function clampZoom(k: number): number {
+  return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, k));
+}
 
 /** 实际朝向（不是"请求的"朝向）：编辑窗上下/左右分窗按它切。
  *  ★ 除了 MQL 的 change 还得订 window 的 resize：仿真视口（CDP/DevTools 设备模式）只改
@@ -325,7 +333,7 @@ export default function FlowCanvas({
       const cx = mid.x;
       const cy = mid.y;
       const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
-      const k = Math.min(2, Math.max(0.4, g.scale * (g.dist > 0 ? dist / g.dist : 1)));
+      const k = clampZoom(g.scale * (g.dist > 0 ? dist / g.dist : 1));
       liveView.current = { tx: cx - ((g.cx - g.tx) / g.scale) * k, ty: cy - ((g.cy - g.ty) / g.scale) * k, scale: k };
       paintView(liveView.current);
     }
@@ -368,21 +376,34 @@ export default function FlowCanvas({
     //   基准里记的还是原来那两根的中点与间距，同一个跳变形状）
     reanchor(liveView.current);
   }
-  function onWheel(e: React.WheelEvent) {
-    const k = Math.min(2, Math.max(0.4, liveView.current.scale * (e.deltaY < 0 ? 1.12 : 0.9)));
+  /**
+   * 程序化缩放的**唯一实现**：把 scale 定到 k（夹进 [ZOOM_MIN, ZOOM_MAX]），以 `anchor`（**容器坐标**，见 localPoint 的 ★★）
+   * 为不动点。滚轮（锚 = 指针）与右上角三颗缩放键（锚 = 容器中心）都走它；捏合那支在 pointermove 里按手指实时算，不走这里。
+   * ★ 落地是 liveView → reanchor → setView 三步，与 panTo 同一条病：只 setView 会被 effect 涂回手指值；
+   *   只写 liveView 不够 —— 手势进行中（触控板"按住拖 + 滚轮"、一指按着画布另一只手点缩放键都是常规操作）
+   *   下一个 pointermove 从**按下那一刻的基准**整体重算，照样把这一下抹掉，抬手还把这个覆盖值提交下去。
+   *   所以连基准一起挪：从这一刻起，手指的位移相对新位置累加。
+   */
+  function zoomTo(k: number, anchor: { x: number; y: number }) {
     const v = liveView.current;
-    // ★ 锚点换算成容器坐标（见 localPoint 的 ★★）
-    const a = localPoint(e.clientX, e.clientY);
-    // ★ 也要写回 liveView 并重锚：触控板上"按住拖 + 滚轮"是常规操作，只 setView 的话
-    //   这一下会被手势那条路当场抹掉（与 panTo 同一条病）
+    const scale = clampZoom(k);
     const next = {
-      tx: a.x - ((a.x - v.tx) / v.scale) * k,
-      ty: a.y - ((a.y - v.ty) / v.scale) * k,
-      scale: k,
+      tx: anchor.x - ((anchor.x - v.tx) / v.scale) * scale,
+      ty: anchor.y - ((anchor.y - v.ty) / v.scale) * scale,
+      scale,
     };
     liveView.current = next;
     if (gesture.current) reanchor(next);
     setView(next);
+  }
+  function onWheel(e: React.WheelEvent) {
+    // 锚点换算成容器坐标（见 localPoint 的 ★★）
+    zoomTo(liveView.current.scale * (e.deltaY < 0 ? 1.12 : 0.9), localPoint(e.clientX, e.clientY));
+  }
+  /** 缩放键的锚点 = 画布容器中心（容器坐标，与 localPoint 同源；容器还没量到时退回原点，只是锚点偏一点、不会出错） */
+  function surfaceCenter() {
+    const r = surfaceRef.current?.getBoundingClientRect();
+    return r ? { x: r.width / 2, y: r.height / 2 } : { x: 0, y: 0 };
   }
 
   const addNode = useFlow((s) => s.addNode);
@@ -899,6 +920,42 @@ export default function FlowCanvas({
               panTo(i); // 那一格可能在屏幕外：只开窗不挪，用户看不出它说的是哪一段
             }}
           />
+
+          {/* 缩放的按钮替代（2026-10-15 教材人格评审 wcag-a11y-i18n-5，WCAG 2.5.1 指针手势）：
+              捏合与滚轮之外的单指 / 键盘 / 读屏路。算法与滚轮同一份（zoomTo），只是锚点换成容器中心。
+              ★ 摆右上角：底缘整条是对画布说话的输入条（AgentBar，inset-x-2 bottom-2），右下角会压在它上面。
+              ★ onPointerDown 必须 stopPropagation：容器的 onPointerDown 会 setPointerCapture + reanchor，不拦的话按一下键
+                就是一次平移起手（抬手时 moved 为假、不会真挪，但手势基准被改写了）。
+              ★ 每颗 44×44 命中区（IconTapButton 的尺子）；没有现成的放大 / 缩小图标，用字形 + aria-label。 */}
+          <div
+            className="absolute right-2 top-2 z-20 flex flex-col overflow-hidden rounded-full bg-black/60 text-slate-200"
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              aria-label={t`放大`}
+              onClick={() => zoomTo(liveView.current.scale * ZOOM_STEP, surfaceCenter())}
+              className="flex h-11 w-11 items-center justify-center text-lg leading-none active:opacity-60"
+            >
+              ＋
+            </button>
+            <button
+              type="button"
+              aria-label={t`恢复 1:1`}
+              onClick={() => zoomTo(1, surfaceCenter())}
+              className="flex h-11 w-11 items-center justify-center text-[11px] font-semibold leading-none active:opacity-60"
+            >
+              1:1
+            </button>
+            <button
+              type="button"
+              aria-label={t`缩小`}
+              onClick={() => zoomTo(liveView.current.scale / ZOOM_STEP, surfaceCenter())}
+              className="flex h-11 w-11 items-center justify-center text-lg leading-none active:opacity-60"
+            >
+              －
+            </button>
+          </div>
         </div>
 
         {/* 编辑窗：点格子开/收。竖屏底部 52%，横屏右侧 42% */}
@@ -1098,7 +1155,6 @@ function NodePanel({
     setFrame,
     deriveProposals,
     removeMaterial,
-    removeNode,
     removeAnn,
     addExtraRef,
     updateExtraRef,
@@ -2048,12 +2104,13 @@ function NodePanel({
             derived={nodeDerived(node)}
             disabled={busy || generating || (nodes.length <= 1 && !nodeRecastable(node))}
             onConfirm={() => {
-              removeNode(node.id);
               // ★★ 删完必须关窗：sel 是**下标**，删掉这一段之后 nodes[sel] 变成原来的后一段，
               //   而标题「第 N 段」一个字都不变 —— 用户以为没删掉，再点一次就连删两段；
               //   store 级的 cast 缓冲也还是被删那一段的（onCast 会把死人的挂法带进新段）。
               //   关掉之后 cursor 由 removeNode 的 clampCursor 夹好，再点格子走 tapNode 补齐同步。
-              onClose();
+              // ★ 只在真删掉时关（与工坊投影窗同一条）：被 store 整句拒了还关窗，"删失败"就长得和"删成功"一样，
+              //   而那句拒绝画在画布壳的错误条上、窗关了反而看得更清。删 + 「撤销」轻提示只有 removeNodeWithUndo 一份。
+              if (removeNodeWithUndo(node.id)) onClose();
             }}
             className="rounded-full bg-rose-500/15 px-2.5 py-1 text-[11px] text-rose-300 disabled:opacity-40"
           />
@@ -2450,7 +2507,7 @@ function AgentBar({ onFocus }: { onFocus: (i: number) => void }) {
         />
         {/* 每句的价（真实收费，报价=实扣）：数字芯片常驻（文法②），不再挤进 placeholder ——
             placeholder 在打第一个字时就消失，把价钱写在那里等于只报价给还没花钱的人看 */}
-        {AI_REAL && <span className="flex-none text-[9px] text-slate-600"><Trans>{fmtTokens(CHAT_TURN_TOKENS)}/句</Trans></span>}
+        {AI_REAL && <span className="flex-none text-[9px] text-slate-400"><Trans>{fmtTokens(CHAT_TURN_TOKENS)}/句</Trans></span>}
         <button
           onClick={() => void send()}
           disabled={busy || !text.trim()}

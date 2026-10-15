@@ -164,7 +164,7 @@ export default function SupportModelsPage() {
           const r = await prefetchLive2dModel(url, {
             onProgress: (done, total) => setBusy({ id: m._id, step: t`准备文件 ${done}/${total}` }),
           });
-          if (r.failed) console.warn(`[support] prefetch: ${r.failed}/${r.total} files failed for ${m._id}`);
+          if (r.failed || r.dropped) console.warn(`[support] prefetch: ${r.failed}/${r.total} files failed, ${r.dropped} external refs dropped for ${m._id}`);
         } catch (e) {
           const why = e instanceof Error ? e.message : String(e);
           throw new Error(t`模型文件读不到（${why}），没有切换。`);

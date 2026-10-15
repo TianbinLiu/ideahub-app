@@ -81,7 +81,7 @@ export default function CommentDelete({
         <Trans>取消</Trans>
       </button>
       {/* 连回复一起删：说在前面，别让用户删完才发现楼里少了几层 */}
-      <span className="text-[10px] text-slate-600"><Trans>（它下面的回复会一起删掉）</Trans></span>
+      <span className="text-[10px] text-slate-400"><Trans>（它下面的回复会一起删掉）</Trans></span>
       {err && <span className="w-full text-[11px] leading-relaxed text-rose-300">{err}</span>}
     </span>
   );

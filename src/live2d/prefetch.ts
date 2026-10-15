@@ -52,11 +52,28 @@ export function referencedFiles(json: Model3Json): string[] {
   return [...new Set(out)];
 }
 
+/**
+ * 单个文件的取回上限（2026-10-15 教材人格评审第五节「另议」拍板：原来一个 signal 都没传，弱网上一张贴图挂着就是整页「准备文件…」转到死）。
+ * ★ 数的来历：市场整包上限 25MB（server live2dBundle.service 的 MAX_BUNDLE_SIZE_BYTES），最大的单文件顶天就是整包那一档；
+ *   手机弱网按 300KB/s 算 ≈ 85 秒，取整 120 秒。超时只算这一张「没取到」（failed +1，舞台加载时再拉一次），不整发失败。
+ */
+const PER_FILE_MS = 120_000;
+/** model3.json 本身很小，30 秒都没回来就是网不通 */
+const JSON_MS = 30_000;
+
+/** 调用方的 signal 与单文件上限并成一个。AbortSignal.any 是 Chrome 116+；更老的 WebView 上退回只带上限（今天没有调用方传 signal） */
+function bounded(signal: AbortSignal | undefined, ms: number): AbortSignal {
+  const limit = AbortSignal.timeout(ms);
+  if (!signal) return limit;
+  const any = (AbortSignal as unknown as { any?: (s: AbortSignal[]) => AbortSignal }).any;
+  return any ? any([signal, limit]) : limit;
+}
+
 export async function prefetchLive2dModel(
   modelJsonUrl: string,
   opts: { signal?: AbortSignal; onProgress?: (done: number, total: number) => void } = {},
-): Promise<{ total: number; failed: number }> {
-  const res = await fetch(modelJsonUrl, { signal: opts.signal });
+): Promise<{ total: number; failed: number; dropped: number }> {
+  const res = await fetch(modelJsonUrl, { signal: bounded(opts.signal, JSON_MS) });
   if (!res.ok) throw new Error(t`模型描述文件读不到（HTTP ${res.status}）`);
   if ((res.headers.get("content-type") || "").includes("text/html")) throw new Error(t`模型地址返回的是网页而不是模型文件`);
   let json: Model3Json;
@@ -65,7 +82,14 @@ export async function prefetchLive2dModel(
   } catch {
     throw new Error(t`模型描述文件不是合法的 JSON`);
   }
-  const urls = referencedFiles(json).map((ref) => new URL(ref, modelJsonUrl).href);
+  // ★ 只拉与 model3.json 同源的引用（owasp-security-6 的 App 这一半，2026-10-15 拍板）：动作 / 表情 / 物理 / 声音的引用服务端
+  //   上传时过去没查（只查贴图），一条指向外域的 Sound 就是装了这个形象的每个人都会去打一下的追踪像素。丢掉的那几条数出来说；
+  //   服务端同日的 PR 在上传时整包拒收，这里兜的是已经上架的存量包。⚠ 舞台加载（pixi Live2DModel.from）仍按 model3.json 自己解析，
+  //   acquire 之前的预检另议（第五节）。
+  const origin = new URL(modelJsonUrl).origin;
+  const all = referencedFiles(json).map((ref) => new URL(ref, modelJsonUrl));
+  const urls = all.filter((u) => u.origin === origin).map((u) => u.href);
+  const dropped = all.length - urls.length;
   let done = 0;
   let failed = 0;
   let cursor = 0;
@@ -73,7 +97,7 @@ export async function prefetchLive2dModel(
     while (cursor < urls.length) {
       const url = urls[cursor++];
       try {
-        const r = await fetch(url, { signal: opts.signal });
+        const r = await fetch(url, { signal: bounded(opts.signal, PER_FILE_MS) });
         if (r.ok) await r.arrayBuffer();
         else failed++;
       } catch (e) {
@@ -85,5 +109,5 @@ export async function prefetchLive2dModel(
     }
   }
   await Promise.all(Array.from({ length: Math.min(CONCURRENCY, urls.length) }, worker));
-  return { total: urls.length, failed };
+  return { total: urls.length, failed, dropped };
 }

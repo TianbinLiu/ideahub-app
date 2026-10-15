@@ -12,6 +12,7 @@
 import { Component, Fragment, type ReactNode } from "react";
 import { i18n } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
+import { reportClientEvent } from "../data/clientEvents";
 
 interface Props {
   /** 这一块叫什么（「3D 桌面」「工作流画布」…）：出错时写进那句话；不给就说「这一页」 */
@@ -37,8 +38,11 @@ export default class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: { componentStack?: string | null }) {
-    // 铁律八：失败要响 —— 正式包没有崩溃上报（评审里 humble-delivery-4 那条提案），至少把栈留在控制台 / logcat
+    // 铁律八：失败要响 —— 栈留在控制台 / logcat（正式包里只有 adb 看得到）
     console.error(`[ErrorBoundary] ${this.props.label ?? "page"} 渲染抛错:`, error, info.componentStack ?? "");
+    // 失败上报（humble-delivery-4，data/clientEvents）：只报「哪个路由:哪一块 + 错误类型名」，不带 message —— 2.51–2.55 的白屏就是这样发出去 5 天没人知道的；
+    // label 是翻译过的，非 ASCII 的部分由 clientEvents 收掉（中文标签只剩路由），所以路由永远在前
+    reportClientEvent("render-error", { where: `${location.hash.replace(/^#/, "").split("?")[0] || "/"}${this.props.label ? `:${this.props.label}` : ""}`, name: error?.name });
   }
 
   componentDidUpdate(prev: Props) {

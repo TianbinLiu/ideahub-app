@@ -290,7 +290,7 @@ function refusalText(r: CutRefusal): string {
     case "voice_offline":
       return t`配音要连上服务器才能合成，现在是离线 / 演示模式`;
     case "voice_busy":
-      return t`上一批配音还在合成，等它配完再说`;
+      return t`上一批配音还在生成，等它配完再说`;
     case "no_music":
       return t`还没有配乐——先在「音频」页签里加一条`;
     case "history_alone":

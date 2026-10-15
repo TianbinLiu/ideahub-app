@@ -310,7 +310,7 @@ export default function VideoPage() {
             >
               <Trans>重试</Trans>
             </button>
-            <p className="text-[11px] leading-relaxed text-slate-600">
+            <p className="text-[11px] leading-relaxed text-slate-400">
               <Trans>内容可能还在，只是这次没取到（网络或服务器的问题）</Trans>
             </p>
           </>
@@ -560,9 +560,11 @@ export default function VideoPage() {
           <button
             onClick={toggleLike}
             // 切换键的两件事读屏才听得见（2026-10-15 教材人格评审，WCAG 2.2 · 4.1.2，照 CommentSheet 那颗心）：aria-pressed 说
-            // 「已点过没有」，名字说「按下去会怎样」。数字留在名字里 —— 可见内容是「❤ 12」，aria-label 一盖，读屏就再听不到这个数
+            // 「已点过没有」，名字只说这是哪颗键。★ 名字**不随状态变**（同日第五节「另议」拍板，照 APG 切换键的写法）：
+            //   「取消点赞 · 12，已按下」会把"点过了"念两遍，而且名字一变读屏就把这颗键从头播报一遍。数字留在名字里 ——
+            //   可见内容是「❤ 12」，aria-label 一盖，读屏就再听不到这个数
             aria-pressed={liked}
-            aria-label={liked ? t`取消点赞 · ${likes}` : t`点赞 · ${likes}`}
+            aria-label={t`点赞 · ${likes}`}
             className={`ml-auto rounded-full px-3.5 py-1.5 text-sm ${
               liked ? "bg-pink-500/20 text-pink-300" : "bg-panel text-slate-300 hover:bg-slate-700"
             }`}

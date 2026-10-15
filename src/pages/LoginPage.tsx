@@ -566,7 +566,7 @@ export default function LoginPage() {
             QQ 已接入，但只在 App 壳里能用——浏览器里同样给出真实原因（见 deadReason）。 */}
         {remote && !capsLoading && (
           <>
-            <div className="flex items-center gap-3 pt-1 text-[11px] text-slate-600">
+            <div className="flex items-center gap-3 pt-1 text-[11px] text-slate-400">
               <span className="h-px flex-1 bg-slate-800" />
               <Trans>其他方式</Trans>
               <span className="h-px flex-1 bg-slate-800" />
@@ -614,7 +614,7 @@ export default function LoginPage() {
             </div>
             {!caps?.oauthEnabled && (
               // 说清楚少的是哪两个，别让用户以为整栏都坏了（微信/QQ 明明还在）
-              <p className="text-center text-[11px] leading-relaxed text-slate-600">
+              <p className="text-center text-[11px] leading-relaxed text-slate-400">
                 <Trans>当前网络环境（{regionName}）下 Google / GitHub 不可用，已自动隐藏</Trans>
               </p>
             )}

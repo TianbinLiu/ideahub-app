@@ -11,6 +11,15 @@
 import { t } from "@lingui/core/macro";
 import { Capacitor, registerPlugin } from "@capacitor/core";
 
+/**
+ * 原生文件（file:// 或插件回的本机路径）→ WebView 能加载的地址。
+ * ★ 住在这里（import 方向规则④，2026-10-15 装进 check-import-direction）：页面 / 组件不直接 import @capacitor/*，原生能力都从
+ *   utils / data 借 —— 插件换版本、web 垫片行为不同只改一处；原来 CutPage 为了这一行自己 import 了 Capacitor。
+ */
+export function nativeFileSrc(uriOrPath: string): string {
+  return Capacitor.convertFileSrc(uriOrPath);
+}
+
 export interface MergeClip {
   /** 公网地址（段落转存后的图床地址）。blob:/data: 传进来原生打不开 */
   url: string;

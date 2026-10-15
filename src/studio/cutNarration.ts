@@ -169,8 +169,8 @@ function explain(e: unknown): NarrationError {
       return new NarrationError("quota", t`今天的免费配音用完了（每个账号每天限量），明天再接着配——字幕照样能烧进画面`);
     }
     if (e.code === "DAILY_LIMIT") return new NarrationError("quota", t`今天的 token 用量到上限了，明天再接着配`);
-    if (e.status === 402 || e.code === "INSUFFICIENT_TOKENS") return new NarrationError("money", t`token 余额不够，配音没合成`);
-    if (e.code === "WALLET_FROZEN" || e.code === "PLAN_REQUIRED") return new NarrationError("money", t`这个账号的钱包现在不能扣费（有欠额或套餐不够），配音没合成`);
+    if (e.status === 402 || e.code === "INSUFFICIENT_TOKENS") return new NarrationError("money", t`token 余额不够，配音没做成`);
+    if (e.code === "WALLET_FROZEN" || e.code === "PLAN_REQUIRED") return new NarrationError("money", t`这个账号的钱包现在不能扣费（有欠额或套餐不够），配音没做成`);
     if (e.status === 401 || e.status === 403) return new NarrationError("auth", t`登录已失效，重新登录之后再配音`);
     if (e.status === 429) return new NarrationError("rate", t`配音合成得太快了（每分钟最多 30 句），等一分钟再接着配`);
     if (e.status === 501) return new NarrationError("unsupported", t`服务器还没有开通语音合成，配音暂时用不了`);
@@ -224,7 +224,7 @@ export async function synthLine(text: string, voiceId: string, availSec: number,
     }
     const key = `cutvoice:${uid("vo")}`;
     if (!(await idbSet(key, blob))) {
-      throw new NarrationError("store", t`配音合成好了，但没能存进本地库（存储空间不足？）——清一清空间再配一次`);
+      throw new NarrationError("store", t`配音做好了，但没能存进本地库（存储空间不足？）——清一清空间再配一次`);
     }
     return { ref: `idb:${key}`, durSec: dur, voiceId, text, ...(rate ? { rate } : {}) };
   } catch (e) {

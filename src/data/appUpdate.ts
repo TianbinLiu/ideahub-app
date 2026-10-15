@@ -21,6 +21,7 @@ import { registerPlugin } from "@capacitor/core";
 import { Capacitor } from "@capacitor/core";
 import { t } from "@lingui/core/macro";
 import { SITE_BASE } from "../utils/shareLink";
+import { reportClientEvent } from "./clientEvents";
 
 export interface UpdateInfo {
   hasUpdate: boolean;
@@ -179,6 +180,8 @@ export async function checkUpdate(silent = true): Promise<UpdateInfo | null> {
   //   服务端转手逻辑回归或有人手改了清单 —— 没有它，下下来的包谁都证明不了是我们发的，没有理由替它放行（原生那侧
   //   downloadAndInstall 也拒，这里先一步不摆出「立即更新」）。手动检查那条路要说出来：答「已经是最新」是假话，人会以为没新版。
   if (!SHA256_RE.test(info.sha256 ?? "")) {
+    // 失败上报（humble-delivery-4）：清单缺 sha 多半是发版脚本 / 服务端转手回归，而启动时那条自动检查对人是静默的 —— 没有这一行谁都看不见
+    reportClientEvent("update-failed", { where: "manifest-sha" });
     if (silent) return null;
     throw new Error(t`更新清单不完整，稍后再试`);
   }
@@ -216,6 +219,10 @@ export async function downloadAndInstall(
   try {
     // sha256 原样传（不再 `|| undefined`）：checkUpdate 已经只放行带合法 sha 的清单，原生那侧缺了也会拒 —— 两道闸各自成立
     await AppUpdater.downloadAndInstall({ url: info.apkUrl, sha256: info.sha256 });
+  } catch (e) {
+    // 失败上报（humble-delivery-4）：只带原生插件的 code（NEED_PERMISSION / NO_SHA；下载与校验失败没有 code），不带 message —— 里面是地址与文件名。原样再抛，行为不变
+    reportClientEvent("update-failed", { where: "download-install", name: (e as { code?: string } | null)?.code });
+    throw e;
   } finally {
     await sub.remove();
   }

@@ -833,7 +833,7 @@ export default function CardDetailPage() {
             现在走 social.heatOf：远端模式是服务端算的全局值，离线/老服务端
             退回本机计数，并在旁边如实标出来。 */}
         <span className="text-xs text-gold">🔥 {formatHeat(heat.heat)}</span>
-        {heat.source === "local" && <span className="text-[10px] text-slate-600"><Trans>本机计数</Trans></span>}
+        {heat.source === "local" && <span className="text-[10px] text-slate-400"><Trans>本机计数</Trans></span>}
       </div>
       {card.tags && card.tags.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-1">

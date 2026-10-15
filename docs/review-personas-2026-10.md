@@ -897,3 +897,49 @@
 执行中冒出来、等主人定的（提案之外）：`signUpWithPassword` 删不删；真人档取件那一发的类型；`prefetchLive2dModel` 的 signal 与预算；import 方向规则④；作品页点赞名字随不随状态变。
 
 **验证**：`npm run build` 全绿（tsc、lingui extract、20 道检查、en.po 缺译 0）。浏览器（离线 mock，375×812）：工作流画布的「＋ 加一段」在首段没出片时画成「先把这一段炼出来，再铸下一段」的状态框、「🎲 推演三套方案」印的是 deriveCostOf 的价；两个轻提示 live region 常驻；把 `nodes` 换成非数组逼画布抛错 → 路由级边界画出「这一页没画出来 + 错误原文 + 重载 / 回首页」，恢复状态后点「重载这一块」画布回来；作品页点赞键的名字是「点赞 · 0」并带 aria-pressed。真机 / 模拟器没验（发版脚本的新断言要在下一次 `npm run release` 时第一次真跑）。
+
+## 六、拍板记录（2026-10-15，主人「调研后替我定」）
+
+主人原话：「调研后替我定文档第四节 22 条提案，最重的几条：深链 OAuth 加 state、生产 CSP 收窄、出片契约加重拍模式、CI 跑 gradle、客户端失败上报、删段撤销。执行中冒出的 5 件在第五节末尾，含 signUpWithPassword 零调用方删不删。真机去验证。2.63 发版出。」
+定法三档：**做（2.63）** = 这一轮落在 2.63 的 PR 里；**做（2.63 后）** = 定了做、不搭发版；**不做**。每条写理由，怕的是「决定了却没人记得为什么」。
+
+### 22 条提案
+
+| # | 提案 | 定法 | 理由 / 落点 |
+|---|---|---|---|
+| 1 | sommerville-requirements-1 · 480p 单价与高清 r2v 系数没对过账单 | 做（2.63 后，我来核） | 不等主人去费用中心：方舟任务查询回包带 `usage`（按任务号查、免费），拿服务端 ArkVideoTask 里 10-08 之后的一条草稿档 480p 与一条高清重拍任务对 `perSecTokens` / `HD_R2V_MULT`。生产全是测试账号，这一轮没有这类真实任务可核 —— 下一次付费验证顺手核；月账单到了主人只看那两行单价 |
+| 2 | sommerville-requirements-2 · api-contract 的 r2v 一节落后 | 做（2.63） | 照 server#107 / #108 的代码重写：四条来源（模板 / 刚传素材 / 登记素材参考 / 本人成片 edit · extend）、各自的钉子与计价公式、`VIDEO_MULT_R2V` 两行（2.5 = 2.8 账单实证；2.0 mini = 14/15 待核） |
+| 3 | sommerville-requirements-3 · 第一批无正式路径结案；过肩人数复核 | ② 做（2.63）；① 等 | ② DialogueWizard 第③步画完后加一句「看一眼每张里是不是只有这两个人」（不花钱；付费看图复核不加 —— 验证里景别那类判断只会误报）。① 结案要真实流量，生产没有；付费验证要主人授权，这一轮没要钱 |
+| 4 | sommerville-requirements-8 · MAX_DRAFTS = 20 没量法、淘汰零提示 | 做一半（2.63） | 淘汰那一拍轻提示（说哪一条没了）；真机量 `navigator.storage.estimate()` 写进常量旁（本次装机时量，结果见第七节）。按字节预算淘汰 = 不做：配额远大于 20 × 中位体积时没必要，量完再说 |
+| 5 | wcag-a11y-i18n-2 · 首页进度条 14px 命中、不是滑杆 | 做一半（2.63） | role=slider + 方向键 / Home / End 走同一个 seek；触控盒的几何不动 —— 底缘 50 / 86 / 104 是联动量过的三个数，要真机重量再一起改（CLAUDE.md「动了首页底缘」那格） |
+| 6 | wcag-a11y-i18n-5 · 画布缩放没有单指 / 按钮替代 | 做（2.63） | 画布右下三颗键（缩小 / 1:1 / 放大），与滚轮同一段算法、以画布中心为锚，走 liveView → reanchor → setView |
+| 7 | wcag-a11y-i18n-6 · slate-600 当小字正文 | 做（2.63） | 改口径：≤ 14px 的说明 / 占位 / 副标题 slate-600 → slate-400（40 处，含 EmptyState 的补充行），slate-600 只给装饰；`scripts/check-contrast.mjs` 棘轮进构建（装饰字符 aria-hidden 放行、亮底写 `contrast-ok`）。slate-500 那半按主人口径不动 |
+| 8 | feathers-testing-1 · flowStore 钱闸判据不可被脚本 import | 做（2.63 后） | 第一刀照提案范围（七个纯函数搬零依赖文件、原名 re-export、新脚本钉四格）。effort L、risk 中，不搭发版 |
+| 9 | feathers-testing-2 · 并发规则零自动保护 | 不引 runner；check-gen-run 做（2.63）；check-db 做（2.63 后） | 不加 vitest / fake-indexeddb：引 runner 是基建决定，本仓 20 道 check 的样子已经够用。`check-gen-run.mjs` 结构检查（busy:false 必须在 genRun === myRun 之后）本轮进构建；`check-db.mjs` 手写 indexedDB.open 桩三档随 feathers-1 一起做 |
+| 10 | feathers-testing-8 · 原生 Gain / TailFade 无 JVM 单测 | 做（CI 跑 gradle 稳定之后） | 没有 CI 跑它就是摆设；先让 11 的 android job 跑两周 |
+| 11 | humble-delivery-3 · 提交门禁不编译 Java | 做（2.63） | build.yml 加 `android` job（setup-java 17、`npx vite build` → `cap sync` → `assembleSideloadDebug`），**不设 required**，两周后看时长再定要不要进 ruleset —— 设成必过会把 land 等 CI 的 90 秒拉到十分钟，那是节奏取舍 |
+| 12 | humble-delivery-4 · 客户端三类失败零上报 | 做 | 契约 `POST /api/client-events`（只写日志、按 IP 10/分、不带账号与 message 原文）；服务端 PR 等「合」；App 侧 2.63 就带、按健康端点 `clientEvents` 能力位开（老服务端上一发都不发） |
+| 13 | norman-interaction-5 · 删段没有撤销 | 做（2.63） | 先删再 6 秒「撤销」（`flowStore.segTrash` / `restoreNode`，两面共用 `removeNodeWithUndo`）；花过钱的段保留点两下（10-14 口径：确认与撤销两道都在）；busy / 生成中 / 段 id 已存在整句拒 |
+| 14 | krug-copy-ia-1 · 剪辑页「合成 / 合并」两个词 | 定「合成」 | 用户可见的一律「合成」（取消合成 / 合成失败 / 已取消合成 / 正在合成成片）；配音那几句不再叫「合成」（正在配音 / 配音好了 / 没做成），CastPreviewCard 的「合成中…」msgid 与剪辑页分开；代码注释与 CLAUDE.md 里的「合并」是内部叫法不改；英文维持 merge |
+| 15 | owasp-security-1 · 深链回程没有 state | 做 | 契约 + App（2.63：startOauth 生成一次性 state、15 分钟窗口、不是本机刚发起的一律忽略；服务端回带了就必须对上）+ 服务端回带（PR 等「合」）；下一版 App 起强制要求回带 |
+| 16 | owasp-security-3 · 生产 CSP 放行任意 https: | 做（2.63 后，单独 PR） | 先只收 connect-src，域名表以服务端 videoAsset.service 为准；装机把出片 / 直传 / 市场换装 / 真人档各走一遍再合 —— 漏一个域名是静默不出图，不搭发版。本轮只把 vite.config 注释里那个不存在的 docs/security-checklist.md 引用改掉 |
+| 17 | owasp-security-6 · Live2D 包引用可指向外域 | 做 | 服务端 `resolveRef` 拒 scheme / 绝对路径并让 Physics / Pose / Expressions / Motions / Sound 同走它（PR 等「合」）；App 的 prefetch 只拉与 model3.json 同源的引用并把丢掉的数出来（2.63，兜存量）；舞台加载前的预检另议 |
+| 18 | mcconnell-performance-1 · 零 lazy、vendor-3d 2.95MB | 零风险那一刀做（2.63）；lazy 先量 | ammojs-typed 退出 vendor-3d 正则，rigidBones 的动态 import 真成独立 chunk；冷启动用 debug 包在真机量（第七节），量到几百毫秒以上再做 lazy（范围含 CardDetailPage / CardHologram、先给 lazy 边界失败屏） |
+| 19 | mcconnell-performance-4 · objectUrlCache 无上限 | 做（2.63 后） | 先在模拟器按 dumpsys meminfo 量，再按消费者生命周期释放（计数、不 revoke 还被引用的）。risk 中，不搭发版 |
+| 20 | mcconnell-performance-7 · 画布拖动整屏光栅化 | 先量（2.63 后） | 桌面 Chrome 的 Paint flashing 就量得出；整屏闪绿才改成网格铺大两格 + 只写 transform |
+| 21 | mcconnell-construction-3 · mergeAndGo 502 行 | (a) 做，搭下一个要跑模拟器合并验证的 CutPage PR；(b) 不做 | (a) 四份取消收尾收成 bailCancelled 是 S / low；(b) 抽四个阶段函数要在模拟器上按两次取消验，没有搭便车的 PR 之前不动 |
+| 22 | mcconnell-construction-5 · refreshRemoteTemplate 三份手写块 | 做（2.63 后） | 纯函数 `syncMineFromRemote` + 四种特例夹具；risk 中、不搭发版 |
+
+### 第五节末尾的 5 件
+
+| 件 | 定法 | 理由 / 落点 |
+|---|---|---|
+| `signUpWithPassword` 删不删 | 删（2.63） | 全仓零调用方，注册只走验证码那条；留着就是第二份收尾实现 |
+| 真人档取件那一发没收到回包的类型 | 改 ArkTaskUnknown（2.63） | 任务已 Success、产物在上游，只是「文件号 → 下载地址」那一跳没答上来：凭据留着、取回卡再点一次就从这一跳接着取（查询与取件不计费）；HTTP 非 2xx / 回包没地址仍是整句失败 |
+| `prefetchLive2dModel` 的 signal 与预算 | 单文件 120 秒上限（2.63） | 数的来历：市场整包上限 25MB、弱网 300KB/s ≈ 85 秒取整；超时只算这一张没取到，不整发失败；AbortSignal.any 不在的老 WebView 退回只带上限 |
+| import 方向规则④ | 装（2.63） | pages / components 不直接 import `@capacitor/*`：CutPage 的 `convertFileSrc` 搬进 `utils/nativeMerge.nativeFileSrc`，VolcCompatToggle 的 browserFinished 搬进 `utils/openExternal.onBrowserFinished` |
+| 作品页点赞名字随不随状态变 | 固定「点赞 · N」（2.63） | 照 APG 切换键写法：aria-pressed 说状态，名字不变；「取消点赞 · 12，已按下」会把"点过了"念两遍 |
+
+### 没做、等更后面的（按上面的定法汇总）
+
+2.63 之后要开的 PR，按先后：CSP connect-src 白名单（16，要装机走四条路）→ flowStore 纯函数外搬 + check-db（8、9）→ objectURL 释放（19）→ refreshRemoteTemplate 纯函数（22）→ mergeAndGo 的 bailCancelled（21a，搭便车）→ 画布网格光栅（20，先量）→ 原生 JVM 单测（10，等 CI 稳定）。要主人点的只剩两件：CI 的 android job 两周后要不要设成 required（11）；lazy 要不要做（18，看第七节量出来的数）。

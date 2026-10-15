@@ -531,6 +531,13 @@ export default function DialogueWizard({
           <p className="text-[10px] leading-relaxed text-slate-500">
             <Trans>先画双人镜头，再照着它画两个过肩（地方、光线、两人的衣服都对得上）。按画成的张数收钱，约一分钟，可以先离开，画好了会提醒你。</Trans>
           </p>
+          {drawn && (
+            // 过肩机位偶尔会多画出一个人（docs/canvas-platforms-ecosystem-research.md §九「还欠」那条）：不花看图的钱，
+            // 让人自己看一眼，多了人就单独重画那一张（sommerville-requirements-3 的 ②，2026-10-15 拍板：先不加付费的看图复核）
+            <p className="text-[10px] leading-relaxed text-slate-400">
+              <Trans>画好之后看一眼：每张里应该只有这两个人。多出一个人就点那一张单独重画。</Trans>
+            </p>
+          )}
           {d.lead && (
             <p className="text-[10px] leading-relaxed text-slate-500">
               <Trans>整体交代：{leadLine}</Trans>

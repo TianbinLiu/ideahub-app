@@ -1883,7 +1883,7 @@ export default function CustomCardPage() {
             placeholder={t`一句话简介：这张卡是谁 / 是什么地方 / 是什么东西`}
             className="w-full resize-none rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand leading-relaxed"
           />
-          <div className="mt-0.5 text-right text-[10px] text-slate-600">
+          <div className="mt-0.5 text-right text-[10px] text-slate-400">
             {summary.length}/{SUMMARY_MAX}
           </div>
           {(type === "prop" || type === "scene") && (
@@ -1978,7 +1978,7 @@ export default function CustomCardPage() {
                     <span className="mt-0.5 block text-[10px] leading-relaxed text-slate-500">{sc.intro}</span>
                   </button>
                 ))}
-                <p className="px-2 pb-1 text-[9px] leading-relaxed text-slate-600">
+                <p className="px-2 pb-1 text-[9px] leading-relaxed text-slate-400">
                   <Trans>自建方案 / 从市场装新方案在工坊「从视频提取卡片」里做，装好这里就能选。</Trans>
                 </p>
               </div>
@@ -2247,7 +2247,7 @@ export default function CustomCardPage() {
           <p className="text-[10px] leading-relaxed text-slate-500">
             <Trans><span className="text-slate-400">AI 复刻这张卡的画面 / 建模时会读这段</span>，写得越具体越像。</Trans>
           </p>
-          <span className="flex-none text-[10px] text-slate-600">
+          <span className="flex-none text-[10px] text-slate-400">
             {info.length}/{INFO_MAX}
           </span>
         </div>
@@ -2271,7 +2271,7 @@ export default function CustomCardPage() {
               <Trans><span className="text-slate-400">出片时 AI 会原样读这一句</span>，只写这张卡本身一眼就能画出来的样子；不填就只用卡名（简介不进出片）。</Trans>
             )}
           </p>
-          <span className="flex-none text-[10px] text-slate-600">
+          <span className="flex-none text-[10px] text-slate-400">
             {idLine.length}/{ID_LINE_MAX}
           </span>
         </div>
