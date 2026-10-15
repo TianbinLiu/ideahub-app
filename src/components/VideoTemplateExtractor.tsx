@@ -415,12 +415,17 @@ export default function VideoTemplateExtractor({
   const [got, setGot] = useState<VideoTemplate | null>(null);
   /** 窗还开着没有：后台任务的结局分叉（在 → 窗里画；不在 → 胶囊通知，模板本身已在库里） */
   const mountedRef = useRef(true);
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    // ★ 挂载时要置回 true（2026-09-18 补，同一个坑 #291 先在 VideoCardAnnotator 修过）：StrictMode 在 dev 里把 effect
+    //   走一遍「挂载→卸载→挂载」，原来只在 cleanup 里置 false，于是 dev 里它从第一拍起就恒为 false —— 窗开着，
+    //   上传传完也照样留一张「提取窗已经关了——回模板页重新打开、再选一次」的票，登记 / 白模化 / 分析做完也都
+    //   多弹一条「去「我的模板」看看」（浏览器里实测过：窗里画着「已提取模板」，胶囊同时收到那条通知）。
+    //   正式包没有这次模拟卸载所以一直没人看见，但它会让浏览器里验这几条后台任务结局的人得出假结论
+    mountedRef.current = true;
+    return () => {
       mountedRef.current = false;
-    },
-    [],
-  );
+    };
+  }, []);
   /**
    * 这一屏的**第一层岔路**，三选一 —— 全组件唯一的"走哪条路"状态。
    *
