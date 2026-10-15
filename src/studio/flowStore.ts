@@ -1967,7 +1967,7 @@ interface FlowState {
    * 整句拒（原因在 err、回 false）：busy / 有段在生成中（与 removeNode 同一道闸：genNode 的闭包捏着 idx，这时往前插一段，
    * 回包就写到别的段上）、垃圾桶是空的、同 id 的段已经在流水线上。
    */
-  restoreNode: () => boolean;
+  restoreNode: (id: string) => boolean;
   setCursor: (i: number) => void;
   shiftCursor: (dir: 1 | -1) => void;
 
@@ -3829,12 +3829,19 @@ export const useFlow = create<FlowState>()((set, get) => ({
     get().setCursor(Math.max(0, i));
   },
 
-  restoreNode: () => {
+  restoreNode: (id) => {
     const s = get();
     const trash = s.segTrash;
     // ★ 早退一律说人话（铁律八，与 removeNode 同一条）：轻提示上那颗「撤销」拿 err 当回执，静默 false 就是「点了没反应」
     if (!trash) {
       set({ err: t`没有可以恢复的段（流水线换过了，或者已经恢复过）` });
+      return false;
+    }
+    // ★ 只放回点名的那一段（2026-10-15 发版前复核抓到）：垃圾桶只有一格，这 6 秒里别的路也会往里写（工坊「‹ 回铸段窗」的
+    //   recastNode、套模板失败的回滚、对画布说「删掉第 N 段」）—— 不认 id 的话，提示上写着「已删掉第 2 段」，按下去放回来的是
+    //   另一段，而铸段窗正要把那一段再铸一遍（重复），零报错
+    if (trash.node.id !== id) {
+      set({ err: t`提示上那一段已经不在垃圾桶里了（之后又删过别的段），没有恢复` });
       return false;
     }
     // ★ 与 removeNode 同一道闸：genNode 的闭包里捏着 idx，这时往前面插回一段，回包就写到另一段上（钱扣了、成片落错位）
@@ -3848,6 +3855,14 @@ export const useFlow = create<FlowState>()((set, get) => ({
     }
     // 原位放回；中间删过别的段、下标越界就接在末尾
     const at = Math.min(trash.index, s.nodes.length);
+    // ★ 守住 appendBlocked 的那条不变量（2026-10-15 发版前复核抓到）：白模复刻段只有一段、而且只能是末段（画面整个来自模板视频，
+    //   没有可续的下一段）。删掉白模段 T 之后这 6 秒里「＋ 加一段」能过（末段已不是 T），撤销一放回就是两段白模、后面那段还接在白模后面 ——
+    //   别的入口一个都不允许的形状。放回的是白模段：它必须仍是末段且全线没有第二段白模；放回的是普通段：它前面那一段不能是白模段
+    const blockout = (n: FlowNode) => !!tplOfNode(n)?.refVideo;
+    if (blockout(trash.node) ? at !== s.nodes.length || s.nodes.some(blockout) : at > 0 && blockout(s.nodes[at - 1])) {
+      set({ err: t`白模复刻段只有一段、而且只能是末段：这一段放不回原位了` });
+      return false;
+    }
     const nodes = [...s.nodes.slice(0, at), trash.node, ...s.nodes.slice(at)];
     set({
       nodes,

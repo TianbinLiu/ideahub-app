@@ -112,9 +112,11 @@ export const listCourses = async () => shape<{ ok: true; courses: CourseSummary[
 export const createCourse = async (body: CourseInput) => shape<{ ok: true; course: CourseSummary }>(await apiPost("/api/tutor/courses", body));
 export const getCourse = async (id: string) => shape<{ ok: true; course: CourseSummary; materials: MaterialEntry[] }>(await apiGet(`/api/tutor/courses/${enc(id)}`));
 /** 学习页 bundle：run + doc + 教材清单 + 最近 60 轮（+ M4 的 companion） */
-export const getRun = async (id: string) => shape<RunBundle>(await apiGet(runPath(id), { timeoutMs: 30_000 }));
+// ★ 120 秒不是 30 秒（2026-10-15 发版前复核）：api/client 自 2026-10-15 起把正文读入也算在 timeoutMs 里，而这两条回的是整本教材的文本（几 MB），
+//   1 Mbps 的网上 30 秒读不完 —— 原来只等响应头、正文读多久都不算
+export const getRun = async (id: string) => shape<RunBundle>(await apiGet(runPath(id), { timeoutMs: 120_000 }));
 /** 块级文本（服务端给的是相对路径 /api/tutor/materials/:sha/text，client.buildUrl 会补 API_BASE） */
-export const getMaterialText = async (textUrl: string) => shape<{ sha: string; pages: Page[] }>(await apiGet(textUrl, { timeoutMs: 30_000 }));
+export const getMaterialText = async (textUrl: string) => shape<{ sha: string; pages: Page[] }>(await apiGet(textUrl, { timeoutMs: 120_000 }));
 export const patchProgress = async (id: string, stage: string, stepIdx: number) => shape<{ ok: true; progress: Record<string, StageProgress>; status: Run["status"] }>(await apiPatch(`${runPath(id)}/progress`, { stage, stepIdx }));
 /** 自检：判分与翻状态都在服务端（模型判卷可能要等一会） */
 export const postQuiz = async (id: string, stage: string, answers: string[]) => shape<QuizReply>(await apiPost(`${runPath(id)}/quiz`, { stage, answers }, { timeoutMs: 120_000 }));

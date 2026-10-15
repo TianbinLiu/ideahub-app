@@ -34,7 +34,9 @@ export default function ThemeRewriteSheet({ initialTheme = "", onClose, onApplie
   // 盖掉上次留在 store 里的；在跑时不动（输入框锁着，换了主题也不是这一发在改的那个）
   useEffect(() => {
     noteThemeSheet(true);
-    if (initialTheme && !useThemeSkill.getState().busy) setThemeSkill({ theme: initialTheme });
+    // ★ 带着主题进来就从第①步重来（2026-10-15 发版前复核抓到）：状态进了 store 之后，上一条流水线改到一半收起的方案（step 停在确认那一步）
+    //   会原样留着 —— 做同款带来的新主题只盖掉了 theme，面板却打开在上一条流水线的对照上，这次的主题一个字都没用上
+    if (initialTheme && !useThemeSkill.getState().busy) setThemeSkill({ theme: initialTheme, plan: null, step: "input", err: "" });
     return () => noteThemeSheet(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- initialTheme 只在挂上那一拍读一次（与原来 useState(initialTheme) 的初值同义）
   }, []);

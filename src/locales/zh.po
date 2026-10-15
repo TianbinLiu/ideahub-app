@@ -7889,8 +7889,8 @@ msgstr "删掉"
 
 #. placeholder {0}: meta.title
 #: src/components/DraftSheet.tsx
-msgid "删掉「{0}」？这条还没有出片的段，不会有钱白花，但写好的分镜找不回来。"
-msgstr "删掉「{0}」？这条还没有出片的段，不会有钱白花，但写好的分镜找不回来。"
+#~ msgid "删掉「{0}」？这条还没有出片的段，不会有钱白花，但写好的分镜找不回来。"
+#~ msgstr "删掉「{0}」？这条还没有出片的段，不会有钱白花，但写好的分镜找不回来。"
 
 #. placeholder {0}: meta.title
 #. placeholder {1}: meta.doneCount
@@ -12531,7 +12531,6 @@ msgstr "必须 · {0}"
 msgid "忘记密码？"
 msgstr "忘记密码？"
 
-#: src/pages/OauthCallbackPage.tsx
 #: src/utils/oauth.ts
 msgid "忽略了一条不是本机发起的登录链接"
 msgstr "忽略了一条不是本机发起的登录链接"
@@ -14052,6 +14051,10 @@ msgstr "提炼本片卡组…"
 #: src/ai/real.ts
 msgid "提炼模板素材卡…"
 msgstr "提炼模板素材卡…"
+
+#: src/studio/flowStore.ts
+msgid "提示上那一段已经不在垃圾桶里了（之后又删过别的段），没有恢复"
+msgstr "提示上那一段已经不在垃圾桶里了（之后又删过别的段），没有恢复"
 
 #: src/studio/blockoutPrompt.ts
 msgid "提示词合成失败：AI 什么都没返回——这一段的要求请自己写，或用下面那份默认写法。"
@@ -19150,6 +19153,11 @@ msgstr "登录服务器后可以浏览别人分享的卡组"
 msgid "登录状态过期了，重新登录之后再试。"
 msgstr "登录状态过期了，重新登录之后再试。"
 
+#. placeholder {0}: Math.round(STATE_TTL_MS / 60_000)
+#: src/utils/oauth.ts
+msgid "登录链接过期了（超过 {0} 分钟），请重新登录"
+msgstr "登录链接过期了（超过 {0} 分钟），请重新登录"
+
 #. placeholder {0}: res.status
 #: src/api/uploads.ts
 msgid "登记失败（{0}）"
@@ -19274,6 +19282,10 @@ msgstr "白模复刻段"
 #: src/components/flow/FlowCanvas.tsx
 msgid "白模复刻段（还没出片）"
 msgstr "白模复刻段（还没出片）"
+
+#: src/studio/flowStore.ts
+msgid "白模复刻段只有一段、而且只能是末段：这一段放不回原位了"
+msgstr "白模复刻段只有一段、而且只能是末段：这一段放不回原位了"
 
 #: src/studio/flowStore.ts
 msgid "白模复刻段只有一段：画面与运镜整个来自模板视频，没有可续的下一段"

@@ -1764,7 +1764,7 @@ export async function updateCardMeta(
     summary?: string;
     tags?: string[];
     idLine?: string;
-    /** 按模型适配：文字版形象描述，空串 = 取消「标准/极速适用」 */
+    /** 按模型适配：文字版形象描述，空串 = 取消卡上「文字版形象描述」那一勾（2026-10-10 之前叫「标准/极速适用」，名字现随 noRefImgTierList 写） */
     textDesc?: string;
     /** 按模型适配：真人档起拍画面，null = 取消「真人档适用」 */
     startFrames?: Card["startFrames"] | null;

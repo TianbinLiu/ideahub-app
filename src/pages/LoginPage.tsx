@@ -239,7 +239,14 @@ export default function LoginPage() {
    *  （冷启动时本页可能早就不在了，见 utils/oauth 文件头） */
   async function thirdParty(provider: string) {
     setErr("");
-    await startOauth(provider, (msg) => setErr(msg));
+    // ★ 跳系统浏览器的那几秒置 busy（2026-10-15 发版前复核抓到）：下面那排键按 busy 灰掉，而这条路原来从不置 busy —— 连点两下开两个
+    //   自定义标签页，而 2.63 起本机只记最后一次的 state，先开的那页登完回来会被当成「不是本机发起」丢掉。Browser.open 在标签页拉起后就回来
+    setBusy(true);
+    try {
+      await startOauth(provider, (msg) => setErr(msg));
+    } finally {
+      setBusy(false);
+    }
   }
 
   /**

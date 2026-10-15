@@ -36,7 +36,7 @@ export function removeNodeWithUndo(id: string): boolean {
     label: i18n._(msg`撤销`),
     run: () => {
       // 放不回去（这期间有段开炼了 / 流水线换过了）要说出来，别让人以为点了没反应
-      if (!useFlow.getState().restoreNode()) showToast(useFlow.getState().err || i18n._(msg`没能恢复这一段`));
+      if (!useFlow.getState().restoreNode(id)) showToast(useFlow.getState().err || i18n._(msg`没能恢复这一段`));
     },
   });
   return true;

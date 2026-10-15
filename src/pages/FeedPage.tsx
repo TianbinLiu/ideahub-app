@@ -955,6 +955,7 @@ const FEED_STALE_MS = 60_000;
 
 export default function FeedPage() {
   const user = useCurrentUser();
+  const auth = useAuthState(); // 三态：只有 "out" 才能把人送去登录页（下面关注流那颗键）
   const version = useVideosVersion();
   const { t } = useLingui();
   const [feed, setFeed] = useState<"recommend" | "following">("recommend");
@@ -1148,16 +1149,18 @@ export default function FeedPage() {
           icon={feed === "following" ? "user" : "play"}
           text={
             feed === "following"
-              ? user
+              ? auth !== "out"
                 ? t`关注的创作者还没有新作品`
                 : t`登录后可以关注喜欢的创作者`
               : t`还没有作品`
           }
           cta={
             feed === "following"
-              ? user
+              ? auth !== "out"
                 ? { label: t`去推荐流看看`, onClick: () => setFeed("recommend") }
-                // 没登录时那句说的是「登录后…」，键就该是登录（原来给的是「去推荐流」，话和键对不上；2026-10-14 UX 课走查）
+                // 没登录时那句说的是「登录后…」，键就该是登录（原来给的是「去推荐流」，话和键对不上；2026-10-14 UX 课走查）。
+                // ★ 判 auth === "out" 不判 !user（2026-10-15 发版前复核抓到）：冷启动会话还没认领上的那段窗口 user 也是空的，
+                //   那时把登录着的人送去登录页就是 CLAUDE.md「拿 !currentUser() 当没登录」那格坑
                 : { label: t`登录`, to: "/login?next=%2F", primary: true }
               : { label: t`去卡片工坊创作`, to: "/studio", primary: true }
           }

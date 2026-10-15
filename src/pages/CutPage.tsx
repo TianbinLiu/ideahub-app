@@ -249,10 +249,15 @@ export default function CutPage() {
   const [narratorErr, setNarratorErr] = useState("");
   /** 配音要打服务端的语音合成：离线 / 演示构建里没有它（字幕照常能用） */
   const canVoice = isRemoteMode();
-  // ★ 进页就取（原来等进「字幕」页签才取）：「✨ 一键成片」与「💬 说一句」也会配音，它们那一屏要知道免不免费
+  // ★ 进页就取（原来等进「字幕」页签才取）：「✨ 一键成片」与「💬 说一句」也会配音，它们那一屏要知道免不免费。
+  //   取挂了就在人**再进「字幕」页签**那一拍重试（2026-10-15 发版前复核抓到：2.62 每进一次页签都重取，改成进页取之后没人再触发它 ——
+  //   网一抖整页只剩当前音色、也不说免费，只能退出重进）。narratorErr 刻意不进依赖：进了依赖就是「失败 → 置错 → 立刻重试」的死循环，
+  //   触发只认页签切换这一下
   useEffect(() => {
     if (narrators || !canVoice) return;
+    if (narratorErr && tab !== "text") return;
     let alive = true;
+    setNarratorErr("");
     loadNarration()
       .then((cat) => {
         if (!alive) return;
@@ -265,7 +270,8 @@ export default function CutPage() {
     return () => {
       alive = false;
     };
-  }, [narrators, canVoice]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- narratorErr 只读不触发（见上面的 ★），tab 才是重试的触发
+  }, [narrators, canVoice, tab]);
   // 离开这一页：试听的那一句收声
   useEffect(
     () => () => {

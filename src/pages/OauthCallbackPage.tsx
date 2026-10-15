@@ -24,15 +24,16 @@ export default function OauthCallbackPage() {
   useEffect(() => {
     if (used.current) return;
     used.current = true;
-    const r = acceptOauthReturn({
+    const res = acceptOauthReturn({
       token: params.get("token") ?? undefined,
       error: params.get("message") || params.get("error") || undefined,
       state: params.get("state"),
     });
-    if (!r) {
-      setErr(t`忽略了一条不是本机发起的登录链接`);
+    if (!res.ok) {
+      setErr(res.why); // 过期 / 不是本机发起，话由闸那边定（同一句，别在这里再写一份）
       return;
     }
+    const r = res.value;
     const next = params.get("next") || "/";
     if (!r.token) {
       setErr(r.error || t`第三方登录未完成`);

@@ -7881,8 +7881,8 @@ msgstr "Delete"
 
 #. placeholder {0}: meta.title
 #: src/components/DraftSheet.tsx
-msgid "删掉「{0}」？这条还没有出片的段，不会有钱白花，但写好的分镜找不回来。"
-msgstr "Delete “{0}”? No segment in it has been rendered yet, so no money is lost, but the shots you wrote can't be recovered."
+#~ msgid "删掉「{0}」？这条还没有出片的段，不会有钱白花，但写好的分镜找不回来。"
+#~ msgstr "Delete “{0}”? No segment in it has been rendered yet, so no money is lost, but the shots you wrote can't be recovered."
 
 #. placeholder {0}: meta.title
 #. placeholder {1}: meta.doneCount
@@ -12523,7 +12523,6 @@ msgstr "Required · {0}"
 msgid "忘记密码？"
 msgstr "Forgot password?"
 
-#: src/pages/OauthCallbackPage.tsx
 #: src/utils/oauth.ts
 msgid "忽略了一条不是本机发起的登录链接"
 msgstr "Ignored a sign-in link this device did not start"
@@ -14044,6 +14043,10 @@ msgstr "Extracting this video's deck…"
 #: src/ai/real.ts
 msgid "提炼模板素材卡…"
 msgstr "Extracting the template's material cards…"
+
+#: src/studio/flowStore.ts
+msgid "提示上那一段已经不在垃圾桶里了（之后又删过别的段），没有恢复"
+msgstr "The segment named in the notice is no longer in the bin (another segment was deleted since) — nothing was restored"
 
 #: src/studio/blockoutPrompt.ts
 msgid "提示词合成失败：AI 什么都没返回——这一段的要求请自己写，或用下面那份默认写法。"
@@ -19142,6 +19145,11 @@ msgstr "Connect to the server to browse decks others have shared"
 msgid "登录状态过期了，重新登录之后再试。"
 msgstr "Your sign-in has expired. Sign in again and retry."
 
+#. placeholder {0}: Math.round(STATE_TTL_MS / 60_000)
+#: src/utils/oauth.ts
+msgid "登录链接过期了（超过 {0} 分钟），请重新登录"
+msgstr "The sign-in link expired (more than {0} minutes) — please sign in again"
+
 #. placeholder {0}: res.status
 #: src/api/uploads.ts
 msgid "登记失败（{0}）"
@@ -19266,6 +19274,10 @@ msgstr "Blockout segment"
 #: src/components/flow/FlowCanvas.tsx
 msgid "白模复刻段（还没出片）"
 msgstr "Blockout remake segment (not rendered yet)"
+
+#: src/studio/flowStore.ts
+msgid "白模复刻段只有一段、而且只能是末段：这一段放不回原位了"
+msgstr "A blockout copy segment must be the only one and the last one — this segment can't go back where it was"
 
 #: src/studio/flowStore.ts
 msgid "白模复刻段只有一段：画面与运镜整个来自模板视频，没有可续的下一段"

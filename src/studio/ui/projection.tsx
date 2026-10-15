@@ -348,7 +348,8 @@ function EditorPanel() {
    * （下面 cards 车道的 TokenCost 读的也是它），承接时三套共用开头帧、图量减半 —— 原来 ModePicker 自己按 proposalsCost(false) 报的是不承接的上限
    */
   const deriveStart = nextStartFrame(editor.startFrame);
-  const derivePrice = { tokens: proposalsCost(!!deriveStart), carried: !!deriveStart };
+  // carried 说的是「承接上段尾帧」：自己传了开头帧的段价钱一样（也只画尾帧），但那句括号不该说成承接（2026-10-15 发版前复核抓到）
+  const derivePrice = { tokens: proposalsCost(!!deriveStart), carried: !editor.startFrame && !!deriveStart };
   const path = activePath();
   const prev = path.length > 0 ? chosenProposal(path[path.length - 1]) : null;
   const segIndex = path.length;

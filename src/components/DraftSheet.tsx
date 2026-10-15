@@ -149,17 +149,14 @@ export default function DraftSheet({ meta, onClose }: { meta: WorkDraftMeta; onC
 
       {confirmDel ? (
         <div className="mt-3 rounded-xl border border-rose-500/40 bg-rose-500/10 p-3">
-          {/* ★ 后果只按**已知事实**说（本仓「别往吓人的方向说错」那条）：doneCount 是这条
-              草稿里确实已经出片的段数，0 就老实说没有花掉的钱，不要吓唬人。 */}
+          {/* ★ 后果只按**已知事实**说（本仓「别往吓人的方向说错」那条）：doneCount 是这条草稿里确实已经出片的段数。
+              这张确认卡只在 doneCount > 0 时摆（没花钱的直接删 + 6 秒撤销，下面那颗键），所以这里只有一句 ——
+              原来那句「分镜找不回来」的分支走不到，而且与撤销说的相反（2026-10-15 发版前复核删掉） */}
           <p className="text-[11px] leading-relaxed text-rose-300">
-            {meta.doneCount > 0 ? (
-              <Trans>
-                删掉「{meta.title}」？里面有 <b className="font-bold">{meta.doneCount} 段已经花钱炼出来的成片</b>，
-                这条草稿是它们唯一的备份 —— 删了要重新花一次钱才有。
-              </Trans>
-            ) : (
-              <Trans>删掉「{meta.title}」？这条还没有出片的段，不会有钱白花，但写好的分镜找不回来。</Trans>
-            )}
+            <Trans>
+              删掉「{meta.title}」？里面有 <b className="font-bold">{meta.doneCount} 段已经花钱炼出来的成片</b>，
+              这条草稿是它们唯一的备份 —— 删了要重新花一次钱才有。
+            </Trans>
           </p>
           <div className="mt-2 flex gap-2">
             <button

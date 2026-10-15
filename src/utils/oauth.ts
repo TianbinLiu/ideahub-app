@@ -27,7 +27,7 @@
 //   用不到时不该把它们拖进主包。
 import { t } from "@lingui/core/macro";
 import { oauthStartUrl } from "../api/auth";
-import { decideOauthReturn, encodeStateBytes, type OauthReturn, type RememberedState } from "../data/oauthState";
+import { decideOauthReturn, encodeStateBytes, STATE_TTL_MS, type OauthReturn, type RememberedState } from "../data/oauthState";
 import { showToast } from "../data/toast";
 
 export type { OauthReturn };
@@ -46,7 +46,8 @@ export function isNative(): boolean {
 // ── 一次性 state（本机这一半；收不收的判定在 data/oauthState）────────────────
 const STATE_KEY = "ideahub-app.oauth.state.v1";
 /**
- * 内存里再留一份：localStorage 写不进去（隐私模式 / 配额满）时 web 与热启动的回程还能对上。
+ * 内存里再留一份：localStorage 写不进去（隐私模式 / 配额满）时**热启动**的回程还能对上（web 的起跳是整页跳走，模块状态随之没了，
+ * 那条路只能靠 localStorage —— 发版前复核更正，原来这里把 web 也算进去了）。
  * 冷启动（进程被回收后深链拉起）只能靠 localStorage 那份 —— 那正是记在盘上而不是只记内存的理由。
  */
 let rememberedInMemory: RememberedState | null = null;
@@ -92,13 +93,15 @@ function takeRememberedState(): RememberedState | null {
  * 收下 → 原样返回；丢弃 → 控制台一行（只记结论、不记 token / state 的值）+ 一句轻提示，返回 null ——
  * 调用方拿到 null 就什么都不做：不交付、不跳转、不碰 token，`error` 文本也不上屏。
  */
-export function acceptOauthReturn(r: OauthReturn): OauthReturn | null {
+export function acceptOauthReturn(r: OauthReturn): { ok: true; value: OauthReturn } | { ok: false; why: string } {
   const remembered = takeRememberedState();
   const verdict = decideOauthReturn(r, remembered, Date.now());
-  if (verdict === "accept") return r;
+  if (verdict === "accept") return { ok: true, value: r };
   console.warn(`[oauth] 丢弃了一条登录回程（${verdict}）：本机${remembered ? "记着" : "没记"} state，回程${r.state ? "带" : "不带"} state`);
-  showToast(t`忽略了一条不是本机发起的登录链接`, 4000);
-  return null;
+  // ★ 过期（stale）是本机发起的、只是走太久了 —— 说成「不是本机发起」就是把人往反方向引（发版前复核抓到）；另外两档才是那句
+  const why = verdict === "stale" ? t`登录链接过期了（超过 ${Math.round(STATE_TTL_MS / 60_000)} 分钟），请重新登录` : t`忽略了一条不是本机发起的登录链接`;
+  showToast(why, 4000);
+  return { ok: false, why };
 }
 
 // ── 回程结果的单一出口 ────────────────────────────────────────────────
@@ -163,13 +166,15 @@ async function onDeepLink(url: string): Promise<void> {
   const d = await digestOf(url);
   try {
     if (d && localStorage.getItem(HANDLED_KEY) === d) return;
-    if (d) localStorage.setItem(HANDLED_KEY, d);
+    // ★ 只记带 token 的那条（发版前复核抓到）：失败回跳在老服务端上不带 state、字节一样（同一种 error + message），记下来的话第二次
+    //   同样的失败就一声不响 —— 原来至少 /login?err= 还会说；而失败回跳被重放也没有危害，不用防
+    if (d && r.token) localStorage.setItem(HANDLED_KEY, d);
   } catch {
     /* 读不到 / 存不下：只剩内存那道去重，重载后同一条可能再来一次（最坏是一句提示） */
   }
   void closeBrowser();
-  const ok = acceptOauthReturn(r);
-  if (ok) deliver(ok);
+  const res = acceptOauthReturn(r);
+  if (res.ok) deliver(res.value);
 }
 
 let inited = false;

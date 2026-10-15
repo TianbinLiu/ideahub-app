@@ -943,3 +943,26 @@
 ### 没做、等更后面的（按上面的定法汇总）
 
 2.63 之后要开的 PR，按先后：CSP connect-src 白名单（16，要装机走四条路）→ flowStore 纯函数外搬 + check-db（8、9）→ objectURL 释放（19）→ refreshRemoteTemplate 纯函数（22）→ mergeAndGo 的 bailCancelled（21a，搭便车）→ 画布网格光栅（20，先量）→ 原生 JVM 单测（10，等 CI 稳定）。要主人点的只剩两件：CI 的 android job 两周后要不要设成 required（11）；lazy 要不要做（18，看第七节量出来的数）。
+
+## 七、2.63 发版前复核（2026-10-15，docs/app-distribution.md 第 5 步：只看 v2.62..HEAD 的 diff）
+
+五个只读复核各看一段（2.62 遗留修正 / 模型下线 #396 / UX 走查 #398 / 教材人格 15 簇 #399 / 本轮拍板 #400），按第 5 步那六类问（可选参数漏传、同步改异步、新加的过滤 / 早退、结局压档、新抽的共用件、注释与代码不一致）。没有 high；1 条 medium、13 条 low，全部当场改掉、随 #400 一起发：
+
+| 来自 | 发现 | 改法 |
+|---|---|---|
+| #398 | **medium** · 胶囊在开炉那一面不画之后，简约页从生成中途退出再回来仍从第①步起 —— 段正在炼、屏幕上一个字不说 | `SimpleModePage` 的 step 按节点状态起（生成中 / 已出片直接站到第③步） |
+| #398 | 开炉那一面的结果通知没人清，跟着人跑到下一页 | `GenerationPill` 在 `here === genFrom`（非 /flow）时清掉 `genNotice`（/flow 那一面本来就由 FlowPage 清） |
+| #398 | 第三方登录起跳从不置 busy，连点两下开两个标签页；2.63 起本机只记最后一次的 state，先开的那页登完会被丢 | `thirdParty` 置 busy（finally 解） |
+| #398 | 关注流空态的「登录」键按 `!user` 判，冷启动会话还没认领上的那段会把登录着的人送去登录页 | 改判 `auth === "out"`（CLAUDE.md「拿 !currentUser() 当没登录」那格） |
+| #398 | `DraftSheet` 确认卡里 doneCount = 0 那句走不到、且与撤销说的相反 | 删掉那条分支 |
+| #400 | `restoreNode` 不认 id：垃圾桶只有一格，这 6 秒里 recastNode / 套模板回滚 / 对画布说「删掉第 N 段」也往里写，撤销放回的可能是另一段 | `restoreNode(id)`，对不上整句拒 |
+| #400 | 撤销能绕过「白模复刻段只有一段、只能是末段」 | 放回前按 `appendBlocked` 的不变量判相邻 |
+| #400 | `utils/oauth` 注释把 web 也算进内存那份 state 的覆盖范围（web 起跳是整页跳走） | 注释改口 |
+| #400 | 过期（stale）的回程也说成「不是本机发起」；失败回跳的摘要也记进去重表，老服务端上同样的失败第二次一声不响 | stale 单独一句「登录链接过期了」；只记带 token 的那条摘要 |
+| 2.62 遗留 | 配音音色目录改成进页取一次之后，取挂了就再没人触发（2.62 每进一次「字幕」页签都重取） | 取挂了在再进「字幕」页签那一拍重试（narratorErr 不进依赖，免得死循环） |
+| #396 | 两处注释还叫那一勾「标准/极速适用」、还写着「多角色同框被整条拒」 | 注释改口 |
+| #399 | 「按主题改写」面板状态进 store 之后，做同款带「我的主题」自动打开时还停在上一条流水线的确认步 | 带主题进来就 `plan: null, step: "input"` |
+| #399 | 工坊选法屏估价的 `carried` 把「自己传了开头帧」也说成「承接上段尾帧」（价钱是对的） | `carried = !editor.startFrame && !!deriveStart` |
+| #399 | `api/client` 把正文读入算进 timeoutMs 之后，老师课程 / 教材文本（几 MB）在慢网上 30 秒读不完 | 那两条 120 秒 |
+
+复核员确认没问题、值得记下的：ErrorBoundary 不会死循环重抛；`frameloop="never"` 盖住时没有必须继续动的东西；三处心跳都在 finally 里停；minimax 三个超时都比服务端预算长；自更新 sha 闸不会拒掉合法清单；`deriveCostOf` 与真扣同一个式子；`isRealVideoUrl` 替掉的五处语义相同；旧卡 `imageTier:"studio"` 照常显示与出片；生产预检已放行 `x-app-version`、白名单里有新速写型号；clientEvents 不会抛、不会循环、不带 PII；Live2D 同源过滤不会漏掉官方形象。
