@@ -910,7 +910,7 @@
 | 1 | sommerville-requirements-1 · 480p 单价与高清 r2v 系数没对过账单 | 做（2.63 后，我来核） | 不等主人去费用中心：方舟任务查询回包带 `usage`（按任务号查、免费），拿服务端 ArkVideoTask 里 10-08 之后的一条草稿档 480p 与一条高清重拍任务对 `perSecTokens` / `HD_R2V_MULT`。生产全是测试账号，这一轮没有这类真实任务可核 —— 下一次付费验证顺手核；月账单到了主人只看那两行单价 |
 | 2 | sommerville-requirements-2 · api-contract 的 r2v 一节落后 | 做（2.63） | 照 server#107 / #108 的代码重写：四条来源（模板 / 刚传素材 / 登记素材参考 / 本人成片 edit · extend）、各自的钉子与计价公式、`VIDEO_MULT_R2V` 两行（2.5 = 2.8 账单实证；2.0 mini = 14/15 待核） |
 | 3 | sommerville-requirements-3 · 第一批无正式路径结案；过肩人数复核 | ② 做（2.63）；① 等 | ② DialogueWizard 第③步画完后加一句「看一眼每张里是不是只有这两个人」（不花钱；付费看图复核不加 —— 验证里景别那类判断只会误报）。① 结案要真实流量，生产没有；付费验证要主人授权，这一轮没要钱 |
-| 4 | sommerville-requirements-8 · MAX_DRAFTS = 20 没量法、淘汰零提示 | 做一半（2.63） | 淘汰那一拍轻提示（说哪一条没了）；真机量 `navigator.storage.estimate()` 写进常量旁（本次装机时量，结果见第七节）。按字节预算淘汰 = 不做：配额远大于 20 × 中位体积时没必要，量完再说 |
+| 4 | sommerville-requirements-8 · MAX_DRAFTS = 20 没量法、淘汰零提示 | 做一半（2.63） | 淘汰那一拍轻提示（说哪一条没了）；真机量 `navigator.storage.estimate()` 写进常量旁（结果见第八节：这一轮只量到模拟器，真机待量）。按字节预算淘汰 = 不做：配额远大于 20 × 中位体积时没必要，量完再说 |
 | 5 | wcag-a11y-i18n-2 · 首页进度条 14px 命中、不是滑杆 | 做一半（2.63） | role=slider + 方向键 / Home / End 走同一个 seek；触控盒的几何不动 —— 底缘 50 / 86 / 104 是联动量过的三个数，要真机重量再一起改（CLAUDE.md「动了首页底缘」那格） |
 | 6 | wcag-a11y-i18n-5 · 画布缩放没有单指 / 按钮替代 | 做（2.63） | 画布右下三颗键（缩小 / 1:1 / 放大），与滚轮同一段算法、以画布中心为锚，走 liveView → reanchor → setView |
 | 7 | wcag-a11y-i18n-6 · slate-600 当小字正文 | 做（2.63） | 改口径：≤ 14px 的说明 / 占位 / 副标题 slate-600 → slate-400（40 处，含 EmptyState 的补充行），slate-600 只给装饰；`scripts/check-contrast.mjs` 棘轮进构建（装饰字符 aria-hidden 放行、亮底写 `contrast-ok`）。slate-500 那半按主人口径不动 |
@@ -924,7 +924,7 @@
 | 15 | owasp-security-1 · 深链回程没有 state | 做 | 契约 + App（2.63：startOauth 生成一次性 state、15 分钟窗口、不是本机刚发起的一律忽略；服务端回带了就必须对上）+ 服务端回带（PR 等「合」）；下一版 App 起强制要求回带 |
 | 16 | owasp-security-3 · 生产 CSP 放行任意 https: | 做（2.63 后，单独 PR） | 先只收 connect-src，域名表以服务端 videoAsset.service 为准；装机把出片 / 直传 / 市场换装 / 真人档各走一遍再合 —— 漏一个域名是静默不出图，不搭发版。本轮只把 vite.config 注释里那个不存在的 docs/security-checklist.md 引用改掉 |
 | 17 | owasp-security-6 · Live2D 包引用可指向外域 | 做 | 服务端 `resolveRef` 拒 scheme / 绝对路径并让 Physics / Pose / Expressions / Motions / Sound 同走它（PR 等「合」）；App 的 prefetch 只拉与 model3.json 同源的引用并把丢掉的数出来（2.63，兜存量）；舞台加载前的预检另议 |
-| 18 | mcconnell-performance-1 · 零 lazy、vendor-3d 2.95MB | 零风险那一刀做（2.63）；lazy 先量 | ammojs-typed 退出 vendor-3d 正则，rigidBones 的动态 import 真成独立 chunk；冷启动用 debug 包在真机量（第七节），量到几百毫秒以上再做 lazy（范围含 CardDetailPage / CardHologram、先给 lazy 边界失败屏） |
+| 18 | mcconnell-performance-1 · 零 lazy、vendor-3d 2.95MB | 零风险那一刀做（2.63）；lazy 先量 | ammojs-typed 退出 vendor-3d 正则，rigidBones 的动态 import 真成独立 chunk；冷启动用 debug 包在真机量（第八节：这一轮只量到模拟器），量到几百毫秒以上再做 lazy（范围含 CardDetailPage / CardHologram、先给 lazy 边界失败屏） |
 | 19 | mcconnell-performance-4 · objectUrlCache 无上限 | 做（2.63 后） | 先在模拟器按 dumpsys meminfo 量，再按消费者生命周期释放（计数、不 revoke 还被引用的）。risk 中，不搭发版 |
 | 20 | mcconnell-performance-7 · 画布拖动整屏光栅化 | 先量（2.63 后） | 桌面 Chrome 的 Paint flashing 就量得出；整屏闪绿才改成网格铺大两格 + 只写 transform |
 | 21 | mcconnell-construction-3 · mergeAndGo 502 行 | (a) 做，搭下一个要跑模拟器合并验证的 CutPage PR；(b) 不做 | (a) 四份取消收尾收成 bailCancelled 是 S / low；(b) 抽四个阶段函数要在模拟器上按两次取消验，没有搭便车的 PR 之前不动 |
@@ -966,3 +966,18 @@
 | #399 | `api/client` 把正文读入算进 timeoutMs 之后，老师课程 / 教材文本（几 MB）在慢网上 30 秒读不完 | 那两条 120 秒 |
 
 复核员确认没问题、值得记下的：ErrorBoundary 不会死循环重抛；`frameloop="never"` 盖住时没有必须继续动的东西；三处心跳都在 finally 里停；minimax 三个超时都比服务端预算长；自更新 sha 闸不会拒掉合法清单；`deriveCostOf` 与真扣同一个式子；`isRealVideoUrl` 替掉的五处语义相同；旧卡 `imageTier:"studio"` 照常显示与出片；生产预检已放行 `x-app-version`、白名单里有新速写型号；clientEvents 不会抛、不会循环、不带 PII；Live2D 同源过滤不会漏掉官方形象。
+
+## 八、2.63 发版后的真机 / 模拟器验证（2026-10-15）
+
+**发版**：app#400 合进 main（d3adee8）→ 站在 main 的树上出包 → `npm run release`：第 0 步（树一致 / 工作区干净）、2b 开包核（受保护模型只有 milltina、入口 js 与本次 dist 一致）、2c 权限 7 条、2d jar、7b GitHub 资产 digest 第一次真跑全绿；tag v2.63、versionCode 75、不强制更新；镜像先 `.part` → 远端 sha256 → 正名，再建 Release，最后经 Cloudflare 整包下载核对（cf-cache-status MISS）。
+
+**真机**：主人的手机整个下午都在前台用着别的 App（`dumpsys power` 一直是 Awake、topResumedActivity 是哔哩哔哩），按「App 在前台且亮屏时不装机」的纪律没碰 —— 手机上那份 2.62 下次打开就会收到 2.63 的提示，更新链在模拟器上已经整条走通（下面）。所以第六节第 4 / 18 条说的「真机量」这一轮量的是**模拟器**，真机的数等手机空下来再量一次。
+
+**模拟器（AVD Pixel_8_API_36，x86_64）**：
+- 更新链端到端：装镜像上的 qimeng-2.62.apk → 启动 3 秒后弹「New version 2.63 available 68.8MB」+ 发版说明 → Update now → 下载 → 系统安装器「Do you want to update this app?」→ Update → versionCode 75、lastUpdateTime 16:06 → 2.63 起来后首页真视频照播。
+- 2.63 的 e2e 调试包（`--mode e2e` + `.env.e2e.local` 指生产，sideloadDebug 变体、有 CDP）：
+  - 首页进度条：`[role=slider]` 在，aria-label「Playback progress」、valuenow 4 / valuemax 5 / valuetext「00:04」、tabIndex 0，触控盒 20px（几何没动，与第 5 条拍板一致）。
+  - `navigator.storage.estimate()`：quota 3,564MB、usage 52MB（IndexedDB 55MB）—— 模拟器磁盘小，这个 quota 不能拿来定 MAX_DRAFTS 的字节预算，真机待量；一条带帧草稿的中位体积没量（设备上没有真实草稿）。
+  - 冷启动三次（force-stop → am start，`PerformanceNavigationTiming` / paint）：DCL 767 / 817 / 824 ms，first-contentful-paint 1804 / 1216 / 1172 ms；vendor-3d（1.08MB）仍在启动时静态拉（start ≈ 0.9s、传输 75~82ms），ammo 那 1.85MB 已不在启动路径上。编译 / 求值的分项这里量不出来（要 chrome://inspect 的 Performance 录制），lazy 做不做等真机数。
+- X-App-Version：服务端只在 AI 调用的流水日志里记它（没花钱，没验到那一行）；生产预检已放行该头（OPTIONS 204 + allow-headers）、浏览器里验过 2.63 发出 `2.63+75`。
+- 查 ARIA 只能用调试包：release 包没 CDP，uiautomator dump 也读不到 WebView 内的节点（整棵树只有 WebView 一层）。
