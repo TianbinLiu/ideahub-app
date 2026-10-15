@@ -27,6 +27,7 @@ import { i18n } from "@lingui/core";
 import { I18nProvider } from "@lingui/react";
 import { pickLang } from "./i18n/locale";
 import { activateLang } from "./i18n/activate";
+import { adoptInstalledAppVersion } from "./api/appVersion";
 import "./index.css";
 
 /**
@@ -40,6 +41,10 @@ import "./index.css";
  *   **绝不**在没有目录的情况下照常渲染：生产构建里宏只剩 id，屏幕会满是一串串 hash。
  */
 async function boot(): Promise<void> {
+  // ★ 与激活语言**并排**问原生「装着的是哪一包」（请求头 X-App-Version 的值，见 api/appVersion 的 ★★）：
+  //   开机第一发请求（探活、读作品库）在 App 加载之后才发，等到这里它就已经是装着的那一包了。最多等几百毫秒、绝不抛。
+  //   api/appVersion 零依赖，静态 import 它不会把业务模块提前求值（上面那条 ★★ 管的就是这件事）
+  const version = adoptInstalledAppVersion();
   let ok = false;
   try {
     await activateLang(pickLang());
@@ -55,6 +60,7 @@ async function boot(): Promise<void> {
       return bootError();
     }
   }
+  await version;
   let App: React.ComponentType;
   try {
     ({ default: App } = await import("./App"));

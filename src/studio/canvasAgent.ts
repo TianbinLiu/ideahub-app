@@ -621,7 +621,9 @@ export async function runCanvasAgent(text: string): Promise<AgentOutcome> {
     const local = parseLocal(input);
     const r = applyOps(local.ops);
     // 冻结与余额不足分开说（account.frozenNote 的 ★★）：冻结的人往往满额度，说"余额不够"是假话
-    const why = !AI_REAL ? "" : walletFrozen() ? t`账户欠额冻结中，AI 指挥暂停（充值抵扣后恢复）。` : t`余额不够 AI 指挥（400/句）。`;
+    // 单价从 economy 现取（CHAT_TURN_TOKENS）：原来写死 400，与上面 canAfford 那把尺是两份来源
+    const perTurn = fmtTokens(CHAT_TURN_TOKENS);
+    const why = !AI_REAL ? "" : walletFrozen() ? t`账户欠额冻结中，AI 指挥暂停（充值抵扣后恢复）。` : t`余额不够 AI 指挥（${perTurn}/句）。`;
     const out = { say: why + localSay(local), ...r, paid: false };
     rememberOutcome(input, out);
     return out;

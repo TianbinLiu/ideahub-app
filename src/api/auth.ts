@@ -9,7 +9,7 @@
 //      手机号登录走的是另一套 /api/auth/otp（authOtp.routes），本文件暂不封装。
 //   ——以上若 server 端后续加了别名字段，改这一处即可，data/account.ts 不用动。
 import { t } from "@lingui/core/macro";
-import { API_BASE, apiGet, apiPost, apiPut, getToken, setToken } from "./client";
+import { API_BASE, apiGet, apiPost, apiPut, getToken, setToken, withAppVersion } from "./client";
 
 /** server 的 serializeAuthUser 输出；displayName/bio 只有 /api/me/profile 那条返回带 */
 export interface ApiUser {
@@ -99,9 +99,10 @@ export async function uploadAvatar(blob: Blob, filename = "avatar.webp"): Promis
   const fd = new FormData();
   fd.append("avatar", blob, filename);
   const token = getToken();
-  const res = await fetch(`${API_BASE}/api/me/avatar`, {
+  const url = `${API_BASE}/api/me/avatar`;
+  const res = await fetch(url, {
     method: "POST",
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    headers: withAppVersion(url, token ? { Authorization: `Bearer ${token}` } : {}),
     body: fd,
   });
   const data = (await res.json().catch(() => ({}))) as { avatarUrl?: string; message?: string; error?: string };

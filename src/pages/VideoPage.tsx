@@ -7,6 +7,7 @@ import AigcBadge, { isAigcWork } from "../components/AigcBadge";
 import SeedBadge from "../components/SeedBadge";
 import Icon from "../components/Icon";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
+import { useBackOr } from "../hooks/useBackOr";
 import { Trans, useLingui } from "@lingui/react/macro";
 import BranchPlayer from "../components/BranchPlayer";
 import SegmentPlayer from "../components/SegmentPlayer";
@@ -162,6 +163,9 @@ export default function VideoPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const loc = useLocation();
+  // ★ 返回键：有上一页就回去（个人页 / 分区 / 通知点进来的回原处，原来一律 navigate("/")），
+  //   分享链接冷启动没有上一页才退回首页；「不存在」那一屏的返回也是这一份，别再手抄 history.state.idx
+  const back = useBackOr("/");
   const user = useCurrentUser();
   const auth = useAuthState();
   const { t } = useLingui();
@@ -315,11 +319,7 @@ export default function VideoPage() {
             最想做的就是退回去再点一次，而不是被扔回首页从头找。 */}
         <div className="flex items-center gap-4">
           <button
-            onClick={() => {
-              const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0;
-              if (idx > 0) navigate(-1);
-              else navigate("/");
-            }}
+            onClick={back}
             className="text-slate-300"
           >
             <Trans>返回</Trans>
@@ -385,7 +385,7 @@ export default function VideoPage() {
           原来这三页压根没挂，顶栏文案直接压在状态栏上。 */}
       <PageHeader
         sticky
-        onBack={() => navigate("/")}
+        onBack={back}
         title={video.title}
         titleClassName="text-sm font-normal text-slate-300"
         right={

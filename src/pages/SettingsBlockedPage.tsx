@@ -14,7 +14,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import Avatar from "../components/Avatar";
 import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
-import { useNavigate } from "react-router";
+import { useBackOr } from "../hooks/useBackOr";
 import { isRemoteMode } from "../data/account";
 import { useCurrentUser } from "../hooks/useAccount";
 import { listBlocked, unblockUser, type BlockedUser } from "../api/blocking";
@@ -22,7 +22,7 @@ import { refreshFeed, refreshFollowingFeed } from "../data/videos";
 
 export default function SettingsBlockedPage() {
   const { t } = useLingui();
-  const navigate = useNavigate();
+  const back = useBackOr("/settings");
   const user = useCurrentUser();
   const remote = isRemoteMode();
   /** null = 还没问到（与"问过了是空的"分开，见顶注 ★） */
@@ -68,7 +68,7 @@ export default function SettingsBlockedPage() {
 
   return (
     <div className="min-h-full px-4 pb-10">
-      <PageHeader onBack={() => navigate(-1)} title={t`已拉黑的人`} />
+      <PageHeader onBack={back} title={t`已拉黑的人`} />
 
       <p className="mb-3 text-[11px] leading-relaxed text-slate-500">
         <Trans>拉黑是双向的：你们不会再看见彼此的作品、评论和弹幕，也不会收到对方的任何通知。解除之后立刻恢复。</Trans>

@@ -31,6 +31,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
+import { useBackOr } from "../hooks/useBackOr";
 import { i18n } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -121,6 +122,9 @@ function RailButton({ emoji, label, onClick }: { emoji: string; label: string; o
 
 export default function SupportPage() {
   const navigate = useNavigate();
+  // ★ 返回键的兜底是「我的」：客服页常从通知深链 / 冷启动进来（?tab=tickets&ticket=…），历史里没有上一页，
+  //   入口在「我的」那一页；裸 navigate(-1) 会退出到白屏
+  const back = useBackOr("/me");
   const [params, setParams] = useSearchParams();
   const { t } = useLingui();
 
@@ -534,7 +538,7 @@ export default function SupportPage() {
         {/* ★ 这一行是 h-12 不是别处的 h-[58px]：safe-top 已经加在外层那个渐变容器上，里面再写 58 就多出 10px，
             返回键中心落在 39 而不是各页统一的 34（2026-09-06 逐页量出来的，第十四轮） */}
         <div className="pointer-events-auto flex h-12 items-center gap-1 px-4">
-          <BackButton size={20} tone="text-slate-200" onClick={() => navigate(-1)} />
+          <BackButton size={20} tone="text-slate-200" onClick={back} />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <span className="truncate text-base font-bold text-slate-100">{name}</span>

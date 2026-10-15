@@ -13,7 +13,7 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { blockUser } from "../api/blocking";
 import { purgeAuthorVideos, refreshFeed } from "../data/videos";
 import { isRemoteMode } from "../data/account";
@@ -35,6 +35,7 @@ export default function BlockButton({
   const { t } = useLingui();
   const auth = useAuthState();
   const navigate = useNavigate();
+  const loc = useLocation();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -101,7 +102,8 @@ export default function BlockButton({
               <>
                 <p className="text-xs leading-relaxed text-slate-300"><Trans>登录之后才能拉黑。</Trans></p>
                 <button
-                  onClick={() => navigate("/login")}
+                  // 登录完回跳到**这一页**（含 query）：从作品页 / 评论 / 弹幕里点的，不该落回首页从头找
+                  onClick={() => navigate(`/login?next=${encodeURIComponent(`${loc.pathname}${loc.search}`)}`)}
                   className="mt-3 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink"
                 >
                   <Trans>去登录</Trans>

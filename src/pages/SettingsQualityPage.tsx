@@ -7,7 +7,7 @@
 import { useState } from "react";
 import { useLingui } from "@lingui/react/macro";
 import PageHeader from "../components/PageHeader";
-import { useNavigate } from "react-router";
+import { useBackOr } from "../hooks/useBackOr";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
 import { useCurrentUser } from "../hooks/useAccount";
@@ -15,7 +15,8 @@ import { QUALITY_LABELS, getQuality, qualityLabel, setQuality, type Quality } fr
 
 export default function SettingsQualityPage() {
   const user = useCurrentUser();
-  const navigate = useNavigate();
+  // 返回键只走 useBackOr：深链冷启动没有上一页时退回设置页，别退出 App（hooks/useBackOr 的 ★★）
+  const back = useBackOr("/settings");
   const [quality, setQ] = useState<Quality>(() => getQuality());
   useAutoGuide("setquality", !!user);
   const { t } = useLingui();
@@ -25,7 +26,7 @@ export default function SettingsQualityPage() {
 
   return (
     <div className="min-h-full px-4 pb-10">
-      <PageHeader sticky inset onBack={() => navigate(-1)} title={t`画面质量`} right={<HelpButton tour="setquality" />} />
+      <PageHeader sticky inset onBack={back} title={t`画面质量`} right={<HelpButton tour="setquality" />} />
 
       <div data-guide="setquality-opts" className="space-y-2">
         {(Object.keys(QUALITY_LABELS) as Quality[]).map((q) => (

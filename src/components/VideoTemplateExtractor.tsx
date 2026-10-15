@@ -1353,7 +1353,9 @@ export default function VideoTemplateExtractor({
               <p className="mb-3 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-300">
                 {blockoutBlock}
                 <br />
-                <Trans>白模那两条路都只走这一档，所以现在还开不了 —— 改选「经典配方」仍然可以做模板，它不需要付费套餐。</Trans>
+                {/* 「经典配方」那条路已经收掉（routeOpts 只剩白模两条），原来这句还指着它（2026-10-10 文案复核抓到）；
+                    分享做法的路是发布作品时公开「制作过程」（与下面那条琥珀提示同一句） */}
+                <Trans>白模那两条路都只走这一档，所以现在还开不了 —— 开通会员套餐（或充值过任意一笔）就能用；想把一条片的做法分享给别人，发布作品时公开「制作过程」就行。</Trans>
               </p>
             )}
 

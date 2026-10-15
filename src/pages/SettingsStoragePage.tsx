@@ -11,7 +11,7 @@
 import { useEffect, useState } from "react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import PageHeader from "../components/PageHeader";
-import { useNavigate } from "react-router";
+import { useBackOr } from "../hooks/useBackOr";
 import ConfirmDialog from "../components/ConfirmDialog";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
@@ -26,7 +26,7 @@ export default function SettingsStoragePage() {
   // 远端模式下作品的权威副本在服务器，本地这份只是缓存——文案不能再说「存在本机」
   const remote = isRemoteMode();
   const user = useCurrentUser();
-  const navigate = useNavigate();
+  const back = useBackOr("/settings");
   const [storage, setStorage] = useState<{ usedMB: number; quotaMB: number } | null>(null);
   useAutoGuide("setstorage", !!user);
   const { t } = useLingui();
@@ -40,7 +40,7 @@ export default function SettingsStoragePage() {
 
   return (
     <div className="min-h-full px-4 pb-10">
-      <PageHeader sticky inset onBack={() => navigate(-1)} title={remote ? t`本机缓存` : t`存储`} right={<HelpButton tour="setstorage" />} />
+      <PageHeader sticky inset onBack={back} title={remote ? t`本机缓存` : t`存储`} right={<HelpButton tour="setstorage" />} />
 
       <div data-guide="setstorage-usage" className="rounded-xl border border-slate-700/70 bg-panel p-3">
         {storage ? (

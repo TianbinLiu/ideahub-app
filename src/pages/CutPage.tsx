@@ -16,6 +16,7 @@ import { startJob } from "../data/jobs";
 import { MAX_DIRECT_MEDIA_BYTES } from "../api/uploads";
 import PageHeader from "../components/PageHeader";
 import { useLocation, useNavigate } from "react-router";
+import { useBackOr } from "../hooks/useBackOr";
 import type { MessageDescriptor } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -144,6 +145,9 @@ function utcDay(): string {
 
 export default function CutPage() {
   const navigate = useNavigate();
+  // ★ 顶栏返回（非单段编辑那一支）的兜底是「我的」：人从「我的 → 接着剪」或组稿进来，而组稿那一拍流水线已经 reset()，
+  //   工作流里没有可回的东西；App 重启后「接着剪」没有上一页，退回「我的」而不是退出到白屏
+  const back = useBackOr("/me");
   const { t } = useLingui();
   const draft = useStudio((s) => s.draft);
   const segEdit = useStudio((s) => s.segEdit);
@@ -1171,7 +1175,9 @@ export default function CutPage() {
       setErr("");
       setTab("cut");
     } else {
-      setErr(t`这条成片回不到合并之前了：它没有留下合并前的片段。直接去发布，或回工作流重做一条。`);
+      // ★ 「回工作流」这条路不存在（2026-10-10 文案复核抓到）：组稿那一拍 reset() 已把流水线清空，能回的是「我的 → 草稿」里自动存下的那条；
+      //   简约模式不进草稿库（saveWorkDraft 挡掉 simple），只能重新创作。下面几句同理
+      setErr(t`这条成片回不到合并之前了：它没有留下合并前的片段。直接去发布，或回「我的 → 草稿」打开草稿重做一条（简约模式没有草稿，只能重新创作）。`);
     }
   }
 
@@ -1234,7 +1240,7 @@ export default function CutPage() {
         //   摆不出来的档（停用 / 这台服务端不支持）说这一页能走的路；套餐那一道照说原句，并给「去升级」（errUpgrade 认的是这一句）
         if (tierRetired(tier)) {
           const day = tierRetireDay(tier);
-          setErr(t`第 ${segNo} 段是「${label}」档，模型已于 ${day}停用，这里重拍不了——回工作流把这一段换一档重新出片（会重新计费）`);
+          setErr(t`第 ${segNo} 段是「${label}」档，模型已于 ${day}停用，这里重拍不了——回「我的 → 草稿」打开草稿，把这一段换一档重新出片（会重新计费）`);
         } else if (!tierOffered(tier)) {
           setErr(t`第 ${segNo} 段是「${label}」档，这台服务器还不支持它（服务端需要更新），这里重拍不了`);
         } else {
@@ -1349,7 +1355,8 @@ export default function CutPage() {
         }
         const why = await useStudio.getState().persistCutDraft();
         savedProjRef.current = useCut.getState().project;
-        if (why) setErr(t`这一段已经改好、钱也扣过了，但${why}`);
+        // 钱的话不在这里说（CLAUDE.md：只走 ai/failCharge；这里失败的是落盘，不是出片）——原来写死「钱也扣过了」，演示 / 离线构建下是假话
+        if (why) setErr(t`这一段已经改好了，但${why}`);
         loadCaptureSrc(segIndex, url);
       }
       setBusy("");
@@ -1575,8 +1582,8 @@ export default function CutPage() {
             : // ★ 分两种情况说，别让一句话指向不存在的出口（`idb:` 那种上面 alreadyMerged 已经拦掉了，
               //   落到这里的只可能是"多段里混着一段本机文件"这种不该出现的形状）
               tl.issue === "local-merged"
-              ? t`第 ${segNo} 段是已经合好的本机成片，不能再合一次——去发布页发它，或回工作流重做一条`
-              : t`第 ${segNo} 段还不是永久地址，合成用不了——回到工作流等它转存完再来`,
+              ? t`第 ${segNo} 段是已经合好的本机成片，不能再合一次——去发布页发它，或回「我的 → 草稿」打开草稿重做一条`
+              : t`第 ${segNo} 段还不是永久地址，合成用不了——回「我的 → 草稿」打开草稿，等它转存完再来`,
         );
       }
       if (tl.clips.length === 0) throw new Error(t`时间轴上没有可合成的片段`);
@@ -1863,7 +1870,7 @@ export default function CutPage() {
         const segList = stillArk.join(t({ message: "、", comment: "列举几个段号时的分隔符（第 1、3 段）" }));
         const failMsg =
           (http === "403" || http === "404") && stillArk.length
-            ? t`合并失败：第 ${segList} 段的视频取不到了（HTTP ${http}）。这几段揣的还是方舟的临时链接、当初没能转存成永久地址，而那种链接只活 24 小时——过期之后合成器也拉不到。这条片子现在合不了：回工作流把这几段重新出片（会再花一次钱），或者删掉它们再合。`
+            ? t`合并失败：第 ${segList} 段的视频取不到了（HTTP ${http}）。这几段揣的还是方舟的临时链接、当初没能转存成永久地址，而那种链接只活 24 小时——过期之后合成器也拉不到。这条片子现在合不了：回「我的 → 草稿」打开草稿把这几段重新出片（会再花一次钱），或者删掉它们再合。`
             : t`合并失败：${raw}`;
         if (aliveRef.current) {
           setErr(failMsg);
@@ -1921,7 +1928,7 @@ export default function CutPage() {
               leftRef.current = true;
               useStudio.getState().closeSegmentEdit(false);
               navigate("/studio");
-            } else navigate(-1);
+            } else back();
         }}
         right={
           <>
@@ -2015,7 +2022,7 @@ export default function CutPage() {
                 onError={(e) => {
                   const code = e.currentTarget.error?.code;
                   const codeText = code ?? "?";
-                  setPlayErr(t`这一段播不出来（错误码 ${codeText}）——成片地址可能已经过期或网络不通，回工作流重新打开草稿会重新取一遍`);
+                  setPlayErr(t`这一段播不出来（错误码 ${codeText}）——成片地址可能已经过期或网络不通，从「我的 → 草稿」重新打开草稿会重新取一遍`);
                 }}
                 onLoadedMetadata={(e) => {
                   const v = e.currentTarget;
@@ -2219,7 +2226,7 @@ export default function CutPage() {
                 {canReopen ? (
                   <Trans>右上角可以直接去发布。想再改片段、圈选或配乐，就回到合并之前接着剪——原来的时间轴都还在，改完重新合一次（合成不花钱）。</Trans>
                 ) : (
-                  <Trans>右上角可以直接去发布。这条成片没有留下合并之前的片段（它是旧版本合的），要改只能回工作流重做一条。</Trans>
+                  <Trans>右上角可以直接去发布。这条成片没有留下合并之前的片段（它是旧版本合的），要改只能回「我的 → 草稿」打开草稿重做一条（简约模式没有草稿，只能重新创作）。</Trans>
                 )}
               </p>
               {canReopen && (

@@ -30,6 +30,7 @@ export default function GenerationPill() {
   const nodes = useFlow((s) => s.nodes);
   const notice = useFlow((s) => s.genNotice);
   const clearNotice = useFlow((s) => s.clearGenNotice);
+  const genFrom = useFlow((s) => s.genFrom);
   const jobs = useJobs();
   const nav = useNavigate();
   const loc = useLocation();
@@ -38,10 +39,13 @@ export default function GenerationPill() {
   const items: Item[] = [];
   // 出片：人就在工作流页上时页面自己有完整的进度/结果 UI，胶囊只会挡视线
   if (here !== "/flow") {
+    // ★ 回哪一面看这一炉是从哪一面开的（flowStore.genFrom）：3D 工坊 / 简约页 / 工作流页是同一条流水线的几个宿主，
+    //   原来写死 /flow，在工坊炼的段点「回去看看」会被送进 FlowPage、3D 场景整个卸掉。老会话没记过的（null）照旧回 /flow
+    const flowRoute = genFrom ?? "/flow";
     // 生成中：从正在生成的节点上取当前步骤（与页内进度同源 —— node.progress）
     const gen = busy ? nodes.find((n) => n.status === "generating") : undefined;
-    if (gen) items.push({ kind: "busy", text: gen.progress || t`本段生成中…`, route: "/flow" });
-    else if (notice) items.push({ kind: "done", ok: notice.ok, msg: notice.msg, route: "/flow", dismiss: clearNotice });
+    if (gen) items.push({ kind: "busy", text: gen.progress || t`本段生成中…`, route: flowRoute });
+    else if (notice) items.push({ kind: "done", ok: notice.ok, msg: notice.msg, route: flowRoute, dismiss: clearNotice });
   }
   for (const j of jobs) {
     if (j.status === "running") {

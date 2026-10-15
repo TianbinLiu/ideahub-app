@@ -59,6 +59,7 @@ import { deleteVideo, removeComment, removeDanmaku, type ApiVideo } from "../api
 import { isAdmin, isRemoteMode } from "../data/account";
 import AdminTicketsView from "../components/support/AdminTicketsView";
 import { useCurrentUser } from "../hooks/useAccount";
+import { useBackOr } from "../hooks/useBackOr";
 import { relativeTime, visibilityOf } from "../types";
 
 /** 同页子视图。home = 总览（统计卡 + 举报队列），其余五个是钻取列表 */
@@ -79,6 +80,8 @@ export default function AdminPage() {
   // 这里只处理"登录了、但不是管理员"。
   const user = useCurrentUser();
   const navigate = useNavigate();
+  // ★ 总览上的返回键：通知深链（/admin?view=support）冷启动时没有上一页，退回「我的」而不是退出 App
+  const back = useBackOr("/me");
   // ★ 必须在 early return **之前**声明：hooks 不许有条件地调用
   const [reloadKey, setReloadKey] = useState(0);
   // 通知深链 /admin?view=support 直达客服工单队列；其它情况从总览进
@@ -96,7 +99,7 @@ export default function AdminPage() {
     <div className="min-h-full px-4 pb-10">
       {/* 子视图里返回键固定回总览；只有总览上才真的退出这一页 */}
       <PageHeader sticky inset
-        onBack={() => (view === "home" ? navigate(-1) : setView("home"))}
+        onBack={() => (view === "home" ? back() : setView("home"))}
         title={t(VIEW_TITLE[view])}
         right={<span className="flex-none rounded-full px-2.5 py-1 bg-brand/15 text-[11px] text-brand"><Trans>管理员</Trans></span>}
       />

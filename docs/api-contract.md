@@ -160,9 +160,11 @@ z.object 默认 strip，塞进去会被丢掉。★ 这条靠的是 strip 语义
 
 #### `card.imageTier` —— 铸卡用的出图档位（**目前是纯客户端字段**）
 
-值是 `app/src/data/economy.ts` `IMAGE_TIERS` 的 id：`"sketch" | "studio" | "master"`
-（速写 / 定妆 / 精绘，分别对应 Seedream 4.0 / 4.5 / 5.0-pro，见下面「出图档位与计价」）。
+值是 `app/src/data/economy.ts` `IMAGE_TIERS` 的 id：`"sketch" | "master"`
+（速写 / 精绘，分别对应 Seedream 4.0（2.63 起是继任型号 `4-0-20260415`）/ 5.0-pro，见下面「出图档位与计价」）。
 它记的是"这张卡当初是用哪一档炼的"。
+★ 2.63 之前铸的卡还可能是 `"studio"`（「定妆」，Seedream 4.5 —— 2026-10-10 随方舟第十批下线撤掉的那一档）：原样留着、照常显示；
+读的话 `imageTierOf("studio")` 落到默认档（速写），App 没有任何一处按它重画、报价或换模型。
 
 ⚠ **截至 2026-08-11，服务端不存这个字段。** `schemas/branchAsset.schemas.js` 的 `cardItem`
 里没有声明它，而 `z.object` 是 **strip** 语义 —— 客户端发上来会被**悄悄丢掉**：请求 201、
@@ -2153,6 +2155,31 @@ body 发 `{ text, voice, rate?, purpose: "cut-narration" }`（`voice` 取自 `/a
 在册了没定价 = 落到兜底按最贵档收（用户被多扣）；定价了没在册 = 这一档永远 400
 （用户只会觉得"这档坏了"）。回归测试见 `server/tests/arkProxy.spec.js`。
 
+### 请求头 `X-App-Version`（2026-10-10，App 2.63 起）
+
+App 打到自家服务器 **`/api/` 下**的每一个请求都带 `X-App-Version: <versionName>+<versionCode>`（如 `2.63+75`，debug 包 `2.63-debug+75`）。
+
+- **报的是装在手机上的那一包**：开机时问原生（`@capacitor/app` 的 `App.getInfo`，读 PackageManager —— debug 包的 versionName 带着
+  build.gradle 的 `versionNameSuffix "-debug"`），在加载 App 之前、与激活语言并排等它（`app/src/api/appVersion.ts`，最多等几百毫秒）。
+  问不到时（浏览器 `npm run dev`、原生没回话）用构建期烤进前端包的那一个：`android/app/build.gradle` defaultConfig 的
+  `versionName` / `versionCode`（`vite.config.ts` 的 `__APP_VERSION__`）—— 它**不带** `-debug`，前端包比 build.gradle 旧时它也是旧号
+  （发版脚本只比 APK 与 build.gradle，不看前端包里这个数），所以只当兜底。
+- **只给 `${API_BASE}/api/…`**（判定只在 `app/src/api/client.ts` 的 `withAppVersion`）。第三方一个都不带：Cloudinary 直传、
+  dev 下 vite 代理直连的方舟、CDN、GitHub；自家服务器的 `/uploads/…` 静态目录也不带 —— 那一层的 CORS 只放行 `Content-Type`，
+  多一个自定义头预检就被拒、整张图取不回来。
+- **缺失 = 2.62 及以前的老包**（它们一个都不发）。服务端（`middleware/appVersion`）把它解析成 `req.appVersion`，**只进日志**
+  （例：哪些版本还在发方舟下线了的出图 id —— 决定接班表与老价目什么时候能删），**不拿它做任何放行 / 计价 / 门禁判断**：
+  头是客户端写的、谁都能伪造。下线型号的改发与老包的结算认的是**请求体里的模型 id**（见「出图模型下线与改发」），与这个头无关。
+  不能拿「没有这个头」当错误拒掉 —— 那会把所有还没更新的人一起关在门外。
+- **要拦老包，走更新清单的 `minVersionCode`**（侧载包自己拦，见 `docs/app-distribution.md`「强制更新」），不靠这个头。
+  2.62 及以前的包认不得 `minVersionCode`、也不发这个头 —— 服务端没有任何办法把它们挡在门外，它们靠的是服务端在出口改发型号。
+- ⚠ **部署顺序：服务端的 CORS 先放行这个头，再发 2.63。** WebView 的源是 `https://localhost`，打 `api.ideahubs.org` 是跨域：
+  带自定义头的请求先发预检，预检回包的 `Access-Control-Allow-Headers` 里没有它 = 浏览器直接拦下、**这一包的每一个请求都失败**。
+  今天 `app.js` 的 `cors()` 没设 `allowedHeaders`（按预检请求的头原样放行），所以已经放行；哪天改成显式清单，**这一项必须在里面**。
+  另：原来不带 `Authorization` 的 GET（探活、未登录逛首页）加了这个头之后也要先预检一次 —— `cors()` 配上 `maxAge` 就只多这一次往返。
+  自检：`curl -si -X OPTIONS https://api.ideahubs.org/api/health -H "Origin: https://localhost" -H "Access-Control-Request-Method: GET" -H "Access-Control-Request-Headers: x-app-version"`
+  的回包里 `Access-Control-Allow-Headers` 要含 `x-app-version`。
+
 ### 视频档位与模型能力（写死在两边的表里，不靠运行时探测）
 
 | 档位 id | label | 模型 | 分辨率 | 系数 mult | 首尾帧 | 参考图 | 时长窗口 | 谁能用 | 停用 |
@@ -2327,11 +2354,14 @@ V2 这条链路**花两次真钱**，报价页必须**两笔都写明**，不许
 
 ### 出图档位与计价（**按 `model` 查表，不是一口价**）
 
-| 档位 id | label | 模型 | 单价 | token/张 | 图位数 K |
-|---|---|---|---|---|---|
-| `sketch` | 速写 | `doubao-seedream-4-0-250828` | 0.20 元/张 | **13,333** | 1 |
-| `studio` | 定妆 | `doubao-seedream-4-5-251128` | 0.25 元/张 | **16,667** | 2 |
-| `master` | 精绘 | `doubao-seedream-5-0-pro-260628` | 0.60 元/张 | **40,000** | 3 |
+| 档位 id | label | 模型 | 单价 | token/张 | 图位数 K | 组图 |
+|---|---|---|---|---|---|---|
+| `sketch` | 速写 | `doubao-seedream-4-0-20260415`（2.63 起；之前是 `4-0-250828`） | 0.20 元/张（沿用 4.0 的价，**待账单核**） | **13,333** | 1 | ✓ |
+| `master` | 精绘 | `doubao-seedream-5-0-pro-260628` | 0.60 元/张 | **40,000** | 2 | ✗ |
+
+★ 2.63 起只剩这两档：「定妆」（`studio`，`doubao-seedream-4-5-251128`，16,667）随方舟第十批下线撤掉了，不再给人选；
+跟着做 B「现做一个主角」原来用它，改用精绘（两张：全身 + 特写）。老 App 仍会发 4.0 / 4.5，见下「出图模型下线与改发」。
+两仓逐条相等的那张出图价目表（下面「跨仓价目」）2.63 起就是上面这两行；老型号的价只在服务端认（老包报多少按多少），不在跨仓表里。
 
 折算口径与视频同一把尺子：**元/张 ÷ 15 元/百万 token**（15 = Seedance 1.0-pro 标准档）。
 实际张数 = `min(K, 该卡种的图位数)`，见上面「`views[].kind`」——非人物卡只有 2 格，
@@ -2358,12 +2388,15 @@ V2 这条链路**花两次真钱**，报价页必须**两笔都写明**，不许
 这次改价对他们是**零影响**。若 5.0 实际更贵，差价我们自己吃：多收才是骗人，少收只是
 我们亏钱，而且这批调用会随老版本淘汰而归零。
 ★ 这条兼容项的寿命 = 老版本的寿命；确认线上没有旧包在发它之后，连同白名单一起删。
+★ 2026-11-24 起方舟那边也没有它了：服务端在转发那一刻改发成 `4-0-20260415`（下面「出图模型下线与改发」），
+在册名单与计价照旧认它 —— 改发只发生在出口。
 
 各模型的像素区间是 2026-08-11 拿真 key 探出来的（发必然 400 的尺寸、读报错文案，零成本）：
 
 | 模型 | 最小像素 | 最大像素 |
 |---|---|---|
-| `doubao-seedream-4-0-250828` | 921,600 | 16,777,216 |
+| `doubao-seedream-4-0-20260415` | 921,600 | 16,777,216 |
+| `doubao-seedream-4-0-250828` ⚠11-24 下线 | 921,600 | 16,777,216 |
 | `doubao-seedream-4-5-251128` | 3,686,400 | 16,777,216 |
 | `doubao-seedream-5-0-260128` ⚠仅老客户端 | 3,686,400 | —（未探） |
 | `doubao-seedream-5-0-pro-260628` | 921,600 | 4,624,220 |
@@ -2378,6 +2411,30 @@ V2 这条链路**花两次真钱**，报价页必须**两笔都写明**，不许
 
 ⚠ 以上单价取自方舟公开价目（2026-08-11 核对），**尚未与控制台账单对过**。
 **真实结算一律以控制台账单为准**；发现偏差改两仓的价目表（下面那条测试会红）。
+
+### 出图模型下线与改发（方舟第十批，2026-11-24 14:00 北京时间）
+
+方舟这一批停服的出图型号：`doubao-seedream-4-0-250828`（速写）、`doubao-seedream-4-5-251128`（定妆）、`doubao-seedream-5-0-260128`（5.0 lite，只有很老的包还在发）。
+视频那两个（Seedance 1.0 pro / pro fast，极速 / 标准档）另有处理：服务端 13:00 起整句拒 `MODEL_RETIRED`，2.62 起 App 藏掉那两档 —— 不在这一节。
+
+**服务端只在转发给方舟的那一刻改型号**（2026-10-10 主人拍板）。白名单、计价、免费档门禁、流水**照旧认请求里那个 id** ——
+老包报多少就收多少，「报价 = 实收」对它们逐分不变：
+
+| 请求里的 `model` | 改发成 | 从什么时候起 | 组图（`/image-groups`）改发成 |
+|---|---|---|---|
+| `doubao-seedream-4-0-250828` | `doubao-seedream-4-0-20260415` | 部署即生效（10-10 付费验过：写实人脸的图生图照收，卡面 1728×2304、竖屏帧 1440×2560 都出得来，像素窗口 921,600~16,777,216） | `doubao-seedream-4-0-20260415` |
+| `doubao-seedream-4-5-251128` | `doubao-seedream-5-0-pro-260628` | 2026-11-24 13:00（+08:00）；之前照发 4.5 | `doubao-seedream-4-0-20260415`（5.0 pro 出不了组图） |
+| `doubao-seedream-5-0-260128` | `doubao-seedream-4-0-20260415` | 2026-11-24 13:00（+08:00） | （不收组图） |
+
+- **回滚开关**：服务端环境变量 `ARK_IMAGE_ALIAS=off` = 一个都不改发（原样转发请求里的 id）。
+- **2.63 起的 App 自己就发新型号**（速写 = `4-0-20260415`，精绘 = 5.0 pro，组图 = `4-0-20260415`），改发对它是空操作。
+  ⚠ 所以**服务端先部署**（白名单里要先有 `4-0-20260415`），再发 2.63 —— 反过来的话，2.63 在老服务端上出图整条 400 `model not allowed`
+  （App 会说「出图模型用不了了，请更新 App」，而那时它已经是最新的）。
+- App 侧的人话：出图被拒（`/images/generations` 与组图受理）不再是一截 `Ark /images/generations 400: {…}`，而是按码说的一句话
+  （`arkClient.imageRefusalError`）；「这个模型用不了」（我们服务端白名单那句 `{ ok:false, message:"model not allowed" }` —— **不带 code**，
+  这是现行形态、不是老服务端的遗留；`MODEL_RETIRED` 今天只有视频那条路回；方舟的 `InvalidEndpointOrModel.*` / `ModelNotOpen` …，
+  判据只在 `arkClient.modelGoneCode`）一律说「请把 App 更新到最新版」。⚠ 服务端没有 `MODEL_NOT_ALLOWED` 这个码，别照着它把判据收拾成只认码。
+  错误**类型**不变（仍是 `ArkHttpError`），钱上的判定（`ai/failCharge`：服务端明说失败 = 没扣）不变。
 
 状态码约定（客户端据此决策，见 `app/src/ai/arkClient.ts`）：
 
@@ -2512,7 +2569,7 @@ App `src/data/economy.ts` 是**报价**口径。不一致的后果是"报价 216
 | 出图单价 | `IMAGE_TOKENS_BY_MODEL` | `IMAGE_TOKENS_BY_MODEL` | `arkProxy.spec.js`「跨仓出图价目一致性」 |
 | 套餐 / 直充包 | `PLANS` / `RECHARGE_PACKS` | `PLANS` / `order.service.RECHARGE_PACKS` | `payOrder.spec.js`「跨仓价目一致性」 |
 
-出图那组除了逐条比数，还额外钉了三件事：**三个价互不相同**（证明"真的读了 `model`"，
+出图那组除了逐条比数，还额外钉了三件事：**几个价互不相同**（证明"真的读了 `model`"，
 而不是碰巧等于某一档的常量）、**档位越高越贵**（顺序倒挂 = 用户为更好的图付更少）、
 **兜底不静默**（认不出的模型必须打日志）。
 
@@ -2548,7 +2605,8 @@ App `src/data/economy.ts` 是**报价**口径。不一致的后果是"报价 216
   ② 一组 6 张实测 249 秒、9 张约 6 分钟，同步等必撞 Cloudflare 的 125 秒读超时；③ 非流式要等全部画完才回响应头，Node 自带 fetch 300 秒等不到就断。
   所以：受理 → 服务端后台对方舟走流式（SSE）→ 客户端短轮询，画好一张就多一张。
 - **受理** `POST /api/ark/image-groups`（requireAuth + 生成限流桶）请求体 `{ model, prompt, image?, size?, max_images }`：
-  `model` 只收 `doubao-seedream-4-0-250828` / `doubao-seedream-4-5-251128`（5.0 pro 不支持组图；老客户端那一档按老价亏 10%，不放进来乘十几张）；
+  `model` 只收能出组图的型号：`doubao-seedream-4-0-20260415`（2.63 起 App 发的就是它）与老包会发的 `doubao-seedream-4-0-250828` / `doubao-seedream-4-5-251128`
+  （这两个在出口改发成 `4-0-20260415`，见上「出图模型下线与改发」；5.0 pro 不支持组图；5.0 lite 不收）。App 发出去之前也问一次（`economy.imageGroupOk`，档位表的 `groupOk`）；
   `image` 是 https 地址或图片 dataURL（单个或数组，≤14 张）；`max_images` 是 1~15 的整数（真数字，`"6"` 也拒），**参考图 + 张数 ≤ 15**（官方上限）；
   `size` 是 `WxH` 或 `1K/2K/4K`，缺省 `2K`。发给方舟的请求体由服务端按白名单重拼（`watermark:false`、`response_format:"url"`、`stream:true`），
   客户端多带的键一个都不出去。参数不对 → 400 `IMAGE_GROUP_PARAMS`；同一个人已经有一组在画 → 409 `IMAGE_GROUP_BUSY`（带那一组的 `id`）；

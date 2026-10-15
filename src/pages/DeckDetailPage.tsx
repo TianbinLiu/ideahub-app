@@ -4,15 +4,16 @@ import { useState } from "react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, useParams } from "react-router";
 import TarotCard from "../components/TarotCard";
 import SocialPanel, { useCountView, useSocialVersion } from "../components/SocialPanel";
 import WorkshopShareBar, { shareBlockReason } from "../components/WorkshopShareBar";
 import { deckCoverOf, isRemoteMode, myCards, myDecks, shareDeck, updateDeck } from "../data/account";
 import { deckFitOf } from "../data/cardFit";
-import { refImgTierList } from "../data/economy";
+import { noRefImgTierList, refImgTierList } from "../data/economy";
 import { formatHeat, heatOf } from "../data/social";
 import { useAccountVersion } from "../hooks/useAccount";
+import { useBackOr } from "../hooks/useBackOr";
 import { CARD_TYPE_LABELS, SHARE_NOTE_MAX, type Card } from "../types";
 
 /**
@@ -40,8 +41,10 @@ function DeckModelFit({ cards }: { cards: Card[] }) {
   const line10 = join([
     n1.text > 0 && t`${n1.text} 张有文字版形象描述`,
     n1.frameOnly > 0 && t`${n1.frameOnly} 张只经由设定帧起作用`,
-    n1.noRealFace > 0 && t`${n1.noRealFace} 张真人卡用不上（这两档不收真人照片）`,
+    n1.noRealFace > 0 && t`${n1.noRealFace} 张真人卡用不上（这几档不收真人照片）`,
   ]);
+  /** 收不到形象图的方舟档（今天是「标准 / 极速」）：停用后是空串，整行不画（与卡片页那一格同一个来源） */
+  const noRefNames = noRefImgTierList();
   const lineReal = join([
     nr.photo > 0 && t`${nr.photo} 张真人卡以照片起拍`,
     nr.startFrames > 0 && t`${nr.startFrames} 张有专门画好的起拍画面`,
@@ -54,7 +57,7 @@ function DeckModelFit({ cards }: { cards: Card[] }) {
       <div className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>🎛 按模型适配</Trans></div>
       <ul className="space-y-0.5 text-[10px] leading-relaxed text-slate-400">
         <li><Trans>{refImgTierList()}：{line2x}</Trans></li>
-        <li><Trans>标准 / 极速：{line10}</Trans></li>
+        {noRefNames && <li><Trans>{noRefNames}：{line10}</Trans></li>}
         <li><Trans>真人档：{lineReal}</Trans></li>
       </ul>
       <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
@@ -68,7 +71,8 @@ export default function DeckDetailPage() {
   useAccountVersion();
   useSocialVersion(); // 热度到货后重渲染（服务端计数是懒加载的）
   const { id } = useParams();
-  const nav = useNavigate();
+  // 从工坊 / 「我的」点进来；深链冷启动没有上一页时退回工坊（卡组住在那儿）
+  const back = useBackOr("/workshop");
   const [editing, setEditing] = useState(false);
   useCountView("deck", id);
   const { t } = useLingui();
@@ -88,7 +92,7 @@ export default function DeckDetailPage() {
   return (
     <div className="min-h-full px-4 pb-10">
       <PageHeader sticky inset
-        onBack={() => nav(-1)}
+        onBack={back}
         title={t`卡组详情`}
         right={
           <button

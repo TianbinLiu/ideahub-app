@@ -430,7 +430,7 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
   const [reading, setReading] = useState(false);
   const [err, setErr] = useState("");
   const [preview, setPreview] = useState<Card[] | null>(null);
-  // 出图档位（速写/定妆/精绘）。★ 默认值只能来自 DEFAULT_IMAGE_TIER —— 这里写死
+  // 出图档位（速写/精绘；「定妆」2.63 撤了，见 economy.IMAGE_TIERS 的 ★★）。★ 默认值只能来自 DEFAULT_IMAGE_TIER —— 这里写死
   // "sketch" 就是第二处默认值，改档位表时它不会跟着动，而且一点不报错
   const [tierId, setTierId] = useState<string>(DEFAULT_IMAGE_TIER);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -709,7 +709,7 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
                       : t`每张卡最多 ${maxSlots} 张图 —— 卡种交给铸卡师判，这里先按最贵的${CARD_TYPE_LABELS[dearest]}报价；少画的那张不会去调出图，也就不计费`}
                   </p>
                   {/* ★ 把**真正会被调用的那个模型**写出来（与工作流「本段模型」同一做法）：
-                      「速写/定妆/精绘」只说了档次，没说这一炉交给谁去画，而不同世代的
+                      「速写/精绘」只说了档次，没说这一炉交给谁去画，而不同世代的
                       Seedream 观感与耗时差很多（顶档实测一张 70 秒以上）。
                       名字由 modelLabel 从 id 推导，与真正发出去的 id 同源；title 给完整 id */}
                   <div className="text-[10px] text-slate-500" title={tier.model}>

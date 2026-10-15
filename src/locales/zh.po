@@ -320,12 +320,12 @@ msgid "· 共 {total} 步"
 msgstr "· 共 {total} 步"
 
 #: src/pages/CardDetailPage.tsx
-msgid "· 出片时会喂给 AI（同一段挂的卡多时可能让位）"
-msgstr "· 出片时会喂给 AI（同一段挂的卡多时可能让位）"
+#~ msgid "· 出片时会喂给 AI（同一段挂的卡多时可能让位）"
+#~ msgstr "· 出片时会喂给 AI（同一段挂的卡多时可能让位）"
 
 #: src/pages/CardDetailPage.tsx
-msgid "· 只在这一页展示，出片用不到"
-msgstr "· 只在这一页展示，出片用不到"
+#~ msgid "· 只在这一页展示，出片用不到"
+#~ msgstr "· 只在这一页展示，出片用不到"
 
 #: src/components/cut/AutoEditSheet.tsx
 msgid "· 在确实换了场的地方加「闪黑」，接着上一段拍的地方不加"
@@ -410,6 +410,14 @@ msgstr "· 素材：没有（跳过了）"
 #: src/components/cut/AutoEditSheet.tsx
 msgid "· 给时间轴上的每个片段写一句旁白，同时当字幕"
 msgstr "· 给时间轴上的每个片段写一句旁白，同时当字幕"
+
+#: src/pages/CardDetailPage.tsx
+msgid "· 补画设定帧那一步会喂给 AI（同一段挂的卡多时可能让位）"
+msgstr "· 补画设定帧那一步会喂给 AI（同一段挂的卡多时可能让位）"
+
+#: src/pages/CardDetailPage.tsx
+msgid "· 补画设定帧那一步用不到；收参考图的档位按协议上限各卡轮着带"
+msgstr "· 补画设定帧那一步用不到；收参考图的档位按协议上限各卡轮着带"
 
 #: src/pages/SettingsDeactivatePage.tsx
 msgid "· 账号里的 token 余额、已购内容与已发布作品都将一并无法使用。"
@@ -837,8 +845,13 @@ msgstr "{0} 张真人卡以照片起拍"
 
 #. placeholder {0}: n1.noRealFace
 #: src/pages/DeckDetailPage.tsx
-msgid "{0} 张真人卡用不上（这两档不收真人照片）"
-msgstr "{0} 张真人卡用不上（这两档不收真人照片）"
+#~ msgid "{0} 张真人卡用不上（这两档不收真人照片）"
+#~ msgstr "{0} 张真人卡用不上（这两档不收真人照片）"
+
+#. placeholder {0}: n1.noRealFace
+#: src/pages/DeckDetailPage.tsx
+msgid "{0} 张真人卡用不上（这几档不收真人照片）"
+msgstr "{0} 张真人卡用不上（这几档不收真人照片）"
 
 #. placeholder {0}: n2.needAsset
 #: src/pages/DeckDetailPage.tsx
@@ -1350,8 +1363,12 @@ msgid "{names}只带上了第 1 张形象图（预算 {budget} 张已满），�
 msgstr "{names}只带上了第 1 张形象图（预算 {budget} 张已满），它们按第 1 张参与"
 
 #: src/studio/segmentGen.ts
-msgid "{names}在这一档收不到形象图（设定帧只画得进第一张人物卡、一共 3 张图），只按出片句参与——去卡片页勾「标准/极速适用」补一段文字版形象描述"
-msgstr "{names}在这一档收不到形象图（设定帧只画得进第一张人物卡、一共 3 张图），只按出片句参与——去卡片页勾「标准/极速适用」补一段文字版形象描述"
+msgid "{names}在这一档收不到形象图（设定帧只画得进第一张人物卡、一共 {MAX_REF_IMAGES} 张图），只按出片句参与——去卡片页勾「文字版形象描述」补一段"
+msgstr "{names}在这一档收不到形象图（设定帧只画得进第一张人物卡、一共 {MAX_REF_IMAGES} 张图），只按出片句参与——去卡片页勾「文字版形象描述」补一段"
+
+#: src/studio/segmentGen.ts
+#~ msgid "{names}在这一档收不到形象图（设定帧只画得进第一张人物卡、一共 3 张图），只按出片句参与——去卡片页勾「标准/极速适用」补一段文字版形象描述"
+#~ msgstr "{names}在这一档收不到形象图（设定帧只画得进第一张人物卡、一共 3 张图），只按出片句参与——去卡片页勾「标准/极速适用」补一段文字版形象描述"
 
 #: src/data/economy.ts
 #~ msgid "{names}是声明过的真人素材，「{label}」档的供应商拒收真人照片（实测名人按版权拦、普通人按隐私拦，整发被拒）——换成「{hdTier}」「{ultraTier}」档并给这张卡做肖像授权，或换「{realTier}」档，或先把真人卡取下"
@@ -1412,6 +1429,11 @@ msgstr "{names}还有参考图没带上（预算 {budget} 张已被更要紧的�
 #: src/pages/CustomCardPage.tsx
 msgid "{nextLabel}没有「{goneNames}」这一格，你传的那张已经取下来了——需要的话换回{curLabel}再传一次。"
 msgstr "{nextLabel}没有「{goneNames}」这一格，你传的那张已经取下来了——需要的话换回{curLabel}再传一次。"
+
+#: src/components/CardModelFit.tsx
+#: src/pages/DeckDetailPage.tsx
+msgid "{noRefNames}：{line10}"
+msgstr "{noRefNames}：{line10}"
 
 #: src/components/flow/DialogueWizard.tsx
 msgid "{noVoice} 没有声音样本：每一段的嗓音由模型定，前后可能不一样。"
@@ -2648,6 +2670,7 @@ msgstr "♻ 重新推演三套（{0}）"
 
 #. placeholder {0}: fmtTokens(cost)
 #: src/pages/FlowPage.tsx
+#: src/pages/SimpleModePage.tsx
 msgid "♻ 重新生成（{0}）"
 msgstr "♻ 重新生成（{0}）"
 
@@ -3266,6 +3289,10 @@ msgstr "🎬 传一段示例视频当整段参考（多图+参考视频模式）
 #: src/pages/CardDetailPage.tsx
 msgid "🎬 去 3D 工坊用这张卡创作"
 msgstr "🎬 去 3D 工坊用这张卡创作"
+
+#: src/pages/SimpleModePage.tsx
+msgid "🎬 去剪辑 ›"
+msgstr "🎬 去剪辑 ›"
 
 #. placeholder {0}: node.customRef.durationSec.toFixed(1)
 #. placeholder {1}: Math.round(node.customRef.durationSec)
@@ -4474,6 +4501,10 @@ msgstr "三种走向推演完毕，但有 {degraded} 个方案的首尾帧没画
 msgid "三种走向推演完毕，已经投影在你面前——点开看看各自的首尾帧和剧情，选定一个。"
 msgstr "三种走向推演完毕，已经投影在你面前——点开看看各自的首尾帧和剧情，选定一个。"
 
+#: src/studio/studioStore.ts
+msgid "三种走向的剧情推演好了，但首尾帧一张都没画出来：{framesGone}。剧情先留着，点开看看。"
+msgstr "三种走向的剧情推演好了，但首尾帧一张都没画出来：{framesGone}。剧情先留着，点开看看。"
+
 #. placeholder {0}: pv.lateSec.toFixed(1)
 #: src/pages/CutPage.tsx
 msgid "上一句还没念完，这一句晚 {0} 秒开始。"
@@ -4514,6 +4545,10 @@ msgstr "上一段"
 #: src/studio/studioStore.ts
 msgid "上一炉还在推演，等它出炉再开新的。"
 msgstr "上一炉还在推演，等它出炉再开新的。"
+
+#: src/studio/studioStore.ts
+msgid "上一炉还在炼，等它出炉再炼下一段。"
+msgstr "上一炉还在炼，等它出炉再炼下一段。"
 
 #: src/studio/studioStore.ts
 msgid "上一炉还在炼，等它出炉再说"
@@ -4936,6 +4971,10 @@ msgstr "下下来的大小对不上（{gotSize} / 应为 {wantSize}），这一�
 #: src/data/videoDownload.ts
 msgid "下下来的文件不见了，这一次没算数。再点一次。"
 msgstr "下下来的文件不见了，这一次没算数。再点一次。"
+
+#: src/components/UpdateSheet.tsx
+msgid "下不动、装不上？在浏览器里打开官网下载页"
+msgstr "下不动、装不上？在浏览器里打开官网下载页"
 
 #: src/pages/ProfilePage.tsx
 msgid "下单失败"
@@ -5915,8 +5954,12 @@ msgid "余额 {amount}"
 msgstr "余额 {amount}"
 
 #: src/studio/canvasAgent.ts
-msgid "余额不够 AI 指挥（400/句）。"
-msgstr "余额不够 AI 指挥（400/句）。"
+msgid "余额不够 AI 指挥（{perTurn}/句）。"
+msgstr "余额不够 AI 指挥（{perTurn}/句）。"
+
+#: src/studio/canvasAgent.ts
+#~ msgid "余额不够 AI 指挥（400/句）。"
+#~ msgstr "余额不够 AI 指挥（400/句）。"
 
 #. placeholder {0}: fmtTokens(ONE_IMAGE)
 #: src/components/CoverPicker.tsx
@@ -6058,6 +6101,10 @@ msgstr "你已经举报过这一条了，管理员还在处理"
 msgid "你已经拿到过 {count} 次，共 {earned} token。"
 msgstr "你已经拿到过 {count} 次，共 {earned} token。"
 
+#: src/components/UpdateSheet.tsx
+msgid "你手上这一版已经停止支持了，更新之后才能接着用。"
+msgstr "你手上这一版已经停止支持了，更新之后才能接着用。"
+
 #: src/studio/cutAutoEdit.ts
 #: src/studio/structuredSkills.ts
 msgid "你来点头"
@@ -6087,6 +6134,10 @@ msgstr "你的账号不是管理员。权限由服务端保管，改不了本地
 #: src/pages/SettingsPage.tsx
 msgid "你的账号是管理员：AI 生成走的是免扣费通道，消耗不从钱包里扣。"
 msgstr "你的账号是管理员：AI 生成走的是免扣费通道，消耗不从钱包里扣。"
+
+#: src/hooks/useFlowActions.ts
+msgid "你还有一条剪到一半的成片（那几段都是花过 token 出的）。先去「我的」把它剪完发出去，或在那条横幅上丢掉它，再来组这一条 —— 直接组会把它顶掉。"
+msgstr "你还有一条剪到一半的成片（那几段都是花过 token 出的）。先去「我的」把它剪完发出去，或在那条横幅上丢掉它，再来组这一条 —— 直接组会把它顶掉。"
 
 #: src/hooks/useFlowActions.ts
 msgid "你还有一条剪到一半的成片（里面的卡组已经铸好、花过 token 了）。先去「我的」把它剪完发出去，或在那条横幅上丢掉它，再来组这一条 —— 直接组会把它顶掉。"
@@ -7343,6 +7394,26 @@ msgstr "凭链接可见"
 msgid "凭链接可见：不进首页和搜索，但<0>拿到链接的人都能看，也能转给别人</0>。"
 msgstr "凭链接可见：不进首页和搜索，但<0>拿到链接的人都能看，也能转给别人</0>。"
 
+#: src/ai/arkClient.ts
+msgid "出图模型 {label} 出不了组图，这是 App 的配置问题——请把 App 更新到最新版再试（这一次没有发出去）"
+msgstr "出图模型 {label} 出不了组图，这是 App 的配置问题——请把 App 更新到最新版再试（这一次没有发出去）"
+
+#: src/ai/arkClient.ts
+msgid "出图模型已停用，请更新 App"
+msgstr "出图模型已停用，请更新 App"
+
+#: src/ai/arkClient.ts
+msgid "出图用的模型（{label}）现在用不了了，多半是已经停用——请把 App 更新到最新版再试；已经是最新版的话，过一会儿再试"
+msgstr "出图用的模型（{label}）现在用不了了，多半是已经停用——请把 App 更新到最新版再试；已经是最新版的话，过一会儿再试"
+
+#: src/ai/arkClient.ts
+msgid "出图请求没被受理（服务器返回 {status}：{up}）"
+msgstr "出图请求没被受理（服务器返回 {status}：{up}）"
+
+#: src/ai/arkClient.ts
+msgid "出图请求没被受理（服务器返回 {status}）"
+msgstr "出图请求没被受理（服务器返回 {status}）"
+
 #: src/components/flow/LeadShotsWizard.tsx
 msgid "出场：{leadName}（主角）"
 msgstr "出场：{leadName}（主角）"
@@ -7435,8 +7506,8 @@ msgstr "出片时<0>不是每张都会喂进模型</0>——详情页会逐张�
 #~ msgstr "出片时<0>不是每张都会喂进模型</0>——详情页会逐张标出「出片用 / 仅展示」，那里是唯一的判据。"
 
 #: src/pages/CardDetailPage.tsx
-msgid "出片时一段里只有「第一张人物卡」能带形象参考图：先取 {MAX_CHAR_REFS} 张（优先{face} + {body}），标成「出片用」的第 3 张要等同段每张卡都拿到第 1 张之后，预算还有余才补得上；同一段里的其余人物卡一张都不带，只按文字设定参与——一张图里画多个角色会被方舟整条拒掉。所以上面的「出片用」是按\"这张卡就是那第一张人物卡\"标的：它排在别的人物卡后面时，标着出片用的那几张同样进不了模型（生成步骤里会点名说明）。（两条不画设定帧的路是例外——白模模板挂卡、简约模式的参考图直出：每张人物卡都各带自己的形象图。）{detail}这一格铸卡不会自动出图，只能自己传。"
-msgstr "出片时一段里只有「第一张人物卡」能带形象参考图：先取 {MAX_CHAR_REFS} 张（优先{face} + {body}），标成「出片用」的第 3 张要等同段每张卡都拿到第 1 张之后，预算还有余才补得上；同一段里的其余人物卡一张都不带，只按文字设定参与——一张图里画多个角色会被方舟整条拒掉。所以上面的「出片用」是按\"这张卡就是那第一张人物卡\"标的：它排在别的人物卡后面时，标着出片用的那几张同样进不了模型（生成步骤里会点名说明）。（两条不画设定帧的路是例外——白模模板挂卡、简约模式的参考图直出：每张人物卡都各带自己的形象图。）{detail}这一格铸卡不会自动出图，只能自己传。"
+#~ msgid "出片时一段里只有「第一张人物卡」能带形象参考图：先取 {MAX_CHAR_REFS} 张（优先{face} + {body}），标成「出片用」的第 3 张要等同段每张卡都拿到第 1 张之后，预算还有余才补得上；同一段里的其余人物卡一张都不带，只按文字设定参与——一张图里画多个角色会被方舟整条拒掉。所以上面的「出片用」是按\"这张卡就是那第一张人物卡\"标的：它排在别的人物卡后面时，标着出片用的那几张同样进不了模型（生成步骤里会点名说明）。（两条不画设定帧的路是例外——白模模板挂卡、简约模式的参考图直出：每张人物卡都各带自己的形象图。）{detail}这一格铸卡不会自动出图，只能自己传。"
+#~ msgstr "出片时一段里只有「第一张人物卡」能带形象参考图：先取 {MAX_CHAR_REFS} 张（优先{face} + {body}），标成「出片用」的第 3 张要等同段每张卡都拿到第 1 张之后，预算还有余才补得上；同一段里的其余人物卡一张都不带，只按文字设定参与——一张图里画多个角色会被方舟整条拒掉。所以上面的「出片用」是按\"这张卡就是那第一张人物卡\"标的：它排在别的人物卡后面时，标着出片用的那几张同样进不了模型（生成步骤里会点名说明）。（两条不画设定帧的路是例外——白模模板挂卡、简约模式的参考图直出：每张人物卡都各带自己的形象图。）{detail}这一格铸卡不会自动出图，只能自己传。"
 
 #: src/pages/CardDetailPage.tsx
 #~ msgid "出片时一段里只有「第一张人物卡」能带形象参考图：它最多取 {MAX_CHAR_REFS} 张（优先{face} + {body}）；同一段里的其余人物卡一张都不带，只按文字设定参与——一张图里画多个角色会被方舟整条拒掉。所以上面的「出片用」是按\"这张卡就是那第一张人物卡\"标的：它排在别的人物卡后面时，标着出片用的那几张同样进不了模型（生成步骤里会点名说明）。（两条不画设定帧的路是例外——白模模板挂卡、简约模式的参考图直出：每张人物卡都各带自己的形象图。）{detail}这一格铸卡不会自动出图（只能自己传），三张挂满时它也排在最后，出片轮不到它。"
@@ -7448,12 +7519,16 @@ msgid "出片时提示词里代表这张卡的固定一句（逐段复用同一�
 msgstr "出片时提示词里代表这张卡的固定一句（逐段复用同一措辞，形象更稳）。长设定进画面靠上面的参考图与{0}，不直接塞进视频提示词。"
 
 #: src/pages/CardDetailPage.tsx
-msgid "出片时这类卡先保证第 1 张（{first}）喂给 AI；同一段里参考图总共最多 {MAX_REF_IMAGES} 张，预算还有余才一轮一轮地轮到第 2、第 3 张 —— 也就是同段挂的卡越少，它越可能真的进模型。预算不够时「先被丢的就是各卡靠后的那几张」，卡再多下去整张卡都会带不上（两种情况生成步骤里都会逐张点名）。（白模挂卡与简约参考图直出那两条路更宽：参考图直接进视频模型，上限按所选档位的协议走。）"
-msgstr "出片时这类卡先保证第 1 张（{first}）喂给 AI；同一段里参考图总共最多 {MAX_REF_IMAGES} 张，预算还有余才一轮一轮地轮到第 2、第 3 张 —— 也就是同段挂的卡越少，它越可能真的进模型。预算不够时「先被丢的就是各卡靠后的那几张」，卡再多下去整张卡都会带不上（两种情况生成步骤里都会逐张点名）。（白模挂卡与简约参考图直出那两条路更宽：参考图直接进视频模型，上限按所选档位的协议走。）"
+#~ msgid "出片时这类卡先保证第 1 张（{first}）喂给 AI；同一段里参考图总共最多 {MAX_REF_IMAGES} 张，预算还有余才一轮一轮地轮到第 2、第 3 张 —— 也就是同段挂的卡越少，它越可能真的进模型。预算不够时「先被丢的就是各卡靠后的那几张」，卡再多下去整张卡都会带不上（两种情况生成步骤里都会逐张点名）。（白模挂卡与简约参考图直出那两条路更宽：参考图直接进视频模型，上限按所选档位的协议走。）"
+#~ msgstr "出片时这类卡先保证第 1 张（{first}）喂给 AI；同一段里参考图总共最多 {MAX_REF_IMAGES} 张，预算还有余才一轮一轮地轮到第 2、第 3 张 —— 也就是同段挂的卡越少，它越可能真的进模型。预算不够时「先被丢的就是各卡靠后的那几张」，卡再多下去整张卡都会带不上（两种情况生成步骤里都会逐张点名）。（白模挂卡与简约参考图直出那两条路更宽：参考图直接进视频模型，上限按所选档位的协议走。）"
 
 #: src/pages/CardDetailPage.tsx
 #~ msgid "出片时这类卡先保证第 1 张（{first}）喂给 AI；同一段里参考图总共最多 {MAX_REF_IMAGES} 张，预算还有余才轮得到第 2 张 —— 也就是同段挂的卡越少，它越可能真的进模型。预算不够时「先被丢的就是各卡的第 2 张」，卡再多下去整张卡都会带不上（两种情况生成步骤里都会逐张点名）。（白模挂卡与简约参考图直出那两条路更宽：参考图直接进视频模型，上限按所选档位的协议走。）"
 #~ msgstr "出片时这类卡先保证第 1 张（{first}）喂给 AI；同一段里参考图总共最多 {MAX_REF_IMAGES} 张，预算还有余才轮得到第 2 张 —— 也就是同段挂的卡越少，它越可能真的进模型。预算不够时「先被丢的就是各卡的第 2 张」，卡再多下去整张卡都会带不上（两种情况生成步骤里都会逐张点名）。（白模挂卡与简约参考图直出那两条路更宽：参考图直接进视频模型，上限按所选档位的协议走。）"
+
+#: src/pages/CardDetailPage.tsx
+msgid "出片时这类卡先保证第 1 张（{first}）喂给 AI。出片前补画设定帧那一步（以及收不到参考图的档位）：同一段里参考图总共最多 {MAX_REF_IMAGES} 张，预算还有余才一轮一轮地轮到第 2、第 3 张 —— 同段挂的卡越少，它越可能真的进模型；预算不够时先被丢的是各卡靠后的那几张，卡再多下去整张卡都会带不上（生成步骤里会逐张点名）。收参考图的档位（{tiers}）与白模挂卡：参考图直接进视频模型，各卡一张一张轮着带，上限按所选档位的协议走。"
+msgstr "出片时这类卡先保证第 1 张（{first}）喂给 AI。出片前补画设定帧那一步（以及收不到参考图的档位）：同一段里参考图总共最多 {MAX_REF_IMAGES} 张，预算还有余才一轮一轮地轮到第 2、第 3 张 —— 同段挂的卡越少，它越可能真的进模型；预算不够时先被丢的是各卡靠后的那几张，卡再多下去整张卡都会带不上（生成步骤里会逐张点名）。收参考图的档位（{tiers}）与白模挂卡：参考图直接进视频模型，各卡一张一张轮着带，上限按所选档位的协议走。"
 
 #: src/components/TemplateShelf.tsx
 #: src/pages/TemplateDetailPage.tsx
@@ -8730,6 +8805,10 @@ msgstr "参考图直出要收参考图的模型（「{refImgList}」）"
 #~ msgid "参考图直出要收参考图的模型（高清 / 电影级）"
 #~ msgstr "参考图直出要收参考图的模型（高清 / 电影级）"
 
+#: src/ai/arkClient.ts
+msgid "参考图里可能有真人，被方舟拒了"
+msgstr "参考图里可能有真人，被方舟拒了"
+
 #: src/types.ts
 #~ msgid "参考图预算还有余时才轮到它"
 #~ msgstr "参考图预算还有余时才轮到它"
@@ -9495,8 +9574,12 @@ msgid "右上角可以直接去发布。想再改片段、圈选或配乐，就�
 msgstr "右上角可以直接去发布。想再改片段、圈选或配乐，就回到合并之前接着剪——原来的时间轴都还在，改完重新合一次（合成不花钱）。"
 
 #: src/pages/CutPage.tsx
-msgid "右上角可以直接去发布。这条成片没有留下合并之前的片段（它是旧版本合的），要改只能回工作流重做一条。"
-msgstr "右上角可以直接去发布。这条成片没有留下合并之前的片段（它是旧版本合的），要改只能回工作流重做一条。"
+msgid "右上角可以直接去发布。这条成片没有留下合并之前的片段（它是旧版本合的），要改只能回「我的 → 草稿」打开草稿重做一条（简约模式没有草稿，只能重新创作）。"
+msgstr "右上角可以直接去发布。这条成片没有留下合并之前的片段（它是旧版本合的），要改只能回「我的 → 草稿」打开草稿重做一条（简约模式没有草稿，只能重新创作）。"
+
+#: src/pages/CutPage.tsx
+#~ msgid "右上角可以直接去发布。这条成片没有留下合并之前的片段（它是旧版本合的），要改只能回工作流重做一条。"
+#~ msgstr "右上角可以直接去发布。这条成片没有留下合并之前的片段（它是旧版本合的），要改只能回工作流重做一条。"
 
 #: src/components/guide/tours.tsx
 msgid "右上角是终点"
@@ -9544,8 +9627,12 @@ msgid "合并失败：{raw}"
 msgstr "合并失败：{raw}"
 
 #: src/pages/CutPage.tsx
-msgid "合并失败：第 {segList} 段的视频取不到了（HTTP {http}）。这几段揣的还是方舟的临时链接、当初没能转存成永久地址，而那种链接只活 24 小时——过期之后合成器也拉不到。这条片子现在合不了：回工作流把这几段重新出片（会再花一次钱），或者删掉它们再合。"
-msgstr "合并失败：第 {segList} 段的视频取不到了（HTTP {http}）。这几段揣的还是方舟的临时链接、当初没能转存成永久地址，而那种链接只活 24 小时——过期之后合成器也拉不到。这条片子现在合不了：回工作流把这几段重新出片（会再花一次钱），或者删掉它们再合。"
+msgid "合并失败：第 {segList} 段的视频取不到了（HTTP {http}）。这几段揣的还是方舟的临时链接、当初没能转存成永久地址，而那种链接只活 24 小时——过期之后合成器也拉不到。这条片子现在合不了：回「我的 → 草稿」打开草稿把这几段重新出片（会再花一次钱），或者删掉它们再合。"
+msgstr "合并失败：第 {segList} 段的视频取不到了（HTTP {http}）。这几段揣的还是方舟的临时链接、当初没能转存成永久地址，而那种链接只活 24 小时——过期之后合成器也拉不到。这条片子现在合不了：回「我的 → 草稿」打开草稿把这几段重新出片（会再花一次钱），或者删掉它们再合。"
+
+#: src/pages/CutPage.tsx
+#~ msgid "合并失败：第 {segList} 段的视频取不到了（HTTP {http}）。这几段揣的还是方舟的临时链接、当初没能转存成永久地址，而那种链接只活 24 小时——过期之后合成器也拉不到。这条片子现在合不了：回工作流把这几段重新出片（会再花一次钱），或者删掉它们再合。"
+#~ msgstr "合并失败：第 {segList} 段的视频取不到了（HTTP {http}）。这几段揣的还是方舟的临时链接、当初没能转存成永久地址，而那种链接只活 24 小时——过期之后合成器也拉不到。这条片子现在合不了：回工作流把这几段重新出片（会再花一次钱），或者删掉它们再合。"
 
 #: src/pages/CutPage.tsx
 msgid "合并时混进成片，短于成片会自动循环。"
@@ -9657,8 +9744,8 @@ msgid "同时上架到模板市场（工作流模板）"
 msgstr "同时上架到模板市场（工作流模板）"
 
 #: src/data/economy.ts
-msgid "同样 2 张，换最新旗舰模型来画 · 形象更准、细节更实，出图较慢"
-msgstr "同样 2 张，换最新旗舰模型来画 · 形象更准、细节更实，出图较慢"
+#~ msgid "同样 2 张，换最新旗舰模型来画 · 形象更准、细节更实，出图较慢"
+#~ msgstr "同样 2 张，换最新旗舰模型来画 · 形象更准、细节更实，出图较慢"
 
 #: src/components/flow/RefStrip.tsx
 #: src/pages/SupportModelNewPage.tsx
@@ -10604,9 +10691,13 @@ msgstr "官方形象读不到（这台服务器可能还没有）。"
 msgid "官方技能"
 msgstr "官方技能"
 
+#: src/components/UpdateSheet.tsx
+msgid "官网也下不动？从 GitHub 下载这一版（备用，国内网络可能打不开）"
+msgstr "官网也下不动？从 GitHub 下载这一版（备用，国内网络可能打不开）"
+
 #: src/data/economy.ts
-msgid "定妆"
-msgstr "定妆"
+#~ msgid "定妆"
+#~ msgstr "定妆"
 
 #. placeholder {0}: prop.plot.trim().slice(0, 20) || prop.title
 #: src/studio/flowStore.ts
@@ -13958,6 +14049,10 @@ msgstr "收入我的卡组"
 msgid "收到，让我看看成色……（炉火升起）"
 msgstr "收到，让我看看成色……（炉火升起）"
 
+#: src/pages/CardDetailPage.tsx
+msgid "收参考图的档位（{tiers}）与白模模板挂卡：每张人物卡都各带自己的形象图（先每卡 1 张，预算有余再补第 2 张；一段最多几张按所选档位的协议走）。出片前补画设定帧那一步（以及收不到参考图的档位）：一段里只有「第一张人物卡」能带形象参考图——先取 {MAX_CHAR_REFS} 张（优先{face} + {body}），标成「出片用」的第 3 张要等同段每张卡都拿到第 1 张之后，预算还有余才补得上；其余人物卡在那一步只按文字设定参与（画帧的出图模型只吃第一个人物的图）。所以上面的「出片用 / 仅展示」是按补画设定帧那一步、按\"这张卡就是那第一张人物卡\"标的：它排在别的人物卡后面时，标着出片用的那几张在那一步同样进不了模型（生成步骤里会点名说明）。{detail}这一格铸卡不会自动出图，只能自己传。"
+msgstr "收参考图的档位（{tiers}）与白模模板挂卡：每张人物卡都各带自己的形象图（先每卡 1 张，预算有余再补第 2 张；一段最多几张按所选档位的协议走）。出片前补画设定帧那一步（以及收不到参考图的档位）：一段里只有「第一张人物卡」能带形象参考图——先取 {MAX_CHAR_REFS} 张（优先{face} + {body}），标成「出片用」的第 3 张要等同段每张卡都拿到第 1 张之后，预算还有余才补得上；其余人物卡在那一步只按文字设定参与（画帧的出图模型只吃第一个人物的图）。所以上面的「出片用 / 仅展示」是按补画设定帧那一步、按\"这张卡就是那第一张人物卡\"标的：它排在别的人物卡后面时，标着出片用的那几张在那一步同样进不了模型（生成步骤里会点名说明）。{detail}这一格铸卡不会自动出图，只能自己传。"
+
 #: src/pages/VideoPage.tsx
 msgid "收取中…"
 msgstr "收取中…"
@@ -14336,6 +14431,14 @@ msgstr "文件格式：{0}"
 #: src/studio/ui/NpcDialog.tsx
 msgid "文字描述"
 msgstr "文字描述"
+
+#: src/components/CardModelFit.tsx
+msgid "文字版形象描述（{noRefNames}、真人档用）"
+msgstr "文字版形象描述（{noRefNames}、真人档用）"
+
+#: src/components/CardModelFit.tsx
+msgid "文字版形象描述（收不到形象图时用）"
+msgstr "文字版形象描述（收不到形象图时用）"
 
 #: src/ai/arkClient.ts
 msgid "文生视频"
@@ -15549,12 +15652,12 @@ msgstr "标准"
 
 #: src/components/CardModelFit.tsx
 #: src/pages/DeckDetailPage.tsx
-msgid "标准 / 极速：{line10}"
-msgstr "标准 / 极速：{line10}"
+#~ msgid "标准 / 极速：{line10}"
+#~ msgstr "标准 / 极速：{line10}"
 
 #: src/components/CardModelFit.tsx
-msgid "标准/极速适用"
-msgstr "标准/极速适用"
+#~ msgid "标准/极速适用"
+#~ msgstr "标准/极速适用"
 
 #: src/data/economy.ts
 msgid "标准套餐"
@@ -17057,6 +17160,10 @@ msgstr "没能开始播放：{0}"
 msgid "没能打开{app}的授权页。确认装的是正式版{app}并且版本不太旧，或者用手机号、邮箱登录。"
 msgstr "没能打开{app}的授权页。确认装的是正式版{app}并且版本不太旧，或者用手机号、邮箱登录。"
 
+#: src/components/UpdateSheet.tsx
+msgid "没能打开浏览器。可以手动访问：{linkFailed}"
+msgstr "没能打开浏览器。可以手动访问：{linkFailed}"
+
 #: src/pages/SettingsPage.tsx
 #: src/pages/tutor/TutorHomePage.tsx
 #: src/pages/tutor/TutorNewPage.tsx
@@ -18363,8 +18470,12 @@ msgid "男声"
 msgstr "男声"
 
 #: src/data/economy.ts
-msgid "画 2 张：主图 + 一张参考图，照着主图画同一个对象"
-msgstr "画 2 张：主图 + 一张参考图，照着主图画同一个对象"
+#~ msgid "画 2 张：主图 + 一张参考图，照着主图画同一个对象"
+#~ msgstr "画 2 张：主图 + 一张参考图，照着主图画同一个对象"
+
+#: src/data/economy.ts
+msgid "画 2 张：主图 + 一张参考图，用最新旗舰模型来画 · 形象更准、细节更实，出图较慢"
+msgstr "画 2 张：主图 + 一张参考图，用最新旗舰模型来画 · 形象更准、细节更实，出图较慢"
 
 #: src/studio/dialogueDraftStore.ts
 msgid "画三个机位最多要 {price} token，余额不够——去「我的」页充值"
@@ -18376,8 +18487,13 @@ msgstr "画不出来的包发不了。"
 
 #. placeholder {0}: tierNamesWhere((x) => x.refImg)
 #: src/components/flow/CastPicker.tsx
-msgid "画两张：全身立绘 + 照着它画的面部特写（官方建议的「全身照 + 大头照」）。不画写实照片风：「{0}」档会把写实的人脸当成真人拒收。"
-msgstr "画两张：全身立绘 + 照着它画的面部特写（官方建议的「全身照 + 大头照」）。不画写实照片风：「{0}」档会把写实的人脸当成真人拒收。"
+msgid "画两张：全身立绘 + 照着它画的面部特写（官方建议的「全身照 + 大头照」），用「{leadTier}」档的模型画，两张要几分钟。不画写实照片风：「{0}」档会把写实的人脸当成真人拒收。"
+msgstr "画两张：全身立绘 + 照着它画的面部特写（官方建议的「全身照 + 大头照」），用「{leadTier}」档的模型画，两张要几分钟。不画写实照片风：「{0}」档会把写实的人脸当成真人拒收。"
+
+#. placeholder {0}: tierNamesWhere((x) => x.refImg)
+#: src/components/flow/CastPicker.tsx
+#~ msgid "画两张：全身立绘 + 照着它画的面部特写（官方建议的「全身照 + 大头照」）。不画写实照片风：「{0}」档会把写实的人脸当成真人拒收。"
+#~ msgstr "画两张：全身立绘 + 照着它画的面部特写（官方建议的「全身照 + 大头照」）。不画写实照片风：「{0}」档会把写实的人脸当成真人拒收。"
 
 #: src/components/flow/CastPicker.tsx
 #~ msgid "画两张：全身立绘 + 照着它画的面部特写（官方建议的「全身照 + 大头照」）。不画写实照片风：高清 / 电影级会把写实的人脸当成真人拒收。"
@@ -18394,6 +18510,10 @@ msgstr "画关键帧要 {price} token，余额不够——去「我的」页充�
 #: src/pages/SupportModelNewPage.tsx
 msgid "画出来了。可以摸一摸她、拖一拖看看视线跟不跟手。"
 msgstr "画出来了。可以摸一摸她、拖一拖看看视线跟不跟手。"
+
+#: src/ai/arkClient.ts
+msgid "画出来的图没过方舟的内容审核"
+msgstr "画出来的图没过方舟的内容审核"
 
 #: src/studio/gridDraftStore.ts
 msgid "画到第 {got} 张时断了，画到哪张算哪张"
@@ -18498,6 +18618,10 @@ msgstr "画面没出成：{why}。{moneyLine}"
 #: src/studio/gridDraftStore.ts
 msgid "画面没出成：{why}（一张都没画出来，钱全退了）"
 msgstr "画面没出成：{why}（一张都没画出来，钱全退了）"
+
+#: src/studio/gridDraftStore.ts
+msgid "画面没出成：出图用的模型现在用不了了（多半是已经停用），一张都没画、钱全退了——请把 App 更新到最新版再画"
+msgstr "画面没出成：出图用的模型现在用不了了（多半是已经停用），一张都没画、钱全退了——请把 App 更新到最新版再画"
 
 #: src/studio/gridDraftStore.ts
 msgid "画面没出成：分镜里有内容没过内容审核，一张都没画、钱全退了——改改写法再画"
@@ -18624,8 +18748,12 @@ msgid "留空 = 跟随人格/模型：{0}"
 msgstr "留空 = 跟随人格/模型：{0}"
 
 #: src/studio/ui/projection.tsx
-msgid "留空由 AI 决定；可填 2-{durMax}"
-msgstr "留空由 AI 决定；可填 2-{durMax}"
+msgid "留空由 AI 决定；可填 {durMin}-{durMax}"
+msgstr "留空由 AI 决定；可填 {durMin}-{durMax}"
+
+#: src/studio/ui/projection.tsx
+#~ msgid "留空由 AI 决定；可填 2-{durMax}"
+#~ msgstr "留空由 AI 决定；可填 2-{durMax}"
 
 #: src/studio/ui/projection.tsx
 #~ msgid "留空由 AI 决定；可填 2-15"
@@ -18933,8 +19061,12 @@ msgid "白模那两条路现在开不了（原因见上）。点上面「‹ 换
 msgstr "白模那两条路现在开不了（原因见上）。点上面「‹ 换一种做法」改选「经典配方」仍然可以做模板——它不需要付费套餐，只是不做白模人偶。"
 
 #: src/components/VideoTemplateExtractor.tsx
-msgid "白模那两条路都只走这一档，所以现在还开不了 —— 改选「经典配方」仍然可以做模板，它不需要付费套餐。"
-msgstr "白模那两条路都只走这一档，所以现在还开不了 —— 改选「经典配方」仍然可以做模板，它不需要付费套餐。"
+msgid "白模那两条路都只走这一档，所以现在还开不了 —— 开通会员套餐（或充值过任意一笔）就能用；想把一条片的做法分享给别人，发布作品时公开「制作过程」就行。"
+msgstr "白模那两条路都只走这一档，所以现在还开不了 —— 开通会员套餐（或充值过任意一笔）就能用；想把一条片的做法分享给别人，发布作品时公开「制作过程」就行。"
+
+#: src/components/VideoTemplateExtractor.tsx
+#~ msgid "白模那两条路都只走这一档，所以现在还开不了 —— 改选「经典配方」仍然可以做模板，它不需要付费套餐。"
+#~ msgstr "白模那两条路都只走这一档，所以现在还开不了 —— 改选「经典配方」仍然可以做模板，它不需要付费套餐。"
 
 #: src/components/guide/tours.tsx
 msgid "白模那种模板，出片就是<0>整段复刻这段视频</0>、只把人偶换掉。 下面那行报价把模板视频自己的时长也计了一遍，不是只按出片时长算。"
@@ -18961,8 +19093,12 @@ msgid "盯不住这一发的进度了（{why}）。"
 msgstr "盯不住这一发的进度了（{why}）。"
 
 #: src/ai/arkClient.ts
-msgid "盯不住这一发的进度了（{why}）。任务还在方舟那边跑，不是失败：钱在提交那一刻就已经花掉了。"
-msgstr "盯不住这一发的进度了（{why}）。任务还在方舟那边跑，不是失败：钱在提交那一刻就已经花掉了。"
+#~ msgid "盯不住这一发的进度了（{why}）。任务还在方舟那边跑，不是失败：钱在提交那一刻就已经花掉了。"
+#~ msgstr "盯不住这一发的进度了（{why}）。任务还在方舟那边跑，不是失败：钱在提交那一刻就已经花掉了。"
+
+#: src/ai/arkClient.ts
+msgid "盯不住这一发的进度了（{why}）。任务还在方舟那边跑，不是失败。"
+msgstr "盯不住这一发的进度了（{why}）。任务还在方舟那边跑，不是失败。"
 
 #: src/pages/ProfilePage.tsx
 msgid "直充 add-on（永不过期，套餐扣完才用它）"
@@ -19121,8 +19257,12 @@ msgid "真人档任务被上游拒绝：{detail}"
 msgstr "真人档任务被上游拒绝：{detail}"
 
 #: src/ai/minimaxVideo.ts
-msgid "真人档出片 10 分钟没出结果——任务多半还在上游跑，不是失败：钱在提交那一刻就已经花掉了。"
-msgstr "真人档出片 10 分钟没出结果——任务多半还在上游跑，不是失败：钱在提交那一刻就已经花掉了。"
+#~ msgid "真人档出片 10 分钟没出结果——任务多半还在上游跑，不是失败：钱在提交那一刻就已经花掉了。"
+#~ msgstr "真人档出片 10 分钟没出结果——任务多半还在上游跑，不是失败：钱在提交那一刻就已经花掉了。"
+
+#: src/ai/minimaxVideo.ts
+msgid "真人档出片 10 分钟没出结果——任务多半还在上游跑，不是失败。"
+msgstr "真人档出片 10 分钟没出结果——任务多半还在上游跑，不是失败。"
 
 #: src/ai/minimaxVideo.ts
 msgid "真人档出片创建失败：服务器没有应答这个接口（HTTP {status}，{type}）"
@@ -19803,6 +19943,11 @@ msgstr "第 {0} 段推演失败"
 msgid "第 {0} 段推演好了三套方案"
 msgstr "第 {0} 段推演好了三套方案"
 
+#. placeholder {0}: idx + 1
+#: src/studio/flowStore.ts
+msgid "第 {0} 段推演好了剧情，但首尾帧没画出来"
+msgstr "第 {0} 段推演好了剧情，但首尾帧没画出来"
+
 #. placeholder {0}: s.index + 1
 #: src/studio/structuredSkills.ts
 msgid "第 {0} 段改写出来是空的，这一次没有写回——再试一次"
@@ -19854,6 +19999,11 @@ msgstr "第 {0} 段用的模板「{1}」已经不在了"
 #: src/studio/flowStore.ts
 msgid "第 {0} 段用的模板没能随配方带上"
 msgstr "第 {0} 段用的模板没能随配方带上"
+
+#. placeholder {0}: idx + 1
+#: src/studio/flowStore.ts
+msgid "第 {0} 段的三套剧情推演好了，但首尾帧一张都没画出来：{framesGone}"
+msgstr "第 {0} 段的三套剧情推演好了，但首尾帧一张都没画出来：{framesGone}"
 
 #. placeholder {0}: idx + 1
 #: src/studio/flowStore.ts
@@ -20334,20 +20484,32 @@ msgid "第 {segNo} 段成片转存中（换成永久地址）· 已等 {secs} �
 msgstr "第 {segNo} 段成片转存中（换成永久地址）· 已等 {secs} 秒…"
 
 #: src/pages/CutPage.tsx
-msgid "第 {segNo} 段是「{label}」档，模型已于 {day}停用，这里重拍不了——回工作流把这一段换一档重新出片（会重新计费）"
-msgstr "第 {segNo} 段是「{label}」档，模型已于 {day}停用，这里重拍不了——回工作流把这一段换一档重新出片（会重新计费）"
+msgid "第 {segNo} 段是「{label}」档，模型已于 {day}停用，这里重拍不了——回「我的 → 草稿」打开草稿，把这一段换一档重新出片（会重新计费）"
+msgstr "第 {segNo} 段是「{label}」档，模型已于 {day}停用，这里重拍不了——回「我的 → 草稿」打开草稿，把这一段换一档重新出片（会重新计费）"
+
+#: src/pages/CutPage.tsx
+#~ msgid "第 {segNo} 段是「{label}」档，模型已于 {day}停用，这里重拍不了——回工作流把这一段换一档重新出片（会重新计费）"
+#~ msgstr "第 {segNo} 段是「{label}」档，模型已于 {day}停用，这里重拍不了——回工作流把这一段换一档重新出片（会重新计费）"
 
 #: src/pages/CutPage.tsx
 msgid "第 {segNo} 段是「{label}」档，这台服务器还不支持它（服务端需要更新），这里重拍不了"
 msgstr "第 {segNo} 段是「{label}」档，这台服务器还不支持它（服务端需要更新），这里重拍不了"
 
 #: src/pages/CutPage.tsx
-msgid "第 {segNo} 段是已经合好的本机成片，不能再合一次——去发布页发它，或回工作流重做一条"
-msgstr "第 {segNo} 段是已经合好的本机成片，不能再合一次——去发布页发它，或回工作流重做一条"
+msgid "第 {segNo} 段是已经合好的本机成片，不能再合一次——去发布页发它，或回「我的 → 草稿」打开草稿重做一条"
+msgstr "第 {segNo} 段是已经合好的本机成片，不能再合一次——去发布页发它，或回「我的 → 草稿」打开草稿重做一条"
 
 #: src/pages/CutPage.tsx
-msgid "第 {segNo} 段还不是永久地址，合成用不了——回到工作流等它转存完再来"
-msgstr "第 {segNo} 段还不是永久地址，合成用不了——回到工作流等它转存完再来"
+#~ msgid "第 {segNo} 段是已经合好的本机成片，不能再合一次——去发布页发它，或回工作流重做一条"
+#~ msgstr "第 {segNo} 段是已经合好的本机成片，不能再合一次——去发布页发它，或回工作流重做一条"
+
+#: src/pages/CutPage.tsx
+msgid "第 {segNo} 段还不是永久地址，合成用不了——回「我的 → 草稿」打开草稿，等它转存完再来"
+msgstr "第 {segNo} 段还不是永久地址，合成用不了——回「我的 → 草稿」打开草稿，等它转存完再来"
+
+#: src/pages/CutPage.tsx
+#~ msgid "第 {segNo} 段还不是永久地址，合成用不了——回到工作流等它转存完再来"
+#~ msgstr "第 {segNo} 段还不是永久地址，合成用不了——回到工作流等它转存完再来"
 
 #: src/pages/CutPage.tsx
 msgid "第 {segNo} 段还没有视频（只有设定帧），合成做不了——先把这一段炼出来"
@@ -20442,8 +20604,12 @@ msgid "第二种：<0>相邻两行的位置排反了</0>（清单说他是从左
 msgstr "第二种：<0>相邻两行的位置排反了</0>（清单说他是从左数第 2 个， 画面上他其实是第 3 个）。把这两行的位置互换过来就行，同样不用重炼。"
 
 #: src/ai/arkClient.ts
-msgid "等了 {minutes} 分钟还没出片。这不是失败：任务还在方舟那边跑，钱在提交那一刻就已经花掉了。"
-msgstr "等了 {minutes} 分钟还没出片。这不是失败：任务还在方舟那边跑，钱在提交那一刻就已经花掉了。"
+#~ msgid "等了 {minutes} 分钟还没出片。这不是失败：任务还在方舟那边跑，钱在提交那一刻就已经花掉了。"
+#~ msgstr "等了 {minutes} 分钟还没出片。这不是失败：任务还在方舟那边跑，钱在提交那一刻就已经花掉了。"
+
+#: src/ai/arkClient.ts
+msgid "等了 {minutes} 分钟还没出片。这不是失败：任务还在方舟那边跑。"
+msgstr "等了 {minutes} 分钟还没出片。这不是失败：任务还在方舟那边跑。"
 
 #: src/api/stream.ts
 msgid "等了 {secs} 秒还没有回话，先停下了。稍后再试一次。"
@@ -23187,6 +23353,10 @@ msgstr "这一帧没改成（{reason}）——没扣钱，原来那张没动，�
 msgid "这一帧没改成（{reason}）。{moneyLine}原来那张没动，可以再试一次"
 msgstr "这一帧没改成（{reason}）。{moneyLine}原来那张没动，可以再试一次"
 
+#: src/ai/real.ts
+msgid "这一帧没画成（{why}），改用纯文字再画一次"
+msgstr "这一帧没画成（{why}），改用纯文字再画一次"
+
 #: src/components/flow/SegPlayer.tsx
 msgid "这一帧用到哪儿"
 msgstr "这一帧用到哪儿"
@@ -23477,8 +23647,12 @@ msgid "这一段已经出片了，退不回铸段窗——想换就删掉这一�
 msgstr "这一段已经出片了，退不回铸段窗——想换就删掉这一段再铸"
 
 #: src/pages/CutPage.tsx
-msgid "这一段已经改好、钱也扣过了，但{why}"
-msgstr "这一段已经改好、钱也扣过了，但{why}"
+#~ msgid "这一段已经改好、钱也扣过了，但{why}"
+#~ msgstr "这一段已经改好、钱也扣过了，但{why}"
+
+#: src/pages/CutPage.tsx
+msgid "这一段已经改好了，但{why}"
+msgstr "这一段已经改好了，但{why}"
 
 #: src/studio/flowStore.ts
 msgid "这一段已经有同名的参考图或卡片了——换一个名字"
@@ -23533,8 +23707,12 @@ msgid "这一段推演出的 {0} 套方案会一起丢掉，推演已经花掉�
 msgstr "这一段推演出的 {0} 套方案会一起丢掉，推演已经花掉的 token 不退；这一段还没出片，没有别的损失。"
 
 #: src/pages/CutPage.tsx
-msgid "这一段播不出来（错误码 {codeText}）——成片地址可能已经过期或网络不通，回工作流重新打开草稿会重新取一遍"
-msgstr "这一段播不出来（错误码 {codeText}）——成片地址可能已经过期或网络不通，回工作流重新打开草稿会重新取一遍"
+msgid "这一段播不出来（错误码 {codeText}）——成片地址可能已经过期或网络不通，从「我的 → 草稿」重新打开草稿会重新取一遍"
+msgstr "这一段播不出来（错误码 {codeText}）——成片地址可能已经过期或网络不通，从「我的 → 草稿」重新打开草稿会重新取一遍"
+
+#: src/pages/CutPage.tsx
+#~ msgid "这一段播不出来（错误码 {codeText}）——成片地址可能已经过期或网络不通，回工作流重新打开草稿会重新取一遍"
+#~ msgstr "这一段播不出来（错误码 {codeText}）——成片地址可能已经过期或网络不通，回工作流重新打开草稿会重新取一遍"
 
 #: src/studio/studioStore.ts
 msgid "这一段改动写不回去了——它挂着的那个节点已经不在流水线上（被删掉，或者整条流水线被换过了）。"
@@ -24925,12 +25103,20 @@ msgid "这条弹幕还在发送中，等它发出去之后再删"
 msgstr "这条弹幕还在发送中，等它发出去之后再删"
 
 #: src/pages/PublishPage.tsx
-msgid "这条成片回不到合并之前了：它没有留下合并前的片段。可以直接发布，或回工作流重做一条。"
-msgstr "这条成片回不到合并之前了：它没有留下合并前的片段。可以直接发布，或回工作流重做一条。"
+msgid "这条成片回不到合并之前了：它没有留下合并前的片段。可以直接发布，或回「我的 → 草稿」打开草稿重做一条（简约模式没有草稿，只能重新创作）。"
+msgstr "这条成片回不到合并之前了：它没有留下合并前的片段。可以直接发布，或回「我的 → 草稿」打开草稿重做一条（简约模式没有草稿，只能重新创作）。"
+
+#: src/pages/PublishPage.tsx
+#~ msgid "这条成片回不到合并之前了：它没有留下合并前的片段。可以直接发布，或回工作流重做一条。"
+#~ msgstr "这条成片回不到合并之前了：它没有留下合并前的片段。可以直接发布，或回工作流重做一条。"
 
 #: src/pages/CutPage.tsx
-msgid "这条成片回不到合并之前了：它没有留下合并前的片段。直接去发布，或回工作流重做一条。"
-msgstr "这条成片回不到合并之前了：它没有留下合并前的片段。直接去发布，或回工作流重做一条。"
+msgid "这条成片回不到合并之前了：它没有留下合并前的片段。直接去发布，或回「我的 → 草稿」打开草稿重做一条（简约模式没有草稿，只能重新创作）。"
+msgstr "这条成片回不到合并之前了：它没有留下合并前的片段。直接去发布，或回「我的 → 草稿」打开草稿重做一条（简约模式没有草稿，只能重新创作）。"
+
+#: src/pages/CutPage.tsx
+#~ msgid "这条成片回不到合并之前了：它没有留下合并前的片段。直接去发布，或回工作流重做一条。"
+#~ msgstr "这条成片回不到合并之前了：它没有留下合并前的片段。直接去发布，或回工作流重做一条。"
 
 #: src/pages/CutPage.tsx
 msgid "这条成片已经合好了"
@@ -25106,6 +25292,10 @@ msgstr "这次没能向服务器确认这条作品，内容没有被替换。合
 #: src/studio/gridDraftStore.ts
 msgid "这次没连上出图服务（多半是网络抖了一下），再点一次就行"
 msgstr "这次没连上出图服务（多半是网络抖了一下），再点一次就行"
+
+#: src/ai/arkClient.ts
+msgid "这次没连上出图服务（服务器返回 {status}），过一会儿再试"
+msgstr "这次没连上出图服务（服务器返回 {status}），过一会儿再试"
 
 #: src/data/videos.ts
 msgid "这次没连上服务器，内容没有被替换。合成稿还留在「我的」里，联网后再试一次。"
@@ -26133,6 +26323,10 @@ msgstr "需要 {0} token，余额 {1} 不够——去「我的」页充值"
 #: src/data/account.ts
 msgid "需要先连接服务器并登录"
 msgstr "需要先连接服务器并登录"
+
+#: src/components/UpdateSheet.tsx
+msgid "需要更新到 {versionName}"
+msgstr "需要更新到 {versionName}"
 
 #: src/data/templates.ts
 msgctxt "人偶的主色（挂卡提醒那句话里显示）"

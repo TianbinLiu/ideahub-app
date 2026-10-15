@@ -4,7 +4,7 @@
 // 服务端字段用 `_id` / ISO 时间字符串，客户端领域模型用 `id` / 毫秒时间戳，
 // 转换统一放在 data/*.ts（因为只有它知道要往哪个 cache 里塞）。
 import type { BranchTree, Card, CardRole, CardType, DraftVideo, TemplateRecipe, VideoDeck, VideoPart, VideoSegment } from "../types";
-import { API_BASE, ApiError, apiDelete, apiGet, apiPatch, apiPost, getToken } from "./client";
+import { API_BASE, ApiError, apiDelete, apiGet, apiPatch, apiPost, getToken, withAppVersion } from "./client";
 import { t } from "@lingui/core/macro";
 
 // ── DTO ──────────────────────────────────────────────────
@@ -1254,13 +1254,14 @@ async function blockoutPost(
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}${path}`, {
+    const url = `${API_BASE}${path}`;
+    res = await fetch(url, {
       method: "POST",
-      headers: {
+      headers: withAppVersion(url, {
         "Content-Type": "application/json",
         Accept: "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
+      }),
       body: JSON.stringify(body),
       signal: ctrl.signal,
     });

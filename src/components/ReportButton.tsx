@@ -17,7 +17,7 @@
 //   摆一个点了必然失败的按钮比不摆更糟（CLAUDE.md「界面上摆一个永远点不动的选项」）。
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { Trans, useLingui } from "@lingui/react/macro";
 import {
   REPORT_REASONS,
@@ -63,6 +63,7 @@ export default function ReportButton({
   const user = useCurrentUser();
   const auth = useAuthState();
   const navigate = useNavigate();
+  const loc = useLocation();
   const { t } = useLingui();
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState<ReportReason | "">("");
@@ -139,7 +140,8 @@ export default function ReportButton({
               <div className="pb-3">
                 <p className="mb-3 text-xs text-slate-400"><Trans>登录之后才能举报。</Trans></p>
                 <button
-                  onClick={() => navigate("/login?next=/")}
+                  // 登录完回跳到**这一页**（含 query）：原来写死 next=/，从作品页点的举报登录完被扔回首页
+                  onClick={() => navigate(`/login?next=${encodeURIComponent(`${loc.pathname}${loc.search}`)}`)}
                   className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink"
                 >
                   <Trans>去登录</Trans>

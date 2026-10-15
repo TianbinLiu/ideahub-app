@@ -320,12 +320,12 @@ msgid "· 共 {total} 步"
 msgstr "· {total, plural, one {# step} other {# steps}}"
 
 #: src/pages/CardDetailPage.tsx
-msgid "· 出片时会喂给 AI（同一段挂的卡多时可能让位）"
-msgstr "· Fed to the AI when making videos (may give way when a segment has many cards)"
+#~ msgid "· 出片时会喂给 AI（同一段挂的卡多时可能让位）"
+#~ msgstr "· Fed to the AI when making videos (may give way when a segment has many cards)"
 
 #: src/pages/CardDetailPage.tsx
-msgid "· 只在这一页展示，出片用不到"
-msgstr "· Only shown on this page; not used when making videos"
+#~ msgid "· 只在这一页展示，出片用不到"
+#~ msgstr "· Only shown on this page; not used when making videos"
 
 #: src/components/cut/AutoEditSheet.tsx
 msgid "· 在确实换了场的地方加「闪黑」，接着上一段拍的地方不加"
@@ -410,6 +410,14 @@ msgstr "· Materials: none (skipped)"
 #: src/components/cut/AutoEditSheet.tsx
 msgid "· 给时间轴上的每个片段写一句旁白，同时当字幕"
 msgstr "· Write one narration line for every clip on the timeline — it doubles as the caption"
+
+#: src/pages/CardDetailPage.tsx
+msgid "· 补画设定帧那一步会喂给 AI（同一段挂的卡多时可能让位）"
+msgstr "· Fed to the AI when the setting frames are drawn (may yield its slot when the segment has many cards)"
+
+#: src/pages/CardDetailPage.tsx
+msgid "· 补画设定帧那一步用不到；收参考图的档位按协议上限各卡轮着带"
+msgstr "· Not used when the setting frames are drawn; tiers that take reference images rotate through each card up to the protocol limit"
 
 #: src/pages/SettingsDeactivatePage.tsx
 msgid "· 账号里的 token 余额、已购内容与已发布作品都将一并无法使用。"
@@ -837,8 +845,13 @@ msgstr "{0, plural, one {# real-person card opens on its photo} other {# real-pe
 
 #. placeholder {0}: n1.noRealFace
 #: src/pages/DeckDetailPage.tsx
-msgid "{0} 张真人卡用不上（这两档不收真人照片）"
-msgstr "{0, plural, one {# real-person card can’t be used} other {# real-person cards can’t be used}} (these two tiers don’t take real-person photos)"
+#~ msgid "{0} 张真人卡用不上（这两档不收真人照片）"
+#~ msgstr "{0, plural, one {# real-person card can’t be used} other {# real-person cards can’t be used}} (these two tiers don’t take real-person photos)"
+
+#. placeholder {0}: n1.noRealFace
+#: src/pages/DeckDetailPage.tsx
+msgid "{0} 张真人卡用不上（这几档不收真人照片）"
+msgstr "{0} real-person card(s) can't be used (these tiers don't take real photos)"
 
 #. placeholder {0}: n2.needAsset
 #: src/pages/DeckDetailPage.tsx
@@ -1350,8 +1363,12 @@ msgid "{names}只带上了第 1 张形象图（预算 {budget} 张已满），�
 msgstr "Only the first reference image of {names} was included (the budget of {budget, plural, one {# image} other {# images}} is full), so each takes part with its first image only"
 
 #: src/studio/segmentGen.ts
-msgid "{names}在这一档收不到形象图（设定帧只画得进第一张人物卡、一共 3 张图），只按出片句参与——去卡片页勾「标准/极速适用」补一段文字版形象描述"
-msgstr "{names}: this tier can’t receive their images (setup frames only fit the first character card, 3 images in total), so they only take part through their identity line — tick “Standard/Fast ready” on the card’s page to add a text description"
+msgid "{names}在这一档收不到形象图（设定帧只画得进第一张人物卡、一共 {MAX_REF_IMAGES} 张图），只按出片句参与——去卡片页勾「文字版形象描述」补一段"
+msgstr "{names} can't get a likeness image on this tier (setting frames only fit the first character card, {MAX_REF_IMAGES} images in all) and only take part through the generation line — tick “Text likeness description” on the card page to add one"
+
+#: src/studio/segmentGen.ts
+#~ msgid "{names}在这一档收不到形象图（设定帧只画得进第一张人物卡、一共 3 张图），只按出片句参与——去卡片页勾「标准/极速适用」补一段文字版形象描述"
+#~ msgstr "{names}: this tier can’t receive their images (setup frames only fit the first character card, 3 images in total), so they only take part through their identity line — tick “Standard/Fast ready” on the card’s page to add a text description"
 
 #: src/data/economy.ts
 #~ msgid "{names}是声明过的真人素材，「{label}」档的供应商拒收真人照片（实测名人按版权拦、普通人按隐私拦，整发被拒）——换成「{hdTier}」「{ultraTier}」档并给这张卡做肖像授权，或换「{realTier}」档，或先把真人卡取下"
@@ -1412,6 +1429,11 @@ msgstr "{names} still have reference images that weren't included (the budget of
 #: src/pages/CustomCardPage.tsx
 msgid "{nextLabel}没有「{goneNames}」这一格，你传的那张已经取下来了——需要的话换回{curLabel}再传一次。"
 msgstr "{nextLabel} has no “{goneNames}” slot, so the image you uploaded there was removed — switch back to {curLabel} and upload it again if you need it."
+
+#: src/components/CardModelFit.tsx
+#: src/pages/DeckDetailPage.tsx
+msgid "{noRefNames}：{line10}"
+msgstr "{noRefNames}: {line10}"
 
 #: src/components/flow/DialogueWizard.tsx
 msgid "{noVoice} 没有声音样本：每一段的嗓音由模型定，前后可能不一样。"
@@ -2648,6 +2670,7 @@ msgstr "♻ Redraft three plans ({0})"
 
 #. placeholder {0}: fmtTokens(cost)
 #: src/pages/FlowPage.tsx
+#: src/pages/SimpleModePage.tsx
 msgid "♻ 重新生成（{0}）"
 msgstr "♻ Regenerate ({0})"
 
@@ -3266,6 +3289,10 @@ msgstr "🎬 Upload a sample video as the whole-segment reference (multi-image +
 #: src/pages/CardDetailPage.tsx
 msgid "🎬 去 3D 工坊用这张卡创作"
 msgstr "🎬 Create with this card in the 3D Studio"
+
+#: src/pages/SimpleModePage.tsx
+msgid "🎬 去剪辑 ›"
+msgstr "🎬 Go to the editor ›"
 
 #. placeholder {0}: node.customRef.durationSec.toFixed(1)
 #. placeholder {1}: Math.round(node.customRef.durationSec)
@@ -4470,6 +4497,10 @@ msgstr "Three directions are drafted, but the first and last frames of {degraded
 msgid "三种走向推演完毕，已经投影在你面前——点开看看各自的首尾帧和剧情，选定一个。"
 msgstr "Three directions are drafted and projected in front of you — open them to see each one's first and last frames and story, then pick one."
 
+#: src/studio/studioStore.ts
+msgid "三种走向的剧情推演好了，但首尾帧一张都没画出来：{framesGone}。剧情先留着，点开看看。"
+msgstr "The stories for three directions are drafted, but none of the first or last frames could be drawn: {framesGone}. The stories are kept — open them to take a look."
+
 #. placeholder {0}: pv.lateSec.toFixed(1)
 #: src/pages/CutPage.tsx
 msgid "上一句还没念完，这一句晚 {0} 秒开始。"
@@ -4510,6 +4541,10 @@ msgstr "Previous segment"
 #: src/studio/studioStore.ts
 msgid "上一炉还在推演，等它出炉再开新的。"
 msgstr "The last batch is still being drafted — wait for it to finish before starting a new one."
+
+#: src/studio/studioStore.ts
+msgid "上一炉还在炼，等它出炉再炼下一段。"
+msgstr "The previous batch is still generating — wait for it before generating the next segment."
 
 #: src/studio/studioStore.ts
 msgid "上一炉还在炼，等它出炉再说"
@@ -4932,6 +4967,10 @@ msgstr "The downloaded size doesn't match ({gotSize} / expected {wantSize}), so 
 #: src/data/videoDownload.ts
 msgid "下下来的文件不见了，这一次没算数。再点一次。"
 msgstr "The downloaded file is gone, so this attempt doesn't count. Tap again."
+
+#: src/components/UpdateSheet.tsx
+msgid "下不动、装不上？在浏览器里打开官网下载页"
+msgstr "Can’t download or install it? Open the download page on our website in your browser"
 
 #: src/pages/ProfilePage.tsx
 msgid "下单失败"
@@ -5911,8 +5950,12 @@ msgid "余额 {amount}"
 msgstr "Balance {amount}"
 
 #: src/studio/canvasAgent.ts
-msgid "余额不够 AI 指挥（400/句）。"
-msgstr "Not enough balance for the AI director (400 per message). "
+msgid "余额不够 AI 指挥（{perTurn}/句）。"
+msgstr "Not enough balance for AI direction ({perTurn} per sentence)."
+
+#: src/studio/canvasAgent.ts
+#~ msgid "余额不够 AI 指挥（400/句）。"
+#~ msgstr "Not enough balance for the AI director (400 per message). "
 
 #. placeholder {0}: fmtTokens(ONE_IMAGE)
 #: src/components/CoverPicker.tsx
@@ -6054,6 +6097,10 @@ msgstr "You've already reported this; an admin is still reviewing it"
 msgid "你已经拿到过 {count} 次，共 {earned} token。"
 msgstr "{count, plural, one {You've received it # time} other {You've received it # times}}, {earned} tokens in total."
 
+#: src/components/UpdateSheet.tsx
+msgid "你手上这一版已经停止支持了，更新之后才能接着用。"
+msgstr "This version is no longer supported. Update to keep using the app."
+
 #: src/studio/cutAutoEdit.ts
 #: src/studio/structuredSkills.ts
 msgid "你来点头"
@@ -6083,6 +6130,10 @@ msgstr "Your account isn't an admin. Permissions are kept on the server, so chan
 #: src/pages/SettingsPage.tsx
 msgid "你的账号是管理员：AI 生成走的是免扣费通道，消耗不从钱包里扣。"
 msgstr "Your account is an admin: AI generation uses the no-charge channel, so usage isn't deducted from your wallet."
+
+#: src/hooks/useFlowActions.ts
+msgid "你还有一条剪到一半的成片（那几段都是花过 token 出的）。先去「我的」把它剪完发出去，或在那条横幅上丢掉它，再来组这一条 —— 直接组会把它顶掉。"
+msgstr "You still have a half-edited video (those segments cost tokens to generate). Go to “Me” to finish and publish it, or discard it from that banner, then assemble this one — assembling now would replace it."
 
 #: src/hooks/useFlowActions.ts
 msgid "你还有一条剪到一半的成片（里面的卡组已经铸好、花过 token 了）。先去「我的」把它剪完发出去，或在那条横幅上丢掉它，再来组这一条 —— 直接组会把它顶掉。"
@@ -7339,6 +7390,26 @@ msgstr "Anyone with the link"
 msgid "凭链接可见：不进首页和搜索，但<0>拿到链接的人都能看，也能转给别人</0>。"
 msgstr "Anyone with the link: not in Home or search, but <0>anyone who has the link can watch it and pass it on</0>."
 
+#: src/ai/arkClient.ts
+msgid "出图模型 {label} 出不了组图，这是 App 的配置问题——请把 App 更新到最新版再试（这一次没有发出去）"
+msgstr "The image model {label} can’t draw image groups — that’s a problem with the app’s setup. Please update the app to the latest version and try again (nothing was sent this time)."
+
+#: src/ai/arkClient.ts
+msgid "出图模型已停用，请更新 App"
+msgstr "the image model has been retired — please update the app"
+
+#: src/ai/arkClient.ts
+msgid "出图用的模型（{label}）现在用不了了，多半是已经停用——请把 App 更新到最新版再试；已经是最新版的话，过一会儿再试"
+msgstr "The image model ({label}) can’t be used any more — most likely it has been retired. Please update the app to the latest version and try again; if you’re already on the latest version, try again in a little while."
+
+#: src/ai/arkClient.ts
+msgid "出图请求没被受理（服务器返回 {status}：{up}）"
+msgstr "the image request wasn’t accepted (server returned {status}: {up})"
+
+#: src/ai/arkClient.ts
+msgid "出图请求没被受理（服务器返回 {status}）"
+msgstr "the image request wasn’t accepted (server returned {status})"
+
 #: src/components/flow/LeadShotsWizard.tsx
 msgid "出场：{leadName}（主角）"
 msgstr "Cast: {leadName} (lead)"
@@ -7427,8 +7498,8 @@ msgstr "When making videos, <0>not every image is fed to the model</0> — the c
 #~ msgstr "When generating video, <0>not every image is sent to the model</0> — the details page marks each one “Used in video / Display only”, and that's the only source of truth."
 
 #: src/pages/CardDetailPage.tsx
-msgid "出片时一段里只有「第一张人物卡」能带形象参考图：先取 {MAX_CHAR_REFS} 张（优先{face} + {body}），标成「出片用」的第 3 张要等同段每张卡都拿到第 1 张之后，预算还有余才补得上；同一段里的其余人物卡一张都不带，只按文字设定参与——一张图里画多个角色会被方舟整条拒掉。所以上面的「出片用」是按\"这张卡就是那第一张人物卡\"标的：它排在别的人物卡后面时，标着出片用的那几张同样进不了模型（生成步骤里会点名说明）。（两条不画设定帧的路是例外——白模模板挂卡、简约模式的参考图直出：每张人物卡都各带自己的形象图。）{detail}这一格铸卡不会自动出图，只能自己传。"
-msgstr "When making videos, only the “first character card” in a segment can bring reference images: it takes {MAX_CHAR_REFS, plural, one {# image} other {# images}} first ({face} + {body} first), and a third image marked Used in video only gets added once every card in the segment has its first image and budget is still left. Other character cards in the same segment bring none and only take part through their text details — one image with several characters gets rejected outright by Ark. So “Used in video” above assumes this card is that first character card: if it comes after other character cards, the images marked Used in video won't reach the model either (the generation steps will say so). (The two paths that don't draw setup frames are exceptions — attaching cards to a blockout template, and direct reference-image output in Simple mode: every character card brings its own images.) The {detail} slot isn't generated automatically when minting; you can only upload it yourself."
+#~ msgid "出片时一段里只有「第一张人物卡」能带形象参考图：先取 {MAX_CHAR_REFS} 张（优先{face} + {body}），标成「出片用」的第 3 张要等同段每张卡都拿到第 1 张之后，预算还有余才补得上；同一段里的其余人物卡一张都不带，只按文字设定参与——一张图里画多个角色会被方舟整条拒掉。所以上面的「出片用」是按\"这张卡就是那第一张人物卡\"标的：它排在别的人物卡后面时，标着出片用的那几张同样进不了模型（生成步骤里会点名说明）。（两条不画设定帧的路是例外——白模模板挂卡、简约模式的参考图直出：每张人物卡都各带自己的形象图。）{detail}这一格铸卡不会自动出图，只能自己传。"
+#~ msgstr "When making videos, only the “first character card” in a segment can bring reference images: it takes {MAX_CHAR_REFS, plural, one {# image} other {# images}} first ({face} + {body} first), and a third image marked Used in video only gets added once every card in the segment has its first image and budget is still left. Other character cards in the same segment bring none and only take part through their text details — one image with several characters gets rejected outright by Ark. So “Used in video” above assumes this card is that first character card: if it comes after other character cards, the images marked Used in video won't reach the model either (the generation steps will say so). (The two paths that don't draw setup frames are exceptions — attaching cards to a blockout template, and direct reference-image output in Simple mode: every character card brings its own images.) The {detail} slot isn't generated automatically when minting; you can only upload it yourself."
 
 #: src/pages/CardDetailPage.tsx
 #~ msgid "出片时一段里只有「第一张人物卡」能带形象参考图：它最多取 {MAX_CHAR_REFS} 张（优先{face} + {body}）；同一段里的其余人物卡一张都不带，只按文字设定参与——一张图里画多个角色会被方舟整条拒掉。所以上面的「出片用」是按\"这张卡就是那第一张人物卡\"标的：它排在别的人物卡后面时，标着出片用的那几张同样进不了模型（生成步骤里会点名说明）。（两条不画设定帧的路是例外——白模模板挂卡、简约模式的参考图直出：每张人物卡都各带自己的形象图。）{detail}这一格铸卡不会自动出图（只能自己传），三张挂满时它也排在最后，出片轮不到它。"
@@ -7440,12 +7511,16 @@ msgid "出片时提示词里代表这张卡的固定一句（逐段复用同一�
 msgstr "The fixed line that stands for this card in video prompts (the same wording is reused in every segment, which keeps the look steadier). Longer details reach the picture through the reference images above and the {0}; they aren't stuffed into the video prompt."
 
 #: src/pages/CardDetailPage.tsx
-msgid "出片时这类卡先保证第 1 张（{first}）喂给 AI；同一段里参考图总共最多 {MAX_REF_IMAGES} 张，预算还有余才一轮一轮地轮到第 2、第 3 张 —— 也就是同段挂的卡越少，它越可能真的进模型。预算不够时「先被丢的就是各卡靠后的那几张」，卡再多下去整张卡都会带不上（两种情况生成步骤里都会逐张点名）。（白模挂卡与简约参考图直出那两条路更宽：参考图直接进视频模型，上限按所选档位的协议走。）"
-msgstr "When making videos, this kind of card always gets its first image ({first}) fed to the AI. A segment takes at most {MAX_REF_IMAGES, plural, one {# reference image} other {# reference images}} in total, and the second and third images are added round by round only if there's budget left — so the fewer cards in the segment, the more likely they actually reach the model. When the budget runs short, “each card's later images are dropped first”, and with even more cards whole cards get left out (the generation steps name each one in both cases). (Attaching cards to a blockout template and direct reference-image output in Simple mode are more generous: reference images go straight into the video model, up to the limit of the chosen tier.)"
+#~ msgid "出片时这类卡先保证第 1 张（{first}）喂给 AI；同一段里参考图总共最多 {MAX_REF_IMAGES} 张，预算还有余才一轮一轮地轮到第 2、第 3 张 —— 也就是同段挂的卡越少，它越可能真的进模型。预算不够时「先被丢的就是各卡靠后的那几张」，卡再多下去整张卡都会带不上（两种情况生成步骤里都会逐张点名）。（白模挂卡与简约参考图直出那两条路更宽：参考图直接进视频模型，上限按所选档位的协议走。）"
+#~ msgstr "When making videos, this kind of card always gets its first image ({first}) fed to the AI. A segment takes at most {MAX_REF_IMAGES, plural, one {# reference image} other {# reference images}} in total, and the second and third images are added round by round only if there's budget left — so the fewer cards in the segment, the more likely they actually reach the model. When the budget runs short, “each card's later images are dropped first”, and with even more cards whole cards get left out (the generation steps name each one in both cases). (Attaching cards to a blockout template and direct reference-image output in Simple mode are more generous: reference images go straight into the video model, up to the limit of the chosen tier.)"
 
 #: src/pages/CardDetailPage.tsx
 #~ msgid "出片时这类卡先保证第 1 张（{first}）喂给 AI；同一段里参考图总共最多 {MAX_REF_IMAGES} 张，预算还有余才轮得到第 2 张 —— 也就是同段挂的卡越少，它越可能真的进模型。预算不够时「先被丢的就是各卡的第 2 张」，卡再多下去整张卡都会带不上（两种情况生成步骤里都会逐张点名）。（白模挂卡与简约参考图直出那两条路更宽：参考图直接进视频模型，上限按所选档位的协议走。）"
 #~ msgstr "When making videos, this kind of card always gets its first image ({first}) fed to the AI. A segment takes at most {MAX_REF_IMAGES, plural, one {# reference image} other {# reference images}} in total, and the second image only gets in if there's budget left — so the fewer cards in the segment, the more likely it actually reaches the model. When the budget runs short, “each card's second image is dropped first”, and with even more cards whole cards get left out (the generation steps name each one in both cases). (Attaching cards to a blockout template and direct reference-image output in Simple mode are more generous: reference images go straight into the video model, up to the limit of the chosen tier.)"
+
+#: src/pages/CardDetailPage.tsx
+msgid "出片时这类卡先保证第 1 张（{first}）喂给 AI。出片前补画设定帧那一步（以及收不到参考图的档位）：同一段里参考图总共最多 {MAX_REF_IMAGES} 张，预算还有余才一轮一轮地轮到第 2、第 3 张 —— 同段挂的卡越少，它越可能真的进模型；预算不够时先被丢的是各卡靠后的那几张，卡再多下去整张卡都会带不上（生成步骤里会逐张点名）。收参考图的档位（{tiers}）与白模挂卡：参考图直接进视频模型，各卡一张一张轮着带，上限按所选档位的协议走。"
+msgstr "When generating, the 1st image of this card ({first}) is fed to the AI first. In the setting-frame step (and on tiers that don't take reference images): a segment carries at most {MAX_REF_IMAGES} reference images in total, and the 2nd and 3rd images only come in round by round when budget is left — the fewer cards a segment has, the more likely it really reaches the model; when the budget runs out, the later images of each card are dropped first, and with even more cards whole cards are left out (the generation steps name each one). On tiers that take reference images ({tiers}) and with blockout rigging: reference images go straight to the video model, one image per card in turn, up to that tier's protocol limit."
 
 #: src/components/TemplateShelf.tsx
 #: src/pages/TemplateDetailPage.tsx
@@ -8722,6 +8797,10 @@ msgstr "Direct from reference images needs a model that takes reference images (
 #~ msgid "参考图直出要收参考图的模型（高清 / 电影级）"
 #~ msgstr "Direct from reference images needs a model that takes reference images (HD / Cinematic)"
 
+#: src/ai/arkClient.ts
+msgid "参考图里可能有真人，被方舟拒了"
+msgstr "the reference image may show a real person, so Ark rejected it"
+
 #: src/types.ts
 #~ msgid "参考图预算还有余时才轮到它"
 #~ msgstr "Only used when there's room left in the reference-image budget"
@@ -9487,8 +9566,12 @@ msgid "右上角可以直接去发布。想再改片段、圈选或配乐，就�
 msgstr "You can publish right away from the top right. To change clips, circles or music, go back to before the merge and keep editing — your timeline is still there; merge again when you're done (merging is free)."
 
 #: src/pages/CutPage.tsx
-msgid "右上角可以直接去发布。这条成片没有留下合并之前的片段（它是旧版本合的），要改只能回工作流重做一条。"
-msgstr "You can publish right away from the top right. This video didn't keep its pre-merge clips (it was merged by an older version), so changing it means redoing it from the workflow."
+msgid "右上角可以直接去发布。这条成片没有留下合并之前的片段（它是旧版本合的），要改只能回「我的 → 草稿」打开草稿重做一条（简约模式没有草稿，只能重新创作）。"
+msgstr "You can publish from the top right. This video kept no pre-merge segments (it was merged by an older version); to change it, open the draft under “Me → Drafts” and redo it (Simple mode keeps no draft, so you'd create a new one)."
+
+#: src/pages/CutPage.tsx
+#~ msgid "右上角可以直接去发布。这条成片没有留下合并之前的片段（它是旧版本合的），要改只能回工作流重做一条。"
+#~ msgstr "You can publish right away from the top right. This video didn't keep its pre-merge clips (it was merged by an older version), so changing it means redoing it from the workflow."
 
 #: src/components/guide/tours.tsx
 msgid "右上角是终点"
@@ -9536,8 +9619,12 @@ msgid "合并失败：{raw}"
 msgstr "Merge failed: {raw}"
 
 #: src/pages/CutPage.tsx
-msgid "合并失败：第 {segList} 段的视频取不到了（HTTP {http}）。这几段揣的还是方舟的临时链接、当初没能转存成永久地址，而那种链接只活 24 小时——过期之后合成器也拉不到。这条片子现在合不了：回工作流把这几段重新出片（会再花一次钱），或者删掉它们再合。"
-msgstr "Merge failed: couldn't fetch the video for segment(s) {segList} (HTTP {http}). These segments still use Ark's temporary links, which were never moved to permanent addresses, and those links only last 24 hours — once they expire the merger can't fetch them either. This video can't be merged right now: re-render these segments in the workflow (this costs again), or delete them and merge."
+msgid "合并失败：第 {segList} 段的视频取不到了（HTTP {http}）。这几段揣的还是方舟的临时链接、当初没能转存成永久地址，而那种链接只活 24 小时——过期之后合成器也拉不到。这条片子现在合不了：回「我的 → 草稿」打开草稿把这几段重新出片（会再花一次钱），或者删掉它们再合。"
+msgstr "Merge failed: the video for segment {segList} can't be fetched any more (HTTP {http}). These segments still hold Ark's temporary links, which never got moved to permanent storage, and those links live only 24 hours — once expired the compositor can't pull them either. This video can't be merged right now: open the draft under “Me → Drafts” and regenerate those segments (this costs again), or delete them and merge."
+
+#: src/pages/CutPage.tsx
+#~ msgid "合并失败：第 {segList} 段的视频取不到了（HTTP {http}）。这几段揣的还是方舟的临时链接、当初没能转存成永久地址，而那种链接只活 24 小时——过期之后合成器也拉不到。这条片子现在合不了：回工作流把这几段重新出片（会再花一次钱），或者删掉它们再合。"
+#~ msgstr "Merge failed: couldn't fetch the video for segment(s) {segList} (HTTP {http}). These segments still use Ark's temporary links, which were never moved to permanent addresses, and those links only last 24 hours — once they expire the merger can't fetch them either. This video can't be merged right now: re-render these segments in the workflow (this costs again), or delete them and merge."
 
 #: src/pages/CutPage.tsx
 msgid "合并时混进成片，短于成片会自动循环。"
@@ -9649,8 +9736,8 @@ msgid "同时上架到模板市场（工作流模板）"
 msgstr "Also list in the Template market (workflow template)"
 
 #: src/data/economy.ts
-msgid "同样 2 张，换最新旗舰模型来画 · 形象更准、细节更实，出图较慢"
-msgstr "The same 2 images, drawn by the latest flagship model · more accurate look, more solid detail, slower to draw"
+#~ msgid "同样 2 张，换最新旗舰模型来画 · 形象更准、细节更实，出图较慢"
+#~ msgstr "The same 2 images, drawn by the latest flagship model · more accurate look, more solid detail, slower to draw"
 
 #: src/components/flow/RefStrip.tsx
 #: src/pages/SupportModelNewPage.tsx
@@ -10596,9 +10683,13 @@ msgstr "Couldn't load the official looks (this server may not have them yet)."
 msgid "官方技能"
 msgstr "Official skills"
 
+#: src/components/UpdateSheet.tsx
+msgid "官网也下不动？从 GitHub 下载这一版（备用，国内网络可能打不开）"
+msgstr "Website download not working either? Get this version from GitHub (backup; may not open on networks in mainland China)"
+
 #: src/data/economy.ts
-msgid "定妆"
-msgstr "Refined"
+#~ msgid "定妆"
+#~ msgstr "Refined"
 
 #. placeholder {0}: prop.plot.trim().slice(0, 20) || prop.title
 #: src/studio/flowStore.ts
@@ -13950,6 +14041,10 @@ msgstr "Add to my cards"
 msgid "收到，让我看看成色……（炉火升起）"
 msgstr "Got it. Let me see what they're made of… (The forge fires up)"
 
+#: src/pages/CardDetailPage.tsx
+msgid "收参考图的档位（{tiers}）与白模模板挂卡：每张人物卡都各带自己的形象图（先每卡 1 张，预算有余再补第 2 张；一段最多几张按所选档位的协议走）。出片前补画设定帧那一步（以及收不到参考图的档位）：一段里只有「第一张人物卡」能带形象参考图——先取 {MAX_CHAR_REFS} 张（优先{face} + {body}），标成「出片用」的第 3 张要等同段每张卡都拿到第 1 张之后，预算还有余才补得上；其余人物卡在那一步只按文字设定参与（画帧的出图模型只吃第一个人物的图）。所以上面的「出片用 / 仅展示」是按补画设定帧那一步、按\"这张卡就是那第一张人物卡\"标的：它排在别的人物卡后面时，标着出片用的那几张在那一步同样进不了模型（生成步骤里会点名说明）。{detail}这一格铸卡不会自动出图，只能自己传。"
+msgstr "On tiers that take reference images ({tiers}) and with blockout template rigging: every character card brings its own likeness images (1 per card first, a 2nd when budget allows; the per-segment maximum follows the chosen tier's protocol). In the setting-frame step (and on tiers that don't take reference images): only the “first character card” in a segment can bring likeness references — {MAX_CHAR_REFS} images are taken first ({face} + {body} preferred); a 3rd image marked “used” only comes in after every card in the segment has its 1st and budget is left; the other character cards take part in that step by text only (the image model that draws frames only takes the first character's images). So the “used / display only” labels above are for the setting-frame step and assume this card is that first character card: when it sits behind other character cards, images marked “used” don't reach the model in that step either (the generation steps say so). {detail} isn't drawn automatically when forging — upload it yourself."
+
 #: src/pages/VideoPage.tsx
 msgid "收取中…"
 msgstr "Adding…"
@@ -14328,6 +14423,14 @@ msgstr "File format: {0}"
 #: src/studio/ui/NpcDialog.tsx
 msgid "文字描述"
 msgstr "Text description"
+
+#: src/components/CardModelFit.tsx
+msgid "文字版形象描述（{noRefNames}、真人档用）"
+msgstr "Text likeness description (used by {noRefNames} and the real-person tier)"
+
+#: src/components/CardModelFit.tsx
+msgid "文字版形象描述（收不到形象图时用）"
+msgstr "Text likeness description (used when likeness images can't be sent)"
 
 #: src/ai/arkClient.ts
 msgid "文生视频"
@@ -15541,12 +15644,12 @@ msgstr "Standard"
 
 #: src/components/CardModelFit.tsx
 #: src/pages/DeckDetailPage.tsx
-msgid "标准 / 极速：{line10}"
-msgstr "Standard / Fast: {line10}"
+#~ msgid "标准 / 极速：{line10}"
+#~ msgstr "Standard / Fast: {line10}"
 
 #: src/components/CardModelFit.tsx
-msgid "标准/极速适用"
-msgstr "Standard/Fast ready"
+#~ msgid "标准/极速适用"
+#~ msgstr "Standard/Fast ready"
 
 #: src/data/economy.ts
 msgid "标准套餐"
@@ -17049,6 +17152,10 @@ msgstr "Couldn't start playback: {0}"
 msgid "没能打开{app}的授权页。确认装的是正式版{app}并且版本不太旧，或者用手机号、邮箱登录。"
 msgstr "Couldn't open {app}'s sign-in page. Make sure you have the official {app} app and that it isn't too old, or sign in with your phone number or e-mail."
 
+#: src/components/UpdateSheet.tsx
+msgid "没能打开浏览器。可以手动访问：{linkFailed}"
+msgstr "Couldn’t open the browser. You can visit it yourself: {linkFailed}"
+
 #: src/pages/SettingsPage.tsx
 #: src/pages/tutor/TutorHomePage.tsx
 #: src/pages/tutor/TutorNewPage.tsx
@@ -18355,8 +18462,12 @@ msgid "男声"
 msgstr "Male voices"
 
 #: src/data/economy.ts
-msgid "画 2 张：主图 + 一张参考图，照着主图画同一个对象"
-msgstr "Draws 2 images: the main image + a reference image of the same subject, drawn from the main image"
+#~ msgid "画 2 张：主图 + 一张参考图，照着主图画同一个对象"
+#~ msgstr "Draws 2 images: the main image + a reference image of the same subject, drawn from the main image"
+
+#: src/data/economy.ts
+msgid "画 2 张：主图 + 一张参考图，用最新旗舰模型来画 · 形象更准、细节更实，出图较慢"
+msgstr "Draws 2 images: the main image + a reference image, by the latest flagship model · more accurate look, more solid detail, slower to draw"
 
 #: src/studio/dialogueDraftStore.ts
 msgid "画三个机位最多要 {price} token，余额不够——去「我的」页充值"
@@ -18368,8 +18479,13 @@ msgstr "A bundle that doesn't render can't be published."
 
 #. placeholder {0}: tierNamesWhere((x) => x.refImg)
 #: src/components/flow/CastPicker.tsx
-msgid "画两张：全身立绘 + 照着它画的面部特写（官方建议的「全身照 + 大头照」）。不画写实照片风：「{0}」档会把写实的人脸当成真人拒收。"
-msgstr "Draws two: a full-body illustration + a face close-up drawn from it (the official “full-body + headshot” advice). No photorealistic style: “{0}” reject realistic faces as real people."
+msgid "画两张：全身立绘 + 照着它画的面部特写（官方建议的「全身照 + 大头照」），用「{leadTier}」档的模型画，两张要几分钟。不画写实照片风：「{0}」档会把写实的人脸当成真人拒收。"
+msgstr "Draws two: a full-body illustration + a face close-up drawn from it (the official “full-body + headshot” advice), with the “{leadTier}” tier’s model — the two take a few minutes. No photorealistic style: “{0}” reject realistic faces as real people."
+
+#. placeholder {0}: tierNamesWhere((x) => x.refImg)
+#: src/components/flow/CastPicker.tsx
+#~ msgid "画两张：全身立绘 + 照着它画的面部特写（官方建议的「全身照 + 大头照」）。不画写实照片风：「{0}」档会把写实的人脸当成真人拒收。"
+#~ msgstr "Draws two: a full-body illustration + a face close-up drawn from it (the official “full-body + headshot” advice). No photorealistic style: “{0}” reject realistic faces as real people."
 
 #: src/components/flow/CastPicker.tsx
 #~ msgid "画两张：全身立绘 + 照着它画的面部特写（官方建议的「全身照 + 大头照」）。不画写实照片风：高清 / 电影级会把写实的人脸当成真人拒收。"
@@ -18386,6 +18502,10 @@ msgstr "Drawing the keyframe costs {price} tokens — not enough balance. Top up
 #: src/pages/SupportModelNewPage.tsx
 msgid "画出来了。可以摸一摸她、拖一拖看看视线跟不跟手。"
 msgstr "It renders. Try touching her, or drag to see whether her gaze follows."
+
+#: src/ai/arkClient.ts
+msgid "画出来的图没过方舟的内容审核"
+msgstr "the drawn image didn’t pass Ark’s content review"
 
 #: src/studio/gridDraftStore.ts
 msgid "画到第 {got} 张时断了，画到哪张算哪张"
@@ -18490,6 +18610,10 @@ msgstr "The panels weren’t drawn: {why}. {moneyLine}"
 #: src/studio/gridDraftStore.ts
 msgid "画面没出成：{why}（一张都没画出来，钱全退了）"
 msgstr "The panels weren’t drawn: {why} (nothing was drawn, so everything was refunded)"
+
+#: src/studio/gridDraftStore.ts
+msgid "画面没出成：出图用的模型现在用不了了（多半是已经停用），一张都没画、钱全退了——请把 App 更新到最新版再画"
+msgstr "The panels weren’t drawn: the image model can’t be used any more (most likely it has been retired). Nothing was drawn, so everything was refunded — please update the app to the latest version and draw again"
 
 #: src/studio/gridDraftStore.ts
 msgid "画面没出成：分镜里有内容没过内容审核，一张都没画、钱全退了——改改写法再画"
@@ -18616,8 +18740,12 @@ msgid "留空 = 跟随人格/模型：{0}"
 msgstr "Leave empty to follow persona/model: {0}"
 
 #: src/studio/ui/projection.tsx
-msgid "留空由 AI 决定；可填 2-{durMax}"
-msgstr "Leave empty to let the AI decide; 2–{durMax} allowed"
+msgid "留空由 AI 决定；可填 {durMin}-{durMax}"
+msgstr "Leave empty to let the AI decide; or enter {durMin}-{durMax}"
+
+#: src/studio/ui/projection.tsx
+#~ msgid "留空由 AI 决定；可填 2-{durMax}"
+#~ msgstr "Leave empty to let the AI decide; 2–{durMax} allowed"
 
 #: src/studio/ui/projection.tsx
 #~ msgid "留空由 AI 决定；可填 2-15"
@@ -18925,8 +19053,12 @@ msgid "白模那两条路现在开不了（原因见上）。点上面「‹ 换
 msgstr "The two blockout routes aren't available right now (see the reason above). You can still make a template: tap “‹ Pick a different route” above and switch to “Classic recipe” — it doesn't need a paid plan; it just doesn't make blockout mannequins."
 
 #: src/components/VideoTemplateExtractor.tsx
-msgid "白模那两条路都只走这一档，所以现在还开不了 —— 改选「经典配方」仍然可以做模板，它不需要付费套餐。"
-msgstr "Both blockout routes only use this tier, so they aren't available right now — you can still make a template by switching to “Classic recipe”, which doesn't need a paid plan."
+msgid "白模那两条路都只走这一档，所以现在还开不了 —— 开通会员套餐（或充值过任意一笔）就能用；想把一条片的做法分享给别人，发布作品时公开「制作过程」就行。"
+msgstr "Both blockout routes run on this tier only, so they aren't available yet — subscribe (or make any one-off top-up) to use them; to share how a video was made, publish the work with its “Making-of” public."
+
+#: src/components/VideoTemplateExtractor.tsx
+#~ msgid "白模那两条路都只走这一档，所以现在还开不了 —— 改选「经典配方」仍然可以做模板，它不需要付费套餐。"
+#~ msgstr "Both blockout routes only use this tier, so they aren't available right now — you can still make a template by switching to “Classic recipe”, which doesn't need a paid plan."
 
 #: src/components/guide/tours.tsx
 msgid "白模那种模板，出片就是<0>整段复刻这段视频</0>、只把人偶换掉。 下面那行报价把模板视频自己的时长也计了一遍，不是只按出片时长算。"
@@ -18953,8 +19085,12 @@ msgid "盯不住这一发的进度了（{why}）。"
 msgstr "Lost track of this job's progress ({why})."
 
 #: src/ai/arkClient.ts
-msgid "盯不住这一发的进度了（{why}）。任务还在方舟那边跑，不是失败：钱在提交那一刻就已经花掉了。"
-msgstr "This job was paid for the moment it was submitted and is still running on Ark — not a failure; we just lost track of its progress ({why})."
+#~ msgid "盯不住这一发的进度了（{why}）。任务还在方舟那边跑，不是失败：钱在提交那一刻就已经花掉了。"
+#~ msgstr "This job was paid for the moment it was submitted and is still running on Ark — not a failure; we just lost track of its progress ({why})."
+
+#: src/ai/arkClient.ts
+msgid "盯不住这一发的进度了（{why}）。任务还在方舟那边跑，不是失败。"
+msgstr "Lost track of this job's progress ({why}). It's still running on Ark's side — this isn't a failure."
 
 #: src/pages/ProfilePage.tsx
 msgid "直充 add-on（永不过期，套餐扣完才用它）"
@@ -19113,8 +19249,12 @@ msgid "真人档任务被上游拒绝：{detail}"
 msgstr "Upstream rejected the real-person tier job: {detail}"
 
 #: src/ai/minimaxVideo.ts
-msgid "真人档出片 10 分钟没出结果——任务多半还在上游跑，不是失败：钱在提交那一刻就已经花掉了。"
-msgstr "No real-person tier result after 10 minutes — the job is most likely still running upstream, so this isn't a failure: the cost was already charged when you submitted."
+#~ msgid "真人档出片 10 分钟没出结果——任务多半还在上游跑，不是失败：钱在提交那一刻就已经花掉了。"
+#~ msgstr "No real-person tier result after 10 minutes — the job is most likely still running upstream, so this isn't a failure: the cost was already charged when you submitted."
+
+#: src/ai/minimaxVideo.ts
+msgid "真人档出片 10 分钟没出结果——任务多半还在上游跑，不是失败。"
+msgstr "The real-person tier hasn't returned a result in 10 minutes — the job is most likely still running upstream; this isn't a failure."
 
 #: src/ai/minimaxVideo.ts
 msgid "真人档出片创建失败：服务器没有应答这个接口（HTTP {status}，{type}）"
@@ -19795,6 +19935,11 @@ msgstr "Drafting failed for segment {0}"
 msgid "第 {0} 段推演好了三套方案"
 msgstr "Three plans drafted for segment {0}"
 
+#. placeholder {0}: idx + 1
+#: src/studio/flowStore.ts
+msgid "第 {0} 段推演好了剧情，但首尾帧没画出来"
+msgstr "Stories drafted for segment {0}, but the frames couldn’t be drawn"
+
 #. placeholder {0}: s.index + 1
 #: src/studio/structuredSkills.ts
 msgid "第 {0} 段改写出来是空的，这一次没有写回——再试一次"
@@ -19846,6 +19991,11 @@ msgstr "Segment {0}'s template \"{1}\" no longer exists"
 #: src/studio/flowStore.ts
 msgid "第 {0} 段用的模板没能随配方带上"
 msgstr "Segment {0}'s template was not included in the process"
+
+#. placeholder {0}: idx + 1
+#: src/studio/flowStore.ts
+msgid "第 {0} 段的三套剧情推演好了，但首尾帧一张都没画出来：{framesGone}"
+msgstr "Three stories are drafted for segment {0}, but none of the first or last frames could be drawn: {framesGone}"
 
 #. placeholder {0}: idx + 1
 #: src/studio/flowStore.ts
@@ -20326,20 +20476,32 @@ msgid "第 {segNo} 段成片转存中（换成永久地址）· 已等 {secs} �
 msgstr "Moving segment {segNo} to permanent storage · waited {secs}s…"
 
 #: src/pages/CutPage.tsx
-msgid "第 {segNo} 段是「{label}」档，模型已于 {day}停用，这里重拍不了——回工作流把这一段换一档重新出片（会重新计费）"
-msgstr "Segment {segNo} is on “{label}”, whose model was retired on {day}, so it can't be re-shot here — go back to the workflow, switch this segment to another tier and generate it again (charged again)"
+msgid "第 {segNo} 段是「{label}」档，模型已于 {day}停用，这里重拍不了——回「我的 → 草稿」打开草稿，把这一段换一档重新出片（会重新计费）"
+msgstr "Segment {segNo} is on the “{label}” tier, whose model was retired on {day}, so it can't be reshot here — open the draft under “Me → Drafts”, switch this segment to another tier and regenerate it (charged again)"
+
+#: src/pages/CutPage.tsx
+#~ msgid "第 {segNo} 段是「{label}」档，模型已于 {day}停用，这里重拍不了——回工作流把这一段换一档重新出片（会重新计费）"
+#~ msgstr "Segment {segNo} is on “{label}”, whose model was retired on {day}, so it can't be re-shot here — go back to the workflow, switch this segment to another tier and generate it again (charged again)"
 
 #: src/pages/CutPage.tsx
 msgid "第 {segNo} 段是「{label}」档，这台服务器还不支持它（服务端需要更新），这里重拍不了"
 msgstr "Segment {segNo} is on “{label}”, which this server doesn't support yet (the server needs an update), so it can't be re-shot here"
 
 #: src/pages/CutPage.tsx
-msgid "第 {segNo} 段是已经合好的本机成片，不能再合一次——去发布页发它，或回工作流重做一条"
-msgstr "Segment {segNo} is an already-merged video on this device and can't be merged again — publish it from the publish page, or redo it in the workflow"
+msgid "第 {segNo} 段是已经合好的本机成片，不能再合一次——去发布页发它，或回「我的 → 草稿」打开草稿重做一条"
+msgstr "Segment {segNo} is an already-merged local video and can't be merged again — publish it from the publish page, or open the draft under “Me → Drafts” and redo it"
 
 #: src/pages/CutPage.tsx
-msgid "第 {segNo} 段还不是永久地址，合成用不了——回到工作流等它转存完再来"
-msgstr "Segment {segNo} isn't at a permanent address yet, so it can't be merged — go back to the workflow and wait for it to finish moving"
+#~ msgid "第 {segNo} 段是已经合好的本机成片，不能再合一次——去发布页发它，或回工作流重做一条"
+#~ msgstr "Segment {segNo} is an already-merged video on this device and can't be merged again — publish it from the publish page, or redo it in the workflow"
+
+#: src/pages/CutPage.tsx
+msgid "第 {segNo} 段还不是永久地址，合成用不了——回「我的 → 草稿」打开草稿，等它转存完再来"
+msgstr "Segment {segNo} isn't a permanent address yet, so it can't be composited — open the draft under “Me → Drafts” and come back once it has been moved to storage"
+
+#: src/pages/CutPage.tsx
+#~ msgid "第 {segNo} 段还不是永久地址，合成用不了——回到工作流等它转存完再来"
+#~ msgstr "Segment {segNo} isn't at a permanent address yet, so it can't be merged — go back to the workflow and wait for it to finish moving"
 
 #: src/pages/CutPage.tsx
 msgid "第 {segNo} 段还没有视频（只有设定帧），合成做不了——先把这一段炼出来"
@@ -20434,8 +20596,12 @@ msgid "第二种：<0>相邻两行的位置排反了</0>（清单说他是从左
 msgstr "The second case: <0>two neighboring rows have their positions swapped</0> (the list says someone is 2nd from the left, but in the picture they're 3rd). Just swap the positions of those two rows — again, no re-render needed."
 
 #: src/ai/arkClient.ts
-msgid "等了 {minutes} 分钟还没出片。这不是失败：任务还在方舟那边跑，钱在提交那一刻就已经花掉了。"
-msgstr "Still no video after {minutes, plural, one {# minute} other {# minutes}}. This isn't a failure: the job is still running on Ark and was paid for the moment it was submitted."
+#~ msgid "等了 {minutes} 分钟还没出片。这不是失败：任务还在方舟那边跑，钱在提交那一刻就已经花掉了。"
+#~ msgstr "Still no video after {minutes, plural, one {# minute} other {# minutes}}. This isn't a failure: the job is still running on Ark and was paid for the moment it was submitted."
+
+#: src/ai/arkClient.ts
+msgid "等了 {minutes} 分钟还没出片。这不是失败：任务还在方舟那边跑。"
+msgstr "No video after {minutes} minutes. This isn't a failure: the job is still running on Ark's side."
 
 #: src/api/stream.ts
 msgid "等了 {secs} 秒还没有回话，先停下了。稍后再试一次。"
@@ -23179,6 +23345,10 @@ msgstr "The frame couldn't be edited ({reason}) — nothing was charged and the 
 msgid "这一帧没改成（{reason}）。{moneyLine}原来那张没动，可以再试一次"
 msgstr "The frame couldn't be edited ({reason}). {moneyLine} The original is untouched; you can try again"
 
+#: src/ai/real.ts
+msgid "这一帧没画成（{why}），改用纯文字再画一次"
+msgstr "This frame wasn’t drawn ({why}), so it’s being drawn again from text only"
+
 #: src/components/flow/SegPlayer.tsx
 msgid "这一帧用到哪儿"
 msgstr "Where to use this frame"
@@ -23469,8 +23639,12 @@ msgid "这一段已经出片了，退不回铸段窗——想换就删掉这一�
 msgstr "This segment already has a video, so it can't go back to the segment window — to change it, delete this segment and forge it again"
 
 #: src/pages/CutPage.tsx
-msgid "这一段已经改好、钱也扣过了，但{why}"
-msgstr "This segment is done and has been charged, but {why}"
+#~ msgid "这一段已经改好、钱也扣过了，但{why}"
+#~ msgstr "This segment is done and has been charged, but {why}"
+
+#: src/pages/CutPage.tsx
+msgid "这一段已经改好了，但{why}"
+msgstr "This segment has been updated, but {why}"
 
 #: src/studio/flowStore.ts
 msgid "这一段已经有同名的参考图或卡片了——换一个名字"
@@ -23525,8 +23699,12 @@ msgid "这一段推演出的 {0} 套方案会一起丢掉，推演已经花掉�
 msgstr "The {0, plural, one {# plan} other {# plans}} drafted for this segment will be discarded, and tokens already spent on drafting aren't refunded. This segment has no video yet, so nothing else is lost."
 
 #: src/pages/CutPage.tsx
-msgid "这一段播不出来（错误码 {codeText}）——成片地址可能已经过期或网络不通，回工作流重新打开草稿会重新取一遍"
-msgstr "This segment won't play (error code {codeText}) — the video link may have expired or the network is down. Reopening the draft from the workflow fetches it again."
+msgid "这一段播不出来（错误码 {codeText}）——成片地址可能已经过期或网络不通，从「我的 → 草稿」重新打开草稿会重新取一遍"
+msgstr "This segment won't play (error code {codeText}) — the video address may have expired or the network is down; reopening the draft from “Me → Drafts” fetches it again"
+
+#: src/pages/CutPage.tsx
+#~ msgid "这一段播不出来（错误码 {codeText}）——成片地址可能已经过期或网络不通，回工作流重新打开草稿会重新取一遍"
+#~ msgstr "This segment won't play (error code {codeText}) — the video link may have expired or the network is down. Reopening the draft from the workflow fetches it again."
 
 #: src/studio/studioStore.ts
 msgid "这一段改动写不回去了——它挂着的那个节点已经不在流水线上（被删掉，或者整条流水线被换过了）。"
@@ -24917,12 +25095,20 @@ msgid "这条弹幕还在发送中，等它发出去之后再删"
 msgstr "This bullet comment is still sending. Delete it once it's sent"
 
 #: src/pages/PublishPage.tsx
-msgid "这条成片回不到合并之前了：它没有留下合并前的片段。可以直接发布，或回工作流重做一条。"
-msgstr "This video can't go back to before the merge: its pre-merge clips weren't kept. You can publish it as is, or redo it from the workflow."
+msgid "这条成片回不到合并之前了：它没有留下合并前的片段。可以直接发布，或回「我的 → 草稿」打开草稿重做一条（简约模式没有草稿，只能重新创作）。"
+msgstr "This video can't go back to before the merge: it kept no pre-merge segments. You can publish it as is, or open the draft under “Me → Drafts” and redo it (Simple mode keeps no draft, so you'd create a new one)."
+
+#: src/pages/PublishPage.tsx
+#~ msgid "这条成片回不到合并之前了：它没有留下合并前的片段。可以直接发布，或回工作流重做一条。"
+#~ msgstr "This video can't go back to before the merge: its pre-merge clips weren't kept. You can publish it as is, or redo it from the workflow."
 
 #: src/pages/CutPage.tsx
-msgid "这条成片回不到合并之前了：它没有留下合并前的片段。直接去发布，或回工作流重做一条。"
-msgstr "This video can't go back to before the merge: its pre-merge clips weren't kept. Go publish it, or redo it from the workflow."
+msgid "这条成片回不到合并之前了：它没有留下合并前的片段。直接去发布，或回「我的 → 草稿」打开草稿重做一条（简约模式没有草稿，只能重新创作）。"
+msgstr "This video can't go back to before the merge: it kept no pre-merge segments. Publish it as is, or open the draft under “Me → Drafts” and redo it (Simple mode keeps no draft, so you'd create a new one)."
+
+#: src/pages/CutPage.tsx
+#~ msgid "这条成片回不到合并之前了：它没有留下合并前的片段。直接去发布，或回工作流重做一条。"
+#~ msgstr "This video can't go back to before the merge: its pre-merge clips weren't kept. Go publish it, or redo it from the workflow."
 
 #: src/pages/CutPage.tsx
 msgid "这条成片已经合好了"
@@ -25099,6 +25285,10 @@ msgstr "Couldn't confirm this work with the server this time, so the content was
 msgid "这次没连上出图服务（多半是网络抖了一下），再点一次就行"
 msgstr "we couldn’t reach the image service this time (most likely a brief network hiccup) — just try again"
 
+#: src/ai/arkClient.ts
+msgid "这次没连上出图服务（服务器返回 {status}），过一会儿再试"
+msgstr "we couldn’t reach the image service this time (server returned {status}) — try again in a little while"
+
 #: src/data/videos.ts
 msgid "这次没连上服务器，内容没有被替换。合成稿还留在「我的」里，联网后再试一次。"
 msgstr "Couldn't reach the server this time, so the content wasn't replaced. The merged draft is still on the Me page — try again once you're online."
@@ -25154,7 +25344,7 @@ msgstr "{0, plural, one {Only # position was detected in this video, and it's al
 
 #: src/data/templates.ts
 msgid "这段素材里有 {modalN} 个人偶是「{common}」色的，只有「{who}」是「{oddColor}」色的，而且它就站在画面正中间。实测：不给它挂卡的话，出片时它也会被换成别人（AI 自己挑一张）。最稳的做法是给它也挂上一张卡——出片时会直接按「{oddColor}色人偶」点名它，同一张卡可以挂在多个位子上；或者拿原视频重走一遍「AI 白模化」，人偶全变纯白就没有这个显眼的人了。看错了直接忽略。"
-msgstr "In this clip, {modalN, plural, one {# mannequin is} other {# mannequins are}} {common}, and only one is {oddColor} — and it's standing right in the middle of the frame. In testing: if you don't attach a card to it, it still gets swapped for someone else during generation (the AI picks a card itself). The safest option is to attach a card to it as well — generation will then call it out directly as “the {oddColor} mannequin”, and the same card can go on several slots. Or run the original video through AI blockout again: once every mannequin is plain white, there's no standout figure. If this is wrong, just ignore it."
+msgstr "In this clip, {modalN, plural, one {# mannequin is} other {# mannequins are}} {common}, and only “{who}” is {oddColor} — and it's standing right in the middle of the frame. In testing: if you don't attach a card to it, it still gets swapped for someone else during generation (the AI picks a card itself). The safest option is to attach a card to it as well — generation will then call it out directly as “the {oddColor} mannequin”, and the same card can go on several slots. Or run the original video through AI blockout again: once every mannequin is plain white, there's no standout figure. If this is wrong, just ignore it."
 
 #: src/pages/FlowPage.tsx
 msgid "这段话直接发给 AI：位置与角色名改错会换错人，其余随便改"
@@ -26125,6 +26315,10 @@ msgstr "This needs {0} tokens and your balance of {1} isn't enough — top up on
 #: src/data/account.ts
 msgid "需要先连接服务器并登录"
 msgstr "You need a server connection and sign-in first"
+
+#: src/components/UpdateSheet.tsx
+msgid "需要更新到 {versionName}"
+msgstr "Update to {versionName} required"
 
 #: src/data/templates.ts
 msgctxt "人偶的主色（挂卡提醒那句话里显示）"

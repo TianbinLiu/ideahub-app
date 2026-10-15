@@ -10,6 +10,7 @@
 // 因此下面解析错误消息时对几种形状都做了兜底。
 
 import { t } from "@lingui/core/macro";
+import { appVersion } from "./appVersion";
 
 /** 服务端基址，末尾斜杠已剥掉；空串 = 离线模式 */
 export const API_BASE: string = String(import.meta.env.VITE_API_BASE ?? "")
@@ -18,6 +19,30 @@ export const API_BASE: string = String(import.meta.env.VITE_API_BASE ?? "")
 
 /** true = 远端模式。data 层用它决定走 API 还是 IndexedDB */
 export const API_ON: boolean = API_BASE.length > 0;
+
+/**
+ * 给**自家服务器 /api/ 下**的请求加上 `X-App-Version` 头 —— 全仓唯一的判定（2026-10-10，方舟 11-24 下线那一批）。
+ * 值从哪来（装着的那一包优先、构建期常量兜底）见 api/appVersion。
+ *
+ * ★ 为什么要报版本：**只为服务端的日志**——例如哪些版本还在发方舟下线了的出图 id，决定接班表与老价目什么时候能删。
+ *   服务端**不拿它做任何判断**（放行 / 计价 / 门禁都不认它）：头是客户端写的、谁都能伪造，2.62 及以前的包一个都不带。
+ *   下线型号的改发与老包的结算认的是请求体里的**模型 id**，不是这个头；要拦老包走更新清单的 minVersionCode（data/appUpdate）。
+ *   （2026-10-10 评审改：这里原来写着「改发、强制更新、按老包口径结算都靠它」，与服务端的实现和它那份契约正好相反。）
+ * ★★ 只发给 `${API_BASE}/api/…`，别的地址一个都不带（调用方不用自己判，传 URL 进来就行）：
+ *   · 第三方（Cloudinary 直传、dev 下 vite 代理直连的方舟、CDN、GitHub）—— 版本号与他们无关，也不该外泄；
+ *   · 自家服务器的 `/uploads/…` 静态目录 —— 那一层的 CORS 只放行 `Content-Type`（server app.js），多一个自定义头
+ *     预检就被拒，整张图取不回来。`/api/…` 走全局的 cors()（不设 allowedHeaders = 按预检请求的头原样放行）。
+ * ★ 加了这个头之后，原来不带 Authorization 的 GET（探活、未登录逛首页）也会先发一次 CORS 预检 ——
+ *   服务端 cors() 配上 maxAge 就只多这一次往返（见 docs/api-contract.md「X-App-Version」）。
+ */
+export const APP_VERSION_HEADER = "X-App-Version";
+
+export function withAppVersion(url: string, headers: Record<string, string> = {}): Record<string, string> {
+  // 每一发现读（不是模块顶层抄一份）：原生那一问回来之后值会从构建期那一个换成装着的那一包（api/appVersion 的 ★★）
+  const v = appVersion();
+  if (!v || !API_ON || !url.startsWith(`${API_BASE}/api/`)) return headers;
+  return { ...headers, [APP_VERSION_HEADER]: v };
+}
 
 /** JWT 存放的 localStorage 键 */
 export const TOKEN_KEY = "ideahub-app.token";
@@ -155,10 +180,11 @@ async function request<T>(
   opts.signal?.addEventListener("abort", onExternalAbort);
 
   let res: Response;
+  const url = buildUrl(path, opts.query);
   try {
-    res = await fetch(buildUrl(path, opts.query), {
+    res = await fetch(url, {
       method,
-      headers,
+      headers: withAppVersion(url, headers),
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: ctrl.signal,
     });

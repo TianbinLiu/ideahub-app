@@ -1,5 +1,5 @@
 // 「选人物」那一块 —— 跟着做 B（主角定妆 · 多镜头）与 C（九宫格分镜）**共用的唯一实现**（2026-10-05 第三期从 LeadShotsWizard 抽出来）：
-// 卡片库里的人物卡网格（点一下选上 / 取下，最多 LEAD_CAST_MAX 个）+ 卡片库空着时的说明 + 「现做一个人物」（一句话 → 定妆两张图，画成就收进卡片库并选上）。
+// 卡片库里的人物卡网格（点一下选上 / 取下，最多 LEAD_CAST_MAX 个）+ 卡片库空着时的说明 + 「现做一个人物」（一句话 → 精绘档两张图，画成就收进卡片库并选上）。
 // ★ 选了谁、现做到哪了都在 studio/leadDraftStore（B 与 C 是同一批人：「先把人定死」，下一段多半还是这几个人）。这里只画。
 // ★ 夹在网格与「现做」之间的那几句（换主角 / 声音样本 / 真人卡过不了这一档…）各个向导不一样，由宿主从 children 塞进来。
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -9,10 +9,10 @@ import { useNavigate } from "react-router";
 import { AI_REAL } from "../../ai";
 import { myCards } from "../../data/account";
 import { subscribeVoices, voiceOf, voicesVersion } from "../../data/cardVoice";
-import { fmtTokens, tierNamesWhere } from "../../data/economy";
+import { fmtTokens, imageTierOf, tierNamesWhere } from "../../data/economy";
 import { LEAD_CAST_MAX } from "../../data/sceneShots";
 import { useAccountVersion } from "../../hooks/useAccount";
-import { LEAD_DESC_MAX, LEAD_DESC_MIN, LEAD_NAME_MAX, leadForgeCost } from "../../studio/leadCast";
+import { LEAD_DESC_MAX, LEAD_DESC_MIN, LEAD_IMAGE_TIER, LEAD_NAME_MAX, leadForgeCost } from "../../studio/leadCast";
 import { forgeIntoCast, setLead, toggleCast, useLeadDraft } from "../../studio/leadDraftStore";
 import type { MessageDescriptor } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
@@ -39,6 +39,8 @@ export default function CastPicker({ leadBadge = true, children }: { leadBadge?:
   const forgeCost = leadForgeCost();
   /** 按钮上印的价（演示构建写「演示」）：先取成值再进句子 */
   const forgePrice = forgeCost === null ? "—" : AI_REAL ? fmtTokens(forgeCost) : t`演示`;
+  /** 现做用哪一档画（2.63 起「精绘」）：名字从档位表现取，与报价同一个 LEAD_IMAGE_TIER */
+  const leadTier = imageTierOf(LEAD_IMAGE_TIER).label;
 
   return (
     <>
@@ -80,7 +82,7 @@ export default function CastPicker({ leadBadge = true, children }: { leadBadge?:
         <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">{d.forgeNote}</p>
       )}
 
-      {/* 现做一个人物：一句话 → 定妆两张（全身立绘 + 面部特写），画成就收进卡片库并选上（studio/leadCast.forgeLead） */}
+      {/* 现做一个人物：一句话 → 精绘档两张（全身立绘 + 面部特写），画成就收进卡片库并选上（studio/leadCast.forgeLead） */}
       {d.makerOpen || chars.length === 0 || d.forging ? (
         <div className="space-y-2 rounded-xl border border-slate-700/70 bg-panel p-3">
           <div className="flex items-center">
@@ -130,7 +132,8 @@ export default function CastPicker({ leadBadge = true, children }: { leadBadge?:
             })}
           </div>
           <p className="text-[10px] leading-relaxed text-slate-500">
-            <Trans>画两张：全身立绘 + 照着它画的面部特写（官方建议的「全身照 + 大头照」）。不画写实照片风：「{tierNamesWhere((x) => x.refImg)}」档会把写实的人脸当成真人拒收。</Trans>
+            {/* ★ 「要几分钟」是照实说（2.63 起用精绘档，一张实测七八十秒到一分半、两张串着画）：不说的话人对着一颗转了两三分钟的键只会以为卡住了 */}
+            <Trans>画两张：全身立绘 + 照着它画的面部特写（官方建议的「全身照 + 大头照」），用「{leadTier}」档的模型画，两张要几分钟。不画写实照片风：「{tierNamesWhere((x) => x.refImg)}」档会把写实的人脸当成真人拒收。</Trans>
           </p>
           <button
             onClick={() => void forgeIntoCast(LEAD_CAST_MAX, liveIds)}

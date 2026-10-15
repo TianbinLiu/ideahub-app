@@ -161,7 +161,13 @@ export default function SimpleModePage() {
           cost={cost}
           busy={busy || generating}
           progress={generating ? node.progress || t`生成中…` : ""}
+          done={done}
           onGo={() => void genNode(node.id)}
+          onCut={() => {
+            // 出片之后组稿被拦下过（上面那个 effect 只触发一次）：人处理完那条剪到一半的成片回来，从这里再组一次 —— 不是重新出片
+            cutFired.current = true;
+            toCutRef.current();
+          }}
         />
       )}
     </div>
@@ -346,7 +352,9 @@ function StepGo({
   cost,
   busy,
   progress,
+  done,
   onGo,
+  onCut,
 }: {
   nodeId: string;
   tplTitle?: string;
@@ -355,7 +363,10 @@ function StepGo({
   cost: number;
   busy: boolean;
   progress: string;
+  /** 这一段已经出过片（flowStore.nodeDone）：主键换成「去剪辑」，出片退成次级的「重新生成」 */
+  done: boolean;
   onGo: () => void;
+  onCut: () => void;
 }) {
   // ── 自定义首尾帧（选填，主人点名的第三条路·简约面）──
   // 帧就写在这一段的方案上（flowStore.setFrame 唯一实现），给了就走首尾帧直出、
@@ -445,13 +456,31 @@ function StepGo({
       <SegSettings nodeId={nodeId} />
       <span className="flex-1" />
       {progress && <p className="mt-3 text-center text-[11px] leading-relaxed text-slate-400">{progress}</p>}
-      <button
-        onClick={onGo}
-        disabled={busy || (!tplTitle && !plot.trim())}
-        className="mt-3 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:bg-slate-700 disabled:text-slate-500"
-      >
-        {busy ? t`生成中…` : t`⚡ 出片（${fmtTokens(cost)}）`}
-      </button>
+      {/* ★★ 出片之后这一屏还会留着（2026-10-10 浏览器走查抓到）：组稿被「还有一条剪到一半的成片」拦下时，人要去「我的」
+          处理完再回来 —— 原来回来看到的唯一一颗键还是「⚡ 出片（…）」= 重新下一单、再花一次钱，而刚出的那一段好好地在。
+          已出片就把主键换成「去剪辑」（只组稿，不出片），出片退成次级的「重新生成」并照旧标价 */}
+      {done && !busy ? (
+        <>
+          <button onClick={onCut} className="mt-3 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink">
+            <Trans>🎬 去剪辑 ›</Trans>
+          </button>
+          <button
+            onClick={onGo}
+            disabled={!tplTitle && !plot.trim()}
+            className="mt-2 w-full rounded-xl bg-panel py-2.5 text-sm font-bold text-slate-200 ring-1 ring-slate-700 disabled:opacity-40"
+          >
+            {t`♻ 重新生成（${fmtTokens(cost)}）`}
+          </button>
+        </>
+      ) : (
+        <button
+          onClick={onGo}
+          disabled={busy || (!tplTitle && !plot.trim())}
+          className="mt-3 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:bg-slate-700 disabled:text-slate-500"
+        >
+          {busy ? t`生成中…` : t`⚡ 出片（${fmtTokens(cost)}）`}
+        </button>
+      )}
     </div>
   );
 }

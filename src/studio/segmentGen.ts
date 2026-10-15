@@ -16,6 +16,8 @@ import { AI_REAL, ARK_REF_IMAGES_MAX, ArkTaskUnknown, SegmentGenFailed, VIDEO_PR
 import { compileMentions, drawExtraRefs, extraRefLines, mentionTargets, plainMentions, usableExtraRefs, type ExtraRef } from "../data/refMentions";
 import { uploadImage } from "../api/uploads";
 import { IMAGE_TOKENS, blockoutPriceIssue, blockoutTier, fmtTokens, r2vPriceIssue, tierOf, providerOf, clampDuration, videoTokensOfSpec, promptMaxOf, refAudioSecOf, type VideoTier } from "../data/economy";
+// 设定帧那一步最多喂几张参考图（经典路的预算）：那句提示里的数字从它取，不写死（2026-10-10 文案复核抓到写死的「3 张」）
+import { MAX_REF_IMAGES } from "../ai/real";
 import { frameMoment, isMultiShot, lineSpeakers, momentCards, packShots } from "../data/shotScript";
 import { frameSlotsOf, framesToDraw, type DrawInput } from "../data/drawPlan";
 // ★ 「模板视频自己合不合方舟窗口」的判据在 data（不在组件）：store 层这一处与
@@ -329,7 +331,8 @@ export function cardFitNote(
       return t({ message: `「${name}」`, comment: "给一个名字（卡名）加引号：中文「」，英文用弯引号" });
     })
     .join(t({ message: "、", comment: "列举几个名字时的分隔符" }));
-  return t`${names}在这一档收不到形象图（设定帧只画得进第一张人物卡、一共 3 张图），只按出片句参与——去卡片页勾「标准/极速适用」补一段文字版形象描述`;
+  // 勾选框的名字与卡片页那一格（CardModelFit）同一句：它现在叫「文字版形象描述」，不再点名「标准/极速」（那两档 11-24 停用）
+  return t`${names}在这一档收不到形象图（设定帧只画得进第一张人物卡、一共 ${MAX_REF_IMAGES} 张图），只按出片句参与——去卡片页勾「文字版形象描述」补一段`;
 }
 
 export function refVideoOn(o: {

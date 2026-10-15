@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import Spinner from "./components/Spinner";
 import { createPortal } from "react-dom";
 import { Navigate, Outlet, Route, Routes, useLocation, useNavigate } from "react-router";
@@ -54,7 +54,14 @@ import TabBar from "./components/TabBar";
 import { bootData, type BootFailure } from "./data/boot";
 import BootFailed from "./components/BootFailed";
 import DataLossNotice from "./components/DataLossNotice";
-import { checkUpdateForPrompt, type UpdateInfo } from "./data/appUpdate";
+import {
+  checkUpdateForPrompt,
+  forcedUpdate,
+  isMandatory,
+  raiseForcedUpdate,
+  subscribeForcedUpdate,
+  type UpdateInfo,
+} from "./data/appUpdate";
 import UpdateSheet from "./components/UpdateSheet";
 import { useAuthState, useCurrentUser } from "./hooks/useAccount";
 import { useLingui } from "@lingui/react";
@@ -113,16 +120,28 @@ function OrientationGuard() {
  *   这时候插一发下载清单只会让首屏更慢；而"有新版"这件事晚三秒说完全不影响。
  * ★ 查不到一律安静收场（没网、清单还没发都会走到这儿）。手动检查那条路
  *   （设置页）才会把失败原因显示出来 —— 两种场景对"安静"的容忍度不一样。
+ * ★ 强制更新（清单的 minVersionCode，2026-10-10）**只**从这里弹：那一版不认「以后再说」的记录、弹层关不掉（onClose 不会被调到，
+ *   见 components/UpdateSheet 文件头 ★★）。它挂在 <Routes> 外面，安卓返回键退的是底下那一页，退不掉它。
+ *   设置页「检查更新」查到强制的那一版也交到这里来画（data/appUpdate.raiseForcedUpdate 的 ★）—— 画在设置页里的话，返回键连页带弹层一起退掉。
+ *   ⚠ 自动检查只在冷启动查一次（延后 3 秒那一发）：App 一直开着时清单上调了 minVersionCode，要等下一次冷启动（或人去设置页点「检查更新」）才弹 ——
+ *   服务端**不会**替这里拦：请求头 X-App-Version 只进服务端日志、不做任何放行判断（头是客户端写的，谁都能伪造；
+ *   2.62 及以前的包也不发它），见 docs/api-contract.md「请求头 X-App-Version」。拦老包的只有这一张弹层自己。
  */
 function UpdateGate() {
   const [info, setInfo] = useState<UpdateInfo | null>(null);
   const [closed, setClosed] = useState(false);
+  const forced = useSyncExternalStore(subscribeForcedUpdate, forcedUpdate);
   useEffect(() => {
     const t = setTimeout(() => {
-      void checkUpdateForPrompt().then(setInfo);
+      void checkUpdateForPrompt().then((r) => {
+        if (r && isMandatory(r)) raiseForcedUpdate(r);
+        else setInfo(r);
+      });
     }, 3000);
     return () => clearTimeout(t);
   }, []);
+  // 强制的那一版压过普通提示；它的 onClose 永远不会被调到（UpdateSheet 里强制时没有任何关的出口）
+  if (forced) return <UpdateSheet info={forced} onClose={() => {}} />;
   if (!info || closed) return null;
   return <UpdateSheet info={info} onClose={() => setClosed(true)} />;
 }
@@ -219,7 +238,9 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   const auth = useAuthState();
   const loc = useLocation();
   if (auth === "pending") return <AuthPending />;
-  if (auth === "out") return <Navigate to={`/login?next=${encodeURIComponent(loc.pathname)}`} replace />;
+  // ★ 回跳地址连 query 一起带：/support?tab=tickets&ticket=…、/me?wallet=1、/tutor/new?course=… 登录一圈回来要落在同一屏上
+  //   （LoginPage 的 next 经 useSearchParams 解码后原样 navigate，带 ? 的地址走得通；个人页的关注键是同一写法）
+  if (auth === "out") return <Navigate to={`/login?next=${encodeURIComponent(`${loc.pathname}${loc.search}`)}`} replace />;
   return <>{children}</>;
 }
 

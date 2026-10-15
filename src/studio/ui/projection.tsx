@@ -332,7 +332,9 @@ function EditorPanel() {
   // 表现是"铸段窗里三个选项不见了"，而不是一条报错（工坊页没有 ErrorBoundary）
   if (!editor) return null;
 
-  /** 手填时长的上限：跟着这一窗选的档位走（economy.VideoTier.maxSec：高清 15、电影级 30、其余 10） */
+  /** 手填时长的上下限：跟着这一窗选的档位走（economy.VideoTier.minSec / maxSec：1.0 两档 3~10、草稿 / 高清 4~15、电影级 4~30、真人 6~10）。
+   *  ★ 下限原来写死 2（2026-10-10 浏览器走查抓到）：输入 2 或 3 在「草稿」上会被 clampDuration 悄悄抬到 4，报价与出片按 4 走，而输入框还写着 2 */
+  const durMin = tierOf(editor.videoTier).minSec;
   const durMax = tierOf(editor.videoTier).maxSec;
   const slotCards = editor.slots
     .map((id) => deck.find((c) => c.id === id))
@@ -664,13 +666,13 @@ function EditorPanel() {
       ) : /* ══ 第③步：定规格（时长 / 画幅 / 档位）。整块投影归它一个，不与"拍什么"混在一屏 ══ */
       step === "spec" ? (
         <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto p-3">
-          {/* ④ 视频时长：单输入框——留空 = AI 决定，填数字 = 按用户输入（2 秒到这一档的上限，失焦时收拢）。
-              上限跟着下面选的档位走（economy.VideoTier.maxSec：高清 15、电影级 30、其余 10）；换档时 studioStore.setVideoTier 顺手收拢 */}
+          {/* ④ 视频时长：单输入框——留空 = AI 决定，填数字 = 按用户输入（这一档的下限到上限，失焦时收拢）。
+              上下限跟着下面选的档位走（economy.VideoTier.minSec / maxSec）；换档时 studioStore.setVideoTier 顺手收拢 */}
           <div className="flex flex-none items-center gap-2.5">
             <span className="flex-none text-xs font-semibold text-slate-300"><Trans>视频时长</Trans></span>
             <input
               type="number"
-              min={2}
+              min={durMin}
               max={durMax}
               value={editor.durationMode === "manual" ? editor.durationSec : ""}
               placeholder={t`AI 决定`}
@@ -685,11 +687,11 @@ function EditorPanel() {
               }}
               onBlur={() => {
                 if (editor.durationMode === "manual")
-                  useStudio.getState().setDurationSec(Math.min(durMax, Math.max(2, editor.durationSec || 2)));
+                  useStudio.getState().setDurationSec(Math.min(durMax, Math.max(durMin, editor.durationSec || durMin)));
               }}
               className="min-w-0 flex-1 rounded-lg border border-slate-600 bg-black/30 px-2.5 py-1.5 text-xs text-cyan-100 outline-none placeholder:text-slate-500 focus:border-cyan-400"
             />
-            <span className="flex-none text-xs text-slate-400" title={t`留空由 AI 决定；可填 2-${durMax}`}>
+            <span className="flex-none text-xs text-slate-400" title={t`留空由 AI 决定；可填 ${durMin}-${durMax}`}>
               <Trans>秒</Trans>
             </span>
           </div>

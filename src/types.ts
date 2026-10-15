@@ -853,6 +853,8 @@ export interface Card {
    * 铸这张卡时用的出图档位（data/economy.IMAGE_TIERS 的 id）。
    * ★ 缺省 = 老卡，一律当默认档读（imageTierOf 的兜底）；**不要**拿它和某个值等值判，
    *   存量卡这一项全是 undefined，等值判会把它们整批算成"另一档"且一点不报。
+   * ★ 2.63 之前铸的卡可能存着 "studio"（「定妆」，2026-10-10 撤掉的那一档）：原样留着、照常显示，
+   *   读的话同样落到默认档（理由见 economy.IMAGE_TIERS 的 ★★）。别为它写迁移、也别把它改写成别的 id —— 它只是一条历史记录。
    */
   imageTier?: string;
   /**

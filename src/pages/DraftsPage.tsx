@@ -10,7 +10,7 @@
 import { useState } from "react";
 import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
-import { useNavigate } from "react-router";
+import { useBackOr } from "../hooks/useBackOr";
 import { Trans, useLingui } from "@lingui/react/macro";
 import DraftSheet from "../components/DraftSheet";
 import { DraftsUnavailable } from "../components/LocalStoreIssue";
@@ -20,7 +20,8 @@ import { useStudio } from "../studio/studioStore";
 import { relativeTime } from "../types";
 
 export default function DraftsPage() {
-  const nav = useNavigate();
+  // 入口在「我的」页（草稿页签旁的整页键）；深链 / 冷启动没有上一页时退回那里，别退出 App（hooks/useBackOr）
+  const back = useBackOr("/me");
   const { t } = useLingui();
   const drafts = useDrafts();
   // ★ 索引没读出来时列表恒为空 —— 先判它，别对着一次读失败说「还没有草稿」（data/drafts 的 loadIssue ★★）
@@ -32,7 +33,7 @@ export default function DraftsPage() {
   return (
     <div className="min-h-full px-4 pb-10">
       <PageHeader sticky inset
-        onBack={() => nav(-1)}
+        onBack={back}
         title={t`草稿箱`}
         right={
           // 读不出来时不摆「0/20」：那个数说的是"你一条都没有"

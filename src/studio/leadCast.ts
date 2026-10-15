@@ -4,13 +4,17 @@
 //   ② 第④步把向导的结果落成一段（leadAppendSpec：交给 flowStore.appendNode / appendQuote 的那一份）。
 //
 // ★ 现做主角走**铸卡师那条路**（ai.generateCards，工坊素材窗同一条出图路），不走自传图做卡片那条（portraitViews）：
-//   这一步要「只写一句话就画得出来」，而自传图那条必须先有一张照片。铸卡师那条按图位表画，人物卡在「定妆」档正好两张 ——
+//   这一步要「只写一句话就画得出来」，而自传图那条必须先有一张照片。铸卡师那条按图位表画，人物卡在「精绘」档正好两张 ——
 //   全身立绘 + 照着它画的面部特写（types.CARD_SLOTS / economy.slotsFor），就是官方说的「全身照 + 大头照」。
+// ★★ 2026-10-10（2.63）从「定妆」（Seedream 4.5）换成「精绘」（5.0 pro）：4.5 在方舟第十批下线名单上（11-24），「定妆」那一档整个撤了
+//   （economy.IMAGE_TIERS 的 ★★）。不退到「速写」：速写只画一张主图，B 要的是两张（全身 + 特写），少一张出片时人就不稳。
+//   精绘一张图实测七八十秒到一分半，两张串着画要几分钟 —— 向导那颗键旁边照实说（CastPicker），进度一张一张报（generateCards 的 onProgress）。
 // ★★ 只收一句话、不收照片，并且交代「不要照片写实的真人风格」：写实的人脸图会被高清 / 电影级整发拒
 //   （400 InputImageSensitiveContentDetected.PrivacyInformation —— 2026-09-30 付费实测，**哪怕是 Seedream 画的**，见 account.realFaceIssue 的 ★★）。
 //   B 的出片恰好只在这两档上（data/guidedModes.modeBlock），在这里画一张写实脸 = 付了图钱、出片那一刻被拒。
 //   用照片做真人主角要走「自传图做卡片」的真人认证（火山引擎适用），那一套不在这一步里重做 —— 向导里给一条去那儿的路。
-// ★ 钱：报价 economy.forgeCost(1, "character", 定妆)，实扣 forgeSettle(minted)（离线账本；远端模式服务端按调用结算），与素材窗同一对函数。
+// ★ 钱：报价 economy.forgeCost(1, "character", LEAD_IMAGE_TIER)，实扣 forgeSettle(minted, LEAD_IMAGE_TIER)（离线账本；远端模式服务端按调用结算，
+//   按的是真发出去的模型 = 同一档的 model），与素材窗同一对函数。档位只写在 LEAD_IMAGE_TIER 一处：报价、余额门、出图、结算都读它。
 // ★ 画成就落进卡片库（account.addCards，顺带把形象图转存成永久地址）：这一步的产物就是一张人物卡（方案原话「存成人物卡」）——
 //   摆一个「收下」再落库的话，人没点之前 App 被回收，这两张付过钱的图就没了。主图都没画成（minted 0）的不落库：那张卡面是占位图。
 // ★ 这一炉是谁开的：回来时换了账号就作废（与 studioStore.forgeCards 同一条），不往新账号的库里塞。
@@ -22,8 +26,8 @@ import { forgeCost, forgeSettle, fmtTokens, imageTierPriceIssue, slotsFor } from
 import { uid, type Card, type Proposal, type VideoAspect } from "../types";
 import type { AppendSpec } from "./flowStore";
 
-/** 现做主角用哪一档出图：「定妆」= 全身立绘 + 面部特写两张（economy.IMAGE_TIERS） */
-export const LEAD_IMAGE_TIER = "studio";
+/** 现做主角用哪一档出图：「精绘」= 全身立绘 + 面部特写两张（economy.IMAGE_TIERS；2.63 之前是「定妆」，理由见文件头 ★★） */
+export const LEAD_IMAGE_TIER = "master";
 export const LEAD_NAME_MAX = 8;
 export const LEAD_DESC_MIN = 4;
 export const LEAD_DESC_MAX = 120;
