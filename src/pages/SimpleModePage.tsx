@@ -116,8 +116,12 @@ export default function SimpleModePage() {
         }
       />
 
-      {/* store 的整句拒绝（换模板被拒、生成被拒…）—— 不画一份就是"点了没反应"（铁律八） */}
-      {err && <p className="mb-3 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-300">{err}</p>}
+      {/* store 的整句拒绝（换模板被拒、生成被拒…）—— 不画一份就是"点了没反应"（铁律八）。
+          ★ 第 3 步的拒绝画在「出片」那颗键的正上方（StepGo 收 err），不画在这儿：键在屏幕底、这行在顶，人盯着键看不到这句
+          （2026-10-14 UX 课走查：反馈要落在动作旁边） */}
+      {err && step !== "go" && (
+        <p className="mb-3 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-300">{err}</p>
+      )}
 
       {step === "start" && (
         <StepStart
@@ -161,6 +165,7 @@ export default function SimpleModePage() {
           cost={cost}
           busy={busy || generating}
           progress={generating ? node.progress || t`生成中…` : ""}
+          err={err}
           done={done}
           onGo={() => void genNode(node.id)}
           onCut={() => {
@@ -174,24 +179,31 @@ export default function SimpleModePage() {
   );
 }
 
-/** 第 1 步：**整屏只有两个选项**。用户点名——第一步别摆别的东西。 */
+/** 第 1 步：**整屏只有两个选项**。用户点名——第一步别摆别的东西。
+ *  两块砖右端带 ›、按下有反馈（2026-10-14 UX 课的惯例：会跳走的砖要有「去哪儿」的记号；铸段窗的选法屏早就这么画） */
 function StepStart({ onPick }: { onPick: (r: "template" | "custom") => void }) {
   return (
     <div className="flex flex-1 flex-col justify-center gap-3">
       <p className="mb-1 text-center text-sm text-slate-400"><Trans>想怎么开始？</Trans></p>
       <button
         onClick={() => onPick("template")}
-        className="rounded-2xl border border-brand/50 bg-brand/10 px-4 py-6 text-left"
+        className="flex items-center gap-3 rounded-2xl border border-brand/50 bg-brand/10 px-4 py-6 text-left transition active:opacity-60"
       >
-        <div className="text-base font-bold text-slate-100"><Trans>🧪 套一个模板</Trans></div>
-        <div className="mt-1 text-xs leading-relaxed text-slate-400"><Trans>挑一条现成的片子，复刻它的画面与运镜</Trans></div>
+        <span className="min-w-0 flex-1">
+          <span className="block text-base font-bold text-slate-100"><Trans>🧪 套一个模板</Trans></span>
+          <span className="mt-1 block text-xs leading-relaxed text-slate-400"><Trans>挑一条现成的片子，复刻它的画面与运镜</Trans></span>
+        </span>
+        <span className="flex-none text-lg text-slate-500">›</span>
       </button>
       <button
         onClick={() => onPick("custom")}
-        className="rounded-2xl border border-slate-700 bg-panel px-4 py-6 text-left"
+        className="flex items-center gap-3 rounded-2xl border border-slate-700 bg-panel px-4 py-6 text-left transition active:opacity-60"
       >
-        <div className="text-base font-bold text-slate-100"><Trans>✍️ 自己写一句</Trans></div>
-        <div className="mt-1 text-xs leading-relaxed text-slate-400"><Trans>说一句想拍什么，AI 直接出一条短片</Trans></div>
+        <span className="min-w-0 flex-1">
+          <span className="block text-base font-bold text-slate-100"><Trans>✍️ 自己写一句</Trans></span>
+          <span className="mt-1 block text-xs leading-relaxed text-slate-400"><Trans>说一句想拍什么，AI 直接出一条短片</Trans></span>
+        </span>
+        <span className="flex-none text-lg text-slate-500">›</span>
       </button>
     </div>
   );
@@ -352,6 +364,7 @@ function StepGo({
   cost,
   busy,
   progress,
+  err,
   done,
   onGo,
   onCut,
@@ -363,6 +376,8 @@ function StepGo({
   cost: number;
   busy: boolean;
   progress: string;
+  /** store 的整句拒绝（空串 = 没有）：画在「出片」键正上方，页面顶上那份对这一步不画 */
+  err: string;
   /** 这一段已经出过片（flowStore.nodeDone）：主键换成「去剪辑」，出片退成次级的「重新生成」 */
   done: boolean;
   onGo: () => void;
@@ -455,7 +470,17 @@ function StepGo({
       )}
       <SegSettings nodeId={nodeId} />
       <span className="flex-1" />
-      {progress && <p className="mt-3 text-center text-[11px] leading-relaxed text-slate-400">{progress}</p>}
+      {/* 拒绝画在键的正上方（页面顶上那份对第 3 步不画，见 SimpleModePage 的 err） */}
+      {err && (
+        <p className="mt-3 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-300">{err}</p>
+      )}
+      {/* 出片是几分钟的事：说清楚可以走开（离开之后进度与结果由顶上的胶囊接着报，GenerationPill） */}
+      {progress && (
+        <p className="mt-3 text-center text-[11px] leading-relaxed text-slate-400">
+          {progress}
+          <span className="block text-slate-500"><Trans>可以离开这一页，出片好了会在顶上提醒你</Trans></span>
+        </p>
+      )}
       {/* ★★ 出片之后这一屏还会留着（2026-10-10 浏览器走查抓到）：组稿被「还有一条剪到一半的成片」拦下时，人要去「我的」
           处理完再回来 —— 原来回来看到的唯一一颗键还是「⚡ 出片（…）」= 重新下一单、再花一次钱，而刚出的那一段好好地在。
           已出片就把主键换成「去剪辑」（只组稿，不出片），出片退成次级的「重新生成」并照旧标价 */}
@@ -469,7 +494,7 @@ function StepGo({
             disabled={!tplTitle && !plot.trim()}
             className="mt-2 w-full rounded-xl bg-panel py-2.5 text-sm font-bold text-slate-200 ring-1 ring-slate-700 disabled:opacity-40"
           >
-            {t`♻ 重新生成（${fmtTokens(cost)}）`}
+            {t`♻ 重新生成（再花 ${fmtTokens(cost)} token）`}
           </button>
         </>
       ) : (
@@ -478,7 +503,8 @@ function StepGo({
           disabled={busy || (!tplTitle && !plot.trim())}
           className="mt-3 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:bg-slate-700 disabled:text-slate-500"
         >
-          {busy ? t`生成中…` : t`⚡ 出片（${fmtTokens(cost)}）`}
+          {/* 价签带单位（2026-10-14 UX 课的「信息要清楚」）：光一个「1.2k」分不出是钱还是别的什么、点下去扣不扣 */}
+          {busy ? t`生成中…` : t`⚡ 出片（${fmtTokens(cost)} token）`}
         </button>
       )}
     </div>

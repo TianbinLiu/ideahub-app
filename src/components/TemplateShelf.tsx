@@ -38,6 +38,7 @@ import {
   refVideoPoster,
   refVideoRealSec,
   refreshPendingBlockoutJobs,
+  sharedListLoading,
   refreshRemoteTemplate,
   remoteStateOf,
   remoteTemplatesCapable,
@@ -749,7 +750,10 @@ export default function TemplateShelf({
               ③ 拉不到远端 —— 那是**故障**，由上面的 sharedLoadIssue 横幅负责说，
                  这里不重复、也不冒充成"市场是空的"。
             ⚠ 别退回一句放之四海的"暂无数据"：三种情形的下一步动作完全不同。 */}
-        {rows.length === 0 && (
+        {rows.length === 0 && tab !== "mine" && !q.trim() && !cat && !tierPicked && sharedListLoading() ? (
+          /* 第五种：远端还在第一次取（sharedListLoading）—— 画圈，别把"还没到货"画成"市场是空的"（2026-10-14 UX 课走查） */
+          <EmptyState loading text={t`正在取模板…`} />
+        ) : rows.length === 0 && (
           /* 第四种空态（2026-08-29 分类筛选带来的）：分类下没货 ≠ 市场空。
               allRows 非空说明货在别的分类（或还没分类），指路要指对 */
           <EmptyState

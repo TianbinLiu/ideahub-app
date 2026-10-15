@@ -157,7 +157,7 @@ function TemplatePropTrim({ tplId, card }: { tplId: string; card: Card }) {
 function blockoutIssue(tpl: VideoTemplate): string | null {
   const gate = blockoutTier();
   // 模块级函数拿不到 useLingui：用 i18n._(msg) 在调用那一刻按当前语言翻
-  if (!gate) return i18n._(msg`白模模板出片暂未开放：还没有档位支持白模（r2v）出片，等开放后再来`);
+  if (!gate) return i18n._(msg`白模模板出片暂未开放：还没有档位支持白模出片，等开放后再来`);
   return blockoutPriceIssue(gate.id) ?? refVideoIssue(tpl.refVideo);
 }
 
@@ -748,11 +748,23 @@ export default function TemplateDetailPage() {
         onClick={apply}
         disabled={!!applyBlocked}
         title={applyBlocked ?? undefined}
-        className="mb-1 block w-full rounded-xl bg-brand py-2.5 text-center text-sm font-bold text-ink disabled:bg-slate-700 disabled:text-slate-400"
+        className="mb-1 block w-full rounded-xl bg-brand py-2.5 text-center text-sm font-bold text-ink active:opacity-60 disabled:bg-slate-700 disabled:text-slate-400"
       >
         {tpl.refVideo ? <Trans>⚡ 用这个模板出片（挂上你的角色卡）</Trans> : <Trans>⚡ 用这个模板出片（只需一句话）</Trans>}
       </button>
       {discardDialog}
+      {/* 灰着的原因要写在屏幕上（2026-10-14 UX 课走查）：原来只在 title 里，手机上看不见；套餐那一档还给「去升级」 */}
+      {applyBlocked && !applyErr && (
+        <p className="mb-3 text-xs leading-relaxed text-amber-300/90">
+          {applyBlocked}
+          {planBlocked && (
+            <>
+              {"　"}
+              <UpgradeLink />
+            </>
+          )}
+        </p>
+      )}
       {applyErr && <p className="mb-3 text-xs leading-relaxed text-rose-300">{applyErr}</p>}
       <div className="mb-3" />
 

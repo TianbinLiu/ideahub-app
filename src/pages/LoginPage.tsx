@@ -122,6 +122,8 @@ export default function LoginPage() {
   const [code, setCode] = useState("");
   /** 验证码已发出 → 表单进入"填码"阶段 */
   const [sent, setSent] = useState(false);
+  /** 验证码正在发（只管那颗键的字；busy 管整页） */
+  const [sending, setSending] = useState(false);
   /** 邮箱这一栏在做"注册"还是"忘了密码" */
   const [emailFlow, setEmailFlow] = useState<"register" | "reset">("register");
   const [cooldown, setCooldown] = useState(0);
@@ -223,6 +225,14 @@ export default function LoginPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  /** 勾 / 取消勾选协议（勾选框与那行文字都走它）：勾上 = 待认领的同意（登录成功那一拍归给这个人）；取消 = 作废 */
+  function toggleAgree() {
+    const v = !agreed;
+    setAgreed(v);
+    if (v) recordTermsAccepted();
+    else clearPendingTerms();
   }
 
   /** 只负责把人送去系统浏览器；回程由 App 顶层的 OauthDeepLinkBridge 统一接
@@ -371,21 +381,35 @@ export default function LoginPage() {
                   autoComplete="current-password"
                   className={INPUT}
                 />
-                <button
-                  onClick={() => {
-                    pick("email");
-                    setEmailFlow("reset");
-                  }}
-                  className="block w-full text-right text-[11px] text-slate-500"
-                >
-                  <Trans>忘记密码？</Trans>
-                </button>
+                {/* 两条路都摆在密码框下面（2026-10-14 UX 课走查）：原来「注册」藏在「邮箱验证码」页签里的一枚小芯片后面，
+                    第一次装 App 的人在登录页上找不到一个写着「注册」的字 */}
+                <div className="flex items-center justify-between text-[11px]">
+                  <button
+                    onClick={() => {
+                      pick("email");
+                      setEmailFlow("register");
+                    }}
+                    className="py-1 text-brand underline underline-offset-2 active:opacity-60"
+                  >
+                    <Trans>没有账号？用邮箱注册</Trans>
+                  </button>
+                  <button
+                    onClick={() => {
+                      pick("email");
+                      setEmailFlow("reset");
+                    }}
+                    className="py-1 text-slate-500 underline underline-offset-2 active:opacity-60"
+                  >
+                    <Trans>忘记密码？</Trans>
+                  </button>
+                </div>
               </>
             )}
 
             {method === "email" && (
               <>
-                <div className="flex gap-1.5 text-[11px]">
+                {/* 分段控件（紧凑档）：选中态与全 app 一致用 bg-brand —— 原来的 bg-slate-700 淡得看不出哪个选着 */}
+                <div className="flex gap-1 self-start rounded-full bg-panel p-0.5 text-[11px]">
                   {(["register", "reset"] as const).map((f) => (
                     <button
                       key={f}
@@ -395,8 +419,9 @@ export default function LoginPage() {
                         setCode("");
                         setErr("");
                       }}
-                      className={`rounded-full px-2.5 py-1 ${
-                        emailFlow === f ? "bg-slate-700 text-slate-100" : "text-slate-500"
+                      aria-pressed={emailFlow === f}
+                      className={`rounded-full px-3 py-1 transition ${
+                        emailFlow === f ? "bg-brand font-semibold text-ink" : "text-slate-400"
                       }`}
                     >
                       {f === "register" ? t`注册新账号` : t`重置密码`}
@@ -459,11 +484,15 @@ export default function LoginPage() {
                   className={`${INPUT} flex-1`}
                 />
                 <button
-                  onClick={() => void sendCode()}
+                  onClick={() => {
+                    // 这颗键自己说「发送中…」：原来发码时它的字不变，忙的只有底下主键（写着「处理中…」），人不知道是哪件事在跑
+                    setSending(true);
+                    void sendCode().finally(() => setSending(false));
+                  }}
                   disabled={busy || cooldown > 0}
-                  className="flex-none rounded-xl bg-panel px-3.5 text-xs text-slate-200 ring-1 ring-slate-700 disabled:opacity-40"
+                  className="flex-none rounded-xl bg-panel px-3.5 text-xs text-slate-200 ring-1 ring-slate-700 active:opacity-60 disabled:opacity-40"
                 >
-                  {cooldown > 0 ? `${cooldown}s` : sent ? t`重发` : t`发送验证码`}
+                  {sending ? t`发送中…` : cooldown > 0 ? `${cooldown}s` : sent ? t`重发` : t`发送验证码`}
                 </button>
               </div>
             )}
@@ -474,33 +503,40 @@ export default function LoginPage() {
         {note && !err && <div className="text-xs text-emerald-300">{note}</div>}
 
         {/* 协议勾选行。链接是嵌在文字里的两颗小按钮——不能把整行做成一颗大按钮
-            再往里嵌按钮（button 套 button 是非法嵌套，React 也会告警） */}
-        <div className="flex items-start gap-2 pt-1">
+            再往里嵌按钮（button 套 button 是非法嵌套，React 也会告警）。
+            ★ 2026-10-14（CSCI 187 UX 课的惯例）：勾选框画成**方的** —— 圆的是「单选」的记号，方的才是「勾 / 不勾」；
+              原来 16px 的圆点手指几乎点不中，现在框本身 18px、按钮命中区 36px，整行文字（链接除外）也能点着勾。 */}
+        <div className="flex items-start gap-1.5 pt-1">
           <button
-            onClick={() => {
-              const v = !agreed;
-              setAgreed(v);
-              // 勾上 = 待认领的同意（登录成功那一拍归给这个人）；取消 = 作废
-              if (v) recordTermsAccepted();
-              else clearPendingTerms();
-            }}
+            onClick={toggleAgree}
             aria-label={agreed ? t`取消同意协议` : t`同意协议`}
             role="checkbox"
             aria-checked={agreed}
-            className={`mt-0.5 flex h-4 w-4 flex-none items-center justify-center rounded-full border transition ${
-              agreed ? "border-brand bg-brand text-ink" : "border-slate-600"
-            }`}
+            className="-my-2 -ml-2 flex h-9 w-9 flex-none items-center justify-center active:opacity-60"
           >
-            {agreed && <Icon name="check" size={11} strokeWidth={3} />}
+            <span
+              className={`flex h-[18px] w-[18px] items-center justify-center rounded border transition ${
+                agreed ? "border-brand bg-brand text-ink" : "border-slate-500"
+              }`}
+            >
+              {agreed && <Icon name="check" size={12} strokeWidth={3} />}
+            </span>
           </button>
-          <span className="text-[11px] leading-relaxed text-slate-500">
+          <span
+            className="cursor-pointer select-none text-[11px] leading-relaxed text-slate-500"
+            onClick={(e) => {
+              // 点到的是「《用户协议》」那两颗链接键时不勾：它们各自开文档
+              if ((e.target as HTMLElement).closest("button")) return;
+              toggleAgree();
+            }}
+          >
             <Trans>
               已阅读并同意
-              <button onClick={() => setViewDoc("terms")} className="text-brand">
+              <button onClick={() => setViewDoc("terms")} className="text-brand underline underline-offset-2">
                 《用户协议》
               </button>
               与
-              <button onClick={() => setViewDoc("privacy")} className="text-brand">
+              <button onClick={() => setViewDoc("privacy")} className="text-brand underline underline-offset-2">
                 《隐私政策》
               </button>
             </Trans>
@@ -510,7 +546,7 @@ export default function LoginPage() {
         <button
           onClick={() => requireAgree(() => void submit())}
           disabled={busy || capsLoading}
-          className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink transition hover:brightness-110 disabled:opacity-40"
+          className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink transition hover:brightness-110 active:opacity-60 disabled:opacity-40"
         >
           {busy
             ? t`处理中…`
@@ -559,8 +595,10 @@ export default function LoginPage() {
                         ? requireAgree(() => void (p.k === "qq" ? qqSignIn() : p.k === "wechat" ? wechatSignIn() : thirdParty(p.k)))
                         : setErr(deadReason(p.k))
                     }
+                    // busy 时一并灰掉：第三方登录在跳系统浏览器 / 拉起 QQ 那几秒里连点两下会起两次授权
+                    disabled={busy}
                     style={{ background: chip.bg }}
-                    className={`flex h-11 w-11 items-center justify-center rounded-full shadow-sm transition active:scale-95 ${
+                    className={`flex h-11 w-11 items-center justify-center rounded-full shadow-sm transition active:scale-95 disabled:opacity-40 ${
                       p.live ? "" : "opacity-45"
                     }`}
                     aria-label={p.live ? t`用${name}登录` : t`${name}登录（暂未接入）`}

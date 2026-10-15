@@ -2060,8 +2060,12 @@ msgid "「{names}」这一档的参考视频出片暂时报不出价（{model} �
 msgstr "「{names}」这一档的参考视频出片暂时报不出价（{model} 的单价未核账），先用别的档位"
 
 #: src/data/economy.ts
-msgid "「{names}」这一档的白模出片暂时报不出价（{model} 的 r2v 单价未核账），先用别的档位"
-msgstr "「{names}」这一档的白模出片暂时报不出价（{model} 的 r2v 单价未核账），先用别的档位"
+#~ msgid "「{names}」这一档的白模出片暂时报不出价（{model} 的 r2v 单价未核账），先用别的档位"
+#~ msgstr "「{names}」这一档的白模出片暂时报不出价（{model} 的 r2v 单价未核账），先用别的档位"
+
+#: src/data/economy.ts
+msgid "「{names}」这一档的白模出片暂时报不出价（{model} 的单价未核账），先用别的档位"
+msgstr "「{names}」这一档的白模出片暂时报不出价（{model} 的单价未核账），先用别的档位"
 
 #. 可能紧跟在上一句后面拼接，英文译文开头要留一个空格
 #: src/pages/CustomCardPage.tsx
@@ -2670,13 +2674,17 @@ msgstr "♻ 重新推演三套（{0}）"
 
 #. placeholder {0}: fmtTokens(cost)
 #: src/pages/FlowPage.tsx
-#: src/pages/SimpleModePage.tsx
 msgid "♻ 重新生成（{0}）"
 msgstr "♻ 重新生成（{0}）"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "♻ 重新生成（{costLabel}）"
 msgstr "♻ 重新生成（{costLabel}）"
+
+#. placeholder {0}: fmtTokens(cost)
+#: src/pages/SimpleModePage.tsx
+msgid "♻ 重新生成（再花 {0} token）"
+msgstr "♻ 重新生成（再花 {0} token）"
 
 #. placeholder {0}: fmtTokens(cost)
 #: src/pages/FlowPage.tsx
@@ -2806,8 +2814,13 @@ msgstr "⚡ 做同款：同一份分段剧本和卡组，生成你自己的版�
 
 #. placeholder {0}: fmtTokens(cost)
 #: src/pages/SimpleModePage.tsx
-msgid "⚡ 出片（{0}）"
-msgstr "⚡ 出片（{0}）"
+msgid "⚡ 出片（{0} token）"
+msgstr "⚡ 出片（{0} token）"
+
+#. placeholder {0}: fmtTokens(cost)
+#: src/pages/SimpleModePage.tsx
+#~ msgid "⚡ 出片（{0}）"
+#~ msgstr "⚡ 出片（{0}）"
 
 #: src/pages/RecipePage.tsx
 msgid "⚡ 按这个流程做同款"
@@ -3876,8 +3889,8 @@ msgid "3D 建模需 {price} token，余额不足，跳过"
 msgstr "3D 建模需 {price} token，余额不足，跳过"
 
 #: src/pages/CreatePage.tsx
-msgid "3D 桌面与工作流画布是同一条流水线的两个面"
-msgstr "3D 桌面与工作流画布是同一条流水线的两个面"
+#~ msgid "3D 桌面与工作流画布是同一条流水线的两个面"
+#~ msgstr "3D 桌面与工作流画布是同一条流水线的两个面"
 
 #: src/components/DraftSheet.tsx
 msgid "3D 桌面摆卡、推演走向"
@@ -4817,8 +4830,8 @@ msgid "上课需要联网"
 msgstr "上课需要联网"
 
 #: src/pages/DiscoverPage.tsx
-msgid "上面列的是这台设备上已有的那几条，不是全部结果。"
-msgstr "上面列的是这台设备上已有的那几条，不是全部结果。"
+#~ msgid "上面列的是这台设备上已有的那几条，不是全部结果。"
+#~ msgstr "上面列的是这台设备上已有的那几条，不是全部结果。"
 
 #: src/components/guide/tours.tsx
 msgid "上面是这台设备已经占用的空间。「清理缓存」<0>只删生成过程中留下、已经没人引用的中间文件</0> —— 未发布的草稿和还没传上去的作品一个不动。"
@@ -4837,7 +4850,6 @@ msgid "上面那块现在不是你的包（预览没画出来）。先点「重�
 msgstr "上面那块现在不是你的包（预览没画出来）。先点「重新加载预览」，画出来了再试跑。"
 
 #: src/components/guide/GuideOverlay.tsx
-#: src/pages/CutPage.tsx
 #: src/pages/SimpleModePage.tsx
 #: src/pages/SupportPersonaNewPage.tsx
 #: src/pages/tutor/TutorRunPage.tsx
@@ -5037,6 +5049,10 @@ msgstr "下载并使用"
 #: src/components/guide/tours.tsx
 msgid "下面「从市场添加」那一栏：点卡面只是<0>看详情</0>， 卡片下面那行小字才是收进自己的库。那一栏还能切成卡组、整套装走，都不花钱。"
 msgstr "下面「从市场添加」那一栏：点卡面只是<0>看详情</0>， 卡片下面那行小字才是收进自己的库。那一栏还能切成卡组、整套装走，都不花钱。"
+
+#: src/pages/DiscoverPage.tsx
+msgid "下面列的是这台设备上已有的那几条，不是全部结果。"
+msgstr "下面列的是这台设备上已有的那几条，不是全部结果。"
 
 #: src/components/PhotoSubjectPicker.tsx
 msgid "下面就是进卡的那一张：卡面和出片参考图都用它。"
@@ -5271,6 +5287,10 @@ msgstr "严厉度"
 #: src/pages/tutor/TutorNewPage.tsx
 msgid "严格"
 msgstr "严格"
+
+#: src/pages/SettingsPage.tsx
+msgid "个性化"
+msgstr "个性化"
 
 #: src/pages/LoginPage.tsx
 msgid "中国大陆"
@@ -7215,8 +7235,12 @@ msgid "写一句这张{label}要什么画面（例如\"他站在门口回头，�
 msgstr "写一句这张{label}要什么画面（例如\"他站在门口回头，半身，暖光\"）——不写的话模型只能自己编"
 
 #: src/components/flow/ModePicker.tsx
-msgid "写一场戏，AI 写成 4~9 格分镜、一次画出整组画面；挑几格，每格变成一段。LibTV 作者的做法"
-msgstr "写一场戏，AI 写成 4~9 格分镜、一次画出整组画面；挑几格，每格变成一段。LibTV 作者的做法"
+msgid "写一场戏，AI 写成 4~9 格分镜、一次画出整组画面；挑几格，每格变成一段"
+msgstr "写一场戏，AI 写成 4~9 格分镜、一次画出整组画面；挑几格，每格变成一段"
+
+#: src/components/flow/ModePicker.tsx
+#~ msgid "写一场戏，AI 写成 4~9 格分镜、一次画出整组画面；挑几格，每格变成一段。LibTV 作者的做法"
+#~ msgstr "写一场戏，AI 写成 4~9 格分镜、一次画出整组画面；挑几格，每格变成一段。LibTV 作者的做法"
 
 #: src/pages/DeckDetailPage.tsx
 msgid "写一段卡组简介：这套卡适合生成什么样的视频？"
@@ -8292,6 +8316,10 @@ msgstr "匿名"
 msgid "十年前那一战"
 msgstr "十年前那一战"
 
+#: src/pages/SettingsPage.tsx
+msgid "协议与须知"
+msgstr "协议与须知"
+
 #: src/components/flow/GridShotsWizard.tsx
 msgid "单独画一张：只带这一格里的人的卡图；没有人的格子拿这一组里另一格定画风、一张人物图都不带。与整组的画风尽量一致，但不保证一模一样。画完 AI 会看一遍（价钱里含这一次）。"
 msgstr "单独画一张：只带这一格里的人的卡图；没有人的格子拿这一组里另一格定画风、一张人物图都不带。与整组的画风尽量一致，但不保证一模一样。画完 AI 会看一遍（价钱里含这一次）。"
@@ -9035,6 +9063,7 @@ msgstr "发送"
 
 #: src/components/CommentSheet.tsx
 #: src/pages/AdminPage.tsx
+#: src/pages/LoginPage.tsx
 msgid "发送中…"
 msgstr "发送中…"
 
@@ -9509,6 +9538,10 @@ msgstr "可以先去逛逛——生成不会中断。就算退出 App 也不要�
 msgid "可以检查有没有新版本"
 msgstr "可以检查有没有新版本"
 
+#: src/pages/SimpleModePage.tsx
+msgid "可以离开这一页，出片好了会在顶上提醒你"
+msgstr "可以离开这一页，出片好了会在顶上提醒你"
+
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "可以退出这一页，跑完会有通知。"
 msgstr "可以退出这一页，跑完会有通知。"
@@ -9651,6 +9684,10 @@ msgstr "合成中…"
 #: src/pages/FlowPage.tsx
 msgid "合成中…（一次对话，几秒）"
 msgstr "合成中…（一次对话，几秒）"
+
+#: src/pages/CutPage.tsx
+msgid "合成并去发布"
+msgstr "合成并去发布"
 
 #: src/pages/CutPage.tsx
 msgid "合成成片"
@@ -10384,8 +10421,8 @@ msgstr "头左右"
 #~ msgstr "套一个模板，给人偶挂卡换人"
 
 #: src/components/flow/ModePicker.tsx
-msgid "套一个模板，给人偶挂卡换人（模板按这个模型筛）"
-msgstr "套一个模板，给人偶挂卡换人（模板按这个模型筛）"
+#~ msgid "套一个模板，给人偶挂卡换人（模板按这个模型筛）"
+#~ msgstr "套一个模板，给人偶挂卡换人（模板按这个模型筛）"
 
 #: src/pages/TemplateMarketPage.tsx
 msgid "套上模板，一句话出片"
@@ -11266,6 +11303,11 @@ msgstr "已切换，返回客服页生效。"
 msgid "已删掉 {0} 个文件，{1} 空间已释放"
 msgstr "已删掉 {0} 个文件，{1} 空间已释放"
 
+#. placeholder {0}: meta.title
+#: src/components/DraftSheet.tsx
+msgid "已删掉「{0}」"
+msgstr "已删掉「{0}」"
+
 #: src/pages/AdminPage.tsx
 msgid "已删除"
 msgstr "已删除"
@@ -11845,6 +11887,10 @@ msgstr "带货"
 msgid "帧{0}"
 msgstr "帧{0}"
 
+#: src/pages/SettingsPage.tsx
+msgid "帮助与 AI 伙伴"
+msgstr "帮助与 AI 伙伴"
+
 #: src/pages/AdminPage.tsx
 msgid "平台数据 · 点卡片进入管理"
 msgstr "平台数据 · 点卡片进入管理"
@@ -11958,6 +12004,10 @@ msgstr "开始上课"
 #: src/components/DownloadSheet.tsx
 msgid "开始保存{totalLabel}"
 msgstr "开始保存{totalLabel}"
+
+#: src/pages/CreatePage.tsx
+msgid "开始做完整作品"
+msgstr "开始做完整作品"
 
 #: src/components/cut/AutoEditSheet.tsx
 msgid "开始写（{price}）"
@@ -13384,6 +13434,10 @@ msgstr "挑一套 → 可换首尾帧/改剧情 → 炼出本段视频，桌面�
 msgid "挑一套方案 → 可换首尾帧/改剧情 → 炼出本段视频"
 msgstr "挑一套方案 → 可换首尾帧/改剧情 → 炼出本段视频"
 
+#: src/components/flow/ModePicker.tsx
+msgid "挑一条模板片，把画面里的人换成你的角色，场景与运镜照它走（模板按这个模型筛）"
+msgstr "挑一条模板片，把画面里的人换成你的角色，场景与运镜照它走（模板按这个模型筛）"
+
 #: src/pages/SimpleModePage.tsx
 msgid "挑一条现成的片子，复刻它的画面与运镜"
 msgstr "挑一条现成的片子，复刻它的画面与运镜"
@@ -13401,8 +13455,12 @@ msgid "挑主角"
 msgstr "挑主角"
 
 #: src/components/flow/ModePicker.tsx
-msgid "挑几张参考图（人物 / 场景卡）＋ 写提示词，人物图直接给视频模型。LibTV 作者最常用的做法"
-msgstr "挑几张参考图（人物 / 场景卡）＋ 写提示词，人物图直接给视频模型。LibTV 作者最常用的做法"
+msgid "挑几张参考图（人物 / 场景卡）＋ 写提示词，人物图直接给视频模型"
+msgstr "挑几张参考图（人物 / 场景卡）＋ 写提示词，人物图直接给视频模型"
+
+#: src/components/flow/ModePicker.tsx
+#~ msgid "挑几张参考图（人物 / 场景卡）＋ 写提示词，人物图直接给视频模型。LibTV 作者最常用的做法"
+#~ msgstr "挑几张参考图（人物 / 场景卡）＋ 写提示词，人物图直接给视频模型。LibTV 作者最常用的做法"
 
 #: src/components/flow/ModePicker.tsx
 msgid "挑卡＋写要求，AI 出三套带关键画面的方案，挑一套再出片"
@@ -13510,6 +13568,10 @@ msgstr "换个词试试，或者清空搜索框看看大家都分享了什么"
 #: src/studio/studioStore.ts
 msgid "换了一批走向，投影在你面前了——点开挑一套。"
 msgstr "换了一批走向，投影在你面前了——点开挑一套。"
+
+#: src/components/flow/ModePicker.tsx
+msgid "换人不换景"
+msgstr "换人不换景"
 
 #. placeholder {0}: ask.label
 #: src/components/flow/TierRow.tsx
@@ -13983,6 +14045,7 @@ msgid "撤掉 {0}"
 msgstr "撤掉 {0}"
 
 #: src/components/blockout/RoleConfirmSheet.tsx
+#: src/components/DraftSheet.tsx
 msgid "撤销"
 msgstr "撤销"
 
@@ -16279,6 +16342,10 @@ msgstr "正在取回结果…"
 msgid "正在取声音：找到<0>只有这个人在说话</0>的一段，先定起点再定终点（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）。录制会实际播一遍。"
 msgstr "正在取声音：找到<0>只有这个人在说话</0>的一段，先定起点再定终点（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）。录制会实际播一遍。"
 
+#: src/components/TemplateShelf.tsx
+msgid "正在取模板…"
+msgstr "正在取模板…"
+
 #: src/pages/RecipePage.tsx
 msgid "正在取段模板…"
 msgstr "正在取段模板…"
@@ -16617,6 +16684,10 @@ msgstr "每个概念先落到一道能算的小题上，算完再谈名词。"
 #: src/pages/SettingsPage.tsx
 msgid "每个界面第一次打开时会自动放一遍使用引导，之后不再自动弹；想单独重看某一屏，点那一屏角落的<0> ? </0>就行。这里是把<1>所有</1>引导恢复成「没看过」——之后每个界面第一次打开时会重新弹一遍。"
 msgstr "每个界面第一次打开时会自动放一遍使用引导，之后不再自动弹；想单独重看某一屏，点那一屏角落的<0> ? </0>就行。这里是把<1>所有</1>引导恢复成「没看过」——之后每个界面第一次打开时会重新弹一遍。"
+
+#: src/pages/CreatePage.tsx
+msgid "每出一段自动存草稿，随时接着做"
+msgstr "每出一段自动存草稿，随时接着做"
 
 #. placeholder {0}: CARD_TYPE_LABELS[dearest]
 #: src/studio/ui/NpcDialog.tsx
@@ -16984,6 +17055,10 @@ msgstr "没有要配音的句子（还没写字幕，或者都配好了）"
 msgid "没有解析结果。"
 msgstr "没有解析结果。"
 
+#: src/pages/LoginPage.tsx
+msgid "没有账号？用邮箱注册"
+msgstr "没有账号？用邮箱注册"
+
 #: src/components/support/AdminTicketsView.tsx
 msgid "没有进行中的工单"
 msgstr "没有进行中的工单"
@@ -17155,6 +17230,10 @@ msgstr "没能完成，请重试"
 #: src/components/blockout/VideoStage.tsx
 msgid "没能开始播放：{0}"
 msgstr "没能开始播放：{0}"
+
+#: src/components/DraftSheet.tsx
+msgid "没能恢复这条草稿"
+msgstr "没能恢复这条草稿"
 
 #: src/utils/nativeLoginError.ts
 msgid "没能打开{app}的授权页。确认装的是正式版{app}并且版本不太旧，或者用手机号、邮箱登录。"
@@ -18759,6 +18838,7 @@ msgstr "留空由 AI 决定；可填 {durMin}-{durMax}"
 #~ msgid "留空由 AI 决定；可填 2-15"
 #~ msgstr "留空由 AI 决定；可填 2-15"
 
+#: src/pages/FeedPage.tsx
 #: src/pages/LoginPage.tsx
 msgid "登录"
 msgstr "登录"
@@ -18921,8 +19001,8 @@ msgid "白模化这一次的总消耗"
 msgstr "白模化这一次的总消耗"
 
 #: src/components/flow/ModePicker.tsx
-msgid "白模复刻"
-msgstr "白模复刻"
+#~ msgid "白模复刻"
+#~ msgstr "白模复刻"
 
 #: src/pages/TemplateDetailPage.tsx
 msgid "白模复刻 · 模板视频 {tplSecs}s"
@@ -19011,10 +19091,13 @@ msgstr "白模模板出片只在方舟档（真人档没有 r2v 能力）——�
 msgid "白模模板出片暂未开放：还没有档位支持白模（r2v）出片"
 msgstr "白模模板出片暂未开放：还没有档位支持白模（r2v）出片"
 
-#: src/pages/TemplateDetailPage.tsx
 #: src/studio/flowStore.ts
 msgid "白模模板出片暂未开放：还没有档位支持白模（r2v）出片，等开放后再来"
 msgstr "白模模板出片暂未开放：还没有档位支持白模（r2v）出片，等开放后再来"
+
+#: src/pages/TemplateDetailPage.tsx
+msgid "白模模板出片暂未开放：还没有档位支持白模出片，等开放后再来"
+msgstr "白模模板出片暂未开放：还没有档位支持白模出片，等开放后再来"
 
 #: src/components/guide/tours.tsx
 msgid "白模模板发布前"
@@ -20719,6 +20802,10 @@ msgstr "算了"
 msgid "算报价…"
 msgstr "算报价…"
 
+#: src/pages/SettingsPage.tsx
+msgid "管理"
+msgstr "管理"
+
 #: src/pages/AdminPage.tsx
 #: src/pages/SettingsPage.tsx
 msgid "管理后台"
@@ -21033,6 +21120,10 @@ msgstr "给客服页和官网首页的看板娘换一套 Live2D 形象，两边�
 #: src/pages/SettingsPage.tsx
 msgid "给小梦换一套 Live2D 形象"
 msgstr "给小梦换一套 Live2D 形象"
+
+#: src/studio/StudioPage.tsx
+msgid "给工程起名"
+msgstr "给工程起名"
 
 #: src/components/guide/tours.tsx
 msgid "给每一段写一句话，它会<0>烧进画面</0>当字幕；点<1>🔊 配音</1>，就用选好的音色把它念出来 —— 配音现在不收 token， 字数按这一段的时长封顶。有配音时，配乐和这一段的原声会自动压低。"
@@ -22463,6 +22554,7 @@ msgstr "谢谢反馈"
 
 #: src/api/support.ts
 #: src/pages/AdminPage.tsx
+#: src/pages/SettingsPage.tsx
 msgid "账号"
 msgstr "账号"
 
@@ -24625,6 +24717,10 @@ msgstr "这台服务器还没有老师会话（回的不是事件流）"
 msgid "这台服务器还没有通知功能"
 msgstr "这台服务器还没有通知功能"
 
+#: src/pages/SettingsPage.tsx
+msgid "这台设备"
+msgstr "这台设备"
+
 #: src/utils/nativeMerge.ts
 msgid "这台设备上合成用不了——合成走的是系统硬件编解码器，只有安装包里有。请在手机 App 里完成合成。"
 msgstr "这台设备上合成用不了——合成走的是系统硬件编解码器，只有安装包里有。请在手机 App 里完成合成。"
@@ -25420,8 +25516,8 @@ msgid "进行中…"
 msgstr "进行中…"
 
 #: src/pages/CreatePage.tsx
-msgid "进铸卡桌面"
-msgstr "进铸卡桌面"
+#~ msgid "进铸卡桌面"
+#~ msgstr "进铸卡桌面"
 
 #: src/data/templates.ts
 msgid "远端模板加载失败：{why}"
@@ -25584,8 +25680,12 @@ msgid "选填"
 msgstr "选填"
 
 #: src/components/flow/ModePicker.tsx
-msgid "选好（或现做）主角，写一场戏，AI 拆成 2~4 个镜头带台词，一条出。updream 作者的做法"
-msgstr "选好（或现做）主角，写一场戏，AI 拆成 2~4 个镜头带台词，一条出。updream 作者的做法"
+msgid "选好（或现做）主角，写一场戏，AI 拆成 2~4 个镜头带台词，一条出"
+msgstr "选好（或现做）主角，写一场戏，AI 拆成 2~4 个镜头带台词，一条出"
+
+#: src/components/flow/ModePicker.tsx
+#~ msgid "选好（或现做）主角，写一场戏，AI 拆成 2~4 个镜头带台词，一条出。updream 作者的做法"
+#~ msgstr "选好（或现做）主角，写一场戏，AI 拆成 2~4 个镜头带台词，一条出。updream 作者的做法"
 
 #: src/components/blockout/DetectRolesEntry.tsx
 msgid "选定场景/人物数量变化的特定帧，让 AI 分析每一段视频中的人物。"

@@ -333,6 +333,30 @@ export async function deleteDraft(id: string): Promise<void> {
   await idbDel(bodyKey(id));
 }
 
+/**
+ * 删一条草稿、但留一手「撤销」：回的函数给轻提示那颗「撤销」键调（回 null = 没删成：索引没读出来 / 不是自己的）。
+ * ★ 为什么不是再问一遍「确定删？」（2026-10-14 按 CSCI 187 UX 课收口：Goodwin 的「不要求确认，而是提供撤销」）：
+ *   确认卡人人点「确定」，拦不住手滑；撤销才真能把东西拿回来。带已出片段的草稿（花过钱）DraftSheet 仍先问一句，两道都在。
+ * ★ 做法是先把正文读进内存、再真删，撤销 = 把索引项与正文**原样**写回（缩略图、时间、主人一个字不变）——
+ *   不留定时器、不留「索引里没有、库里还躺着」的孤儿正文（cacheSweep 不认 draft.* 键，孤儿会永久占着配额）。
+ *   正文读不出来（配额清理过）也照删，撤销只恢复索引项 —— 与 DraftSheet「内容已丢失」那条路一个口径。
+ */
+export async function trashDraft(id: string): Promise<(() => Promise<boolean>) | null> {
+  if (loadIssue) return null;
+  const meta = getDraftMeta(id);
+  if (!meta) return null;
+  const body = await loadDraft(id);
+  await deleteDraft(id);
+  return async () => {
+    if (loadIssue) return false;
+    if (body && !(await idbSet(bodyKey(id), body))) return false;
+    index = [meta, ...index.filter((d) => d.id !== id)];
+    persistIndex();
+    emit();
+    return true;
+  };
+}
+
 export async function renameDraft(id: string, title: string): Promise<void> {
   if (loadIssue) return; // 同上
   const t = title.trim().slice(0, 40);

@@ -1999,7 +1999,8 @@ export default function CutPage() {
             disabled={!!busy}
             className="rounded-full bg-brand px-4 py-1.5 text-sm font-bold text-ink disabled:opacity-40"
           >
-            {alreadyMerged ? t`去发布` : t`下一步`}
+            {/* 键上写清会发生什么（2026-10-14 UX 课）：「下一步」其实是先把整条片合成、再去发布页 */}
+            {alreadyMerged ? t`去发布` : t`合成并去发布`}
           </button>
         )}
           </>

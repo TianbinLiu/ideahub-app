@@ -8,7 +8,8 @@ import { useNavigate } from "react-router";
 import { Trans, useLingui } from "@lingui/react/macro";
 import Sheet from "./Sheet";
 import { useApplyTemplate } from "./flow/useApplyTemplate";
-import { deleteDraft, loadDraft, renameDraft, type DraftMode, type WorkDraftMeta } from "../data/drafts";
+import { deleteDraft, loadDraft, renameDraft, trashDraft, type DraftMode, type WorkDraftMeta } from "../data/drafts";
+import { showToast } from "../data/toast";
 import { useStudio } from "../studio/studioStore";
 import { relativeTime } from "../types";
 
@@ -25,8 +26,25 @@ export default function DraftSheet({ meta, onClose }: { meta: WorkDraftMeta; onC
    * 见 CLAUDE.md「成了再断」那条）。手滑一下就是几十万到几百万 token 蒸发且零提示。
    * ★ 只在这一屏内联问一句，不新起对话框：DiscardFlowDialog 问的是"换掉流水线"，
    *   判据（flowDirty / savedDoneCount）与这里完全不同，套过来会说错话。
+   * ★ 2026-10-14（按 CSCI 187 UX 课收口，Goodwin「不要求确认，而是提供撤销」）：删完一律给 6 秒「撤销」（trashDraft）。
+   *   这一句确认**只对带已出片段的草稿**再问 —— 那是花过钱的东西，撤销那 6 秒人未必看见；没出过片的草稿不再问，
+   *   手滑了点「撤销」就回来。两种草稿一颗键、两种拍子，理由就是上面那行钱。
    */
   const [confirmDel, setConfirmDel] = useState(false);
+
+  /** 真删 + 摆一条带「撤销」的轻提示；撤销没成（配额满 / 索引没读出来）要说出来，别让人以为点了没反应 */
+  async function trash() {
+    const undo = await trashDraft(meta.id);
+    onClose();
+    if (!undo) return;
+    showToast(t`已删掉「${meta.title}」`, 6000, {
+      label: t`撤销`,
+      run: () =>
+        void undo().then((ok) => {
+          if (!ok) showToast(t`没能恢复这条草稿`);
+        }),
+    });
+  }
 
   // ★★ **第七条整表换掉 nodes 的入口**（2026-08-21 第七轮扫描的 high）：openWorkDraft 是
   //   彻头彻尾的整表覆盖（有 flow 的走 setState、没有的走 startFlow(force) 或 reset()），
@@ -151,7 +169,7 @@ export default function DraftSheet({ meta, onClose }: { meta: WorkDraftMeta; onC
               <Trans>不删</Trans>
             </button>
             <button
-              onClick={() => void deleteDraft(meta.id).then(onClose)}
+              onClick={() => void trash()}
               className="rounded-xl bg-rose-500/90 px-4 py-2.5 text-sm font-bold text-ink"
             >
               <Trans>确认删除</Trans>
@@ -164,7 +182,7 @@ export default function DraftSheet({ meta, onClose }: { meta: WorkDraftMeta; onC
             <Trans>取消</Trans>
           </button>
           <button
-            onClick={() => setConfirmDel(true)}
+            onClick={() => (meta.doneCount > 0 ? setConfirmDel(true) : void trash())}
             className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-2.5 text-sm text-rose-300"
           >
             <Trans>删除</Trans>

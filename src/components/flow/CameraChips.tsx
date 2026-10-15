@@ -90,14 +90,17 @@ export default function CameraChips({
           disabled={dead}
           title={!on && full ? fullMsg : tooLong ? longMsg : movePhrase(m.id, lang)}
           onClick={() => onChange(next)}
-          className={`rounded-full px-2 py-0.5 text-[10px] transition-colors ${
+          aria-pressed={on}
+          // 多选：选中的带 ✓、实底（2026-10-14 UX 课的惯例 —— 多选要有勾，淡底 + 细框那种选中态全 app 已收掉）；py-1 让芯片够得着
+          className={`rounded-full px-2 py-1 text-[10px] transition-colors active:opacity-60 ${
             on
-              ? "bg-brand/25 text-brand ring-1 ring-brand/50"
+              ? "bg-brand font-semibold text-ink"
               : dead
                 ? "bg-slate-800/60 text-slate-600"
                 : "bg-slate-700/60 text-slate-300"
           }`}
         >
+          {on ? "✓ " : ""}
           {t(CAMERA_LABELS[m.id])}
         </button>
       ))}

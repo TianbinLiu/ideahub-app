@@ -763,7 +763,10 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   验法：逐路由量 `header` 的 bottom 到下一个兄弟元素 top 的差，都该是 12。
 - **轻提示只有一份 `data/toast.showToast()` + `components/Toast`**（挂在 App 根）。「已复制」这类回执一律走它，
   别再把按钮文字换成「已复制 ✓」或在抽屉里写一行 note。⚠ `window.confirm` / `alert` 一个都不许用：确认走
-  `ConfirmDialog`，回执走 toast。
+  `ConfirmDialog`，回执走 toast。**一拍就成、又能原样恢复的动作先做、再在提示上给「撤销」**（`showToast(msg, ms, { label, run })`，
+  2026-10-14 按 CSCI 187 UX 课的「提供撤销而不是要求确认」收口；样板 `DraftSheet` + `drafts.trashDraft`）：确认卡人人点「确定」，
+  拦不住手滑。花过钱的东西（带已出片段的草稿）仍先问一句 —— 撤销那几秒人未必看见。带键的提示至少给 6 秒。
+  这次走查的全部发现与没改的清单在 `docs/ux-review-csci187-2026-10-14.md`。
 - **列表的加载态与空态也走 `EmptyState`**（`loading` / `emoji + text + hint`），别再手拼 `py-8 text-center text-xs`
   或 `border-dashed py-10` 的框（第八轮逐页目视后把最后 8 个虚线框与工坊广场那条行内报错都收了；弹层里用 `compact`）。
   查法：`rg 'border-dashed' --glob '*.tsx' | rg 'text-center'` 只该剩 `studio/ui/NpcDialog`（那是 3D 桌面的空卡位，不是空态）。
@@ -998,6 +1001,7 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 - [`docs/ONBOARDING.md`](docs/ONBOARDING.md) — 从零到能跑
 - [`docs/api-contract.md`](docs/api-contract.md) — 与 server 的接口契约（三仓共享）
 - [`docs/play-store-checklist.md`](docs/play-store-checklist.md) — 上架检查单
+- [`docs/ux-review-csci187-2026-10-14.md`](docs/ux-review-csci187-2026-10-14.md) — 按 CSCI 187 六个 UX 框架 + 惯例 + Goodwin「好产品礼仪」走查 App：改了 20 来处（删草稿改撤销、方勾选框、页签名字、设置分组、反馈落在键旁…），没改的 21 条按框架排好等主人定（发布页主键在三屏外、点赞失败静默回滚、工坊两个意思、token 五个名字…）
 - [`docs/node-modes-libtv-alignment.md`](docs/node-modes-libtv-alignment.md) — 工作流节点「自选卡片 / 自定义」对齐 LibTV 节点：调研、方案、主人拍板与落地记录（N1 参考清单 + @ 点名、N3 关键画面可改可截、N2 分镜表都已落地；含与已有「圈图改图」的对比、官方文档查到的几条协议事实、等主人定的两件事）
 - [`docs/guided-modes-design.md`](docs/guided-modes-design.md) — 工作流的「跟着做」模式（参考图直出 / 主角定妆·多镜头 / 九宫格分镜 / 推演三套 / 套模板 / 自定义）：每个模式固定步骤（2026-10-04 方案，主人「开工」五条全认；第一期 A、第二期 B、第三期 C 已落地，A、B 各付费验过一次；C 的服务端组图任务 server#106 2026-10-06 已合并上线，C 同日付费验过（¥4.50；App 重开后向导里选的人会丢 —— 10-07 已修））
 - [`docs/seedream-grid-fix-research.md`](docs/seedream-grid-fix-research.md) — 九宫格分镜两个出图问题（组图不照分镜、单格重画成拼图）的调研（2026-10-06，不花钱）：

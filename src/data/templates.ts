@@ -366,6 +366,8 @@ let shared: VideoTemplate[] = [];
 let sharedFresh = false;
 let sharedLoading = false;
 let sharedError = "";
+/** 远端没有这个能力（老服务端 / 离线）：有了这个结论就不再画加载态（见 sharedListLoading） */
+let sharedUnsupported = false;
 /** 失败后的冷却（15s）：browseTemplates 每次渲染都会来问，不冷却就是失败风暴 */
 let sharedRetryAt = 0;
 
@@ -648,6 +650,15 @@ export function sharedLoadIssue(): string {
   return sharedError;
 }
 
+/**
+ * 市场远端区还在**第一次**取：货架据此画加载圈，而不是把「还没到货」画成「市场上还没有公开的模板」
+ * （2026-10-14 UX 课走查：第一次进市场那一两秒屏幕上写的是"没有"，人读到的是"这产品没内容"）。
+ * 真拉挂了 / 老服务端 / 离线都不算"在取"：前者由 sharedLoadIssue 说，后两者得出结论就收掉（sharedUnsupported）。
+ */
+export function sharedListLoading(): boolean {
+  return sharedLoading && !sharedFresh && !sharedUnsupported;
+}
+
 /** 懒加载远端 shared（到货 emit）。能力探测走 remoteTemplatesCapable 唯一实现 */
 function ensureShared(): void {
   if (sharedFresh || sharedLoading || Date.now() < sharedRetryAt) return;
@@ -661,8 +672,13 @@ function ensureShared(): void {
           sharedError = t`远端模板加载失败：网络不稳，稍后自动重试`;
           sharedRetryAt = Date.now() + 15_000;
           emit();
+        } else if (!sharedUnsupported) {
+          // 真·老服务端 / 离线：安静保持本机市场。★ 只在第一次得出结论时 emit 一次，让货架把加载圈收掉 ——
+          //   每次都 emit 的话：渲染 → browseTemplates → ensureShared → emit → 渲染……是个死循环
+          sharedUnsupported = true;
+          emit();
         }
-        return; // 真·老服务端：安静保持本机市场
+        return;
       }
       const items = await branch.listSharedTemplates(50);
       shared = items.map(apiToTemplate).filter((t): t is VideoTemplate => t !== null);
