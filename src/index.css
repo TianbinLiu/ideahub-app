@@ -123,16 +123,24 @@ canvas {
   animation: heart-burst 620ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
-/* 首页视频缓冲提示（对标抖音/TikTok）：底缘细线从中心拉宽并淡出，循环 */
+/* 首页视频缓冲提示（对标抖音/TikTok）：底缘细线从中心拉宽并淡出，循环。
+   ★ 只动 transform / opacity（2026-10-15 教材人格评审，McConnell 性能那条；与下面弹幕那条同一个理由）：
+     原来关键帧动 width（16% → 90%），缓冲期间每帧一次 Layout + Paint，正压在等首帧的视频上；
+     现在线固定 90% 宽，从中心 scaleX(0.18 → 1)，0.18 = 16 / 90，起止与原来一样宽。
+   ★ 代价：scaleX 会把 1.5px 的圆角两端也压扁（起点处约 0.27px），肉眼看不出 —— 要是哪天线加粗到看得出，
+     改法是动 clip-path / 两端各画一个圆，别改回 width。 */
 @keyframes feed-buffer {
-  0% { width: 16%; opacity: 0; }
+  0% { transform: scaleX(0.18); opacity: 0; }
   35% { opacity: 0.85; }
-  100% { width: 90%; opacity: 0; }
+  100% { transform: scaleX(1); opacity: 0; }
 }
 .feed-buffer-line {
+  width: 90%;
   height: 3px;
   border-radius: 9999px;
   background: rgba(255, 255, 255, 0.8);
+  transform-origin: center;
+  will-change: transform, opacity;
   animation: feed-buffer 0.9s ease-out infinite;
 }
 

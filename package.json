@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && lingui extract && node scripts/check-guides.mjs && node scripts/check-hook-order.mjs && node scripts/check-agent-grammar.mjs && node scripts/check-cut-project.mjs && node scripts/check-cut-grammar.mjs && node scripts/check-camera-vocab.mjs && node scripts/check-ref-mentions.mjs && node scripts/check-shot-script.mjs && node scripts/check-draw-plan.mjs && node scripts/check-guided-modes.mjs && node scripts/check-video-tiers.mjs && node scripts/check-image-tiers.mjs && node scripts/check-scene-shots.mjs && node scripts/check-grid-shots.mjs && node scripts/check-effect-presets.mjs && node scripts/check-dialogue-shots.mjs && node scripts/check-slot-ids.mjs && node scripts/check-i18n.mjs && vite build",
+    "build": "tsc && lingui extract && node scripts/check-guides.mjs && node scripts/check-hook-order.mjs && node scripts/check-import-direction.mjs && node scripts/check-agent-grammar.mjs && node scripts/check-cut-project.mjs && node scripts/check-cut-grammar.mjs && node scripts/check-camera-vocab.mjs && node scripts/check-ref-mentions.mjs && node scripts/check-shot-script.mjs && node scripts/check-draw-plan.mjs && node scripts/check-guided-modes.mjs && node scripts/check-video-tiers.mjs && node scripts/check-image-tiers.mjs && node scripts/check-scene-shots.mjs && node scripts/check-grid-shots.mjs && node scripts/check-effect-presets.mjs && node scripts/check-dialogue-shots.mjs && node scripts/check-slot-ids.mjs && node scripts/check-i18n.mjs && vite build",
+    "check:all": "node scripts/check-all.mjs",
+    "import-direction": "node scripts/check-import-direction.mjs",
     "i18n:extract": "lingui extract",
     "i18n": "node scripts/check-i18n.mjs",
     "preview": "vite preview",
@@ -74,5 +76,8 @@
   },
   "overrides": {
     "uuid": "^11.1.1"
+  },
+  "engines": {
+    "node": ">=24.15.0 <25"
   }
 }

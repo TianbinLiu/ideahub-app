@@ -178,25 +178,42 @@ async function request<T>(
   const timer = setTimeout(() => ctrl.abort(), opts.timeoutMs ?? DEFAULT_TIMEOUT_MS);
   const onExternalAbort = () => ctrl.abort();
   opts.signal?.addEventListener("abort", onExternalAbort);
+  // 断在传输层（没拿到响应头 / 正文没读完）的两种结局各一句、各一个码：调用方只认码（PendingErrorCode / uploadFailOf），
+  // 外部 signal 取消的也按「超时」报（改之前就是这么归的，别顺手改掉：待发队列按码落盘）
+  const transportError = (e: unknown): ApiError => {
+    const aborted = e instanceof DOMException && e.name === "AbortError";
+    return new ApiError(aborted ? t`请求超时` : t`网络不可用`, 0, aborted ? "TIMEOUT" : "NETWORK");
+  };
 
   let res: Response;
+  let text: string;
   const url = buildUrl(path, opts.query);
   try {
-    res = await fetch(url, {
-      method,
-      headers: withAppVersion(url, headers),
-      body: body === undefined ? undefined : JSON.stringify(body),
-      signal: ctrl.signal,
-    });
-  } catch (e) {
-    const aborted = e instanceof DOMException && e.name === "AbortError";
-    throw new ApiError(aborted ? t`请求超时` : t`网络不可用`, 0, aborted ? "TIMEOUT" : "NETWORK");
+    try {
+      res = await fetch(url, {
+        method,
+        headers: withAppVersion(url, headers),
+        body: body === undefined ? undefined : JSON.stringify(body),
+        signal: ctrl.signal,
+      });
+    } catch (e) {
+      throw transportError(e);
+    }
+    // ★ 正文也在同一个预算、同一个 signal 里读（2026-10-15 教材人格评审）：原来 clearTimeout 在拿到**响应头**那一拍就跑了，
+    //   `res.text()` 之后再无任何上限 —— 源站发完头就卡住（pm2 重启中、处理函数里同步等 Cloudinary）或弱网半开连接时，
+    //   「保存中… / 发布中…」一动不动，直到 Cloudflare 两分钟后掐断；而且正文读失败抛的是裸 TypeError，
+    //   `e instanceof ApiError` 与按码分档的那几处一个都认不出它。JSON 端点 Express 是头和体一起写的，
+    //   正常情况下头到了体也到了，所以这一步几乎不会多花时间；timeoutMs 的含义照旧是「这一发整体等多久」。
+    try {
+      text = await res.text();
+    } catch (e) {
+      throw transportError(e);
+    }
   } finally {
     clearTimeout(timer);
     opts.signal?.removeEventListener("abort", onExternalAbort);
   }
 
-  const text = await res.text();
   let data: unknown = null;
   if (text) {
     try {

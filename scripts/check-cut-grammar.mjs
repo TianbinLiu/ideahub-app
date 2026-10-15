@@ -16,6 +16,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import url from "node:url";
+import { regexStringIssues } from "./lib/regex-shape.mjs";
 
 const root = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), "..");
 const modArg = process.argv.find((a) => a.startsWith("--module="))?.slice("--module=".length);
@@ -38,9 +39,10 @@ src.split(/\r?\n/).forEach((ln, i) => {
   if (/^\s*import\s+(?!type\b)/.test(ln)) fail(`cutGrammar.ts:${i + 1}  只准 import type（这个文件要能被 Node 直接 import 跑正反例）`);
   if (/@lingui/.test(ln) && !/^\s*(\/\/|\*)/.test(ln)) fail(`cutGrammar.ts:${i + 1}  不许引 @lingui：这里的中文是被解析的句式，回给人的话在 cutAgent 里说`);
   if (/^\s*(export\s+)?(const\s+)?enum\s+\w|^\s*(export\s+)?namespace\s+\w/.test(ln)) fail(`cutGrammar.ts:${i + 1}  不许用 enum / namespace`);
-  // 正则写成字符串再 new RegExp，\d 会静默退化成字母 d（CLAUDE.md 那一格）。从字面量的 .source 派生的不算
-  if (/new RegExp\(\s*["'`]/.test(ln)) fail(`cutGrammar.ts:${i + 1}  正则写字面量，别写成字符串再 new RegExp`);
 });
+// 正则写成字符串再 new RegExp，\d 会静默退化成字母 d（CLAUDE.md 那一格）。判据与另外四道脚本共用（scripts/lib/regex-shape.mjs，
+// 2026-10-15 教材人格评审）：从字面量的 .source 派生、String.raw、双写的 \\s 都放行，只拦真会坏的那种形状
+regexStringIssues(src, "cutGrammar.ts").forEach(fail);
 
 /** 一句话 → 操作（只看 ops；unclear 另验） */
 const ops = (text) => G.parseCutLocal(text).ops;
@@ -103,6 +105,8 @@ yes("set clip 2 volume to 50%", [{ op: "volume", clip: 2, value: 0.5 }]);
 yes("配乐调到30%", [{ op: "music_volume", value: 0.3 }]);
 yes("背景音乐音量 50%", [{ op: "music_volume", value: 0.5 }]);
 yes("music volume 20%", [{ op: "music_volume", value: 0.2 }]);
+// ★ 反例（2026-10-15 教材人格评审 feathers-testing-5：这几个家族原来只有正例，正则改松了脚本不会红）—— 只提到效果名、没给数：不办
+no("配乐音量");
 
 // ── 转场 ──
 yes("片段2从黑里淡入", [{ op: "fade", clip: 2, on: true }]);
@@ -113,6 +117,10 @@ yes("取消片尾淡出", [{ op: "end_fade", on: false }]);
 yes("fade in clip 2", [{ op: "fade", clip: 2, on: true }]);
 yes("remove the fade from clip 2", [{ op: "fade", clip: 2, on: false }]);
 yes("fade out at the end", [{ op: "end_fade", on: true }]);
+// ★ 反例（2026-10-15 教材人格评审）：评价 / 否定句里提到效果名，不是在要它
+no("闪黑太长了");
+no("片尾别淡出得那么快");
+no("片段2的闪黑"); // 只有效果名、没有动词：ZH_FADE 的 (?<!的) 把所有格挡下，落到「没听懂」（2026-10-15）
 
 // ── 删 / 挪 / 裁 / 切 ──
 yes("删掉片段2", [{ op: "remove", clip: 2 }]);
@@ -132,6 +140,10 @@ yes("trim 2 seconds off the start of clip 2", [{ op: "trim", clip: 2, edge: "sta
 yes("keep only the first 3 seconds of clip 1", [{ op: "trim", clip: 1, edge: "end", sec: 3, mode: "keep" }]);
 yes("在片段2的第3秒切开", [{ op: "split", clip: 2, at: 3 }]);
 yes("split clip 2 at 3 seconds", [{ op: "split", clip: 2, at: 3 }]);
+// ★ 反例（2026-10-15 教材人格评审）：按秒下刀的话缺了秒数 / 缺了头尾 / 缺了数，认不准就不办（裁错一刀是替人删了半段）
+no("片段2切开");
+no("片段2去掉2秒");
+no("把片段2裁到");
 
 // ── 字幕 / 标题 / 配音 ──
 yes("片段1的字幕改成「雨停了，她收起伞。」", [{ op: "line", clip: 1, text: "雨停了，她收起伞。" }]);
@@ -154,6 +166,8 @@ yes("去掉片段2的配音", [{ op: "unvoice", clip: 2 }]);
 yes("voice all clips", [{ op: "voice", clip: "all" }]);
 yes("add voiceover to clip 2", [{ op: "voice", clip: 2 }]);
 yes("remove the voiceover from clip 2", [{ op: "unvoice", clip: 2 }]);
+// ★ 反例（2026-10-15 教材人格评审）：评价配音不是要配音 / 去配音（配音那一发是平台的真成本）
+no("片段2的配音听着怪");
 
 // ── 撤销 / 重做 / 一键成片 ──
 yes("撤销", [{ op: "undo" }]);

@@ -1,9 +1,10 @@
 // 卡片工坊页（竖屏优先）：3D 画布 + 投影窗 + NPC 底部抽屉 + 提示条
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import { Canvas } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useNavigate } from "react-router";
 import { Trans, useLingui } from "@lingui/react/macro";
+import ErrorBoundary from "../components/ErrorBoundary";
 import TableScene from "./scene/TableScene";
 import { AI_REAL } from "../ai";
 import { myCards } from "../data/account";
@@ -85,6 +86,31 @@ function StudioLoader() {
       </div>
     </div>
   );
+}
+
+/**
+ * 画布浮层盖着时 3D 桌面停帧（Canvas 的 frameloop 开关，见下面 Canvas 处的 ★），这个组件负责把场景时钟**暂停**而不是归零。
+ * ★★ 为什么要它：r3f 9.6.1 的 setFrameloop 每次切换都 clock.stop() + elapsedTime = 0 再 start()
+ *   （node_modules/@react-three/fiber/dist/events-*.esm.js:1087-1100，frameloop 从 prop 变过去就走这里）。场景里有按**绝对**
+ *   elapsedTime 记起点的活：TableScene.FlightCard 的 start.current（炼出的卡飞入卡组）与 cameraOrbit.clampRadiusByScene 的
+ *   collidersAt（1 秒一次的碰撞体重采）—— 时钟归零后前者要等 elapsedTime 重新爬到原来的值才飞（卡在桌边不见几分钟，
+ *   landFlight 也跟着晚）、后者在那之前一直拿旧碰撞体，两件都零报错。其余读 elapsedTime 的都是 sin(t) 呼吸 / 自转，跳一拍也无妨。
+ *   所以每帧记下 elapsedTime，恢复那一拍写回去：对场景而言浮层开着的那段时间不存在（暂停语义），飞卡接着飞、呼吸不跳。
+ * ★ useLayoutEffect 而不是 useEffect：要赶在恢复后的第一帧之前写回（r3f 在 set({ frameloop }) 的 store 订阅里就排了一帧 rAF）。
+ *   写回之后 THREE.Clock.getDelta 从这个值往上累加（它只 += diff），所以后面的 delta 仍是真实帧长，弹簧骨不会吃到一个大步长。
+ * ★ DEV 的 __r3fCapture（TableScene.CaptureHook）也切 never/always，这里一并接住，离屏捕帧照旧。
+ */
+function SceneClockKeeper() {
+  const clock = useThree((s) => s.clock);
+  const frameloop = useThree((s) => s.frameloop);
+  const last = useRef(0);
+  useFrame(({ clock: c }) => {
+    last.current = c.elapsedTime;
+  });
+  useLayoutEffect(() => {
+    if (frameloop !== "never") clock.elapsedTime = last.current;
+  }, [frameloop, clock]);
+  return null;
 }
 
 function useHint(): string {
@@ -243,16 +269,35 @@ export default function StudioPage() {
   // 存草稿走 useFlowActions（本页已经在用它给画布浮层供状态）——此前这里还自持一份，
   // 同一颗按钮在工坊顶栏与画布顶栏各走各的实现（铁律六）
   const hasWork = flowLen > 0; // 单一真相：桌面有没有活只看流水线
+  /**
+   * 画布浮层**真的盖着**没有：与下面挂 FlowCanvas 的判据是同一个值 —— canvasOpen 为真而流水线空着时浮层并不会挂上来，
+   * 桌面还看得见，那时停帧就是让人对着一张定格的桌子（2026-10-15 教材人格评审）。
+   */
+  const canvasCovered = canvasOpen && flowLen > 0;
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-ink">
-      <Canvas
-        dpr={[1, 2]}
-        gl={{ preserveDrawingBuffer: true }}
-        camera={{ fov: 50, position: DEFAULT_CAM.pos, near: 0.1, far: 80 }}
-      >
-        <TableScene />
-      </Canvas>
+      {/* ★ 渲染边界只包 Canvas 这一层（2026-10-15 教材人格评审，Nygard「崩溃边界」那条）：r3f 会把子树的渲染期抛错重抛到这里，
+          受保护模型解不开 / hook 排在早退之后 / chosenOf(n).plot 空指针都接得住（2.51–2.55 那种「一进工坊整页白屏」就落在这一层）；
+          useFrame 里抛的不经 React 树、接不到 —— 那一类仍只靠 camOk 式的先校验再用（CLAUDE.md「渲染循环里别信任外部状态的形状」）。
+          full：这一屏整个就是这块画布，fallback 居中摆、多给一颗回首页；顶栏是 absolute 的兄弟节点，照旧能按返回。 */}
+      <ErrorBoundary label={t`3D 桌面`} full>
+        <Canvas
+          dpr={[1, 2]}
+          /* ★ preserveDrawingBuffer 只在 DEV 开（2026-10-15 教材人格评审）：正式包里没有谁读这块画布的像素 —— 全仓 gl.domElement.toDataURL
+             只有 DEV 的 __r3fCapture（TableScene :1686 `import.meta.env.DEV && <CaptureHook/>`），导演台截图用的是它自己的 Canvas，
+             挂卡合成预览（flowStore.makeCastPreview）拼的是图床抽帧不是这块画布。开着就是让浏览器每帧多做一次整屏拷贝。 */
+          gl={{ preserveDrawingBuffer: import.meta.env.DEV }}
+          /* ★ 画布浮层盖着时停帧（2026-10-15 教材人格评审，McConnell 性能那条）：FlowCanvas 是 z-40 不透明整屏（bg-ink），
+             盖着的时候这里仍每帧画 NPC、弹簧骨、卡面轮播 —— 一帧都看不见、电却照烧。只关 frameloop、不卸场景（主人「画布是
+             工坊里的浮层」那条决定不动：卸了再装要重解模型、镜头归位）；时钟由 SceneClockKeeper 接住（r3f 切 frameloop 会归零）。 */
+          frameloop={canvasCovered ? "never" : "always"}
+          camera={{ fov: 50, position: DEFAULT_CAM.pos, near: 0.1, far: 80 }}
+        >
+          <SceneClockKeeper />
+          <TableScene />
+        </Canvas>
+      </ErrorBoundary>
 
       {/* 顶栏。返回按钮是**层层退出**的唯一入口：有浮层先关浮层、在对话里先退对话、
           在卡组视角先退卡组，都没有了才回首页（见 studioStore.backStepOf）。
@@ -422,8 +467,9 @@ export default function StudioPage() {
           ★ 那三件页级活儿（存草稿 / 组稿 / 挂卡）实现只有一份：存草稿与组稿在
             hooks/useFlowActions，挂卡入参在 FlowPage.castEditorState（回程 useCastReturn
             两页共用）—— 画布照旧只借按钮与状态，工坊这一面不抄第二份（铁律六）。
-          ★ ✕ 与「🎴 工坊」都是关掉浮层回到桌面：合并之后它们不再是"去另一页"。 */}
-      {canvasOpen && flowLen > 0 && (
+          ★ ✕ 与「🎴 工坊」都是关掉浮层回到桌面：合并之后它们不再是"去另一页"。
+          ★ 判据 canvasCovered 与上面 Canvas 的 frameloop 是同一个值（盖上才停帧，见那边的 ★）。 */}
+      {canvasCovered && (
         <FlowCanvas
           onExit={() => setCanvasOpen(false)}
           onLinear={() => setCanvasOpen(false)}

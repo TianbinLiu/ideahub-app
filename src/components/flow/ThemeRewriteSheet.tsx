@@ -2,74 +2,69 @@
 // 步骤栏 + 主题框 + 原 / 新逐段对照（可勾掉不改的）+ 写回。形状与算数都在 studio/structuredSkills（本文件只画、只转手）。
 // 写回只改各段的剧情与标题（updateProposal），不是整表覆盖，所以不走 useApplyTemplate。
 // 两条入口：画布「/」面板的官方技能（AgentPalette，z-50 里开所以 z-[60]）、按配方做同款时填了「我的主题」（FlowPage 带着主题自动打开）。
-import { useState } from "react";
+// ★ 状态（主题 / 第几步 / 结果与原文对照 / 勾选 / 在跑 / 报错）全在 studio/skillSheetStore，这里只订阅（2026-10-15 教材人格评审）：
+//   等回话的那几十秒里点到抽屉外面只是**收起**，回包落进 store、重开接回；人不在面板上时由胶囊（data/jobs）说。
+import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { AI_REAL } from "../../ai";
 import { CHAT_TURN_TOKENS, fmtTokens } from "../../data/economy";
 import { showToast } from "../../data/toast";
 import { useFlow } from "../../studio/flowStore";
-import {
-  THEME_MAX,
-  THEME_MIN,
-  THEME_REWRITE,
-  applyRewrite,
-  rewritableSegs,
-  rewriteCalls,
-  runThemeRewrite,
-  type RewritePlan,
-  type SkillStepKind,
-} from "../../studio/structuredSkills";
+import { noteThemeSheet, resetThemeSkill, runThemeSkill, setThemeSkill, useThemeSkill } from "../../studio/skillSheetStore";
+import { THEME_MAX, THEME_MIN, THEME_REWRITE, applyRewrite, rewritableSegs, rewriteCalls } from "../../studio/structuredSkills";
 import { CloseButton } from "../IconTapButton";
 
 export default function ThemeRewriteSheet({ initialTheme = "", onClose, onApplied }: { initialTheme?: string; onClose: () => void; onApplied: () => void }) {
   const { t } = useLingui();
   const nodes = useFlow((s) => s.nodes);
-  const [theme, setTheme] = useState(initialTheme);
-  const [step, setStep] = useState<SkillStepKind>("input");
-  const [plan, setPlan] = useState<RewritePlan | null>(null);
-  /** 送去改写那一刻的原文（对照用）：世界会变，确认时按 nodeId 再核一遍 */
-  const [before, setBefore] = useState<Map<string, { title: string; plot: string }>>(new Map());
-  const [picked, setPicked] = useState<Set<string>>(new Set());
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState("");
+  const theme = useThemeSkill((s) => s.theme);
+  const step = useThemeSkill((s) => s.step);
+  const plan = useThemeSkill((s) => s.plan);
+  const before = useThemeSkill((s) => s.before);
+  const picked = useThemeSkill((s) => s.picked);
+  const busy = useThemeSkill((s) => s.busy);
+  const err = useThemeSkill((s) => s.err);
   const segs = rewritableSegs(nodes);
   const skipped = nodes.length - segs.length;
   const calls = rewriteCalls(segs.length);
   const price = AI_REAL ? fmtTokens(CHAT_TURN_TOKENS * calls) : t`演示`;
   const stepIdx = THEME_REWRITE.steps.findIndex((s) => s.kind === step);
+  // 挂着 = 结果由这里画、胶囊不画；收起 = 胶囊接手（哪怕路由没变）。做同款带着「我的主题」自动打开的那条路：主题是这一次带来的，
+  // 盖掉上次留在 store 里的；在跑时不动（输入框锁着，换了主题也不是这一发在改的那个）
+  useEffect(() => {
+    noteThemeSheet(true);
+    if (initialTheme && !useThemeSkill.getState().busy) setThemeSkill({ theme: initialTheme });
+    return () => noteThemeSheet(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- initialTheme 只在挂上那一拍读一次（与原来 useState(initialTheme) 的初值同义）
+  }, []);
 
-  async function run() {
-    if (busy) return;
-    setErr("");
-    setBusy(true);
-    setPlan(null);
-    const snapshot = rewritableSegs(useFlow.getState().nodes);
-    try {
-      const p = await runThemeRewrite(theme, snapshot, (k) => setStep(k));
-      setBefore(new Map(snapshot.map((s) => [s.nodeId, { title: s.title, plot: s.plot }])));
-      setPicked(new Set(p.items.map((it) => it.nodeId)));
-      setPlan(p);
-      setStep("confirm");
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
-      setStep("input");
-    } finally {
-      setBusy(false);
-    }
+  /** 遮罩与 ✕ 共用：在跑时只是收起，不丢 —— 要说一句，否则人以为关掉就作废了、再点一次再扣一次 */
+  function close() {
+    if (busy) showToast(t`还在改写：收起不会丢，好了顶上会提示；从「/」面板再打开就接得回来`, 3200);
+    onClose();
+  }
+
+  function togglePick(nodeId: string) {
+    const next = new Set(useThemeSkill.getState().picked);
+    if (next.has(nodeId)) next.delete(nodeId);
+    else next.add(nodeId);
+    setThemeSkill({ picked: next });
   }
 
   function apply() {
     if (!plan) return;
     const st = useFlow.getState();
-    const n = applyRewrite(plan, picked, st.nodes, (id, patch, pid) => st.updateProposal(id, patch, pid));
-    setStep("apply");
+    // store 里那份是 ReadonlySet（勾选一律换新集合、不就地改，订阅才看得见）；applyRewrite 的签名收 Set，拷一份过去
+    const n = applyRewrite(plan, new Set(picked), st.nodes, (id, patch, pid) => st.updateProposal(id, patch, pid));
     showToast(n > 0 ? t`已改写 ${n} 段的剧情；你的原话、镜头字段与时长都没动` : t`一段都没改（勾选的段可能已经出片或不在了）`);
+    // 写回了这份就用完了：不清的话下次打开还是这份旧对照，再点「写回」会把人之后改过的剧情又盖回去
+    resetThemeSkill();
     onApplied();
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-[60] flex items-end bg-black/60" onClick={onClose}>
+    <div className="fixed inset-0 z-[60] flex items-end bg-black/60" onClick={close}>
       <div
         className="max-h-[85vh] w-full overflow-y-auto rounded-t-2xl border-t border-slate-700 bg-ink p-4"
         style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))" }}
@@ -80,7 +75,7 @@ export default function ThemeRewriteSheet({ initialTheme = "", onClose, onApplie
             <div className="text-sm font-bold text-slate-100">✍️ {t(THEME_REWRITE.title)}</div>
             <div className="text-[10px] leading-relaxed text-slate-500">{t(THEME_REWRITE.intro)}</div>
           </div>
-          <CloseButton chip="sm" size={13} align="end" label={t`关闭`} onClick={onClose} />
+          <CloseButton chip="sm" size={13} align="end" label={t`关闭`} onClick={close} />
         </div>
 
         <div className="no-scrollbar mb-3 flex gap-1.5 overflow-x-auto py-1">
@@ -109,7 +104,7 @@ export default function ThemeRewriteSheet({ initialTheme = "", onClose, onApplie
           <>
             <textarea
               value={theme}
-              onChange={(e) => setTheme(e.target.value)}
+              onChange={(e) => setThemeSkill({ theme: e.target.value })}
               maxLength={THEME_MAX}
               disabled={busy}
               placeholder={t`比如：一只橘猫在雨夜的便利店打工，温暖、有点好笑`}
@@ -123,7 +118,7 @@ export default function ThemeRewriteSheet({ initialTheme = "", onClose, onApplie
               {calls > 1 ? t` · 段数多，分 ${calls} 发改，每发各计一次` : ""}
             </div>
             <button
-              onClick={() => void run()}
+              onClick={() => void runThemeSkill()}
               disabled={busy || theme.trim().length < THEME_MIN || segs.length === 0}
               className="mt-3 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
             >
@@ -141,7 +136,7 @@ export default function ThemeRewriteSheet({ initialTheme = "", onClose, onApplie
             <div className="mb-1.5 flex items-center justify-between">
               <span className="text-xs font-semibold text-slate-300"><Trans>改写了 {plan.items.length} 段，勾掉不想改的</Trans></span>
               <button
-                onClick={() => setPicked(picked.size === plan.items.length ? new Set() : new Set(plan.items.map((it) => it.nodeId)))}
+                onClick={() => setThemeSkill({ picked: picked.size === plan.items.length ? new Set() : new Set(plan.items.map((it) => it.nodeId)) })}
                 className="text-[11px] text-brand underline underline-offset-2"
               >
                 {picked.size === plan.items.length ? t`全不选` : t`全选`}
@@ -154,14 +149,7 @@ export default function ThemeRewriteSheet({ initialTheme = "", onClose, onApplie
                 return (
                   <button
                     key={it.nodeId}
-                    onClick={() =>
-                      setPicked((s) => {
-                        const next = new Set(s);
-                        if (next.has(it.nodeId)) next.delete(it.nodeId);
-                        else next.add(it.nodeId);
-                        return next;
-                      })
-                    }
+                    onClick={() => togglePick(it.nodeId)}
                     className={`w-full rounded-xl border p-3 text-left ${on ? "border-brand/40 bg-brand/5" : "border-slate-700/70 bg-panel"}`}
                   >
                     <div className="flex items-center gap-2">
@@ -180,10 +168,7 @@ export default function ThemeRewriteSheet({ initialTheme = "", onClose, onApplie
             </div>
             <div className="mt-3 flex gap-2">
               <button
-                onClick={() => {
-                  setPlan(null);
-                  setStep("input");
-                }}
+                onClick={() => setThemeSkill({ plan: null, step: "input" })}
                 className="flex-1 rounded-xl border border-slate-700 bg-panel py-2.5 text-sm font-bold text-slate-100"
               >
                 <Trans>改主题重来</Trans>

@@ -5,11 +5,11 @@ import { AI_REAL, MaterialFile, chargeNote, chargeOnFail, deriveCharacterModels,
 import { frameMoment, momentCards } from "../data/shotScript";
 import { DECK_CAM, MARKET, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
-import { acquireCard, addCards as saveCardsToAccount, canAfford, defaultTierId, frozenNote, myCards, myDecks, plazaCards, realFaceIssue, spendTokens, tierBlockReason, walletOf, type AddCardsResult } from "../data/account";
+import { acquireCard, addCards as saveCardsToAccount, canAfford, frozenNote, myCards, myDecks, plazaCards, realFaceIssue, spendTokens, tierBlockReason, usableTierId, walletOf, type AddCardsResult } from "../data/account";
 import { CHAT_TURN_TOKENS, DECK_MAX_3D, deriveIssue, DECK_MAX_CARDS, fallbackTierId, MODEL3D_TOKENS, deckCardsCost, deckModel3dCost, fmtTokens, proposalsCost, styleWants3d, tierOf, videoAudioOn } from "../data/economy";
 // 单向依赖：工坊把活动路径喂给工作流。flowStore 不认识 studioStore（见其文件头）
 import { drawExtraRefs, plainMentions } from "../data/refMentions";
-import { GenNodeOpts, CUSTOM_MID_MAX, FlowMode, FlowNode, FlowTemplate, type AppendSpec, appendBlocked, appendIssue, chosenOf, recastBlocked, nodeContinues, nodeVideo, tplOfNode, useFlow, redrawCost, redrawFrames, noDrawFor, reshotWithSound } from "./flowStore";
+import { GenNodeOpts, CUSTOM_MID_MAX, FlowMode, FlowNode, FlowTemplate, type AppendSpec, appendBlocked, appendIssue, chosenOf, recastBlocked, nodeContinues, isRealVideoUrl, realVideoOfNode, tplOfNode, useFlow, redrawCost, redrawFrames, noDrawFor, reshotWithSound } from "./flowStore";
 // ★ 依赖方向没破：canvasAgent 只认识 flowStore，不认识本模块（不会成环）
 import { forgetCanvasAgent } from "./canvasAgent";
 import { leadAppendSpec, type LeadSpec } from "./leadCast";
@@ -127,9 +127,10 @@ export function proposalDone(p: Proposal | null | undefined): boolean {
   return !!p?.videoUrl;
 }
 
-/** 能真正播/截帧的地址（滤掉 mock 占位串） */
+/** 能真正播/截帧的地址（滤掉 mock 占位串）—— 判据只在 flowStore.isRealVideoUrl，这里只是收 Proposal 的入口 */
 export function realVideoOf(p: Proposal | null | undefined): string | undefined {
-  return p?.videoUrl && !p.videoUrl.startsWith("mock:") ? p.videoUrl : undefined;
+  const v = p?.videoUrl;
+  return isRealVideoUrl(v) ? v : undefined;
 }
 
 // ★★ 「这张开头帧要不要重画」这条规则**只在 flowStore.keepFirstFrame 一处**（2026-09-03 收口）。
@@ -912,18 +913,19 @@ const DEFAULT_EDITOR: EditorState = {
 function freshEditor(slots: string[]): EditorState {
   const path = activePath();
   const prev = path[path.length - 1];
-  // ★ 档位按**这个人的套餐**现取（account.defaultTierId）：免费用户落在免费档上，不然铸段窗一打开就停在一个点不动的会员档上
-  return { ...DEFAULT_EDITOR, slots, aspect: prev?.aspect ?? DEFAULT_ASPECT, videoTier: defaultTierId() };
+  // ★ 档位接上一段的（account.usableTierId —— 与画布「＋ 加一段」FlowCanvas 那一处同一个函数）：这个人现在用不了那一档
+  //   （会员档 / 已停用 / 服务端不支持）就落到他能用的默认档，免费用户照旧落在免费档上、不会停在一个点不动的会员档上。
+  //   2026-10-15 教材人格评审（norman-interaction-3）：原来写死 defaultTierId() —— 画幅接上一段、档位却退回套餐默认，
+  //   在工坊用电影级炼完第 1 段的人，第 2 段的选法屏又回到标准档，要逐段重选；画布那一面同一步停在上一段的档上，两面两个起点。
+  return { ...DEFAULT_EDITOR, slots, aspect: prev?.aspect ?? DEFAULT_ASPECT, videoTier: usableTierId(prev?.videoTier) };
 }
 
 // 市场检索的请求序号：过期响应直接丢弃，防止慢请求乱序覆盖新结果
 let marketSeq = 0;
 
-/** 一炉最多放几张素材卡。pickDeckCard / dropOnPlaceholder 两道闸与铸卡师那句话共用这一个数——
- *  各写各的 20 的话，改上限漏一处是零症状（话里说 20、实际能放 30）。
- *  ⚠ 还有第三份手写的 20 没收：studio/ui/projection.tsx 素材栏那行计数「{n}/20 张 · 同类型可多张」。
- *    收它要改那条 msgid（归 projection.tsx 那份 PR），所以这里先 export 出去等它来读；
- *    在那之前改这个数，记得把那一行一起改 */
+/** 一炉最多放几张素材卡。pickDeckCard / dropOnPlaceholder 两道闸、铸卡师那句话与投影窗素材栏那行计数（projection.tsx）
+ *  共用这一个数——各写各的 20 的话，改上限漏一处是零症状（话里说 20、实际能放 30）。
+ *  （素材栏那份手写的 20 2026-10-15 教材人格评审收掉，欠条清了） */
 export const EDITOR_SLOTS_MAX = 20;
 /** 聊天世代号。照 marketSeq 那套：过期回调可以照记消息，但**一定不出声**
  *  ——否则用户发完就切页面，她会在首页开口。 */
@@ -2429,14 +2431,15 @@ export const useStudio = create<StudioState>()((set, get) => ({
     for (const chain of Object.values(alts).flatMap((byPid) => Object.values(byPid))) {
       for (const an of chain) {
         for (const [pid, v] of Object.entries(an.videoByProposal ?? {})) {
-          if (v && !v.startsWith("mock:")) videoByProposal[pid] = v;
+          // 「能不能播」只问 flowStore.isRealVideoUrl（2026-10-15 教材人格评审：这里原来手抄了那半行）
+          if (isRealVideoUrl(v)) videoByProposal[pid] = v;
         }
       }
     }
     const segments: VideoSegment[] = nodes.map((n, ni) => {
       const p = chosenOf(n);
-      const video = nodeVideo(n);
-      const real = video && !video.startsWith("mock:") ? video : undefined;
+      // 「能不能播」走 flowStore.realVideoOfNode（2026-10-15 教材人格评审：这里原来逐字重抄了它的函数体，而它头上写着「唯一实现」）
+      const real = realVideoOfNode(n);
       if (real) videoByProposal[p.id] = real;
       // ★ 镜头字段折进发布的剧本（VideoSegment 没有这个字段，服务端 zod 会剥未声明的键）：做同款 / 提炼卡组都能读到
       const shotLine = shotLineOf(p.shot);
@@ -3083,7 +3086,9 @@ onOwnerSwitch(() => {
   }));
 });
 
-// DEV 调试/E2E 挂钩：让自动化脚本能拿到与组件同实例的 store
-if (import.meta.env.DEV) {
+// DEV 调试/E2E 挂钩：让自动化脚本能拿到与组件同实例的 store。
+// ★ `--mode e2e` 的联调包也开（2026-10-15 教材人格评审，为什么见 flowStore 末尾 __flow 那段）：e2e 包只装 debug 变体，
+//   正式包 mode=production 一字不变。字面量写在原地，Vite 的静态替换 + 死码消除才保证正式包里没有这一段。
+if (import.meta.env.DEV || import.meta.env.MODE === "e2e") {
   (window as unknown as Record<string, unknown>).__studio = useStudio;
 }

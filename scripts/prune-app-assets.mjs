@@ -25,6 +25,7 @@ import fs from "node:fs";
 import path from "node:path";
 import url from "node:url";
 import { loadEnv } from "vite";
+import { NPC_MODEL, OWN_PROTECTED_MODELS, PROTECTED_DIR } from "./lib/protected-models.mjs";
 
 const root = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), "..");
 const modelsDir = path.join(root, "dist", "models");
@@ -87,7 +88,29 @@ for (const f of PRUNE) {
 }
 console.log(`App 包体减少 ${(saved / 1048576).toFixed(1)}MB`);
 
-// ── 出包闸：默认铸卡师必须在包里、而且解得开（2026-09-30 加） ──
+// ── 出包闸 ①：protected/ 下剩下的必须**恰好**是自有模型白名单（2026-10-15 教材人格评审，humble-delivery-1）──
+//
+// ★★ 上面那张 PRUNE 表是黑名单：新丢进 public/models/protected/ 一个不在表上的 .glbx，默认随包发出去、零报错 ——
+//   而那个目录装的恰恰是第三方版权素材（授权不含分发，加密拦不住：钥匙就在包里）。白名单的方向相反：
+//   不在 scripts/lib/protected-models.mjs 上的一律不许进包。两条路各自说清：第三方素材 → 加进 PRUNE 表；
+//   新的自有模型 → 加进白名单。发版脚本第 2b 步会再开包核一遍同一份白名单（那一步看的是 APK / AAB 本身）。
+{
+  const dir = path.join(root, "dist", PROTECTED_DIR);
+  const have = fs.existsSync(dir) ? fs.readdirSync(dir).sort() : [];
+  const extra = have.filter((n) => !OWN_PROTECTED_MODELS.includes(n));
+  if (extra.length) {
+    console.error(
+      `\n✗ 出包闸没过：dist/${PROTECTED_DIR}/ 里有白名单之外的文件：${extra.join("、")}\n` +
+        `  那个目录装的是「要加密的」，不等于「能发的」—— 第三方版权素材（rin / gratia / tsumire 那一类）绝不许随包发。\n` +
+        `  是第三方素材：加进 scripts/prune-app-assets.mjs 的 PRUNE 表（dist 里就裁掉）；\n` +
+        `  是新的自有模型：加进 scripts/lib/protected-models.mjs 的 OWN_PROTECTED_MODELS（发版脚本开包核的也是它）。\n`,
+    );
+    process.exit(1);
+  }
+  console.log(`出包闸：dist/${PROTECTED_DIR}/ 只有白名单里的 ${OWN_PROTECTED_MODELS.join("、")} ✓`);
+}
+
+// ── 出包闸 ②：默认铸卡师必须在包里、而且解得开（2026-09-30 加） ──
 //
 // ★★ 2.51–2.55 就是这么坏的：那五版是在一个 git worktree 里出的包，而 `public/models/protected/`
 //   与 `.env.local` 都被 .gitignore 挡着 —— worktree 里根本没有它们。包里于是既没有
@@ -99,7 +122,8 @@ console.log(`App 包体减少 ${(saved / 1048576).toFixed(1)}MB`);
 //   ③ 用这把钥匙真解得开、解出来是 glTF —— 钥匙和文件不是一对，白屏一模一样。
 // 不过就 exit 1：build:app 后面的 `cap sync` 不会跑。⚠ 别绕过它直接跑 gradle ——
 //   那样打进包的是**上一次** sync 留在 android 目录里的 web 资产，不是这一次的。
-const NPC_REL = "protected/milltina-opt.glbx";
+// 文件名读共用白名单（scripts/lib/protected-models.mjs）：默认铸卡师换了名字，这里与发版脚本一起跟着变
+const NPC_REL = `protected/${NPC_MODEL}`;
 function gateFail(why) {
   console.error(
     `\n✗ 出包闸没过：${why}\n` +

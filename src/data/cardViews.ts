@@ -259,6 +259,9 @@ export async function setCardViewRole(
   return { views };
 }
 
+/** viewSourceBlob 等多久（数怎么来的见函数里那条 ★） */
+const VIEW_SOURCE_MS = 60_000;
+
 /**
  * 一张已经挂在卡上的图 → 可以喂给「只留主体」层的 Blob（卡详情页、模板详情页共用）。
  * ★ 只认 Content-Type 不信状态码（同 refableViews 那条）：Capacitor 本地服务器对未命中路径回 200 + index.html，
@@ -267,9 +270,14 @@ export async function setCardViewRole(
 export async function viewSourceBlob(url: string): Promise<Blob> {
   let blob: Blob;
   try {
-    blob = await (await fetch(url)).blob();
+    // ★ 带上限（2026-10-15 教材人格评审，原来裸 fetch 没有）：挂上去的图是经 uploads.uploadImage 传的（它按 5MB 上限给 60s），
+    //   下行按同一个数 —— CLAUDE.md 量过的最慢一档 0.126MB/s 拉 5MB 约 40 秒。到点与断网同一句话、同一条路
+    blob = await (await fetch(url, { signal: AbortSignal.timeout(VIEW_SOURCE_MS) })).blob();
   } catch (e) {
-    throw new Error(t`取不到这张图（${e instanceof Error ? e.message : String(e)}）`);
+    const timedOut = e instanceof DOMException && (e.name === "TimeoutError" || e.name === "AbortError");
+    const secs = Math.round(VIEW_SOURCE_MS / 1000);
+    const why = timedOut ? t`等了 ${secs} 秒没取下来` : e instanceof Error ? e.message : String(e);
+    throw new Error(t`取不到这张图（${why}）`);
   }
   if (!blob.type.startsWith("image/")) throw new Error(t`取回来的不是图片（${blob.type || "?"}）`);
   return blob;

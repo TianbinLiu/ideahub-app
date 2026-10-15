@@ -91,6 +91,7 @@ function RailBtn({
   tint,
   label,
   name,
+  pressed,
   perch,
   className = "",
   guide,
@@ -105,6 +106,9 @@ function RailBtn({
   label?: string;
   /** 无障碍名。★ 点赞 / 评论那两颗的 label 是**数字**（计数），读屏读出来只是「3」——名字另给一个 */
   name?: string;
+  /** 切换键（点赞 / 收藏）的开关态 → aria-pressed：填色只有眼睛看得见，读屏要靠这一位才知道「已点过」
+   *  （2026-10-15 教材人格评审，WCAG 2.2 · 4.1.2）。只给真能切换的那两颗；评论 / 分享不传，免得读屏把它们也念成切换键 */
+  pressed?: boolean;
   /** 给了姿势名，【激活的那一下】角色跳上来演一段再缩回去。
    *  姿势同时决定贴图、翻页帧和进出场动画（见 CharacterPerch）。 */
   perch?: PerchPose;
@@ -123,6 +127,7 @@ function RailBtn({
       onClick={onClick}
       data-guide={guide}
       aria-label={name ?? label}
+      aria-pressed={pressed}
       /* ★ mt-8 挂在【有角色演出的键】自己身上，而不是整栏一个大 gap。
          激活态的角色会从图标顶沿向上探出约 45px，压住**上一个键的计数数字**
          （实测收藏后评论数「3」整个消失，计数是信息，装饰盖掉信息就是回退）。
@@ -756,7 +761,7 @@ function FeedItem({
               setDmOpen(true);
             }}
           />
-          <RailBtn icon="heart" filled={liked} tint="text-rose-500" label={String(likes)} name={t`点赞`} perch="like" onClick={toggleLike} />
+          <RailBtn icon="heart" filled={liked} pressed={liked} tint="text-rose-500" label={String(likes)} name={t`点赞`} perch="like" onClick={toggleLike} />
           {/* 评论就地滑出抽屉（对标短视频 App），不跳详情页打断刷视频的节奏 */}
           {/* ★ 走 commentCountOf，不读 comments.length：列表接口不返回 comments，
               直接读长度的话，没点进去过的作品评论数永远是 0（真机上抓到的） */}
@@ -770,6 +775,7 @@ function FeedItem({
           <RailBtn
             icon="bookmark"
             filled={saved}
+            pressed={saved}
             tint="text-gold"
             label={t`收藏`}
             perch="save"

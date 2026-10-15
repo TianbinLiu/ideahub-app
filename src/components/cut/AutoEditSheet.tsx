@@ -250,7 +250,9 @@ export default function AutoEditSheet({ project, segs, lens, canVoice, voiceFree
                   <input type="checkbox" className="accent-brand" checked={voice} onChange={(e) => setVoice(e.target.checked)} />
                   <span className="min-w-0 flex-1">
                     {typeof voiceFree === "number" ? (
-                      <Trans>用完就配音（{voiceName}，现在免费）</Trans>
+                      // 每天的额度印在这一行（2026-10-15 教材人格评审）：一键成片一次给 N 句配音，额度不够的那几句会被跳过，
+                      // 人该在点头之前就知道上限是多少。voiceFree 是服务端给的**每天上限**，不是今天还剩几个字 —— 不写「还剩」
+                      <Trans>用完就配音（{voiceName}，现在免费 · 每天 {voiceFree} 字）</Trans>
                     ) : (
                       <Trans>用完就配音（{voiceName}）</Trans>
                     )}

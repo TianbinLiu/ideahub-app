@@ -11,6 +11,7 @@ import { V3_CARD_WIPE_MS, Card, SHARE_NOTE_MAX, uid, viewTag, type CardView } fr
 // data → mock 是既有方向（data/videos.ts 也从 mock/frames 取种子帧），不成环
 import { MARKET_DECKS, marketCardsByName } from "../mock/ai";
 import { claimPendingTerms, reconcileTermsWithServer } from "./agreements";
+import { showToast } from "./toast";
 import { claimLegacyVoices, removeVoice } from "./cardVoice";
 import { adoptRemoteAssets, assetOf, claimLegacyAssets, hasAsset, removeAsset, saveAsset, setAssetSyncIssue, type CardAsset } from "./cardAsset";
 import { PLANS, PLATFORM_CUT, VIDEO_TIERS, fmtTokens, joinTierNames, planOf, tierOf, tierRetireDay, tierRetired, type VideoTier } from "./economy";
@@ -2820,9 +2821,41 @@ export async function signInWithPassword(account: string, password: string): Pro
 }
 
 /**
- * 注册（server 强制 username + email + password，password ≥ 6 位）。
- * displayName 不在 register 的入参里（controller 只解构 username/email/password/role），
- * 所以昵称是注册成功后补一次 PUT /api/me/profile——失败也不影响已经建好的账号。
+ * 注册时填的昵称：注册端点不收 displayName（controller 只解构 username / email / password / role，
+ * 契约 docs/api-contract.md 的 /register 与 /email/register/verify 同一条），所以昵称要在注册成功之后**补一次**
+ * PUT /api/me/profile —— 两条注册路共用这一份（signUpWithPassword / registerWithEmailOtp）。
+ *
+ * ★★ 这一发 PUT 就是昵称的**唯一真相**（2026-10-15 教材人格评审）：远端模式 persist() 一个字节都不落盘（见它的 ★），
+ *   内存里那份 `local.name` 活不过重启。原来写成 `void updateProfile().catch(emitApiError)` —— 全 app 没有任何地方监听
+ *   api:error（本文件 updateProfile 头上那段 ★★ 说的同一件事），于是 PUT 撞上弱网时：整个会话显示新昵称、冷启动退回用户名，
+ *   用户读到的是「App 吞了我的昵称」。
+ * ★ 仍然**不阻塞注册跳转**：账号已经建好，LoginPage 的 done() 紧跟在 registerWithEmailOtp 之后，这一发 PUT 在后台 settle；
+ *   失败时把 local.name 退回 finishRemoteSignIn 认下的服务端那份（不是空串）、emit()、再用轻提示指去「我的 → 编辑资料」——
+ *   Toast 挂在 App 根，活得过换路由。中途用户已经自己去改过名的（local.name 不再是这个昵称）不碰。
+ */
+function settleSignUpNick(local: User, nick: string | undefined): void {
+  const want = nick?.trim();
+  if (!want || want === local.name) return;
+  const serverName = local.name;
+  local.name = want;
+  emit();
+  void authApi.updateProfile({ displayName: want }).then(
+    () => undefined,
+    (e: unknown) => {
+      emitApiError("signUp/profile", e);
+      if (local.name === want) {
+        local.name = serverName;
+        emit();
+      }
+      showToast(t`账号建好了，昵称没存上 —— 去「我的 → 编辑资料」再填一次`, 7000);
+    },
+  );
+}
+
+/**
+ * 密码注册（server 强制 username + email + password，password ≥ 6 位）。
+ * ⚠ 2026-10-15 核实：全仓没有调用方 —— LoginPage 的注册走 registerWithEmailOtp（服务端要先验邮箱验证码）。留着是因为
+ *   「LoginPage 接上密码框后改调这两个」那条注释还在；真不要了连这一段一起删。昵称的补发与验证码注册同一份（settleSignUpNick）。
  */
 export async function signUpWithPassword(
   input: authApi.RegisterInput & { displayName?: string }
@@ -2833,11 +2866,7 @@ export async function signUpWithPassword(
   // ★ 走同一个收尾。新号确实没有资产也没有 displayName，但"四条登录路里有一条不一样"
   //   正是上一个 bug 的成因，不留第二份实现（铁律六）。
   const local = await finishRemoteSignIn(user);
-  if (displayName && displayName !== local.name) {
-    local.name = displayName;
-    void authApi.updateProfile({ displayName }).catch((e) => emitApiError("signUp/profile", e));
-  }
-  emit();
+  settleSignUpNick(local, displayName);
   return local;
 }
 
@@ -2860,12 +2889,8 @@ export async function registerWithEmailOtp(
 ): Promise<User> {
   const { user } = await authApi.emailRegisterVerify(input);
   const local = await finishRemoteSignIn(user);
-  const nick = input.displayName?.trim();
-  if (nick && nick !== local.name) {
-    local.name = nick;
-    void authApi.updateProfile({ displayName: nick }).catch((e) => emitApiError("signUp/profile", e));
-    emit();
-  }
+  // 昵称后台补发、失败要响（settleSignUpNick 头上的 ★★）；这里不 await —— LoginPage 的 done() 紧跟其后
+  settleSignUpNick(local, input.displayName);
   return local;
 }
 

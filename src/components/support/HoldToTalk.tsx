@@ -20,6 +20,20 @@ import { pcmToVoiceWav } from "../../utils/wav";
 const MIN_SEC = 0.6;
 const MAX_SEC = 30;
 
+/**
+ * 识别那一发等多久 —— 按这一段**多大**现算，不是一个固定数（2026-10-15 教材人格评审：原来 transcribeAudio 不传 signal，
+ * 等于裸 fetch 没有上限，弱网半开连接时「识别中…」永远转、按钮永远灰）。
+ * ★ 怎么算：24kHz 单声道 16-bit WAV，30 秒封顶 ≈ 1.44MB；CLAUDE.md 量过的真机 5G 上行只有 30~40KB/s（取慢的那头 30KB/s），
+ *   传完要 48 秒 —— 一个固定的「20 秒左右」会把正常的识别请求掐掉、让人读到「识别失败」。所以预算 = 上行时间 + 服务端那一半：
+ *   server routes/asr.routes.js 给上游的 ASR_TIMEOUT_MS = 30s，超了它自己回 502 / 504（要等到它的结论，不抢先放弃）+ 10s 余量。
+ *   3 秒的一句 ≈ 45 秒、30 秒的一段 ≈ 88 秒，都在 Cloudflare 125 秒读超时之内。
+ */
+const ASR_UPLINK_BYTES_PER_SEC = 30_000;
+const ASR_SERVER_MS = 40_000;
+function asrBudgetMs(bytes: number): number {
+  return ASR_SERVER_MS + Math.ceil((bytes / ASR_UPLINK_BYTES_PER_SEC) * 1000);
+}
+
 type Props = {
   disabled?: boolean;
   /** 识别出的文字（已 trim、非空） */
@@ -158,10 +172,13 @@ export default function HoldToTalk({ disabled, onText, onError, className = "" }
     }
 
     setBusy(true);
+    let budgetSec = 0;
     try {
       const dataUrl = await pcmToVoiceWav(flat, rate);
-      const blob = await (await fetch(dataUrl)).blob();
-      const { text } = await transcribeAudio(blob, "wav");
+      const blob = await (await fetch(dataUrl)).blob(); // data: → Blob，本机转换、不走网络
+      const budgetMs = asrBudgetMs(blob.size);
+      budgetSec = Math.round(budgetMs / 1000);
+      const { text } = await transcribeAudio(blob, "wav", AbortSignal.timeout(budgetMs));
       if (!text) {
         // 上游判定整段静音：多半是按住了没出声、或离麦太远（真机实测第一次就是这样）
         onError(t`没听到声音：按住的时候靠近一点说，说完再松手。`);
@@ -186,6 +203,10 @@ export default function HoldToTalk({ disabled, onText, onError, className = "" }
                       ? e.message
                       : t`语音识别失败（HTTP ${e.status}），先打字吧。`,
         );
+      } else if (e instanceof DOMException && (e.name === "TimeoutError" || e.name === "AbortError")) {
+        // AbortSignal.timeout 到点（规范是 TimeoutError，老 WebView 可能报成 AbortError，两个名字都认）：
+        // 预算是按这一段的大小算的（asrBudgetMs），超了就是这条网推不动 —— 别把 DOMException 的英文原样上屏
+        onError(t`识别没等到结果（等了 ${budgetSec} 秒）：网络不好的话说短一点再试，或者先打字。`);
       } else {
         onError(t`语音识别失败：${e instanceof Error ? e.message : String(e)}`);
       }

@@ -6,6 +6,7 @@ import GuideGate from "./components/guide/GuideGate";
 import InfoDialog from "./components/InfoDialog";
 import { AGREEMENTS, recordTermsAccepted, termsAccepted, type AgreementId } from "./data/agreements";
 import GenerationPill from "./components/GenerationPill";
+import ErrorBoundary from "./components/ErrorBoundary";
 import Toast from "./components/Toast";
 import { showToast } from "./data/toast";
 import { signOutBlocker } from "./studio/signOutGuard";
@@ -249,6 +250,8 @@ export default function App() {
   //   （不重挂：状态与在途 Promise 都保留）。不订阅的话，只有自己调了 useLingui / <Trans> 的组件跟着换，
   //   渲染时调 .ts 助手（errText、relativeTime、显示字典）的组件停在旧语言，界面半中半英且零报错（方案 §5.4）。
   useLingui();
+  // 路由级渲染边界按 pathname 复位（components/ErrorBoundary）：hook 排在早退之前（CLAUDE.md 坑表「hook 写在早退之后」）
+  const loc = useLocation();
   // 数据层是 IndexedDB（异步）：装载完成前不渲染路由，避免各页读到空库。
   // null = 还在装；[] = 可以进（局部没读出来的库各自在用到它的那一屏说）；非空 = 核心库没打开，整页拦。
   // ★ 拦哪几样、为什么，只在 data/boot 一处（铁律六），别在别处再写一道开机闸
@@ -292,6 +295,9 @@ export default function App() {
           与 GuideGate 同一条理由挂在 Routes 外面（要盖住任何一页，不随路由卸载） */}
       <GenerationPill />
       <Toast />
+      {/* 路由级渲染边界（2026-10-15）：一页抛错只换掉那一页，顶上的胶囊 / 轻提示 / 引导与各 store 都还在；
+          换路由自动复位。3D 桌面、导演台、工作流画布各自再包一层，坏了只重挂那一块（理由见 ErrorBoundary 文件头） */}
+      <ErrorBoundary full resetKey={loc.pathname}>
       <Routes>
       <Route element={<TabLayout />}>
         <Route path="/" element={<FeedPage />} />
@@ -510,6 +516,7 @@ export default function App() {
       <Route path="/tutor/run/:id" element={<RequireAuth><TutorRunPage /></RequireAuth>} />
       <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </ErrorBoundary>
     </>
   );
 }

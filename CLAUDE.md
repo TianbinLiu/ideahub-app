@@ -23,10 +23,10 @@ cp .env.example .env.local     # 必须，否则 AI 全走 mock
 npm run dev                    # http://localhost:5173
 ```
 
-`npm run build` = `tsc && vite build`，**提交前必须通过**。
+`npm run build` = `tsc && vite build`，**提交前必须通过**。单独跑全部构建期检查用 `npm run check:all`（2026-10-15 起；同日新加的 `scripts/check-import-direction.mjs` 实跑依赖方向：data 不引 studio / pages / components / hooks、flowStore 不引 studioStore、零依赖规则模块只 `import type`）。
 
 出安装包：`npm run apk`（debug，自己测）/ `npm run apk:release`（**发给别人的只发这个**）/ `npm run aab`（上架）。
-发版走 `npm run release` —— 它会**自检"这次更新能不能到老用户手里"**（签名、版本号、
+发版走 `npm run release`（2026-10-15 起第 0 步先拦「HEAD 不是 origin/main 的树 / 工作区按内容不干净」—— 先 land 再出包；发错了 → `npm run release -- --withdraw v<坏版>`，见 docs/app-distribution.md「发错了」；第 2 步会开包核入口 js、受保护模型白名单、权限表、jar 来源）—— 它会**自检"这次更新能不能到老用户手里"**（签名、版本号、
 清单可达性），任何一条不过就当场停下。完整流程见 [`docs/app-distribution.md`](docs/app-distribution.md)。
 签名 keystore 不在仓库里（`android/keystore/` 被 gitignore 排除），换机 / 新 worktree
 怎么恢复见 [`docs/signing-keystore.md`](docs/signing-keystore.md)。**缺了它 release 构建会直接失败**，
@@ -140,7 +140,7 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 
 - **注释写"为什么"**，尤其是踩过的坑、量出来的数值、被推翻过的做法。既有代码用
   `★` 标记关键取舍，请延续。
-- **依赖方向单向**：`data → store → 组件`。工坊与工作流之间也是单向的：
+- **依赖方向单向**（构建里 `scripts/check-import-direction.mjs` 实跑，2026-10-15）：`data → store → 组件`。工坊与工作流之间也是单向的：
   `studioStore` 认识 `flowStore`，反过来**绝不**——两个 store 互相 import，Vite 下会
   拿到半初始化的模块。需要同时读写两边的逻辑（存草稿、法阵铺流水线）一律放 `studioStore`
   或页面组件里。
@@ -817,6 +817,7 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 - **数值不要拍脑袋**。涉及尺寸/间距/重叠的值先量再定，并在注释里写清量法与结论
   （例：`CharacterPerch` 的 `bottom` 系数调过四轮，注释里记了每一轮为什么不行）。
 - 动画只动 `transform` / `opacity`（合成层）。视频流滚动时本就吃紧，触发重排会掉帧。
+- **渲染抛错只换掉那一块**（2026-10-15 教材人格评审）：路由级 `components/ErrorBoundary`（按 pathname 复位）+ 3D 桌面 / 导演台 / 卡牌全息三个 `<Canvas>` 与工作流画布各一层。它接得住 render 里抛的错、接不住 `useFrame` 里的（那是下一条）；恢复只换 key 重挂那棵子树、store 原地不动，不 reload、不自动重试。
 - **渲染循环里别信任外部状态的形状**。`useFrame` 里抛一次错就是每帧抛一次：整页白屏，
   且**自己好不了**——循环挂了就没人再去改状态，用户只能刷新（工坊没有持久化时等于全丢）。
   从 store 取来的坐标之类先校验再用（例：`TableScene` 的 `camOk`），坏值退默认而不是崩。
@@ -1047,7 +1048,7 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
    `adb -s emulator-5554 reverse tcp:5178 tcp:5178` 之后地址写 `http://localhost:5178/_cuttest/a.mp4`：
    原生合成器拉得到（debug 变体给 localhost 放行了明文），预览的 `<video>` 也播得出（e2e 模式的 CSP 给
    **media-src** 也放行了 localhost —— 不放行的话片段在剪辑页里一段都播不出来，分割 / 裁剪读的正是播放头）。
-4. 这种包是生产模式构建，**没有 `__studio` / `__cut` 这些 DEV 钩子**：要一条多段稿子，就经 CDP 往 IndexedDB
+4. `--mode e2e` 的包**保留** `__studio` / `__flow` / `__cut` / `__deviceOwner` 这些调试缝（2026-10-15 起守卫是 `DEV || MODE === "e2e"`；正式包 mode=production 照旧剥掉），别的 mode 出的包没有它们：要一条多段稿子，就经 CDP 往 IndexedDB
    的 `ideahub-app.cut.v1` 里写一条剪辑稿（`{ v: 2, byOwner: { [账号 id]: { draft, at } } }`），刷新后从
    「我的 →接着剪」进剪辑页 —— 从那一步起走的全是 App 自己的代码。CDP 的接法见 memory 的 real-device-testing。
 5. 合出来的成片在 IndexedDB 的 `merged:` 键里，经 CDP 读成 base64 拿回电脑，`ffprobe` 量时长与轨道、

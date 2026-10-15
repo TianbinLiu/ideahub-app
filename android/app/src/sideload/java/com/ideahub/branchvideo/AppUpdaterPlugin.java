@@ -198,7 +198,7 @@ public class AppUpdaterPlugin extends Plugin {
     /**
      * 下载并拉起安装。进度通过 "downloadProgress" 事件回传。
      * @param url    APK 地址
-     * @param sha256 期望的摘要（可选）。校验不过就**不安装** —— 断点续传断在一半、
+     * @param sha256 期望的摘要（**必填**，64 位十六进制）。校验不过就**不安装** —— 断点续传断在一半、
      *               CDN 回了一个错误页，都会得到一个装不上或装错的包
      */
     @PluginMethod
@@ -207,6 +207,13 @@ public class AppUpdaterPlugin extends Plugin {
         final String expectSha = call.getString("sha256", "");
         if (url == null || url.isEmpty()) {
             call.reject("缺少下载地址");
+            return;
+        }
+        // ★ 没有 sha256 就不下不装（2026-10-15 教材人格评审，owasp-security-5）：原来 expectSha 为空时直接改名、拉起安装器 ——
+        //   发版脚本每一版都写 sha，缺了只可能是服务端转手逻辑回归或有人手改了清单，没有理由替它放行：装上去的那个包
+        //   谁都证明不了是我们发的。Web 侧（appUpdate.checkUpdate）先拦了一道，这里是原生自己的闸，不信上层。
+        if (expectSha == null || !expectSha.matches("(?i)[0-9a-f]{64}")) {
+            call.reject("更新清单里没有安装包的 sha256，不下载也不安装", "NO_SHA");
             return;
         }
         if (!canInstall()) {
@@ -268,9 +275,8 @@ public class AppUpdaterPlugin extends Plugin {
         }
 
         // ★ 上次已经下好的成品：摘要对得上就直接拿去装，不再下一遍。
-        //   只在清单给了 sha256 时才复用 —— 没有摘要就证明不了它完整、没被改过，那就照老样子重下。
-        //   对不上 = 不是这一版 / 坏了，删掉重下。
-        if (apk.exists() && expectSha != null && !expectSha.isEmpty()) {
+        //   对不上 = 不是这一版 / 坏了，删掉重下。（sha256 在 downloadAndInstall 入口就是必填的，这里不再分「没给摘要」那一支）
+        if (apk.exists()) {
             if (sha256Hex(apk).equalsIgnoreCase(expectSha)) return apk;
             //noinspection ResultOfMethodCallIgnored
             apk.delete();
@@ -308,15 +314,14 @@ public class AppUpdaterPlugin extends Plugin {
             throw new Exception("这一次没下完（网络断了几次）。" + resumeTail(part));
         }
 
-        // ★ 校验放在最后、对整个文件算：续传拼出来的包与一次下完的包走同一道闸
-        if (expectSha != null && !expectSha.isEmpty()) {
-            if (!sha256Hex(part).equalsIgnoreCase(expectSha)) {
-                // ★ 校验不过**必须删**：留着它，下一次会被当成"下了一半"接着下，
-                //   而它本来就是坏的 —— 用户会陷进一个永远修不好的循环。
-                //noinspection ResultOfMethodCallIgnored
-                part.delete();
-                throw new Exception("下载的文件校验不通过，已丢弃（可能没下完或被中间人改过）");
-            }
+        // ★ 校验放在最后、对整个文件算：续传拼出来的包与一次下完的包走同一道闸。
+        //   无条件校验（2026-10-15 教材人格评审）：原来 expectSha 为空就跳过这一步直接改名、拉起安装器，入口处现在已经拒掉了空的
+        if (!sha256Hex(part).equalsIgnoreCase(expectSha)) {
+            // ★ 校验不过**必须删**：留着它，下一次会被当成"下了一半"接着下，
+            //   而它本来就是坏的 —— 用户会陷进一个永远修不好的循环。
+            //noinspection ResultOfMethodCallIgnored
+            part.delete();
+            throw new Exception("下载的文件校验不通过，已丢弃（可能没下完或被中间人改过）");
         }
 
         //noinspection ResultOfMethodCallIgnored

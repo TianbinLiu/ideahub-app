@@ -42,12 +42,14 @@ function onAccountEvent(fn: () => void): () => void {
   return () => listeners.delete(fn);
 }
 
-/** DEV 专用：顶替「现在登录的是谁」（null = 不顶替）。正式包里 import.meta.env.DEV 为假，整段是死码 */
+/** DEV / e2e 联调包专用：顶替「现在登录的是谁」（null = 不顶替）。正式包里 DEV 为假、MODE 是 production，整段是死码 */
 let devOwner: string | null = null;
 
 /** 现在给谁看：当前登录账号的 id。没登录 / 会话还没认领上 = ""（看不到任何人的东西，也不认领存量） */
 export function deviceOwner(): string {
-  if (import.meta.env.DEV && devOwner !== null) return devOwner;
+  // ★ 与文件末尾 __deviceOwner 那道闸**同一个谓词**（2026-10-15 教材人格评审）：那边在 e2e 包里也开了，这里不跟着开的话，
+  //   e2e 里调 `__deviceOwner("A")` 写进了 devOwner、监听也触发了，而这里照样回真账号 —— 顶替悄悄失效、零报错
+  if ((import.meta.env.DEV || import.meta.env.MODE === "e2e") && devOwner !== null) return devOwner;
   const u = currentUser();
   return u ? String(u.id) : "";
 }
@@ -148,7 +150,9 @@ onAccountEvent(() => {
 
 // DEV 测试口子：`__deviceOwner("A")` 假装 A 登录着、`__deviceOwner("")` 假装没人登录、`__deviceOwner(null)` 还原。
 // 用来在浏览器里验「换账号」的每一条隔离，而不必真去注册账号（2026-09-18 这一批就是这么验的）。
-if (import.meta.env.DEV) {
+// ★ `--mode e2e` 的联调包也开（2026-10-15 教材人格评审，与 __flow / __studio / __cut 同一批，为什么见 flowStore 末尾）：
+//   e2e 包只装 debug 变体，正式包 mode=production 一字不变。deviceOwner() 上面那道闸用的是同一个谓词，两处要一起改。
+if (import.meta.env.DEV || import.meta.env.MODE === "e2e") {
   (window as unknown as Record<string, unknown>).__deviceOwner = (id: string | null) => {
     devOwner = id;
     for (const fn of [...listeners]) fn();

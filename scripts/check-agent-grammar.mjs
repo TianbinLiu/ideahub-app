@@ -11,6 +11,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import url from "node:url";
+import { regexStringIssues } from "./lib/regex-shape.mjs";
 
 const root = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), "..");
 const modArg = process.argv.find((a) => a.startsWith("--module="))?.slice("--module=".length);
@@ -27,6 +28,9 @@ src.split(/\r?\n/).forEach((ln, i) => {
   if (/@lingui/.test(ln) && !/^\s*(\/\/|\*)/.test(ln)) fail(`agentGrammar.ts:${i + 1}  不许引 @lingui：句式是被解析的输入，不是界面文案`);
   if (/^\s*(export\s+)?(const\s+)?enum\s+\w|^\s*(export\s+)?namespace\s+\w/.test(ln)) fail(`agentGrammar.ts:${i + 1}  不许用 enum / namespace（Node 只剥类型，跑不了它们）`);
 });
+// 句式是 new RegExp(String.raw`…`) 拼的（:160 / :164 / :168 / :199）：把 String.raw 写丢，\s 就静默退成 s（CLAUDE.md 坑表那格，
+// canvasAgent 的词表上真栽过）。形状闸与另外四道脚本共用（scripts/lib/regex-shape.mjs，2026-10-15 教材人格评审）
+regexStringIssues(src, "agentGrammar.ts").forEach(fail);
 
 // ── parseLocal 正反例 ──
 const req = (seg, text) => ({ op: "require", seg, text });

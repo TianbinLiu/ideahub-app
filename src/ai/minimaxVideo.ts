@@ -13,7 +13,7 @@
 import { t } from "@lingui/core/macro";
 import { API_BASE } from "../api/client";
 import { getToken, withAppVersion } from "../api/client";
-import { ArkTaskFailed, ArkTaskUnknown, billingDenialError, syncWalletFromHeaders, taskRefundOf, type ArkProgress } from "./arkClient";
+import { ArkNoReply, ArkTaskFailed, ArkTaskUnknown, billingDenialError, syncWalletFromHeaders, taskRefundOf, type ArkProgress } from "./arkClient";
 
 /** 上游受理回执的业务码：0 = 成功。非 0 时 status_msg 是给人看的原因 */
 interface BaseResp {
@@ -23,6 +23,22 @@ interface BaseResp {
 
 const BASE = `${API_BASE}/api/minimax`;
 
+/**
+ * 三发请求各等多久（2026-10-15 教材人格评审：原来三发都是裸 fetch，没有任何上限）。
+ * ★★ 为什么必须有上限、而且要**大于服务端自己的转发预算**：服务端是先扣钱再转发（契约「扣费」一节），
+ *   建任务那一发我们先放弃 = 服务端那一发照样跑完、钱照扣，而本机既没收到任务号也就没落凭据 ——
+ *   屏幕上唯一能点的是全价「♻ 重新生成」（双倍扣）。所以客户端要等到服务端自己给出结论（它对上游超时会折成 504 回给我们，
+ *   那一档走「服务端明说失败 → 退款」的路）之后再放弃；而**没有上限**的另一头更坏：弱网半开连接时 fetch 永不 settle，
+ *   轮询那一发挂在 await 里，而下面那条 10 分钟死线只在循环头判，永远到不了。
+ * ★ 数怎么来的：server routes/minimax.routes.js 的 T_CREATE = 120s（创建体带 base64 首帧，照 ark 的实测经验给宽）、
+ *   T_POLL = 30s；这里各加余量（建任务 +30s 给请求体上行 —— 720p 首帧压过仍有 2~3MB，真机 5G 上行只有 30~40KB/s；
+ *   查询 +10s）。方舟那边同类请求的数：视频任务创建 120s（arkClient.generateVideo）、查进度 20s（fetchArkTask）。
+ *   Cloudflare 的 125 秒读超时挡在中间：源站一直不回时它会先于 T_CREATE_MS 掐断 —— 那也是 fetch reject，
+ *   同样落进下面的 ArkNoReply，这里的上限兜的是它掐不到的那一类（半开连接、WebView 自己挂住）。
+ */
+const T_CREATE_MS = 150_000;
+const T_QUERY_MS = 40_000;
+
 /** @param url 这一发打到哪儿 —— 只为了让 withAppVersion 判要不要带版本头（自家服务器的 /api/ 才带） */
 function authHeaders(url: string): Record<string, string> {
   // 生产（server 代理）要带登录态；dev 的 vite 代理会忽略这个头，无害
@@ -30,9 +46,28 @@ function authHeaders(url: string): Record<string, string> {
   return withAppVersion(url, { "Content-Type": "application/json", ...(tk ? { Authorization: `Bearer ${tk}` } : {}) });
 }
 
-/** 查询类 GET（查进度 / 取下载地址）：不计费 */
-function getJson(url: string): Promise<Response> {
-  return fetch(url, { headers: authHeaders(url) });
+/**
+ * 「一个回包都没收到」（断网 / 超时 / 网关掐断）→ ArkNoReply —— 与 arkClient.arkFetch 同一条约定（见 ArkNoReply 的 ★★）：
+ * 没收到回包 ≠ 没扣钱。钱上那句话不在这里说（CLAUDE.md：只走 ai/failCharge，它认的是这个**类型**），
+ * 原来这里让 fetch 的裸 TypeError 一路上抛，failCharge 判成「其余 = 没扣」，屏幕上钱一个字不提。
+ * 三步各一句整话（不拿动词往句子里拼，多语言要整句）。
+ */
+function noReply(step: MinimaxStep, e: unknown): ArkNoReply {
+  const detail = e instanceof Error ? e.message : String(e);
+  return new ArkNoReply(
+    step === "create"
+      ? t`真人档出片创建没收到回包：${detail}`
+      : step === "poll"
+        ? t`真人档出片查询没收到回包：${detail}`
+        : t`真人档出片取件没收到回包：${detail}`,
+  );
+}
+
+/** 查询类 GET（查进度 / 取下载地址）：不计费。@param step 只为了报错时说清是哪一步（查询 / 取件） */
+function getJson(url: string, step: Exclude<MinimaxStep, "create">): Promise<Response> {
+  return fetch(url, { headers: authHeaders(url), signal: AbortSignal.timeout(T_QUERY_MS) }).catch((e) => {
+    throw noReply(step, e);
+  });
 }
 
 /** 真人档一发的三步：建任务 / 查进度 / 取下载地址。报错按步整句各写一份，不拿动词往句子里拼 */
@@ -93,7 +128,7 @@ function minimaxFailed(taskId: string, st: Record<string, unknown>): ArkTaskFail
 async function minimaxFileUrl(st: Record<string, unknown>): Promise<string> {
   const fileId = String(st.file_id ?? "");
   if (!fileId) throw new Error(t`真人档出片成功却没有文件号——上游协议变了，把这句话反馈给我们`);
-  const f = await jsonOf(await getJson(`${BASE}/file/${encodeURIComponent(fileId)}`), "file");
+  const f = await jsonOf(await getJson(`${BASE}/file/${encodeURIComponent(fileId)}`, "file"), "file");
   const file = f.file as { download_url?: string; backup_download_url?: string } | undefined;
   const url = file?.download_url || file?.backup_download_url;
   if (!url) throw new Error(t`真人档取件失败：上游没有返回下载地址`);
@@ -117,7 +152,7 @@ export async function takeMinimaxTask(
   onProgress?.(t`正在向上游核对这一发的状态…（查询不花钱）`);
   let st: Record<string, unknown>;
   try {
-    st = await jsonOf(await getJson(`${BASE}/video/${encodeURIComponent(taskId)}`), "poll");
+    st = await jsonOf(await getJson(`${BASE}/video/${encodeURIComponent(taskId)}`, "poll"), "poll");
   } catch (e) {
     // 查不动 ≠ 取不回。凭据必须留着，话也不能说死。
     // ★ 抛 **ArkTaskUnknown**（与方舟那条 real.takeVideoTask 查不动 / 还在跑同一个类型，2.62 发版评审）：「这一发的结局还没核对到」
@@ -162,6 +197,9 @@ export async function minimaxVideo(o: {
   // 「任务创建中」那一步由 real.composeSegments 在调用之前就报了，这里不再重复报一遍
   //（改之前这里多报的那条在日志里显示成「真人档 · 真人档任务创建中…」）
   const prog = (ev: ArkProgress) => o.onProgress?.(ev);
+  // ★ 照 arkClient.arkFetch 的写法：带上限 + reject 包成 ArkNoReply（理由见 T_CREATE_MS 与 noReply 头上的 ★★）。
+  //   这一发**没收到回包**时任务多半已经受理、钱已经扣了，而 onTask 要到下面拿到 task_id 才会落凭据 ——
+  //   所以这一档只能让 failCharge 说「可能已扣」，别让它退化成「没扣」
   const created = await jsonOf(
     await fetch(`${BASE}/video`, {
       method: "POST",
@@ -175,6 +213,9 @@ export async function minimaxVideo(o: {
         // 让它可变 = 报价与实扣两个数
         resolution: "768P",
       }),
+      signal: AbortSignal.timeout(T_CREATE_MS),
+    }).catch((e) => {
+      throw noReply("create", e);
     }),
     "create",
   );
@@ -213,7 +254,9 @@ export async function minimaxVideo(o: {
     await new Promise((r) => setTimeout(r, 8000));
     let st: Record<string, unknown>;
     try {
-      st = await jsonOf(await getJson(`${BASE}/video/${encodeURIComponent(taskId)}`), "poll");
+      // 单发查询超时 / 断网在 getJson 里已包成 ArkNoReply —— 落进下面同一个 catch 数 pollFails（原来裸 fetch 永不 settle 时
+      // 这一行就挂死，死线与 pollFails 两支都到不了，2026-10-15 教材人格评审）
+      st = await jsonOf(await getJson(`${BASE}/video/${encodeURIComponent(taskId)}`, "poll"), "poll");
       pollFails = 0;
     } catch (e) {
       if (++pollFails >= 5) {

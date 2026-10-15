@@ -18,6 +18,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import url from "node:url";
+import { regexStringIssues } from "./lib/regex-shape.mjs";
 
 const root = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), "..");
 const modArg = process.argv.find((a) => a.startsWith("--module="))?.slice("--module=".length);
@@ -40,6 +41,8 @@ src.split(/\r?\n/).forEach((ln, i) => {
   if (/@lingui/.test(ln) && !/^\s*(\/\/|\*)/.test(ln)) fail(`refMentions.ts:${i + 1}  不许引 @lingui：这里的字是发给模型的，不是界面文案`);
   if (/^\s*(export\s+)?(const\s+)?enum\s+\w|^\s*(export\s+)?namespace\s+\w/.test(ln)) fail(`refMentions.ts:${i + 1}  不许用 enum / namespace（Node 只剥类型，跑不了它们）`);
 });
+// 今天这个文件里没有 new RegExp（都是字面量），闸装着是防以后：正则写成字符串，\d 静默退成 d（scripts/lib/regex-shape.mjs，2026-10-15 教材人格评审）
+regexStringIssues(src, "refMentions.ts").forEach(fail);
 
 // ── (b) 点名目标表 ──
 const cards = [

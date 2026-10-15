@@ -161,6 +161,12 @@ export interface CustomCardDraft {
   err: string;
   dropped: string;
   minting: boolean;
+  /**
+   * 铸卡在跑时铸卡键下那一行（空 = 用页面原来那句）。由后台票的心跳写（data/jobs.heartbeatJob，2026-10-15 教材人格评审
+   * norman-interaction-8）：远端模式要串行传几张图、弱网几十秒，页内那行与胶囊上那张票写的是**同一个串**，「已等 N 秒」一个数。
+   * 放 store 不放组件：退出这一页再回来，那一行还接着跳。
+   */
+  mintNote: string;
   partial: { id: string; kind: "unsynced" | "views" | "asset"; lost: string[]; reason?: string } | null;
   /** 页面此刻挂着没有（见文件头 ★） */
   mounted: boolean;
@@ -209,6 +215,7 @@ export function initialDraft(): CustomCardDraft {
     err: "",
     dropped: "",
     minting: false,
+    mintNote: "",
     partial: null,
     mounted: false,
   };

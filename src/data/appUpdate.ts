@@ -19,6 +19,7 @@
 //   哪一版要设 minVersionCode 由发版时显式指定（scripts/release.mjs 的 --min-version-code），见 docs/app-distribution.md。
 import { registerPlugin } from "@capacitor/core";
 import { Capacitor } from "@capacitor/core";
+import { t } from "@lingui/core/macro";
 import { SITE_BASE } from "../utils/shareLink";
 
 export interface UpdateInfo {
@@ -100,7 +101,8 @@ interface AppUpdaterPlugin {
   current(): Promise<{ versionCode: number; versionName: string; selfUpdate: boolean; canInstall: boolean }>;
   check(opts: { manifestUrl: string }): Promise<UpdateInfo>;
   openInstallPermission(): Promise<void>;
-  downloadAndInstall(opts: { url: string; sha256?: string }): Promise<{ installerLaunched: boolean }>;
+  /** sha256 必填：原生那侧缺了就 reject（见 AppUpdaterPlugin.downloadAndInstall），这里的类型跟它一致 */
+  downloadAndInstall(opts: { url: string; sha256: string }): Promise<{ installerLaunched: boolean }>;
   addListener(
     event: "downloadProgress",
     fn: (e: { received: number; total: number }) => void,
@@ -115,6 +117,9 @@ const MANIFEST_URL = (import.meta.env.VITE_UPDATE_MANIFEST as string | undefined
 
 /** 用户点过「以后再说」的版本号。同一个版本不再打扰，出了更新的才再提 */
 const SKIP_KEY = "ideahub-app.update.skipped";
+
+/** 清单里 sha256 的形状：64 位十六进制（发版脚本 scripts/release.mjs 第 5 步写的就是 createHash("sha256").digest("hex")） */
+const SHA256_RE = /^[0-9a-f]{64}$/i;
 
 export function isNative(): boolean {
   return Capacitor.isNativePlatform();
@@ -162,14 +167,22 @@ export async function openInstallPermission(): Promise<void> {
  */
 export async function checkUpdate(silent = true): Promise<UpdateInfo | null> {
   if (!(await selfUpdateSupported())) return null;
+  let info: UpdateInfo;
   try {
-    const info = await AppUpdater.check({ manifestUrl: MANIFEST_URL });
-    if (!info.hasUpdate || !info.apkUrl) return null;
-    return info;
+    info = await AppUpdater.check({ manifestUrl: MANIFEST_URL });
   } catch (e) {
     if (silent) return null;
     throw e instanceof Error ? e : new Error(String(e));
   }
+  if (!info.hasUpdate || !info.apkUrl) return null;
+  // ★ 清单缺 / 坏 sha256 一律**不当有更新**（2026-10-15 教材人格评审，owasp-security-5）：发版脚本每一版都写它，缺了只可能是
+  //   服务端转手逻辑回归或有人手改了清单 —— 没有它，下下来的包谁都证明不了是我们发的，没有理由替它放行（原生那侧
+  //   downloadAndInstall 也拒，这里先一步不摆出「立即更新」）。手动检查那条路要说出来：答「已经是最新」是假话，人会以为没新版。
+  if (!SHA256_RE.test(info.sha256 ?? "")) {
+    if (silent) return null;
+    throw new Error(t`更新清单不完整，稍后再试`);
+  }
+  return info;
 }
 
 /** 启动时那次自动检查：已经被用户跳过的版本不再冒头 —— **强制的那一版除外**（跳过的记录对它不算数） */
@@ -201,7 +214,8 @@ export async function downloadAndInstall(
 ): Promise<void> {
   const sub = await AppUpdater.addListener("downloadProgress", (e) => onProgress(e.received, e.total));
   try {
-    await AppUpdater.downloadAndInstall({ url: info.apkUrl, sha256: info.sha256 || undefined });
+    // sha256 原样传（不再 `|| undefined`）：checkUpdate 已经只放行带合法 sha 的清单，原生那侧缺了也会拒 —— 两道闸各自成立
+    await AppUpdater.downloadAndInstall({ url: info.apkUrl, sha256: info.sha256 });
   } finally {
     await sub.remove();
   }

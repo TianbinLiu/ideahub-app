@@ -58,7 +58,7 @@ export function tierSwitchLoss(nodeId: string, nextId: string): MessageDescripto
   // ★ **升档也有变化**（2026-08-30 补）：收参考图的档上，帧改当参考图发 + 提示词点名
   //   （segmentGen 的 framesAsRefs）—— 卡片形象能同发了，但"必须从这一帧起拍"从协议级
   //   硬约束降成软引导。这是好事也是代价，两头都要说，不能只在降档时说。
-  // ★ 判据走 segmentGen.carryIsHard 一处（2026-09-XX 收口）：这里原来手写
+  // ★ 判据走 segmentGen.carryIsHard 一处（2026-09-03 收口）：这里原来手写
   //   `!cur.refImg && next.refImg`，与 framesAsRefs 是同一条规则的第二份实现 ——
   //   哪天加一档 flatCost 且收参考图的，两份必然只改到一份，而且零症状。
   if (carryIsHard(cur.id) && !carryIsHard(next.id) && (prop.firstFrame || prop.lastFrame)) {

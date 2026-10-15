@@ -519,7 +519,9 @@ type HeadResult = { kind: "ok"; total: number | null } | { kind: "reject"; msg: 
 async function headProbe(url: string): Promise<HeadResult> {
   let res: Response;
   try {
-    res = await fetch(url, { method: "HEAD" });
+    // ★ 带上限（2026-10-15 教材人格评审，原来裸 fetch 没有）：HEAD 没有正文，Cloudinary 几百毫秒就回头；
+    //   15 秒还没回 = 这条网此刻不通，与断网走同一条路（放行、长度未知），别让整条下载队列卡在一次探测上
+    res = await fetch(url, { method: "HEAD", signal: AbortSignal.timeout(15_000) });
   } catch (e) {
     console.warn("[dl] head failed, size unknown", e);
     return { kind: "ok", total: null };

@@ -25,7 +25,8 @@ import DeleteSegBtn from "../components/flow/DeleteSegBtn";
 import SegSettings from "../components/flow/SegSettings";
 import FlowCanvas from "../components/flow/FlowCanvas";
 import ForgeOverlay, { type ForgePhase } from "../components/ForgeOverlay";
-import FrameAnnotator, { drawWhole } from "../components/FrameAnnotator";
+import FrameAnnotator from "../components/FrameAnnotator";
+import { grabVideoFrame } from "../components/videoFrames";
 import GenTrace from "../components/GenTrace";
 import Icon from "../components/Icon";
 import { CloseButton } from "../components/IconTapButton";
@@ -42,25 +43,8 @@ import { markSpecOf, myTemplates, splitCastRoles, templateGroupOf } from "../dat
 // ★ 取回那一整块 2026-08-31 搬去 components/flow/SegmentRecoverCards（三个宿主共用，
 //   理由见那边的 ★★：它原来只长在这一页的 simple 闸里，画布与工坊一个像素都看不到）
 import { SegmentRecoverList } from "../components/flow/SegmentRecoverCards";
-import { clampDuration, fmtTokens, proposalsCost, tierOf } from "../data/economy";
-import {
-  FlowNode,
-  chosenOf,
-  flowCost,
-  frontierOf,
-  nodeCost,
-  nodeDerived,
-  nodeDone,
-  tplOfNode,
-  nodeRefOn,
-  nodeEmptyFrames,
-  realVideoOfNode,
-  planOf,
-  annSkipNote,
-  redrawCost,
-  requirementOf,
-  useFlow,
-} from "../studio/flowStore";
+import { clampDuration, fmtTokens, tierOf } from "../data/economy";
+import { annSkipNote, chosenOf, deriveCostOf, flowCost, FlowNode, frontierOf, nodeCost, nodeDerived, nodeDone, nodeEmptyFrames, nodeRefOn, planOf, realVideoOfNode, redrawCost, requirementOf, tplOfNode, useFlow } from "../studio/flowStore";
 import PlanBoard from "../studio/ui/PlanBoard";
 import FuseFrameSheet, { fuseSourcesOf } from "../studio/ui/FuseFrameSheet";
 import CustomFrameSlots from "../components/flow/CustomFrameSlots";
@@ -339,9 +323,25 @@ function NodeScreen({
   const done = nodeDone(node);
   // ★ 「能不能播」只问 store 那一处（realVideoOfNode）：画布那份也调它
   const realVideo = realVideoOfNode(node);
-  const vsrc = useMediaUrl(realVideo, { forCapture: true });
+  /**
+   * ★★ 播放**直连**、不传 forCapture（2026-10-15 教材人格评审，McConnell 性能那条）：forCapture 是「整条成片 fetch 成 blob
+   *   再给 objectURL」（utils/mediaUrl，120s 超时、失败重试一次），此前简约出片完要等整条文件下完才出画 —— 手机网上几十 MB
+   *   的片子等于出片完还要黑着等一两分钟，取流失败只 console.warn、画面静默停在海报（剪辑页 CutPage.loadCaptureSrc 那条坑
+   *   2026-09 已修「播放不等它」，这一面没跟上）。圈选要的同源帧改在点圈选那一拍单独取一份代理流（openAnnotator）。
+   * ★ 直连时「拉不动」不会表现为 vsrc 为空（http(s) 同步原样放行），只落在 <video> 的 error 上 —— 所以接 onError 并给重试
+   *   （SegPlayer 的 failed 同款），否则用户得到的是一块黑加一排按不出东西的控件（铁律八）。
+   */
+  const vsrc = useMediaUrl(realVideo);
   const vref = useRef<HTMLVideoElement>(null);
-  const [annOpen, setAnnOpen] = useState<{ frame: string; atSec: number } | null>(null);
+  const [vidFailed, setVidFailed] = useState(false);
+  const [vidRetry, setVidRetry] = useState(0);
+  useEffect(() => setVidFailed(false), [vsrc, vidRetry]);
+  /** 圈选画板：fallback = 这一秒没截到、底图退成了开头帧（画板上的提示句要说出来） */
+  const [annOpen, setAnnOpen] = useState<{ frame: string; atSec: number; fallback?: boolean } | null>(null);
+  /** 圈选取帧中（按钮禁用 + 「取帧中…」） */
+  const [annBusy, setAnnBusy] = useState(false);
+  /** 上一次点圈选没截到这一秒的画面时，在入口旁说的那一句（铁律八：此前只 console.warn） */
+  const [annIssue, setAnnIssue] = useState("");
   const [sheet, setSheet] = useState(false); // 底部「本段设置」抽屉
   /** 简约面的「自定义首尾帧」折叠条 + 它的融图开在哪一帧上 */
   const [customOpen, setCustomOpen] = useState(false);
@@ -383,7 +383,8 @@ function NodeScreen({
   // ★ 报价问 store 的 nodeCost，与真正扣钱的 genNode 同一处实现：它算的是"出片 +
   //   这一段还得补画几张设定帧"，而简约模式恰恰是两张帧都没有的那条路（铁律六）
   const cost = useFlow((s) => nodeCost(s.nodes, index, s.mode));
-  const propCost = proposalsCost(carried);
+  // 推演价签与真扣同一处实现 deriveCostOf（2026-10-15 教材人格评审收口；这一行在简约闸里是死码，但别留第二把尺）
+  const propCost = useFlow((s) => deriveCostOf(s.nodes, index));
   /**
    * 这一段会不会走「参考生视频」（卡片形象 + 一句话直出，不画设定帧）。
    * 与出片时的判定同一个函数 —— 界面说"直接用卡片形象"、实际却画了张设定帧，
@@ -495,17 +496,35 @@ function NodeScreen({
     return () => onFocus(false);
   }, [focusWanted, onFocus]);
 
-  /** 从预览播放器截当前帧去圈选（视频经代理取流，画布不会被跨域污染） */
-  function openAnnotator() {
+  /**
+   * ⭕ 圈选：截下播放器停在的那一秒。
+   * ★★ 不从上面那个直连的 <video> 上截（跨域视频污染画布，toDataURL 抛 SecurityError）：这一下单独取一份代理流，
+   *   实现只有 components/videoFrames.grabVideoFrame 一份（SegPlayer 的圈选 / 截帧也调它，别抄第二份）。
+   * ★ 取不到就退回这一套的开头帧（SegPlayer.openAnn 同款退法）并在入口旁、画板上各说一句；两条都没有就整句说清，
+   *   别开一个空白画板。演示构建（没有真成片）本来就只有开头帧可圈，那不是失败，不说。
+   */
+  async function openAnnotator() {
     const v = vref.current;
-    if (v && v.videoWidth) {
-      v.pause();
-      // 按原比例截整帧（FrameAnnotator.drawWhole 的 ★★：竖屏帧 cover 进横画布只剩中间一条）
-      const c = drawWhole(v);
-      if (c) setAnnOpen({ frame: c.toDataURL("image/jpeg", 0.9), atSec: v.currentTime });
-      else if (prop.firstFrame) setAnnOpen({ frame: prop.firstFrame, atSec: 0 });
-    } else if (prop.firstFrame) {
-      setAnnOpen({ frame: prop.firstFrame, atSec: 0 });
+    v?.pause();
+    const at = v?.currentTime ?? 0;
+    setAnnIssue("");
+    let why = "";
+    if (realVideo) {
+      setAnnBusy(true);
+      try {
+        setAnnOpen(await grabVideoFrame(realVideo, at));
+        return;
+      } catch (e) {
+        why = e instanceof Error ? e.message : String(e);
+      } finally {
+        setAnnBusy(false);
+      }
+    }
+    if (prop.firstFrame) {
+      setAnnOpen({ frame: prop.firstFrame, atSec: 0, fallback: !!why });
+      if (why) setAnnIssue(t`没截到你停在的那一秒（${why}），这次圈的是这一段的开头帧`);
+    } else {
+      setAnnIssue(why ? t`取不到这一段的画面，圈选打不开：${why}` : t`这一段还没有可以圈的画面`);
     }
   }
 
@@ -626,8 +645,34 @@ function NodeScreen({
               frameAspect={aspectCss(node.aspect)}
             />
           </div>
+        ) : done && vsrc && vidFailed ? (
+          /* 拉不动：先用这一套的海报 / 开头帧顶着，说清原因、给重试（SegPlayer 的 failed 同款，别留全屏黑） */
+          <div className="flex flex-col items-center gap-2 px-6">
+            {(prop.poster || prop.firstFrame) && (
+              <img src={prop.poster || prop.firstFrame} alt="" className="max-h-40 max-w-full rounded-lg opacity-70" />
+            )}
+            <p className="text-center text-xs leading-relaxed text-rose-300">
+              <Trans>这一段的视频拉不下来</Trans>
+              <br />
+              <span className="text-[11px]"><Trans>网络不好，或者这条链接已经过期（隔天打开的草稿常见）</Trans></span>
+            </p>
+            <button onClick={() => setVidRetry((k) => k + 1)} className="rounded-full bg-panel px-4 py-1.5 text-[11px] text-slate-200">
+              <Trans>重试</Trans>
+            </button>
+          </div>
         ) : done && vsrc ? (
-          <video ref={vref} src={vsrc} muted playsInline controls className="max-h-full max-w-full" />
+          /* key 让「重试」把 <video> 整个重建（同一个 src 再 load 一次不一定重新发请求）；poster 按 CLAUDE.md「预览一律读 poster || firstFrame」 */
+          <video
+            key={vidRetry}
+            ref={vref}
+            src={vsrc}
+            poster={prop.poster || prop.firstFrame || undefined}
+            muted
+            playsInline
+            controls
+            onError={() => setVidFailed(true)}
+            className="max-h-full max-w-full"
+          />
         ) : prop.poster || prop.firstFrame ? (
           <img src={prop.poster || prop.firstFrame} alt="" className="max-h-full max-w-full" />
         ) : (
@@ -822,13 +867,13 @@ function NodeScreen({
           </button>
           {done && (
             <button
-              onClick={openAnnotator}
-              disabled={busy}
+              onClick={() => void openAnnotator()}
+              disabled={busy || annBusy}
               /* 收成两个字：这一行现在还要放素材按钮，"圈选改画面"会把生成按钮挤到折行 */
               title={t`圈选改画面`}
               className="flex-none rounded-xl bg-panel px-2.5 py-2.5 text-[11px] text-slate-300 disabled:opacity-40"
             >
-              <Trans>⭕ 圈选</Trans>
+              {annBusy ? <Trans>取帧中…</Trans> : <Trans>⭕ 圈选</Trans>}
             </button>
           )}
           <button
@@ -872,6 +917,8 @@ function NodeScreen({
             )}
           </button>
         </div>
+        {/* 圈选没截到这一秒时的那句话，就摆在入口旁（铁律八）；下一次截成功就清掉 */}
+        {annIssue && <p className="text-[11px] leading-relaxed text-rose-300">{annIssue}</p>}
 
         {/* 出片之后才给"往下走"。最后一段没有下一段可去，改成就地追加一段——
             底部节点条上的 ＋ 现在也要等出片才亮，这里是同一条规则的另一个入口 */}
@@ -960,7 +1007,11 @@ function NodeScreen({
       {annOpen && (
         <FrameAnnotator
           frame={annOpen.frame}
-          hint={t`标注会先改这一段的设定画面，再重新生成本段视频`}
+          hint={
+            annOpen.fallback
+              ? t`没截到你停在的那一秒，这是这一段的开头帧；标注会先改设定画面，再重新生成本段视频`
+              : t`标注会先改这一段的设定画面，再重新生成本段视频`
+          }
           onClose={() => setAnnOpen(null)}
           onSave={(frame, req) => {
             addAnn(node.id, { frame, req, atSec: annOpen.atSec });

@@ -95,6 +95,13 @@ export async function register(input: RegisterInput): Promise<AuthResult> {
  * 走裸 fetch 而不是 apiPost —— multipart 的 Content-Type 必须由浏览器带 boundary 生成，
  * 手动设成 application/json 会让 multer 解析不出文件。
  */
+/**
+ * 头像上传等多久。图在调用方已压成 256px 见方的几十 KB（utils/image.encodeSquare），CLAUDE.md 量过的真机 5G 上行
+ * 30~40KB/s 也就一两秒；服务端那头同步等 Cloudinary 转存，几十 KB 是秒级 —— 与 uploads.uploadImage 给 5MB 图的 60s 同一个数，
+ * 宽裕有余。2026-10-15 教材人格评审：原来这一发是裸 fetch、没有上限，半开连接时「保存中…」一直转
+ */
+const AVATAR_UPLOAD_MS = 60_000;
+
 export async function uploadAvatar(blob: Blob, filename = "avatar.webp"): Promise<string | null> {
   const fd = new FormData();
   fd.append("avatar", blob, filename);
@@ -104,6 +111,12 @@ export async function uploadAvatar(blob: Blob, filename = "avatar.webp"): Promis
     method: "POST",
     headers: withAppVersion(url, token ? { Authorization: `Bearer ${token}` } : {}),
     body: fd,
+    signal: AbortSignal.timeout(AVATAR_UPLOAD_MS),
+  }).catch((e) => {
+    // 没收到回包（断网 / 到点）：整句人话 —— setAvatarImage 把它原样抛给页面画，DOMException 的英文不该上屏
+    const timedOut = e instanceof DOMException && (e.name === "TimeoutError" || e.name === "AbortError");
+    const secs = Math.round(AVATAR_UPLOAD_MS / 1000);
+    throw new Error(timedOut ? t`头像上传超时（${secs} 秒内没传完），换个网络再试` : t`头像上传失败（网络不可用）`);
   });
   const data = (await res.json().catch(() => ({}))) as { avatarUrl?: string; message?: string; error?: string };
   if (!res.ok) throw new Error(data.message || data.error || t`头像上传失败（HTTP ${res.status}）`);

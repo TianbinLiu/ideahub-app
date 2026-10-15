@@ -32,7 +32,7 @@ import UpgradeLink from "../components/UpgradeLink";
 import { idbSet } from "../data/db";
 import { dropVideoJob } from "../data/videoJobs";
 import { ownerEpoch } from "../data/deviceOwner";
-import { annRedrawCost, fmtTokens, segTokens, tierOf, tierRetireDay, tierRetired } from "../data/economy";
+import { annRedrawCost, fmtTokens, providerOf, segTokens, tierOf, tierRetireDay, tierRetired } from "../data/economy";
 import { publishedExit, useStudio } from "../studio/studioStore";
 import { useCut } from "../studio/cutStore";
 import {
@@ -605,12 +605,31 @@ export default function CutPage() {
    */
   const liveSegs = useMemo(() => new Set(view.map((c) => c.segIndex)), [view]);
   const liveAnns = useMemo(() => anns.filter((a) => liveSegs.has(a.segIndex)), [anns, liveSegs]);
+  /** 还在成片里的圈选按段分组 —— 报价（annCost）与真跑（regenerateAll）读的是同一份 */
   const annBySeg = useMemo(() => {
-    const m = new Map<number, number>();
-    for (const a of liveAnns) m.set(a.segIndex, (m.get(a.segIndex) ?? 0) + 1);
+    const m = new Map<number, Ann[]>();
+    for (const a of liveAnns) m.set(a.segIndex, [...(m.get(a.segIndex) ?? []), a]);
     return m;
   }, [liveAnns]);
-  // ★★ 每段 = 重出一次片 + **每处圈选一张改图**（regenerateAll 里对每条 ann 跑一次
+  /**
+   * 这一段的圈选里，**真会重画出一张图**的是哪几条 —— 报价（annCost）、真跑（regenerateAll 的循环）、按钮下那句说明
+   * 只准读这一份。与工作流出片那条路的 segmentGen.redrawnAnns 同形（那边剔的是承接段的前半段，这边剔的是后半段）。
+   *
+   * ★★ 2026-10-15 教材人格评审抓到：后半段的圈选先付费改 seg.lastFrame，而极速 / 真人档收不了结束帧
+   *   （economy.VideoTier.flf 为假 ⇒ real.regenSegment 的 `lastFrameUrl` 恒为 undefined）—— 那张改好的尾帧根本不发：
+   *   图钱扣了、图作废、零报错，报价还按圈选总数全额收（本仓头号事故形状：报价与实扣两把尺，而且两把都错）。
+   *   口径与 flowStore.redrawFrames 的 endUnused 同一条（2.62 发版评审给「重画这一套」补过同一道）。
+   * ★ 不能反过来修（后半段圈选整句拒）：那会把前半段能办的也办不成。所以是「不画、不收钱、并且说出来」——
+   *   文字要求照旧随 reqAll 进出片提示词，没白圈。
+   * ★ `atSec < half` 与循环里给首尾帧分家的那条是同一个判据（half = lenOf(i) / 2，实测长度优先）。
+   */
+  const reshootAnns = (list: Ann[], segIndex: number): Ann[] => {
+    const sg = segs[segIndex];
+    if (!sg || tierOf(sg.videoTier).flf) return list;
+    const half = lenOf(segIndex) / 2;
+    return list.filter((a) => a.atSec < half);
+  };
+  // ★★ 每段 = 重出一次片 + **每处真会重画的圈选一张改图**（regenerateAll 里对 reshootAnns 的每一条跑一次
   //   refineFrame）。原来只算了视频那一半 —— 5 秒标准档圈 5 处，按钮印 108k、实扣约 175k，
   //   而按钮旁边还写着「这一步才计费」（2026-08-21 第九轮扫描的 high）。
   //   改图那笔与工作流出片共用同一个 annRedrawCost（唯一实现，铁律六）。
@@ -618,19 +637,28 @@ export default function CutPage() {
     () =>
       [...annBySeg.entries()].reduce(
         // 画幅跟着这一段（480p 的每秒数按画幅不同；regenSegment 发的是同一个 aspect）
-        (s, [i, n]) => s + (segs[i] ? segTokens(segs[i].durationSec, segs[i].videoTier, aspectOf(segs[i].aspect).ratio) + annRedrawCost(n) : 0),
+        (s, [i, list]) => s + (segs[i] ? segTokens(segs[i].durationSec, segs[i].videoTier, aspectOf(segs[i].aspect).ratio) + annRedrawCost(reshootAnns(list, i).length) : 0),
         0,
       ),
-    [annBySeg, segs],
+    // reshootAnns 读的就是 segs 与 lens（经 lenOf）：依赖写它们俩，别写那个每次渲染都新建的箭头函数
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [annBySeg, segs, lens],
+  );
+  /** 圈了、还在成片里、却不会改图的那几处（那一段的档收不了结束帧）：按钮下要说出来，否则报价比圈选数少一截没人看得懂 */
+  const annsNotRedrawn = useMemo(
+    () => [...annBySeg.entries()].reduce((s, [i, list]) => s + (list.length - reshootAnns(list, i).length), 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [annBySeg, segs, lens],
   );
 
   /**
    * 预览用的 BGM。
    *
-   * ★★ 为什么要有它：预览的 `<video muted>`，而 BGM 只在 `mergeAndGo` 那一次性混轨 ——
-   *   也就是说**音量滑杆是盲调的**：调完对不对得上，要等几十秒的实时录制跑完、
-   *   跳到发布页才知道；不合适就得整条重录一遍。
-   * ★ 它**不进导出链路**：合并那边仍然走 AudioContext 混轨（那条才是成片里的声音）。
+   * ★★ 为什么要有它：配乐只在合并那一拍混进成片（原生 Media3 合成器，见 mergeAndGo），这一份让耳朵**先**听见
+   *   音量滑杆拧到了哪儿 —— 没有它滑杆就是盲调的：对不对得上要等合成跑完、跳到发布页才知道，不合适就得整条重合一遍。
+   *   （2026-10-15 教材人格评审改写：这段原来讲的是「预览 `<video muted>` + MediaRecorder 实时录制」那一版 ——
+   *   预览现在带声音（playVideo：原声 / 配音 / 配乐），合成 2026-09-07 起走原生硬件编解码器，录屏那条路已撤。）
+   * ★ 它**不进导出链路**：成片里的配乐由原生合成器混轨（utils/nativeMerge → VideoMergePlugin，那条才是成片里的声音）。
    *   这一份纯粹是"让耳朵先听见"，所以它出问题也不该影响导出（下面全都 catch 掉）。
    */
   const bgmRef = useRef<HTMLAudioElement | null>(null);
@@ -1226,12 +1254,22 @@ export default function CutPage() {
   async function regenerateAll() {
     // ★ 与报价同一份输入（liveAnns）：删掉的段上那些圈选不计价、也不重拍
     if (busy || liveAnns.length === 0) return;
-    const bySeg = new Map<number, Ann[]>();
-    for (const a of liveAnns) bySeg.set(a.segIndex, [...(bySeg.get(a.segIndex) ?? []), a]);
+    // 同一份分组（按钮上的报价读的就是它）：别在这里再按 liveAnns 聚一遍
+    const bySeg = annBySeg;
     // ★ 档位门禁（2026-10-07 免费档限制）：重拍是真出片，而这几段的档这个人现在用不了（会员档 / 已停用）的话，
     //   改图的钱先花出去、重拍那一发才被服务端 403。判据只在 account.tierBlockReason（工作流出片问的是同一句）
     for (const segIndex of bySeg.keys()) {
       const tier = segs[segIndex] ? tierOf(segs[segIndex].videoTier) : null;
+      // ★ 真人档整句拒（2026-10-15 教材人格评审抓到）：这一页的重拍只认方舟那条路（real.regenSegment 直接走 generateVideo，
+      //   不像 composeSegments 那样按供应商分流），而真人档是另一家供应商 —— 走进去是先付费改图、视频那一发才被拒。
+      //   工作流那边的同一道门在 segmentGen 的 minimax 分支（真人档不收圈选）。「哪家供应商」只问 economy.providerOf，
+      //   别按 flatCost 判（那一位说的是计价模型，碰巧今天与供应商重合）。排在套餐门之前：这是这一页做不了的事，与套餐无关
+      if (tier && providerOf(segs[segIndex].videoTier) === "minimax") {
+        const segNo = segIndex + 1;
+        const label = tier.label;
+        setErr(t`第 ${segNo} 段是「${label}」档，这里重拍不了（这一页的重拍还不支持这一档）——回「我的 → 草稿」打开草稿，把这一段重新出片（会重新计费）`);
+        return;
+      }
       const blocked = tier ? tierBlockReason(tier) : null;
       if (tier && blocked) {
         const segNo = segIndex + 1;
@@ -1300,29 +1338,35 @@ export default function CutPage() {
         const segTotal = bySeg.size;
         const seg = { ...nextSegs[segIndex] };
         const half = lenOf(segIndex) / 2;
-        // 逐个标注改帧：前半段的圈选改首帧、后半段的改尾帧（Seedance 只收首尾帧），
+        // 真会改图的那几条（判据只有 reshootAnns 一处：按钮上的报价读的就是它）；剩下的只进文字要求
+        const todo = reshootAnns(list, segIndex);
+        const skipped = list.length - todo.length;
+        /** busy 行的尾巴：有没画的圈选时把它说出来（少收了钱也要说 —— 不说的话人只会以为「圈选坏了」，铁律八）。空串 = 一个字不加 */
+        const tail = skipped > 0 ? t`（后半段的 ${skipped} 处这一档收不了结束帧：只进文字要求，不改图、不计费）` : "";
+        // 逐个标注改帧：前半段的圈选改首帧、后半段的改尾帧（Seedance 只收首尾帧；收不了结束帧的档上后半段那几条不在 todo 里），
         // 同一帧多个标注串行叠加（上一次的修改结果作为下一次的底图）
-        for (let k = 0; k < list.length; k++) {
-          const a = list[k];
+        for (let k = 0; k < todo.length; k++) {
+          const a = todo[k];
           const step = k + 1;
-          const steps = list.length;
+          const steps = todo.length;
           stopIfMoved(false);
-          say(t`第 ${segNo} 段 · 按圈选改画面 ${step}/${steps}…`);
+          say(t`第 ${segNo} 段 · 按圈选改画面 ${step}/${steps}…${tail}`);
           // 圈选改图那句全仓一处（segmentGen.ANN_CLAUSE）：出片前改帧、这里的圈选重拍、出片之前就地圈着改帧共用
           const edited = await refineFrame(`${a.req}${ANN_CLAUSE}`, a.frame, seg.aspect);
           if (a.atSec < half) seg.firstFrame = edited;
           else seg.lastFrame = edited;
         }
         stopIfMoved(false);
-        say(t`第 ${segNo} 段 · 重拍视频（${n}/${segTotal} 段）…`);
+        say(t`第 ${segNo} 段 · 重拍视频（${n}/${segTotal} 段）…${tail}`);
+        // ★ 文字要求是**全部**圈选的（没改图的那几处也进提示词）—— 这正是「没白圈」那句话的依据
         const reqAll = list.map((a) => a.req).join("；");
         /** 这一段视频那一半的价（与下面成功时记账、按钮上那个数同源）：失败时钱上那句话「可能扣了」按它说 */
         lastVideoTokens = segTokens(seg.durationSec, seg.videoTier, aspectOf(seg.aspect).ratio);
         const { url, lastFrame, poster, taskId } = await regenSegment(seg, reqAll, (s) => say(t`第 ${segNo} 段 · ${s}`)).catch((e: unknown) => {
-          // 视频那一发失败了：包一层带上这一段刚改好的画面张数（list.length 次改图，每次各自结算）—— 钱上的话要把它们单独说
+          // 视频那一发失败了：包一层带上这一段刚改好的画面张数（todo.length 次改图，每次各自结算；没改图的那几处没花钱）—— 钱上的话要把它们单独说
           // （ai/failCharge 的 SegmentGenFailed）。没接到结果（ArkTaskUnknown）不包：它不是失败，凭据留着
           // 剪辑页重拍不补画设定帧（帧是这一段原有的 + 圈选改过的），没有要留下的新帧
-          throw e instanceof ArkTaskUnknown ? e : new SegmentGenFailed(e, list.length, "video", null);
+          throw e instanceof ArkTaskUnknown ? e : new SegmentGenFailed(e, todo.length, "video", null);
         });
         stopIfMoved(true);
         // ★ 成片到手，这一发结案（2026-09-18）：服务端登记表不知道谁取回了哪一发，不结案的话下次进创作入口
@@ -1333,8 +1377,8 @@ export default function CutPage() {
         seg.poster = poster; // 没截到就清掉：别让缩略图挂着上一发的画面
         // ★ 必须判 AI_REAL：演示模式下根本没调方舟，却照样扣本地余额，
         //   用户在 mock 里点几次就"没钱"了，还查不出钱花在哪
-        // ★ 与按钮上那个数同源：视频那一半 + 每处圈选一张改图（annRedrawCost 唯一实现）
-        if (AI_REAL) spendTokens(segTokens(seg.durationSec, seg.videoTier, aspectOf(seg.aspect).ratio) + annRedrawCost(list.length));
+        // ★ 与按钮上那个数同源：视频那一半 + 每处**真改了图**的圈选一张改图（annRedrawCost 唯一实现；哪几处真改了只问 reshootAnns）
+        if (AI_REAL) spendTokens(segTokens(seg.durationSec, seg.videoTier, aspectOf(seg.aspect).ratio) + annRedrawCost(todo.length));
         nextSegs[segIndex] = seg;
         // ★★ **每段一落地**（2026-08-21 第九轮扫描的 high）：原来整轮跑完才 setState 一次，
         //   中途失败（第 3 段撞上敏感词/超时）前面两段**钱已经扣了**，成片却随
@@ -1384,12 +1428,13 @@ export default function CutPage() {
     }
   }
 
-  /** 🎬 合并导出：按时间轴顺序/裁剪范围重编码成单条 webm（混入音频轨）→ 发布页 */
+  /** 🎬 合并导出：把时间轴（顺序 / 裁剪范围 / 包装层）交给原生 Media3 合成单条 mp4 → 发布页（utils/nativeMerge → VideoMergePlugin） */
   async function mergeAndGo() {
     // ★★ 防重入用 ref 不用 state：setBusy 是异步生效的，同一帧里的第二次点击照样进得来。
-    //   进来之后就是两条 MediaRecorder 实时录同一块画布、两条 AudioContext 解同一条音轨，
-    //   两次写库、两次 navigate —— 后完成的那次会把用户已经在发布页看到的成片换成
-    //   它自己那条录得更烂的（2026-08-21 对抗评审确认）。
+    //   进来之后的后果（2026-10-15 教材人格评审按现状改写；2026-08-21 对抗评审确认的是录屏那一版 ——
+    //   「两条 MediaRecorder 实时录同一块画布、两条 AudioContext 解同一条音轨」，2026-09-07 随录屏一起撤了）：
+    //   第二炉被原生合成器按 BUSY 整句拒（第一炉还好好地在跑，人却被推向「再合一次」）；要是两炉都跑完了，
+    //   就是两次写库、两次 navigate —— 后完成的那次把用户已经在发布页看到的成片换成它自己那条。
     if (busy || mergingRef.current) return;
     // ★ 纵深：已经合好的稿子直接去发布（理由见 alreadyMerged 的 ★★）。
     //   UI 上那颗键这时本来就写着「去发布」，这里只是不让别的调用路绕过去。
@@ -2106,13 +2151,15 @@ export default function CutPage() {
           )}
         </div>
 
-        {/* 全局播放头 */}
+        {/* 全局播放头。aria-valuetext 念成 mm:ss 而不是秒数（2026-10-15 教材人格评审：这条滑杆原来没有名字，读屏只念百分比） */}
         <input
           type="range"
           min={0}
           max={Math.max(0.01, total)}
           step={0.03}
           value={Math.min(playhead, total)}
+          aria-label={t`播放位置`}
+          aria-valuetext={formatDuration(Math.min(playhead, total))}
           onChange={(e) => seekGlobal(Number(e.target.value))}
           className="mx-4 mb-2 flex-none accent-brand"
         />
@@ -2307,7 +2354,8 @@ export default function CutPage() {
                   const seg = segs[c.segIndex];
                   const isSel = sel === c.id;
                   const isActive = i === activeIdx;
-                  const nAnn = annBySeg.get(c.segIndex) ?? 0;
+                  // 缩略图角标数的是这一段上**圈了几处**（annBySeg 现在存的是那几条本身），不是会改图的几处
+                  const nAnn = annBySeg.get(c.segIndex)?.length ?? 0;
                   return (
                     <div
                       key={c.id}
@@ -2863,6 +2911,12 @@ export default function CutPage() {
                       <Trans>另有 {anns.length - liveAnns.length} 处落在已删掉的段上，不计费也不会重拍</Trans>
                     </p>
                   )}
+                  {/* 报价比圈选数少一截的另一个原因要提前说（reshootAnns 的 ★★）：等到 busy 行才说，人已经付了钱 */}
+                  {annsNotRedrawn > 0 && (
+                    <p className="mt-1 text-center text-[10px] text-slate-500">
+                      <Trans>另有 {annsNotRedrawn} 处圈在后半段，那一段的档收不了结束帧：只进文字要求，不改图、不计费</Trans>
+                    </p>
+                  )}
                 </>
               )}
             </>
@@ -2874,12 +2928,14 @@ export default function CutPage() {
               <div className="flex items-center gap-2.5 rounded-xl bg-black/40 px-3 py-2.5">
                 <span className="min-w-0 flex-1 truncate text-xs text-slate-200">🎵 {audioName}</span>
                 <span className="flex-none text-[10px] text-slate-500"><Trans>音量</Trans></span>
+                {/* 旁边那个「音量」是裸 span、不是 label：名字要自己带（2026-10-15 教材人格评审） */}
                 <input
                   type="range"
                   min={0}
                   max={1}
                   step={0.05}
                   value={audioSpec.volume}
+                  aria-label={t`配乐音量`}
                   onChange={(e) => {
                     const cur = useCut.getState().project;
                     if (cur) applyAudio(setAudioVolume(cur, Number(e.target.value)), "volume");

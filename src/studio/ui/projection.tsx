@@ -44,6 +44,7 @@ import { SegmentRecoverList } from "../../components/flow/SegmentRecoverCards";
 import Icon from "../../components/Icon";
 import { CARD_TYPES, CARD_TYPE_COLORS, CARD_TYPE_LABELS, CARD_TYPE_SHORT, Card, CardType, Proposal, VIDEO_ASPECTS, aspectCss, aspectOf } from "../../types";
 import {
+  EDITOR_SLOTS_MAX,
   activePath,
   chosenProposal,
   nextStartFrame,
@@ -340,6 +341,14 @@ function EditorPanel() {
   const slotCards = editor.slots
     .map((id) => deck.find((c) => c.id === id))
     .filter((c): c is (typeof deck)[number] => !!c);
+  /** 素材栏计数的分母：与两道闸（pickDeckCard / dropOnPlaceholder）同一个数 —— 原来这一行手写 20，改上限漏这一处是零症状（2026-10-15 教材人格评审收掉） */
+  const slotsMax = EDITOR_SLOTS_MAX;
+  /**
+   * 选法屏「AI 推演三套」那行估价（ModePicker.derivePrice，2026-10-15 教材人格评审）：开头帧判定与真扣同一处 studioStore.nextStartFrame
+   * （下面 cards 车道的 TokenCost 读的也是它），承接时三套共用开头帧、图量减半 —— 原来 ModePicker 自己按 proposalsCost(false) 报的是不承接的上限
+   */
+  const deriveStart = nextStartFrame(editor.startFrame);
+  const derivePrice = { tokens: proposalsCost(!!deriveStart), carried: !!deriveStart };
   const path = activePath();
   const prev = path.length > 0 ? chosenProposal(path[path.length - 1]) : null;
   const segIndex = path.length;
@@ -471,6 +480,7 @@ function EditorPanel() {
           <ModePicker
             tierId={editor.videoTier}
             onTier={(id) => useStudio.getState().setVideoTier(id)}
+            derivePrice={derivePrice}
             onPick={(m) => {
               if (m === "template") setTplPick(true);
               else if (m === "lead" || m === "grid" || m === "dialogue" || m === "effect") {
@@ -920,7 +930,7 @@ function EditorPanel() {
             <div className="mb-1 flex items-baseline justify-between">
               <span className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>素材</Trans></span>
               {slotCards.length > 0 && (
-                <span className="text-[10px] tabular-nums text-slate-500"><Trans>{slotCards.length}/20 张 · 同类型可多张</Trans></span>
+                <span className="text-[10px] tabular-nums text-slate-500"><Trans>{slotCards.length}/{slotsMax} 张 · 同类型可多张</Trans></span>
               )}
             </div>
             <div className="grid grid-cols-5 gap-1.5">

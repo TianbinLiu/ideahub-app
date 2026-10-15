@@ -541,6 +541,10 @@ msgstr "（包里没有参数表，看不出来）"
 msgid "（另有 {skipped} 段已出片或是白模段，不动）"
 msgstr "（另有 {skipped} 段已出片或是白模段，不动）"
 
+#: src/pages/CutPage.tsx
+msgid "（后半段的 {skipped} 处这一档收不了结束帧：只进文字要求，不改图、不计费）"
+msgstr "（后半段的 {skipped} 处这一档收不了结束帧：只进文字要求，不改图、不计费）"
+
 #: src/components/CommentDelete.tsx
 msgid "（它下面的回复会一起删掉）"
 msgstr "（它下面的回复会一起删掉）"
@@ -980,6 +984,11 @@ msgstr "{0}/{1} · 通过了"
 msgid "{0}/{SCRIPT_MAX} 字 · 铺出来按当前设置：{1}档 · {2}"
 msgstr "{0}/{SCRIPT_MAX} 字 · 铺出来按当前设置：{1}档 · {2}"
 
+#. placeholder {0}: slotCards.length
+#: src/studio/ui/projection.tsx
+msgid "{0}/{slotsMax} 张 · 同类型可多张"
+msgstr "{0}/{slotsMax} 张 · 同类型可多张"
+
 #. placeholder {0}: theme.trim().length
 #. placeholder {1}: segs.length
 #: src/components/flow/ThemeRewriteSheet.tsx
@@ -988,8 +997,8 @@ msgstr "{0}/{THEME_MAX} 字 · 会改 {1} 段"
 
 #. placeholder {0}: slotCards.length
 #: src/studio/ui/projection.tsx
-msgid "{0}/20 张 · 同类型可多张"
-msgstr "{0}/20 张 · 同类型可多张"
+#~ msgid "{0}/20 张 · 同类型可多张"
+#~ msgstr "{0}/20 张 · 同类型可多张"
 
 #. placeholder {0}: fmtTokens(CHAT_TURN_TOKENS)
 #: src/components/flow/FlowCanvas.tsx
@@ -1439,6 +1448,11 @@ msgstr "{noRefNames}：{line10}"
 msgid "{noVoice} 没有声音样本：每一段的嗓音由模型定，前后可能不一样。"
 msgstr "{noVoice} 没有声音样本：每一段的嗓音由模型定，前后可能不一样。"
 
+#. 后台任务胶囊的心跳行：prefix 是那一步本来的话（「拆分镜中」「正在发布…」），后面接已经等了几秒
+#: src/data/jobs.ts
+msgid "{prefix} · 已等 {sec} 秒"
+msgstr "{prefix} · 已等 {sec} 秒"
+
 #. 往一串带引号的卡名后面再接一个：中文直接相连（「甲」「乙」），英文用逗号加空格隔开（“A”, “B”）
 #: src/ai/real.ts
 msgid "{quotedList}{quotedName}"
@@ -1584,6 +1598,11 @@ msgstr "{why}——卡在这台设备上有，但换台设备或重启后可能�
 #: src/studio/flowStore.ts
 msgid "{why}——这些位子挂的卡不能生效，它们会保持人偶原样。回挂卡那一屏点「取下这几张」再完成挂卡"
 msgstr "{why}——这些位子挂的卡不能生效，它们会保持人偶原样。回挂卡那一屏点「取下这几张」再完成挂卡"
+
+#. why 是失败原因整句；moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格
+#: src/studio/skillSheetStore.ts
+msgid "{why}。{moneyLine}"
+msgstr "{why}。{moneyLine}"
 
 #. placeholder {0}: money.brief
 #: src/studio/flowStore.ts
@@ -1889,6 +1908,10 @@ msgstr "「{label}」档还不能延长——用「{names}」出的段才能延�
 #: src/studio/flowStore.ts
 #~ msgid "「{label}」档还不能延长——用电影级出的段才能延长"
 #~ msgstr "「{label}」档还不能延长——用电影级出的段才能延长"
+
+#: src/components/ErrorBoundary.tsx
+msgid "「{label}」这一块没画出来"
+msgstr "「{label}」这一块没画出来"
 
 #: src/data/economy.ts
 msgid "「{label}」这一档暂时报不出价（{model} 不在价目表里），先用别的档位"
@@ -3716,12 +3739,16 @@ msgid "🖼 自定义首尾帧"
 msgstr "🖼 自定义首尾帧"
 
 #: src/studio/canvasAgent.ts
-msgid "🗑 删掉某段"
-msgstr "🗑 删掉某段"
+#~ msgid "🗑 删掉某段"
+#~ msgstr "🗑 删掉某段"
 
 #: src/components/flow/DeleteSegBtn.tsx
 msgid "🗑 删除本段"
 msgstr "🗑 删除本段"
+
+#: src/studio/canvasAgent.ts
+msgid "🗑 删除某段"
+msgstr "🗑 删除某段"
 
 #: src/pages/CutPage.tsx
 msgid "🗑 删除片段"
@@ -3887,6 +3914,10 @@ msgstr "3D 动画"
 #: src/studio/studioStore.ts
 msgid "3D 建模需 {price} token，余额不足，跳过"
 msgstr "3D 建模需 {price} token，余额不足，跳过"
+
+#: src/studio/StudioPage.tsx
+msgid "3D 桌面"
+msgstr "3D 桌面"
 
 #: src/pages/CreatePage.tsx
 #~ msgid "3D 桌面与工作流画布是同一条流水线的两个面"
@@ -4712,6 +4743,11 @@ msgstr "上传本地图片"
 msgid "上传本段设定帧 {0}/{1}…"
 msgstr "上传本段设定帧 {0}/{1}…"
 
+#. 上传失败的原因，两处用：① 个人页「还没传到服务器」横幅上接在作品标题后面；② 回炉失败的回执里嵌进另一句（中文放在括号里）。一整句，句末不加句号
+#: src/data/videos.ts
+msgid "上传没成功（网络断了，或者作品太大、传到一半被掐断）"
+msgstr "上传没成功（网络断了，或者作品太大、传到一半被掐断）"
+
 #: src/pages/CustomCardPage.tsx
 msgid "上传真人照片"
 msgstr "上传真人照片"
@@ -4726,8 +4762,8 @@ msgstr "上传自己的 Live2D 包（zip），对好动作、表情和触摸区�
 
 #. 上传失败的原因，两处用：① 个人页「还没传到服务器」横幅上接在作品标题后面；② 回炉失败的回执里嵌进另一句（中文放在括号里）。一整句，句末不加句号
 #: src/data/videos.ts
-msgid "上传被拒（作品体积较大，可能是服务器的请求体上限）"
-msgstr "上传被拒（作品体积较大，可能是服务器的请求体上限）"
+#~ msgid "上传被拒（作品体积较大，可能是服务器的请求体上限）"
+#~ msgstr "上传被拒（作品体积较大，可能是服务器的请求体上限）"
 
 #: src/api/uploads.ts
 msgid "上传超时：这份 {mb} 在 {secs} 秒内没传完。不是断网——是这条网推不完这么大的文件（手机上行常见只有 1Mbps 上下，47MB 就要六分钟）。换个更快的网络，或者先把视频压小再传。"
@@ -5521,10 +5557,14 @@ msgstr "云海倒卷这一下太燃了"
 msgid "云海剑冢·白无衣"
 msgstr "云海剑冢·白无衣"
 
-#. placeholder {0}: res.status
+#. placeholder {0}: e.status
 #: src/pages/SettingsVoicePage.tsx
 msgid "云端语音没出声（{0}）：稍后再试，或到火山控制台看额度"
 msgstr "云端语音没出声（{0}）：稍后再试，或到火山控制台看额度"
+
+#: src/pages/SettingsVoicePage.tsx
+msgid "云端语音没回应（等了 {secs} 秒），稍后再试"
+msgstr "云端语音没回应（等了 {secs} 秒），稍后再试"
 
 #: src/pages/DiscoverPage.tsx
 #: src/pages/ProfilePage.tsx
@@ -7735,9 +7775,17 @@ msgstr "分类"
 msgid "分镜"
 msgstr "分镜"
 
+#: src/studio/skillSheetStore.ts
+msgid "分镜拆好了：回画布，从「/」面板打开「剧本 → 分镜」接着铺"
+msgstr "分镜拆好了：回画布，从「/」面板打开「剧本 → 分镜」接着铺"
+
 #: src/components/flow/GridShotsWizard.tsx
 msgid "分镜改过"
 msgstr "分镜改过"
+
+#: src/studio/skillSheetStore.ts
+msgid "分镜没拆成，回去看原因"
+msgstr "分镜没拆成，回去看原因"
 
 #: src/studio/gridDraftStore.ts
 msgid "分镜里写到的「{names}」不在选上的人物里：画面带不上他们的卡图，会画成陌生人——回第 1 步把人选上（或者在分镜里把他们从画面里去掉）"
@@ -7824,8 +7872,8 @@ msgstr "删掉"
 
 #. placeholder {0}: card.name
 #: src/components/DeleteCardDialog.tsx
-msgid "删掉「{0}」？"
-msgstr "删掉「{0}」？"
+#~ msgid "删掉「{0}」？"
+#~ msgstr "删掉「{0}」？"
 
 #. placeholder {0}: meta.title
 #: src/components/DraftSheet.tsx
@@ -7861,8 +7909,8 @@ msgstr "删掉了第 {seg} 段"
 
 #. placeholder {0}: deck.name
 #: src/components/DeleteDeckDialog.tsx
-msgid "删掉卡组「{0}」？"
-msgstr "删掉卡组「{0}」？"
+#~ msgid "删掉卡组「{0}」？"
+#~ msgstr "删掉卡组「{0}」？"
 
 #: src/components/TagInput.tsx
 msgid "删掉标签 {tag}"
@@ -7886,8 +7934,8 @@ msgid "删掉这一格"
 msgstr "删掉这一格"
 
 #: src/components/DeleteDeckDialog.tsx
-msgid "删掉这个卡组"
-msgstr "删掉这个卡组"
+#~ msgid "删掉这个卡组"
+#~ msgstr "删掉这个卡组"
 
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "删掉这个角色位"
@@ -7902,8 +7950,8 @@ msgid "删掉这张"
 msgstr "删掉这张"
 
 #: src/components/DeleteCardDialog.tsx
-msgid "删掉这张卡"
-msgstr "删掉这张卡"
+#~ msgid "删掉这张卡"
+#~ msgstr "删掉这张卡"
 
 #: src/pages/EditPage.tsx
 msgid "删掉这条作品的工坊工程？"
@@ -7939,6 +7987,11 @@ msgstr "删除…"
 msgid "删除《{0}》？"
 msgstr "删除《{0}》？"
 
+#. placeholder {0}: card.name
+#: src/components/DeleteCardDialog.tsx
+msgid "删除「{0}」？"
+msgstr "删除「{0}」？"
+
 #: src/pages/AdminPage.tsx
 msgid "删除不可撤销。只想让它不再被看到就用「下架」。"
 msgstr "删除不可撤销。只想让它不再被看到就用「下架」。"
@@ -7951,6 +8004,11 @@ msgstr "删除不可撤销。只想让它不再被看到就用「下架」。"
 #: src/pages/EditPage.tsx
 msgid "删除中…"
 msgstr "删除中…"
+
+#. placeholder {0}: deck.name
+#: src/components/DeleteDeckDialog.tsx
+msgid "删除卡组「{0}」？"
+msgstr "删除卡组「{0}」？"
 
 #: src/components/support/VoiceMarket.tsx
 msgid "删除失败，稍后再试。"
@@ -7980,6 +8038,11 @@ msgstr "删除留存的工坊工程"
 msgid "删除账号…"
 msgstr "删除账号…"
 
+#: src/components/DeleteDeckDialog.tsx
+msgid "删除这个卡组"
+msgstr "删除这个卡组"
+
+#: src/components/DeleteCardDialog.tsx
 #: src/pages/CardDetailPage.tsx
 msgid "删除这张卡"
 msgstr "删除这张卡"
@@ -8119,6 +8182,14 @@ msgstr "剧本太短，切不出段"
 #: src/studio/structuredSkills.ts
 msgid "剧本太短（至少 {SCRIPT_MIN} 字）"
 msgstr "剧本太短（至少 {SCRIPT_MIN} 字）"
+
+#: src/studio/skillSheetStore.ts
+msgid "剧本改写好了：回画布，从「/」面板打开「按主题改写」对照后写回"
+msgstr "剧本改写好了：回画布，从「/」面板打开「按主题改写」对照后写回"
+
+#: src/studio/skillSheetStore.ts
+msgid "剧本没改成，回去看原因"
+msgstr "剧本没改成，回去看原因"
 
 #: src/pages/CutPage.tsx
 msgid "剪辑"
@@ -8441,6 +8512,10 @@ msgstr "卡片形象图一张都没能用上，样片这一发没有发出去（
 #: src/pages/CardDetailPage.tsx
 msgid "卡片详情"
 msgstr "卡片详情"
+
+#: src/studio/ui/CardHologram.tsx
+msgid "卡牌全息"
+msgstr "卡牌全息"
 
 #: src/components/MaterialSheet.tsx
 #: src/pages/AdminPage.tsx
@@ -9098,17 +9173,27 @@ msgid "取下这 {0} 张"
 msgstr "取下这 {0} 张"
 
 #: src/components/flow/SegPlayer.tsx
+#: src/components/videoFrames.ts
 msgid "取不到可截帧的地址"
 msgstr "取不到可截帧的地址"
 
 #: src/components/flow/SegPlayer.tsx
-msgid "取不到这一段的画面，圈选打不开——网络不好或链接已过期，稍后再试"
-msgstr "取不到这一段的画面，圈选打不开——网络不好或链接已过期，稍后再试"
+#~ msgid "取不到这一段的画面，圈选打不开——网络不好或链接已过期，稍后再试"
+#~ msgstr "取不到这一段的画面，圈选打不开——网络不好或链接已过期，稍后再试"
+
+#: src/components/flow/SegPlayer.tsx
+#: src/pages/FlowPage.tsx
+msgid "取不到这一段的画面，圈选打不开：{why}"
+msgstr "取不到这一段的画面，圈选打不开：{why}"
 
 #. placeholder {0}: e instanceof Error ? e.message : String(e)
 #: src/data/cardViews.ts
-msgid "取不到这张图（{0}）"
-msgstr "取不到这张图（{0}）"
+#~ msgid "取不到这张图（{0}）"
+#~ msgstr "取不到这张图（{0}）"
+
+#: src/data/cardViews.ts
+msgid "取不到这张图（{why}）"
+msgstr "取不到这张图（{why}）"
 
 #: src/ai/arkClient.ts
 msgid "取产物失败：{host} 上没有 /api/ark/asset 代理，请更新服务端"
@@ -9181,6 +9266,7 @@ msgid "取媒体超时 —— 文件较大或网络太慢，稍后重试"
 msgstr "取媒体超时 —— 文件较大或网络太慢，稍后重试"
 
 #: src/components/flow/SegPlayer.tsx
+#: src/pages/FlowPage.tsx
 msgid "取帧中…"
 msgstr "取帧中…"
 
@@ -9188,13 +9274,21 @@ msgstr "取帧中…"
 msgid "取帧超时（窗口在后台时浏览器不解码视频）"
 msgstr "取帧超时（窗口在后台时浏览器不解码视频）"
 
+#: src/api/portrait.ts
+msgid "取授权照片失败（网络不可用）"
+msgstr "取授权照片失败（网络不可用）"
+
+#: src/api/portrait.ts
+msgid "取授权照片超时（{secs} 秒内没取完），换个网络再试"
+msgstr "取授权照片超时（{secs} 秒内没取完），换个网络再试"
+
 #: src/components/VideoCardAnnotator.tsx
 msgid "取整个画面"
 msgstr "取整个画面"
 
 #: src/components/flow/SegPlayer.tsx
-msgid "取流超时（窗口在后台时浏览器不解码视频）"
-msgstr "取流超时（窗口在后台时浏览器不解码视频）"
+#~ msgid "取流超时（窗口在后台时浏览器不解码视频）"
+#~ msgstr "取流超时（窗口在后台时浏览器不解码视频）"
 
 #: src/components/blockout/BlockoutTrimmer.tsx
 #: src/components/blockout/RoleCastBoard.tsx
@@ -9274,6 +9368,10 @@ msgstr "取消收藏失败，稍后再试。"
 msgid "取消点赞"
 msgstr "取消点赞"
 
+#: src/pages/VideoPage.tsx
+msgid "取消点赞 · {likes}"
+msgstr "取消点赞 · {likes}"
+
 #: src/studio/studioStore.ts
 msgid "取消铸段"
 msgstr "取消铸段"
@@ -9351,6 +9449,10 @@ msgstr "另有 {0} 处落在已删掉的段上，不计费也不会重拍"
 #: src/studio/flowStore.ts
 msgid "另有 {0} 处落在承接段的前半段（开头画面用的是上一段的真实结尾，不重画）——不计费，但你写的要求仍会随出片提示词发出去。"
 msgstr "另有 {0} 处落在承接段的前半段（开头画面用的是上一段的真实结尾，不重画）——不计费，但你写的要求仍会随出片提示词发出去。"
+
+#: src/pages/CutPage.tsx
+msgid "另有 {annsNotRedrawn} 处圈在后半段，那一段的档收不了结束帧：只进文字要求，不改图、不计费"
+msgstr "另有 {annsNotRedrawn} 处圈在后半段，那一段的档收不了结束帧：只进文字要求，不改图、不计费"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "只传你自己做的、或者已经拿到授权的模型。别人的作品、真人肖像、Live2D 官方示例模型（Hiyori / Haru / Mao 这些）都不收。"
@@ -10017,6 +10119,7 @@ msgstr "回话说到一半停住了（{secs} 秒没有新内容），先停下�
 msgid "回铸段窗重选模式"
 msgstr "回铸段窗重选模式"
 
+#: src/components/ErrorBoundary.tsx
 #: src/pages/VideoEditorPage.tsx
 msgid "回首页"
 msgstr "回首页"
@@ -10399,6 +10502,14 @@ msgstr "头像 · 昵称 · 简介"
 #: src/api/auth.ts
 msgid "头像上传失败（HTTP {0}）"
 msgstr "头像上传失败（HTTP {0}）"
+
+#: src/api/auth.ts
+msgid "头像上传失败（网络不可用）"
+msgstr "头像上传失败（网络不可用）"
+
+#: src/api/auth.ts
+msgid "头像上传超时（{secs} 秒内没传完），换个网络再试"
+msgstr "头像上传超时（{secs} 秒内没传完），换个网络再试"
 
 #: src/components/AvatarPicker.tsx
 msgid "头像更换失败，本机仍会显示新头像"
@@ -10858,6 +10969,10 @@ msgstr "对话正反打的机位没画成，回去看原因"
 msgid "对话记录"
 msgstr "对话记录"
 
+#: src/studio/stage/StageOverlay.tsx
+msgid "导演台"
+msgstr "导演台"
+
 #: src/studio/flowStore.ts
 msgid "导演台截图不是一张图（截图失败了，再试一次）"
 msgstr "导演台截图不是一张图（截图失败了，再试一次）"
@@ -11045,6 +11160,7 @@ msgstr "工作流模板在服务端，联网后再来看"
 msgid "工作流模板就是一条公开了制作过程的作品：点进去看每一段怎么做的，再按它铺成自己的流水线。"
 msgstr "工作流模板就是一条公开了制作过程的作品：点进去看每一段怎么做的，再按它铺成自己的流水线。"
 
+#: src/components/flow/FlowCanvas.tsx
 #: src/studio/StudioPage.tsx
 msgid "工作流画布"
 msgstr "工作流画布"
@@ -12690,7 +12806,7 @@ msgstr "或者直接粘贴讲义文字"
 msgid "或选一个 emoji"
 msgstr "或选一个 emoji"
 
-#: src/components/flow/SegPlayer.tsx
+#: src/components/videoFrames.ts
 #: src/utils/videoFrames.ts
 msgid "截出来是一片空白"
 msgstr "截出来是一片空白"
@@ -13003,7 +13119,12 @@ msgstr "拆出来的镜头一个都没写画面，这一次已经计费——把
 msgid "拆分镜"
 msgstr "拆分镜"
 
+#: src/studio/skillSheetStore.ts
+msgid "拆分镜中"
+msgstr "拆分镜中"
+
 #: src/components/flow/ScriptSkillSheet.tsx
+#: src/studio/skillSheetStore.ts
 msgid "拆分镜中…"
 msgstr "拆分镜中…"
 
@@ -13719,8 +13840,8 @@ msgstr "接着这一段的最后一帧往后拍 {outSec} 秒，画面和声音�
 
 #. placeholder {0}: fmtTokens(proposalsCost(false))
 #: src/components/flow/ModePicker.tsx
-msgid "推演 {0}，出片另算"
-msgstr "推演 {0}，出片另算"
+#~ msgid "推演 {0}，出片另算"
+#~ msgstr "推演 {0}，出片另算"
 
 #. placeholder {0}: fmtTokens(propCost)
 #. placeholder {1}: fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0))
@@ -13765,6 +13886,16 @@ msgstr "推演时画"
 #: src/studio/studioStore.ts
 msgid "推演期间桌面已经变样，这一炉先作废——按现在的走向重新生成吧。"
 msgstr "推演期间桌面已经变样，这一炉先作废——按现在的走向重新生成吧。"
+
+#. placeholder {0}: fmtTokens(derivePrice.tokens)
+#: src/components/flow/ModePicker.tsx
+msgid "推演约 {0}，出片另算"
+msgstr "推演约 {0}，出片另算"
+
+#. placeholder {0}: fmtTokens(derivePrice.tokens)
+#: src/components/flow/ModePicker.tsx
+msgid "推演约 {0}（承接上段尾帧，三套共用开头帧、只画尾帧），出片另算"
+msgstr "推演约 {0}（承接上段尾帧，三套共用开头帧、只画尾帧），出片另算"
 
 #: src/pages/FeedPage.tsx
 msgid "推荐"
@@ -14066,6 +14197,10 @@ msgctxt "主页统计栏：作品一共被播放了多少次（名词，不是�
 msgid "播放"
 msgstr "播放"
 
+#: src/pages/CutPage.tsx
+msgid "播放位置"
+msgstr "播放位置"
+
 #: src/components/blockout/BlockoutTrimmer.tsx
 #: src/components/blockout/VideoStage.tsx
 msgid "播放器还没就绪，稍等一下再标这一帧。"
@@ -14074,6 +14209,10 @@ msgstr "播放器还没就绪，稍等一下再标这一帧。"
 #: src/pages/CutPage.tsx
 msgid "播放头不在选中的片段里——先点一下这个片段（它会从头开始播），再操作。"
 msgstr "播放头不在选中的片段里——先点一下这个片段（它会从头开始播），再操作。"
+
+#: src/components/SegmentPlayer.tsx
+msgid "播放进度"
+msgstr "播放进度"
 
 #: src/api/companion.ts
 msgid "操作太频繁了，稍等几秒再试。"
@@ -14208,7 +14347,12 @@ msgstr "改写"
 msgid "改写（{price}）"
 msgstr "改写（{price}）"
 
+#: src/studio/skillSheetStore.ts
+msgid "改写中"
+msgstr "改写中"
+
 #: src/components/flow/ThemeRewriteSheet.tsx
+#: src/studio/skillSheetStore.ts
 msgid "改写中…"
 msgstr "改写中…"
 
@@ -14804,6 +14948,10 @@ msgstr "更新了你在学的老师"
 msgid "更新失败，请稍后再试"
 msgstr "更新失败，请稍后再试"
 
+#: src/data/appUpdate.ts
+msgid "更新清单不完整，稍后再试"
+msgstr "更新清单不完整，稍后再试"
+
 #: src/pages/PublishPage.tsx
 msgid "替换原作品"
 msgstr "替换原作品"
@@ -15168,14 +15316,19 @@ msgstr "服务器受理了这一发白模化，却既没有返回模板、也没
 msgid "服务器正在解包识别…"
 msgstr "服务器正在解包识别…"
 
+#. 个人页「还没传到服务器」横幅：接在作品标题后面的原因。一整句，句末不加句号
+#: src/data/videos.ts
+msgid "服务器没有收下这条作品（一直这样的话，把这句话发给客服）"
+msgstr "服务器没有收下这条作品（一直这样的话，把这句话发给客服）"
+
 #: src/data/videos.ts
 msgid "服务器没有正常返回这条作品"
 msgstr "服务器没有正常返回这条作品"
 
 #. 个人页「还没传到服务器」横幅：接在作品标题后面的原因。一整句，句末不加句号
 #: src/data/videos.ts
-msgid "服务器没有正常返回这条作品（多半是服务器地址配错了，或网关把请求兜到了静态页）"
-msgstr "服务器没有正常返回这条作品（多半是服务器地址配错了，或网关把请求兜到了静态页）"
+#~ msgid "服务器没有正常返回这条作品（多半是服务器地址配错了，或网关把请求兜到了静态页）"
+#~ msgstr "服务器没有正常返回这条作品（多半是服务器地址配错了，或网关把请求兜到了静态页）"
 
 #: src/data/videos.ts
 msgid "服务器没有正常返回这条作品（多半是服务器地址配错了，或网关把请求兜到了静态页）。"
@@ -16856,6 +17009,15 @@ msgstr "没帮上"
 msgid "没帮助"
 msgstr "没帮助"
 
+#: src/components/flow/SegPlayer.tsx
+#: src/pages/FlowPage.tsx
+msgid "没截到你停在的那一秒，这是这一段的开头帧；标注会先改设定画面，再重新生成本段视频"
+msgstr "没截到你停在的那一秒，这是这一段的开头帧；标注会先改设定画面，再重新生成本段视频"
+
+#: src/pages/FlowPage.tsx
+msgid "没截到你停在的那一秒（{why}），这次圈的是这一段的开头帧"
+msgstr "没截到你停在的那一秒（{why}），这次圈的是这一段的开头帧"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "没截到画面（模型可能还没画出来）。等预览里的人动起来再点一次，或者用下面的「自己选一张」。"
 msgstr "没截到画面（模型可能还没画出来）。等预览里的人动起来再点一次，或者用下面的「自己选一张」。"
@@ -17824,6 +17986,10 @@ msgstr "点虚线卡位延展下一段 · 点亮法阵去剪辑成片"
 msgid "点赞"
 msgstr "点赞"
 
+#: src/pages/VideoPage.tsx
+msgid "点赞 · {likes}"
+msgstr "点赞 · {likes}"
+
 #: src/components/support/VoiceMarket.tsx
 msgid "点赞失败，稍后再试。"
 msgstr "点赞失败，稍后再试。"
@@ -18413,8 +18579,12 @@ msgid "用它出片"
 msgstr "用它出片"
 
 #: src/components/cut/AutoEditSheet.tsx
-msgid "用完就配音（{voiceName}，现在免费）"
-msgstr "用完就配音（{voiceName}，现在免费）"
+msgid "用完就配音（{voiceName}，现在免费 · 每天 {voiceFree} 字）"
+msgstr "用完就配音（{voiceName}，现在免费 · 每天 {voiceFree} 字）"
+
+#: src/components/cut/AutoEditSheet.tsx
+#~ msgid "用完就配音（{voiceName}，现在免费）"
+#~ msgstr "用完就配音（{voiceName}，现在免费）"
 
 #: src/components/cut/AutoEditSheet.tsx
 msgid "用完就配音（{voiceName}）"
@@ -19356,12 +19526,20 @@ msgid "真人档出片创建失败（HTTP {status}）：{body}"
 msgstr "真人档出片创建失败（HTTP {status}）：{body}"
 
 #: src/ai/minimaxVideo.ts
+msgid "真人档出片创建没收到回包：{detail}"
+msgstr "真人档出片创建没收到回包：{detail}"
+
+#: src/ai/minimaxVideo.ts
 msgid "真人档出片取件失败：服务器没有应答这个接口（HTTP {status}，{type}）"
 msgstr "真人档出片取件失败：服务器没有应答这个接口（HTTP {status}，{type}）"
 
 #: src/ai/minimaxVideo.ts
 msgid "真人档出片取件失败（HTTP {status}）：{body}"
 msgstr "真人档出片取件失败（HTTP {status}）：{body}"
+
+#: src/ai/minimaxVideo.ts
+msgid "真人档出片取件没收到回包：{detail}"
+msgstr "真人档出片取件没收到回包：{detail}"
 
 #: src/ai/minimaxVideo.ts
 msgid "真人档出片失败：{reason}"
@@ -19382,6 +19560,10 @@ msgstr "真人档出片查询失败：服务器没有应答这个接口（HTTP {
 #: src/ai/minimaxVideo.ts
 msgid "真人档出片查询失败（HTTP {status}）：{body}"
 msgstr "真人档出片查询失败（HTTP {status}）：{body}"
+
+#: src/ai/minimaxVideo.ts
+msgid "真人档出片查询没收到回包：{detail}"
+msgstr "真人档出片查询没收到回包：{detail}"
 
 #: src/ai/minimaxVideo.ts
 msgid "真人档取件失败：上游没有返回下载地址"
@@ -19682,7 +19864,6 @@ msgstr "视频要求（剧情补充）"
 msgid "视频要求（缺的帧按这句补画，也是出片提示词）"
 msgstr "视频要求（缺的帧按这句补画，也是出片提示词）"
 
-#: src/components/flow/SegPlayer.tsx
 #: src/utils/videoFrames.ts
 msgid "视频读不出来"
 msgstr "视频读不出来"
@@ -20551,12 +20732,20 @@ msgid "第 {segNo} 段 · {s}"
 msgstr "第 {segNo} 段 · {s}"
 
 #: src/pages/CutPage.tsx
-msgid "第 {segNo} 段 · 按圈选改画面 {step}/{steps}…"
-msgstr "第 {segNo} 段 · 按圈选改画面 {step}/{steps}…"
+#~ msgid "第 {segNo} 段 · 按圈选改画面 {step}/{steps}…"
+#~ msgstr "第 {segNo} 段 · 按圈选改画面 {step}/{steps}…"
 
 #: src/pages/CutPage.tsx
-msgid "第 {segNo} 段 · 重拍视频（{n}/{segTotal} 段）…"
-msgstr "第 {segNo} 段 · 重拍视频（{n}/{segTotal} 段）…"
+msgid "第 {segNo} 段 · 按圈选改画面 {step}/{steps}…{tail}"
+msgstr "第 {segNo} 段 · 按圈选改画面 {step}/{steps}…{tail}"
+
+#: src/pages/CutPage.tsx
+#~ msgid "第 {segNo} 段 · 重拍视频（{n}/{segTotal} 段）…"
+#~ msgstr "第 {segNo} 段 · 重拍视频（{n}/{segTotal} 段）…"
+
+#: src/pages/CutPage.tsx
+msgid "第 {segNo} 段 · 重拍视频（{n}/{segTotal} 段）…{tail}"
+msgstr "第 {segNo} 段 · 重拍视频（{n}/{segTotal} 段）…{tail}"
 
 #: src/pages/CutPage.tsx
 msgid "第 {segNo} 段成片转存中（换成永久地址）…"
@@ -20577,6 +20766,10 @@ msgstr "第 {segNo} 段是「{label}」档，模型已于 {day}停用，这里�
 #: src/pages/CutPage.tsx
 msgid "第 {segNo} 段是「{label}」档，这台服务器还不支持它（服务端需要更新），这里重拍不了"
 msgstr "第 {segNo} 段是「{label}」档，这台服务器还不支持它（服务端需要更新），这里重拍不了"
+
+#: src/pages/CutPage.tsx
+msgid "第 {segNo} 段是「{label}」档，这里重拍不了（这一页的重拍还不支持这一档）——回「我的 → 草稿」打开草稿，把这一段重新出片（会重新计费）"
+msgstr "第 {segNo} 段是「{label}」档，这里重拍不了（这一页的重拍还不支持这一档）——回「我的 → 草稿」打开草稿，把这一段重新出片（会重新计费）"
 
 #: src/pages/CutPage.tsx
 msgid "第 {segNo} 段是已经合好的本机成片，不能再合一次——去发布页发它，或回「我的 → 草稿」打开草稿重做一条"
@@ -20693,6 +20886,10 @@ msgstr "第二种：<0>相邻两行的位置排反了</0>（清单说他是从�
 #: src/ai/arkClient.ts
 msgid "等了 {minutes} 分钟还没出片。这不是失败：任务还在方舟那边跑。"
 msgstr "等了 {minutes} 分钟还没出片。这不是失败：任务还在方舟那边跑。"
+
+#: src/data/cardViews.ts
+msgid "等了 {secs} 秒没取下来"
+msgstr "等了 {secs} 秒没取下来"
 
 #: src/api/stream.ts
 msgid "等了 {secs} 秒还没有回话，先停下了。稍后再试一次。"
@@ -21254,6 +21451,7 @@ msgid "网络不可用，检查网络后再试一次。"
 msgstr "网络不可用，检查网络后再试一次。"
 
 #: src/components/flow/SegPlayer.tsx
+#: src/pages/FlowPage.tsx
 msgid "网络不好，或者这条链接已经过期（隔天打开的草稿常见）"
 msgstr "网络不好，或者这条链接已经过期（隔天打开的草稿常见）"
 
@@ -22177,6 +22375,10 @@ msgstr "识别没成，回去看原因"
 msgid "识别没成（没扣钱）：{0}"
 msgstr "识别没成（没扣钱）：{0}"
 
+#: src/components/support/HoldToTalk.tsx
+msgid "识别没等到结果（等了 {budgetSec} 秒）：网络不好的话说短一点再试，或者先打字。"
+msgstr "识别没等到结果（等了 {budgetSec} 秒）：网络不好的话说短一点再试，或者先打字。"
+
 #: src/pages/CustomCardPage.tsx
 msgid "识别结果没读出来——可以自己填，或者再识别一次"
 msgstr "识别结果没读出来——可以自己填，或者再识别一次"
@@ -22562,6 +22764,10 @@ msgstr "账号"
 msgid "账号库未装载"
 msgstr "账号库未装载"
 
+#: src/data/account.ts
+msgid "账号建好了，昵称没存上 —— 去「我的 → 编辑资料」再填一次"
+msgstr "账号建好了，昵称没存上 —— 去「我的 → 编辑资料」再填一次"
+
 #: src/pages/AdminPage.tsx
 msgid "账号本身永久删除，无法恢复，也无法用同名重建找回任何数据"
 msgstr "账号本身永久删除，无法恢复，也无法用同名重建找回任何数据"
@@ -22889,9 +23095,17 @@ msgstr "还原整段"
 msgid "还在出片中——过几分钟再点一次「取回」。这一发的钱已经花过了，取回不再花一分钱"
 msgstr "还在出片中——过几分钟再点一次「取回」。这一发的钱已经花过了，取回不再花一分钱"
 
+#: src/components/flow/ScriptSkillSheet.tsx
+msgid "还在拆：收起不会丢，好了顶上会提示；从「/」面板再打开就接得回来"
+msgstr "还在拆：收起不会丢，好了顶上会提示；从「/」面板再打开就接得回来"
+
 #: src/ai/real.ts
 msgid "还在排队——过几分钟再点一次「取回」。这一发的钱已经花过了，取回不再花一分钱"
 msgstr "还在排队——过几分钟再点一次「取回」。这一发的钱已经花过了，取回不再花一分钱"
+
+#: src/components/flow/ThemeRewriteSheet.tsx
+msgid "还在改写：收起不会丢，好了顶上会提示；从「/」面板再打开就接得回来"
+msgstr "还在改写：收起不会丢，好了顶上会提示；从「/」面板再打开就接得回来"
 
 #: src/components/blockout/BlockoutTrimmer.tsx
 msgid "还在读这段视频"
@@ -23927,6 +24141,7 @@ msgid "这一段的画面本身没有声音"
 msgstr "这一段的画面本身没有声音"
 
 #: src/components/flow/SegPlayer.tsx
+#: src/pages/FlowPage.tsx
 msgid "这一段的视频拉不下来"
 msgstr "这一段的视频拉不下来"
 
@@ -23962,6 +24177,10 @@ msgstr "这一段还没有任何参考图：挂素材卡、给首尾帧，或点
 #: src/studio/cutNarration.ts
 msgid "这一段还没有写字幕，没有可配音的话"
 msgstr "这一段还没有写字幕，没有可配音的话"
+
+#: src/pages/FlowPage.tsx
+msgid "这一段还没有可以圈的画面"
+msgstr "这一段还没有可以圈的画面"
 
 #: src/studio/ui/FuseFrameSheet.tsx
 msgid "这一段还没有可融的图"
@@ -24090,6 +24309,10 @@ msgstr "这一页填的东西会清空，已经选的包也要重新选一次。
 #: src/pages/SupportModelNewPage.tsx
 msgid "这一页填的东西会清空，已经选的包也要重新选一次。刚才传上去的那一份也不会变成模型，要重新走一遍上传和识别。"
 msgstr "这一页填的东西会清空，已经选的包也要重新选一次。刚才传上去的那一份也不会变成模型，要重新走一遍上传和识别。"
+
+#: src/components/ErrorBoundary.tsx
+msgid "这一页没画出来"
+msgstr "这一页没画出来"
 
 #: src/components/guide/tours.tsx
 msgid "这一页管素材，成片在工坊"
@@ -25896,6 +26119,10 @@ msgstr "配乐「{lostName}」没能读出来——这一条先按没有配乐�
 msgid "配乐用的是自动预置的原片音轨，而你裁过/删过/换过片段顺序——声音是按原片从头混进去的，会和画面对不上。想对齐就换一条自己的音频，或者把片段改回原样再合一次。"
 msgstr "配乐用的是自动预置的原片音轨，而你裁过/删过/换过片段顺序——声音是按原片从头混进去的，会和画面对不上。想对齐就换一条自己的音频，或者把片段改回原样再合一次。"
 
+#: src/pages/CutPage.tsx
+msgid "配乐音量"
+msgstr "配乐音量"
+
 #: src/studio/cutAgent.ts
 msgid "配乐音量 {pct}%"
 msgstr "配乐音量 {pct}%"
@@ -26159,6 +26386,7 @@ msgstr "重认会<0>覆盖现有描述</0>（你自己改过的也会没），�
 #: src/pages/CustomCardPage.tsx
 #: src/pages/CutPage.tsx
 #: src/pages/EditPage.tsx
+#: src/pages/FlowPage.tsx
 #: src/pages/NotificationsPage.tsx
 #: src/pages/ProfilePage.tsx
 #: src/pages/PublishPage.tsx
@@ -26179,6 +26407,14 @@ msgstr "重试中…"
 #: src/pages/EditPage.tsx
 msgid "重试留存"
 msgstr "重试留存"
+
+#: src/components/ErrorBoundary.tsx
+msgid "重载只换这一块，别的都还在原地；再不行就回首页。"
+msgstr "重载只换这一块，别的都还在原地；再不行就回首页。"
+
+#: src/components/ErrorBoundary.tsx
+msgid "重载这一块"
+msgstr "重载这一块"
 
 #: src/pages/CustomCardPage.tsx
 msgid "重选方案"
