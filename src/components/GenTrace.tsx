@@ -57,7 +57,8 @@ export default function GenTrace({
         >
           <span className={`inline-block transition-transform ${open ? "rotate-90" : ""}`}>▸</span>
           <Trans>生成过程</Trans>
-          <span className="text-slate-600">
+          {/* 步数是要读的字（与每一步后面的「· 1.2s」同一个口径，2.63 那批已改 slate-400） */}
+          <span className="text-slate-400">
             {running ? t`· ${doneCount}/${total} 步` : t`· 共 ${total} 步`}
           </span>
         </button>

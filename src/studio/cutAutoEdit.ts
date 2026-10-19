@@ -41,7 +41,7 @@ export const AUTO_EDIT = {
     { kind: "model", title: msg`写旁白`, hint: msg`模型写：片头标题、每段一句话、哪几处换了场` },
     { kind: "check", title: msg`形状检查`, hint: msg`编号对不上的、写重了的丢掉；转场只留在确实换了场的接缝上` },
     { kind: "confirm", title: msg`你来点头`, hint: msg`逐句都能改；太长念不完的会标出来` },
-    { kind: "apply", title: msg`写进剪辑台`, hint: msg`一步撤销得回去；要配音的话接着一句一句合成` },
+    { kind: "apply", title: msg`写进剪辑台`, hint: msg`一步撤销得回去；要配音的话接着一句一句配` },
   ] satisfies readonly SkillStep[],
   confirmAt: ["confirm"] satisfies readonly SkillStepKind[],
   cost: CHAT_TURN_TOKENS,

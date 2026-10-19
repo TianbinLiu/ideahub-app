@@ -20,7 +20,7 @@ import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { BackButton } from "../components/IconTapButton";
 import LangChip from "../components/LangChip";
-import { Link, useNavigate, useSearchParams } from "react-router";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { useBackOr } from "../hooks/useBackOr";
 import ConfirmDialog from "../components/ConfirmDialog";
 import InfoDialog from "../components/InfoDialog";
@@ -84,6 +84,17 @@ export default function LoginPage() {
   const [err, setErr] = useState(() => params.get("err") || consumeAuthNotice());
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  // ★ ?err= 要跟着地址走，不能只在挂载时读一次（2026-10-19 发版后验证在模拟器上复现）：人就站在登录页点 GitHub、
+  //   在浏览器里失败或取消，深链回来时 OauthDeepLinkBridge 在**同一路由**上 replace 到 /login?err=… —— 登录页不会重新挂载、
+  //   ErrorBoundary 按 pathname 复位也不动它，useState 的初始值早用掉了：屏幕上一个字都没有；连续失败两次，显示的还是上一次那句。
+  //   按 location.key 认「来了一次新的回程」：每次 navigate（含 replace 到一模一样的地址）都会换一个 key，所以同一句话第二次回来也照样上屏。
+  //   只在地址里**有** err 时才写 —— 没有的时候不动，别把挂载时 consumeAuthNotice 那条来路（读一次即清）冲掉。
+  const loc = useLocation();
+  useEffect(() => {
+    const e = params.get("err");
+    if (e) setErr(e);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 只认「换了一次地址」：params 跟着 loc 一起变，放进来也不会多一次有意义的触发
+  }, [loc.key]);
 
   // ── 用户协议勾选门（2026-08-28）────────────────────────────────
   // 文本只有 data/agreements 一份（铁律六）。

@@ -259,7 +259,7 @@ export default function GridShotsWizard({
         </span>
         {GRID_STEPS.map((s, i) => (
           <span key={s} className={i === stepIdx ? "font-bold text-brand" : ""}>
-            {i > 0 && <span className="pr-1 text-slate-600">›</span>}
+            {i > 0 && <span aria-hidden className="pr-1 text-slate-600">›</span>}
             {i + 1} {t(STEP_LABEL[s])}
           </span>
         ))}

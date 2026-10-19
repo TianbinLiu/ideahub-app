@@ -92,6 +92,7 @@ export default function CameraChips({
           onClick={() => onChange(next)}
           aria-pressed={on}
           // 多选：选中的带 ✓、实底（2026-10-14 UX 课的惯例 —— 多选要有勾，淡底 + 细框那种选中态全 app 已收掉）；py-1 让芯片够得着
+          // contrast-ok: 下面 dead 那一支的 slate-600 是禁用态（dead 时这颗键 disabled），WCAG 1.4.3 对不可操作的控件不要求对比度；为什么点不动由 title 说
           className={`rounded-full px-2 py-1 text-[10px] transition-colors active:opacity-60 ${
             on
               ? "bg-brand font-semibold text-ink"

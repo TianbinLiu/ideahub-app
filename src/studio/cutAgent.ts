@@ -288,7 +288,7 @@ function refusalText(r: CutRefusal): string {
     case "no_voice":
       return t`没有可去掉的配音`;
     case "voice_offline":
-      return t`配音要连上服务器才能合成，现在是离线 / 演示模式`;
+      return t`配音要连上服务器才能做，现在是离线 / 演示模式`;
     case "voice_busy":
       return t`上一批配音还在生成，等它配完再说`;
     case "no_music":
