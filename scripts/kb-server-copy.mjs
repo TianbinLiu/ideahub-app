@@ -55,12 +55,16 @@ if (fs.existsSync(outPath)) {
   if (end > 0) header = old.slice(0, end + 4);
 }
 const today = new Date().toISOString().slice(0, 10);
-const sourceLine = `<!-- 由 ideahub-app/docs/support-knowledge-base.md（${stamp}）剥掉代码出处后生成，生成日期 ${today}。改知识请改 app 仓的源文件后重新生成（app 仓 scripts/kb-server-copy.mjs），不要直接改这里`;
+// ★ 句末的「。」是头注释第一行本来就有的（10-19 前漏了它，生成出来的第一行少个句号）
+const sourceLine = `<!-- 由 ideahub-app/docs/support-knowledge-base.md（${stamp}）剥掉代码出处后生成，生成日期 ${today}。改知识请改 app 仓的源文件后重新生成（app 仓 scripts/kb-server-copy.mjs），不要直接改这里。`;
+// ★ 来源说明里可能带「）」（「…，分支 x（y），…」）：原来用 `（[^）]*）` 去认旧的那一句，旧说明里一有「）」就认不出来，
+//   replace 什么都不做、旧来源与旧日期原样留下，而且不报错（10-19 kb 线复现过）。改成认到「剥掉代码出处后生成」为止的最短一段，
+//   换完再核一遍新的那一句真的在头注释里，不在就停下。
 header = header
-  ? header.replace(/^<!-- 由 ideahub-app\/docs\/support-knowledge-base\.md（[^）]*）剥掉代码出处后生成，生成日期 [^。]*。[^\n]*/, sourceLine)
+  ? header.replace(/^<!-- 由 ideahub-app\/docs\/support-knowledge-base\.md（.*?）剥掉代码出处后生成，生成日期 [^。\n]*。[^\n]*/, () => sourceLine)
   : `${sourceLine} -->\n`;
-if (!header.startsWith("<!-- 由 ideahub-app")) {
-  console.error("目标文件的头注释不是预期形状，没写：先看一眼它的第一行");
+if (!header.startsWith(sourceLine)) {
+  console.error("目标文件头注释的第一行不是预期形状，来源那一句没换上，没写：先看一眼它的第一行");
   process.exit(1);
 }
 fs.writeFileSync(outPath, header + "\n" + body);

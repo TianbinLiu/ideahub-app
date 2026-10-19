@@ -185,7 +185,7 @@ export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: st
         {audioSrc && src && !failed && (
           <button
             onClick={() => setAudioOn((v) => !v)}
-            title={t`白模成片本身无声，这里配的是模板原片的音轨；合并成片时也会带上`}
+            title={t`白模成片本身无声，这里配的是模板原片的音轨；合成成片时也会带上`}
             className="flex-none rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-200"
           >
             {audioOn ? <Trans>🔊 模板原声</Trans> : <Trans>🔇 已静音</Trans>}
@@ -364,7 +364,7 @@ export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: st
               <>
                 <audio ref={aref} src={audioSrc} preload="auto" muted={!audioOn} />
                 <p className="max-w-xs text-center text-[11px] leading-relaxed text-slate-500">
-                  <Trans>白模成片本身无声，回看配的是模板原片的音轨，合并成片时也会带上</Trans>
+                  <Trans>白模成片本身无声，回看配的是模板原片的音轨，合成成片时也会带上</Trans>
                 </p>
               </>
             )}

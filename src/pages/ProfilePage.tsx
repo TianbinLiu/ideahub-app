@@ -751,7 +751,8 @@ export default function ProfilePage() {
             时才退回那句从作品算出来的概览 —— 它是真的，只是没那么有用。 */}
         {self ? (
           <p className="mt-3.5 whitespace-pre-wrap text-center text-sm leading-relaxed text-slate-300">
-            {user!.bio || <span className="text-slate-600"><Trans>还没有简介——去设置里写一句吧</Trans></span>}
+            {/* 占位句是小字正文、不是装饰：slate-400（slate-600 对 ink 只有 2.50:1，2.63 发版后验证在 #/me 上量到；check-contrast 规则 B） */}
+            {user!.bio || <span className="text-slate-400"><Trans>还没有简介——去设置里写一句吧</Trans></span>}
           </p>
         ) : stranger.profile?.bio ? (
           <p className="mt-3.5 whitespace-pre-wrap text-center text-sm leading-relaxed text-slate-300">

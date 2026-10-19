@@ -145,7 +145,7 @@ export default function DeckDetailPage() {
                 <span><Trans>{deck.cardIds.length} 张卡</Trans></span>
                 {/* 热度：远端模式是服务端算的全局值，离线/老服务端退回本机计数并说明 */}
                 <span className="text-gold">🔥 {formatHeat(heat.heat)}</span>
-                {heat.source === "local" && <span className="text-slate-600"><Trans>本机计数</Trans></span>}
+                {heat.source === "local" && <span className="text-slate-400"><Trans>本机计数</Trans></span>}
               </div>
             </>
           )}

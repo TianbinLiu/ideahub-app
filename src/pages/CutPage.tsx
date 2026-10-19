@@ -1211,7 +1211,7 @@ export default function CutPage() {
     } else {
       // ★ 「回工作流」这条路不存在（2026-10-10 文案复核抓到）：组稿那一拍 reset() 已把流水线清空，能回的是「我的 → 草稿」里自动存下的那条；
       //   简约模式不进草稿库（saveWorkDraft 挡掉 simple），只能重新创作。下面几句同理
-      setErr(t`这条成片回不到合并之前了：它没有留下合并前的片段。直接去发布，或回「我的 → 草稿」打开草稿重做一条（简约模式没有草稿，只能重新创作）。`);
+      setErr(t`这条成片回不到合成之前了：它没有留下合成前的片段。直接去发布，或回「我的 → 草稿」打开草稿重做一条（简约模式没有草稿，只能重新创作）。`);
     }
   }
 
@@ -1588,7 +1588,8 @@ export default function CutPage() {
       // ★ 段落直接把**公网地址**交过去：它们在出片那一刻就转存到图床了，让 Media3 自己流式取，
       //   不必先把几十兆下载到手机再喂进去（那正是老路最慢、也最容易超时的一段）。
       if (!mergeSupported()) throw new Error(mergeUnsupportedText());
-      if (!projAtStart) throw new Error(t`时间轴还没准备好，稍等一下再点「下一步」`);
+      // 键名照主键现在的字（2054 一带）：2026-10-14 起它叫「合成并去发布」，这句原来还在叫人去点已经不存在的「下一步」
+      if (!projAtStart) throw new Error(t`时间轴还没准备好，稍等一下再点「合成并去发布」`);
       say(t`准备素材…`);
       // ── 先把各段的真实长度量出来（只在工程里有"长在时间上"的东西时：字幕 / 配音 / 闪黑 / 变速 / 配乐）──
       // ★★ 这些东西按**成片时间轴**定位（第 7 秒出这句字幕、第 12.3 秒开始淡出），而成片时间轴是把各段的长度
@@ -1666,7 +1667,7 @@ export default function CutPage() {
       }
       const staleCount = projAtStart.clips.filter((c) => voiceStale(c.line, narratorOf(projAtStart))).length;
       if (staleCount > 0) {
-        warns.push(t`有 ${staleCount} 句配音还是改字（或换音色）之前合成的那一版——成片里念的和字幕对不上。回剪辑页的「字幕」重新配一次，再合一次。`);
+        warns.push(t`有 ${staleCount} 句配音还是改字（或换音色）之前配的那一版——成片里念的和字幕对不上。回剪辑页的「字幕」重新配一次，再合一次。`);
       }
       const cutShort = plan.voices.filter((v) => v.playSec < v.durSec - 0.05).length;
       if (cutShort > 0) warns.push(t`最后一句配音没念完就到片尾了（成片里它在片尾被掐掉）。把这一句改短，或者把最后一段留长一点。`);
@@ -1682,7 +1683,7 @@ export default function CutPage() {
           // ★ 音轨拿不到**不许拖垮整条成片**（2026-08-21 对抗评审确认的老规矩，这次沿用）
           console.warn("[cut] 音轨取不到:", e);
           const audioName = audio.name;
-          const why = t`音轨没能取下来（${audioName}）——这一条先按无声导出。想要声音就换一条本地音频再重试合并。`;
+          const why = t`音轨没能取下来（${audioName}）——这一条先按无声导出。想要声音就换一条本地音频再重试合成。`;
           setErr(why);
           warns.push(why); // 合并成功就要跟着去发布页，否则这句话谁都看不到
 
@@ -2118,7 +2119,7 @@ export default function CutPage() {
             {playErr && <p>{playErr}</p>}
             {srcErr[active!.segIndex] && (
               <p>
-                <Trans>圈选与合并要用的截帧流没取到：{srcErr[active!.segIndex]}</Trans>
+                <Trans>圈选与合成要用的截帧流没取到：{srcErr[active!.segIndex]}</Trans>
                 <button
                   onClick={() => loadCaptureSrc(active!.segIndex, activeSeg.videoUrl!)}
                   className="ml-2 rounded bg-rose-500/30 px-2 py-0.5 font-semibold text-rose-100"
@@ -2225,7 +2226,7 @@ export default function CutPage() {
           等于让用户为一个更大的文件多等一倍时间还以为画质更好了。 */}
       {res.id !== "720" && (
         <div className="flex-none bg-amber-500/10 px-4 py-1 text-center text-[10px] leading-relaxed text-amber-200/90">
-          <Trans>{res.label} 是由 720P 素材放大的 —— 文件更大、合并更久，但<b className="text-amber-100">不会</b>更清晰</Trans>
+          <Trans>{res.label} 是由 720P 素材放大的 —— 文件更大、合成更久，但<b className="text-amber-100">不会</b>更清晰</Trans>
         </div>
       )}
 
@@ -2278,9 +2279,9 @@ export default function CutPage() {
               <div className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>这条成片已经合好了</Trans></div>
               <p className="text-[11px] leading-relaxed text-slate-400">
                 {canReopen ? (
-                  <Trans>右上角可以直接去发布。想再改片段、圈选或配乐，就回到合并之前接着剪——原来的时间轴都还在，改完重新合一次（合成不花钱）。</Trans>
+                  <Trans>右上角可以直接去发布。想再改片段、圈选或配乐，就回到合成之前接着剪——原来的时间轴都还在，改完重新合一次（合成不花钱）。</Trans>
                 ) : (
-                  <Trans>右上角可以直接去发布。这条成片没有留下合并之前的片段（它是旧版本合的），要改只能回「我的 → 草稿」打开草稿重做一条（简约模式没有草稿，只能重新创作）。</Trans>
+                  <Trans>右上角可以直接去发布。这条成片没有留下合成之前的片段（它是旧版本合的），要改只能回「我的 → 草稿」打开草稿重做一条（简约模式没有草稿，只能重新创作）。</Trans>
                 )}
               </p>
               {canReopen && (
@@ -2787,7 +2788,7 @@ export default function CutPage() {
                       ) : null}
                       {stale ? (
                         <p className="mt-1 text-[11px] leading-relaxed text-amber-200">
-                          <Trans>字（或音色）改过了，这句配音还是之前合成的那一版——重新配一次，否则成片里念的和字幕对不上。</Trans>
+                          <Trans>字（或音色）改过了，这句配音还是之前配的那一版——重新配一次，否则成片里念的和字幕对不上。</Trans>
                         </p>
                       ) : null}
                       {pv && cutShort > 0.05 ? (
@@ -2841,7 +2842,7 @@ export default function CutPage() {
                 )
               ) : (
                 <p className="mt-2.5 rounded-lg border border-slate-700 bg-black/30 px-2.5 py-1.5 text-[11px] leading-relaxed text-slate-400">
-                  <Trans>配音要连上服务器才能合成（离线 / 演示模式下用不了）。字幕照常能写、能烧进画面。</Trans>
+                  <Trans>配音要连上服务器才能做（离线 / 演示模式下用不了）。字幕照常能写、能烧进画面。</Trans>
                 </p>
               )}
               <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
@@ -3005,7 +3006,7 @@ export default function CutPage() {
                 </label>
                 {/* 「AI 画面本身没声音」挪进了引导第一步——这里留操作性的那一句就够 */}
                 <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
-                  <Trans>合并时混进成片，短于成片会自动循环。</Trans>
+                  <Trans>合成时混进成片，短于成片会自动循环。</Trans>
                 </p>
               </>
             ))}

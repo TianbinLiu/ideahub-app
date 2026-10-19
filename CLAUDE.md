@@ -641,7 +641,7 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   各探一次，否则弱网冷启动会出现"视频退了本地库、弹幕还在打远端"这种半边天。
   离线模式（没配 `VITE_API_BASE` 或服务端没起）退回 IndexedDB，此时输入条会明说
   "只存在这台设备上"——接上服务端时那句话必须消失，否则是另一种骗人。
-- **第三方登录回程只认本机发起的那一条**（2026-10-15 教材人格评审 owasp-security-1）：`startOauth` 生成一次性 state 记在本机，服务端成功 / 失败两种回跳原样回带（server PR 等「合」），深链与 web 回跳都只经 `utils/oauth.acceptOauthReturn` 这一道闸，判定表只在 `data/oauthState`（零依赖，`check-oauth-state.mjs` 实跑）；老服务端不回带的暂且放行、只在 15 分钟 TTL 之内，后一版 App 再把「没带」改成拒。契约见 docs/api-contract.md「第三方登录深链的 state 绑定」。
+- **第三方登录回程只认本机发起的那一条**（2026-10-15 教材人格评审 owasp-security-1）：`startOauth` 生成一次性 state 记在本机，服务端成功 / 失败两种回跳原样回带（server #116，2026-10-16 已部署；取消授权 / provider 报错 / 服务端 state 过期这几种失败，要等之后的 server 分支 `claude/oauth-fail-back-to-app` 部署才带着 state 回到 App —— 在那之前它们落在官网错误页、到不了 App），深链与 web 回跳都只经 `utils/oauth.acceptOauthReturn` 这一道闸，判定表只在 `data/oauthState`（零依赖，`check-oauth-state.mjs` 实跑）；老服务端不回带的暂且放行、只在 15 分钟 TTL 之内，后一版 App 再把「没带」改成拒（前提是上面那个 server 分支已部署：不然收紧之后这几种失败照旧停在官网、App 一声不吭）。契约见 docs/api-contract.md「第三方登录深链的 state 绑定」。
 - **客户端失败上报只有 `data/clientEvents.reportClientEvent` 一处发**（同日 humble-delivery-4）：`POST /api/client-events` 只带 kind / 版本 / ASCII 位置 / 错误类型名，永不带 message 与账号；按健康端点能力位 `clientEvents` 开（老服务端一发都不发），一场会话去重 + 最多 8 条，上报本身失败一律吞；五处挂钩：ErrorBoundary、App 根的 window error + unhandledrejection、appUpdate、DataLossNotice、boot。契约见「客户端失败上报」。
 - **简约模式不进草稿库**（`saveWorkDraft` 里挡掉）：它只有一段、写一句话就出片、直通发布，
   中间没有"回来接着做"的状态；而草稿一条带 1MB 级的帧，塞进去只会把真正需要草稿的
@@ -733,7 +733,7 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   `text-[12px]` 与 `text-xs` 同一个像素但行高不同，`text-[13px]` / `text-[15px]` 根本不在刻度上 —— 第四轮把
   128 处像素写法归到刻度（12→xs、13→sm 或 xs、14→sm、15/16→base、17→lg、19→xl）。
   查法：`rg 'text-\[1[2-9]px\]' --glob '*.tsx'` 应为空。
-- **小字不许用 slate-600**（2026-10-15 教材人格评审 wcag-a11y-i18n-6）：ink 底上 slate-600 只有 2.50:1、slate-500 是 3.98:1，WCAG 2.2 正文要 4.5:1。≤ 14px 的说明 / 占位 / 副标题一律 `text-slate-400`（同日改了 40 处，含 EmptyState 的补充行），slate-600 只给装饰（图标、分隔符）；slate-500 那半按主人口径不动。构建里 `scripts/check-contrast.mjs` 是棘轮：同一行里裸的 `text-slate-600` 撞上 text-xs / text-sm / text-[9~14px] 就红，装饰字符给 `aria-hidden` 放行、亮底上的深字在上一行写 `contrast-ok: 理由`。
+- **小字不许用 slate-600**（2026-10-15 教材人格评审 wcag-a11y-i18n-6）：ink 底上 slate-600 只有 2.50:1、slate-500 是 3.98:1，WCAG 2.2 正文要 4.5:1。≤ 14px 的说明 / 占位 / 副标题一律 `text-slate-400`（同日改了 40 处，含 EmptyState 的补充行），slate-600 只给装饰（图标、分隔符）；slate-500 那半按主人口径不动。构建里 `scripts/check-contrast.mjs` 是棘轮，两条规则：A 同一行里裸的 `text-slate-600` 撞上 text-xs / text-sm / text-[9~14px] 就红；B（2026-10-19 加）`text-slate-600` 写在哪个元素上、那个元素里有字就红，不管字号写在谁身上 —— 10-19 验证在 #/me 量到「父元素定字号、子元素定颜色」漏掉的一句 2.50:1 的空简介占位。装饰字符给那个元素自己加 `aria-hidden` 放行（`={false}` 不算），亮底上的深字、禁用态写 `contrast-ok: 理由`（命中行或开标签的上一行，或开标签里属性之间）；抓不到的写在脚本头上。
 - **卡片容器边线一律 `border-slate-700/70`**（`rounded-xl border border-slate-700/70 bg-panel p-3`）；输入框与按钮的
   描边仍是 `border-slate-700`。内容卡片圆角只有 `rounded-xl`（第十二轮把模板货架 / 工单卡 / 管理页行卡的 `2xl`
   收了）；整块可选的"砖"（简约模式的两块、自建卡的照片位、草稿箱的封面卡）仍是 `rounded-2xl`，那是另一种控件。

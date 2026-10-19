@@ -1280,7 +1280,7 @@ export default function VideoTemplateExtractor({
                 <p className="mt-1 text-[11px] text-sky-300">
                   <Trans>
                     分段组 · 整条已切成 {groupCount} 段各自登记（这张卡是第 {groupIndex} 段）。
-                    从任何一段套用都会整组铺进工作流，逐段挂卡出片，合并时自动回填原片音轨。
+                    从任何一段套用都会整组铺进工作流，逐段挂卡出片，合成时自动回填原片音轨。
                   </Trans>
                 </p>
               )}

@@ -384,7 +384,7 @@ export default function PublishPage() {
     });
     if (!useStudio.getState().reopenCut()) {
       // 「回工作流」这条路不存在（组稿已清空流水线）：能回的是「我的 → 草稿」里自动存下的那条，简约模式不进草稿库（同 CutPage 那几句）
-      setErr(t`这条成片回不到合并之前了：它没有留下合并前的片段。可以直接发布，或回「我的 → 草稿」打开草稿重做一条（简约模式没有草稿，只能重新创作）。`);
+      setErr(t`这条成片回不到合成之前了：它没有留下合成前的片段。可以直接发布，或回「我的 → 草稿」打开草稿重做一条（简约模式没有草稿，只能重新创作）。`);
       return;
     }
     navigate("/cut", { replace: true });

@@ -473,7 +473,7 @@ export function ownRefSplitVerdict(
     total > maxSec
       ? t`这条视频约 ${total} 秒，而分段登记一次最多 ${SPLIT_MAX_PARTS} 段 × ${segMaxSec} 秒 = ${maxSec} 秒——整条装不下。把选段收回 ${segMaxSec} 秒以内只做一段，或先把素材剪短再传。`
       : sel.startSec !== 0 || sel.durSec !== total
-        ? t`选段超过 ${segMaxSec} 秒时只能整条登记（分段组吃的是整条原片——合并成片时要拿它回填完整音轨）：把选段拉满 0~${total} 秒（起点 0、时长 ${total}），或者收回 ${segMaxSec} 秒以内只做一段。`
+        ? t`选段超过 ${segMaxSec} 秒时只能整条登记（分段组吃的是整条原片——合成成片时要拿它回填完整音轨）：把选段拉满 0~${total} 秒（起点 0、时长 ${total}），或者收回 ${segMaxSec} 秒以内只做一段。`
         : sel.crop.w !== w || sel.crop.h !== h
           ? t`分段登记暂不支持裁剪画面（服务端切段吃的是原始上传）：点视频下方播放条最右端的「⤢ 铺满整幅」把裁剪框还原。要裁水印或改画幅，就把选段收回 ${segMaxSec} 秒以内、一段一段做。`
           : w > ARK_EDIT_RULES.maxEdge || h > ARK_EDIT_RULES.maxEdge

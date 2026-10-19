@@ -436,7 +436,7 @@ function EditorPanel() {
     <span className="flex items-center gap-1 text-[9px] text-slate-500">
       {crumbSteps.map((s, i) => (
         <span key={s} className={s === step ? "font-bold text-cyan-200" : ""}>
-          {i > 0 && <span className="pr-1 text-slate-600">›</span>}
+          {i > 0 && <span aria-hidden className="pr-1 text-slate-600">›</span>}
           {i + 1} {crumbLabel[s]}
         </span>
       ))}

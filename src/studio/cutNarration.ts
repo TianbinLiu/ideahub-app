@@ -172,12 +172,13 @@ function explain(e: unknown): NarrationError {
     if (e.status === 402 || e.code === "INSUFFICIENT_TOKENS") return new NarrationError("money", t`token 余额不够，配音没做成`);
     if (e.code === "WALLET_FROZEN" || e.code === "PLAN_REQUIRED") return new NarrationError("money", t`这个账号的钱包现在不能扣费（有欠额或套餐不够），配音没做成`);
     if (e.status === 401 || e.status === 403) return new NarrationError("auth", t`登录已失效，重新登录之后再配音`);
-    if (e.status === 429) return new NarrationError("rate", t`配音合成得太快了（每分钟最多 30 句），等一分钟再接着配`);
-    if (e.status === 501) return new NarrationError("unsupported", t`服务器还没有开通语音合成，配音暂时用不了`);
-    return new NarrationError("upstream", t`语音合成这一下没成（${e.status}），稍后再试一次`);
+    // ★ 下面几句不说「合成」（2026-10-15 拍板 krug-copy-ia-1：剪辑页上「合成」只指把片段合成成片，配音一律说「配」/「没做成」）
+    if (e.status === 429) return new NarrationError("rate", t`配音请求太快了（每分钟最多 30 句），等一分钟再接着配`);
+    if (e.status === 501) return new NarrationError("unsupported", t`服务器还没有开通配音，暂时用不了`);
+    return new NarrationError("upstream", t`这一句配音没做成（${e.status}），稍后再试一次`);
   }
   // fetch 自己抛的（断网 / 被取消）：没有状态码
-  return new NarrationError("network", t`网络不通，这一句没合成出来——连上网再试一次`);
+  return new NarrationError("network", t`网络不通，这一句没配成——连上网再试一次`);
 }
 
 /**

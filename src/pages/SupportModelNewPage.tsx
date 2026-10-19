@@ -1145,7 +1145,7 @@ export default function SupportModelNewPage() {
                     return (
                       <div key={slot} className="flex min-w-0 items-center justify-between gap-2 text-[11px]">
                         <span className="shrink-0 text-slate-400">{t(PARAM_LABEL[slot])}</span>
-                        <span className={`min-w-0 truncate ${id ? "text-slate-300" : "text-slate-600"}`}>{id || t`没有`}</span>
+                        <span className={`min-w-0 truncate ${id ? "text-slate-300" : "text-slate-400"}`}>{id || t`没有`}</span>
                       </div>
                     );
                   })}

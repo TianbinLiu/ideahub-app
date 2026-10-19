@@ -869,7 +869,12 @@ msgstr "{0, plural, one {# video} other {# videos}}"
 
 #. placeholder {0}: res.label
 #: src/pages/CutPage.tsx
-msgid "{0} 是由 720P 素材放大的 —— 文件更大、合并更久，但<0>不会</0>更清晰"
+#~ msgid "{0} 是由 720P 素材放大的 —— 文件更大、合并更久，但<0>不会</0>更清晰"
+#~ msgstr "{0} is upscaled from 720P footage — a bigger file and a longer merge, but <0>not</0> any sharper"
+
+#. placeholder {0}: res.label
+#: src/pages/CutPage.tsx
+msgid "{0} 是由 720P 素材放大的 —— 文件更大、合成更久，但<0>不会</0>更清晰"
 msgstr "{0} is upscaled from 720P footage — a bigger file and a longer merge, but <0>not</0> any sharper"
 
 #. placeholder {0}: list.length
@@ -4450,8 +4455,12 @@ msgid "一次给多个文件时系统按「任意文件」处理，相册可能�
 msgstr "When several files are shared at once, the system treats them as “any file”, so the gallery may not be offered. To put them in the gallery, share them one by one."
 
 #: src/studio/cutAutoEdit.ts
-msgid "一步撤销得回去；要配音的话接着一句一句合成"
-msgstr "One undo takes it all back; if you want voiceover, the lines are synthesized one by one right after"
+#~ msgid "一步撤销得回去；要配音的话接着一句一句合成"
+#~ msgstr "One undo takes it all back; if you want voiceover, the lines are synthesized one by one right after"
+
+#: src/studio/cutAutoEdit.ts
+msgid "一步撤销得回去；要配音的话接着一句一句配"
+msgstr "One undo takes it all back; if you want voiceover, the lines are voiced one by one right after"
 
 #. placeholder {0}: Math.round(BGM_DUCK * 100)
 #. placeholder {1}: Math.round(BED_GAIN * 100)
@@ -7766,7 +7775,11 @@ msgid "分段登记需要至少一个分段点——不超过 30 秒的选段请
 msgstr "Split registration needs at least one split point — for a selection of 30 seconds or less, use the single-segment route."
 
 #: src/components/VideoTemplateExtractor.tsx
-msgid "分段组 · 整条已切成 {groupCount} 段各自登记（这张卡是第 {groupIndex} 段）。 从任何一段套用都会整组铺进工作流，逐段挂卡出片，合并时自动回填原片音轨。"
+#~ msgid "分段组 · 整条已切成 {groupCount} 段各自登记（这张卡是第 {groupIndex} 段）。 从任何一段套用都会整组铺进工作流，逐段挂卡出片，合并时自动回填原片音轨。"
+#~ msgstr "Split group · the whole video was cut into {groupCount, plural, one {# segment} other {# segments}}, each registered on its own (this card is segment {groupIndex}). Using any segment lays out the whole group in the workflow: cards are cast and rendered segment by segment, and the original audio track is added back automatically when merging."
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "分段组 · 整条已切成 {groupCount} 段各自登记（这张卡是第 {groupIndex} 段）。 从任何一段套用都会整组铺进工作流，逐段挂卡出片，合成时自动回填原片音轨。"
 msgstr "Split group · the whole video was cut into {groupCount, plural, one {# segment} other {# segments}}, each registered on its own (this card is segment {groupIndex}). Using any segment lays out the whole group in the workflow: cards are cast and rendered segment by segment, and the original audio track is added back automatically when merging."
 
 #: src/pages/EditPage.tsx
@@ -9713,16 +9726,24 @@ msgid "台词按卡上的声音样本说（名字前有 🔊 的卡）。{noVoic
 msgstr "Lines are spoken with the card’s voice sample (cards marked 🔊). {noVoice} has no voice sample yet, so the voice may change between segments — record one on the card page to keep it steady."
 
 #: src/pages/CutPage.tsx
-msgid "右上角可以直接去发布。想再改片段、圈选或配乐，就回到合并之前接着剪——原来的时间轴都还在，改完重新合一次（合成不花钱）。"
+#~ msgid "右上角可以直接去发布。想再改片段、圈选或配乐，就回到合并之前接着剪——原来的时间轴都还在，改完重新合一次（合成不花钱）。"
+#~ msgstr "You can publish right away from the top right. To change clips, circles or music, go back to before the merge and keep editing — your timeline is still there; merge again when you're done (merging is free)."
+
+#: src/pages/CutPage.tsx
+msgid "右上角可以直接去发布。想再改片段、圈选或配乐，就回到合成之前接着剪——原来的时间轴都还在，改完重新合一次（合成不花钱）。"
 msgstr "You can publish right away from the top right. To change clips, circles or music, go back to before the merge and keep editing — your timeline is still there; merge again when you're done (merging is free)."
 
 #: src/pages/CutPage.tsx
-msgid "右上角可以直接去发布。这条成片没有留下合并之前的片段（它是旧版本合的），要改只能回「我的 → 草稿」打开草稿重做一条（简约模式没有草稿，只能重新创作）。"
-msgstr "You can publish from the top right. This video kept no pre-merge segments (it was merged by an older version); to change it, open the draft under “Me → Drafts” and redo it (Simple mode keeps no draft, so you'd create a new one)."
+#~ msgid "右上角可以直接去发布。这条成片没有留下合并之前的片段（它是旧版本合的），要改只能回「我的 → 草稿」打开草稿重做一条（简约模式没有草稿，只能重新创作）。"
+#~ msgstr "You can publish from the top right. This video kept no pre-merge segments (it was merged by an older version); to change it, open the draft under “Me → Drafts” and redo it (Simple mode keeps no draft, so you'd create a new one)."
 
 #: src/pages/CutPage.tsx
 #~ msgid "右上角可以直接去发布。这条成片没有留下合并之前的片段（它是旧版本合的），要改只能回工作流重做一条。"
 #~ msgstr "You can publish right away from the top right. This video didn't keep its pre-merge clips (it was merged by an older version), so changing it means redoing it from the workflow."
+
+#: src/pages/CutPage.tsx
+msgid "右上角可以直接去发布。这条成片没有留下合成之前的片段（它是旧版本合的），要改只能回「我的 → 草稿」打开草稿重做一条（简约模式没有草稿，只能重新创作）。"
+msgstr "You can publish from the top right. This video kept no pre-merge segments (it was merged by an older version); to change it, open the draft under “Me → Drafts” and redo it (Simple mode keeps no draft, so you'd create a new one)."
 
 #: src/components/guide/tours.tsx
 msgid "右上角是终点"
@@ -9778,8 +9799,8 @@ msgstr "Segments start without the original's cards; attach your own later."
 #~ msgstr "Merge failed: couldn't fetch the video for segment(s) {segList} (HTTP {http}). These segments still use Ark's temporary links, which were never moved to permanent addresses, and those links only last 24 hours — once they expire the merger can't fetch them either. This video can't be merged right now: re-render these segments in the workflow (this costs again), or delete them and merge."
 
 #: src/pages/CutPage.tsx
-msgid "合并时混进成片，短于成片会自动循环。"
-msgstr "Mixed into the video when merging; loops automatically if it's shorter than the video."
+#~ msgid "合并时混进成片，短于成片会自动循环。"
+#~ msgstr "Mixed into the video when merging; loops automatically if it's shorter than the video."
 
 #: src/pages/CutPage.tsx
 msgid "合成中——这里的改动不会进这一炉"
@@ -9814,6 +9835,10 @@ msgstr "Merge video"
 #: src/components/flow/FlowCanvas.tsx
 msgid "合成整片 · 还差 {0} 段"
 msgstr "Full video · {0, plural, one {# segment} other {# segments}} to go"
+
+#: src/pages/CutPage.tsx
+msgid "合成时混进成片，短于成片会自动循环。"
+msgstr "Mixed into the video when merging; loops automatically if it's shorter than the video."
 
 #: src/studio/ui/projection.tsx
 msgid "合成本段预计消耗"
@@ -10240,7 +10265,12 @@ msgstr "Circle: paid regeneration"
 
 #. placeholder {0}: srcErr[active!.segIndex]
 #: src/pages/CutPage.tsx
-msgid "圈选与合并要用的截帧流没取到：{0}"
+#~ msgid "圈选与合并要用的截帧流没取到：{0}"
+#~ msgstr "Couldn't load the frame stream needed for circling and merging: {0}"
+
+#. placeholder {0}: srcErr[active!.segIndex]
+#: src/pages/CutPage.tsx
+msgid "圈选与合成要用的截帧流没取到：{0}"
 msgstr "Couldn't load the frame stream needed for circling and merging: {0}"
 
 #: src/pages/CustomCardPage.tsx
@@ -10656,7 +10686,11 @@ msgid "如果画面上根本数不出这么多人偶，这段白模本身就没�
 msgstr "If you can't count that many mannequins in the picture, this blockout itself didn't come out right — deleting slots only saves part of it, and getting everything to match means re-rendering (which costs again)."
 
 #: src/pages/CutPage.tsx
-msgid "字（或音色）改过了，这句配音还是之前合成的那一版——重新配一次，否则成片里念的和字幕对不上。"
+#~ msgid "字（或音色）改过了，这句配音还是之前合成的那一版——重新配一次，否则成片里念的和字幕对不上。"
+#~ msgstr "The text (or the voice) has changed, but this voiceover is still the earlier take — redo it, or what's read in the video won't match the caption."
+
+#: src/pages/CutPage.tsx
+msgid "字（或音色）改过了，这句配音还是之前配的那一版——重新配一次，否则成片里念的和字幕对不上。"
 msgstr "The text (or the voice) has changed, but this voiceover is still the earlier take — redo it, or what's read in the video won't match the caption."
 
 #: src/pages/CutPage.tsx
@@ -14601,12 +14635,16 @@ msgid "整条 {realSec} 秒将切成 {parts} 段（{segs}）登记成一组—�
 msgstr "The whole {realSec}-second video will be cut into {parts, plural, one {# segment} other {# segments}} ({segs}) and registered as one group — each segment is its own template, and using any one of them lays out the whole group in the workflow. The picture ({picW}×{picH}) is below the AI engine's pixel minimum, so the server will automatically upscale it to just above the minimum when registering; the duration and aspect ratio stay the same."
 
 #: src/components/guide/tours.tsx
-msgid "整条模式下「下一步」把时间轴按顺序导出成<0>一整条视频</0>、进发布页（已经合好的稿子它写的是「去发布」，直接进发布页； 合完还想改，点<1>↩ 回去改</1>就回到合并之前，改完再合一次、不花钱）。 从工坊单段进来时它是「保存本段」，改完写回那一段、不合并不发片。"
-msgstr "For a whole video, “Next” exports the timeline in order as <0>one continuous video</0> and goes to the publish page (for a draft that's already merged it reads “Go publish” and goes straight there; if you still want changes after merging, tap <1>↩ Go back and edit</1> to return to before the merge, then merge again for free). When you come in from a single segment in the Studio, it reads “Save segment” instead: your edits are written back to that segment, with no merging and nothing published."
+#~ msgid "整条模式下「下一步」把时间轴按顺序导出成<0>一整条视频</0>、进发布页（已经合好的稿子它写的是「去发布」，直接进发布页； 合完还想改，点<1>↩ 回去改</1>就回到合并之前，改完再合一次、不花钱）。 从工坊单段进来时它是「保存本段」，改完写回那一段、不合并不发片。"
+#~ msgstr "For a whole video, “Next” exports the timeline in order as <0>one continuous video</0> and goes to the publish page (for a draft that's already merged it reads “Go publish” and goes straight there; if you still want changes after merging, tap <1>↩ Go back and edit</1> to return to before the merge, then merge again for free). When you come in from a single segment in the Studio, it reads “Save segment” instead: your edits are written back to that segment, with no merging and nothing published."
 
 #: src/components/guide/tours.tsx
 #~ msgid "整条模式下「下一步」把时间轴按顺序导出成<0>一整条视频</0>、进发布页（已经合好的稿子它写的是「去发布」，直接进发布页）。 从工坊单段进来时它是「保存本段」，改完写回那一段、不合并不发片。"
 #~ msgstr "For a whole video, “Next” exports the timeline in order as <0>one continuous video</0> and goes to the publish page (for a draft that's already merged it reads “Go publish” and goes straight there). When you come in from a single segment in the Studio, it reads “Save segment” instead: your edits are written back to that segment, with no merging and nothing published."
+
+#: src/components/guide/tours.tsx
+msgid "整条模式下「合成并去发布」把时间轴按顺序合成<0>一整条视频</0>、进发布页（已经合好的稿子它写的是「去发布」，直接进发布页； 合完还想改，点<1>↩ 回去改</1>就回到合成之前，改完再合一次、不花钱）。 从工坊单段进来时它是「保存本段」，改完写回那一段、不合成不发片。"
+msgstr "For a whole video, “Merge & go to publish” merges the timeline in order into <0>one continuous video</0> and goes to the publish page (for a draft that's already merged it reads “Go publish” and goes straight there; if you still want changes after merging, tap <1>↩ Go back and edit</1> to return to before the merge, then merge again for free). When you come in from a single segment in the Studio, it reads “Save segment” instead: your edits are written back to that segment, with no merging and nothing published."
 
 #: src/components/blockout/arkVideoRules.ts
 msgid "整条登记不裁画面，而这条原片有一边到了 {longEdge} 像素，超过 AI 引擎的 {maxEdge} 上限。把选段收回 {segMaxSec} 秒以内、用裁剪框把画面框到 {maxEdge} 以内，一段一段做。"
@@ -14908,8 +14946,12 @@ msgid "时间轴换过序（或者切过、删过），「第 {ref} 段」说不
 msgstr "The timeline has been reordered (or split, or trimmed down), so “segment {ref}” could mean two different clips — say it by position from the left instead, like “clip 2” (the number in each clip's top-left corner)"
 
 #: src/pages/CutPage.tsx
-msgid "时间轴还没准备好，稍等一下再点「下一步」"
-msgstr "The timeline isn't ready yet — wait a moment, then tap “Next”"
+#~ msgid "时间轴还没准备好，稍等一下再点「下一步」"
+#~ msgstr "The timeline isn't ready yet — wait a moment, then tap “Next”"
+
+#: src/pages/CutPage.tsx
+msgid "时间轴还没准备好，稍等一下再点「合成并去发布」"
+msgstr "The timeline isn't ready yet — wait a moment, then tap “Merge & go to publish”"
 
 #: src/pages/SettingsProfilePage.tsx
 msgid "昵称"
@@ -15106,8 +15148,12 @@ msgid "有 {refs} 份公开的制作过程在用这个模板：已从市场下�
 msgstr "{refs, plural, one {# public process uses this template: it has been removed from the market, but its assets are kept and that process can still render with it. Delete it once nothing references it.} other {# public processes use this template: it has been removed from the market, but its assets are kept and those processes can still render with it. Delete it once nothing references it.}}"
 
 #: src/pages/CutPage.tsx
-msgid "有 {staleCount} 句配音还是改字（或换音色）之前合成的那一版——成片里念的和字幕对不上。回剪辑页的「字幕」重新配一次，再合一次。"
-msgstr "{staleCount} voiceover lines are still the take from before the text (or voice) changed — what's read in the video doesn't match the captions. Go back to “Captions” in the editor, redo them, and merge again."
+#~ msgid "有 {staleCount} 句配音还是改字（或换音色）之前合成的那一版——成片里念的和字幕对不上。回剪辑页的「字幕」重新配一次，再合一次。"
+#~ msgstr "{staleCount} voiceover lines are still the take from before the text (or voice) changed — what's read in the video doesn't match the captions. Go back to “Captions” in the editor, redo them, and merge again."
+
+#: src/pages/CutPage.tsx
+msgid "有 {staleCount} 句配音还是改字（或换音色）之前配的那一版——成片里念的和字幕对不上。回剪辑页的「字幕」重新配一次，再合一次。"
+msgstr "{staleCount, plural, one {# voiceover line is} other {# voiceover lines are}} still the take from before the text (or voice) changed — what's read in the video doesn't match the captions. Go back to “Captions” in the editor, redo them, and merge again."
 
 #: src/components/cut/AutoEditSheet.tsx
 msgid "有 {tooLong} 句太长、配不了音——用了之后这几句只有字幕，改短再配。"
@@ -15437,8 +15483,12 @@ msgid "服务器返回 {status}"
 msgstr "server returned {status}"
 
 #: src/studio/cutNarration.ts
-msgid "服务器还没有开通语音合成，配音暂时用不了"
-msgstr "The server doesn't have speech synthesis set up yet, so voiceover isn't available right now"
+#~ msgid "服务器还没有开通语音合成，配音暂时用不了"
+#~ msgstr "The server doesn't have speech synthesis set up yet, so voiceover isn't available right now"
+
+#: src/studio/cutNarration.ts
+msgid "服务器还没有开通配音，暂时用不了"
+msgstr "The server doesn't have voiceover set up yet, so it isn't available right now"
 
 #: src/studio/gridDraftStore.ts
 msgid "服务端最近的几组里没找到上一组，多半是没收到——重新画这一组就行"
@@ -19292,11 +19342,19 @@ msgid "白模复刻的画幅自适应模板视频，不可另选"
 msgstr "Blockout remakes follow the template video's aspect ratio; it can't be changed"
 
 #: src/components/flow/SegPlayer.tsx
-msgid "白模成片本身无声，回看配的是模板原片的音轨，合并成片时也会带上"
+#~ msgid "白模成片本身无声，回看配的是模板原片的音轨，合并成片时也会带上"
+#~ msgstr "Blockout videos are silent; playback uses the template's original audio, which is also added when merging"
+
+#: src/components/flow/SegPlayer.tsx
+msgid "白模成片本身无声，回看配的是模板原片的音轨，合成成片时也会带上"
 msgstr "Blockout videos are silent; playback uses the template's original audio, which is also added when merging"
 
 #: src/components/flow/SegPlayer.tsx
-msgid "白模成片本身无声，这里配的是模板原片的音轨；合并成片时也会带上"
+#~ msgid "白模成片本身无声，这里配的是模板原片的音轨；合并成片时也会带上"
+#~ msgstr "Blockout videos are silent; this plays the template's original audio, which is also added when merging"
+
+#: src/components/flow/SegPlayer.tsx
+msgid "白模成片本身无声，这里配的是模板原片的音轨；合成成片时也会带上"
 msgstr "Blockout videos are silent; this plays the template's original audio, which is also added when merging"
 
 #: src/components/VideoTemplateExtractor.tsx
@@ -20860,7 +20918,7 @@ msgstr "Segment {segNo} is an already-merged local video and can't be merged aga
 
 #: src/pages/CutPage.tsx
 msgid "第 {segNo} 段还不是永久地址，合成用不了——回「我的 → 草稿」打开草稿，等它转存完再来"
-msgstr "Segment {segNo} isn't a permanent address yet, so it can't be composited — open the draft under “Me → Drafts” and come back once it has been moved to storage"
+msgstr "Segment {segNo} isn't a permanent address yet, so it can't be merged — open the draft under “Me → Drafts” and come back once it has been moved to storage"
 
 #: src/pages/CutPage.tsx
 #~ msgid "第 {segNo} 段还不是永久地址，合成用不了——回到工作流等它转存完再来"
@@ -21543,8 +21601,12 @@ msgid "网络不通"
 msgstr "no network"
 
 #: src/studio/cutNarration.ts
-msgid "网络不通，这一句没合成出来——连上网再试一次"
-msgstr "No network — this line wasn't synthesized. Get back online and try again"
+#~ msgid "网络不通，这一句没合成出来——连上网再试一次"
+#~ msgstr "No network — this line wasn't synthesized. Get back online and try again"
+
+#: src/studio/cutNarration.ts
+msgid "网络不通，这一句没配成——连上网再试一次"
+msgstr "No network — this line wasn't voiced. Get back online and try again"
 
 #: src/pages/CustomCardPage.tsx
 msgid "网络异常"
@@ -22549,8 +22611,8 @@ msgstr "Speed sets the pace; Tone instruction takes one sentence describing the 
 
 #. placeholder {0}: e.status
 #: src/studio/cutNarration.ts
-msgid "语音合成这一下没成（{0}），稍后再试一次"
-msgstr "Speech synthesis failed this time ({0}) — try again in a moment"
+#~ msgid "语音合成这一下没成（{0}），稍后再试一次"
+#~ msgstr "Speech synthesis failed this time ({0}) — try again in a moment"
 
 #: src/pages/SupportPage.tsx
 msgid "语音播报：关"
@@ -23668,6 +23730,11 @@ msgstr "That one couldn't be done: {fail}"
 #: src/pages/CutPage.tsx
 msgid "这一句要念 {0} 秒，比这一段长 {1} 秒——会念到下一段里（后面的配音跟着往后顺）。改短一点，或者把这一段放慢 / 留长。"
 msgstr "This line takes {0}s to read, {1}s longer than this clip — it will run into the next clip (and later voiceovers shift back). Shorten it, or slow this clip down / keep it longer."
+
+#. placeholder {0}: e.status
+#: src/studio/cutNarration.ts
+msgid "这一句配音没做成（{0}），稍后再试一次"
+msgstr "This voiceover line didn't go through ({0}) — try again in a moment"
 
 #: src/components/cut/CutAgentSheet.tsx
 msgid "这一句问了模型（{price} token）"
@@ -25517,20 +25584,28 @@ msgid "这条弹幕还在发送中，等它发出去之后再删"
 msgstr "This bullet comment is still sending. Delete it once it's sent"
 
 #: src/pages/PublishPage.tsx
-msgid "这条成片回不到合并之前了：它没有留下合并前的片段。可以直接发布，或回「我的 → 草稿」打开草稿重做一条（简约模式没有草稿，只能重新创作）。"
-msgstr "This video can't go back to before the merge: it kept no pre-merge segments. You can publish it as is, or open the draft under “Me → Drafts” and redo it (Simple mode keeps no draft, so you'd create a new one)."
+#~ msgid "这条成片回不到合并之前了：它没有留下合并前的片段。可以直接发布，或回「我的 → 草稿」打开草稿重做一条（简约模式没有草稿，只能重新创作）。"
+#~ msgstr "This video can't go back to before the merge: it kept no pre-merge segments. You can publish it as is, or open the draft under “Me → Drafts” and redo it (Simple mode keeps no draft, so you'd create a new one)."
 
 #: src/pages/PublishPage.tsx
 #~ msgid "这条成片回不到合并之前了：它没有留下合并前的片段。可以直接发布，或回工作流重做一条。"
 #~ msgstr "This video can't go back to before the merge: its pre-merge clips weren't kept. You can publish it as is, or redo it from the workflow."
 
 #: src/pages/CutPage.tsx
-msgid "这条成片回不到合并之前了：它没有留下合并前的片段。直接去发布，或回「我的 → 草稿」打开草稿重做一条（简约模式没有草稿，只能重新创作）。"
-msgstr "This video can't go back to before the merge: it kept no pre-merge segments. Publish it as is, or open the draft under “Me → Drafts” and redo it (Simple mode keeps no draft, so you'd create a new one)."
+#~ msgid "这条成片回不到合并之前了：它没有留下合并前的片段。直接去发布，或回「我的 → 草稿」打开草稿重做一条（简约模式没有草稿，只能重新创作）。"
+#~ msgstr "This video can't go back to before the merge: it kept no pre-merge segments. Publish it as is, or open the draft under “Me → Drafts” and redo it (Simple mode keeps no draft, so you'd create a new one)."
 
 #: src/pages/CutPage.tsx
 #~ msgid "这条成片回不到合并之前了：它没有留下合并前的片段。直接去发布，或回工作流重做一条。"
 #~ msgstr "This video can't go back to before the merge: its pre-merge clips weren't kept. Go publish it, or redo it from the workflow."
+
+#: src/pages/PublishPage.tsx
+msgid "这条成片回不到合成之前了：它没有留下合成前的片段。可以直接发布，或回「我的 → 草稿」打开草稿重做一条（简约模式没有草稿，只能重新创作）。"
+msgstr "This video can't go back to before the merge: it kept no pre-merge segments. You can publish it as is, or open the draft under “Me → Drafts” and redo it (Simple mode keeps no draft, so you'd create a new one)."
+
+#: src/pages/CutPage.tsx
+msgid "这条成片回不到合成之前了：它没有留下合成前的片段。直接去发布，或回「我的 → 草稿」打开草稿重做一条（简约模式没有草稿，只能重新创作）。"
+msgstr "This video can't go back to before the merge: it kept no pre-merge segments. Publish it as is, or open the draft under “Me → Drafts” and redo it (Simple mode keeps no draft, so you'd create a new one)."
 
 #: src/pages/CutPage.tsx
 msgid "这条成片已经合好了"
@@ -26064,7 +26139,11 @@ msgid "选段超出了片尾（第 {startSec} 秒起 {durSec} 秒 = 到第 {endS
 msgstr "The selection runs past the end of the video ({durSec, plural, one {# second} other {# seconds}} from {startSec}s = up to {endSec}s, but this video is about {total, plural, one {# second} other {# seconds}} long). Move the whole selection left, or shorten it."
 
 #: src/components/blockout/arkVideoRules.ts
-msgid "选段超过 {segMaxSec} 秒时只能整条登记（分段组吃的是整条原片——合并成片时要拿它回填完整音轨）：把选段拉满 0~{total} 秒（起点 0、时长 {total}），或者收回 {segMaxSec} 秒以内只做一段。"
+#~ msgid "选段超过 {segMaxSec} 秒时只能整条登记（分段组吃的是整条原片——合并成片时要拿它回填完整音轨）：把选段拉满 0~{total} 秒（起点 0、时长 {total}），或者收回 {segMaxSec} 秒以内只做一段。"
+#~ msgstr "A selection longer than {segMaxSec} seconds can only be registered as the whole video (a split group uses the entire original — it's needed to add back the full audio track when merging the final video): stretch the selection to cover 0–{total}s (start 0, length {total}s), or pull it back to within {segMaxSec} seconds to make a single segment."
+
+#: src/components/blockout/arkVideoRules.ts
+msgid "选段超过 {segMaxSec} 秒时只能整条登记（分段组吃的是整条原片——合成成片时要拿它回填完整音轨）：把选段拉满 0~{total} 秒（起点 0、时长 {total}），或者收回 {segMaxSec} 秒以内只做一段。"
 msgstr "A selection longer than {segMaxSec} seconds can only be registered as the whole video (a split group uses the entire original — it's needed to add back the full audio track when merging the final video): stretch the selection to cover 0–{total}s (start 0, length {total}s), or pull it back to within {segMaxSec} seconds to make a single segment."
 
 #: src/live2d/bundlePreview.ts
@@ -26243,16 +26322,28 @@ msgstr "Voiceover is free, up to {voiceFree} characters per account per day (a l
 #~ msgstr "The voiceover was synthesized but couldn't be saved locally (out of storage?) — free up some space and redo it"
 
 #: src/studio/cutNarration.ts
-msgid "配音合成得太快了（每分钟最多 30 句），等一分钟再接着配"
-msgstr "Voiceovers are being requested too fast (30 lines per minute at most) — wait a minute, then continue"
+#~ msgid "配音合成得太快了（每分钟最多 30 句），等一分钟再接着配"
+#~ msgstr "Voiceovers are being requested too fast (30 lines per minute at most) — wait a minute, then continue"
 
 #: src/studio/cutAgent.ts
-msgid "配音要连上服务器才能合成，现在是离线 / 演示模式"
-msgstr "Voiceovers are synthesized on the server, and this is offline / demo mode"
+msgid "配音要连上服务器才能做，现在是离线 / 演示模式"
+msgstr "Voiceover needs a connection to the server, and this is offline / demo mode"
 
 #: src/pages/CutPage.tsx
-msgid "配音要连上服务器才能合成（离线 / 演示模式下用不了）。字幕照常能写、能烧进画面。"
-msgstr "Voiceover needs the server to synthesize (not available offline / in demo mode). You can still write captions and burn them into the picture."
+msgid "配音要连上服务器才能做（离线 / 演示模式下用不了）。字幕照常能写、能烧进画面。"
+msgstr "Voiceover needs a connection to the server (not available offline / in demo mode). You can still write captions and burn them into the picture."
+
+#: src/studio/cutAgent.ts
+#~ msgid "配音要连上服务器才能合成，现在是离线 / 演示模式"
+#~ msgstr "Voiceovers are synthesized on the server, and this is offline / demo mode"
+
+#: src/pages/CutPage.tsx
+#~ msgid "配音要连上服务器才能合成（离线 / 演示模式下用不了）。字幕照常能写、能烧进画面。"
+#~ msgstr "Voiceover needs the server to synthesize (not available offline / in demo mode). You can still write captions and burn them into the picture."
+
+#: src/studio/cutNarration.ts
+msgid "配音请求太快了（每分钟最多 30 句），等一分钟再接着配"
+msgstr "Voiceovers are being requested too fast (30 lines per minute at most) — wait a minute, then continue"
 
 #: src/pages/CutPage.tsx
 msgid "配音音色"
@@ -26803,7 +26894,11 @@ msgid "音色目录没取到（{narratorErr}）——先用现在这个音色。
 msgstr "Couldn't load the voice list ({narratorErr}) — using the current voice for now."
 
 #: src/pages/CutPage.tsx
-msgid "音轨没能取下来（{audioName}）——这一条先按无声导出。想要声音就换一条本地音频再重试合并。"
+#~ msgid "音轨没能取下来（{audioName}）——这一条先按无声导出。想要声音就换一条本地音频再重试合并。"
+#~ msgstr "Couldn't get the audio track ({audioName}) — this merge will export without sound. For sound, pick a different local audio file and merge again."
+
+#: src/pages/CutPage.tsx
+msgid "音轨没能取下来（{audioName}）——这一条先按无声导出。想要声音就换一条本地音频再重试合成。"
 msgstr "Couldn't get the audio track ({audioName}) — this merge will export without sound. For sound, pick a different local audio file and merge again."
 
 #: src/pages/CutPage.tsx
