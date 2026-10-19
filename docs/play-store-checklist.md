@@ -2,14 +2,16 @@
 
 > 状态标记：✅ 已就绪 ｜ 🔧 需要动手 ｜ 💰 需要花钱
 > 出包命令：`npm run aab`（**上架用**，play 渠道）/ `npm run apk:release`（直装版，sideload 渠道）
-> 当前产物：直装版 APK **94MB** / 上架 AAB **93MB**（61MB 的模型压缩后约 38MB）
-> ⚠️ **这两个数已经过期，发版前必须当场重出一次再填**。2026-09-07「保存到本地」装进了
-> `@capacitor/filesystem` + `@capacitor/share`，这是本仓**第一次把 Kotlin 工具链拉进纯 Java 构建**
-> （根 `android/build.gradle` 原来只有 AGP + google-services）——**npm 包大小不能当 dex 增量用**。
+> 当前产物（v2.63 / versionCode 75，2026-10-15 发版，取 GitHub Release 上的资产大小）：直装版 APK **68.8MB**（72,138,171 字节）/
+> 上架 AAB **67.8MB**（71,047,684 字节）。
+> ⚠️ 这两个数**每发一版就会变**：上架前照那一版 GitHub Release 的资产大小（或当场重出一次）再填，别照抄这里。
+> 装新的原生插件时尤其要量：2026-09-07「保存到本地」装进 `@capacitor/filesystem` + `@capacitor/share`，是本仓**第一次把 Kotlin 工具链
+> 拉进纯 Java 构建**（根 `android/build.gradle` 原来只有 AGP + google-services）——**npm 包大小不能当 dex 增量用**。
 > 做法：装插件前后各出一次 `npm run apk:release` 与 `npm run aab`，逐字节记差值；
 > play AAB 增量 > 8MB 就停下来报告（`app-distribution.md` 记着"83MB 的包国内基本下不动"）。
-> （其中 61MB 是「极致」档玩家形象的 4K 贴图模型 —— 2026-08-11 起随包发布，见
-> `scripts/prune-app-assets.mjs`。裁剪仍然剔除零引用的烘焙遗留模型与不可分发的购入素材。）
+> （「极致」档玩家形象的 4K 贴图模型 2026-08-11 起随包发布，见 `scripts/prune-app-assets.mjs`；当时两个形象合计 61MB，
+> 2026-08-29 重制之后各约 4MB（`player-f-think.glb` 3.9MB / `player-m-think.glb` 3.8MB）。裁剪仍然剔除零引用的烘焙遗留模型与不可分发的购入素材。）
+> （本节的 MB 都按 1024×1024 字节算，与 App 更新弹窗上显示的一致。）
 >
 > ⚠️ **两个渠道不是一回事**：直装版带「应用内自更新」（下载 APK 并拉起安装器），
 > 而 Google Play **禁止**这种行为。隔离靠 product flavor 做在构建里，不靠人记得删，
@@ -137,7 +139,7 @@ Play 对 **Social / Dating / 匿名随机聊天** 类应用强制这一项。我
 
 ### 6c. UGC 政策要的两个功能 ✅（2026-09-03 已上线，缺一不可）
 
-- **举报**：`ReportButton`，作品 / 评论 / 弹幕三处，七类理由，后台人工复核（下架 / 删除 / 驳回）。
+- **举报**：`ReportButton`，作品 / 评论 / 弹幕三处，八类理由（`src/api/admin.ts` 的 `REPORT_REASONS`，第一项「涉及未成年人」），后台人工复核（下架 / 删除 / 驳回）。
 - **拉黑**：`BlockButton` 挂在举报旁边，「我的 → 设置 → 已拉黑的人」可解除。
   ⚠ 两者**不能合并成一个菜单里的两项**：政策分别要求，而且合并会让举报变难点到。
 
@@ -200,7 +202,7 @@ read -s -p "password: " P; REVIEWER_EMAIL=play-review@ideahubs.org REVIEWER_PASS
 Console 的 App access 里除了账号密码，还要写清怎么走到那几屏，建议逐字填：
 
 > 登录后：底栏 ➕ 进入创作 → 选「工坊」→ 在 3D 桌面上点虚线卡位铸一段 → 写一句要求 →
-> 「推演三套方案」→ 挑一套 →「炼这一段」出片 →「完成视频」→ 发布。
+> 「推演三套方案」→ 挑一套 →「炼这一段」出片 →「完成视频」→ 剪辑页右上角「合成并去发布」→ 发布。
 > 账号已预存 token，全部付费功能都能试。
 > 举报与拉黑：在首页视频流上**点作品标题（带 › 箭头）进详情页**，右上角就是「举报」与「拉黑」；
 > 评论与弹幕则在各自那一行上。举报理由的**第一项**就是「涉及未成年人」。
@@ -225,8 +227,8 @@ Console 的 App access 里除了账号密码，还要写清怎么走到那几屏
 `assets/public/models/protected/` 恰好是 `scripts/lib/protected-models.mjs` 的白名单（APK 与 AAB 都核）。装真机看一眼工坊 NPC 仍然值得做，但不再是唯一的闸。
 
 ### 9. 版本号递增
-- 每次上传新包必须递增 `android/app/build.gradle` 里的 `versionCode`（当前 5），
-  `versionName` 是给用户看的展示版本（当前 "1.4"），按需更新。
+- 每次上传新包必须递增 `android/app/build.gradle` 里的 `versionCode`（当前 75，2026-10-15 发的 2.63），
+  `versionName` 是给用户看的展示版本（当前 "2.63"），按需更新。`versionCode` 只在 main 上涨（见 `CLAUDE.md`「分支纪律」）。
 - ⚠️ 直装版和上架版**共用同一个 versionCode**。直装版的自更新就是靠它判新旧，
   所以别为了上架单独调它（详见 `app-distribution.md`）。
 
