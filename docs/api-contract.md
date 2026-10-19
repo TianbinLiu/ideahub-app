@@ -2040,12 +2040,14 @@ server 的 `APP_OAUTH_SCHEME`、app 的 `src/utils/oauth.ts` `APP_SCHEME`、
 ### 第三方登录深链的 state 绑定（2026-10-15）
 
 （教材人格评审 owasp-security-1：此前任何 App / 网页投一条 `ideahub://oauth?token=…` 就能把用户换成**别人的**登录态，
-垃圾 token 还会先盖掉本机 JWT 再被 401 清掉 = 静默登出。服务端 PR 待发，下面是两边各自实现的同一份规格。）
+垃圾 token 还会先盖掉本机 JWT 再被 401 清掉 = 静默登出。下面是两边各自实现的同一份规格：服务端那一半是 server#116，2026-10-16 部署
+（生产提交 58b934c）；「失败也回到 App」是之后的 server 分支 `claude/oauth-fail-back-to-app`（2026-10-19，发版后验证 oauth-4b 抓到的），
+两版的差别见下表「服务端」那一行。）
 
 | 谁 | 做什么 |
 |---|---|
 | App 起跳（`utils/oauth.startOauth`） | 每次用 `crypto.getRandomValues` 生成 16 字节随机数、hex 成 32 位当 **`state`**，连同 `Date.now()` 记在本机 `localStorage`（`ideahub-app.oauth.state.v1`），拼进起跳地址 `…?next=<目标>&state=<state>`（`api/auth.oauthStartUrl`）。web 与原生两条起跳路都带 |
-| 服务端 `GET /api/auth/oauth/:provider` | `state` 只收 **`/^[A-Za-z0-9_-]{8,128}$/`**（不合形状当没带），放进**自己签名的** link-state 里一起带去提供商；回调时取出来，**成功 / 失败两种回跳都原样回带 `state=`**，web 与 App 两种目标都是：web `CLIENT_BASE_URL/oauth/callback?token=…&next=…&state=…` / `…/oauth/callback?error=…&state=…`，App `ideahub://oauth?token=…&state=…` / `ideahub://oauth?error=…&state=…`。⚠ passport 的 `failureRedirect`（`/oauth/fail`）那条路拿不到 state、回带不了 —— App 这边按「没回带」处理 |
+| 服务端 `GET /api/auth/oauth/:provider` | `state` 只收 **`/^[A-Za-z0-9_-]{8,128}$/`**（不合形状当没带），放进**自己签名的** link-state 里一起带去提供商；回调时取出来，**成功 / 失败两种回跳都原样回带 `state=`**，web 与 App 两种目标都是：web `CLIENT_BASE_URL/oauth/callback?token=…&next=…&state=…` / `…/oauth/callback?error=…&state=…`，App `ideahub://oauth?token=…&state=…` / `ideahub://oauth?error=…&state=…`。**失败分两段说**：在处理函数里才失败的（没拿到资料、邮箱被占用、账号被封…）从 #116 起就照上面回带。而**取消授权（`error=access_denied`）/ provider 报了别的错（`server_error` 等）/ 换 token 失败 / 我们签的 state 过期**这几种 —— ① **58b934c 及之前**：一律落到官网 `CLIENT_BASE_URL/oauth/callback?next=/&error=oauth_failed…`、不回带（passport 的 `failureRedirect` 是写死的 `/oauth/fail?provider=…`；过期 state 走 `next=/`），原生 App 的用户停在系统浏览器里、App 什么都收不到；`access_denied` 以外的 provider 错误还会回一段 JSON 的 5xx（2026-10-19 生产实测）。② **部署了 `claude/oauth-fail-back-to-app` 之后**：都从一个出口（`failBack`）走 —— 我们签的 state **签名对**（**过期的也算**：签名证明是我们签的，过期只决定不能登录、不决定送回哪儿）且签进去的 `next` 再过一遍 `safeNextPath` 之后正是 App 深链 ⇒ `ideahub://oauth?error=oauth_failed&message=<固定文案，如 google login failed / Invalid or expired OAuth state>&state=<原串>`（签进去的 app 不合上面那条正则就不带 `state=`）；签名不对 / 不是我们的 state ⇒ 不回带、照原样落官网；网页发起的（`next` 是站内路径）照原样两跳经 `/oauth/fail` 落官网、**不回带**。provider 的 `error_description` 不进回跳地址。`/oauth/fail` 那一跳本身永远不回带（它的查询串里没有签过名的东西） |
 | App 收回程（`utils/oauth.acceptOauthReturn`，**深链与 web 回跳唯一的闸**） | 取出本机记的那条（**一次性**：取即删，一条 state 只判一条回程 —— 判过的留着就能拿来放行后面投进来的任何一条），按下表判；拒了就 `console.warn` 一行（只记结论，不记 token / state 的值）+ 轻提示「忽略了一条不是本机发起的登录链接」，然后**什么都不做**：不交付、不跳转、不碰 token，`?error=` 的文字也不上屏（那段文字同样可以由别人投进来） |
 
 App 的判定表（`data/oauthState.decideOauthReturn`，零依赖，构建里 `scripts/check-oauth-state.mjs` 实跑）：
@@ -2056,18 +2058,25 @@ App 的判定表（`data/oauthState.decideOauthReturn`，零依赖，构建里 `
 | 有，但距 startOauth 超过 **15 分钟**（`STATE_TTL_MS`；正好 15 分钟还算数） | 任意 | **拒**（stale） |
 | 有、没过期 | 带、与本机的不等 | **拒**（mismatch） |
 | 有、没过期 | 带、相等 | 收 |
-| 有、没过期 | **没带**（老服务端、或 `/oauth/fail` 那条） | **收**（暂且放行，见下） |
+| 有、没过期 | **没带**（#116 之前的老服务端；或网页发起、经 `/oauth/fail` 落到 web 回跳的那种失败 —— 只有 App 的 web 构建（dev）才可能碰到） | **收**（暂且放行，见下） |
+
+（原来这一格写「老服务端、或 `/oauth/fail` 那条」：58b934c 上 `/oauth/fail` 那条落在官网、根本到不了原生 App；部署了失败回到 App 那一版之后，
+App 发起的失败都带 state 回来，走的是上面「带、相等」那一行 —— App 的判定表因此不用改：本机这条 state 对上了，就认作本机发起、显示失败。）
 
 - **TTL 15 分钟**是整个系统浏览器往返（挑账号、敲密码、两步验证，期间 App 进程随时被回收 —— 所以记在 localStorage 而不是只记内存）。
-  服务端自己那份签名 link-state 的 **10 分钟**是另一件事：那是它在「送去提供商」到「提供商回调它」之间的绑定，过期由服务端判、以失败回跳回来，
-  而失败回跳也要本机还记着 state 才能上屏 —— 所以 App 的 TTL 只能比它长。
+  服务端自己那份签名 link-state 的 **10 分钟**是另一件事：那是它在「送去提供商」到「提供商回调它」之间的绑定，过期由服务端判。
+  部署了失败回到 App 那一版之后，过期以**带 state 的**失败回跳回到 App，而这条失败回跳也要本机还记着 state 才能上屏 —— 所以 App 的 TTL 只能比它长。
+  ⚠ 58b934c 及之前：过期那条落在官网、到不了 App（2026-10-19 实测），这条理由要等那一版部署之后才真的用得上。
 - **老服务端（还没发这一版）忽略 `state`、回跳不回带**：App 只在**本机 TTL 之内确实调过 startOauth** 时才收它 —— 这一道就是「本机近期发起过登录」的闸，
   今天就挡住了「别人投一条深链换登录态」（他投进来时本机没记 state → unsolicited）。两边都向后兼容：老 App 不带 state，服务端不回带。
 - **后一版 App 把「没带」也改成拒**（`decideOauthReturn` 里标着 ⚠ 的那一支）：服务端这一版普及之后再收紧，否则收紧那天所有人登不上第三方账号。
+  前提两件：#116（成功与处理函数里的失败回带，10-16 已部署）；失败回到 App 那一版（取消授权 / provider 报错 / state 过期也带 state 回到 App ——
+  不部署它，收紧之后这几种失败照旧停在官网的错误页，App 一声不吭）。⚠ App 的 web 构建（只在 dev）上，网页发起的失败仍经 `/oauth/fail`、不回带：
+  收紧之后它会被当成 mismatch 丢掉、一句失败都不说 —— 收紧前要么让 web 构建也认这一条，要么服务端给网页那条也回带（今天特意没动：网页流程保持原样）。
 - 同一条深链只收一次（`utils/oauth.onDeepLink`）：launch URL 在进程活着的期间一直是那一条，WebView 重载 / 系统改语言重建 Activity 之后
   `getLaunchUrl` 会把登过的那条再给一次 —— 收过的记下来（localStorage 只记 SHA-256 摘要：深链里带 token，原文不落盘），再来不算第二条回程，
   也就不会对着一次成功的登录说「不是本机发起的」。
-- 部署顺序：服务端先发；App 这一版随后；再后一版 App 才要求回带。
+- 部署顺序：服务端 #116（10-16 已部署）；App 2.63（10-15 已发，带 state、暂且放行没带的）；服务端失败回到 App 那一版；再后一版 App 才要求回带。
 
 ### QQ 登录（原生 SDK，**不走上面那条回跳**）
 

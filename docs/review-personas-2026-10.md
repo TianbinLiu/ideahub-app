@@ -912,18 +912,18 @@
 | 3 | sommerville-requirements-3 · 第一批无正式路径结案；过肩人数复核 | ② 做（2.63）；① 等 | ② DialogueWizard 第③步画完后加一句「看一眼每张里是不是只有这两个人」（不花钱；付费看图复核不加 —— 验证里景别那类判断只会误报）。① 结案要真实流量，生产没有；付费验证要主人授权，这一轮没要钱 |
 | 4 | sommerville-requirements-8 · MAX_DRAFTS = 20 没量法、淘汰零提示 | 做一半（2.63） | 淘汰那一拍轻提示（说哪一条没了）；真机量 `navigator.storage.estimate()` 写进常量旁（结果见第八节：这一轮只量到模拟器，真机待量）。按字节预算淘汰 = 不做：配额远大于 20 × 中位体积时没必要，量完再说 |
 | 5 | wcag-a11y-i18n-2 · 首页进度条 14px 命中、不是滑杆 | 做一半（2.63） | role=slider + 方向键 / Home / End 走同一个 seek；触控盒的几何不动 —— 底缘 50 / 86 / 104 是联动量过的三个数，要真机重量再一起改（CLAUDE.md「动了首页底缘」那格） |
-| 6 | wcag-a11y-i18n-5 · 画布缩放没有单指 / 按钮替代 | 做（2.63） | 画布右下三颗键（缩小 / 1:1 / 放大），与滚轮同一段算法、以画布中心为锚，走 liveView → reanchor → setView |
+| 6 | wcag-a11y-i18n-5 · 画布缩放没有单指 / 按钮替代 | 做（2.63） | 画布右上三颗键（放大 / 1:1 / 缩小，自上而下；10-19 更正：原写「右下」），与滚轮同一段算法、以画布中心为锚，走 liveView → reanchor → setView |
 | 7 | wcag-a11y-i18n-6 · slate-600 当小字正文 | 做（2.63） | 改口径：≤ 14px 的说明 / 占位 / 副标题 slate-600 → slate-400（40 处，含 EmptyState 的补充行），slate-600 只给装饰；`scripts/check-contrast.mjs` 棘轮进构建（装饰字符 aria-hidden 放行、亮底写 `contrast-ok`）。slate-500 那半按主人口径不动 |
 | 8 | feathers-testing-1 · flowStore 钱闸判据不可被脚本 import | 做（2.63 后） | 第一刀照提案范围（七个纯函数搬零依赖文件、原名 re-export、新脚本钉四格）。effort L、risk 中，不搭发版 |
 | 9 | feathers-testing-2 · 并发规则零自动保护 | 不引 runner；check-gen-run 做（2.63）；check-db 做（2.63 后） | 不加 vitest / fake-indexeddb：引 runner 是基建决定，本仓 20 道 check 的样子已经够用。`check-gen-run.mjs` 结构检查（busy:false 必须在 genRun === myRun 之后）本轮进构建；`check-db.mjs` 手写 indexedDB.open 桩三档随 feathers-1 一起做 |
 | 10 | feathers-testing-8 · 原生 Gain / TailFade 无 JVM 单测 | 做（CI 跑 gradle 稳定之后） | 没有 CI 跑它就是摆设；先让 11 的 android job 跑两周 |
-| 11 | humble-delivery-3 · 提交门禁不编译 Java | 做（2.63） | build.yml 加 `android` job（setup-java 17、`npx vite build` → `cap sync` → `assembleSideloadDebug`），**不设 required**，两周后看时长再定要不要进 ruleset —— 设成必过会把 land 等 CI 的 90 秒拉到十分钟，那是节奏取舍 |
-| 12 | humble-delivery-4 · 客户端三类失败零上报 | 做 | 契约 `POST /api/client-events`（只写日志、按 IP 10/分、不带账号与 message 原文）；服务端 PR 等「合」；App 侧 2.63 就带、按健康端点 `clientEvents` 能力位开（老服务端上一发都不发） |
+| 11 | humble-delivery-3 · 提交门禁不编译 Java | 做（2.63） | build.yml 加 `android` job（setup-java 21（10-19 更正：原写 17；JDK 21 是 gradle.properties 钉的那一版）、`npx vite build` → `cap sync` → `assembleSideloadDebug`），**不设 required**，两周后看时长再定要不要进 ruleset —— 设成必过会把 land 等 CI 的 90 秒拉到十分钟，那是节奏取舍 |
+| 12 | humble-delivery-4 · 客户端三类失败零上报 | 做 | 契约 `POST /api/client-events`（只写日志、按 IP 10/分、不带账号与 message 原文）；服务端 #116，10-16 已部署；App 侧 2.63 就带、按健康端点 `clientEvents` 能力位开（老服务端上一发都不发） |
 | 13 | norman-interaction-5 · 删段没有撤销 | 做（2.63） | 先删再 6 秒「撤销」（`flowStore.segTrash` / `restoreNode`，两面共用 `removeNodeWithUndo`）；花过钱的段保留点两下（10-14 口径：确认与撤销两道都在）；busy / 生成中 / 段 id 已存在整句拒 |
 | 14 | krug-copy-ia-1 · 剪辑页「合成 / 合并」两个词 | 定「合成」 | 用户可见的一律「合成」（取消合成 / 合成失败 / 已取消合成 / 正在合成成片）；配音那几句不再叫「合成」（正在配音 / 配音好了 / 没做成），CastPreviewCard 的「合成中…」msgid 与剪辑页分开；代码注释与 CLAUDE.md 里的「合并」是内部叫法不改；英文维持 merge |
-| 15 | owasp-security-1 · 深链回程没有 state | 做 | 契约 + App（2.63：startOauth 生成一次性 state、15 分钟窗口、不是本机刚发起的一律忽略；服务端回带了就必须对上）+ 服务端回带（PR 等「合」）；下一版 App 起强制要求回带 |
+| 15 | owasp-security-1 · 深链回程没有 state | 做 | 契约 + App（2.63：startOauth 生成一次性 state、15 分钟窗口、不是本机刚发起的一律忽略；服务端回带了就必须对上）+ 服务端回带（#116，10-16 已部署；取消授权 / state 过期这几种失败要等 `claude/oauth-fail-back-to-app` 部署才回到 App，见第九节）；下一版 App 起强制要求回带 |
 | 16 | owasp-security-3 · 生产 CSP 放行任意 https: | 做（2.63 后，单独 PR） | 先只收 connect-src，域名表以服务端 videoAsset.service 为准；装机把出片 / 直传 / 市场换装 / 真人档各走一遍再合 —— 漏一个域名是静默不出图，不搭发版。本轮只把 vite.config 注释里那个不存在的 docs/security-checklist.md 引用改掉 |
-| 17 | owasp-security-6 · Live2D 包引用可指向外域 | 做 | 服务端 `resolveRef` 拒 scheme / 绝对路径并让 Physics / Pose / Expressions / Motions / Sound 同走它（PR 等「合」）；App 的 prefetch 只拉与 model3.json 同源的引用并把丢掉的数出来（2.63，兜存量）；舞台加载前的预检另议 |
+| 17 | owasp-security-6 · Live2D 包引用可指向外域 | 做 | 服务端 `resolveRef` 拒 scheme / 绝对路径并让 Physics / Pose / Expressions / Motions / Sound 同走它（#116，10-16 已部署）；App 的 prefetch 只拉与 model3.json 同源的引用并把丢掉的数出来（2.63，兜存量）；舞台加载前的预检另议 |
 | 18 | mcconnell-performance-1 · 零 lazy、vendor-3d 2.95MB | 零风险那一刀做（2.63）；lazy 先量 | ammojs-typed 退出 vendor-3d 正则，rigidBones 的动态 import 真成独立 chunk；冷启动用 debug 包在真机量（第八节：这一轮只量到模拟器），量到几百毫秒以上再做 lazy（范围含 CardDetailPage / CardHologram、先给 lazy 边界失败屏） |
 | 19 | mcconnell-performance-4 · objectUrlCache 无上限 | 做（2.63 后） | 先在模拟器按 dumpsys meminfo 量，再按消费者生命周期释放（计数、不 revoke 还被引用的）。risk 中，不搭发版 |
 | 20 | mcconnell-performance-7 · 画布拖动整屏光栅化 | 先量（2.63 后） | 桌面 Chrome 的 Paint flashing 就量得出；整屏闪绿才改成网格铺大两格 + 只写 transform |
@@ -981,3 +981,64 @@
   - 冷启动三次（force-stop → am start，`PerformanceNavigationTiming` / paint）：DCL 767 / 817 / 824 ms，first-contentful-paint 1804 / 1216 / 1172 ms；vendor-3d（1.08MB）仍在启动时静态拉（start ≈ 0.9s、传输 75~82ms），ammo 那 1.85MB 已不在启动路径上。编译 / 求值的分项这里量不出来（要 chrome://inspect 的 Performance 录制），lazy 做不做等真机数。
 - X-App-Version：服务端只在 AI 调用的流水日志里记它（没花钱，没验到那一行）；生产预检已放行该头（OPTIONS 204 + allow-headers）、浏览器里验过 2.63 发出 `2.63+75`。
 - 查 ARIA 只能用调试包：release 包没 CDP，uiautomator dump 也读不到 WebView 内的节点（整棵树只有 WebView 一层）。
+
+## 九、发版后继续验证（2026-10-19，主人「继续验」）
+
+**做法**：真机那一半我自己做；其余八块并行验证（生产 Live2D 市场、生产 OAuth 回程、分发链、CI 的 android job、服务端测试、客服知识库、模拟器上 e2e 调试包直连生产、本机 dev 界面行为），每块报 FAIL / 存疑的交一位复核员——先找测法问题、再独立复现，复现不了不算。生产全程只读（不登录、不建账号、不花钱）；生产日志里多出的 8 行 `[client-event]` 是这次造的。
+
+### 真机（主人手机 OPPO CPH2771，Android 16，1272×2800）
+
+前置：桌面在前台、约 10 分钟没人碰；生产 `arkvideotasks` / `arkimagegroups` 近 60 分钟 0 条。并排装 e2e 调试包（`.debug`，2.63-debug / 75，指生产）量完即卸，正式包全程没动。
+
+| 项 | 读数 | 结论 |
+|---|---|---|
+| 冷启动（force-stop → am start -W，12 秒后 CDP 读） | Activity TotalTime 首跑 533、之后 384~402 ms；DCL 首跑 185、之后 122~124 ms；FCP 首跑 324、之后 220~224 ms | App 块与 vendor-3d（1.08MB）在 142→153 ms 取完、都在 DCL 之后才开始取，不挡首屏 |
+| 首页最大内容绘制（LCP，buffered） | 1,940 ms，元素是作品简介那段文字 | 等的是拉生产首页数据的网络，不是脚本 ⇒ **第六节第 18 条「lazy」现在不做**：能省的只有几十毫秒的求值，省不到首页出来的那 1.9 秒 |
+| `navigator.storage.estimate()` | quota 10,240 MB（10 GB 封顶）；/data 剩 295G / 457G | **第六节第 4 条按字节淘汰不做**：20 条草稿哪怕每条几十 MB 也远够；`MAX_DRAFTS` 旁写这一行量法即可 |
+| 首页进度条 | role=slider、名字「Playback progress」、valuenow / max / valuetext 都在、tabIndex 0、触控盒 20px | 与模拟器一致 |
+| 2.62 打开 → 更新提示 | 3 秒内弹「有新版本 2.63 · 68.8MB」+ 发版说明；「立即更新」灰着，上方说明没给「允许安装未知应用」并给去开启的键 | 设计如此（侧载第一次自更新都要这一步）；关提示用的是「关闭」，不记跳过 |
+
+**更新到 2.63（主人开了授权后让我更新）**：设置页「检查更新」→「立即更新」→ 头 60 秒 34%，之后掉到约 60KB/s，在 46.2MB 处报「timeout。已经下好的 46.2MB 留着了，再点一次会接着下」→「重试」续传 → 系统安装器 → Update → 13:36:40 装上 2.63 / 75，App 自己拉起，登录态与作品都在。
+- **变慢多半是我自己造成的**：同一时段分发那一块验证在旧金山机房冷缓存整包下载（13:05~13:30），而源站给镜像的出口实测封顶约 1 Mbps（下面「分发」）——两路抢同一条出口。
+- **「timeout」是原生层的英文原词**：`AppUpdaterPlugin` 把异常的 `getMessage()` 原样拼在中文前面；英文界面下后半句又只有中文。没改，记在下面「留着的」。
+- 装好后首条视频停在开头、显示暂停键：FeedPage 里只有点按会画它，手机 13:38:25 有人碰过；同一份代码的调试包冷启动读到 paused:false ⇒ 判为主人点的。
+
+### 生产、发版链与本机
+
+| 块 | 结论 | 要点 |
+|---|---|---|
+| 客户端失败上报（模拟器 e2e 包 → 生产） | 通过 | 能力位 `clientEvents` 为真；window error / unhandledrejection 各报一条，请求体只有 kind / version / name、不带 message 与账号、回 204；生产 pm2 错误日志出现对应行；同一错误不重报；一场会话 8 条封顶。ErrorBoundary / appUpdate / DataLossNotice / boot 四处挂钩没触发过 |
+| X-App-Version | 通过 | 发往 api 的请求都带 `2.63-debug+75`；Cloudinary 与本地资源不带；只有 CORS 预检不带（预检本来就不带自定义头） |
+| OAuth 深链判定（App 侧，模拟器真 WebView） | 判定全对；**登录页失败不显示（真问题 2）** | 没起跳就收到回程 → 忽略并提示；老服务端不带 state：15 分钟内放行、之外提示过期；对的 state → 收下；同一 state 第二次 → 忽略；改到 16 分钟前 → 过期提示；假 token → /me 401 → 回到未登录 |
+| OAuth 服务端（生产，不登录） | 签名与形状全对；**失败回不到 App（真问题 1）** | 开着的是 google / github；起跳把 App 的 state 签进 `app` 字段、坏形状不签、不 400；篡改 / 伪造 / 过期 state 一律不回带、不 5xx；绑定流没被 #116 改坏 |
+| Live2D 市场 | 通过（生产市场里一个社区包都没有） | 生产跑的是新 resolveRef；官方形象（APK 与官网两份）19 条引用全 200、全同源、预取 dropped 0；本机 9 个真实样本包（含 Cubism 官方样例）新规则全放行；7 个对照包（绝对路径 / data: / ../ / 外域 Sound 等）被拒 |
+| 分发链 | 通过 | 清单 75 / 2.63 / 不强制，2.62 按自己的判据会提示；镜像、GitHub、本地包三方 sha256 一致（001e1bce…）；2.62 与 2.63 证书相同；权限 7 条不变；官网下载页与 GitHub 备用链接都指 2.63 |
+| 镜像冷缓存速度 | 测法问题（不是缺陷），但值得知道 | 源站出口实测封顶约 1 Mbps（TX 稳在 145~159KB/s）：每个 Cloudflare 机房的第一位下载者单流约 129KB/s，72MB 至少 9 分钟；断了靠原生下载器 Range 续传 + sha 校验兜底，不会出坏包。docs/app-distribution.md 把这个速度说成「单流长肥管道」不准 |
+| CI 的 android job | 通过 | 样本只有 10-15 一天（之后没有提交）：成功 5 次，中位 137 s、最长 245 s；设成 required 时 land 多等 14~31 s（命中 gradle 缓存）/ 约 129 s（没命中）；ubuntu-latest 迁 26.04（10-19 起）复核通过；ruleset 里 required 只有 build |
+| 服务端测试 | 通过 | 58b934c 上 96 个文件 1654/1654；#116 的新测试放到老代码上会红（不是空转）。⚠ 服务端的 CI 与部署链都不跑 jest |
+| 本机 dev 界面行为 | 删段撤销、缩放、简约页回第③步、草稿淘汰提示、点赞名字、对话正反打提醒都通过；**剪辑页口径与一处小字没做完（真问题 3、4）** | 删段提示停 6006 ms、放回原位；第二次删顶掉第一条提示、旧撤销整句拒；白模不变量守住；缩放步长 1.25、锚在中心、夹在 0.4~2 |
+
+### 暴露的真问题与处理（复核员独立复现过的才算）
+
+| # | 问题 | 处理 |
+|---|---|---|
+| 1 | **原生 App 的第三方登录失败回不到 App**：取消授权、服务端 state 过期时，passport 写死的 `failureRedirect` 把人送到官网错误页，停在系统浏览器里，App 什么都收不到；provider 回 access_denied 以外的错还会变成一段 JSON 的 5xx。老行为（不是 #116 引入），但第六节第 15 条「下一版 App 强制要求回带 state」以它为前提 | 服务端分支 `claude/oauth-fail-back-to-app`（等「合」）：两个回调改用 passport 自定义回调，失败一律从 `failBack` 一处出去 —— 签名对（过期的也算，只用来认送回哪儿）且签进去的 next 是 App 深链的，回 `ideahub://oauth?error=oauth_failed&…&state=<app>`；网页发起、签名不对的照旧落官网、不回带。provider 原话不进 URL；回调出错那一行日志过 `utils/logSafe`（error 码谁都能填，带换行就能伪造整行日志），我们自己的意外错误照旧落堆栈。新测试 62 条 + 两条日志用例，账号与登录相关 8 个套件 162/162 |
+| 2 | **人就在登录页时，失败回程一个字都不显示**（连续两次失败显示的是上一次）：LoginPage 的 err 只在挂载时读一次，深链桥在同一路由 replace 不会重新挂载 | LoginPage 跟着 `location.key` 更新 err（地址里没有 err 时不动，开屏原因那条来路不受影响）；本机 dev 实测 A → B → 再一次 B 都显示，把修复短路后复现原问题。**必须和 1 同一版到用户手里**：1 部署之后每次取消授权都会走到这里 |
+| 3 | **剪辑页「合成」口径没改完**：还剩 7 处用户可见的「合并」、3 处把配音叫「合成」、1 处叫人点已经不存在的「下一步」；剪辑引导那一页也还叫人点「下一步」 | 23 条 msgid 改完（CutPage / PublishPage / SegPlayer / 提取窗 / 白模规则说明 / 剪辑引导），配音几句改成「配 / 做」，英文照 merge / voice-over 口径；法务正文那一句没动（见下面「留着的」） |
+| 4 | **小字对比度漏网**：#/me 的空简介占位句 14px、2.50:1；构建里的棘轮只看同一行，「父元素定字号、子元素定颜色」的写法抓不到 | 4 处正文小字改 slate-400，5 处步骤条分隔符加 aria-hidden，1 处禁用态写 contrast-ok；`check-contrast` 加规则 B（slate-600 写在哪个元素上、元素里有字就红），复核后又补三种漏报（同一行另一元素 aria-hidden、`aria-hidden={false}`、自闭合 input），每次都造违规试红 |
+| 5 | **服务端 `oauth.routes.js` 里有一个字面 NUL 字节**：git / GitHub 把整份当二进制，#116 起这个安全关键文件的改动在 PR 里一行都看不到 | 与 1 同一个分支，改成 `\u0000-\u001f\u007f` 转义（语义不变）。⚠ 这个 PR 的 diff 仍显示 Bin（基线那一份还带 NUL），逻辑改动另贴在 PR 正文里；合进去之后再改这个文件就看得见了 |
+| 6 | **客服知识库（#117）说错与搜不到**：问「2.63 更新了什么」§9.2 排第 10；「撤回」搜不到「撤销」；「登录链接过期」那一档全库没有；没有剪辑页合成失败的排查；§1.4 / §3.1 还写「下一步 / 三页签」；§4.2 勾选框旧名；§7 设置页分组对不上；删草稿漏了「带已出片段的仍先确认」；评测题库没有一题涉及 2.63 | 正本（本仓）按主题小节重写 2.63 的各项、§9.2 只留摘要，补登录两档提示、剪辑页合成失败排查（§3.8）、设置页分组、登录状态过期与登录链接过期的区别；服务端分支 `claude/kb-2.63-fixes`（等「合」）：少量精准同义词 + 版本号切词 + 重新生成副本 + 评测题 10 道。检索探针 20 句全部排进前 3（生产基线 7/17）；原 25 道评测题前 5 节因检索改动的变化为 0 |
+
+另外两件顺手的事：知识库生成脚本 `scripts/kb-server-copy.mjs` 认旧来源那一句的正则遇到「）」会静默不换（旧来源、旧日期原样留下），改成换不上就停，并补回第一行句末的句号；`docs/play-store-checklist.md` 里过时的体积与 versionCode 改成 2.63 的实数。
+
+### 留着的（这一轮没改：要主人定的，或排在以后）
+
+- **法务正文还说「合并」**：`data/aigcLabel.badgeLegalClause`（《用户协议》第五条、《AIGC 内容须知》第二条）写着「经剪辑页合并导出的成片…」。改协议正文牵涉 `TERMS_UPDATED`（改日期 = 所有人重过一次同意门）和官网那一份，等主人定：一起改、只改措辞不改日期，还是留到下次协议修订。
+- **原生更新下载失败那句开头是英文原词**（「timeout。已经下好的 …」）：`AppUpdaterPlugin` 把异常的 message 原样拼在中文前面，英文界面下后半句又只有中文。改法是原生只回码、话由 Web 侧按语言说 —— 动原生，排在下一次碰更新器的时候。
+- **服务端回跳的 message 是固定英文**（「google login failed」），App 原样上屏：要不要按 error 码在 App 里说本地化的话，等主人定。
+- **镜像源站出口约 1 Mbps**：每个新版本在每个 Cloudflare 机房的第一位下载者单流约 129KB/s，72MB 至少 9 分钟；有续传与 sha 兜底、不会出坏包。要快就得把 APK 挪到对象存储 / CDN 回源或发版时预热 —— 涉及钱与运维，等主人定；docs/app-distribution.md 里「单流长肥管道」的解释不准，下次改那份文档时一起改。
+- **CI 只编 sideload debug**（src/play 下的 Java 一次没编过）；**服务端的 CI 与部署都不跑 jest**（58b934c 的测试证据只有这一轮本机重跑）。
+- GenTrace「· N/M 步」与卡组详情「本机计数」改成 slate-400 之后比它们的父标签（slate-500）还亮：照口径执行，主人在意的话改成和父标签同色。
+- 2.63 发版说明与已发出的清单 notes 写着「删草稿、删段不再先问一句」，漏了「带已出片段的草稿仍先确认」：已经发出去，不回改；知识库已说准。
+- 英文问法在客服检索里整体偏弱（结构性老问题）：这一轮只补了 2.63 那几件。
+- 仍然没有任何运行时验证的：真人档取件没收到回包 → 取回卡留着；规则④的两处原生借道（合成后截封面、外链页关闭回调）；客户端上报的另外四处挂钩（ErrorBoundary / 自更新失败 / 本机库丢数据 / 开机被拦）；首页进度条的按键 seek；刚体骨骼的动态块；Live2D 预取的 120 秒超时那条路；第七节第 2 / 3 / 4 / 10 / 12 / 13 / 14 条。验法都是零花费的（本机代理造回包、模拟器、离线 dev），排在下一轮。
