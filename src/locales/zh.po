@@ -183,6 +183,7 @@ msgstr "，这一次已经计费"
 #. 列举几个名字时的分隔符
 #. 列举几个名字时的分隔符
 #. 列举几个名字时的分隔符
+#. 列举几个名字时的分隔符
 #. 列举几个图位名 / 还缺的几项时的分隔符
 #. 列举几个文件名 / 动作组 / 表情名时的分隔符
 #. 列举几个段号时的分隔符（第 1、3 段）
@@ -197,6 +198,7 @@ msgstr "，这一次已经计费"
 #: src/components/flow/EffectWizard.tsx
 #: src/components/flow/GridShotsWizard.tsx
 #: src/components/flow/LeadShotsWizard.tsx
+#: src/components/flow/panelIssueText.ts
 #: src/components/flow/RefStrip.tsx
 #: src/components/TemplateShelf.tsx
 #: src/components/VideoCardAnnotator.tsx
@@ -1589,8 +1591,8 @@ msgid "{who} 登录时出了错，请再试一次。"
 msgstr "{who} 登录时出了错，请再试一次。"
 
 #: src/utils/oauth.ts
-msgid "{who} 登录没有完成：授权被取消了，或者 {who} 那边出了错。可以再试一次。"
-msgstr "{who} 登录没有完成：授权被取消了，或者 {who} 那边出了错。可以再试一次。"
+msgid "{who} 登录没有完成：授权被取消了，或者登录过程出了错。可以再试一次。"
+msgstr "{who} 登录没有完成：授权被取消了，或者登录过程出了错。可以再试一次。"
 
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "{who}，还没挂卡"
@@ -3352,8 +3354,8 @@ msgid "🎬 去剪辑 ›"
 msgstr "🎬 去剪辑 ›"
 
 #. placeholder {0}: node.customRef.durationSec.toFixed(1)
-#. placeholder {1}: Math.round(node.customRef.durationSec)
-#. placeholder {2}: p.durationSec
+#. placeholder {1}: refSecs?.billedInSec
+#. placeholder {2}: refSecs?.outSec
 #: src/components/flow/FlowCanvas.tsx
 msgid "🎬 参考视频已挂上（{0}s · 计价按输入 {1}s + 输出 {2}s）"
 msgstr "🎬 参考视频已挂上（{0}s · 计价按输入 {1}s + 输出 {2}s）"
@@ -4093,6 +4095,10 @@ msgstr "AI 生成整套约 {aiPriceText} token，余额 {balance} 不够——�
 #: src/components/CardModelFit.tsx
 msgid "AI 画竖横两张约 {framesPrice} token"
 msgstr "AI 画竖横两张约 {framesPrice} token"
+
+#: src/components/flow/DialogueWizard.tsx
+msgid "AI 看了一遍：「{flaggedText}」里的人可能不对（每张应该只有这两个人，点那一张看原因）。要重画就点那一张、补一句要求再单独重画；不重画也能接着往下走。"
+msgstr "AI 看了一遍：「{flaggedText}」里的人可能不对（每张应该只有这两个人，点那一张看原因）。要重画就点那一张、补一句要求再单独重画；不重画也能接着往下走。"
 
 #: src/components/flow/GridShotsWizard.tsx
 msgid "AI 看了一遍画面：第 {flaggedList} 格可能和分镜不一样（点开那一格看原因）。要重画就点开、补一句要求再重画；不重画也能接着往下走。"
@@ -6782,8 +6788,12 @@ msgid "先画关键帧：看着对了再出片，不对就重画一张（只花�
 msgstr "先画关键帧：看着对了再出片，不对就重画一张（只花一张图的钱）。"
 
 #: src/components/flow/DialogueWizard.tsx
-msgid "先画双人镜头，再照着它画两个过肩（地方、光线、两人的衣服都对得上）。按画成的张数收钱，约一分钟，可以先离开，画好了会提醒你。"
-msgstr "先画双人镜头，再照着它画两个过肩（地方、光线、两人的衣服都对得上）。按画成的张数收钱，约一分钟，可以先离开，画好了会提醒你。"
+#~ msgid "先画双人镜头，再照着它画两个过肩（地方、光线、两人的衣服都对得上）。按画成的张数收钱，约一分钟，可以先离开，画好了会提醒你。"
+#~ msgstr "先画双人镜头，再照着它画两个过肩（地方、光线、两人的衣服都对得上）。按画成的张数收钱，约一分钟，可以先离开，画好了会提醒你。"
+
+#: src/components/flow/DialogueWizard.tsx
+msgid "先画双人镜头，再照着它画两个过肩（地方、光线、两人的衣服都对得上）。每画好一张，AI 会看一遍是不是只有这两个人，有问题的那张会标出来，由你决定要不要重画。按画成的张数收钱（价钱里含 AI 看的那一遍），约一分钟，可以先离开，画好了会提醒你。"
+msgstr "先画双人镜头，再照着它画两个过肩（地方、光线、两人的衣服都对得上）。每画好一张，AI 会看一遍是不是只有这两个人，有问题的那张会标出来，由你决定要不要重画。按画成的张数收钱（价钱里含 AI 看的那一遍），约一分钟，可以先离开，画好了会提醒你。"
 
 #: src/studio/dialogueDraftStore.ts
 msgid "先画双人镜头…"
@@ -7398,8 +7408,12 @@ msgid "写对白"
 msgstr "写对白"
 
 #: src/components/flow/ModePicker.tsx
-msgid "写对白 {chatPrice}，三个机位每张 {panelPrice}，每句一段约 {gridVideo} / {gridSec} 秒"
-msgstr "写对白 {chatPrice}，三个机位每张 {panelPrice}，每句一段约 {gridVideo} / {gridSec} 秒"
+msgid "写对白 {chatPrice}，三个机位每张 {gridPanelPrice}（含 AI 看一遍），每句一段约 {gridVideo} / {gridSec} 秒"
+msgstr "写对白 {chatPrice}，三个机位每张 {gridPanelPrice}（含 AI 看一遍），每句一段约 {gridVideo} / {gridSec} 秒"
+
+#: src/components/flow/ModePicker.tsx
+#~ msgid "写对白 {chatPrice}，三个机位每张 {panelPrice}，每句一段约 {gridVideo} / {gridSec} 秒"
+#~ msgstr "写对白 {chatPrice}，三个机位每张 {panelPrice}，每句一段约 {gridVideo} / {gridSec} 秒"
 
 #. why 是失败原因整句；moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格
 #: src/studio/dialogueDraftStore.ts
@@ -9048,8 +9062,12 @@ msgid "双人镜头画好了，正在画两个过肩…"
 msgstr "双人镜头画好了，正在画两个过肩…"
 
 #: src/components/flow/DialogueWizard.tsx
-msgid "双人镜头重画之后，两个过肩会标成过期（它们是照着双人镜头画的），要不要跟着重画你来定。"
-msgstr "双人镜头重画之后，两个过肩会标成过期（它们是照着双人镜头画的），要不要跟着重画你来定。"
+#~ msgid "双人镜头重画之后，两个过肩会标成过期（它们是照着双人镜头画的），要不要跟着重画你来定。"
+#~ msgstr "双人镜头重画之后，两个过肩会标成过期（它们是照着双人镜头画的），要不要跟着重画你来定。"
+
+#: src/components/flow/DialogueWizard.tsx
+msgid "双人镜头重画之后，两个过肩会标成过期（它们是照着双人镜头画的），要不要跟着重画你来定。画完 AI 会看一遍（价钱里含这一次）。"
+msgstr "双人镜头重画之后，两个过肩会标成过期（它们是照着双人镜头画的），要不要跟着重画你来定。画完 AI 会看一遍（价钱里含这一次）。"
 
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "发"
@@ -9940,7 +9958,7 @@ msgstr "合成预览要一张图的钱（{0} token），余额不够——去「
 msgid "合计约 {0} token"
 msgstr "合计约 {0} token"
 
-#: src/components/flow/GridShotsWizard.tsx
+#: src/components/flow/panelIssueText.ts
 msgid "同一个人出现了两次"
 msgstr "同一个人出现了两次"
 
@@ -10881,8 +10899,8 @@ msgid "安慰"
 msgstr "安慰"
 
 #: src/data/appUpdate.ts
-msgid "安装包下好了，但拉不起系统安装器。再点一次会直接装，不用重下。"
-msgstr "安装包下好了，但拉不起系统安装器。再点一次会直接装，不用重下。"
+msgid "安装包下好了，但拉不起系统安装器。可以再点一次试试（不用重下）；还不行的话，在浏览器里打开官网下载页 {page} 手动安装。"
+msgstr "安装包下好了，但拉不起系统安装器。可以再点一次试试（不用重下）；还不行的话，在浏览器里打开官网下载页 {page} 手动安装。"
 
 #. placeholder {0}: v.url
 #: src/data/cardViews.ts
@@ -11851,6 +11869,11 @@ msgstr "已用你上传的图"
 #: src/data/appUpdate.ts
 msgid "已经下好的 {size} 留着了，再点一次会接着下，不用从头来。"
 msgstr "已经下好的 {size} 留着了，再点一次会接着下，不用从头来。"
+
+#. 一句完整的、自带句号的话，会被当占位符（keep）接在下载失败原因后面：译文首尾不要留空格
+#: src/data/appUpdate.ts
+msgid "已经下好的一小截（不到 0.1MB）留着了，再点一次会接着下，不用从头来。"
+msgstr "已经下好的一小截（不到 0.1MB）留着了，再点一次会接着下，不用从头来。"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "已经公开到形象市场，别人能搜到它了。"
@@ -18292,8 +18315,12 @@ msgstr "照着下面这句念（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）——出�
 #~ msgstr "照着下面这句念（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）——出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段音色。"
 
 #: src/components/flow/DialogueWizard.tsx
-msgid "照着现在这张双人镜头画：地方、光线、两人的衣服都照它。"
-msgstr "照着现在这张双人镜头画：地方、光线、两人的衣服都照它。"
+msgid "照着现在这张双人镜头画：只沿用地方、光线与两人的衣服，站位按这个机位重新摆。画完 AI 会看一遍（价钱里含这一次）。"
+msgstr "照着现在这张双人镜头画：只沿用地方、光线与两人的衣服，站位按这个机位重新摆。画完 AI 会看一遍（价钱里含这一次）。"
+
+#: src/components/flow/DialogueWizard.tsx
+#~ msgid "照着现在这张双人镜头画：地方、光线、两人的衣服都照它。"
+#~ msgstr "照着现在这张双人镜头画：地方、光线、两人的衣服都照它。"
 
 #: src/components/cut/AutoEditSheet.tsx
 #: src/pages/CutPage.tsx
@@ -19016,7 +19043,7 @@ msgstr "画布里还有本机地址，换台设备取回来会是空的"
 msgid "画幅"
 msgstr "画幅"
 
-#: src/components/flow/GridShotsWizard.tsx
+#: src/components/flow/panelIssueText.ts
 msgid "画成了 {got} 格拼图"
 msgstr "画成了 {got} 格拼图"
 
@@ -19141,11 +19168,19 @@ msgstr "画面里怎么认出这个人偶（这句话会进出片提示词）"
 msgid "画面里是真实人物（真人）"
 msgstr "画面里是真实人物（真人）"
 
-#: src/components/flow/GridShotsWizard.tsx
+#: src/components/flow/panelIssueText.ts
+msgid "画面里有 {got} 个人（这一张应该是 {want} 个）"
+msgstr "画面里有 {got} 个人（这一张应该是 {want} 个）"
+
+#: src/components/flow/panelIssueText.ts
+msgid "画面里有 {got} 个人（这一张应该没有人）"
+msgstr "画面里有 {got} 个人（这一张应该没有人）"
+
+#: src/components/flow/panelIssueText.ts
 msgid "画面里有 {got} 个人（这一格应该是 {want} 个）"
 msgstr "画面里有 {got} 个人（这一格应该是 {want} 个）"
 
-#: src/components/flow/GridShotsWizard.tsx
+#: src/components/flow/panelIssueText.ts
 msgid "画面里有 {got} 个人（这一格应该没有人）"
 msgstr "画面里有 {got} 个人（这一格应该没有人）"
 
@@ -21116,8 +21151,8 @@ msgid "第三方登录未完成"
 msgstr "第三方登录未完成"
 
 #: src/utils/oauth.ts
-msgid "第三方登录没有完成：授权被取消了，或者对方那边出了错。可以再试一次。"
-msgstr "第三方登录没有完成：授权被取消了，或者对方那边出了错。可以再试一次。"
+msgid "第三方登录没有完成：授权被取消了，或者登录过程出了错。可以再试一次。"
+msgstr "第三方登录没有完成：授权被取消了，或者登录过程出了错。可以再试一次。"
 
 #: src/components/guide/tours.tsx
 #~ msgid "第三条：AI 从整段视频里<0>均匀抽</0>几帧看（你只定抽几帧）， 总结画风质感、运镜与分镜骨架，再提炼可复用的场景／道具卡。帧数越多认得越准，价钱不变。 它<1>不出片、不把你的视频传上公网，也是三条里唯一不需要付费套餐的</1>。"
@@ -23249,6 +23284,10 @@ msgstr "输入的用户名还对不上"
 msgid "输入该用户的用户名 <0>{0}</0> 以确认："
 msgstr "输入该用户的用户名 <0>{0}</0> 以确认："
 
+#: src/data/economy.ts
+msgid "输出 {outSec} 秒超过输入视频（{inSec} 秒）的 1.5 倍：方舟对带视频输入的出片有最低用量，输入按 {billedInSec} 秒计价"
+msgstr "输出 {outSec} 秒超过输入视频（{inSec} 秒）的 1.5 倍：方舟对带视频输入的出片有最低用量，输入按 {billedInSec} 秒计价"
+
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "边界"
 msgstr "边界"
@@ -23940,6 +23979,10 @@ msgstr "这一帧没画成（{why}），改用纯文字再画一次"
 msgid "这一帧用到哪儿"
 msgstr "这一帧用到哪儿"
 
+#: src/components/flow/DialogueWizard.tsx
+msgid "这一张可能有问题"
+msgstr "这一张可能有问题"
+
 #: src/pages/CustomCardPage.tsx
 msgid "这一张既当卡面，也当这张卡的主形象参考。"
 msgstr "这一张既当卡面，也当这张卡的主形象参考。"
@@ -23947,6 +23990,10 @@ msgstr "这一张既当卡面，也当这张卡的主形象参考。"
 #: src/components/flow/DialogueWizard.tsx
 msgid "这一张是照着之前那张双人镜头画的（或者人、整体交代改过）：重画一下，地方和光线才与现在的双人镜头对得上。"
 msgstr "这一张是照着之前那张双人镜头画的（或者人、整体交代改过）：重画一下，地方和光线才与现在的双人镜头对得上。"
+
+#: src/components/flow/DialogueWizard.tsx
+msgid "这一张没核对上（AI 没看成），要看就自己看一眼：应该只有这两个人。"
+msgstr "这一张没核对上（AI 没看成），要看就自己看一眼：应该只有这两个人。"
 
 #: src/pages/tutor/TutorRunPage.tsx
 msgid "这一批没整理出东西。"

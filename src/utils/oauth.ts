@@ -157,9 +157,11 @@ export function oauthFailText(error: string | null | undefined, message: string 
   const who = "provider" in f && f.provider === "google" ? "Google" : "provider" in f && f.provider === "github" ? "GitHub" : "";
   switch (f.kind) {
     case "notCompleted":
+      // ★ 不点名是谁的错（2026-10-19 复核抓到）：服务端对我们自己的意外错误（TypeError 之类，console.error 那一支）回的也是
+      //   「<provider> login failed」—— 原来写「或者 Google 那边出了错」，会把我们的错算到 Google 头上。中性说「登录过程出了错」
       return who
-        ? t`${who} 登录没有完成：授权被取消了，或者 ${who} 那边出了错。可以再试一次。`
-        : t`第三方登录没有完成：授权被取消了，或者对方那边出了错。可以再试一次。`;
+        ? t`${who} 登录没有完成：授权被取消了，或者登录过程出了错。可以再试一次。`
+        : t`第三方登录没有完成：授权被取消了，或者登录过程出了错。可以再试一次。`;
     case "stateExpired":
       // 服务端那份签名 state 10 分钟过期：人在 Google / GitHub 的授权页上耽搁太久（与本机 15 分钟那条「登录链接过期了」是两道闸）
       return t`在授权页上停留太久，这次登录已经失效了，请重新登录。`;

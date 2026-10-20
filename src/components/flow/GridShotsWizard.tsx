@@ -14,14 +14,13 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useRef, useState } from "react";
 import { AI_REAL, groupsAvailable } from "../../ai";
 import { myCards, realFaceIssue } from "../../data/account";
-import { CHAT_TURN_TOKENS, clampDuration, durationChoices, fmtTokens, tierOf } from "../../data/economy";
-import { GRID_DEFAULT_SEC, GRID_SHOTS_MAX, GRID_SHOTS_MIN, namedOutside, type GridNote, type PanelIssue } from "../../data/gridShots";
+import { CHAT_TURN_TOKENS, PANEL_CHECK_TOKENS, clampDuration, durationChoices, fmtTokens, tierOf } from "../../data/economy";
+import { GRID_DEFAULT_SEC, GRID_SHOTS_MAX, GRID_SHOTS_MIN, namedOutside, type GridNote } from "../../data/gridShots";
 import { LEAD_CAST_MAX, SCENE_MAX, SCENE_MIN } from "../../data/sceneShots";
 import { useAccountVersion } from "../../hooks/useAccount";
 import type { AppendSpec } from "../../studio/flowStore";
 import {
   GRID_STEPS,
-  PANEL_CHECK_TOKENS,
   PANEL_REDRAW_TOKENS,
   addShot,
   discardParkedGroup,
@@ -54,6 +53,7 @@ import ConfirmDialog from "../ConfirmDialog";
 import Spinner from "../Spinner";
 import TokenCost from "../TokenCost";
 import CastPicker from "./CastPicker";
+import { panelIssuesLine } from "./panelIssueText";
 
 const STEP_LABEL: Record<GridStep, MessageDescriptor> = {
   cast: msg`人物`,
@@ -226,19 +226,6 @@ export default function GridShotsWizard({
     if (n.kind === "named") return t`有几格的画面写到了「${names}」，已把他们算进那几格画面里的人（不想让他们入镜，就改掉画面里的名字）`;
     return t`「${names}」不在你选的人物里，没算进画面里的人（画面照写）`;
   };
-  /** 看一遍发现的问题（gridShots.panelIssues）→ 一句人话 */
-  const issueText = (x: PanelIssue): string => {
-    if (x.kind === "panels") {
-      const got = x.got;
-      return t`画成了 ${got} 格拼图`;
-    }
-    if (x.kind === "duplicate") return t`同一个人出现了两次`;
-    const got = x.got;
-    const want = x.want;
-    return want === 0 ? t`画面里有 ${got} 个人（这一格应该没有人）` : t`画面里有 ${got} 个人（这一格应该是 ${want} 个）`;
-  };
-  /** 单独摆出来的那一句首字母大写（英文的问题句是按「接在逗号后面」写的小写开头；中文不受影响） */
-  const capFirst = (x: string): string => x.charAt(0).toUpperCase() + x.slice(1);
   /** 看出问题的那几格（第几格，从 1 起） */
   const flagged = d.panels.flatMap((p, i) => (p?.image && p.check?.state === "done" && p.check.issues.length ? [i + 1] : []));
   const flaggedList = flagged.join(sep);
@@ -627,7 +614,7 @@ export default function GridShotsWizard({
                 if (c?.state === "done" && c.issues.length)
                   return (
                     <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-200">
-                      {capFirst(c.issues.map(issueText).join(sep))}
+                      {panelIssuesLine(c.issues, "cell")}
                     </p>
                   );
                 if (c?.state === "failed")

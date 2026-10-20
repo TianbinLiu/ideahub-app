@@ -1410,14 +1410,15 @@ export function nodeCost(nodes: FlowNode[], idx: number, mode: FlowMode, tierOve
   const carry = nodeCarry(nodes, idx);
   // ★ 帧在不在问 usableFrames（genNode 发的也是这一份）：老草稿里的占位图不算帧，出片前要补画、补画要进报价
   const frames = usableFrames(node, prop, idx > 0 ? chosenOf(nodes[idx - 1]) : null);
-  // ── 延长段：(输入 + 输出)×系数，与素材参考同一个式子（服务端 resolveR2v 延长那一支按 tokens.materialRefTokens 结算）──
+  // ── 延长段：(计价输入 + 输出)×系数，与素材参考同一个式子（economy.materialRefCost，含方舟最低用量；服务端 resolveR2v 延长那一支
+  //   按 tokens.materialRefTokens 结算，最低用量那一步服务端后上）──
   // ★ 输入秒数问 extendSourceOf（genNode 真发的是同一份）；档位没有 r2v 价时报 0（渲染路径不能炸，genNode 门口会整句拒并指路）
   if (node.extendFrom) {
     const src = extendSourceOf(nodes, node);
     const tierId = tierOverride ?? node.videoTier;
     return src && tierOf(tierId).r2vMult !== null ? materialRefCost(src.durationSec, prop.durationSec, tierId) : 0;
   }
-  // ── 素材参考（自定义 = 多图 + 参考视频）：(输入 + 输出)×系数，与真扣同一个函数 ──
+  // ── 素材参考（自定义 = 多图 + 参考视频）：(计价输入 + 输出)×系数，与真扣同一个函数 ──
   // ★ 档位没有 r2v 价（r2vMult null，即 hd/std/fast）时**按纯帧模式报**：materialRefCost
   //   在那种档上是 throw（报价函数开发期就该炸），而这里是渲染路径不能炸 ——
   //   genNode/segmentGen 会在出片前整句拒并指路换档，报价旁的提示条负责把话说在前面。

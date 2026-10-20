@@ -7,7 +7,8 @@
 //     动作在 flowStore.genNode(opts.revise)，宿主决定走 genNode 还是 studioStore.genNodeVideo（工坊那面要顺带收窗）。
 //   ⏩ 往后延长：接着这一段的最后一帧往后拍几秒，新拍的那一截单独成一段（产物只有新的一截，官方示例量过）。
 //     只给最后一段（判据 flowStore.extendIssue 一处）；落段在 flowStore.extendNode、价钱拿「真会落下的那一段」问 appendQuote。
-// ★ 三件事必须说在按钮旁边（铁律八）：按 r2v 计价（重拍：输入 = 成片时长 × 2；延长：输入 + 输出）；只留最近一版可还原（重拍）；
+// ★ 三件事必须说在按钮旁边（铁律八）：按 r2v 计价（重拍：输入 = 成片时长 × 2；延长：计价输入 + 输出，输出超过输入 1.5 倍时
+//   计价输入按方舟最低用量抬高，economy.materialRefSecs / minUsageNote）；只留最近一版可还原（重拍）；
 //   声音与「只改几秒」各说到哪一步为止 —— 都是 2026-10-05 付费探测 U3（design/video-input-probe.mjs，电影级）看出来的：
 //   ① 出声时原片的声音是**照着重做**的（同样位置的敲击声与纸声、纹理不完全一样、响度低约 1 LU），不是原样保留；
 //   ② 写「只改第 2-3 秒换红手套」，红手套从手第 1 秒一入画就换上了、一直到第 3 秒 —— 同一个连续的动作模型会整段一起改，
@@ -16,7 +17,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
 import { AI_REAL } from "../../ai";
 import { tierBlockReason, tierGo, tierOffered } from "../../data/account";
-import { durationChoices, fmtTokens, r2vPriceIssue, r2vTokens, tierOf } from "../../data/economy";
+import { durationChoices, fmtTokens, materialRefSecs, minUsageNote, r2vPriceIssue, r2vTokens, tierOf } from "../../data/economy";
 import { useAccountVersion } from "../../hooks/useAccount";
 import UpgradeLink from "../UpgradeLink";
 import {
@@ -106,8 +107,14 @@ export default function FixSegmentBox({
   const spec = isLast && !extIssue ? extendSpec(nodes, index, { text: extText || " ", durationSec: outSec }) : null;
   const extCost = spec ? appendQuote(nodes, mode, spec) : 0;
   const extPrice = AI_REAL ? fmtTokens(extCost) : t`演示`;
-  /** 计价输入（被延长那一段的时长）：extendSpec 记下的那个数，落段之后 nodeCost / genNode 经 extendSourceOf 读到的也是它 */
-  const inSec = spec?.extendFrom?.durationSec ?? sec;
+  /**
+   * 计价那几个秒数（economy.materialRefSecs —— 报价 appendQuote → nodeCost → materialRefCost 读的同一份）：输入取 extendSpec 记下的
+   * 被延长那一段的时长（落段之后 nodeCost / genNode 经 extendSourceOf 读到的也是它），再按方舟最低用量折算；
+   * 抬高了就在下面多说一句为什么（不说的话人看着「这一段才 4 秒，怎么按 7 秒算」）
+   */
+  const extSecs = materialRefSecs(spec?.extendFrom?.durationSec ?? sec, outSec, node.videoTier);
+  const inSec = extSecs.billedInSec;
+  const minNote = minUsageNote(extSecs);
   const canExtend = !planIssue && !!spec && extText.trim().length > 0 && !disabled;
 
   const chip = (k: "revise" | "extend", label: string) => (
@@ -242,6 +249,7 @@ export default function FixSegmentBox({
               <Trans>
                 接着这一段的最后一帧往后拍 {outSec} 秒，画面和声音接上；新拍的这一截单独成一段，接在最后。挂的人物卡照样一起发，锁住长相。按输入 {inSec} 秒 + 输出 {outSec} 秒计价
               </Trans>
+              {minNote && <span className="block">{minNote}</span>}
             </p>
             <button
               onClick={() => canExtend && onExtend(extText.trim(), outSec)}

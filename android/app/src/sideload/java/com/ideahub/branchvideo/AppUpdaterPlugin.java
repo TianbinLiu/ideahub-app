@@ -7,6 +7,7 @@ import android.os.Build;
 import android.provider.Settings;
 import android.system.ErrnoException;
 import android.system.OsConstants;
+import android.util.Log;
 
 import androidx.core.content.FileProvider;
 
@@ -55,11 +56,15 @@ import java.util.concurrent.Executors;
  *   getMessage()（「timeout」「Unable to resolve host …」）原样拼在中文前面交给 Web 上屏 —— 中文界面开头一个英文原词，
  *   英文界面后半句又只有中文（2.63 发版后真机更新时撞到「timeout。已经下好的 46.2MB 留着了…」）。现在 reject 的 code 是
  *   UpdateError 头上那张码表，已经下好的字节数（received）与 HTTP 状态（httpStatus）放在 data 里，话由 Web 侧按界面语言说
- *   （src/data/appUpdate.ts 的 updateFailText —— 码表两边一起改）。reject 的 message 只给日志看（码 + 原生原话），
- *   Web 认得出码时一个字都不上屏。
+ *   （src/data/appUpdate.ts 的 updateFailText —— 码表两边一起改）。原生原话只进 logcat（rejectWith 里那一行 Log.w：码 + 原话，
+ *   原来注释这么写、实际谁都没记 —— call.reject 不带异常时 Capacitor 不打日志，Web 侧的失败上报也只带码）；
+ *   reject 的 message 照旧带着它，只给认不出码的老 Web 兜底，Web 认得出码时一个字都不上屏。
  */
 @CapacitorPlugin(name = "AppUpdater")
 public class AppUpdaterPlugin extends Plugin {
+
+    /** logcat 的 tag（`adb logcat -s AppUpdater`）。只有 rejectWith 那一行失败记录用它 */
+    private static final String TAG = "AppUpdater";
 
     /** 下载超时。APK 近 60MB，慢网上一分钟都下不完是常态，别设太短 */
     private static final int CONNECT_TIMEOUT_MS = 15_000;
@@ -136,6 +141,13 @@ public class AppUpdaterPlugin extends Plugin {
      *   无条件拼在错误后面的，而完全没网 / 镜像 404 时 `.part` 压根没建 —— 屏幕上写着「留着了」，目录里一个字节都没有）。
      */
     private static void rejectWith(PluginCall call, UpdateError e, long received) {
+        // ★ 原生原话只记在这里（2026-10-19 复核抓到：文件头说「只给日志看」，可 call.reject(msg, code, data) 不带异常时
+        //   Capacitor 不走 Logger.error，Web 侧的失败上报也只带码 —— 原话谁都没记下来，真机上出了 FAILED 只剩一个码可查）。
+        //   一行：码 + HTTP 状态 + 本机已有字节 + 原话（UpdateError 的 message = 码 + 异常的 toString：异常类名、我们自己的
+        //   镜像主机名或缓存目录里的文件名），堆栈挂在 cause 上。不含账号、token 之类的东西 —— 这个插件手上本来就没有它们。
+        Log.w(TAG, e.getMessage()
+                + (e.httpStatus > 0 ? " · http=" + e.httpStatus : "")
+                + (received >= 0 ? " · received=" + received : ""), e.getCause());
         JSObject data = new JSObject();
         if (received >= 0) data.put("received", received);
         if (e.httpStatus > 0) data.put("httpStatus", e.httpStatus);

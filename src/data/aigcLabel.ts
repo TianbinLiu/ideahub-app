@@ -107,6 +107,7 @@ export function badgeIsPersistent(): boolean {
  */
 export function badgeLegalClause(): string {
   if (badgeIsPersistent()) {
+    // i18n-ignore-next-line: 法务正文的一截（与下面那一支同一个口径，2026-10-19 补齐）：只在整份豁免、只有中文的 agreements.tsx 里渲染（check-i18n 的 EXEMPT）；那份要翻译时这里一起翻
     return `成片画面每一帧都带「${AIGC_BADGE_TEXT}」角标，导出到本地的文件里同样有`;
   }
   return (

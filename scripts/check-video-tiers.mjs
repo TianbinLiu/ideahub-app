@@ -12,7 +12,9 @@
 //   规则一条都不在这里重打：直接 import 那个模块（Node 只剥类型，所以它必须零运行时依赖），economy.ts 那一条读源文件。
 // ★ 仓内门禁纪律：写完先造真违规试红（--module= 指向改坏的副本）。逐条试过，下面这几条各自变红：
 //   ① 删掉「草稿」那一行的 freeOk；② 把「高清」的 maxSec 改成 10（与「草稿」不一致）；③ FREE_VIDEO_ALLOW 少一行；
-//   ④ 把「草稿」的 resolution 改成 1080p；⑤ FREE_DEFAULT_CHAIN 改成 ["fast"]（11-24 之后没有免费档）；⑥ 480p 的档开 refVid。
+//   ④ 把「草稿」的 resolution 改成 1080p；⑤ FREE_DEFAULT_CHAIN 改成 ["fast"]（11-24 之后没有免费档）；⑥ 480p 的档开 refVid；
+//   （2026-10-19 加最低用量那一段时再试四条）⑦ materialRefInputSec 直接回输入（不抬）；⑧ 抬多一秒；
+//   ⑨ economy.materialRefCost 改回 (inSec + outSec)；⑩ economy.materialRefSecs 不调 materialRefInputSec。
 //
 // 用法：node scripts/check-video-tiers.mjs [--module=<另一份 videoTierTable.ts 的路径，造违规试红用>] [--economy=<另一份 economy.ts>]
 import fs from "node:fs";
@@ -141,18 +143,59 @@ for (const t of T) {
   eq("高清 5 秒（720p，改之前的数）", q(5, ps(byId.get("hd").model, "720p"), byId.get("hd").mult), 165600);
 }
 
-// ── economy.ts：tierOf 不许按下标兜底 ──
+// ── 含输入视频的最低用量（materialRefInputSec，2026-10-19；延长 / 示例视频出片的计价输入）──
+//   正例拿方舟价目页链到的最低用量表逐格对（输入给 1 秒 = 只看最低用量那一侧；函数本身不夹，夹在 economy.materialRefSecs）；
+//   反例是「没超过 1.5 倍就不许抬」与「片段重拍（输出 = 输入）永远够得上」—— 抬多了就是多收，与少收一样是报价 ≠ 实收。
+{
+  const inSec = M.materialRefInputSec;
+  const raw = (i, o, perSec) => (inSec(i, o) + o) * perSec;
+  // 2.5 720p（每秒 21,600）：输出 4 / 5 / 6 / 7 / 8 / 10 / 15 / 23 秒的官方最低用量
+  const official25 = { 4: 151200, 5: 194400, 6: 216000, 7: 259200, 8: 302400, 10: 367200, 15: 540000, 23: 842400 };
+  for (const [o, want] of Object.entries(official25)) eq(`最低用量：2.5 720p 输出 ${o} 秒`, raw(1, Number(o), M.SEC_720P_TOKENS), want);
+  // 2.0 480p（9:16 每秒 10,044）：输出 4 / 7 / 15 秒
+  const per480 = M.perSecTokens(M.SEEDANCE_2_0_MINI, "480p", "9:16");
+  const official20 = { 4: 70308, 7: 120528, 15: 251100 };
+  for (const [o, want] of Object.entries(official20)) eq(`最低用量：2.0 480p 输出 ${o} 秒`, raw(1, Number(o), per480), want);
+  // 10-19 付费验证 c2（cgt-20261020074220-c7l9g：2.5 延长，输入 4 秒、输出 7 秒）方舟实收 259,200 = 12 × 21,600
+  eq("付费验证 c2：输入 4 输出 7 按 5 + 7 秒收", raw(4, 7, M.SEC_720P_TOKENS), 259200);
+  // 反例：没超过 1.5 倍不抬
+  eq("输入 5 输出 7（⌈14/3⌉ = 5，刚好够）不抬", inSec(5, 7), 5);
+  eq("输入 4 输出 6（⌈12/3⌉ = 4，刚好够）不抬", inSec(4, 6), 4);
+  eq("输入 10 输出 15 不抬", inSec(10, 15), 10);
+  eq("输入 20 输出 30 不抬", inSec(20, 30), 20);
+  eq("输入 4 输出 30 抬到 20", inSec(4, 30), 20);
+  // 片段重拍（edit：输出 = 输入）在报价窗口 [4,30] 里永远够得上最低用量 —— 所以 r2vTokens 不走这条
+  for (let s = 4; s <= 30; s++) ok(`片段重拍输入 = 输出 = ${s} 秒时最低用量不该抬高输入`, inSec(s, s) === s);
+  // 报价 = round((计价输入 + 输出) × 21,600 × 系数)：与服务端 materialRefTokens 改完之后同一个乘法顺序（server 分支 claude/ark-min-usage）
+  const q = (i, o, mult) => Math.round((inSec(i, o) + o) * M.SEC_720P_TOKENS * mult);
+  eq("电影级延长 4 → 7 秒", q(4, 7, M.ULTRA_R2V_MULT), 725760);
+  eq("电影级延长 4 → 15 秒", q(4, 15, M.ULTRA_R2V_MULT), 1512000);
+  eq("电影级延长 4 → 30 秒", q(4, 30, M.ULTRA_R2V_MULT), 3024000);
+  eq("电影级延长 10 → 15 秒（不抬，与改之前一样）", q(10, 15, M.ULTRA_R2V_MULT), 1512000);
+  eq("高清示例视频 4 → 7 秒", q(4, 7, M.HD_R2V_MULT), 241920);
+  eq("高清示例视频 4 → 15 秒", q(4, 15, M.HD_R2V_MULT), 504000);
+}
+
+// ── economy.ts：tierOf 不许按下标兜底；延长 / 示例视频的报价必须走最低用量那一步 ──
 {
   const src = fs.readFileSync(econPath, "utf8");
   const m = /export function tierOf\([^)]*\)[^{]*\{([\s\S]*?)\n\}/.exec(src);
   ok("economy.ts 里找不到 tierOf", !!m);
   if (m) ok(`economy.tierOf 又按下标兜底了（VIDEO_TIERS[n]）—— 在表前面插一档就会悄悄换成另一档，兜底要认显式 id`, !/VIDEO_TIERS\s*\[\s*\d+\s*\]/.test(m[1]));
+  // ★ 只按结构查（宁可漏报）：materialRefSecs 要调 materialRefInputSec，materialRefCost 要拿 billedInSec 去乘 —— 任何一处改回
+  //   「(输入 + 输出)」，延长 / 示例视频的报价就又比方舟实收少（2026-10-19 付费验证 c2 / d 两发都是这么少收的）
+  const secs = /export function materialRefSecs\([^)]*\)[^{]*\{([\s\S]*?)\n\}/.exec(src);
+  ok("economy.ts 里找不到 materialRefSecs", !!secs);
+  if (secs) ok("economy.materialRefSecs 没调 materialRefInputSec（计价输入要按方舟最低用量折算，规则只在 videoTierTable）", /materialRefInputSec\(/.test(secs[1]));
+  const cost = /export function materialRefCost\([^)]*\)[^{]*\{([\s\S]*?)\n\}/.exec(src);
+  ok("economy.ts 里找不到 materialRefCost", !!cost);
+  if (cost) ok("economy.materialRefCost 没拿 materialRefSecs 的 billedInSec 计价（又按「输入 + 输出」报，会比方舟最低用量少收）", /materialRefSecs\(/.test(cost[1]) && /billedInSec/.test(cost[1]));
 }
 
 if (problems.length) {
   console.error(`\n❌ 出片档位表检查没过（${problems.length} / ${ran}）：\n`);
   for (const p of problems) console.error("  · " + p);
-  console.error("\n改法：档位的能力 / 价目 / 分辨率 / 谁能用只在 src/data/videoTierTable.ts；改免费档或价钱先改服务端 config/tokens.js（服务端先发）。\n");
+  console.error("\n改法：档位的能力 / 价目 / 分辨率 / 谁能用只在 src/data/videoTierTable.ts；改免费档或降价先改服务端 config/tokens.js（服务端先发），涨价反过来 App 先发（videoTierTable 文件头）。\n");
   process.exit(1);
 }
-console.log(`✓ 出片档位表检查通过（${ran} 条：每格必写 / 同模型一致 / 免费档 = 服务端 / 停用与默认档链 / 每秒 token / tierOf 不按下标）`);
+console.log(`✓ 出片档位表检查通过（${ran} 条：每格必写 / 同模型一致 / 免费档 = 服务端 / 停用与默认档链 / 每秒 token / 含输入视频的最低用量 / tierOf 不按下标）`);

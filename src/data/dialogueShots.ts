@@ -6,7 +6,8 @@
 // 纯函数、零运行时依赖（只许 import type）：构建里 scripts/check-dialogue-shots.mjs 直接 import 它跑正反例。
 // ★ 调模型、扣钱、说人话在 studio/structuredSkills（runDialogue）与 studio/dialogueDraftStore；出图走 ai/real.generateFrame（单张）。
 // ★★ 三个机位**一张接一张**画，不走组图：先画双人镜头，再拿它当图1 画两个过肩 ——
-//   ① 过肩那两张要与双人镜头是同一个地方、同一道光、两人同一身衣服，拿双人那张当参考图是最直接的锚；
+//   ① 过肩那两张要与双人镜头是同一个地方、同一道光、两人同一身衣服，拿双人那张当参考图是最直接的锚
+//     （只锚这三样、不锚构图和站位：照搬站位就会同一个人画两次，angleRefLine 的 ★★）；
 //   ② 不依赖服务端的组图任务（ideahub-server#106 已于 2026-10-06 上线，这里仍有意一张接一张画：过肩要拿画好的双人镜头当图1，组图做不到这一步）。
 // ★★ 一句一段，台词写成「名字说：“……”」：segmentGen.hasDialogue 认引号配音、shotScript.lineSpeakers 认出是谁说的
 //   （只带那个人卡上的声音样本；出声的档再加「别出字幕」那一句）。这两处的规矩不在这里另写一份，只照它们认的形状写，
@@ -202,12 +203,24 @@ export const angleMoment = (angle: DialogueAngle, names: readonly [string, strin
 
 /**
  * 画机位时接在后面的参考图点名句。
+ * ★★ 过肩那张的图1（双人镜头）**只沿用地方、光线与服装，明说不要照搬它的构图和站位**，并点名前景那个人只以肩膀和后脑出现一次
+ *   （2026-10-19 付费对比，docs/canvas-platforms-ecosystem-research.md 第九节）：原来写「地方、光线、两人的长相和服装都照它，只把机位换成上面写的」，
+ *   模型连站位一起照搬 —— 双人镜头里两个人原样站着、再在前景叠一个露肩膀的人，同一个人画了两次：同一组卡、同一张双人镜头，
+ *   原写法 12/15 张多画一个人（g1 一组：单图卡 7/10、每人两张图的卡 5/5），这一句在每人两张图的 g1 上 1/10；单图卡三组补验 14/30 → 2/12
+ *   （g1 2/4、另两组 0/8，仍会漏，所以画完还要看图复核）；过肩干脆不带双人镜头更糟（8/10，地方和光线还对不上双人镜头）。
+ *   画完仍让 AI 看一遍（dialogueDraftStore.checkAngle）：这一句压不到零。
  * @param bind ai/real.shotGroupRefs 的「图几是谁」（卡图）；画过肩时它从图2 起编号
- * @param base 第一张参考图是这场戏已经画好的双人镜头（画两个过肩时为真）
+ * @param over 画哪个过肩（faceA / faceB）—— 第一张参考图是这场戏已经画好的双人镜头；画双人镜头（或手里没有双人镜头）传 null
+ * @param names 两个人（按点的先后）：过肩时说前景是谁
  */
 /* i18n-frozen: 画对话机位的参考图点名句，进出图模型，冻结中文 */
-export const angleRefLine = (bind: string, base: boolean): string => {
-  const head = base ? "图1 是这场戏的双人镜头：地方、光线、两人的长相和服装都照它，只把机位换成上面写的" : "";
+export const angleRefLine = (bind: string, over: Exclude<DialogueAngle, "two"> | null, names: readonly [string, string]): string => {
+  // 拍 A 的过肩，前景是 B 的肩膀；拍 B 的反过来（与 angleMoment 的站位同一套）
+  const front = over === "faceA" ? safeName(names[1]) : safeName(names[0]);
+  const head =
+    over === "faceA" || over === "faceB"
+      ? `图1 是这场戏的双人镜头：只沿用图1 的地方、光线与服装，不要照搬它的构图和站位；${front}只以前景虚化的肩膀和后脑出现一次`
+      : "";
   const all = [head, bind].filter(Boolean).join("；");
   return all ? `。参考图：${all}；人物的长相、发型与服装与参考图一致` : "";
 };

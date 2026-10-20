@@ -15,7 +15,7 @@
 import { AI_REAL, ARK_REF_IMAGES_MAX, ArkTaskUnknown, SegmentGenFailed, VIDEO_PROMPT_MAX, composeSegments, generateFrame, notesInParens, planCardRefs, prepareMaterialRefs, refCardIds, refineFrame, type KeptFrames } from "../ai";
 import { compileMentions, drawExtraRefs, extraRefLines, mentionTargets, plainMentions, usableExtraRefs, type ExtraRef } from "../data/refMentions";
 import { uploadImage } from "../api/uploads";
-import { IMAGE_TOKENS, blockoutPriceIssue, blockoutTier, fmtTokens, r2vPriceIssue, tierOf, providerOf, clampDuration, videoTokensOfSpec, promptMaxOf, refAudioSecOf, type VideoTier } from "../data/economy";
+import { IMAGE_TOKENS, blockoutPriceIssue, blockoutTier, fmtTokens, r2vPriceIssue, tierOf, providerOf, clampDuration, videoTokensOfSpec, promptMaxOf, refAudioSecOf, materialRefSecs, minUsageNote, type VideoTier } from "../data/economy";
 // 设定帧那一步最多喂几张参考图（经典路的预算）：那句提示里的数字从它取，不写死（2026-10-10 文案复核抓到写死的「3 张」）
 import { MAX_REF_IMAGES } from "../ai/real";
 import { frameMoment, isMultiShot, lineSpeakers, momentCards, packShots } from "../data/shotScript";
@@ -97,8 +97,9 @@ export interface SegmentGenInput {
    * **素材参考**（自定义 = 多图 + 参考视频，主人点名的形态）：用户自传的参考视频
    * （服务端 /uploads/material-video/register 登记过的地址）+ 首/中/尾帧参考图，
    * 时序靠**默认提示词点名**（customRefPrompt 唯一实现——「图片1是第一帧画面…」）。
-   * 走 reference 子任务：输出时长用户选（3~10s），计价 (输入+输出)×系数
-   * （economy.materialRefCost ↔ server tokens.materialRefTokens，跨仓逐字相等）。
+   * 走 reference 子任务：输出时长用户选（这一档的时长窗口内），计价 (计价输入+输出)×系数，计价输入含方舟最低用量
+   * （economy.materialRefCost ↔ server tokens.materialRefTokens：夹取跨仓逐字相等；最低用量那一步 App 先上、服务端后上，
+   *  过渡期 App 报价高于实扣，见 videoTierTable.materialRefInputSec）。
    * ★ 与 refVideoUrl（白模 edit 复刻）互斥使用：调用方不该两个都给。
    */
   materialRef?: { url: string; durationSec: number; mids?: string[] };
@@ -1199,11 +1200,19 @@ export async function generateSegment(
     );
     if (fitted.voiceDropped) notes.push(t`音色点名句没能发出去（提示词已经写满）——台词仍会被配音，但音色随机；把要求写短些就能带上`);
     if (fitted.subDropped) notes.push(t`「台词别显示成字幕」那句没能发出去（提示词已经写满）——成片里可能出现台词字幕；把要求写短些就能带上`);
-    const inSec = input.extendRef.durationSec;
+    // 「输入 N 秒」印的是**计价**的那个数（含方舟最低用量，economy.materialRefSecs —— 与报价同一处），抬高了就把原因记进 notes
+    const ms = materialRefSecs(input.extendRef.durationSec, input.durationSec, input.videoTier);
+    const minNote = minUsageNote(ms);
+    if (minNote) notes.push(minNote);
+    // ★ 两个秒数分开：inSec 是**计价**的输入秒数（含最低用量，只印在这句话里，占位符名不动 = msgid 不变）；
+    //   srcSec 是源片真实时长，contractLine / GenSpec.refVideoSec 都要它（报价在 materialRefCost 里自己套最低用量；refVideoSec
+    //   只定轮询死线）—— 10-19 复核抓到原来把计价秒数一并当成源片时长传下去，与素材参考那一支不一致
+    const inSec = ms.billedInSec;
+    const srcSec = input.extendRef.durationSec;
     const outSec = clampDuration(input.durationSec, input.videoTier);
     prog(t`接着上一段往后拍 ${outSec} 秒（输入 ${inSec}s + 输出 ${outSec}s 计价）…` + cut + noteTail());
     {
-      const cl = contractLine({ quoted: input.quotedTokens, mode: "extend", durationSec: input.durationSec, tierId: input.videoTier, refVideoSec: inSec, images: 0 });
+      const cl = contractLine({ quoted: input.quotedTokens, mode: "extend", durationSec: input.durationSec, tierId: input.videoTier, refVideoSec: srcSec, images: 0 });
       if (cl) prog(cl);
     }
     const [res] = await composeSegments(
@@ -1220,7 +1229,7 @@ export async function generateSegment(
           refAudios: voice.refAudios,
           refVideoUrl: input.extendRef.url,
           refTask: "extend",
-          refVideoSec: inSec,
+          refVideoSec: srcSec,
         },
       ],
       (_d, _t, status) => prog(status),
@@ -1328,7 +1337,11 @@ export async function generateSegment(
       const extraCount = extrasIn.length;
       notes.push(t`另带 ${extraCount} 张临时参考图`);
     }
-    const inSec = input.materialRef.durationSec;
+    // 同延长那一支：印计价的输入秒数（含方舟最低用量），抬高了说原因
+    const ms = materialRefSecs(input.materialRef.durationSec, input.durationSec, input.videoTier);
+    const minNote = minUsageNote(ms);
+    if (minNote) notes.push(minNote);
+    const inSec = ms.billedInSec;
     const outSec = clampDuration(input.durationSec, input.videoTier);
     prog(t`按参考视频 + ${ordered.length} 张关键帧出片（输入 ${inSec}s + 输出 ${outSec}s 计价）…` + cut + noteTail());
     {

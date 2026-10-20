@@ -105,7 +105,7 @@ import {
   subscribeTemplates,
   templatesVersion,
 } from "../../data/templates";
-import { CHAT_TURN_TOKENS, ONE_IMAGE, blockoutTier, clampDuration, durationChoices, fmtTokens, promptMaxOf, proposalsCost, tierModelLabel, tierOf } from "../../data/economy";
+import { CHAT_TURN_TOKENS, ONE_IMAGE, blockoutTier, clampDuration, durationChoices, fmtTokens, materialRefSecs, minUsageNote, promptMaxOf, proposalsCost, tierModelLabel, tierOf } from "../../data/economy";
 import { AGENT_PHRASES, executeAgentProposal, runCanvasAgent, type AgentOutcome, type AgentProposal } from "../../studio/canvasAgent";
 import { EXAMPLES, phraseText, templatePhrase } from "../../studio/agentGrammar";
 import { useLang } from "../../i18n/useLang";
@@ -1232,6 +1232,10 @@ function NodePanel({
   const extendSrcN = extend ? allNodes.findIndex((n) => n.id === node.extendFrom?.nodeId) + 1 : 0;
   /** 要求框写的是出片用的 plot（不经推演）：自定义、参考图直出、真人档 */
   const writesPlot = custom || direct;
+  /** 示例视频那一格印的计价秒数（economy.materialRefSecs：报价 nodeCost → materialRefCost 读的同一份，含方舟最低用量）；
+   *  最低用量把输入抬高了时多说一句为什么（2026-10-19） */
+  const refSecs = node.customRef ? materialRefSecs(node.customRef.durationSec, p.durationSec, node.videoTier) : null;
+  const refMinNote = refSecs ? minUsageNote(refSecs) : null;
   /** 融图开在哪一帧上（自定义车道；方案台里那份由 PlanBoard 自己带） */
   const [fuse, setFuse] = useState<"first" | "last" | null>(null);
   /** 自定义车道翻页（2026-08-30 主人点名）：第①页示例视频（可跳过）→ 第②页帧与要求。
@@ -1681,7 +1685,7 @@ function NodePanel({
                   <div className="flex items-center justify-between gap-2">
                     <span className="min-w-0 flex-1 truncate text-[11px] text-sky-200">
                       <Trans>
-                        🎬 参考视频已挂上（{node.customRef.durationSec.toFixed(1)}s · 计价按输入 {Math.round(node.customRef.durationSec)}s + 输出 {p.durationSec}s）
+                        🎬 参考视频已挂上（{node.customRef.durationSec.toFixed(1)}s · 计价按输入 {refSecs?.billedInSec}s + 输出 {refSecs?.outSec}s）
                       </Trans>
                     </span>
                     <button
@@ -1692,6 +1696,8 @@ function NodePanel({
                       <Trans>移除</Trans>
                     </button>
                   </div>
+                  {/* 上面那行是单行 truncate，这句放不进去：单独一行（只在最低用量起作用时出现） */}
+                  {refMinNote && <p className="mt-1 text-[10px] leading-relaxed text-sky-200">{refMinNote}</p>}
                   <p className="mt-1 text-[9px] leading-relaxed text-slate-500">
                     <Trans>
                       多图+参考视频模式：上面的首/尾帧此时是<b className="text-slate-400">参考图</b>，

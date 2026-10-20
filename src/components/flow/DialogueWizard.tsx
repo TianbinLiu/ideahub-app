@@ -5,7 +5,8 @@
 //   → ③ 画三个机位（双人镜头 + 两个过肩；先画双人、再照着它画过肩；单张可重画）→ ④ 一句一段：那一句的机位画面当开头，按卡上的声音说出来。
 // ★ 状态全在 studio/dialogueDraftStore（人物在 leadDraftStore，与 B / C / G 同一批人），这里只画。落段与出片由宿主做（onFinish）：
 //   工坊走 studioStore.layWizardNodes + genNodeVideo，画布走 flowStore.appendSpecs + genNode —— 与九宫格分镜同一对入口，不另写一份。
-// ★ 报价由宿主给（quote = flowStore.appendSpecsQuote，照着「真会落下的那几段」逐段算，与 genNode 真扣同一把尺）；画机位那三张按张，价钱在 dialogueDraftStore 一处。
+// ★ 报价由宿主给（quote = flowStore.appendSpecsQuote，照着「真会落下的那几段」逐段算，与 genNode 真扣同一把尺）；画机位那三张按张（每张含画完 AI 看一遍），价钱在 dialogueDraftStore 一处。
+// ★ 三个机位画完各让 AI 看一遍（studio/panelCheck，与九宫格同一把尺）：有问题的那张标 ⚠、点开说原因，要不要重画由人定，不拦第④步。
 // ★ 只出第一段：「炼出本段才开下一段」照旧（flowStore 的顺序门禁）—— 第一句的人物或声音不对，后面几句不用花钱。
 import type { MessageDescriptor } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
@@ -22,6 +23,7 @@ import {
   LINE_TEXT_MAX,
   SITUATION_MAX,
   SITUATION_MIN,
+  DIALOGUE_ANGLES,
   angleKey,
   type DialogueAngle,
   type DialogueNote,
@@ -49,10 +51,12 @@ import {
 } from "../../studio/dialogueDraftStore";
 import type { AppendSpec } from "../../studio/flowStore";
 import { setLead, useLeadDraft } from "../../studio/leadDraftStore";
+import { panelFlagged } from "../../studio/panelCheck";
 import { VIDEO_ASPECTS, type Card, type VideoAspect } from "../../types";
 import Spinner from "../Spinner";
 import TokenCost from "../TokenCost";
 import CastPicker from "./CastPicker";
+import { panelIssuesLine } from "./panelIssueText";
 
 const STEP_LABEL: Record<DialogueStep, MessageDescriptor> = {
   cast: msg`两个人`,
@@ -145,6 +149,9 @@ export default function DialogueWizard({
   const missing = usedAngles.filter((a) => !d.panels[a]?.image);
   const stale = usedAngles.filter((a) => staleOf(a));
   const missingText = missing.map(angleLabel).join(sep);
+  /** AI 看了一遍、看出问题的那几张（画好的、没在重画的；studio/panelCheck） */
+  const flagged = DIALOGUE_ANGLES.filter((a) => !!d.panels[a]?.image && !d.panels[a]?.busy && panelFlagged(d.panels[a]?.check));
+  const flaggedText = flagged.map(angleLabel).join(sep);
   const staleText = stale.map(angleLabel).join(sep);
   const specs = d.step === "spec" && castOk ? dialogueAppendSpecs(d, { cast, place, tierId, aspect }) : [];
   const costs = specs.length ? quote(specs) : [];
@@ -467,6 +474,17 @@ export default function DialogueWizard({
                         <Trans>过期了</Trans>
                       </span>
                     )}
+                    {/* AI 看了一遍、看出问题（多画了一个人 / 同一个人两次 / 拼图）：点开这一张看原因，要不要重画由人定 */}
+                    {flagged.includes(a) && (
+                      <span className="absolute right-1 top-1 rounded-full bg-amber-500/90 px-1.5 py-0.5 text-[9px] font-bold text-ink" aria-label={t`这一张可能有问题`}>
+                        ⚠
+                      </span>
+                    )}
+                    {!!p?.image && !p.busy && p.check?.state === "running" && (
+                      <span className="absolute right-1 top-1">
+                        <Spinner size="xs" />
+                      </span>
+                    )}
                   </div>
                   <div className={`mt-0.5 truncate text-center text-[10px] ${used ? "text-slate-200" : "text-slate-500"}`}>{angleLabel(a)}</div>
                 </button>
@@ -487,6 +505,25 @@ export default function DialogueWizard({
                 </p>
               )}
               {d.panels[focus]?.err && <p className="text-[11px] leading-relaxed text-rose-300">{d.panels[focus]?.err}</p>}
+              {/* 看一遍的结论（dialogueDraftStore.checkAngle）：有问题逐条说；没核对上就说一声（钱上的那句跟着） */}
+              {(() => {
+                const fp = d.panels[focus];
+                const c = fp?.image && !fp.busy ? fp.check : undefined;
+                if (c?.state === "done" && c.issues.length)
+                  return (
+                    <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-200">
+                      {panelIssuesLine(c.issues, "shot")}
+                    </p>
+                  );
+                if (c?.state === "failed")
+                  return (
+                    <p className="text-[10px] leading-relaxed text-slate-400">
+                      <Trans>这一张没核对上（AI 没看成），要看就自己看一眼：应该只有这两个人。</Trans>
+                      {c.why ? ` ${c.why}` : ""}
+                    </p>
+                  );
+                return null;
+              })()}
               <input
                 value={ask}
                 onChange={(e) => setAsk(e.target.value)}
@@ -505,9 +542,9 @@ export default function DialogueWizard({
               </button>
               <p className="text-[10px] leading-relaxed text-slate-500">
                 {focus === "two" ? (
-                  <Trans>双人镜头重画之后，两个过肩会标成过期（它们是照着双人镜头画的），要不要跟着重画你来定。</Trans>
+                  <Trans>双人镜头重画之后，两个过肩会标成过期（它们是照着双人镜头画的），要不要跟着重画你来定。画完 AI 会看一遍（价钱里含这一次）。</Trans>
                 ) : (
-                  <Trans>照着现在这张双人镜头画：地方、光线、两人的衣服都照它。</Trans>
+                  <Trans>照着现在这张双人镜头画：只沿用地方、光线与两人的衣服，站位按这个机位重新摆。画完 AI 会看一遍（价钱里含这一次）。</Trans>
                 )}
               </p>
             </div>
@@ -529,15 +566,25 @@ export default function DialogueWizard({
             {drawn ? <Trans>🔄 三个一起重画（最多 {anglesPrice}，会换掉现在这几张）</Trans> : <Trans>🎥 画三个机位（最多 {anglesPrice}）</Trans>}
           </button>
           <p className="text-[10px] leading-relaxed text-slate-500">
-            <Trans>先画双人镜头，再照着它画两个过肩（地方、光线、两人的衣服都对得上）。按画成的张数收钱，约一分钟，可以先离开，画好了会提醒你。</Trans>
+            <Trans>
+              先画双人镜头，再照着它画两个过肩（地方、光线、两人的衣服都对得上）。每画好一张，AI 会看一遍是不是只有这两个人，有问题的那张会标出来，由你决定要不要重画。按画成的张数收钱（价钱里含 AI 看的那一遍），约一分钟，可以先离开，画好了会提醒你。
+            </Trans>
           </p>
-          {drawn && (
-            // 过肩机位偶尔会多画出一个人（docs/canvas-platforms-ecosystem-research.md §九「还欠」那条）：不花看图的钱，
-            // 让人自己看一眼，多了人就单独重画那一张（sommerville-requirements-3 的 ②，2026-10-15 拍板：先不加付费的看图复核）
-            <p className="text-[10px] leading-relaxed text-slate-400">
-              <Trans>画好之后看一眼：每张里应该只有这两个人。多出一个人就点那一张单独重画。</Trans>
-            </p>
-          )}
+          {drawn &&
+            (flagged.length > 0 && !d.drawing ? (
+              // 2026-10-19 起三张画完各让 AI 看一遍（10-15 那次拍板「先不加」被付费验证推翻：过肩多画一个人 14/30，看图抓到 14/14、误报 0/19，
+              // docs/canvas-platforms-ecosystem-research.md 第九节）。看出问题时把那几张点出来；不拦第④步
+              <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">
+                <Trans>
+                  AI 看了一遍：「{flaggedText}」里的人可能不对（每张应该只有这两个人，点那一张看原因）。要重画就点那一张、补一句要求再单独重画；不重画也能接着往下走。
+                </Trans>
+              </p>
+            ) : (
+              // 没看出问题、没核对上、演示构建不看：照旧请人自己看一眼 —— AI 看图也有漏的时候
+              <p className="text-[10px] leading-relaxed text-slate-400">
+                <Trans>画好之后看一眼：每张里应该只有这两个人。多出一个人就点那一张单独重画。</Trans>
+              </p>
+            ))}
           {d.lead && (
             <p className="text-[10px] leading-relaxed text-slate-500">
               <Trans>整体交代：{leadLine}</Trans>

@@ -224,6 +224,8 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   弹层只由 App 根上的 `UpdateGate` 画（设置页查到的也经 `raiseForcedUpdate` 交过去，画在设置页里返回键能把它退掉），关不掉但永远留着
   「重试」+「官网下载页」+「GitHub 上的同一个包」（官网那条拉的是同一个镜像，镜像坏了只有 GitHub 那条是另一个源）；
   发版脚本只在显式 `--min-version-code` 时写新门槛、只能往上拧，认不出的参数当场停。
+  ⑥ **更新失败只回码，话在 Web 侧说**（2026-10-19）：原生 `AppUpdaterPlugin` 的每个失败分支只回 `UpdateError` 的码（TIMEOUT / OFFLINE / STORAGE / CHECKSUM / PACKAGE_GONE / INSTALLER …）+ `data.received`，
+  一句话都不拼（原来把异常原话「timeout」拼在中文前面直接上屏）；话只在 `data/appUpdate.updateFailText`，按界面语言说，认不出的码原样显示（老原生插件的退路）。
 - **方案有结构化镜头字段**（`types.ShotSpec`：景别 / 运镜 / 情绪节拍，2026-09-06 对标 updream 分镜 Skill）：推演按字段写、
   `segmentGen.shotPrefix` 把它拼在正文最前、方案台显示、发布时折进 `VideoSegment.plot`。**一段出片的生成契约**是
   `real.GenSpec`（composeSegments 的入参），提交前 `describeGenSpec` 写一行「生成契约 · 模式 · 档 · 画幅 · 时长 · 参考图 N」进步骤日志——
@@ -580,6 +582,10 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   ① 三个机位**一张接一张画、不走组图**：先画双人镜头，再拿它当图1 画两个过肩（`ai/real.shotGroupRefs` 的 `before` 让卡图从图2 起编号）—— 过肩要与双人同地方同光线，
   而且不依赖服务端 #106；② 一句的视频提示词里说话人**紧挨在引号前那一小句**（动作单写一句放前面；英文用分号隔开，`lineSpeakers` 不把英文句号当断点），
   拍听的人时写「画外传来某某的声音」；③ 站位守 180 度线（双人镜头 A 左 B 右、过肩的前景肩膀在对侧），两个过肩接起来视线才对得上。
+  **过肩多画一个人**（2026-10-19 付费量过，canvas-platforms 第九节）：过肩的图1（双人镜头）**只沿用地方、光线与服装，明说不照搬构图和站位**、点名前景那个人只露肩膀和后脑一次
+  （`angleRefLine`；原写法「都照它」让模型照着双人镜头再站一遍，每人两张图的卡（g1 一组）12/15 → 1/10，单图卡（三组）14/30 → 2/12，过肩不带双人镜头更糟 8/10 —— 单图卡上仍会漏，所以下面的看图复核两样都要）；三个机位画完各让 AI 看一遍
+  （`dialogueDraftStore.checkAngle` → `studio/panelCheck.runPanelCheck`，与九宫格同一份看法 / 并发闸 / 价钱；只标 ⚠、不自动重画、不拦落段）。
+  一个机位的价 = 一张图 + 一次看图（`economy.CHECKED_PANEL_TOKENS`，九宫格每格、选法屏两行读同一个）；出图那一拍只扣图钱，看图那一笔在看图回了那一拍另记。
   落段 `dialogueAppendSpecs`：一句一段、机位画面当开头帧上锁、不承接、挂两个人 + 场景卡；落完 `resetDialogueLines` **留着三个机位**（同一个地方接着往下说不用再画）。
   三个跟着做向导（C / G / I）在工坊落段都走 `studioStore.layWizardNodes(specs, say)`（看板娘那句由调用方给）。
   ⑪ **修这一段（第一批：片段重拍 + 往后延长）**：挂在已出片的段上（`components/flow/FixSegmentBox`，画布四个车道都摆、工坊在 PickedActions），**不进「加一段」的选法屏**。
@@ -587,7 +593,7 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   拼接后 20.08s），所以它就是流水线上**新的一段**（`FlowNode.extendFrom`）：只延长最后一段（接在中间会打断后面的接缝）、成片已转存成永久地址、档位能延长
   （`economy.VideoTier.extendOk`，今天只有电影级）—— 判据只在 `flowStore.extendIssue`，落什么只在 `extendSpec`（报价 `appendQuote` 照着它算），落段 `extendNode`，「接的是哪一段成片」只问
   `extendSourceOf`（那一段返修过就接新那一版）。出片走契约的新模式 `extend`（`arkClient` 的 omni extend + adaptive + 窗口内整数时长，报价与素材参考同一个式子
-  (输入 + 输出) × 系数，服务端结算 `tokens.materialRefTokens`）。服务端那一半是 TianbinLiu/ideahub-server#107（参考视频认「本人自己的成片」），2026-10-05 已上线。
+  (计价输入 + 输出) × 系数，服务端结算 `tokens.materialRefTokens`；计价输入 = max(输入, ⌈2 × 输出 / 3⌉) 是方舟「含输入视频的最低用量」（2026-10-19 付费实测，规则只在 `videoTierTable.materialRefInputSec`）。⚠ 这一步 **App 先上、服务端后上**（server PR #123 等 2.64 发出约一周再合）：过渡期 App 报价高于服务端实扣是**故意的**（安全方向），别「修」成两边相等 —— 服务端先上就是老包报价低于实扣）。服务端那一半是 TianbinLiu/ideahub-server#107（参考视频认「本人自己的成片」），2026-10-05 已上线。
   ★ 2026-10-05 付费探测（`design/video-input-probe.mjs`，结果在 docs/canvas-platforms-ecosystem-research.md 第九节）：电影级延长两轮都接得上、高清那一发接缝会跳
   ⇒ 「能不能延长」是档位自己的一位 `extendOk`，**别拿 refVid 代替**（高清以后开视频参考也不顺带开延长）；按时间段重拍时同一个连续动作会整段一起改、
   声音是照着原片重做的 —— 文案只说到这一步（`FixSegmentBox` 头上记着）。2026-10-06 在 App 的真实请求路径上端到端付费验过一遍（¥45.42：G 两条、I 三句、
@@ -641,7 +647,7 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   各探一次，否则弱网冷启动会出现"视频退了本地库、弹幕还在打远端"这种半边天。
   离线模式（没配 `VITE_API_BASE` 或服务端没起）退回 IndexedDB，此时输入条会明说
   "只存在这台设备上"——接上服务端时那句话必须消失，否则是另一种骗人。
-- **第三方登录回程只认本机发起的那一条**（2026-10-15 教材人格评审 owasp-security-1）：`startOauth` 生成一次性 state 记在本机，服务端成功 / 失败两种回跳原样回带（server #116，2026-10-16 已部署；取消授权 / provider 报错 / 服务端 state 过期这几种失败，要等之后的 server 分支 `claude/oauth-fail-back-to-app` 部署才带着 state 回到 App —— 在那之前它们落在官网错误页、到不了 App），深链与 web 回跳都只经 `utils/oauth.acceptOauthReturn` 这一道闸，判定表只在 `data/oauthState`（零依赖，`check-oauth-state.mjs` 实跑）；老服务端不回带的暂且放行、只在 15 分钟 TTL 之内，后一版 App 再把「没带」改成拒（前提是上面那个 server 分支已部署：不然收紧之后这几种失败照旧停在官网、App 一声不吭）。契约见 docs/api-contract.md「第三方登录深链的 state 绑定」。
+- **第三方登录回程只认本机发起的那一条**（2026-10-15 教材人格评审 owasp-security-1）：`startOauth` 生成一次性 state 记在本机，服务端成功 / 失败两种回跳原样回带（server #116，2026-10-16 已部署；取消授权 / provider 报错 / 服务端 state 过期这几种失败，要等之后的 server 分支 `claude/oauth-fail-back-to-app` 部署才带着 state 回到 App —— 在那之前它们落在官网错误页、到不了 App），深链与 web 回跳都只经 `utils/oauth.acceptOauthReturn` 这一道闸，判定表只在 `data/oauthState`（零依赖，`check-oauth-state.mjs` 实跑）；老服务端不回带的暂且放行、只在 15 分钟 TTL 之内，后一版 App 再把「没带」改成拒（前提是上面那个 server 分支已部署：不然收紧之后这几种失败照旧停在官网、App 一声不吭）。契约见 docs/api-contract.md「第三方登录深链的 state 绑定」。收下的失败回程说什么（2026-10-19）：服务端回的 message 是固定英文，归类只在 `data/oauthState.classifyOauthFailure`（整句锚定，check-oauth-state 钉着），话在 `utils/oauth.oauthFailText`；服务端改了那几句措辞要两边一起改，认不出的原样显示。人站在登录页时失败回程靠 `LoginPage` 跟着 `location.key` 更新 err 才显示得出来。
 - **客户端失败上报只有 `data/clientEvents.reportClientEvent` 一处发**（同日 humble-delivery-4）：`POST /api/client-events` 只带 kind / 版本 / ASCII 位置 / 错误类型名，永不带 message 与账号；按健康端点能力位 `clientEvents` 开（老服务端一发都不发），一场会话去重 + 最多 8 条，上报本身失败一律吞；五处挂钩：ErrorBoundary、App 根的 window error + unhandledrejection、appUpdate、DataLossNotice、boot。契约见「客户端失败上报」。
 - **简约模式不进草稿库**（`saveWorkDraft` 里挡掉）：它只有一段、写一句话就出片、直通发布，
   中间没有"回来接着做"的状态；而草稿一条带 1MB 级的帧，塞进去只会把真正需要草稿的

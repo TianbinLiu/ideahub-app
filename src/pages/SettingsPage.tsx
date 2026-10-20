@@ -437,7 +437,9 @@ function VersionRow() {
             版本 {ver.versionName} <span className="text-[11px] text-slate-500">（{ver.versionCode}）</span>
           </Trans>
         </span>
-        <span className="block truncate text-[11px] text-slate-500">
+        {/* ★ 有 note（检查的结果 / 失败原因）时允许折行（2026-10-19 复核抓到）：失败那句英文将近 90 个字符，单行 truncate
+            正好把「为什么没查成」那半截截掉；缺省那句短，照旧单行 */}
+        <span className={`block text-[11px] text-slate-500 ${note ? "leading-relaxed" : "truncate"}`}>
           {note || (supported ? t`可以检查有没有新版本` : t`由应用商店负责更新`)}
         </span>
       </span>

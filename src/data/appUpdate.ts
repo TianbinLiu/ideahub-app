@@ -235,6 +235,9 @@ export function fmtSize(bytes: number): string {
   return `${(bytes / 1048576).toFixed(1)}MB`;
 }
 
+/** 0.1MB（字节）：比它小的数 fmtSize 印出来是「0.0MB」或「0.1MB」，下载失败那句改说「不到 0.1MB」 */
+const TENTH_MB = 0.1 * 1048576;
+
 /**
  * 原生更新器失败时回的码（AppUpdaterPlugin 的 reject code）。★ 与 sideload 那份 `UpdateError` 头上的码表逐条相等，改一边就改另一边。
  * 下载那一步的 error.data 里另有 `received`（这一版在本机已经有多少字节）与 `httpStatus`（有才带）。
@@ -305,13 +308,17 @@ export function updateFailText(e: unknown, stage: "check" | "download"): string 
     }
   }
   const received = typeof data.received === "number" ? data.received : null;
-  const size = received !== null && received > 0 ? fmtSize(received) : "";
-  const keep =
-    received === null
-      ? ""
-      : size
-        ? t({ message: `已经下好的 ${size} 留着了，再点一次会接着下，不用从头来。`, comment: "一句完整的、自带句号的话，会被当占位符（keep）接在下载失败原因后面：译文首尾不要留空格" })
-        : t({ message: "这一次一个字节都没下到。", comment: "一句完整的、自带句号的话，会被当占位符（keep）接在下载失败原因后面：译文首尾不要留空格" });
+  // ★ 不到 0.1MB 的那一截单独说（2026-10-19 复核抓到）：fmtSize 保留一位小数，1~52,428 字节会印成「已经下好的 0.0MB 留着了」——
+  //   读起来像「什么都没下到」，又说留着了，自相矛盾。真有字节就说有，只是不到 0.1MB
+  let keep = "";
+  if (received !== null && received <= 0) {
+    keep = t({ message: "这一次一个字节都没下到。", comment: "一句完整的、自带句号的话，会被当占位符（keep）接在下载失败原因后面：译文首尾不要留空格" });
+  } else if (received !== null && received < TENTH_MB) {
+    keep = t({ message: "已经下好的一小截（不到 0.1MB）留着了，再点一次会接着下，不用从头来。", comment: "一句完整的、自带句号的话，会被当占位符（keep）接在下载失败原因后面：译文首尾不要留空格" });
+  } else if (received !== null) {
+    const size = fmtSize(received);
+    keep = t({ message: `已经下好的 ${size} 留着了，再点一次会接着下，不用从头来。`, comment: "一句完整的、自带句号的话，会被当占位符（keep）接在下载失败原因后面：译文首尾不要留空格" });
+  }
   let line: string;
   switch (code) {
     case "TIMEOUT":
@@ -340,7 +347,14 @@ export function updateFailText(e: unknown, stage: "check" | "download"): string 
       line = t`下载的文件校验不通过，已经丢掉了（可能没下完整，或者内容被改过）。再点一次会从头重下。`;
       break;
     case "INSTALLER":
-      line = t`安装包下好了，但拉不起系统安装器。再点一次会直接装，不用重下。`;
+      // ★ 不许诺「再点一次会直接装」（2026-10-19 复核抓到）：原生把 INSTALLER 归在 retryable = false 那一组 —— 拉不起安装器
+      //   多半是持续性的原因（没有能接安装 Intent 的界面、FileProvider 配置），再点一次大概率还是同样失败。只说「可以试试」
+      //   （包留着、不用重下这半句是真的：原生 download 会复用上次的成品），再给一条走得通的路：浏览器里的官网下载页。
+      //   地址写出来 —— 普通更新的弹层上没有那颗键（只有强制那一版有），光说「官网下载页」人找不到
+      {
+        const page = DOWNLOAD_PAGE_URL;
+        line = t`安装包下好了，但拉不起系统安装器。可以再点一次试试（不用重下）；还不行的话，在浏览器里打开官网下载页 ${page} 手动安装。`;
+      }
       break;
     default:
       line = t({ message: `下载没成功。${keep}`, comment: "keep 是一句完整的、自带句号的话（已经下好的那一截留没留着），也可能是空串：英文在它前面留一个空格" });
