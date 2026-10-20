@@ -73,6 +73,7 @@ import useOrientationLock from "./hooks/useOrientationLock";
 import PlayPurchaseSweep from "./components/PlayPurchaseSweep";
 import { signInWithOauthToken, signOut } from "./data/account";
 import { initOauthDeepLink, onOauthResult } from "./utils/oauth";
+import { loginFailPath, loginNextOf } from "./data/oauthState";
 
 /**
  * 第三方登录的深链回程收口（只在原生壳里有事做）。
@@ -87,12 +88,14 @@ function OauthDeepLinkBridge() {
   useEffect(() => {
     void initOauthDeepLink();
     return onOauthResult((r) => {
+      // 起跳时登录页上的 next 接着带（data/oauthState.loginNextOf：原来失败把它换没、成功一律回首页）
+      const next = loginNextOf(window.location.hash);
       if (r.token) {
         void signInWithOauthToken(r.token)
-          .then(() => navigate("/", { replace: true }))
-          .catch((e) => navigate(`/login?err=${encodeURIComponent(e instanceof Error ? e.message : String(e))}`, { replace: true }));
+          .then(() => navigate(next ?? "/", { replace: true }))
+          .catch((e) => navigate(loginFailPath(e instanceof Error ? e.message : String(e), next), { replace: true }));
       } else if (r.error) {
-        navigate(`/login?err=${encodeURIComponent(r.error)}`, { replace: true });
+        navigate(loginFailPath(r.error, next), { replace: true });
       }
     });
   }, [navigate]);

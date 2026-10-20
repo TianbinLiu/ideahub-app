@@ -2041,7 +2041,7 @@ server 的 `APP_OAUTH_SCHEME`、app 的 `src/utils/oauth.ts` `APP_SCHEME`、
 
 （教材人格评审 owasp-security-1：此前任何 App / 网页投一条 `ideahub://oauth?token=…` 就能把用户换成**别人的**登录态，
 垃圾 token 还会先盖掉本机 JWT 再被 401 清掉 = 静默登出。下面是两边各自实现的同一份规格：服务端那一半是 server#116，2026-10-16 部署
-（生产提交 58b934c）；「失败也回到 App」是之后的 server 分支 `claude/oauth-fail-back-to-app`（2026-10-19，发版后验证 oauth-4b 抓到的），
+（生产提交 58b934c）；「失败也回到 App」是之后的 server#119（分支 `claude/oauth-fail-back-to-app`，2026-10-19 发版后验证 oauth-4b 抓到的；2026-10-20 部署，生产提交 3677e38，部署后在生产上实测过取消 / provider 报错回到 App 带 state、篡改 / 网页发起 / 不带 state 的照旧落官网），
 两版的差别见下表「服务端」那一行。）
 
 | 谁 | 做什么 |

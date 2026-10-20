@@ -98,10 +98,26 @@ eq("后面多一截 → 不认（锚定结尾）", cf("oauth_failed", "google lo
 eq("不认识的码、没有话 → 原样显示码", cf("access_denied", ""), { kind: "raw", text: "access_denied" });
 eq("什么都没带 → unknown", cf(null, undefined), { kind: "unknown" });
 
+// ── 回程落在哪（loginNextOf / loginFailPath，2026-10-20）：起跳时登录页上的 next 接着带，只认站内路径 ──
+const ln = M.loginNextOf;
+eq("登录页上带 next → 取出来（解码）", ln("#/login?next=%2Fme"), "/me");
+eq("next 不在第一个参数也认", ln("#/login?err=x&next=%2Fcreate%3Ftab%3D2"), "/create?tab=2");
+eq("不带 # 的写法也认", ln("/login?next=/me"), "/me");
+eq("登录页上没有 next → null（按原来的去处）", ln("#/login"), null);
+eq("不在登录页上（冷启动回来在首页）→ null", ln("#/"), null);
+eq("路径只是以 /login 开头 → 不认", ln("#/loginx?next=%2Fme"), null);
+eq("next 是外站绝对地址 → 不带", ln("#/login?next=https%3A%2F%2Fevil.example%2F"), null);
+eq("next 是 //host → 不带", ln("#/login?next=%2F%2Fevil.example"), null);
+eq("next 不以 / 开头 → 不带", ln("#/login?next=me"), null);
+eq("next 是空串 → null", ln("#/login?next="), null);
+eq("失败回程带上 next", M.loginFailPath("google login failed", "/me"), "/login?err=google%20login%20failed&next=%2Fme");
+eq("失败回程没有 next → 只带 err（与原来逐字节相同）", M.loginFailPath("google login failed", null), "/login?err=google%20login%20failed");
+eq("往返：失败回程的地址再取一次 next 还是原样", ln("#" + M.loginFailPath("x", "/video/1?y=2")), "/video/1?y=2");
+
 if (problems.length) {
   console.error(`\n❌ 第三方登录 state 绑定检查没过（${problems.length} / ${ran}）：\n`);
   for (const p of problems) console.error("  · " + p);
   console.error("\n改法：判定只在 src/data/oauthState.ts；utils/oauth.acceptOauthReturn 与 pages/OauthCallbackPage 都读它，改之前先读那个文件头与 docs/api-contract.md「第三方登录深链的 state 绑定」。\n");
   process.exit(1);
 }
-console.log(`✓ 第三方登录 state 绑定检查通过（${ran} 条：state 形状 / 没记过 / 对得上对不上 / 老服务端不回带 / TTL 边界 / 失败回程归类）`);
+console.log(`✓ 第三方登录 state 绑定检查通过（${ran} 条：state 形状 / 没记过 / 对得上对不上 / 老服务端不回带 / TTL 边界 / 失败回程归类 / 回程落在哪）`);
