@@ -27,7 +27,14 @@
 //   用不到时不该把它们拖进主包。
 import { t } from "@lingui/core/macro";
 import { oauthStartUrl } from "../api/auth";
-import { decideOauthReturn, encodeStateBytes, STATE_TTL_MS, type OauthReturn, type RememberedState } from "../data/oauthState";
+import {
+  classifyOauthFailure,
+  decideOauthReturn,
+  encodeStateBytes,
+  STATE_TTL_MS,
+  type OauthReturn,
+  type RememberedState,
+} from "../data/oauthState";
 import { showToast } from "../data/toast";
 
 export type { OauthReturn };
@@ -137,7 +144,42 @@ function parseDeepLink(url: string): OauthReturn | null {
   const token = p.get("token");
   const state = p.get("state");
   if (token) return { token, state };
-  return { error: p.get("message") || p.get("error") || t`第三方登录未完成`, state };
+  return { error: oauthFailText(p.get("error"), p.get("message")), state };
+}
+
+/**
+ * 失败回程给人看的那句话（深链与 web 的 /oauth/callback 共用）。归类只在 data/oauthState.classifyOauthFailure，这里只按界面语言说。
+ * ★ 原来是把服务端的 `message=` 原样上屏（固定英文：「google login failed」「Invalid or expired OAuth state」），2026-10-19 起认得出的
+ *   换成本地化的话，认不出的照旧原样（服务端 catch 里回的 e.message 可能是一句有用的中文）。
+ */
+export function oauthFailText(error: string | null | undefined, message: string | null | undefined): string {
+  const f = classifyOauthFailure(error, message);
+  const who = "provider" in f && f.provider === "google" ? "Google" : "provider" in f && f.provider === "github" ? "GitHub" : "";
+  switch (f.kind) {
+    case "notCompleted":
+      // ★ 不点名是谁的错（2026-10-19 复核抓到）：服务端对我们自己的意外错误（TypeError 之类，console.error 那一支）回的也是
+      //   「<provider> login failed」—— 原来写「或者 Google 那边出了错」，会把我们的错算到 Google 头上。中性说「登录过程出了错」
+      return who
+        ? t`${who} 登录没有完成：授权被取消了，或者登录过程出了错。可以再试一次。`
+        : t`第三方登录没有完成：授权被取消了，或者登录过程出了错。可以再试一次。`;
+    case "stateExpired":
+      // 服务端那份签名 state 10 分钟过期：人在 Google / GitHub 的授权页上耽搁太久（与本机 15 分钟那条「登录链接过期了」是两道闸）
+      return t`在授权页上停留太久，这次登录已经失效了，请重新登录。`;
+    case "emailTaken":
+      return who
+        ? t`这个 ${who} 账号的邮箱已经用别的方式注册过了：请用当初注册时的方式登录。`
+        : t`这个邮箱已经用别的方式注册过了：请用当初注册时的方式登录。`;
+    case "noEmail":
+      return who ? t`${who} 没有提供邮箱地址，没法用它登录。` : t`对方没有提供邮箱地址，没法用它登录。`;
+    case "noProfile":
+      return who ? t`没拿到 ${who} 的账号信息，请再试一次。` : t`没拿到第三方账号的信息，请再试一次。`;
+    case "callbackError":
+      return who ? t`${who} 登录时出了错，请再试一次。` : t`第三方登录时出了错，请再试一次。`;
+    case "raw":
+      return f.text;
+    default:
+      return t`第三方登录未完成`;
+  }
 }
 
 // ── 同一条深链只收一次 ───────────────────────────────────────────────

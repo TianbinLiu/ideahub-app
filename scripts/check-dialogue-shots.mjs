@@ -10,7 +10,8 @@
 //   语速那两个数拿 data/cutProject 本尊核对。
 // ★ 仓内门禁纪律：写完先造真违规试红（--module= 指向改坏的副本）。下面几条各自试过、各自变红：
 //   ① 去掉重复键检查；② 台词里不摘引号；③ 说话人不是这两个人也收；④ 一句一段写成「林夏看着沈舟，说：“……”」（动作接在说话人后面）；
-//   ⑤ 双人镜头不写谁左谁右；⑥ 一句一段写成「镜头1：……」。
+//   ⑤ 双人镜头不写谁左谁右；⑥ 一句一段写成「镜头1：……」；⑦ 过肩的图1 那句写回「地方、光线、两人的长相和服装都照它，只把机位换成上面写的」
+//   （2026-10-19：那句让模型照搬双人镜头的站位，同一个人画两次）。
 //
 // 用法：node scripts/check-dialogue-shots.mjs [--module=<另一份 dialogueShots.ts 的路径，造违规试红用>]
 import fs from "node:fs";
@@ -144,10 +145,24 @@ const speakersOf = (plot) => {
   ok("补一句要求接在最后", M.angleMoment("two", NAMES, "", "沈舟戴着眼镜。").endsWith("。要求：沈舟戴着眼镜"));
   ok("名字里的引号 / 花括号剥掉", !/[“”{}]/.test(M.angleMoment("two", ["“阿{B}”", "沈舟"], "")));
 
-  eq("参考图点名：没有双人镜头、没有卡图 = 空", M.angleRefLine("", false), "");
-  ok("参考图点名：卡图", M.angleRefLine("图1 是林夏；图2 是沈舟", false).startsWith("。参考图：图1 是林夏；图2 是沈舟"));
-  const based = M.angleRefLine("图2 是林夏；图3 是沈舟", true);
+  eq("参考图点名：没有双人镜头、没有卡图 = 空", M.angleRefLine("", null, NAMES), "");
+  ok("参考图点名：卡图", M.angleRefLine("图1 是林夏；图2 是沈舟", null, NAMES).startsWith("。参考图：图1 是林夏；图2 是沈舟"));
+  ok("参考图点名：画双人镜头（传 two）不带图1 那句", !M.angleRefLine("图1 是林夏", "two", NAMES).includes("双人镜头"));
+  const based = M.angleRefLine("图2 是林夏；图3 是沈舟", "faceA", NAMES);
   ok("参考图点名：画过肩时图1 是双人镜头、卡图从图2 起", based.startsWith("。参考图：图1 是这场戏的双人镜头") && based.includes("；图2 是林夏"));
+  // 2026-10-19 付费对比：图1 写「都照它，只把机位换成…」时模型连站位一起照搬，12/15 张同一个人画了两次；只沿用地方 / 光线 / 服装 + 点名前景那个人 → 1/10（每人两张图的卡），单图卡三组 14/30 → 2/12
+  ok("过肩：图1 只沿用地方、光线与服装，明说不照搬构图和站位", based.includes("只沿用图1 的地方、光线与服装") && based.includes("不要照搬它的构图和站位"));
+  ok("过肩：不再写「都照它，只把机位换成…」（那句让模型照搬站位）", !based.includes("都照它") && !based.includes("只把机位换成"));
+  ok("拍林夏的过肩：前景是沈舟，只以肩膀和后脑出现一次", based.includes("沈舟只以前景虚化的肩膀和后脑出现一次"));
+  ok(
+    "拍沈舟的过肩：前景是林夏",
+    M.angleRefLine("图2 是林夏；图3 是沈舟", "faceB", NAMES).includes("林夏只以前景虚化的肩膀和后脑出现一次"),
+  );
+  ok("前景那个人的名字也剥掉引号 / 花括号", !/[“”{}]/.test(M.angleRefLine("", "faceB", ["“阿{B}”", "沈舟"])));
+  ok(
+    "前景那个人与 angleMoment 的站位是同一个",
+    M.angleMoment("faceA", NAMES, "").includes("前景是沈舟") && M.angleMoment("faceB", NAMES, "").includes("前景是林夏"),
+  );
 }
 
 // (d) 一句一段：说话人认得准、不是多镜头、有台词、不超长

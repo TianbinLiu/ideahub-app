@@ -94,6 +94,12 @@ export function badgeIsPersistent(): boolean {
  *   一句法务文本同时说反两件事，而它下一行就写着「不得删除、遮挡或篡改」。⇒ 收口到这里，
  *   盖法一改，协议正文、发布页说明、客服口径同一拍跟着变（铁律六 + 铁律八）。
  * ⚠ 改这里的措辞**不需要**动 `TERMS_UPDATED`（那是"要不要让所有人重新过一次同意门"的另一个决定）。
+ * ★ 2026-10-19「合并」→「合成」（docs/review-personas-2026-10.md 第六节第 14 条 krug-copy-ia-1：剪辑页用户可见的
+ *   那件事一律叫「合成」，主键是「合成并去发布」；这句原来是第九节「留着的」第一条）。**只是用词**：指的还是剪辑页
+ *   导出的那一条成片、画面内标识盖法与范围一个字没变、用户的权利义务不变 ⇒ 照 agreements.tsx 头上「改错别字不用动」
+ *   与上面这一条，`TERMS_UPDATED` **不动**（动了 = 所有人重过一次同意门，换来的只是一个同义词）。后半句顺手写成
+ *   「未经剪辑页合成导出」：同一段正文开头就是《人工智能生成合成内容标识办法》，光写「未经合成导出的作品」
+ *   会被读成「不是 AI 合成的作品」。
  * ⚠⚠ 返回值是**纯文本**，一个 markdown 记号都不许带：两个消费点都是 JSX 表达式
  *   （agreements.tsx 的《用户协议》五与《AIGC 内容须知》二），渲染链 Sec → `<p>{children}</p>`
  *   → InfoDialog 全程没有任何 markdown 解析 —— 写 `**x**` 用户看到的就是字面的星号，
@@ -101,11 +107,14 @@ export function badgeIsPersistent(): boolean {
  */
 export function badgeLegalClause(): string {
   if (badgeIsPersistent()) {
+    // i18n-ignore-next-line: 法务正文的一截（与下面那一支同一个口径，2026-10-19 补齐）：只在整份豁免、只有中文的 agreements.tsx 里渲染（check-i18n 的 EXEMPT）；那份要翻译时这里一起翻
     return `成片画面每一帧都带「${AIGC_BADGE_TEXT}」角标，导出到本地的文件里同样有`;
   }
   return (
-    `经剪辑页合并导出的成片，会把「${AIGC_BADGE_TEXT}」标识烧进起始画面约 ${HEAD_SEC} 秒` +
-    `（这一份随文件走，导出到本地也在）；未经合并导出的作品（逐段生成、互动分支）画面内不含该标识`
+    // i18n-ignore-next-line: 法务正文的一截，只在整份豁免、只有中文的 agreements.tsx 里渲染（check-i18n 的 EXEMPT）；那份要翻译时这里一起翻
+    `经剪辑页合成导出的成片，会把「${AIGC_BADGE_TEXT}」标识烧进起始画面约 ${HEAD_SEC} 秒` +
+    // i18n-ignore-next-line: 同上一行（法务正文，跟着 agreements.tsx 走）
+    `（这一份随文件走，导出到本地也在）；未经剪辑页合成导出的作品（逐段生成、互动分支）画面内不含该标识`
   );
 }
 

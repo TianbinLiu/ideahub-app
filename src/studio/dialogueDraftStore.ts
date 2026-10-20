@@ -7,7 +7,9 @@
 // ★ 表单是**谁的**（gridDraftStore 同一招）：换账号那一拍把上一个人的收进暗格；画到一半换了账号，画好的图写回开工那个人的那份。
 // ★ 落成几段之后**留着三个机位**（resetDialogueLines 只清对白）：同一个地方接着往下说，机位不用再画、不用再花钱；
 //   换人 / 改整体交代 / 换画幅会把它们标成过期（data/dialogueShots.angleKey），界面提醒重画。
-// ★ 依赖方向：data → store → 组件。这里认 ai / data / structuredSkills（它们都不认组件）。
+// ★ 三个机位画好之后各让对话模型看一遍（2026-10-19，studio/panelCheck 与九宫格同一份）：过肩机位常多画一个人，看出来的标 ⚠，**由人决定重画**，
+//   不自动花钱、不拦落段 —— 理由与付费验证见 checkAngle。
+// ★ 依赖方向：data → store → 组件。这里认 ai / data / structuredSkills / panelCheck（它们都不认组件）。
 import { t } from "@lingui/core/macro";
 import { create } from "zustand";
 import { AI_REAL, chargeNote, chargeOnFail, generateFrame, shotGroupRefs } from "../ai";
@@ -26,10 +28,11 @@ import {
   type DialogueLine,
   type DialogueNote,
 } from "../data/dialogueShots";
-import { CHAT_TURN_TOKENS, IMAGE_TOKENS, clampDuration, fmtTokens } from "../data/economy";
+import { CHAT_TURN_TOKENS, CHECKED_PANEL_TOKENS, IMAGE_TOKENS, clampDuration, fmtTokens } from "../data/economy";
 import { currentRoute, startJob } from "../data/jobs";
 import { uid, type Card, type Proposal, type VideoAspect } from "../types";
 import type { AppendSpec } from "./flowStore";
+import { runPanelCheck, type PanelCheckState } from "./panelCheck";
 import { runDialogue } from "./structuredSkills";
 
 /** 向导的四步：两个人和场景 → 写对白 → 画三个机位 → 一句一段 · 出片 */
@@ -47,6 +50,11 @@ export interface AnglePanel {
   busy?: boolean;
   /** 这一张没画成的原因（整句人话） */
   err?: string;
+  /**
+   * 画完之后对话模型看的那一遍（studio/panelCheck：几个人、有没有两个一样的人、是不是拼图；每一张都应该恰好是这两个人）。
+   * 缺省 = 还没看 / 演示构建不看。★ 只标出来、不自动重画（checkAngle）。认图不认时刻：看完时这一张已经换了就不写
+   */
+  check?: PanelCheckState;
 }
 export type AnglePanels = Record<DialogueAngle, AnglePanel | null>;
 const NO_PANELS: AnglePanels = { two: null, faceA: null, faceB: null };
@@ -253,14 +261,18 @@ export function addLine(): void {
 
 // ── 第③步：三个机位 ─────────────────────────────────────────────────────
 
-/** 画一个机位多少钱（与真扣同一个数：出图成功才扣一张） */
-export const ANGLE_TOKENS = IMAGE_TOKENS;
-/** 三个机位一起画最多多少（三张都画成才是这个数；没画成的那张不收） */
-export const ANGLES_TOKENS = IMAGE_TOKENS * 3;
+/**
+ * 画一个机位多少钱：一张图 + 画完 AI 看一遍（一次对话）—— 价只在 economy.CHECKED_PANEL_TOKENS（九宫格的一格、选法屏那一行读的是同一个）。
+ * 真扣分两笔、与这个数相等：出图成功那一拍扣一张图（drawOne），看图回了那一拍扣一次对话（studio/panelCheck）。演示构建不看、也不扣。
+ */
+export const ANGLE_TOKENS = CHECKED_PANEL_TOKENS;
+/** 三个机位一起画最多多少（三张都画成、都看过才是这个数；没画成的那张不收图钱，也不看） */
+export const ANGLES_TOKENS = ANGLE_TOKENS * 3;
 
 /**
- * 画一个机位：双人镜头只带卡图；过肩把画好的双人镜头放在图1（地方、光线、两人的衣服都照它），卡图从图2 起（ai/real.shotGroupRefs 的 before）。
- * 出图成功才扣一张（与「重画这一套」「单格重画」同口径）。失败抛错，由调用方说钱花没花。
+ * 画一个机位：双人镜头只带卡图；过肩把画好的双人镜头放在图1（只沿用地方、光线与服装，站位照机位重摆 —— dialogueShots.angleRefLine），
+ * 卡图从图2 起（ai/real.shotGroupRefs 的 before）。
+ * 出图成功才扣一张图（与「重画这一套」「单格重画」同口径）；看一遍那一笔在 checkAngle 里另记。失败抛错，由调用方说钱花没花。
  */
 async function drawOne(
   angle: DialogueAngle,
@@ -269,18 +281,19 @@ async function drawOne(
   const base = angle !== "two" && o.base?.image ? o.base : null;
   const { refs, bind } = await shotGroupRefs({ cast: o.cast, place: o.place, panels: 1, before: base ? 1 : 0, onNote: (n) => o.notes.push(n) });
   const all = [...(base ? [base.image] : []), ...refs];
-  const image = await generateFrame(`${angleMoment(angle, o.names, o.lead, o.ask)}${angleRefLine(bind, !!base)}`, {
+  const image = await generateFrame(`${angleMoment(angle, o.names, o.lead, o.ask)}${angleRefLine(bind, base && angle !== "two" ? angle : null, o.names)}`, {
     aspect: o.aspect,
     refs: all.length ? all : undefined,
   });
-  if (AI_REAL) spendTokens(ANGLE_TOKENS);
+  // ★ 只扣图钱：ANGLE_TOKENS 里那一次看图对话由 checkAngle 在看图回了那一拍另记（这里扣 ANGLE_TOKENS 就是一张图记了两次看图的钱）
+  if (AI_REAL) spendTokens(IMAGE_TOKENS);
   return { id: uid("ang"), image, key: angleKey(angle, o.names, o.lead, o.aspect, base?.id ?? "") };
 }
 
-/** 没画成的那一张：原因 + 钱扣没扣（ai/failCharge 一处） */
+/** 没画成的那一张：原因 + 钱扣没扣（ai/failCharge 一处）。没画成就不看，钱上只说图那一张 */
 function drawFailLine(e: unknown): string {
   const why = e instanceof Error ? e.message : String(e);
-  const money = chargeNote(chargeOnFail(e), ANGLE_TOKENS);
+  const money = chargeNote(chargeOnFail(e), IMAGE_TOKENS);
   const moneyLine = money?.line ?? "";
   return money
     ? t({
@@ -288,6 +301,38 @@ function drawFailLine(e: unknown): string {
         comment: "why 是失败原因整句；moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格",
       })
     : t`没画成：${why}`;
+}
+
+/**
+ * 画好一个机位之后让对话模型看一遍（studio/panelCheck.runPanelCheck：与九宫格同一把尺、同一道并发闸、同一个价），结论挂在这一张上（AnglePanel.check）。
+ * 三张都该恰好是**这两个人**（过肩那一位只露肩膀和后脑，按 PANEL_CHECK_SYS「身体局部也算 1 个」数成 1 个）。
+ * ★★ 为什么加（2026-10-19 主人「你来调研后决定」；10-15 定过「先不加付费的看图复核」，那时的理由是景别那类判断只会误报 —— 这里只用人数那一条）：
+ *   付费验证 3 组、每组 10 张过肩，多画一个人 14/30（组间 30%~70%，前景露肩膀的那个人又在中景照着双人镜头整个站了一遍）；
+ *   这把尺抓到 14/14、误报 0/19（docs/canvas-platforms-ecosystem-research.md 第九节）。看一次是一张图钱的 3%，漏掉的那一张会锁成那一句的开头帧去出片；
+ *   而第③步是三列缩略图，手机上一张约 110px 宽，重复的那个人在缩略图上只有十几个像素 —— 「让人自己看一眼」靠不住。
+ * ★ 只标出来、不自动重画、不拦落段（与九宫格同一口径）：重画要花钱，由人看过再点；看图也会把远处的小人影数进去。
+ * ★ 认图不认时刻：看完的时候这一张可能已经重画过了（image 换了）—— 那份结论作废、不写。演示构建不看。
+ */
+async function checkAngle(who: string, angle: DialogueAngle, image: string, names: readonly [string, string]): Promise<void> {
+  if (!AI_REAL || !image) return;
+  patchPanel(who, angle, (p) => (p && p.image === image ? { ...p, check: { state: "running" } } : p));
+  const check = await runPanelCheck(image, { who: [names[0], names[1]] });
+  patchPanel(who, angle, (p) => (p && p.image === image ? { ...p, check } : p));
+}
+
+/** 开画那一拍这一张的样子：图还摆着（底下压一层「正在画」），看图的结论跟着留着 —— 没画成摆回去时照它，在看的那一发看完照图写回 */
+function busyOf(p: AnglePanel | null): AnglePanel {
+  return p?.image ? { ...p, busy: true, err: undefined } : { id: "", image: "", key: "", busy: true };
+}
+/**
+ * 没画成（或没开画），摆回画之前那一张（before：开画那一拍的快照）；err = 这一次没画成的原因，不传 = 照旧。
+ * ★ 看图的结论取现在格子上的（cur：开画之后才看完的那一发写在它上面），不取快照里的 —— 快照里若还是「正在看」、那一发又已经看完了，
+ *   原样摆回去就是一个永远转着的圈（九宫格 2.62 发版评审抓到的同一种坑，gridDraftStore 的「摆回去时撤掉正在看图那一态」）。
+ */
+function backTo(before: AnglePanel | null, cur: AnglePanel | null, err?: string): AnglePanel | null {
+  if (!before?.image) return err ? { id: "", image: "", key: "", err } : before;
+  const check = cur?.image === before.image ? cur.check : before.check?.state === "running" ? undefined : before.check;
+  return { ...before, busy: undefined, check, err: err ?? before.err };
 }
 
 /**
@@ -310,21 +355,20 @@ export async function drawAngles(o: { cast: Card[]; place: Card | null }): Promi
   const aspect = s.aspect;
   const notes: string[] = [];
   const job = startJob({ kind: "dialogue-angles", title: t`对话正反打 · 画机位`, page, route: page, progress: t`先画双人镜头…` });
-  const busy = (p: AnglePanel | null): AnglePanel => ({ id: p?.id ?? "", image: p?.image ?? "", key: p?.key ?? "", busy: true });
-  writeFor(who, { drawing: t`先画双人镜头…`, drawErr: "", drawNote: "", panels: { two: busy(s.panels.two), faceA: busy(s.panels.faceA), faceB: busy(s.panels.faceB) } });
-  const settle = (angle: DialogueAngle, before: AnglePanel | null, err: string) =>
-    patchPanel(who, angle, () => (before?.image ? { ...before, busy: undefined, err } : { id: "", image: "", key: "", err }));
+  writeFor(who, { drawing: t`先画双人镜头…`, drawErr: "", drawNote: "", panels: { two: busyOf(s.panels.two), faceA: busyOf(s.panels.faceA), faceB: busyOf(s.panels.faceB) } });
+  const settle = (angle: DialogueAngle, err?: string) => patchPanel(who, angle, (cur) => backTo(s.panels[angle], cur, err));
   try {
     let two: AnglePanel;
     try {
       two = await drawOne("two", { cast: o.cast, place: o.place, names, lead, aspect, base: null, ask: "", notes });
       patchPanel(who, "two", () => two);
+      void checkAngle(who, "two", two.image, names);
     } catch (e) {
       const err = drawFailLine(e);
-      settle("two", s.panels.two, err);
+      settle("two", err);
       // 两个过肩没开画：退回原样（原来有图就留着原来的图）
-      patchPanel(who, "faceA", () => (s.panels.faceA ? { ...s.panels.faceA, busy: undefined } : null));
-      patchPanel(who, "faceB", () => (s.panels.faceB ? { ...s.panels.faceB, busy: undefined } : null));
+      settle("faceA");
+      settle("faceB");
       writeFor(who, { drawErr: t`双人镜头${err}——两个过肩要照着它画，先没开画` });
       job.fail(t`对话正反打的机位没画成，回去看原因`);
       return;
@@ -337,8 +381,9 @@ export async function drawAngles(o: { cast: Card[]; place: Card | null }): Promi
         try {
           const p = await drawOne(angle, { cast: o.cast, place: o.place, names, lead, aspect, base: two, ask: "", notes });
           patchPanel(who, angle, () => p);
+          void checkAngle(who, angle, p.image, names);
         } catch (e) {
-          settle(angle, s.panels[angle], drawFailLine(e));
+          settle(angle, drawFailLine(e));
           throw e;
         }
       }),
@@ -367,25 +412,28 @@ export async function redrawAngle(angle: DialogueAngle, o: { cast: Card[]; place
   if (s.drawing || !s.aspect || o.cast.length !== 2 || before?.busy) return;
   const who = ownerOfDraft();
   const base = s.panels.two;
+  // 点不下去的两种：原因写在这一张上，图与看图的结论都留着（原来整张重建，⚠ 跟着没了）
+  const refuse = (err: string) => patchPanel(who, angle, (p) => (p ? { ...p, busy: undefined, err } : { id: "", image: "", key: "", err }));
   if (angle !== "two" && !base?.image) {
-    patchPanel(who, angle, (p) => ({ id: p?.id ?? "", image: p?.image ?? "", key: p?.key ?? "", err: t`先把双人镜头画出来：过肩要照着它画` }));
+    refuse(t`先把双人镜头画出来：过肩要照着它画`);
     return;
   }
   if (AI_REAL && !canAfford(ANGLE_TOKENS)) {
     const price = fmtTokens(ANGLE_TOKENS);
-    patchPanel(who, angle, (p) => ({ id: p?.id ?? "", image: p?.image ?? "", key: p?.key ?? "", err: frozenNote() ?? t`重画一张要 ${price} token，余额不够——去「我的」页充值` }));
+    refuse(frozenNote() ?? t`重画一张要 ${price} token，余额不够——去「我的」页充值`);
     return;
   }
   const names: [string, string] = [o.cast[0].name, o.cast[1].name];
   const notes: string[] = [];
-  patchPanel(who, angle, (p) => ({ id: p?.id ?? "", image: p?.image ?? "", key: p?.key ?? "", busy: true }));
+  patchPanel(who, angle, busyOf);
   try {
     const p = await drawOne(angle, { cast: o.cast, place: o.place, names, lead: s.lead, aspect: s.aspect, base, ask: o.ask, notes });
     patchPanel(who, angle, () => p);
+    void checkAngle(who, angle, p.image, names);
     if (notes.length) writeFor(who, { drawNote: notes.join(t({ message: "；", comment: "把几条说明连成一句时的分隔符" })) });
   } catch (e) {
     const err = drawFailLine(e);
-    patchPanel(who, angle, () => (before?.image ? { ...before, busy: undefined, err } : { id: "", image: "", key: "", err }));
+    patchPanel(who, angle, (cur) => backTo(before, cur, err));
   }
 }
 

@@ -46,6 +46,7 @@ import { companionBus } from "../companion/bus";
 import { SpeechPlayer } from "../companion/speech";
 import { estimateSpeechMs, normalizeAction, normalizeFace, type CompanionSentence, pickTouchReaction } from "../companion/protocol";
 import { setVoiceEnabled, voiceEnabled } from "../studio/speech";
+import { activeLang } from "../i18n/switch";
 import { ApiError } from "../api/client";
 import { getCompanionSettings, resolveModelJsonUrl, type CompanionSettings } from "../api/companion";
 import {
@@ -404,7 +405,12 @@ export default function SupportPage() {
     let handoff: SupportCategory | null = null;
     try {
       await streamSupportChat(
-        { messages: history, lang: "zh" },
+        // ★ lang 按当前生效的界面语言传（2026-10-19；原来写死 "zh"）：服务端靠它定回复语言那一行
+        //   （lang=en：「Reply in English unless the user writes Chinese.」）、带不带英文界面叫法表、求助卡按哪种语言出。
+        //   写死 zh 时英文界面那一套（默认用英文回、英文求助卡）一样都用不上，服务端（server#120）只能按每一轮的原话兜底认英文。
+        //   判据只读 i18n/switch.activeLang（「当前生效的语言」的唯一读法，
+        //   i18n/locale 的 pickLang 是开机时的偏好、应用内切过语言之后就不是它了）
+        { messages: history, lang: activeLang() },
         {
           onSentence: (sentence) => {
             // 文字先上屏（市面客服都是文字即时、语音随后），语音按句排队

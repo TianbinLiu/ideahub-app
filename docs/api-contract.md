@@ -624,7 +624,7 @@ App 接 caps 之前，那条告知在 App 侧等于不存在 —— 这是已知
 | 方法 | 路径 | 鉴权 | 说明 |
 |---|---|---|---|
 | GET | `/api/support/config` | optional | `{ ok, name, enabled, tts, asr, voice, loginRequired: true, quickQuestions[], categories[] }`。`asr=false`（或老服务端没这个字段）时不画麦克风。`enabled=false`（服务端没配 AI）时输入框禁用，只剩「转人工」。**2026-09-04 起登录时另带** `voiceSettings: VoiceSettings`（三层合并结果，见下）、`persona: PersonaSummary\|null`、`personaSource: "user"\|"model"\|""`、`model: Live2dModel\|null`（null = 官方内置）；老字段 `voice` = `voiceSettings.voiceId`。老服务端没有这四项 → App 按旧写法只传 `voice` |
-| POST | `/api/support/chat` | required | SSE。body `{ messages: [{role: user\|assistant, content ≤1000}] ≤20, lang? }`。事件：`sentence {index, text, emotion, face, action, tts:{emotion, instruct}}`、`token {t}`、**`handoff {category, reason}`**（模型判定该转人工，一次对话最多一条）、`done {text, handoff, category}`、`error {message}`。限流 **20/分钟按账号**。★ Content-Type 不是 `text/event-stream` 就当服务端没有这个功能（SPA 回退给的是 200 + HTML） |
+| POST | `/api/support/chat` | required | SSE。body `{ messages: [{role: user\|assistant, content ≤1000}] ≤20, lang? }`（`lang`：App 2.63 之后的版本按当前生效的界面语言发 `"zh"` / `"en"`（`i18n/switch.activeLang`），2.63 及更早写死 `"zh"` —— 服务端别只认它判「这一问是不是英文」）。事件：`sentence {index, text, emotion, face, action, tts:{emotion, instruct}}`、`token {t}`、**`handoff {category, reason}`**（模型判定该转人工，一次对话最多一条）、`done {text, handoff, category}`、`error {message}`。限流 **20/分钟按账号**。★ Content-Type 不是 `text/event-stream` 就当服务端没有这个功能（SPA 回退给的是 200 + HTML） |
 | POST | `/api/support/tickets` | required | 转人工建单。body `{ transcript: [{role, content ≤2000}] ≤30, note? ≤500, contactEmail?, category? }`；`transcript` 与 `note` 至少一个。**201** `{ ok, ticket, reused: false }`；同一用户 10 分钟内已有未结工单 → **200** `{ ok, ticket, reused: true }`（不重复建）。服务端用 AI 归纳 `subject/summary/category`（失败退回用户原话），然后给所有管理员发 `SUPPORT_TICKET` 通知 + 邮件（`SUPPORT_NOTIFY_EMAIL` 或有真实邮箱的管理员）。限流 5/分钟 |
 | GET | `/api/support/tickets/mine` | required | `{ ok, items: Ticket[] }` 最近 20 张（不含 `contactEmail`） |
 | POST | `/api/support/tickets/:id/messages` | required | 在自己的工单里追加 `{ content ≤2000 }`；已结的单会重新 `open`；再通知管理员（10 分钟去重）。别人的工单 404 |
@@ -2073,6 +2073,11 @@ App 发起的失败都带 state 回来，走的是上面「带、相等」那一
   前提两件：#116（成功与处理函数里的失败回带，10-16 已部署）；失败回到 App 那一版（取消授权 / provider 报错 / state 过期也带 state 回到 App ——
   不部署它，收紧之后这几种失败照旧停在官网的错误页，App 一声不吭）。⚠ App 的 web 构建（只在 dev）上，网页发起的失败仍经 `/oauth/fail`、不回带：
   收紧之后它会被当成 mismatch 丢掉、一句失败都不说 —— 收紧前要么让 web 构建也认这一条，要么服务端给网页那条也回带（今天特意没动：网页流程保持原样）。
+- **收下的失败回程说什么**（App 2026-10-19 起）：`message=` 不再原样上屏。`data/oauthState.classifyOauthFailure`（零依赖，`check-oauth-state.mjs` 实跑）
+  认 `error=` 码（`oauth_failed` / `oauth_conflict`）与服务端**写死**的几句英文（整句锚定：`<provider> login failed`、`Invalid or expired OAuth state`、
+  `<Provider> email is already linked to another IdeaHub login method…`、`<Provider> email not available`、`Missing <provider> profile`、`<Provider> callback error`），
+  `utils/oauth.oauthFailText` 按界面语言说；**认不出的原样显示**（服务端 catch 里回的 `e.message`、绑定流那几句）。
+  ⚠ 服务端改这几句措辞时 App 会退回原样显示（不会说错，只是又冒英文）—— 改之前同步改 classifyOauthFailure 与它的正反例。
 - 同一条深链只收一次（`utils/oauth.onDeepLink`）：launch URL 在进程活着的期间一直是那一条，WebView 重载 / 系统改语言重建 Activity 之后
   `getLaunchUrl` 会把登过的那条再给一次 —— 收过的记下来（localStorage 只记 SHA-256 摘要：深链里带 token，原文不落盘），再来不算第二条回程，
   也就不会对着一次成功的登录说「不是本机发起的」。
@@ -2370,8 +2375,8 @@ role 的 video_url"绕过、按纯任务价放行）的请求，代理在计费�
    那是不含视频输入的价，等于输入时长一分不收、账目全瞎。今天两行：
    | 模型 | 系数 | 出处 |
    |---|---|---|
-   | Seedance 2.5（电影级） | 2.8 | 2026-08-16 账单实证（¥0.042/千token ⇒ 42/15） |
-   | Seedance 2.0 mini（高清） | 14/15 | 2026-10-05 主人「合」开高清的片段重拍 + 参考视频出片；按官方刊例 14 元/M，**账单还没逐行核过**（App `economy.HD_R2V_MULT` 同一个数，核出来不是 14 就两仓一起改） |
+   | Seedance 2.5（电影级） | 2.8 | 2026-08-16 账单实证（¥0.042/千token ⇒ 42/15）；刊例 2026-10-19 再核（价目页「输入包含视频」¥42/M） |
+   | Seedance 2.0 mini（高清） | 14/15 | 2026-10-05 主人「合」开高清的片段重拍 + 参考视频出片。**刊例已核**（火山方舟价目页 2026-10-19：2.0 mini「输入包含视频」¥14/M、「输入不含视频」¥23/M）；10-19 付费验证 `cgt-20261020073613-4gq5v`（片段重拍）/ `cgt-20261020074617-sxmps`（示例视频出片）服务端实扣 = App 报价。**账单行待主人在费用中心核**（App `videoTierTable.HD_R2V_MULT` 同一个数，核出来不是 14 就两仓一起改 —— 涨价方向，App 先发） |
 3. `generate_audio` 钉的是「**与该模型的支持情况一致**」（`config/tokens.VIDEO_AUDIO` 与 App `VideoTier.audio`
    逐条相等）：支持的档允许 `true`，不支持的档只许 `false`/缺省。⚠ 开音频**零额外成本**
    （2026-08-15 费用中心逐行核对），所以它**不进任何计价公式**。
@@ -2383,13 +2388,36 @@ role 的 video_url"绕过、按纯任务价放行）的请求，代理在计费�
 |---|---|---|---|---|
 | 一 · 已登记的白模模板（套用出片 / 作者试炼） | `url` 等值反查 `BranchTemplate.refVideo.url`（唯一索引、Cloudinary 规范形态）；`blocked` 不能用；未发布只有作者能用 | `edit` | `r2vTokens`：(登记的 `refVideo.durationSec` × 2) × 720p 锚 × 系数 | `omni_reference_task_type:"edit"`、`duration` 缺省或 `-1`、`resolution` 缺省或 `"720p"`、`ratio` 缺省或 `"adaptive"` |
 | 二 · 本账号刚传、尚未登记的托管素材（白模化那一发的输入） | `parseOwnClipUrl`：服务端自己拼的裁剪变换地址（`so_`/`du_`/`c_crop`、`publicId` 归本账号）；没有 `du_` 不认；已登记过的素材不许走 | `edit` | `r2vTokens`，输入时长 = URL 里的 `du_` | 同分支一；另有 `6 次/分` 限流（每发都打一次 Cloudinary Admin API） |
-| 三 · 已登记的用户素材参考视频（工作流「自定义 = 多图 + 参考视频」） | `MaterialRefVideo.findOne({ url })`，**私有**：登记者本人才能用 | `reference` | `materialRefTokens`：(登记的输入时长 + 用户选的输出时长) × 720p 锚 × 系数 | `duration` 必须是 `videoSecWindow(model)` 里的**整数**（不收 -1）、`resolution` 缺省或 `"720p"`、`ratio` 缺省或 `16:9` / `9:16` / `adaptive` |
-| 四 · 本人自己出的成片（App「修这一段」：返修 / 片段重拍 / 延长，2026-10-05） | `parseOwnBranchVideoUrl`：出片即转存的 `ideahub/branch-videos/<userId>-<毫秒>-seg`，目录 + 文件名以本人 id 开头（与服务端合并认段落的同一个判据）；时长由服务端向 Cloudinary 查（`ownSegmentMeta`，缓存一天），客户端报的数不信 | `edit` → `ownEdit`；`extend` → `ownExtend`；`reference` 这一期不开 | `ownEdit` 同分支一（输入 × 2）；`ownExtend` 同分支三（输入 + 输出） | `ownEdit` 同分支一的钉子；`ownExtend`：`duration` 为窗口内整数、`resolution` 缺省或 `"720p"`、`ratio` 缺省或 `"adaptive"`（延长跟随原片画幅） |
+| 三 · 已登记的用户素材参考视频（工作流「自定义 = 多图 + 参考视频」） | `MaterialRefVideo.findOne({ url })`，**私有**：登记者本人才能用 | `reference` | `materialRefTokens`：(登记的输入时长 + 用户选的输出时长) × 720p 锚 × 系数（输入按方舟最低用量折算，见下面「含输入视频的最低用量」：App 先上、服务端后上） | `duration` 必须是 `videoSecWindow(model)` 里的**整数**（不收 -1）、`resolution` 缺省或 `"720p"`、`ratio` 缺省或 `16:9` / `9:16` / `adaptive` |
+| 四 · 本人自己出的成片（App「修这一段」：返修 / 片段重拍 / 延长，2026-10-05） | `parseOwnBranchVideoUrl`：出片即转存的 `ideahub/branch-videos/<userId>-<毫秒>-seg`，目录 + 文件名以本人 id 开头（与服务端合并认段落的同一个判据）；时长由服务端向 Cloudinary 查（`ownSegmentMeta`，缓存一天），客户端报的数不信 | `edit` → `ownEdit`；`extend` → `ownExtend`；`reference` 这一期不开 | `ownEdit` 同分支一（输入 × 2）；`ownExtend` 同分支三（输入 + 输出，同样受最低用量管） | `ownEdit` 同分支一的钉子；`ownExtend`：`duration` 为窗口内整数、`resolution` 缺省或 `"720p"`、`ratio` 缺省或 `"adaptive"`（延长跟随原片画幅） |
 
 四条都不中 → **400 `R2V_NOT_ALLOWED` 整句拒**，方舟不会被调用、不扣费。流水 memo：分支一追加 ` r2v tpl:<模板id>`，其余三条 ` r2v src:<publicId>`（`arkGateway.service` 一处拼）；
 分支一落试炼追踪，二 / 三 / 四的 `templateId` 为 `null`、不落试炼。
 公式只有 `config/tokens.r2vTokens` 与 `materialRefTokens` 两处（**不加新公式**）；结算时 `kind` 由 `resolveR2v` 定（`material` / `ownExtend` 走
 (输入 + 输出)，其余走输入 × 2）。
+
+#### 含输入视频的最低用量（2026-10-19 定：**App 先发、服务端后上**）
+
+方舟官方规则（价目页 <https://docs.volcengine.com/docs/ark/model-pricing>，2026-10-19 读）：「对于 Seedance 2.0 系列、Seedance 2.5 模型，当输入包含视频时，
+存在最低 token 用量限制」「如果估算 token 用量 ＜ 最低 token 用量，则按最低 token 用量计算视频价格」。价目页链到的最低用量表折出来就是
+「输入 + 输出」至少 ⌈5 × 输出 / 3⌉ 秒，即**计价输入 = max(输入, ⌈2 × 输出 / 3⌉)**（2.5 720p 输出 4 / 7 / 15 / 23 秒 → 151,200 / 259,200 / 540,000 / 842,400；
+2.0 480p 输出 4 / 7 / 15 → 70,308 / 120,528 / 251,100）。10-19 付费验证两发都按它收：`cgt-20261020074220-c7l9g`（2.5 延长，输入 4 秒、输出 7 秒）用量
+259,200 = 12 × 21,600（按 (输入 + 输出) 是 237,600）；`cgt-20261020074617-sxmps`（2.0 mini 示例视频出片，输入 4 秒、输出 7 秒）用量 260,100 =
+(5 + 169/24) × 21,600。不改的话「输出 > 1.5 × 输入」的延长 / 示例视频出片每发少收（电影级 4 → 30 秒约 ¥14.5）。
+
+**新式子**（`material` / `ownExtend` 两支；`edit` 那条输入 × 2 不动 —— 输出 ≈ 输入，输入 ≤ 30 秒时 ⌈2 × 输入 / 3⌉ ≤ 输入，永远够得上）：
+输入夹 [4,30]、输出夹到这一档的 [minSec, maxSec]（同今天），再取 `iEff = max(i, ⌈2 × o / 3⌉)`，扣 `round((iEff + o) × 21,600 × 系数)`。
+例：电影级延长 4 → 7 秒 725,760（原 665,280）、4 → 30 秒 3,024,000（原 2,056,320）；高清示例视频 4 → 7 秒 241,920（原 221,760）；输出 ≤ 1.5 × 输入的不变。
+App 侧：规则只在 `data/videoTierTable.materialRefInputSec`，秒数只从 `economy.materialRefSecs` 来（报价 `materialRefCost`、「修这一段 · 延长」那句、
+示例视频那一格、出片进度三处都读它；抬高了由 `economy.minUsageNote` 说一句为什么），构建里 `check-video-tiers.mjs` 拿官方最低用量表实跑。
+
+**先后顺序**：这是**涨价**，与「改价目服务端先发」那条相反 —— App 的报价只在本机算、不问服务端（余额门按报价放行，`segmentGen` 的「契约核对」
+比的也是 App 自己的两个数），服务端先上的话没升级的 App 报少扣多（余额不够时在 App 说可以之后收到 402）；App 先发时过渡期报价 ≥ 实扣。
+所以 App（2.63 之后那一版，暂称 2.64）带新式子先发；服务端 `tokens.materialRefTokens`（分支 `claude/ark-min-usage`，`arkProxy.spec` 的
+`materialRefTokens(10,30,2.5)` 改 3,024,000、`(5.04,8,2.5)` 改 846,720，其余不变）在 2.64 发出约一周后再合，同一天客服知识库加一句：
+「2.63 及更早的 App 在电影级往后延长、带示例视频出片，且要的时长超过输入视频 1.5 倍时，界面上的价会比实扣少，以『我的』页 token 余额为准；
+升级到最新版就对上了。」⚠ 过渡期 App 报价**高于**服务端实扣是有意的，别当成两仓对不上去「修」。2.62 及更早的包不认强制更新门槛，
+不为这一条单独拧 `--min-version-code`（这几条路最近几乎没人用：保留到 09-23 的 pm2 日志里一发都没有）。
 
 App 侧对应：档位表 `data/videoTierTable` 上「能带参考视频」（`refVid`）、「能延长」（`extendOk`）、「能跑白模模板」（`blockoutOk`）是**三位**
 （高清只有第一位），四种子任务的请求形状在 `ai/arkClient.refTask`；报价读 `economy.r2vMult` / `HD_R2V_MULT`，与这里的 `VIDEO_MULT_R2V`

@@ -11,7 +11,9 @@
 // ⇒ 每秒 21,600 raw tokens（SEC_720P_TOKENS —— 与 segTokens 同一个常量，铁律六）。
 // 报价按【输出时长 = 输入时长】取上界：edit 任务输出≈输入是协议行为，实测方舟还会
 // 略微裁短输出（14.04s 输入 → 13.67s 计费），报价≥实收方向安全，误差 ~1%。
-// Seedance 2.5 含视频输入档 42 元/M ⇒ 系数 42/15 = 2.8（ULTRA_R2V_MULT）。
+// Seedance 2.5 含视频输入档 42 元/M ⇒ 系数 42/15 = 2.8（ULTRA_R2V_MULT；刊例 2026-10-19 再核）。
+// ⚠ 含输入视频时方舟有**最低用量**（输入至少按 ⌈2 × 输出 / 3⌉ 秒计）：edit 输出≈输入永远够得上，延长 / 示例视频出片不一定 ——
+//   那两条的计价输入走 materialRefSecs（规则在 videoTierTable.materialRefInputSec，2026-10-19 付费验证）。
 // ⚠ 「42 < 70 所以 r2v 便宜」的直觉是**反的**：输入也计费 + 输出=输入，同时长下
 //   r2v ≈ 纯任务的 2×2.8/4.7 ≈ 1.2 倍 —— 报价行必须写明含输入费。
 // ★ 跨仓契约：server 的 config/tokens.js **VIDEO_MULT_R2V** 必须与本表 r2vMult 逐条
@@ -42,6 +44,7 @@ import {
   ULTRA_R2V_MULT,
   VIDEO_TIER_SPECS,
   firstLiveTierId,
+  materialRefInputSec,
   perSecTokens,
   tierRetiredAt,
   type VideoTierSpec,
@@ -162,6 +165,8 @@ export const RECHARGE_PACKS = [
 // ★★ 能力 / 价目 / 分辨率 / 谁能用，全在 ./videoTierTable（零依赖，构建里 check-video-tiers.mjs 直接 import 它核对不变量）；
 //   这里只把界面文案（档位名、一句话说明）按 id 接上去。2026-10-07 拆开（免费档限制 + 「草稿」档那一次），理由见那个文件的文件头。
 //   系数（ULTRA_MULT 4.7 / ULTRA_R2V_MULT 2.8 / HD_R2V_MULT 14/15）的出处与账单核对记录也搬过去了，两仓对账就对那一张表。
+//   ✅ 刊例已核（火山方舟价目页 2026-10-19：2.0 mini 无视频输入 ¥23/M、有视频输入 ¥14/M；2.5 有视频输入 ¥42/M、无 ¥70/M），
+//   10-19 付费验证任务号逐个记在 videoTierTable 各系数头上；账单行待主人在费用中心核。含输入视频时的最低用量见 materialRefSecs。
 
 /** Seedance 档位：id 持久化在 VideoSegment.videoTier / EditorState.videoTier */
 export interface VideoTier extends VideoTierSpec {
@@ -472,7 +477,8 @@ export function videoTokensOfSpec(o: { mode: GenMode; durationSec: number; tierI
   // 电影级「样片」两步（2026-10-07）：第一步 480p × 电影级系数；第二步 = 样片的时长 × 1080p × 77/15（服务端按自己登记的样片时长结算）
   if (o.mode === "draft") return draftStepTokens(o.durationSec, o.ratio);
   if (o.mode === "draftFinal") return draftFinalTokens(o.durationSec, o.ratio);
-  // 延长与素材参考同一个式子：(输入 + 输出) × 系数（服务端 resolveR2v 的延长那一支结算走 tokens.materialRefTokens）
+  // 延长与素材参考同一个式子：(计价输入 + 输出) × 系数，计价输入含方舟最低用量（materialRefCost；服务端 resolveR2v 的延长那一支结算走
+  //   tokens.materialRefTokens —— 最低用量那一步服务端后上，过渡期这里报得比实扣高，见 videoTierTable.materialRefInputSec 的 ★★）
   if (o.mode === "reference" || o.mode === "extend") {
     if (tierOf(o.tierId).r2vMult === null) return null;
     return materialRefCost(o.refVideoSec ?? 0, o.durationSec, o.tierId);
@@ -486,13 +492,49 @@ function r2vRawTokens(inputSec: number, mult: number): number {
   return Math.round(inputSec * 2 * SEC_720P_TOKENS * mult);
 }
 
+/** 带视频输入的出片（延长 / 示例视频）计价用的三个秒数：夹过的输入、夹过的输出、按方舟最低用量折算之后**真正计价**的输入 */
+export interface MaterialRefSecs {
+  /** 输入视频的秒数（取整、夹到 [4,30]） */
+  inSec: number;
+  /** 输出秒数（取整、夹到这一档的 [minSec, maxSec]） */
+  outSec: number;
+  /** 计价用的输入秒数 = max(inSec, ⌈2 × outSec / 3⌉)（videoTierTable.materialRefInputSec）。比 inSec 大 = 最低用量起作用了 */
+  billedInSec: number;
+}
+
 /**
- * 素材参考出片（自定义 = 多图 + 参考视频，reference 子任务）的报价。
+ * 延长 / 示例视频出片按哪几个秒数计价 —— **唯一实现**：报价 materialRefCost、延长按钮旁那句、示例视频那一格、出片进度里的
+ * 「输入 N 秒 + 输出 M 秒计价」都读它（2026-10-19 加最低用量之前，进度句直接印原始输入秒数，与报价不是同一个数）。
+ * ★★ 夹取区间与 server 的 tokens.materialRefTokens **逐字相等**（跨仓契约）：输入夹 [4,30]、输出夹到这一档的 [minSec, maxSec]
+ *   （2026-10-03 之前两边都写死 [3,10]）。最低用量那一步（billedInSec）App 先上、服务端后上，过渡期 App 报价高于实扣，见 materialRefInputSec 的 ★★。
+ * 不抛（界面在 render 里调）：档位有没有 r2v 价由调用方另判。
+ */
+export function materialRefSecs(inputSec: number, outputSec: number, tierId?: string): MaterialRefSecs {
+  const t = tierOf(tierId);
+  const inSec = Math.max(4, Math.min(30, Math.round(inputSec)));
+  const outSec = Math.max(t.minSec, Math.min(t.maxSec, Math.round(outputSec)));
+  return { inSec, outSec, billedInSec: materialRefInputSec(inSec, outSec) };
+}
+
+/**
+ * 最低用量把输入秒数抬高了时给人看的那一句（延长按钮旁、示例视频那一格、出片进度三处共用一份）；没抬高 = null。
+ * ★ 只说事实与规则，不说「平台多收」：这是方舟的计价规则，钱就是这么花出去的。
+ */
+export function minUsageNote(s: MaterialRefSecs): string | null {
+  if (s.billedInSec <= s.inSec) return null;
+  const { inSec, outSec, billedInSec } = s;
+  // 「输入视频」而不是「参考视频」：延长那一支的输入是被延长的那一段成片，不是人挂的参考视频（10-19 复核）
+  return t`输出 ${outSec} 秒超过输入视频（${inSec} 秒）的 1.5 倍：方舟对带视频输入的出片有最低用量，输入按 ${billedInSec} 秒计价`;
+}
+
+/**
+ * 素材参考出片（自定义 = 多图 + 参考视频，reference 子任务）与往后延长（extend）的报价。
  *
  * ★ 与白模那条 r2vRawTokens 是**两个公式**：edit 输出≈输入所以 输入×2；
- *   reference 的输出时长由用户选（这一档的时长窗口内，电影级 4~30s），式子是 (输入 + 输出)×21,600×系数。
- * ★★ 夹取区间与 server 的 tokens.materialRefTokens **逐字相等**（报价=实扣，
- *   跨仓契约）：输入夹 [4,30]、输出夹到这一档的 [minSec, maxSec]（2026-10-03 之前两边都写死 [3,10]）。系数走档位表 r2vMult（方舟按
+ *   reference / extend 的输出时长由用户选（这一档的时长窗口内，电影级 4~30s），式子是 (计价输入 + 输出)×21,600×系数，
+ *   计价输入 = max(输入, ⌈2 × 输出 / 3⌉)（方舟「含输入视频时的最低 token 用量」，2026-10-19 付费验证两发实测；
+ *   规则、出处与「App 先发、服务端后上」的理由都在 videoTierTable.materialRefInputSec）。
+ * ★★ 秒数只从 materialRefSecs 来（夹取与服务端 tokens.materialRefTokens 逐字相等）。系数走档位表 r2vMult（方舟按
  *   "有没有视频输入"分档，不按子任务分档 —— 与白模同一档 2.8）。
  * ★ 档位没有 r2v 价（r2vMult 为 null）时**抛错**：这是报价函数，开发期就该当场炸
  *   （与 server 那份"结算不能炸"的分工相反，理由见 server tokens.imageTokensOf 注释）。
@@ -503,9 +545,8 @@ export function materialRefCost(inputSec: number, outputSec: number, tierId?: st
     // i18n-ignore-next-line: 开发期断言（调用方 flowStore.nodeCost 已按 r2vMult 判过，引用字段名）
     throw new Error(`档位 ${t.id} 没有 r2v 价目（r2vMult=null），不能带参考视频出片——调用方该先判 refVid`);
   }
-  const i = Math.max(4, Math.min(30, Math.round(inputSec)));
-  const o = Math.max(t.minSec, Math.min(t.maxSec, Math.round(outputSec)));
-  return Math.round((i + o) * SEC_720P_TOKENS * t.r2vMult);
+  const { outSec, billedInSec } = materialRefSecs(inputSec, outputSec, tierId);
+  return Math.round((billedInSec + outSec) * SEC_720P_TOKENS * t.r2vMult);
 }
 
 /**
@@ -1040,19 +1081,23 @@ export const CARD_META_TOKENS = 400;
 export const CHAT_TURN_TOKENS = 400;
 
 /**
- * 九宫格分镜画完一格让对话模型看一遍的价（一次看图对话：服务端对 chat 按调用次数定额收 CHAT_TURN_TOKENS，塞几张图都一样）。
+ * 画完一张让对话模型看一遍的价（一次看图对话：服务端对 chat 按调用次数定额收 CHAT_TURN_TOKENS，塞几张图都一样）——
+ * 九宫格分镜的每一格与对话正反打的三个机位都看（看法只有一份 studio/panelCheck.runPanelCheck）。
  * ★ 只在这里定义（2.62 发版评审第三轮抓到）：原来 gridDraftStore.PANEL_CHECK_TOKENS 另写一份 = CHAT_TURN_TOKENS，
- *   一格的价（GRID_PANEL_TOKENS）又各自硬写一遍 —— 改一处，「重新取这一张」那颗键上的看图价与组图报价就分家。
+ *   一格的价又各自硬写一遍 —— 改一处，「重新取这一张」那颗键上的看图价与组图报价就分家。2026-10-19 对话正反打也看了之后
+ *   改成通用名（原名 GRID_CHECK_TOKENS），gridDraftStore 里那个同名别名删了：价钱只有这一个入口。
  */
-export const GRID_CHECK_TOKENS = CHAT_TURN_TOKENS;
+export const PANEL_CHECK_TOKENS = CHAT_TURN_TOKENS;
 
 /**
- * 九宫格分镜（跟着做 C）画好一格的价：一张图 + 画完让对话模型看一遍（一次对话，studio/gridDraftStore.checkPanel）。
- * ★ 一处定义（2.62 发版评审抓到）：向导里组图报价 / 单格重画（gridDraftStore.groupQuote / PANEL_REDRAW_TOKENS）与选法屏那一行
- *   （components/flow/ModePicker）原来各算各的，10-07 加了「每格看一遍」只改了向导那一份，选法屏还报只有图的价。
- *   放在这里而不是 gridDraftStore：选法屏只认 props 和 data，不该为了一个数去 import 一个 store。
+ * 画好一张、再让对话模型看一遍的价：一张图 + 一次看图对话。九宫格分镜（跟着做 C）的每一格、对话正反打（跟着做 I）的每个机位都是这个价。
+ * ★ 一处定义（2.62 发版评审抓到）：向导里组图报价 / 单格重画（gridDraftStore.groupQuote / PANEL_REDRAW_TOKENS）、对话正反打的机位
+ *   （dialogueDraftStore.ANGLE_TOKENS）与选法屏那两行（components/flow/ModePicker）都读它 —— 原来各算各的，10-07 九宫格加了「每格看一遍」
+ *   只改了向导那一份，选法屏还报只有图的价。放在这里而不是某个 store：选法屏只认 props 和 data，不该为了一个数去 import 一个 store。
+ * ★ 2026-10-19 起对话正反打的三个机位也看一遍（付费验证：过肩多画一个人 14/30，看图核对抓到 14/14、误报 0/19，
+ *   docs/canvas-platforms-ecosystem-research.md 第九节），原名 GRID_PANEL_TOKENS 改成通用名。
  */
-export const GRID_PANEL_TOKENS = IMAGE_TOKENS + GRID_CHECK_TOKENS;
+export const CHECKED_PANEL_TOKENS = IMAGE_TOKENS + PANEL_CHECK_TOKENS;
 
 /**
  * 老师人格三个单价（M4，tutor 仓 docs/06 §6.1「economy.ts 镜像 tutor_turn / distill / extract」）—— 这是**报价**那一半；

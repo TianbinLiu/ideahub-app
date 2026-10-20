@@ -17,7 +17,7 @@ import type { ReactNode } from "react";
 import { acceptTermsRemote } from "../api/auth";
 import { getToken } from "../api/client";
 
-/** 协议正文的更新日期。改动实质条款时更新它，登录页会要求重新同意 */
+/** 协议正文的更新日期。改动实质条款时更新它，登录页会要求重新同意（只换用词不算：2026-10-19「合并导出」→「合成导出」没动它，理由在 aigcLabel.badgeLegalClause 头上） */
 export const TERMS_UPDATED = "2026-08-28";
 
 /** 客服/申诉邮箱。真实存在的收件箱（Zoho），别写一个没人收的地址 */

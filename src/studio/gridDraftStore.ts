@@ -28,7 +28,6 @@ import {
   ImageGroupBusy,
   chargeNote,
   chargeOnFail,
-  checkGridPanel,
   drawGridPanel,
   drawShotGroup,
   imageUrlToDataUrl,
@@ -39,17 +38,15 @@ import {
 import { ArkHttpError, fetchImageGroup, modelGoneCode } from "../ai/arkClient";
 import { canAfford, frozenNote, spendTokens } from "../data/account";
 import { onOwnerSwitch, workOwner } from "../data/deviceOwner";
-import { CHAT_TURN_TOKENS, GRID_CHECK_TOKENS, GRID_PANEL_TOKENS, IMAGE_TOKENS, fmtTokens } from "../data/economy";
+import { CHAT_TURN_TOKENS, CHECKED_PANEL_TOKENS, IMAGE_TOKENS, fmtTokens } from "../data/economy";
 import {
   GRID_SHOTS_MAX,
   castGaps,
   gridDrawPlan,
   gridFraming,
-  panelIssues,
   panelKindOf,
   panelPlot,
   panelPrompt,
-  parsePanelCheck,
   shotKey,
   styleRefIndex,
   type GridLang,
@@ -61,6 +58,7 @@ import { currentRoute, startJob } from "../data/jobs";
 import { aspectOf, uid, type Card, type Proposal, type VideoAspect } from "../types";
 import type { AppendSpec } from "./flowStore";
 import { restoreCast } from "./leadDraftStore";
+import { runPanelCheck, type PanelCheckResult, type PanelCheckState } from "./panelCheck";
 import { runSceneToGrid } from "./structuredSkills";
 
 /** 向导的五步：选人物和场景 → 写这场戏（AI 写分镜清单）→ 出分镜画面 → 挑格子 → 一格一段 · 出片 */
@@ -81,9 +79,9 @@ export interface GridPanel {
   /**
    * 画完之后对话模型看的那一遍（data/gridShots：分成几格、几个人、有没有两个一样的人；2026-10-07 主人「改」）。
    * done 的 issues 空 = 没看出问题；failed = 没核对上（why 是钱上的那句，没扣钱时为空）。缺省 = 还没看 / 演示构建不看。
-   * ★ 只标出来、不自动重画：重画要花钱，由人看过再点（车窗里的小人影这种也会被数进去）。
+   * ★ 只标出来、不自动重画：重画要花钱，由人看过再点（车窗里的小人影这种也会被数进去）。形状与看法在 studio/panelCheck（对话正反打的机位共用）。
    */
-  check?: { state: "running" } | { state: "done"; issues: PanelIssue[] } | { state: "failed"; why: string };
+  check?: PanelCheckState;
 }
 
 export interface GridDraft {
@@ -201,7 +199,7 @@ export function setGrid(patch: Partial<GridDraft>): void {
 
 const PARKED_KEY = "ideahub-app.gridGroup.v1";
 /** 看一遍的结论（存进落盘记录用：只存有结局的那两种） */
-type StoredCheck = Exclude<GridPanel["check"], { state: "running" } | undefined>;
+type StoredCheck = PanelCheckResult;
 interface ParkedGroup {
   /** 服务端任务号；"" = 受理那一发没收到回包、还没确认服务端收没收到（接着等时先按 at 去问，adoptLost） */
   id: string;
@@ -464,17 +462,14 @@ export function addShot(): void {
 //   ② 单画与单格重画是同一个函数（drawPanelAt），提示词 gridShots.panelPrompt（正面写画幅、参考图标用途）；
 //   ③ 每画好一格让对话模型看一遍（checkPanel）：分成几格、几个人、有没有两个一样的人。有问题标在那一格上，**由人决定重画**，不自动花钱。
 
-/**
- * 看一遍要多少：一次看图对话（服务端对 chat 按调用次数定额收 CHAT_TURN_TOKENS，与塞几张图无关 —— 所以一次只看一张，见 ai/real.checkGridPanel）。
- * 算进报价里：一组 = 每格一张图 + 看一遍；重画一格同理。
- */
-export const PANEL_CHECK_TOKENS = GRID_CHECK_TOKENS;
-/** 一组画面最多要多少（按上限报：方舟只收画出来的那几张，没画出来的退回 —— 契约「组图」；每格再加看一遍）。每格的价只在 economy.GRID_PANEL_TOKENS（选法屏也读它） */
+// 看一遍要多少：一次看图对话（服务端对 chat 按调用次数定额收 CHAT_TURN_TOKENS，与塞几张图无关 —— 所以一次只看一张，见 ai/real.checkGridPanel）。
+// 算进报价里：一组 = 每格一张图 + 看一遍；重画一格同理。★ 看一遍的价只在 economy.PANEL_CHECK_TOKENS（这里原来另有一个同名别名，2026-10-19 删了）。
+/** 一组画面最多要多少（按上限报：方舟只收画出来的那几张，没画出来的退回 —— 契约「组图」；每格再加看一遍）。每格的价只在 economy.CHECKED_PANEL_TOKENS（选法屏也读它） */
 export function groupQuote(n: number): number {
-  return GRID_PANEL_TOKENS * n;
+  return CHECKED_PANEL_TOKENS * n;
 }
 /** 单画 / 重画一格：一张图 + 看一遍 */
-export const PANEL_REDRAW_TOKENS = GRID_PANEL_TOKENS;
+export const PANEL_REDRAW_TOKENS = CHECKED_PANEL_TOKENS;
 
 /** 审核没过的码（方舟原样）→ 一句人话 */
 function failLine(code: string): string {
@@ -536,45 +531,20 @@ async function fetchPanel(who: string, i: number, url: string, key: string, shot
   }
 }
 
-/** 同时最多看两格：一组画完那一拍别一下子并发七八次对话 */
-let checking = 0;
-const checkWaiters: (() => void)[] = [];
-async function checkSlot(): Promise<() => void> {
-  while (checking >= 2) await new Promise<void>((r) => checkWaiters.push(r));
-  checking++;
-  return () => {
-    checking--;
-    checkWaiters.shift()?.();
-  };
-}
-
 /**
- * 画好一格之后让对话模型看一遍（ai/real.checkGridPanel），按这一格的分镜判（gridShots.panelIssues），结论挂在这一格上（GridPanel.check）。
+ * 画好一格之后让对话模型看一遍（studio/panelCheck.runPanelCheck：看法、并发闸、钱都在那一处，对话正反打的机位共用），
+ * 按这一格的分镜判（gridShots.panelIssues），结论挂在这一格上（GridPanel.check）。
  * ★ 认图不认下标：看完的时候这一格可能已经重画过了（image 换了）—— 那份结论作废、不写。
- * ★ 钱：对话回了（2xx）那一拍服务端已经按一次对话收了钱，本机账本同拍记一次（正式包上是空操作）；读不懂回话也照算。失败按类型说（ai/failCharge）。
  * ★ 演示构建不看（没有对话模型）：check 缺省 = 界面什么都不标。
  * @param url 这张图是组图里取回来的（方舟链接）：结论记进落盘记录，接着等时不再看第二遍（rememberCheck）。单画的那几格不进记录，不传
  */
 async function checkPanel(who: string, i: number, shot: GridShot, image: string, url?: string): Promise<void> {
   if (!AI_REAL || !image) return;
   patchPanel(who, i, (p) => (p && p.image === image ? { ...p, check: { state: "running" } } : p));
-  const release = await checkSlot();
-  try {
-    const raw = await checkGridPanel(image);
-    spendTokens(PANEL_CHECK_TOKENS);
-    const c = parsePanelCheck(raw);
-    const check: StoredCheck = c ? { state: "done", issues: panelIssues(c, shot) } : { state: "failed", why: "" };
-    if (url) rememberCheck(who, url, check);
-    patchPanel(who, i, (p) => (p && p.image === image ? { ...p, check } : p));
-  } catch (e) {
-    const money = chargeNote(chargeOnFail(e), PANEL_CHECK_TOKENS);
-    const check: StoredCheck = { state: "failed", why: money?.line ?? "" };
-    // 没看成也记：这一发可能已经收了钱（钱上那句就在 why 里），接着等时再看一遍就是可能再收一次
-    if (url) rememberCheck(who, url, check);
-    patchPanel(who, i, (p) => (p && p.image === image ? { ...p, check } : p));
-  } finally {
-    release();
-  }
+  const check = await runPanelCheck(image, shot);
+  // 没看成也记：这一发可能已经收了钱（钱上那句就在 why 里），接着等时再看一遍就是可能再收一次
+  if (url) rememberCheck(who, url, check);
+  patchPanel(who, i, (p) => (p && p.image === image ? { ...p, check } : p));
 }
 
 /** 一组画完（或接着等完）之后要说的那一句 */

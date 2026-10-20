@@ -460,8 +460,9 @@ export type PanelIssue = { kind: "panels"; got: number } | { kind: "people"; got
  * 按这一格的分镜判：分成了几格、人数对不对、有没有两个一样的人。空 = 没看出问题。
  * ★ 付费验证里不合格的 13 张全落在这三项上（空镜里有人、多画了一个、同一个人两次、拼图、伞下叠了一张半透明的脸），全抓到；
  *   合格的里这三项一次都没误报。车窗里的小人影也会被数进去 —— 标出来由人看一眼，不自动重画。
+ * ★ 只认「画面里应该有谁」（who）：对话正反打的三个机位也拿它判（两个人都算，过肩那一位只露肩膀和后脑也算 1 个；studio/panelCheck）。
  */
-export function panelIssues(c: PanelCheck, shot: GridShot): PanelIssue[] {
+export function panelIssues(c: PanelCheck, shot: Pick<GridShot, "who">): PanelIssue[] {
   const out: PanelIssue[] = [];
   if (c.panels > 1) out.push({ kind: "panels", got: c.panels });
   if (c.people !== shot.who.length) out.push({ kind: "people", got: c.people, want: shot.who.length });

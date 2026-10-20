@@ -79,3 +79,68 @@ export function decideOauthReturn(ret: OauthReturn, remembered: RememberedState 
   if (echoed === null) return "accept";
   return echoed === remembered.state ? "accept" : "mismatch";
 }
+
+// ── 失败回程说什么（2026-10-19，docs/review-personas-2026-10.md 第九节「留着的」第三条）──────────────────────
+// ★ 为什么要有它：服务端的失败回跳是 `?error=<码>&message=<固定英文>`（server oauth.routes 的 redirectFail / failBack），
+//   App 原来把 message 原样上屏 —— 中文界面里冒出一句「google login failed」「Invalid or expired OAuth state」。
+//   这里只做**归类**（认 error 码与几句服务端写死的英文，零依赖、构建里 check-oauth-state.mjs 实跑），话在 utils/oauth.oauthFailText
+//   按界面语言说。认不出的 message **原样**交回去（服务端在 catch 里会回 e.message，那句话可能是有用的中文）。
+// ★ 认的是服务端**写死**的那几句（2026-10-19 对着 server#119 的 oauth.routes.js 逐条抄的）：改了那边的措辞，这里认不出就退回原样显示，
+//   不会说错 —— 判错的方向是安全的。只认开头锚定的整句，免得把 provider / 别人拼进来的长句认成我们的。
+// ★ 只有能回到 App 的那几种（登录流）；绑定流（/me 上「绑定 Google」）只在官网有，那几句不在 App 里出现，不认。
+
+/** 第三方登录的提供方（界面上要说名字的那几家）；别的（含 /oauth/fail 缺省的 "oauth"）当不知道是哪家 */
+export type OauthProvider = "google" | "github";
+
+export type OauthFailure =
+  /** 「<provider> login failed」/ 只有 oauth_failed 码：取消了授权、provider 那边报错、换 token 失败 —— 服务端分不出是哪一种 */
+  | { kind: "notCompleted"; provider: OauthProvider | null }
+  /** 「Invalid or expired OAuth state」：在 provider 那边耽搁太久（服务端那份签名 state 10 分钟过期） */
+  | { kind: "stateExpired" }
+  /** oauth_conflict / 「<P> email is already linked to another IdeaHub login method…」：这个邮箱已经用别的方式注册过 */
+  | { kind: "emailTaken"; provider: OauthProvider | null }
+  /** 「Google email not available」：provider 没给邮箱 */
+  | { kind: "noEmail"; provider: OauthProvider | null }
+  /** 「Missing google profile」：provider 没交回资料 */
+  | { kind: "noProfile"; provider: OauthProvider | null }
+  /** 「Google callback error」：服务端处理回调时出错（没有更具体的原话） */
+  | { kind: "callbackError"; provider: OauthProvider | null }
+  /** 认不出的 message：原样显示 */
+  | { kind: "raw"; text: string }
+  /** 什么都没带 */
+  | { kind: "unknown" };
+
+function providerOf(word: string): OauthProvider | null {
+  const w = word.toLowerCase();
+  return w === "google" || w === "github" ? w : null;
+}
+
+const FAIL_PATTERNS: { re: RegExp; kind: "notCompleted" | "emailTaken" | "noEmail" | "noProfile" | "callbackError" }[] = [
+  { re: /^(\w+) login failed$/i, kind: "notCompleted" },
+  { re: /^(\w+) email is already linked to another IdeaHub login method\b/i, kind: "emailTaken" },
+  { re: /^(\w+) email not available$/i, kind: "noEmail" },
+  { re: /^Missing (\w+) profile$/i, kind: "noProfile" },
+  { re: /^(\w+) callback error$/i, kind: "callbackError" },
+];
+
+/**
+ * 一条失败回程归成哪一类。message 优先（它比码细），没有 message 才看码。
+ * @param error 回程里的 `error=`（oauth_failed / oauth_conflict）
+ * @param message 回程里的 `message=`
+ */
+export function classifyOauthFailure(error: string | null | undefined, message: string | null | undefined): OauthFailure {
+  const msg = (message ?? "").trim();
+  if (msg) {
+    if (/^Invalid or expired OAuth state$/i.test(msg)) return { kind: "stateExpired" };
+    for (const p of FAIL_PATTERNS) {
+      const m = p.re.exec(msg);
+      if (m) return { kind: p.kind, provider: providerOf(m[1]) };
+    }
+    return { kind: "raw", text: msg };
+  }
+  const code = (error ?? "").trim();
+  if (code === "oauth_failed") return { kind: "notCompleted", provider: null };
+  if (code === "oauth_conflict") return { kind: "emailTaken", provider: null };
+  if (code) return { kind: "raw", text: code };
+  return { kind: "unknown" };
+}
