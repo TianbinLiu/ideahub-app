@@ -173,7 +173,8 @@ export async function checkUpdate(silent = true): Promise<UpdateInfo | null> {
     info = await AppUpdater.check({ manifestUrl: MANIFEST_URL });
   } catch (e) {
     if (silent) return null;
-    throw e instanceof Error ? e : new Error(String(e));
+    // 原生只回码（AppUpdaterPlugin 的 UpdateError），话在这里按界面语言说；认不出的码原样（updateFailText）
+    throw new Error(updateFailText(e, "check"));
   }
   if (!info.hasUpdate || !info.apkUrl) return null;
   // ★ 清单缺 / 坏 sha256 一律**不当有更新**（2026-10-15 教材人格评审，owasp-security-5）：发版脚本每一版都写它，缺了只可能是
@@ -220,7 +221,8 @@ export async function downloadAndInstall(
     // sha256 原样传（不再 `|| undefined`）：checkUpdate 已经只放行带合法 sha 的清单，原生那侧缺了也会拒 —— 两道闸各自成立
     await AppUpdater.downloadAndInstall({ url: info.apkUrl, sha256: info.sha256 });
   } catch (e) {
-    // 失败上报（humble-delivery-4）：只带原生插件的 code（NEED_PERMISSION / NO_SHA；下载与校验失败没有 code），不带 message —— 里面是地址与文件名。原样再抛，行为不变
+    // 失败上报（humble-delivery-4）：只带原生插件的 code（2026-10-19 起下载 / 校验 / 安装失败也都有码，见 UPDATE_FAIL_CODES），
+    // 不带 message —— 里面是地址、文件名与原生原话。原样再抛（带着 code / data），话由调用方经 updateFailText 说
     reportClientEvent("update-failed", { where: "download-install", name: (e as { code?: string } | null)?.code });
     throw e;
   } finally {
@@ -231,4 +233,117 @@ export async function downloadAndInstall(
 export function fmtSize(bytes: number): string {
   if (!bytes) return "";
   return `${(bytes / 1048576).toFixed(1)}MB`;
+}
+
+/**
+ * 原生更新器失败时回的码（AppUpdaterPlugin 的 reject code）。★ 与 sideload 那份 `UpdateError` 头上的码表逐条相等，改一边就改另一边。
+ * 下载那一步的 error.data 里另有 `received`（这一版在本机已经有多少字节）与 `httpStatus`（有才带）。
+ */
+const UPDATE_FAIL_CODES = new Set([
+  "NO_URL",
+  "NO_SHA",
+  "NEED_PERMISSION",
+  "NO_SETTINGS",
+  "NO_MANIFEST_URL",
+  "UNSUPPORTED",
+  "STORAGE",
+  "TIMEOUT",
+  "OFFLINE",
+  "NETWORK",
+  "HTTP",
+  "PACKAGE_GONE",
+  "INCOMPLETE",
+  "CHECKSUM",
+  "INSTALLER",
+  "BAD_MANIFEST",
+  "FAILED",
+]);
+
+/**
+ * 更新器失败时给人看的那句话 —— 按界面语言说，**唯一出口**（设置页「检查更新」、更新弹层的下载 / 去授权三处都走它）。
+ *
+ * ★★ 为什么话不再由原生说（2026-10-19，docs/review-personas-2026-10.md 第九节「留着的」）：原生原来把异常的 getMessage()
+ *   原样拼在中文前面（2.63 发版后真机更新撞到「timeout。已经下好的 46.2MB 留着了…」）—— 中文界面开头一个英文原词，
+ *   英文界面后半句又只有中文。现在原生只回码 + 数据，话在这里。
+ * ★ 认不出的码（Capacitor 自己的 UNIMPLEMENTED、没回码的老原生插件）**原样显示 message**：改之前就是这样，至少不是一句空话。
+ * ★ 「已经下好的那一截留着了」只在原生说了真有字节时才说（received > 0）；received 缺 = 原生没量（不提），0 = 一个字节都没下到 ——
+ *   2026-09-01 复核抓到过「目录里一个字节都没有、屏幕上写着留着了」，往让人放心的方向说错不比往吓人的方向说错高尚。
+ */
+export function updateFailText(e: unknown, stage: "check" | "download"): string {
+  const err = (e ?? {}) as { code?: unknown; data?: unknown; message?: unknown };
+  const code = typeof err.code === "string" ? err.code : "";
+  const raw = typeof err.message === "string" && err.message.trim() ? err.message : "";
+  if (!UPDATE_FAIL_CODES.has(code)) return raw || (stage === "check" ? t`检查更新失败，稍后再试` : t`更新失败，请稍后再试`);
+  const data = (err.data && typeof err.data === "object" ? err.data : {}) as { received?: unknown; httpStatus?: unknown };
+  const status = typeof data.httpStatus === "number" && data.httpStatus > 0 ? data.httpStatus : 0;
+  // 入口早退的那几种两条路说法一样
+  switch (code) {
+    case "NO_URL":
+    case "NO_SHA":
+      return t`更新清单不完整，稍后再试`;
+    case "NEED_PERMISSION":
+      return t`还没允许这个 App 安装应用：先去开启「允许安装未知应用」，再点一次。`;
+    case "NO_SETTINGS":
+      return t`打不开系统的授权页：请到系统设置里给这个 App 打开「安装未知应用」。`;
+    case "UNSUPPORTED":
+      return t`由应用商店负责更新`;
+  }
+  if (stage === "check") {
+    switch (code) {
+      case "TIMEOUT":
+        return t`检查更新失败：连接超时，网络太慢或者断了`;
+      case "OFFLINE":
+        return t`检查更新失败：连不上服务器，看看网络通不通`;
+      case "NETWORK":
+        return t`检查更新失败：网络断了`;
+      case "HTTP":
+        return t`检查更新失败：版本清单取不到（HTTP ${status}）`;
+      case "BAD_MANIFEST":
+        return t`检查更新失败：版本清单读不出来`;
+      default:
+        return t`检查更新失败，稍后再试`;
+    }
+  }
+  const received = typeof data.received === "number" ? data.received : null;
+  const size = received !== null && received > 0 ? fmtSize(received) : "";
+  const keep =
+    received === null
+      ? ""
+      : size
+        ? t({ message: `已经下好的 ${size} 留着了，再点一次会接着下，不用从头来。`, comment: "一句完整的、自带句号的话，会被当占位符（keep）接在下载失败原因后面：译文首尾不要留空格" })
+        : t({ message: "这一次一个字节都没下到。", comment: "一句完整的、自带句号的话，会被当占位符（keep）接在下载失败原因后面：译文首尾不要留空格" });
+  let line: string;
+  switch (code) {
+    case "TIMEOUT":
+      line = t({ message: `下载超时了：网络太慢或者断了。${keep}`, comment: "keep 是一句完整的、自带句号的话（已经下好的那一截留没留着），也可能是空串：英文在它前面留一个空格" });
+      break;
+    case "OFFLINE":
+      line = t({ message: `连不上下载服务器，看看网络通不通。${keep}`, comment: "keep 是一句完整的、自带句号的话（已经下好的那一截留没留着），也可能是空串：英文在它前面留一个空格" });
+      break;
+    case "NETWORK":
+      line = t({ message: `下载到一半网络断了。${keep}`, comment: "keep 是一句完整的、自带句号的话（已经下好的那一截留没留着），也可能是空串：英文在它前面留一个空格" });
+      break;
+    case "HTTP":
+      line = t({ message: `下载服务器暂时出错了（HTTP ${status}）。${keep}`, comment: "keep 是一句完整的、自带句号的话（已经下好的那一截留没留着），也可能是空串：英文在它前面留一个空格" });
+      break;
+    case "INCOMPLETE":
+      line = t({ message: `这一次没下完（网络断了几次）。${keep}`, comment: "keep 是一句完整的、自带句号的话（已经下好的那一截留没留着），也可能是空串：英文在它前面留一个空格" });
+      break;
+    case "STORAGE":
+      line = t({ message: `手机存储写不进去，可能是空间满了：先腾出一些空间。${keep}`, comment: "keep 是一句完整的、自带句号的话（已经下好的那一截留没留着），也可能是空串：英文在它前面留一个空格" });
+      break;
+    case "PACKAGE_GONE":
+      // 再试也不会好（原生不重试）：不提「再点一次会接着下」—— 那是一条走不通的路
+      line = t`下载失败（HTTP ${status}）：这个地址上没有这一版的包了，等下一版出来再更新。`;
+      break;
+    case "CHECKSUM":
+      line = t`下载的文件校验不通过，已经丢掉了（可能没下完整，或者内容被改过）。再点一次会从头重下。`;
+      break;
+    case "INSTALLER":
+      line = t`安装包下好了，但拉不起系统安装器。再点一次会直接装，不用重下。`;
+      break;
+    default:
+      line = t({ message: `下载没成功。${keep}`, comment: "keep 是一句完整的、自带句号的话（已经下好的那一截留没留着），也可能是空串：英文在它前面留一个空格" });
+  }
+  return line.trim();
 }

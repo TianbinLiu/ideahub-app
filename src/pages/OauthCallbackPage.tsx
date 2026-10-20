@@ -11,7 +11,7 @@ import { useLingui } from "@lingui/react/macro";
 import EmptyState from "../components/EmptyState";
 import { useNavigate, useSearchParams } from "react-router";
 import { signInWithOauthToken } from "../data/account";
-import { acceptOauthReturn } from "../utils/oauth";
+import { acceptOauthReturn, oauthFailText } from "../utils/oauth";
 
 export default function OauthCallbackPage() {
   const [params] = useSearchParams();
@@ -24,9 +24,11 @@ export default function OauthCallbackPage() {
   useEffect(() => {
     if (used.current) return;
     used.current = true;
+    const failed = !!(params.get("error") || params.get("message"));
     const res = acceptOauthReturn({
       token: params.get("token") ?? undefined,
-      error: params.get("message") || params.get("error") || undefined,
+      // 服务端的固定英文按界面语言说（utils/oauth.oauthFailText，与深链那条同一处），认不出的原样
+      error: failed ? oauthFailText(params.get("error"), params.get("message")) : undefined,
       state: params.get("state"),
     });
     if (!res.ok) {

@@ -2,7 +2,7 @@
 //
 // ★ 三种会卡住的情况都必须**当场说清楚**，不能只是按钮点了没动静：
 //   ① 没给「安装未知应用」授权 —— 这是侧载最常见的一道坎，直接给一颗按钮跳到那一页；
-//   ② 下载失败 / 校验不过 —— 原因原样显示，并且留着重试；
+//   ② 下载失败 / 校验不过 —— 原因按界面语言说出来（原生只回码，话在 data/appUpdate.updateFailText），并且留着重试；
 //   ③ 签名对不上 —— 系统安装器自己会报，这里提前把话说在前面（从早期的 debug 包
 //      换到正式包时必然发生，只能先卸载）。
 //
@@ -30,6 +30,7 @@ import {
   isMandatory,
   openInstallPermission,
   skipVersion,
+  updateFailText,
   type UpdateInfo,
 } from "../data/appUpdate";
 import { openExternal } from "../utils/openExternal";
@@ -83,7 +84,8 @@ export default function UpdateSheet({ info, onClose }: { info: UpdateInfo; onClo
       // 安装器已经拉起来了。这里**不关弹层**：装不装是用户在系统弹窗里决定的，
       // 他可能点取消回来 —— 那时候还留着"立即更新"才有得再点
     } catch (e) {
-      setErr(e instanceof Error ? e.message : t`更新失败，请稍后再试`);
+      // 原生只回码 + 已下好的字节数，话按界面语言在 updateFailText 里说（2026-10-19；原来是原生原话，开头一个英文原词）
+      setErr(updateFailText(e, "download"));
     } finally {
       setBusy(false);
     }
@@ -126,7 +128,11 @@ export default function UpdateSheet({ info, onClose }: { info: UpdateInfo; onClo
               <Trans>这个 App 不是从应用商店装的，系统需要你先允许它安装应用，才能自己完成更新。</Trans>
             </p>
             <button
-              onClick={() => void openInstallPermission()}
+              onClick={() => {
+                // 打不开授权页（原生 NO_SETTINGS）原来是一个没人接的拒绝 = 点了没反应；现在说出来、让人自己去系统设置
+                setErr("");
+                openInstallPermission().catch((e: unknown) => setErr(updateFailText(e, "download")));
+              }}
               className="mt-2 w-full rounded-xl bg-amber-400/90 py-2.5 text-xs font-bold text-ink"
             >
               <Trans>去开启「允许安装未知应用」</Trans>

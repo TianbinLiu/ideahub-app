@@ -1580,6 +1580,18 @@ msgstr "{value}（包里没有）"
 msgid "{what}：{ref}"
 msgstr "{what}：{ref}"
 
+#: src/utils/oauth.ts
+msgid "{who} 没有提供邮箱地址，没法用它登录。"
+msgstr "{who} 没有提供邮箱地址，没法用它登录。"
+
+#: src/utils/oauth.ts
+msgid "{who} 登录时出了错，请再试一次。"
+msgstr "{who} 登录时出了错，请再试一次。"
+
+#: src/utils/oauth.ts
+msgid "{who} 登录没有完成：授权被取消了，或者 {who} 那边出了错。可以再试一次。"
+msgstr "{who} 登录没有完成：授权被取消了，或者 {who} 那边出了错。可以再试一次。"
+
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "{who}，还没挂卡"
 msgstr "{who}，还没挂卡"
@@ -5099,9 +5111,37 @@ msgstr "下载中 {pct}%"
 msgid "下载中…"
 msgstr "下载中…"
 
+#. keep 是一句完整的、自带句号的话（已经下好的那一截留没留着），也可能是空串：英文在它前面留一个空格
+#: src/data/appUpdate.ts
+msgid "下载到一半网络断了。{keep}"
+msgstr "下载到一半网络断了。{keep}"
+
+#: src/data/appUpdate.ts
+msgid "下载失败（HTTP {status}）：这个地址上没有这一版的包了，等下一版出来再更新。"
+msgstr "下载失败（HTTP {status}）：这个地址上没有这一版的包了，等下一版出来再更新。"
+
 #: src/pages/SupportModelsPage.tsx
 msgid "下载并使用"
 msgstr "下载并使用"
+
+#. keep 是一句完整的、自带句号的话（已经下好的那一截留没留着），也可能是空串：英文在它前面留一个空格
+#: src/data/appUpdate.ts
+msgid "下载服务器暂时出错了（HTTP {status}）。{keep}"
+msgstr "下载服务器暂时出错了（HTTP {status}）。{keep}"
+
+#. keep 是一句完整的、自带句号的话（已经下好的那一截留没留着），也可能是空串：英文在它前面留一个空格
+#: src/data/appUpdate.ts
+msgid "下载没成功。{keep}"
+msgstr "下载没成功。{keep}"
+
+#: src/data/appUpdate.ts
+msgid "下载的文件校验不通过，已经丢掉了（可能没下完整，或者内容被改过）。再点一次会从头重下。"
+msgstr "下载的文件校验不通过，已经丢掉了（可能没下完整，或者内容被改过）。再点一次会从头重下。"
+
+#. keep 是一句完整的、自带句号的话（已经下好的那一截留没留着），也可能是空串：英文在它前面留一个空格
+#: src/data/appUpdate.ts
+msgid "下载超时了：网络太慢或者断了。{keep}"
+msgstr "下载超时了：网络太慢或者断了。{keep}"
 
 #: src/components/guide/tours.tsx
 msgid "下面「从市场添加」那一栏：点卡面只是<0>看详情</0>， 卡片下面那行小字才是收进自己的库。那一栏还能切成卡组、整套装走，都不花钱。"
@@ -10326,6 +10366,10 @@ msgstr "在学"
 msgid "在想…"
 msgstr "在想…"
 
+#: src/utils/oauth.ts
+msgid "在授权页上停留太久，这次登录已经失效了，请重新登录。"
+msgstr "在授权页上停留太久，这次登录已经失效了，请重新登录。"
+
 #: src/studio/canvasAgent.ts
 msgid "在末尾追加"
 msgstr "在末尾追加"
@@ -10836,6 +10880,10 @@ msgstr "安卓不让 App 直接写进相册。文件先落在 App 的缓存目�
 msgid "安慰"
 msgstr "安慰"
 
+#: src/data/appUpdate.ts
+msgid "安装包下好了，但拉不起系统安装器。再点一次会直接装，不用重下。"
+msgstr "安装包下好了，但拉不起系统安装器。再点一次会直接装，不用重下。"
+
 #. placeholder {0}: v.url
 #: src/data/cardViews.ts
 msgid "安装包里没有这张素材（{0}）"
@@ -10964,6 +11012,10 @@ msgstr "密码至少 6 位"
 #: src/components/guide/tours.tsx
 msgid "对不上是可以就地改的：<0>标记写错了直接改成画面上那个</0>；清单里多出画面上找不到的位子就「删掉」；AI 漏认的人偶还能用清单下面那颗带加号的键<1>加回清单</1>。这些都<2>不会再花一次钱</2>。按位置指认的模板删掉一位后，记得把它右边各位往左挪一位——面板在待删行和提交前都会提醒。各种对不上的细节，展开视频<3>下面</3>那个「对不上怎么办？」看。"
 msgstr "对不上是可以就地改的：<0>标记写错了直接改成画面上那个</0>；清单里多出画面上找不到的位子就「删掉」；AI 漏认的人偶还能用清单下面那颗带加号的键<1>加回清单</1>。这些都<2>不会再花一次钱</2>。按位置指认的模板删掉一位后，记得把它右边各位往左挪一位——面板在待删行和提交前都会提醒。各种对不上的细节，展开视频<3>下面</3>那个「对不上怎么办？」看。"
+
+#: src/utils/oauth.ts
+msgid "对方没有提供邮箱地址，没法用它登录。"
+msgstr "对方没有提供邮箱地址，没法用它登录。"
 
 #: src/studio/live2dUploadStore.ts
 msgid "对映射"
@@ -11794,6 +11846,11 @@ msgstr "已用 {0} MB"
 #: src/studio/ui/projection.tsx
 msgid "已用你上传的图"
 msgstr "已用你上传的图"
+
+#. 一句完整的、自带句号的话，会被当占位符（keep）接在下载失败原因后面：译文首尾不要留空格
+#: src/data/appUpdate.ts
+msgid "已经下好的 {size} 留着了，再点一次会接着下，不用从头来。"
+msgstr "已经下好的 {size} 留着了，再点一次会接着下，不用从头来。"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "已经公开到形象市场，别人能搜到它了。"
@@ -12942,6 +12999,11 @@ msgstr "手机号 / 用户名"
 msgid "手机号（中国大陆）"
 msgstr "手机号（中国大陆）"
 
+#. keep 是一句完整的、自带句号的话（已经下好的那一截留没留着），也可能是空串：英文在它前面留一个空格
+#: src/data/appUpdate.ts
+msgid "手机存储写不进去，可能是空间满了：先腾出一些空间。{keep}"
+msgstr "手机存储写不进去，可能是空间满了：先腾出一些空间。{keep}"
+
 #: src/components/BootFailed.tsx
 msgid "手机存储空间不够，这台手机上的本地数据库打不开"
 msgstr "手机存储空间不够，这台手机上的本地数据库打不开"
@@ -12959,6 +13021,10 @@ msgstr "打不开系统浏览器（{0}）"
 #: src/components/PortraitAuthPanel.tsx
 #~ msgid "打不开系统浏览器（{0}）——用「复制链接」自己粘到浏览器里"
 #~ msgstr "打不开系统浏览器（{0}）——用「复制链接」自己粘到浏览器里"
+
+#: src/data/appUpdate.ts
+msgid "打不开系统的授权页：请到系统设置里给这个 App 打开「安装未知应用」。"
+msgstr "打不开系统的授权页：请到系统设置里给这个 App 打开「安装未知应用」。"
 
 #: src/components/guide/tours.tsx
 msgid "打字之后上面先出<0>人</0>、下面出作品。 作品是拿标题、简介、话题标签一起对的，不只对标题；<1>按作者找人用上面那半</1>。"
@@ -15039,7 +15105,7 @@ msgstr "更换头像"
 msgid "更新了你在学的老师"
 msgstr "更新了你在学的老师"
 
-#: src/components/UpdateSheet.tsx
+#: src/data/appUpdate.ts
 msgid "更新失败，请稍后再试"
 msgstr "更新失败，请稍后再试"
 
@@ -16129,6 +16195,30 @@ msgstr "检查形状…"
 msgid "检查更新"
 msgstr "检查更新"
 
+#: src/data/appUpdate.ts
+msgid "检查更新失败，稍后再试"
+msgstr "检查更新失败，稍后再试"
+
+#: src/data/appUpdate.ts
+msgid "检查更新失败：版本清单取不到（HTTP {status}）"
+msgstr "检查更新失败：版本清单取不到（HTTP {status}）"
+
+#: src/data/appUpdate.ts
+msgid "检查更新失败：版本清单读不出来"
+msgstr "检查更新失败：版本清单读不出来"
+
+#: src/data/appUpdate.ts
+msgid "检查更新失败：网络断了"
+msgstr "检查更新失败：网络断了"
+
+#: src/data/appUpdate.ts
+msgid "检查更新失败：连不上服务器，看看网络通不通"
+msgstr "检查更新失败：连不上服务器，看看网络通不通"
+
+#: src/data/appUpdate.ts
+msgid "检查更新失败：连接超时，网络太慢或者断了"
+msgstr "检查更新失败：连接超时，网络太慢或者断了"
+
 #: src/components/VideoTemplateExtractor.tsx
 msgid "检查画面角落 {i}/{wmFrameN}…"
 msgstr "检查画面角落 {i}/{wmFrameN}…"
@@ -17161,6 +17251,14 @@ msgstr "没抓到足够的声音——检查麦克风是不是被别的 App 占�
 #: src/components/VideoCardAnnotator.tsx
 msgid "没抓到足够的声音——这段视频可能没有音轨，换一段试试"
 msgstr "没抓到足够的声音——这段视频可能没有音轨，换一段试试"
+
+#: src/utils/oauth.ts
+msgid "没拿到 {who} 的账号信息，请再试一次。"
+msgstr "没拿到 {who} 的账号信息，请再试一次。"
+
+#: src/utils/oauth.ts
+msgid "没拿到第三方账号的信息，请再试一次。"
+msgstr "没拿到第三方账号的信息，请再试一次。"
 
 #: src/studio/flowStore.ts
 msgid "没接到出片结果，任务可能还在上游那边跑——用下面的「取回」领回来，别重新生成"
@@ -18826,6 +18924,7 @@ msgstr "由 720P 素材放大，文件更大但不会更清晰"
 msgid "由 AI 自己挑：先看正中间那一帧，认不全再往两头铺，最多试 {BLOCKOUT_BOX_TRIES} 帧。<0>一镜到底、人站着不动的素材用这个就够。</0>"
 msgstr "由 AI 自己挑：先看正中间那一帧，认不全再往两头铺，最多试 {BLOCKOUT_BOX_TRIES} 帧。<0>一镜到底、人站着不动的素材用这个就够。</0>"
 
+#: src/data/appUpdate.ts
 #: src/pages/SettingsPage.tsx
 msgid "由应用商店负责更新"
 msgstr "由应用商店负责更新"
@@ -21007,10 +21106,18 @@ msgstr "第一张 · 同时就是卡面"
 msgid "第一条：<0>任意视频都行</0>，AI 把画面里的人全换成一模一样的纯白人偶。 别人套用时整段复刻你这段的<1>场景与运镜</1>，再逐个人偶挂上自己的人物卡， 没挂卡的位子通常保持人偶原样。这条会真的出一次片，所以要花钱——具体多少在框选那一步整句报出来。"
 msgstr "第一条：<0>任意视频都行</0>，AI 把画面里的人全换成一模一样的纯白人偶。 别人套用时整段复刻你这段的<1>场景与运镜</1>，再逐个人偶挂上自己的人物卡， 没挂卡的位子通常保持人偶原样。这条会真的出一次片，所以要花钱——具体多少在框选那一步整句报出来。"
 
+#: src/utils/oauth.ts
+msgid "第三方登录时出了错，请再试一次。"
+msgstr "第三方登录时出了错，请再试一次。"
+
 #: src/pages/OauthCallbackPage.tsx
 #: src/utils/oauth.ts
 msgid "第三方登录未完成"
 msgstr "第三方登录未完成"
+
+#: src/utils/oauth.ts
+msgid "第三方登录没有完成：授权被取消了，或者对方那边出了错。可以再试一次。"
+msgstr "第三方登录没有完成：授权被取消了，或者对方那边出了错。可以再试一次。"
 
 #: src/components/guide/tours.tsx
 #~ msgid "第三条：AI 从整段视频里<0>均匀抽</0>几帧看（你只定抽几帧）， 总结画风质感、运镜与分镜骨架，再提炼可复用的场景／道具卡。帧数越多认得越准，价钱不变。 它<1>不出片、不把你的视频传上公网，也是三条里唯一不需要付费套餐的</1>。"
@@ -23304,6 +23411,10 @@ msgstr "还是没问到服务端收没收到上一组（网络不稳）——网
 msgid "还有 {emptyCount} 个角色位没挂卡 —— <0>可以直接出片</0>，没挂的通常保持白色人偶的样子。 ⚠ 素材里<1>镜头切换多</1>时例外：实测 AI 可能拿已挂的卡把没挂的位子也换掉（同一个角色出现两份）。 要稳就把每个位子都挂上（同一张卡可以挂多个位子），或选一镜到底的素材。"
 msgstr "还有 {emptyCount} 个角色位没挂卡 —— <0>可以直接出片</0>，没挂的通常保持白色人偶的样子。 ⚠ 素材里<1>镜头切换多</1>时例外：实测 AI 可能拿已挂的卡把没挂的位子也换掉（同一个角色出现两份）。 要稳就把每个位子都挂上（同一张卡可以挂多个位子），或选一镜到底的素材。"
 
+#: src/data/appUpdate.ts
+msgid "还没允许这个 App 安装应用：先去开启「允许安装未知应用」，再点一次。"
+msgstr "还没允许这个 App 安装应用：先去开启「允许安装未知应用」，再点一次。"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "还没写这一段拍什么"
 msgstr "还没写这一段拍什么"
@@ -23950,6 +24061,11 @@ msgstr "这一档暂时报不出价，换个档位再试"
 msgid "这一档用的模型已经停止服务了，请换一档再出片——这一次没有受理，也没有扣费。"
 msgstr "这一档用的模型已经停止服务了，请换一档再出片——这一次没有受理，也没有扣费。"
 
+#. 一句完整的、自带句号的话，会被当占位符（keep）接在下载失败原因后面：译文首尾不要留空格
+#: src/data/appUpdate.ts
+msgid "这一次一个字节都没下到。"
+msgstr "这一次一个字节都没下到。"
+
 #: src/studio/gridDraftStore.ts
 msgid "这一次一格都没画成——上一版的图原样摆回去了"
 msgstr "这一次一格都没画成——上一版的图原样摆回去了"
@@ -23962,6 +24078,11 @@ msgstr "这一次一格都没画成（{why}）——上一版的图原样摆回�
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "这一次会拿什么去写"
 msgstr "这一次会拿什么去写"
+
+#. keep 是一句完整的、自带句号的话（已经下好的那一截留没留着），也可能是空串：英文在它前面留一个空格
+#: src/data/appUpdate.ts
+msgid "这一次没下完（网络断了几次）。{keep}"
+msgstr "这一次没下完（网络断了几次）。{keep}"
 
 #. why 是失败原因（半句话，不带句末标点）
 #: src/components/cut/AutoEditSheet.tsx
@@ -24520,6 +24641,10 @@ msgstr "这不像火山的素材 ID —— 应该长成 asset-20260401123823-6d4
 msgid "这不是白模模板（只有白模模板能按段套用）"
 msgstr "这不是白模模板（只有白模模板能按段套用）"
 
+#: src/utils/oauth.ts
+msgid "这个 {who} 账号的邮箱已经用别的方式注册过了：请用当初注册时的方式登录。"
+msgstr "这个 {who} 账号的邮箱已经用别的方式注册过了：请用当初注册时的方式登录。"
+
 #: src/components/UpdateSheet.tsx
 msgid "这个 App 不是从应用商店装的，系统需要你先允许它安装应用，才能自己完成更新。"
 msgstr "这个 App 不是从应用商店装的，系统需要你先允许它安装应用，才能自己完成更新。"
@@ -24744,6 +24869,10 @@ msgstr "这个账号的钱包现在不能扣费（有欠额或套餐不够），
 #: src/studio/cutNarration.ts
 #~ msgid "这个账号的钱包现在不能扣费（有欠额或套餐不够），配音没合成"
 #~ msgstr "这个账号的钱包现在不能扣费（有欠额或套餐不够），配音没合成"
+
+#: src/utils/oauth.ts
+msgid "这个邮箱已经用别的方式注册过了：请用当初注册时的方式登录。"
+msgstr "这个邮箱已经用别的方式注册过了：请用当初注册时的方式登录。"
 
 #: src/pages/ProfilePage.tsx
 msgid "这个链接里只有名字，没法向服务器确认是谁 · 下面只是本次刷到的那些"
@@ -25927,6 +26056,11 @@ msgstr "远端模板加载失败：{why}"
 #: src/data/templates.ts
 msgid "远端模板加载失败：网络不稳，稍后自动重试"
 msgstr "远端模板加载失败：网络不稳，稍后自动重试"
+
+#. keep 是一句完整的、自带句号的话（已经下好的那一截留没留着），也可能是空串：英文在它前面留一个空格
+#: src/data/appUpdate.ts
+msgid "连不上下载服务器，看看网络通不通。{keep}"
+msgstr "连不上下载服务器，看看网络通不通。{keep}"
 
 #: src/pages/CustomCardPage.tsx
 msgid "连不上服务器，现在铸出来的卡会丢（见上）"

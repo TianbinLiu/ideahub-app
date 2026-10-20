@@ -2073,6 +2073,11 @@ App 发起的失败都带 state 回来，走的是上面「带、相等」那一
   前提两件：#116（成功与处理函数里的失败回带，10-16 已部署）；失败回到 App 那一版（取消授权 / provider 报错 / state 过期也带 state 回到 App ——
   不部署它，收紧之后这几种失败照旧停在官网的错误页，App 一声不吭）。⚠ App 的 web 构建（只在 dev）上，网页发起的失败仍经 `/oauth/fail`、不回带：
   收紧之后它会被当成 mismatch 丢掉、一句失败都不说 —— 收紧前要么让 web 构建也认这一条，要么服务端给网页那条也回带（今天特意没动：网页流程保持原样）。
+- **收下的失败回程说什么**（App 2026-10-19 起）：`message=` 不再原样上屏。`data/oauthState.classifyOauthFailure`（零依赖，`check-oauth-state.mjs` 实跑）
+  认 `error=` 码（`oauth_failed` / `oauth_conflict`）与服务端**写死**的几句英文（整句锚定：`<provider> login failed`、`Invalid or expired OAuth state`、
+  `<Provider> email is already linked to another IdeaHub login method…`、`<Provider> email not available`、`Missing <provider> profile`、`<Provider> callback error`），
+  `utils/oauth.oauthFailText` 按界面语言说；**认不出的原样显示**（服务端 catch 里回的 `e.message`、绑定流那几句）。
+  ⚠ 服务端改这几句措辞时 App 会退回原样显示（不会说错，只是又冒英文）—— 改之前同步改 classifyOauthFailure 与它的正反例。
 - 同一条深链只收一次（`utils/oauth.onDeepLink`）：launch URL 在进程活着的期间一直是那一条，WebView 重载 / 系统改语言重建 Activity 之后
   `getLaunchUrl` 会把登过的那条再给一次 —— 收过的记下来（localStorage 只记 SHA-256 摘要：深链里带 token，原文不落盘），再来不算第二条回程，
   也就不会对着一次成功的登录说「不是本机发起的」。
