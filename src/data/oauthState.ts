@@ -144,3 +144,25 @@ export function classifyOauthFailure(error: string | null | undefined, message: 
   if (code) return { kind: "raw", text: code };
   return { kind: "unknown" };
 }
+
+/**
+ * 回程（成功 / 失败）落在哪：人是从登录页 `/login?next=X` 起跳的，回来之后 X 要接着带上。
+ *
+ * ★ 为什么（2026-10-20，server#119 部署后复核）：原来失败一律 `navigate("/login?err=…")`，把 `next` 换没了 —— 接着改用密码登录
+ *   就落到首页、不是当初要去的那一页；成功一律回 "/"。#119 之前取消授权会停在浏览器里、App 停在 `/login?next=X` 不动，
+ *   这一跳只在少数失败上走到；#119 之后每一次取消都走这一跳。
+ * ★ 只认站内路径（以单个 / 开头）：`next` 在登录页上本来就是原样拿去 navigate 的，这里不放宽、只收紧。
+ * @param hash 现在的 `location.hash`（HashRouter：`#/login?next=%2Fme`）。不在登录页上（冷启动回来、别处起跳）回 null = 按原来的去处
+ */
+export function loginNextOf(hash: string): string | null {
+  const h = hash.startsWith("#") ? hash.slice(1) : hash;
+  const q = h.indexOf("?");
+  if ((q < 0 ? h : h.slice(0, q)) !== "/login") return null;
+  const next = new URLSearchParams(q < 0 ? "" : h.slice(q + 1)).get("next");
+  return next && next.startsWith("/") && !next.startsWith("//") ? next : null;
+}
+
+/** 失败回程回登录页的地址：`err` 必带，`next` 有就接着带（见 loginNextOf） */
+export function loginFailPath(err: string, next: string | null): string {
+  return `/login?err=${encodeURIComponent(err)}${next ? `&next=${encodeURIComponent(next)}` : ""}`;
+}
