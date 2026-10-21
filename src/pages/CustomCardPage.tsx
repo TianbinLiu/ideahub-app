@@ -139,7 +139,7 @@ function parseTags(raw: string): string[] {
 export default function CustomCardPage() {
   const nav = useNavigate();
   // 顶栏返回：从工坊「自己传图做卡片」进来；深链冷启动没有上一页时退回工坊
-  const back = useBackOr("/workshop");
+  const back = useBackOr("/workshop/mine");
   const [resetAsk, setResetAsk] = useState(false);
   const remote = isRemoteMode();
 
@@ -1979,7 +1979,7 @@ export default function CustomCardPage() {
                   </button>
                 ))}
                 <p className="px-2 pb-1 text-[9px] leading-relaxed text-slate-400">
-                  <Trans>自建方案 / 从市场装新方案在工坊「从视频提取卡片」里做，装好这里就能选。</Trans>
+                  <Trans>自建方案 / 从市场装新方案在「我的仓库」的「从视频提取卡片」里做，装好这里就能选。</Trans>
                 </p>
               </div>
             )}

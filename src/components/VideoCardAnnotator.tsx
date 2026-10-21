@@ -549,7 +549,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
     /** 这一发是谁付的钱：画完窗已关时停进他那一格（见 ParkedPortraits 的 ★） */
     const ownerAtStart = workOwner();
     // ★ 登记成后台任务：窗关了也照画；画完窗不在就把图停进 parkedByOwner，胶囊叫人回来存卡
-    const job = startJob({ kind: "card-ai", title: t`AI 生成图位`, page: "/workshop", route: "/workshop", progress: t`准备中…` });
+    const job = startJob({ kind: "card-ai", title: t`AI 生成图位`, page: "/workshop/mine", route: "/workshop/mine", progress: t`准备中…` });
     try {
       const body = raw.find((c) => c.role === "primary") ?? raw[0];
       const face = raw.find((c) => c.role === "face");
@@ -583,7 +583,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
       if (!mountedRef.current) {
         // 窗已经关了：图停在模块里，下次打开这一窗接回来（见 ParkedPortraits 的 ★）
         parkedByOwner.set(ownerAtStart, { crops: made, raw, partial: null, type: type ?? "character", name, summary, schemeId, realPerson, consentOk, pendingAsset, pendingVoice, at: Date.now() });
-        job.done({ msg: t`AI 图位生成好了——回工坊点「从视频提取」接着存卡`, route: "/workshop" });
+        job.done({ msg: t`AI 图位生成好了——回「我的仓库」点「从视频提取」接着存卡`, route: "/workshop/mine" });
         return;
       }
       setPartial(null); // 画齐了：留下的与这一次画的已经合进 made
@@ -629,10 +629,10 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                 comment: "moneyBrief 是括号里的一个短语，说钱扣没扣（ai/failCharge.chargeNote 的 brief：已经画好的 N 张已计费…）",
               })
             : t({
-                message: `形象图只画成了一部分（${moneyBrief}）——回工坊点「从视频提取」补剩下的`,
+                message: `形象图只画成了一部分（${moneyBrief}）——回「我的仓库」点「从视频提取」补剩下的`,
                 comment: "moneyBrief 是括号里的一个短语，说钱扣没扣（ai/failCharge.chargeNote 的 brief：已经画好的 N 张已计费…）",
               }),
-          "/workshop",
+          "/workshop/mine",
         );
         setErr(
           t({
@@ -642,7 +642,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
         );
       } else if (drawnSlots.length > 0) {
         // 画好了几张、却一分钱没扣：只有管理员（服务端免扣费）会走到这里
-        job.fail(here ? t`形象图只画成了一部分（没扣钱），画好的先留着` : t`形象图只画成了一部分（没扣钱）——回工坊点「从视频提取」补剩下的`, "/workshop");
+        job.fail(here ? t`形象图只画成了一部分（没扣钱），画好的先留着` : t`形象图只画成了一部分（没扣钱）——回「我的仓库」点「从视频提取」补剩下的`, "/workshop/mine");
         const why = (e instanceof Error ? e.message : String(e)).slice(0, 120);
         setErr(t`形象图只画成了一部分：${why}——没扣钱。画好的「${drawnNames}」先留着，补齐剩下的就一起换上；原片裁剪没受影响，也可以直接存`);
       } else if (money) {
@@ -654,7 +654,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
             message: `形象图没画成（${moneyBrief}）`,
             comment: "moneyBrief 是括号里的一个短语，说钱扣没扣（ai/failCharge.chargeNote 的 brief：可能已经扣了钱 / 已计费 / 已经画好的 N 张已计费…）",
           }),
-          "/workshop",
+          "/workshop/mine",
         );
         setErr(
           t({
@@ -663,7 +663,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
           }),
         );
       } else {
-        job.fail(t`形象图没画成（没扣钱）`, "/workshop");
+        job.fail(t`形象图没画成（没扣钱）`, "/workshop/mine");
         const why = (e instanceof Error ? e.message : String(e)).slice(0, 120);
         setErr(t`形象图没画成：${why}——原片裁剪没受影响，可以直接存或再试一次`);
       }
@@ -713,7 +713,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
     setErr("");
     setBusy(t`存卡中…`);
     // ★ 登记成后台任务：远端模式要串行传几张图，窗关了也照存（卡进的是账号库，与窗无关）
-    const job = startJob({ kind: "card-mint", title: t`存卡`, page: "/workshop", route: "/workshop", progress: t`存卡中…` });
+    const job = startJob({ kind: "card-mint", title: t`存卡`, page: "/workshop/mine", route: "/workshop/mine", progress: t`存卡中…` });
     try {
       // ★★ `kind` 由 role 反推**并且必须照写**（types.roleToKind）：它是跨仓冻结的三值，
       //   老服务端/老客户端只认它 —— 不写的话那边拿到的是个非法 view。role/tag 是新增位。
@@ -738,7 +738,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
       const r = await addCards([card]);
       if (r.added.length === 0) {
         setErr(t`没能存进你的卡片库：登录态可能已经失效。重新登录后再点一次（圈好的图还在）。`);
-        job.fail(t`没能存进卡片库：登录态可能已失效`, "/workshop");
+        job.fail(t`没能存进卡片库：登录态可能已失效`, "/workshop/mine");
         return;
       }
       // ★ 与 CustomCardPage 同一套诚实口径：unsynced = 卡没到服务端，冷启动会整张消失
@@ -783,11 +783,11 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
       setRealPerson(false);
       setConsentOk(false);
       setPendingAsset(null);
-      job.done({ msg: t`「${card.name}」已存进卡片库`, route: "/workshop", silent: mountedRef.current });
+      job.done({ msg: t`「${card.name}」已存进卡片库`, route: "/workshop/mine", silent: mountedRef.current });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setErr(t`存卡没成：${msg.slice(0, 120)}`);
-      job.fail(t`存卡没成，回去看原因`, "/workshop");
+      job.fail(t`存卡没成，回去看原因`, "/workshop/mine");
     } finally {
       setBusy("");
     }
@@ -841,7 +841,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
           <div className="space-y-3">
             <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3">
               <div className="text-sm font-bold text-emerald-300"><Trans>已建组「{deckDone}」</Trans></div>
-              <p className="mt-1 text-xs text-slate-300"><Trans>{saved.length} 张卡已入库，在「我的卡组」里能看到。</Trans></p>
+              <p className="mt-1 text-xs text-slate-300"><Trans>{saved.length} 张卡已入库，在「我的仓库」的「卡组」里能看到。</Trans></p>
             </div>
             <button onClick={onClose} className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink">
               <Trans>完成</Trans>
@@ -1436,7 +1436,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                   {deckMode ? (
                     <Trans>本次已存 {saved.length} 张（最后一步打包成卡组）</Trans>
                   ) : (
-                    <Trans>本次已存 {saved.length} 张（已在「我的卡片」里）</Trans>
+                    <Trans>本次已存 {saved.length} 张（已在「我的仓库」的「卡片」里）</Trans>
                   )}
                 </div>
                 <div className="flex gap-1.5 no-scrollbar overflow-x-auto">

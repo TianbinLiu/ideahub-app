@@ -14,6 +14,7 @@ import AuthPending from "./components/AuthPending";
 import FeedPage from "./pages/FeedPage";
 import DiscoverPage from "./pages/DiscoverPage";
 import WorkshopPage from "./pages/WorkshopPage";
+import WorkshopMinePage from "./pages/WorkshopMinePage";
 import ProfilePage from "./pages/ProfilePage";
 import SettingsPage from "./pages/SettingsPage";
 import SettingsProfilePage from "./pages/SettingsProfilePage";
@@ -311,6 +312,7 @@ export default function App() {
         {/* 一级 Tab 不做硬登录墙：未登录时页面自己显示软提示（与 /me 一致）。
             硬弹到登录页会让底栏的一个入口变成「点进去就出不来」。 */}
         <Route path="/workshop" element={<WorkshopPage />} />
+        <Route path="/workshop/mine" element={<WorkshopMinePage />} />
         <Route path="/me" element={<ProfilePage />} />
         {/* 创作者主页（首页点头像进的就是它）。放在 TabLayout 里而不是全屏页：
             短视频 App 的个人页都留着底栏，逛完一个作者能直接切回首页继续刷。

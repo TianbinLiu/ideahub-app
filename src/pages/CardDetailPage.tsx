@@ -7,7 +7,7 @@ import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
 import DeleteCardDialog from "../components/DeleteCardDialog";
 import { createPortal } from "react-dom";
-import { Link, useLocation, useParams } from "react-router";
+import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { useBackOr } from "../hooks/useBackOr";
 // ★ 出片管线的规则一律**从管线本身取**，这一页不再抄一份（铁律六）。
 //   抄的那份漏过规则一（只有第一张人物卡进参考图），于是「出片用」这个标签会对着
@@ -58,7 +58,8 @@ import {
   viewTag,
   viewsOf,
 } from "../types";
-import { useAccountVersion } from "../hooks/useAccount";
+import { useAccountVersion, useAuthState } from "../hooks/useAccount";
+import { clearStashedCard, peekStashedCard, stashCardForLogin } from "../data/cardHandoff";
 
 /**
  * 老卡/素材卡没存这段信息时（字段仍叫 genPrompt，跨仓字段不改名），
@@ -255,7 +256,7 @@ function CardVoiceSection({ card, owned }: { card: Card; owned: boolean }) {
       <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
         <span className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>🔊 人物声音</Trans></span>
         <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
-          <Trans>这张卡还没有声音样本。在工坊「从视频提取」圈选人物时可以顺手取一段（2~15 秒）——出片走「{voiceTierNames()}」档且台词写在引号里时，AI 会参考这段声音的音色。</Trans>
+          <Trans>这张卡还没有声音样本。在创意工坊「我的仓库」里从视频提取、圈选人物时可以顺手取一段（2~15 秒）——出片走「{voiceTierNames()}」档且台词写在引号里时，AI 会参考这段声音的音色。</Trans>
         </p>
       </div>
     );
@@ -679,11 +680,19 @@ export default function CardDetailPage() {
   // 返回：有上一页就回去（工坊 / 卡组 / 作品页），分享链接冷启动没有上一页时退回工坊；删卡之后退页也走它
   const back = useBackOr("/workshop");
   const loc = useLocation();
+  const nav = useNavigate();
+  // ★ 2026-10-20 工坊改版后市场不登录也能逛、点卡面就进这一页：没登录时「＋ 添加」先去登录、登完回到这张卡
+  //   （原来直接调 acquireCard，回一句「还没登录，装不了。」、键还变成「再同步一次」，一条出路都没有）
+  const auth = useAuthState();
   const { t } = useLingui();
   useCountView("card", id);
   // 优先账号库；不在库里（比如看别人作品的卡组）用路由 state 里带来的卡
   // ★ 依赖里带上 accountV：账号库是原地改对象的单例，不把版本号写进依赖，
   //   "刚把这张卡加进库"之后这里还会拿着路由 state 里那份只读副本。
+  // 「先登录、再添加」那一趟回来时寄存着的那张卡（data/cardHandoff）：**按 id 认领一次**。
+  // ★ 别在下面那个 memo 里每一拍都去问：寄存半小时作废，页面开着超过半小时、账号库随便 emit 一下，
+  //   memo 重算就拿不到它了 —— 正看着的卡变成「这张卡不在你的收藏里」（2026-10-20 复核抓到）
+  const claimedCard = useMemo(() => peekStashedCard(id), [id]);
   const localCard = useMemo<Card | null>(() => {
     const mine = myCards().find((c) => c.id === id);
     if (mine) return mine;
@@ -692,11 +701,17 @@ export default function CardDetailPage() {
     //   不匹配时 else 分支返回的还是 `passed`。于是 URL 指着 B 卡、路由 state 里躺着 A 卡时
     //   （返回栈里翻回来、或从两个入口先后点进来），页面画的是 A，而同一个组件里的
     //   `useCountView("card", id)` 把这次浏览记在 **B** 头上 —— 两件事都零报错。
-    return passed && passed.id === id ? passed : null;
-  }, [id, loc.state, accountV]);
+    if (passed && passed.id === id) return passed;
+    // 「先登录、再添加」那一趟回来：路由 state 过不了登录页，快照卡又按 id 取不回来（data/cardHandoff 头上那段）
+    return claimedCard;
+  }, [id, loc.state, accountV, claimedCard]);
   // ★ 这一页也会渲染**别人的**卡（工坊市场点进来时卡是由路由 state 带过来的），
   //   所以分享条必须按"这张卡在不在我库里"开门，不能只看有没有登录。
   const owned = useMemo(() => myCards().some((c) => c.id === id), [id, accountV]);
+  // 进了库就撤掉「先登录、再添加」的寄存（库里那份优先，寄存那份再留着只会在下一次别的路上被误认）
+  useEffect(() => {
+    if (owned) clearStashedCard(id);
+  }, [owned, id]);
   /** 删卡确认开着没有 */
   const [ask, setAsk] = useState(false);
   /** 改名弹层（只对自己的卡）。★ 与删卡确认并排放在这里：都在所有早退之前 */
@@ -972,6 +987,12 @@ export default function CardDetailPage() {
           <button
             onClick={() => {
               if (getting) return;
+              // 登完回来路由 state 就没了：广场卡这一页还能按 id 再取一次，作品 / 模板卡组里的快照卡取不回来（404），
+              // 所以走之前把这张卡寄存一下，回来由 localCard 认领（data/cardHandoff）
+              if (auth === "out") {
+                stashCardForLogin(card);
+                return nav(`/login?next=${encodeURIComponent(loc.pathname)}`);
+              }
               setGetting(true);
               setGetErr(null);
               void acquireCard(card)

@@ -1,56 +1,66 @@
-// 创意工坊页：管理自己的卡片与卡组——搜索添加市场卡片、建组、增删卡。
-// 与 3D 卡片工坊（/studio）分工：这里是资产管理，那里是创作现场。
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+// 创意工坊第一层（/workshop）= 市场：一个搜索框 + 卡片 / 卡组 / 模板 / 工作流四类，搜别人分享的东西、装进自己的库。
+// 自己的东西与做东西的入口在第二层「我的仓库」（/workshop/mine，pages/WorkshopMinePage）。
+// 与 3D 卡片工坊（/studio）分工：这里是逛与拿，那里是创作现场。
+//
+// ★ 2026-10-20 改版（主人点名「参考市面上创意工坊的 ui 构造：第一层以市场搜索为主」）：原来一进来是「我的卡片」，
+//   市场（「从市场添加」）排在三个创作入口下面、模板市场套在「我的模板」页签里。调研的十几家（Steam 创意工坊、Unity /
+//   Roblox 素材商店、Figma 社区、Google Play…）第一屏都是一直展开的搜索框 + 种类切换，「我拥有的」在单独一层。
+// ★ 搜索词与筛选全进地址（`?kind=&q=&type=&sort=`；模板那一类另有货架自己的 `?model=`）：去卡片详情 / 模板详情
+//   再返回，这一页整个重挂，state 归零就把人正在看的东西弄丢（2026-09-05 主人真机点名过一次，hooks/useQueryTab）。
+// ★ 服务端今天给得出的（2026-10-20 量过 origin/main）：卡片 / 卡组广场各给最近分享的 50 条、按词搜（服务端）；没有排序参数、
+//   没有类型筛选、没有分页。所以「类型」与「热门」都是在拿到手的这一批里排 / 滤 —— 热门那颗旁边照实说一句。
+//   模板市场的词是本机筛（data/templates.browseTemplates）；工作流货架服务端没有搜索参数，在拿到的那一批里按标题 / 作者筛（WorkflowShelf 的 q）。
+// ★ 「工作流」是第一排的第四类（2026-10-20 主人在真机上看过之后选的）：第一版把它放在「模板」里面的第二排芯片（模板市场 / 工作流），
+//   主人在手机上没找到它 —— 藏在第二层芯片里的东西等于没有。
+// ★ 不登录也能逛（四个列表接口都是 optionalAuth）：点「＋ 添加」时才去登录，登录完回到这一页的这个地址。
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
+import { Trans, useLingui } from "@lingui/react/macro";
 import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
 import Icon from "../components/Icon";
-import DeleteCardDialog from "../components/DeleteCardDialog";
-import DeleteDeckDialog from "../components/DeleteDeckDialog";
 import AuthPending from "../components/AuthPending";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
-import { Link } from "react-router";
-import { Trans, useLingui } from "@lingui/react/macro";
-import { cardsLoadIssue,
-  type Deck,
+import CardTile from "../components/workshop/CardTile";
+import TemplateShelf, { useTemplatesVersion } from "../components/TemplateShelf";
+import WorkflowShelf from "../components/WorkflowShelf";
+import {
   browseSharedCards,
   browseSharedDecks,
-  createDeck,
-  deckCoverOf,
-  deleteDeck,
   installSharedCard,
   installSharedDeck,
   isRemoteMode,
   myCards,
   myDecks,
-  removeCard,
-  shareDeck,
   sharedToCard,
-  updateDeck,
 } from "../data/account";
+import { groupRows, myTemplates } from "../data/templates";
 import type { ApiSharedCard, ApiSharedDeck } from "../api/branch";
+import { subscribeVoices, voicesVersion } from "../data/cardVoice";
 import { useAccountVersion, useAuthState, useCurrentUser } from "../hooks/useAccount";
-import { useQueryTab } from "../hooks/useQueryTab";
-import TarotCard from "../components/TarotCard";
-import TemplateShelf from "../components/TemplateShelf";
-import VideoCardAnnotator from "../components/VideoCardAnnotator";
-import { subscribeVoices, voiceOf, voicesVersion } from "../data/cardVoice";
-import WorkshopShareBar, { shareBlockReason } from "../components/WorkshopShareBar";
-import { Card, CARD_TYPE_COLORS, CARD_TYPE_LABELS, CardType } from "../types";
+import { liveSearchParams, useQueryTab } from "../hooks/useQueryTab";
+import { Card, CARD_TYPE_LABELS, CARD_TYPE_SHORT, CARD_TYPES, CardType } from "../types";
+
+const KINDS = ["cards", "decks", "templates", "workflows"] as const;
+const SORTS = ["new", "hot"] as const;
+const TYPE_FILTERS: readonly ("" | CardType)[] = ["", ...CARD_TYPES];
+/** 老地址 `/workshop?tab=` 的那三个值（改版前这一页的页签）：转到第二层或市场里对应的那一格 */
+const LEGACY_TABS = ["cards", "decks", "templates"];
+/** 搜索词停手多久才去问服务端（卡片 / 卡组的搜索在服务端；原来每敲一个字发一次） */
+const SEARCH_DEBOUNCE_MS = 300;
 
 /**
  * 广场（卡片 / 卡组两处）的取数：加载中 / 出错 / 结果，**一份实现**。
  *
- * ★ 卡片广场原来什么状态都没有：拉失败 → data 层吞掉错误返回 [] → 这一整块
- *   直接不渲染。用户看到的是"社区分享的卡"凭空消失，没有原因也没得重试（铁律八）。
- *   卡组广场当时只有个"加载中…"。既然两边要的是同一件事，就别写两遍（铁律六）。
- * ★ `enabled` 为 false 时不发请求也不显示任何状态（例：离线、或没切到这个来源）。
+ * ★ 卡片广场原来什么状态都没有：拉失败 → data 层吞掉错误返回 [] → 这一整块直接不渲染。
+ *   用户看到的是"社区分享的卡"凭空消失，没有原因也没得重试（铁律八）。
+ * ★ `enabled` 为 false 时不发请求也不显示任何状态（例：离线、或没切到这一类）。
  */
 function usePlaza<T>(enabled: boolean, load: () => Promise<T[]>, deps: unknown[]) {
   const [items, setItems] = useState<T[]>([]);
-  // ★ 初值跟着 enabled 走（复核抓到）：给 false 的话，enabled 为真的**第一帧**会是
-  //   "不在加载、也没有数据" —— 空态当场闪一句「还没有人分享卡片」，而那会儿请求
-  //   连发都还没发出去。空结果与"还没问"必须分得开。
+  // ★ 初值跟着 enabled 走（复核抓到）：给 false 的话，enabled 为真的**第一帧**会是"不在加载、也没有数据" ——
+  //   空态当场闪一句「还没有人分享卡片」，而那会儿请求连发都还没发出去。空结果与"还没问"必须分得开。
   const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState("");
   const [tick, setTick] = useState(0);
@@ -83,378 +93,354 @@ function usePlaza<T>(enabled: boolean, load: () => Promise<T[]>, deps: unknown[]
   return { items, setItems, loading, error, reload: () => setTick((n) => n + 1) };
 }
 
-/** 广场取数失败时的那一行：说清楚 + 能重试。两个广场共用 */
 /** 广场拉挂了：列表反正是空的，就按空态那一份画（error 红字 + 重试键），别再另画一条行内报错 */
 function PlazaError({ error, onRetry }: { error: string; onRetry: () => void }) {
   const { t } = useLingui();
   return <EmptyState error emoji="📡" text={t`没取到：${error}`} cta={{ label: t`重试`, onClick: onRetry }} />;
 }
 
-function CardTile({ card, onRemove, to }: { card: Card; onRemove?: () => void; to?: string }) {
+/** 右侧那颗小的「最新 / 热门」分段（紧凑分段控件那一档） */
+function SortSwitch({ sort, onSort }: { sort: (typeof SORTS)[number]; onSort: (s: (typeof SORTS)[number]) => void }) {
   const { t } = useLingui();
-  const face = (
-    <TarotCard cover={card.cover || null} title={card.name} sub={CARD_TYPE_LABELS[card.type]} type={card.type} />
-  );
   return (
-    <div className="group relative">
-      {to ? <Link to={to}>{face}</Link> : face}
-      {/* 🔊 = 带声音样本（本机侧库，data/cardVoice）。用户按"有没有声音"挑卡就靠这一眼 */}
-      {voiceOf(card.id) && (
-        <span className="absolute left-1 top-1 rounded bg-black/70 px-1 text-[10px]" title={t`带声音样本`}>
-          🔊
-        </span>
-      )}
-      {/* 一直显示、命中区 40px（2026-10-14 UX 课走查）：原来 hover 才出现，而手机上没有 hover —— 这颗键在真机上从没显示过，
-          点卡面只会进详情页 */}
-      {onRemove && (
+    <div className="flex flex-none gap-1 rounded-full bg-panel p-0.5" role="group" aria-label={t`排序`}>
+      {SORTS.map((s) => (
         <button
-          onClick={onRemove}
-          aria-label={t`移除`}
-          className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/70 text-xs text-slate-200 after:absolute after:-inset-2 after:content-[''] active:scale-95"
+          key={s}
+          onClick={() => onSort(s)}
+          aria-pressed={sort === s}
+          className={`rounded-full px-3 py-1 text-[11px] ${sort === s ? "bg-brand font-semibold text-ink" : "text-slate-400"}`}
         >
-          <Icon name="close" size={14} />
+          {s === "new" ? t`最新` : t`热门`}
         </button>
-      )}
+      ))}
     </div>
   );
 }
 
 export default function WorkshopPage() {
-  useAccountVersion(); // 账号库变更时重算列表
-  // 一级 Tab 不做硬登录墙：未登录就地给软提示，而不是被路由弹去登录页出不来。
-  // ★ 这个判断必须放在下面所有 hook 之后再 return，否则登录前后 hook 数量不一致会直接崩。
+  useAccountVersion(); // 账号库变更时重算「已拥有」与「我的仓库」那个数
+  useTemplatesVersion();
+  // ★ 下面所有 hook 都在 pending 的早退**之前**（hook 不能写在条件返回之后）
   const me = useCurrentUser();
   const auth = useAuthState();
   const { t } = useLingui();
-  const cards = myCards();
-  const decks = myDecks();
-  // ★ 2026-08-21 加第三个页签「我的模板」（用户点名：模板与卡片/卡组同住创意工坊，
-  //   同一行页签）。内容整块复用 components/TemplateShelf —— 它自带「模板市场/我的模板」
-  //   两个来源，所以模板市场也一并住进了本页；/templates 独立页照旧（深链在用）。
-  // ★ 页签在地址里（`?tab=`）而不是组件 state：去模板详情/卡片详情再返回，这一页整个重挂，
-  //   state 归零就把人从「我的模板」扔回「我的卡片」（2026-09-05 主人真机点名）。
-  //   唯一实现 hooks/useQueryTab；TemplateShelf 内层的「模板市场/我的模板」用同一个 hook（`?shelf=`）。
-  const [tab, setTab] = useQueryTab("tab", ["cards", "decks", "templates"] as const, "cards");
-  /** 待确认删除的卡（删卡确认与详情页共用 DeleteCardDialog 一份） */
-  const [askCard, setAskCard] = useState<Card | null>(null);
-  /** 待确认删除的卡组。★ 删卡组**不删卡**（deleteDeck 只摘卡组本身）——这件事必须说，
-   *  否则用户会以为"删卡组 = 把里面的卡也删了"而不敢删，或者删了之后到处找卡 */
-  const [askDeck, setAskDeck] = useState<Deck | null>(null);
-  const [q, setQ] = useState("");
-  const [editing, setEditing] = useState<string | null>(null);
-  // 市场：卡片 / 卡组两个来源
-  const [source, setSource] = useState<"cards" | "decks">("cards");
-  const [busyDeck, setBusyDeck] = useState<string | null>(null);
-  const [deckErr, setDeckErr] = useState("");
-  const [busyCard, setBusyCard] = useState<string | null>(null);
-  const [cardErr, setCardErr] = useState("");
-  // 上传本地视频提卡的抽屉
-  /** 圈选提取抽屉。null = 没开；"deck"/"single" = 提取卡组 / 单张卡片（V2 圈选式） */
-  const [extractOpen, setExtractOpen] = useState<null | "deck" | "single">(null);
+  const nav = useNavigate();
+  const loc = useLocation();
+  const [params, setParams] = useSearchParams();
+  const [kind, setKind] = useQueryTab("kind", KINDS, "cards");
+  const [ctype, setCtype] = useQueryTab<"" | CardType>("type", TYPE_FILTERS, "");
+  const [sort, setSort] = useQueryTab("sort", SORTS, "new");
   useSyncExternalStore(subscribeVoices, voicesVersion, () => 0);
   const remote = isRemoteMode();
-  const kw = q.trim();
 
-  // ★★ 这里原来还有一份**本地种子市场**（searchMarket）。2026-08-24 卡片系统 V2 清库时
-  //   `ai/index.ts` 把它硬写成了 `async () => []`，于是这一整套 —— loading 态、
-  //   「已拥有的 N 张没有列出」按钮、3 列网格 —— 全成了永不出货的死路径：每敲一个字
-  //   还闪一次「搜索中…」。2026-08-30 整段删掉。现在这一格只有一个来源：服务端广场。
-  //   ⚠ `ai/index.ts` 那个 stub **保留**：3D 工坊的桌面市场（studioStore.openMarket）
-  //     还在读它，接它到 browseSharedCards 是另一条工单。
+  // ★ 老地址：改版前 `/workshop?tab=decks` 这类指的是自己的东西 → 第二层；`?tab=templates&shelf=market|workflows` 指的是模板市场 / 工作流 → 市场的那一类。
+  //   replace：转跳不该在历史里留一层，否则按返回又被转回来。
+  const legacyTab = params.get("tab");
+  useEffect(() => {
+    if (!legacyTab || !LEGACY_TABS.includes(legacyTab)) return;
+    const shelf = params.get("shelf");
+    if (legacyTab === "templates" && (shelf === "market" || shelf === "workflows")) {
+      nav(`/workshop?kind=${shelf === "workflows" ? "workflows" : "templates"}`, { replace: true });
+    } else {
+      nav(`/workshop/mine${legacyTab === "cards" ? "" : `?tab=${legacyTab}`}`, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [legacyTab]);
 
-  // 社区分享的卡片：只有真连着服务器才有（离线库里没有「别人」），跟着搜索词走
-  const cardPlaza = usePlaza<ApiSharedCard>(source === "cards" && remote, () => browseSharedCards(q), [q]);
-  const sharedCards = cardPlaza.items;
-  const setSharedCards = cardPlaza.setItems;
-  // 广场卡组：只在切到「卡组」来源时拉，跟着搜索词走（离线时 data 层给种子卡组）
-  const deckPlaza = usePlaza<ApiSharedDeck>(source === "decks", () => browseSharedDecks(q), [q]);
-  const shared = deckPlaza.items;
-  const setShared = deckPlaza.setItems;
+  // 搜索框：输入框自己的 state 立刻跟手，停手 SEARCH_DEBOUNCE_MS 之后才写进地址并拿去搜。
+  // ★ 别让输入框直接读地址：地址每改一次就是一次导航，打字时光标与输入法候选会跟着跳
+  const urlQ = params.get("q") ?? "";
+  const [text, setText] = useState(urlQ);
+  const [qd, setQd] = useState(() => urlQ.trim());
+  /** 上一次由这一页自己写进地址的词。地址里的词与它不同 = 别处改的（见下一个 effect） */
+  const wroteQ = useRef(urlQ);
+  // ★ 地址里的词被别处改了时，输入框跟着地址走（2026-10-20 浏览器里撞到）：同一路由内换 query 不会重挂这一页 ——
+  //   搜着词时点底栏「工坊」（不带参数的 /workshop），地址里的词没了、输入框里还留着，列表照旧按那个词筛，看着像是没刷新。
+  //   自己写进去的那一次不算（否则人还在往下打字时，上一拍写进去的词会把输入框倒回去）
+  useEffect(() => {
+    if (urlQ === wroteQ.current) return;
+    wroteQ.current = urlQ;
+    setText(urlQ);
+    setQd(urlQ.trim());
+  }, [urlQ]);
+  useEffect(() => {
+    const h = window.setTimeout(() => {
+      const v = text.trim();
+      setQd(v);
+      wroteQ.current = v;
+      // ★ 从地址栏此刻的样子出发（liveSearchParams 头上那段）：清空搜索框后 300 毫秒内点了别的种类，
+      //   拿渲染时的参数去写就会把种类写回老的那一类（2026-10-20 浏览器里撞到）
+      const next = liveSearchParams();
+      if ((next.get("q") ?? "") === v) return; // 地址里已经是这个词（进页那一拍、或打了又删回原样）：不再导航一次
+      if (v) next.set("q", v);
+      else next.delete("q");
+      setParams(next, { replace: true });
+    }, SEARCH_DEBOUNCE_MS);
+    // 卸载时一并撤掉：计时器在卸载之后才响的话，setParams 会改掉人已经去到的那一页的地址
+    return () => window.clearTimeout(h);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [text]);
 
+  // 社区分享的卡片 / 卡组：只有真连着服务器才有（离线库里没有「别人」），跟着搜索词走。
+  // ★ 也跟着「是谁在看」走：回包里的 installed / isOwner 是按看的人算的，换了账号（或退出）不重拉的话，
+  //   上一个人装过的卡在这一页上还写着「已拥有」、点不动（2026-10-20 浏览器里撞到）
+  const viewer = me?.id ?? "";
+  const cardPlaza = usePlaza<ApiSharedCard>(kind === "cards" && remote, () => browseSharedCards(qd), [qd, viewer]);
+  const deckPlaza = usePlaza<ApiSharedDeck>(kind === "decks" && remote, () => browseSharedDecks(qd), [qd, viewer]);
+  const [busyCard, setBusyCard] = useState<string | null>(null);
+  const [cardErr, setCardErr] = useState("");
+  const [busyDeck, setBusyDeck] = useState<string | null>(null);
+  const [deckErr, setDeckErr] = useState("");
+
+  const cards = myCards();
   const ownedIds = useMemo(() => new Set(cards.map((c) => c.id)), [cards]);
-  const byType = useMemo(() => {
-    const m: Partial<Record<CardType, number>> = {};
-    for (const c of cards) m[c.type] = (m[c.type] ?? 0) + 1;
-    return m;
-  }, [cards]);
+  const mineCount = me ? cards.length + myDecks().length + groupRows(myTemplates()).length : 0;
 
-  // ★★ 必须在下面那个登录墙 `if (!me) return` **之前**（hook 不能写在条件返回之后），
-  //   而 enabled 又必须是 `!!me` —— 未登录时整页是登录墙，那时弹一份讲卡片卡组的引导
-  //   等于对着一个不存在的界面说话，而且走完就记成"看过了"，用户真登录后再也不会自动看到。
+  /** 这一批里每个卡种各有几张（类型芯片上的数：0 张的那一类芯片照样摆，点进去由空态说清楚） */
+  const typeCounts = useMemo(() => {
+    const m = new Map<CardType, number>();
+    for (const c of cardPlaza.items) m.set(c.type, (m.get(c.type) ?? 0) + 1);
+    return m;
+  }, [cardPlaza.items]);
+  const shownCards = useMemo(() => {
+    const list = ctype ? cardPlaza.items.filter((c) => c.type === ctype) : cardPlaza.items;
+    // 热门 = 服务端算好的 stats.heat（utils/hotScore：点赞、收藏、浏览）；不带 stats 的老服务端当 0、排在后面，原顺序（最新在前）不变
+    return sort === "hot" ? [...list].sort((a, b) => (b.stats?.heat ?? 0) - (a.stats?.heat ?? 0)) : list;
+  }, [cardPlaza.items, ctype, sort]);
+  const shownDecks = useMemo(
+    () =>
+      sort === "hot"
+        ? // 卡组有真的「装过」计数，先按它，再按 heat
+          [...deckPlaza.items].sort((a, b) => b.installs - a.installs || (b.stats?.heat ?? 0) - (a.stats?.heat ?? 0))
+        : deckPlaza.items,
+    [deckPlaza.items, sort],
+  );
+
+  // 第一次进这一屏放一遍引导；未登录时不弹（第 3 步讲的「我的仓库」要登录才有，走完又记成看过了）
   useAutoGuide("workshop", !!me);
 
-  // ★ 与「我的」同一条：pending 时给加载态，别把"你没登录"当结论说出去
+  // ★ 与「我的」同一条：pending 时给加载态。这一页不登录也能逛，但「已拥有」与「＋ 添加」要等认出人才算得对 ——
+  //   pending 的时候把「＋ 添加」当成没登录、把人送去登录页，正是 CLAUDE.md「拿 !currentUser() 当没登录」那一格
   if (auth === "pending") {
     return <AuthPending className="safe-top min-h-[70vh]" />;
   }
-  if (!me) {
-    return (
-      <EmptyState
-        full
-        icon="cards"
-        text={t`登录后可以收藏卡片、组建卡组`}
-        cta={{ label: t`登录 / 注册`, to: "/login?next=/workshop", primary: true }}
-      />
-    );
-  }
+  /** 没登录时点「＋ 添加」：先去登录，回来还是这一页的这个地址（搜索词与筛选都在里面） */
+  const loginFirst = () => nav(`/login?next=${encodeURIComponent(loc.pathname + loc.search)}`);
+
+  // 句子里的数与名字先取成有名字的变量：翻译目录里才是 {nCards} 而不是 {0}，译者好写复数
+  const nCards = shownCards.length;
+  const nDecks = shownDecks.length;
+  /** 选中的卡种短名（「这一批里没有 X 卡」那句用；CARD_TYPE_LABELS 本身带「卡」，会说成「人物卡」卡） */
+  const typeLabel = ctype ? CARD_TYPE_SHORT[ctype] : "";
+  const placeholder =
+    kind === "cards"
+      ? t`搜索卡片名 / 标签`
+      : kind === "decks"
+        ? t`搜索别人分享的卡组`
+        : kind === "templates"
+          ? t`搜模板：特摄、治愈、赛博…`
+          : t`搜工作流的标题或作者`;
 
   return (
     <div className="min-h-full px-4 pb-10">
       <PageHeader
+        sticky
+        inset
         title={t`创意工坊`}
         right={
           <>
             <HelpButton tour="workshop" className="mr-2" />
-            <Link data-guide="workshop-studio-entry" to="/studio" className="flex-none rounded-full bg-brand px-3 py-1.5 text-xs font-bold text-ink">
-              <Trans>🎴 进入 3D 工坊</Trans>
+            {/* 第二层入口：自己的卡片 / 卡组 / 模板 + 做卡片的入口。数字是三样加起来（让人知道里面有东西） */}
+            <Link
+              data-guide="workshop-mine-entry"
+              to="/workshop/mine"
+              className="flex flex-none items-center gap-1 rounded-full bg-brand px-3 py-1.5 text-xs font-bold text-ink"
+            >
+              <Trans>我的仓库</Trans>
+              {mineCount > 0 && <span className="tabular-nums opacity-70">{mineCount}</span>}
             </Link>
           </>
         }
       />
 
-      {/* 统计条 */}
-      <div className="mb-3 flex gap-2 no-scrollbar overflow-x-auto pb-1 text-[11px]">
-        <span className="flex-none rounded-full bg-panel px-2.5 py-1 text-slate-300"><Trans>共 {cards.length} 张卡</Trans></span>
-        {Object.entries(byType).map(([kind, n]) => (
-          <span
-            key={kind}
-            className="flex-none rounded-full px-2.5 py-1"
-            style={{ color: CARD_TYPE_COLORS[kind as CardType], background: CARD_TYPE_COLORS[kind as CardType] + "1f" }}
+      {/* 搜索框：一直展开（不缩成放大镜），搜的是下面选中的那一类。页面级表单字段那一档规格 */}
+      <div
+        data-guide="workshop-search"
+        className="mb-3 flex items-center gap-2 rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 focus-within:border-brand"
+      >
+        <Icon name="search" size={16} className="flex-none text-slate-500" />
+        <input
+          type="search"
+          enterKeyHint="search"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder={placeholder}
+          aria-label={placeholder}
+          className="min-w-0 flex-1 bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-500 [&::-webkit-search-cancel-button]:hidden"
+        />
+        {text && (
+          <button
+            onClick={() => setText("")}
+            aria-label={t`清空搜索`}
+            className="relative flex-none text-slate-400 after:absolute after:-inset-3 after:content-[''] active:scale-95"
           >
-            {CARD_TYPE_LABELS[kind as CardType]} {n}
-          </span>
-        ))}
-        <span className="flex-none rounded-full bg-panel px-2.5 py-1 text-slate-300"><Trans>{decks.length} 个卡组</Trans></span>
+            <Icon name="close" size={16} />
+          </button>
+        )}
       </div>
 
-      {/* 页签：卡片 / 卡组 / 模板同一行（模板那格连着模板市场，见 TemplateShelf） */}
-      <div data-guide="workshop-tabs" className="mb-3 flex gap-2">
-        {(["cards", "decks", "templates"] as const).map((tb) => (
+      {/* 种类：卡片 / 卡组 / 模板 / 工作流（整宽分段控件）。换种类不清搜索词 —— 同一个词换一类再搜一遍是常见动作 */}
+      <div data-guide="workshop-kinds" className="mb-3 grid grid-cols-4 gap-1 rounded-xl bg-panel p-1" role="tablist">
+        {KINDS.map((k) => (
           <button
-            key={tb}
-            onClick={() => setTab(tb)}
-            className={`rounded-full px-3.5 py-1.5 text-xs ${
-              tab === tb ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-300"
-            }`}
+            key={k}
+            role="tab"
+            aria-selected={kind === k}
+            onClick={() => setKind(k)}
+            className={`rounded-lg py-2 text-sm ${kind === k ? "bg-brand font-semibold text-ink" : "text-slate-300"}`}
           >
-            {tb === "cards" ? t`我的卡片` : tb === "decks" ? t`我的卡组` : t`我的模板`}
+            {k === "cards" ? t`卡片` : k === "decks" ? t`卡组` : k === "templates" ? t`模板` : t({ message: "工作流", context: "创意工坊市场第一排的种类名，与卡片 / 卡组 / 模板并列（英文用复数）" })}
           </button>
         ))}
       </div>
 
-      {/* ★★ 两张删除确认摆在**页签分支之外**（2026-08-30 复核抓到）：删卡组那颗按钮在
-          「我的卡组」分支，而确认卡一度写在「我的卡片」分支里 —— 两分支互斥，
-          于是卡组按钮点了纹丝不动，而 DeckDetailPage 没有第二个删除入口，
-          等于卡组根本删不掉。删除类浮层与触发它的按钮不该分属不同的条件分支。 */}
-      {askCard && (
-        <DeleteCardDialog
-          card={askCard}
-          onCancel={() => setAskCard(null)}
-          // ★ 成了才关：没删成时那句原因要留在卡上（见 DeleteConfirmShell 的 ★★）
-          onConfirm={async () => {
-            const why = await removeCard(askCard.id);
-            if (!why) setAskCard(null);
-            return why;
-          }}
-        />
-      )}
-      {askDeck && (
-        <DeleteDeckDialog
-          deck={askDeck}
-          onCancel={() => setAskDeck(null)}
-          onConfirm={async () => {
-            const why = await deleteDeck(askDeck.id);
-            if (!why) setAskDeck(null);
-            return why;
-          }}
-        />
-      )}
-      {tab === "templates" ? (
-        <div className="pb-4">
-          <TemplateShelf initialTab="mine" queryKey="shelf" />
-        </div>
-      ) : tab === "cards" ? (
+      {kind === "cards" && (
         <>
-          {cards.length > 0 && (
-            <div className="mb-5 grid grid-cols-3 gap-2.5">
-              {cards.map((c) => (
-                /* ★ 删卡走确认（2026-08-30）：此前这颗 ✕ 点下去当场就删，而卡可能正挂在
-                   卡组里、已分享到工坊、还带着声音样本与肖像授权 —— 全是删了找不回的东西。
-                   确认卡与详情页共用同一份（DeleteCardDialog），它按事实说清后果 */
-                <CardTile key={c.id} card={c} to={`/card/${c.id}`} onRemove={() => setAskCard(c)} />
-              ))}
-            </div>
-          )}
-          {cards.length === 0 && (
-            /* ★ 「没问到」不许说成「没有」：卡是真花过 token 铸的，说错这一句
-                用户读到的是「我付钱铸的卡全没了」（同 ProfilePage 的 worksKnown） */
-            cardsLoadIssue() ? (
-              <EmptyState error emoji="🃏" text={t`这会儿没能取到你的卡片（${cardsLoadIssue()}）`} hint={t`它们还在，联网后重开一次`} />
-            ) : (
-              <EmptyState emoji="🃏" text={t`还没有卡片`} hint={t`用下面几种方式做第一张`} />
-            )
-          )}
-
-          {/* 从本地视频圈选提卡（V2，2026-08-24 换代）：旧路是"AI 看抽帧自动认"，又贵又不可控；
-              新路是用户拖到某一帧亲手圈出要的人和物 —— 不上传、不花 token、指哪张是哪张。
-              两颗入口并排：提取卡组（连圈多张打包）/ 提取卡片（圈一张就走）。 */}
-          <div data-guide="workshop-extract-card" className="mb-5 flex gap-2">
-            {(
-              [
-                ["deck", "🎴", t`从视频提取卡组`, t`连圈多张，打包成一组`],
-                ["single", "🎯", t`从视频提取卡片`, t`圈一张就走`],
-              ] as const
-            ).map(([mode, icon, title, sub]) => (
-              <button
-                key={mode}
-                onClick={() => setExtractOpen(mode)}
-                className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-cyan-400/35 bg-gradient-to-r from-cyan-400/15 to-transparent px-3 py-3 text-left"
-              >
-                <span className="text-xl">{icon}</span>
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-semibold text-slate-100">{title}</span>
-                  <span className="block truncate text-[10px] text-slate-400">{sub}</span>
-                </span>
-              </button>
-            ))}
-          </div>
-
-          {/* 自己传图做卡片：**另一条**路，不是默认路径 —— 默认铸卡（3D 工坊里的铸卡师）
-              已经是 AI 全自动出图，一张图都不用传。所以这行说明必须点出区别，
-              否则用户会以为"铸卡原来还得自己找图"，等于把全自动那条藏起来了。
-              ★ 「不消耗 token」是它相对 AI 铸卡唯一真实的优势，值得写在入口上。 */}
-          <Link
-            to="/custom-card"
-            className="mb-5 flex w-full items-center gap-3 rounded-xl border border-amber-400/35 bg-gradient-to-r from-amber-400/15 to-transparent px-3.5 py-3 text-left"
-          >
-            <span className="text-2xl">🖼</span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-semibold text-slate-100"><Trans>自己传图做卡片</Trans></span>
-              <span className="block text-[11px] text-slate-400">
-                <Trans>用你自己的图当卡面与形象参考，不经过 AI 出图 · 不消耗 token</Trans>
-              </span>
-            </span>
-            <Icon name="chevron" size={18} />
-          </Link>
-
-          <div className="mb-2 flex items-center gap-3">
-            <h2 className="text-sm font-semibold text-slate-300"><Trans>从市场添加</Trans></h2>
-            <div className="ml-auto flex gap-1 rounded-full bg-panel p-0.5">
-              {(["cards", "decks"] as const).map((sc) => (
+          {/* 卡种芯片（整行、横滑）。卡种在拿到的这一批里滤（服务端没有类型筛选）。
+              ★ 排序不和芯片挤一行：375 宽的英文界面下芯片只露出两个半（2026-10-20 浏览器里量过）。没连上服务器时整行不画：没有东西可筛 */}
+          {remote && (
+          <div className="-my-0.5 mb-2 flex gap-1.5 no-scrollbar overflow-x-auto py-0.5">
+            {TYPE_FILTERS.map((tp) => {
+              const n = tp ? typeCounts.get(tp) ?? 0 : cardPlaza.items.length;
+              return (
                 <button
-                  key={sc}
-                  onClick={() => setSource(sc)}
-                  className={`rounded-full px-3 py-1 text-[11px] transition ${
-                    source === sc ? "bg-brand font-semibold text-ink" : "text-slate-400"
-                  }`}
+                  key={tp || "all"}
+                  onClick={() => setCtype(tp)}
+                  aria-pressed={ctype === tp}
+                  className={`flex-none rounded-full px-3 py-1 text-[11px] ${ctype === tp ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-400"}`}
                 >
-                  {sc === "cards" ? t`卡片` : t`卡组`}
+                  {tp ? CARD_TYPE_LABELS[tp] : t`全部`}
+                  {n > 0 && <span className="ml-1 tabular-nums opacity-70">{n}</span>}
                 </button>
-              ))}
+              );
+            })}
+          </div>
+          )}
+          {/* 张数 + 排序。左边那句照实说「这一批」：服务端只给最近分享的 50 张，热门是在这一批里重排，不是全站热榜 */}
+          {remote && !cardPlaza.error && cardPlaza.items.length > 0 && (
+            <div className="mb-2.5 flex items-center gap-2">
+              <span className="min-w-0 flex-1 text-[11px] leading-relaxed text-slate-400">
+                {sort === "hot" ? t`最近分享的 ${nCards} 张，按点赞、收藏、浏览排` : t`最近分享的 ${nCards} 张`}
+              </span>
+              <SortSwitch sort={sort} onSort={setSort} />
             </div>
-          </div>
-          <div className="mb-3 flex items-center gap-2 rounded-full border border-slate-700/70 bg-panel px-4 py-2">
-            <Icon name="search" size={16} className="text-slate-500" />
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder={source === "cards" ? t`搜索卡片名 / 标签` : t`搜索别人分享的卡组`}
-              className="min-w-0 flex-1 bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-500"
-            />
-          </div>
+          )}
 
-          {source === "cards" ? (
-            /* 卡片广场。★★ 四种状态**分开说**（2026-08-30）：这一格原来只有 loading / error
-               两态，远端返回 0 条时整块静默消失，离线时更是一个像素不渲染也不说一句话
-               —— 用户看到的是"社区分享的卡凭空没了"，既不知道为什么、也不知道该干什么
-               （铁律八）。口径照 TemplateShelf 那份。 */
-            !remote ? (
-              <EmptyState emoji="📡" text={t`这次没连上服务器，看不到别人分享的卡`} hint={t`卡片广场在服务器上，离线库里没有「别人」`} />
-            ) : cardPlaza.error ? (
-              <PlazaError error={cardPlaza.error} onRetry={cardPlaza.reload} />
-            ) : cardPlaza.loading && sharedCards.length === 0 ? (
-              <EmptyState loading text={t`正在取卡片广场…`} />
-            ) : sharedCards.length === 0 ? (
-              <EmptyState
-                emoji="🃏"
-                text={kw ? t`没有搜到「${kw}」相关的卡` : t`还没有人分享卡片`}
-                hint={kw ? t`换个词试试，或者清空搜索框看看大家都分享了什么` : t`你可以在自己的卡片详情页按「分享到创意工坊」，成为第一个`}
-              />
-            ) : (
-              <>
-                <div className="mb-1.5 text-[11px] text-slate-400"><Trans>社区分享的卡</Trans></div>
-                <div className="mb-4 grid grid-cols-3 gap-2.5">
-                    {sharedCards.map((c) => {
-                      const owned = ownedIds.has(c.cardId) || c.installed || c.isOwner;
-                      // ★ 一次映射两处用（调两遍会每帧造两个不同引用的对象，白费 memo、
-                      //   也让路由 state 每次都变）。映射与 published 标记都在
-                      //   data/account.sharedToCard 一处（3D 桌面市场用的是同一份）。
-                      const local: Card = sharedToCard(c);
-                      return (
-                        <div key={c.cardId}>
-                          <Link
-                            to={`/card/${c.cardId}`}
-                            state={{ card: local }}
-                            className={`block ${owned ? "opacity-40" : ""}`}
-                          >
-                            <CardTile card={local} />
-                          </Link>
-                          {/* 作者写的一句话推荐。★ 这条链路的另外三段（api 收 description、
-                              服务端存并发回、toLocalCard 解析成 shareNote）2026-08 就通了，
-                              只差"没人写"和"没人画"两头 —— 于是它在库里存在、界面上零渲染。 */}
-                          {local.shareNote && (
-                            <p className="mt-0.5 line-clamp-2 text-[10px] leading-tight text-slate-400" title={local.shareNote}>
-                              {local.shareNote}
-                            </p>
-                          )}
-                          <button
-                            onClick={async () => {
-                              setCardErr("");
-                              setBusyCard(c.cardId);
-                              try {
-                                await installSharedCard(c.cardId);
-                                setSharedCards((list) =>
-                                  list.map((x) => (x.cardId === c.cardId ? { ...x, installed: true } : x)),
-                                );
-                              } catch (e) {
-                                setCardErr(e instanceof Error ? e.message : String(e));
-                              } finally {
-                                setBusyCard(null);
-                              }
-                            }}
-                            disabled={owned || busyCard === c.cardId}
-                            // 与下面卡组那颗「＋ 添加」同一副样子（2026-10-14 UX 课走查）：原来是一行 10px 灰字，不像能点
-                            className="mt-1.5 w-full rounded-full bg-brand py-1.5 text-center text-[11px] font-semibold text-ink active:opacity-60 disabled:bg-panel disabled:text-slate-500"
-                          >
-                            {c.isOwner ? t`我发的` : owned ? t`已拥有` : busyCard === c.cardId ? t`添加中…` : t`＋ 添加`}
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                {cardErr && <div className="mb-3 text-xs text-rose-300">{cardErr}</div>}
-              </>
-            )
-          ) : !remote ? (
-            <EmptyState emoji="📡" text={t`登录服务器后可以浏览别人分享的卡组`} />
+          {/* ★★ 四种状态**分开说**（2026-08-30）：没连上 / 拉挂了 / 加载中 / 真的没有（搜不到 vs 还没人分享），口径照 TemplateShelf 那份 */}
+          {!remote ? (
+            <EmptyState
+              emoji="📡"
+              text={t`这次没连上服务器，看不到别人分享的卡`}
+              hint={t`卡片广场在服务器上，离线库里没有「别人」`}
+              cta={me ? { label: t`去我的仓库`, to: "/workshop/mine" } : undefined}
+            />
+          ) : cardPlaza.error ? (
+            <PlazaError error={cardPlaza.error} onRetry={cardPlaza.reload} />
+          ) : cardPlaza.loading && cardPlaza.items.length === 0 ? (
+            <EmptyState loading text={t`正在取卡片广场…`} />
+          ) : cardPlaza.items.length === 0 ? (
+            <EmptyState
+              emoji="🃏"
+              text={qd ? t`没有搜到「${qd}」相关的卡` : t`还没有人分享卡片`}
+              hint={qd ? t`换个词试试，或者清空搜索框看看大家都分享了什么` : t`你可以在自己的卡片详情页按「分享到创意工坊」，成为第一个`}
+              cta={me ? { label: t`去我的仓库做一张`, to: "/workshop/mine" } : undefined}
+            />
+          ) : shownCards.length === 0 ? (
+            <EmptyState
+              emoji="🃏"
+              text={t`这一批里没有「${typeLabel}」卡`}
+              hint={t`换个卡种，或者搜一个词`}
+              cta={{ label: t`看全部`, onClick: () => setCtype("") }}
+            />
+          ) : (
+            <>
+              <div className="mb-4 grid grid-cols-3 gap-2.5">
+                {shownCards.map((c) => {
+                  const owned = ownedIds.has(c.cardId) || c.installed || c.isOwner;
+                  // ★ 一次映射两处用（调两遍会每帧造两个不同引用的对象，也让路由 state 每次都变）。
+                  //   映射与 published 标记都在 data/account.sharedToCard 一处（3D 桌面市场用的是同一份）。
+                  const local: Card = sharedToCard(c);
+                  return (
+                    <div key={c.cardId}>
+                      <Link to={`/card/${c.cardId}`} state={{ card: local }} className={`block ${owned ? "opacity-40" : ""}`}>
+                        <CardTile card={local} />
+                      </Link>
+                      {/* 作者写的一句话推荐（api 收 description → 服务端存并发回 → toLocalCard 解析成 shareNote） */}
+                      {local.shareNote && (
+                        <p className="mt-0.5 line-clamp-2 text-[10px] leading-tight text-slate-400" title={local.shareNote}>
+                          {local.shareNote}
+                        </p>
+                      )}
+                      <button
+                        onClick={async () => {
+                          if (auth === "out") return loginFirst();
+                          setCardErr("");
+                          setBusyCard(c.cardId);
+                          try {
+                            await installSharedCard(c.cardId);
+                            cardPlaza.setItems((list) => list.map((x) => (x.cardId === c.cardId ? { ...x, installed: true } : x)));
+                          } catch (e) {
+                            setCardErr(e instanceof Error ? e.message : String(e));
+                          } finally {
+                            setBusyCard(null);
+                          }
+                        }}
+                        disabled={owned || busyCard === c.cardId}
+                        className="mt-1.5 w-full rounded-full bg-brand py-1.5 text-center text-[11px] font-semibold text-ink active:opacity-60 disabled:bg-panel disabled:text-slate-500"
+                      >
+                        {c.isOwner ? t`我发的` : owned ? t`已拥有` : busyCard === c.cardId ? t`添加中…` : t`＋ 添加`}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+              {cardErr && <div className="mb-3 text-xs text-rose-300">{cardErr}</div>}
+            </>
+          )}
+        </>
+      )}
+
+      {kind === "decks" && (
+        <>
+          {remote && !deckPlaza.error && deckPlaza.items.length > 0 && (
+            <div className="mb-2.5 flex items-center gap-2">
+              <span className="min-w-0 flex-1 text-[11px] leading-relaxed text-slate-400">
+                {sort === "hot" ? t`${nDecks} 套，装过的人多的在前` : t`${nDecks} 套，最新分享的在前`}
+              </span>
+              <SortSwitch sort={sort} onSort={setSort} />
+            </div>
+          )}
+          {!remote ? (
+            <EmptyState
+              emoji="📡"
+              text={t`登录服务器后可以浏览别人分享的卡组`}
+              cta={me ? { label: t`去我的仓库`, to: "/workshop/mine?tab=decks" } : undefined}
+            />
           ) : deckPlaza.error ? (
             <PlazaError error={deckPlaza.error} onRetry={deckPlaza.reload} />
           ) : deckPlaza.loading ? (
             <EmptyState loading text={t`正在取卡组广场…`} />
-          ) : shared.length === 0 ? (
-            <EmptyState emoji="🗂️" text={q ? t`没有匹配的卡组` : t`还没有人分享卡组`} hint={q ? undefined : t`你可以第一个`} />
+          ) : shownDecks.length === 0 ? (
+            <EmptyState emoji="🗂️" text={qd ? t`没有匹配的卡组` : t`还没有人分享卡组`} hint={qd ? undefined : t`你可以第一个`} />
           ) : (
             <div className="space-y-2.5 pb-4">
-              {shared.map((d) => (
+              {shownDecks.map((d) => (
                 <div key={d._id} className="flex items-center gap-3 rounded-xl border border-slate-700/70 bg-panel p-2.5">
                   {/* 前四张卡面拼一个缩略 */}
                   <div className="grid h-14 w-14 shrink-0 grid-cols-2 gap-0.5 overflow-hidden rounded-lg bg-slate-800">
                     {(d.covers.length ? d.covers : [""]).slice(0, 4).map((cv, i) =>
-                      cv ? (
-                        <img key={i} src={cv} alt="" className="h-full w-full object-cover" />
-                      ) : (
-                        <div key={i} className="bg-slate-700/60" />
-                      ),
+                      cv ? <img key={i} src={cv} alt="" className="h-full w-full object-cover" /> : <div key={i} className="bg-slate-700/60" />,
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
@@ -470,11 +456,12 @@ export default function WorkshopPage() {
                   <button
                     disabled={d.installed || d.isOwner || busyDeck === d._id}
                     onClick={async () => {
+                      if (auth === "out") return loginFirst();
                       setDeckErr("");
                       setBusyDeck(d._id);
                       try {
                         await installSharedDeck(d._id);
-                        setShared((list) => list.map((x) => (x._id === d._id ? { ...x, installed: true } : x)));
+                        deckPlaza.setItems((list) => list.map((x) => (x._id === d._id ? { ...x, installed: true } : x)));
                       } catch (e) {
                         setDeckErr(e instanceof Error ? e.message : String(e));
                       } finally {
@@ -491,128 +478,20 @@ export default function WorkshopPage() {
           )}
           {deckErr && <div className="pb-4 text-xs text-rose-300">{deckErr}</div>}
         </>
-      ) : (
-        <>
-          {deckErr && <div className="mb-2 text-xs text-rose-300">{deckErr}</div>}
-          <button
-            data-guide="workshop-deck-new"
-            onClick={() => createDeck(t`卡组 ${decks.length + 1}`)}
-            className="mb-3 w-full rounded-xl border border-dashed border-slate-600 py-3 text-sm text-slate-300"
-          >
-            <Trans>＋ 新建卡组</Trans>
-          </button>
-          <div className="space-y-3 pb-4">
-            {decks.map((d) => {
-              const inDeck = cards.filter((c) => d.cardIds.includes(c.id));
-              const open = editing === d.id;
-              const cover = deckCoverOf(d);
-              return (
-                <div key={d.id} className="rounded-xl border border-slate-700/70 bg-panel p-3">
-                  <div className="flex items-center gap-2">
-                    {/* 封面卡缩略：点它进卡组详情页（标题/简介/卡片全览） */}
-                    <Link to={`/deck/${d.id}`} className="flex-none">
-                      {cover ? (
-                        <img src={cover.cover} alt={cover.name} className="h-11 w-8 rounded-md object-cover" />
-                      ) : (
-                        <div className="flex h-11 w-8 items-center justify-center rounded-md bg-slate-800 text-sm">🎴</div>
-                      )}
-                    </Link>
-                    <input
-                      value={d.name}
-                      onChange={(e) => updateDeck(d.id, { name: e.target.value })}
-                      // 编辑中允许空串（否则清空输入框会立刻跳字），失焦时补默认名——
-                      // 服务端的 name 是 min(1)，两边都兜一次才不会出现"本地空 / 远端未命名"的分叉
-                      onBlur={(e) => {
-                        if (!e.target.value.trim()) updateDeck(d.id, { name: t`未命名卡组` });
-                      }}
-                      className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-slate-100 outline-none"
-                    />
-                    <span className="text-[11px] text-slate-500"><Trans>{d.cardIds.length} 张</Trans></span>
-                    {/* 两颗做成胶囊（原来是两段 16px 高的裸文字并排，手指点不准、也分不出哪个是键） */}
-                    <button
-                      onClick={() => setEditing(open ? null : d.id)}
-                      className="rounded-full bg-panel px-3 py-1.5 text-xs text-brand ring-1 ring-slate-700 active:opacity-60"
-                    >
-                      {open ? t`完成` : t`编辑`}
-                    </button>
-                    <button
-                      onClick={() => setAskDeck(d)}
-                      className="rounded-full border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 text-xs text-rose-300 active:opacity-60"
-                    >
-                      <Trans>删除</Trans>
-                    </button>
-                  </div>
-
-                  {/* 分享到创意工坊：分享出去后别人能在「从市场添加 · 卡组」里装走整套。
-                      ★ 三处调用点（这里、卡组详情页、卡片详情页）共用同一个组件，
-                        禁用规则与错误显示只有一份实现 */}
-                  <WorkshopShareBar
-                    kind="deck"
-                    className="mt-2"
-                    published={!!d.published}
-                    installs={d.installs ?? 0}
-                    disabledReason={shareBlockReason({ remote, published: !!d.published, cardCount: d.cardIds.length })}
-                    onToggle={(next) => shareDeck(d.id, next)}
-                  />
-                  {inDeck.length > 0 && (
-                    <div className="mt-2.5 grid grid-cols-4 gap-2">
-                      {inDeck.map((c) => (
-                        <CardTile key={c.id} card={c} />
-                      ))}
-                    </div>
-                  )}
-                  {open && (
-                    <div className="mt-3 border-t border-slate-700/60 pt-2.5">
-                      {/* ★ 只留"点它就是加/减"这半句：卡长得就是卡、没有按钮相，全页只有这一句
-                          在**事前**说明；而设封面那颗按钮自己就写着「设封面」，说明放在按钮上比
-                          放在这行小字里更近 —— 而这一行每展开一个卡组就重印一遍。 */}
-                      <div className="mb-1.5 text-[11px] text-slate-400"><Trans>点卡片加入 / 移出</Trans></div>
-                      <div className="grid grid-cols-4 gap-2">
-                        {cards.map((c) => {
-                          const on = d.cardIds.includes(c.id);
-                          const isCover = on && cover?.id === c.id;
-                          return (
-                            <div key={c.id} className="relative">
-                              <button
-                                onClick={() =>
-                                  updateDeck(d.id, {
-                                    cardIds: on ? d.cardIds.filter((x) => x !== c.id) : [...d.cardIds, c.id],
-                                  })
-                                }
-                                className={`block w-full ${on ? "ring-2 ring-brand rounded-xl" : "opacity-60"}`}
-                              >
-                                <CardTile card={c} />
-                              </button>
-                              {on && (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    updateDeck(d.id, { coverCardId: c.id });
-                                  }}
-                                  title={isCover ? t`当前封面卡` : t`设为卡组封面`}
-                                  className={`absolute left-1 top-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
-                                    isCover ? "bg-gold text-ink" : "bg-black/65 text-slate-200 hover:bg-black/85"
-                                  }`}
-                                >
-                                  {isCover ? t`★ 封面` : t`设封面`}
-                                </button>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-            {decks.length === 0 && (
-              <EmptyState emoji="🗂️" text={t`还没有卡组`} hint={t`建一个把常用素材归到一起`} />
-            )}
-          </div>
-        </>
       )}
-      {extractOpen && <VideoCardAnnotator deckMode={extractOpen === "deck"} onClose={() => setExtractOpen(null)} />}
+
+      {kind === "templates" && (
+        <div className="pb-4">
+          {/* 只摆模板市场（「工作流」是上面第四类、「我的模板」在第二层）；只剩一格，货架那排页签不画。搜索词用上面那一个搜索框的 */}
+          <TemplateShelf tabs={["market"]} searchQ={qd} />
+        </div>
+      )}
+
+      {kind === "workflows" && (
+        <div className="pb-4">
+          <WorkflowShelf q={qd} />
+        </div>
+      )}
     </div>
   );
 }

@@ -1499,7 +1499,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
       cards = (d?.cardIds ?? []).map((id) => byId.get(id)).filter((c): c is Card => !!c);
     }
     if (cards.length === 0) {
-      get().npcSay(t`「${name}」还是空的——去创意工坊给它添几张卡吧。`);
+      get().npcSay(t`「${name}」还是空的——去创意工坊的「我的仓库」给它添几张卡吧。`);
       return false;
     }
     // 只换工作卡组（编辑器素材池同源），不动镜头不摊桌——卡片在小窗里看

@@ -1004,7 +1004,7 @@ export default function ProfilePage() {
             <Empty
               // ★ 同 WorkshopPage：分「没问到」与「问过是空的」两句话
               text={cardsLoadIssue() ? t`这会儿没能取到你的卡片——它们还在，联网后重开一次` : t`还没有卡片`}
-              {...(cardsLoadIssue() ? {} : { cta: t`去创意工坊`, to: "/workshop" })}
+              {...(cardsLoadIssue() ? {} : { cta: t`去创意工坊`, to: "/workshop/mine" })}
             />
           ))}
 
@@ -1021,7 +1021,7 @@ export default function ProfilePage() {
                 ))}
               </div>
             ) : (
-              <Empty text={t`还没有卡组`} cta={t`去创意工坊`} to="/workshop" />
+              <Empty text={t`还没有卡组`} cta={t`去创意工坊`} to="/workshop/mine?tab=decks" />
             )
           ) : (
             // 别人的卡组随作品走：点开去那支作品，收卡的按钮在详情页
