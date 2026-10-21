@@ -689,6 +689,10 @@ export default function CardDetailPage() {
   // 优先账号库；不在库里（比如看别人作品的卡组）用路由 state 里带来的卡
   // ★ 依赖里带上 accountV：账号库是原地改对象的单例，不把版本号写进依赖，
   //   "刚把这张卡加进库"之后这里还会拿着路由 state 里那份只读副本。
+  // 「先登录、再添加」那一趟回来时寄存着的那张卡（data/cardHandoff）：**按 id 认领一次**。
+  // ★ 别在下面那个 memo 里每一拍都去问：寄存半小时作废，页面开着超过半小时、账号库随便 emit 一下，
+  //   memo 重算就拿不到它了 —— 正看着的卡变成「这张卡不在你的收藏里」（2026-10-20 复核抓到）
+  const claimedCard = useMemo(() => peekStashedCard(id), [id]);
   const localCard = useMemo<Card | null>(() => {
     const mine = myCards().find((c) => c.id === id);
     if (mine) return mine;
@@ -699,8 +703,8 @@ export default function CardDetailPage() {
     //   `useCountView("card", id)` 把这次浏览记在 **B** 头上 —— 两件事都零报错。
     if (passed && passed.id === id) return passed;
     // 「先登录、再添加」那一趟回来：路由 state 过不了登录页，快照卡又按 id 取不回来（data/cardHandoff 头上那段）
-    return peekStashedCard(id);
-  }, [id, loc.state, accountV]);
+    return claimedCard;
+  }, [id, loc.state, accountV, claimedCard]);
   // ★ 这一页也会渲染**别人的**卡（工坊市场点进来时卡是由路由 state 带过来的），
   //   所以分享条必须按"这张卡在不在我库里"开门，不能只看有没有登录。
   const owned = useMemo(() => myCards().some((c) => c.id === id), [id, accountV]);
