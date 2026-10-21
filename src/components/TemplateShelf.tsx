@@ -385,28 +385,46 @@ function GroupRow({
   );
 }
 
-/** 货架本体。embedded = 摆在别的页里（创意工坊）：不带页头，其余一模一样 */
+type ShelfTab = "market" | "workflows" | "mine";
+const ALL_SHELF_TABS: readonly ShelfTab[] = ["market", "workflows", "mine"];
+
+/** 货架本体。摆在别的页里（创意工坊两层、/templates）：不带页头，其余一模一样 */
 export default function TemplateShelf({
   initialTab,
   queryKey,
+  tabs = ALL_SHELF_TABS,
+  searchQ,
 }: {
-  initialTab?: "market" | "mine";
+  initialTab?: ShelfTab;
   /**
    * 给了就把「模板市场/工作流/我的模板」这一层页签写进地址栏 query（键名由宿主定，工坊与市场页都用
    * `shelf`）：去详情再返回时页签还在。不给 = 只活在组件 state 里（简约模式的选模板浮层那种
    * 宿主，它自己的地址不该被这一层改动）。
    */
   queryKey?: string;
+  /**
+   * 这一处摆哪几个页签（2026-10-20 工坊改版）：创意工坊第一层（市场）只摆「模板市场 / 工作流」，第二层「我的仓库」只摆「我的模板」，
+   * /templates 三个都摆（缺省）。只剩一个时整行页签不画。★ 白名单同时喂给地址栏那一层（useQueryTab 的 allowed）：
+   * 手改成 `?shelf=mine` 也进不了市场层里的「我的模板」。
+   */
+  tabs?: readonly ShelfTab[];
+  /**
+   * 宿主自己画了搜索框（创意工坊第一层：一个搜索框搜当前那一类）时把词传进来：货架就不再画自己那一个，
+   * 「出片模型」筛选键挪到分类芯片那一行最前面。不给 = 照旧画自己的搜索框（/templates）。
+   */
+  searchQ?: string;
 }) {
   const { t } = useLingui();
   const ver = useTemplatesVersion();
   const nav = useNavigate();
-  const [q, setQ] = useState("");
+  const [ownQ, setQ] = useState("");
+  const q = searchQ ?? ownQ;
+  const fallbackTab: ShelfTab = initialTab && tabs.includes(initialTab) ? initialTab : tabs[0];
   // ★ 两条状态都无条件建（hook 顺序不能随 prop 变），用哪条由 queryKey 定
   // 「工作流」（2026-10-02 P2）= 上了架的公开配方那条货架，列表与筛选都是另一套（components/WorkflowShelf）
-  const [queryTab, setQueryTab] = useQueryTab(queryKey ?? "shelf", ["market", "workflows", "mine"] as const, initialTab ?? "market");
-  const [localTab, setLocalTab] = useState<"market" | "workflows" | "mine">(initialTab ?? "market");
-  const tab = queryKey ? queryTab : localTab;
+  const [queryTab, setQueryTab] = useQueryTab(queryKey ?? "shelf", tabs, fallbackTab);
+  const [localTab, setLocalTab] = useState<ShelfTab>(fallbackTab);
+  const tab = queryKey ? queryTab : tabs.includes(localTab) ? localTab : fallbackTab;
   const setTab = queryKey ? setQueryTab : setLocalTab;
   /**
    * 货架还挂着吗。★ 白模「取回」最长要等十来分钟、进度上还写着"可以离开"，而 queryKey 模式下切页签是
@@ -579,11 +597,30 @@ export default function TemplateShelf({
     });
   }
 
+  /* 「出片模型」筛选（见 tierPick 的注释）。选中时整颗换成品牌色并写上档位名 —— 筛选开着这件事必须一眼看得见，
+     否则"市场上少了模板"与"我筛掉了"分不开。货架自己画搜索框时它在搜索框旁边（items-stretch 与搜索框同高），
+     宿主画搜索框时（searchQ）它挪到分类芯片那一行最前面 —— 两处只画一颗。 */
+  const tierButton = (
+    <button
+      data-guide="template-model-filter"
+      onClick={() => setTierSheet(true)}
+      aria-haspopup="dialog"
+      // 摆进芯片行时与芯片同高同字号（py-1 text-[11px]）；摆在搜索框旁时靠 items-stretch 撑高
+      className={`flex flex-none items-center gap-1 rounded-full px-3 ${searchQ !== undefined ? "py-1 text-[11px]" : "text-xs"} ${
+        tierPicked ? "bg-brand font-semibold text-ink" : "border border-slate-700 bg-black/30 text-slate-300"
+      }`}
+    >
+      <Icon name="filter" size={14} />
+      {tierPicked ? tierPicked.label : <Trans>出片模型</Trans>}
+    </button>
+  );
+
   return (
     <div>
       {discardDialog}
+      {tabs.length > 1 && (
       <div className="mb-3 flex gap-2">
-        {(["market", "workflows", "mine"] as const).map((k) => (
+        {tabs.map((k) => (
           <button
             key={k}
             // 引导只圈「我的模板」那颗（market 那颗给 undefined = 不渲染这个属性，
@@ -596,10 +633,11 @@ export default function TemplateShelf({
           </button>
         ))}
       </div>
+      )}
 
-      {tab === "workflows" && <WorkflowShelf />}
+      {tab === "workflows" && <WorkflowShelf q={searchQ} />}
 
-      {tab === "market" && (
+      {tab === "market" && searchQ === undefined && (
         <div className="mb-3 flex items-stretch gap-2">
           <div className="flex min-w-0 flex-1 items-center gap-2 rounded-full border border-slate-700 bg-black/30 px-3.5 py-2">
             <Icon name="search" size={16} className="text-slate-500" />
@@ -610,19 +648,7 @@ export default function TemplateShelf({
               className="min-w-0 flex-1 bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-500"
             />
           </div>
-          {/* 「出片模型」筛选（见 tierPick 的注释）。选中时整颗换成品牌色并写上档位名 —— 筛选开着这件事必须一眼看得见，
-              否则"市场上少了模板"与"我筛掉了"分不开。items-stretch 让它与搜索框同高。 */}
-          <button
-            data-guide="template-model-filter"
-            onClick={() => setTierSheet(true)}
-            aria-haspopup="dialog"
-            className={`flex flex-none items-center gap-1 rounded-full px-3 text-xs ${
-              tierPicked ? "bg-brand font-semibold text-ink" : "border border-slate-700 bg-black/30 text-slate-300"
-            }`}
-          >
-            <Icon name="filter" size={14} />
-            {tierPicked ? tierPicked.label : <Trans>出片模型</Trans>}
-          </button>
+          {tierButton}
         </div>
       )}
 
@@ -634,6 +660,7 @@ export default function TemplateShelf({
             "圆边框缺了一截"。负外边距让这 2px 不占版面，与改之前逐像素同位。 */}
       {tab !== "workflows" && (
       <div data-guide="template-filters" className="-mx-0.5 -my-0.5 mb-2.5 flex gap-1.5 no-scrollbar overflow-x-auto px-0.5 py-0.5">
+        {tab === "market" && searchQ !== undefined && tierButton}
         {[{ id: "", label: t`全部` }, ...TPL_CATEGORIES].map((c) => (
           <button
             key={c.id}
@@ -685,7 +712,10 @@ export default function TemplateShelf({
                 // 取回成功 = 本机多了一个白模模板（还等着核对角色位）。切到「我的模板」，
                 // 下面那条「待核对」的提示就跟着出来了 —— 那是发布前的必经一步
                 // ★ 人已经走开了就不切（见 aliveRef）：模板照样落进「我的模板」，回来就看得到
-                if (aliveRef.current) setTab("mine");
+                // ★ 这一处没摆「我的模板」（创意工坊第一层只摆市场）：去第二层「我的仓库」的模板页签，同一个意思
+                if (!aliveRef.current) return;
+                if (tabs.includes("mine")) setTab("mine");
+                else nav("/workshop/mine?tab=templates");
               }}
             />
           ))}
@@ -764,7 +794,9 @@ export default function TemplateShelf({
                 : cat && allRows.length > 0
                 ? t`「${tplCategoryLabel(cat)}」分类下还没有模板——点「全部」看现有的，或做一个发布出来占坑`
                 : tab === "mine"
-                  ? t`还没有你自己的模板——上面那两个入口都能做一个`
+                  ? blockoutCap
+                    ? t`还没有你自己的模板——点上面那一条传一段视频做一个`
+                    : t`还没有你自己的模板`
                   : q.trim()
                     ? t`没有匹配的模板，换个词试试`
                     : t`市场上还没有公开的模板。做一个自己的、发布出来，这里就有了。`
@@ -845,10 +877,10 @@ function tierEmptyText(picked: VideoTier, hidden: number): string {
           msg`没有能用「${name}」（${model}）出片的模板。现有的 ${hidden} 个都要按参考视频逐镜头复刻，只有「${needLabel}」（${needModel}）做得到，而它是会员档——开通会员套餐（或充值过任意一笔）后可用，或者选回「全部模型」看看。`,
         )
       : i18n._(
-          msg`没有能用「${name}」（${model}）出片的模板。现有的 ${hidden} 个都要按参考视频逐镜头复刻，只有「${needLabel}」（${needModel}）做得到——点搜索栏旁边那颗键换一个模型，或者选回「全部模型」。`,
+          msg`没有能用「${name}」（${model}）出片的模板。现有的 ${hidden} 个都要按参考视频逐镜头复刻，只有「${needLabel}」（${needModel}）做得到——点「出片模型」那颗键换一个模型，或者选回「全部模型」。`,
         );
   }
-  return i18n._(msg`没有能用「${name}」（${model}）出片的模板——点搜索栏旁边那颗键换一个模型，或者选回「全部模型」。`);
+  return i18n._(msg`没有能用「${name}」（${model}）出片的模板——点「出片模型」那颗键换一个模型，或者选回「全部模型」。`);
 }
 
 /** 筛选面板里的一行：档位名 + 模型名 + 选了会剩几个；套餐用不了的那一档把原因写在下面（照样能选） */

@@ -4,6 +4,8 @@
 // ★ 四档结局各说各的（data/recipes.fetchWorkflowTemplates）：有货 / 空 / 这台服务器没有这条货架 / 没问到（配重试）。
 // ★ 这一层不认识 TemplateShelf 的筛选（出片模型 / 分类）：工作流模板的档位是逐段的、分类是作品的 —— 两套筛选硬套会筛错，
 //   先按上架时间倒序摆出来；要筛再议（P3）。
+// ★ 按词搜（2026-10-20 工坊改版）：创意工坊第一层只有一个搜索框、搜的是选中的那一类，摆到「工作流」时把词传进来（`q`）。
+//   服务端这条货架没有搜索参数，就在拿到的这一批里按标题 / 作者名筛 —— 不筛的话人在搜索框里打了字、列表纹丝不动，像是坏了。
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -15,7 +17,7 @@ import { tierLabelOf } from "./recipe/RecipeView";
 import { authorDisplayName, remoteOn } from "../data/videos";
 import { formatDuration } from "../types";
 
-export default function WorkflowShelf() {
+export default function WorkflowShelf({ q = "" }: { q?: string }) {
   const { t } = useLingui();
   const [shelf, setShelf] = useState<ShelfState | null>(null);
   const [nonce, setNonce] = useState(0);
@@ -40,6 +42,12 @@ export default function WorkflowShelf() {
       <EmptyState error emoji="📡" text={t`没能取到货架（${shelf.why}）`} hint={t`换个网络再试一次`} cta={{ label: t`重试`, onClick: () => setNonce((n) => n + 1) }} />
     );
   }
+  const kw = q.trim().toLowerCase();
+  const items = kw
+    ? shelf.items.filter((it) =>
+        [it.title, it.author.displayName, it.author.username].some((s) => (s ?? "").toLowerCase().includes(kw)),
+      )
+    : shelf.items;
   if (shelf.items.length === 0) {
     return (
       <EmptyState
@@ -49,9 +57,13 @@ export default function WorkflowShelf() {
       />
     );
   }
+  if (items.length === 0) {
+    const word = q.trim();
+    return <EmptyState icon="search" text={t`没有标题或作者里带「${word}」的工作流`} hint={t`工作流只按标题和作者名搜`} />;
+  }
   return (
     <div className="space-y-3">
-      {shelf.items.map((it) => (
+      {items.map((it) => (
         <Link
           key={it.video}
           to={`/video/${it.video}/recipe`}

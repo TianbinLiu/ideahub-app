@@ -255,7 +255,7 @@ function CardVoiceSection({ card, owned }: { card: Card; owned: boolean }) {
       <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
         <span className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>🔊 人物声音</Trans></span>
         <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
-          <Trans>这张卡还没有声音样本。在工坊「从视频提取」圈选人物时可以顺手取一段（2~15 秒）——出片走「{voiceTierNames()}」档且台词写在引号里时，AI 会参考这段声音的音色。</Trans>
+          <Trans>这张卡还没有声音样本。在创意工坊「我的仓库」里从视频提取、圈选人物时可以顺手取一段（2~15 秒）——出片走「{voiceTierNames()}」档且台词写在引号里时，AI 会参考这段声音的音色。</Trans>
         </p>
       </div>
     );

@@ -180,8 +180,8 @@ export default function MaterialSheet({
 
   /** 空态走全 app 那一份 EmptyState（compact：这是弹层里的空态）。2026-10-15 教材人格评审收口：原来手拼了一份
    *  `py-7 + 胶囊 <a href="#/workshop">`，与别处的空态不是一副面孔。CTA 给 `to` = Link：这块面板是 portal，
-   *  React 上下文还在、hash 路由照走，与原来的 <a href="#/workshop"> 落点相同 */
-  const empty = (text: string, cta: string) => <EmptyState compact text={text} cta={{ label: cta, to: "/workshop" }} />;
+   *  React 上下文还在、hash 路由照走。落点 2026-10-20 工坊改版后是第二层「我的仓库」（建卡组、做卡片的入口都在那一层） */
+  const empty = (text: string, cta: string, to: string) => <EmptyState compact text={text} cta={{ label: cta, to }} />;
 
   return (
     <>
@@ -234,7 +234,7 @@ export default function MaterialSheet({
 
         {tab === "decks" ? (
           allDecks.length === 0 ? (
-            empty(t`还没有卡组`, t`去创意工坊建一组`)
+            empty(t`还没有卡组`, t`去创意工坊建一组`, "/workshop/mine?tab=decks")
           ) : decks.length === 0 ? (
             <p className="py-7 text-center text-xs text-slate-400"><Trans>没有匹配的卡组</Trans></p>
           ) : (
@@ -259,7 +259,7 @@ export default function MaterialSheet({
             </>
           )
         ) : allCards.length === 0 ? (
-          empty(t`还没有素材卡`, t`去创意工坊铸几张`)
+          empty(t`还没有素材卡`, t`去创意工坊铸几张`, "/workshop/mine")
         ) : cards.length === 0 ? (
           <p className="py-7 text-center text-xs text-slate-400"><Trans>没有匹配的卡片</Trans></p>
         ) : (

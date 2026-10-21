@@ -133,7 +133,7 @@ function useHint(): string {
   //   起就硬写成 `async () => []`；分享出去的卡落在**服务端广场**（browseSharedCards），
   //   这张桌子根本不去取它 —— 照着做的人会分享一张、回来发现还是空的，然后怀疑分享没成功。
   //   把桌面市场接到广场是另一条工单；在那之前，这句话只说**真的能拿到卡**的那条路。
-  if (marketEmpty) return t`这张桌子上还没有卡——去「创意工坊」的卡片广场装几张，或用「从视频提取」现炼`;
+  if (marketEmpty) return t`这张桌子上还没有卡——去「创意工坊」的市场装几张，或在「我的仓库」用「从视频提取」现炼`;
   if (marketOpen) return t`点桌上的市场卡放大查看，喜欢就收进卡组`;
   if (spreadOpen) return t`拖卡片到虚线卡位铸段 · 单点看详情`;
   if (nodes.length === 0 && deckLen === 0) return t`先把素材交给铸卡师炼卡，或让 TA 摊开市场`;

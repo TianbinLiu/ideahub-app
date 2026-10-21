@@ -72,7 +72,7 @@ export default function DeckDetailPage() {
   useSocialVersion(); // 热度到货后重渲染（服务端计数是懒加载的）
   const { id } = useParams();
   // 从工坊 / 「我的」点进来；深链冷启动没有上一页时退回工坊（卡组住在那儿）
-  const back = useBackOr("/workshop");
+  const back = useBackOr("/workshop/mine?tab=decks");
   const [editing, setEditing] = useState(false);
   useCountView("deck", id);
   const { t } = useLingui();
@@ -82,7 +82,7 @@ export default function DeckDetailPage() {
 
   if (!deck) {
     return (
-      <EmptyState full icon="cards" text={t`卡组不存在或不属于你`} cta={{ label: t`去创意工坊`, to: "/workshop", primary: true }} />
+      <EmptyState full icon="cards" text={t`卡组不存在或不属于你`} cta={{ label: t`去我的仓库`, to: "/workshop/mine?tab=decks", primary: true }} />
     );
   }
 

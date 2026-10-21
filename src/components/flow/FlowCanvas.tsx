@@ -2728,7 +2728,7 @@ export function CardPicker({ node, onClose }: { node: FlowNode; onClose: () => v
         <div className="min-h-0 flex-1 overflow-y-auto">
           {cards.length === 0 ? (
             <p className="py-8 text-center text-xs text-slate-500">
-              {voicedOnly ? t`没有带声音样本的卡——在工坊「从视频提取」圈人物时可以顺手取一段声音` : t`还没有卡片——去创意工坊铸几张或从市场添加`}
+              {voicedOnly ? t`没有带声音样本的卡——在创意工坊「我的仓库」里从视频提取、圈人物时可以顺手取一段声音` : t`还没有卡片——去创意工坊的市场添加几张，或者在「我的仓库」里自己做`}
             </p>
           ) : (
             <div className="grid grid-cols-4 gap-2 pb-2">
