@@ -806,8 +806,13 @@ msgstr "{0} 张卡"
 
 #. placeholder {0}: saved.length
 #: src/components/VideoCardAnnotator.tsx
-msgid "{0} 张卡已入库，在「我的卡组」里能看到。"
-msgstr "{0} 张卡已入库，在「我的卡组」里能看到。"
+msgid "{0} 张卡已入库，在「我的仓库」的「卡组」里能看到。"
+msgstr "{0} 张卡已入库，在「我的仓库」的「卡组」里能看到。"
+
+#. placeholder {0}: saved.length
+#: src/components/VideoCardAnnotator.tsx
+#~ msgid "{0} 张卡已入库，在「我的卡组」里能看到。"
+#~ msgstr "{0} 张卡已入库，在「我的卡组」里能看到。"
 
 #. placeholder {0}: nr.onlyAsStart
 #: src/pages/DeckDetailPage.tsx
@@ -2070,8 +2075,12 @@ msgid "「{name}」的形象图一张都没能进管线（{why}），出片时�
 msgstr "「{name}」的形象图一张都没能进管线（{why}），出片时它只剩名字 —— 实测会被换成别人。到卡片详情页给它补一张形象参考图，或换一张卡再出片"
 
 #: src/studio/studioStore.ts
-msgid "「{name}」还是空的——去创意工坊给它添几张卡吧。"
-msgstr "「{name}」还是空的——去创意工坊给它添几张卡吧。"
+msgid "「{name}」还是空的——去创意工坊的「我的仓库」给它添几张卡吧。"
+msgstr "「{name}」还是空的——去创意工坊的「我的仓库」给它添几张卡吧。"
+
+#: src/studio/studioStore.ts
+#~ msgid "「{name}」还是空的——去创意工坊给它添几张卡吧。"
+#~ msgstr "「{name}」还是空的——去创意工坊给它添几张卡吧。"
 
 #: src/components/flow/GridShotsWizard.tsx
 msgid "「{names}」不在你选的人物里，没算进画面里的人（画面照写）"
@@ -15946,8 +15955,13 @@ msgstr "本次已存 {0} 张（最后一步打包成卡组）"
 
 #. placeholder {0}: saved.length
 #: src/components/VideoCardAnnotator.tsx
-msgid "本次已存 {0} 张（已在「我的卡片」里）"
-msgstr "本次已存 {0} 张（已在「我的卡片」里）"
+msgid "本次已存 {0} 张（已在「我的仓库」的「卡片」里）"
+msgstr "本次已存 {0} 张（已在「我的仓库」的「卡片」里）"
+
+#. placeholder {0}: saved.length
+#: src/components/VideoCardAnnotator.tsx
+#~ msgid "本次已存 {0} 张（已在「我的卡片」里）"
+#~ msgstr "本次已存 {0} 张（已在「我的卡片」里）"
 
 #: src/pages/FlowPage.tsx
 msgid "本段"
@@ -17552,16 +17566,16 @@ msgid "没有片段 {ref}（时间轴上一共 {count} 个）"
 msgstr "没有片段 {ref}（时间轴上一共 {count} 个）"
 
 #: src/components/TemplateShelf.tsx
-msgid "没有能用「{name}」（{model}）出片的模板——点「出片模型」那颗键换一个模型，或者选回「全部模型」。"
-msgstr "没有能用「{name}」（{model}）出片的模板——点「出片模型」那颗键换一个模型，或者选回「全部模型」。"
+msgid "没有能用「{name}」（{model}）出片的模板——点写着「{name}」的那颗筛选键换一个模型，或者选回「全部模型」。"
+msgstr "没有能用「{name}」（{model}）出片的模板——点写着「{name}」的那颗筛选键换一个模型，或者选回「全部模型」。"
 
 #: src/components/TemplateShelf.tsx
 #~ msgid "没有能用「{name}」（{model}）出片的模板——点搜索栏旁边那颗键换一个模型，或者选回「全部模型」。"
 #~ msgstr "没有能用「{name}」（{model}）出片的模板——点搜索栏旁边那颗键换一个模型，或者选回「全部模型」。"
 
 #: src/components/TemplateShelf.tsx
-msgid "没有能用「{name}」（{model}）出片的模板。现有的 {hidden} 个都要按参考视频逐镜头复刻，只有「{needLabel}」（{needModel}）做得到——点「出片模型」那颗键换一个模型，或者选回「全部模型」。"
-msgstr "没有能用「{name}」（{model}）出片的模板。现有的 {hidden} 个都要按参考视频逐镜头复刻，只有「{needLabel}」（{needModel}）做得到——点「出片模型」那颗键换一个模型，或者选回「全部模型」。"
+msgid "没有能用「{name}」（{model}）出片的模板。现有的 {hidden} 个都要按参考视频逐镜头复刻，只有「{needLabel}」（{needModel}）做得到——点写着「{name}」的那颗筛选键换一个模型，或者选回「全部模型」。"
+msgstr "没有能用「{name}」（{model}）出片的模板。现有的 {hidden} 个都要按参考视频逐镜头复刻，只有「{needLabel}」（{needModel}）做得到——点写着「{name}」的那颗筛选键换一个模型，或者选回「全部模型」。"
 
 #: src/components/TemplateShelf.tsx
 #~ msgid "没有能用「{name}」（{model}）出片的模板。现有的 {hidden} 个都要按参考视频逐镜头复刻，只有「{needLabel}」（{needModel}）做得到——点搜索栏旁边那颗键换一个模型，或者选回「全部模型」。"
@@ -23730,8 +23744,12 @@ msgstr "还没有工单"
 #~ msgstr "还没有已授权的素材——请本人扫码/打开链接、完成活体认证与授权后再查。"
 
 #: src/studio/ui/projection.tsx
-msgid "还没有建过卡组——发布作品会自动生成《作品》卡组，<0/>也可以在「创意工坊」页手动组一套（编辑时可指定封面卡）。"
-msgstr "还没有建过卡组——发布作品会自动生成《作品》卡组，<0/>也可以在「创意工坊」页手动组一套（编辑时可指定封面卡）。"
+#~ msgid "还没有建过卡组——发布作品会自动生成《作品》卡组，<0/>也可以在「创意工坊」页手动组一套（编辑时可指定封面卡）。"
+#~ msgstr "还没有建过卡组——发布作品会自动生成《作品》卡组，<0/>也可以在「创意工坊」页手动组一套（编辑时可指定封面卡）。"
+
+#: src/studio/ui/projection.tsx
+msgid "还没有建过卡组——发布作品会自动生成《作品》卡组，<0/>也可以在创意工坊的「我的仓库」里手动组一套（编辑时可指定封面卡）。"
+msgstr "还没有建过卡组——发布作品会自动生成《作品》卡组，<0/>也可以在创意工坊的「我的仓库」里手动组一套（编辑时可指定封面卡）。"
 
 #: src/components/flow/SkillPanel.tsx
 msgid "还没有技能——输入条写好常用指令，点「＋ 存为技能」。"

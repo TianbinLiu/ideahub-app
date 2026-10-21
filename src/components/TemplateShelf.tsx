@@ -605,9 +605,12 @@ export default function TemplateShelf({
       data-guide="template-model-filter"
       onClick={() => setTierSheet(true)}
       aria-haspopup="dialog"
-      // 摆进芯片行时与芯片同高同字号（py-1 text-[11px]）；摆在搜索框旁时靠 items-stretch 撑高
-      className={`flex flex-none items-center gap-1 rounded-full px-3 ${searchQ !== undefined ? "py-1 text-[11px]" : "text-xs"} ${
-        tierPicked ? "bg-brand font-semibold text-ink" : "border border-slate-700 bg-black/30 text-slate-300"
+      // 摆进芯片行时就是一颗芯片（py-1 text-[11px]、未选 bg-panel 不带描边）：带描边会比旁边的芯片高 2px，
+      // 选上档位描边一没、整行又缩回去。摆在搜索框旁时照旧描边，靠 items-stretch 与搜索框同高
+      className={`flex flex-none items-center gap-1 rounded-full px-3 ${
+        searchQ !== undefined
+          ? `py-1 text-[11px] ${tierPicked ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-300"}`
+          : `text-xs ${tierPicked ? "bg-brand font-semibold text-ink" : "border border-slate-700 bg-black/30 text-slate-300"}`
       }`}
     >
       <Icon name="filter" size={14} />
@@ -877,10 +880,10 @@ function tierEmptyText(picked: VideoTier, hidden: number): string {
           msg`没有能用「${name}」（${model}）出片的模板。现有的 ${hidden} 个都要按参考视频逐镜头复刻，只有「${needLabel}」（${needModel}）做得到，而它是会员档——开通会员套餐（或充值过任意一笔）后可用，或者选回「全部模型」看看。`,
         )
       : i18n._(
-          msg`没有能用「${name}」（${model}）出片的模板。现有的 ${hidden} 个都要按参考视频逐镜头复刻，只有「${needLabel}」（${needModel}）做得到——点「出片模型」那颗键换一个模型，或者选回「全部模型」。`,
+          msg`没有能用「${name}」（${model}）出片的模板。现有的 ${hidden} 个都要按参考视频逐镜头复刻，只有「${needLabel}」（${needModel}）做得到——点写着「${name}」的那颗筛选键换一个模型，或者选回「全部模型」。`,
         );
   }
-  return i18n._(msg`没有能用「${name}」（${model}）出片的模板——点「出片模型」那颗键换一个模型，或者选回「全部模型」。`);
+  return i18n._(msg`没有能用「${name}」（${model}）出片的模板——点写着「${name}」的那颗筛选键换一个模型，或者选回「全部模型」。`);
 }
 
 /** 筛选面板里的一行：档位名 + 模型名 + 选了会剩几个；套餐用不了的那一档把原因写在下面（照样能选） */

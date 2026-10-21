@@ -37,7 +37,7 @@ import type { ApiSharedCard, ApiSharedDeck } from "../api/branch";
 import { subscribeVoices, voicesVersion } from "../data/cardVoice";
 import { useAccountVersion, useAuthState, useCurrentUser } from "../hooks/useAccount";
 import { liveSearchParams, useQueryTab } from "../hooks/useQueryTab";
-import { Card, CARD_TYPE_LABELS, CARD_TYPES, CardType } from "../types";
+import { Card, CARD_TYPE_LABELS, CARD_TYPE_SHORT, CARD_TYPES, CardType } from "../types";
 
 const KINDS = ["cards", "decks", "templates"] as const;
 const SORTS = ["new", "hot"] as const;
@@ -179,9 +179,12 @@ export default function WorkshopPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text]);
 
-  // 社区分享的卡片 / 卡组：只有真连着服务器才有（离线库里没有「别人」），跟着搜索词走
-  const cardPlaza = usePlaza<ApiSharedCard>(kind === "cards" && remote, () => browseSharedCards(qd), [qd]);
-  const deckPlaza = usePlaza<ApiSharedDeck>(kind === "decks" && remote, () => browseSharedDecks(qd), [qd]);
+  // 社区分享的卡片 / 卡组：只有真连着服务器才有（离线库里没有「别人」），跟着搜索词走。
+  // ★ 也跟着「是谁在看」走：回包里的 installed / isOwner 是按看的人算的，换了账号（或退出）不重拉的话，
+  //   上一个人装过的卡在这一页上还写着「已拥有」、点不动（2026-10-20 浏览器里撞到）
+  const viewer = me?.id ?? "";
+  const cardPlaza = usePlaza<ApiSharedCard>(kind === "cards" && remote, () => browseSharedCards(qd), [qd, viewer]);
+  const deckPlaza = usePlaza<ApiSharedDeck>(kind === "decks" && remote, () => browseSharedDecks(qd), [qd, viewer]);
   const [busyCard, setBusyCard] = useState<string | null>(null);
   const [cardErr, setCardErr] = useState("");
   const [busyDeck, setBusyDeck] = useState<string | null>(null);
@@ -225,13 +228,15 @@ export default function WorkshopPage() {
   // 句子里的数与名字先取成有名字的变量：翻译目录里才是 {nCards} 而不是 {0}，译者好写复数
   const nCards = shownCards.length;
   const nDecks = shownDecks.length;
-  /** 选中的卡种名（「这一批里没有 X 卡」那句用） */
-  const typeLabel = ctype ? CARD_TYPE_LABELS[ctype] : "";
+  /** 选中的卡种短名（「这一批里没有 X 卡」那句用；CARD_TYPE_LABELS 本身带「卡」，会说成「人物卡」卡） */
+  const typeLabel = ctype ? CARD_TYPE_SHORT[ctype] : "";
   const placeholder = kind === "cards" ? t`搜索卡片名 / 标签` : kind === "decks" ? t`搜索别人分享的卡组` : t`搜模板：特摄、治愈、赛博…`;
 
   return (
     <div className="min-h-full px-4 pb-10">
       <PageHeader
+        sticky
+        inset
         title={t`创意工坊`}
         right={
           <>

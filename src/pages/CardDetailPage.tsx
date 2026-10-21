@@ -7,7 +7,7 @@ import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
 import DeleteCardDialog from "../components/DeleteCardDialog";
 import { createPortal } from "react-dom";
-import { Link, useLocation, useParams } from "react-router";
+import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { useBackOr } from "../hooks/useBackOr";
 // ★ 出片管线的规则一律**从管线本身取**，这一页不再抄一份（铁律六）。
 //   抄的那份漏过规则一（只有第一张人物卡进参考图），于是「出片用」这个标签会对着
@@ -58,7 +58,7 @@ import {
   viewTag,
   viewsOf,
 } from "../types";
-import { useAccountVersion } from "../hooks/useAccount";
+import { useAccountVersion, useAuthState } from "../hooks/useAccount";
 
 /**
  * 老卡/素材卡没存这段信息时（字段仍叫 genPrompt，跨仓字段不改名），
@@ -679,6 +679,10 @@ export default function CardDetailPage() {
   // 返回：有上一页就回去（工坊 / 卡组 / 作品页），分享链接冷启动没有上一页时退回工坊；删卡之后退页也走它
   const back = useBackOr("/workshop");
   const loc = useLocation();
+  const nav = useNavigate();
+  // ★ 2026-10-20 工坊改版后市场不登录也能逛、点卡面就进这一页：没登录时「＋ 添加」先去登录、登完回到这张卡
+  //   （原来直接调 acquireCard，回一句「还没登录，装不了。」、键还变成「再同步一次」，一条出路都没有）
+  const auth = useAuthState();
   const { t } = useLingui();
   useCountView("card", id);
   // 优先账号库；不在库里（比如看别人作品的卡组）用路由 state 里带来的卡
@@ -972,6 +976,8 @@ export default function CardDetailPage() {
           <button
             onClick={() => {
               if (getting) return;
+              // 登完回来路由 state 没了也不要紧：不在库里的卡这一页会按 id 去广场取（fetchSharedCard）
+              if (auth === "out") return nav(`/login?next=${encodeURIComponent(loc.pathname)}`);
               setGetting(true);
               setGetErr(null);
               void acquireCard(card)

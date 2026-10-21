@@ -841,7 +841,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
           <div className="space-y-3">
             <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3">
               <div className="text-sm font-bold text-emerald-300"><Trans>已建组「{deckDone}」</Trans></div>
-              <p className="mt-1 text-xs text-slate-300"><Trans>{saved.length} 张卡已入库，在「我的卡组」里能看到。</Trans></p>
+              <p className="mt-1 text-xs text-slate-300"><Trans>{saved.length} 张卡已入库，在「我的仓库」的「卡组」里能看到。</Trans></p>
             </div>
             <button onClick={onClose} className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink">
               <Trans>完成</Trans>
@@ -1436,7 +1436,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                   {deckMode ? (
                     <Trans>本次已存 {saved.length} 张（最后一步打包成卡组）</Trans>
                   ) : (
-                    <Trans>本次已存 {saved.length} 张（已在「我的卡片」里）</Trans>
+                    <Trans>本次已存 {saved.length} 张（已在「我的仓库」的「卡片」里）</Trans>
                   )}
                 </div>
                 <div className="flex gap-1.5 no-scrollbar overflow-x-auto">
