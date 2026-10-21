@@ -202,6 +202,8 @@ function FeedItem({
   const [cmtOpen, setCmtOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [dmOpen, setDmOpen] = useState(false);
+  /** 弹幕输入条 / 评论抽屉开着时右侧栏整列退场（量法与理由见右侧栏 className 上那段 ★★） */
+  const railAway = dmOpen || cmtOpen;
   // 弹幕总开关是**用户级**偏好，不跟作品走：在这一条上关掉，划到下一条也该是关的。
   // 订阅而不是 useState(danmakuOn())，否则同屏三个 FeedItem 的开关会各说各话
   const dmOn = useSyncExternalStore(subscribeDanmaku, danmakuOn, () => true);
@@ -704,7 +706,24 @@ function FeedItem({
           播放量下沉：TikTok 不在视频上显示播放量，它属于作者后台而非观众决策信息。
           pointer 事件在这里截住：点操作键不该同时触发画面的暂停/解静音/双击点赞 */}
       <div
-        className={`absolute right-2 z-10 flex flex-col items-center ${immersive ? "hidden" : ""}`}
+        /* ★★ 弹幕输入条 / 评论抽屉开着的时候整列退场（railAway）。2026-10-21 Pixel 8 模拟器（API 36，412×840 CSS px）量的：
+             · 键盘一弹，**布局视口**本身缩到 528（innerHeight 与 visualViewport.height 都是 528 —— 是 adjustResize，
+               不只是视觉视口平移）。这一栏照旧 bottom 104、高 512，顶沿落到 −88：头像（−88…−44）与「+」整个出界，
+               弹那一颗卡在上沿（−32…24），「发弹幕」那行字压在状态栏底下。评论抽屉里点输入框是同一个数（抽屉顶 200.6）。
+             · **挪不下**：顶上页签行底在 50，输入条顶在 461.7，中间只有约 412px，而这一栏 512（去掉全屏键也要 432）。
+               贴着 visualViewport 重新定位只能再砍键或缩放 —— 而砍下来的那几颗本来也点不到（下一条）。
+             · **点不到**：两个浮层都是 fixed inset-0，露在屏幕里的每颗键，中心的 elementFromPoint 都落在浮层上
+               （上半截是浮层「点一下收起」那一条，下半截是输入条 / 抽屉本身）；adb 真触屏点露在外面的那颗心，
+               结果是输入条收起、赞数不变。这时右侧栏只是一列画，留着只剩被裁的那半截。
+             · **节拍**（两轮 rAF 逐帧采样）：打开时 dmOpen 在按下后 12~35ms 就翻真，视口要再过 300~480ms 才缩 ⇒ 退场一定
+               赶在挤压之前，所以退场是瞬时的（duration-0）。收起时反过来：dmOpen 先翻假，视口 22~30ms 后才长回 840 ⇒
+               立刻显示会闪一两帧被裁的整列，所以回来时先等 150ms 再淡入 200ms（余量约 5 倍，给比模拟器收键盘慢的机器留的；
+               改后实测：视口长回时这一列仍是 hidden / 0，163ms 起才开始淡入）。只动 opacity + visibility，不碰布局：
+               底缘那一串锁死的数改前改后实测同一个（进度条 50 / 时长文字顶沿 87 / 本栏底 104）。
+             · invisible 而不只是 opacity-0：退场期间这一列也不该被读屏读到、被焦点走到。 */
+        className={`absolute right-2 z-10 flex flex-col items-center transition-[opacity,visibility] ${immersive ? "hidden" : ""} ${
+          railAway ? "invisible opacity-0 duration-0" : "opacity-100 delay-150 duration-200"
+        }`}
         /* ★ 3rem 是量出来的，不是估的。底缘那一串东西的位置是死的：
              进度条容器 bottom = var(--tabbar-h) - 0.375rem（离屏幕底 50px），
              容器里自上而下是「时长文字 14px + 2px + 进度条 20px」——
