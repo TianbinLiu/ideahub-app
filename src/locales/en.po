@@ -11340,6 +11340,11 @@ msgstr "“Delete” in the workbench doesn't just cross it off a list: <0>the t
 msgid "工作流"
 msgstr "Workflow"
 
+#: src/pages/WorkshopPage.tsx
+msgctxt "创意工坊市场第一排的种类名，与卡片 / 卡组 / 模板并列（英文用复数）"
+msgid "工作流"
+msgstr "Workflows"
+
 #: src/components/WorkflowShelf.tsx
 msgid "工作流只按标题和作者名搜"
 msgstr "Workflows are searched by title and author name only"
@@ -14351,6 +14356,10 @@ msgstr "Search deck names, or card names inside decks"
 #: src/studio/ui/projection.tsx
 msgid "搜卡组名…"
 msgstr "Search deck names…"
+
+#: src/pages/WorkshopPage.tsx
+msgid "搜工作流的标题或作者"
+msgstr "Search workflow titles or authors"
 
 #: src/pages/AdminPage.tsx
 msgid "搜弹幕正文 / 作者"
@@ -26259,8 +26268,8 @@ msgid "这里管你自己的<0>卡片、卡组和模板</0>。 要摆桌铸卡�
 msgstr "This is where you manage your own <0>cards, decks and templates</0>. To forge cards at the table and turn them into videos, take this path into the 3D Studio. This page has <1>paid actions</1> too: every way of making a template in the “Templates” tab costs tokens (the one where AI swaps the people in a video for white mannequins also renders a real video), and so does the “✨ Generate character images with this scheme” button in the extract window."
 
 #: src/components/guide/tours.tsx
-msgid "这里逛的是<0>别人分享的卡片、卡组和模板</0>。 搜索框搜的是下面选中的那一类；换一类不用重打字。"
-msgstr "Here you browse <0>cards, decks and templates other people shared</0>. The search box searches whichever kind is selected below; switching kinds keeps what you typed."
+msgid "这里逛的是<0>别人分享的卡片、卡组、模板和工作流</0>。 搜索框搜的是下面选中的那一类；换一类不用重打字。"
+msgstr "Here you browse <0>cards, decks, templates and workflows other people shared</0>. The search box searches whichever kind is selected below; switching kinds keeps what you typed."
 
 #: src/pages/tutor/TutorRunPage.tsx
 msgid "这门课全部通过了。复习卡与到期回访在官网的学习页；App 里可以回看任何一个阶段、继续问老师。"

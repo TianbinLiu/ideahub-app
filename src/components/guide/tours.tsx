@@ -782,7 +782,7 @@ export const TOURS: GuideTour[] = [
         anchor: "workshop-search",
         body: (
           <Trans>
-            这里逛的是<b className="font-bold text-slate-100">别人分享的卡片、卡组和模板</b>。
+            这里逛的是<b className="font-bold text-slate-100">别人分享的卡片、卡组、模板和工作流</b>。
             搜索框搜的是下面选中的那一类；换一类不用重打字。
           </Trans>
         ),

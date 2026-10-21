@@ -1,15 +1,17 @@
-// 创意工坊第一层（/workshop）= 市场：一个搜索框 + 卡片 / 卡组 / 模板三类，搜别人分享的东西、装进自己的库。
+// 创意工坊第一层（/workshop）= 市场：一个搜索框 + 卡片 / 卡组 / 模板 / 工作流四类，搜别人分享的东西、装进自己的库。
 // 自己的东西与做东西的入口在第二层「我的仓库」（/workshop/mine，pages/WorkshopMinePage）。
 // 与 3D 卡片工坊（/studio）分工：这里是逛与拿，那里是创作现场。
 //
 // ★ 2026-10-20 改版（主人点名「参考市面上创意工坊的 ui 构造：第一层以市场搜索为主」）：原来一进来是「我的卡片」，
 //   市场（「从市场添加」）排在三个创作入口下面、模板市场套在「我的模板」页签里。调研的十几家（Steam 创意工坊、Unity /
 //   Roblox 素材商店、Figma 社区、Google Play…）第一屏都是一直展开的搜索框 + 种类切换，「我拥有的」在单独一层。
-// ★ 搜索词与筛选全进地址（`?kind=&q=&type=&sort=`；模板那一类另有货架自己的 `?shelf=&model=`）：去卡片详情 / 模板详情
+// ★ 搜索词与筛选全进地址（`?kind=&q=&type=&sort=`；模板那一类另有货架自己的 `?model=`）：去卡片详情 / 模板详情
 //   再返回，这一页整个重挂，state 归零就把人正在看的东西弄丢（2026-09-05 主人真机点名过一次，hooks/useQueryTab）。
 // ★ 服务端今天给得出的（2026-10-20 量过 origin/main）：卡片 / 卡组广场各给最近分享的 50 条、按词搜（服务端）；没有排序参数、
 //   没有类型筛选、没有分页。所以「类型」与「热门」都是在拿到手的这一批里排 / 滤 —— 热门那颗旁边照实说一句。
-//   模板市场的词是本机筛（data/templates.browseTemplates），工作流那一格没有搜索。
+//   模板市场的词是本机筛（data/templates.browseTemplates）；工作流货架服务端没有搜索参数，在拿到的那一批里按标题 / 作者筛（WorkflowShelf 的 q）。
+// ★ 「工作流」是第一排的第四类（2026-10-20 主人在真机上看过之后选的）：第一版把它放在「模板」里面的第二排芯片（模板市场 / 工作流），
+//   主人在手机上没找到它 —— 藏在第二层芯片里的东西等于没有。
 // ★ 不登录也能逛（四个列表接口都是 optionalAuth）：点「＋ 添加」时才去登录，登录完回到这一页的这个地址。
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
@@ -22,6 +24,7 @@ import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
 import CardTile from "../components/workshop/CardTile";
 import TemplateShelf, { useTemplatesVersion } from "../components/TemplateShelf";
+import WorkflowShelf from "../components/WorkflowShelf";
 import {
   browseSharedCards,
   browseSharedDecks,
@@ -39,7 +42,7 @@ import { useAccountVersion, useAuthState, useCurrentUser } from "../hooks/useAcc
 import { liveSearchParams, useQueryTab } from "../hooks/useQueryTab";
 import { Card, CARD_TYPE_LABELS, CARD_TYPE_SHORT, CARD_TYPES, CardType } from "../types";
 
-const KINDS = ["cards", "decks", "templates"] as const;
+const KINDS = ["cards", "decks", "templates", "workflows"] as const;
 const SORTS = ["new", "hot"] as const;
 const TYPE_FILTERS: readonly ("" | CardType)[] = ["", ...CARD_TYPES];
 /** 老地址 `/workshop?tab=` 的那三个值（改版前这一页的页签）：转到第二层或市场里对应的那一格 */
@@ -131,14 +134,14 @@ export default function WorkshopPage() {
   useSyncExternalStore(subscribeVoices, voicesVersion, () => 0);
   const remote = isRemoteMode();
 
-  // ★ 老地址：改版前 `/workshop?tab=decks` 这类指的是自己的东西 → 第二层；`?tab=templates&shelf=market|workflows` 指的是模板市场 → 市场的模板那一类。
+  // ★ 老地址：改版前 `/workshop?tab=decks` 这类指的是自己的东西 → 第二层；`?tab=templates&shelf=market|workflows` 指的是模板市场 / 工作流 → 市场的那一类。
   //   replace：转跳不该在历史里留一层，否则按返回又被转回来。
   const legacyTab = params.get("tab");
   useEffect(() => {
     if (!legacyTab || !LEGACY_TABS.includes(legacyTab)) return;
     const shelf = params.get("shelf");
     if (legacyTab === "templates" && (shelf === "market" || shelf === "workflows")) {
-      nav(`/workshop?kind=templates${shelf === "workflows" ? "&shelf=workflows" : ""}`, { replace: true });
+      nav(`/workshop?kind=${shelf === "workflows" ? "workflows" : "templates"}`, { replace: true });
     } else {
       nav(`/workshop/mine${legacyTab === "cards" ? "" : `?tab=${legacyTab}`}`, { replace: true });
     }
@@ -230,7 +233,14 @@ export default function WorkshopPage() {
   const nDecks = shownDecks.length;
   /** 选中的卡种短名（「这一批里没有 X 卡」那句用；CARD_TYPE_LABELS 本身带「卡」，会说成「人物卡」卡） */
   const typeLabel = ctype ? CARD_TYPE_SHORT[ctype] : "";
-  const placeholder = kind === "cards" ? t`搜索卡片名 / 标签` : kind === "decks" ? t`搜索别人分享的卡组` : t`搜模板：特摄、治愈、赛博…`;
+  const placeholder =
+    kind === "cards"
+      ? t`搜索卡片名 / 标签`
+      : kind === "decks"
+        ? t`搜索别人分享的卡组`
+        : kind === "templates"
+          ? t`搜模板：特摄、治愈、赛博…`
+          : t`搜工作流的标题或作者`;
 
   return (
     <div className="min-h-full px-4 pb-10">
@@ -280,8 +290,8 @@ export default function WorkshopPage() {
         )}
       </div>
 
-      {/* 种类：卡片 / 卡组 / 模板（整宽分段控件）。换种类不清搜索词 —— 同一个词换一类再搜一遍是常见动作 */}
-      <div data-guide="workshop-kinds" className="mb-3 grid grid-cols-3 gap-1 rounded-xl bg-panel p-1" role="tablist">
+      {/* 种类：卡片 / 卡组 / 模板 / 工作流（整宽分段控件）。换种类不清搜索词 —— 同一个词换一类再搜一遍是常见动作 */}
+      <div data-guide="workshop-kinds" className="mb-3 grid grid-cols-4 gap-1 rounded-xl bg-panel p-1" role="tablist">
         {KINDS.map((k) => (
           <button
             key={k}
@@ -290,7 +300,7 @@ export default function WorkshopPage() {
             onClick={() => setKind(k)}
             className={`rounded-lg py-2 text-sm ${kind === k ? "bg-brand font-semibold text-ink" : "text-slate-300"}`}
           >
-            {k === "cards" ? t`卡片` : k === "decks" ? t`卡组` : t`模板`}
+            {k === "cards" ? t`卡片` : k === "decks" ? t`卡组` : k === "templates" ? t`模板` : t({ message: "工作流", context: "创意工坊市场第一排的种类名，与卡片 / 卡组 / 模板并列（英文用复数）" })}
           </button>
         ))}
       </div>
@@ -472,8 +482,14 @@ export default function WorkshopPage() {
 
       {kind === "templates" && (
         <div className="pb-4">
-          {/* 只摆「模板市场 / 工作流」两格（「我的模板」在第二层）；搜索词用上面那一个搜索框的 */}
-          <TemplateShelf tabs={["market", "workflows"]} queryKey="shelf" searchQ={qd} />
+          {/* 只摆模板市场（「工作流」是上面第四类、「我的模板」在第二层）；只剩一格，货架那排页签不画。搜索词用上面那一个搜索框的 */}
+          <TemplateShelf tabs={["market"]} searchQ={qd} />
+        </div>
+      )}
+
+      {kind === "workflows" && (
+        <div className="pb-4">
+          <WorkflowShelf q={qd} />
         </div>
       )}
     </div>

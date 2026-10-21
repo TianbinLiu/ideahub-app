@@ -106,7 +106,7 @@ src/
                构建里 `scripts/check-shot-script.mjs` 实跑
   hooks/
   mock/        无后端时的假数据
-  pages/       路由页面（hash 路由）；`WorkshopPage` = 创意工坊第一层 = 市场（/workshop：一个搜索框 + 卡片 / 卡组 / 模板三类，搜索词与筛选都在地址里，
+  pages/       路由页面（hash 路由）；`WorkshopPage` = 创意工坊第一层 = 市场（/workshop：一个搜索框 + 卡片 / 卡组 / 模板 / 工作流四类，搜索词与筛选都在地址里，
                不登录也能逛），`WorkshopMinePage` = 第二层「我的仓库」（/workshop/mine：自己的卡片 / 卡组 / 模板 + 三个造卡入口；
                2026-10-20 主人点名「第一层以市场搜索为主」改的版，两层共用一张卡 `components/workshop/CardTile`）；`RecipePage` = 制作过程（/video/:id/recipe：四档结局 + 分镜 + 选角一屏 + 按配方做同款，
                共用视图在 `components/recipe/RecipeView`，发布页 / 编辑页的「别人会看到这些」预览也画它）；`SupportPage` = AI 客服，`SupportModelsPage` / `SupportPersonasPage` =
