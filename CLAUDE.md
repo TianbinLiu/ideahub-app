@@ -26,7 +26,7 @@ npm run dev                    # http://localhost:5173
 `npm run build` = `tsc && vite build`，**提交前必须通过**。单独跑全部构建期检查用 `npm run check:all`（2026-10-15 起；同日新加的 `scripts/check-import-direction.mjs` 实跑依赖方向：data 不引 studio / pages / components / hooks、flowStore 不引 studioStore、零依赖规则模块只 `import type`）。CI 另有一个**不设 required** 的 `android` job（2026-10-15）编一遍 debug 变体：Java 改动合进 main 不再只靠发版那天的 gradle 第一次暴露；两周后看时长再定要不要进 ruleset。
 
 出安装包：`npm run apk`（debug，自己测）/ `npm run apk:release`（**发给别人的只发这个**）/ `npm run aab`（上架）。
-发版走 `npm run release`（2026-10-15 起第 0 步先拦「HEAD 不是 origin/main 的树 / 工作区按内容不干净」—— 先 land 再出包；发错了 → `npm run release -- --withdraw v<坏版>`，见 docs/app-distribution.md「发错了」；第 2 步会开包核入口 js、受保护模型白名单、权限表、jar 来源）—— 它会**自检"这次更新能不能到老用户手里"**（签名、版本号、
+发版走 `npm run release`（2026-10-15 起第 0 步先拦「HEAD 不是 origin/main 的树 / 工作区按内容不干净」—— 先 land 再出包；发错了 → `npm run release -- --withdraw v<坏版>`，见 docs/app-distribution.md「发错了」；第 2 步会开包核入口 js、受保护模型白名单、权限表、jar 来源，并核编进包的原生模块是锁文件那一版 —— 带 keystore 的 worktree 先 `npm ci` 再出包）—— 它会**自检"这次更新能不能到老用户手里"**（签名、版本号、
 清单可达性），任何一条不过就当场停下。完整流程见 [`docs/app-distribution.md`](docs/app-distribution.md)。
 签名 keystore 不在仓库里（`android/keystore/` 被 gitignore 排除），换机 / 新 worktree
 怎么恢复见 [`docs/signing-keystore.md`](docs/signing-keystore.md)。**缺了它 release 构建会直接失败**，

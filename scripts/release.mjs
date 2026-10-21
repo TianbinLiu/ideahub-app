@@ -18,7 +18,7 @@
 //   （下面四条是 2026-10-15 教材人格评审补的：原来写在 docs 里让人 unzip / git log 对一眼，人迟早漏）
 //     ⑦ 出包的源码就是 origin/main 上那一份、工作区干净（第 0 步）
 //                              —— tag 建在远端 main 的 HEAD 上、包是本地 HEAD 出的，对不上就是「tag 指着一份源码、用户装的是另一份」
-//     ⑧ 包里的内容是本次构建的、受保护模型只有自有那几个、权限表没漂、入仓的 jar 有来源（第 2b～2d 步）
+//     ⑧ 包里的内容是本次构建的、受保护模型只有自有那几个、权限表没漂、入仓的 jar 有来源、原生模块是锁文件那一版（第 2b～2e 步）
 //                              —— 版本号对而内容旧不报错；第三方模型随包发出去不报错；插件偷带的权限不报错
 //     ⑨ GitHub Release 上那份 APK 与清单逐字节相同（第 7b 步）
 //                              —— 它是强制更新弹层上「镜像也下不动」时唯一的备用下载源，原来三份产物只验了两份
@@ -42,7 +42,7 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import url from "node:url";
-import { apkPermissions, entryJsOf, inspectWebBundle, jarProvenance, manifestPermissions, permissionDiff } from "./lib/app-package.mjs";
+import { apkPermissions, entryJsOf, inspectWebBundle, jarProvenance, manifestPermissions, nativeModuleDrift, permissionDiff } from "./lib/app-package.mjs";
 import { OWN_PROTECTED_MODELS, PROTECTED_DIR } from "./lib/protected-models.mjs";
 import { changesOf } from "./worktree-changes.mjs";
 
@@ -747,6 +747,16 @@ async function main() {
     const jars = jarProvenance(LIBS_DIR, sha256);
     for (const line of jars.ok) console.log(`✓ ${line}`);
     if (jars.problems.length) die(`android/app/libs/ 里的 jar 核不过：\n  ${jars.problems.join("\n  ")}`);
+  }
+
+  // ── 2e. 编进包里的原生模块就是锁文件记的那一版（2026-10-21，见 nativeModuleDrift 的 ★）──
+  //    ★ 只在首次发布核：重跑时 node_modules 可能已经换过，与发出去的那份包无关（与 2b 的入口 js 同一个口径）。
+  if (!exists) {
+    const mods = nativeModuleDrift(root);
+    if (mods.problems.length) die(`原生模块的版本对不上：
+  ${mods.problems.join("
+  ")}`);
+    console.log(`✓ 原生模块与 package-lock.json 一致：${mods.ok.join("、")}`);
   }
 
   // ── 3. 签名必须还是那一把 ────────────────────────────────

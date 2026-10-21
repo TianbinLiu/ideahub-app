@@ -117,6 +117,7 @@ tag + 内容不同），第 5c 步对镜像上那个同名文件做同样的事�
 | 开包看：APK / AAB 里的入口 `assets/index-*.js` == 本次 `dist/index.html` 引的那个（只首次发布核）；`assets/public/models/protected/` **恰好**是 `scripts/lib/protected-models.mjs` 的白名单（第 2b 步） | 版本号对、内容旧（直接跑 gradle 跳过了 cap sync）不报错；第三方版权模型随包发出去不报错 |
 | 权限整表 == 渠道允许表（第 2c 步：APK 问 aapt2，AAB 看合并清单；表在 `release.mjs` 的 `SIDELOAD_PERMISSIONS` / `PLAY_PERMISSIONS`，期望表照抄在 `play-store-checklist.md`） | 插件偷带的 `CAMERA` / `READ_MEDIA_*` 与 media3 那种意料之中的漂移混在一起，没人分得清 |
 | `android/app/libs/*.jar` 每个都在同目录 README 的表里、sha256 对得上（第 2d 步） | 处理登录的那段代码来路不明、被换过也没人知道 |
+| 编进包的原生模块（`capacitor.settings.gradle` 里那几个 + `@capacitor/core`）装着的版本与 package-lock.json 一致（第 2e 步，2026-10-21） | gradle 编的是 node_modules 里此刻装着的那份：没 `npm ci` 就出包，锁文件里升过的安全修复（2.64 的 Capacitor 8.5.1）根本没进包，而版本号、签名、清单一路全绿 |
 | 签名证书指纹 == 历史版本 | 换过 keystore → 老用户点更新，装到最后只说「应用未安装」 |
 | versionCode > 线上那一版，**也** > 每一个撤回过的版本（第 4c 步，pre-release 那几个） | 不涨 → 所有人的更新检查都判不出有新版，**等于没发**；没压过撤回的那版 → 装了坏版的人收不到修好的 |
 | `minVersionCode`：不带参数就沿用上一版的；只能往上拧、不能超过这一版的 versionCode（第 4b 步） | 顺手发一版就把门槛丢了 = 悄悄取消了强制更新；门槛比这一版还高 = 所有人锁在关不掉的弹层前面、无版可装 |

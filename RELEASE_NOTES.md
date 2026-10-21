@@ -3,12 +3,12 @@
 · 安全更新：修复 App 内置网页组件（Capacitor）的一个高危漏洞，请尽快更新。
 · 创意工坊改成两层：第一层是市场，一个搜索框按卡片 / 卡组 / 模板 / 工作流找，不登录也能逛；自己的东西和三个造卡入口在「我的仓库」里。
 · 模板货架顶上多了「创建属于你的视频模板」入口（做过模板之后缩成一行）。
-· 首页：按住屏幕两侧临时 2 倍速，松手恢复；按住中间弹出「更多操作」（倍速、清屏 / 转屏观看、保存到本地、举报）；双击点赞不再顺手把视频停住；右上角多了搜索；点赞、评论、收藏数按「万」显示。
+· 首页：按住屏幕两侧临时 2 倍速，松手恢复；按住中间弹出「更多操作」（倍速、清屏 / 转屏观看、保存到本地、举报）；双击点赞不再顺手把视频停住；右上角多了搜索；点赞、评论数按「万」显示。
 · 分区：搜索框钉在顶上，点进去先看到搜索历史和近期热播；分区最前面加了「全部」；作品卡片重新排版。
 · 「我的」：头像后面加了一条品牌带；草稿改用笔标记（锁只表示仅自己可见）；访客主页可以拉黑；往下滚时页签不再被顶栏压住一截。
 · 发弹幕、写评论时右侧那一列按钮暂时收起，不再被键盘顶出屏幕。
 · 第三方登录（Google / GitHub）：取消授权或登录失败会回到 App，用界面语言说明原因；登录前要去的页面，登录后接着去。
-· 对话正反打：过肩镜头不再多画一个人；三个机位画完会自动检查一遍，可疑的那张会标出来，由你决定要不要重画。
+· 对话正反打：过肩镜头多画一个人的情况少了很多；三个机位画完 AI 会各看一遍（每张多一次看图的钱），可疑的那张会标出来，由你决定要不要重画。
 · 延长与示例视频出片的报价改按方舟「含输入视频的最低用量」计算。
 · AI 客服按界面语言作答；更新失败的提示按界面语言显示；剪辑页统一叫「合成」；几处小字调亮了一档。
 
@@ -17,12 +17,12 @@ QiMeng 2.64
 · Security update: fixes a critical vulnerability in the app's built-in web component (Capacitor). Please update soon.
 · The Workshop now has two layers: the first is the market — one search box across cards, decks, templates and workflows, no sign-in needed to browse; your own items and the three card-making entries live in "My Library".
 · The template shelf now starts with a "Create your own video template" entry (it shrinks to one line once you've made one).
-· Home: hold either side of the screen for 2× until you let go; hold the middle for "More options" (speed, clear-screen / rotate to watch, save to device, report); double-tap to like no longer pauses the video; search is now at the top right; like, comment and save counts are abbreviated (12.3K).
+· Home: hold either side of the screen for 2× until you let go; hold the middle for "More options" (speed, clear-screen / rotate to watch, save to device, report); double-tap to like no longer pauses the video; search is now at the top right; like and comment counts are abbreviated (12.3K).
 · Discover: the search box stays pinned, and tapping it shows your search history and recently popular videos first; an "All" category comes first; video cards have a new layout.
 · Me: a brand band behind your avatar; drafts are marked with a pen (the lock only means "only you can see it"); you can block someone from their profile; the tab row no longer slides under the header when you scroll.
 · While writing a bullet comment or a comment, the right-hand buttons step aside instead of being pushed off the top by the keyboard.
 · Third-party login (Google / GitHub): cancelling or a failed login returns to the app with the reason in your interface language, and you land on the page you were heading to.
-· Shot / reverse shot: over-the-shoulder shots no longer add an extra person; after drawing the three angles the app checks each one and flags anything suspicious for you to redraw if you want.
+· Shot / reverse shot: over-the-shoulder shots add an extra person much less often; after drawing, the AI looks over each of the three angles (one extra image check per angle) and flags anything suspicious for you to redraw if you want.
 · Extend and example-video renders are now quoted using Ark's minimum billed input length for video input.
 · The AI support assistant answers in your interface language; update failures are explained in your interface language; the editor consistently says "merge"; some small text is brighter.
 

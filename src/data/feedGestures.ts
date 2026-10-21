@@ -7,8 +7,10 @@
 
 /**
  * 按多久算长按。
- * ★ 450ms：比单击的 250ms 判定窗宽出一截（单击不会误触长按），又比系统的 500ms 长按略短（抢在 WebView
- *   自己的长按 —— 选字 / 图片菜单 —— 之前；那两样另外用 onContextMenu + select-none 关掉）。
+ * ★ 450ms：比单击的 250ms 判定窗宽出一截（单击不会误触长按）。它**不保证**抢在系统长按之前：系统长按时长
+ *   安卓 12 起是 400ms、更早是 500ms、开了无障碍「触摸并按住延迟」能到 1~1.5 秒，所以 WebView 自己的长按
+ *   （选字 / 图片菜单）另外用 onContextMenu + select-none 关掉；在系统判定之前抬手，Chrome 会补一个 click
+ *   落在刚开出来的菜单上 —— FeedPage 的 swallowLiftClick 吞掉它。
  */
 export const LONG_PRESS_MS = 450;
 
