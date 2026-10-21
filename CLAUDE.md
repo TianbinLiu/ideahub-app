@@ -813,6 +813,11 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   别再挤右栏（640 高的屏只剩 24px，见「已知的坑」右栏那一格）。「不感兴趣」等服务端有端点再加。
 - **搜索历史只在 `data/searchHistory`**（本机、按 `deviceOwner()` 分开、最多 10 条）；分区页搜索框获焦且没字时铺历史 + 近期热播。从首页放大镜进来（`state.focusSearch`）
   要等分区引导讲完才聚焦（`useAutoGuide` 420ms 后才开，聚焦早了搜索面板会盖住分区行，引导第 3、4 步指着不在屏上的东西）。
+- **依赖里有两处钉死的版本，别「顺手」改回 ^**（2026-10-21 处理 Dependabot 32 条告警，全文 docs/dependency-security-2026-10.md）：
+  ① `@capacitor/android` / `core` / `cli` 钉 `8.5.1`（GHSA-rvm3-566m-v7fv 的修复版；8.5.2 重写了 `SystemBars`，会改掉安卓 12–14 状态栏 / 导航栏的颜色）——
+  升 8.5.2+ 是单独一件事，要在安卓 14 / 15 模拟器上浅色 / 深色、手势 / 三键导航各看一遍顶栏底栏；三个包一起动、版本一致。
+  ② `overrides` 里 `postcss-selector-parser` 钉 `7.1.7`（Tailwind 3 声明 ^6，修复只在 7.1.6+）：动它之前先做 Tailwind CSS 升级前后的逐字节比对（`cmp`）。
+  `braces` ≤ 3.0.3 的告警没有修好的版本可升，只在开发依赖里，接受；要去掉得迁 Tailwind 4。根目录与 `shihui/` 两份锁文件要一起改。
 - **长活登记进 `data/jobs`，胶囊只有一颗**（2026-09-05 主人点名"生成/上传时能退出页面不中断，并像出片那样有提示小窗"）：
   AI 出图 / 铸卡上传 / 圈选改图 / 模板上传·登记·白模化·分析都 `startJob()` 领一张票，进度 `update()`、结局
   `done()` / `fail()`（带 `route`，通知点下去要有地方落；人就在那一页上时 `silent`），`GenerationPill` 统一画
@@ -1032,6 +1037,7 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 - [`docs/ONBOARDING.md`](docs/ONBOARDING.md) — 从零到能跑
 - [`docs/api-contract.md`](docs/api-contract.md) — 与 server 的接口契约（三仓共享）
 - [`docs/play-store-checklist.md`](docs/play-store-checklist.md) — 上架检查单
+- [`docs/dependency-security-2026-10.md`](docs/dependency-security-2026-10.md) — 2026-10-21 处理 Dependabot 32 条（2 critical / 22 high / 8 moderate）：改了哪 8 个包、两处钉死的理由（Capacitor 8.5.1、postcss-selector-parser 7.1.7）、没修也修不了的 `braces`、怎么验的；修复要等下一次发版才到用户手里
 - [`docs/ui-benchmark-2026-10.md`](docs/ui-benchmark-2026-10.md) — 对标抖音 / TikTok / 快手 / B 站 / 剪映 / CapCut 等：模板创建入口、首页、分区、「我的」、小组件五节（2026-10-21）：
   做了插画模板入口卡、首页长按层（两侧 2× / 中间更多操作）与双击粒子、分区搜索历史与近期热播、「我的」品牌带与草稿改笔、三枚招牌字形；没做的与等主人定的五件事在第七节
 - [`docs/ux-review-csci187-2026-10-14.md`](docs/ux-review-csci187-2026-10-14.md) — 按 CSCI 187 六个 UX 框架 + 惯例 + Goodwin「好产品礼仪」走查 App：改了 20 来处（删草稿改撤销、方勾选框、页签名字、设置分组、反馈落在键旁…），没改的 21 条按框架排好等主人定（发布页主键在三屏外、点赞失败静默回滚、工坊两个意思、token 五个名字…）
