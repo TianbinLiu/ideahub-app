@@ -1,4 +1,5 @@
-// 开包看：安装包（APK / AAB）里的 web 资产、权限表、入仓 jar 的来源 —— scripts/release.mjs 第 2b～2d 步用（2026-10-15 教材人格评审）。
+// 开包看：安装包（APK / AAB）里的 web 资产、权限表、入仓 jar 的来源 —— scripts/release.mjs 第 2b～2d 步用（2026-10-15 教材人格评审）；
+// 第 2e 步的原生模块版本核对（2026-10-21）也在这里。
 //
 // ★ 为什么单独抽成一个模块：release.mjs 一 import 就跑 main()，没法拿真的安装包单独验这几个函数；抽出来之后
 //   `node --input-type=module -e` 对着 android/app/build/outputs 里的包就能跑一遍（写的时候就是这么验的）。
@@ -83,5 +84,37 @@ export function jarProvenance(libsDir, sha256) {
     else ok.push(`${jar} 的 sha256 与 android/app/libs/README.md 一致`);
   }
   for (const name of table.keys()) if (!jars.includes(name)) problems.push(`README.md 里记着 ${name}，libs/ 里却没有这个文件`);
+  return { ok, problems };
+}
+
+/**
+ * 编进安装包的原生模块（`android/capacitor.settings.gradle` 里 `node_modules/<包>/` 那几个，外加 web 侧的 `@capacitor/core`）
+ * 装着的版本与 package-lock.json 记的是否一致。
+ * ★ 为什么要核（2026-10-21，2.64 发版前复核）：gradle 编的是 node_modules 里**此刻装着的**那份原生代码，不看锁文件。
+ *   2.64 是为 Capacitor 的安全修复（8.5.0 → 8.5.1）发的版，而带 keystore 的 worktree 往往是好几天前 npm ci 的 ——
+ *   没重装就出包，打进去的还是 8.5.0：版本号、签名、清单一路全绿，修复却根本没进包。
+ * ★ 只能核「出包那一刻的 node_modules」：出完包再 npm ci 就核不出来了（发版文档的顺序是先 npm ci 再出包）。
+ * @returns {{ ok: string[], problems: string[] }}
+ */
+export function nativeModuleDrift(root) {
+  const ok = [];
+  const problems = [];
+  const settings = path.join(root, "android/capacitor.settings.gradle");
+  const lockFile = path.join(root, "package-lock.json");
+  if (!fs.existsSync(settings) || !fs.existsSync(lockFile)) {
+    return { ok, problems: ["读不到 android/capacitor.settings.gradle 或 package-lock.json —— 原生模块的版本没处核"] };
+  }
+  const names = new Set(["@capacitor/core"]);
+  for (const m of fs.readFileSync(settings, "utf8").matchAll(/node_modules\/((?:@[^/'"]+\/)?[^/'"]+)\//g)) names.add(m[1]);
+  const lock = JSON.parse(fs.readFileSync(lockFile, "utf8")).packages ?? {};
+  for (const name of [...names].sort()) {
+    const want = lock[`node_modules/${name}`]?.version;
+    const pj = path.join(root, "node_modules", name, "package.json");
+    const got = fs.existsSync(pj) ? JSON.parse(fs.readFileSync(pj, "utf8")).version : undefined;
+    if (!want) problems.push(`${name} 不在 package-lock.json 里 —— capacitor.settings.gradle 指着一个锁文件不认识的包，先 npx cap sync android`);
+    else if (!got) problems.push(`node_modules 里没有 ${name} —— 先 npm ci 再出包`);
+    else if (got !== want) problems.push(`${name} 装着的是 ${got}，package-lock.json 记的是 ${want} —— node_modules 是旧的，先 npm ci 再重新出包`);
+    else ok.push(`${name} ${got}`);
+  }
   return { ok, problems };
 }

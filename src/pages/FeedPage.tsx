@@ -63,6 +63,37 @@ import { EDGE_ZONE, HOLD_SPEED, LONG_PRESS_MS } from "../data/feedGestures";
  */
 const onOwnPicture = (e: React.SyntheticEvent) => (e.currentTarget as Node).contains(e.target as Node);
 
+/**
+ * 长按开出菜单之后，抬手那一下 click 吞掉。
+ * ★ 菜单是**按着的时候**就开的（450ms，与抖音一样不用等抬手），抽屉当场画在手指底下。安卓 Chrome 只要在
+ *   它自己的长按判定（系统长按时长：安卓 12 起 400ms，开了无障碍「触摸并按住延迟」会到 1~1.5 秒）之前抬手，
+ *   就把这一按当成一次轻触，在抬手的位置补一个 click —— 落在抽屉的遮罩上就是「刚开出来就关了」，
+ *   落在某一行上就是替人点了那一行（2026-10-21 发版前复核抓到）。
+ * ★ 在 window 捕获阶段拦：比 React 挂在 body / #root 上的监听都早，抽屉的 onClick 一个都收不到。
+ *   抬手（或手势被取消）之后再等 400ms 就撤掉，不会吞掉人接下来真正的那一下。
+ */
+function swallowLiftClick() {
+  let timer: number | undefined;
+  const eat = (e: MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    stop();
+  };
+  const lifted = () => {
+    window.clearTimeout(timer);
+    timer = window.setTimeout(stop, 400);
+  };
+  function stop() {
+    window.clearTimeout(timer);
+    window.removeEventListener("click", eat, true);
+    window.removeEventListener("pointerup", lifted, true);
+    window.removeEventListener("pointercancel", lifted, true);
+  }
+  window.addEventListener("click", eat, true);
+  window.addEventListener("pointerup", lifted, true);
+  window.addEventListener("pointercancel", lifted, true);
+}
+
 /** 一次双击点赞的爆心：位置、随机倾角（±15°，抖音式，连击时几颗心不叠成同一个角度） */
 type Burst = { x: number; y: number; k: number; rot: number };
 
@@ -554,7 +585,10 @@ function FeedItem({
           setPaused(false);
         }
         setFastHold(true);
-      } else setMenuOpen(true);
+      } else {
+        swallowLiftClick();
+        setMenuOpen(true);
+      }
     }, LONG_PRESS_MS);
   }
   function onMove(e: React.PointerEvent) {

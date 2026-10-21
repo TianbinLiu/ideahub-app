@@ -483,7 +483,7 @@ export default function WorkshopPage() {
       {kind === "templates" && (
         <div className="pb-4">
           {/* 只摆模板市场（「工作流」是上面第四类、「我的模板」在第二层）；只剩一格，货架那排页签不画。搜索词用上面那一个搜索框的 */}
-          <TemplateShelf tabs={["market"]} searchQ={qd} />
+          <TemplateShelf tabs={["market"]} searchQ={qd} queryKey="shelf" />
         </div>
       )}
 
