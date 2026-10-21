@@ -59,6 +59,7 @@ import {
   viewsOf,
 } from "../types";
 import { useAccountVersion, useAuthState } from "../hooks/useAccount";
+import { clearStashedCard, peekStashedCard, stashCardForLogin } from "../data/cardHandoff";
 
 /**
  * 老卡/素材卡没存这段信息时（字段仍叫 genPrompt，跨仓字段不改名），
@@ -696,11 +697,17 @@ export default function CardDetailPage() {
     //   不匹配时 else 分支返回的还是 `passed`。于是 URL 指着 B 卡、路由 state 里躺着 A 卡时
     //   （返回栈里翻回来、或从两个入口先后点进来），页面画的是 A，而同一个组件里的
     //   `useCountView("card", id)` 把这次浏览记在 **B** 头上 —— 两件事都零报错。
-    return passed && passed.id === id ? passed : null;
+    if (passed && passed.id === id) return passed;
+    // 「先登录、再添加」那一趟回来：路由 state 过不了登录页，快照卡又按 id 取不回来（data/cardHandoff 头上那段）
+    return peekStashedCard(id);
   }, [id, loc.state, accountV]);
   // ★ 这一页也会渲染**别人的**卡（工坊市场点进来时卡是由路由 state 带过来的），
   //   所以分享条必须按"这张卡在不在我库里"开门，不能只看有没有登录。
   const owned = useMemo(() => myCards().some((c) => c.id === id), [id, accountV]);
+  // 进了库就撤掉「先登录、再添加」的寄存（库里那份优先，寄存那份再留着只会在下一次别的路上被误认）
+  useEffect(() => {
+    if (owned) clearStashedCard(id);
+  }, [owned, id]);
   /** 删卡确认开着没有 */
   const [ask, setAsk] = useState(false);
   /** 改名弹层（只对自己的卡）。★ 与删卡确认并排放在这里：都在所有早退之前 */
@@ -976,8 +983,12 @@ export default function CardDetailPage() {
           <button
             onClick={() => {
               if (getting) return;
-              // 登完回来路由 state 没了也不要紧：不在库里的卡这一页会按 id 去广场取（fetchSharedCard）
-              if (auth === "out") return nav(`/login?next=${encodeURIComponent(loc.pathname)}`);
+              // 登完回来路由 state 就没了：广场卡这一页还能按 id 再取一次，作品 / 模板卡组里的快照卡取不回来（404），
+              // 所以走之前把这张卡寄存一下，回来由 localCard 认领（data/cardHandoff）
+              if (auth === "out") {
+                stashCardForLogin(card);
+                return nav(`/login?next=${encodeURIComponent(loc.pathname)}`);
+              }
               setGetting(true);
               setGetErr(null);
               void acquireCard(card)
