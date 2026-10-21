@@ -117,6 +117,8 @@ export default function WorkshopMinePage() {
             不上传、不花 token、指哪张是哪张。提取卡组（连圈多张打包）/ 提取卡片（圈一张就走）。
           ★ 自己传图做卡片是**另一条**路，不是默认路径 —— 默认铸卡（3D 工坊里的铸卡师）已经是 AI 全自动出图，一张图都不用传。
             所以那一格的小字要点出区别；「不经过 AI 出图 · 不花 token」是它相对 AI 铸卡唯一真实的优势，值得写在入口上。 */}
+      {/* ★ 三格的标题用 11px（2026-10-20 真机量过）：CPH2771（视口 363 宽）上每格内容区 82px，「从视频提取卡组」7 个字在 12px 下要 84px，
+          折成「从视频提取卡 / 组」—— 第二行孤零零一个字；11px 是 77px，360 宽的机器上也还有余量 */}
       <div data-guide="workshop-extract-card" className="mb-4 grid grid-cols-3 gap-2.5">
         {(
           [
@@ -132,7 +134,7 @@ export default function WorkshopMinePage() {
             <span className="text-xl" aria-hidden>
               {icon}
             </span>
-            <span className="text-xs font-semibold leading-snug text-slate-100">{title}</span>
+            <span className="text-[11px] font-semibold leading-snug text-slate-100">{title}</span>
             <span className="line-clamp-3 text-[10px] leading-relaxed text-slate-400">{sub}</span>
           </button>
         ))}
@@ -143,7 +145,7 @@ export default function WorkshopMinePage() {
           <span className="text-xl" aria-hidden>
             🖼
           </span>
-          <span className="text-xs font-semibold leading-snug text-slate-100">
+          <span className="text-[11px] font-semibold leading-snug text-slate-100">
             <Trans>自己传图做卡片</Trans>
           </span>
           <span className="line-clamp-3 text-[10px] leading-relaxed text-slate-400">
