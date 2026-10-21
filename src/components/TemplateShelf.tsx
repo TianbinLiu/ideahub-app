@@ -22,6 +22,7 @@ import Sheet from "./Sheet";
 //   详情页 OwnerBar 要用同一个入口，一份实现两处用（两页各写一份必然分叉）
 // （播放/点赞数 2026-08-29 随卡片减法收进详情页，本文件不再读 social）
 import VideoTemplateExtractor from "./VideoTemplateExtractor";
+import TemplateCreateCard from "./TemplateCreateCard";
 import WorkflowShelf from "./WorkflowShelf";
 import {
   groupRows,
@@ -471,7 +472,7 @@ export default function TemplateShelf({
   //   **而且**服务端真的应答了"，而 remoteTemplatesCapable() 在它为假时不探、直接回 false。
   //   App 虽然等 readyVideos() 才挂路由，但账号层认领到人（与它并发）之后 videos.ts 会按
   //   新 owner 把库整个重装 —— 那段窗口里 remoteOn() 又是 false。此前这个 effect 只在挂载
-  //   跑一次：冷启动直接进「我的模板」时探测落在窗口里，那颗「传一段视频做白模模板」
+  //   跑一次：冷启动直接进「我的模板」时探测落在窗口里，那张「创建属于你的视频模板」入口卡
   //   **永远不出现**，切一次页签让货架重挂才有，零报错。订阅 useVideosVersion 是为了让
   //   重装完成那一拍（readyRemote 结尾的 emitVideos）引起一次重渲染，remoteLive 随之翻真、
   //   effect 重跑。⚠ 别改成直接依赖那个版本号：每一次点赞/补详情都会重探、重拉待取回名单。
@@ -661,6 +662,13 @@ export default function TemplateShelf({
             `overflow-x-auto` 会把 overflow-y 一并算成 auto，选中那颗的 `ring-1`（画在盒子外
             1px 的 box-shadow）上下两条边就被裁掉了，首尾两颗的左右边同理 —— 看起来是
             "圆边框缺了一截"。负外边距让这 2px 不占版面，与改之前逐像素同位。 */}
+      {/* 「创建属于你的视频模板」入口（2026-10-21 起；原来是「我的模板」里一行虚线文字）。市场与「我的模板」两格都摆 ——
+          大多数人逛的是市场，只摆在「我的模板」里等于藏起来（调研：CapCut 的创作者 banner 就在模板栏里）。
+          还没做过模板的人给大卡，做过的给一行小条。门控仍是 blockoutCap（与提取器里那两条路同一个探测） */}
+      {(tab === "market" || tab === "mine") && blockoutCap && (
+        <TemplateCreateCard variant={mineRows > 0 ? "slim" : "hero"} onStart={() => setExtract(true)} />
+      )}
+
       {tab !== "workflows" && (
       <div data-guide="template-filters" className="-mx-0.5 -my-0.5 mb-2.5 flex gap-1.5 no-scrollbar overflow-x-auto px-0.5 py-0.5">
         {tab === "market" && searchQ !== undefined && tierButton}
@@ -732,22 +740,6 @@ export default function TemplateShelf({
         </p>
       )}
 
-      {/* 「我的模板」的白模上传入口：跳提取器并直接拨到白模开关。
-          只在能力探测过了才渲染（与提取器里开关的门控是同一个探测） */}
-      {tab === "mine" && blockoutCap && (
-        <button
-          onClick={() => setExtract(true)}
-          className="mb-3 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-sky-500/50 py-3 text-xs text-sky-300"
-        >
-          <Icon name="plus" size={14} />
-          {/* ★★ 2026-08-17 改文案：原来写「上传白模预演视频」，而它跳的是**任意视频 →
-              AI 付费白模化**那条路 —— 用户带着一段自己做好的白模片点进去，会被再白模化
-              一次、白花一次 r2v，而且画质更差。现在两条路都在框选那一屏里选，
-              所以这句话要把**两种都传得**说出来。 */}
-          <Trans>传一段视频做白模模板（自己做好的白模片也行）</Trans>
-        </button>
-      )}
-
       {tab !== "workflows" && (
       <div className="space-y-3">
         {rows.map((row, i) =>
@@ -790,6 +782,9 @@ export default function TemplateShelf({
           /* 第四种空态（2026-08-29 分类筛选带来的）：分类下没货 ≠ 市场空。
               allRows 非空说明货在别的分类（或还没分类），指路要指对 */
           <EmptyState
+            // 搜了 / 筛了没有 = wonder；真的空（市场还没有、我还没做过）= nap
+            // 「会员档——开通会员套餐…」那一句是钱上的话：不放看板娘（EmptyState 头上的禁区），退回灰图标
+            mascot={tierPicked && catRows.length > 0 && tierEmptyGated(tierPicked) ? undefined : q.trim() || cat || tierPicked ? "wonder" : "nap"}
             icon="search"
             text={
               tierPicked && catRows.length > 0
@@ -798,7 +793,7 @@ export default function TemplateShelf({
                 ? t`「${tplCategoryLabel(cat)}」分类下还没有模板——点「全部」看现有的，或做一个发布出来占坑`
                 : tab === "mine"
                   ? blockoutCap
-                    ? t`还没有你自己的模板——点上面那一条传一段视频做一个`
+                    ? t`还没有你自己的模板——点上面那张卡做一个`
                     : t`还没有你自己的模板`
                   : q.trim()
                     ? t`没有匹配的模板，换个词试试`
@@ -867,6 +862,12 @@ export default function TemplateShelf({
  * ★ 「它们要的是哪一档」只问 economy.blockoutTier（唯一实现）；选的正是那一档还一个不剩，就只说没有。
  * ★ 模块级函数拿不到 useLingui：用 i18n._(msg) 在调用那一刻按当前语言翻（与 TemplateDetailPage.blockoutIssue 同一种写法）。
  */
+/** tierEmptyText 会不会说成「它是会员档——开通会员套餐…」那一句（判据只在这里：文案与「旁边放不放看板娘」读同一个答案） */
+function tierEmptyGated(picked: VideoTier): boolean {
+  const need = blockoutTier();
+  return !!need && need.id !== picked.id && !!tierBlockReason(need);
+}
+
 function tierEmptyText(picked: VideoTier, hidden: number): string {
   const name = picked.label;
   const model = tierModelLabel(picked);
@@ -875,7 +876,7 @@ function tierEmptyText(picked: VideoTier, hidden: number): string {
     const needLabel = need.label;
     const needModel = tierModelLabel(need);
     // 那一档这个人用不了（会员档，2026-10-07 免费档限制）：照实说「它是会员档」，别只叫人换过去
-    return tierBlockReason(need)
+    return tierEmptyGated(picked)
       ? i18n._(
           msg`没有能用「${name}」（${model}）出片的模板。现有的 ${hidden} 个都要按参考视频逐镜头复刻，只有「${needLabel}」（${needModel}）做得到，而它是会员档——开通会员套餐（或充值过任意一笔）后可用，或者选回「全部模型」看看。`,
         )

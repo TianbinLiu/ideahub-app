@@ -27,7 +27,9 @@
 // 短视频形态完全不搭，而且首页压根没有入口能走到"别人"的主页。
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { showToast } from "../data/toast";
-import EmptyState from "../components/EmptyState";
+import EmptyState, { type EmptyMascot } from "../components/EmptyState";
+import MagicBand from "../components/MagicBand";
+import BlockButton from "../components/BlockButton";
 import LangChip from "../components/LangChip";
 import PageHeader from "../components/PageHeader";
 import { takedownReasonText } from "../api/admin";
@@ -103,8 +105,13 @@ import { useCut } from "../studio/cutStore";
 
 type TabKey = "works" | "drafts" | "cards" | "decks" | "collects";
 
-/** 顶栏内容高度。页签要 sticky 到它下面，两处必须用同一个数，所以提成常量 */
-const HEADER_H = "2.75rem"; // h-11 = 44px，移动端热区下限
+/**
+ * sticky 顶栏（PageHeader sticky）在安全区之下占多高。页签要 sticky 到它下面，所以提成常量。
+ * ★ 2026-10-21 改：原来写 2.75rem（44px，「h-11」那个年代的顶栏），而 PageHeader 2026-09-05 收口后是
+ *   safe-top 的 10px + h-12 的 48px + border-b 的 1px = 59px —— 滚动时页签那一行有 15px（图标的上半截）钻到半透明顶栏底下。
+ *   改 PageHeader 的高度要同时改这里。
+ */
+const HEADER_H = "calc(10px + 3rem + 1px)";
 
 /** 陌生人主页的远端状态。★ 四件事分开记，页面才画得出四种不同的样子 */
 interface Stranger {
@@ -496,7 +503,9 @@ export default function ProfilePage() {
 
   const TAB_META: Record<TabKey, { icon: IconName; label: string; n: number }> = {
     works: { icon: "grid", label: t`作品`, n: works.length },
-    drafts: { icon: "lock", label: t({ message: "草稿", context: "主页页签：我存下的那些草稿（名词，整个页签的名字；不是某一条的「草稿」状态角标）" }), n: drafts.length },
+    // ★ 草稿用笔，不用锁（2026-10-21，调研第四节）：各家都把锁留给「只有你看得见」，草稿画成锁会让人以为是私密作品；
+    //   锁仍是作品墙上「仅自己可见」那枚角标的图形
+    drafts: { icon: "pen", label: t({ message: "草稿", context: "主页页签：我存下的那些草稿（名词，整个页签的名字；不是某一条的「草稿」状态角标）" }), n: drafts.length },
     cards: { icon: "card", label: t`卡片`, n: cards.length },
     decks: { icon: "cards", label: t`卡组`, n: self ? decks.length : workDecks.length },
     collects: { icon: "bookmark", label: t({ message: "收藏", context: "主页页签：我收藏的作品（名词，不是收藏键）" }), n: collects.length },
@@ -611,7 +620,9 @@ export default function ProfilePage() {
       />
 
       {/* ── 资料区（居中竖排，TikTok 同构）────────────────────────────── */}
-      <div className="flex flex-col items-center px-5 pt-1">
+      {/* relative isolate：给 MagicBand 一个自己的层叠上下文，让它沉在头像与文字后面（它用 -z-10） */}
+      <div className="relative isolate flex flex-col items-center px-5 pt-1">
+        <MagicBand />
         <div className="relative">
           {self ? (
             // 点头像直接换：不用先钻进设置页。开的是选择器（官方看板娘 + 自定义），
@@ -675,7 +686,8 @@ export default function ProfilePage() {
             className="mt-1 flex items-center gap-1.5 text-[11px] tabular-nums text-slate-400 active:opacity-60"
           >
             <span>UID {uidNum}</span>
-            <span className="text-slate-700"><Trans>点按复制</Trans></span>
+            {/* slate-400：11px 的小字（原来是 slate-700，对 ink 底约 1.6:1，比禁用的 slate-600 还暗；check-contrast 只查 600 所以漏了） */}
+            <span className="text-slate-400"><Trans>点按复制</Trans></span>
           </button>
         )}
 
@@ -745,6 +757,13 @@ export default function ProfilePage() {
             </>
           )}
         </div>
+        {/* 别人的主页上能拉黑（2026-10-21）：原来拉黑只在作品详情页与评论里，从搜索点进一个人的主页反而找不到；
+            上架 Google Play 也要求拉黑 / 举报在用户页上够得着。组件自己判登录与「是不是自己」，离线时也自己说清楚 */}
+        {!self && strangerId && (
+          <div className="mt-2 flex justify-center">
+            <BlockButton userId={strangerId} userName={display} />
+          </div>
+        )}
 
         {/* 简介。★ 别人的 bio 现在**真的问得到**了（GET /api/users/:id 就带着它），
             不用再拿"从作品里算得出来的东西"去填那片空白。问不到（老服务端 / 没设过）
@@ -881,7 +900,8 @@ export default function ProfilePage() {
             ★ 只在**自己**的主页出现：别人的墙上本来就看不到 private 的作品。
             ★ 一条 private 都没有时**不画**这一排：没有可筛的东西时，筛选器只是噪声。 */}
         {activeTab === "works" && self && works.some((v) => visibilityOf(v) !== "public") && (
-          <div className="mb-2.5 flex flex-wrap gap-1.5">
+          // px-3：页面根没有左右内边距（作品墙要贴边），这一排不补就贴着屏幕边缘（横幅那几条用的是 mx-3，同一个数）
+          <div className="mb-2.5 flex flex-wrap gap-1.5 px-3">
             {([
               ["all", t`全部 ${works.length}`],
               ["public", t`公开 ${works.filter((v) => visibilityOf(v) === "public").length}`],
@@ -908,9 +928,9 @@ export default function ProfilePage() {
             shownWorks.length ? (
               <WorkGrid items={shownWorks} />
             ) : visFilter === "private" ? (
-              <Empty text={t`没有仅自己可见的作品`} />
+              <Empty text={t`没有仅自己可见的作品`} mascot="wonder" />
             ) : worksKnown ? (
-              <Empty text={t`还没有发布作品`} cta={t`去创作`} to="/create" />
+              <Empty text={t`还没有发布作品`} cta={t`去创作`} to="/create" mascot="nap" />
             ) : (
               // ★ 没问到就**不许**说"还没有发布作品"（铁律八）：那句话会让人以为作品没了，
               //   而"仅自己可见"的那些在 app 里没有第二个入口
@@ -963,16 +983,17 @@ export default function ProfilePage() {
                   </div>
                   {/* ★ 这里原来写的是「仅自己可见」——和已发布作品的可见性设置**是同一个词**，
                       于是用户以为自己有一条设成私密的作品，跑去找哪儿能改（真事，2026-08-10）。
-                      草稿的"没人看得到"是它还没发布，不是一个可切换的选项，用词必须分开。 */}
+                      草稿的"没人看得到"是它还没发布，不是一个可切换的选项，用词必须分开。
+                      图形同理（2026-10-21）：这里也用笔、不用锁 —— 锁只留给作品墙上「仅自己可见」那枚角标，与页签那支笔一致 */}
                   <span className="absolute left-1 top-1 flex items-center gap-0.5 rounded bg-black/65 px-1 py-0.5 text-[9px] text-white">
-                    <Icon name="lock" size={9} strokeWidth={2.5} />
+                    <Icon name="pen" size={9} strokeWidth={2.5} />
                     <Trans>未发布</Trans>
                   </span>
                 </button>
               ))}
             </div>
           ) : (
-            <Empty text={t`还没有草稿——工坊和工作流里都能存`} cta={t`去创作`} to="/create" />
+            <Empty text={t`还没有草稿——工坊和工作流里都能存`} cta={t`去创作`} to="/create" mascot="nap" />
           ))}
 
         {/* 卡片 / 卡组不贴边也不去圆角：它们本身是有边框的实体卡，
@@ -993,7 +1014,7 @@ export default function ProfilePage() {
                   )}
                   <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent p-1.5">
                     <div className="truncate text-[10px] text-slate-100">{c.name}</div>
-                    <span className="text-[8px]" style={{ color: CARD_TYPE_COLORS[c.type] }}>
+                    <span className="text-[9px]" style={{ color: CARD_TYPE_COLORS[c.type] }}>
                       {CARD_TYPE_LABELS[c.type]}
                     </span>
                   </div>
@@ -1004,7 +1025,7 @@ export default function ProfilePage() {
             <Empty
               // ★ 同 WorkshopPage：分「没问到」与「问过是空的」两句话
               text={cardsLoadIssue() ? t`这会儿没能取到你的卡片——它们还在，联网后重开一次` : t`还没有卡片`}
-              {...(cardsLoadIssue() ? {} : { cta: t`去创意工坊`, to: "/workshop/mine" })}
+              {...(cardsLoadIssue() ? {} : { cta: t`去创意工坊`, to: "/workshop/mine", mascot: "nap" as const })}
             />
           ))}
 
@@ -1021,7 +1042,7 @@ export default function ProfilePage() {
                 ))}
               </div>
             ) : (
-              <Empty text={t`还没有卡组`} cta={t`去创意工坊`} to="/workshop/mine?tab=decks" />
+              <Empty text={t`还没有卡组`} cta={t`去创意工坊`} to="/workshop/mine?tab=decks" mascot="nap" />
             )
           ) : (
             // 别人的卡组随作品走：点开去那支作品，收卡的按钮在详情页
@@ -1039,7 +1060,7 @@ export default function ProfilePage() {
           ))}
 
         {activeTab === "collects" && collectGone > 0 && (
-          <p className="mb-2 rounded-xl border border-slate-700 bg-panel px-3 py-2 text-[11px] leading-relaxed text-slate-400">
+          <p className="mx-3 mb-2 rounded-xl border border-slate-700 bg-panel px-3 py-2 text-[11px] leading-relaxed text-slate-400">
             <Trans>有 {collectGone} 条收藏打不开了：作者可能把它删了，或者改成了仅自己可见。</Trans>
           </p>
         )}
@@ -1047,7 +1068,7 @@ export default function ProfilePage() {
             依赖里没有任何值会因为网络恢复而变（collectIds 是原地 mutate 的同一个数组），
             不给这颗按钮就只能离开页面再进来 */}
         {activeTab === "collects" && collectUnknown > 0 && (
-          <p className="mb-2 flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-400/10 px-3 py-2 text-[11px] leading-relaxed text-amber-100">
+          <p className="mx-3 mb-2 flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-100">
             <span className="flex-1"><Trans>有 {collectUnknown} 条这会儿没取回来（网络没通）——它们还在，不是被删了。</Trans></span>
             <button
               onClick={() => setCollectTry((n) => n + 1)}
@@ -1078,7 +1099,7 @@ export default function ProfilePage() {
               {...(collectUnknown === 0 && collectGone > 0 ? { cta: t`去首页逛逛`, to: "/" } : {})}
             />
           ) : (
-            <Empty text={t`还没有收藏——首页右侧的书签键收进来`} cta={t`去首页逛逛`} to="/" />
+            <Empty text={t`还没有收藏——首页右侧的书签键收进来`} cta={t`去首页逛逛`} to="/" mascot="nap" />
           ))}
       </div>
 
@@ -1337,7 +1358,7 @@ function StrangerWorks({
             ? t`这个链接里只有名字，没法向服务器确认是谁 · 下面只是本次刷到的那些`
             : "";
   if (works.length === 0) {
-    return <Empty text={worksKnown ? t`TA 还没有发布作品` : note || t`没能取到 TA 的作品`} />;
+    return <Empty text={worksKnown ? t`TA 还没有发布作品` : note || t`没能取到 TA 的作品`} mascot={worksKnown ? "nap" : undefined} />;
   }
   return (
     <>
@@ -1370,11 +1391,21 @@ function WorkGrid({ items }: { items: VideoItem[] }) {
                 ★ 报不出版次（老数据只有 revisedAt、没有 revision）时退成「回炉过」——
                   原来那份会印出「第 1 版」，那是把一条明明回炉过的作品标成"没改过"，
                   而且同一份数据在详情页上什么版次都不印，两处对不上。 */}
-            {!!v.revisedAt && (
-              <span className="absolute bottom-1 right-1.5 rounded bg-black/60 px-1 py-0.5 text-[9px] tabular-nums text-slate-200">
-                {revisionLabel(v.revision) ?? t`回炉过`}
-              </span>
-            )}
+            {/* 右下角：「第 N 版」在上、「AI 生成」在下，竖着排在同一格里（2026-10-21 修：原来两枚都绝对定位在右下，
+                回炉过的作品上 AI 标识把版次整个盖住了 —— 下面 AI 标识那段注释写的时候忘了这一枚） */}
+            <span className="absolute bottom-1 right-1 flex flex-col items-end gap-0.5">
+              {!!v.revisedAt && (
+                <span className="rounded bg-black/60 px-1 py-0.5 text-[9px] tabular-nums text-slate-200">
+                  {revisionLabel(v.revision) ?? t`回炉过`}
+                </span>
+              )}
+              {/* 「AI 生成」标识（合规要求"内容周边"，见 components/AigcBadge 的 ★★）。
+                  ★ 挂**右下**：左上那格已被 已下架/仅自己可见/互动 那条 if 链占满、右上是付费，
+                    左下是播放量。⚠ 不许挤进那条 if —— 它是"三选一"，而 AI 标识是**恒有**的，
+                    混进去会变成"是互动片就不标 AI"。
+                  ★ 这是同一枚组件的第 3 次**渲染**，不是第 3 份**判据**（判据仍只有 isAigcWork）。 */}
+              {isAigcWork(v) && <AigcBadge tone="overlay" />}
+            </span>
             {/* 左上角这一排：「示例 · 离线」与「已下架 / 仅自己可见 / 凭链接 / 互动」那一枚并排，
                 **flex-wrap** 兜住 —— 三列网格一格只有 ~118px（360 宽的屏），英文下两枚一行放不下，
                 两个绝对定位各写各的必然叠在一起。
@@ -1416,16 +1447,6 @@ function WorkGrid({ items }: { items: VideoItem[] }) {
             {paid && (
               <span className="absolute right-1 top-1 rounded bg-gold/90 px-1 py-0.5 text-[9px] font-bold text-ink">
                 <Trans>付费</Trans>
-              </span>
-            )}
-            {/* 「AI 生成」标识（合规要求"内容周边"，见 components/AigcBadge 的 ★★）。
-                ★ 挂**右下**：左上那格已被 已下架/仅自己可见/互动 那条 if 链占满、右上是付费，
-                  左下是播放量。⚠ 不许挤进那条 if —— 它是"三选一"，而 AI 标识是**恒有**的，
-                  混进去会变成"是互动片就不标 AI"。
-                ★ 这是同一枚组件的第 3 次**渲染**，不是第 3 份**判据**（判据仍只有 isAigcWork）。 */}
-            {isAigcWork(v) && (
-              <span className="absolute bottom-1 right-1">
-                <AigcBadge tone="overlay" />
               </span>
             )}
           </Link>
@@ -1861,6 +1882,9 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
 }
 
 /** `loading`：「正在取…」那几句要配加载圈 —— 没有圈的一行字分不出"在取"和"卡住了"（2026-10-14 UX 课走查） */
-function Empty({ text, cta, to, loading }: { text: string; cta?: string; to?: string; loading?: boolean }) {
-  return <EmptyState text={text} loading={loading} cta={cta && to ? { label: cta, to } : undefined} />;
+function Empty({ text, cta, to, loading, mascot }: { text: string; cta?: string; to?: string; loading?: boolean; mascot?: EmptyMascot }) {
+  // ★ 看板娘由调用处给，只给「问过了、确实是空的」那几句（nap = 还没有东西、wonder = 筛空了）。
+  //   没问到 / 取失败 / 用户注销了那几句**不给**：打盹的「这里还没有东西」配在「没能取到你的卡片」旁边，读出来就是「我花钱铸的卡没了」
+  //   （铁律八「没问到 ≠ 没有」）；注销是 EmptyState 头上写明的禁区（2026-10-21 评审抓到：原来这里无条件给 nap）
+  return <EmptyState text={text} loading={loading} mascot={mascot} cta={cta && to ? { label: cta, to } : undefined} />;
 }

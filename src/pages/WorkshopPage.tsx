@@ -351,14 +351,14 @@ export default function WorkshopPage() {
             <EmptyState loading text={t`正在取卡片广场…`} />
           ) : cardPlaza.items.length === 0 ? (
             <EmptyState
-              emoji="🃏"
+              mascot={qd ? "wonder" : "nap"}
               text={qd ? t`没有搜到「${qd}」相关的卡` : t`还没有人分享卡片`}
               hint={qd ? t`换个词试试，或者清空搜索框看看大家都分享了什么` : t`你可以在自己的卡片详情页按「分享到创意工坊」，成为第一个`}
               cta={me ? { label: t`去我的仓库做一张`, to: "/workshop/mine" } : undefined}
             />
           ) : shownCards.length === 0 ? (
             <EmptyState
-              emoji="🃏"
+              mascot="wonder"
               text={t`这一批里没有「${typeLabel}」卡`}
               hint={t`换个卡种，或者搜一个词`}
               cta={{ label: t`看全部`, onClick: () => setCtype("") }}
@@ -432,7 +432,7 @@ export default function WorkshopPage() {
           ) : deckPlaza.loading ? (
             <EmptyState loading text={t`正在取卡组广场…`} />
           ) : shownDecks.length === 0 ? (
-            <EmptyState emoji="🗂️" text={qd ? t`没有匹配的卡组` : t`还没有人分享卡组`} hint={qd ? undefined : t`你可以第一个`} />
+            <EmptyState mascot={qd ? "wonder" : "nap"} text={qd ? t`没有匹配的卡组` : t`还没有人分享卡组`} hint={qd ? undefined : t`你可以第一个`} />
           ) : (
             <div className="space-y-2.5 pb-4">
               {shownDecks.map((d) => (

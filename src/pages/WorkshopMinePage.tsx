@@ -20,6 +20,7 @@ import AuthPending from "../components/AuthPending";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
 import CardTile from "../components/workshop/CardTile";
+import Icon from "../components/Icon";
 import TemplateShelf, { useTemplatesVersion } from "../components/TemplateShelf";
 import VideoCardAnnotator from "../components/VideoCardAnnotator";
 import WorkshopShareBar, { shareBlockReason } from "../components/WorkshopShareBar";
@@ -122,8 +123,8 @@ export default function WorkshopMinePage() {
       <div data-guide="workshop-extract-card" className="mb-4 grid grid-cols-3 gap-2.5">
         {(
           [
-            ["deck", "🎴", t`从视频提取卡组`, t`连圈多张，打包成一组`],
-            ["single", "🎯", t`从视频提取卡片`, t`圈一张就走`],
+            ["deck", "cards", t`从视频提取卡组`, t`连圈多张，打包成一组`],
+            ["single", "card", t`从视频提取卡片`, t`圈一张就走`],
           ] as const
         ).map(([mode, icon, title, sub]) => (
           <button
@@ -131,9 +132,8 @@ export default function WorkshopMinePage() {
             onClick={() => setExtractOpen(mode)}
             className="flex min-w-0 flex-col items-start gap-1 rounded-xl border border-cyan-400/35 bg-gradient-to-b from-cyan-400/15 to-transparent p-2.5 text-left active:opacity-60"
           >
-            <span className="text-xl" aria-hidden>
-              {icon}
-            </span>
+            {/* 图标随这一格的色调（2026-10-21 换掉 🎴🎯 emoji：emoji 走各家系统彩色字体，三台手机三个样，也跟不了 currentColor） */}
+            <Icon name={icon} size={22} className="text-cyan-300" />
             <span className="text-[11px] font-semibold leading-snug text-slate-100">{title}</span>
             <span className="line-clamp-3 text-[10px] leading-relaxed text-slate-400">{sub}</span>
           </button>
@@ -142,9 +142,7 @@ export default function WorkshopMinePage() {
           to="/custom-card"
           className="flex min-w-0 flex-col items-start gap-1 rounded-xl border border-amber-400/35 bg-gradient-to-b from-amber-400/15 to-transparent p-2.5 text-left active:opacity-60"
         >
-          <span className="text-xl" aria-hidden>
-            🖼
-          </span>
+          <Icon name="upload" size={22} className="text-amber-300" />
           <span className="text-[11px] font-semibold leading-snug text-slate-100">
             <Trans>自己传图做卡片</Trans>
           </span>
@@ -237,7 +235,7 @@ export default function WorkshopMinePage() {
               <EmptyState error emoji="🃏" text={t`这会儿没能取到你的卡片（${cardsLoadIssue()}）`} hint={t`它们还在，联网后重开一次`} />
             ) : (
               <EmptyState
-                emoji="🃏"
+                mascot="nap"
                 text={t`还没有卡片`}
                 hint={t`用上面几种方式做第一张，或者去市场挑几张`}
                 cta={{ label: t`去市场看看`, to: "/workshop" }}
@@ -361,7 +359,7 @@ export default function WorkshopMinePage() {
             })}
             {decks.length === 0 && (
               <EmptyState
-                emoji="🗂️"
+                mascot="nap"
                 text={t`还没有卡组`}
                 hint={t`建一个把常用素材归到一起，或者去市场装一套别人分享的`}
                 cta={{ label: t`去市场看看`, to: "/workshop?kind=decks" }}

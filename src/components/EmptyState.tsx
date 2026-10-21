@@ -9,10 +9,19 @@
 // ★ 按钮走同一条按钮规则（CLAUDE.md「按钮两档形状」）：主 = bg-brand、次 = bg-panel + ring。
 // ★ `full` = 整页态（卡不存在 / 未登录墙 / 取回中）：min-h-[70vh] 居中，自带 safe-top——
 //   这类页面没有 PageHeader，状态栏那一圈只能由它自己让。
+// ★ `mascot`（2026-10-21）= 用一张 Q 版看板娘表情代替那颗灰图标（public/avatars 那八张，256² 每张十几 KB）。
+//   调研（docs/ui-benchmark-2026-10.md 第五节：B 站 2233、Duolingo、天猫 / 度小满的 IP 用法）定下的用法：
+//   吉祥物只在「边缘位置 + 情绪时刻」出现，配一句说明 + 一条出路，永远不替代错误原因与重试键。
+//   表情按情境挑：nap = 还没有东西（空草稿箱 / 空收藏）；wonder = 搜不到 / 找不到；hi = 第一次来的邀请；
+//   cheer / joy = 全都处理完了。⚠ 禁区：涉及钱的失败与报价、删除 / 注销、举报 / 拉黑、法务与 AI 标识、
+//   登录安全 —— 那些地方一律不放吉祥物、不开玩笑（同上第五节）；视频流里也不放（会挡画面）。
 import { type ReactNode } from "react";
 import Spinner from "./Spinner";
 import { Link } from "react-router";
 import Icon, { type IconName } from "./Icon";
+
+/** public/avatars 里那八张 Q 版表情（清单在 data/mascotAvatars.ts，自动生成的）里挑得上空态的几张 */
+export type EmptyMascot = "nap" | "wonder" | "hi" | "cheer" | "joy" | "smile";
 
 export interface EmptyStateCta {
   label: string;
@@ -28,6 +37,7 @@ export interface EmptyStateCta {
 export default function EmptyState({
   icon,
   emoji,
+  mascot,
   loading,
   title,
   text,
@@ -42,6 +52,8 @@ export default function EmptyState({
   icon?: IconName;
   /** 或者一个 emoji（📝 / 🔒），与 icon 二选一 */
   emoji?: string;
+  /** 或者一张 Q 版看板娘表情（优先于 icon / emoji）。用法与禁区见文件头 */
+  mascot?: EmptyMascot;
   /** 加载中：图标位换成转圈 */
   loading?: boolean;
   title?: ReactNode;
@@ -64,6 +76,15 @@ export default function EmptyState({
     <div className={`flex flex-col items-center gap-3 px-6 text-center ${shell} ${className}`}>
       {loading ? (
         <Spinner size="lg" />
+      ) : mascot ? (
+        // 圆形取景（那八张本来就是正脸特写 + 深蓝底，裁成圆与「我的」页的官方头像同一副样子）。aria-hidden：意思在下面那句话里
+        <img
+          src={`/avatars/mascot-${mascot}.webp`}
+          alt=""
+          aria-hidden
+          decoding="async"
+          className={`${compact ? "h-16 w-16" : "h-24 w-24"} rounded-full object-cover ring-1 ring-slate-700/70`}
+        />
       ) : icon ? (
         <Icon name={icon} size={40} className="text-slate-600" />
       ) : emoji ? (
