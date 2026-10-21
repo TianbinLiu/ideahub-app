@@ -753,9 +753,7 @@ async function main() {
   //    ★ 只在首次发布核：重跑时 node_modules 可能已经换过，与发出去的那份包无关（与 2b 的入口 js 同一个口径）。
   if (!exists) {
     const mods = nativeModuleDrift(root);
-    if (mods.problems.length) die(`原生模块的版本对不上：
-  ${mods.problems.join("
-  ")}`);
+    if (mods.problems.length) die(`原生模块的版本对不上：\n  ${mods.problems.join("\n  ")}`);
     console.log(`✓ 原生模块与 package-lock.json 一致：${mods.ok.join("、")}`);
   }
 
