@@ -123,6 +123,19 @@ canvas {
   animation: heart-burst 620ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
+/* 双击点赞的品牌粒子（2026-10-21，docs/ui-benchmark-2026-10.md 第五节）：心形照旧是通用的红心（换成星 / 灯泡会和收藏抢含义），
+   启梦的那一笔落在「一闪而过的反馈」上 —— 外圈金色四角星（取看板娘的星形发夹）与品牌青光点向外飞散。
+   ★ 只动 transform / opacity；落点由 --dx / --dy 给（FeedPage 的 LikeBurst 按角度算好写进 style）。
+   ★ 起点同样先 translate(-50%,-50%)：粒子的定位点是爆心，不这样写会整体往右下偏半个粒子。 */
+@keyframes burst-fly {
+  0% { transform: translate(-50%, -50%) scale(0.3); opacity: 0; }
+  20% { opacity: 1; }
+  100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1); opacity: 0; }
+}
+.burst-fly {
+  animation: burst-fly 560ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
 /* 首页视频缓冲提示（对标抖音/TikTok）：底缘细线从中心拉宽并淡出，循环。
    ★ 只动 transform / opacity（2026-10-15 教材人格评审，McConnell 性能那条；与下面弹幕那条同一个理由）：
      原来关键帧动 width（16% → 90%），缓冲期间每帧一次 Layout + Paint，正压在等首帧的视频上；
@@ -388,6 +401,8 @@ canvas {
   .mat-shake,
   .drop-ring { animation: none !important; }
   .perch-pop { opacity: 1; transform: translateX(-50%); }
+  /* 点赞粒子：减少动效时只留那颗心，不飞星星 */
+  .burst-fly { display: none !important; }
 
   /* 弹幕改成"字幕"：不横飘，在左上角原地淡入淡出。
      ★ 不能写 animation: none —— 那样它既不动、也**永远不会触发 animationend**，

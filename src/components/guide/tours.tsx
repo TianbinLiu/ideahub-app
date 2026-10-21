@@ -43,6 +43,7 @@ import { Trans } from "@lingui/react/macro";
 import { listSchemes } from "../../data/promptSchemes";
 // 「我的」那份要报草稿上限：数只能从这里取（数字一律插值，见 ★★）。★ drafts 只依赖 db / utils/image / types，从这里引它不成环
 import { MAX_DRAFTS } from "../../data/drafts";
+import { HOLD_SPEED } from "../../data/feedGestures";
 import { BLOCKOUT_INPUT_RULES } from "../../data/templates";
 import { BUILTIN_SLOT_ZH, CARD_TYPES, CARD_TYPE_LABELS, builtinSlotLabel } from "../../types";
 // 自制卡那份要报比例上限：方舟的硬约束，数只能从这里取（数字一律插值，见 ★★）
@@ -231,7 +232,8 @@ export const TOURS: GuideTour[] = [
         //     按文件头的规矩只给它命名、不承诺它一定在；锚点同理挂在当前那一支上（active），这一支没有这颗时自动退成居中卡片。
         //   事实出处：remakeNodesOf 抄的是每段的 plot（剧本）与作品卡组的卡（没有卡组就不带），seed 成 mode:"workflow" 后 navigate("/flow")；
         //   整表覆盖，守卫走 useApplyTemplate —— flowDirty() 时先弹 DiscardFlowDialog；seed 本身不花钱（钱在那边推演 / 生成时才扣）。
-        title: msg`⚡ 做同款`,
+        // ★ 2026-10-21：那颗 chip 上的 ⚡ emoji 换成了「做同款」招牌字形（⚡ 在全 app 是「token / 花钱」的意思），标题跟着去掉 ⚡
+        title: msg`做同款`,
         anchor: "feed-remake",
         body: (
           <Trans>
@@ -242,9 +244,22 @@ export const TOURS: GuideTour[] = [
       {
         title: msg`全屏与转屏`,
         anchor: "feed-fullscreen",
+        // （下一步「长按画面」是 2026-10-21 加的；没升 version —— 看过的人不重弹，新来的人能看到）
         body: (
           <Trans>
             那一列最下面单独一枚是全屏键，点了只留画面；<b className="font-bold text-slate-100">横屏的片子会连屏幕一起转过来</b>，所以它在横屏片上写的是「转屏」。退出点右上角那枚缩小键。
+          </Trans>
+        ),
+      },
+      {
+        // ★ 不挂锚点：长按的是整块画面，圈不出一个元素。事实出处 FeedPage 的 onDown（两侧 EDGE_ZONE 临时 HOLD_SPEED 倍、中间开 FeedActionSheet）；
+        //   倍数插值 data/feedGestures.HOLD_SPEED（文件头「数字一律插值」），别写回字面量 2
+        //   菜单里只列真能用的几样（FeedActionSheet 头上那段：「不感兴趣」服务端没端点不摆、保存到本地只在原生壳里、举报离线不摆），
+        //   所以这里只说「更多操作」、不逐项许诺
+        title: msg`长按画面`,
+        body: (
+          <Trans>
+            按住屏幕<b className="font-bold text-slate-100">两侧</b>是临时 {HOLD_SPEED} 倍速，松手就恢复；按住<b className="font-bold text-slate-100">中间</b>弹出更多操作：调倍速、清屏观看、举报等。
           </Trans>
         ),
       },
@@ -457,11 +472,14 @@ export const TOURS: GuideTour[] = [
         //   说「开炼」也不对。改成与路线无关的说法：都在按下那颗开始键之前报出来、确认了才扣。
         //   ★ 一个路数都不写：上一句刚说「第一屏挑」，而那一屏摆的是**三条**（routeOpts：让 AI 换白模 / 自带白模片 /
         //     经典配方），写「两条路」与屏幕上数得出来的对不上；而「先报价、确认了才扣」三条都成立 —— 去掉数字更准也更短。
+        // ★ 2026-10-21 入口换成货架顶上那张「创建属于你的视频模板」卡（TemplateCreateCard），市场与「我的模板」两格都有；锚点跟着换。
+        //   那张卡只在服务端支持白模模板时才画（blockoutCap），画不出来时这一步退成居中卡片 —— 正文不依赖圈的位置
+        //   ★ 两种尺寸的标题不一样（大卡 / 小条），圈住哪一种都要对得上 —— 所以两个标题都写出来，别只引大卡那一句
         title: msg`做自己的模板`,
-        anchor: "templates-tab-mine",
+        anchor: "template-create",
         body: (
           <Trans>
-            <b className="font-bold text-slate-100">我的模板</b>装的是你自己做的，新做一个也从那里进：传一段视频，让 AI 把画面里的人换成一模一样的白色人偶，或者直接拿你本来就做好的白模片用。走哪条路在提取器<b className="font-bold text-slate-100">打开后的第一屏</b>挑；要花多少钱都在按下开始那颗键之前整句报出来，确认了才扣。
+            要做自己的模板，点货架顶上那张<b className="font-bold text-slate-100">做模板的入口卡</b>（还没做过时是一张大卡「创建属于你的视频模板」，做过之后缩成一行「再做一个视频模板」）：传一段视频，让 AI 把画面里的人换成一模一样的白色人偶，或者直接拿你本来就做好的白模片用。走哪条路在提取器<b className="font-bold text-slate-100">打开后的第一屏</b>挑；要花多少钱都在按下开始那颗键之前整句报出来，确认了才扣。做好的模板在「我的模板」里。
           </Trans>
         ),
       },
@@ -826,7 +844,7 @@ export const TOURS: GuideTour[] = [
         //   打开的提取窗里，人物卡那一步有一颗付费键「✨ 按这套方案炼形象图（N 张 · 约 X）」（VideoCardAnnotator.makePortraits），
         //   同一份引导第 2 步说的就是它，两步不该各说各的；② 「AI 换白模」不是屏幕上的字样（提取器那条路线卡写的是
         //   「让 AI 把里面的人换成白模人偶」），去掉引号、照那条路线卡转述。
-        //   ★★ 这里**一个数都不许写**：「模板」页签里那颗「传一段视频做白模模板（自己做好的白模片也行）」开的提取器摆着几条路，
+        //   ★★ 这里**一个数都不许写**：「模板」页签里那张「创建属于你的视频模板」入口卡开的提取器摆着几条路，
         //     **条条要钱** —— 自带白模片那条的价就印在路线卡上（「只认人、不出片 · 约 …」，economy.ownRefTemplateCost）。
         //     写「两处要花钱」= 当面告诉用户另外的免费，正是本条订正要治的那种错（「唯一」不成立）。所以只说「有要花钱的地方」，
         //     第一项直接盖住整条做模板的路，将来再添一条路也不会把这句话变成假话。
@@ -910,6 +928,7 @@ export const TOURS: GuideTour[] = [
           <Trans>
             打字之后上面先出<b className="font-bold text-slate-100">人</b>、下面出作品。
             作品是拿标题、简介、话题标签一起对的，不只对标题；<b className="font-bold text-slate-100">按作者找人用上面那半</b>。
+            点进框里还没打字时，下面是你的搜索历史和最近播得多的几条。
           </Trans>
         ),
       },
@@ -924,12 +943,13 @@ export const TOURS: GuideTour[] = [
         ),
       },
       {
+        // ★ 2026-10-21 订正（未升 version —— 主人 09-11 定：订正不重弹）：那一排最前面加了「全部」，「再点同一个才取消、没有别的地方能关掉它」不再成立
         title: msg`分区图标就是开关`,
         anchor: "discover-cats",
         body: (
           <Trans>
             点一个就只看这一类，选中的那个会放大亮起来；
-            <b className="font-bold text-slate-100">再点同一个才取消</b> —— 没有别的地方能关掉它。
+            点最前面的<b className="font-bold text-slate-100">「全部」</b>（或者再点一次同一个）就回到全部作品。
           </Trans>
         ),
       },
@@ -976,12 +996,14 @@ export const TOURS: GuideTour[] = [
         //   按 updatedAt 保留最新的，被挤掉的正文直接删），原文没提。数插值 MAX_DRAFTS（文件头 ★★）。
         //   ⚠ 这不是把界面上的说明搬进引导：ProfilePage 草稿格顶上那行「共 N 条（上限 …，超了会从最旧的清起）」照旧留着，
         //     引导只是在人还没存满之前先说一声。
+        // ★ 2026-10-21 订正（未升 version）：这一格的图标从锁换成了笔（ProfilePage 那条 ★，docs/ui-benchmark-2026-10.md 第四节），
+        //   原文「那把锁是还没发布」指着一个已经不在的图形；锁现在只留给作品墙上「仅自己可见」的角标
         title: msg`没做完的半成品在这一格`,
         anchor: "profile-tab-drafts",
         body: (
           <Trans>
-            存着的半成品都在这儿。那把锁是「<b className="font-bold text-slate-100">还没发布</b>」，
-            不是私密。点一张要先挑用工坊还是工作流打开 —— 同一份内容，两边都进得去。
+            存着的半成品都在这儿，那支笔的意思是「<b className="font-bold text-slate-100">还没发布</b>」；
+            作品墙上带锁的才是只有自己看得见的。点一张要先挑用工坊还是工作流打开 —— 同一份内容，两边都进得去。
             草稿最多留 {MAX_DRAFTS} 条，<b className="font-bold text-slate-100">超了会从最旧的清起</b>。
           </Trans>
         ),

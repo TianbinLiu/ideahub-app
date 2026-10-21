@@ -20,9 +20,10 @@ import CreatePerch from "./CreatePerch";
 // 四个 Tab 共用一套的话，切 Tab 的反馈就完全分不出切到了哪。
 const TABS: ReadonlyArray<{ to: string; icon: IconName; label: MessageDescriptor; pose: PerchPose } | null> = [
   { to: "/", icon: "home", label: msg`首页`, pose: "home" },
-  { to: "/discover", icon: "compass", label: msg`分区`, pose: "explore" },
+  // 分区 / 工坊用启梦自己的两枚字形（2026-10-21，Icon 的 "discover" / "workshop"）；首页 / 我的是通用概念，照旧用通用图形
+  { to: "/discover", icon: "discover", label: msg`分区`, pose: "explore" },
   null, // 中间 ➕ 占位
-  { to: "/workshop", icon: "cards", label: msg`工坊`, pose: "studio" },
+  { to: "/workshop", icon: "workshop", label: msg`工坊`, pose: "studio" },
   { to: "/me", icon: "user", label: msg`我的`, pose: "mine" },
 ];
 

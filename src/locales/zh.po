@@ -1285,6 +1285,10 @@ msgstr "{hh}:{mm} 提交的那一发（服务器登记）"
 msgid "{hh}:{mm} 提交的那一发（服务器登记） · {0}"
 msgstr "{hh}:{mm} 提交的那一发（服务器登记） · {0}"
 
+#: src/pages/FeedPage.tsx
+msgid "{HOLD_SPEED}× 快进中"
+msgstr "{HOLD_SPEED}× 快进中"
+
 #: src/components/WorkshopShareBar.tsx
 msgid "{installs} 人装过"
 msgstr "{installs} 人装过"
@@ -1879,6 +1883,10 @@ msgstr "「{0}」里没有「{1}」这一格，你传的那张先收起来了—
 #: src/pages/CustomCardPage.tsx
 msgid "「{0}」铸好了"
 msgstr "「{0}」铸好了"
+
+#: src/pages/DiscoverPage.tsx
+msgid "「{catLabel}」近期热播"
+msgstr "「{catLabel}」近期热播"
 
 #. 把名字里一个不许用的符号括起来给用户看（中文用「」，英文用弯引号）
 #: src/studio/blockoutPrompt.ts
@@ -2582,8 +2590,8 @@ msgid "<0>只有拖到画面上</0>那一条会先问一遍：上面那排卡的
 msgstr "<0>只有拖到画面上</0>那一条会先问一遍：上面那排卡的正下方会出现一条确认，写着要把哪张卡挂到哪个人物身上，同时把画面上那个人偶高亮起来 —— 因为那个落点是<1>推断</1>出来的（人偶会重叠、人会走动）。 请对着高亮的那个再看一眼，对了点「就是他」，不对点「点错了」：挂错人<2>不会报错</2>，要等成片炼出来才看得见， 那时已经花过一次出片的钱了。落到格子上不问 —— 落在哪一格是你眼睛看着放的，没有可推断错的余地。"
 
 #: src/components/guide/tours.tsx
-msgid "<0>我的模板</0>装的是你自己做的，新做一个也从那里进：传一段视频，让 AI 把画面里的人换成一模一样的白色人偶，或者直接拿你本来就做好的白模片用。走哪条路在提取器<1>打开后的第一屏</1>挑；要花多少钱都在按下开始那颗键之前整句报出来，确认了才扣。"
-msgstr "<0>我的模板</0>装的是你自己做的，新做一个也从那里进：传一段视频，让 AI 把画面里的人换成一模一样的白色人偶，或者直接拿你本来就做好的白模片用。走哪条路在提取器<1>打开后的第一屏</1>挑；要花多少钱都在按下开始那颗键之前整句报出来，确认了才扣。"
+#~ msgid "<0>我的模板</0>装的是你自己做的，新做一个也从那里进：传一段视频，让 AI 把画面里的人换成一模一样的白色人偶，或者直接拿你本来就做好的白模片用。走哪条路在提取器<1>打开后的第一屏</1>挑；要花多少钱都在按下开始那颗键之前整句报出来，确认了才扣。"
+#~ msgstr "<0>我的模板</0>装的是你自己做的，新做一个也从那里进：传一段视频，让 AI 把画面里的人换成一模一样的白色人偶，或者直接拿你本来就做好的白模片用。走哪条路在提取器<1>打开后的第一屏</1>挑；要花多少钱都在按下开始那颗键之前整句报出来，确认了才扣。"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "<0>我确认：</0><1/>· 这个模型是我做的，或者我已经拿到作者授权；<2/>· 我没有上传他人作品、真人肖像，也没有上传 Live2D 官方示例模型；<3/>· 违规的内容会被下架，情节严重的可能会封号。"
@@ -2864,8 +2872,8 @@ msgstr "⚡ Token 钱包"
 
 #: src/components/guide/tours.tsx
 #: src/pages/FeedPage.tsx
-msgid "⚡ 做同款"
-msgstr "⚡ 做同款"
+#~ msgid "⚡ 做同款"
+#~ msgstr "⚡ 做同款"
 
 #: src/pages/VideoPage.tsx
 msgid "⚡ 做同款：同一份分段剧本，生成你自己的版本"
@@ -3899,6 +3907,10 @@ msgstr "0.70× 慢"
 msgid "0/{0} 段"
 msgstr "0/{0} 段"
 
+#: src/components/TemplateCreateCard.tsx
+msgid "① 传视频"
+msgstr "① 传视频"
+
 #: src/components/flow/ModePicker.tsx
 msgid "① 先选出片模型"
 msgstr "① 先选出片模型"
@@ -3923,6 +3935,10 @@ msgstr "12 道题都有默认值，一道不动也能直接生成 —— 想调�
 #: src/studio/quality.ts
 msgid "1K 贴图 · 4 万面 · 加载最快（她 0.9MB／他 0.8MB）· 老手机选它"
 msgstr "1K 贴图 · 4 万面 · 加载最快（她 0.9MB／他 0.8MB）· 老手机选它"
+
+#: src/components/TemplateCreateCard.tsx
+msgid "② AI 换成白模"
+msgstr "② AI 换成白模"
 
 #. placeholder {0}: CARD_TYPE_LABELS[type]
 #. placeholder {1}: slots.length
@@ -3950,6 +3966,10 @@ msgstr "③ {0}（选填）"
 #: src/pages/CustomCardPage.tsx
 msgid "③ 人物信息"
 msgstr "③ 人物信息"
+
+#: src/components/TemplateCreateCard.tsx
+msgid "③ 发布到市场"
+msgstr "③ 发布到市场"
 
 #: src/components/flow/CastPicker.tsx
 msgid "3D 动画"
@@ -6064,9 +6084,13 @@ msgstr "传一份 md / txt 讲义，AI 按它铸一位老师，带你按阶段�
 msgid "传一段示例视频，或自己给首尾帧"
 msgstr "传一段示例视频，或自己给首尾帧"
 
+#: src/components/TemplateCreateCard.tsx
+msgid "传一段视频，AI 把里面的人换成白模人偶；别人挂上自己的角色卡，就能照着你的镜头拍一遍。"
+msgstr "传一段视频，AI 把里面的人换成白模人偶；别人挂上自己的角色卡，就能照着你的镜头拍一遍。"
+
 #: src/components/TemplateShelf.tsx
-msgid "传一段视频做白模模板（自己做好的白模片也行）"
-msgstr "传一段视频做白模模板（自己做好的白模片也行）"
+#~ msgid "传一段视频做白模模板（自己做好的白模片也行）"
+#~ msgstr "传一段视频做白模模板（自己做好的白模片也行）"
 
 #: src/components/VideoTemplateExtractor.tsx
 msgid "传上去不花钱 · 下一步框出 {minSec}~{maxSec} 秒 · 报价确认后才开炼"
@@ -6075,6 +6099,10 @@ msgstr "传上去不花钱 · 下一步框出 {minSec}~{maxSec} 秒 · 报价确
 #: src/pages/CustomCardPage.tsx
 msgid "传图与信息"
 msgstr "传图与信息"
+
+#: src/components/TemplateCreateCard.tsx
+msgid "传视频、换白模，别人照着你拍"
+msgstr "传视频、换白模，别人照着你拍"
 
 #: src/pages/CustomCardPage.tsx
 msgid "传素材，AI 生成图位"
@@ -6473,6 +6501,7 @@ msgid "保存修改（用它炼一次约 {0}）"
 msgstr "保存修改（用它炼一次约 {0}）"
 
 #: src/components/DownloadSheet.tsx
+#: src/components/FeedActionSheet.tsx
 #: src/components/ShareSheet.tsx
 #: src/pages/VideoPage.tsx
 msgid "保存到本地"
@@ -6552,9 +6581,18 @@ msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜�
 msgid "俯拍"
 msgstr "俯拍"
 
+#: src/components/FeedActionSheet.tsx
+msgid "倍速"
+msgstr "倍速"
+
 #: src/pages/NotificationsPage.tsx
 msgid "做了你的同款"
 msgstr "做了你的同款"
+
+#: src/components/guide/tours.tsx
+#: src/pages/FeedPage.tsx
+msgid "做同款"
+msgstr "做同款"
 
 #: src/pages/FeedPage.tsx
 #: src/pages/RecipePage.tsx
@@ -6959,6 +6997,7 @@ msgstr "全选"
 #: src/components/support/AdminTicketsView.tsx
 #: src/components/TemplateShelf.tsx
 #: src/pages/AdminPage.tsx
+#: src/pages/DiscoverPage.tsx
 #: src/pages/SupportPersonasPage.tsx
 #: src/pages/WorkshopPage.tsx
 msgid "全部"
@@ -7217,6 +7256,10 @@ msgstr "再传一个"
 msgid "再做一个"
 msgstr "再做一个"
 
+#: src/components/TemplateCreateCard.tsx
+msgid "再做一个视频模板"
+msgstr "再做一个视频模板"
+
 #: src/components/flow/FlowCanvas.tsx
 #: src/studio/ui/projection.tsx
 msgid "再写进去就超过 {promptMax} 字的上限了——先删几个字"
@@ -7357,6 +7400,10 @@ msgstr "最近分享的 {nCards} 张"
 #: src/pages/WorkshopPage.tsx
 msgid "最近分享的 {nCards} 张，按点赞、收藏、浏览排"
 msgstr "最近分享的 {nCards} 张，按点赞、收藏、浏览排"
+
+#: src/pages/DiscoverPage.tsx
+msgid "最近发布的作品里播放最多的几条"
+msgstr "最近发布的作品里播放最多的几条"
 
 #: src/studio/structuredSkills.ts
 msgid "写一个情境，两个人你一句我一句写成 2~6 句对白（谁说 / 说什么 / 说的时候在做什么），逐句可改，一句拍成一段"
@@ -7981,6 +8028,10 @@ msgstr "创作入口"
 #: src/data/templates.ts
 msgid "创作者"
 msgstr "创作者"
+
+#: src/components/TemplateCreateCard.tsx
+msgid "创建属于你的视频模板"
+msgstr "创建属于你的视频模板"
 
 #: src/components/guide/tours.tsx
 #: src/pages/WorkshopPage.tsx
@@ -8856,6 +8907,7 @@ msgstr "去人格市场"
 msgid "去出一段片"
 msgstr "去出一段片"
 
+#: src/pages/DiscoverPage.tsx
 #: src/pages/DraftsPage.tsx
 #: src/pages/ProfilePage.tsx
 msgid "去创作"
@@ -9451,6 +9503,7 @@ msgstr "取整个画面"
 #: src/components/support/VoiceMixer.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/CardDetailPage.tsx
+#: src/pages/DiscoverPage.tsx
 #: src/pages/EditPage.tsx
 #: src/pages/ProfilePage.tsx
 #: src/pages/RecipePage.tsx
@@ -10477,6 +10530,10 @@ msgstr "在线"
 msgid "在评论里 @ 了你"
 msgstr "在评论里 @ 了你"
 
+#: src/components/FeedActionSheet.tsx
+msgid "在详情页里选"
+msgstr "在详情页里选"
+
 #: src/types.ts
 msgid "场景"
 msgstr "场景"
@@ -10910,8 +10967,12 @@ msgid "存成我的方案（用它炼一次约 {0}）"
 msgstr "存成我的方案（用它炼一次约 {0}）"
 
 #: src/components/guide/tours.tsx
-msgid "存着的半成品都在这儿。那把锁是「<0>还没发布</0>」， 不是私密。点一张要先挑用工坊还是工作流打开 —— 同一份内容，两边都进得去。 草稿最多留 {MAX_DRAFTS} 条，<1>超了会从最旧的清起</1>。"
-msgstr "存着的半成品都在这儿。那把锁是「<0>还没发布</0>」， 不是私密。点一张要先挑用工坊还是工作流打开 —— 同一份内容，两边都进得去。 草稿最多留 {MAX_DRAFTS} 条，<1>超了会从最旧的清起</1>。"
+msgid "存着的半成品都在这儿，那支笔的意思是「<0>还没发布</0>」； 作品墙上带锁的才是只有自己看得见的。点一张要先挑用工坊还是工作流打开 —— 同一份内容，两边都进得去。 草稿最多留 {MAX_DRAFTS} 条，<1>超了会从最旧的清起</1>。"
+msgstr "存着的半成品都在这儿，那支笔的意思是「<0>还没发布</0>」； 作品墙上带锁的才是只有自己看得见的。点一张要先挑用工坊还是工作流打开 —— 同一份内容，两边都进得去。 草稿最多留 {MAX_DRAFTS} 条，<1>超了会从最旧的清起</1>。"
+
+#: src/components/guide/tours.tsx
+#~ msgid "存着的半成品都在这儿。那把锁是「<0>还没发布</0>」， 不是私密。点一张要先挑用工坊还是工作流打开 —— 同一份内容，两边都进得去。 草稿最多留 {MAX_DRAFTS} 条，<1>超了会从最旧的清起</1>。"
+#~ msgstr "存着的半成品都在这儿。那把锁是「<0>还没发布</0>」， 不是私密。点一张要先挑用工坊还是工作流打开 —— 同一份内容，两边都进得去。 草稿最多留 {MAX_DRAFTS} 条，<1>超了会从最旧的清起</1>。"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "存示例图…"
@@ -12009,6 +12070,10 @@ msgstr "已经是最新版本"
 msgid "已经有一条工作流在跑"
 msgstr "已经有一条工作流在跑"
 
+#: src/components/TemplateCreateCard.tsx
+msgid "已经有做好的白模 / 人偶片？点开后选「它本来就是白模 / 人偶片，直接用」，不用再让 AI 换一遍。每条路都要花 token，按下开始之前会先报出价钱。"
+msgstr "已经有做好的白模 / 人偶片？点开后选「它本来就是白模 / 人偶片，直接用」，不用再让 AI 换一遍。每条路都要花 token，按下开始之前会先报出价钱。"
+
 #: src/components/blockout/VisionFramePicker.tsx
 msgid "已经标满 {BLOCKOUTIZE_FRAME_MAX} 帧了（再多也只是买重复的画面）——先删掉一帧再标。"
 msgstr "已经标满 {BLOCKOUTIZE_FRAME_MAX} 帧了（再多也只是买重复的画面）——先删掉一帧再标。"
@@ -12340,6 +12405,10 @@ msgstr "开头帧"
 msgid "开头画面 AI 补"
 msgstr "开头画面 AI 补"
 
+#: src/components/TemplateCreateCard.tsx
+msgid "开始"
+msgstr "开始"
+
 #: src/pages/tutor/TutorHomePage.tsx
 msgid "开始上课"
 msgstr "开始上课"
@@ -12363,6 +12432,10 @@ msgstr "开始分析并生成模板"
 #: src/pages/CreatePage.tsx
 msgid "开始创作"
 msgstr "开始创作"
+
+#: src/components/TemplateCreateCard.tsx
+msgid "开始创建"
+msgstr "开始创建"
 
 #: src/components/blockout/BlockoutTrimmer.tsx
 msgid "开始白模化"
@@ -12820,6 +12893,10 @@ msgstr "情感互动"
 msgid "想怎么开始？"
 msgstr "想怎么开始？"
 
+#: src/pages/DiscoverPage.tsx
+msgid "想找什么？输入作品标题、话题标签或用户名"
+msgstr "想找什么？输入作品标题、话题标签或用户名"
+
 #: src/pages/SimpleModePage.tsx
 msgid "想拍什么？"
 msgstr "想拍什么？"
@@ -13147,8 +13224,12 @@ msgid "打不开系统的授权页：请到系统设置里给这个 App 打开�
 msgstr "打不开系统的授权页：请到系统设置里给这个 App 打开「安装未知应用」。"
 
 #: src/components/guide/tours.tsx
-msgid "打字之后上面先出<0>人</0>、下面出作品。 作品是拿标题、简介、话题标签一起对的，不只对标题；<1>按作者找人用上面那半</1>。"
-msgstr "打字之后上面先出<0>人</0>、下面出作品。 作品是拿标题、简介、话题标签一起对的，不只对标题；<1>按作者找人用上面那半</1>。"
+#~ msgid "打字之后上面先出<0>人</0>、下面出作品。 作品是拿标题、简介、话题标签一起对的，不只对标题；<1>按作者找人用上面那半</1>。"
+#~ msgstr "打字之后上面先出<0>人</0>、下面出作品。 作品是拿标题、简介、话题标签一起对的，不只对标题；<1>按作者找人用上面那半</1>。"
+
+#: src/components/guide/tours.tsx
+msgid "打字之后上面先出<0>人</0>、下面出作品。 作品是拿标题、简介、话题标签一起对的，不只对标题；<1>按作者找人用上面那半</1>。 点进框里还没打字时，下面是你的搜索历史和最近播得多的几条。"
+msgstr "打字之后上面先出<0>人</0>、下面出作品。 作品是拿标题、简介、话题标签一起对的，不只对标题；<1>按作者找人用上面那半</1>。 点进框里还没打字时，下面是你的搜索历史和最近播得多的几条。"
 
 #: src/components/DraftSheet.tsx
 msgid "打开中…"
@@ -13645,6 +13726,10 @@ msgstr "按「{q}」翻出 {count} 张。"
 msgid "按主题改写全片剧本"
 msgstr "按主题改写全片剧本"
 
+#: src/components/guide/tours.tsx
+msgid "按住屏幕<0>两侧</0>是临时 {HOLD_SPEED} 倍速，松手就恢复；按住<1>中间</1>弹出更多操作：调倍速、清屏观看、举报等。"
+msgstr "按住屏幕<0>两侧</0>是临时 {HOLD_SPEED} 倍速，松手就恢复；按住<1>中间</1>弹出更多操作：调倍速、清屏观看、举报等。"
+
 #: src/components/support/HoldToTalk.tsx
 msgid "按住说话"
 msgstr "按住说话"
@@ -13952,6 +14037,10 @@ msgstr "换个形象"
 #: src/pages/RecipePage.tsx
 msgid "换个网络再试一次"
 msgstr "换个网络再试一次"
+
+#: src/pages/DiscoverPage.tsx
+msgid "换个词试试，或者搜话题标签"
+msgstr "换个词试试，或者搜话题标签"
 
 #: src/pages/WorkshopPage.tsx
 msgid "换个词试试，或者清空搜索框看看大家都分享了什么"
@@ -14390,6 +14479,7 @@ msgstr "搜模板：特摄、治愈、赛博…"
 msgid "搜用户名 / 昵称"
 msgstr "搜用户名 / 昵称"
 
+#: src/pages/FeedPage.tsx
 #: src/studio/ui/NpcDialog.tsx
 msgid "搜索"
 msgstr "搜索"
@@ -14402,6 +14492,10 @@ msgstr "搜索：古风 / 侦探 / 场景…"
 msgid "搜索与分类"
 msgstr "搜索与分类"
 
+#: src/pages/DiscoverPage.tsx
+msgid "搜索作品、话题标签或用户"
+msgstr "搜索作品、话题标签或用户"
+
 #: src/pages/WorkshopPage.tsx
 msgid "搜索别人分享的卡组"
 msgstr "搜索别人分享的卡组"
@@ -14411,12 +14505,13 @@ msgid "搜索卡片名 / 标签"
 msgstr "搜索卡片名 / 标签"
 
 #: src/pages/AdminPage.tsx
+#: src/pages/DiscoverPage.tsx
 msgid "搜索历史"
 msgstr "搜索历史"
 
 #: src/pages/DiscoverPage.tsx
-msgid "搜索视频 / 分区 / 用户"
-msgstr "搜索视频 / 分区 / 用户"
+#~ msgid "搜索视频 / 分区 / 用户"
+#~ msgstr "搜索视频 / 分区 / 用户"
 
 #: src/pages/AdminPage.tsx
 msgid "搜评论正文 / 作者"
@@ -14587,6 +14682,10 @@ msgstr "收起对话"
 #: src/studio/studioStore.ts
 msgid "收起市场"
 msgstr "收起市场"
+
+#: src/components/FeedActionSheet.tsx
+msgid "收起按钮和文字"
+msgstr "收起按钮和文字"
 
 #: src/studio/studioStore.ts
 msgid "收起方案"
@@ -15228,6 +15327,10 @@ msgstr "暂时问不到服务器（{0}）"
 #: src/components/CoverPicker.tsx
 msgid "暗处在首页会被文字和按钮盖住（大致）"
 msgstr "暗处在首页会被文字和按钮盖住（大致）"
+
+#: src/components/FeedActionSheet.tsx
+msgid "更多操作"
+msgstr "更多操作"
 
 #: src/pages/CustomCardPage.tsx
 msgid "更换"
@@ -16682,6 +16785,10 @@ msgstr "横竖混排"
 msgid "横竖都能用"
 msgstr "横竖都能用"
 
+#: src/components/FeedActionSheet.tsx
+msgid "横过来占满屏幕"
+msgstr "横过来占满屏幕"
+
 #: src/data/templates.ts
 msgctxt "人偶的主色（挂卡提醒那句话里显示）"
 msgid "橙"
@@ -17032,6 +17139,10 @@ msgstr "正在确认有没有公开…"
 #: src/components/VideoTemplateExtractor.tsx
 msgid "正在确认服务器支持哪几种模板…"
 msgstr "正在确认服务器支持哪几种模板…"
+
+#: src/components/TemplateCreateCard.tsx
+msgid "正在确认登录状态，稍等一下再点"
+msgstr "正在确认登录状态，稍等一下再点"
 
 #: src/data/account.ts
 #: src/pages/VideoPage.tsx
@@ -17981,6 +18092,10 @@ msgstr "添加中…"
 msgid "清单上每一行说的是「画面上那个人偶，原来是谁」。这份对应关系是生成时 AI 猜出来的，不保证跟成片对得上。猜错时，别人给这个位子挂的角色卡会<0>换到另一个人身上</0>，而且<1>不会有任何报错</1>——所以只有看着画面的你能确认它。"
 msgstr "清单上每一行说的是「画面上那个人偶，原来是谁」。这份对应关系是生成时 AI 猜出来的，不保证跟成片对得上。猜错时，别人给这个位子挂的角色卡会<0>换到另一个人身上</0>，而且<1>不会有任何报错</1>——所以只有看着画面的你能确认它。"
 
+#: src/components/FeedActionSheet.tsx
+msgid "清屏观看"
+msgstr "清屏观看"
+
 #: src/components/flow/CustomFrameSlots.tsx
 msgid "清掉"
 msgstr "清掉"
@@ -18009,6 +18124,7 @@ msgstr "清理缓存（约 {mbLabel} MB）"
 #: src/components/support/VoiceMarket.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/CustomCardPage.tsx
+#: src/pages/DiscoverPage.tsx
 #: src/pages/SettingsStoragePage.tsx
 #: src/pages/SupportPersonaNewPage.tsx
 #: src/pages/SupportPersonasPage.tsx
@@ -18226,8 +18342,12 @@ msgid "点一个人偶选中它"
 msgstr "点一个人偶选中它"
 
 #: src/components/guide/tours.tsx
-msgid "点一个就只看这一类，选中的那个会放大亮起来；<0>再点同一个才取消</0> —— 没有别的地方能关掉它。"
-msgstr "点一个就只看这一类，选中的那个会放大亮起来；<0>再点同一个才取消</0> —— 没有别的地方能关掉它。"
+msgid "点一个就只看这一类，选中的那个会放大亮起来； 点最前面的<0>「全部」</0>（或者再点一次同一个）就回到全部作品。"
+msgstr "点一个就只看这一类，选中的那个会放大亮起来； 点最前面的<0>「全部」</0>（或者再点一次同一个）就回到全部作品。"
+
+#: src/components/guide/tours.tsx
+#~ msgid "点一个就只看这一类，选中的那个会放大亮起来；<0>再点同一个才取消</0> —— 没有别的地方能关掉它。"
+#~ msgstr "点一个就只看这一类，选中的那个会放大亮起来；<0>再点同一个才取消</0> —— 没有别的地方能关掉它。"
 
 #: src/components/guide/tours.tsx
 #~ msgid "点一个片段选中，就能在播放头处<0>✂️ 分割</0>、<1>🗑 删除</1>、拖拽或前移后移<2>换序</2>。 这些只改导出范围，<3>一个 token 都不花</3>；每一步都能<4>↶ 撤销</4>，离开这一页再回来也都还在。"
@@ -22500,6 +22620,10 @@ msgstr "装进来"
 msgid "裙子"
 msgstr "裙子"
 
+#: src/components/guide/tours.tsx
+msgid "要做自己的模板，点货架顶上那张<0>做模板的入口卡</0>（还没做过时是一张大卡「创建属于你的视频模板」，做过之后缩成一行「再做一个视频模板」）：传一段视频，让 AI 把画面里的人换成一模一样的白色人偶，或者直接拿你本来就做好的白模片用。走哪条路在提取器<1>打开后的第一屏</1>挑；要花多少钱都在按下开始那颗键之前整句报出来，确认了才扣。做好的模板在「我的模板」里。"
+msgstr "要做自己的模板，点货架顶上那张<0>做模板的入口卡</0>（还没做过时是一张大卡「创建属于你的视频模板」，做过之后缩成一行「再做一个视频模板」）：传一段视频，让 AI 把画面里的人换成一模一样的白色人偶，或者直接拿你本来就做好的白模片用。走哪条路在提取器<1>打开后的第一屏</1>挑；要花多少钱都在按下开始那颗键之前整句报出来，确认了才扣。做好的模板在「我的模板」里。"
+
 #: src/components/CardModelFit.tsx
 msgid "要先勾「火山引擎适用」"
 msgstr "要先勾「火山引擎适用」"
@@ -23437,6 +23561,10 @@ msgstr "转存状态查询失败（{status}）"
 msgid "转屏"
 msgstr "转屏"
 
+#: src/components/FeedActionSheet.tsx
+msgid "转屏观看"
+msgstr "转屏观看"
+
 #: src/components/CoverPicker.tsx
 msgid "载入成片…"
 msgstr "载入成片…"
@@ -23481,6 +23609,10 @@ msgstr "运镜"
 #: src/studio/stage/stageState.ts
 msgid "近景"
 msgstr "近景"
+
+#: src/pages/DiscoverPage.tsx
+msgid "近期热播"
+msgstr "近期热播"
 
 #. placeholder {0}: rv.instruction.trim().slice(0, 20)
 #: src/studio/flowStore.ts
@@ -23698,8 +23830,12 @@ msgstr "还没有你自己的模板"
 #~ msgstr "还没有你自己的模板——上面那两个入口都能做一个"
 
 #: src/components/TemplateShelf.tsx
-msgid "还没有你自己的模板——点上面那一条传一段视频做一个"
-msgstr "还没有你自己的模板——点上面那一条传一段视频做一个"
+#~ msgid "还没有你自己的模板——点上面那一条传一段视频做一个"
+#~ msgstr "还没有你自己的模板——点上面那一条传一段视频做一个"
+
+#: src/components/TemplateShelf.tsx
+msgid "还没有你自己的模板——点上面那张卡做一个"
+msgstr "还没有你自己的模板——点上面那张卡做一个"
 
 #: src/pages/ProfilePage.tsx
 msgid "还没有关注任何创作者"
@@ -27173,6 +27309,10 @@ msgstr "镜头：{joined}"
 #: src/components/flow/EffectWizard.tsx
 msgid "镜头绕一整圈，正面、侧面、背面的造型都看到"
 msgstr "镜头绕一整圈，正面、侧面、背面的造型都看到"
+
+#: src/components/guide/tours.tsx
+msgid "长按画面"
+msgstr "长按画面"
 
 #: src/pages/SupportPage.tsx
 msgid "问{name}：哪里不对？"

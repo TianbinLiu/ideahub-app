@@ -32,6 +32,7 @@ import { SITE_BASE } from "../utils/shareLink";
 import { useAuthState, useCurrentUser } from "../hooks/useAccount";
 import AuthPending from "./AuthPending";
 import { CloseButton } from "./IconTapButton";
+import Icon from "./Icon";
 
 /**
  * 「补充说明」的字数上限。
@@ -52,6 +53,7 @@ export default function ReportButton({
   /** 这条内容是不是自己的。自己的东西该删不该举报，传 true 就整块不渲染 */
   mine = false,
   className = "",
+  row = false,
 }: {
   targetType: ReportTargetType;
   targetId: string;
@@ -59,6 +61,8 @@ export default function ReportButton({
   videoId?: string;
   mine?: boolean;
   className?: string;
+  /** 整行样式（2026-10-21 首页长按菜单那一行：图标 + 「举报」）。默认是内容旁那颗 11px 小字键 */
+  row?: boolean;
 }) {
   const user = useCurrentUser();
   const auth = useAuthState();
@@ -102,8 +106,13 @@ export default function ReportButton({
         setOpen(true);
       }}
       disabled={done}
-      className={`text-[11px] text-slate-500 active:opacity-60 disabled:opacity-40 ${className}`}
+      className={
+        row
+          ? `flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm text-slate-200 active:bg-white/5 disabled:opacity-40 ${className}`
+          : `text-[11px] text-slate-500 active:opacity-60 disabled:opacity-40 ${className}`
+      }
     >
+      {row && <Icon name="flag" size={18} className="text-slate-400" />}
       {done ? t`已举报` : t({ message: "举报", context: "内容旁那颗小键：举报这一条（动作，不是管理后台的举报列表）" })}
     </button>
   );

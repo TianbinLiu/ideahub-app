@@ -77,7 +77,10 @@ src/
                `support/` = AI 客服页专用：`SupportStage`（Live2D 舞台，按 modelUrl 换装）、`HoldToTalk`、
                `VoiceSheet`（声音面板，三页：单音色 / 混音 / 声音市场；存服务端，官网同步）、
                `VoiceMixer`（混音调配 + 发布成模板）、`VoiceMarket`（声音市场列表：试听 / 设为我的声音 / 点赞 / 删自己的）、
-               `voicePreview.ts`（三页试听共用的合成 + 播放 + 喂口型，同一时刻只响一段）
+               `voicePreview.ts`（三页试听共用的合成 + 播放 + 喂口型，同一时刻只响一段）；
+               `TemplateCreateCard`（模板货架顶上「创建属于你的视频模板」：没模板大卡、有模板小条，市场与我的模板两个页签都摆）、
+               `FeedActionSheet`（首页长按中间的「更多操作」抽屉）、`MagicBand`（「我的」页头像后的品牌带，纯装饰）——
+               三样的来由在 docs/ui-benchmark-2026-10.md
   data/        本地库（IndexedDB）与账号库，含种子数据与迁移；
                `boot.ts` = 开机装载的**唯一**一道闸（哪几样读不出来整页拦、哪几样在用到的那一屏降级，调研与出处见 docs/local-storage-failure.md）；
                `videoDownload.ts` = 保存到本地（能不能存 / 存哪几个 / 叫什么名字 / 下载队列 /
@@ -797,6 +800,19 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   列表里的空态 `py-16`，整页态（卡/卡组/模板不存在、未登录墙、取回中）传 `full`（min-h-[70vh] 居中 + safe-top）。
   收之前草稿箱 / 消息 / 个人页 / 模板市场 / 三个详情页各是一副面孔。**别再手拼 `flex flex-col items-center gap-3 py-16`**。
   评论区那种嵌在列表里的一行「还没有评论」不算，留着。
+  **看板娘只经 `mascot` 参数进空态**（2026-10-21，docs/ui-benchmark-2026-10.md 第五节）：nap = 还没有东西、wonder = 搜不到 / 筛空了、hi = 首次邀请、cheer / joy = 全部做完；
+  禁区写在组件头上 —— 正在播放的画面、价钱扣费退款、法务合规、举报拉黑、确认卡、32px 以下一律不放（加载中组件自己只画转圈，`loading` 优先于 `mascot`）。
+- **品牌只给启梦独有的概念，通用动作用通用图形**（2026-10-21 对标结论，同一份文档第五节）：招牌字形只有 `Icon` 的 `remix`（做同款）/ `workshop`（工坊）/
+  `discover`（分区），各有线性与实心两套；点赞、评论、分享、搜索、首页、返回照旧 Lucide 原形。品牌感放在反馈动效里（首页双击点赞的金星 + 青点粒子，
+  `index.css` 的 `.burst-fly`，减少动态效果时整个不出），不放在常驻图标的造型上。新画一枚招牌字形先问一句「这个动作别家有没有」。
+- **首页的次要动作在长按层，不往右栏加键**（2026-10-21）：按住两侧 22% = 临时 2 倍速，按住中间 450ms = `components/FeedActionSheet`
+  （倍速 / 清屏或转屏 / 保存到本地 / 举报）。那三个数只在 `data/feedGestures`（新手引导插同一个 `HOLD_SPEED`，别写回字面量）。倍速是 FeedPage 级的 state
+  （首页上各条共用，不落盘）。**FeedItem 的 section 只认按在自己画面上的事件**（`onOwnPicture` = DOM contains）：React 合成事件沿组件树冒泡，
+  portal 出去的评论抽屉 / 弹幕框 / 举报框 / 做同款确认卡都会冒到 section 上 —— 不挡的话评论框里长按粘贴被 onContextMenu 吞掉、确认卡上按久了开出长按菜单
+  （2026-10-21 评审抓到）。双击点赞会撤回第一下单击切过的播放 / 暂停（`tapRef.toggled`）。新加的次要动作进这个抽屉，
+  别再挤右栏（640 高的屏只剩 24px，见「已知的坑」右栏那一格）。「不感兴趣」等服务端有端点再加。
+- **搜索历史只在 `data/searchHistory`**（本机、按 `deviceOwner()` 分开、最多 10 条）；分区页搜索框获焦且没字时铺历史 + 近期热播。从首页放大镜进来（`state.focusSearch`）
+  要等分区引导讲完才聚焦（`useAutoGuide` 420ms 后才开，聚焦早了搜索面板会盖住分区行，引导第 3、4 步指着不在屏上的东西）。
 - **长活登记进 `data/jobs`，胶囊只有一颗**（2026-09-05 主人点名"生成/上传时能退出页面不中断，并像出片那样有提示小窗"）：
   AI 出图 / 铸卡上传 / 圈选改图 / 模板上传·登记·白模化·分析都 `startJob()` 领一张票，进度 `update()`、结局
   `done()` / `fail()`（带 `route`，通知点下去要有地方落；人就在那一页上时 `silent`），`GenerationPill` 统一画
@@ -1016,6 +1032,8 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 - [`docs/ONBOARDING.md`](docs/ONBOARDING.md) — 从零到能跑
 - [`docs/api-contract.md`](docs/api-contract.md) — 与 server 的接口契约（三仓共享）
 - [`docs/play-store-checklist.md`](docs/play-store-checklist.md) — 上架检查单
+- [`docs/ui-benchmark-2026-10.md`](docs/ui-benchmark-2026-10.md) — 对标抖音 / TikTok / 快手 / B 站 / 剪映 / CapCut 等：模板创建入口、首页、分区、「我的」、小组件五节（2026-10-21）：
+  做了插画模板入口卡、首页长按层（两侧 2× / 中间更多操作）与双击粒子、分区搜索历史与近期热播、「我的」品牌带与草稿改笔、三枚招牌字形；没做的与等主人定的五件事在第七节
 - [`docs/ux-review-csci187-2026-10-14.md`](docs/ux-review-csci187-2026-10-14.md) — 按 CSCI 187 六个 UX 框架 + 惯例 + Goodwin「好产品礼仪」走查 App：改了 20 来处（删草稿改撤销、方勾选框、页签名字、设置分组、反馈落在键旁…），没改的 21 条按框架排好等主人定（发布页主键在三屏外、点赞失败静默回滚、工坊两个意思、token 五个名字…）
 - [`docs/node-modes-libtv-alignment.md`](docs/node-modes-libtv-alignment.md) — 工作流节点「自选卡片 / 自定义」对齐 LibTV 节点：调研、方案、主人拍板与落地记录（N1 参考清单 + @ 点名、N3 关键画面可改可截、N2 分镜表都已落地；含与已有「圈图改图」的对比、官方文档查到的几条协议事实、等主人定的两件事）
 - [`docs/guided-modes-design.md`](docs/guided-modes-design.md) — 工作流的「跟着做」模式（参考图直出 / 主角定妆·多镜头 / 九宫格分镜 / 推演三套 / 套模板 / 自定义）：每个模式固定步骤（2026-10-04 方案，主人「开工」五条全认；第一期 A、第二期 B、第三期 C 已落地，A、B 各付费验过一次；C 的服务端组图任务 server#106 2026-10-06 已合并上线，C 同日付费验过（¥4.50；App 重开后向导里选的人会丢 —— 10-07 已修））
