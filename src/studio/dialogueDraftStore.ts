@@ -6,7 +6,10 @@
 // ★ 人物用 leadDraftStore 的那一份（castIds，与 B / C / G 同一批人）：点选的先后就是 A / B（台词的 who 0 / 1）。这里只多一张场景卡。
 // ★ 表单是**谁的**（gridDraftStore 同一招）：换账号那一拍把上一个人的收进暗格；画到一半换了账号，画好的图写回开工那个人的那份。
 // ★ 落成几段之后**留着三个机位**（resetDialogueLines 只清对白）：同一个地方接着往下说，机位不用再画、不用再花钱；
-//   换人 / 改整体交代 / 换画幅会把它们标成过期（data/dialogueShots.angleKey），界面提醒重画。
+//   换人 / 改整体交代会把它们标成过期（data/dialogueShots.angleKey），界面提醒重画。
+//   画幅也在那把钥匙里，但**画好任何一张之后就换不了**（DialogueWizard 画幅那排键 disabled，drawAngles / redrawAngle 都按 draft.aspect 画，
+//   resetDialogueLines 也不清它）—— 所以它在这里从不让机位过期，留着只是防将来放开。今天要换画幅只能整份重来：这一份只活在内存里，
+//   App 彻底关掉再开（或换个账号，onOwnerSwitch 给新账号一份空的）才是 initialDialogueDraft。
 // ★ 三个机位画好之后各让对话模型看一遍（2026-10-19，studio/panelCheck 与九宫格同一份）：过肩机位常多画一个人，看出来的标 ⚠，**由人决定重画**，
 //   不自动花钱、不拦落段 —— 理由与付费验证见 checkAngle。
 // ★ 依赖方向：data → store → 组件。这里认 ai / data / structuredSkills / panelCheck（它们都不认组件）。
@@ -44,7 +47,7 @@ export interface AnglePanel {
   id: string;
   /** 本机 dataURL；"" = 没画成 */
   image: string;
-  /** 按哪一版画的（data/dialogueShots.angleKey）：人 / 整体交代 / 画幅 / 双人镜头变了 → 过期 */
+  /** 按哪一版画的（data/dialogueShots.angleKey）：人 / 整体交代 / 双人镜头变了 → 过期（画幅也在 key 里，但画好之后换不了，见文件头） */
   key: string;
   /** 正在画 */
   busy?: boolean;
