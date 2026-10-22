@@ -1,3 +1,12 @@
+启梦 2.65
+
+· 涉及多个步骤的功能（跟着做的几个向导、铸段窗、铸卡窗、自己传图做卡片、上传 Live2D 模型、制作人格、建课、提取模板，以及剧本 → 分镜 / 按主题改写 / 一键成片三张面板）屏幕上方统一加了圆点进度条：做完的实心、当前这一步的圆圈放大，每颗下面写着这一步是什么；切步时平滑过渡。
+· 首页与提取模板窗在开发构建里的两处生命周期判断修正，正式包行为不变。
+
+QiMeng 2.65
+
+· Multi-step features (the guided wizards, the segment and card forges, Upload-your-own-image cards, Live2D model upload, persona creation, course creation, template extraction, and the Script → Shots / Theme rewrite / Auto-edit panels) now show a dot progress bar at the top: finished steps are filled, the current one is enlarged, and each dot is labelled with its step; switching steps animates smoothly.
+· Two lifecycle checks on Home and in the template extractor were corrected for development builds; release builds are unchanged.
 启梦 2.64
 
 · 安全更新：修复 App 内置网页组件（Capacitor）的一个高危漏洞，请尽快更新。

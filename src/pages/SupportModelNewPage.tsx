@@ -24,6 +24,7 @@ import EmptyState from "../components/EmptyState";
 import Icon from "../components/Icon";
 import PageHeader from "../components/PageHeader";
 import Spinner from "../components/Spinner";
+import StepDots from "../components/StepDots";
 import TagInput from "../components/TagInput";
 import SupportStage from "../components/support/SupportStage";
 import { useBackOr } from "../hooks/useBackOr";
@@ -626,21 +627,13 @@ export default function SupportModelNewPage() {
         }
       />
 
-      {/* 步骤条：横向滚动一行（安卓 WebView 上不加 no-scrollbar 会在行下方闪一条滚动条） */}
-      {s.step !== "done" && (
-        <div className="no-scrollbar mb-3 flex gap-1.5 overflow-x-auto">
-          {LIVE2D_STEPS.map((k, i) => (
-            <span
-              key={k}
-              className={`shrink-0 rounded-full px-3 py-1 text-[11px] ${
-                k === s.step ? "bg-brand font-semibold text-ink" : i < stepIndex ? "bg-panel text-slate-300" : "bg-panel text-slate-500"
-              }`}
-            >
-              {i + 1}. {t(LIVE2D_STEP_LABEL[k])}
-            </span>
-          ))}
-        </div>
-      )}
+      {/* ★ 进度只画这一份（components/StepDots，CLAUDE.md 铁律六）：2026-10-22 替掉原来那行横向滚动的编号芯片。
+          发布成功（done）不在 LIVE2D_STEPS 里，停在最后一颗；步骤不能点着跳（上传 / 识别是按顺序的），所以不给 onPick */}
+      <StepDots
+        className="mb-4"
+        current={s.step === "done" ? LIVE2D_STEPS.length - 1 : stepIndex}
+        steps={LIVE2D_STEPS.map((k) => ({ label: t(LIVE2D_STEP_LABEL[k]) }))}
+      />
 
       {/* 舞台：② ③ ④ ⑤ 共用同一块（换步骤不重挂，重挂一次就是把模型销毁重建一次） */}
       {stageOn && (

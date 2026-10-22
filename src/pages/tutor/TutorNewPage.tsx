@@ -12,6 +12,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "reac
 import { useNavigate, useSearchParams } from "react-router";
 import { Trans, useLingui } from "@lingui/react/macro";
 import PageHeader from "../../components/PageHeader";
+import StepDots from "../../components/StepDots";
 import EmptyState from "../../components/EmptyState";
 import Spinner from "../../components/Spinner";
 import { useBackOr } from "../../hooks/useBackOr";
@@ -167,8 +168,11 @@ export default function TutorNewPage() {
 
   return (
     <div className="min-h-full px-4 pb-10">
-      <PageHeader sticky inset onBack={back} title={t`新建课程`} subtitle={t`第 ${step} / 4 步 · ${step === 1 ? t`课程` : step === 2 ? t`教材` : step === 3 ? t`老师` : t`生成`}`} />
-      {err && <p className="mb-3 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">{err}</p>}
+      <PageHeader sticky inset onBack={back} title={t`新建课程`} />
+      {/* ★ 进度只画这一份（components/StepDots，CLAUDE.md 铁律六）：2026-10-22 替掉副标题那句「第 n / 4 步 · 名字」——
+          四步的名字就在圆点下面，副标题不再重复。纯展示：从课程列表「继续建课」进来直接站在第 2 / 3 步，回退走各步自己的键 */}
+      <StepDots className="mb-4" current={step - 1} steps={[{ label: t`课程` }, { label: t`教材` }, { label: t`老师` }, { label: t`生成` }]} />
+      {err &&<p className="mb-3 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">{err}</p>}
 
       {step === 1 && (
         <section className="space-y-3">

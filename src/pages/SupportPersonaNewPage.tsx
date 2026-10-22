@@ -20,6 +20,7 @@ import ConfirmDialog from "../components/ConfirmDialog";
 import EmptyState from "../components/EmptyState";
 import Icon from "../components/Icon";
 import PageHeader from "../components/PageHeader";
+import StepDots from "../components/StepDots";
 import Spinner from "../components/Spinner";
 import TagInput from "../components/TagInput";
 import { useBackOr } from "../hooks/useBackOr";
@@ -1153,7 +1154,7 @@ export default function SupportPersonaNewPage() {
         inset
         onBack={back}
         title={t`制作人格`}
-        subtitle={t`第 ${idx + 1} / ${PERSONA_STEPS.length} 步 · ${stepLabel}`}
+        subtitle={stepLabel}
         right={
           dirty && !published ? (
             <button type="button" disabled={busy} onClick={() => setAskReset(true)} className={`${MINI} shrink-0`}>
@@ -1163,24 +1164,16 @@ export default function SupportPersonaNewPage() {
         }
       />
 
-      {/* 步条：横向滚动一律 no-scrollbar（安卓 WebView 上不加会闪一条滚动条） */}
-      <div className="no-scrollbar -mx-4 mb-3 flex gap-2 overflow-x-auto px-4">
-        {PERSONA_STEPS.map((s, i) => {
-          const on = s.key === step;
-          const ok = reachable(s.key);
-          return (
-            <button
-              key={s.key}
-              type="button"
-              disabled={!ok}
-              onClick={() => go(s.key)}
-              className={`${CHIP} shrink-0 disabled:opacity-40 ${on ? CHIP_ON : CHIP_OFF}`}
-            >
-              {i + 1}. {t(s.label)}
-            </button>
-          );
-        })}
-      </div>
+      {/* ★ 进度只画这一份（components/StepDots，CLAUDE.md 铁律六）：2026-10-22 替掉原来那行可点的编号芯片。
+          能点到哪一步照旧只问 reachable（后三步要先有草稿，往前跳也行），所以传 canPick 盖掉「只能点做完的」那条默认。
+          七颗挤在 360px 宽上每格只有五十来像素，「基本设定」四个字在这里缩成「设定」；全名仍在副标题上 */}
+      <StepDots
+        className="mb-4"
+        current={idx}
+        steps={PERSONA_STEPS.map((s) => ({ label: s.key === "basics" ? t`设定` : t(s.label) }))}
+        canPick={(i) => reachable(PERSONA_STEPS[i].key)}
+        onPick={(i) => go(PERSONA_STEPS[i].key)}
+      />
       {!hasDraft && (step === "basics" || step === "materials" || step === "quiz") && (
         <p className="mb-3 text-[11px] leading-relaxed text-slate-500"><Trans>试聊、微调、发布三步要先生成出草稿才能进。</Trans></p>
       )}

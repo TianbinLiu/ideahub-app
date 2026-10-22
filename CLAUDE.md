@@ -757,6 +757,12 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   只准写在自己带 `safe-top` 的那一行上；safe-top 已经在外层时里面那行是 `h-12`（客服页第十四轮量出来差 5px）。
   验法：在浏览器里逐路由量返回键中心的 y，都该是 34。
 - **加载圈只有一份 `components/Spinner`**（xs / sm / lg），别再手写 `animate-spin rounded-full border-2 …`。
+- **多步功能的步骤进度只有一份 `components/StepDots`**（2026-10-22 主人点名）：横线上一排圆点，做完实心、没到空心、当前那颗外圈放大，每颗下面两三个字；
+  摆在标题行 / `PageHeader` **正下方**（不进 `right` 插槽），一屏只画一条（铸段窗在向导车道上让位给向导自己那条）。
+  动画只动 transform / opacity（放大是独立的一枚环 scale、实心是内芯 opacity、进度线 scaleX），减少动态效果时不过渡。
+  缺省纯展示；能点回哪一步由调用方 `onPick` / `canPick` 决定（人格向导沿用原来「够得着就能跳」的规则）。
+  2026-10-22 接进去的 14 屏：四个跟着做向导、铸段窗、铸卡窗、三张 AI 流程面板、提取模板窗、简约 / 自建卡 / Live2D 上传 / 人格 / 建课五个页面；
+  新加向导别再手拼「第 n / N 步」「1 选式 › 2 内容」那种字。
 - **内联链接**：`underline underline-offset-2`；能点出动作的 `text-brand`，说明性的灰链接一律 `text-slate-500`，
   不写 `decoration-*`。
 - **分隔线一律 `border-slate-700/60`**（`border-t` / `border-b`）；抽屉壳与顶部下拉窗的那条边线仍是 `border-slate-700`。

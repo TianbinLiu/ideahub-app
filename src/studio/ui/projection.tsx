@@ -10,6 +10,7 @@ import { deckCoverOf, memberTiersLine, myCards, myDecks, realFaceIssue, tierBloc
 import { ONE_IMAGE, VIDEO_TIERS, deriveIssue, durationChoices, fmtTokens, promptMaxOf, r2vBlockLines, segTokens, tierModelId, tierModelLabel, tierOf } from "../../data/economy";
 import { useAccountVersion } from "../../hooks/useAccount";
 import UpgradeLink from "../../components/UpgradeLink";
+import StepDots from "../../components/StepDots";
 import { CloseButton } from "../../components/IconTapButton";
 import { voiceOf } from "../../data/cardVoice";
 import { cardFitNote } from "../segmentGen";
@@ -429,23 +430,15 @@ function EditorPanel() {
    */
   const fitNote = faceNote ? null : cardFitNote(slotCards, editor.videoTier, { aspect: editor.aspect, ownFrame: true });
 
-  const crumbSteps = lane === "custom" ? (["mode", "ref", "content", "spec"] as const) : (["mode", "content", "spec"] as const);
-  // ★ 标签压到两字：自定义车道是四步，375px 顶栏上「示例视频/写内容」会把整行折成两行（实测）
+  const crumbSteps: readonly (typeof step)[] = lane === "custom" ? ["mode", "ref", "content", "spec"] : ["mode", "content", "spec"];
+  // ★ 标签压到两字：自定义车道是四步，圆点下面每格只有 375/4 px 宽，「示例视频/写内容」会折行（原来在顶栏上实测过同样的事）
   const crumbLabel = { mode: t`选式`, ref: t`示例`, content: t`内容`, spec: t`规格` };
-  const stepCrumb = (
-    <span className="flex items-center gap-1 text-[9px] text-slate-500">
-      {crumbSteps.map((s, i) => (
-        <span key={s} className={s === step ? "font-bold text-cyan-200" : ""}>
-          {i > 0 && <span aria-hidden className="pr-1 text-slate-600">›</span>}
-          {i + 1} {crumbLabel[s]}
-        </span>
-      ))}
-    </span>
-  );
+  /** 向导整块接管②③步时铸段窗自己的步骤条不画（向导自己带一条，两条叠着会说两遍） */
+  const showDots = !(wizardLane && step !== "mode");
 
   return (
     <>
-      <div className="flex items-center justify-between gap-2 border-b border-cyan-400/20 px-4 py-2.5">
+      <div className={`flex items-center justify-between gap-2 px-4 py-2.5 ${showDots ? "" : "border-b border-cyan-400/20"}`}>
         {/* ★ 每一步都要能退（2026-08-30 主人点名"选择了选项后无法回到上一步"）：
             脚上那排「‹ 上一步」只长在②③两步，示例视频那一页压根没有脚 —— 顶栏这枚
             是所有步骤共用的退路，第①步时不渲染（那一步的退出是右边的 ✕） */}
@@ -459,8 +452,7 @@ function EditorPanel() {
             ‹
           </button>
         )}
-        <h3 className="flex-none text-sm font-bold text-cyan-100"><Trans>铸造节点卡 · 第 {segIndex + 1} 段</Trans></h3>
-        {wizardLane && step !== "mode" ? null : stepCrumb}
+        <h3 className="flex-1 text-sm font-bold text-cyan-100"><Trans>铸造节点卡 · 第 {segIndex + 1} 段</Trans></h3>
         {/* 关闭键走 CloseButton（44px 命中区 + 读屏名）：原来是一个裸的 ✕ 字，约 14×20px，手机上要戳好几下 */}
         <CloseButton
           chip="sm"
@@ -470,6 +462,13 @@ function EditorPanel() {
           disabled={editor.generating}
         />
       </div>
+      {/* ★ 步骤条只有 components/StepDots 一份实现（CLAUDE.md 铁律六）：原来是顶栏里一行 9px 的「1 选式 › 2 内容 › 3 规格」，
+          2026-10-22 换成圆点，摆在顶栏正下方自己的一行（顶栏只有一行高，圆点带文字要两行）。不给 onPick：退路是左上那枚 ‹ 与脚上的键 */}
+      {showDots && (
+        <div className="border-b border-cyan-400/20 px-4 pb-2.5">
+          <StepDots steps={crumbSteps.map((s) => ({ label: crumbLabel[s] }))} current={crumbSteps.indexOf(step)} />
+        </div>
+      )}
 
       {/* ══ 第①步：选模式。与画布编辑窗的三个页签同名同义（工作流↔工坊一套心智） ══ */}
       {step === "mode" ? (

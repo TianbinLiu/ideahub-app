@@ -3920,8 +3920,8 @@ msgid "① 卡名与简介"
 msgstr "① Card name and intro"
 
 #: src/pages/CustomCardPage.tsx
-msgid "① 选来源"
-msgstr "① Choose source"
+#~ msgid "① 选来源"
+#~ msgstr "① Choose source"
 
 #: src/components/support/VoiceSheet.tsx
 #: src/pages/SettingsVoicePage.tsx
@@ -3947,8 +3947,8 @@ msgid "② 图位（{0}共 {1} 格）"
 msgstr "② Slots ({0}: {1, plural, one {# slot} other {# slots}})"
 
 #: src/pages/CustomCardPage.tsx
-msgid "② 图位预览"
-msgstr "② Slot preview"
+#~ msgid "② 图位预览"
+#~ msgstr "② Slot preview"
 
 #: src/components/flow/ModePicker.tsx
 msgid "② 挑一种做法（每一种都是固定几步，跟着点就行）"
@@ -3964,8 +3964,8 @@ msgid "③ {0}（选填）"
 msgstr "③ {0} (optional)"
 
 #: src/pages/CustomCardPage.tsx
-msgid "③ 人物信息"
-msgstr "③ Character info"
+#~ msgid "③ 人物信息"
+#~ msgstr "③ Character info"
 
 #: src/components/TemplateCreateCard.tsx
 msgid "③ 发布到市场"
@@ -3992,8 +3992,8 @@ msgid "3D 桌面摆卡、推演走向"
 msgstr "Lay out cards on the 3D table and explore directions"
 
 #: src/pages/CustomCardPage.tsx
-msgid "④ 定名完成"
-msgstr "④ Name and finish"
+#~ msgid "④ 定名完成"
+#~ msgstr "④ Name and finish"
 
 #: src/pages/CustomCardPage.tsx
 msgid "④ 标签（选填）"
@@ -6093,8 +6093,12 @@ msgid "传上去不花钱 · 下一步框出 {minSec}~{maxSec} 秒 · 报价确�
 msgstr "Uploading costs nothing · next, select {minSec}–{maxSec, plural, one {# second} other {# seconds}} · nothing starts until you confirm the price"
 
 #: src/pages/CustomCardPage.tsx
-msgid "传图与信息"
-msgstr "Images and info"
+msgid "传图"
+msgstr "Upload"
+
+#: src/pages/CustomCardPage.tsx
+#~ msgid "传图与信息"
+#~ msgstr "Images and info"
 
 #: src/components/TemplateCreateCard.tsx
 msgid "传视频、换白模，别人照着你拍"
@@ -6559,6 +6563,10 @@ msgstr "Kept the background inside the box ({size}{up}) — the card still has a
 #: src/data/videos.ts
 msgid "信使小满在废土集市用三封信换回了一个秘密。轻松治愈向。"
 msgstr "Courier Xiaoman trades three letters for a secret at the wasteland market. Light and heartwarming."
+
+#: src/pages/CustomCardPage.tsx
+msgid "信息"
+msgstr "Details"
 
 #: src/data/danmaku.ts
 msgid "信里居然是记忆"
@@ -7655,10 +7663,15 @@ msgstr "Cast: {leadName} (lead)"
 msgid "出场：{leadName}（主角）、{others}"
 msgstr "Cast: {leadName} (lead), {others}"
 
+#: src/studio/ui/NpcDialog.tsx
+msgid "出炉"
+msgstr "Result"
+
 #: src/components/flow/DialogueWizard.tsx
 #: src/components/flow/EffectWizard.tsx
 #: src/components/flow/GridShotsWizard.tsx
 #: src/components/flow/LeadShotsWizard.tsx
+#: src/pages/SimpleModePage.tsx
 #: src/studio/structuredSkills.ts
 msgid "出片"
 msgstr "Render"
@@ -8690,6 +8703,10 @@ msgstr "Card details"
 #: src/studio/ui/CardHologram.tsx
 msgid "卡牌全息"
 msgstr "Card hologram"
+
+#: src/studio/ui/NpcDialog.tsx
+msgid "卡种"
+msgstr "Type"
 
 #: src/components/MaterialSheet.tsx
 #: src/pages/AdminPage.tsx
@@ -10362,6 +10379,10 @@ msgstr "Chinese ink"
 msgid "图会被怎么处理"
 msgstr "What happens to your images"
 
+#: src/pages/CustomCardPage.tsx
+msgid "图位"
+msgstr "Slots"
+
 #. placeholder {0}: i + 1
 #: src/studio/ui/SchemeEditorSheet.tsx
 msgid "图位 {0} 的名字，如「白模全身」"
@@ -11087,6 +11108,10 @@ msgstr "Official skills"
 #: src/components/UpdateSheet.tsx
 msgid "官网也下不动？从 GitHub 下载这一版（备用，国内网络可能打不开）"
 msgstr "Website download not working either? Get this version from GitHub (backup; may not open on networks in mainland China)"
+
+#: src/pages/CustomCardPage.tsx
+msgid "定名"
+msgstr "Name"
 
 #: src/data/economy.ts
 #~ msgid "定妆"
@@ -13927,6 +13952,10 @@ msgstr "Pick a few reference images (character / scene cards) + write a prompt; 
 #~ msgid "挑几张参考图（人物 / 场景卡）＋ 写提示词，人物图直接给视频模型。LibTV 作者最常用的做法"
 #~ msgstr "Pick a few reference images (character / scene cards) + write a prompt; the character images go straight to the video model. The method LibTV creators use most"
 
+#: src/components/VideoTemplateExtractor.tsx
+msgid "挑分析帧"
+msgstr "Pick frames"
+
 #: src/components/flow/ModePicker.tsx
 msgid "挑卡＋写要求，AI 出三套带关键画面的方案，挑一套再出片"
 msgstr "Pick cards + write a request; the AI drafts three plans with key frames, and you pick one before rendering"
@@ -16290,6 +16319,10 @@ msgstr "Standard"
 msgid "标准套餐"
 msgstr "Standard plan"
 
+#: src/components/VideoTemplateExtractor.tsx
+msgid "标切段刀"
+msgstr "Mark cuts"
+
 #: src/types.ts
 msgid "标志性细节"
 msgstr "Signature detail"
@@ -16393,6 +16426,10 @@ msgstr "The part you select and the area you crop are everything the AI actually
 #: src/components/PhotoSubjectPicker.tsx
 msgid "框出这件道具"
 msgstr "Box the prop"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "框选段"
+msgstr "Trim"
 
 #: src/studio/studioStore.ts
 msgid "桌上还没有段——先点虚线卡位铸第一段，或去模板市场挑一个「用它出片」。"
@@ -17237,6 +17274,10 @@ msgstr "Retrying…"
 #: src/components/DownloadSheet.tsx
 msgid "正在问总大小…"
 msgstr "Checking total size…"
+
+#: src/components/StepDots.tsx
+msgid "步骤"
+msgstr "Steps"
 
 #. placeholder {0}: a.segIndex + 1
 #: src/pages/CutPage.tsx
@@ -20032,6 +20073,10 @@ msgstr "Watch this segment ({0}s)"
 msgid "看首页遮挡"
 msgstr "Show feed overlay"
 
+#: src/pages/CustomCardPage.tsx
+msgid "真人"
+msgstr "Real person"
+
 #: src/data/economy.ts
 msgctxt "画质档位名：唯一收真人照片的那一档（不是「真人卡」「真人照片」里的形容词）"
 msgid "真人"
@@ -20661,8 +20706,8 @@ msgstr "Step {0} / {1}"
 #. placeholder {0}: idx + 1
 #. placeholder {1}: PERSONA_STEPS.length
 #: src/pages/SupportPersonaNewPage.tsx
-msgid "第 {0} / {1} 步 · {stepLabel}"
-msgstr "Step {0} of {1} · {stepLabel}"
+#~ msgid "第 {0} / {1} 步 · {stepLabel}"
+#~ msgstr "Step {0} of {1} · {stepLabel}"
 
 #. placeholder {0}: i + 1
 #: src/data/promptSchemes.ts
@@ -21374,12 +21419,12 @@ msgstr "{durSec, plural, one {# second} other {# seconds}} from {startSec}s · {
 
 #. placeholder {0}: step === 1 ? t`课程` : step === 2 ? t`教材` : step === 3 ? t`老师` : t`生成`
 #: src/pages/tutor/TutorNewPage.tsx
-msgid "第 {step} / 4 步 · {0}"
-msgstr "Step {step} / 4 · {0}"
+#~ msgid "第 {step} / 4 步 · {0}"
+#~ msgstr "Step {step} / 4 · {0}"
 
 #: src/pages/SimpleModePage.tsx
-msgid "第 {stepNo} / 3 步"
-msgstr "Step {stepNo} of 3"
+#~ msgid "第 {stepNo} / 3 步"
+#~ msgstr "Step {stepNo} of 3"
 
 #: src/types.ts
 msgid "第 {v} 版"
@@ -21672,6 +21717,7 @@ msgstr "Enough for about {n} five-second “{hd}” segments · every tier unloc
 #~ msgstr "Enough for about 15 Standard-tier video segments"
 
 #: src/components/flow/SegSettings.tsx
+#: src/studio/ui/NpcDialog.tsx
 #: src/studio/ui/projection.tsx
 msgid "素材"
 msgstr "Assets"
@@ -22822,6 +22868,10 @@ msgstr "Use as my voice"
 msgid "设为首帧"
 msgstr "Set as first frame"
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgid "设定"
+msgstr "Basics"
+
 #: src/studio/segmentGen.ts
 msgid "设定帧没能传上去，样片这一发没有发出去（退回首尾帧的话画幅只能按「自适应」结算，会比报价贵）——刚画好的设定帧已经留在这一段上，过一会儿再点一次生成，不会重画"
 msgstr "The setup frames couldn't be uploaded, so this preview draft wasn't sent (falling back to first/last frames would bill the “adaptive” aspect ratio, which costs more than the quote) — the setup frames just drawn are kept on this segment, so try generating again in a moment; they won't be redrawn"
@@ -23104,6 +23154,10 @@ msgstr "Too many voice messages. Wait a few seconds."
 #: src/components/InfoTip.tsx
 msgid "说明"
 msgstr "More info"
+
+#: src/pages/SimpleModePage.tsx
+msgid "说清楚"
+msgstr "Describe"
 
 #: src/components/SocialPanel.tsx
 #: src/pages/SupportPersonaNewPage.tsx
@@ -26588,6 +26642,10 @@ msgstr "The selected part is {durSec, plural, one {# second} other {# seconds}} 
 msgid "选中第 {seg} 段：流水线只有 {total} 段"
 msgstr "Selecting segment {seg}: the pipeline only has {total, plural, one {# segment} other {# segments}}"
 
+#: src/components/VideoTemplateExtractor.tsx
+msgid "选做法"
+msgstr "Method"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "选卡片"
 msgstr "Pick cards"
@@ -26644,6 +26702,7 @@ msgstr "Choose how the story begins"
 msgid "选择时刻"
 msgstr "Pick a moment"
 
+#: src/components/VideoTemplateExtractor.tsx
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "选文件"
 msgstr "Choose files"
@@ -26656,6 +26715,10 @@ msgstr "Choose file"
 #: src/components/guide/tours.tsx
 msgid "选文件 → 上传（<0>不花钱</0>）→ 下一步拖时间轴框出 {minSec}~{maxSec} 秒、拖裁剪框把台标水印框到画面外。让 AI 换白模那条就在这一屏读完报价、点「开始白模化」才开炼； 自带白模片那条这一屏不花钱，点「下一步：挑 AI 分析帧」去下一屏，在框出来的那一段上定 AI 分析哪几帧（自动或自己挑）， 报价也在那一屏、点「做成模板（不出片）」之前整句报出 （把选段拖过上限，会自动变成<1>整条切段登记成一组</1>，那颗键换成「下一步：标切段刀」，按段计费）。 让 AI 换白模那条还要注意：换人偶<2>不是每次都全对</2>，最容易漏画面正中央那一个—— 出片后对着画面从左往右核对，对不上的位子删掉就行（不用重炼、不花钱）。"
 msgstr "Choose a file → upload (<0>free</0>) → next screen: drag the timeline to select {minSec}–{maxSec, plural, one {# second} other {# seconds}} and crop out channel logos and watermarks. AI blockout route: the price is on that screen, and nothing starts until you tap “Start blockout”. Already-a-blockout route: that screen is free — tap “Next: pick frames for the AI”, then on the second screen choose which frames of your selection the AI analyzes (auto, or your own picks); the price is spelled out in full there, before you tap “Make template (no render)”. A selection past the limit automatically switches that route to <1>cutting the whole video into segments registered as a group</1>, charged per segment (the button then reads “Next: place the cuts”). On the AI blockout route, swapping in mannequins <2>isn't always fully right</2> — the one in the middle of the frame is missed most often. After rendering, check the picture from left to right and just delete any slot that doesn't match (no re-render, no charge)."
+
+#: src/pages/CustomCardPage.tsx
+msgid "选来源"
+msgstr "Source"
 
 #: src/components/TemplateShelf.tsx
 msgid "选段"
@@ -26681,6 +26744,10 @@ msgstr "The selection runs past the end of the video ({durSec, plural, one {# se
 #: src/components/blockout/arkVideoRules.ts
 msgid "选段超过 {segMaxSec} 秒时只能整条登记（分段组吃的是整条原片——合成成片时要拿它回填完整音轨）：把选段拉满 0~{total} 秒（起点 0、时长 {total}），或者收回 {segMaxSec} 秒以内只做一段。"
 msgstr "A selection longer than {segMaxSec} seconds can only be registered as the whole video (a split group uses the entire original — it's needed to add back the full audio track when merging the final video): stretch the selection to cover 0–{total}s (start 0, length {total}s), or pull it back to within {segMaxSec} seconds to make a single segment."
+
+#: src/pages/SimpleModePage.tsx
+msgid "选起点"
+msgstr "Start"
 
 #: src/live2d/bundlePreview.ts
 msgid "透明度组"

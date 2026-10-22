@@ -34,6 +34,7 @@ import { setLead, useLeadDraft } from "../../studio/leadDraftStore";
 import { VIDEO_ASPECTS, type Card, type VideoAspect } from "../../types";
 import { blobToDataUrl, fileToRefImage } from "../../utils/image";
 import Spinner from "../Spinner";
+import StepDots from "../StepDots";
 import TokenCost from "../TokenCost";
 import CastPicker from "./CastPicker";
 
@@ -146,18 +147,12 @@ export default function EffectWizard({
 
   return (
     <div className="space-y-3">
-      {/* 步骤条：与铸段窗「1 选式 › 2 内容 › 3 规格」同一个样子 */}
-      <div className="flex flex-wrap items-center gap-1 text-[10px] text-slate-500">
-        <span className="mr-1 text-xs font-bold text-slate-100">
-          <Trans>✨ 特效同款</Trans>
-        </span>
-        {EFFECT_STEPS.map((s, i) => (
-          <span key={s} className={i === stepIdx ? "font-bold text-brand" : ""}>
-            {i > 0 && <span aria-hidden className="pr-1 text-slate-600">›</span>}
-            {i + 1} {t(STEP_LABEL[s])}
-          </span>
-        ))}
-      </div>
+      <p className="text-xs font-bold text-slate-100">
+        <Trans>✨ 特效同款</Trans>
+      </p>
+      {/* ★ 步骤条只有 components/StepDots 一份实现（CLAUDE.md 铁律六）：原来这里手写「1 挑特效 › 2 挑主角 › 3 出片」的面包屑，
+          2026-10-22 换成圆点。current 读的是上面按这一档筛过的 step（预设在这一档用不了时退回第①步），与正文画的是同一步 */}
+      <StepDots steps={EFFECT_STEPS.map((s) => ({ label: t(STEP_LABEL[s]) }))} current={stepIdx} />
 
       {step === "pick" && (
         <>

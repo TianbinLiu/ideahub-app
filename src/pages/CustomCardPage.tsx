@@ -27,6 +27,7 @@ import { useState, useEffect, useMemo, useRef, useSyncExternalStore } from "reac
 import ConfirmDialog from "../components/ConfirmDialog";
 import Spinner from "../components/Spinner";
 import PageHeader from "../components/PageHeader";
+import StepDots from "../components/StepDots";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router";
 import { useBackOr } from "../hooks/useBackOr";
@@ -68,7 +69,7 @@ import { saveVoice } from "../data/cardVoice";
 import { heartbeatJob, startJob } from "../data/jobs";
 // ★★ 这一页的表单状态全在 store 里（理由见 customCardStore 文件头）：AI 出图 / 铸卡上传
 //   退出这一页也不断，人回来时原样还在；胶囊（GenerationPill）负责人不在时的通知
-import { type Shot, draftBusy, draftDirty, freshSubjectPick, resetCardDraft, useCardDraft, useDraftField } from "../studio/customCardStore";
+import { type CardStep, type Shot, draftBusy, draftDirty, freshSubjectPick, resetCardDraft, useCardDraft, useDraftField } from "../studio/customCardStore";
 // 人物卡的图位不再写死三格，由**提示词方案**定（与「从视频提取」同一套方案库）。
 // 方案在这里决定**图位结构**（几格、各叫什么、锁什么）；「AI 生成图位」车道
 // 走 ai/portraitViews（与工坊提卡同一条出图路），报价同一把尺 schemeCost。
@@ -1267,6 +1268,27 @@ export default function CustomCardPage() {
   const reasonNet = t`网络异常`;
   const reasonUpload = t`上传失败`;
 
+  /**
+   * 顶上的圆点进度条只摆**这条路上会走到的**步（2026-10-22，替掉右上角那句步骤名）：
+   * 非人物卡两步（选卡种 → 传图，一屏填完）；人物卡 选卡种 → 选来源 → 图位 → 信息 → 定名；
+   * 真人路在选卡种之后多一步「真人」。步骤本身的顺序与回程逻辑一个字没动（见下面那颗「返回：…」）。
+   * 「真人」那颗按 realPerson 摆，而不是按 step === "real"：从定名那一步「返回上一步」回真人屏时它也得在。
+   */
+  const cardSteps: { key: CardStep; label: string }[] = isChar
+    ? [
+        { key: "type", label: t`选卡种` },
+        ...(realPerson || step === "real" ? [{ key: "real" as const, label: t`真人` }] : []),
+        { key: "source", label: t`选来源` },
+        { key: "form", label: t`图位` },
+        { key: "info", label: t`信息` },
+        { key: "final", label: t`定名` },
+      ]
+    : [
+        { key: "type", label: t`选卡种` },
+        { key: "form", label: t`传图` },
+      ];
+  const cardStepIdx = Math.max(0, cardSteps.findIndex((s) => s.key === step));
+
   return (
     <div className="min-h-full px-4 pb-10">
       {/* ★ 标题跟着走的那条路改口：真人路上照片是**授权取回来的**，挂着「自己传图」
@@ -1277,19 +1299,6 @@ export default function CustomCardPage() {
         right={
           <>
             <HelpButton tour="customcard" />
-            <span className="flex-none text-[10px] text-slate-500">
-              {step === "type"
-                ? t`选卡种`
-                : step === "real"
-                  ? t`真人素材`
-                  : step === "source"
-                    ? t`① 选来源`
-                    : step === "form"
-                      ? isChar ? t`② 图位预览` : t`传图与信息`
-                      : step === "info"
-                        ? t`③ 人物信息`
-                        : t`④ 定名完成`}
-                </span>
             {/* 表单活在 store 里（退出再进来原样还在），所以要给一条"清空重来"的路；有活在跑时不给 */}
             {dirty && !working && (
               <button
@@ -1317,6 +1326,9 @@ export default function CustomCardPage() {
           </>
         }
       />
+      {/* ★ 进度只画这一份（components/StepDots，CLAUDE.md 铁律六）：原来是右上角一句步骤名，现在是标题行正下方的圆点。
+          纯展示：这条路上回退要走各屏自己那颗「返回：…」（人物卡逐级回、非人物卡回选卡种），不在这里另开一条 */}
+      <StepDots className="mb-4" current={cardStepIdx} steps={cardSteps} />
 
       {/* ── 第 1 屏：只有五个卡种（主人点名的形状：无文案、约八成屏、不滚动）。
           2026-08-28 二改（主人点名"符合 app 风格"）：五条纯色平板 → 五张**塔罗卡面**

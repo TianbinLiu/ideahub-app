@@ -28,6 +28,7 @@ import {
 import { Card, CARD_TYPES, CARD_TYPE_COVERS, CARD_TYPE_LABELS, CardType } from "../../types";
 import TarotCard from "../../components/TarotCard";
 import TokenCost from "../../components/TokenCost";
+import StepDots from "../../components/StepDots";
 import { NPC_SCREEN } from "../scene/cameraOrbit";
 import { setVoiceEnabled, voiceEnabled, voiceStatus, voiceSupported } from "../speech";
 import { useBackGuard } from "../backGuards";
@@ -404,6 +405,13 @@ function HistorySheet({ onClose, onOpenForge }: { onClose: () => void; onOpenFor
 //   3 过目：不满意可以回去改素材、也可以原样重炼，点「收下」才落账入组
 // 预览态刻意封掉背景点击和 ✕：这批卡是花了 token 炼出来的，别让手滑抹掉。
 type ForgeStep = "type" | "input" | "preview";
+const FORGE_STEPS: readonly ForgeStep[] = ["type", "input", "preview"];
+/** 圆点下面那两个字（标题行另说整句：「想炼一张什么卡」「递上素材」「出炉了」） */
+const FORGE_STEP_LABEL: Record<ForgeStep, MessageDescriptor> = {
+  type: msg`卡种`,
+  input: msg`素材`,
+  preview: msg`出炉`,
+};
 
 const TYPE_HINT: Record<CardType, MessageDescriptor> = {
   character: msg`谁在故事里——长相与衣着（手里拿的、所在的地方另做道具卡、场景卡）`,
@@ -588,14 +596,16 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
                   : t`📎 自动判断 · 递上素材`
                 : t`🔥 出炉了，过个目`}
           </h3>
-          <span className="ml-auto text-[10px] text-slate-500">
-            {step === "type" ? "1/3" : step === "input" ? "2/3" : "3/3"}
-          </span>
           {!locked && (
-            <button onClick={onClose} className="-mr-1 p-1 text-slate-400 hover:text-white">
+            <button onClick={onClose} className="-mr-1 ml-auto p-1 text-slate-400 hover:text-white">
               ✕
             </button>
           )}
+        </div>
+        {/* ★ 步骤条只有 components/StepDots 一份实现（CLAUDE.md 铁律六）：原来标题右边是一个「1/3」计数，
+            2026-10-22 换成圆点、摆在标题行正下方。不给 onPick：预览态封掉了回退（卡是花 token 炼的），退路只有左上那枚 ‹ */}
+        <div className="px-4 pb-2">
+          <StepDots steps={FORGE_STEPS.map((s) => ({ label: t(FORGE_STEP_LABEL[s]) }))} current={FORGE_STEPS.indexOf(step)} />
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-1">

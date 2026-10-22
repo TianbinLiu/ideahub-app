@@ -54,6 +54,7 @@ import { setLead, useLeadDraft } from "../../studio/leadDraftStore";
 import { panelFlagged } from "../../studio/panelCheck";
 import { VIDEO_ASPECTS, type Card, type VideoAspect } from "../../types";
 import Spinner from "../Spinner";
+import StepDots from "../StepDots";
 import TokenCost from "../TokenCost";
 import CastPicker from "./CastPicker";
 import { panelIssuesLine } from "./panelIssueText";
@@ -183,18 +184,12 @@ export default function DialogueWizard({
 
   return (
     <div className="space-y-3">
-      {/* 步骤条：与铸段窗「1 选式 › 2 内容 › 3 规格」同一个样子 */}
-      <div className="flex flex-wrap items-center gap-1 text-[10px] text-slate-500">
-        <span className="mr-1 text-xs font-bold text-slate-100">
-          <Trans>💬 对话正反打</Trans>
-        </span>
-        {DIALOGUE_STEPS.map((s, i) => (
-          <span key={s} className={i === stepIdx ? "font-bold text-brand" : ""}>
-            {i > 0 && <span aria-hidden className="pr-1 text-slate-600">›</span>}
-            {i + 1} {t(STEP_LABEL[s])}
-          </span>
-        ))}
-      </div>
+      <p className="text-xs font-bold text-slate-100">
+        <Trans>💬 对话正反打</Trans>
+      </p>
+      {/* ★ 步骤条只有 components/StepDots 一份实现（CLAUDE.md 铁律六）：原来这里手写「1 两个人 › 2 对白 › …」的面包屑，
+          2026-10-22 换成圆点。不给 onPick：机位画过钱、落过段的步骤能不能回去由向导自己的脚管 */}
+      <StepDots steps={DIALOGUE_STEPS.map((s) => ({ label: t(STEP_LABEL[s]) }))} current={stepIdx} />
 
       {d.step === "cast" && (
         <>
