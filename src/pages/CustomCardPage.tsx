@@ -1272,12 +1272,14 @@ export default function CustomCardPage() {
    * 顶上的圆点进度条只摆**这条路上会走到的**步（2026-10-22，替掉右上角那句步骤名）：
    * 非人物卡两步（选卡种 → 传图，一屏填完）；人物卡 选卡种 → 选来源 → 图位 → 信息 → 定名；
    * 真人路在选卡种之后多一步「真人」。步骤本身的顺序与回程逻辑一个字没动（见下面那颗「返回：…」）。
-   * 「真人」那颗按 realPerson 摆，而不是按 step === "real"：从定名那一步「返回上一步」回真人屏时它也得在。
+   * 「真人」那颗按 realPerson 摆，而不是只按 step === "real"：从定名那一步「返回上一步」回真人屏时它也得在。
+   * 但站在选卡种那一屏时不摆（2026-10-22 发版前复核）：「重选方案」回到选卡种后 realPerson 要等人挑了一套普通方案才清，
+   * 那一刻真人那颗还挂着 —— 人还没决定走不走真人，圆点先替他定了。
    */
   const cardSteps: { key: CardStep; label: string }[] = isChar
     ? [
         { key: "type", label: t`选卡种` },
-        ...(realPerson || step === "real" ? [{ key: "real" as const, label: t`真人` }] : []),
+        ...(step === "real" || (realPerson && step !== "type") ? [{ key: "real" as const, label: t`真人` }] : []),
         { key: "source", label: t`选来源` },
         { key: "form", label: t`图位` },
         { key: "info", label: t`信息` },

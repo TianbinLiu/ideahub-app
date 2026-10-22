@@ -628,9 +628,11 @@ export default function SupportModelNewPage() {
       />
 
       {/* ★ 进度只画这一份（components/StepDots，CLAUDE.md 铁律六）：2026-10-22 替掉原来那行横向滚动的编号芯片。
-          发布成功（done）不在 LIVE2D_STEPS 里，停在最后一颗；步骤不能点着跳（上传 / 识别是按顺序的），所以不给 onPick */}
+          发布成功（done）不在 LIVE2D_STEPS 里，画成「全部做完」（全实心、线满），不再把最后一颗当「当前」—— 那一屏正说着发布成功；
+          步骤不能点着跳（上传 / 识别是按顺序的），所以不给 onPick */}
       <StepDots
         className="mb-4"
+        complete={s.step === "done"}
         current={s.step === "done" ? LIVE2D_STEPS.length - 1 : stepIndex}
         steps={LIVE2D_STEPS.map((k) => ({ label: t(LIVE2D_STEP_LABEL[k]) }))}
       />
