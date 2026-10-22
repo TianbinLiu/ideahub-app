@@ -27381,6 +27381,11 @@ msgstr "Ask {name}: what's wrong?"
 msgid "问卷"
 msgstr "Questionnaire"
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgctxt "step dot"
+msgid "问卷"
+msgstr "Quiz"
+
 #: src/pages/SettingsPage.tsx
 msgid "问小梦，解决不了转人工"
 msgstr "Ask Xiaomeng; anything unresolved goes to a human agent"
