@@ -19862,8 +19862,8 @@ msgid "白模那两条怎么走"
 msgstr "How the blockout routes work"
 
 #: src/components/VideoTemplateExtractor.tsx
-msgid "白模那两条路现在开不了（原因见上）。点上面「‹ 换一种做法」改选「经典配方」仍然可以做模板——它不需要付费套餐，只是不做白模人偶。"
-msgstr "The two blockout routes aren't available right now (see the reason above). You can still make a template: tap “‹ Pick a different route” above and switch to “Classic recipe” — it doesn't need a paid plan; it just doesn't make blockout mannequins."
+#~ msgid "白模那两条路现在开不了（原因见上）。点上面「‹ 换一种做法」改选「经典配方」仍然可以做模板——它不需要付费套餐，只是不做白模人偶。"
+#~ msgstr "The two blockout routes aren't available right now (see the reason above). You can still make a template: tap “‹ Pick a different route” above and switch to “Classic recipe” — it doesn't need a paid plan; it just doesn't make blockout mannequins."
 
 #: src/components/VideoTemplateExtractor.tsx
 msgid "白模那两条路都只走这一档，所以现在还开不了 —— 开通会员套餐（或充值过任意一笔）就能用；想把一条片的做法分享给别人，发布作品时公开「制作过程」就行。"
