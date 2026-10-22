@@ -27389,6 +27389,11 @@ msgstr "问{name}：哪里不对？"
 msgid "问卷"
 msgstr "问卷"
 
+#: src/pages/SupportPersonaNewPage.tsx
+msgctxt "step dot"
+msgid "问卷"
+msgstr "问卷"
+
 #: src/pages/SettingsPage.tsx
 msgid "问小梦，解决不了转人工"
 msgstr "问小梦，解决不了转人工"
