@@ -25,6 +25,7 @@ import { AUTO_EDIT, runAutoEdit, type AutoEditRun } from "../../studio/cutAutoEd
 import type { SkillStepKind } from "../../studio/structuredSkills";
 import { CloseButton } from "../IconTapButton";
 import Spinner from "../Spinner";
+import StepDots from "../StepDots";
 
 interface Props {
   project: CutProject;
@@ -136,24 +137,10 @@ export default function AutoEditSheet({ project, segs, lens, canVoice, voiceFree
           <CloseButton chip="sm" size={13} align="end" label={t`关闭`} onClick={onClose} />
         </div>
 
-        {/* 步骤栏：这条技能的形状本身（studio/cutAutoEdit 里定，这里只画） */}
-        <div className="no-scrollbar mb-2 flex gap-1.5 overflow-x-auto py-1">
-          {AUTO_EDIT.steps.map((s, i) => {
-            const done = i < stepIdx;
-            const cur = i === stepIdx;
-            return (
-              <div
-                key={s.kind}
-                title={t(s.hint)}
-                className={`flex-none rounded-full px-2.5 py-1 text-[11px] ${cur ? "bg-brand font-semibold text-ink" : done ? "bg-panel text-slate-300" : "bg-panel text-slate-500"}`}
-              >
-                {done ? "✓ " : `${i + 1} `}
-                {t(s.title)}
-                {AUTO_EDIT.confirmAt.includes(s.kind as (typeof AUTO_EDIT.confirmAt)[number]) ? " ✋" : ""}
-              </div>
-            );
-          })}
-        </div>
+        {/* 步骤栏：这条技能的形状本身（studio/cutAutoEdit 里定，这里只画）。
+            ★ 进度条只有 components/StepDots 一份实现（CLAUDE.md 铁律六）：2026-10-22 把手写的芯片行（✓ / 序号 / ✋）换成圆点，
+              做完 / 当前由圆点自己说，要人点头的那一步由下面那行 hint 说 */}
+        <StepDots className="mb-2" steps={AUTO_EDIT.steps.map((s) => ({ label: t(s.title) }))} current={stepIdx} />
         <div className="mb-2 text-[10px] leading-relaxed text-slate-500">{t(AUTO_EDIT.steps[Math.max(0, stepIdx)].hint)}</div>
 
         {err && (

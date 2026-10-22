@@ -23,6 +23,7 @@ import type { LeadSpec } from "../../studio/leadCast";
 import { LEAD_STEPS, makeLead, setLead, splitScene, useLeadDraft, type LeadStep } from "../../studio/leadDraftStore";
 import { VIDEO_ASPECTS, type Card, type VideoAspect } from "../../types";
 import Spinner from "../Spinner";
+import StepDots from "../StepDots";
 import TokenCost from "../TokenCost";
 import CastPicker from "./CastPicker";
 import ShotListEditor from "./ShotListEditor";
@@ -122,18 +123,12 @@ export default function LeadShotsWizard({
 
   return (
     <div className="space-y-3">
-      {/* 步骤条：与铸段窗「1 选式 › 2 内容 › 3 规格」同一个样子 */}
-      <div className="flex items-center gap-1 text-[10px] text-slate-500">
-        <span className="mr-1 text-xs font-bold text-slate-100">
-          <Trans>🎭 主角定妆 · 多镜头</Trans>
-        </span>
-        {LEAD_STEPS.map((s, i) => (
-          <span key={s} className={i === stepIdx ? "font-bold text-brand" : ""}>
-            {i > 0 && <span aria-hidden className="pr-1 text-slate-600">›</span>}
-            {i + 1} {t(STEP_LABEL[s])}
-          </span>
-        ))}
-      </div>
+      <p className="text-xs font-bold text-slate-100">
+        <Trans>🎭 主角定妆 · 多镜头</Trans>
+      </p>
+      {/* ★ 步骤条只有 components/StepDots 一份实现（CLAUDE.md 铁律六）：原来这里手写「1 主角 › 2 这场戏 › …」的面包屑，
+          2026-10-22 换成圆点。不给 onPick：哪几步能点回去各向导有自己的规矩（有的花过钱），退路仍是脚上的「‹ 上一步」 */}
+      <StepDots steps={LEAD_STEPS.map((s) => ({ label: t(STEP_LABEL[s]) }))} current={stepIdx} />
 
       {d.step === "cast" && (
         <>

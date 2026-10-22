@@ -86,6 +86,7 @@ import {
 } from "./blockout/arkVideoRules";
 import Icon from "./Icon";
 import { CloseButton } from "./IconTapButton";
+import StepDots from "./StepDots";
 import TokenCost from "./TokenCost";
 import { sampleFrames } from "./videoFrames";
 
@@ -223,6 +224,19 @@ const WM_CORNERS = [
     hint: msg`右下角疑似有水印或台标：白模出片会把它逐帧复刻进每一条成片，建议用裁剪框把这块框到画面外。（只是提醒，看错了直接忽略——照样可以继续。）`,
   },
 ] as const;
+
+/**
+ * 顶上那条圆点进度条的步名（2026-10-22，components/StepDots 一份实现）。模块顶层只放 msg 描述符，画时再 t()。
+ * ★ 四个字以内：四列并排时每格只有 ~90px。「挑分析帧」「标切段刀」照着 ownRef 第 1 步那颗「下一步：…」键的措辞取，
+ *   人在键上读到的与圆点下写的是同一个词。
+ */
+const EXTRACT_STEP = {
+  route: msg`选做法`,
+  file: msg`选文件`,
+  trim: msg`框选段`,
+  frames: msg`挑分析帧`,
+  splits: msg`标切段刀`,
+} as const;
 
 /** dataURL → HTMLImageElement。★ 必带超时：与 probeVideoMeta 同一个理由（后台页解码会被挂起）。 */
 function loadFrameImage(src: string): Promise<HTMLImageElement> {
@@ -739,6 +753,23 @@ export default function VideoTemplateExtractor({
    */
   const segLong = route === "ownRef" && !!trimSel && trimSel.durSec > BLOCKOUT_INPUT_RULES.maxSec;
   /**
+   * 顶上那条进度条（★ 只有 components/StepDots 一份实现，CLAUDE.md 铁律六）按**当前高亮的那条路**画步数：
+   *   AI 白模化 = 选做法 → 选文件 → 框选段（看帧 / 标题 / 开炼都在框选那一屏，见 ownRefStep 的 ★「aiBlockout 路不拆」）；
+   *   自带白模片 = 多一步「挑分析帧」（选段拖过 30 秒就是「标切段刀」，与第 1 步那颗「下一步：…」键的措辞同步换）。
+   * ★ 第 1 步上 route 已经有值（初值 / 上次选的），所以那一屏画的是高亮卡那条路的步数，点另一张卡时圆点跟着换；
+   *   两条路只差最后一步，不用「只画两颗」那种回避。
+   * ★ 只展示、不给 onPick：回退的规矩各屏自己说（「‹ 换一种做法」只在传完之前、「← 改选段」只在 ownRef 第 2 步），
+   *   圆点可点会多出一条绕过这些闸的路 —— 传完之后回第 1 步会把框选器整个卸掉（见「‹ 换一种做法」那段 ★★）。
+   * ★ 结果页（got）与路线表为空（没探完 / 不支持）时不画：前者没有下一步，后者一条路都走不了。
+   */
+  const extractSteps = [
+    EXTRACT_STEP.route,
+    EXTRACT_STEP.file,
+    EXTRACT_STEP.trim,
+    ...(route === "ownRef" ? [segLong ? EXTRACT_STEP.splits : EXTRACT_STEP.frames] : []),
+  ];
+  const extractStepIdx = step === "route" ? 0 : !receipt ? 1 : route === "ownRef" && ownRefStep === "frames" ? 3 : 2;
+  /**
    * 分段规划：**真实时长**（服务端登记值，带小数）+ 用户标的刀 → 合法分段。
    * ★ 必须用 receipt.data.durationSec 而不是时间轴那份 floor 过的整数：末段窗口按真实
    *   时长算 —— 拿 34 去规划一条 34.18 的片子，60.4 那种会规划出 [30.2] 之外的越窗段，
@@ -1232,6 +1263,10 @@ export default function VideoTemplateExtractor({
           )}
           <CloseButton chip="sm" size={13} align="end" onClick={close} />
         </div>
+        {/* 进度条：标题行正下方、正文之上（StepDots 头上的「位置」那条）。步数与当前步见 extractSteps 的 ★ */}
+        {!got && routeOpts.length > 0 && (
+          <StepDots className="mb-3" steps={extractSteps.map((s) => ({ label: t(s) }))} current={extractStepIdx} />
+        )}
         {aiTrimScreen && <TrimAutoGuide ready={!busy} />}
 
         {got ? (
