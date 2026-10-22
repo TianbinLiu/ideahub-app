@@ -1,3 +1,10 @@
+启梦 2.66
+
+· 圆点进度条的三处细节：上传 Live2D 模型发布成功后一排圆点全部实心；制作人格时点当前那一步的圆点也能回到页首；自己传图做卡片在选卡种那一屏不再提前显示「真人」这一步。
+
+QiMeng 2.66
+
+· Three details on the dot progress bar: after a Live2D model is published all dots are filled; in persona creation, tapping the current step's dot scrolls to the top too; when making a card from your own image, the "Real person" step no longer shows while you are still choosing the card type.
 启梦 2.65
 
 · 涉及多个步骤的功能（跟着做的几个向导、铸段窗、铸卡窗、自己传图做卡片、上传 Live2D 模型、制作人格、建课、提取模板，以及剧本 → 分镜 / 按主题改写 / 一键成片三张面板）屏幕上方统一加了圆点进度条：做完的实心、当前这一步的圆圈放大，每颗下面写着这一步是什么；切步时平滑过渡。
