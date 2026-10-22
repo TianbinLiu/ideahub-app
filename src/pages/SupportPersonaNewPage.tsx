@@ -1165,7 +1165,7 @@ export default function SupportPersonaNewPage() {
       />
 
       {/* ★ 进度只画这一份（components/StepDots，CLAUDE.md 铁律六）：2026-10-22 替掉原来那行可点的编号芯片。
-          能点到哪一步照旧只问 reachable（后三步要先有草稿，往前跳也行），所以传 canPick 盖掉「只能点做完的」那条默认。
+          能点到哪一步照旧只问 reachable（后三步要先有草稿，往前跳也行，当前这一步点一下也回顶部 —— 与原芯片一样），所以传 canPick 盖掉「只能点做完的」那条默认。
           七颗挤在 360px 宽上每格只有五十来像素，「基本设定」四个字在这里缩成「设定」；全名仍在副标题上。
           「问卷」的英文是 Questionnaire（十三个字母，比一格还宽、挤到旁边那颗上），圆点下面这一份另给 context、英文用 Quiz */}
       <StepDots

@@ -28,6 +28,7 @@ export default function StepDots({
   current,
   onPick,
   canPick,
+  complete = false,
   className = "",
 }: {
   steps: StepDot[];
@@ -35,16 +36,18 @@ export default function StepDots({
   current: number;
   /** 给了就允许点回**做完的**步骤（哪些能点可由 canPick 改） */
   onPick?: (index: number) => void;
-  /** 哪些步骤能点（默认：做完的）。人格向导那种「往前也能跳到够得着的步」传它 */
+  /** 哪些步骤能点（默认：做完的）。人格向导那种「往前也能跳到够得着的步」传它；给了它，当前那颗也由它说了算（原芯片点当前步会回到顶部） */
   canPick?: (index: number) => boolean;
+  /** 整条流程走完了（Live2D 上传的「发布成功」那一屏）：全部实心、进度线满、没有「当前」那颗放大的环 */
+  complete?: boolean;
   className?: string;
 }) {
   const { t } = useLingui();
   const n = steps.length;
   if (n < 2) return null;
   const cur = Math.max(0, Math.min(n - 1, current));
-  // 进度线盖到当前这颗的圆心：做完 k 步就是 k/(N−1)
-  const progress = cur / (n - 1);
+  // 进度线盖到当前这颗的圆心：做完 k 步就是 k/(N−1)；走完了就是满的
+  const progress = complete ? 1 : cur / (n - 1);
   const inset = `${100 / (2 * n)}%`;
   return (
     <ol
@@ -60,9 +63,10 @@ export default function StepDots({
         />
       </span>
       {steps.map((s, i) => {
-        const done = i < cur;
-        const active = i === cur;
-        const pickable = !!onPick && !active && (canPick ? canPick(i) : done);
+        const done = complete || i < cur;
+        const active = !complete && i === cur;
+        // 默认只有做完的能点；给了 canPick 就全听它的（含当前那颗 —— 人格向导原来的芯片点当前步会回到顶部）
+        const pickable = !!onPick && (canPick ? canPick(i) : done);
         const body = (
           <>
             <span className="relative h-3 w-3 flex-none">
