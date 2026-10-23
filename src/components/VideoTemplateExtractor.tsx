@@ -765,7 +765,9 @@ export default function VideoTemplateExtractor({
    *   两条路只差最后一步，不用「只画两颗」那种回避。
    * ★ 只展示、不给 onPick：回退的规矩各屏自己说（「‹ 换一种做法」只在传完之前、「← 改选段」只在 ownRef 第 2 步），
    *   圆点可点会多出一条绕过这些闸的路 —— 传完之后回第 1 步会把框选器整个卸掉（见「‹ 换一种做法」那段 ★★）。
-   * ★ 结果页（got）与路线表为空（没探完 / 不支持）时不画：前者没有下一步，后者一条路都走不了。
+   * ★ 结果页（got）与「探完了、服务端一条路都不支持」时不画：前者没有下一步，后者一条路都走不了。
+   *   还没探完（probed 为假、表暂时是空的）照画：route 有初值、步数算得出来，不画的话窗一开圆点要等探活回来才冒出来，
+   *   标题下面先空一行再跳一下（2026-10-22 发版前复核抓到）。
    */
   const extractSteps = [
     EXTRACT_STEP.route,
@@ -1269,7 +1271,7 @@ export default function VideoTemplateExtractor({
           <CloseButton chip="sm" size={13} align="end" onClick={close} />
         </div>
         {/* 进度条：标题行正下方、正文之上（StepDots 头上的「位置」那条）。步数与当前步见 extractSteps 的 ★ */}
-        {!got && routeOpts.length > 0 && (
+        {!got && (!probed || routeOpts.length > 0) && (
           <StepDots className="mb-3" steps={extractSteps.map((s) => ({ label: t(s) }))} current={extractStepIdx} />
         )}
         {aiTrimScreen && <TrimAutoGuide ready={!busy} />}
