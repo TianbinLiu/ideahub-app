@@ -79,7 +79,7 @@ export default function CastPicker({ leadBadge = true, children }: { leadBadge?:
       )}
       {children}
       {d.forgeNote && (
-        <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">{d.forgeNote}</p>
+        <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200">{d.forgeNote}</p>
       )}
 
       {/* 现做一个人物：一句话 → 精绘档两张（全身立绘 + 面部特写），画成就收进卡片库并选上（studio/leadCast.forgeLead） */}
@@ -149,7 +149,7 @@ export default function CastPicker({ leadBadge = true, children }: { leadBadge?:
               <Trans>✨ 现做（{forgePrice}）</Trans>
             )}
           </button>
-          {d.forgeErr && <p className="text-[11px] leading-relaxed text-rose-300">{d.forgeErr}</p>}
+          {d.forgeErr && <p className="text-[11px] leading-relaxed text-danger-300">{d.forgeErr}</p>}
           <button onClick={() => navigate("/custom-card")} className="text-[10px] text-slate-500 underline underline-offset-2">
             <Trans>用照片做（真人要先认证）→ 自己传图做卡片</Trans>
           </button>

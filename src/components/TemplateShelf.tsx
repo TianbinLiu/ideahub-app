@@ -165,7 +165,7 @@ export function TemplateCard({
               template），拿本机数标「热」是在撒谎；等计数上服务端再补那半。
               右上角是 ▶预览 钮退役后空出来的位置 */}
           {Date.now() - tpl.createdAt < 7 * 24 * 3600 * 1000 && (
-            <span className="absolute right-2 top-2 rounded bg-amber-400/95 px-1.5 py-0.5 text-[9px] font-bold text-ink">
+            <span className="absolute right-2 top-2 rounded bg-warn-400/95 px-1.5 py-0.5 text-[9px] font-bold text-ink">
               <Trans>新</Trans>
             </span>
           )}
@@ -183,7 +183,7 @@ export function TemplateCard({
               ) : tiers.length > 0 ? (
                 <span
                   className={`flex flex-none items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] ${
-                    planLocked ? "bg-amber-500/25 text-amber-100" : "bg-white/15"
+                    planLocked ? "bg-warn-500/25 text-warn-100" : "bg-white/15"
                   }`}
                 >
                   {planLocked && <Icon name="lock" size={9} />}
@@ -200,7 +200,7 @@ export function TemplateCard({
               {/* ★★ 模板视频本身出不了片时打角标，**但不从列表里拿掉**：东西静默消失，
                   用户只会以为是我们弄丢了（铁律八）。判据只有 refVideoIssue 一处 */}
               {refVideoIssue(tpl.refVideo) && (
-                <span className="rounded-full bg-black/65 px-1.5 py-0.5 text-[9px] text-rose-200"><Trans>暂时不可用</Trans></span>
+                <span className="rounded-full bg-black/65 px-1.5 py-0.5 text-[9px] text-danger-200"><Trans>暂时不可用</Trans></span>
               )}
             </div>
           </div>
@@ -265,10 +265,10 @@ function BlockoutResumeCard({ job, onTaken }: { job: BlockoutJob; onTaken: () =>
   return (
     <div
       className={`rounded-xl border px-3 py-2.5 ${
-        expired ? "border-slate-600/60 bg-black/25" : "border-amber-500/40 bg-amber-500/10"
+        expired ? "border-slate-600/60 bg-black/25" : "border-warn-500/40 bg-warn-500/10"
       }`}
     >
-      <div className="text-[11px] font-bold text-amber-200">
+      <div className="text-[11px] font-bold text-warn-200">
         {expired ? <Trans>这一发白模化已经取不回来了</Trans> : <Trans>有一发白模化还没取回结果</Trans>}
       </div>
       <div className="mt-0.5 truncate text-[11px] text-slate-300">
@@ -282,10 +282,10 @@ function BlockoutResumeCard({ job, onTaken }: { job: BlockoutJob; onTaken: () =>
             : t` · 认出 ${job.roles.length} 个角色位`
           : ""}
       </div>
-      <p className={`mt-1 text-[11px] leading-relaxed ${expired ? "text-slate-400" : "text-amber-200/90"}`}>
+      <p className={`mt-1 text-[11px] leading-relaxed ${expired ? "text-slate-400" : "text-warn-200/90"}`}>
         {blockoutJobNote(job)}
       </p>
-      {issue && <p className="mt-1.5 text-[11px] leading-relaxed text-rose-300">{issue}</p>}
+      {issue && <p className="mt-1.5 text-[11px] leading-relaxed text-danger-300">{issue}</p>}
       {!expired ? (
         <button
           onClick={() => void take()}
@@ -326,9 +326,9 @@ function OwnerRow({ t: tpl }: { t: VideoTemplate }) {
   const published = st ? st.status === "published" : tpl.published;
   const blocked = st?.status === "blocked";
   const [label, cls] = blocked
-    ? [t`已下架`, "bg-rose-500/15 text-rose-300"]
+    ? [t`已下架`, "bg-danger-500/15 text-danger-300"]
     : published
-      ? [t`已发布`, "bg-emerald-500/15 text-emerald-300"]
+      ? [t`已发布`, "bg-ok-500/15 text-ok-300"]
       : [t`草稿`, "bg-slate-700 text-slate-300"];
   return (
     <span data-guide="template-owner-row" className={`flex-none rounded-full px-2.5 py-1 text-[11px] ${cls}`}>
@@ -695,13 +695,13 @@ export default function TemplateShelf({
       )}
 
       {pickErr && (
-        <p className="mb-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-300/90">{pickErr}</p>
+        <p className="mb-2 rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-warn-300/90">{pickErr}</p>
       )}
 
       {/* 远端市场拉挂了要明说：不说的话"远端加载失败"看起来和"市场就这么几个模板"
           一模一样（铁律八——失败要响；本机与种子照常显示，所以是"响且局部"） */}
       {tab === "market" && sharedLoadIssue() && (
-        <p className="mb-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] text-amber-300/90">{sharedLoadIssue()}</p>
+        <p className="mb-2 rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[11px] text-warn-300/90">{sharedLoadIssue()}</p>
       )}
       {/* ★ 本机模板库没读出来（templates.loadIssue）：「我的模板」可能缺几条，这段时间的改动也不落本机 —— 说出来，给重试 */}
       {tab === "mine" && tplIssue && (
@@ -733,7 +733,7 @@ export default function TemplateShelf({
       {/* 名单拉不到要说出来：不说的话"拉挂了"看起来和"你没有待取回的"一模一样，
           而后者是在钱上撒谎（铁律八） */}
       {pendingBlockoutIssue() && (
-        <p className="mb-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-300/90">
+        <p className="mb-2 rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-warn-300/90">
           {pendingBlockoutIssue()}
         </p>
       )}
@@ -918,7 +918,7 @@ function TierOption({
       <span className="min-w-0 flex-1">
         <span className="block text-xs font-semibold text-slate-100">{label}</span>
         <span className="block truncate text-[10px] text-slate-500">{sub}</span>
-        {note && <span className="mt-0.5 block text-[10px] leading-relaxed text-amber-300/80">{note}</span>}
+        {note && <span className="mt-0.5 block text-[10px] leading-relaxed text-warn-300/80">{note}</span>}
       </span>
       <span className="flex-none text-[11px] text-slate-400">
         <Trans>{count} 个模板</Trans>

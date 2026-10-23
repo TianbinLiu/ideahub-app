@@ -155,7 +155,7 @@ export default function TrimBar({
         </span>
         <span
           className={`rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums ${
-            durSec >= minSec && durSec <= maxSec ? "bg-sky-500/20 text-sky-200" : "bg-rose-500/20 text-rose-200"
+            durSec >= minSec && durSec <= maxSec ? "bg-sky-500/20 text-sky-200" : "bg-danger-500/20 text-danger-200"
           }`}
         >
           <Trans>{durSec} 秒</Trans>

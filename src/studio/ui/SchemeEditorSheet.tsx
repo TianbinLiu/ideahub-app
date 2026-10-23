@@ -259,7 +259,7 @@ export default function SchemeEditorSheet({
           </Trans>
         </p>
 
-        {err && <p className="mt-2 text-[11px] leading-relaxed text-rose-300">{err}</p>}
+        {err && <p className="mt-2 text-[11px] leading-relaxed text-danger-300">{err}</p>}
         <button onClick={save} className="mt-2.5 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink">
           {AI_REAL && cost > 0
             ? copying
@@ -284,7 +284,7 @@ function SlotPromptMeter({ text }: { text: string }) {
   const han = (text.match(/\p{Script=Han}/gu) ?? []).length;
   const long = han > SLOT_PROMPT_SOFT_HAN;
   return (
-    <p className={`mt-0.5 text-right text-[9px] tabular-nums ${long ? "text-amber-300" : "text-slate-400"}`}>
+    <p className={`mt-0.5 text-right text-[9px] tabular-nums ${long ? "text-warn-300" : "text-slate-400"}`}>
       {long ? (
         <Trans>
           {used}/{SCHEME_SLOT_PROMPT_MAX} · 超过 {SLOT_PROMPT_SOFT_HAN} 个汉字，模型可能顾不上后面的细节

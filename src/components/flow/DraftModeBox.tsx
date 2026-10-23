@@ -82,8 +82,8 @@ export default function DraftModeBox({
   // ③ 已定稿
   if (stage === "final") {
     return (
-      <div className="space-y-1 rounded-lg border border-slate-700/70 bg-black/25 px-2.5 py-2">
-        <p className="text-[11px] leading-relaxed text-emerald-300">
+      <div className="space-y-1 rounded-lg bg-black/25 px-2.5 py-2">
+        <p className="text-[11px] leading-relaxed text-ok-300">
           {/* 「上一版在还原上一版里」只在它真的在那儿时说：取回来新开一段安放的定稿（placeRescuedSegment）没有上一版可还原 */}
           {prop.prevVideoUrl && prop.prevVideoUrl === prop.draftUrl ? (
             <Trans>✓ 已定稿成 1080p。上一版（480p 样片）在「修这一段」的「还原上一版」里。</Trans>
@@ -122,7 +122,7 @@ export default function DraftModeBox({
         </p>
         {/* 还原上一版之后又回到了样片：这条样片定稿过，成片就在「还原上一版」里 —— 别让人再花一次定稿的钱去换一条差不多的 */}
         {prop.finalUrl && prop.prevVideoUrl === prop.finalUrl && (
-          <p className="text-[11px] leading-relaxed text-emerald-300">
+          <p className="text-[11px] leading-relaxed text-ok-300">
             <Trans>这条样片已经定稿过一次：1080p 成片在「修这一段」的「还原上一版」里，点它就回去了，不用再花钱。</Trans>
           </p>
         )}
@@ -152,7 +152,7 @@ export default function DraftModeBox({
   const step1 = AI_REAL ? fmtTokens(draftStepTokens(prop.durationSec, ratio)) : t`演示`;
   const step2 = AI_REAL ? fmtTokens(draftFinalTokens(prop.durationSec, ratio)) : t`演示`;
   return (
-    <div className="space-y-1 rounded-lg border border-slate-700/70 bg-black/25 px-2.5 py-2">
+    <div className="space-y-1 rounded-lg bg-black/25 px-2.5 py-2">
       {toggle}
       {!blocked && (
         <p className="text-[10px] leading-relaxed text-slate-500">

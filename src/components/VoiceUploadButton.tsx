@@ -23,7 +23,7 @@ export default function VoiceUploadButton({
       >
         {busy ? <Trans>处理中…</Trans> : <Trans>🎵 上传本地音频（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）</Trans>}
       </button>
-      {err && <p className="mt-1 text-[10px] leading-relaxed text-rose-300">{err}</p>}
+      {err && <p className="mt-1 text-[10px] leading-relaxed text-danger-300">{err}</p>}
       <input
         ref={fileRef}
         type="file"

@@ -550,7 +550,7 @@ export default function SupportPage() {
             <div className="flex items-center gap-2">
               <span className="truncate text-base font-bold text-slate-100">{name}</span>
               <span className="flex items-center gap-1 rounded-full px-2 py-0.5 bg-white/10 text-[10px] text-slate-200">
-                <span className={`h-1.5 w-1.5 rounded-full ${phase === "idle" ? (enabled ? "bg-emerald-400" : "bg-slate-500") : "bg-brand animate-pulse"}`} />
+                <span className={`h-1.5 w-1.5 rounded-full ${phase === "idle" ? (enabled ? "bg-ok-400" : "bg-slate-500") : "bg-brand animate-pulse"}`} />
                 {statusLabel}
               </span>
             </div>
@@ -625,7 +625,7 @@ export default function SupportPage() {
             onClick={() => setHistoryOpen(true)}
             onKeyDown={(e) => e.key === "Enter" && setHistoryOpen(true)}
             aria-label={t`查看完整对话记录`}
-            className={`max-h-[26vh] overflow-y-auto text-sm leading-6 ${lastAssistant?.system ? "text-emerald-100" : "text-slate-100"}`}
+            className={`max-h-[26vh] overflow-y-auto text-sm leading-6 ${lastAssistant?.system ? "text-ok-100" : "text-slate-100"}`}
           >
             {reaction || lastAssistant?.text || (phase === "thinking" ? "…" : greeting)}
             {configErr && !messages.length && <Warn className="mt-1">{configErr}</Warn>}
@@ -637,7 +637,7 @@ export default function SupportPage() {
                 {lastAssistant.rating === "up" ? t`谢谢反馈` : lastAssistant.rating === "down" ? t`抱歉没帮上，要不要转人工？` : t`这个回答有帮助吗？`}
               </span>
               {lastAssistant.rating === "down" && (
-                <button onClick={openSheet} className="rounded-full bg-amber-400 px-2.5 py-1 text-[11px] font-semibold text-ink active:opacity-60">
+                <button onClick={openSheet} className="rounded-full bg-warn-400 px-2.5 py-1 text-[11px] font-semibold text-ink active:opacity-60">
                   <Trans>转人工</Trans>
                 </button>
               )}
@@ -645,7 +645,7 @@ export default function SupportPage() {
                 onClick={() => rate(lastAssistant, "up")}
                 aria-label={t`有帮助`}
                 aria-pressed={lastAssistant.rating === "up"}
-                className={`flex h-8 w-8 items-center justify-center rounded-full text-base ${lastAssistant.rating === "up" ? "bg-emerald-500/25" : "active:bg-white/10"}`}
+                className={`flex h-8 w-8 items-center justify-center rounded-full text-base ${lastAssistant.rating === "up" ? "bg-ok-500/25" : "active:bg-white/10"}`}
               >
                 👍
               </button>
@@ -653,7 +653,7 @@ export default function SupportPage() {
                 onClick={() => rate(lastAssistant, "down")}
                 aria-label={t`没帮上`}
                 aria-pressed={lastAssistant.rating === "down"}
-                className={`flex h-8 w-8 items-center justify-center rounded-full text-base ${lastAssistant.rating === "down" ? "bg-rose-500/25" : "active:bg-white/10"}`}
+                className={`flex h-8 w-8 items-center justify-center rounded-full text-base ${lastAssistant.rating === "down" ? "bg-danger-500/25" : "active:bg-white/10"}`}
               >
                 👎
               </button>
@@ -662,10 +662,10 @@ export default function SupportPage() {
         </div>
 
         {handoffHint && phase === "idle" && (
-          <div className="mb-2 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-50 backdrop-blur-md">
+          <div className="mb-2 rounded-xl border border-warn-500/40 bg-warn-500/10 p-3 text-xs leading-relaxed text-warn-50 backdrop-blur-md">
             <Trans>这个问题需要人工处理（{categoryLabel(handoffHint.category)}）。转人工会把这段对话一起交给客服，你不用再讲一遍。</Trans>
             <div className="mt-2 flex gap-2">
-              <button onClick={openSheet} className="rounded-full bg-amber-400 px-3.5 py-1.5 text-xs font-semibold text-ink active:opacity-60">
+              <button onClick={openSheet} className="rounded-full bg-warn-400 px-3.5 py-1.5 text-xs font-semibold text-ink active:opacity-60">
                 <Trans>转人工</Trans>
               </button>
               <button onClick={() => setHandoffHint(null)} className="rounded-full border border-white/20 px-3.5 py-1.5 text-xs text-slate-200 active:bg-slate-800/60">
@@ -674,7 +674,7 @@ export default function SupportPage() {
             </div>
           </div>
         )}
-        {chatErr && <p className="mb-2 px-1 text-xs leading-relaxed text-rose-300">{chatErr}</p>}
+        {chatErr && <p className="mb-2 px-1 text-xs leading-relaxed text-danger-300">{chatErr}</p>}
         {micErr && <Warn className="mb-2 px-1">{micErr}</Warn>}
         {stageNotice && <Warn className="mb-2 px-1">{stageNotice}</Warn>}
 
@@ -715,7 +715,7 @@ export default function SupportPage() {
             className="h-10 min-w-0 flex-1 bg-transparent px-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 disabled:opacity-40"
           />
           {phase !== "idle" ? (
-            <button type="button" onClick={stopAll} aria-label={t`停止`} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-500/25 text-rose-200">
+            <button type="button" onClick={stopAll} aria-label={t`停止`} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-danger-500/25 text-danger-200">
               <span className="block h-3.5 w-3.5 rounded-sm bg-current" />
             </button>
           ) : (
@@ -782,7 +782,7 @@ export default function SupportPage() {
               placeholder={t`联系邮箱（选填，用手机号/QQ 登录的建议留一个）`}
               className="mt-2 h-10 w-full rounded-full border border-slate-700 bg-slate-950 px-4 text-xs text-slate-100 outline-none placeholder:text-slate-500"
             />
-            {sheetErr && <p className="mt-2 text-xs leading-relaxed text-rose-300">{sheetErr}</p>}
+            {sheetErr && <p className="mt-2 text-xs leading-relaxed text-danger-300">{sheetErr}</p>}
             <div className="mt-3 flex gap-2">
               <button onClick={() => void submitTicket()} disabled={submitting} className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-semibold text-ink disabled:opacity-40">
                 {submitting ? t`提交中…` : t`提交给人工客服`}
@@ -824,7 +824,7 @@ function HistorySheet({ name, messages, onClose }: { name: string; messages: Cha
                   m.role === "user"
                     ? "rounded-br-sm bg-brand text-ink"
                     : m.system
-                      ? "border border-emerald-500/30 bg-emerald-500/10 text-emerald-100"
+                      ? "border border-ok-500/30 bg-ok-500/10 text-ok-100"
                       : "rounded-bl-sm bg-slate-800 text-slate-100"
                 }`}
               >
@@ -873,7 +873,7 @@ function TicketsPanel({
     }
   }
 
-  if (err) return <p className="m-3 rounded-xl border border-rose-500/40 bg-rose-500/10 p-3 text-xs leading-relaxed text-rose-300">{err}</p>;
+  if (err) return <p className="m-3 rounded-xl border border-danger-500/40 bg-danger-500/10 p-3 text-xs leading-relaxed text-danger-300">{err}</p>;
   if (!tickets) return <EmptyState compact loading text={t`读取中…`} />;
   if (!tickets.length) return <EmptyState emoji="🎫" text={t`还没有工单`} hint={t`和 AI 客服聊不明白的问题，点「转人工」就会出现在这里`} />;
 
@@ -891,7 +891,7 @@ function TicketsPanel({
           {tk.replies.length > 0 && (
             <div className="mt-2 space-y-1.5">
               {tk.replies.map((r) => (
-                <div key={r.id} className={`rounded-xl px-3 py-2 text-sm leading-5 ${r.by === "admin" ? "bg-emerald-500/10 text-emerald-100" : "bg-slate-800 text-slate-200"}`}>
+                <div key={r.id} className={`rounded-xl px-3 py-2 text-sm leading-5 ${r.by === "admin" ? "bg-ok-500/10 text-ok-100" : "bg-slate-800 text-slate-200"}`}>
                   <span className="mr-1.5 text-[11px] text-slate-400">{r.by === "admin" ? t`客服` : t({ message: "我", context: "工单回复前的署名：这条是我自己补充的" })} · {relativeTime(Date.parse(r.at))}</span>
                   {r.content}
                 </div>
@@ -914,7 +914,7 @@ function TicketsPanel({
               {busy === tk.id ? "…" : t`发送`}
             </button>
           </div>
-          {rowErr[tk.id] && <p className="mt-1 text-xs text-rose-300">{rowErr[tk.id]}</p>}
+          {rowErr[tk.id] && <p className="mt-1 text-xs text-danger-300">{rowErr[tk.id]}</p>}
         </section>
       ))}
     </div>

@@ -81,7 +81,7 @@ export default function DeleteSegBtn({
       }}
       onBlur={() => setArmed(false)}
       disabled={disabled}
-      className={`${className} ${armed ? "bg-rose-500 font-bold text-white" : ""}`}
+      className={`${className} ${armed ? "bg-danger-500 font-bold text-white" : ""}`}
     >
       {armed ? (
         done ? (

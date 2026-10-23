@@ -34,7 +34,7 @@ export default function CastPreviewCard({
     }
   };
   return (
-    <div className="space-y-1.5 rounded-lg border border-slate-700/70 bg-black/25 px-2.5 py-2">
+    <div className="space-y-1.5 rounded-lg bg-black/25 px-2.5 py-2">
       {node.castPreview ? (
         <>
           <img src={node.castPreview} alt={t`挂卡合成预览`} className="w-full rounded-md" />

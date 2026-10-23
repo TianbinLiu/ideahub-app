@@ -215,12 +215,12 @@ function BlockoutCastBox({ node, onCast }: { node: FlowNode; onCast: () => void 
           （blockoutPrompt 的 ★，铁律八）。骨架是确定性的那一份（第五章模板逐字实现），
           填进去照样可以改 */}
       {castErr && castOfThisNode && (
-        <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
-          <p className="text-[11px] leading-relaxed text-rose-300">{castErr}</p>
+        <div className="space-y-1.5 rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2">
+          <p className="text-[11px] leading-relaxed text-danger-300">{castErr}</p>
           {castFallback && (
             <button
               onClick={fillCastFallback}
-              className="rounded-full bg-amber-500/90 px-2.5 py-1 text-[11px] font-bold text-ink"
+              className="rounded-full bg-warn-500/90 px-2.5 py-1 text-[11px] font-bold text-ink"
             >
               <Trans>填入默认写法（填完还能改）</Trans>
             </button>
@@ -568,7 +568,7 @@ function NodeScreen({
           <span className="flex-none text-[11px] text-slate-300">
             {total > 1 ? t`第 ${index + 1}/${total} 段` : t`本段`}
           </span>
-          {done && <span className="flex-none rounded-full px-2 py-0.5 bg-emerald-500/85 text-[10px] text-ink"><Trans>✓ 已出片</Trans></span>}
+          {done && <span className="flex-none rounded-full px-2 py-0.5 bg-ok-500/85 text-[10px] text-ink"><Trans>✓ 已出片</Trans></span>}
           {picking && <span className="flex-none rounded-full px-2 py-0.5 bg-gold/20 text-[10px] text-gold"><Trans>待挑方案</Trans></span>}
           {generating && (
             <span className="min-w-0 flex-1 animate-pulse truncate rounded-full bg-brand px-1.5 text-[10px] font-semibold text-ink">
@@ -579,12 +579,12 @@ function NodeScreen({
               而它其实多半还在方舟那边跑、钱也已经花了。颜色在这里不是装饰，
               它决定用户下一步去点「取回」还是点「重新生成」（后者再花一次钱） */}
           {pending && (
-            <span className="min-w-0 flex-1 truncate rounded-full bg-amber-500/90 px-1.5 text-[10px] font-semibold text-ink">
+            <span className="min-w-0 flex-1 truncate rounded-full bg-warn-500/90 px-1.5 text-[10px] font-semibold text-ink">
               ⏳ {node.error}
             </span>
           )}
           {node.status === "failed" && (
-            <span className="min-w-0 flex-1 truncate rounded-full bg-rose-500/85 px-1.5 text-[10px] text-white">
+            <span className="min-w-0 flex-1 truncate rounded-full bg-danger-500/85 px-1.5 text-[10px] text-white">
               ✗ {node.error}
             </span>
           )}
@@ -652,7 +652,7 @@ function NodeScreen({
             {(prop.poster || prop.firstFrame) && (
               <img src={prop.poster || prop.firstFrame} alt="" className="max-h-40 max-w-full rounded-lg opacity-70" />
             )}
-            <p className="text-center text-xs leading-relaxed text-rose-300">
+            <p className="text-center text-xs leading-relaxed text-danger-300">
               <Trans>这一段的视频拉不下来</Trans>
               <br />
               <span className="text-[11px]"><Trans>网络不好，或者这条链接已经过期（隔天打开的草稿常见）</Trans></span>
@@ -716,12 +716,12 @@ function NodeScreen({
                 V1 与经典模板一个字没变，还是这个「一句话」框 */}
             {named ? <BlockoutCastBox node={node} onCast={requestCast} /> : <TemplateSubjectBox />}
             {castAsk && (
-              <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+              <div className="space-y-1.5 rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2">
                 <Warn>
                   <Trans>改完挂卡会按新的映射<b>重新合成</b>下面那段要求，你改过的字会被替换掉 —— 因为旧的那段话里写的还是旧的挂卡，留着它 AI 就会照旧的换人。</Trans>
                 </Warn>
                 <div className="flex gap-2">
-                  <button onClick={openCast} className="rounded-full bg-amber-500/90 px-2.5 py-1 text-[11px] font-bold text-ink">
+                  <button onClick={openCast} className="rounded-full bg-warn-500/90 px-2.5 py-1 text-[11px] font-bold text-ink">
                     <Trans>继续去挂卡</Trans>
                   </button>
                   <button onClick={() => setCastAsk(false)} className="rounded-full px-2.5 py-1 text-[11px] text-slate-300">
@@ -919,7 +919,7 @@ function NodeScreen({
           </button>
         </div>
         {/* 圈选没截到这一秒时的那句话，就摆在入口旁（铁律八）；下一次截成功就清掉 */}
-        {annIssue && <p className="text-[11px] leading-relaxed text-rose-300">{annIssue}</p>}
+        {annIssue && <p className="text-[11px] leading-relaxed text-danger-300">{annIssue}</p>}
 
         {/* 出片之后才给"往下走"。最后一段没有下一段可去，改成就地追加一段——
             底部节点条上的 ＋ 现在也要等出片才亮，这里是同一条规则的另一个入口 */}
@@ -1245,7 +1245,7 @@ export default function FlowPage() {
                   专注态里是 hidden 的。推演失败（敏感词 400、余额不足、上游超时）本来就常发生在
                   这个状态下——收起来就等于"点了没反应"，铁律八。generating 时不显示旧错误。 */}
               {node.status !== "generating" && node.error && (
-                <span className="min-w-0 flex-1 truncate rounded-full bg-rose-500/90 px-2.5 py-1.5 text-[11px] font-semibold text-white">
+                <span className="min-w-0 flex-1 truncate rounded-full bg-danger-500/90 px-2.5 py-1.5 text-[11px] font-semibold text-white">
                   ✗ {node.error}
                 </span>
               )}
@@ -1426,7 +1426,7 @@ export default function FlowPage() {
           {/* ★ 报错条**不跟着专注态收起**（其余都收）：推演/重画失败、余额不足都从这里说话，
               藏起来就是静默失败（铁律八）。它是 flex-none，出现时把方案台顶下去一点点而已 */}
           {err && (
-            <div className="mx-4 mb-1.5 flex flex-none items-start gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
+            <div className="mx-4 mb-1.5 flex flex-none items-start gap-2 rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-xs text-danger-300">
               <span className="min-w-0 flex-1">{err}</span>
               <button onClick={() => useFlow.setState({ err: "" })} className="flex-none">
                 <Icon name="close" size={14} />
@@ -1494,7 +1494,7 @@ export default function FlowPage() {
                             </span>
                           )}
                           {nodeDone(n) ? (
-                            <span className="absolute right-0.5 top-0.5 rounded-full bg-emerald-500/90 px-1 text-[8px] text-ink">
+                            <span className="absolute right-0.5 top-0.5 rounded-full bg-ok-500/90 px-1 text-[8px] text-ink">
                               ✓
                             </span>
                           ) : (
@@ -1533,7 +1533,7 @@ export default function FlowPage() {
                       disabled={busy || nodes.length <= 1}
                       /* 删 + 「撤销」轻提示只有 removeNodeWithUndo 一份；这一面删完不用关什么，回值不管 */
                       onConfirm={() => void removeNodeWithUndo(node.id)}
-                      className="rounded bg-rose-500/15 px-2 py-1 text-rose-300 disabled:opacity-40"
+                      className="rounded bg-danger-500/15 px-2 py-1 text-danger-300 disabled:opacity-40"
                     />
                     <span className="min-w-0 flex-1 truncate text-right text-slate-500">
                       <Trans>总时长 {formatDuration(nodes.reduce((s, n) => s + chosenOf(n).durationSec, 0))}</Trans>

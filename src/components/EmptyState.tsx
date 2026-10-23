@@ -91,7 +91,7 @@ export default function EmptyState({
         <span className={`${compact ? "text-2xl" : "text-4xl"} leading-none`}>{emoji}</span>
       ) : null}
       {title && <h2 className="text-base font-bold text-slate-100">{title}</h2>}
-      <p className={`${compact ? "text-xs" : "text-sm"} leading-relaxed ${error ? "text-rose-300" : "text-slate-400"}`}>{text}</p>
+      <p className={`${compact ? "text-xs" : "text-sm"} leading-relaxed ${error ? "text-danger-300" : "text-slate-400"}`}>{text}</p>
       {hint && <p className={`${compact ? "text-[11px]" : "text-xs"} leading-relaxed text-slate-400`}>{hint}</p>}
       {cta &&
         (cta.to ? (

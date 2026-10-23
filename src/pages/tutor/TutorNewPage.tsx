@@ -173,7 +173,7 @@ export default function TutorNewPage() {
       {/* ★ 进度只画这一份（components/StepDots，CLAUDE.md 铁律六）：2026-10-22 替掉副标题那句「第 n / 4 步 · 名字」——
           四步的名字就在圆点下面，副标题不再重复。纯展示：从课程列表「继续建课」进来直接站在第 2 / 3 步，回退走各步自己的键 */}
       <StepDots className="mb-4" current={step - 1} steps={[{ label: t`课程` }, { label: t`教材` }, { label: t`老师` }, { label: t`生成` }]} />
-      {err &&<p className="mb-3 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">{err}</p>}
+      {err &&<p className="mb-3 rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-xs text-danger-300">{err}</p>}
 
       {step === 1 && (
         <section className="space-y-3">
@@ -301,9 +301,9 @@ export default function TutorNewPage() {
             )}
           </div>
           {gen && (
-            <div className={`rounded-lg border px-3 py-2 text-xs leading-relaxed ${gen.status === "failed" ? "border-rose-500/40 bg-rose-500/10 text-rose-200" : "border-sky-500/40 bg-sky-500/10 text-sky-200"}`}>
+            <div className={`rounded-lg border px-3 py-2 text-xs leading-relaxed ${gen.status === "failed" ? "border-danger-500/40 bg-danger-500/10 text-danger-200" : "border-sky-500/40 bg-sky-500/10 text-sky-200"}`}>
               {gen.status === "failed" ? (
-                <>{t`老师没铸成：${gen.error || "?"}`}{gen.failures.length > 0 && <div className="mt-1 text-[11px] text-rose-300">{gen.failures.join("；")}</div>}</>
+                <>{t`老师没铸成：${gen.error || "?"}`}{gen.failures.length > 0 && <div className="mt-1 text-[11px] text-danger-300">{gen.failures.join("；")}</div>}</>
               ) : gen.status === "succeeded" ? (
                 t`铸好了，正在进教室…`
               ) : (

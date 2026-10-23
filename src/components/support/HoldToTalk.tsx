@@ -249,7 +249,7 @@ export default function HoldToTalk({ disabled, onText, onError, className = "" }
             <span><Trans>识别中…</Trans></span>
           ) : (
             <>
-              <span className={`h-2.5 w-2.5 rounded-full ${cancelling ? "bg-slate-500" : "bg-rose-500 animate-pulse"}`} />
+              <span className={`h-2.5 w-2.5 rounded-full ${cancelling ? "bg-slate-500" : "bg-danger-500 animate-pulse"}`} />
               <span className="min-w-0 flex-1 truncate">{cancelling ? t`松开取消` : t`松开发送 · ${elapsed.toFixed(1)}s`}</span>
               <span className="flex h-3 w-10 items-end gap-0.5" aria-hidden="true">
                 {[0.3, 0.6, 1, 0.6, 0.3].map((k, i) => (
@@ -272,7 +272,7 @@ export default function HoldToTalk({ disabled, onText, onError, className = "" }
         aria-label={recording ? t`松开发送` : t`按住说话`}
         aria-pressed={recording}
         className={`flex h-10 w-10 select-none items-center justify-center rounded-full transition [touch-action:none] ${
-          recording ? (cancelling ? "bg-slate-600 text-slate-200" : "bg-rose-500 text-white scale-110") : "text-slate-300 active:bg-white/10"
+          recording ? (cancelling ? "bg-slate-600 text-slate-200" : "bg-danger-500 text-white scale-110") : "text-slate-300 active:bg-white/10"
         } disabled:opacity-40`}
       >
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

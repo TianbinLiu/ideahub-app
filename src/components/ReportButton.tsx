@@ -157,7 +157,7 @@ export default function ReportButton({
                 </button>
               </div>
             ) : done ? (
-              <p className="pb-6 text-sm text-emerald-300"><Trans>已收到，管理员会尽快处理。</Trans></p>
+              <p className="pb-6 text-sm text-ok-300"><Trans>已收到，管理员会尽快处理。</Trans></p>
             ) : (
               <>
                 <div className="flex flex-wrap gap-2">
@@ -178,7 +178,7 @@ export default function ReportButton({
                     有 48 小时法定时限（TAKE IT DOWN Act §3）。少这一句，最需要那条通道的人
                     就只会在这里提交一条普通举报，然后以为已经走完了流程。 */}
                 {reason === "ncii" && (
-                  <p className="mt-2.5 rounded-xl border border-amber-700/60 bg-amber-950/40 px-3 py-2 text-[11px] leading-relaxed text-amber-100">
+                  <p className="mt-2.5 rounded-xl border border-warn-700/60 bg-warn-950/40 px-3 py-2 text-[11px] leading-relaxed text-warn-100">
                     <Trans>如果影像里的人是你自己：另有一条更直接的通道 —— {SITE_BASE}/takedown，不用登录，我们会在 48 小时内处理并查找站内的相同副本。</Trans>
                   </p>
                 )}
@@ -191,7 +191,7 @@ export default function ReportButton({
                   className="mt-3 w-full resize-none rounded-xl border border-slate-700 bg-black/30 px-3 py-2 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
                 />
                 {/* 失败就地说清楚（"你已经举报过了"也在这儿），并且不关窗 */}
-                {err && <p className="mt-1.5 text-[11px] leading-relaxed text-rose-300">{err}</p>}
+                {err && <p className="mt-1.5 text-[11px] leading-relaxed text-danger-300">{err}</p>}
                 <button
                   onClick={() => void submit()}
                   disabled={!reason || busy}

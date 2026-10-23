@@ -241,12 +241,12 @@ export default function NotificationsPage() {
                     </span>
                   ) : n.refund ? (
                     // 生成失败退款：平台口径，没有 actor（同 ADMIN_NOTICE 的铃铛：不拿「有人」两个字去画字母头像）
-                    <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-emerald-500/15 text-lg" aria-hidden>
+                    <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-ok-500/15 text-lg" aria-hidden>
                       ↩️
                     </span>
                   ) : n.reward?.anonymous ? (
                     // 同款奖励、服务端没带是谁（两人之间有拉黑 / 那条同款已经不公开）：不拿「有人」两个字去画字母头像
-                    <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-emerald-500/15 text-lg" aria-hidden>
+                    <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-ok-500/15 text-lg" aria-hidden>
                       🎁
                     </span>
                   ) : (
@@ -279,7 +279,7 @@ export default function NotificationsPage() {
                         </div>
                       ) : (
                         // 服务端没把正文放进 payload.commentText —— 契约问题，说出来（铁律八）
-                        <div className="mt-0.5 text-xs text-rose-300"><Trans>（通知内容缺失）</Trans></div>
+                        <div className="mt-0.5 text-xs text-danger-300"><Trans>（通知内容缺失）</Trans></div>
                       )
                     ) : n.type === "BRANCH_REVISED" ? null : ( // ★ 见下面 ★★
                       n.commentText && (
@@ -297,7 +297,7 @@ export default function NotificationsPage() {
                         下面那行通用的作品名对这一类不画 —— 它是**那条同款**的名字，摆在「原作」下面读起来像同一件东西 */}
                     {n.reward && (
                       <>
-                        <div className="mt-0.5 text-xs font-semibold text-emerald-300">
+                        <div className="mt-0.5 text-xs font-semibold text-ok-300">
                           {n.reward.tokens > 0 ? t`🎁 平台奖励你 ${fmtTokens(n.reward.tokens)} token` : t`🎁 平台给你发了同款奖励`}
                         </div>
                         {n.reward.originalTitle && (
@@ -307,7 +307,7 @@ export default function NotificationsPage() {
                     )}
                     {/* 生成失败退款：金额一行（服务端的数，不在这里另写）。★ 说「已退回」不说「已到账」以外的承诺：钱是服务端退的，这里只是告诉你 */}
                     {n.refund && (
-                      <div className="mt-0.5 text-xs font-semibold text-emerald-300">
+                      <div className="mt-0.5 text-xs font-semibold text-ok-300">
                         {n.refund.tokens > 0 ? t`扣的 ${fmtTokens(n.refund.tokens)} token 已经退回` : t`扣的 token 已经退回`}
                       </div>
                     )}
@@ -320,7 +320,7 @@ export default function NotificationsPage() {
                     <div className="mt-1 text-[11px] text-slate-500">{relativeTime(n.at)}</div>
                   </div>
                   {/* 未读点：靠右，与头像同一条基线 */}
-                  {!n.read && <span className="mt-2 h-2 w-2 flex-none rounded-full bg-rose-500" />}
+                  {!n.read && <span className="mt-2 h-2 w-2 flex-none rounded-full bg-danger-500" />}
                 </button>
               </li>
             ))}

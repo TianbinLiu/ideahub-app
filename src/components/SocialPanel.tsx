@@ -82,7 +82,7 @@ export default function SocialPanel({ kind, id }: { kind: SocialKind; id: string
         </div>
         <button
           onClick={() => !need() && toggleLike(kind, id)}
-          className={`flex flex-1 flex-col items-center gap-0.5 rounded-lg py-1.5 transition-colors ${r.liked ? "text-rose-400" : "text-slate-400"}`}
+          className={`flex flex-1 flex-col items-center gap-0.5 rounded-lg py-1.5 transition-colors ${r.liked ? "text-danger-400" : "text-slate-400"}`}
         >
           <Icon name="heart" size={16} />
           <span className="text-[11px] tabular-nums">{fmt(r.likes)}</span>
@@ -110,7 +110,7 @@ export default function SocialPanel({ kind, id }: { kind: SocialKind; id: string
       {/* ★ 本机那份互动记录开机时没读出来（data/social 的 loadIssue）：缺的那一块不是"没有"，
           这次的改动也不落盘 —— 两件事都得在这里说（铁律八） */}
       {socialLoadIssue() && (
-        <p className="mt-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-300">
+        <p className="mt-1.5 rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-warn-300">
           {r.source === "server" ? (
             <Trans>这台设备上存的评论这会儿没读出来，这次写的评论关掉 App 就没了。</Trans>
           ) : (
@@ -118,7 +118,7 @@ export default function SocialPanel({ kind, id }: { kind: SocialKind; id: string
           )}
         </p>
       )}
-      {tip && <p className="mt-1.5 text-center text-[11px] text-amber-400">{tip}</p>}
+      {tip && <p className="mt-1.5 text-center text-[11px] text-warn-400">{tip}</p>}
 
       {/* 评论区 */}
       <div className="mt-4">

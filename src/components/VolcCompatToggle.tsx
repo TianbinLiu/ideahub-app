@@ -276,7 +276,7 @@ export default function VolcCompatToggle({
                   onClick={() => bind(it.id, t`火山引擎认证`)}
                   className="w-full rounded-lg border border-slate-700 bg-ink/40 px-2 py-1.5 text-left"
                 >
-                  <span className="block font-mono text-[10px] text-emerald-300">{it.id}</span>
+                  <span className="block font-mono text-[10px] text-ok-300">{it.id}</span>
                   <span className="block text-[9px] text-slate-500">
                     {it.name || ""}
                     {it.createTime ? `${it.name ? " · " : ""}${assetTime(it.createTime)}` : ""}
@@ -319,10 +319,10 @@ export default function VolcCompatToggle({
             </div>
           )}
 
-          {msg && <p className="text-[10px] leading-relaxed text-rose-300">{msg}</p>}
+          {msg && <p className="text-[10px] leading-relaxed text-danger-300">{msg}</p>}
 
           {failed.map((it) => (
-            <p key={it.id} className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-[9px] leading-relaxed text-rose-300">
+            <p key={it.id} className="rounded-lg border border-danger-500/40 bg-danger-500/10 px-2.5 py-1.5 text-[9px] leading-relaxed text-danger-300">
               ✗ {it.name || it.id} <Trans>没过审核：</Trans>
               {it.error?.message || it.error?.code || t`火山没给原因`}
             </p>
@@ -339,7 +339,7 @@ export default function VolcCompatToggle({
                 placeholder={t`粘贴素材 ID 或 asset://…`}
                 className="w-full rounded-lg border border-slate-700 bg-ink/60 px-2.5 py-2 font-mono text-[11px] text-slate-100 placeholder:text-slate-500"
               />
-              {draftErr && <p className="mt-1 text-[10px] leading-relaxed text-rose-300">{draftErr}</p>}
+              {draftErr && <p className="mt-1 text-[10px] leading-relaxed text-danger-300">{draftErr}</p>}
               <button onClick={saveManual} className="mt-1.5 w-full rounded-full bg-brand py-1.5 text-[11px] font-bold text-ink">
                 <Trans>绑定</Trans>
               </button>

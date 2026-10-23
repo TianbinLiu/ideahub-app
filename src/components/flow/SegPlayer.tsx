@@ -200,7 +200,7 @@ export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: st
           同为 z-50 的 PlanSheet / TemplatePicker 早就各自画了一份，就漏了这个自己写 err 的。 */}
       {err && (
         <div
-          className="mx-3 mt-1 flex flex-none items-start gap-2 rounded-lg border border-rose-500/40 bg-rose-500/95 px-2.5 py-1.5"
+          className="mx-3 mt-1 flex flex-none items-start gap-2 rounded-lg border border-danger-500/40 bg-danger-500/95 px-2.5 py-1.5"
           onClick={(e) => e.stopPropagation()}
         >
           <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-white">{err}</p>
@@ -333,10 +333,10 @@ export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: st
             {(chosenOf(node).poster || chosenOf(node).firstFrame) && (
               <img src={chosenOf(node).poster || chosenOf(node).firstFrame} alt="" className="max-h-[50%] max-w-full rounded-lg opacity-70" />
             )}
-            <p className="max-w-xs text-center text-xs leading-relaxed text-rose-300">
+            <p className="max-w-xs text-center text-xs leading-relaxed text-danger-300">
               <Trans>这一段的视频拉不下来</Trans>
               <br />
-              <span className="text-[11px] text-rose-300"><Trans>网络不好，或者这条链接已经过期（隔天打开的草稿常见）</Trans></span>
+              <span className="text-[11px] text-danger-300"><Trans>网络不好，或者这条链接已经过期（隔天打开的草稿常见）</Trans></span>
             </p>
             <button onClick={() => setRetry((k) => k + 1)} className="rounded-full bg-panel px-4 py-1.5 text-[11px] text-slate-200">
               <Trans>重试</Trans>

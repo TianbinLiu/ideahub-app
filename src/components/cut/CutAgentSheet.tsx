@@ -92,12 +92,12 @@ export default function CutAgentSheet({ onRun, onClose }: Props) {
             {(last.out.applied.length > 0 || last.out.refused.length > 0) && (
               <div className="mt-1.5 flex flex-wrap gap-1">
                 {last.out.applied.map((s, i) => (
-                  <span key={`a${i}`} className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] text-emerald-300">
+                  <span key={`a${i}`} className="rounded-full bg-ok-500/15 px-2 py-0.5 text-[10px] text-ok-300">
                     ✓ {s}
                   </span>
                 ))}
                 {last.out.refused.map((s, i) => (
-                  <span key={`r${i}`} className="rounded-lg bg-rose-500/15 px-2 py-0.5 text-[10px] leading-relaxed text-rose-300">
+                  <span key={`r${i}`} className="rounded-lg bg-danger-500/15 px-2 py-0.5 text-[10px] leading-relaxed text-danger-300">
                     ✗ {s}
                   </span>
                 ))}
@@ -112,7 +112,7 @@ export default function CutAgentSheet({ onRun, onClose }: Props) {
         )}
 
         {fail && (
-          <div className="mb-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-rose-300">
+          <div className="mb-2 rounded-lg border border-danger-500/40 bg-danger-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-danger-300">
             <Trans>这一句没办成：{fail}</Trans>
           </div>
         )}

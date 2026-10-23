@@ -224,7 +224,7 @@ export default function CommentSheet({ video, onClose }: { video: VideoItem; onC
           aria-label={c.liked ? t`取消点赞` : t`点赞`}
           aria-pressed={c.liked === true}
           className={`-my-1 flex w-8 flex-none flex-col items-center justify-start gap-0.5 py-1 ${
-            c.liked ? "text-rose-500" : "text-slate-500"
+            c.liked ? "text-danger-500" : "text-slate-500"
           } active:opacity-60`}
         >
           <Icon name="heart" size={16} filled={c.liked === true} />
@@ -287,7 +287,7 @@ export default function CommentSheet({ video, onClose }: { video: VideoItem; onC
             </div>
           )}
           {/* 失败就地说清楚，并且**不清空输入框**——用户打的字还在，改一下就能再发 */}
-          {err && <p className="mb-1.5 text-[11px] leading-relaxed text-rose-300">{err}</p>}
+          {err && <p className="mb-1.5 text-[11px] leading-relaxed text-danger-300">{err}</p>}
           {warn && <Warn className="mb-1.5">{warn}</Warn>}
           <div className="flex gap-2">
             {/* isComposing / 回车提交这些细节都在 MentionInput 里（两个评论口共用一份，

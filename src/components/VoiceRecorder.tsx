@@ -183,7 +183,7 @@ export default function VoiceRecorder({
   }
 
   return (
-    <div className="rounded-lg border border-slate-700 bg-black/25 p-2.5">
+    <div className="rounded-lg bg-black/25 p-2.5">
       <p className="text-[10px] leading-relaxed text-slate-400">
         <Trans>照着下面这句念（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）——出片走「{voiceTierNames()}」档、台词写在引号里时，AI 会参考这段音色。</Trans>
       </p>
@@ -214,13 +214,13 @@ export default function VoiceRecorder({
         onContextMenu={(e) => e.preventDefault()}
         disabled={busy}
         className={`mt-2 w-full select-none rounded-xl py-2.5 text-xs font-bold ${
-          recording ? "bg-rose-500 text-white" : "bg-brand text-ink"
+          recording ? "bg-danger-500 text-white" : "bg-brand text-ink"
         } disabled:opacity-40`}
         style={{ touchAction: "none" }}
       >
         {busy ? <Trans>处理中…</Trans> : recording ? t`松手结束 · ${elapsed.toFixed(1)}s` : <Trans>🎙 按住跟读（长按录音）</Trans>}
       </button>
-      {err && <p className="mt-1.5 text-[10px] leading-relaxed text-rose-300">{err}</p>}
+      {err && <p className="mt-1.5 text-[10px] leading-relaxed text-danger-300">{err}</p>}
     </div>
   );
 }

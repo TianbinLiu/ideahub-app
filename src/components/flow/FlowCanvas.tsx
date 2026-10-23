@@ -600,7 +600,7 @@ export default function FlowCanvas({
           disabled={draft.state === "saving"}
           title={t`存草稿`}
           className={`flex h-8 w-8 flex-none items-center justify-center rounded-full text-xs disabled:opacity-40 ${
-            draft.state === "failed" ? "bg-rose-500/20 text-rose-300" : draft.state === "saved" ? "bg-emerald-500/20 text-emerald-300" : "bg-panel text-slate-200"
+            draft.state === "failed" ? "bg-danger-500/20 text-danger-300" : draft.state === "saved" ? "bg-ok-500/20 text-ok-300" : "bg-panel text-slate-200"
           }`}
         >
           {draft.state === "saving" ? "…" : draft.state === "saved" ? "✓" : draft.state === "failed" ? "!" : "💾"}
@@ -632,9 +632,9 @@ export default function FlowCanvas({
           那时整句拒绝一个字都不显示，用户看到的就是"点了没反应"（铁律八）。
           编辑窗里那份已经撤掉，只留这一处（方案台弹层自带一份，因为它盖住了这里）。 */}
       {err && (
-        <div className="mx-3 mb-1 flex flex-none items-start gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5">
-          <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-rose-300">{err}</p>
-          <button onClick={() => useFlow.setState({ err: "" })} className="flex-none text-rose-300">
+        <div className="mx-3 mb-1 flex flex-none items-start gap-2 rounded-lg border border-danger-500/40 bg-danger-500/10 px-2.5 py-1.5">
+          <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-danger-300">{err}</p>
+          <button onClick={() => useFlow.setState({ err: "" })} className="flex-none text-danger-300">
             <Icon name="close" size={12} />
           </button>
         </div>
@@ -788,7 +788,7 @@ export default function FlowCanvas({
                     )}
                     <div className="absolute left-1.5 top-1.5 flex items-center gap-1">
                       <span className="rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-bold text-slate-100"><Trans>第 {i + 1} 段</Trans></span>
-                      {done && <span className="rounded bg-emerald-500/90 px-1.5 py-0.5 text-[10px] font-bold text-white">✓</span>}
+                      {done && <span className="rounded bg-ok-500/90 px-1.5 py-0.5 text-[10px] font-bold text-white">✓</span>}
                       {n.status === "generating" && (
                         <span className="flex items-center gap-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-sky-300">
                           <Spinner size="xs" />
@@ -1382,7 +1382,7 @@ function NodePanel({
       {realVideoOfNode(node) && (
         <button
           onClick={onPlay}
-          className="flex w-full items-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-2 text-left text-xs text-emerald-100"
+          className="flex w-full items-center gap-2 rounded-lg border border-ok-500/40 bg-ok-500/10 px-2.5 py-2 text-left text-xs text-ok-100"
         >
           <span className="flex-none">▶</span>
           <span className="min-w-0 flex-1 truncate"><Trans>看这一段成片（{chosenOf(node).durationSec}s）</Trans></span>
@@ -1453,7 +1453,7 @@ function NodePanel({
         <p className="text-[10px] leading-relaxed text-slate-500"><Trans>已出片：换模板/模式会作废本段（想换先删段重加）</Trans></p>
       )}
       {stripAsk && (
-        <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+        <div className="space-y-1.5 rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2">
           <Warn>
             <Trans>切到自选会<b>摘掉模板</b>：挂的卡与合成好的点名句一起清掉，这一段退回普通段（想回来再套就行）。</Trans>
           </Warn>
@@ -1462,7 +1462,7 @@ function NodePanel({
               onClick={() => {
                 if (setNodeTemplate(node.id, null)) setStripAsk(false);
               }}
-              className="rounded-full bg-amber-500/90 px-2.5 py-1 text-[11px] font-bold text-ink"
+              className="rounded-full bg-warn-500/90 px-2.5 py-1 text-[11px] font-bold text-ink"
             >
               <Trans>摘掉模板，改为自选</Trans>
             </button>
@@ -1507,7 +1507,7 @@ function NodePanel({
               {/* 挂卡后的合成预览（可审核的中间物）：一份实现，投影窗 TplSegBody 同款 */}
               <CastPreviewCard node={node} cast={cast} disabled={generating || busy} />
               {castAsk && (
-                <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+                <div className="space-y-1.5 rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2">
                   <Warn>
                     <Trans>改完挂卡会按新的映射<b>重新合成</b>下面那段要求，你改过的字会被替换掉。</Trans>
                   </Warn>
@@ -1517,7 +1517,7 @@ function NodePanel({
                         setCastAsk(false);
                         goCast();
                       }}
-                      className="rounded-full bg-amber-500/90 px-2.5 py-1 text-[11px] font-bold text-ink"
+                      className="rounded-full bg-warn-500/90 px-2.5 py-1 text-[11px] font-bold text-ink"
                     >
                       <Trans>知道了，去改挂卡</Trans>
                     </button>
@@ -1538,12 +1538,12 @@ function NodePanel({
               那会儿正被这张 z-40 的画布整块盖着 —— 用户既看不见也不知道它存在，
               只能反复挂卡、每次白跑一次对话。 */}
           {castErr && castOfThisNode && (
-            <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
-              <p className="text-[11px] leading-relaxed text-rose-300">{castErr}</p>
+            <div className="space-y-1.5 rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2">
+              <p className="text-[11px] leading-relaxed text-danger-300">{castErr}</p>
               {castFallback && (
                 <button
                   onClick={fillCastFallback}
-                  className="rounded-full bg-amber-500/90 px-2.5 py-1 text-[11px] font-bold text-ink"
+                  className="rounded-full bg-warn-500/90 px-2.5 py-1 text-[11px] font-bold text-ink"
                 >
                   <Trans>填入默认写法（填完还能改）</Trans>
                 </button>
@@ -2120,7 +2120,7 @@ function NodePanel({
               //   而那句拒绝画在画布壳的错误条上、窗关了反而看得更清。删 + 「撤销」轻提示只有 removeNodeWithUndo 一份。
               if (removeNodeWithUndo(node.id)) onClose();
             }}
-            className="rounded-full bg-rose-500/15 px-2.5 py-1 text-[11px] text-rose-300 disabled:opacity-40"
+            className="rounded-full bg-danger-500/15 px-2.5 py-1 text-[11px] text-danger-300 disabled:opacity-40"
           />
           {nodes.length <= 1 && !nodeRecastable(node) && <span className="text-[10px] text-slate-500"><Trans>只剩一段且已出片，删不掉</Trans></span>}
         </div>
@@ -2230,7 +2230,7 @@ function PlanSheet({ nodeId, onClose }: { nodeId: string; onClose: () => void })
         </div>
         {/* ★ store 的整句错误必须在**这一层**也看得见：推演/重画/余额不足都写在 store.err，
             而编辑窗那份被这块遮罩盖住了 —— 不画就是静默失败（铁律八） */}
-        {err && <p className="mb-1 flex-none text-[11px] leading-relaxed text-rose-300">{err}</p>}
+        {err && <p className="mb-1 flex-none text-[11px] leading-relaxed text-danger-300">{err}</p>}
         {/* ★★ 进度也必须画在**这一层**：弹层盖住了编辑窗那块 GenTrace，而「♻ 重新推演三套」
             只在弹层里（PlanBoard 选定态），它**先扣钱再跑几十秒** —— 不画进度，用户看到的
             就是"点了个付费按钮，屏幕上什么都没发生"（对抗评审确认）。
@@ -2448,14 +2448,14 @@ function AgentBar({ onFocus }: { onFocus: (i: number) => void }) {
           {log.proposals.length > 0 && (
             <div className="mt-1.5 space-y-1.5">
               {log.proposals.map((p, i) => (
-                <div key={`p${i}`} className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5">
+                <div key={`p${i}`} className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5">
                   <Warn>{p.display}</Warn>
                   {p.kind === "cast" && <Warn compact className="mt-0.5">{p.costLabel}</Warn>}
                   <div className="mt-1 flex items-center gap-2">
                     <button
                       onClick={() => void confirm(p)}
                       disabled={!!runningProp}
-                      className="rounded-full bg-amber-400 px-2.5 py-1 text-[11px] font-semibold text-ink disabled:opacity-40"
+                      className="rounded-full bg-warn-400 px-2.5 py-1 text-[11px] font-semibold text-ink disabled:opacity-40"
                     >
                       {runningProp === p ? t`执行中…` : p.kind === "cast" ? t`执行（免费）` : t`执行（${p.costLabel}）`}
                     </button>
@@ -2474,12 +2474,12 @@ function AgentBar({ onFocus }: { onFocus: (i: number) => void }) {
           {(log.applied.length > 0 || log.refused.length > 0) && (
             <div className="mt-1.5 flex flex-wrap gap-1">
               {log.applied.map((s, i) => (
-                <span key={`a${i}`} className="rounded-full px-2 py-0.5 bg-emerald-500/15 text-[10px] text-emerald-300">
+                <span key={`a${i}`} className="rounded-full px-2 py-0.5 bg-ok-500/15 text-[10px] text-ok-300">
                   ✓ {s}
                 </span>
               ))}
               {log.refused.map((s, i) => (
-                <span key={`r${i}`} className="rounded-full px-2 py-0.5 bg-rose-500/15 text-[10px] leading-relaxed text-rose-300">
+                <span key={`r${i}`} className="rounded-full px-2 py-0.5 bg-danger-500/15 text-[10px] leading-relaxed text-danger-300">
                   ✗ {s}
                 </span>
               ))}
@@ -2672,7 +2672,7 @@ export function DirectNoRefNote({ node, className = "" }: { node: FlowNode; clas
   const n = tierNamesFor((x) => x.refImg);
   const names = n.usable || n.member;
   return (
-    <p className={`rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200 ${className}`}>
+    <p className={`rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200 ${className}`}>
       {n.usable ? (
         <Trans>「{cur}」档收不了参考图：这一段出片前会先按提示词画帧（计费）。想让人物图直接给视频模型，到 ⚙ 本段设置换成「{names}」。</Trans>
       ) : (
@@ -2873,7 +2873,7 @@ export function TemplatePicker({
           <p className="mb-1.5 flex-none text-[11px] leading-relaxed text-slate-400">
             <Trans>白模模板固定用「{needLabel}」（{needModel}）出片：选了之后这一段不能换别的画质档。</Trans>
             {needIssue && (
-              <span className="text-amber-300/90">
+              <span className="text-warn-300/90">
                 {" "}
                 {needIssue}
                 {"　"}
@@ -2882,7 +2882,7 @@ export function TemplatePicker({
             )}
           </p>
         )}
-        {err && <p className="mb-1.5 flex-none text-[11px] leading-relaxed text-rose-300">{err}</p>}
+        {err && <p className="mb-1.5 flex-none text-[11px] leading-relaxed text-danger-300">{err}</p>}
         <div className="min-h-0 flex-1 space-y-2 overflow-y-auto">
           <button
             onClick={() => onPick(null)}

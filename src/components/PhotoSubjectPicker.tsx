@@ -339,12 +339,12 @@ export default function PhotoSubjectPicker({
       </div>
 
       <div className="flex-none space-y-2 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3">
-        {err && <p className="text-[11px] leading-relaxed text-rose-300">{err}</p>}
+        {err && <p className="text-[11px] leading-relaxed text-danger-300">{err}</p>}
 
         {pick.stage === "box" && (
           <>
             {pick.rect && cutBest < REF_SHORT_REJECT && (
-              <p className="text-[11px] leading-relaxed text-rose-300">
+              <p className="text-[11px] leading-relaxed text-danger-300">
                 <Trans>这块太小了：折算只有 {cutBest} px，至少 {REF_SHORT_REJECT} px——框大一点再继续</Trans>
               </p>
             )}
@@ -376,10 +376,10 @@ export default function PhotoSubjectPicker({
         {pick.stage === "cut" && (
           <>
             {pick.lasso && !lassoEnough && (
-              <p className="text-[11px] leading-relaxed text-rose-300"><Trans>再描完整一点：沿着这件东西的边描一整圈</Trans></p>
+              <p className="text-[11px] leading-relaxed text-danger-300"><Trans>再描完整一点：沿着这件东西的边描一整圈</Trans></p>
             )}
             {pick.lasso && lassoEnough && lassoShort < REF_SHORT_REJECT && (
-              <p className="text-[11px] leading-relaxed text-rose-300">
+              <p className="text-[11px] leading-relaxed text-danger-300">
                 <Trans>描出来的范围太小了：折算只有 {lassoShort} px，至少 {REF_SHORT_REJECT} px——在框里描大一点</Trans>
               </p>
             )}
@@ -398,12 +398,12 @@ export default function PhotoSubjectPicker({
             </div>
             {/* 拍板 4 b：只有第 1 格给这个出口，而且风险必须写在按之前看得到的地方 */}
             {pick.allowKeepBg && (
-              <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5">
+              <div className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5">
                 <button
                   type="button"
                   disabled={busy || keepShort < REF_SHORT_REJECT}
                   onClick={() => void makePreview(true)}
-                  className="text-[11px] font-semibold text-amber-200 underline underline-offset-2 disabled:opacity-40"
+                  className="text-[11px] font-semibold text-warn-200 underline underline-offset-2 disabled:opacity-40"
                 >
                   <Trans>描不出来？保留框内背景 ›</Trans>
                 </button>
@@ -418,7 +418,7 @@ export default function PhotoSubjectPicker({
         {pick.stage === "preview" && pick.preview && (
           <>
             {pick.preview.keptBg && (
-              <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-200">
+              <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-warn-200">
                 <Trans>卡面仍带背景：出片时 AI 可能把背景里的东西也画进去。想只留主体，就回上一步描出轮廓。</Trans>
               </p>
             )}

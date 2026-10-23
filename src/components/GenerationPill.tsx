@@ -94,7 +94,7 @@ export default function GenerationPill() {
       ) : (
         <div
           className={`pointer-events-auto flex max-w-full items-center gap-1 rounded-full border py-1 pl-3 pr-1 text-[11px] shadow-lg shadow-black/40 ${
-            show.ok ? "border-emerald-500/50 bg-emerald-950/95 text-emerald-100" : "border-rose-500/50 bg-rose-950/95 text-rose-100"
+            show.ok ? "border-ok-500/50 bg-ok-950/95 text-ok-100" : "border-danger-500/50 bg-danger-950/95 text-danger-100"
           }`}
         >
           <button
@@ -107,7 +107,7 @@ export default function GenerationPill() {
             <span className="flex-none font-bold">{show.ok ? "✓" : "✗"}</span>
             <span className="min-w-0 truncate">{show.msg}</span>
             {show.route && (
-              <span className={`flex-none font-bold ${show.ok ? "text-emerald-300" : "text-rose-300"}`}>
+              <span className={`flex-none font-bold ${show.ok ? "text-ok-300" : "text-danger-300"}`}>
                 {show.ok ? <Trans>回去看看 ›</Trans> : <Trans>回去看原因 ›</Trans>}
               </span>
             )}

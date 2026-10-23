@@ -45,7 +45,7 @@ export default function DeleteDeckDialog({
               </Trans>
             </p>
           )}
-          <p className="text-rose-300"><Trans>卡组本身删了就找不回来。</Trans></p>
+          <p className="text-danger-300"><Trans>卡组本身删了就找不回来。</Trans></p>
     </DeleteConfirmShell>
   );
 }

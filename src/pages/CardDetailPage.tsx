@@ -235,7 +235,7 @@ function CardAssetSection({ card, owned }: { card: Card; owned: boolean }) {
           <Trans>还没同步到服务端（{issue}）——换台设备暂时看不到，下次登录会自动补传。</Trans>
         </Warn>
       )}
-      {saveErr && <p className="mt-1.5 text-[10px] leading-relaxed text-rose-300">{saveErr}</p>}
+      {saveErr && <p className="mt-1.5 text-[10px] leading-relaxed text-danger-300">{saveErr}</p>}
     </div>
   );
 }
@@ -274,7 +274,7 @@ function CardVoiceSection({ card, owned }: { card: Card; owned: boolean }) {
                   removeVoice(card.id);
                   setConfirmRm(false);
                 }}
-                className="rounded-full bg-rose-500/90 px-2.5 py-1 text-[11px] font-bold text-white"
+                className="rounded-full bg-danger-500/90 px-2.5 py-1 text-[11px] font-bold text-white"
               >
                 <Trans>确认移除</Trans>
               </button>
@@ -557,8 +557,8 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
           <Trans>已到 {MAX_CARD_VIEWS} 张上限 —— 方舟建议不要堆满，素材太多模型反而判断不出该优先保哪些特征。</Trans>
         </p>
       )}
-      {note && <p className="mt-1 text-[11px] text-amber-400">{note}</p>}
-      {err && <p className="mt-1 text-[11px] text-rose-300">{err}</p>}
+      {note && <p className="mt-1 text-[11px] text-warn-400">{note}</p>}
+      {err && <p className="mt-1 text-[11px] text-danger-300">{err}</p>}
       {busy && <p className="mt-1 text-[11px] text-slate-400"><Trans>处理中…</Trans></p>}
 
       <input
@@ -641,7 +641,7 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
                 </p>
               )
             )}
-            {views[zoom].note && <div className="max-w-xs text-center text-[11px] text-amber-400">{views[zoom].note}</div>}
+            {views[zoom].note && <div className="max-w-xs text-center text-[11px] text-warn-400">{views[zoom].note}</div>}
             {trimmable && (
               <button
                 disabled={busy}
@@ -661,7 +661,7 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
                   e.stopPropagation();
                   void onRemove(zoom);
                 }}
-                className="rounded-full bg-rose-500/90 px-4 py-1.5 text-xs font-bold text-white disabled:opacity-40"
+                className="rounded-full bg-danger-500/90 px-4 py-1.5 text-xs font-bold text-white disabled:opacity-40"
               >
                 <Trans>删掉这张</Trans>
               </button>
@@ -891,7 +891,7 @@ export default function CardDetailPage() {
            那个角色的长相由模型自己编，而钱照花。这件事此前在产品里既看不见、也补不了。
            ⚠ 只对自己的卡显示：别人的卡这里什么都不摆（改不了的东西不该占一块屏）。 */
         owned && (
-          <div className="mb-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
+          <div className="mb-4 rounded-xl border border-warn-500/40 bg-warn-500/10 p-3">
             <div className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>🎯 出片身份句</Trans></div>
             <Warn>
               <Trans>这张卡还没写出片句 —— 出片时提示词里只有卡名，长相由 AI 自己编（每一段都可能不一样）。</Trans>
@@ -1009,7 +1009,7 @@ export default function CardDetailPage() {
           >
             {getting ? t`添加中…` : getErr ? t`再同步一次` : t`＋ 添加到我的卡片`}
           </button>
-          {getErr && <p className="mt-1 text-[11px] leading-relaxed text-rose-300">{getErr}</p>}
+          {getErr && <p className="mt-1 text-[11px] leading-relaxed text-danger-300">{getErr}</p>}
         </div>
       )}
 
@@ -1075,7 +1075,7 @@ export default function CardDetailPage() {
               <Trans>改的是你库里这一份。已经随作品发布、或被别人装走的那些是当时的副本，不会跟着变。</Trans>
             </p>
             {editErr && (
-              <p className="mt-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-200">
+              <p className="mt-2 rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-[11px] leading-relaxed text-danger-200">
                 {editErr}
               </p>
             )}

@@ -128,7 +128,7 @@ export default function FixSegmentBox({
   );
 
   return (
-    <div className="space-y-1.5 rounded-lg border border-slate-700/70 bg-black/25 px-2.5 py-2">
+    <div className="space-y-1.5 rounded-lg bg-black/25 px-2.5 py-2">
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="mr-1 text-xs font-semibold text-slate-300">
           <Trans>修这一段</Trans>

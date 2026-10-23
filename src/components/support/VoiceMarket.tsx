@@ -216,7 +216,7 @@ export default function VoiceMarket({ name, currentTemplateId, nameOf, previewer
         </button>
       </div>
 
-      {listErr && <p className="mb-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-xs leading-relaxed text-rose-300">{listErr}</p>}
+      {listErr && <p className="mb-2 rounded-lg border border-danger-500/40 bg-danger-500/10 px-2.5 py-1.5 text-xs leading-relaxed text-danger-300">{listErr}</p>}
 
       {loading ? (
         <EmptyState compact loading text={t`读取中…`} />
@@ -251,7 +251,7 @@ export default function VoiceMarket({ name, currentTemplateId, nameOf, previewer
                     disabled={!!busy || disabled}
                     aria-pressed={tpl.liked}
                     aria-label={tpl.liked ? t`取消点赞` : t`点赞`}
-                    className={`shrink-0 rounded-full px-1.5 py-0.5 ${tpl.liked ? "text-rose-300" : "text-slate-400"} disabled:opacity-40`}
+                    className={`shrink-0 rounded-full px-1.5 py-0.5 ${tpl.liked ? "text-danger-300" : "text-slate-400"} disabled:opacity-40`}
                   >
                     {tpl.liked ? "❤" : "♡"} {tpl.stats.likeCount}
                   </button>
@@ -276,7 +276,7 @@ export default function VoiceMarket({ name, currentTemplateId, nameOf, previewer
                       onClick={() => void remove(tpl)}
                       disabled={!!busy || disabled}
                       className={`rounded-xl border px-3.5 py-2.5 text-sm disabled:opacity-40 ${
-                        confirming ? "border-rose-400 bg-rose-500/20 text-rose-200" : "border-slate-600 text-slate-400"
+                        confirming ? "border-danger-400 bg-danger-500/20 text-danger-200" : "border-slate-600 text-slate-400"
                       }`}
                     >
                       {step === "delete" ? <Trans>删除中…</Trans> : confirming ? <Trans>确认删除</Trans> : <Trans>删除</Trans>}
@@ -291,7 +291,7 @@ export default function VoiceMarket({ name, currentTemplateId, nameOf, previewer
                     </button>
                   </p>
                 )}
-                {cardErr?.id === tpl._id && <p className="mt-1.5 text-[11px] leading-relaxed text-rose-300">{cardErr.text}</p>}
+                {cardErr?.id === tpl._id && <p className="mt-1.5 text-[11px] leading-relaxed text-danger-300">{cardErr.text}</p>}
               </section>
             );
           })}

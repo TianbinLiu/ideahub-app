@@ -2116,14 +2116,14 @@ export default function CutPage() {
         </div>
         {/* 取流/播放失败一律说在预览正下方（用户正盯着的那块），并给一条真能走的路 */}
         {activeSeg?.videoUrl && (playErr || srcErr[active!.segIndex]) && (
-          <div className="mx-3 mb-1 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-rose-200">
+          <div className="mx-3 mb-1 rounded-lg border border-danger-500/40 bg-danger-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-danger-200">
             {playErr && <p>{playErr}</p>}
             {srcErr[active!.segIndex] && (
               <p>
                 <Trans>圈选与合成要用的截帧流没取到：{srcErr[active!.segIndex]}</Trans>
                 <button
                   onClick={() => loadCaptureSrc(active!.segIndex, activeSeg.videoUrl!)}
-                  className="ml-2 rounded-full bg-rose-500/30 px-2.5 py-1 font-semibold text-rose-100"
+                  className="ml-2 rounded-full bg-danger-500/30 px-2.5 py-1 font-semibold text-danger-100"
                 >
                   <Trans>重试</Trans>
                 </button>
@@ -2198,7 +2198,7 @@ export default function CutPage() {
                       区别在于**中断会明确报错**，不会像录屏那样悄悄给你一条坏片。
                       ⚠⚠ 主人 2026-09-07 真机反馈"提示还是实时录屏"并据此以为录屏没撤 —— 文案与实现不一致
                       本身就是一次事故（铁律八）：改实现时**必须同一拍改掉描述它的话**。 */}
-                  <p className={`text-center text-[10px] leading-relaxed ${hiddenWarn ? "text-amber-300" : "text-slate-500"}`}>
+                  <p className={`text-center text-[10px] leading-relaxed ${hiddenWarn ? "text-warn-300" : "text-slate-500"}`}>
                     {hiddenWarn
                       ? t`刚才切到后台了——合成不会因此录坏画面，但可能被系统拖慢；真断了会明确告诉你`
                       : t`合成走系统硬件编解码，不再录屏——可以切走，只是系统可能把它拖慢`}
@@ -2227,8 +2227,8 @@ export default function CutPage() {
           点完就看不见了。在最后一步给一个会误导的选项、又把唯一的说明藏起来，
           等于让用户为一个更大的文件多等一倍时间还以为画质更好了。 */}
       {res.id !== "720" && (
-        <div className="flex-none bg-amber-500/10 px-4 py-1 text-center text-[10px] leading-relaxed text-amber-200/90">
-          <Trans>{res.label} 是由 720P 素材放大的 —— 文件更大、合成更久，但<b className="text-amber-100">不会</b>更清晰</Trans>
+        <div className="flex-none bg-warn-500/10 px-4 py-1 text-center text-[10px] leading-relaxed text-warn-200/90">
+          <Trans>{res.label} 是由 720P 素材放大的 —— 文件更大、合成更久，但<b className="text-warn-100">不会</b>更清晰</Trans>
         </div>
       )}
 
@@ -2256,13 +2256,13 @@ export default function CutPage() {
         ) : null}
         {/* 见 presetAudioDrift 的 ★★：合并之前说，此刻改还来得及 */}
         {!busy && presetAudioDrift ? (
-          <div className="mx-4 mt-2 flex-none rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-100">
+          <div className="mx-4 mt-2 flex-none rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-warn-100">
             <Trans>你动过片段（裁剪 / 删段 / 换序），而配乐是自动预置的原片音轨——它按原片从头混，合出来会和画面对不上。想对齐就在「音频」里换一条自己的，或把片段改回原样。</Trans>
           </div>
         ) : null}
         {/* 剪辑改动没存住（见 saveWarn 那个 effect 的 ★）：说清楚后果是什么 —— 不是钱没了，是离开这一页会丢 */}
         {!busy && saveWarn ? (
-          <div className="mx-4 mt-2 flex-none rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-100">
+          <div className="mx-4 mt-2 flex-none rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-warn-100">
             <Trans>刚才的剪辑改动这一页上还在，但{saveWarn}——离开剪辑页之前先处理一下，否则这些改动会丢。</Trans>
           </div>
         ) : null}
@@ -2270,7 +2270,7 @@ export default function CutPage() {
           // ── 已经合好的稿子：这一步不再合成，只剩两条路 —— 去发布，或者回到合并之前接着改 ──
           <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-3">
             {err && (
-              <div className="mb-2.5 flex items-start gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
+              <div className="mb-2.5 flex items-start gap-2 rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-xs text-danger-300">
                 <span className="min-w-0 flex-1">{err}</span>
                 <button onClick={() => setErr("")} className="flex-none">
                   <Icon name="close" size={14} />
@@ -2309,7 +2309,7 @@ export default function CutPage() {
             >
               {tb.label}
               {tb.badge != null && (
-                <span className="absolute -right-3.5 -top-0.5 rounded-full bg-rose-500 px-1 text-[9px] font-bold text-white">
+                <span className="absolute -right-3.5 -top-0.5 rounded-full bg-danger-500 px-1 text-[9px] font-bold text-white">
                   {tb.badge}
                 </span>
               )}
@@ -2319,7 +2319,7 @@ export default function CutPage() {
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-3">
           {err && (
-            <div className="mb-2.5 flex items-start gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
+            <div className="mb-2.5 flex items-start gap-2 rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-xs text-danger-300">
               <span className="min-w-0 flex-1">
                 {err}
                 {err === errUpgrade && (
@@ -2428,7 +2428,7 @@ export default function CutPage() {
                         </span>
                       )}
                       {nAnn > 0 && (
-                        <span className="absolute right-1 top-0.5 rounded-full bg-rose-500/90 px-1 text-[9px] font-bold text-white">
+                        <span className="absolute right-1 top-0.5 rounded-full bg-danger-500/90 px-1 text-[9px] font-bold text-white">
                           ⭕{nAnn}
                         </span>
                       )}
@@ -2483,7 +2483,7 @@ export default function CutPage() {
                 <button
                   onClick={() => sel && removeClip(sel)}
                   disabled={!sel || view.length <= 1}
-                  className="ml-auto inline-flex items-center gap-1 rounded-full bg-rose-500/15 px-2.5 py-1.5 text-[11px] text-rose-300 disabled:opacity-40"
+                  className="ml-auto inline-flex items-center gap-1 rounded-full bg-danger-500/15 px-2.5 py-1.5 text-[11px] text-danger-300 disabled:opacity-40"
                 >
                   <Icon name="trash" size={13} />
                   <Trans>删除片段</Trans>
@@ -2698,7 +2698,7 @@ export default function CutPage() {
                 </Warn>
               ) : null}
               {plan && plan.timed && !plan.exact ? (
-                <p className="mt-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-100">
+                <p className="mt-1.5 rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-warn-100">
                   <Trans>有一段的真实时长还没量到，字幕和配音的时间可能排得不准——把每一段各播一下就量到了（合成前也会再量一次）。</Trans>
                 </p>
               ) : null}
@@ -2740,7 +2740,7 @@ export default function CutPage() {
                             <Trans>段{c.segIndex + 1} · {durOf(c).toFixed(1)}s</Trans>
                           </span>
                         </button>
-                        <span className={`flex-none text-[10px] tabular-nums ${chars > cap ? "text-amber-300" : "text-slate-500"}`}>
+                        <span className={`flex-none text-[10px] tabular-nums ${chars > cap ? "text-warn-300" : "text-slate-500"}`}>
                           {chars}/{cap}
                         </span>
                       </div>
@@ -2768,7 +2768,7 @@ export default function CutPage() {
                               <button
                                 onClick={() => void runVoices([c.id])}
                                 disabled={!canVoice || voicing.size > 0 || chars > cap}
-                                className={`${stale ? "rounded-full bg-amber-400/90 px-2.5 py-1.5 text-[11px] font-semibold text-ink" : chip(false)} disabled:opacity-40`}
+                                className={`${stale ? "rounded-full bg-warn-400/90 px-2.5 py-1.5 text-[11px] font-semibold text-ink" : chip(false)} disabled:opacity-40`}
                               >
                                 <Trans>↻ 重新配音</Trans>
                               </button>
@@ -2777,7 +2777,7 @@ export default function CutPage() {
                                   const cur = useCut.getState().project;
                                   if (cur) commit(setClipVoice(cur, c.id, null));
                                 }}
-                                className="rounded-full bg-rose-500/15 px-2.5 py-1.5 text-[11px] text-rose-300"
+                                className="rounded-full bg-danger-500/15 px-2.5 py-1.5 text-[11px] text-danger-300"
                               >
                                 <Trans>去掉配音</Trans>
                               </button>
@@ -2818,7 +2818,7 @@ export default function CutPage() {
                         </p>
                       ) : null}
                       {dropped ? (
-                        <p className="mt-1 text-[11px] leading-relaxed text-rose-300">
+                        <p className="mt-1 text-[11px] leading-relaxed text-danger-300">
                           <Trans>这一句排不上：片段太短，或者被上一句配音挤到了片尾之外——成片里不会有它。</Trans>
                         </p>
                       ) : null}
@@ -2972,14 +2972,14 @@ export default function CutPage() {
                     if (cur) applyAudio(setAudioOp(cur, null));
                   }}
                   aria-label={t`去掉这条配乐`}
-                  className="flex-none text-rose-300"
+                  className="flex-none text-danger-300"
                 >
                   <Icon name="close" size={15} />
                 </button>
               </div>
               {/* 工程里记着这条配乐，可它的文件读不出来：说出来、给出路 —— 不说的话这一行亮着，人会以为它能进成片 */}
               {!audio && audioSpec.kind === "local" && localAudio?.failed ? (
-                <p className="mt-1.5 text-[11px] leading-relaxed text-rose-300">
+                <p className="mt-1.5 text-[11px] leading-relaxed text-danger-300">
                   <Trans>这条音频的文件读不出来了（可能被清理过）——去掉它重新挑一条，否则合成时不会有配乐。</Trans>
                 </p>
               ) : null}

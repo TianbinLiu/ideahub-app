@@ -140,7 +140,7 @@ export default function SettingsPage() {
           if (why) setSignOutWhy(why);
           else setSignOutOpen(true);
         }}
-        className="mt-8 w-full rounded-xl border border-rose-500/40 py-2.5 text-sm text-rose-300"
+        className="mt-8 w-full rounded-xl border border-danger-500/40 py-2.5 text-sm text-danger-300"
       >
         <Trans>退出登录</Trans>
       </button>
@@ -263,7 +263,7 @@ function LangRow() {
               </button>
             ))}
           </div>
-          {err && <p className="mt-2 text-xs text-rose-300">{err}</p>}
+          {err && <p className="mt-2 text-xs text-danger-300">{err}</p>}
           <p className="mt-3 text-[11px] leading-relaxed text-slate-500">
             <Trans>桌面图标上的名字跟随手机系统语言，这里切换不会改它；多语言手机上两者可能不一致。</Trans>
           </p>
@@ -352,7 +352,7 @@ function ExtDocRow({ icon, title, sub, url }: { icon: IconName; title: string; s
         </span>
         <Icon name="chevron" size={16} className="flex-none text-slate-600" />
       </button>
-      {err && <p className="px-4 pb-3 text-[11px] leading-relaxed text-rose-300">{err}</p>}
+      {err && <p className="px-4 pb-3 text-[11px] leading-relaxed text-danger-300">{err}</p>}
     </>
   );
 }

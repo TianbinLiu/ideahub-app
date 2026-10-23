@@ -106,11 +106,11 @@ export default function ForgeOverlay({
       <div
         className={`mt-1 text-sm font-bold ${
           phase === "done"
-            ? "text-emerald-300"
+            ? "text-ok-300"
             : phase === "failed"
-              ? "text-rose-300"
+              ? "text-danger-300"
               : phase === "unknown"
-                ? "text-amber-300"
+                ? "text-warn-300"
                 : "text-slate-100"
         }`}
       >
@@ -128,7 +128,7 @@ export default function ForgeOverlay({
           {error && (
             <p
               className={`mt-2.5 max-w-sm text-center text-[11px] leading-relaxed ${
-                phase === "unknown" ? "text-amber-200" : "text-rose-300"
+                phase === "unknown" ? "text-warn-200" : "text-danger-300"
               }`}
             >
               {error}
@@ -140,7 +140,7 @@ export default function ForgeOverlay({
           <button
             onClick={onClose}
             className={`mt-3 flex items-center gap-1.5 rounded-full px-4 py-2 text-xs ${
-              phase === "unknown" ? "bg-amber-500/90 font-bold text-ink" : "bg-slate-700/80 text-slate-100"
+              phase === "unknown" ? "bg-warn-500/90 font-bold text-ink" : "bg-slate-700/80 text-slate-100"
             }`}
           >
             <Icon name="close" size={14} />

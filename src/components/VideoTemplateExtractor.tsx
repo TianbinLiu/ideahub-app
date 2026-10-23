@@ -1278,8 +1278,8 @@ export default function VideoTemplateExtractor({
 
         {got ? (
           <div className="space-y-3">
-            <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3">
-              <div className="text-sm font-bold text-emerald-300"><Trans>已提取模板「{gotTitle}」</Trans></div>
+            <div className="rounded-xl border border-ok-500/40 bg-ok-500/10 p-3">
+              <div className="text-sm font-bold text-ok-300"><Trans>已提取模板「{gotTitle}」</Trans></div>
               <p className="mt-1 text-xs leading-relaxed text-slate-300">{got.intro}</p>
               <p className="mt-2 text-[11px] text-slate-400">
                 <Trans>{beats} 段分镜 · {cardCount} 张素材卡 · 已存进「我的模板」（尚未发布）</Trans>
@@ -1339,7 +1339,7 @@ export default function VideoTemplateExtractor({
                 if (!missing.length) return null;
                 const missingCount = missing.length;
                 return (
-                  <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-200">
+                  <div className="rounded-xl border border-warn-500/40 bg-warn-500/10 p-3 text-xs leading-relaxed text-warn-200">
                     <p>
                       <Trans>
                         有 {missingCount} 段还没认出角色位。这几段现在也能随整组套用出片，只是那一段不能逐人挂卡
@@ -1365,7 +1365,7 @@ export default function VideoTemplateExtractor({
               })()}
             {/* 逐段认人的结果（哪段成了、哪段要重试）——分段路的 note 是多行的，整句保留 */}
             {warn && (
-              <p className="whitespace-pre-line rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-200">
+              <p className="whitespace-pre-line rounded-xl border border-warn-500/40 bg-warn-500/10 p-3 text-xs leading-relaxed text-warn-200">
                 ⚠ {warn}
               </p>
             )}
@@ -1392,7 +1392,7 @@ export default function VideoTemplateExtractor({
               ★★ 措辞里不许出现「上面 / 下面」的方位词：这句话现在会在两步里出现，
                 方位在其中一步必然是错的。 */}
             {blockout && blockoutBlock && (
-              <p className="mb-3 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-300">
+              <p className="mb-3 rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-[11px] leading-relaxed text-danger-300">
                 {blockoutBlock}
                 <br />
                 {/* 「经典配方」那条路已经收掉（routeOpts 只剩白模两条），原来这句还指着它（2026-10-10 文案复核抓到）；
@@ -1418,7 +1418,7 @@ export default function VideoTemplateExtractor({
                 {/* 路线表为空的两种情形分开说（没探完 ≠ 不支持）：白模模板的两条路都在服务端，经典配方那条本机路 2026-10-02 收掉了 */}
                 {!probed && routeOpts.length === 0 && <p className="text-xs text-slate-500"><Trans>正在确认服务器支持哪几种模板…</Trans></p>}
                 {probed && routeOpts.length === 0 && (
-                  <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs leading-relaxed text-amber-300/90">
+                  <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-xs leading-relaxed text-warn-300/90">
                     <Trans>白模模板要连上服务器才能做（这台服务器不支持，或现在没联网）。想把一条片的做法分享给别人，发布作品时公开「制作过程」就行。</Trans>
                   </p>
                 )}
@@ -1501,7 +1501,7 @@ export default function VideoTemplateExtractor({
                     再摆着只是把真正在用的那块工作面积挤小（水印那句更是指着"下一步"，
                     人已经站在下一步里了）。 */}
                 {!receipt && (
-                  <div className="mb-3 rounded-xl border border-slate-700 bg-black/25 px-3 py-2">
+                  <div className="mb-3 rounded-xl bg-black/25 px-3 py-2">
                     <div className="text-sm font-semibold text-slate-100">{routeNow?.title}</div>
                     <p className="mt-1 text-[11px] leading-relaxed text-slate-400">{routeNow?.long}</p>
                   </div>
@@ -1517,7 +1517,7 @@ export default function VideoTemplateExtractor({
                     ★ 这一段**没有搬进新手引导**：引导看过一次就不再自动弹，而这句话紧挨着
                       一次真实付费的决策点，必须每次都在。 */}
                 {route === "aiBlockout" && !receipt && (
-                  <p className="mb-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-200/90">
+                  <p className="mb-3 rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-[11px] leading-relaxed text-warn-200/90">
                     {/* ★ 压字数时**这两处不许再削**（2026-08-23 削过一轮又加回来）：
                         · 「会有人根本没被换成人偶」是**具体的失败长相** —— 只说"不是每次都全对"
                           等于没说，用户不知道该拿什么去核对；
@@ -1540,14 +1540,14 @@ export default function VideoTemplateExtractor({
                       （素材进公网、且会被别人的成片引用），藏进一个看过一次就不再出现的地方，
                       等于让老用户在零提示下把视频传上公网。 */}
                 {blockout && !receipt && (
-                  <p className="mb-3 text-[11px] leading-relaxed text-amber-400/90">
+                  <p className="mb-3 text-[11px] leading-relaxed text-warn-400/90">
                     <Trans>
                       mp4 / mov · {maxMinutes} 分钟以内 · {maxMb}MB 以内 · 会
-                      <b className="text-amber-300">公开托管</b>（套用者出片时引用它）。
+                      <b className="text-warn-300">公开托管</b>（套用者出片时引用它）。
                     </Trans>
                     <br />
                     <Trans>
-                      画面里的水印、台标、字幕会被<b className="text-amber-300">复刻进每一次出片</b>，
+                      画面里的水印、台标、字幕会被<b className="text-warn-300">复刻进每一次出片</b>，
                       下一步用裁剪框把它框到画面外。
                     </Trans>
                   </p>
@@ -1567,7 +1567,7 @@ export default function VideoTemplateExtractor({
               <div className="space-y-3">
                 {/* 这一步也要画 warn（2026-09-18 发版复核抓到）：close() 拦下 ✕ 时把原因写进 warn，这一屏原来不画它 ——
                     ✕ 看起来就是坏的。其余几屏都在各自位置画了同一行 */}
-                {warn && <p className="text-xs leading-relaxed text-amber-400">⚠ {warn}</p>}
+                {warn && <p className="text-xs leading-relaxed text-warn-400">⚠ {warn}</p>}
                 <div className="flex items-start gap-2 rounded-lg border border-slate-700/70 bg-panel/60 px-3 py-2">
                   <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-slate-300">
                     <Trans>
@@ -1600,7 +1600,7 @@ export default function VideoTemplateExtractor({
                     {/* ★★ 被丢弃的刀必须整句点名（planSplits 只丢不响，响的责任在这儿）：
                         不说的话，用户标了 3 刀、绿字却说"切成 3 段"，他只会以为标丢了 */}
                     {splitPlan && splitPlan.dropped.length > 0 && (
-                      <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-rose-200">
+                      <p className="rounded-lg border border-danger-500/40 bg-danger-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-danger-200">
                         <Trans>
                           有 {droppedCount} 刀落不下去，已被忽略：第 {droppedSecs} 秒——离片头、片尾或相邻的刀不足 {partMinSec} 秒，切出来会有短于 {partMinSec} 秒的段（AI 引擎收不下）。把这几刀删掉，或挪远一点再标。
                         </Trans>
@@ -1631,11 +1631,11 @@ export default function VideoTemplateExtractor({
                     红字就灰掉提交，绿字把段清单画出来 —— 与第 1 步同一份判词 */}
                 {segLong && frameStepVerdict && (
                   frameStepVerdict.issue ? (
-                    <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-200">
+                    <p className="rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-[11px] leading-relaxed text-danger-200">
                       ✗ {frameStepVerdict.issue}
                     </p>
                   ) : (
-                    <p className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-[11px] leading-relaxed text-emerald-200">
+                    <p className="rounded-lg border border-ok-500/40 bg-ok-500/10 px-3 py-2 text-[11px] leading-relaxed text-ok-200">
                       ✓ {frameStepVerdict.ok}
                     </p>
                   )
@@ -1643,7 +1643,7 @@ export default function VideoTemplateExtractor({
 
                 {/* 失败原因一律整句显示（第 1 步那份由 Trimmer 画，这一步 Trimmer 不在，自己画） */}
                 {err && (
-                  <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-200">
+                  <p className="rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-[11px] leading-relaxed text-danger-200">
                     {err}
                   </p>
                 )}
@@ -1676,7 +1676,7 @@ export default function VideoTemplateExtractor({
               //   唯一由宿主说的是那句黄字水印提示：它是**抽本机帧**看出来的，
               //   组件手上只有服务端登记的宽高时长，看不到画面内容。
               <>
-                {warn && <p className="mb-2 text-xs leading-relaxed text-amber-400">⚠ {warn}</p>}
+                {warn && <p className="mb-2 text-xs leading-relaxed text-warn-400">⚠ {warn}</p>}
                 <BlockoutTrimmer
                 src={receipt.src}
                 // ★ 只喂**服务端登记值**（上传回执）：服务端拼变换 URL、复核裁后元数据、
@@ -1754,7 +1754,7 @@ export default function VideoTemplateExtractor({
                       !segLong &&
                       Math.floor(receipt.data.durationSec) > autoMaxSec &&
                       Math.floor(receipt.data.durationSec) <= splitCap && (
-                        <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200/90">
+                        <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200/90">
                           <Trans>
                             这条素材有 {srcSec} 秒：把选段<b className="font-bold">拉满整条</b>
                             之后还要<b className="font-bold">自己标切段刀</b>（把 {cutsMax} 刀尽量摆匀）——
@@ -1771,7 +1771,7 @@ export default function VideoTemplateExtractor({
                       receipt &&
                       !segLong &&
                       Math.floor(receipt.data.durationSec) > splitCap && (
-                        <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200/90">
+                        <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200/90">
                           <Trans>
                             这条素材有 {srcSec} 秒，
                             <b className="font-bold">整条登记做不了</b>（一次最多 {SPLIT_MAX_PARTS} 段 × {maxSec} 秒 = {splitCap} 秒），所以上面的选段拉到 {maxSec} 秒就拉不动了。要么框其中 {maxSec} 秒以内做一段，要么先把素材剪短到 {splitCap} 秒以内再传。
@@ -1888,8 +1888,8 @@ export default function VideoTemplateExtractor({
 
                 {/* 黄 = 文件收下了但有事说（不拦人），红 = 这一步失败了。两条会同时出现，
                     这是对的：比如"右上角疑似有水印"＋"上传超时"，两件事都得说 */}
-                {warn && <p className="mb-2 text-xs leading-relaxed text-amber-400">⚠ {warn}</p>}
-                {err && <p className="mb-2 text-xs leading-relaxed text-rose-300">{err}</p>}
+                {warn && <p className="mb-2 text-xs leading-relaxed text-warn-400">⚠ {warn}</p>}
+                {err && <p className="mb-2 text-xs leading-relaxed text-danger-300">{err}</p>}
 
                 {blockout ? (
                   <p className="text-[10px] leading-relaxed text-slate-500">

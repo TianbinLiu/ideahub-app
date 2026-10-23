@@ -14,8 +14,10 @@ import { join, relative } from "node:path";
 
 const ROOT = new URL("../src/", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1");
 const RE = /<p\s+className="([^"]*)"/g;
-const AMBER = /\btext-amber-(100|200|300)(\/\d+)?\b/;
-const SHAPED = /\b(border|bg)-amber-/;
+const AMBER = /\btext-(amber|warn)-(100|200|300)(\/\d+)?\b/;
+const SHAPED = /\b(border|bg)-(amber|warn)-/;
+// 第二条规则（同日）：语义色只写别名 danger / warn / ok（tailwind.config.js 的 ★），组件里不再点名 rose / amber / emerald
+const RAW_HUE = /-(rose|amber|emerald)-\d{2,3}\b/;
 
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
@@ -31,6 +33,7 @@ for (const file of walk(ROOT)) {
   const lines = readFileSync(file, "utf8").split(/\r?\n/);
   lines.forEach((line, i) => {
     if (/^\s*(\/\/|\*|\/\*)/.test(line)) return; // 注释里举的例子不算
+    if (RAW_HUE.test(line) && !/warn-ok:/.test(line)) hits.push(`${relative(ROOT, file).replace(/\\/g, "/")}:${i + 1}  裸色相 ${line.match(RAW_HUE)[0]}（写别名 danger / warn / ok）`);
     RE.lastIndex = 0;
     let m;
     while ((m = RE.exec(line))) {
@@ -43,8 +46,8 @@ for (const file of walk(ROOT)) {
 }
 
 if (hits.length) {
-  console.error(`✗ check-warn：${hits.length} 处裸琥珀 <p>（只靠颜色说「这是提醒」）—— 改用 <Warn>（components/Warn），或在上一行写 warn-ok: 理由`);
+  console.error(`✗ check-warn：${hits.length} 处 —— 裸琥珀 <p> 改用 <Warn>（components/Warn）；rose / amber / emerald 写成 danger / warn / ok；确实要放行的在上一行写 warn-ok: 理由`);
   for (const h of hits) console.error("  " + h);
   process.exit(1);
 }
-console.log("✓ check-warn：没有裸琥珀 <p>，提示都走 <Warn> 或带边框的提示条");
+console.log("✓ check-warn：没有裸琥珀 <p>，语义色都走 danger / warn / ok 别名");

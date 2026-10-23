@@ -1,3 +1,18 @@
+启梦 2.68
+
+· 界面按《Refactoring UI》二十条走查了一遍：按钮主次更清楚（一段出好片之后「去下一段」才是主键、市场卡片的实心键改淡、做同款用招牌字形而不是 ⚡）；评论与首页的作者名有了字重；报错一律玫瑰色、提示一律左侧色条加图标；首页芯片、登录页链接、剪辑页播放键等的点击热区放大。
+· 设置页、客服页、创作中心、剪辑工具条、静音键上的 emoji 全部换成线性图标，三台手机不再三个样。
+· 搜索框、空状态、头像尺寸、价签（⚡12k）统一；套餐里只有「推荐」那一档是主键；评论的删除 / 举报 / 拉黑收进「⋯」；发布页的内容声明挪到发布键上面。
+· 几处把服务器内部说法写上屏的文案改成人话（「这台服务器还没有 … 接口」→「… 功能还没上线」）；制作过程页离线时说「需要联网」，不再露出配置项的名字。
+· 浮层与底部停靠栏有了自己的底色；外接键盘 / 遥控时有焦点环。
+
+QiMeng 2.68
+
+· A UI pass against the twenty Refactoring UI rules: clearer button priority (after a segment is done, “next segment” is the primary action; market card buttons are tinted; remix uses its own glyph instead of ⚡); author names carry weight in comments and on the feed; errors are consistently rose and hints get a side bar plus icon; bigger tap areas on feed chips, login links and the cut-page play button.
+· Every emoji icon in settings, support, the creator center, the cut toolbar and the mute button is now a line icon, so it looks the same on every phone.
+· Search fields, empty states, avatar sizes and price tags (⚡12k) are unified; only the recommended plan is a primary button; delete / report / block on comments sit behind “⋯”; the AI declaration on the publish page moved above the publish button.
+· Several messages that leaked server wording now speak plainly (“this server has no … endpoint” → “… isn't available yet”); the making-of page says it needs a connection when offline instead of showing a config variable name.
+· Floating panels and bottom docks have their own surface colour; a focus ring shows for external keyboards and remotes.
 启梦 2.67
 
 · 提取模板窗一打开就显示圆点进度条，不再等确认服务器支持之后才出现。

@@ -165,7 +165,7 @@ export default function LeadShotsWizard({
               </p>
             )}
             {faceNote && (
-              <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">{faceNote}</p>
+              <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200">{faceNote}</p>
             )}
           </CastPicker>
 
@@ -257,7 +257,7 @@ export default function LeadShotsWizard({
                 </p>
               )}
               {d.scriptAi && d.scriptScene !== d.scene && (
-                <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">
+                <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200">
                   <Trans>这场戏改过了，下面的分镜还是按原来那句拆的 —— 点「重新拆」按新的拆，或者直接在下面改。</Trans>
                 </p>
               )}
@@ -288,7 +288,7 @@ export default function LeadShotsWizard({
               </button>
             </>
           )}
-          {d.splitErr && <p className="text-[11px] leading-relaxed text-rose-300">{d.splitErr}</p>}
+          {d.splitErr && <p className="text-[11px] leading-relaxed text-danger-300">{d.splitErr}</p>}
           <div className="flex gap-2">
             {backBtn(() => go("scene"))}
             <button
@@ -349,10 +349,10 @@ export default function LeadShotsWizard({
             </p>
           )}
           {faceNote && (
-            <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">{faceNote}</p>
+            <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200">{faceNote}</p>
           )}
           <TokenCost tokens={genTokens} />
-          {err && <p className="text-[11px] leading-relaxed text-rose-300">{err}</p>}
+          {err && <p className="text-[11px] leading-relaxed text-danger-300">{err}</p>}
           {/* ★ 别说「可以先铺成」：只铺成也要过 flowStore.appendIssue，它拒的正是同一个 busy（同一时刻只炼一段），所以下面那颗也灰掉 */}
           {busy && (
             <p className="text-[10px] leading-relaxed text-slate-500">

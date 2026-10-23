@@ -75,13 +75,13 @@ function MyDanmakuRow({ videoId, item }: { videoId: string; item: DanmakuItem })
       <span className="min-w-0 flex-1 truncate text-xs" style={{ color: item.color || DANMAKU_COLORS[0] }}>
         {item.text}
       </span>
-      {err && <span className="order-last w-full text-[10px] leading-relaxed text-rose-300">{err}</span>}
+      {err && <span className="order-last w-full text-[10px] leading-relaxed text-danger-300">{err}</span>}
       {confirming ? (
         <>
           <button
             onClick={() => void del()}
             disabled={busy}
-            className="flex-none text-[11px] font-semibold text-rose-400 active:opacity-60 disabled:opacity-40"
+            className="flex-none text-[11px] font-semibold text-danger-400 active:opacity-60 disabled:opacity-40"
           >
             {busy ? <Trans>删除中…</Trans> : <Trans>确认删除</Trans>}
           </button>
@@ -342,7 +342,7 @@ export default function DanmakuInput({
         </div>
 
         {/* 失败就地说清楚，并且**不关窗**——用户打的字还在框里，改一下就能再发 */}
-        {err && <p className="px-4 pb-1.5 text-[11px] text-rose-300">{err}</p>}
+        {err && <p className="px-4 pb-1.5 text-[11px] text-danger-300">{err}</p>}
 
         {/* 离线模式（没配服务端或服务端没起）要如实说：这条弹幕别人看不到。
             接上服务端时这句话就不该出现了，否则又成了另一种骗人（铁律八）。

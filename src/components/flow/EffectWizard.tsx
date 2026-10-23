@@ -165,7 +165,7 @@ export default function EffectWizard({
             )}
           </p>
           {unavailable && (
-            <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">
+            <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200">
               {/* 只在关键帧真的在手时才许诺「还留着」：还在画的那一张可能画不成（画的时候由下面那一行说） */}
               {d.keyframe ? (
                 <Trans>
@@ -296,7 +296,7 @@ export default function EffectWizard({
                 </Warn>
               )}
               {faceNote && (
-                <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">{faceNote}</p>
+                <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200">{faceNote}</p>
               )}
             </CastPicker>
           )}
@@ -319,7 +319,7 @@ export default function EffectWizard({
               </div>
             </div>
           )}
-          {d.drawErr && step === "cast" && <p className="text-[11px] leading-relaxed text-rose-300">{d.drawErr}</p>}
+          {d.drawErr && step === "cast" && <p className="text-[11px] leading-relaxed text-danger-300">{d.drawErr}</p>}
           <div className="flex gap-2">
             {backBtn("pick")}
             <button
@@ -349,7 +349,7 @@ export default function EffectWizard({
                   </span>
                 )}
                 {stale && (
-                  <span className="absolute left-1 top-1 rounded-full bg-amber-500/90 px-1.5 py-0.5 text-[9px] font-bold text-ink">
+                  <span className="absolute left-1 top-1 rounded-full bg-warn-500/90 px-1.5 py-0.5 text-[9px] font-bold text-ink">
                     {/* 产品预设的过期只看产品与画幅（effectKeyOf 不算人），话也照实说 */}
                     {preset.subject === "product" ? <Trans>产品或画幅改过了</Trans> : <Trans>主角或画幅改过了</Trans>}
                   </span>
@@ -360,7 +360,7 @@ export default function EffectWizard({
                   <Trans>正在画关键帧，约 20~30 秒（可以先离开，画好的图会留在这里）</Trans>
                 </p>
               )}
-              {d.drawErr && <p className="text-[11px] leading-relaxed text-rose-300">{d.drawErr}</p>}
+              {d.drawErr && <p className="text-[11px] leading-relaxed text-danger-300">{d.drawErr}</p>}
               <button
                 onClick={() => void drawKeyframe({ cast, productCard })}
                 disabled={d.drawing || !castOk}
@@ -398,10 +398,10 @@ export default function EffectWizard({
             )}
           </p>
           {faceNote && (
-            <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">{faceNote}</p>
+            <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200">{faceNote}</p>
           )}
           {spec && <TokenCost tokens={costs[0] ?? 0} />}
-          {err && <p className="text-[11px] leading-relaxed text-rose-300">{err}</p>}
+          {err && <p className="text-[11px] leading-relaxed text-danger-300">{err}</p>}
           {/* ★ 别说「可以先铺成」：只铺成也要过 flowStore.appendIssue，它拒的正是同一个 busy（同一时刻只炼一段），所以下面那颗也灰掉 */}
           {busy && (
             <p className="text-[10px] leading-relaxed text-slate-500">

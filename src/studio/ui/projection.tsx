@@ -906,7 +906,7 @@ function EditorPanel() {
             <button
               onClick={() => setMatsOpen((v) => !v)}
               disabled={editor.generating}
-              className="flex w-full items-center gap-2 rounded-lg border border-slate-700/70 bg-black/25 px-2.5 py-2 text-left"
+              className="flex w-full items-center gap-2 rounded-lg bg-black/25 px-2.5 py-2 text-left"
             >
               <span className="flex-none text-xs">🃏</span>
               <span className="min-w-0 flex-1 truncate text-[11px] text-slate-300">
@@ -1332,7 +1332,7 @@ function ProposalsPanel() {
               这里只是把"为什么点不动"画出来，别在这儿另写一遍（铁律六）。
               收口之前工坊一个字都不画、主按钮照亮：点下去真扣钱真炼，而这一段拿不到
               上一段的真实尾帧承接。 */}
-          {locked && <span className="ml-1 text-[11px] font-normal text-amber-300/90"><Trans>· 🔒 前面的段炼完才解锁</Trans></span>}
+          {locked && <span className="ml-1 text-[11px] font-normal text-warn-300/90"><Trans>· 🔒 前面的段炼完才解锁</Trans></span>}
         </h3>
         <button
           onClick={() => go(1)}
@@ -1437,7 +1437,7 @@ function ProposalsPanel() {
           ★ 画布壳上那条是常驻的（FlowCanvas 的错误条），这里同源：读同一个字段。 */}
       {flowErr && (
         <div className="flex-none px-3 pt-2">
-          <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-rose-200">{flowErr}</p>
+          <p className="rounded-lg border border-danger-500/40 bg-danger-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-danger-200">{flowErr}</p>
         </div>
       )}
 
@@ -1742,16 +1742,16 @@ function TplSegBody({ node, proposal, onPlay }: { node: FlowNode; proposal: Prop
   return (
     <div className="space-y-2">
       {err && (
-        <div className="flex items-start gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5">
-          <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-rose-300">{err}</p>
-          <button onClick={() => useFlow.setState({ err: "" })} className="flex-none text-rose-300">
+        <div className="flex items-start gap-2 rounded-lg border border-danger-500/40 bg-danger-500/10 px-2.5 py-1.5">
+          <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-danger-300">{err}</p>
+          <button onClick={() => useFlow.setState({ err: "" })} className="flex-none text-danger-300">
             <Icon name="close" size={12} />
           </button>
         </div>
       )}
 
       {/* 模板行：换/摘的规则都在 store 的 setNodeTemplate（已出片会被整句拒，err 在上面那行） */}
-      <div className="flex items-center gap-2 rounded-lg border border-slate-700/70 bg-black/25 px-2.5 py-2">
+      <div className="flex items-center gap-2 rounded-lg bg-black/25 px-2.5 py-2">
         <span className="flex-none text-xs">🧪</span>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-xs text-slate-100">{tpl.title}</span>
@@ -1790,7 +1790,7 @@ function TplSegBody({ node, proposal, onPlay }: { node: FlowNode; proposal: Prop
           {/* 挂卡后的合成预览（可审核的中间物）：一份实现，画布白模面板同款 */}
           <CastPreviewCard node={node} cast={cast} disabled={generating} />
           {castAsk && (
-            <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+            <div className="space-y-1.5 rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2">
               <Warn>
                 <Trans>改完挂卡会按新的映射<b>重新合成</b>下面那段要求，你改过的字会被替换掉。</Trans>
               </Warn>
@@ -1800,7 +1800,7 @@ function TplSegBody({ node, proposal, onPlay }: { node: FlowNode; proposal: Prop
                     setCastAsk(false);
                     goCast();
                   }}
-                  className="rounded-full bg-amber-500/90 px-2.5 py-1 text-[11px] font-bold text-ink"
+                  className="rounded-full bg-warn-500/90 px-2.5 py-1 text-[11px] font-bold text-ink"
                 >
                   <Trans>知道了，去改挂卡</Trans>
                 </button>
@@ -1815,12 +1815,12 @@ function TplSegBody({ node, proposal, onPlay }: { node: FlowNode; proposal: Prop
 
       {/* 挂卡合成失败的出口（画布那条 ★★ 的工坊版）：castErr 写的不是 err，这儿不画就没人画 */}
       {castErr && castOfThisNode && (
-        <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+        <div className="space-y-1.5 rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2">
           <Warn>{castErr}</Warn>
           {castFallback && (
             <button
               onClick={() => useFlow.getState().fillCastFallback()}
-              className="rounded-full bg-amber-500/90 px-2.5 py-1 text-[11px] font-bold text-ink"
+              className="rounded-full bg-warn-500/90 px-2.5 py-1 text-[11px] font-bold text-ink"
             >
               <Trans>填入默认写法（填完还能改）</Trans>
             </button>
@@ -1949,7 +1949,7 @@ function PickedActions({
               //   删 + 「撤销」轻提示只有 removeNodeWithUndo 一份（DeleteSegBtn 那个文件）。
               if (removeNodeWithUndo(node.id)) useStudio.getState().closeProjection();
             }}
-            className="rounded-full bg-rose-500/15 px-2.5 py-1 text-[11px] text-rose-300 disabled:opacity-40"
+            className="rounded-full bg-danger-500/15 px-2.5 py-1 text-[11px] text-danger-300 disabled:opacity-40"
           />
           {flowNow.nodes.length <= 1 && nodeDone(node) && <span className="text-[10px] text-slate-500"><Trans>只剩一段且已出片，删不掉</Trans></span>}
         </div>

@@ -394,7 +394,7 @@ export default function StageOverlay({ nodeId, onClose }: { nodeId: string; onCl
 
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-4 pb-6 pt-3">
         {err && (
-          <div className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-rose-300">{err}</div>
+          <div className="rounded-lg border border-danger-500/40 bg-danger-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-danger-300">{err}</div>
         )}
         {/* 人偶 */}
         <div className="rounded-lg border border-slate-700/70 bg-panel p-3">
@@ -418,7 +418,7 @@ export default function StageOverlay({ nodeId, onClose }: { nodeId: string; onCl
                 setSelected(rest[0]?.id ?? null);
               }}
               disabled={!sel || stage.figures.length <= 1}
-              className="flex-none rounded-full bg-rose-500/15 px-2.5 py-1 text-[11px] text-rose-300 disabled:opacity-40"
+              className="flex-none rounded-full bg-danger-500/15 px-2.5 py-1 text-[11px] text-danger-300 disabled:opacity-40"
             >
               <Trans>删除</Trans>
             </button>

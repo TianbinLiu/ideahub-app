@@ -262,9 +262,9 @@ export default function SupportPersonasPage() {
           </button>
         </div>
       )}
-      {headErr && <p className="mb-2 text-xs leading-relaxed text-rose-300">{headErr}</p>}
+      {headErr && <p className="mb-2 text-xs leading-relaxed text-danger-300">{headErr}</p>}
       {settingsErr && (
-        <p className="mb-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-300">
+        <p className="mb-2 rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-warn-300">
           <Trans>读不到当前设置：{settingsErr}这里不标「使用中」，选用时以服务端为准。</Trans>
         </p>
       )}
@@ -283,8 +283,8 @@ export default function SupportPersonasPage() {
 
       <SearchField shape="pill" className="mb-3" value={q} onChange={setQ} placeholder={t`搜人格：名字、描述、标签…`} />
 
-      {notice && <p className="mb-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5 text-xs text-emerald-200">{notice}</p>}
-      {listErr && <p className="mb-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-xs leading-relaxed text-rose-300">{listErr}</p>}
+      {notice && <p className="mb-2 rounded-lg border border-ok-500/40 bg-ok-500/10 px-2.5 py-1.5 text-xs text-ok-200">{notice}</p>}
+      {listErr && <p className="mb-2 rounded-lg border border-danger-500/40 bg-danger-500/10 px-2.5 py-1.5 text-xs leading-relaxed text-danger-300">{listErr}</p>}
 
       {loading ? (
         <EmptyState loading text={t`读取中…`} />
@@ -341,7 +341,7 @@ export default function SupportPersonasPage() {
                   )}
                 </div>
                 {needPay && !current && <p className="mt-1.5 text-[11px] text-slate-500"><Trans>付费人格：先在官网购买，买过之后这里就能用。</Trans></p>}
-                {cardErr?.id === p._id && <p className="mt-1.5 text-[11px] leading-relaxed text-rose-300">{cardErr.text}</p>}
+                {cardErr?.id === p._id && <p className="mt-1.5 text-[11px] leading-relaxed text-danger-300">{cardErr.text}</p>}
               </section>
             );
           })}

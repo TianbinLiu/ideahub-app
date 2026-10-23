@@ -596,7 +596,7 @@ export default function ProfilePage() {
                 {unread > 0 && (
                   // 只画一个点不写数字：未读上到两位数时数字会把 44px 热区撑破，
                   // 而"有几条"进了页面第一眼就看得到
-                  <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-ink" />
+                  <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-danger-500 ring-2 ring-ink" />
                 )}
               </Link>
               <Link
@@ -651,7 +651,7 @@ export default function ProfilePage() {
                 <button
                   onClick={onFollow}
                   aria-label={t({ message: "关注", context: "作者头像下那颗关注按钮（动作：关注这个人）" })}
-                  className="absolute -bottom-2 left-1/2 flex h-7 w-7 -translate-x-1/2 items-center justify-center rounded-full border-2 border-ink bg-rose-500 text-white transition active:scale-90"
+                  className="absolute -bottom-2 left-1/2 flex h-7 w-7 -translate-x-1/2 items-center justify-center rounded-full border-2 border-ink bg-danger-500 text-white transition active:scale-90"
                 >
                   <Icon name="plus" size={14} strokeWidth={3} />
                 </button>
@@ -1070,11 +1070,11 @@ export default function ProfilePage() {
             依赖里没有任何值会因为网络恢复而变（collectIds 是原地 mutate 的同一个数组），
             不给这颗按钮就只能离开页面再进来 */}
         {activeTab === "collects" && collectUnknown > 0 && (
-          <p className="mx-3 mb-2 flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-100">
+          <p className="mx-3 mb-2 flex items-center gap-2 rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-[11px] leading-relaxed text-warn-100">
             <span className="flex-1"><Trans>有 {collectUnknown} 条这会儿没取回来（网络没通）——它们还在，不是被删了。</Trans></span>
             <button
               onClick={() => setCollectTry((n) => n + 1)}
-              className="flex-none rounded-full bg-amber-400/20 px-2.5 py-1 font-semibold text-amber-100"
+              className="flex-none rounded-full bg-warn-400/20 px-2.5 py-1 font-semibold text-warn-100"
             >
               <Trans>重试</Trans>
             </button>
@@ -1198,7 +1198,7 @@ function CutSessionBanner() {
           <>
             <button
               onClick={() => void dropCutSession()}
-              className="rounded-xl bg-rose-500/90 px-3 py-2.5 text-xs font-bold text-white"
+              className="rounded-xl bg-danger-500/90 px-3 py-2.5 text-xs font-bold text-white"
             >
               <Trans>确认丢掉</Trans>
             </button>
@@ -1254,10 +1254,10 @@ function PendingBanner() {
   const title = first.draft.title;
   const why = pendingErrorText(first);
   return (
-    <div className="mx-3 mt-3 rounded-xl border border-slate-700/70 border-l-2 border-l-amber-500/80 bg-panel p-3">
+    <div className="mx-3 mt-3 rounded-xl border border-slate-700/70 border-l-2 border-l-warn-500/80 bg-panel p-3">
       <div className="flex items-center gap-2">
-        <Icon name="alert" size={14} className="flex-none text-amber-300" />
-        <span className="min-w-0 flex-1 text-xs font-semibold text-amber-200">
+        <Icon name="alert" size={14} className="flex-none text-warn-300" />
+        <span className="min-w-0 flex-1 text-xs font-semibold text-warn-200">
           <Trans>{list.length} 条作品还没传到服务器</Trans>
         </span>
       </div>
@@ -1283,7 +1283,7 @@ function PendingBanner() {
               .finally(() => setBusy(false));
           }}
           disabled={busy}
-          className="flex-1 rounded-xl bg-amber-400/90 py-2.5 text-sm font-bold text-ink disabled:opacity-40"
+          className="flex-1 rounded-xl bg-warn-400/90 py-2.5 text-sm font-bold text-ink disabled:opacity-40"
         >
           {busy ? t`重试中…` : t`立即重试`}
         </button>
@@ -1294,7 +1294,7 @@ function PendingBanner() {
           <Trans>不要了</Trans>
         </button>
       </div>
-      {note && <div className="mt-1.5 text-center text-[11px] text-amber-200">{note}</div>}
+      {note && <div className="mt-1.5 text-center text-[11px] text-warn-200">{note}</div>}
     </div>
   );
 }
@@ -1423,7 +1423,7 @@ function WorkGrid({ items }: { items: VideoItem[] }) {
                   这一栏只有作者自己看得到（别人的接口回包里根本没有这条作品）。 */}
               {v.takedown ? (
                 <span
-                  className="flex items-center gap-0.5 rounded bg-rose-600/90 px-1 py-0.5 text-[9px] font-semibold text-white"
+                  className="flex items-center gap-0.5 rounded bg-danger-600/90 px-1 py-0.5 text-[9px] font-semibold text-white"
                   title={v.takedown.reason ? t`下架原因：${takedownReasonText(v.takedown.reason)}` : undefined}
                 >
                   <Trans>已下架</Trans>
@@ -1750,7 +1750,7 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
           不在这里说清楚「欠多少、怎么解冻」，用户会反复去点生成、反复吃同一个错误，
           而错误码本身完全解释不了发生了什么。 */}
       {(wallet.debt ?? 0) > 0 && (
-        <div className="mb-3 rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2.5 text-[11px] leading-relaxed text-rose-200">
+        <div className="mb-3 rounded-xl border border-danger-500/40 bg-danger-500/10 px-3 py-2.5 text-[11px] leading-relaxed text-danger-200">
           <Trans>
             因一笔退款，已收回相应 token，尚欠 {fmtTokens(wallet.debt ?? 0)}。下次充值会自动抵扣，抵完即可继续生成；在那之前生成功能暂时不可用。
           </Trans>
@@ -1793,10 +1793,10 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
         <div
           className={`mb-3 rounded-xl border px-3 py-2.5 text-[11px] leading-relaxed ${
             order.tone === "warn"
-              ? "border-amber-500/40 bg-amber-500/10 text-amber-200"
+              ? "border-warn-500/40 bg-warn-500/10 text-warn-200"
               : order.tone === "bad"
-                ? "border-rose-500/40 bg-rose-500/10 text-rose-200"
-                : "border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
+                ? "border-danger-500/40 bg-danger-500/10 text-danger-200"
+                : "border-ok-500/40 bg-ok-500/10 text-ok-200"
           }`}
         >
           {order.text}
