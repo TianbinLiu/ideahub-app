@@ -140,7 +140,7 @@ export default function SettingsPage() {
           if (why) setSignOutWhy(why);
           else setSignOutOpen(true);
         }}
-        className="w-full rounded-xl border border-rose-500/40 py-3 text-sm text-rose-400"
+        className="mt-8 w-full rounded-xl border border-rose-500/40 py-2.5 text-sm text-rose-300"
       >
         <Trans>退出登录</Trans>
       </button>

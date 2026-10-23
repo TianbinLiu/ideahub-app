@@ -1104,7 +1104,7 @@ export default function CardDetailPage() {
                     .finally(() => setEditBusy(false));
                 }}
                 disabled={editBusy}
-                className="flex-1 rounded-xl bg-brand py-2.5 text-xs font-bold text-ink disabled:opacity-40"
+                className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
               >
                 {editBusy ? t`保存中…` : editErr ? t`再试一次` : t`保存`}
               </button>

@@ -351,7 +351,7 @@ export default function DiscoverPage() {
             </p>
           ) : !userSupported ? (
             <p className="rounded-xl bg-panel/60 px-3 py-2.5 text-xs leading-relaxed text-slate-400">
-              <Trans>这台服务器还没有搜人功能 · 服务端升级后即可使用，App 不用重装</Trans>
+              <Trans>搜人功能还没上线 · 之后会有，App 不用重装</Trans>
             </p>
           ) : userBusy ? (
             <p className="px-1 py-2 text-xs text-slate-500"><Trans>正在找人…</Trans></p>
@@ -522,11 +522,11 @@ export default function DiscoverPage() {
               <img src={v.cover} alt={v.title} loading="lazy" decoding="async" className="aspect-[3/4] w-full object-cover" />
               {/* 底部渐变托住两行小字：封面多半是亮的 AI 图，白字直接压上去读不清 */}
               <span aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black/70 to-transparent" />
-              <span className="absolute bottom-1.5 left-1.5 flex items-center gap-0.5 text-[10px] font-medium text-white [text-shadow:0_1px_2px_rgba(0,0,0,.6)]">
+              <span className="absolute bottom-1.5 left-1.5 flex items-center gap-0.5 text-[10px] font-medium text-white [text-shadow:0_0_3px_rgba(0,0,0,.6)]">
                 <Icon name="play" size={10} filled />
                 {formatPlays(v.plays)}
               </span>
-              <span className="absolute bottom-1.5 right-1.5 text-[10px] tabular-nums text-white/90 [text-shadow:0_1px_2px_rgba(0,0,0,.6)]">
+              <span className="absolute bottom-1.5 right-1.5 text-[10px] tabular-nums text-white/90 [text-shadow:0_0_3px_rgba(0,0,0,.6)]">
                 {formatDuration(segsTotal(v.segments))}
               </span>
               {/* 「AI 生成」标识：这一格是"发布内容周边"的第四个面，而封面默认就是

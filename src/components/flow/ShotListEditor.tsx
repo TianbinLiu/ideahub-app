@@ -139,7 +139,7 @@ const ShotListEditor = forwardRef<
       }}
       disabled={disabled}
       title={t`删掉这个镜头`}
-      className={`${extra}flex h-6 w-6 flex-none items-center justify-center rounded-full bg-black/40 text-[10px] text-slate-400 disabled:opacity-40`}
+      className={`${extra}relative flex h-6 w-6 flex-none items-center justify-center rounded-full bg-black/40 text-[10px] text-slate-400 after:absolute after:-inset-2 after:content-[''] disabled:opacity-40`}
     >
       ✕
     </button>

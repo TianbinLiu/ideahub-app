@@ -274,7 +274,7 @@ export default function SupportPersonasPage() {
           <button
             key={tb}
             onClick={() => setScope(tb)}
-            className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold ${scope === tb ? "bg-brand text-ink" : "bg-panel text-slate-300"}`}
+            className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs ${scope === tb ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-300"}`}
           >
             {t(TAB_LABEL[tb])}
           </button>

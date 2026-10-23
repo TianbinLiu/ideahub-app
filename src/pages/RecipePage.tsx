@@ -163,7 +163,7 @@ export default function RecipePage() {
       {res === null ? (
         <EmptyState loading text={t`正在取制作过程…`} />
       ) : res.state === "unsupported" ? (
-        <EmptyState emoji="🔌" text={t`这台服务器还不支持公开制作过程`} hint={t`等服务器更新后再来`} />
+        <EmptyState emoji="🔌" text={t`制作过程功能还没上线`} hint={t`之后会有，App 不用重装`} />
       ) : res.state === "offline" ? (
         <EmptyState emoji="📡" text={t`查看制作过程需要联网`} hint={t`制作过程存在服务端，这台设备当前是离线模式；接上服务器再来这一页。`} />
       ) : res.state === "failed" ? (
@@ -176,7 +176,7 @@ export default function RecipePage() {
         />
       ) : res.state === "none" ? (
         res.code === "NOT_FOUND" ? (
-          <EmptyState emoji="🫥" text={t`作品不存在或已删除`} />
+          <EmptyState emoji="🫥" text={t`作品不存在或已删除`} cta={{ label: t`回首页`, to: "/", replace: true }} />
         ) : res.code === "RECIPE_NOT_PUBLIC" ? (
           <EmptyState emoji="🔒" text={t`作者没有公开这条作品的制作过程`} hint={t`作品页仍然可以「做同款」：那是抄分段剧本，不含卡与段模板`} />
         ) : (

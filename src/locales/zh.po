@@ -3063,8 +3063,8 @@ msgid "✎ 重拍这一段（{revisePrice}）"
 msgstr "✎ 重拍这一段（{revisePrice}）"
 
 #: src/pages/DeckDetailPage.tsx
-msgid "✏️ 编辑"
-msgstr "✏️ 编辑"
+#~ msgid "✏️ 编辑"
+#~ msgstr "✏️ 编辑"
 
 #: src/data/videoDownload.ts
 msgid "✓ 已交给系统"
@@ -5647,6 +5647,11 @@ msgstr "举报这条弹幕"
 msgid "举报这条评论"
 msgstr "举报这条评论"
 
+#: src/pages/RecipePage.tsx
+#: src/pages/tutor/TutorHomePage.tsx
+msgid "之后会有，App 不用重装"
+msgstr "之后会有，App 不用重装"
+
 #: src/components/flow/ModePicker.tsx
 msgid "九宫格分镜"
 msgstr "九宫格分镜"
@@ -7131,6 +7136,10 @@ msgid "公开制作过程"
 msgstr "公开制作过程"
 
 #: src/pages/EditPage.tsx
+msgid "公开制作过程功能还没上线。"
+msgstr "公开制作过程功能还没上线。"
+
+#: src/pages/EditPage.tsx
 msgid "公开制作过程需要联网；这台设备当前是离线模式。"
 msgstr "公开制作过程需要联网；这台设备当前是离线模式。"
 
@@ -8388,6 +8397,10 @@ msgid "制作过程"
 msgstr "制作过程"
 
 #: src/pages/RecipePage.tsx
+msgid "制作过程功能还没上线"
+msgstr "制作过程功能还没上线"
+
+#: src/pages/RecipePage.tsx
 msgid "制作过程存在服务端，这台设备当前是离线模式；接上服务器再来这一页。"
 msgstr "制作过程存在服务端，这台设备当前是离线模式；接上服务器再来这一页。"
 
@@ -9111,6 +9124,7 @@ msgstr "去现场看上下文 →"
 
 #: src/components/BlockButton.tsx
 #: src/components/ReportButton.tsx
+#: src/pages/SettingsBlockedPage.tsx
 msgid "去登录"
 msgstr "去登录"
 
@@ -10114,8 +10128,12 @@ msgid "合成失败：{raw}"
 msgstr "合成失败：{raw}"
 
 #: src/pages/CutPage.tsx
-msgid "合成失败：第 {segList} 段的视频取不到了（HTTP {http}）。这几段揣的还是方舟的临时链接、当初没能转存成永久地址，而那种链接只活 24 小时——过期之后合成器也拉不到。这条片子现在合不了：回「我的 → 草稿」打开草稿把这几段重新出片（会再花一次钱），或者删掉它们再合。"
-msgstr "合成失败：第 {segList} 段的视频取不到了（HTTP {http}）。这几段揣的还是方舟的临时链接、当初没能转存成永久地址，而那种链接只活 24 小时——过期之后合成器也拉不到。这条片子现在合不了：回「我的 → 草稿」打开草稿把这几段重新出片（会再花一次钱），或者删掉它们再合。"
+msgid "合成失败：第 {segList} 段的视频取不到了。这几段的视频还挂在临时链接上（当初没能转存成长期地址），临时链接只有 24 小时——过期之后就取不到了。这条片子现在合不了：回「我的 → 草稿」打开草稿把这几段重新出片（会再花一次钱），或者删掉它们再合。"
+msgstr "合成失败：第 {segList} 段的视频取不到了。这几段的视频还挂在临时链接上（当初没能转存成长期地址），临时链接只有 24 小时——过期之后就取不到了。这条片子现在合不了：回「我的 → 草稿」打开草稿把这几段重新出片（会再花一次钱），或者删掉它们再合。"
+
+#: src/pages/CutPage.tsx
+#~ msgid "合成失败：第 {segList} 段的视频取不到了（HTTP {http}）。这几段揣的还是方舟的临时链接、当初没能转存成永久地址，而那种链接只活 24 小时——过期之后合成器也拉不到。这条片子现在合不了：回「我的 → 草稿」打开草稿把这几段重新出片（会再花一次钱），或者删掉它们再合。"
+#~ msgstr "合成失败：第 {segList} 段的视频取不到了（HTTP {http}）。这几段揣的还是方舟的临时链接、当初没能转存成永久地址，而那种链接只活 24 小时——过期之后合成器也拉不到。这条片子现在合不了：回「我的 → 草稿」打开草稿把这几段重新出片（会再花一次钱），或者删掉它们再合。"
 
 #: src/pages/CutPage.tsx
 msgid "合成并去发布"
@@ -10266,6 +10284,10 @@ msgstr "启梦官方"
 #: src/pages/tutor/TutorHomePage.tsx
 msgid "启梦老师"
 msgstr "启梦老师"
+
+#: src/pages/tutor/TutorHomePage.tsx
+msgid "启梦老师还没上线"
+msgstr "启梦老师还没上线"
 
 #: src/pages/tutor/TutorHomePage.tsx
 msgid "启梦老师面向成年学习者。发布老师到市场之前要先做一次成人声明（只记一次，服务端保存）。"
@@ -10430,6 +10452,10 @@ msgid "回炉重做（丢弃上面那条流水线）"
 msgstr "回炉重做（丢弃上面那条流水线）"
 
 #: src/pages/EditPage.tsx
+msgid "回炉重做功能还没上线，之后会有。"
+msgstr "回炉重做功能还没上线，之后会有。"
+
+#: src/pages/EditPage.tsx
 msgid "回炉重做这条作品？"
 msgstr "回炉重做这条作品？"
 
@@ -10458,6 +10484,7 @@ msgid "回铸段窗重选模式"
 msgstr "回铸段窗重选模式"
 
 #: src/components/ErrorBoundary.tsx
+#: src/pages/RecipePage.tsx
 #: src/pages/VideoEditorPage.tsx
 msgid "回首页"
 msgstr "回首页"
@@ -11201,6 +11228,10 @@ msgstr "完成视频"
 #: src/pages/CreatePage.tsx
 msgid "完整作品"
 msgstr "完整作品"
+
+#: src/pages/ProfilePage.tsx
+msgid "完整资料还看不到 · 服务更新之后就有，App 不用重装"
+msgstr "完整资料还看不到 · 服务更新之后就有，App 不用重装"
 
 #: src/pages/SupportModelsPage.tsx
 msgid "官方"
@@ -12672,8 +12703,8 @@ msgid "当前形象 ✓"
 msgstr "当前形象 ✓"
 
 #: src/pages/SettingsBlockedPage.tsx
-msgid "当前是本地模式（没有连服务器），黑名单是账号级的功能——接上服务器之后才会有。"
-msgstr "当前是本地模式（没有连服务器），黑名单是账号级的功能——接上服务器之后才会有。"
+#~ msgid "当前是本地模式（没有连服务器），黑名单是账号级的功能——接上服务器之后才会有。"
+#~ msgstr "当前是本地模式（没有连服务器），黑名单是账号级的功能——接上服务器之后才会有。"
 
 #: src/pages/SettingsDeactivatePage.tsx
 msgid "当前是本地账号：没有服务器，也就没有可注销的云端账号。 你的数据都在这台设备上——清掉 App 数据（或卸载）即等同于注销。"
@@ -14069,6 +14100,10 @@ msgstr "挑中的 {n} 格各成一段了——每段拿那一格的画面当开�
 msgid "挑主角"
 msgstr "挑主角"
 
+#: src/pages/DeckDetailPage.tsx
+msgid "挑几张卡进来"
+msgstr "挑几张卡进来"
+
 #: src/components/flow/ModePicker.tsx
 msgid "挑几张参考图（人物 / 场景卡）＋ 写提示词，人物图直接给视频模型"
 msgstr "挑几张参考图（人物 / 场景卡）＋ 写提示词，人物图直接给视频模型"
@@ -14559,6 +14594,14 @@ msgstr "提示词合成失败：AI 改动了「{sentence}」这句成组绑定�
 #: src/studio/blockoutPrompt.ts
 msgid "提示词合成失败（{why}）——这一段的要求请自己写，或用下面那份默认写法。"
 msgstr "提示词合成失败（{why}）——这一段的要求请自己写，或用下面那份默认写法。"
+
+#: src/pages/DiscoverPage.tsx
+msgid "搜人功能还没上线 · 之后会有，App 不用重装"
+msgstr "搜人功能还没上线 · 之后会有，App 不用重装"
+
+#: src/components/MentionInput.tsx
+msgid "搜人功能还没上线，@ 可能收不到"
+msgstr "搜人功能还没上线，@ 可能收不到"
 
 #: src/components/MentionInput.tsx
 msgid "搜人失败"
@@ -15450,6 +15493,10 @@ msgstr "暂停"
 msgid "暂时不可用"
 msgstr "暂时不可用"
 
+#: src/pages/ProfilePage.tsx
+msgid "暂时只能看到本次刷到的这几条，不是 TA 的全部作品"
+msgstr "暂时只能看到本次刷到的这几条，不是 TA 的全部作品"
+
 #: src/ai/minimaxVideo.ts
 msgid "暂时查不到这一发（{why}）——凭据还在，过一会儿再点一次，查询不花钱。"
 msgstr "暂时查不到这一发（{why}）——凭据还在，过一会儿再点一次，查询不花钱。"
@@ -15980,7 +16027,6 @@ msgid "服务端出错"
 msgstr "服务端出错"
 
 #: src/pages/NotificationsPage.tsx
-#: src/pages/tutor/TutorHomePage.tsx
 msgid "服务端升级后即可使用，App 不用重装"
 msgstr "服务端升级后即可使用，App 不用重装"
 
@@ -18314,6 +18360,7 @@ msgstr "清空"
 msgid "清空已保存的视频（{0}）"
 msgstr "清空已保存的视频（{0}）"
 
+#: src/components/MaterialSheet.tsx
 #: src/components/SearchField.tsx
 msgid "清空搜索"
 msgstr "清空搜索"
@@ -18599,8 +18646,8 @@ msgid "点卡面只是<0>看详情</0>，下面那颗「＋ 添加」才是收�
 msgstr "点卡面只是<0>看详情</0>，下面那颗「＋ 添加」才是收进自己的库； 卡组能整套装走。都<1>不花钱</1>。"
 
 #: src/pages/DeckDetailPage.tsx
-msgid "点右上角「编辑」挑几张卡进来"
-msgstr "点右上角「编辑」挑几张卡进来"
+#~ msgid "点右上角「编辑」挑几张卡进来"
+#~ msgstr "点右上角「编辑」挑几张卡进来"
 
 #: src/pages/FlowPage.tsx
 msgid "点名句"
@@ -19763,8 +19810,12 @@ msgid "登录之后才能拉黑。"
 msgstr "登录之后才能拉黑。"
 
 #: src/pages/SettingsBlockedPage.tsx
-msgid "登录之后才能管理黑名单。"
-msgstr "登录之后才能管理黑名单。"
+msgid "登录之后才能管理黑名单"
+msgstr "登录之后才能管理黑名单"
+
+#: src/pages/SettingsBlockedPage.tsx
+#~ msgid "登录之后才能管理黑名单。"
+#~ msgstr "登录之后才能管理黑名单。"
 
 #: src/pages/LoginPage.tsx
 msgid "登录前请先阅读并同意<0>《用户协议》</0>与<1>《隐私政策》</1>。"
@@ -21533,8 +21584,12 @@ msgstr "第 {segNo} 段是「{label}」档，模型已于 {day}停用，这里�
 #~ msgstr "第 {segNo} 段是「{label}」档，模型已于 {day}停用，这里重拍不了——回工作流把这一段换一档重新出片（会重新计费）"
 
 #: src/pages/CutPage.tsx
-msgid "第 {segNo} 段是「{label}」档，这台服务器还不支持它（服务端需要更新），这里重拍不了"
-msgstr "第 {segNo} 段是「{label}」档，这台服务器还不支持它（服务端需要更新），这里重拍不了"
+msgid "第 {segNo} 段是「{label}」档，这个档位的重拍还没上线，这里重拍不了"
+msgstr "第 {segNo} 段是「{label}」档，这个档位的重拍还没上线，这里重拍不了"
+
+#: src/pages/CutPage.tsx
+#~ msgid "第 {segNo} 段是「{label}」档，这台服务器还不支持它（服务端需要更新），这里重拍不了"
+#~ msgstr "第 {segNo} 段是「{label}」档，这台服务器还不支持它（服务端需要更新），这里重拍不了"
 
 #: src/pages/CutPage.tsx
 msgid "第 {segNo} 段是「{label}」档，这里重拍不了（这一页的重拍还不支持这一档）——回「我的 → 草稿」打开草稿，把这一段重新出片（会重新计费）"
@@ -21722,7 +21777,6 @@ msgid "等待火山引擎认证…"
 msgstr "等待火山引擎认证…"
 
 #: src/components/WorkflowShelf.tsx
-#: src/pages/RecipePage.tsx
 msgid "等服务器更新后再来"
 msgstr "等服务器更新后再来"
 
@@ -21805,6 +21859,10 @@ msgstr "管理员免扣费：这一步约值 {amount} token，不从你的钱包
 #: src/pages/ProfilePage.tsx
 msgid "管理员账号无需充值：AI 生成走免扣费通道，不从下面的余额里扣。余额与下单入口保留，仅用于测试支付流程。"
 msgstr "管理员账号无需充值：AI 生成走免扣费通道，不从下面的余额里扣。余额与下单入口保留，仅用于测试支付流程。"
+
+#: src/pages/SettingsBlockedPage.tsx
+msgid "管理黑名单需要联网"
+msgstr "管理黑名单需要联网"
 
 #: src/data/templates.ts
 msgctxt "人偶的主色（挂卡提醒那句话里显示）"
@@ -22196,6 +22254,7 @@ msgid "编号还没核对：AI 编的号可能与画面上人偶头上的数字�
 msgstr "编号还没核对：AI 编的号可能与画面上人偶头上的数字对不上，<0>核对之前不能发布</0>（对不上会让别人的角色卡换到别人身上）。点这里去核对。"
 
 #: src/pages/CardDetailPage.tsx
+#: src/pages/DeckDetailPage.tsx
 #: src/pages/VideoPage.tsx
 #: src/pages/WorkshopMinePage.tsx
 msgid "编辑"
@@ -25679,13 +25738,12 @@ msgid "这台服务器还不支持举报（需要升级服务端）"
 msgstr "这台服务器还不支持举报（需要升级服务端）"
 
 #: src/data/recipes.ts
-#: src/pages/RecipePage.tsx
 msgid "这台服务器还不支持公开制作过程"
 msgstr "这台服务器还不支持公开制作过程"
 
 #: src/pages/EditPage.tsx
-msgid "这台服务器还不支持公开制作过程。"
-msgstr "这台服务器还不支持公开制作过程。"
+#~ msgid "这台服务器还不支持公开制作过程。"
+#~ msgstr "这台服务器还不支持公开制作过程。"
 
 #: src/pages/AdminPage.tsx
 msgid "这台服务器还不支持删除（需要升级服务端）"
@@ -25712,8 +25770,8 @@ msgid "这台服务器还不支持回炉重做——成片内容没有被替换�
 msgstr "这台服务器还不支持回炉重做——成片内容没有被替换（但标题、简介、封面这些改动已经生效了）。合成稿还留在「我的」里，等服务器更新后再试一次。"
 
 #: src/pages/EditPage.tsx
-msgid "这台服务器还不支持回炉重做。等服务器更新后再试。"
-msgstr "这台服务器还不支持回炉重做。等服务器更新后再试。"
+#~ msgid "这台服务器还不支持回炉重做。等服务器更新后再试。"
+#~ msgstr "这台服务器还不支持回炉重做。等服务器更新后再试。"
 
 #: src/data/projects.ts
 msgid "这台服务器还不支持回炉重做（没有工坊工程这个端点）"
@@ -25728,12 +25786,12 @@ msgid "这台服务器还不支持封禁（需要升级服务端）"
 msgstr "这台服务器还不支持封禁（需要升级服务端）"
 
 #: src/pages/ProfilePage.tsx
-msgid "这台服务器还不支持按作者取作品 · 下面只是本次刷到的那些，不是全部"
-msgstr "这台服务器还不支持按作者取作品 · 下面只是本次刷到的那些，不是全部"
+#~ msgid "这台服务器还不支持按作者取作品 · 下面只是本次刷到的那些，不是全部"
+#~ msgstr "这台服务器还不支持按作者取作品 · 下面只是本次刷到的那些，不是全部"
 
 #: src/components/MentionInput.tsx
-msgid "这台服务器还不支持搜人，@ 可能收不到"
-msgstr "这台服务器还不支持搜人，@ 可能收不到"
+#~ msgid "这台服务器还不支持搜人，@ 可能收不到"
+#~ msgstr "这台服务器还不支持搜人，@ 可能收不到"
 
 #: src/data/account.ts
 msgid "这台服务器还不支持样片模式（服务端需要更新）"
@@ -25808,8 +25866,8 @@ msgid "这台服务器还没有可混音的 1.0 音色目录（服务端需要�
 msgstr "这台服务器还没有可混音的 1.0 音色目录（服务端需要更新），先用「单音色」。"
 
 #: src/pages/tutor/TutorHomePage.tsx
-msgid "这台服务器还没有启梦老师"
-msgstr "这台服务器还没有启梦老师"
+#~ msgid "这台服务器还没有启梦老师"
+#~ msgstr "这台服务器还没有启梦老师"
 
 #: src/api/tutor.ts
 msgid "这台服务器还没有启梦老师（/api/tutor 不在）"
@@ -25828,12 +25886,12 @@ msgid "这台服务器还没有平台数据接口（需要升级服务端）"
 msgstr "这台服务器还没有平台数据接口（需要升级服务端）"
 
 #: src/pages/DiscoverPage.tsx
-msgid "这台服务器还没有搜人功能 · 服务端升级后即可使用，App 不用重装"
-msgstr "这台服务器还没有搜人功能 · 服务端升级后即可使用，App 不用重装"
+#~ msgid "这台服务器还没有搜人功能 · 服务端升级后即可使用，App 不用重装"
+#~ msgstr "这台服务器还没有搜人功能 · 服务端升级后即可使用，App 不用重装"
 
 #: src/pages/ProfilePage.tsx
-msgid "这台服务器还没有用户主页接口 · 服务端升级后即可看到完整资料"
-msgstr "这台服务器还没有用户主页接口 · 服务端升级后即可看到完整资料"
+#~ msgid "这台服务器还没有用户主页接口 · 服务端升级后即可看到完整资料"
+#~ msgstr "这台服务器还没有用户主页接口 · 服务端升级后即可看到完整资料"
 
 #: src/api/uploads.ts
 msgid "这台服务器还没有素材视频登记端点（请更新服务端）"
@@ -25844,8 +25902,8 @@ msgid "这台服务器还没有老师会话（回的不是事件流）"
 msgstr "这台服务器还没有老师会话（回的不是事件流）"
 
 #: src/pages/NotificationsPage.tsx
-msgid "这台服务器还没有通知功能"
-msgstr "这台服务器还没有通知功能"
+#~ msgid "这台服务器还没有通知功能"
+#~ msgstr "这台服务器还没有通知功能"
 
 #: src/pages/SettingsPage.tsx
 msgid "这台设备"
@@ -26974,6 +27032,10 @@ msgstr "通知内容（以平台名义送达对方的消息页）"
 msgid "通知内容不能为空"
 msgstr "通知内容不能为空"
 
+#: src/pages/NotificationsPage.tsx
+msgid "通知功能还没上线"
+msgstr "通知功能还没上线"
+
 #: src/pages/AdminPage.tsx
 msgid "通知已发送"
 msgstr "通知已发送"
@@ -27882,6 +27944,10 @@ msgstr "黄"
 msgctxt "人偶的主色（挂卡提醒那句话里显示）"
 msgid "黑"
 msgstr "黑"
+
+#: src/pages/SettingsBlockedPage.tsx
+msgid "黑名单跟着账号走，这台设备当前是离线模式；接上服务器再来这一页。"
+msgstr "黑名单跟着账号走，这台设备当前是离线模式；接上服务器再来这一页。"
 
 #: src/data/videos.ts
 msgctxt "离线演示作品的作者名（编出来的示例作者，不是真人）"

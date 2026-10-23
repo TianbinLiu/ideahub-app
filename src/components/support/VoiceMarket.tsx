@@ -219,7 +219,7 @@ export default function VoiceMarket({ name, currentTemplateId, nameOf, previewer
       {listErr && <p className="mb-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-xs leading-relaxed text-rose-300">{listErr}</p>}
 
       {loading ? (
-        <p className="py-6 text-center text-xs text-slate-500"><Trans>读取中…</Trans></p>
+        <EmptyState compact loading text={t`读取中…`} />
       ) : items.length === 0 && !listErr ? (
         <EmptyState emoji="🎙️" text={emptyText} />
       ) : (

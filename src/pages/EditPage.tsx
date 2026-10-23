@@ -260,7 +260,7 @@ export default function EditPage() {
     //   （见 data/projects.readyProjects 的 ★★）。把一次网络抖动说成"服务器不支持"，
     //   用户会去等一个根本不会到来的服务器更新 —— 说一句错的原因比不给原因更坏。
     if (supported === "error") return t`暂时问不到服务器，没能确认这条作品有没有留存工坊工程。`;
-    if (supported === false) return t`这台服务器还不支持回炉重做。等服务器更新后再试。`;
+    if (supported === false) return t`回炉重做功能还没上线，之后会有。`;
     if (isUploading(video)) return t`这条作品还在上传，传完再回炉。`;
     if (video.pricing?.mode === "paid") return t`这条作品设为按分集收费，不能换内容。`;
     if (video.takedown) return t`这条作品已被平台下架，下架期间不能改内容。`;
@@ -286,7 +286,7 @@ export default function EditPage() {
   const recipeShareWhy: string | null = (() => {
     if (supported === null) return t`正在确认这条作品有没有留存工坊工程…`;
     if (supported === "error") return t`暂时问不到服务器，没能确认这条作品有没有留存工坊工程。`;
-    if (supported === false) return t`这台服务器还不支持公开制作过程。`;
+    if (supported === false) return t`公开制作过程功能还没上线。`;
     if (!hasProject) return t`这条作品没有留存工坊工程，没有可公开的制作过程。`;
     // 与 reforgeWhy 那一档同一个分叉：本机还留着这一版的画布待办才指「重新留存这一版」那颗键，否则那颗键根本不在屏幕上
     if (projectStale) {
@@ -488,7 +488,7 @@ export default function EditPage() {
           </div>
           {/* ★ 这一段原来写的是「🔒 成片内容已定稿，发布后不能再改」—— 2026-09-07 起不再成立
               （下面那颗 🛠 就是改内容的路）。措辞按**事实**写：能改，但改的是同一个链接下的内容。 */}
-          <p className="mt-3 rounded-xl border border-slate-700/60 bg-panel/40 px-3.5 py-2.5 text-[11px] leading-relaxed text-slate-400">
+          <p className="mt-3 rounded-xl border border-slate-700/70 bg-panel/40 px-3.5 py-2.5 text-[11px] leading-relaxed text-slate-400">
             <Trans>想换成片内容，用下面的「🛠 回炉重做」把这条片的工坊工程取回工坊接着改 —— 链接、播放量、评论都留着。想做一条全新的，<Link to="/studio" className="text-brand">去工坊再创作</Link>。</Trans>
           </p>
 
@@ -587,7 +587,7 @@ export default function EditPage() {
               {recipeFetch === null ? (
                 <p className="text-xs text-slate-500"><Trans>正在确认有没有公开…</Trans></p>
               ) : recipeFetch.state === "unsupported" ? (
-                <p className="text-xs leading-relaxed text-slate-500"><Trans>这台服务器还不支持公开制作过程。</Trans></p>
+                <p className="text-xs leading-relaxed text-slate-500"><Trans>公开制作过程功能还没上线。</Trans></p>
               ) : recipeFetch.state === "offline" ? (
                 <p className="text-xs leading-relaxed text-slate-400"><Trans>公开制作过程需要联网；这台设备当前是离线模式。</Trans></p>
               ) : recipeFetch.state === "failed" ? (

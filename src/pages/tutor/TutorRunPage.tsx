@@ -297,7 +297,7 @@ export default function TutorRunPage() {
     }
   };
 
-  if (!API_ON) return <div className="min-h-full px-4 pb-10"><PageHeader sticky inset onBack={back} title={t`上课`} /><EmptyState full emoji="📡" text={t`上课需要联网`} hint={t`老师、进度和对话都在服务端，这台设备当前是离线模式。`} /></div>;
+  if (!API_ON) return <div className="min-h-full px-4 pb-10"><PageHeader sticky inset onBack={back} title={t`上课`} /><EmptyState emoji="📡" text={t`上课需要联网`} hint={t`老师、进度和对话都在服务端，这台设备当前是离线模式。`} /></div>;
   if (loadError) return <div className="min-h-full px-4 pb-10"><PageHeader sticky inset onBack={back} title={t`上课`} /><EmptyState error text={t`这门课没打开：${loadError}`} cta={{ label: t`重试`, onClick: () => void load() }} /></div>;
   if (!bundle || !doc) return <div className="min-h-full px-4 pb-10"><PageHeader sticky inset onBack={back} title={t`上课`} /><EmptyState loading text={t`正在请老师…`} /></div>;
 

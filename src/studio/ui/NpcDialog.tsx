@@ -618,7 +618,7 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
               {CARD_TYPES.map((ct) => (
                 <button key={ct} onClick={() => { setType(ct); setStep("input"); }} className="group text-left">
                   <TarotCard cover={CARD_TYPE_COVERS[ct]} title={CARD_TYPE_LABELS[ct]} type={ct} active={type === ct} />
-                  <p className="mt-1 line-clamp-2 text-[10px] leading-tight text-slate-500 group-hover:text-slate-300">
+                  <p className="mt-1 line-clamp-2 text-[10px] leading-relaxed text-slate-500 group-hover:text-slate-300">
                     {t(TYPE_HINT[ct])}
                   </p>
                 </button>
@@ -629,7 +629,7 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
                   <span className="text-xl">🎲</span>
                   <span className="text-[10px] leading-tight text-slate-400 group-hover:text-brand"><Trans>让铸卡师<br />看着办</Trans></span>
                 </div>
-                <p className="mt-1 line-clamp-2 text-[10px] leading-tight text-slate-500"><Trans>按素材自动判断类型</Trans></p>
+                <p className="mt-1 line-clamp-2 text-[10px] leading-relaxed text-slate-500"><Trans>按素材自动判断类型</Trans></p>
               </button>
             </div>
           )}
@@ -767,7 +767,7 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
                 {preview.map((c) => (
                   <div key={c.id}>
                     <TarotCard cover={c.cover || null} title={c.name} sub={CARD_TYPE_LABELS[c.type]} type={c.type} />
-                    <p className="mt-1 line-clamp-3 text-[10px] leading-tight text-slate-500">{c.summary}</p>
+                    <p className="mt-1 line-clamp-3 text-[10px] leading-relaxed text-slate-500">{c.summary}</p>
                   </div>
                 ))}
               </div>

@@ -195,7 +195,7 @@ function TermsGate() {
                 recordTermsAccepted(user.id);
                 bump((n) => n + 1);
               }}
-              className="mt-4 w-full rounded-xl bg-brand py-2.5 text-xs font-bold text-ink"
+              className="mt-4 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink"
             >
               <Trans>同意并继续</Trans>
             </button>

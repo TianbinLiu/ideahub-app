@@ -356,7 +356,7 @@ export default function WorkshopPage() {
                       </Link>
                       {/* 作者写的一句话推荐（api 收 description → 服务端存并发回 → toLocalCard 解析成 shareNote） */}
                       {local.shareNote && (
-                        <p className="mt-0.5 line-clamp-2 text-[10px] leading-tight text-slate-400" title={local.shareNote}>
+                        <p className="mt-0.5 line-clamp-2 text-[10px] leading-relaxed text-slate-400" title={local.shareNote}>
                           {local.shareNote}
                         </p>
                       )}

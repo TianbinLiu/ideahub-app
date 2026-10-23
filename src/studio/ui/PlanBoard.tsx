@@ -284,7 +284,7 @@ export default function PlanBoard({
                             key={w}
                             onClick={() => setFusing({ id: p.id, which: w })}
                             disabled={busy || regenId === p.id}
-                            className="flex-1 rounded-full border border-slate-700 py-1 text-[9px] text-slate-300 disabled:opacity-40"
+                            className="flex-1 rounded-full border border-slate-700 py-1.5 text-[10px] text-slate-300 disabled:opacity-40"
                           >
                             {w === "first" ? <Trans>🧬 融首帧</Trans> : <Trans>🧬 融尾帧</Trans>}
                           </button>
@@ -352,7 +352,7 @@ export default function PlanBoard({
                             disabled={busy || tooShort}
                             title={tooShort ? t`这一档最短 ${minSec} 秒` : undefined}
                             // 高亮跟实际会拍的时长走（同 SegSettings：吸附后的结算值），别让禁掉的 3s 还亮着
-                            className={`rounded px-1.5 py-0.5 text-[10px] disabled:opacity-40 ${
+                            className={`rounded-full px-2.5 py-1 text-[11px] disabled:opacity-40 ${
                               Math.min(Math.max(...durations), Math.max(minSec ?? 0, p.durationSec)) === d ? "bg-gold/80 text-ink" : "bg-panel text-slate-300"
                             }`}
                           >

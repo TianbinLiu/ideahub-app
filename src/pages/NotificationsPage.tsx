@@ -219,7 +219,7 @@ export default function NotificationsPage() {
           //   说死了会让一个只是断网的人以为要换个包。
           <Empty text={t`通知需要连上服务器 · 当前是离线模式`} hint={t`联网后重新打开这一页就能看到`} />
         ) : !state.supported ? (
-          <Empty text={t`这台服务器还没有通知功能`} hint={t`服务端升级后即可使用，App 不用重装`} />
+          <Empty text={t`通知功能还没上线`} hint={t`服务端升级后即可使用，App 不用重装`} />
         ) : state.error ? (
           <EmptyState error text={t`通知没拉到：${state.error}`} cta={{ label: t`重试`, onClick: () => void refreshNotifications() }} />
         ) : state.items.length === 0 ? (

@@ -146,7 +146,7 @@ export function TemplateCard({
           {/* 左上角的能力角标排成一行（2026-10-23）：原来第二枚按固定偏移 left-[3.1rem] 摆，英文下「Blockout」比「白模」宽一截就叠上去 */}
           <span className="absolute left-2 top-2 flex items-center gap-1">
           {tpl.refVideo && (
-            <span className="rounded bg-sky-500/90 px-1.5 py-0.5 text-[9px] font-bold text-white">
+            <span className="rounded bg-black/60 px-1.5 py-0.5 text-[9px] font-bold text-white">
               <Trans>白模</Trans>
             </span>
           )}
@@ -155,7 +155,7 @@ export function TemplateCard({
               为什么要摆出来：两种模板在市场上长得一模一样，而能力差一个量级；
               不标的话用户只能靠"点进去试试"才知道这个模板能不能分角色换人。 */}
           {tpl.roles?.length ? (
-            <span className="rounded bg-emerald-500/90 px-1.5 py-0.5 text-[9px] font-bold text-white">
+            <span className="rounded bg-black/60 px-1.5 py-0.5 text-[9px] font-bold text-white">
               <Trans>{tpl.roles.length} 个角色位可换人</Trans>
             </span>
           ) : null}
@@ -200,7 +200,7 @@ export function TemplateCard({
               {/* ★★ 模板视频本身出不了片时打角标，**但不从列表里拿掉**：东西静默消失，
                   用户只会以为是我们弄丢了（铁律八）。判据只有 refVideoIssue 一处 */}
               {refVideoIssue(tpl.refVideo) && (
-                <span className="rounded-full px-1.5 py-0.5 bg-rose-500/20 text-[9px] text-rose-200"><Trans>暂时不可用</Trans></span>
+                <span className="rounded-full bg-black/65 px-1.5 py-0.5 text-[9px] text-rose-200"><Trans>暂时不可用</Trans></span>
               )}
             </div>
           </div>
@@ -290,7 +290,7 @@ function BlockoutResumeCard({ job, onTaken }: { job: BlockoutJob; onTaken: () =>
         <button
           onClick={() => void take()}
           disabled={!!busy}
-          className="mt-2 w-full rounded-xl bg-brand py-2.5 text-xs font-bold text-ink disabled:opacity-40"
+          className="mt-2 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
         >
           {busy ? <Trans>取回中…</Trans> : <Trans>取回这一发的结果（不额外花钱）</Trans>}
         </button>
@@ -635,7 +635,7 @@ export default function TemplateShelf({
             // 与改造前的 DOM 一模一样）
             data-guide={k === "mine" ? "templates-tab-mine" : undefined}
             onClick={() => setTab(k)}
-            className={`rounded-full px-3.5 py-1.5 text-xs font-semibold ${tab === k ? "bg-brand text-ink" : "bg-panel text-slate-300"}`}
+            className={`rounded-full px-3.5 py-1.5 text-xs ${tab === k ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-300"}`}
           >
             {k === "market" ? <Trans>模板市场</Trans> : k === "workflows" ? <Trans>工作流</Trans> : <Trans>我的模板 {mineRows || ""}</Trans>}
           </button>

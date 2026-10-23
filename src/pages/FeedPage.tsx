@@ -255,7 +255,7 @@ function RailBtn({
         )}
       </span>
       {label !== undefined && (
-        <span className="text-[11px] tabular-nums text-white/90 [text-shadow:0_1px_2px_rgba(0,0,0,.6)]">{label}</span>
+        <span className="text-[11px] tabular-nums text-white/90 [text-shadow:0_0_3px_rgba(0,0,0,.6)]">{label}</span>
       )}
     </button>
   );
@@ -821,9 +821,9 @@ function FeedItem({
           <div className="mb-0.5 flex justify-end gap-1.5 pr-3">
             {/* 选了倍速时在同一行写一句（行内，不加高度 —— 底缘几何是联动量过的）：不写的话人会以为视频本身就这么快 */}
             {speed !== 1 && (
-              <span className="text-[10px] font-semibold tabular-nums text-brand [text-shadow:0_1px_2px_rgba(0,0,0,.6)]">{speed}×</span>
+              <span className="text-[10px] font-semibold tabular-nums text-brand [text-shadow:0_0_3px_rgba(0,0,0,.6)]">{speed}×</span>
             )}
-            <span className="text-[10px] tabular-nums text-white/70 [text-shadow:0_1px_2px_rgba(0,0,0,.6)]">
+            <span className="text-[10px] tabular-nums text-white/70 [text-shadow:0_0_3px_rgba(0,0,0,.6)]">
               {formatDuration(scrub != null ? scrub * durTotal : durBefore + prog.t)} / {formatDuration(durTotal)}
             </span>
           </div>
@@ -955,7 +955,7 @@ function FeedItem({
           {/* 登录态还没结论时的回执。挂在栏内而不是屏幕中央：用户的视线就在这几个键上，
               而且首页任何居中浮层都会盖住画面。max-w 收窄避免把视频压掉半屏。 */}
           {authTip && (
-            <span className="mb-1 max-w-[7.5rem] rounded-full px-2.5 py-1 bg-black/75 text-center text-[11px] leading-tight text-white">
+            <span className="mb-1 max-w-[7.5rem] rounded-lg bg-black/75 px-2.5 py-1 text-center text-[11px] leading-relaxed text-white">
               {authTip}
             </span>
           )}
@@ -1123,7 +1123,7 @@ function FeedItem({
         <button
           {...stopTap}
           onClick={() => navigate(authorHref)}
-          className="pointer-events-auto mb-1.5 block max-w-full truncate text-left text-sm font-medium text-white/90 [text-shadow:0_1px_2px_rgba(0,0,0,.6)] active:opacity-60"
+          className="pointer-events-auto mb-1.5 block max-w-full truncate text-left text-sm font-medium text-white/90 [text-shadow:0_0_3px_rgba(0,0,0,.6)] active:opacity-60"
         >
           {/* ★ 这里**不带 `@` 前缀**：`video.author` 是**显示名**，而本 app 的 @ 句柄是
               不可改的 username（见 utils/mention 与 MentionInput）。给显示名前面加个 @
@@ -1138,14 +1138,14 @@ function FeedItem({
           {...stopTap}
           {...(active ? { "data-guide": "feed-title" } : {})}
           onClick={() => navigate(`/video/${video.id}`)}
-          className="pointer-events-auto mb-1 block max-w-full text-left text-base font-bold text-white [text-shadow:0_1px_3px_rgba(0,0,0,.7)] active:opacity-60"
+          className="pointer-events-auto mb-1 block max-w-full text-left text-base font-bold text-white [text-shadow:0_0_4px_rgba(0,0,0,.7)] active:opacity-60"
         >
           <span className="line-clamp-2">
             {video.title}
             <Icon name="chevron" size={14} className="ml-0.5 inline-block align-[-2px] text-white/60" />
           </span>
         </button>
-        <p className="line-clamp-2 text-xs leading-relaxed text-white/85 [text-shadow:0_1px_2px_rgba(0,0,0,.6)]">
+        <p className="line-clamp-2 text-xs leading-relaxed text-white/85 [text-shadow:0_0_3px_rgba(0,0,0,.6)]">
           {/* ★ 「AI 生成」标识挂在描述**行内**，不另起一行：底缘那 100px 里的四样东西
               （进度条 / 时长 / 右侧栏 / 底栏挂件）位置是联动算出来的，纵向多堆一行就得
               把那几个数重算一遍（CLAUDE.md 那格坑）。行内 chip 高度变化为 0。
@@ -1385,7 +1385,7 @@ export default function FeedPage() {
             onClick={() => setFeed(f)}
             className={`relative min-h-[36px] px-1 text-base transition ${
               feed === f ? "font-semibold text-white" : "text-white/65"
-            } [text-shadow:0_1px_3px_rgba(0,0,0,.6)]`}
+            } [text-shadow:0_0_4px_rgba(0,0,0,.6)]`}
           >
             {f === "following" ? t({ message: "关注", context: "首页顶部的关注流页签（名词：我关注的人发的作品）" }) : t`推荐`}
             {feed === f && (

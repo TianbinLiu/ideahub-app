@@ -83,7 +83,8 @@ export default function TutorHomePage() {
         title={t`启梦老师`}
         subtitle={t`用自己的教材铸一位 AI 老师`}
         right={
-          state.kind === "ready" ? (
+          // 一门课都没有时空态里那颗「新建课程」才是主键，顶栏不再重复一颗
+          state.kind === "ready" && state.courses.length > 0 ? (
             <button onClick={() => navigate("/tutor/new")} className="flex-none rounded-full bg-brand px-3 py-1.5 text-xs font-semibold text-ink">
               {t`新建课程`}
             </button>
@@ -94,9 +95,9 @@ export default function TutorHomePage() {
       {state.kind === "loading" && <EmptyState loading text={t`正在取课程…`} />}
       {state.kind === "offline" && (
         // ★ 措辞不能说成"这个版本没有服务器"：!API_ON 是没配地址，但用户读到的应该是「这件事要联网」
-        <EmptyState full emoji="📡" text={t`上课需要联网`} hint={t`老师、进度和对话都在服务端，这台设备当前是离线模式；接上服务器再来这一页。`} />
+        <EmptyState emoji="📡" text={t`上课需要联网`} hint={t`老师、进度和对话都在服务端，这台设备当前是离线模式；接上服务器再来这一页。`} />
       )}
-      {state.kind === "unsupported" && <EmptyState full emoji="🎓" text={t`这台服务器还没有启梦老师`} hint={t`服务端升级后即可使用，App 不用重装`} />}
+      {state.kind === "unsupported" && <EmptyState emoji="🎓" text={t`启梦老师还没上线`} hint={t`之后会有，App 不用重装`} />}
       {state.kind === "error" && <EmptyState error text={t`课程没取到：${state.message}`} cta={{ label: t`重试`, onClick: () => void load() }} />}
 
       {state.kind === "ready" && (

@@ -525,7 +525,7 @@ export default function LoginPage() {
             再往里嵌按钮（button 套 button 是非法嵌套，React 也会告警）。
             ★ 2026-10-14（CSCI 187 UX 课的惯例）：勾选框画成**方的** —— 圆的是「单选」的记号，方的才是「勾 / 不勾」；
               原来 16px 的圆点手指几乎点不中，现在框本身 18px、按钮命中区 36px，整行文字（链接除外）也能点着勾。 */}
-        <div className="flex items-start gap-1.5 pt-1">
+        <div className="flex items-start gap-1.5 pt-3">
           <button
             onClick={toggleAgree}
             aria-label={agreed ? t`取消同意协议` : t`同意协议`}
