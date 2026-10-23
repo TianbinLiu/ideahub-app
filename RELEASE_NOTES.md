@@ -1,3 +1,10 @@
+启梦 2.67
+
+· 提取模板窗一打开就显示圆点进度条，不再等确认服务器支持之后才出现。
+
+QiMeng 2.67
+
+· The template extractor now shows its dot progress bar as soon as it opens, instead of waiting for the server capability check.
 启梦 2.66
 
 · 圆点进度条的三处细节：上传 Live2D 模型发布成功后一排圆点全部实心；制作人格时点当前那一步的圆点也能回到页首；自己传图做卡片在选卡种那一屏不再提前显示「真人」这一步。
