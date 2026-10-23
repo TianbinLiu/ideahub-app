@@ -165,7 +165,7 @@ export default function TutorNewPage() {
   const phaseText = (u: { phase: UploadPhase; frac: number }) => (u.phase === "check" ? t`核对中…` : u.phase === "sign" ? t`领上传票…` : u.phase === "put" ? t`上传 ${Math.round(u.frac * 100)}%` : u.phase === "confirm" ? t`服务端验收…` : t`完成`);
   const running = gen && (gen.status === "pending" || gen.status === "running");
 
-  if (!API_ON) return <div className="min-h-full px-4 pb-10"><PageHeader sticky inset onBack={back} title={t`新建课程`} /><EmptyState full emoji="📡" text={t`建课需要联网`} hint={t`教材与老师都在服务端，这台设备当前是离线模式。`} /></div>;
+  if (!API_ON) return <div className="min-h-full px-4 pb-10"><PageHeader sticky inset onBack={back} title={t`新建课程`} /><EmptyState emoji="📡" text={t`建课需要联网`} hint={t`教材与老师都在服务端，这台设备当前是离线模式。`} /></div>;
 
   return (
     <div className="min-h-full px-4 pb-10">

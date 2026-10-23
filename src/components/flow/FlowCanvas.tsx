@@ -1371,7 +1371,7 @@ function NodePanel({
             画布上改不了的话（原线性视图时代就是这样），那颗标着价的生成键就是个改不动的数 */}
         <button
           onClick={() => setSettings(true)}
-          className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-panel text-xs text-slate-300"
+          className="relative flex h-7 w-7 flex-none items-center justify-center rounded-full bg-panel text-xs text-slate-300 after:absolute after:-inset-2 after:content-['']"
           title={t`本段设置`}
         >
           ⚙

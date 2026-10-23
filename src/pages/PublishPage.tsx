@@ -415,7 +415,7 @@ export default function PublishPage() {
             <button
               onClick={() => setMergeWarn("")}
               aria-label={t`知道了`}
-              className="flex-none rounded-full px-2 py-0.5 text-[11px] font-semibold text-amber-200 active:opacity-60"
+              className="flex-none rounded-full px-3 py-1.5 text-[11px] font-semibold text-amber-200 active:opacity-60"
             >
               <Trans>知道了</Trans>
             </button>
@@ -450,10 +450,13 @@ export default function PublishPage() {
               <div key={i} className="flex items-center gap-2 rounded-lg bg-panel/60 px-3 py-1.5 text-xs">
                 <span className="flex-none text-slate-500"><Trans>第 {i + 1} 段</Trans></span>
                 <span className="min-w-0 flex-1 truncate text-slate-300">{sg.title}</span>
+                {/* 「✓ 真实影像」只在有别的段回退了时才标（Refactoring UI §2.4 弱化次要）：每一行都打绿勾，那一个 ⚠ 反而被淹掉 */}
                 {sg.videoUrl ? (
-                  <span className="flex-none rounded-full bg-emerald-500/15 px-2 py-0.5 text-emerald-300">
-                    <Trans>✓ 真实影像</Trans>
-                  </span>
+                  draft.segments.every((s) => s.videoUrl) ? null : (
+                    <span className="flex-none rounded-full bg-emerald-500/15 px-2 py-0.5 text-emerald-300">
+                      <Trans>✓ 真实影像</Trans>
+                    </span>
+                  )
                 ) : (
                   <span
                     className="flex-none rounded-full bg-amber-500/15 px-2 py-0.5 text-amber-300"

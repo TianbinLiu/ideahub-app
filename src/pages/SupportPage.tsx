@@ -874,7 +874,7 @@ function TicketsPanel({
   }
 
   if (err) return <p className="m-3 rounded-xl border border-rose-500/40 bg-rose-500/10 p-3 text-xs leading-relaxed text-rose-300">{err}</p>;
-  if (!tickets) return <p className="m-3 text-xs text-slate-500"><Trans>读取中…</Trans></p>;
+  if (!tickets) return <EmptyState compact loading text={t`读取中…`} />;
   if (!tickets.length) return <EmptyState emoji="🎫" text={t`还没有工单`} hint={t`和 AI 客服聊不明白的问题，点「转人工」就会出现在这里`} />;
 
   return (

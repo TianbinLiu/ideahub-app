@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import EmptyState from "../components/EmptyState";
+import Icon from "../components/Icon";
 import PageHeader from "../components/PageHeader";
 import { Link, useParams } from "react-router";
 import TarotCard from "../components/TarotCard";
@@ -99,7 +100,7 @@ export default function DeckDetailPage() {
             onClick={() => setEditing((v) => !v)}
             className={`flex-none rounded-full px-3.5 py-1.5 text-xs font-semibold ${editing ? "bg-brand text-ink" : "bg-panel text-slate-200"}`}
           >
-            {editing ? t`完成` : t`✏️ 编辑`}
+            {editing ? t`完成` : <span className="inline-flex items-center gap-1"><Icon name="pen" size={13} />{t`编辑`}</span>}
           </button>
         }
       />
@@ -210,7 +211,7 @@ export default function DeckDetailPage() {
           ))}
         </div>
       ) : (
-        <EmptyState emoji="🃏" text={t`空卡组`} hint={t`点右上角「编辑」挑几张卡进来`} />
+        <EmptyState emoji="🃏" text={t`空卡组`} cta={{ label: t`挑几张卡进来`, onClick: () => setEditing(true), primary: true }} />
       )}
 
       <SocialPanel kind="deck" id={deck.id} />

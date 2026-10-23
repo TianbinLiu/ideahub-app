@@ -68,19 +68,17 @@ export default function SettingsBlockedPage() {
 
   return (
     <div className="min-h-full px-4 pb-10">
-      <PageHeader onBack={back} title={t`已拉黑的人`} />
+      <PageHeader sticky inset onBack={back} title={t`已拉黑的人`} />
 
       <p className="mb-3 text-[11px] leading-relaxed text-slate-500">
         <Trans>拉黑是双向的：你们不会再看见彼此的作品、评论和弹幕，也不会收到对方的任何通知。解除之后立刻恢复。</Trans>
       </p>
 
       {!user ? (
-        <p className="text-xs text-slate-400"><Trans>登录之后才能管理黑名单。</Trans></p>
+        <EmptyState compact icon="user" text={t`登录之后才能管理黑名单`} cta={{ label: t`去登录`, to: "/login?next=/settings/blocked", primary: true }} />
       ) : !remote ? (
         // ★ 离线模式下没有"别人"，说清楚而不是显示一个永远空的名单
-        <p className="text-xs leading-relaxed text-slate-400">
-          <Trans>当前是本地模式（没有连服务器），黑名单是账号级的功能——接上服务器之后才会有。</Trans>
-        </p>
+        <EmptyState compact emoji="📡" text={t`管理黑名单需要联网`} hint={t`黑名单跟着账号走，这台设备当前是离线模式；接上服务器再来这一页。`} />
       ) : loading ? (
         <EmptyState loading text={t`正在取名单…`} />
       ) : list === null ? (

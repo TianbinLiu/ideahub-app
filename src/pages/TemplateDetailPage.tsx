@@ -439,7 +439,7 @@ function OwnerBar({
               disabled={busy}
               onClick={() => void run(() => setTemplateCategory(tpl.id, tpl.category === c.id ? "" : c.id))}
               className={`rounded-full px-2.5 py-1 text-[11px] disabled:opacity-40 ${
-                tpl.category === c.id ? "bg-brand/25 text-brand ring-1 ring-brand/50" : "bg-slate-700/60 text-slate-300"
+                tpl.category === c.id ? "bg-brand font-semibold text-ink" : "bg-slate-700/60 text-slate-300"
               }`}
             >
               {c.label}

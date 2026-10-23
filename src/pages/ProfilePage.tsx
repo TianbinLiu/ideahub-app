@@ -1351,9 +1351,9 @@ function StrangerWorks({
   const note = worksKnown
     ? ""
     : stranger.unsupported
-      ? t`这台服务器还没有用户主页接口 · 服务端升级后即可看到完整资料`
+      ? t`完整资料还看不到 · 服务更新之后就有，App 不用重装`
       : stranger.works?.status === "partial"
-        ? t`这台服务器还不支持按作者取作品 · 下面只是本次刷到的那些，不是全部`
+        ? t`暂时只能看到本次刷到的这几条，不是 TA 的全部作品`
         : stranger.works?.status === "offline"
           ? t`TA 的作品需要连上服务器 · 当前是离线模式`
           : !hasId
@@ -1381,7 +1381,7 @@ function WorkGrid({ items }: { items: VideoItem[] }) {
             <img src={v.cover} alt={v.title} className="aspect-[3/4] w-full object-cover" loading="lazy" />
             {/* 底缘压暗：浅色封面上白字播放量本来读不出来 */}
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black/70 to-transparent" />
-            <span className="absolute bottom-1 left-1.5 flex items-center gap-1 text-[11px] font-medium tabular-nums text-white [text-shadow:0_1px_2px_rgba(0,0,0,.7)]">
+            <span className="absolute bottom-1 left-1.5 flex items-center gap-1 text-[11px] font-medium tabular-nums text-white [text-shadow:0_0_3px_rgba(0,0,0,.7)]">
               <Icon name="play" size={12} filled />
               {formatPlays(v.plays)}
             </span>

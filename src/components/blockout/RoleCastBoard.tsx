@@ -886,7 +886,7 @@ export default function RoleCastBoard({
                     {card?.cover ? (
                       <img src={card.cover} alt="" className="h-full w-full object-cover" draggable={false} />
                     ) : (
-                      <span className="text-[10px] leading-tight text-slate-400">{missing ? "？" : t`挂卡`}</span>
+                      <span className="text-[10px] leading-relaxed text-slate-400">{missing ? "？" : t`挂卡`}</span>
                     )}
                   </span>
                   {/* 挂了谁 / 还空着。★ 空着也占同样高度：不占的话整行会随挂卡进度忽高忽低 */}
@@ -976,7 +976,7 @@ export default function RoleCastBoard({
                 {card?.cover ? (
                   <img src={card.cover} alt="" className="h-full w-full object-cover" />
                 ) : (
-                  <span className="text-[10px] leading-tight text-slate-400">{missing ? "？" : t`未挂`}</span>
+                  <span className="text-[10px] leading-relaxed text-slate-400">{missing ? "？" : t`未挂`}</span>
                 )}
               </div>
             </div>

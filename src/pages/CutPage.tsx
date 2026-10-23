@@ -1287,7 +1287,7 @@ export default function CutPage() {
           const day = tierRetireDay(tier);
           setErr(t`第 ${segNo} 段是「${label}」档，模型已于 ${day}停用，这里重拍不了——回「我的 → 草稿」打开草稿，把这一段换一档重新出片（会重新计费）`);
         } else if (!tierOffered(tier)) {
-          setErr(t`第 ${segNo} 段是「${label}」档，这台服务器还不支持它（服务端需要更新），这里重拍不了`);
+          setErr(t`第 ${segNo} 段是「${label}」档，这个档位的重拍还没上线，这里重拍不了`);
         } else {
           const line = t`第 ${segNo} 段重拍不了：${blocked}`;
           setErr(line);
@@ -1923,7 +1923,7 @@ export default function CutPage() {
         const segList = stillArk.join(t({ message: "、", comment: "列举几个段号时的分隔符（第 1、3 段）" }));
         const failMsg =
           (http === "403" || http === "404") && stillArk.length
-            ? t`合成失败：第 ${segList} 段的视频取不到了（HTTP ${http}）。这几段揣的还是方舟的临时链接、当初没能转存成永久地址，而那种链接只活 24 小时——过期之后合成器也拉不到。这条片子现在合不了：回「我的 → 草稿」打开草稿把这几段重新出片（会再花一次钱），或者删掉它们再合。`
+            ? t`合成失败：第 ${segList} 段的视频取不到了。这几段的视频还挂在临时链接上（当初没能转存成长期地址），临时链接只有 24 小时——过期之后就取不到了。这条片子现在合不了：回「我的 → 草稿」打开草稿把这几段重新出片（会再花一次钱），或者删掉它们再合。`
             : t`合成失败：${raw}`;
         if (aliveRef.current) {
           setErr(failMsg);
@@ -2123,7 +2123,7 @@ export default function CutPage() {
                 <Trans>圈选与合成要用的截帧流没取到：{srcErr[active!.segIndex]}</Trans>
                 <button
                   onClick={() => loadCaptureSrc(active!.segIndex, activeSeg.videoUrl!)}
-                  className="ml-2 rounded bg-rose-500/30 px-2 py-0.5 font-semibold text-rose-100"
+                  className="ml-2 rounded-full bg-rose-500/30 px-2.5 py-1 font-semibold text-rose-100"
                 >
                   <Trans>重试</Trans>
                 </button>
@@ -2401,6 +2401,12 @@ export default function CutPage() {
                       ) : (
                         <div className="h-14 w-full bg-ink/60" />
                       )}
+                      {/* 「正在播」不只靠边框换一种蓝（§5.7）：右上角一枚 ▶ */}
+                      {isActive && (
+                        <span className="absolute right-1 top-1 rounded-full bg-black/65 p-0.5 text-cyan-300">
+                          <Icon name="play" size={9} filled />
+                        </span>
+                      )}
                       <span className="absolute left-1 top-0.5 flex items-center gap-1 rounded bg-black/65 pr-1 text-[9px] text-slate-200">
                         {/* ★ 一个片段两个数，长得不一样：亮底的是**从左数的位置**（「对剪辑台说话」认的「片段 2」就是它），
                             后面的「段 N」是它出自稿子的第几段。换过序 / 切过 / 删过之后两个数对不上 —— 只标「段 N」的话，
@@ -2449,7 +2455,7 @@ export default function CutPage() {
                   </div>
                 ) : null;
               })()}
-              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              <div className="mt-3 flex flex-wrap items-center gap-1.5">
                 <button
                   onClick={splitAtPlayhead}
                   disabled={!sel}
@@ -2477,7 +2483,7 @@ export default function CutPage() {
                 <button
                   onClick={() => sel && removeClip(sel)}
                   disabled={!sel || view.length <= 1}
-                  className="inline-flex items-center gap-1 rounded-full bg-rose-500/15 px-2.5 py-1.5 text-[11px] text-rose-300 disabled:opacity-40"
+                  className="ml-auto inline-flex items-center gap-1 rounded-full bg-rose-500/15 px-2.5 py-1.5 text-[11px] text-rose-300 disabled:opacity-40"
                 >
                   <Icon name="trash" size={13} />
                   <Trans>删除片段</Trans>
@@ -2487,7 +2493,7 @@ export default function CutPage() {
                   而删除在只剩一个片段时是灰的 ⇒ 简约模式出来的**单段作品根本裁不了**。
                   ★ 单独一排：上面那排是"这一段与别的段的关系"（切开/换位/删掉），
                     这一排是"这一段自己留哪一截"，混在一起点错的代价不一样。 */}
-              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              <div className="mt-3 flex flex-wrap items-center gap-1.5">
                 <button
                   onClick={() => trimTo("start")}
                   disabled={!sel}

@@ -3063,8 +3063,8 @@ msgid "✎ 重拍这一段（{revisePrice}）"
 msgstr "✎ Reshoot this segment ({revisePrice})"
 
 #: src/pages/DeckDetailPage.tsx
-msgid "✏️ 编辑"
-msgstr "✏️ Edit"
+#~ msgid "✏️ 编辑"
+#~ msgstr "✏️ Edit"
 
 #: src/data/videoDownload.ts
 msgid "✓ 已交给系统"
@@ -5643,6 +5643,11 @@ msgstr "Report this bullet comment"
 msgid "举报这条评论"
 msgstr "Report this comment"
 
+#: src/pages/RecipePage.tsx
+#: src/pages/tutor/TutorHomePage.tsx
+msgid "之后会有，App 不用重装"
+msgstr "Coming later — no need to reinstall the app"
+
 #: src/components/flow/ModePicker.tsx
 msgid "九宫格分镜"
 msgstr "Storyboard grid"
@@ -7127,6 +7132,10 @@ msgid "公开制作过程"
 msgstr "Share the process"
 
 #: src/pages/EditPage.tsx
+msgid "公开制作过程功能还没上线。"
+msgstr "Sharing the making-of isn't available yet."
+
+#: src/pages/EditPage.tsx
 msgid "公开制作过程需要联网；这台设备当前是离线模式。"
 msgstr "Sharing the making-of needs a connection; this device is offline right now."
 
@@ -8380,6 +8389,10 @@ msgid "制作过程"
 msgstr "Process"
 
 #: src/pages/RecipePage.tsx
+msgid "制作过程功能还没上线"
+msgstr "The making-of feature isn't available yet"
+
+#: src/pages/RecipePage.tsx
 msgid "制作过程存在服务端，这台设备当前是离线模式；接上服务器再来这一页。"
 msgstr "The making-of lives on the server and this device is offline right now; come back once it's connected."
 
@@ -9103,6 +9116,7 @@ msgstr "See it in context →"
 
 #: src/components/BlockButton.tsx
 #: src/components/ReportButton.tsx
+#: src/pages/SettingsBlockedPage.tsx
 msgid "去登录"
 msgstr "Sign in"
 
@@ -10106,8 +10120,12 @@ msgid "合成失败：{raw}"
 msgstr "Merge failed: {raw}"
 
 #: src/pages/CutPage.tsx
-msgid "合成失败：第 {segList} 段的视频取不到了（HTTP {http}）。这几段揣的还是方舟的临时链接、当初没能转存成永久地址，而那种链接只活 24 小时——过期之后合成器也拉不到。这条片子现在合不了：回「我的 → 草稿」打开草稿把这几段重新出片（会再花一次钱），或者删掉它们再合。"
-msgstr "Merge failed: the video for segment {segList} can't be fetched any more (HTTP {http}). These segments still hold Ark's temporary links, which never got moved to permanent storage, and those links live only 24 hours — once expired the compositor can't pull them either. This video can't be merged right now: open the draft under “Me → Drafts” and regenerate those segments (this costs again), or delete them and merge."
+msgid "合成失败：第 {segList} 段的视频取不到了。这几段的视频还挂在临时链接上（当初没能转存成长期地址），临时链接只有 24 小时——过期之后就取不到了。这条片子现在合不了：回「我的 → 草稿」打开草稿把这几段重新出片（会再花一次钱），或者删掉它们再合。"
+msgstr "Merge failed: the video for segment {segList} can't be fetched any more. These segments were still on temporary links (they never got moved to permanent storage), and temporary links only live 24 hours — once expired they're gone. This piece can't be merged right now: open the draft under Me → Drafts and regenerate those segments (this costs again), or delete them and merge again."
+
+#: src/pages/CutPage.tsx
+#~ msgid "合成失败：第 {segList} 段的视频取不到了（HTTP {http}）。这几段揣的还是方舟的临时链接、当初没能转存成永久地址，而那种链接只活 24 小时——过期之后合成器也拉不到。这条片子现在合不了：回「我的 → 草稿」打开草稿把这几段重新出片（会再花一次钱），或者删掉它们再合。"
+#~ msgstr "Merge failed: the video for segment {segList} can't be fetched any more (HTTP {http}). These segments still hold Ark's temporary links, which never got moved to permanent storage, and those links live only 24 hours — once expired the compositor can't pull them either. This video can't be merged right now: open the draft under “Me → Drafts” and regenerate those segments (this costs again), or delete them and merge."
 
 #: src/pages/CutPage.tsx
 msgid "合成并去发布"
@@ -10258,6 +10276,10 @@ msgstr "QiMeng Official"
 #: src/pages/tutor/TutorHomePage.tsx
 msgid "启梦老师"
 msgstr "QiMeng Tutor"
+
+#: src/pages/tutor/TutorHomePage.tsx
+msgid "启梦老师还没上线"
+msgstr "QiMeng Tutor isn't available yet"
 
 #: src/pages/tutor/TutorHomePage.tsx
 msgid "启梦老师面向成年学习者。发布老师到市场之前要先做一次成人声明（只记一次，服务端保存）。"
@@ -10422,6 +10444,10 @@ msgid "回炉重做（丢弃上面那条流水线）"
 msgstr "Remake (discard the pipeline above)"
 
 #: src/pages/EditPage.tsx
+msgid "回炉重做功能还没上线，之后会有。"
+msgstr "Rework isn't available yet — coming later."
+
+#: src/pages/EditPage.tsx
 msgid "回炉重做这条作品？"
 msgstr "Remake this video?"
 
@@ -10450,6 +10476,7 @@ msgid "回铸段窗重选模式"
 msgstr "Back to the segment window to choose another mode"
 
 #: src/components/ErrorBoundary.tsx
+#: src/pages/RecipePage.tsx
 #: src/pages/VideoEditorPage.tsx
 msgid "回首页"
 msgstr "Back to home"
@@ -11193,6 +11220,10 @@ msgstr "Finish video"
 #: src/pages/CreatePage.tsx
 msgid "完整作品"
 msgstr "Full videos"
+
+#: src/pages/ProfilePage.tsx
+msgid "完整资料还看不到 · 服务更新之后就有，App 不用重装"
+msgstr "Full profile not available yet · coming with a service update, no need to reinstall"
 
 #: src/pages/SupportModelsPage.tsx
 msgid "官方"
@@ -12664,8 +12695,8 @@ msgid "当前形象 ✓"
 msgstr "Current look ✓"
 
 #: src/pages/SettingsBlockedPage.tsx
-msgid "当前是本地模式（没有连服务器），黑名单是账号级的功能——接上服务器之后才会有。"
-msgstr "You're in local mode (not connected to a server). Blocking is an account-level feature, so it's only available once you're connected to a server."
+#~ msgid "当前是本地模式（没有连服务器），黑名单是账号级的功能——接上服务器之后才会有。"
+#~ msgstr "You're in local mode (not connected to a server). Blocking is an account-level feature, so it's only available once you're connected to a server."
 
 #: src/pages/SettingsDeactivatePage.tsx
 msgid "当前是本地账号：没有服务器，也就没有可注销的云端账号。 你的数据都在这台设备上——清掉 App 数据（或卸载）即等同于注销。"
@@ -14061,6 +14092,10 @@ msgstr "{n, plural, one {The panel you picked is now a segment} other {The # pan
 msgid "挑主角"
 msgstr "Pick the lead"
 
+#: src/pages/DeckDetailPage.tsx
+msgid "挑几张卡进来"
+msgstr "Pick some cards"
+
 #: src/components/flow/ModePicker.tsx
 msgid "挑几张参考图（人物 / 场景卡）＋ 写提示词，人物图直接给视频模型"
 msgstr "Pick a few reference images (character / scene cards) + write a prompt; character images go straight to the video model"
@@ -14551,6 +14586,14 @@ msgstr "Couldn't compose the prompt: the AI changed the group binding “{senten
 #: src/studio/blockoutPrompt.ts
 msgid "提示词合成失败（{why}）——这一段的要求请自己写，或用下面那份默认写法。"
 msgstr "Couldn't compose the prompt ({why}) — write this segment's request yourself, or use the default version below."
+
+#: src/pages/DiscoverPage.tsx
+msgid "搜人功能还没上线 · 之后会有，App 不用重装"
+msgstr "People search isn't available yet · coming later, no need to reinstall"
+
+#: src/components/MentionInput.tsx
+msgid "搜人功能还没上线，@ 可能收不到"
+msgstr "People search isn't available yet; the @ may not reach them"
 
 #: src/components/MentionInput.tsx
 msgid "搜人失败"
@@ -15442,6 +15485,10 @@ msgstr "Pause"
 msgid "暂时不可用"
 msgstr "Unavailable for now"
 
+#: src/pages/ProfilePage.tsx
+msgid "暂时只能看到本次刷到的这几条，不是 TA 的全部作品"
+msgstr "Only the works seen in this session are shown here, not all of theirs"
+
 #: src/ai/minimaxVideo.ts
 msgid "暂时查不到这一发（{why}）——凭据还在，过一会儿再点一次，查询不花钱。"
 msgstr "Can't look up this run right now ({why}) — the receipt is still there. Tap again in a bit; checking is free."
@@ -15972,7 +16019,6 @@ msgid "服务端出错"
 msgstr "server error"
 
 #: src/pages/NotificationsPage.tsx
-#: src/pages/tutor/TutorHomePage.tsx
 msgid "服务端升级后即可使用，App 不用重装"
 msgstr "Available after a server upgrade; no need to reinstall the app"
 
@@ -18306,6 +18352,7 @@ msgstr "Clear"
 msgid "清空已保存的视频（{0}）"
 msgstr "Clear saved videos ({0})"
 
+#: src/components/MaterialSheet.tsx
 #: src/components/SearchField.tsx
 msgid "清空搜索"
 msgstr "Clear search"
@@ -18591,8 +18638,8 @@ msgid "点卡面只是<0>看详情</0>，下面那颗「＋ 添加」才是收�
 msgstr "Tapping a card face only <0>opens its details</0>; the “＋ Add” button under it puts it in your library, and decks install as a whole set. Both are <1>free</1>."
 
 #: src/pages/DeckDetailPage.tsx
-msgid "点右上角「编辑」挑几张卡进来"
-msgstr "Tap “Edit” in the top right to pick some cards"
+#~ msgid "点右上角「编辑」挑几张卡进来"
+#~ msgstr "Tap “Edit” in the top right to pick some cards"
 
 #: src/pages/FlowPage.tsx
 msgid "点名句"
@@ -19755,8 +19802,12 @@ msgid "登录之后才能拉黑。"
 msgstr "Sign in to block people."
 
 #: src/pages/SettingsBlockedPage.tsx
-msgid "登录之后才能管理黑名单。"
-msgstr "Log in to manage your block list."
+msgid "登录之后才能管理黑名单"
+msgstr "Sign in to manage your block list"
+
+#: src/pages/SettingsBlockedPage.tsx
+#~ msgid "登录之后才能管理黑名单。"
+#~ msgstr "Log in to manage your block list."
 
 #: src/pages/LoginPage.tsx
 msgid "登录前请先阅读并同意<0>《用户协议》</0>与<1>《隐私政策》</1>。"
@@ -21525,8 +21576,12 @@ msgstr "Segment {segNo} is on the “{label}” tier, whose model was retired on
 #~ msgstr "Segment {segNo} is on “{label}”, whose model was retired on {day}, so it can't be re-shot here — go back to the workflow, switch this segment to another tier and generate it again (charged again)"
 
 #: src/pages/CutPage.tsx
-msgid "第 {segNo} 段是「{label}」档，这台服务器还不支持它（服务端需要更新），这里重拍不了"
-msgstr "Segment {segNo} is on “{label}”, which this server doesn't support yet (the server needs an update), so it can't be re-shot here"
+msgid "第 {segNo} 段是「{label}」档，这个档位的重拍还没上线，这里重拍不了"
+msgstr "Segment {segNo} is on the “{label}” tier; reshoots for this tier aren't available yet, so it can't be reshot here"
+
+#: src/pages/CutPage.tsx
+#~ msgid "第 {segNo} 段是「{label}」档，这台服务器还不支持它（服务端需要更新），这里重拍不了"
+#~ msgstr "Segment {segNo} is on “{label}”, which this server doesn't support yet (the server needs an update), so it can't be re-shot here"
 
 #: src/pages/CutPage.tsx
 msgid "第 {segNo} 段是「{label}」档，这里重拍不了（这一页的重拍还不支持这一档）——回「我的 → 草稿」打开草稿，把这一段重新出片（会重新计费）"
@@ -21714,7 +21769,6 @@ msgid "等待火山引擎认证…"
 msgstr "Waiting for Volcengine verification…"
 
 #: src/components/WorkflowShelf.tsx
-#: src/pages/RecipePage.tsx
 msgid "等服务器更新后再来"
 msgstr "Come back after the server is updated"
 
@@ -21797,6 +21851,10 @@ msgstr "Admin, no charge: this step is worth about {amount} tokens and won't com
 #: src/pages/ProfilePage.tsx
 msgid "管理员账号无需充值：AI 生成走免扣费通道，不从下面的余额里扣。余额与下单入口保留，仅用于测试支付流程。"
 msgstr "Admin accounts don't need to top up: AI generation uses a free channel and isn't deducted from the balance below. The balance and ordering are kept only for testing the payment flow."
+
+#: src/pages/SettingsBlockedPage.tsx
+msgid "管理黑名单需要联网"
+msgstr "Managing the block list needs a connection"
 
 #: src/data/templates.ts
 msgctxt "人偶的主色（挂卡提醒那句话里显示）"
@@ -22188,6 +22246,7 @@ msgid "编号还没核对：AI 编的号可能与画面上人偶头上的数字�
 msgstr "Numbers not checked yet: the numbers the AI assigned may not match the numbers on the mannequins' heads. <0>You can't publish until you check</0> (a mismatch sends other people's character cards to the wrong person). Tap here to check."
 
 #: src/pages/CardDetailPage.tsx
+#: src/pages/DeckDetailPage.tsx
 #: src/pages/VideoPage.tsx
 #: src/pages/WorkshopMinePage.tsx
 msgid "编辑"
@@ -25671,13 +25730,12 @@ msgid "这台服务器还不支持举报（需要升级服务端）"
 msgstr "This server doesn't support reporting yet (it needs a server upgrade)"
 
 #: src/data/recipes.ts
-#: src/pages/RecipePage.tsx
 msgid "这台服务器还不支持公开制作过程"
 msgstr "This server does not support sharing processes yet"
 
 #: src/pages/EditPage.tsx
-msgid "这台服务器还不支持公开制作过程。"
-msgstr "This server does not support sharing processes yet."
+#~ msgid "这台服务器还不支持公开制作过程。"
+#~ msgstr "This server does not support sharing processes yet."
 
 #: src/pages/AdminPage.tsx
 msgid "这台服务器还不支持删除（需要升级服务端）"
@@ -25704,8 +25762,8 @@ msgid "这台服务器还不支持回炉重做——成片内容没有被替换�
 msgstr "This server doesn't support remaking yet — the video's content wasn't replaced (but changes such as the title, description and cover have already taken effect). The merged draft is still on the Me page; try again after the server is updated."
 
 #: src/pages/EditPage.tsx
-msgid "这台服务器还不支持回炉重做。等服务器更新后再试。"
-msgstr "This server doesn't support remakes yet. Try again after the server is updated."
+#~ msgid "这台服务器还不支持回炉重做。等服务器更新后再试。"
+#~ msgstr "This server doesn't support remakes yet. Try again after the server is updated."
 
 #: src/data/projects.ts
 msgid "这台服务器还不支持回炉重做（没有工坊工程这个端点）"
@@ -25720,12 +25778,12 @@ msgid "这台服务器还不支持封禁（需要升级服务端）"
 msgstr "This server doesn't support bans yet (it needs a server upgrade)"
 
 #: src/pages/ProfilePage.tsx
-msgid "这台服务器还不支持按作者取作品 · 下面只是本次刷到的那些，不是全部"
-msgstr "This server can't list videos by creator yet · below are only the ones seen this session, not all of them"
+#~ msgid "这台服务器还不支持按作者取作品 · 下面只是本次刷到的那些，不是全部"
+#~ msgstr "This server can't list videos by creator yet · below are only the ones seen this session, not all of them"
 
 #: src/components/MentionInput.tsx
-msgid "这台服务器还不支持搜人，@ 可能收不到"
-msgstr "This server can't search for people yet, so @mentions may not reach them"
+#~ msgid "这台服务器还不支持搜人，@ 可能收不到"
+#~ msgstr "This server can't search for people yet, so @mentions may not reach them"
 
 #: src/data/account.ts
 msgid "这台服务器还不支持样片模式（服务端需要更新）"
@@ -25800,8 +25858,8 @@ msgid "这台服务器还没有可混音的 1.0 音色目录（服务端需要�
 msgstr "This server has no 1.0 voice catalog for mixing yet (the server needs an update). Use “Single voice” for now."
 
 #: src/pages/tutor/TutorHomePage.tsx
-msgid "这台服务器还没有启梦老师"
-msgstr "This server doesn’t have QiMeng Tutor yet"
+#~ msgid "这台服务器还没有启梦老师"
+#~ msgstr "This server doesn’t have QiMeng Tutor yet"
 
 #: src/api/tutor.ts
 msgid "这台服务器还没有启梦老师（/api/tutor 不在）"
@@ -25820,12 +25878,12 @@ msgid "这台服务器还没有平台数据接口（需要升级服务端）"
 msgstr "This server doesn't have the platform stats API yet (the server needs an upgrade)"
 
 #: src/pages/DiscoverPage.tsx
-msgid "这台服务器还没有搜人功能 · 服务端升级后即可使用，App 不用重装"
-msgstr "This server doesn't support people search yet · available after a server upgrade; no need to reinstall the app"
+#~ msgid "这台服务器还没有搜人功能 · 服务端升级后即可使用，App 不用重装"
+#~ msgstr "This server doesn't support people search yet · available after a server upgrade; no need to reinstall the app"
 
 #: src/pages/ProfilePage.tsx
-msgid "这台服务器还没有用户主页接口 · 服务端升级后即可看到完整资料"
-msgstr "This server doesn't have the user profile API yet · the full profile will show after a server upgrade"
+#~ msgid "这台服务器还没有用户主页接口 · 服务端升级后即可看到完整资料"
+#~ msgstr "This server doesn't have the user profile API yet · the full profile will show after a server upgrade"
 
 #: src/api/uploads.ts
 msgid "这台服务器还没有素材视频登记端点（请更新服务端）"
@@ -25836,8 +25894,8 @@ msgid "这台服务器还没有老师会话（回的不是事件流）"
 msgstr "This server has no teacher sessions (it didn’t reply with an event stream)"
 
 #: src/pages/NotificationsPage.tsx
-msgid "这台服务器还没有通知功能"
-msgstr "This server doesn't support notifications yet"
+#~ msgid "这台服务器还没有通知功能"
+#~ msgstr "This server doesn't support notifications yet"
 
 #: src/pages/SettingsPage.tsx
 msgid "这台设备"
@@ -26966,6 +27024,10 @@ msgstr "Notice text (delivered to their messages page from the platform)"
 msgid "通知内容不能为空"
 msgstr "The notice can't be empty"
 
+#: src/pages/NotificationsPage.tsx
+msgid "通知功能还没上线"
+msgstr "Notifications aren't available yet"
+
 #: src/pages/AdminPage.tsx
 msgid "通知已发送"
 msgstr "Notice sent"
@@ -27874,6 +27936,10 @@ msgstr "yellow"
 msgctxt "人偶的主色（挂卡提醒那句话里显示）"
 msgid "黑"
 msgstr "black"
+
+#: src/pages/SettingsBlockedPage.tsx
+msgid "黑名单跟着账号走，这台设备当前是离线模式；接上服务器再来这一页。"
+msgstr "The block list belongs to your account and this device is offline right now; come back once it's connected."
 
 #: src/data/videos.ts
 msgctxt "离线演示作品的作者名（编出来的示例作者，不是真人）"

@@ -150,7 +150,7 @@ export default function MentionInput({
           setHi(0);
           // 老服务端 / SPA 回退：说清楚是"这台服务器没有这个能力"，
           // 不要伪装成"查无此人"——后者会让用户以为对方注销了
-          setNote(r.supported ? "" : t`这台服务器还不支持搜人，@ 可能收不到`);
+          setNote(r.supported ? "" : t`搜人功能还没上线，@ 可能收不到`);
         })
         .catch((e) => {
           if (seq.current !== mine) return;

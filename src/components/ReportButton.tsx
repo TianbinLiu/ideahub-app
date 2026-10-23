@@ -166,7 +166,7 @@ export default function ReportButton({
                       key={r.id}
                       onClick={() => setReason(r.id)}
                       className={`rounded-full border px-3.5 py-1.5 text-xs ${
-                        reason === r.id ? "border-brand bg-brand/15 text-brand" : "border-slate-700 bg-black/20 text-slate-300"
+                        reason === r.id ? "border-brand bg-brand font-semibold text-ink" : "border-slate-700 bg-black/20 text-slate-300"
                       }`}
                     >
                       {t(r.label)}

@@ -560,7 +560,7 @@ function NodeScreen({
           onClick={() => shiftCursor(-1)}
           disabled={index === 0 || busy}
           aria-label={t`上一段`}
-          className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-panel text-slate-200 disabled:opacity-40"
+          className="relative flex h-7 w-7 flex-none items-center justify-center rounded-full bg-panel text-slate-200 after:absolute after:-inset-2 after:content-[''] disabled:opacity-40"
         >
           <Icon name="back" size={15} />
         </button>
@@ -603,7 +603,7 @@ function NodeScreen({
           disabled={index >= total - 1 || !done || busy}
           title={index >= total - 1 ? t`没有下一段了` : done ? t`下一段` : t`先把这一段炼出来`}
           aria-label={done ? t`下一段` : t`下一段（本段还没出片）`}
-          className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-panel text-slate-200 disabled:opacity-40"
+          className="relative flex h-7 w-7 flex-none items-center justify-center rounded-full bg-panel text-slate-200 after:absolute after:-inset-2 after:content-[''] disabled:opacity-40"
         >
           <Icon name={done || index >= total - 1 ? "chevron" : "lock"} size={done || index >= total - 1 ? 15 : 13} />
         </button>

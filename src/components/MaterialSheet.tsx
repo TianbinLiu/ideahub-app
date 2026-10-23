@@ -224,7 +224,7 @@ export default function MaterialSheet({
           allDecks.length === 0 ? (
             empty(t`还没有卡组`, t`去创意工坊建一组`, "/workshop/mine?tab=decks")
           ) : decks.length === 0 ? (
-            <p className="py-7 text-center text-xs text-slate-400"><Trans>没有匹配的卡组</Trans></p>
+            <EmptyState compact mascot="wonder" text={t`没有匹配的卡组`} cta={{ label: t`清空搜索`, onClick: () => setQ("") }} />
           ) : (
             <>
               <div className="mb-1.5 text-[11px] text-slate-500"><Trans>拖一整组 = 组里的卡全加进来</Trans></div>
@@ -249,7 +249,7 @@ export default function MaterialSheet({
         ) : allCards.length === 0 ? (
           empty(t`还没有素材卡`, t`去创意工坊铸几张`, "/workshop/mine")
         ) : cards.length === 0 ? (
-          <p className="py-7 text-center text-xs text-slate-400"><Trans>没有匹配的卡片</Trans></p>
+          <EmptyState compact mascot="wonder" text={t`没有匹配的卡片`} cta={{ label: t`清空搜索`, onClick: () => setQ("") }} />
         ) : (
           <div className={`${rail(cards.length)} no-scrollbar`} style={{ touchAction: "pan-x" }}>
             {cards.map((c) => (
@@ -401,7 +401,7 @@ export function MaterialStrip({ materials, onRemove }: { materials: Card[]; onRe
                 onClick={() => onRemove(c.id)}
                 aria-label={t`移除 ${c.name}`}
                 /* 热区给到 24px：卡只有 70px 宽，×号再小就点不中了 */
-                className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full border border-slate-600 bg-ink text-[11px] text-slate-300 shadow"
+                className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full border border-slate-600 bg-ink text-[11px] text-slate-300 shadow after:absolute after:-inset-2 after:content-['']"
               >
                 ✕
               </button>
