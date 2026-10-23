@@ -35,7 +35,7 @@ import { useBackOr } from "../hooks/useBackOr";
 import { i18n } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import Icon from "../components/Icon";
+import Icon, { type IconName } from "../components/Icon";
 import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
 import { BackButton, CloseButton } from "../components/IconTapButton";
@@ -112,10 +112,10 @@ const GLASS = "border border-white/10 bg-slate-950/55 backdrop-blur-md";
 const STAGE_WAIT_MS = 1500;
 
 /** 顶栏右下那一列小键（形象 / 人格 / 声音）：图标 + 两个字，和顶栏其它键同一套玻璃材质 */
-function RailButton({ emoji, label, onClick }: { emoji: string; label: string; onClick: () => void }) {
+function RailButton({ icon, label, onClick }: { icon: IconName; label: string; onClick: () => void }) {
   return (
     <button onClick={onClick} aria-label={label} className={`${GLASS} flex h-12 w-12 flex-col items-center justify-center rounded-2xl text-slate-100 active:bg-slate-800/70`}>
-      <span className="text-base leading-none">{emoji}</span>
+      <Icon name={icon} size={18} />
       <span className="mt-1 text-[10px] leading-none">{label}</span>
     </button>
   );
@@ -569,7 +569,7 @@ export default function SupportPage() {
             title={voiceLabel}
             className={`${GLASS} flex h-9 w-9 items-center justify-center rounded-full text-base ${voiceOn ? "text-brand" : "text-slate-500"}`}
           >
-            {voiceOn ? "🔊" : "🔇"}
+            <Icon name={voiceOn ? "volume" : "volume-x"} size={18} />
           </button>
           <button onClick={() => setHistoryOpen(true)} className={`${GLASS} rounded-full px-3 py-1.5 text-xs text-slate-100 active:bg-slate-800/70`}>
             <Trans>记录</Trans>{messages.length > 0 ? ` ${Math.ceil(messages.filter((m) => !m.system).length / 2)}` : ""}
@@ -594,11 +594,11 @@ export default function SupportPage() {
             会被盖住 —— 两边同为 z-10、它在 DOM 里排在后面。所以**新加的这颗排在最后**：形象/人格/声音是天天用的三颗，
             而「创作」在设置页里另有一条找得到的路（CLAUDE.md：别让唯一入口有被盖住的可能）。 */}
       <div className="absolute right-2 z-10 flex flex-col gap-2" style={{ top: `calc(env(safe-area-inset-top, 0px) + ${TOP_BAR_PX + 14}px)` }}>
-        <RailButton emoji="👗" label={t`形象`} onClick={() => navigate("/support/models")} />
-        <RailButton emoji="🎭" label={t`人格`} onClick={() => navigate("/support/personas")} />
+        <RailButton icon="shirt" label={t`形象`} onClick={() => navigate("/support/models")} />
+        <RailButton icon="drama" label={t`人格`} onClick={() => navigate("/support/personas")} />
         {/* 在用混音（自己调的或声音市场的模板）时写「混音」：让人知道这颗键后面的东西变了 */}
-        <RailButton emoji="🎙️" label={config?.voiceSettings?.mix?.length ? t`混音` : t`声音`} onClick={() => setVoiceSheetOpen(true)} />
-        <RailButton emoji="✨" label={t`创作`} onClick={() => navigate("/support/create")} />
+        <RailButton icon="mic" label={config?.voiceSettings?.mix?.length ? t`混音` : t`声音`} onClick={() => setVoiceSheetOpen(true)} />
+        <RailButton icon="sparkle" label={t`创作`} onClick={() => navigate("/support/create")} />
       </div>
 
       {/* 底部浮层：最近一问一答 + 转人工卡 + 快捷问题 + 输入区 */}

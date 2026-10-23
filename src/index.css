@@ -436,3 +436,12 @@ canvas {
 body[data-immersive="1"] [data-tabbar] {
   display: none;
 }
+
+/* 键盘 / 遥控焦点环（2026-10-23，Refactoring UI 走查的「书外延伸」那条）：全仓 126 处 outline-none、只有 1 处 focus-visible。
+   触屏上 :focus-visible 不会点亮（点按不算键盘焦点），所以这条只在外接键盘 / 电视遥控 / 无障碍切换访问时出现。
+   用 :where() 让它零特异性 —— 自己写了 focus:border-brand 的输入框照旧用自己的那套 */
+:where(a, button, [role="button"], [role="slider"], [role="checkbox"], summary):focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
+  border-radius: 0.375rem;
+}

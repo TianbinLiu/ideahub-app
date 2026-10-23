@@ -2153,7 +2153,8 @@ export default function CutPage() {
               disabled={!!busy}
               className="ml-auto flex flex-none items-center gap-1 rounded-full bg-slate-700/70 px-3 py-1.5 text-[11px] text-slate-100 disabled:opacity-40"
             >
-              <Trans>💬 说一句</Trans>
+              <Icon name="comment" size={13} />
+              <Trans>说一句</Trans>
             </button>
           )}
         </div>
@@ -2451,30 +2452,34 @@ export default function CutPage() {
                 <button
                   onClick={splitAtPlayhead}
                   disabled={!sel}
-                  className="rounded-full bg-slate-700/70 px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-40"
+                  className="inline-flex items-center gap-1 rounded-full bg-slate-700/70 px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-40"
                 >
-                  <Trans>✂️ 播放头处分割</Trans>
+                  <Icon name="scissors" size={13} />
+                  <Trans>播放头处分割</Trans>
                 </button>
                 <button
                   onClick={() => sel && moveClip(sel, -1)}
                   disabled={!sel}
-                  className="rounded-full bg-slate-700/70 px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-40"
+                  className="inline-flex items-center gap-0.5 rounded-full bg-slate-700/70 px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-40"
                 >
-                  <Trans>◀ 前移</Trans>
+                  <Icon name="chevron" size={13} className="rotate-180" />
+                  <Trans>前移</Trans>
                 </button>
                 <button
                   onClick={() => sel && moveClip(sel, 1)}
                   disabled={!sel}
-                  className="rounded-full bg-slate-700/70 px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-40"
+                  className="inline-flex items-center gap-0.5 rounded-full bg-slate-700/70 px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-40"
                 >
-                  <Trans>后移 ▶</Trans>
+                  <Trans>后移</Trans>
+                  <Icon name="chevron" size={13} />
                 </button>
                 <button
                   onClick={() => sel && removeClip(sel)}
                   disabled={!sel || view.length <= 1}
-                  className="rounded-full bg-rose-500/15 px-2.5 py-1.5 text-[11px] text-rose-300 disabled:opacity-40"
+                  className="inline-flex items-center gap-1 rounded-full bg-rose-500/15 px-2.5 py-1.5 text-[11px] text-rose-300 disabled:opacity-40"
                 >
-                  <Trans>🗑 删除片段</Trans>
+                  <Icon name="trash" size={13} />
+                  <Trans>删除片段</Trans>
                 </button>
               </div>
               {/* 裁头裁尾。★★ 补它是因为 `Clip.start/end` 一直支持裁剪、UI 上却只有分割，

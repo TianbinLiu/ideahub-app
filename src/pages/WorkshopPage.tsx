@@ -308,8 +308,9 @@ export default function WorkshopPage() {
       {kind === "cards" && (
         <>
           {/* 卡种芯片（整行、横滑）。卡种在拿到的这一批里滤（服务端没有类型筛选）。
-              ★ 排序不和芯片挤一行：375 宽的英文界面下芯片只露出两个半（2026-10-20 浏览器里量过）。没连上服务器时整行不画：没有东西可筛 */}
-          {remote && (
+              ★ 排序不和芯片挤一行：375 宽的英文界面下芯片只露出两个半（2026-10-20 浏览器里量过）。没连上服务器 / 没拉到 / 广场是空的时整行不画：没有东西可筛
+              （items 是整批、不是按卡种滤过的那份 —— 某个卡种筛空了芯片还在，否则换不回「全部」） */}
+          {remote && !cardPlaza.error && cardPlaza.items.length > 0 && (
           <div className="-my-0.5 mb-2 flex gap-1.5 no-scrollbar overflow-x-auto py-0.5">
             {TYPE_FILTERS.map((tp) => {
               const n = tp ? typeCounts.get(tp) ?? 0 : cardPlaza.items.length;

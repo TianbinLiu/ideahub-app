@@ -253,7 +253,8 @@ export default function NotificationsPage() {
                     <Avatar name={n.actorName} src={n.actorAvatar} size={40} />
                   )}
                   <div className="min-w-0 flex-1">
-                    <div className="text-sm text-slate-200">
+                    {/* 未读不只靠右边那颗红点（Refactoring UI §5.7 别只靠颜色）：没读的一行亮一档，读过的退一档 */}
+                    <div className={`text-sm ${n.read ? "text-slate-400" : "text-slate-100"}`}>
                       {n.type === "ADMIN_NOTICE" ? (
                         <span className="font-semibold"><Trans>平台通知</Trans></span>
                       ) : n.refund ? (

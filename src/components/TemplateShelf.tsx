@@ -142,8 +142,10 @@ export function TemplateCard({
           ) : (
             cover && <img src={cover} alt="" className="h-full w-full object-cover" />
           )}
+          {/* 左上角的能力角标排成一行（2026-10-23）：原来第二枚按固定偏移 left-[3.1rem] 摆，英文下「Blockout」比「白模」宽一截就叠上去 */}
+          <span className="absolute left-2 top-2 flex items-center gap-1">
           {tpl.refVideo && (
-            <span className="absolute left-2 top-2 rounded bg-sky-500/90 px-1.5 py-0.5 text-[9px] font-bold text-white">
+            <span className="rounded bg-sky-500/90 px-1.5 py-0.5 text-[9px] font-bold text-white">
               <Trans>白模</Trans>
             </span>
           )}
@@ -152,10 +154,11 @@ export function TemplateCard({
               为什么要摆出来：两种模板在市场上长得一模一样，而能力差一个量级；
               不标的话用户只能靠"点进去试试"才知道这个模板能不能分角色换人。 */}
           {tpl.roles?.length ? (
-            <span className="absolute left-[3.1rem] top-2 rounded bg-emerald-500/90 px-1.5 py-0.5 text-[9px] font-bold text-white">
+            <span className="rounded bg-emerald-500/90 px-1.5 py-0.5 text-[9px] font-bold text-white">
               <Trans>{tpl.roles.length} 个角色位可换人</Trans>
             </span>
           ) : null}
+          </span>
           {/* 「新」角标（backlog 2.8-① 的 marker 位，PixVerse 式）：七天内登记的标出来。
               只做 new 不做 hot——模板互动计数首发是**本机**的（服务端 ASSET_KINDS 还没有
               template），拿本机数标「热」是在撒谎；等计数上服务端再补那半。
@@ -669,7 +672,9 @@ export default function TemplateShelf({
         <TemplateCreateCard variant={mineRows > 0 ? "slim" : "hero"} onStart={() => setExtract(true)} />
       )}
 
-      {tab !== "workflows" && (
+      {/* 空架子不摆筛选（Refactoring UI §8.4：空态里把没用的控件藏起来而不是灰掉）。
+          ★ 只在「本来就空」时藏：搜过词 / 选过出片模型时留着，否则人取消不了那个筛选 */}
+      {tab !== "workflows" && !(allRows.length === 0 && !q.trim() && !tierPicked) && (
       <div data-guide="template-filters" className="-mx-0.5 -my-0.5 mb-2.5 flex gap-1.5 no-scrollbar overflow-x-auto px-0.5 py-0.5">
         {tab === "market" && searchQ !== undefined && tierButton}
         {[{ id: "", label: t`全部` }, ...TPL_CATEGORIES].map((c) => (
