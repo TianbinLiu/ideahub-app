@@ -4,10 +4,11 @@
 //             炼出本段视频——**炼出来才能开下一张卡**（见 studioStore.placeholderVisible）
 // decks = 卡组选择（两段式第一步；选中后回第一人称把该组卡摊上桌）
 import { useMemo, useRef, useState } from "react";
+import Warn from "../../components/Warn";
 import { useNavigate } from "react-router";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { deckCoverOf, memberTiersLine, myCards, myDecks, realFaceIssue, tierBlockReason, tierNamesFor, tierOffered } from "../../data/account";
-import { ONE_IMAGE, VIDEO_TIERS, deriveIssue, durationChoices, fmtTokens, promptMaxOf, r2vBlockLines, segTokens, tierModelId, tierModelLabel, tierOf } from "../../data/economy";
+import { ONE_IMAGE, VIDEO_TIERS, deriveIssue, durationChoices, fmtTokens, priceTag, promptMaxOf, r2vBlockLines, segTokens, tierModelId, tierModelLabel, tierOf } from "../../data/economy";
 import { useAccountVersion } from "../../hooks/useAccount";
 import UpgradeLink from "../../components/UpgradeLink";
 import StepDots from "../../components/StepDots";
@@ -621,7 +622,7 @@ function EditorPanel() {
                   const usable = vid.usable;
                   const member = vid.member;
                   return (
-                    <p className="text-center text-[10px] leading-relaxed text-amber-300/90">
+                    <Warn compact>
                       {usable ? (
                         <Trans>「{cur}」档带不了参考视频——到「定规格」那一步换成「{usable}」，或直接跳过这一步自己给首尾帧</Trans>
                       ) : (
@@ -631,7 +632,7 @@ function EditorPanel() {
                           <UpgradeLink />
                         </>
                       )}
-                    </p>
+                    </Warn>
                   );
                 })()}
               <p className="text-center text-[10px] text-slate-500"><Trans>上传后自动用它的首尾帧当本段首尾帧，之后还能细调、加中间帧</Trans></p>
@@ -788,16 +789,16 @@ function EditorPanel() {
             </div>
             {/* 原因印在页面上，不能只挂 title：工坊这块投影在手机上同样没有 hover */}
             {(tierBlocks.length > 0 || faceNote) && (
-              <p className="mt-1 text-[9px] leading-[13px] text-amber-300/80">
+              <Warn compact className="mt-1">
                 {[...tierBlocks, ...(faceNote ? [faceNote] : [])].join(t({ message: "；", comment: "把几条「这一档为什么点不动」的原因连成一行时的分隔符" }))}
-              </p>
+              </Warn>
             )}
             {memberLine && (
-              <p className="mt-1 text-[9px] leading-[13px] text-amber-300/80">
+              <Warn compact className="mt-1">
                 {memberLine}
                 {"　"}
                 <UpgradeLink />
-              </p>
+              </Warn>
             )}
             {fitNote && <p className="mt-1 text-[9px] leading-[13px] text-slate-400">{fitNote}</p>}
             {/* ★ 写出**真正会被调用的那个模型**。「极速/标准/高清」只说了画质档次，
@@ -1079,17 +1080,17 @@ function EditorPanel() {
                 const usable = vid.usable;
                 const member = vid.member;
                 return (
-                  <p className="mb-1.5 text-center text-[10px] leading-relaxed text-amber-300">
+                  <Warn compact className="mb-1.5">
                     {usable ? (
-                      <Trans>⚠「{cur}」档带不了参考视频——选「{usable}」，否则这一段出不了片</Trans>
+                      <Trans>「{cur}」档带不了参考视频——选「{usable}」，否则这一段出不了片</Trans>
                     ) : (
                       <>
-                        <Trans>⚠「{cur}」档带不了参考视频，而带得了的「{member}」是会员档——摘掉示例视频，或开通会员套餐（或充值过任意一笔）</Trans>
+                        <Trans>「{cur}」档带不了参考视频，而带得了的「{member}」是会员档——摘掉示例视频，或开通会员套餐（或充值过任意一笔）</Trans>
                         {"　"}
                         <UpgradeLink />
                       </>
                     )}
-                  </p>
+                  </Warn>
                 );
               })()}
             {lane === "cards" ? (
@@ -1683,7 +1684,7 @@ function TierBlockNote({ node }: { node: FlowNode }) {
   const realFaceBlock = realFaceIssue(node.materials, node.videoTier, { blockout, framed });
   const all = [...r2vBlocks, ...(realFaceBlock ? [realFaceBlock] : [])];
   if (all.length === 0) return null;
-  return <p className="mt-1 text-[10px] leading-relaxed text-amber-300/80">{all.join(t({ message: "；", comment: "把几条「这一档为什么点不动」的原因连成一行时的分隔符" }))}</p>;
+  return <Warn compact className="mt-1">{all.join(t({ message: "；", comment: "把几条「这一档为什么点不动」的原因连成一行时的分隔符" }))}</Warn>;
 }
 
 /**
@@ -1790,9 +1791,9 @@ function TplSegBody({ node, proposal, onPlay }: { node: FlowNode; proposal: Prop
           <CastPreviewCard node={node} cast={cast} disabled={generating} />
           {castAsk && (
             <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
-              <p className="text-[11px] leading-relaxed text-amber-200">
+              <Warn>
                 <Trans>改完挂卡会按新的映射<b>重新合成</b>下面那段要求，你改过的字会被替换掉。</Trans>
-              </p>
+              </Warn>
               <div className="flex gap-2">
                 <button
                   onClick={() => {
@@ -1815,7 +1816,7 @@ function TplSegBody({ node, proposal, onPlay }: { node: FlowNode; proposal: Prop
       {/* 挂卡合成失败的出口（画布那条 ★★ 的工坊版）：castErr 写的不是 err，这儿不画就没人画 */}
       {castErr && castOfThisNode && (
         <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
-          <p className="text-[11px] leading-relaxed text-amber-200">{castErr}</p>
+          <Warn>{castErr}</Warn>
           {castFallback && (
             <button
               onClick={() => useFlow.getState().fillCastFallback()}
@@ -1979,7 +1980,7 @@ function PickedActions({
             disabled={busy}
             className="flex-1 rounded-xl bg-brand/90 py-2.5 text-xs font-bold text-ink disabled:opacity-40"
           >
-            {busy ? t`推演中…` : t`🎲 生成三套方案（${fmtTokens(deriveCost ?? 0)}）`}
+            {busy ? t`推演中…` : t`生成三套方案（${priceTag(deriveCost ?? 0)}）`}
           </button>
         ) : (
         <button
@@ -1992,13 +1993,13 @@ function PickedActions({
             ? t`炼制中…`
             : draftOn
               ? done
-                ? t`♻ 重新出样片（${fmtTokens(cost)}）`
-                : t`📼 先出样片（${fmtTokens(cost)}）`
+                ? t`♻ 重新出样片（${priceTag(cost)}）`
+                : t`先出样片（${priceTag(cost)}）`
               : done
                 ? annPlan.redrawn
                   ? t`♻ 重炼本段（含 ${annPlan.redrawn} 处圈选改图 · ${fmtTokens(cost)}）`
-                  : t`♻ 重炼本段（${fmtTokens(cost)}）`
-                : t`⚡ 生成本段视频（${fmtTokens(cost)}）`}
+                  : t`♻ 重炼本段（${priceTag(cost)}）`
+                : t`生成本段视频（${priceTag(cost)}）`}
         </button>
         )}
         {done && (

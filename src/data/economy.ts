@@ -1572,6 +1572,15 @@ export function deckModel3dCost(count = DECK_MAX_3D): number {
   return count * MODEL3D_TOKENS;
 }
 
+/**
+ * 价签：按钮 / 卡片上的那个价钱怎么写 —— `⚡12k`。
+ * ★ 2026-10-23 收口（《Refactoring UI》走查 §2.5「标签只在必要时」）：原来 17 处写成「（12k）」，没有单位，而 ⚡ 在全 app 早就是「token / 要花钱」
+ *   的意思（TokenCost、首页做同款那颗 10-21 为此换掉 ⚡）。价钱一律从这里取，别在调用点拼 fmtTokens + 「token」。
+ */
+export function priceTag(n: number): string {
+  return `⚡${fmtTokens(n)}`;
+}
+
 export function fmtTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(n % 1_000 === 0 ? 0 : 1)}k`;

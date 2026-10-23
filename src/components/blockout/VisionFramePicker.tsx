@@ -25,6 +25,7 @@
 //   只有 `arkVideoRules.frameTimesOf` 一处 —— 选段之后还会被拖动，存相对秒的话拖一下
 //   起点，同一条标记就悄悄指向了另一帧，而缩略图还停在旧画面上。
 import { Trans, useLingui } from "@lingui/react/macro";
+import Warn from "../Warn";
 import { useState } from "react";
 import { BLOCKOUTIZE_FRAME_MAX, BLOCKOUTIZE_FRAME_MIN, BLOCKOUTIZE_FRAME_EVERY_SEC } from "../../data/templates";
 import { formatDuration } from "../../types";
@@ -225,7 +226,7 @@ export default function VisionFramePicker({
           </div>
 
           {/* 点不动就说清为什么（本仓禁止"灰着且不说话"） */}
-          {markBlock && <p className="text-[10px] leading-relaxed text-amber-300">{markBlock}</p>}
+          {markBlock && <Warn compact>{markBlock}</Warn>}
           {err && <p className="text-[10px] leading-relaxed text-rose-300">{err}</p>}
 
           {marks.length === 0 ? (

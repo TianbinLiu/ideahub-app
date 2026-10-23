@@ -14,6 +14,7 @@
 //   工作流模式 → seedSolo("workflow")，方案台是主路径
 //   简约模式 → seedSolo("simple")，单节点单走向、不推演方案、**不存草稿**，UI 收到最简
 import { useEffect, useMemo, useRef, useState } from "react";
+import Warn from "../components/Warn";
 import PageHeader from "../components/PageHeader";
 import ReviseBar from "../components/ReviseBar";
 import { Link, useLocation, useNavigate } from "react-router";
@@ -43,7 +44,7 @@ import { markSpecOf, myTemplates, splitCastRoles, templateGroupOf } from "../dat
 // ★ 取回那一整块 2026-08-31 搬去 components/flow/SegmentRecoverCards（三个宿主共用，
 //   理由见那边的 ★★：它原来只长在这一页的 simple 闸里，画布与工坊一个像素都看不到）
 import { SegmentRecoverList } from "../components/flow/SegmentRecoverCards";
-import { clampDuration, fmtTokens, tierOf } from "../data/economy";
+import { clampDuration, fmtTokens, priceTag, tierOf } from "../data/economy";
 import { annSkipNote, chosenOf, deriveCostOf, flowCost, FlowNode, frontierOf, nodeCost, nodeDerived, nodeDone, nodeEmptyFrames, nodeRefOn, planOf, realVideoOfNode, redrawCost, requirementOf, tplOfNode, useFlow } from "../studio/flowStore";
 import PlanBoard from "../studio/ui/PlanBoard";
 import FuseFrameSheet, { fuseSourcesOf } from "../studio/ui/FuseFrameSheet";
@@ -426,17 +427,17 @@ function NodeScreen({
   const mainLabel = generating
     ? node.progress || t`生成中…`
     : stage === "rederive"
-      ? t`♻ 重新生成方案（${fmtTokens(propCost)}）`
+      ? t`♻ 重新生成方案（${priceTag(propCost)}）`
       : stage === "derive"
-        ? t`⚡ 生成本段（${fmtTokens(propCost)}）`
+        ? t`生成本段（${priceTag(propCost)}）`
         : pending
           ? // ★ 「没接到结果」这一拍上主按钮**必须把"再花一次"写在脸上**：它和上面那颗
             // 「取回」长得一样近，而用户默认把没出片理解成"重试一下"。这一下不是重试，
             // 是重新下一单 —— 这正是 2026-08-18 那 ¥27 会被再花一次的入口。
             t`♻ 重新生成（再花 ${fmtTokens(cost)}）`
           : done
-            ? t`♻ 重新生成（${fmtTokens(cost)}）`
-            : t`⚡ 生成本段（${fmtTokens(cost)}）`;
+            ? t`♻ 重新生成（${priceTag(cost)}）`
+            : t`生成本段（${priceTag(cost)}）`;
 
   async function onMain() {
     if (busy) return;
@@ -610,7 +611,7 @@ function NodeScreen({
 
       {/* ── 大屏幕：方案台 / 成片 / 起拍画面（手势区）── */}
       <div
-        className={`relative min-h-0 flex-1 ${boardOn ? "bg-[#0b0f18]" : "flex items-center justify-center bg-black"}`}
+        className={`relative min-h-0 flex-1 ${boardOn ? "bg-ink" : "flex items-center justify-center bg-black"}`}
         data-guide="flow-stage"
         {...swipe}
       >
@@ -716,9 +717,9 @@ function NodeScreen({
             {named ? <BlockoutCastBox node={node} onCast={requestCast} /> : <TemplateSubjectBox />}
             {castAsk && (
               <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
-                <p className="text-[11px] leading-relaxed text-amber-200">
+                <Warn>
                   <Trans>改完挂卡会按新的映射<b>重新合成</b>下面那段要求，你改过的字会被替换掉 —— 因为旧的那段话里写的还是旧的挂卡，留着它 AI 就会照旧的换人。</Trans>
-                </p>
+                </Warn>
                 <div className="flex gap-2">
                   <button onClick={openCast} className="rounded-full bg-amber-500/90 px-2.5 py-1 text-[11px] font-bold text-ink">
                     <Trans>继续去挂卡</Trans>
@@ -1455,7 +1456,7 @@ export default function FlowPage() {
               此时还占着位置的节点条只是噪音（而且那会儿他也不该跳段）。 */}
           {(!simple || matWindow) && !planFocus && (
             <div
-              className="flex-none border-t border-slate-700/60 bg-[#141821] px-3 pt-2.5"
+              className="flex-none border-t border-slate-700/60 bg-raised px-3 pt-2.5"
               /* ★ 不能写 `safe-bottom pb-3`：.safe-bottom 在 index.css 里排在 @tailwind utilities
                  之后，两条都是 padding-bottom，后写的赢 —— 于是没有安全区的设备（桌面、
                  大多数安卓）padding-bottom 直接变成 0，素材卡整排贴死在屏幕最底边。

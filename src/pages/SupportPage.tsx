@@ -30,6 +30,7 @@
  *   为它另开一页就是第二份。本页读到这个 query 就把面板掀开，然后**当场把 query 抹掉**（见下面那个 effect 的 ★）。
  */
 import { useEffect, useMemo, useRef, useState } from "react";
+import Warn from "../components/Warn";
 import { useNavigate, useSearchParams } from "react-router";
 import { useBackOr } from "../hooks/useBackOr";
 import { i18n } from "@lingui/core";
@@ -627,8 +628,8 @@ export default function SupportPage() {
             className={`max-h-[26vh] overflow-y-auto text-sm leading-6 ${lastAssistant?.system ? "text-emerald-100" : "text-slate-100"}`}
           >
             {reaction || lastAssistant?.text || (phase === "thinking" ? "…" : greeting)}
-            {configErr && !messages.length && <p className="mt-1 text-xs text-amber-300">{configErr}</p>}
-            {!enabled && !configErr && !messages.length && <p className="mt-1 text-xs text-amber-300"><Trans>服务端还没开通 AI 对话，你可以直接转人工。</Trans></p>}
+            {configErr && !messages.length && <Warn className="mt-1">{configErr}</Warn>}
+            {!enabled && !configErr && !messages.length && <Warn className="mt-1"><Trans>服务端还没开通 AI 对话，你可以直接转人工。</Trans></Warn>}
           </div>
           {canRate && lastAssistant && (
             <div className="mt-2 flex items-center gap-2 border-t border-white/10 pt-2 text-[11px] text-slate-400">
@@ -674,8 +675,8 @@ export default function SupportPage() {
           </div>
         )}
         {chatErr && <p className="mb-2 px-1 text-xs leading-relaxed text-rose-300">{chatErr}</p>}
-        {micErr && <p className="mb-2 px-1 text-xs leading-relaxed text-amber-300">{micErr}</p>}
-        {stageNotice && <p className="mb-2 px-1 text-xs leading-relaxed text-amber-300">{stageNotice}</p>}
+        {micErr && <Warn className="mb-2 px-1">{micErr}</Warn>}
+        {stageNotice && <Warn className="mb-2 px-1">{stageNotice}</Warn>}
 
         {messages.length === 0 && phase === "idle" && quick.length > 0 && (
           <div className="mb-2 flex gap-2 no-scrollbar overflow-x-auto pb-1">

@@ -26,6 +26,7 @@
 // 图标页签 → 3 列贴边栅格。旧版是左对齐的资料卡 + 文字页签，与首页的
 // 短视频形态完全不搭，而且首页压根没有入口能走到"别人"的主页。
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import Warn from "../components/Warn";
 import { showToast } from "../data/toast";
 import EmptyState, { type EmptyMascot } from "../components/EmptyState";
 import { CloseButton } from "../components/IconTapButton";
@@ -1161,8 +1162,8 @@ function CutSessionBanner() {
   const when = relativeTime(cut.at || Date.now());
 
   return (
-    <div className="mx-3 mt-3 rounded-xl border border-cyan-400/40 bg-cyan-500/10 p-3">
-      <div className="text-xs font-semibold text-cyan-100"><Trans>有一条剪到一半的成片</Trans></div>
+    <div className="mx-3 mt-3 rounded-xl border border-slate-700/70 border-l-2 border-l-cyan-400/80 bg-panel p-3">
+      <div className="text-xs font-semibold text-slate-100"><Trans>有一条剪到一半的成片</Trans></div>
       <p className="mt-1 text-[11px] leading-relaxed text-slate-300">
         {deckCount > 0 ? <Trans>{segCount} 段 · 卡组 {deckCount} 张已经铸好 · {when}</Trans> : <Trans>{segCount} 段 · {when}</Trans>}
         {/* ★ 这句要说清"为什么值得回去"：里面是**已经花过钱**的东西 */}
@@ -1234,8 +1235,8 @@ function PendingBanner() {
   // 正在传：只显示进度，别把失败原因和进度混在一起说
   if (up) {
     return (
-      <div className="mx-3 mt-3 rounded-xl border border-cyan-400/40 bg-cyan-500/10 p-3">
-        <div className="text-xs font-semibold text-cyan-200">
+      <div className="mx-3 mt-3 rounded-xl border border-slate-700/70 border-l-2 border-l-cyan-400/80 bg-panel p-3">
+        <div className="text-xs font-semibold text-slate-100">
           <Trans>正在上传「{up.title}」 {up.done}/{up.total}</Trans>
         </div>
         <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/25">
@@ -1253,14 +1254,14 @@ function PendingBanner() {
   const title = first.draft.title;
   const why = pendingErrorText(first);
   return (
-    <div className="mx-3 mt-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
+    <div className="mx-3 mt-3 rounded-xl border border-slate-700/70 border-l-2 border-l-amber-500/80 bg-panel p-3">
       <div className="flex items-center gap-2">
-        <span className="flex-none text-sm">⚠️</span>
+        <Icon name="alert" size={14} className="flex-none text-amber-300" />
         <span className="min-w-0 flex-1 text-xs font-semibold text-amber-200">
           <Trans>{list.length} 条作品还没传到服务器</Trans>
         </span>
       </div>
-      <p className="mt-1 text-[11px] leading-relaxed text-amber-100/80">
+      <Warn className="mt-1">
         {/* ★ 原因为空（原话本身是空的、老条目没存原因）时整句换成只有标题那句：英文是「“标题”: 原因」，
             拿空串去拼会在句末剩一个孤零零的冒号。中文两句画出来与原来逐字相同 */}
         {why ? (
@@ -1268,7 +1269,7 @@ function PendingBanner() {
         ) : (
           <Trans comment="个人页「还没传到服务器」横幅：只有作品标题（这一条没记下没传上去的原因）">「{title}」</Trans>
         )}
-      </p>
+      </Warn>
       <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
         <Trans>内容还在这台设备上，没有丢。修好网络或服务器后点重试即可。</Trans>
       </p>
@@ -1497,7 +1498,7 @@ function FollowingSheet({
               onClick={onClose}
               className="flex min-w-0 flex-1 items-center gap-3"
             >
-              <Avatar name={a} size={40} />
+              <Avatar name={a} size={36} />
               <span className="min-w-0">
                 <span className="block truncate text-sm font-medium text-slate-100">{a}</span>
                 <span className="block text-[11px] text-slate-500">
@@ -1718,6 +1719,9 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
   }
 
   const wallet = walletOf();
+  /** ★ 推荐档只有一档（2026-10-23）：比当前套餐贵一级的那一档（当前是免费 → 最便宜的付费档）；只给它一颗主键，其余价签退成次级键 */
+  const currentPlanPrice = PLANS.find((p) => p.id === wallet?.planId)?.price ?? 0;
+  const recommendedPlanId = PLANS.filter((p) => p.price > currentPlanPrice).sort((a, b) => a.price - b.price)[0]?.id;
   // 远端模式下镜像可能还在路上。★ 不能 return null —— 那会表现成"点了钱包没反应"，
   // 而用户完全没法区分"在加载"和"坏了"
   if (!wallet)
@@ -1802,18 +1806,23 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
 
       <div className="mb-1.5 text-sm font-semibold text-slate-300"><Trans>订阅套餐</Trans></div>
       <div className="mb-4 space-y-2">
+        {/* 推荐哪一档只算一次（见下面 recommended 的 ★） */}
         {/* ★★ play 渠道只显示免费档：付费套餐在 Play Console 里还没有对应商品，
             而在 Play 的包里用微信/支付宝卖数字商品是**违反 Play 政策**的。
             免费档的「领取」不是付款，留着。 */}
         {PLANS.filter((p) => !playItems || p.price === 0).map((p) => {
           const current = wallet.planId === p.id;
           const freeTierNames = p.price === 0 ? tierNamesFor(tierFreeOk).usable : "";
+          // ★ 一张抽屉只有一颗主键（《Refactoring UI》§2.8，2026-10-23）：「推荐」= 比现在这一档贵一级的那档（没有就是最便宜的付费档）；
+          //   其余价签退成次级键。原来三行各一颗 bg-brand，看不出该点哪个
+          const recommended = p.id === recommendedPlanId;
           return (
             <div key={p.id} className="flex items-center gap-3 rounded-xl border border-slate-700/70 bg-panel p-3">
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-semibold text-slate-100">
                   {p.name}
                   {current && <span className="ml-1.5 rounded bg-brand/20 px-1.5 py-0.5 text-[9px] text-brand"><Trans>当前</Trans></span>}
+                  {recommended && <span className="ml-1.5 rounded bg-gold/20 px-1.5 py-0.5 text-[9px] text-gold"><Trans>推荐</Trans></span>}
                 </div>
                 <div className="text-[11px] text-slate-500">
                   {/* 免费版不按月发（monthlyTokens 0）：它的额度规则整句写在 desc 里，别印出一个「0 token/月」。
@@ -1830,7 +1839,9 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
               <button
                 onClick={() => void submit(() => buyPlan(p.id))}
                 disabled={busy || (p.price === 0 && current)}
-                className="rounded-full bg-brand px-3 py-1.5 text-xs font-bold text-ink disabled:bg-slate-700 disabled:text-slate-400"
+                className={`rounded-full px-3 py-1.5 text-xs font-bold disabled:bg-slate-700 disabled:text-slate-400 ${
+                  recommended ? "bg-brand text-ink" : "bg-panel text-slate-100 ring-1 ring-slate-700"
+                }`}
               >
                 {p.price === 0 ? (current ? t`已领取` : t`领取`) : t`¥${p.price}/月`}
               </button>
@@ -1851,7 +1862,9 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
                 disabled={busy}
                 className="rounded-xl border border-slate-700/70 bg-panel p-3 text-center disabled:opacity-40"
               >
-                <div className="text-sm font-bold tabular-nums text-slate-100">{fmtTokens(it.tokens)}</div>
+                <div className="text-sm font-bold tabular-nums text-slate-100">
+                  {fmtTokens(it.tokens)} <span className="text-[10px] font-normal text-slate-500">token</span>
+                </div>
                 <div className="mt-0.5 text-[11px] text-gold">{it.price}</div>
               </button>
             ))
@@ -1862,7 +1875,9 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
                 disabled={busy}
                 className="rounded-xl border border-slate-700/70 bg-panel p-3 text-center disabled:opacity-40"
               >
-                <div className="text-sm font-bold tabular-nums text-slate-100">{fmtTokens(pk.tokens)}</div>
+                <div className="text-sm font-bold tabular-nums text-slate-100">
+                  {fmtTokens(pk.tokens)} <span className="text-[10px] font-normal text-slate-500">token</span>
+                </div>
                 <div className="mt-0.5 text-[11px] text-gold">¥{pk.price}</div>
               </button>
             ))}

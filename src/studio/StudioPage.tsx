@@ -70,7 +70,7 @@ function StudioLoader() {
   if (phase === "gone") return null;
   return (
     <div
-      className={`absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#05070f] transition-opacity duration-500 ${
+      className={`absolute inset-0 z-50 flex flex-col items-center justify-center bg-ink transition-opacity duration-500 ${
         phase === "fading" ? "pointer-events-none opacity-0" : "opacity-100"
       }`}
     >

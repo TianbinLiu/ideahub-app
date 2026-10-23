@@ -11,6 +11,7 @@
  *   换一句话、重生成、清空重来这三处）。
  */
 import { useEffect, useMemo, useRef, useState } from "react";
+import Warn from "../components/Warn";
 import type { ReactNode } from "react";
 import { useNavigate } from "react-router";
 import type { MessageDescriptor } from "@lingui/core";
@@ -976,9 +977,9 @@ function ExampleList({
       ))}
       {over && <ErrLine text={t`有一句超过 ${PERSONA_LIMITS.example} 字了，发布会被服务端拒掉。`} />}
       {blanks.length > 0 && (
-        <p className="text-xs leading-relaxed text-amber-300">
+        <Warn>
           <Trans>第 {blanks.join(" / ")} 组还没填完 —— 试聊和发布时这几组会被丢掉（一问一答缺一边的示例喂不了模型）。</Trans>
-        </p>
+        </Warn>
       )}
       <button
         type="button"

@@ -17,6 +17,7 @@
 // ★ 为什么框分两级：CropOverlay 的最小框是 40 个**屏幕**像素，4000 宽的照片显示在手机上时
 //   折算成源像素近 460，小物件根本框不紧 ——「放大再框」让舞台只显示框附近那一块，最小框随之缩小。
 import { Trans, useLingui } from "@lingui/react/macro";
+import Warn from "./Warn";
 import { useEffect, useRef, useState, type PointerEvent as RPointerEvent } from "react";
 import { createPortal } from "react-dom";
 import CropOverlay from "./blockout/CropOverlay";
@@ -406,9 +407,9 @@ export default function PhotoSubjectPicker({
                 >
                   <Trans>描不出来？保留框内背景 ›</Trans>
                 </button>
-                <p className="mt-0.5 text-[10px] leading-relaxed text-amber-200/90">
+                <Warn compact className="mt-0.5">
                   <Trans>卡面会带着框里的背景，出片时 AI 可能把背景里的东西也画进去。</Trans>
-                </p>
+                </Warn>
               </div>
             )}
           </>

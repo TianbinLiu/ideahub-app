@@ -9,6 +9,7 @@
 // ★ 只收 props、不认识任何 store（与 CustomFrameSlots / RefStrip 同一条约束）：能不能改、改完写到哪儿都在宿主接的那个 action 里。
 // ★ 圈选弹窗 portal 到 body：宿主可能在带 transform / backdrop-filter 的容器里（画布的变换层、投影窗），fixed 会被它们当包含块。
 import { Trans, useLingui } from "@lingui/react/macro";
+import Warn from "../Warn";
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import FrameAnnotator from "../FrameAnnotator";
@@ -82,9 +83,9 @@ export default function FrameEditBox({
       {which && frame && (
         <div className="space-y-1.5 rounded-lg bg-black/30 p-2">
           {which === "first" && carriedFirst && (
-            <p className="text-[10px] leading-relaxed text-amber-300/90">
+            <Warn compact>
               <Trans>这张开头帧承接的是上一段的结尾——改了它，这一段就不再从上一段结尾起拍。</Trans>
-            </p>
+            </Warn>
           )}
           {/* 不另摆缩略图：这一帧就在旁边（方案台的首尾帧卡 / 自定义车道的两格），方案台那一栏只有一百多像素宽，输入框要占满 */}
           <textarea

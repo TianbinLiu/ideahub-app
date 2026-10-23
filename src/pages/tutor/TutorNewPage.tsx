@@ -9,6 +9,7 @@
  * ★ 离线模式进门整句说「需要联网」；登录墙由路由的 RequireAuth 管。
  */
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import Warn from "../../components/Warn";
 import { useNavigate, useSearchParams } from "react-router";
 import { Trans, useLingui } from "@lingui/react/macro";
 import PageHeader from "../../components/PageHeader";
@@ -294,7 +295,7 @@ export default function TutorNewPage() {
                 <p className="mt-1 text-[11px] leading-relaxed text-slate-500"><Trans>受理那一刻按整份报价扣；生成要几十秒到几分钟，可以退出这一页，铸好了会通知你。</Trans></p>
               </>
             ) : quote && quote.stages === 0 ? (
-              <p className="text-xs text-amber-200"><Trans>这门课还没有可用的教材文本，回上一步传一份。</Trans></p>
+              <Warn><Trans>这门课还没有可用的教材文本，回上一步传一份。</Trans></Warn>
             ) : (
               <div className="flex items-center gap-2 text-xs text-slate-500"><Spinner size="xs" />{t`算报价…`}</div>
             )}

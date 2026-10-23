@@ -757,6 +757,18 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   只准写在自己带 `safe-top` 的那一行上；safe-top 已经在外层时里面那行是 `h-12`（客服页第十四轮量出来差 5px）。
   验法：在浏览器里逐路由量返回键中心的 y，都该是 34。
 - **加载圈只有一份 `components/Spinner`**（xs / sm / lg），别再手写 `animate-spin rounded-full border-2 …`。
+- **挂在控件旁的一两句提醒只有一份 `components/Warn`**（2026-10-23，《Refactoring UI》走查）：左侧 2px 色条 + 图标 + 文字，tone = warn / danger / info / ok，紧凑面板传 `compact`。
+  与「提示条一律带同色 /40 边框」那种整块 tip bar 分工：整块给独立成段、要人停下来读的话；`<Warn>` 给原来那些裸琥珀 `<p className="text-amber-200">` 的位置。
+  文案里别再手打「⚠ 」前缀（图标顶替）。构建里 `scripts/check-warn.mjs` 是棘轮：裸琥珀 `<p>` 直接红（整块 tip bar、`<span>` 行内强调、卡片里的琥珀标题不算）。
+- **搜索框只有一份 `components/SearchField`**（同日）：`field`（页面级表单字段那档，工坊 / 管理页）/ `pill`（顶栏与列表头，分区 / 市场）/ `compact`（抽屉与小面板）三档，
+  清空键 44px 热区；搜索态页面传 `clearKeepsFocus`（点 ✕ 不失焦、清完光标留在框里）。别再手拼 `<Icon search> + <input> + ✕`。
+- **表面三级：`ink` → `panel` → `raised`**（同日加 `raised`）：`raised` 只给**浮在页面之上**的东西（新手引导卡、生成胶囊、画布浮条、剪辑页 / 工作流页底部停靠栏、工坊弹层、说明弹窗），
+  配 `ring-1 ring-white/10`、不描 slate 边；页面里的卡片仍是 `panel` + `border-slate-700/70`。别再写 `bg-[#141821]` 这类十六进制底色。
+- **价钱一律 `economy.priceTag(n)`**（`⚡12k`），按钮上写「生成本段（⚡12k）」；⚡ 只表示「要花钱」，不花钱的动作（做同款）用招牌字形。重做类动作前缀 ♻，别再用 ✨ / 🎲 / 📼。
+- **头像两档**：列表行 36（消息 / 关注 / 管理页）、评论 32（楼中楼 24）；个人页头图 92、首页右栏 44 是另两种控件。
+- **评论行只常显「回复」**，删除 / 举报 / 拉黑收在「⋯」后面原地展开（评论抽屉与作品页同一套）。
+- **`.claude/skills/refactoring-ui/` 是装进仓库的《Refactoring UI》审查 skill**（非官方、MIT，SKILL.md 头上那段写了本仓优先级：CLAUDE.md 约定赢、令牌只有五个、不跑它的调色板工作流）。
+  说「设计评审 / 这页看着不对 / 配色 / 空状态」时它会触发；走查记录正本 docs/ui-refactoring-ui-pass-2026-10-23.md。
 - **多步功能的步骤进度只有一份 `components/StepDots`**（2026-10-22 主人点名）：横线上一排圆点，做完实心、没到空心、当前那颗外圈放大，每颗下面两三个字；
   摆在标题行 / `PageHeader` **正下方**（不进 `right` 插槽），一屏只画一条（铸段窗在向导车道上让位给向导自己那条）。
   动画只动 transform / opacity（放大是独立的一枚环 scale、实心是内芯 opacity、进度线 scaleX），减少动态效果时不过渡。

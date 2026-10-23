@@ -236,21 +236,21 @@ export default function NotificationsPage() {
                     // ★ 平台口吻：**不显示是哪个管理员发的**（数据里 actor 是那位管理员，
                     //   但把审核员透给被通知的用户等于把他摆到被骚扰的位置 ——
                     //   与举报下架不带 by 是同一条取舍）。头像位画一只铃铛顶替。
-                    <span className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-brand/15 text-brand">
+                    <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-brand/15 text-brand">
                       <Icon name="bell" size={20} />
                     </span>
                   ) : n.refund ? (
                     // 生成失败退款：平台口径，没有 actor（同 ADMIN_NOTICE 的铃铛：不拿「有人」两个字去画字母头像）
-                    <span className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-emerald-500/15 text-xl" aria-hidden>
+                    <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-emerald-500/15 text-lg" aria-hidden>
                       ↩️
                     </span>
                   ) : n.reward?.anonymous ? (
                     // 同款奖励、服务端没带是谁（两人之间有拉黑 / 那条同款已经不公开）：不拿「有人」两个字去画字母头像
-                    <span className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-emerald-500/15 text-xl" aria-hidden>
+                    <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-emerald-500/15 text-lg" aria-hidden>
                       🎁
                     </span>
                   ) : (
-                    <Avatar name={n.actorName} src={n.actorAvatar} size={40} />
+                    <Avatar name={n.actorName} src={n.actorAvatar} size={36} />
                   )}
                   <div className="min-w-0 flex-1">
                     {/* 未读不只靠右边那颗红点（Refactoring UI §5.7 别只靠颜色）：没读的一行亮一档，读过的退一档 */}

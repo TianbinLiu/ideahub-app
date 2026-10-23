@@ -219,7 +219,7 @@ function MarketTopBar() {
   }
   return (
     <div className="safe-top absolute inset-x-0 top-12 z-10 px-3">
-      <div className="mx-auto flex max-w-md items-center gap-2 rounded-2xl border border-slate-600/70 bg-panel/95 px-3 py-2 shadow-lg backdrop-blur">
+      <div className="mx-auto flex max-w-md items-center gap-2 rounded-2xl bg-raised/95 px-3 py-2 shadow-lg ring-1 ring-white/10 backdrop-blur">
         <span className="flex-none text-xs font-semibold text-slate-200"><Trans>🛒 市场</Trans></span>
         <input
           value={q}
@@ -295,7 +295,7 @@ function HistorySheet({ onClose, onOpenForge }: { onClose: () => void; onOpenFor
   return (
     <div className="absolute inset-0 z-30" onClick={onClose}>
       <div
-        className="safe-top absolute inset-x-3 top-12 bottom-[30%] mx-auto flex max-w-md flex-col overflow-hidden rounded-2xl border border-slate-600/70 bg-panel/95 shadow-2xl backdrop-blur"
+        className="safe-top absolute inset-x-3 top-12 bottom-[30%] mx-auto flex max-w-md flex-col overflow-hidden rounded-2xl bg-raised/95 shadow-2xl ring-1 ring-white/10 backdrop-blur"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 border-b border-slate-700/60 px-3.5 py-2.5">
@@ -574,7 +574,7 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
       onClick={locked ? undefined : onClose}
     >
       <div
-        className="flex max-h-[88%] w-full max-w-sm flex-col overflow-hidden rounded-2xl border border-slate-600/70 bg-panel/95 shadow-2xl backdrop-blur"
+        className="flex max-h-[88%] w-full max-w-sm flex-col overflow-hidden rounded-2xl bg-raised/95 shadow-2xl ring-1 ring-white/10 backdrop-blur"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 px-4 pb-2 pt-3.5">

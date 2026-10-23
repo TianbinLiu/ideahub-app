@@ -19,6 +19,7 @@
 //     打不开浏览器就把那个地址写出来。
 //   · 层级压在引导层（GUIDE_Z = 90）之上：引导会在各屏自己弹出来，盖住这张卡的话人只看得见引导、点不到更新。
 import { Trans, useLingui } from "@lingui/react/macro";
+import Warn from "./Warn";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -124,9 +125,9 @@ export default function UpdateSheet({ info, onClose }: { info: UpdateInfo; onClo
 
         {allowed === false && (
           <div className="mb-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
-            <p className="text-[11px] leading-relaxed text-amber-100">
+            <Warn>
               <Trans>这个 App 不是从应用商店装的，系统需要你先允许它安装应用，才能自己完成更新。</Trans>
-            </p>
+            </Warn>
             <button
               onClick={() => {
                 // 打不开授权页（原生 NO_SETTINGS）原来是一个没人接的拒绝 = 点了没反应；现在说出来、让人自己去系统设置

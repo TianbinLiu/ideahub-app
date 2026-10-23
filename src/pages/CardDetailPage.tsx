@@ -2,6 +2,7 @@
 // （铸卡时的完整提示词，具体到可复刻卡面）+ 3D 建模全息预览（有 modelUrl 的角色卡）。
 // 创意工坊/我的/卡组详情点卡进来。
 import { useEffect, useRef, useMemo, useState, useSyncExternalStore } from "react";
+import Warn from "../components/Warn";
 import { showToast } from "../data/toast";
 import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
@@ -230,9 +231,9 @@ function CardAssetSection({ card, owned }: { card: Card; owned: boolean }) {
         }}
       />
       {issue && (
-        <p className="mt-1.5 text-[10px] leading-relaxed text-amber-200/90">
+        <Warn compact className="mt-1.5">
           <Trans>还没同步到服务端（{issue}）——换台设备暂时看不到，下次登录会自动补传。</Trans>
-        </p>
+        </Warn>
       )}
       {saveErr && <p className="mt-1.5 text-[10px] leading-relaxed text-rose-300">{saveErr}</p>}
     </div>
@@ -892,9 +893,9 @@ export default function CardDetailPage() {
         owned && (
           <div className="mb-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
             <div className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>🎯 出片身份句</Trans></div>
-            <p className="text-[11px] leading-relaxed text-amber-100">
+            <Warn>
               <Trans>这张卡还没写出片句 —— 出片时提示词里只有卡名，长相由 AI 自己编（每一段都可能不一样）。</Trans>
-            </p>
+            </Warn>
             <button
               onClick={() => {
                 setEditName(card.name);

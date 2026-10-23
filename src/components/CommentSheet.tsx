@@ -7,6 +7,7 @@
 //   结果就是输入框和「发送」整行都被底栏盖住——实测点下去命中的是底栏的「创作」，
 //   直接跳去 /create，评论在手机上根本发不出来（只有回车能提交）。
 import { Trans, useLingui } from "@lingui/react/macro";
+import Warn from "./Warn";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -104,6 +105,8 @@ export default function CommentSheet({ video, onClose }: { video: VideoItem; onC
   const [err, setErr] = useState("");
   /** 评论发出去了、但有几个 @ 服务端没认下来（老服务端 / 核对没过）。黄字，不是红字 */
   const [warn, setWarn] = useState("");
+  /** 哪一条评论展开了「⋯」后面的三颗键（删除 / 举报 / 拉黑）。常用的只有「回复」，四颗同权重并排会把它淹掉（2026-10-23） */
+  const [moreFor, setMoreFor] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     setList(video.comments);
@@ -194,13 +197,25 @@ export default function CommentSheet({ video, onClose }: { video: VideoItem; onC
             >
               {pending ? <Trans>发送中…</Trans> : <Trans>回复</Trans>}
             </button>
-            {/* 删除入口与详情页共用同一份实现（能不能删、二次确认、失败红字都在里面） */}
-            <CommentDelete videoId={video.id} comment={c} onDeleted={() => setList([...video.comments])} />
-            {/* 举报入口同样是共用的那一份（理由表、重复举报的说法、失败红字都在里面）。
-                mine 按 **userId** 判（isMyVideo）：自己的评论该删不该举报，传了就整块不渲染。
-                ★ 别按展示名判（isMyAuthor）：昵称和我一样的陌生人会被当成「我」，举报 / 拉黑两颗键一起藏掉（2026-09-18 发版复核抓到） */}
-            <ReportButton targetType="comment" targetId={c.id} videoId={video.id} mine={isMyVideo({ author: c.author, authorId: c.authorId })} />
-            <BlockButton userId={c.authorId ?? ""} userName={c.author} mine={isMyVideo({ author: c.author, authorId: c.authorId })} />
+            {moreFor === c.id ? (
+              <>
+                {/* 删除入口与详情页共用同一份实现（能不能删、二次确认、失败红字都在里面） */}
+                <CommentDelete videoId={video.id} comment={c} onDeleted={() => setList([...video.comments])} />
+                {/* 举报入口同样是共用的那一份（理由表、重复举报的说法、失败红字都在里面）。
+                    mine 按 **userId** 判（isMyVideo）：自己的评论该删不该举报，传了就整块不渲染。
+                    ★ 别按展示名判（isMyAuthor）：昵称和我一样的陌生人会被当成「我」，举报 / 拉黑两颗键一起藏掉（2026-09-18 发版复核抓到） */}
+                <ReportButton targetType="comment" targetId={c.id} videoId={video.id} mine={isMyVideo({ author: c.author, authorId: c.authorId })} />
+                <BlockButton userId={c.authorId ?? ""} userName={c.author} mine={isMyVideo({ author: c.author, authorId: c.authorId })} />
+              </>
+            ) : (
+              <button
+                onClick={() => setMoreFor(c.id)}
+                aria-label={t`更多操作`}
+                className="-my-1.5 px-1 py-1.5 text-[11px] leading-none tracking-widest text-slate-500 active:opacity-60"
+              >
+                ⋯
+              </button>
+            )}
           </div>
         </div>
         {/* 心 + 数字。热区给到 32px 宽——评论行密，小了会点到隔壁那条 */}
@@ -273,7 +288,7 @@ export default function CommentSheet({ video, onClose }: { video: VideoItem; onC
           )}
           {/* 失败就地说清楚，并且**不清空输入框**——用户打的字还在，改一下就能再发 */}
           {err && <p className="mb-1.5 text-[11px] leading-relaxed text-rose-300">{err}</p>}
-          {warn && <p className="mb-1.5 text-[11px] leading-relaxed text-amber-300/90">{warn}</p>}
+          {warn && <Warn className="mb-1.5">{warn}</Warn>}
           <div className="flex gap-2">
             {/* isComposing / 回车提交这些细节都在 MentionInput 里（两个评论口共用一份，
                 铁律六）。placeholder 里那个「回复 @昵称」是**说明文字**，不是提及令牌 ——

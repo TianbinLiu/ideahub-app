@@ -7,6 +7,7 @@
 // ★ 只收 props、不认任何 store（与 PlanBoard / CustomFrameSlots 同一条约束）：选了哪一档、挑了哪个模式由宿主落地。
 // ★ 价钱只摆「这一步大概花多少」（参考图直出 = 只有视频；推演三套 = 推演那一笔），算法都是 economy 里报价用的那几个函数。
 import type { MessageDescriptor } from "@lingui/core";
+import Warn from "../Warn";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { memberTiersLine, tierBlockReason, tierNamesFor, tierOffered } from "../../data/account";
@@ -134,7 +135,7 @@ export default function ModePicker({
         <p className="mt-1 text-[10px] text-slate-500">
           <Trans>这一段交给 {tierModelLabel(tier)} 生成</Trans>
         </p>
-        {tierIssue && <p className="mt-0.5 text-[10px] leading-relaxed text-amber-300/90">{tierIssue}</p>}
+        {tierIssue && <Warn compact className="mt-0.5">{tierIssue}</Warn>}
         {memberLine && (
           <p className="mt-0.5 text-[10px] leading-relaxed text-slate-500">
             {memberLine}

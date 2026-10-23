@@ -6,6 +6,7 @@
 //   人在这里改过的字就是最后的字 —— 模型的原话只是底稿。
 // ★ 点头之前一个字都不落进剪辑工程：关掉面板 = 什么都没发生（花掉的那一次对话除外，面板上如实写着）。
 import { useMemo, useState } from "react";
+import Warn from "../Warn";
 import { createPortal } from "react-dom";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { AI_REAL } from "../../ai";
@@ -218,9 +219,9 @@ export default function AutoEditSheet({ project, segs, lens, canVoice, voiceFree
                       className="w-full resize-none rounded-lg border border-slate-700 bg-black/30 px-2.5 py-1.5 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
                     />
                     {over && (
-                      <p className="mt-1 text-[11px] leading-relaxed text-amber-200">
+                      <Warn className="mt-1">
                         <Trans>这一句在这一段里念不完——改短一点，不然配不了音（字幕照样会出）。</Trans>
-                      </p>
+                      </Warn>
                     )}
                   </div>
                 );
@@ -273,9 +274,9 @@ export default function AutoEditSheet({ project, segs, lens, canVoice, voiceFree
               </p>
             )}
             {tooLong > 0 && voice && canVoice && (
-              <p className="mt-2 text-[11px] leading-relaxed text-amber-200">
+              <Warn className="mt-2">
                 <Trans>有 {tooLong} 句太长、配不了音——用了之后这几句只有字幕，改短再配。</Trans>
-              </p>
+              </Warn>
             )}
 
             <div className="mt-3 flex gap-2">

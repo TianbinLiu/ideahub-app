@@ -53,6 +53,7 @@
 //   （confirmTemplateRoles / setTemplatePublished / remoteStateOf）不算"认 store"：
 //   那几个函数本身就是"一处实现"。
 import { useState, useSyncExternalStore } from "react";
+import Warn from "../Warn";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { CloseButton } from "../IconTapButton";
 import { createPortal } from "react-dom";
@@ -211,7 +212,7 @@ export default function RoleConfirmSheet({ t: tpl, onClose }: { t: VideoTemplate
             对着一句 400 干瞪眼（铁律八：失败要响 + 要有下一步） */}
         {rs?.status === "published" && (
           <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
-            <p className="text-[11px] leading-relaxed text-amber-200">
+            <Warn>
               {ordinal ? (
                 <Trans>
                   这个模板<b className="font-bold">已经发布在市场上</b>，服务端不许直接改它的位置（包括删掉画面上
@@ -225,7 +226,7 @@ export default function RoleConfirmSheet({ t: tpl, onClose }: { t: VideoTemplate
                   不会有任何提示。先下架，改完再发布一次。
                 </Trans>
               )}
-            </p>
+            </Warn>
             <button
               onClick={() => void unpublish()}
               disabled={pubBusy}

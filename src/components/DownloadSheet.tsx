@@ -10,6 +10,7 @@
 //   拿三次白屏事故换来的）。
 // ★ 自带一份 err 行（"z 层盖住谁就自带一份"）。
 import { i18n } from "@lingui/core";
+import Warn from "./Warn";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -269,9 +270,9 @@ export default function DownloadSheet({
       )}
 
       {someoneElseRunning && (
-        <p className="mt-3 text-[11px] leading-relaxed text-amber-300">
+        <Warn className="mt-3">
           <Trans>正在保存另一条作品，等它完成或点停止再来。</Trans>
-        </p>
+        </Warn>
       )}
       {note && <p className="mt-2 text-[11px] leading-relaxed text-slate-400">{note}</p>}
       {err && <p className="mt-2 text-[11px] leading-relaxed text-rose-300">{err}</p>}

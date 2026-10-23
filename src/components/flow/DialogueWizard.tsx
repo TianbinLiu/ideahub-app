@@ -9,6 +9,7 @@
 // ★ 三个机位画完各让 AI 看一遍（studio/panelCheck，与九宫格同一把尺）：有问题的那张标 ⚠、点开说原因，要不要重画由人定，不拦第④步。
 // ★ 只出第一段：「炼出本段才开下一段」照旧（flowStore 的顺序门禁）—— 第一句的人物或声音不对，后面几句不用花钱。
 import type { MessageDescriptor } from "@lingui/core";
+import Warn from "../Warn";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useState, useSyncExternalStore } from "react";
@@ -198,14 +199,14 @@ export default function DialogueWizard({
           </p>
           <CastPicker leadBadge={false}>
             {cast.length > 2 && (
-              <p className="text-[10px] leading-relaxed text-amber-200">
+              <Warn compact>
                 <Trans>对话只要两个人 —— 取消几个，留下两个再往下。</Trans>
-              </p>
+              </Warn>
             )}
             {sameName && (
-              <p className="text-[10px] leading-relaxed text-amber-200">
+              <Warn compact>
                 <Trans>两个人的名字一样，台词分不清是谁说的 —— 给其中一张卡改个名。</Trans>
-              </p>
+              </Warn>
             )}
             {two && noVoice && (
               <p className="text-[10px] leading-relaxed text-slate-500">
@@ -395,9 +396,9 @@ export default function DialogueWizard({
           )}
           {d.writeErr && <p className="text-[11px] leading-relaxed text-rose-300">{d.writeErr}</p>}
           {blankLines > 0 && (
-            <p className="text-[10px] leading-relaxed text-amber-200">
+            <Warn compact>
               <Trans>有 {blankLines} 句还没写台词 —— 写上，或者删掉。</Trans>
-            </p>
+            </Warn>
           )}
           <div className="flex gap-2">
             {backBtn("cast")}
@@ -491,13 +492,13 @@ export default function DialogueWizard({
             <div className="space-y-2 rounded-xl border border-slate-700/70 bg-panel p-3">
               <div className="text-xs font-semibold text-slate-300">{angleLabel(focus)}</div>
               {staleOf(focus) && (
-                <p className="text-[10px] leading-relaxed text-amber-200">
+                <Warn compact>
                   {focus === "two" ? (
                     <Trans>人、整体交代或画幅在画好之后改过：这一张还是按原来那版画的，重画一下才对得上。</Trans>
                   ) : (
                     <Trans>这一张是照着之前那张双人镜头画的（或者人、整体交代改过）：重画一下，地方和光线才与现在的双人镜头对得上。</Trans>
                   )}
-                </p>
+                </Warn>
               )}
               {d.panels[focus]?.err && <p className="text-[11px] leading-relaxed text-rose-300">{d.panels[focus]?.err}</p>}
               {/* 看一遍的结论（dialogueDraftStore.checkAngle）：有问题逐条说；没核对上就说一声（钱上的那句跟着） */}
@@ -666,14 +667,14 @@ export default function DialogueWizard({
             <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">{faceNote}</p>
           )}
           {missing.length > 0 && (
-            <p className="text-[11px] leading-relaxed text-amber-200">
+            <Warn>
               <Trans>「{missingText}」还没画好 —— 回上一步画出来，或者把用到它的句子换个机位。</Trans>
-            </p>
+            </Warn>
           )}
           {stale.length > 0 && (
-            <p className="text-[11px] leading-relaxed text-amber-200">
+            <Warn>
               <Trans>「{staleText}」过期了（人、整体交代或双人镜头改过）—— 回上一步重画一下。</Trans>
-            </p>
+            </Warn>
           )}
           <TokenCost tokens={costs[0] ?? 0} />
           {segN > 1 && (
@@ -713,9 +714,9 @@ export default function DialogueWizard({
       {/* 第①步之后人被取消掉了（卡片库里删了卡 / 回第①步改成了别的人数）：说清楚，别摆一块空白 */}
       {d.step !== "cast" && !castOk && (
         <div className="space-y-2">
-          <p className="text-[11px] leading-relaxed text-amber-200">
+          <Warn>
             <Trans>现在选的不是两个人（或两个人同名）—— 回第一步重新选。</Trans>
-          </p>
+          </Warn>
           {backBtn("cast")}
         </div>
       )}
