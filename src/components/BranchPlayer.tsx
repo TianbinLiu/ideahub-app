@@ -318,10 +318,11 @@ export default function BranchPlayer({
               </span>
               <button
                 onClick={() => setMuted((m) => !m)}
-                className="ml-auto flex-none rounded-full bg-white/15 px-2.5 py-1 text-[11px] text-slate-100"
+                className="ml-auto inline-flex flex-none items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 text-[11px] text-slate-100"
                 aria-label={muted ? t`取消静音` : t`静音`}
               >
-                {muted ? <Trans>🔇 已静音</Trans> : <Trans>🔊 有声</Trans>}
+                <Icon name={muted ? "volume-x" : "volume"} size={13} />
+                {muted ? <Trans>已静音</Trans> : <Trans>有声</Trans>}
               </button>
             </div>
           </div>

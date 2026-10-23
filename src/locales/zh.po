@@ -2693,8 +2693,8 @@ msgid "▸ 对不上怎么办？<0>多数情况删掉那个位子就行，不用
 msgstr "▸ 对不上怎么办？<0>多数情况删掉那个位子就行，不用重炼</0>"
 
 #: src/pages/CutPage.tsx
-msgid "◀ 前移"
-msgstr "◀ 前移"
+#~ msgid "◀ 前移"
+#~ msgstr "◀ 前移"
 
 #: src/studio/StudioPage.tsx
 msgid "○ 演示模式"
@@ -2980,8 +2980,8 @@ msgid "✂ 就取这一块"
 msgstr "✂ 就取这一块"
 
 #: src/pages/CutPage.tsx
-msgid "✂️ 播放头处分割"
-msgstr "✂️ 播放头处分割"
+#~ msgid "✂️ 播放头处分割"
+#~ msgstr "✂️ 播放头处分割"
 
 #: src/studio/ui/projection.tsx
 msgid "✂ 编辑"
@@ -3526,8 +3526,8 @@ msgid "💬 记录"
 msgstr "💬 记录"
 
 #: src/pages/CutPage.tsx
-msgid "💬 说一句"
-msgstr "💬 说一句"
+#~ msgid "💬 说一句"
+#~ msgstr "💬 说一句"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "📋 看/改这一套方案（换首尾帧、改剧情）"
@@ -3651,7 +3651,6 @@ msgstr "🔇 {overNames} 的声音样本这次带不上：这一档的参考音�
 msgid "🔇 {quietNames} 在这一段没有台词，这次不带声音样本。"
 msgstr "🔇 {quietNames} 在这一段没有台词，这次不带声音样本。"
 
-#: src/components/BranchPlayer.tsx
 #: src/components/flow/SegPlayer.tsx
 #: src/components/SegmentPlayer.tsx
 msgid "🔇 已静音"
@@ -3694,7 +3693,6 @@ msgid "🔊 已录 {0}s（铸卡时存进这张卡）"
 msgstr "🔊 已录 {0}s（铸卡时存进这张卡）"
 
 #: src/components/blockout/VideoStage.tsx
-#: src/components/BranchPlayer.tsx
 #: src/components/SegmentPlayer.tsx
 msgid "🔊 有声"
 msgstr "🔊 有声"
@@ -3814,8 +3812,8 @@ msgid "🗑 删除某段"
 msgstr "🗑 删除某段"
 
 #: src/pages/CutPage.tsx
-msgid "🗑 删除片段"
-msgstr "🗑 删除片段"
+#~ msgid "🗑 删除片段"
+#~ msgstr "🗑 删除片段"
 
 #: src/components/DraftSheet.tsx
 msgid "🧩 工作流模式"
@@ -8250,6 +8248,10 @@ msgstr "删除失败了，原因不明。"
 msgid "删除是真的销毁"
 msgstr "删除是真的销毁"
 
+#: src/pages/CutPage.tsx
+msgid "删除片段"
+msgstr "删除片段"
+
 #: src/pages/EditPage.tsx
 msgid "删除留存的制作过程"
 msgstr "删除留存的制作过程"
@@ -8370,6 +8372,10 @@ msgstr "前一段还没出片：退回铸段窗之后，新铸的段要等前一
 #: src/data/danmaku.ts
 msgid "前方高能"
 msgstr "前方高能"
+
+#: src/pages/CutPage.tsx
+msgid "前移"
+msgstr "前移"
 
 #: src/studio/flowStore.ts
 msgid "前面还有没炼完的段——先把前面那段炼出来，再推演这一段。"
@@ -10199,8 +10205,12 @@ msgid "后台还有 {0} 件活在跑（{names}），等它们跑完再退出登�
 msgstr "后台还有 {0} 件活在跑（{names}），等它们跑完再退出登录，结果才会落在这个账号里。"
 
 #: src/pages/CutPage.tsx
-msgid "后移 ▶"
-msgstr "后移 ▶"
+msgid "后移"
+msgstr "后移"
+
+#: src/pages/CutPage.tsx
+#~ msgid "后移 ▶"
+#~ msgstr "后移 ▶"
 
 #: src/pages/LoginPage.tsx
 msgid "启梦"
@@ -12294,6 +12304,10 @@ msgstr "已铺 {0} 段，从第 1 段开始炼"
 #: src/pages/LoginPage.tsx
 msgid "已阅读并同意<0>《用户协议》</0>与<1>《隐私政策》</1>"
 msgstr "已阅读并同意<0>《用户协议》</0>与<1>《隐私政策》</1>"
+
+#: src/components/BranchPlayer.tsx
+msgid "已静音"
+msgstr "已静音"
 
 #: src/pages/ProfilePage.tsx
 msgid "已领取"
@@ -14687,6 +14701,10 @@ msgstr "播放器还没就绪，稍等一下再标这一帧。"
 msgid "播放头不在选中的片段里——先点一下这个片段（它会从头开始播），再操作。"
 msgstr "播放头不在选中的片段里——先点一下这个片段（它会从头开始播），再操作。"
 
+#: src/pages/CutPage.tsx
+msgid "播放头处分割"
+msgstr "播放头处分割"
+
 #: src/components/SegmentPlayer.tsx
 #: src/pages/FeedPage.tsx
 msgid "播放进度"
@@ -14751,8 +14769,8 @@ msgid "收藏的这几条都打不开了：作者删了，或者改成了仅自�
 msgstr "收藏的这几条都打不开了：作者删了，或者改成了仅自己可见"
 
 #: src/pages/PublishPage.tsx
-msgid "收费方式"
-msgstr "收费方式"
+#~ msgid "收费方式"
+#~ msgstr "收费方式"
 
 #: src/components/flow/CastPicker.tsx
 #: src/components/VideoCardAnnotator.tsx
@@ -15742,6 +15760,10 @@ msgstr "有几格的画面写到了「{names}」，已把他们算进那几格�
 #: src/studio/gridDraftStore.ts
 msgid "有几格还没写画面——写上，或者删掉那几格再画"
 msgstr "有几格还没写画面——写上，或者删掉那几格再画"
+
+#: src/components/BranchPlayer.tsx
+msgid "有声"
+msgstr "有声"
 
 #: src/components/blockout/arkVideoRules.ts
 msgid "有帧标在了选中这一段的外面（允许的范围是第 0~{lastSec} 秒）。把它们删掉重标，或者切回「自动」。"
@@ -23235,6 +23257,10 @@ msgstr "语音识别暂时不可用（上游没接住），先打字吧。"
 #: src/components/support/HoldToTalk.tsx
 msgid "语音识别暂时不可用（服务器那头出了问题，{0}），先打字吧。"
 msgstr "语音识别暂时不可用（服务器那头出了问题，{0}），先打字吧。"
+
+#: src/pages/CutPage.tsx
+msgid "说一句"
+msgstr "说一句"
 
 #: src/pages/SimpleModePage.tsx
 msgid "说一句想拍什么，AI 直接出一条短片"

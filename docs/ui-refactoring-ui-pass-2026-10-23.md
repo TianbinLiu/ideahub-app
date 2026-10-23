@@ -97,3 +97,47 @@
 | 整宽 CTA 与配对键 | FlowPage 出片后那两颗：主键 `rounded-xl bg-brand py-2.5 text-sm font-bold text-ink`，次级 `bg-panel text-slate-100 ring-1 ring-slate-700` |
 | 提示条 | `rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200`（发布页回炉那句） |
 | 列表里的「名字 · 时间」 | 评论行：名字 `font-medium text-slate-300`，时间 slate-500 |
+
+## 六、按 refactoring-ui-skill 的 Audit 工作流再过一遍（同日第二批，app#424）
+
+主人问「用了那个 skill 吗」—— 第一批没有：只读了它的 README 和 `SKILL.md`，借了「七个镜头」的顺序。第二批把它拉到本地只读目录
+（`edisonmbli/refactoring-ui-skill`，MIT，提交 4459662），按它的 **Workflow D · Audit** 走：Step 0 识别栈 → 对着 `13-audit-rubric.md`
+的清单逐镜头扫 → 按它的报告格式（P0 / P1 / P2 / Systemic，每条带书里的规则号）。没装进 `.claude/`（第四节第 12 件仍等主人定）。
+
+**Stack：** React 19 + Vite 7，Tailwind **3**（`tailwind.config.js`），令牌只有 `ink / panel / brand / gold` 四个色、没有阶梯；灰阶用 Tailwind 的 slate；
+无组件库；深色单主题。**Verified：** 375 宽浏览器面板离线 mock（1280 没量：这是竖屏 App）。书里与本仓 CLAUDE.md 冲突的地方按 skill 自己的规矩**约定赢**，只记不改。
+
+**全仓量出来的（用 rg 数的，不是看出来的）：**
+
+| 清单项 | 规则 | 结果 |
+|---|---|---|
+| 字重低于 400 | §2.2.b | 0 处 ✓ |
+| 大写字母没加字距 | §4.8.2 | 0 处 ✓（没有 uppercase） |
+| 混用两套灰（gray / zinc / neutral / stone） | §5.5.1 | 0 处 ✓，全仓只有 slate |
+| 渐变跨色相 > 30° | §8.3.1 | 唯一的双色渐变 `from-brand to-cyan-400` 约 12° ✓；其余都是黑 / ink 到透明 |
+| 字号在刻度外 | §4.1 | 只有 CLAUDE.md 放行的 9 / 10 / 11px（check-i18n 之外另有 `rg 'text-\[1[2-9]px\]'` 查法）✓ |
+| 半透明白字 | §2.3.a | 21 处（`text-white/55…95`），全在视频 / 封面上 —— 书说的是「彩色面板上的灰字」，视频上这是对的，不改 |
+| 文字阴影带 Y 偏移 | §7.2.5 | 11 处 `0_1px_2px`，书要零偏移（发光式）。1px 肉眼几乎看不出，记着，等换成 `0_0_4px` 时顺手改 |
+| 阴影按元件各写各的 | §6.2.1 | `shadow-lg` 11、`2xl` 6、`xl` 5 + 9 条任意值发光阴影；深色界面上投影本来就看不见（§6.4.1） → 归到 Systemic ① |
+| 任意值（`h-[…]` 之类） | §3.2 | 约 200 处；多数是 CLAUDE.md「数值要量」那条量出来的（`h-[58px]` 顶栏、safe-area、首页底缘联动值），skill 的 justified 名单之外但有出处 —— 记着不动 |
+| 写死十六进制底色 | §1.5 | 8 处（`bg-[#141821]` ×2、`#0b0f18`…） → Systemic ① |
+| 焦点环 | 书外延伸 | `focus-visible` 1 处、`outline-none` 126 处 → 这次加了一条全局 `:where(a, button, [role=…]):focus-visible` |
+
+**Systemic（skill 说这一节才是报告的价值）：**
+1. **没有表面阶梯**：两个底色差 1.10:1，于是 `border-slate-700`（165）+ `/70`（131）+ `slate-600`（123）替深度干活，8 处写死十六进制是人手找第三级的痕迹。
+   skill 的开法是 Workflow A（跑 `generate_palette.py` 出 9 阶 ramp）；本仓最小动作是加一档 `raised`。等主人定（第四节第 1 件）。
+2. **语义色没有别名**：组件直接写 `rose / amber / emerald / sky / cyan`（§5.2.3「组件永远不点名色相」）；要改成 `danger / warn / ok` 令牌得全仓替换，
+   收益是「换一次色相不用翻 300 处」。等主人定。
+3. **品牌色只有一阶**：`brand` 是单值 `#38bdf8`，淡色靠 `/15 /25` 透明度拼（§5.2.2 要 5~10 阶）。与 ① 一起做。
+4. **一个 `<Warn>`**（第四节第 2 件）：114 处裸琥珀 `<p>`。
+
+**这一批改了（都在第四节清单里、不需要拍板的）：**
+- ④ emoji → `Icon`：补了 14 枚 Lucide 字形（id-card / mic / palette / globe / ban / hard-drive / lightbulb / shirt / drama / graduation-cap / volume / volume-x / scissors / trash，
+  lucide-static 0.544.0，ISC，与 `Icon.tsx` 头上的出处一致）；设置页 15 行、客服页四颗侧键与静音键、创作中心三扇门、剪辑工具条五颗、BranchPlayer 静音键全部换掉。图标一律 slate-400 退一档（§2.7.1）。
+- ⑦ 空架子不摆筛选（§8.4）：工坊市场卡种芯片只在广场真有卡时画（`items` 是整批、筛空了芯片还在）；模板货架分类芯片在「本来就空、没搜词、没选模型」时藏。
+- ⑨ 模板卡左上角两枚角标排成 flex 行，英文下不再叠。
+- ⑩ 发布页「收费方式」整节收成一句话（`data-guide` 锚点留在那句上）。
+- ⑪ 消息页未读 / 已读按字色分档（§5.7），红点照旧。
+- 全局键盘焦点环。
+
+**没动、要主人定的仍是第四节那几件**（去掉已做的 ④⑦⑨⑩⑪ 后剩：第三级表面色、`<Warn>`、价签格式器、钱包套餐行、评论四颗动作、头像 / 搜索框收口、装不装 skill）。

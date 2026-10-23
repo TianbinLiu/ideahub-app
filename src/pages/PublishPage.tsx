@@ -634,12 +634,10 @@ export default function PublishPage() {
               ⇒ 要恢复它，先做服务端那一侧：解锁端点（扣费 + 落购买记录 + 给作者入账）、
                 按购买态决定发不发 `segments[].videoUrl`、客户端购买态从服务端读。
               ★ 这个 `data-guide` 锚点留着：引导里那一步（tours 的「谁能看」）指着它。 */}
-          <div data-guide="publish-pricing">
-            <div className="mb-1.5 text-sm font-semibold text-slate-300"><Trans>收费方式</Trans></div>
-            <div className="rounded-xl border border-slate-700/70 bg-panel px-3.5 py-2.5 text-xs leading-relaxed text-slate-400">
-              <Trans>目前所有作品都是<b className="font-semibold text-slate-200">免费观看</b>。付费解锁还没开放——等收款和分账真的通了再放出来，免得你以为在收钱、其实一分也到不了账。</Trans>
-            </div>
-          </div>
+          {/* 没有可选项的东西不配一整节标题 + 卡片（Refactoring UI §2.5 标签只在必要时）：一句话说清现状就够 */}
+          <p data-guide="publish-pricing" className="text-xs leading-relaxed text-slate-400">
+            <Trans>目前所有作品都是<b className="font-semibold text-slate-200">免费观看</b>。付费解锁还没开放——等收款和分账真的通了再放出来，免得你以为在收钱、其实一分也到不了账。</Trans>
+          </p>
 
           {/* ★ 错误行挂在**发布键这一侧**（2026-08-30 移）：用户按的是这颗键，而原来它
               画在最上面那个标题输入框底下 —— 定价那条整句拒绝报在两屏之外，
