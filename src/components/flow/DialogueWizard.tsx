@@ -214,7 +214,7 @@ export default function DialogueWizard({
               </p>
             )}
             {faceNote && (
-              <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">{faceNote}</p>
+              <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200">{faceNote}</p>
             )}
           </CastPicker>
           <div>
@@ -309,7 +309,7 @@ export default function DialogueWizard({
                 </p>
               )}
               {d.linesAi && d.linesSituation !== d.situation && (
-                <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">
+                <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200">
                   <Trans>情境改过了，下面的对白还是按原来那句写的 —— 点「重新写」按新的写，或者直接在下面改。</Trans>
                 </p>
               )}
@@ -394,7 +394,7 @@ export default function DialogueWizard({
               </div>
             </>
           )}
-          {d.writeErr && <p className="text-[11px] leading-relaxed text-rose-300">{d.writeErr}</p>}
+          {d.writeErr && <p className="text-[11px] leading-relaxed text-danger-300">{d.writeErr}</p>}
           {blankLines > 0 && (
             <Warn compact>
               <Trans>有 {blankLines} 句还没写台词 —— 写上，或者删掉。</Trans>
@@ -457,7 +457,7 @@ export default function DialogueWizard({
                     ) : (
                       <div className="flex h-full w-full flex-col items-center justify-center gap-1 p-1.5 text-center">
                         {p?.busy ? <Spinner size="xs" /> : null}
-                        <span className={`line-clamp-4 text-[9px] leading-snug ${p?.err ? "text-rose-300" : "text-slate-500"}`}>{p?.err ?? t`还没画`}</span>
+                        <span className={`line-clamp-4 text-[9px] leading-snug ${p?.err ? "text-danger-300" : "text-slate-500"}`}>{p?.err ?? t`还没画`}</span>
                       </div>
                     )}
                     {p?.busy && p.image && (
@@ -466,13 +466,13 @@ export default function DialogueWizard({
                       </span>
                     )}
                     {staleOf(a) && (
-                      <span className="absolute bottom-1 left-1 rounded-full bg-amber-500/90 px-1.5 py-0.5 text-[9px] font-bold text-ink">
+                      <span className="absolute bottom-1 left-1 rounded-full bg-warn-500/90 px-1.5 py-0.5 text-[9px] font-bold text-ink">
                         <Trans>过期了</Trans>
                       </span>
                     )}
                     {/* AI 看了一遍、看出问题（多画了一个人 / 同一个人两次 / 拼图）：点开这一张看原因，要不要重画由人定 */}
                     {flagged.includes(a) && (
-                      <span className="absolute right-1 top-1 rounded-full bg-amber-500/90 px-1.5 py-0.5 text-[9px] font-bold text-ink" aria-label={t`这一张可能有问题`}>
+                      <span className="absolute right-1 top-1 rounded-full bg-warn-500/90 px-1.5 py-0.5 text-[9px] font-bold text-ink" aria-label={t`这一张可能有问题`}>
                         ⚠
                       </span>
                     )}
@@ -500,14 +500,14 @@ export default function DialogueWizard({
                   )}
                 </Warn>
               )}
-              {d.panels[focus]?.err && <p className="text-[11px] leading-relaxed text-rose-300">{d.panels[focus]?.err}</p>}
+              {d.panels[focus]?.err && <p className="text-[11px] leading-relaxed text-danger-300">{d.panels[focus]?.err}</p>}
               {/* 看一遍的结论（dialogueDraftStore.checkAngle）：有问题逐条说；没核对上就说一声（钱上的那句跟着） */}
               {(() => {
                 const fp = d.panels[focus];
                 const c = fp?.image && !fp.busy ? fp.check : undefined;
                 if (c?.state === "done" && c.issues.length)
                   return (
-                    <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-200">
+                    <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-warn-200">
                       {panelIssuesLine(c.issues, "shot")}
                     </p>
                   );
@@ -552,7 +552,7 @@ export default function DialogueWizard({
               <span>{d.drawing}</span>
             </p>
           )}
-          {d.drawErr && <p className="text-[11px] leading-relaxed text-rose-300">{d.drawErr}</p>}
+          {d.drawErr && <p className="text-[11px] leading-relaxed text-danger-300">{d.drawErr}</p>}
           {d.drawNote && !d.drawing && <p className="text-[10px] leading-relaxed text-slate-400">{d.drawNote}</p>}
           <button
             onClick={() => void drawAngles({ cast, place })}
@@ -570,7 +570,7 @@ export default function DialogueWizard({
             (flagged.length > 0 && !d.drawing ? (
               // 2026-10-19 起三张画完各让 AI 看一遍（10-15 那次拍板「先不加」被付费验证推翻：过肩多画一个人 14/30，看图抓到 14/14、误报 0/19，
               // docs/canvas-platforms-ecosystem-research.md 第九节）。看出问题时把那几张点出来；不拦第④步
-              <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">
+              <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200">
                 <Trans>
                   AI 看了一遍：「{flaggedText}」里的人可能不对（每张应该只有这两个人，点那一张看原因）。要重画就点那一张、补一句要求再单独重画；不重画也能接着往下走。
                 </Trans>
@@ -649,7 +649,7 @@ export default function DialogueWizard({
               const go = tierGo((x) => x.audio && x.refImg);
               const names = go.names;
               return (
-                <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">
+                <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200">
                   {go.member ? (
                     <Trans>这一档出片不出声，台词说不出来 —— 出声的「{names}」是会员档。</Trans>
                   ) : (
@@ -664,7 +664,7 @@ export default function DialogueWizard({
             </p>
           )}
           {faceNote && (
-            <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">{faceNote}</p>
+            <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200">{faceNote}</p>
           )}
           {missing.length > 0 && (
             <Warn>
@@ -684,7 +684,7 @@ export default function DialogueWizard({
               </Trans>
             </p>
           )}
-          {err && <p className="text-[11px] leading-relaxed text-rose-300">{err}</p>}
+          {err && <p className="text-[11px] leading-relaxed text-danger-300">{err}</p>}
           {/* ★ 别说「可以先铺成」：只铺成也要过 flowStore.appendIssue，它拒的正是同一个 busy（同一时刻只炼一段），所以下面那颗也灰掉 */}
           {busy && (
             <p className="text-[10px] leading-relaxed text-slate-500">

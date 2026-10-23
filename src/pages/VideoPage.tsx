@@ -126,7 +126,7 @@ function VideoDeckSection({
         </p>
       )}
       {addErr && (
-        <p className="mt-2 rounded-lg border border-amber-500/40 bg-amber-400/10 px-3 py-2 text-[11px] leading-relaxed text-amber-100">
+        <p className="mt-2 rounded-lg border border-warn-500/40 bg-warn-400/10 px-3 py-2 text-[11px] leading-relaxed text-warn-100">
           {addErr}
         </p>
       )}
@@ -303,7 +303,7 @@ export default function VideoPage() {
           : t`没能打开这条作品：${failErr}`;
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 px-8 text-center text-slate-400">
-        <div className={lookup.status === "failed" ? "text-sm text-rose-300" : "text-sm"}>{text}</div>
+        <div className={lookup.status === "failed" ? "text-sm text-danger-300" : "text-sm"}>{text}</div>
         {lookup.status === "failed" && (
           <>
             {/* 失败可以，但要能自己重试 —— 而且这一条**没被标已读**，消息页那个红点还在 */}
@@ -482,7 +482,7 @@ export default function VideoPage() {
                   <Trans>⚡ 解锁观看</Trans>
                 </button>
                 {payErr && (
-                  <Link to="/me" className="text-xs text-rose-300 underline underline-offset-2">
+                  <Link to="/me" className="text-xs text-danger-300 underline underline-offset-2">
                     {payErr}
                   </Link>
                 )}
@@ -502,9 +502,9 @@ export default function VideoPage() {
             就是原样重发一遍 —— 正是下架想避免的那个结果。
             原因写在这里而不是只挂 title：手机没有 hover（CLAUDE.md 点名过的坑）。 */}
         {video.takedown && (
-          <div className="mt-4 rounded-xl border border-rose-500/40 bg-rose-500/10 p-3">
-            <p className="text-sm font-semibold text-rose-200"><Trans>这条作品已被平台下架</Trans></p>
-            <p className="mt-1 text-xs leading-relaxed text-rose-100/80">
+          <div className="mt-4 rounded-xl border border-danger-500/40 bg-danger-500/10 p-3">
+            <p className="text-sm font-semibold text-danger-200"><Trans>这条作品已被平台下架</Trans></p>
+            <p className="mt-1 text-xs leading-relaxed text-danger-100/80">
               {takedownReasonText(video.takedown.reason) || t`（管理员没有填写原因）`}
             </p>
             <p className="mt-1.5 text-[11px] text-slate-400">
@@ -516,9 +516,9 @@ export default function VideoPage() {
         {/* 回炉替换成功之后从发布页带过来的那句话（页内横幅，本 app 没有 toast）。
             ★ 可关：它是**事件**不是常驻状态，看过就该走 */}
         {navBanner && (
-          <div className="mt-4 flex items-start gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2">
-            <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-emerald-200">{navBanner}</p>
-            <button onClick={() => setNavBanner("")} aria-label={t`知道了`} className="flex-none text-[11px] text-emerald-300/80">
+          <div className="mt-4 flex items-start gap-2 rounded-xl border border-ok-500/40 bg-ok-500/10 px-3 py-2">
+            <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-ok-200">{navBanner}</p>
+            <button onClick={() => setNavBanner("")} aria-label={t`知道了`} className="flex-none text-[11px] text-ok-300/80">
               ✕
             </button>
           </div>
@@ -526,7 +526,7 @@ export default function VideoPage() {
 
         {/* 「保存到本地」被就地拒时那句整句话。与下架横幅同一带：那是用户此刻正在看的地方 */}
         {dlBlocked && (
-          <div className="mt-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+          <div className="mt-3 rounded-xl border border-warn-500/40 bg-warn-500/10 px-3 py-2">
             <Warn>{dlBlocked}</Warn>
           </div>
         )}
@@ -709,7 +709,7 @@ export default function VideoPage() {
           </button>
         )}
         {remakeErr && (
-          <p className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-300/90">
+          <p className="mt-2 rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-warn-300/90">
             {remakeErr}
           </p>
         )}
@@ -748,7 +748,7 @@ export default function VideoPage() {
             </button>
           </div>
           {/* 失败就地说清楚，并且**不清空输入框**——用户打的字还在，改一下就能再发 */}
-          {commentErr && <p className="mt-1.5 text-[11px] leading-relaxed text-rose-300">{commentErr}</p>}
+          {commentErr && <p className="mt-1.5 text-[11px] leading-relaxed text-danger-300">{commentErr}</p>}
           {mentionWarn && <Warn className="mt-1.5">{mentionWarn}</Warn>}
           <div className="mt-4 space-y-4">
             {comments.map((c) => (

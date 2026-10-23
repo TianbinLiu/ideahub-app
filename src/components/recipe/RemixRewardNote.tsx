@@ -24,7 +24,7 @@ export default function RemixRewardNote({ className = "" }: { className?: string
         🎁 别人照着这条作品做了同款、公开发布满 {hours} 小时，平台会奖励你 {tokens} token（每天最多 {perDay} 次，每条作品最多 {perVideo} 次）。
       </Trans>
       {count > 0 && (
-        <span className="text-emerald-300/90">
+        <span className="text-ok-300/90">
           {" "}
           <Trans>你已经拿到过 {count} 次，共 {earned} token。</Trans>
         </span>

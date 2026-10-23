@@ -332,7 +332,7 @@ export default function TutorRunPage() {
           const st = progress[s.stage_id]?.status ?? "pending";
           const on = s.stage_id === stageId;
           return (
-            <button key={s.stage_id} onClick={() => selectStage(s.stage_id)} className={`flex-none rounded-full px-3 py-1 text-[11px] ${on ? "bg-brand font-semibold text-ink" : st === "passed" ? "bg-emerald-500/15 text-emerald-300" : st === "taught" ? "bg-panel text-slate-200" : "bg-panel text-slate-400"}`}>
+            <button key={s.stage_id} onClick={() => selectStage(s.stage_id)} className={`flex-none rounded-full px-3 py-1 text-[11px] ${on ? "bg-brand font-semibold text-ink" : st === "passed" ? "bg-ok-500/15 text-ok-300" : st === "taught" ? "bg-panel text-slate-200" : "bg-panel text-slate-400"}`}>
               {st === "passed" ? "✓ " : ""}
               {i + 1}. {s.title}
             </button>
@@ -341,7 +341,7 @@ export default function TutorRunPage() {
       </div>
 
       {status === "done" && (
-        <div className="mb-3 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
+        <div className="mb-3 rounded-lg border border-ok-500/40 bg-ok-500/10 px-3 py-2 text-xs text-ok-200">
           <Trans>这门课全部通过了。复习卡与到期回访在官网的学习页；App 里可以回看任何一个阶段、继续问老师。</Trans>
         </div>
       )}
@@ -407,13 +407,13 @@ export default function TutorRunPage() {
           )}
           {turns.map((m) => (
             <div key={m.seq} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-              <div className={`max-w-[88%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${m.role === "user" ? "bg-brand text-ink" : m.kind === "error" ? "border border-rose-500/40 bg-rose-500/10 text-rose-200" : m.kind === "quizResult" ? "border border-emerald-500/40 bg-emerald-500/10 text-emerald-200" : "bg-ink text-slate-100"}`}>
-                {m.flags?.policyBlocked && <div className="mb-1 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-200">{t`按课程的 AI 政策，这个问题只讲原理、不给答案`}</div>}
+              <div className={`max-w-[88%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${m.role === "user" ? "bg-brand text-ink" : m.kind === "error" ? "border border-danger-500/40 bg-danger-500/10 text-danger-200" : m.kind === "quizResult" ? "border border-ok-500/40 bg-ok-500/10 text-ok-200" : "bg-ink text-slate-100"}`}>
+                {m.flags?.policyBlocked && <div className="mb-1 rounded bg-warn-500/15 px-1.5 py-0.5 text-[10px] text-warn-200">{t`按课程的 AI 政策，这个问题只讲原理、不给答案`}</div>}
                 <div className="whitespace-pre-wrap">{m.text}</div>
                 {m.role === "assistant" && m.seq > 0 && m.kind !== "quizResult" && (
                   <div className="mt-1 flex items-center gap-2 text-slate-500">
                     <button aria-label={t`有帮助`} onClick={() => feedback(m.seq, m.feedback === 1 ? null : 1)} className={`rounded px-1 text-xs ${m.feedback === 1 ? "text-brand" : ""}`}>👍</button>
-                    <button aria-label={t`没帮助`} onClick={() => feedback(m.seq, m.feedback === -1 ? null : -1)} className={`rounded px-1 text-xs ${m.feedback === -1 ? "text-rose-300" : ""}`}>👎</button>
+                    <button aria-label={t`没帮助`} onClick={() => feedback(m.seq, m.feedback === -1 ? null : -1)} className={`rounded px-1 text-xs ${m.feedback === -1 ? "text-danger-300" : ""}`}>👎</button>
                   </div>
                 )}
               </div>
@@ -425,7 +425,7 @@ export default function TutorRunPage() {
             </div>
           )}
         </div>
-        {notice && <div className="border-t border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-200">{notice}</div>}
+        {notice && <div className="border-t border-warn-500/40 bg-warn-500/10 px-3 py-1.5 text-xs text-warn-200">{notice}</div>}
         <div className="flex items-end gap-2 border-t border-slate-700/60 px-3 py-2">
           <textarea
             ref={inputRef}
@@ -480,7 +480,7 @@ function QuizSheet({ stageTitle, checks, onSubmit, onSkip, onClose }: { stageTit
         <CloseButton chip="sm" size={13} align="end" onClick={onClose} />
       </div>
       <p className="mb-3 text-[11px] text-slate-500"><Trans>答对三分之二才进下一阶段；答案由老师按你的教材判，不看字面。</Trans></p>
-      {checks.length === 0 && <p className="mb-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200"><Trans>这一阶段没有自检题，可以直接跳过。</Trans></p>}
+      {checks.length === 0 && <p className="mb-3 rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-xs text-warn-200"><Trans>这一阶段没有自检题，可以直接跳过。</Trans></p>}
       <ol className="space-y-3">
         {checks.map((c, i) => (
           <li key={i} className="rounded-xl border border-slate-700/70 bg-panel p-3">
@@ -489,16 +489,16 @@ function QuizSheet({ stageTitle, checks, onSubmit, onSkip, onClose }: { stageTit
               <textarea value={answers[i]} onChange={(e) => setAnswers((a) => a.map((x, j) => (j === i ? e.target.value : x)))} rows={2} placeholder={t`写下你的答案…`} className="mt-2 w-full resize-none rounded-lg border border-slate-700 bg-ink px-2.5 py-1.5 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand" />
             ) : (
               <div className="mt-2 text-xs leading-relaxed">
-                <div className={reply.results[i]?.correct ? "text-emerald-300" : "text-rose-300"}>{reply.results[i]?.correct ? "✓" : "✗"} {reply.results[i]?.why}</div>
+                <div className={reply.results[i]?.correct ? "text-ok-300" : "text-danger-300"}>{reply.results[i]?.correct ? "✓" : "✗"} {reply.results[i]?.why}</div>
                 <div className="text-slate-500">{t`参考答案`}：{c.a}</div>
               </div>
             )}
           </li>
         ))}
       </ol>
-      {error && <p className="mt-2 text-xs text-rose-300">{error}</p>}
+      {error && <p className="mt-2 text-xs text-danger-300">{error}</p>}
       {reply && (
-        <div className={`mt-3 rounded-lg border px-3 py-2 text-sm font-medium ${reply.passed ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200" : "border-amber-500/40 bg-amber-500/10 text-amber-200"}`}>
+        <div className={`mt-3 rounded-lg border px-3 py-2 text-sm font-medium ${reply.passed ? "border-ok-500/40 bg-ok-500/10 text-ok-200" : "border-warn-500/40 bg-warn-500/10 text-warn-200"}`}>
           {reply.passed ? t`${reply.correct}/${reply.asked} · 通过了` : t`${reply.correct}/${reply.asked} · 还差一点`}
         </div>
       )}

@@ -140,9 +140,9 @@ export default function WorkshopMinePage() {
         ))}
         <Link
           to="/custom-card"
-          className="flex min-w-0 flex-col items-start gap-1 rounded-xl border border-amber-400/35 bg-gradient-to-b from-amber-400/15 to-transparent p-2.5 text-left active:opacity-60"
+          className="flex min-w-0 flex-col items-start gap-1 rounded-xl border border-warn-400/35 bg-gradient-to-b from-warn-400/15 to-transparent p-2.5 text-left active:opacity-60"
         >
-          <Icon name="upload" size={22} className="text-amber-300" />
+          <Icon name="upload" size={22} className="text-warn-300" />
           <span className="text-[11px] font-semibold leading-snug text-slate-100">
             <Trans>自己传图做卡片</Trans>
           </span>
@@ -289,7 +289,7 @@ export default function WorkshopMinePage() {
                     </button>
                     <button
                       onClick={() => setAskDeck(d)}
-                      className="rounded-full border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 text-xs text-rose-300 active:opacity-60"
+                      className="rounded-full border border-danger-500/40 bg-danger-500/10 px-3 py-1.5 text-xs text-danger-300 active:opacity-60"
                     >
                       <Trans>删除</Trans>
                     </button>

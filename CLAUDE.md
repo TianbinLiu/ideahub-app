@@ -764,6 +764,10 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   清空键 44px 热区；搜索态页面传 `clearKeepsFocus`（点 ✕ 不失焦、清完光标留在框里）。别再手拼 `<Icon search> + <input> + ✕`。
 - **表面三级：`ink` → `panel` → `raised`**（同日加 `raised`）：`raised` 只给**浮在页面之上**的东西（新手引导卡、生成胶囊、画布浮条、剪辑页 / 工作流页底部停靠栏、工坊弹层、说明弹窗），
   配 `ring-1 ring-white/10`、不描 slate 边；页面里的卡片仍是 `panel` + `border-slate-700/70`。别再写 `bg-[#141821]` 这类十六进制底色。
+- **语义色只写别名 `danger / warn / ok / info`**（2026-10-23，= Tailwind 的 rose / amber / emerald / sky 同一张表，`tailwind.config.js`）：组件里不再出现 `rose-` / `amber-` / `emerald-`
+  （`check-warn.mjs` 第二条规则钉着；下面约定里写的 `text-rose-300`、`border-amber-500/40`、`emerald-300` 读作 `text-danger-300`、`border-warn-500/40`、`ok-300`）。
+  `brand` / `gold` 是整条阶梯（借 sky / amber，DEFAULT 钉原值）：淡色优先用 `brand-200` 这类阶梯色，`bg-brand/15` 那种透明度拼法是存量。
+  **页面卡片的边框留着是量过的决定**（同日）：ink 对 panel 只有 1.10:1，深色界面靠底色分层要把 panel 整体调亮；GitHub / shadcn 的深色卡片也都带边框。只有卡里套的内层盒子不描边（底色那一级差够了）。
 - **价钱一律 `economy.priceTag(n)`**（`⚡12k`），按钮上写「生成本段（⚡12k）」；⚡ 只表示「要花钱」，不花钱的动作（做同款）用招牌字形。重做类动作前缀 ♻，别再用 ✨ / 🎲 / 📼。
 - **头像两档**：列表行 36（消息 / 关注 / 管理页）、评论 32（楼中楼 24）；个人页头图 92、首页右栏 44 是另两种控件。
 - **评论行只常显「回复」**，删除 / 举报 / 拉黑收在「⋯」后面原地展开（评论抽屉与作品页同一套）。

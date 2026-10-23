@@ -181,11 +181,11 @@ const selectCls =
 function Banner({ tone, children }: { tone: "ok" | "warn" | "bad" | "info"; children: React.ReactNode }) {
   const cls =
     tone === "ok"
-      ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
+      ? "border-ok-500/40 bg-ok-500/10 text-ok-200"
       : tone === "warn"
-        ? "border-amber-500/40 bg-amber-500/10 text-amber-300"
+        ? "border-warn-500/40 bg-warn-500/10 text-warn-300"
         : tone === "bad"
-          ? "border-rose-500/40 bg-rose-500/10 text-rose-300"
+          ? "border-danger-500/40 bg-danger-500/10 text-danger-300"
           : "border-sky-500/40 bg-sky-500/10 text-sky-200";
   return <p className={`rounded-lg border px-3 py-2 text-xs leading-relaxed ${cls}`}>{children}</p>;
 }
@@ -247,7 +247,7 @@ function MapRow({
       {(hint || flash) && (
         <p
           className={`mt-1 pl-10 text-[10px] leading-relaxed ${
-            flash === "missing" ? "text-rose-300" : flash === "offstage" ? "text-amber-300" : "text-slate-500"
+            flash === "missing" ? "text-danger-300" : flash === "offstage" ? "text-warn-300" : "text-slate-500"
           }`}
         >
           {flash === "missing"
@@ -418,7 +418,7 @@ function RecommendPickers() {
           )}
         </div>
       )}
-      {!!err && <p className="mt-1.5 text-xs leading-relaxed text-rose-300">{err}</p>}
+      {!!err && <p className="mt-1.5 text-xs leading-relaxed text-danger-300">{err}</p>}
     </div>
   );
 }
@@ -742,7 +742,7 @@ export default function SupportModelNewPage() {
                       >
                         <Icon name="file" size={14} className="shrink-0 text-slate-500" />
                         <span className="min-w-0 flex-1 truncate text-xs text-slate-200">{p}</span>
-                        {(s.check?.detail.get(p)?.issues.length ?? 0) > 0 && <span className="shrink-0 text-[10px] text-rose-300"><Trans>有问题</Trans></span>}
+                        {(s.check?.detail.get(p)?.issues.length ?? 0) > 0 && <span className="shrink-0 text-[10px] text-danger-300"><Trans>有问题</Trans></span>}
                       </button>
                     ))}
                   </div>
@@ -799,7 +799,7 @@ export default function SupportModelNewPage() {
                 </div>
                 <div>
                   {detail.params === null ? (
-                    <span className="text-amber-300"><Trans>包里没有 cdi3.json，读不到参数表 —— 下一步交给服务器再看一次。</Trans></span>
+                    <span className="text-warn-300"><Trans>包里没有 cdi3.json，读不到参数表 —— 下一步交给服务器再看一次。</Trans></span>
                   ) : (
                     <>
                       <Trans>参数 {detail.params.length} 个</Trans>
@@ -905,9 +905,9 @@ export default function SupportModelNewPage() {
                       <Icon
                         name={r.ok === true ? "check" : r.ok === false ? "close" : "info"}
                         size={13}
-                        className={r.ok === true ? "text-emerald-300" : r.ok === false ? "text-rose-300" : "text-slate-500"}
+                        className={r.ok === true ? "text-ok-300" : r.ok === false ? "text-danger-300" : "text-slate-500"}
                       />
-                      <span className={r.ok === true ? "text-slate-300" : r.ok === false ? "text-rose-300" : "text-slate-500"}>
+                      <span className={r.ok === true ? "text-slate-300" : r.ok === false ? "text-danger-300" : "text-slate-500"}>
                         <Trans>必须 · {slotLabel(r.slot)}</Trans>
                         {r.ok === null && t`（包里没有参数表，看不出来）`}
                       </span>
@@ -957,7 +957,7 @@ export default function SupportModelNewPage() {
             )}
           </div>
           {!!s.inspect && missingRequired(s.inspect.completeness.required).length > 0 && (
-            <p className="text-center text-[11px] text-rose-300"><Trans>上面标红的必须项缺了，补齐再重新导出一次包。</Trans></p>
+            <p className="text-center text-[11px] text-danger-300"><Trans>上面标红的必须项缺了，补齐再重新导出一次包。</Trans></p>
           )}
           {!!s.inspect && !s.inspect.capabilities.paramsKnown && missingRequired(s.inspect.completeness.required).length === 0 && (
             <p className="text-center text-[11px] leading-relaxed text-slate-500">
@@ -1177,7 +1177,7 @@ export default function SupportModelNewPage() {
                     {now ? (
                       <Spinner size="xs" />
                     ) : (
-                      <Icon name="check" size={13} className={done ? "text-emerald-300" : "text-slate-700"} />
+                      <Icon name="check" size={13} className={done ? "text-ok-300" : "text-slate-700"} />
                     )}
                     <span className={now ? "text-brand" : done ? "text-slate-300" : "text-slate-500"}>{it.label}</span>
                   </div>
@@ -1268,7 +1268,7 @@ export default function SupportModelNewPage() {
               </button>
             </div>
             {!!s.coverBusy && <p className="mt-1 text-xs text-slate-500">{s.coverBusy}</p>}
-            {!!s.coverErr && <p className="mt-1 text-xs leading-relaxed text-rose-300">{s.coverErr}</p>}
+            {!!s.coverErr && <p className="mt-1 text-xs leading-relaxed text-danger-300">{s.coverErr}</p>}
           </div>
 
           <div>

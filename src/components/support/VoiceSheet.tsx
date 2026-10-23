@@ -284,7 +284,7 @@ export default function VoiceSheet({ name, settings, merged, onClose, onSaved }:
                   </button>
                 ))}
               </div>
-              {err && <p className="mt-2 text-[11px] leading-relaxed text-rose-300">{err}</p>}
+              {err && <p className="mt-2 text-[11px] leading-relaxed text-danger-300">{err}</p>}
 
               {/* 语速与语调：挑完音色之后的两个旋钮，紧挨着列表才能"改完点任意音色即刻试听" */}
               {rateSlider}
@@ -329,14 +329,14 @@ export default function VoiceSheet({ name, settings, merged, onClose, onSaved }:
               >
                 {rateSlider}
               </VoiceMixer>
-              {err && <p className="mt-2 text-[11px] leading-relaxed text-rose-300">{err}</p>}
+              {err && <p className="mt-2 text-[11px] leading-relaxed text-danger-300">{err}</p>}
             </>
           )}
 
           {tab === "market" && (
             <>
               {published && (
-                <p className="mb-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5 text-xs leading-relaxed text-emerald-200">
+                <p className="mb-2 rounded-lg border border-ok-500/40 bg-ok-500/10 px-2.5 py-1.5 text-xs leading-relaxed text-ok-200">
                   {published.shared ? (
                     <Trans>已发布「{published.name}」到声音市场，并设为你的声音。</Trans>
                   ) : (
@@ -357,7 +357,7 @@ export default function VoiceSheet({ name, settings, merged, onClose, onSaved }:
                 }}
                 onDeleted={onSaved}
               />
-              {err && <p className="mt-2 text-[11px] leading-relaxed text-rose-300">{err}</p>}
+              {err && <p className="mt-2 text-[11px] leading-relaxed text-danger-300">{err}</p>}
             </>
           )}
         </div>

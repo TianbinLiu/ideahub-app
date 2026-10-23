@@ -58,7 +58,7 @@ export default function ConfirmDialog({
             onClick={onConfirm}
             disabled={busy}
             className={`flex-1 rounded-xl py-2.5 text-xs font-bold disabled:opacity-40 ${
-              danger ? "bg-rose-500 text-white" : "bg-brand text-ink"
+              danger ? "bg-danger-500 text-white" : "bg-brand text-ink"
             }`}
           >
             {busy ? "…" : confirmLabel}

@@ -186,11 +186,11 @@ export default function TierRow({
       )}
       {/* 换档的代价：**换之前**说，说的是这一段真的有的东西（tierSwitchLoss 一处判定） */}
       {ask && (
-        <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+        <div className="space-y-1.5 rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2">
           <Warn><Trans>换到「{ask.label}」档会有这些变化：</Trans></Warn>
           <ul className="space-y-0.5">
             {ask.loss.map((l) => (
-              <li key={l.id} className="flex gap-1.5 text-[11px] leading-relaxed text-amber-100/90">
+              <li key={l.id} className="flex gap-1.5 text-[11px] leading-relaxed text-warn-100/90">
                 <span className="flex-none">·</span>
                 <span>{t(l)}</span>
               </li>
@@ -210,7 +210,7 @@ export default function TierRow({
                 }
                 apply(ask.id);
               }}
-              className="rounded-full bg-amber-500/90 px-2.5 py-1 text-[11px] font-bold text-ink"
+              className="rounded-full bg-warn-500/90 px-2.5 py-1 text-[11px] font-bold text-ink"
             >
               <Trans>知道了，换到「{ask.label}」</Trans>
             </button>

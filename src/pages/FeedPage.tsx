@@ -134,7 +134,7 @@ function LikeBurst({ b }: { b: Burst }) {
       )}
       {/* 心本身照旧是通用红心（调研第五节：别把点赞画成星 / 灯泡）；倾角挂在外层，里层的 heart-burst 关键帧自己动 transform */}
       <span className="absolute left-0 top-0" style={{ transform: `rotate(${b.rot}deg)` }}>
-        <Icon name="heart" size={96} filled className="heart-burst absolute left-0 top-0 text-rose-500" />
+        <Icon name="heart" size={96} filled className="heart-burst absolute left-0 top-0 text-danger-500" />
       </span>
     </span>
   );
@@ -990,7 +990,7 @@ function FeedItem({
                 }}
                 aria-label={t({ message: "关注", context: "作者头像下那颗关注按钮（动作：关注这个人）" })}
                 // 画着 20px、命中区放到 44px（after 伪元素外扩 12px）：它贴着头像键，点偏一点就进了主页（2026-10-14 UX 课走查）
-                className="absolute -bottom-2 left-1/2 flex h-5 w-5 -translate-x-1/2 items-center justify-center rounded-full bg-rose-500 text-white transition after:absolute after:-inset-3 after:content-[''] active:scale-90"
+                className="absolute -bottom-2 left-1/2 flex h-5 w-5 -translate-x-1/2 items-center justify-center rounded-full bg-danger-500 text-white transition after:absolute after:-inset-3 after:content-[''] active:scale-90"
               >
                 <Icon name="plus" size={12} strokeWidth={3} />
               </button>
@@ -1023,7 +1023,7 @@ function FeedItem({
             }}
           />
           {/* 计数一律折「万」（types.formatPlays 一处）：12345 原样写会把 56px 宽的栏撑宽、也读不出量级 */}
-          <RailBtn icon="heart" filled={liked} pressed={liked} tint="text-rose-500" label={formatPlays(likes)} name={t`点赞`} perch="like" onClick={toggleLike} />
+          <RailBtn icon="heart" filled={liked} pressed={liked} tint="text-danger-500" label={formatPlays(likes)} name={t`点赞`} perch="like" onClick={toggleLike} />
           {/* 评论就地滑出抽屉（对标短视频 App），不跳详情页打断刷视频的节奏 */}
           {/* ★ 走 commentCountOf，不读 comments.length：列表接口不返回 comments，
               直接读长度的话，没点进去过的作品评论数永远是 0（真机上抓到的） */}
@@ -1188,7 +1188,7 @@ function FeedItem({
           </div>
         )}
         {remakeErr && (
-          <p className="mt-1.5 rounded-lg bg-black/60 px-2.5 py-1 text-[11px] leading-relaxed text-rose-300">
+          <p className="mt-1.5 rounded-lg bg-black/60 px-2.5 py-1 text-[11px] leading-relaxed text-danger-300">
             {remakeErr}
           </p>
         )}

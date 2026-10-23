@@ -264,7 +264,7 @@ export default function MaterialSheet({
                     「人物卡」三个字会把名字截成「赛…」。类型由左上角那枚宝石徽记交代 */}
                 <TarotCard cover={c.cover || null} title={c.name} type={c.type} />
                 {have.has(c.id) && (
-                  <span className="absolute inset-x-0 top-1/2 -translate-y-1/2 text-center text-[10px] font-bold text-emerald-300">
+                  <span className="absolute inset-x-0 top-1/2 -translate-y-1/2 text-center text-[10px] font-bold text-ok-300">
                     <Trans>已加入</Trans>
                   </span>
                 )}

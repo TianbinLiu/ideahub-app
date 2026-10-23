@@ -518,8 +518,8 @@ export default function LoginPage() {
           </>
         )}
 
-        {err && <div className="text-xs leading-relaxed text-rose-300">{err}</div>}
-        {note && !err && <div className="text-xs text-emerald-300">{note}</div>}
+        {err && <div className="text-xs leading-relaxed text-danger-300">{err}</div>}
+        {note && !err && <div className="text-xs text-ok-300">{note}</div>}
 
         {/* 协议勾选行。链接是嵌在文字里的两颗小按钮——不能把整行做成一颗大按钮
             再往里嵌按钮（button 套 button 是非法嵌套，React 也会告警）。

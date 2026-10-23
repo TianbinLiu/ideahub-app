@@ -96,7 +96,7 @@ export default function NpcDialog() {
       >
         <div className="pointer-events-auto rounded-2xl border border-slate-600/70 bg-panel/95 px-3.5 py-2.5 shadow-[0_6px_24px_rgba(0,0,0,0.5)] backdrop-blur">
           <div className="mb-0.5 flex items-center gap-1.5">
-            <span className={`h-2 w-2 rounded-full ${busy ? "animate-pulse bg-amber-400" : "bg-emerald-400"}`} />
+            <span className={`h-2 w-2 rounded-full ${busy ? "animate-pulse bg-warn-400" : "bg-ok-400"}`} />
             <span className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>铸卡师</Trans></span>
             {/* ★ 合规：《AI 生成合成内容标识办法》第 4 条的**显式标识**。
                 火山原生的做法（aigc_watermark）是在每句话末尾加一串"滴滴"提示音，
@@ -312,7 +312,7 @@ function HistorySheet({ onClose, onOpenForge }: { onClose: () => void; onOpenFor
           {messages.map((m) =>
             // sys = 居中细线服务条，不是气泡：明确"这不是角色在说话"
             m.kind === "sys" ? (
-              <div key={m.id} className="px-4 py-1 text-center text-[11px] leading-relaxed text-amber-200/80">
+              <div key={m.id} className="px-4 py-1 text-center text-[11px] leading-relaxed text-warn-200/80">
                 {m.text}
               </div>
             ) : (
@@ -322,7 +322,7 @@ function HistorySheet({ onClose, onOpenForge }: { onClose: () => void; onOpenFor
                     m.from === "me"
                       ? "bg-brand/20 text-sky-100"
                       : m.kind === "act"
-                        ? "border-l-2 border-amber-400/50 bg-slate-700/40 text-slate-300"
+                        ? "border-l-2 border-warn-400/50 bg-slate-700/40 text-slate-300"
                         : "bg-slate-700/60 text-slate-200"
                   }`}
                 >
@@ -345,7 +345,7 @@ function HistorySheet({ onClose, onOpenForge }: { onClose: () => void; onOpenFor
             </div>
           )}
           {busy && (
-            <div className="pl-1 text-xs text-amber-300/90 pulse-soft">{forgeProgress || t`炉火正旺，卡片成形中…`}</div>
+            <div className="pl-1 text-xs text-warn-300/90 pulse-soft">{forgeProgress || t`炉火正旺，卡片成形中…`}</div>
           )}
         </div>
 
@@ -731,7 +731,7 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
                       取图那步超时的照扣（见 economy.forgeSettle 的 ⚠⚠）。所以这里
                       只说"按真正调用了几次出图算"——它两种模式下都是实话（铁律五）。 */}
                   {cost === null ? (
-                    <p className="text-[11px] text-rose-300">{priceIssue ?? t`这一档暂时报不出价，换个档位再试`}</p>
+                    <p className="text-[11px] text-danger-300">{priceIssue ?? t`这一档暂时报不出价，换个档位再试`}</p>
                   ) : (
                     <TokenCost
                       tokens={cost}
@@ -774,7 +774,7 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
             </>
           )}
 
-          {err && <p className="mt-2 text-[11px] text-rose-300">{err}</p>}
+          {err && <p className="mt-2 text-[11px] text-danger-300">{err}</p>}
         </div>
 
         {step === "input" && (

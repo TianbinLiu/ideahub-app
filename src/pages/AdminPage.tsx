@@ -199,7 +199,7 @@ function StatsSection({ reloadKey, onOpen }: { reloadKey: number; onOpen: (v: Ad
     <section className="mb-6">
       <h2 className="mb-2 text-sm font-semibold text-slate-300"><Trans>平台数据 · 点卡片进入管理</Trans></h2>
       {loading && <p className="text-xs text-slate-500"><Trans>读取中…</Trans></p>}
-      {err && <p className="rounded-xl border border-rose-500/40 bg-rose-500/10 p-3 text-[11px] leading-relaxed text-rose-300">{err}</p>}
+      {err && <p className="rounded-xl border border-danger-500/40 bg-danger-500/10 p-3 text-[11px] leading-relaxed text-danger-300">{err}</p>}
       {stats && (
         <div className="grid grid-cols-3 gap-2">
           <StatCell label={t`用户`} v={stats.users} onOpen={() => onOpen("users")} />
@@ -226,7 +226,7 @@ function StatCell({ label, v, accent = false, onOpen }: { label: string; v: numb
   return (
     <button onClick={onOpen} className="rounded-xl border border-slate-700 bg-panel px-3 py-2.5 text-left active:opacity-60">
       <div className="flex items-start justify-between">
-        <div className={`text-lg font-bold tabular-nums ${accent && (v ?? 0) > 0 ? "text-amber-300" : "text-slate-100"}`}>
+        <div className={`text-lg font-bold tabular-nums ${accent && (v ?? 0) > 0 ? "text-warn-300" : "text-slate-100"}`}>
           {v === null ? "—" : v}
         </div>
         <span aria-hidden className="text-xs text-slate-600">›</span>
@@ -327,14 +327,14 @@ function LoadMore({ hasMore, loading, total, shown, onMore }: { hasMore: boolean
  *  后台永远显示"天下太平"。 */
 function Unsupported({ what }: { what: string }) {
   return (
-    <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-[11px] leading-relaxed text-amber-300">
+    <p className="rounded-xl border border-warn-500/40 bg-warn-500/10 p-3 text-[11px] leading-relaxed text-warn-300">
       <Trans>这台服务器还没有{what}接口（需要升级服务端）。这不代表列表是空的 —— 是这一头根本问不到。</Trans>
     </p>
   );
 }
 
 function ErrBox({ text }: { text: string }) {
-  return <p className="rounded-xl border border-rose-500/40 bg-rose-500/10 p-3 text-[11px] leading-relaxed text-rose-300">{text}</p>;
+  return <p className="rounded-xl border border-danger-500/40 bg-danger-500/10 p-3 text-[11px] leading-relaxed text-danger-300">{text}</p>;
 }
 
 function SearchBox({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
@@ -432,7 +432,7 @@ function UsersView({ onChanged }: { onChanged: () => void }) {
       )}
 
       {deletedNote && (
-        <p className="mb-2.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-2.5 text-[11px] leading-relaxed text-emerald-300">
+        <p className="mb-2.5 rounded-lg border border-ok-500/40 bg-ok-500/10 p-2.5 text-[11px] leading-relaxed text-ok-300">
           {deletedNote}
         </p>
       )}
@@ -536,7 +536,7 @@ function UserRow({ u, onDone, onDeleted }: { u: ApiAdminUser; onDone: () => void
             {u.username && <span className="text-[11px] text-slate-500">@{u.username}</span>}
             {admin && <span className="rounded bg-brand/15 px-1.5 py-0.5 text-[10px] text-brand"><Trans>管理员</Trans></span>}
             {banned && (
-              <span className="rounded bg-rose-500/15 px-1.5 py-0.5 text-[10px] text-rose-300" title={u.banned?.reason}>
+              <span className="rounded bg-danger-500/15 px-1.5 py-0.5 text-[10px] text-danger-300" title={u.banned?.reason}>
                 <Trans>已封禁</Trans>
               </span>
             )}
@@ -551,7 +551,7 @@ function UserRow({ u, onDone, onDeleted }: { u: ApiAdminUser; onDone: () => void
 
       {/* 封禁原因：管理员应当一眼看到"这人当时为什么被封"，不该藏在 title 里（手机没有 hover） */}
       {banned && u.banned?.reason && (
-        <p className="mt-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-rose-300/80">
+        <p className="mt-2 rounded-lg border border-danger-500/40 bg-danger-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-danger-300/80">
           <Trans>封禁原因：{u.banned.reason}</Trans>
         </p>
       )}
@@ -565,7 +565,7 @@ function UserRow({ u, onDone, onDeleted }: { u: ApiAdminUser; onDone: () => void
             <button
               onClick={() => void run(() => unbanUser(u._id), onDone)}
               disabled={busy}
-              className="rounded-full bg-emerald-500/15 px-3 py-1.5 text-xs text-emerald-300 disabled:opacity-40"
+              className="rounded-full bg-ok-500/15 px-3 py-1.5 text-xs text-ok-300 disabled:opacity-40"
             >
               {busy ? t`处理中…` : t`解封`}
             </button>
@@ -573,7 +573,7 @@ function UserRow({ u, onDone, onDeleted }: { u: ApiAdminUser; onDone: () => void
             <button
               onClick={() => openPanel("ban")}
               disabled={busy}
-              className="rounded-full bg-amber-500/20 px-3 py-1.5 text-xs text-amber-200 disabled:opacity-40"
+              className="rounded-full bg-warn-500/20 px-3 py-1.5 text-xs text-warn-200 disabled:opacity-40"
             >
               <Trans>封禁…</Trans>
             </button>
@@ -589,12 +589,12 @@ function UserRow({ u, onDone, onDeleted }: { u: ApiAdminUser; onDone: () => void
           <button
             onClick={() => openPanel("delete")}
             disabled={busy}
-            className="rounded-full border border-rose-500/40 px-3 py-1.5 text-xs text-rose-300 disabled:opacity-40"
+            className="rounded-full border border-danger-500/40 px-3 py-1.5 text-xs text-danger-300 disabled:opacity-40"
           >
             <Trans>删除账号…</Trans>
           </button>
         )}
-        {sent && <span className="text-[11px] text-emerald-300"><Trans>通知已发送</Trans></span>}
+        {sent && <span className="text-[11px] text-ok-300"><Trans>通知已发送</Trans></span>}
       </div>
 
       {panel === "ban" && (
@@ -625,7 +625,7 @@ function UserRow({ u, onDone, onDeleted }: { u: ApiAdminUser; onDone: () => void
                 )
               }
               disabled={busy || !reason.trim()}
-              className="rounded-full bg-amber-500/20 px-3 py-1.5 text-xs font-semibold text-amber-200 disabled:opacity-40"
+              className="rounded-full bg-warn-500/20 px-3 py-1.5 text-xs font-semibold text-warn-200 disabled:opacity-40"
             >
               {busy ? t`处理中…` : t`确认封禁`}
             </button>
@@ -681,7 +681,7 @@ function UserRow({ u, onDone, onDeleted }: { u: ApiAdminUser; onDone: () => void
               · "别人回复在其评论下的楼中楼也会被删"必须说：那是**第三方**的内容，
                 管理员按清单理解成"只删他自己的东西"，事后收到别人投诉"我的回复没了"
                 会确信自己没删过。 */}
-          <ul className="list-disc space-y-0.5 pl-4 text-[11px] leading-relaxed text-rose-300/90">
+          <ul className="list-disc space-y-0.5 pl-4 text-[11px] leading-relaxed text-danger-300/90">
             <li><Trans>账号本身永久删除，无法恢复，也无法用同名重建找回任何数据</Trans></li>
             <li><Trans>其<b>全部作品</b>（含私密与已下架的）从平台删除；⚠ 视频/图片<b>文件</b>暂不随删，已流出的直链仍可访问</Trans></li>
             <li><Trans>其发出的<b>评论、弹幕</b>全部删除；别人作品下的也一样；⚠ <b>其他用户</b>回复在这些评论下的楼中楼会被连带删除</Trans></li>
@@ -689,7 +689,7 @@ function UserRow({ u, onDone, onDeleted }: { u: ApiAdminUser; onDone: () => void
               {/* ★ 这一句不是备注，是对外承诺：ideahubs.org/child-safety 写着儿童安全的记录
                   不因删除操作而消失，而删号是产品里人人可点的一颗按钮 —— 不留这个口子，
                   被举报的人自己注销一次就把证据带走了。服务端的实现在 branchAdmin 的 ⑧。 */}
-              <Trans>相关的举报记录、通知、代币流水、卡片/卡组一并清除；<b className="text-amber-300">⚠ 涉及未成年人（csae）的举报记录会保留</b>，不随删号清除（法定义务例外）。</Trans>
+              <Trans>相关的举报记录、通知、代币流水、卡片/卡组一并清除；<b className="text-warn-300">⚠ 涉及未成年人（csae）的举报记录会保留</b>，不随删号清除（法定义务例外）。</Trans>
             </li>
           </ul>
           <p className="text-[11px] text-slate-400">
@@ -717,7 +717,7 @@ function UserRow({ u, onDone, onDeleted }: { u: ApiAdminUser; onDone: () => void
                 )
               }
               disabled={busy || !u.username || confirmText !== u.username}
-              className="rounded-full bg-rose-500/20 px-3 py-1.5 text-xs font-semibold text-rose-300 disabled:opacity-40"
+              className="rounded-full bg-danger-500/20 px-3 py-1.5 text-xs font-semibold text-danger-300 disabled:opacity-40"
             >
               {busy ? t`删除中…` : t`永久删除该账号`}
             </button>
@@ -734,7 +734,7 @@ function UserRow({ u, onDone, onDeleted }: { u: ApiAdminUser; onDone: () => void
         </div>
       )}
 
-      {err && <p className="mt-1.5 text-[11px] leading-relaxed text-rose-300">{err}</p>}
+      {err && <p className="mt-1.5 text-[11px] leading-relaxed text-danger-300">{err}</p>}
     </article>
   );
 }
@@ -838,8 +838,8 @@ function VideoRow({ v, onDone }: { v: ApiVideo; onDone: () => void }) {
             {/* ★ 三档要分得开：管理员看一条作品时得知道它"为什么不在流里" ——
                 「凭链接可见」和「仅自己可见」的处置完全不同（前者链接是活的） */}
             {visibilityOf(v) === "private" && <span className="rounded bg-slate-700 px-1.5 py-0.5 text-[10px] text-slate-300"><Trans>私密</Trans></span>}
-            {visibilityOf(v) === "unlisted" && <span className="rounded bg-slate-700 px-1.5 py-0.5 text-[10px] text-amber-300"><Trans>凭链接</Trans></span>}
-            {down && <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-300"><Trans>已下架</Trans></span>}
+            {visibilityOf(v) === "unlisted" && <span className="rounded bg-slate-700 px-1.5 py-0.5 text-[10px] text-warn-300"><Trans>凭链接</Trans></span>}
+            {down && <span className="rounded bg-warn-500/15 px-1.5 py-0.5 text-[10px] text-warn-300"><Trans>已下架</Trans></span>}
           </div>
           <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-slate-500">
             <span>{displayNameOf(v.author)}</span>
@@ -858,7 +858,7 @@ function VideoRow({ v, onDone }: { v: ApiVideo; onDone: () => void }) {
           <button
             onClick={() => void run(() => revokeTakedown(v._id))}
             disabled={busy}
-            className="rounded-full bg-emerald-500/15 px-3 py-1.5 text-xs text-emerald-300 disabled:opacity-40"
+            className="rounded-full bg-ok-500/15 px-3 py-1.5 text-xs text-ok-300 disabled:opacity-40"
           >
             {busy ? t`处理中…` : t`重新上架`}
           </button>
@@ -869,7 +869,7 @@ function VideoRow({ v, onDone }: { v: ApiVideo; onDone: () => void }) {
               setPanel(panel === "takedown" ? "" : "takedown");
             }}
             disabled={busy}
-            className="rounded-full bg-amber-500/20 px-3 py-1.5 text-xs text-amber-200 disabled:opacity-40"
+            className="rounded-full bg-warn-500/20 px-3 py-1.5 text-xs text-warn-200 disabled:opacity-40"
           >
             <Trans>下架…</Trans>
           </button>
@@ -879,7 +879,7 @@ function VideoRow({ v, onDone }: { v: ApiVideo; onDone: () => void }) {
             <button
               onClick={() => void run(() => deleteVideo(v._id))}
               disabled={busy}
-              className="rounded-full bg-rose-500/20 px-3 py-1.5 text-xs font-semibold text-rose-300 disabled:opacity-40"
+              className="rounded-full bg-danger-500/20 px-3 py-1.5 text-xs font-semibold text-danger-300 disabled:opacity-40"
             >
               {busy ? t`删除中…` : t`确认删除`}
             </button>
@@ -895,7 +895,7 @@ function VideoRow({ v, onDone }: { v: ApiVideo; onDone: () => void }) {
               setPanel("delete");
             }}
             disabled={busy}
-            className="rounded-full border border-rose-500/40 px-3 py-1.5 text-xs text-rose-300 disabled:opacity-40"
+            className="rounded-full border border-danger-500/40 px-3 py-1.5 text-xs text-danger-300 disabled:opacity-40"
           >
             <Trans>删除…</Trans>
           </button>
@@ -919,7 +919,7 @@ function VideoRow({ v, onDone }: { v: ApiVideo; onDone: () => void }) {
             <button
               onClick={() => void run(() => takedownVideo(v._id, reason))}
               disabled={busy || !reason.trim()}
-              className="rounded-full bg-amber-500/20 px-3 py-1.5 text-xs font-semibold text-amber-200 disabled:opacity-40"
+              className="rounded-full bg-warn-500/20 px-3 py-1.5 text-xs font-semibold text-warn-200 disabled:opacity-40"
             >
               {busy ? t`处理中…` : t`确认下架`}
             </button>
@@ -930,7 +930,7 @@ function VideoRow({ v, onDone }: { v: ApiVideo; onDone: () => void }) {
         </div>
       )}
 
-      {err && <p className="mt-1.5 text-[11px] leading-relaxed text-rose-300">{err}</p>}
+      {err && <p className="mt-1.5 text-[11px] leading-relaxed text-danger-300">{err}</p>}
     </article>
   );
 }
@@ -1094,7 +1094,7 @@ function ContentRow({ kind, c, onDone }: { kind: "comment" | "danmaku"; c: ApiAd
             <button
               onClick={() => void doDelete()}
               disabled={busy}
-              className="rounded-full bg-rose-500/20 px-3 py-1.5 text-xs font-semibold text-rose-300 disabled:opacity-40"
+              className="rounded-full bg-danger-500/20 px-3 py-1.5 text-xs font-semibold text-danger-300 disabled:opacity-40"
             >
               {busy ? t`删除中…` : t`确认删除`}
             </button>
@@ -1109,14 +1109,14 @@ function ContentRow({ kind, c, onDone }: { kind: "comment" | "danmaku"; c: ApiAd
               setConfirming(true);
             }}
             disabled={busy}
-            className="rounded-full border border-rose-500/40 px-3 py-1.5 text-xs text-rose-300 disabled:opacity-40"
+            className="rounded-full border border-danger-500/40 px-3 py-1.5 text-xs text-danger-300 disabled:opacity-40"
           >
             <Trans>删除…</Trans>
           </button>
         ) : (
           // 契约缺口要**说出来**：删除端点的路径要 videoId，服务端这条没带就删不了。
           // 摆一个点了必然失败的按钮更糟（CLAUDE.md「永远点不动的选项」那条坑）
-          <span className="text-[10px] text-rose-300"><Trans>服务端没带所属作品 id，这条删不了（需要升级服务端）</Trans></span>
+          <span className="text-[10px] text-danger-300"><Trans>服务端没带所属作品 id，这条删不了（需要升级服务端）</Trans></span>
         )}
         {c.videoId && (
           <Link to={`/video/${c.videoId}`} className="ml-auto text-[11px] text-brand underline underline-offset-2">
@@ -1125,7 +1125,7 @@ function ContentRow({ kind, c, onDone }: { kind: "comment" | "danmaku"; c: ApiAd
         )}
       </div>
 
-      {err && <p className="mt-1.5 text-[11px] leading-relaxed text-rose-300">{err}</p>}
+      {err && <p className="mt-1.5 text-[11px] leading-relaxed text-danger-300">{err}</p>}
     </article>
   );
 }
@@ -1204,11 +1204,11 @@ function ReportsSection({ onChanged }: { onChanged: () => void }) {
       {/* ★★ 「这台服务器没有这套端点」与「没有举报」必须分开说。混成一句的后果是
           管理员看着空列表以为没事，而实际上举报根本发不上来（铁律七 + 八）。 */}
       {!loading && !supported && !err && (
-        <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-[11px] leading-relaxed text-amber-300">
+        <p className="rounded-xl border border-warn-500/40 bg-warn-500/10 p-3 text-[11px] leading-relaxed text-warn-300">
           <Trans>这台服务器还没有举报接口（需要升级服务端）。这不代表没有举报 —— 是这一头根本收不到。</Trans>
         </p>
       )}
-      {err && <p className="rounded-xl border border-rose-500/40 bg-rose-500/10 p-3 text-[11px] leading-relaxed text-rose-300">{err}</p>}
+      {err && <p className="rounded-xl border border-danger-500/40 bg-danger-500/10 p-3 text-[11px] leading-relaxed text-danger-300">{err}</p>}
 
       {!loading && supported && items.length === 0 && !err && (
         <p className="py-8 text-center text-sm text-slate-500">{tab === "pending" ? t`没有待处理的举报` : t`还没有任何举报`}</p>
@@ -1326,11 +1326,11 @@ function ReportCard({
             而且服务端已经把它排在
             队首 —— 队首那条如果看起来和刷屏广告一样，排序就白做了。 */}
         {isUrgentReport(report) ? (
-          <span className="rounded bg-rose-500/20 px-1.5 py-0.5 font-bold text-rose-300">
+          <span className="rounded bg-danger-500/20 px-1.5 py-0.5 font-bold text-danger-300">
             ⚠ {reasonLabel(report.reason)}
           </span>
         ) : (
-          <span className="text-amber-300">{reasonLabel(report.reason)}</span>
+          <span className="text-warn-300">{reasonLabel(report.reason)}</span>
         )}
         <span><Trans>· {displayNameOf(report.reporter)} 举报</Trans></span>
         {at > 0 && <span>· {relativeTime(at)}</span>}
@@ -1360,7 +1360,7 @@ function ReportCard({
             ) : (
               !tgt?.title && (
                 // 服务端没带快照回来 —— 这是个**契约问题**，要说出来，别让人以为内容是空的
-                <p className="text-xs text-rose-300"><Trans>服务端没有返回内容快照，只能看到 id：{report.targetId}</Trans></p>
+                <p className="text-xs text-danger-300"><Trans>服务端没有返回内容快照，只能看到 id：{report.targetId}</Trans></p>
               )
             )}
             <div className="mt-1.5 flex flex-wrap items-center gap-x-2 text-[11px] text-slate-500">
@@ -1369,7 +1369,7 @@ function ReportCard({
               {tgt?.author && <span><Trans>作者 {displayNameOf(tgt.author)}</Trans></span>}
               {/* ★ 判"下没下架"看子文档在不在，服务端不给布尔（折一次就是第三份判断）。
                   没有这一句的话，第二个管理员会对着一条已下架的作品再下一次架。 */}
-              {tgt?.takedown && <span className="text-amber-300"><Trans>已处于下架状态</Trans></span>}
+              {tgt?.takedown && <span className="text-warn-300"><Trans>已处于下架状态</Trans></span>}
             </div>
           </>
         )}
@@ -1400,7 +1400,7 @@ function ReportCard({
                     setConfirmingDelete(true);
                   }}
                   disabled={!!busy}
-                  className="rounded-full border border-rose-500/40 px-3 py-1.5 text-xs text-rose-300 disabled:opacity-40"
+                  className="rounded-full border border-danger-500/40 px-3 py-1.5 text-xs text-danger-300 disabled:opacity-40"
                 >
                   <Trans>删除…</Trans>
                 </button>
@@ -1412,7 +1412,7 @@ function ReportCard({
                   <button
                     onClick={() => void act("delete")}
                     disabled={!!busy}
-                    className="rounded-full bg-rose-500/20 px-3 py-1.5 text-xs font-semibold text-rose-300 disabled:opacity-40"
+                    className="rounded-full bg-danger-500/20 px-3 py-1.5 text-xs font-semibold text-danger-300 disabled:opacity-40"
                   >
                     {busy === "delete" ? t`删除中…` : t`确认删除`}
                   </button>
@@ -1432,7 +1432,7 @@ function ReportCard({
                 disabled={!!busy}
                 title={t(a.why)}
                 className={`rounded-full px-3 py-1.5 text-xs disabled:opacity-40 ${
-                  a.id === "takedown" ? "bg-amber-500/20 text-amber-200" : "bg-slate-700 text-slate-200"
+                  a.id === "takedown" ? "bg-warn-500/20 text-warn-200" : "bg-slate-700 text-slate-200"
                 }`}
               >
                 {busy === a.id ? t`处理中…` : t(a.label)}
@@ -1449,7 +1449,7 @@ function ReportCard({
         </p>
       )}
 
-      {err && <p className="mt-1.5 text-[11px] leading-relaxed text-rose-300">{err}</p>}
+      {err && <p className="mt-1.5 text-[11px] leading-relaxed text-danger-300">{err}</p>}
     </article>
   );
 }

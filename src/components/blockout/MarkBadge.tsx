@@ -26,7 +26,7 @@ export type MarkBadgeTone = "primary" | "muted" | "doomed";
 const TONE: Record<MarkBadgeTone, string> = {
   primary: "bg-sky-500/20 text-sky-200",
   muted: "bg-slate-700 text-slate-300",
-  doomed: "bg-rose-500/20 text-rose-200 line-through",
+  doomed: "bg-danger-500/20 text-danger-200 line-through",
 };
 
 export interface MarkBadgeProps {

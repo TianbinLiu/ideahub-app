@@ -69,7 +69,7 @@ export default function SchemeMarketSheet({
           <Trans>别人做的出图配方。装进来之后就是你自己的一套，可以随便改。</Trans>
         </p>
 
-        {err && <p className="mb-2 text-[11px] leading-relaxed text-rose-300">{err}</p>}
+        {err && <p className="mb-2 text-[11px] leading-relaxed text-danger-300">{err}</p>}
         {busy && !list.length && <EmptyState compact loading text={t`正在打开市场…`} />}
         {!busy && !err && !list.length && (
           <EmptyState compact emoji="🛒" text={t`市场上还没有人发布方案`} hint={t`自建一套之后可以发上来`} />
@@ -100,7 +100,7 @@ export default function SchemeMarketSheet({
                       <span className="truncate text-xs font-semibold text-slate-100">{sc.title}</span>
                       {/* ★ 只标产出形态，绝不标"过检率"（§B2） */}
                       {sc.faceless && (
-                        <span className="flex-none rounded-full px-1.5 py-0.5 bg-emerald-500/15 text-[9px] text-emerald-300">
+                        <span className="flex-none rounded-full px-1.5 py-0.5 bg-ok-500/15 text-[9px] text-ok-300">
                           <Trans>无脸</Trans>
                         </span>
                       )}

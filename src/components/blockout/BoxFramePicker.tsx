@@ -432,7 +432,7 @@ export default function BoxFramePicker({
               不说的话用户会在中后段标一串帧，读数写着「已标 5/5」，实际一帧都没发出去
               （2026-08-17 之前就是这样，而这一步是付费的）。 */}
           {sel && !clipAxis && (
-            <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200/90">
+            <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200/90">
               <Trans>
                 下面这条时间轴是<b className="font-bold">整条原片</b>，而真正做成模板的只有你在上面框出的
                 <b className="font-bold">
@@ -610,7 +610,7 @@ export default function BoxFramePicker({
                   <span
                     key={m}
                     className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] ${
-                      ok ? "bg-slate-700/70 text-slate-200" : "bg-rose-500/20 text-rose-200 ring-1 ring-rose-500/50"
+                      ok ? "bg-slate-700/70 text-slate-200" : "bg-danger-500/20 text-danger-200 ring-1 ring-danger-500/50"
                     }`}
                   >
                     <button
@@ -630,7 +630,7 @@ export default function BoxFramePicker({
                       onClick={() => onMarksChange(marks.filter((x) => x !== m))}
                       disabled={disabled}
                       aria-label={t`删掉第 ${m.toFixed(1)} 秒这一帧`}
-                      className={`disabled:opacity-40 ${ok ? "text-slate-400" : "text-rose-300"}`}
+                      className={`disabled:opacity-40 ${ok ? "text-slate-400" : "text-danger-300"}`}
                     >
                       ×
                     </button>
@@ -644,7 +644,7 @@ export default function BoxFramePicker({
               采用，而屏幕上唯一能看出这件事的地方就是这里。写清两条出路 —— 删掉，或者把
               选段拖回去（后者要知道它们在原片的第几秒，所以秒数也报出来）。 */}
           {outside.length > 0 && (
-            <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-rose-200">
+            <p className="rounded-lg border border-danger-500/40 bg-danger-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-danger-200">
               {clipAxis ? (
                 // clip 形态下选段不在这一屏：出路是"回上一步"，不是"把上面的选段拖回去"
                 <>

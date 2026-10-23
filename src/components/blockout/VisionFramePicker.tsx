@@ -139,15 +139,15 @@ export default function VisionFramePicker({
         <Trans>
           白模化前，AI 先看几帧、列出<b className="text-slate-300">画面里有哪些人</b>，再按这份清单
           逐个点名替换成<b className="text-slate-300">一模一样的纯白人偶</b>。
-          <b className="text-amber-300">看漏了人，他照样会被换成白人偶</b>
-          ——但清单里没有他的位置，所以挂不了卡，而且<b className="text-amber-300">他还会把别人的
+          <b className="text-warn-300">看漏了人，他照样会被换成白人偶</b>
+          ——但清单里没有他的位置，所以挂不了卡，而且<b className="text-warn-300">他还会把别人的
           「从左数第几个」挤歪一位</b>。
         </Trans>
       </p>
       {/* ★★ 命中率：这一屏是**花钱之前的最后一屏**，目的是让作者多标几帧 / 减少人数。
           与提取器那一屏逐字同源，同样**不给具体数字**（旧的那句"7 发 4 发全对"是颜色方案
           那一版提示词的实测，那一版已经删了 —— 理由见提取器那一处的 ⚠）。 */}
-      <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[10px] leading-relaxed text-amber-200/90">
+      <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-[10px] leading-relaxed text-warn-200/90">
         <Trans>
           <b className="font-bold">这一步不是每次都全对。</b>
           实测每隔几发就会有 1~2 个人<b className="font-bold">根本没被换成人偶</b>（还是原来的样子）
@@ -227,7 +227,7 @@ export default function VisionFramePicker({
 
           {/* 点不动就说清为什么（本仓禁止"灰着且不说话"） */}
           {markBlock && <Warn compact>{markBlock}</Warn>}
-          {err && <p className="text-[10px] leading-relaxed text-rose-300">{err}</p>}
+          {err && <p className="text-[10px] leading-relaxed text-danger-300">{err}</p>}
 
           {marks.length === 0 ? (
             <p className="text-[10px] leading-relaxed text-slate-500">
@@ -243,7 +243,7 @@ export default function VisionFramePicker({
                     <button
                       onClick={() => onSeek(at)}
                       disabled={disabled}
-                      className={`block overflow-hidden rounded-lg border ${ok ? "border-sky-500/60" : "border-rose-500/70"}`}
+                      className={`block overflow-hidden rounded-lg border ${ok ? "border-sky-500/60" : "border-danger-500/70"}`}
                       aria-label={t`跳到第 ${at} 秒`}
                     >
                       {m.thumb ? (
@@ -257,7 +257,7 @@ export default function VisionFramePicker({
                       )}
                       <span
                         className={`block px-1 py-0.5 text-center text-[10px] tabular-nums ${
-                          ok ? "bg-black/60 text-slate-200" : "bg-rose-500/25 text-rose-200"
+                          ok ? "bg-black/60 text-slate-200" : "bg-danger-500/25 text-danger-200"
                         }`}
                       >
                         {ok ? t`第 ${at - start} 秒` : t`不在选段内`}
@@ -278,7 +278,7 @@ export default function VisionFramePicker({
           )}
 
           {outside.length > 0 && (
-            <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-rose-200">
+            <p className="rounded-lg border border-danger-500/40 bg-danger-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-danger-200">
               <Trans>
                 有 {outside.length} 帧落在选段外面（选段后来被拖动过），
                 <b>不会被采用、也不计费</b>——把它们删掉，或者把选段拖回去（它们在原片的第{" "}

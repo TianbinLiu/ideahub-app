@@ -746,7 +746,7 @@ export const TOURS: GuideTour[] = [
         anchor: "trim-crop",
         body: (
           <Trans>
-            拖四个角调裁剪框。水印<b className="font-bold text-amber-300">必须框到框外</b>：
+            拖四个角调裁剪框。水印<b className="font-bold text-warn-300">必须框到框外</b>：
             出片是逐帧复刻画面，提示词去不掉它（实测），而模板会被反复套用——
             留一个水印就是永久的。
           </Trans>

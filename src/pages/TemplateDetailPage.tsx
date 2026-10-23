@@ -129,7 +129,7 @@ function TemplatePropTrim({ tplId, card }: { tplId: string; card: Card }) {
       >
         <Trans>✂ 只留主体</Trans>
       </button>
-      {msg && <p className={`mt-1 text-[10px] leading-relaxed ${msg.ok ? "text-emerald-300" : "text-rose-300"}`}>{msg.text}</p>}
+      {msg && <p className={`mt-1 text-[10px] leading-relaxed ${msg.ok ? "text-ok-300" : "text-danger-300"}`}>{msg.text}</p>}
       {pick && (
         <PhotoSubjectPicker
           pick={pick.pick}
@@ -219,7 +219,7 @@ function BlockoutInfo({ t: tpl, isOwner }: { t: VideoTemplate; isOwner: boolean 
           选 5 秒"。它替代（不是叠加）下面那句给套用者的话 —— 两句一起显示会让作者以为
           出了两个错。判据同一处（refVideoOwnerNote 内部先问 refVideoIssue）。 */}
       {ownerNote ? (
-        <p className="mt-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-200">
+        <p className="mt-2 rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-[11px] leading-relaxed text-danger-200">
           {ownerNote}
         </p>
       ) : issue !== null ? (
@@ -236,7 +236,7 @@ function BlockoutInfo({ t: tpl, isOwner }: { t: VideoTemplate; isOwner: boolean 
           排在价钱之后而不是替掉它：价钱是"这个模板要花多少"，这一句是"你现在的套餐用不了"，两件事都该看见。
           2026-10-07 起付过任何一笔（套餐或充值）都算付费用户，「去升级」直接打开钱包抽屉（两样都在里面）。 */}
       {planIssue && (
-        <p className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-300/90">
+        <p className="mt-2 rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-[11px] leading-relaxed text-warn-300/90">
           {planIssue}
           {"　"}
           <UpgradeLink />
@@ -347,7 +347,7 @@ function OwnerBar({
         <button
           onClick={() => void run(() => registerTemplate(tpl.id))}
           disabled={busy}
-          className="rounded-full bg-amber-500/90 px-3.5 py-1.5 text-xs font-bold text-ink disabled:opacity-40"
+          className="rounded-full bg-warn-500/90 px-3.5 py-1.5 text-xs font-bold text-ink disabled:opacity-40"
         >
           <Trans>重新登记到服务器</Trans>
         </button>
@@ -356,13 +356,13 @@ function OwnerBar({
       );
     }
     if (rs?.status === "blocked") {
-      return <span className="rounded-full bg-rose-500/15 px-3.5 py-1.5 text-xs text-rose-300"><Trans>已被平台下架</Trans></span>;
+      return <span className="rounded-full bg-danger-500/15 px-3.5 py-1.5 text-xs text-danger-300"><Trans>已被平台下架</Trans></span>;
     }
     // 退役（被公开的制作过程引用着、作者下了架）：不在市场，但那几条流程仍在用它 —— 可以重新发布
     if (rs?.status === "retired") {
       return (
         <>
-          <span className="rounded-full bg-amber-500/15 px-3.5 py-1.5 text-xs text-amber-200"><Trans>已下架 · 仍被公开的制作过程引用</Trans></span>
+          <span className="rounded-full bg-warn-500/15 px-3.5 py-1.5 text-xs text-warn-200"><Trans>已下架 · 仍被公开的制作过程引用</Trans></span>
           <button
             onClick={() => void run(() => setTemplatePublished(tpl.id, true))}
             disabled={busy}
@@ -487,7 +487,7 @@ function OwnerBar({
           onBlur={() => setArmed(false)}
           disabled={busy}
           className={`ml-auto rounded-full px-3 py-1.5 text-xs disabled:opacity-40 ${
-            armed ? "bg-rose-500 font-bold text-white" : "text-rose-400"
+            armed ? "bg-danger-500 font-bold text-white" : "text-danger-400"
           }`}
         >
           {armed ? t`真的删掉？（连云端视频一起）` : t`删除`}
@@ -521,7 +521,7 @@ function OwnerBar({
       {blockout && tpl.remoteId && rs?.status !== "blocked" && !tpl.published && (
         <div className="mt-2 rounded-lg bg-black/25 px-2.5 py-2 text-[11px] leading-relaxed text-slate-400">
           {rs?.provenAt ? (
-            <span className="text-emerald-300"><Trans>✓ 试炼通过——你已经用这个模板真实出过片，可以发布了。</Trans></span>
+            <span className="text-ok-300"><Trans>✓ 试炼通过——你已经用这个模板真实出过片，可以发布了。</Trans></span>
           ) : (
             <>
               <Trans>发布前须用本模板<b>真实出过一次片</b>（套用它、挂上角色卡、付费出一段）——这一步能确保套用你模板的人不会白花钱。</Trans>
@@ -543,7 +543,7 @@ function OwnerBar({
                   <Trans>出过了？刷新状态</Trans>
                 </button>
               </span>
-              {planIssue && <span className="mt-1 block text-amber-300/90">{planIssue}</span>}
+              {planIssue && <span className="mt-1 block text-warn-300/90">{planIssue}</span>}
             </>
           )}
         </div>
@@ -558,7 +558,7 @@ function OwnerBar({
           <Trans>标题/简介的修改只改本机显示；市场里展示的是登记那一刻的版本。</Trans>
         </p>
       )}
-      {opErr && <p className="mt-2 text-[11px] leading-relaxed text-rose-300">{opErr}</p>}
+      {opErr && <p className="mt-2 text-[11px] leading-relaxed text-danger-300">{opErr}</p>}
       {opNote && <Warn className="mt-2">{opNote}</Warn>}
       {tpl.published && <p className="mt-2 text-[10px] text-slate-500"><Trans>已在模板市场公开，别人可以直接套用出片。</Trans></p>}
     </div>
@@ -723,7 +723,7 @@ export default function TemplateDetailPage() {
           <>
             <HelpButton tour="tpldetail" />
             {!tpl.published && isMine && (
-              <span className="flex-none rounded-full px-2 py-0.5 bg-amber-500/15 text-[10px] text-amber-400"><Trans>未发布</Trans></span>
+              <span className="flex-none rounded-full px-2 py-0.5 bg-warn-500/15 text-[10px] text-warn-400"><Trans>未发布</Trans></span>
             )}
           </>
         }
@@ -766,7 +766,7 @@ export default function TemplateDetailPage() {
           )}
         </Warn>
       )}
-      {applyErr && <p className="mb-3 text-xs leading-relaxed text-rose-300">{applyErr}</p>}
+      {applyErr && <p className="mb-3 text-xs leading-relaxed text-danger-300">{applyErr}</p>}
       <div className="mb-3" />
 
       {/* ★ 第 2 区「怎么做出来的」——默认折叠（2026-08-23）。

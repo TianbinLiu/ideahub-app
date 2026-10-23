@@ -252,7 +252,7 @@ export default function ShareSheet({
             而链接一旦被转出去，我们拦不住 —— 这句话必须在他分享**之前**出现。 */}
         {isUnlisted && (
           <p className="mt-1 text-xs text-slate-400">
-            <Trans>凭链接可见：不进首页和搜索，但<span className="text-amber-300">拿到链接的人都能看，也能转给别人</span>。</Trans>
+            <Trans>凭链接可见：不进首页和搜索，但<span className="text-warn-300">拿到链接的人都能看，也能转给别人</span>。</Trans>
           </p>
         )}
 
@@ -279,7 +279,7 @@ export default function ShareSheet({
         </div>
 
         {(err || note) && (
-          <p className={`mt-3 break-all text-xs leading-relaxed ${err ? "text-red-400" : "text-emerald-300"}`}>{err || note}</p>
+          <p className={`mt-3 break-all text-xs leading-relaxed ${err ? "text-red-400" : "text-ok-300"}`}>{err || note}</p>
         )}
 
         <button onClick={onClose} className="mt-3 w-full rounded-xl border border-slate-700 py-2.5 text-sm text-slate-300">

@@ -249,12 +249,12 @@ export default function SupportModelsPage() {
       </div>
 
       {settingsErr && (
-        <p className="mb-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-300">
+        <p className="mb-2 rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-warn-300">
           <Trans>读不到当前设置：{settingsErr}这里不标「使用中」，选用时以服务端为准。</Trans>
         </p>
       )}
-      {notice && <p className="mb-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5 text-xs text-emerald-200">{notice}</p>}
-      {listErr && <p className="mb-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-xs leading-relaxed text-rose-300">{listErr}</p>}
+      {notice && <p className="mb-2 rounded-lg border border-ok-500/40 bg-ok-500/10 px-2.5 py-1.5 text-xs text-ok-200">{notice}</p>}
+      {listErr && <p className="mb-2 rounded-lg border border-danger-500/40 bg-danger-500/10 px-2.5 py-1.5 text-xs leading-relaxed text-danger-300">{listErr}</p>}
 
       {loading ? (
         <EmptyState loading text={t`读取中…`} />
@@ -322,7 +322,7 @@ export default function SupportModelsPage() {
                       <Trans>取消收藏</Trans>
                     </button>
                   )}
-                  {cardErr?.id === m._id && <p className="mt-1.5 text-[11px] leading-relaxed text-rose-300">{cardErr.text}</p>}
+                  {cardErr?.id === m._id && <p className="mt-1.5 text-[11px] leading-relaxed text-danger-300">{cardErr.text}</p>}
                 </div>
               </section>
             );

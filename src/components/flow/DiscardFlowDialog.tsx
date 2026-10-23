@@ -83,15 +83,15 @@ export default function DiscardFlowDialog({
         <p className="mt-2 text-xs leading-relaxed text-slate-300">
           {done > 0 && anns > 0 ? (
             <Trans>
-              {total} 段<span className="text-emerald-300">，其中 {done} 段已出片</span><span className="text-amber-300">，{anns} 条圈选要求</span>。
+              {total} 段<span className="text-ok-300">，其中 {done} 段已出片</span><span className="text-warn-300">，{anns} 条圈选要求</span>。
             </Trans>
           ) : done > 0 ? (
             <Trans>
-              {total} 段<span className="text-emerald-300">，其中 {done} 段已出片</span>。
+              {total} 段<span className="text-ok-300">，其中 {done} 段已出片</span>。
             </Trans>
           ) : anns > 0 ? (
             <Trans>
-              {total} 段<span className="text-amber-300">，{anns} 条圈选要求</span>。
+              {total} 段<span className="text-warn-300">，{anns} 条圈选要求</span>。
             </Trans>
           ) : (
             <Trans>{total} 段。</Trans>
@@ -102,17 +102,17 @@ export default function DiscardFlowDialog({
         <p className="mt-1.5 text-xs leading-relaxed text-slate-300">
           {gening >= 0 ? (
             <Trans>
-              ⚠ <span className="text-rose-300">第 {seg} 段正在生成中，钱已经在花了</span>——丢掉这条流水线并<b>不会</b>把它停下：回包时那笔钱照扣，成片却落在一条已经不存在的流水线上。等它跑完（出片有胶囊通知）再回来。
+              ⚠ <span className="text-danger-300">第 {seg} 段正在生成中，钱已经在花了</span>——丢掉这条流水线并<b>不会</b>把它停下：回包时那笔钱照扣，成片却落在一条已经不存在的流水线上。等它跑完（出片有胶囊通知）再回来。
             </Trans>
           ) : done === 0 ? (
             <Trans>开新的一条会把它丢掉——都还没出片，丢的是写好的要求与设定，没有花掉的钱。</Trans>
           ) : simple ? (
             <Trans>
-              ⚠ 这条是<span className="text-amber-300">简约模式</span>：它按设计不进草稿库（一次性直通发布），所以已经出片的 <span className="text-rose-300">{done} 段丢了就要重花 token 再炼一次</span>。想留住就先「回去接着炼」，把它<span className="text-emerald-300">完成并发布</span>，再回来{noun}。
+              ⚠ 这条是<span className="text-warn-300">简约模式</span>：它按设计不进草稿库（一次性直通发布），所以已经出片的 <span className="text-danger-300">{done} 段丢了就要重花 token 再炼一次</span>。想留住就先「回去接着炼」，把它<span className="text-ok-300">完成并发布</span>，再回来{noun}。
             </Trans>
           ) : unsaved === 0 ? (
             <Trans>
-              已出片的 <span className="text-emerald-300">{done} 段在炼成那一刻就自动存进了草稿</span>（「我的 → 草稿」里能接着做），<span className="text-emerald-300">不用重花 token</span>。这里丢掉的是那之后手改的东西：文字、圈选要求、还没炼的段。
+              已出片的 <span className="text-ok-300">{done} 段在炼成那一刻就自动存进了草稿</span>（「我的 → 草稿」里能接着做），<span className="text-ok-300">不用重花 token</span>。这里丢掉的是那之后手改的东西：文字、圈选要求、还没炼的段。
             </Trans>
           ) : (
             <>
@@ -120,7 +120,7 @@ export default function DiscardFlowDialog({
                   之后 savedDoneCount 会归零，那时说"存储空间不足或隐私模式"就是句假话。
                   只说**事实**（还没进草稿），出路两种情况都成立。 */}
               <Trans>
-                ⚠ 其中 <span className="text-rose-300">{unsaved} 段出片后还没进草稿</span>，丢弃就要<span className="text-rose-300">重花 token 再炼一次</span>。建议先「回去接着炼」，在那一页点「存草稿」把它们留住。
+                ⚠ 其中 <span className="text-danger-300">{unsaved} 段出片后还没进草稿</span>，丢弃就要<span className="text-danger-300">重花 token 再炼一次</span>。建议先「回去接着炼」，在那一页点「存草稿」把它们留住。
               </Trans>
             </>
           )}
@@ -134,7 +134,7 @@ export default function DiscardFlowDialog({
             onClick={onDiscard}
             disabled={gening >= 0}
             title={gening >= 0 ? t`有一段正在生成，等它跑完再说` : undefined}
-            className="rounded-xl border border-rose-500/40 bg-rose-500/10 py-2.5 text-sm font-semibold text-rose-300 disabled:opacity-40"
+            className="rounded-xl border border-danger-500/40 bg-danger-500/10 py-2.5 text-sm font-semibold text-danger-300 disabled:opacity-40"
           >
             {gening >= 0 ? t`等这一段炼完才能丢` : discardLabel}
           </button>

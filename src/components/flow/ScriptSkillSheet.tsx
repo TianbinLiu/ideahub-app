@@ -91,7 +91,7 @@ export default function ScriptSkillSheet({ onClose, onApplied }: { onClose: () =
         <StepDots className="mb-3" steps={SCRIPT_TO_SHOTS.steps.map((s) => ({ label: t(s.title) }))} current={stepIdx} />
         <div className="mb-2 text-[10px] leading-relaxed text-slate-500">{t(SCRIPT_TO_SHOTS.steps[Math.max(0, stepIdx)].hint)}</div>
 
-        {err && <div className="mb-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-rose-300">{err}</div>}
+        {err && <div className="mb-2 rounded-lg border border-danger-500/40 bg-danger-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-danger-300">{err}</div>}
 
         {/* ① 剧本 */}
         {!plan && (

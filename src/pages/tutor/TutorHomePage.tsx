@@ -103,7 +103,7 @@ export default function TutorHomePage() {
       {state.kind === "ready" && (
         <>
           {state.demo && (
-            <p className="mb-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+            <p className="mb-3 rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-xs text-warn-200">
               <Trans>演示模式：这台服务器没配模型，老师按模板讲、不花 token。</Trans>
             </p>
           )}
@@ -132,7 +132,7 @@ export default function TutorHomePage() {
                       </div>
                     </div>
                     {c.run ? (
-                      <span className={`flex-none rounded-full px-2 py-0.5 text-[10px] font-semibold ${c.run.status === "done" ? "bg-emerald-500/15 text-emerald-300" : "bg-brand/15 text-brand"}`}>
+                      <span className={`flex-none rounded-full px-2 py-0.5 text-[10px] font-semibold ${c.run.status === "done" ? "bg-ok-500/15 text-ok-300" : "bg-brand/15 text-brand"}`}>
                         {c.run.status === "done" ? t`已学完` : t`在学`}
                       </span>
                     ) : (
@@ -141,7 +141,7 @@ export default function TutorHomePage() {
                   </div>
                   {c.source && <div className="mt-1 text-[11px] text-slate-500">{t`从市场开的课 · 老师 v${c.source.version}`}</div>}
                   {c.published?.companion?.enabled && <div className="mt-1 text-[11px] text-violet-300">🔊 {t`这位老师会说话（已发布为启梦人格）`}</div>}
-                  {c.run && (c.run.dueReviews ?? 0) > 0 && <div className="mt-1 text-[11px] text-amber-300">{t`有 ${c.run.dueReviews ?? 0} 个阶段该回访了`}</div>}
+                  {c.run && (c.run.dueReviews ?? 0) > 0 && <div className="mt-1 text-[11px] text-warn-300">{t`有 ${c.run.dueReviews ?? 0} 个阶段该回访了`}</div>}
                   <div className="mt-2 flex gap-2">
                     {c.persona ? (
                       <Link to={`/tutor/run/${encodeURIComponent(c.id)}`} className="flex-1 rounded-xl bg-brand py-2.5 text-center text-sm font-bold text-ink">

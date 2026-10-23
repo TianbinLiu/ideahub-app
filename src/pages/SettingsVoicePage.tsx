@@ -134,7 +134,7 @@ export default function SettingsVoicePage() {
           </button>
         ))}
       </div>
-      {err && <p className="mt-2 text-[11px] text-rose-300">{err}</p>}
+      {err && <p className="mt-2 text-[11px] text-danger-300">{err}</p>}
 
       {/* 语速与语调：挑完音色之后的两个旋钮，紧挨着列表才能"改完点任意音色即刻试听" */}
       <div data-guide="setvoice-tune">

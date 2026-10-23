@@ -85,7 +85,7 @@ export default function AdminTicketsView() {
         </button>
       </div>
       {loading && <p className="text-xs text-slate-500"><Trans>读取中…</Trans></p>}
-      {err && <p className="rounded-xl border border-rose-500/40 bg-rose-500/10 p-3 text-[11px] leading-relaxed text-rose-300">{err}</p>}
+      {err && <p className="rounded-xl border border-danger-500/40 bg-danger-500/10 p-3 text-[11px] leading-relaxed text-danger-300">{err}</p>}
       {!loading && !err && items && items.length === 0 && <p className="text-xs text-slate-500">{filter === "active" ? t`没有进行中的工单` : t`还没有任何工单`}</p>}
       <div className="space-y-3">{(items || []).map((tk) => <TicketCard key={tk.id} ticket={tk} onChanged={replace} />)}</div>
     </section>
@@ -125,7 +125,7 @@ function TicketCard({ ticket: tk, onChanged }: { ticket: SupportTicket; onChange
   return (
     <article className="rounded-xl border border-slate-700/70 bg-panel p-3">
       <div className="flex items-center gap-2 text-[11px] text-slate-400">
-        <span className={`rounded-full px-2 py-0.5 ${done ? "bg-slate-800 text-slate-300" : "bg-amber-500/20 text-amber-200"}`}>{ticketStatusLabel(tk.status)}</span>
+        <span className={`rounded-full px-2 py-0.5 ${done ? "bg-slate-800 text-slate-300" : "bg-warn-500/20 text-warn-200"}`}>{ticketStatusLabel(tk.status)}</span>
         <span>{categoryLabel(tk.category)}</span>
         <span className="ml-auto">#{tk.id.slice(-6).toUpperCase()} · {relativeTime(Date.parse(tk.createdAt))}</span>
       </div>
@@ -157,7 +157,7 @@ function TicketCard({ ticket: tk, onChanged }: { ticket: SupportTicket; onChange
       {tk.replies.length > 0 && (
         <div className="mt-2 space-y-1.5">
           {tk.replies.map((r) => (
-            <div key={r.id} className={`rounded-xl px-3 py-2 text-xs leading-relaxed ${r.by === "admin" ? "bg-emerald-500/10 text-emerald-100" : "bg-slate-800 text-slate-200"}`}>
+            <div key={r.id} className={`rounded-xl px-3 py-2 text-xs leading-relaxed ${r.by === "admin" ? "bg-ok-500/10 text-ok-100" : "bg-slate-800 text-slate-200"}`}>
               <span className="mr-1.5 text-[11px] text-slate-400">{r.by === "admin" ? t`客服` : t(WHO_USER)} · {relativeTime(Date.parse(r.at))}</span>
               {r.content}
             </div>
@@ -201,7 +201,7 @@ function TicketCard({ ticket: tk, onChanged }: { ticket: SupportTicket; onChange
             </button>
           ))}
       </div>
-      {err && <p className="mt-1.5 text-xs text-rose-300">{err}</p>}
+      {err && <p className="mt-1.5 text-xs text-danger-300">{err}</p>}
     </article>
   );
 }

@@ -125,7 +125,7 @@ export default function SimpleModePage() {
           ★ 第 3 步的拒绝画在「出片」那颗键的正上方（StepGo 收 err），不画在这儿：键在屏幕底、这行在顶，人盯着键看不到这句
           （2026-10-14 UX 课走查：反馈要落在动作旁边） */}
       {err && step !== "go" && (
-        <p className="mb-3 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-300">{err}</p>
+        <p className="mb-3 rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-[11px] leading-relaxed text-danger-300">{err}</p>
       )}
 
       {step === "start" && (
@@ -477,7 +477,7 @@ function StepGo({
       <span className="flex-1" />
       {/* 拒绝画在键的正上方（页面顶上那份对第 3 步不画，见 SimpleModePage 的 err） */}
       {err && (
-        <p className="mt-3 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-300">{err}</p>
+        <p className="mt-3 rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-[11px] leading-relaxed text-danger-300">{err}</p>
       )}
       {/* 出片是几分钟的事：说清楚可以走开（离开之后进度与结果由顶上的胶囊接着报，GenerationPill） */}
       {progress && (

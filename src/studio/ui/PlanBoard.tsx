@@ -193,7 +193,7 @@ export default function PlanBoard({
         )}
       </div>
 
-      {err && <div className="flex-none px-3 pb-1 text-[10px] text-rose-300">{err}</div>}
+      {err && <div className="flex-none px-3 pb-1 text-[10px] text-danger-300">{err}</div>}
       {reading && <div className="flex-none px-3 pb-1 text-[10px] text-slate-400"><Trans>读取图片…</Trans></div>}
 
       <div ref={scroller} className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-3">
@@ -268,12 +268,12 @@ export default function PlanBoard({
                         而一段成片没留下只能重新出片、**再花一次钱** —— 把后者说成前者，
                         等于告诉用户"点一下就好了"，而他点完会被扣一次钱。 */}
                     {!!p.lost?.video && (
-                      <div className="text-center text-[9px] leading-3 text-amber-300/90">
+                      <div className="text-center text-[9px] leading-3 text-warn-300/90">
                         <Trans>这一段的成片没有留存，要重新出片（会再花一次钱）</Trans>
                       </div>
                     )}
                     {!!p.lost && !p.lost.video && (
-                      <div className="text-center text-[9px] leading-3 text-amber-300/90"><Trans>这一格的预览图没有留存</Trans></div>
+                      <div className="text-center text-[9px] leading-3 text-warn-300/90"><Trans>这一格的预览图没有留存</Trans></div>
                     )}
                     {/* 「融图」：把几张参考图合成一张边界帧。★ 只在宿主给了候选图时出现，
                         融出来的帧仍旧走 onFrame 落地（换帧只有那一个缝） */}
@@ -305,13 +305,13 @@ export default function PlanBoard({
                       />
                       <span className="flex-none rounded-full px-2 py-0.5 bg-gold/20 text-[10px] text-gold"><Trans>✓ 已选定</Trans></span>
                       {done && (
-                        <span className="flex-none rounded-full px-2 py-0.5 bg-emerald-500/20 text-[10px] text-emerald-300">
+                        <span className="flex-none rounded-full px-2 py-0.5 bg-ok-500/20 text-[10px] text-ok-300">
                           <Trans>已出片</Trans>
                         </span>
                       )}
                     </div>
                     {p.degraded && (
-                      <div className="rounded bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-300">
+                      <div className="rounded bg-warn-500/10 px-2 py-0.5 text-[10px] text-warn-300">
                         <Trans>⚠ 这一套有帧当时没画出来：出片前会先补画要用到的帧（按张计费，已算进出片报价）</Trans>
                       </div>
                     )}
@@ -403,7 +403,7 @@ export default function PlanBoard({
                         {p.durationSec}s
                       </span>
                       {done && (
-                        <span className="flex-none rounded-full px-2 py-0.5 bg-emerald-500/20 text-[10px] text-emerald-300">
+                        <span className="flex-none rounded-full px-2 py-0.5 bg-ok-500/20 text-[10px] text-ok-300">
                           <Trans>已出片</Trans>
                         </span>
                       )}
@@ -469,7 +469,7 @@ function PreviewCard({
         <div
           style={{ aspectRatio: aspect }}
           className={`flex w-full items-center justify-center rounded-lg border border-dashed bg-slate-800/40 px-1 text-center text-[9px] leading-tight ${
-            lost ? "border-amber-500/60 text-amber-300/90" : "border-slate-600 text-slate-500"
+            lost ? "border-warn-500/60 text-warn-300/90" : "border-slate-600 text-slate-500"
           }`}
         >
           {/* "本来就没画过"与"画过但没留存下来"是两件事，说法必须分开：

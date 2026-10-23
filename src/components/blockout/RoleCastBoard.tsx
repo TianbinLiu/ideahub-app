@@ -569,7 +569,7 @@ export default function RoleCastBoard({
           ★ 措辞里必须有“不重做也能用”与“看错了直接忽略”：它是尽力而为的启发式，
             不是闸（判据与完整复盘在 data/templates.prominentRoleWarning）。 */}
       {prominent && (
-        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-100">
+        <div className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-[11px] leading-relaxed text-warn-100">
           {prominent}
         </div>
       )}
@@ -698,7 +698,7 @@ export default function RoleCastBoard({
       {/* 落点同时压在两个人偶上（前后站位重叠）——**不猜**，摆出来让他点。同上，紧贴卡轨。
           ★ 宁可多问一次：误挂是零报错故障，而"猜一个"猜错了没有任何人会发现 */}
       {ambiguous && (
-        <div className="space-y-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2.5">
+        <div className="space-y-2 rounded-xl border border-warn-500/40 bg-warn-500/10 px-3 py-2.5">
           <Warn>
             <Trans>
               这一下同时落在 {ambiguous.slots.length} 个人偶上（他们在画面上叠着）——
@@ -905,13 +905,13 @@ export default function RoleCastBoard({
           ★ 框是**一帧**上量的，人是会走动的 —— 继续画一组过时的框，用户会照着它拖，
             而挂错人零报错。所以这里不是"提醒一下"，是真的把那一层关掉。 */}
       {dragOn && !onFrame && (
-        <div className="flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+        <div className="flex items-center gap-2 rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2">
           <Warn className="min-w-0 flex-1">
             <Trans>离开标记帧了，这里的落点会不准（画面上的人已经走动过）—— 回到第 {(boxAtSec ?? 0).toFixed(1)} 秒再拖。</Trans>
           </Warn>
           <button
             onClick={backToFrame}
-            className="flex-none rounded-full bg-amber-500/90 px-2.5 py-1 text-[11px] font-bold text-ink"
+            className="flex-none rounded-full bg-warn-500/90 px-2.5 py-1 text-[11px] font-bold text-ink"
           >
             <Trans>回到标记帧</Trans>
           </button>
@@ -953,7 +953,7 @@ export default function RoleCastBoard({
               <div className="min-w-0 flex-1">
                 <p className="line-clamp-3 text-[11px] leading-relaxed text-slate-300">{r.desc}</p>
                 {missing && (
-                  <p className="mt-1 text-[10px] leading-relaxed text-rose-300">
+                  <p className="mt-1 text-[10px] leading-relaxed text-danger-300">
                     <Trans>
                       这个位子挂着一张本机找不到的卡（可能已被删除或属于另一个账号）——请重新挂一张，
                       或取下它。
@@ -1024,7 +1024,7 @@ export default function RoleCastBoard({
 
       {/* 挂在"挂不上的位子"上的卡：说清楚 + 一颗真能点的按钮（理由见 strayLabels 的 ★★） */}
       {strayLabels.length > 0 && (
-        <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+        <div className="space-y-1.5 rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2">
           {/* 分类说准，别并列猜（见 strayOverCap/strayRemoved 的 ★★） */}
           {strayRemoved.length > 0 && (
             <Warn>
@@ -1062,7 +1062,7 @@ export default function RoleCastBoard({
               onChange(next);
             }}
             disabled={busy}
-            className="rounded-full bg-amber-500/90 px-2.5 py-1 text-[11px] font-bold text-ink disabled:opacity-40"
+            className="rounded-full bg-warn-500/90 px-2.5 py-1 text-[11px] font-bold text-ink disabled:opacity-40"
           >
             <Trans>取下这 {strayLabels.length} 张</Trans>
           </button>
@@ -1102,7 +1102,7 @@ export default function RoleCastBoard({
       )}
 
       {maxRefImages != null && mountedLabels.length > maxRefImages && (
-        <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-200">
+        <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-[11px] leading-relaxed text-warn-200">
           <Trans>
             ⚠ 已挂 {mountedLabels.length} 张，超过一次出片能带的 {maxRefImages} 张参考图上限。
             多出来的会在出片时按出片管线既有的规则被挤掉 —— 建议你自己减到 {maxRefImages} 张，

@@ -145,7 +145,7 @@ export default function AutoEditSheet({ project, segs, lens, canVoice, voiceFree
         <div className="mb-2 text-[10px] leading-relaxed text-slate-500">{t(AUTO_EDIT.steps[Math.max(0, stepIdx)].hint)}</div>
 
         {err && (
-          <div className="mb-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-rose-300">{err}</div>
+          <div className="mb-2 rounded-lg border border-danger-500/40 bg-danger-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-danger-300">{err}</div>
         )}
 
         {/* ① 还没跑：说清它会干什么、要多少钱 */}
@@ -206,7 +206,7 @@ export default function AutoEditSheet({ project, segs, lens, canVoice, voiceFree
                         {run.plan.fades.includes(b.clipId) && fades ? " · ◐" : ""}
                         {b.title ? ` · ${b.title}` : ""}
                       </span>
-                      <span className={`flex-none tabular-nums ${over ? "text-amber-300" : ""}`}>
+                      <span className={`flex-none tabular-nums ${over ? "text-warn-300" : ""}`}>
                         {units}/{b.cap}
                       </span>
                     </div>
@@ -269,7 +269,7 @@ export default function AutoEditSheet({ project, segs, lens, canVoice, voiceFree
               </p>
             )}
             {replaced > 0 && (
-              <p className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-100">
+              <p className="mt-2 rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-warn-100">
                 <Trans>会换掉你现在的 {replaced} 句字幕；改了字的那几句，原来的配音要重配。不放心的话，用完之后可以一步撤销回来。</Trans>
               </p>
             )}

@@ -110,7 +110,7 @@ export default function BlockButton({
                 </button>
               </>
             ) : done ? (
-              <p className="py-2 text-center text-xs leading-relaxed text-emerald-300">
+              <p className="py-2 text-center text-xs leading-relaxed text-ok-300">
                 <Trans>已拉黑「{who}」——你们不会再看见彼此的内容。</Trans>
               </p>
             ) : (
@@ -128,7 +128,7 @@ export default function BlockButton({
                 <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
                   <Trans>随时可以解除：「我的 → 设置 → 已拉黑的人」。</Trans>
                 </p>
-                {err && <p className="mt-2 text-[11px] leading-relaxed text-rose-300">{err}</p>}
+                {err && <p className="mt-2 text-[11px] leading-relaxed text-danger-300">{err}</p>}
                 <div className="mt-3 flex gap-2">
                   <button
                     onClick={() => setOpen(false)}
@@ -139,7 +139,7 @@ export default function BlockButton({
                   <button
                     onClick={() => void submit()}
                     disabled={busy}
-                    className="flex-1 rounded-xl bg-rose-500/90 py-2.5 text-sm font-bold text-white disabled:opacity-40"
+                    className="flex-1 rounded-xl bg-danger-500/90 py-2.5 text-sm font-bold text-white disabled:opacity-40"
                   >
                     {busy ? <Trans>处理中…</Trans> : <Trans>拉黑</Trans>}
                   </button>

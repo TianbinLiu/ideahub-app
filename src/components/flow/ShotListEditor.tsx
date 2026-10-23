@@ -204,7 +204,7 @@ const ShotListEditor = forwardRef<
               <Trans>＋ 台词</Trans>
             </button>
           )}
-          <span className={`ml-auto text-[10px] ${over ? "text-amber-300" : "text-slate-500"}`}>
+          <span className={`ml-auto text-[10px] ${over ? "text-warn-300" : "text-slate-500"}`}>
             {text.length}/{max}
           </span>
         </div>

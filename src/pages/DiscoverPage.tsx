@@ -37,9 +37,9 @@ import { VIDEO_CATEGORIES, VideoItem, formatDuration, formatPlays, segsTotal, vi
  * 只会把角色拉扁，而这种失真很难一眼看出来。
  */
 const CAT_ART: Record<string, { key: string; sheet: SpriteSheet; from: string; ring: string }> = {
-  剧情: { key: "drama", sheet: { w: 180, h: 210, frames: 8 }, from: "from-rose-500/35", ring: "ring-rose-400/70" },
+  剧情: { key: "drama", sheet: { w: 180, h: 210, frames: 8 }, from: "from-danger-500/35", ring: "ring-danger-400/70" },
   科幻: { key: "scifi", sheet: { w: 180, h: 192, frames: 8 }, from: "from-cyan-500/35", ring: "ring-cyan-400/70" },
-  古风: { key: "ancient", sheet: { w: 180, h: 174, frames: 8 }, from: "from-amber-500/35", ring: "ring-amber-400/70" },
+  古风: { key: "ancient", sheet: { w: 180, h: 174, frames: 8 }, from: "from-warn-500/35", ring: "ring-warn-400/70" },
   搞笑: { key: "comedy", sheet: { w: 180, h: 209, frames: 8 }, from: "from-lime-500/35", ring: "ring-lime-400/70" },
   动画: { key: "anime", sheet: { w: 180, h: 196, frames: 8 }, from: "from-fuchsia-500/35", ring: "ring-fuchsia-400/70" },
   其他: { key: "other", sheet: { w: 180, h: 195, frames: 8 }, from: "from-slate-500/35", ring: "ring-slate-300/70" },
@@ -346,7 +346,7 @@ export default function DiscoverPage() {
               <Trans>搜人需要连上服务器 · 当前是离线模式（视频和分区照常能搜）</Trans>
             </p>
           ) : userErr ? (
-            <p className="rounded-xl bg-panel/60 px-3 py-2.5 text-xs leading-relaxed text-rose-300">
+            <p className="rounded-xl bg-panel/60 px-3 py-2.5 text-xs leading-relaxed text-danger-300">
               <Trans>搜人失败：{userErr}</Trans>
             </p>
           ) : !userSupported ? (

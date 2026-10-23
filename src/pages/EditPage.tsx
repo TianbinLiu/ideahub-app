@@ -549,12 +549,12 @@ export default function EditPage() {
             )}
             {/* 取回失败 / 工坊在途被拒：整句原话，落在按下的那颗键旁边（铁律八） */}
             {fetchErr && (
-              <div className="mt-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2">
+              <div className="mt-2 rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2">
                 {/* ★ 原话原样显示（data 层与服务端写的都是整句中文）。
                     ⚠ 「换个网络再试一次」与那颗重试键只给**真的可能是网络问题**的那几档：
                       版次对不上那一档再试一万次也是同一句话，摆一颗永远不会成的重试键
                       比不摆更坏（本仓那条：说一句错的原因比不给原因更坏）。 */}
-                <p className="text-[11px] leading-relaxed text-rose-200">
+                <p className="text-[11px] leading-relaxed text-danger-200">
                   {fetchStale ? (
                     <Trans>没能取回这条作品的工坊工程（{fetchErr}）。本机还留着那一版的画布的话，先点上面的「重新留存这一版」；否则只能重新发一条。</Trans>
                   ) : (
@@ -592,7 +592,7 @@ export default function EditPage() {
                 <p className="text-xs leading-relaxed text-slate-400"><Trans>公开制作过程需要联网；这台设备当前是离线模式。</Trans></p>
               ) : recipeFetch.state === "failed" ? (
                 <div>
-                  <p className="text-xs leading-relaxed text-rose-300"><Trans>暂时问不到服务器（{recipeFetch.why}）</Trans></p>
+                  <p className="text-xs leading-relaxed text-danger-300"><Trans>暂时问不到服务器（{recipeFetch.why}）</Trans></p>
                   <button
                     onClick={() => {
                       setRecipeFetch(null);
@@ -694,7 +694,7 @@ export default function EditPage() {
                 </div>
               )}
               {recipeMsg && (
-                <p className={`mt-2 text-[11px] leading-relaxed ${recipeMsg.kind === "ok" ? "text-emerald-300" : "text-rose-300"}`}>{recipeMsg.text}</p>
+                <p className={`mt-2 text-[11px] leading-relaxed ${recipeMsg.kind === "ok" ? "text-ok-300" : "text-danger-300"}`}>{recipeMsg.text}</p>
               )}
             </div>
             {/* 同款奖励（P3b）：与公不公开制作过程无关（照着分段剧本也能做同款），所以摆在这张卡外面；规则没到时什么都不画 */}
@@ -804,7 +804,7 @@ export default function EditPage() {
               {saving ? t`保存中…` : t`保存修改`}
             </button>
             {busy && <span className="text-sm text-slate-400">{busy}</span>}
-            {saved && <span className="text-sm text-emerald-300"><Trans>✓ 已保存</Trans></span>}
+            {saved && <span className="text-sm text-ok-300"><Trans>✓ 已保存</Trans></span>}
           </div>
 
           {/* 删除放最后、要二次确认：这是本页唯一不可撤销的动作。
@@ -812,13 +812,13 @@ export default function EditPage() {
               样式与整个 app 割裂，而且在部分机型上会被当成"网页弹窗"直接拦掉。 */}
           <div className="mt-2 border-t border-slate-700/60 pt-4">
             {confirmDel ? (
-              <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 p-3.5">
-                <div className="text-sm font-bold text-rose-200"><Trans>删除《{video.title}》？</Trans></div>
+              <div className="rounded-xl border border-danger-500/40 bg-danger-500/10 p-3.5">
+                <div className="text-sm font-bold text-danger-200"><Trans>删除《{video.title}》？</Trans></div>
                 {/* ★ 这句以前只说"成片、评论和点赞会一起消失" —— 而当时服务端一次
                     `uploader.destroy` 都没有：作品从库里没了，成片与封面那几个地址
                     仍然人人可访问。2026-08-30 服务端补上了回收，这句话才配得上"删除"两个字，
                     所以把它写全（铁律五：文案只按已实现的事实写）。 */}
-                <p className="mt-1 text-[11px] leading-relaxed text-rose-300">
+                <p className="mt-1 text-[11px] leading-relaxed text-danger-300">
                   <Trans>成片、评论和点赞会一起消失，云端存的视频与封面也会一并删除。不能撤销。</Trans>
                 </p>
                 {/* ★★ 软替代：**这条只对还公开着的作品有意义**（2026-08-30 修）。
@@ -849,7 +849,7 @@ export default function EditPage() {
                       });
                     }}
                     disabled={saving}
-                    className="mt-2.5 w-full rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-left text-[11px] leading-relaxed text-amber-100 disabled:opacity-40"
+                    className="mt-2.5 w-full rounded-xl border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-left text-[11px] leading-relaxed text-warn-100 disabled:opacity-40"
                   >
                     <span className="font-bold"><Trans>改成「仅自己可见」就好</Trans></span>
                     <br />
@@ -857,7 +857,7 @@ export default function EditPage() {
                   </button>
                 )}
                 {delErr && (
-                  <p className="mt-2.5 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-100">
+                  <p className="mt-2.5 rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-[11px] leading-relaxed text-danger-100">
                     {delErr.why}
                   </p>
                 )}
@@ -875,7 +875,7 @@ export default function EditPage() {
                   <button
                     onClick={() => void remove()}
                     disabled={deleting}
-                    className="rounded-xl bg-rose-500 px-4 py-2.5 text-sm font-bold text-white hover:brightness-110 disabled:opacity-40"
+                    className="rounded-xl bg-danger-500 px-4 py-2.5 text-sm font-bold text-white hover:brightness-110 disabled:opacity-40"
                   >
                     {deleting ? t`删除中…` : delErr?.kind === "delete" ? t`再试一次` : t`确认删除`}
                   </button>
@@ -884,7 +884,7 @@ export default function EditPage() {
             ) : (
               <button
                 onClick={() => setConfirmDel(true)}
-                className="text-sm text-rose-400 hover:text-rose-300"
+                className="text-sm text-danger-400 hover:text-danger-300"
               >
                 <Trans>删除这部作品</Trans>
               </button>

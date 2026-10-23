@@ -197,13 +197,13 @@ export default function WorkshopShareBar({
           className="mt-2 w-full rounded-lg border border-slate-700 bg-panel px-2.5 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
         />
       )}
-      {note && <p className="mt-1 text-[11px] leading-relaxed text-amber-400/90">{note}</p>}
+      {note && <p className="mt-1 text-[11px] leading-relaxed text-warn-400/90">{note}</p>}
       {disabledReason && <p className="mt-1 text-[11px] leading-relaxed text-slate-500">{t(disabledReason)}</p>}
       {/* ★ 按方向说（复核抓到）：这颗键两个方向共用，而失败时写死"分享失败"正好落在
           这批改动存在的那个场景上 —— 用户点的是「取消分享」，读到的却是"分享失败"，
           会以为自己点错了、再点一次（而那一次同样会失败）。 */}
       {err && (
-        <p className="mt-1 text-[11px] leading-relaxed text-rose-300">
+        <p className="mt-1 text-[11px] leading-relaxed text-danger-300">
           {published ? <Trans>取消分享失败：{err}</Trans> : <Trans>分享失败：{err}</Trans>}
         </p>
       )}

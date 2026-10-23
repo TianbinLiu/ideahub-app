@@ -60,8 +60,8 @@ export default class ErrorBoundary extends Component<Props, State> {
     const detail = String(error?.message ?? error).slice(0, 160);
     return (
       <div className={full ? "safe-top flex min-h-[70vh] items-center justify-center px-4" : "p-3"}>
-        <div className="w-full max-w-sm rounded-xl border border-rose-500/40 bg-rose-500/10 p-3">
-          <p className="text-sm font-semibold text-rose-300">{title}</p>
+        <div className="w-full max-w-sm rounded-xl border border-danger-500/40 bg-danger-500/10 p-3">
+          <p className="text-sm font-semibold text-danger-300">{title}</p>
           <p className="mt-1 text-xs leading-relaxed text-slate-400">
             {i18n._(msg`重载只换这一块，别的都还在原地；再不行就回首页。`)}
           </p>

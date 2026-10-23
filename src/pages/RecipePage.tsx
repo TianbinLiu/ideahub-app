@@ -256,7 +256,7 @@ export default function RecipePage() {
             <Trans>会把这 {res.data.recipe.nodes.length} 段铺成你自己的工作流（不带原作的画面与成片），之后一段一结账，铺开不花钱。</Trans>
           </p>
           {buildErr && (
-            <div className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs leading-relaxed text-rose-200">{buildErr}</div>
+            <div className="rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-xs leading-relaxed text-danger-200">{buildErr}</div>
           )}
         </div>
       )}
@@ -328,7 +328,7 @@ export default function RecipePage() {
             />
           </div>
           {buildErr && (
-            <div className="mt-3 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs leading-relaxed text-rose-200">{buildErr}</div>
+            <div className="mt-3 rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-xs leading-relaxed text-danger-200">{buildErr}</div>
           )}
           <div className="mt-4 flex gap-2">
             <button onClick={() => setCastOpen(false)} className="flex-1 rounded-xl bg-panel py-2.5 text-sm font-bold text-slate-200 ring-1 ring-slate-700">

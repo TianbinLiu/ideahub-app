@@ -242,7 +242,7 @@ export default function CardModelFit({ card, owned }: { card: Card; owned: boole
         </div>
       )}
 
-      {msg && <p className="mt-1.5 text-[10px] leading-relaxed text-rose-300">{msg}</p>}
+      {msg && <p className="mt-1.5 text-[10px] leading-relaxed text-danger-300">{msg}</p>}
     </div>
   );
 }

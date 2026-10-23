@@ -85,9 +85,9 @@ const CARD_LABEL = "mb-1.5 text-xs font-semibold text-slate-300";
 
 /** 三色横幅：底色只有 /10 一档，边线一律同色 /40（CLAUDE.md「提示条」那条） */
 const BANNER_CLS: Record<WizardBanner["kind"], string> = {
-  ok: "border-emerald-500/40 bg-emerald-500/10 text-emerald-200",
-  warn: "border-amber-500/40 bg-amber-500/10 text-amber-300",
-  bad: "border-rose-500/40 bg-rose-500/10 text-rose-300",
+  ok: "border-ok-500/40 bg-ok-500/10 text-ok-200",
+  warn: "border-warn-500/40 bg-warn-500/10 text-warn-300",
+  bad: "border-danger-500/40 bg-danger-500/10 text-danger-300",
 };
 
 const DRAFT_FIELD_LABEL: Record<PersonaDraftField, MessageDescriptor> = {
@@ -112,7 +112,7 @@ function Banner({ banner }: { banner: WizardBanner | null }) {
 /** 控件下面那一行报错小字（就地整句，铁律八） */
 function ErrLine({ text }: { text: string }) {
   if (!text) return null;
-  return <p className="mt-1.5 text-xs leading-relaxed text-rose-300">{text}</p>;
+  return <p className="mt-1.5 text-xs leading-relaxed text-danger-300">{text}</p>;
 }
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
@@ -148,7 +148,7 @@ function LimitedInput({
         <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className={INPUT} />
       )}
       <div className="mt-1 flex items-center justify-between gap-2">
-        <span className={`text-[11px] ${over ? "text-rose-300" : "text-slate-500"}`}>{over || `${value.length} / ${max}`}</span>
+        <span className={`text-[11px] ${over ? "text-danger-300" : "text-slate-500"}`}>{over || `${value.length} / ${max}`}</span>
       </div>
     </div>
   );
@@ -283,7 +283,7 @@ function StepMaterials() {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs leading-relaxed text-emerald-200">
+      <div className="rounded-lg border border-ok-500/40 bg-ok-500/10 px-3 py-2 text-xs leading-relaxed text-ok-200">
         <Trans>素材只用来生成这一次的人格，不入库、不公开，也不会出现在发布出去的人格卡里。</Trans>
       </div>
 
@@ -360,7 +360,7 @@ function StepMaterials() {
             ))}
           </div>
           {over > 0 && (
-            <div className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs leading-relaxed text-amber-300">
+            <div className="mt-2 rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-xs leading-relaxed text-warn-300">
               <Trans>超出上限 {over} 字。送去分析时会从最前面截掉这一段，保留最近的 {MATERIAL_TOTAL_MAX} 字（越靠后越像现在的 TA）。</Trans>
             </div>
           )}
@@ -1011,7 +1011,7 @@ function StepPublish() {
   if (published) {
     return (
       <div className="space-y-3">
-        <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs leading-relaxed text-emerald-200">
+        <div className="rounded-lg border border-ok-500/40 bg-ok-500/10 px-3 py-2 text-xs leading-relaxed text-ok-200">
           {shared ? (
             <Trans>「{published.name}」做好了。已经公开到人格市场。</Trans>
           ) : (

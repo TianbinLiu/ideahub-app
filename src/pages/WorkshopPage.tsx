@@ -383,7 +383,7 @@ export default function WorkshopPage() {
                   );
                 })}
               </div>
-              {cardErr && <div className="mb-3 text-xs text-rose-300">{cardErr}</div>}
+              {cardErr && <div className="mb-3 text-xs text-danger-300">{cardErr}</div>}
             </>
           )}
         </>
@@ -454,7 +454,7 @@ export default function WorkshopPage() {
               ))}
             </div>
           )}
-          {deckErr && <div className="pb-4 text-xs text-rose-300">{deckErr}</div>}
+          {deckErr && <div className="pb-4 text-xs text-danger-300">{deckErr}</div>}
         </>
       )}
 

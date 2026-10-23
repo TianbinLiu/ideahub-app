@@ -1480,7 +1480,7 @@ export default function CustomCardPage() {
                     )}
                   </p>
                   {captureMsg && (
-                    <p className="mt-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-rose-300">
+                    <p className="mt-2 rounded-lg border border-danger-500/40 bg-danger-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-danger-300">
                       {captureMsg}
                     </p>
                   )}
@@ -1542,11 +1542,11 @@ export default function CustomCardPage() {
           </button>
           {/* 我们动过这张图（裁比例 / 压尺寸）就必须说出来（Shot.note 的约定） */}
           {realPhoto?.note && <p className="mt-1 text-[10px] leading-relaxed text-slate-500">{realPhoto.note}</p>}
-          {importMsg && <p className="mt-1.5 text-[10px] leading-relaxed text-rose-300">{importMsg}</p>}
+          {importMsg && <p className="mt-1.5 text-[10px] leading-relaxed text-danger-300">{importMsg}</p>}
           {/* ★ 撤授权那句话**两屏都要画**：撤绑定的两个入口一个留在本屏、一个当场跳到
               「① 选来源」，只画一屏就等于有一条路上永远看不到（见 unbindNote 的 ★★）。 */}
           {unbindNote && (
-            <p className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200/90">
+            <p className="mt-2 rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200/90">
               {unbindNote}
             </p>
           )}
@@ -1595,7 +1595,7 @@ export default function CustomCardPage() {
                       <span className="truncate text-[11px] font-semibold text-slate-200">{sc.title}</span>
                       {sc.id === schemeId && <span className="flex-none text-[10px] text-brand"><Trans>当前</Trans></span>}
                       {sc.faceless && (
-                        <span className="flex-none rounded-full px-1.5 py-0.5 bg-emerald-500/15 text-[9px] text-emerald-300">
+                        <span className="flex-none rounded-full px-1.5 py-0.5 bg-ok-500/15 text-[9px] text-ok-300">
                           <Trans>无脸</Trans>
                         </span>
                       )}
@@ -1609,9 +1609,9 @@ export default function CustomCardPage() {
           )}
           <div className="mt-3 space-y-2">
             {pendingVoice ? (
-              <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5">
+              <div className="flex items-center justify-between gap-2 rounded-lg border border-ok-500/40 bg-ok-500/10 px-2.5 py-1.5">
                 <span className="min-w-0 flex-1">
-                  <span className="block text-[10px] text-emerald-300">
+                  <span className="block text-[10px] text-ok-300">
                     <Trans>🔊 已录 {pendingVoice.durationSec.toFixed(1)}s（铸卡时存进这张卡）</Trans>
                   </span>
                   <audio src={pendingVoice.dataUrl} controls className="mt-1 h-8 w-full" />
@@ -1652,7 +1652,7 @@ export default function CustomCardPage() {
           {/* ★ 撤授权那句话**两屏都要画**：撤绑定的两个入口一个留在本屏、一个当场跳到
               「① 选来源」，只画一屏就等于有一条路上永远看不到（见 unbindNote 的 ★★）。 */}
           {unbindNote && (
-            <p className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200/90">
+            <p className="mt-2 rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200/90">
               {unbindNote}
             </p>
           )}
@@ -1660,9 +1660,9 @@ export default function CustomCardPage() {
               选项就是在问一个用户刚刚做完的问题。`realSlotTag` 为空 = 这套方案的图位
               （白模/设定稿）放不下真人照片，那就换一种说法，别许一个做不到的事。 */}
           {haveRealPhoto && realPhoto && (
-            <div className="mb-3 flex items-start gap-2.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-2.5">
+            <div className="mb-3 flex items-start gap-2.5 rounded-lg border border-ok-500/40 bg-ok-500/10 p-2.5">
               <img src={realPhoto.dataUrl} alt="" className="h-16 w-12 flex-none rounded-lg object-cover" />
-              <p className="min-w-0 text-[10px] leading-relaxed text-emerald-300">
+              <p className="min-w-0 text-[10px] leading-relaxed text-ok-300">
                 {/* ★★ 三档，别压成两档（2026-09-01 复核抓到）：`realSlotTag` 为空**至少有三种
                     原因**——方案无脸放不下、那一格的图被换过（AI 出图会覆盖）、授权时是无脸
                     方案后来换成了有脸。原来的 else 一律用「这套的图位要白模/设定稿」解释，
@@ -1777,19 +1777,19 @@ export default function CustomCardPage() {
               {/* 上一次画到半途失败留下的那几张（aiPlan 现算：换过素材 / 方案它就不作数，这行随之换成下面那句）。
                   「只补剩下的」这个承诺只说在这里，不写进 err —— err 不会跟着输入变 */}
               {aiPlan.kept.length > 0 && (
-                <div className="mt-2 flex items-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5">
+                <div className="mt-2 flex items-center gap-2 rounded-lg border border-ok-500/40 bg-ok-500/10 px-2.5 py-1.5">
                   <span className="flex flex-none gap-1">
                     {aiPlan.kept.map((s) => (
                       <img key={slotKey(scheme, s)} src={schemeShots[slotKey(scheme, s)]?.dataUrl} alt={s.tag} className="h-10 w-8 rounded object-cover" />
                     ))}
                   </span>
-                  <span className="min-w-0 text-[10px] leading-relaxed text-emerald-300">
+                  <span className="min-w-0 text-[10px] leading-relaxed text-ok-300">
                     <Trans>上次画好的「{aiKeptNames}」还在格子里，这一次只补「{aiTodoNames}」</Trans>
                   </span>
                 </div>
               )}
               {aiPlan.stale && (
-                <p className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200/90">
+                <p className="mt-2 rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200/90">
                   {/* 与提取窗那句同一个 msgid：两处的输入各不相同（这里还有走没走真人素材那条路），所以只说「设置换过了」 */}
                   <Trans>上次没画完的那几张是按换之前的设置画的，这一次整套重画</Trans>
                 </p>
@@ -1841,7 +1841,7 @@ export default function CustomCardPage() {
               })();
             }}
           />
-          {err && <p className="mt-3 text-[11px] leading-relaxed text-rose-300">{err}</p>}
+          {err && <p className="mt-3 text-[11px] leading-relaxed text-danger-300">{err}</p>}
         </>
       )}
 
@@ -1876,7 +1876,7 @@ export default function CustomCardPage() {
         )}
       </button>
 
-      {dropped && <p className="mb-3 text-[11px] leading-relaxed text-amber-400">{dropped}</p>}
+      {dropped && <p className="mb-3 text-[11px] leading-relaxed text-warn-400">{dropped}</p>}
 
       {/* ── 卡名 + 简介（右边挂实时卡面预览）。人物卡在第④步（定名完成）── */}
       {(!isChar || step === "final") && (
@@ -1925,7 +1925,7 @@ export default function CustomCardPage() {
                 </span>
               </div>
               {recogMsg && (
-                <p className={`mt-1 text-[10px] leading-relaxed ${recogMsg.tone === "error" ? "text-rose-300" : "text-amber-300"}`}>
+                <p className={`mt-1 text-[10px] leading-relaxed ${recogMsg.tone === "error" ? "text-danger-300" : "text-warn-300"}`}>
                   {recogMsg.text}
                 </p>
               )}
@@ -1968,7 +1968,7 @@ export default function CustomCardPage() {
               <span className="min-w-0">
                 <span className="block truncate text-[11px] font-semibold text-slate-200">
                   <Trans>方案：{scheme.title}</Trans>
-                  {scheme.faceless && <span className="ml-1 text-emerald-300"><Trans>· 无脸</Trans></span>}
+                  {scheme.faceless && <span className="ml-1 text-ok-300"><Trans>· 无脸</Trans></span>}
                 </span>
                 <span className="block truncate text-[10px] text-slate-500">{scheme.intro}</span>
               </span>
@@ -1987,7 +1987,7 @@ export default function CustomCardPage() {
                     <span className="flex items-center gap-1.5">
                       <span className="truncate text-[11px] font-semibold text-slate-200">{sc.title}</span>
                       {sc.faceless && (
-                        <span className="flex-none rounded-full px-1.5 py-0.5 bg-emerald-500/15 text-[9px] text-emerald-300"><Trans>无脸</Trans></span>
+                        <span className="flex-none rounded-full px-1.5 py-0.5 bg-ok-500/15 text-[9px] text-ok-300"><Trans>无脸</Trans></span>
                       )}
                     </span>
                     <span className="mt-0.5 block text-[10px] leading-relaxed text-slate-500">{sc.intro}</span>
@@ -2040,11 +2040,11 @@ export default function CustomCardPage() {
                     {/* 方案里这一格的出图提示词当"参照"给用户看：告诉他该传一张什么样的图。
                         这一页不出图，所以它只是说明文字，不进任何请求 */}
                     <p className="mt-0.5 line-clamp-2 text-[10px] leading-relaxed text-slate-500">{s.prompt}</p>
-                    {slotErr?.key === key && <p className="mt-1 text-[10px] leading-relaxed text-rose-300">{slotErr.msg}</p>}
+                    {slotErr?.key === key && <p className="mt-1 text-[10px] leading-relaxed text-danger-300">{slotErr.msg}</p>}
                     {shot && (
                       <>
                         <p className="mt-1 truncate text-[10px] text-slate-500">{shot.fileName}</p>
-                        {shot.note && <p className="mt-0.5 text-[10px] leading-relaxed text-amber-400">{shot.note}</p>}
+                        {shot.note && <p className="mt-0.5 text-[10px] leading-relaxed text-warn-400">{shot.note}</p>}
                         <div className="mt-1 flex gap-3">
                           <button
                             onClick={() => pick({ slotKey: key })}
@@ -2056,7 +2056,7 @@ export default function CustomCardPage() {
                           <button
                             onClick={() => removeShot({ slotKey: key })}
                             disabled={busySlot !== null}
-                            className="text-[11px] text-rose-400 disabled:opacity-40"
+                            className="text-[11px] text-danger-400 disabled:opacity-40"
                           >
                             <Trans>移除</Trans>
                           </button>
@@ -2110,7 +2110,7 @@ export default function CustomCardPage() {
                     )}
                     {shot?.keptBg && (
                       // 拍板 4 b：保留了框内背景的那一格，角上一直挂着 —— 别让人以为抠干净了
-                      <span className="rounded-full px-2 py-0.5 bg-amber-500/15 text-[10px] text-amber-300">
+                      <span className="rounded-full px-2 py-0.5 bg-warn-500/15 text-[10px] text-warn-300">
                         <Trans>带背景</Trans>
                       </span>
                     )}
@@ -2134,13 +2134,13 @@ export default function CustomCardPage() {
                       而那儿隔着「<类型>信息」和「标签」两整节 —— 手机上用户看到的就是
                       "点了没反应"，解释在两屏之下（铁律八）。 */}
                   {slotErr?.key === s.kind && (
-                    <p className="mt-1 text-[10px] leading-relaxed text-rose-300">{slotErr.msg}</p>
+                    <p className="mt-1 text-[10px] leading-relaxed text-danger-300">{slotErr.msg}</p>
                   )}
                   {shot && (
                     <>
                       <p className="mt-1 truncate text-[10px] text-slate-500">{shot.fileName}</p>
                       {/* ★ 我们裁过用户的图就必须当面说（prepareCardImage 给的 note） */}
-                      {shot.note && <p className="mt-0.5 text-[10px] leading-relaxed text-amber-400">{shot.note}</p>}
+                      {shot.note && <p className="mt-0.5 text-[10px] leading-relaxed text-warn-400">{shot.note}</p>}
                       <div className="mt-1 flex gap-3">
                         <button
                           onClick={() => pick({ kind: s.kind })}
@@ -2152,7 +2152,7 @@ export default function CustomCardPage() {
                         <button
                           onClick={() => removeShot({ kind: s.kind })}
                           disabled={busySlot !== null}
-                          className="text-[11px] text-rose-400 disabled:opacity-40"
+                          className="text-[11px] text-danger-400 disabled:opacity-40"
                         >
                           <Trans>移除</Trans>
                         </button>
@@ -2199,9 +2199,9 @@ export default function CustomCardPage() {
         <section className="mb-4">
           <h2 className="mb-1.5 text-sm font-semibold text-slate-300"><Trans>声音样本（选填）</Trans></h2>
           {pendingVoice ? (
-            <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5">
+            <div className="flex items-center justify-between gap-2 rounded-lg border border-ok-500/40 bg-ok-500/10 px-2.5 py-1.5">
               <span className="min-w-0 flex-1">
-                <span className="block text-[10px] text-emerald-300">
+                <span className="block text-[10px] text-ok-300">
                   <Trans>🔊 已录 {pendingVoice.durationSec.toFixed(1)}s（铸卡时存进这张卡）</Trans>
                 </span>
                 <audio src={pendingVoice.dataUrl} controls className="mt-1 h-8 w-full" />
@@ -2323,17 +2323,17 @@ export default function CustomCardPage() {
       </section>
       )}
 
-      {err && <p className="mb-2 text-[11px] leading-relaxed text-rose-300">{err}</p>}
+      {err && <p className="mb-2 text-[11px] leading-relaxed text-danger-300">{err}</p>}
 
       {/* 没有全成：**停在这儿**把话说完，不自动跳走 —— 跳走那段话就没人读得到 */}
       {(!isChar || step === "final") && (
         <>
       {partial?.kind === "unsynced" && (
-        <div className="mb-3 rounded-xl border border-rose-500/40 bg-rose-500/10 p-3">
-          <p className="text-xs font-semibold text-rose-300"><Trans>这张卡没能存到服务器</Trans></p>
+        <div className="mb-3 rounded-xl border border-danger-500/40 bg-danger-500/10 p-3">
+          <p className="text-xs font-semibold text-danger-300"><Trans>这张卡没能存到服务器</Trans></p>
           <p className="mt-1 text-[11px] leading-relaxed text-slate-300">
             <Trans>
-              原因：{partial.reason ?? reasonNet}。<span className="text-rose-200">它现在只在这次会话里活着</span> —— 你现在能在卡片库里看到它，但下次重开 App 就会没有（登录后 App 会用服务器上那份覆盖本机）。<span className="text-slate-100">别退出这一页</span>，等网络好一点再点一次「重试」。
+              原因：{partial.reason ?? reasonNet}。<span className="text-danger-200">它现在只在这次会话里活着</span> —— 你现在能在卡片库里看到它，但下次重开 App 就会没有（登录后 App 会用服务器上那份覆盖本机）。<span className="text-slate-100">别退出这一页</span>，等网络好一点再点一次「重试」。
             </Trans>
           </p>
           <div className="mt-2 flex gap-2">
@@ -2350,7 +2350,7 @@ export default function CustomCardPage() {
         </div>
       )}
       {partial?.kind === "asset" && (
-        <div className="mt-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
+        <div className="mt-4 rounded-xl border border-warn-500/40 bg-warn-500/10 p-3">
           <Warn>
             {partial.lost.length > 0 ? (
               <Trans>
@@ -2371,7 +2371,7 @@ export default function CustomCardPage() {
         </div>
       )}
       {partial?.kind === "views" && (
-        <div className="mb-3 rounded-xl border border-amber-500/40 bg-amber-400/5 p-3">
+        <div className="mb-3 rounded-xl border border-warn-500/40 bg-warn-400/5 p-3">
           <Warn><Trans>卡建好了，但有图没能存到服务器</Trans></Warn>
           <p className="mt-1 text-[11px] leading-relaxed text-slate-300">
             {partial.lost.length > 3 ? (
@@ -2419,7 +2419,7 @@ export default function CustomCardPage() {
         </p>
       ) : partial ? null : offlineButConfigured ? (
         // ★ 这一条排在 missing 之前：填不填得完整都不该让他填 —— 先说真正的拦路原因
-        <p className="mt-1.5 text-center text-[11px] text-rose-300"><Trans>连不上服务器，现在铸出来的卡会丢（见上）</Trans></p>
+        <p className="mt-1.5 text-center text-[11px] text-danger-300"><Trans>连不上服务器，现在铸出来的卡会丢（见上）</Trans></p>
       ) : !ready ? (
         <p className="mt-1.5 text-center text-[11px] text-slate-400"><Trans>还缺：{missing.join(listSep)}</Trans></p>
       ) : (
@@ -2427,7 +2427,7 @@ export default function CustomCardPage() {
       )}
       {!minting && !partial && Object.values(shots).some((s) => s?.keptBg) && (
         // 拍板 4 b 的第四处：铸卡键下再说一遍 —— 选择器里说过的话，按下铸卡那一刻人多半已经忘了
-        <p className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-300">
+        <p className="mt-2 rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-warn-300">
           <Trans>卡面仍带背景，出片可能把背景里的东西画进去</Trans>
         </p>
       )}
