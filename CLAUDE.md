@@ -598,7 +598,7 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   拼接后 20.08s），所以它就是流水线上**新的一段**（`FlowNode.extendFrom`）：只延长最后一段（接在中间会打断后面的接缝）、成片已转存成永久地址、档位能延长
   （`economy.VideoTier.extendOk`，今天只有电影级）—— 判据只在 `flowStore.extendIssue`，落什么只在 `extendSpec`（报价 `appendQuote` 照着它算），落段 `extendNode`，「接的是哪一段成片」只问
   `extendSourceOf`（那一段返修过就接新那一版）。出片走契约的新模式 `extend`（`arkClient` 的 omni extend + adaptive + 窗口内整数时长，报价与素材参考同一个式子
-  (计价输入 + 输出) × 系数，服务端结算 `tokens.materialRefTokens`；计价输入 = max(输入, ⌈2 × 输出 / 3⌉) 是方舟「含输入视频的最低用量」（2026-10-19 付费实测，规则只在 `videoTierTable.materialRefInputSec`）。⚠ 这一步 **App 先上、服务端后上**（server PR #123 等 2.64 发出约一周再合）：过渡期 App 报价高于服务端实扣是**故意的**（安全方向），别「修」成两边相等 —— 服务端先上就是老包报价低于实扣）。服务端那一半是 TianbinLiu/ideahub-server#107（参考视频认「本人自己的成片」），2026-10-05 已上线。
+  (计价输入 + 输出) × 系数，服务端结算 `tokens.materialRefTokens`；计价输入 = max(输入, ⌈2 × 输出 / 3⌉) 是方舟「含输入视频的最低用量」（2026-10-19 付费实测，规则只在 `videoTierTable.materialRefInputSec`）。这一步 **App 先上（2.64，10-21）、服务端后上（server #123，2026-10-22 主人「合 #123」部署）**：那一天的过渡期 App 报价高于服务端实扣是**故意的**（安全方向）；#123 上线后两边逐条相等，还在 2.63 的老包报价会低于实扣（他们更新到 2.64+ 就对上）。服务端那一半是 TianbinLiu/ideahub-server#107（参考视频认「本人自己的成片」），2026-10-05 已上线。
   ★ 2026-10-05 付费探测（`design/video-input-probe.mjs`，结果在 docs/canvas-platforms-ecosystem-research.md 第九节）：电影级延长两轮都接得上、高清那一发接缝会跳
   ⇒ 「能不能延长」是档位自己的一位 `extendOk`，**别拿 refVid 代替**（高清以后开视频参考也不顺带开延长）；按时间段重拍时同一个连续动作会整段一起改、
   声音是照着原片重做的 —— 文案只说到这一步（`FixSegmentBox` 头上记着）。2026-10-06 在 App 的真实请求路径上端到端付费验过一遍（¥45.42：G 两条、I 三句、
