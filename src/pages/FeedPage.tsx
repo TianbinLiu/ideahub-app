@@ -1123,7 +1123,7 @@ function FeedItem({
         <button
           {...stopTap}
           onClick={() => navigate(authorHref)}
-          className="pointer-events-auto mb-1.5 block max-w-full truncate text-left text-sm font-semibold text-white [text-shadow:0_1px_2px_rgba(0,0,0,.6)] active:opacity-60"
+          className="pointer-events-auto mb-1.5 block max-w-full truncate text-left text-sm font-medium text-white/90 [text-shadow:0_1px_2px_rgba(0,0,0,.6)] active:opacity-60"
         >
           {/* ★ 这里**不带 `@` 前缀**：`video.author` 是**显示名**，而本 app 的 @ 句柄是
               不可改的 username（见 utils/mention 与 MentionInput）。给显示名前面加个 @
@@ -1162,7 +1162,7 @@ function FeedItem({
               <button
                 {...stopTap}
                 onClick={() => navigate(`/video/${video.id}`)}
-                className="pointer-events-auto inline-flex min-h-[28px] items-center gap-1 rounded-full bg-gold/90 px-3 text-[11px] font-semibold text-ink active:scale-95"
+                className="pointer-events-auto relative inline-flex min-h-[28px] items-center gap-1 rounded-full bg-gold/90 px-3 text-[11px] font-semibold text-ink after:absolute after:-inset-2 after:content-[''] active:scale-95"
               >
                 <Icon name="branch" size={13} strokeWidth={2.25} />
                 <Trans>互动 · 你来选</Trans>
@@ -1177,7 +1177,7 @@ function FeedItem({
                 // 新手引导锚点：只挂在当前这一支上（同 feed-title），这一支没有这颗时那一步退成居中卡片
                 {...(active ? { "data-guide": "feed-remake" } : {})}
                 onClick={remake}
-                className="pointer-events-auto inline-flex min-h-[28px] items-center gap-1 rounded-full bg-white/20 px-3 text-[11px] font-semibold text-white backdrop-blur-sm active:scale-95"
+                className="pointer-events-auto relative inline-flex min-h-[28px] items-center gap-1 rounded-full bg-white/20 px-3 text-[11px] font-semibold text-white backdrop-blur-sm after:absolute after:-inset-2 after:content-[''] active:scale-95"
               >
                 {/* 启梦的招牌字形（两张叠着的塔罗卡 + 四角星，Icon「remix」）代替原来的 ⚡ emoji：
                     ⚡ 在全 app 是「token / 要花钱」的意思，而做同款这一下是铺流水线、不花钱 */}
@@ -1188,7 +1188,7 @@ function FeedItem({
           </div>
         )}
         {remakeErr && (
-          <p className="mt-1.5 rounded-lg bg-black/60 px-2.5 py-1 text-[11px] leading-relaxed text-amber-300">
+          <p className="mt-1.5 rounded-lg bg-black/60 px-2.5 py-1 text-[11px] leading-relaxed text-rose-300">
             {remakeErr}
           </p>
         )}

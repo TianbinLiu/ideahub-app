@@ -164,6 +164,8 @@ export default function RecipePage() {
         <EmptyState loading text={t`正在取制作过程…`} />
       ) : res.state === "unsupported" ? (
         <EmptyState emoji="🔌" text={t`这台服务器还不支持公开制作过程`} hint={t`等服务器更新后再来`} />
+      ) : res.state === "offline" ? (
+        <EmptyState emoji="📡" text={t`查看制作过程需要联网`} hint={t`制作过程存在服务端，这台设备当前是离线模式；接上服务器再来这一页。`} />
       ) : res.state === "failed" ? (
         <EmptyState
           error
@@ -245,9 +247,10 @@ export default function RecipePage() {
               setBuildErr("");
               setCastOpen(true);
             }}
-            className="w-full rounded-xl bg-gold/90 py-2.5 text-sm font-bold text-ink active:scale-[0.99]"
+            className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-gold/90 py-2.5 text-sm font-bold text-ink active:scale-[0.99]"
           >
-            <Trans>⚡ 按这个流程做同款</Trans>
+            <Icon name="remix" size={16} />
+            <Trans>按这个流程做同款</Trans>
           </button>
           <p className="text-[11px] leading-relaxed text-slate-500">
             <Trans>会把这 {res.data.recipe.nodes.length} 段铺成你自己的工作流（不带原作的画面与成片），之后一段一结账，铺开不花钱。</Trans>

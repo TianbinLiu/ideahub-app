@@ -2139,7 +2139,7 @@ export default function CutPage() {
           </span>
           <button
             onClick={togglePlay}
-            className="absolute left-1/2 -translate-x-1/2 text-white"
+            className="absolute left-1/2 flex h-11 w-11 -translate-x-1/2 items-center justify-center text-white"
             aria-label={playing ? t`暂停` : t`播放`}
           >
             <Icon name={playing ? "pause" : "play"} size={26} filled />
@@ -2287,7 +2287,7 @@ export default function CutPage() {
               {canReopen && (
                 <button
                   onClick={reopen}
-                  className="mt-2.5 w-full rounded-xl bg-slate-700/70 py-2.5 text-sm font-bold text-slate-100"
+                  className="mt-2.5 w-full rounded-xl bg-panel py-2.5 text-sm font-bold text-slate-100 ring-1 ring-slate-700"
                 >
                   <Trans>↩ 回去改</Trans>
                 </button>
@@ -2829,7 +2829,7 @@ export default function CutPage() {
                   <button
                     onClick={() => void runVoices(voiceTodo.map((c) => c.id))}
                     disabled={voiceTodo.length === 0 || voicing.size > 0}
-                    className="mt-2.5 w-full rounded-xl bg-cyan-500/85 py-2.5 text-sm font-bold text-ink disabled:opacity-40"
+                    className="mt-2.5 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
                   >
                     {voicing.size > 0
                       ? t`正在配音…`
@@ -2909,7 +2909,7 @@ export default function CutPage() {
                   <button
                     onClick={() => void regenerateAll()}
                     disabled={!!busy || liveAnns.length === 0}
-                    className="mt-2 w-full rounded-xl bg-cyan-500/85 py-2.5 text-sm font-bold text-ink disabled:opacity-40"
+                    className="mt-2 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
                   >
                     <Trans>✨ 按 {liveAnns.length} 处圈选重新生成（{annBySeg.size} 段 · {fmtTokens(annCost)}）</Trans>
                   </button>

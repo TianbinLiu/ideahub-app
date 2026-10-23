@@ -81,7 +81,7 @@ export default function SettingsVoicePage() {
           return;
         }
         if (e instanceof ApiError) {
-          setErr(t`云端语音没出声（${e.status}）：稍后再试，或到火山控制台看额度`);
+          setErr(t`云端语音暂时出不了声，稍后再试`);
           return;
         }
         if (e instanceof DOMException && (e.name === "TimeoutError" || e.name === "AbortError")) {

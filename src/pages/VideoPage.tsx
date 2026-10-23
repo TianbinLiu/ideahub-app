@@ -411,13 +411,15 @@ export default function VideoPage() {
           {isMyVideo(video) ? (
             <Link
               to={`/edit/${video.id}`}
-              className="flex-none rounded-full bg-amber-500/15 px-3 py-1.5 text-xs text-amber-300"
+              className="inline-flex flex-none items-center gap-1 rounded-full bg-panel px-3 py-1.5 text-xs text-slate-200 ring-1 ring-slate-700"
             >
-              <Trans>✏️ 编辑</Trans>
+              <Icon name="pen" size={13} />
+              <Trans>编辑</Trans>
             </Link>
           ) : (
-            <Link to="/studio" className="flex-none rounded-full bg-brand/15 px-3 py-1.5 text-xs text-brand">
-              <Trans>🎴 我也要创作</Trans>
+            <Link to="/studio" className="inline-flex flex-none items-center gap-1 rounded-full bg-brand/15 px-3 py-1.5 text-xs text-brand">
+              <Icon name="workshop" size={13} />
+              <Trans>我也要创作</Trans>
             </Link>
           )}
           </>
@@ -692,12 +694,14 @@ export default function VideoPage() {
                 noun: t({ message: "做同款", context: "丢弃确认卡里「…再回来X」的那个动作（英文用小写动词短语）" }),
               })
             }
-            className="mt-6 w-full rounded-xl bg-gold/90 px-4 py-2.5 text-sm font-bold text-ink active:scale-[0.99]"
+            className="mt-6 inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-gold/90 px-4 py-2.5 text-sm font-bold text-ink active:scale-[0.99]"
           >
+            {/* 招牌字形「remix」代替 ⚡：⚡ 在全 app 是「要花钱」的意思，而做同款是铺流水线、不花钱（首页那颗 2026-10-21 先改的） */}
+            <Icon name="remix" size={16} />
             {video.deck?.cards.length ? (
-              <Trans>⚡ 做同款：同一份分段剧本和卡组，生成你自己的版本</Trans>
+              <Trans>做同款：同一份分段剧本和卡组，生成你自己的版本</Trans>
             ) : (
-              <Trans>⚡ 做同款：同一份分段剧本，生成你自己的版本</Trans>
+              <Trans>做同款：同一份分段剧本，生成你自己的版本</Trans>
             )}
           </button>
         )}
@@ -750,7 +754,7 @@ export default function VideoPage() {
                 <Avatar name={c.author} label={authorDisplayName(c.author, c.authorId)} src={commentAvatarOf(c)} size={36} />
                 <div className="min-w-0">
                   <div className="text-xs text-slate-500">
-                    {authorDisplayName(c.author, c.authorId)} · {relativeTime(c.at)}
+                    <span className="font-medium text-slate-300">{authorDisplayName(c.author, c.authorId)}</span> · {relativeTime(c.at)}
                   </div>
                   {/* 解析到人的 @ 才是链接，打错的留成普通文字（见 MentionText 顶部） */}
                   <div className="mt-0.5 text-sm text-slate-200">

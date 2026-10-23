@@ -215,7 +215,7 @@ function BlockoutCastBox({ node, onCast }: { node: FlowNode; onCast: () => void 
           填进去照样可以改 */}
       {castErr && castOfThisNode && (
         <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
-          <p className="text-[11px] leading-relaxed text-amber-200">{castErr}</p>
+          <p className="text-[11px] leading-relaxed text-rose-300">{castErr}</p>
           {castFallback && (
             <button
               onClick={fillCastFallback}
@@ -882,7 +882,7 @@ function NodeScreen({
             title={AI_REAL ? t`预计消耗 ${fmtTokens(mainCost)} token` : undefined}
             data-guide="flow-main-btn"
             className={`min-w-0 flex-1 rounded-xl py-2.5 text-xs font-bold disabled:opacity-40 ${
-              stage === "rederive" ? "bg-gold/90 text-ink" : "bg-brand text-ink"
+              stage === "rederive" ? "bg-gold/90 text-ink" : done ? "bg-panel text-slate-100 ring-1 ring-slate-700" : "bg-brand text-ink"
             }`}
           >
             {mainLabel}
@@ -911,7 +911,7 @@ function NodeScreen({
           >
             <MaterialButtonArt open={matOpen} size={42} />
             {matCount > 0 && (
-              <span className="absolute -right-1 -top-1 z-10 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold tabular-nums text-white ring-2 ring-ink">
+              <span className="absolute -right-1 -top-1 z-10 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-slate-100 px-1 text-[10px] font-bold tabular-nums text-ink ring-2 ring-ink">
                 {matCount}
               </span>
             )}
@@ -927,7 +927,7 @@ function NodeScreen({
             <button
               onClick={() => shiftCursor(1)}
               disabled={busy}
-              className="w-full rounded-xl border border-emerald-500/40 bg-emerald-500/10 py-2.5 text-xs font-bold text-emerald-200 disabled:opacity-40"
+              className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
             >
               <Trans>✓ 这段满意，去下一段</Trans>
             </button>
@@ -935,7 +935,7 @@ function NodeScreen({
             <button
               onClick={() => addNode()}
               disabled={busy}
-              className="w-full rounded-xl border border-emerald-500/40 bg-emerald-500/10 py-2.5 text-xs font-bold text-emerald-200 disabled:opacity-40"
+              className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
             >
               <Trans>✓ 这段满意，再加一段</Trans>
             </button>

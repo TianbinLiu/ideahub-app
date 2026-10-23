@@ -2814,8 +2814,12 @@ msgid "⚠ 换成这一套，现在这套走向后面的段会整段收起（切
 msgstr "⚠ Switching to this plan folds away the segments after the current direction (switch back to restore them)"
 
 #: src/pages/PublishPage.tsx
-msgid "⚠ 渐变回退"
-msgstr "⚠ Fade fallback"
+msgid "⚠ 没出成片 · 画面过渡代替"
+msgstr "⚠ No video came out · a crossfade stands in"
+
+#: src/pages/PublishPage.tsx
+#~ msgid "⚠ 渐变回退"
+#~ msgstr "⚠ Fade fallback"
 
 #: src/components/blockout/BlockoutTrimmer.tsx
 msgid "⚠ 视频里有<0>真人面孔</0>时，AI 可能在<1>受理之后</1>才拒绝这一发 —— 那时<2>出片那一笔会自动退回</2>， 但「AI 看帧」那一笔不退，几分钟也白等了（实测：创建时不拒，只能中途失败）。真人素材请自己掂量； 动画、游戏画面、自己拍的白模预演不受影响。"
@@ -2849,12 +2853,20 @@ msgstr "⚠ This one is in <0>Simple mode</0>: by design it isn't saved to draft
 #~ msgstr "⚠ The “{0}” tier can't take a reference video — choose “Cinematic”, or generation will be rejected"
 
 #: src/components/flow/FlowCanvas.tsx
-msgid "⚠「{cur}」档带不了参考视频——去 ⚙ 本段设置换成「{usable}」，否则生成会被整句拒。"
-msgstr "⚠ The “{cur}” tier can't take a reference video — switch to “{usable}” in ⚙ Segment settings, or generation will be rejected."
+#~ msgid "⚠「{cur}」档带不了参考视频——去 ⚙ 本段设置换成「{usable}」，否则生成会被整句拒。"
+#~ msgstr "⚠ The “{cur}” tier can't take a reference video — switch to “{usable}” in ⚙ Segment settings, or generation will be rejected."
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "⚠「{cur}」档带不了参考视频——去 ⚙ 本段设置换成「{usable}」，否则这一段出不了片。"
+msgstr "⚠ “{cur}” can't take a reference video — switch to “{usable}” in ⚙ Segment settings, or this segment can't be generated."
 
 #: src/studio/ui/projection.tsx
-msgid "⚠「{cur}」档带不了参考视频——选「{usable}」，否则出片会被整句拒"
-msgstr "⚠ The “{cur}” tier can't take a reference video — choose “{usable}”, or generation will be rejected"
+#~ msgid "⚠「{cur}」档带不了参考视频——选「{usable}」，否则出片会被整句拒"
+#~ msgstr "⚠ The “{cur}” tier can't take a reference video — choose “{usable}”, or generation will be rejected"
+
+#: src/studio/ui/projection.tsx
+msgid "⚠「{cur}」档带不了参考视频——选「{usable}」，否则这一段出不了片"
+msgstr "⚠ “{cur}” can't take a reference video — pick “{usable}”, or this segment can't be generated"
 
 #: src/components/flow/FlowCanvas.tsx
 #: src/studio/ui/projection.tsx
@@ -2876,12 +2888,12 @@ msgstr "⚡ Token wallet"
 #~ msgstr "⚡ Remix"
 
 #: src/pages/VideoPage.tsx
-msgid "⚡ 做同款：同一份分段剧本，生成你自己的版本"
-msgstr "⚡ Remix: same segment script, your own version"
+#~ msgid "⚡ 做同款：同一份分段剧本，生成你自己的版本"
+#~ msgstr "⚡ Remix: same segment script, your own version"
 
 #: src/pages/VideoPage.tsx
-msgid "⚡ 做同款：同一份分段剧本和卡组，生成你自己的版本"
-msgstr "⚡ Remix: same segment script and deck, your own version"
+#~ msgid "⚡ 做同款：同一份分段剧本和卡组，生成你自己的版本"
+#~ msgstr "⚡ Remix: same segment script and deck, your own version"
 
 #. placeholder {0}: fmtTokens(cost)
 #: src/pages/SimpleModePage.tsx
@@ -2894,8 +2906,8 @@ msgstr "⚡ Generate video ({0} tokens)"
 #~ msgstr "⚡ Generate video ({0})"
 
 #: src/pages/RecipePage.tsx
-msgid "⚡ 按这个流程做同款"
-msgstr "⚡ Remake with this process"
+#~ msgid "⚡ 按这个流程做同款"
+#~ msgstr "⚡ Remake with this process"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "⚡ 炼这一段视频（{costLabel}）"
@@ -3026,7 +3038,6 @@ msgid "✎ 重拍这一段（{revisePrice}）"
 msgstr "✎ Reshoot this segment ({revisePrice})"
 
 #: src/pages/DeckDetailPage.tsx
-#: src/pages/VideoPage.tsx
 msgid "✏️ 编辑"
 msgstr "✏️ Edit"
 
@@ -3474,8 +3485,8 @@ msgid "🎴 工坊模式"
 msgstr "🎴 Studio mode"
 
 #: src/pages/VideoPage.tsx
-msgid "🎴 我也要创作"
-msgstr "🎴 I want to create too"
+#~ msgid "🎴 我也要创作"
+#~ msgstr "🎴 I want to create too"
 
 #: src/pages/TemplateDetailPage.tsx
 msgid "🎴 模板卡组 · {cardCount} 张"
@@ -4012,8 +4023,8 @@ msgid "6 位验证码"
 msgstr "6-digit code"
 
 #: src/pages/ProfilePage.tsx
-msgid "add-on token · 直充 / 新人额度 / 创作收益，不过期"
-msgstr "Add-on tokens · top-ups / welcome tokens / creator earnings, never expire"
+#~ msgid "add-on token · 直充 / 新人额度 / 创作收益，不过期"
+#~ msgstr "Add-on tokens · top-ups / welcome tokens / creator earnings, never expire"
 
 #: src/components/CardModelFit.tsx
 msgid "AI 写一段约 {textPrice} token"
@@ -4150,6 +4161,10 @@ msgstr "AI checked the pictures: panel {flaggedList} may not match the storyboar
 msgid "AI 看哪几帧"
 msgstr "Frames for the AI to look at"
 
+#: src/components/CoverPicker.tsx
+msgid "AI 真实生成，约 20-30 秒"
+msgstr "Real AI generation, about 20–30 s"
+
 #: src/pages/SettingsPage.tsx
 msgid "AI 老师"
 msgstr "AI Tutor"
@@ -4248,8 +4263,8 @@ msgid "Seedream 未返回图片"
 msgstr "Seedream returned no image"
 
 #: src/components/CoverPicker.tsx
-msgid "Seedream 真实生成，约 20-30 秒"
-msgstr "Real Seedream generation, about 20–30 seconds"
+#~ msgid "Seedream 真实生成，约 20-30 秒"
+#~ msgstr "Real Seedream generation, about 20–30 seconds"
 
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "TA 回"
@@ -5669,10 +5684,14 @@ msgstr "the cloud sea flipping over is so hype"
 msgid "云海剑冢·白无衣"
 msgstr "Sword Tomb in the Clouds · Bai Wuyi"
 
+#: src/pages/SettingsVoicePage.tsx
+msgid "云端语音暂时出不了声，稍后再试"
+msgstr "Cloud voice can't speak right now, try again later"
+
 #. placeholder {0}: e.status
 #: src/pages/SettingsVoicePage.tsx
-msgid "云端语音没出声（{0}）：稍后再试，或到火山控制台看额度"
-msgstr "Cloud voice produced no sound ({0}): try again later, or check your quota in the Volcano Engine console"
+#~ msgid "云端语音没出声（{0}）：稍后再试，或到火山控制台看额度"
+#~ msgstr "Cloud voice produced no sound ({0}): try again later, or check your quota in the Volcano Engine console"
 
 #: src/pages/SettingsVoicePage.tsx
 msgid "云端语音没回应（等了 {secs} 秒），稍后再试"
@@ -6589,6 +6608,10 @@ msgstr "High angle"
 msgid "倍速"
 msgstr "Speed"
 
+#: src/components/TemplateShelf.tsx
+msgid "做一个模板"
+msgstr "Make a template"
+
 #: src/pages/NotificationsPage.tsx
 msgid "做了你的同款"
 msgstr "remixed your video"
@@ -6604,6 +6627,14 @@ msgstr "Remix"
 msgctxt "丢弃确认卡里「…再回来X」的那个动作（英文用小写动词短语）"
 msgid "做同款"
 msgstr "remix"
+
+#: src/pages/VideoPage.tsx
+msgid "做同款：同一份分段剧本，生成你自己的版本"
+msgstr "Remix: same segment script, your own version"
+
+#: src/pages/VideoPage.tsx
+msgid "做同款：同一份分段剧本和卡组，生成你自己的版本"
+msgstr "Remix: same segment script and deck, your own version"
 
 #: src/pages/FeedPage.tsx
 #: src/pages/VideoPage.tsx
@@ -7068,6 +7099,10 @@ msgid "公开制作过程"
 msgstr "Share the process"
 
 #: src/pages/EditPage.tsx
+msgid "公开制作过程需要联网；这台设备当前是离线模式。"
+msgstr "Sharing the making-of needs a connection; this device is offline right now."
+
+#: src/pages/EditPage.tsx
 msgid "公开着的还是上一版的制作过程（这一版回炉后还没更新），别人现在看不到。"
 msgstr "The shared process is still the previous version (not updated since this revision); nobody can see it right now."
 
@@ -7164,7 +7199,6 @@ msgstr "The keyframe is still being drawn (about 20–30 seconds) — you can pi
 #: src/components/GenerationPill.tsx
 #: src/components/IconTapButton.tsx
 #: src/components/UpdateSheet.tsx
-#: src/pages/ProfilePage.tsx
 #: src/studio/ui/modals.tsx
 msgid "关闭"
 msgstr "Close"
@@ -8308,6 +8342,10 @@ msgstr "Create persona"
 msgid "制作过程"
 msgstr "Process"
 
+#: src/pages/RecipePage.tsx
+msgid "制作过程存在服务端，这台设备当前是离线模式；接上服务器再来这一页。"
+msgstr "The making-of lives on the server and this device is offline right now; come back once it's connected."
+
 #: src/components/support/AdminTicketsView.tsx
 #: src/pages/AdminPage.tsx
 msgid "刷新"
@@ -8448,6 +8486,10 @@ msgstr "Add to my deck"
 #: src/studio/canvasAgent.ts
 msgid "加段：{0}"
 msgstr "Adding a segment: {0}"
+
+#: src/pages/ProfilePage.tsx
+msgid "加购 token · 直充 / 新人额度 / 创作收益，不过期"
+msgstr "Add-on tokens · top-ups / welcome credit / creator rewards, never expire"
 
 #: src/components/support/VoiceMarket.tsx
 #: src/pages/AdminPage.tsx
@@ -8931,6 +8973,10 @@ msgstr "Go to the Workshop"
 msgid "去创意工坊建一组"
 msgstr "Create one in the Workshop"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "去创意工坊的市场添加几张，或者在「我的仓库」里自己做"
+msgstr "Add a few from the Workshop market, or make your own in My library"
+
 #: src/components/MaterialSheet.tsx
 msgid "去创意工坊铸几张"
 msgstr "Mint some in the Workshop"
@@ -8955,6 +9001,7 @@ msgstr "Go publish"
 msgid "去取回这一段"
 msgstr "Go recover this segment"
 
+#: src/components/flow/FlowCanvas.tsx
 #: src/pages/WorkshopMinePage.tsx
 msgid "去市场看看"
 msgstr "Browse the market"
@@ -8963,6 +9010,7 @@ msgstr "Browse the market"
 msgid "去开启「允许安装未知应用」"
 msgstr "Turn on “Install unknown apps”"
 
+#: src/components/flow/FlowCanvas.tsx
 #: src/pages/DeckDetailPage.tsx
 #: src/pages/WorkshopPage.tsx
 msgid "去我的仓库"
@@ -8999,6 +9047,10 @@ msgstr "Browse For you"
 #: src/pages/TemplateDetailPage.tsx
 msgid "去模板市场"
 msgstr "Go to the template market"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "去模板市场逛逛"
+msgstr "Browse the template market"
 
 #: src/pages/AdminPage.tsx
 msgid "去现场 →"
@@ -10506,6 +10558,10 @@ msgstr "In the “Decks” tab: <0>“＋ New deck”</0> starts a new one; tap 
 #: src/components/guide/tours.tsx
 #~ msgid "在「我的卡组」页签里：<0>「＋ 新建卡组」</0>开一组新的；先点「编辑」<1>再</1>点卡片，才是加进来或拿出去；卡角能定封面。 组名点上去直接改。删掉整组<2>不会删卡</2>。"
 #~ msgstr "In the “My decks” tab, <0>“+ New deck”</0> starts a new one; tap “Edit” <1>before</1> tapping cards to add or take them out; a card's corner sets the cover. Tap the deck name to rename it. Deleting a whole deck <2>doesn't delete its cards</2>."
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "在创意工坊「我的仓库」里从视频提取、圈人物时可以顺手取一段声音"
+msgstr "In Workshop → My library, you can grab a voice sample while extracting a character from a video"
 
 #: src/components/blockout/BoxFramePicker.tsx
 msgid "在哪几帧切开"
@@ -13046,6 +13102,10 @@ msgctxt "首页头像键的读屏名：这条作品是正在看的人自己发�
 msgid "我 的主页"
 msgstr "My profile"
 
+#: src/pages/VideoPage.tsx
+msgid "我也要创作"
+msgstr "Create mine"
+
 #: src/pages/SettingsPage.tsx
 msgid "我们对涉及未成年人内容的立场与处理方式（在官网打开）"
 msgstr "Our position on and handling of content involving minors (opens on our website)"
@@ -13361,8 +13421,12 @@ msgid "技能的本体就是那句要发给画布的话，先把它写出来"
 msgstr "A skill is the sentence you send to the canvas — write that sentence first"
 
 #: src/pages/SupportCreatePage.tsx
-msgid "把 1～3 味豆包音色按比例调成自己的嗓子，可以发布成声音模板。"
-msgstr "Blend 1–3 Doubao voices in your own proportions to make your voice; you can publish it as a voice template."
+#~ msgid "把 1～3 味豆包音色按比例调成自己的嗓子，可以发布成声音模板。"
+#~ msgstr "Blend 1–3 Doubao voices in your own proportions to make your voice; you can publish it as a voice template."
+
+#: src/pages/SupportCreatePage.tsx
+msgid "把 1～3 种音色按比例调成自己的嗓子，可以发布成声音模板。"
+msgstr "Blend 1–3 voices into your own and publish it as a voice template."
 
 #. placeholder {0}: ask.card.name
 #. placeholder {1}: personNameOf(dropSlots[ask.slot])
@@ -13879,6 +13943,10 @@ msgstr "Per the course’s AI policy, this question gets principles only, not th
 #: src/components/blockout/VisionFramePicker.tsx
 msgid "按这一段的时长自动取帧：现在是 <0>{autoFrames} 帧</0>（每 {BLOCKOUTIZE_FRAME_EVERY_SEC} 秒一帧，最少 {BLOCKOUTIZE_FRAME_MIN} 帧、最多 {BLOCKOUTIZE_FRAME_MAX} 帧）。<1>拖时间轴改选段长度，帧数和下面的报价都会跟着变。</1>"
 msgstr "Frames are picked automatically from this selection's length: currently <0>{autoFrames, plural, one {# frame} other {# frames}}</0> (one every {BLOCKOUTIZE_FRAME_EVERY_SEC}s, at least {BLOCKOUTIZE_FRAME_MIN} and at most {BLOCKOUTIZE_FRAME_MAX}). <1>Drag the timeline to change the selection's length; the frame count and the price below change with it.</1>"
+
+#: src/pages/RecipePage.tsx
+msgid "按这个流程做同款"
+msgstr "Remix with this workflow"
 
 #: src/pages/RecipePage.tsx
 msgid "按这个流程做同款（丢弃上面那条流水线）"
@@ -15686,8 +15754,12 @@ msgid "有新版本 {0}"
 msgstr "New version {0} available"
 
 #: src/pages/PublishPage.tsx
-msgid "有片段还挂在临时链接上（约 24 小时有效）——尽快发布，服务端会转存为长期地址"
-msgstr "Some segments are still on temporary links (valid for about 24 hours) — publish soon and the server will move them to permanent addresses"
+msgid "有片段还挂在临时链接上（约 24 小时有效）——尽快发布，发布后会换成长期地址"
+msgstr "Some segments are still on temporary links (valid about 24 hours) — publish soon; publishing swaps them for permanent ones"
+
+#: src/pages/PublishPage.tsx
+#~ msgid "有片段还挂在临时链接上（约 24 小时有效）——尽快发布，服务端会转存为长期地址"
+#~ msgstr "Some segments are still on temporary links (valid for about 24 hours) — publish soon and the server will move them to permanent addresses"
 
 #: src/api/companion.ts
 msgid "有物理"
@@ -16239,6 +16311,10 @@ msgstr "Release to stop · {0}s"
 #: src/pages/VideoPage.tsx
 msgid "查看制作过程"
 msgstr "View process"
+
+#: src/pages/RecipePage.tsx
+msgid "查看制作过程需要联网"
+msgstr "Viewing the making-of needs a connection"
 
 #: src/studio/ui/NpcDialog.tsx
 msgid "查看历史对话"
@@ -17671,8 +17747,12 @@ msgid "没有可还原的上一版"
 msgstr "There's no previous version to restore"
 
 #: src/components/flow/FlowCanvas.tsx
-msgid "没有带声音样本的卡——在创意工坊「我的仓库」里从视频提取、圈人物时可以顺手取一段声音"
-msgstr "No cards with a voice sample — when you extract from a video in the Workshop's My Library and circle a person, you can grab a voice clip too"
+msgid "没有带声音样本的卡"
+msgstr "No cards with a voice sample"
+
+#: src/components/flow/FlowCanvas.tsx
+#~ msgid "没有带声音样本的卡——在创意工坊「我的仓库」里从视频提取、圈人物时可以顺手取一段声音"
+#~ msgstr "No cards with a voice sample — when you extract from a video in the Workshop's My Library and circle a person, you can grab a voice clip too"
 
 #: src/components/flow/FlowCanvas.tsx
 #~ msgid "没有带声音样本的卡——在工坊「从视频提取」圈人物时可以顺手取一段声音"
@@ -20514,8 +20594,12 @@ msgid "离开标记帧了，这里的落点会不准（画面上的人已经走�
 msgstr "You've moved off the marked frame, so drop targets here won't be accurate (people have moved) — go back to {0}s before dragging."
 
 #: src/api/client.ts
-msgid "离线模式：未配置 VITE_API_BASE"
-msgstr "Offline mode: VITE_API_BASE isn't configured"
+#~ msgid "离线模式：未配置 VITE_API_BASE"
+#~ msgstr "Offline mode: VITE_API_BASE isn't configured"
+
+#: src/api/client.ts
+msgid "离线模式：这台设备没有连服务器"
+msgstr "Offline mode: this device isn't connected to a server"
 
 #: src/pages/CardDetailPage.tsx
 msgid "离线模式下加不了参考图"
@@ -22033,6 +22117,7 @@ msgid "编号还没核对：AI 编的号可能与画面上人偶头上的数字�
 msgstr "Numbers not checked yet: the numbers the AI assigned may not match the numbers on the mannequins' heads. <0>You can't publish until you check</0> (a mismatch sends other people's character cards to the wrong person). Tap here to check."
 
 #: src/pages/CardDetailPage.tsx
+#: src/pages/VideoPage.tsx
 #: src/pages/WorkshopMinePage.tsx
 msgid "编辑"
 msgstr "Edit"
@@ -23120,6 +23205,10 @@ msgstr "Voice replies: on"
 #~ msgid "语音识别失败"
 #~ msgstr "Speech recognition failed"
 
+#: src/components/support/HoldToTalk.tsx
+msgid "语音识别失败，先打字吧。"
+msgstr "Speech recognition failed — type it instead."
+
 #. placeholder {0}: e instanceof Error ? e.message : String(e)
 #: src/components/support/HoldToTalk.tsx
 msgid "语音识别失败：{0}"
@@ -23127,8 +23216,8 @@ msgstr "Speech recognition failed: {0}"
 
 #. placeholder {0}: e.status
 #: src/components/support/HoldToTalk.tsx
-msgid "语音识别失败（HTTP {0}），先打字吧。"
-msgstr "Speech recognition failed (HTTP {0}). Type instead for now."
+#~ msgid "语音识别失败（HTTP {0}），先打字吧。"
+#~ msgstr "Speech recognition failed (HTTP {0}). Type instead for now."
 
 #: src/components/support/HoldToTalk.tsx
 msgid "语音识别暂时不可用（上游没接住），先打字吧。"
@@ -23887,14 +23976,15 @@ msgstr "You don't have any templates yet — tap the card above to make one"
 msgid "还没有关注任何创作者"
 msgstr "Not following any creators yet"
 
+#: src/components/flow/FlowCanvas.tsx
 #: src/pages/ProfilePage.tsx
 #: src/pages/WorkshopMinePage.tsx
 msgid "还没有卡片"
 msgstr "No cards yet"
 
 #: src/components/flow/FlowCanvas.tsx
-msgid "还没有卡片——去创意工坊的市场添加几张，或者在「我的仓库」里自己做"
-msgstr "No cards yet — add some from the Workshop market, or make your own in My Library"
+#~ msgid "还没有卡片——去创意工坊的市场添加几张，或者在「我的仓库」里自己做"
+#~ msgstr "No cards yet — add some from the Workshop market, or make your own in My Library"
 
 #: src/components/flow/FlowCanvas.tsx
 #~ msgid "还没有卡片——去创意工坊铸几张或从市场添加"
@@ -23983,8 +24073,12 @@ msgid "还没有画面——点「生成本段」开炼"
 msgstr "No picture yet — tap “Generate this segment” to start rendering"
 
 #: src/components/flow/FlowCanvas.tsx
-msgid "还没有白模模板——去模板市场逛逛"
-msgstr "No blockout templates yet — browse the template market"
+msgid "还没有白模模板"
+msgstr "No blockout templates yet"
+
+#: src/components/flow/FlowCanvas.tsx
+#~ msgid "还没有白模模板——去模板市场逛逛"
+#~ msgstr "No blockout templates yet — browse the template market"
 
 #: src/pages/ProfilePage.tsx
 msgid "还没有简介——去设置里写一句吧"

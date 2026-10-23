@@ -1044,6 +1044,9 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 - [`docs/api-contract.md`](docs/api-contract.md) — 与 server 的接口契约（三仓共享）
 - [`docs/play-store-checklist.md`](docs/play-store-checklist.md) — 上架检查单
 - [`docs/dependency-security-2026-10.md`](docs/dependency-security-2026-10.md) — 2026-10-21 处理 Dependabot 32 条（2 critical / 22 high / 8 moderate）：改了哪 8 个包、两处钉死的理由（Capacitor 8.5.1、postcss-selector-parser 7.1.7）、没修也修不了的 `braces`、怎么验的；修复要等下一次发版才到用户手里
+- [`docs/ui-refactoring-ui-pass-2026-10-23.md`](docs/ui-refactoring-ui-pass-2026-10-23.md) — 按《Refactoring UI》二十条走查 App（2026-10-23，主人给的 B 站视频 + 评论区）：
+  四路审计约 160 条 → 这次改了按钮层级（出片后下一步才是主键、市场卡片的实心键改淡、⚡ 只留给花钱）、字重 / 灰阶 / 提示条 / 命中区 / 空态 / 开发用语上屏约 50 处；
+  等主人定的 12 件在第四节（第三级表面色、`<Warn>` 提示条、价签格式器、emoji → Icon…）；第五节「给规矩配样板」回应评论区那条「给 AI 例子而不是立规矩」
 - [`docs/ui-benchmark-2026-10.md`](docs/ui-benchmark-2026-10.md) — 对标抖音 / TikTok / 快手 / B 站 / 剪映 / CapCut 等：模板创建入口、首页、分区、「我的」、小组件五节（2026-10-21）：
   做了插画模板入口卡、首页长按层（两侧 2× / 中间更多操作）与双击粒子、分区搜索历史与近期热播、「我的」品牌带与草稿改笔、三枚招牌字形；没做的与等主人定的五件事在第七节
 - [`docs/ux-review-csci187-2026-10-14.md`](docs/ux-review-csci187-2026-10-14.md) — 按 CSCI 187 六个 UX 框架 + 惯例 + Goodwin「好产品礼仪」走查 App：改了 20 来处（删草稿改撤销、方勾选框、页签名字、设置分组、反馈落在键旁…），没改的 21 条按框架排好等主人定（发布页主键在三屏外、点赞失败静默回滚、工坊两个意思、token 五个名字…）

@@ -318,7 +318,7 @@ export default function WorkshopPage() {
                   key={tp || "all"}
                   onClick={() => setCtype(tp)}
                   aria-pressed={ctype === tp}
-                  className={`flex-none rounded-full px-3 py-1 text-[11px] ${ctype === tp ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-400"}`}
+                  className={`flex-none rounded-full px-3 py-1 text-[11px] ${ctype === tp ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-300"}`}
                 >
                   {tp ? CARD_TYPE_LABELS[tp] : t`全部`}
                   {n > 0 && <span className="ml-1 tabular-nums opacity-70">{n}</span>}
@@ -397,7 +397,7 @@ export default function WorkshopPage() {
                           }
                         }}
                         disabled={owned || busyCard === c.cardId}
-                        className="mt-1.5 w-full rounded-full bg-brand py-1.5 text-center text-[11px] font-semibold text-ink active:opacity-60 disabled:bg-panel disabled:text-slate-500"
+                        className="mt-1.5 w-full rounded-full bg-brand/15 py-1.5 text-center text-[11px] font-semibold text-brand active:opacity-60 disabled:bg-panel disabled:text-slate-500"
                       >
                         {c.isOwner ? t`我发的` : owned ? t`已拥有` : busyCard === c.cardId ? t`添加中…` : t`＋ 添加`}
                       </button>

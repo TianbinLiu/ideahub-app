@@ -28,6 +28,7 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { showToast } from "../data/toast";
 import EmptyState, { type EmptyMascot } from "../components/EmptyState";
+import { CloseButton } from "../components/IconTapButton";
 import MagicBand from "../components/MagicBand";
 import BlockButton from "../components/BlockButton";
 import LangChip from "../components/LangChip";
@@ -741,7 +742,7 @@ export default function ProfilePage() {
             <>
               <button
                 onClick={onFollow}
-                className={`flex h-10 flex-[1.4] items-center justify-center gap-1 rounded-full text-sm font-bold transition active:scale-[.98] ${
+                className={`flex h-10 flex-[1.4] items-center justify-center gap-1 rounded-xl text-sm font-bold transition active:scale-[.98] ${
                   following ? "bg-panel text-slate-300 ring-1 ring-slate-700" : "bg-brand text-ink"
                 }`}
               >
@@ -796,7 +797,7 @@ export default function ProfilePage() {
           <button
             data-guide="profile-wallet"
             onClick={() => setWalletOpen(true)}
-            className="mt-4 flex w-full items-center gap-3 rounded-xl border border-slate-700/60 bg-panel px-3.5 py-2.5 text-left"
+            className="mt-4 flex w-full items-center gap-3 rounded-xl border border-slate-700/70 bg-panel px-3.5 py-2.5 text-left"
           >
             <span className="text-xl">⚡</span>
             <div className="min-w-0 flex-1">
@@ -915,7 +916,7 @@ export default function ProfilePage() {
                 key={k}
                 onClick={() => setVisFilter(k)}
                 className={`rounded-full px-3 py-1 text-[11px] ${
-                  visFilter === k ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-400"
+                  visFilter === k ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-300"
                 }`}
               >
                 {label}
@@ -1005,7 +1006,7 @@ export default function ProfilePage() {
                 <Link
                   key={c.id}
                   to={`/card/${c.id}`}
-                  className="relative block overflow-hidden rounded-lg border border-slate-700/60"
+                  className="relative block overflow-hidden rounded-xl border border-slate-700/70"
                 >
                   {c.cover ? (
                     <img src={c.cover} alt={c.name} className="aspect-[3/4] w-full object-cover" loading="lazy" />
@@ -1060,7 +1061,7 @@ export default function ProfilePage() {
           ))}
 
         {activeTab === "collects" && collectGone > 0 && (
-          <p className="mx-3 mb-2 rounded-xl border border-slate-700 bg-panel px-3 py-2 text-[11px] leading-relaxed text-slate-400">
+          <p className="mx-3 mb-2 rounded-xl border border-slate-700/70 bg-panel px-3 py-2 text-[11px] leading-relaxed text-slate-400">
             <Trans>有 {collectGone} 条收藏打不开了：作者可能把它删了，或者改成了仅自己可见。</Trans>
           </p>
         )}
@@ -1482,12 +1483,10 @@ function FollowingSheet({
   return (
     <Sheet onClose={onClose}>
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-base font-bold text-slate-100"><Trans>关注 {names.length}</Trans></h3>
-        <button onClick={onClose} className="text-slate-400" aria-label={t`关闭`}>
-          <Icon name="close" size={20} />
-        </button>
+        <h3 className="text-sm font-bold text-slate-100"><Trans>关注 {names.length}</Trans></h3>
+        <CloseButton chip="sm" size={13} align="end" onClick={onClose} />
       </div>
-      {names.length === 0 && <p className="py-10 text-center text-sm text-slate-500"><Trans>还没有关注任何创作者</Trans></p>}
+      {names.length === 0 && <EmptyState compact mascot="nap" text={t`还没有关注任何创作者`} cta={{ label: t`去首页逛逛`, to: "/" }} />}
       <div className="space-y-1">
         {names.map((a) => (
           <div key={a} className="flex items-center gap-3 rounded-xl p-2">
@@ -1730,10 +1729,8 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
   return (
     <Sheet onClose={onClose}>
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-base font-bold text-slate-100"><Trans>⚡ Token 钱包</Trans></h3>
-        <button onClick={onClose} className="text-slate-400" aria-label={t`关闭`}>
-          <Icon name="close" size={20} />
-        </button>
+        <h3 className="text-sm font-bold text-slate-100"><Trans>⚡ Token 钱包</Trans></h3>
+        <CloseButton chip="sm" size={13} align="end" onClick={onClose} />
       </div>
 
       {/* ★ 管理员在「我的」页看到的是 ∞，这里却是镜像里的真实数字 —— 不把两边的关系
@@ -1749,7 +1746,7 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
           不在这里说清楚「欠多少、怎么解冻」，用户会反复去点生成、反复吃同一个错误，
           而错误码本身完全解释不了发生了什么。 */}
       {(wallet.debt ?? 0) > 0 && (
-        <div className="mb-3 rounded-xl border border-rose-500/50 bg-rose-500/10 px-3 py-2.5 text-[11px] leading-relaxed text-rose-200">
+        <div className="mb-3 rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2.5 text-[11px] leading-relaxed text-rose-200">
           <Trans>
             因一笔退款，已收回相应 token，尚欠 {fmtTokens(wallet.debt ?? 0)}。下次充值会自动抵扣，抵完即可继续生成；在那之前生成功能暂时不可用。
           </Trans>
@@ -1763,7 +1760,7 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
         </div>
         <div className="rounded-xl border border-slate-700/70 bg-panel p-3">
           <div className="text-lg font-bold tabular-nums text-gold">{fmtTokens(wallet.addon)}</div>
-          <div className="text-[11px] text-slate-500"><Trans>add-on token · 直充 / 新人额度 / 创作收益，不过期</Trans></div>
+          <div className="text-[11px] text-slate-500"><Trans>加购 token · 直充 / 新人额度 / 创作收益，不过期</Trans></div>
         </div>
       </div>
 
@@ -1852,7 +1849,7 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
                 key={it.sku}
                 onClick={() => void buyPlay(it.sku)}
                 disabled={busy}
-                className="rounded-xl border border-slate-700/60 bg-panel p-3 text-center disabled:opacity-40"
+                className="rounded-xl border border-slate-700/70 bg-panel p-3 text-center disabled:opacity-40"
               >
                 <div className="text-sm font-bold tabular-nums text-slate-100">{fmtTokens(it.tokens)}</div>
                 <div className="mt-0.5 text-[11px] text-gold">{it.price}</div>
@@ -1863,7 +1860,7 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
                 key={pk.tokens}
                 onClick={() => void submit(() => rechargeAddon(pk.tokens))}
                 disabled={busy}
-                className="rounded-xl border border-slate-700/60 bg-panel p-3 text-center disabled:opacity-40"
+                className="rounded-xl border border-slate-700/70 bg-panel p-3 text-center disabled:opacity-40"
               >
                 <div className="text-sm font-bold tabular-nums text-slate-100">{fmtTokens(pk.tokens)}</div>
                 <div className="mt-0.5 text-[11px] text-gold">¥{pk.price}</div>

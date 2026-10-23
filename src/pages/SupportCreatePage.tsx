@@ -102,7 +102,7 @@ export default function SupportCreatePage() {
           icon="settings"
           emoji="🎙️"
           title={t`人物音频`}
-          desc={t`把 1～3 味豆包音色按比例调成自己的嗓子，可以发布成声音模板。`}
+          desc={t`把 1～3 种音色按比例调成自己的嗓子，可以发布成声音模板。`}
           count={voices}
           cta={t`去制作`}
           // 混音器长在客服页的「声音」面板里（一处实现），带上 ?sheet=voice 让那一页直接掀开它

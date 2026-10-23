@@ -111,7 +111,7 @@ export default function DraftSheet({ meta, onClose }: { meta: WorkDraftMeta; onC
         </div>
       ) : (
         <div className="flex items-center gap-2">
-          <h3 className="min-w-0 flex-1 truncate text-base font-bold text-slate-100">{meta.title}</h3>
+          <h3 className="min-w-0 flex-1 truncate text-sm font-bold text-slate-100">{meta.title}</h3>
           <button onClick={() => setRenaming(true)} className="flex-none text-xs text-slate-400">
             <Trans>重命名</Trans>
           </button>

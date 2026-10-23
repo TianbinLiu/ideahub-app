@@ -588,6 +588,8 @@ export default function EditPage() {
                 <p className="text-xs text-slate-500"><Trans>正在确认有没有公开…</Trans></p>
               ) : recipeFetch.state === "unsupported" ? (
                 <p className="text-xs leading-relaxed text-slate-500"><Trans>这台服务器还不支持公开制作过程。</Trans></p>
+              ) : recipeFetch.state === "offline" ? (
+                <p className="text-xs leading-relaxed text-slate-400"><Trans>公开制作过程需要联网；这台设备当前是离线模式。</Trans></p>
               ) : recipeFetch.state === "failed" ? (
                 <div>
                   <p className="text-xs leading-relaxed text-rose-300"><Trans>暂时问不到服务器（{recipeFetch.why}）</Trans></p>
@@ -847,7 +849,7 @@ export default function EditPage() {
                       });
                     }}
                     disabled={saving}
-                    className="mt-2.5 w-full rounded-xl border border-amber-400/50 bg-amber-400/10 px-3 py-2 text-left text-[11px] leading-relaxed text-amber-100 disabled:opacity-40"
+                    className="mt-2.5 w-full rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-left text-[11px] leading-relaxed text-amber-100 disabled:opacity-40"
                   >
                     <span className="font-bold"><Trans>改成「仅自己可见」就好</Trans></span>
                     <br />

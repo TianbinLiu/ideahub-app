@@ -458,7 +458,7 @@ export default function PublishPage() {
                     className="flex-none rounded-full bg-amber-500/15 px-2 py-0.5 text-amber-300"
                     title={t`该段视频生成失败或处于演示模式，播放时用首尾帧渐变代替`}
                   >
-                    <Trans>⚠ 渐变回退</Trans>
+                    <Trans>⚠ 没出成片 · 画面过渡代替</Trans>
                   </span>
                 )}
               </div>
@@ -468,7 +468,7 @@ export default function PublishPage() {
               无条件挂着就是对多数用户撒谎（他们的链接根本不会过期） */}
           {draft.segments.some((sg) => isArkAssetUrl(sg.videoUrl)) && (
             <div className="mt-2 text-center text-[11px] leading-relaxed text-slate-500">
-              <Trans>有片段还挂在临时链接上（约 24 小时有效）——尽快发布，服务端会转存为长期地址</Trans>
+              <Trans>有片段还挂在临时链接上（约 24 小时有效）——尽快发布，发布后会换成长期地址</Trans>
             </div>
           )}
         </div>
@@ -652,7 +652,7 @@ export default function PublishPage() {
 
           {/* 作品发出去了、卡组没存上：如实说 + 再试一次 + 一条离开的路（铁律八） */}
           {deckIssue && (
-            <div className="rounded-xl border border-amber-500/40 bg-amber-400/10 px-3 py-2.5 text-xs leading-relaxed text-amber-100">
+            <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-xs leading-relaxed text-amber-100">
               <Trans><span className="font-bold">作品已经发布成功了</span>，但本片卡组没能存进你的工坊：{deckIssue.why}。<span className="text-amber-200/80">卡还在这台设备上，重试一次多半就好。</span></Trans>
               <div className="mt-2 flex gap-2">
                 <button
@@ -685,7 +685,7 @@ export default function PublishPage() {
             <div
               className={`rounded-xl border px-3 py-2.5 text-xs leading-relaxed ${
                 reviseFail.kind === "conflict"
-                  ? "border-amber-500/40 bg-amber-400/10 text-amber-100"
+                  ? "border-amber-500/40 bg-amber-500/10 text-amber-100"
                   : "border-rose-500/40 bg-rose-500/10 text-rose-200"
               }`}
             >
@@ -736,7 +736,7 @@ export default function PublishPage() {
 
           {/* 主按钮上方那一行：回炉态说清"这一下会动谁"；全新发布态说清"发完还能回炉" */}
           {reviseOf ? (
-            <p className="text-xs leading-relaxed text-amber-300">
+            <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs leading-relaxed text-amber-200">
               <Trans>会替换《{originTitle}》的内容，链接不变。</Trans>
             </p>
           ) : (
@@ -747,14 +747,14 @@ export default function PublishPage() {
             <button
               onClick={() => primary()}
               disabled={!!busy || !!deckIssue}
-              className="rounded-xl bg-brand px-6 py-2.5 text-sm font-bold text-ink hover:brightness-110 disabled:opacity-40"
+              className="min-w-0 flex-1 rounded-xl bg-brand px-6 py-2.5 text-sm font-bold text-ink hover:brightness-110 disabled:opacity-40"
             >
               {busy || (reviseOf ? t`替换原作品` : t`发布`)}
             </button>
             <button
               onClick={() => setDiscardOpen(true)}
               disabled={!!busy || !!deckIssue}
-              className="rounded-xl bg-panel px-4 py-2.5 text-sm text-slate-400 hover:text-slate-200 disabled:opacity-40"
+              className="flex-none rounded-xl bg-panel px-4 py-2.5 text-sm text-slate-400 hover:text-slate-200 disabled:opacity-40"
             >
               <Trans>放弃本次合成</Trans>
             </button>
@@ -882,7 +882,7 @@ export default function PublishPage() {
             // ★ 没标题就禁用，而不是"点了之后关掉弹层再在两屏之外报错"——
             //   那种失败方式用户读不出因果（发布键那条整句拒也是同一个理由挪的位置）
             disabled={!!busy || !title.trim()}
-            className="mt-3 w-full rounded-xl border border-amber-400/50 bg-amber-400/10 px-3 py-2 text-left text-[11px] leading-relaxed text-amber-100 disabled:opacity-40"
+            className="mt-3 w-full rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-left text-[11px] leading-relaxed text-amber-100 disabled:opacity-40"
           >
             <span className="font-bold"><Trans>还是先按「仅自己可见」发出去吧</Trans></span>
             <br />
