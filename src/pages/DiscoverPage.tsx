@@ -14,6 +14,7 @@ import EmptyState from "../components/EmptyState";
 import AigcBadge, { isAigcWork } from "../components/AigcBadge";
 import SeedBadge from "../components/SeedBadge";
 import Icon from "../components/Icon";
+import SearchField from "../components/SearchField";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
 import { tourById } from "../components/guide/tours";
@@ -220,48 +221,31 @@ export default function DiscoverPage() {
           与第一块内容之间 12px（mb-3，PageHeader 那条规矩） */}
       <div className="sticky top-0 z-20 -mx-4 mb-3 bg-ink px-4">
         <div className="safe-top flex h-[58px] items-center gap-2">
-          <div data-guide="discover-search" className="flex min-w-0 flex-1 items-center gap-2 rounded-full border border-slate-700/70 bg-panel px-4 py-2.5 focus-within:border-brand">
-            <Icon name="search" size={16} className="text-slate-500" />
-            <input
-              ref={inputRef}
-              type="search"
-              enterKeyHint="search"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              onFocus={() => {
-                setFocused(true);
-                setHistory(searchHistory());
-              }}
-              onBlur={() => {
-                setFocused(false);
-                if (key) commit(key);
-              }}
-              onKeyDown={(e) => {
-                // 回车 = 「就搜这个」：记进历史、收起键盘（结果早已随打字出来了，这一下只是收尾）
-                if (e.key === "Enter") e.currentTarget.blur();
-              }}
-              // ★ 照实写能搜到什么（2026-10-21）：远端只匹配标题 / 简介 / 话题标签（docs/api-contract.md），原来写「分区」是许诺做不到的事
-              placeholder={t`搜索作品、话题标签或用户`}
-              aria-label={t`搜索作品、话题标签或用户`}
-              className="min-w-0 flex-1 bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-500 [&::-webkit-search-cancel-button]:hidden"
-            />
-            {q && (
-              <button
-                // onPointerDown 里先挡住失焦：点 ✕ 不该把搜索面板收起来再打开一次。
-                // 清空之后把光标放回框里：清掉一个词多半是要换一个词（抖音 / B 站的 ✕ 都是这样），
-                // 框没焦点时清完只剩整页列表，历史那一排还得再点一下框才出来
-                onPointerDown={(e) => e.preventDefault()}
-                onClick={() => {
-                  setQ("");
-                  inputRef.current?.focus();
-                }}
-                aria-label={t`清空搜索`}
-                className="relative text-slate-400 after:absolute after:-inset-3 after:content-['']"
-              >
-                <Icon name="close" size={16} />
-              </button>
-            )}
-          </div>
+          {/* 搜索框是共用的 SearchField（2026-10-23）。clearKeepsFocus：点 ✕ 不让面板收起来再打开一次，清完光标留在框里 ——
+              清掉一个词多半是要换一个词（抖音 / B 站的 ✕ 都是这样），框没焦点时清完只剩整页列表，历史那一排还得再点一下框才出来 */}
+          <SearchField
+            shape="pill"
+            guide="discover-search"
+            className="flex-1"
+            inputRef={inputRef}
+            value={q}
+            onChange={setQ}
+            clearKeepsFocus
+            onFocus={() => {
+              setFocused(true);
+              setHistory(searchHistory());
+            }}
+            onBlur={() => {
+              setFocused(false);
+              if (key) commit(key);
+            }}
+            onKeyDown={(e) => {
+              // 回车 = 「就搜这个」：记进历史、收起键盘（结果早已随打字出来了，这一下只是收尾）
+              if (e.key === "Enter") e.currentTarget.blur();
+            }}
+            // ★ 照实写能搜到什么（2026-10-21）：远端只匹配标题 / 简介 / 话题标签（docs/api-contract.md），原来写「分区」是许诺做不到的事
+            placeholder={t`搜索作品、话题标签或用户`}
+          />
           {focused ? (
             // 搜索态的出口（抖音式「取消」）：只收起键盘与面板，框里的词留着
             <button onClick={() => inputRef.current?.blur()} className="flex-none px-1 text-sm text-slate-300 active:opacity-60">

@@ -24,6 +24,7 @@
 // ④ **图太大 / 比例超 3:1 怎么办？** 走 `data/cardViews.prepareCardImage`（与详情页
 //    「+ 图位」同一份实现）：越界居中裁并把这件事**说出来**，超 5MB 直接报错。
 import { useState, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import Warn from "../components/Warn";
 import ConfirmDialog from "../components/ConfirmDialog";
 import Spinner from "../components/Spinner";
 import PageHeader from "../components/PageHeader";
@@ -1603,7 +1604,7 @@ export default function CustomCardPage() {
                   </button>
                 ))}
               </div>
-              {dropped && <p className="mt-1.5 text-[10px] leading-relaxed text-amber-200/90">{dropped}</p>}
+              {dropped && <Warn compact className="mt-1.5">{dropped}</Warn>}
             </div>
           )}
           <div className="mt-3 space-y-2">
@@ -2350,7 +2351,7 @@ export default function CustomCardPage() {
       )}
       {partial?.kind === "asset" && (
         <div className="mt-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
-          <p className="text-[11px] leading-relaxed text-amber-200">
+          <Warn>
             {partial.lost.length > 0 ? (
               <Trans>
                 卡铸好了，但<span className="font-semibold">肖像授权的绑定没能存在这台设备上</span>（{partial.reason}）。这张卡挂着真人声明，没有绑定的话出片那一刻会被整发拒——去卡详情页把授权再做一次就好，卡本身不用重铸。另外还有 <span className="font-semibold">{partial.lost.length} 张图没能同步到服务器</span>，它们只留在这台设备上。
@@ -2360,7 +2361,7 @@ export default function CustomCardPage() {
                 卡铸好了，但<span className="font-semibold">肖像授权的绑定没能存在这台设备上</span>（{partial.reason}）。这张卡挂着真人声明，没有绑定的话出片那一刻会被整发拒——去卡详情页把授权再做一次就好，卡本身不用重铸。
               </Trans>
             )}
-          </p>
+          </Warn>
           <button
             onClick={() => nav(`/card/${partial.id}`, { replace: true })}
             className="mt-2 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink"
@@ -2371,7 +2372,7 @@ export default function CustomCardPage() {
       )}
       {partial?.kind === "views" && (
         <div className="mb-3 rounded-xl border border-amber-500/40 bg-amber-400/5 p-3">
-          <p className="text-xs font-semibold text-amber-300"><Trans>卡建好了，但有图没能存到服务器</Trans></p>
+          <Warn><Trans>卡建好了，但有图没能存到服务器</Trans></Warn>
           <p className="mt-1 text-[11px] leading-relaxed text-slate-300">
             {partial.lost.length > 3 ? (
               <Trans>

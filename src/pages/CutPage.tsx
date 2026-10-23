@@ -11,6 +11,7 @@
 //   运行时那一份在 studio/cutStore）：离开这一页再回来原样还在、随剪辑稿落盘、每一步都能撤销，
 //   合并之后源段留底、可以「回去改」。这一页只管把它画出来、把手势翻成 cutProject 里的改法。
 import { useEffect, useMemo, useRef, useState } from "react";
+import Warn from "../components/Warn";
 import Spinner from "../components/Spinner";
 import { startJob } from "../data/jobs";
 import { MAX_DIRECT_MEDIA_BYTES } from "../api/uploads";
@@ -32,7 +33,7 @@ import UpgradeLink from "../components/UpgradeLink";
 import { idbSet } from "../data/db";
 import { dropVideoJob } from "../data/videoJobs";
 import { ownerEpoch } from "../data/deviceOwner";
-import { annRedrawCost, fmtTokens, providerOf, segTokens, tierOf, tierRetireDay, tierRetired } from "../data/economy";
+import { annRedrawCost, fmtTokens, priceTag, providerOf, segTokens, tierOf, tierRetireDay, tierRetired } from "../data/economy";
 import { publishedExit, useStudio } from "../studio/studioStore";
 import { useCut } from "../studio/cutStore";
 import {
@@ -2243,7 +2244,7 @@ export default function CutPage() {
           ⚠ 只禁这一块，**顶栏不禁**：离开这一页现在是安全的（合成领了票、跑完不会把人拽走），
           用户想走就该走得掉。 */}
       <div
-        className={`safe-bottom flex flex-none flex-col border-t border-slate-700/60 bg-[#141821] ${
+        className={`safe-bottom flex flex-none flex-col border-t border-slate-700/60 bg-raised ${
           tab === "mark" ? "max-h-[38%]" : "max-h-[52%]"
         } ${busy ? "pointer-events-none opacity-40" : ""}`}
         aria-disabled={!!busy}
@@ -2604,14 +2605,14 @@ export default function CutPage() {
                         </p>
                       )}
                       {sc?.fade && seam === true ? (
-                        <p className="mt-1.5 text-[11px] leading-relaxed text-amber-200">
+                        <Warn className="mt-1.5">
                           <Trans>这一段是接着上一段拍的（同一个镜头在延续）——在这儿加转场会把接缝撕开。想要换场的感觉，加在别的接缝上更合适。</Trans>
-                        </p>
+                        </Warn>
                       ) : null}
                       {fadeUnsure ? (
-                        <p className="mt-1.5 text-[11px] leading-relaxed text-amber-200">
+                        <Warn className="mt-1.5">
                           <Trans>有一段的真实时长还没量到，转场的位置定不准，预览里先不显示——把每一段各播一下就量到了。</Trans>
-                        </p>
+                        </Warn>
                       ) : null}
                     </div>
                   );
@@ -2633,7 +2634,7 @@ export default function CutPage() {
                     <Trans>片头标题、每段一句旁白、换场的转场，一次写好——你看过、改过再用</Trans>
                   </span>
                 </span>
-                <span className="flex-none text-[11px] text-slate-300">{AI_REAL ? fmtTokens(AUTO_EDIT.cost) : t`演示`}</span>
+                <span className="flex-none text-[11px] text-slate-300">{AI_REAL ? priceTag(AUTO_EDIT.cost) : t`演示`}</span>
               </button>
               <input
                 value={project.title ?? ""}
@@ -2686,9 +2687,9 @@ export default function CutPage() {
                 </p>
               )}
               {narratorErr ? (
-                <p className="mt-1 text-[10px] leading-relaxed text-amber-200">
+                <Warn compact className="mt-1">
                   <Trans>音色目录没取到（{narratorErr}）——先用现在这个音色。</Trans>
-                </p>
+                </Warn>
               ) : null}
               {plan && plan.timed && !plan.exact ? (
                 <p className="mt-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-100">
@@ -2787,23 +2788,23 @@ export default function CutPage() {
                         </div>
                       ) : null}
                       {chars > cap ? (
-                        <p className="mt-1 text-[11px] leading-relaxed text-amber-200">
+                        <Warn className="mt-1">
                           <Trans>这一句比这一段放得下的字数多了（{chars}/{cap}），配不了音——改短一点，或者把这一段留长 / 放慢。</Trans>
-                        </p>
+                        </Warn>
                       ) : null}
                       {stale ? (
-                        <p className="mt-1 text-[11px] leading-relaxed text-amber-200">
+                        <Warn className="mt-1">
                           <Trans>字（或音色）改过了，这句配音还是之前配的那一版——重新配一次，否则成片里念的和字幕对不上。</Trans>
-                        </p>
+                        </Warn>
                       ) : null}
                       {pv && cutShort > 0.05 ? (
-                        <p className="mt-1 text-[11px] leading-relaxed text-amber-200">
+                        <Warn className="mt-1">
                           <Trans>这一句念不完：到片尾还差 {cutShort.toFixed(1)} 秒，成片里会在片尾被掐掉。改短一点，或者把这一段留长。</Trans>
-                        </p>
+                        </Warn>
                       ) : pv && pv.overSec > 0.05 ? (
-                        <p className="mt-1 text-[11px] leading-relaxed text-amber-200">
+                        <Warn className="mt-1">
                           <Trans>这一句要念 {pv.durSec.toFixed(1)} 秒，比这一段长 {pv.overSec.toFixed(1)} 秒——会念到下一段里（后面的配音跟着往后顺）。改短一点，或者把这一段放慢 / 留长。</Trans>
-                        </p>
+                        </Warn>
                       ) : null}
                       {pv && pv.lateSec > 0.05 ? (
                         <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
@@ -2846,7 +2847,7 @@ export default function CutPage() {
                   </button>
                 )
               ) : (
-                <p className="mt-2.5 rounded-lg border border-slate-700 bg-black/30 px-2.5 py-1.5 text-[11px] leading-relaxed text-slate-400">
+                <p className="mt-2.5 rounded-lg bg-black/30 px-2.5 py-1.5 text-[11px] leading-relaxed text-slate-400">
                   <Trans>配音要连上服务器才能做（离线 / 演示模式下用不了）。字幕照常能写、能烧进画面。</Trans>
                 </p>
               )}
@@ -2916,7 +2917,7 @@ export default function CutPage() {
                     disabled={!!busy || liveAnns.length === 0}
                     className="mt-2 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
                   >
-                    <Trans>✨ 按 {liveAnns.length} 处圈选重新生成（{annBySeg.size} 段 · {fmtTokens(annCost)}）</Trans>
+                    <Trans>♻ 按 {liveAnns.length} 处圈选重新生成（{annBySeg.size} 段 · {priceTag(annCost)}）</Trans>
                   </button>
                   {liveAnns.length < anns.length && (
                     <p className="mt-1 text-center text-[10px] text-slate-500">

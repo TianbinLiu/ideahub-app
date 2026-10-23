@@ -23,7 +23,7 @@ import StepDots from "../components/StepDots";
 import { useNavigate } from "react-router";
 import SegSettings from "../components/flow/SegSettings";
 import { chosenOf, nodeCost, nodeDone, nodeEmptyFrames, tplOfNode, useFlow } from "../studio/flowStore";
-import { fmtTokens, tierOf } from "../data/economy";
+import { fmtTokens, priceTag, tierOf } from "../data/economy";
 import { tierBlockReason } from "../data/account";
 import {
   browseTemplates,
@@ -509,7 +509,7 @@ function StepGo({
           className="mt-3 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:bg-slate-700 disabled:text-slate-500"
         >
           {/* 价签带单位（2026-10-14 UX 课的「信息要清楚」）：光一个「1.2k」分不出是钱还是别的什么、点下去扣不扣 */}
-          {busy ? t`生成中…` : t`⚡ 出片（${fmtTokens(cost)} token）`}
+          {busy ? t`生成中…` : t`出片（${priceTag(cost)}）`}
         </button>
       )}
     </div>

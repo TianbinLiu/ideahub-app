@@ -21,6 +21,7 @@
 //     （老编号方案下的形态是"他身上没有编号"）。默认按时长自动取帧；人数会变的素材由作者自己标 ——
 //     交互在 `VisionFramePicker`，帧数同时是报价的一半，所以两者必须读同一个来源。
 import { Trans, useLingui } from "@lingui/react/macro";
+import Warn from "../Warn";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import CropOverlay from "./CropOverlay";
 import TrimBar from "./TrimBar";
@@ -452,7 +453,7 @@ export default function BlockoutTrimmer({
       {pricing ?? (
       <div className="rounded-lg border border-slate-700/70 bg-panel/60 px-3 py-2">
         {priceIssue ? (
-          <p className="text-[11px] leading-relaxed text-amber-200">⚠ {priceIssue}</p>
+          <Warn>{priceIssue}</Warn>
         ) : (
           <>
             {/* ★ 帧数与它那半笔钱都是**当下这一份选择**算出来的（自动随时长变、自己挑时

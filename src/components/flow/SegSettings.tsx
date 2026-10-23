@@ -9,6 +9,7 @@
 // ★ 组件自己认 node.id 从 store 读（与 PlanSheet / CardPicker 同款）：宿主只给一个 id，
 //   不必把 index/nodes/mode 一路传下来，也就不会出现"传的是上一段"那类错。
 import { clampDuration, durationChoices, r2vBlockLines, tierModelId, tierModelLabel, tierOf } from "../../data/economy";
+import Warn from "../Warn";
 import { realFaceIssue } from "../../data/account";
 import { chosenOf, nodeDone, nodeFramed, nodeOwnFirstFrame, tplOfNode, useFlow } from "../../studio/flowStore";
 import { VIDEO_ASPECTS } from "../../types";
@@ -147,9 +148,9 @@ export default function SegSettings({ nodeId }: { nodeId: string }) {
           这里只剩**本页自己的**理由：r2v 闸没开、真人卡与本段不搭。两份都印过一阵子，
           结果是同一句话在抽屉里出现两遍 */}
       {(r2vBlocks.length > 0 || realFaceBlock) && (
-        <p className="text-[10px] leading-relaxed text-amber-300/80">
+        <Warn compact>
           {[...r2vBlocks, ...(realFaceBlock ? [realFaceBlock] : [])].join(t({ message: "；", comment: "把几条「这一档为什么点不动」的原因连成一行时的分隔符" }))}
-        </p>
+        </Warn>
       )}
       {fitNote && !realFaceBlock && <p className="text-[10px] leading-relaxed text-slate-400">{fitNote}</p>}
       {/* ★ 把**真正会被调用的那个模型**写出来。「极速/标准/高清」只说了画质档次，

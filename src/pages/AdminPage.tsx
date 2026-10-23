@@ -13,6 +13,7 @@
 //   来回切是高频动作，走路由会把「返回=退出后台」和「返回=回到总览」搅在一起；
 //   子视图里顶栏的返回键固定回总览，语义只有一种。
 import { useCallback, useEffect, useState } from "react";
+import Warn from "../components/Warn";
 import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
 import { Link, useNavigate } from "react-router";
@@ -21,6 +22,7 @@ import { msg } from "@lingui/core/macro";
 import { i18n, type MessageDescriptor } from "@lingui/core";
 import Avatar from "../components/Avatar";
 import Icon from "../components/Icon";
+import SearchField from "../components/SearchField";
 import {
   ADMIN_NOTICE_MAX,
   BAN_REASON_MAX,
@@ -336,23 +338,7 @@ function ErrBox({ text }: { text: string }) {
 }
 
 function SearchBox({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
-  const { t } = useLingui();
-  return (
-    <label className="flex items-center gap-2 rounded-xl bg-panel px-3 py-2">
-      <Icon name="search" size={16} className="shrink-0 text-slate-500" />
-      <input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="min-w-0 flex-1 bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-500"
-      />
-      {value && (
-        <button onClick={() => onChange("")} aria-label={t`清空`} className="shrink-0 text-slate-500">
-          <Icon name="close" size={14} />
-        </button>
-      )}
-    </label>
-  );
+  return <SearchField shape="field" value={value} onChange={onChange} placeholder={placeholder} />;
 }
 
 function Chips<T extends string>({
@@ -543,7 +529,7 @@ function UserRow({ u, onDone, onDeleted }: { u: ApiAdminUser; onDone: () => void
   return (
     <article className="rounded-xl border border-slate-700/70 bg-panel p-3">
       <div className="flex items-center gap-3">
-        <Avatar name={name} src={u.avatarUrl} size={40} />
+        <Avatar name={name} src={u.avatarUrl} size={36} />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
             <span className="truncate text-sm font-semibold text-slate-100">{name}</span>
@@ -862,7 +848,7 @@ function VideoRow({ v, onDone }: { v: ApiVideo; onDone: () => void }) {
             {reportTimeMs(v.createdAt) > 0 && <span>· {relativeTime(reportTimeMs(v.createdAt))}</span>}
           </div>
           {down && v.takedown?.reason && (
-            <p className="mt-1 text-[11px] leading-relaxed text-amber-300/80"><Trans>下架原因：{takedownReasonText(v.takedown.reason)}</Trans></p>
+            <Warn className="mt-1"><Trans>下架原因：{takedownReasonText(v.takedown.reason)}</Trans></Warn>
           )}
         </div>
       </div>

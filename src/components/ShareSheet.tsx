@@ -16,6 +16,7 @@
 //   但 React 合成事件仍沿组件树冒泡到 FeedItem 的手势处理。
 // ★ 面板自带 err/note 显示（盖住谁就自带一份——别指望底下的错误条）。
 import { Trans, useLingui } from "@lingui/react/macro";
+import Warn from "./Warn";
 import { useState } from "react";
 import { showToast } from "../data/toast";
 import { takedownReasonText } from "../api/admin";
@@ -232,20 +233,20 @@ export default function ShareSheet({
       >
         <p className="text-sm font-bold text-slate-100">{saveLocal ? <Trans>分享或保存这条作品</Trans> : <Trans>分享这条作品</Trans>}</p>
         {takenDown && (
-          <p className="mt-1 text-xs text-amber-300">
+          <Warn className="mt-1">
             <Trans>这条已被平台下架，链接别人打不开，所以先不能分享。</Trans>
             {video.takedown?.reason ? t`原因：${takedownReasonText(video.takedown.reason)}` : ""}
-          </p>
+          </Warn>
         )}
         {notUploaded && (
-          <p className="mt-1 text-xs text-amber-300">
+          <Warn className="mt-1">
             <Trans>这条还在上传中（或没连上服务器）——现在分享出去的链接别人打不开。等它传完再分享。</Trans>
-          </p>
+          </Warn>
         )}
         {isPrivate && (
-          <p className="mt-1 text-xs text-amber-300">
+          <Warn className="mt-1">
             <Trans>这是私密作品：链接只有你自己打得开。想给别人看，去编辑里改成「凭链接可见」或「公开」。</Trans>
-          </p>
+          </Warn>
         )}
         {/* ★ 这一档要说清**代价**：链接是可转发的。用户选它多半是"只想给几个人看"，
             而链接一旦被转出去，我们拦不住 —— 这句话必须在他分享**之前**出现。 */}
@@ -256,7 +257,7 @@ export default function ShareSheet({
         )}
 
         {/* 「保存到本地」被就地拒时把原因写在这里（面板盖住谁就自带一份） */}
-        {saveLocal?.blocked && <p className="mt-1 text-xs text-amber-300">{saveLocal.blocked}</p>}
+        {saveLocal?.blocked && <Warn className="mt-1">{saveLocal.blocked}</Warn>}
 
         {/* ★ gap 必须是 5 不是 7：四项 × w-16(64px) + 3 × 28px = 340px，而 360dp 屏减去
             px-4 两侧 32px 只剩 328px —— 会溢出。gap-5(20px) ⇒ 4×64+3×20 = 316px，刚好。 */}

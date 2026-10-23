@@ -38,7 +38,7 @@ export default function InfoTip({ title, children }: { title?: string; children:
             onWheel={(e) => e.stopPropagation()}
           >
             <div
-              className="mb-24 w-[calc(100%-2rem)] max-w-sm rounded-2xl border border-slate-700 bg-ink p-4 shadow-xl"
+              className="mb-24 w-[calc(100%-2rem)] max-w-sm rounded-2xl bg-raised p-4 shadow-xl ring-1 ring-white/10"
               onClick={(e) => e.stopPropagation()}
             >
               {title && <div className="mb-1.5 text-xs font-bold text-slate-100">{title}</div>}

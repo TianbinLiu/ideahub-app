@@ -85,7 +85,7 @@ export default function GenerationPill() {
       {show.kind === "busy" ? (
         <button
           onClick={() => go(show.route)}
-          className="pointer-events-auto flex max-w-full items-center gap-2 rounded-full border border-slate-600/70 bg-ink/95 py-1.5 pl-3 pr-4 text-[11px] text-slate-100 shadow-lg shadow-black/40"
+          className="pointer-events-auto flex max-w-full items-center gap-2 rounded-full bg-raised/95 py-1.5 pl-3 pr-4 text-[11px] text-slate-100 shadow-lg shadow-black/40 ring-1 ring-white/10"
         >
           <Spinner size="xs" />
           <span className="min-w-0 truncate">{show.text}</span>

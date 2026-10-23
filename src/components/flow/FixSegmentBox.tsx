@@ -14,6 +14,7 @@
 //   ② 写「只改第 2-3 秒换红手套」，红手套从手第 1 秒一入画就换上了、一直到第 3 秒 —— 同一个连续的动作模型会整段一起改，
 //      不会在第 2 秒处硬切；开头的礼盒与结尾的特写没动。所以文案说「主要改」「尽量照原样」，不许诺只动那几秒。
 import { Trans, useLingui } from "@lingui/react/macro";
+import Warn from "../Warn";
 import { useState } from "react";
 import { AI_REAL } from "../../ai";
 import { tierBlockReason, tierGo, tierOffered } from "../../data/account";
@@ -79,7 +80,7 @@ export default function FixSegmentBox({
   const refGo = tierGo((x) => x.refVid && x.r2vMult !== null);
   const refNames = refGo.names;
   const planNote = planIssue ? (
-    <p className="text-[11px] leading-relaxed text-amber-200">
+    <Warn>
       {planIssue}
       {planUpgradeable && (
         <>
@@ -87,7 +88,7 @@ export default function FixSegmentBox({
           <UpgradeLink />
         </>
       )}
-    </p>
+    </Warn>
   ) : null;
 
   // ── 片段重拍 ──
@@ -148,7 +149,7 @@ export default function FixSegmentBox({
       {open === "revise" &&
         (planNote ??
         (priceIssue ? (
-          <p className="text-[11px] leading-relaxed text-amber-200">
+          <Warn>
             {priceIssue}
             {refGo.member && refNames && (
               <>
@@ -158,7 +159,7 @@ export default function FixSegmentBox({
                 <UpgradeLink />
               </>
             )}
-          </p>
+          </Warn>
         ) : (
           <>
             <textarea
@@ -221,7 +222,7 @@ export default function FixSegmentBox({
       {open === "extend" && isLast &&
         (planNote ??
         (extIssue ? (
-          <p className="text-[11px] leading-relaxed text-amber-200">{extIssue}</p>
+          <Warn>{extIssue}</Warn>
         ) : (
           <>
             <textarea

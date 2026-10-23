@@ -16,9 +16,10 @@
 //   已选定 —— 那一行放大居中、其余缩小压暗；只有选定的那一行可以改帧、改剧情、重画。
 //             不给未选定的行开编辑口，是因为编辑必然要花钱重画，而用户还没决定用哪套。
 import { ReactNode, useEffect, useRef, useState } from "react";
+import Warn from "../../components/Warn";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { shotLineDisplay, DURATIONS, Proposal, type VideoAspect } from "../../types";
-import { fmtTokens } from "../../data/economy";
+import { fmtTokens, priceTag } from "../../data/economy";
 import { fileToFrameDataUrl } from "../../utils/image";
 import FrameCard, { CardFace, useFrameCycle } from "./FrameCard";
 import FuseFrameSheet, { type FuseSource } from "./FuseFrameSheet";
@@ -370,7 +371,7 @@ export default function PlanBoard({
                       {regenId === p.id
                         ? t`重画中…`
                         : cost
-                          ? t`✨ 重新生成这一套的画面（${fmtTokens(cost)}）`
+                          ? t`♻ 重新生成这一套的画面（${priceTag(cost)}）`
                           : t`✨ 重新生成这一套的画面`}
                     </button>
                     )}
@@ -409,7 +410,7 @@ export default function PlanBoard({
                     </div>
                     <p className="novel-text mt-1 line-clamp-3 text-[11px] leading-relaxed text-slate-300">{p.plot}</p>
                     {shotLineDisplay(p.shot) && <p className="mt-0.5 text-[10px] text-slate-500">{shotLineDisplay(p.shot)}</p>}
-                    {warn && <p className="mt-1 text-[10px] text-amber-300">{warn}</p>}
+                    {warn && <Warn compact className="mt-1">{warn}</Warn>}
                   </div>
                 </button>
               )}

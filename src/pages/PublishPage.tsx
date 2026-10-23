@@ -13,6 +13,7 @@
 //   `retireWorkDraft()` 三件一起做 —— 替换没成功还调它，等于"既没换成、合成稿也没了"，
 //   而那份合成稿里躺着真花过钱的卡组与成片。
 import { badgeNote } from "../data/aigcLabel";
+import Warn from "../components/Warn";
 import { useEffect, useMemo, useRef, useState } from "react";
 import PageHeader from "../components/PageHeader";
 import { useLocation, useNavigate } from "react-router";
@@ -410,7 +411,7 @@ export default function PublishPage() {
       {mergeWarn ? (
         <div className="mx-auto max-w-6xl px-4">
           <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
-            <p className="flex-1 whitespace-pre-line text-xs leading-relaxed text-amber-100">{mergeWarn}</p>
+            <Warn className="flex-1 whitespace-pre-line">{mergeWarn}</Warn>
             <button
               onClick={() => setMergeWarn("")}
               aria-label={t`知道了`}

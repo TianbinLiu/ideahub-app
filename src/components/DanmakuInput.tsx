@@ -9,6 +9,7 @@
 // ★ 附在哪一秒是**按下发送的那一刻**取的，不是打开输入条的那一刻。
 //   打字要好几秒，按开条的时间点存，弹幕会飘在一段你根本没在看的画面上。
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import Warn from "./Warn";
 import { createPortal } from "react-dom";
 import { Trans, useLingui } from "@lingui/react/macro";
 import {
@@ -348,9 +349,9 @@ export default function DanmakuInput({
             ★ 本机那份弹幕开机时没读出来（data/danmaku 的 loadIssue）时这次发的不落盘，
               「只存在这台设备上」就成了假话，换成实话 */}
         {danmakuLoadIssue() ? (
-          <p className="px-4 pb-1 text-[10px] text-amber-300">
+          <Warn compact className="px-4 pb-1">
             <Trans>这台设备上存的弹幕这会儿没读出来，这次发的弹幕关掉 App 就没了</Trans>
-          </p>
+          </Warn>
         ) : (
           !danmakuIsShared() && (
             <p className="px-4 pb-1 text-[10px] text-slate-400">

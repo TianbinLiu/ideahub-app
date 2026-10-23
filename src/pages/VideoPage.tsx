@@ -1,5 +1,6 @@
 // 视频详情页：播放器（多 P 可切换）+ 信息 + 分段剧情 + 评论区
 import { useEffect, useMemo, useRef, useState } from "react";
+import Warn from "../components/Warn";
 import Spinner from "../components/Spinner";
 import PageHeader from "../components/PageHeader";
 import { takedownReasonText } from "../api/admin";
@@ -184,6 +185,8 @@ export default function VideoPage() {
   const [likes, setLikes] = useState(video?.likes ?? 0);
   const [plays, setPlays] = useState(video?.plays ?? 0);
   const [comments, setComments] = useState<VideoComment[]>(video?.comments ?? []);
+  /** 哪一条评论展开了「⋯」后面的三颗键（与首页评论抽屉同一套：常用的只有回复，删除 / 举报 / 拉黑收起来，2026-10-23） */
+  const [moreFor, setMoreFor] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   /** 从补全面板挑过的人。★ 只攒不算位置——理由与 CommentSheet 同一条（见那里） */
   const [picks, setPicks] = useState<MentionPick[]>([]);
@@ -524,7 +527,7 @@ export default function VideoPage() {
         {/* 「保存到本地」被就地拒时那句整句话。与下架横幅同一带：那是用户此刻正在看的地方 */}
         {dlBlocked && (
           <div className="mt-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2">
-            <p className="text-[11px] leading-relaxed text-amber-200">{dlBlocked}</p>
+            <Warn>{dlBlocked}</Warn>
           </div>
         )}
 
@@ -746,12 +749,12 @@ export default function VideoPage() {
           </div>
           {/* 失败就地说清楚，并且**不清空输入框**——用户打的字还在，改一下就能再发 */}
           {commentErr && <p className="mt-1.5 text-[11px] leading-relaxed text-rose-300">{commentErr}</p>}
-          {mentionWarn && <p className="mt-1.5 text-[11px] leading-relaxed text-amber-300/90">{mentionWarn}</p>}
+          {mentionWarn && <Warn className="mt-1.5">{mentionWarn}</Warn>}
           <div className="mt-4 space-y-4">
             {comments.map((c) => (
               <div key={c.id} className="flex gap-3">
                 {/* 真头像，没有才退首字母底（规则只在 videos.commentAvatarOf 一处，与评论抽屉共用） */}
-                <Avatar name={c.author} label={authorDisplayName(c.author, c.authorId)} src={commentAvatarOf(c)} size={36} />
+                <Avatar name={c.author} label={authorDisplayName(c.author, c.authorId)} src={commentAvatarOf(c)} size={32} />
                 <div className="min-w-0">
                   <div className="text-xs text-slate-500">
                     <span className="font-medium text-slate-300">{authorDisplayName(c.author, c.authorId)}</span> · {relativeTime(c.at)}
@@ -763,11 +766,23 @@ export default function VideoPage() {
                   {/* 删除入口与首页评论抽屉共用同一份实现（铁律六）。
                       ★ 本页的 comments 是 video.comments 的**快照**，data 层删完要把
                         快照换掉，否则那条评论还留在屏幕上（下次 version 变了才消失）。 */}
-                  <div className="flex flex-wrap items-center gap-3">
-                    <CommentDelete videoId={video.id} comment={c} onDeleted={() => setComments([...video.comments])} />
-                    {/* 举报入口与首页评论抽屉共用同一份实现（铁律六） */}
-                    <ReportButton targetType="comment" targetId={c.id} videoId={video.id} mine={isMyVideo({ author: c.author, authorId: c.authorId })} />
-                    <BlockButton userId={c.authorId ?? ""} userName={c.author} mine={isMyVideo({ author: c.author, authorId: c.authorId })} />
+                  <div className="mt-1 flex flex-wrap items-center gap-3">
+                    {moreFor === c.id ? (
+                      <>
+                        <CommentDelete videoId={video.id} comment={c} onDeleted={() => setComments([...video.comments])} />
+                        {/* 举报入口与首页评论抽屉共用同一份实现（铁律六） */}
+                        <ReportButton targetType="comment" targetId={c.id} videoId={video.id} mine={isMyVideo({ author: c.author, authorId: c.authorId })} />
+                        <BlockButton userId={c.authorId ?? ""} userName={c.author} mine={isMyVideo({ author: c.author, authorId: c.authorId })} />
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => setMoreFor(c.id)}
+                        aria-label={t`更多操作`}
+                        className="-my-1.5 px-1 py-1.5 text-[11px] leading-none tracking-widest text-slate-500 active:opacity-60"
+                      >
+                        ⋯
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

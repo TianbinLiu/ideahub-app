@@ -1897,6 +1897,19 @@ msgstr "“{ch}”"
 msgid "「{cur}」档带不了参考视频——到「定规格」那一步换成「{usable}」，或直接跳过这一步自己给首尾帧"
 msgstr "The “{cur}” tier can't take a reference video — switch to “{usable}” in the Specs step, or skip this step and provide the first and last frames yourself"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "「{cur}」档带不了参考视频——去 ⚙ 本段设置换成「{usable}」，否则这一段出不了片。"
+msgstr "“{cur}” can't take a reference video — switch to “{usable}” in ⚙ Segment settings, or this segment can't be generated."
+
+#: src/studio/ui/projection.tsx
+msgid "「{cur}」档带不了参考视频——选「{usable}」，否则这一段出不了片"
+msgstr "“{cur}” can't take a reference video — pick “{usable}”, or this segment can't be generated"
+
+#: src/components/flow/FlowCanvas.tsx
+#: src/studio/ui/projection.tsx
+msgid "「{cur}」档带不了参考视频，而带得了的「{member}」是会员档——摘掉示例视频，或开通会员套餐（或充值过任意一笔）"
+msgstr "The “{cur}” tier can't take a reference video, and that needs a member tier (“{member}”) — remove the sample video, or subscribe to a plan (or make any top-up once)"
+
 #: src/studio/ui/projection.tsx
 msgid "「{cur}」档带不了参考视频；带得了的「{member}」是会员档，开通会员套餐（或充值过任意一笔）后可用——或直接跳过这一步自己给首尾帧"
 msgstr "The “{cur}” tier can't take a reference video; that needs a member tier (“{member}”), available once you subscribe to a plan (or make any top-up once) — or skip this step and provide the first and last frames yourself"
@@ -2721,11 +2734,18 @@ msgstr "★ Cover"
 msgid "★ 当前"
 msgstr "★ Current"
 
+#. placeholder {0}: liveAnns.length
+#. placeholder {1}: annBySeg.size
+#. placeholder {2}: priceTag(annCost)
+#: src/pages/CutPage.tsx
+msgid "♻ 按 {0} 处圈选重新生成（{1} 段 · {2}）"
+msgstr "♻ Regenerate from {0, plural, one {# circle} other {# circles}} ({1, plural, one {# segment} other {# segments}} · {2})"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "♻ 都不满意，重新推演三套（{propCostLabel}）"
 msgstr "♻ None of them work — re-plan three ({propCostLabel})"
 
-#. placeholder {0}: fmtTokens(cost)
+#. placeholder {0}: priceTag(cost)
 #: src/studio/ui/projection.tsx
 msgid "♻ 重新出样片（{0}）"
 msgstr "♻ Redo preview draft ({0})"
@@ -2743,7 +2763,7 @@ msgstr "♻ Redraft three plans"
 msgid "♻ 重新推演三套（{0}）"
 msgstr "♻ Redraft three plans ({0})"
 
-#. placeholder {0}: fmtTokens(cost)
+#. placeholder {0}: priceTag(cost)
 #: src/pages/FlowPage.tsx
 msgid "♻ 重新生成（{0}）"
 msgstr "♻ Regenerate ({0})"
@@ -2762,12 +2782,17 @@ msgstr "♻ Regenerate (another {0} tokens)"
 msgid "♻ 重新生成（再花 {0}）"
 msgstr "♻ Regenerate (costs {0} again)"
 
-#. placeholder {0}: fmtTokens(propCost)
+#. placeholder {0}: priceTag(propCost)
 #: src/pages/FlowPage.tsx
 msgid "♻ 重新生成方案（{0}）"
 msgstr "♻ Regenerate plans ({0})"
 
-#. placeholder {0}: fmtTokens(cost)
+#. placeholder {0}: priceTag(cost)
+#: src/studio/ui/PlanBoard.tsx
+msgid "♻ 重新生成这一套的画面（{0}）"
+msgstr "♻ Regenerate this plan's frames ({0})"
+
+#. placeholder {0}: priceTag(cost)
 #: src/studio/ui/projection.tsx
 msgid "♻ 重炼本段（{0}）"
 msgstr "♻ Regenerate this segment ({0})"
@@ -2857,21 +2882,21 @@ msgstr "⚠ This one is in <0>Simple mode</0>: by design it isn't saved to draft
 #~ msgstr "⚠ The “{cur}” tier can't take a reference video — switch to “{usable}” in ⚙ Segment settings, or generation will be rejected."
 
 #: src/components/flow/FlowCanvas.tsx
-msgid "⚠「{cur}」档带不了参考视频——去 ⚙ 本段设置换成「{usable}」，否则这一段出不了片。"
-msgstr "⚠ “{cur}” can't take a reference video — switch to “{usable}” in ⚙ Segment settings, or this segment can't be generated."
+#~ msgid "⚠「{cur}」档带不了参考视频——去 ⚙ 本段设置换成「{usable}」，否则这一段出不了片。"
+#~ msgstr "⚠ “{cur}” can't take a reference video — switch to “{usable}” in ⚙ Segment settings, or this segment can't be generated."
 
 #: src/studio/ui/projection.tsx
 #~ msgid "⚠「{cur}」档带不了参考视频——选「{usable}」，否则出片会被整句拒"
 #~ msgstr "⚠ The “{cur}” tier can't take a reference video — choose “{usable}”, or generation will be rejected"
 
 #: src/studio/ui/projection.tsx
-msgid "⚠「{cur}」档带不了参考视频——选「{usable}」，否则这一段出不了片"
-msgstr "⚠ “{cur}” can't take a reference video — pick “{usable}”, or this segment can't be generated"
+#~ msgid "⚠「{cur}」档带不了参考视频——选「{usable}」，否则这一段出不了片"
+#~ msgstr "⚠ “{cur}” can't take a reference video — pick “{usable}”, or this segment can't be generated"
 
 #: src/components/flow/FlowCanvas.tsx
 #: src/studio/ui/projection.tsx
-msgid "⚠「{cur}」档带不了参考视频，而带得了的「{member}」是会员档——摘掉示例视频，或开通会员套餐（或充值过任意一笔）"
-msgstr "⚠ The “{cur}” tier can't take a reference video, and that needs a member tier (“{member}”) — remove the sample video, or subscribe to a plan (or make any top-up once)"
+#~ msgid "⚠「{cur}」档带不了参考视频，而带得了的「{member}」是会员档——摘掉示例视频，或开通会员套餐（或充值过任意一笔）"
+#~ msgstr "⚠ The “{cur}” tier can't take a reference video, and that needs a member tier (“{member}”) — remove the sample video, or subscribe to a plan (or make any top-up once)"
 
 #. placeholder {0}: fmtTokens(lockPrice)
 #: src/pages/FeedPage.tsx
@@ -2897,8 +2922,8 @@ msgstr "⚡ Token wallet"
 
 #. placeholder {0}: fmtTokens(cost)
 #: src/pages/SimpleModePage.tsx
-msgid "⚡ 出片（{0} token）"
-msgstr "⚡ Generate video ({0} tokens)"
+#~ msgid "⚡ 出片（{0} token）"
+#~ msgstr "⚡ Generate video ({0} tokens)"
 
 #. placeholder {0}: fmtTokens(cost)
 #: src/pages/SimpleModePage.tsx
@@ -2920,8 +2945,8 @@ msgstr "⚡ Generate this segment"
 #. placeholder {0}: fmtTokens(cost)
 #. placeholder {0}: fmtTokens(propCost)
 #: src/pages/FlowPage.tsx
-msgid "⚡ 生成本段（{0}）"
-msgstr "⚡ Generate this segment ({0})"
+#~ msgid "⚡ 生成本段（{0}）"
+#~ msgstr "⚡ Generate this segment ({0})"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "⚡ 生成本段（{costLabel}）"
@@ -2929,8 +2954,8 @@ msgstr "⚡ Generate this segment ({costLabel})"
 
 #. placeholder {0}: fmtTokens(cost)
 #: src/studio/ui/projection.tsx
-msgid "⚡ 生成本段视频（{0}）"
-msgstr "⚡ Generate this segment's video ({0})"
+#~ msgid "⚡ 生成本段视频（{0}）"
+#~ msgstr "⚡ Generate this segment's video ({0})"
 
 #: src/components/flow/EffectWizard.tsx
 msgid "⚡ 生成这一段"
@@ -3157,8 +3182,8 @@ msgstr "✨ Character images generated with “{pickedTitle}”"
 #. placeholder {1}: annBySeg.size
 #. placeholder {2}: fmtTokens(annCost)
 #: src/pages/CutPage.tsx
-msgid "✨ 按 {0} 处圈选重新生成（{1} 段 · {2}）"
-msgstr "✨ Regenerate from {0, plural, one {# circle} other {# circles}} ({1, plural, one {# segment} other {# segments}} · {2})"
+#~ msgid "✨ 按 {0} 处圈选重新生成（{1} 段 · {2}）"
+#~ msgstr "✨ Regenerate from {0, plural, one {# circle} other {# circles}} ({1, plural, one {# segment} other {# segments}} · {2})"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "✨ 按这套方案炼形象图（{portraitCount} 张 · 演示）"
@@ -3238,8 +3263,8 @@ msgstr "✨ Regenerate this plan's frames"
 
 #. placeholder {0}: fmtTokens(cost)
 #: src/studio/ui/PlanBoard.tsx
-msgid "✨ 重新生成这一套的画面（{0}）"
-msgstr "✨ Regenerate this plan's frames ({0})"
+#~ msgid "✨ 重新生成这一套的画面（{0}）"
+#~ msgstr "✨ Regenerate this plan's frames ({0})"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "⟳ 转横屏"
@@ -3465,8 +3490,8 @@ msgstr "🎲 Plan three options ({propCostLabel})"
 
 #. placeholder {0}: fmtTokens(deriveCost ?? 0)
 #: src/studio/ui/projection.tsx
-msgid "🎲 生成三套方案（{0}）"
-msgstr "🎲 Generate three plans ({0})"
+#~ msgid "🎲 生成三套方案（{0}）"
+#~ msgstr "🎲 Generate three plans ({0})"
 
 #: src/studio/canvasAgent.ts
 msgid "🎲 重演方案"
@@ -3580,8 +3605,8 @@ msgstr "📸 Capture frame"
 
 #. placeholder {0}: fmtTokens(cost)
 #: src/studio/ui/projection.tsx
-msgid "📼 先出样片（{0}）"
-msgstr "📼 Preview draft first ({0})"
+#~ msgid "📼 先出样片（{0}）"
+#~ msgstr "📼 Preview draft first ({0})"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "📼 先出样片（{costLabel}）"
@@ -6768,6 +6793,11 @@ msgstr "Write the sentence first"
 msgid "先出一组画面"
 msgstr "Panels first"
 
+#. placeholder {0}: priceTag(cost)
+#: src/studio/ui/projection.tsx
+msgid "先出样片（{0}）"
+msgstr "Preview draft first ({0})"
+
 #: src/pages/SettingsPage.tsx
 msgid "先别退出登录"
 msgstr "Don't log out yet"
@@ -7711,6 +7741,11 @@ msgstr "Render"
 #: src/components/guide/tours.tsx
 msgid "出片、出图、铸卡、解锁付费作品，扣的都是它。点开看余额、买套餐或直充 ——<0>套餐额度先扣（付费套餐按月给，免费版每天补一点），直充和新人额度不过期</0>。"
 msgstr "Rendering videos, generating images, minting cards and unlocking paid videos all spend these. Tap to see your balance, buy a plan or top up — <0>plan tokens are used first (paid plans refill monthly, the free plan adds a little each day); top-ups and welcome tokens don't expire</0>."
+
+#. placeholder {0}: priceTag(cost)
+#: src/pages/SimpleModePage.tsx
+msgid "出片（{0}）"
+msgstr "Generate video ({0})"
 
 #: src/studio/segmentGen.ts
 msgid "出片中…"
@@ -14365,6 +14400,7 @@ msgid "推演约 {0}（承接上段尾帧，三套共用开头帧、只画尾帧
 msgstr "Derive ≈ {0} (continues from the previous end frame: the three plans share the opening frame, only end frames are drawn); generation billed separately"
 
 #: src/pages/FeedPage.tsx
+#: src/pages/ProfilePage.tsx
 msgid "推荐"
 msgstr "For you"
 
@@ -15435,7 +15471,9 @@ msgstr "Cannot reach the server right now ({0})"
 msgid "暗处在首页会被文字和按钮盖住（大致）"
 msgstr "Shaded areas are roughly where text and buttons cover the feed"
 
+#: src/components/CommentSheet.tsx
 #: src/components/FeedActionSheet.tsx
+#: src/pages/VideoPage.tsx
 msgid "更多操作"
 msgstr "More options"
 
@@ -18256,13 +18294,10 @@ msgid "清理缓存（约 {mbLabel} MB）"
 msgstr "Clear cache (about {mbLabel} MB)"
 
 #: src/components/flow/GridShotsWizard.tsx
-#: src/components/support/VoiceMarket.tsx
-#: src/pages/AdminPage.tsx
 #: src/pages/CustomCardPage.tsx
 #: src/pages/DiscoverPage.tsx
 #: src/pages/SettingsStoragePage.tsx
 #: src/pages/SupportPersonaNewPage.tsx
-#: src/pages/SupportPersonasPage.tsx
 msgid "清空"
 msgstr "Clear"
 
@@ -18271,9 +18306,7 @@ msgstr "Clear"
 msgid "清空已保存的视频（{0}）"
 msgstr "Clear saved videos ({0})"
 
-#: src/components/MaterialSheet.tsx
-#: src/pages/DiscoverPage.tsx
-#: src/pages/WorkshopPage.tsx
+#: src/components/SearchField.tsx
 msgid "清空搜索"
 msgstr "Clear search"
 
@@ -19104,6 +19137,11 @@ msgstr "Generate"
 msgid "生成一段约 {textPrice} token，余额不够——去「我的」页充值"
 msgstr "Writing one takes about {textPrice} token and your balance is too low — top up on the Me page"
 
+#. placeholder {0}: priceTag(deriveCost ?? 0)
+#: src/studio/ui/projection.tsx
+msgid "生成三套方案（{0}）"
+msgstr "Generate three plans ({0})"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "生成中"
 msgstr "Generating"
@@ -19168,6 +19206,17 @@ msgstr "Generation spec incomplete: the real-person tier needs a starting image"
 #: src/ai/real.ts
 msgid "生成契约不完整：素材参考模式至少要一张参考图"
 msgstr "Generation spec incomplete: material-reference mode needs at least one reference image"
+
+#. placeholder {0}: priceTag(cost)
+#. placeholder {0}: priceTag(propCost)
+#: src/pages/FlowPage.tsx
+msgid "生成本段（{0}）"
+msgstr "Generate this segment ({0})"
+
+#. placeholder {0}: priceTag(cost)
+#: src/studio/ui/projection.tsx
+msgid "生成本段视频（{0}）"
+msgstr "Generate this segment's video ({0})"
 
 #: src/components/CoverPicker.tsx
 msgid "生成结果"

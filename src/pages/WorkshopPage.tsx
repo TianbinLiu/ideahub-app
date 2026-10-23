@@ -18,7 +18,7 @@ import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { Trans, useLingui } from "@lingui/react/macro";
 import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
-import Icon from "../components/Icon";
+import SearchField from "../components/SearchField";
 import AuthPending from "../components/AuthPending";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
@@ -265,30 +265,7 @@ export default function WorkshopPage() {
       />
 
       {/* 搜索框：一直展开（不缩成放大镜），搜的是下面选中的那一类。页面级表单字段那一档规格 */}
-      <div
-        data-guide="workshop-search"
-        className="mb-3 flex items-center gap-2 rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 focus-within:border-brand"
-      >
-        <Icon name="search" size={16} className="flex-none text-slate-500" />
-        <input
-          type="search"
-          enterKeyHint="search"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder={placeholder}
-          aria-label={placeholder}
-          className="min-w-0 flex-1 bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-500 [&::-webkit-search-cancel-button]:hidden"
-        />
-        {text && (
-          <button
-            onClick={() => setText("")}
-            aria-label={t`清空搜索`}
-            className="relative flex-none text-slate-400 after:absolute after:-inset-3 after:content-[''] active:scale-95"
-          >
-            <Icon name="close" size={16} />
-          </button>
-        )}
-      </div>
+      <SearchField shape="field" guide="workshop-search" className="mb-3" value={text} onChange={setText} placeholder={placeholder} />
 
       {/* 种类：卡片 / 卡组 / 模板 / 工作流（整宽分段控件）。换种类不清搜索词 —— 同一个词换一类再搜一遍是常见动作 */}
       <div data-guide="workshop-kinds" className="mb-3 grid grid-cols-4 gap-1 rounded-xl bg-panel p-1" role="tablist">

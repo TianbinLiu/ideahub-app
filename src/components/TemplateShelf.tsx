@@ -16,6 +16,7 @@ import { useQueryTab } from "../hooks/useQueryTab";
 import { useAccountVersion } from "../hooks/useAccount";
 import { useVideosVersion } from "../hooks/useVideos";
 import Icon from "./Icon";
+import SearchField from "./SearchField";
 import { CloseButton } from "./IconTapButton";
 import Sheet from "./Sheet";
 // ★ 核对编号那一屏（含"删掉一个角色位"）在 components/blockout/RoleConfirmSheet：
@@ -646,15 +647,7 @@ export default function TemplateShelf({
 
       {tab === "market" && searchQ === undefined && (
         <div className="mb-3 flex items-stretch gap-2">
-          <div className="flex min-w-0 flex-1 items-center gap-2 rounded-full border border-slate-700 bg-black/30 px-3.5 py-2">
-            <Icon name="search" size={16} className="text-slate-500" />
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder={t`搜模板：特摄、治愈、赛博…`}
-              className="min-w-0 flex-1 bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-500"
-            />
-          </div>
+          <SearchField shape="pill" className="flex-1" value={q} onChange={setQ} placeholder={t`搜模板：特摄、治愈、赛博…`} />
           {tierButton}
         </div>
       )}

@@ -10,6 +10,7 @@
 //     → 发布（published）。状态的权威在服务端，这里只显示与转发；
 //   · 身份判定走服务端按 ownerId 算的 isOwner——**绝不拿显示名比对**。
 import { useEffect, useState } from "react";
+import Warn from "../components/Warn";
 import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
 import { Link, useNavigate, useParams } from "react-router";
@@ -223,7 +224,7 @@ function BlockoutInfo({ t: tpl, isOwner }: { t: VideoTemplate; isOwner: boolean 
         </p>
       ) : issue !== null ? (
         // 看得见但点不动 + 说原因（闸没开 / 价没核 / 模板视频不合窗口，整句都来自各自的唯一实现）
-        <p className="mt-2 text-[11px] leading-relaxed text-amber-300/90">{issue}</p>
+        <Warn className="mt-2">{issue}</Warn>
       ) : (
         tokens !== null && (
           <p className="mt-2 text-[11px] leading-relaxed text-slate-300">
@@ -550,7 +551,7 @@ function OwnerBar({
       {/* 登记失败的原因要印在页面上（重试按钮在上面）。regIssue 来自 data/templates
           的登记旁路——不印的话它只活在 console 里，用户面对的是"发布按钮永远没反应" */}
       {blockout && !tpl.remoteId && regIssue && (
-        <p className="mt-2 text-[11px] leading-relaxed text-amber-300/90">{regIssue}</p>
+        <Warn className="mt-2">{regIssue}</Warn>
       )}
       {blockout && tpl.remoteId && (
         <p className="mt-2 text-[10px] text-slate-500">
@@ -558,7 +559,7 @@ function OwnerBar({
         </p>
       )}
       {opErr && <p className="mt-2 text-[11px] leading-relaxed text-rose-300">{opErr}</p>}
-      {opNote && <p className="mt-2 text-[11px] leading-relaxed text-amber-200">{opNote}</p>}
+      {opNote && <Warn className="mt-2">{opNote}</Warn>}
       {tpl.published && <p className="mt-2 text-[10px] text-slate-500"><Trans>已在模板市场公开，别人可以直接套用出片。</Trans></p>}
     </div>
   );
@@ -755,7 +756,7 @@ export default function TemplateDetailPage() {
       {discardDialog}
       {/* 灰着的原因要写在屏幕上（2026-10-14 UX 课走查）：原来只在 title 里，手机上看不见；套餐那一档还给「去升级」 */}
       {applyBlocked && !applyErr && (
-        <p className="mb-3 text-xs leading-relaxed text-amber-300/90">
+        <Warn className="mb-3">
           {applyBlocked}
           {planBlocked && (
             <>
@@ -763,7 +764,7 @@ export default function TemplateDetailPage() {
               <UpgradeLink />
             </>
           )}
-        </p>
+        </Warn>
       )}
       {applyErr && <p className="mb-3 text-xs leading-relaxed text-rose-300">{applyErr}</p>}
       <div className="mb-3" />

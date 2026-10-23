@@ -28,6 +28,7 @@
 //   atSecs 变成空数组 → `api/branch` 那句 `atSecs.length ? {atSecs} : {}` 发出空请求体 →
 //   服务端退回几何自动铺。而界面上还写着「已标 5/5」，全程一个字都没说，且这一步是付费的。
 import { Trans, useLingui } from "@lingui/react/macro";
+import Warn from "../Warn";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Icon from "../Icon";
 import { BLOCKOUT_BOX_TRIES } from "../../data/economy";
@@ -570,7 +571,7 @@ export default function BoxFramePicker({
             </span>
           </div>
 
-          {block && <p className="text-[10px] leading-relaxed text-amber-300">{block}</p>}
+          {block && <Warn compact>{block}</Warn>}
 
           {marks.length === 0 ? (
             kind === "split" ? (

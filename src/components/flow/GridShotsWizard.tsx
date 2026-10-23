@@ -9,6 +9,7 @@
 //   与 genNode 真扣同一把尺。画面那一笔（组图 / 单格重画）按张，价钱在 gridDraftStore 一处。
 // ★ 只出第一段：每段都有自己的开头画面，但「炼出本段才开下一段」照旧（flowStore 的顺序门禁）—— 第一段人物就不对的话，后面几段不用花钱。
 import type { MessageDescriptor } from "@lingui/core";
+import Warn from "../Warn";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useRef, useState } from "react";
@@ -448,11 +449,11 @@ export default function GridShotsWizard({
                         )}
                       </div>
                       {outside && (
-                        <p className="text-[10px] leading-relaxed text-amber-200">
+                        <Warn compact>
                           <Trans>
                             画面里写到了「{outside}」，上面却没选：画的时候多半会把他们画进去、还带不上卡图 —— 要他们入镜就点上，不要就把名字改成「画外的人」。
                           </Trans>
-                        </p>
+                        </Warn>
                       )}
                     </div>
                   );
@@ -598,9 +599,9 @@ export default function GridShotsWizard({
                 {d.shots[focus].picture}
               </p>
               {panelStale(d.panels[focus], d.shots[focus]) && (
-                <p className="text-[10px] leading-relaxed text-amber-200">
+                <Warn compact>
                   <Trans>这一格的分镜在画好之后改过：画面还是按原来那版画的，重画一下才对得上。</Trans>
-                </p>
+                </Warn>
               )}
               {d.panels[focus]?.err && <p className="text-[11px] leading-relaxed text-rose-300">{d.panels[focus]?.err}</p>}
               {/* 看一遍的结论（gridDraftStore.checkPanel）：有问题逐条说；没核对上就说一声（钱上的那句跟着） */}
@@ -765,9 +766,9 @@ export default function GridShotsWizard({
           )}
           {/* 那颗键在有一格单独画的时候灰着（gridDraftStore.drawGroup 同一道闸）：灰着就得说为什么 */}
           {!parked && panelBusy && (
-            <p className="text-[10px] leading-relaxed text-amber-200">
+            <Warn compact>
               <Trans>有一格正在单独画——等它画完再整组重出（这一下还没花钱）</Trans>
-            </p>
+            </Warn>
           )}
           <p className="text-[10px] leading-relaxed text-slate-500">
             <Trans>

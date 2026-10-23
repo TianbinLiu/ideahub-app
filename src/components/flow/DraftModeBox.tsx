@@ -12,6 +12,7 @@
 //   模拟器 WebView 上放起来只有声音、一帧画面都解不出（canPlayType 对 Main 10 回空）⇒ 服务端转存进图床时转成 8 bit H.264
 //   （server videoAsset.uploadVideoBuffer）。转存之前那几分钟放的还是方舟直链 —— 按钮旁边把这一段说出来（铁律八）。
 import { Trans, useLingui } from "@lingui/react/macro";
+import Warn from "../Warn";
 import { useEffect, useState } from "react";
 import { AI_REAL } from "../../ai";
 import { draftModeIssue, draftModeOffered } from "../../data/account";
@@ -71,9 +72,9 @@ export default function DraftModeBox({
         {stage ? <Trans>📼 重新生成时也先出样片</Trans> : <Trans>📼 先出样片（480p 预览，满意再定稿成 1080p）</Trans>}
       </label>
       {blocked && (
-        <p className="text-[10px] leading-relaxed text-amber-200">
+        <Warn compact>
           {blocked} {upgradeable && <UpgradeLink />}
-        </p>
+        </Warn>
       )}
     </>
   ) : null;
@@ -126,9 +127,9 @@ export default function DraftModeBox({
           </p>
         )}
         {issue && left > 0 && (
-          <p className="text-[11px] leading-relaxed text-amber-200">
+          <Warn>
             {issue} {upgradeable && <UpgradeLink />}
-          </p>
+          </Warn>
         )}
         {left > 0 && (
           <button

@@ -22,6 +22,7 @@ import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
 import { useNavigate } from "react-router";
 import Icon from "../components/Icon";
+import SearchField from "../components/SearchField";
 import { useBackOr } from "../hooks/useBackOr";
 import { useQueryTab } from "../hooks/useQueryTab";
 import { ApiError } from "../api/client";
@@ -280,20 +281,7 @@ export default function SupportPersonasPage() {
         ))}
       </div>
 
-      <div className="mb-3 flex items-center gap-2 rounded-full border border-slate-700 bg-black/30 px-3.5 py-2">
-        <Icon name="search" size={16} className="text-slate-500" />
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder={t`搜人格：名字、描述、标签…`}
-          className="min-w-0 flex-1 bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-500"
-        />
-        {q && (
-          <button onClick={() => setQ("")} aria-label={t`清空`} className="text-slate-500">
-            <Icon name="close" size={14} />
-          </button>
-        )}
-      </div>
+      <SearchField shape="pill" className="mb-3" value={q} onChange={setQ} placeholder={t`搜人格：名字、描述、标签…`} />
 
       {notice && <p className="mb-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5 text-xs text-emerald-200">{notice}</p>}
       {listErr && <p className="mb-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-xs leading-relaxed text-rose-300">{listErr}</p>}

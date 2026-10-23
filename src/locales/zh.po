@@ -1897,6 +1897,19 @@ msgstr "「{ch}」"
 msgid "「{cur}」档带不了参考视频——到「定规格」那一步换成「{usable}」，或直接跳过这一步自己给首尾帧"
 msgstr "「{cur}」档带不了参考视频——到「定规格」那一步换成「{usable}」，或直接跳过这一步自己给首尾帧"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "「{cur}」档带不了参考视频——去 ⚙ 本段设置换成「{usable}」，否则这一段出不了片。"
+msgstr "「{cur}」档带不了参考视频——去 ⚙ 本段设置换成「{usable}」，否则这一段出不了片。"
+
+#: src/studio/ui/projection.tsx
+msgid "「{cur}」档带不了参考视频——选「{usable}」，否则这一段出不了片"
+msgstr "「{cur}」档带不了参考视频——选「{usable}」，否则这一段出不了片"
+
+#: src/components/flow/FlowCanvas.tsx
+#: src/studio/ui/projection.tsx
+msgid "「{cur}」档带不了参考视频，而带得了的「{member}」是会员档——摘掉示例视频，或开通会员套餐（或充值过任意一笔）"
+msgstr "「{cur}」档带不了参考视频，而带得了的「{member}」是会员档——摘掉示例视频，或开通会员套餐（或充值过任意一笔）"
+
 #: src/studio/ui/projection.tsx
 msgid "「{cur}」档带不了参考视频；带得了的「{member}」是会员档，开通会员套餐（或充值过任意一笔）后可用——或直接跳过这一步自己给首尾帧"
 msgstr "「{cur}」档带不了参考视频；带得了的「{member}」是会员档，开通会员套餐（或充值过任意一笔）后可用——或直接跳过这一步自己给首尾帧"
@@ -2721,11 +2734,18 @@ msgstr "★ 封面"
 msgid "★ 当前"
 msgstr "★ 当前"
 
+#. placeholder {0}: liveAnns.length
+#. placeholder {1}: annBySeg.size
+#. placeholder {2}: priceTag(annCost)
+#: src/pages/CutPage.tsx
+msgid "♻ 按 {0} 处圈选重新生成（{1} 段 · {2}）"
+msgstr "♻ 按 {0} 处圈选重新生成（{1} 段 · {2}）"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "♻ 都不满意，重新推演三套（{propCostLabel}）"
 msgstr "♻ 都不满意，重新推演三套（{propCostLabel}）"
 
-#. placeholder {0}: fmtTokens(cost)
+#. placeholder {0}: priceTag(cost)
 #: src/studio/ui/projection.tsx
 msgid "♻ 重新出样片（{0}）"
 msgstr "♻ 重新出样片（{0}）"
@@ -2743,7 +2763,7 @@ msgstr "♻ 重新推演三套"
 msgid "♻ 重新推演三套（{0}）"
 msgstr "♻ 重新推演三套（{0}）"
 
-#. placeholder {0}: fmtTokens(cost)
+#. placeholder {0}: priceTag(cost)
 #: src/pages/FlowPage.tsx
 msgid "♻ 重新生成（{0}）"
 msgstr "♻ 重新生成（{0}）"
@@ -2762,12 +2782,17 @@ msgstr "♻ 重新生成（再花 {0} token）"
 msgid "♻ 重新生成（再花 {0}）"
 msgstr "♻ 重新生成（再花 {0}）"
 
-#. placeholder {0}: fmtTokens(propCost)
+#. placeholder {0}: priceTag(propCost)
 #: src/pages/FlowPage.tsx
 msgid "♻ 重新生成方案（{0}）"
 msgstr "♻ 重新生成方案（{0}）"
 
-#. placeholder {0}: fmtTokens(cost)
+#. placeholder {0}: priceTag(cost)
+#: src/studio/ui/PlanBoard.tsx
+msgid "♻ 重新生成这一套的画面（{0}）"
+msgstr "♻ 重新生成这一套的画面（{0}）"
+
+#. placeholder {0}: priceTag(cost)
 #: src/studio/ui/projection.tsx
 msgid "♻ 重炼本段（{0}）"
 msgstr "♻ 重炼本段（{0}）"
@@ -2857,21 +2882,21 @@ msgstr "⚠ 这条是<0>简约模式</0>：它按设计不进草稿库（一次�
 #~ msgstr "⚠「{cur}」档带不了参考视频——去 ⚙ 本段设置换成「{usable}」，否则生成会被整句拒。"
 
 #: src/components/flow/FlowCanvas.tsx
-msgid "⚠「{cur}」档带不了参考视频——去 ⚙ 本段设置换成「{usable}」，否则这一段出不了片。"
-msgstr "⚠「{cur}」档带不了参考视频——去 ⚙ 本段设置换成「{usable}」，否则这一段出不了片。"
+#~ msgid "⚠「{cur}」档带不了参考视频——去 ⚙ 本段设置换成「{usable}」，否则这一段出不了片。"
+#~ msgstr "⚠「{cur}」档带不了参考视频——去 ⚙ 本段设置换成「{usable}」，否则这一段出不了片。"
 
 #: src/studio/ui/projection.tsx
 #~ msgid "⚠「{cur}」档带不了参考视频——选「{usable}」，否则出片会被整句拒"
 #~ msgstr "⚠「{cur}」档带不了参考视频——选「{usable}」，否则出片会被整句拒"
 
 #: src/studio/ui/projection.tsx
-msgid "⚠「{cur}」档带不了参考视频——选「{usable}」，否则这一段出不了片"
-msgstr "⚠「{cur}」档带不了参考视频——选「{usable}」，否则这一段出不了片"
+#~ msgid "⚠「{cur}」档带不了参考视频——选「{usable}」，否则这一段出不了片"
+#~ msgstr "⚠「{cur}」档带不了参考视频——选「{usable}」，否则这一段出不了片"
 
 #: src/components/flow/FlowCanvas.tsx
 #: src/studio/ui/projection.tsx
-msgid "⚠「{cur}」档带不了参考视频，而带得了的「{member}」是会员档——摘掉示例视频，或开通会员套餐（或充值过任意一笔）"
-msgstr "⚠「{cur}」档带不了参考视频，而带得了的「{member}」是会员档——摘掉示例视频，或开通会员套餐（或充值过任意一笔）"
+#~ msgid "⚠「{cur}」档带不了参考视频，而带得了的「{member}」是会员档——摘掉示例视频，或开通会员套餐（或充值过任意一笔）"
+#~ msgstr "⚠「{cur}」档带不了参考视频，而带得了的「{member}」是会员档——摘掉示例视频，或开通会员套餐（或充值过任意一笔）"
 
 #. placeholder {0}: fmtTokens(lockPrice)
 #: src/pages/FeedPage.tsx
@@ -2897,8 +2922,8 @@ msgstr "⚡ Token 钱包"
 
 #. placeholder {0}: fmtTokens(cost)
 #: src/pages/SimpleModePage.tsx
-msgid "⚡ 出片（{0} token）"
-msgstr "⚡ 出片（{0} token）"
+#~ msgid "⚡ 出片（{0} token）"
+#~ msgstr "⚡ 出片（{0} token）"
 
 #. placeholder {0}: fmtTokens(cost)
 #: src/pages/SimpleModePage.tsx
@@ -2920,8 +2945,8 @@ msgstr "⚡ 生成本段"
 #. placeholder {0}: fmtTokens(cost)
 #. placeholder {0}: fmtTokens(propCost)
 #: src/pages/FlowPage.tsx
-msgid "⚡ 生成本段（{0}）"
-msgstr "⚡ 生成本段（{0}）"
+#~ msgid "⚡ 生成本段（{0}）"
+#~ msgstr "⚡ 生成本段（{0}）"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "⚡ 生成本段（{costLabel}）"
@@ -2929,8 +2954,8 @@ msgstr "⚡ 生成本段（{costLabel}）"
 
 #. placeholder {0}: fmtTokens(cost)
 #: src/studio/ui/projection.tsx
-msgid "⚡ 生成本段视频（{0}）"
-msgstr "⚡ 生成本段视频（{0}）"
+#~ msgid "⚡ 生成本段视频（{0}）"
+#~ msgstr "⚡ 生成本段视频（{0}）"
 
 #: src/components/flow/EffectWizard.tsx
 msgid "⚡ 生成这一段"
@@ -3157,8 +3182,8 @@ msgstr "✨ 已按「{pickedTitle}」炼好形象图"
 #. placeholder {1}: annBySeg.size
 #. placeholder {2}: fmtTokens(annCost)
 #: src/pages/CutPage.tsx
-msgid "✨ 按 {0} 处圈选重新生成（{1} 段 · {2}）"
-msgstr "✨ 按 {0} 处圈选重新生成（{1} 段 · {2}）"
+#~ msgid "✨ 按 {0} 处圈选重新生成（{1} 段 · {2}）"
+#~ msgstr "✨ 按 {0} 处圈选重新生成（{1} 段 · {2}）"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "✨ 按这套方案炼形象图（{portraitCount} 张 · 演示）"
@@ -3238,8 +3263,8 @@ msgstr "✨ 重新生成这一套的画面"
 
 #. placeholder {0}: fmtTokens(cost)
 #: src/studio/ui/PlanBoard.tsx
-msgid "✨ 重新生成这一套的画面（{0}）"
-msgstr "✨ 重新生成这一套的画面（{0}）"
+#~ msgid "✨ 重新生成这一套的画面（{0}）"
+#~ msgstr "✨ 重新生成这一套的画面（{0}）"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "⟳ 转横屏"
@@ -3465,8 +3490,8 @@ msgstr "🎲 推演三套方案（{propCostLabel}）"
 
 #. placeholder {0}: fmtTokens(deriveCost ?? 0)
 #: src/studio/ui/projection.tsx
-msgid "🎲 生成三套方案（{0}）"
-msgstr "🎲 生成三套方案（{0}）"
+#~ msgid "🎲 生成三套方案（{0}）"
+#~ msgstr "🎲 生成三套方案（{0}）"
 
 #: src/studio/canvasAgent.ts
 msgid "🎲 重演方案"
@@ -3580,8 +3605,8 @@ msgstr "📸 截这一帧"
 
 #. placeholder {0}: fmtTokens(cost)
 #: src/studio/ui/projection.tsx
-msgid "📼 先出样片（{0}）"
-msgstr "📼 先出样片（{0}）"
+#~ msgid "📼 先出样片（{0}）"
+#~ msgstr "📼 先出样片（{0}）"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "📼 先出样片（{costLabel}）"
@@ -6772,6 +6797,11 @@ msgstr "先写那句话"
 msgid "先出一组画面"
 msgstr "先出一组画面"
 
+#. placeholder {0}: priceTag(cost)
+#: src/studio/ui/projection.tsx
+msgid "先出样片（{0}）"
+msgstr "先出样片（{0}）"
+
 #: src/pages/SettingsPage.tsx
 msgid "先别退出登录"
 msgstr "先别退出登录"
@@ -7719,6 +7749,11 @@ msgstr "出片"
 #: src/components/guide/tours.tsx
 msgid "出片、出图、铸卡、解锁付费作品，扣的都是它。点开看余额、买套餐或直充 ——<0>套餐额度先扣（付费套餐按月给，免费版每天补一点），直充和新人额度不过期</0>。"
 msgstr "出片、出图、铸卡、解锁付费作品，扣的都是它。点开看余额、买套餐或直充 ——<0>套餐额度先扣（付费套餐按月给，免费版每天补一点），直充和新人额度不过期</0>。"
+
+#. placeholder {0}: priceTag(cost)
+#: src/pages/SimpleModePage.tsx
+msgid "出片（{0}）"
+msgstr "出片（{0}）"
 
 #: src/studio/segmentGen.ts
 msgid "出片中…"
@@ -14373,6 +14408,7 @@ msgid "推演约 {0}（承接上段尾帧，三套共用开头帧、只画尾帧
 msgstr "推演约 {0}（承接上段尾帧，三套共用开头帧、只画尾帧），出片另算"
 
 #: src/pages/FeedPage.tsx
+#: src/pages/ProfilePage.tsx
 msgid "推荐"
 msgstr "推荐"
 
@@ -15443,7 +15479,9 @@ msgstr "暂时问不到服务器（{0}）"
 msgid "暗处在首页会被文字和按钮盖住（大致）"
 msgstr "暗处在首页会被文字和按钮盖住（大致）"
 
+#: src/components/CommentSheet.tsx
 #: src/components/FeedActionSheet.tsx
+#: src/pages/VideoPage.tsx
 msgid "更多操作"
 msgstr "更多操作"
 
@@ -18264,13 +18302,10 @@ msgid "清理缓存（约 {mbLabel} MB）"
 msgstr "清理缓存（约 {mbLabel} MB）"
 
 #: src/components/flow/GridShotsWizard.tsx
-#: src/components/support/VoiceMarket.tsx
-#: src/pages/AdminPage.tsx
 #: src/pages/CustomCardPage.tsx
 #: src/pages/DiscoverPage.tsx
 #: src/pages/SettingsStoragePage.tsx
 #: src/pages/SupportPersonaNewPage.tsx
-#: src/pages/SupportPersonasPage.tsx
 msgid "清空"
 msgstr "清空"
 
@@ -18279,9 +18314,7 @@ msgstr "清空"
 msgid "清空已保存的视频（{0}）"
 msgstr "清空已保存的视频（{0}）"
 
-#: src/components/MaterialSheet.tsx
-#: src/pages/DiscoverPage.tsx
-#: src/pages/WorkshopPage.tsx
+#: src/components/SearchField.tsx
 msgid "清空搜索"
 msgstr "清空搜索"
 
@@ -19112,6 +19145,11 @@ msgstr "生成"
 msgid "生成一段约 {textPrice} token，余额不够——去「我的」页充值"
 msgstr "生成一段约 {textPrice} token，余额不够——去「我的」页充值"
 
+#. placeholder {0}: priceTag(deriveCost ?? 0)
+#: src/studio/ui/projection.tsx
+msgid "生成三套方案（{0}）"
+msgstr "生成三套方案（{0}）"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "生成中"
 msgstr "生成中"
@@ -19176,6 +19214,17 @@ msgstr "生成契约不完整：真人档需要一张起拍画面"
 #: src/ai/real.ts
 msgid "生成契约不完整：素材参考模式至少要一张参考图"
 msgstr "生成契约不完整：素材参考模式至少要一张参考图"
+
+#. placeholder {0}: priceTag(cost)
+#. placeholder {0}: priceTag(propCost)
+#: src/pages/FlowPage.tsx
+msgid "生成本段（{0}）"
+msgstr "生成本段（{0}）"
+
+#. placeholder {0}: priceTag(cost)
+#: src/studio/ui/projection.tsx
+msgid "生成本段视频（{0}）"
+msgstr "生成本段视频（{0}）"
 
 #: src/components/CoverPicker.tsx
 msgid "生成结果"

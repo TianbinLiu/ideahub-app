@@ -15,7 +15,7 @@ import { i18n } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useState } from "react";
-import Icon from "../Icon";
+import SearchField from "../SearchField";
 import EmptyState from "../EmptyState";
 import { ApiError } from "../../api/client";
 import {
@@ -206,21 +206,7 @@ export default function VoiceMarket({ name, currentTemplateId, nameOf, previewer
   return (
     <div>
       <div className="mb-2 flex items-center gap-2">
-        <div className="flex min-w-0 flex-1 items-center gap-2 rounded-full border border-slate-700 bg-black/30 px-3 py-1.5">
-          <Icon name="search" size={16} className="text-slate-500" />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            maxLength={80}
-            placeholder={t`搜模板：名字、介绍…`}
-            className="min-w-0 flex-1 bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-500"
-          />
-          {q && (
-            <button onClick={() => setQ("")} aria-label={t`清空`} className="text-slate-500">
-              <Icon name="close" size={14} />
-            </button>
-          )}
-        </div>
+        <SearchField shape="compact" className="flex-1" value={q} onChange={setQ} maxLength={80} placeholder={t`搜模板：名字、介绍…`} />
         <button
           onClick={() => setMine((v) => !v)}
           aria-pressed={mine}

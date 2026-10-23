@@ -12,6 +12,7 @@
 //   与工坊共享"当前段"的全部机制（store 级模板同步、挂卡缓冲切换）。
 // · 手势只动 transform（合成层）：拖 = translate，捏合/滚轮 = scale。
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import Warn from "../Warn";
 import Spinner from "../Spinner";
 import ErrorBoundary from "../ErrorBoundary";
 import { CloseButton } from "../IconTapButton";
@@ -1453,9 +1454,9 @@ function NodePanel({
       )}
       {stripAsk && (
         <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
-          <p className="text-[11px] leading-relaxed text-amber-200">
+          <Warn>
             <Trans>切到自选会<b>摘掉模板</b>：挂的卡与合成好的点名句一起清掉，这一段退回普通段（想回来再套就行）。</Trans>
-          </p>
+          </Warn>
           <div className="flex gap-2">
             <button
               onClick={() => {
@@ -1507,9 +1508,9 @@ function NodePanel({
               <CastPreviewCard node={node} cast={cast} disabled={generating || busy} />
               {castAsk && (
                 <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
-                  <p className="text-[11px] leading-relaxed text-amber-200">
+                  <Warn>
                     <Trans>改完挂卡会按新的映射<b>重新合成</b>下面那段要求，你改过的字会被替换掉。</Trans>
-                  </p>
+                  </Warn>
                   <div className="flex gap-2">
                     <button
                       onClick={() => {
@@ -1744,17 +1745,17 @@ function NodePanel({
                       const usable = vid.usable;
                       const member = vid.member;
                       return (
-                        <p className="mt-1 text-[9px] leading-relaxed text-amber-300">
+                        <Warn compact className="mt-1">
                           {usable ? (
-                            <Trans>⚠「{cur}」档带不了参考视频——去 ⚙ 本段设置换成「{usable}」，否则这一段出不了片。</Trans>
+                            <Trans>「{cur}」档带不了参考视频——去 ⚙ 本段设置换成「{usable}」，否则这一段出不了片。</Trans>
                           ) : (
                             <>
-                              <Trans>⚠「{cur}」档带不了参考视频，而带得了的「{member}」是会员档——摘掉示例视频，或开通会员套餐（或充值过任意一笔）</Trans>
+                              <Trans>「{cur}」档带不了参考视频，而带得了的「{member}」是会员档——摘掉示例视频，或开通会员套餐（或充值过任意一笔）</Trans>
                               {"　"}
                               <UpgradeLink />
                             </>
                           )}
-                        </p>
+                        </Warn>
                       );
                     })()}
                 </div>
@@ -2436,7 +2437,7 @@ function AgentBar({ onFocus }: { onFocus: (i: number) => void }) {
       onWheel={(e) => e.stopPropagation()}
     >
       {log && (
-        <div className="max-h-40 overflow-y-auto rounded-xl border border-slate-700/80 bg-ink/95 px-3 py-2 shadow-lg">
+        <div className="max-h-40 overflow-y-auto rounded-xl bg-raised/95 px-3 py-2 shadow-lg ring-1 ring-white/10">
           <div className="flex items-start gap-2">
             <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-slate-200">🪄 {log.say}</p>
             <button onClick={() => setLog(null)} className="flex-none text-slate-500">
@@ -2448,8 +2449,8 @@ function AgentBar({ onFocus }: { onFocus: (i: number) => void }) {
             <div className="mt-1.5 space-y-1.5">
               {log.proposals.map((p, i) => (
                 <div key={`p${i}`} className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5">
-                  <p className="text-[11px] leading-relaxed text-amber-100">{p.display}</p>
-                  {p.kind === "cast" && <p className="mt-0.5 text-[9px] text-amber-200/80">{p.costLabel}</p>}
+                  <Warn>{p.display}</Warn>
+                  {p.kind === "cast" && <Warn compact className="mt-0.5">{p.costLabel}</Warn>}
                   <div className="mt-1 flex items-center gap-2">
                     <button
                       onClick={() => void confirm(p)}
@@ -2486,7 +2487,7 @@ function AgentBar({ onFocus }: { onFocus: (i: number) => void }) {
           )}
         </div>
       )}
-      <div data-guide="canvas-agent" className="flex items-center gap-2 rounded-full border border-slate-600/80 bg-ink/95 px-3 py-1.5 shadow-lg">
+      <div data-guide="canvas-agent" className="flex items-center gap-2 rounded-full bg-raised/95 px-3 py-1.5 shadow-lg ring-1 ring-white/10">
         {/* 「/」唤起（backlog 2.8-⑤ 的交互半，updream 式）：点魔杖或在输入框敲 "/"
             都开句式面板。魔杖从装饰升级成按钮——它本来就是这条 bar 的脸 */}
         <button onClick={() => setPalette(true)} title={t`唤起指令句式（也可以输入 /）`} className="flex-none text-sm active:scale-90">

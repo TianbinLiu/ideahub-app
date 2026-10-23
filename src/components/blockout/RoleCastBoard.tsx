@@ -43,6 +43,7 @@
 //
 // ★ 只收 props、不认识任何 store（PlanBoard 同款约束）：可挂的卡由宿主给。
 import { useMemo, useRef, useState, type PointerEvent as RPointerEvent, type ReactNode } from "react";
+import Warn from "../Warn";
 import { createPortal } from "react-dom";
 import { Trans, useLingui } from "@lingui/react/macro";
 import HelpButton from "../guide/HelpButton";
@@ -677,9 +678,9 @@ export default function RoleCastBoard({
               {castable.find((r) => r.label === dropSlots[ask.slot])?.desc || t`（这个位子没有描述）`}
             </p>
           </div>
-          <p className="text-[11px] leading-relaxed text-amber-200/90">
+          <Warn>
             <Trans>换错人<b className="font-bold">不会报错</b>，成片出来才看得见 —— 请对着画面上高亮的那个人偶确认。</Trans>
-          </p>
+          </Warn>
           <div className="flex gap-2">
             <button
               onClick={() => confirmAsk(ask.card, ask.slot)}
@@ -698,12 +699,12 @@ export default function RoleCastBoard({
           ★ 宁可多问一次：误挂是零报错故障，而"猜一个"猜错了没有任何人会发现 */}
       {ambiguous && (
         <div className="space-y-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2.5">
-          <p className="text-[11px] leading-relaxed text-amber-200">
+          <Warn>
             <Trans>
               这一下同时落在 {ambiguous.slots.length} 个人偶上（他们在画面上叠着）——
               「{ambiguous.card.name}」要挂给哪一个？
             </Trans>
-          </p>
+          </Warn>
           <div className="flex flex-wrap gap-1.5">
             {ambiguous.slots.map((i) => (
               <button
@@ -905,9 +906,9 @@ export default function RoleCastBoard({
             而挂错人零报错。所以这里不是"提醒一下"，是真的把那一层关掉。 */}
       {dragOn && !onFrame && (
         <div className="flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
-          <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-amber-200">
+          <Warn className="min-w-0 flex-1">
             <Trans>离开标记帧了，这里的落点会不准（画面上的人已经走动过）—— 回到第 {(boxAtSec ?? 0).toFixed(1)} 秒再拖。</Trans>
-          </p>
+          </Warn>
           <button
             onClick={backToFrame}
             className="flex-none rounded-full bg-amber-500/90 px-2.5 py-1 text-[11px] font-bold text-ink"
@@ -1026,7 +1027,7 @@ export default function RoleCastBoard({
         <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
           {/* 分类说准，别并列猜（见 strayOverCap/strayRemoved 的 ★★） */}
           {strayRemoved.length > 0 && (
-            <p className="text-[11px] leading-relaxed text-amber-200">
+            <Warn>
               {ordinal ? (
                 <Trans>
                   「{strayRemoved.join("」「")}」上挂着的卡<b>不会生效</b>：模板作者在核对位置时<b>删掉了这个位子</b>
@@ -1038,10 +1039,10 @@ export default function RoleCastBoard({
                   （多半是因为画面上根本找不到这个号）。那个人偶会保持原样出现。
                 </Trans>
               )}
-            </p>
+            </Warn>
           )}
           {strayOverCap.length > 0 && (
-            <p className="text-[11px] leading-relaxed text-amber-200">
+            <Warn>
               {ordinal ? (
                 <Trans>
                   「{strayOverCap.join("」「")}」上挂着的卡<b>不会生效</b>：这些位子超出了一次能挂卡的 {BLOCKOUT_MAX_ROLES} 个上限。
@@ -1051,9 +1052,9 @@ export default function RoleCastBoard({
                   编号 {strayOverCap.join(sep)} 上挂着的卡<b>不会生效</b>：这些位子超出了一次能挂卡的 {BLOCKOUT_MAX_ROLES} 个上限。
                 </Trans>
               )}
-            </p>
+            </Warn>
           )}
-          <p className="text-[11px] leading-relaxed text-amber-200"><Trans>出片前必须把它们取下。</Trans></p>
+          <Warn><Trans>出片前必须把它们取下。</Trans></Warn>
           <button
             onClick={() => {
               const next = { ...value };

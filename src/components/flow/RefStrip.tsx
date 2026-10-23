@@ -9,6 +9,7 @@
 // ★ 上传走 utils/image.fileToRefImage（卡片形象图同一条路：长边压到 1024、比例越界居中裁并说出来）——
 //   这些图要当参考图发给视频 / 出图模型，越界的图会把整发请求 400 掉。
 import type { MessageDescriptor } from "@lingui/core";
+import Warn from "../Warn";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useRef, useState } from "react";
@@ -268,9 +269,9 @@ export default function RefStrip({
         </div>
       )}
       {plan.extrasDropped && (
-        <p className="mt-1 text-[10px] leading-relaxed text-amber-300/90">
+        <Warn compact className="mt-1">
           <Trans>临时参考图在这一档发不出去（上面那几张变淡的）。</Trans>
-        </p>
+        </Warn>
       )}
 
       {/* 编辑条：改名 / 用途 / 写进句子 / 删除 */}
@@ -372,14 +373,14 @@ export default function RefStrip({
       )}
       {/* 声音样本合计太长、这几位没带上（N2）：出片之前就说，别等出片那一行进度 */}
       {plan.voiceOver && (
-        <p className="mt-1 text-[10px] leading-relaxed text-amber-300/90">
+        <Warn compact className="mt-1">
           <Trans>🔇 {overNames} 的声音样本这次带不上：这一档的参考音频合计最长 {overCap} 秒。把样本剪短些，或少挂一张带声音的卡。</Trans>
-        </p>
+        </Warn>
       )}
       {loose.length > 0 && (
-        <p className="mt-1 text-[10px] leading-relaxed text-amber-300/90">
+        <Warn compact className="mt-1">
           <Trans>{looseNames} 没对上这一段的任何参考——检查名字，或点上面的图重新写进句子（发出去时它只是普通文字）。</Trans>
-        </p>
+        </Warn>
       )}
       {onMention && plan.sends && items.length > 0 && canEdit && (
         <p className="mt-1 text-[10px] leading-relaxed text-slate-500">

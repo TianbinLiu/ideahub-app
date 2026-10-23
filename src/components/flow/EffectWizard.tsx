@@ -7,6 +7,7 @@
 //   工坊走 studioStore.layWizardNodes + genNodeVideo，画布走 flowStore.appendSpecs + genNode —— 与九宫格分镜同一对入口，不另写一份。
 // ★ 报价由宿主给（quote = flowStore.appendSpecsQuote，照着「真会落下的那一段」算，与 genNode 真扣同一把尺）；关键帧那一张按张，价钱在 effectDraftStore 一处。
 import type { MessageDescriptor } from "@lingui/core";
+import Warn from "../Warn";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useRef, useState } from "react";
@@ -290,9 +291,9 @@ export default function EffectWizard({
           ) : (
             <CastPicker leadBadge={false}>
               {cast.length > need && (
-                <p className="text-[10px] leading-relaxed text-amber-200">
+                <Warn compact>
                   <Trans>现在选了 {castN} 个人（{castNames}），这个特效只要 {need} 个 —— 取消几个再往下。</Trans>
-                </p>
+                </Warn>
               )}
               {faceNote && (
                 <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">{faceNote}</p>
