@@ -201,7 +201,7 @@ export default function HoldToTalk({ disabled, onText, onError, className = "" }
                     : // 回的不是 JSON 时（网关的拦截页之类）throwHttp 只能给出「HTTP 403」这种光秃秃的一句，换成人话
                       e.message && e.message !== `HTTP ${e.status}`
                       ? e.message
-                      : t`语音识别失败（HTTP ${e.status}），先打字吧。`,
+                      : t`语音识别失败，先打字吧。`,
         );
       } else if (e instanceof DOMException && (e.name === "TimeoutError" || e.name === "AbortError")) {
         // AbortSignal.timeout 到点（规范是 TimeoutError，老 WebView 可能报成 AbortError，两个名字都认）：

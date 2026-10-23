@@ -207,8 +207,8 @@ export default function MaterialSheet({
             <button
               key={k}
               onClick={() => setTab(k)}
-              className={`flex-1 rounded-lg py-1.5 text-xs font-semibold transition ${
-                tab === k ? "bg-panel text-slate-100 shadow" : "text-slate-500"
+              className={`flex-1 rounded-lg py-1.5 text-xs transition ${
+                tab === k ? "bg-brand font-semibold text-ink" : "text-slate-400"
               }`}
             >
               {label}

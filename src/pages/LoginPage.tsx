@@ -19,6 +19,7 @@ import { i18n } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { BackButton } from "../components/IconTapButton";
+import EmptyState from "../components/EmptyState";
 import LangChip from "../components/LangChip";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { useBackOr } from "../hooks/useBackOr";
@@ -363,7 +364,7 @@ export default function LoginPage() {
             />
           </>
         ) : capsLoading ? (
-          <div className="py-8 text-center text-xs text-slate-500"><Trans>正在确认可用的登录方式…</Trans></div>
+          <EmptyState compact loading text={t`正在确认可用的登录方式…`} />
         ) : (
           <>
             <div className="mb-1 flex rounded-xl bg-panel p-1">
@@ -407,7 +408,7 @@ export default function LoginPage() {
                       pick("email");
                       setEmailFlow("register");
                     }}
-                    className="py-1 text-brand underline underline-offset-2 active:opacity-60"
+                    className="py-2.5 text-brand underline underline-offset-2 active:opacity-60"
                   >
                     <Trans>没有账号？用邮箱注册</Trans>
                   </button>
@@ -416,7 +417,7 @@ export default function LoginPage() {
                       pick("email");
                       setEmailFlow("reset");
                     }}
-                    className="py-1 text-slate-500 underline underline-offset-2 active:opacity-60"
+                    className="py-2.5 text-slate-500 underline underline-offset-2 active:opacity-60"
                   >
                     <Trans>忘记密码？</Trans>
                   </button>
@@ -530,7 +531,7 @@ export default function LoginPage() {
             aria-label={agreed ? t`取消同意协议` : t`同意协议`}
             role="checkbox"
             aria-checked={agreed}
-            className="-my-2 -ml-2 flex h-9 w-9 flex-none items-center justify-center active:opacity-60"
+            className="-my-3 -ml-3 flex h-11 w-11 flex-none items-center justify-center active:opacity-60"
           >
             <span
               className={`flex h-[18px] w-[18px] items-center justify-center rounded border transition ${

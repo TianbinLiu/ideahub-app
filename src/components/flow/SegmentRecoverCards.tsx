@@ -195,7 +195,7 @@ export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean
   return (
     <div
       className={`rounded-lg border px-2.5 py-2 ${
-        closed ? "border-slate-600/60 bg-black/25" : "border-amber-500/50 bg-amber-500/10"
+        closed ? "border-slate-600/60 bg-black/25" : "border-amber-500/40 bg-amber-500/10"
       }`}
     >
       <div className="text-[11px] font-bold text-amber-200">

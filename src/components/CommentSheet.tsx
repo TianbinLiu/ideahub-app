@@ -178,7 +178,7 @@ export default function CommentSheet({ video, onClose }: { video: VideoItem; onC
         <Avatar name={c.author} label={shownName} src={commentAvatarOf(c)} size={indented ? 24 : 32} />
         <div className="min-w-0 flex-1">
           <div className="text-xs text-slate-500">
-            {shownName} · {relativeTime(c.at)}
+            <span className="font-medium text-slate-300">{shownName}</span> · {relativeTime(c.at)}
           </div>
           {/* ★ 只有服务端确认解析到人的那几个 @ 会变成链接，打错的原样留成白字 ——
               用户据此看得出自己那一 @ 到底有没有落地（见 MentionText 顶部）。
@@ -186,11 +186,11 @@ export default function CommentSheet({ video, onClose }: { video: VideoItem; onC
           <div className="mt-0.5 text-sm leading-relaxed text-slate-200">
             <MentionText text={c.text} mentions={c.mentions} onNavigate={onClose} />
           </div>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="mt-1 flex flex-wrap items-center gap-3">
             <button
               onClick={() => startReply(c)}
               disabled={pending}
-              className="mt-1 text-[11px] text-slate-500 active:opacity-60 disabled:opacity-40"
+              className="-my-1.5 py-1.5 text-[11px] text-slate-500 active:opacity-60 disabled:opacity-40"
             >
               {pending ? <Trans>发送中…</Trans> : <Trans>回复</Trans>}
             </button>
@@ -268,9 +268,7 @@ export default function CommentSheet({ video, onClose }: { video: VideoItem; onC
             // 发出去才发现缩进到了别人楼里
             <div className="mb-2 flex items-center gap-2 text-xs text-slate-400">
               <span className="min-w-0 truncate">{replyLabel}</span>
-              <button onClick={() => setReplyTo(null)} className="-m-1 p-1 text-slate-500" aria-label={t`取消回复`}>
-                <Icon name="close" size={14} />
-              </button>
+              <CloseButton chip="sm" size={13} align="end" tone="text-slate-500" label={t`取消回复`} onClick={() => setReplyTo(null)} />
             </div>
           )}
           {/* 失败就地说清楚，并且**不清空输入框**——用户打的字还在，改一下就能再发 */}

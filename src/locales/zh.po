@@ -2814,8 +2814,12 @@ msgid "⚠ 换成这一套，现在这套走向后面的段会整段收起（切
 msgstr "⚠ 换成这一套，现在这套走向后面的段会整段收起（切回可恢复）"
 
 #: src/pages/PublishPage.tsx
-msgid "⚠ 渐变回退"
-msgstr "⚠ 渐变回退"
+msgid "⚠ 没出成片 · 画面过渡代替"
+msgstr "⚠ 没出成片 · 画面过渡代替"
+
+#: src/pages/PublishPage.tsx
+#~ msgid "⚠ 渐变回退"
+#~ msgstr "⚠ 渐变回退"
 
 #: src/components/blockout/BlockoutTrimmer.tsx
 msgid "⚠ 视频里有<0>真人面孔</0>时，AI 可能在<1>受理之后</1>才拒绝这一发 —— 那时<2>出片那一笔会自动退回</2>， 但「AI 看帧」那一笔不退，几分钟也白等了（实测：创建时不拒，只能中途失败）。真人素材请自己掂量； 动画、游戏画面、自己拍的白模预演不受影响。"
@@ -2849,12 +2853,20 @@ msgstr "⚠ 这条是<0>简约模式</0>：它按设计不进草稿库（一次�
 #~ msgstr "⚠「{0}」档带不了参考视频——选「电影级」，否则出片会被整句拒"
 
 #: src/components/flow/FlowCanvas.tsx
-msgid "⚠「{cur}」档带不了参考视频——去 ⚙ 本段设置换成「{usable}」，否则生成会被整句拒。"
-msgstr "⚠「{cur}」档带不了参考视频——去 ⚙ 本段设置换成「{usable}」，否则生成会被整句拒。"
+#~ msgid "⚠「{cur}」档带不了参考视频——去 ⚙ 本段设置换成「{usable}」，否则生成会被整句拒。"
+#~ msgstr "⚠「{cur}」档带不了参考视频——去 ⚙ 本段设置换成「{usable}」，否则生成会被整句拒。"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "⚠「{cur}」档带不了参考视频——去 ⚙ 本段设置换成「{usable}」，否则这一段出不了片。"
+msgstr "⚠「{cur}」档带不了参考视频——去 ⚙ 本段设置换成「{usable}」，否则这一段出不了片。"
 
 #: src/studio/ui/projection.tsx
-msgid "⚠「{cur}」档带不了参考视频——选「{usable}」，否则出片会被整句拒"
-msgstr "⚠「{cur}」档带不了参考视频——选「{usable}」，否则出片会被整句拒"
+#~ msgid "⚠「{cur}」档带不了参考视频——选「{usable}」，否则出片会被整句拒"
+#~ msgstr "⚠「{cur}」档带不了参考视频——选「{usable}」，否则出片会被整句拒"
+
+#: src/studio/ui/projection.tsx
+msgid "⚠「{cur}」档带不了参考视频——选「{usable}」，否则这一段出不了片"
+msgstr "⚠「{cur}」档带不了参考视频——选「{usable}」，否则这一段出不了片"
 
 #: src/components/flow/FlowCanvas.tsx
 #: src/studio/ui/projection.tsx
@@ -2876,12 +2888,12 @@ msgstr "⚡ Token 钱包"
 #~ msgstr "⚡ 做同款"
 
 #: src/pages/VideoPage.tsx
-msgid "⚡ 做同款：同一份分段剧本，生成你自己的版本"
-msgstr "⚡ 做同款：同一份分段剧本，生成你自己的版本"
+#~ msgid "⚡ 做同款：同一份分段剧本，生成你自己的版本"
+#~ msgstr "⚡ 做同款：同一份分段剧本，生成你自己的版本"
 
 #: src/pages/VideoPage.tsx
-msgid "⚡ 做同款：同一份分段剧本和卡组，生成你自己的版本"
-msgstr "⚡ 做同款：同一份分段剧本和卡组，生成你自己的版本"
+#~ msgid "⚡ 做同款：同一份分段剧本和卡组，生成你自己的版本"
+#~ msgstr "⚡ 做同款：同一份分段剧本和卡组，生成你自己的版本"
 
 #. placeholder {0}: fmtTokens(cost)
 #: src/pages/SimpleModePage.tsx
@@ -2894,8 +2906,8 @@ msgstr "⚡ 出片（{0} token）"
 #~ msgstr "⚡ 出片（{0}）"
 
 #: src/pages/RecipePage.tsx
-msgid "⚡ 按这个流程做同款"
-msgstr "⚡ 按这个流程做同款"
+#~ msgid "⚡ 按这个流程做同款"
+#~ msgstr "⚡ 按这个流程做同款"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "⚡ 炼这一段视频（{costLabel}）"
@@ -3026,7 +3038,6 @@ msgid "✎ 重拍这一段（{revisePrice}）"
 msgstr "✎ 重拍这一段（{revisePrice}）"
 
 #: src/pages/DeckDetailPage.tsx
-#: src/pages/VideoPage.tsx
 msgid "✏️ 编辑"
 msgstr "✏️ 编辑"
 
@@ -3474,8 +3485,8 @@ msgid "🎴 工坊模式"
 msgstr "🎴 工坊模式"
 
 #: src/pages/VideoPage.tsx
-msgid "🎴 我也要创作"
-msgstr "🎴 我也要创作"
+#~ msgid "🎴 我也要创作"
+#~ msgstr "🎴 我也要创作"
 
 #: src/pages/TemplateDetailPage.tsx
 msgid "🎴 模板卡组 · {cardCount} 张"
@@ -4012,8 +4023,8 @@ msgid "6 位验证码"
 msgstr "6 位验证码"
 
 #: src/pages/ProfilePage.tsx
-msgid "add-on token · 直充 / 新人额度 / 创作收益，不过期"
-msgstr "add-on token · 直充 / 新人额度 / 创作收益，不过期"
+#~ msgid "add-on token · 直充 / 新人额度 / 创作收益，不过期"
+#~ msgstr "add-on token · 直充 / 新人额度 / 创作收益，不过期"
 
 #: src/pages/ProfilePage.tsx
 #~ msgid "add-on token · 直充/创作收益"
@@ -4154,6 +4165,10 @@ msgstr "AI 看了一遍画面：第 {flaggedList} 格可能和分镜不一样（
 msgid "AI 看哪几帧"
 msgstr "AI 看哪几帧"
 
+#: src/components/CoverPicker.tsx
+msgid "AI 真实生成，约 20-30 秒"
+msgstr "AI 真实生成，约 20-30 秒"
+
 #: src/pages/SettingsPage.tsx
 msgid "AI 老师"
 msgstr "AI 老师"
@@ -4252,8 +4267,8 @@ msgid "Seedream 未返回图片"
 msgstr "Seedream 未返回图片"
 
 #: src/components/CoverPicker.tsx
-msgid "Seedream 真实生成，约 20-30 秒"
-msgstr "Seedream 真实生成，约 20-30 秒"
+#~ msgid "Seedream 真实生成，约 20-30 秒"
+#~ msgstr "Seedream 真实生成，约 20-30 秒"
 
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "TA 回"
@@ -5673,10 +5688,14 @@ msgstr "云海倒卷这一下太燃了"
 msgid "云海剑冢·白无衣"
 msgstr "云海剑冢·白无衣"
 
+#: src/pages/SettingsVoicePage.tsx
+msgid "云端语音暂时出不了声，稍后再试"
+msgstr "云端语音暂时出不了声，稍后再试"
+
 #. placeholder {0}: e.status
 #: src/pages/SettingsVoicePage.tsx
-msgid "云端语音没出声（{0}）：稍后再试，或到火山控制台看额度"
-msgstr "云端语音没出声（{0}）：稍后再试，或到火山控制台看额度"
+#~ msgid "云端语音没出声（{0}）：稍后再试，或到火山控制台看额度"
+#~ msgstr "云端语音没出声（{0}）：稍后再试，或到火山控制台看额度"
 
 #: src/pages/SettingsVoicePage.tsx
 msgid "云端语音没回应（等了 {secs} 秒），稍后再试"
@@ -6593,6 +6612,10 @@ msgstr "俯拍"
 msgid "倍速"
 msgstr "倍速"
 
+#: src/components/TemplateShelf.tsx
+msgid "做一个模板"
+msgstr "做一个模板"
+
 #: src/pages/NotificationsPage.tsx
 msgid "做了你的同款"
 msgstr "做了你的同款"
@@ -6608,6 +6631,14 @@ msgstr "做同款"
 msgctxt "丢弃确认卡里「…再回来X」的那个动作（英文用小写动词短语）"
 msgid "做同款"
 msgstr "做同款"
+
+#: src/pages/VideoPage.tsx
+msgid "做同款：同一份分段剧本，生成你自己的版本"
+msgstr "做同款：同一份分段剧本，生成你自己的版本"
+
+#: src/pages/VideoPage.tsx
+msgid "做同款：同一份分段剧本和卡组，生成你自己的版本"
+msgstr "做同款：同一份分段剧本和卡组，生成你自己的版本"
 
 #: src/pages/FeedPage.tsx
 #: src/pages/VideoPage.tsx
@@ -7072,6 +7103,10 @@ msgid "公开制作过程"
 msgstr "公开制作过程"
 
 #: src/pages/EditPage.tsx
+msgid "公开制作过程需要联网；这台设备当前是离线模式。"
+msgstr "公开制作过程需要联网；这台设备当前是离线模式。"
+
+#: src/pages/EditPage.tsx
 msgid "公开着的还是上一版的制作过程（这一版回炉后还没更新），别人现在看不到。"
 msgstr "公开着的还是上一版的制作过程（这一版回炉后还没更新），别人现在看不到。"
 
@@ -7168,7 +7203,6 @@ msgstr "关键帧还在画（约 20~30 秒），画完才能另挑特效。"
 #: src/components/GenerationPill.tsx
 #: src/components/IconTapButton.tsx
 #: src/components/UpdateSheet.tsx
-#: src/pages/ProfilePage.tsx
 #: src/studio/ui/modals.tsx
 msgid "关闭"
 msgstr "关闭"
@@ -8316,6 +8350,10 @@ msgstr "制作人格"
 msgid "制作过程"
 msgstr "制作过程"
 
+#: src/pages/RecipePage.tsx
+msgid "制作过程存在服务端，这台设备当前是离线模式；接上服务器再来这一页。"
+msgstr "制作过程存在服务端，这台设备当前是离线模式；接上服务器再来这一页。"
+
 #: src/components/support/AdminTicketsView.tsx
 #: src/pages/AdminPage.tsx
 msgid "刷新"
@@ -8456,6 +8494,10 @@ msgstr "加入我的卡组"
 #: src/studio/canvasAgent.ts
 msgid "加段：{0}"
 msgstr "加段：{0}"
+
+#: src/pages/ProfilePage.tsx
+msgid "加购 token · 直充 / 新人额度 / 创作收益，不过期"
+msgstr "加购 token · 直充 / 新人额度 / 创作收益，不过期"
 
 #: src/components/support/VoiceMarket.tsx
 #: src/pages/AdminPage.tsx
@@ -8939,6 +8981,10 @@ msgstr "去创意工坊"
 msgid "去创意工坊建一组"
 msgstr "去创意工坊建一组"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "去创意工坊的市场添加几张，或者在「我的仓库」里自己做"
+msgstr "去创意工坊的市场添加几张，或者在「我的仓库」里自己做"
+
 #: src/components/MaterialSheet.tsx
 msgid "去创意工坊铸几张"
 msgstr "去创意工坊铸几张"
@@ -8963,6 +9009,7 @@ msgstr "去发布"
 msgid "去取回这一段"
 msgstr "去取回这一段"
 
+#: src/components/flow/FlowCanvas.tsx
 #: src/pages/WorkshopMinePage.tsx
 msgid "去市场看看"
 msgstr "去市场看看"
@@ -8971,6 +9018,7 @@ msgstr "去市场看看"
 msgid "去开启「允许安装未知应用」"
 msgstr "去开启「允许安装未知应用」"
 
+#: src/components/flow/FlowCanvas.tsx
 #: src/pages/DeckDetailPage.tsx
 #: src/pages/WorkshopPage.tsx
 msgid "去我的仓库"
@@ -9007,6 +9055,10 @@ msgstr "去推荐流看看"
 #: src/pages/TemplateDetailPage.tsx
 msgid "去模板市场"
 msgstr "去模板市场"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "去模板市场逛逛"
+msgstr "去模板市场逛逛"
 
 #: src/pages/AdminPage.tsx
 msgid "去现场 →"
@@ -10514,6 +10566,10 @@ msgstr "在「卡组」页签里：<0>「＋ 新建卡组」</0>开一组新的�
 #: src/components/guide/tours.tsx
 #~ msgid "在「我的卡组」页签里：<0>「＋ 新建卡组」</0>开一组新的；先点「编辑」<1>再</1>点卡片，才是加进来或拿出去；卡角能定封面。 组名点上去直接改。删掉整组<2>不会删卡</2>。"
 #~ msgstr "在「我的卡组」页签里：<0>「＋ 新建卡组」</0>开一组新的；先点「编辑」<1>再</1>点卡片，才是加进来或拿出去；卡角能定封面。 组名点上去直接改。删掉整组<2>不会删卡</2>。"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "在创意工坊「我的仓库」里从视频提取、圈人物时可以顺手取一段声音"
+msgstr "在创意工坊「我的仓库」里从视频提取、圈人物时可以顺手取一段声音"
 
 #: src/components/blockout/BoxFramePicker.tsx
 msgid "在哪几帧切开"
@@ -13054,6 +13110,10 @@ msgctxt "首页头像键的读屏名：这条作品是正在看的人自己发�
 msgid "我 的主页"
 msgstr "我 的主页"
 
+#: src/pages/VideoPage.tsx
+msgid "我也要创作"
+msgstr "我也要创作"
+
 #: src/pages/SettingsPage.tsx
 msgid "我们对涉及未成年人内容的立场与处理方式（在官网打开）"
 msgstr "我们对涉及未成年人内容的立场与处理方式（在官网打开）"
@@ -13369,8 +13429,12 @@ msgid "技能的本体就是那句要发给画布的话，先把它写出来"
 msgstr "技能的本体就是那句要发给画布的话，先把它写出来"
 
 #: src/pages/SupportCreatePage.tsx
-msgid "把 1～3 味豆包音色按比例调成自己的嗓子，可以发布成声音模板。"
-msgstr "把 1～3 味豆包音色按比例调成自己的嗓子，可以发布成声音模板。"
+#~ msgid "把 1～3 味豆包音色按比例调成自己的嗓子，可以发布成声音模板。"
+#~ msgstr "把 1～3 味豆包音色按比例调成自己的嗓子，可以发布成声音模板。"
+
+#: src/pages/SupportCreatePage.tsx
+msgid "把 1～3 种音色按比例调成自己的嗓子，可以发布成声音模板。"
+msgstr "把 1～3 种音色按比例调成自己的嗓子，可以发布成声音模板。"
 
 #. placeholder {0}: ask.card.name
 #. placeholder {1}: personNameOf(dropSlots[ask.slot])
@@ -13887,6 +13951,10 @@ msgstr "按课程的 AI 政策，这个问题只讲原理、不给答案"
 #: src/components/blockout/VisionFramePicker.tsx
 msgid "按这一段的时长自动取帧：现在是 <0>{autoFrames} 帧</0>（每 {BLOCKOUTIZE_FRAME_EVERY_SEC} 秒一帧，最少 {BLOCKOUTIZE_FRAME_MIN} 帧、最多 {BLOCKOUTIZE_FRAME_MAX} 帧）。<1>拖时间轴改选段长度，帧数和下面的报价都会跟着变。</1>"
 msgstr "按这一段的时长自动取帧：现在是 <0>{autoFrames} 帧</0>（每 {BLOCKOUTIZE_FRAME_EVERY_SEC} 秒一帧，最少 {BLOCKOUTIZE_FRAME_MIN} 帧、最多 {BLOCKOUTIZE_FRAME_MAX} 帧）。<1>拖时间轴改选段长度，帧数和下面的报价都会跟着变。</1>"
+
+#: src/pages/RecipePage.tsx
+msgid "按这个流程做同款"
+msgstr "按这个流程做同款"
 
 #: src/pages/RecipePage.tsx
 msgid "按这个流程做同款（丢弃上面那条流水线）"
@@ -15694,8 +15762,12 @@ msgid "有新版本 {0}"
 msgstr "有新版本 {0}"
 
 #: src/pages/PublishPage.tsx
-msgid "有片段还挂在临时链接上（约 24 小时有效）——尽快发布，服务端会转存为长期地址"
-msgstr "有片段还挂在临时链接上（约 24 小时有效）——尽快发布，服务端会转存为长期地址"
+msgid "有片段还挂在临时链接上（约 24 小时有效）——尽快发布，发布后会换成长期地址"
+msgstr "有片段还挂在临时链接上（约 24 小时有效）——尽快发布，发布后会换成长期地址"
+
+#: src/pages/PublishPage.tsx
+#~ msgid "有片段还挂在临时链接上（约 24 小时有效）——尽快发布，服务端会转存为长期地址"
+#~ msgstr "有片段还挂在临时链接上（约 24 小时有效）——尽快发布，服务端会转存为长期地址"
 
 #: src/api/companion.ts
 msgid "有物理"
@@ -16247,6 +16319,10 @@ msgstr "松手结束 · {0}s"
 #: src/pages/VideoPage.tsx
 msgid "查看制作过程"
 msgstr "查看制作过程"
+
+#: src/pages/RecipePage.tsx
+msgid "查看制作过程需要联网"
+msgstr "查看制作过程需要联网"
 
 #: src/studio/ui/NpcDialog.tsx
 msgid "查看历史对话"
@@ -17679,8 +17755,12 @@ msgid "没有可还原的上一版"
 msgstr "没有可还原的上一版"
 
 #: src/components/flow/FlowCanvas.tsx
-msgid "没有带声音样本的卡——在创意工坊「我的仓库」里从视频提取、圈人物时可以顺手取一段声音"
-msgstr "没有带声音样本的卡——在创意工坊「我的仓库」里从视频提取、圈人物时可以顺手取一段声音"
+msgid "没有带声音样本的卡"
+msgstr "没有带声音样本的卡"
+
+#: src/components/flow/FlowCanvas.tsx
+#~ msgid "没有带声音样本的卡——在创意工坊「我的仓库」里从视频提取、圈人物时可以顺手取一段声音"
+#~ msgstr "没有带声音样本的卡——在创意工坊「我的仓库」里从视频提取、圈人物时可以顺手取一段声音"
 
 #: src/components/flow/FlowCanvas.tsx
 #~ msgid "没有带声音样本的卡——在工坊「从视频提取」圈人物时可以顺手取一段声音"
@@ -20522,8 +20602,12 @@ msgid "离开标记帧了，这里的落点会不准（画面上的人已经走�
 msgstr "离开标记帧了，这里的落点会不准（画面上的人已经走动过）—— 回到第 {0} 秒再拖。"
 
 #: src/api/client.ts
-msgid "离线模式：未配置 VITE_API_BASE"
-msgstr "离线模式：未配置 VITE_API_BASE"
+#~ msgid "离线模式：未配置 VITE_API_BASE"
+#~ msgstr "离线模式：未配置 VITE_API_BASE"
+
+#: src/api/client.ts
+msgid "离线模式：这台设备没有连服务器"
+msgstr "离线模式：这台设备没有连服务器"
 
 #: src/pages/CardDetailPage.tsx
 msgid "离线模式下加不了参考图"
@@ -22041,6 +22125,7 @@ msgid "编号还没核对：AI 编的号可能与画面上人偶头上的数字�
 msgstr "编号还没核对：AI 编的号可能与画面上人偶头上的数字对不上，<0>核对之前不能发布</0>（对不上会让别人的角色卡换到别人身上）。点这里去核对。"
 
 #: src/pages/CardDetailPage.tsx
+#: src/pages/VideoPage.tsx
 #: src/pages/WorkshopMinePage.tsx
 msgid "编辑"
 msgstr "编辑"
@@ -23128,6 +23213,10 @@ msgstr "语音播报：开"
 #~ msgid "语音识别失败"
 #~ msgstr "语音识别失败"
 
+#: src/components/support/HoldToTalk.tsx
+msgid "语音识别失败，先打字吧。"
+msgstr "语音识别失败，先打字吧。"
+
 #. placeholder {0}: e instanceof Error ? e.message : String(e)
 #: src/components/support/HoldToTalk.tsx
 msgid "语音识别失败：{0}"
@@ -23135,8 +23224,8 @@ msgstr "语音识别失败：{0}"
 
 #. placeholder {0}: e.status
 #: src/components/support/HoldToTalk.tsx
-msgid "语音识别失败（HTTP {0}），先打字吧。"
-msgstr "语音识别失败（HTTP {0}），先打字吧。"
+#~ msgid "语音识别失败（HTTP {0}），先打字吧。"
+#~ msgstr "语音识别失败（HTTP {0}），先打字吧。"
 
 #: src/components/support/HoldToTalk.tsx
 msgid "语音识别暂时不可用（上游没接住），先打字吧。"
@@ -23895,14 +23984,15 @@ msgstr "还没有你自己的模板——点上面那张卡做一个"
 msgid "还没有关注任何创作者"
 msgstr "还没有关注任何创作者"
 
+#: src/components/flow/FlowCanvas.tsx
 #: src/pages/ProfilePage.tsx
 #: src/pages/WorkshopMinePage.tsx
 msgid "还没有卡片"
 msgstr "还没有卡片"
 
 #: src/components/flow/FlowCanvas.tsx
-msgid "还没有卡片——去创意工坊的市场添加几张，或者在「我的仓库」里自己做"
-msgstr "还没有卡片——去创意工坊的市场添加几张，或者在「我的仓库」里自己做"
+#~ msgid "还没有卡片——去创意工坊的市场添加几张，或者在「我的仓库」里自己做"
+#~ msgstr "还没有卡片——去创意工坊的市场添加几张，或者在「我的仓库」里自己做"
 
 #: src/components/flow/FlowCanvas.tsx
 #~ msgid "还没有卡片——去创意工坊铸几张或从市场添加"
@@ -23991,8 +24081,12 @@ msgid "还没有画面——点「生成本段」开炼"
 msgstr "还没有画面——点「生成本段」开炼"
 
 #: src/components/flow/FlowCanvas.tsx
-msgid "还没有白模模板——去模板市场逛逛"
-msgstr "还没有白模模板——去模板市场逛逛"
+msgid "还没有白模模板"
+msgstr "还没有白模模板"
+
+#: src/components/flow/FlowCanvas.tsx
+#~ msgid "还没有白模模板——去模板市场逛逛"
+#~ msgstr "还没有白模模板——去模板市场逛逛"
 
 #: src/pages/ProfilePage.tsx
 msgid "还没有简介——去设置里写一句吧"

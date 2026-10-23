@@ -193,8 +193,8 @@ export default function SettingsPage() {
 function Group({ title, children }: { title?: string; children: React.ReactNode }) {
   return (
     <div className="mb-4">
-      {title && <div className="mb-1.5 px-1 text-xs font-semibold text-slate-500">{title}</div>}
-      <div className="divide-y divide-slate-800 overflow-hidden rounded-xl border border-slate-700/70 bg-panel">{children}</div>
+      {title && <div className="mb-1.5 px-1 text-xs font-semibold text-slate-400">{title}</div>}
+      <div className="divide-y divide-slate-700/60 overflow-hidden rounded-xl border border-slate-700/70 bg-panel">{children}</div>
     </div>
   );
 }
@@ -250,7 +250,7 @@ function LangRow() {
             <h3 className="text-sm font-bold text-slate-100">{LANG_TITLE}</h3>
             <CloseButton chip="sm" size={13} align="end" onClick={() => setOpen(false)} />
           </div>
-          <div className="divide-y divide-slate-800 overflow-hidden rounded-xl border border-slate-700/70 bg-panel">
+          <div className="divide-y divide-slate-700/60 overflow-hidden rounded-xl border border-slate-700/70 bg-panel">
             {options.map((o) => (
               <button
                 key={o.key}

@@ -1081,7 +1081,7 @@ function EditorPanel() {
                 return (
                   <p className="mb-1.5 text-center text-[10px] leading-relaxed text-amber-300">
                     {usable ? (
-                      <Trans>⚠「{cur}」档带不了参考视频——选「{usable}」，否则出片会被整句拒</Trans>
+                      <Trans>⚠「{cur}」档带不了参考视频——选「{usable}」，否则这一段出不了片</Trans>
                     ) : (
                       <>
                         <Trans>⚠「{cur}」档带不了参考视频，而带得了的「{member}」是会员档——摘掉示例视频，或开通会员套餐（或充值过任意一笔）</Trans>

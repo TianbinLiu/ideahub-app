@@ -207,7 +207,7 @@ export function TemplateCard({
           <button
             data-guide={guidePick}
             onClick={onPick}
-            className="w-full rounded-xl bg-brand py-2.5 text-xs font-bold text-ink"
+            className="w-full rounded-xl bg-brand/15 py-2.5 text-sm font-bold text-brand"
           >
             <Trans>用它出片</Trans>
           </button>
@@ -261,7 +261,7 @@ function BlockoutResumeCard({ job, onTaken }: { job: BlockoutJob; onTaken: () =>
   return (
     <div
       className={`rounded-xl border px-3 py-2.5 ${
-        expired ? "border-slate-600/60 bg-black/25" : "border-amber-500/50 bg-amber-500/10"
+        expired ? "border-slate-600/60 bg-black/25" : "border-amber-500/40 bg-amber-500/10"
       }`}
     >
       <div className="text-[11px] font-bold text-amber-200">
@@ -677,7 +677,7 @@ export default function TemplateShelf({
             key={c.id}
             onClick={() => setCat(c.id)}
             className={`flex-none rounded-full px-3 py-1 text-[11px] ${
-              cat === c.id ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-400"
+              cat === c.id ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-300"
             }`}
           >
             {c.label}
@@ -786,6 +786,12 @@ export default function TemplateShelf({
             // 「会员档——开通会员套餐…」那一句是钱上的话：不放看板娘（EmptyState 头上的禁区），退回灰图标
             mascot={tierPicked && catRows.length > 0 && tierEmptyGated(tierPicked) ? undefined : q.trim() || cat || tierPicked ? "wonder" : "nap"}
             icon="search"
+            cta={
+              // 空态自己带出口（Refactoring UI「别忽视空状态」，2026-10-23）：说「做一个」就给做一个的键
+              blockoutCap && !tierPicked && !cat && !q.trim()
+                ? { label: t`做一个模板`, onClick: () => setExtract(true), primary: tab === "mine" }
+                : undefined
+            }
             text={
               tierPicked && catRows.length > 0
                 ? tierEmptyText(tierPicked, catRows.length)

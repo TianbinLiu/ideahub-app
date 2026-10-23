@@ -163,8 +163,9 @@ async function request<T>(
   opts: RequestOptions = {}
 ): Promise<T> {
   if (!API_ON) {
-    // 走到这里说明 data 层的分流写漏了：离线模式不该有任何请求。
-    throw new ApiError(t`离线模式：未配置 VITE_API_BASE`, 0, "OFFLINE");
+    // 走到这里说明 data 层的分流写漏了：离线模式（VITE_API_BASE 为空）不该有任何请求。
+    // ★ 这句会原样上屏（2026-10-23 在制作过程页量到过），所以说人话、不带环境变量名；排查认 code "OFFLINE"。
+    throw new ApiError(t`离线模式：这台设备没有连服务器`, 0, "OFFLINE");
   }
 
   const headers: Record<string, string> = { Accept: "application/json" };

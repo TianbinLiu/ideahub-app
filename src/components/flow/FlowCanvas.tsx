@@ -18,6 +18,7 @@ import { CloseButton } from "../IconTapButton";
 import { createPortal } from "react-dom";
 import GenTrace from "../GenTrace";
 import Icon from "../Icon";
+import EmptyState from "../EmptyState";
 import { subscribeVoices, voiceOf, voicesVersion } from "../../data/cardVoice";
 import HelpButton from "../guide/HelpButton";
 import { useAutoGuide } from "../guide/useAutoGuide";
@@ -1537,7 +1538,7 @@ function NodePanel({
               只能反复挂卡、每次白跑一次对话。 */}
           {castErr && castOfThisNode && (
             <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
-              <p className="text-[11px] leading-relaxed text-amber-200">{castErr}</p>
+              <p className="text-[11px] leading-relaxed text-rose-300">{castErr}</p>
               {castFallback && (
                 <button
                   onClick={fillCastFallback}
@@ -1745,7 +1746,7 @@ function NodePanel({
                       return (
                         <p className="mt-1 text-[9px] leading-relaxed text-amber-300">
                           {usable ? (
-                            <Trans>⚠「{cur}」档带不了参考视频——去 ⚙ 本段设置换成「{usable}」，否则生成会被整句拒。</Trans>
+                            <Trans>⚠「{cur}」档带不了参考视频——去 ⚙ 本段设置换成「{usable}」，否则这一段出不了片。</Trans>
                           ) : (
                             <>
                               <Trans>⚠「{cur}」档带不了参考视频，而带得了的「{member}」是会员档——摘掉示例视频，或开通会员套餐（或充值过任意一笔）</Trans>
@@ -2719,7 +2720,7 @@ export function CardPicker({ node, onClose }: { node: FlowNode; onClose: () => v
           <button
             onClick={() => setVoicedOnly((v) => !v)}
             className={`mb-2 self-start rounded-full px-3 py-1 text-[11px] ${
-              voicedOnly ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-400"
+              voicedOnly ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-300"
             }`}
           >
             <Trans>🔊 只看带声音的卡</Trans>
@@ -2727,9 +2728,13 @@ export function CardPicker({ node, onClose }: { node: FlowNode; onClose: () => v
         )}
         <div className="min-h-0 flex-1 overflow-y-auto">
           {cards.length === 0 ? (
-            <p className="py-8 text-center text-xs text-slate-500">
-              {voicedOnly ? t`没有带声音样本的卡——在创意工坊「我的仓库」里从视频提取、圈人物时可以顺手取一段声音` : t`还没有卡片——去创意工坊的市场添加几张，或者在「我的仓库」里自己做`}
-            </p>
+            <EmptyState
+              compact
+              mascot={voicedOnly ? "wonder" : "nap"}
+              text={voicedOnly ? t`没有带声音样本的卡` : t`还没有卡片`}
+              hint={voicedOnly ? t`在创意工坊「我的仓库」里从视频提取、圈人物时可以顺手取一段声音` : t`去创意工坊的市场添加几张，或者在「我的仓库」里自己做`}
+              cta={voicedOnly ? { label: t`去我的仓库`, to: "/workshop/mine" } : { label: t`去市场看看`, to: "/workshop" }}
+            />
           ) : (
             <div className="grid grid-cols-4 gap-2 pb-2">
               {cards.map((c) => {
@@ -2932,7 +2937,7 @@ export function TemplatePicker({
               </div>
             );
           })}
-          {rows.length === 0 && <p className="py-6 text-center text-xs text-slate-500"><Trans>还没有白模模板——去模板市场逛逛</Trans></p>}
+          {rows.length === 0 && <EmptyState compact mascot="nap" text={t`还没有白模模板`} cta={{ label: t`去模板市场逛逛`, to: "/templates" }} />}
         </div>
       </div>
       {/* ★★ 选段前的居中预览小窗（用户点名）：套用即真花钱，而同一条素材切出来的几段
