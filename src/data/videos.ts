@@ -1761,6 +1761,11 @@ export function listFollowingVideos(): VideoItem[] | null {
  *   会把它们补回来，这里没有那一步）。
  * ★ 在途去重：并发两次只打一发。换人期间 cache 被清成 null，回包作废。
  */
+/** 推荐流正在整份重拉（首页空着时画加载态而不是「还没有作品」；2.68 真机验证：LTE 上冷启动那几秒空态先闪了一下） */
+export function feedLoading(): boolean {
+  return feedRefreshing !== null;
+}
+
 export async function refreshFeed(opts: { minAgeMs?: number } = {}): Promise<boolean> {
   if (!remoteOn() || !cache) return false;
   const minAge = opts.minAgeMs ?? 0;
@@ -1791,6 +1796,7 @@ export async function refreshFeed(opts: { minAgeMs?: number } = {}): Promise<boo
       return false;
     } finally {
       feedRefreshing = null;
+      emitVideos(); // 失败也通知一次：首页按 feedLoading() 画加载态，不通知就停在「正在取」上
     }
   })();
   return feedRefreshing;

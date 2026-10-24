@@ -7,6 +7,7 @@
 // ★ 只收 props、不认任何 store（与 PlanBoard / CustomFrameSlots 同一条约束）：选了哪一档、挑了哪个模式由宿主落地。
 // ★ 价钱只摆「这一步大概花多少」（参考图直出 = 只有视频；推演三套 = 推演那一笔），算法都是 economy 里报价用的那几个函数。
 import type { MessageDescriptor } from "@lingui/core";
+import Icon, { type IconName } from "../Icon";
 import Warn from "../Warn";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -24,43 +25,43 @@ const GROUP_LABEL: Record<GuidedGroup, MessageDescriptor> = {
   replica: msg`复刻 · 同款`,
 };
 
-const MODE_TEXT: Record<GuidedModeId, { icon: string; title: MessageDescriptor; tag: MessageDescriptor; desc: MessageDescriptor }> = {
+const MODE_TEXT: Record<GuidedModeId, { icon: IconName; title: MessageDescriptor; tag: MessageDescriptor; desc: MessageDescriptor }> = {
   // ★ 说明只讲「你要做什么、会得到什么」（2026-10-14 按 CSCI 187 UX 课的「信息要简洁、无行话」收口）：
   //   原来几条末尾挂着「LibTV / updream 作者的做法」—— 对标记录归 docs，用户不认识那两个站，摆在选项上只是噪音。
   direct: {
-    icon: "🖼",
+    icon: "image",
     title: msg`参考图直出`,
     tag: msg`不画帧`,
     desc: msg`挑几张参考图（人物 / 场景卡）＋ 写提示词，人物图直接给视频模型`,
   },
-  custom: { icon: "✍", title: msg`自定义`, tag: msg`全按你的来`, desc: msg`传一段示例视频，或自己给首尾帧` },
+  custom: { icon: "pen", title: msg`自定义`, tag: msg`全按你的来`, desc: msg`传一段示例视频，或自己给首尾帧` },
   lead: {
-    icon: "🎭",
+    icon: "drama",
     title: msg`主角定妆 · 多镜头`,
     tag: msg`先定人、再拆镜头`,
     desc: msg`选好（或现做）主角，写一场戏，AI 拆成 2~4 个镜头带台词，一条出`,
   },
   grid: {
-    icon: "🎞",
+    icon: "grid",
     title: msg`九宫格分镜`,
     tag: msg`先出一组画面`,
     desc: msg`写一场戏，AI 写成 4~9 格分镜、一次画出整组画面；挑几格，每格变成一段`,
   },
   dialogue: {
-    icon: "💬",
+    icon: "comment",
     title: msg`对话正反打`,
     tag: msg`你一句我一句`,
     desc: msg`两个人＋一个场景，写几句对白，AI 画出双人镜头和两个过肩镜头，一句一段、按卡上的声音说出来。影视对话戏的标准拍法`,
   },
-  cards: { icon: "🃏", title: msg`AI 推演三套`, tag: msg`先看关键画面`, desc: msg`挑卡＋写要求，AI 出三套带关键画面的方案，挑一套再出片` },
+  cards: { icon: "cards", title: msg`AI 推演三套`, tag: msg`先看关键画面`, desc: msg`挑卡＋写要求，AI 出三套带关键画面的方案，挑一套再出片` },
   effect: {
-    icon: "✨",
+    icon: "sparkle",
     title: msg`特效同款`,
     tag: msg`换上你的主角就出`,
     desc: msg`挑一个特效（时间冻结、环绕亮相、走出壁画、产品亮相……），换上你的人物或产品，一段 5~6 秒的大片`,
   },
   // 「白模 / 人偶挂卡」是模板那一屏才教的词，这里先用人话说清结果：换的是人，场景与运镜照模板
-  template: { icon: "🧪", title: msg`套模板`, tag: msg`换人不换景`, desc: msg`挑一条模板片，把画面里的人换成你的角色，场景与运镜照它走（模板按这个模型筛）` },
+  template: { icon: "file", title: msg`套模板`, tag: msg`换人不换景`, desc: msg`挑一条模板片，把画面里的人换成你的角色，场景与运镜照它走（模板按这个模型筛）` },
 };
 
 /** economy.VideoTier → 判定要的那几位能力（判据只在 guidedModes.modeBlock） */
@@ -196,7 +197,7 @@ export default function ModePicker({
                     disabled={!!tierIssue}
                     className="flex w-full items-start gap-2.5 rounded-xl border border-slate-700/70 bg-panel p-3 text-left active:opacity-60 disabled:opacity-40"
                   >
-                    <span className="flex-none text-lg leading-none">{text.icon}</span>
+                    <Icon name={text.icon} size={20} className="mt-0.5 flex-none text-slate-300" />
                     <span className="min-w-0 flex-1">
                       <span className="flex flex-wrap items-center gap-1.5">
                         <span className="text-sm font-bold text-slate-100">{t(text.title)}</span>

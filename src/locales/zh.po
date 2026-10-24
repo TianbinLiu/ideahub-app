@@ -2639,20 +2639,20 @@ msgid "<0>这一步不是每次都全对。</0>实测每隔几发就会有 1~2 �
 msgstr "<0>这一步不是每次都全对。</0>实测每隔几发就会有 1~2 个人<1>根本没被换成人偶</1>（还是原来的样子） —— 最常出错的是<2>画面正中央、看起来最像主角的那一个</2>。 出片之后你要对着画面从左往右数一遍：对不上的位子删掉就行（不用重炼、不花钱）， 要全对上只能重炼（<3>重炼要再花一次钱</3>）。<4>画面里的人越少越准</4>，也可以在下面多标几帧让 AI 少看漏人。"
 
 #: src/components/flow/FlowCanvas.tsx
-msgid "⏩ 延长段：接着一段已经删掉的成片往后拍（那段成片当参考视频，挂的人物卡一起发）。做法是固定的：想换做法就删掉这一段，再加一段。"
-msgstr "⏩ 延长段：接着一段已经删掉的成片往后拍（那段成片当参考视频，挂的人物卡一起发）。做法是固定的：想换做法就删掉这一段，再加一段。"
+#~ msgid "⏩ 延长段：接着一段已经删掉的成片往后拍（那段成片当参考视频，挂的人物卡一起发）。做法是固定的：想换做法就删掉这一段，再加一段。"
+#~ msgstr "⏩ 延长段：接着一段已经删掉的成片往后拍（那段成片当参考视频，挂的人物卡一起发）。做法是固定的：想换做法就删掉这一段，再加一段。"
 
 #: src/components/flow/FlowCanvas.tsx
-msgid "⏩ 延长段：接着第 {extendSrcN} 段成片的最后一帧往后拍（那段成片当参考视频，挂的人物卡一起发）。新拍的这一截单独成一段。做法是固定的：想换做法就删掉这一段，再加一段。"
-msgstr "⏩ 延长段：接着第 {extendSrcN} 段成片的最后一帧往后拍（那段成片当参考视频，挂的人物卡一起发）。新拍的这一截单独成一段。做法是固定的：想换做法就删掉这一段，再加一段。"
+#~ msgid "⏩ 延长段：接着第 {extendSrcN} 段成片的最后一帧往后拍（那段成片当参考视频，挂的人物卡一起发）。新拍的这一截单独成一段。做法是固定的：想换做法就删掉这一段，再加一段。"
+#~ msgstr "⏩ 延长段：接着第 {extendSrcN} 段成片的最后一帧往后拍（那段成片当参考视频，挂的人物卡一起发）。新拍的这一截单独成一段。做法是固定的：想换做法就删掉这一段，再加一段。"
 
 #: src/components/flow/FixSegmentBox.tsx
-msgid "⏩ 往后延长"
-msgstr "⏩ 往后延长"
+#~ msgid "⏩ 往后延长"
+#~ msgstr "⏩ 往后延长"
 
 #: src/components/flow/FixSegmentBox.tsx
-msgid "⏩ 往后延长 {outSec} 秒（{extPrice}）"
-msgstr "⏩ 往后延长 {outSec} 秒（{extPrice}）"
+#~ msgid "⏩ 往后延长 {outSec} 秒（{extPrice}）"
+#~ msgstr "⏩ 往后延长 {outSec} 秒（{extPrice}）"
 
 #: src/components/flow/GridShotsWizard.tsx
 msgid "⏳ 接着等上一组（图不再收钱）"
@@ -2744,6 +2744,10 @@ msgstr "♻ 按 {0} 处圈选重新生成（{1} 段 · {2}）"
 #: src/components/flow/FlowCanvas.tsx
 msgid "♻ 都不满意，重新推演三套（{propCostLabel}）"
 msgstr "♻ 都不满意，重新推演三套（{propCostLabel}）"
+
+#: src/components/flow/FixSegmentBox.tsx
+msgid "♻ 重拍这一段（{revisePrice}）"
+msgstr "♻ 重拍这一段（{revisePrice}）"
 
 #. placeholder {0}: priceTag(cost)
 #: src/studio/ui/projection.tsx
@@ -2935,8 +2939,8 @@ msgstr "⚡ Token 钱包"
 #~ msgstr "⚡ 按这个流程做同款"
 
 #: src/components/flow/FlowCanvas.tsx
-msgid "⚡ 炼这一段视频（{costLabel}）"
-msgstr "⚡ 炼这一段视频（{costLabel}）"
+#~ msgid "⚡ 炼这一段视频（{costLabel}）"
+#~ msgstr "⚡ 炼这一段视频（{costLabel}）"
 
 #: src/studio/canvasAgent.ts
 msgid "⚡ 生成本段"
@@ -2949,8 +2953,8 @@ msgstr "⚡ 生成本段"
 #~ msgstr "⚡ 生成本段（{0}）"
 
 #: src/components/flow/FlowCanvas.tsx
-msgid "⚡ 生成本段（{costLabel}）"
-msgstr "⚡ 生成本段（{costLabel}）"
+#~ msgid "⚡ 生成本段（{costLabel}）"
+#~ msgstr "⚡ 生成本段（{costLabel}）"
 
 #. placeholder {0}: fmtTokens(cost)
 #: src/studio/ui/projection.tsx
@@ -3023,8 +3027,8 @@ msgstr "✂ 编辑"
 #~ msgstr "✅ 授权照片已取回。「{0}」这套的图位要白模/设定稿，照片不进格子——交给 AI 出图时它就是主素材。"
 
 #: src/components/flow/FlowCanvas.tsx
-msgid "✍ 自定义"
-msgstr "✍ 自定义"
+#~ msgid "✍ 自定义"
+#~ msgstr "✍ 自定义"
 
 #: src/pages/SimpleModePage.tsx
 msgid "✍ 自定义首尾帧"
@@ -3047,8 +3051,8 @@ msgid "✎ 模板信息（只有你能改）"
 msgstr "✎ 模板信息（只有你能改）"
 
 #: src/components/flow/FixSegmentBox.tsx
-msgid "✎ 片段重拍"
-msgstr "✎ 片段重拍"
+#~ msgid "✎ 片段重拍"
+#~ msgstr "✎ 片段重拍"
 
 #: src/components/flow/ReviseBox.tsx
 #~ msgid "✎ 返修（{price}）"
@@ -3059,8 +3063,8 @@ msgstr "✎ 片段重拍"
 #~ msgstr "✎ 返修这一段"
 
 #: src/components/flow/FixSegmentBox.tsx
-msgid "✎ 重拍这一段（{revisePrice}）"
-msgstr "✎ 重拍这一段（{revisePrice}）"
+#~ msgid "✎ 重拍这一段（{revisePrice}）"
+#~ msgstr "✎ 重拍这一段（{revisePrice}）"
 
 #: src/pages/DeckDetailPage.tsx
 #~ msgid "✏️ 编辑"
@@ -3327,8 +3331,8 @@ msgid "🃏 挂卡换人"
 msgstr "🃏 挂卡换人"
 
 #: src/components/flow/FlowCanvas.tsx
-msgid "🃏 自选卡片"
-msgstr "🃏 自选卡片"
+#~ msgid "🃏 自选卡片"
+#~ msgstr "🃏 自选卡片"
 
 #: src/components/recipe/RemixRewardNote.tsx
 msgid "🎁 别人照着这条作品做了同款、公开发布满 {hours} 小时，平台会奖励你 {tokens} token（每天最多 {perDay} 次，每条作品最多 {perVideo} 次）。"
@@ -3393,7 +3397,6 @@ msgstr "🎨 画关键帧（{keyPrice}）"
 msgid "🎨 融图合成这一帧"
 msgstr "🎨 融图合成这一帧"
 
-#: src/components/flow/FlowCanvas.tsx
 #: src/studio/ui/projection.tsx
 msgid "🎬 上传一段示例视频当整段参考"
 msgstr "🎬 上传一段示例视频当整段参考"
@@ -3403,8 +3406,8 @@ msgid "🎬 从视频提取模板"
 msgstr "🎬 从视频提取模板"
 
 #: src/components/flow/FlowCanvas.tsx
-msgid "🎬 传一段示例视频当整段参考（多图+参考视频模式）"
-msgstr "🎬 传一段示例视频当整段参考（多图+参考视频模式）"
+#~ msgid "🎬 传一段示例视频当整段参考（多图+参考视频模式）"
+#~ msgstr "🎬 传一段示例视频当整段参考（多图+参考视频模式）"
 
 #: src/pages/CardDetailPage.tsx
 msgid "🎬 去 3D 工坊用这张卡创作"
@@ -3418,8 +3421,8 @@ msgstr "🎬 去剪辑 ›"
 #. placeholder {1}: refSecs?.billedInSec
 #. placeholder {2}: refSecs?.outSec
 #: src/components/flow/FlowCanvas.tsx
-msgid "🎬 参考视频已挂上（{0}s · 计价按输入 {1}s + 输出 {2}s）"
-msgstr "🎬 参考视频已挂上（{0}s · 计价按输入 {1}s + 输出 {2}s）"
+#~ msgid "🎬 参考视频已挂上（{0}s · 计价按输入 {1}s + 输出 {2}s）"
+#~ msgstr "🎬 参考视频已挂上（{0}s · 计价按输入 {1}s + 输出 {2}s）"
 
 #. placeholder {0}: editor.refVideo.durationSec.toFixed(1)
 #: src/studio/ui/projection.tsx
@@ -3431,27 +3434,25 @@ msgid "🎬 另带示例视频（不占图片编号）。"
 msgstr "🎬 另带示例视频（不占图片编号）。"
 
 #: src/components/flow/FlowCanvas.tsx
-msgid "🎬 完成视频 ›"
-msgstr "🎬 完成视频 ›"
+#~ msgid "🎬 完成视频 ›"
+#~ msgstr "🎬 完成视频 ›"
 
 #: src/studio/stage/StageOverlay.tsx
 msgid "🎬 导演台"
 msgstr "🎬 导演台"
 
-#: src/components/flow/FlowCanvas.tsx
 #: src/studio/ui/projection.tsx
 msgid "🎬 导演台 · 摆站位、定机位，截图融成开头帧"
 msgstr "🎬 导演台 · 摆站位、定机位，截图融成开头帧"
 
-#: src/components/flow/FlowCanvas.tsx
 #: src/studio/ui/projection.tsx
 msgid "🎬 导演台 · 摆站位、定机位，截图融成开头帧（已融过，可再截）"
 msgstr "🎬 导演台 · 摆站位、定机位，截图融成开头帧（已融过，可再截）"
 
 #. placeholder {0}: node.proposals.length
 #: src/components/flow/FlowCanvas.tsx
-msgid "🎬 挑一套方案（{0} 套已推演好）"
-msgstr "🎬 挑一套方案（{0} 套已推演好）"
+#~ msgid "🎬 挑一套方案（{0} 套已推演好）"
+#~ msgstr "🎬 挑一套方案（{0} 套已推演好）"
 
 #. placeholder {0}: editor.refVideo.durationSec.toFixed(1)
 #: src/studio/ui/projection.tsx
@@ -3485,8 +3486,8 @@ msgid "🎲 推演三套方案"
 msgstr "🎲 推演三套方案"
 
 #: src/components/flow/FlowCanvas.tsx
-msgid "🎲 推演三套方案（{propCostLabel}）"
-msgstr "🎲 推演三套方案（{propCostLabel}）"
+#~ msgid "🎲 推演三套方案（{propCostLabel}）"
+#~ msgstr "🎲 推演三套方案（{propCostLabel}）"
 
 #. placeholder {0}: fmtTokens(deriveCost ?? 0)
 #: src/studio/ui/projection.tsx
@@ -3502,12 +3503,12 @@ msgid "🎴 3D 工坊"
 msgstr "🎴 3D 工坊"
 
 #: src/components/flow/FlowCanvas.tsx
-msgid "🎴 工坊"
-msgstr "🎴 工坊"
+#~ msgid "🎴 工坊"
+#~ msgstr "🎴 工坊"
 
 #: src/components/DraftSheet.tsx
-msgid "🎴 工坊模式"
-msgstr "🎴 工坊模式"
+#~ msgid "🎴 工坊模式"
+#~ msgstr "🎴 工坊模式"
 
 #: src/pages/VideoPage.tsx
 #~ msgid "🎴 我也要创作"
@@ -3609,8 +3610,8 @@ msgstr "📸 截这一帧"
 #~ msgstr "📼 先出样片（{0}）"
 
 #: src/components/flow/FlowCanvas.tsx
-msgid "📼 先出样片（{costLabel}）"
-msgstr "📼 先出样片（{costLabel}）"
+#~ msgid "📼 先出样片（{costLabel}）"
+#~ msgstr "📼 先出样片（{costLabel}）"
 
 #: src/components/flow/DraftModeBox.tsx
 msgid "📼 先出样片（480p 预览，满意再定稿成 1080p）"
@@ -3817,8 +3818,8 @@ msgid "🖼 本地上传"
 msgstr "🖼 本地上传"
 
 #: src/components/flow/FlowCanvas.tsx
-msgid "🖼 直出"
-msgstr "🖼 直出"
+#~ msgid "🖼 直出"
+#~ msgstr "🖼 直出"
 
 #: src/pages/FlowPage.tsx
 msgid "🖼 自定义首尾帧"
@@ -3829,8 +3830,8 @@ msgstr "🖼 自定义首尾帧"
 #~ msgstr "🗑 删掉某段"
 
 #: src/components/flow/DeleteSegBtn.tsx
-msgid "🗑 删除本段"
-msgstr "🗑 删除本段"
+#~ msgid "🗑 删除本段"
+#~ msgstr "🗑 删除本段"
 
 #: src/studio/canvasAgent.ts
 msgid "🗑 删除某段"
@@ -3841,14 +3842,13 @@ msgstr "🗑 删除某段"
 #~ msgstr "🗑 删除片段"
 
 #: src/components/DraftSheet.tsx
-msgid "🧩 工作流模式"
-msgstr "🧩 工作流模式"
+#~ msgid "🧩 工作流模式"
+#~ msgstr "🧩 工作流模式"
 
 #: src/pages/SimpleModePage.tsx
 msgid "🧪 套一个模板"
 msgstr "🧪 套一个模板"
 
-#: src/components/flow/FlowCanvas.tsx
 #: src/studio/canvasAgent.ts
 msgid "🧪 套模板"
 msgstr "🧪 套模板"
@@ -4780,6 +4780,10 @@ msgstr "上传 {0}%"
 #: src/pages/SupportModelNewPage.tsx
 msgid "上传 Live2D 模型"
 msgstr "上传 Live2D 模型"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "上传一段示例视频当整段参考"
+msgstr "上传一段示例视频当整段参考"
 
 #. 个人页「还没传到服务器」横幅：接在作品标题后面的原因。一整句，句末不加句号
 #: src/data/videos.ts
@@ -6131,6 +6135,10 @@ msgstr "传一份 md / txt 讲义，AI 按它铸一位老师，带你按阶段�
 msgid "传一段示例视频，或自己给首尾帧"
 msgstr "传一段示例视频，或自己给首尾帧"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "传一段示例视频当整段参考（多图+参考视频模式）"
+msgstr "传一段示例视频当整段参考（多图+参考视频模式）"
+
 #: src/components/TemplateCreateCard.tsx
 msgid "传一段视频，AI 把里面的人换成白模人偶；别人挂上自己的角色卡，就能照着你的镜头拍一遍。"
 msgstr "传一段视频，AI 把里面的人换成白模人偶；别人挂上自己的角色卡，就能照着你的镜头拍一遍。"
@@ -6806,6 +6814,10 @@ msgstr "先出一组画面"
 #: src/studio/ui/projection.tsx
 msgid "先出样片（{0}）"
 msgstr "先出样片（{0}）"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "先出样片（{costLabel}）"
+msgstr "先出样片（{costLabel}）"
 
 #: src/pages/SettingsPage.tsx
 msgid "先别退出登录"
@@ -8292,6 +8304,10 @@ msgstr "删除失败了，原因不明。"
 msgid "删除是真的销毁"
 msgstr "删除是真的销毁"
 
+#: src/components/flow/DeleteSegBtn.tsx
+msgid "删除本段"
+msgstr "删除本段"
+
 #: src/pages/CutPage.tsx
 msgid "删除片段"
 msgstr "删除片段"
@@ -9022,6 +9038,7 @@ msgstr "去出一段片"
 
 #: src/pages/DiscoverPage.tsx
 #: src/pages/DraftsPage.tsx
+#: src/pages/FeedPage.tsx
 #: src/pages/ProfilePage.tsx
 msgid "去创作"
 msgstr "去创作"
@@ -9052,8 +9069,8 @@ msgid "去升级"
 msgstr "去升级"
 
 #: src/pages/FeedPage.tsx
-msgid "去卡片工坊创作"
-msgstr "去卡片工坊创作"
+#~ msgid "去卡片工坊创作"
+#~ msgstr "去卡片工坊创作"
 
 #: src/pages/CutPage.tsx
 msgid "去发布"
@@ -9264,6 +9281,13 @@ msgstr "参考视频 + 参考图（reference）"
 #: src/ai/arkClient.ts
 msgid "参考视频向后延长（extend）"
 msgstr "参考视频向后延长（extend）"
+
+#. placeholder {0}: node.customRef.durationSec.toFixed(1)
+#. placeholder {1}: refSecs?.billedInSec
+#. placeholder {2}: refSecs?.outSec
+#: src/components/flow/FlowCanvas.tsx
+msgid "参考视频已挂上（{0}s · 计价按输入 {1}s + 输出 {2}s）"
+msgstr "参考视频已挂上（{0}s · 计价按输入 {1}s + 输出 {2}s）"
 
 #: src/components/VideoTemplateExtractor.tsx
 msgid "参考视频没传上"
@@ -10933,6 +10957,7 @@ msgstr "套上模板，一句话出片"
 msgid "套个模板？一句话就能出同类视频"
 msgstr "套个模板？一句话就能出同类视频"
 
+#: src/components/flow/FlowCanvas.tsx
 #: src/components/flow/ModePicker.tsx
 msgid "套模板"
 msgstr "套模板"
@@ -11225,6 +11250,10 @@ msgstr "完成直通发布"
 msgid "完成视频"
 msgstr "完成视频"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "完成视频 ›"
+msgstr "完成视频 ›"
+
 #: src/pages/CreatePage.tsx
 msgid "完整作品"
 msgstr "完整作品"
@@ -11386,6 +11415,14 @@ msgstr "对话记录"
 #: src/studio/stage/StageOverlay.tsx
 msgid "导演台"
 msgstr "导演台"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "导演台 · 摆站位、定机位，截图融成开头帧"
+msgstr "导演台 · 摆站位、定机位，截图融成开头帧"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "导演台 · 摆站位、定机位，截图融成开头帧（已融过，可再截）"
+msgstr "导演台 · 摆站位、定机位，截图融成开头帧（已融过，可再截）"
 
 #: src/studio/flowStore.ts
 msgid "导演台截图不是一张图（截图失败了，再试一次）"
@@ -11575,6 +11612,10 @@ msgstr "工作流"
 msgid "工作流只按标题和作者名搜"
 msgstr "工作流只按标题和作者名搜"
 
+#: src/components/DraftSheet.tsx
+msgid "工作流模式"
+msgstr "工作流模式"
+
 #: src/components/WorkflowShelf.tsx
 msgid "工作流模板在服务端，联网后再来看"
 msgstr "工作流模板在服务端，联网后再来看"
@@ -11608,6 +11649,7 @@ msgstr "工单 #{short} 已提交。人工客服看到后会在「通知」里�
 msgid "工单 #{short} 已提交。人工客服看到后会在「通知」里回复你。"
 msgstr "工单 #{short} 已提交。人工客服看到后会在「通知」里回复你。"
 
+#: src/components/flow/FlowCanvas.tsx
 #: src/components/TabBar.tsx
 msgid "工坊"
 msgstr "工坊"
@@ -11620,6 +11662,7 @@ msgstr "工坊工程没能留在这台设备上（存储空间不足或浏览器
 msgid "工坊是什么"
 msgstr "工坊是什么"
 
+#: src/components/DraftSheet.tsx
 #: src/pages/CreatePage.tsx
 msgid "工坊模式"
 msgstr "工坊模式"
@@ -12505,6 +12548,14 @@ msgstr "废墟城市里回头，巨兽从云层里探出头"
 msgid "延长 · 接着第 {n} 段往后拍"
 msgstr "延长 · 接着第 {n} 段往后拍"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "延长段：接着一段已经删掉的成片往后拍（那段成片当参考视频，挂的人物卡一起发）。做法是固定的：想换做法就删掉这一段，再加一段。"
+msgstr "延长段：接着一段已经删掉的成片往后拍（那段成片当参考视频，挂的人物卡一起发）。做法是固定的：想换做法就删掉这一段，再加一段。"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "延长段：接着第 {extendSrcN} 段成片的最后一帧往后拍（那段成片当参考视频，挂的人物卡一起发）。新拍的这一截单独成一段。做法是固定的：想换做法就删掉这一段，再加一段。"
+msgstr "延长段：接着第 {extendSrcN} 段成片的最后一帧往后拍（那段成片当参考视频，挂的人物卡一起发）。新拍的这一截单独成一段。做法是固定的：想换做法就删掉这一段，再加一段。"
+
 #: src/studio/segmentGen.ts
 msgid "延长段没有设定帧可圈选——先清掉圈选标注，想改画面就改那句话"
 msgstr "延长段没有设定帧可圈选——先清掉圈选标注，想改画面就改那句话"
@@ -12909,6 +12960,14 @@ msgstr "往前 {step} 秒"
 #: src/components/blockout/BoxFramePicker.tsx
 msgid "往后 {step} 秒"
 msgstr "往后 {step} 秒"
+
+#: src/components/flow/FixSegmentBox.tsx
+msgid "往后延长"
+msgstr "往后延长"
+
+#: src/components/flow/FixSegmentBox.tsx
+msgid "往后延长 {outSec} 秒（{extPrice}）"
+msgstr "往后延长 {outSec} 秒（{extPrice}）"
 
 #: src/api/support.ts
 #: src/pages/AdminPage.tsx
@@ -14080,6 +14139,11 @@ msgstr "挑一套 → 可换首尾帧/改剧情 → 炼出本段视频，桌面�
 msgid "挑一套方案 → 可换首尾帧/改剧情 → 炼出本段视频"
 msgstr "挑一套方案 → 可换首尾帧/改剧情 → 炼出本段视频"
 
+#. placeholder {0}: node.proposals.length
+#: src/components/flow/FlowCanvas.tsx
+msgid "挑一套方案（{0} 套已推演好）"
+msgstr "挑一套方案（{0} 套已推演好）"
+
 #: src/components/flow/ModePicker.tsx
 msgid "挑一条模板片，把画面里的人换成你的角色，场景与运镜照它走（模板按这个模型筛）"
 msgstr "挑一条模板片，把画面里的人换成你的角色，场景与运镜照它走（模板按这个模型筛）"
@@ -14397,6 +14461,10 @@ msgstr "推演一次约 {0} token，余额 {1} 不足——去「我的」页充
 #: src/studio/studioStore.ts
 msgid "推演一次约 {price} token，余额 {balance} 不够——去「我的」页充值。"
 msgstr "推演一次约 {price} token，余额 {balance} 不够——去「我的」页充值。"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "推演三套方案（{propCostLabel}）"
+msgstr "推演三套方案（{propCostLabel}）"
 
 #: src/studio/flowStore.ts
 msgid "推演三种走向…"
@@ -17113,6 +17181,10 @@ msgstr "正在发布…"
 msgid "正在取人格与声音…"
 msgstr "正在取人格与声音…"
 
+#: src/pages/FeedPage.tsx
+msgid "正在取作品…"
+msgstr "正在取作品…"
+
 #: src/pages/ProfilePage.tsx
 msgid "正在取你的作品…"
 msgstr "正在取你的作品…"
@@ -18771,6 +18843,10 @@ msgstr "炼卡中…"
 msgid "炼卡失败：{0}"
 msgstr "炼卡失败：{0}"
 
+#: src/components/flow/FlowCanvas.tsx
+msgid "炼这一段视频（{costLabel}）"
+msgstr "炼这一段视频（{costLabel}）"
+
 #: src/pages/WorkshopPage.tsx
 msgid "热门"
 msgstr "热门"
@@ -18977,6 +19053,10 @@ msgstr "片段、配乐还想调就回去接着剪，改完重新合一次（合
 #: src/components/blockout/BoxFramePicker.tsx
 msgid "片段第 {0} 秒"
 msgstr "片段第 {0} 秒"
+
+#: src/components/flow/FixSegmentBox.tsx
+msgid "片段重拍"
+msgstr "片段重拍"
 
 #. placeholder {0}: ver.versionName
 #. placeholder {1}: ver.versionCode
@@ -19267,6 +19347,10 @@ msgstr "生成契约不完整：素材参考模式至少要一张参考图"
 #: src/pages/FlowPage.tsx
 msgid "生成本段（{0}）"
 msgstr "生成本段（{0}）"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "生成本段（{costLabel}）"
+msgstr "生成本段（{costLabel}）"
 
 #. placeholder {0}: priceTag(cost)
 #: src/studio/ui/projection.tsx
@@ -20159,6 +20243,10 @@ msgstr "盯不住这一发的进度了（{why}）。任务还在方舟那边跑�
 #: src/pages/ProfilePage.tsx
 msgid "直充 add-on（永不过期，套餐扣完才用它）"
 msgstr "直充 add-on（永不过期，套餐扣完才用它）"
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "直出"
+msgstr "直出"
 
 #: src/pages/CreatePage.tsx
 msgid "直接发布，不进草稿"
@@ -22466,6 +22554,7 @@ msgid "自动识别"
 msgstr "自动识别"
 
 #: src/components/AvatarPicker.tsx
+#: src/components/flow/FlowCanvas.tsx
 #: src/components/flow/ModePicker.tsx
 #: src/studio/studioStore.ts
 msgid "自定义"
@@ -22580,9 +22669,9 @@ msgstr "自检 {0}/{1} · 还差一点，再讲一遍或再答一次。"
 msgid "自检 {0}/{1} · 通过了，进下一阶段。"
 msgstr "自检 {0}/{1} · 通过了，进下一阶段。"
 
-#: src/studio/ui/projection.tsx
-#~ msgid "自选卡片"
-#~ msgstr "自选卡片"
+#: src/components/flow/FlowCanvas.tsx
+msgid "自选卡片"
+msgstr "自选卡片"
 
 #: src/pages/CustomCardPage.tsx
 msgid "至少一张图（第一张有图的格子就是卡面）"

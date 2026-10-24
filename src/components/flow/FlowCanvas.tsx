@@ -107,7 +107,7 @@ import {
   subscribeTemplates,
   templatesVersion,
 } from "../../data/templates";
-import { CHAT_TURN_TOKENS, ONE_IMAGE, blockoutTier, clampDuration, durationChoices, fmtTokens, materialRefSecs, minUsageNote, promptMaxOf, proposalsCost, tierModelLabel, tierOf } from "../../data/economy";
+import { CHAT_TURN_TOKENS, ONE_IMAGE, blockoutTier, clampDuration, durationChoices, fmtTokens, materialRefSecs, minUsageNote, priceTag, promptMaxOf, proposalsCost, tierModelLabel, tierOf } from "../../data/economy";
 import { AGENT_PHRASES, executeAgentProposal, runCanvasAgent, type AgentOutcome, type AgentProposal } from "../../studio/canvasAgent";
 import { EXAMPLES, phraseText, templatePhrase } from "../../studio/agentGrammar";
 import { useLang } from "../../i18n/useLang";
@@ -603,7 +603,7 @@ export default function FlowCanvas({
             draft.state === "failed" ? "bg-danger-500/20 text-danger-300" : draft.state === "saved" ? "bg-ok-500/20 text-ok-300" : "bg-panel text-slate-200"
           }`}
         >
-          {draft.state === "saving" ? "…" : draft.state === "saved" ? "✓" : draft.state === "failed" ? "!" : "💾"}
+          {draft.state === "saving" ? "…" : draft.state === "saved" ? "✓" : draft.state === "failed" ? "!" : <Icon name="save" size={14} />}
         </button>
         {/* ★★ 2026-08-23：这颗从「≡ 线性」改成「切到工坊」——工作流**只剩画布一个面**，
             线性视图已下线，原来那条切换没有去处了。改成工坊之后它兑现的是
@@ -611,9 +611,10 @@ export default function FlowCanvas({
         <button
           data-guide="canvas-linear"
           onClick={onLinear}
-          className="flex-none rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-200"
+          className="inline-flex flex-none items-center gap-1 rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-200"
         >
-          <Trans>🎴 工坊</Trans>
+          <Icon name="workshop" size={13} />
+          <Trans>工坊</Trans>
         </button>
         {/* 转屏：表达意图（真机由 useOrientationLock 执行；dev 桌面无感） */}
         <button
@@ -730,7 +731,7 @@ export default function FlowCanvas({
                 >
                   {tpl?.refVideo && (
                     <div className="mb-1 flex items-center gap-1 text-[10px] text-sky-300">
-                      <span>🧪</span>
+                      <Icon name="file" size={10} />
                       <span className="max-w-[200px] truncate">{tpl.title}</span>
                     </div>
                   )}
@@ -878,7 +879,7 @@ export default function FlowCanvas({
                     disabled={busy || !!finish.finalizing}
                     className="rounded-xl bg-brand px-3 py-2.5 text-sm font-bold text-ink disabled:bg-slate-700 disabled:text-slate-400"
                   >
-                    {finish.finalizing || t`🎬 完成视频 ›`}
+                    {finish.finalizing || t`完成视频 ›`}
                   </button>
                 ) : (
                   /* 没全出片时**不摆一颗灰按钮**（本仓明令禁止永远点不动的选项），
@@ -1281,10 +1282,10 @@ function NodePanel({
   const carried = !!(node.chain && prevP?.lastFrame);
   const propCost = deriveCostOf(nodes, index);
   /** 按钮上印的价（演示构建写「演示」）：先取成值再进句子，别把它拼进模板串里 */
-  const costLabel = AI_REAL ? fmtTokens(cost) : t`演示`;
+  const costLabel = AI_REAL ? priceTag(cost) : t`演示`;
   /** 这一下先出样片（电影级，判定只在 flowStore.nodeDraftOn —— 上面那个 cost 已经按样片的价报了）：按钮上的字要跟着说 */
   const draftOn = nodeDraftOn(node);
-  const propCostLabel = AI_REAL ? fmtTokens(propCost) : t`演示`;
+  const propCostLabel = AI_REAL ? priceTag(propCost) : t`演示`;
   const plan = planOf(node);
   const mats = node.materials ?? [];
   // ★ 本段就是光标段时读**实时缓冲**（用户刚挂完还没回写 node.cast）；不是时读本段自己
@@ -1374,7 +1375,7 @@ function NodePanel({
           className="relative flex h-7 w-7 flex-none items-center justify-center rounded-full bg-panel text-xs text-slate-300 after:absolute after:-inset-2 after:content-['']"
           title={t`本段设置`}
         >
-          ⚙
+          <Icon name="settings" size={14} />
         </button>
         <CloseButton chip="sm" size={13} align="end" onClick={onClose} />
       </div>
@@ -1399,30 +1400,33 @@ function NodePanel({
           <button
             onClick={() => !tplMode && setPicker(true)}
             disabled={locked || generating || busy || done}
-            className={`rounded-full px-3 py-1 text-[11px] disabled:opacity-40 ${
+            className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] disabled:opacity-40 ${
               tplMode ? "bg-brand font-semibold text-ink" : "text-slate-400"
             }`}
           >
-            <Trans>🧪 套模板</Trans>
+            <Icon name="file" size={11} />
+            <Trans>套模板</Trans>
           </button>
           <button
             onClick={() => (tplMode ? setStripAsk(true) : custom ? setNodeCustom(node.id, false) : direct ? setNodeDirect(node.id, false) : undefined)}
             disabled={locked || generating || busy || done}
-            className={`rounded-full px-3 py-1 text-[11px] disabled:opacity-40 ${
+            className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] disabled:opacity-40 ${
               !tplMode && !custom && !direct ? "bg-brand font-semibold text-ink" : "text-slate-400"
             }`}
           >
-            <Trans>🃏 自选卡片</Trans>
+            <Icon name="cards" size={11} />
+            <Trans>自选卡片</Trans>
           </button>
           <button
             onClick={() => !custom && setNodeCustom(node.id, true)}
             disabled={locked || generating || busy || done || flatTier}
             title={flatTier ? t`真人档本来就是直出，不需要再切自定义` : undefined}
-            className={`rounded-full px-3 py-1 text-[11px] disabled:opacity-40 ${
+            className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] disabled:opacity-40 ${
               custom ? "bg-brand font-semibold text-ink" : "text-slate-400"
             }`}
           >
-            <Trans>✍ 自定义</Trans>
+            <Icon name="pen" size={11} />
+            <Trans>自定义</Trans>
           </button>
           {/* 参考图直出（2026-10-04「跟着做」模式 A）：能不能用问 data/guidedModes.modeBlock（与选法屏摆不摆同一个判据）。
               套着模板时点它由 store 整句拒并指路（先摘模板），与「自定义」同一条 */}
@@ -1441,9 +1445,10 @@ function NodePanel({
                   })()
                 : undefined
             }
-            className={`rounded-full px-3 py-1 text-[11px] disabled:opacity-40 ${direct ? "bg-brand font-semibold text-ink" : "text-slate-400"}`}
+            className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] disabled:opacity-40 ${direct ? "bg-brand font-semibold text-ink" : "text-slate-400"}`}
           >
-            <Trans>🖼 直出</Trans>
+            <Icon name="image" size={11} />
+            <Trans>直出</Trans>
           </button>
         </div>
       )}
@@ -1477,7 +1482,7 @@ function NodePanel({
         <>
           {/* 模板行：每段各选各的。换/摘的规则都在 store 的 setNodeTemplate */}
           <div className="flex items-center gap-2 rounded-lg border border-slate-700/70 bg-panel px-2.5 py-2">
-            <span className="flex-none text-xs">🧪</span>
+            <Icon name="file" size={12} className="flex-none text-slate-400" />
             <span className="min-w-0 flex-1 truncate text-xs text-slate-100">{tpl!.title}</span>
             <button
               onClick={() => setPicker(true)}
@@ -1498,7 +1503,7 @@ function NodePanel({
                 disabled={generating}
                 className="flex w-full items-center gap-2 rounded-lg border border-brand/50 bg-panel px-2.5 py-2 text-left text-xs text-slate-100 disabled:opacity-40"
               >
-                <span className="flex-none">🎭</span>
+                <Icon name="drama" size={13} className="flex-none text-slate-300" />
                 <span className="min-w-0 flex-1 truncate">
                   {mounted > 0 ? t`已挂 ${mounted}/${tpl!.roles!.length} 个角色位 · 点这里改` : t`给 ${tpl!.roles!.length} 个人偶挂上你的角色卡`}
                 </span>
@@ -1582,7 +1587,7 @@ function NodePanel({
           {/* 自选模式：素材卡 + 自己的提示词（用户点名的第二模式） */}
           <div className="rounded-lg border border-slate-700/70 bg-panel px-2.5 py-2">
             <div className="flex items-center gap-2">
-              <span className="flex-none text-xs">🃏</span>
+              <Icon name="cards" size={12} className="flex-none text-slate-400" />
               <span className="min-w-0 flex-1 truncate text-xs text-slate-100">
                 {mats.length ? t`素材卡 ${mats.length} 张` : t`素材卡（可不选）`}
               </span>
@@ -1618,7 +1623,7 @@ function NodePanel({
                 disabled={locked || generating || busy || !!refUploading}
                 className="w-full rounded-xl border border-dashed border-sky-500/60 py-6 text-sm font-semibold text-sky-200 disabled:opacity-40"
               >
-                {refUploading || t`🎬 上传一段示例视频当整段参考`}
+                {refUploading || t`上传一段示例视频当整段参考`}
               </button>
               <p className="text-center text-[10px] text-slate-500"><Trans>上传后自动用它的首尾帧当本段首尾帧，之后还能细调、加中间帧</Trans></p>
               {/* 不上传是附庸小字（主人点名）：主路是传视频，跳过只是留口 */}
@@ -1687,7 +1692,7 @@ function NodePanel({
                   <div className="flex items-center justify-between gap-2">
                     <span className="min-w-0 flex-1 truncate text-[11px] text-sky-200">
                       <Trans>
-                        🎬 参考视频已挂上（{node.customRef.durationSec.toFixed(1)}s · 计价按输入 {refSecs?.billedInSec}s + 输出 {refSecs?.outSec}s）
+                        参考视频已挂上（{node.customRef.durationSec.toFixed(1)}s · 计价按输入 {refSecs?.billedInSec}s + 输出 {refSecs?.outSec}s）
                       </Trans>
                     </span>
                     <button
@@ -1766,7 +1771,7 @@ function NodePanel({
                     disabled={locked || generating || busy || !!refUploading}
                     className="w-full rounded-lg border border-dashed border-sky-500/50 py-2 text-[11px] text-sky-200 disabled:opacity-40"
                   >
-                    {refUploading || t`🎬 传一段示例视频当整段参考（多图+参考视频模式）`}
+                    {refUploading || t`传一段示例视频当整段参考（多图+参考视频模式）`}
                   </button>
                   {/* 没挂视频时，中间帧 = 拆段（方舟纯帧协议没有中间帧参数，
                       "N 张关键帧 = N-1 段 + 真实尾帧承接"就是它的真实形状） */}
@@ -1861,9 +1866,9 @@ function NodePanel({
             <>
               <p className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-sky-200">
                 {extendSrcN > 0 ? (
-                  <Trans>⏩ 延长段：接着第 {extendSrcN} 段成片的最后一帧往后拍（那段成片当参考视频，挂的人物卡一起发）。新拍的这一截单独成一段。做法是固定的：想换做法就删掉这一段，再加一段。</Trans>
+                  <Trans>延长段：接着第 {extendSrcN} 段成片的最后一帧往后拍（那段成片当参考视频，挂的人物卡一起发）。新拍的这一截单独成一段。做法是固定的：想换做法就删掉这一段，再加一段。</Trans>
                 ) : (
-                  <Trans>⏩ 延长段：接着一段已经删掉的成片往后拍（那段成片当参考视频，挂的人物卡一起发）。做法是固定的：想换做法就删掉这一段，再加一段。</Trans>
+                  <Trans>延长段：接着一段已经删掉的成片往后拍（那段成片当参考视频，挂的人物卡一起发）。做法是固定的：想换做法就删掉这一段，再加一段。</Trans>
                 )}
               </p>
               {durationRow}
@@ -1994,17 +1999,20 @@ function NodePanel({
         <button
           onClick={() => void genNode(node.id)}
           disabled={busy || generating || !p.plot.trim()}
-          className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:bg-slate-700 disabled:text-slate-400"
+          // 出过片之后「重新生成」退成次级键（§2.8 一屏一颗主键；FlowPage 那一面 2026-10-23 先改的，画布这一面 2.68 真机验证才抓到漏了）
+          className={`w-full rounded-xl py-2.5 text-sm font-bold disabled:bg-slate-700 disabled:text-slate-400 ${
+            done ? "bg-panel text-slate-100 ring-1 ring-slate-700" : "bg-brand text-ink"
+          }`}
         >
           {generating
             ? node.progress || t`生成中…`
             : draftOn
               ? done
                 ? t`♻ 重新出样片（${costLabel}）`
-                : t`📼 先出样片（${costLabel}）`
+                : t`先出样片（${costLabel}）`
               : done
                 ? t`♻ 重新生成（${costLabel}）`
-                : t`⚡ 生成本段（${costLabel}）`}
+                : t`生成本段（${costLabel}）`}
         </button>
       )}
       {!tplMode && !flatTier && !custom && !direct && !locked && (
@@ -2017,7 +2025,7 @@ function NodePanel({
               onClick={() => setPlanSheet(node.id)}
               className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink"
             >
-              <Trans>🎬 挑一套方案（{node.proposals.length} 套已推演好）</Trans>
+              <Trans>挑一套方案（{node.proposals.length} 套已推演好）</Trans>
             </button>
             {/* 三套都不满意时的出路。推演是**付费**的，所以按钮上标价（与 store 同一把尺） */}
             <button
@@ -2033,17 +2041,19 @@ function NodePanel({
             <button
               onClick={() => void genNode(node.id)}
               disabled={busy || generating}
-              className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:bg-slate-700 disabled:text-slate-400"
+              className={`w-full rounded-xl py-2.5 text-sm font-bold disabled:bg-slate-700 disabled:text-slate-400 ${
+                done ? "bg-panel text-slate-100 ring-1 ring-slate-700" : "bg-brand text-ink"
+              }`}
             >
               {generating
                 ? node.progress || t`生成中…`
                 : draftOn
                   ? done
                     ? t`♻ 重新出样片（${costLabel}）`
-                    : t`📼 先出样片（${costLabel}）`
+                    : t`先出样片（${costLabel}）`
                   : done
                     ? t`♻ 重新生成（${costLabel}）`
-                    : t`⚡ 炼这一段视频（${costLabel}）`}
+                    : t`炼这一段视频（${costLabel}）`}
             </button>
             {/* 挑定之后仍要能回方案台：换首尾帧、逐字改剧情、重新推演都在那里
                 （入口只有一处 —— 这些编辑口 PlanBoard 只对选定行开，见它自己的 ★） */}
@@ -2063,9 +2073,9 @@ function NodePanel({
                 className="w-full rounded-full border border-slate-600 py-2 text-[11px] text-slate-300 disabled:opacity-40"
               >
                 {node.stage?.shot ? (
-                  <Trans>🎬 导演台 · 摆站位、定机位，截图融成开头帧（已融过，可再截）</Trans>
+                  <Trans>导演台 · 摆站位、定机位，截图融成开头帧（已融过，可再截）</Trans>
                 ) : (
-                  <Trans>🎬 导演台 · 摆站位、定机位，截图融成开头帧</Trans>
+                  <Trans>导演台 · 摆站位、定机位，截图融成开头帧</Trans>
                 )}
               </button>
             )}
@@ -2076,7 +2086,7 @@ function NodePanel({
             disabled={busy || generating || !(node.requirement ?? "").trim()}
             className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:bg-slate-700 disabled:text-slate-400"
           >
-            {generating ? node.progress || t`推演中…` : t`🎲 推演三套方案（${propCostLabel}）`}
+            {generating ? node.progress || t`推演中…` : t`推演三套方案（${propCostLabel}）`}
           </button>
         )
       )}
@@ -2439,7 +2449,7 @@ function AgentBar({ onFocus }: { onFocus: (i: number) => void }) {
       {log && (
         <div className="max-h-40 overflow-y-auto rounded-xl bg-raised/95 px-3 py-2 shadow-lg ring-1 ring-white/10">
           <div className="flex items-start gap-2">
-            <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-slate-200">🪄 {log.say}</p>
+            <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-slate-200">{log.say}</p>
             <button onClick={() => setLog(null)} className="flex-none text-slate-500">
               <Icon name="close" size={12} />
             </button>
@@ -2490,8 +2500,8 @@ function AgentBar({ onFocus }: { onFocus: (i: number) => void }) {
       <div data-guide="canvas-agent" className="flex items-center gap-2 rounded-full bg-raised/95 px-3 py-1.5 shadow-lg ring-1 ring-white/10">
         {/* 「/」唤起（backlog 2.8-⑤ 的交互半，updream 式）：点魔杖或在输入框敲 "/"
             都开句式面板。魔杖从装饰升级成按钮——它本来就是这条 bar 的脸 */}
-        <button onClick={() => setPalette(true)} title={t`唤起指令句式（也可以输入 /）`} className="flex-none text-sm active:scale-90">
-          🪄
+        <button onClick={() => setPalette(true)} title={t`唤起指令句式（也可以输入 /）`} aria-label={t`唤起指令句式（也可以输入 /）`} className="flex-none text-brand active:scale-90">
+          <Icon name="sparkle" size={16} />
         </button>
         <input
           value={text}
@@ -2593,7 +2603,7 @@ function AgentPalette({ draft, onClose, onPick }: { draft: string; onClose: () =
             <div className="text-xs font-semibold text-slate-100">📑 {t(SCRIPT_TO_SHOTS.title)}</div>
             <div className="mt-0.5 text-[10px] leading-relaxed text-slate-500">{t(SCRIPT_TO_SHOTS.intro)}</div>
           </div>
-          <span className="flex-none rounded-full bg-brand/15 px-2 py-0.5 text-[10px] text-brand">{AI_REAL ? fmtTokens(SCRIPT_TO_SHOTS.cost) : t`演示`}</span>
+          <span className="flex-none rounded-full bg-brand/15 px-2 py-0.5 text-[10px] text-brand">{AI_REAL ? priceTag(SCRIPT_TO_SHOTS.cost) : t`演示`}</span>
         </button>
         {scriptSkill && (
           <ScriptSkillSheet
@@ -2610,10 +2620,10 @@ function AgentPalette({ draft, onClose, onPick }: { draft: string; onClose: () =
           className="mt-1.5 flex w-full items-center gap-2 rounded-xl border border-slate-700/70 bg-panel px-2.5 py-2 text-left disabled:opacity-40"
         >
           <div className="min-w-0 flex-1">
-            <div className="text-xs font-semibold text-slate-100">✍️ {t(THEME_REWRITE.title)}</div>
+            <div className="text-xs font-semibold text-slate-100">{t(THEME_REWRITE.title)}</div>
             <div className="mt-0.5 text-[10px] leading-relaxed text-slate-500">{rewritable ? t(THEME_REWRITE.intro) : t`先铺一条流水线（做同款 / 拆分镜 / 加段）再改写`}</div>
           </div>
-          <span className="flex-none rounded-full bg-brand/15 px-2 py-0.5 text-[10px] text-brand">{AI_REAL ? fmtTokens(THEME_REWRITE.cost) : t`演示`}</span>
+          <span className="flex-none rounded-full bg-brand/15 px-2 py-0.5 text-[10px] text-brand">{AI_REAL ? priceTag(THEME_REWRITE.cost) : t`演示`}</span>
         </button>
         {themeSkill && (
           <ThemeRewriteSheet
