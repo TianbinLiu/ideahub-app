@@ -102,7 +102,7 @@ export interface SegmentGenInput {
    *  过渡期 App 报价高于实扣，见 videoTierTable.materialRefInputSec）。
    * ★ 与 refVideoUrl（白模 edit 复刻）互斥使用：调用方不该两个都给。
    */
-  materialRef?: { url: string; durationSec: number; mids?: string[] };
+  materialRef?: { url: string; durationSec: number; mids?: string[]; keepWatermark?: boolean };
   /**
    * **延长**（2026-10-05「修这一段 · 延长」）：被延长那一段的成片（永久地址）与它的时长（计价输入，整数秒）。
    * 有它 = 这一段走 extend 子任务：那段成片当参考视频（视频1），接着它的最后一帧往后拍 durationSec 秒，**产物只有新的一截**
@@ -205,6 +205,17 @@ function quietVoiced(plot: string, materials?: Card[]): Card[] {
  */
 /* i18n-frozen: 发给视频模型的指令 */
 export const NO_SUBTITLE_LINE = "。台词只用声音说出来，画面上不要出现字幕";
+/**
+ * 示例视频**默认去水印**（2026-10-24 主人点名）：挂了示例视频的段出片时，提示词里多这一句（32 字，从正文额度里扣，与时序点名句同一条纪律）。
+ * ★ 只在素材参考那条路（reference 子任务）上说：白模 edit 是逐帧复刻，2026-08-15（F7）实测提示词去不掉台标 —— 那边的解是裁剪框，别把这句加过去。
+ * ★ 关掉 = `customRef.keepWatermark: true`（判否定：老草稿缺这一位 = 开），开关只有 components/flow/RefMarkToggle 一份、两面共用。
+ * ⚠ 软引导、没做过付费对照：文案一律写「引导不是硬保证」。
+ */
+// i18n-ignore-next-line: 发给视频模型的提示词
+export const NO_REF_MARK_LINE = "。参考视频与参考图里的水印、台标、账号名和字幕都不要出现在画面里";
+export function refMarkLine(o: { keepWatermark?: boolean }): string {
+  return o.keepWatermark ? "" : NO_REF_MARK_LINE;
+}
 export function noSubtitleLine(o: { plot: string; tier: VideoTier; blockout: boolean }): string {
   return !o.blockout && o.tier.audio === true && hasDialogue(o.plot) ? NO_SUBTITLE_LINE : "";
 }
@@ -1306,8 +1317,11 @@ export async function generateSegment(
     // 这条路发的是帧与参考视频，卡片的图一张都不发 ⇒ 每张卡都算"没收到图"（按模型适配：有文字版描述就用它）
     const mats = materialText(input.materials, idsOf(input.materials));
     // 三截各自以「。」开头、时序句又以「。」收尾：逐截去掉重复的那个句号（没有临时参考图时，素材设定直接接在时序句后面，原来会拼出「。。」）
-    const extraTail = afterStop(roles, extraLines);
-    const tail = `${roles}${extraTail}${afterStop(`${roles}${extraTail}`, mats)}`;
+    // 去水印那句紧跟时序句（默认开，segmentGen.refMarkLine 一处判定；它与时序句一样是这条路的功能本体，截断优先保它）
+    const markLine = afterStop(roles, refMarkLine(input.materialRef));
+    const extraTail = afterStop(`${roles}${markLine}`, extraLines);
+    const tail = `${roles}${markLine}${extraTail}${afterStop(`${roles}${markLine}${extraTail}`, mats)}`;
+    if (markLine) notes.push(t`已要求不复刻示例视频里的水印 / 台标（提示词引导，不保证）`);
     /** 这一档的提示词上限（economy.promptMaxOf：带得了示例视频的是高清 / 电影级，2.x 两档都是 500） */
     const cap = promptMaxOf(input.videoTier);
     const room = Math.max(0, cap - tail.length);

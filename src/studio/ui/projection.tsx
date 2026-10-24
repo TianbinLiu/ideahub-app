@@ -27,6 +27,7 @@ import { captureFirstLast } from "../../utils/videoFrames";
 import SegPlayer from "../../components/flow/SegPlayer";
 import FuseFrameSheet, { fuseSourcesOf } from "./FuseFrameSheet";
 import CustomFrameSlots from "../../components/flow/CustomFrameSlots";
+import RefMarkToggle from "../../components/flow/RefMarkToggle";
 import ModePicker, { modeTierOf } from "../../components/flow/ModePicker";
 import { RestatePlaceTip, SceneCardTip } from "../../components/flow/DirectTips";
 import LeadShotsWizard from "../../components/flow/LeadShotsWizard";
@@ -366,7 +367,7 @@ function EditorPanel() {
           custom: true,
           tpl: null,
           customRef: editor.refVideo
-            ? { url: editor.refVideo.url, publicId: editor.refVideo.publicId, durationSec: editor.refVideo.durationSec, mids: editor.refVideo.mids }
+            ? { url: editor.refVideo.url, publicId: editor.refVideo.publicId, durationSec: editor.refVideo.durationSec, mids: editor.refVideo.mids, keepWatermark: editor.refVideo.keepWatermark }
             : undefined,
           materials: slotCards,
           videoTier: editor.videoTier,
@@ -598,6 +599,7 @@ function EditorPanel() {
               </div>
               <p className="mt-1 text-[10px] leading-relaxed text-slate-500"><Trans>已自动取它的首尾帧当本段首尾帧；可细调、加中间帧（最多 {CUSTOM_MID_MAX} 张）</Trans></p>
               <button onClick={() => setRefSheet(true)} className="mt-2 w-full rounded-full border border-sky-500/40 py-1.5 text-[11px] text-sky-200"><Trans>🎞 调节首尾帧 / 加中间帧</Trans></button>
+              <RefMarkToggle keep={!!editor.refVideo.keepWatermark} onChange={(keep) => useStudio.getState().setEditorRefKeepMark(keep)} />
               <button onClick={() => setStep("content")} className="mt-2 w-full rounded-xl bg-brand/90 py-2.5 text-sm font-bold text-ink"><Trans>下一步：写内容 ›</Trans></button>
             </div>
           ) : (

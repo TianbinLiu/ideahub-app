@@ -45,6 +45,7 @@ import InfoTip from "../InfoTip";
 import PlanBoard from "../../studio/ui/PlanBoard";
 import FuseFrameSheet, { fuseSourcesOf } from "../../studio/ui/FuseFrameSheet";
 import CustomFrameSlots from "./CustomFrameSlots";
+import RefMarkToggle from "./RefMarkToggle";
 import RefStrip from "./RefStrip";
 import ModePicker, { modeTierOf } from "./ModePicker";
 import { RestatePlaceTip, SceneCardTip } from "./DirectTips";
@@ -1718,6 +1719,11 @@ function NodePanel({
                   >
                     <Trans>🎞 调节首尾帧 / 加中间帧</Trans>
                   </button>
+                  <RefMarkToggle
+                    keep={!!node.customRef.keepWatermark}
+                    disabled={locked || generating || busy}
+                    onChange={(keep) => useFlow.getState().setCustomRefKeepMark(node.id, keep)}
+                  />
                   {/* 中间帧参考图（多图那半）：与拆段是两回事，这里的中间帧进同一段 */}
                   <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                     <span className="text-[10px] text-slate-500"><Trans>中间帧参考图</Trans></span>

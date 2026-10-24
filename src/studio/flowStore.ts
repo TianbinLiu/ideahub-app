@@ -170,7 +170,14 @@ export interface FlowNode {
    * 有它 = 这一段走 reference 子任务（segmentGen.materialRef），首/尾帧变成参考图 +
    * 提示词点名；没有 = 纯帧模式（first/last_frame 硬参数）。只在 custom 段上有意义。
    */
-  customRef?: { url: string; publicId: string; durationSec: number; mids: string[] };
+  customRef?: {
+    url: string;
+    publicId: string;
+    durationSec: number;
+    mids: string[];
+    /** 保留示例视频里的水印（缺省 = 不保留：出片提示词带 segmentGen.NO_REF_MARK_LINE）。写只走 setCustomRefKeepMark */
+    keepWatermark?: boolean;
+  };
   /**
    * **延长段**（2026-10-05「修这一段 · 延长」，方案 docs/canvas-platforms-ecosystem-research.md §五）：接着上一段的成片往后拍几秒 ——
    * 那段成片当参考视频走 extend 子任务，产物**只有新的一截**（官方 2.5 提示词指南的示例量过：15.05s 输入 → 5.00s 产物），所以它就是新的一段。
@@ -1560,7 +1567,7 @@ export function nodeRefPlan(nodes: FlowNode[], idx: number, mode: FlowMode): Ref
     refAllowed: refAllowedOf(node, mode),
     noDraw: nodeNoDraw(node),
     refVideoUrl: tplRef?.url,
-    materialRef: node.custom && node.customRef ? { url: node.customRef.url, durationSec: node.customRef.durationSec, mids: node.customRef.mids } : undefined,
+    materialRef: node.custom && node.customRef ? { url: node.customRef.url, durationSec: node.customRef.durationSec, mids: node.customRef.mids, keepWatermark: node.customRef.keepWatermark } : undefined,
     extraRefs: tplRef ? undefined : node.extraRefs,
     durationSec: prop.durationSec,
     framesComing,
@@ -1937,7 +1944,9 @@ interface FlowState {
   insertMidFrame: (id: string, dataUrl: string) => boolean;
   /** 给自定义段挂/摘**素材参考视频**（服务端登记回执整份传入；null = 摘掉）。
    *  返回 false = 被拒（原因在 err） */
-  setCustomRefVideo: (id: string, ref: { url: string; publicId: string; durationSec: number } | null) => boolean;
+  setCustomRefVideo: (id: string, ref: { url: string; publicId: string; durationSec: number; keepWatermark?: boolean } | null) => boolean;
+  /** 示例视频「去水印」开关（RefMarkToggle 唯一写入口）：keep=true 保留原样 */
+  setCustomRefKeepMark: (id: string, keep: boolean) => boolean;
   /** 素材参考模式下增/删**中间帧参考图**（上限 CUSTOM_MID_MAX）。返回 false = 被拒 */
   addCustomMid: (id: string, dataUrl: string) => boolean;
   removeCustomMid: (id: string, idx: number) => void;
@@ -3577,6 +3586,23 @@ export const useFlow = create<FlowState>()((set, get) => ({
     return true;
   },
 
+  setCustomRefKeepMark: (id, keep) => {
+    const s = get();
+    const node = s.nodes.find((n) => n.id === id);
+    if (!node?.customRef) return false;
+    if (s.busy || s.nodes.some((n) => n.status === "generating")) {
+      set({ err: t`有一段正在生成中，等它跑完再改「去水印」` });
+      return false;
+    }
+    set((st) => ({
+      nodes: st.nodes.map((n) =>
+        n.id === id && n.customRef ? { ...n, customRef: { ...n.customRef, keepWatermark: keep || undefined } } : n,
+      ),
+      err: "",
+    }));
+    return true;
+  },
+
   removeCustomMid: (id, idx) =>
     set((st) => ({
       nodes: st.nodes.map((n) =>
@@ -4252,7 +4278,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
           // 分支）与这里必须同进同出 —— 报了 (输入+输出) 的价就必须真发参考视频
           materialRef:
             !rv && !ext && node.custom && node.customRef
-              ? { url: node.customRef.url, durationSec: node.customRef.durationSec, mids: node.customRef.mids }
+              ? { url: node.customRef.url, durationSec: node.customRef.durationSec, mids: node.customRef.mids, keepWatermark: node.customRef.keepWatermark }
               : undefined,
           // 临时参考图（N1）：返修、白模段与延长段不带（参考是成片 / 模板视频本身）。与界面上的参考清单读同一份（nodeRefPlan）
           extraRefs: rv || tplRef || ext ? undefined : node.extraRefs,
