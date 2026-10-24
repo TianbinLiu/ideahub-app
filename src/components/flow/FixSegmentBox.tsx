@@ -14,11 +14,12 @@
 //   ② 写「只改第 2-3 秒换红手套」，红手套从手第 1 秒一入画就换上了、一直到第 3 秒 —— 同一个连续的动作模型会整段一起改，
 //      不会在第 2 秒处硬切；开头的礼盒与结尾的特写没动。所以文案说「主要改」「尽量照原样」，不许诺只动那几秒。
 import { Trans, useLingui } from "@lingui/react/macro";
+import { priceTag } from "../../data/economy";
 import Warn from "../Warn";
 import { useState } from "react";
 import { AI_REAL } from "../../ai";
 import { tierBlockReason, tierGo, tierOffered } from "../../data/account";
-import { durationChoices, fmtTokens, materialRefSecs, minUsageNote, r2vPriceIssue, r2vTokens, tierOf } from "../../data/economy";
+import { durationChoices, materialRefSecs, minUsageNote, r2vPriceIssue, r2vTokens, tierOf } from "../../data/economy";
 import { useAccountVersion } from "../../hooks/useAccount";
 import UpgradeLink from "../UpgradeLink";
 import {
@@ -99,7 +100,7 @@ export default function FixSegmentBox({
   const b = Math.max(a + 1, Math.min(to, sec));
   const range = ranged ? { from: a, to: b } : null;
   const canRevise = !planIssue && !priceIssue && reviseCost !== null && text.trim().length > 0 && !disabled;
-  const revisePrice = AI_REAL && reviseCost !== null ? fmtTokens(reviseCost) : t`演示`;
+  const revisePrice = AI_REAL && reviseCost !== null ? priceTag(reviseCost) : t`演示`;
 
   // ── 往后延长 ──
   const extIssue = isLast ? extendIssue(nodes, index) : null;
@@ -107,7 +108,7 @@ export default function FixSegmentBox({
   const outSec = extSec ?? (choices.includes(EXTEND_DEFAULT_SEC) ? EXTEND_DEFAULT_SEC : (choices[0] ?? EXTEND_DEFAULT_SEC));
   const spec = isLast && !extIssue ? extendSpec(nodes, index, { text: extText || " ", durationSec: outSec }) : null;
   const extCost = spec ? appendQuote(nodes, mode, spec) : 0;
-  const extPrice = AI_REAL ? fmtTokens(extCost) : t`演示`;
+  const extPrice = AI_REAL ? priceTag(extCost) : t`演示`;
   /**
    * 计价那几个秒数（economy.materialRefSecs —— 报价 appendQuote → nodeCost → materialRefCost 读的同一份）：输入取 extendSpec 记下的
    * 被延长那一段的时长（落段之后 nodeCost / genNode 经 extendSourceOf 读到的也是它），再按方舟最低用量折算；
@@ -133,8 +134,8 @@ export default function FixSegmentBox({
         <span className="mr-1 text-xs font-semibold text-slate-300">
           <Trans>修这一段</Trans>
         </span>
-        {chip("revise", t`✎ 片段重拍`)}
-        {isLast && chip("extend", t`⏩ 往后延长`)}
+        {chip("revise", t`片段重拍`)}
+        {isLast && chip("extend", t`往后延长`)}
         {prop.prevVideoUrl && (
           <button
             onClick={() => useFlow.getState().restoreProposalVideo(node.id)}
@@ -214,7 +215,7 @@ export default function FixSegmentBox({
               disabled={!canRevise}
               className="w-full rounded-full bg-brand px-3 py-1.5 text-[11px] font-bold text-ink disabled:opacity-40"
             >
-              <Trans>✎ 重拍这一段（{revisePrice}）</Trans>
+              <Trans>♻ 重拍这一段（{revisePrice}）</Trans>
             </button>
           </>
         )))}
@@ -257,7 +258,7 @@ export default function FixSegmentBox({
               disabled={!canExtend}
               className="w-full rounded-full bg-brand px-3 py-1.5 text-[11px] font-bold text-ink disabled:opacity-40"
             >
-              <Trans>⏩ 往后延长 {outSec} 秒（{extPrice}）</Trans>
+              <Trans>往后延长 {outSec} 秒（{extPrice}）</Trans>
             </button>
           </>
         )))}

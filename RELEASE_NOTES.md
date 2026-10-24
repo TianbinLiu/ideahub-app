@@ -1,3 +1,12 @@
+启梦 2.69
+
+· 工作流画布上也按 2.68 那套改了：一段出好片之后「重新生成」退成次级键、价钱用 ⚡ 价签；套模板 / 自选卡片 / 自定义 / 直出四个页签、「加一段」里每种做法、存草稿 / 工坊 / 设置等十几处 emoji 换成线性图标，与工坊那一面一致。
+· 首页冷启动在网慢的时候先显示「正在取作品…」，不再先闪一下「还没有作品」。
+
+QiMeng 2.69
+
+· The workflow canvas now matches the 2.68 pass: after a segment is done, “Regenerate” becomes a secondary button with the ⚡ price tag; the four lane tabs, every method in “Add a segment”, and a dozen emoji (save draft, workshop, settings…) are line icons, consistent with the workshop view.
+· On a slow connection the home feed shows “Loading works…” on cold start instead of briefly flashing “No works yet”.
 启梦 2.68
 
 · 界面按《Refactoring UI》二十条走查了一遍：按钮主次更清楚（一段出好片之后「去下一段」才是主键、市场卡片的实心键改淡、做同款用招牌字形而不是 ⚡）；评论与首页的作者名有了字重；报错一律玫瑰色、提示一律左侧色条加图标；首页芯片、登录页链接、剪辑页播放键等的点击热区放大。

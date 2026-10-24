@@ -90,7 +90,7 @@ export default function DeleteSegBtn({
           <Trans>真的删？推演出的方案会没（花过的 token 不退）</Trans>
         )
       ) : (
-        <Trans>🗑 删除本段</Trans>
+        <Trans>删除本段</Trans>
       )}
     </button>
   );

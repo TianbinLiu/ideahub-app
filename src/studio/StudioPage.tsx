@@ -78,7 +78,7 @@ function StudioLoader() {
       <div className="relative mb-6 h-20 w-20">
         <div className="absolute inset-0 animate-spin rounded-full border-2 border-transparent border-t-cyan-300/80 border-r-cyan-300/30" style={{ animationDuration: "1.6s" }} />
         <div className="absolute inset-2 animate-spin rounded-full border border-transparent border-b-warn-300/70" style={{ animationDuration: "2.4s", animationDirection: "reverse" }} />
-        <div className="absolute inset-0 flex items-center justify-center text-2xl">🎴</div>
+        <div className="absolute inset-0 flex items-center justify-center text-brand"><Icon name="workshop" size={28} /></div>
       </div>
       <div className="mb-3 text-sm font-semibold tracking-widest text-slate-200"><Trans>正在点亮魔法书房…</Trans></div>
       <div className="h-1 w-40 overflow-hidden rounded-full bg-slate-700/60">
@@ -351,9 +351,9 @@ export default function StudioPage() {
             aria-disabled={!hasWork}
             title={hasWork ? t`工作流画布：同一条流水线的另一面` : t`桌面还空着——先点虚线卡位铸一段`}
             aria-label={t`工作流画布`}
-            className={`flex h-9 w-9 items-center justify-center rounded-full bg-panel/85 text-base backdrop-blur ${hasWork ? "" : "opacity-40"}`}
+            className={`flex h-9 w-9 items-center justify-center rounded-full bg-panel/85 text-slate-100 backdrop-blur ${hasWork ? "" : "opacity-40"}`}
           >
-            🧩
+            <Icon name="branch" size={18} />
           </button>
           {/* ★ 摆在浮动顶栏右侧这一组里，而不是画面角落硬定位：这一屏是 3D 画布，
               任何 absolute 的小控件都可能压住法阵/卡位（都是量出来的位置） */}
@@ -396,7 +396,7 @@ export default function StudioPage() {
                   ? "✓"
                   : flowActions.saveState === "failed"
                     ? "!"
-                    : "💾"}
+                    : <Icon name="save" size={16} />}
             </button>
           }
           {/* 只在演示模式亮牌。「● 真实 AI」是常态，天天挂在那儿只是噪音；

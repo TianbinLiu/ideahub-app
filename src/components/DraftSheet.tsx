@@ -6,6 +6,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { Trans, useLingui } from "@lingui/react/macro";
+import Icon from "./Icon";
 import Sheet from "./Sheet";
 import { useApplyTemplate } from "./flow/useApplyTemplate";
 import { deleteDraft, loadDraft, renameDraft, trashDraft, type DraftMode, type WorkDraftMeta } from "../data/drafts";
@@ -127,7 +128,7 @@ export default function DraftSheet({ meta, onClose }: { meta: WorkDraftMeta; onC
           disabled={!!busy}
           className="rounded-xl border border-warn-500/40 bg-warn-500/10 p-3 text-left disabled:opacity-40"
         >
-          <div className="text-sm font-bold text-warn-200"><Trans>🎴 工坊模式</Trans></div>
+          <div className="inline-flex items-center gap-1.5 text-sm font-bold text-warn-200"><Icon name="workshop" size={15} /><Trans>工坊模式</Trans></div>
           <div className="mt-0.5 text-[10px] leading-relaxed text-slate-400">
             <Trans>3D 桌面摆卡、推演走向</Trans>
             {meta.lastMode === "studio" && t` · 上次`}
@@ -138,7 +139,7 @@ export default function DraftSheet({ meta, onClose }: { meta: WorkDraftMeta; onC
           disabled={!!busy}
           className="rounded-xl border border-cyan-400/40 bg-cyan-500/10 p-3 text-left disabled:opacity-40"
         >
-          <div className="text-sm font-bold text-cyan-200"><Trans>🧩 工作流模式</Trans></div>
+          <div className="inline-flex items-center gap-1.5 text-sm font-bold text-cyan-200"><Icon name="branch" size={15} /><Trans>工作流模式</Trans></div>
           <div className="mt-0.5 text-[10px] leading-relaxed text-slate-400">
             <Trans>一屏一段、逐段生成</Trans>
             {meta.lastMode === "flow" && t` · 上次`}

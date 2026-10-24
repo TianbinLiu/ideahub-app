@@ -24,6 +24,7 @@ import {
   listFollowingVideos,
   listVideos,
   refreshFeed,
+  feedLoading,
   refreshFollowingFeed,
   profileHref,
   setLike,
@@ -1410,6 +1411,10 @@ export default function FeedPage() {
     return (
       <div className="fixed inset-0 bg-black">
         {tabs}
+        {feed === "recommend" && feedLoading() ? (
+          // 整份还在拉：画加载态，别先闪一下「还没有作品」（2.68 真机 LTE 上量到约 6 秒）
+          <EmptyState className="h-full justify-center" loading text={t`正在取作品…`} />
+        ) : (
         <EmptyState
           className="h-full justify-center"
           icon={feed === "following" ? "user" : "play"}
@@ -1428,9 +1433,10 @@ export default function FeedPage() {
                 // ★ 判 auth === "out" 不判 !user（2026-10-15 发版前复核抓到）：冷启动会话还没认领上的那段窗口 user 也是空的，
                 //   那时把登录着的人送去登录页就是 CLAUDE.md「拿 !currentUser() 当没登录」那格坑
                 : { label: t`登录`, to: "/login?next=%2F", primary: true }
-              : { label: t`去卡片工坊创作`, to: "/studio", primary: true }
+              : { label: t`去创作`, to: "/create", primary: true }
           }
         />
+        )}
       </div>
     );
   }
