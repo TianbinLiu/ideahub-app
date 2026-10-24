@@ -7843,6 +7843,10 @@ msgstr "When making videos, <0>not every image is fed to the model</0> — the c
 #~ msgid "出片时一段里只有「第一张人物卡」能带形象参考图：它最多取 {MAX_CHAR_REFS} 张（优先{face} + {body}）；同一段里的其余人物卡一张都不带，只按文字设定参与——一张图里画多个角色会被方舟整条拒掉。所以上面的「出片用」是按\"这张卡就是那第一张人物卡\"标的：它排在别的人物卡后面时，标着出片用的那几张同样进不了模型（生成步骤里会点名说明）。（两条不画设定帧的路是例外——白模模板挂卡、简约模式的参考图直出：每张人物卡都各带自己的形象图。）{detail}这一格铸卡不会自动出图（只能自己传），三张挂满时它也排在最后，出片轮不到它。"
 #~ msgstr "When making videos, only the “first character card” in a segment can bring reference images: it takes at most {MAX_CHAR_REFS, plural, one {# image} other {# images}} ({face} + {body} first). Other character cards in the same segment bring none and only take part through their text details — one image with several characters gets rejected outright by Ark. So “Used in video” above assumes this card is that first character card: if it comes after other character cards, the images marked Used in video won't reach the model either (the generation steps will say so). (The two paths that don't draw setup frames are exceptions — attaching cards to a blockout template, and direct reference-image output in Simple mode: every character card brings its own images.) The {detail} slot isn't generated automatically when minting (you can only upload it yourself), and when all three are filled it comes last, so it never gets used in videos."
 
+#: src/components/flow/RefMarkToggle.tsx
+msgid "出片时在提示词里要求模型不复刻示例视频（和从它截的首尾帧）里的水印、台标、账号名与字幕。是引导不是硬保证：固定在角上的台标仍可能被画进去，最稳的办法是传之前先裁掉。关掉这一项就照示例视频原样参考。"
+msgstr "When generating, the prompt asks the model not to reproduce watermarks, station logos, account names or subtitles from the example video (and the first/last frames taken from it). This is guidance, not a guarantee: a logo fixed in a corner may still be drawn in; the safest way is to crop it out before uploading. Turn this off to reference the example video as is."
+
 #. placeholder {0}: CARD_INFO_LABELS[card.type]
 #: src/pages/CardDetailPage.tsx
 msgid "出片时提示词里代表这张卡的固定一句（逐段复用同一措辞，形象更稳）。长设定进画面靠上面的参考图与{0}，不直接塞进视频提示词。"
@@ -9095,6 +9099,10 @@ msgstr "Make one in My Library"
 msgid "去掉"
 msgstr "Remove"
 
+#: src/components/flow/RefMarkToggle.tsx
+msgid "去掉示例视频里的水印 / 台标"
+msgstr "Remove watermarks / logos from the example video"
+
 #: src/components/flow/FrameEditBox.tsx
 msgid "去掉背景里的路人"
 msgstr "Remove the passers-by in the background"
@@ -9122,6 +9130,10 @@ msgstr "Go to the template market"
 #: src/components/flow/FlowCanvas.tsx
 msgid "去模板市场逛逛"
 msgstr "Browse the template market"
+
+#: src/components/flow/RefMarkToggle.tsx
+msgid "去水印"
+msgstr "Remove watermark"
 
 #: src/pages/AdminPage.tsx
 msgid "去现场 →"
@@ -12346,6 +12358,10 @@ msgstr "Installed"
 #: src/studio/ui/SchemeMarketSheet.tsx
 msgid "已装 · 用它"
 msgstr "Installed · use it"
+
+#: src/studio/segmentGen.ts
+msgid "已要求不复刻示例视频里的水印 / 台标（提示词引导，不保证）"
+msgstr "Asked the model not to reproduce the example video's watermark / logo (prompt guidance, not guaranteed)"
 
 #: src/api/support.ts
 msgid "已解决"
@@ -15849,6 +15865,10 @@ msgstr "A segment is generating. Wait for it to finish before switching directio
 #: src/studio/flowStore.ts
 msgid "有一段正在生成中，等它跑完再接"
 msgstr "A segment is generating; wait for it to finish before appending"
+
+#: src/studio/flowStore.ts
+msgid "有一段正在生成中，等它跑完再改「去水印」"
+msgstr "A segment is generating — change “Remove watermark” after it finishes"
 
 #: src/studio/flowStore.ts
 msgid "有一段正在生成中，等它跑完再改参考图"

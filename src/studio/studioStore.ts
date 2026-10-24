@@ -73,7 +73,7 @@ export interface EditorState {
   endFrame: string | null;
   /** 自定义车道第①页挂的示例视频（2026-08-30 翻页版）。落地时随 layCustomNode 一起
    *  写进节点（setNodeCustom + setCustomRefVideo + mids）；localUrl 只给截帧用不落库 */
-  refVideo: { url: string; publicId: string; durationSec: number; localUrl?: string; mids: string[] } | null;
+  refVideo: { url: string; publicId: string; durationSec: number; localUrl?: string; mids: string[]; keepWatermark?: boolean } | null;
   generating: boolean;
   /** 生成期间的实时阶段播报（真实 AI 全程约 1-1.5 分钟，没进度=卡死体感） */
   progress: string;
@@ -679,6 +679,8 @@ interface StudioState {
   setEndFrame: (dataUrl: string | null) => void;
   /** 向导第①页：挂/摘示例视频（editor 期暂存，layCustomNode 落地进节点） */
   setEditorRefVideo: (ref: { url: string; publicId: string; durationSec: number; localUrl?: string } | null) => void;
+  /** 示例视频「去水印」开关（铸段窗那一面；落段时经 flowStore.setCustomRefVideo 带过去） */
+  setEditorRefKeepMark: (keep: boolean) => void;
   addEditorMid: (dataUrl: string) => void;
   removeEditorMid: (idx: number) => void;
   /** 自定义直出：不推演，把编辑器里的帧+要求铺成一张**已选定单方案**的节点卡。
@@ -1804,6 +1806,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
   setAspect: (a) => set((s) => (s.editor ? { editor: { ...s.editor, aspect: a } } : {})),
   setStartFrame: (dataUrl) => set((s) => (s.editor ? { editor: { ...s.editor, startFrame: dataUrl } } : {})),
   setEndFrame: (dataUrl) => set((s) => (s.editor ? { editor: { ...s.editor, endFrame: dataUrl } } : {})),
+  setEditorRefKeepMark: (keep) =>
+    set((s) => (s.editor?.refVideo ? { editor: { ...s.editor, refVideo: { ...s.editor.refVideo, keepWatermark: keep || undefined } } } : {})),
   setEditorRefVideo: (ref) =>
     set((s) => (s.editor ? { editor: { ...s.editor, refVideo: ref ? { ...ref, mids: s.editor.refVideo?.mids ?? [] } : null } } : {})),
   addEditorMid: (dataUrl) =>
@@ -1889,6 +1893,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
         url: editor.refVideo.url,
         publicId: editor.refVideo.publicId,
         durationSec: editor.refVideo.durationSec,
+        keepWatermark: editor.refVideo.keepWatermark,
       });
       for (const m of editor.refVideo.mids) flow.addCustomMid(newId, m);
     }

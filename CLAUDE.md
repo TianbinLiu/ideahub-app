@@ -478,6 +478,7 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   **读 `extraRefs` 一律过 `usableExtraRefs`**。改名 / 删除只走 flowStore 的三个 action（顺手收拾这一段句子里的 `@名字`）；
   不进公开配方（记号复用 `mid-frames`，句子里的点名退成文字）。
   同一批顺手改的：`segmentGen.hasDialogue` 认中文弯引号（原来 “你来了” 会被配音却带不上卡的声音样本），清单里提前说「声音样本为什么带不上」。
+- **示例视频默认去水印**（2026-10-24 主人点名）：挂了示例视频的自定义段出片时，提示词多一句「参考视频与参考图里的水印、台标、账号名和字幕都不要出现在画面里」（句子只在 `segmentGen.NO_REF_MARK_LINE` 一处，32 字从正文额度扣，与时序点名句一样截断优先保它）；关掉 = `customRef.keepWatermark: true`（判否定：老草稿缺这一位 = 开），写只走 `flowStore.setCustomRefKeepMark` / 铸段窗那一面 `studioStore.setEditorRefKeepMark`，开关只有 `components/flow/RefMarkToggle` 一份、两面都挂。**只在素材参考（reference 子任务）那条路上说**：白模 edit 是逐帧复刻、F7 实测提示词去不掉台标，那边的解是裁剪框，别把这句加过去。软引导、没做过付费对照 —— 文案一律「引导不是硬保证，稳妥是传之前裁掉」。
 - **关键画面在出片之前就能改、成片里任意一帧能截出来用**（N3，2026-10-03；与已有「圈图改图」的对比在 docs/node-modes-libtv-alignment.md §六）。四条规矩：
   ① **「按要求改这一帧」只有 `flowStore.editFrame` 一处实现**（一句话改 = 带卡片形象图锁脸 + 句子里 `@名字` 点到的临时参考图；圈着改 = 底图是画着红圈的标注图、
   不带别的图）。画布自定义车道、画布方案台、工坊方案台画的是同一个 `FrameEditBox`；工坊的 `studioStore.refineProposalFrame` 只是转发（它本地那道 `frameRefining` 闸还要打）。
