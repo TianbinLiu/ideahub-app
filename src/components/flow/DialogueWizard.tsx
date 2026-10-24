@@ -141,7 +141,7 @@ export default function DialogueWizard({
     const nameB = names[1];
     return a === "two" ? t`双人镜头` : a === "faceA" ? t`拍${nameA}` : t`拍${nameB}`;
   };
-  /** 这个机位画好的那张过期了没有（人 / 整体交代 / 画幅换过，过肩还看双人镜头重画过没有） */
+  /** 这个机位画好的那张过期了没有（人 / 整体交代换过，过肩还看双人镜头重画过没有；画幅也在 key 里，但画好之后换不了，见画幅那排键） */
   const staleOf = (a: DialogueAngle): boolean => {
     const p = d.panels[a];
     return !!p?.image && p.key !== angleKey(a, names, d.lead, aspect, a === "two" ? "" : (d.panels.two?.id ?? ""));
@@ -431,9 +431,12 @@ export default function DialogueWizard({
                 </button>
               ))}
             </div>
+            {/* ★ 画好任何一张之后画幅就锁了（上面那排键 disabled），「三个一起重画」/ 单张重画也按 draft.aspect 画。
+                2026-10-21 之前这句写着「要换画幅得三个一起重画」—— 那条路不存在：照着做白花最多 41.2k、画幅一点没变。
+                真要放开，得先定好「换画幅 = 三张全过期、底部那颗键改口」这一套，不是只改这句话 */}
             {drawn && (
               <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
-                <Trans>机位已经按这个画幅画了（每一张都是几段的开头画面）；要换画幅得三个一起重画。</Trans>
+                <Trans>机位已经按这个画幅画了（每一张都是几段的开头画面）。画好之后画幅就定了，「三个一起重画」也还是这个画幅。</Trans>
               </p>
             )}
           </div>
@@ -494,7 +497,7 @@ export default function DialogueWizard({
               {staleOf(focus) && (
                 <Warn compact>
                   {focus === "two" ? (
-                    <Trans>人、整体交代或画幅在画好之后改过：这一张还是按原来那版画的，重画一下才对得上。</Trans>
+                    <Trans>人或整体交代在画好之后改过：这一张还是按原来那版画的，重画一下才对得上。</Trans>
                   ) : (
                     <Trans>这一张是照着之前那张双人镜头画的（或者人、整体交代改过）：重画一下，地方和光线才与现在的双人镜头对得上。</Trans>
                   )}
