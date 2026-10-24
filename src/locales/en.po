@@ -7844,8 +7844,12 @@ msgstr "When making videos, <0>not every image is fed to the model</0> — the c
 #~ msgstr "When making videos, only the “first character card” in a segment can bring reference images: it takes at most {MAX_CHAR_REFS, plural, one {# image} other {# images}} ({face} + {body} first). Other character cards in the same segment bring none and only take part through their text details — one image with several characters gets rejected outright by Ark. So “Used in video” above assumes this card is that first character card: if it comes after other character cards, the images marked Used in video won't reach the model either (the generation steps will say so). (The two paths that don't draw setup frames are exceptions — attaching cards to a blockout template, and direct reference-image output in Simple mode: every character card brings its own images.) The {detail} slot isn't generated automatically when minting (you can only upload it yourself), and when all three are filled it comes last, so it never gets used in videos."
 
 #: src/components/flow/RefMarkToggle.tsx
-msgid "出片时在提示词里要求模型不复刻示例视频（和从它截的首尾帧）里的水印、台标、账号名与字幕。是引导不是硬保证：固定在角上的台标仍可能被画进去，最稳的办法是传之前先裁掉。关掉这一项就照示例视频原样参考。"
-msgstr "When generating, the prompt asks the model not to reproduce watermarks, station logos, account names or subtitles from the example video (and the first/last frames taken from it). This is guidance, not a guarantee: a logo fixed in a corner may still be drawn in; the safest way is to crop it out before uploading. Turn this off to reference the example video as is."
+#~ msgid "出片时在提示词里要求模型不复刻示例视频（和从它截的首尾帧）里的水印、台标、账号名与字幕。是引导不是硬保证：固定在角上的台标仍可能被画进去，最稳的办法是传之前先裁掉。关掉这一项就照示例视频原样参考。"
+#~ msgstr "When generating, the prompt asks the model not to reproduce watermarks, station logos, account names or subtitles from the example video (and the first/last frames taken from it). This is guidance, not a guarantee: a logo fixed in a corner may still be drawn in; the safest way is to crop it out before uploading. Turn this off to reference the example video as is."
+
+#: src/components/flow/RefMarkToggle.tsx
+msgid "出片时在提示词里要求模型不复刻示例视频（和从它截的首尾帧）里的水印、台标、账号名与字幕。高清档对照验过：不加这句，角标和账号名会原样搬进成片；加了就没有。电影级本来就不照搬示例画面。仍不是硬保证，台标固定在角上时传之前裁掉最稳。关掉这一项就照示例视频原样参考。"
+msgstr "When generating, the prompt asks the model not to reproduce watermarks, station logos, account names or subtitles from the example video (and the first/last frames taken from it). Verified on the HD tier with a paid comparison: without this line the corner badge and account name were copied into the output as-is; with it, they were gone. The cinematic tier does not copy the example footage anyway. Still not a hard guarantee — cropping a fixed corner logo before uploading is the safest. Turn this off to reference the example video as is."
 
 #. placeholder {0}: CARD_INFO_LABELS[card.type]
 #: src/pages/CardDetailPage.tsx

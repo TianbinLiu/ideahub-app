@@ -1,3 +1,10 @@
+启梦 2.70
+
+· 自定义一段时挂了示例视频，出片默认会要求模型不复刻示例视频里的水印、台标、账号名与字幕（示例视频块里有「去掉示例视频里的水印 / 台标」开关，可关）。高清档对照验过：不加这句，角标和账号名会原样搬进成片；加了就没有。电影级本来就不照搬示例画面。仍不是硬保证，台标固定在角上时传之前裁掉最稳。
+
+QiMeng 2.70
+
+· When a custom segment carries an example video, generation now asks the model by default not to reproduce the example video's watermarks, logos, account names or subtitles (a “Remove watermarks / logos” switch in the example-video block can turn it off). Verified on the HD tier: without the line the corner badge and account name were copied into the output; with it, they were gone. The cinematic tier does not copy the example footage anyway. Still not a hard guarantee — crop a fixed corner logo before uploading to be safe.
 启梦 2.69
 
 · 工作流画布上也按 2.68 那套改了：一段出好片之后「重新生成」退成次级键、价钱用 ⚡ 价签；套模板 / 自选卡片 / 自定义 / 直出四个页签、「加一段」里每种做法、存草稿 / 工坊 / 设置等十几处 emoji 换成线性图标，与工坊那一面一致。
