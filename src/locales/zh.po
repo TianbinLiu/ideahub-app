@@ -5208,8 +5208,13 @@ msgid "下架…"
 msgstr "下架…"
 
 #: src/pages/AdminPage.tsx
-msgid "下架＝内容还在但谁都看不到（作者也翻不回来） · 驳回＝举报不成立 · 删除＝连内容一起删，不可撤销"
-msgstr "下架＝内容还在但谁都看不到（作者也翻不回来） · 驳回＝举报不成立 · 删除＝连内容一起删，不可撤销"
+msgctxt "管理后台举报处置键下面那行说明里的一句；这一类有几颗键就画几句，用 · 隔开"
+msgid "下架＝内容还在但谁都看不到（作者也翻不回来）"
+msgstr "下架＝内容还在但谁都看不到（作者也翻不回来）"
+
+#: src/pages/AdminPage.tsx
+#~ msgid "下架＝内容还在但谁都看不到（作者也翻不回来） · 驳回＝举报不成立 · 删除＝连内容一起删，不可撤销"
+#~ msgstr "下架＝内容还在但谁都看不到（作者也翻不回来） · 驳回＝举报不成立 · 删除＝连内容一起删，不可撤销"
 
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "下架中…"
@@ -8345,6 +8350,15 @@ msgstr "删除《{0}》？"
 #: src/components/DeleteCardDialog.tsx
 msgid "删除「{0}」？"
 msgstr "删除「{0}」？"
+
+#: src/pages/AdminPage.tsx
+msgctxt "管理后台举报处置键下面那行说明里的一句；这一类有几颗键就画几句，用 · 隔开"
+msgid "删除＝连内容一起删，不可撤销"
+msgstr "删除＝连内容一起删，不可撤销"
+
+#: src/pages/AdminPage.tsx
+msgid "删除不可撤销。"
+msgstr "删除不可撤销。"
 
 #: src/pages/AdminPage.tsx
 msgid "删除不可撤销。只想让它不再被看到就用「下架」。"
@@ -28232,6 +28246,11 @@ msgstr "首页视频流"
 #: src/pages/AdminPage.tsx
 msgid "驳回"
 msgstr "驳回"
+
+#: src/pages/AdminPage.tsx
+msgctxt "管理后台举报处置键下面那行说明里的一句；这一类有几颗键就画几句，用 · 隔开"
+msgid "驳回＝举报不成立"
+msgstr "驳回＝举报不成立"
 
 #: src/pages/LoginPage.tsx
 msgid "验证并注册"

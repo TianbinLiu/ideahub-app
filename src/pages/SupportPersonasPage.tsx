@@ -300,6 +300,7 @@ export default function SupportPersonasPage() {
             const current = !!chosenId && p._id === chosenId;
             const isBusy = busy === p._id;
             const needPay = p.price > 0 && !p.purchased && !p.isOwner;
+            const author = authorName(p.author);
             return (
               <section key={p._id} className={`rounded-xl border p-3 ${current ? "border-brand/60 bg-brand/5" : "border-slate-700/70 bg-panel"}`}>
                 <div className="flex gap-3">
@@ -318,10 +319,15 @@ export default function SupportPersonasPage() {
                       {p.voice && <span className="rounded-full px-2 py-0.5 bg-sky-500/20 text-[10px] text-sky-200"><Trans>自带音色</Trans></span>}
                     </div>
                     {p.description && <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-slate-400">{p.description}</p>}
+                    {/* ★ 这一行不换行，能缩的只有标签与作者名（min-w-0 truncate，过长出省略号），下载数与「举报」不缩（shrink-0）。
+                        原来作者名与下载数是一整块 shrink-0：作者名约 14 个汉字 / 27 个字母（服务端用户名上限 32）就把「举报」顶出卡片右缘，
+                        360 宽的屏上这一列只有约 234px。三样拆成兄弟、各自声明能不能缩，flex 才会只压前两样（2026-10-26 审核）。 */}
                     <div className="mt-1 flex items-center gap-2 text-[11px] text-slate-500">
                       {p.tags.length > 0 && <span className="min-w-0 truncate">{p.tags.slice(0, 4).map((tag) => `#${tag}`).join(" ")}</span>}
-                      <span className="ml-auto shrink-0">
-                        {authorName(p.author) ? `@${authorName(p.author)} · ` : ""}⬇ {p.stats.downloadCount}
+                      {author && <span className="ml-auto min-w-0 truncate">@{author}</span>}
+                      {/* 有作者名时 -ml-1 把 gap-2 收回到约一个空格宽，读起来仍是「@名字 · ⬇ 12」 */}
+                      <span className={`shrink-0 ${author ? "-ml-1" : "ml-auto"}`}>
+                        {author ? "· " : ""}⬇ {p.stats.downloadCount}
                       </span>
                       {/* 负外边距 + 等量内边距：把 11px 小字键的命中区上下各撑出 8px，又不把这一行撑高（下面那排按钮离它正好 8px，撑到 -my-2 为止不压上去） */}
                       <ReportButton targetType="persona" targetId={p._id} mine={p.isOwner} className="-my-2 shrink-0 py-2 pl-1" />

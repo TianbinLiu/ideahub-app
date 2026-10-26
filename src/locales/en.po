@@ -5204,8 +5204,13 @@ msgid "下架…"
 msgstr "Take down…"
 
 #: src/pages/AdminPage.tsx
-msgid "下架＝内容还在但谁都看不到（作者也翻不回来） · 驳回＝举报不成立 · 删除＝连内容一起删，不可撤销"
-msgstr "Take down = the content stays but nobody can see it (the author can't undo it) · Dismiss = the report doesn't hold up · Delete = the content is deleted too, and it can't be undone"
+msgctxt "管理后台举报处置键下面那行说明里的一句；这一类有几颗键就画几句，用 · 隔开"
+msgid "下架＝内容还在但谁都看不到（作者也翻不回来）"
+msgstr "Take down = the content stays but nobody can see it (the author can't undo it)"
+
+#: src/pages/AdminPage.tsx
+#~ msgid "下架＝内容还在但谁都看不到（作者也翻不回来） · 驳回＝举报不成立 · 删除＝连内容一起删，不可撤销"
+#~ msgstr "Take down = the content stays but nobody can see it (the author can't undo it) · Dismiss = the report doesn't hold up · Delete = the content is deleted too, and it can't be undone"
 
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "下架中…"
@@ -8337,6 +8342,15 @@ msgstr "Delete “{0}”?"
 #: src/components/DeleteCardDialog.tsx
 msgid "删除「{0}」？"
 msgstr "Delete “{0}”?"
+
+#: src/pages/AdminPage.tsx
+msgctxt "管理后台举报处置键下面那行说明里的一句；这一类有几颗键就画几句，用 · 隔开"
+msgid "删除＝连内容一起删，不可撤销"
+msgstr "Delete = the content is deleted too, and it can't be undone"
+
+#: src/pages/AdminPage.tsx
+msgid "删除不可撤销。"
+msgstr "Deleting can't be undone."
 
 #: src/pages/AdminPage.tsx
 msgid "删除不可撤销。只想让它不再被看到就用「下架」。"
@@ -28224,6 +28238,11 @@ msgstr "Home feed"
 #: src/pages/AdminPage.tsx
 msgid "驳回"
 msgstr "Dismiss"
+
+#: src/pages/AdminPage.tsx
+msgctxt "管理后台举报处置键下面那行说明里的一句；这一类有几颗键就画几句，用 · 隔开"
+msgid "驳回＝举报不成立"
+msgstr "Dismiss = the report doesn't hold up"
 
 #: src/pages/LoginPage.tsx
 msgid "验证并注册"

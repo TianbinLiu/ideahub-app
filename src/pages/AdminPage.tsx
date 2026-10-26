@@ -1269,13 +1269,35 @@ function statusLabel(s: ReportStatus): string {
   return d ? i18n._(d) : s;
 }
 
-const ACTIONS: Array<{ id: ReportAction; label: MessageDescriptor; why: MessageDescriptor; danger?: boolean }> = [
+/**
+ * 三种处置。`why` 进按钮的 title，`legend` 是按钮下面那行说明里属于这一颗键的那一句（整句，不拿 label 往里拼）。
+ * ★ 说明行按这一类**真摆出来的键**逐句画（`reportActionsFor`）：原来写死三句，人格举报没有「删除」键、评论 / 弹幕没有「下架」键，
+ *   说明里却照样解释它们 —— 管理员会去找一颗不存在的键（2026-10-26 审核）。
+ */
+const ACTIONS: Array<{ id: ReportAction; label: MessageDescriptor; why: MessageDescriptor; legend: MessageDescriptor; danger?: boolean }> = [
   // ★ 下架 ≠ visibility=private。后者的语义是"仅作者可见"，作者照样看得见，
   //   而且 updateVideo 只校验"是不是作者" —— 他能一键 PATCH 回 public。
   //   下架必须是**作者自己翻不回来**的状态，否则这个按钮等于没有。
-  { id: "takedown", label: msg({ message: "下架", context: "管理后台举报处置键：平台强制下架，作者自己翻不回来（不是作者自己取消发布）" }), why: msg`内容还在，但所有人都看不到；作者自己也改不回来` },
-  { id: "dismiss", label: msg`驳回`, why: msg`举报不成立，内容照旧` },
-  { id: "delete", label: msg`删除`, why: msg`连内容一起删掉，不可撤销`, danger: true }, // ★ 别写 Markdown 星号：这条 why 是当纯文本渲染的，会原样显示成 **不可撤销**
+  //   （人格同理：服务端下架后作者再勾「公开」会被整句拒，persona.controller 的 takenDown 闸）
+  {
+    id: "takedown",
+    label: msg({ message: "下架", context: "管理后台举报处置键：平台强制下架，作者自己翻不回来（不是作者自己取消发布）" }),
+    why: msg`内容还在，但所有人都看不到；作者自己也改不回来`,
+    legend: msg({ message: "下架＝内容还在但谁都看不到（作者也翻不回来）", context: "管理后台举报处置键下面那行说明里的一句；这一类有几颗键就画几句，用 · 隔开" }),
+  },
+  {
+    id: "dismiss",
+    label: msg`驳回`,
+    why: msg`举报不成立，内容照旧`,
+    legend: msg({ message: "驳回＝举报不成立", context: "管理后台举报处置键下面那行说明里的一句；这一类有几颗键就画几句，用 · 隔开" }),
+  },
+  {
+    id: "delete",
+    label: msg`删除`,
+    why: msg`连内容一起删掉，不可撤销`, // ★ 别写 Markdown 星号：这条 why 是当纯文本渲染的，会原样显示成 **不可撤销**
+    legend: msg({ message: "删除＝连内容一起删，不可撤销", context: "管理后台举报处置键下面那行说明里的一句；这一类有几颗键就画几句，用 · 隔开" }),
+    danger: true,
+  },
 ];
 
 function ReportCard({
@@ -1303,6 +1325,9 @@ function ReportCard({
   // ★ 评论/弹幕的作品 id 在 target 里（服务端现查后放进去的），不在顶层 —— 读顶层恒为
   //   undefined，这个链接会静默不见，而那两类恰恰是唯一需要"去现场"的
   const sceneId = report.targetType === "video" ? report.targetId : report.target?.videoId;
+  /** 这一类真能做的处置（服务端 HANDLERS 的镜像只在 api/admin.reportActionsFor）：键、说明行、删除确认那句都读它 */
+  const actions = ACTIONS.filter((a) => reportActionsFor(report.targetType).includes(a.id));
+  const canTakedown = actions.some((a) => a.id === "takedown");
 
   async function act(action: ReportAction) {
     if (busy) return;
@@ -1393,7 +1418,7 @@ function ReportCard({
               管理员会点一颗必然失败的按钮，而失败之后那条举报仍留在待处理里 —— 他只会以为后台坏了。
               权威在服务端 takedown.service 的 HANDLERS，镜像只有 api/admin.reportActionsFor 一份
               （原来这里写死「只有作品能下架」，人格举报进来就只剩一颗必然 400 的删除）。 */}
-          {ACTIONS.filter((a) => reportActionsFor(report.targetType).includes(a.id)).map((a) => {
+          {actions.map((a) => {
             if (a.id === "delete" && !confirmingDelete) {
               return (
                 <button
@@ -1422,8 +1447,9 @@ function ReportCard({
                   <button onClick={() => setConfirmingDelete(false)} className="text-xs text-slate-500">
                     <Trans>取消</Trans>
                   </button>
+                  {/* 后半句指着「下架」：这一类没有下架键（评论 / 弹幕）就只说前半句，别指一颗不存在的键 */}
                   <span className="w-full text-[10px] leading-relaxed text-slate-500">
-                    <Trans>删除不可撤销。只想让它不再被看到就用「下架」。</Trans>
+                    {canTakedown ? <Trans>删除不可撤销。只想让它不再被看到就用「下架」。</Trans> : <Trans>删除不可撤销。</Trans>}
                   </span>
                 </span>
               );
@@ -1445,11 +1471,10 @@ function ReportCard({
         </div>
       )}
 
-      {/* 处置的语义写在按钮下面而不是塞进 title：手机上没有 hover，title 等于不存在 */}
+      {/* 处置的语义写在按钮下面而不是塞进 title：手机上没有 hover，title 等于不存在。
+          只解释这一类真摆出来的那几颗键（见 ACTIONS 头上的说明） */}
       {pending && !confirmingDelete && (
-        <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
-          <Trans>下架＝内容还在但谁都看不到（作者也翻不回来） · 驳回＝举报不成立 · 删除＝连内容一起删，不可撤销</Trans>
-        </p>
+        <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">{actions.map((a) => t(a.legend)).join(" · ")}</p>
       )}
 
       {err && <p className="mt-1.5 text-[11px] leading-relaxed text-danger-300">{err}</p>}

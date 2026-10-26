@@ -195,7 +195,7 @@
 
 ### 2.9 封禁 / 黑名单 / 私信
 - **App 里没有私信、好友申请功能**（属于官网产品线） — `app\src\api\notifications.ts:116-118`「这个 App 根本没有私信界面」
-- **拉黑有**（2.46 起）：作品详情页「举报」旁边、评论里对方那一条上，都有「拉黑」；**2.64 起别人的主页上也有**（「关注」「分享主页」下面那一行小字；2.63 及以前主页上没有）。点了先弹「拉黑「…」？」，写明后果：他的作品、评论、弹幕都不会再出现在你这儿；他也看不见你的（**双向**）；他不知道自己被拉黑了，谁都不会收到通知；**这不是举报**，想让平台处理要另点「举报」（主页上只有拉黑、没有举报：举报针对作品 / 评论 / 弹幕，见 §6.6）。成功后提示「已拉黑「…」——你们不会再看见彼此的内容。」，键变成灰的「已拉黑」，首页当场拿掉他的作品；没成功会在弹层里说原因、不关窗，再点一次就行 — `app\src\components\BlockButton.tsx`；`app\src\pages\ProfilePage.tsx`（strangerId）
+- **拉黑有**（2.46 起）：作品详情页「举报」旁边、评论里对方那一条上，都有「拉黑」；**2.64 起别人的主页上也有**（「关注」「分享主页」下面那一行小字；2.63 及以前主页上没有）。点了先弹「拉黑「…」？」，写明后果：他的作品、评论、弹幕都不会再出现在你这儿；他也看不见你的（**双向**）；他不知道自己被拉黑了，谁都不会收到通知；**这不是举报**，想让平台处理要另点「举报」（主页上只有拉黑、没有举报：举报针对作品 / 评论 / 弹幕（2.70 之后的版本还有人格市场里的人格），见 §6.6）。成功后提示「已拉黑「…」——你们不会再看见彼此的内容。」，键变成灰的「已拉黑」，首页当场拿掉他的作品；没成功会在弹层里说原因、不关窗，再点一次就行 — `app\src\components\BlockButton.tsx`；`app\src\pages\ProfilePage.tsx`（strangerId）
 - 拉黑键只在连着服务器时出现（离线模式没有）；自己的主页、作品和评论上没有；没登录点了会说「登录之后才能拉黑。」并给「去登录」（登完回到这一页）；用老式按名字打开的主页链接（`/u/名字`）进来、App 认不出是谁时，主页上不显示这颗键 — `app\src\components\BlockButton.tsx`（isRemoteMode / auth）
 - 名单在「设置 → 已拉黑的人」，可以随时解除（拉黑跟着账号走，换设备还在） — `app\src\pages\SettingsBlockedPage.tsx`
 - 封禁由管理后台执行：「封禁挡的是**登录与一切带登录态的请求**，对方会看到下面这句原因」 — `app\src\pages\AdminPage.tsx:575-578`
@@ -593,13 +593,14 @@
 
 ### 6.6 举报与下架
 - 举报入口在**作品 / 评论 / 弹幕**三处，离线模式整块不渲染。作品的举报在作品详情页；2.64 起首页按住画面中间弹出的「更多操作」里也有一行「举报」，同一套理由和规矩（自己的作品没有这一行）；别人的主页上只有「拉黑」、没有举报 — `app\src\components\ReportButton.tsx`（row / isRemoteMode）；`app\src\components\FeedActionSheet.tsx`
+- **人格也能举报（2.70 之后的版本）**：数字人人格市场（设置 →「🎭 数字人人格」，`/support/personas`）里每张**别人的**人格卡上，作者那一行（「@作者 · ⬇ 下载数」）末尾有一个小字「举报」；自己做的人格上没有。理由、补充说明、同一个人格只能举报一次、限流、没登录要先登录、离线模式没有，这些规矩与作品的举报完全一样。2.70 及以前的版本人格卡上没有这个键：请更新到新版，或转人工 / 发信到 support@ideahubs.org 说明是哪个人格。人格被举报之后，管理员只能**下架**或**驳回**，**不会直接删除**：下架之后它从人格市场里消失，收藏过的人在「已收藏」里也看不到了；作者在「我的」页签里还看得到，但不能再把它设成公开（想申诉就转人工）；要彻底删掉由作者自己删。⚠ **数字人形象（Live2D）市场、声音市场里的声音模板、AI 客服自己的回答，现在都还不能在 App 里举报**（服务端还没有这几类）—— 别说有入口；遇到这类内容请转人工或发信到 support@ideahubs.org — `app\src\pages\SupportPersonasPage.tsx`；`app\src\api\admin.ts`（ReportTargetType / reportActionsFor）；`server\src\services\takedown.service.js`（HANDLERS）；`server\src\controllers\persona.controller.js`（takenDown）；服务端副本 `server\src\knowledge\support-kb.md` 还是老说法，等下一次同步（app 仓 scripts/kb-server-copy.mjs）才带上这一句
 - 8 个理由：涉及未成年人（排第一，2.46 加的）/ 未经同意的私密影像（2.51 加的；本人也可以不登录直接走 ideahubs.org/takedown）/ 色情低俗 / 血腥暴力 / 人身攻击·辱骂 / 垃圾营销·刷屏 / 侵权·冒用他人作品 / 其他 — `app\src\api\admin.ts`（REPORT_REASONS）
 - 补充说明选填，最多 500 字（与服务端上限相同） — `app\src\components\ReportButton.tsx`（DETAIL_MAX）；`server\src\models\Report.js`（detail maxlength）
 - 成功回执：「已收到，管理员会尽快处理。」 — `app\src\components\ReportButton.tsx:135`
 - **同一个人对同一个对象只能举报一次**（服务端 409，UI 如实说「你已经举报过了」） — `app\src\api\admin.ts:493-499`；`app\docs\api-contract.md:635`
 - 举报限流：10 次/分钟 + 50 次/24 小时（按账号） — `server\src\routes\report.routes.js:63-64`
 - 自己的内容不显示举报按钮（该删不该举报） — `app\src\components\ReportButton.tsx:40`, `:62`
-- 管理员三种处置：**下架（takedown）/ 驳回（dismiss）/ 删除（delete）** — `app\src\api\admin.ts:86`
+- 管理员三种处置：**下架（takedown）/ 驳回（dismiss）/ 删除（delete）**，但不是每一类都三样都有：作品三样都有；评论、弹幕**没有下架**（只能驳回或删除）；人格**没有删除**（只能下架或驳回） — `app\src\api\admin.ts`（reportActionsFor）；`server\src\services\takedown.service.js`（HANDLERS）
 - **下架只对别人生效**：作者自己在首页看那条片子与平常毫无区别，但必须看得见下架状态与原因 — `app\src\types.ts:756-766`；`app\src\components\ShareSheet.tsx:63-73`
 - 下架与可见性是两个互不顶替的开关：作者把 visibility 改回 public 也没用 — `app\src\types.ts:761`
 
@@ -1092,6 +1093,7 @@
 
 ### 功能范围
 22. **App 里没有私信 / 好友申请功能**（那是官网产品线）；拉黑有：在作品详情页、评论里，或（2.64 起）对方的主页上点「拉黑」，名单在「设置 → 已拉黑的人」，可以随时解除 — `app\src\api\notifications.ts:116-118`；`app\src\components\BlockButton.tsx`
+22b. **不承诺 Live2D 形象、声音模板、AI 客服的回答能在 App 里举报**：App 里能举报的只有作品、评论、弹幕，以及 2.70 之后的版本里人格市场上别人的人格（见 §6.6）；其余的转人工或发信到 support@ideahubs.org。也别说被举报的人格会被删除：平台只下架或驳回 — `app\src\api\admin.ts`（ReportTargetType）；服务端副本 `server\src\knowledge\support-kb.md` 还是老说法，等下一次同步（app 仓 scripts/kb-server-copy.mjs）才带上这一句
 23. **App 里没有真人在线聊天**：App 里的客服就是这个 AI 客服（「我的」页顶栏的客服图标进入），可以转人工、建工单（要用户自己点「转人工」再点「提交给人工客服」才算建了工单），人工回复会出现在「通知」和客服页「我的工单」里（转人工时留了联系邮箱、或账号本身绑了邮箱的，也会发一封邮件；QQ / 微信 / 手机号注册又没留邮箱的收不到邮件）；另一个联系方式是邮箱 `support@ideahubs.org`。不承诺人工多久回复（见 25） — `app\src\pages\SupportPage.tsx`
 24. **App 里不能买积分人格、不能用积分 / 悬赏**（App 里能看到人格的积分价，自己做人格时也能定一个积分价；购买在官网；积分是官网的虚拟点数，与 App 的 token 钱包无关，不能用 token 付） — `server\src\controllers\me.controller.js:37-38`
 25. **不承诺人工客服响应时间 / 服务时段** `[待确认]` — 仓库中无任何 SLA、工作时间或响应承诺
