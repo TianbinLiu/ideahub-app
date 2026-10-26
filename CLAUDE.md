@@ -751,11 +751,13 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   收了）；整块可选的"砖"（简约模式的两块、自建卡的照片位、草稿箱的封面卡）仍是 `rounded-2xl`，那是另一种控件。
   小字段落的行高只有 `leading-relaxed`（`leading-4` / `leading-5` 与它只差半个像素，却让同一页两行不一样）。空态文案不再手拼 `rounded-2xl bg-slate-900/60` 的段落，走 `EmptyState`。
 - **徽标（`rounded-full` 小字非交互）按字号定内边距**：9px `px-1.5 py-0.5`、10px `px-2 py-0.5`、11px `px-2.5 py-1`。
-- **全屏覆盖层的表头**（画布 / 成片回看 / 调首尾帧 / 核对角色位 / 客服页，第五轮收口）：`safe-top flex h-[58px] flex-none
+- **全屏覆盖层的表头**（画布 / 成片回看 / 调首尾帧 / 核对角色位 / 客服页，第五轮收口）：`safe-top-bar flex flex-none
   items-center gap-2 px-4`，关闭 / 返回键走 `CloseButton` / `BackButton`（覆盖层上用 `chip="md" size={16}`，
   客服页那种透明顶栏用裸图标 `size={20}`），标题 `text-sm font-bold text-slate-100`。不再手写 `h-8 w-8 rounded-full bg-panel`
-  的圆钮 —— 那是 chip md 的手抄版，命中区只有 32px。⚠ `h-[58px]` 是**含 safe-top 那 10px** 的（58 = 10 + 48），
-  只准写在自己带 `safe-top` 的那一行上；safe-top 已经在外层时里面那行是 `h-12`（客服页第十四轮量出来差 5px）。
+  的圆钮 —— 那是 chip md 的手抄版，命中区只有 32px。⚠ 自带安全区的那一行一律 `.safe-top-bar`（index.css：上内边距 = 状态栏 inset + 10px，高度 = inset + 58px）；
+  safe-top 已经在外层时里面那行是 `h-12`（客服页第十四轮量出来差 5px）。**别再写 `safe-top h-[58px]`**（2026-10-26 主人真机：分区页搜索栏挡住「浏览分区」）——
+  58 = 10 + 48 只在 inset 为 0 时对，浏览器里量的全是 0；真机 inset 41px，内容区只剩 7px，搜索框 / 圆钮从行底溢出盖住下面。
+  `safe-top` 与固定高度写在同一个元素上，构建里 `scripts/check-top-bar.mjs` 会拦；浏览器量不出这类问题，验它要在模拟器或真机上。
   验法：在浏览器里逐路由量返回键中心的 y，都该是 34。
 - **加载圈只有一份 `components/Spinner`**（xs / sm / lg），别再手写 `animate-spin rounded-full border-2 …`。
 - **挂在控件旁的一两句提醒只有一份 `components/Warn`**（2026-10-23，《Refactoring UI》走查）：左侧 2px 色条 + 图标 + 文字，tone = warn / danger / info / ok，紧凑面板传 `compact`。
