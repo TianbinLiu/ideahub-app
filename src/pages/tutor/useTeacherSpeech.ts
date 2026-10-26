@@ -93,6 +93,8 @@ export function useTeacherSpeech(enabled: boolean) {
     if (runRef.current !== run) return;
     setSubtitle(sentence.text);
     setSpeaking(true);
+    // ★ 老师的 face / action 恒为 normal / none（speak 里写死），所以这里「一到就上」与客服页回答句的「开口那一刻才上、
+    //   表情保持到念完、等第一句时垫 think」（SupportPage 的 perform cueAt，2026-10-25）没有区别。哪天老师带上真表情 / 动作，照那边改
     companionBus.face(sentence.face);
     companionBus.action(sentence.action);
     const blob = await audio;

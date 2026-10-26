@@ -42,6 +42,10 @@
  *   PARAM_ANGLE_X。2026-09-05 起 acquire() 先读 model3.json 旁边的 companion.json（服务器上传时生成 / 校验，见 ./mapping.ts），
  *   playAction / setFace / hitTest / 每帧读写的参数 id 全部走映射；官方 mascot 没这个文件 → 与从前逐字相同。
  *   刚点过的触摸区若映射了模型自己的动作（nizima 的 Tap@Head），紧接着的 playAction 播它而不是通用动作。
+ * ★ 演出跟着声音走（2026-10-25，客服页回答句）：三样新东西，触摸反应 / 上传向导试跑 / 老师页都不经过它们 ——
+ *   ① 压制窗口里到来的语义动作不再直接丢，记成待播（只留最新一个），窗口一过由 tick 补播（pendingAction）；
+ *   ② holdFace / releaseFace：表情保持到这一句念完再放，不按 FACE_POSES 的固定 holdMs 到点收回（face() 的老行为原样保留）；
+ *   ③ playCue：垫场动作（等第一句时的 think），NORMAL 优先级、不占压制窗口，语义动作（FORCE）来了直接盖过去。
  */
 
 import { loadLive2DRuntime, type Live2DModelInstance, type PixiApplication, type PixiRuntime } from "./loader";
@@ -105,6 +109,26 @@ const ARM_FOLLOW_GAIN = 0.35;
 const ARM_WAVE_MS = 1800;
 const ARM_WAVE_HZ = 2.2;
 const ARM_WAVE_AMP = 9;
+/**
+ * 待播动作最多等多久，过了作废。待播只会在压制窗口里生成，正常情况下最多等 TIMING.actionSuppressMs 就轮到它；
+ * 比这还老 = 渲染循环停过（标签页切到后台 rAF 停了），它所属的那句话早念完了，这时补播就是对不上嘴。
+ * +200ms 给帧间隔与计时抖动留余量（与提议里的 2.5 秒同值，但它是从窗口长度推出来的，不是另拍的数）。
+ */
+const PENDING_ACTION_MAX_MS = TIMING.actionSuppressMs + 200;
+/**
+ * releaseFace 之后表情再留多久才回 normal。要盖住的是「下一句已经合成好、紧接着开口」那一下的空档：
+ * 中间只隔 SpeechPlayer 的一拍包络回调（20ms）加起播，几十毫秒 —— 不留这一拍，连着两句同一个表情会先褪一下再回来
+ * （表情渐变 POSE_FADE_MS 220ms，褪一半就看得出来）。也不能留太久：短句念完表情还挂着，正是这次要治的毛病。
+ * 取 300ms（两份提议都写「句长 + 300ms」）；TTS 音频结尾本来还有 0~0.54 秒静音（CLAUDE.md 剪辑页配音那条量过），
+ * 所以落到人眼里，表情比最后一个字晚收半拍到一拍。
+ */
+const FACE_RELEASE_TAIL_MS = 300;
+/**
+ * holdFace 的兜底上限 —— 正常靠 releaseFace 放，这个数只防「放的那一下没来」（演出队列卡住之类）把表情永远挂住。
+ * 服务端一句最长约 60 字（server companion.service 的 createSentenceSplitter maxLen=60，超了在最近的逗号处切），
+ * 汉字一秒念约 4 个 ⇒ 最长一句约 15 秒，加上首尾静音约 1 秒，再留余量取 20 秒。
+ */
+const FACE_HOLD_MAX_MS = 20_000;
 
 function clamp01(v: number) {
   return v < 0 ? 0 : v > 1 ? 1 : v;
@@ -159,6 +183,13 @@ export class CompanionModel {
   private readonly partCurrent: PartState = { ExprSmile: 0, ExprAngry: 0, ExprClosed: 1, ExprMouthOpen: 0 };
   private pose: FacePose = FACE_POSES.normal;
   private poseUntil = 0;
+  /** 当前表情是 holdFace 挂上的「保持到显式释放」（releaseFace 放）；setFace 与表情到期都会清掉它 */
+  private poseHeld = false;
+  /**
+   * 压制窗口里到来、还没轮到的语义动作（只留最新一个），tick 在窗口过去那一帧补播。
+   * ★ 存**已经解析好的组名**：playAction 一进门就清了 lastTouch，补播时再按 action 解析，触摸区映射的动作（Tap@Head）就丢成了通用动作。
+   */
+  private pendingAction: { group: string; action: CompanionAction; at: number } | null = null;
   private poseCurrent: Record<string, number> = {};
   private nextBlinkAt = performance.now() + 1800;
   /** 当前这次眨眼的起点；0 = 没在眨 */
@@ -283,6 +314,9 @@ export class CompanionModel {
     if (this.disposed) return;
     this.stopSpeaking();
     this.lookForward();
+    // 换页 / 卸载：别让上一页没放的表情与没轮到的待播动作，在下一次 attach（别的页面）里冒出来
+    this.clearPendingAction();
+    this.releaseFace();
     this.app.ticker.stop();
     this.canvas.remove();
   }
@@ -340,7 +374,28 @@ export class CompanionModel {
       this.pose = mapped ? { parts: {}, params: mapped.params ?? {}, holdMs: base.holdMs, blink: base.blink } : base;
       this.applyExpression(mapped?.expression ?? null);
     }
+    this.poseHeld = false;
     this.poseUntil = this.pose.holdMs > 0 ? performance.now() + this.pose.holdMs : 0;
+  }
+
+  /**
+   * 换表情并**保持到 releaseFace**（客服页回答句：这一句念完才放）。不按 FACE_POSES 的固定 holdMs 到点收回 ——
+   * 那个数（3.2~4.6 秒）与句子长短无关：长句念到一半表情就没了，短句念完了还挂着。
+   * normal 没有什么可保持的，与 setFace 完全一样。FACE_HOLD_MAX_MS 只是兜底。
+   */
+  holdFace(face: CompanionFace) {
+    if (this.disposed) return;
+    this.setFace(face);
+    if (this.pose === FACE_POSES.normal) return;
+    this.poseHeld = true;
+    this.poseUntil = performance.now() + FACE_HOLD_MAX_MS;
+  }
+
+  /** 放掉 holdFace 挂着的表情：再留 FACE_RELEASE_TAIL_MS 就回 normal。没挂着（触摸反应、试跑走的 setFace）= 空操作 */
+  releaseFace() {
+    if (this.disposed || !this.poseHeld) return;
+    this.poseHeld = false;
+    this.poseUntil = performance.now() + FACE_RELEASE_TAIL_MS;
   }
 
   /** 挂 / 摘 exp3 表情（只有映射到 expression 的表情槽会用到）；同名不重复挂，null = 摘掉回到中性 */
@@ -359,12 +414,44 @@ export class CompanionModel {
     this.lastTouch = null;
     const group = touchGroup || motionGroupFor(this.mapping, action);
     if (!group) return;
-    if (now < this.actionSuppressUntil) return; // 上一个语义动作还没做完，别抢戏
     if (!this.model.internalModel.settings.motions?.[group]) return;
+    // 上一个语义动作还没做完，别抢戏 —— 但也别丢（2026-10-25）：原来这里直接 return，回答里前一句短于 2.3 秒时，
+    // 后一句的动作就整个没了。现在记成待播、只留最新一个（不攒队列：连着三个动作排着补，就是一句话做三遍动作），
+    // 窗口一过由 tick 补播（见 pendingAction 的 ★）
+    if (now < this.actionSuppressUntil) {
+      this.pendingAction = { group, action, at: now };
+      return;
+    }
+    this.startAction(group, action, now);
+  }
+
+  /** 真正起一个语义动作（playAction 当场起、tick 补播待播动作共用这一段）：占 2.3 秒压制窗口，FORCE 优先级 */
+  private startAction(group: string, action: CompanionAction, now: number) {
+    // 新起了一个就没有更早的待播可言（更早的那个比它旧，「只留最新一个」）
+    this.pendingAction = null;
     this.actionSuppressUntil = now + TIMING.actionSuppressMs;
     // 挥手没有单独的动作文件（动作走 excited），手臂的来回由 tick 里的手势叠上去
     if (action === "wave") this.waveStart = now;
     void this.model.motion(group, 0, this.pixi.live2d.MotionPriority.FORCE).catch(() => undefined);
+  }
+
+  /** 作废还没轮到的待播动作（停止 / 它所属的那句话已经念完）；没有 = 空操作 */
+  clearPendingAction() {
+    this.pendingAction = null;
+  }
+
+  /**
+   * 垫场动作（客服页等第一句时的 think，2026-10-25）：NORMAL 优先级、**不占**语义动作的压制窗口、不消费触摸区、不碰待播格。
+   * 第一句的语义动作（FORCE）来了直接把它盖过去（Cubism 的动作队列会给旧动作做淡出）；正在做 FORCE 动作时它起不来，也不该起。
+   * ★ 不走 playAction：那条路会占 2.3 秒窗口（think 本身 2.6 秒），第一句的动作反而被压成待播、晚将近一秒才出来。
+   * @returns false = 这个模型没有对应的动作组
+   */
+  playCue(action: CompanionAction): boolean {
+    if (this.disposed) return false;
+    const group = motionGroupFor(this.mapping, action);
+    if (!group || !this.model.internalModel.settings.motions?.[group]) return false;
+    void this.model.motion(group, 0, this.pixi.live2d.MotionPriority.NORMAL).catch(() => undefined);
+    return true;
   }
 
   /**
@@ -381,6 +468,7 @@ export class CompanionModel {
     if (this.disposed || !group) return false;
     if (!this.model.internalModel.settings.motions?.[group]) return false;
     this.lastTouch = null; // 试演不是触摸，别让它蹭上一次点击的触摸动作
+    this.pendingAction = null; // 点了什么就演什么：别让之前排着的语义动作过一会儿把试演盖掉
     void this.model.motion(group, 0, this.pixi.live2d.MotionPriority.FORCE).catch(() => undefined);
     return true;
   }
@@ -517,7 +605,15 @@ export class CompanionModel {
     if (this.poseUntil && now > this.poseUntil) {
       this.pose = FACE_POSES.normal;
       this.poseUntil = 0;
+      this.poseHeld = false;
       this.applyExpression(null);
+    }
+
+    // 待播动作：压制窗口一过就补播；放太久的（渲染循环停过）作废。先摘下来再起：起动作万一抛错，也不会每帧再抛一次
+    if (this.pendingAction && now >= this.actionSuppressUntil) {
+      const pendingAction = this.pendingAction;
+      this.pendingAction = null;
+      if (now - pendingAction.at <= PENDING_ACTION_MAX_MS) this.startAction(pendingAction.group, pendingAction.action, now);
     }
 
     // 眨眼调度：起一条曲线，之后每帧按曲线写参数（笑眼/闭眼类表情不眨，见 protocol.ts）

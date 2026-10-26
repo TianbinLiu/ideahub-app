@@ -7,8 +7,9 @@
  *
  * 一句话的旅程：
  *   POST /api/support/chat（SSE）每来一条 sentence → 立刻发起该句的 /api/tts（不等上一句播完）
- *   → 按顺序排进演出队列：切表情 + 触发动作 + 舞台字幕 + 播放（口型跟包络）
+ *   → 按顺序排进演出队列：舞台字幕 + 播放（口型跟包络），**开始出声那一刻**才切表情 + 触发动作，表情保持到这一句念完（见 perform 的 cueAt）
  *   → 没音频（语音关 / TTS 失败 / 未配置）就按字数合成口型撑时长。
+ *   等第一句开口的那一两秒里，过了 1 秒还没开口就做一次 think（见 THINK_CUE_DELAY_MS）。
  *   服务端判定该转人工时发 `handoff` 事件 → 输入区上方出现「转人工」卡；用户也随时可以自己点「转人工」。
  *   回答完整后字幕下方出 👍👎，连问题与回答原文交给服务端（差评是改知识库的线索）；👎 顺手给转人工入口。
  *   输入条左侧「按住说话」→ /api/asr 识别 → 识别出的文字直接当作一句提问发出（语音助手的惯例）。
@@ -147,6 +148,16 @@ function errorText(e: unknown, fallback: string): string {
 const GLASS = "border border-white/10 bg-slate-950/55 backdrop-blur-md";
 /** 设置这么久还没回来就先按官方形象起舞台（之后设置到了再换）：别让一个卡住的请求把人也拖没了 */
 const STAGE_WAIT_MS = 1500;
+/**
+ * 发出问题之后多久还没开口，就让她做一次 think（2026-10-25）。
+ * ★ 1 秒 = Nielsen 响应时间三档里「思路不被打断」的那一档上限：过了这一秒人就会意识到自己在等，得给一点「她在想」的表示；
+ *   一秒之内就开口的回答不垫 —— think 刚起手就被第一句的动作盖掉，看着是一抽。
+ *   对照仓里量过的数（docs/support-ai-evaluation.md，2026-09-04 本机 + 豆包 mini）：首句到达 P50 1.6 s / P95 2.9 s，
+ *   开着声音再等一次 TTS（约 1 s）才开口 —— 大多数回答都会垫上这一下。线上换了 DeepSeek 还没复测，复测后再看要不要挪。
+ * ★ think 本身 2.6 秒（public/live2d/mascot/think.motion3.json 的 Meta.Duration），走垫场动作（companionBus.cue）：
+ *   不占 2.3 秒的语义动作压制，第一句的动作来了直接盖过去；第一句没有动作就让它自己做完。只做一次，不循环。
+ */
+const THINK_CUE_DELAY_MS = 1000;
 
 /** 顶栏右下那一列小键（形象 / 人格 / 声音）：图标 + 两个字，和顶栏其它键同一套玻璃材质 */
 function RailButton({ icon, label, onClick }: { icon: IconName; label: string; onClick: () => void }) {
@@ -225,6 +236,8 @@ export default function SupportPage() {
   const runRef = useRef(0);
   const queueRef = useRef<Promise<void>>(Promise.resolve());
   const abortRef = useRef<AbortController | null>(null);
+  /** 等第一句时那一下 think 的计时器（见 THINK_CUE_DELAY_MS）；0 = 没排着 */
+  const thinkTimerRef = useRef(0);
   const captionRef = useRef<HTMLDivElement>(null);
   /** 字幕框里正在念的那一句（只在逐句渲染时挂上）：滚动 effect 靠它把框停在这一句上 */
   const speakingSpanRef = useRef<HTMLSpanElement>(null);
@@ -304,6 +317,7 @@ export default function SupportPage() {
     () => () => {
       runRef.current += 1;
       abortRef.current?.abort();
+      window.clearTimeout(thinkTimerRef.current);
       playerRef.current?.stop();
       companionBus.stopSpeaking();
     },
@@ -379,12 +393,21 @@ export default function SupportPage() {
       .catch(() => undefined);
   }
 
+  function cancelThinkCue() {
+    window.clearTimeout(thinkTimerRef.current);
+    thinkTimerRef.current = 0;
+  }
+
   function stopAll() {
     runRef.current += 1;
     abortRef.current?.abort();
     abortRef.current = null;
     playerRef.current?.stop();
     companionBus.stopSpeaking();
+    // 演出跟着声音走的那三样一起停（perform 的 cueAt）：没放的表情放掉、没轮到的待播动作作废、还没垫的 think 不垫了
+    companionBus.releaseFace();
+    companionBus.clearPendingAction();
+    cancelThinkCue();
     setPhase("idle");
     setSpeakingAt(-1);
     setMessages((prev) => prev.map((m) => (m.streaming ? { ...m, streaming: false } : m)));
@@ -400,32 +423,73 @@ export default function SupportPage() {
     return queueRef.current;
   }
 
-  /** at = 这一句在本轮回答里的序号（send() 的客户端计数）；不属于某段回答的（触摸反应）传 -1 */
-  async function perform(run: number, sentence: CompanionSentence, audio: Promise<Blob | null>, signal: AbortSignal, at: number) {
+  /**
+   * at = 这一句在本轮回答里的序号（send() 的客户端计数）；不属于某段回答的（触摸反应）传 -1。
+   * cueAt = 表情 / 动作什么时候上（2026-10-25）：
+   *   "voice"（回答句）：这一句**开始出声**那一刻才上 —— 有声音时是 SpeechPlayer 第一次回调口型包络（play() 起播后约 20ms 那一拍），
+   *     没声音（语音关 / TTS 失败 / 被 🔇）时是合成口型开始那一刻。原来一到就做，第一句的动作比声音早一次 TTS 往返（约 1 秒），
+   *     常常动作做完了才开口。表情保持到这一句念完（holdFace / releaseFace），不再按固定的 3.2~4.6 秒到点收回。
+   *     ★ 不改 companion/speech.ts（与官网同源拷贝）：「开始出声」就拿 onLevel 的第一次回调代替。TTS 音频开头有 0.18~0.46 秒静音
+   *       （CLAUDE.md 剪辑页配音那条量过），所以动作会比真正开口早这么一点 —— 手势略早于重音是人说话的常态，不去追它。
+   *       play() 失败收尾时也会回调一次 onLevel(0)：那时紧接着就落到合成口型，也是「开口」那一刻，不另判。
+   *   "arrival"（触摸反应）：一到就上，照旧。产品要的是「一碰就有反应」，而且触摸区映射的动作（Tap@Head）只认
+   *     hitTest 之后 1.5 秒内的 playAction（companionModel 的 TOUCH_MOTION_WINDOW_MS），等一次 TTS 往返会超时、悄悄退回通用动作。
+   * ★ 老师页（tutor/useTeacherSpeech）的演出恒为 normal / none，不经这条规则；它哪天带上真表情 / 动作，要改成照这里的 "voice" 走。
+   */
+  async function perform(run: number, sentence: CompanionSentence, audio: Promise<Blob | null>, signal: AbortSignal, at: number, cueAt: "voice" | "arrival") {
     if (runRef.current !== run) return;
     setPhase("speaking");
-    companionBus.face(normalizeFace(sentence.face));
-    companionBus.action(normalizeAction(sentence.action));
-    const blob = await audio;
-    if (runRef.current !== run || signal.aborted) return;
-    // ★ 高亮排在等到声音之后：第一句的语音还在合成的那一两秒里不先亮，亮起来就是开口那一刻。
-    //   关着声音时 audio 是现成的 null，这里没有延迟 —— 高亮照样按合成口型的时长一句句往下走
-    setSpeakingAt(at);
-    const mute = muteRef.current.signal;
-    // ★ 现问「现在还开着声音吗」（2026-09-18 发版复核抓到）：只看 mute 的话，🔇 那一下换了一个新的中止器，
-    //   而后面几句的声音早就合成好了（文字流比念快得多）—— 第 1 句停住，第 2 句照样大声念出来
-    if (blob && voiceOnRef.current && !mute.aborted) {
-      try {
-        // 🔇 中止的只是这一句的声音：play 收尾后落到下面的口型模拟，字幕与队列照常往下走（不会像停不掉的中止器那样卡死队列）
-        await getPlayer().play(blob, (level) => companionBus.mouth(level), { signal: eitherSignal(signal, mute) });
-        return;
-      } catch {
-        if (signal.aborted) return;
+    const face = normalizeFace(sentence.face);
+    const action = normalizeAction(sentence.action);
+    /** 这一句的表情 / 动作上过没有：只上一次（onLevel 每 20ms 回调一次） */
+    let cued = false;
+    const cue = () => {
+      if (cued || runRef.current !== run) return;
+      cued = true;
+      // 开口了：等第一句时排着的那一下 think 不用再垫（已经在做的由这一句的动作盖过去）
+      cancelThinkCue();
+      if (cueAt === "voice") companionBus.holdFace(face);
+      else companionBus.face(face);
+      companionBus.action(action);
+    };
+    if (cueAt === "arrival") cue();
+    try {
+      const blob = await audio;
+      if (runRef.current !== run || signal.aborted) return;
+      // ★ 高亮排在等到声音之后：第一句的语音还在合成的那一两秒里不先亮，亮起来就是开口那一刻。
+      //   关着声音时 audio 是现成的 null，这里没有延迟 —— 高亮照样按合成口型的时长一句句往下走
+      setSpeakingAt(at);
+      const mute = muteRef.current.signal;
+      // ★ 现问「现在还开着声音吗」（2026-09-18 发版复核抓到）：只看 mute 的话，🔇 那一下换了一个新的中止器，
+      //   而后面几句的声音早就合成好了（文字流比念快得多）—— 第 1 句停住，第 2 句照样大声念出来
+      if (blob && voiceOnRef.current && !mute.aborted) {
+        try {
+          // 🔇 中止的只是这一句的声音：play 收尾后落到下面的口型模拟，字幕与队列照常往下走（不会像停不掉的中止器那样卡死队列）
+          await getPlayer().play(
+            blob,
+            (level) => {
+              cue();
+              companionBus.mouth(level);
+            },
+            { signal: eitherSignal(signal, mute) },
+          );
+          return;
+        } catch {
+          if (signal.aborted) return;
+        }
+      }
+      const ms = estimateSpeechMs(sentence.text);
+      cue();
+      companionBus.speakSynthetic(ms);
+      await sleep(ms, signal);
+    } finally {
+      // 这一句念完（或被停）：表情再留一小拍就回 normal；还没轮到的待播动作属于这一句，作废 ——
+      // 留着的话会在下一句里补播（下一句没有动作时尤其如此），嘴上说的和动作对不上，正是这次要治的毛病
+      if (cued && cueAt === "voice") {
+        companionBus.releaseFace();
+        companionBus.clearPendingAction();
       }
     }
-    const ms = estimateSpeechMs(sentence.text);
-    companionBus.speakSynthetic(ms);
-    await sleep(ms, signal);
   }
 
   // 触摸反应：舞台报上来的命中区 → 演一句预置台词（不进 LLM、不进聊天记录，只是"碰一下有反应"）；说话/思考中不打断，1.8s 内只理一次
@@ -468,7 +532,8 @@ export default function SupportPage() {
         const voiceCache = (touchVoiceRef.current ??= new TouchVoiceCache());
         const audio: Promise<Blob | null> =
           voiceOn && Boolean(config?.tts) ? voiceCache.speak(config, ttsBodyFor(config, sentence), controller.signal).catch(() => null) : Promise.resolve(null);
-        void enqueue(run, () => perform(run, sentence, audio, controller.signal, -1)).then(() => {
+        // "arrival"：触摸反应一碰就动，不等声音（见 perform 的 cueAt）
+        void enqueue(run, () => perform(run, sentence, audio, controller.signal, -1, "arrival")).then(() => {
           if (runRef.current === run) setPhase("idle");
         });
       }),
@@ -513,6 +578,13 @@ export default function SupportPage() {
     setPhase("thinking");
     setSpeakingAt(-1);
     setAnnounce("");
+    // 过了 THINK_CUE_DELAY_MS 还没开口就做一次 think。第一句开口（perform 的 cue）、stopAll、这一轮收尾都会把它撤掉；
+    // 第一句已经到了、还在等它的语音合成时照样垫 —— 那一两秒里她也是不出声的
+    cancelThinkCue();
+    thinkTimerRef.current = window.setTimeout(() => {
+      thinkTimerRef.current = 0;
+      if (runRef.current === run) companionBus.cue("think");
+    }, THINK_CUE_DELAY_MS);
 
     // 每一句合成语音之前**现问**开没开声音（voiceOnRef 的 ★）：说到一半点了 🔇，后面的句子就不再去合成
     const wantVoice = () => voiceOnRef.current && Boolean(config?.tts);
@@ -570,7 +642,7 @@ export default function SupportPage() {
             const audio: Promise<Blob | null> = wantVoice()
               ? synthesizeSpeech(ttsBodyFor(config, sentence), controller.signal).catch(() => null)
               : Promise.resolve(null);
-            void enqueue(run, () => perform(run, sentence, audio, controller.signal, at));
+            void enqueue(run, () => perform(run, sentence, audio, controller.signal, at, "voice"));
           },
           onHandoff: (info) => {
             handoff = info.category;
@@ -585,12 +657,16 @@ export default function SupportPage() {
       setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, streamDone: true } : m)));
       await enqueue(run, async () => undefined);
       if (runRef.current !== run) return;
+      // 一句都没念就收尾了（空回答）：别在回到 idle 之后再冒出一下 think
+      cancelThinkCue();
       setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, streaming: false } : m)));
       if (handoff) setHandoffHint({ category: handoff });
       setPhase("idle");
       setAnnounce(said);
     } catch (e) {
       if (controller.signal.aborted) return;
+      // 断了：一句都没到的话这一下 think 就不该再垫了（要出来的是报错）；到过句子的照常念，开口时自己会撤掉它
+      if (pos === 0) cancelThinkCue();
       // ★ 中途断了（2026-09-18 发版复核抓到）：已经上屏的半截留着，但不再算「正在说」—— 原来 streaming 一直为真，
       //   ■ 一直在、麦克风灰着、没有 👍👎。已经排队的那几句照常念完，**念完才回到 idle**：这里不先置 idle ——
       //   先置的话 ■ 消失、麦克风亮起（会把她自己的声音录进去），下一句又把状态改回「说话中」。队列是空的话，
