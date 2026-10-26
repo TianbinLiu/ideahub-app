@@ -90,8 +90,8 @@ for (const p of P) {
 
 // (e) 真人档：只留 realOk 的人物预设；realOk 只给不靠换场景也成立的那几条
 {
-  const real = M.effectsOn({ flat: true }).map((p) => p.id);
-  const all = M.effectsOn({ flat: false }).map((p) => p.id);
+  const real = M.effectsOn({ startOnly: true }).map((p) => p.id);
+  const all = M.effectsOn({ startOnly: false }).map((p) => p.id);
   eq("别的档：全都能用", all, P.map((p) => p.id));
   eq("真人档：环绕 / 时间冻结 / 拉远（照片起拍也成立）", real, ["freeze", "orbit", "pullback"]);
   for (const p of P) if (p.realOk) ok(`「${p.id}」标了 realOk 但不是人物预设`, p.subject === "person");

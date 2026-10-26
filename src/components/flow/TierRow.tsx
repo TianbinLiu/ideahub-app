@@ -49,11 +49,15 @@ export function tierSwitchLoss(nodeId: string, nextId: string): MessageDescripto
     loss.push(msg`这一段的结束画面不再锁得住（「${next.label}」档只认起拍帧）`);
   }
   // 音色样本。★ 与相邻两条同口径：只在**这一段真的有台词**时才提（引号里的台词才会被配音）
-  if (cur.audio && !next.audio && /[「"']/.test(prop.plot)) {
+  // ★ 判据是「带不带得了声音样本」（VideoTier.refAudio，2026-10-26），原因分两种说：不出声的档（startOnly 的真人档另说「暂无配音」）、
+  //   出声却不收声音样本的档（今天没有；海外 MiniMax H3 是）—— 后者原来会被「出片无声」这句说错
+  if (cur.refAudio && !next.refAudio && /[「"']/.test(prop.plot)) {
     loss.push(
-      next.flatCost
-        ? msg`台词不再带音色样本（「${next.label}」档暂无配音）`
-        : msg`台词不再带音色样本（「${next.label}」档出片无声）`,
+      next.audio
+        ? msg`台词不再带音色样本（「${next.label}」档不收声音样本，台词照样配音、音色由模型定）`
+        : next.startOnly
+          ? msg`台词不再带音色样本（「${next.label}」档暂无配音）`
+          : msg`台词不再带音色样本（「${next.label}」档出片无声）`,
     );
   }
   // ★ **升档也有变化**（2026-08-30 补）：收参考图的档上，帧改当参考图发 + 提示词点名
@@ -61,7 +65,7 @@ export function tierSwitchLoss(nodeId: string, nextId: string): MessageDescripto
   //   硬约束降成软引导。这是好事也是代价，两头都要说，不能只在降档时说。
   // ★ 判据走 segmentGen.carryIsHard 一处（2026-09-03 收口）：这里原来手写
   //   `!cur.refImg && next.refImg`，与 framesAsRefs 是同一条规则的第二份实现 ——
-  //   哪天加一档 flatCost 且收参考图的，两份必然只改到一份，而且零症状。
+  //   哪天加一档只认起拍画面（startOnly）却收参考图的，两份必然只改到一份，而且零症状。
   if (carryIsHard(cur.id) && !carryIsHard(next.id) && (prop.firstFrame || prop.lastFrame)) {
     loss.push(msg`首尾帧会改成"参考图 + 提示词点名"发出去（换来的是素材卡形象能一起发；代价是起止画面不再是硬约束）`);
   }

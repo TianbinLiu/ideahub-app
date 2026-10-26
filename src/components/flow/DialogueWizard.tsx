@@ -645,8 +645,8 @@ export default function DialogueWizard({
           </div>
           {!tier.audio &&
             (() => {
-              // 出声的档按能力现算、先说这个人用得了的（account.tierGo；原来写死「高清或电影级」，免费用户能用的「草稿」没提）
-              const go = tierGo((x) => x.audio && x.refImg);
+              // 带得了声音样本的档（VideoTier.refAudio）按能力现算、先说这个人用得了的（account.tierGo；原来写死「高清或电影级」，免费用户能用的「草稿」没提）
+              const go = tierGo((x) => x.refAudio);
               const names = go.names;
               return (
                 <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200">

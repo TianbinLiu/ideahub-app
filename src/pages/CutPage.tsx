@@ -1271,6 +1271,7 @@ export default function CutPage() {
       //   不像 composeSegments 那样按供应商分流），而真人档是另一家供应商 —— 走进去是先付费改图、视频那一发才被拒。
       //   工作流那边的同一道门在 segmentGen 的 minimax 分支（真人档不收圈选）。「哪家供应商」只问 economy.providerOf，
       //   别按 flatCost 判（那一位说的是计价模型，碰巧今天与供应商重合）。排在套餐门之前：这是这一页做不了的事，与套餐无关
+      // tier-semantics-ok: 这一页的重拍只认方舟这一家（海外 MiniMax H3 也是 provider minimax，同样拦下）
       if (tier && providerOf(segs[segIndex].videoTier) === "minimax") {
         const segNo = segIndex + 1;
         const label = tier.label;

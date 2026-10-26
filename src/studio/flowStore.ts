@@ -383,13 +383,14 @@ export function draftStageOf(p: Proposal): "draft" | "final" | null {
 
 /**
  * 这一段的**做法**能不能走样片（不看开关、不看档位）：只有普通出片那条路 —— 白模模板 / 延长 / 示例视频都带视频输入（方舟：样片不收视频输入），
- * 真人档是另一家供应商。
+ * 真人档是另一套请求（样片是方舟协议里的一种请求，VideoTier.api 不是 ark 的档没有这回事）。
+ * ★ 2026-10-26 起按请求形状（api）判，不按供应商：结果与原来的 `provider !== "minimax"` 逐档相同，判据说的才是这件事本身。
  */
 export function nodeDraftEligible(node: FlowNode): boolean {
   if (tplOfNode(node)?.refVideo) return false;
   if (node.extendFrom) return false;
   if (node.custom && node.customRef) return false;
-  return providerOf(node.videoTier) !== "minimax";
+  return tierOf(node.videoTier).api === "ark";
 }
 
 /**
@@ -4329,6 +4330,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
             taskId: id2,
             // ★ 记下这一发是哪家出的：取回按它分流。分错家会让方舟那条 404 分支
             //   对着一发还活着的真人档成片说「钱无法挽回」（见 VideoJob.provider 的 ★）
+            // ★ 这里问的就是「哪家」，读 provider 是对的（别「顺手」改成 api：MiniMax 的 V2 任务会被记成方舟的）
+            // tier-semantics-ok: 取回凭据按供应商分流
             provider: providerOf(node.videoTier) === "minimax" ? "minimax" : "ark",
             nodeId: id,
             proposalId: node.chosenId,
@@ -4471,8 +4474,9 @@ export const useFlow = create<FlowState>()((set, get) => ({
       //   用户面前唯一可点的就是「♻ 重新生成」= 重新下一单，而那一发的成片其实
       //   在方舟那边好好地存在着（2026-08-18 那 ¥27 就是这么丢的）。
       if (e instanceof ArkTaskUnknown) {
-        // 这一发是哪家出的（判据与上面落凭据那处同源）
-        const flat = providerOf(node.videoTier) === "minimax";
+        // 这一发是哪家出的（判据与上面落凭据那处同源）—— 话里说的是「上游 / 方舟那边」，问的就是供应商
+        // tier-semantics-ok: 这句话按供应商说「任务在哪家那边跑」
+        const atMinimax = providerOf(node.videoTier) === "minimax";
         // 凭据**留着**（这一支绝不 dropVideoJob）：它是取回入口能不能出现的唯一依据。
         // 日志那一行也不许写"失败"——步骤日志是用户回看这一段怎么回事的地方。
         // ★ 截断窗口按英文放宽（2026-09-16，下面几处同）：英文比中文长一倍多，80 / 150 / 160 会把
@@ -4484,7 +4488,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
           // 短句给段导航条上那颗角标；那笔钱的完整说明在取回卡上（videoJobNote 一处实现）
           // ★ 说"哪家"要按 provider 说：真人档那一发在海螺（MiniMax）那边，
           //   写死"方舟"会让用户拿着错的词去问客服
-          error: flat
+          error: atMinimax
             ? t`没接到出片结果，任务可能还在上游那边跑——用下面的「取回」领回来，别重新生成`
             : t`没接到出片结果，任务可能还在方舟那边跑——用下面的「取回」领回来，别重新生成`,
         });
@@ -4500,7 +4504,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
         if (get().genRun !== myRun) return false;
         // ★ 24 小时是**方舟产物**的物理事实；真人档那边我们没量过留存，不许编一个数
         //   （同 videoJobNote 里那条 ★★）
-        const pendingErr = flat
+        const pendingErr = atMinimax
           ? t`第 ${idx + 1} 段${msg.slice(0, 240)}点下面那颗「取回」把它领回来，不再花一分钱；「重新生成」是重新下一单、会再花一次。`
           : t`第 ${idx + 1} 段${msg.slice(0, 240)}成片 24 小时内都能取回：点下面那颗「取回」，不再花一分钱；「重新生成」是重新下一单、会再花一次。`;
         // 记下这一句说的是哪一发：后来认出它退了钱时由 settleRefundedPending 撤掉（pendingErrNote 的 ★）

@@ -8,7 +8,7 @@ import Warn from "../../components/Warn";
 import { useNavigate } from "react-router";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { deckCoverOf, memberTiersLine, myCards, myDecks, realFaceIssue, tierBlockReason, tierNamesFor, tierOffered } from "../../data/account";
-import { ONE_IMAGE, VIDEO_TIERS, deriveIssue, durationChoices, fmtTokens, priceTag, promptMaxOf, r2vBlockLines, segTokens, tierModelId, tierModelLabel, tierOf } from "../../data/economy";
+import { ONE_IMAGE, VIDEO_TIERS, deriveIssue, durationChoices, fmtTokens, priceTag, promptMaxOf, r2vBlockLines, segTokens, shotsOkOf, tierModelId, tierModelLabel, tierOf } from "../../data/economy";
 import { useAccountVersion } from "../../hooks/useAccount";
 import UpgradeLink from "../../components/UpgradeLink";
 import StepDots from "../../components/StepDots";
@@ -1556,7 +1556,7 @@ function ProposalsPanel() {
           shotEdit={{
             speakers: (node.materials ?? []).filter((c) => c.type === "character").map((c) => ({ id: c.id, name: c.name, voiced: !!voiceOf(c.id) })),
             max: promptMaxOf(node.videoTier),
-            canAdd: tierOf(node.videoTier).refImg && tierOf(node.videoTier).audio === true,
+            canAdd: shotsOkOf(node.videoTier),
           }}
           switchWarn={(p) =>
             pickedId != null && pickedId !== p.id && idx < path.length - 1

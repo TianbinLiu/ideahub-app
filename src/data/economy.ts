@@ -269,7 +269,11 @@ export function perSecTokensOf(tier: Pick<VideoTierSpec, "model" | "resolution">
   return perSecTokens(tier.model, tier.resolution, ratio);
 }
 
-/** 这一档走哪个供应商 —— 判否定的唯一出口（缺省 = 方舟）。别在别处 `?? "ark"` */
+/**
+ * 这一档走哪个供应商 —— 判否定的唯一出口（缺省 = 方舟）。别在别处 `?? "ark"`。
+ * ★ **只回答「哪家」**（取回凭据记谁家、「任务还在哪家那边跑」那句话、剪辑页重拍只认方舟）：请求形状读 VideoTier.api，
+ *   「只认一张起拍画面」读 startOnly，「带不带声音样本」读 refAudio（2026-10-26 拆开，scripts/check-tier-semantics.mjs 钉着）。
+ */
 export function providerOf(tierId: string | undefined): "ark" | "minimax" {
   return tierOf(tierId).provider ?? "ark";
 }
@@ -277,12 +281,12 @@ export function providerOf(tierId: string | undefined): "ark" | "minimax" {
 /**
  * 这一档能不能走「推演三套方案」—— 唯一实现（flowStore.deriveProposals、
  * 工坊 studioStore.generateNode、工坊档位按钮三处共用，别各写一遍）。
- * 按发计价档（flatCost，真人档）没有方案台：它不画设定帧（首帧就是卡片照片），
+ * 只认一张起拍画面的档（startOnly，真人档）没有方案台：它不画设定帧（首帧就是卡片照片），
  * 推演产出的三套首尾帧一张都用不上 —— 收了推演的钱再全扔掉，就是白扣一笔。
  */
 export function deriveIssue(tierId: string | undefined): string | null {
   const tier = tierOf(tierId);
-  if (!tier.flatCost) return null;
+  if (!tier.startOnly) return null;
   const label = tier.label;
   // ★ 整句、自带句号（2026-09-11 多语言）：调用方不许再往后补「。」接下一句 ——
   //   工坊 NPC 那句（studioStore.generateNode）是「这一整句 + 另一整句」，英文得自己断句
@@ -343,11 +347,37 @@ export function promptMaxOf(tierId: string | undefined): number {
  *   Seedance 2.5 单段 2~30 秒、最多 10 段、合计不超过 30 秒。此前只按「最多 3 张带声音的卡」数，没看合计 ——
  *   三张卡各录 8 秒就是 24 秒，高清档整发 400（不花钱，但出不了片，而那句英文报错里看不出是声音样本的事）。
  * ★ 2.5 的张数上限我们仍按 3 张用（音色点名句只实测到 3 个人），这里只管合计秒数。
+ * ★ 带不带得了声音样本只问 VideoTier.refAudio（2026-10-26 起；原来写 `!audio || !refImg`，海外 MiniMax H3 出声、收参考图却不收参考音频）。
  */
 export function refAudioSecOf(tierId: string | undefined): number | null {
   const t = tierOf(tierId);
-  if (!t.audio || !t.refImg) return null;
+  if (!t.refAudio) return null;
   return (t.refImagesMax ?? 0) > 9 ? 30 : 15;
+}
+
+/**
+ * 这一档能不能写**分镜表**（一段多镜头 + 台词）—— 唯一判定（画布自定义车道、画布 / 工坊两面方案台、主角定妆向导四处原来各写一遍
+ * `refImg && audio === true`，2026-10-26 收到这里）。
+ * 今天 = refAudio（出声又收参考图的 2.x 档：台词按卡的声音配，多镜头也只在这几档上验过）。
+ * ★ 读 refAudio、不自己拼 audio && refImg：MiniMax H3（出片地区 P2b）出声、收参考图，却不收声音样本、多镜头也没验过 ——
+ *   往「不开」的方向错。那一期真要给 H3 开分镜表，先付费验过多镜头，再在这里单独写一条。
+ */
+export function shotsOkOf(tierId: string | undefined): boolean {
+  return tierOf(tierId).refAudio;
+}
+
+/**
+ * 按发计价的档能选的那几个**整档时长**（秒，升序）；null = 这一档按秒连续计价，[minSec, maxSec] 里都能选。
+ * 本段设置的时长按钮（不在价表上的整档灰掉）与 clampDuration 的吸附都读它。
+ * ★ 价目表（flatCost）只在这里与 segTokens 里读（scripts/check-tier-semantics.mjs 钉着）：拿「有没有按发价表」判「是不是真人档」的写法
+ *   2026-10-26 全部改读 startOnly —— 计价模型与出片方式是两件事。
+ */
+export function durationStepsOf(tierId: string | undefined): number[] | null {
+  const t = tierOf(tierId);
+  if (!t.flatCost) return null;
+  return Object.keys(t.flatCost)
+    .map(Number)
+    .sort((a, b) => a - b);
 }
 
 export function clampDuration(durationSec: number, tierId?: string): number {
@@ -356,10 +386,8 @@ export function clampDuration(durationSec: number, tierId?: string): number {
   // 报价与下单都得吸附到档上，否则"按 8 秒报价、按 10 秒扣费"这种缝隙就开了——
   // 吸附方向取**不小于所选时长的最小档**（用户要 8 秒就给 10 秒档并按 10 秒收，
   // 往少给的方向吸是暗降级）。超过最大档就顶格。
-  if (t.flatCost) {
-    const steps = Object.keys(t.flatCost).map(Number).sort((a, b) => a - b);
-    return steps.find((s) => s >= durationSec) ?? steps[steps.length - 1];
-  }
+  const steps = durationStepsOf(tierId);
+  if (steps) return steps.find((s) => s >= durationSec) ?? steps[steps.length - 1];
   return Math.max(t.minSec, Math.min(t.maxSec, Math.round(durationSec)));
 }
 
@@ -654,31 +682,32 @@ export function tierNamesWhere(pred: (t: VideoTier) => boolean): string {
 }
 
 /**
- * 出片会参考卡上声音样本的那几档（出声 + 收参考媒体：2.x 的「草稿」「高清」「电影级」）。卡片页 / 录音 / 圈选取声音几处说明共用，
+ * 出片会参考卡上声音样本的那几档（VideoTier.refAudio：2.x 的「草稿」「高清」「电影级」）。卡片页 / 录音 / 圈选取声音几处说明共用，
  * 原来各写「高清/电影级」—— 加了「草稿」之后那几句都少说一档。目录口径（说的是「哪几档会用它」，不看套餐）。
  */
 export function voiceTierNames(): string {
-  return tierNamesWhere((x) => x.audio && x.refImg);
+  return tierNamesWhere((x) => x.refAudio);
 }
 
 /**
- * 「按模型适配」那一格的行首（卡片页 / 卡组页）：**收参考图的方舟档**有哪几档（2.x：草稿 / 高清 / 电影级）。
+ * 「按模型适配」那一格的行首（卡片页 / 卡组页）：**收参考图**的档有哪几档（2.x：草稿 / 高清 / 电影级）。
  * 用「 / 」并列（这是分类的名字，不是指路的句子，不加引号）。目录口径、不看套餐：说的是「卡在这几档上怎么起作用」。
+ * ★ 只认一张起拍画面的档（startOnly，真人档）不在这两行里：卡在那一档上只当起拍画面，那一格另有一行。
  */
 export function refImgTierList(): string {
-  return VIDEO_TIERS.filter((x) => x.refImg && !x.flatCost && !tierRetired(x))
+  return VIDEO_TIERS.filter((x) => x.refImg && !x.startOnly && !tierRetired(x))
     .map((x) => x.label)
     .join(" / ");
 }
 
 /**
- * 同一格的另一行：**收不到形象图的方舟档**（今天是 1.0 的「标准 / 极速」：卡只经由设定帧或文字版形象描述起作用）。
+ * 同一格的另一行：**收不到形象图的档**（今天是 1.0 的「标准 / 极速」：卡只经由设定帧或文字版形象描述起作用）。
  * 空串 = 一档都不剩（2026-11-24 13:00 那两档停用之后）—— 调用方整行不画、勾选框不再点名。
  * ★ 原来卡片页 / 卡组页 / segmentGen 三处写死「标准 / 极速」（2026-10-10 文案复核抓到）：停用之后档位选择器里早没有它们了，
  *   这几句却还在说一整行、还在让人去勾「标准/极速适用」。按能力现算就跟着表走，与上面 refImgTierList 同一把尺。
  */
 export function noRefImgTierList(): string {
-  return VIDEO_TIERS.filter((x) => !x.refImg && !x.flatCost && !tierRetired(x))
+  return VIDEO_TIERS.filter((x) => !x.refImg && !x.startOnly && !tierRetired(x))
     .map((x) => x.label)
     .join(" / ");
 }
@@ -1440,10 +1469,10 @@ export function segmentCost(o: {
   }
   const tier = tierOf(o.tierId);
   // ★ 补画几张只问 data/drawPlan 一处（出片 segmentGen 与参考清单读的是同一个函数）：
-  //   按发计价档（真人档）一张不画（首帧就是真人卡的照片本身）、参考生视频一张不画、不补画的段缺的那张不补、
+  //   只认一张起拍画面的档（startOnly，真人档）一张不画（首帧就是真人卡的照片本身）、参考生视频一张不画、不补画的段缺的那张不补、
   //   多镜头的段不画结束画面 —— 把不会发生的图钱算进去，就是报价 ≠ 实扣的方向错。
   const draws = drawCount({
-    tier: { flf: tier.flf, flat: !!tier.flatCost },
+    tier: { flf: tier.flf, startOnly: tier.startOnly },
     hasFirstFrame: o.hasFirstFrame,
     hasLastFrame: o.hasLastFrame,
     refMode: o.refMode,

@@ -3,7 +3,7 @@
 //
 // ★★ 为什么要有它：模式摆错了档是零报错的 —— 1.0 档上摆出「参考图直出」= 一段纯文字生成、挂的卡一点用都没有；
 //   真人档上摆出「推演三套」= 点了必被 deriveIssue 整句拒。规则一条都不在这里重打：直接 import 那个模块（必须零运行时依赖）。
-// ★ 档位能力在这里手写成五组（与 economy.VIDEO_TIERS 的 refImg / flatCost 对照）：测的是判定函数，不是价目表。
+// ★ 档位能力在这里手写成五组（与 economy.VIDEO_TIERS 的 refImg / startOnly / audio 对照）：测的是判定函数，不是价目表。
 // ★ 仓内门禁纪律：写完先造真违规试红（--module= 指向改坏的副本）。逐条试过，下面五条各自变红：
 //   ① 参考图直出在 1.0 档也摆；② 参考图直出在真人档不摆（它就是真人档本来的样子）；③ 推演三套在真人档也摆；
 //   ④ 自定义在真人档也摆；⑤ 套模板按档位挡（应由货架按模板自己的档位筛）。
@@ -38,12 +38,12 @@ fs.readFileSync(modPath, "utf8")
   });
 
 const TIERS = {
-  fast: { refImg: false, flat: false, audio: false }, // 极速（1.0 pro fast）
-  std: { refImg: false, flat: false, audio: false }, // 标准（1.0 pro）
-  draft: { refImg: true, flat: false, audio: true }, // 草稿（2.0 mini 480p，2026-10-07 加：与高清同样的能力，免费档）
-  hd: { refImg: true, flat: false, audio: true }, // 高清（2.0 mini）
-  ultra: { refImg: true, flat: false, audio: true }, // 电影级（2.5）
-  real: { refImg: false, flat: true, audio: false }, // 真人（MiniMax，按发计价；海螺出不出声没实测，按无声报）
+  fast: { refImg: false, startOnly: false, audio: false }, // 极速（1.0 pro fast）
+  std: { refImg: false, startOnly: false, audio: false }, // 标准（1.0 pro）
+  draft: { refImg: true, startOnly: false, audio: true }, // 草稿（2.0 mini 480p，2026-10-07 加：与高清同样的能力，免费档）
+  hd: { refImg: true, startOnly: false, audio: true }, // 高清（2.0 mini）
+  ultra: { refImg: true, startOnly: false, audio: true }, // 电影级（2.5）
+  real: { refImg: false, startOnly: true, audio: false }, // 真人（MiniMax 海螺，只认一张起拍画面；出不出声没实测，按无声报）
 };
 const ids = (tier) => M.modesOn(tier).map((m) => m.id);
 
@@ -54,12 +54,12 @@ eq("电影级：八个都能用", ids(TIERS.ultra), ["direct", "custom", "lead",
 eq("草稿：八个都能用（与高清同一个模型、同样的能力 —— 免费用户唯一收参考图、能出声的档）", ids(TIERS.draft), ["direct", "custom", "lead", "grid", "dialogue", "cards", "effect", "template"]);
 eq("真人档：参考图直出（真人照片起拍）/ 特效同款（照片起拍的那几条）/ 套模板", ids(TIERS.real), ["direct", "effect", "template"]);
 eq("为什么：1.0 档上的参考图直出", M.modeBlock("direct", TIERS.std), "refImg");
-eq("为什么：真人档上的推演三套", M.modeBlock("cards", TIERS.real), "flat");
-eq("为什么：真人档上的自定义", M.modeBlock("custom", TIERS.real), "flat");
+eq("为什么：真人档上的推演三套", M.modeBlock("cards", TIERS.real), "startOnly");
+eq("为什么：真人档上的自定义", M.modeBlock("custom", TIERS.real), "startOnly");
 eq("为什么：1.0 档上的主角定妆·多镜头（收不了参考图）", M.modeBlock("lead", TIERS.fast), "refImg");
 eq("为什么：真人档上的主角定妆·多镜头（也是收不了参考图）", M.modeBlock("lead", TIERS.real), "refImg");
 eq("主角定妆·多镜头是第二组（跟着高手做）、四步", M.GUIDED_MODES.find((m) => m.id === "lead"), { id: "lead", letter: "B", group: "pro", steps: 4 });
-eq("为什么：真人档上的九宫格分镜（起拍画面只能是真人卡的照片）", M.modeBlock("grid", TIERS.real), "flat");
+eq("为什么：真人档上的九宫格分镜（起拍画面只能是真人卡的照片）", M.modeBlock("grid", TIERS.real), "startOnly");
 eq("1.0 档上的九宫格分镜能用（那一格当首帧）", M.modeBlock("grid", TIERS.std), null);
 eq("九宫格分镜是第二组（跟着高手做）、五步", M.GUIDED_MODES.find((m) => m.id === "grid"), { id: "grid", letter: "C", group: "pro", steps: 5 });
 eq("为什么：1.0 档上的对话正反打（出不了声，台词说不出来）", M.modeBlock("dialogue", TIERS.std), "audio");

@@ -5,7 +5,7 @@
 //   （segmentGen.refSlotsOf 的 frameSlots，界面上的参考清单也读它）。判错的方向都是零报错：报了图钱没画 / 画了图没报钱 /
 //   多留一个图位（卡片图少发一张）。规则一条都不在这里重打：直接 import 那个模块（Node 只剥类型，所以它必须零运行时依赖）。
 // ★ 仓内门禁纪律：写完先造真违规试红（--module= 指向改坏的副本）。逐条试过，下面八条各自变红：
-//   ① 参考生视频也补画；② 按发计价档（真人档）也补画；③ 不补画的段缺尾帧照样补；④ 多镜头照样画结束画面；
+//   ① 参考生视频也补画；② 只认一张起拍画面的档（startOnly，真人档）也补画；③ 不补画的段缺尾帧照样补；④ 多镜头照样画结束画面；
 //   ⑤ 不补画但一张帧都没有、又走不了参考生视频时也不画（挂的卡一点用都没有）；⑥ frameSlotsOf 把「要补画的」漏数；
 //   ⑦ endFrameUsed 分了镜头也照用 AI 画的结束画面；⑧ endFrameUsed 连你自己换上的也不用。
 //
@@ -25,9 +25,9 @@ const eq = (what, got, want) => {
   if (show(got) !== show(want)) problems.push(`${what}\n      want ${show(want)}\n      got  ${show(got)}`);
 };
 
-const FLF = { flf: true, flat: false }; // 标准 / 高清 / 电影级
-const NOFLF = { flf: false, flat: false }; // 极速
-const FLAT = { flf: false, flat: true }; // 真人档
+const FLF = { flf: true, startOnly: false }; // 标准 / 高清 / 电影级
+const NOFLF = { flf: false, startOnly: false }; // 极速
+const START_ONLY = { flf: false, startOnly: true }; // 真人档（只认一张起拍画面）
 const base = { tier: FLF, hasFirstFrame: false, hasLastFrame: false, refMode: false, noDraw: false, multiShot: false };
 const d = (o) => M.framesToDraw({ ...base, ...o });
 const none = { first: false, last: false };
@@ -38,7 +38,7 @@ eq("有首帧：只画尾帧", d({ hasFirstFrame: true }), { first: false, last:
 eq("两帧都有：不画", d({ hasFirstFrame: true, hasLastFrame: true }), none);
 eq("极速档（不收尾帧）：只画首帧", d({ tier: NOFLF }), { first: true, last: false });
 eq("参考生视频：一张不画", d({ refMode: true }), none);
-eq("真人档：一张不画", d({ tier: FLAT }), none);
+eq("真人档：一张不画", d({ tier: START_ONLY }), none);
 
 // ── 规矩 ①：不补画帧的段 ──
 eq("不补画 + 有首帧（承接 / 自己给的）：缺的尾帧不补", d({ noDraw: true, hasFirstFrame: true }), none);

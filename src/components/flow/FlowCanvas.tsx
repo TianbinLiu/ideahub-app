@@ -108,7 +108,7 @@ import {
   subscribeTemplates,
   templatesVersion,
 } from "../../data/templates";
-import { CHAT_TURN_TOKENS, ONE_IMAGE, blockoutTier, clampDuration, durationChoices, fmtTokens, materialRefSecs, minUsageNote, priceTag, promptMaxOf, proposalsCost, tierModelLabel, tierOf } from "../../data/economy";
+import { CHAT_TURN_TOKENS, ONE_IMAGE, blockoutTier, clampDuration, durationChoices, fmtTokens, materialRefSecs, minUsageNote, priceTag, promptMaxOf, proposalsCost, shotsOkOf, tierModelLabel, tierOf } from "../../data/economy";
 import { AGENT_PHRASES, executeAgentProposal, runCanvasAgent, type AgentOutcome, type AgentProposal } from "../../studio/canvasAgent";
 import { EXAMPLES, phraseText, templatePhrase } from "../../studio/agentGrammar";
 import { useLang } from "../../i18n/useLang";
@@ -1218,9 +1218,9 @@ function NodePanel({
   const named = !!tpl?.refVideo && !!tpl.roles?.length;
   /** 模板模式？由节点事实派生（有白模模板快照），不是独立 UI 状态 —— 两份真相必然漂 */
   const tplMode = !!tpl?.refVideo;
-  /** 按发直出档（真人档）：没有方案台，文本框直接写 plot、按钮直接开炼——
-   *  与 tplMode 同一条直出产线，判据只有档位表的 flatCost 一格 */
-  const flatTier = !!tierOf(node.videoTier).flatCost;
+  /** 只认一张起拍画面的档（真人档）：没有方案台，文本框直接写 plot、按钮直接开炼——
+   *  与 tplMode 同一条直出产线，判据只有档位表的 startOnly 一格（2026-10-26 前读的是按发计价表 flatCost：计价模型与出片方式是两件事） */
+  const flatTier = tierOf(node.videoTier).startOnly;
   /** 自定义直出段（主人点名的第三车道）：帧自己给、跳过方案台。事实在 FlowNode.custom
    *  （setNodeCustom 唯一写点），tplMode/flatTier 在场时它让位（store 也拦） */
   const custom = !!node.custom && !tplMode && !flatTier;
@@ -1298,8 +1298,8 @@ function NodePanel({
   const extraRefs = usableExtraRefs(node.extraRefs);
   /** 这一档的提示词上限（economy.promptMaxOf：2.x 两档 500、其余 400；套模板的段另按 400，不走这里） */
   const promptMax = promptMaxOf(node.videoTier);
-  /** 分镜 / 台词只开在出声又收参考图的档（草稿 / 高清 / 电影级）：别的档台词不会按卡的声音配，多镜头也没验过 */
-  const shotsOk = tierOf(node.videoTier).refImg && tierOf(node.videoTier).audio === true;
+  /** 分镜 / 台词只开在带得了声音样本的档（草稿 / 高清 / 电影级）：别的档台词不会按卡的声音配，多镜头也没验过（判据只在 economy.shotsOkOf） */
+  const shotsOk = shotsOkOf(node.videoTier);
   /** 运镜芯片对着哪段字：分了镜就是正在写的那个镜头，否则整段 */
   const shotsNow = writesPlot ? parseShots(p.plot).shots : [];
   const shotIdx = Math.min(activeShot, Math.max(0, shotsNow.length - 1));
@@ -2315,7 +2315,7 @@ function PlanSheet({ nodeId, onClose }: { nodeId: string; onClose: () => void })
             shotEdit={{
               speakers: (node.materials ?? []).filter((c) => c.type === "character").map((c) => ({ id: c.id, name: c.name, voiced: !!voiceOf(c.id) })),
               max: promptMaxOf(node.videoTier),
-              canAdd: tierOf(node.videoTier).refImg && tierOf(node.videoTier).audio === true,
+              canAdd: shotsOkOf(node.videoTier),
             }}
             // 改这一帧（N3）：画布这一面此前没有（只有工坊方案台有一句话改帧）；同一个组件、同一处实现
             actions={() => (
@@ -2673,13 +2673,13 @@ function AgentPalette({ draft, onClose, onPick }: { draft: string; onClose: () =
  * ★ 工坊那一面为什么要它（2.62 发版评审抓到）：方案台在这种段上不再说「不画帧」（那是假话，会补画、会计费），
  *   卡面于是退回推演段的说法（「待推演」「AI 会在推演时自拟首尾帧」）—— 而直出段根本没有推演那一步。这一句把「什么时候画、收不收钱」说清。
  * ★ 只在真的会补画时说（nodeRefPlan 的 draws，与报价 / 出片同一份判定）：首帧已经有了、这一档又不画结束画面时一张都不画，
- *   「出片前会先按提示词画帧（计费）」就是假话（原来画布按「收不收参考图」一刀切地说）。真人档（flatCost）照片起拍、不在此列；延长段另有说法。
+ *   「出片前会先按提示词画帧（计费）」就是假话（原来画布按「收不收参考图」一刀切地说）。真人档（startOnly）照片起拍、不在此列；延长段另有说法。
  */
 export function DirectNoRefNote({ node, className = "" }: { node: FlowNode; className?: string }) {
   const nodes = useFlow((s) => s.nodes);
   const mode = useFlow((s) => s.mode);
   const tier = tierOf(node.videoTier);
-  if (!node.direct || node.extendFrom || tier.flatCost || tier.refImg) return null;
+  if (!node.direct || node.extendFrom || tier.startOnly || tier.refImg) return null;
   const idx = nodes.findIndex((n) => n.id === node.id);
   const draws = idx >= 0 ? nodeRefPlan(nodes, idx, mode)?.draws : undefined;
   if (!draws || (!draws.first && !draws.last)) return null;

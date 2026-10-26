@@ -103,7 +103,8 @@ export default function RefStrip({
   // 「换哪一档就有」按能力现算、按这个人用不用得了分两种说法（account.tierNamesFor；2026-10-07 起原来写死的「高清」「电影级」对免费用户是死路）
   const vidNames = tierNamesFor((x) => x.refVid);
   const imgNames = tierNamesFor((x) => x.refImg);
-  const audioNames = tierNamesFor((x) => x.audio && x.refImg);
+  // 「要配音换哪一档」= 带得了声音样本的那几档（VideoTier.refAudio）
+  const audioNames = tierNamesFor((x) => x.refAudio);
   const vidUsable = vidNames.usable;
   const vidMember = vidNames.member;
   const imgUsable = imgNames.usable;

@@ -67,7 +67,7 @@ const MODE_TEXT: Record<GuidedModeId, { icon: IconName; title: MessageDescriptor
 /** economy.VideoTier → 判定要的那几位能力（判据只在 guidedModes.modeBlock） */
 export function modeTierOf(tierId: string): ModeTier {
   const tier = tierOf(tierId);
-  return { refImg: !!tier.refImg, flat: !!tier.flatCost, audio: !!tier.audio };
+  return { refImg: tier.refImg, startOnly: tier.startOnly, audio: tier.audio };
 }
 
 export default function ModePicker({
@@ -108,7 +108,8 @@ export default function ModePicker({
   const hidden = GUIDED_MODES.filter((m) => modeBlock(m.id, caps) !== null);
   /** 「换到哪一档就有」：按这个人用得了的说（account.tierNamesFor）；一档都用不了时说那几档是会员档 */
   const refNames = tierNamesFor((x) => x.refImg);
-  const audioNames = tierNamesFor((x) => x.audio && x.refImg);
+  // 「要能出声的模型」指去带得了声音样本的那几档（VideoTier.refAudio）：对话正反打按卡上的声音说台词
+  const audioNames = tierNamesFor((x) => x.refAudio);
   return (
     <div className="space-y-3">
       <div>
@@ -188,7 +189,7 @@ export default function ModePicker({
                       : m.id === "dialogue"
                       ? t`写对白 ${chatPrice}，三个机位每张 ${gridPanelPrice}（含 AI 看一遍），每句一段约 ${gridVideo} / ${gridSec} 秒`
                       : m.id === "effect"
-                      ? caps.flat
+                      ? caps.startOnly
                         ? t`照片起拍，视频约 ${fxVideo} / 一发`
                         : t`关键帧 ${panelPrice}，视频约 ${fxVideo} / ${fxSec} 秒`
                       : m.id === "cards"
@@ -211,7 +212,7 @@ export default function ModePicker({
                         <span className="rounded-full bg-slate-700/70 px-2 py-0.5 text-[10px] text-slate-300"><Trans>{steps} 步</Trans></span>
                       </span>
                       <span className="mt-1 block text-[11px] leading-relaxed text-slate-400">
-                        {m.id === "direct" && caps.flat ? t`真人卡的照片起拍，写一句话直接出片` : t(text.desc)}
+                        {m.id === "direct" && caps.startOnly ? t`真人卡的照片起拍，写一句话直接出片` : t(text.desc)}
                       </span>
                       {price && <span className="mt-0.5 block text-[10px] text-slate-500">{price}</span>}
                     </span>

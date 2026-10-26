@@ -1743,7 +1743,7 @@ msgid "「{0}」已经发布好了。"
 msgstr "「{0}」已经发布好了。"
 
 #. placeholder {0}: tierOf(node.videoTier).label
-#. placeholder {1}: Object.keys(flat!).join("/")
+#. placeholder {1}: steps!.join("/")
 #: src/components/flow/SegSettings.tsx
 msgid "「{0}」按发计价，只有 {1} 秒两档"
 msgstr "「{0}」按发计价，只有 {1} 秒两档"
@@ -10150,6 +10150,11 @@ msgstr "台上现在不是你的模型（预览没画出来），截下来的会
 #: src/components/flow/DialogueWizard.tsx
 msgid "台词（不用加引号）"
 msgstr "台词（不用加引号）"
+
+#. placeholder {0}: next.label
+#: src/components/flow/TierRow.tsx
+msgid "台词不再带音色样本（「{0}」档不收声音样本，台词照样配音、音色由模型定）"
+msgstr "台词不再带音色样本（「{0}」档不收声音样本，台词照样配音、音色由模型定）"
 
 #. placeholder {0}: next.label
 #: src/components/flow/TierRow.tsx

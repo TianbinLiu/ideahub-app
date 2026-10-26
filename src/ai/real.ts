@@ -43,7 +43,6 @@ import {
   clampDuration,
   promptMaxOf,
   imageTierOf,
-  providerOf,
   slotsFor,
   tierNamesWhere,
   tierOf,
@@ -3268,7 +3267,9 @@ export function genModeOf(sg: Omit<GenSpec, "mode">): GenMode {
  * genModeOf 的普通出片就是它；样片第一步（mode "draft"）的请求形状也问它 —— composeSegments 拼请求、validateGenSpec 查互斥都读这一份。
  */
 export function slotModeOf(sg: Omit<GenSpec, "mode">): GenMode {
-  if (providerOf(sg.videoTier) === "minimax") return "minimax";
+  // ★ 按请求形状（VideoTier.api）认，不按供应商（2026-10-26）：mode "minimax" 就是 V1 那一发（海螺：只收一张首帧）；
+  //   海外 MiniMax H3（出片地区 P2b，V2 接口）也是 MiniMax，收参考图、是另一种请求，到时另加一种 mode
+  if (tierOf(sg.videoTier).api === "minimax-v1") return "minimax";
   if (sg.refVideoUrl) return sg.refTask === "reference" ? "reference" : sg.refTask === "extend" ? "extend" : "edit";
   if (sg.refImages?.length) return "ref-images";
   if (sg.firstFrame) return sg.lastFrame && tierOf(sg.videoTier).flf ? "flf" : "i2v";
@@ -3432,7 +3433,7 @@ export async function composeSegments(
           model: tier.model,
           prompt: sg.plot.slice(0, VIDEO_PROMPT_MAX),
           firstFrame: await shrinkFrameFor720p(first),
-          // 与报价同一把尺：clampDuration 对 flatCost 档吸附到 6/10 整档
+          // 与报价同一把尺：clampDuration 对按发计价的档吸附到 6/10 整档（economy.durationStepsOf）
           durationSec: clampDuration(sg.durationSec, sg.videoTier),
           onProgress: (ev) => onProgress?.(i, segments.length, encodeGenEvent({ ...ev, tier: tier.id })),
           // ★ 受理回调必须给：不给就没有凭据，"没接到结果"那一支等于不存在

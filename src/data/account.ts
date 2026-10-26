@@ -1176,11 +1176,12 @@ export function usableTierId(id: string | undefined): string {
   // ★ 换到**能力最接近**的那一档（2026-10-07 评审抓到）：原来一律落默认档 —— 免费用户照做一份「高清」配方落在「极速」上，
   //   参考图、声音、首尾帧一样都没了；而「草稿」与「高清」是同一个模型、只差分辨率，那些全都在。所以先找一档收不收参考图、
   //   出不出声都与原档一样、这个人现在用得了的（按档位表的顺序取第一个 —— 便宜的排在前面），找不到才退回默认档。
-  //   只在方舟的档里找：真人档按发计价、做不了推演，不该被「换过去」。
+  //   不往只认一张起拍画面的档（startOnly，真人档）上换：它做不了推演、只收真人卡的照片，不该被「换过去」。
+  //   （2026-10-26 前写的是 `!x.flatCost`「按发计价」—— 计价模型与出片方式是两件事，今天碰巧都落在真人档上）
   const want = id ? tierOf(id) : null;
   if (want && want.id === id) {
     const near = offeredTiers().find(
-      (x) => !x.flatCost && x.refImg === want.refImg && x.audio === want.audio && !tierBlockReason(x),
+      (x) => !x.startOnly && x.refImg === want.refImg && x.audio === want.audio && !tierBlockReason(x),
     );
     if (near) return near.id;
   }

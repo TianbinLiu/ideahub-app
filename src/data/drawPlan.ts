@@ -19,8 +19,11 @@
 export interface DrawTier {
   /** 这一档收不收结束帧（economy.VideoTier.flf） */
   flf: boolean;
-  /** 按发计价的档（真人档）：首帧就是卡上的照片，一张设定帧都不画 */
-  flat: boolean;
+  /**
+   * 只认一张起拍画面的档（economy.VideoTier.startOnly，真人档）：首帧就是卡上的照片，一张设定帧都不画。
+   * ★ 2026-10-26 前这一位叫 flat、调用方拿「按发计价」（flatCost）去填 —— 计价模型与出片方式是两件事，见 startOnly 的注释。
+   */
+  startOnly: boolean;
 }
 
 export interface DrawInput {
@@ -44,7 +47,7 @@ export interface DrawInput {
  *   那时没有任何东西可以当参考发，硬不画就是一段纯文字生成、挂的卡一点用都没有。出片那一侧会把这件事说出来。
  */
 export function framesToDraw(o: DrawInput): { first: boolean; last: boolean } {
-  if (o.refMode || o.tier.flat) return { first: false, last: false };
+  if (o.refMode || o.tier.startOnly) return { first: false, last: false };
   if (o.noDraw && (o.hasFirstFrame || o.hasLastFrame)) return { first: false, last: false };
   return { first: !o.hasFirstFrame, last: o.tier.flf && !o.hasLastFrame && !o.multiShot };
 }

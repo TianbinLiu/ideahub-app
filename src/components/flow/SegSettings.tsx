@@ -8,7 +8,7 @@
 //   抄第二份的话，这些规则会一条一条地在另一面走样，而走样了不报错。
 // ★ 组件自己认 node.id 从 store 读（与 PlanSheet / CardPicker 同款）：宿主只给一个 id，
 //   不必把 index/nodes/mode 一路传下来，也就不会出现"传的是上一段"那类错。
-import { clampDuration, durationChoices, r2vBlockLines, tierModelId, tierModelLabel, tierOf } from "../../data/economy";
+import { clampDuration, durationChoices, durationStepsOf, r2vBlockLines, tierModelId, tierModelLabel, tierOf } from "../../data/economy";
 import Warn from "../Warn";
 import { realFaceIssue } from "../../data/account";
 import { chosenOf, nodeDone, nodeFramed, nodeOwnFirstFrame, tplOfNode, useFlow } from "../../studio/flowStore";
@@ -78,9 +78,10 @@ export default function SegSettings({ nodeId }: { nodeId: string }) {
             //   3 秒发过去是同步 400，用户只会觉得"这一档坏了"（见 VideoTier.minSec）
             const tooShort = d < tierOf(node.videoTier).minSec;
             // ★ 按发计价档（真人档）只有价表里那几个整档：8 秒会被 clampDuration 吸附到
-            //   10 档并按 10 收——让它可点就是"按钮写 8、账按 10"，比灰掉更糟
-            const flat = tierOf(node.videoTier).flatCost;
-            const offStep = !!flat && !(d in flat);
+            //   10 档并按 10 收——让它可点就是"按钮写 8、账按 10"，比灰掉更糟。
+            //   哪几个整档只问 economy.durationStepsOf（clampDuration 吸附读的同一个），别在这里翻价目表
+            const steps = durationStepsOf(node.videoTier);
+            const offStep = !!steps && !steps.includes(d);
             return (
               <button
                 key={d}
@@ -88,7 +89,7 @@ export default function SegSettings({ nodeId }: { nodeId: string }) {
                 disabled={tooShort || offStep}
                 title={
                   offStep
-                    ? t`「${tierOf(node.videoTier).label}」按发计价，只有 ${Object.keys(flat!).join("/")} 秒两档`
+                    ? t`「${tierOf(node.videoTier).label}」按发计价，只有 ${steps!.join("/")} 秒两档`
                     : tooShort
                       ? t`「${tierOf(node.videoTier).label}」最短 ${tierOf(node.videoTier).minSec} 秒`
                       : undefined

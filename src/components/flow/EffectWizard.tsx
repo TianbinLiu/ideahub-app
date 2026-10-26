@@ -102,8 +102,9 @@ export default function EffectWizard({
   }, []);
 
   const tier = tierOf(tierId);
-  const real = !!tier.flatCost;
-  const presets = effectsOn({ flat: real });
+  /** 只认一张起拍画面的档（VideoTier.startOnly，真人档）：照片起拍、不画关键帧 */
+  const real = tier.startOnly;
+  const presets = effectsOn({ startOnly: real });
   // ★ 上次挑的预设要按**这一档**重新筛：草稿关了不清（付过钱的关键帧要留着），而选法屏换个档位再进来，向导会停在上次那一步。
   //   不筛的话，在高清上挑的「游戏英雄登场」能在真人档上落成一段 —— 照片在原地动、竞技场根本不会出现，这一发照收钱（effectsOn 要挡的正是它）。
   //   这一档用不了就退回第①步重挑；只改这里看到的，不清 store：换回原来那一档，那张关键帧还在。

@@ -15,7 +15,7 @@ import { useEffect, useSyncExternalStore } from "react";
 import { AI_REAL } from "../../ai";
 import { myCards, realFaceIssue } from "../../data/account";
 import { subscribeVoices, voiceOf, voicesVersion } from "../../data/cardVoice";
-import { CHAT_TURN_TOKENS, clampDuration, durationChoices, fmtTokens, promptMaxOf, tierOf } from "../../data/economy";
+import { CHAT_TURN_TOKENS, clampDuration, durationChoices, fmtTokens, promptMaxOf, shotsOkOf, tierOf } from "../../data/economy";
 import { LEAD_CAST_MAX, LEAD_DEFAULT_SEC, SCENE_MAX, SCENE_MIN, type SceneNote } from "../../data/sceneShots";
 import { LINE_QUOTE, SHOT_MAX, packShots, parseShots } from "../../data/shotScript";
 import { useAccountVersion } from "../../hooks/useAccount";
@@ -80,8 +80,8 @@ export default function LeadShotsWizard({
   const full = cast.length >= LEAD_CAST_MAX;
   const dur = clampDuration(d.durationSec ?? LEAD_DEFAULT_SEC, tierId);
   const promptMax = promptMaxOf(tierId);
-  /** 分镜 / 台词只开在出声又收参考图的两档（与画布那颗「＋ 镜头」同一个判据） */
-  const shotsOk = !!tier.refImg && tier.audio === true;
+  /** 分镜 / 台词只开在带得了声音样本的档（与画布那颗「＋ 镜头」同一个判据 economy.shotsOkOf） */
+  const shotsOk = shotsOkOf(tierId);
   const faceNote = realFaceIssue(cast, tierId, { framed: chained });
   /** 按钮上印的价（演示构建写「演示」，与画布那颗「⚡ 生成本段」同一个写法）：先取成值再进句子 */
   const price = (n: number | null) => (n === null ? "—" : AI_REAL ? fmtTokens(n) : t`演示`);

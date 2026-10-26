@@ -1743,7 +1743,7 @@ msgid "「{0}」已经发布好了。"
 msgstr "“{0}” has been published."
 
 #. placeholder {0}: tierOf(node.videoTier).label
-#. placeholder {1}: Object.keys(flat!).join("/")
+#. placeholder {1}: steps!.join("/")
 #: src/components/flow/SegSettings.tsx
 msgid "「{0}」按发计价，只有 {1} 秒两档"
 msgstr "“{0}” is priced per clip and only offers {1}s"
@@ -10142,6 +10142,11 @@ msgstr "The stage isn't showing your model (the preview didn't render), so the c
 #: src/components/flow/DialogueWizard.tsx
 msgid "台词（不用加引号）"
 msgstr "Line (no quotes needed)"
+
+#. placeholder {0}: next.label
+#: src/components/flow/TierRow.tsx
+msgid "台词不再带音色样本（「{0}」档不收声音样本，台词照样配音、音色由模型定）"
+msgstr "Dialogue no longer uses the voice sample (“{0}” doesn't take voice samples — lines are still voiced, in a voice the model picks)"
 
 #. placeholder {0}: next.label
 #: src/components/flow/TierRow.tsx
