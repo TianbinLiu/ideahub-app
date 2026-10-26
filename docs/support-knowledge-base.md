@@ -592,7 +592,7 @@
 - 四种状态都要画出来：加载中 / 出错 / 空 / 离线 — `app\src\pages\NotificationsPage.tsx:4-5`
 
 ### 6.6 举报与下架
-- 举报入口在**作品 / 评论 / 弹幕**三处，离线模式整块不渲染。作品的举报在作品详情页；2.64 起首页按住画面中间弹出的「更多操作」里也有一行「举报」，同一套理由和规矩（自己的作品没有这一行）；别人的主页上只有「拉黑」、没有举报 — `app\src\components\ReportButton.tsx`（row / isRemoteMode）；`app\src\components\FeedActionSheet.tsx`
+- 举报入口在**作品 / 评论 / 弹幕**三处（2.70 之后的版本另有人格市场里别人的人格，见下一条），离线模式整块不渲染。作品的举报在作品详情页；2.64 起首页按住画面中间弹出的「更多操作」里也有一行「举报」，同一套理由和规矩（自己的作品没有这一行）；别人的主页上只有「拉黑」、没有举报 — `app\src\components\ReportButton.tsx`（row / isRemoteMode）；`app\src\components\FeedActionSheet.tsx`
 - **人格也能举报（2.70 之后的版本）**：数字人人格市场（设置 →「🎭 数字人人格」，`/support/personas`）里每张**别人的**人格卡上，作者那一行（「@作者 · ⬇ 下载数」）末尾有一个小字「举报」；自己做的人格上没有。理由、补充说明、同一个人格只能举报一次、限流、没登录要先登录、离线模式没有，这些规矩与作品的举报完全一样。2.70 及以前的版本人格卡上没有这个键：请更新到新版，或转人工 / 发信到 support@ideahubs.org 说明是哪个人格。人格被举报之后，管理员只能**下架**或**驳回**，**不会直接删除**：下架之后它从人格市场里消失，收藏过的人在「已收藏」里也看不到了；作者在「我的」页签里还看得到，但不能再把它设成公开（想申诉就转人工）；要彻底删掉由作者自己删。⚠ **数字人形象（Live2D）市场、声音市场里的声音模板、AI 客服自己的回答，现在都还不能在 App 里举报**（服务端还没有这几类）—— 别说有入口；遇到这类内容请转人工或发信到 support@ideahubs.org — `app\src\pages\SupportPersonasPage.tsx`；`app\src\api\admin.ts`（ReportTargetType / reportActionsFor）；`server\src\services\takedown.service.js`（HANDLERS）；`server\src\controllers\persona.controller.js`（takenDown）；服务端副本 `server\src\knowledge\support-kb.md` 还是老说法，等下一次同步（app 仓 scripts/kb-server-copy.mjs）才带上这一句
 - 8 个理由：涉及未成年人（排第一，2.46 加的）/ 未经同意的私密影像（2.51 加的；本人也可以不登录直接走 ideahubs.org/takedown）/ 色情低俗 / 血腥暴力 / 人身攻击·辱骂 / 垃圾营销·刷屏 / 侵权·冒用他人作品 / 其他 — `app\src\api\admin.ts`（REPORT_REASONS）
 - 补充说明选填，最多 500 字（与服务端上限相同） — `app\src\components\ReportButton.tsx`（DETAIL_MAX）；`server\src\models\Report.js`（detail maxlength）

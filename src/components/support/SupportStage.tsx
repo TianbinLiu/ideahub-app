@@ -32,6 +32,9 @@ import Warn from "../Warn";
 /** APK 里打包的官方看板娘（市场里 "official-mascot" 条目的 modelJsonUrl 为空 → 用它） */
 export const MODEL_URL = "/live2d/mascot/mascot.model3.json";
 
+/** 舞台现在的状态（onStatus 交给宿主的就是它） */
+export type StageStatus = "loading" | "ready" | "failed";
+
 /** 市场模型没加载出来时交给页面的结局（见 onFallback） */
 export type StageFallback = {
   /** 加载那一步的原话（控制台级，多是英文）；kind 非空时页面按 kind 说人话，别把它嵌进句子 */
@@ -50,7 +53,10 @@ export type StageFallback = {
  *     块左右各留 64px（px-16）碰不到；底部浮层静息时内容上缘在 396px、聊得多了能长到 ≈270px（SupportPage 那段 ★★），
  *     块高 ≈ 8（pt-2）+ 两行 11px 字 36 + 重试键命中区 44 = 88px ⇒ 底缘 ≈223px，离 270 还有 47px；英文第一句折成两行时 ≈241px，仍在 270 之上。原来加载文案的 top-[40%] = 256px 摆这一块会被长起来的底部浮层盖住。
  *   · 老师页：舞台 420 高、只露上面 208px（h-52）、topPx 8、heightFraction 1 ⇒ 块顶 8 + 420×0.15 = 71px、底缘 ≈159px（英文 ≈177px），在可见区里。
- *   动了这两页的顶栏 / 小键列 / 舞台容器高度，这里跟着重算。
+ *     ⚠ 老师说话时同一个容器里还有一条字幕（TutorRunPage，inset-x-2 bottom-2、跟着字往上长）：一句 60 个字 ≈ 3 行，上缘到 127~147px，
+ *     正好盖住「重试」（≈125~149px）和它的命中区 —— 而舞台没出来时老师照样用 TTS 说话（2026-10-26 最终审核）。
+ *     所以老师页经 onStatus 知道舞台 failed 时不画那条字幕（字在下面的文字卡里都有）；这一块不必为它挪位置。
+ *   动了这两页的顶栏 / 小键列 / 舞台容器高度（或往舞台容器里加别的浮层），这里跟着重算。
  */
 const FAIL_BLOCK_AT = 0.15;
 
@@ -76,19 +82,23 @@ type Props = {
   failNote: string | null;
   /** 市场模型没加载出来时通知一次（官方那一发有了结局之后，见 StageFallback）；页面据此整句提示 */
   onFallback?: (fail: StageFallback) => void;
+  /** 舞台状态每变一次告诉宿主一次（老师页：failed 时收起字幕条，别盖住「重试」，见 FAIL_BLOCK_AT 的量法） */
+  onStatus?: (status: StageStatus) => void;
 };
 
-export default function SupportStage({ className = "", topPx = 56, heightFraction = 0.8, modelUrl = "", waiting = false, name, failNote, onFallback }: Props) {
+export default function SupportStage({ className = "", topPx = 56, heightFraction = 0.8, modelUrl = "", waiting = false, name, failNote, onFallback, onStatus }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   /** 当前挂在容器里的模型；换 url / 卸载时先摘掉 */
   const modelRef = useRef<CompanionModel | null>(null);
-  const [status, setStatus] = useState<"loading" | "ready" | "failed">("loading");
+  const [status, setStatus] = useState<StageStatus>("loading");
   /** 第几次加载：「重试」把它 +1，加载那个 effect 跟着重跑（不 reload 整页） */
   const [attempt, setAttempt] = useState(0);
   const layoutRef = useRef({ topPx, heightFraction });
   layoutRef.current = { topPx, heightFraction };
   const fallbackRef = useRef(onFallback);
   fallbackRef.current = onFallback;
+  const statusRef = useRef(onStatus);
+  statusRef.current = onStatus;
   const url = modelUrl || MODEL_URL;
 
   function fit() {
@@ -193,6 +203,11 @@ export default function SupportStage({ className = "", topPx = 56, heightFractio
       }
     };
   }, [url, waiting, attempt]);
+
+  // 状态交给宿主（ref 里现读回调：宿主每次渲染给的都是新函数，进依赖会每拍都报一次）
+  useEffect(() => {
+    statusRef.current?.(status);
+  }, [status]);
 
   const showFail = status === "failed" && failNote !== null;
 

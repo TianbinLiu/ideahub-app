@@ -1355,8 +1355,8 @@ msgid "{mocPath} 是用较新版本的 Cubism 导出的（moc3 版本号 {versio
 msgstr "{mocPath} was exported with a newer version of Cubism (moc3 version {version}); the app's runtime can only read up to {latest}. Export it with an older moc3 version and try again."
 
 #: src/live2d/bundlePreview.ts
-msgid "{mocPath} 没通过 Cubism 的 moc3 格式校验（结构不完整或被改过），手机上加载不了。用 Cubism Editor 重新导出再压一次。"
-msgstr "{mocPath} failed Cubism's moc3 format check (incomplete structure or altered), so it can't load on a phone. Re-export it from Cubism Editor and zip it again."
+msgid "{mocPath} 没通过 Cubism 的一致性检查（结构不完整或被改过），手机上加载不了。用 Cubism Editor 重新导出再压一次。"
+msgstr "{mocPath} failed Cubism's consistency check (incomplete structure or altered), so it can't load on a phone. Re-export it from Cubism Editor and zip it again."
 
 #: src/live2d/bundlePreview.ts
 msgid "{mocPath} 的文件头不是 MOC3（读到 “{shown}”），这不是一份有效的 moc3。"
@@ -11696,6 +11696,7 @@ msgstr "local patterns and wear"
 msgid "局部细节"
 msgstr "Close-up detail"
 
+#: src/components/support/SafetyCard.tsx
 #: src/pages/FlowPage.tsx
 #: src/pages/SimpleModePage.tsx
 #: src/studio/ui/projection.tsx
@@ -11705,6 +11706,10 @@ msgstr "Expand"
 #: src/components/TemplateShelf.tsx
 msgid "展开各段 ▾"
 msgstr "Show segments ▾"
+
+#: src/components/support/SafetyCard.tsx
+msgid "展开求助卡"
+msgstr "Expand help card"
 
 #: src/components/guide/tours.tsx
 msgid "工作台里的「删除」不是从列表里划掉：<0>云端那段模板视频和原始素材会一起没掉</0>， 谁都找不回。所以要点两下才认。"
@@ -17839,6 +17844,10 @@ msgstr "that ink-wash negative space though"
 msgid "永久删除该账号"
 msgstr "Permanently delete this account"
 
+#: src/components/support/SafetyCard.tsx
+msgid "求助热线"
+msgstr "Crisis helplines"
+
 #: src/components/guide/tours.tsx
 msgid "没做完的半成品在这一格"
 msgstr "Unfinished work is here"
@@ -23563,8 +23572,13 @@ msgstr "The preview switched to a different model partway through — this run d
 
 #. placeholder {0}: s.verifyUnknown.length
 #: src/pages/SupportModelNewPage.tsx
-msgid "试跑过了，但有 {0} 项没量到（页面当时在后台）。"
-msgstr "{0, plural, one {Tested, but # item couldn't be measured (the page was in the background).} other {Tested, but # items couldn't be measured (the page was in the background).}}"
+msgid "试跑过了，但有 {0} 项没量到（待机动作固定不住，没法自动量，要靠眼睛看）。"
+msgstr "{0, plural, one {Tested, but # item couldn't be measured (the idle motion can't be held steady, so it can't be measured automatically — check it by eye).} other {Tested, but # items couldn't be measured (the idle motion can't be held steady, so they can't be measured automatically — check them by eye).}}"
+
+#. placeholder {0}: s.verifyUnknown.length
+#: src/pages/SupportModelNewPage.tsx
+msgid "试跑过了，但有 {0} 项没量到（页面当时多半在后台）。"
+msgstr "{0, plural, one {Tested, but # item couldn't be measured (the page was probably in the background).} other {Tested, but # items couldn't be measured (the page was probably in the background).}}"
 
 #. placeholder {0}: s.verifyWarn.length
 #: src/pages/SupportModelNewPage.tsx
@@ -25733,6 +25747,10 @@ msgstr "This model has no usable file address. Try another one."
 msgid "这个模型没有命中区，摸哪里都没有反应。"
 msgstr "This model has no hit areas; touching it anywhere does nothing."
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "这个模型的待机动作固定不住（试跑要拿同一段待机来比），动作 / 表情标了「没量到」—— 再跑一遍也一样，盯着上面那块看她动没动就行。"
+msgstr "This model's idle motion can't be held steady (the test run compares against the same idle segment), so the actions / expressions are marked \"Couldn't measure\" — running it again won't change that. Just watch the stage above to see whether she moves."
+
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "这个模板<0>已经发布在市场上</0>，服务端不许直接改它的位置（包括删掉画面上 找不到的那个位子）—— 位置一变，正在用它的人手里那份「哪个人偶挂谁」就全对不上了，而他们那边 不会有任何提示。先下架，改完再发布一次。"
 msgstr "This template <0>is already published on the market</0>, so the server won't let you change its positions directly (including deleting a slot that can't be found in the picture) — changed positions would break the “which mannequin gets whom” mapping for everyone using it, with no notice on their side. Unpublish first, then publish again after editing."
@@ -26352,8 +26370,8 @@ msgid "这套形象是用较新版本的 Cubism 导出的，App 里的运行时�
 msgstr "This look was exported with a newer version of Cubism than the app's runtime can read, so it's switched back to the official look for now. Pick another, or ask the creator to export an older version."
 
 #: src/pages/SupportPage.tsx
-msgid "这套形象的模型文件不完整或被改过，没通过加载前的检查，先换回官方形象；可以换一套，或请作者重新导出。"
-msgstr "This look's model file is incomplete or has been altered and didn't pass the pre-load check, so it's switched back to the official look for now. Pick another, or ask the creator to re-export it."
+msgid "这套形象的模型文件没通过 Cubism 的一致性检查（结构不完整或被改过），先换回官方形象；可以换一套，或请作者重新导出。"
+msgstr "This look's model file failed Cubism's consistency check (incomplete structure or altered), so it's switched back to the official look for now. Pick another, or ask the creator to re-export it."
 
 #: src/studio/ui/FuseFrameSheet.tsx
 msgid "这张{label}要什么画面？例：\"他站在门口回头，半身，暖光\""

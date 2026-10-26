@@ -181,7 +181,10 @@ export type TouchArea = (typeof TOUCH_AREAS)[number];
 
 export type TouchReaction = { area: TouchArea; zh: string; en: string; emotion: string; face: CompanionFace; action: CompanionAction };
 
-/** 触摸反应台词：不走 LLM（要的是"一碰就有反应"），也不进聊天记录；两种语言各一份，客服页只用中文 */
+/**
+ * 触摸反应台词：不走 LLM（要的是"一碰就有反应"），也不进聊天记录；两种语言各一份，调用方按界面语言取
+ * （官网 CompanionChat 按 i18n.language；App 客服页经 components/support/touchLines.pickStageTouch 传 activeLang()）
+ */
 export const TOUCH_REACTIONS: Record<TouchArea, Array<Omit<TouchReaction, "area">>> = {
   Head: [
     { zh: "别摸头啦，头发会乱的～", en: "Hey, don't pat my head, you'll mess up my hair!", emotion: "shy", face: "shy", action: "shy" },

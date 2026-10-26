@@ -124,13 +124,22 @@ export interface Live2dUploadDraft {
   verifyDone: string[];
   /** 跑过、但自动量出来「看不出变化」的项（⚠，只提醒、不拦发布；判定在 data/live2dMotionCheck） */
   verifyWarn: string[];
-  /** 跑过、但没量到的项（页面在后台，一帧都没采到）：不说 ✓ 也不说 ⚠ */
+  /**
+   * 跑过、但没量到的项：不说 ✓ 也不说 ⚠。原因三种（data/live2dMotionCheck）：多半是页面在后台、帧没采够；
+   * 也可能是这一窗里待机没钉住（运行时钉不住，见 verifyPinFail）；或者演之前那段基线没量成（见 verifyNoBase）。
+   */
   verifyUnknown: string[];
   /**
    * 这一轮演之前那段待机基线没量成（verifyUnknown 里的动作 / 表情项是因为它才没量到，不是它们自己没采到画面）：
    * 界面上两种原因说的话不一样（data/live2dMotionCheck 的 noBase）。
    */
   verifyNoBase: boolean;
+  /**
+   * 这一轮里待机钉不住（companionModel.pinIdleForProbe 回 false：这份运行时找不到 startRandomMotion / startMotion）。
+   * 待机组不止一段时每一窗都量成「没量到」，而且**再跑一遍也一样** —— 界面上单独说一句「盯着上面看」，别叫人回前台重跑
+   * （2026-10-26 最终审核：原来一律说「页面当时在后台」）。
+   */
+  verifyPinFail: boolean;
   /** 正在跑第几项的整句；空 = 没在跑 */
   verifyNow: string;
   /**
@@ -194,6 +203,7 @@ export function initialLive2dDraft(): Live2dUploadDraft {
     verifyWarn: [],
     verifyUnknown: [],
     verifyNoBase: false,
+    verifyPinFail: false,
     verifyNow: "",
     verifyOk: false,
     name: "",
@@ -571,7 +581,7 @@ export async function startBundleInspect(): Promise<void> {
  * ★ 改了映射必须作废（2026-10-26）：试跑记录按槽位记键（`a:wave`），不带当时指的是哪个组 —— 不清的话，
  *   把挥手从 Wave 换成 Flick 之后，旧的 ✓ 还挂在新组上，第 ⑥ 步照样写「试跑过了」，而新组一次都没演过。
  */
-const VERIFY_WIPE = { verifyDone: [] as string[], verifyWarn: [] as string[], verifyUnknown: [] as string[], verifyNoBase: false, verifyOk: false };
+const VERIFY_WIPE = { verifyDone: [] as string[], verifyWarn: [] as string[], verifyUnknown: [] as string[], verifyNoBase: false, verifyPinFail: false, verifyOk: false };
 
 /** 改一条映射：store 那份换新对象（重渲染），交给运行时的那份原地改（预览立刻生效）；旧的试跑记录作废（见 VERIFY_WIPE） */
 export function patchMapping(next: CompanionMappingWire): void {
@@ -589,7 +599,7 @@ export function resetMapping(): void {
 // ── ⑤ 试跑 ──────────────────────────────────────────────────────────
 
 /**
- * 一项试跑的结局：量到动了 / 量出来看不出变化（⚠）/ 没量到（这一项没采到足够的画面）/ 没量到（演之前那段基线没量成）。
+ * 一项试跑的结局：量到动了 / 量出来看不出变化（⚠）/ 没量到（这一项没采到足够的画面，或这一窗里待机没钉住）/ 没量到（演之前那段基线没量成）。
  * 没东西可量的项（只说话的触摸区）记 ok。noBase 在列表上与 unknown 画法一样，只是说的原因不同（见 verifyNoBase）
  */
 export type VerifyResult = "ok" | "still" | "unknown" | "noBase";
@@ -604,6 +614,11 @@ export function markVerified(key: string, result: VerifyResult = "ok"): void {
     verifyUnknown: result === "unknown" || result === "noBase" ? [...without(s.verifyUnknown), key] : without(s.verifyUnknown),
     verifyNoBase: s.verifyNoBase || result === "noBase",
   });
+}
+
+/** 这一轮里有一次待机没钉上（见 verifyPinFail） */
+export function markPinFail(): void {
+  if (!get().verifyPinFail) set({ verifyPinFail: true });
 }
 
 /** 开始新的一轮试跑：上一轮的记录全部清掉（一份新旧混着的 ✓ 列表比没有更坏） */

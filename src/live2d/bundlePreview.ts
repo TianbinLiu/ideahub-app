@@ -371,7 +371,7 @@ async function mocCheckIssue(mocPath: string, bytes: Uint8Array): Promise<string
       const latest = error.latestVersion;
       return t`${mocPath} 是用较新版本的 Cubism 导出的（moc3 版本号 ${version}），App 里的运行时最高只读到 ${latest}。导出时选一个旧一些的 moc3 版本再试。`;
     }
-    return t`${mocPath} 没通过 Cubism 的 moc3 格式校验（结构不完整或被改过），手机上加载不了。用 Cubism Editor 重新导出再压一次。`;
+    return t`${mocPath} 没通过 Cubism 的一致性检查（结构不完整或被改过），手机上加载不了。用 Cubism Editor 重新导出再压一次。`;
   }
 }
 

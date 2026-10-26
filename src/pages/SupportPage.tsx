@@ -31,7 +31,7 @@
  *   为它另开一页就是第二份。本页读到这个 query 就把面板掀开，然后**当场把 query 抹掉**（见下面那个 effect 的 ★）。
  * ★ 求助卡（2026-10-25；契约 docs/api-contract.md「客服」★ 自伤危机协议）：请求里声明 `caps: ["safety","notice"]`。
  *   没声明时服务端把危机求助卡退化成一句普通 sentence —— 被当台词合成语音，热线号码念出来、还按字扣钱。
- *   声明了之后收到 `safety` 事件：stopAll()、不调 /api/tts、不进字幕、不算她说的话，在字幕框上方画一张 SafetyCard（可关、不自动消失）。
+ *   声明了之后收到 `safety` 事件：stopAll()、不调 /api/tts、不进字幕、不算她说的话，在字幕框上方画一张 SafetyCard（可关、不自动消失；下一轮开始后缩成一行、挪到最上面，见底部浮层里画它那段 ★★）。
  *   卡的纯文本仍作为**一条 assistant 消息**留在 messages 里（api/support.safetyPlainText 的 ★★：否则下一轮是连着两条 user）。
  *   `notice`（AI 身份告知）在字幕框上方与记录里各一行小字，不念、不扣钱；客服路由今天不发它。老服务端两样都不发 = 一切照旧。
  */
@@ -112,6 +112,28 @@ const spokenBeforeCard = (m: ChatMessage) => (m.sentences ?? []).reduce(appendSe
 const MAX_HISTORY = 12;
 const MAX_INPUT_CHARS = 1000;
 const TRANSCRIPT_MAX = 30;
+/** 转人工 transcript 每条的上限（服务端 support.routes ticketBodySchema 的 max(2000)） */
+const TICKET_MSG_MAX = 2000;
+/**
+ * /api/support/chat 的 messages[] 每条的上限（服务端 support.routes 的 MAX_MESSAGE_CHARS = 1000，先 trim 再量）。
+ * ★★ 超了是**整发 400**、不是截断（2026-10-26 最终审核）：原来回传的历史照转人工那份切到 2000，一条长回答
+ *   （或输出侧命中时「已经说出来的句子 + 卡的纯文本」，中文卡约 120 字、英文 OTHER 地区约 280 字）超过 1000，
+ *   之后每一发都被拒，直到它滑出 12 条的窗口 —— 正好是危机里的人想接着说话的时候。所以两份分开切。
+ */
+const CHAT_MSG_MAX = 1000;
+
+/** 舞台上求助卡正文那一块的高度上限（量法见底部浮层里画它那段 ★★） */
+const SAFETY_BODY_MAX = "max-h-[22dvh]";
+
+/** 会回传 / 交出去的那几条：不是系统行、有字 */
+const chatRows = (list: ChatMessage[]) => list.filter((m) => !m.system && m.text.trim());
+
+/**
+ * 一条消息回传给 /api/support/chat 时的正文（≤ CHAT_MSG_MAX）。
+ * ★ 求助卡那一条留**结尾**：卡的纯文本拼在最后（onSafety），超长时该留下来的是它 —— 下一轮模型要知道上一轮给过求助卡。
+ *   别的留开头（与转人工那份同一个方向）。
+ */
+const chatContent = (m: ChatMessage) => (m.safety ? m.text.slice(-CHAT_MSG_MAX) : m.text.slice(0, CHAT_MSG_MAX));
 /** 顶栏高度：模型的头顶从它下面开始 */
 const TOP_BAR_PX = 58; // = safe-top 的 10px 呼吸 + 48px 一行（与 PageHeader 同高）
 /** 看板娘身高占整页高度的比例 */
@@ -208,9 +230,19 @@ export default function SupportPage() {
   const [handoffHint, setHandoffHint] = useState<{ category: SupportCategory } | null>(null);
   /**
    * 舞台上那张求助卡（最近一次 safety 事件）。★ 与 messages 分开记：人点 ✕ 关掉的只是这一张，记录里那一条还在；
-   * 新开一轮 send 也不清它（人可能正需要盯着号码，接着问一句就把卡收走是替他做了决定）。
+   * 新开一轮 send 也不清它（人可能正需要盯着号码，接着问一句就把卡收走是替他做了决定）—— 只缩成一行（safetyPast），号码照样一点就拨。
    */
   const [safetyCard, setSafetyCard] = useState<SupportSafetyCard | null>(null);
+  /**
+   * 舞台上那张卡来自上一轮（或更早）：缩成一行、摆到最上面（画它那段 ★）。send() 开新一轮时置真，新的 safety 事件置假。
+   * ★ 显式记，不拿「lastAssistant.safety 是不是这张」现推：转人工建单会往 messages 里追加一条 system 的回执，那样一推，
+   *   人还没说下一句卡就缩了。
+   */
+  const [safetyPast, setSafetyPast] = useState(false);
+  /** 缩成一行的那张被点了「展开」；下一轮开始时再缩回去 */
+  const [safetyOpen, setSafetyOpen] = useState(false);
+  /** 输入框：求助卡来的那一拍收起软键盘（onSafety 的 ★） */
+  const inputRef = useRef<HTMLInputElement>(null);
   /** AI 身份告知（notice 事件）那一行；与官网陪聊同一种做法：来了就一直挂在字幕框上方，服务端按自己的节奏再发 */
   const [aiNotice, setAiNotice] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -370,8 +402,9 @@ export default function SupportPage() {
     if (r.top < c.top || r.bottom > c.bottom) el.scrollTop += r.top - c.top - 4;
   }, [captionAnchor, lastAssistant?.text, phase, reaction]);
 
+  /** 转人工交出去的对话记录（POST /tickets 的 transcript：每条 ≤2000 字，服务端 ticketBodySchema） */
   const transcript = useMemo(
-    () => messages.filter((m) => !m.system && m.text.trim()).slice(-TRANSCRIPT_MAX).map((m) => ({ role: m.role, content: m.text.slice(0, 2000) })),
+    () => chatRows(messages).slice(-TRANSCRIPT_MAX).map((m) => ({ role: m.role, content: m.text.slice(0, TICKET_MSG_MAX) })),
     [messages],
   );
 
@@ -572,7 +605,11 @@ export default function SupportPage() {
 
     const userMsg: ChatMessage = { id: nextId(), role: "user", text };
     const assistantId = nextId();
-    const history = [...transcript.slice(-(MAX_HISTORY - 1)), { role: "user" as Role, content: text }];
+    // 回传的历史按 chat 的上限切（chatContent 的 ★），不复用转人工那份 transcript（那份按 2000 切）
+    const history = [...chatRows(messages).slice(-(MAX_HISTORY - 1)).map((m) => ({ role: m.role, content: chatContent(m) })), { role: "user" as Role, content: text }];
+    // 上一轮的求助卡缩成一行、挪到最上面（不清：号码还在，见 safetyCard 的 ★）
+    setSafetyPast(true);
+    setSafetyOpen(false);
     setMessages((prev) => [...prev, userMsg, { id: assistantId, role: "assistant", text: "", streaming: true }]);
     setInput("");
     setPhase("thinking");
@@ -615,6 +652,12 @@ export default function SupportPage() {
             //   send() 的 catch 见 controller 被掐会直接 return，所以收尾（streaming / streamDone）在这里一起写。
             stopAll();
             setSafetyCard(card);
+            setSafetyPast(false);
+            setSafetyOpen(false);
+            // ★ 收起软键盘（2026-10-26 最终审核）：发完那一句焦点还在输入框里，键盘开着时 h-dvh 只剩 360~400px，
+            //   底部浮层（问题气泡 + 卡 + 输出侧命中时她已经说的那几句）比可见区还高 —— 卡的标题与 ✕ 被裁掉，
+            //   问题气泡还会盖住顶栏的返回键。这一刻该看的是卡上的号码，不是接着打字；想说话点一下输入框就回来
+            inputRef.current?.blur();
             const plain = safetyPlainText(card);
             setMessages((prev) =>
               prev.map((m) => (m.id === assistantId ? { ...m, text: appendSentence(m.text, plain), safety: card, streaming: false, streamDone: true } : m)),
@@ -785,7 +828,7 @@ export default function SupportPage() {
           if (!fail.official) return;
           // 加载前的 moc3 检查拦下的两类按类型说（live2d/mocCheck）；原话是英文的控制台级句子，不往句子里嵌
           if (fail.kind === "inconsistent") {
-            setStageNotice(t`这套形象的模型文件不完整或被改过，没通过加载前的检查，先换回官方形象；可以换一套，或请作者重新导出。`);
+            setStageNotice(t`这套形象的模型文件没通过 Cubism 的一致性检查（结构不完整或被改过），先换回官方形象；可以换一套，或请作者重新导出。`);
           } else if (fail.kind === "tooNew") {
             setStageNotice(t`这套形象是用较新版本的 Cubism 导出的，App 里的运行时还读不了，先换回官方形象；可以换一套，或请作者导出成旧一些的版本。`);
           } else {
@@ -849,7 +892,8 @@ export default function SupportPage() {
               · 结论：四颗键的底缘 316 距内容上缘 396 还有 **80px**，放得下，不用改布局。
           ⚠ 已知的边界：吵起来之后（转人工卡 + 两三行提示 + 长回答）底部那一坨能长到 370px 上下，那时最下面这颗
             会被盖住 —— 两边同为 z-10、它在 DOM 里排在后面。所以**新加的这颗排在最后**：形象/人格/声音是天天用的三颗，
-            而「创作」在设置页里另有一条找得到的路（CLAUDE.md：别让唯一入口有被盖住的可能）。 */}
+            而「创作」在设置页里另有一条找得到的路（CLAUDE.md：别让唯一入口有被盖住的可能）。
+          ⚠ 求助卡出来的那一轮也会盖住下面一两颗（量法见底部浮层里画求助卡那段 ★★），下一轮缩成一行就让开了。 */}
       <div className="absolute right-2 z-10 flex flex-col gap-2" style={{ top: `calc(env(safe-area-inset-top, 0px) + ${TOP_BAR_PX + 14}px)` }}>
         <RailButton icon="shirt" label={t`形象`} onClick={() => navigate("/support/models")} />
         <RailButton icon="drama" label={t`人格`} onClick={() => navigate("/support/personas")} />
@@ -861,6 +905,26 @@ export default function SupportPage() {
       {/* 底部浮层：最近一问一答 + 转人工卡 + 快捷问题 + 输入区 */}
       {/* 同上：底部渐变的 pt-20 会盖住裙摆/腿，容器不吃事件，里面每一块（字幕、快捷问、输入框）再打开 */}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex flex-col justify-end bg-gradient-to-t from-ink via-ink/80 to-transparent px-3 pb-[max(env(safe-area-inset-bottom),12px)] pt-20 [&>*]:pointer-events-auto">
+        {/* 求助卡（见文件头 ★ 求助卡）。★★ 高度（2026-10-26 最终审核；量法同上面那列小键的 ★★，360×640、safe-area-inset-top 28px）：
+              · 整张不设上限时：标题 + 两三行正文 + 2~3 条渠道（标签一折行、一条就是两行）+ 安全说明 ≈ 190~280px，
+                再加问题气泡与静息时那 244px，内容上缘落到 100~170px —— 盖住右边那一列小键（100~316px）、挡掉它们的点按。
+              · 所以正文那一块封顶 SAFETY_BODY_MAX（22dvh = 640 高时 141px，够放下正文 + 第一条渠道），标题行与 ✕ 不滚，整张 ≈ 175px。
+                输入侧命中（她一句没说、字幕框不画）：86（输入条 + 小字 + 底边距）+ 46（问题气泡）+ 175 + 8 = 315 ⇒ 上缘 325，在 316 之下。
+                输出侧命中还压着她已经说的那一两句（字幕框 70~94px）⇒ 上缘 230~255，会盖住「声音」「创作」那两颗 ——
+                只在出卡的这一轮（与上面那段「吵起来之后」同一个已知边界）；软键盘在出卡那一拍收起（onSafety 的 ★），不会再顶到顶栏。
+              · 下一轮一开始就缩成一行（≈ 46px，第一条渠道的第一个动作照样一点就拨）、挪到问题气泡**上面** —— 它是上一轮的东西，
+                留在原地就夹在新问题与新回答之间。点「展开」看整张（同样封顶）。 */}
+        {safetyCard && safetyPast && (
+          <SafetyCard
+            card={safetyCard}
+            announce={false}
+            compact={!safetyOpen}
+            onExpand={() => setSafetyOpen(true)}
+            onClose={() => setSafetyCard(null)}
+            bodyMaxClass={SAFETY_BODY_MAX}
+            className="mb-2 backdrop-blur-md"
+          />
+        )}
         {lastUser && (
           <div className="mb-2 flex justify-end">
             <div className="max-w-[78%] truncate rounded-2xl rounded-br-sm bg-brand/90 px-3 py-1.5 text-sm text-ink">{lastUser.text}</div>
@@ -875,7 +939,7 @@ export default function SupportPage() {
               淡底用 box-decoration-clone，一句折成两三行时每一行都有底。 */}
         {/* 求助卡与 AI 身份告知（见文件头 ★ 求助卡）：都压在字幕框上方，都不是她说的话。
             backdrop-blur 与下面「转人工」卡同一个理由：舞台上的人与光会透过来，字读不清 */}
-        {safetyCard && <SafetyCard card={safetyCard} onClose={() => setSafetyCard(null)} className="mb-2 backdrop-blur-md" />}
+        {safetyCard && !safetyPast && <SafetyCard card={safetyCard} onClose={() => setSafetyCard(null)} bodyMaxClass={SAFETY_BODY_MAX} className="mb-2 backdrop-blur-md" />}
         {aiNotice && (
           <Warn tone="info" className="mb-1.5 px-1">
             {aiNotice}
@@ -1000,6 +1064,7 @@ export default function SupportPage() {
             />
           )}
           <input
+            ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             maxLength={MAX_INPUT_CHARS}

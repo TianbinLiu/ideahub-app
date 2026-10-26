@@ -1355,8 +1355,8 @@ msgid "{mocPath} 是用较新版本的 Cubism 导出的（moc3 版本号 {versio
 msgstr "{mocPath} 是用较新版本的 Cubism 导出的（moc3 版本号 {version}），App 里的运行时最高只读到 {latest}。导出时选一个旧一些的 moc3 版本再试。"
 
 #: src/live2d/bundlePreview.ts
-msgid "{mocPath} 没通过 Cubism 的 moc3 格式校验（结构不完整或被改过），手机上加载不了。用 Cubism Editor 重新导出再压一次。"
-msgstr "{mocPath} 没通过 Cubism 的 moc3 格式校验（结构不完整或被改过），手机上加载不了。用 Cubism Editor 重新导出再压一次。"
+msgid "{mocPath} 没通过 Cubism 的一致性检查（结构不完整或被改过），手机上加载不了。用 Cubism Editor 重新导出再压一次。"
+msgstr "{mocPath} 没通过 Cubism 的一致性检查（结构不完整或被改过），手机上加载不了。用 Cubism Editor 重新导出再压一次。"
 
 #: src/live2d/bundlePreview.ts
 msgid "{mocPath} 的文件头不是 MOC3（读到 “{shown}”），这不是一份有效的 moc3。"
@@ -11704,6 +11704,7 @@ msgstr "局部纹样与磨损"
 msgid "局部细节"
 msgstr "局部细节"
 
+#: src/components/support/SafetyCard.tsx
 #: src/pages/FlowPage.tsx
 #: src/pages/SimpleModePage.tsx
 #: src/studio/ui/projection.tsx
@@ -11713,6 +11714,10 @@ msgstr "展开"
 #: src/components/TemplateShelf.tsx
 msgid "展开各段 ▾"
 msgstr "展开各段 ▾"
+
+#: src/components/support/SafetyCard.tsx
+msgid "展开求助卡"
+msgstr "展开求助卡"
 
 #: src/components/guide/tours.tsx
 msgid "工作台里的「删除」不是从列表里划掉：<0>云端那段模板视频和原始素材会一起没掉</0>， 谁都找不回。所以要点两下才认。"
@@ -17847,6 +17852,10 @@ msgstr "水墨留白舒服"
 msgid "永久删除该账号"
 msgstr "永久删除该账号"
 
+#: src/components/support/SafetyCard.tsx
+msgid "求助热线"
+msgstr "求助热线"
+
 #: src/components/guide/tours.tsx
 msgid "没做完的半成品在这一格"
 msgstr "没做完的半成品在这一格"
@@ -23571,8 +23580,13 @@ msgstr "试跑跑到一半，上面那块换成了别的模型 —— 这一轮�
 
 #. placeholder {0}: s.verifyUnknown.length
 #: src/pages/SupportModelNewPage.tsx
-msgid "试跑过了，但有 {0} 项没量到（页面当时在后台）。"
-msgstr "试跑过了，但有 {0} 项没量到（页面当时在后台）。"
+msgid "试跑过了，但有 {0} 项没量到（待机动作固定不住，没法自动量，要靠眼睛看）。"
+msgstr "试跑过了，但有 {0} 项没量到（待机动作固定不住，没法自动量，要靠眼睛看）。"
+
+#. placeholder {0}: s.verifyUnknown.length
+#: src/pages/SupportModelNewPage.tsx
+msgid "试跑过了，但有 {0} 项没量到（页面当时多半在后台）。"
+msgstr "试跑过了，但有 {0} 项没量到（页面当时多半在后台）。"
 
 #. placeholder {0}: s.verifyWarn.length
 #: src/pages/SupportModelNewPage.tsx
@@ -25741,6 +25755,10 @@ msgstr "这个模型没有可用的文件地址，换一个试试。"
 msgid "这个模型没有命中区，摸哪里都没有反应。"
 msgstr "这个模型没有命中区，摸哪里都没有反应。"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "这个模型的待机动作固定不住（试跑要拿同一段待机来比），动作 / 表情标了「没量到」—— 再跑一遍也一样，盯着上面那块看她动没动就行。"
+msgstr "这个模型的待机动作固定不住（试跑要拿同一段待机来比），动作 / 表情标了「没量到」—— 再跑一遍也一样，盯着上面那块看她动没动就行。"
+
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "这个模板<0>已经发布在市场上</0>，服务端不许直接改它的位置（包括删掉画面上 找不到的那个位子）—— 位置一变，正在用它的人手里那份「哪个人偶挂谁」就全对不上了，而他们那边 不会有任何提示。先下架，改完再发布一次。"
 msgstr "这个模板<0>已经发布在市场上</0>，服务端不许直接改它的位置（包括删掉画面上 找不到的那个位子）—— 位置一变，正在用它的人手里那份「哪个人偶挂谁」就全对不上了，而他们那边 不会有任何提示。先下架，改完再发布一次。"
@@ -26360,8 +26378,8 @@ msgid "这套形象是用较新版本的 Cubism 导出的，App 里的运行时�
 msgstr "这套形象是用较新版本的 Cubism 导出的，App 里的运行时还读不了，先换回官方形象；可以换一套，或请作者导出成旧一些的版本。"
 
 #: src/pages/SupportPage.tsx
-msgid "这套形象的模型文件不完整或被改过，没通过加载前的检查，先换回官方形象；可以换一套，或请作者重新导出。"
-msgstr "这套形象的模型文件不完整或被改过，没通过加载前的检查，先换回官方形象；可以换一套，或请作者重新导出。"
+msgid "这套形象的模型文件没通过 Cubism 的一致性检查（结构不完整或被改过），先换回官方形象；可以换一套，或请作者重新导出。"
+msgstr "这套形象的模型文件没通过 Cubism 的一致性检查（结构不完整或被改过），先换回官方形象；可以换一套，或请作者重新导出。"
 
 #: src/studio/ui/FuseFrameSheet.tsx
 msgid "这张{label}要什么画面？例：\"他站在门口回头，半身，暖光\""

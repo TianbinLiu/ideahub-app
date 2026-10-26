@@ -67,7 +67,9 @@ src/
                `tutorUpload.ts` = md / txt 建课：本机抽文本 + 切块 + 块 hash（走 `tutor/shared`）→ 直传票 → 复用 `putDirect` 分块 → confirm
   companion/   AI 客服/看板娘的演出协议（表情/动作标签、SSE 解析、语音包络、舞台总线）——与官网 client 同源拷贝
   live2d/      Live2D 运行时加载与模型驱动（pixi + Cubism Core，全部自托管在 public/live2d/）；
-               `prefetch.ts` = 换市场形象前把 model3.json 引用的文件各拉一遍，热 WebView 缓存（每个文件 120 秒上限、只拉与 model3.json 同源的引用，2026-10-15）
+               `prefetch.ts` = 换市场形象前把 model3.json 引用的文件各拉一遍，热 WebView 缓存（每个文件 120 秒上限、只拉与 model3.json 同源的引用，2026-10-15）；
+               `mocCheck.ts` = 加载 .moc3 之前那道版本 + Cubism 一致性检查的**唯一实现**（零依赖、Core 由调用方传入；`loader.installMocGuard` 装在运行时上，
+               上传向导第 ① 步本地核对也走它；被拦下的按 `MocCheckFailed.kind` 认、不认 message）。构建里没有检查脚本：要真 Core 才跑得起来，node vm 里的复现做法写在文件头
   components/  通用组件；`flow/` = 工作流画布：`FlowCanvas.tsx`（画布壳 + 就地编辑窗 +
                agent 输入条 + 四个 portal 弹层：方案台/成片回看/选卡/选模板）、
                `DeleteSegBtn.tsx`（删段确认，与 FlowPage 那份共用一处实现）、
@@ -79,7 +81,8 @@ src/
                `VoiceMixer`（混音调配 + 发布成模板）、`VoiceMarket`（声音市场列表：试听 / 设为我的声音 / 点赞 / 删自己的）、
                `voicePreview.ts`（三页试听共用的合成 + 播放 + 喂口型，同一时刻只响一段）、
                `SafetyCard`（危机求助卡：客服声明 `caps: ["safety","notice"]` 之后收到 `safety` 事件时画它，不念、不进字幕，
-               文字一律用服务端给的；舞台上与「记录」里共用这一份）；
+               文字一律用服务端给的；舞台上与「记录」里共用这一份）、
+               `touchLines.ts`（摸看板娘那一句的**唯一实现**：按界面语言挑、市场形象不念官方外貌那两句、同一句同一套声音只合成一次）；
                `TemplateCreateCard`（模板货架顶上「创建属于你的视频模板」：没模板大卡、有模板小条，市场与我的模板两个页签都摆）、
                `FeedActionSheet`（首页长按中间的「更多操作」抽屉）、`MagicBand`（「我的」页头像后的品牌带，纯装饰）——
                三样的来由在 docs/ui-benchmark-2026-10.md
@@ -108,7 +111,9 @@ src/
                `refMentions.ts` = 参考清单的「@ 点名」与临时参考图的规则（认法 / 编译 / 名字 / 系统兜底句），纯函数零依赖，
                构建里 `scripts/check-ref-mentions.mjs` 实跑；
                `shotScript.ts` = 分镜表的读写规则（「镜头1：…」怎么认、怎么写回、出片前收空镜头、台词骨架、台词是谁说的、画帧取哪个瞬间），同样零依赖，
-               构建里 `scripts/check-shot-script.mjs` 实跑
+               构建里 `scripts/check-shot-script.mjs` 实跑；
+               `live2dMotionCheck.ts` = Live2D 上传向导第 ⑤ 步试跑那一列 ✓ / ⚠ / 没量到的判定，**唯一实现**（零依赖、只 `import type`；
+               采样在 `live2d/companionModel.probeParams`），构建里 `scripts/check-live2d-motion-check.mjs` 实跑
   hooks/
   mock/        无后端时的假数据
   pages/       路由页面（hash 路由）；`WorkshopPage` = 创意工坊第一层 = 市场（/workshop：一个搜索框 + 卡片 / 卡组 / 模板 / 工作流四类，搜索词与筛选都在地址里，

@@ -7,8 +7,8 @@
  * ★ 为什么不改 companion/protocol.ts：那份与官网 client 同源拷贝（CLAUDE.md 目录那一节），给台词加一个「只给官方形象」的标记
  *   就得两仓一起改、官网合进 main 就是发布。这里按台词的**英文**认是哪几句：每条台词中英两种写法在同一个对象上，
  *   认英文不必在 App 里再抄一份中文字面量（抄了会撞 i18n 棘轮，也是第二份真相）。
- *   ⚠ protocol.ts 里 TOUCH_REACTIONS 头上那句注释「客服页只用中文」从这一版起不成立了（客服页按界面语言取）——
- *   下一次与官网同步那份文件时一起改掉。
+ *   （protocol.ts 里 TOUCH_REACTIONS 头上原来那句「客服页只用中文」已改成「调用方按界面语言取」，2026-10-26 最终审核，
+ *   随 protocol.ts 的那一条官网同步一起过去。）
  */
 import { pickTouchReaction, TOUCH_REACTIONS, type TouchReaction } from "../../companion/protocol";
 import { synthesizeSpeech, type SupportConfig, type TtsRequest } from "../../api/support";

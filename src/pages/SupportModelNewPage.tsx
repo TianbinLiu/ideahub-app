@@ -62,6 +62,7 @@ import {
   finishVerifyRun,
   live2dDraftBusy,
   live2dDraftDirty,
+  markPinFail,
   markPreviewLoaded,
   markVerified,
   patchMapping,
@@ -683,7 +684,8 @@ export default function SupportModelNewPage() {
       model?.stopSpeaking();
       model?.resetFaceForProbe();
       model?.lookForward();
-      model?.pinIdleForProbe(VERIFY_IDLE_PIN_MS);
+      // 钉不住（这份运行时没有那两个方法）要记下来：待机组不止一段时每一窗都量不了，界面要说「再跑也一样」（verifyPinFail）
+      if (model && !model.pinIdleForProbe(VERIFY_IDLE_PIN_MS)) markPinFail();
       model?.stopMotions();
     };
     const settle = async () => {
@@ -1522,7 +1524,9 @@ export default function SupportModelNewPage() {
             )}
             {s.verifyUnknown.length > 0 && (
               <Warn tone="info" className="mt-2">
-                {s.verifyNoBase ? (
+                {s.verifyPinFail ? (
+                  <Trans>这个模型的待机动作固定不住（试跑要拿同一段待机来比），动作 / 表情标了「没量到」—— 再跑一遍也一样，盯着上面那块看她动没动就行。</Trans>
+                ) : s.verifyNoBase ? (
                   <Trans>演之前那段对比没采到足够的画面，动作 / 表情那几项没法比，标了「没量到」：页面当时多半在后台。回到前台再跑一遍。</Trans>
                 ) : (
                   <Trans>标「没量到」的那几项没采到足够的画面：页面当时多半在后台。回到前台再跑一遍。</Trans>
@@ -1604,8 +1608,10 @@ export default function SupportModelNewPage() {
             <Banner tone="ok"><Trans>试跑过了（{s.verifyDone.length} 项）。</Trans></Banner>
           ) : s.verifyOk && s.verifyWarn.length ? (
             <Banner tone="warn"><Trans>试跑过了，但有 {s.verifyWarn.length} 项看不出变化，装上之后可能不会演。</Trans></Banner>
+          ) : s.verifyOk && s.verifyPinFail ? (
+            <Banner tone="warn"><Trans>试跑过了，但有 {s.verifyUnknown.length} 项没量到（待机动作固定不住，没法自动量，要靠眼睛看）。</Trans></Banner>
           ) : s.verifyOk ? (
-            <Banner tone="warn"><Trans>试跑过了，但有 {s.verifyUnknown.length} 项没量到（页面当时在后台）。</Trans></Banner>
+            <Banner tone="warn"><Trans>试跑过了，但有 {s.verifyUnknown.length} 项没量到（页面当时多半在后台）。</Trans></Banner>
           ) : s.verifyDone.length ? (
             <Banner tone="warn"><Trans>只试了 {s.verifyDone.length}/{verifyItems.length} 项。发之前建议回上一步跑完，看看动作和表情是不是真的都能演。</Trans></Banner>
           ) : (

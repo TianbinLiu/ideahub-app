@@ -599,7 +599,7 @@ App「我的 → AI 客服」（`/support`）的服务端。数字人是官网�
 
 ⚠ **接了守卫的链路不再发 `token` 事件**（未经检查的原始增量，发出去等于绕过守卫；两端 UI 都没用它）。
 下面 `/api/support/chat` 那一行里的 `token {t}` 从这一版起**不会再出现**。
-⚠ App 的**人格向导试聊**与**客服**都在协议内。**客服从 2026-10-25 那一版起发 `caps: ["safety","notice"]`**
+⚠ App 的**人格向导试聊**与**客服**都在协议内。**客服从 2.70 之后的版本（2.71 起）发 `caps: ["safety","notice"]`**（2.70 及更早不发，收到的是退化成 sentence 的那一种）
 （`api/support.SUPPORT_CAPS`）：收到 `safety` 就 `stopAll()`、不调 `/api/tts`、不进字幕、不算数字人说的话，
 在字幕框上方画一张求助卡（`components/support/SafetyCard`，文字一律用服务端给的；`policyUrl` 是相对路径，
 App 拼成官网地址再打开 —— `utils/shareLink.aiChatSafetyUrl`）；卡的纯文本（与服务端 `crisisPlainText` 同形）
@@ -631,7 +631,7 @@ App 拼成官网地址再打开 —— `utils/shareLink.aiChatSafetyUrl`）；�
 | 方法 | 路径 | 鉴权 | 说明 |
 |---|---|---|---|
 | GET | `/api/support/config` | optional | `{ ok, name, enabled, tts, asr, voice, loginRequired: true, quickQuestions[], categories[] }`。`asr=false`（或老服务端没这个字段）时不画麦克风。`enabled=false`（服务端没配 AI）时输入框禁用，只剩「转人工」。**2026-09-04 起登录时另带** `voiceSettings: VoiceSettings`（三层合并结果，见下）、`persona: PersonaSummary\|null`、`personaSource: "user"\|"model"\|""`、`model: Live2dModel\|null`（null = 官方内置）；老字段 `voice` = `voiceSettings.voiceId`。老服务端没有这四项 → App 按旧写法只传 `voice` |
-| POST | `/api/support/chat` | required | SSE。body `{ messages: [{role: user\|assistant, content ≤1000}] ≤20, lang?, caps?: ("safety"\|"notice")[] }`（`lang`：App 2.63 之后的版本按当前生效的界面语言发 `"zh"` / `"en"`（`i18n/switch.activeLang`），2.63 及更早写死 `"zh"` —— 服务端别只认它判「这一问是不是英文」）。事件：`sentence {index, text, emotion, face, action, tts:{emotion, instruct}}`、`token {t}`、**`handoff {category, reason}`**（模型判定该转人工，一次对话最多一条）、`done {text, handoff, category, safety?}`、`error {message}`；声明了 `caps` 才会有的 `safety {kind: "crisis", …}`（求助卡）与 `notice {kind: "ai_disclosure", text}`（形状与 App 怎么接见上面 ★ 自伤危机协议；App 2026-10-25 那一版起发 `caps: ["safety","notice"]`）。限流 **20/分钟按账号**。★ Content-Type 不是 `text/event-stream` 就当服务端没有这个功能（SPA 回退给的是 200 + HTML） |
+| POST | `/api/support/chat` | required | SSE。body `{ messages: [{role: user\|assistant, content ≤1000}] ≤20, lang?, caps?: ("safety"\|"notice")[] }`（`lang`：App 2.63 之后的版本按当前生效的界面语言发 `"zh"` / `"en"`（`i18n/switch.activeLang`），2.63 及更早写死 `"zh"` —— 服务端别只认它判「这一问是不是英文」）。事件：`sentence {index, text, emotion, face, action, tts:{emotion, instruct}}`、`token {t}`、**`handoff {category, reason}`**（模型判定该转人工，一次对话最多一条）、`done {text, handoff, category, safety?}`、`error {message}`；声明了 `caps` 才会有的 `safety {kind: "crisis", …}`（求助卡）与 `notice {kind: "ai_disclosure", text}`（形状与 App 怎么接见上面 ★ 自伤危机协议；App 2.70 之后的版本（2.71 起）发 `caps: ["safety","notice"]`，2.70 及更早不发）。限流 **20/分钟按账号**。★ Content-Type 不是 `text/event-stream` 就当服务端没有这个功能（SPA 回退给的是 200 + HTML） |
 | POST | `/api/support/tickets` | required | 转人工建单。body `{ transcript: [{role, content ≤2000}] ≤30, note? ≤500, contactEmail?, category? }`；`transcript` 与 `note` 至少一个。**201** `{ ok, ticket, reused: false }`；同一用户 10 分钟内已有未结工单 → **200** `{ ok, ticket, reused: true }`（不重复建）。服务端用 AI 归纳 `subject/summary/category`（失败退回用户原话），然后给所有管理员发 `SUPPORT_TICKET` 通知 + 邮件（`SUPPORT_NOTIFY_EMAIL` 或有真实邮箱的管理员）。限流 5/分钟 |
 | GET | `/api/support/tickets/mine` | required | `{ ok, items: Ticket[] }` 最近 20 张（不含 `contactEmail`） |
 | POST | `/api/support/tickets/:id/messages` | required | 在自己的工单里追加 `{ content ≤2000 }`；已结的单会重新 `open`；再通知管理员（10 分钟去重）。别人的工单 404 |
@@ -919,7 +919,7 @@ B 站式弹幕：一句话 + 它该在**视频第几秒**飘过去。与评论�
 ## 举报
 
 能举报**四种对象**：作品（`video`）、评论（`comment`）、弹幕（`danmaku`）、人格（`persona`，服务端 2026-09-28 加、
-App 的入口 2026-10-26 才接上：人格市场每张别人的卡上）。AI 客服的回答、Live2D 形象、声音模板**还不在里面** ——
+App 的入口 2.70 之后的版本（2.71 起）才有：人格市场每张别人的卡上，2.70 及更早没有）。AI 客服的回答、Live2D 形象、声音模板**还不在里面** ——
 要先在 server `Report.TARGET_TYPES` 加类型（服务端先上），App 再接 `ReportButton`。
 它们共用一张 `Report` 表与同一条处理流程（待处理 → 下架 / 删除 / 驳回）——
 管理端要的是"一个按时间排的待处理队列"，拆三张表那个队列就得三查一合再排序。
