@@ -941,6 +941,16 @@ msgstr "{0, plural, one {# segment uses a template} other {# segments use templa
 msgid "{0} 等 {1} 张没能同步（{2}）。卡本身在服务器上，只有这几张图还只留在这台设备，换设备或重新登录后它们会消失。"
 msgstr "{0} and others ({1, plural, one {# image} other {# images}} in total) couldn't be synced ({2}). The card itself is on the server; only these images remain on this device, and they'll disappear if you switch devices or sign in again."
 
+#. placeholder {0}: s.verifyWarn.length
+#: src/pages/SupportModelNewPage.tsx
+msgid "{0} 项看不出变化。"
+msgstr "{0, plural, one {# item showed no visible change.} other {# items showed no visible change.}}"
+
+#. placeholder {0}: gapView.count
+#: src/pages/SupportModelNewPage.tsx
+msgid "{0} 项装上之后不会演。"
+msgstr "{0, plural, one {# item won't play once installed.} other {# items won't play once installed.}}"
+
 #. placeholder {0}: issue ?? ""
 #: src/studio/flowStore.ts
 msgid "{0}，这一段改成了普通段（剧情要自己写）"
@@ -5457,6 +5467,10 @@ msgstr "Discard"
 msgid "不要标题就留空"
 msgstr "Leave empty for no title"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "不说话的时候她不做待机动作（App 里还改不了：把包里的待机动作组命名成 Idle 再导出就会用上）"
+msgstr "no idle motion while she isn't talking (can't be changed in the app yet: name the idle motion group \"Idle\" in your package and re-export, and it will be used)"
+
 #: src/components/VisibilityPicker.tsx
 msgid "不进首页和搜索；但拿到链接的人都能看，能被转发"
 msgstr "Not in Home or search, but anyone with the link can watch it and pass it on"
@@ -7021,6 +7035,10 @@ msgstr "Pick a reason first"
 #: src/pages/RecipePage.tsx
 msgid "先选角"
 msgstr "Cast first"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "先量 {baselineSecs} 秒她待着不动的样子，拿来对比…"
+msgstr "First measuring {baselineSecs} seconds of her just idling, for comparison…"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "先铺一条流水线（做同款 / 拆分镜 / 加段）再改写"
@@ -9108,6 +9126,10 @@ msgstr "Go publish"
 msgid "去取回这一段"
 msgstr "Go recover this segment"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "去对"
+msgstr "Fix"
+
 #: src/components/flow/FlowCanvas.tsx
 #: src/pages/WorkshopMinePage.tsx
 msgid "去市场看看"
@@ -9848,6 +9870,10 @@ msgid "另有 {annsNotRedrawn} 处圈在后半段，那一段的档收不了结�
 msgstr "{annsNotRedrawn} more marks are in the second half; that segment's tier can't take an end frame, so they only go into the text request — no redraw, no charge"
 
 #: src/pages/SupportModelNewPage.tsx
+msgid "另有 {n} 个触摸区在这个模型上没有对应的命中区，摸那些地方没有反应。"
+msgstr "{n, plural, one {# more touch area has no matching hit area in this model; touching there does nothing.} other {# more touch areas have no matching hit area in this model; touching there does nothing.}}"
+
+#: src/pages/SupportModelNewPage.tsx
 msgid "只传你自己做的、或者已经拿到授权的模型。别人的作品、真人肖像、Live2D 官方示例模型（Hiyori / Haru / Mao 这些）都不收。"
 msgstr "Only upload models you made yourself or have permission to use. Other people's work, likenesses of real people and Live2D's official sample models (Hiyori / Haru / Mao and the like) aren't accepted."
 
@@ -9996,6 +10022,12 @@ msgstr "Only the last segment can be extended: the extension is a new segment af
 #: src/components/VideoTemplateExtractor.tsx
 msgid "只认人、不出片 · 约 {ownRefPrice}"
 msgstr "Only finds the people, no render · about {ownRefPrice} tokens"
+
+#. placeholder {0}: s.verifyDone.length
+#. placeholder {1}: verifyItems.length
+#: src/pages/SupportModelNewPage.tsx
+msgid "只试了 {0}/{1} 项。发之前建议回上一步跑完，看看动作和表情是不是真的都能演。"
+msgstr "Only {0} of {1} items were tested. Before publishing, consider going back a step and finishing the run to check that the actions and expressions really play."
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "只说话"
@@ -14164,8 +14196,12 @@ msgid "按这句话改（{costLabel}）"
 msgstr "Edit with this ({costLabel})"
 
 #: src/pages/SupportModelNewPage.tsx
-msgid "按顺序演一遍：说话对口型、眨眼、每个对上的动作 / 表情 / 触摸区各来一次。盯着上面那块看。"
-msgstr "Plays everything in order: lip sync while speaking, blinking, and each mapped action / expression / touch area once. Keep an eye on the preview above."
+msgid "按顺序演一遍：说话对口型、眨眼、每个对上的动作 / 表情 / 触摸区各来一次，边演边自动量她动没动（整轮大约 {verifyEtaSecs} 秒）。也盯着上面那块看。"
+msgstr "Plays everything in order: lip sync while speaking, blinking, and each mapped action / expression / touch area once, automatically measuring whether she actually moves (about {verifyEtaSecs} seconds for the whole run). Keep an eye on the preview above too."
+
+#: src/pages/SupportModelNewPage.tsx
+#~ msgid "按顺序演一遍：说话对口型、眨眼、每个对上的动作 / 表情 / 触摸区各来一次。盯着上面那块看。"
+#~ msgstr "Plays everything in order: lip sync while speaking, blinking, and each mapped action / expression / touch area once. Keep an eye on the preview above."
 
 #: src/components/flow/GridShotsWizard.tsx
 msgid "按顺序点要拍的格子：点的先后就是成段的先后。每一格变成一段，那一格的画面当这一段的开头。"
@@ -14858,6 +14894,10 @@ msgstr "Motion when {areaName} is touched"
 #: src/pages/SupportModelNewPage.tsx
 msgid "摸「{areaName}」→ {target}"
 msgstr "Touch “{areaName}” → {target}"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "摸这里没有反应"
+msgstr "touching here does nothing"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "撒娇"
@@ -16596,6 +16636,14 @@ msgstr "Couldn’t check the verification result: {0}"
 msgid "查询失败"
 msgstr "check failed"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "标「没量到」的那几项一帧都没采到：页面当时多半在后台。回到前台再跑一遍。"
+msgstr "Items marked \"Couldn't measure\" got no frames at all: the page was probably in the background. Bring it back to the foreground and run again."
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "标「看不出变化」的是自动量出来的（可能误判）：演的时候模型几乎没动。多半是这个动作组 / 表情写给了模型里没有的参数，也可能它本来就动得很轻 —— 回去换一个，或者盯着上面再看一眼。不拦发布。"
+msgstr "\"No visible change\" is measured automatically and can be wrong: the model barely moved while it played. Usually the motion group / expression drives parameters this model doesn't have; it may also just move very subtly. Go back and pick another one, or watch the preview above once more. This doesn't block publishing."
+
 #: src/components/support/AdminTicketsView.tsx
 msgid "标为处理中"
 msgstr "Mark as in progress"
@@ -18331,6 +18379,10 @@ msgstr "Which clip? Select one first, or name it by number, like “clip 2”"
 msgid "没读出识别结果。{moneyLine}可以自己填，或者再识别一次"
 msgstr "The recognition result couldn't be read. {moneyLine} Fill it in yourself, or recognize again"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "没跑完，先继续"
+msgstr "Not finished, continue anyway"
+
 #: src/components/VolcCompatToggle.tsx
 msgid "没过审核："
 msgstr "failed review: "
@@ -18350,6 +18402,10 @@ msgstr "No network connection, so this segment didn't finish downloading. Tappin
 #: src/pages/SettingsVoicePage.tsx
 msgid "没配云端语音时退回系统内置合成器（需装中文语音包）。"
 msgstr "Without cloud voice, the system's built-in speech synthesizer is used instead (requires a Chinese voice pack)."
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "没量到"
+msgstr "Couldn't measure"
 
 #: src/studio/gridDraftStore.ts
 msgid "没问到服务端收没收到上一组（网络断了一下）—— 为了不让同一组画面付两次钱，这一次先不开新的一组；过一会儿再点一次（问一下不花钱）"
@@ -20370,6 +20426,10 @@ msgstr "Looks over the clips you've arranged: an opening title, one narration li
 msgid "看一遍再铺；铺是整表覆盖，现有流水线会先问你"
 msgstr "Review before laying it out; laying out replaces the whole pipeline, so you'll be asked about the current one first"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "看不出变化"
+msgstr "No visible change"
+
 #: src/components/TemplateShelf.tsx
 #: src/pages/WorkshopPage.tsx
 msgid "看全部"
@@ -20617,8 +20677,12 @@ msgid "真的删掉？（连云端视频一起）"
 msgstr "Really delete? (the cloud video goes too)"
 
 #: src/pages/SupportModelNewPage.tsx
-msgid "眨眼（她自己会眨，盯 3 秒）"
-msgstr "Blink (she blinks on her own; watch for 3 seconds)"
+msgid "眨一下眼，看眼睛闭没闭上"
+msgstr "Blink once and check that the eyes close"
+
+#: src/pages/SupportModelNewPage.tsx
+#~ msgid "眨眼（她自己会眨，盯 3 秒）"
+#~ msgstr "Blink (she blinks on her own; watch for 3 seconds)"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "眼球上下"
@@ -20657,6 +20721,10 @@ msgstr "Got it, change casting"
 #: src/components/flow/TierRow.tsx
 msgid "知道了，换到「{0}」"
 msgstr "Got it, switch to “{0}”"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "知道了，继续"
+msgstr "Got it, continue"
 
 #: src/pages/SimpleModePage.tsx
 msgid "确认一下就出片"
@@ -23153,6 +23221,10 @@ msgstr "Touch · {name}"
 msgid "触摸区"
 msgstr "Touch areas"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "触摸那几项只试播了它对上的动作；命中区对没对上量不到，要你自己在上面的预览里摸一下（会写「刚点到：…」）。"
+msgstr "The touch items only play their mapped motion; whether the hit area is right can't be measured. Touch the preview above yourself (it shows \"Just touched: …\")."
+
 #: src/pages/AdminPage.tsx
 msgid "订单"
 msgstr "Orders"
@@ -23453,6 +23525,16 @@ msgstr "Test run"
 msgid "试跑跑到一半，上面那块换成了别的模型 —— 这一轮不作数。点「重新加载预览」再跑一遍。"
 msgstr "The preview switched to a different model partway through — this run doesn't count. Tap “Reload preview” and run it again."
 
+#. placeholder {0}: s.verifyUnknown.length
+#: src/pages/SupportModelNewPage.tsx
+msgid "试跑过了，但有 {0} 项没量到（页面当时在后台）。"
+msgstr "{0, plural, one {Tested, but # item couldn't be measured (the page was in the background).} other {Tested, but # items couldn't be measured (the page was in the background).}}"
+
+#. placeholder {0}: s.verifyWarn.length
+#: src/pages/SupportModelNewPage.tsx
+msgid "试跑过了，但有 {0} 项看不出变化，装上之后可能不会演。"
+msgstr "{0, plural, one {Tested, but # item showed no visible change and may not play once installed.} other {Tested, but # items showed no visible change and may not play once installed.}}"
+
 #. placeholder {0}: s.verifyDone.length
 #: src/pages/SupportModelNewPage.tsx
 msgid "试跑过了（{0} 项）。"
@@ -23462,6 +23544,10 @@ msgstr "{0, plural, one {Tested (# item).} other {Tested (# items).}}"
 #: src/pages/PublishPage.tsx
 msgid "话题标签"
 msgstr "Tags"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "该做这个动作的时候她不动"
+msgstr "she stays still when this action should play"
 
 #: src/pages/NotificationsPage.tsx
 msgid "该回访了"
@@ -23957,6 +24043,10 @@ msgstr "Skip"
 msgid "跳过 / 下一步"
 msgstr "Skip / Next"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "跳过试跑，继续"
+msgstr "Skip the test, continue"
+
 #: src/types.ts
 msgid "身上佩戴的饰物、纹样或疤痕"
 msgstr "worn accessories, patterns or scars"
@@ -24203,6 +24293,10 @@ msgstr "Still couldn’t find out whether the server got the previous set (unsta
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "还有 {emptyCount} 个角色位没挂卡 —— <0>可以直接出片</0>，没挂的通常保持白色人偶的样子。 ⚠ 素材里<1>镜头切换多</1>时例外：实测 AI 可能拿已挂的卡把没挂的位子也换掉（同一个角色出现两份）。 要稳就把每个位子都挂上（同一张卡可以挂多个位子），或选一镜到底的素材。"
 msgstr "{emptyCount, plural, one {# role slot has} other {# role slots have}} no card — <0>you can render anyway</0>; empty slots usually stay white mannequins. ⚠ The exception is footage with <1>many shot changes</1>: in testing the AI sometimes used attached cards to replace empty slots too (the same character appearing twice). To be safe, attach a card to every slot (one card can go on several slots), or pick single-take footage."
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "还有 {unrun} 项没试。"
+msgstr "{unrun, plural, one {# item not tried yet.} other {# items not tried yet.}}"
 
 #: src/data/appUpdate.ts
 msgid "还没允许这个 App 安装应用：先去开启「允许安装未知应用」，再点一次。"
@@ -24475,6 +24569,10 @@ msgstr "You're not signed in, so it can't be added."
 #: src/studio/flowStore.ts
 msgid "还没给任何人偶挂卡，先去挂卡再合成预览"
 msgstr "No mannequins have cards yet — place cards first, then compose a preview"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "还没试跑。"
+msgstr "Not tested yet."
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "还没试跑过。发之前建议回上一步跑一遍，看看动作和表情是不是真的都能演。"
@@ -25541,6 +25639,10 @@ msgid "这个包里没有 cdi3.json，必须项一条都核不了 —— 我们�
 msgstr "There's no cdi3.json in this bundle, so none of the required items can be checked — we'll let it through assuming standard parameter names. If she doesn't blink or turn her head once equipped, the parameter names are probably non-standard: rename them in Cubism to the ParamEyeLOpen set and export again."
 
 #: src/pages/SupportModelNewPage.tsx
+msgid "这个包里没有动作组：待机和各个动作都不会演。"
+msgstr "This package has no motion groups: neither the idle motion nor any action will play."
+
+#: src/pages/SupportModelNewPage.tsx
 msgid "这个包里没有它 —— 换一个，或者回 Cubism 重新导出。"
 msgstr "This bundle doesn't have it — pick another, or re-export from Cubism."
 
@@ -25590,6 +25692,10 @@ msgstr "This model was exported with a newer version of Cubism than the app's ru
 #: src/pages/SupportModelsPage.tsx
 msgid "这个模型没有可用的文件地址，换一个试试。"
 msgstr "This model has no usable file address. Try another one."
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "这个模型没有命中区，摸哪里都没有反应。"
+msgstr "This model has no hit areas; touching it anywhere does nothing."
 
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "这个模板<0>已经发布在市场上</0>，服务端不许直接改它的位置（包括删掉画面上 找不到的那个位子）—— 位置一变，正在用它的人手里那份「哪个人偶挂谁」就全对不上了，而他们那边 不会有任何提示。先下架，改完再发布一次。"
@@ -25815,6 +25921,10 @@ msgstr "Couldn't load your cards right now ({0})"
 msgid "这位老师会说话（已发布为启梦人格）"
 msgstr "This teacher can speak (published as a QiMeng persona)"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "这几个参数没对上：{names}。用到它们的那部分演出不会动；参数这一栏 App 里还改不了，要改得回 Cubism 把参数 id 改成标准名再导出。"
+msgstr "These parameters aren't mapped: {names}. The parts of the performance that use them won't move. The parameter column can't be edited in the app yet; to fix it, rename the parameter IDs to the standard names in Cubism and re-export."
+
 #: src/studio/cutAgent.ts
 msgid "这几句没听懂：{list}"
 msgstr "Didn't understand: {list}"
@@ -25823,6 +25933,10 @@ msgstr "Didn't understand: {list}"
 #: src/studio/canvasAgent.ts
 msgid "这几句里同时写了中文和英文的段号，分不清是哪一段，没动：{0}。"
 msgstr "These mix Chinese and English segment numbers, so I couldn't tell which segment you meant: {0}. "
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "这几样装上之后不会演，别人用的时候也一样："
+msgstr "These won't play once installed, for anyone who uses it:"
 
 #: src/data/agentSkills.ts
 msgid "这句话超过 {VIDEO_PROMPT_MAX} 字——输入条本来也发不出这么长，精简一下"
@@ -27198,6 +27312,10 @@ msgstr "the hand that gave him the sword…"
 #: src/studio/npcPersona.ts
 msgid "递素材给我，炼成卡；卡拖到桌上的虚线卡位，铸成一段；段够了点法阵，推成成片。想看现成的就去市场。"
 msgstr "Hand me materials and I forge them into cards; drag a card onto the dashed slot on the table to forge a segment; once you have enough segments, tap the circle to assemble the video. For ready-made cards, browse the market."
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "通用参数"
+msgstr "generic parameters"
 
 #: src/pages/AdminPage.tsx
 msgid "通知"

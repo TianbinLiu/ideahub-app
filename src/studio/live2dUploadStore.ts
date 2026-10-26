@@ -113,12 +113,25 @@ export interface Live2dUploadDraft {
   /** 用户动过映射没有：没动就**不发** mapping 字段，让服务端用它自己的自动映射（一处实现在服务端） */
   mappingTouched: boolean;
 
+  /**
+   * 第 ⑤ 步那份「这几样不会演」清单里点了「去对」的那一行（`a-wave` / `t-Head`，= 第 ④ 步 MapRow 的锚点）；
+   * 第 ④ 步滚到它、聚焦它的下拉框之后清空。只活在内存里（这份 store 本来就不落盘）。
+   */
+  mapFocus: string;
+
   // ── ⑤ 试跑 ──
-  /** 已经跑过的项（键见页面里的 VERIFY_STEPS）；退出再进来还在 */
+  /** 已经跑过的项（键见页面里的 verifyItems）；退出再进来还在。★ 改了映射就清（见 patchMapping） */
   verifyDone: string[];
+  /** 跑过、但自动量出来「看不出变化」的项（⚠，只提醒、不拦发布；判定在 data/live2dMotionCheck） */
+  verifyWarn: string[];
+  /** 跑过、但没量到的项（页面在后台，一帧都没采到）：不说 ✓ 也不说 ⚠ */
+  verifyUnknown: string[];
   /** 正在跑第几项的整句；空 = 没在跑 */
   verifyNow: string;
-  /** 用户点过「没问题，继续」 */
+  /**
+   * 整张清单完整跑完了一遍（中途没停、没丢台）。★ 只有 runVerify 跑到最后一项才置真 ——
+   * 原来「没问题，继续」一点就置真，一项没跑第 ⑥ 步也写着「试跑过了（0 项）」。改了映射就清。
+   */
   verifyOk: boolean;
 
   // ── ⑥ 发布信息 ──
@@ -171,7 +184,10 @@ export function initialLive2dDraft(): Live2dUploadDraft {
     inspectErr: "",
     mapping: null,
     mappingTouched: false,
+    mapFocus: "",
     verifyDone: [],
+    verifyWarn: [],
+    verifyUnknown: [],
     verifyNow: "",
     verifyOk: false,
     name: "",
@@ -358,7 +374,7 @@ export async function buildPreview(entry: string): Promise<void> {
   //   服务端按新入口校验，映射里那些动作组它根本没有 ⇒ 400；运气不好都对得上的话就是静默发错。
   const switched = !!s.entry && s.entry !== entry;
   const wipe = switched
-    ? { inspect: null, inspectErr: "", mapping: null, mappingTouched: false, verifyDone: [], verifyNow: "", verifyOk: false }
+    ? { inspect: null, inspectErr: "", mapping: null, mappingTouched: false, mapFocus: "", ...VERIFY_WIPE, verifyNow: "" }
     : {};
   const detail = s.check.detail.get(entry);
   if (detail?.issues.length) {
@@ -544,25 +560,50 @@ export async function startBundleInspect(): Promise<void> {
 
 // ── ④ 对映射 ─────────────────────────────────────────────────────────
 
-/** 改一条映射：store 那份换新对象（重渲染），交给运行时的那份原地改（预览立刻生效） */
+/**
+ * 试跑记录整份作废（换入口 / 改映射 / 恢复自动都走它）。
+ * ★ 改了映射必须作废（2026-10-26）：试跑记录按槽位记键（`a:wave`），不带当时指的是哪个组 —— 不清的话，
+ *   把挥手从 Wave 换成 Flick 之后，旧的 ✓ 还挂在新组上，第 ⑥ 步照样写「试跑过了」，而新组一次都没演过。
+ */
+const VERIFY_WIPE = { verifyDone: [] as string[], verifyWarn: [] as string[], verifyUnknown: [] as string[], verifyOk: false };
+
+/** 改一条映射：store 那份换新对象（重渲染），交给运行时的那份原地改（预览立刻生效）；旧的试跑记录作废（见 VERIFY_WIPE） */
 export function patchMapping(next: CompanionMappingWire): void {
-  set({ mapping: next, mappingTouched: true });
+  set({ mapping: next, mappingTouched: true, ...VERIFY_WIPE });
   publishPreviewMapping(get().previewUrl, next);
 }
 
-/** 退回服务端的自动映射（第 ④ 步那颗「恢复自动」） */
+/** 退回服务端的自动映射（第 ④ 步那颗「恢复自动」）；同样作废旧的试跑记录 */
 export function resetMapping(): void {
   const auto = get().inspect?.mapping ?? null;
-  set({ mapping: auto, mappingTouched: false });
+  set({ mapping: auto, mappingTouched: false, ...VERIFY_WIPE });
   publishPreviewMapping(get().previewUrl, auto);
 }
 
 // ── ⑤ 试跑 ──────────────────────────────────────────────────────────
 
-export function markVerified(key: string): void {
-  const done = get().verifyDone;
-  if (done.includes(key)) return;
-  set({ verifyDone: [...done, key] });
+/** 一项试跑的结局：量到动了 / 量出来看不出变化（⚠）/ 没量到（页面在后台）。没东西可量的项（只说话的触摸区）记 ok */
+export type VerifyResult = "ok" | "still" | "unknown";
+
+/** 记下一项跑完了，连同它的结局（同一项再跑一遍时以这一次为准） */
+export function markVerified(key: string, result: VerifyResult = "ok"): void {
+  const s = get();
+  const without = (list: string[]) => list.filter((k) => k !== key);
+  set({
+    verifyDone: s.verifyDone.includes(key) ? s.verifyDone : [...s.verifyDone, key],
+    verifyWarn: result === "still" ? [...without(s.verifyWarn), key] : without(s.verifyWarn),
+    verifyUnknown: result === "unknown" ? [...without(s.verifyUnknown), key] : without(s.verifyUnknown),
+  });
+}
+
+/** 开始新的一轮试跑：上一轮的记录全部清掉（一份新旧混着的 ✓ 列表比没有更坏） */
+export function startVerifyRun(): void {
+  set({ ...VERIFY_WIPE });
+}
+
+/** 这一轮完整跑完了（中途没停、没丢台）—— verifyOk 只有这一处会置真 */
+export function finishVerifyRun(): void {
+  set({ verifyOk: true });
 }
 
 // ── ⑥ 发布 ──────────────────────────────────────────────────────────

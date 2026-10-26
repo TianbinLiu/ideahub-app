@@ -941,6 +941,16 @@ msgstr "{0} 段用了模板"
 msgid "{0} 等 {1} 张没能同步（{2}）。卡本身在服务器上，只有这几张图还只留在这台设备，换设备或重新登录后它们会消失。"
 msgstr "{0} 等 {1} 张没能同步（{2}）。卡本身在服务器上，只有这几张图还只留在这台设备，换设备或重新登录后它们会消失。"
 
+#. placeholder {0}: s.verifyWarn.length
+#: src/pages/SupportModelNewPage.tsx
+msgid "{0} 项看不出变化。"
+msgstr "{0} 项看不出变化。"
+
+#. placeholder {0}: gapView.count
+#: src/pages/SupportModelNewPage.tsx
+msgid "{0} 项装上之后不会演。"
+msgstr "{0} 项装上之后不会演。"
+
 #. placeholder {0}: issue ?? ""
 #: src/studio/flowStore.ts
 msgid "{0}，这一段改成了普通段（剧情要自己写）"
@@ -5461,6 +5471,10 @@ msgstr "不要了"
 msgid "不要标题就留空"
 msgstr "不要标题就留空"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "不说话的时候她不做待机动作（App 里还改不了：把包里的待机动作组命名成 Idle 再导出就会用上）"
+msgstr "不说话的时候她不做待机动作（App 里还改不了：把包里的待机动作组命名成 Idle 再导出就会用上）"
+
 #: src/components/VisibilityPicker.tsx
 msgid "不进首页和搜索；但拿到链接的人都能看，能被转发"
 msgstr "不进首页和搜索；但拿到链接的人都能看，能被转发"
@@ -7025,6 +7039,10 @@ msgstr "先选一个理由"
 #: src/pages/RecipePage.tsx
 msgid "先选角"
 msgstr "先选角"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "先量 {baselineSecs} 秒她待着不动的样子，拿来对比…"
+msgstr "先量 {baselineSecs} 秒她待着不动的样子，拿来对比…"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "先铺一条流水线（做同款 / 拆分镜 / 加段）再改写"
@@ -9116,6 +9134,10 @@ msgstr "去发布"
 msgid "去取回这一段"
 msgstr "去取回这一段"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "去对"
+msgstr "去对"
+
 #: src/components/flow/FlowCanvas.tsx
 #: src/pages/WorkshopMinePage.tsx
 msgid "去市场看看"
@@ -9856,6 +9878,10 @@ msgid "另有 {annsNotRedrawn} 处圈在后半段，那一段的档收不了结�
 msgstr "另有 {annsNotRedrawn} 处圈在后半段，那一段的档收不了结束帧：只进文字要求，不改图、不计费"
 
 #: src/pages/SupportModelNewPage.tsx
+msgid "另有 {n} 个触摸区在这个模型上没有对应的命中区，摸那些地方没有反应。"
+msgstr "另有 {n} 个触摸区在这个模型上没有对应的命中区，摸那些地方没有反应。"
+
+#: src/pages/SupportModelNewPage.tsx
 msgid "只传你自己做的、或者已经拿到授权的模型。别人的作品、真人肖像、Live2D 官方示例模型（Hiyori / Haru / Mao 这些）都不收。"
 msgstr "只传你自己做的、或者已经拿到授权的模型。别人的作品、真人肖像、Live2D 官方示例模型（Hiyori / Haru / Mao 这些）都不收。"
 
@@ -10004,6 +10030,12 @@ msgstr "只能延长最后一段：延长出来的是接在它后面的新一段
 #: src/components/VideoTemplateExtractor.tsx
 msgid "只认人、不出片 · 约 {ownRefPrice}"
 msgstr "只认人、不出片 · 约 {ownRefPrice}"
+
+#. placeholder {0}: s.verifyDone.length
+#. placeholder {1}: verifyItems.length
+#: src/pages/SupportModelNewPage.tsx
+msgid "只试了 {0}/{1} 项。发之前建议回上一步跑完，看看动作和表情是不是真的都能演。"
+msgstr "只试了 {0}/{1} 项。发之前建议回上一步跑完，看看动作和表情是不是真的都能演。"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "只说话"
@@ -14172,8 +14204,12 @@ msgid "按这句话改（{costLabel}）"
 msgstr "按这句话改（{costLabel}）"
 
 #: src/pages/SupportModelNewPage.tsx
-msgid "按顺序演一遍：说话对口型、眨眼、每个对上的动作 / 表情 / 触摸区各来一次。盯着上面那块看。"
-msgstr "按顺序演一遍：说话对口型、眨眼、每个对上的动作 / 表情 / 触摸区各来一次。盯着上面那块看。"
+msgid "按顺序演一遍：说话对口型、眨眼、每个对上的动作 / 表情 / 触摸区各来一次，边演边自动量她动没动（整轮大约 {verifyEtaSecs} 秒）。也盯着上面那块看。"
+msgstr "按顺序演一遍：说话对口型、眨眼、每个对上的动作 / 表情 / 触摸区各来一次，边演边自动量她动没动（整轮大约 {verifyEtaSecs} 秒）。也盯着上面那块看。"
+
+#: src/pages/SupportModelNewPage.tsx
+#~ msgid "按顺序演一遍：说话对口型、眨眼、每个对上的动作 / 表情 / 触摸区各来一次。盯着上面那块看。"
+#~ msgstr "按顺序演一遍：说话对口型、眨眼、每个对上的动作 / 表情 / 触摸区各来一次。盯着上面那块看。"
 
 #: src/components/flow/GridShotsWizard.tsx
 msgid "按顺序点要拍的格子：点的先后就是成段的先后。每一格变成一段，那一格的画面当这一段的开头。"
@@ -14866,6 +14902,10 @@ msgstr "摸{areaName}播哪个动作"
 #: src/pages/SupportModelNewPage.tsx
 msgid "摸「{areaName}」→ {target}"
 msgstr "摸「{areaName}」→ {target}"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "摸这里没有反应"
+msgstr "摸这里没有反应"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "撒娇"
@@ -16604,6 +16644,14 @@ msgstr "查认证结果没成：{0}"
 msgid "查询失败"
 msgstr "查询失败"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "标「没量到」的那几项一帧都没采到：页面当时多半在后台。回到前台再跑一遍。"
+msgstr "标「没量到」的那几项一帧都没采到：页面当时多半在后台。回到前台再跑一遍。"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "标「看不出变化」的是自动量出来的（可能误判）：演的时候模型几乎没动。多半是这个动作组 / 表情写给了模型里没有的参数，也可能它本来就动得很轻 —— 回去换一个，或者盯着上面再看一眼。不拦发布。"
+msgstr "标「看不出变化」的是自动量出来的（可能误判）：演的时候模型几乎没动。多半是这个动作组 / 表情写给了模型里没有的参数，也可能它本来就动得很轻 —— 回去换一个，或者盯着上面再看一眼。不拦发布。"
+
 #: src/components/support/AdminTicketsView.tsx
 msgid "标为处理中"
 msgstr "标为处理中"
@@ -18339,6 +18387,10 @@ msgstr "没说是哪个片段：先点选一个片段，或者说「片段 2」�
 msgid "没读出识别结果。{moneyLine}可以自己填，或者再识别一次"
 msgstr "没读出识别结果。{moneyLine}可以自己填，或者再识别一次"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "没跑完，先继续"
+msgstr "没跑完，先继续"
+
 #: src/components/VolcCompatToggle.tsx
 msgid "没过审核："
 msgstr "没过审核："
@@ -18358,6 +18410,10 @@ msgstr "没连上网，这一段没下完。再点一次会从头重下这一段
 #: src/pages/SettingsVoicePage.tsx
 msgid "没配云端语音时退回系统内置合成器（需装中文语音包）。"
 msgstr "没配云端语音时退回系统内置合成器（需装中文语音包）。"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "没量到"
+msgstr "没量到"
 
 #: src/studio/gridDraftStore.ts
 msgid "没问到服务端收没收到上一组（网络断了一下）—— 为了不让同一组画面付两次钱，这一次先不开新的一组；过一会儿再点一次（问一下不花钱）"
@@ -20378,6 +20434,10 @@ msgstr "看一遍你排好的片段：起个片头标题、每段写一句旁白
 msgid "看一遍再铺；铺是整表覆盖，现有流水线会先问你"
 msgstr "看一遍再铺；铺是整表覆盖，现有流水线会先问你"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "看不出变化"
+msgstr "看不出变化"
+
 #: src/components/TemplateShelf.tsx
 #: src/pages/WorkshopPage.tsx
 msgid "看全部"
@@ -20625,8 +20685,12 @@ msgid "真的删掉？（连云端视频一起）"
 msgstr "真的删掉？（连云端视频一起）"
 
 #: src/pages/SupportModelNewPage.tsx
-msgid "眨眼（她自己会眨，盯 3 秒）"
-msgstr "眨眼（她自己会眨，盯 3 秒）"
+msgid "眨一下眼，看眼睛闭没闭上"
+msgstr "眨一下眼，看眼睛闭没闭上"
+
+#: src/pages/SupportModelNewPage.tsx
+#~ msgid "眨眼（她自己会眨，盯 3 秒）"
+#~ msgstr "眨眼（她自己会眨，盯 3 秒）"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "眼球上下"
@@ -20665,6 +20729,10 @@ msgstr "知道了，去改挂卡"
 #: src/components/flow/TierRow.tsx
 msgid "知道了，换到「{0}」"
 msgstr "知道了，换到「{0}」"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "知道了，继续"
+msgstr "知道了，继续"
 
 #: src/pages/SimpleModePage.tsx
 msgid "确认一下就出片"
@@ -23161,6 +23229,10 @@ msgstr "触摸 · {name}"
 msgid "触摸区"
 msgstr "触摸区"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "触摸那几项只试播了它对上的动作；命中区对没对上量不到，要你自己在上面的预览里摸一下（会写「刚点到：…」）。"
+msgstr "触摸那几项只试播了它对上的动作；命中区对没对上量不到，要你自己在上面的预览里摸一下（会写「刚点到：…」）。"
+
 #: src/pages/AdminPage.tsx
 msgid "订单"
 msgstr "订单"
@@ -23461,6 +23533,16 @@ msgstr "试跑"
 msgid "试跑跑到一半，上面那块换成了别的模型 —— 这一轮不作数。点「重新加载预览」再跑一遍。"
 msgstr "试跑跑到一半，上面那块换成了别的模型 —— 这一轮不作数。点「重新加载预览」再跑一遍。"
 
+#. placeholder {0}: s.verifyUnknown.length
+#: src/pages/SupportModelNewPage.tsx
+msgid "试跑过了，但有 {0} 项没量到（页面当时在后台）。"
+msgstr "试跑过了，但有 {0} 项没量到（页面当时在后台）。"
+
+#. placeholder {0}: s.verifyWarn.length
+#: src/pages/SupportModelNewPage.tsx
+msgid "试跑过了，但有 {0} 项看不出变化，装上之后可能不会演。"
+msgstr "试跑过了，但有 {0} 项看不出变化，装上之后可能不会演。"
+
 #. placeholder {0}: s.verifyDone.length
 #: src/pages/SupportModelNewPage.tsx
 msgid "试跑过了（{0} 项）。"
@@ -23470,6 +23552,10 @@ msgstr "试跑过了（{0} 项）。"
 #: src/pages/PublishPage.tsx
 msgid "话题标签"
 msgstr "话题标签"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "该做这个动作的时候她不动"
+msgstr "该做这个动作的时候她不动"
 
 #: src/pages/NotificationsPage.tsx
 msgid "该回访了"
@@ -23965,6 +24051,10 @@ msgstr "跳过"
 msgid "跳过 / 下一步"
 msgstr "跳过 / 下一步"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "跳过试跑，继续"
+msgstr "跳过试跑，继续"
+
 #: src/types.ts
 msgid "身上佩戴的饰物、纹样或疤痕"
 msgstr "身上佩戴的饰物、纹样或疤痕"
@@ -24211,6 +24301,10 @@ msgstr "还是没问到服务端收没收到上一组（网络不稳）——网
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "还有 {emptyCount} 个角色位没挂卡 —— <0>可以直接出片</0>，没挂的通常保持白色人偶的样子。 ⚠ 素材里<1>镜头切换多</1>时例外：实测 AI 可能拿已挂的卡把没挂的位子也换掉（同一个角色出现两份）。 要稳就把每个位子都挂上（同一张卡可以挂多个位子），或选一镜到底的素材。"
 msgstr "还有 {emptyCount} 个角色位没挂卡 —— <0>可以直接出片</0>，没挂的通常保持白色人偶的样子。 ⚠ 素材里<1>镜头切换多</1>时例外：实测 AI 可能拿已挂的卡把没挂的位子也换掉（同一个角色出现两份）。 要稳就把每个位子都挂上（同一张卡可以挂多个位子），或选一镜到底的素材。"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "还有 {unrun} 项没试。"
+msgstr "还有 {unrun} 项没试。"
 
 #: src/data/appUpdate.ts
 msgid "还没允许这个 App 安装应用：先去开启「允许安装未知应用」，再点一次。"
@@ -24483,6 +24577,10 @@ msgstr "还没登录，装不了。"
 #: src/studio/flowStore.ts
 msgid "还没给任何人偶挂卡，先去挂卡再合成预览"
 msgstr "还没给任何人偶挂卡，先去挂卡再合成预览"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "还没试跑。"
+msgstr "还没试跑。"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "还没试跑过。发之前建议回上一步跑一遍，看看动作和表情是不是真的都能演。"
@@ -25549,6 +25647,10 @@ msgid "这个包里没有 cdi3.json，必须项一条都核不了 —— 我们�
 msgstr "这个包里没有 cdi3.json，必须项一条都核不了 —— 我们按「标准参数名」放行。装上之后要是不会眨眼 / 不会转头，多半就是参数名不标准，回 Cubism 改成 ParamEyeLOpen 这一套再导一次。"
 
 #: src/pages/SupportModelNewPage.tsx
+msgid "这个包里没有动作组：待机和各个动作都不会演。"
+msgstr "这个包里没有动作组：待机和各个动作都不会演。"
+
+#: src/pages/SupportModelNewPage.tsx
 msgid "这个包里没有它 —— 换一个，或者回 Cubism 重新导出。"
 msgstr "这个包里没有它 —— 换一个，或者回 Cubism 重新导出。"
 
@@ -25598,6 +25700,10 @@ msgstr "这个模型是用较新版本的 Cubism 导出的，App 里的运行时
 #: src/pages/SupportModelsPage.tsx
 msgid "这个模型没有可用的文件地址，换一个试试。"
 msgstr "这个模型没有可用的文件地址，换一个试试。"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "这个模型没有命中区，摸哪里都没有反应。"
+msgstr "这个模型没有命中区，摸哪里都没有反应。"
 
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "这个模板<0>已经发布在市场上</0>，服务端不许直接改它的位置（包括删掉画面上 找不到的那个位子）—— 位置一变，正在用它的人手里那份「哪个人偶挂谁」就全对不上了，而他们那边 不会有任何提示。先下架，改完再发布一次。"
@@ -25823,6 +25929,10 @@ msgstr "这会儿没能取到你的卡片（{0}）"
 msgid "这位老师会说话（已发布为启梦人格）"
 msgstr "这位老师会说话（已发布为启梦人格）"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "这几个参数没对上：{names}。用到它们的那部分演出不会动；参数这一栏 App 里还改不了，要改得回 Cubism 把参数 id 改成标准名再导出。"
+msgstr "这几个参数没对上：{names}。用到它们的那部分演出不会动；参数这一栏 App 里还改不了，要改得回 Cubism 把参数 id 改成标准名再导出。"
+
 #: src/studio/cutAgent.ts
 msgid "这几句没听懂：{list}"
 msgstr "这几句没听懂：{list}"
@@ -25831,6 +25941,10 @@ msgstr "这几句没听懂：{list}"
 #: src/studio/canvasAgent.ts
 msgid "这几句里同时写了中文和英文的段号，分不清是哪一段，没动：{0}。"
 msgstr "这几句里同时写了中文和英文的段号，分不清是哪一段，没动：{0}。"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "这几样装上之后不会演，别人用的时候也一样："
+msgstr "这几样装上之后不会演，别人用的时候也一样："
 
 #: src/data/agentSkills.ts
 msgid "这句话超过 {VIDEO_PROMPT_MAX} 字——输入条本来也发不出这么长，精简一下"
@@ -27206,6 +27320,10 @@ msgstr "递剑的那只手…"
 #: src/studio/npcPersona.ts
 msgid "递素材给我，炼成卡；卡拖到桌上的虚线卡位，铸成一段；段够了点法阵，推成成片。想看现成的就去市场。"
 msgstr "递素材给我，炼成卡；卡拖到桌上的虚线卡位，铸成一段；段够了点法阵，推成成片。想看现成的就去市场。"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "通用参数"
+msgstr "通用参数"
 
 #: src/pages/AdminPage.tsx
 msgid "通知"

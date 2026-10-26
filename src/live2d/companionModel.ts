@@ -134,6 +134,42 @@ function clamp01(v: number) {
   return v < 0 ? 0 : v > 1 ? 1 : v;
 }
 
+/**
+ * probeParams 的结果（上传向导第 ⑤ 步自动量「动没动」，判定在 App 的 data/live2dMotionCheck）。
+ * 下标空间：先是全部真实参数（0..参数个数-1），接着是全部 Part（不透明度），两段连在一起。
+ */
+export type ParamProbe = {
+  /** 采到了几帧（页面在后台时 rAF 不跑，会很少甚至是 0） */
+  frames: number;
+  /** 每个下标在窗口里的最小 / 最大值，已按各自量程归一化到 0~1（Part 不透明度本来就是 0~1） */
+  min: number[];
+  max: number[];
+  /** 判「动没动」时不看的下标：我们每帧自己写的（口型、双眼、眼球、手臂、没物理时的裙摆 / 头发、表情补片 Part）与物理的输出（风一直在吹，自己会晃） */
+  skip: number[];
+  /** 视线会叠上去的头部左右 / 上下两个下标（gazed 为真时也不看） */
+  gaze: number[];
+  /** 窗口里视线动过（有人在舞台上按住 / 拖动，头会跟着转） */
+  gazed: boolean;
+  /** 口型 / 左眼两个槽对应的真实下标；-1 = 模型里没有这个参数 */
+  mouth: number;
+  eye: number;
+};
+
+/** Cubism Core 的原始模型（getModel()）里 probeParams 要读的那几格；全局包没有类型，只描述用到的 */
+type RawCoreModel = {
+  parameters: { ids: ArrayLike<string>; values: ArrayLike<number>; minimumValues: ArrayLike<number>; maximumValues: ArrayLike<number> };
+  parts: { ids: ArrayLike<string>; opacities: ArrayLike<number> };
+};
+/** 框架 CubismBreath 的内部字段（pixi-live2d-display 0.5 里没混淆，见 probeParams 的 ★） */
+type BreathInternals = {
+  _currentTime?: number;
+  _breathParameters?: Array<{ parameterId?: string; offset?: number; peak?: number; cycle?: number; weight?: number }>;
+};
+/** 框架 CubismPhysics 的内部字段：每条输出写给哪个参数 */
+type PhysicsInternals = { _physicsRig?: { outputs?: Array<{ destination?: { id?: string } } | null> } };
+/** probeParams 判「视线动过」的门槛：lookForward 之后视线按 260ms 的时间常数回正，到 0.02 时头部只剩 0.3° 的偏转 */
+const PROBE_GAZE_EPS = 0.02;
+
 let singleton: CompanionModel | null = null;
 let pending: Promise<CompanionModel> | null = null;
 /** 正在加载的那次是哪个 url（acquire 串行化用，见 acquire 的 ★） */
@@ -547,6 +583,170 @@ export class CompanionModel {
   stopSpeaking() {
     this.synthetic = null;
     this.mouthTarget = 0;
+  }
+
+  // ── 试演专用：上传向导第 ⑤ 步自动量「动没动」（2026-10-26，App 独有）─────────────────────────────
+  // ★ 官网 client 的 companionModel.ts 也有一份驱动，但官网没有 Live2D 上传向导：下面 stopMotions / resetFaceForProbe / blinkNow /
+  //   probeParams 这一段官网那份不搬 —— 别把它当成漏同步。四个都只新增，不改上面任何一条演出路径（客服页、老师页都不调它们）。
+
+  /**
+   * 试演专用：立刻停掉正在播的动作（不淡出），连同还没轮到的待播动作与压制窗口；框架下一帧自己从头起待机动作。
+   * 试跑每一项之前调一次：不停的话上一项的动作还在播 / 淡出，那一截会算进下一项的采样窗口 —— 下一项哪怕是个哑动作也会被量成「动了」。
+   */
+  stopMotions() {
+    if (this.disposed) return;
+    this.pendingAction = null;
+    this.actionSuppressUntil = 0;
+    this.waveStart = 0;
+    try {
+      (this.model.internalModel.motionManager as { stopAllMotions?: () => void }).stopAllMotions?.();
+    } catch {
+      // 框架版本不对：不停也只是让下一项的判定宽一点，别为这个打断试跑
+    }
+  }
+
+  /**
+   * 试演专用：表情当场回平静（不渐变），并把表情会碰的那些参数写回默认值。试跑每一项之前调一次。
+   * ★★ 只 setFace("normal") 不够（2026-10-26 在官方看板娘上量出来的）：表情参数是 tick 里每帧 addParameterValueById 叠上去的，
+   *   而 tick 跑在 loadParameters 之后 —— 待机动作不带曲线的参数（眉毛、嘴形、脸红）每帧叠的量会留到下一帧、越叠越多，
+   *   几帧就顶到量程边上，回 normal 之后也停在那儿（实测 sad 之后 ParamBrowLForm 一直是 -1）。不写回的话，
+   *   「哭」排在「难过」后面、往同一个方向推，量出来一动不动，被标「看不出变化」。
+   *   这是演出那一侧的老问题，这里只在试跑里把起点摆正，不改客服页的演出。
+   */
+  resetFaceForProbe() {
+    if (this.disposed) return;
+    this.setFace("normal");
+    this.poseCurrent = {};
+    const raw = this.model.internalModel.coreModel.getModel?.() as (RawCoreModel & { parameters: { defaultValues?: ArrayLike<number> } }) | undefined;
+    const defaults = raw?.parameters.defaultValues;
+    if (!raw || !defaults) return;
+    const ids = Array.from(raw.parameters.ids);
+    const keys = new Set<string>();
+    for (const pose of Object.values(FACE_POSES)) for (const k of Object.keys(pose.params)) keys.add(k);
+    for (const f of Object.values(this.mapping?.faces ?? {})) for (const k of Object.keys(f?.params ?? {})) keys.add(k);
+    // 直接写 Core 的数组（框架的 _parameterValues 就是它）：下一帧动作从这个值起算、saveParameters 存下的也是它，于是留得住
+    const values = raw.parameters.values as unknown as { [i: number]: number };
+    for (const k of keys) {
+      const i = ids.indexOf(k);
+      if (i >= 0) values[i] = defaults[i];
+    }
+  }
+
+  /** 试演专用：现在就眨一次（平时随机隔 2.4~6 秒才眨，试跑「眨眼」那一项等不起）。当前表情要求不眨（laughing 等）时照旧不眨 */
+  blinkNow() {
+    if (this.disposed) return;
+    this.nextBlinkAt = performance.now();
+  }
+
+  /**
+   * 试演专用：在 ms 毫秒里逐帧记下每个真实参数 / Part 的最小、最大值（按各自量程归一化到 0~1）。判「动没动」不在这里。
+   *
+   * ★★ 挂在 internalModel 的 beforeModelUpdate 上读（构造函数里「开场稳定」也挂这里）：运行时一帧的顺序是
+   *   动作 → saveParameters → exp3 表情 → 呼吸 → 物理 → pose → beforeModelUpdate → coreModel.update() → loadParameters，
+   *   我们的 tick 在渲染之后才跑 —— 在 tick 里读，读到的是 loadParameters 还原过、只剩动作的那一份，exp3 表情与物理全看不见。
+   * ★★ 只按真实下标读（getModel().parameters.values，长度 = 参数个数），不用 getParameterValueById：Cubism 对模型里没有的 id
+   *   会另开一个假下标、把写进去的值存在那儿，按 id 读回来的是我们自己每帧写进去的值 —— 不存在的参数也会显得「动了」。
+   *   找下标也只查 parameters.ids，不调 getParameterIndex（它对不存在的 id 当场分一个假下标，有副作用）。
+   * ★ 框架的「呼吸」（CubismBreath：头三个角度、身体、ParamBreath 各一条 3~15 秒周期的正弦，与演什么无关）照它的公式逐帧扣掉：
+   *   它的周期比采样窗口长，不扣的话同一个哑动作换个时刻量，头部角度的起伏能差出一截。读的是框架内部字段
+   *   （_breathParameters / _currentTime，这份运行时里没混淆），读不到就不扣 —— 判定那一侧只会更宽松，不会抛错。
+   * ★ skip（不看的下标）：我们每帧自己写的口型 / 双眼 / 眼球 / 手臂 / 裙摆 / 头发、表情补片 Part（官方形象才有）、物理的输出（风每帧在吹）；
+   *   视线叠上去的头部左右 / 上下单列在 gaze，窗口里有人碰过舞台时由判定那一侧一起跳过。
+   * ★ 用 setTimeout 收尾而不是数帧：页面在后台时 rAF 不跑，数帧会永远等下去（CLAUDE.md「等媒体事件一律带上限」）；
+   *   帧数照实交回去，太少由调用方说「没量到」。
+   * @returns null = 模型已经拆了 / 这份运行时读不到参数表
+   */
+  probeParams(ms: number): Promise<ParamProbe | null> {
+    if (this.disposed) return Promise.resolve(null);
+    const internal = this.model.internalModel;
+    const readRaw = () => internal.coreModel.getModel?.() as RawCoreModel | undefined;
+    const raw = readRaw();
+    const on = internal.on;
+    const off = internal.off;
+    if (!raw?.parameters?.values || !raw.parts?.opacities || typeof on !== "function" || typeof off !== "function") return Promise.resolve(null);
+    const paramIds = Array.from(raw.parameters.ids);
+    const n = paramIds.length;
+    const partCount = raw.parts.ids.length;
+    const lo = Array.from(raw.parameters.minimumValues);
+    const hi = Array.from(raw.parameters.maximumValues);
+    const indexOf = (id: string | null | undefined) => (id ? paramIds.indexOf(id) : -1);
+
+    const skip = new Set<number>();
+    // 口型 / 双眼 / 眼球按映射的 id；手臂、裙摆、头发是 onTick 里按写死的 id 每帧整值写的（手臂跟着待机动作的呼吸参数开合，
+    // 实测官方看板娘一个哑动作播完、待机从头再起时，ParamArmL 的起伏是待机基线的 1.55 倍 —— 不排除就把哑动作量成「动了」）
+    for (const id of [this.P.mouthOpen, this.P.eyeL, this.P.eyeR, this.P.eyeBallX, this.P.eyeBallY, "ParamArmL", "ParamArmR", "ParamSkirtSway", "ParamHairFront", "ParamHairBack"]) {
+      const i = indexOf(id);
+      if (i >= 0) skip.add(i);
+    }
+    for (const i of this.partIndex.values()) if (i >= 0 && i < partCount) skip.add(n + i);
+    const outputs = (internal.physics as PhysicsInternals | null | undefined)?._physicsRig?.outputs;
+    if (Array.isArray(outputs)) {
+      for (const o of outputs) {
+        const i = indexOf(o?.destination?.id);
+        if (i >= 0) skip.add(i);
+      }
+    }
+    const gaze = [indexOf(this.P.angleX), indexOf(this.P.angleY)].filter((i) => i >= 0);
+
+    // 呼吸：每个真实下标上挂着哪几条正弦（同一个参数可能挂两条，照原样逐条扣）
+    const breath = (internal as { breath?: BreathInternals | null }).breath ?? null;
+    const breathTerms: Array<{ i: number; offset: number; peak: number; cycle: number; weight: number }> = [];
+    if (breath && Array.isArray(breath._breathParameters)) {
+      for (const b of breath._breathParameters) {
+        const i = indexOf(b?.parameterId);
+        if (i < 0 || !b.cycle) continue;
+        breathTerms.push({ i, offset: b.offset ?? 0, peak: b.peak ?? 0, cycle: b.cycle, weight: b.weight ?? 1 });
+      }
+    }
+
+    const total = n + partCount;
+    const min = new Array<number>(total).fill(Infinity);
+    const max = new Array<number>(total).fill(-Infinity);
+    const values = new Array<number>(n);
+    let frames = 0;
+    let gazed = false;
+    const onFrame = () => {
+      const live = readRaw();
+      if (!live) return;
+      frames++;
+      if (this.gazeTarget.x !== 0 || this.gazeTarget.y !== 0 || Math.abs(this.gaze.x) > PROBE_GAZE_EPS || Math.abs(this.gaze.y) > PROBE_GAZE_EPS) gazed = true;
+      for (let i = 0; i < n; i++) values[i] = live.parameters.values[i];
+      // 与框架 CubismBreath.updateParameters 同一个式子（相位 = 2 × _currentTime × 3.14159，它自己就写的 3.14159）
+      if (breathTerms.length && typeof breath?._currentTime === "number") {
+        const phase = 2 * breath._currentTime * 3.14159;
+        for (const b of breathTerms) values[b.i] -= (b.offset + b.peak * Math.sin(phase / b.cycle)) * b.weight;
+      }
+      for (let i = 0; i < n; i++) {
+        const span = hi[i] - lo[i];
+        const x = span > 0 ? (values[i] - lo[i]) / span : 0;
+        if (x < min[i]) min[i] = x;
+        if (x > max[i]) max[i] = x;
+      }
+      for (let j = 0; j < partCount; j++) {
+        const x = live.parts.opacities[j];
+        if (x < min[n + j]) min[n + j] = x;
+        if (x > max[n + j]) max[n + j] = x;
+      }
+    };
+    on.call(internal, "beforeModelUpdate", onFrame);
+    return new Promise((resolve) => {
+      setTimeout(
+        () => {
+          try {
+            off.call(internal, "beforeModelUpdate", onFrame);
+          } catch {
+            // 模型已经拆了：事件源跟着没了，摘不摘都一样
+          }
+          if (this.disposed) {
+            resolve(null);
+            return;
+          }
+          const finite = (v: number) => (Number.isFinite(v) ? v : 0);
+          resolve({ frames, min: min.map(finite), max: max.map(finite), skip: [...skip], gaze, gazed, mouth: indexOf(this.P.mouthOpen), eye: indexOf(this.P.eyeL) });
+        },
+        Math.max(0, ms),
+      );
+    });
   }
 
   /**
