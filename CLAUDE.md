@@ -1070,6 +1070,9 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 - [`docs/api-contract.md`](docs/api-contract.md) — 与 server 的接口契约（三仓共享）
 - [`docs/play-store-checklist.md`](docs/play-store-checklist.md) — 上架检查单
 - [`docs/dependency-security-2026-10.md`](docs/dependency-security-2026-10.md) — 2026-10-21 处理 Dependabot 32 条（2 critical / 22 high / 8 moderate）：改了哪 8 个包、两处钉死的理由（Capacitor 8.5.1、postcss-selector-parser 7.1.7）、没修也修不了的 `braces`、怎么验的；修复要等下一次发版才到用户手里
+- [`docs/support-ai-video-research-2026-10-25.md`](docs/support-ai-video-research-2026-10-25.md) — AI 客服 × 四支 B 站视频（一键图片分层 / 角色和桌面互动 / AI 全自动 Live2D / 0.8B 实时动作）调研与改动（2026-10-25）：
+  这次在 App 里做了八项（字幕跟着念到的那句、安全底线 caps + 求助卡、摸看板娘台词按语言且只合成一次、演出跟着声音走、三段新动作、moc3 加载前检查 + 失败重试、上传向导试跑说实话、人格举报）；
+  第四节 14 件等主人定（第 1 件涉及第三方许可，正本在私有笔记）；第五节外部事实（Seedream 图层拆分、See-through / Bunraku / StretchyStudio / HAST-SEC 的许可与现状）
 - [`docs/ui-refactoring-ui-pass-2026-10-23.md`](docs/ui-refactoring-ui-pass-2026-10-23.md) — 按《Refactoring UI》二十条走查 App（2026-10-23，主人给的 B 站视频 + 评论区）：
   四路审计约 160 条 → 这次改了按钮层级（出片后下一步才是主键、市场卡片的实心键改淡、⚡ 只留给花钱）、字重 / 灰阶 / 提示条 / 命中区 / 空态 / 开发用语上屏约 50 处；
   等主人定的 12 件在第四节（第三级表面色、`<Warn>` 提示条、价签格式器、emoji → Icon…）；第五节「给规矩配样板」回应评论区那条「给 AI 例子而不是立规矩」；

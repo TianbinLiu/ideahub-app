@@ -58,8 +58,9 @@
 | 工具 | 能做什么 | 结论 |
 |---|---|---|
 | [See-through](https://github.com/shitagaki-lab/see-through)（SIGGRAPH 2026） | 单图拆层 + 遮挡补全（已在用） | 拆层质量够，补全区域有残影 → 用 IOPaint 二次修补 |
-| [Bunraku](https://bunraku-live2d.github.io/)（arXiv 2607.27348） | 单图 → 分层 + 每层网格 + 逐顶点位移，声称 Live2D 兼容 | **仓库只有 readme，代码/权重未发布**（2026-07-31），持续关注 |
-| [StretchyStudio](https://github.com/MangoLion/stretchystudio) | 拆层 + DWPose 骨架 + 网格变形 | 输出是自家格式，不出 moc3；可借它的骨架估计给手臂/腿定枢轴 |
+| [Bunraku](https://bunraku-live2d.github.io/)（arXiv 2607.27348） | 单图 → 分层 + 每层网格 + 逐顶点位移，声称 Live2D 兼容 | **仓库只有 readme，代码/权重未发布**（2026-07-31；10-25 复查仍没有，三个问开源时间的 issue 都没回）；论文自己说因为 Cubism 二进制加密，输出的是自家资源包 + 自家渲染器，**不是 .moc3** |
+| [StretchyStudio](https://github.com/MangoLion/stretchystudio) | 拆层 + DWPose 骨架 + 网格变形 | 2026-04 起能导出 .moc3 / .cmo3 并自动绑定，但 moc3 写入器自述来自逆向 —— **不能接**（同 image2live2d）；可借它的骨架估计给手臂/腿定枢轴 |
+| Seedream 5.0 pro / flash 图层拆分（`layer_decomposition`） | 一张图 → 1 张底图 + 最多 16 层透明 PNG，可点名部件、可圈选 | 2026-10-25 调研（B 站「Krene 一键图片分层」）：每层 0.15 元起，能给小梦补下睫毛 / 手指这类细分层，没小验过；拆出来仍要在 Cubism 里手工挂网格、重键参数。见 [`support-ai-video-research-2026-10-25.md`](support-ai-video-research-2026-10-25.md) 四之 12、五 |
 | [Inochi2D / Inochi Creator](https://github.com/Inochi2D/inochi-creator) | 开源的 Live2D 替代（编辑器 + 运行时） | 无成熟 Web 运行时，App/官网都是 pixi-live2d-display，不换 |
 | [IOPaint](https://github.com/Sanster/IOPaint) | LaMa 修补 | §2 的关键工具 |
 | Cubism Editor 自带 | 自动网格、自动脸部动作、自动摆动生成、物理设置、动画 | 本轮全部用的是这些；物理设置对话框（Modeling ▸ Parameter ▸ Physics Settings）还没用，下一步用它替代运行时弹簧 |
