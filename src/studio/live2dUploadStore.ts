@@ -126,6 +126,11 @@ export interface Live2dUploadDraft {
   verifyWarn: string[];
   /** 跑过、但没量到的项（页面在后台，一帧都没采到）：不说 ✓ 也不说 ⚠ */
   verifyUnknown: string[];
+  /**
+   * 这一轮演之前那段待机基线没量成（verifyUnknown 里的动作 / 表情项是因为它才没量到，不是它们自己没采到画面）：
+   * 界面上两种原因说的话不一样（data/live2dMotionCheck 的 noBase）。
+   */
+  verifyNoBase: boolean;
   /** 正在跑第几项的整句；空 = 没在跑 */
   verifyNow: string;
   /**
@@ -188,6 +193,7 @@ export function initialLive2dDraft(): Live2dUploadDraft {
     verifyDone: [],
     verifyWarn: [],
     verifyUnknown: [],
+    verifyNoBase: false,
     verifyNow: "",
     verifyOk: false,
     name: "",
@@ -565,7 +571,7 @@ export async function startBundleInspect(): Promise<void> {
  * ★ 改了映射必须作废（2026-10-26）：试跑记录按槽位记键（`a:wave`），不带当时指的是哪个组 —— 不清的话，
  *   把挥手从 Wave 换成 Flick 之后，旧的 ✓ 还挂在新组上，第 ⑥ 步照样写「试跑过了」，而新组一次都没演过。
  */
-const VERIFY_WIPE = { verifyDone: [] as string[], verifyWarn: [] as string[], verifyUnknown: [] as string[], verifyOk: false };
+const VERIFY_WIPE = { verifyDone: [] as string[], verifyWarn: [] as string[], verifyUnknown: [] as string[], verifyNoBase: false, verifyOk: false };
 
 /** 改一条映射：store 那份换新对象（重渲染），交给运行时的那份原地改（预览立刻生效）；旧的试跑记录作废（见 VERIFY_WIPE） */
 export function patchMapping(next: CompanionMappingWire): void {
@@ -582,8 +588,11 @@ export function resetMapping(): void {
 
 // ── ⑤ 试跑 ──────────────────────────────────────────────────────────
 
-/** 一项试跑的结局：量到动了 / 量出来看不出变化（⚠）/ 没量到（页面在后台）。没东西可量的项（只说话的触摸区）记 ok */
-export type VerifyResult = "ok" | "still" | "unknown";
+/**
+ * 一项试跑的结局：量到动了 / 量出来看不出变化（⚠）/ 没量到（这一项没采到足够的画面）/ 没量到（演之前那段基线没量成）。
+ * 没东西可量的项（只说话的触摸区）记 ok。noBase 在列表上与 unknown 画法一样，只是说的原因不同（见 verifyNoBase）
+ */
+export type VerifyResult = "ok" | "still" | "unknown" | "noBase";
 
 /** 记下一项跑完了，连同它的结局（同一项再跑一遍时以这一次为准） */
 export function markVerified(key: string, result: VerifyResult = "ok"): void {
@@ -592,7 +601,8 @@ export function markVerified(key: string, result: VerifyResult = "ok"): void {
   set({
     verifyDone: s.verifyDone.includes(key) ? s.verifyDone : [...s.verifyDone, key],
     verifyWarn: result === "still" ? [...without(s.verifyWarn), key] : without(s.verifyWarn),
-    verifyUnknown: result === "unknown" ? [...without(s.verifyUnknown), key] : without(s.verifyUnknown),
+    verifyUnknown: result === "unknown" || result === "noBase" ? [...without(s.verifyUnknown), key] : without(s.verifyUnknown),
+    verifyNoBase: s.verifyNoBase || result === "noBase",
   });
 }
 

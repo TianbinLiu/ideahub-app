@@ -743,6 +743,11 @@ msgstr "{0, plural, one {# video} other {# videos}}"
 #~ msgid "{0} 个卡组"
 #~ msgstr "{0, plural, one {# deck} other {# decks}}"
 
+#. placeholder {0}: gapView.params
+#: src/pages/SupportModelNewPage.tsx
+msgid "{0} 个参数没对上，用到它们的那部分演出不会动。"
+msgstr "{0, plural, one {# parameter isn't mapped} other {# parameters aren't mapped}}; the parts of the performance that use them won't move."
+
 #. placeholder {0}: view.length
 #. placeholder {1}: formatDuration(total)
 #: src/pages/CutPage.tsx
@@ -2364,6 +2369,10 @@ msgstr "“Make a card from your own images” still has work running (AI images
 #: src/components/blockout/arkVideoRules.ts
 msgid "「自己挑」现在一帧有效的标记都没有（还没标，或者标的那几帧都落到选段外面去了）。AI 得看着画面才认得出里面有哪些人——把播放头拖到有人的地方点「标记这一帧」（至少 1 帧、最多 {BLOCKOUTIZE_FRAME_MAX} 帧），或者切回「自动」。"
 msgstr "“Pick myself” has no valid marks right now (none marked yet, or every marked frame has ended up outside the selection). The AI has to see the picture to recognize who's in it — drag the playhead to where people are and tap “Mark this frame” (at least 1 frame, at most {BLOCKOUTIZE_FRAME_MAX, plural, one {# frame} other {# frames}}), or switch back to “Auto”."
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "「说一句话」「眨一下眼」标「看不出变化」，是这个模型的嘴 / 眼睛参数没对上，或者被它自己的动作每一帧盖住了 —— 跟动作组无关，App 里也改不了，得回 Cubism 改参数名、或者把动作里的嘴 / 眼曲线去掉。不拦发布。"
+msgstr "If \"Say a line\" or \"Blink once\" shows \"No visible change\", this model's mouth / eye parameters aren't mapped, or its own motions overwrite them every frame — it has nothing to do with the motion groups and can't be fixed in the app: rename the parameters in Cubism, or remove the mouth / eye curves from the motions. This doesn't block publishing."
 
 #. 几个档位名接成一串时的分隔符。整串外面那对引号写在句子里，所以中文是前一个名字的右引号接上后一个的左引号（「极速」「标准」）；英文写成 ”, “ 就是 “Fast”, “Standard”
 #: src/data/economy.ts
@@ -8661,6 +8670,10 @@ msgstr "Action · {name}"
 #: src/pages/SupportModelNewPage.tsx
 msgid "动作 {0} 段 / {1} 组 · 表情 {2} 个 · 命中区 {3} 个 · 贴图 {4} 张（最大边 {5}px）"
 msgstr "{0, plural, one {# motion} other {# motions}} in {1, plural, one {# group} other {# groups}} · {2, plural, one {# expression} other {# expressions}} · {3, plural, one {# hit area} other {# hit areas}} · {4, plural, one {# texture} other {# textures}} (longest side {5}px)"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "动作 / 表情标「看不出变化」是自动量出来的（可能误判）：演的时候模型几乎没动。多半是这个动作组 / 表情写给了模型里没有的参数；标着「通用参数」的表情，也可能是被模型自己的待机动作每一帧盖住了；也可能它本来就动得很轻 —— 回去换一个，或者盯着上面再看一眼。不拦发布。"
+msgstr "\"No visible change\" on an action / expression is measured automatically and can be wrong: the model barely moved while it played. Usually the motion group / expression drives parameters this model doesn't have; an expression marked \"generic parameters\" may also be overwritten every frame by the model's own idle motion; or it may just move very subtly. Go back and pick another one, or watch the preview above once more. This doesn't block publishing."
 
 #: src/components/flow/GridShotsWizard.tsx
 msgid "动作：接下来几秒发生什么（空着的话这一段多半是一张不动的图）"
@@ -16637,12 +16650,8 @@ msgid "查询失败"
 msgstr "check failed"
 
 #: src/pages/SupportModelNewPage.tsx
-msgid "标「没量到」的那几项一帧都没采到：页面当时多半在后台。回到前台再跑一遍。"
-msgstr "Items marked \"Couldn't measure\" got no frames at all: the page was probably in the background. Bring it back to the foreground and run again."
-
-#: src/pages/SupportModelNewPage.tsx
-msgid "标「看不出变化」的是自动量出来的（可能误判）：演的时候模型几乎没动。多半是这个动作组 / 表情写给了模型里没有的参数，也可能它本来就动得很轻 —— 回去换一个，或者盯着上面再看一眼。不拦发布。"
-msgstr "\"No visible change\" is measured automatically and can be wrong: the model barely moved while it played. Usually the motion group / expression drives parameters this model doesn't have; it may also just move very subtly. Go back and pick another one, or watch the preview above once more. This doesn't block publishing."
+msgid "标「没量到」的那几项没采到足够的画面：页面当时多半在后台。回到前台再跑一遍。"
+msgstr "Items marked \"Couldn't measure\" didn't get enough frames: the page was probably in the background. Bring it back to the foreground and run again."
 
 #: src/components/support/AdminTicketsView.tsx
 msgid "标为处理中"
@@ -18585,6 +18594,10 @@ msgstr "Game hero entrance"
 #: src/components/guide/tours.tsx
 msgid "满意了点右上角「完成视频」，去剪辑页收尾、发布。<0>简约不进草稿库</0>：中途退出这一段就不在了—— 想细做、想留草稿，回创作入口换工坊（工作流画布是它的另一面）。"
 msgstr "When you're happy, tap “Finish video” at the top right to wrap up in the video editor and publish. <0>Simple mode isn't saved to drafts</0>: if you leave partway, this segment is gone — to work in more detail or keep a draft, go back to the Create page and switch to Studio (the workflow canvas is its other side)."
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "演之前那段对比没采到足够的画面，动作 / 表情那几项没法比，标了「没量到」：页面当时多半在后台。回到前台再跑一遍。"
+msgstr "The reference capture before the run didn't get enough frames, so the actions / expressions had nothing to compare against and are marked \"Couldn't measure\": the page was probably in the background. Bring it back to the foreground and run again."
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "演出中…"
@@ -23222,8 +23235,8 @@ msgid "触摸区"
 msgstr "Touch areas"
 
 #: src/pages/SupportModelNewPage.tsx
-msgid "触摸那几项只试播了它对上的动作；命中区对没对上量不到，要你自己在上面的预览里摸一下（会写「刚点到：…」）。"
-msgstr "The touch items only play their mapped motion; whether the hit area is right can't be measured. Touch the preview above yourself (it shows \"Just touched: …\")."
+msgid "触摸那几项只试播了它对上的动作；命中区对没对上量不到 —— 试跑跑完之后，自己在上面的预览里摸一下（会写「刚点到：…」）。"
+msgstr "The touch items only play their mapped motion; whether the hit area is right can't be measured — once the test run is done, touch the preview above yourself (it shows \"Just touched: …\")."
 
 #: src/pages/AdminPage.tsx
 msgid "订单"

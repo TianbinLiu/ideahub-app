@@ -41,7 +41,7 @@ import {
 } from "../companion/protocol";
 import { STANDARD_PARAMS, type ParamSlot } from "../live2d/mapping";
 import type { ParamProbe } from "../live2d/companionModel";
-import { judgeMotion, judgeOwn } from "../data/live2dMotionCheck";
+import { judgeMotion, judgeOwn, mergeProbes } from "../data/live2dMotionCheck";
 import { MAX_LIVE2D_BUNDLE_BYTES } from "../api/uploads";
 import {
   companionErrorText,
@@ -178,34 +178,49 @@ const PICKER_LIMIT = 40;
 const PREVIEW_TIMEOUT_MS = 45_000;
 /**
  * 试跑每一项之前「归位」：嘴闭上、表情当场回平静（连同被叠到量程边上的表情参数一起写回默认值，companionModel.resetFaceForProbe）、
- * 视线回正；上一项**播过动作**的，再把动作停掉、等待机动作淡回来。归位完了才演这一项、开始量。
- * ★ 不归位的话，上一项的动作还在播 / 淡出、上一个表情还挂着，那一截会算进这一项的采样窗口（data/live2dMotionCheck 比的是起伏）——
- *   一个哑动作排在真动作后面，就会被量成「动了」。
- * ★ 两个数（2026-10-26 在浏览器里拿官方看板娘量的：给它加了两段曲线全指向不存在参数的哑动作，2.6 秒 / 1.2 秒各一段，
- *   与 10 个动作、8 个通用参数表情、空跑对照穿插着跑两轮，两轮结果逐项相同）：
- *   - 播过动作之后等 VERIFY_MOTION_SETTLE_MS：停掉动作之后框架从头起待机动作，**淡入要 2 秒**（pixi-live2d-display 的
- *     idleMotionFadingDuration 默认 2000ms）。先试的 0.8 秒里，淡入那一截落进下一项的窗口，哑动作被量成「动了」（6 次里 3 次）；
- *     等够 2.2 秒（并把手臂这类我们每帧自己写的参数排除在外）之后，两轮哑动作 14 次全是「看不出变化」。
- *   - 没播动作（说话 / 眨眼 / 表情）之后等 VERIFY_SETTLE_MS：不停动作（停了反而要再等 2 秒淡入），只等表情淡出 ——
- *     exp3 表情缺省淡出 1 秒（运行时解析 exp3 时 FadeOutTime 缺省 1），留 0.2 秒余量。
+ * 视线回正、**停掉动作**（stopMotions）—— 框架下一帧从头起待机动作，而试跑期间待机钉在同一段（companionModel.pinIdleForProbe）。
+ * 等待机淡入完了才演这一项、开始量。
+ * ★★ 每一项都这样归位，包括说话 / 眨眼 / 表情（2026-10-26 审核指出，原来只有动作项之后才停动作）：
+ *   judgeMotion 比的是「这一窗的起伏」与「基线的起伏」，两份必须落在**同一段待机、同一个相位**上才可比。框架的待机是随机挑段的，
+ *   包里待机组有好几段、幅度不同（Cubism 官方样例 Hiyori 9 段）时，基线落在安静的那段、哑动作的窗口落在活跃的那段，就被量成「动了」；
+ *   表情项不停动作的话，窗口落在待机循环的任意相位上。钉住同一段 + 每一项都从「停掉动作」那一刻起算之后，每个窗口都是
+ *   「这一段待机的第 settle 秒起、往后 waitMs 秒」，而基线量的是这一段从头起的一整截（见页面里的 baselineMsFor），窗口落在它里面。
+ * ★ 等多久：至少 VERIFY_SETTLE_MS，并且不短于钉住那段待机的淡入（probeIdleFadeInMs，Hiyori 0.5 秒、没写的按框架缺省 2 秒）——
+ *   淡入没完时参数还是「停下那一刻的姿势」与待机曲线的混合，那一截与上一项演了什么有关，不确定。
+ *   2.2 秒是 2026-10-26 拿官方看板娘量的（先试 0.8 秒，淡入那一截落进下一项的窗口，哑动作 6 次里 3 次被量成「动了」）；
+ *   exp3 表情缺省淡出 1 秒（运行时解析 exp3 时 FadeOutTime 缺省 1）也在这里面。
  */
-const VERIFY_SETTLE_MS = 1200;
-const VERIFY_MOTION_SETTLE_MS = 2200;
-/** 归位要等多久（上一项播没播动作两档）—— 试跑真等的（runVerify）与顶上那句「整轮大约几秒」（verifyEtaSecs）都问它 */
-function settleMsAfter(afterMotion: boolean): number {
-  return afterMotion ? VERIFY_MOTION_SETTLE_MS : VERIFY_SETTLE_MS;
+const VERIFY_SETTLE_MS = 2200;
+/** 淡入之外再多等的余量（帧与 setTimeout 对不齐） */
+const VERIFY_SETTLE_PAD_MS = 200;
+/** 这一次归位要等多久（见 VERIFY_SETTLE_MS）—— 试跑真等的（runVerify）与顶上那句「整轮大约几秒」（verifyEtaSecs）都问它 */
+function verifySettleMs(): number {
+  const fade = companionBus.model?.probeIdleFadeInMs() ?? 0;
+  return Math.max(VERIFY_SETTLE_MS, fade + VERIFY_SETTLE_PAD_MS);
 }
 /**
- * 演之前单独量多久的待机基线（judgeMotion 拿每一项的起伏跟它比）。量之前按「播过动作」那样归位（停掉动作、等待机淡回来）。
- * 比演的窗口（动作 2.6 秒）稍长；试过 4 秒，判定结果逐项与 3 秒相同，就不多等那一秒。
+ * 基线比最长那一项的窗口再多量多久。基线从「停掉动作」那一刻起量，一直量到「归位时间 + 最长那一项的窗口 + 这一截」，
+ * 于是任何一项的窗口（归位之后的 waitMs）都落在基线量过的那一段待机里。
+ * ★ 从停下那一刻量起、不是从归位之后量起：一个比窗口短的哑动作（1.2 秒那种）播完，框架会在窗口中间把钉住的那段待机**从头**再起一遍，
+ *   那一截（这一段待机的开头）也得在基线里量到过，不然它比基线多出来的那点起伏就会被当成「动了」。
  */
-const VERIFY_BASELINE_MS = 3000;
+const VERIFY_BASELINE_PAD_MS = 400;
+/**
+ * 基线量几遍（合起来用，data/live2dMotionCheck.mergeProbes）。待机钉住之后每一遍走的是同一条轨迹，多量一遍等于把采样加密一倍。
+ * ★ 为什么要加密（2026-10-26 在 Hiyori 上量的）：起伏是逐帧取的 max − min，帧率低的那一份会漏掉快速的峰（眉毛一挑只有一两帧）。
+ *   基线那几秒帧率掉到 20 帧上下、某一项的窗口里是 60 多帧时，同一条待机轨迹量出来的起伏能差出 30%（哑触摸动作 ParamBrowLX 1.30 倍），
+ *   离 MOVE_K 的 1.5 只剩一点；量两遍之后同一项是 1.19~1.20 倍（两轮）。按 66 帧密采时基线与它都是 0.226 —— 差的全是漏采的峰。
+ */
+const VERIFY_BASELINE_ROUNDS = 2;
+/**
+ * 每次归位给待机钉多久（pinIdleForProbe 的到期时间）：盖住一次归位 + 最长的基线还有余量。页面意外没松开时，过了这么久框架自己恢复随机挑段。
+ */
+const VERIFY_IDLE_PIN_MS = 20_000;
 
 /**
- * 第 ⑤ 步一项试跑：怎么演、演多久、量什么（motion = 比待机基线；mouth / eye = 只看嘴 / 眼那一个参数；null = 没东西可量），
- * 以及演的时候会不会播动作（会的话，下一项归位时要先停掉它、等待机淡回来，见 VERIFY_MOTION_SETTLE_MS）
+ * 第 ⑤ 步一项试跑：怎么演、演多久、量什么（motion = 比待机基线；mouth / eye = 只看嘴 / 眼那一个参数；null = 没东西可量）
  */
-type VerifyItem = { key: string; label: string; run: () => void; waitMs: number; measure: "motion" | "mouth" | "eye" | null; playsMotion: boolean };
+type VerifyItem = { key: string; label: string; run: () => void; waitMs: number; measure: "motion" | "mouth" | "eye" | null };
 
 const inputCls =
   "w-full rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand";
@@ -514,6 +529,8 @@ export default function SupportModelNewPage() {
     useLive2dUpload.setState({ mounted: true });
     return () => {
       useLive2dUpload.setState({ mounted: false, verifyNow: "" });
+      // 试跑跑到一半离开这一页：待机放开（到期也会自己放开，见 VERIFY_IDLE_PIN_MS）
+      if (verifyRunning.current) companionBus.model?.pinIdleForProbe(0);
       verifyRunning.current = false;
       verifySeq.current++;
     };
@@ -575,9 +592,9 @@ export default function SupportModelNewPage() {
    */
   const verifyItems = useMemo(() => {
     const items: VerifyItem[] = [
-      { key: "speak", label: t`说一句话，看嘴动没动`, run: () => companionBus.speakSynthetic(2200), waitMs: 2600, measure: "mouth", playsMotion: false },
+      { key: "speak", label: t`说一句话，看嘴动没动`, run: () => companionBus.speakSynthetic(2200), waitMs: 2600, measure: "mouth" },
       // 不等她自己眨（随机隔 2.4~6 秒，3 秒的窗口一半时候等不到）：叫她现在就眨一次
-      { key: "blink", label: t`眨一下眼，看眼睛闭没闭上`, run: () => companionBus.model?.blinkNow(), waitMs: 1500, measure: "eye", playsMotion: false },
+      { key: "blink", label: t`眨一下眼，看眼睛闭没闭上`, run: () => companionBus.model?.blinkNow(), waitMs: 1500, measure: "eye" },
     ];
     for (const a of ACTIONS) {
       if (a === "none") continue;
@@ -590,7 +607,6 @@ export default function SupportModelNewPage() {
         run: () => companionBus.action(a),
         waitMs: TIMING.actionSuppressMs + 300,
         measure: "motion",
-        playsMotion: true,
       });
     }
     for (const f of FACES) {
@@ -604,7 +620,6 @@ export default function SupportModelNewPage() {
         run: () => companionBus.face(f),
         waitMs: 1800,
         measure: "motion",
-        playsMotion: false,
       });
     }
     for (const area of TOUCH_AREAS) {
@@ -619,7 +634,6 @@ export default function SupportModelNewPage() {
         waitMs: m.motion ? TIMING.actionSuppressMs + 300 : 600,
         // 只说话的那种没有动作可量：跑过就算（它本来就不该动）
         measure: m.motion ? "motion" : null,
-        playsMotion: !!m.motion,
       });
     }
     return items;
@@ -627,15 +641,24 @@ export default function SupportModelNewPage() {
 
   /** 这份清单里还没跑过的项数（第 ⑤ 步按钮上方那句话） */
   const unrun = verifyItems.filter((it) => !s.verifyDone.includes(it.key)).length;
-  const baselineSecs = VERIFY_BASELINE_MS / 1000;
-  /** 整轮大约多少秒（第 ⑤ 步顶上那句话；比原来「等够就打勾」慢一倍上下，先说出来，别让人以为卡住了）。顺序与 runVerify 一致：先归位量基线，再逐项归位 + 演 */
+  /**
+   * 标了 ⚠ 的项按「量的是什么」分两类，原因各说各的：说话 / 眨眼只看嘴 / 眼那一个参数（judgeOwn），⚠ 是参数没对上或被动作盖住；
+   * 其余比待机基线（judgeMotion），⚠ 是那段动作 / 表情本身没让模型动起来。分类认 verifyItems 的 measure，不另抄一份键名
+   */
+  const warnSplit = (() => {
+    const own = new Set(verifyItems.filter((it) => it.measure === "mouth" || it.measure === "eye").map((it) => it.key));
+    const ownCount = s.verifyWarn.filter((k) => own.has(k)).length;
+    return { own: ownCount, motion: s.verifyWarn.length - ownCount };
+  })();
+  /** 清单里最长那一项要量多久（基线要把它盖住，见 VERIFY_BASELINE_PAD_MS） */
+  const longestWaitMs = verifyItems.reduce((m, it) => Math.max(m, it.waitMs), 0);
+  /** 基线从「停掉动作」那一刻量到哪儿（runVerify 真量的与下面那句「先量 N 秒」都问它） */
+  const baselineMsFor = (settleMs: number) => settleMs + longestWaitMs + VERIFY_BASELINE_PAD_MS;
+  const baselineSecs = Math.round((VERIFY_BASELINE_ROUNDS * baselineMsFor(VERIFY_SETTLE_MS)) / 1000);
+  /** 整轮大约多少秒（第 ⑤ 步顶上那句话；比原来「等够就打勾」慢一倍上下，先说出来，别让人以为卡住了）。顺序与 runVerify 一致：先归位、量基线，再逐项归位 + 演 */
   const verifyEtaSecs = (() => {
-    let ms = settleMsAfter(true) + VERIFY_BASELINE_MS;
-    let afterMotion = false;
-    for (const it of verifyItems) {
-      ms += settleMsAfter(afterMotion) + it.waitMs;
-      afterMotion = it.playsMotion;
-    }
+    let ms = VERIFY_SETTLE_MS + VERIFY_BASELINE_ROUNDS * baselineMsFor(VERIFY_SETTLE_MS);
+    for (const it of verifyItems) ms += VERIFY_SETTLE_MS + it.waitMs;
     return Math.ceil(ms / 10_000) * 10;
   })();
   /** 量基线那几秒列表上方那一行（verifyNow 等于它时画） */
@@ -653,32 +676,41 @@ export default function SupportModelNewPage() {
     const my = ++verifySeq.current;
     const alive = () => verifySeq.current === my;
     const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-    // 归位（两档等多久见 VERIFY_SETTLE_MS 那条）：嘴闭上、表情当场回平静、视线回正；上一项播过动作的再停掉动作、等待机淡回来
-    const settle = async (afterMotion: boolean) => {
+    // 归位（每一项都一样，理由与等多久见 VERIFY_SETTLE_MS 那条）：嘴闭上、表情当场回平静、视线回正、
+    // 待机钉住同一段、停掉动作 —— 框架下一帧从头起钉住的那一段。先钉再停：停下那一拍框架就要挑下一段待机了
+    const reset = () => {
       const model = companionBus.model;
       model?.stopSpeaking();
       model?.resetFaceForProbe();
       model?.lookForward();
-      if (afterMotion) model?.stopMotions();
-      await sleep(settleMsAfter(afterMotion));
+      model?.pinIdleForProbe(VERIFY_IDLE_PIN_MS);
+      model?.stopMotions();
+    };
+    const settle = async () => {
+      reset();
+      await sleep(verifySettleMs());
     };
     startVerifyRun();
     let lost = false;
     let reached = 0;
 
-    // 待机基线：按「播过动作」那档归位（第 ④ 步刚用 ▶ 试过动作也说不定），再量 VERIFY_BASELINE_MS
+    // 待机基线。先归位一次：把台上原来在播的（第 ④ 步 ▶ 试过的动作、随机挑的那段待机）停掉，等钉住的那段淡入完；
+    // 再停一次、从这一刻起量 —— 量的就是钉住那段待机从头起的一整截，每一项的窗口都落在里面（见 VERIFY_BASELINE_PAD_MS 的 ★）。
+    // 同样的一截量 VERIFY_BASELINE_ROUNDS 遍、合起来（采样加密，见那条的 ★）；哪一遍没量成，整份基线就算没量成
     useLive2dUpload.setState({ verifyNow: baselineLabel });
-    await settle(true);
+    await settle();
     let base: ParamProbe | null = null;
-    if (alive() && previewOnStage()) base = (await companionBus.model?.probeParams(VERIFY_BASELINE_MS)) ?? null;
+    for (let round = 0; round < VERIFY_BASELINE_ROUNDS && alive() && previewOnStage(); round++) {
+      reset();
+      const p = (await companionBus.model?.probeParams(baselineMsFor(verifySettleMs()))) ?? null;
+      base = round === 0 ? p : mergeProbes(base, p);
+    }
     if (alive() && !previewOnStage()) lost = true;
 
-    let afterMotion = false;
     for (const it of verifyItems) {
       if (lost || !alive()) break;
       useLive2dUpload.setState({ verifyNow: it.label });
-      await settle(afterMotion);
-      afterMotion = it.playsMotion;
+      await settle();
       if (!alive()) break;
       // ★ 中途每一项都要问：跑到一半预览可能掉了（运行时会在模型 destroy 时撤掉我们的 blob 地址，
       //   见 live2dUploadStore 文件头 ⚠⚠）。一份**没跑完**的 ✓ 列表比没有更坏，整列作废。
@@ -686,8 +718,11 @@ export default function SupportModelNewPage() {
         lost = true;
         break;
       }
-      // ★ 先挂上采样、再演：动作 / 表情的头几帧（淡入）也要量进去
-      const probe = it.measure ? (companionBus.model?.probeParams(it.waitMs) ?? null) : null;
+      // ★ 先挂上采样、再演：动作 / 表情的头几帧（淡入）也要量进去。开演同一拍忘掉归位那两秒里的点击：
+      //   不然这一项的动作会改播那个触摸区的动作，量的就是另一段了（companionModel.stopMotions 的 ★）
+      const model = companionBus.model;
+      const probe = it.measure ? (model?.probeParams(it.waitMs) ?? null) : null;
+      model?.forgetTouch();
       it.run();
       let sample: ParamProbe | null = null;
       if (probe) sample = await probe;
@@ -707,6 +742,8 @@ export default function SupportModelNewPage() {
     companionBus.stopSpeaking();
     // 收尾也写回表情参数：最后一项是通用参数表情的话，不写回眉毛 / 嘴形会一直停在量程边上（见 resetFaceForProbe 的 ★★）
     companionBus.model?.resetFaceForProbe();
+    // 待机放开、照常随机挑段（钉着的那段播完这一遍就换）
+    companionBus.model?.pinIdleForProbe(0);
     verifyRunning.current = false;
     if (lost) {
       startVerifyRun();
@@ -727,6 +764,7 @@ export default function SupportModelNewPage() {
     verifyRunning.current = false;
     companionBus.stopSpeaking();
     companionBus.model?.resetFaceForProbe();
+    companionBus.model?.pinIdleForProbe(0);
     useLive2dUpload.setState({ verifyNow: "" });
   }
 
@@ -736,12 +774,14 @@ export default function SupportModelNewPage() {
    *   包里本来就没有的（一个动作组都没有 / 没有多余的命中区）只汇总成一句 —— 9 个触摸区全按空列出来，真正能改的那几行反而被淹掉。
    * ★ 不算进来的：表情槽为 null（= 用通用参数演，照样会演，见 verifyItems 的 ★）；有命中区、没挂动作的触摸区（= 只说话，是有意的）。
    * ★ 参数槽 App 里改不了，只说一句、不给「去对」；待机动作也没有对应的一行可改（包里的组叫 Idle 就会自动用上）。
+   * ★ 参数槽单独计数（params），不算进 count：count 是「这几个槽装上之后整个不演」，参数没对上是「用到它的那部分演出不动」，
+   *   两句话分开说。整块提示条按「有没有要说的」（show）画，别按 count —— 只有参数没对上时 count 是 0，那句话原来就整块被吞掉了。
    */
   const gapView = (() => {
     const rows: { slot: string; anchor: string; what: string }[] = [];
     const notes: string[] = [];
     let count = 0;
-    if (!mapping) return { rows, notes, count };
+    if (!mapping) return { rows, notes, count, params: 0, show: false };
     const actionsNull = ACTIONS.filter((a) => a !== "none" && !mapping.actions?.[a]);
     // 运行时待机组 = mapping.idle || "Idle"（companionModel.acquire），所以包里有叫 Idle 的组时 null 也有待机动作
     const idleNull = !mapping.idle && !groups.includes("Idle");
@@ -781,7 +821,7 @@ export default function SupportModelNewPage() {
       const names = paramsNull.map((slot) => t(PARAM_LABEL[slot])).join(listSep);
       notes.push(t`这几个参数没对上：${names}。用到它们的那部分演出不会动；参数这一栏 App 里还改不了，要改得回 Cubism 把参数 id 改成标准名再导出。`);
     }
-    return { rows, notes, count };
+    return { rows, notes, count, params: paramsNull.length, show: rows.length > 0 || notes.length > 0 };
   })();
 
   // 第 ⑤ 步点了「去对」→ 到了第 ④ 步：滚到那一行、聚焦它的下拉框、边框亮一下（亮多久见下一个 effect）
@@ -1400,7 +1440,7 @@ export default function SupportModelNewPage() {
           <Banner tone="info"><Trans>按顺序演一遍：说话对口型、眨眼、每个对上的动作 / 表情 / 触摸区各来一次，边演边自动量她动没动（整轮大约 {verifyEtaSecs} 秒）。也盯着上面那块看。</Trans></Banner>
 
           {/* 这几样装上之后不会演（按当前映射现算，见 gapView 的 ★）。整块提示条：带「去对」的多行清单不是 <Warn> 那种一两句 */}
-          {gapView.count > 0 && (
+          {gapView.show && (
             <div className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-xs leading-relaxed text-warn-300">
               <div className="font-semibold text-warn-200"><Trans>这几样装上之后不会演，别人用的时候也一样：</Trans></div>
               {gapView.rows.length > 0 && (
@@ -1463,29 +1503,45 @@ export default function SupportModelNewPage() {
                 );
               })}
             </div>
-            {verifyItems.some((it) => it.key.startsWith("t:") && it.measure) && (
+            {/* ★ 试跑进行中不摆这句：照着它去摸，那一下会让接下来两秒里开演的动作项改播触摸区的动作（companionModel.stopMotions 的 ★） */}
+            {!s.verifyNow && verifyItems.some((it) => it.key.startsWith("t:") && it.measure) && (
               <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
-                <Trans>触摸那几项只试播了它对上的动作；命中区对没对上量不到，要你自己在上面的预览里摸一下（会写「刚点到：…」）。</Trans>
+                <Trans>触摸那几项只试播了它对上的动作；命中区对没对上量不到 —— 试跑跑完之后，自己在上面的预览里摸一下（会写「刚点到：…」）。</Trans>
               </p>
             )}
-            {s.verifyWarn.length > 0 && (
+            {/* ⚠ 的原因按是哪一类分开说：动作 / 表情是包里那段动作 / 表情的事，说话 / 眨眼是嘴 / 眼参数的事（见 warnSplit） */}
+            {warnSplit.motion > 0 && (
               <Warn className="mt-2">
-                <Trans>标「看不出变化」的是自动量出来的（可能误判）：演的时候模型几乎没动。多半是这个动作组 / 表情写给了模型里没有的参数，也可能它本来就动得很轻 —— 回去换一个，或者盯着上面再看一眼。不拦发布。</Trans>
+                <Trans>动作 / 表情标「看不出变化」是自动量出来的（可能误判）：演的时候模型几乎没动。多半是这个动作组 / 表情写给了模型里没有的参数；标着「通用参数」的表情，也可能是被模型自己的待机动作每一帧盖住了；也可能它本来就动得很轻 —— 回去换一个，或者盯着上面再看一眼。不拦发布。</Trans>
+              </Warn>
+            )}
+            {warnSplit.own > 0 && (
+              <Warn className="mt-2">
+                <Trans>「说一句话」「眨一下眼」标「看不出变化」，是这个模型的嘴 / 眼睛参数没对上，或者被它自己的动作每一帧盖住了 —— 跟动作组无关，App 里也改不了，得回 Cubism 改参数名、或者把动作里的嘴 / 眼曲线去掉。不拦发布。</Trans>
               </Warn>
             )}
             {s.verifyUnknown.length > 0 && (
               <Warn tone="info" className="mt-2">
-                <Trans>标「没量到」的那几项一帧都没采到：页面当时多半在后台。回到前台再跑一遍。</Trans>
+                {s.verifyNoBase ? (
+                  <Trans>演之前那段对比没采到足够的画面，动作 / 表情那几项没法比，标了「没量到」：页面当时多半在后台。回到前台再跑一遍。</Trans>
+                ) : (
+                  <Trans>标「没量到」的那几项没采到足够的画面：页面当时多半在后台。回到前台再跑一遍。</Trans>
+                )}
               </Warn>
             )}
           </div>
 
           {/* 继续之前把还没解决的照实说一句（不拦，由人决定）—— 一条一行，三种情况各自成句 */}
-          {(gapView.count > 0 || s.verifyWarn.length > 0 || (!s.verifyOk && (unrun > 0 || !s.verifyDone.length))) && (
+          {(gapView.count > 0 || gapView.params > 0 || s.verifyWarn.length > 0 || (!s.verifyOk && (unrun > 0 || !s.verifyDone.length))) && (
             <Warn>
               {gapView.count > 0 && (
                 <span className="block">
                   <Trans>{gapView.count} 项装上之后不会演。</Trans>
+                </span>
+              )}
+              {gapView.params > 0 && (
+                <span className="block">
+                  <Trans>{gapView.params} 个参数没对上，用到它们的那部分演出不会动。</Trans>
                 </span>
               )}
               {s.verifyWarn.length > 0 && (

@@ -15,16 +15,32 @@
 //     只看这一窗口里对应的真实参数起伏够不够；模型里压根没有这个参数（下标 -1）= 看不出变化。
 // ★ 判错的方向：⚠ 只提醒、不拦发布，界面上写着「自动量的，可能误判」；所以宁可把一个动得很轻的动作标 ⚠（人再看一眼），
 //   也别把一个哑动作标 ✓（那正是要抓的东西）。
-// ★ 阈值怎么量的（2026-10-26，浏览器里跑官方看板娘；只量了这一个模型，第三方包的待机动作幅度不同，先以它为准，有真实上传者再复核）：
-//   给它加两段哑动作（拿 think / nod 的曲线、参数 id 全改成模型里没有的：2.6 秒、1.2 秒各一段）和一个哑 exp3 表情，
-//   与 10 个真动作、8 个通用参数表情、2 个 exp3 表情、几次「什么都不演」的空跑穿插着，按向导的归位规则（SupportModelNewPage 的
-//   VERIFY_SETTLE_MS 那条）跑了三轮（两轮直接调运行时、一轮走向导页面的「开始试跑」），三轮逐项结果相同：
-//   - 哑动作 / 哑表情 / 空跑：「本窗起伏 ÷ 基线起伏」最大 1.00；待机里不动的参数一格都没动（0.000）；
-//   - 真动作：那个比值最小的是 playful 3.00、disagree 2.94、acknowledge 3.46；真表情：待机里不动的参数起伏最小 0.5；
-//   - 页面走一遍：4 个埋进去的哑项（两个动作、一个 exp3 表情、一个触摸动作）全标「看不出变化」，其余 15 项全 ✓。
+// ★★ 比得了的前提：基线与每一项的窗口落在**同一段待机、同一个相位**上（2026-10-26 审核指出）。框架的待机是随机挑段的，
+//   待机组有好几段、幅度不同时，基线落在安静的那段、哑动作的窗口落在活跃的那段，比值就超了。所以试跑期间待机钉在同一段
+//   （companionModel.pinIdleForProbe）、每一项都从「停掉动作」那一刻起算、呼吸也一起从头起（stopMotions），基线从停下那一刻起量、
+//   盖住任何一项的窗口，并量两遍合起来（mergeProbes，采样加密）—— 页面那一侧的排法见 SupportModelNewPage 的 VERIFY_* 那几条。
+//   哪一份采样里待机没钉住（idleFixed 不为真）就不比：这一项回「没量到」、基线回 noBase，不猜。
+// ★ 阈值怎么量的（2026-10-26，浏览器里走向导页面的「开始试跑」，一个包一轮 90~110 秒）：
+//   第一次只量了官方看板娘（待机组只有一段，碰不到上面那种情况）。按审核把待机钉住之后重量，四个包：官方看板娘（待机 1 段）、
+//   Cubism 官方样例 Hiyori（9 段，1.6~8.6 秒）、Mao（2 段）、Natori（3 段）。每个包埋 5 个哑项 —— 拿包里最长的一段真动作、
+//   曲线 id 全改成模型里没有的，原长 / 压成 2 秒 / 压成 1.2 秒各一段挂到动作槽，1.2 秒那段再挂一个触摸区，外加一个哑 exp3 ——
+//   与真动作、真 exp3、通用参数表情穿插着跑，每个包 2~5 轮：
+//   - 哑项每一轮都标「看不出变化」（4 个包 × 5 个，一个都没漏）。「本窗起伏 ÷ 基线起伏」最大 1.20（Hiyori 那个 1.2 秒的哑触摸动作：
+//     基线那几秒帧率掉到 24 帧、它自己的窗口 67 帧，漏采的峰；同一条轨迹按 66 帧密采，基线与它都是 0.226，比值 1.00），其余 ≤ 1.07；
+//     待机里不动的参数，哑项一格都没超过 MOVE_ABS。
+//   - 真动作：官方看板娘最低 2.46 倍（think 的 ParamAngleX）、其次 3.33 倍（acknowledge）；另外三个包的真动作都碰了待机不碰的参数
+//     （起伏 0.5~1，分数 ≥ 10）。真 exp3 同样 ≥ 10。
+//   - 对照：同样的包把钉住拿掉（框架照常随机挑段），Hiyori 的 5 个哑项两轮都有 4 个被量成「动了」—— 这就是要钉住的原因；
+//     钉住那一层装不上时（拿空操作顶替 pinIdleForProbe 试的），动作 / 表情全部回「没量到」，不出 ✓。
+//   - 真包里量出来的 ⚠ 不全是误判：Mao 的口型参数是 ParamA（不是标准名），说话标 ⚠；Natori 的待机动作自己带眼睛曲线、
+//     每帧盖掉我们写的眨眼，眨眼标 ⚠；Mao 的待机曲线盖住了通用参数表情要叠的那几个参数，6 个通用参数表情标 ⚠ —— 客服页上也一样看不见。
 import type { ParamProbe } from "../live2d/companionModel";
 
-export type MotionVerdict = "moved" | "still" | "unknown";
+/**
+ * moved = 动了；still = 看不出变化（⚠）；unknown = 这一项没量到（帧太少 / 待机没钉住）；
+ * noBase = 这一项量到了，可演之前那段基线没量成，没东西可比（与 unknown 分开，是因为界面上要说的原因不一样）
+ */
+export type MotionVerdict = "moved" | "still" | "unknown" | "noBase";
 
 /**
  * 采到的帧少于它就不下结论（「没量到」）。页面在后台时 rAF 不跑，一两秒里一帧都没有或只有零星几帧
@@ -35,16 +51,18 @@ export const PROBE_MIN_FRAMES = 10;
 
 /**
  * 起伏的绝对下限（归一化后，占这个参数量程的比例）：基线里完全不动的参数（眉毛、脸红这类待机动作不碰的），
- * 起伏要超过它才算「动了」—— 挡掉浮点抖动与残余。实测（见文件头）哑项在这类参数上是 0.000，
- * 真动作碰到这类参数时最小 0.09（comfort 的 ParamBodyAngleY），真表情最小 0.5。
+ * 起伏要超过它才算「动了」—— 挡掉浮点抖动与残余。实测（见文件头）哑项在这类参数上都没超过它（第一次量是 0.000），
+ * 真动作碰到这类参数时最小 0.09（comfort 的 ParamBodyAngleY），官方看板娘的真表情最小 0.5；第三方包上通用参数表情会弱得多
+ * （待机曲线把叠上去的量盖掉了大半：Natori 的「哭」0.07 刚过线、「坏笑」0.034 没过，标 ⚠ —— 客服页上也几乎看不出来）。
  */
 export const MOVE_ABS = 0.05;
 
 /**
- * 起伏要比基线大几倍。基线 3 秒、演的窗口 2.6 秒，待机动作的相位不同，同一个参数的起伏能差出一些。
- * 实测（见文件头）哑项最大 1.00 倍、真动作最小 2.94 倍 —— 取两者之间、偏哑项一侧的 1.5：第三方包的待机动作起伏忽大忽小时，
+ * 起伏要比基线大几倍。待机钉住、相位对齐之后，哑项的起伏照理不超过基线（窗口落在基线量过的那一截里），超出来的只有采样的误差
+ * （帧率不一样时漏采的峰）。实测（见文件头）哑项最大 1.20 倍、真动作最小 2.46 倍 —— 取两者之间的 1.5，偏哑项一侧：
  * 宁可多标几个「看不出变化」让人再看一眼。
- * ⚠ 归位没做够时这个数会被冲掉：先试的 0.8 秒归位（不够待机动作 2 秒的淡入）下，哑动作的比值到过 7 倍以上，6 次里 3 次被量成「动了」。
+ * ⚠ 归位没做够时这个数会被冲掉：先试的 0.8 秒归位（不够待机动作 2 秒的淡入）下，哑动作的比值到过 7 倍以上，6 次里 3 次被量成「动了」；
+ *   待机不钉住时（随机挑段），Hiyori 的哑动作在基线里不动的参数上起伏到 0.6 以上（MOVE_ABS 的十几倍），根本不是阈值能挡的。
  */
 export const MOVE_K = 1.5;
 
@@ -66,10 +84,38 @@ export function skippedIndices(base: ParamProbe, run: ParamProbe): Set<number> {
   return out;
 }
 
+/**
+ * 一份采样能不能拿来比：帧够数，而且整个窗口里待机都钉在同一段（companionModel.pinIdleForProbe 的 ★★）。
+ * ★ idleFixed 判肯定（`=== true`）：没钉住的窗口里待机可能换成了另一段幅度大得多的，拿它和基线比会把哑动作量成「动了」——
+ *   不确定的时候说「没量到」，不说 ✓。
+ */
+export function probeUsable(p: ParamProbe | null): p is ParamProbe {
+  return !!p && p.frames >= PROBE_MIN_FRAMES && p.idleFixed === true;
+}
+
+/**
+ * 把同一段的两次采样合成一份（基线量两遍用，见 SupportModelNewPage 的 VERIFY_BASELINE_ROUNDS）：每个下标取两边更低的 min、更高的 max，
+ * 帧数相加，skip 取并集，视线动过 / 待机没钉住任一边算。任一边缺了、或者两份不是同一个模型（参数个数对不上）→ null（基线没量成）。
+ */
+export function mergeProbes(a: ParamProbe | null, b: ParamProbe | null): ParamProbe | null {
+  if (!a || !b || !sameShape(a, b)) return null;
+  return {
+    frames: a.frames + b.frames,
+    min: a.min.map((v, i) => Math.min(v, b.min[i])),
+    max: a.max.map((v, i) => Math.max(v, b.max[i])),
+    skip: [...new Set([...a.skip, ...b.skip])],
+    gaze: [...new Set([...a.gaze, ...b.gaze])],
+    gazed: a.gazed || b.gazed,
+    mouth: a.mouth,
+    eye: a.eye,
+    idleFixed: a.idleFixed === true && b.idleFixed === true,
+  };
+}
+
 /** 动作 / 表情 / 触摸播的动作：比待机基线，动没动 */
 export function judgeMotion(base: ParamProbe | null, run: ParamProbe | null): MotionVerdict {
-  if (!base || !run) return "unknown";
-  if (base.frames < PROBE_MIN_FRAMES || run.frames < PROBE_MIN_FRAMES) return "unknown";
+  if (!probeUsable(base)) return "noBase";
+  if (!probeUsable(run)) return "unknown";
   if (!sameShape(base, run)) return "unknown"; // 中途换了模型：两份没法比，别下结论（试跑那一侧会整轮作废）
   const skip = skippedIndices(base, run);
   for (let i = 0; i < run.min.length; i++) {

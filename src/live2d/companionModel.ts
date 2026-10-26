@@ -153,7 +153,25 @@ export type ParamProbe = {
   /** 口型 / 左眼两个槽对应的真实下标；-1 = 模型里没有这个参数 */
   mouth: number;
   eye: number;
+  /**
+   * 整个窗口里，框架起的待机动作都是钉住的那一段（pinIdleForProbe 一直有效），或者待机组本来就只有一段 / 没有待机组。
+   * 假 = 这一窗里待机可能是随机挑的另一段，没法与基线比（判定那一侧回「没量到」，见 pinIdleForProbe 的 ★★）。
+   */
+  idleFixed: boolean;
 };
+
+/** 框架 MotionManager 里试演要碰的几格（pixi-live2d-display 0.5，没混淆；全局包没有类型，只描述用到的） */
+type ProbeMotionManager = {
+  groups?: { idle?: string };
+  definitions?: Record<string, Array<{ FadeInTime?: number } | undefined> | undefined>;
+  /** 已经加载的动作（懒加载：没播过的那一格是 undefined，加载失败是 null） */
+  motionGroups?: Record<string, Array<{ getFadeInTime?: () => number } | null | undefined> | undefined>;
+  startMotion?: (group: string, index: number, priority?: number, options?: unknown) => Promise<boolean>;
+  startRandomMotion?: (group: string, priority?: number, options?: unknown) => Promise<boolean>;
+  stopAllMotions?: () => void;
+};
+/** pixi-live2d-display 没设待机动作淡入时用的缺省值（config.idleMotionFadingDuration = 2000ms） */
+const PROBE_IDLE_FADE_DEFAULT_MS = 2000;
 
 /** Cubism Core 的原始模型（getModel()）里 probeParams 要读的那几格；全局包没有类型，只描述用到的 */
 type RawCoreModel = {
@@ -167,6 +185,8 @@ type BreathInternals = {
 };
 /** 框架 CubismPhysics 的内部字段：每条输出写给哪个参数 */
 type PhysicsInternals = { _physicsRig?: { outputs?: Array<{ destination?: { id?: string } } | null> } };
+/** 框架 CubismEyeBlink 的内部字段：它眨的是哪几个参数（model3.json 的 EyeBlink 组） */
+type EyeBlinkInternals = { _parameterIds?: unknown };
 /** probeParams 判「视线动过」的门槛：lookForward 之后视线按 260ms 的时间常数回正，到 0.02 时头部只剩 0.3° 的偏转 */
 const PROBE_GAZE_EPS = 0.02;
 
@@ -586,23 +606,117 @@ export class CompanionModel {
   }
 
   // ── 试演专用：上传向导第 ⑤ 步自动量「动没动」（2026-10-26，App 独有）─────────────────────────────
-  // ★ 官网 client 的 companionModel.ts 也有一份驱动，但官网没有 Live2D 上传向导：下面 stopMotions / resetFaceForProbe / blinkNow /
-  //   probeParams 这一段官网那份不搬 —— 别把它当成漏同步。四个都只新增，不改上面任何一条演出路径（客服页、老师页都不调它们）。
+  // ★ 官网 client 的 companionModel.ts 也有一份驱动，但官网没有 Live2D 上传向导：下面 stopMotions / pinIdleForProbe /
+  //   probeIdleFadeInMs / forgetTouch / resetFaceForProbe / blinkNow / probeParams 这一段官网那份不搬 —— 别把它当成漏同步。
+  //   全是新增，不改上面任何一条演出路径（客服页、老师页都不调它们；pinIdleForProbe 装在框架上的那一层不钉的时候原样转给框架）。
+
+  /** 试演专用：待机动作钉在组里第几段（-1 = 没钉）、钉到什么时候（performance.now()，过了这个点自己松开），见 pinIdleForProbe */
+  private probeIdlePin = -1;
+  private probeIdleUntil = 0;
+  /** startRandomMotion 那一层拦截装上没有（每个模型装一次；不钉的时候原样转给框架） */
+  private probeIdleHooked = false;
+
+  private probeMotionManager(): ProbeMotionManager {
+    return this.model.internalModel.motionManager as unknown as ProbeMotionManager;
+  }
+
+  /** 待机组里有几段动作（没有待机组 = 0） */
+  private idleMotionCount(): number {
+    const mm = this.probeMotionManager();
+    const group = mm.groups?.idle;
+    return group ? (mm.definitions?.[group]?.length ?? 0) : 0;
+  }
+
+  /** 此刻框架起待机动作时，起的是不是钉住的那一段 */
+  private idlePinnedAt(now: number): boolean {
+    return this.probeIdleHooked && this.probeIdlePin >= 0 && now < this.probeIdleUntil;
+  }
 
   /**
-   * 试演专用：立刻停掉正在播的动作（不淡出），连同还没轮到的待播动作与压制窗口；框架下一帧自己从头起待机动作。
+   * 试演专用：立刻停掉正在播的动作（不淡出），连同还没轮到的待播动作、压制窗口与最近一次点击；框架下一帧自己从头起待机动作
+   * （钉着的时候起的就是钉住的那一段，见 pinIdleForProbe）。
    * 试跑每一项之前调一次：不停的话上一项的动作还在播 / 淡出，那一截会算进下一项的采样窗口 —— 下一项哪怕是个哑动作也会被量成「动了」。
+   * ★ 连 lastTouch 一起清：试跑途中有人摸了一下舞台，TOUCH_MOTION_WINDOW_MS 里开演的动作项会改播那个触摸区的动作（playAction 的 ★），
+   *   量的就是另一段动作了。开演那一拍还要再清一次（forgetTouch），因为归位要等两秒，这两秒里也可能有人摸。
+   * ★ 框架的「呼吸」也从头起（_currentTime 归零）：probeParams 按公式把呼吸扣掉，可呼吸是叠在动作值上再**夹到量程里**的，
+   *   夹到边上的那几帧扣不干净（2026-10-26 在官方看板娘上量到：ParamBreath 的待机曲线 + 呼吸常常顶到 0 / 1，
+   *   哑表情那一窗的起伏比基线大出 24%），剩下的那点跟着呼吸的相位走 —— 而呼吸的相位与我们每一项的归位无关。
+   *   跟动作一起从头起，每个窗口里的呼吸也和基线同相位，扣不干净的那一点也一模一样。代价是归位那一下头会轻轻一顿（呼吸最多 ±7.5°）。
    */
   stopMotions() {
     if (this.disposed) return;
     this.pendingAction = null;
     this.actionSuppressUntil = 0;
     this.waveStart = 0;
+    this.lastTouch = null;
     try {
-      (this.model.internalModel.motionManager as { stopAllMotions?: () => void }).stopAllMotions?.();
+      this.probeMotionManager().stopAllMotions?.();
     } catch {
       // 框架版本不对：不停也只是让下一项的判定宽一点，别为这个打断试跑
     }
+    const breath = (this.model.internalModel as { breath?: BreathInternals | null }).breath;
+    if (breath && typeof breath._currentTime === "number") breath._currentTime = 0;
+  }
+
+  /** 试演专用：忘掉最近一次点击（试跑每一项开演的同一拍调，理由见 stopMotions 的 ★） */
+  forgetTouch() {
+    this.lastTouch = null;
+  }
+
+  /**
+   * 试演专用：接下来 ms 毫秒里，框架起待机动作时只起同一段（待机组里的最后一段）；ms ≤ 0 = 现在就松开，框架照常随机挑。
+   *
+   * ★★ 为什么要钉（2026-10-26 审核指出）：框架的待机走 startRandomMotion —— 组里随机挑一段，一段播完再随机挑下一段
+   *   （运行时 min.js：`u[Math.floor(Math.random()*u.length)]`）。包里待机组有好几段、幅度不一样时（Cubism 官方样例 Hiyori 有 9 段，
+   *   1.6~8.6 秒），演之前那段基线量的是随机挑中的安静的 A，某一项的窗口里换成了活跃的 B，比值就能超过阈值 —— 一个哑动作被量成「动了」，
+   *   正是 data/live2dMotionCheck 说「绝不能错」的那个方向。官方看板娘的待机组只有一段，原来的阈值碰不到这种情况。
+   *   钉住同一段，再让每一项都从停掉动作那一刻起算（stopMotions → 框架下一帧从头起这一段），每个窗口就和基线处在同一段待机、同一个相位
+   *   （页面那一侧怎么排见 SupportModelNewPage 的 VERIFY_SETTLE_MS 那条）。
+   * ★ 钉最后一段、不钉第一段：语义动作与触摸动作播的都是组里第 0 段（playAction / playMotionGroup）。作者把动作映射到待机组本身时
+   *   （Hiyori 这类包大部分动作都放在 Idle 组里），钉第 0 段会撞上框架那条「同一段已经在播」、整个被拒，量成「看不出变化」。只有一段时没得选。
+   * ★ 有到期时间：页面意外没松开（崩了、卸载那一拍没跑到），过一会儿自己恢复随机，不会让这个模型从此只做一种待机。
+   * @returns false = 这份运行时钉不住（找不到 startRandomMotion / startMotion）；那时 probeParams 的 idleFixed 会照实说「不确定」
+   */
+  pinIdleForProbe(ms: number): boolean {
+    if (this.disposed) return false;
+    if (ms <= 0) {
+      this.probeIdleUntil = 0;
+      this.probeIdlePin = -1;
+      return true;
+    }
+    const mm = this.probeMotionManager();
+    if (!this.probeIdleHooked) {
+      const random = mm.startRandomMotion;
+      const start = mm.startMotion;
+      if (typeof random !== "function" || typeof start !== "function") return false;
+      // 装在这一个 MotionManager 实例上（不碰原型）：框架每帧在 update 里调的就是 this.startRandomMotion(待机组, IDLE)
+      mm.startRandomMotion = (group, priority, options) =>
+        this.idlePinnedAt(performance.now()) && group === mm.groups?.idle
+          ? start.call(mm, group, this.probeIdlePin, priority, options)
+          : random.call(mm, group, priority, options);
+      this.probeIdleHooked = true;
+    }
+    const count = this.idleMotionCount();
+    this.probeIdlePin = count > 0 ? count - 1 : -1;
+    this.probeIdleUntil = performance.now() + ms;
+    return true;
+  }
+
+  /**
+   * 试演专用：钉住的那段待机动作淡入要多久（毫秒）。归位至少要等够它：淡入没完的时候，参数还是「停下那一刻的姿势」与待机曲线的混合，
+   * 那一截与上一项演了什么有关，不是确定的。加载过就读它真正生效的值；还没加载按 model3.json 的 FadeInTime；都没有按框架缺省。
+   */
+  probeIdleFadeInMs(): number {
+    if (this.disposed) return PROBE_IDLE_FADE_DEFAULT_MS;
+    const mm = this.probeMotionManager();
+    const group = mm.groups?.idle;
+    if (!group) return 0;
+    const index = this.probeIdlePin >= 0 ? this.probeIdlePin : Math.max(0, this.idleMotionCount() - 1);
+    const loaded = mm.motionGroups?.[group]?.[index];
+    const sec = typeof loaded?.getFadeInTime === "function" ? loaded.getFadeInTime() : undefined;
+    if (typeof sec === "number" && Number.isFinite(sec)) return Math.max(0, sec * 1000);
+    const declared = mm.definitions?.[group]?.[index]?.FadeInTime;
+    return typeof declared === "number" && declared > 0 ? declared * 1000 : PROBE_IDLE_FADE_DEFAULT_MS;
   }
 
   /**
@@ -650,8 +764,9 @@ export class CompanionModel {
    * ★ 框架的「呼吸」（CubismBreath：头三个角度、身体、ParamBreath 各一条 3~15 秒周期的正弦，与演什么无关）照它的公式逐帧扣掉：
    *   它的周期比采样窗口长，不扣的话同一个哑动作换个时刻量，头部角度的起伏能差出一截。读的是框架内部字段
    *   （_breathParameters / _currentTime，这份运行时里没混淆），读不到就不扣 —— 判定那一侧只会更宽松，不会抛错。
-   * ★ skip（不看的下标）：我们每帧自己写的口型 / 双眼 / 眼球 / 手臂 / 裙摆 / 头发、表情补片 Part（官方形象才有）、物理的输出（风每帧在吹）；
-   *   视线叠上去的头部左右 / 上下单列在 gaze，窗口里有人碰过舞台时由判定那一侧一起跳过。
+   * ★ skip（不看的下标）：我们每帧自己写的口型 / 双眼 / 眼球 / 手臂 / 裙摆 / 头发、表情补片 Part（官方形象才有）、物理的输出（风每帧在吹）、
+   *   框架自己的眨眼（EyeBlink 组）；视线叠上去的头部左右 / 上下单列在 gaze，窗口里有人碰过舞台时由判定那一侧一起跳过。
+   * ★ idleFixed：窗口里每一帧都问一次待机是不是还钉着（pinIdleForProbe 有到期时间）；没钉住的窗口没法和基线比，判定那一侧回「没量到」。
    * ★ 用 setTimeout 收尾而不是数帧：页面在后台时 rAF 不跑，数帧会永远等下去（CLAUDE.md「等媒体事件一律带上限」）；
    *   帧数照实交回去，太少由调用方说「没量到」。
    * @returns null = 模型已经拆了 / 这份运行时读不到参数表
@@ -686,7 +801,19 @@ export class CompanionModel {
         if (i >= 0) skip.add(i);
       }
     }
+    // 框架自己的眨眼（model3.json 的 EyeBlink 组）：只在这一帧没有任何动作在播时才眨（运行时 update 里 `a||eyeBlink.updateParameters`），
+    // 随机隔几秒一次、与演什么无关。它眨的参数多半就是上面那两只眼，但 id 不标准、映射又没对上时是另外的参数，不排除就会随机「动了」
+    const blinkIds = (internal as { eyeBlink?: EyeBlinkInternals | null }).eyeBlink?._parameterIds;
+    if (Array.isArray(blinkIds)) {
+      for (const id of blinkIds) {
+        const i = typeof id === "string" ? indexOf(id) : -1;
+        if (i >= 0) skip.add(i);
+      }
+    }
     const gaze = [indexOf(this.P.angleX), indexOf(this.P.angleY)].filter((i) => i >= 0);
+    // 待机是不是钉住的那一段（见 pinIdleForProbe 的 ★★）：组里只有一段 / 没有待机组时不用钉，天然确定
+    const idleNeedsPin = this.idleMotionCount() > 1;
+    let idleFixed = !idleNeedsPin || this.idlePinnedAt(performance.now());
 
     // 呼吸：每个真实下标上挂着哪几条正弦（同一个参数可能挂两条，照原样逐条扣）
     const breath = (internal as { breath?: BreathInternals | null }).breath ?? null;
@@ -709,6 +836,7 @@ export class CompanionModel {
       const live = readRaw();
       if (!live) return;
       frames++;
+      if (idleNeedsPin && !this.idlePinnedAt(performance.now())) idleFixed = false;
       if (this.gazeTarget.x !== 0 || this.gazeTarget.y !== 0 || Math.abs(this.gaze.x) > PROBE_GAZE_EPS || Math.abs(this.gaze.y) > PROBE_GAZE_EPS) gazed = true;
       for (let i = 0; i < n; i++) values[i] = live.parameters.values[i];
       // 与框架 CubismBreath.updateParameters 同一个式子（相位 = 2 × _currentTime × 3.14159，它自己就写的 3.14159）
@@ -742,7 +870,7 @@ export class CompanionModel {
             return;
           }
           const finite = (v: number) => (Number.isFinite(v) ? v : 0);
-          resolve({ frames, min: min.map(finite), max: max.map(finite), skip: [...skip], gaze, gazed, mouth: indexOf(this.P.mouthOpen), eye: indexOf(this.P.eyeL) });
+          resolve({ frames, min: min.map(finite), max: max.map(finite), skip: [...skip], gaze, gazed, mouth: indexOf(this.P.mouthOpen), eye: indexOf(this.P.eyeL), idleFixed });
         },
         Math.max(0, ms),
       );
