@@ -692,24 +692,14 @@ export function voiceTierNames(): string {
 }
 
 /**
- * 「按模型适配」那一格的行首（卡片页 / 卡组页）：**收参考图**的档有哪几档（2.x：草稿 / 高清 / 电影级）。
- * 用「 / 」并列（这是分类的名字，不是指路的句子，不加引号）。目录口径、不看套餐：说的是「卡在这几档上怎么起作用」。
- * ★ 只认一张起拍画面的档（startOnly，真人档）不在这两行里：卡在那一档上只当起拍画面，那一格另有一行。
+ * **收参考图**的档有哪几档（2.x：草稿 / 高清 / 电影级）—— 卡片页「形象参考」下那句取舍说明（CardDetailPage.pipelineNoteFor）用。
+ * 用「 / 」并列（这是分类的名字，不是指路的句子，不加引号）。目录口径、不看套餐。
+ * ★ 「按模型适配」那一格的行首 2026-10-26 起不读它了：改成按具体模型写、只列摆得出来的（account.offeredVideoModels）；
+ *   同一格原来另有一行「收不到形象图的档」（noRefImgTierList），随之删掉。
+ * ★ 只认一张起拍画面的档（startOnly，真人档）不算在内：卡在那一档上只当起拍画面。
  */
 export function refImgTierList(): string {
   return VIDEO_TIERS.filter((x) => x.refImg && !x.startOnly && !tierRetired(x))
-    .map((x) => x.label)
-    .join(" / ");
-}
-
-/**
- * 同一格的另一行：**收不到形象图的档**（今天是 1.0 的「标准 / 极速」：卡只经由设定帧或文字版形象描述起作用）。
- * 空串 = 一档都不剩（2026-11-24 13:00 那两档停用之后）—— 调用方整行不画、勾选框不再点名。
- * ★ 原来卡片页 / 卡组页 / segmentGen 三处写死「标准 / 极速」（2026-10-10 文案复核抓到）：停用之后档位选择器里早没有它们了，
- *   这几句却还在说一整行、还在让人去勾「标准/极速适用」。按能力现算就跟着表走，与上面 refImgTierList 同一把尺。
- */
-export function noRefImgTierList(): string {
-  return VIDEO_TIERS.filter((x) => !x.refImg && !x.startOnly && !tierRetired(x))
     .map((x) => x.label)
     .join(" / ");
 }

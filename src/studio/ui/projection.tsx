@@ -428,7 +428,7 @@ function EditorPanel() {
       : lane !== "direct" || !!prev?.lastFrame;
   const faceNote = realFaceIssue(slotCards, editor.videoTier, { blockout: false, framed: laneFramedFor(editor.videoTier) });
   /**
-   * 按模型适配那句。ownFrame 只管**真人档**那半句（起拍画面来自没勾「真人档适用」的卡时提醒，segmentGen.cardFitNote）——
+   * 按模型适配那句。ownFrame 只管**真人档**那半句（起拍画面来自没勾「起拍画面」的卡时提醒，segmentGen.cardFitNote）——
    * 这一窗用到它的三条车道都选不了真人档（推演三套 / 自定义被 deriveIssue 挡，参考图直出被 modeBlock 挡；跟着做的几条车道由向导自己管，不读它），所以恒传真 = 不说那半句。
    * ⚠ 别读成「工坊的段都带帧」：自定义 / 直出在收参考图的档上可以一张帧都不带（见上面 laneFramedFor）
    */

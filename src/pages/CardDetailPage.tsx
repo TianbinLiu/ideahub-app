@@ -871,7 +871,7 @@ export default function CardDetailPage() {
       {/* 方舟可信素材：真人卡做完肖像授权后填 asset ID，出片改走 asset:// */}
       <CardAssetSection card={card} owned={owned} />
 
-      {/* 按模型适配：「标准/极速适用」（文字版形象描述）与「真人档适用」（起拍画面），见 components/CardModelFit */}
+      {/* 按模型适配：「文字版形象描述（… 用）」与「起拍画面（… 用）」（括号里写读它的模型，2026-10-26 起按具体模型写），见 components/CardModelFit */}
       <CardModelFit card={card} owned={owned} />
 
       {/* 固定身份句（Card.idLine）：出片提示词里代表这张卡的那一句（铸卡时压好、逐段复用）。

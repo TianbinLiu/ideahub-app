@@ -56,7 +56,8 @@ import {
   templateTiers,
   updateTemplate,
 } from "../data/templates";
-import { blockoutPriceIssue, blockoutTier, fmtTokens, r2vTokens, tierModelLabel } from "../data/economy";
+import { blockoutPriceIssue, blockoutTier, fmtTokens, r2vTokens } from "../data/economy";
+import { tierShownModel } from "../data/account";
 import UpgradeLink from "../components/UpgradeLink";
 import { useCurrentUser } from "../hooks/useAccount";
 import { useBackOr } from "../hooks/useBackOr";
@@ -258,6 +259,8 @@ function BlockoutInfo({ t: tpl, isOwner }: { t: VideoTemplate; isOwner: boolean 
  * ★ 白模闸门全关（空数组）时整行不画：那时 BlockoutInfo 里的 blockoutIssue 整句正在说「暂未开放」，这里再摆一枚空芯片是添乱。
  * ★ 经典配方模板是「不限」：它存着的 recipe.videoTier 只是提取器写死的默认值、不是事实（见 templateTiers 的 ⚠），
  *   套用后档位那一排照常能换，所以这里把"去哪儿选"说出来。
+ * ★ 档名后面的模型名（「电影级 · Seedance 2.5」）只在地区问到了、这一档又摆得出来时写（account.tierShownModel，2026-10-26 出片地区 ·
+ *   主人第 2 件）：地区不知道时不写供应商；这个地区给不出的那一档只写档名，为什么用不了由下面那句 templatePlanIssue 说。
  */
 function ModelRow({ t: tpl }: { t: VideoTemplate }) {
   const tiers = templateTiers(tpl);
@@ -268,11 +271,14 @@ function ModelRow({ t: tpl }: { t: VideoTemplate }) {
         <Trans>出片模型</Trans>
       </span>
       {tiers ? (
-        tiers.map((tier) => (
-          <span key={tier.id} className="rounded-full bg-panel px-2.5 py-1 text-[11px] text-slate-300">
-            {tier.label} · {tierModelLabel(tier)}
-          </span>
-        ))
+        tiers.map((tier) => {
+          const model = tierShownModel(tier);
+          return (
+            <span key={tier.id} className="rounded-full bg-panel px-2.5 py-1 text-[11px] text-slate-300">
+              {model ? `${tier.label} · ${model}` : tier.label}
+            </span>
+          );
+        })
       ) : (
         <span className="rounded-full bg-panel px-2.5 py-1 text-[11px] text-slate-300">
           <Trans>不限</Trans>

@@ -799,8 +799,8 @@ msgstr "{0, plural, one {# card} other {# cards}}"
 
 #. placeholder {0}: nr.ownImage
 #: src/pages/DeckDetailPage.tsx
-msgid "{0} 张人物卡用卡上的图起拍"
-msgstr "{0, plural, one {# character card starts from the card’s image} other {# character cards start from the card’s image}}"
+#~ msgid "{0} 张人物卡用卡上的图起拍"
+#~ msgstr "{0, plural, one {# character card starts from the card’s image} other {# character cards start from the card’s image}}"
 
 #. placeholder {0}: deck.cardIds.length
 #. placeholder {0}: s.cards
@@ -821,43 +821,43 @@ msgstr "{0, plural, one {# card was added to your library; you'll find it under 
 
 #. placeholder {0}: nr.onlyAsStart
 #: src/pages/DeckDetailPage.tsx
-msgid "{0} 张只有当起拍画面时才用得上形象图"
-msgstr "{0, plural, one {# card’s image is only used when it provides the opening frame} other {# cards’ images are only used when they provide the opening frame}}"
+#~ msgid "{0} 张只有当起拍画面时才用得上形象图"
+#~ msgstr "{0, plural, one {# card’s image is only used when it provides the opening frame} other {# cards’ images are only used when they provide the opening frame}}"
 
 #. placeholder {0}: nr.textOnly
 #: src/pages/DeckDetailPage.tsx
-msgid "{0} 张只用文字"
-msgstr "{0, plural, one {# card is text only} other {# cards are text only}}"
+#~ msgid "{0} 张只用文字"
+#~ msgstr "{0, plural, one {# card is text only} other {# cards are text only}}"
 
 #. placeholder {0}: n1.frameOnly
 #: src/pages/DeckDetailPage.tsx
-msgid "{0} 张只经由设定帧起作用"
-msgstr "{0, plural, one {# card works only through setup frames} other {# cards work only through setup frames}}"
+#~ msgid "{0} 张只经由设定帧起作用"
+#~ msgstr "{0, plural, one {# card works only through setup frames} other {# cards work only through setup frames}}"
 
 #. placeholder {0}: nr.startFrames
 #: src/pages/DeckDetailPage.tsx
-msgid "{0} 张有专门画好的起拍画面"
-msgstr "{0, plural, one {# card has a dedicated opening frame} other {# cards have a dedicated opening frame}}"
+#~ msgid "{0} 张有专门画好的起拍画面"
+#~ msgstr "{0, plural, one {# card has a dedicated opening frame} other {# cards have a dedicated opening frame}}"
 
 #. placeholder {0}: n1.text
 #: src/pages/DeckDetailPage.tsx
-msgid "{0} 张有文字版形象描述"
-msgstr "{0, plural, one {# card has a text description} other {# cards have a text description}}"
+#~ msgid "{0} 张有文字版形象描述"
+#~ msgstr "{0, plural, one {# card has a text description} other {# cards have a text description}}"
 
 #. placeholder {0}: n2.image
 #: src/pages/DeckDetailPage.tsx
-msgid "{0} 张的形象图直接进模型"
-msgstr "{0, plural, one {# card’s images go straight into the model} other {# cards’ images go straight into the model}}"
+#~ msgid "{0} 张的形象图直接进模型"
+#~ msgstr "{0, plural, one {# card’s images go straight into the model} other {# cards’ images go straight into the model}}"
 
 #. placeholder {0}: n2.asset
 #: src/pages/DeckDetailPage.tsx
-msgid "{0} 张真人卡以火山引擎认证素材进模型"
-msgstr "{0, plural, one {# real-person card goes in as a Volcengine-verified asset} other {# real-person cards go in as Volcengine-verified assets}}"
+#~ msgid "{0} 张真人卡以火山引擎认证素材进模型"
+#~ msgstr "{0, plural, one {# real-person card goes in as a Volcengine-verified asset} other {# real-person cards go in as Volcengine-verified assets}}"
 
 #. placeholder {0}: nr.photo
 #: src/pages/DeckDetailPage.tsx
-msgid "{0} 张真人卡以照片起拍"
-msgstr "{0, plural, one {# real-person card opens on its photo} other {# real-person cards open on their photos}}"
+#~ msgid "{0} 张真人卡以照片起拍"
+#~ msgstr "{0, plural, one {# real-person card opens on its photo} other {# real-person cards open on their photos}}"
 
 #. placeholder {0}: n1.noRealFace
 #: src/pages/DeckDetailPage.tsx
@@ -866,13 +866,13 @@ msgstr "{0, plural, one {# real-person card opens on its photo} other {# real-pe
 
 #. placeholder {0}: n1.noRealFace
 #: src/pages/DeckDetailPage.tsx
-msgid "{0} 张真人卡用不上（这几档不收真人照片）"
-msgstr "{0} real-person card(s) can't be used (these tiers don't take real photos)"
+#~ msgid "{0} 张真人卡用不上（这几档不收真人照片）"
+#~ msgstr "{0} real-person card(s) can't be used (these tiers don't take real photos)"
 
 #. placeholder {0}: n2.needAsset
 #: src/pages/DeckDetailPage.tsx
-msgid "{0} 张真人卡要先勾「火山引擎适用」"
-msgstr "{0, plural, one {# real-person card needs “Volcengine verified” ticked first} other {# real-person cards need “Volcengine verified” ticked first}}"
+#~ msgid "{0} 张真人卡要先勾「火山引擎适用」"
+#~ msgstr "{0, plural, one {# real-person card needs “Volcengine verified” ticked first} other {# real-person cards need “Volcengine verified” ticked first}}"
 
 #. placeholder {0}: videos.filter((v) => v.author === a).length
 #: src/pages/ProfilePage.tsx
@@ -964,8 +964,8 @@ msgstr "{0}, so this segment became a regular one (write the plot yourself)"
 #. placeholder {0}: refImgTierList()
 #: src/components/CardModelFit.tsx
 #: src/pages/DeckDetailPage.tsx
-msgid "{0}：{line2x}"
-msgstr "{0}: {line2x}"
+#~ msgid "{0}：{line2x}"
+#~ msgstr "{0}: {line2x}"
 
 #. placeholder {0}: c.name
 #: src/studio/ui/FuseFrameSheet.tsx
@@ -1340,6 +1340,11 @@ msgstr "{lead}, so the “{label}” tier isn't available — switch to “{name
 msgid "{lead}，「{label}」档用不了——能换的「{member}」是会员档（开通会员套餐或充值过任意一笔后可用）"
 msgstr "{lead}, so the “{label}” tier isn't available — the one you could switch to, “{member}”, is member-only (subscribe to a plan or make any top-up once to use it)"
 
+#: src/components/CardModelFit.tsx
+#: src/pages/DeckDetailPage.tsx
+msgid "{lead}：{reason}"
+msgstr "{lead}: {reason}"
+
 #. line 是一整句（自带句号）：所在地区用不了这一档的出片模型、这个地区能用哪几档；后面另起一整句
 #: src/ai/arkClient.ts
 msgid "{line}这一发没有受理，也没有扣费。"
@@ -1391,6 +1396,16 @@ msgstr "{mode} · {tierLabel} · {ratio} · {dur} · {images, plural, one {# ref
 msgid "{mode} · {tierLabel} · {ratio} · {dur} · 参考图 {images} · 参考音频 {audios} · 提示词 {chars} 字"
 msgstr "{mode} · {tierLabel} · {ratio} · {dur} · {images, plural, one {# reference image} other {# reference images}} · {audios, plural, one {# reference audio clip} other {# reference audio clips}} · prompt {chars, plural, one {# character} other {# characters}}"
 
+#. 模型名后面括号里是挂在它上面的档位名，再加停用日期（11月24日 / November 24）
+#: src/data/account.ts
+msgid "{model}（{tiers}，{day}停用）"
+msgstr "{model} ({tiers}, retiring {day})"
+
+#. 模型名后面括号里是挂在它上面的档位名（草稿 / 高清）
+#: src/data/account.ts
+msgid "{model}（{tiers}）"
+msgstr "{model} ({tiers})"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "{motion}（包里没有）"
 msgstr "{motion} (not in bundle)"
@@ -1406,6 +1421,54 @@ msgstr "{n, plural, one {The line is now its own segment} other {Each of the # l
 #: src/components/VideoTemplateExtractor.tsx
 msgid "{n} 帧"
 msgstr "{n, plural, one {# frame} other {# frames}}"
+
+#: src/pages/DeckDetailPage.tsx
+msgid "{n} 张人物卡用卡上的图起拍"
+msgstr "{n, plural, one {# character card starts from the card’s image} other {# character cards start from the card’s image}}"
+
+#: src/pages/DeckDetailPage.tsx
+msgid "{n} 张只有当起拍画面时才用得上形象图"
+msgstr "{n, plural, one {# card’s image is only used when it provides the opening frame} other {# cards’ images are only used when they provide the opening frame}}"
+
+#: src/pages/DeckDetailPage.tsx
+msgid "{n} 张只用文字"
+msgstr "{n, plural, one {# card is text only} other {# cards are text only}}"
+
+#: src/pages/DeckDetailPage.tsx
+msgid "{n} 张只经由设定帧起作用"
+msgstr "{n, plural, one {# card works only through setup frames} other {# cards work only through setup frames}}"
+
+#: src/pages/DeckDetailPage.tsx
+msgid "{n} 张有专门画好的起拍画面"
+msgstr "{n, plural, one {# card has a dedicated opening frame} other {# cards have a dedicated opening frame}}"
+
+#: src/pages/DeckDetailPage.tsx
+msgid "{n} 张有文字版形象描述"
+msgstr "{n, plural, one {# card has a text description} other {# cards have a text description}}"
+
+#: src/pages/DeckDetailPage.tsx
+msgid "{n} 张的形象图直接进模型"
+msgstr "{n, plural, one {# card’s images go straight into the model} other {# cards’ images go straight into the model}}"
+
+#: src/pages/DeckDetailPage.tsx
+msgid "{n} 张真人卡以火山引擎认证素材进模型"
+msgstr "{n, plural, one {# real-person card goes in as a Volcengine-verified asset} other {# real-person cards go in as Volcengine-verified assets}}"
+
+#: src/pages/DeckDetailPage.tsx
+msgid "{n} 张真人卡以照片起拍"
+msgstr "{n, plural, one {# real-person card opens on its photo} other {# real-person cards open on their photos}}"
+
+#: src/pages/DeckDetailPage.tsx
+msgid "{n} 张真人卡用不上（不收真人照片）"
+msgstr "{n, plural, one {# real-person card can’t be used (no real-person photos)} other {# real-person cards can’t be used (no real-person photos)}}"
+
+#: src/pages/DeckDetailPage.tsx
+msgid "{n} 张真人卡的照片直接进模型"
+msgstr "{n, plural, one {# real-person card’s photo goes straight into the model} other {# real-person cards’ photos go straight into the model}}"
+
+#: src/pages/DeckDetailPage.tsx
+msgid "{n} 张真人卡要先勾「火山引擎适用」"
+msgstr "{n, plural, one {# real-person card needs “Volcengine verified” ticked first} other {# real-person cards need “Volcengine verified” ticked first}}"
 
 #: src/ai/index.ts
 msgid "{n}. {head} · 演示"
@@ -1517,8 +1580,8 @@ msgstr "{none}, so the “{label}” tier isn't available"
 
 #: src/components/CardModelFit.tsx
 #: src/pages/DeckDetailPage.tsx
-msgid "{noRefNames}：{line10}"
-msgstr "{noRefNames}: {line10}"
+#~ msgid "{noRefNames}：{line10}"
+#~ msgstr "{noRefNames}: {line10}"
 
 #: src/components/flow/DialogueWizard.tsx
 msgid "{noVoice} 没有声音样本：每一段的嗓音由模型定，前后可能不一样。"
@@ -1603,6 +1666,10 @@ msgstr "{shotN, plural, one {# shot} other {# shots}} · {lineN, plural, one {# 
 #: src/components/flow/DialogueWizard.tsx
 msgid "{speaker}：{text}"
 msgstr "{speaker}: {text}"
+
+#: src/pages/DeckDetailPage.tsx
+msgid "{startNames}一段只用一张起拍画面。哪张没适配，点进那张卡的「按模型适配」里补。"
+msgstr "{startNames} uses just one opening frame per segment. For any card that isn't ready, open that card and fix it under “Model fit”."
 
 #: src/components/flow/ModePicker.tsx
 msgid "{steps} 步"
@@ -2003,6 +2070,16 @@ msgstr "The “{extLabel}” tier can’t extend yet — switch to “{names}”
 msgid "「{extLabel}」档还不能延长——能延长的「{names}」是会员档（开通会员套餐或充值过任意一笔后可用）"
 msgstr "The “{extLabel}” tier can’t extend yet — extending needs a member tier (“{names}”), available once you subscribe to a plan or make any top-up once"
 
+#. 句子里点一档：档位名加引号（中文「」，英文弯引号）
+#: src/components/TemplateShelf.tsx
+msgid "「{label}」"
+msgstr "“{label}”"
+
+#. 句子里点一档：档位名加引号，括号里是它的出片模型名
+#: src/components/TemplateShelf.tsx
+msgid "「{label}」（{model}）"
+msgstr "“{label}” ({model})"
+
 #: src/data/account.ts
 #~ msgid "「{label}」单段消耗超过免费版整月额度（{quota}），升级套餐后可用"
 #~ msgstr "One segment on the “{label}” tier costs more than the Free plan's entire monthly token allowance ({quota}) — upgrade your plan to use it"
@@ -2191,6 +2268,11 @@ msgstr "“{names}” can't render from a reference video (reshoots and custom s
 #: src/data/account.ts
 msgid "「{names}」是会员档——开通会员套餐（或充值过任意一笔）就能用"
 msgstr "Member-only: “{names}” — subscribe to a plan (or make any top-up once) to use it"
+
+#. 几个档位名当一个名词用（后面接冒号或「用」）；names 已经用「」「接好，英文是 “Lite”, “HD”
+#: src/data/account.ts
+msgid "「{names}」档"
+msgstr "“{names}”"
 
 #: src/studio/segmentGen.ts
 msgid "「{names}」的声音样本这次没带上（这一档的参考音频合计最长 {capSec} 秒）——这几位的台词音色由模型定；把样本剪短些就能都带上"
@@ -3430,8 +3512,8 @@ msgstr "🎙 Hold to read aloud (press and hold to record)"
 
 #: src/components/CardModelFit.tsx
 #: src/pages/DeckDetailPage.tsx
-msgid "🎛 按模型适配"
-msgstr "🎛 Model fit"
+#~ msgid "🎛 按模型适配"
+#~ msgstr "🎛 Model fit"
 
 #: src/components/flow/GridShotsWizard.tsx
 msgid "🎞 九宫格分镜"
@@ -4318,6 +4400,11 @@ msgstr "Canvas unavailable"
 msgid "Google Play 还在等这笔付款完成，到账后余额会自动更新"
 msgstr "Google Play is still waiting for this payment to clear; your balance updates once it does."
 
+#. 卡片页「按模型适配」里一组的标题：MiniMax 是品牌名（不翻译），括号里是它的视频产品名 Hailuo
+#: src/data/account.ts
+msgid "MiniMax（海螺）"
+msgstr "MiniMax (Hailuo)"
+
 #: src/components/VideoTemplateExtractor.tsx
 msgid "mp4 / mov · {maxMinutes} 分钟以内 · {maxMb}MB 以内 · 会<0>公开托管</0>（套用者出片时引用它）。"
 msgstr "MP4 / MOV · up to {maxMinutes, plural, one {# minute} other {# minutes}} · up to {maxMb} MB · will be <0>hosted publicly</0> (videos made from the template reference it)."
@@ -4357,6 +4444,11 @@ msgstr "QQ didn't send back an authorization code this time. Tap again, or sign 
 #: src/ai/arkClient.ts
 msgid "Seedance 任务成功但无视频 URL"
 msgstr "The Seedance task succeeded but returned no video URL"
+
+#. 卡片页「按模型适配」里一组的标题：Seedance 是模型品牌名（不翻译），括号里是公司名
+#: src/data/account.ts
+msgid "Seedance（字节跳动）"
+msgstr "Seedance (ByteDance)"
 
 #: src/ai/arkClient.ts
 msgid "Seedream 未返回图片"
@@ -5988,6 +6080,10 @@ msgid "人身攻击 / 辱骂"
 msgstr "Personal attacks / abuse"
 
 #: src/components/TemplateShelf.tsx
+msgid "仅 {tierModelNames}"
+msgstr "{tierModelNames} only"
+
+#: src/components/TemplateShelf.tsx
 msgid "仅{tierNames}"
 msgstr "{tierNames} only"
 
@@ -6449,6 +6545,10 @@ msgstr "Your region"
 msgid "你所在的地区（{name}）"
 msgstr "Your region ({name})"
 
+#: src/components/TemplateShelf.tsx
+msgid "你所在的地区用不了"
+msgstr "Not available in your region"
+
 #: src/api/branch.ts
 msgid "你所在的地区用不了白模化要用的出片模型——看帧那一笔已经花了、不退；出片那一发没有受理。"
 msgstr "The video model blockout needs isn't available in your region — the frame-analysis step was already charged and isn't refunded; the video request itself wasn't accepted."
@@ -6473,6 +6573,10 @@ msgstr "Your approval"
 #: src/data/templates.ts
 msgid "你标的那几帧都落在选中的这一段外面了（选段后来被拖动过）——回去把标记删掉重标，或者切回「自动」。"
 msgstr "The frames you marked are all outside the selected part (the selection was moved afterwards) — go back, delete the marks and mark again, or switch back to “Auto”."
+
+#: src/components/CardModelFit.tsx
+msgid "你现在能用的出片模型都用不上它（起拍画面先留着，可以随时取消）"
+msgstr "None of the video models available to you use these right now (the opening frames stay, and you can remove them any time)"
 
 #: src/studio/canvasAgent.ts
 msgid "你的卡库里没有「{name}」"
@@ -10533,6 +10637,10 @@ msgstr "Say something to the card smith…"
 msgid "哪个是 TA"
 msgstr "Which one is them"
 
+#: src/pages/DeckDetailPage.tsx
+msgid "哪张没适配，点进那张卡的「按模型适配」里补。"
+msgstr "For any card that isn't ready, open that card and fix it under “Model fit”."
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "哭"
 msgstr "Crying"
@@ -14245,6 +14353,10 @@ msgstr "Generates each slot from the scheme + writes character info · demo tier
 msgid "按方案逐格出图 + 撰写人物信息 · 约 {aiPriceText} token"
 msgstr "Generates each slot from the scheme + writes character info · about {aiPriceText} tokens"
 
+#: src/components/CardModelFit.tsx
+msgid "按模型适配"
+msgstr "Model fit"
+
 #: src/studio/segmentGen.ts
 msgid "按模板视频逐镜头复刻出片（时长跟随模板 {refSec} 秒）…"
 msgstr "Remaking the template video shot by shot (duration follows the template, {refSec}s)…"
@@ -15515,8 +15627,12 @@ msgid "文字描述"
 msgstr "Text description"
 
 #: src/components/CardModelFit.tsx
-msgid "文字版形象描述（{noRefNames}、真人档用）"
-msgstr "Text likeness description (used by {noRefNames} and the real-person tier)"
+#~ msgid "文字版形象描述（{noRefNames}、真人档用）"
+#~ msgstr "Text likeness description (used by {noRefNames} and the real-person tier)"
+
+#: src/components/CardModelFit.tsx
+msgid "文字版形象描述（{textNames}用）"
+msgstr "Text likeness description (for {textNames})"
 
 #: src/components/CardModelFit.tsx
 msgid "文字版形象描述（收不到形象图时用）"
@@ -18225,24 +18341,40 @@ msgid "没有片段 {ref}（时间轴上一共 {count} 个）"
 msgstr "There's no clip {ref} (the timeline has {count})"
 
 #: src/components/TemplateShelf.tsx
-msgid "没有能用「{name}」（{model}）出片的模板——点写着「{name}」的那颗筛选键换一个模型，或者选回「全部模型」。"
-msgstr "No templates render on “{name}” ({model}) — tap the filter button that says “{name}” to pick another model, or go back to “All models”."
+msgid "没有能用{nm}出片的模板——点写着「{name}」的那颗筛选键换一个模型，或者选回「全部模型」。"
+msgstr "No templates render on {nm} — tap the filter button that says “{name}” to pick another model, or go back to “All models”."
+
+#: src/components/TemplateShelf.tsx
+msgid "没有能用{nm}出片的模板。现有的 {hidden} 个都要按参考视频逐镜头复刻，你现在能用的出片模型都做不到——选回「全部模型」看看。"
+msgstr "No templates render on {nm}. {hidden, plural, one {The # template here remakes} other {All # templates here remake}} a reference video shot by shot, which none of the video models available to you can do — go back to “All models” to browse."
+
+#: src/components/TemplateShelf.tsx
+msgid "没有能用{nm}出片的模板。现有的 {hidden} 个都要按参考视频逐镜头复刻，只有{needNm}做得到——点写着「{name}」的那颗筛选键换一个模型，或者选回「全部模型」。"
+msgstr "No templates render on {nm}. {hidden, plural, one {The # template here remakes} other {All # templates here remake}} a reference video shot by shot, which only {needNm} can do — tap the filter button that says “{name}” to pick another model, or go back to “All models”."
+
+#: src/components/TemplateShelf.tsx
+msgid "没有能用{nm}出片的模板。现有的 {hidden} 个都要按参考视频逐镜头复刻，只有{needNm}做得到，而它是会员档——开通会员套餐（或充值过任意一笔）后可用，或者选回「全部模型」看看。"
+msgstr "No templates render on {nm}. {hidden, plural, one {The # template here remakes} other {All # templates here remake}} a reference video shot by shot, which only {needNm} can do, and it is a member tier — available once you subscribe to a plan (or make any top-up once), or go back to “All models” to browse."
+
+#: src/components/TemplateShelf.tsx
+#~ msgid "没有能用「{name}」（{model}）出片的模板——点写着「{name}」的那颗筛选键换一个模型，或者选回「全部模型」。"
+#~ msgstr "No templates render on “{name}” ({model}) — tap the filter button that says “{name}” to pick another model, or go back to “All models”."
 
 #: src/components/TemplateShelf.tsx
 #~ msgid "没有能用「{name}」（{model}）出片的模板——点搜索栏旁边那颗键换一个模型，或者选回「全部模型」。"
 #~ msgstr "No templates render on “{name}” ({model}) — tap the button next to the search box to pick another model, or go back to “All models”."
 
 #: src/components/TemplateShelf.tsx
-msgid "没有能用「{name}」（{model}）出片的模板。现有的 {hidden} 个都要按参考视频逐镜头复刻，只有「{needLabel}」（{needModel}）做得到——点写着「{name}」的那颗筛选键换一个模型，或者选回「全部模型」。"
-msgstr "No templates render on “{name}” ({model}). {hidden, plural, one {The # template here remakes} other {All # templates here remake}} a reference video shot by shot, which only “{needLabel}” ({needModel}) can do — tap the filter button that says “{name}” to pick another model, or go back to “All models”."
+#~ msgid "没有能用「{name}」（{model}）出片的模板。现有的 {hidden} 个都要按参考视频逐镜头复刻，只有「{needLabel}」（{needModel}）做得到——点写着「{name}」的那颗筛选键换一个模型，或者选回「全部模型」。"
+#~ msgstr "No templates render on “{name}” ({model}). {hidden, plural, one {The # template here remakes} other {All # templates here remake}} a reference video shot by shot, which only “{needLabel}” ({needModel}) can do — tap the filter button that says “{name}” to pick another model, or go back to “All models”."
 
 #: src/components/TemplateShelf.tsx
 #~ msgid "没有能用「{name}」（{model}）出片的模板。现有的 {hidden} 个都要按参考视频逐镜头复刻，只有「{needLabel}」（{needModel}）做得到——点搜索栏旁边那颗键换一个模型，或者选回「全部模型」。"
 #~ msgstr "No templates render on “{name}” ({model}). {hidden, plural, one {The # template here remakes} other {All # templates here remake}} a reference video shot by shot, which only “{needLabel}” ({needModel}) can do — tap the button next to the search box to pick another model, or go back to “All models”."
 
 #: src/components/TemplateShelf.tsx
-msgid "没有能用「{name}」（{model}）出片的模板。现有的 {hidden} 个都要按参考视频逐镜头复刻，只有「{needLabel}」（{needModel}）做得到，而它是会员档——开通会员套餐（或充值过任意一笔）后可用，或者选回「全部模型」看看。"
-msgstr "No templates render on “{name}” ({model}). {hidden, plural, one {The # template here remakes} other {All # templates here remake}} a reference video shot by shot, which only “{needLabel}” ({needModel}) can do, and it is a member tier — available once you subscribe to a plan (or make any top-up once), or go back to “All models” to browse."
+#~ msgid "没有能用「{name}」（{model}）出片的模板。现有的 {hidden} 个都要按参考视频逐镜头复刻，只有「{needLabel}」（{needModel}）做得到，而它是会员档——开通会员套餐（或充值过任意一笔）后可用，或者选回「全部模型」看看。"
+#~ msgstr "No templates render on “{name}” ({model}). {hidden, plural, one {The # template here remakes} other {All # templates here remake}} a reference video shot by shot, which only “{needLabel}” ({needModel}) can do, and it is a member tier — available once you subscribe to a plan (or make any top-up once), or go back to “All models” to browse."
 
 #: src/ai/arkClient.ts
 msgid "没有要接着等的那一组"
@@ -19414,6 +19546,11 @@ msgstr "This is demo mode (no model connected), so only plain commands are under
 msgid "现在是演示模式（没有连上模型）：每段只取画面描述的第一句当底稿，不收 token。"
 msgstr "This is demo mode (no model connected): each clip just gets the first sentence of its description as a draft, and no tokens are charged."
 
+#: src/components/CardModelFit.tsx
+#: src/pages/DeckDetailPage.tsx
+msgid "现在没有摆得出来的出片模型。"
+msgstr "No video models are available right now."
+
 #: src/pages/AdminPage.tsx
 msgid "现在没有被下架的作品"
 msgstr "No videos are taken down right now"
@@ -19659,6 +19796,10 @@ msgid "用下面的格子行挂就行：先点一个格子，再点上面卡轨�
 msgstr "Use the slot row below instead: tap a slot, then tap a card in the card rail above (or drag a card straight onto a slot). The small text on each slot is this template's <0>original mark</0> (copied exactly as is) — no box will light up in the picture, and “Person N” is only the order, so identify people by that mark and by “Who each slot originally was” below."
 
 #: src/components/CardModelFit.tsx
+msgid "用不上"
+msgstr "Not used"
+
+#: src/components/CardModelFit.tsx
 msgid "用专门画好的起拍画面起拍"
 msgstr "Starts from its dedicated opening frame"
 
@@ -19699,6 +19840,10 @@ msgstr "Add voiceover right after applying ({voiceName}, free for now · {voiceF
 #: src/components/cut/AutoEditSheet.tsx
 msgid "用完就配音（{voiceName}）"
 msgstr "Add voiceover right after applying ({voiceName})"
+
+#: src/components/CardModelFit.tsx
+msgid "用得上"
+msgstr "Works"
 
 #: src/pages/AdminPage.tsx
 #: src/pages/DiscoverPage.tsx
@@ -20655,12 +20800,12 @@ msgstr "Starts from the real-person card's photo; write one sentence and render 
 
 #: src/components/CardModelFit.tsx
 #: src/pages/DeckDetailPage.tsx
-msgid "真人档：{lineReal}"
-msgstr "Real-person: {lineReal}"
+#~ msgid "真人档：{lineReal}"
+#~ msgstr "Real-person: {lineReal}"
 
 #: src/pages/DeckDetailPage.tsx
-msgid "真人档一段只用一张起拍画面。哪张没适配，点进那张卡的「按模型适配」里补。"
-msgstr "The Real-person tier uses just one opening frame per segment. For any card that isn't ready, open that card and fix it under “Model fit”."
+#~ msgid "真人档一段只用一张起拍画面。哪张没适配，点进那张卡的「按模型适配」里补。"
+#~ msgstr "The Real-person tier uses just one opening frame per segment. For any card that isn't ready, open that card and fix it under “Model fit”."
 
 #: src/ai/minimaxVideo.ts
 msgid "真人档任务受理了却没给任务号——上游协议变了，把这句话反馈给我们"
@@ -20755,8 +20900,8 @@ msgid "真人档本来就是直出，不需要再切自定义"
 msgstr "The real-person tier already renders directly; no need to switch to Custom"
 
 #: src/components/CardModelFit.tsx
-msgid "真人档适用"
-msgstr "Real-person ready"
+#~ msgid "真人档适用"
+#~ msgstr "Real-person ready"
 
 #: src/studio/segmentGen.ts
 msgid "真人档需要一张起拍画面：挂一张带照片的真人卡，或自己传一张开头帧"
@@ -20773,6 +20918,10 @@ msgstr "The real-person photo is already in the “{realSlotTag}” slot · free
 #: src/pages/CustomCardPage.tsx
 msgid "真人照片已经填进卡面的「{realSlotTag}」这一格——<0>下面两条路都不用你再传图</0>。"
 msgstr "The real-person photo is already in the card’s “{realSlotTag}” slot — <0>neither route below needs another upload</0>."
+
+#: src/components/CardModelFit.tsx
+msgid "真人照片直接进模型"
+msgstr "The real-person photo goes straight into the model"
 
 #. placeholder {0}: scheme.title
 #: src/pages/CustomCardPage.tsx
@@ -24126,6 +24275,14 @@ msgid "走出壁画"
 msgstr "Mural escape"
 
 #: src/components/CardModelFit.tsx
+msgid "起拍画面"
+msgstr "Opening frames"
+
+#: src/components/CardModelFit.tsx
+msgid "起拍画面（{startNames}用）"
+msgstr "Opening frames (for {startNames})"
+
+#: src/components/CardModelFit.tsx
 msgid "起拍画面画好了，但没能存上（{why}）——这两张已计费，再勾一次会重新画、再花一次钱。"
 msgstr "The opening frames were drawn but couldn’t be saved ({why}) — both were charged; ticking again redraws them and charges again."
 
@@ -25231,8 +25388,12 @@ msgid "这一段交给 {0} 生成"
 msgstr "This segment will be generated by {0}"
 
 #: src/studio/segmentGen.ts
-msgid "这一段以「{name}」卡上的图起拍——去卡片页勾「真人档适用」可以换成专门画好的起拍画面"
-msgstr "This segment starts from the image on “{name}” — tick “Real-person ready” on the card’s page to use a dedicated opening frame instead"
+#~ msgid "这一段以「{name}」卡上的图起拍——去卡片页勾「真人档适用」可以换成专门画好的起拍画面"
+#~ msgstr "This segment starts from the image on “{name}” — tick “Real-person ready” on the card’s page to use a dedicated opening frame instead"
+
+#: src/studio/segmentGen.ts
+msgid "这一段以「{name}」卡上的图起拍——去卡片页勾「起拍画面」可以换成专门画好的起拍画面"
+msgstr "This segment starts from the image on “{name}” — tick “Opening frames” on the card’s page to use a dedicated opening frame instead"
 
 #: src/pages/CutPage.tsx
 msgid "这一段原声的音量"
@@ -26167,6 +26328,10 @@ msgstr "This server doesn't have cloud voices set up, so previews can't play. Yo
 #: src/pages/tutor/TutorRunPage.tsx
 msgid "这台服务器没配语音，只动口型"
 msgstr "This server has no speech configured; lips move, no voice"
+
+#: src/components/TemplateShelf.tsx
+msgid "这台服务器用不了"
+msgstr "Not available on this server"
 
 #: src/data/account.ts
 msgid "这台服务器目前没有接上出片模型"
@@ -27589,6 +27754,10 @@ msgstr "Email"
 #: src/pages/LoginPage.tsx
 msgid "邮箱验证码"
 msgstr "Email code"
+
+#: src/components/CardModelFit.tsx
+msgid "部分用得上"
+msgstr "Partly"
 
 #: src/pages/CutPage.tsx
 msgid "配乐「{lostName}」没能读出来——这一条先按没有配乐导出。想要它就回剪辑页的「音频」重新挑一次，再合一次。"

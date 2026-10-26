@@ -192,7 +192,8 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   读的都是这一份。**不给「解除固定」的出口**：换到别的模型不是效果差一点，是出不了片 —— 用户该做的是按自己能用的模型挑模板。
   套餐用不了那一档时在**选模板那一步**就说（`templatePlanIssue` = `templateTiers` + `account.tierBlockReason`；货架「用它出片」领去详情页、
   详情页出片键灰掉并给「去升级」），别等人挂完卡点了生成才第一次听说。卡这一侧的同一条口径在 `data/cardFit`（卡片页「按模型适配」那一格
-  与卡组页的摘要读同一份状态，页面只负责说成句子）。
+  与卡组页的摘要读同一份状态，页面只负责说成句子；2026-10-26 起**按具体模型**算、只读档位表能力位 startOnly / refImg / assetRef / realFace，
+  零依赖，构建里 `check-card-fit.mjs` 拿真表实跑；写哪几个模型、写不写名字见下面「出片地区」⑥）。
 - **免费档限制 / 「草稿」档 / 电影级「样片」/ 失败退回 token**（2026-10-07 主人拍板，契约见 docs/api-contract.md「视频档位」「纯任务的参数钉子、样片两步、停用」
   「受理之后失败的退款」）。六条规矩：
   ① **档位的能力 / 价目 / 分辨率只在 `data/videoTierTable`**（零依赖，构建里 `check-video-tiers.mjs` 核对，服务端 `config/tokens.js` 逐条相等）。
@@ -218,7 +219,7 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   只在能力位为真时，**按供应商分开问**（方舟 `failRefund`，真人档 `failRefundMinimax` = 健康端点的 `minimaxFailRefund`）。站内通知 `GEN_TASK_REFUND` 点进去开钱包。
   ⑥ **样片第一步只走参考图那一种请求**：帧转参考图失败时普通出片退回首尾帧，而 2.5 的首尾帧任务只收 `ratio: "adaptive"`，服务端按 480p 那一行最贵的一格结算 ——
   样片那一发在花钱之前整句拒（`segmentGen` 的样片闸，`arkClient` 另有一道协议断言），报价才等于实扣；拒之前补画好的帧照 ④ 留在方案上，再点一次只重传、不重画。契约核对那句在远端模式说「以服务器结算为准」（钱不按本机报价扣）。
-- **出片地区：App 只照服务端下发的 `providers` 摆档，不自己按国家判**（2026-10-26 出片地区 P1，主人「海外由于政策原因只能用 MiniMax」；契约见 docs/api-contract.md「出片地区」，服务端 server#131）。五条规矩：
+- **出片地区：App 只照服务端下发的 `providers` 摆档，不自己按国家判**（2026-10-26 出片地区 P1，主人「海外由于政策原因只能用 MiniMax」；契约见 docs/api-contract.md「出片地区」，服务端 server#131）。六条规矩：
   ① 「这台设备此刻能用哪几家出片」只有 `data/videoZone` 一处（`GET /api/video/zone`，健康端点报了 `videoZone` 能力位才问、no-store）；判「这一家给不给」只走 `zoneDenies`。
   规则（回包怎么读、403 怎么记、「不知道」不拦、措辞挑哪种）在零依赖的 `data/videoZoneRules`，构建里 `check-video-zone.mjs` 实跑；「有没有服务端那一层」只问 `serverCaps.noServerLayer`。
   **不拿 `gate` 决定藏不藏、不认国家名单**：服务端 observe 时 providers 照样带着方舟，App 照样摆；切 `off` 急停下一次问到就全摆回来 —— App 另判一遍就是两把尺。
@@ -239,6 +240,12 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   `genStarted`（画布「提交即收窗」）排在地区那一道之后。**反方向**（旧结论说被拦、其实已经能用了）：同步门禁拿地区拒之前先 `account.tierRegionRecheck`，
   结论变了从头再判一遍（genNode / deriveProposals / generateNode 三处；其余花钱的门禁顺手 `void` 一次，下一次点就用上新结论）。
   新加一条「先花钱、后出视频」的入口也要接这一步。地区那句（`ArkRegionDenied`）自带句号，接在「：」后面再补「。」的地方先过 `arkClient.reasonClause`。
+  ⑥ **说「哪个出片模型」只走 `account.offeredVideoModels` 一处**（2026-10-26 主人第 2 件：卡片信息写具体模型名，「卡片信息」包括模板卡）：卡片页「按模型适配」、
+  卡组页摘要、模板货架（卡面角标 / 「出片模型」筛选 / 筛空了那句）、模板详情「出片模型」那一行。地区问到了 → 按家分组（`providerGroupName`）、行首写具体模型名
+  （`videoModelsLead` / `videoModelsNames`、单档 `tierShownModel`），只列 `offeredTiers` 给得出的（地区已在 tierOffIssue 里筛过，这里**不另读地区**）；
+  **地区不知道时只写档位名、不写 Seedance / MiniMax 字样**（美国的机器第一次打开不先看到 Seedance）。卡片页那两个勾选框随之改名：「文字版形象描述（… 用）」
+  「起拍画面（… 用）」（后者 2026-10-26 之前叫「真人档适用」），括号里写读它的模型（按 cardInput：只经由帧 / 只认起拍画面），一个都不剩时换一句不点名的。
+  白模模板在这个地区跑不了时卡面角标换成「你所在的地区用不了」（门禁没开时说「这台服务器用不了」），不写它要的那个模型。
 - **方舟第十批下线（2026-11-24 14:00）的 App 这一半**（2026-10-10 主人拍板，2.63；契约见 docs/api-contract.md「出图模型下线与改发」「请求头 X-App-Version」，
   强制更新见 docs/app-distribution.md「强制更新」）。五条规矩：
   ① **出图型号只认价目表里那两个**（`economy.IMAGE_TOKENS_BY_MODEL`：速写 = `doubao-seedream-4-0-20260415`（4.0 的继任，13,333，沿用 4.0 的价、待账单核）、

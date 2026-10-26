@@ -763,7 +763,7 @@ export async function updateCardMeta(
     tags?: string[];
     idLine?: string;
     textDesc?: string;
-    /** null = 取消「真人档适用」（服务端 $unset） */
+    /** null = 取消「起拍画面」那一勾（2026-10-26 之前叫「真人档适用」；服务端 $unset） */
     startFrames?: Card["startFrames"] | null;
   },
 ): Promise<ApiCard | null> {

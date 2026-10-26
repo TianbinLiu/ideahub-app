@@ -7,7 +7,8 @@
 // 页面读的全是同步函数（myCards() / currentUser() / isFollowing()…），签名一个没动；
 // 变更仍通过 subscribeAccount + 版本号广播，远端回包回填时也走同一条广播。
 import { i18n } from "@lingui/core";
-import { t } from "@lingui/core/macro";
+import { msg, t } from "@lingui/core/macro";
+import type { MessageDescriptor } from "@lingui/core";
 import { V3_CARD_WIPE_MS, Card, SHARE_NOTE_MAX, uid, viewTag, type CardView } from "../types";
 // data → mock 是既有方向（data/videos.ts 也从 mock/frames 取种子帧），不成环
 import { MARKET_DECKS, marketCardsByName } from "../mock/ai";
@@ -15,7 +16,8 @@ import { claimPendingTerms, reconcileTermsWithServer } from "./agreements";
 import { showToast } from "./toast";
 import { claimLegacyVoices, removeVoice } from "./cardVoice";
 import { adoptRemoteAssets, assetOf, claimLegacyAssets, hasAsset, removeAsset, saveAsset, setAssetSyncIssue, type CardAsset } from "./cardAsset";
-import { PLANS, PLATFORM_CUT, VIDEO_TIERS, fmtTokens, joinTierNames, planOf, providerOf, tierOf, tierRetireDay, tierRetired, type VideoTier } from "./economy";
+import { PLANS, PLATFORM_CUT, VIDEO_TIERS, fmtTokens, joinTierNames, modelLabel, planOf, providerOf, tierModelLabel, tierOf, tierRetireDay, tierRetired, type VideoTier } from "./economy";
+import { modelsOfTiers, type VideoModelOf } from "./cardFit";
 import { serverFreeVideo, serverSupports, subscribeServerCaps } from "./serverCaps";
 import { refreshVideoZone, subscribeVideoZone, videoZone, zoneDenies, zoneIsRegional, type VideoProvider } from "./videoZone";
 import { FREE_DEFAULT_CHAIN, PAID_DEFAULT_CHAIN, SEEDANCE_2_5, firstLiveTierId } from "./videoTierTable";
@@ -1122,6 +1124,84 @@ export function offeredTiers(): VideoTier[] {
   return VIDEO_TIERS.filter(tierOffered);
 }
 
+// ── 「哪个出片模型」怎么写（2026-10-26 出片地区 · 主人第 2 件：卡片信息写具体模型名，并按地区只列给得出的）──
+//
+// ★★ 卡片页「按模型适配」、卡组页的适配摘要、模板货架（卡面角标 / 「出片模型」筛选 / 筛空了那句）、模板详情「出片模型」那一行，
+//   说「哪个模型」只读这一组（一处出口；卡怎么进模型的判据在 data/cardFit，只读档位表能力位）：
+//   · 地区问到了（data/videoZone 非 null）：写具体模型名（Seedance 2.0 mini / MiniMax Hailuo 2.3 Fast…），按家分组，
+//     只写这个地区给得出的 —— 列哪几档仍只问 offeredTiers（tierOffIssue 已按地区筛过），这里**不另读地区判给不给**
+//     （2026-10-26 设计审核：两份「这个人能用什么」会分叉，地区不知道时两边口径还相反）；
+//   · 地区不知道（老服务端没有 videoZone 能力位 / dev 直连 / 离线演示包 / 这一场还没问到）：**只写档位名，不写供应商与模型名**
+//     （主人 10-26：美国的机器第一次打开不该先看到 Seedance 字样；批评意见：服务端没报地区时只写档位名）。
+//     列哪几档照今天的样子（offeredTiers 在地区不知道时不按地区拦）。问到之后 videoZone 广播 → account emit → 订阅了账号的页面重画。
+// ★ 这只是**展示口径**：真正挡住某个地区用某一家的是服务端出片门禁（403 REGION_UNAVAILABLE），见 data/videoZone 文件头。
+
+/** 摆给这个人的出片模型（offeredTiers 按模型并起来）+ 能不能写名字 */
+export interface OfferedVideoModels {
+  /** 地区问到了：可以写模型名 / 供应商名。false = 只写档位名（见上） */
+  named: boolean;
+  /** 顺序同档位表；一个模型挂着它的那几档（「草稿」「高清」都是 Seedance 2.0 mini） */
+  models: VideoModelOf<VideoTier, VideoProvider>[];
+}
+
+export function offeredVideoModels(): OfferedVideoModels {
+  return { named: videoZone() !== null, models: modelsOfTiers(offeredTiers(), (x) => providerOf(x.id)) };
+}
+
+/**
+ * 一档在「说哪个模型」的地方写成什么：地区问到了、这一档又摆得出来 → 模型名（economy.tierModelLabel，带分辨率：「草稿」「高清」同一个模型）；
+ * 否则 null —— 调用方只写档位名（地区不知道时不写供应商；这个地区给不出的那一家更不写）。
+ */
+export function tierShownModel(tier: VideoTier): string | null {
+  const { named, models } = offeredVideoModels();
+  return named && models.some((m) => m.tiers.some((x) => x.id === tier.id)) ? tierModelLabel(tier) : null;
+}
+
+/** 一家在分组标题上写成什么（品牌名不翻译，括号里的公司 / 产品名照常翻） */
+const PROVIDER_GROUP: Record<VideoProvider, MessageDescriptor> = {
+  ark: msg({ message: "Seedance（字节跳动）", comment: "卡片页「按模型适配」里一组的标题：Seedance 是模型品牌名（不翻译），括号里是公司名" }),
+  minimax: msg({ message: "MiniMax（海螺）", comment: "卡片页「按模型适配」里一组的标题：MiniMax 是品牌名（不翻译），括号里是它的视频产品名 Hailuo" }),
+};
+
+export function providerGroupName(p: VideoProvider): string {
+  return i18n._(PROVIDER_GROUP[p]);
+}
+
+/** 几档的名字（「草稿」「高清」）当一个名词用：「「草稿」「高清」档」 */
+function tiersAsNoun(tiers: VideoTier[]): string {
+  const names = joinTierNames(tiers.map((x) => x.label));
+  return t({ message: `「${names}」档`, comment: "几个档位名当一个名词用（后面接冒号或「用」）；names 已经用「」「接好，英文是 “Lite”, “HD”" });
+}
+
+/** 一个模型带着它的档名：「Seedance 2.0 mini（草稿 / 高清）」；要停用的标上哪天（「（极速，11月24日停用）」） */
+function modelWithTiers(m: VideoModelOf<VideoTier, VideoProvider>): string {
+  const model = modelLabel(m.model);
+  const tiers = m.tiers.map((x) => x.label).join(" / ");
+  const day = m.tiers.every((x) => !!x.retireAt) ? tierRetireDay(m.tiers[0]) : "";
+  return day
+    ? t({ message: `${model}（${tiers}，${day}停用）`, comment: "模型名后面括号里是挂在它上面的档位名，再加停用日期（11月24日 / November 24）" })
+    : t({ message: `${model}（${tiers}）`, comment: "模型名后面括号里是挂在它上面的档位名（草稿 / 高清）" });
+}
+
+/**
+ * 几个模型在一行开头写成什么（卡片页 / 卡组页「按模型适配」的行首，后面接「：原因」）：
+ * 有名字 → 「Seedance 2.0 mini（草稿 / 高清）、Seedance 2.5（电影级）」；没名字 → 「「草稿」「高清」「电影级」档」。
+ */
+export function videoModelsLead(models: VideoModelOf<VideoTier, VideoProvider>[], named: boolean): string {
+  if (!named) return tiersAsNoun(models.flatMap((m) => m.tiers));
+  return models.map(modelWithTiers).join(nameSep());
+}
+
+/**
+ * 几个模型在句子里写成什么（勾选框的名字、脚注）：有名字 → 「Seedance 1.0 pro、MiniMax Hailuo 2.3 Fast」；没名字 → 「「标准」「真人」档」。
+ * 空数组回空串（调用方换一句不点名的话）。
+ */
+export function videoModelsNames(models: VideoModelOf<VideoTier, VideoProvider>[], named: boolean): string {
+  if (!models.length) return "";
+  if (!named) return tiersAsNoun(models.flatMap((m) => m.tiers));
+  return models.map((m) => modelLabel(m.model)).join(nameSep());
+}
+
 /**
  * 这一档**免费用户**能不能用（不看停用 / 服务端支不支持，那是 tierOffIssue 的事）—— 免费档清单的唯一读法。
  * ★ 判据跟着服务端走（2026-10-07 评审抓到）：健康端点报了 freeVideo 就照它；运维关掉 FREE_VIDEO_GATE 时（freeVideoGate: false）
@@ -1978,9 +2058,9 @@ export async function updateCardMeta(
     summary?: string;
     tags?: string[];
     idLine?: string;
-    /** 按模型适配：文字版形象描述，空串 = 取消卡上「文字版形象描述」那一勾（2026-10-10 之前叫「标准/极速适用」，名字现随 noRefImgTierList 写） */
+    /** 按模型适配：文字版形象描述，空串 = 取消卡上「文字版形象描述」那一勾（2026-10-10 之前叫「标准/极速适用」；括号里写读它的那几个模型，随 account.offeredVideoModels 写，见 CardModelFit） */
     textDesc?: string;
-    /** 按模型适配：真人档起拍画面，null = 取消「真人档适用」 */
+    /** 按模型适配：真人档起拍画面，null = 取消「起拍画面」那一勾（2026-10-26 之前叫「真人档适用」） */
     startFrames?: Card["startFrames"] | null;
   },
 ): Promise<string | null> {
