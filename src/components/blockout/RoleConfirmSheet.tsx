@@ -200,7 +200,7 @@ export default function RoleConfirmSheet({ t: tpl, onClose }: { t: VideoTemplate
   //   `position: fixed` 的后代造包含块，inset-0 于是只铺满那个盒子（CLAUDE.md 的坑）
   return createPortal(
     <div className="fixed inset-0 z-[70] flex flex-col bg-black/85 backdrop-blur-sm">
-      <div className="safe-top flex h-[58px] items-center gap-2 px-4">
+      <div className="safe-top-bar flex items-center gap-2 px-4">
         <CloseButton chip="md" size={16} onClick={onClose} />
         <h2 className="text-sm font-bold text-slate-100">{ordinal ? <Trans>核对角色位位置</Trans> : <Trans>核对角色位编号</Trans>}</h2>
         <HelpButton tour="roleconfirm" className="ml-auto" />

@@ -586,7 +586,7 @@ export default function FlowCanvas({
   const body = (
     // fixed 全屏 + z-40 + 底色那层外壳挪到了下面 createPortal 那一拍（渲染边界要压在壳里，见那里的 ★）；这里只是填满它的一列
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="safe-top flex h-[58px] flex-none items-center gap-2 px-4">
+      <div className="safe-top-bar flex flex-none items-center gap-2 px-4">
         <CloseButton chip="md" size={16} tone="text-slate-200" label={t`退出编辑`} onClick={onExit} />
         {/* 2026-08-29 主人点名：顶栏那句写死的「流水线画布」换成 Google 文档式**工程标题**
             （点击就地改名，命名即建档）。"这是画布"由整个画面自己说明，标题位留给
