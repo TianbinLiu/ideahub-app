@@ -349,7 +349,15 @@ export default function TutorRunPage() {
       {/* 舞台：只有会说话的老师才挂（容器比可见区高，只露头肩；看板娘按容器高度摆位） */}
       {speaks && (
         <div className="relative mb-3 h-52 overflow-hidden rounded-xl border border-slate-700/70 bg-panel">
-          <SupportStage className="absolute inset-x-0 top-0 h-[420px]" topPx={8} heightFraction={1} modelUrl={modelUrl} waiting={!stageSettled} />
+          <SupportStage
+            className="absolute inset-x-0 top-0 h-[420px]"
+            topPx={8}
+            heightFraction={1}
+            modelUrl={modelUrl}
+            waiting={!stageSettled}
+            name={bundle.companion?.name || t`老师`}
+            failNote={t`上课照常。`}
+          />
           {speech.subtitle && speech.speaking && (
             <div className="absolute inset-x-2 bottom-2 rounded-lg border border-white/10 bg-slate-950/60 px-3 py-1.5 text-xs leading-relaxed text-slate-100 backdrop-blur-sm">{speech.subtitle}</div>
           )}

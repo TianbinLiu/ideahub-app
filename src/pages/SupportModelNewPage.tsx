@@ -26,7 +26,7 @@ import PageHeader from "../components/PageHeader";
 import Spinner from "../components/Spinner";
 import StepDots from "../components/StepDots";
 import TagInput from "../components/TagInput";
-import SupportStage from "../components/support/SupportStage";
+import SupportStage, { type StageFallback } from "../components/support/SupportStage";
 import { useBackOr } from "../hooks/useBackOr";
 import { companionBus } from "../companion/bus";
 import {
@@ -438,6 +438,17 @@ export default function SupportModelNewPage() {
   const coverRef = useRef<HTMLInputElement>(null);
   const verifyRunning = useRef(false);
   const [restartAsk, setRestartAsk] = useState(false);
+  /**
+   * 舞台报回来的失败原因，按向导的口径说（对作者说怎么修）。
+   * ★ 加载前的 moc3 检查拦下的两类按类型认（live2d/mocCheck）：版本太新不是"文件坏了"，单独一句；别的照旧用加载那一步的原话。
+   *   第 ① 步本地核对已经跑过同一道检查（bundlePreview），这里是那一步没跑成（运行时没加载出来）时的兜底。
+   */
+  const previewFailText = (f: StageFallback) =>
+    f.kind === "inconsistent"
+      ? t`模型文件没通过 Cubism 的一致性检查（结构不完整或被改过）。用 Cubism Editor 重新导出 moc3 再试。`
+      : f.kind === "tooNew"
+        ? t`这个模型是用较新版本的 Cubism 导出的，App 里的运行时还读不了。导出时选一个旧一些的 moc3 版本再试。`
+        : f.reason;
   /** 刚才在预览里点到了我们的哪个触摸区（第 ④ 步验证命中区映射用；空 = 还没点过） */
   const [lastHit, setLastHit] = useState<string[]>([]);
 
@@ -641,7 +652,16 @@ export default function SupportModelNewPage() {
       {stageOn && (
         <section className="mb-3">
           <div className="relative h-[280px] overflow-hidden rounded-xl border border-slate-700/70 bg-slate-950">
-            <SupportStage className="absolute inset-0" modelUrl={s.previewUrl} topPx={0} heightFraction={0.9} onFallback={(r) => markPreviewLoaded(false, r)} />
+            {/* failNote={null}：两套都没出来时舞台不另画一块，下面的失败横幅 + 「重新加载预览」就是这一页的说法 */}
+            <SupportStage
+              className="absolute inset-0"
+              modelUrl={s.previewUrl}
+              topPx={0}
+              heightFraction={0.9}
+              name={t`你的模型`}
+              failNote={null}
+              onFallback={(f) => markPreviewLoaded(false, previewFailText(f), f.kind !== null)}
+            />
             {s.previewState === "loading" && (
               <div className="pointer-events-none absolute inset-x-0 bottom-2 flex justify-center">
                 <span className="rounded-full bg-black/60 px-2.5 py-1 text-[11px] text-slate-200"><Trans>正在加载这个包…</Trans></span>

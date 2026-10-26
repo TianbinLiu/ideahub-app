@@ -1336,6 +1336,14 @@ msgid "{missing} 格模型没画"
 msgstr "the model didn’t draw {missing, plural, one {# panel} other {# panels}}"
 
 #: src/live2d/bundlePreview.ts
+msgid "{mocPath} 是用较新版本的 Cubism 导出的（moc3 版本号 {version}），App 里的运行时最高只读到 {latest}。导出时选一个旧一些的 moc3 版本再试。"
+msgstr "{mocPath} was exported with a newer version of Cubism (moc3 version {version}); the app's runtime can only read up to {latest}. Export it with an older moc3 version and try again."
+
+#: src/live2d/bundlePreview.ts
+msgid "{mocPath} 没通过 Cubism 的 moc3 格式校验（结构不完整或被改过），手机上加载不了。用 Cubism Editor 重新导出再压一次。"
+msgstr "{mocPath} failed Cubism's moc3 format check (incomplete structure or altered), so it can't load on a phone. Re-export it from Cubism Editor and zip it again."
+
+#: src/live2d/bundlePreview.ts
 msgid "{mocPath} 的文件头不是 MOC3（读到 “{shown}”），这不是一份有效的 moc3。"
 msgstr "{mocPath}'s file header isn't MOC3 (read “{shown}”), so it isn't a valid moc3."
 
@@ -1382,6 +1390,10 @@ msgstr "{name}'s voice"
 #: src/pages/SupportPage.tsx
 msgid "{name}走神了，再发一次试试。"
 msgstr "{name} got distracted. Try sending again."
+
+#: src/components/support/SupportStage.tsx
+msgid "{name}这次没能出场。"
+msgstr "{name} couldn't make it on stage this time."
 
 #: src/studio/segmentGen.ts
 msgid "{names} 没对上这一段的任何参考，按普通文字发出"
@@ -4986,6 +4998,10 @@ msgstr "upstream gave no reason"
 msgid "上课"
 msgstr "Class"
 
+#: src/pages/tutor/TutorRunPage.tsx
+msgid "上课照常。"
+msgstr "Class goes on as usual."
+
 #: src/pages/tutor/TutorHomePage.tsx
 #: src/pages/tutor/TutorRunPage.tsx
 msgid "上课需要联网"
@@ -6369,6 +6385,10 @@ msgstr "Your cards, decks and templates, plus <0>extracting a deck or card from 
 #: src/studio/studioStore.ts
 msgid "你的卡组还是空的。先把素材交给我炼卡，或者说「逛市场」看看现成的。"
 msgstr "Your deck is still empty. Hand me materials to forge cards, or tap “🛒 Browse market” to see ready-made ones."
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "你的模型"
+msgstr "Your model"
 
 #: src/components/support/VoiceSheet.tsx
 msgid "你的设置（官网同步）"
@@ -11427,6 +11447,10 @@ msgstr "The three angles for the shot / reverse shot are drawn"
 #: src/studio/dialogueDraftStore.ts
 msgid "对话正反打的机位没画成，回去看原因"
 msgstr "The shot / reverse shot angles weren’t drawn — go back to see why"
+
+#: src/pages/SupportPage.tsx
+msgid "对话照常能用。"
+msgstr "Chat still works."
 
 #: src/pages/SupportPage.tsx
 msgid "对话记录"
@@ -16932,6 +16956,10 @@ msgstr "The model description file isn't valid JSON"
 msgid "模型描述文件读不到（HTTP {0}）"
 msgstr "Can't read the model description file (HTTP {0})"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "模型文件没通过 Cubism 的一致性检查（结构不完整或被改过）。用 Cubism Editor 重新导出 moc3 再试。"
+msgstr "The model file failed Cubism's consistency check (incomplete structure or altered). Re-export the moc3 from Cubism Editor and try again."
+
 #: src/pages/SupportModelsPage.tsx
 msgid "模型文件读不到（{why}），没有切换。"
 msgstr "Couldn't read the model files ({why}); nothing was switched."
@@ -17513,8 +17541,12 @@ msgstr "Unzipping the bundle…"
 #~ msgstr "Saying this now →"
 
 #: src/components/support/SupportStage.tsx
-msgid "正在请小梦出场…"
-msgstr "Bringing Xiaomeng on stage…"
+msgid "正在请{name}出场…"
+msgstr "Bringing {name} on stage…"
+
+#: src/components/support/SupportStage.tsx
+#~ msgid "正在请小梦出场…"
+#~ msgstr "Bringing Xiaomeng on stage…"
 
 #: src/pages/tutor/TutorRunPage.tsx
 msgid "正在请老师…"
@@ -22464,6 +22496,7 @@ msgid "翻到{otherTitle}"
 msgstr "Flip to {otherTitle}"
 
 #: src/pages/tutor/TutorNewPage.tsx
+#: src/pages/tutor/TutorRunPage.tsx
 msgid "老师"
 msgstr "Teacher"
 
@@ -25550,6 +25583,10 @@ msgstr "This file can't be read ({why}). Most likely it's still in a cloud drive
 msgid "这个槽位还对着另外 {0} 个命中区：{1}"
 msgstr "{0, plural, one {This slot is also mapped to # other hit area: {1}} other {This slot is also mapped to # other hit areas: {1}}}"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "这个模型是用较新版本的 Cubism 导出的，App 里的运行时还读不了。导出时选一个旧一些的 moc3 版本再试。"
+msgstr "This model was exported with a newer version of Cubism than the app's runtime can read. Export it with an older moc3 version and try again."
+
 #: src/pages/SupportModelsPage.tsx
 msgid "这个模型没有可用的文件地址，换一个试试。"
 msgstr "This model has no usable file address. Try another one."
@@ -26159,6 +26196,14 @@ msgstr "Some cards in this set are marked as “real people”, so their referen
 #: src/pages/SupportPage.tsx
 msgid "这套形象加载失败（{why}），先换回官方形象；可以去「形象」里重新下载或换一套。"
 msgstr "This look failed to load ({why}), so it's switched back to the official look for now. You can re-download it or pick another under “Look”."
+
+#: src/pages/SupportPage.tsx
+msgid "这套形象是用较新版本的 Cubism 导出的，App 里的运行时还读不了，先换回官方形象；可以换一套，或请作者导出成旧一些的版本。"
+msgstr "This look was exported with a newer version of Cubism than the app's runtime can read, so it's switched back to the official look for now. Pick another, or ask the creator to export an older version."
+
+#: src/pages/SupportPage.tsx
+msgid "这套形象的模型文件不完整或被改过，没通过加载前的检查，先换回官方形象；可以换一套，或请作者重新导出。"
+msgstr "This look's model file is incomplete or has been altered and didn't pass the pre-load check, so it's switched back to the official look for now. Pick another, or ask the creator to re-export it."
 
 #: src/studio/ui/FuseFrameSheet.tsx
 msgid "这张{label}要什么画面？例：\"他站在门口回头，半身，暖光\""
@@ -27546,6 +27591,7 @@ msgstr "Re-detecting <0>overwrites the current descriptions</0> (including your 
 #: src/components/BootFailed.tsx
 #: src/components/flow/SegPlayer.tsx
 #: src/components/LocalStoreIssue.tsx
+#: src/components/support/SupportStage.tsx
 #: src/components/UpdateSheet.tsx
 #: src/components/WorkflowShelf.tsx
 #: src/pages/CardDetailPage.tsx

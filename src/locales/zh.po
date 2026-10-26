@@ -1336,6 +1336,14 @@ msgid "{missing} 格模型没画"
 msgstr "{missing} 格模型没画"
 
 #: src/live2d/bundlePreview.ts
+msgid "{mocPath} 是用较新版本的 Cubism 导出的（moc3 版本号 {version}），App 里的运行时最高只读到 {latest}。导出时选一个旧一些的 moc3 版本再试。"
+msgstr "{mocPath} 是用较新版本的 Cubism 导出的（moc3 版本号 {version}），App 里的运行时最高只读到 {latest}。导出时选一个旧一些的 moc3 版本再试。"
+
+#: src/live2d/bundlePreview.ts
+msgid "{mocPath} 没通过 Cubism 的 moc3 格式校验（结构不完整或被改过），手机上加载不了。用 Cubism Editor 重新导出再压一次。"
+msgstr "{mocPath} 没通过 Cubism 的 moc3 格式校验（结构不完整或被改过），手机上加载不了。用 Cubism Editor 重新导出再压一次。"
+
+#: src/live2d/bundlePreview.ts
 msgid "{mocPath} 的文件头不是 MOC3（读到 “{shown}”），这不是一份有效的 moc3。"
 msgstr "{mocPath} 的文件头不是 MOC3（读到 “{shown}”），这不是一份有效的 moc3。"
 
@@ -1382,6 +1390,10 @@ msgstr "{name}的声音"
 #: src/pages/SupportPage.tsx
 msgid "{name}走神了，再发一次试试。"
 msgstr "{name}走神了，再发一次试试。"
+
+#: src/components/support/SupportStage.tsx
+msgid "{name}这次没能出场。"
+msgstr "{name}这次没能出场。"
 
 #: src/studio/segmentGen.ts
 msgid "{names} 没对上这一段的任何参考，按普通文字发出"
@@ -4990,6 +5002,10 @@ msgstr "上游未说明原因"
 msgid "上课"
 msgstr "上课"
 
+#: src/pages/tutor/TutorRunPage.tsx
+msgid "上课照常。"
+msgstr "上课照常。"
+
 #: src/pages/tutor/TutorHomePage.tsx
 #: src/pages/tutor/TutorRunPage.tsx
 msgid "上课需要联网"
@@ -6373,6 +6389,10 @@ msgstr "你的卡片、卡组、模板，还有<0>从视频提取卡组 / 卡片
 #: src/studio/studioStore.ts
 msgid "你的卡组还是空的。先把素材交给我炼卡，或者说「逛市场」看看现成的。"
 msgstr "你的卡组还是空的。先把素材交给我炼卡，或者说「逛市场」看看现成的。"
+
+#: src/pages/SupportModelNewPage.tsx
+msgid "你的模型"
+msgstr "你的模型"
 
 #: src/components/support/VoiceSheet.tsx
 msgid "你的设置（官网同步）"
@@ -11435,6 +11455,10 @@ msgstr "对话正反打的三个机位画好了"
 #: src/studio/dialogueDraftStore.ts
 msgid "对话正反打的机位没画成，回去看原因"
 msgstr "对话正反打的机位没画成，回去看原因"
+
+#: src/pages/SupportPage.tsx
+msgid "对话照常能用。"
+msgstr "对话照常能用。"
 
 #: src/pages/SupportPage.tsx
 msgid "对话记录"
@@ -16940,6 +16964,10 @@ msgstr "模型描述文件不是合法的 JSON"
 msgid "模型描述文件读不到（HTTP {0}）"
 msgstr "模型描述文件读不到（HTTP {0}）"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "模型文件没通过 Cubism 的一致性检查（结构不完整或被改过）。用 Cubism Editor 重新导出 moc3 再试。"
+msgstr "模型文件没通过 Cubism 的一致性检查（结构不完整或被改过）。用 Cubism Editor 重新导出 moc3 再试。"
+
 #: src/pages/SupportModelsPage.tsx
 msgid "模型文件读不到（{why}），没有切换。"
 msgstr "模型文件读不到（{why}），没有切换。"
@@ -17521,8 +17549,12 @@ msgstr "正在解开压缩包…"
 #~ msgstr "正在说这句 →"
 
 #: src/components/support/SupportStage.tsx
-msgid "正在请小梦出场…"
-msgstr "正在请小梦出场…"
+msgid "正在请{name}出场…"
+msgstr "正在请{name}出场…"
+
+#: src/components/support/SupportStage.tsx
+#~ msgid "正在请小梦出场…"
+#~ msgstr "正在请小梦出场…"
 
 #: src/pages/tutor/TutorRunPage.tsx
 msgid "正在请老师…"
@@ -22472,6 +22504,7 @@ msgid "翻到{otherTitle}"
 msgstr "翻到{otherTitle}"
 
 #: src/pages/tutor/TutorNewPage.tsx
+#: src/pages/tutor/TutorRunPage.tsx
 msgid "老师"
 msgstr "老师"
 
@@ -25558,6 +25591,10 @@ msgstr "这个文件读不出来（{why}）。多半是它还在网盘/云端没
 msgid "这个槽位还对着另外 {0} 个命中区：{1}"
 msgstr "这个槽位还对着另外 {0} 个命中区：{1}"
 
+#: src/pages/SupportModelNewPage.tsx
+msgid "这个模型是用较新版本的 Cubism 导出的，App 里的运行时还读不了。导出时选一个旧一些的 moc3 版本再试。"
+msgstr "这个模型是用较新版本的 Cubism 导出的，App 里的运行时还读不了。导出时选一个旧一些的 moc3 版本再试。"
+
 #: src/pages/SupportModelsPage.tsx
 msgid "这个模型没有可用的文件地址，换一个试试。"
 msgstr "这个模型没有可用的文件地址，换一个试试。"
@@ -26167,6 +26204,14 @@ msgstr "这套卡里有声明过「真实人物」的卡，它的形象参考图
 #: src/pages/SupportPage.tsx
 msgid "这套形象加载失败（{why}），先换回官方形象；可以去「形象」里重新下载或换一套。"
 msgstr "这套形象加载失败（{why}），先换回官方形象；可以去「形象」里重新下载或换一套。"
+
+#: src/pages/SupportPage.tsx
+msgid "这套形象是用较新版本的 Cubism 导出的，App 里的运行时还读不了，先换回官方形象；可以换一套，或请作者导出成旧一些的版本。"
+msgstr "这套形象是用较新版本的 Cubism 导出的，App 里的运行时还读不了，先换回官方形象；可以换一套，或请作者导出成旧一些的版本。"
+
+#: src/pages/SupportPage.tsx
+msgid "这套形象的模型文件不完整或被改过，没通过加载前的检查，先换回官方形象；可以换一套，或请作者重新导出。"
+msgstr "这套形象的模型文件不完整或被改过，没通过加载前的检查，先换回官方形象；可以换一套，或请作者重新导出。"
 
 #: src/studio/ui/FuseFrameSheet.tsx
 msgid "这张{label}要什么画面？例：\"他站在门口回头，半身，暖光\""
@@ -27554,6 +27599,7 @@ msgstr "重认会<0>覆盖现有描述</0>（你自己改过的也会没），�
 #: src/components/BootFailed.tsx
 #: src/components/flow/SegPlayer.tsx
 #: src/components/LocalStoreIssue.tsx
+#: src/components/support/SupportStage.tsx
 #: src/components/UpdateSheet.tsx
 #: src/components/WorkflowShelf.tsx
 #: src/pages/CardDetailPage.tsx

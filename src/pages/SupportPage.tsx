@@ -778,9 +778,20 @@ export default function SupportPage() {
         heightFraction={MODEL_HEIGHT_FRACTION}
         modelUrl={marketModelUrl}
         waiting={!settingsSettled && !stageSlow}
-        onFallback={(reason) => {
-          const why = reason.slice(0, 80);
-          setStageNotice(t`这套形象加载失败（${why}），先换回官方形象；可以去「形象」里重新下载或换一套。`);
+        name={name}
+        failNote={t`对话照常能用。`}
+        onFallback={(fail) => {
+          // ★ 官方形象也没出来：舞台自己会说「没能出场」+ 重试，这里不说「先换回官方形象」（那是假话）
+          if (!fail.official) return;
+          // 加载前的 moc3 检查拦下的两类按类型说（live2d/mocCheck）；原话是英文的控制台级句子，不往句子里嵌
+          if (fail.kind === "inconsistent") {
+            setStageNotice(t`这套形象的模型文件不完整或被改过，没通过加载前的检查，先换回官方形象；可以换一套，或请作者重新导出。`);
+          } else if (fail.kind === "tooNew") {
+            setStageNotice(t`这套形象是用较新版本的 Cubism 导出的，App 里的运行时还读不了，先换回官方形象；可以换一套，或请作者导出成旧一些的版本。`);
+          } else {
+            const why = fail.reason.slice(0, 80);
+            setStageNotice(t`这套形象加载失败（${why}），先换回官方形象；可以去「形象」里重新下载或换一套。`);
+          }
         }}
       />
 

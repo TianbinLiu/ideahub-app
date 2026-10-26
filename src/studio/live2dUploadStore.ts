@@ -419,13 +419,14 @@ export function reloadPreview(): void {
  *   于是"去客服页看一眼再回来"必然拿到一个死地址 —— 那不是包坏了。`reloadPreview()` 从 `check.file`
  *   现造一个新地址（不重解包，几十毫秒），只有**再失败一次**才把红字留下。
  */
-export function markPreviewLoaded(ok: boolean, reason = ""): void {
+export function markPreviewLoaded(ok: boolean, reason = "", final = false): void {
   if (ok) {
     set({ previewState: "ok", previewErr: "" });
     return;
   }
   const s = get();
-  if (!s.previewHealed && s.preview) {
+  // ★ final = 加载前的 moc3 检查拦下的（live2d/mocCheck，字节读到了、是文件本身的问题）：换一个新地址重加载结果一样，不自愈、直接判死
+  if (!final && !s.previewHealed && s.preview) {
     rebuildPreviewUrl(true);
     return;
   }
