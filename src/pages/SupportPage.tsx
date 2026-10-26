@@ -462,7 +462,9 @@ export default function SupportPage() {
         //   （companion/speech.ts 与官网同源拷贝，这里不单改它的 stop()）
         abortRef.current = controller;
         const sentence: CompanionSentence = { index: 0, text: pick.text, emotion: pick.emotion, face: pick.face, action: pick.action, tts: { emotion: pick.emotion, instruct: "" } };
-        // 同一句、同一套声音记过就不再合成（每合成一次都按字扣钱）；客服的回答不走这个缓存
+        // 同一句、同一套声音记过就不再合成（每合成一次都按字扣钱）；客服的回答不走这个缓存。
+        // ★ controller.signal 只管「这一次还等不等」：中止了 audio 当场落成 null、perform 立刻收尾不卡队列，
+        //   合成那一发照样跑完记下（服务端不会因为断开就不扣，见 TouchVoiceCache 的 ★★）
         const voiceCache = (touchVoiceRef.current ??= new TouchVoiceCache());
         const audio: Promise<Blob | null> =
           voiceOn && Boolean(config?.tts) ? voiceCache.speak(config, ttsBodyFor(config, sentence), controller.signal).catch(() => null) : Promise.resolve(null);
