@@ -45,6 +45,7 @@ import {
   VIDEO_TIER_SPECS,
   firstLiveTierId,
   materialRefInputSec,
+  modelLabel,
   perSecTokens,
   tierRetiredAt,
   type VideoTierSpec,
@@ -316,26 +317,10 @@ export function videoAudioOn(model: string): boolean {
 }
 
 /**
- * 模型 id → 给人看的名字（`doubao-seedance-2-0-mini-260615` → `Seedance 2.0 mini`）。
- *
- * ★ **从 id 推导，不另外维护一张对照表**。手写一张 `{id: 名字}` 的表，加档位时忘了补
- *   就是"界面上写着标准档、实际跑的是另一个模型"——而这种错没有任何症状，只会让人
- *   在对不上账时怀疑是自己记错了。推导出来的名字永远跟着真正发出去的那个 id 走。
- * ★ 认不出来就**原样返回 id**，不返回"未知模型"：id 本身就是最准确的信息，
- *   宁可显示得难看一点，也不能把它藏起来。
- * ★ 尾巴上那串日期（`-260615`）是方舟的版本戳，对用户没有意义，去掉；
- *   要查证的人看档位说明里的完整 id（title）。
+ * 模型 id → 给人看的名字：规则只在 videoTierTable.modelLabel（零依赖，构建里 check-video-tiers.mjs 拿正反例实跑），这里原样转出。
+ * ★ 说「出片模型」一律走下面的 tierModelLabel（有档位就用它：「草稿」「高清」同一个模型、只差分辨率）；只有 id 时才直接用它。
  */
-export function modelLabel(modelId: string): string {
-  const s = String(modelId || "")
-    .replace(/^doubao-/, "")
-    .replace(/-\d{6,8}$/, "");
-  const m = /^([a-z0-9]+)-(\d+)-(\d+)(?:-(.+))?$/.exec(s);
-  if (!m) return modelId;
-  const family = m[1].charAt(0).toUpperCase() + m[1].slice(1);
-  const variant = m[4] ? ` ${m[4].replace(/-/g, " ")}` : "";
-  return `${family} ${m[2]}.${m[3]}${variant}`;
-}
+export { modelLabel };
 
 /**
  * 真正会发给方舟的时长（秒）。上下限都跟着档位走（VideoTier.minSec / maxSec —— 2.5 不收 3 秒；
@@ -635,14 +620,14 @@ export function r2vBlockOf(tierId?: string): R2vBlock | null {
  *  按 id 再查一次表的话，传进来的对象与表里那份一旦不是同一个（或 id 不在表里、tierOf 静默退回标准档），两者就对不上 */
 function r2vBlockOfTier(tier: VideoTier): R2vBlock | null {
   if (!tier.refVid) return { kind: "closed" };
-  if (tier.r2vMult === null) return { kind: "unpriced", model: modelLabel(tier.model) };
+  if (tier.r2vMult === null) return { kind: "unpriced", model: tierModelLabel(tier) };
   return null;
 }
 
 /** 白模模板的判据本体（与 r2vBlockOfTier 同形，闸门换成 blockoutOk）。收档位对象的理由同上 */
 function blockoutBlockOfTier(tier: VideoTier): R2vBlock | null {
   if (!tier.blockoutOk) return { kind: "closed" };
-  if (tier.r2vMult === null) return { kind: "unpriced", model: modelLabel(tier.model) };
+  if (tier.r2vMult === null) return { kind: "unpriced", model: tierModelLabel(tier) };
   return null;
 }
 
@@ -717,7 +702,7 @@ function r2vBlockText(block: R2vBlock, labels: string[], scope: R2vScope): strin
       const open = blockoutTier();
       if (!open) return t`「${names}」这一档暂未开放白模模板出片，等开放后再来`;
       const openLabel = open.label;
-      const openModel = modelLabel(open.model);
+      const openModel = tierModelLabel(open);
       return t`「${names}」跑不了白模模板（模板对出片模型是硬要求）——白模模板只有「${openLabel}」（${openModel}）跑得了`;
     }
     const open = VIDEO_TIERS.filter((x) => !r2vBlockOfTier(x));

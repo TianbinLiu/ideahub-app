@@ -198,6 +198,7 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   ① **档位的能力 / 价目 / 分辨率只在 `data/videoTierTable`**（零依赖，构建里 `check-video-tiers.mjs` 核对，服务端 `config/tokens.js` 逐条相等）。
   「草稿」与「高清」是**同一个模型**（2.0 mini），只差分辨率（480p / 720p）与谁能用 —— 一律按 **(模型, 分辨率)** 认（`economy.tierIdOf` / `tierModelLabel`），
   480p / 1080p 的价按官方像素表 × 画幅（`perSecTokens`，画幅缺省按最贵一格），720p 照旧 21,600。
+  界面上说「出片模型叫什么」一律 `economy.tierModelLabel`（只有 id 时 `modelLabel`）；名字的推导只在 `videoTierTable.modelLabel`（2026-10-26 起认得 MiniMax 的 id —— 原来「真人」档把 `MiniMax-Hailuo-2.3-Fast` 原样印在屏上），`check-video-tiers.mjs` 核对档位表里每个模型都认得出。
   ② **谁能用哪一档只问 `account.tierBlockReason`**：免费档白名单（`account.tierFreeOk`：健康端点报了 `freeVideo` / `freeVideoGate` 就照服务端，
   没报按档位表的 `freeOk` —— 运维关掉 `FREE_VIDEO_GATE` 时新 App 跟着放开）+ 付过钱（套餐价 > 0 **或** 钱包回包顶层的 `paid`）+ 停用（极速 / 标准 2026-11-24 13:00）
   + 服务端能力位（`data/serverCaps` 一处探测、`capsOf` 一处解析）；默认档 `account.defaultTierId`；抄别人的档换不了就换**能力最接近**的（`usableTierId`：高清 → 草稿）。

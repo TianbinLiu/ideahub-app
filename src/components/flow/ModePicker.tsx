@@ -113,7 +113,13 @@ export default function ModePicker({
     <div className="space-y-3">
       <div>
         <div className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>① 先选出片模型</Trans></div>
-        <div className="no-scrollbar flex gap-1.5 overflow-x-auto">
+        {/* ★ 换行排，不横向滚（2026-10-26，与 TierRow 同一种排法）：原来是一行 no-scrollbar overflow-x-auto，六档摆不下时后面几颗
+            被挤出屏幕、滚动条又藏着 —— 排在最后的正是「真人」，人看不见、也不知道还能往右划。
+            量法（2026-10-26，开发服务器的真样式里摆同样六颗芯片量 getBoundingClientRect）：360 宽的手机上，画布「＋ 加一段」的抽屉
+            （Sheet p-4）内容宽 328px、工坊铸段窗（inset-x-2 + 边框 + p-3）318px；六颗常规档芯片（px-3.5 text-xs、gap-1.5）中文一行要 354px
+            （第一屏只露出前五颗，「真人」整颗在外面）、英文 446px（只露出前四颗，「Cinematic」「Real-person」都在外面）。
+            换行之后两处都是两行、六颗全在屏上（高 62px，原来 28px）；11-24 极速 / 标准停用之后剩四颗（中文 238px、英文 303px），自动回到一行。 */}
+        <div className="flex flex-wrap gap-1.5">
           {/* ★ 回调参数叫 x 不叫 t：t 是 useLingui 给的翻译函数，同名会把它遮住 */}
           {shown.map((x) => {
             const blocked = !!tierBlockReason(x);
@@ -124,7 +130,7 @@ export default function ModePicker({
                 disabled={blocked}
                 title={tierModelId(x)}
                 // 常规档的芯片（px-3.5 py-1.5 text-xs）：这排是这一屏的第一个决定，紧凑档 22px 高手指点不准（2026-10-14 UX 课收口）
-                className={`flex-none rounded-full px-3.5 py-1.5 text-xs transition active:opacity-60 disabled:opacity-40 ${
+                className={`rounded-full px-3.5 py-1.5 text-xs transition active:opacity-60 disabled:opacity-40 ${
                   x.id === tier.id ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-300"
                 }`}
               >

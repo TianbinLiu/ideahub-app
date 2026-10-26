@@ -9,7 +9,7 @@ import { i18n } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { usableTierId } from "../../data/account";
-import { fmtTokens, tierOf } from "../../data/economy";
+import { fmtTokens, modelLabel, tierOf } from "../../data/economy";
 import { recipeSummary, recipeVideoCost, type RecipeNode, type RecipeNodeFlag, type RecipeSlotWhy, type WorkflowRecipe } from "../../data/recipe";
 import { CARD_TYPE_LABELS, formatDuration, shotLineDisplay } from "../../types";
 import Icon from "../Icon";
@@ -74,7 +74,9 @@ function NodeCard({ recipe, node, index, onTemplate }: { recipe: WorkflowRecipe;
   const cards = node.cards.map((id) => recipe.deck.find((c) => c.cardId === id)).filter((c): c is NonNullable<typeof c> => !!c);
   const slots = node.slots.map((i) => recipe.cast[i]).filter(Boolean);
   const shot = shotLineDisplay(node.shot);
-  const model = node.model && tierOf(node.tier).model !== node.model ? node.model : null;
+  /** 配方里记着的模型 id 与这一档今天的模型对不上（换过型号）时才说一句。名字走 economy.modelLabel（出片模型名只从那一处推导），完整 id 放 title */
+  const modelId = node.model && tierOf(node.tier).model !== node.model ? node.model : null;
+  const model = modelId ? modelLabel(modelId) : null;
   return (
     <div className="rounded-xl border border-slate-700/70 bg-panel p-3">
       <div className="flex items-start gap-2">
@@ -138,7 +140,11 @@ function NodeCard({ recipe, node, index, onTemplate }: { recipe: WorkflowRecipe;
           ))}
         </ul>
       )}
-      {model && <div className="mt-1 text-[10px] text-slate-500">{t`当时的模型：${model}`}</div>}
+      {model && (
+        <div className="mt-1 text-[10px] text-slate-500" title={modelId ?? undefined}>
+          {t`当时的模型：${model}`}
+        </div>
+      )}
     </div>
   );
 }

@@ -21,6 +21,34 @@ export const SEEDANCE_2_5 = "doubao-seedance-2-5-260628";
 export const MINIMAX_REAL = "MiniMax-Hailuo-2.3-Fast";
 
 /**
+ * 模型 id → 给人看的名字（`doubao-seedance-2-0-mini-260615` → `Seedance 2.0 mini`，`MiniMax-Hailuo-2.3-Fast` → `MiniMax Hailuo 2.3 Fast`）。
+ * 出片、出图两边的模型名都从这里推导；界面上说「这一段交给哪个出片模型」一律走 economy.tierModelLabel（它在这个名字后面接分辨率），
+ * 手上只有 id、没有档位时（配方里记着的「当时的模型」）才直接用它。economy 原样转出（`economy.modelLabel`），调用方照旧从 economy 引。
+ *
+ * ★ **从 id 推导，不另外维护一张对照表**。手写一张 `{id: 名字}` 的表，加档位时忘了补
+ *   就是"界面上写着标准档、实际跑的是另一个模型"——而这种错没有任何症状，只会让人
+ *   在对不上账时怀疑是自己记错了。推导出来的名字永远跟着真正发出去的那个 id 走。
+ * ★ 认不出来就**原样返回 id**，不返回"未知模型"：id 本身就是最准确的信息，
+ *   宁可显示得难看一点，也不能把它藏起来。构建里 check-video-tiers.mjs 核对档位表里每个模型都认得出（2026-10-26 加：
+ *   真人档的 `MiniMax-Hailuo-2.3-Fast` 从 09-26 起就一直原样上屏 —— 方舟那套规则只认小写开头，而这件事零报错）。
+ * ★ 方舟的 id（`doubao-<家族>-<主>-<次>-<变体>-<日期>`）：去掉 `doubao-` 前缀与尾巴上那串日期（`-260615` 是方舟的版本戳，
+ *   对用户没有意义；要查证的人看档位说明里的完整 id（title））。
+ * ★ MiniMax 的 id 本身就是官方名、只是用连字符连着（`MiniMax-H3-Highspeed`、`MiniMax-Hailuo-2.3-Fast`），把连字符换成空格就是。
+ *   ⚠ 别把它并进方舟那条正则：那条要的是「主-次」两段数字（`2-0` → `2.0`），MiniMax 的版本号本来就带点（`2.3`），硬套会认错。
+ * ★ 放在这个零依赖模块里（2026-10-26 从 economy 搬过来）只为让构建检查能直接 import 它跑正反例 —— 规则本身一个字没变（方舟那一半）。
+ */
+export function modelLabel(modelId: string): string {
+  const raw = String(modelId || "");
+  if (/^MiniMax-[A-Za-z0-9]/.test(raw)) return raw.replace(/-+/g, " ").trim();
+  const s = raw.replace(/^doubao-/, "").replace(/-\d{6,8}$/, "");
+  const m = /^([a-z0-9]+)-(\d+)-(\d+)(?:-(.+))?$/.exec(s);
+  if (!m) return modelId;
+  const family = m[1].charAt(0).toUpperCase() + m[1].slice(1);
+  const variant = m[4] ? ` ${m[4].replace(/-/g, " ")}` : "";
+  return `${family} ${m[2]}.${m[3]}${variant}`;
+}
+
+/**
  * Seedance 1.0 pro / pro fast（「标准」「极速」两档）的**停用时刻**。
  * ★ 方舟第十批下线公告：这两个模型 2026-11-24 14:00（北京时间）停服。我们**提前一小时**自己停（主人 10-07 拍板）：
  *   停服那一刻还在排队的任务结局没人说得准（受理了、钱扣了、片出不来），提前停就不会有新任务落进那个窗口。

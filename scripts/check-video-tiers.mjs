@@ -15,6 +15,7 @@
 //   ④ 把「草稿」的 resolution 改成 1080p；⑤ FREE_DEFAULT_CHAIN 改成 ["fast"]（11-24 之后没有免费档）；⑥ 480p 的档开 refVid；
 //   （2026-10-19 加最低用量那一段时再试四条）⑦ materialRefInputSec 直接回输入（不抬）；⑧ 抬多一秒；
 //   ⑨ economy.materialRefCost 改回 (inSec + outSec)；⑩ economy.materialRefSecs 不调 materialRefInputSec。
+//   （2026-10-26 加模型显示名那一段时再试两条）⑪ 删掉 modelLabel 的 MiniMax 那一行（7 条红）；⑫ economy.ts 里写回一份 modelLabel。
 //
 // 用法：node scripts/check-video-tiers.mjs [--module=<另一份 videoTierTable.ts 的路径，造违规试红用>] [--economy=<另一份 economy.ts>]
 import fs from "node:fs";
@@ -176,6 +177,37 @@ for (const t of T) {
   eq("高清示例视频 4 → 15 秒", q(4, 15, M.HD_R2V_MULT), 504000);
 }
 
+// ── 模型显示名（modelLabel，2026-10-26）：档位表里每个模型都要认得出 —— 认不出就原样把 id 印在界面上 ──
+//   真人档的 MiniMax-Hailuo-2.3-Fast 就这么原样上屏了一个月（方舟那条规则只认小写开头），零报错。
+//   正例逐个钉住；MiniMax H3 那几个是出片地区那一期要接的型号（decisions 10-26），先在这里钉住名字。
+{
+  const L = M.modelLabel;
+  ok("videoTierTable 里找不到 modelLabel（模型名的推导要在这个零依赖模块里，构建才核得到）", typeof L === "function");
+  if (typeof L === "function") {
+    for (const t of T) ok(`「${t.id}」的模型 ${t.model} 认不出名字（modelLabel 原样回了 id，界面上会印出这串 id）`, L(t.model) !== t.model && !/doubao|\d{6}/.test(L(t.model)));
+    const want = {
+      [M.SEEDANCE_1_0_PRO_FAST]: "Seedance 1.0 pro fast",
+      [M.SEEDANCE_1_0_PRO]: "Seedance 1.0 pro",
+      [M.SEEDANCE_2_0_MINI]: "Seedance 2.0 mini",
+      [M.SEEDANCE_2_5]: "Seedance 2.5",
+      [M.MINIMAX_REAL]: "MiniMax Hailuo 2.3 Fast",
+      "MiniMax-H3": "MiniMax H3",
+      "MiniMax-H3-Highspeed": "MiniMax H3 Highspeed",
+      "MiniMax-H3-Lite": "MiniMax H3 Lite",
+      "MiniMax-H3-Max": "MiniMax H3 Max",
+      "MiniMax-Hailuo-02": "MiniMax Hailuo 02",
+      // 出图模型也走它（NpcDialog「本次出图」、出图模型停用那句话）：方舟那一半的规则没动，钉两个现役的
+      "doubao-seedream-4-0-20260415": "Seedream 4.0",
+      "doubao-seedream-5-0-pro-260628": "Seedream 5.0 pro",
+    };
+    for (const [id, name] of Object.entries(want)) eq(`modelLabel(${id})`, L(id), name);
+    // 反例：认不出的原样回（id 本身是最准确的信息，不许回「未知模型」），空串不炸
+    eq("认不出的 id 原样回", L("some-new-model"), "some-new-model");
+    eq("只有前缀的 MiniMax- 不当成型号", L("MiniMax-"), "MiniMax-");
+    eq("空串原样回", L(""), "");
+  }
+}
+
 // ── economy.ts：tierOf 不许按下标兜底；延长 / 示例视频的报价必须走最低用量那一步 ──
 {
   const src = fs.readFileSync(econPath, "utf8");
@@ -190,6 +222,11 @@ for (const t of T) {
   const cost = /export function materialRefCost\([^)]*\)[^{]*\{([\s\S]*?)\n\}/.exec(src);
   ok("economy.ts 里找不到 materialRefCost", !!cost);
   if (cost) ok("economy.materialRefCost 没拿 materialRefSecs 的 billedInSec 计价（又按「输入 + 输出」报，会比方舟最低用量少收）", /materialRefSecs\(/.test(cost[1]) && /billedInSec/.test(cost[1]));
+  // 模型名的推导只有 videoTierTable 一份（economy 原样转出）：economy 里再写一份 modelLabel，上面那组正反例核的就不是界面真用的那一份
+  ok(
+    "economy.ts 里又写了一份 modelLabel —— 规则只在 videoTierTable.modelLabel，economy 只转出（export { modelLabel }）",
+    !/export function modelLabel\(/.test(src) && /export \{ modelLabel \}/.test(src),
+  );
 }
 
 if (problems.length) {
@@ -198,4 +235,4 @@ if (problems.length) {
   console.error("\n改法：档位的能力 / 价目 / 分辨率 / 谁能用只在 src/data/videoTierTable.ts；改免费档或降价先改服务端 config/tokens.js（服务端先发），涨价反过来 App 先发（videoTierTable 文件头）。\n");
   process.exit(1);
 }
-console.log(`✓ 出片档位表检查通过（${ran} 条：每格必写 / 同模型一致 / 免费档 = 服务端 / 停用与默认档链 / 每秒 token / 含输入视频的最低用量 / tierOf 不按下标）`);
+console.log(`✓ 出片档位表检查通过（${ran} 条：每格必写 / 同模型一致 / 免费档 = 服务端 / 停用与默认档链 / 每秒 token / 含输入视频的最低用量 / 模型显示名 / tierOf 不按下标）`);
