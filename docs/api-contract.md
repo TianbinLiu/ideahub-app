@@ -918,8 +918,10 @@ B 站式弹幕：一句话 + 它该在**视频第几秒**飘过去。与评论�
 
 ## 举报
 
-能举报**三种对象**：作品（`video`）、评论（`comment`）、弹幕（`danmaku`）。
-三者共用一张 `Report` 表与同一条处理流程（待处理 → 下架 / 删除 / 驳回）——
+能举报**四种对象**：作品（`video`）、评论（`comment`）、弹幕（`danmaku`）、人格（`persona`，服务端 2026-09-28 加、
+App 的入口 2026-10-26 才接上：人格市场每张别人的卡上）。AI 客服的回答、Live2D 形象、声音模板**还不在里面** ——
+要先在 server `Report.TARGET_TYPES` 加类型（服务端先上），App 再接 `ReportButton`。
+它们共用一张 `Report` 表与同一条处理流程（待处理 → 下架 / 删除 / 驳回）——
 管理端要的是"一个按时间排的待处理队列"，拆三张表那个队列就得三查一合再排序。
 
 ### 端点
@@ -1061,6 +1063,9 @@ pending ─────────┼─ action=delete   ─▶ deleted      �
   收了的话客户端就能把一条举报标成"已下架"而没有任何内容被下架。
 - `takedown` 与 `delete` 是**两件事**，状态必须分得开：事后追责时"下架了"和"删没了"
   完全不同。两者调**同一个**服务，差别只有一个 `hard` 标志（见下）。
+- **不是每一类都三样处置都有**（server `services/takedown.service.js` 的 `HANDLERS`，缺的那一格整句 400）：作品三样都有；
+  评论 / 弹幕没有下架（那两张表没有隐藏字段）；人格没有删除（只下架 = `shared:false` + `takenDown:true`，要删由作者自己删）。
+  App 后台按钮的镜像只有 `src/api/admin.ts` 的 `reportActionsFor` 一份。
 
 ★★ **`status` 是跨仓字符串，新增取值必须两仓同步**（铁律九：server 的
 `models/Report.js` 的 `ACTION_STATUS` + app 的渲染分支 + 本节）。
@@ -1120,6 +1125,7 @@ pending ─────────┼─ action=delete   ─▶ deleted      �
 | `video` | `{ exists, videoId, title, cover, visibility, takedown, author, createdAt }` |
 | `comment` | `{ exists, videoId, text, author, createdAt }` |
 | `danmaku` | `{ exists, videoId, text, at, author, createdAt }` |
+| `persona` | `{ exists, personaId, name, kind, shared, takenDown, takenDownReason, author, createdAt }` —— 名字在 `name`（不是 `title`），下架状态是人格表自己的布尔 `takenDown` |
 
 - 查不到一律给 `{ exists: false }`。★ 用**必给的布尔** `exists`，不用"缺省即正常"的
   `missing?`：后者一旦服务端漏给这一项，客户端读到 `undefined` → falsy → 显示成

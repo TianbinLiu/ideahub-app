@@ -5683,6 +5683,10 @@ msgid "举报记录"
 msgstr "举报记录"
 
 #: src/components/ReportButton.tsx
+msgid "举报这个人格"
+msgstr "举报这个人格"
+
+#: src/components/ReportButton.tsx
 msgid "举报这条作品"
 msgstr "举报这条作品"
 
@@ -5860,6 +5864,11 @@ msgstr "人排在作品前面，点一行进他主页 —— 有些作品这里�
 
 #: src/pages/SupportModelNewPage.tsx
 #: src/pages/SupportPage.tsx
+msgid "人格"
+msgstr "人格"
+
+#: src/api/admin.ts
+msgctxt "举报对象的类别（单数）：人格市场里的一个数字人人格"
 msgid "人格"
 msgstr "人格"
 

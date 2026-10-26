@@ -13,12 +13,16 @@
  *   **「付费人格要去官网买」这条仍然成立**（App 里没有支付），留在页脚与卡片上。
  * ★ 三个页签走 `useQueryTab`（写进地址栏）：全部 = `scope=all`、已收藏 = `installed`、我的 = `mine`（含自己没公开的）。
  * ★ 与形象市场同一套页面骨架（tab / 列表 / 就地报错在那张卡上）。
+ * ★ 每张卡的作者行末尾有「举报」（2026-10-26）：Google Play 的 AI 生成内容与 UGC 政策都要求应用内能举报，人格正是两样都占的那种东西
+ *   （用户做的 + 说话是模型生成的）。入口是作品 / 评论 / 弹幕共用的那一份 `ReportButton`（理由、登录、重复举报、失败的说法都在它里面），
+ *   自己的人格不摆（`isOwner`：该删不该举报）。服务端 `Report.TARGET_TYPES` 2026-09-28 就有 "persona"，后台处置是「下架 / 驳回」（`api/admin.reportActionsFor`）。
  */
 import { useEffect, useRef, useState } from "react";
 import { i18n, type MessageDescriptor } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import EmptyState from "../components/EmptyState";
+import ReportButton from "../components/ReportButton";
 import PageHeader from "../components/PageHeader";
 import { useNavigate } from "react-router";
 import Icon from "../components/Icon";
@@ -319,6 +323,8 @@ export default function SupportPersonasPage() {
                       <span className="ml-auto shrink-0">
                         {authorName(p.author) ? `@${authorName(p.author)} · ` : ""}⬇ {p.stats.downloadCount}
                       </span>
+                      {/* 负外边距 + 等量内边距：把 11px 小字键的命中区上下各撑出 8px，又不把这一行撑高（下面那排按钮离它正好 8px，撑到 -my-2 为止不压上去） */}
+                      <ReportButton targetType="persona" targetId={p._id} mine={p.isOwner} className="-my-2 shrink-0 py-2 pl-1" />
                     </div>
                   </div>
                 </div>

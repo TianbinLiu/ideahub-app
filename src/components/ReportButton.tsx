@@ -1,4 +1,4 @@
-// 举报入口。**作品 / 评论 / 弹幕三处共用这一份**（铁律六）：
+// 举报入口。**作品 / 评论 / 弹幕 / 人格市场四处共用这一份**（铁律六；人格 2026-10-26 接上，Play 的 AI 生成内容与 UGC 政策都要应用内举报）：
 // "谁能举报 / 有哪些理由 / 重复举报怎么说 / 失败怎么说" 这四条一旦分叉，就会出现
 // "评论举报得了、弹幕举报不了"或者"一边说重复了、一边只说 HTTP 409"这种
 // 只有用户才发现得了的差异。
@@ -57,7 +57,7 @@ export default function ReportButton({
 }: {
   targetType: ReportTargetType;
   targetId: string;
-  /** 评论 / 弹幕必须带上所属作品 id：管理员靠它跳到现场看上下文 */
+  /** 评论 / 弹幕必须带上所属作品 id：管理员靠它跳到现场看上下文（人格不传：它不挂在作品下） */
   videoId?: string;
   mine?: boolean;
   className?: string;
@@ -79,8 +79,15 @@ export default function ReportButton({
 
   if (mine || !isRemoteMode() || !targetId) return null;
 
-  // ★ 三类各写整句，不拿类别名往「举报这条…」里拼
-  const title = targetType === "video" ? t`举报这条作品` : targetType === "comment" ? t`举报这条评论` : t`举报这条弹幕`;
+  // ★ 每类各写整句，不拿类别名往「举报这条…」里拼（量词也不一样：人格是「这个」）
+  const title =
+    targetType === "video"
+      ? t`举报这条作品`
+      : targetType === "comment"
+        ? t`举报这条评论`
+        : targetType === "persona"
+          ? t`举报这个人格`
+          : t`举报这条弹幕`;
 
   async function submit() {
     if (busy || !reason) return;

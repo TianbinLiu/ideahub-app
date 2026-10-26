@@ -41,6 +41,7 @@ import {
   notifyUser,
   isUrgentReport,
   reasonLabel,
+  reportActionsFor,
   reportTimeMs,
   resolveReport,
   takedownReasonText,
@@ -1353,12 +1354,13 @@ function ReportCard({
           <p className="text-xs text-slate-500"><Trans>内容已经不在了（作者自己删了，或已被删除）—— 这条通常「驳回」就好。</Trans></p>
         ) : (
           <>
-            {tgt?.title && <div className="mb-1 truncate text-sm font-semibold text-slate-100">{tgt.title}</div>}
+            {/* 人格那一格叫 name 不叫 title（服务端 resolveTargets 原样） */}
+            {(tgt?.title || tgt?.name) && <div className="mb-1 truncate text-sm font-semibold text-slate-100">{tgt.title || tgt.name}</div>}
             {tgt?.cover && <img src={tgt.cover} alt="" className="mb-1.5 h-24 w-full rounded object-cover" />}
             {tgt?.text ? (
               <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-200">{tgt.text}</p>
             ) : (
-              !tgt?.title && (
+              !tgt?.title && !tgt?.name && (
                 // 服务端没带快照回来 —— 这是个**契约问题**，要说出来，别让人以为内容是空的
                 <p className="text-xs text-danger-300"><Trans>服务端没有返回内容快照，只能看到 id：{report.targetId}</Trans></p>
               )
@@ -1367,9 +1369,10 @@ function ReportCard({
               {/* ★ 弹幕**也有**作者（BranchDanmaku.author 存了），管理端会带出来。
                   这里原来写着"弹幕是匿名的，服务端不存作者"——事实错误，删掉。 */}
               {tgt?.author && <span><Trans>作者 {displayNameOf(tgt.author)}</Trans></span>}
-              {/* ★ 判"下没下架"看子文档在不在，服务端不给布尔（折一次就是第三份判断）。
+              {/* ★ 判"下没下架"：作品看子文档在不在，服务端不给布尔（折一次就是第三份判断）；
+                  人格那张表本来就是布尔 takenDown，原样读。
                   没有这一句的话，第二个管理员会对着一条已下架的作品再下一次架。 */}
-              {tgt?.takedown && <span className="text-warn-300"><Trans>已处于下架状态</Trans></span>}
+              {(tgt?.takedown || tgt?.takenDown) && <span className="text-warn-300"><Trans>已处于下架状态</Trans></span>}
             </div>
           </>
         )}
@@ -1385,12 +1388,12 @@ function ReportCard({
 
       {pending && (
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          {/* ★★ 「下架」只对作品有意义：评论与弹幕**没有下架位**（那两张表没有隐藏字段），
-              服务端对它们的 takedown 直接 400。三颗按钮无差别渲染的话，管理员会点一颗
-              必然失败的按钮，而失败之后那条举报仍留在待处理里 —— 他只会以为后台坏了。
-              「这类对象能不能下架」的权威在服务端 takedown.service，这里是它的镜像；
-              两边分叉的表现是"点得动但必然 400"，所以镜像必须写明出处。 */}
-          {ACTIONS.filter((a) => a.id !== "takedown" || report.targetType === "video").map((a) => {
+          {/* ★★ 每类对象能做哪几种处置不一样：评论与弹幕**没有下架位**（那两张表没有隐藏字段），
+              人格**没有硬删除**（只能下架）—— 服务端对缺的那一格直接 400。三颗按钮无差别渲染的话，
+              管理员会点一颗必然失败的按钮，而失败之后那条举报仍留在待处理里 —— 他只会以为后台坏了。
+              权威在服务端 takedown.service 的 HANDLERS，镜像只有 api/admin.reportActionsFor 一份
+              （原来这里写死「只有作品能下架」，人格举报进来就只剩一颗必然 400 的删除）。 */}
+          {ACTIONS.filter((a) => reportActionsFor(report.targetType).includes(a.id)).map((a) => {
             if (a.id === "delete" && !confirmingDelete) {
               return (
                 <button
