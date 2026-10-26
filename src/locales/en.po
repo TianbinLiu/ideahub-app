@@ -4085,6 +4085,10 @@ msgstr "AI support"
 msgid "AI 客服 · 帮助与反馈"
 msgstr "AI support · Help & feedback"
 
+#: src/components/support/SafetyCard.tsx
+msgid "AI 对话安全说明"
+msgstr "AI chat safety notes"
+
 #: src/pages/SupportPage.tsx
 msgid "AI 对话未开通，可直接转人工"
 msgstr "AI chat isn't enabled; you can go straight to a human"
@@ -7260,6 +7264,10 @@ msgstr "Close director's stage"
 msgid "关闭弹幕显示"
 msgstr "Hide bullet comments"
 
+#: src/components/support/SafetyCard.tsx
+msgid "关闭求助卡"
+msgstr "Dismiss help card"
+
 #: src/components/MaterialSheet.tsx
 msgid "关闭素材库"
 msgstr "Close asset library"
@@ -9476,6 +9484,10 @@ msgstr "Bullet"
 #: src/components/DanmakuInput.tsx
 msgid "发条友善的弹幕"
 msgstr "Send a friendly bullet comment"
+
+#: src/components/support/SafetyCard.tsx
+msgid "发短信 {sms}"
+msgstr "Text {sms}"
 
 #. placeholder {0}: (e instanceof Error ? e.message : String(e)).slice(0, 100)
 #: src/components/PortraitAuthPanel.tsx
@@ -13479,6 +13491,10 @@ msgstr "Unmute"
 msgid "打开官网的启梦老师"
 msgstr "Open QiMeng Tutor on the website"
 
+#: src/components/support/SafetyCard.tsx
+msgid "打开网页"
+msgstr "Open page"
+
 #: src/pages/tutor/TutorNewPage.tsx
 msgid "打开网页端"
 msgstr "Open the website"
@@ -13847,6 +13863,10 @@ msgstr "Drag the progress bar to the frame you want to change, ⭕ circle the ob
 #: src/components/flow/RefFrameSheet.tsx
 msgid "拖进度条到想要的画面，再点下面的键"
 msgstr "Drag the progress bar to the frame you want, then tap a button below"
+
+#: src/components/support/SafetyCard.tsx
+msgid "拨打 {tel}"
+msgstr "Call {tel}"
 
 #: src/components/guide/tours.tsx
 msgid "拿一段参考视频，让 AI 把它变成能反复套用的<0>模板</0>。第一步就是在这里<1>选做法</1>：选哪条决定后面几步长什么样，也决定花不花钱、花多少。<2>上传之前</2>随时能点「‹ 换一种做法」回来换。 传完就定死了——要换只能取消整个重来。"
@@ -18224,6 +18244,7 @@ msgstr "Couldn't open {app}'s sign-in page. Make sure you have the official {app
 msgid "没能打开浏览器。可以手动访问：{linkFailed}"
 msgstr "Couldn’t open the browser. You can visit it yourself: {linkFailed}"
 
+#: src/components/support/SafetyCard.tsx
 #: src/pages/SettingsPage.tsx
 #: src/pages/tutor/TutorHomePage.tsx
 #: src/pages/tutor/TutorNewPage.tsx

@@ -4089,6 +4089,10 @@ msgstr "AI 客服"
 msgid "AI 客服 · 帮助与反馈"
 msgstr "AI 客服 · 帮助与反馈"
 
+#: src/components/support/SafetyCard.tsx
+msgid "AI 对话安全说明"
+msgstr "AI 对话安全说明"
+
 #: src/pages/SupportPage.tsx
 msgid "AI 对话未开通，可直接转人工"
 msgstr "AI 对话未开通，可直接转人工"
@@ -7264,6 +7268,10 @@ msgstr "关闭导演台"
 msgid "关闭弹幕显示"
 msgstr "关闭弹幕显示"
 
+#: src/components/support/SafetyCard.tsx
+msgid "关闭求助卡"
+msgstr "关闭求助卡"
+
 #: src/components/MaterialSheet.tsx
 msgid "关闭素材库"
 msgstr "关闭素材库"
@@ -9484,6 +9492,10 @@ msgstr "发弹幕"
 #: src/components/DanmakuInput.tsx
 msgid "发条友善的弹幕"
 msgstr "发条友善的弹幕"
+
+#: src/components/support/SafetyCard.tsx
+msgid "发短信 {sms}"
+msgstr "发短信 {sms}"
 
 #. placeholder {0}: (e instanceof Error ? e.message : String(e)).slice(0, 100)
 #: src/components/PortraitAuthPanel.tsx
@@ -13487,6 +13499,10 @@ msgstr "打开声音"
 msgid "打开官网的启梦老师"
 msgstr "打开官网的启梦老师"
 
+#: src/components/support/SafetyCard.tsx
+msgid "打开网页"
+msgstr "打开网页"
+
 #: src/pages/tutor/TutorNewPage.tsx
 msgid "打开网页端"
 msgstr "打开网页端"
@@ -13855,6 +13871,10 @@ msgstr "拖进度条停在要改的画面，⭕ 圈出物体、写一句要求�
 #: src/components/flow/RefFrameSheet.tsx
 msgid "拖进度条到想要的画面，再点下面的键"
 msgstr "拖进度条到想要的画面，再点下面的键"
+
+#: src/components/support/SafetyCard.tsx
+msgid "拨打 {tel}"
+msgstr "拨打 {tel}"
 
 #: src/components/guide/tours.tsx
 msgid "拿一段参考视频，让 AI 把它变成能反复套用的<0>模板</0>。第一步就是在这里<1>选做法</1>：选哪条决定后面几步长什么样，也决定花不花钱、花多少。<2>上传之前</2>随时能点「‹ 换一种做法」回来换。 传完就定死了——要换只能取消整个重来。"
@@ -18232,6 +18252,7 @@ msgstr "没能打开{app}的授权页。确认装的是正式版{app}并且版�
 msgid "没能打开浏览器。可以手动访问：{linkFailed}"
 msgstr "没能打开浏览器。可以手动访问：{linkFailed}"
 
+#: src/components/support/SafetyCard.tsx
 #: src/pages/SettingsPage.tsx
 #: src/pages/tutor/TutorHomePage.tsx
 #: src/pages/tutor/TutorNewPage.tsx

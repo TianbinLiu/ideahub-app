@@ -77,7 +77,9 @@ src/
                `support/` = AI 客服页专用：`SupportStage`（Live2D 舞台，按 modelUrl 换装）、`HoldToTalk`、
                `VoiceSheet`（声音面板，三页：单音色 / 混音 / 声音市场；存服务端，官网同步）、
                `VoiceMixer`（混音调配 + 发布成模板）、`VoiceMarket`（声音市场列表：试听 / 设为我的声音 / 点赞 / 删自己的）、
-               `voicePreview.ts`（三页试听共用的合成 + 播放 + 喂口型，同一时刻只响一段）；
+               `voicePreview.ts`（三页试听共用的合成 + 播放 + 喂口型，同一时刻只响一段）、
+               `SafetyCard`（危机求助卡：客服声明 `caps: ["safety","notice"]` 之后收到 `safety` 事件时画它，不念、不进字幕，
+               文字一律用服务端给的；舞台上与「记录」里共用这一份）；
                `TemplateCreateCard`（模板货架顶上「创建属于你的视频模板」：没模板大卡、有模板小条，市场与我的模板两个页签都摆）、
                `FeedActionSheet`（首页长按中间的「更多操作」抽屉）、`MagicBand`（「我的」页头像后的品牌带，纯装饰）——
                三样的来由在 docs/ui-benchmark-2026-10.md

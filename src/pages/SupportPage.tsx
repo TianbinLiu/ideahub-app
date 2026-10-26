@@ -28,6 +28,11 @@
  * ★ 创作中心（2026-09-07，P3）：那一列小键多第四颗「✨ 创作」→ /support/create（三扇门：模型 / 音频 / 人格）。
  *   其中「人物音频」那扇门跳回**本页**并带 `?sheet=voice` —— 混音器只有 VoiceSheet 这一处实现，
  *   为它另开一页就是第二份。本页读到这个 query 就把面板掀开，然后**当场把 query 抹掉**（见下面那个 effect 的 ★）。
+ * ★ 求助卡（2026-10-25；契约 docs/api-contract.md「客服」★ 自伤危机协议）：请求里声明 `caps: ["safety","notice"]`。
+ *   没声明时服务端把危机求助卡退化成一句普通 sentence —— 被当台词合成语音，热线号码念出来、还按字扣钱。
+ *   声明了之后收到 `safety` 事件：stopAll()、不调 /api/tts、不进字幕、不算她说的话，在字幕框上方画一张 SafetyCard（可关、不自动消失）。
+ *   卡的纯文本仍作为**一条 assistant 消息**留在 messages 里（api/support.safetyPlainText 的 ★★：否则下一轮是连着两条 user）。
+ *   `notice`（AI 身份告知）在字幕框上方与记录里各一行小字，不念、不扣钱；客服路由今天不发它。老服务端两样都不发 = 一切照旧。
  */
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Warn from "../components/Warn";
@@ -43,6 +48,7 @@ import { BackButton, CloseButton } from "../components/IconTapButton";
 import SupportStage from "../components/support/SupportStage";
 import HoldToTalk from "../components/support/HoldToTalk";
 import VoiceSheet from "../components/support/VoiceSheet";
+import SafetyCard from "../components/support/SafetyCard";
 import { companionBus } from "../companion/bus";
 import { SpeechPlayer } from "../companion/speech";
 import { estimateSpeechMs, normalizeAction, normalizeFace, type CompanionSentence, pickTouchReaction } from "../companion/protocol";
@@ -57,12 +63,15 @@ import {
   getSupportConfig,
   listMySupportTickets,
   rateSupportAnswer,
+  safetyPlainText,
   streamSupportChat,
+  SUPPORT_CAPS,
   synthesizeSpeech,
   ticketStatusLabel,
   ttsBodyFor,
   type SupportCategory,
   type SupportConfig,
+  type SupportSafetyCard,
   type SupportTicket,
 } from "../api/support";
 import { relativeTime } from "../types";
@@ -74,12 +83,29 @@ type Rating = "up" | "down";
  *   只给字幕框「念到哪一句亮哪一句」用（2026-10-25）。两份在 onSentence 的同一个 updater 里一起写，拼法只有 appendSentence 一处。
  * ★ streamDone = 文字流已经收完（服务端不会再来新句子），与 streaming 是两回事：streaming 要等演出队列**念完**才置 false，
  *   拿它判「总共几句」的话，念的全程分母都是「…」，念完高亮也一起没了。系统消息与老消息两个字段都没有 = 照旧整段显示。
+ * ★ safety = 这一条是求助卡（见文件头 ★ 求助卡）：text = 卡之前她已经说出来的句子 + 卡的纯文本（回传给服务端、交给转人工），
+ *   sentences 只有卡之前那几句（字幕框只显示这几句，卡的字不进字幕）。
+ * ★ notice = AI 身份告知那一行：同时标 system（不进回传的历史、不算条数），lastAssistant 也跳过它（不然字幕框会显示成她的回答）。
  */
-type ChatMessage = { id: string; role: Role; text: string; streaming?: boolean; system?: boolean; rating?: Rating; sentences?: string[]; streamDone?: boolean };
+type ChatMessage = {
+  id: string;
+  role: Role;
+  text: string;
+  streaming?: boolean;
+  system?: boolean;
+  rating?: Rating;
+  sentences?: string[];
+  streamDone?: boolean;
+  safety?: SupportSafetyCard;
+  notice?: boolean;
+};
 type Phase = "idle" | "thinking" | "speaking";
 
 /** 一句接到整段后面：句间一个空格（字幕框逐句渲染时的间隔与这里一致） */
 const appendSentence = (text: string, sentence: string) => (text ? `${text} ${sentence}` : sentence);
+
+/** 求助卡那一条里，卡之前她已经说出来的那几句（输入侧命中时一句都没有 = 空串） */
+const spokenBeforeCard = (m: ChatMessage) => (m.sentences ?? []).reduce(appendSentence, "");
 
 const MAX_HISTORY = 12;
 const MAX_INPUT_CHARS = 1000;
@@ -168,6 +194,13 @@ export default function SupportPage() {
   const [chatErr, setChatErr] = useState("");
   const [micErr, setMicErr] = useState("");
   const [handoffHint, setHandoffHint] = useState<{ category: SupportCategory } | null>(null);
+  /**
+   * 舞台上那张求助卡（最近一次 safety 事件）。★ 与 messages 分开记：人点 ✕ 关掉的只是这一张，记录里那一条还在；
+   * 新开一轮 send 也不清它（人可能正需要盯着号码，接着问一句就把卡收走是替他做了决定）。
+   */
+  const [safetyCard, setSafetyCard] = useState<SupportSafetyCard | null>(null);
+  /** AI 身份告知（notice 事件）那一行；与官网陪聊同一种做法：来了就一直挂在字幕框上方，服务端按自己的节奏再发 */
+  const [aiNotice, setAiNotice] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [note, setNote] = useState("");
@@ -277,7 +310,8 @@ export default function SupportPage() {
   );
 
   const lastUser = useMemo(() => [...messages].reverse().find((m) => m.role === "user") || null, [messages]);
-  const lastAssistant = useMemo(() => [...messages].reverse().find((m) => m.role === "assistant") || null, [messages]);
+  // 告知那一行不是她的回答（见 ChatMessage 的 ★ notice）
+  const lastAssistant = useMemo(() => [...messages].reverse().find((m) => m.role === "assistant" && !m.notice) || null, [messages]);
 
   // 字幕框逐句渲染的那一份：只在念这段回答的时候才有。触摸反应、系统消息、没有逐句结构的消息、空闲时一律 null ——
   // 照旧整段同一种颜色（念完之后别留着念过 / 没念的两档灰，整段看着发灰）。
@@ -285,7 +319,9 @@ export default function SupportPage() {
   //   才置 speakingAt —— 那一两秒里要是退回整段，框先是一色白、按「不在念」滚到底，声音一到又变三档、跳回第 1 句；
   //   长回答每一次都是先看见结尾再跳回开头。所以那段时间照样逐句画，一句都不亮（全按「还没念到」），框停在顶上。
   const liveSentences =
-    phase === "speaking" && !reaction && lastAssistant && !lastAssistant.system && lastAssistant.sentences?.length ? lastAssistant.sentences : null;
+    phase === "speaking" && !reaction && lastAssistant && !lastAssistant.system && !lastAssistant.safety && lastAssistant.sentences?.length
+      ? lastAssistant.sentences
+      : null;
   // 逐句时框该停在哪一句：换了一句、换了一段回答、刚进逐句时才变；整段显示时为 null
   const captionAnchor = liveSentences && lastAssistant ? `${lastAssistant.id}:${speakingAt}` : null;
 
@@ -468,6 +504,8 @@ export default function SupportPage() {
     let pos = 0;
     /** 本轮已经到了的整段原文，与 messages 里那一份同一个拼法；念完交给读屏 */
     let said = "";
+    /** 这一轮来过求助卡：之后再到的句子一概不上屏、不念（服务端发完卡就停了，这里防同一块数据里排在卡后面的残句） */
+    let crisis = false;
     try {
       await streamSupportChat(
         // ★ lang 按当前生效的界面语言传（2026-10-19；原来写死 "zh"）：服务端靠它定回复语言那一行
@@ -475,9 +513,36 @@ export default function SupportPage() {
         //   写死 zh 时英文界面那一套（默认用英文回、英文求助卡）一样都用不上，服务端（server#120）只能按每一轮的原话兜底认英文。
         //   判据只读 i18n/switch.activeLang（「当前生效的语言」的唯一读法，
         //   i18n/locale 的 pickLang 是开机时的偏好、应用内切过语言之后就不是它了）
-        { messages: history, lang: activeLang() },
+        // ★ caps 见文件头 ★ 求助卡：不声明的话求助卡会退化成一句台词被念出来
+        { messages: history, lang: activeLang(), caps: SUPPORT_CAPS },
         {
+          onSafety: (card) => {
+            if (runRef.current !== run) return;
+            crisis = true;
+            // ★ 直接 stopAll()（契约原话）：它把演出队列作废（run 换号）、掐掉文字流与还在合成的语音、停掉正在放的那一句、回到 idle。
+            //   掐掉文字流不丢东西：输入侧命中时服务端发完卡只剩一个 done；输出侧命中时服务端也是发完卡就 abort 上游，
+            //   扣不扣钱按它那边已经说出来的字判、与我们断不断开无关。代价是这一轮 done 里的 handoff 收不到 ——
+            //   危机这一轮不摆「转人工」卡是有意的：卡上那几个号码才是此刻要看的，「转人工」在页脚一直都在。
+            //   send() 的 catch 见 controller 被掐会直接 return，所以收尾（streaming / streamDone）在这里一起写。
+            stopAll();
+            setSafetyCard(card);
+            const plain = safetyPlainText(card);
+            setMessages((prev) =>
+              prev.map((m) => (m.id === assistantId ? { ...m, text: appendSentence(m.text, plain), safety: card, streaming: false, streamDone: true } : m)),
+            );
+          },
+          onNotice: (n) => {
+            if (runRef.current !== run) return;
+            setAiNotice(n.text);
+            // 记录里排在这一轮回答的前面（服务端在第一句之前发它）；system = 不进回传的历史、不算条数
+            const line: ChatMessage = { id: nextId(), role: "assistant", text: n.text, system: true, notice: true };
+            setMessages((prev) => {
+              const i = prev.findIndex((m) => m.id === assistantId);
+              return i < 0 ? [...prev, line] : [...prev.slice(0, i), line, ...prev.slice(i)];
+            });
+          },
           onSentence: (sentence) => {
+            if (crisis) return;
             // 文字先上屏（市面客服都是文字即时、语音随后），语音按句排队。
             // 字幕框照旧整段都显示，只是念到的那一句亮、后面已经到了的浅一档（见字幕框那段 ★）
             const at = pos++;
@@ -597,7 +662,12 @@ export default function SupportPage() {
   const statusLabel = phase === "thinking" ? t`思考中` : phase === "speaking" ? t`说话中` : enabled ? t`在线` : t`对话未开通`;
   const greeting = t`你好，我是${name}，启梦的 AI 客服。账号、扣费、出片取回、安装更新都可以问我；我解决不了的会帮你转给人工。`;
   const voiceLabel = voiceOn ? t`语音播报：开` : t`语音播报：关`;
-  const canRate = Boolean(lastAssistant && !lastAssistant.system && !lastAssistant.streaming && lastAssistant.text && phase === "idle");
+  // 求助卡那一条不给 👍👎：那不是她的回答（卡上的字是服务端的固定文案）
+  const canRate = Boolean(lastAssistant && !lastAssistant.system && !lastAssistant.safety && !lastAssistant.streaming && lastAssistant.text && phase === "idle");
+  // 字幕框显示什么：求助卡那一条只显示卡之前她说过的句子（卡的字不进字幕）；一句都没有又没在演触摸反应时，整个字幕框不画 ——
+  // 留着的话框里会退回开场白（「你好，我是…」），正好压在求助卡下面
+  const captionText = lastAssistant?.safety ? spokenBeforeCard(lastAssistant) : lastAssistant?.text;
+  const captionHidden = Boolean(lastAssistant?.safety) && !captionText && !reaction && phase === "idle";
   // liveSentences 在滚动 effect 上面定义（两处读同一份）；还没念到第一句时不写「第几句」
   const showSentenceNo = Boolean(liveSentences) && speakingAt >= 0;
   const sentenceNo = speakingAt + 1;
@@ -697,7 +767,16 @@ export default function SupportPage() {
               名字旁写「第几句 / 共几句」（文字流没收完时分母是「…」）。第一句的声音还在合成时照样逐句画，只是一句都不亮、不写第几句。
               只换颜色、不换字重也不加左竖线：字重一变字宽就变，英文界面每换一句折行都会跳；行内 span 的竖线折行后只画在第一行。
               淡底用 box-decoration-clone，一句折成两三行时每一行都有底。 */}
-        <div className={`${GLASS} mb-2 w-full rounded-2xl rounded-bl-sm px-3.5 py-2.5 shadow-lg`}>
+        {/* 求助卡与 AI 身份告知（见文件头 ★ 求助卡）：都压在字幕框上方，都不是她说的话。
+            backdrop-blur 与下面「转人工」卡同一个理由：舞台上的人与光会透过来，字读不清 */}
+        {safetyCard && <SafetyCard card={safetyCard} onClose={() => setSafetyCard(null)} className="mb-2 backdrop-blur-md" />}
+        {aiNotice && (
+          <Warn tone="info" className="mb-1.5 px-1">
+            {aiNotice}
+          </Warn>
+        )}
+        {/* captionHidden 用 hidden 而不是不挂：字幕框的 ref 与读屏的 aria-live 区都长在里面，卸了再挂会丢掉那一拍的播报 */}
+        <div className={`${GLASS} mb-2 w-full rounded-2xl rounded-bl-sm px-3.5 py-2.5 shadow-lg ${captionHidden ? "hidden" : ""}`}>
           <div className="mb-0.5 flex items-center gap-2 text-[11px] text-brand">
             <span className="font-semibold">{name}</span>
             {showSentenceNo && (
@@ -731,7 +810,7 @@ export default function SupportPage() {
                     </span>
                   </Fragment>
                 ))
-              : reaction || lastAssistant?.text || (phase === "thinking" ? "…" : greeting)}
+              : reaction || captionText || (phase === "thinking" ? "…" : greeting)}
             {configErr && !messages.length && <Warn className="mt-1">{configErr}</Warn>}
             {!enabled && !configErr && !messages.length && <Warn className="mt-1"><Trans>服务端还没开通 AI 对话，你可以直接转人工。</Trans></Warn>}
           </div>
@@ -926,23 +1005,43 @@ function HistorySheet({ name, messages, onClose }: { name: string; messages: Cha
         </div>
         <div ref={listRef} className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-[max(env(safe-area-inset-bottom),16px)]">
           {messages.length === 0 && <p className="py-6 text-center text-xs text-slate-500"><Trans>还没有对话。</Trans></p>}
-          {messages.map((m) => (
-            <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-              <div
-                className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm leading-6 ${
-                  m.role === "user"
-                    ? "rounded-br-sm bg-brand text-ink"
-                    : m.system
-                      ? "border border-ok-500/30 bg-ok-500/10 text-ok-100"
-                      : "rounded-bl-sm bg-slate-800 text-slate-100"
-                }`}
-              >
-                {m.role === "assistant" && !m.system && <span className="mr-1.5 text-[11px] text-brand">{name}</span>}
-                {m.text || (m.streaming ? "…" : "")}
-                {m.rating && <span className="ml-1.5 text-[11px]">{m.rating === "up" ? "👍" : "👎"}</span>}
+          {messages.map((m) =>
+            // AI 身份告知：一行小字，不是气泡（不是她说的话）
+            m.notice ? (
+              <Warn key={m.id} tone="info" className="px-1">
+                {m.text}
+              </Warn>
+            ) : m.safety ? (
+              // 求助卡：卡之前她说过的句子照常是她的气泡，卡本身画成卡（不带她的名字、这里不给关）
+              <Fragment key={m.id}>
+                {spokenBeforeCard(m) && (
+                  <div className="flex justify-start">
+                    <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-bl-sm bg-slate-800 px-3 py-2 text-sm leading-6 text-slate-100">
+                      <span className="mr-1.5 text-[11px] text-brand">{name}</span>
+                      {spokenBeforeCard(m)}
+                    </div>
+                  </div>
+                )}
+                <SafetyCard card={m.safety} announce={false} />
+              </Fragment>
+            ) : (
+              <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                <div
+                  className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm leading-6 ${
+                    m.role === "user"
+                      ? "rounded-br-sm bg-brand text-ink"
+                      : m.system
+                        ? "border border-ok-500/30 bg-ok-500/10 text-ok-100"
+                        : "rounded-bl-sm bg-slate-800 text-slate-100"
+                  }`}
+                >
+                  {m.role === "assistant" && !m.system && <span className="mr-1.5 text-[11px] text-brand">{name}</span>}
+                  {m.text || (m.streaming ? "…" : "")}
+                  {m.rating && <span className="ml-1.5 text-[11px]">{m.rating === "up" ? "👍" : "👎"}</span>}
+                </div>
               </div>
-            </div>
-          ))}
+            ),
+          )}
         </div>
       </div>
     </div>
