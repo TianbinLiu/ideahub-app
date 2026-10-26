@@ -220,7 +220,7 @@ export default function DiscoverPage() {
           -mx-4 px-4 让底色铺满整宽；bg-ink 不透明 —— 不加 backdrop-blur（它会给 position:fixed 的后代造包含块，CLAUDE.md 那格坑）。
           与第一块内容之间 12px（mb-3，PageHeader 那条规矩） */}
       <div className="sticky top-0 z-20 -mx-4 mb-3 bg-ink px-4">
-        <div className="safe-top flex h-[58px] items-center gap-2">
+        <div className="safe-top-bar flex items-center gap-2">
           {/* 搜索框是共用的 SearchField（2026-10-23）。clearKeepsFocus：点 ✕ 不让面板收起来再打开一次，清完光标留在框里 ——
               清掉一个词多半是要换一个词（抖音 / B 站的 ✕ 都是这样），框没焦点时清完只剩整页列表，历史那一排还得再点一下框才出来 */}
           <SearchField

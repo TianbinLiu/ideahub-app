@@ -326,7 +326,7 @@ export default function StageOverlay({ nodeId, onClose }: { nodeId: string; onCl
   const price = AI_REAL ? fmtTokens(ONE_IMAGE) : t`演示`;
   return createPortal(
     <div className="fixed inset-0 z-[70] flex flex-col bg-ink">
-      <div className="safe-top flex h-[58px] flex-none items-center gap-2 px-4">
+      <div className="safe-top-bar flex flex-none items-center gap-2 px-4">
         <CloseButton chip="md" size={16} tone="text-slate-200" label={t`关闭导演台`} onClick={onClose} />
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-bold text-slate-100"><Trans>🎬 导演台</Trans></div>

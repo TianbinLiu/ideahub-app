@@ -153,7 +153,7 @@ export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: st
   }
   return createPortal(
     <div className="fixed inset-0 z-50 flex flex-col bg-black/90" onClick={onClose}>
-      <div className="safe-top flex h-[58px] flex-none items-center gap-2 px-4" onClick={(e) => e.stopPropagation()}>
+      <div className="safe-top-bar flex flex-none items-center gap-2 px-4" onClick={(e) => e.stopPropagation()}>
         <span className="text-sm font-bold text-slate-100"><Trans>第 {idx + 1} 段 · 成片</Trans></span>
         <span className="min-w-0 flex-1 truncate text-[11px] text-slate-500">{chosenOf(node).durationSec}s</span>
         {/* ⭕ 圈选改画面：在成片上圈出要改的地方，写一句要求 —— 下次重炼这一段时

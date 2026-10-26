@@ -251,7 +251,7 @@ export default function PhotoSubjectPicker({
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex flex-col bg-ink" role="dialog" aria-label={t`道具卡 · ${slotLabel} · ${title}`}>
-      <div className="safe-top flex h-[58px] flex-none items-center gap-2 px-4">
+      <div className="safe-top-bar flex flex-none items-center gap-2 px-4">
         {pick.stage !== "box" && (
           <BackButton
             chip="md"

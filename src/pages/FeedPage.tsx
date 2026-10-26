@@ -1449,12 +1449,14 @@ export default function FeedPage() {
 
       {/* 退出键：沉浸态下唯一留在画面上的控件，必须常驻——真全屏没申请成功时
           既没有 Esc 也没有系统返回可用，没有它用户就困在这一屏里了。
-          压到半透明，不抢画面 */}
+          压到半透明，不抢画面
+          ★ 用 top 让开状态栏，不挂 .safe-top（2026-10-26）：44px 的圆钮再加 inset + 10px 的上内边距，真机 inset 41px 时
+            内边距比整颗钮还高，钮被撑成竖胶囊、图标掉到下半截（index.css .safe-top-bar 那段讲的是同一个坑） */}
       {immersive && (
         <button
           onClick={exitFull}
           aria-label={t`退出全屏`}
-          className="safe-top absolute right-3 top-0 z-30 mt-3 flex h-11 w-11 items-center justify-center rounded-full bg-black/35 text-white/80 backdrop-blur-sm transition active:scale-90"
+          className="absolute right-3 top-[calc(env(safe-area-inset-top,0px)+12px)] z-30 flex h-11 w-11 items-center justify-center rounded-full bg-black/35 text-white/80 backdrop-blur-sm transition active:scale-90"
         >
           <Icon name="shrink" size={22} />
         </button>
