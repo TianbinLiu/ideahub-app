@@ -46,6 +46,7 @@ const ZERO_DEP = [
   "src/data/dialogueShots.ts",
   "src/data/effectPresets.ts",
   "src/data/videoTierTable.ts",
+  "src/data/videoZoneRules.ts",
   "src/data/guidedModes.ts",
   "src/data/oauthState.ts",
   "src/data/live2dMotionCheck.ts",

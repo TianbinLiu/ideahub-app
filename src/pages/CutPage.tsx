@@ -27,7 +27,8 @@ import { useAutoGuide } from "../components/guide/useAutoGuide";
 import Icon from "../components/Icon";
 import { AI_REAL, ArkTaskFailed, ArkTaskUnknown, SegmentGenFailed, chargeNote, chargeOnFail, refineFrame, regenSegment, unwrapFailure } from "../ai";
 import { ANN_CLAUSE } from "../studio/segmentGen";
-import { isArkAssetUrl, requestArkTransfer, transferStatus } from "../ai/arkClient";
+import { isArkAssetUrl, reasonClause, requestArkTransfer, transferStatus } from "../ai/arkClient";
+import { refreshVideoZone, zoneIsRegional } from "../data/videoZone";
 import { canAfford, frozenNote, isRemoteMode, spendTokens, tierBlockReason, tierOffered, tierRegionIssue, walletOf } from "../data/account";
 import UpgradeLink from "../components/UpgradeLink";
 import { idbSet } from "../data/db";
@@ -285,6 +286,8 @@ export default function CutPage() {
   const [busy, setBusy] = useState("");
   /** 合并的防重入闸。★ 用 ref 不用 busy：setBusy 异步生效，挡不住同一帧内的第二次点击 */
   const mergingRef = useRef(false);
+  /** 按圈选重做开头那一次现问地区的防重入闸（理由同 mergingRef：那几秒里 busy 还没生效，第二次点击照样进得来） */
+  const regenZoneRef = useRef(false);
   /**
    * 合并进度（秒）。★★ 原来只显示「合并中 · 片段 i/N」——那会儿合并还是实时录屏：
    *   成片多长就录多长，一条 30 秒的片子要等 30 秒，屏幕上那个 i/N 十几秒才跳一次，
@@ -1260,7 +1263,18 @@ export default function CutPage() {
   /** ✨ 按全部圈选标注重新生成：逐段合并该段所有要求，改首/尾帧 + 重拍 */
   async function regenerateAll() {
     // ★ 与报价同一份输入（liveAnns）：删掉的段上那些圈选不计价、也不重拍
-    if (busy || liveAnns.length === 0) return;
+    if (busy || liveAnns.length === 0 || regenZoneRef.current) return;
+    // ★★ 出片地区：逐段门禁之前先现问一次地区（2026-10-26 P1 审核）。这一页是「先花钱、后出视频」：先按张结算改图（refineFrame），
+    //   再发 Seedance 重拍（regenSegment）—— 而服务端的地区门禁只拦视频那一发。会话中途换过网络的人只拿上一次的结论判档，
+    //   就是先付改图钱、视频那一发再吃 403。问完两个方向都对上了（旧结论说被拦、其实能用了，也一样）。问不到沿用上一次的结论（服务端照样拦）。
+    regenZoneRef.current = true;
+    setBusy(t`准备中…`);
+    try {
+      await refreshVideoZone();
+    } finally {
+      regenZoneRef.current = false;
+      setBusy("");
+    }
     // 同一份分组（按钮上的报价读的就是它）：别在这里再按 liveAnns 聚一遍
     const bySeg = annBySeg;
     // ★ 档位门禁（2026-10-07 免费档限制）：重拍是真出片，而这几段的档这个人现在用不了（会员档 / 已停用）的话，
@@ -1287,9 +1301,10 @@ export default function CutPage() {
         if (tierRetired(tier)) {
           const day = tierRetireDay(tier);
           setErr(t`第 ${segNo} 段是「${label}」档，模型已于 ${day}停用，这里重拍不了——回「我的 → 草稿」打开草稿，把这一段换一档重新出片（会重新计费）`);
-        } else if (tierRegionIssue(tier)) {
+        } else if (tierRegionIssue(tier) && zoneIsRegional()) {
           // ★ 出片地区（2026-10-26）：排在「还没上线」之前 —— 摆不出来的原来只有服务端不支持一种，地区一来那句话就把原因说错了（设计审核）。
-          //   不接 tierRegionIssue 的「换成哪一档」：这一页换不了档（同上一支的理由）
+          //   不接 tierRegionIssue 的「换成哪一档」：这一页换不了档（同上一支的理由）。
+          //   门禁没开时（zoneIsRegional 为假）藏掉那一家的是这台服务器没接上它，落到下一支（P1 审核：别说成地区）
           setErr(t`第 ${segNo} 段是「${label}」档，你所在的地区用不了这一档，这里重拍不了——回「我的 → 草稿」打开草稿，把这一段换一档重新出片（会重新计费）`);
         } else if (!tierOffered(tier)) {
           setErr(t`第 ${segNo} 段是「${label}」档，这个档位的重拍还没上线，这里重拍不了`);
@@ -1425,7 +1440,8 @@ export default function CutPage() {
       //   （老服务端那种钱没退的也结案：失败那句话就在这里说给人听了，取回卡只会对着它再说一遍）
       if (inner instanceof ArkTaskFailed) dropVideoJob(inner.taskId);
       // ★ 说清"前面几段已经保住了"：不说的话用户以为整轮白花，会再点一次（再收一遍）
-      const why = (inner instanceof ArkTaskFailed ? inner.reason : e instanceof Error ? e.message : String(e)).slice(0, 110);
+      // 摘掉句末标点再接「。」（arkClient.reasonClause：地区那一句自带句号，原来成了「…也没有扣费。。」）
+      const why = reasonClause((inner instanceof ArkTaskFailed ? inner.reason : e instanceof Error ? e.message : String(e)).slice(0, 110));
       // ★ 钱上那句话（2026-10-07）：只认类型、只走 ai/failCharge —— 受理之后上游明说失败的那一发现在会退回，
       //   这一段刚改好的画面另说（它们各自结算过）。视频那一发之前的失败（改图本身失败）按一张图的价说
       const fc = chargeOnFail(e);

@@ -85,8 +85,11 @@ const NONE: ServerCaps = { res480: false, draftMode: false, failRefund: false, f
 const ALL: ServerCaps = { res480: true, draftMode: true, failRefund: true, failRefundMinimax: true, imageGroups: true, freeVideo: null, clientEvents: false, videoZone: false };
 const listeners = new Set<() => void>();
 
-/** 没有服务端那一层（dev 直连方舟 / 离线演示包）：能力全在 */
-function direct(): boolean {
+/**
+ * 没有服务端那一层（dev 直连方舟 / 离线演示包）—— **唯一判据**：这里能力全在；data/videoZone 也拿它决定「不问地区」（地区一直是不知道）。
+ * ★ 2026-10-26 P1 审核：原来 videoZone 里另抄了一份同样的式子，同一条规则两处写。
+ */
+export function noServerLayer(): boolean {
   return import.meta.env.DEV || !API_ON;
 }
 
@@ -100,7 +103,7 @@ export function subscribeServerCaps(fn: () => void): () => void {
  * ★ 直连 / 离线时不发请求，直接回「全在」。
  */
 export function probeServerCaps(): Promise<ServerCaps | null> {
-  if (direct()) return Promise.resolve(ALL);
+  if (noServerLayer()) return Promise.resolve(ALL);
   if (caps) return Promise.resolve(caps);
   if (!probe && Date.now() - failedAt < RETRY_MS) return Promise.resolve(null);
   probe ??= fetch(`${API_BASE}/api/ark/health`, { headers: withAppVersion(`${API_BASE}/api/ark/health`), signal: AbortSignal.timeout(10_000) })
@@ -146,7 +149,7 @@ export function probeServerCaps(): Promise<ServerCaps | null> {
  * ★ null 时调用方放行（见文件头）。别把 null 当 false：探测慢半拍就把免费用户唯一的档藏起来，比放行一次必然同步 400 的请求更坏。
  */
 export function serverSupports(cap: BoolCap): boolean | null {
-  if (direct()) return true;
+  if (noServerLayer()) return true;
   if (caps) return caps[cap];
   void probeServerCaps();
   return null;
@@ -157,7 +160,7 @@ export function serverSupports(cap: BoolCap): boolean | null {
  * 同步、render 里能调；第一次问的时候顺手发起探测（同 serverSupports）。
  */
 export function serverFreeVideo(): ServerCaps["freeVideo"] {
-  if (direct()) return null;
+  if (noServerLayer()) return null;
   if (caps) return caps.freeVideo;
   void probeServerCaps();
   return null;

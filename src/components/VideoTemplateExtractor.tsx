@@ -704,11 +704,11 @@ export default function VideoTemplateExtractor({
    * 白模那一档在你所在的地区用不了（出片地区，判据 account.tierRegionIssue —— blockoutizeBlockReason 里那句话也是它给的）。
    * ★ 为什么连两条路的选项都收起来（2026-10-26 设计审核）：两条白模路都只走那一档；选项摆着的话人会去选、去传一段几十 MB 的视频，
    *   而这件事在这个地区怎么都做不成 —— 原因摆在上面，选项不摆。地区不知道时为 null，照老样子摆（服务端在看帧之前预检，不扣钱）。
+   * ★ 出路只指同样做得了白模的档（need = blockoutOk；白模钉死一档 = 没有可换的），所以这句话不会再叫人「换成」做不了白模的档；
+   *   门禁没开时（服务器没接上方舟）它说的是「这台服务器出片只接了 …」，不说成地区（2026-10-26 P1 审核）。
    */
   const bTier = blockoutTier();
-  const blockoutRegion = bTier ? tierRegionIssue(bTier) : null;
-  /** 白模那一档的档名（文案里取名，译文读到的是 {blockoutLabel}） */
-  const blockoutLabel = bTier?.label ?? "";
+  const blockoutRegion = bTier ? tierRegionIssue(bTier, (x) => x.blockoutOk) : null;
 
   /**
    * 「AI 白模化的框选屏」在不在屏上：与下面 JSX 渲染 BlockoutTrimmer 的那一支同一组条件，再加 route === "aiBlockout"。
@@ -1403,12 +1403,12 @@ export default function VideoTemplateExtractor({
                 "在第 2 步上被挡住、却没有任何一行字"的空窗。
               ★★ 措辞里不许出现「上面 / 下面」的方位词：这句话现在会在两步里出现，
                 方位在其中一步必然是错的。 */}
-            {/* 出片地区不给白模那一档：不说 tierRegionIssue 那句（它的出路是「换成哪一档」，换过去也做不了白模），说这一屏的事实 */}
+            {/* 出片地区不给白模那一档：先说为什么（tierRegionIssue，出路按白模的能力挑 = 没有可换的），再说这一屏的事实 */}
             {blockoutRegion ? (
               <p className="mb-3 rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-[11px] leading-relaxed text-danger-300">
-                <Trans>
-                  白模模板的两条路都只走「{blockoutLabel}」档，而你所在的地区用不了它，这里做不了白模模板。想把一条片的做法分享给别人，发布作品时公开「制作过程」就行。
-                </Trans>
+                {blockoutRegion}
+                <br />
+                <Trans>白模模板的两条路都只走这一档，这里做不了白模模板。想把一条片的做法分享给别人，发布作品时公开「制作过程」就行。</Trans>
               </p>
             ) : (
               blockout &&

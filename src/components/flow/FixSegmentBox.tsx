@@ -18,7 +18,7 @@ import { priceTag } from "../../data/economy";
 import Warn from "../Warn";
 import { useState } from "react";
 import { AI_REAL } from "../../ai";
-import { tierBlockReason, tierGo, tierOffered } from "../../data/account";
+import { tierBlockReason, tierGo, tierPlanBlocked } from "../../data/account";
 import { durationChoices, materialRefSecs, minUsageNote, r2vPriceIssue, r2vTokens, tierOf } from "../../data/economy";
 import { useAccountVersion } from "../../hooks/useAccount";
 import UpgradeLink from "../UpgradeLink";
@@ -73,24 +73,29 @@ export default function FixSegmentBox({
   /**
    * 这一段的档这个人现在用不了（会员档 / 已停用 / 服务端不支持；判据只在 account.tierBlockReason）：重拍与延长都是真出片，
    * genNode / appendNode 门口会整句拒 —— 在这里就说，别让人写完改法、看着价钱点下去才第一次听说（2026-10-07 免费档限制：
-   * 10-07 之前免费用户在「高清」上出过的片，现在点「修这一段」就是这种情形）。挡住他的是套餐（档还摆得出来）时给「去升级」。
+   * 10-07 之前免费用户在「高清」上出过的片，现在点「修这一段」就是这种情形）。挡住他的是套餐（account.tierPlanBlocked）时给「去升级」。
+   * ★ 重拍与延长各问一句（2026-10-26 P1 审核）：用不用得了是同一个答案，但地区挡住时「换成哪一档」的出路要按这件事要的能力挑
+   *   （重拍要能按参考视频出片、延长要能延长），别把人指去一档做不了这件事的档。
    */
-  const planIssue = tierBlockReason(tier);
-  const planUpgradeable = !!planIssue && tierOffered(tier);
+  const reviseIssue = tierBlockReason(tier, (x) => x.refVid && x.r2vMult !== null);
+  const extendPlanIssue = tierBlockReason(tier, (x) => x.extendOk);
+  const planIssue = reviseIssue ?? extendPlanIssue;
+  const planUpgradeable = tierPlanBlocked(tier);
   /** 能按参考视频出片的档（重拍 / 示例视频那一类）：这个人一档都用不了时，r2v 那句话后面说清它们是会员档 */
   const refGo = tierGo((x) => x.refVid && x.r2vMult !== null);
   const refNames = refGo.names;
-  const planNote = planIssue ? (
-    <Warn>
-      {planIssue}
-      {planUpgradeable && (
-        <>
-          {"　"}
-          <UpgradeLink />
-        </>
-      )}
-    </Warn>
-  ) : null;
+  const planNote = (issue: string | null) =>
+    issue ? (
+      <Warn>
+        {issue}
+        {planUpgradeable && (
+          <>
+            {"　"}
+            <UpgradeLink />
+          </>
+        )}
+      </Warn>
+    ) : null;
 
   // ── 片段重拍 ──
   const priceIssue = r2vPriceIssue(node.videoTier);
@@ -148,7 +153,7 @@ export default function FixSegmentBox({
       </div>
 
       {open === "revise" &&
-        (planNote ??
+        (planNote(reviseIssue) ??
         (priceIssue ? (
           <Warn>
             {priceIssue}
@@ -221,7 +226,7 @@ export default function FixSegmentBox({
         )))}
 
       {open === "extend" && isLast &&
-        (planNote ??
+        (planNote(extendPlanIssue) ??
         (extIssue ? (
           <Warn>{extIssue}</Warn>
         ) : (

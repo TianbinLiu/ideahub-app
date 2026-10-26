@@ -2758,21 +2758,28 @@ App `src/data/economy.ts` 是**报价**口径。不一致的后果是"报价 216
 ### App 侧（2026-10-26 出片地区 P1）
 
 - **唯一判定在 `app/src/data/videoZone`**：三种状态 —— 不知道（`null`）/ 问到了（`zone` + `country` + `providers`）。
-  **App 只照 `providers` 摆档**，不自己按国家另判一遍、也不看 `gate`：observe 期间 providers 照样带着 `ark`，新 App 照样摆 Seedance；
-  运维切 `off` 急停，下一次问到就全摆回来。判「这一家给不给」只有 `videoZone.zoneDenies` 一处。
+  **App 只照 `providers` 摆档**，不自己按国家另判一遍、也不拿 `gate` 决定藏不藏：observe 期间 providers 照样带着 `ark`，新 App 照样摆 Seedance；
+  运维切 `off` 急停，下一次问到就全摆回来。判「这一家给不给」只有 `videoZone.zoneDenies` 一处（规则在零依赖的 `data/videoZoneRules`，构建里 `check-video-zone.mjs` 实跑：
+  只认 `v: 1`、认不出的供应商名丢掉、国家码只认两位大写、地区不知道时一家都不拦）。
+  `gate` **只挑措辞**（`videoZone.zoneIsRegional`）：`off` / `observe` 时 providers 是「这台服务器接上了哪几家」（没配 key 的那家永远不报），
+  缺的那一家说「这台服务器出片只接了 …」，不说成「你所在的地区只提供 …」；只有 `on` 时才说地区。403 回包能拦人 = 门禁开着，按 `on` 记。
 - **地区不知道 = 照今天的样子摆**（全部档位、不拦、句子里不写供应商名）：老服务端（health 没有 `videoZone`）、dev 直连 / 离线演示包、这一场会话还没问到过。
   「问不到」绝不当「境内」，也不当「海外」—— 冷启动问慢半拍就把节点上的档位持久改写掉，比多摆一会儿更坏；服务端照样拦，视频那一发不扣钱。
   问到之后再问不到，沿用这一场会话上一次问到的结论；**不跨会话落盘**（开关 VPN / 换网络都会改地区，旧缓存在冷启动那一刻拿来藏档是同一个事故形状）。
 - **什么时候问**：开机（`account.readyAccount` 顺手发起）、回到前台（visibilitychange）、恢复联网（online）、App 开着且页面可见时每 10 分钟、
   收到一次 `REGION_UNAVAILABLE` 之后（回包里的 zone / providers 当场记下，再问一次补国家）、**花第一笔钱之前**（`flowStore.genNode` / `deriveProposals`、
-  工坊 `studioStore.generateNode`：现问一次再按问到的那份重判这一档 —— 门禁只拦视频，会话中途开关过 VPN 的人不现问就会先付图钱 / 推演费，再被 403）。
-  两次顺手重问之间至少隔 10 秒；一发最多等 6 秒（问不到就放行，服务端照样拦）。
+  工坊 `studioStore.generateNode`、剪辑页按圈选重做：现问一次再按问到的那份重判这一档 —— 门禁只拦视频，会话中途开关过 VPN 的人不现问就会先付图钱 / 推演费，再被 403）。
+  同步看状态的宿主（工坊 `genNodeVideo` 受理即收窗、画布 agent 700 毫秒后报回执）**调之前自己先问**，genNode 的同步门禁就在打上 generating 之前拒。
+  **反方向**也问：同步门禁拿地区拒之前先现问一次（`account.tierRegionRecheck`），结论变了从头再判 —— 不然人在前台关了 VPN（不发 visibilitychange），
+  最多 10 分钟里每一次点都被拒。两次顺手重问之间至少隔 10 秒（花钱之前那一次 5 秒）；一发最多等 6 秒（问不到就放行，服务端照样拦）。
 - **摆档**：这个地区不给的档进 `account.tierOffIssue`（地区那一支 `tierRegionIssue`，排在「已停用」之后、「服务端不支持」之前）——
-  于是 `offeredTiers` 不摆它，`tierBlockReason` 说它，`usableTierId` 换掉它（抄来的档）。档位那一排（TierRow / 选法屏 ModePicker / 工坊铸段窗）
-  下面印一句 `account.regionTiersLine`（「你所在的地区（美国）出片只提供 MiniMax 的模型」）。句子里只写这个地区**给得出的**供应商名，不写被拦的那一家。
+  于是 `offeredTiers` 不摆它，`tierBlockReason` 说它，`usableTierId` 换掉它（抄来的档；找不到做得了同样事的近邻时**留着原档**、说一句，不落到「真人」档）。
+  档位那一排（TierRow / 选法屏 ModePicker / 工坊铸段窗）下面印一句 `account.regionTiersLine`（「你所在的地区（美国）出片只提供 MiniMax」）。
+  句子里只写这个地区**给得出的**供应商名，不写被拦的那一家。「换成哪一档」只指做得了这件事的档（`tierBlockReason(tier, need)`：白模模板、样片定稿、重拍、延长各传各的能力；
+  缺省不往只认一张起拍画面的「真人」档上指）。地区原因旁边不摆「去升级」（`account.tierPlanBlocked`：付钱治不了地区）。
 - **默认档**：默认档链（std→hd / fast→draft）全是方舟的。地区不给方舟时链上落不下，`account.defaultTierId` 退到这个地区摆得出来的第一档（P1 只有「真人」）。
 - **被拦时说什么**：`arkClient.billingDenialError` 认 `code`，抛 `ArkRegionDenied`（ArkHttpError 的子类，带 `billed`），话由 `account.regionDeniedLine` 说
-  （不点档名、只说这个地区能用哪几档；回包 `billed` 不为 true 时接「这一发没有受理，也没有扣费」）。钱只认 `ai/failCharge`：照回包的 `billed`。
+  （不点档名、只说这个地区能用哪几档；回包里读不出地区时不列供应商、不列档名；回包 `billed` 不为 true 时接「这一发没有受理，也没有扣费」）。钱只认 `ai/failCharge`：照回包的 `billed`。
   白模化（`api/branch.blockoutPost`）按 `billed` 两句各说各的；提取窗在地区不给白模那一档时收起两条白模路的选项、只留原因。
 - **还没做（P2b 起）**：MiniMax H3 三档（海外的草稿 / 高清 / 电影级）、中国用户选 MiniMax、换档句子按 family 去重、给海外免费用户一档、卡片与模板写具体模型名。
   在那之前门禁一直是 `observe`（主人定：带 P2b 的 App 发版那天再切 `on`），App 这一侧的藏档逻辑在线上不会生效。

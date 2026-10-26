@@ -486,6 +486,15 @@ export function arkFailReason(o: { status: string; code?: string; detail?: strin
 }
 
 /**
+ * 一句原因要接在「：」后面、再由调用方补句号的时候，先摘掉它自己的句末标点（2026-10-26 出片地区 P1 审核）。
+ * ★ 地区那一句（ArkRegionDenied 的 message）是两整句、自带句号：genNode 拼「第 N 段生成失败：${why}。${钱}」时屏幕上成了「…也没有扣费。。」，
+ *   英文是「charged.. 」。服务端白模化那一支为同一个「。。」也摘了一次。只摘句末那一串，句中的句号不动。
+ */
+export function reasonClause(why: string): string {
+  return why.replace(/[。.!！]+$/u, "");
+}
+
+/**
  * 一句**能给用户看**的失败原因 —— 唯一实现（出片轮询与取回都用它）。
  *
  * ★ 存在的理由是那一坨方舟原文：`Ark /contents/generations/tasks/cgt-… 404: {"error":

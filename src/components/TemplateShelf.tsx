@@ -55,7 +55,7 @@ import {
   templatesVersion,
   type BlockoutJob,
 } from "../data/templates";
-import { tierBlockReason, tierOffered } from "../data/account";
+import { tierBlockReason, tierOffered, tierPlanBlocked } from "../data/account";
 import { VIDEO_TIERS, blockoutTier, tierModelLabel, type VideoTier } from "../data/economy";
 import { remoteOn } from "../data/videos";
 import { useFlow } from "../studio/flowStore";
@@ -869,7 +869,8 @@ export default function TemplateShelf({
 /** tierEmptyText 会不会说成「它是会员档——开通会员套餐…」那一句（判据只在这里：文案与「旁边放不放看板娘」读同一个答案） */
 function tierEmptyGated(picked: VideoTier): boolean {
   const need = blockoutTier();
-  return !!need && need.id !== picked.id && !!tierBlockReason(need);
+  // 「它是会员档」只在挡住他的确实是套餐时说（account.tierPlanBlocked）：原因是出片地区时付钱治不了（2026-10-26 P1 审核）
+  return !!need && need.id !== picked.id && tierPlanBlocked(need);
 }
 
 function tierEmptyText(picked: VideoTier, hidden: number): string {

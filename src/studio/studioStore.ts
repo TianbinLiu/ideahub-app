@@ -5,7 +5,7 @@ import { AI_REAL, MaterialFile, chargeNote, chargeOnFail, deriveCharacterModels,
 import { frameMoment, momentCards } from "../data/shotScript";
 import { DECK_CAM, MARKET, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
-import { acquireCard, addCards as saveCardsToAccount, canAfford, frozenNote, myCards, myDecks, plazaCards, realFaceIssue, spendTokens, tierBlockReason, tierRegionIssue, usableTierId, walletOf, type AddCardsResult } from "../data/account";
+import { acquireCard, addCards as saveCardsToAccount, canAfford, frozenNote, myCards, myDecks, plazaCards, realFaceIssue, spendTokens, tierBlockReason, tierRegionIssue, tierRegionRecheck, usableTierId, walletOf, type AddCardsResult } from "../data/account";
 import { refreshVideoZone } from "../data/videoZone";
 import { CHAT_TURN_TOKENS, DECK_MAX_3D, deriveIssue, DECK_MAX_CARDS, fallbackTierId, MODEL3D_TOKENS, deckCardsCost, deckModel3dCost, fmtTokens, proposalsCost, styleWants3d, tierOf, videoAudioOn } from "../data/economy";
 // 单向依赖：工坊把活动路径喂给工作流。flowStore 不认识 studioStore（见其文件头）
@@ -1641,6 +1641,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
       // 档位门禁（与 flowStore.regenProposal 同一句，判据 account.tierBlockReason）：重画真花钱，画出来的帧在用不了的档上出不了片
       const blocked = tierBlockReason(tierOf(node.videoTier));
       if (blocked) {
+        // 原因是出片地区时顺手现问一次（反方向：旧结论说被拦、其实已经能用了，account.tierRegionRecheck）—— 下一次点就用上新结论
+        void tierRegionRecheck(tierOf(node.videoTier));
         set({ notice: { text: blocked, at: Date.now() } });
         return false;
       }
@@ -2049,6 +2051,9 @@ export const useStudio = create<StudioState>()((set, get) => ({
       //   钱花在三套出不了片的方案上。判据只在 account.tierBlockReason（flowStore.deriveProposals 问的是同一句）
       const blocked = tierBlockReason(tierOf(editor.videoTier));
       if (blocked) {
+        // ★ 拒的原因是出片地区时先现问一次（2026-10-26 P1 审核，反方向：旧结论说被拦、其实已经能用了 —— account.tierRegionRecheck 的 ★）；
+        //   结论变了就从头再走一遍（等的这几秒里表单、余额、别的面忙不忙都可能变）
+        if (await tierRegionRecheck(tierOf(editor.videoTier))) return get().generateNode();
         set({ notice: { text: blocked, at: Date.now() } });
         return;
       }
@@ -2358,6 +2363,11 @@ export const useStudio = create<StudioState>()((set, get) => ({
     //   进度画在节点自己身上（node.steps/progress），方案台直接读它。
     set({ nodeGen: { proposalId, steps: [] } });
     try {
+      // ★★ 出片地区：先现问一次地区再调 genNode（2026-10-26 P1 审核）。下面「受理即收窗」是**同步**看状态的 —— genNode 自己的现问排在打上
+      //   generating 之后，要是在那里才拒，这边已经收了窗、吐了「已开始生成，出片后会提醒你」，随后什么都不出，那句话就是假的。
+      //   在这里先问，genNode 的同步门禁就拿到新地区、在打上 generating 之前整句拒；它里面那一发落在 5 秒间隔里，当场返回。
+      //   nodeGen 已经占上，等的这几秒里点不出第二炉。问不到就沿用上一次的结论（服务端照样拦，视频那一发不扣钱）
+      await refreshVideoZone();
       const run = useFlow.getState().genNode(nodeId, opts);
       // ★ 受理即收窗（2026-09-06 主人点名）：genNode 的门禁与「打上 generating」都在它第一个 await 之前，
       //   这一拍状态已经是 generating = 真的开始炼了 —— 投影窗收掉、说一句"可以离开这一页"，用户才知道

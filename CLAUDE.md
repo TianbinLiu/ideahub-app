@@ -220,17 +220,25 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   样片那一发在花钱之前整句拒（`segmentGen` 的样片闸，`arkClient` 另有一道协议断言），报价才等于实扣；拒之前补画好的帧照 ④ 留在方案上，再点一次只重传、不重画。契约核对那句在远端模式说「以服务器结算为准」（钱不按本机报价扣）。
 - **出片地区：App 只照服务端下发的 `providers` 摆档，不自己按国家判**（2026-10-26 出片地区 P1，主人「海外由于政策原因只能用 MiniMax」；契约见 docs/api-contract.md「出片地区」，服务端 server#131）。五条规矩：
   ① 「这台设备此刻能用哪几家出片」只有 `data/videoZone` 一处（`GET /api/video/zone`，健康端点报了 `videoZone` 能力位才问、no-store）；判「这一家给不给」只走 `zoneDenies`。
-  **不看 `gate`、不认国家名单**：服务端 observe 时 providers 照样带着方舟，App 照样摆；切 `off` 急停下一次问到就全摆回来 —— App 另判一遍就是两把尺。
+  规则（回包怎么读、403 怎么记、「不知道」不拦、措辞挑哪种）在零依赖的 `data/videoZoneRules`，构建里 `check-video-zone.mjs` 实跑；「有没有服务端那一层」只问 `serverCaps.noServerLayer`。
+  **不拿 `gate` 决定藏不藏、不认国家名单**：服务端 observe 时 providers 照样带着方舟，App 照样摆；切 `off` 急停下一次问到就全摆回来 —— App 另判一遍就是两把尺。
+  `gate` 只挑措辞（`zoneIsRegional`）：off / observe 时 providers 是「这台服务器接上了哪几家」，缺的那一家说成「这台服务器没接上」，不说成地区（P1 审核）。
   ② **地区不知道 = 照今天的样子摆**（老服务端 / dev 直连 / 离线 / 还没问到）：不藏档、不改写节点上的档位、句子里不写供应商名；「问不到」绝不当「境内」也不当「海外」。
   问到之后再问不到沿用这一场会话上一次的结论，**不跨会话落盘**（冷启动拿旧缓存藏档 / 改写节点，与「问慢半拍当海外」是同一个事故形状）。
   ③ 这个地区不给的档进 `account.tierOffIssue` 的地区那一支（`tierRegionIssue`，排在停用之后、服务端不支持之前）：不摆、灰着说为什么、抄来的档换掉，
   默认档链落不下时退到这个地区摆得出来的第一档（`defaultTierId`）；档位那一排下面那句只有 `regionTiersLine`。凡是按「摆不出来」分原因说话的地方
   （`flowStore.tierSwapNote`、剪辑页重拍）都要先问地区这一种，不然会说成「服务器还不支持」。话里只写这个地区**给得出的**供应商名。
+  **出路只指做得了这件事的档**（P1 审核）：要特定能力的调用方传 `tierBlockReason(tier, need)`（白模模板 blockoutOk、重拍 refVid、延长 extendOk、样片 draftOk、定稿 `() => false`），
+  缺省也**不往只认一张起拍画面的档（startOnly，真人档）上指**；抄来的档同理（`usableTierId` 找不到近邻时留着原档、由 `flowStore.tierCopyNote` 说一句，不落到「真人」）。
+  **「去升级」只在 `account.tierPlanBlocked`（摆得出来、只是套餐挡着）时画**：付钱治不了地区（模板用 `templatePlanUpgradeable`、样片用 `draftModeUpgradeable`）。
   ④ 服务端 403 `REGION_UNAVAILABLE` 认 `code` 不认 message（那句是英中并排、给老 App 兜底的）：`arkClient.ArkRegionDenied`（带 `billed`）、话在 `account.regionDeniedLine`，
   钱只走 `ai/failCharge`（照回包 `billed`）；白模化在 `api/branch.blockoutPost` 按 `billed` 两句各说。收到就把回包里的地区记下并重问（`noteRegionDenied`）。
-  ⑤ 门禁只拦视频那一发，出片前补画的帧 / 推演各自先结算：**花第一笔钱之前现问一次地区再重判**（`refreshVideoZone`，genNode / deriveProposals / 工坊 generateNode 三处，
+  ⑤ 门禁只拦视频那一发，出片前补画的帧 / 推演各自先结算：**花第一笔钱之前现问一次地区再重判**（`refreshVideoZone`：genNode / deriveProposals / 工坊 generateNode / 剪辑页按圈选重做，
   排在「打上 generating」之后、第一笔钱之前 —— 工坊受理即收窗、画布 agent 的回执都认「genNode 第一个 await 之前就打上 generating」；拒了就原样退回状态、原因写 err）。
-  新加一条「先花钱、后出视频」的入口也要接这一步。
+  **同步看状态的宿主自己先问**再调（工坊 `genNodeVideo`、画布 agent 执行推演 / 出片之前）：它们 await 完再调，genNode 的同步门禁就拿到新地区、在打上 generating 之前拒；
+  `genStarted`（画布「提交即收窗」）排在地区那一道之后。**反方向**（旧结论说被拦、其实已经能用了）：同步门禁拿地区拒之前先 `account.tierRegionRecheck`，
+  结论变了从头再判一遍（genNode / deriveProposals / generateNode 三处；其余花钱的门禁顺手 `void` 一次，下一次点就用上新结论）。
+  新加一条「先花钱、后出视频」的入口也要接这一步。地区那句（`ArkRegionDenied`）自带句号，接在「：」后面再补「。」的地方先过 `arkClient.reasonClause`。
 - **方舟第十批下线（2026-11-24 14:00）的 App 这一半**（2026-10-10 主人拍板，2.63；契约见 docs/api-contract.md「出图模型下线与改发」「请求头 X-App-Version」，
   强制更新见 docs/app-distribution.md「强制更新」）。五条规矩：
   ① **出图型号只认价目表里那两个**（`economy.IMAGE_TOKENS_BY_MODEL`：速写 = `doubao-seedream-4-0-20260415`（4.0 的继任，13,333，沿用 4.0 的价、待账单核）、

@@ -15,9 +15,8 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import Warn from "../Warn";
 import { useEffect, useState } from "react";
 import { AI_REAL } from "../../ai";
-import { draftModeIssue, draftModeOffered } from "../../data/account";
-import { serverSupports } from "../../data/serverCaps";
-import { draftFinalTokens, draftStepTokens, fmtTokens, tierOf } from "../../data/economy";
+import { draftModeIssue, draftModeOffered, draftModeUpgradeable } from "../../data/account";
+import { draftFinalTokens, draftStepTokens, draftTierId, fmtTokens, tierOf } from "../../data/economy";
 import { aspectOf } from "../../types";
 import {
   chosenOf,
@@ -57,8 +56,13 @@ export default function DraftModeBox({
   // 「先出样片」开关（三种样子都摆：样片 / 成片在屏幕上时，它管的是下一次「重新生成」出不出样片）
   const ratio = aspectOf(node.aspect).ratio;
   const blocked = draftModeIssue(tier);
-  /** 挡住他的是套餐（「去升级」走得通），不是服务端还不会（那种升级也没用 —— 别指一条走不通的路） */
-  const upgradeable = serverSupports("draftMode") !== false;
+  /**
+   * 挡住他的是套餐（「去升级」走得通），不是服务端还不会、也不是地区不给（那几种升级也没用 —— 别指一条走不通的路）。判据在 account.draftModeUpgradeable。
+   * ★ 定稿那一栏问的是**出样片那一档**（draftFinalIssue 问的就是它，定稿只认样片任务号）：原来只看服务端能力位，
+   *   地区一来，海外用户在已付过钱的样片下面会看到「你所在的地区用不了」紧挨着一颗「去升级」（2026-10-26 P1 审核）
+   */
+  const upgradeable = draftModeUpgradeable(tier);
+  const finalUpgradeable = draftModeUpgradeable(tierOf(draftTierId()));
   const toggle = offered ? (
     <>
       <label className="flex items-center gap-1.5 text-[11px] text-slate-200">
@@ -128,7 +132,7 @@ export default function DraftModeBox({
         )}
         {issue && left > 0 && (
           <Warn>
-            {issue} {upgradeable && <UpgradeLink />}
+            {issue} {finalUpgradeable && <UpgradeLink />}
           </Warn>
         )}
         {left > 0 && (

@@ -52,6 +52,7 @@ import {
   setTemplatePublished,
   templateGroupOf,
   templatePlanIssue,
+  templatePlanUpgradeable,
   templateTiers,
   updateTemplate,
 } from "../data/templates";
@@ -235,11 +236,16 @@ function BlockoutInfo({ t: tpl, isOwner }: { t: VideoTemplate; isOwner: boolean 
       {/* ★ 套餐用不了这一档：说在出片键上方（那颗键此时是灰的），并给一条能走的路。
           排在价钱之后而不是替掉它：价钱是"这个模板要花多少"，这一句是"你现在的套餐用不了"，两件事都该看见。
           2026-10-07 起付过任何一笔（套餐或充值）都算付费用户，「去升级」直接打开钱包抽屉（两样都在里面）。 */}
+      {/* 「去升级」只在挡住他的是套餐时摆（templatePlanUpgradeable）：原因是出片地区时付钱治不了（2026-10-26 P1 审核） */}
       {planIssue && (
         <p className="mt-2 rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-[11px] leading-relaxed text-warn-300/90">
           {planIssue}
-          {"　"}
-          <UpgradeLink />
+          {templatePlanUpgradeable(tpl) && (
+            <>
+              {"　"}
+              <UpgradeLink />
+            </>
+          )}
         </p>
       )}
     </div>
@@ -758,7 +764,8 @@ export default function TemplateDetailPage() {
       {applyBlocked && !applyErr && (
         <Warn className="mb-3">
           {applyBlocked}
-          {planBlocked && (
+          {/* 屏幕上说的是套餐那一句（目录侧的拒绝排在前面时不算）、而且挡住他的确实是套餐，才给「去升级」 */}
+          {applyBlocked === planBlocked && templatePlanUpgradeable(tpl) && (
             <>
               {"　"}
               <UpgradeLink />

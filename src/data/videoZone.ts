@@ -1,7 +1,7 @@
 // 出片地区 —— 「这台设备此刻按哪个地区算、能用哪几家出片」的**唯一判定**（GET /api/video/zone，2026-10-26 出片地区 P1；
 // 契约见 docs/api-contract.md「出片地区」，服务端那一半是 server#131）。
 //
-// ★★ App 只照服务端下发的 `providers` 摆档，**不自己按国家另判一遍**、也不看 `gate`：
+// ★★ App 只照服务端下发的 `providers` 摆档，**不自己按国家另判一遍**、也不拿 `gate` 决定藏不藏（gate 只挑措辞，见 zoneIsRegional）：
 //   服务端门禁在 observe（缺省）时 providers 照样带着 ark，App 就照样摆 Seedance；切 on 之后才只剩这个地区准用的那几家；
 //   运维切 off 急停，下一次探到就全摆回来。App 另判一遍就是两把尺 —— observe 期间新 App 先把海外的 Seedance 藏了，
 //   急停也停不下来（2026-10-26 设计审核）。所以这里没有国家名单、没有港澳台算哪边，那些只在服务端 utils/geo 一处。
@@ -12,7 +12,9 @@
 //     ★ 为什么不当成海外（2026-10-26 设计稿原写的是「探不到就只摆 MiniMax」，审核否掉）：冷启动探测慢半拍、或一次 5xx，
 //       国内用户做同款时 usableTierId 就会把节点上的档位持久改写成另一档，还说一句与事实相反的原因。藏档、改写节点只在**真知道**时做。
 //   · { zone: "cn", providers: [...] } / { zone: "intl" | "blocked", providers: [...] } = 问到了。
-//     ★ 判「这一家给不给」只看 providers（`zoneDenies`），zone 本身只用来说话、排查。
+//     ★ 判「这一家给不给」只看 providers（`zoneDenies`），zone 本身只用来说话、排查；gate 只用来挑措辞（`zoneIsRegional`：
+//       off / observe 时缺的那一家是这台服务器没接上，不是地区不给 —— 2026-10-26 P1 审核）。
+// ★ 规则（回包怎么读、403 怎么记、三态里「不知道」不拦、措辞挑哪种）在零依赖的 data/videoZoneRules，构建里 check-video-zone 实跑；这里只管问与广播。
 // ★ 问到之后再问不到（断网、5xx、429）：**沿用这一场会话上一次问到的结论**（契约「问不到时退回本机上一次的结论」）。
 //   不跨会话落盘：开关 VPN、换网络都会改地区，一份旧缓存在冷启动那一刻拿来藏档 / 改写节点，比「不知道、照老样子摆」更坏
 //   （上一条 ★ 的同一个事故形状）；服务端照样拦，问不到时多摆出来的那几档点了也一分钱不扣。
@@ -21,25 +23,17 @@
 //   ② 定时（App 开着、页面可见时每 10 分钟一次；服务端限流约 60 次/分钟，远远够不着）；③ 收到一次 REGION_UNAVAILABLE 之后（noteRegionDenied）。
 //   另加两处：`online`（断网恢复）、花第一笔钱之前（refreshVideoZone，出片 / 推演 —— 见那个函数的 ★）。
 // ★ 结论变了就广播（subscribeVideoZone）：account 把它接进自己的版本号，订阅了账号的档位那一排会重画。
-import { API_BASE, API_ON, getToken, withAppVersion } from "../api/client";
-import { probeServerCaps } from "./serverCaps";
+import { API_BASE, getToken, withAppVersion } from "../api/client";
+import { noServerLayer, probeServerCaps } from "./serverCaps";
+import { deniesOf, parseZone, regionalOf, sameZone, zoneOfDenial, type VideoProvider, type VideoZoneFacts } from "./videoZoneRules";
 
-/** 出片供应商：ark = 火山方舟（Seedance），minimax = MiniMax。与档位表的 `provider`（economy.providerOf）同一套名字 */
-export type VideoProvider = "ark" | "minimax";
-/** 服务端 utils/geo.videoZoneOf 的三种地区（只用来说话与排查，判据是 providers） */
-export type VideoZoneKind = "cn" | "intl" | "blocked";
+export type { VideoGate, VideoProvider, VideoZoneKind } from "./videoZoneRules";
 
-export interface VideoZone {
-  zone: VideoZoneKind;
-  /** 两位国家码；判不出 / Tor / 从一次 403 里得知（回包不带国家）时是 "" */
-  country: string;
-  /** 此刻这个请求方能用哪几家（服务端按门禁档位算好的，App 照着摆） */
-  providers: VideoProvider[];
+export interface VideoZone extends VideoZoneFacts {
   /** 这份结论是什么时候拿到的（Date.now()） */
   at: number;
 }
 
-const PROVIDERS: readonly VideoProvider[] = ["ark", "minimax"];
 /** 两次「顺手重问」之间至少隔多久（回前台 / online / 读的时候）—— 来回切几下前后台不该连发几发 */
 const MIN_GAP_MS = 10_000;
 /** 收到 403 之后的重问：门禁刚拦了一发，地区多半刚变过，间隔放短 */
@@ -55,11 +49,6 @@ let lastTry = 0;
 let watching = false;
 const listeners = new Set<() => void>();
 
-/** 没有服务端那一层（dev 直连方舟 / 离线演示包）：不问，地区一直是「不知道」—— 同 serverCaps.direct 的口径 */
-function direct(): boolean {
-  return import.meta.env.DEV || !API_ON;
-}
-
 export function subscribeVideoZone(fn: () => void): () => void {
   listeners.add(fn);
   return () => listeners.delete(fn);
@@ -69,33 +58,10 @@ function emit(): void {
   for (const fn of listeners) fn();
 }
 
-function sameZone(a: VideoZone | null, b: VideoZone | null): boolean {
-  if (!a || !b) return a === b;
-  return a.zone === b.zone && a.country === b.country && a.providers.join() === b.providers.join();
-}
-
 function adopt(next: VideoZone): void {
   const changed = !sameZone(known, next);
   known = next;
   if (changed) emit();
-}
-
-/**
- * 回包 → 结论（形状不对 = null = 这一次没问清，沿用上一次）。**唯一解析处**。
- * ★ `v` 只认 1：契约说「加字段不升，改了已有字段的意思才升」—— 意思变了的回包这一版 App 读不懂，当没问到（照老样子摆，服务端照样拦）。
- * ★ providers 里认不出的名字丢掉（以后多一家，这一版 App 也没有那一家的档可摆）；顺序按 PROVIDERS 归一，比较「变没变」时不受回包顺序影响。
- */
-function parseZone(j: unknown): Omit<VideoZone, "at"> | null {
-  if (!j || typeof j !== "object" || Array.isArray(j)) return null;
-  const o = j as Record<string, unknown>;
-  if (o.ok !== true || o.v !== 1) return null;
-  const zone = o.zone;
-  if (zone !== "cn" && zone !== "intl" && zone !== "blocked") return null;
-  if (!Array.isArray(o.providers)) return null;
-  const list = o.providers as unknown[];
-  const providers = PROVIDERS.filter((p) => list.includes(p));
-  const country = typeof o.country === "string" && /^[A-Z]{2}$/.test(o.country) ? o.country : "";
-  return { zone, country, providers };
 }
 
 /**
@@ -105,7 +71,7 @@ function parseZone(j: unknown): Omit<VideoZone, "at"> | null {
  * ★ 带上登录态：服务端只拿它按账号分限流桶（同一个出口 IP 后面的很多人不挤一个桶），没登录照样回。
  */
 function probe(gapMs: number): Promise<void> {
-  if (direct()) return Promise.resolve();
+  if (noServerLayer()) return Promise.resolve();
   if (inflight) return inflight;
   if (Date.now() - lastTry < gapMs) return Promise.resolve();
   lastTry = Date.now();
@@ -134,7 +100,7 @@ function probe(gapMs: number): Promise<void> {
 
 /** 挂一次监听：回到前台、恢复联网、定时（只在页面可见时问 —— 后台问了也没人看，还占限流） */
 function watch(): void {
-  if (watching || typeof window === "undefined" || direct()) return;
+  if (watching || typeof window === "undefined" || noServerLayer()) return;
   watching = true;
   const kick = () => {
     if (document.visibilityState === "hidden") return;
@@ -156,23 +122,34 @@ export function videoZone(): VideoZone | null {
 }
 
 /**
- * 这一家在这台设备此刻所在的地区**确定**不给 —— 唯一判据（account.tierOffIssue 拿它藏档、拦出片）。
+ * 这一家在这台设备此刻所在的地区**确定**不给 —— 唯一判据（account.tierOffIssue 拿它藏档、拦出片；规则本身是 videoZoneRules.deniesOf）。
  * 地区不知道时恒为 false（照老样子摆）。
  */
 export function zoneDenies(provider: VideoProvider): boolean {
-  const z = videoZone();
-  return !!z && !z.providers.includes(provider);
+  return deniesOf(videoZone(), provider);
 }
 
 /**
- * 花第一笔钱之前现问一次（flowStore.genNode / deriveProposals、工坊 studioStore.generateNode），回来之后调用方再问一遍 account.tierRegionIssue。
+ * 被藏起来的那一家是不是「地区」的缘故 —— 只挑措辞（account 那几句话、剪辑页重拍、提取窗、换档说明都问它），不参与藏档。
+ * false = 门禁没开（off / observe：缺的那一家是这台服务器没接上），或者地区不知道。
+ */
+export function zoneIsRegional(): boolean {
+  return regionalOf(known);
+}
+
+/**
+ * 花第一笔钱之前现问一次（flowStore.genNode / deriveProposals、工坊 studioStore.generateNode / genNodeVideo、画布 agent 执行推演 / 出片之前、
+ * 剪辑页按圈选重做），回来之后调用方再问一遍 account.tierRegionIssue。
+ * 回 true = 这一次问到的结论与问之前**不一样**（account.tierRegionRecheck 拿它决定要不要从头再判一遍门禁）。
  * ★★ 为什么要等这一发（2026-10-26 设计审核，钱）：服务端的地区门禁只管视频那一发，出片前补画的设定帧、推演的方案各自先结算 ——
  *   会话中途开关过 VPN 的人，App 上一次问到的还是旧地区，就会先付图钱、到视频那一发才被 403。离上一次问不到 5 秒就不再问。
  * ★ 问不到（断网 / 超时 / 老服务端）照旧放行：沿用上一次的结论，服务端照样拦，视频那一发不扣钱。最多多等 TIMEOUT_MS。
  */
-export function refreshVideoZone(): Promise<void> {
+export async function refreshVideoZone(): Promise<boolean> {
   watch();
-  return probe(5_000);
+  const before = known;
+  await probe(5_000);
+  return !sameZone(before, known);
 }
 
 /**
@@ -180,10 +157,7 @@ export function refreshVideoZone(): Promise<void> {
  * ★ 当场记下是为了让档位那一排立刻对上（不然要等下一次重问，这期间界面还摆着刚被拦的那一档）；回包不带国家，地区没变时沿用原来的国家名。
  */
 export function noteRegionDenied(body: unknown): void {
-  if (body && typeof body === "object" && !Array.isArray(body)) {
-    const o = body as Record<string, unknown>;
-    const z = parseZone({ ok: true, v: 1, zone: o.zone, providers: o.providers, country: "" });
-    if (z) adopt({ ...z, country: known?.zone === z.zone ? known.country : "", at: Date.now() });
-  }
+  const z = zoneOfDenial(body, known);
+  if (z) adopt({ ...z, at: Date.now() });
   void probe(FORCE_GAP_MS);
 }

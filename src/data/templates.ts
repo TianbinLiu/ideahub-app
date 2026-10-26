@@ -14,7 +14,7 @@ import * as uploadsApi from "../api/uploads";
 //   两道门）。轮询一个真实存在的方舟任务没有 mock 版本可言，走开关只会平添一层空实现。
 import { fetchArkTask } from "../ai/arkClient";
 import { serverSupports } from "./serverCaps";
-import { canAfford, currentUser, frozenNote, refreshRemoteWallet, tierBlockReason } from "./account";
+import { canAfford, currentUser, frozenNote, refreshRemoteWallet, tierBlockReason, tierPlanBlocked } from "./account";
 import { blockoutTier, blockoutizeCost, blockoutizeIssue, fmtTokens, type VideoTier } from "./economy";
 import { toPermanentUrl } from "./publishAssets";
 import { remoteOn } from "./videos";
@@ -1912,12 +1912,26 @@ export function templateRunsOn(tpl: Pick<VideoTemplate, "refVideo">, tierId: str
  *   点「生成」才第一次听说用不了。这句话要在**选模板那一步**就说出口（2026-10-07 起开通套餐或充值任意一笔都能用）。
  * ★ 要求的档里有一档用得了就算用得了（今天恰好一档；写成 every 是给"不止一档"那天留的）。
  * ★ 只是提示，不是安全边界：真正的拦截在服务端（免费套餐调 2.5 是 403）。
+ * ★ 原因也可能是出片地区（2026-10-26 P1）：那时「换成哪一档」的出路只指同样跑得了这个模板的档（account.tierRegionIssue 的 need）——
+ *   白模模板钉死一档，等于没有可换的；原来会指去「真人」档（选白模模板的抽屉上一行刚说「不能换别的画质档」）。
+ *   旁边画不画「去升级」只问 templatePlanUpgradeable（付钱治不了地区）。
  */
 export function templatePlanIssue(tpl: Pick<VideoTemplate, "refVideo">): string | null {
   const tiers = templateTiers(tpl);
   if (!tiers?.length) return null;
-  const reasons = tiers.map((x) => tierBlockReason(x));
+  const runs = (x: VideoTier) => tiers.some((y) => y.id === x.id);
+  const reasons = tiers.map((x) => tierBlockReason(x, runs));
   return reasons.every((r) => r !== null) ? reasons[0] : null;
+}
+
+/**
+ * templatePlanIssue 那句话后面能不能给「去升级」：挡住他的是套餐（account.tierPlanBlocked），不是地区 / 停用 / 服务端不支持
+ * （2026-10-26 P1 审核：模板详情页原来无条件画，地区一来就挨着「你所在的地区用不了」摆一颗「去升级」，那是把人骗去付钱）。
+ * 判的是那句话说的那一档（reasons[0] 对应 tiers[0]）。
+ */
+export function templatePlanUpgradeable(tpl: Pick<VideoTemplate, "refVideo">): boolean {
+  const tiers = templateTiers(tpl);
+  return !!tiers?.length && !!templatePlanIssue(tpl) && tierPlanBlocked(tiers[0]);
 }
 
 // ── 一个模板最多有几个「能挂卡」的角色位 ────────────────────────────
@@ -2304,7 +2318,8 @@ export function blockoutizeBlockReason(): string | null {
   const tier = blockoutTier();
   // catalog 为 null ⇒ tier 必然非空（blockoutizeIssue 的第一句就在拦 null）。
   // 这一行只为让类型闭合；真走到这里说明那两个函数分了叉
-  return tier ? tierBlockReason(tier) : null;
+  // 地区挡住时出路只指同样做得了白模的档（白模钉死一档，等于没有可换的；account.tierRegionIssue 的 need）
+  return tier ? tierBlockReason(tier, (x) => x.blockoutOk) : null;
 }
 
 // ── 两阶段与「掉线可恢复」────────────────────────────────────────

@@ -1328,6 +1328,18 @@ msgstr "{lack}没有勾选「火山引擎适用」——「{label}」档只收�
 #~ msgid "{lack}没有勾选「火山引擎适用」——「{label}」档只收做过火山引擎认证的真人卡。去卡片详情页勾选「火山引擎适用」，或换「{realTier}」档（在「工作流」或「简约模式」里直出）"
 #~ msgstr "{lack}没有勾选「火山引擎适用」——「{label}」档只收做过火山引擎认证的真人卡。去卡片详情页勾选「火山引擎适用」，或换「{realTier}」档（在「工作流」或「简约模式」里直出）"
 
+#: src/data/account.ts
+msgid "{lead}，「{label}」档用不了"
+msgstr "{lead}，「{label}」档用不了"
+
+#: src/data/account.ts
+msgid "{lead}，「{label}」档用不了——换成「{names}」档"
+msgstr "{lead}，「{label}」档用不了——换成「{names}」档"
+
+#: src/data/account.ts
+msgid "{lead}，「{label}」档用不了——能换的「{member}」是会员档（开通会员套餐或充值过任意一笔后可用）"
+msgstr "{lead}，「{label}」档用不了——能换的「{member}」是会员档（开通会员套餐或充值过任意一笔后可用）"
+
 #. line 是一整句（自带句号）：所在地区用不了这一档的出片模型、这个地区能用哪几档；后面另起一整句
 #: src/ai/arkClient.ts
 msgid "{line}这一发没有受理，也没有扣费。"
@@ -1499,6 +1511,10 @@ msgstr "{nDecks} 套，装过的人多的在前"
 msgid "{nextLabel}没有「{goneNames}」这一格，你传的那张已经取下来了——需要的话换回{curLabel}再传一次。"
 msgstr "{nextLabel}没有「{goneNames}」这一格，你传的那张已经取下来了——需要的话换回{curLabel}再传一次。"
 
+#: src/data/account.ts
+msgid "{none}，「{label}」档用不了"
+msgstr "{none}，「{label}」档用不了"
+
 #: src/components/CardModelFit.tsx
 #: src/pages/DeckDetailPage.tsx
 msgid "{noRefNames}：{line10}"
@@ -1508,17 +1524,10 @@ msgstr "{noRefNames}：{line10}"
 msgid "{noVoice} 没有声音样本：每一段的嗓音由模型定，前后可能不一样。"
 msgstr "{noVoice} 没有声音样本：每一段的嗓音由模型定，前后可能不一样。"
 
+#. 句首的半句，后面可能接「，「草稿」档用不了」；place 是「你所在的地区（美国）」；via 是供应商名
 #: src/data/account.ts
-msgid "{place}出片只提供 {via} 的模型"
-msgstr "{place}出片只提供 {via} 的模型"
-
-#: src/data/account.ts
-msgid "{place}出片只提供 {via}，「{label}」档用不了——换成「{names}」档"
-msgstr "{place}出片只提供 {via}，「{label}」档用不了——换成「{names}」档"
-
-#: src/data/account.ts
-msgid "{place}出片只提供 {via}，「{label}」档用不了——能换的「{member}」是会员档（开通会员套餐或充值过任意一笔后可用）"
-msgstr "{place}出片只提供 {via}，「{label}」档用不了——能换的「{member}」是会员档（开通会员套餐或充值过任意一笔后可用）"
+msgid "{place}出片只提供 {via}"
+msgstr "{place}出片只提供 {via}"
 
 #: src/data/account.ts
 msgid "{place}用不了这一档的出片模型，这里出片只提供 {via}（「{member}」档，会员档：开通会员套餐或充值过任意一笔后可用）。"
@@ -1531,10 +1540,6 @@ msgstr "{place}用不了这一档的出片模型，这里出片只提供 {via}�
 #: src/data/account.ts
 msgid "{place}目前没有可用的出片模型"
 msgstr "{place}目前没有可用的出片模型"
-
-#: src/data/account.ts
-msgid "{place}目前没有可用的出片模型，「{label}」档用不了"
-msgstr "{place}目前没有可用的出片模型，「{label}」档用不了"
 
 #: src/data/account.ts
 msgid "{place}目前没有可用的出片模型。"
@@ -6455,6 +6460,10 @@ msgstr "你所在的地区用不了白模化要用的出片模型——看帧那
 #: src/api/branch.ts
 msgid "你所在的地区用不了白模化要用的出片模型——这一次没有受理，也没有扣费。"
 msgstr "你所在的地区用不了白模化要用的出片模型——这一次没有受理，也没有扣费。"
+
+#: src/data/account.ts
+msgid "你所在的地区用不了这一档的出片模型。"
+msgstr "你所在的地区用不了这一档的出片模型。"
 
 #: src/components/UpdateSheet.tsx
 msgid "你手上这一版已经停止支持了，更新之后才能接着用。"
@@ -20425,8 +20434,8 @@ msgid "白模模板已生成"
 msgstr "白模模板已生成"
 
 #: src/components/VideoTemplateExtractor.tsx
-msgid "白模模板的两条路都只走「{blockoutLabel}」档，而你所在的地区用不了它，这里做不了白模模板。想把一条片的做法分享给别人，发布作品时公开「制作过程」就行。"
-msgstr "白模模板的两条路都只走「{blockoutLabel}」档，而你所在的地区用不了它，这里做不了白模模板。想把一条片的做法分享给别人，发布作品时公开「制作过程」就行。"
+msgid "白模模板的两条路都只走这一档，这里做不了白模模板。想把一条片的做法分享给别人，发布作品时公开「制作过程」就行。"
+msgstr "白模模板的两条路都只走这一档，这里做不了白模模板。想把一条片的做法分享给别人，发布作品时公开「制作过程」就行。"
 
 #: src/components/guide/tours.tsx
 msgid "白模模板要先<0>逐个核对角色位</0>，再用它真出一段片，才让发布。 角色位是做模板时 AI 认的；认得不对，核对之前可以在这里让它重新识别（按次收费，价写在键上），核对过就不能再认了。"
@@ -21609,6 +21618,10 @@ msgstr "第 {n} 张参考图未采用（「{name}」的{view}，比例越界或�
 #: src/studio/gridDraftStore.ts
 msgid "第 {n} 格：{err}"
 msgstr "第 {n} 格：{err}"
+
+#: src/studio/flowStore.ts
+msgid "第 {n} 段：{blocked}"
+msgstr "第 {n} 段：{blocked}"
 
 #: src/studio/flowStore.ts
 msgid "第 {n} 段原来是「{label}」档（会员档），改用你能用的「{b}」档——开通会员套餐（或充值过任意一笔）后可以换回去"
@@ -26142,6 +26155,11 @@ msgstr "这台服务器不支持白模化的取结果（可能需要升级服务
 msgid "这台服务器不支持识别角色位（回包形状不对，可能需要升级服务端）"
 msgstr "这台服务器不支持识别角色位（回包形状不对，可能需要升级服务端）"
 
+#. 句首的半句，后面可能接「，「草稿」档用不了」；via 是供应商名（Seedance / MiniMax）
+#: src/data/account.ts
+msgid "这台服务器出片只接了 {via}"
+msgstr "这台服务器出片只接了 {via}"
+
 #: src/data/projects.ts
 msgid "这台服务器没有正常应答（工程可能还在）。"
 msgstr "这台服务器没有正常应答（工程可能还在）。"
@@ -26157,6 +26175,10 @@ msgstr "这台服务器没配云端语音，试听不了；保存设置仍然有
 #: src/pages/tutor/TutorRunPage.tsx
 msgid "这台服务器没配语音，只动口型"
 msgstr "这台服务器没配语音，只动口型"
+
+#: src/data/account.ts
+msgid "这台服务器目前没有接上出片模型"
+msgstr "这台服务器目前没有接上出片模型"
 
 #: src/api/companion.ts
 msgid "这台服务器还不会解析 Live2D 模型包（需要更新服务端），暂时传不了。"

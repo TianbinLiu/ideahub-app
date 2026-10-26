@@ -96,7 +96,7 @@ import {
   type FlowNode,
   type FlowTemplate,
 } from "../../studio/flowStore";
-import { myCards, tierBlockReason, tierNamesFor, usableTierId } from "../../data/account";
+import { myCards, tierBlockReason, tierNamesFor, tierPlanBlocked, usableTierId } from "../../data/account";
 import UpgradeLink from "../UpgradeLink";
 import { useAccountVersion } from "../../hooks/useAccount";
 import {
@@ -2873,7 +2873,11 @@ export function TemplatePicker({
   const need = blockoutTier();
   const needLabel = need?.label ?? "";
   const needModel = need ? tierModelLabel(need) : "";
-  const needIssue = need ? tierBlockReason(need) : null;
+  // 地区挡住时出路只指同样做得了白模的档（白模钉死一档 = 没有可换的；account.tierRegionIssue 的 need）——
+  // 原来上一句刚说「不能换别的画质档」，下一句就叫人换成「真人」档（2026-10-26 P1 审核）
+  const needIssue = need ? tierBlockReason(need, (x) => x.blockoutOk) : null;
+  /** 挡住他的是套餐才给「去升级」（account.tierPlanBlocked）：原因是出片地区时付钱治不了 */
+  const needUpgradeable = !!need && tierPlanBlocked(need);
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60" onClick={onClose}>
       <div
@@ -2892,8 +2896,12 @@ export function TemplatePicker({
               <span className="text-warn-300/90">
                 {" "}
                 {needIssue}
-                {"　"}
-                <UpgradeLink />
+                {needUpgradeable && (
+                  <>
+                    {"　"}
+                    <UpgradeLink />
+                  </>
+                )}
               </span>
             )}
           </p>
