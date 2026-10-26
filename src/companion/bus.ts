@@ -36,6 +36,25 @@ export const companionBus = {
   action(action: CompanionAction) {
     current?.playAction(action);
   },
+  /**
+   * 换表情并保持到 releaseFace（客服页回答句：这一句念完才放，2026-10-25）。
+   * face() 的老行为（按 FACE_POSES 的固定时长到点收回）原样保留：触摸反应、上传向导试跑、老师页都还走它。
+   */
+  holdFace(face: CompanionFace) {
+    current?.holdFace(face);
+  },
+  /** 这一句念完了：holdFace 挂着的表情再留一小拍就回 normal；没挂着 = 空操作 */
+  releaseFace() {
+    current?.releaseFace();
+  },
+  /** 作废还没轮到的待播动作（压制窗口里到来的动作会排着，见 companionModel 的 pendingAction） */
+  clearPendingAction() {
+    current?.clearPendingAction();
+  },
+  /** 垫场动作（等第一句时的 think）：低优先级、不占语义动作的压制窗口，语义动作来了直接盖过去 */
+  cue(action: CompanionAction) {
+    current?.playCue(action);
+  },
   /** 试演：直接播包里的某个动作组。返回 false = 这个组不在包里（调用方要说出来，别静默） */
   motionGroup(group: string): boolean {
     return current?.playMotionGroup(group) ?? false;

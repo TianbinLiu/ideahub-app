@@ -599,11 +599,18 @@ App「我的 → AI 客服」（`/support`）的服务端。数字人是官网�
 
 ⚠ **接了守卫的链路不再发 `token` 事件**（未经检查的原始增量，发出去等于绕过守卫；两端 UI 都没用它）。
 下面 `/api/support/chat` 那一行里的 `token {t}` 从这一版起**不会再出现**。
-⚠ App 的**人格向导试聊**与**客服**都在协议内，而 App 现在不发 `caps`，命中时收到的是
-**退化形式**：一条普通 `sentence`（文案 = 求助卡的纯文本，带正常 tts 参数），后面直接 `done`。
-界面不会坏，但客服那条会被 TTS 念出来 —— App 接 `caps: ["safety"]` 那一版要把它改成卡片、并且不念。
+⚠ App 的**人格向导试聊**与**客服**都在协议内。**客服从 2.70 之后的版本（2.71 起）发 `caps: ["safety","notice"]`**（2.70 及更早不发，收到的是退化成 sentence 的那一种）
+（`api/support.SUPPORT_CAPS`）：收到 `safety` 就 `stopAll()`、不调 `/api/tts`、不进字幕、不算数字人说的话，
+在字幕框上方画一张求助卡（`components/support/SafetyCard`，文字一律用服务端给的；`policyUrl` 是相对路径，
+App 拼成官网地址再打开 —— `utils/shareLink.aiChatSafetyUrl`）；卡的纯文本（与服务端 `crisisPlainText` 同形）
+仍作为一条 `assistant` 消息留在下一轮的 `messages[]` 里，免得历史里出现连着两条 `user`。
+`notice` 在字幕框上方与「记录」里各显示一行小字，不念、不扣钱（客服路由今天不发它，声明了只是收不到）。
+更早的 App 不发 `caps`，命中时收到的是**退化形式**：一条普通 `sentence`（文案 = 求助卡的纯文本，带正常 tts 参数），
+后面直接 `done` —— 界面不会坏，但会被 TTS 念出来、按字扣费。
+**人格向导试聊仍不发 `caps`**（`api/companion.streamPersonaPreviewChat` 是另一份事件分发）：命中时收到退化的 `sentence`，
+只显示文字、不合成语音。
 ⚠ **`notice`（AI 身份告知）没有退化形式**：不带 caps 就**收不到**，而服务端会照常记成「已告知」。
-App 接 caps 之前，那条告知在 App 侧等于不存在 —— 这是已知缺口，不是降级显示。
+客服声明了 caps 之后这一条在 App 侧有了落点；人格试聊那条（服务端不看 caps、每轮都发）App 不认识这个事件名，照旧不显示 —— 已知缺口。
 加州 SB 243 管的是「companion chatbot」，纯客服有豁免余地 —— 但我们的客服顶着同一位看板娘、同一套人格，
 这个豁免站不站得住还没拍板（见私密文档《AI 对话合规调研》），所以 App 这边要按「迟早要接」来准备：
 
@@ -624,7 +631,7 @@ App 接 caps 之前，那条告知在 App 侧等于不存在 —— 这是已知
 | 方法 | 路径 | 鉴权 | 说明 |
 |---|---|---|---|
 | GET | `/api/support/config` | optional | `{ ok, name, enabled, tts, asr, voice, loginRequired: true, quickQuestions[], categories[] }`。`asr=false`（或老服务端没这个字段）时不画麦克风。`enabled=false`（服务端没配 AI）时输入框禁用，只剩「转人工」。**2026-09-04 起登录时另带** `voiceSettings: VoiceSettings`（三层合并结果，见下）、`persona: PersonaSummary\|null`、`personaSource: "user"\|"model"\|""`、`model: Live2dModel\|null`（null = 官方内置）；老字段 `voice` = `voiceSettings.voiceId`。老服务端没有这四项 → App 按旧写法只传 `voice` |
-| POST | `/api/support/chat` | required | SSE。body `{ messages: [{role: user\|assistant, content ≤1000}] ≤20, lang? }`（`lang`：App 2.63 之后的版本按当前生效的界面语言发 `"zh"` / `"en"`（`i18n/switch.activeLang`），2.63 及更早写死 `"zh"` —— 服务端别只认它判「这一问是不是英文」）。事件：`sentence {index, text, emotion, face, action, tts:{emotion, instruct}}`、`token {t}`、**`handoff {category, reason}`**（模型判定该转人工，一次对话最多一条）、`done {text, handoff, category}`、`error {message}`。限流 **20/分钟按账号**。★ Content-Type 不是 `text/event-stream` 就当服务端没有这个功能（SPA 回退给的是 200 + HTML） |
+| POST | `/api/support/chat` | required | SSE。body `{ messages: [{role: user\|assistant, content ≤1000}] ≤20, lang?, caps?: ("safety"\|"notice")[] }`（`lang`：App 2.63 之后的版本按当前生效的界面语言发 `"zh"` / `"en"`（`i18n/switch.activeLang`），2.63 及更早写死 `"zh"` —— 服务端别只认它判「这一问是不是英文」）。事件：`sentence {index, text, emotion, face, action, tts:{emotion, instruct}}`、`token {t}`、**`handoff {category, reason}`**（模型判定该转人工，一次对话最多一条）、`done {text, handoff, category, safety?}`、`error {message}`；声明了 `caps` 才会有的 `safety {kind: "crisis", …}`（求助卡）与 `notice {kind: "ai_disclosure", text}`（形状与 App 怎么接见上面 ★ 自伤危机协议；App 2.70 之后的版本（2.71 起）发 `caps: ["safety","notice"]`，2.70 及更早不发）。限流 **20/分钟按账号**。★ Content-Type 不是 `text/event-stream` 就当服务端没有这个功能（SPA 回退给的是 200 + HTML） |
 | POST | `/api/support/tickets` | required | 转人工建单。body `{ transcript: [{role, content ≤2000}] ≤30, note? ≤500, contactEmail?, category? }`；`transcript` 与 `note` 至少一个。**201** `{ ok, ticket, reused: false }`；同一用户 10 分钟内已有未结工单 → **200** `{ ok, ticket, reused: true }`（不重复建）。服务端用 AI 归纳 `subject/summary/category`（失败退回用户原话），然后给所有管理员发 `SUPPORT_TICKET` 通知 + 邮件（`SUPPORT_NOTIFY_EMAIL` 或有真实邮箱的管理员）。限流 5/分钟 |
 | GET | `/api/support/tickets/mine` | required | `{ ok, items: Ticket[] }` 最近 20 张（不含 `contactEmail`） |
 | POST | `/api/support/tickets/:id/messages` | required | 在自己的工单里追加 `{ content ≤2000 }`；已结的单会重新 `open`；再通知管理员（10 分钟去重）。别人的工单 404 |
@@ -911,8 +918,10 @@ B 站式弹幕：一句话 + 它该在**视频第几秒**飘过去。与评论�
 
 ## 举报
 
-能举报**三种对象**：作品（`video`）、评论（`comment`）、弹幕（`danmaku`）。
-三者共用一张 `Report` 表与同一条处理流程（待处理 → 下架 / 删除 / 驳回）——
+能举报**四种对象**：作品（`video`）、评论（`comment`）、弹幕（`danmaku`）、人格（`persona`，服务端 2026-09-28 加、
+App 的入口 2.70 之后的版本（2.71 起）才有：人格市场每张别人的卡上，2.70 及更早没有）。AI 客服的回答、Live2D 形象、声音模板**还不在里面** ——
+要先在 server `Report.TARGET_TYPES` 加类型（服务端先上），App 再接 `ReportButton`。
+它们共用一张 `Report` 表与同一条处理流程（待处理 → 下架 / 删除 / 驳回）——
 管理端要的是"一个按时间排的待处理队列"，拆三张表那个队列就得三查一合再排序。
 
 ### 端点
@@ -1054,6 +1063,9 @@ pending ─────────┼─ action=delete   ─▶ deleted      �
   收了的话客户端就能把一条举报标成"已下架"而没有任何内容被下架。
 - `takedown` 与 `delete` 是**两件事**，状态必须分得开：事后追责时"下架了"和"删没了"
   完全不同。两者调**同一个**服务，差别只有一个 `hard` 标志（见下）。
+- **不是每一类都三样处置都有**（server `services/takedown.service.js` 的 `HANDLERS`，缺的那一格整句 400）：作品三样都有；
+  评论 / 弹幕没有下架（那两张表没有隐藏字段）；人格没有删除（只下架 = `shared:false` + `takenDown:true`，要删由作者自己删）。
+  App 后台按钮的镜像只有 `src/api/admin.ts` 的 `reportActionsFor` 一份。
 
 ★★ **`status` 是跨仓字符串，新增取值必须两仓同步**（铁律九：server 的
 `models/Report.js` 的 `ACTION_STATUS` + app 的渲染分支 + 本节）。
@@ -1113,6 +1125,7 @@ pending ─────────┼─ action=delete   ─▶ deleted      �
 | `video` | `{ exists, videoId, title, cover, visibility, takedown, author, createdAt }` |
 | `comment` | `{ exists, videoId, text, author, createdAt }` |
 | `danmaku` | `{ exists, videoId, text, at, author, createdAt }` |
+| `persona` | `{ exists, personaId, name, kind, shared, takenDown, takenDownReason, author, createdAt }` —— 名字在 `name`（不是 `title`），下架状态是人格表自己的布尔 `takenDown` |
 
 - 查不到一律给 `{ exists: false }`。★ 用**必给的布尔** `exists`，不用"缺省即正常"的
   `missing?`：后者一旦服务端漏给这一项，客户端读到 `undefined` → falsy → 显示成

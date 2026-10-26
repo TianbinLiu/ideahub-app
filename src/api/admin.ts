@@ -131,13 +131,19 @@ export function reasonLabel(id: string): string {
   return r ? i18n._(r.label) : id;
 }
 
-/** 被举报的东西是哪一类。三类都要能举报（作品 / 评论 / 弹幕） */
-export type ReportTargetType = "video" | "comment" | "danmaku";
+/**
+ * 被举报的东西是哪一类：作品 / 评论 / 弹幕，以及人格市场里的人格（2026-10-26 接上）。
+ * ★ 跨仓字符串：与 server `models/Report.js` 的 `TARGET_TYPES` 逐字相等（服务端 2026-09-28 先加了 "persona"，
+ *   App 这边那时还没有入口）。AI 客服的回答、Live2D 形象、声音模板**还不在里面**：服务端得先加 targetType，
+ *   这边先加的话用户点了必然 400（docs/play-store-checklist.md §6c 记着这几处缺口）。
+ */
+export type ReportTargetType = "video" | "comment" | "danmaku" | "persona";
 
 const TARGET_LABEL: Record<ReportTargetType, MessageDescriptor> = {
   video: msg({ message: "作品", context: "举报对象的类别（单数）" }),
   comment: msg({ message: "评论", context: "举报对象的类别（单数）" }),
   danmaku: msg({ message: "弹幕", context: "举报对象的类别（单数）" }),
+  persona: msg({ message: "人格", context: "举报对象的类别（单数）：人格市场里的一个数字人人格" }),
 };
 
 /** 被举报的东西是哪一类 → 界面语言的名字（管理后台举报行的角标）。认不出的类别原样显示，理由同 reasonLabel */
@@ -148,6 +154,26 @@ export function targetLabel(type: string): string {
 
 /** 管理员对一条举报做的处置。★ 三个动作的语义差别见 AdminPage 的按钮注释 */
 export type ReportAction = "takedown" | "dismiss" | "delete";
+
+/**
+ * 每一类对象在后台能做哪几种处置 —— server `services/takedown.service.js` 那张 `HANDLERS` 表的镜像
+ * （那边缺哪一格，`takedownTarget` 就整句 400；驳回不碰内容，哪一类都能做）。
+ * ★ 作品：下架 / 删除都有。评论、弹幕：**没有下架位**（那两张表没有隐藏字段）。
+ *   人格：**只有下架、没有硬删除**（人格是作者的资产，别人可能已经收藏 / 买过；下架 = 从市场与他人视野里摘掉，要删由作者自己删）。
+ * ★★ 两边分叉的表现是「按钮点得动、但必然 400，举报一直留在待处理里」——原来 AdminPage 里写死「只有作品能下架」，
+ *   人格举报进队列之后管理员只看得到一颗必然失败的「删除」、找不到「下架」。所以这里是**唯一**一份，页面只读它。
+ * ★ 认不出的类别（服务端先加了新类型、这一版 App 还不认识）沿用老写法「驳回 / 删除」—— 判否定，老行为。
+ */
+const REPORT_ACTIONS: Record<ReportTargetType, readonly ReportAction[]> = {
+  video: ["takedown", "dismiss", "delete"],
+  comment: ["dismiss", "delete"],
+  danmaku: ["dismiss", "delete"],
+  persona: ["takedown", "dismiss"],
+};
+
+export function reportActionsFor(type: string): readonly ReportAction[] {
+  return Object.prototype.hasOwnProperty.call(REPORT_ACTIONS, type) ? REPORT_ACTIONS[type as ReportTargetType] : ["dismiss", "delete"];
+}
 
 // ── DTO ──────────────────────────────────────────────────
 
@@ -163,6 +189,9 @@ export interface ApiReportTarget {
   text?: string;
   /** 作品标题（targetType=video 时） */
   title?: string;
+  /** 人格的名字（targetType=persona 时）。★ 与 title 同义不同名：服务端 resolveTargets 给人格那一格写的是 `name`，
+   *  只读 title 的话后台会把人格举报画成「服务端没有返回内容快照」 */
+  name?: string;
   cover?: string;
   /**
    * 被举报内容的作者。
@@ -198,6 +227,11 @@ export interface ApiReportTarget {
    * ★ 只有 targetType==="video" 才可能有值：评论/弹幕没有下架位（见 action 那边的说明）。
    */
   takedown?: { at?: string | number; reason?: string } | null;
+  /**
+   * 人格当前是不是已被下架（targetType=persona 时）。★ 人格那张表本来就是一个布尔（`Persona.takenDown`），
+   *  服务端原样带出 —— 与作品的 `takedown` 子文档是两张表各自的写法，不是同一条判断写了两遍。
+   */
+  takenDown?: boolean;
 }
 
 export interface ApiReport {
@@ -561,7 +595,7 @@ export async function submitReport(input: SubmitReportInput): Promise<void> {
 }
 
 /**
- * 举报失败 → 给用户看的一句话。**唯一实现**：作品、评论、弹幕三个入口共用
+ * 举报失败 → 给用户看的一句话。**唯一实现**：作品、评论、弹幕、人格四类入口共用
  * （分三处写必然分叉，而"重复举报"这条最容易被写成一句看不懂的 HTTP 409）。
  *
  * ★ 「你已经举报过了」要**如实说**，不能装成"举报成功"：装成功之后用户会以为
@@ -574,7 +608,8 @@ export function reportErrorText(e: unknown, ctx?: { reason?: string; supportEmai
     if (e.status === 429) return t`举报太频繁了，过一会儿再试`;
     if (e.status === 404 || e.code === "UNSUPPORTED") return t`这台服务器还不支持举报（需要升级服务端）`;
     // ★★ 400 = 服务端的 zod 拒了。实践中只可能是 `reason` —— 其余入参（targetId 的形状、
-    //   detail 长度）客户端都已经挡住了。而服务端**可能比这个包旧**（跨仓上线本该服务端先上，
+    //   detail 长度）客户端都已经挡住了；targetType 的 "persona" 服务端 2026-09-28 就认了（比 App 的入口早一个月）。
+    //   而服务端**可能比这个包旧**（跨仓上线本该服务端先上，
     //   但用户手里的版本组合我们管不着）：那时原样回 `e.message` 就是一句裸的英文
     //   "Validation error"，而他要报的可能正是最紧急的那一类，屏幕上还没有任何出路。
     //   ⇒ 说人话，并给两条真能走的路：换「其他」+ 写清楚，或直接发信。

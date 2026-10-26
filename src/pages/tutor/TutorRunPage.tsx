@@ -69,6 +69,8 @@ export default function TutorRunPage() {
   const [input, setInput] = useState("");
   const [modelUrl, setModelUrl] = useState("");
   const [stageSettled, setStageSettled] = useState(false);
+  /** 舞台两套形象都没出来（SupportStage 的 onStatus）：这时不画字幕条，它会盖住舞台上的「重试」（SupportStage 的 FAIL_BLOCK_AT 量法） */
+  const [stageFailed, setStageFailed] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const progressTimer = useRef(0);
@@ -349,8 +351,18 @@ export default function TutorRunPage() {
       {/* 舞台：只有会说话的老师才挂（容器比可见区高，只露头肩；看板娘按容器高度摆位） */}
       {speaks && (
         <div className="relative mb-3 h-52 overflow-hidden rounded-xl border border-slate-700/70 bg-panel">
-          <SupportStage className="absolute inset-x-0 top-0 h-[420px]" topPx={8} heightFraction={1} modelUrl={modelUrl} waiting={!stageSettled} />
-          {speech.subtitle && speech.speaking && (
+          <SupportStage
+            className="absolute inset-x-0 top-0 h-[420px]"
+            topPx={8}
+            heightFraction={1}
+            modelUrl={modelUrl}
+            waiting={!stageSettled}
+            name={bundle.companion?.name || t`老师`}
+            failNote={t`上课照常。`}
+            onStatus={(st) => setStageFailed(st === "failed")}
+          />
+          {/* 舞台没出来时不画：字幕条从底下往上长，三行就盖住「重试」；老师照样在说，说的字下面文字卡里都有 */}
+          {speech.subtitle && speech.speaking && !stageFailed && (
             <div className="absolute inset-x-2 bottom-2 rounded-lg border border-white/10 bg-slate-950/60 px-3 py-1.5 text-xs leading-relaxed text-slate-100 backdrop-blur-sm">{speech.subtitle}</div>
           )}
           {!speech.tts && speech.voiceOn && <div className="absolute right-2 top-2 rounded-full bg-slate-950/60 px-2 py-0.5 text-[10px] text-slate-300">{t`这台服务器没配语音，只动口型`}</div>}

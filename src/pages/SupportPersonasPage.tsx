@@ -13,12 +13,16 @@
  *   **「付费人格要去官网买」这条仍然成立**（App 里没有支付），留在页脚与卡片上。
  * ★ 三个页签走 `useQueryTab`（写进地址栏）：全部 = `scope=all`、已收藏 = `installed`、我的 = `mine`（含自己没公开的）。
  * ★ 与形象市场同一套页面骨架（tab / 列表 / 就地报错在那张卡上）。
+ * ★ 每张卡的作者行末尾有「举报」（2026-10-26）：Google Play 的 AI 生成内容与 UGC 政策都要求应用内能举报，人格正是两样都占的那种东西
+ *   （用户做的 + 说话是模型生成的）。入口是作品 / 评论 / 弹幕共用的那一份 `ReportButton`（理由、登录、重复举报、失败的说法都在它里面），
+ *   自己的人格不摆（`isOwner`：该删不该举报）。服务端 `Report.TARGET_TYPES` 2026-09-28 就有 "persona"，后台处置是「下架 / 驳回」（`api/admin.reportActionsFor`）。
  */
 import { useEffect, useRef, useState } from "react";
 import { i18n, type MessageDescriptor } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import EmptyState from "../components/EmptyState";
+import ReportButton from "../components/ReportButton";
 import PageHeader from "../components/PageHeader";
 import { useNavigate } from "react-router";
 import Icon from "../components/Icon";
@@ -296,6 +300,7 @@ export default function SupportPersonasPage() {
             const current = !!chosenId && p._id === chosenId;
             const isBusy = busy === p._id;
             const needPay = p.price > 0 && !p.purchased && !p.isOwner;
+            const author = authorName(p.author);
             return (
               <section key={p._id} className={`rounded-xl border p-3 ${current ? "border-brand/60 bg-brand/5" : "border-slate-700/70 bg-panel"}`}>
                 <div className="flex gap-3">
@@ -314,11 +319,18 @@ export default function SupportPersonasPage() {
                       {p.voice && <span className="rounded-full px-2 py-0.5 bg-sky-500/20 text-[10px] text-sky-200"><Trans>自带音色</Trans></span>}
                     </div>
                     {p.description && <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-slate-400">{p.description}</p>}
+                    {/* ★ 这一行不换行，能缩的只有标签与作者名（min-w-0 truncate，过长出省略号），下载数与「举报」不缩（shrink-0）。
+                        原来作者名与下载数是一整块 shrink-0：作者名约 14 个汉字 / 27 个字母（服务端用户名上限 32）就把「举报」顶出卡片右缘，
+                        360 宽的屏上这一列只有约 234px。三样拆成兄弟、各自声明能不能缩，flex 才会只压前两样（2026-10-26 审核）。 */}
                     <div className="mt-1 flex items-center gap-2 text-[11px] text-slate-500">
                       {p.tags.length > 0 && <span className="min-w-0 truncate">{p.tags.slice(0, 4).map((tag) => `#${tag}`).join(" ")}</span>}
-                      <span className="ml-auto shrink-0">
-                        {authorName(p.author) ? `@${authorName(p.author)} · ` : ""}⬇ {p.stats.downloadCount}
+                      {author && <span className="ml-auto min-w-0 truncate">@{author}</span>}
+                      {/* 有作者名时 -ml-1 把 gap-2 收回到约一个空格宽，读起来仍是「@名字 · ⬇ 12」 */}
+                      <span className={`shrink-0 ${author ? "-ml-1" : "ml-auto"}`}>
+                        {author ? "· " : ""}⬇ {p.stats.downloadCount}
                       </span>
+                      {/* 负外边距 + 等量内边距：把 11px 小字键的命中区上下各撑出 8px，又不把这一行撑高（下面那排按钮离它正好 8px，撑到 -my-2 为止不压上去） */}
+                      <ReportButton targetType="persona" targetId={p._id} mine={p.isOwner} className="-my-2 shrink-0 py-2 pl-1" />
                     </div>
                   </div>
                 </div>

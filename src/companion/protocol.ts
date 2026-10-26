@@ -146,19 +146,26 @@ export const FACE_POSES: Record<CompanionFace, FacePose> = {
   },
 };
 
-/** action → model3.json 里的动作组名（public/live2d/mascot/*.motion3.json）；null = 只靠表情 */
+/**
+ * action → model3.json 里的动作组名（public/live2d/mascot/*.motion3.json）；null = 只靠表情。
+ * 只管官方看板娘：市场形象按它自己的 companion.json 映射走（live2d/mapping.ts 的 motionGroupFor）。
+ * ★ 2026-10-25 起 explain / comfort / playful 各有自己的一段（原来 explain、comfort 借 nod，playful 借 excited，
+ *   三种意思在身上一模一样）。comfort 没用包里现成的 bow：bow 头低到 -24（nod 的两倍）、上身前倾、眼睛半闭，
+ *   读起来是鞠躬道歉；而且它写了 ParamEyeL/ROpen，会盖掉每帧的眨眼与 crying 的闭眼，配上笑眼补片（laughing）还会穿帮。
+ *   三段新动作都不碰眼、眉、嘴，表情仍由 [face] 管；时长都在 actionSuppressMs（2.3 秒）以内。
+ */
 export const ACTION_MOTIONS: Record<CompanionAction, string | null> = {
   none: null,
   acknowledge: "nod",
   disagree: "shake",
   think: "think",
-  explain: "nod",
+  explain: "explain",
   excited: "excited",
   wave: "wave",
   shy: "shy",
   surprised: "surprised",
-  comfort: "nod",
-  playful: "excited",
+  comfort: "comfort",
+  playful: "playful",
 };
 
 /** 没有音频（TTS 关/失败/未登录）时，按字数估一个"说话时长"，让口型和字幕停留时间对得上 */
@@ -174,7 +181,10 @@ export type TouchArea = (typeof TOUCH_AREAS)[number];
 
 export type TouchReaction = { area: TouchArea; zh: string; en: string; emotion: string; face: CompanionFace; action: CompanionAction };
 
-/** 触摸反应台词：不走 LLM（要的是"一碰就有反应"），也不进聊天记录；两种语言各一份，客服页只用中文 */
+/**
+ * 触摸反应台词：不走 LLM（要的是"一碰就有反应"），也不进聊天记录；两种语言各一份，调用方按界面语言取
+ * （官网 CompanionChat 按 i18n.language；App 客服页经 components/support/touchLines.pickStageTouch 传 activeLang()）
+ */
 export const TOUCH_REACTIONS: Record<TouchArea, Array<Omit<TouchReaction, "area">>> = {
   Head: [
     { zh: "别摸头啦，头发会乱的～", en: "Hey, don't pat my head, you'll mess up my hair!", emotion: "shy", face: "shy", action: "shy" },

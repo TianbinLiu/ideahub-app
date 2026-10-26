@@ -36,14 +36,15 @@
  *   画面照样在，只是点 ▶ 永远没反应。
  * ★ 本文件不认识 api/ 与组件（依赖方向单向）：大小上限由调用方传进来（唯一实现在 `api/uploads.MAX_LIVE2D_BUNDLE_BYTES`）。
  * ★ 「合格不合格」这件事**服务端才是判据**（`/inspect` 的 `completeness.required`，一处实现）。这里只做
- *   服务端做不到、或做起来要先传 25MB 才知道的那几件：白名单后缀、解压后总大小、moc3 文件头、
+ *   服务端做不到、或做起来要先传 25MB 才知道的那几件：白名单后缀、解压后总大小、moc3 文件头与加载前的版本 + 一致性检查（mocCheckIssue）、
  *   FileReferences 引用的文件在不在包里、贴图尺寸与张数。**标准参数（ParamAngleX/…）故意不在本地判** ——
  *   参数表只有 cdi3 里才有，本地判会把「这个包没带 cdi3」误报成「这个模型不能眨眼」，
  *   那正是坑表里「把 N 种结局压成两档」的形状。
  */
 import { t } from "@lingui/core/macro";
 import type JSZip from "jszip";
-import { loadLive2DRuntime, type PixiRuntime } from "./loader";
+import { checkMocBytes, loadLive2DRuntime, type PixiRuntime } from "./loader";
+import { MocCheckFailed } from "./mocCheck";
 
 /** 白名单后缀（设计文档 §3.5 第 1 步，与服务端解包时那份同义）。全小写比较 */
 export const LIVE2D_ALLOWED_EXT = [
@@ -353,6 +354,27 @@ export async function readLive2dBundle(file: File, maxBytes: number): Promise<Bu
   return { file, zip, paths, rawByPath, sizeByPath, entries, totalBytes, skipped, issues, warnings, detail };
 }
 
+/**
+ * 第 ① 步就跑加载前那道 moc3 检查（loader.checkMocBytes = 第 ② 步舞台加载时运行时上包的同一道：版本 + Cubism 一致性），
+ * 作者在预览之前就知道这份 moc3 手机上读不了、为什么。
+ * ★ 版本太新单独一句：文件没坏，是我们的运行时读不了 —— 说成「被改过」是诬告（mocCheck 文件头的 ★）。
+ * ★ 运行时 / Core 没加载出来**不报**（回 null）：那不是包的问题，第 ② 步加载时舞台还会再查一次，那边按 kind 说同样的话。
+ */
+async function mocCheckIssue(mocPath: string, bytes: Uint8Array): Promise<string | null> {
+  try {
+    await checkMocBytes(bytes);
+    return null;
+  } catch (error) {
+    if (!(error instanceof MocCheckFailed)) return null;
+    if (error.kind === "tooNew") {
+      const version = error.mocVersion;
+      const latest = error.latestVersion;
+      return t`${mocPath} 是用较新版本的 Cubism 导出的（moc3 版本号 ${version}），App 里的运行时最高只读到 ${latest}。导出时选一个旧一些的 moc3 版本再试。`;
+    }
+    return t`${mocPath} 没通过 Cubism 的一致性检查（结构不完整或被改过），手机上加载不了。用 Cubism Editor 重新导出再压一次。`;
+  }
+}
+
 async function inspectEntry(zip: JSZip, raw: Map<string, string>, entry: string, paths: string[]): Promise<EntryDetail> {
   const issues: string[] = [];
   const known = new Set(paths);
@@ -405,17 +427,23 @@ async function inspectEntry(zip: JSZip, raw: Map<string, string>, entry: string,
     );
   }
 
-  // moc3 文件头：前 4 个字节必须是 "MOC3"
+  // moc3 文件头：前 4 个字节必须是 "MOC3"；过了再跑加载前那道版本 + 一致性检查（mocCheckIssue）
   if (mocPath && known.has(mocPath)) {
+    let head: Uint8Array | null = null;
     try {
-      const head = await entryAt(zip, raw, mocPath)!.async("uint8array");
+      head = await entryAt(zip, raw, mocPath)!.async("uint8array");
+    } catch {
+      issues.push(t`${mocPath} 读不出来，压缩包可能损坏了。`);
+    }
+    if (head) {
       const magic = String.fromCharCode(head[0], head[1], head[2], head[3]);
       if (magic !== "MOC3") {
         const shown = magic.replace(/[^ -~]/g, "·");
         issues.push(t`${mocPath} 的文件头不是 MOC3（读到 “${shown}”），这不是一份有效的 moc3。`);
+      } else {
+        const why = await mocCheckIssue(mocPath, head);
+        if (why) issues.push(why);
       }
-    } catch {
-      issues.push(t`${mocPath} 读不出来，压缩包可能损坏了。`);
     }
   }
 
