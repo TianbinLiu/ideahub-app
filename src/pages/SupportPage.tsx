@@ -51,7 +51,8 @@ import VoiceSheet from "../components/support/VoiceSheet";
 import SafetyCard from "../components/support/SafetyCard";
 import { companionBus } from "../companion/bus";
 import { SpeechPlayer } from "../companion/speech";
-import { estimateSpeechMs, normalizeAction, normalizeFace, type CompanionSentence, pickTouchReaction } from "../companion/protocol";
+import { estimateSpeechMs, normalizeAction, normalizeFace, type CompanionSentence } from "../companion/protocol";
+import { pickStageTouch, TouchVoiceCache } from "../components/support/touchLines";
 import { setVoiceEnabled, voiceEnabled } from "../studio/speech";
 import { activeLang } from "../i18n/switch";
 import { ApiError } from "../api/client";
@@ -428,15 +429,27 @@ export default function SupportPage() {
   }
 
   // 触摸反应：舞台报上来的命中区 → 演一句预置台词（不进 LLM、不进聊天记录，只是"碰一下有反应"）；说话/思考中不打断，1.8s 内只理一次
+  // ★ 挑哪句、念出来的声音缓存都在 components/support/touchLines（2026-10-25）：按界面语言取、不是官方形象时不念官方外貌那几句、
+  //   同一句同一套声音只合成一次（每次合成都按字扣钱）
   const phaseRef = useRef<Phase>("idle");
   phaseRef.current = phase;
   const lastTouchRef = useRef(0);
+  /**
+   * 舞台上**确定**是官方看板娘吗（下面 marketModelUrl 算出来那一拍写进来）。onHit 那个 effect 只跟着 config / voiceOn 重挂，
+   * 闭包里直接读 marketModelUrl 会是挂上那一拍的旧值，所以走 ref（同 phaseRef）。
+   * ★ 判错的方向要安全：设置还没回来时不知道最后用哪一套 → 当市场形象（少念两句官方外貌而已）；
+   *   市场形象加载失败、舞台退回官方（onFallback）时也照市场形象算 —— 多滤两句无害，反过来在别人的形象上念「薄荷色」才是问题。
+   */
+  const officialStageRef = useRef(false);
+  /** 触摸台词的声音缓存（见 TouchVoiceCache 的 ★）：跟着这一页的实例走，离开客服页就没了 */
+  const touchVoiceRef = useRef<TouchVoiceCache | null>(null);
   useEffect(
     () =>
       companionBus.onHit((areas) => {
         const nowMs = Date.now();
         if (phaseRef.current !== "idle" || nowMs - lastTouchRef.current < 1800) return;
-        const pick = pickTouchReaction(areas, "zh");
+        // ★ 语言在碰的那一刻现读（2026-10-25；原来写死 "zh"，英文界面也念中文）：与 send() 发给客服的 lang 同一个读法
+        const pick = pickStageTouch(areas, activeLang(), officialStageRef.current);
         if (!pick) return;
         lastTouchRef.current = nowMs;
         stopAll();
@@ -449,8 +462,10 @@ export default function SupportPage() {
         //   （companion/speech.ts 与官网同源拷贝，这里不单改它的 stop()）
         abortRef.current = controller;
         const sentence: CompanionSentence = { index: 0, text: pick.text, emotion: pick.emotion, face: pick.face, action: pick.action, tts: { emotion: pick.emotion, instruct: "" } };
+        // 同一句、同一套声音记过就不再合成（每合成一次都按字扣钱）；客服的回答不走这个缓存
+        const voiceCache = (touchVoiceRef.current ??= new TouchVoiceCache());
         const audio: Promise<Blob | null> =
-          voiceOn && Boolean(config?.tts) ? synthesizeSpeech(ttsBodyFor(config, sentence), controller.signal).catch(() => null) : Promise.resolve(null);
+          voiceOn && Boolean(config?.tts) ? voiceCache.speak(config, ttsBodyFor(config, sentence), controller.signal).catch(() => null) : Promise.resolve(null);
         void enqueue(run, () => perform(run, sentence, audio, controller.signal, -1)).then(() => {
           if (runRef.current === run) setPhase("idle");
         });
@@ -658,6 +673,8 @@ export default function SupportPage() {
   const persona = config?.persona ?? settings?.persona ?? null;
   const marketModel = settings?.model ?? config?.model ?? null;
   const marketModelUrl = marketModel ? resolveModelJsonUrl(marketModel.modelJsonUrl) : "";
+  // 舞台按 marketModelUrl 起模型（空 = 官方）；设置没回来之前拿不准（见 officialStageRef 的 ★）
+  officialStageRef.current = settingsSettled && !marketModelUrl;
   const quick = config?.quickQuestions ?? [];
   const statusLabel = phase === "thinking" ? t`思考中` : phase === "speaking" ? t`说话中` : enabled ? t`在线` : t`对话未开通`;
   const greeting = t`你好，我是${name}，启梦的 AI 客服。账号、扣费、出片取回、安装更新都可以问我；我解决不了的会帮你转给人工。`;
