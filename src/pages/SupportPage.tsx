@@ -29,7 +29,7 @@
  *   其中「人物音频」那扇门跳回**本页**并带 `?sheet=voice` —— 混音器只有 VoiceSheet 这一处实现，
  *   为它另开一页就是第二份。本页读到这个 query 就把面板掀开，然后**当场把 query 抹掉**（见下面那个 effect 的 ★）。
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import Warn from "../components/Warn";
 import { useNavigate, useSearchParams } from "react-router";
 import { useBackOr } from "../hooks/useBackOr";
@@ -69,8 +69,17 @@ import { relativeTime } from "../types";
 
 type Role = "user" | "assistant";
 type Rating = "up" | "down";
-type ChatMessage = { id: string; role: Role; text: string; streaming?: boolean; system?: boolean; rating?: Rating };
+/**
+ * ★ text 是整段原文（记录抽屉、转人工的 transcript、👍👎 交出去的都是它），sentences 是同一段按到达顺序切开的句子 ——
+ *   只给字幕框「念到哪一句亮哪一句」用（2026-10-25）。两份在 onSentence 的同一个 updater 里一起写，拼法只有 appendSentence 一处。
+ * ★ streamDone = 文字流已经收完（服务端不会再来新句子），与 streaming 是两回事：streaming 要等演出队列**念完**才置 false，
+ *   拿它判「总共几句」的话，念的全程分母都是「…」，念完高亮也一起没了。系统消息与老消息两个字段都没有 = 照旧整段显示。
+ */
+type ChatMessage = { id: string; role: Role; text: string; streaming?: boolean; system?: boolean; rating?: Rating; sentences?: string[]; streamDone?: boolean };
 type Phase = "idle" | "thinking" | "speaking";
+
+/** 一句接到整段后面：句间一个空格（字幕框逐句渲染时的间隔与这里一致） */
+const appendSentence = (text: string, sentence: string) => (text ? `${text} ${sentence}` : sentence);
 
 const MAX_HISTORY = 12;
 const MAX_INPUT_CHARS = 1000;
@@ -135,7 +144,15 @@ export default function SupportPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
-  const [subtitle, setSubtitle] = useState("");
+  /**
+   * 正在念的是这一轮回答的第几句（从 0 数；-1 = 没在念某一句：思考中、触摸反应、停了）。
+   * ★ 序号是 send() 里每轮从 0 起的客户端计数，不是服务端的 sentence.index：触摸反应写死 index 0、
+   *   求助卡也占一个 index（App 没声明 caps 时它退化成一条普通句子），拿它对 sentences 的下标迟早对不上。
+   * ★ 「亮不亮」在渲染时问 phase === "speaking" && speakingAt >= 0，所以队列念空不必另外清它。
+   */
+  const [speakingAt, setSpeakingAt] = useState(-1);
+  /** 整段念完那一拍交给读屏的全文（sr-only 的 aria-live 区）；逐句播报会把读屏一句句打断，所以只在念完时给一次 */
+  const [announce, setAnnounce] = useState("");
   /** 触摸反应正在说 / 刚说完的那句（不进 messages，所以单独记一份给字幕气泡） */
   const [reaction, setReaction] = useState("");
   const [voiceOn, setVoiceOn] = useState(voiceEnabled);
@@ -175,6 +192,8 @@ export default function SupportPage() {
   const queueRef = useRef<Promise<void>>(Promise.resolve());
   const abortRef = useRef<AbortController | null>(null);
   const captionRef = useRef<HTMLDivElement>(null);
+  /** 字幕框里正在念的那一句（只在逐句渲染时挂上）：滚动 effect 靠它把框停在这一句上 */
+  const speakingSpanRef = useRef<HTMLSpanElement>(null);
 
   const name = config?.name || t`小梦`;
   const enabled = config ? config.enabled : true;
@@ -258,11 +277,22 @@ export default function SupportPage() {
   const lastUser = useMemo(() => [...messages].reverse().find((m) => m.role === "user") || null, [messages]);
   const lastAssistant = useMemo(() => [...messages].reverse().find((m) => m.role === "assistant") || null, [messages]);
 
-  // 字幕随流式文字增长时保持滚到底
+  // 字幕框的滚动：正在逐句念时停在念到的那一句上（后面已经到了的句子留在下面，想先看可以往下翻）；不在念时照旧滚到底
+  // ★ 不用 scrollIntoView：它会连祖先一起滚，包括根上那个 h-dvh overflow-hidden 的容器（程序照样滚得动它）——
+  //   弹键盘、视口缩小时可能把舞台整个挪走，而且自己回不来。只改字幕框自己的 scrollTop，差值拿两个 rect 现量。
+  //   只在那一句越出框时才动（-4 = 上沿留一点呼吸），没越出就不动，免得每换一句框都跳一下。
   useEffect(() => {
     const el = captionRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [lastAssistant?.text]);
+    if (!el) return;
+    const cur = speakingSpanRef.current;
+    if (!cur) {
+      el.scrollTop = el.scrollHeight;
+      return;
+    }
+    const r = cur.getBoundingClientRect();
+    const c = el.getBoundingClientRect();
+    if (r.top < c.top || r.bottom > c.bottom) el.scrollTop += r.top - c.top - 4;
+  }, [lastAssistant?.text, speakingAt, phase]);
 
   const transcript = useMemo(
     () => messages.filter((m) => !m.system && m.text.trim()).slice(-TRANSCRIPT_MAX).map((m) => ({ role: m.role, content: m.text.slice(0, 2000) })),
@@ -294,6 +324,7 @@ export default function SupportPage() {
     playerRef.current?.stop();
     companionBus.stopSpeaking();
     setPhase("idle");
+    setSpeakingAt(-1);
     setMessages((prev) => prev.map((m) => (m.streaming ? { ...m, streaming: false } : m)));
   }
 
@@ -307,14 +338,17 @@ export default function SupportPage() {
     return queueRef.current;
   }
 
-  async function perform(run: number, sentence: CompanionSentence, audio: Promise<Blob | null>, signal: AbortSignal) {
+  /** at = 这一句在本轮回答里的序号（send() 的客户端计数）；不属于某段回答的（触摸反应）传 -1 */
+  async function perform(run: number, sentence: CompanionSentence, audio: Promise<Blob | null>, signal: AbortSignal, at: number) {
     if (runRef.current !== run) return;
-    setSubtitle(sentence.text);
     setPhase("speaking");
     companionBus.face(normalizeFace(sentence.face));
     companionBus.action(normalizeAction(sentence.action));
     const blob = await audio;
     if (runRef.current !== run || signal.aborted) return;
+    // ★ 高亮排在等到声音之后：第一句的语音还在合成的那一两秒里不先亮，亮起来就是开口那一刻。
+    //   关着声音时 audio 是现成的 null，这里没有延迟 —— 高亮照样按合成口型的时长一句句往下走
+    setSpeakingAt(at);
     const mute = muteRef.current.signal;
     // ★ 现问「现在还开着声音吗」（2026-09-18 发版复核抓到）：只看 mute 的话，🔇 那一下换了一个新的中止器，
     //   而后面几句的声音早就合成好了（文字流比念快得多）—— 第 1 句停住，第 2 句照样大声念出来
@@ -356,7 +390,7 @@ export default function SupportPage() {
         const sentence: CompanionSentence = { index: 0, text: pick.text, emotion: pick.emotion, face: pick.face, action: pick.action, tts: { emotion: pick.emotion, instruct: "" } };
         const audio: Promise<Blob | null> =
           voiceOn && Boolean(config?.tts) ? synthesizeSpeech(ttsBodyFor(config, sentence), controller.signal).catch(() => null) : Promise.resolve(null);
-        void enqueue(run, () => perform(run, sentence, audio, controller.signal)).then(() => {
+        void enqueue(run, () => perform(run, sentence, audio, controller.signal, -1)).then(() => {
           if (runRef.current === run) setPhase("idle");
         });
       }),
@@ -399,11 +433,16 @@ export default function SupportPage() {
     setMessages((prev) => [...prev, userMsg, { id: assistantId, role: "assistant", text: "", streaming: true }]);
     setInput("");
     setPhase("thinking");
-    setSubtitle("");
+    setSpeakingAt(-1);
+    setAnnounce("");
 
     // 每一句合成语音之前**现问**开没开声音（voiceOnRef 的 ★）：说到一半点了 🔇，后面的句子就不再去合成
     const wantVoice = () => voiceOnRef.current && Boolean(config?.tts);
     let handoff: SupportCategory | null = null;
+    /** 本轮第几句（见 speakingAt 的 ★：不用服务端的 sentence.index） */
+    let pos = 0;
+    /** 本轮已经到了的整段原文，与 messages 里那一份同一个拼法；念完交给读屏 */
+    let said = "";
     try {
       await streamSupportChat(
         // ★ lang 按当前生效的界面语言传（2026-10-19；原来写死 "zh"）：服务端靠它定回复语言那一行
@@ -414,12 +453,17 @@ export default function SupportPage() {
         { messages: history, lang: activeLang() },
         {
           onSentence: (sentence) => {
-            // 文字先上屏（市面客服都是文字即时、语音随后），语音按句排队
-            setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, text: m.text ? `${m.text} ${sentence.text}` : sentence.text } : m)));
+            // 文字先上屏（市面客服都是文字即时、语音随后），语音按句排队。
+            // 字幕框照旧整段都显示，只是念到的那一句亮、后面已经到了的浅一档（见字幕框那段 ★）
+            const at = pos++;
+            said = appendSentence(said, sentence.text);
+            setMessages((prev) =>
+              prev.map((m) => (m.id === assistantId ? { ...m, text: appendSentence(m.text, sentence.text), sentences: [...(m.sentences ?? []), sentence.text] } : m)),
+            );
             const audio: Promise<Blob | null> = wantVoice()
               ? synthesizeSpeech(ttsBodyFor(config, sentence), controller.signal).catch(() => null)
               : Promise.resolve(null);
-            void enqueue(run, () => perform(run, sentence, audio, controller.signal));
+            void enqueue(run, () => perform(run, sentence, audio, controller.signal, at));
           },
           onHandoff: (info) => {
             handoff = info.category;
@@ -430,21 +474,27 @@ export default function SupportPage() {
         },
         controller.signal,
       );
+      // 文字流收完：句数定下来了，字幕框的「2/…」从这一拍起写成「2/4」（念还没念完）
+      setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, streamDone: true } : m)));
       await enqueue(run, async () => undefined);
       if (runRef.current !== run) return;
       setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, streaming: false } : m)));
       if (handoff) setHandoffHint({ category: handoff });
       setPhase("idle");
+      setAnnounce(said);
     } catch (e) {
       if (controller.signal.aborted) return;
       // ★ 中途断了（2026-09-18 发版复核抓到）：已经上屏的半截留着，但不再算「正在说」—— 原来 streaming 一直为真，
       //   ■ 一直在、麦克风灰着、没有 👍👎。已经排队的那几句照常念完，**念完才回到 idle**：这里不先置 idle ——
       //   先置的话 ■ 消失、麦克风亮起（会把她自己的声音录进去），下一句又把状态改回「说话中」。队列是空的话，
-      //   下面这一发在一个微任务里就结了
-      setMessages((prev) => prev.filter((m) => m.id !== assistantId || m.text).map((m) => (m.id === assistantId ? { ...m, streaming: false } : m)));
+      //   下面这一发在一个微任务里就结了。
+      //   断了也不会再来新句子，所以 streamDone 同一拍置上（句数按已经到了的算）
+      setMessages((prev) => prev.filter((m) => m.id !== assistantId || m.text).map((m) => (m.id === assistantId ? { ...m, streaming: false, streamDone: true } : m)));
       setChatErr(errorText(e, t`${name}走神了，再发一次试试。`));
       void enqueue(run, async () => undefined).then(() => {
-        if (runRef.current === run) setPhase("idle");
+        if (runRef.current !== run) return;
+        setPhase("idle");
+        if (said) setAnnounce(said);
       });
     }
   }
@@ -523,6 +573,13 @@ export default function SupportPage() {
   const greeting = t`你好，我是${name}，启梦的 AI 客服。账号、扣费、出片取回、安装更新都可以问我；我解决不了的会帮你转给人工。`;
   const voiceLabel = voiceOn ? t`语音播报：开` : t`语音播报：关`;
   const canRate = Boolean(lastAssistant && !lastAssistant.system && !lastAssistant.streaming && lastAssistant.text && phase === "idle");
+  // 字幕框逐句渲染的那一份：只在正念着这段回答里的某一句时才有。触摸反应、系统消息、没有逐句结构的消息、空闲时一律 null ——
+  // 照旧整段同一种颜色（念完之后别留着念过 / 没念的两档灰，整段看着发灰）
+  const liveSentences =
+    phase === "speaking" && speakingAt >= 0 && !reaction && lastAssistant && !lastAssistant.system && lastAssistant.sentences?.length ? lastAssistant.sentences : null;
+  const sentenceNo = speakingAt + 1;
+  const sentenceTotal = liveSentences?.length ?? 0;
+  const totalKnown = Boolean(lastAssistant?.streamDone);
 
   return (
     <div className="relative h-dvh overflow-hidden bg-ink text-slate-100">
@@ -611,11 +668,23 @@ export default function SupportPage() {
           </div>
         )}
 
-        {/* 字幕气泡：数字人正在说 / 刚说完的整段；点正文看完整记录；说完后出 👍👎 */}
+        {/* 字幕气泡：数字人正在说 / 刚说完的整段；点正文看完整记录；说完后出 👍👎
+            ★ 跟着念到的那一句走（2026-10-25）：文字先上屏、语音排队念，框里常常已经到第 4 句了她还在念第 1 句。
+              所以念的时候逐句画：念过的 slate-300、正在念的 slate-50 + 一层淡底、还没念到的 slate-400（照常显示，想先看也能看），
+              名字旁写「第几句 / 共几句」（文字流没收完时分母是「…」）。
+              只换颜色、不换字重也不加左竖线：字重一变字宽就变，英文界面每换一句折行都会跳；行内 span 的竖线折行后只画在第一行。
+              淡底用 box-decoration-clone，一句折成两三行时每一行都有底。 */}
         <div className={`${GLASS} mb-2 w-full rounded-2xl rounded-bl-sm px-3.5 py-2.5 shadow-lg`}>
           <div className="mb-0.5 flex items-center gap-2 text-[11px] text-brand">
             <span className="font-semibold">{name}</span>
-            {phase === "speaking" && subtitle && <span className="text-slate-400"><Trans>正在说这句 →</Trans></span>}
+            {liveSentences && (
+              <span className="tabular-nums text-slate-400">
+                <span aria-hidden="true">
+                  {sentenceNo}/{totalKnown ? sentenceTotal : "…"}
+                </span>
+                <span className="sr-only">{totalKnown ? t`第 ${sentenceNo} 句，共 ${sentenceTotal} 句` : t`第 ${sentenceNo} 句`}</span>
+              </span>
+            )}
             {phase === "thinking" && <span className="text-slate-400"><Trans>在想…</Trans></span>}
           </div>
           <div
@@ -627,9 +696,26 @@ export default function SupportPage() {
             aria-label={t`查看完整对话记录`}
             className={`max-h-[26vh] overflow-y-auto text-sm leading-6 ${lastAssistant?.system ? "text-ok-100" : "text-slate-100"}`}
           >
-            {reaction || lastAssistant?.text || (phase === "thinking" ? "…" : greeting)}
+            {liveSentences
+              ? liveSentences.map((s, i) => (
+                  <Fragment key={i}>
+                    {i > 0 && " "}
+                    <span
+                      ref={i === speakingAt ? speakingSpanRef : undefined}
+                      className={i < speakingAt ? "text-slate-300" : i === speakingAt ? "rounded-sm bg-brand-500/15 text-slate-50 box-decoration-clone" : "text-slate-400"}
+                    >
+                      {s}
+                    </span>
+                  </Fragment>
+                ))
+              : reaction || lastAssistant?.text || (phase === "thinking" ? "…" : greeting)}
             {configErr && !messages.length && <Warn className="mt-1">{configErr}</Warn>}
             {!enabled && !configErr && !messages.length && <Warn className="mt-1"><Trans>服务端还没开通 AI 对话，你可以直接转人工。</Trans></Warn>}
+          </div>
+          {/* 读屏：上面那块是 role=button + aria-label，读屏不读正文，所以整段念完时在这里给一次全文。
+              ★ 只在念完那一拍填（不是逐句）：逐句播报会把读屏一句句打断，开着声音时还会和她的声音叠着念 */}
+          <div className="sr-only" aria-live="polite" aria-atomic="true">
+            {announce}
           </div>
           {canRate && lastAssistant && (
             <div className="mt-2 flex items-center gap-2 border-t border-white/10 pt-2 text-[11px] text-slate-400">

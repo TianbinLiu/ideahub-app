@@ -17489,8 +17489,8 @@ msgid "正在解开压缩包…"
 msgstr "Unzipping the bundle…"
 
 #: src/pages/SupportPage.tsx
-msgid "正在说这句 →"
-msgstr "Saying this now →"
+#~ msgid "正在说这句 →"
+#~ msgstr "Saying this now →"
 
 #: src/components/support/SupportStage.tsx
 msgid "正在请小梦出场…"
@@ -21722,6 +21722,14 @@ msgstr "Segment {segNo} has no video yet (only setup frames), so it can't be mer
 #: src/pages/CutPage.tsx
 msgid "第 {segNo} 段重拍不了：{blocked}"
 msgstr "Segment {segNo} can't be re-shot: {blocked}"
+
+#: src/pages/SupportPage.tsx
+msgid "第 {sentenceNo} 句"
+msgstr "Sentence {sentenceNo}"
+
+#: src/pages/SupportPage.tsx
+msgid "第 {sentenceNo} 句，共 {sentenceTotal} 句"
+msgstr "Sentence {sentenceNo} of {sentenceTotal}"
 
 #: src/components/blockout/arkVideoRules.ts
 msgid "第 {startSec} 秒起 {durSec} 秒 · 裁后 {cropW}×{cropH}（{pixels} 像素，比例 {ratio}）"

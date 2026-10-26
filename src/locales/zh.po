@@ -17497,8 +17497,8 @@ msgid "正在解开压缩包…"
 msgstr "正在解开压缩包…"
 
 #: src/pages/SupportPage.tsx
-msgid "正在说这句 →"
-msgstr "正在说这句 →"
+#~ msgid "正在说这句 →"
+#~ msgstr "正在说这句 →"
 
 #: src/components/support/SupportStage.tsx
 msgid "正在请小梦出场…"
@@ -21730,6 +21730,14 @@ msgstr "第 {segNo} 段还没有视频（只有设定帧），合成做不了—
 #: src/pages/CutPage.tsx
 msgid "第 {segNo} 段重拍不了：{blocked}"
 msgstr "第 {segNo} 段重拍不了：{blocked}"
+
+#: src/pages/SupportPage.tsx
+msgid "第 {sentenceNo} 句"
+msgstr "第 {sentenceNo} 句"
+
+#: src/pages/SupportPage.tsx
+msgid "第 {sentenceNo} 句，共 {sentenceTotal} 句"
+msgstr "第 {sentenceNo} 句，共 {sentenceTotal} 句"
 
 #: src/components/blockout/arkVideoRules.ts
 msgid "第 {startSec} 秒起 {durSec} 秒 · 裁后 {cropW}×{cropH}（{pixels} 像素，比例 {ratio}）"
