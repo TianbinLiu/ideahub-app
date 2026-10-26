@@ -29,7 +29,7 @@
  *   其中「人物音频」那扇门跳回**本页**并带 `?sheet=voice` —— 混音器只有 VoiceSheet 这一处实现，
  *   为它另开一页就是第二份。本页读到这个 query 就把面板掀开，然后**当场把 query 抹掉**（见下面那个 effect 的 ★）。
  */
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Warn from "../components/Warn";
 import { useNavigate, useSearchParams } from "react-router";
 import { useBackOr } from "../hooks/useBackOr";
@@ -148,7 +148,7 @@ export default function SupportPage() {
    * 正在念的是这一轮回答的第几句（从 0 数；-1 = 没在念某一句：思考中、触摸反应、停了）。
    * ★ 序号是 send() 里每轮从 0 起的客户端计数，不是服务端的 sentence.index：触摸反应写死 index 0、
    *   求助卡也占一个 index（App 没声明 caps 时它退化成一条普通句子），拿它对 sentences 的下标迟早对不上。
-   * ★ 「亮不亮」在渲染时问 phase === "speaking" && speakingAt >= 0，所以队列念空不必另外清它。
+   * ★ 「逐句画不画」在渲染时问 phase === "speaking"（见 liveSentences），亮哪一句再看 speakingAt，所以队列念空不必另外清它。
    */
   const [speakingAt, setSpeakingAt] = useState(-1);
   /** 整段念完那一拍交给读屏的全文（sr-only 的 aria-live 区）；逐句播报会把读屏一句句打断，所以只在念完时给一次 */
@@ -194,6 +194,8 @@ export default function SupportPage() {
   const captionRef = useRef<HTMLDivElement>(null);
   /** 字幕框里正在念的那一句（只在逐句渲染时挂上）：滚动 effect 靠它把框停在这一句上 */
   const speakingSpanRef = useRef<HTMLSpanElement>(null);
+  /** 滚动 effect 上一次摆框时的 captionAnchor：没变就不再摆（见那个 effect 的 ★） */
+  const captionAnchorRef = useRef<string | null>(null);
 
   const name = config?.name || t`小梦`;
   const enabled = config ? config.enabled : true;
@@ -277,22 +279,45 @@ export default function SupportPage() {
   const lastUser = useMemo(() => [...messages].reverse().find((m) => m.role === "user") || null, [messages]);
   const lastAssistant = useMemo(() => [...messages].reverse().find((m) => m.role === "assistant") || null, [messages]);
 
+  // 字幕框逐句渲染的那一份：只在念这段回答的时候才有。触摸反应、系统消息、没有逐句结构的消息、空闲时一律 null ——
+  // 照旧整段同一种颜色（念完之后别留着念过 / 没念的两档灰，整段看着发灰）。
+  // ★ 不要求 speakingAt >= 0（2026-10-25 审核抓到）：声音默认开着，perform 先置 speaking、等到第一句的声音（合成要一两秒）
+  //   才置 speakingAt —— 那一两秒里要是退回整段，框先是一色白、按「不在念」滚到底，声音一到又变三档、跳回第 1 句；
+  //   长回答每一次都是先看见结尾再跳回开头。所以那段时间照样逐句画，一句都不亮（全按「还没念到」），框停在顶上。
+  const liveSentences =
+    phase === "speaking" && !reaction && lastAssistant && !lastAssistant.system && lastAssistant.sentences?.length ? lastAssistant.sentences : null;
+  // 逐句时框该停在哪一句：换了一句、换了一段回答、刚进逐句时才变；整段显示时为 null
+  const captionAnchor = liveSentences && lastAssistant ? `${lastAssistant.id}:${speakingAt}` : null;
+
   // 字幕框的滚动：正在逐句念时停在念到的那一句上（后面已经到了的句子留在下面，想先看可以往下翻）；不在念时照旧滚到底
   // ★ 不用 scrollIntoView：它会连祖先一起滚，包括根上那个 h-dvh overflow-hidden 的容器（程序照样滚得动它）——
   //   弹键盘、视口缩小时可能把舞台整个挪走，而且自己回不来。只改字幕框自己的 scrollTop，差值拿两个 rect 现量。
   //   只在那一句越出框时才动（-4 = 上沿留一点呼吸），没越出就不动，免得每换一句框都跳一下。
-  useEffect(() => {
+  // ★ 逐句时只在 captionAnchor 变了的那一拍摆一次（2026-10-25 审核抓到）：新句子到达也会让这个 effect 重跑，
+  //   原来每到一句都重新对一次 —— 人往下翻着先看、往上翻回去重读，下一句一到就被拽回当前句，而句子到得比念得快得多，
+  //   等于根本翻不动。整段显示（anchor 为 null）照旧每次滚到底。
+  //   还没念到第一句（anchor 以 :-1 结尾，哪一句都没挂 ref）时停在顶上：第一句就在最上面。
+  // useLayoutEffect：在画出来之前摆好。useEffect 排在绘制之后，换句那一拍会先画出一帧「新句子亮了、框还停在原处」再跳
+  //   （浏览器里每 50ms 采样就采到过一次）。
+  useLayoutEffect(() => {
     const el = captionRef.current;
     if (!el) return;
+    const prev = captionAnchorRef.current;
+    captionAnchorRef.current = captionAnchor;
+    if (captionAnchor === null) {
+      el.scrollTop = el.scrollHeight;
+      return;
+    }
+    if (captionAnchor === prev) return;
     const cur = speakingSpanRef.current;
     if (!cur) {
-      el.scrollTop = el.scrollHeight;
+      el.scrollTop = 0;
       return;
     }
     const r = cur.getBoundingClientRect();
     const c = el.getBoundingClientRect();
     if (r.top < c.top || r.bottom > c.bottom) el.scrollTop += r.top - c.top - 4;
-  }, [lastAssistant?.text, speakingAt, phase]);
+  }, [captionAnchor, lastAssistant?.text, phase, reaction]);
 
   const transcript = useMemo(
     () => messages.filter((m) => !m.system && m.text.trim()).slice(-TRANSCRIPT_MAX).map((m) => ({ role: m.role, content: m.text.slice(0, 2000) })),
@@ -573,10 +598,8 @@ export default function SupportPage() {
   const greeting = t`你好，我是${name}，启梦的 AI 客服。账号、扣费、出片取回、安装更新都可以问我；我解决不了的会帮你转给人工。`;
   const voiceLabel = voiceOn ? t`语音播报：开` : t`语音播报：关`;
   const canRate = Boolean(lastAssistant && !lastAssistant.system && !lastAssistant.streaming && lastAssistant.text && phase === "idle");
-  // 字幕框逐句渲染的那一份：只在正念着这段回答里的某一句时才有。触摸反应、系统消息、没有逐句结构的消息、空闲时一律 null ——
-  // 照旧整段同一种颜色（念完之后别留着念过 / 没念的两档灰，整段看着发灰）
-  const liveSentences =
-    phase === "speaking" && speakingAt >= 0 && !reaction && lastAssistant && !lastAssistant.system && lastAssistant.sentences?.length ? lastAssistant.sentences : null;
+  // liveSentences 在滚动 effect 上面定义（两处读同一份）；还没念到第一句时不写「第几句」
+  const showSentenceNo = Boolean(liveSentences) && speakingAt >= 0;
   const sentenceNo = speakingAt + 1;
   const sentenceTotal = liveSentences?.length ?? 0;
   const totalKnown = Boolean(lastAssistant?.streamDone);
@@ -671,13 +694,13 @@ export default function SupportPage() {
         {/* 字幕气泡：数字人正在说 / 刚说完的整段；点正文看完整记录；说完后出 👍👎
             ★ 跟着念到的那一句走（2026-10-25）：文字先上屏、语音排队念，框里常常已经到第 4 句了她还在念第 1 句。
               所以念的时候逐句画：念过的 slate-300、正在念的 slate-50 + 一层淡底、还没念到的 slate-400（照常显示，想先看也能看），
-              名字旁写「第几句 / 共几句」（文字流没收完时分母是「…」）。
+              名字旁写「第几句 / 共几句」（文字流没收完时分母是「…」）。第一句的声音还在合成时照样逐句画，只是一句都不亮、不写第几句。
               只换颜色、不换字重也不加左竖线：字重一变字宽就变，英文界面每换一句折行都会跳；行内 span 的竖线折行后只画在第一行。
               淡底用 box-decoration-clone，一句折成两三行时每一行都有底。 */}
         <div className={`${GLASS} mb-2 w-full rounded-2xl rounded-bl-sm px-3.5 py-2.5 shadow-lg`}>
           <div className="mb-0.5 flex items-center gap-2 text-[11px] text-brand">
             <span className="font-semibold">{name}</span>
-            {liveSentences && (
+            {showSentenceNo && (
               <span className="tabular-nums text-slate-400">
                 <span aria-hidden="true">
                   {sentenceNo}/{totalKnown ? sentenceTotal : "…"}
