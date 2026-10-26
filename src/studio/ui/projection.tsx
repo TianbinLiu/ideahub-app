@@ -7,7 +7,7 @@ import { useMemo, useRef, useState } from "react";
 import Warn from "../../components/Warn";
 import { useNavigate } from "react-router";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { deckCoverOf, memberTiersLine, myCards, myDecks, realFaceIssue, tierBlockReason, tierNamesFor, tierOffered } from "../../data/account";
+import { deckCoverOf, memberTiersLine, myCards, myDecks, realFaceIssue, regionTiersLine, tierBlockReason, tierNamesFor, tierOffered } from "../../data/account";
 import { ONE_IMAGE, VIDEO_TIERS, deriveIssue, durationChoices, fmtTokens, priceTag, promptMaxOf, r2vBlockLines, segTokens, shotsOkOf, tierModelId, tierModelLabel, tierOf } from "../../data/economy";
 import { useAccountVersion } from "../../hooks/useAccount";
 import UpgradeLink from "../../components/UpgradeLink";
@@ -400,6 +400,8 @@ function EditorPanel() {
   const shownTiers = VIDEO_TIERS.filter((tier) => tierOffered(tier) || tier.id === editor.videoTier);
   /** 套餐那一类原因并成一句（account.memberTiersLine，与 TierRow / 选法屏同一句）+「去升级」 */
   const memberLine = memberTiersLine();
+  /** 出片地区那一句（account.regionTiersLine，与 TierRow / 选法屏同一句）；地区不知道 / 没有哪一档被拦时为 null */
+  const regionLine = regionTiersLine();
   /** 车道那一类原因（套餐之外）。去重：参考图直出在极速、标准两档上是同一句话，别在一行里说两遍；
    *  套餐挡住的档不再各说一句（并进 memberLine）；正选着的那一档本身用不了（停用 / 服务端不支持）时说它那一句 */
   const curTierOff = tierOffered(tierOf(editor.videoTier)) ? null : tierBlockReason(tierOf(editor.videoTier));
@@ -800,6 +802,11 @@ function EditorPanel() {
                 {memberLine}
                 {"　"}
                 <UpgradeLink />
+              </Warn>
+            )}
+            {regionLine && (
+              <Warn tone="info" compact className="mt-1">
+                {regionLine}
               </Warn>
             )}
             {fitNote && <p className="mt-1 text-[9px] leading-[13px] text-slate-400">{fitNote}</p>}

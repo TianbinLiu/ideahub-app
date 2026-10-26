@@ -11,7 +11,7 @@ import Icon, { type IconName } from "../Icon";
 import Warn from "../Warn";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { memberTiersLine, tierBlockReason, tierNamesFor, tierOffered } from "../../data/account";
+import { memberTiersLine, regionTiersLine, tierBlockReason, tierNamesFor, tierOffered } from "../../data/account";
 import { CHAT_TURN_TOKENS, CHECKED_PANEL_TOKENS, clampDuration, fmtTokens, IMAGE_TOKENS, segTokens, tierModelId, tierModelLabel, tierOf, VIDEO_TIERS } from "../../data/economy";
 import { useAccountVersion } from "../../hooks/useAccount";
 import UpgradeLink from "../UpgradeLink";
@@ -97,6 +97,8 @@ export default function ModePicker({
   const caps = modeTierOf(tierId);
   /** 套餐点不动的那几档并成一句（account.memberTiersLine，与 TierRow 同一句）+「去升级」 */
   const memberLine = memberTiersLine();
+  /** 出片地区那一句（account.regionTiersLine，与 TierRow / 工坊铸段窗同一句）；地区不知道 / 没有哪一档被拦时为 null */
+  const regionLine = regionTiersLine();
   /**
    * 宿主递进来的这一档本身就用不了（会员档 / 已停用 / 服务端不支持）—— 宿主的默认档本来都按 usableTierId 给，这里是最后一道：
    * 把原因说在最上面，并把下面的模式全灰掉 —— 不然挑了模式就进向导，写分镜 / 画画面的钱先花出去，出片那一步才被拦下。
@@ -146,6 +148,11 @@ export default function ModePicker({
           <Trans>这一段交给 {tierModelLabel(tier)} 生成</Trans>
         </p>
         {tierIssue && <Warn compact className="mt-0.5">{tierIssue}</Warn>}
+        {regionLine && (
+          <Warn tone="info" compact className="mt-0.5">
+            {regionLine}
+          </Warn>
+        )}
         {memberLine && (
           <p className="mt-0.5 text-[10px] leading-relaxed text-slate-500">
             {memberLine}

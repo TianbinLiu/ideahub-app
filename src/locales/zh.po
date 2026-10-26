@@ -1328,6 +1328,11 @@ msgstr "{lack}没有勾选「火山引擎适用」——「{label}」档只收�
 #~ msgid "{lack}没有勾选「火山引擎适用」——「{label}」档只收做过火山引擎认证的真人卡。去卡片详情页勾选「火山引擎适用」，或换「{realTier}」档（在「工作流」或「简约模式」里直出）"
 #~ msgstr "{lack}没有勾选「火山引擎适用」——「{label}」档只收做过火山引擎认证的真人卡。去卡片详情页勾选「火山引擎适用」，或换「{realTier}」档（在「工作流」或「简约模式」里直出）"
 
+#. line 是一整句（自带句号）：所在地区用不了这一档的出片模型、这个地区能用哪几档；后面另起一整句
+#: src/ai/arkClient.ts
+msgid "{line}这一发没有受理，也没有扣费。"
+msgstr "{line}这一发没有受理，也没有扣费。"
+
 #. 铸卡师念的话。list 是前三张的名字（已用分隔符连好），count 是丢的总张数（大于 3），reason 是失败原因整句
 #: src/studio/studioStore.ts
 msgid "{list} 等 {count} 张没能存到服务器（{reason}）——这几张只留在这台设备上，换设备或者重新登录就没了。想留住的话，回卡片详情页把它重新挂一次。"
@@ -1502,6 +1507,38 @@ msgstr "{noRefNames}：{line10}"
 #: src/components/flow/DialogueWizard.tsx
 msgid "{noVoice} 没有声音样本：每一段的嗓音由模型定，前后可能不一样。"
 msgstr "{noVoice} 没有声音样本：每一段的嗓音由模型定，前后可能不一样。"
+
+#: src/data/account.ts
+msgid "{place}出片只提供 {via} 的模型"
+msgstr "{place}出片只提供 {via} 的模型"
+
+#: src/data/account.ts
+msgid "{place}出片只提供 {via}，「{label}」档用不了——换成「{names}」档"
+msgstr "{place}出片只提供 {via}，「{label}」档用不了——换成「{names}」档"
+
+#: src/data/account.ts
+msgid "{place}出片只提供 {via}，「{label}」档用不了——能换的「{member}」是会员档（开通会员套餐或充值过任意一笔后可用）"
+msgstr "{place}出片只提供 {via}，「{label}」档用不了——能换的「{member}」是会员档（开通会员套餐或充值过任意一笔后可用）"
+
+#: src/data/account.ts
+msgid "{place}用不了这一档的出片模型，这里出片只提供 {via}（「{member}」档，会员档：开通会员套餐或充值过任意一笔后可用）。"
+msgstr "{place}用不了这一档的出片模型，这里出片只提供 {via}（「{member}」档，会员档：开通会员套餐或充值过任意一笔后可用）。"
+
+#: src/data/account.ts
+msgid "{place}用不了这一档的出片模型，这里出片只提供 {via}（「{names}」档）。"
+msgstr "{place}用不了这一档的出片模型，这里出片只提供 {via}（「{names}」档）。"
+
+#: src/data/account.ts
+msgid "{place}目前没有可用的出片模型"
+msgstr "{place}目前没有可用的出片模型"
+
+#: src/data/account.ts
+msgid "{place}目前没有可用的出片模型，「{label}」档用不了"
+msgstr "{place}目前没有可用的出片模型，「{label}」档用不了"
+
+#: src/data/account.ts
+msgid "{place}目前没有可用的出片模型。"
+msgstr "{place}目前没有可用的出片模型。"
 
 #. 后台任务胶囊的心跳行：prefix 是那一步本来的话（「拆分镜中」「正在发布…」），后面接已经等了几秒
 #: src/data/jobs.ts
@@ -6400,6 +6437,24 @@ msgstr "你已经举报过这一条了，管理员还在处理"
 #: src/components/recipe/RemixRewardNote.tsx
 msgid "你已经拿到过 {count} 次，共 {earned} token。"
 msgstr "你已经拿到过 {count} 次，共 {earned} token。"
+
+#. 当句首主语用的名词短语（英文首字母大写：Your region）；后面直接接谓语
+#: src/data/account.ts
+msgid "你所在的地区"
+msgstr "你所在的地区"
+
+#. 当句首主语用的名词短语（英文首字母大写：Your region (United States)）；name 是国家或地区名
+#: src/data/account.ts
+msgid "你所在的地区（{name}）"
+msgstr "你所在的地区（{name}）"
+
+#: src/api/branch.ts
+msgid "你所在的地区用不了白模化要用的出片模型——看帧那一笔已经花了、不退；出片那一发没有受理。"
+msgstr "你所在的地区用不了白模化要用的出片模型——看帧那一笔已经花了、不退；出片那一发没有受理。"
+
+#: src/api/branch.ts
+msgid "你所在的地区用不了白模化要用的出片模型——这一次没有受理，也没有扣费。"
+msgstr "你所在的地区用不了白模化要用的出片模型——这一次没有受理，也没有扣费。"
 
 #: src/components/UpdateSheet.tsx
 msgid "你手上这一版已经停止支持了，更新之后才能接着用。"
@@ -13535,6 +13590,10 @@ msgstr "截图失败：{0}"
 msgid "截帧中…"
 msgstr "截帧中…"
 
+#: src/ai/arkClient.ts
+msgid "所在地区不提供这一档的出片模型"
+msgstr "所在地区不提供这一档的出片模型"
+
 #: src/pages/CardDetailPage.tsx
 msgid "所属卡组"
 msgstr "所属卡组"
@@ -20365,6 +20424,10 @@ msgstr "白模模板固定用「{needLabel}」（{needModel}）出片：选了�
 msgid "白模模板已生成"
 msgstr "白模模板已生成"
 
+#: src/components/VideoTemplateExtractor.tsx
+msgid "白模模板的两条路都只走「{blockoutLabel}」档，而你所在的地区用不了它，这里做不了白模模板。想把一条片的做法分享给别人，发布作品时公开「制作过程」就行。"
+msgstr "白模模板的两条路都只走「{blockoutLabel}」档，而你所在的地区用不了它，这里做不了白模模板。想把一条片的做法分享给别人，发布作品时公开「制作过程」就行。"
+
 #: src/components/guide/tours.tsx
 msgid "白模模板要先<0>逐个核对角色位</0>，再用它真出一段片，才让发布。 角色位是做模板时 AI 认的；认得不对，核对之前可以在这里让它重新识别（按次收费，价写在键上），核对过就不能再认了。"
 msgstr "白模模板要先<0>逐个核对角色位</0>，再用它真出一段片，才让发布。 角色位是做模板时 AI 认的；认得不对，核对之前可以在这里让它重新识别（按次收费，价写在键上），核对过就不能再认了。"
@@ -21552,6 +21615,10 @@ msgid "第 {n} 段原来是「{label}」档（会员档），改用你能用的�
 msgstr "第 {n} 段原来是「{label}」档（会员档），改用你能用的「{b}」档——开通会员套餐（或充值过任意一笔）后可以换回去"
 
 #: src/studio/flowStore.ts
+msgid "第 {n} 段原来是「{label}」档（你所在的地区用不了），改用「{b}」档"
+msgstr "第 {n} 段原来是「{label}」档（你所在的地区用不了），改用「{b}」档"
+
+#: src/studio/flowStore.ts
 msgid "第 {n} 段原来是「{label}」档（模型已停用），改用「{b}」档"
 msgstr "第 {n} 段原来是「{label}」档（模型已停用），改用「{b}」档"
 
@@ -21871,6 +21938,10 @@ msgstr "第 {segNo} 段成片转存中（换成永久地址）…"
 #: src/pages/CutPage.tsx
 msgid "第 {segNo} 段成片转存中（换成永久地址）· 已等 {secs} 秒…"
 msgstr "第 {segNo} 段成片转存中（换成永久地址）· 已等 {secs} 秒…"
+
+#: src/pages/CutPage.tsx
+msgid "第 {segNo} 段是「{label}」档，你所在的地区用不了这一档，这里重拍不了——回「我的 → 草稿」打开草稿，把这一段换一档重新出片（会重新计费）"
+msgstr "第 {segNo} 段是「{label}」档，你所在的地区用不了这一档，这里重拍不了——回「我的 → 草稿」打开草稿，把这一段换一档重新出片（会重新计费）"
 
 #: src/pages/CutPage.tsx
 msgid "第 {segNo} 段是「{label}」档，模型已于 {day}停用，这里重拍不了——回「我的 → 草稿」打开草稿，把这一段换一档重新出片（会重新计费）"

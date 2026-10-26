@@ -7,7 +7,8 @@
 //     ② 回包是 2xx 但结果用不上（ArkBadReply：JSON 坏了 / 回包里没有图 / 图出了却取不回来）—— **已经**扣了；
 //     ③ 逐格出图画到第 k 格才失败（ArkBatchPartial）—— 前 k-1 张各自按调用结算过了，与第 k 张成不成无关
 //        （那几张图调用方会收下、下一次只补剩下的，见 real.PortraitViewsPartial）；
-//     ④ 其余（服务端明说失败：400 敏感词 / 402 余额不足 / 403 套餐门禁 / 429 / 5xx 已退；或请求根本没到计费端点）—— 没扣；
+//     ④ 其余（服务端明说失败：400 敏感词 / 402 余额不足 / 403 套餐门禁 / 403 出片地区不给（ArkRegionDenied，照回包的 billed，平常是 false）/ 429 / 5xx 已退；
+//        或请求根本没到计费端点）—— 没扣；
 //     ⑤ 任务**受理之后**上游明说失败（ArkTaskFailed：方舟 failed / cancelled / expired、真人档 Fail）—— 受理那一刻扣过，
 //        2026-10-07 起服务端按原桶退回（主人「做生成失败返回 token」），退没退、退了多少只认服务端在回包上说的那一句
 //        （ArkTaskFailed.refund）：退了 / 正在退 / 没说（老服务端不退）三档各一句话。**App 从不自己把退款加进钱包镜像**，
@@ -29,7 +30,7 @@
 import { t } from "@lingui/core/macro";
 import { billingExempt, isRemoteMode, refreshRemoteWallet } from "../data/account";
 import { IMAGE_TOKENS, fmtTokens } from "../data/economy";
-import { ArkBadReply, ArkBatchPartial, ArkNoReply, ArkTaskFailed, SegmentGenFailed } from "./arkClient";
+import { ArkBadReply, ArkBatchPartial, ArkNoReply, ArkRegionDenied, ArkTaskFailed, SegmentGenFailed } from "./arkClient";
 
 /** chargeOnFail 的结论。调用方只拿它挑话 / 交给 chargeNote，别再自己 instanceof 一遍 */
 export interface FailCharge {
@@ -104,6 +105,11 @@ export function chargeOnFail(e: unknown): FailCharge {
     // ★ 其余一律「已计费、没退」：服务端没说（老服务端不退 / 上线之前的任务）、还没结局（真人档退款开关关着）、问不出结局。
     //   往吓人的方向说错是可以接受的那一边：钱真退了的话，余额与站内通知会说话；把没退说成退了才是不可接受的
     return { shape, tier: "charged", paidBefore: settled, video, refunded: 0 };
+  }
+  // ★ 出片地区（403 REGION_UNAVAILABLE，2026-10-26）：照服务端回包的 billed 说 —— 出片与真人档这两条路被拦恒为没扣（门禁在扣钱之前），
+  //   所以它平常与下面「服务端明说失败 = 没扣」那一档结论相同；单列出来是为了不靠「所有 403 都没扣」这个巧合：哪天哪条路回了 billed:true，这里照实说已计费
+  if (failure instanceof ArkRegionDenied) {
+    return { shape, tier: failure.billed ? "charged" : "none", paidBefore: settled, video, refunded: 0 };
   }
   return {
     shape,

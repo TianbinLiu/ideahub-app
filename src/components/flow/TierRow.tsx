@@ -15,7 +15,7 @@ import Warn from "../Warn";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
-import { memberTiersLine, realFaceIssue, tierBlockReason, tierOffered } from "../../data/account";
+import { memberTiersLine, realFaceIssue, regionTiersLine, tierBlockReason, tierOffered } from "../../data/account";
 import { blockoutPriceIssue, clampDuration, deriveIssue, fmtTokens, tierModelId, tierOf, VIDEO_TIERS } from "../../data/economy";
 import { useAccountVersion } from "../../hooks/useAccount";
 import UpgradeLink from "../UpgradeLink";
@@ -114,6 +114,8 @@ export default function TierRow({
   const shown = VIDEO_TIERS.filter((tier) => tierOffered(tier) || tier.id === node.videoTier);
   // 套餐那一类原因并成一句（account.memberTiersLine）+「去升级」；这一段挂着的档本身用不了（停用 / 服务端不支持）另说一句
   const memberLine = memberTiersLine();
+  /** 出片地区那一句（account.regionTiersLine：这个地区出片只提供哪几家；地区不知道 / 没有哪一档被拦时为 null）。与选法屏、工坊铸段窗同一句 */
+  const regionLine = regionTiersLine();
   const curTier = tierOf(node.videoTier);
   const curOff = tierOffered(curTier) ? null : tierBlockReason(curTier);
 
@@ -188,6 +190,11 @@ export default function TierRow({
           里出现过两遍）。宿主自己的别的理由（r2v 闸、真人卡）仍由宿主印，那是另一件事。
           「去升级」只治得了套餐门槛那一类原因，所以跟着 tierBlocks 一起出现。 */}
       {curOff && <Warn compact>{curOff}</Warn>}
+      {regionLine && (
+        <Warn tone="info" compact>
+          {regionLine}
+        </Warn>
+      )}
       {memberLine && (
         <Warn compact>
           {memberLine}

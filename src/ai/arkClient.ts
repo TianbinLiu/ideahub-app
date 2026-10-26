@@ -15,8 +15,9 @@
 import { i18n } from "@lingui/core";
 import { t } from "@lingui/core/macro";
 import { API_BASE, API_ON, getToken, withAppVersion } from "../api/client";
-import { frozenLine, planRequiredLine, syncRemoteWallet } from "../data/account";
+import { frozenLine, planRequiredLine, regionDeniedLine, syncRemoteWallet } from "../data/account";
 import { probeServerCaps } from "../data/serverCaps";
+import { noteRegionDenied } from "../data/videoZone";
 import type { TierResolution } from "../data/videoTierTable";
 import { DEFAULT_IMAGE_TIER, durationWindowOfModel, imageGroupOk, imageTierOf, modelLabel, videoAudioOn } from "../data/economy";
 import type { GenMode } from "../types";
@@ -260,6 +261,26 @@ export class ArkHttpError extends Error {
 }
 
 /**
+ * 服务端按**出片地区**拒了这一发（403 `REGION_UNAVAILABLE`，2026-10-26 出片地区；契约 docs/api-contract.md「出片地区」）。
+ * ★ 仍是 ArkHttpError（status 403、code 原样）：只读 status / code 的调用方照常；要说地区的认这个类。
+ * ★ 钱：`billed` 照服务端回包（缺省 false，只有明说 true 才算扣过）—— ai/failCharge 认它，别在调用点自己判。
+ *   出片（/api/ark）与真人档（/api/minimax）这两条路被拦恒为 false（门禁在扣钱之前）；视频之前已经结算过的画面另由 SegmentGenFailed 说。
+ * @param reason 短的那半句（briefArkReason 拿它塞进别人的整句里）；message 是能单独显示的整句
+ */
+export class ArkRegionDenied extends ArkHttpError {
+  constructor(
+    message: string,
+    status: number,
+    code: string,
+    readonly billed: boolean,
+    readonly reason: string,
+  ) {
+    super(message, status, code);
+    this.name = "ArkRegionDenied";
+  }
+}
+
+/**
  * 请求发出去了、但**一个回包都没收到**（断网、超时）—— 与「服务端明说失败」是两件事。
  * ★★ 为什么要单独一个类（2026-09-10）：服务端是**先扣钱、再转发**（server services/arkGateway.service.js
  *   的 debit 在转发之前），而客户端 chat 超时 120 秒又短于服务端转发上限 150 秒。所以这一类失败发生时，
@@ -481,6 +502,8 @@ export function briefArkReason(e: unknown, max = 40): string {
   if (e instanceof ArkBatchPartial || e instanceof SegmentGenFailed) return briefArkReason(e.failure, max);
   // 上游明说失败：原因已经按错误码说成人话了（arkFailReason）
   if (e instanceof ArkTaskFailed) return e.reason.slice(0, Math.max(max, 80));
+  // 地区不给：说地区，别退成「服务器返回 403」（那句会被读成套餐 / 冻结）
+  if (e instanceof ArkRegionDenied) return e.reason.slice(0, Math.max(max, 60));
   // 出图被拒：原因已经按码说成人话了（imageRefusalError）—— 尤其「模型停用、请更新 App」那句不能退成「服务器返回 400」
   if (e instanceof ArkImageRefused) return e.reason.slice(0, Math.max(max, 60));
   if (e instanceof ArkHttpError) {
@@ -522,6 +545,27 @@ export function billingDenialError(status: number, body: string): Error | null {
   if (status === 403 || status === 429) {
     const serverMsg = /"message"\s*:\s*"([^"]+)"/.exec(body)?.[1] ?? "";
     const code = /"code"\s*:\s*"([^"]+)"/.exec(body)?.[1] ?? "";
+    // ★ 出片地区（2026-10-26）：认 code 说本端的整句，两种界面语言都是（服务端那句是「英文 / 中文」并排的一整行，给认不得这个码的老 App 兜底用）。
+    //   回包里的地区先记进 data/videoZone（档位那一排当场藏掉被拦的档）并重问一次补国家；话按记下的那份说「这个地区能用哪几档」。
+    //   钱：只按回包的 billed 说「没有扣费」那半句（缺省 false = 没扣；明说扣过的那种不说，交给 ai/failCharge 按 ArkRegionDenied.billed 说）
+    if (status === 403 && code === "REGION_UNAVAILABLE") {
+      let parsed: unknown = null;
+      try {
+        parsed = JSON.parse(body);
+      } catch {
+        /* 读不出 JSON：地区照旧，只重问一次 */
+      }
+      noteRegionDenied(parsed);
+      const billed = !!parsed && typeof parsed === "object" && (parsed as { billed?: unknown }).billed === true;
+      const line = regionDeniedLine();
+      return new ArkRegionDenied(
+        billed ? line : t({ message: `${line}这一发没有受理，也没有扣费。`, comment: "line 是一整句（自带句号）：所在地区用不了这一档的出片模型、这个地区能用哪几档；后面另起一整句" }),
+        status,
+        code,
+        billed,
+        t`所在地区不提供这一档的出片模型`,
+      );
+    }
     // ★ D7 a（多语言）：中文界面照旧原样说服务端那句整话；英文界面认 **code** 说本端的整句 ——
     //   判码不判文案。认不得的码仍只能原样带出服务端那句（多半是中文），总比按字猜强。
     // ★★ 2026-09-25 评审补上 WALLET_FROZEN 与 DAILY_LIMIT：服务端这两句 message 是

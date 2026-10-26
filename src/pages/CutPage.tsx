@@ -28,7 +28,7 @@ import Icon from "../components/Icon";
 import { AI_REAL, ArkTaskFailed, ArkTaskUnknown, SegmentGenFailed, chargeNote, chargeOnFail, refineFrame, regenSegment, unwrapFailure } from "../ai";
 import { ANN_CLAUSE } from "../studio/segmentGen";
 import { isArkAssetUrl, requestArkTransfer, transferStatus } from "../ai/arkClient";
-import { canAfford, frozenNote, isRemoteMode, spendTokens, tierBlockReason, tierOffered, walletOf } from "../data/account";
+import { canAfford, frozenNote, isRemoteMode, spendTokens, tierBlockReason, tierOffered, tierRegionIssue, walletOf } from "../data/account";
 import UpgradeLink from "../components/UpgradeLink";
 import { idbSet } from "../data/db";
 import { dropVideoJob } from "../data/videoJobs";
@@ -1287,6 +1287,10 @@ export default function CutPage() {
         if (tierRetired(tier)) {
           const day = tierRetireDay(tier);
           setErr(t`第 ${segNo} 段是「${label}」档，模型已于 ${day}停用，这里重拍不了——回「我的 → 草稿」打开草稿，把这一段换一档重新出片（会重新计费）`);
+        } else if (tierRegionIssue(tier)) {
+          // ★ 出片地区（2026-10-26）：排在「还没上线」之前 —— 摆不出来的原来只有服务端不支持一种，地区一来那句话就把原因说错了（设计审核）。
+          //   不接 tierRegionIssue 的「换成哪一档」：这一页换不了档（同上一支的理由）
+          setErr(t`第 ${segNo} 段是「${label}」档，你所在的地区用不了这一档，这里重拍不了——回「我的 → 草稿」打开草稿，把这一段换一档重新出片（会重新计费）`);
         } else if (!tierOffered(tier)) {
           setErr(t`第 ${segNo} 段是「${label}」档，这个档位的重拍还没上线，这里重拍不了`);
         } else {

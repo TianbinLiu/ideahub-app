@@ -24,7 +24,8 @@ import { castPreviewImage, frameUrlAt, fuseStageFrame, AI_REAL, ArkTaskFailed, A
 import { frameMoment, isMultiShot, momentCards } from "../data/shotScript";
 import { endFrameUsed } from "../data/drawPlan";
 import { isArkAssetUrl, transferArkVideo } from "../ai/arkClient";
-import { canAfford, defaultTierId, draftModeIssue, draftModeOffered, frozenNote, myCards, realFaceIssue, spendTokens, tierBlockReason, tierGo, tierOffered, usableTierId, walletOf } from "../data/account";
+import { canAfford, defaultTierId, draftModeIssue, draftModeOffered, frozenNote, myCards, realFaceIssue, spendTokens, tierBlockReason, tierGo, tierOffered, tierRegionIssue, usableTierId, walletOf } from "../data/account";
+import { refreshVideoZone } from "../data/videoZone";
 import { showToast } from "../data/toast";
 import {
   apiCase,
@@ -1011,7 +1012,7 @@ export function remakeNodesOf(segs: VideoSegment[], cards: Card[]): RecipeBuild 
 
 /**
  * 「第 N 段原来是 A 档，换成了 B 档（为什么）」—— 抄别人的东西换了档时那一句（做同款 / 按配方做同款 / 经典模板共用）。
- * 原因按 tierBlockReason 的口径分三种：会员档、已停用、这台服务端不支持。
+ * 原因按 tierBlockReason 的口径分四种：会员档、已停用、你所在的地区不提供（出片地区）、这台服务端不支持。
  */
 function tierSwapNote(i: number, from: string, to: string): string {
   const n = i + 1;
@@ -1020,6 +1021,8 @@ function tierSwapNote(i: number, from: string, to: string): string {
   if (a.id !== from) return t`第 ${n} 段原来的档位已经下线，改用「${b}」档`;
   const label = a.label;
   if (tierRetired(a)) return t`第 ${n} 段原来是「${label}」档（模型已停用），改用「${b}」档`;
+  // ★ 地区排在「服务端不支持」之前（与 tierOffIssue 同一个顺序）：原来摆不出来的只剩「服务端不支持」一种，地区一来这句话就会把原因说错（2026-10-26 设计审核）
+  if (tierRegionIssue(a)) return t`第 ${n} 段原来是「${label}」档（你所在的地区用不了），改用「${b}」档`;
   // ★ 摆不出来的（停用之外只剩「这台服务端不支持」）先判，剩下的才是套餐那一道 —— 判据与 tierBlockReason 同一个顺序
   //   （原来按目录的 freeOk 判会员档：服务端关了免费档限制时这句话就说错了；account.tierFreeOk 那条 ★）
   if (!tierOffered(a)) return t`第 ${n} 段原来是「${label}」档（这台服务器还不支持），改用「${b}」档`;
@@ -2796,8 +2799,20 @@ export const useFlow = create<FlowState>()((set, get) => ({
     }
     const myRun = get().genRun + 1;
     set({ busy: true, err: "", genRun: myRun, genFrom: currentRoute() });
-    if (AI_REAL) spendTokens(propCost);
     get().updateNode(nodeId, { status: "generating", progress: t`推演三种走向…` });
+    // ★★ 出片地区：推演（一次对话 + 最多 6 张图）先现问一次地区再花钱，理由同 genNode 那一处 —— 推演出来的方案在这个地区出不了片的话，
+    //   这一笔就白花了；地区门禁只拦视频，管不到推演。排在「打上 generating」之后（画布的 agent 700 毫秒后按这个状态报回执，同 genNode 的 ★）
+    await refreshVideoZone();
+    {
+      const region = tierRegionIssue(tierOf(node.videoTier));
+      if (region) {
+        // 原样退回（这一炉一分钱没花）：状态、进度回到点之前
+        get().updateNode(nodeId, { status: node.status, progress: node.progress });
+        set(get().genRun === myRun ? { busy: false, err: region } : {});
+        return false;
+      }
+    }
+    if (AI_REAL) spendTokens(propCost);
     /** 帧一张都没画成、因为出图模型用不了了（real.generateProposals 的 onFramesGone）：剧情照收，原因说在下面 */
     let framesGone = "";
     try {
@@ -4241,6 +4256,20 @@ export const useFlow = create<FlowState>()((set, get) => ({
     const draftDur = clampDuration(prop.durationSec, node.videoTier);
     const draftRatio = aspectOf(node.aspect).ratio;
     try {
+      // ★★ 出片地区（2026-10-26 设计审核，钱）：花第一笔钱之前现问一次地区（data/videoZone.refreshVideoZone），再按问到的那份重判这一档。
+      //   服务端的地区门禁只拦视频那一发，出片前补画的设定帧在它之前各自结算 —— 会话中途开关过 VPN 的人，上一次问到的还是旧地区，
+      //   不现问的话就是先付图钱、视频那一发再被 403。问不到就沿用上一次的结论放行（服务端照样拦，视频那一发不扣钱）。
+      // ★ 排在「打上 generating」**之后**、第一笔钱之前：工坊（studioStore.genNodeVideo）与画布的 agent 都认「门禁与打上 generating 都在 genNode
+      //   第一个 await 之前」这一条（受理即收窗、700 毫秒后探状态报回执），把 await 插到前面会让它们把真开炼的一发当成没点着。
+      //   代价是这里拒的那一发窗已经收了：节点退回点之前的样子、原因写进 err（宿主都画它，工坊那边按返回值摆 notice）。很少见 —— 只在这一场会话里地区刚变过时
+      await refreshVideoZone();
+      const region = tierRegionIssue(tierOf(genTier));
+      if (region) {
+        // 原样退回（这一炉一分钱没花、凭据也没落）：状态、原来那句错误、步骤日志回到点之前
+        patchNode({ status: node.status, progress: node.progress, error: node.error, steps: node.steps });
+        set(get().genRun === myRun ? { busy: false, err: region } : {});
+        return false;
+      }
       // 承接判定走**唯一实现** nodeCarry（报价那边读的就是它）。
       // ★★ 2026-09-03 收口：这里原来手抄了一份逐字相同的判断。判据相同的时候它只是冗余，
       //   但从这一版起**报价依赖它**了（annsCost 按"真会重画的圈选"数，而那取决于有没有

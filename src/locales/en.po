@@ -1328,6 +1328,11 @@ msgstr "Not marked “Volcengine verified”: {lack}. The “{label}” tier onl
 #~ msgid "{lack}没有勾选「火山引擎适用」——「{label}」档只收做过火山引擎认证的真人卡。去卡片详情页勾选「火山引擎适用」，或换「{realTier}」档（在「工作流」或「简约模式」里直出）"
 #~ msgstr "Not marked “Volcengine verified”: {lack}. The “{label}” tier only takes real-person cards verified through Volcengine — tick “Volcengine verified” on the card’s detail page, or switch to the “{realTier}” tier (generate directly in Workflow or Simple mode)."
 
+#. line 是一整句（自带句号）：所在地区用不了这一档的出片模型、这个地区能用哪几档；后面另起一整句
+#: src/ai/arkClient.ts
+msgid "{line}这一发没有受理，也没有扣费。"
+msgstr "{line} This request wasn't accepted and nothing was charged."
+
 #. 铸卡师念的话。list 是前三张的名字（已用分隔符连好），count 是丢的总张数（大于 3），reason 是失败原因整句
 #: src/studio/studioStore.ts
 msgid "{list} 等 {count} 张没能存到服务器（{reason}）——这几张只留在这台设备上，换设备或者重新登录就没了。想留住的话，回卡片详情页把它重新挂一次。"
@@ -1502,6 +1507,38 @@ msgstr "{noRefNames}: {line10}"
 #: src/components/flow/DialogueWizard.tsx
 msgid "{noVoice} 没有声音样本：每一段的嗓音由模型定，前后可能不一样。"
 msgstr "{noVoice} has no voice sample: the model picks the voice for each segment, so it may change from segment to segment."
+
+#: src/data/account.ts
+msgid "{place}出片只提供 {via} 的模型"
+msgstr "{place} only offers {via} models for video"
+
+#: src/data/account.ts
+msgid "{place}出片只提供 {via}，「{label}」档用不了——换成「{names}」档"
+msgstr "{place} only offers {via} for video, so the “{label}” tier isn't available — switch to “{names}”"
+
+#: src/data/account.ts
+msgid "{place}出片只提供 {via}，「{label}」档用不了——能换的「{member}」是会员档（开通会员套餐或充值过任意一笔后可用）"
+msgstr "{place} only offers {via} for video, so the “{label}” tier isn't available — the one you could switch to, “{member}”, is member-only (subscribe to a plan or make any top-up once to use it)"
+
+#: src/data/account.ts
+msgid "{place}用不了这一档的出片模型，这里出片只提供 {via}（「{member}」档，会员档：开通会员套餐或充值过任意一笔后可用）。"
+msgstr "{place} can't use this tier's video model; video here is only offered by {via} (“{member}”, member-only: subscribe to a plan or make any top-up once to use it)."
+
+#: src/data/account.ts
+msgid "{place}用不了这一档的出片模型，这里出片只提供 {via}（「{names}」档）。"
+msgstr "{place} can't use this tier's video model; video here is only offered by {via} (“{names}”)."
+
+#: src/data/account.ts
+msgid "{place}目前没有可用的出片模型"
+msgstr "{place} has no video models available right now"
+
+#: src/data/account.ts
+msgid "{place}目前没有可用的出片模型，「{label}」档用不了"
+msgstr "{place} has no video models available right now, so the “{label}” tier isn't available"
+
+#: src/data/account.ts
+msgid "{place}目前没有可用的出片模型。"
+msgstr "{place} has no video models available right now."
 
 #. 后台任务胶囊的心跳行：prefix 是那一步本来的话（「拆分镜中」「正在发布…」），后面接已经等了几秒
 #: src/data/jobs.ts
@@ -6396,6 +6433,24 @@ msgstr "You've already reported this; an admin is still reviewing it"
 #: src/components/recipe/RemixRewardNote.tsx
 msgid "你已经拿到过 {count} 次，共 {earned} token。"
 msgstr "{count, plural, one {You've received it # time} other {You've received it # times}}, {earned} tokens in total."
+
+#. 当句首主语用的名词短语（英文首字母大写：Your region）；后面直接接谓语
+#: src/data/account.ts
+msgid "你所在的地区"
+msgstr "Your region"
+
+#. 当句首主语用的名词短语（英文首字母大写：Your region (United States)）；name 是国家或地区名
+#: src/data/account.ts
+msgid "你所在的地区（{name}）"
+msgstr "Your region ({name})"
+
+#: src/api/branch.ts
+msgid "你所在的地区用不了白模化要用的出片模型——看帧那一笔已经花了、不退；出片那一发没有受理。"
+msgstr "The video model blockout needs isn't available in your region — the frame-analysis step was already charged and isn't refunded; the video request itself wasn't accepted."
+
+#: src/api/branch.ts
+msgid "你所在的地区用不了白模化要用的出片模型——这一次没有受理，也没有扣费。"
+msgstr "The video model blockout needs isn't available in your region — this request wasn't accepted and nothing was charged."
 
 #: src/components/UpdateSheet.tsx
 msgid "你手上这一版已经停止支持了，更新之后才能接着用。"
@@ -13527,6 +13582,10 @@ msgstr "Capture failed: {0}"
 msgid "截帧中…"
 msgstr "Capturing…"
 
+#: src/ai/arkClient.ts
+msgid "所在地区不提供这一档的出片模型"
+msgstr "this tier's video model isn't offered in your region"
+
 #: src/pages/CardDetailPage.tsx
 msgid "所属卡组"
 msgstr "In decks"
@@ -20357,6 +20416,10 @@ msgstr "Blockout templates always render on “{needLabel}” ({needModel}): onc
 msgid "白模模板已生成"
 msgstr "Blockout template created"
 
+#: src/components/VideoTemplateExtractor.tsx
+msgid "白模模板的两条路都只走「{blockoutLabel}」档，而你所在的地区用不了它，这里做不了白模模板。想把一条片的做法分享给别人，发布作品时公开「制作过程」就行。"
+msgstr "Both blockout-template routes run only on the “{blockoutLabel}” tier, which isn't available in your region, so blockout templates can't be made here. To share how a video was made, publish the work with its “Making-of” public."
+
 #: src/components/guide/tours.tsx
 msgid "白模模板要先<0>逐个核对角色位</0>，再用它真出一段片，才让发布。 角色位是做模板时 AI 认的；认得不对，核对之前可以在这里让它重新识别（按次收费，价写在键上），核对过就不能再认了。"
 msgstr "Before a blockout template can be published, <0>check its roles one by one</0>, then actually render a segment with it. The roles were detected by the AI when the template was made; if they're wrong, you can have it detect them again here before checking (charged per run, price on the button) — once checked, they can't be re-detected."
@@ -21544,6 +21607,10 @@ msgid "第 {n} 段原来是「{label}」档（会员档），改用你能用的�
 msgstr "Segment {n} was on “{label}” (a member tier); switched to “{b}”, which you can use — subscribe to a plan (or make any top-up once) to switch back"
 
 #: src/studio/flowStore.ts
+msgid "第 {n} 段原来是「{label}」档（你所在的地区用不了），改用「{b}」档"
+msgstr "Segment {n} was on “{label}” (not available in your region); switched to “{b}”"
+
+#: src/studio/flowStore.ts
 msgid "第 {n} 段原来是「{label}」档（模型已停用），改用「{b}」档"
 msgstr "Segment {n} was on “{label}” (model retired); switched to “{b}”"
 
@@ -21863,6 +21930,10 @@ msgstr "Moving segment {segNo} to permanent storage…"
 #: src/pages/CutPage.tsx
 msgid "第 {segNo} 段成片转存中（换成永久地址）· 已等 {secs} 秒…"
 msgstr "Moving segment {segNo} to permanent storage · waited {secs}s…"
+
+#: src/pages/CutPage.tsx
+msgid "第 {segNo} 段是「{label}」档，你所在的地区用不了这一档，这里重拍不了——回「我的 → 草稿」打开草稿，把这一段换一档重新出片（会重新计费）"
+msgstr "Segment {segNo} is on the “{label}” tier, which isn't available in your region, so it can't be reshot here — open the draft under “Me → Drafts”, switch this segment to another tier and regenerate it (charged again)"
 
 #: src/pages/CutPage.tsx
 msgid "第 {segNo} 段是「{label}」档，模型已于 {day}停用，这里重拍不了——回「我的 → 草稿」打开草稿，把这一段换一档重新出片（会重新计费）"

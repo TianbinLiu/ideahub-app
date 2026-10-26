@@ -5,7 +5,8 @@ import { AI_REAL, MaterialFile, chargeNote, chargeOnFail, deriveCharacterModels,
 import { frameMoment, momentCards } from "../data/shotScript";
 import { DECK_CAM, MARKET, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
-import { acquireCard, addCards as saveCardsToAccount, canAfford, frozenNote, myCards, myDecks, plazaCards, realFaceIssue, spendTokens, tierBlockReason, usableTierId, walletOf, type AddCardsResult } from "../data/account";
+import { acquireCard, addCards as saveCardsToAccount, canAfford, frozenNote, myCards, myDecks, plazaCards, realFaceIssue, spendTokens, tierBlockReason, tierRegionIssue, usableTierId, walletOf, type AddCardsResult } from "../data/account";
+import { refreshVideoZone } from "../data/videoZone";
 import { CHAT_TURN_TOKENS, DECK_MAX_3D, deriveIssue, DECK_MAX_CARDS, fallbackTierId, MODEL3D_TOKENS, deckCardsCost, deckModel3dCost, fmtTokens, proposalsCost, styleWants3d, tierOf, videoAudioOn } from "../data/economy";
 // 单向依赖：工坊把活动路径喂给工作流。flowStore 不认识 studioStore（见其文件头）
 import { drawExtraRefs, plainMentions } from "../data/refMentions";
@@ -2128,6 +2129,15 @@ export const useStudio = create<StudioState>()((set, get) => ({
     /** 帧一张都没画成、因为出图模型用不了了（real.generateProposals 的 onFramesGone）：剧情照收，原因说在下面 */
     let framesGone = "";
     try {
+      // ★★ 出片地区：花推演费之前现问一次地区再判这一档（与 flowStore.deriveProposals / genNode 同一个理由：地区门禁只拦视频，
+      //   会话中途开关过 VPN 的人会先付推演费、出片那一发才被 403）。排在 generating 之后：await 期间铸段窗那颗键已经灰着，点不出第二炉。
+      //   拒了走 finally 复位表单；话走 notice（铸段窗开着时 NpcDialog 不画，见 notice 的 ★）
+      await refreshVideoZone();
+      const region = tierRegionIssue(tierOf(editor.videoTier));
+      if (region) {
+        set({ notice: { text: region, at: Date.now() } });
+        return;
+      }
       if (AI_REAL) spendTokens(propCost); // 推演真跑起来才扣
       const proposals = await generateProposals(
         {
