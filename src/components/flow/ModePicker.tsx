@@ -15,7 +15,7 @@ import { memberTiersLine, tierBlockReason, tierNamesFor, tierOffered } from "../
 import { CHAT_TURN_TOKENS, CHECKED_PANEL_TOKENS, clampDuration, fmtTokens, IMAGE_TOKENS, segTokens, tierModelId, tierModelLabel, tierOf, VIDEO_TIERS } from "../../data/economy";
 import { useAccountVersion } from "../../hooks/useAccount";
 import UpgradeLink from "../UpgradeLink";
-import { GUIDED_GROUPS, GUIDED_MODES, modeBlock, type GuidedGroup, type GuidedModeId, type ModeTier } from "../../data/guidedModes";
+import { GUIDED_GROUPS, GUIDED_MODES, clearsBlock, modeBlock, modeTierOfSpec, type GuidedGroup, type GuidedModeId, type ModeTier } from "../../data/guidedModes";
 import { GRID_DEFAULT_SEC } from "../../data/gridShots";
 import { LEAD_DEFAULT_SEC } from "../../data/sceneShots";
 
@@ -64,10 +64,9 @@ const MODE_TEXT: Record<GuidedModeId, { icon: IconName; title: MessageDescriptor
   template: { icon: "file", title: msg`套模板`, tag: msg`换人不换景`, desc: msg`挑一条模板片，把画面里的人换成你的角色，场景与运镜照它走（模板按这个模型筛）` },
 };
 
-/** economy.VideoTier → 判定要的那几位能力（判据只在 guidedModes.modeBlock） */
+/** economy.VideoTier → 判定要的那几位能力（判据只在 guidedModes.modeBlock；取哪几位在 guidedModes.modeTierOfSpec，构建检查拿真表核） */
 export function modeTierOf(tierId: string): ModeTier {
-  const tier = tierOf(tierId);
-  return { refImg: tier.refImg, startOnly: tier.startOnly, audio: tier.audio };
+  return modeTierOfSpec(tierOf(tierId));
 }
 
 export default function ModePicker({
@@ -106,10 +105,13 @@ export default function ModePicker({
   /** 摆哪几档：停用的、服务端不支持的不摆（account.tierOffered）；正选着的那一档例外（藏起来就不知道自己在哪一档） */
   const shown = VIDEO_TIERS.filter((x) => tierOffered(x) || x.id === tier.id);
   const hidden = GUIDED_MODES.filter((m) => modeBlock(m.id, caps) !== null);
-  /** 「换到哪一档就有」：按这个人用得了的说（account.tierNamesFor）；一档都用不了时说那几档是会员档 */
-  const refNames = tierNamesFor((x) => x.refImg);
-  // 「要能出声的模型」指去带得了声音样本的那几档（VideoTier.refAudio）：对话正反打按卡上的声音说台词
-  const audioNames = tierNamesFor((x) => x.refAudio);
+  /**
+   * 「换到哪一档就有」：按这个人用得了的说（account.tierNamesFor）；一档都用不了时说那几档是会员档。
+   * ★ 哪些档算数只问 guidedModes.clearsBlock —— 与挡它的 modeBlock 同一位（2026-10-26 审核：「要能出声的模型」原来按 refAudio 数，
+   *   挡对话正反打的却是 audio；出声却不收声音样本的档一来，能用的那一档提示里永远不提）。
+   */
+  const refNames = tierNamesFor((x) => clearsBlock("refImg", modeTierOfSpec(x)));
+  const audioNames = tierNamesFor((x) => clearsBlock("audio", modeTierOfSpec(x)));
   return (
     <div className="space-y-3">
       <div>

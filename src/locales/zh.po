@@ -10153,6 +10153,16 @@ msgstr "台词（不用加引号）"
 
 #. placeholder {0}: next.label
 #: src/components/flow/TierRow.tsx
+msgid "台词不会再被配音（「{0}」档出片无声）"
+msgstr "台词不会再被配音（「{0}」档出片无声）"
+
+#. placeholder {0}: next.label
+#: src/components/flow/TierRow.tsx
+msgid "台词不会再被配音（「{0}」档暂无配音）"
+msgstr "台词不会再被配音（「{0}」档暂无配音）"
+
+#. placeholder {0}: next.label
+#: src/components/flow/TierRow.tsx
 msgid "台词不再带音色样本（「{0}」档不收声音样本，台词照样配音、音色由模型定）"
 msgstr "台词不再带音色样本（「{0}」档不收声音样本，台词照样配音、音色由模型定）"
 
@@ -19488,6 +19498,10 @@ msgstr "生成失败了，稍后再试。"
 #: src/studio/genLog.ts
 msgid "生成契约"
 msgstr "生成契约"
+
+#: src/ai/real.ts
+msgid "生成契约不一致：「{tierLabel}」档不收声音样本（参考音频）"
+msgstr "生成契约不一致：「{tierLabel}」档不收声音样本（参考音频）"
 
 #: src/ai/real.ts
 msgid "生成契约不一致：参考图 / 参考视频与首尾帧不能混发（方舟三种场景互斥）"

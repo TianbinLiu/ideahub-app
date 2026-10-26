@@ -15,7 +15,7 @@
 import { AI_REAL, ARK_REF_IMAGES_MAX, ArkTaskUnknown, SegmentGenFailed, VIDEO_PROMPT_MAX, composeSegments, generateFrame, notesInParens, planCardRefs, prepareMaterialRefs, refCardIds, refineFrame, type KeptFrames } from "../ai";
 import { compileMentions, drawExtraRefs, extraRefLines, mentionTargets, plainMentions, usableExtraRefs, type ExtraRef } from "../data/refMentions";
 import { uploadImage } from "../api/uploads";
-import { IMAGE_TOKENS, blockoutPriceIssue, blockoutTier, fmtTokens, r2vPriceIssue, tierOf, clampDuration, videoTokensOfSpec, promptMaxOf, refAudioSecOf, materialRefSecs, minUsageNote, type VideoTier } from "../data/economy";
+import { IMAGE_TOKENS, apiCase, blockoutPriceIssue, blockoutTier, fmtTokens, r2vPriceIssue, tierOf, clampDuration, videoTokensOfSpec, promptMaxOf, refAudioSecOf, materialRefSecs, minUsageNote, type VideoTier } from "../data/economy";
 // 设定帧那一步最多喂几张参考图（经典路的预算）：那句提示里的数字从它取，不写死（2026-10-10 文案复核抓到写死的「3 张」）
 import { MAX_REF_IMAGES } from "../ai/real";
 import { frameMoment, isMultiShot, lineSpeakers, momentCards, packShots } from "../data/shotScript";
@@ -159,7 +159,8 @@ export interface SegmentGenInput {
  *  ⑤ 没有圈选标注 —— 圈选改的就是设定帧，没有帧可改。
  */
 /**
- * 这一段的台词能不能带上人物卡的**声音样本**（音色参考）—— 唯一实现。
+ * 这一段的台词能不能带上人物卡的**声音样本**（音色参考）。
+ * 本函数判 ① 与合计时长；② ③ 由 voiceRefsFor（出片）与 refPlanOf（参考清单）按同一组条件判，出片前 real.validateGenSpec 再核一次 ③。
  *
  * 三个条件（少一个都不发）：
  *  ① 剧情里真有台词（「」/ "" 引号内文字 —— 与 Seedance 的配音语义同一判据：
@@ -167,7 +168,9 @@ export interface SegmentGenInput {
  *  ② 走的是参考生视频模式（refVideoOn 为真）：方舟实测首尾帧任务混参考媒体直接 400，
  *     所以**工作流的首尾帧承接段带不了音色参考** —— 那不是漏做，是协议互斥。
  *     （hd/ultra 的首帧段台词照样被配音，只是音色随机 —— 那种情况由出片处如实说。）
- *  ③ 档位真出声（VideoTier.audio；1.x 收下 generate_audio 静默忽略，样本发了也是哑的）。
+ *  ③ 档位带得了声音样本（VideoTier.refAudio；今天 = audio && refImg：1.x 收下 generate_audio 静默忽略，样本发了也是哑的。
+ *     海外 MiniMax H3 出声却没有 refAudio —— 所以**别回去读 audio**，那正是 2026-10-26 拆掉的代用判据；
+ *     scripts/check-tier-semantics.mjs 不许拼 audio && refImg，单读 audio 它抓不到，只能靠这一句）。
  * 计费：阶段 0 直连实测**零加价**（usage 逐位相同），所以报价侧一项都不用加。
  */
 export function voicedCardsOf(o: { plot: string; materials?: Card[]; capSec?: number | null }): Card[] {
@@ -711,8 +714,8 @@ export function refPlanOf(
     // 素材参考这条路不补画（帧来自示例视频或你自己给的）
     return { sends: true, why: null, items, textOnly: textOnlyOf(new Set()), extrasDropped: false, refVideo: true, ...voiceBits(true), refMode: false, draws: { first: false, last: false } };
   }
-  // ★ 判据与 generateSegment 的真人档那一支同一个（请求形状 VideoTier.api）：清单预览的就是那一发会怎么拼
-  if (tier.api === "minimax-v1")
+  // ★ 判据与 generateSegment 的真人档那一支同一个（请求形状 VideoTier.api，apiCase：加一种 api 时 tsc 逼着在这里表态）：清单预览的就是那一发会怎么拼
+  if (apiCase(tier.api, { ark: false, "minimax-v1": true }))
     // 真人档一张设定帧都不画：首帧就是真人卡的照片
     return { sends: false, why: "real", items: [], textOnly: textOnlyOf(new Set()), extrasDropped: extras.length > 0, refVideo: false, ...voiceBits(false), refMode: false, draws: { first: false, last: false } };
   /** 首帧的缩略图（没有 = 还没画） */
@@ -1147,7 +1150,8 @@ export async function generateSegment(
     return { url: res?.url, firstFrame: "", lastFrame: res?.lastFrame || "", poster: res?.poster, realDurationSec: res?.durationSec };
   }
   // 样片第一步只走普通出片那条路（理由见 draftMode 的 ★）。界面那几道闸（nodeDraftEligible）已经按同一个口径拦过，这里是最后一道
-  if (dm === "draft" && (input.refVideoUrl || input.extendRef || input.materialRef || tierOf(input.videoTier).api === "minimax-v1")) {
+  // 「这套请求有没有样片」与 flowStore.nodeDraftEligible 同一个答案（样片只在方舟协议里）；apiCase 让新协议在这里也得表态
+  if (dm === "draft" && (input.refVideoUrl || input.extendRef || input.materialRef || apiCase(tierOf(input.videoTier).api, { ark: false, "minimax-v1": true }))) {
     throw new Error(t`这一段的做法走不了样片（样片不收参考视频，也不走真人档）——关掉「先出样片」再生成`);
   }
   let first = input.firstFrame;
@@ -1406,8 +1410,9 @@ export async function generateSegment(
   // 这条路**一张 Seedream 设定帧都不画**（报价侧 segmentCost 的 draws 同口径 = 0，那边读 startOnly —— 与 api 一一对应，构建检查钉着）：
   // 首帧就是真人卡的照片（或用户设定帧/承接帧），提示词驱动它动起来 —— 三发探针
   // 验证过的 i2v 形态。出片调用的分流在 composeSegments（尾帧捕获/承接共用那条产线）。
-  // ★ 按请求形状（VideoTier.api）分流，不按供应商：海外 MiniMax H3（P2b，V2 接口）也是 MiniMax，却收参考图、走另一套请求
-  if (tierOf(input.videoTier).api === "minimax-v1") {
+  // ★ 按请求形状（VideoTier.api）分流，不按供应商：海外 MiniMax H3（P2b，V2 接口）也是 MiniMax，却收参考图、走另一套请求。
+  //   apiCase 不写等号：加 minimax-v2 时这里在 tsc 就红（等号比较会让它悄悄落进下面方舟那条路，按方舟补画设定帧、拼请求）
+  if (apiCase(tierOf(input.videoTier).api, { ark: false, "minimax-v1": true })) {
     if (blockout) {
       // 跑得了白模模板的那一档只问 economy.blockoutTier（唯一实现），别写死「电影级」
       const bt = blockoutTier()?.label ?? "";

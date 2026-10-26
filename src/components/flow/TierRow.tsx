@@ -48,17 +48,25 @@ export function tierSwitchLoss(nodeId: string, nextId: string): MessageDescripto
   if (cur.flf && !next.flf && prop.lastFrame) {
     loss.push(msg`这一段的结束画面不再锁得住（「${next.label}」档只认起拍帧）`);
   }
-  // 音色样本。★ 与相邻两条同口径：只在**这一段真的有台词**时才提（引号里的台词才会被配音）
-  // ★ 判据是「带不带得了声音样本」（VideoTier.refAudio，2026-10-26），原因分两种说：不出声的档（startOnly 的真人档另说「暂无配音」）、
-  //   出声却不收声音样本的档（今天没有；海外 MiniMax H3 是）—— 后者原来会被「出片无声」这句说错
-  if (cur.refAudio && !next.refAudio && /[「"']/.test(prop.plot)) {
+  // 台词。★ 与相邻两条同口径：只在**这一段真的有台词**时才提（引号里的台词才会被配音）
+  // ★ 两件事分开判（2026-10-26 审核）：「台词还说不说得出来」看 audio，「还带不带得了声音样本」看 refAudio。
+  //   只看 refAudio 的话，从出声却不收声音样本的档（海外 MiniMax H3）换到无声档一句都不说 —— 台词整句没了，却是静默降级（铁律八）。
+  //   今天出声的档都收声音样本（refAudio ⇔ audio），两支的结果与只判一处时逐档相同。
+  const quote = /[「"']/.test(prop.plot);
+  if (quote && cur.audio && !next.audio) {
+    // 换过去出片不出声（真人档按无声报、话说成「暂无配音」）；原来带没带声音样本决定开头那半句
     loss.push(
-      next.audio
-        ? msg`台词不再带音色样本（「${next.label}」档不收声音样本，台词照样配音、音色由模型定）`
-        : next.startOnly
+      cur.refAudio
+        ? next.startOnly
           ? msg`台词不再带音色样本（「${next.label}」档暂无配音）`
-          : msg`台词不再带音色样本（「${next.label}」档出片无声）`,
+          : msg`台词不再带音色样本（「${next.label}」档出片无声）`
+        : next.startOnly
+          ? msg`台词不会再被配音（「${next.label}」档暂无配音）`
+          : msg`台词不会再被配音（「${next.label}」档出片无声）`,
     );
+  } else if (quote && cur.refAudio && !next.refAudio) {
+    // 走到这里 next 一定出声（上一支接住了不出声的）：台词照样配音，只是不再按卡上的声音
+    loss.push(msg`台词不再带音色样本（「${next.label}」档不收声音样本，台词照样配音、音色由模型定）`);
   }
   // ★ **升档也有变化**（2026-08-30 补）：收参考图的档上，帧改当参考图发 + 提示词点名
   //   （segmentGen 的 framesAsRefs）—— 卡片形象能同发了，但"必须从这一帧起拍"从协议级

@@ -27,6 +27,7 @@ import { isArkAssetUrl, transferArkVideo } from "../ai/arkClient";
 import { canAfford, defaultTierId, draftModeIssue, draftModeOffered, frozenNote, myCards, realFaceIssue, spendTokens, tierBlockReason, tierGo, tierOffered, usableTierId, walletOf } from "../data/account";
 import { showToast } from "../data/toast";
 import {
+  apiCase,
   r2vTokens,
   ONE_IMAGE,
   providerOf,
@@ -390,7 +391,8 @@ export function nodeDraftEligible(node: FlowNode): boolean {
   if (tplOfNode(node)?.refVideo) return false;
   if (node.extendFrom) return false;
   if (node.custom && node.customRef) return false;
-  return tierOf(node.videoTier).api === "ark";
+  // apiCase 不写等号：加一种 api 时 tsc 逼着在这里表态（样片是方舟协议里的一种请求，别家协议有没有要逐个说）
+  return apiCase(tierOf(node.videoTier).api, { ark: true, "minimax-v1": false });
 }
 
 /**

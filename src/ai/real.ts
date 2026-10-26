@@ -40,6 +40,7 @@ import {
   DEFAULT_IMAGE_TIER,
   IMAGE_TOKENS,
   TEMPLATE_MAX_CARDS,
+  apiCase,
   clampDuration,
   promptMaxOf,
   imageTierOf,
@@ -3268,8 +3269,10 @@ export function genModeOf(sg: Omit<GenSpec, "mode">): GenMode {
  */
 export function slotModeOf(sg: Omit<GenSpec, "mode">): GenMode {
   // ★ 按请求形状（VideoTier.api）认，不按供应商（2026-10-26）：mode "minimax" 就是 V1 那一发（海螺：只收一张首帧）；
-  //   海外 MiniMax H3（出片地区 P2b，V2 接口）也是 MiniMax，收参考图、是另一种请求，到时另加一种 mode
-  if (tierOf(sg.videoTier).api === "minimax-v1") return "minimax";
+  //   海外 MiniMax H3（出片地区 P2b，V2 接口）也是 MiniMax，收参考图、是另一种请求，到时另加一种 mode。
+  //   走 apiCase 不写等号：加 minimax-v2 时这里在 tsc 就红，逼着写它的 mode（等号比较会让它悄悄落进下面方舟那几种）
+  const byApi = apiCase<GenMode | null>(tierOf(sg.videoTier).api, { ark: null, "minimax-v1": "minimax" });
+  if (byApi) return byApi;
   if (sg.refVideoUrl) return sg.refTask === "reference" ? "reference" : sg.refTask === "extend" ? "extend" : "edit";
   if (sg.refImages?.length) return "ref-images";
   if (sg.firstFrame) return sg.lastFrame && tierOf(sg.videoTier).flf ? "flf" : "i2v";
@@ -3279,7 +3282,7 @@ export function slotModeOf(sg: Omit<GenSpec, "mode">): GenMode {
 /**
  * 花钱之前核对契约（composeSegments 每段开头调，在任何请求发出之前）：
  *   ① 声明的 mode 与槽位推出来的一致 —— 报价按 A 算、请求按 B 发，正是本仓头号事故形状；
- *   ② 档位真有这种能力（参考图 / 参考视频的硬白名单）；
+ *   ② 档位真有这种能力（参考图 / 参考视频 / 声音样本的硬白名单）；
  *   ③ 互斥：帧与参考媒体不混发（方舟 400）、参考音频只跟参考类模式（arkClient 当场 throw）、真人档只收首帧；
  *   ④ 提示词非空。
  * 违反任何一条**整句 throw**：这一步一分钱没花，此时停下最便宜。
@@ -3324,6 +3327,9 @@ export function validateGenSpec(sg: GenSpec): void {
   if (shape === "edit" && sg.refTask !== "revise" && !tier.blockoutOk) throw new Error(t`「${tierLabel}」档跑不了白模模板（模板对出片模型是硬要求）`);
   if (shape === "reference" && !sg.refImages?.length) throw new Error(t`生成契约不完整：素材参考模式至少要一张参考图`);
   if (sg.refAudios?.length && !refMedia) throw new Error(t`生成契约不一致：参考音频只能随参考图 / 参考视频发（首尾帧任务混参考媒体是 400）`);
+  // 声音样本这一位与参考图 / 参考视频一样在花钱之前核一次（VideoTier.refAudio，2026-10-26 审核补）：出声、收参考图却不收参考音频的档（海外 MiniMax H3）
+  // 不该带着声音样本发出去。今天能走到参考类请求的档（草稿 / 高清 / 电影级）都收声音样本，这一条一次都触发不到 —— 它管的是将来哪一处又拿 audio 代替 refAudio
+  if (sg.refAudios?.length && !tier.refAudio) throw new Error(t`生成契约不一致：「${tierLabel}」档不收声音样本（参考音频）`);
   if (shape === "minimax" && (sg.refImages?.length || sg.refVideoUrl || sg.refAudios?.length))
     throw new Error(t`生成契约不一致：真人档只收首帧，不收参考图 / 参考视频 / 参考音频`);
   if (shape === "minimax" && !sg.firstFrame) throw new Error(t`生成契约不完整：真人档需要一张起拍画面`);

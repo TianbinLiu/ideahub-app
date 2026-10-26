@@ -8,6 +8,8 @@
 // ★ 还没做出来的模式**不进清单**：摆一个点不动的选项，用户只会觉得功能坏了（CLAUDE.md 已知的坑那一格）。
 //   做出来的那一期再加一行，判定写在 modeBlock 里（C 九宫格分镜在第三期 2026-10-05 加上）。
 
+import type { VideoTierSpec } from "./videoTierTable";
+
 /** 模式 id（与设计稿的字母对照：direct = A、lead = B、grid = C、custom = F、cards = D、template = E、effect = G、dialogue = I） */
 export type GuidedModeId = "direct" | "lead" | "grid" | "dialogue" | "custom" | "cards" | "template" | "effect";
 
@@ -41,7 +43,7 @@ export const GUIDED_MODES: readonly GuidedModeDef[] = [
 
 export const GUIDED_GROUPS: readonly GuidedGroup[] = ["basic", "pro", "replica"];
 
-/** 判定要用到的档位能力（只拿这几位，免得这个文件依赖档位表） */
+/** 判定要用到的档位能力（只拿这几位；档位表只 import type，这个文件照样零运行时依赖） */
 export interface ModeTier {
   /** 收参考图（economy.VideoTier.refImg） */
   refImg: boolean;
@@ -89,4 +91,25 @@ export function modeBlock(id: GuidedModeId, tier: ModeTier): "refImg" | "startOn
 /** 这一档上能用的模式（按清单顺序） */
 export function modesOn(tier: ModeTier): GuidedModeDef[] {
   return GUIDED_MODES.filter((m) => modeBlock(m.id, tier) === null);
+}
+
+/**
+ * 档位表的一行 → 判定要的那几位（选法屏 ModePicker.modeTierOf 照它取）。
+ * ★ 放在这里（2026-10-26 审核）：原来这一步只在 ModePicker 里，构建检查喂给 modeBlock 的是手抄的一张能力表 ——
+ *   档位表加一行（P2b 的 MiniMax H3）或改了某一行的 startOnly / refImg，选法屏摆哪几个模式一条都没人核。
+ *   挪到零依赖模块里，scripts/check-guided-modes.mjs 就能拿真表的每一行过一遍。
+ */
+export function modeTierOfSpec(tier: Pick<VideoTierSpec, "refImg" | "startOnly" | "audio">): ModeTier {
+  return { refImg: tier.refImg, startOnly: tier.startOnly, audio: tier.audio };
+}
+
+/**
+ * 换到什么样的档，modeBlock 说的这个原因就不再挡 —— 选法屏「换到「…」就有」那句按它数档名（ModePicker）。
+ * ★ 与 modeBlock 同一位（2026-10-26 审核）：原来那句按「带得了声音样本」（refAudio）数，而 modeBlock 挡对话正反打认的是「出声」（audio）——
+ *   今天两位落在同一批档上，出声却不收声音样本的档（MiniMax H3）一来，对话正反打在它上面能用、提示却永远不提它。
+ *   构建检查核对（三位能力的八种组合）：clearsBlock(why, 档) ⇔ 这一档上没有任何模式因为 why 被挡 —— 宽了指去点不动的档，窄了漏掉能用的档。
+ * startOnly 那个原因没有「换到哪一档」的说法（选法屏另有一句），所以不在这里。
+ */
+export function clearsBlock(why: "refImg" | "audio", tier: ModeTier): boolean {
+  return why === "refImg" ? tier.refImg : tier.audio;
 }

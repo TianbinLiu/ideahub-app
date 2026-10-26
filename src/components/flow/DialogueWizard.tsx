@@ -645,8 +645,10 @@ export default function DialogueWizard({
           </div>
           {!tier.audio &&
             (() => {
-              // 带得了声音样本的档（VideoTier.refAudio）按能力现算、先说这个人用得了的（account.tierGo；原来写死「高清或电影级」，免费用户能用的「草稿」没提）
-              const go = tierGo((x) => x.refAudio);
+              // 出声的档按能力现算、先说这个人用得了的（account.tierGo；原来写死「高清或电影级」，免费用户能用的「草稿」没提）。
+              // ★ 与这一句的闸（上面的 !tier.audio、下面那颗键的 disabled）同一位 audio（2026-10-26 审核）：按 refAudio 数的话，
+              //   出声却不收声音样本的档（MiniMax H3）在这里能落段，提示却不提它；声音样本带不带得上由 voiceRefsFor 另说
+              const go = tierGo((x) => x.audio);
               const names = go.names;
               return (
                 <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200">

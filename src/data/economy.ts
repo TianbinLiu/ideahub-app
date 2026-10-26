@@ -53,6 +53,8 @@ import {
 
 /** 样片任务号还能定稿多久（7 天差 1 小时，与服务端同一个数）—— 唯一出处在 videoTierTable，这里只是转出（界面与 store 从 economy 引） */
 export { DRAFT_VALID_MS } from "./videoTierTable";
+/** 按请求形状（VideoTier.api）分流的唯一写法 —— 实现与理由在 videoTierTable.apiCase，这里只是转出 */
+export { apiCase } from "./videoTierTable";
 
 /** 观看付费的平台抽成比例（其余进创作者 add-on 余额） */
 export const PLATFORM_CUT = 0.3;

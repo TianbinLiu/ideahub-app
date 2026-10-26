@@ -195,10 +195,24 @@ export type TierFamily = "fast" | "draft" | "std" | "hd" | "ultra" | "real";
 
 /**
  * 出片请求按哪套协议拼。ark = 方舟 contents/generations/tasks（ai/arkClient）；minimax-v1 = 服务端 /api/minimax 代理的
- * V1 视频接口（海螺 2.3 Fast：只收一张首帧，ai/minimaxVideo）。出片地区 P2b 接 MiniMax H3 时再加 minimax-v2 ——
- * 加的时候 TypeScript 会把每个按它分流的地方都指出来，别图省事先把名字放进来。
+ * V1 视频接口（海螺 2.3 Fast：只收一张首帧，ai/minimaxVideo）。出片地区 P2b 接 MiniMax H3 时再加 minimax-v2，别图省事先把名字放进来。
+ * ★ 按它分流**只走 apiCase**（下面）：加 minimax-v2 时每个分流点都在 tsc 红（Record 缺键），逼着逐处决定它走哪一支。
+ *   ⚠ 等号比较（`tier.api === "minimax-v1"`）做不到这一点 —— 联合类型变大时等号一个错都不报，新的一行会悄悄落进方舟那一支
+ *   （补画设定帧、按方舟拼请求）。原来这里写「TypeScript 会指出来」，而当时的五处全是等号（2026-10-26 审核指出）；
+ *   scripts/check-tier-semantics.mjs ④ 钉着不许再写等号 / switch。
  */
 export type TierApi = "ark" | "minimax-v1";
+
+/**
+ * 按请求形状（VideoTier.api）分流的**唯一写法**：每一种 api 都要给一个值。
+ * `cases` 的类型是「TierApi 的每一个成员都是必填键」—— TierApi 加一个成员，所有调用点同时编译不过，
+ * 每一处都得写清新协议在这里走哪一支（不会像等号比较那样悄悄落进 ark 那一支）。
+ * 调用点：real.slotModeOf、segmentGen 的参考清单预览 / 样片闸 / 真人档那一支、flowStore.nodeDraftEligible。
+ * （2026-10-26 试过：TierApi 临时加上 "minimax-v2"，tsc 在这五处各报一次 TS2345，一处不漏。）
+ */
+export function apiCase<T>(api: TierApi, cases: { readonly [K in TierApi]: T }): T {
+  return cases[api];
+}
 
 /** Seedance 档位的能力与价目（不含界面文案）：id 持久化在 VideoSegment.videoTier / EditorState.videoTier */
 export interface VideoTierSpec {
@@ -223,6 +237,7 @@ export interface VideoTierSpec {
   /**
    * 出片请求按哪套协议拼（见 TierApi）。每行必写。**只给拼请求形状的那几处读**：real.slotModeOf（→ composeSegments /
    * validateGenSpec 读的 mode）、segmentGen 的真人档那一支（备帧 + 参考清单的预览）、样片能不能走（flowStore.nodeDraftEligible）。
+   * 读法一律 apiCase(tier.api, { … })，不写等号（理由见 TierApi）。
    * ★ 与 provider 分工：provider 是「哪家」、api 是「请求长什么样」—— 同一家可以有两套协议（MiniMax V1 的海螺、V2 的 H3）。
    * ★ 与供应商对得上（ark ⇔ 方舟、minimax-* ⇔ MiniMax），构建检查钉着。
    */
@@ -302,8 +317,8 @@ export interface VideoTierSpec {
   /**
    * 能不能**带卡上的声音样本**（参考音频）出片。每行必写。今天 = audio && refImg（草稿 / 高清 / 电影级：出声、又走参考类请求）。
    * ★ 单独一位（2026-10-26，出片地区 P2a）：海外 MiniMax H3（P2b）出声、收参考图，却**不收**参考音频 —— 再写 `audio && refImg`
-   *   的话那几档会带上声音样本、在花钱之前被契约核对整段拒掉（带声音样本的对话段一律出不了片）。
-   *   读它的：economy.refAudioSecOf / voiceTierNames / shotsOkOf、segmentGen 的声音样本判定（voiceRefsFor / refPlanOf）、
+   *   的话那几档会带上声音样本、在花钱之前被契约核对（real.validateGenSpec 的「不收声音样本」那一条）整段拒掉（带声音样本的对话段一律出不了片）。
+   *   读它的：economy.refAudioSecOf / voiceTierNames / shotsOkOf、segmentGen 的声音样本判定（voiceRefsFor / refPlanOf）、real.validateGenSpec（最后一道）、
    *   TierRow 的换档损失、几处「要声音样本换哪一档」。`audio && refImg` 的写法 scripts/check-tier-semantics.mjs 不许再出现。
    * ★ refAudio ⇒ audio && refImg（不出声的档带声音样本没有意义；参考音频只能随参考类请求发），构建检查钉着。
    */
