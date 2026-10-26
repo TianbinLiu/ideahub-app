@@ -77,6 +77,21 @@
         {
           "File": "bow.motion3.json"
         }
+      ],
+      "explain": [
+        {
+          "File": "explain.motion3.json"
+        }
+      ],
+      "comfort": [
+        {
+          "File": "comfort.motion3.json"
+        }
+      ],
+      "playful": [
+        {
+          "File": "playful.motion3.json"
+        }
       ]
     },
     "Physics": "mascot.physics3.json"

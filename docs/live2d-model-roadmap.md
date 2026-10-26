@@ -51,7 +51,7 @@
 | 图层 | 画师按绑定需求分 60～100 层（眉毛、上下睫毛、瞳孔、高光、衣服前后片、手指…） | 20 层（AI 拆分 + 手臂手工切三段） | 分层决定上限：眯眼只能靠整眼压扁（没有下睫毛层），没有手指分层就做不出手势 |
 | 变形 | 每层多级 Warp + 旋转，手工键 | 自动生成 + 少量手工 | 面部微表情（眉形、眼形）缺键 |
 | 物理 | physics3.json（头发/裙/胸 10+ 组摆锤） | 运行时弹簧 3 组 | 官方物理有链式摆锤（发梢比发根晚半拍），弹簧只有一级 |
-| 动作 | 10 段 motion3（含身体、手臂） | 9 段程序生成（make_motions2.py：idle/nod/shake/think/excited/wave/shy/surprised/bow，都带前臂/手腕曲线） | 官方的是动画师手 K，我们是正弦 + smoothstep 包络，节奏偏机械 |
+| 动作 | 10 段 motion3（含身体、手臂） | 12 段程序生成（make_motions2.py：idle/nod/shake/think/excited/wave/shy/surprised/bow；2026-10-25 补 explain/comfort/playful，都带前臂/手腕曲线） | 官方的是动画师手 K，我们是正弦 + smoothstep 包络，节奏偏机械 |
 
 ## 4. 开源工具评估
 
@@ -91,6 +91,18 @@
 5. ~~**动作库**~~ 已完成（程序生成，`live2d-lab/make_motions2.py`）：idle 加了前臂/手腕微晃；wave（右前臂抬起手腕摆 4 下）、
    shy（双手收胸前、头低偏、眼神躲）、surprised（头扬、双臂微张、眉飞）、think（左手到胸前、眉挑、眼看上）、excited（双臂抬、两手交替甩）、
    bow（低头前倾、双手收身前）、nod/shake 带手部跟随。ACTION_MOTIONS：wave→wave、shy→shy、surprised→surprised。
+   **2026-10-25 补三段**（原来 explain、comfort 借 nod，playful 借 excited，三种意思在身上一模一样）：
+   - explain 1.8s：ArmR +5、ForearmR -6（一侧手臂往外打开）、HandR -8（手腕外翻成摊掌），AngleX +3、AngleY 一下 -4 的轻点头。
+     ★ 这套立绘的前臂只在画面平面里转，+ 是收向**腰前**、抬不到胸前，"摊手讲解"能做的就是往外打开 + 手腕外翻；
+     HandR 的符号是在浏览器里逐帧比出来的（-8 指尖朝外上翘，+8 手腕往下耷）。幅度比 nod（头 -12）小：explain 几乎句句都有。
+   - comfort 2.0s：ForearmL/R +6（左手先一拍）、HandL/R +3、AngleY -5、AngleZ +5、BodyAngleY -2 —— 双手慢慢收到身前、
+     微微低头、头轻歪、上身稍往前倾，脸一直朝着人（shy 是头扭开 + 眼神躲）。**没用 bow**：头低到 -24、半闭眼，读起来是鞠躬道歉；
+     它还写了 ParamEyeL/ROpen，会盖掉每帧的眨眼与 crying 的闭眼，配笑眼补片会穿帮。bow 仍在包里、没有语义动作指向它。
+   - playful 2.0s：AngleZ -7 歪头 + BodyAngleX ±4 / AngleX ±4 左右轻晃两下（1 秒一来回），前臂 ±1、手腕 ±2.5 随身体荡，手不抬
+     （excited 是双前臂抬到 8、两手 3Hz 甩）。**没做单眼眨眼**：眼睛参数一写进动作就盖掉眨眼调度，配 laughing 的笑眼补片
+     （摸腿的那句就是 laughing + playful）会两块眼睛叠在一起。
+   三段的生成脚本没进仓库（与 make_motions2.py 同一套 motion()/hold()），曲线以上面为准；交付前从 Segments 重数过
+   Meta 的 CurveCount / TotalSegmentCount / TotalPointCount。
    Cubism Animator 手 K 的版本仍然会更自然，留给以后。
 6. 重绘一版分层更细的立绘（画师或 Bunraku 发布后），才是"官方示例级"的根本解。
 8. ~~嘴形~~ 已完成（2026-09-05，mascot16）：原嘴只有 43×17px 的一条线，ParamMouthForm 的 warp 键只动 5px 看不出笑。

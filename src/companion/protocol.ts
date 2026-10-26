@@ -146,19 +146,26 @@ export const FACE_POSES: Record<CompanionFace, FacePose> = {
   },
 };
 
-/** action → model3.json 里的动作组名（public/live2d/mascot/*.motion3.json）；null = 只靠表情 */
+/**
+ * action → model3.json 里的动作组名（public/live2d/mascot/*.motion3.json）；null = 只靠表情。
+ * 只管官方看板娘：市场形象按它自己的 companion.json 映射走（live2d/mapping.ts 的 motionGroupFor）。
+ * ★ 2026-10-25 起 explain / comfort / playful 各有自己的一段（原来 explain、comfort 借 nod，playful 借 excited，
+ *   三种意思在身上一模一样）。comfort 没用包里现成的 bow：bow 头低到 -24（nod 的两倍）、上身前倾、眼睛半闭，
+ *   读起来是鞠躬道歉；而且它写了 ParamEyeL/ROpen，会盖掉每帧的眨眼与 crying 的闭眼，配上笑眼补片（laughing）还会穿帮。
+ *   三段新动作都不碰眼、眉、嘴，表情仍由 [face] 管；时长都在 actionSuppressMs（2.3 秒）以内。
+ */
 export const ACTION_MOTIONS: Record<CompanionAction, string | null> = {
   none: null,
   acknowledge: "nod",
   disagree: "shake",
   think: "think",
-  explain: "nod",
+  explain: "explain",
   excited: "excited",
   wave: "wave",
   shy: "shy",
   surprised: "surprised",
-  comfort: "nod",
-  playful: "excited",
+  comfort: "comfort",
+  playful: "playful",
 };
 
 /** 没有音频（TTS 关/失败/未登录）时，按字数估一个"说话时长"，让口型和字幕停留时间对得上 */
