@@ -9,7 +9,8 @@
 // 正在跑的那步高亮，跑完的置灰留在原地——过程可回溯，而不是只剩最后一行。
 import { t } from "@lingui/core/macro";
 import { GEN_MODE_LABEL, decodeGenEvent, describeArkProgress, type GenEvent } from "../ai/arkClient";
-import { tierOf } from "../data/economy";
+import { providerOf, tierOf } from "../data/economy";
+import { recordedModelName } from "../data/account";
 import { uid } from "../types";
 
 export interface GenStep {
@@ -161,7 +162,11 @@ function stepOf(ev: GenEvent): StepLine {
   if (ev.kind === "transfer") return { title: t`成片转存中（换成永久地址）`, event: ev };
   if (ev.kind === "transferFailed") {
     const reason = ev.reason;
-    return { title: t`成片转存没成（${reason}）——先用方舟临时链接，预览帧稍后自动补上`, event: ev };
+    // 临时链接是哪一家给的按这一档的供应商说（2026-10-26 出片地区 P2b：MiniMax H3 的成片也先拿到一条有时效的链接）
+    // tier-semantics-ok: 这句话按供应商说「先用谁家的临时链接」
+    return providerOf(ev.tier) === "minimax"
+      ? { title: t`成片转存没成（${reason}）——先用 MiniMax 的临时链接，预览帧稍后自动补上`, event: ev }
+      : { title: t`成片转存没成（${reason}）——先用方舟临时链接，预览帧稍后自动补上`, event: ev };
   }
   // "标准档 · 生成中 12s" / "极速档 · 排队中 6s" —— 同一步的读秒（句子与剪辑页 busy 行同一份实现）
   return { title: t`渲染视频`, detail: describeArkProgress(tierLabel, ev), event: ev };
@@ -170,7 +175,11 @@ function stepOf(ev: GenEvent): StepLine {
 /** 契约那一行的正文（模式 / 档 / 画幅 / 时长 / 参考几张 / 承接 / 字数）。只描述、不判断——判断在 real.validateGenSpec */
 function contractLine(ev: Extract<GenEvent, { kind: "contract" }>): string {
   const mode = GEN_MODE_LABEL[ev.mode] ?? ev.mode;
-  const tierLabel = tierOf(ev.tier).label;
+  const label = tierOf(ev.tier).label;
+  // 发出去的是哪个模型（2026-10-26 出片地区 P2b：同一颗芯片两家同名）：按地区写名字（account.recordedModelName —— 地区不知道 / 这个地区给不出的那一家不写），
+  // 老日志没记 model 的只写档位名
+  const named = ev.model ? recordedModelName(ev.model) : null;
+  const tierLabel = named ? t({ message: `${label}（${named}）`, comment: "生成契约那一行里的「档位名（模型名）」，如「草稿（MiniMax H3 Lite）」" }) : label;
   const ratio = ev.ratio;
   const images = ev.images;
   const audios = ev.audios;

@@ -15,7 +15,7 @@
 import { AI_REAL, ARK_REF_IMAGES_MAX, ArkTaskUnknown, SegmentGenFailed, VIDEO_PROMPT_MAX, composeSegments, generateFrame, notesInParens, planCardRefs, prepareMaterialRefs, refCardIds, refineFrame, type KeptFrames } from "../ai";
 import { compileMentions, drawExtraRefs, extraRefLines, mentionTargets, plainMentions, usableExtraRefs, type ExtraRef } from "../data/refMentions";
 import { uploadImage } from "../api/uploads";
-import { IMAGE_TOKENS, apiCase, blockoutTier, fmtTokens, tierOf, clampDuration, videoTokensOfSpec, promptMaxOf, refAudioSecOf, materialRefSecs, minUsageNote, type VideoTier } from "../data/economy";
+import { IMAGE_TOKENS, apiCase, blockoutTier, fmtTokens, lastFrameOnlyOk, tierOf, clampDuration, videoTokensOfSpec, promptMaxOf, refAudioSecOf, materialRefSecs, minUsageNote, type VideoTier } from "../data/economy";
 // 设定帧那一步最多喂几张参考图（经典路的预算）：那句提示里的数字从它取，不写死（2026-10-10 文案复核抓到写死的「3 张」）
 import { MAX_REF_IMAGES } from "../ai/real";
 import { frameMoment, isMultiShot, lineSpeakers, momentCards, packShots } from "../data/shotScript";
@@ -25,7 +25,7 @@ import { frameSlotsOf, framesToDraw, type DrawInput } from "../data/drawPlan";
 import { refVideoIssue } from "../data/templates";
 import { ShotSpec, shotLineOf, CardType, ID_LINE_MAX, CARD_TYPE_PROMPT, idLineOf, viewsOf, feedsModel, TEXT_DESC_MAX, aspectOf, startFramesAllowed, type Card, type GenMode, type VideoAspect, type VideoTemplate } from "../types";
 import { voiceOf } from "../data/cardVoice";
-import { isRemoteMode, noTierLine, r2vTierIssue, tierGo } from "../data/account";
+import { isRemoteMode, noTierLine, r2vTierIssue, textOnlyRefsLine, tierGo, tierTextOnly } from "../data/account";
 import { ratioFor } from "../ai/arkClient";
 import { t } from "@lingui/core/macro";
 
@@ -536,6 +536,12 @@ export function refSlotsOf(o: {
 } {
   const tier = tierOf(o.videoTier);
   const blockout = !!o.refVideoUrl;
+  // ★ 只能纯文字出片（免费版在 MiniMax H3 上；判据只在 account.tierTextOnly，2026-10-26 出片地区 P2b）：视频那一发带任何一张图服务端都拒
+  //   （403 PLAN_REQUIRED + freeTextOnly，扣视频费之前 —— 但出片前补画的帧那时已经结算过了）。所以这里一张都不排：不画帧（data/drawPlan 的规矩 ③）、
+  //   帧 / 临时参考图 / 卡片形象图都不发、不去准备卡片图。报价（flowStore.nodeCost）、参考清单（refPlanOf）、出片（generateSegment）读的都是这一份
+  if (tierTextOnly(tier)) {
+    return { refMode: false, framesAsRefs: false, needDraw: false, draw: { first: false, last: false }, frameSlots: 0, extrasOn: 0, prepare: false, direct: false };
+  }
   // ★ 判定用的是**顶替过承接帧之后**的 first：段间承接一旦成立就必须走首尾帧 / 帧当参考图
   //   （方舟三种场景互斥），这一步的顺序不能反（refVideoOn 的条件④）
   const refMode = refVideoOn({
@@ -551,7 +557,8 @@ export function refSlotsOf(o: {
   const framesAsRefs = !blockout && !refMode && !carryIsHard(o.videoTier);
   // ★ 补画哪几张只问 data/drawPlan（报价 economy.segmentCost 读的是同一个函数）；白模一张设定帧都不画：画面整个来自模板视频
   const drawIn: DrawInput = {
-    tier: { flf: tier.flf, startOnly: tier.startOnly },
+    // 只能纯文字出片的档上面已经整个让位了，走到这里的都是能带图的（textOnly 恒假）
+    tier: { flf: tier.flf, startOnly: tier.startOnly, textOnly: false },
     hasFirstFrame: !!o.first,
     hasLastFrame: !!o.last,
     refMode,
@@ -562,8 +569,15 @@ export function refSlotsOf(o: {
   const needDraw = draw.first || draw.last;
   /** 帧当参考图发时它们要占掉的图位数（已有的 + 要补画的；不补画结束画面的段只占一位） */
   const frameSlots = framesAsRefs ? frameSlotsOf(drawIn) : 0;
-  const extrasOn = !blockout && (refMode || framesAsRefs) ? Math.max(0, o.extras) : 0;
   const cap = tier.refImagesMax ?? ARK_REF_IMAGES_MAX;
+  /**
+   * 临时参考图这一发带得出去几张：参考类请求（不是白模）才带，而且**帧 + 临时参考图 + 至少一张卡片形象图**不超过这一档的协议上限
+   * （2026-10-26 出片地区 P2b：MiniMax H3 一段只有 5 张图的位，两张帧 + 三张临时参考图就把位占满，原来卡片图还要硬挤一张进去 —— 第 6 张服务端整发拒）。
+   * 卡片形象图那一位只在真挂着能进模型的图时留（feedsModel：「仅展示」的不进）。超出的那几张这一发不带（排在后面的先让），由参考清单与出片进度说出来。
+   * ★ 方舟那几档（9 / 30 张）上这一条一张都截不到（临时参考图最多 4 张）—— 行为与改之前逐字节相同。
+   */
+  const cardRoom = o.materials?.some((c) => viewsOf(c).some(feedsModel)) ? 1 : 0;
+  const extrasOn = !blockout && (refMode || framesAsRefs) ? Math.max(0, Math.min(o.extras, cap - frameSlots - cardRoom)) : 0;
   const direct = blockout
     ? o.revise
       ? // 返修：有卡就发（锁住形象），没卡也能走——改的是画面不是换人
@@ -602,8 +616,11 @@ export interface RefPlanItem {
 export interface RefPlan {
   /** 这一发是不是「参考」类请求（下面这些图会真的发给视频模型） */
   sends: boolean;
-  /** 为什么不是：tier = 这一档协议上不收参考图；real = 真人档只认一张起拍画面；refvid = 这一档带不了示例视频 */
-  why: "tier" | "real" | "refvid" | null;
+  /**
+   * 为什么不是：tier = 这一档协议上不收参考图；real = 真人档只认一张起拍画面；refvid = 这一档带不了示例视频；
+   * textOnly = 这个人在这一档上只能纯文字出片（免费版在 MiniMax H3 上，account.tierTextOnly：帧、卡片形象图、临时参考图一张都不发）
+   */
+  why: "tier" | "real" | "refvid" | "textOnly" | null;
   items: RefPlanItem[];
   /** 挂了、但这一发没把图送进视频模型的卡（只按文字参与）；背景卡本来就只走文字，不在这里 */
   textOnly: Card[];
@@ -647,6 +664,8 @@ export interface EmptyFrameFate {
  */
 export function emptyFrameFates(plan: RefPlan | null, o: { carried: boolean; multiShot: boolean }): EmptyFrameFate {
   if (!plan) return { first: o.carried ? "carry" : "draw", last: "draw" };
+  // 只能纯文字出片：一张帧都不发，承接上一段的结尾也不发（refSlotsOf 那一条 ★）—— 两格都是「不带」
+  if (plan.why === "textOnly") return { first: "none", last: "none" };
   return {
     first: o.carried ? "carry" : plan.draws.first ? "draw" : plan.refMode ? "cards" : plan.why === "real" ? "photo" : "none",
     last: plan.draws.last ? "draw" : o.multiShot ? "multiShot" : "none",
@@ -720,6 +739,9 @@ export function refPlanOf(
   if (apiCase(tier.api, { ark: false, "minimax-v1": true, "minimax-v2": false }))
     // 真人档一张设定帧都不画：首帧就是真人卡的照片
     return { sends: false, why: "real", items: [], textOnly: textOnlyOf(new Set()), extrasDropped: extras.length > 0, refVideo: false, ...voiceBits(false), refMode: false, draws: { first: false, last: false } };
+  // 只能纯文字出片（免费版在 MiniMax H3 上，account.tierTextOnly —— refSlotsOf 与出片读的同一个）：一张图都不发、一张帧都不画
+  if (tierTextOnly(tier))
+    return { sends: false, why: "textOnly", items: [], textOnly: textOnlyOf(new Set()), extrasDropped: extras.length > 0, refVideo: false, ...voiceBits(false), refMode: false, draws: { first: false, last: false } };
   /** 首帧的缩略图（没有 = 还没画） */
   const firstSrc = o.carryFrame || o.firstFrame || "";
   const first = firstSrc || (o.framesComing ? "coming" : "");
@@ -751,7 +773,8 @@ export function refPlanOf(
     if (first || slots.draw.first) push({ kind: "first", src: firstSrc, carried: !!o.carryFrame });
     if (last || slots.draw.last) push({ kind: "last", src: o.lastFrame || "" });
   }
-  if (slots.extrasOn) for (const x of extras) push({ kind: "extra", src: x.url, extra: x });
+  // 带得出去的那几张（refSlotsOf.extrasOn：图位不够时排在后面的先让，出片那一侧发的是同一批）
+  for (const x of extras.slice(0, slots.extrasOn)) push({ kind: "extra", src: x.url, extra: x });
   const picks = planCardRefs(mats, slots.direct);
   for (const p of picks) push({ kind: "card", src: p.url, card: p.card, viewIndex: p.index });
   return {
@@ -759,7 +782,7 @@ export function refPlanOf(
     why: null,
     items,
     textOnly: textOnlyOf(new Set(picks.map((p) => p.card.id))),
-    extrasDropped: extras.length > 0 && !slots.extrasOn,
+    extrasDropped: extras.length > slots.extrasOn,
     refVideo: blockout,
     // 白模段不带声音样本（voiceRefsFor 的 blockout 分支：它自己就是 r2v，音轨在组稿时回填原片）
     ...voiceBits(!blockout),
@@ -1423,7 +1446,8 @@ export async function generateSegment(
   // 验证过的 i2v 形态。出片调用的分流在 composeSegments（尾帧捕获/承接共用那条产线）。
   // ★ 按请求形状（VideoTier.api）分流，不按供应商：海外 MiniMax H3（P2b，V2 接口）也是 MiniMax，却收参考图、走另一套请求。
   //   apiCase 不写等号：加一种 api 时这里在 tsc 就红（等号比较会让它悄悄落进下面方舟那条路，按方舟补画设定帧、拼请求）
-  //   MiniMax H3（V2）不走这一支：帧与参考图照普通那条路备（补画规矩同 drawPlan）；请求按哪套协议拼在 composeSegments 按 api 分（P2b 出片那一步）
+  //   MiniMax H3（V2）不走这一支：帧与参考图照普通那条路备（补画规矩同 drawPlan；帧照样当参考图发，图位按它的 refImagesMax = 5 排），
+  //   请求按 V2 的 content[] 拼在 composeSegments 按 api 分；免费版在 H3 上只发文字（下面 textOnly 那一段）
   if (apiCase(tierOf(input.videoTier).api, { ark: false, "minimax-v1": true, "minimax-v2": false })) {
     if (blockout) {
       // 跑得了白模模板的那一档只问 economy.blockoutTier（唯一实现），别写死「电影级」
@@ -1494,10 +1518,22 @@ export async function generateSegment(
   //   再塞两张卡面进去，模型首先要猜红线画在哪张图上。而形象一致这件事这里本来就有
   //   保障——被改的这张帧当初就是带着卡的参考图画出来的，改图只动圈里那一处。
   //   （方案卡上那个"按要求改这一帧"没有红线，所以那条路是带参考图的，见 studioStore）
+  // ── 只能纯文字出片（免费版在 MiniMax H3 上；判据只在 account.tierTextOnly —— refSlotsOf、报价 flowStore.nodeCost 读的同一个）──
+  // 视频那一发带任何一张图服务端都拒（403 PLAN_REQUIRED + freeTextOnly，扣视频费之前），而出片前圈选改 / 补画的帧那时已经各自结算过 ——
+  // 所以在**花钱之前**把图摘干净：不改帧、不补画、不承接上一段的结尾、不带卡片形象图与临时参考图（refSlotsOf 一张都不排），只发文字
+  // （卡片按出片句参与，圈选的要求照样写进提示词）。摘掉了东西就说一句（account.textOnlyRefsLine，参考清单在出片之前说的是同一句）。
+  const textOnly = tierTextOnly(tierOf(input.videoTier));
+  if (textOnly) {
+    const hadImages =
+      !!(first || last || input.carryFrame || input.anns.length || extrasIn.length) || !!input.materials?.some((c) => viewsOf(c).some(feedsModel));
+    if (hadImages) notes.push(textOnlyRefsLine());
+    first = "";
+    last = "";
+  }
   const half = input.durationSec / 2;
-  /** 真会重画的那几条（承接段的前半段圈选不重画——判据与报价同一处，见 redrawnAnns 的 ★★）*/
-  const redrawn = redrawnAnns(input.anns, input.durationSec, !!input.carryFrame);
-  const skippedAnns = input.anns.length - redrawn.length;
+  /** 真会重画的那几条（承接段的前半段圈选不重画——判据与报价同一处，见 redrawnAnns 的 ★★；只能纯文字出片的一条都不重画，报价同样不算） */
+  const redrawn = textOnly ? [] : redrawnAnns(input.anns, input.durationSec, !!input.carryFrame);
+  const skippedAnns = textOnly ? 0 : input.anns.length - redrawn.length;
   if (skippedAnns > 0) {
     // ★ 少收了钱也要说：用户圈了却看不到画面变化，不说的话他只会以为"圈选坏了"。
     //   文字要求仍然随 reqs 发出去，所以这句话要把"没白圈"讲清楚（铁律八）。
@@ -1532,8 +1568,8 @@ export async function generateSegment(
     else last = edited;
   }
 
-  // ② 承接上一段真实结尾
-  if (input.carryFrame) first = input.carryFrame;
+  // ② 承接上一段真实结尾（只能纯文字出片时不承接：那张帧发不出去，见上）
+  if (input.carryFrame && !textOnly) first = input.carryFrame;
 
   // ③ 参考生视频，或补画缺失的设定帧
   const tier = tierOf(input.videoTier);
@@ -1576,7 +1612,8 @@ export async function generateSegment(
   const wantRef = !blockout && !!input.refAllowed && !!input.materials?.length && !first && !input.anns.length;
   // 想走却走不成，**一律说出原因**：悄悄退回"按文字画一张设定帧"的代价是用户以为
   // 卡片形象被直接采用了，实际拿到的是一张重画的图，还多花一张出图的钱（铁律八）
-  if (wantRef && !refMode) {
+  // （只能纯文字出片时这句不说：那一段一张帧都不画，摘图那一句上面已经说过了）
+  if (wantRef && !refMode && !textOnly) {
     prog(
       tier.refImg
         ? t`素材卡上没有可用的形象参考图，改为先按描述画一张设定帧再出片（多花约一张出图的钱）`
@@ -1697,7 +1734,7 @@ export async function generateSegment(
   const draw = blockout
     ? { first: false, last: false }
     : framesToDraw({
-        tier: { flf: tier.flf, startOnly: tier.startOnly },
+        tier: { flf: tier.flf, startOnly: tier.startOnly, textOnly },
         hasFirstFrame: !!first,
         hasLastFrame: !!last,
         refMode,
@@ -1772,22 +1809,33 @@ export async function generateSegment(
   // ── 临时参考图 → 公网地址（N1）────────────────────────────────
   // 只在「参考」类请求上发得出去（参考卡片直出 / 帧当参考图）；转存失败只丢它们自己，不连累帧与卡。
   let extraUrls: string[] = [];
-  if (extrasIn.length && (refMode || sendFrameRefs)) {
+  /**
+   * 这一发带得出去的那几张（refSlotsOf.extrasOn：帧 + 临时参考图 + 一张卡片图不超过这一档的图位上限，排在后面的先让 —— 参考清单排的是同一批）。
+   * 方舟那几档上它就是全部；MiniMax H3（一段 5 张图）上帧占满两位时可能少带一两张，说出来。
+   */
+  const extrasSent = extrasIn.slice(0, slots.extrasOn);
+  if (extrasSent.length && (refMode || sendFrameRefs)) {
     try {
-      for (let i = 0; i < extrasIn.length; i++) {
-        const u = extrasIn[i].url;
+      for (let i = 0; i < extrasSent.length; i++) {
+        const u = extrasSent[i].url;
         if (/^https?:\/\//i.test(u)) {
           extraUrls.push(u);
           continue;
         }
-        prog(t`上传临时参考图 ${i + 1}/${extrasIn.length}…`);
+        prog(t`上传临时参考图 ${i + 1}/${extrasSent.length}…`);
         extraUrls.push(await uploadImage(await (await fetch(u)).blob(), `seg-extra-${i + 1}.jpg`));
       }
     } catch {
       extraUrls = [];
       notes.push(t`临时参考图没能传上去，这一段不带它们出片`);
     }
-  } else if (extrasIn.length) {
+    if (extraUrls.length && extrasSent.length < extrasIn.length) {
+      const max = tier.refImagesMax ?? ARK_REF_IMAGES_MAX;
+      const sent = extrasSent.length;
+      notes.push(t`这一档一段最多带 ${max} 张图：临时参考图这次只带了前 ${sent} 张（其余的变淡显示在参考清单里）`);
+    }
+  } else if (extrasIn.length && !textOnly) {
+    // （只能纯文字出片时不在这里说：摘图那一句已经把临时参考图说进去了）
     // 不是参考类请求：说清是哪一种（档位协议上不收 / 这一发退回了首尾帧）
     notes.push(
       tier.refImg
@@ -1804,7 +1852,8 @@ export async function generateSegment(
   }
   /** 临时参考图排在帧之后、卡片形象图之前：它们的编号从这里起 */
   const extraBase = sendFrameRefs ? frameRefs.length : 0;
-  const extraNums = extrasIn.map((x, i) => ({ id: x.id, name: x.name, role: x.role, n: extraUrls.length ? extraBase + i + 1 : null }));
+  // 真发出去的那几张才有编号（extraUrls 对应 extrasSent 的前几张）；没带上的点名退成名字
+  const extraNums = extrasIn.map((x, i) => ({ id: x.id, name: x.name, role: x.role, n: i < extraUrls.length ? extraBase + i + 1 : null }));
   // 句子里的 @点名 → 这一发的真实编号；卡只换成卡名（身份绑定仍由下面的紧凑式点名句管）
   const said = compileMentions(
     input.plot,
@@ -1975,7 +2024,10 @@ export async function generateSegment(
         ? last && tier.flf
           ? "flf"
           : "i2v"
-        : "t2v";
+        : // 只给了尾帧：收它的协议（MiniMax H3，economy.lastFrameOnlyOk）按首尾帧那一种发、只带尾帧；方舟那几档照旧文生（与 real.slotModeOf 同一句）
+          last && tier.flf && lastFrameOnlyOk(tier)
+          ? "flf"
+          : "t2v";
   /** 这一发的生成模式（契约的声明；槽位与它是否一致由 real.validateGenSpec 在花钱之前核对）。先出样片 = "draft"（按 480p 的价、480p 发） */
   const mode: GenMode = input.draftMode === "draft" ? "draft" : slotMode;
   /** 真正送进请求体的画幅（arkClient.ratioFor：2.5 走首帧 / 首尾帧时只收 adaptive）—— 对账与下面那道样片闸读同一个值 */
@@ -2066,8 +2118,9 @@ export async function generateSegment(
   settleSegment(res, imagesSettled, keptOrNull()); // 与另外几条支路同一处实现（见 settleSegment 的 ★★）
   return {
     url: res?.url,
-    firstFrame: res?.firstFrame || first,
-    lastFrame: res?.lastFrame || last,
+    // 只能纯文字出片时帧只是没发出去、不是作废：交回方案上原来那两张（genNode 拿它写回方案 —— 交空串就把你自己放的帧抹掉了，付费之后想带图出片还得重放）
+    firstFrame: res?.firstFrame || (textOnly ? input.firstFrame : first),
+    lastFrame: res?.lastFrame || (textOnly ? input.lastFrame : last),
     poster: res?.poster,
     realDurationSec: res?.durationSec,
   };

@@ -18,6 +18,7 @@ import { API_BASE, API_ON, getToken, withAppVersion } from "../api/client";
 import { frozenLine, planRequiredLine, regionDeniedLine, syncRemoteWallet } from "../data/account";
 import { probeServerCaps } from "../data/serverCaps";
 import { noteRegionDenied } from "../data/videoZone";
+import { isMinimaxV2VideoUrl } from "../data/upstreamVideo";
 import type { TierResolution } from "../data/videoTierTable";
 import { DEFAULT_IMAGE_TIER, durationWindowOfModel, imageGroupOk, imageTierOf, modelLabel, videoAudioOn } from "../data/economy";
 import type { GenMode } from "../types";
@@ -110,10 +111,14 @@ export async function fetchArkAsset(url: string, timeoutMs: number): Promise<Res
   return res;
 }
 
-/** 方舟产物域名（volces/volccdn/TOS）。服务端 videoAsset.service 的域名表是权威，这里是
- *  客户端镜像 —— 只用来判「这条要不要转存/自救」，判错的代价只是多打或少打一次转存请求 */
+/** 上游给的**临时**成片 / 产物地址：方舟产物域名（volces/volccdn/TOS）**与 MiniMax H3（V2）的成片 CDN**（2026-10-26 出片地区 P2b）。
+ *  服务端 videoAsset.isUpstreamTempVideoUrl 与产物代理 /api/ark/asset 的域名表是权威（两家都认），这里是客户端镜像 ——
+ *  用来判「这条要不要转存 / 自救」「截帧要不要走产物代理」，判错的代价只是多打或少打一次转存请求。
+ *  ★ 名字没改（调用点十几处，问的都是「这是不是上游的临时链接」）：H3 那一半的判据只在 data/upstreamVideo.isMinimaxV2VideoUrl，别在这里再抄一份域名。
+ *    不认 H3 的话：H3 成片出片之后不转存、取回卡 / 剪辑页 / 回炉工程都把一条会过期的链接当永久地址，过期之后是死链，零报错。 */
 export function isArkAssetUrl(url: string | undefined): boolean {
   if (!url || !/^https?:\/\//i.test(url)) return false;
+  if (isMinimaxV2VideoUrl(url)) return true;
   try {
     const host = new URL(url).hostname;
     return /(^|\.)(volces|volccdn|byteimg|bytedance|ivolces)\.com$/i.test(host) || /tos-[a-z0-9-]+\./i.test(host);
@@ -1436,6 +1441,11 @@ export type GenEvent =
       kind: "contract";
       mode: GenMode;
       tier: string;
+      /**
+       * 真正发出去的模型 id（2026-10-26 出片地区 P2b 起写：同一颗芯片两家同名，只看档位分不出交给了谁）。
+       * 可选：之前存下的步骤日志没有它（判否定：没有 = 只写档位名）。给人看的名字由 studio/genLog 按地区写（account.recordedModelName）
+       */
+      model?: string;
       ratio: string;
       durationSec: number;
       /** 参考视频的源片时长（edit 模式：输出时长跟随它） */

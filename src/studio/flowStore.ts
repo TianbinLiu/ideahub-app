@@ -24,7 +24,7 @@ import { castPreviewImage, frameUrlAt, fuseStageFrame, AI_REAL, ArkRegionDenied,
 import { frameMoment, isMultiShot, momentCards } from "../data/shotScript";
 import { endFrameUsed } from "../data/drawPlan";
 import { isArkAssetUrl, reasonClause, transferArkVideo } from "../ai/arkClient";
-import { canAfford, defaultTierId, draftModeIssue, draftModeOffered, frozenNote, myCards, noTierLine, realFaceIssue, sameChipProvider, spendTokens, tierBlockReason, tierGo, tierOffered, tierRegionGate, tierRegionIssue, tierRegionRecheck, usableTierId, walletOf, type TierNeed } from "../data/account";
+import { canAfford, defaultTierId, draftModeIssue, draftModeOffered, frozenNote, myCards, noTierLine, realFaceIssue, sameChipProvider, spendTokens, tierBlockReason, tierGo, tierOffered, tierRegionGate, tierRegionIssue, tierRegionRecheck, tierTextOnly, usableTierId, walletOf, type TierNeed } from "../data/account";
 import { refreshVideoZone, zoneIsRegional } from "../data/videoZone";
 import { showToast } from "../data/toast";
 import {
@@ -1485,7 +1485,9 @@ export function nodeCost(nodes: FlowNode[], idx: number, mode: FlowMode, tierOve
   //   承接段的开头画面由上一段真实尾帧顶替，圈在前半段的那几条重画出来就被整张覆盖 ——
   //   原来按总数收，等于为一张必然作废的图收钱。判据只有一处：segmentGen.redrawnAnns，
   //   出片那边的循环遍历的就是它（两处各写一遍 = 本仓头号事故形状）。
-  const annsCost = refVideo ? 0 : annRedrawCost(redrawnAnns(node.anns, prop.durationSec, !!carry).length);
+  // ★ 只能纯文字出片（免费版在 MiniMax H3 上，account.tierTextOnly —— 出片 segmentGen 问的同一个）：一张画面都不画、不改，圈选只当文字要求发出去（不计费）
+  const textOnly = tierTextOnly(tierOf(tierOverride ?? node.videoTier));
+  const annsCost = refVideo || textOnly ? 0 : annRedrawCost(redrawnAnns(node.anns, prop.durationSec, !!carry).length);
   return annsCost + segmentCost({
     durationSec: prop.durationSec,
     tierId: tierOverride ?? node.videoTier,
@@ -1497,6 +1499,7 @@ export function nodeCost(nodes: FlowNode[], idx: number, mode: FlowMode, tierOve
     // 补不补画、补几张：与出片（genNode → segmentGen）同一组输入，规则只在 data/drawPlan
     noDraw: nodeNoDraw(node, tierOverride),
     multiShot: isMultiShot(prop.plot),
+    textOnly,
     refVideo: refVideo ? { inputSec: refVideo.durationSec } : undefined,
     // 先出样片：视频那一半按 480p 样片的价报（与 genNode 发的同一个判定）
     draft: nodeDraftOn(node, tierOverride),

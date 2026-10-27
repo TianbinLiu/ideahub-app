@@ -25,6 +25,7 @@ import { idbDel, idbGet, idbSet } from "./db";
 import { startJob } from "./jobs";
 import { t } from "@lingui/core/macro";
 import { isPermanentUrl, pairAssetUrls, type PairTarget } from "./publishAssets";
+import { MINIMAX_V2_TEMP_RE } from "./upstreamVideo";
 import * as api from "../api/projects";
 import { shareFromCanvas, type ShareOutcome } from "./recipes";
 import { ApiError } from "../api/client";
@@ -428,10 +429,15 @@ export function pendingFor(videoId: string, clientId?: string): boolean {
 
 // ── 瘦身：把画布里的本机地址换成永久 URL ─────────────────────
 
-/** 与服务端 zod 那条**逐字同源**的不变量正则。
+/** 与服务端 zod 那条**逐字同源**的不变量正则（server schemas/branchProject.schemas 的 NO_LOCAL）。
  *  ★ `data:` 那一段**带 mime 前缀**：canvas 里有 requirement / plot / genPrompt 这些自由
- *    文本，裸 `"data:` 会误伤。 */
-const LOCAL_RE = /"(?:data:[a-z]+\/|idb:)|https?:\/\/[^"]*\.(?:volces|volccdn)\.com\//i;
+ *    文本，裸 `"data:` 会误伤。
+ *  ★ MiniMax H3 的成片（2026-10-26 出片地区 P2b）也是上游的临时链接：服务端那道门认它，这边不认的话画布带着它照样往上送、整份被 400。
+ *    那一段从 data/upstreamVideo 取（`.source` 拼，别在这里再抄一份域名）。 */
+const LOCAL_RE = new RegExp(
+  [/"(?:data:[a-z]+\/|idb:)/.source, /https?:\/\/[^"]*\.(?:volces|volccdn)\.com\//.source, MINIMAX_V2_TEMP_RE.source].join("|"),
+  "i",
+);
 
 /** 这个值是不是一个「只在本机 / 马上要过期」的资产地址（整段判，不扫自由文本内部） */
 function isLocalAsset(v: string): boolean {

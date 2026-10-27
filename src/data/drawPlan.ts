@@ -14,6 +14,9 @@
 //  ② **多镜头不画结束画面（multiShot）**：一张结束画面装不下几个镜头；跨镜头的结束画面会被硬插值成叠化或多出来的动作
 //     （第三次付费验证：视频为了靠上结束画面，在最后一个镜头后多拍了一小段）。段与段之间本来就用上一段的真实尾帧承接。
 //     方案里已经有的 AI 结束画面（改成多镜头之前画的）也不发、不重画，见 endFrameUsed；你自己换上的照用。
+//  ③ **只能纯文字出片（textOnly，2026-10-26 出片地区 P2b）**：免费版在 MiniMax H3 上（account.tierTextOnly，服务端 MINIMAX_V2_FREE_TEXT_ONLY）
+//     视频那一发带任何一张图（首帧 / 尾帧 / 参考图）都会被服务端在扣视频费之前拒（403 PLAN_REQUIRED + freeTextOnly）——
+//     而出片前补画的帧那时已经按张结算过了。所以一张都不画、一位都不占：报价不算图钱、出片只发文字（segmentGen 同一个答案）。
 
 /** 判定要用到的档位能力（只拿这两位，免得这个文件依赖档位表） */
 export interface DrawTier {
@@ -24,6 +27,11 @@ export interface DrawTier {
    * ★ 2026-10-26 前这一位叫 flat、调用方拿「按发计价」（flatCost）去填 —— 计价模型与出片方式是两件事，见 startOnly 的注释。
    */
   startOnly: boolean;
+  /**
+   * 这个人在这一档上**只能纯文字出片**（规矩 ③；判据只在 account.tierTextOnly —— 「这个人 × 这一档」，不是档位表的能力位，所以由调用方填）。
+   * **必填**：可选的话漏传就悄悄按能带图补画 —— 补画的图钱照收，视频那一发却被服务端拒（零报错，只有钱少了）。
+   */
+  textOnly: boolean;
 }
 
 export interface DrawInput {
@@ -47,7 +55,7 @@ export interface DrawInput {
  *   那时没有任何东西可以当参考发，硬不画就是一段纯文字生成、挂的卡一点用都没有。出片那一侧会把这件事说出来。
  */
 export function framesToDraw(o: DrawInput): { first: boolean; last: boolean } {
-  if (o.refMode || o.tier.startOnly) return { first: false, last: false };
+  if (o.refMode || o.tier.startOnly || o.tier.textOnly) return { first: false, last: false };
   if (o.noDraw && (o.hasFirstFrame || o.hasLastFrame)) return { first: false, last: false };
   return { first: !o.hasFirstFrame, last: o.tier.flf && !o.hasLastFrame && !o.multiShot };
 }
@@ -63,6 +71,8 @@ export function drawCount(o: DrawInput): number {
  * （segmentGen.refSlotsOf 的 direct.cap），界面上的参考清单也按它排结束画面那一格。
  */
 export function frameSlotsOf(o: DrawInput): number {
+  // 只能纯文字出片：帧一张都不发（规矩 ③），也就不占图位
+  if (o.tier.textOnly) return 0;
   const d = framesToDraw(o);
   return (o.hasFirstFrame || d.first ? 1 : 0) + (o.hasLastFrame || d.last ? 1 : 0);
 }

@@ -251,6 +251,15 @@ export function apiCase<T>(api: TierApi, cases: { readonly [K in TierApi]: T }):
   return cases[api];
 }
 
+/**
+ * 这一档的请求**只带一张尾帧**（没有首帧）收不收 —— 协议的事实，按请求形状（api）答：MiniMax H3（V2）收（2026-10-26 付费小验：
+ * H3-Lite 480P 只给尾帧照常出片，成片跟着尾帧的比例走），方舟那几档的首尾帧任务要先有首帧（只给尾帧时照旧按文生拼、尾帧不发），真人档只收首帧。
+ * 读它的两处必须同一个答案：real.slotModeOf（槽位 → 模式）与 segmentGen 声明契约的那一行（声明 ≠ 槽位 = 花钱之前整句拒）。
+ */
+export function lastFrameOnlyOk(spec: Pick<VideoTierSpec, "api">): boolean {
+  return apiCase(spec.api, { ark: false, "minimax-v1": false, "minimax-v2": true });
+}
+
 /** Seedance 档位的能力与价目（不含界面文案）：id 持久化在 VideoSegment.videoTier / EditorState.videoTier */
 export interface VideoTierSpec {
   id: string;

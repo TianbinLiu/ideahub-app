@@ -1333,6 +1333,11 @@ msgstr "{installs} 人装过"
 msgid "{label} 太大（{sizeMb}MB，上限 5MB）"
 msgstr "{label} 太大（{sizeMb}MB，上限 5MB）"
 
+#. 生成契约那一行里的「档位名（模型名）」，如「草稿（MiniMax H3 Lite）」
+#: src/studio/genLog.ts
+msgid "{label}（{named}）"
+msgstr "{label}（{named}）"
+
 #: src/data/economy.ts
 #~ msgid "{lack}是声明过的真人素材，但还没有方舟可信素材 ID —— 「{label}」档不收直接上传的真人照片，只收本人授权过的素材。去卡片详情页按提示做一次肖像授权并填上素材 ID，或先把这张卡取下"
 #~ msgstr "{lack}是声明过的真人素材，但还没有方舟可信素材 ID —— 「{label}」档不收直接上传的真人照片，只收本人授权过的素材。去卡片详情页按提示做一次肖像授权并填上素材 ID，或先把这张卡取下"
@@ -4579,8 +4584,36 @@ msgid "Google Play 还在等这笔付款完成，到账后余额会自动更新"
 msgstr "Google Play 还在等这笔付款完成，到账后余额会自动更新"
 
 #: src/ai/minimaxVideo.ts
+msgid "MiniMax 出片 {minutes} 分钟没出结果——任务多半还在上游跑，不是失败。"
+msgstr "MiniMax 出片 {minutes} 分钟没出结果——任务多半还在上游跑，不是失败。"
+
+#: src/ai/minimaxVideo.ts
+msgid "MiniMax 出片创建失败（HTTP {status}）"
+msgstr "MiniMax 出片创建失败（HTTP {status}）"
+
+#: src/ai/minimaxVideo.ts
+msgid "MiniMax 出片创建没收到回包：{detail}"
+msgstr "MiniMax 出片创建没收到回包：{detail}"
+
+#: src/ai/minimaxVideo.ts
 msgid "MiniMax 出片失败：{reason}"
 msgstr "MiniMax 出片失败：{reason}"
+
+#: src/ai/minimaxVideo.ts
+msgid "MiniMax 出片请求里有服务器不收的东西——把这句话反馈给我们"
+msgstr "MiniMax 出片请求里有服务器不收的东西——把这句话反馈给我们"
+
+#: src/ai/minimaxVideo.ts
+msgid "MiniMax 受理了这一发却没给任务号——把这句话反馈给我们"
+msgstr "MiniMax 受理了这一发却没给任务号——把这句话反馈给我们"
+
+#: src/ai/minimaxVideo.ts
+msgid "MiniMax 那边没有受理这一发——过一会儿再点；一直这样请把这句话反馈给我们"
+msgstr "MiniMax 那边没有受理这一发——过一会儿再点；一直这样请把这句话反馈给我们"
+
+#: src/ai/minimaxVideo.ts
+msgid "MiniMax 那边这会儿太忙——过一会儿再点"
+msgstr "MiniMax 那边这会儿太忙——过一会儿再点"
 
 #. 卡片页「按模型适配」里一组的标题：MiniMax 是品牌名（不翻译），括号里是它的视频产品名 Hailuo
 #: src/data/account.ts
@@ -5142,10 +5175,14 @@ msgid "上传中断了（网络不可用）"
 msgstr "上传中断了（网络不可用）"
 
 #. placeholder {0}: i + 1
-#. placeholder {1}: extrasIn.length
+#. placeholder {1}: extrasSent.length
 #: src/studio/segmentGen.ts
 msgid "上传临时参考图 {0}/{1}…"
 msgstr "上传临时参考图 {0}/{1}…"
+
+#: src/ai/real.ts
+msgid "上传参考图 {n}/{total}…"
+msgstr "上传参考图 {n}/{total}…"
 
 #. placeholder {0}: i + 1
 #. placeholder {1}: toSend.length
@@ -6433,6 +6470,7 @@ msgid "任务号：{0}"
 msgstr "任务号：{0}"
 
 #: src/ai/arkClient.ts
+#: src/ai/minimaxVideo.ts
 msgid "任务被取消了"
 msgstr "任务被取消了"
 
@@ -6704,6 +6742,10 @@ msgstr "你可以在自己的卡片详情页按「分享到创意工坊」，成
 #: src/pages/WorkshopPage.tsx
 msgid "你可以第一个"
 msgstr "你可以第一个"
+
+#: src/ai/minimaxVideo.ts
+msgid "你同时在出的 MiniMax 视频已经有 {limit} 段了——等其中一段出来再点"
+msgstr "你同时在出的 MiniMax 视频已经有 {limit} 段了——等其中一段出来再点"
 
 #: src/pages/SupportPage.tsx
 msgid "你好，我是{name}，启梦的 AI 客服。账号、扣费、出片取回、安装更新都可以问我；我解决不了的会帮你转给人工。"
@@ -7469,8 +7511,16 @@ msgid "免费版：每天自动补 {daily} 套餐 token（最多攒到 {cap}）�
 msgstr "免费版：每天自动补 {daily} 套餐 token（最多攒到 {cap}）。开通会员套餐或充值任意一笔，全部档位都能用。"
 
 #: src/data/account.ts
+msgid "免费版用 {via} 出片时只能用文字：首帧 / 尾帧（含承接上一段的结尾）、卡片形象图与临时参考图都不发给视频模型，卡片只按文字参与（开通会员套餐或充值过任意一笔后可以带图）"
+msgstr "免费版用 {via} 出片时只能用文字：首帧 / 尾帧（含承接上一段的结尾）、卡片形象图与临时参考图都不发给视频模型，卡片只按文字参与（开通会员套餐或充值过任意一笔后可以带图）"
+
+#: src/data/account.ts
 msgid "免费版用 {via} 出片时只能用文字：首帧 / 尾帧带不上（开通会员套餐或充值过任意一笔后可以带图）"
 msgstr "免费版用 {via} 出片时只能用文字：首帧 / 尾帧带不上（开通会员套餐或充值过任意一笔后可以带图）"
+
+#: src/ai/minimaxVideo.ts
+msgid "免费版用 MiniMax 出片只能用文字：这一段带着画面或参考图——开通会员套餐（或充值过任意一笔）后可以带图"
+msgstr "免费版用 MiniMax 出片只能用文字：这一段带着画面或参考图——开通会员套餐（或充值过任意一笔）后可以带图"
 
 #: src/components/flow/ThemeRewriteSheet.tsx
 msgid "全不选"
@@ -13741,6 +13791,10 @@ msgid "成片已经出来了，取下载地址时没收到回包——凭据还�
 msgstr "成片已经出来了，取下载地址时没收到回包——凭据还在，过一会儿再点「取回」，不花钱。"
 
 #: src/ai/minimaxVideo.ts
+msgid "成片已经出来了，这一次没拿到地址——凭据还在，用「取回」领回来，不花钱。"
+msgstr "成片已经出来了，这一次没拿到地址——凭据还在，用「取回」领回来，不花钱。"
+
+#: src/ai/minimaxVideo.ts
 msgid "成片已经出来了，这一次没拿到地址——凭据还在，过一会儿再点「取回」，不花钱。"
 msgstr "成片已经出来了，这一次没拿到地址——凭据还在，过一会儿再点「取回」，不花钱。"
 
@@ -13777,9 +13831,14 @@ msgstr "成片解码失败——换「本地上传」或下面各段的首尾帧
 msgid "成片读不出来（{0}）"
 msgstr "成片读不出来（{0}）"
 
+#: src/ai/real.ts
 #: src/studio/genLog.ts
 msgid "成片转存中（换成永久地址）"
 msgstr "成片转存中（换成永久地址）"
+
+#: src/studio/genLog.ts
+msgid "成片转存没成（{reason}）——先用 MiniMax 的临时链接，预览帧稍后自动补上"
+msgstr "成片转存没成（{reason}）——先用 MiniMax 的临时链接，预览帧稍后自动补上"
 
 #: src/studio/genLog.ts
 msgid "成片转存没成（{reason}）——先用方舟临时链接，预览帧稍后自动补上"
@@ -15250,6 +15309,10 @@ msgstr "提示词合成失败：AI 改动了「{sentence}」这句成组绑定�
 #: src/studio/blockoutPrompt.ts
 msgid "提示词合成失败（{why}）——这一段的要求请自己写，或用下面那份默认写法。"
 msgstr "提示词合成失败（{why}）——这一段的要求请自己写，或用下面那份默认写法。"
+
+#: src/ai/minimaxVideo.ts
+msgid "提示词或图片没过 MiniMax 的内容审核——改一改再出片"
+msgstr "提示词或图片没过 MiniMax 的内容审核——改一改再出片"
 
 #: src/pages/DiscoverPage.tsx
 msgid "搜人功能还没上线 · 之后会有，App 不用重装"
@@ -18719,6 +18782,10 @@ msgstr "没画成（{why}），没有扣钱。"
 msgid "没画成（{why}）。{0}"
 msgstr "没画成（{why}）。{0}"
 
+#: src/ai/minimaxVideo.ts
+msgid "没等到 MiniMax 回话——过一会儿再点"
+msgstr "没等到 MiniMax 回话——过一会儿再点"
+
 #. moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格
 #: src/pages/CustomCardPage.tsx
 msgid "没等到识别结果。{moneyLine}可以先自己填"
@@ -19997,8 +20064,16 @@ msgid "生成契约"
 msgstr "生成契约"
 
 #: src/ai/real.ts
+msgid "生成契约不一致：「{tierLabel}」档一段最多带 {refMax} 张参考图，这一发排了 {refCount} 张——视频这一发没有发出去，请把这句话反馈给我们"
+msgstr "生成契约不一致：「{tierLabel}」档一段最多带 {refMax} 张参考图，这一发排了 {refCount} 张——视频这一发没有发出去，请把这句话反馈给我们"
+
+#: src/ai/real.ts
 msgid "生成契约不一致：「{tierLabel}」档不收声音样本（参考音频）"
 msgstr "生成契约不一致：「{tierLabel}」档不收声音样本（参考音频）"
+
+#: src/ai/real.ts
+msgid "生成契约不一致：MiniMax H3 不支持「{label}」这种出片——视频这一发没有发出去，请把这句话反馈给我们"
+msgstr "生成契约不一致：MiniMax H3 不支持「{label}」这种出片——视频这一发没有发出去，请把这句话反馈给我们"
 
 #: src/ai/real.ts
 msgid "生成契约不一致：参考图 / 参考视频与首尾帧不能混发（方舟三种场景互斥）"
@@ -20023,6 +20098,10 @@ msgstr "生成契约不一致：真人档只收首帧，不收参考图 / 参考
 #: src/ai/real.ts
 msgid "生成契约不一致：这一段声明按「{declared}」出片，而槽位里实际是「{actual}」（报价与请求会是两把尺）——没有花钱，请把这句话反馈给我们"
 msgstr "生成契约不一致：这一段声明按「{declared}」出片，而槽位里实际是「{actual}」（报价与请求会是两把尺）——没有花钱，请把这句话反馈给我们"
+
+#: src/ai/real.ts
+msgid "生成契约不完整：「{tierLabel}」档没写发给 MiniMax 的分辨率——视频这一发没有发出去，请把这句话反馈给我们"
+msgstr "生成契约不完整：「{tierLabel}」档没写发给 MiniMax 的分辨率——视频这一发没有发出去，请把这句话反馈给我们"
 
 #: src/ai/real.ts
 msgid "生成契约不完整：提示词是空的"
@@ -22066,8 +22145,16 @@ msgid "第 {list} 格的分镜在画好之后改过，画面还是按原来那�
 msgstr "第 {list} 格的分镜在画好之后改过，画面还是按原来那版画的——回第 3 步重画，或者回第 4 步把它取下"
 
 #: src/ai/real.ts
+msgid "第 {n} 张参考图不是图片地址（MiniMax 不收方舟的可信素材），视频这一发没有发出去——换一张卡或换一档再出片"
+msgstr "第 {n} 张参考图不是图片地址（MiniMax 不收方舟的可信素材），视频这一发没有发出去——换一张卡或换一档再出片"
+
+#: src/ai/real.ts
 msgid "第 {n} 张参考图未采用（「{name}」的{view}，比例越界或读不出来）"
 msgstr "第 {n} 张参考图未采用（「{name}」的{view}，比例越界或读不出来）"
+
+#: src/ai/real.ts
+msgid "第 {n} 张参考图没能传到图床（{why}），视频这一发没有发出去——过一会儿再点一次生成"
+msgstr "第 {n} 张参考图没能传到图床（{why}），视频这一发没有发出去——过一会儿再点一次生成"
 
 #: src/studio/gridDraftStore.ts
 msgid "第 {n} 格：{err}"
@@ -25610,6 +25697,10 @@ msgstr "这一格要画成什么样？（画风句会自动接上）"
 msgid "这一格还没写画面"
 msgstr "这一格还没写画面"
 
+#: src/studio/segmentGen.ts
+msgid "这一档一段最多带 {max} 张图：临时参考图这次只带了前 {sent} 张（其余的变淡显示在参考清单里）"
+msgstr "这一档一段最多带 {max} 张图：临时参考图这次只带了前 {sent} 张（其余的变淡显示在参考清单里）"
+
 #: src/ai/arkClient.ts
 #~ msgid "这一档不对当前套餐开放，去「我的」页升级套餐后再试"
 #~ msgstr "这一档不对当前套餐开放，去「我的」页升级套餐后再试"
@@ -25998,6 +26089,10 @@ msgstr "这一段现在选中的走向还没有成片"
 #: src/studio/segmentGen.ts
 msgid "这一段的做法走不了样片（样片不收参考视频，也不走真人档）——关掉「先出样片」再生成"
 msgstr "这一段的做法走不了样片（样片不收参考视频，也不走真人档）——关掉「先出样片」再生成"
+
+#: src/ai/minimaxVideo.ts
+msgid "这一段的出片请求太大了（图片要先传到图床再发）——把这句话反馈给我们"
+msgstr "这一段的出片请求太大了（图片要先传到图床再发）——把这句话反馈给我们"
 
 #. placeholder {0}: res.status
 #: src/data/videoDownload.ts
@@ -26676,6 +26771,10 @@ msgstr "这台服务器不支持识别角色位（回包形状不对，可能需
 msgid "这台服务器出片只接了 {via}"
 msgstr "这台服务器出片只接了 {via}"
 
+#: src/ai/minimaxVideo.ts
+msgid "这台服务器没有开 MiniMax H3 出片——先换一档出片"
+msgstr "这台服务器没有开 MiniMax H3 出片——先换一档出片"
+
 #: src/data/projects.ts
 msgid "这台服务器没有正常应答（工程可能还在）。"
 msgstr "这台服务器没有正常应答（工程可能还在）。"
@@ -26708,6 +26807,10 @@ msgstr "这台服务器目前没有接上出片模型"
 #: src/api/companion.ts
 msgid "这台服务器还不会解析 Live2D 模型包（需要更新服务端），暂时传不了。"
 msgstr "这台服务器还不会解析 Live2D 模型包（需要更新服务端），暂时传不了。"
+
+#: src/ai/minimaxVideo.ts
+msgid "这台服务器还不支持 MiniMax H3 出片（HTTP {status}）——先换一档出片"
+msgstr "这台服务器还不支持 MiniMax H3 出片（HTTP {status}）——先换一档出片"
 
 #: src/data/account.ts
 msgid "这台服务器还不支持「{label}」档（服务端需要更新）——先换一档出片"

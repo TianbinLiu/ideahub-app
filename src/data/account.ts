@@ -1455,6 +1455,15 @@ export function textOnlyFramesLine(): string {
 }
 
 /**
+ * 只能纯文字出片的档上，这一段**一张图都不发给视频模型**那一句（2026-10-26 出片地区 P2b 出片那一步）：参考清单（RefStrip 的 why "textOnly"）
+ * 在出片之前说、出片进度（segmentGen：摘掉了什么）在出片那一刻说 —— 同一件事两处同一句。判据只在 tierTextOnly（segmentGen.refSlotsOf 照它摘）。
+ */
+export function textOnlyRefsLine(): string {
+  const via = textOnlyVia();
+  return t`免费版用 ${via} 出片时只能用文字：首帧 / 尾帧（含承接上一段的结尾）、卡片形象图与临时参考图都不发给视频模型，卡片只按文字参与（开通会员套餐或充值过任意一笔后可以带图）`;
+}
+
+/**
  * 有某种能力的档、**按这个人用不用得了**分两串名字（都只算摆得出来的档）：usable = 现在就能换过去的，member = 开通会员才能用的。
  * 空串 = 没有。★ 句子里「换到哪一档就有」一律从这里取（economy.tierNamesWhere 是不看套餐的目录版）：写死「高清或电影级」的话，
  *   免费用户被指去两个点不动的档，而他唯一能用的「草稿」一个字都没提（2026-10-07 加免费档限制时清点过二十来处）。

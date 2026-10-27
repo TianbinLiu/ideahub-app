@@ -55,8 +55,8 @@ import {
 
 /** 样片任务号还能定稿多久（7 天差 1 小时，与服务端同一个数）—— 唯一出处在 videoTierTable，这里只是转出（界面与 store 从 economy 引） */
 export { DRAFT_VALID_MS } from "./videoTierTable";
-/** 按请求形状（VideoTier.api）分流的唯一写法 —— 实现与理由在 videoTierTable.apiCase，这里只是转出 */
-export { apiCase } from "./videoTierTable";
+/** 按请求形状（VideoTier.api）分流的唯一写法 —— 实现与理由在 videoTierTable.apiCase，这里只是转出；「只给尾帧收不收」同在那里（lastFrameOnlyOk） */
+export { apiCase, lastFrameOnlyOk } from "./videoTierTable";
 
 /** 观看付费的平台抽成比例（其余进创作者 add-on 余额） */
 export const PLATFORM_CUT = 0.3;
@@ -1463,6 +1463,11 @@ export function segmentCost(o: {
   noDraw: boolean;
   /** 这一段的剧情分了两个以上镜头（data/drawPlan 的规矩 ②：不画结束画面）。必填，理由同上 */
   multiShot: boolean;
+  /**
+   * 这个人在这一档上只能纯文字出片（data/drawPlan 的规矩 ③：免费版在 MiniMax H3 上，一张帧都不画）。**必填**：economy 不认套餐，
+   * 由调用方问 account.tierTextOnly（与出片 segmentGen 同一个判据）—— 漏传就把出片时根本不会画的图钱算进报价
+   */
+  textOnly: boolean;
   /** 这一段送进请求体的画幅（"9:16" / "16:9"）：480p 的每秒数按画幅不同（segTokens 的 ★）。缺省按最贵的一格报 */
   ratio?: string;
   /**
@@ -1493,9 +1498,9 @@ export function segmentCost(o: {
   const tier = tierOf(o.tierId);
   // ★ 补画几张只问 data/drawPlan 一处（出片 segmentGen 与参考清单读的是同一个函数）：
   //   只认一张起拍画面的档（startOnly，真人档）一张不画（首帧就是真人卡的照片本身）、参考生视频一张不画、不补画的段缺的那张不补、
-  //   多镜头的段不画结束画面 —— 把不会发生的图钱算进去，就是报价 ≠ 实扣的方向错。
+  //   多镜头的段不画结束画面、只能纯文字出片的一张不画 —— 把不会发生的图钱算进去，就是报价 ≠ 实扣的方向错。
   const draws = drawCount({
-    tier: { flf: tier.flf, startOnly: tier.startOnly },
+    tier: { flf: tier.flf, startOnly: tier.startOnly, textOnly: o.textOnly },
     hasFirstFrame: o.hasFirstFrame,
     hasLastFrame: o.hasLastFrame,
     refMode: o.refMode,

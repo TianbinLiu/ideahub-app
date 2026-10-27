@@ -8,6 +8,7 @@
 //   ① 参考生视频也补画；② 只认一张起拍画面的档（startOnly，真人档）也补画；③ 不补画的段缺尾帧照样补；④ 多镜头照样画结束画面；
 //   ⑤ 不补画但一张帧都没有、又走不了参考生视频时也不画（挂的卡一点用都没有）；⑥ frameSlotsOf 把「要补画的」漏数；
 //   ⑦ endFrameUsed 分了镜头也照用 AI 画的结束画面；⑧ endFrameUsed 连你自己换上的也不用。
+//   （2026-10-26 出片地区 P2b 加规矩 ③ 时再试两条，各自变红）⑨ 只能纯文字出片照样补画；⑩ 只能纯文字出片时 frameSlotsOf 照样占位。
 //
 // 用法：node scripts/check-draw-plan.mjs [--module=<另一份 drawPlan.ts 的路径，造违规试红用>]
 import path from "node:path";
@@ -25,9 +26,10 @@ const eq = (what, got, want) => {
   if (show(got) !== show(want)) problems.push(`${what}\n      want ${show(want)}\n      got  ${show(got)}`);
 };
 
-const FLF = { flf: true, startOnly: false }; // 标准 / 高清 / 电影级
-const NOFLF = { flf: false, startOnly: false }; // 极速
-const START_ONLY = { flf: false, startOnly: true }; // 真人档（只认一张起拍画面）
+const FLF = { flf: true, startOnly: false, textOnly: false }; // 标准 / 高清 / 电影级
+const NOFLF = { flf: false, startOnly: false, textOnly: false }; // 极速
+const START_ONLY = { flf: false, startOnly: true, textOnly: false }; // 真人档（只认一张起拍画面）
+const TEXT_ONLY = { flf: true, startOnly: false, textOnly: true }; // 免费版在 MiniMax H3 上（account.tierTextOnly）
 const base = { tier: FLF, hasFirstFrame: false, hasLastFrame: false, refMode: false, noDraw: false, multiShot: false };
 const d = (o) => M.framesToDraw({ ...base, ...o });
 const none = { first: false, last: false };
@@ -52,6 +54,12 @@ eq("多镜头：只画开头画面", d({ multiShot: true }), { first: true, last
 eq("多镜头 + 有首帧：不画", d({ multiShot: true, hasFirstFrame: true }), none);
 eq("多镜头 + 已经有尾帧（自己给的）：不画（也不丢）", d({ multiShot: true, hasLastFrame: true }), { first: true, last: false });
 
+// ── 规矩 ③：只能纯文字出片（免费版在 MiniMax H3 上）——一张不画、一位不占 ──
+eq("只能纯文字：两帧都缺也不画", d({ tier: TEXT_ONLY }), none);
+eq("只能纯文字 + 不补画：不画", d({ tier: TEXT_ONLY, noDraw: true }), none);
+eq("只能纯文字：drawCount = 0", M.drawCount({ ...base, tier: TEXT_ONLY }), 0);
+eq("只能纯文字 + 两帧都有：frameSlotsOf = 0（帧发不出去，不占图位）", M.frameSlotsOf({ ...base, tier: TEXT_ONLY, hasFirstFrame: true, hasLastFrame: true }), 0);
+
 // ── 张数与图位 ──
 eq("drawCount：两张", M.drawCount({ ...base }), 2);
 eq("drawCount：多镜头一张", M.drawCount({ ...base, multiShot: true }), 1);
@@ -73,4 +81,4 @@ if (problems.length) {
   console.error("\n改法：规则只在 src/data/drawPlan.ts；报价、出片、参考清单都读它，改之前先读那个文件头。\n");
   process.exit(1);
 }
-console.log(`✓ 补画规则检查通过（${ran} 条：老规矩 / 不补画 / 多镜头 / 张数与图位 / 已有的结束帧用不用）`);
+console.log(`✓ 补画规则检查通过（${ran} 条：老规矩 / 不补画 / 多镜头 / 只能纯文字 / 张数与图位 / 已有的结束帧用不用）`);

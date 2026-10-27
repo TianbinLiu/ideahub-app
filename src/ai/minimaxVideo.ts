@@ -1,4 +1,7 @@
 // 真人档（MiniMax 海螺）的出片客户端 —— 卡片系统 V2 真人分支（2026-08-24）。
+// ★ 2026-10-26 起这里还有 **MiniMax H3（V2 接口）** 的一套：minimaxV2Video（出片）/ takeMinimaxV2Task（取回），走服务端 /api/minimax/v2
+//   （出片地区 P2b：海外的「草稿 / 高清 / 电影级」，境内的人也能选）。两套接口别混用 —— 文件下半那一节的头上写了差在哪儿。
+//   用哪一套只看档位的 api（economy.apiCase；分流点在 ai/real.composeSegments 与 takeVideoTask），不看供应商。
 //
 // 为什么另起一家供应商：方舟对真人参考图两套探测器全拦（名人版权、普通人隐私，
 // 全任务形态实测），海螺同一批图输入输出两端都放行且成片落地（三发探针全 Success，
@@ -10,10 +13,21 @@
 //   密钥永远不在前端：dev 是 vite 注头，生产是 server 注头（同 /api/ark 的纪律）。
 // ★ 判断"这台服务器有没有这个能力"看响应形状与 Content-Type，不信状态码
 //   （Capacitor 的 SPA 回退对未命中路径回 200 + index.html，CLAUDE.md 有专条）。
+import { i18n } from "@lingui/core";
 import { t } from "@lingui/core/macro";
 import { API_BASE } from "../api/client";
 import { getToken, withAppVersion } from "../api/client";
-import { ArkNoReply, ArkTaskFailed, ArkTaskUnknown, billingDenialError, syncWalletFromHeaders, taskRefundOf, type ArkProgress } from "./arkClient";
+import {
+  ArkBadReply,
+  ArkHttpError,
+  ArkNoReply,
+  ArkTaskFailed,
+  ArkTaskUnknown,
+  billingDenialError,
+  syncWalletFromHeaders,
+  taskRefundOf,
+  type ArkProgress,
+} from "./arkClient";
 
 /** 上游受理回执的业务码：0 = 成功。非 0 时 status_msg 是给人看的原因 */
 interface BaseResp {
@@ -194,7 +208,8 @@ export async function takeMinimaxTask(
  *   服务端认得出是 H3 的号就回 404，取回卡永远停在「暂时查不到」，App 被杀之后也补不回来。凭据上的 api（VideoJob.api）定走哪一条。
  * ★ 不是 200 的一律**不是结局**（契约：404 TASK_NOT_FOUND / 503 / 504 / 502 / 501 / 400）—— 凭据留着、过一会儿再点（ArkTaskUnknown）。
  *   V2 没有 `expired`；成功却没给地址也按「过一会儿再点」（成片地址有时效，再查一次会给新的 —— 官方说法），不说死。
- * ⚠ 拿到的是 MiniMax 的临时地址（`video-product.cdn.minimax.io`，有时效）：转存这一步与出片主路径一起接（P2b 出片那一步）。
+ * ⚠ 拿到的是 MiniMax 的临时地址（`video-product.cdn.minimax.io`，有时效）：调用方（real.takeVideoTask）接着转存成永久地址
+ *   （real.permanentVideoUrl，出片与取回共用那一份）。
  */
 export async function takeMinimaxV2Task(taskId: string, onProgress?: (s: string) => void): Promise<{ url: string }> {
   onProgress?.(t`正在向上游核对这一发的状态…（查询不花钱）`);
@@ -219,18 +234,195 @@ export async function takeMinimaxV2Task(taskId: string, onProgress?: (s: string)
   }
   const state = String(st.status ?? "");
   if (state === "succeeded") {
-    const video = typeof st.url === "string" ? st.url : "";
+    const video = v2VideoUrlOf(st);
     if (!video) throw new ArkTaskUnknown(t`成片已经出来了，这一次没拿到地址——凭据还在，过一会儿再点「取回」，不花钱。`, taskId);
     return { url: video };
   }
-  if (state === "failed" || state === "cancelled") {
-    // 上游明说失败：抛类型（带服务端在同一个回包上说的退款结论），钱上的话由调用方问 ai/failCharge
-    const err = st.error as { code?: unknown; message?: unknown } | undefined;
-    const reason = (typeof err?.message === "string" && err.message) || t`上游未说明原因`;
-    throw new ArkTaskFailed(t`MiniMax 出片失败：${reason}`, taskId, state, String(err?.code ?? ""), taskRefundOf(st.refund), reason, "minimax");
-  }
+  // 上游明说失败：抛类型（带服务端在同一个回包上说的退款结论），钱上的话由调用方问 ai/failCharge
+  if (V2_FAILED.has(state)) throw minimaxV2Failed(taskId, st);
   const shown = state || t`未知`;
   throw new ArkTaskUnknown(t`这一发还在上游排队或生成中（当前状态：${shown}）——过几分钟再点一次「取回」，查询不花钱、凭据也还在。`, taskId);
+}
+
+// ════ MiniMax H3（V2）出片：创建 → 轮询（2026-10-26 出片地区 P2b；契约 docs/api-contract.md「MiniMax H3（V2）出片」）════
+//
+// ★★ 与真人档（V1）是**两套接口**，别混用：V2 用真的 HTTP 状态码报错、状态是小写的 succeeded / failed / cancelled（没有 expired）、
+//   成片地址直接在查询回包里（没有取件那一步）、按秒计价。请求体名单外的键服务端整句拒（不悄悄丢）—— 这里只拼名单里的那几样。
+// ★ 拼哪几张图、各是什么角色（首帧 / 尾帧 / 参考图）在 ai/real.composeSegments 定（GenSpec → content[]），这里只照着发、照着收。
+
+/** V2 上游明说失败的那两个状态词（没有 expired：V2 没有这个状态） */
+const V2_FAILED: ReadonlySet<string> = new Set(["failed", "cancelled"]);
+
+/** 查询回包里的成片地址（只认 https；服务端只在 succeeded 时给） */
+function v2VideoUrlOf(st: Record<string, unknown>): string {
+  const u = typeof st.url === "string" ? st.url : "";
+  return /^https:\/\//i.test(u) ? u : "";
+}
+
+/**
+ * V2 上游明说 `failed` / `cancelled` → ArkTaskFailed（与方舟、真人档同一个类型，钱上那句话由 ai/failCharge 按它说）—— **唯一构造处**（出片轮询与取回共用）。
+ * ★ 退款结论读服务端在同一个回包上带的 `refund`（只给账的主人；开关 MINIMAX_FAIL_REFUND 与真人档共用，健康端点的 minimaxFailRefund）。
+ *   没带 = 服务端没说 —— failCharge 按「没有退回」说，不替它许诺。
+ */
+function minimaxV2Failed(taskId: string, st: Record<string, unknown>): ArkTaskFailed {
+  const state = String(st.status ?? "");
+  const err = st.error as { code?: unknown; message?: unknown } | undefined;
+  const reason = state === "cancelled" ? t`任务被取消了` : (typeof err?.message === "string" && err.message.slice(0, 80)) || t`上游未说明原因`;
+  return new ArkTaskFailed(t`MiniMax 出片失败：${reason}`, taskId, state, String(err?.code ?? ""), taskRefundOf(st.refund), reason, "minimax");
+}
+
+/** 一张图在 V2 请求里的角色（服务端白名单：首帧 / 尾帧各至多一张，参考图至多 5 张，首尾帧与参考图不能混） */
+export type MinimaxV2Role = "first_frame" | "last_frame" | "reference_image";
+
+/**
+ * 创建那一发被我们自己的服务端拒了（非 2xx）→ 一句能直接显示的整句（连同错误类型）。
+ * ★ 一律 ArkHttpError（带 status 与 code）：V2 的拒绝**全是没扣钱**的（契约「被拒的先后」那张表：扣费之前拒，或扣了又退、回包 billed:false），
+ *   钱上的判定只认类型（ai/failCharge：服务端明说失败 = 没扣），话里**不说钱**（钱只走 failCharge）。
+ * ★ 认 **code** 不认状态码（契约：429 就有三种）：每人并发到顶（IN_FLIGHT_LIMIT）、上游忙（UPSTREAM_BUSY）、V2 没开（MINIMAX_V2_OFF）、
+ *   免费版带了图（PLAN_REQUIRED + freeTextOnly）、上游没受理的几种（UPSTREAM_*）各说各的；
+ *   余额 / 套餐 / 冻结 / 每日上限 / 出片地区与 Seedance、真人档同一套（arkClient.billingDenialError，一处实现）。
+ * ★ 白名单拒（VIDEO_PARAMS_NOT_ALLOWED）：中文界面照说服务端那句（它最清楚是哪一条没过），英文界面说本端的整句（D7 a：服务端给码、App 说话）。
+ */
+function v2RefusalError(status: number, body: string): Error {
+  let j: Record<string, unknown> = {};
+  try {
+    const parsed = JSON.parse(body) as unknown;
+    if (parsed && typeof parsed === "object") j = parsed as Record<string, unknown>;
+  } catch {
+    /* 读不出 JSON：落到最后那一句 */
+  }
+  const code = typeof j.code === "string" ? j.code : "";
+  const serverMsg = typeof j.message === "string" ? j.message : "";
+  if (code === "PLAN_REQUIRED" && j.freeTextOnly === true)
+    return new ArkHttpError(t`免费版用 MiniMax 出片只能用文字：这一段带着画面或参考图——开通会员套餐（或充值过任意一笔）后可以带图`, status, code);
+  if (code === "IN_FLIGHT_LIMIT") {
+    const limit = Number(j.limit) > 0 ? Number(j.limit) : 4;
+    return new ArkHttpError(t`你同时在出的 MiniMax 视频已经有 ${limit} 段了——等其中一段出来再点`, status, code);
+  }
+  if (code === "UPSTREAM_BUSY") return new ArkHttpError(t`MiniMax 那边这会儿太忙——过一会儿再点`, status, code);
+  if (code === "MINIMAX_V2_OFF") return new ArkHttpError(t`这台服务器没有开 MiniMax H3 出片——先换一档出片`, status, code);
+  if (code === "UPSTREAM_SENSITIVE") return new ArkHttpError(t`提示词或图片没过 MiniMax 的内容审核——改一改再出片`, status, code);
+  if (code === "UPSTREAM_TIMEOUT") return new ArkHttpError(t`没等到 MiniMax 回话——过一会儿再点`, status, code);
+  if (code === "UPSTREAM_PARAMS" || code === "UPSTREAM_ERROR") return new ArkHttpError(t`MiniMax 那边没有受理这一发——过一会儿再点；一直这样请把这句话反馈给我们`, status, code);
+  if (code === "VIDEO_PARAMS_NOT_ALLOWED")
+    return new ArkHttpError(
+      serverMsg && i18n.locale !== "en" ? serverMsg : t`MiniMax 出片请求里有服务器不收的东西——把这句话反馈给我们`,
+      status,
+      code,
+    );
+  if (status === 413) return new ArkHttpError(t`这一段的出片请求太大了（图片要先传到图床再发）——把这句话反馈给我们`, status, code);
+  // 余额不足 / 套餐门禁 / 冻结 / 每日上限 / 出片地区 / 限流：与另外两条出片路同一处实现
+  const denial = billingDenialError(status, body);
+  if (denial && denial.message) return denial;
+  return new ArkHttpError(t`MiniMax 出片创建失败（HTTP ${status}）`, status, code);
+}
+
+/**
+ * 一发 MiniMax H3 出片：创建 → 轮询，回**上游给的临时成片地址**（`video-product.cdn.minimax.io`，有时效 —— 转存由调用方接着做，ai/real.composeSegments）。
+ *
+ * ★ 失败归类沿用真人档那几条（与方舟侧同一套纪律）：
+ *   · 创建那一发没收到回包 → ArkNoReply（服务端先扣钱再转发：钱**可能**已经扣了，onTask 还没拿到任务号）；
+ *   · 服务端拒了（非 2xx）→ v2RefusalError（全是没扣钱的）；2xx 却读不出任务号 → ArkBadReply（2xx 之后才坏 = 已计费）；
+ *   · 受理之后上游明说 failed / cancelled → ArkTaskFailed（带服务端的退款结论）；
+ *   · 等到死线 / 连查五次查不动 → ArkTaskUnknown（不是失败：凭据留着，取回走 GET /v2/video/:taskId，不花钱）。
+ * ★ onTask 在开始等待**之前**调（调用方拿它落凭据：进程被系统回收时落过盘的那一份是唯一的线索）。
+ * ★ 查询不是 200 的一律**不是结局**（契约：404 / 503 / 504 / 502）—— 数进 pollFails，不下定论。
+ * ★ 轮询间隔不短于 8 秒（契约：每分钟 300 次是全站的上限，查询算不算进去官方没写；与真人档同一个数）。
+ */
+export async function minimaxV2Video(o: {
+  model: string;
+  /** 上游的大写写法（档位表的 upstreamResolution：480P / 768P） */
+  resolution: string;
+  /** 窗口内的整数秒（economy.clampDuration 已经吸附过 —— 这里不再夹，两处各夹一遍就是第二份实现） */
+  durationSec: number;
+  /** 具体画幅（纯文字 / 参考图出片必须写）；带首帧 / 尾帧时**不传**（服务端补 adaptive：成片跟着图的比例走） */
+  ratio?: string;
+  prompt: string;
+  /** 已经是我们图床上的 https 地址（ai/real 转存过） */
+  images: { url: string; role: MinimaxV2Role }[];
+  onProgress?: (ev: ArkProgress) => void;
+  onTask?: (taskId: string) => void;
+}): Promise<string> {
+  const prog = (ev: ArkProgress) => o.onProgress?.(ev);
+  const url = `${BASE}/v2/video`;
+  const body = {
+    model: o.model,
+    resolution: o.resolution,
+    duration: o.durationSec,
+    ...(o.ratio ? { ratio: o.ratio } : {}),
+    content: [
+      { type: "text", text: o.prompt },
+      ...o.images.map((im) => ({ type: "image_url", image_url: { url: im.url }, role: im.role })),
+    ],
+  };
+  let res: Response;
+  try {
+    res = await fetch(url, { method: "POST", headers: authHeaders(url), body: JSON.stringify(body), signal: AbortSignal.timeout(T_CREATE_MS) });
+  } catch (e) {
+    const detail = e instanceof Error ? e.message : String(e);
+    throw new ArkNoReply(t`MiniMax 出片创建没收到回包：${detail}`);
+  }
+  // 扣费 / 退款都发生在服务端：回包上的余额头同步一次（不同步的话镜像要等下一次调用才自愈）
+  syncWalletFromHeaders(res.headers);
+  const status = res.status;
+  const text = await res.text().catch(() => "");
+  // 判「这台服务器有没有这条路」看 Content-Type（SPA 回退是 200 + HTML），不信状态码。老服务端上这条路不存在 —— 没扣钱
+  if (!(res.headers.get("Content-Type") ?? "").includes("application/json")) {
+    throw new Error(t`这台服务器还不支持 MiniMax H3 出片（HTTP ${status}）——先换一档出片`);
+  }
+  if (!res.ok) throw v2RefusalError(status, text);
+  let created: Record<string, unknown> = {};
+  try {
+    created = JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    /* 2xx 却读不出：下面那一行按「已计费」说 */
+  }
+  const taskId = typeof created.task_id === "string" ? created.task_id : typeof created.task_id === "number" ? String(created.task_id) : "";
+  // ★ 2xx 之后才坏（受理了却没给任务号）= 钱已经扣了、又没法查询取件：ArkBadReply（failCharge：已计费），别抛裸 Error 被归进「没扣」
+  if (!taskId) throw new ArkBadReply(t`MiniMax 受理了这一发却没给任务号——把这句话反馈给我们`);
+  o.onTask?.(taskId); // ★ 在开始等之前落凭据（理由见上）
+
+  // 死线按「这一发要出多少秒视频」放（与方舟那条同一个式子：短段保底 12 分钟）。到点不是失败 —— 凭据留着、取回不花钱
+  const t0 = Date.now();
+  const deadline = t0 + Math.max(12 * 60_000, o.durationSec * 90_000 + 3 * 60_000);
+  const pollUrl = `${BASE}/v2/video/${encodeURIComponent(taskId)}`;
+  let pollFails = 0;
+  for (;;) {
+    if (Date.now() > deadline) {
+      const minutes = Math.round((Date.now() - t0) / 60_000);
+      // 钱的话不在这里说（只走 ai/failCharge；取回卡按服务端的账说扣没扣）
+      throw new ArkTaskUnknown(t`MiniMax 出片 ${minutes} 分钟没出结果——任务多半还在上游跑，不是失败。`, taskId);
+    }
+    await new Promise((r) => setTimeout(r, 8000));
+    let st: Record<string, unknown> | null = null;
+    let why = "";
+    try {
+      const r = await fetch(pollUrl, { headers: authHeaders(pollUrl), signal: AbortSignal.timeout(T_QUERY_MS) });
+      // 失败那一拍服务端会退钱、带余额头（只给账的主人）
+      syncWalletFromHeaders(r.headers);
+      if (r.ok && (r.headers.get("Content-Type") ?? "").includes("application/json")) st = (await r.json()) as Record<string, unknown>;
+      else why = `HTTP ${r.status}`;
+    } catch (e) {
+      why = e instanceof Error ? e.message.slice(0, 60) : t`查询失败`;
+    }
+    if (!st) {
+      // ★ 不是 200 的都不是结局（契约）：连查五次查不动 = 我们瞎了，不是这一发废了
+      if (++pollFails >= 5) throw new ArkTaskUnknown(t`盯不住这一发的进度了（${why}）——任务还在上游跑，不是失败。`, taskId);
+      prog({ kind: "pollRetry", fails: pollFails, max: 5, sec: Math.round((Date.now() - t0) / 1000) });
+      continue;
+    }
+    pollFails = 0;
+    const state = String(st.status ?? "");
+    // V2 的状态词本来就是 queued / running（与方舟同一套），读秒句共用 arkClient.describeArkProgress；空状态按排队报
+    prog({ kind: "poll", status: state || "queued", sec: Math.round((Date.now() - t0) / 1000) });
+    if (V2_FAILED.has(state)) throw minimaxV2Failed(taskId, st);
+    if (state === "succeeded") {
+      const video = v2VideoUrlOf(st);
+      // ★ 成功却没给地址：成片地址有时效、再查一次会给新的（官方）—— 不说死，凭据留着、取回再查一次（不花钱）
+      if (!video) throw new ArkTaskUnknown(t`成片已经出来了，这一次没拿到地址——凭据还在，用「取回」领回来，不花钱。`, taskId);
+      return video;
+    }
+  }
 }
 
 /**
