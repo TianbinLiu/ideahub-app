@@ -11023,6 +11023,10 @@ msgid "图位（按方案「{0}」· {1} 格）"
 msgstr "图位（按方案「{0}」· {1} 格）"
 
 #: src/data/templates.ts
+msgid "图位「{name}」在正文里没被点到——在正文里写一处「@{name}」，或者删掉这个图位"
+msgstr "图位「{name}」在正文里没被点到——在正文里写一处「@{name}」，或者删掉这个图位"
+
+#: src/data/templates.ts
 msgid "图位「{shown}」的名字用不了（空的、与别的图位重名，或者是「图1 / 参考图2」这类编号写法）——回参考图那一步改个名字"
 msgstr "图位「{shown}」的名字用不了（空的、与别的图位重名，或者是「图1 / 参考图2」这类编号写法）——回参考图那一步改个名字"
 
@@ -15323,6 +15327,10 @@ msgstr "摘掉"
 msgid "摘掉模板，改为自选"
 msgstr "摘掉模板，改为自选"
 
+#: src/studio/flowStore.ts
+msgid "摘掉模板出处之后正文放不下（多出来的 {over} 字会在出片时从尾巴截掉）——先把正文删短 {over} 字再摘"
+msgstr "摘掉模板出处之后正文放不下（多出来的 {over} 字会在出片时从尾巴截掉）——先把正文删短 {over} 字再摘"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "摸{areaName}播哪个动作"
 msgstr "摸{areaName}播哪个动作"
@@ -15865,8 +15873,8 @@ msgid "文字模板的正文是空的，没法存"
 msgstr "文字模板的正文是空的，没法存"
 
 #: src/data/templates.ts
-msgid "文字模板至少要有一档能出片——回规格那一步选一档"
-msgstr "文字模板至少要有一档能出片——回规格那一步选一档"
+#~ msgid "文字模板至少要有一档能出片——回规格那一步选一档"
+#~ msgstr "文字模板至少要有一档能出片——回规格那一步选一档"
 
 #: src/data/templates.ts
 msgid "文字模板这一版只存在这台设备上，还不能登记到服务器（上市场要等下一版）"
@@ -17624,6 +17632,10 @@ msgstr "模板市场 · 工作流"
 msgid "模板市场的「工作流」货架上会多一张卡，这条作品就是它的示例视频；别人从那儿点进来按这条流程做同款。随时能在编辑页下架。"
 msgstr "模板市场的「工作流」货架上会多一张卡，这条作品就是它的示例视频；别人从那儿点进来按这条流程做同款。随时能在编辑页下架。"
 
+#: src/data/templates.ts
+msgid "模板时长在这一档的时长范围之外"
+msgstr "模板时长在这一档的时长范围之外"
+
 #: src/components/guide/tours.tsx
 msgid "模板是成品配方"
 msgstr "模板是成品配方"
@@ -18159,9 +18171,21 @@ msgstr "正在重试…"
 msgid "正在问总大小…"
 msgstr "正在问总大小…"
 
+#: src/data/templates.ts
+msgid "正文太长了：文字模板最多 {max} 字（只有电影级收这么长；其余档 500 字）——回第一步删短一些"
+msgstr "正文太长了：文字模板最多 {max} 字（只有电影级收这么长；其余档 500 字）——回第一步删短一些"
+
 #: src/studio/flowStore.ts
-msgid "正文有 {len} 字，摘掉模板出处之后这一档最多 {max} 字（多出来的会在出片时被截掉）——先把正文删到 {max} 字以内再摘"
-msgstr "正文有 {len} 字，摘掉模板出处之后这一档最多 {max} 字（多出来的会在出片时被截掉）——先把正文删到 {max} 字以内再摘"
+#~ msgid "正文有 {len} 字，摘掉模板出处之后这一档最多 {max} 字（多出来的会在出片时被截掉）——先把正文删到 {max} 字以内再摘"
+#~ msgstr "正文有 {len} 字，摘掉模板出处之后这一档最多 {max} 字（多出来的会在出片时被截掉）——先把正文删到 {max} 字以内再摘"
+
+#: src/data/templates.ts
+msgid "正文比这一档放得下的长"
+msgstr "正文比这一档放得下的长"
+
+#: src/data/templates.ts
+msgid "正文的时间轴写到第 {m} 秒，模板时长只有 {durationSec} 秒——回规格那一步把时长调到 {m} 秒以上，或者把时间轴改短"
+msgstr "正文的时间轴写到第 {m} 秒，模板时长只有 {durationSec} 秒——回规格那一步把时长调到 {m} 秒以上，或者把时间轴改短"
 
 #: src/studio/flowStore.ts
 msgid "正文的时间轴写到第 {m} 秒，这一段只有 {dur} 秒——后面那几秒模型拍不到、钱照整段收。去 ⚙ 本段设置把时长调到 {m} 秒以上，或者把时间轴改短"
@@ -25613,13 +25637,25 @@ msgstr "这一格要画成什么样？（画风句会自动接上）"
 msgid "这一格还没写画面"
 msgstr "这一格还没写画面"
 
+#: src/data/templates.ts
+msgid "这一档一次收的参考图比图位少"
+msgstr "这一档一次收的参考图比图位少"
+
 #: src/ai/arkClient.ts
 #~ msgid "这一档不对当前套餐开放，去「我的」页升级套餐后再试"
 #~ msgstr "这一档不对当前套餐开放，去「我的」页升级套餐后再试"
 
+#: src/data/templates.ts
+msgid "这一档不收参考图，图位的图发不出去"
+msgstr "这一档不收参考图，图位的图发不出去"
+
 #: src/studio/flowStore.ts
 msgid "这一档不经过方案台。"
 msgstr "这一档不经过方案台。"
+
+#: src/data/templates.ts
+msgid "这一档不认按秒写的时间轴"
+msgstr "这一档不认按秒写的时间轴"
 
 #: src/studio/ui/PlanBoard.tsx
 msgid "这一档最短 {minSec} 秒"
@@ -25640,6 +25676,14 @@ msgstr "这一档出片不出声，台词说不出来 —— 换到「{names}」
 #: src/components/flow/DialogueWizard.tsx
 #~ msgid "这一档出片不出声，台词说不出来 —— 换到高清或电影级。"
 #~ msgstr "这一档出片不出声，台词说不出来 —— 换到高清或电影级。"
+
+#: src/data/templates.ts
+msgid "这一档只认一张起拍照片，没有参考图"
+msgstr "这一档只认一张起拍照片，没有参考图"
+
+#: src/data/templates.ts
+msgid "这一档已经下线"
+msgstr "这一档已经下线"
 
 #: src/data/account.ts
 msgid "这一档是会员档——开通会员套餐（或充值过任意一笔）后可用"
@@ -25801,6 +25845,10 @@ msgstr "这一段在确认之前被改过了（时长/画面/选中的走向变�
 #: src/studio/flowStore.ts
 msgid "这一段套用的文字模板「{title}」只在「{names}」档上跑得通（正文的长短、图位、时间轴都是按那几档写的）——去 ⚙ 本段设置换回其中一档"
 msgstr "这一段套用的文字模板「{title}」只在「{names}」档上跑得通（正文的长短、图位、时间轴都是按那几档写的）——去 ⚙ 本段设置换回其中一档"
+
+#: src/studio/flowStore.ts
+msgid "这一段套用的文字模板「{title}」在「{label}」档上跑不了：{reason}——去 ⚙ 本段设置换一档，或者先「摘掉模板出处」按普通段出片"
+msgstr "这一段套用的文字模板「{title}」在「{label}」档上跑不了：{reason}——去 ⚙ 本段设置换一档，或者先「摘掉模板出处」按普通段出片"
 
 #: src/studio/flowStore.ts
 msgid "这一段套用的文字模板「{title}」没有认得出的出片档了——先「摘掉模板出处」，再按普通段出片"
@@ -27503,6 +27551,10 @@ msgstr "这条模板已经被作者删了，刷新列表看看别的。"
 #: src/components/support/VoiceMarket.tsx
 msgid "这条模板没有公开，只有作者自己能用。"
 msgstr "这条模板没有公开，只有作者自己能用。"
+
+#: src/data/templates.ts
+msgid "这条正文在选的档上都跑不了（正文长度、时间轴写法、图位数或时长对不上）——回规格那一步换一档"
+msgstr "这条正文在选的档上都跑不了（正文长度、时间轴写法、图位数或时长对不上）——回规格那一步换一档"
 
 #: src/components/flow/ThemeRewriteSheet.tsx
 msgid "这条流水线没有可改的段：已出片的段与白模段不会改。"

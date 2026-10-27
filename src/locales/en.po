@@ -1691,7 +1691,7 @@ msgstr "{textSec}s · text only"
 
 #: src/components/TemplateShelf.tsx
 msgid "{textSec}s · 要补 {textSlots} 张图"
-msgstr "{textSec}s · needs {textSlots} images"
+msgstr "{textSec}s · needs {textSlots, plural, one {# image} other {# images}}"
 
 #: src/ai/arkClient.ts
 msgid "{tierLabel}档 · {status} {sec}s"
@@ -11015,6 +11015,10 @@ msgid "图位（按方案「{0}」· {1} 格）"
 msgstr "Slots (scheme “{0}” · {1, plural, one {# slot} other {# slots}})"
 
 #: src/data/templates.ts
+msgid "图位「{name}」在正文里没被点到——在正文里写一处「@{name}」，或者删掉这个图位"
+msgstr "The text never mentions image slot \"{name}\" — write \"@{name}\" somewhere in it, or delete the slot"
+
+#: src/data/templates.ts
 msgid "图位「{shown}」的名字用不了（空的、与别的图位重名，或者是「图1 / 参考图2」这类编号写法）——回参考图那一步改个名字"
 msgstr "The slot name “{shown}” can't be used (it's empty, duplicates another slot, or is a numbered form like “图1 / 参考图2”) — go back to the reference-image step and rename it."
 
@@ -15315,6 +15319,10 @@ msgstr "Detach"
 msgid "摘掉模板，改为自选"
 msgstr "Remove template, pick cards"
 
+#: src/studio/flowStore.ts
+msgid "摘掉模板出处之后正文放不下（多出来的 {over} 字会在出片时从尾巴截掉）——先把正文删短 {over} 字再摘"
+msgstr "Without the template the text won't fit (the extra {over} characters would be cut off the end when generating) — shorten it by {over} characters first"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "摸{areaName}播哪个动作"
 msgstr "Motion when {areaName} is touched"
@@ -15857,8 +15865,8 @@ msgid "文字模板的正文是空的，没法存"
 msgstr "The text template's prompt is empty, so it can't be saved."
 
 #: src/data/templates.ts
-msgid "文字模板至少要有一档能出片——回规格那一步选一档"
-msgstr "A text template needs at least one quality tier it can run on — go back to the specs step and pick one."
+#~ msgid "文字模板至少要有一档能出片——回规格那一步选一档"
+#~ msgstr "A text template needs at least one quality tier it can run on — go back to the specs step and pick one."
 
 #: src/data/templates.ts
 msgid "文字模板这一版只存在这台设备上，还不能登记到服务器（上市场要等下一版）"
@@ -17616,6 +17624,10 @@ msgstr "Template market · Workflow"
 msgid "模板市场的「工作流」货架上会多一张卡，这条作品就是它的示例视频；别人从那儿点进来按这条流程做同款。随时能在编辑页下架。"
 msgstr "A card appears on the Template market's \"Workflows\" shelf with this video as its example; others open it from there and remake with this process. You can unlist it any time on the edit page."
 
+#: src/data/templates.ts
+msgid "模板时长在这一档的时长范围之外"
+msgstr "the template length is outside this tier's duration range"
+
 #: src/components/guide/tours.tsx
 msgid "模板是成品配方"
 msgstr "Templates are ready-made recipes"
@@ -18151,9 +18163,21 @@ msgstr "Retrying…"
 msgid "正在问总大小…"
 msgstr "Checking total size…"
 
+#: src/data/templates.ts
+msgid "正文太长了：文字模板最多 {max} 字（只有电影级收这么长；其余档 500 字）——回第一步删短一些"
+msgstr "The text is too long: a text template takes at most {max} characters (only Cinema accepts that much; other tiers take 500) — go back to step 1 and shorten it"
+
 #: src/studio/flowStore.ts
-msgid "正文有 {len} 字，摘掉模板出处之后这一档最多 {max} 字（多出来的会在出片时被截掉）——先把正文删到 {max} 字以内再摘"
-msgstr "The prompt has {len} characters; once the template source is removed, this tier allows at most {max} (anything past that would be cut off when generating) — trim the prompt to {max} characters first, then remove it."
+#~ msgid "正文有 {len} 字，摘掉模板出处之后这一档最多 {max} 字（多出来的会在出片时被截掉）——先把正文删到 {max} 字以内再摘"
+#~ msgstr "The prompt has {len} characters; once the template source is removed, this tier allows at most {max} (anything past that would be cut off when generating) — trim the prompt to {max} characters first, then remove it."
+
+#: src/data/templates.ts
+msgid "正文比这一档放得下的长"
+msgstr "the text is longer than this tier accepts"
+
+#: src/data/templates.ts
+msgid "正文的时间轴写到第 {m} 秒，模板时长只有 {durationSec} 秒——回规格那一步把时长调到 {m} 秒以上，或者把时间轴改短"
+msgstr "The timeline in the text runs to {m}s but the template is only {durationSec}s — set the length to at least {m}s in the specs step, or shorten the timeline"
 
 #: src/studio/flowStore.ts
 msgid "正文的时间轴写到第 {m} 秒，这一段只有 {dur} 秒——后面那几秒模型拍不到、钱照整段收。去 ⚙ 本段设置把时长调到 {m} 秒以上，或者把时间轴改短"
@@ -25605,13 +25629,25 @@ msgstr "What should this slot look like? (the style line is appended automatical
 msgid "这一格还没写画面"
 msgstr "This panel has no picture yet"
 
+#: src/data/templates.ts
+msgid "这一档一次收的参考图比图位少"
+msgstr "this tier takes fewer reference images than there are slots"
+
 #: src/ai/arkClient.ts
 #~ msgid "这一档不对当前套餐开放，去「我的」页升级套餐后再试"
 #~ msgstr "This tier isn't available on your current plan — upgrade your plan on the Me page and try again"
 
+#: src/data/templates.ts
+msgid "这一档不收参考图，图位的图发不出去"
+msgstr "this tier takes no reference images, so the slot images can't be sent"
+
 #: src/studio/flowStore.ts
 msgid "这一档不经过方案台。"
 msgstr "This tier doesn't use the plan board."
+
+#: src/data/templates.ts
+msgid "这一档不认按秒写的时间轴"
+msgstr "this tier doesn't follow a timeline written in seconds"
 
 #: src/studio/ui/PlanBoard.tsx
 msgid "这一档最短 {minSec} 秒"
@@ -25632,6 +25668,14 @@ msgstr "This tier renders without sound, so the lines can’t be spoken — swit
 #: src/components/flow/DialogueWizard.tsx
 #~ msgid "这一档出片不出声，台词说不出来 —— 换到高清或电影级。"
 #~ msgstr "This tier renders without sound, so the lines can’t be spoken — switch to HD or Cinematic."
+
+#: src/data/templates.ts
+msgid "这一档只认一张起拍照片，没有参考图"
+msgstr "this tier takes only one starting photo, no reference images"
+
+#: src/data/templates.ts
+msgid "这一档已经下线"
+msgstr "this tier has been retired"
 
 #: src/data/account.ts
 msgid "这一档是会员档——开通会员套餐（或充值过任意一笔）后可用"
@@ -25793,6 +25837,10 @@ msgstr "This segment changed before you confirmed (duration, frames or the chose
 #: src/studio/flowStore.ts
 msgid "这一段套用的文字模板「{title}」只在「{names}」档上跑得通（正文的长短、图位、时间轴都是按那几档写的）——去 ⚙ 本段设置换回其中一档"
 msgstr "The text template “{title}” used here only runs on “{names}” (its length, image slots and timeline were written for those tiers) — switch back to one of them in ⚙ Segment settings."
+
+#: src/studio/flowStore.ts
+msgid "这一段套用的文字模板「{title}」在「{label}」档上跑不了：{reason}——去 ⚙ 本段设置换一档，或者先「摘掉模板出处」按普通段出片"
+msgstr "The text template \"{title}\" on this segment can't run on \"{label}\": {reason} — switch tiers in ⚙ Segment settings, or \"Detach template\" and generate it as a normal segment"
 
 #: src/studio/flowStore.ts
 msgid "这一段套用的文字模板「{title}」没有认得出的出片档了——先「摘掉模板出处」，再按普通段出片"
@@ -26381,7 +26429,7 @@ msgstr "This text template also has a copy on the server, which this version of 
 
 #: src/studio/flowStore.ts
 msgid "这个文字模板有 {n} 个图位（{list}），一张图都还没补：在参考清单里按图位的名字各加一张图再生成；不想用这些图位，就先「摘掉模板出处」"
-msgstr "This text template has {n} image slots ({list}) and none has an image yet: in the reference list, add one image per slot under the slot's name, then generate. If you don't want these slots, “Remove template source” first."
+msgstr "This text template has {n, plural, one {# image slot} other {# image slots}} ({list}) and none has an image yet: in the reference list, add one image per slot under the slot's name, then generate. If you don't want these slots, “Remove template source” first."
 
 #: src/studio/flowStore.ts
 msgid "这个文字模板的数据不完整（正文、图位或能跑的档缺了），用不了——回「我的模板」删掉它重做一个"
@@ -27495,6 +27543,10 @@ msgstr "The author deleted this template. Refresh the list to see others."
 #: src/components/support/VoiceMarket.tsx
 msgid "这条模板没有公开，只有作者自己能用。"
 msgstr "This template isn't public; only its author can use it."
+
+#: src/data/templates.ts
+msgid "这条正文在选的档上都跑不了（正文长度、时间轴写法、图位数或时长对不上）——回规格那一步换一档"
+msgstr "This text can't run on any of the chosen tiers (length, timeline style, slot count or duration don't fit) — pick another tier in the specs step"
 
 #: src/components/flow/ThemeRewriteSheet.tsx
 msgid "这条流水线没有可改的段：已出片的段与白模段不会改。"

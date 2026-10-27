@@ -1156,6 +1156,13 @@ export interface VideoSegment {
    */
   carried?: boolean;
   /**
+   * 这一段出自文字模板（FlowNode.textTpl，组稿那一拍记；判否定，老数据缺它 = 不是）。**只在本机流转**：
+   * 发布与回炉替换之前 data/videos.stripLocalOnly 把这种段的 plot 置空、这一位去掉 —— 模板正文是作者的东西，
+   * 不随别人的作品外流（与公开配方不带正文同一条，主人 10-26 授权我定的「正文公开但不随作品 / 配方外流」）。
+   * 剪辑页「一键成片」读的是本机这份，照常拿得到全文。
+   */
+  fromTextTpl?: boolean;
+  /**
    * 该段出片时的画幅；缺省=横屏（老数据）。
    * ★ 播放端只把它当**提示**用（首帧还没解码出来时先按它排版），真正的判据是
    *   `<video>` 的 videoWidth/videoHeight——用户上传/换过的段、以及服务端可能

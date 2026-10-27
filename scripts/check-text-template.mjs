@@ -600,6 +600,29 @@ eq("几样一起看（正文 + 标题 + 图位提示）", T.textTplPolicyFlags("
   ok("generateSegment：mainPrompt 要只在 promptWith 里出现一次（量的与真拼的同一个拼法）", (gen.match(/\bmainPrompt\(\{/g) ?? []).length === 1 && /const promptWith = \([^)]*\) =>\s*mainPrompt\(\{/.test(gen));
 }
 
+// ── 这一档跑不跑得了（textTplTierMiss）：只拿档位能力判，不认 id ──
+{
+  const ULTRA = { startOnly: false, refImg: true, refImagesMax: 30, longPromptOk: true, timecodeOk: true, minSec: 4, maxSec: 30 };
+  const HD = { startOnly: false, refImg: true, refImagesMax: 9, longPromptOk: false, timecodeOk: false, minSec: 4, maxSec: 15 };
+  const H3 = { startOnly: false, refImg: true, refImagesMax: 5, longPromptOk: false, timecodeOk: false, minSec: 4, maxSec: 15 };
+  const FAST = { startOnly: false, refImg: false, longPromptOk: false, timecodeOk: false, minSec: 3, maxSec: 10 };
+  const REAL = { startOnly: true, refImg: false, longPromptOk: false, timecodeOk: false, minSec: 6, maxSec: 10 };
+  const owner = { promptLen: 940, slots: 4, timecode: true, durationSec: 15 };
+  const shots = { promptLen: 347, slots: 4, timecode: false, durationSec: 10 };
+  const textOnly = { promptLen: 300, slots: 0, timecode: false, durationSec: 8 };
+  eq("主人例子（940 字 + 秒数 + 4 图位 + 15 秒）在电影级上跑得了", T.textTplTierMiss(owner, ULTRA, 1000), null);
+  eq("主人例子在高清上：正文超 500 先报", T.textTplTierMiss(owner, HD, 500), "long");
+  eq("压短之后还带秒数：高清不认秒数", T.textTplTierMiss({ ...owner, promptLen: 480 }, HD, 500), "timecode");
+  eq("镜头写法 347 字 4 图位 10 秒：高清跑得了", T.textTplTierMiss(shots, HD, 500), null);
+  eq("镜头写法：H3 一段只收 5 张，4 张图位跑得了", T.textTplTierMiss(shots, H3, 500), null);
+  eq("6 个图位：H3 收不下", T.textTplTierMiss({ ...shots, slots: 6 }, H3, 500), "slots");
+  eq("有图位：不收参考图的档跑不了", T.textTplTierMiss(shots, FAST, 400), "refImg");
+  eq("零图位纯文字：不收参考图的档也跑得了", T.textTplTierMiss(textOnly, FAST, 400), null);
+  eq("只认起拍画面的档（真人）：一律跑不了", T.textTplTierMiss(textOnly, REAL, 400), "startOnly");
+  eq("模板 20 秒：高清（最长 15）跑不了 —— 不夹时长", T.textTplTierMiss({ ...shots, durationSec: 20 }, HD, 500), "duration");
+  eq("模板 3 秒：高清（最短 4）跑不了", T.textTplTierMiss({ ...shots, durationSec: 3 }, HD, 500), "duration");
+}
+
 if (problems.length) {
   console.error(`\n❌ 文字模板检查没过（${problems.length} 条）：\n`);
   for (const p of problems) console.error(`   ${p}`);

@@ -627,6 +627,60 @@ export function canonTextTplPrompt(text: string, pack: typeof PackShots): string
   return pack(flat).trim();
 }
 
+// ── 这一档跑不跑得了这个模板 ───────────────────────────────
+
+/** 档位能力里与文字模板有关的那几位（videoTierTable.VideoTier 的子集；这个文件不许有运行时依赖，由调用方把档位对象传进来） */
+export interface TextTplTierCaps {
+  startOnly: boolean;
+  refImg: boolean;
+  refImagesMax?: number;
+  longPromptOk: boolean;
+  timecodeOk: boolean;
+  minSec: number;
+  maxSec: number;
+}
+
+/**
+ * 正文**编译之后**大约多长（作者那一屏与存模板时按档位判长短用）：每一处「@名字」出片时编成「名字（图片N）」，多 4 个字左右。
+ * ★ 是估计不是上界：出片那一拍还要加素材设定 / 点名句（那部分按真读出来的卡图量，segmentGen.promptRoomOf）；
+ *   文字模板段一般不挂卡，这里只管正文自己这一截。
+ */
+export function textTplCompiledLen(prompt: string, slotNames: readonly string[]): number {
+  let n = [...prompt].length;
+  for (const name of slotNames) {
+    if (!name) continue;
+    n += 4 * (prompt.split(`@${name}`).length - 1);
+  }
+  return n;
+}
+
+/** 一档跑不了这个模板的原因（null = 跑得了） */
+export type TextTplTierMiss = "startOnly" | "refImg" | "slots" | "long" | "timecode" | "duration";
+
+/**
+ * 「这一档跑不跑得了这个文字模板」—— **唯一判定**（2026-10-26 审核：tiers 原来只核「id 认得出」，
+ * 名单里可能混进跑不了的档 —— 套用时静默改时长、或者到出片那一拍才说放不下）。
+ * 作者那一屏算「能在哪几档上跑」、saveTemplate 存之前过滤、套用后档位那一排挡档（flowStore.textTplTierIssue）读的都是它。
+ *   · startOnly（只认一张起拍画面的档，今天是真人档）：没有参考图、没有推演，文字模板段那套请求它收不了；
+ *   · 有图位却不收参考图 / 图位比这一档一次收的参考图多；
+ *   · 正文比这一档对文字模板段放开的上限长（promptMax 由调用方按 economy.promptMaxOf(id, { long: true }) 给）；
+ *   · 正文按秒写了时间轴，而这一档不认秒数（timecodeOk，今天只有电影级）；
+ *   · 模板时长在这一档的时长窗口外（不夹：夹了就是不声不响改了这场戏的长度）。
+ */
+export function textTplTierMiss(
+  spec: { promptLen: number; slots: number; timecode: boolean; durationSec: number },
+  tier: TextTplTierCaps,
+  promptMax: number,
+): TextTplTierMiss | null {
+  if (tier.startOnly) return "startOnly";
+  if (spec.slots > 0 && !tier.refImg) return "refImg";
+  if (spec.slots > (tier.refImagesMax ?? 0) && spec.slots > 0) return "slots";
+  if (spec.promptLen > promptMax) return "long";
+  if (spec.timecode && !tier.timecodeOk) return "timecode";
+  if (spec.durationSec < tier.minSec || spec.durationSec > tier.maxSec) return "duration";
+  return null;
+}
+
 /**
  * 定型后正文的指纹（FNV-1a 32 位 + 长度）：「这一段的正文还是不是模板原样」只拿它比 —— 只对 canonTextTplPrompt 的结果算。
  * 不是安全用途（防不了故意碰撞）：服务端认试炼时自己再核正文。

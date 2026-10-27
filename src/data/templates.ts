@@ -15,13 +15,13 @@ import * as uploadsApi from "../api/uploads";
 import { fetchArkTask } from "../ai/arkClient";
 import { serverSupports } from "./serverCaps";
 import { canAfford, currentUser, frozenNote, refreshRemoteWallet, tierBlockReason, tierPlanBlocked } from "./account";
-import { blockoutTier, blockoutizeCost, blockoutizeIssue, fmtTokens, tierOf, type VideoTier } from "./economy";
+import { blockoutTier, blockoutizeCost, blockoutizeIssue, fmtTokens, promptMaxOf, tierOf, type VideoTier } from "./economy";
 import { toPermanentUrl } from "./publishAssets";
 import { remoteOn } from "./videos";
 import { i18n, type MessageDescriptor } from "@lingui/core";
 import { msg, t } from "@lingui/core/macro";
 import { V3_CARD_WIPE_MS, Card, MarkBox, VideoAspect, VideoTemplate, uid, type TemplateRecipe, type TextTplSlot, type TextTplSpec } from "../types";
-import { canonTextTplPrompt } from "./textTemplate";
+import { canonTextTplPrompt, maxTimecodeSec, TEXT_TPL_PROMPT_MAX, textTplCompiledLen, textTplTierMiss, timecodeBeats, type TextTplTierMiss } from "./textTemplate";
 import { packShots } from "./shotScript";
 import { cleanRefName, refNameIssue, TEXT_TPL_EXTRA_MAX } from "./refMentions";
 import { deviceOwner, mayClaimLegacy, onViewerChange, workOwner } from "./deviceOwner";
@@ -1932,8 +1932,12 @@ export function templateKindOf(tpl: Pick<VideoTemplate, "refVideo" | "text">): T
 export function textTplSpecOf(tpl: Pick<VideoTemplate, "refVideo" | "text">): TextTplSpec | null {
   if (templateKindOf(tpl) !== "text") return null;
   const s = tpl.text;
-  if (!s || typeof s.prompt !== "string" || !s.prompt.trim() || !Array.isArray(s.slots) || !Array.isArray(s.tiers)) return null;
+  if (!s || s.v !== 1 || typeof s.prompt !== "string" || !s.prompt.trim() || !Array.isArray(s.slots) || !Array.isArray(s.tiers)) return null;
   if (!Number.isFinite(s.durationSec) || s.durationSec <= 0) return null;
+  // 元素也要核（审核：只核数组的话，本机库里一个 null 图位就让 textTplAppendSpec 的 .map 抛 TypeError —— 货架报价在渲染路径上调它，整块崩）。
+  // v 不认识的（将来的 v2 形状）一律当用不了，别当 v1 读
+  if (!s.slots.every((x) => !!x && typeof x === "object" && typeof x.name === "string" && !!x.name.trim())) return null;
+  if (!s.tiers.every((id) => typeof id === "string")) return null;
   return s;
 }
 
@@ -1955,6 +1959,14 @@ export function textTplRecipe(spec: Pick<TextTplSpec, "durationSec" | "aspect" |
 function normTextTplSpec(raw: TextTplSpec): TextTplSpec {
   const prompt = canonTextTplPrompt(raw.prompt, packShots);
   if (!prompt) throw new Error(t`文字模板的正文是空的，没法存`);
+  const durationSec = Math.round(Number(raw.durationSec));
+  if (!Number.isFinite(durationSec) || durationSec <= 0) throw new Error(t`文字模板的时长不对，回规格那一步重选`);
+  // 时间轴写到的秒数比模板时长还长：后面那几秒哪一档都拍不到（审核：原来只在套用后出片前才说）
+  const need = maxTimecodeSec(prompt);
+  if (need !== null && need > durationSec) {
+    const m = Math.ceil(need);
+    throw new Error(t`正文的时间轴写到第 ${m} 秒，模板时长只有 ${durationSec} 秒——回规格那一步把时长调到 ${m} 秒以上，或者把时间轴改短`);
+  }
   const slots: TextTplSlot[] = [];
   for (const s of Array.isArray(raw.slots) ? raw.slots : []) {
     const name = cleanRefName(s?.name ?? "");
@@ -1971,12 +1983,68 @@ function normTextTplSpec(raw: TextTplSpec): TextTplSpec {
     const max = TEXT_TPL_EXTRA_MAX;
     throw new Error(t`文字模板最多 ${max} 个图位`);
   }
-  const tiers = [...new Set((Array.isArray(raw.tiers) ? raw.tiers : []).filter((id) => typeof id === "string" && tierOf(id).id === id))];
-  if (!tiers.length) throw new Error(t`文字模板至少要有一档能出片——回规格那一步选一档`);
-  const durationSec = Math.round(Number(raw.durationSec));
-  if (!Number.isFinite(durationSec) || durationSec <= 0) throw new Error(t`文字模板的时长不对，回规格那一步重选`);
+  // 每个图位都要在正文里被 @ 点到：没被点到的图位，使用者补了图也不知道这张图是干什么的（模型只拿到系统兜底的一句用途）
+  const unnamed = slots.find((s) => !prompt.includes(`@${s.name}`));
+  if (unnamed) {
+    const name = unnamed.name;
+    throw new Error(t`图位「${name}」在正文里没被点到——在正文里写一处「@${name}」，或者删掉这个图位`);
+  }
+  if (textTplCompiledLen(prompt, slots.map((s) => s.name)) > TEXT_TPL_PROMPT_MAX) {
+    const max = TEXT_TPL_PROMPT_MAX;
+    throw new Error(t`正文太长了：文字模板最多 ${max} 字（只有电影级收这么长；其余档 500 字）——回第一步删短一些`);
+  }
+  // 时间轴写不写秒数按正文认（不信调用方给的那一位）：带秒数的正文只有认秒数的档跑得了
+  const timecode = timecodeBeats(prompt).length > 0;
+  const shape = { prompt, slots, timecode, durationSec };
+  // 档位只留认得出、而且这条正文 + 这几个图位 + 这个时长**真跑得了**的（textTemplate.textTplTierMiss 一处判；原来只核 id，审核抓到）。
+  // 顺序保留：第一个 = 默认档（作者那一屏保证它跑得了）
+  const tiers = [...new Set((Array.isArray(raw.tiers) ? raw.tiers : []).filter((id) => typeof id === "string" && !textTplTierMissOf(shape, id)))];
+  if (!tiers.length) throw new Error(t`这条正文在选的档上都跑不了（正文长度、时间轴写法、图位数或时长对不上）——回规格那一步换一档`);
   const aspect: VideoAspect = raw.aspect === "portrait" ? "portrait" : "landscape";
-  return { v: 1, prompt, slots, ...(raw.timecode ? { timecode: true } : {}), durationSec, aspect, tiers };
+  return { v: 1, prompt, slots, ...(timecode ? { timecode: true } : {}), durationSec, aspect, tiers };
+}
+
+/** 一档跑不了某个文字模板的原因（textTemplate.TextTplTierMiss 之外加「档位认不出」） */
+export type TextTplTierWhy = TextTplTierMiss | "unknown";
+
+/**
+ * 这个文字模板在 `tierId` 这一档上跑不跑得了 —— null = 跑得了。规则只在 data/textTemplate.textTplTierMiss，这里只把档位能力与上限喂进去：
+ * 上限按文字模板段问 economy.promptMaxOf(id, { long: true })，正文按编译之后的估计长度（textTplCompiledLen）。
+ * 作者那一屏算「能在哪几档上跑」、saveTemplate 过滤、套用后档位那一排（flowStore.textTplTierIssue）读的都是它。
+ */
+export function textTplTierMissOf(
+  spec: Pick<TextTplSpec, "prompt" | "slots" | "timecode" | "durationSec">,
+  tierId: string,
+): TextTplTierWhy | null {
+  const tier = tierOf(tierId);
+  if (tier.id !== tierId) return "unknown";
+  const slots = Array.isArray(spec.slots) ? spec.slots : [];
+  const names = slots.map((s) => s?.name ?? "");
+  return textTplTierMiss(
+    { promptLen: textTplCompiledLen(spec.prompt, names), slots: slots.length, timecode: !!spec.timecode, durationSec: spec.durationSec },
+    tier,
+    promptMaxOf(tierId, { long: true }),
+  );
+}
+
+/** 一档跑不了这个文字模板时那半句原因（作者那一屏与档位那一排共用） */
+export function textTplTierWhyText(why: TextTplTierWhy): string {
+  switch (why) {
+    case "startOnly":
+      return t`这一档只认一张起拍照片，没有参考图`;
+    case "refImg":
+      return t`这一档不收参考图，图位的图发不出去`;
+    case "slots":
+      return t`这一档一次收的参考图比图位少`;
+    case "long":
+      return t`正文比这一档放得下的长`;
+    case "timecode":
+      return t`这一档不认按秒写的时间轴`;
+    case "duration":
+      return t`模板时长在这一档的时长范围之外`;
+    default:
+      return t`这一档已经下线`;
+  }
 }
 
 /**

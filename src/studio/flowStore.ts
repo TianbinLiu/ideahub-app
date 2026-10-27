@@ -51,7 +51,7 @@ import {
   draftTierId,
   videoAudioOn,
 } from "../data/economy";
-import { aspectOf, Card, DEFAULT_ASPECT, Proposal, TemplateRecipe, VIDEO_PROMPT_MAX_V2, VideoAspect, VideoSegment, VideoTemplate, aspectFromSize, uid, viewsOf, type TextTplOrigin } from "../types";
+import { aspectOf, Card, DEFAULT_ASPECT, Proposal, TemplateRecipe, VideoAspect, VideoSegment, VideoTemplate, aspectFromSize, uid, viewsOf, type TextTplOrigin } from "../types";
 import type { WorkflowRecipe } from "../data/recipe";
 // ★ 角色位上限（服务端那个数的镜像）与"哪几个能挂卡"只有一处实现，在 data 层 ——
 //   store 不该 import 组件（依赖方向 data → store → 组件）
@@ -68,6 +68,8 @@ import {
   templateKindOf,
   textTplSpecOf,
   textTplStartTier,
+  textTplTierMissOf,
+  textTplTierWhyText,
 } from "../data/templates";
 import { type BlockoutCastSlot, blockoutApplySkeleton, castNameIssue, composeBlockoutPrompt } from "./blockoutPrompt";
 import { GenStep, createGenLog, splitStatus } from "./genLog";
@@ -1443,8 +1445,20 @@ export function textTplQuote(tmpl: VideoTemplate, tierId?: string): { tokens: nu
  */
 export function textTplTierIssue(node: FlowNode, tierId: string): string | null {
   const tt = node.textTpl;
-  if (!tt || tt.tiers.includes(tierId)) return null;
+  if (!tt) return null;
   const title = tt.title;
+  if (tt.tiers.includes(tierId)) {
+    // 名单里的档也按能力再核一次（老本机库里存的名单只核过 id；规则只在 data/templates.textTplTierMissOf）：正文按这一段现在的样子量
+    const prop = chosenOf(node);
+    const why = textTplTierMissOf(
+      { prompt: prop.plot, slots: tt.slots.map((x) => ({ name: x.name, hint: x.hint })), timecode: maxTimecodeSec(prop.plot) !== null, durationSec: clampDuration(prop.durationSec, tierId) },
+      tierId,
+    );
+    if (!why) return null;
+    const label = tierOf(tierId).label;
+    const reason = textTplTierWhyText(why);
+    return t`这一段套用的文字模板「${title}」在「${label}」档上跑不了：${reason}——去 ⚙ 本段设置换一档，或者先「摘掉模板出处」按普通段出片`;
+  }
   const names = joinTierNames(tt.tiers.filter((id) => tierOf(id).id === id).map((id) => tierOf(id).label));
   return names
     ? t`这一段套用的文字模板「${title}」只在「${names}」档上跑得通（正文的长短、图位、时间轴都是按那几档写的）——去 ⚙ 本段设置换回其中一档`
@@ -1490,16 +1504,8 @@ export function textTplIssue(nodes: FlowNode[], idx: number, mode: FlowMode): st
   return null;
 }
 
-/**
- * 组稿时这一段写进 `VideoSegment.plot` 的正文 —— 唯一实现（studioStore 组稿那一拍调它）。
- * ★ 文字模板段的正文超过**普通段**的上限（types.VIDEO_PROMPT_MAX_V2，500）时写空串（同白模段在公开配方里不带点名句的写法）：
- *   VideoSegment.plot 会随作品发布，被「做同款」（remakeNodesOf）原样抄进**普通段** —— 普通段按 500 从尾巴截、照全价出片，
- *   正好是文字模板段不许发生的事（2026-10-26 审核）。500 字以内的照写：剪辑页「一键成片」要读它，抄进普通段也装得下。
- * @param full 这一段本来要写的那一句（镜头字段已经折进去的）
- */
-export function composedPlotOf(node: FlowNode, full: string): string {
-  return node.textTpl && full.length > VIDEO_PROMPT_MAX_V2 ? "" : full;
-}
+// 文字模板段的正文**不随作品外流**（2026-10-26 审核，原来这里按 500 字分界只挡长正文）：组稿时照写全文并记 VideoSegment.fromTextTpl，
+// 发布与回炉替换之前一律由 data/videos.stripLocalOnly 置空 —— 一处判定，分支树（studioStore.buildBranchTree）与作品简介都经它。
 
 /**
  * 文字模板段的做法是固定的（照 extendLaneLocked）：切自定义 / 切出直出 / 按段套白模模板这三个入口对它整句拒 ——
@@ -2367,7 +2373,13 @@ export const useFlow = create<FlowState>()((set, get) => ({
         set({ err: t`这个文字模板的数据不完整（正文、图位或能跑的档缺了），用不了——回「我的模板」删掉它重做一个` });
         return false;
       }
-      return get().seed([appendedNode([], spec)], { mode: "workflow", origin: "solo" });
+      const ok = get().seed([appendedNode([], spec)], { mode: "workflow", origin: "solo" });
+      // 模板的默认档这个人用不了、换成了名单里另一档 → 当场说一句（照经典分支 tierCopyNote）：档位决定正文能写多长、时间轴怎么写，
+      // 不说的话人第一次听说是点生成时的「放不下 / 时间轴超时长」（2026-10-26 审核）
+      const want = textTplSpecOf(tmpl)?.tiers[0];
+      const note = ok && want ? tierCopyNote(0, want, spec.videoTier ?? want) : null;
+      if (note) showToast(note, 6000);
+      return ok;
     }
     // ── 白模模板（存在性判定，types.ts 的 ★）：只铺 1 个节点、chain=false ──
     // 多段在物理上不成立：段间承接的整个机制是「上一段**真实**尾帧顶替本段首帧」
@@ -4417,11 +4429,13 @@ export const useFlow = create<FlowState>()((set, get) => ({
     }
     // ★ 摘完就是普通段：正文按普通上限、临时参考图按普通段的张数 —— 装不下的部分出片那一拍会被**悄悄截掉**（普通段的老规矩），
     //   而那正是文字模板段不许发生的事。所以装不下就整句拒，让人先删短、删图（这时它还是文字模板段，长正文与第 4 张图都还在）
-    const plot = chosenOf(node).plot;
-    const max = promptMaxOf(node.videoTier, { long: false });
-    if (plot.length > max) {
-      const len = plot.length;
-      set({ err: t`正文有 ${len} 字，摘掉模板出处之后这一档最多 ${max} 字（多出来的会在出片时被截掉）——先把正文删到 ${max} 字以内再摘` });
+    // 量法与出片那一拍同一套（审核：原来只比裸上限，挂着卡时 480 字照样摘得掉、出片时被截）—— 拿摘掉出处之后的节点问 nodePromptRoom
+    const idx = s.nodes.findIndex((n) => n.id === nodeId);
+    const after = s.nodes.map((n) => (n.id === nodeId ? { ...n, textTpl: undefined } : n));
+    const room = nodePromptRoom(after, idx, s.mode);
+    if (room && room.over > 0) {
+      const over = room.over;
+      set({ err: t`摘掉模板出处之后正文放不下（多出来的 ${over} 字会在出片时从尾巴截掉）——先把正文删短 ${over} 字再摘` });
       return false;
     }
     const extras = usableExtraRefs(node.extraRefs).length;
