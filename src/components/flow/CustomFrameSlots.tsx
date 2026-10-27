@@ -58,6 +58,8 @@ export default function CustomFrameSlots({
                   carry: t`空 = 承接上一段真实尾帧`,
                   draw,
                   cards: t`空 = 不画，卡片形象图直接给视频模型`,
+                  // 只发临时参考图（或挂的卡没有形象图）：别说「卡片形象图」，真发出去的只有参考图（segmentGen.emptyFrameFates 按 RefPlan.cardImages 分）
+                  refs: t`空 = 不画，参考图直接给视频模型`,
                   photo: t`空 = 用真人卡的照片起拍`,
                   none: t`空 = 不带开头帧`,
                 }[fates.first]

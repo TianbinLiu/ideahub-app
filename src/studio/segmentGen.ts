@@ -673,8 +673,15 @@ export interface RefPlan {
   voiceOver: { cards: Card[]; capSec: number } | null;
   /** 带着声音样本、但这一段**没有他的台词**的卡 —— 这次不带（2026-10-03；谁说的认不准时为 null，一张都不筛掉） */
   voiceQuiet: Card[] | null;
-  /** 这一发走参考生视频（一张帧都不带，卡片形象图直接喂视频模型）—— 帧位空着时那句说明用（emptyFrameFates） */
+  /** 这一发走参考生视频（一张帧都不带，卡片形象图 / 临时参考图直接喂视频模型）—— 帧位空着时那句说明用（emptyFrameFates） */
   refMode: boolean;
+  /**
+   * 这一发计划发出去几张**卡片形象图**（planCardRefs 分到的张数；这一发不是参考类请求 / 带示例视频时恒 0）。
+   * ★ 为什么要单列（2026-10-26 审核抓到）：refMode 从「卡上有形象图」放宽成「卡图或临时参考图」之后，只挂临时参考图（或挂的卡没有图）的段
+   *   refMode 也为真 —— 帧位上写「卡片形象图直接给视频模型」、简约页写「把素材卡的形象参考图交给某档出片」就成了假话：真发出去的只有临时参考图，卡只按文字参与。
+   *   说「卡片形象图」之前一律先问它（emptyFrameFates、FlowPage 简约页那句）。
+   */
+  cardImages: number;
   /** 出片前要补画哪几张（data/drawPlan 的答案，与出片、报价同源）—— 帧位空着时那句说明用 */
   draws: { first: boolean; last: boolean };
   /**
@@ -686,8 +693,11 @@ export interface RefPlan {
 
 /** 帧位空着时那一格出片时会怎样（「自定义」与简约那两格帧位上的说明，2026-10-04） */
 export interface EmptyFrameFate {
-  /** carry = 承接上一段真实尾帧；draw = 出片前 AI 补画（计费）；cards = 不画，卡片形象图直接给视频模型；photo = 用真人卡的照片起拍；none = 不带 */
-  first: "carry" | "draw" | "cards" | "photo" | "none";
+  /**
+   * carry = 承接上一段真实尾帧；draw = 出片前 AI 补画（计费）；cards = 不画，卡片形象图直接给视频模型；
+   * refs = 不画，参考图（临时参考图 / 图位的图）直接给视频模型、这一发没有卡片形象图；photo = 用真人卡的照片起拍；none = 不带
+   */
+  first: "carry" | "draw" | "cards" | "refs" | "photo" | "none";
   /** draw = 出片前 AI 补画（计费）；multiShot = 分了镜头，不用结束画面；none = 不画，视频按提示词往下拍 */
   last: "draw" | "multiShot" | "none";
 }
@@ -701,7 +711,8 @@ export interface EmptyFrameFate {
 export function emptyFrameFates(plan: RefPlan | null, o: { carried: boolean; multiShot: boolean }): EmptyFrameFate {
   if (!plan) return { first: o.carried ? "carry" : "draw", last: "draw" };
   return {
-    first: o.carried ? "carry" : plan.draws.first ? "draw" : plan.refMode ? "cards" : plan.why === "real" ? "photo" : "none",
+    // 走参考生视频时分两句：真有卡片形象图要发才说「卡片形象图」，只发临时参考图（或挂的卡没有图）说「参考图」
+    first: o.carried ? "carry" : plan.draws.first ? "draw" : plan.refMode ? (plan.cardImages > 0 ? "cards" : "refs") : plan.why === "real" ? "photo" : "none",
     last: plan.draws.last ? "draw" : o.multiShot ? "multiShot" : "none",
   };
 }
@@ -795,23 +806,23 @@ export function refPlanOf(o: SegmentPlanInput): RefPlan {
   // 自定义 + 示例视频：帧当参考图，卡片的图一张都不发
   if (o.materialRef) {
     if (!tier.refVid)
-      return { sends: false, why: "refvid", items: [], textOnly: textOnlyOf(new Set()), extrasDropped: extras.length > 0, refVideo: true, ...voiceBits(false), refMode: false, draws: { first: false, last: false }, extraMax };
+      return { sends: false, why: "refvid", items: [], textOnly: textOnlyOf(new Set()), extrasDropped: extras.length > 0, refVideo: true, ...voiceBits(false), refMode: false, draws: { first: false, last: false }, extraMax, cardImages: 0 };
     const firstRef = o.carryFrame || o.firstFrame || "";
     if (firstRef) push({ kind: "first", src: firstRef, carried: !!o.carryFrame });
     for (const m of o.materialRef.mids ?? []) if (m) push({ kind: "mid", src: m });
     if (o.lastFrame) push({ kind: "last", src: o.lastFrame });
     for (const x of extras) push({ kind: "extra", src: x.url, extra: x });
     // 素材参考这条路不补画（帧来自示例视频或你自己给的）
-    return { sends: true, why: null, items, textOnly: textOnlyOf(new Set()), extrasDropped: false, refVideo: true, ...voiceBits(true), refMode: false, draws: { first: false, last: false }, extraMax };
+    return { sends: true, why: null, items, textOnly: textOnlyOf(new Set()), extrasDropped: false, refVideo: true, ...voiceBits(true), refMode: false, draws: { first: false, last: false }, extraMax, cardImages: 0 };
   }
   // ★ 判据与 generateSegment 的真人档那一支同一个（请求形状 VideoTier.api，apiCase：加一种 api 时 tsc 逼着在这里表态）：清单预览的就是那一发会怎么拼
   if (apiCase(tier.api, { ark: false, "minimax-v1": true }))
     // 真人档一张设定帧都不画：首帧就是真人卡的照片
-    return { sends: false, why: "real", items: [], textOnly: textOnlyOf(new Set()), extrasDropped: extras.length > 0, refVideo: false, ...voiceBits(false), refMode: false, draws: { first: false, last: false }, extraMax };
+    return { sends: false, why: "real", items: [], textOnly: textOnlyOf(new Set()), extrasDropped: extras.length > 0, refVideo: false, ...voiceBits(false), refMode: false, draws: { first: false, last: false }, extraMax, cardImages: 0 };
   const { firstSrc, first, last, slots } = planMain(o);
   const blockout = !!o.refVideoUrl;
   if (!blockout && !slots.refMode && !slots.framesAsRefs)
-    return { sends: false, why: "tier", items: [], textOnly: textOnlyOf(new Set()), extrasDropped: extras.length > 0, refVideo: false, ...voiceBits(false), refMode: false, draws: slots.draw, extraMax };
+    return { sends: false, why: "tier", items: [], textOnly: textOnlyOf(new Set()), extrasDropped: extras.length > 0, refVideo: false, ...voiceBits(false), refMode: false, draws: slots.draw, extraMax, cardImages: 0 };
   if (slots.framesAsRefs) {
     // 两格各自：已经有、或出片前会补画（data/drawPlan：不补画帧的段缺的不补、多镜头的段不画结束画面）—— 与出片发出去的张数同一个答案。
     // 不补画的段可以只有一张尾帧（只给了结束帧），那时开头那一格不摆
@@ -833,6 +844,7 @@ export function refPlanOf(o: SegmentPlanInput): RefPlan {
     refMode: slots.refMode,
     draws: slots.draw,
     extraMax,
+    cardImages: picks.length,
   };
 }
 
@@ -2237,7 +2249,8 @@ export async function generateSegment(
     );
   else if (blockout)
     prog((refSec ? t`按模板视频逐镜头复刻出片（时长跟随模板 ${refSec} 秒）…` : t`按模板视频逐镜头复刻出片（时长跟随模板）…`) + noteTail() + cut);
-  else if (refMode) prog(t`参考卡片形象直接出片（省掉设定帧）…` + noteTail() + cut);
+  // 只发临时参考图（卡没挂 / 卡图一张都没读出来）时别说「参考卡片形象」：真发出去的只有临时参考图（2026-10-26 审核抓到）
+  else if (refMode) prog((refUrls ? t`参考卡片形象直接出片（省掉设定帧）…` : t`按临时参考图直接出片（省掉设定帧）…`) + noteTail() + cut);
   // ★ 这一支以前是 `else if (cut)` —— 没有截断就一个字不说，于是“帧当参考图发”这条路上
   //   的提示（含上传失败退回首尾帧）没有任何出口。改成无条件说一句，把 notes 带上。
   else {

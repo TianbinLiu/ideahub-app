@@ -14441,6 +14441,10 @@ msgstr "按 @{0} 的流程做的同款：《{1}》"
 msgid "按「{q}」翻出 {count} 张。"
 msgstr "按「{q}」翻出 {count} 张。"
 
+#: src/studio/segmentGen.ts
+msgid "按临时参考图直接出片（省掉设定帧）…"
+msgstr "按临时参考图直接出片（省掉设定帧）…"
+
 #: src/studio/structuredSkills.ts
 msgid "按主题改写全片剧本"
 msgstr "按主题改写全片剧本"
@@ -21579,6 +21583,10 @@ msgid "空 = 不画，卡片形象图直接给视频模型"
 msgstr "空 = 不画，卡片形象图直接给视频模型"
 
 #: src/components/flow/CustomFrameSlots.tsx
+msgid "空 = 不画，参考图直接给视频模型"
+msgstr "空 = 不画，参考图直接给视频模型"
+
+#: src/components/flow/CustomFrameSlots.tsx
 msgid "空 = 不画，视频按提示词往下拍"
 msgstr "空 = 不画，视频按提示词往下拍"
 
@@ -22764,6 +22772,10 @@ msgstr "素材卡（选） · 已选 {0} 张 —— 缺帧补画时当参考"
 #: src/studio/segmentGen.ts
 msgid "素材卡上没有可用的形象参考图，改为先按描述画一张设定帧再出片（多花约一张出图的钱）"
 msgstr "素材卡上没有可用的形象参考图，改为先按描述画一张设定帧再出片（多花约一张出图的钱）"
+
+#: src/pages/FlowPage.tsx
+msgid "素材卡上还没有形象参考图：这次只把临时参考图交给「{tierLabel}」档直接出片（不画设定帧），卡只按文字参与——想让卡的样子进画面，去卡片详情页给卡加几张形象图"
+msgstr "素材卡上还没有形象参考图：这次只把临时参考图交给「{tierLabel}」档直接出片（不画设定帧），卡只按文字参与——想让卡的样子进画面，去卡片详情页给卡加几张形象图"
 
 #: src/pages/FlowPage.tsx
 msgid "素材卡上还没有形象参考图（去卡片详情页加几张），这次只能先按描述画一张设定帧再出片"

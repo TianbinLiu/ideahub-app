@@ -14433,6 +14433,10 @@ msgstr "Remade with @{0}'s process: “{1}”"
 msgid "按「{q}」翻出 {count} 张。"
 msgstr "Found {count, plural, one {# card} other {# cards}} for “{q}”."
 
+#: src/studio/segmentGen.ts
+msgid "按临时参考图直接出片（省掉设定帧）…"
+msgstr "Rendering directly from the extra reference images (no setup frames)…"
+
 #: src/studio/structuredSkills.ts
 msgid "按主题改写全片剧本"
 msgstr "Rewrite the whole script to a theme"
@@ -21571,6 +21575,10 @@ msgid "空 = 不画，卡片形象图直接给视频模型"
 msgstr "Empty = nothing drawn; the card images go straight to the video model"
 
 #: src/components/flow/CustomFrameSlots.tsx
+msgid "空 = 不画，参考图直接给视频模型"
+msgstr "Empty = nothing drawn; the reference images go straight to the video model"
+
+#: src/components/flow/CustomFrameSlots.tsx
 msgid "空 = 不画，视频按提示词往下拍"
 msgstr "Empty = nothing drawn; the video plays on from the prompt"
 
@@ -22756,6 +22764,10 @@ msgstr "Material cards (optional) · {0} selected — used as references when mi
 #: src/studio/segmentGen.ts
 msgid "素材卡上没有可用的形象参考图，改为先按描述画一张设定帧再出片（多花约一张出图的钱）"
 msgstr "The asset cards have no usable reference images, so a setup frame will be drawn from the description first (costs about one extra image)"
+
+#: src/pages/FlowPage.tsx
+msgid "素材卡上还没有形象参考图：这次只把临时参考图交给「{tierLabel}」档直接出片（不画设定帧），卡只按文字参与——想让卡的样子进画面，去卡片详情页给卡加几张形象图"
+msgstr "The cards don't have reference images yet: this time only the extra reference images go straight to the “{tierLabel}” tier (no setup frames), and the cards take part as text only — to get the cards' look into the shot, add a few images to them on the card detail page"
 
 #: src/pages/FlowPage.tsx
 msgid "素材卡上还没有形象参考图（去卡片详情页加几张），这次只能先按描述画一张设定帧再出片"
