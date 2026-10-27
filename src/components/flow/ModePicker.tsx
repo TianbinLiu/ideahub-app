@@ -11,9 +11,10 @@ import Icon, { type IconName } from "../Icon";
 import Warn from "../Warn";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { memberTiersLine, noTierLine, regionTiersLine, textOnlyModesLine, tierBlockReason, tierNamesFor, tierOffered, tierShownModel, tierShownModelId, tierTextOnly } from "../../data/account";
-import { CHAT_TURN_TOKENS, CHECKED_PANEL_TOKENS, clampDuration, fmtTokens, IMAGE_TOKENS, segTokens, tierOf, VIDEO_TIERS, type VideoTier } from "../../data/economy";
-import { useAccountVersion } from "../../hooks/useAccount";
+import { memberTiersLine, noTierLine, regionTiersLine, textOnlyModesLine, tierBlockReason, tierListed, tierNamesFor, tierOfPreferred, tierShownModel, tierShownModelId, tierTextOnly } from "../../data/account";
+import { CHAT_TURN_TOKENS, CHECKED_PANEL_TOKENS, clampDuration, fmtTokens, IMAGE_TOKENS, providerOf, segTokens, tierOf, VIDEO_TIERS, type VideoTier } from "../../data/economy";
+import ProviderSwitch from "./ProviderSwitch";
+import { useAccountVersion, useProviderPref } from "../../hooks/useAccount";
 import UpgradeLink from "../UpgradeLink";
 import { GUIDED_GROUPS, GUIDED_MODES, clearsBlock, modeBlock, modeTierOfSpec, type GuidedGroup, type GuidedModeId, type ModeTier } from "../../data/guidedModes";
 import { GRID_DEFAULT_SEC } from "../../data/gridShots";
@@ -101,6 +102,8 @@ export default function ModePicker({
   const { t } = useLingui();
   // 套餐 / 付没付过钱 / 服务端能力位都是异步到的：订阅账号的版本号，到了就重画
   useAccountVersion();
+  // 两家都给得出时摆哪一家（account.tierListed 读偏好）
+  useProviderPref();
   const tier = tierOf(tierId);
   const caps = modeTierOf(tierId);
   /** 套餐点不动的那几档并成一句（account.memberTiersLine，与 TierRow 同一句）+「去升级」 */
@@ -119,7 +122,8 @@ export default function ModePicker({
    */
   const tierIssue = tierBlockReason(tier);
   /** 摆哪几档：停用的、服务端不支持的不摆（account.tierOffered）；正选着的那一档例外（藏起来就不知道自己在哪一档） */
-  const shown = VIDEO_TIERS.filter((x) => tierOffered(x) || x.id === tier.id);
+  //   两家都给得出的芯片只摆这个人选的那一家（account.tierListed；选在上面那颗 ProviderSwitch 上）
+  const shown = VIDEO_TIERS.filter((x) => tierListed(x) || x.id === tier.id);
   const hidden = GUIDED_MODES.filter((m) => modeBlock(m.id, caps) !== null);
   /**
    * 「换到哪一档就有」：按这个人用得了的说（account.tierNamesFor）；一档都用不了时说那几档是会员档。
@@ -140,6 +144,15 @@ export default function ModePicker({
     <div className="space-y-3">
       <div>
         <div className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>① 先选出片模型</Trans></div>
+        {/* 境内同一档两家都给得出时：先选哪一家（换家 = 换成同一颗芯片的另一家那一行；那一行这个人用不了就不换，芯片上照样灰着说原因） */}
+        <ProviderSwitch
+          className="mb-1.5"
+          current={providerOf(tier.id)}
+          onPick={(p) => {
+            const twin = tierOfPreferred(tier, p);
+            if (twin.id !== tier.id && !tierBlockReason(twin)) onTier(twin.id);
+          }}
+        />
         {/* ★ 换行排，不横向滚（2026-10-26，与 TierRow 同一种排法）：原来是一行 no-scrollbar overflow-x-auto，六档摆不下时后面几颗
             被挤出屏幕、滚动条又藏着 —— 排在最后的正是「真人」，人看不见、也不知道还能往右划。
             量法（2026-10-26，开发服务器的真样式里摆同样六颗芯片量 getBoundingClientRect）：360 宽的手机上，画布「＋ 加一段」的抽屉

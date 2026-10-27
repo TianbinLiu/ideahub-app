@@ -2782,7 +2782,12 @@ App `src/data/economy.ts` 是**报价**口径。不一致的后果是"报价 216
 - **被拦时说什么**：`arkClient.billingDenialError` 认 `code`，抛 `ArkRegionDenied`（ArkHttpError 的子类，带 `billed`），话由 `account.regionDeniedLine` 说
   （不点档名、只说这个地区能用哪几档；回包里读不出地区时不列供应商、不列档名；message 里不说钱）。钱只认 `ai/failCharge`：照回包的 `billed`，没扣的那一句「这一发没有受理，也没有扣费」也在那里（终审从 message 里挪出去：调用方截原因时英文长国名会把它截掉）；展示原因时这句不截（长度有界）。
   白模化（`api/branch.blockoutPost`）按 `billed` 两句各说各的；提取窗在地区不给白模那一档时收起两条白模路的选项、只留原因。
-- **还没做（P2b 起）**：MiniMax H3 三档（海外的草稿 / 高清 / 电影级）、中国用户选 MiniMax、换档句子按 family 去重、给海外免费用户一档。
+- **P2b（App 这一半，2026-10-26）**：档位表加 MiniMax H3 三行（`draft-mm` / `hd-mm` / `ultra-mm`，family 与同档 Seedance 那一行相同、api `minimax-v2`、按秒报价 = 服务端
+  `MINIMAX_SEC_COST`），走服务端 `/api/minimax/v2`（server #132）；摆不摆 = 健康端点的 `minimaxV2` **且** 地区问到了、providers 里有 minimax。
+  免费版只能在 H3-Lite 上纯文字出片（服务端 `MINIMAX_V2_FREE_TEXT_ONLY`）。同一颗芯片两家都给得出时（境内）只摆这个人选的那一家：选择器只有
+  `components/flow/ProviderSwitch` 一份（TierRow / 选法屏 / 工坊铸段窗），偏好在 `data/videoProvider`（按账号、本机，默认 Seedance），
+  摆不摆只问 `account.tierListed`、换家只问 `account.tierOfPreferred`、新段默认 `account.defaultTierId` 跟着偏好走；境内第一次选 MiniMax 先确认一次（数据出境）。
+  还没做：对画布说话认「换成 MiniMax」（agentGrammar）。
   （「卡片与模板写具体模型名」已在 P1 这一批做了：卡片页「按模型适配」、卡组摘要、模板货架与详情、选模板抽屉、创作界面都按地区写模型名，地区不知道时只写档位名 —— `account.offeredVideoModels` 那一组。）
   在那之前门禁一直是 `observe`（主人定：带 P2b 的 App 发版那天再切 `on`），App 这一侧的藏档逻辑在线上不会生效。
 

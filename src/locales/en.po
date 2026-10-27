@@ -4626,6 +4626,10 @@ msgstr "The MiniMax video request contained something the server doesn't accept 
 msgid "MiniMax 受理了这一发却没给任务号——把这句话反馈给我们"
 msgstr "MiniMax accepted this run but returned no task ID — please report this message to us"
 
+#: src/components/flow/ProviderSwitch.tsx
+msgid "MiniMax 的服务器在境外：用它出片时，这一段的提示词和参考图（包括人物卡的照片）会交给 MiniMax 处理。不想这样就留在 Seedance，随时能在这里换回来。"
+msgstr "MiniMax's servers are outside mainland China: when you generate with it, this segment's prompt and reference images (including character card photos) are processed by MiniMax. If you'd rather not, stay on Seedance — you can switch back here any time."
+
 #: src/ai/minimaxVideo.ts
 msgid "MiniMax 那边没有受理这一发——过一会儿再点；一直这样请把这句话反馈给我们"
 msgstr "MiniMax didn't accept this run — try again in a moment; if it keeps happening, please report this message to us"
@@ -8414,6 +8418,14 @@ msgstr "Video model"
 msgid "出片模型是固定的：按参考视频逐镜头复刻只有「{gateLabel}」做得到，套用后这一段不能换别的画质档。"
 msgstr "The video model is fixed: only “{gateLabel}” can remake a reference video shot by shot, so this segment can't switch to another quality tier once you use the template."
 
+#: src/components/flow/ProviderSwitch.tsx
+msgid "出片模型来自"
+msgstr "Video model from"
+
+#: src/components/flow/ProviderSwitch.tsx
+msgid "出片模型来自哪一家"
+msgstr "Which provider the video model comes from"
+
 #: src/pages/CardDetailPage.tsx
 msgid "出片用"
 msgstr "Used in video"
@@ -10855,6 +10867,10 @@ msgstr "The same second is marked more than once. Remove the duplicate frames an
 #: src/pages/LoginPage.tsx
 msgid "同意协议"
 msgstr "Agree to the terms"
+
+#: src/components/flow/ProviderSwitch.tsx
+msgid "同意并改用"
+msgstr "Agree and switch"
 
 #: src/App.tsx
 #: src/pages/LoginPage.tsx
@@ -15785,6 +15801,10 @@ msgstr "Make it rainy"
 #: src/components/flow/FrameEditBox.tsx
 msgid "改成夜晚"
 msgstr "Make it night"
+
+#: src/components/flow/ProviderSwitch.tsx
+msgid "改用 MiniMax 出片？"
+msgstr "Switch to MiniMax?"
 
 #: src/pages/CardDetailPage.tsx
 msgid "改的是你库里这一份。已经随作品发布、或被别人装走的那些是当时的副本，不会跟着变。"

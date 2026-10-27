@@ -4630,6 +4630,10 @@ msgstr "MiniMax 出片请求里有服务器不收的东西——把这句话反�
 msgid "MiniMax 受理了这一发却没给任务号——把这句话反馈给我们"
 msgstr "MiniMax 受理了这一发却没给任务号——把这句话反馈给我们"
 
+#: src/components/flow/ProviderSwitch.tsx
+msgid "MiniMax 的服务器在境外：用它出片时，这一段的提示词和参考图（包括人物卡的照片）会交给 MiniMax 处理。不想这样就留在 Seedance，随时能在这里换回来。"
+msgstr "MiniMax 的服务器在境外：用它出片时，这一段的提示词和参考图（包括人物卡的照片）会交给 MiniMax 处理。不想这样就留在 Seedance，随时能在这里换回来。"
+
 #: src/ai/minimaxVideo.ts
 msgid "MiniMax 那边没有受理这一发——过一会儿再点；一直这样请把这句话反馈给我们"
 msgstr "MiniMax 那边没有受理这一发——过一会儿再点；一直这样请把这句话反馈给我们"
@@ -8422,6 +8426,14 @@ msgstr "出片模型"
 msgid "出片模型是固定的：按参考视频逐镜头复刻只有「{gateLabel}」做得到，套用后这一段不能换别的画质档。"
 msgstr "出片模型是固定的：按参考视频逐镜头复刻只有「{gateLabel}」做得到，套用后这一段不能换别的画质档。"
 
+#: src/components/flow/ProviderSwitch.tsx
+msgid "出片模型来自"
+msgstr "出片模型来自"
+
+#: src/components/flow/ProviderSwitch.tsx
+msgid "出片模型来自哪一家"
+msgstr "出片模型来自哪一家"
+
 #: src/pages/CardDetailPage.tsx
 msgid "出片用"
 msgstr "出片用"
@@ -10863,6 +10875,10 @@ msgstr "同一秒被标了不止一次。删掉重复的那几帧再来（重复
 #: src/pages/LoginPage.tsx
 msgid "同意协议"
 msgstr "同意协议"
+
+#: src/components/flow/ProviderSwitch.tsx
+msgid "同意并改用"
+msgstr "同意并改用"
 
 #: src/App.tsx
 #: src/pages/LoginPage.tsx
@@ -15793,6 +15809,10 @@ msgstr "改成下雨天"
 #: src/components/flow/FrameEditBox.tsx
 msgid "改成夜晚"
 msgstr "改成夜晚"
+
+#: src/components/flow/ProviderSwitch.tsx
+msgid "改用 MiniMax 出片？"
+msgstr "改用 MiniMax 出片？"
 
 #: src/pages/CardDetailPage.tsx
 msgid "改的是你库里这一份。已经随作品发布、或被别人装走的那些是当时的副本，不会跟着变。"

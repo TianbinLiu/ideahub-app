@@ -15,9 +15,11 @@ import Warn from "../Warn";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
-import { memberTiersLine, r2vTierIssue, realFaceIssue, regionTiersLine, sameChipProvider, tierBlockReason, tierOffered, tierShownModelId } from "../../data/account";
-import { clampDuration, deriveIssue, fmtTokens, tierOf, VIDEO_TIERS } from "../../data/economy";
-import { useAccountVersion } from "../../hooks/useAccount";
+import { memberTiersLine, r2vTierIssue, realFaceIssue, regionTiersLine, sameChipProvider, tierBlockReason, tierListed, tierOfPreferred, tierOffered, tierShownModelId } from "../../data/account";
+import { clampDuration, deriveIssue, fmtTokens, providerOf, tierOf, VIDEO_TIERS } from "../../data/economy";
+import type { VideoProvider } from "../../data/videoZoneRules";
+import ProviderSwitch from "./ProviderSwitch";
+import { useAccountVersion, useProviderPref } from "../../hooks/useAccount";
 import UpgradeLink from "../UpgradeLink";
 import { chosenOf, nodeCost, nodeFramed, tplOfNode, useFlow } from "../../studio/flowStore";
 import { carryIsHard } from "../../studio/segmentGen";
@@ -102,6 +104,8 @@ export default function TierRow({
   const { t } = useLingui();
   // 套餐 / 付没付过钱 / 服务端能力位都是异步到的：订阅账号的版本号，到了就重画（不然免费用户的会员档要等下一次别的重画才灰）
   useAccountVersion();
+  // 两家都给得出时摆哪一家（account.tierListed 读偏好）：选完那一拍这一排要跟着换
+  useProviderPref();
   const nodes = useFlow((s) => s.nodes);
   const mode = useFlow((s) => s.mode);
   const index = nodes.findIndex((n) => n.id === nodeId);
@@ -118,7 +122,8 @@ export default function TierRow({
   const framed = !!needsDerive || nodeFramed(nodes, index, mode);
   // ★ 摆哪几档：停用的、这台服务端不支持的不摆（account.tierOffered）—— 只有这一段**正挂着**的那一档例外：
   //   藏起来的话这一排一个高亮都没有，人不知道自己在哪一档、为什么出不了片（它会灰着，原因印在下面）
-  const shown = VIDEO_TIERS.filter((tier) => tierOffered(tier) || tier.id === node.videoTier);
+  //   两家都给得出的芯片只摆这个人选的那一家（account.tierListed；选在下面那颗 ProviderSwitch 上）
+  const shown = VIDEO_TIERS.filter((tier) => tierListed(tier) || tier.id === node.videoTier);
   // 套餐那一类原因并成一句（account.memberTiersLine）+「去升级」；这一段挂着的档本身用不了（停用 / 服务端不支持）另说一句
   const memberLine = memberTiersLine();
   /** 出片地区那一句（account.regionTiersLine：这个地区出片只提供哪几家；地区不知道 / 没有哪一档被拦时为 null）。与选法屏、工坊铸段窗同一句 */
@@ -148,8 +153,20 @@ export default function TierRow({
     onDone?.();
   }
 
+  /** 换家：换成同一颗芯片的另一家那一行，走与点芯片同一条路（换档代价先说完）。另一家那一行这个人用不了就不换，芯片上照样灰着说原因 */
+  function switchProvider(p: VideoProvider) {
+    const twin = tierOfPreferred(tierOf(node!.videoTier), p);
+    if (twin.id === node!.videoTier || tierBlockReason(twin)) return;
+    const loss = tierSwitchLoss(node!.id, twin.id);
+    const via = sameChipProvider(twin, tierOf(node!.videoTier));
+    if (loss.length) setAsk({ nodeId: node!.id, id: twin.id, label: via ? `${twin.label} · ${via}` : twin.label, loss });
+    else apply(twin.id);
+  }
+
   return (
     <div className="space-y-1.5">
+      {/* 境内同一档两家都给得出时：先选哪一家（ProviderSwitch 自己判摆不摆），再选档 */}
+      <ProviderSwitch current={providerOf(node.videoTier)} onPick={switchProvider} />
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="w-10 flex-none text-[11px] text-slate-400"><Trans>画质</Trans></span>
         {/* ★ 回调参数叫 tier 不叫 t：t 是 useLingui 给的翻译函数，同名会把它遮住 */}

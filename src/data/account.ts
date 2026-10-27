@@ -21,6 +21,7 @@ import { cardInputOf, modelsOfTiers, type VideoModelOf } from "./cardFit";
 import { serverFreeVideo, serverSupports, subscribeServerCaps } from "./serverCaps";
 import { minimaxV2Offered, minimaxV2Unsettled, refreshVideoZone, subscribeVideoZone, videoZone, zoneDenies, zoneIsRegional, type VideoProvider } from "./videoZone";
 import { stepAsideOf, tierGoOf } from "./videoZoneRules";
+import { providerPref } from "./videoProvider";
 import { FREE_DEFAULT_CHAIN, PAID_DEFAULT_CHAIN, SEEDANCE_2_5, firstLiveTierId, providerOfModel, upstreamResOf } from "./videoTierTable";
 import { idbGet, idbRead, idbSet } from "./db";
 // 转存（dataURL → 永久 URL）的唯一入口，与发布/换封面/详情页加图共用（铁律六）
@@ -1196,6 +1197,39 @@ export function offeredTiers(): VideoTier[] {
   return VIDEO_TIERS.filter(tierOffered);
 }
 
+// ── 同一颗芯片两家都给得出时，摆哪一家（出片地区 P2b 的选择器，2026-10-26）────────────
+
+/**
+ * 同一颗芯片（family）上**另一家**摆得出来的那一行（没有 = null）。境内的草稿 / 高清 / 电影级各有 Seedance 与 MiniMax H3 两行；
+ * 海外只给 MiniMax、或 V2 没开时，另一家摆不出来 = null。档位表里同一家一个 family 只有一行（构建检查钉着），所以「另一家」最多一行。
+ */
+export function tierTwin(tier: VideoTier): VideoTier | null {
+  const me = providerOf(tier.id);
+  return VIDEO_TIERS.find((x) => x.family === tier.family && providerOf(x.id) !== me && tierOffered(x)) ?? null;
+}
+
+/**
+ * 这一档在档位那一排 / 选法屏 / 铸段窗 / 货架筛选上**摆不摆**（tierOffered 之上再收一道：两家都给得出时只摆这个人选的那一家，data/videoProvider）。
+ * ★ 只管「摆不摆」，不管「能不能用」：节点上已经挂着的另一家照样能出片（宿主照旧把「正选着的那一档」例外摆出来）；门禁一律问 tierBlockReason。
+ * ★ 两家里有一家只是**套餐**挡着时照样按偏好摆（套餐是能付钱治的，换一家不是出路；话由 tierBlockReason 说）。
+ */
+export function tierListed(tier: VideoTier): boolean {
+  if (!tierOffered(tier)) return false;
+  return !tierTwin(tier) || providerOf(tier.id) === providerPref();
+}
+
+/** 现在有没有「两家可选」的芯片 —— 选择器（components/flow/ProviderSwitch）摆不摆只问它 */
+export function providerChoosable(): boolean {
+  return VIDEO_TIERS.some((x) => tierOffered(x) && !!tierTwin(x));
+}
+
+/** 这一档按这个人选的那一家换成同一颗芯片的那一行（另一家摆不出来 / 已经是那一家 = 原样）—— 默认档与选择器换家时共用 */
+export function tierOfPreferred(tier: VideoTier, provider = providerPref()): VideoTier {
+  if (providerOf(tier.id) === provider) return tier;
+  const twin = tierTwin(tier);
+  return twin && providerOf(twin.id) === provider ? twin : tier;
+}
+
 // ── 「哪个出片模型」怎么写（2026-10-26 出片地区 · 主人第 2 件：卡片信息写具体模型名，并按地区只列给得出的）──
 //
 // ★★ 卡片页「按模型适配」、卡组页的适配摘要、模板货架（卡面角标 / 「出片模型」筛选 / 筛空了那句）、模板详情「出片模型」那一行、
@@ -1767,7 +1801,12 @@ function nameSep(): string {
  */
 export function defaultTierId(): string {
   const id = chainTierId();
-  if (!zoneDenies(providerOf(id))) return id;
+  // ★ 两家都给得出时落在这个人选的那一家（data/videoProvider；没选过 = Seedance，与默认档链本来的样子一样）。
+  //   换过去的那一行用不了（免费用户选了 MiniMax、链上是「草稿」→ H3-Lite 是免费档，照样用得了；会员档另说）就留在原来那一家
+  if (!zoneDenies(providerOf(id))) {
+    const pref = tierOfPreferred(tierOf(id));
+    return pref.id !== id && !tierBlockReason(pref) ? pref.id : id;
+  }
   const offered = offeredTiers();
   // usable 恒真：默认档链本来就按付没付过钱挑过（免费链只有免费档），这里只是把被地区挡住的那一行挪到同一颗芯片 / 最接近的那一行上
   return stepAsideOf(tierOf(id), offered, () => true)?.id ?? offered[0]?.id ?? id;

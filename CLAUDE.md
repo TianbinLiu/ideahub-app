@@ -194,6 +194,10 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   详情页出片键灰掉并给「去升级」），别等人挂完卡点了生成才第一次听说。卡这一侧的同一条口径在 `data/cardFit`（卡片页「按模型适配」那一格
   与卡组页的摘要读同一份状态，页面只负责说成句子；2026-10-26 起**按具体模型**算、只读档位表能力位 startOnly / refImg / assetRef / realFace，
   零依赖，构建里 `check-card-fit.mjs` 拿真表实跑；写哪几个模型、写不写名字见下面「出片地区」⑥）。
+- **境内同一档两家可选（Seedance / MiniMax H3）**（2026-10-26 出片地区 P2b）：芯片按 family 并成一颗，两家都给得出时只摆这个人选的那一家 ——
+  摆不摆只问 `account.tierListed`（`tierOffered` 之上收一道，**只管摆不摆、不管能不能用**：节点上挂着的另一家照样能出片，门禁仍问 `tierBlockReason`），
+  换家只问 `account.tierOfPreferred`，偏好只在 `data/videoProvider`（按账号、本机、默认 Seedance），选择器只有 `components/flow/ProviderSwitch` 一份
+  （境内第一次选 MiniMax 先确认：照片和提示词交给境外服务器处理）。新写一排档位芯片时用 `tierListed` 筛、挂 ProviderSwitch，别再写 `filter(tierOffered)`。
 - **免费档限制 / 「草稿」档 / 电影级「样片」/ 失败退回 token**（2026-10-07 主人拍板，契约见 docs/api-contract.md「视频档位」「纯任务的参数钉子、样片两步、停用」
   「受理之后失败的退款」）。六条规矩：
   ① **档位的能力 / 价目 / 分辨率只在 `data/videoTierTable`**（零依赖，构建里 `check-video-tiers.mjs` 核对，服务端 `config/tokens.js` 逐条相等）。
