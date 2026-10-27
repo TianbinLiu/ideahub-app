@@ -3952,7 +3952,6 @@ msgid "🔇 {quietNames} 在这一段没有台词，这次不带声音样本。"
 msgstr "🔇 No lines for {quietNames} in this segment, so their voice samples aren't sent this time."
 
 #: src/components/flow/SegPlayer.tsx
-#: src/components/SegmentPlayer.tsx
 msgid "🔇 已静音"
 msgstr "🔇 Muted"
 
@@ -3993,7 +3992,6 @@ msgid "🔊 已录 {0}s（铸卡时存进这张卡）"
 msgstr "🔊 Recorded {0}s (saved to this card when minting)"
 
 #: src/components/blockout/VideoStage.tsx
-#: src/components/SegmentPlayer.tsx
 msgid "🔊 有声"
 msgstr "🔊 Sound on"
 
@@ -7482,6 +7480,7 @@ msgstr "Free plan: {daily} plan tokens are added every day (saving up to {cap}).
 msgid "全不选"
 msgstr "Select none"
 
+#: src/components/PlayerControls.tsx
 #: src/pages/FeedPage.tsx
 msgid "全屏"
 msgstr "Full screen"
@@ -10259,8 +10258,7 @@ msgstr "Unlike"
 msgid "取消铸段"
 msgstr "Cancel new segment"
 
-#: src/components/BranchPlayer.tsx
-#: src/components/SegmentPlayer.tsx
+#: src/components/PlayerControls.tsx
 msgid "取消静音"
 msgstr "Unmute"
 
@@ -13060,8 +13058,8 @@ msgid "已阅读并同意<0>《用户协议》</0>与<1>《隐私政策》</1>"
 msgstr "I have read and agree to the <0>User Agreement</0> and the <1>Privacy Policy</1>"
 
 #: src/components/BranchPlayer.tsx
-msgid "已静音"
-msgstr "Muted"
+#~ msgid "已静音"
+#~ msgstr "Muted"
 
 #: src/pages/ProfilePage.tsx
 msgid "已领取"
@@ -15538,7 +15536,7 @@ msgstr "Undo / redo has to be said on its own: the other changes in this sentenc
 
 #: src/components/blockout/BoxFramePicker.tsx
 #: src/components/blockout/VideoStage.tsx
-#: src/components/BranchPlayer.tsx
+#: src/components/PlayerControls.tsx
 #: src/components/SegmentPlayer.tsx
 #: src/pages/CutPage.tsx
 msgid "播放"
@@ -15566,7 +15564,7 @@ msgstr "The playhead isn't in the selected clip — tap the clip first (it plays
 msgid "播放头处分割"
 msgstr "Split at playhead"
 
-#: src/components/SegmentPlayer.tsx
+#: src/components/PlayerControls.tsx
 #: src/pages/FeedPage.tsx
 msgid "播放进度"
 msgstr "Playback progress"
@@ -16348,8 +16346,7 @@ msgstr "Shot size"
 
 #: src/components/blockout/BoxFramePicker.tsx
 #: src/components/blockout/VideoStage.tsx
-#: src/components/BranchPlayer.tsx
-#: src/components/SegmentPlayer.tsx
+#: src/components/PlayerControls.tsx
 #: src/pages/CutPage.tsx
 msgid "暂停"
 msgstr "Pause"
@@ -16738,8 +16735,8 @@ msgid "有几格还没写画面——写上，或者删掉那几格再画"
 msgstr "Some panels have no picture yet — fill them in, or delete those panels, then draw"
 
 #: src/components/BranchPlayer.tsx
-msgid "有声"
-msgstr "Sound on"
+#~ msgid "有声"
+#~ msgstr "Sound on"
 
 #: src/components/blockout/arkVideoRules.ts
 msgid "有帧标在了选中这一段的外面（允许的范围是第 0~{lastSec} 秒）。把它们删掉重标，或者切回「自动」。"
@@ -28715,6 +28712,7 @@ msgstr "Start over?"
 msgid "重新打开"
 msgstr "Reopen"
 
+#: src/components/PlayerControls.tsx
 #: src/components/SegmentPlayer.tsx
 msgid "重新播放"
 msgstr "Replay"
@@ -29151,8 +29149,7 @@ msgstr "cyan"
 msgid "青年牌手 · 他"
 msgstr "Young card player · he"
 
-#: src/components/BranchPlayer.tsx
-#: src/components/SegmentPlayer.tsx
+#: src/components/PlayerControls.tsx
 msgid "静音"
 msgstr "Mute"
 

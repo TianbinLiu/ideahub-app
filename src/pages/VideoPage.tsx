@@ -485,9 +485,9 @@ export default function VideoPage() {
               </div>
             </div>
           ) : part.branchTree ? (
-            <BranchPlayer key={`b${pi}`} tree={part.branchTree} cover={video.cover} onPathChange={setBranchPath} />
+            <BranchPlayer key={`b${pi}`} tree={part.branchTree} cover={video.cover} onPathChange={setBranchPath} frame="card" rate={1} overlay={null} onFull={null} />
           ) : (
-            <SegmentPlayer key={`s${pi}`} segments={part.segments} cover={video.cover} />
+            <SegmentPlayer key={`s${pi}`} segments={part.segments} cover={video.cover} frame="card" rate={1} overlay={null} onFull={null} />
           ))}
 
         {/* ★★ 被平台下架的横幅。**只有作者自己会走到这里** —— 别人的接口回包里根本没有

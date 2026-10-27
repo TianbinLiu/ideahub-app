@@ -771,6 +771,7 @@ function FeedItem({
           time={durBefore + prog.t}
           paused={paused}
           top={`calc(env(safe-area-inset-top, 0px) + ${immersive ? 20 : 62}px)`}
+          lanes={4}
         />
       )}
 

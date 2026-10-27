@@ -3952,7 +3952,6 @@ msgid "🔇 {quietNames} 在这一段没有台词，这次不带声音样本。"
 msgstr "🔇 {quietNames} 在这一段没有台词，这次不带声音样本。"
 
 #: src/components/flow/SegPlayer.tsx
-#: src/components/SegmentPlayer.tsx
 msgid "🔇 已静音"
 msgstr "🔇 已静音"
 
@@ -3993,7 +3992,6 @@ msgid "🔊 已录 {0}s（铸卡时存进这张卡）"
 msgstr "🔊 已录 {0}s（铸卡时存进这张卡）"
 
 #: src/components/blockout/VideoStage.tsx
-#: src/components/SegmentPlayer.tsx
 msgid "🔊 有声"
 msgstr "🔊 有声"
 
@@ -7486,6 +7484,7 @@ msgstr "免费版：每天自动补 {daily} 套餐 token（最多攒到 {cap}）
 msgid "全不选"
 msgstr "全不选"
 
+#: src/components/PlayerControls.tsx
 #: src/pages/FeedPage.tsx
 msgid "全屏"
 msgstr "全屏"
@@ -10267,8 +10266,7 @@ msgstr "取消点赞"
 msgid "取消铸段"
 msgstr "取消铸段"
 
-#: src/components/BranchPlayer.tsx
-#: src/components/SegmentPlayer.tsx
+#: src/components/PlayerControls.tsx
 msgid "取消静音"
 msgstr "取消静音"
 
@@ -13068,8 +13066,8 @@ msgid "已阅读并同意<0>《用户协议》</0>与<1>《隐私政策》</1>"
 msgstr "已阅读并同意<0>《用户协议》</0>与<1>《隐私政策》</1>"
 
 #: src/components/BranchPlayer.tsx
-msgid "已静音"
-msgstr "已静音"
+#~ msgid "已静音"
+#~ msgstr "已静音"
 
 #: src/pages/ProfilePage.tsx
 msgid "已领取"
@@ -15546,7 +15544,7 @@ msgstr "撤销 / 重做要单独说：这一句里别的改动没有办，撤完
 
 #: src/components/blockout/BoxFramePicker.tsx
 #: src/components/blockout/VideoStage.tsx
-#: src/components/BranchPlayer.tsx
+#: src/components/PlayerControls.tsx
 #: src/components/SegmentPlayer.tsx
 #: src/pages/CutPage.tsx
 msgid "播放"
@@ -15574,7 +15572,7 @@ msgstr "播放头不在选中的片段里——先点一下这个片段（它会
 msgid "播放头处分割"
 msgstr "播放头处分割"
 
-#: src/components/SegmentPlayer.tsx
+#: src/components/PlayerControls.tsx
 #: src/pages/FeedPage.tsx
 msgid "播放进度"
 msgstr "播放进度"
@@ -16356,8 +16354,7 @@ msgstr "景别"
 
 #: src/components/blockout/BoxFramePicker.tsx
 #: src/components/blockout/VideoStage.tsx
-#: src/components/BranchPlayer.tsx
-#: src/components/SegmentPlayer.tsx
+#: src/components/PlayerControls.tsx
 #: src/pages/CutPage.tsx
 msgid "暂停"
 msgstr "暂停"
@@ -16746,8 +16743,8 @@ msgid "有几格还没写画面——写上，或者删掉那几格再画"
 msgstr "有几格还没写画面——写上，或者删掉那几格再画"
 
 #: src/components/BranchPlayer.tsx
-msgid "有声"
-msgstr "有声"
+#~ msgid "有声"
+#~ msgstr "有声"
 
 #: src/components/blockout/arkVideoRules.ts
 msgid "有帧标在了选中这一段的外面（允许的范围是第 0~{lastSec} 秒）。把它们删掉重标，或者切回「自动」。"
@@ -28723,6 +28720,7 @@ msgstr "重新开始？"
 msgid "重新打开"
 msgstr "重新打开"
 
+#: src/components/PlayerControls.tsx
 #: src/components/SegmentPlayer.tsx
 msgid "重新播放"
 msgstr "重新播放"
@@ -29159,8 +29157,7 @@ msgstr "青"
 msgid "青年牌手 · 他"
 msgstr "青年牌手 · 他"
 
-#: src/components/BranchPlayer.tsx
-#: src/components/SegmentPlayer.tsx
+#: src/components/PlayerControls.tsx
 msgid "静音"
 msgstr "静音"
 
