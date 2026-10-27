@@ -7,8 +7,8 @@ import { useMemo, useRef, useState } from "react";
 import Warn from "../../components/Warn";
 import { useNavigate } from "react-router";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { deckCoverOf, memberTiersLine, myCards, myDecks, noTierLine, realFaceIssue, regionTiersLine, textOnlyFramesLine, textOnlyModesLine, tierBlockReason, tierListed, tierNamesFor, tierOfPreferred, tierOffered, tierShownModel, tierShownModelId, tierTextOnly } from "../../data/account";
-import { ONE_IMAGE, VIDEO_TIERS, deriveIssue, durationChoices, fmtTokens, priceTag, promptMaxOf, providerOf, r2vBlockLines, segTokens, shotsOkOf, tierOf } from "../../data/economy";
+import { deckCoverOf, memberTiersLine, myCards, myDecks, noTierLine, realFaceIssue, regionTiersLine, textOnlyFramesLine, textOnlyModesLine, providerShown, tierBlockReason, tierListed, tierNamesFor, tierOfPreferred, tierOffered, tierShownModel, tierShownModelId, tierTextOnly } from "../../data/account";
+import { ONE_IMAGE, VIDEO_TIERS, deriveIssue, durationChoices, fmtTokens, priceTag, promptMaxOf, r2vBlockLines, segTokens, shotsOkOf, tierOf } from "../../data/economy";
 import { useAccountVersion, useProviderPref } from "../../hooks/useAccount";
 import ProviderSwitch from "../../components/flow/ProviderSwitch";
 import UpgradeLink from "../../components/UpgradeLink";
@@ -785,7 +785,7 @@ function EditorPanel() {
             {/* 境内同一档两家都给得出时：先选哪一家（换成同一颗芯片的另一家那一行；那一行这个人用不了就不换，芯片上照样灰着说原因） */}
             <ProviderSwitch
               className="mb-1.5"
-              current={providerOf(editor.videoTier)}
+              current={providerShown(tierOf(editor.videoTier))}
               onPick={(p) => {
                 const twin = tierOfPreferred(tierOf(editor.videoTier), p);
                 if (twin.id !== editor.videoTier && !tierBlockReason(twin)) useStudio.getState().setVideoTier(twin.id);

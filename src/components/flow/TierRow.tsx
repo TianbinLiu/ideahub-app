@@ -15,8 +15,8 @@ import Warn from "../Warn";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
-import { memberTiersLine, r2vTierIssue, realFaceIssue, regionTiersLine, sameChipProvider, tierBlockReason, tierListed, tierOfPreferred, tierOffered, tierShownModelId } from "../../data/account";
-import { clampDuration, deriveIssue, fmtTokens, providerOf, tierOf, VIDEO_TIERS } from "../../data/economy";
+import { memberTiersLine, r2vTierIssue, realFaceIssue, regionTiersLine, providerShown, sameChipProvider, tierBlockReason, tierListed, tierOfPreferred, tierOffered, tierShownModelId } from "../../data/account";
+import { clampDuration, deriveIssue, fmtTokens, tierOf, VIDEO_TIERS } from "../../data/economy";
 import type { VideoProvider } from "../../data/videoZoneRules";
 import ProviderSwitch from "./ProviderSwitch";
 import { useAccountVersion, useProviderPref } from "../../hooks/useAccount";
@@ -166,7 +166,7 @@ export default function TierRow({
   return (
     <div className="space-y-1.5">
       {/* 境内同一档两家都给得出时：先选哪一家（ProviderSwitch 自己判摆不摆），再选档 */}
-      <ProviderSwitch current={providerOf(node.videoTier)} onPick={switchProvider} />
+      <ProviderSwitch current={providerShown(curTier)} onPick={switchProvider} />
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="w-10 flex-none text-[11px] text-slate-400"><Trans>画质</Trans></span>
         {/* ★ 回调参数叫 tier 不叫 t：t 是 useLingui 给的翻译函数，同名会把它遮住 */}

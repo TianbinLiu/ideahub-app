@@ -11,8 +11,8 @@ import Icon, { type IconName } from "../Icon";
 import Warn from "../Warn";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { memberTiersLine, noTierLine, regionTiersLine, textOnlyModesLine, tierBlockReason, tierListed, tierNamesFor, tierOfPreferred, tierShownModel, tierShownModelId, tierTextOnly } from "../../data/account";
-import { CHAT_TURN_TOKENS, CHECKED_PANEL_TOKENS, clampDuration, fmtTokens, IMAGE_TOKENS, providerOf, segTokens, tierOf, VIDEO_TIERS, type VideoTier } from "../../data/economy";
+import { memberTiersLine, noTierLine, regionTiersLine, textOnlyModesLine, providerShown, tierBlockReason, tierListed, tierNamesFor, tierOfPreferred, tierShownModel, tierShownModelId, tierTextOnly } from "../../data/account";
+import { CHAT_TURN_TOKENS, CHECKED_PANEL_TOKENS, clampDuration, fmtTokens, IMAGE_TOKENS, segTokens, tierOf, VIDEO_TIERS, type VideoTier } from "../../data/economy";
 import ProviderSwitch from "./ProviderSwitch";
 import { useAccountVersion, useProviderPref } from "../../hooks/useAccount";
 import UpgradeLink from "../UpgradeLink";
@@ -147,7 +147,7 @@ export default function ModePicker({
         {/* 境内同一档两家都给得出时：先选哪一家（换家 = 换成同一颗芯片的另一家那一行；那一行这个人用不了就不换，芯片上照样灰着说原因） */}
         <ProviderSwitch
           className="mb-1.5"
-          current={providerOf(tier.id)}
+          current={providerShown(tier)}
           onPick={(p) => {
             const twin = tierOfPreferred(tier, p);
             if (twin.id !== tier.id && !tierBlockReason(twin)) onTier(twin.id);

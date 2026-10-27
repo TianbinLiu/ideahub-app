@@ -1223,6 +1223,14 @@ export function providerChoosable(): boolean {
   return VIDEO_TIERS.some((x) => tierOffered(x) && !!tierTwin(x));
 }
 
+/**
+ * 选择器上亮哪一家：这一档在另一家有对标时 = 它自己是哪一家；没有对标（极速 / 标准 / 真人这类只有一家的芯片）= 这个人存下的偏好。
+ * ★ 不按 providerOf 直接亮：「真人」是 MiniMax（V1）的，挂在真人档上的段会把选择器亮成 MiniMax —— 而他从没选过 MiniMax。
+ */
+export function providerShown(tier: VideoTier): VideoProvider {
+  return tierTwin(tier) ? providerOf(tier.id) : providerPref();
+}
+
 /** 这一档按这个人选的那一家换成同一颗芯片的那一行（另一家摆不出来 / 已经是那一家 = 原样）—— 默认档与选择器换家时共用 */
 export function tierOfPreferred(tier: VideoTier, provider = providerPref()): VideoTier {
   if (providerOf(tier.id) === provider) return tier;
