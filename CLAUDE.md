@@ -194,6 +194,10 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   详情页出片键灰掉并给「去升级」），别等人挂完卡点了生成才第一次听说。卡这一侧的同一条口径在 `data/cardFit`（卡片页「按模型适配」那一格
   与卡组页的摘要读同一份状态，页面只负责说成句子；2026-10-26 起**按具体模型**算、只读档位表能力位 startOnly / refImg / assetRef / realFace，
   零依赖，构建里 `check-card-fit.mjs` 拿真表实跑；写哪几个模型、写不写名字见下面「出片地区」⑥）。
+- **白模模板的神态句**（2026-10-26 方案 D，付费读数 docs/blockout-expression-2026-10-26.md）：服务端（#133）在白模化看帧时顺带记下每个人的神态 `markExprs`（与 markSlots 对齐），
+  套用时在 ≤ 3 个角色位的模板上按卡名写一句「神态：A先…；B先…。」。规则只在零依赖的 `data/blockoutExpr`（`check-blockout-expr.mjs` 实跑，写法逐字照付费验过的那一句）；
+  取值只有 `templates.markExprOfLabel`、`BlockoutCastSlot.expr` 必填；括号描述先定、神态句后定（放不下整句不写），排在作者那句话之后、「不要出现字幕」之前；
+  字段四处一起搬，重新认人时跟着清（与 markDescs 方向相反：留着旧的就是把 A 的神态安在 B 身上）。**没有 markExprs 时套用提示词逐字节不变。**
 - **文字模板（只用文字 + 封面做模板）**（2026-10-26 主人点名，P1 = App 本机版，设计正本与付费读数 docs/text-template-design-2026-10-26.md）。四条规矩：
   ① **「是哪一种模板」只问 `data/templates.templateKindOf`**（blockout / text / classic）：文字模板也没有 refVideo，按老写法 `!t.refVideo` 当经典会铺成简约模式、档位标「不限」、发布只翻本机布尔；
   ② 规则全在零依赖的 `data/textTemplate`（体检 / 一键改 / 时间轴改镜头 / 内容规则 / 这一档跑不跑得了 `textTplTierMiss`）与 `refMentions`（图位怎么认、改写成 `@名字`、缺哪几张 `slotGaps`），构建里 `check-text-template.mjs` 实跑；
@@ -1129,6 +1133,7 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 - [`docs/support-ai-video-research-2026-10-25.md`](docs/support-ai-video-research-2026-10-25.md) — AI 客服 × 四支 B 站视频（一键图片分层 / 角色和桌面互动 / AI 全自动 Live2D / 0.8B 实时动作）调研与改动（2026-10-25）：
   这次在 App 里做了八项（字幕跟着念到的那句、安全底线 caps + 求助卡、摸看板娘台词按语言且只合成一次、演出跟着声音走、三段新动作、moc3 加载前检查 + 失败重试、上传向导试跑说实话、人格举报）；
   第四节 14 件等主人定（第 1 件涉及第三方许可，正本在私有笔记）；第五节外部事实（Seedream 图层拆分、See-through / Bunraku / StretchyStudio / HAST-SEC 的许可与现状）
+- [`docs/blockout-expression-2026-10-26.md`](docs/blockout-expression-2026-10-26.md) — 白模模板保留神态（2026-10-26）：付费小验 ¥63.93（雕塑脸方案 A 失败、神态句方案 D 在二次元素材上补回惊讶 / 大笑、半写实素材上不增不减），App 与服务端各做了什么
 - [`docs/text-template-design-2026-10-26.md`](docs/text-template-design-2026-10-26.md) — 文字模板（只用文字 + 封面做模板，2026-10-26）：付费小验读数（方舟没有提示词硬上限、电影级照着 936 字时间轴全做、草稿用「镜头N」、只挂临时参考图四张都用对）、拍板、规则住在哪、P1 做了什么、P2（服务端 + 市场）还差什么
 - [`docs/ui-refactoring-ui-pass-2026-10-23.md`](docs/ui-refactoring-ui-pass-2026-10-23.md) — 按《Refactoring UI》二十条走查 App（2026-10-23，主人给的 B 站视频 + 评论区）：
   四路审计约 160 条 → 这次改了按钮层级（出片后下一步才是主键、市场卡片的实心键改淡、⚡ 只留给花钱）、字重 / 灰阶 / 提示条 / 命中区 / 空态 / 开发用语上屏约 50 处；
