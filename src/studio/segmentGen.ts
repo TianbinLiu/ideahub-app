@@ -624,8 +624,15 @@ export interface RefPlan {
   items: RefPlanItem[];
   /** 挂了、但这一发没把图送进视频模型的卡（只按文字参与）；背景卡本来就只走文字，不在这里 */
   textOnly: Card[];
-  /** 挂着临时参考图、而这一发带不出去 */
+  /** 挂着临时参考图、而这一发带不出去（一张都带不上，或者只带得上前几张 —— 后一种看 extrasCap） */
   extrasDropped: boolean;
+  /**
+   * 带不出去的原因是**图位不够**（2026-10-26 P2b 审核）：这一档一段最多 max 张图（VideoTier.refImagesMax；MiniMax H3 是 5），帧 + 一张卡片图占掉之后，
+   * 临时参考图这一发只带得上前 sent 张（可以是 0）。null = 不是这个原因（档位 / 请求形状本来就发不出临时参考图，那时 extrasDropped 说的是「一张都不发」）。
+   * ★ 为什么要单列：原来参考清单一律说「临时参考图在这一档发不出去」—— H3 上两张帧 + 一张卡 + 三张临时参考图时实际带出去两张，
+   *   清单里亮着那两张、底下却说这一档发不出临时参考图，自相矛盾。话只有一份 extrasCapLine（出片进度里那句同源）
+   */
+  extrasCap: { max: number; sent: number } | null;
   /** 带着示例视频（它不占图片编号） */
   refVideo: boolean;
   /** 台词会带上声音样本的人物卡（顺序 = 参考音频编号） */
@@ -670,6 +677,18 @@ export function emptyFrameFates(plan: RefPlan | null, o: { carried: boolean; mul
     first: o.carried ? "carry" : plan.draws.first ? "draw" : plan.refMode ? "cards" : plan.why === "real" ? "photo" : "none",
     last: plan.draws.last ? "draw" : o.multiShot ? "multiShot" : "none",
   };
+}
+
+/**
+ * 图位不够、临时参考图只带得上前几张（或一张都带不上）那一句 —— **唯一一份**：参考清单（RefStrip，按 RefPlan.extrasCap，出片之前）与
+ * 出片进度（generateSegment 的 notes，出片那一刻）说的是同一件事、同一句话（2026-10-26 P2b 审核）。max 取这一档的图位上限（VideoTier.refImagesMax）。
+ */
+export function extrasCapLine(c: { max: number; sent: number }): string {
+  const max = c.max;
+  const sent = c.sent;
+  return sent > 0
+    ? t`这一档一段最多带 ${max} 张图：临时参考图这次只带了前 ${sent} 张（其余的变淡显示在参考清单里）`
+    : t`这一档一段最多带 ${max} 张图：帧和卡片形象图已经把位占满，临时参考图这次一张都带不上（变淡显示在参考清单里）`;
 }
 
 /**
@@ -725,23 +744,23 @@ export function refPlanOf(
   // 自定义 + 示例视频：帧当参考图，卡片的图一张都不发
   if (o.materialRef) {
     if (!tier.refVid)
-      return { sends: false, why: "refvid", items: [], textOnly: textOnlyOf(new Set()), extrasDropped: extras.length > 0, refVideo: true, ...voiceBits(false), refMode: false, draws: { first: false, last: false } };
+      return { sends: false, why: "refvid", items: [], textOnly: textOnlyOf(new Set()), extrasDropped: extras.length > 0, extrasCap: null, refVideo: true, ...voiceBits(false), refMode: false, draws: { first: false, last: false } };
     const firstRef = o.carryFrame || o.firstFrame || "";
     if (firstRef) push({ kind: "first", src: firstRef, carried: !!o.carryFrame });
     for (const m of o.materialRef.mids ?? []) if (m) push({ kind: "mid", src: m });
     if (o.lastFrame) push({ kind: "last", src: o.lastFrame });
     for (const x of extras) push({ kind: "extra", src: x.url, extra: x });
     // 素材参考这条路不补画（帧来自示例视频或你自己给的）
-    return { sends: true, why: null, items, textOnly: textOnlyOf(new Set()), extrasDropped: false, refVideo: true, ...voiceBits(true), refMode: false, draws: { first: false, last: false } };
+    return { sends: true, why: null, items, textOnly: textOnlyOf(new Set()), extrasDropped: false, extrasCap: null, refVideo: true, ...voiceBits(true), refMode: false, draws: { first: false, last: false } };
   }
   // ★ 判据与 generateSegment 的真人档那一支同一个（请求形状 VideoTier.api，apiCase：加一种 api 时 tsc 逼着在这里表态）：清单预览的就是那一发会怎么拼
   //   MiniMax H3（V2）不是这一支：它收首尾帧与参考图，清单照下面普通那几种排（图位预算按它的 refImagesMax = 5）
   if (apiCase(tier.api, { ark: false, "minimax-v1": true, "minimax-v2": false }))
     // 真人档一张设定帧都不画：首帧就是真人卡的照片
-    return { sends: false, why: "real", items: [], textOnly: textOnlyOf(new Set()), extrasDropped: extras.length > 0, refVideo: false, ...voiceBits(false), refMode: false, draws: { first: false, last: false } };
+    return { sends: false, why: "real", items: [], textOnly: textOnlyOf(new Set()), extrasDropped: extras.length > 0, extrasCap: null, refVideo: false, ...voiceBits(false), refMode: false, draws: { first: false, last: false } };
   // 只能纯文字出片（免费版在 MiniMax H3 上，account.tierTextOnly —— refSlotsOf 与出片读的同一个）：一张图都不发、一张帧都不画
   if (tierTextOnly(tier))
-    return { sends: false, why: "textOnly", items: [], textOnly: textOnlyOf(new Set()), extrasDropped: extras.length > 0, refVideo: false, ...voiceBits(false), refMode: false, draws: { first: false, last: false } };
+    return { sends: false, why: "textOnly", items: [], textOnly: textOnlyOf(new Set()), extrasDropped: extras.length > 0, extrasCap: null, refVideo: false, ...voiceBits(false), refMode: false, draws: { first: false, last: false } };
   /** 首帧的缩略图（没有 = 还没画） */
   const firstSrc = o.carryFrame || o.firstFrame || "";
   const first = firstSrc || (o.framesComing ? "coming" : "");
@@ -766,7 +785,7 @@ export function refPlanOf(
   });
   const blockout = !!o.refVideoUrl;
   if (!blockout && !slots.refMode && !slots.framesAsRefs)
-    return { sends: false, why: "tier", items: [], textOnly: textOnlyOf(new Set()), extrasDropped: extras.length > 0, refVideo: false, ...voiceBits(false), refMode: false, draws: slots.draw };
+    return { sends: false, why: "tier", items: [], textOnly: textOnlyOf(new Set()), extrasDropped: extras.length > 0, extrasCap: null, refVideo: false, ...voiceBits(false), refMode: false, draws: slots.draw };
   if (slots.framesAsRefs) {
     // 两格各自：已经有、或出片前会补画（data/drawPlan：不补画帧的段缺的不补、多镜头的段不画结束画面）—— 与出片发出去的张数同一个答案。
     // 不补画的段可以只有一张尾帧（只给了结束帧），那时开头那一格不摆
@@ -783,6 +802,8 @@ export function refPlanOf(
     items,
     textOnly: textOnlyOf(new Set(picks.map((p) => p.card.id))),
     extrasDropped: extras.length > slots.extrasOn,
+    // 图位不够、只带得上前几张（refSlotsOf.extrasOn 按这一档的图位上限算的同一个数）：参考清单底下那句说「最多带 N 张图」，不说「这一档发不出去」
+    extrasCap: extras.length > slots.extrasOn ? { max: tier.refImagesMax ?? ARK_REF_IMAGES_MAX, sent: slots.extrasOn } : null,
     refVideo: blockout,
     // 白模段不带声音样本（voiceRefsFor 的 blockout 分支：它自己就是 r2v，音轨在组稿时回填原片）
     ...voiceBits(!blockout),
@@ -1830,10 +1851,12 @@ export async function generateSegment(
       notes.push(t`临时参考图没能传上去，这一段不带它们出片`);
     }
     if (extraUrls.length && extrasSent.length < extrasIn.length) {
-      const max = tier.refImagesMax ?? ARK_REF_IMAGES_MAX;
-      const sent = extrasSent.length;
-      notes.push(t`这一档一段最多带 ${max} 张图：临时参考图这次只带了前 ${sent} 张（其余的变淡显示在参考清单里）`);
+      notes.push(extrasCapLine({ max: tier.refImagesMax ?? ARK_REF_IMAGES_MAX, sent: extrasSent.length }));
     }
+  } else if (extrasIn.length && (refMode || sendFrameRefs)) {
+    // 是参考类请求、只是图位已经被帧和卡片图占满（refSlotsOf.extrasOn = 0）：说「最多带 N 张」—— 落进下面那支就成了「没走参考图出片」，是假话。
+    // 今天的档位碰不上（MiniMax H3 一段 5 张图，帧 + 卡片最多占 3 位），图位更紧的档进来时这一句就是对的
+    notes.push(extrasCapLine({ max: tier.refImagesMax ?? ARK_REF_IMAGES_MAX, sent: 0 }));
   } else if (extrasIn.length && !textOnly) {
     // （只能纯文字出片时不在这里说：摘图那一句已经把临时参考图说进去了）
     // 不是参考类请求：说清是哪一种（档位协议上不收 / 这一发退回了首尾帧）
