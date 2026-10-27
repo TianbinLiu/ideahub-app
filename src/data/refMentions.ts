@@ -41,9 +41,22 @@ export const EXTRA_REF_MAX = 3;
  * 文字模板段的临时参考图上限（2026-10-26 主人授权我定：3 → 4，**只给文字模板段**，普通段仍是 EXTRA_REF_MAX）。
  * 文字模板正文里的「图位」就是同名的临时参考图（见下面的 templateSlotRefs）；主人的例子正好四个图位（女仆装 / 特写 / 披风两张），
  * 付费小验 T0（只挂四张临时参考图、不画帧不挂卡）四张都用在点名的位置。文字模板段有图位就不画帧、通常也不挂卡，
- * 所以多出来的这一张不是拿卡的图位换的。哪一段用哪个上限由出片那一侧一处判定（出片一步接线）。
+ * 所以多出来的这一张不是拿卡的图位换的。哪一段用哪个上限只问 extraRefMaxOf。
  */
 export const TEXT_TPL_EXTRA_MAX = 4;
+
+/**
+ * 这一段**最多能带几张**临时参考图 —— 唯一判定（文字模板段 TEXT_TPL_EXTRA_MAX，其余 EXTRA_REF_MAX）。
+ * 读它的：加图那一道闸（flowStore 加临时参考图）、出片与参考清单真发几张（segmentGen.segmentExtras）。
+ * ★ 别在调用点写 `textTpl ? 4 : 3`：两处各写一份，加图时放进去的第 4 张出片时被悄悄截掉（或反过来），零报错。
+ * @param o.textTpl 这一段是文字模板段（FlowNode.textTpl 在不在 / SegmentGenInput.textTpl 非空）
+ */
+export function extraRefMaxOf(o: { textTpl: boolean }): number {
+  return o.textTpl ? TEXT_TPL_EXTRA_MAX : EXTRA_REF_MAX;
+}
+
+/** 任何一种段最多挂几张（usableExtraRefs 只按它截：它答的是「这些图还在不在」，这一段带几张另问 extraRefMaxOf） */
+const EXTRA_REF_CEIL = Math.max(EXTRA_REF_MAX, TEXT_TPL_EXTRA_MAX);
 /** 名字最长几个字符（进提示词的，占 VIDEO_PROMPT_MAX 的额度：三张全不点名、名字都写满时兜底句约 103 字，量法在 check-ref-mentions） */
 export const EXTRA_REF_NAME_MAX = 8;
 export const EXTRA_REF_ROLES: readonly ExtraRefRole[] = ["layout", "scene", "prop", "outfit", "style", "free"];
@@ -55,10 +68,14 @@ export const FRAME_ALIASES: Record<"first" | "last", readonly string[]> = {
   last: ["尾帧", "最后一帧", "last frame"],
 };
 
-/** 这张图还在不在（回炉工程瘦身后地址会变成空串；老数据可能缺字段） */
+/**
+ * 这张图还在不在（回炉工程瘦身后地址会变成空串；老数据可能缺字段）。
+ * ★ 只按「任何一种段最多挂几张」（EXTRA_REF_CEIL）截 —— 这一段**真带几张**问 extraRefMaxOf（出片那一侧 segmentGen.segmentExtras 一处截）。
+ *   2026-10-26 前按 EXTRA_REF_MAX（3）截：文字模板段挂满 4 个图位时，第 4 张在这里就被悄悄丢掉、而正文里还点着它的名字。
+ */
 export function usableExtraRefs(list: readonly ExtraRef[] | undefined | null): ExtraRef[] {
   if (!Array.isArray(list)) return [];
-  return list.filter((x): x is ExtraRef => !!x && typeof x.url === "string" && !!x.url && typeof x.name === "string" && !!x.name).slice(0, EXTRA_REF_MAX);
+  return list.filter((x): x is ExtraRef => !!x && typeof x.url === "string" && !!x.url && typeof x.name === "string" && !!x.name).slice(0, EXTRA_REF_CEIL);
 }
 
 // ── 名字 ────────────────────────────────────────────────

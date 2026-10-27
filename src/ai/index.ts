@@ -218,7 +218,7 @@ export { ArkBadReply, ArkNoReply, ArkTaskUnknown } from "./arkClient";
  * 「上游明说这一发失败了」（带服务端的退款结论）与「出片之前已经画好了几张画面」两种失败的类型（2026-10-07）。
  * 钱上的话只问 chargeOnFail；要按类型分叉（结案凭据、换句话说）的地方先过 unwrapFailure 拆壳。
  */
-export { ArkRegionDenied, ArkTaskFailed, SegmentGenFailed, keptFrameCount, unwrapFailure, fetchTaskCharge } from "./arkClient";
+export { ArkRegionDenied, ArkTaskFailed, ArkVideoRefused, SegmentGenFailed, keptFrameCount, unwrapFailure, fetchTaskCharge } from "./arkClient";
 export type { KeptFrames, TaskRefund, TaskRefundState } from "./arkClient";
 /** 「这次失败钱花没花」的唯一判定 + 钱上的那几句话。catch 里要提钱就走它，别自己对着 ArkNoReply / ArkBadReply 分档 */
 export { chargeNote, chargeOnFail } from "./failCharge";
@@ -248,7 +248,7 @@ export const drawStartFrames: typeof real.drawStartFrames = AI_REAL
       portrait: makeFrame(card.id, card.name, card.id, "portrait"),
       landscape: makeFrame(card.id, card.name, card.id, "landscape"),
     });
-export { refCardIds, planCardRefs } from "./real";
+export { refCardIds, planCardRefs, planMaterialRefs } from "./real";
 
 export type { NpcChatContext } from "../mock/ai";
 /** ★ 必须标 typeof：既有导出全这么写，为的就是强制真假两侧同签名。

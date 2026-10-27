@@ -40,6 +40,7 @@ import {
   proposalRedrawCost,
   proposalsCost,
   segmentCost,
+  promptMaxOf,
   tierOf,
   tierRetired,
   deriveIssue,
@@ -48,7 +49,7 @@ import {
   draftTierId,
   videoAudioOn,
 } from "../data/economy";
-import { aspectOf, Card, DEFAULT_ASPECT, Proposal, TemplateRecipe, VideoAspect, VideoSegment, VideoTemplate, aspectFromSize, uid, viewsOf } from "../types";
+import { aspectOf, Card, DEFAULT_ASPECT, Proposal, TemplateRecipe, VideoAspect, VideoSegment, VideoTemplate, aspectFromSize, uid, viewsOf, type TextTplOrigin } from "../types";
 import type { WorkflowRecipe } from "../data/recipe";
 // ★ 角色位上限（服务端那个数的镜像）与"哪几个能挂卡"只有一处实现，在 data 层 ——
 //   store 不该 import 组件（依赖方向 data → store → 组件）
@@ -65,7 +66,7 @@ import {
 } from "../data/templates";
 import { type BlockoutCastSlot, blockoutApplySkeleton, castNameIssue, composeBlockoutPrompt } from "./blockoutPrompt";
 import { GenStep, createGenLog, splitStatus } from "./genLog";
-import { ANN_CLAUSE, blockoutIssue, emptyFrameFates, frameFree, generateSegment, redrawnAnns, refPlanOf, refVideoOn, revisePlotOf, type EmptyFrameFate, type RefPlan } from "./segmentGen";
+import { ANN_CLAUSE, blockoutIssue, emptyFrameFates, frameFree, generateSegment, promptRoomOf, redrawnAnns, refPlanOf, refVideoOn, revisePlotOf, segmentExtras, type EmptyFrameFate, type PromptRoom, type RefPlan, type TextTplGen } from "./segmentGen";
 import {
   EXTRA_REF_MAX,
   cleanRefName,
@@ -205,6 +206,12 @@ export interface FlowNode {
    * ★ 不进公开配方（data/recipe 的白名单投影里没有它）：是作者自己的图，与上传的参考视频 / 中间帧同一个理由。
    */
   extraRefs?: ExtraRef[];
+  /**
+   * 这一段是从**文字模板**套来的（2026-10-26，文字模板 P1）：出处快照，形状与各条规矩的判据见 types.TextTplOrigin。
+   * 出片那一侧读它只经 textTplGenOf（genNode / 报价 nodeCost / 参考清单 nodeRefPlan / 提示词上限 nodePromptMax 同一处）。
+   * ★ 判否定：老草稿天然缺它、天然走老路。
+   */
+  textTpl?: TextTplOrigin;
   /**
    * 用户对这一段的原始输入（"这一段要拍什么"）。
    * ★ 与 proposal.plot 刻意分开：plot 是 AI 写出来的那一套的剧情（用户还能在方案卡上
@@ -1487,6 +1494,8 @@ export function nodeCost(nodes: FlowNode[], idx: number, mode: FlowMode, tierOve
     // 补不补画、补几张：与出片（genNode → segmentGen）同一组输入，规则只在 data/drawPlan
     noDraw: nodeNoDraw(node, tierOverride),
     multiShot: isMultiShot(prop.plot),
+    // 文字模板段：按模板的图位数定补不补画（有图位不画、零图位只补开头一张）—— genNode 交给出片的是同一个 textTplGenOf
+    textTplSlots: textTplGenOf(node)?.slots ?? null,
     refVideo: refVideo ? { inputSec: refVideo.durationSec } : undefined,
     // 先出样片：视频那一半按 480p 样片的价报（与 genNode 发的同一个判定）
     draft: nodeDraftOn(node, tierOverride),
@@ -1534,6 +1543,24 @@ export function noDrawFor(o: { direct?: boolean; custom?: boolean; customRef: bo
 }
 
 /**
+ * 出片那一侧要知道的文字模板段的事（FlowNode.textTpl 的投影）—— 报价（nodeCost）、参考清单（nodeRefPlan）、参考生视频判定（nodeRefOn）、
+ * 出片（genNode）、提示词上限（nodePromptMax）读的同一处。null = 不是文字模板段（判否定：老草稿天然缺它）。
+ * ★ 图位数按**模板**的（textTpl.slots），不按此刻挂了几张临时参考图：报价在补图前后是同一个数（drawPlan.textTplDraw 的 ★）。
+ */
+export function textTplGenOf(node: FlowNode): TextTplGen | null {
+  return node.textTpl ? { slots: node.textTpl.slots.length } : null;
+}
+
+/**
+ * 这一段的提示词上限（输入框 / 点图运镜芯片的长度闸 / 分镜表）—— economy.promptMaxOf 按这一段是不是文字模板段问（文字模板段在收长提示词的档上 1000）。
+ * 界面上拿「这一段」问上限的一律走它，别各自写 `promptMaxOf(node.videoTier, …)`：漏了 long 就是作者那一屏说放得下、这一段的输入框却按 500 拦。
+ * @param tierId 档位选择器问「换成这一档会怎样」时传
+ */
+export function nodePromptMax(node: FlowNode, tierId?: string): number {
+  return promptMaxOf(tierId ?? node.videoTier, { long: !!textTplGenOf(node) });
+}
+
+/**
  * 这一段能不能走**参考生视频**（不画帧、卡片形象图直接喂视频模型）—— 简约模式，或不补画帧的段。
  * 报价（nodeRefOn）、参考清单、出片、真人卡门禁（nodeFramed）问的都是这一处。
  */
@@ -1567,6 +1594,8 @@ export function nodeRefOn(nodes: FlowNode[], idx: number, mode: FlowMode, tierOv
     // 白模段让位：refVideoUrl 非空时 refVideoOn 恒 false——它的形象图是白模路自己
     // 混发的，不是「参考生视频」这条产品路（界面那句「省掉设定帧」不该亮）
     refVideoUrl: tplOfNode(node)?.refVideo?.url,
+    // 临时参考图也算可发的参考图（只挂临时图、不挂卡也走参考生视频）：张数问 segmentExtras（出片发的是同一批）
+    extras: segmentExtras({ extraRefs: node.extraRefs, refVideoUrl: tplOfNode(node)?.refVideo?.url, textTpl: textTplGenOf(node) }).length,
   });
 }
 
@@ -1577,29 +1606,54 @@ export function nodeRefOn(nodes: FlowNode[], idx: number, mode: FlowMode, tierOv
  *   genNode 那边改了哪一项的取法，这里要跟着改（出片前会拿这份计划对一次张数，对不上写进步骤日志）。
  */
 export function nodeRefPlan(nodes: FlowNode[], idx: number, mode: FlowMode): RefPlan | null {
+  const o = nodePlanInput(nodes, idx, mode);
+  return o ? refPlanOf(o) : null;
+}
+
+/**
+ * 这一段这一发**正文放不放得下**（segmentGen.promptRoomOf：与出片那一拍同一套拼法，按计划算）—— 文字模板段生成键旁那句「还要删 N 字」、
+ * 出片前那道闸、档位选择器问「换成这一档放不放得下」都问它。null = 这一段不走主路（带示例视频 / 延长 / 真人档）。
+ * @param tierOverride 档位选择器问「换成这一档会怎样」时传（同 nodeCost 的 tierOverride）
+ */
+export function nodePromptRoom(nodes: FlowNode[], idx: number, mode: FlowMode, tierOverride?: string): PromptRoom | null {
+  const o = nodePlanInput(nodes, idx, mode, tierOverride);
+  return o ? promptRoomOf(o) : null;
+}
+
+/**
+ * 参考清单（nodeRefPlan）与提示词预算（nodePromptRoom）共用的那份输入 —— 与 genNode 交给 generateSegment 的**逐项同源**
+ * （帧问 usableFrames、承接问 nodeCarry、模板问 tplOfNode、refAllowed 看模式、文字模板问 textTplGenOf）。genNode 那边改了哪一项的取法，这里要跟着改。
+ */
+function nodePlanInput(nodes: FlowNode[], idx: number, mode: FlowMode, tierOverride?: string): Parameters<typeof promptRoomOf>[0] | null {
   const node = nodes[idx];
   if (!node) return null;
   // 还没推演的自选卡片段：帧到出片那一拍一定已经有了（推演时画），按「帧已在手」排（理由见 refPlanOf 的 framesComing）
   const framesComing = nodeFramesComeFromDerive(node);
   const prop = chosenOf(node);
   const frames = usableFrames(node, prop, idx > 0 ? chosenOf(nodes[idx - 1]) : null);
-  const tplRef = tplOfNode(node)?.refVideo;
-  return refPlanOf({
+  const tpl = tplOfNode(node);
+  const tplRef = tpl?.refVideo;
+  return {
     plot: prop.plot,
-    videoTier: node.videoTier,
+    shot: prop.shot,
+    roles: tpl?.roles,
+    videoTier: tierOverride ?? node.videoTier,
     materials: node.materials,
     firstFrame: frames.first,
     lastFrame: frames.last,
     carryFrame: nodeCarry(nodes, idx),
     anns: node.anns,
-    refAllowed: refAllowedOf(node, mode),
-    noDraw: nodeNoDraw(node),
+    refAllowed: refAllowedOf(node, mode, tierOverride),
+    noDraw: nodeNoDraw(node, tierOverride),
     refVideoUrl: tplRef?.url,
     materialRef: node.custom && node.customRef ? { url: node.customRef.url, durationSec: node.customRef.durationSec, mids: node.customRef.mids, keepWatermark: node.customRef.keepWatermark } : undefined,
+    // 延长段：genNode 走 extend 那一支（不带临时参考图）；预算那一侧见它就回 null（另有拼法）
+    extendRef: node.extendFrom ? { url: node.extendFrom.url, durationSec: node.extendFrom.durationSec } : undefined,
     extraRefs: tplRef ? undefined : node.extraRefs,
     durationSec: prop.durationSec,
+    textTpl: textTplGenOf(node),
     framesComing,
-  });
+  };
 }
 
 /**
@@ -4442,6 +4496,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
           //   返修不走这两位（它的参考是本段成片，帧一张不带）
           refAllowed: !rv && !ext && refAllowedOf(node, get().mode),
           noDraw: !rv && nodeNoDraw(node),
+          // 文字模板段（长提示词 / 补画规矩 / 4 张临时参考图 / 放不下整句拒、不截）：返修、延长、定稿发的不是模板正文，不带
+          textTpl: rv || ext || fin ? null : textTplGenOf(node),
         },
         prog,
         // ★★ 受理即落凭据 —— 在**等结果之前**，不是在失败分支里。这一发要等最长 25.5

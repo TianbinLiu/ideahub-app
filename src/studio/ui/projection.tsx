@@ -55,7 +55,7 @@ import {
   rederiveKey,
   useStudio,
 } from "../studioStore";
-import { appendQuote, appendSpecsQuote, CUSTOM_MID_MAX, nodeBlank, recastBlocked, nodeDerived, nodeDone, nodeCost, tplOfNode, useFlow, type FlowNode, nodeAnnPlan, annSkipNote, redrawCost, derivesProposals, nodeLocked, deriveCostOf, nodeRefPlan, nodeFramesComeFromDerive, nodeEditFrames, newFlowNode, nodeEmptyFrames, nodeNoDraw, nodeDraftOn, nodeFramed } from "../flowStore";
+import { appendQuote, appendSpecsQuote, CUSTOM_MID_MAX, nodePromptMax, nodeBlank, recastBlocked, nodeDerived, nodeDone, nodeCost, tplOfNode, useFlow, type FlowNode, nodeAnnPlan, annSkipNote, redrawCost, derivesProposals, nodeLocked, deriveCostOf, nodeRefPlan, nodeFramesComeFromDerive, nodeEditFrames, newFlowNode, nodeEmptyFrames, nodeNoDraw, nodeDraftOn, nodeFramed } from "../flowStore";
 import TierRow from "../../components/flow/TierRow";
 // 选模板弹层借画布那一份（铁律六：市场懒加载/分段组折叠/预览确认全在那一个实现里）。
 // FlowCanvas 不 import 本文件，方向安全（它俩只在 StudioPage/FlowPage 各自的树里出现）
@@ -1063,7 +1063,8 @@ function EditorPanel() {
               value={editor.requirement}
               onChange={(e) => useStudio.getState().setRequirement(e.target.value)}
               // 参考图直出这句就是出片提示词，上限按档位（economy.promptMaxOf）；推演 / 自定义照旧 300
-              maxLength={lane === "direct" ? promptMaxOf(editor.videoTier) : 300}
+              // 铸段窗落的是新段，不是文字模板段（文字模板只从模板货架套用）
+              maxLength={lane === "direct" ? promptMaxOf(editor.videoTier, { long: false }) : 300}
               placeholder={t`例：主角在雨里发现了那封信的真正收件人……`}
               className="min-h-0 w-full flex-1 resize-none rounded-lg border border-slate-600 bg-black/30 px-2.5 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-cyan-400"
             />
@@ -1306,8 +1307,8 @@ function ProposalsPanel() {
   function mentionInto(name: string) {
     if (!node || !chosen) return;
     const ins = insertMention(chosen.plot, chosen.plot.length, name);
-    // 上限按档位问 economy.promptMaxOf（2.x 两档 500），与画布同一个数
-    const promptMax = promptMaxOf(node.videoTier);
+    // 上限问 flowStore.nodePromptMax（2.x 两档 500，文字模板段在电影级上 1000），与画布同一个数
+    const promptMax = nodePromptMax(node);
     if (ins.text.length > promptMax) {
       useFlow.setState({ err: t`再写进去就超过 ${promptMax} 字的上限了——先删几个字` });
       return;
@@ -1583,7 +1584,7 @@ function ProposalsPanel() {
           /* 分镜表（N2，与画布方案台同一份）：选定那一套的剧情框能写成几个镜头、给台词点明谁说的；上限按档位 */
           shotEdit={{
             speakers: (node.materials ?? []).filter((c) => c.type === "character").map((c) => ({ id: c.id, name: c.name, voiced: !!voiceOf(c.id) })),
-            max: promptMaxOf(node.videoTier),
+            max: nodePromptMax(node),
             canAdd: shotsOkOf(node.videoTier),
           }}
           switchWarn={(p) =>

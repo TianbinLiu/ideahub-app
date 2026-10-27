@@ -5799,6 +5799,10 @@ msgstr "The extra reference images can't be sent on this tier (the dimmed ones a
 msgid "临时参考图没能传上去，这一段不带它们出片"
 msgstr "The extra reference images failed to upload, so this segment is rendered without them"
 
+#: src/studio/segmentGen.ts
+msgid "临时参考图没能传上去（这一段只靠它们出片），视频这一发没有发出去——过一会儿再点一次生成"
+msgstr "The extra reference images failed to upload (this segment relies on them alone), so the video request was not sent. Try generating again in a moment"
+
 #: src/ai/real.ts
 msgid "为「{name}」铸造 3D 建模 {n}/{total}…"
 msgstr "Forging a 3D model for “{name}” {n}/{total}…"
@@ -11000,6 +11004,10 @@ msgstr "The slot name “{tag}” is longer than {VIEW_TAG_MAX} characters — a
 msgid "图位怎么摆、怎么改"
 msgstr "Slot layout and editing"
 
+#: src/studio/segmentGen.ts
+msgid "图位的图没能传上去（这个文字模板靠它们锁定画面），视频这一发没有发出去——过一会儿再点一次生成"
+msgstr "The images for the template's image slots failed to upload (this text template relies on them to pin down the look), so the video request was not sent. Try generating again in a moment"
+
 #: src/components/CoverPicker.tsx
 msgid "图片加载失败"
 msgstr "Image failed to load"
@@ -15137,6 +15145,14 @@ msgstr "Couldn't compose the prompt: the AI changed the group binding “{senten
 msgid "提示词合成失败（{why}）——这一段的要求请自己写，或用下面那份默认写法。"
 msgstr "Couldn't compose the prompt ({why}) — write this segment's request yourself, or use the default version below."
 
+#: src/ai/arkClient.ts
+msgid "提示词没过方舟的内容审核——改掉里面可能被拦的说法再试"
+msgstr "The prompt didn't pass Ark's content review. Reword whatever might have been flagged and try again"
+
+#: src/studio/segmentGen.ts
+msgid "提示词没过方舟的内容审核——这一段的正文来自文字模板，换图没用：改掉正文里可能被拦的说法再试"
+msgstr "The prompt didn't pass Ark's content review. This segment's text comes from a text template, so swapping images won't help: reword whatever in the text might have been flagged and try again"
+
 #: src/pages/DiscoverPage.tsx
 msgid "搜人功能还没上线 · 之后会有，App 不用重装"
 msgstr "People search isn't available yet · coming later, no need to reinstall"
@@ -16249,6 +16265,14 @@ msgstr "A blockout job's result hasn't been recovered yet"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "有一句超过 {0} 字了，发布会被服务端拒掉。"
 msgstr "One line is over {0} characters; the server will reject it on publish."
+
+#: src/ai/arkClient.ts
+msgid "有一张参考图方舟没拉到（多半是图刚传上去还没就绪）——过一会儿再点一次生成"
+msgstr "Ark couldn't fetch one of the reference images (it was most likely just uploaded and not ready yet). Try generating again in a moment"
+
+#: src/ai/arkClient.ts
+msgid "有一张参考图没过方舟的审核（常见是真人照片）——换掉那张图再试"
+msgstr "One of the reference images didn't pass Ark's review (often a photo of a real person). Replace that image and try again"
 
 #: src/studio/cutAgent.ts
 msgid "有一截没听懂，问模型又没问成（{reason}）。"
@@ -19907,6 +19931,10 @@ msgid "生成契约不一致：真人档只收首帧，不收参考图 / 参考�
 msgstr "Generation spec mismatch: the real-person tier accepts only a first frame, not reference images / video / audio"
 
 #: src/ai/real.ts
+msgid "生成契约不一致：这一发的提示词有 {len} 字，超过这一档的上限 {max} 字（文字模板段不截字）——视频这一发没有发出去，请把这句话反馈给我们"
+msgstr "Generation contract mismatch: this request's prompt has {len} characters, over this tier's limit of {max} (text template segments are never cut short). The video request was not sent; please report this message to us"
+
+#: src/ai/real.ts
 msgid "生成契约不一致：这一段声明按「{declared}」出片，而槽位里实际是「{actual}」（报价与请求会是两把尺）——没有花钱，请把这句话反馈给我们"
 msgstr "Nothing was charged. Generation spec mismatch: this segment declares “{declared}” but its slots imply “{actual}” (the quote and the request would disagree) — please send us this message"
 
@@ -21097,6 +21125,10 @@ msgstr "The real-person tier doesn't support circle edits yet (the image-edit en
 #: src/components/flow/FlowCanvas.tsx
 msgid "真人档本来就是直出，不需要再切自定义"
 msgstr "The real-person tier already renders directly; no need to switch to Custom"
+
+#: src/studio/segmentGen.ts
+msgid "真人档跑不了文字模板段（图位的图要当参考图发，这一档只认一张起拍画面）——换成模板能跑的那一档再出片"
+msgstr "The Real Person tier can't run a text template segment (the slot images must be sent as reference images, and this tier only takes one starting frame). Switch to a tier the template supports and generate again"
 
 #: src/components/CardModelFit.tsx
 #~ msgid "真人档适用"
@@ -25184,6 +25216,10 @@ msgstr "This job can no longer be recovered: Ark keeps videos on its servers for
 msgid "这一发已经取不回来了：方舟的成片只在服务器上留 24 小时，现在已经过期。已经花掉的钱无法挽回——这不是超时重来，重新生成是再花一次钱。"
 msgstr "This job can no longer be recovered: Ark keeps videos on its servers for only 24 hours, and it has expired. The money already spent can't be recovered — this isn't a timeout retry, and regenerating costs again."
 
+#: src/studio/segmentGen.ts
+msgid "这一发带不上图位的图（不是参考图那一种请求），视频这一发没有发出去——换成模板能跑的那一档，或过一会儿再点一次生成"
+msgstr "This request can't carry the template's slot images (it isn't a reference-image request), so the video request was not sent. Switch to a tier the template supports, or try generating again in a moment"
+
 #: src/data/videoJobs.ts
 msgid "这一发我们不再跟进了：任务号还在下面，如果一直没取回来，把它发给客服还有机会。如果上游那边其实是失败了，扣的 token 会自动退回（到账时会通知你）；如果是出成了却没取回，这笔钱就无法挽回了——重新生成是再花一次钱。"
 msgstr "We've stopped tracking this job: the task ID is still below, and if you never got the video, sending it to support may still help. If it actually failed upstream, the tokens are refunded automatically (you'll get a notification when they land); if it succeeded but wasn't recovered, that money can't be recovered — regenerating costs again."
@@ -25888,6 +25924,10 @@ msgstr "This segment's frame stream is still loading (videos run around 20MB —
 #: src/studio/flowStore.ts
 msgid "这一段的方案已经换了，融好的开头帧没处放（图钱已经花掉）"
 msgstr "This segment's plan has changed, so there's nowhere to put the fused opening frame (the image cost has been spent)"
+
+#: src/studio/segmentGen.ts
+msgid "这一段的正文放不下：这一档最多发 {cap} 字，其中素材设定与点名句要占 {reserved} 字，正文还要删 {over} 字——文字模板段不会替你截掉后面的字，视频这一发没有发出去"
+msgstr "This segment's text doesn't fit: this tier sends at most {cap} characters, the asset settings and reference callouts take {reserved} of them, so the text needs {over} fewer characters. Text template segments are never cut short for you, so the video request was not sent"
 
 #: src/studio/ui/projection.tsx
 msgid "这一段的画质档"

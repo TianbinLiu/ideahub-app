@@ -1504,6 +1504,36 @@ export function tplCategoryLabel(id: string | undefined): string | null {
   return TPL_CATEGORIES.find((c) => c.id === id)?.label ?? null;
 }
 
+/**
+ * 文字模板（纯文字 + 本机封面图的视频模板，2026-10-26）的一个**图位**：正文里的 `@名字`，使用者套用时按名字补一张临时参考图
+ * （data/refMentions：名字的规矩、正文里「图N」怎么改写成 @名字）。hint = 作者写给使用者的一句「这里该放什么图」。
+ */
+export interface TextTplSlot {
+  name: string;
+  hint: string;
+}
+
+/**
+ * 一段是从哪个文字模板套来的（`FlowNode.textTpl`）—— 出处快照，只在套用那一拍写（flowStore 套用文字模板那一支）。
+ * ★ 有它 = **文字模板段**：出片那一侧据它换几条规矩，判据各在一处 ——
+ *   长提示词（economy.promptMaxOf 的 long，经 flowStore.nodePromptMax / segmentGen 的 SegmentGenInput.textTpl）、
+ *   补画几张（data/drawPlan.textTplDraw：有图位一张帧都不画、零图位只补开头一张）、能带几张临时参考图（refMentions.extraRefMaxOf）、
+ *   放不下就在花钱之前整句拒而不是截（segmentGen.promptRoomOf）、图位的图传不上去就不发（segmentGen）。
+ * ★ 判否定（缺省 = 普通段）：老草稿天然缺它。节点上 `tpl` 恒 null（白模 / 经典那套模板快照与它无关：tplOfNode 为真会让直出车道整句拒）。
+ * @property slots 模板的图位（按模板定，不随使用者手上有没有图变 —— 报价按它算，补图前后同一个数）
+ * @property tiers 这个模板能跑的档（作者存模板时按档位能力算好的；不在里面的档不让选）
+ * @property sig 作者存的那份正文的指纹（data/textTemplate.textTplSig）—— 正文被改过就对不上
+ */
+export interface TextTplOrigin {
+  id: string;
+  remoteId?: string;
+  title: string;
+  slots: TextTplSlot[];
+  tiers: string[];
+  sig: string;
+  ownerId?: string;
+}
+
 export interface VideoTemplate {
   id: string;
   title: string;

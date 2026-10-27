@@ -85,6 +85,7 @@ import {
   nodeRefPlan,
   nodeEmptyFrames,
   nodeNoDraw,
+  nodePromptMax,
   nodeFramesComeFromDerive,
   nodeEditFrames,
   planOf,
@@ -108,7 +109,7 @@ import {
   subscribeTemplates,
   templatesVersion,
 } from "../../data/templates";
-import { CHAT_TURN_TOKENS, ONE_IMAGE, blockoutTier, clampDuration, durationChoices, fmtTokens, materialRefSecs, minUsageNote, priceTag, promptMaxOf, proposalsCost, shotsOkOf, tierOf } from "../../data/economy";
+import { CHAT_TURN_TOKENS, ONE_IMAGE, blockoutTier, clampDuration, durationChoices, fmtTokens, materialRefSecs, minUsageNote, priceTag, proposalsCost, shotsOkOf, tierOf } from "../../data/economy";
 import { AGENT_PHRASES, executeAgentProposal, runCanvasAgent, type AgentOutcome, type AgentProposal } from "../../studio/canvasAgent";
 import { EXAMPLES, phraseText, templatePhrase } from "../../studio/agentGrammar";
 import { useLang } from "../../i18n/useLang";
@@ -1297,8 +1298,8 @@ function NodePanel({
   const mounted = named ? (tpl!.roles ?? []).filter((r) => castOfNode[r.label]).length : 0;
   /** 这一段的临时参考图（回炉工程里地址被瘦身掉的当没有，判据在 refMentions 一处） */
   const extraRefs = usableExtraRefs(node.extraRefs);
-  /** 这一档的提示词上限（economy.promptMaxOf：2.x 两档 500、其余 400；套模板的段另按 400，不走这里） */
-  const promptMax = promptMaxOf(node.videoTier);
+  /** 这一段的提示词上限（flowStore.nodePromptMax：2.x 两档 500、其余 400，文字模板段在电影级上 1000；套模板的段另按 400，不走这里） */
+  const promptMax = nodePromptMax(node);
   /** 分镜 / 台词只开在带得了声音样本的档（草稿 / 高清 / 电影级）：别的档台词不会按卡的声音配，多镜头也没验过（判据只在 economy.shotsOkOf） */
   const shotsOk = shotsOkOf(node.videoTier);
   /** 运镜芯片对着哪段字：分了镜就是正在写的那个镜头，否则整段 */
@@ -2326,7 +2327,7 @@ function PlanSheet({ nodeId, onClose }: { nodeId: string; onClose: () => void })
             // 分镜表（N2）：选定那一套的剧情框能写成几个镜头、给台词点明谁说的；上限按档位（2.x 两档 500）
             shotEdit={{
               speakers: (node.materials ?? []).filter((c) => c.type === "character").map((c) => ({ id: c.id, name: c.name, voiced: !!voiceOf(c.id) })),
-              max: promptMaxOf(node.videoTier),
+              max: nodePromptMax(node),
               canAdd: shotsOkOf(node.videoTier),
             }}
             // 改这一帧（N3）：画布这一面此前没有（只有工坊方案台有一句话改帧）；同一个组件、同一处实现

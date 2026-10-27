@@ -232,10 +232,15 @@ eq(
     { id: "d", url: "https://x/1.jpg", name: "三", role: "prop" },
     { id: "e", url: "https://x/2.jpg", name: "四", role: "prop" },
     { id: "f", url: "https://x/3.jpg", name: "五", role: "prop" },
+    { id: "g", url: "https://x/4.jpg", name: "六", role: "prop" },
+    { id: "h", url: "https://x/5.jpg", name: "七", role: "prop" },
   ]).map((x) => x.id),
-  ["a", "d", "e"],
+  // 2026-10-26 起按「任何一种段最多挂几张」截（文字模板段 4 张）：这一段真带几张另问 extraRefMaxOf
+  ["a", "d", "e", "f", "g"].slice(0, Math.max(M.EXTRA_REF_MAX, M.TEXT_TPL_EXTRA_MAX)),
 );
 eq("usableExtraRefs 不是数组", M.usableExtraRefs(undefined), []);
+eq("extraRefMaxOf：普通段 EXTRA_REF_MAX、文字模板段 TEXT_TPL_EXTRA_MAX", [M.extraRefMaxOf({ textTpl: false }), M.extraRefMaxOf({ textTpl: true })], [M.EXTRA_REF_MAX, M.TEXT_TPL_EXTRA_MAX]);
+eq("extraRefMaxOf：今天是 3 与 4", [M.extraRefMaxOf({ textTpl: false }), M.extraRefMaxOf({ textTpl: true })], [3, 4]);
 
 if (problems.length) {
   console.error(`\n❌ 参考点名检查没过（${problems.length} 条）：\n`);

@@ -26,6 +26,18 @@
 
 import type { ShotScript, packShots as PackShots } from "./shotScript";
 
+// ── 长提示词 ───────────────────────────────────────────────
+
+/**
+ * 文字模板段在**收长提示词的档**（videoTierTable 的 longPromptOk，今天只有电影级）上的提示词上限（字符，编译之后的长度）。
+ * 读它的只有 economy.promptMaxOf（`long` 那一支）—— 别的地方要上限一律问那一处，别直接拿这个数比。
+ * ★ 为什么是 1000（2026-10-26 主人授权我定，付费小验 A / B 读数在 docs/text-template-design-2026-10-26.md 第一节）：
+ *   方舟没有硬上限（2000 字两档都受理），2.5 上 936 字五段带秒数的长版逐段照做 —— 1000 留出主人那段例子（约 940 字）
+ *   编译成「名字（图片N）」之后多出来的那几十字；再长的没验过照做到哪一步，不开。
+ * ★ 超了**花钱之前拦**（作者那一屏按默认档判、出片那一拍 segmentGen 整句拒），绝不从尾巴截 —— 正文是这个模板的商品本身。
+ */
+export const TEXT_TPL_PROMPT_MAX = 1000;
+
 // ── 三段：【全局设定…】【时间轴…】【全局约束】 ─────────────────────────
 
 export type TplSectionKind = "setting" | "timeline" | "constraint";
