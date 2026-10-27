@@ -1754,6 +1754,10 @@ msgid "{tierLabel}档 · 成片转存没成（{reason}）——先用方舟临�
 msgstr "{tierLabel} tier · moving to permanent storage failed ({reason}) — using Ark's temporary link for now; the preview frame will be filled in automatically later"
 
 #: src/ai/arkClient.ts
+msgid "{tierLabel}档 · 成片还在转存（服务器后台在搬）——先用临时链接，搬好之后自动换上"
+msgstr "{tierLabel} tier · still moving the video to permanent storage (the server is working on it) — using the temporary link for now; it's swapped in automatically once done"
+
+#: src/ai/arkClient.ts
 msgid "{tierLabel}档 · 排队中 {sec}s"
 msgstr "{tierLabel} tier · queued {sec}s"
 
@@ -13847,6 +13851,10 @@ msgstr "Moving the video to permanent storage"
 msgid "成片转存没成（{reason}）——先用 MiniMax 的临时链接，预览帧稍后自动补上"
 msgstr "Couldn't move the video to permanent storage ({reason}) — using MiniMax's temporary link for now; preview frames will be filled in automatically later"
 
+#: src/ai/real.ts
+msgid "成片转存没成（{reason}）——先用临时链接（有时效），发布时服务器会再转存一次"
+msgstr "Moving to permanent storage failed ({reason}) — using the temporary link for now (it expires); the server will try moving it again when you publish"
+
 #: src/studio/genLog.ts
 msgid "成片转存没成（{reason}）——先用方舟临时链接，预览帧稍后自动补上"
 msgstr "Moving to permanent storage failed ({reason}) — using Ark's temporary link for now; the preview frame will be filled in automatically later"
@@ -13854,6 +13862,14 @@ msgstr "Moving to permanent storage failed ({reason}) — using Ark's temporary 
 #: src/studio/flowStore.ts
 msgid "成片还在转存（换成永久地址），转存完才能延长——稍等一会儿再来"
 msgstr "The clip is still moving to permanent storage — it can be extended once that finishes. Check back shortly"
+
+#: src/ai/real.ts
+msgid "成片还在转存（服务器后台在搬）——先用临时链接，搬好之后自动换上"
+msgstr "Still moving the video to permanent storage (the server is working on it) — using the temporary link for now; it's swapped in automatically once done"
+
+#: src/studio/genLog.ts
+msgid "成片还在转存（服务器后台在搬）——先用临时链接，搬好之后自动换上、预览帧跟着补"
+msgstr "Still moving the video to permanent storage (the server is working on it) — using the temporary link for now; it's swapped in automatically once done, and the preview frame follows"
 
 #: src/components/CoverPicker.tsx
 msgid "成片还在载入，稍等一下再截"
@@ -16739,6 +16755,10 @@ msgstr "The server couldn't delete this card ({why}). The copy on this device st
 #: src/data/videos.ts
 msgid "服务器没能删掉这条作品（{why}）。本地这份先留着——删了它下次启动也会回来。"
 msgstr "The server couldn't delete this video ({why}). The copy on this device stays for now — if you deleted it, it would come back the next time the app starts."
+
+#: src/ai/real.ts
+msgid "服务器没能把它搬到长期地址"
+msgstr "the server couldn't move it to permanent storage"
 
 #: src/data/videoJobs.ts
 msgid "服务器登记的这一发已经过了 24 小时，成片取不到了。如果你当时已经在别处拿到了它，忽略这条就好。"

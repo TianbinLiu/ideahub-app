@@ -168,6 +168,8 @@ function stepOf(ev: GenEvent): StepLine {
       ? { title: t`成片转存没成（${reason}）——先用 MiniMax 的临时链接，预览帧稍后自动补上`, event: ev }
       : { title: t`成片转存没成（${reason}）——先用方舟临时链接，预览帧稍后自动补上`, event: ev };
   }
+  // 服务端还在后台搬、出片那一拍没等它（real.permanentVideoUrl 的上限）：不是「没成」—— 换好之后由 flowStore.settleNodeMedia 换上
+  if (ev.kind === "transferPending") return { title: t`成片还在转存（服务器后台在搬）——先用临时链接，搬好之后自动换上、预览帧跟着补`, event: ev };
   // "标准档 · 生成中 12s" / "极速档 · 排队中 6s" —— 同一步的读秒（句子与剪辑页 busy 行同一份实现）
   return { title: t`渲染视频`, detail: describeArkProgress(tierLabel, ev), event: ev };
 }

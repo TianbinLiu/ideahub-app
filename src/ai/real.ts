@@ -96,8 +96,9 @@ import {
   generateVideo,
   isArkAssetUrl,
   MODELS,
+  requestArkTransfer,
   runImageGroup,
-  transferArkVideo,
+  transferStatus,
   type ArkProgress,
   type ImageGroupState,
 } from "./arkClient";
@@ -3378,17 +3379,42 @@ export function describeGenSpec(sg: GenSpec, carried: boolean): Extract<GenEvent
  * ★ 方舟那条路不走这里：arkClient.generateVideo 在轮询那一拍顺手转存（`?transfer=1`），那是方舟的唯一收口；H3 的查询端点不替你转存，所以这里补这一步。
  * ★ 失败**不挡出片**：退回临时链接、把原因说出来（transferFailed 事件进步骤日志）；flowStore.settleNodeMedia 之后接着盯服务端后台那一趟
  *   （isArkAssetUrl 认 H3 的主机，mediaUnsettled 因此成立），拿到永久地址就换上。
+ * ★★ 走**受理式 + 有上限的短轮询**（requestArkTransfer `wait:false` + transferStatus），不走阻塞式 transferArkVideo（2026-10-26 P2b 审核）：
+ *   阻塞式要在一个请求里等服务端把成片搬完（客户端 180 秒、服务端预算 165 秒，中间隔着 Cloudflare 125 秒的读超时 —— CLAUDE.md 那格坑，
+ *   剪辑页「老草稿自救」2026-09-07 就是因此换掉的）。成片已经付过钱、拿到手了，composeSegments 却要再卡最多约 2 分钟才交回 genNode：
+ *   这期间 busy 一直亮着、节点也不落地，App 被切走或杀掉，结果就落不到节点上（只剩取回卡兜底）；搬得慢时还会退成一句服务端的中文进步骤日志。
+ *   现在最多等 TRANSFER_WAIT_MS：搬好了就换上；还在搬（pending）就先交临时链接（transferPending），由 settleNodeMedia 接着盯
+ *   （服务端那一趟是后台任务，与这个请求的生死无关，下次问就是现成的）。
  */
 async function permanentVideoUrl(url: string, onEv: (ev: ArkProgress) => void): Promise<string> {
   if (!isArkAssetUrl(url)) return url;
   onEv({ kind: "transfer" });
   try {
-    return await transferArkVideo(url);
+    let got = await requestArkTransfer(url);
+    const until = Date.now() + TRANSFER_WAIT_MS;
+    while (got.state === "pending" && Date.now() < until) {
+      await new Promise((r) => setTimeout(r, TRANSFER_POLL_MS));
+      const hit = (await transferStatus([url]).catch(() => null))?.[url];
+      // `none` = 服务端没有这条的登记（不是一种进展）：别写回 got（同 CutPage 合并前那一段）
+      if (hit && hit.state !== "none") got = { state: hit.state, ...(hit.url ? { url: hit.url } : {}) };
+    }
+    if (got.state === "done" && got.url) return got.url;
+    // 服务端明说搬失败了：原因用我们自己的话（服务端那句是给运维看的中文，还可能带着另一家的名字）
+    if (got.state === "failed") onEv({ kind: "transferFailed", reason: t`服务器没能把它搬到长期地址` });
+    else onEv({ kind: "transferPending" });
+    return url;
   } catch (e) {
     onEv({ kind: "transferFailed", reason: e instanceof Error ? e.message : String(e) });
     return url;
   }
 }
+
+/**
+ * permanentVideoUrl 最多等多久、隔多久问一次。20 秒：服务端搬一条几 MB 到几十 MB 的成片通常十几秒（剪辑页合并前那一段的实测口径），
+ * 再长就是在拿已经到手的成片换一个 busy 一直亮着的窗口 —— 没搬完的交给 settleNodeMedia（每 30 秒问一次、最多 12 分钟）。
+ */
+const TRANSFER_WAIT_MS = 20_000;
+const TRANSFER_POLL_MS = 3_000;
 
 /**
  * 我们图床上的图：MiniMax H3（V2）的请求只收 `https://res.cloudinary.com/<我们的 cloud>/image/upload/…`（服务端白名单：上游拿我们的 key 去拉这个地址，
@@ -3679,8 +3705,16 @@ export async function takeVideoTask(
     const got = route.api === "v2" ? await takeMinimaxV2Task(taskId, onProgress) : await takeMinimaxTask(taskId, onProgress);
     // ★ H3 的成片地址有时效（MiniMax 的成片 CDN）：先换成永久地址再截帧 —— 与出片那一支同一份（permanentVideoUrl；真人档 V1 的地址它不认、原样返回）。
     //   转存没成不挡取回：拿着临时链接往下走，flowStore.settleNodeMedia 接着盯服务端后台那一趟
+    // ★ 没成 / 还在搬也要说出来（2026-10-26 P2b 审核：原来只转了「转存中」那一个事件，没成的那一句被整个吞掉 —— 没人告诉人手上是一条有时效的链接）。
+    //   不写供应商名（地区不知道时不写，account.tierShownModel 那条口径）
     const url = await permanentVideoUrl(got.url, (ev) => {
       if (ev.kind === "transfer") onProgress?.(t`成片转存中（换成永久地址）`);
+      else if (ev.kind === "transferPending") onProgress?.(t`成片还在转存（服务器后台在搬）——先用临时链接，搬好之后自动换上`);
+      else if (ev.kind === "transferFailed") {
+        const reason = ev.reason;
+        // 「发布时再转存」是服务端契约（发布时段的地址还是上游临时链接的，服务端下载再转存）；settleNodeMedia 见服务端明说失败就不再盯，所以不说「会自动重试」
+        onProgress?.(t`成片转存没成（${reason}）——先用临时链接（有时效），发布时服务器会再转存一次`);
+      }
     });
     let lastFrame: string | undefined;
     let poster: string | undefined;

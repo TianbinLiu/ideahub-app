@@ -1754,6 +1754,10 @@ msgid "{tierLabel}档 · 成片转存没成（{reason}）——先用方舟临�
 msgstr "{tierLabel}档 · 成片转存没成（{reason}）——先用方舟临时链接，预览帧稍后自动补上"
 
 #: src/ai/arkClient.ts
+msgid "{tierLabel}档 · 成片还在转存（服务器后台在搬）——先用临时链接，搬好之后自动换上"
+msgstr "{tierLabel}档 · 成片还在转存（服务器后台在搬）——先用临时链接，搬好之后自动换上"
+
+#: src/ai/arkClient.ts
 msgid "{tierLabel}档 · 排队中 {sec}s"
 msgstr "{tierLabel}档 · 排队中 {sec}s"
 
@@ -13855,6 +13859,10 @@ msgstr "成片转存中（换成永久地址）"
 msgid "成片转存没成（{reason}）——先用 MiniMax 的临时链接，预览帧稍后自动补上"
 msgstr "成片转存没成（{reason}）——先用 MiniMax 的临时链接，预览帧稍后自动补上"
 
+#: src/ai/real.ts
+msgid "成片转存没成（{reason}）——先用临时链接（有时效），发布时服务器会再转存一次"
+msgstr "成片转存没成（{reason}）——先用临时链接（有时效），发布时服务器会再转存一次"
+
 #: src/studio/genLog.ts
 msgid "成片转存没成（{reason}）——先用方舟临时链接，预览帧稍后自动补上"
 msgstr "成片转存没成（{reason}）——先用方舟临时链接，预览帧稍后自动补上"
@@ -13862,6 +13870,14 @@ msgstr "成片转存没成（{reason}）——先用方舟临时链接，预览�
 #: src/studio/flowStore.ts
 msgid "成片还在转存（换成永久地址），转存完才能延长——稍等一会儿再来"
 msgstr "成片还在转存（换成永久地址），转存完才能延长——稍等一会儿再来"
+
+#: src/ai/real.ts
+msgid "成片还在转存（服务器后台在搬）——先用临时链接，搬好之后自动换上"
+msgstr "成片还在转存（服务器后台在搬）——先用临时链接，搬好之后自动换上"
+
+#: src/studio/genLog.ts
+msgid "成片还在转存（服务器后台在搬）——先用临时链接，搬好之后自动换上、预览帧跟着补"
+msgstr "成片还在转存（服务器后台在搬）——先用临时链接，搬好之后自动换上、预览帧跟着补"
 
 #: src/components/CoverPicker.tsx
 msgid "成片还在载入，稍等一下再截"
@@ -16747,6 +16763,10 @@ msgstr "服务器没能删掉这张卡（{why}）。本地这份先留着——�
 #: src/data/videos.ts
 msgid "服务器没能删掉这条作品（{why}）。本地这份先留着——删了它下次启动也会回来。"
 msgstr "服务器没能删掉这条作品（{why}）。本地这份先留着——删了它下次启动也会回来。"
+
+#: src/ai/real.ts
+msgid "服务器没能把它搬到长期地址"
+msgstr "服务器没能把它搬到长期地址"
 
 #: src/data/videoJobs.ts
 msgid "服务器登记的这一发已经过了 24 小时，成片取不到了。如果你当时已经在别处拿到了它，忽略这条就好。"

@@ -1422,12 +1422,15 @@ export class ArkTaskUnknown extends Error {
  * · poll：一次轮询的状态（方舟的 queued / running / …；MiniMax 侧已换算成同一套词）+ 已等秒数
  * · pollRetry：单次查询失败、还在重试（真人档那条会报；方舟侧静默重试）
  * · transfer / transferFailed：出片一成就换永久地址那一步（失败不挡出片，但要说出来）
+ * · transferPending：服务端还在后台搬、这一拍没等它（real.permanentVideoUrl 的受理式转存到了上限）—— 先用临时链接，flowStore.settleNodeMedia 接着盯。
+ *   与 transferFailed 分开：「还在搬」说成「转存没成」是往吓人的方向说错（2026-10-26 P2b 审核）
  */
 export type ArkProgress =
   | { kind: "poll"; status: string; sec: number }
   | { kind: "pollRetry"; fails: number; max: number; sec: number }
   | { kind: "transfer" }
-  | { kind: "transferFailed"; reason: string };
+  | { kind: "transferFailed"; reason: string }
+  | { kind: "transferPending" };
 
 /**
  * 一段出片全过程的事件（real.composeSegments 报给步骤日志的那条通道）：轮询事件带上档位 id，
@@ -1523,6 +1526,8 @@ export function describeArkProgress(tierLabel: string, ev: ArkProgress): string 
     const reason = ev.reason;
     return t`${tierLabel}档 · 成片转存没成（${reason}）——先用方舟临时链接，预览帧稍后自动补上`;
   }
+  // 今天只有 real.permanentVideoUrl（MiniMax H3 的成片）报它，走的是步骤日志（studio/genLog）；这里接住是为了不落进下面读秒那一支
+  if (ev.kind === "transferPending") return t`${tierLabel}档 · 成片还在转存（服务器后台在搬）——先用临时链接，搬好之后自动换上`;
   const sec = ev.sec;
   if (ev.kind === "pollRetry") {
     const fails = ev.fails;
