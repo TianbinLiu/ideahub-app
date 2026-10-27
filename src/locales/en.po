@@ -21418,6 +21418,11 @@ msgstr "The tokens charged for the video will be refunded (check your token bala
 msgid "视频那部分扣的 token 已经退回；出片前画好的 {count} 张画面已按张计费（共 {paid} token）。"
 msgstr "The tokens charged for the video have been refunded; {count, plural, one {the # frame drawn before it was charged} other {the # frames drawn before it were charged per image}} ({paid} tokens in total)."
 
+#. placeholder {0}: r.expr
+#: src/components/blockout/RoleConfirmSheet.tsx
+msgid "神态：{0}"
+msgstr "Expression: {0}"
+
 #: src/pages/tutor/TutorNewPage.tsx
 msgid "禁止"
 msgstr "Forbidden"

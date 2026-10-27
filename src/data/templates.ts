@@ -23,6 +23,7 @@ import { msg, t } from "@lingui/core/macro";
 import { V3_CARD_WIPE_MS, Card, MarkBox, VideoAspect, VideoTemplate, uid } from "../types";
 import { deviceOwner, mayClaimLegacy, onViewerChange, workOwner } from "./deviceOwner";
 import { splitByOwner } from "./ownerSplit";
+import { exprIn } from "./blockoutExpr";
 import { registerTemplateResolver } from "./recipe";
 
 const KEY = "templates.v1";
@@ -483,6 +484,16 @@ function markDescsOf(api: { markDescs?: unknown }, slotCount: number): string[] 
 }
 
 /**
+ * 服务端那份 `markExprs` → 本机那一份（2026-10-26，方案 D）。纪律与 `markDescsOf` 逐字同源：长度必须等于 markSlots、
+ * 空串原样留着（长度承重）、全空 = 没有。值先过 `blockoutExpr.exprIn`（服务端洗过一遍，这里再收一道：它要进付费提示词）。
+ */
+function markExprsOf(api: { markExprs?: unknown }, slotCount: number): string[] {
+  if (!Array.isArray(api.markExprs) || slotCount <= 0 || api.markExprs.length !== slotCount) return [];
+  const out = api.markExprs.map((e) => exprIn(e));
+  return out.some((e) => e) ? out : [];
+}
+
+/**
  * 服务端那份 `realDurationSec` → 本机 refVideo 上的**可选键**（有才出，没有就一个键都不加）。
  * ★ 唯一实现：apiToTemplate 与 registerTemplate 的回写都走它 —— 两处各写一遍 `|| 0`
  *   的话，一处漏了就是"这台设备上的这个模板永远判不出坏"，而且不报错。
@@ -502,6 +513,7 @@ function apiToTemplate(api: branch.ApiBranchTemplate): VideoTemplate | null {
   const markSlots = markSlotsOf(api);
   const markBoxes = markBoxesOf(api, markSlots.length);
   const markDescs = markDescsOf(api, markSlots.length);
+  const markExprs = markExprsOf(api, markSlots.length);
   const boxAtSec = Number(api.markBoxAtSec);
   return {
     id: rid,
@@ -549,6 +561,8 @@ function apiToTemplate(api: branch.ApiBranchTemplate): VideoTemplate | null {
     // 人偶描述：同一条存在性语义。★ 它与 markBoxes **各自独立**（框没量出来 ≠ 描述没验过），
     // 所以两者不共用同一个 if —— 合并的话"框失败"会把描述一起带走，白丢一次已经付过的钱
     ...(markDescs.length > 0 ? { markDescs } : {}),
+    // 神态：同一条存在性语义，与描述各自独立（描述没验过 ≠ 神态没记下）
+    ...(markExprs.length > 0 ? { markExprs } : {}),
     // 分段组归属：同一条存在性语义（老模板整个字段缺失）。key/count 缺一不可 ——
     // 只有 key 没有 count 的"半个组"没法折卡也没法整组套用，宁可当独立模板
     ...(api.group?.key && Number(api.group.count) > 1
@@ -1052,6 +1066,10 @@ export async function detectTemplateRoles(id: string, atSecs?: number[]): Promis
     const backDescs = markDescsOf(api, (backSlots.length ? backSlots : tpl.markSlots ?? []).length);
     if (backDescs.length) tpl.markDescs = backDescs;
     else if (back.length) delete tpl.markDescs;
+    // 神态：重新认人时服务端一律清掉（人数相同时 markSlots 一模一样，长度核对拦不住错位）—— 本机跟着清，同上面描述那条理由
+    const backExprs = markExprsOf(api, (backSlots.length ? backSlots : tpl.markSlots ?? []).length);
+    if (backExprs.length) tpl.markExprs = backExprs;
+    else if (back.length) delete tpl.markExprs;
     recordState(api);
     persist();
   }
@@ -1168,6 +1186,9 @@ async function registerTemplateOnce(id: string): Promise<void> {
     // 而"没有括号"与"这段素材本来就没什么可描述的"在界面上完全一样（零报错）
     const backDescs = markDescsOf(api, (backSlots.length ? backSlots : tpl.markSlots ?? []).length);
     if (backDescs.length) tpl.markDescs = backDescs;
+    // 神态：第六位，同批搬（漏了它 = 神态句永远不写，与「这段素材没认出神态」长得一样）
+    const backExprs = markExprsOf(api, (backSlots.length ? backSlots : tpl.markSlots ?? []).length);
+    if (backExprs.length) tpl.markExprs = backExprs;
     recordState(api);
     registerErrors.delete(id);
     persist();
@@ -1267,6 +1288,17 @@ export async function refreshRemoteTemplate(id: string): Promise<void> {
         local.markDescs = backDescs;
         dirty = true;
       }
+      // 神态：跟着服务端走，**而且服务端回了名单却没带神态时要清掉本机那份**（与上面描述那条方向相反，有意的）：
+      //   神态没有了只是少一句话；留着旧的，在另一台设备上重新认过人之后就是把 A 的神态安在 B 身上（服务端那边重新认人时一律清掉）。
+      //   老服务端从来不发这一位，本机也就从来没有它 —— 这一支对老服务端是空操作。
+      if (backSlots.length) {
+        const backExprs = markExprsOf(api, backSlots.length);
+        if (JSON.stringify(backExprs) !== JSON.stringify(local.markExprs ?? [])) {
+          if (backExprs.length) local.markExprs = backExprs;
+          else delete local.markExprs;
+          dirty = true;
+        }
+      }
       // ★★ `realDurationSec` 也必须跟着服务端走，理由与上面 roles 那条**完全同构**，
       //   但少了它的后果更刁钻：这一位是 2026-08-16 才新增的（服务端回填脚本补进老文档），
       //   而本机 `mine` 里那份是**建模板时写下的**、永远不会自己长出这一位。
@@ -1321,6 +1353,12 @@ export async function refreshRemoteTemplate(id: string): Promise<void> {
       //   只搬 mine 的话别人（换设备、市场来的）看不见。两边各管一半的路径。
       const backDescs = markDescsOf(api, (backSlots.length ? backSlots : cached?.markSlots ?? []).length);
       if (cached && backDescs.length) cached.markDescs = backDescs;
+      // 神态：mine 与 shared 两份都要搬（同上）；服务端回了名单却没带神态时清掉（理由见 mine 那一份）
+      if (cached && backSlots.length) {
+        const backExprs = markExprsOf(api, backSlots.length);
+        if (backExprs.length) cached.markExprs = backExprs;
+        else delete cached.markExprs;
+      }
     }
     emit();
   } catch (e) {
@@ -1598,6 +1636,8 @@ export interface NewTemplate {
    *  `adoptBlockoutTemplate` 漏传它时 TS 连一声都不吭（CLAUDE.md 那条坑的原话）。
    *  ⚠ 它**不是** `roles[].desc`，理由写在 types.ts 的 markDescs 上 */
   markDescs?: VideoTemplate["markDescs"];
+  /** 神态（与 markSlots 对齐）。★ 类型里必须有名字 —— adoptBlockoutTemplate 漏传时 TS 才提示得了（CLAUDE.md 那条坑的原话） */
+  markExprs?: VideoTemplate["markExprs"];
   /** 那些框量自第几秒 */
   markBoxAtSec?: VideoTemplate["markBoxAtSec"];
   /**
@@ -2283,6 +2323,15 @@ export function boxOfLabel(
  *   它来自原片（「白发黑袍的少年」）—— 兜底进提示词就是让模型照着白模化**之前**那个人画，
  *   而参考视频里站着的是一个白人偶。缺了就是缺了，退回"只有序数"的老形状。
  */
+/**
+ * 这个角色位的人在示例视频里是什么神态（`markExprs[markSlots.indexOf(label)]`，"" = 没有）—— **唯一取值处**（flowStore 建 BlockoutCastSlot 时调它）。
+ * 连接键与 markDescOfLabel 同一个（markSlots.indexOf(label)）：作者在核对面板把某一行改成别的位置，神态由服务端跟着人搬，这里照下标取。
+ */
+export function markExprOfLabel(t: Pick<VideoTemplate, "markSlots" | "markExprs"> | null | undefined, label: string): string {
+  const i = t?.markSlots?.indexOf(label) ?? -1;
+  return (i >= 0 ? t?.markExprs?.[i] : "") || "";
+}
+
 export function markDescOfLabel(
   t: Pick<VideoTemplate, "markSlots" | "markDescs"> | null | undefined,
   label: string,
@@ -2739,6 +2788,8 @@ function adoptRemoteTemplate(api: branch.ApiBranchTemplate, missingRefMsg: strin
     ...(mapped.markBoxes?.length ? { markBoxes: mapped.markBoxes } : {}),
     // 人偶描述：与框各自独立（框没量出来 ≠ 描述没验过），所以单独一个存在性判断
     ...(mapped.markDescs?.length ? { markDescs: mapped.markDescs } : {}),
+    // 神态：同批搬（这条路产出的记录会被直接塞进 applyTemplate，等不到下一次刷新补回来）
+    ...(mapped.markExprs?.length ? { markExprs: mapped.markExprs } : {}),
     ...(mapped.markBoxAtSec !== undefined ? { markBoxAtSec: mapped.markBoxAtSec } : {}),
     // 分段组归属：存在性搬运（白模化那条路没有它，分段登记的每一段都有）。
     // ★ 漏了它 = 组在 mine 里散架（见 NewTemplate.group 的 ★），且 mineRemote 那份带着组、

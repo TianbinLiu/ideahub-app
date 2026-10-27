@@ -49,6 +49,7 @@
 import { AI_REAL, SHEET_CLAUSE, VIDEO_PROMPT_MAX, mayAddSheetClause } from "../ai";
 import { chat } from "../ai/arkClient";
 import { markColorOf, type MarkSpec } from "../data/templates";
+import { exprLineOf, fitsExpr } from "../data/blockoutExpr";
 import type { Card, MarkScheme } from "../types";
 import { t } from "@lingui/core/macro";
 
@@ -141,6 +142,13 @@ export interface BlockoutCastSlot {
    *     进管线 —— 那正是现在由逐卡门禁在花钱前守住的东西。
    */
   mark: string;
+  /**
+   * 这个位子的人在**示例视频里**是什么神态（「先平静，后惊讶张嘴，再大笑」）—— 取值只有 `data/templates.markExprOfLabel` 一处
+   * （`markExprs[markSlots.indexOf(label)]`）。`""` = 没有（老模板、编号方案、自己传白模片那条路）→ 提示词一个字不变。
+   * ★ **必填**：漏传是零症状的（神态句悄悄不写，D 那一发补回来的惊讶 / 大笑又没了），调用方真没有就显式传 ""。
+   * ★ 它只进「神态：…」那一句（data/blockoutExpr.exprLineOf，按卡名说），不进括号 —— 括号是指认人偶用的（mark），神态是让换上去的人演什么。
+   */
+  expr: string;
   /** 挂上的人物卡；null = 没挂（这个人偶保持白模原样） */
   card: Card | null;
 }
@@ -389,6 +397,8 @@ function buildSkeleton(
   usedDesc: Map<string, string>;
   usedKey: Map<string, string>;
   usedGroups: { color: string; labels: string[]; names: string[] }[];
+  /** 这一次写进去的神态句（"" = 没写：没有神态 / 角色位太多 / 放不下）。composeBlockoutPrompt 据此核对、丢了补回去 */
+  usedExprLine: string;
 } {
   // ★★★ 这一行是承重的（见 orderSlots 的 ★★★）：序数方案下**书写顺序就是语义**
   const slots = orderSlots(cast, spec);
@@ -448,7 +458,9 @@ function buildSkeleton(
   const free = slots.filter((s) => !s.card);
   // 括号描述只在**序数方案**下拼：编号方案的 desc 是「原视频里是谁」（穿黑袍的白发少年），
   // 说的是被替换掉的那个人，写进"换成谁"那句话里只会打架。存量 6 个模板全在编号那一档。
-  const build = (withDescs: boolean, line: string = userLine): string => {
+  // 神态句（data/blockoutExpr）：只在序数方案（服务端只给序数模板带 markExprs）、挂了卡的位子上按卡名写；顺序 = 排好的 slots（画面从左到右）
+  const exprLine = ordinal ? exprLineOf(slots.map((s) => ({ card: s.card ? { id: s.card.id, name: s.card.name } : null, expr: s.expr })), slots.length) : "";
+  const build = (withDescs: boolean, line: string = userLine, expr = ""): string => {
     const paren = (s: { desc: string | null }) => (withDescs && ordinal && s.desc ? `（${s.desc}）` : "");
     const bind = (s: { key: string; name: string; desc: string | null }) => `${s.key}${paren(s)}=${s.name}`;
     // ★ 引导语那半句只在**真有括号**时才说（2026-08-17 核对时抓到）：一个括号都没有还写着
@@ -492,7 +504,7 @@ function buildSkeleton(
             `把带编号的白色人偶替换为对应角色：${taken.map((s) => `编号${s.label}=${s.name}`).join("、")}。`,
       );
     }
-    return buildRest(parts, free, ordinal, line);
+    return buildRest(parts, free, ordinal, line, expr);
   };
   // ★★ 塞不下就**整批**不要，不是挑几个留（2026-08-17）：留一半的话，正文里会出现
   //   "有的位子带描述、有的不带"，而模型对**不对称的清单**最爱自己补齐 —— 它会给没带的
@@ -510,7 +522,11 @@ function buildSkeleton(
   const attached = slots.flatMap((s) => (s.card ? [s.card] : []));
   const cards = new Set(attached.map((c) => c.id)).size;
   const full = build(true);
-  const withDescs = full.length <= blockoutPromptBudget(cards, mayAddSheetClause(attached));
+  const budget = blockoutPromptBudget(cards, mayAddSheetClause(attached));
+  // ★ 括号描述先定、神态句后定：括号是指认人偶的（实测唯一扛得住换人的一维），神态句放不下就整句不写，**绝不**反过来挤掉括号
+  const withDescs = full.length <= budget;
+  const withExpr = !!exprLine && fitsExpr(build(withDescs, userLine, exprLine), budget);
+  const usedExprLine = withExpr ? exprLine : "";
   const usedDesc = new Map<string, string>();
   if (withDescs && ordinal) for (const slot of taken) if (slot.desc) usedDesc.set(slot.label, slot.desc);
   // ★ 哪些位子改按颜色点名了，也要**告诉**校验侧（与 usedDesc 同一条理由）：
@@ -518,17 +534,18 @@ function buildSkeleton(
   const usedKey = new Map<string, string>();
   for (const slot of taken) if (slot.key !== slot.label) usedKey.set(slot.label, slot.key);
   return {
-    text: withDescs ? full : build(false),
-    // ★ 与 text 用**同一个** withDescs（见 textNoUserLine 的 ★）
-    textNoUserLine: build(withDescs, ""),
+    text: build(withDescs, userLine, usedExprLine),
+    // ★ 与 text 用**同一个** withDescs / 神态句（见 textNoUserLine 的 ★）
+    textNoUserLine: build(withDescs, "", usedExprLine),
     usedDesc,
     usedKey,
     usedGroups: groups,
+    usedExprLine,
   };
 }
 
 /** 骨架里"挂卡那句"之后的部分 —— 两个分支（带描述/不带）共用，避免整段被抄成两份 */
-function buildRest(parts: string[], free: BlockoutCastSlot[], ordinal: boolean, userLine: string): string {
+function buildRest(parts: string[], free: BlockoutCastSlot[], ordinal: boolean, userLine: string, exprLine: string): string {
   if (free.length > 0) {
     // ★ 没挂卡的**也要点名说"保持原样"**，不能只靠"没提到就是不动"：模型对没提到的
     //   主体会自己发挥（实测白模化那一发正是"泛指会漏掉主角"的同一个机理，F4）。
@@ -582,6 +599,9 @@ function buildRest(parts: string[], free: BlockoutCastSlot[], ordinal: boolean, 
   // i18n-ignore-next-line: 同上
   if (!ordinal) parts.push("把人偶头上和身上的编号（数字、号码牌）全部去掉，成片里不许出现任何编号或数字。");
   if (line) parts.push(line.endsWith("。") ? line : `${line}。`);
+  // ★ 神态句排在用户那句话**之后**、「不要出现字幕」之前（付费小验 D 那一发的位置）：截断从尾巴下刀，
+  //   它比用户自己的话次要、比「不要出现字幕」要紧。"" = 不写（老模板到这里逐字节不变）
+  if (exprLine) parts.push(exprLine);
   // ★ 「不要出现字幕」留在最末：它是这段话里**最不要紧**的一句（丢了顶多多一行字幕，
   //   不是毁片），而最末就是最先被切掉的位置 —— 排序即优先级。
   // i18n-ignore-next-line: 同上
@@ -727,7 +747,8 @@ const COMPOSE_SYSTEM: Record<MarkScheme, string> = {
     "3. **必须保持这些绑定在句子里的先后顺序，一律不许调换**——它们是按人物在画面上从左到右排好的，",
     "   顺序一乱，AI 就会把角色换到别人身上；",
     "4. 不许增加原文没有的画面要求，也不许删掉原文任何一条要求；",
-    "5. 直接输出成品正文，不要解释、不要加引号、不要用 Markdown、不要分点。",
+    "5. 「神态：…」那一句（若有）必须整句逐字原样保留，不许改写、拆开或挪进别的句子；",
+    "6. 直接输出成品正文，不要解释、不要加引号、不要用 Markdown、不要分点。",
   ].join("\n"),
 };
 
@@ -754,7 +775,7 @@ export async function composeBlockoutPrompt(
 ): Promise<string> {
   // ★ 骨架与「这一次给哪几个位子拼了括号」一并取回 —— 下面三道校验都要拿它逐字核对括号内容。
   //   在校验侧重算一遍预算就是同一条规则的第二处实现（详见 buildSkeleton 的 ★★★）。
-  const { text: skeleton, textNoUserLine, usedDesc, usedKey, usedGroups } = buildSkeleton(cast, userLine, spec);
+  const { text: skeleton, textNoUserLine, usedDesc, usedKey, usedGroups, usedExprLine } = buildSkeleton(cast, userLine, spec);
   // ★★ 下面每一处都用**排好序的**那一份，不是原始 `cast`：给豆包的上下文若按另一个顺序
   //   列，等于在骨架已经排好升序之后又递给它一个反例（而顺序就是语义，见 orderSlots）。
   const slots = orderSlots(cast, spec);
@@ -948,7 +969,21 @@ export async function composeBlockoutPrompt(
     .map((i) => lineFlat.slice(i, i + 4))
     .filter((w) => w.length >= 2);
   const kept = windows.length === 0 || windows.some((w) => flat.includes(w));
-  if (kept) return text;
+  if (kept) return keepExprLine(text, usedExprLine);
   const tail = line.endsWith("。") ? line : `${line}。`;
-  return text.endsWith("。") ? text + tail : `${text}。${tail}`;
+  return keepExprLine(text.endsWith("。") ? text + tail : `${text}。${tail}`, usedExprLine);
+}
+
+/**
+ * 神态句（骨架里写了的话）在合成结果里还在不在 —— 不在就**补回去**（只补、不拒，同上面补作者那句话）：
+ * 模型丢掉它是静默的，丢了的后果是 D 补回来的惊讶 / 大笑又没了（付费小验 A0 那一发的样子），而它不涉及换人，不值得整段拒。
+ * ★ 认「整句原样在」：系统提示词要它逐字保留；被改写过也当丢了、补一份原句（原句是付费验过的写法）。
+ *   补在「不要出现字幕」之前（与骨架同一个位置），找不到那句就接在末尾。
+ */
+function keepExprLine(text: string, exprLine: string): string {
+  if (!exprLine || text.includes(exprLine)) return text;
+  // i18n-ignore-next-line: 骨架里收尾那句的原文（冻结中文），只用来定位
+  const at = text.lastIndexOf("不要出现字幕");
+  if (at >= 0) return text.slice(0, at) + exprLine + text.slice(at);
+  return text.endsWith("。") ? text + exprLine : `${text}。${exprLine}`;
 }
