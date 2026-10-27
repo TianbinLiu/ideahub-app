@@ -26193,8 +26193,8 @@ msgid "这个包里没有它 —— 换一个，或者回 Cubism 重新导出。
 msgstr "This bundle doesn't have it — pick another, or re-export from Cubism."
 
 #: src/studio/flowStore.ts
-msgid "这个名字留给帧和图片编号的写法了（首帧 / 尾帧 / 图片1 / 图1 / 参考图2…）——换一个"
-msgstr "That name is reserved for frames and image numbering (first frame / last frame / 图片1 / 图1 / 参考图2…) — pick another"
+msgid "这个名字留给帧和图片编号的写法了（首帧 / 尾帧 / 图片1 / 图1 / 参考图2 / 效果图…）——换一个"
+msgstr "That name is reserved for frames and image numbering (first frame / last frame / image / image2 / Picture3 / 图1…) — pick another"
 
 #: src/studio/flowStore.ts
 #~ msgid "这个名字留给帧和模型自己的写法了（首帧 / 尾帧 / 图片1…）——换一个"

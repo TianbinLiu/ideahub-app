@@ -73,23 +73,23 @@ export function cleanRefName(raw: string): string {
 
 /** 模型自己的引用写法：名字长成这样就会与真编号混在一起 */
 const MODEL_TOKEN = /^(?:图片|视频|音频)\d*$/;
-/**
- * 「第几张图」的叫法本身（图 / 图1 / 图一 / 参考图 / 参考图2 / image2）也不许当名字（2026-10-26 文字模板，「保留名扩大」）：
- * 编译出来是「图1（图片4）」—— 两个编号摆在一起，模型照哪一个都说不准；而且人写的「参考图1、2」与系统兜底句里的
- * 「图片3「参考图2」…」会撞名又错位（原来临时参考图的默认名正是「参考图 / 参考图2」，所以默认名改成了不以「参考图」打头）。
- * 名字里**含着**一处能被认成图位的写法（「草图2」「图1背景」）同样不行，判据与文字模板改写图位时同一个（templateSlotRefs）。
- */
-const IMAGE_NUMBER_NAME = /^(?:参考)?图片?(?:\d+|[一二三四五六七八九十]+)?$|^(?:image|picture|img|pic)s?\d+$/i;
 
 /**
  * 这个名字能不能用 —— null = 能；否则是哪一种不能（话由界面说）。
+ * ★ 「第几张图」的叫法也不许当名字（2026-10-26 文字模板，「保留名扩大」）：图 / 图1 / 图一 / 参考图 / 参考图2 / 效果图 / image / image2。
+ *   编译出来是「图1（图片4）」—— 两个编号摆在一起，模型照哪一个都说不准；人写的「参考图1、2」与系统兜底句里的「图片3「参考图2」…」
+ *   还会撞名又错位（原来临时参考图的默认名正是「参考图 / 参考图2」，所以默认名改成了不以「参考图」打头）。
+ * ★ 判据只有一个：拿文字模板认图位的那一套（templateSlotRefs）认 —— 名字本身含着一处图位写法（「草图2」「图1背景」），
+ *   或者**接上一个数字就成了图位**（「效果图」「草图」「image」：改写完是「@效果图 3只猫」，再认一遍「效果图 3」又是一个图位，
+ *   改写就不幂等了 —— 2026-10-26 审核实跑抓到）。原来另有一份手写的「图 / 图N / 参考图N / imageN」正则，词表与认图位的那份各管各的，
+ *   覆盖面对不上；现在什么算图位词只写在 SLOT_WORD 一处。「地图 / 截图」接上数字也认不出图位（左边界），所以照样能用。
  * @param taken 这一段里已经被占的名字（别的临时参考图、卡名）
  */
 export function refNameIssue(name: string, taken: readonly string[]): "empty" | "reserved" | "taken" | null {
   const n = cleanRefName(name);
   if (!n) return "empty";
   const low = n.toLowerCase();
-  if (MODEL_TOKEN.test(n) || IMAGE_NUMBER_NAME.test(n) || templateSlotRefs(n).hits.length) return "reserved";
+  if (MODEL_TOKEN.test(n) || templateSlotRefs(n).hits.length || templateSlotRefs(`${n}1`).hits.length) return "reserved";
   if ([...FRAME_ALIASES.first, ...FRAME_ALIASES.last].some((a) => a.replace(/\s/g, "").toLowerCase() === low)) return "reserved";
   if (taken.some((x) => x.toLowerCase() === low)) return "taken";
   return null;
@@ -273,8 +273,10 @@ function mentionText(prev: string, name: string, next: string): string {
 //   · 前面是「地 / 试 / 意 / 构 / 蓝 / 截…」这类组成别的词的字（地图、试图、意图、构图、蓝图、截图）不认；
 //     「参考图 / 效果图 / 示意图 / 草图…」这些「X图」整个吃进来（改写时一起换掉，不留「参考@披风」）；
 //   · 阿拉伯数字后面紧跟字母数字（4K、1080p、图10 里的 1）不认；中文数字后面紧跟汉字（「图一样」）不认，「和 / 与 / 及」除外；
-//   · 「参考图1、2」「图1和2」：列举里的光秃数字也算，但它后面必须是标点 / 空白 / 连词（「图1、2个人」里的 2 不算）；
+//   · 「参考图1、2」「图1和2」：列举里的光秃数字也算，但它后面（跳过行内空白）必须是文末 / 换行 / 标点 / 连词
+//     （「图1、2个人」「图1，2 人」「image 1, 2 girls」里的 2 不算，「参考图1，2-4s」里的 2 是时间码也不算）；
 //     「图1-3」展开成三个（最多跨 9）；
+//   · 图位词与编号之间不许跨行（行尾的「一张图」+ 下一行的「2-4s」不是图位 2）；
 //   · 已经在 @名字 里面的（「@站位草图2」）不动：那是人写的点名。
 // ★ 这里只认、只改写；图位叫什么由作者在建模板那一屏起（名字过 refNameIssue，含着图位写法的名字是保留的 —— 否则改写完再认一遍又认出来）。
 
@@ -296,19 +298,43 @@ export interface SlotRefScan {
 /* i18n-frozen: 文字模板正文里「第几张图」的写法与它两边的边界，是被解析的输入，不是界面文案 */
 const SLOT_CN_NUM = "一二三四五六七八九";
 /**
- * 一处图位写法：可选的 @ + 「（参考|效果|设计|示意|附|插|草|样）图（片）」或英文 image / picture + 编号。
- * 编号的右边界写在正则里（阿拉伯数字后面不许紧跟字母数字；中文数字后面不许紧跟连词以外的汉字），左边界在 slotLeftOk。
+ * 「第几张图」里那个「图」字怎么写：「（参考|效果|设计|示意|附|插|草|样）图（片）」或英文 (ref) image / picture / img / pic。
+ * ★ 什么算图位词**只写在这里**：SLOT_TOKEN / SLOT_LIST_NEXT / SLOT_RANGE 都从它的 .source 派生，refNameIssue 的保留名也拿 templateSlotRefs 认 ——
+ *   原来三处各抄一份词表（前缀表、ref(erence) 前缀、「十」各有各的），覆盖面对不上（2026-10-26 审核）。
+ * ★ 只用非捕获组：下面几条按组号取编号。
  */
-const SLOT_TOKEN =
-  /([@＠])?((?:参考|效果|设计|示意|附|插|草|样)?图片?|(?:ref(?:erence)?\s+)?(?:image|picture|img|pic)s?)\s*#?\s*([1-9]\d?(?![0-9A-Za-z])|[一二三四五六七八九](?!(?![和与及跟或])\p{Script=Han}))/giu;
+const SLOT_WORD = /(?:参考|效果|设计|示意|附|插|草|样)?图片?|(?:ref(?:erence)?[ \t]+)?(?:image|picture|img|pic)s?/;
 /**
- * 列举里接着的下一个（光秃数字，或再写一遍「图」）：后面必须是标点 / 空白 / 连词。
- * 分组：1 = 分隔符（连同两边的空白，改写时原样留着）、2 = 这一项本身（改写的范围）、3 = 编号。
+ * 阿拉伯数字的编号后面跟着「-4s / 至6秒」这种：那是一段时间码（「一张图 2-4s：…」里的 2），不是图位。
+ * 范围「图1-3」不受影响 —— 它后面没有秒的单位。
  */
-const SLOT_LIST_NEXT =
-  /^(\s*(?:[、,，和与及跟或&/／]|and(?![A-Za-z]))\s*)((?:(?:参考|效果|设计|示意|附|插|草|样)?图片?|(?:image|picture|img|pic)s?)?\s*#?\s*([1-9]\d?|[一二三四五六七八九]))(?![0-9A-Za-z])(?!(?![和与及跟或])\p{Script=Han})/iu;
-/** 范围「图1-3」「图1至3」 */
-const SLOT_RANGE = /^\s*[-–—~～至到]\s*(?:图片?)?\s*([1-9]\d?)(?![0-9A-Za-z])(?!(?![和与及跟或])\p{Script=Han})/u;
+const SLOT_TIMECODE_TAIL = /[ \t]*[-–—~～至到][ \t]*\d{1,3}(?:\.\d+)?[ \t]*(?:秒|s(?:ec(?:ond)?s?)?(?![A-Za-z]))/;
+/**
+ * 一处图位写法：可选的 @ + 图位词 + 编号。分组：1 = @、2 = 图位词、3 = 编号。
+ * 编号的右边界写在正则里（阿拉伯数字后面不许紧跟字母数字、不许接着一段时间码；中文数字后面不许紧跟连词以外的汉字），左边界在 slotLeftOk。
+ * ★ 词与编号之间只许行内空白（[ \t]），**不许跨行**：原来写的 `\s*`，行尾的「一张图」会和下一行开头的时间码「2-4s」连成一个图位 2，
+ *   改写时把换行和「2」一起吃掉，时间轴少一段，零报错（2026-10-26 审核实跑）。
+ */
+const SLOT_TOKEN = new RegExp(
+  String.raw`([@＠])?(${SLOT_WORD.source})[ \t]*#?[ \t]*([1-9]\d?(?![0-9A-Za-z])(?!${SLOT_TIMECODE_TAIL.source})|[一二三四五六七八九](?!(?![和与及跟或])\p{Script=Han}))`,
+  "giu",
+);
+/**
+ * 列举里接着的下一个（光秃数字，或再写一遍图位词）。分组：1 = 分隔符（连同两边的空白，改写时原样留着）、2 = 这一项本身（改写的范围）、3 = 编号。
+ * ★ 光秃数字最容易错认，右边界最严：跳过行内空白之后，后面只许是文末 / 换行 / 标点 / 连词 ——
+ *   「图1，2 人」「image 1, 2 girls」里的 2 是个数，「参考图1，2-4s：…」里的 2 是时间码，都不认（宁可漏认：
+ *   「images 1 and 2 here」的 2 也认不出来，作者在体检那一屏看得见少了一个图位，改写成「image 2」就认了）。
+ * ★ 同样不许跨行。
+ */
+const SLOT_LIST_NEXT = new RegExp(
+  String.raw`^([ \t]*(?:[、,，和与及跟或&/／]|(?:and|or)(?![A-Za-z]))[ \t]*)((?:${SLOT_WORD.source})?[ \t]*#?[ \t]*([1-9]\d?|[一二三四五六七八九]))(?![0-9A-Za-z])(?![ \t]*[-–—~～至到][ \t]*\d)(?=[ \t]*(?:$|[\r\n]|[和与及跟或&/／]|(?:and|or)(?![A-Za-z])|[^\p{L}\p{N}\s]))`,
+  "iu",
+);
+/** 范围「图1-3」「图1至图3」「images 1-3」（同样不许跨行） */
+const SLOT_RANGE = new RegExp(
+  String.raw`^[ \t]*[-–—~～至到][ \t]*(?:${SLOT_WORD.source})?[ \t]*([1-9]\d?)(?![0-9A-Za-z])(?!(?![和与及跟或])\p{Script=Han})`,
+  "iu",
+);
 /** 「图」前面是这些字时它是别的词（地图、试图、企图、意图、宏图、版图、拼图、构图、贪图、力图、妄图、希图、谋图、蓝图、截图） */
 const SLOT_WORD_BEFORE = /[地试企意宏版拼构贪力妄希谋蓝截]/;
 /** 往回找 @ 时碰到这些就停：它们不会出现在名字里（与 NAME_STRIP 同一批） */
@@ -369,11 +395,15 @@ export function templateSlotRefs(text: string): SlotRefScan {
  * 把正文里的图位写法换成 `@名字`（names：图位编号 → 名字，名字由作者起、已过 refNameIssue）。
  * · 没给名字的那几处原样留着，编号进 missing（建模板那一屏据此拦「还有图位没起名」）；
  * · 「图1-3」换成「@a、@b、@c」（英文正文用「, 」）；列举里的分隔符原样留着（「参考图1、2」→「@a、@b」）。
- * 改写完再认一遍应当一处都认不出（名字里含着图位写法的是保留名，见 refNameIssue）。
+ * 改写完再认一遍应当一处都认不出（名字里含着图位写法、或接上数字就成了图位写法的是保留名，见 refNameIssue）。
+ * ★ 每一处改完都要能被 compileMentions **认回同一个名字**：它按「最长的先试」认，「@披风」后面紧跟「内衬」时会被另一个图位「披风内衬」截胡 ——
+ *   两处都编成「披风内衬（图片2）」，第 1 张图一次都没被点到，零报错（2026-10-26 审核实跑）。所以拿这一段全部图位名、同一套 hitAt 核一遍，
+ *   认不回来就在名字后面隔一个空格（hitAt 遇到空格就停）。使用者套用时挂的卡名这里不知道 —— 那是所有 @点名 共有的老问题，不在这一步。
  */
 export function rewriteSlotMentions(text: string, names: Readonly<Record<number, string>>): { text: string; missing: number[] } {
   const src = text || "";
   const missing = new Set<number>();
+  const cands = candsOf(Object.values(names).filter(Boolean).map((n, i) => ({ key: `slot:${i}`, names: [n], suffix: "" })));
   let out = "";
   let last = 0;
   for (const h of templateSlotRefs(src).hits) {
@@ -384,7 +414,13 @@ export function rewriteSlotMentions(text: string, names: Readonly<Record<number,
     }
     out += src.slice(last, h.from);
     const sep = /\p{Script=Han}/u.test(src.slice(h.from, h.to)) ? "、" : ", ";
-    out += ns.map((nm, k) => mentionText(k === 0 ? (out[out.length - 1] ?? "") : " ", nm, k === ns.length - 1 ? (src[h.to] ?? "") : " ")).join(sep);
+    out += ns
+      .map((nm, k) => {
+        const after = k === ns.length - 1 ? src.slice(h.to) : sep;
+        const tok = mentionText(k === 0 ? (out[out.length - 1] ?? "") : " ", nm, after[0] ?? "");
+        return tok.endsWith(" ") || hitAt(nm + after, cands)?.lower === nm.toLowerCase() ? tok : `${tok} `;
+      })
+      .join(sep);
     last = h.to;
   }
   out += src.slice(last);

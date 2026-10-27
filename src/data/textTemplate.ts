@@ -67,8 +67,12 @@ function sectionKind(title: string): TplSectionKind | null {
 
 /** 行首的【标题】（同一行后面可以接着正文） */
 const HEAD_BRACKET = /^[ \t]*【([^【】\n]{1,24})】[ \t]*[：:]?[ \t]*/;
-/** 独占一行的「标题：」（【】一键改掉之后段标题长这样；带数字的不算 —— 「镜头1：」是分镜标识） */
-const HEAD_COLON = /^[ \t]*([^\s【】：:，,。.；;!！?？\d]{2,16})[ \t]*[：:][ \t]*$/;
+/**
+ * 独占一行的「标题：」（【】一键改掉之后段标题长这样；带数字的不算 —— 「镜头1：」是分镜标识）。
+ * ★ 词与词之间许一个空格、最多四个词：英文的多词标题（「Global constraints:」）原来认不出，【Global constraints】一键改掉之后
+ *   约束那一段就掉进了最后一个镜头（2026-10-26 审核实跑）。总长 2~24 个字在 headingAt 里判。
+ */
+const HEAD_COLON = /^[ \t]*([^\s【】：:，,。.；;!！?？\d]+(?: [^\s【】：:，,。.；;!！?？\d]+){0,3})[ \t]*[：:][ \t]*$/;
 
 /** 这一行是不是段标题：是的话回标题、种类与正文起点（相对行首）。行尾的 \r（粘进来的 CRLF）不算字 */
 function headingAt(raw: string): { title: string; kind: TplSectionKind; body: number } | null {
@@ -79,7 +83,7 @@ function headingAt(raw: string): { title: string; kind: TplSectionKind; body: nu
     return kind ? { title: b[1].trim(), kind, body: b[0].length } : null;
   }
   const c = HEAD_COLON.exec(line);
-  if (c) {
+  if (c && c[1].length >= 2 && c[1].length <= 24) {
     const kind = sectionKind(c[1]);
     return kind ? { title: c[1].trim(), kind, body: line.length } : null;
   }
@@ -108,6 +112,11 @@ export interface TimecodeBeat {
   to: number;
   at: number;
   end: number;
+  /**
+   * 这个时间码前面那截「行首的列表符号」从哪儿起（「- 0-2s：」「**0-2s**：」的行首）；前面没有列表符号 = at。
+   * 改写成镜头、并段时上一段的正文切到这里为止 —— 不然下一段的「- 」会拖进上一个镜头的尾巴。
+   */
+  head: number;
 }
 
 /** 时间轴最多几段：「镜头N：」的标识只认 1~9（shotScript 的 MARK），超过 9 段改写不出来，直接拦 */
@@ -124,12 +133,16 @@ const TIMECODE =
 /**
  * 时间码前面（跳过空格）只能是这些（或行首 / 文首）：前面是汉字 / 字母数字的（「在2-3秒时」「版本1-2s」「waits 1-2 seconds」）
  * 是句子里的一个数，不是时间轴的一段。
+ * ★ 收尾的括号也算（「【时间轴】0-2s：」标题与正文写在同一行、「（开场）0-2s：」）：原来漏了，第一段时间码丢掉，
+ *   秒数原样留在总述里发给不认时间码的档，还误报「不从 0 起」（2026-10-26 审核实跑）。
  */
-const TIMECODE_BEFORE = /[\r\n。.；;，,、：:（(【[「『“"…!！?？]/;
+const TIMECODE_BEFORE = /[\r\n。.；;，,、：:（(【[「『“"…!！?？】）)\]]/;
+/** 行首只有空白和列表符号（「- 」「* 」「• 」「**」）：当作行首 —— Markdown 写的时间轴（「- 0-2s：」「**0-2s**：」）照样认 */
+const LIST_HEAD = /^[ \t　\-*•·]*$/;
 /** 带单位的时间码后面紧跟这些 = 一段时长（「1-2秒后」「3-5秒内」），不是时间轴的一段 */
 const DURATION_AFTER = /[后內内间左之以前]/;
 
-/** 正文里认出的时间轴（按出现先后） */
+/** 正文里认出的时间码（按出现先后）—— 只管「这是不是一个时间码」；哪几个算时间轴的一段问 timelineOf */
 export function timecodeBeats(text: string): TimecodeBeat[] {
   const src = text || "";
   const out: TimecodeBeat[] = [];
@@ -140,25 +153,53 @@ export function timecodeBeats(text: string): TimecodeBeat[] {
     let j = at - 1;
     while (j >= 0 && /[ \t　]/.test(src[j])) j--;
     const prev = src[j];
+    const lineStart = src.lastIndexOf("\n", at - 1) + 1;
+    const atLineHead = LIST_HEAD.test(src.slice(lineStart, at));
     const ok = (() => {
-      if (prev !== undefined && !TIMECODE_BEFORE.test(prev)) return false;
+      if (!atLineHead && prev !== undefined && !TIMECODE_BEFORE.test(prev)) return false;
       const from = Number(m[2]);
       const to = Number(m[3]);
       if (!(to > from) || to > TIMECODE_SEC_MAX) return false;
       if (m[4]) return !DURATION_AFTER.test(src[end] ?? "");
-      // 没写单位：只认行首、后面紧跟「：」或「【」的
-      const lineHead = src.slice(src.lastIndexOf("\n", at - 1) + 1, at);
-      return !lineHead.trim() && /^[ \t]*[：:【]/.test(src.slice(end));
+      // 没写单位：只认行首、后面紧跟「：」或「【」的（Markdown 加粗的「**0-2**：」也算）
+      return atLineHead && /^[ \t]*(?:\*\*)?[ \t]*[：:【]/.test(src.slice(end));
     })();
-    if (ok) out.push({ from: Number(m[2]), to: Number(m[3]), at, end });
+    if (ok) out.push({ from: Number(m[2]), to: Number(m[3]), at, end, head: atLineHead && at > lineStart && /[-*•·]/.test(src.slice(lineStart, at)) ? lineStart : at });
     else re.lastIndex = at + 1;
   }
   return out;
 }
 
+/** 时间轴：哪几个时间码算数 */
+export interface TplTimeline {
+  /** 构成时间轴的那几段（改写成镜头、并段、写到第几秒、有没有跳着写都只认它们） */
+  beats: TimecodeBeat[];
+  /** 「时间轴」那一段之外认出来的时间码（设定里的「节奏：1-2秒一个动作」）：不参与改写，体检里单独说一句 */
+  stray: TimecodeBeat[];
+}
+
+/**
+ * 哪几个时间码算时间轴的一段 —— 这件事的**唯一判定**（timecodesToShots / mergeBeats / maxTimecodeSec / 体检都问它）。
+ * · 认出了「时间轴」那一段：只算落在它里面的（认出几段「时间轴」就取时间码最多的那一段）；别的段里的是 stray。
+ *   原来「时间轴」段之外冒出一个假时间码（设定里的「节奏：1-2秒一个动作。」），整条改写就退到兜底那一支：
+ *   总述截在「节奏：」、段标题进了镜头、约束拼进最后一个镜头（2026-10-26 审核实跑）。
+ *   「时间轴」那一段里一个时间码都没有：没有时间轴（全部是 stray）—— 别拿设定里的一句节奏当时间轴改写。
+ * · 没认出「时间轴」那一段（标题写成【剧情】这种认不出的）：全文的时间码都算。
+ */
+export function timelineOf(text: string): TplTimeline {
+  const src = text || "";
+  const all = timecodeBeats(src);
+  const tls = sectionsOf(src).sections.filter((s) => s.kind === "timeline");
+  if (!tls.length) return { beats: all, stray: [] };
+  const inside = (s: TplSection) => all.filter((b) => b.at >= s.from && b.at < s.to);
+  const tl = tls.reduce((a, s) => (inside(s).length > inside(a).length ? s : a));
+  const beats = inside(tl);
+  return { beats, stray: all.filter((b) => !beats.includes(b)) };
+}
+
 /** 时间轴写到第几秒（没有时间轴 = null）—— 模板时长的缺省值从它来（作者在规格那一步可以改） */
 export function maxTimecodeSec(text: string): number | null {
-  const beats = timecodeBeats(text);
+  const { beats } = timelineOf(text);
   return beats.length ? Math.max(...beats.map((b) => b.to)) : null;
 }
 
@@ -201,26 +242,29 @@ export type ShotConversion =
  * · 每一段的时间码拿掉，正文压成一行当一个镜头（段标题「【拖拽入场】：」留着，【】由 unbracketTitles 另改）；
  * · 认出了「时间轴」那一段时：其余各段（全局设定、全局约束……）连同标题按原来的先后进总述（lead）——
  *   约束放到镜头前面没关系（付费小验 D 就是这么写的，四个镜头都做到）；时间轴那一段在第一个时间码之前的字也进总述，一个字不丢；
- * · 没认出段落：第一个时间码之前的字是总述，最后一段吃到文末。
+ * · 没认出「时间轴」那一段：第一个时间码之前的字是总述；最后一段吃到它后面第一个认得出的段标题为止（【全局约束】），
+ *   那个标题起的几段照样进总述 —— 原来最后一段吃到文末，约束拼进了最后一个镜头（2026-10-26 审核实跑，标题写成【剧情】的那种）。
+ * · 时间码前面的列表符号（「- 0-2s：」）、后面的加粗收尾（「**0-2s**：」）一起拿掉。
  * @param shotMax 一段最多几个镜头 —— 传 shotScript.SHOT_MAX（这个文件不许有运行时依赖）
  */
 export function timecodesToShots(text: string, shotMax: number): ShotConversion {
   const src = text || "";
-  const beats = timecodeBeats(src);
+  const { beats } = timelineOf(src);
   if (!beats.length) return { kind: "none" };
   if (beats.length > TIMELINE_BEATS_MAX) return { kind: "tooMany", beats: beats.length };
   if (beats.length > shotMax) return { kind: "merge", beats: beats.length };
   const sec = sectionsOf(src);
   const tl = sec.sections.find((s) => s.kind === "timeline" && beats.every((b) => b.at >= s.from && b.at < s.to));
+  const lastEnd = beats[beats.length - 1].end;
+  const tailEnd = tl ? tl.to : (sec.sections.find((s) => s.at >= lastEnd)?.at ?? src.length);
   const leadParts = tl
-    ? [src.slice(sec.preamble.from, sec.preamble.to), ...sec.sections.map((s) => (s === tl ? src.slice(tl.from, beats[0].at) : src.slice(s.at, s.to)))]
-    : [src.slice(0, beats[0].at)];
-  const tailEnd = tl ? tl.to : src.length;
+    ? [src.slice(sec.preamble.from, sec.preamble.to), ...sec.sections.map((s) => (s === tl ? src.slice(tl.from, beats[0].head) : src.slice(s.at, s.to)))]
+    : [src.slice(0, beats[0].head), src.slice(tailEnd)];
   const lead = leadParts
     .map((x) => x.trim())
     .filter(Boolean)
     .join("\n");
-  const shots = beats.map((b, i) => oneLine(src.slice(b.end, i + 1 < beats.length ? beats[i + 1].at : tailEnd)).replace(/^[\s：:，,、]+/, ""));
+  const shots = beats.map((b, i) => oneLine(src.slice(b.end, i + 1 < beats.length ? beats[i + 1].head : tailEnd)).replace(/^[\s：:，,、*]+/, ""));
   return { kind: "ok", script: { lead, shots } };
 }
 
@@ -231,7 +275,7 @@ export function timecodesToShots(text: string, shotMax: number): ShotConversion 
  */
 export function mergeBeats(text: string, i: number): string {
   const src = text || "";
-  const beats = timecodeBeats(src);
+  const { beats } = timelineOf(src);
   const a = beats[i];
   const b = beats[i + 1];
   if (!a || !b) return src;
@@ -242,9 +286,10 @@ export function mergeBeats(text: string, i: number): string {
   const bTo = LAST_NUM.exec(src.slice(b.at, b.end));
   if (!aTo || !bTo) return src;
   const newA = tokA.slice(0, aTo.index) + bTo[0] + tokA.slice(aTo.index + aTo[0].length);
-  const body = src.slice(a.end, b.at).replace(/\s+$/, "");
-  // 后一段的时间码后面若紧跟冒号（「2-7：」这种没写单位的），一起拿掉
-  const rest = src.slice(b.end).replace(/^[ \t]*[：:][ \t]*/, "");
+  // 后一段行首的列表符号（「- 」）随它的时间码一起拿掉
+  const body = src.slice(a.end, b.head).replace(/\s+$/, "");
+  // 后一段的时间码后面若紧跟冒号（「2-7：」这种没写单位的），连同加粗的收尾（「**2-4s**：」）一起拿掉
+  const rest = src.slice(b.end).replace(b.head < b.at ? /^[ \t]*\**[ \t]*[：:]?[ \t]*/ : /^[ \t]*[：:][ \t]*/, "");
   const glue = !body || /[：:。.！!？?；;，,、】]$/.test(body) ? "" : "。";
   return `${src.slice(0, a.at)}${newA}${body}${glue}${rest}`;
 }
@@ -253,14 +298,20 @@ export function mergeBeats(text: string, i: number): string {
 
 /**
  * 【X】改掉（体检里那一条「一键改」，默认打勾）：
- * · 后面本来就跟着冒号（「0-2s【拖拽入场】：」）→ 去掉括号；
- * · 行首、独占一行（「【全局约束】」）→「全局约束：」；行首、后面接着正文（「【全局设定】Blender界面…」）→ 段标题换行，
- *   让 sectionsOf 仍认得出这一段（它只认独占一行的「X：」），不是段标题的就「X：」接正文；
- * · 句子中间的（「以【女仆装形态】落地」）→ 直接并进正文。
- * 绝不改成「」或“”（文件头 ★★ ②）；空的【】直接拿掉。
+ * · 紧跟在时间码后面（「0-2s【拖拽入场】：」「0-2【落地】：」）→「0-2s：拖拽入场：」：时间码改完必须**还认得出来** ——
+ *   直接并成「0-2落地」的话没写单位的那种认不出了，「0-2sDrop in」单位后面紧跟字母也认不出，标题以「后 / 内 / 前」打头的
+ *   （「0-2s【后空翻】」）会变成时长短语（2026-10-26 审核实跑：两段时间轴变成零段）。所以中间一律隔一个「：」（英文「: 」）；
+ * · 行首的段标题（sectionsOf 认得出种类的）→ 一律改成**独占一行**的「X：」，正文另起一行：sectionsOf 只认独占一行的「X：」，
+ *   「【全局约束】：严禁多肢体」改成同一行的「全局约束：严禁多肢体」就认不出了，约束会掉进最后一个镜头（同上，审核实跑）；
+ * · 行首、不是段标题的（「【女仆装】黑色女仆裙」）→「女仆装：黑色女仆裙」；
+ * · 句子中间的（「以【女仆装形态】落地」）→ 直接并进正文（英文字母与字母之间补一个空格，「x【Drop】y」不粘成一个词）。
+ * 绝不改成「」或“”（文件头 ★★ ②）；也**绝不在引号前面放一个冒号**（冒号 + 引号 = 一句台词，quoteSpans 会认成台词、留着配音）——
+ * 那种位置用「，」。空的【】直接拿掉。
+ * ★ 两颗一键改一起点时走 applyTextTplFixes（先去引号、再改【】，先后在这里定死），界面别自己排先后。
  */
 export function unbracketTitles(text: string): string {
   const src = text || "";
+  const beatEnds = timecodeBeats(src).map((b) => b.end);
   let out = "";
   let last = 0;
   const re = /【([^【】\n]*)】([ \t]*)/g;
@@ -268,14 +319,37 @@ export function unbracketTitles(text: string): string {
     out += src.slice(last, m.index);
     last = m.index + m[0].length;
     const t = m[1].trim();
-    const colon = /\p{Script=Han}/u.test(t) || !t ? "：" : ":";
-    const after = src.slice(last);
-    const lineStart = !src.slice(src.lastIndexOf("\n", m.index - 1) + 1, m.index).trim();
     if (!t) continue;
-    if (/^[：:]/.test(after)) out += t;
-    else if (lineStart && (!after || /^\r?\n/.test(after))) out += `${t}${colon}`;
-    else if (lineStart) out += sectionKind(t) ? `${t}${colon}\n` : `${t}${colon}`;
-    else out += `${t}${m[2]}`;
+    const han = /\p{Script=Han}/u.test(t);
+    const colon = han ? "：" : ": ";
+    const after = src.slice(last);
+    const colonAfter = /^[：:]/.test(after);
+    const quoteAfter = /^[「『“"]/.test(after);
+    const lineEnd = !after || /^\r?\n/.test(after);
+    const lineStart = !src.slice(src.lastIndexOf("\n", m.index - 1) + 1, m.index).trim();
+    // 同一行里紧跟在时间码后面（中间只隔空格）
+    if (beatEnds.some((end) => end <= m.index && /^[ \t]*$/.test(src.slice(end, m.index)))) {
+      out = out.replace(/[ \t]+$/, "");
+      out += `${colon}${t}`;
+      // 后面本来有冒号就用它（「0-2s：拖拽入场：初始…」）；接着正文就补一个；接着引号用「，」
+      if (!colonAfter && !lineEnd) out += quoteAfter ? (han ? "，" : ", ") : colon;
+      continue;
+    }
+    if (lineStart && sectionKind(t)) {
+      const skip = /^[：:][ \t]*/.exec(after)?.[0].length ?? 0;
+      const rest = after.slice(skip);
+      out += !rest || /^\r?\n/.test(rest) ? `${t}${colon.trim()}` : `${t}${colon.trim()}\n`;
+      last += skip;
+      continue;
+    }
+    if (colonAfter) out += t;
+    else if (lineStart && lineEnd) out += `${t}${colon.trim()}`;
+    else if (lineStart) out += quoteAfter ? `${t}${han ? "，" : ", "}` : `${t}${colon}`;
+    else {
+      const lead = /[A-Za-z0-9]$/.test(out) && /^[A-Za-z0-9]/.test(t) ? " " : "";
+      const tail = m[2] || (/[A-Za-z0-9]$/.test(t) && /^[A-Za-z0-9]/.test(after) ? " " : "");
+      out += `${lead}${t}${tail}`;
+    }
   }
   return out + src.slice(last);
 }
@@ -329,6 +403,18 @@ export function unquoteLabels(text: string): string {
   return out + src.slice(last);
 }
 
+/**
+ * 体检那一屏的两颗「一键改」（【X】、不是台词的引号）—— 界面**只调这一个**，先后在这里定死：先去引号、再改【】。
+ * ★ 反过来的话「【女仆装】“黑色女仆裙”」先成了「女仆装：“黑色女仆裙”」，冒号 + 引号又被认成一句台词、去引号那一步就不动它了 ——
+ *   点的先后不同、结果不同，还多出一段配音（2026-10-26 审核实跑）。unbracketTitles 自己也不在引号前面放冒号，这里再把顺序钉住。
+ */
+export function applyTextTplFixes(text: string, o: { brackets: boolean; quotes: boolean }): string {
+  let s = text || "";
+  if (o.quotes) s = unquoteLabels(s);
+  if (o.brackets) s = unbracketTitles(s);
+  return s;
+}
+
 // ── 命令参数（--dur / --ratio …）──────────────────────────────
 
 /**
@@ -365,19 +451,48 @@ export const POLICY_EXPOSE: readonly RegExp[] = [
   /\bundress(?:es|ed|ing)?\b|\bstrip(?:s|ped|ping)?\s+(?:off|down|naked)\b|\btak(?:e|es|ing)\s+off\s+(?:(?:her|his|their|the)\s+)?(?:clothes|shirt|dress|skirt|socks?|stockings?|shoes?|bra|underwear|top|pants|jeans)\b|\bnaked\b|\bnude\b|\btopless\b|\blingerie\b|\bunderwear\b|\bbikini\b|\bsee-?through\b|\bupskirt\b|\bcleavage\b|\blift(?:s|ed|ing)?\s+(?:up\s+)?(?:her|the)\s+skirt\b/gi,
 ];
 
-/** 词表 B：年龄模糊的主体（「少女」「女孩」「学生」…）—— 单独出现不算问题，与 A 同时出现才不能上架 */
+/**
+ * 词表 B：年龄模糊的主体（「少女」「女孩」「学生」…）—— 单独出现不算问题，与 A 同时出现才不能上架。
+ * ★ 2026-10-26 审核补：「女生 / 男生 / 小姑娘 / 学妹 / 妹妹…」与明写的未满 18 岁年龄（「14岁」「十四岁」「两岁」「a 14-year-old」「15 years old」「14yo」）——
+ *   原来「一个14岁的女生脱下衬衫」只判成进审，不是不能上架。年龄只认 1~17：前面紧挨着数字的不算（「18岁」里的「8岁」、「二十岁」里的「十岁」）。
+ */
 export const POLICY_MINOR: readonly RegExp[] = [
-  /少女|萝莉|幼女|幼童|幼儿|女童|男童|儿童|孩童|小孩|女孩|男孩|小学生|初中生|中学生|高中生|学生|校服|未成年|正太/g,
-  /\bJK\b|\bloli(?:ta)?\b|\bchild(?:ren)?\b|\bkids?\b|\bminors?\b|\bunderage\b|\bteen(?:s|age|aged|ager|agers)?\b|\bschool\s?(?:girls?|boys?|uniform)\b|\bgirls?\b|\bboys?\b|\bstudents?\b/gi,
+  /少女|萝莉|幼女|幼童|幼儿|女童|男童|儿童|孩童|小孩|女孩|男孩|小学生|初中生|中学生|高中生|学生|校服|未成年|正太|女生|男生|小姑娘|小丫头|学妹|学弟|妹妹|童颜/g,
+  /(?<![\d.])(?:1[0-7]|[1-9])[ \t]*周?岁/g,
+  /(?<![\d一二三四五六七八九十百两])(?:十[一二三四五六七]?|[一二三四五六七八九两])[ \t]*周?岁/g,
+  /\bJK\b|\bloli(?:ta)?\b|\bchild(?:ren)?\b|\bkids?\b|\bminors?\b|\bunderage\b|\bteen(?:s|age|aged|ager|agers)?\b|\bpre-?teens?\b|\btweens?\b|\bschool\s?(?:girls?|boys?|uniform)\b|\bgirls?\b|\bboys?\b|\bstudents?\b/gi,
+  /\b(?:1[0-7]|[1-9])[- ]?(?:years?[- ]old|y\/?o)\b/gi,
 ];
 
 /**
- * 同一小句里前面写着「严禁 / 禁止 / 避免…」的不算（「严禁出现骨骼错位、多肢体、裸露」是安全约束，不是要画它）。
- * ★ 只认明说禁止的词：「不穿内衣」「无意中掀起裙摆」不是禁止，照算 —— 判错的方向要安全。
+ * 「别画它」的词：「严禁出现骨骼错位、多肢体、裸露」是安全约束，不是要画它 —— 这种管得到它后面那一串列举里的每一项。
+ * ★ 「不得不」不是禁止（「少女不得不脱下衬衫」）：不用在这里另挡 —— 「不得」后面那个「不」不是一串列举，NEG_SCOPE 不放行（构建里钉着）。
  */
-const POLICY_NEGATION =
-  /严禁|禁止|切勿|不得|杜绝|避免|不要出现|不能出现|不许出现|不可出现|\bno\b|\bnever\b|\bavoid\b|\bwithout\b|must\s+not|do\s*n[o']?t\s+show/i;
+const NEG_DEPICT = /严禁|禁止|切勿|不得|杜绝|避免|不要|不能|不许|不可|\bavoid(?:s|ing)?\b|\bnever\b|\bmust\s+not\b|\bdo(?:es)?\s*n[o']?t\s+(?:show|depict|include)\b/gi;
+/**
+ * 「没有 / 无 / no / without」：只管**露肤的状态**（「无裸露」「no nudity, never naked」）——
+ * 管不到衣物与动作：「无内衣」「no underwear」是没穿，「without a word the girl undresses」是另一回事（2026-10-26 审核实跑）。
+ */
+const NEG_ABSENT = /无|没有|\bno\b|\bwithout\b/gi;
+const EXPOSE_STATE = /^(?:裸露|裸体|裸身|半裸|全裸|赤裸|一丝不挂|走光|(?:皮肤|肌肤|身体)(?:外露|裸露)|naked|nude|topless)$/i;
+/**
+ * 否定词到命中词之间只许是「一串列举」：可选的「出现 / 有 / 任何」，若干个以「、/ 和 / 或 / and / or」收尾的短项，最后可以有一个程度词。
+ * ★ 原来整个小句里只要有否定词就整句作废：「为避免弄湿而脱下衬衫」「Without a word the girl undresses」都不算了 —— 漏判，方向不安全
+ *   （2026-10-26 审核实跑）。现在否定只管到紧挨着它的那串列举（「严禁出现骨骼错位、多肢体、裸露」照样不算），中间夹着别的话就照算。
+ */
+const NEG_SCOPE =
+  /^[ \t]*(?:出现|有|露出|任何|any|showing|show)?[ \t]*(?:[^，,。.；;！!？?\n、和与及或]{1,10}?[ \t]*(?:、|和|与|及|或|以及|\/|／|\bor\b|\band\b)[ \t]*)*(?:任何|过度|过多|大面积|明显|多余|any|excessive|visible)?[ \t]*$/i;
 const CLAUSE_BREAK = /[，,。.；;！!？?\n]/;
+
+/** 命中词前面（同一小句里）有没有一个管得到它的否定词 */
+function negated(clause: string, hit: string): boolean {
+  for (const neg of [NEG_DEPICT, NEG_ABSENT]) {
+    if (neg === NEG_ABSENT && !EXPOSE_STATE.test(hit)) continue;
+    const re = new RegExp(neg.source, neg.flags);
+    for (let m = re.exec(clause); m; m = re.exec(clause)) if (NEG_SCOPE.test(clause.slice(m.index + m[0].length))) return true;
+  }
+  return false;
+}
 
 function policyHits(text: string, lists: readonly RegExp[]): string[] {
   const out: string[] = [];
@@ -386,7 +501,7 @@ function policyHits(text: string, lists: readonly RegExp[]): string[] {
     for (let m = re.exec(text); m; m = re.exec(text)) {
       let i = m.index - 1;
       while (i >= 0 && !CLAUSE_BREAK.test(text[i])) i--;
-      if (!POLICY_NEGATION.test(text.slice(i + 1, m.index)) && !out.includes(m[0])) out.push(m[0]);
+      if (!negated(text.slice(i + 1, m.index), m[0]) && !out.includes(m[0])) out.push(m[0]);
     }
   }
   return out;
@@ -426,6 +541,8 @@ export type TextTplFinding =
   | { kind: "dialogue"; count: number }
   /** 时间轴：几段、写到第几秒、有没有跳着写，以及改写成镜头那一条路走得通不通（tooMany = 拦） */
   | { kind: "timeline"; beats: number; maxSec: number; gaps: boolean; shots: "ok" | "merge" | "tooMany" }
+  /** 「时间轴」那一段之外像时间码的写法（timelineOf 的 stray）：只提醒 —— 它们不改写成镜头、也不算进模板时长 */
+  | { kind: "strayTimecodes"; count: number }
   /** 认出的图位（下一步起名）；over = 比文字模板段能带的临时参考图多 —— 拦 */
   | { kind: "slots"; nums: number[]; over: boolean }
   /** 内容规则命中 */
@@ -435,8 +552,14 @@ export type TextTplFinding =
  * 体检（建模板第②步那一屏）：只认、只报，一个字都不改 —— 改是作者点了那几颗「一键改」之后的事。
  * @param o.shotMax shotScript.SHOT_MAX
  * @param o.slots   refMentions.templateSlotRefs(text) 的结果（这个文件不许有运行时依赖，由调用方算好传进来）
+ * @param o.policyParts 除正文之外一起公开展示的字：标题、简介、每个图位的提示 —— 内容规则一次全算进来，界面只读这一份结论
+ *   （原来体检只看正文，标题里写着「少女脱下衬衫」体检里一个字不提，界面要么漏、要么自己再调一次 = 第二个判定点，2026-10-26 审核）。
+ *   必填：漏传是零症状的；真没有就传 []。
  */
-export function textTplFindings(text: string, o: { shotMax: number; slots: { nums: readonly number[]; over: boolean } }): TextTplFinding[] {
+export function textTplFindings(
+  text: string,
+  o: { shotMax: number; slots: { nums: readonly number[]; over: boolean }; policyParts: readonly string[] },
+): TextTplFinding[] {
   const src = text || "";
   if (!src.trim()) return [{ kind: "empty" }];
   const out: TextTplFinding[] = [];
@@ -449,7 +572,7 @@ export function textTplFindings(text: string, o: { shotMax: number; slots: { num
   if (labels.length) out.push({ kind: "labelQuotes", labels });
   const lines = quotes.filter((q) => q.dialogue).length;
   if (lines) out.push({ kind: "dialogue", count: lines });
-  const beats = timecodeBeats(src);
+  const { beats, stray } = timelineOf(src);
   if (beats.length) {
     const conv = timecodesToShots(src, o.shotMax).kind;
     out.push({
@@ -460,8 +583,9 @@ export function textTplFindings(text: string, o: { shotMax: number; slots: { num
       shots: conv === "tooMany" ? "tooMany" : conv === "merge" ? "merge" : "ok",
     });
   }
+  if (stray.length) out.push({ kind: "strayTimecodes", count: stray.length });
   if (o.slots.nums.length) out.push({ kind: "slots", nums: [...o.slots.nums], over: o.slots.over });
-  const policy = textTplPolicyFlags(src);
+  const policy = textTplPolicyFlags(src, ...o.policyParts);
   if (policy.level) out.push({ kind: "policy", level: policy.level, expose: policy.expose, minor: policy.minor });
   return out;
 }

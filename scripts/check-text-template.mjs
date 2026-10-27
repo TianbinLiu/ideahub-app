@@ -16,6 +16,10 @@
 //   ⑦ 去引号把台词也去了；⑧ 图位不看「地图 / 试图」；⑨ 列举里的光秃数字后面跟着汉字也认（「图1、2个人」）；
 //   ⑩ 已经在 @名字 里的图位也改写；⑪ 内容规则不看「严禁…」；⑫ 「脱离 / 逃脱」也算露肤动作；⑫′「脱下外套 / 面具」也算；
 //   ⑬ canonTextTplPrompt 不 packShots（「Shot 1:」存下来与发出去的不一样）；⑭ mergeBeats 另起一行（被认成新的段标题）。
+//   2026-10-26 审核那一轮（各自试红过）：⑮ 图位词与编号之间许跨行（「一张图\n2-4s」）；⑯ 列举的光秃数字不看后面的词 / 时间码；
+//   ⑰ 改写不核「认不认得回原来的名字」（披风 / 披风内衬）；⑱ 保留名不看「接上数字就成图位」（效果图）；⑲ 词表 B 去掉年龄；
+//   ⑳ 否定词管整个小句（「不得不」「为避免…而」）；㉑ 时间码左边界不认】）；㉒ 紧跟时间码的【X】直接并进去；㉓ 段标题带冒号改在同一行；
+//   ㉔ 时间轴不按段筛（段外的假时间码参与改写）；㉕ 改【】在引号前放冒号；㉖ 体检不把标题 / 图位提示算进内容规则。
 //
 // 用法：node scripts/check-text-template.mjs [--module=<另一份 textTemplate.ts>] [--refs=<另一份 refMentions.ts>]（造违规试红用）
 import fs from "node:fs";
@@ -87,6 +91,18 @@ eq("不是段标题的【】（行首的【女仆装】）不算", kinds("【女
 eq("带数字的「镜头1：」不是段标题", kinds("镜头1：\n走进来"), []);
 eq("英文标题", kinds("[x]\nTimeline:\n0-2s: walk"), ["timeline"]);
 eq("粘进来的 CRLF 也认", kinds("【全局设定】\r\n雨夜\r\n时间轴：\r\n0-2s：走"), ["setting", "timeline"]);
+eq("英文多词标题（独占一行）", kinds("Global constraints:\nno extra limbs"), ["constraint"]);
+eq("一整句话结尾的冒号不是段标题（超过四个词）", kinds("Then she turns and avoids the camera:\nwalk"), []);
+// 一键改【】之后段落一个都不能少（同一行带冒号的标题、英文多词标题 —— 2026-10-26 审核实跑：改完约束掉进了最后一个镜头）
+for (const t of [
+  "【时间轴】\n0-2s：走\n2-4s：回头\n【全局约束】：严禁多肢体",
+  "[x]\n【Timeline】\n0-2s: walk\n2-4s: turn\n【Global constraints】\nno extra limbs",
+  "【全局设定】Blender界面\n【时间轴】0-2s：走\n【约束】：无多肢体",
+  "【全局约束】：\n全程",
+  "【全局约束】\r\n全程",
+]) {
+  eq(`unbracketTitles 前后认出的段一样（${show(t)}）`, kinds(T.unbracketTitles(t)), kinds(t));
+}
 
 // ── (c) 时间码 ──
 const beats = (t) => T.timecodeBeats(t).map((b) => [b.from, b.to, t.slice(b.at, b.end)]);
@@ -132,12 +148,56 @@ const tcCases = [
   ["图1-2s", []],
   ["she waits 1-2 seconds then turns", []],
   ["Scene: 0-2s: walk", [[0, 2, "0-2s"]]],
+  // 收尾的括号与 Markdown 列表符号也当左边界（2026-10-26 审核：原来第一段时间码丢掉）
+  ["【时间轴】0-2s：走", [[0, 2, "0-2s"]]],
+  ["（开场）0-2s：走", [[0, 2, "0-2s"]]],
+  ["- 0-2s：走", [[0, 2, "0-2s"]]],
+  ["* 0-2s 走", [[0, 2, "0-2s"]]],
+  ["**0-2s**：走", [[0, 2, "0-2s"]]],
+  ["• 0-2s：走", [[0, 2, "0-2s"]]],
+  ["**0-2**：走", [[0, 2, "0-2"]]],
+  ["x - 0-2s 走", []],
+  ["（共3段）3-5个苹果", []],
 ];
 for (const [t, want] of tcCases) eq(`timecodeBeats(${show(t)})`, beats(t), want);
 eq("没有时间轴：maxTimecodeSec 为 null", T.maxTimecodeSec("凛推开门。"), null);
 eq("时间轴连续：不算跳着写", T.timecodeGaps(T.timecodeBeats(OWNER)), false);
 eq("时间轴跳着写", T.timecodeGaps(T.timecodeBeats("0-3s：a\n5-6s：b")), true);
 eq("时间轴不从 0 起", T.timecodeGaps(T.timecodeBeats("1-3s：a\n3-6s：b")), true);
+
+// ── (c′) 哪几个时间码算时间轴（timelineOf）──
+{
+  // 设定里的「节奏：1-2秒一个动作」也长得像时间码：认出了「时间轴」那一段就只算它里面的（2026-10-26 审核实跑：原来整条改写退到兜底那一支）
+  const STRAY = "【全局设定】\n节奏：1-2秒一个动作。\n【时间轴】\n0-2s：走\n2-4s：回头\n【全局约束】\n严禁多肢体";
+  const tl = T.timelineOf(STRAY);
+  eq("时间轴那一段之外的时间码不算", [tl.beats.map((b) => [b.from, b.to]), tl.stray.map((b) => [b.from, b.to])], [[[0, 2], [2, 4]], [[1, 2]]]);
+  eq("段外的时间码不参与改写：设定原样进总述、约束进总述、镜头只有时间轴里那两段", T.timecodesToShots(STRAY, S.SHOT_MAX), {
+    kind: "ok",
+    script: { lead: "【全局设定】\n节奏：1-2秒一个动作。\n【全局约束】\n严禁多肢体", shots: ["走", "回头"] },
+  });
+  eq("段外的时间码不算进模板时长", T.maxTimecodeSec(STRAY), 4);
+  eq(
+    "段外的时间码体检里单独说一句",
+    T.textTplFindings(STRAY, { shotMax: S.SHOT_MAX, slots: R.templateSlotRefs(STRAY), policyParts: [] }).map((x) => x.kind),
+    ["brackets", "timeline", "strayTimecodes"],
+  );
+  const EMPTY_TL = "【全局设定】\n节奏：1-2秒一个动作。\n【时间轴】\n走，然后回头";
+  eq(
+    "「时间轴」那一段里没有时间码：没有时间轴（别拿设定里的一句节奏改写）",
+    [T.timecodesToShots(EMPTY_TL, S.SHOT_MAX).kind, T.maxTimecodeSec(EMPTY_TL), T.timelineOf(EMPTY_TL).stray.length],
+    ["none", null, 1],
+  );
+  // 认不出「时间轴」那一段（标题写成【剧情】）：最后一段吃到它后面第一个认得出的段标题为止，约束照样进总述
+  eq("认不出时间轴那一段：约束不进最后一个镜头", T.timecodesToShots("【全局设定】\n雨夜\n【剧情】\n0-2s：走\n2-4s：回头\n【全局约束】\n严禁多肢体", S.SHOT_MAX), {
+    kind: "ok",
+    script: { lead: "【全局设定】\n雨夜\n【剧情】\n【全局约束】\n严禁多肢体", shots: ["走", "回头"] },
+  });
+  eq("标题与正文写在同一行的时间轴：第一段不丢", T.timecodesToShots("【时间轴】0-2s：走\n2-4s：回头", S.SHOT_MAX), { kind: "ok", script: { lead: "", shots: ["走", "回头"] } });
+  eq("Markdown 列表写的时间轴：列表符号不拖进上一个镜头", T.timecodesToShots("- 0-2s：走\n- 2-4s：回头", S.SHOT_MAX), { kind: "ok", script: { lead: "", shots: ["走", "回头"] } });
+  eq("Markdown 加粗的时间码", T.timecodesToShots("**0-2s**：走\n**2-4s**：回头", S.SHOT_MAX), { kind: "ok", script: { lead: "", shots: ["走", "回头"] } });
+  eq("mergeBeats：后一段行首的列表符号一起拿掉", T.mergeBeats("- 0-2s：走\n- 2-4s：回头", 0), "- 0-4s：走。回头");
+  eq("mergeBeats：只并时间轴里的（段外的不算第几段）", T.timecodeBeats(T.mergeBeats(STRAY, 0)).map((b) => [b.from, b.to]), [[1, 2], [0, 4]]);
+}
 
 // ── (d) 时间轴 → 镜头 ──
 eq("主人例子 5 段：请作者合并", T.timecodesToShots(OWNER, S.SHOT_MAX), { kind: "merge", beats: 5 });
@@ -194,7 +254,20 @@ const bracketCases = [
   ["【全局约束】\r\n全程", "全局约束：\r\n全程"],
   ["【全局设定】Blender界面", "全局设定：\nBlender界面"],
   ["【女仆装】黑色女仆裙", "女仆装：黑色女仆裙"],
-  ["0-2s【拖拽入场与落地】：\n初始", "0-2s拖拽入场与落地：\n初始"],
+  ["0-2s【拖拽入场与落地】：\n初始", "0-2s：拖拽入场与落地：\n初始"],
+  // 紧跟在时间码后面：时间码改完必须还认得出来（2026-10-26 审核：「0-2落地」「0-2sDrop in」「0-2s后空翻」都认不出了）
+  ["0-2【落地】：走", "0-2：落地：走"],
+  ["0-2【落地】走", "0-2：落地：走"],
+  ["0-2s【Drop in】: walk", "0-2s: Drop in: walk"],
+  ["0-2s【后空翻】落地", "0-2s：后空翻：落地"],
+  ["0-2s 【落地】：走", "0-2s：落地：走"],
+  // 行首的段标题一律独占一行（同一行带冒号的、英文多词的）
+  ["【全局约束】：严禁多肢体", "全局约束：\n严禁多肢体"],
+  ["【Global constraints】\nno extra limbs", "Global constraints:\nno extra limbs"],
+  // 不在引号前面放冒号（冒号 + 引号 = 台词）
+  ["【女仆装】“黑色女仆裙”", "女仆装，“黑色女仆裙”"],
+  ["【女仆装】：黑", "女仆装：黑"],
+  ["x【Drop】y", "x Drop y"],
   ["少女以【女仆装形态】落地", "少女以女仆装形态落地"],
   ["拖拽一个【黑红披风服装图标】 进入画面", "拖拽一个黑红披风服装图标 进入画面"],
   ["结尾【】空的", "结尾空的"],
@@ -213,6 +286,35 @@ for (const [name, t] of [
 }
 eq("主人例子：10 处【】", T.bracketCount(OWNER), 10);
 ok("没有引号的句子改完【】不会被当成台词", !hasDialogue(T.unbracketTitles("【全局设定】\n少女以【女仆装形态】落地【换装】")));
+// 一键改【】前后时间码一段都不能少（2026-10-26 审核：「0-2【落地】：」改完两段变零段）
+for (const t of [
+  OWNER,
+  LONG,
+  SHORT,
+  "【时间轴】\n0-2【落地】：走\n2-4【转身】：回头",
+  "0-2s【Drop in】: walk\n2-4s【Turn】: back",
+  "0-2s【后空翻】落地\n2-4s【前滚】起身",
+  "【时间轴】0-2s【落地】走\n2-4s【回头】",
+]) {
+  eq(
+    `unbracketTitles 前后时间码段数一样（${show(t.slice(0, 24))}…）`,
+    T.timecodeBeats(T.unbracketTitles(t)).map((b) => [b.from, b.to]),
+    T.timecodeBeats(t).map((b) => [b.from, b.to]),
+  );
+}
+// 两颗一键改点的先后不影响「会不会被当成台词」；一起点走 applyTextTplFixes，先后定死（2026-10-26 审核）
+{
+  const t = "【女仆装】“黑色女仆裙”";
+  ok("先改【】再去引号：不是台词", !hasDialogue(T.unquoteLabels(T.unbracketTitles(t))));
+  ok("先去引号再改【】：不是台词", !hasDialogue(T.unbracketTitles(T.unquoteLabels(t))));
+  eq("applyTextTplFixes 两样都点：先去引号、再改【】", T.applyTextTplFixes(t, { brackets: true, quotes: true }), "女仆装：黑色女仆裙");
+  eq(
+    "applyTextTplFixes 只点一样",
+    [T.applyTextTplFixes(t, { brackets: true, quotes: false }), T.applyTextTplFixes(t, { brackets: false, quotes: true })],
+    ["女仆装，“黑色女仆裙”", "【女仆装】黑色女仆裙"],
+  );
+  eq("applyTextTplFixes 都不点：原样", T.applyTextTplFixes(OWNER, { brackets: false, quotes: false }), OWNER);
+}
 const quoteCases = [
   // [原句, 去掉不是台词的引号之后, 认成台词的个数]
   ["拖拽一个“人物图标”至画面中心", "拖拽一个人物图标至画面中心", 0],
@@ -245,7 +347,9 @@ const slotCases = [
   ["图一和图二", [["图一", [1]], ["图二", [2]]]],
   ["示意图1", [["示意图1", [1]]]],
   ["如图2中所示", [["图2", [2]]]],
-  ["see images 1 and 2 here", [["images 1", [1]], ["2", [2]]]],
+  ["see images 1 and 2: the cape", [["images 1", [1]], ["2", [2]]]],
+  ["图1至图3", [["图1至图3", [1, 2, 3]]]],
+  ["images 1-3", [["images 1-3", [1, 2, 3]]]],
   ["Image 3: the cape", [["Image 3", [3]]]],
   ["@图片3 的服装", [["@图片3", [3]]]],
   // 反例
@@ -259,6 +363,17 @@ const slotCases = [
   ["跟原图一样", []],
   ["@站位草图2 里", []],
   ["imagine 2", []],
+  // 不许跨行、不吃时间码、列举里的光秃数字后面跟着词 / 汉字不认（2026-10-26 审核实跑）
+  ["鼠标拖来一张图\n2-4s：接住（图1）", [["图1", [1]]]],
+  ["鼠标拖来一张图\n2-4：接住", []],
+  ["画面里挂着一张图\n2 个人走进来", []],
+  ["打开设计图\n2-4s：走", []],
+  ["一张图 2-4s：接住", []],
+  ["看图1-3秒", []],
+  ["参考图1，2-4s：走", [["参考图1", [1]]]],
+  ["图1，2 人", [["图1", [1]]]],
+  ["image 1, 2 girls", [["image 1", [1]]]],
+  ["see images 1 and 2 here", [["images 1", [1]]]], // 宁可漏认：作者在体检那一屏看得见少了一个
 ];
 for (const [t, want] of slotCases) {
   const r = R.templateSlotRefs(t);
@@ -269,6 +384,13 @@ eq("中性长版：4 个图位", R.templateSlotRefs(LONG).nums, [1, 2, 3, 4]);
 eq("4 个图位不超", R.templateSlotRefs(OWNER).over, false);
 eq("5 个图位超了（文字模板段最多 TEXT_TPL_EXTRA_MAX 张）", R.templateSlotRefs("图1、图2、图3、图4、图5").over, R.TEXT_TPL_EXTRA_MAX < 5);
 eq("文字模板段上限是 4（普通段的 EXTRA_REF_MAX 不动）", [R.TEXT_TPL_EXTRA_MAX, R.EXTRA_REF_MAX], [4, 3]);
+for (const t of [OWNER, LONG, SHORT, "0-2s：鼠标拖来一张图\n2-4s：角色接住（图1）", "开场。\n参考图1，2-4s：走", "打开设计图\n2-4s：走"]) {
+  eq(
+    `图位改写之后时间码一段都不少（${show(t.slice(0, 24))}…）`,
+    T.timecodeBeats(R.rewriteSlotMentions(t, { 1: "伞", 2: "盒子", 3: "特写", 4: "女仆装" }).text).length,
+    T.timecodeBeats(t).length,
+  );
+}
 
 // ── (h) 图位：改写成 @名字 ──
 const NAMES = { 1: "斗篷正面", 2: "斗篷背面", 3: "特写", 4: "女仆装" };
@@ -276,7 +398,17 @@ const rw = (t, n = NAMES) => R.rewriteSlotMentions(t, n);
 eq("参考图1、2 → @a、@b（分隔符留着、「参考」一起换掉）", rw("（参考图1、2：红底内衬）"), { text: "（@斗篷正面、@斗篷背面：红底内衬）", missing: [] });
 eq("对应图4 → 对应@女仆装", rw("对应图4：黑"), { text: "对应@女仆装：黑", missing: [] });
 eq("范围展开", rw("图1-3"), { text: "@斗篷正面、@斗篷背面、@特写", missing: [] });
-eq("英文正文用逗号、字母名字前后隔开", rw("see images 1 and 2 here", { 1: "Cape", 2: "Back" }), { text: "see @Cape and @Back here", missing: [] });
+eq("英文正文用逗号、字母名字前后隔开", rw("see images 1 and 2: the cape", { 1: "Cape", 2: "Back" }), { text: "see @Cape and @Back: the cape", missing: [] });
+{
+  // 一个图位名是另一个的前缀（「披风」「披风内衬」）：改写后要认得回原来那个名字，认不回就隔一个空格（2026-10-26 审核实跑：两处都编成了「披风内衬」）
+  const PF = { 1: "披风", 2: "披风内衬" };
+  const r = rw("参考图1内衬为红色，图2是背面", PF);
+  eq("「@披风」后面紧跟「内衬」：隔一个空格", r, { text: "@披风 内衬为红色，@披风内衬是背面", missing: [] });
+  const tg = R.mentionTargets({ cards: [], extras: [{ id: "s1", name: "披风", n: 1 }, { id: "s2", name: "披风内衬", n: 2 }], frames: {} });
+  const c = R.compileMentions(r.text, tg);
+  eq("编译出来两张图各被点到一次", [c.text, [...c.used].sort()], ["披风（图片1） 内衬为红色，披风内衬（图片2）是背面", ["extra:s1", "extra:s2"]]);
+  eq("认得回来的不加空格", rw("以图1落地，图2是背面", PF).text, "以@披风落地，@披风内衬是背面");
+}
 eq("前面紧挨字母要隔开（不然 @ 像邮箱）", rw("x图1：y", { 1: "Cape" }), { text: "x @Cape：y", missing: [] });
 eq("没起名的原样留着、报出来", rw("图1和图5", { 1: "斗篷" }), { text: "@斗篷和图5", missing: [5] });
 for (const [name, t] of [
@@ -294,8 +426,17 @@ for (const [name, t] of [
 }
 
 // ── (i) 名字：保留名扩大、默认名不以「参考图」打头 ──
-for (const n of ["图", "图1", "图一", "图片", "参考图", "参考图2", "参考图片3", "image2", "Picture3", "草图2", "图1背景"]) eq(`refNameIssue(${show(n)}) 是保留名`, R.refNameIssue(n, []), "reserved");
-for (const n of ["参考", "参考2", "Ref2", "截图2", "女仆装", "地图", "附图"]) eq(`refNameIssue(${show(n)}) 能用`, R.refNameIssue(n, []), null);
+// 接上一个数字就成了图位的也是保留名（「效果图」→「@效果图 3只猫」再认一遍又是图位 3，改写不幂等 —— 2026-10-26 审核实跑）
+for (const n of [
+  "图", "图1", "图一", "图片", "参考图", "参考图2", "参考图片3", "image2", "Picture3", "草图2", "图1背景",
+  "效果图", "草图", "示意图", "设计图", "附图", "猫图", "image", "picture", "img", "pic", "Images",
+]) eq(`refNameIssue(${show(n)}) 是保留名`, R.refNameIssue(n, []), "reserved");
+for (const n of ["参考", "参考2", "Ref2", "截图2", "女仆装", "地图", "截图", "蓝图", "构图", "Epic"]) eq(`refNameIssue(${show(n)}) 能用`, R.refNameIssue(n, []), null);
+// 能用的名字放在数字前面，改写两遍一个字不变
+for (const n of ["参考", "女仆装", "地图", "截图", "Epic", "Ref2"]) {
+  const once = rw("参考图1 3只猫跑过，图1和图3", { 1: n, 3: "猫" }).text;
+  eq(`名字「${n}」后面接着数字：改写两遍一个字不变`, rw(once, { 1: n, 3: "猫" }).text, once);
+}
 {
   // 界面上给临时参考图起默认名的地方（uniqueRefName(t`…`, …)）：基名接上数字也必须能用 —— 否则第二张就起不出名字
   const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(dir, e.name)) : /\.tsx?$/.test(e.name) ? [path.join(dir, e.name)] : []));
@@ -338,25 +479,55 @@ const policyCases = [
   ["a woman takes off her shirt", "review"],
   ["a woman takes off her coat", null],
   ["a girl in a red dress, no nudity, never naked", null],
+  // 2026-10-26 审核补：词表 B 漏了的未成年主体写法、明写的年龄
+  ["一个14岁的女生脱下衬衫", "blocked"],
+  ["一个14岁的人脱下衬衫", "blocked"],
+  ["a 9 yo takes off her socks", "blocked"],
+  ["小姑娘脱下衬衫", "blocked"],
+  ["学妹脱掉裙子", "blocked"],
+  ["她十四岁，脱下衬衫", "blocked"],
+  ["a 14-year-old takes off her shirt", "blocked"],
+  ["15 years old, she undresses", "blocked"],
+  ["二十岁的女子脱下衬衫", "review"],
+  ["她28岁，脱下衬衫", "review"],
+  ["an 18-year-old woman undresses", "review"],
+  // 否定只管紧挨着它的那串列举：「不得不」「为避免…而」「without a word」都不是在禁止这个动作
+  ["少女不得不脱下衬衫", "blocked"],
+  ["少女为避免弄湿而脱下衬衫", "blocked"],
+  ["Without a word the girl undresses", "blocked"],
+  ["少女跳舞，严禁出现骨骼错位、多肢体、裸露", null],
+  ["少女跳舞，避免过度裸露", null],
+  ["少女跳舞，无裸露", null],
+  ["少女跳舞，没有走光", null],
+  // 「无 / no」管不到衣物：没穿就是没穿
+  ["少女无内衣", "blocked"],
+  ["a girl with no underwear", "blocked"],
+  ["a girl dancing, do not show nudity or naked bodies", null],
 ];
 for (const [t, want] of policyCases) eq(`textTplPolicyFlags(${show(t)}).level`, T.textTplPolicyFlags(t).level, want);
 eq("几样一起看（正文 + 标题 + 图位提示）", T.textTplPolicyFlags("换装", "女孩", "脱袜").level, "blocked");
 
 // ── (k) 体检汇总 ──
 {
-  const f = T.textTplFindings(OWNER, { shotMax: S.SHOT_MAX, slots: R.templateSlotRefs(OWNER) });
+  const f = T.textTplFindings(OWNER, { shotMax: S.SHOT_MAX, slots: R.templateSlotRefs(OWNER), policyParts: [] });
   eq("主人例子：体检报哪几样", f.map((x) => x.kind), ["brackets", "labelQuotes", "timeline", "slots", "policy"]);
   eq("主人例子：时间轴 5 段 15 秒、要合并", f.find((x) => x.kind === "timeline"), { kind: "timeline", beats: 5, maxSec: 15, gaps: false, shots: "merge" });
   eq("主人例子：不拦存（内容规则只拦上架）", T.textTplBlocked(f), false);
-  const fl = T.textTplFindings(LONG, { shotMax: S.SHOT_MAX, slots: R.templateSlotRefs(LONG) });
+  const fl = T.textTplFindings(LONG, { shotMax: S.SHOT_MAX, slots: R.templateSlotRefs(LONG), policyParts: [] });
   eq("中性长版：体检报哪几样", fl.map((x) => x.kind), ["brackets", "labelQuotes", "timeline", "slots"]);
-  const blocked = (t) => T.textTplBlocked(T.textTplFindings(t, { shotMax: S.SHOT_MAX, slots: R.templateSlotRefs(t) }));
+  const blocked = (t) => T.textTplBlocked(T.textTplFindings(t, { shotMax: S.SHOT_MAX, slots: R.templateSlotRefs(t), policyParts: [] }));
   eq("空的拦", blocked("  \n "), true);
   eq("命令参数拦", blocked("走过来 --dur 10"), true);
   eq("超过 9 段拦", blocked(Array.from({ length: 10 }, (_, i) => `${i}-${i + 1}s：a`).join("\n")), true);
   eq("图位太多拦", blocked("图1、图2、图3、图4、图5 一起出现"), true);
   eq("普通一句话不拦", blocked("凛推开门，走进雨里。"), false);
-  eq("有台词只提醒", T.textTplFindings("凛说：“走吧”", { shotMax: S.SHOT_MAX, slots: R.templateSlotRefs("") }).map((x) => x.kind), ["dialogue"]);
+  eq("有台词只提醒", T.textTplFindings("凛说：“走吧”", { shotMax: S.SHOT_MAX, slots: R.templateSlotRefs(""), policyParts: [] }).map((x) => x.kind), ["dialogue"]);
+  // 标题 / 简介 / 图位提示与正文一起看：界面只读体检这一份结论（2026-10-26 审核：原来体检只看正文）
+  eq(
+    "内容规则把标题、图位提示一起算",
+    T.textTplFindings("她在花园里换衣服", { shotMax: S.SHOT_MAX, slots: R.templateSlotRefs(""), policyParts: ["少女脱下衬衫", ""] }).find((x) => x.kind === "policy")?.level,
+    "blocked",
+  );
 }
 
 // ── (l) 存前定型 ──

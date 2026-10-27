@@ -1643,7 +1643,7 @@ function extraRefNameMsg(issue: "empty" | "reserved" | "taken"): string {
   return issue === "empty"
     ? t`给这张参考图起个名字（句子里用 @名字 点它）`
     : issue === "reserved"
-      ? t`这个名字留给帧和图片编号的写法了（首帧 / 尾帧 / 图片1 / 图1 / 参考图2…）——换一个`
+      ? t`这个名字留给帧和图片编号的写法了（首帧 / 尾帧 / 图片1 / 图1 / 参考图2 / 效果图…）——换一个`
       : t`这一段已经有同名的参考图或卡片了——换一个名字`;
 }
 
