@@ -11,13 +11,19 @@
 //   （2026-10-26 文字模板加规矩 ③ 时再试四条，各自变红）⑨ framesToDraw 不认 noFrames（有图位的文字模板段照样补画）；
 //   ⑩ 不认 firstOnly（零图位照样画结束画面）；⑪ textTplDraw 按「手上有没有图」判（slots 换成别的数就翻）—— 用 slots > 1 试的；
 //   ⑫ hasSendableRefs 不认临时参考图（只挂临时图、不挂卡时报价 ≠ 实扣那一组红）。
+//   （2026-10-26 审核：⑫ 那一组两边都在测试里现算 hasSendableRefs，是循环论证 —— 把出片那一拍的降级改回 `if (refMode && !refUrls)`、
+//   或让 nodeRefOn 传 `extras: 0`，那一组照样绿。所以补了「源码核对」一节，--segmentGen= / --flowStore= 指向改坏的副本试红，下面五条各自变红）
+//   ⑬ 出片那一拍的降级改回 `if (refMode && !refUrls)`；⑭ nodeRefOn 传 `extras: 0`；⑮ refVideoOn 的条件③ 改回只看卡图；
+//   ⑯ refSlotsOf 喂给 refVideoOn 的 extras 写成 0；⑰ generateSegment 交给 refSlotsOf 的 extras 写成 0。
 //
-// 用法：node scripts/check-draw-plan.mjs [--module=<另一份 drawPlan.ts 的路径，造违规试红用>]
+// 用法：node scripts/check-draw-plan.mjs [--module=<另一份 drawPlan.ts>] [--segmentGen=<另一份 segmentGen.ts>] [--flowStore=<另一份 flowStore.ts>]（造违规试红用）
+import fs from "node:fs";
 import path from "node:path";
 import url from "node:url";
 
 const root = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), "..");
-const modArg = process.argv.find((a) => a.startsWith("--module="))?.slice("--module=".length);
+const arg = (n) => process.argv.find((a) => a.startsWith(`--${n}=`))?.slice(n.length + 3);
+const modArg = arg("module");
 const M = await import(url.pathToFileURL(path.resolve(modArg ?? path.join(root, "src/data/drawPlan.ts"))).href);
 
 const problems = [];
@@ -92,6 +98,58 @@ eq("hasSendableRefs：只挂临时参考图、不挂卡也算", M.hasSendableRef
   // 反例：卡挂了、计划有图，出片那一拍一张都没读出来、也没有临时图 —— 降级成补画（报价那一刻不知道图会读不出来，这一档差额由出片那一行如实说）
   const fellBack = M.hasSendableRefs({ cardImages: 1, extras: 0 }) && M.hasSendableRefs({ cardImages: 0, extras: 0 });
   eq("卡图全读不出来、又没有临时图：降级（补画）", fellBack, false);
+}
+
+// ── 源码核对：报价那一侧与出片那一拍**真的**都问 hasSendableRefs、都把临时参考图的张数喂进去 ──
+// 上面那组「报价 = 出片」只证明 hasSendableRefs 本身对；segmentGen / flowStore 不是零依赖的、跑不起来，两边是不是真的调它、
+// 喂的是不是同一批临时参考图，只能从源文件里抠（与 check-shot-script / check-text-template 同一招）。哪一条抠不到就红：
+// 写法改了要同步改这里，别放过 —— 这一组防的正是「报价按不画帧报、出片却补画两张还不发临时图」（2026-10-26 审核抓到的那一种）。
+{
+  // 换行归一：Windows 检出（autocrlf）是 CRLF，下面按「\n}\n」找函数尾
+  const read = (n, f) => fs.readFileSync(path.resolve(arg(n) ?? path.join(root, f)), "utf8").replace(/\r\n?/g, "\n");
+  const SG = read("segmentGen", "src/studio/segmentGen.ts");
+  const FS = read("flowStore", "src/studio/flowStore.ts");
+  /** 去掉整行注释（行内的说明不碍事） */
+  const code = (t) => t.split(/\r?\n/).filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join("\n");
+  /** 一个顶层函数的函数体（到下一个行首的「}」为止） */
+  const fnBody = (src, sig) => {
+    const i = src.indexOf(sig);
+    if (i < 0) return "";
+    const j = src.indexOf("\n}\n", i);
+    return code(src.slice(i, j < 0 ? undefined : j));
+  };
+  const okSrc = (what, cond) => {
+    ran++;
+    if (!cond) problems.push(`${what}\n      （源码核对：写法改了就同步改 scripts/check-draw-plan.mjs 的抠法，别把这一条删掉）`);
+  };
+  // ① 报价那一侧：refVideoOn 的条件③ 只问 hasSendableRefs，带着这一发的临时参考图张数
+  const rvo = fnBody(SG, "export function refVideoOn(");
+  okSrc("segmentGen.refVideoOn：找不到这个函数", !!rvo);
+  okSrc(
+    "segmentGen.refVideoOn：条件③ 没走 hasSendableRefs({ …, extras: o.extras })（只看卡图的话，只挂临时参考图的段报价按补画报）",
+    /return hasSendableRefs\(\{[^}]*\bextras:\s*o\.extras\b[^}]*\}\)/.test(rvo),
+  );
+  // ② refSlotsOf（出片与参考清单共用的判定）把临时参考图张数原样喂给 refVideoOn
+  const rso = fnBody(SG, "export function refSlotsOf(");
+  okSrc("segmentGen.refSlotsOf：找不到这个函数", !!rso);
+  okSrc("segmentGen.refSlotsOf：交给 refVideoOn 的不是 extras: o.extras", /refVideoOn\(\{[^}]*\bextras:\s*o\.extras\b[^}]*\}\)/.test(rso));
+  // ③ 出片那一拍：交给 refSlotsOf 的是真带得出去的那一批（segmentExtras），降级判定同样问 hasSendableRefs 并带上它
+  const genAt = SG.indexOf("export async function generateSegment(");
+  const gen = genAt >= 0 ? code(SG.slice(genAt)) : "";
+  okSrc("segmentGen.generateSegment：找不到这个函数", !!gen);
+  okSrc("segmentGen.generateSegment：extrasIn 不是 segmentExtras(input)", /const extrasIn = segmentExtras\(input\);/.test(gen));
+  okSrc("segmentGen.generateSegment：交给 refSlotsOf 的不是 extras: extrasIn.length", /refSlotsOf\(\{[^}]*\bextras:\s*extrasIn\.length\b[^}]*\}\)/.test(gen));
+  const downs = [...gen.matchAll(/if \(([^\n]*)\) \{\s*\n\s*refMode = false;/g)].map((m) => m[1]);
+  okSrc("segmentGen.generateSegment：找不到「卡图一张都没准备成就降级」那一行（if (…) { refMode = false;）", downs.length > 0);
+  for (const cond of downs)
+    okSrc(
+      `segmentGen.generateSegment：降级条件没问 hasSendableRefs({ …, extras: extrasIn.length })：if (${cond.slice(0, 100)})`,
+      /hasSendableRefs\(\{[^}]*\bextras:\s*extrasIn\.length\b[^}]*\}\)/.test(cond),
+    );
+  // ④ 报价那一侧的输入：flowStore.nodeRefOn 喂给 refVideoOn 的临时参考图张数来自 segmentExtras（出片发的是同一批）
+  const nro = fnBody(FS, "export function nodeRefOn(");
+  okSrc("flowStore.nodeRefOn：找不到这个函数", !!nro);
+  okSrc("flowStore.nodeRefOn：交给 refVideoOn 的不是 extras: segmentExtras(…)（写成 0 的话只挂临时参考图的段报价按补画报）", /\bextras:\s*segmentExtras\(/.test(nro));
 }
 
 // ── 张数与图位 ──
