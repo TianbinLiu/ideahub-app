@@ -79,7 +79,8 @@ export default function LeadShotsWizard({
   const cast = d.castIds.map((id) => chars.find((c) => c.id === id)).filter((c): c is Card => !!c);
   const full = cast.length >= LEAD_CAST_MAX;
   const dur = clampDuration(d.durationSec ?? LEAD_DEFAULT_SEC, tierId);
-  const promptMax = promptMaxOf(tierId);
+  // 主角定妆落的是直出段，不是文字模板段（长提示词只开给文字模板段，economy.promptMaxOf 的 long）
+  const promptMax = promptMaxOf(tierId, { long: false });
   /** 分镜 / 台词只开在带得了声音样本的档（与画布那颗「＋ 镜头」同一个判据 economy.shotsOkOf） */
   const shotsOk = shotsOkOf(tierId);
   const faceNote = realFaceIssue(cast, tierId, { framed: chained });

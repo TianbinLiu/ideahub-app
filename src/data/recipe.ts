@@ -15,6 +15,7 @@
 //   · 上传的参考视频 / 中间帧、导演台、圈选 → 不带，只在那一段上留一个记号（flags），故事板据此说一句；
 //   · 白模段的点名句（「最左边=凛…」）→ 不带：里面是原作挂的卡名（可能就是真人卡的名字），
 //     而复制的人挂自己的卡时本来就要重新合成这一句。
+//   · 文字模板段的正文（2026-10-26）→ 不带：那是模板作者的商品本身，不随作品 / 配方外流（回指模板 id 等服务端那一期）。
 //
 // ★ 段模板**只回指、不带快照**：出片时服务端只认已登记的模板视频地址（方舟 r2v 那道闸），快照里的地址对应的
 //   模板一旦没了，带过去也出不了片。复制时现去取那条模板，取不到那一段就退成普通段并说明。
@@ -177,6 +178,8 @@ export function projectRecipe(canvas: unknown, opts: ProjectRecipeOpts = {}): Wo
     // 「这一段用哪个模板」是三态（flowStore.tplOfNode 的规矩）：undefined = 没表过态，退回整条流水线那一份；null = 明确没有
     const tpl = rec(n.tpl !== undefined ? n.tpl : flow.template);
     const blockout = !!rec(tpl?.refVideo);
+    // 文字模板段（FlowNode.textTpl，2026-10-26 P1）：正文是那个模板的商品本身，不随配方外流（主人授权我定的「正文公开但不随作品 / 配方外流」）
+    const textTpl = !!rec(n.textTpl);
     const custom = n.custom === true;
     const kind: RecipeNodeKind = blockout ? "blockout" : custom ? "custom" : "classic";
     const tier = str(n.videoTier, 80) || "std";
@@ -231,8 +234,8 @@ export function projectRecipe(canvas: unknown, opts: ProjectRecipeOpts = {}): Wo
 
     return {
       title: str(chosen.title, 200),
-      // 白模段不带点名句（见文件头）
-      plot: blockout ? "" : extras.reduce((s, x) => dropMention(s, x.name), str(chosen.plot, 8000)),
+      // 白模段不带点名句（见文件头）；文字模板段不带正文（同一种写法：复制的人那一段剧情要自己写）
+      plot: blockout || textTpl ? "" : extras.reduce((s, x) => dropMention(s, x.name), str(chosen.plot, 8000)),
       ...(shot ? { shot } : {}),
       durationSec: Number.isFinite(dur) ? Math.min(60, Math.max(1, dur)) : 5,
       tier,

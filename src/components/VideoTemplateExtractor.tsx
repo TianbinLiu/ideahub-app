@@ -404,6 +404,7 @@ export default function VideoTemplateExtractor({
   onClose,
   onDone,
   defaultBlockout = false,
+  onPickText,
 }: {
   onClose: () => void;
   onDone?: (t: VideoTemplate) => void;
@@ -411,6 +412,12 @@ export default function VideoTemplateExtractor({
    *  仍受能力探测门控：探测不过开关整个不渲染，这个初值也就不生效——入口方与
    *  提取器问的是同一个 remoteTemplatesCapable，不会出现"入口亮着、开关没了"的半边天 */
   defaultBlockout?: boolean;
+  /**
+   * 第一屏第三张卡「只用文字 + 封面」（文字模板 P1，2026-10-26）：给了才画，点了交还宿主去开 TextTemplateSheet。
+   * ★ 不并进这个组件：这里整条流程围着视频回执转（route / receipt / dropReceipt），文字模板一样都用不上。
+   * ★ 只有模板货架（TemplateShelf）给它；工作流页那份提取窗是「把这条片做成模板」，没有文字这条路。
+   */
+  onPickText?: () => void;
 }) {
   // ★ 浮层也要自己声明引导（不是路由，按 pathname 集中判的话这一屏永远轮不到）。
   //   第一次打开时强制放一遍，看过一次不再自动弹；标题栏那颗 ? 随时能重看
@@ -1495,6 +1502,31 @@ export default function VideoTemplateExtractor({
                     <span className="flex-none text-slate-500">›</span>
                   </button>
                 ))}
+                {/* 第三条：没有视频也能做（文字模板 P1）。不受白模的套餐 / 地区 / 服务端门禁管 —— 那几句红字说的是白模两条路，这条一样都不碰 */}
+                {onPickText && (
+                  <>
+                    <div className="pt-1 text-[11px] text-slate-500">
+                      <Trans>没有视频？</Trans>
+                    </div>
+                    <button
+                      data-guide="extractor-text"
+                      onClick={onPickText}
+                      disabled={!!busy}
+                      className="flex w-full items-center gap-2 rounded-xl bg-black/25 px-3 py-3 text-left disabled:opacity-40"
+                    >
+                      <span className="flex-none text-[11px] text-slate-500">○</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-semibold text-slate-100">
+                          <Trans>只用文字 + 封面</Trans>
+                        </span>
+                        <span className="block text-[11px] text-slate-400">
+                          <Trans>写一段提示词、选一张封面图；不传视频，做模板不花 token</Trans>
+                        </span>
+                      </span>
+                      <span className="flex-none text-slate-500">›</span>
+                    </button>
+                  </>
+                )}
               </div>
             )}
 

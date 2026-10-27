@@ -241,7 +241,7 @@ export { isPermanentUrl };
  *     `branchTree.nodes[key] ↔ branchTree.nodes[key]`（**按 key，不按位置** ——
  *       `buildBranchTree` 的 id 是 `b${counter++}` 的 DFS 计数器，位置对不上）；
  *     `deck.cards[i] ↔ deck.cards[i]`，`views[j] ↔ views[j]`。
- * ★ `poster` 不参与配对：它在 `publishVideo` 里就被 `stripPosters` 摘掉了，服务端
+ * ★ `poster` 不参与配对：它在 `publishVideo` 里就被 `stripLocalOnly` 摘掉了，服务端
  *   压根不存（`types.Proposal.poster` 的 ★）—— 回包里永远没有它的孪生。
  *
  * ★★ **按值建表、先写先赢**（这条是显式不变量，配一条用例钉着）：`materializeDraft`

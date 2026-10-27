@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && lingui extract && node scripts/check-guides.mjs && node scripts/check-hook-order.mjs && node scripts/check-gen-run.mjs && node scripts/check-contrast.mjs && node scripts/check-warn.mjs && node scripts/check-top-bar.mjs && node scripts/check-oauth-state.mjs && node scripts/check-import-direction.mjs && node scripts/check-agent-grammar.mjs && node scripts/check-cut-project.mjs && node scripts/check-cut-grammar.mjs && node scripts/check-camera-vocab.mjs && node scripts/check-ref-mentions.mjs && node scripts/check-shot-script.mjs && node scripts/check-draw-plan.mjs && node scripts/check-guided-modes.mjs && node scripts/check-video-tiers.mjs && node scripts/check-card-fit.mjs && node scripts/check-video-zone.mjs && node scripts/check-tier-semantics.mjs && node scripts/check-image-tiers.mjs && node scripts/check-scene-shots.mjs && node scripts/check-grid-shots.mjs && node scripts/check-effect-presets.mjs && node scripts/check-blockout-expr.mjs && node scripts/check-dialogue-shots.mjs && node scripts/check-slot-ids.mjs && node scripts/check-live2d-motion-check.mjs && node scripts/check-i18n.mjs && vite build",
+    "build": "tsc && lingui extract && node scripts/check-guides.mjs && node scripts/check-hook-order.mjs && node scripts/check-gen-run.mjs && node scripts/check-contrast.mjs && node scripts/check-warn.mjs && node scripts/check-top-bar.mjs && node scripts/check-oauth-state.mjs && node scripts/check-import-direction.mjs && node scripts/check-agent-grammar.mjs && node scripts/check-cut-project.mjs && node scripts/check-cut-grammar.mjs && node scripts/check-camera-vocab.mjs && node scripts/check-ref-mentions.mjs && node scripts/check-text-template.mjs && node scripts/check-shot-script.mjs && node scripts/check-draw-plan.mjs && node scripts/check-guided-modes.mjs && node scripts/check-video-tiers.mjs && node scripts/check-card-fit.mjs && node scripts/check-video-zone.mjs && node scripts/check-tier-semantics.mjs && node scripts/check-image-tiers.mjs && node scripts/check-scene-shots.mjs && node scripts/check-grid-shots.mjs && node scripts/check-effect-presets.mjs && node scripts/check-blockout-expr.mjs && node scripts/check-dialogue-shots.mjs && node scripts/check-slot-ids.mjs && node scripts/check-live2d-motion-check.mjs && node scripts/check-i18n.mjs && vite build",
     "check:all": "node scripts/check-all.mjs",
     "import-direction": "node scripts/check-import-direction.mjs",
     "i18n:extract": "lingui extract",
@@ -26,6 +26,7 @@
     "cut-project": "node scripts/check-cut-project.mjs",
     "cut-grammar": "node scripts/check-cut-grammar.mjs",
     "ref-mentions": "node scripts/check-ref-mentions.mjs",
+    "text-template": "node scripts/check-text-template.mjs",
     "shot-script": "node scripts/check-shot-script.mjs",
     "draw-plan": "node scripts/check-draw-plan.mjs",
     "guided-modes": "node scripts/check-guided-modes.mjs",
