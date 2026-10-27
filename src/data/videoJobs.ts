@@ -70,6 +70,13 @@ export interface VideoJob {
    *   一句权威的死刑判决，而用户不会来报 bug，他会直接走。
    */
   provider?: "ark" | "minimax";
+  /**
+   * MiniMax 那一家是**哪一版接口**建的（2026-10-26 出片地区 P2b 审核）：`"v2"` = MiniMax H3（`/api/minimax/v2`）；**缺省 = 真人档 V1 或方舟**（判否定：老凭据没有它）。
+   * ★★ 为什么非有不可：两版的查询是两条路（V1 `GET /api/minimax/video/:id` + 取件，V2 `GET /api/minimax/v2/video/:id`），只记 provider 的话 H3 的任务
+   *   走 V1 的查询 —— 服务端认得出是 H3 的号就回 404，取回卡永远停在「暂时查不到」（real.takeVideoTask 按它分流）。
+   * ★ 退款能力位照旧按 provider 取（refundCapOf）：服务端 H3 的失败退款与真人档同一个开关（MINIMAX_FAIL_REFUND / 健康端点 minimaxFailRefund）。
+   */
+  api?: "v2";
   /** 任务号 —— 取回全靠它（两家的查询与取件都不计费） */
   taskId: string;
   /** 这一发是**哪条工作流的哪一段的哪一套方案**炼的：取回来的成片要落回同一个位置 */
@@ -564,6 +571,8 @@ let lastImportOwner = "";
 
 interface ServerVideoTask {
   taskId: string;
+  /** MiniMax 那张表（/api/minimax/video-tasks）才有：哪一版接口建的（今天只有 "v2" = H3；认不出的跳过 —— 真人档 V1 以后也会登记进来，取件是另一条路） */
+  api?: string;
   createdAt: string | number;
   model?: string;
   /** 2026-10-07 起服务端登记（「草稿」与「高清」同一个模型，只差这一格）；老服务端没有 = 720p */
@@ -617,19 +626,36 @@ export async function importServerVideoJobs(): Promise<number> {
   if (owner === lastImportOwner && Date.now() - lastImportAt < 60_000) return 0;
   lastImportAt = Date.now();
   lastImportOwner = owner;
-  let tasks: ServerVideoTask[] = [];
+  /** 两张表拉到的任务；minimax = 这一条来自 MiniMax 那张表（H3，V2） */
+  const tasks: { task: ServerVideoTask; minimax: boolean }[] = [];
+  let got = false;
   try {
     const data = await apiGet<{ tasks?: ServerVideoTask[] }>("/api/ark/video-tasks", { timeoutMs: 15_000 });
-    tasks = Array.isArray(data?.tasks) ? data.tasks : [];
+    for (const task of Array.isArray(data?.tasks) ? data.tasks : []) tasks.push({ task, minimax: false });
+    got = true;
   } catch {
-    return 0; // 老服务端（404）/ 弱网：下次再问，没有这张表也不影响本机凭据
+    /* 老服务端（404）/ 弱网：下次再问，没有这张表也不影响本机凭据 */
   }
+  // ★ MiniMax H3（V2）的任务另在 /api/minimax/video-tasks（2026-10-26 出片地区 P2b 审核）：服务端特意不把它们混进方舟那张表
+  //   （老 App 会拿 H3 的号去问方舟），只读方舟那张的话 App 被杀之后这一发再也补不回来。
+  //   只在健康端点说开着 V2 时才问（契约：minimaxV2 读不到或为假 → 不去问）；只收 api "v2" 的，认不出的跳过
+  if (serverSupports("minimaxV2") === true) {
+    try {
+      const data = await apiGet<{ tasks?: ServerVideoTask[] }>("/api/minimax/video-tasks", { timeoutMs: 15_000 });
+      // tier-semantics-ok: 服务端登记表上那一位（哪一版接口建的），不是档位的 api；只认 "v2"，别的跳过（契约「认不得的 api 要跳过」）
+      for (const task of Array.isArray(data?.tasks) ? data.tasks : []) if (task?.api === "v2") tasks.push({ task, minimax: true });
+      got = true;
+    } catch {
+      /* 同上：下次再问 */
+    }
+  }
+  if (!got) return 0;
   // ★ 拿到表之后才定线（见 importBase 的 ★★）：请求失败的那几次不算"第一次问过"
   const base = importBase();
   // ★ 请求在路上的这十几秒里可能换了人：拿到表时已经不是发请求的那个人，就不补（下次由对的人再问）
   if (deviceOwner() !== owner) return 0;
   let added = 0;
-  for (const task of tasks) {
+  for (const { task, minimax } of tasks) {
     if (!task?.taskId || typeof task.taskId !== "string") continue;
     if (taken[task.taskId] || jobs.some((j) => j.taskId === task.taskId)) continue;
     const createdAt = new Date(task.createdAt).getTime();
@@ -639,7 +665,9 @@ export async function importServerVideoJobs(): Promise<number> {
     const hh = String(when.getHours()).padStart(2, "0");
     const mm = String(when.getMinutes()).padStart(2, "0");
     const job: VideoJob = {
-      provider: "ark",
+      provider: minimax ? "minimax" : "ark",
+      // 取回走 V2 的查询（见 VideoJob.api 的 ★★）
+      ...(minimax ? { api: "v2" as const } : {}),
       taskId: task.taskId,
       nodeId: "",
       proposalId: "",

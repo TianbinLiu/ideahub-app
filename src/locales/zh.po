@@ -4578,6 +4578,10 @@ msgstr "canvas 不可用"
 msgid "Google Play 还在等这笔付款完成，到账后余额会自动更新"
 msgstr "Google Play 还在等这笔付款完成，到账后余额会自动更新"
 
+#: src/ai/minimaxVideo.ts
+msgid "MiniMax 出片失败：{reason}"
+msgstr "MiniMax 出片失败：{reason}"
+
 #. 卡片页「按模型适配」里一组的标题：MiniMax 是品牌名（不翻译），括号里是它的视频产品名 Hailuo
 #: src/data/account.ts
 msgid "MiniMax（海螺）"
@@ -13735,6 +13739,10 @@ msgstr "成片太大（{mb}MB，这台服务器的上限是 20MB）——先在�
 #: src/ai/minimaxVideo.ts
 msgid "成片已经出来了，取下载地址时没收到回包——凭据还在，过一会儿再点「取回」，不花钱。"
 msgstr "成片已经出来了，取下载地址时没收到回包——凭据还在，过一会儿再点「取回」，不花钱。"
+
+#: src/ai/minimaxVideo.ts
+msgid "成片已经出来了，这一次没拿到地址——凭据还在，过一会儿再点「取回」，不花钱。"
+msgstr "成片已经出来了，这一次没拿到地址——凭据还在，过一会儿再点「取回」，不花钱。"
 
 #: src/components/flow/SegmentRecoverCards.tsx
 msgid "成片已经取回，放进了流水线，也存进了草稿"

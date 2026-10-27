@@ -187,6 +187,53 @@ export async function takeMinimaxTask(
 }
 
 /**
+ * 把一发 **MiniMax H3（V2）** 已经受理过、当时没接到的成片取回来（2026-10-26 出片地区 P2b 审核）。规矩同 takeMinimaxTask（这条路上不下定论，除非上游明说
+ * failed / cancelled），接口是 V2 的：`GET /api/minimax/v2/video/:taskId`（不计费、只给任务的主人看）回 `{ ok, status, url?, error?, refund? }`，
+ * 成片地址直接在回包里（没有 V1 的取件那一步）。契约见 docs/api-contract.md「MiniMax H3（V2）出片」→「查询」。
+ * ★★ 为什么单独一条（审核抓到）：取回凭据原来只记 provider，H3 的任务记成 "minimax" 之后走 takeMinimaxTask —— 拿 V2 的号去问 V1 的查询，
+ *   服务端认得出是 H3 的号就回 404，取回卡永远停在「暂时查不到」，App 被杀之后也补不回来。凭据上的 api（VideoJob.api）定走哪一条。
+ * ★ 不是 200 的一律**不是结局**（契约：404 TASK_NOT_FOUND / 503 / 504 / 502 / 501 / 400）—— 凭据留着、过一会儿再点（ArkTaskUnknown）。
+ *   V2 没有 `expired`；成功却没给地址也按「过一会儿再点」（成片地址有时效，再查一次会给新的 —— 官方说法），不说死。
+ * ⚠ 拿到的是 MiniMax 的临时地址（`video-product.cdn.minimax.io`，有时效）：转存这一步与出片主路径一起接（P2b 出片那一步）。
+ */
+export async function takeMinimaxV2Task(taskId: string, onProgress?: (s: string) => void): Promise<{ url: string }> {
+  onProgress?.(t`正在向上游核对这一发的状态…（查询不花钱）`);
+  const url = `${BASE}/v2/video/${encodeURIComponent(taskId)}`;
+  const notYet = (why: string) => new ArkTaskUnknown(t`暂时查不到这一发（${why}）——凭据还在，过一会儿再点一次，查询不花钱。`, taskId);
+  let res: Response;
+  try {
+    res = await fetch(url, { headers: authHeaders(url), signal: AbortSignal.timeout(T_QUERY_MS) });
+  } catch (e) {
+    throw notYet(e instanceof Error ? e.message.slice(0, 60) : t`查询失败`);
+  }
+  // 失败那一拍服务端会退钱、带余额头（只给账的主人）—— 同步一次，不然镜像要等下一次方舟调用才自愈
+  syncWalletFromHeaders(res.headers);
+  const status = res.status;
+  // 判「这台服务器有没有这条路」看 Content-Type（SPA 回退是 200 + HTML），不信状态码
+  if (!res.ok || !(res.headers.get("Content-Type") ?? "").includes("application/json")) throw notYet(`HTTP ${status}`);
+  let st: Record<string, unknown>;
+  try {
+    st = (await res.json()) as Record<string, unknown>;
+  } catch {
+    throw notYet(`HTTP ${status}`);
+  }
+  const state = String(st.status ?? "");
+  if (state === "succeeded") {
+    const video = typeof st.url === "string" ? st.url : "";
+    if (!video) throw new ArkTaskUnknown(t`成片已经出来了，这一次没拿到地址——凭据还在，过一会儿再点「取回」，不花钱。`, taskId);
+    return { url: video };
+  }
+  if (state === "failed" || state === "cancelled") {
+    // 上游明说失败：抛类型（带服务端在同一个回包上说的退款结论），钱上的话由调用方问 ai/failCharge
+    const err = st.error as { code?: unknown; message?: unknown } | undefined;
+    const reason = (typeof err?.message === "string" && err.message) || t`上游未说明原因`;
+    throw new ArkTaskFailed(t`MiniMax 出片失败：${reason}`, taskId, state, String(err?.code ?? ""), taskRefundOf(st.refund), reason, "minimax");
+  }
+  const shown = state || t`未知`;
+  throw new ArkTaskUnknown(t`这一发还在上游排队或生成中（当前状态：${shown}）——过几分钟再点一次「取回」，查询不花钱、凭据也还在。`, taskId);
+}
+
+/**
  * 一发海螺出片：创建 → 轮询 → 取下载地址。
  * durationSec 必须已经被 economy.clampDuration 吸附到价表档位（6/10）——
  * 这里**不再夹一次**：两处各夹一遍就是同一条规则的第二处实现。

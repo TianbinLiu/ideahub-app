@@ -243,7 +243,7 @@ export type TierApi = "ark" | "minimax-v1" | "minimax-v2";
  * 按请求形状（VideoTier.api）分流的**唯一写法**：每一种 api 都要给一个值。
  * `cases` 的类型是「TierApi 的每一个成员都是必填键」—— TierApi 加一个成员，所有调用点同时编译不过，
  * 每一处都得写清新协议在这里走哪一支（不会像等号比较那样悄悄落进 ark 那一支）。
- * 调用点：real.slotModeOf、segmentGen 的参考清单预览 / 样片闸 / 真人档那一支、flowStore.nodeDraftEligible、account 的「这台服务端认不认」（tierServerOff）、
+ * 调用点：real.slotModeOf、segmentGen 的参考清单预览 / 样片闸 / 真人档那一支、flowStore.nodeDraftEligible、flowStore 落取回凭据（记 VideoJob.api）、account 的「这台服务端认不认」（tierServerOff）、
  * 「免费版只能纯文字」（tierTextOnly）与「还没问清，别改写抄来的档」（tierUnsettled）。
  * （2026-10-26 加 "minimax-v2" 时 tsc 在前五处各报一次 TS2345，一处不漏 —— 逐处写了 V2 走哪一支。）
  */

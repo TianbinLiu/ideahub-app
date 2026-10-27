@@ -4474,6 +4474,9 @@ export const useFlow = create<FlowState>()((set, get) => ({
             // ★ 这里问的就是「哪家」，读 provider 是对的（别「顺手」改成 api：MiniMax 的 V2 任务会被记成方舟的）
             // tier-semantics-ok: 取回凭据按供应商分流
             provider: providerOf(node.videoTier) === "minimax" ? "minimax" : "ark",
+            // ★ 同一家 MiniMax 有两版接口（真人档 V1 / H3 V2），取回走的查询不同：V2 的号去问 V1 的查询永远取不回（2026-10-26 P2b 审核）。
+            //   这一位问的是「请求按哪一版拼」，读 api（apiCase：加一种协议时 tsc 逼着在这里表态）；缺省 = V1 或方舟（判否定，老凭据没有它）
+            ...apiCase(tierOf(node.videoTier).api, { ark: {}, "minimax-v1": {}, "minimax-v2": { api: "v2" as const } }),
             nodeId: id,
             proposalId: node.chosenId,
             seg: idx + 1,
@@ -4757,7 +4760,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
     const orphan = !jobLandsInPlace(s0.nodes, job);
     set({ busy: true, err: "" });
     try {
-      const res = await takeVideoTask(job.taskId, prog, job.provider);
+      const res = await takeVideoTask(job.taskId, prog, job);
       if (ownerEpoch() !== epochAtStart) throw new Error(t`取回期间换了账号，这一发留给原来那个账号，下次登录时再取。`);
       const { url, lastFrame, poster } = res;
       // ★ 与 genNode 成功那一行**同一条规则**（"拿到结果才扣"）：接不到结果的那一发

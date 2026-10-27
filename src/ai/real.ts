@@ -59,7 +59,7 @@ import { serverSupports } from "../data/serverCaps";
 // ★ 别名 schemeSlotPrompt：本文件下面已经有一个**铸卡**用的 slotPrompt(type,name,...)，
 //   两者管的是完全不同的两件事（那个拼铸卡提示词，这个拼方案图位提示词）。
 import { isGenerated, isSheetSlot, slotCardTag, slotKey, slotPrompt as schemeSlotPrompt, slotSize, type PromptScheme } from "../data/promptSchemes";
-import { minimaxVideo, takeMinimaxTask } from "./minimaxVideo";
+import { minimaxVideo, takeMinimaxTask, takeMinimaxV2Task } from "./minimaxVideo";
 import { refableViews } from "../data/cardViews";
 import { drawExtraRefs, plainMentions } from "../data/refMentions";
 import { frameMoment, momentCards } from "../data/shotScript";
@@ -3542,16 +3542,24 @@ export async function composeSegments(
  */
 export async function takeVideoTask(
   taskId: string,
-  onProgress?: (status: string) => void,
-  provider?: "ark" | "minimax",
+  onProgress: ((status: string) => void) | undefined,
+  /**
+   * 这一发是哪家、哪一版接口建的（取回凭据上那两位，data/videoJobs.VideoJob 的 provider / api）—— **必填**（2026-10-26 P2b 审核）：
+   * 漏传是零症状的，而走错路的后果是一发好好活着的成片永远取不回（V2 的号去问 V1 / 方舟）。调用方直接把凭据递进来。
+   */
+  route: { provider?: "ark" | "minimax"; api?: "v2" },
 ): Promise<{ url: string; lastFrame?: string; poster?: string; durationSec?: number; width?: number; height?: number }> {
+  const provider = route.provider;
   // ★★ 按家分流（2026-08-31）。**分错家的后果不是"取不到"**：下面那条 404 分支会对着
   //   一发在上游好好活着的真人档成片说「已经花掉的钱无法挽回」—— 一句权威的死刑判决，
   //   而听到它的用户不会来报 bug，他会直接走。
   // ★ 判**有值**（`=== "minimax"`）而不是判否定：老凭据没有 provider 这一位，
   //   它们全是方舟的，缺省必须落回方舟那条路。
   if (provider === "minimax") {
-    const { url } = await takeMinimaxTask(taskId, onProgress);
+    // ★ MiniMax 两版接口两条查询（2026-10-26 P2b 审核）：H3（V2）的号拿去问 V1 的查询，服务端认得出是 H3 的号就回 404 —— 永远取不回。
+    //   判**有值**（=== "v2"）：老凭据没有 api 这一位，它们全是真人档（V1）的
+    // tier-semantics-ok: 这是取回凭据上记下的那一版接口（VideoJob.api 只有 "v2" 一个值），不是档位的 api —— 落凭据那一拍已经按 apiCase 定过
+    const { url } = route.api === "v2" ? await takeMinimaxV2Task(taskId, onProgress) : await takeMinimaxTask(taskId, onProgress);
     let lastFrame: string | undefined;
     let poster: string | undefined;
     let meta: { durationSec?: number; width?: number; height?: number } | undefined;
