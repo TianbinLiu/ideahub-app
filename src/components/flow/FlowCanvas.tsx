@@ -49,6 +49,7 @@ import RefMarkToggle from "./RefMarkToggle";
 import RefStrip from "./RefStrip";
 import ModePicker, { modeTierOf } from "./ModePicker";
 import { RestatePlaceTip, SceneCardTip } from "./DirectTips";
+import TextTplBanner from "./TextTplBanner";
 import LeadShotsWizard from "./LeadShotsWizard";
 import GridShotsWizard from "./GridShotsWizard";
 import EffectWizard from "./EffectWizard";
@@ -1397,8 +1398,10 @@ function NodePanel({
           不是藏在自选里的开关）。切换是真操作（套/摘模板、setNodeCustom），不是换皮。
           摘模板的确认在下面那块；套着模板点「自定义」由 store 整句拒并指路（先摘）。
           ★ 延长段不摆（2026-10-05 界面走查）：切到别的页签之后它照样按延长出片（genNode 认 extendFrom），屏幕上却是另一种做法；
-            store 那三个入口也对延长段整句拒，下面的横幅说清「想换就删段重加」。 */}
-      {!extend && (
+            store 那三个入口也对延长段整句拒，下面的横幅说清「想换就删段重加」。
+          ★ 文字模板段同样不摆（2026-10-26，flowStore.textTplLaneLocked）：换做法只有横幅里那颗「摘掉模板出处」 */}
+      {node.textTpl && <TextTplBanner nodeId={node.id} />}
+      {!extend && !node.textTpl && (
         <div data-guide="canvas-modes" className="flex gap-1 self-start rounded-full bg-panel p-0.5">
           <button
             onClick={() => !tplMode && setPicker(true)}
@@ -1896,7 +1899,8 @@ function NodePanel({
               {/* 这一档收不了参考图（1.0 两档）：参考图直出退回先画帧 —— 说出来（判据与那句话只在 DirectNoRefNote 一处，工坊方案台同一份） */}
               <DirectNoRefNote node={node} />
               {/* 紧挨着上面那排素材卡：推荐挂一张场景卡（说不说的判断在 DirectTips 一处，工坊铸段窗同一份） */}
-              <SceneCardTip cards={mats} tierId={node.videoTier} />
+              {/* 文字模板段不劝挂场景卡：地点 / 光线写在模板正文里，再挂一张卡会和正文抢（参考图直出那两句提示是给自己写正文的人的） */}
+              {!node.textTpl && <SceneCardTip cards={mats} tierId={node.videoTier} />}
               {/* ★ 只在真的不补画帧时说（判据 flowStore.nodeNoDraw，与报价 / 出片同一个；2.62 发版评审抓到）：换到极速 / 标准之后
                   承接帧走首帧参数、结束画面照样补画并计费，这句「当图片 1 发，不画新帧」就与上面那条黄字、生成键上的价钱对着干 */}
               {index > 0 && node.chain && nodeNoDraw(node) && (
@@ -1941,10 +1945,14 @@ function NodePanel({
               onUpdate={(id, patch) => updateExtraRef(node.id, id, patch)}
               onRemove={(id) => removeExtraRef(node.id, id)}
               onError={(msg) => useFlow.setState({ err: msg })}
+              // 文字模板段的图位：缺的按图位名补（名字就是正文里的 @它），图位的图换图只走 replaceExtraRefUrl
+              slots={node.textTpl?.slots}
+              onFillSlot={(name, url) => addExtraRef(node.id, { url, name, role: "free" })}
+              onReplace={(id, url) => useFlow.getState().replaceExtraRefUrl(node.id, id, url)}
             />
           )}
           {/* 参考图直出接在上一段后面：写之前提醒把地点 / 时间 / 光线再写一遍（2026-10-04 付费验证：切镜之后场景漂了，见 DirectTips） */}
-          {direct && <RestatePlaceTip chained={index > 0 && !!node.chain} />}
+          {direct && !node.textTpl && <RestatePlaceTip chained={index > 0 && !!node.chain} />}
           {((custom && customStep === "content") || direct) && (
             /* 自定义 / 参考图直出车道的要求框 = 分镜表（N2）：一个镜头时就是原来那一个输入框；「＋ 镜头」写成几个镜头，「＋ 台词」点明谁说的。
                文字是唯一真身（读写规则在 data/shotScript），写的仍是这一套方案的 plot */

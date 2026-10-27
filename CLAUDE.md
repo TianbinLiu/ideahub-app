@@ -194,6 +194,12 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   详情页出片键灰掉并给「去升级」），别等人挂完卡点了生成才第一次听说。卡这一侧的同一条口径在 `data/cardFit`（卡片页「按模型适配」那一格
   与卡组页的摘要读同一份状态，页面只负责说成句子；2026-10-26 起**按具体模型**算、只读档位表能力位 startOnly / refImg / assetRef / realFace，
   零依赖，构建里 `check-card-fit.mjs` 拿真表实跑；写哪几个模型、写不写名字见下面「出片地区」⑥）。
+- **文字模板（只用文字 + 封面做模板）**（2026-10-26 主人点名，P1 = App 本机版，设计正本与付费读数 docs/text-template-design-2026-10-26.md）。四条规矩：
+  ① **「是哪一种模板」只问 `data/templates.templateKindOf`**（blockout / text / classic）：文字模板也没有 refVideo，按老写法 `!t.refVideo` 当经典会铺成简约模式、档位标「不限」、发布只翻本机布尔；
+  ② 规则全在零依赖的 `data/textTemplate`（体检 / 一键改 / 时间轴改镜头 / 内容规则 / 这一档跑不跑得了 `textTplTierMiss`）与 `refMentions`（图位怎么认、改写成 `@名字`、缺哪几张 `slotGaps`），构建里 `check-text-template.mjs` 实跑；
+  作者那一屏 `components/TextTemplateSheet` 一条规则都不判；③ 套用落成一段参考图直出段（`flowStore.textTplAppendSpec`，报价 `textTplQuote` = 真扣），出片前差什么只问 `textTplIssue`（`TextTplBanner` 摆的是同一句），
+  做法锁 `textTplLaneLocked`、摘出处只走 `detachTextTpl`，图位的图名字锁住、换图只走 `replaceExtraRefUrl`（先删再加会把正文里的 @名字 退成普通文字）；
+  ④ 正文**不随作品外流**（`VideoSegment.fromTextTpl` 只在本机，发布前 `videos.stripLocalOnly` 拿掉）；P1 只存本机、不登记，没登录不许存（本机模板库按人分开）。上市场是 P2（服务端 + 人工预审，等「合」）。
 - **免费档限制 / 「草稿」档 / 电影级「样片」/ 失败退回 token**（2026-10-07 主人拍板，契约见 docs/api-contract.md「视频档位」「纯任务的参数钉子、样片两步、停用」
   「受理之后失败的退款」）。六条规矩：
   ① **档位的能力 / 价目 / 分辨率只在 `data/videoTierTable`**（零依赖，构建里 `check-video-tiers.mjs` 核对，服务端 `config/tokens.js` 逐条相等）。
@@ -1123,6 +1129,7 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 - [`docs/support-ai-video-research-2026-10-25.md`](docs/support-ai-video-research-2026-10-25.md) — AI 客服 × 四支 B 站视频（一键图片分层 / 角色和桌面互动 / AI 全自动 Live2D / 0.8B 实时动作）调研与改动（2026-10-25）：
   这次在 App 里做了八项（字幕跟着念到的那句、安全底线 caps + 求助卡、摸看板娘台词按语言且只合成一次、演出跟着声音走、三段新动作、moc3 加载前检查 + 失败重试、上传向导试跑说实话、人格举报）；
   第四节 14 件等主人定（第 1 件涉及第三方许可，正本在私有笔记）；第五节外部事实（Seedream 图层拆分、See-through / Bunraku / StretchyStudio / HAST-SEC 的许可与现状）
+- [`docs/text-template-design-2026-10-26.md`](docs/text-template-design-2026-10-26.md) — 文字模板（只用文字 + 封面做模板，2026-10-26）：付费小验读数（方舟没有提示词硬上限、电影级照着 936 字时间轴全做、草稿用「镜头N」、只挂临时参考图四张都用对）、拍板、规则住在哪、P1 做了什么、P2（服务端 + 市场）还差什么
 - [`docs/ui-refactoring-ui-pass-2026-10-23.md`](docs/ui-refactoring-ui-pass-2026-10-23.md) — 按《Refactoring UI》二十条走查 App（2026-10-23，主人给的 B 站视频 + 评论区）：
   四路审计约 160 条 → 这次改了按钮层级（出片后下一步才是主键、市场卡片的实心键改淡、⚡ 只留给花钱）、字重 / 灰阶 / 提示条 / 命中区 / 空态 / 开发用语上屏约 50 处；
   等主人定的 12 件在第四节（第三级表面色、`<Warn>` 提示条、价签格式器、emoji → Icon…）；第五节「给规矩配样板」回应评论区那条「给 AI 例子而不是立规矩」；

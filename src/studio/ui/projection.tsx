@@ -73,6 +73,7 @@ import { CHAIN, focusCam } from "../scene/layout";
 import DeleteSegBtn, { removeNodeWithUndo } from "../../components/flow/DeleteSegBtn";
 import CastPreviewCard from "../../components/flow/CastPreviewCard";
 import FixSegmentBox from "../../components/flow/FixSegmentBox";
+import TextTplBanner from "../../components/flow/TextTplBanner";
 import DraftModeBox from "../../components/flow/DraftModeBox";
 import StageOverlay from "../stage/StageOverlay";
 import ConfirmDialog from "../../components/ConfirmDialog";
@@ -1525,6 +1526,12 @@ function ProposalsPanel() {
           ★ 2.62 发版评审抓到：下面方案台在这种段上不再说「不画帧」（那是假话），卡面退回推演段的说法（「待推演」），
           而直出段没有推演那一步 —— 这一句把「什么时候画、收不收钱」说清 */}
       {!blockout && <DirectNoRefNote node={node} className="mx-3 mt-2 flex-none" />}
+      {/* 文字模板段：出处、出片前还差什么、摘掉出处（与画布同一份 TextTplBanner） */}
+      {node.textTpl && (
+        <div className="mx-3 mt-2 flex-none">
+          <TextTplBanner nodeId={node.id} compact />
+        </div>
+      )}
       {/* 方案台：与工作流页共用同一个组件（铁律六）。工坊这边的"未选定"天然就是
           chosenId === null——不需要另一套标记。白模段没有方案台（上面那段 ★）——走专属面板 */}
       {blockout && chosen ? (
@@ -1642,6 +1649,10 @@ function ProposalsPanel() {
                 onUpdate={(id, patch) => useFlow.getState().updateExtraRef(node.id, id, patch)}
                 onRemove={(id) => useFlow.getState().removeExtraRef(node.id, id)}
                 onError={(msg) => useFlow.setState({ err: msg })}
+                // 文字模板段的图位（与画布那一面同一套接法）
+                slots={node.textTpl?.slots}
+                onFillSlot={(name, url) => useFlow.getState().addExtraRef(node.id, { url, name, role: "free" })}
+                onReplace={(id, url) => useFlow.getState().replaceExtraRefUrl(node.id, id, url)}
               />
             </div>
           )}

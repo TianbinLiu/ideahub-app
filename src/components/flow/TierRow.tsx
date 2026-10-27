@@ -19,7 +19,7 @@ import { memberTiersLine, realFaceIssue, regionTiersLine, tierBlockReason, tierO
 import { blockoutPriceIssue, clampDuration, deriveIssue, fmtTokens, tierOf, VIDEO_TIERS } from "../../data/economy";
 import { useAccountVersion } from "../../hooks/useAccount";
 import UpgradeLink from "../UpgradeLink";
-import { chosenOf, nodeCost, nodeFramed, tplOfNode, useFlow } from "../../studio/flowStore";
+import { chosenOf, nodeCost, nodeFramed, textTplTierIssue, tplOfNode, useFlow } from "../../studio/flowStore";
 import { carryIsHard } from "../../studio/segmentGen";
 
 /**
@@ -160,7 +160,8 @@ export default function TierRow({
           //   没勾「火山引擎适用」的真人卡：只收认证素材的档（高清 / 电影级）灰；1.0 两档本来就不收真人照片，也灰。
           //   勾了的也只在不带帧时放行（framed，2026-09-30 付费实测：帧里的真人脸会被整发拒）。
           const faceBlock = realFaceIssue(node.materials, tier.id, { blockout, framed });
-          const block = tierBlockReason(tier) ?? r2vBlock ?? faceBlock ?? (needsDerive ? deriveIssue(tier.id) : null);
+          // 文字模板段只在模板说好的那几档上跑（flowStore.textTplTierIssue，出片前的门禁问的是同一个）：目录侧的拒绝排在套餐前面 —— 别把人领去付钱
+          const block = textTplTierIssue(node, tier.id) ?? tierBlockReason(tier) ?? r2vBlock ?? faceBlock ?? (needsDerive ? deriveIssue(tier.id) : null);
           const desc = tier.desc;
           // title 里的完整模型 id 只在地区问到了、这一档又摆得出来时写（account.tierShownModelId，与「本段模型」那一行同一个口径）
           const model = tierShownModelId(tier);
@@ -191,6 +192,16 @@ export default function TierRow({
           里出现过两遍）。宿主自己的别的理由（r2v 闸、真人卡）仍由宿主印，那是另一件事。
           「去升级」只治得了套餐门槛那一类原因，所以跟着 tierBlocks 一起出现。 */}
       {curOff && <Warn compact>{curOff}</Warn>}
+      {/* 文字模板段：灰掉的那几档为什么点不动（手机上没有 hover），只说一次、说清能在哪几档上跑 */}
+      {node.textTpl && (
+        <Warn tone="info" compact>
+          {(() => {
+            const title = node.textTpl.title;
+            const names = node.textTpl.tiers.map((id) => tierOf(id).label).join(t({ message: "、", comment: "列举几个名字时的分隔符" }));
+            return t`文字模板「${title}」只在这几档上跑：${names}`;
+          })()}
+        </Warn>
+      )}
       {regionLine && (
         <Warn tone="info" compact>
           {regionLine}

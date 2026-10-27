@@ -24,6 +24,7 @@ import Sheet from "./Sheet";
 // （播放/点赞数 2026-08-29 随卡片减法收进详情页，本文件不再读 social）
 import VideoTemplateExtractor from "./VideoTemplateExtractor";
 import TemplateCreateCard from "./TemplateCreateCard";
+import TextTemplateSheet from "./TextTemplateSheet";
 import WorkflowShelf from "./WorkflowShelf";
 import {
   groupRows,
@@ -504,6 +505,9 @@ export default function TemplateShelf({
   // 老服务端 / 离线时不摆一个走到上传那步才失败的按钮（CLAUDE.md「永远点不动的选项」）
   const [blockoutCap, setBlockoutCap] = useState(false);
   const [extract, setExtract] = useState(false);
+  const [textSheet, setTextSheet] = useState(false);
+  /** 「做一个模板」：白模那两条路开着就去提取器第一屏（三条路摆在一起），开不了就直接开「只用文字 + 封面」那一屏 —— 不让人先看一屏「服务器不支持」 */
+  const startCreate = () => (blockoutCap ? setExtract(true) : setTextSheet(true));
   /** 套用被就地拒绝时那句话（分段组凑不齐）。★ 不走 flowStore.err：那条错误条只画在
    *  工作流页与画布上，而用户此刻站在模板列表里 —— 写进那里等于没人看得见 */
   const [pickErr, setPickErr] = useState("");
@@ -698,9 +702,11 @@ export default function TemplateShelf({
             "圆边框缺了一截"。负外边距让这 2px 不占版面，与改之前逐像素同位。 */}
       {/* 「创建属于你的视频模板」入口（2026-10-21 起；原来是「我的模板」里一行虚线文字）。市场与「我的模板」两格都摆 ——
           大多数人逛的是市场，只摆在「我的模板」里等于藏起来（调研：CapCut 的创作者 banner 就在模板栏里）。
-          还没做过模板的人给大卡，做过的给一行小条。门控仍是 blockoutCap（与提取器里那两条路同一个探测） */}
-      {(tab === "market" || tab === "mine") && blockoutCap && (
-        <TemplateCreateCard variant={mineRows > 0 ? "slim" : "hero"} onStart={() => setExtract(true)} />
+          还没做过模板的人给大卡，做过的给一行小条。
+          ★ 2026-10-26 起不再按 blockoutCap 整张藏：「只用文字 + 封面」那条不碰服务端，离线 / 老服务端上也做得了 ——
+            blockoutCap 只决定卡上说几条路、点了先去提取器第一屏（三条路）还是直接开文字那一屏（startCreate） */}
+      {(tab === "market" || tab === "mine") && (
+        <TemplateCreateCard variant={mineRows > 0 ? "slim" : "hero"} video={blockoutCap} onStart={startCreate} />
       )}
 
       {/* 空架子不摆筛选（Refactoring UI §8.4：空态里把没用的控件藏起来而不是灰掉）。
@@ -824,8 +830,8 @@ export default function TemplateShelf({
             icon="search"
             cta={
               // 空态自己带出口（Refactoring UI「别忽视空状态」，2026-10-23）：说「做一个」就给做一个的键
-              blockoutCap && !tierPicked && !cat && !q.trim()
-                ? { label: t`做一个模板`, onClick: () => setExtract(true), primary: tab === "mine" }
+              !tierPicked && !cat && !q.trim()
+                ? { label: t`做一个模板`, onClick: startCreate, primary: tab === "mine" }
                 : undefined
             }
             text={
@@ -834,9 +840,7 @@ export default function TemplateShelf({
                 : cat && allRows.length > 0
                 ? t`「${tplCategoryLabel(cat)}」分类下还没有模板——点「全部」看现有的，或做一个发布出来占坑`
                 : tab === "mine"
-                  ? blockoutCap
-                    ? t`还没有你自己的模板——点上面那张卡做一个`
-                    : t`还没有你自己的模板`
+                  ? t`还没有你自己的模板——点上面那张卡做一个`
                   : q.trim()
                     ? t`没有匹配的模板，换个词试试`
                     : t`市场上还没有公开的模板。做一个自己的、发布出来，这里就有了。`
@@ -851,8 +855,14 @@ export default function TemplateShelf({
           defaultBlockout
           onClose={() => setExtract(false)}
           onDone={(tpl) => pick(tpl)}
+          onPickText={() => {
+            setExtract(false);
+            setTextSheet(true);
+          }}
         />
       )}
+      {/* 「只用文字 + 封面」（文字模板 P1）：存好之后「用这个模板出片」走同一个 pick（套用只有 applyTemplate 一个入口，守卫也在 pick 里） */}
+      {textSheet && <TextTemplateSheet onClose={() => setTextSheet(false)} onUse={(tpl) => pick(tpl)} />}
 
       {tierSheet && (
         <Sheet onClose={() => setTierSheet(false)}>

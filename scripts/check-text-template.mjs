@@ -623,6 +623,17 @@ eq("几样一起看（正文 + 标题 + 图位提示）", T.textTplPolicyFlags("
   eq("模板 3 秒：高清（最短 4）跑不了", T.textTplTierMiss({ ...shots, durationSec: 3 }, HD, 500), "duration");
 }
 
+// ── 图位上下文摘录（excerptAround）：以那一处为中心，不跨行 ──
+{
+  const long = `${"甲".repeat(60)}参考图1结尾${"乙".repeat(5)}\n下一行`;
+  const at = long.indexOf("参考图1");
+  const ex = T.excerptAround(long, at, at + 4, 10);
+  eq("长行末尾的图位：摘出来的那一截里有它（原来从行首截 80 字时被截掉）", ex.includes("参考图1"), true);
+  eq("前面截掉了补「…」、后面到行尾不补", ex.startsWith("…") && !ex.endsWith("…"), true);
+  eq("不跨行", ex.includes("下一行"), false);
+  eq("短行：原样、不补「…」", T.excerptAround("对应图3。", 2, 4, 10), "对应图3。");
+}
+
 if (problems.length) {
   console.error(`\n❌ 文字模板检查没过（${problems.length} 条）：\n`);
   for (const p of problems) console.error(`   ${p}`);

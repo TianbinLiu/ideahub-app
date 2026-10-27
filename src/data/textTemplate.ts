@@ -681,6 +681,21 @@ export function textTplTierMiss(
   return null;
 }
 
+// ── 图位的上下文摘录（作者那一屏、详情页共用）──────────────────────
+
+/**
+ * 正文里 [from, to) 这一处前后各取 side 个字、不跨行，截掉的那头补「…」—— 给人看「这个图位在正文哪儿被点到」。
+ * ★ 以那一处为中心截，不从行首截 80 字：例子里「参考图1、2」在一整段的末尾，从行首截时那一处恰好被截掉（2026-10-26 浏览器里看到的）。
+ */
+export function excerptAround(text: string, from: number, to: number, side = 28): string {
+  const lineStart = text.lastIndexOf("\n", from - 1) + 1;
+  const nl = text.indexOf("\n", to);
+  const lineEnd = nl < 0 ? text.length : nl;
+  const a = Math.max(lineStart, from - side);
+  const b = Math.min(lineEnd, to + side);
+  return `${a > lineStart ? "…" : ""}${text.slice(a, b).trim()}${b < lineEnd ? "…" : ""}`;
+}
+
 /**
  * 定型后正文的指纹（FNV-1a 32 位 + 长度）：「这一段的正文还是不是模板原样」只拿它比 —— 只对 canonTextTplPrompt 的结果算。
  * 不是安全用途（防不了故意碰撞）：服务端认试炼时自己再核正文。
