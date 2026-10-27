@@ -22,6 +22,8 @@
 //   （2026-10-26 出片地区 P2b 加 MiniMax H3 三行时再试七条，各自变红）⑱ 「高清」那一行写上 secCost；⑲ 「draft-mm」不写 upstreamResolution；
 //   ⑳ FREE_VIDEO_ALLOW 的 H3-Lite 写成小写 480p；㉑ 「draft-mm」的 secCost 改成 11,100（与服务端那份不等）；
 //   ㉒ economy.segTokens 删掉 secCost 那一支（--economy=）；㉓ economy.TIER_DESC 少「hd-mm」那一句；㉔ 「hd-mm」排到「hd」前面。
+//   （2026-10-26 文字模板加 longPromptOk / timecodeOk 时再试三条）⑱ 删掉「高清」那一行的 timecodeOk（每格必写）；
+//   ⑲ 「高清」的 longPromptOk 写成 true（只有电影级 + 同一个模型的「草稿」与它不一致）；⑳ 「真人」的 timecodeOk 写成 true（只有电影级 + 不收参考图）。
 //
 // 用法：node scripts/check-video-tiers.mjs [--module=<另一份 videoTierTable.ts 的路径，造违规试红用>] [--economy=<另一份 economy.ts>]
 import fs from "node:fs";
@@ -59,7 +61,7 @@ const byId = new Map(T.map((t) => [t.id, t]));
 /** 走方舟协议的档（按秒 × 像素 × 系数计价、在免费档清单里对账的那一批）：认 api，不认 provider（provider 只回答「哪家」） */
 const ark = T.filter((t) => t.api === "ark");
 /** 每一行都得**写出来**的格子（缺省 = 第二处默认值，见各格的注释） */
-const REQUIRED_BOOL = ["flf", "refImg", "refVid", "extendOk", "blockoutOk", "draftOk", "audio", "refAudio", "startOnly", "realFace", "assetRef", "freeOk"];
+const REQUIRED_BOOL = ["flf", "refImg", "refVid", "extendOk", "blockoutOk", "draftOk", "longPromptOk", "timecodeOk", "audio", "refAudio", "startOnly", "realFace", "assetRef", "freeOk"];
 /** 出片请求的协议（videoTierTable.TierApi）与芯片家族（TierFamily）的合法值：加一种就来这里加一行 */
 const APIS = ["ark", "minimax-v1", "minimax-v2"];
 /** MiniMax H3（V2）那几行（按秒计价、上游分辨率大写）：认 api */
@@ -141,7 +143,8 @@ for (const t of T) {
 //   2026-10-26 补上模型本身的能力（首尾帧 / 参考图 / 真人照片 / 可信素材 / 声音样本 / 协议 / 只认起拍画面）：这些是模型的事，
 //   同一个模型的两档（「草稿」与「高清」）只该差分辨率与谁能用；差在这几格上，就是有一档把模型做得到的事说成做不到（或反过来）。
 {
-  const SAME_PER_MODEL = ["audio", "minSec", "maxSec", "flf", "refImg", "realFace", "assetRef", "refAudio", "startOnly", "api", "provider"];
+  // longPromptOk / timecodeOk（2026-10-26 文字模板）：照不照长提示词、认不认秒数是模型的事（付费小验比的是 2.5 与 2.0 mini 两个模型）
+  const SAME_PER_MODEL = ["audio", "minSec", "maxSec", "flf", "refImg", "realFace", "assetRef", "refAudio", "startOnly", "api", "provider", "longPromptOk", "timecodeOk"];
   const byModel = new Map();
   for (const t of T) byModel.set(t.model, [...(byModel.get(t.model) ?? []), t]);
   for (const [model, rows] of byModel) {
@@ -154,6 +157,16 @@ for (const t of T) {
     }
   }
 }
+
+// ── 文字模板段的两格（2026-10-26）：长提示词（1000 字）与秒数时间轴 ──
+//   今天的值钉住（付费小验只在 2.5 上验过；改这两行 = 新验过一个模型，改的人来这里改）；蕴含关系长期成立：
+//   长提示词与时间轴说的都是「文字模板段那一发」，文字模板段的图位是临时参考图 ⇒ 这一档得收参考图（refImg），也不能是只认起拍画面的档。
+eq("长提示词（文字模板段 1000 字）只有电影级", T.filter((t) => t.longPromptOk).map((t) => t.id), ["ultra"]);
+eq("秒数时间轴只有电影级", T.filter((t) => t.timecodeOk).map((t) => t.id), ["ultra"]);
+for (const t of T) {
+  if (t.longPromptOk || t.timecodeOk) ok(`「${t.id}」开了 longPromptOk / timecodeOk，却不收参考图或只认起拍画面（文字模板段的图位是参考图）`, t.refImg && !t.startOnly);
+}
+
 
 // ── 抄自服务端（server 分支 claude/minimax-h3-p2b，server#132 · de3ca98 的 src/config/tokens.js 与 tests/arkProxy.spec.js）──
 //   为什么抄不读：同服务端 arkProxy.spec「跨仓档位表一致性」开头那段 —— 两仓独立部署，读另一个仓的文件的写法在 CI 上只能「文件不在就跳过」。
@@ -428,5 +441,5 @@ if (problems.length) {
   process.exit(1);
 }
 console.log(
-  `✓ 出片档位表检查通过（${ran} 条：每格必写 / 真人档语义的能力位 / 同模型一致 / 免费档 = 服务端 / MiniMax H3 三行 = 服务端 / 停用与默认档链 / 每秒 token / 含输入视频的最低用量 / 模型显示名 / tierOf 不按下标 / 档名与说明齐全 / (模型, 上游分辨率) 一行一对、按它认回档位）`,
+  `✓ 出片档位表检查通过（${ran} 条：每格必写 / 真人档语义的能力位 / 同模型一致 / 文字模板段两格 / 免费档 = 服务端 / MiniMax H3 三行 = 服务端 / 停用与默认档链 / 每秒 token / 含输入视频的最低用量 / 模型显示名 / tierOf 不按下标 / 档名与说明齐全 / (模型, 上游分辨率) 一行一对、按它认回档位）`,
 );

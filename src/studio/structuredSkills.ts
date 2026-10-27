@@ -570,7 +570,8 @@ export async function runSceneToShots(o: { scene: string; cast: readonly string[
   const text = joinShots({ lead: leadOf(plan, lang), shots: plan.shots.map((s) => shotBodyOf(s, lang)) });
   // 拼出来的整段要放得进这一档的出片提示词（economy.promptMaxOf，与分镜表输入框同一个上限）：超了就别落进去 ——
   // 落进去之后输入框打不了字、出片时从正文那头被截掉一截（CLAUDE.md「输入框忘了 maxLength」那一格）
-  const max = promptMaxOf(o.tierId);
+  // 拆出来的是普通段，不是文字模板段（长提示词只开给文字模板段）
+  const max = promptMaxOf(o.tierId, { long: false });
   if (text.length > max) {
     const len = text.length;
     throw new Error(t`拆出来的分镜有 ${len} 字，超过这一档出片提示词的上限 ${max} 字，这一次已经计费——把这场戏写短些再拆`);

@@ -21,7 +21,6 @@ import {
   TEXT_DESC_MAX,
   startFramesAllowed,
   MAX_CARD_VIEWS,
-  VIDEO_PROMPT_MAX,
   idLineOf,
   isSheetView,
   type CardRole,
@@ -43,7 +42,6 @@ import {
   apiCase,
   clampDuration,
   lastFrameOnlyOk,
-  promptMaxOf,
   imageTierOf,
   slotsFor,
   tierNamesWhere,
@@ -1288,6 +1286,62 @@ export interface MaterialRefs {
  */
 export type RefTarget = "image" | "video";
 
+/**
+ * 紧凑式绑定句（`张三=@图片1@图片2`）的**构造器本身** —— prepareMaterialRefs 的 bindCompact / 白模 bind（拿真准备成的那批图）
+ * 与 planMaterialRefs（拿分配的计划，出片前算预算用）共用这一个。措辞与取舍见 prepareMaterialRefs 里 compact 那段 ★★。
+ * @param offset 这批图前面已经有几张参考图（帧 / 临时参考图）：编号从 offset+1 起
+ */
+function compactBind(good: readonly { card: Card; view: CardView }[], offset: number): string {
+  const at = (p: (typeof good)[number]) => zhPrompt`@图片${offset + good.indexOf(p) + 1}`;
+  const chars = new Set<Card>();
+  const charParts: string[] = [];
+  for (const p of good) {
+    if (p.card.type !== "character" || chars.has(p.card)) continue;
+    chars.add(p.card);
+    charParts.push(zhPrompt`${p.card.name}=${good.filter((g) => g.card === p.card).map(at).join("")}`);
+  }
+  // 非人物卡照旧按卡种说人话：一句"只锁形象"套在场景卡/画风卡上是胡话（见 BIND_HINT），
+  // 而白模路上它们本来就少（挂卡面板默认只给人物卡）
+  const otherSaid = new Set<Card>();
+  const otherParts: string[] = [];
+  for (const p of good) {
+    if (p.card.type === "character" || otherSaid.has(p.card)) continue;
+    otherSaid.add(p.card);
+    const mine = good.filter((g) => g.card === p.card);
+    otherParts.push(zhPrompt`${mine.map(at).join("")}是${CARD_TYPE_PROMPT[p.card.type]}「${p.card.name}」${BIND_HINT[p.card.type]}`);
+  }
+  if (charParts.length === 0 && otherParts.length === 0) return "";
+  // ★ 收尾那句摆在**最后**，别夹在两组中间：夹在中间时「只锁形象」会读起来像在说
+  //   后面那张场景卡（"不要照抄其构图与背景"对场景卡恰恰是反的），一句放错位置的
+  //   限制比没有更坏
+  const body = [charParts.join("；"), otherParts.join("；")].filter(Boolean).join("；");
+  const foot =
+    charParts.length > 0
+      ? zhPrompt`。等号右边的图只用来锁这个角色的长相、发色与服装，不要照抄其构图与背景。`
+      : zhPrompt`。参考图只用于锁定形象，不要照抄它们的构图、背景、边框与文字。`;
+  // ★ 设定稿那句接在最后（同 foot 的理由：限制句夹在中间会被读成在说后面那张卡）
+  const auxTail = hasSheet(good) ? SHEET_CLAUSE : "";
+  return softenForImage(zhPrompt`。参考图：${body}${foot}${auxTail}`);
+}
+
+/**
+ * 卡片形象图的**分配计划**连同那一句紧凑式绑定句（不取图、不联网）—— segmentGen.promptRoomOf 按它在出片之前算「正文还剩多少字」。
+ * ★ 与 prepareMaterialRefs 同一个分配（allocateRefs）、同一个构造器（compactBind）；`direct` 的取值与那边同名参数逐一对应
+ *   （只用于直通路：true = 白模严格闸 + 2.5 上限；对象 = 直通路 + 档位上限）。
+ * ⚠ 这是计划，**不是**上界：真取图那一拍个别图读不出来会被跳过（编号前移、绑定句变短），可那张卡随即改拼文字版形象描述
+ *   （segmentGen.materialText，最多 TEXT_DESC_MAX 字）—— 真拼出来可能比按计划算的长。所以 segmentGen 在卡图真准备好之后、
+ *   任何补画之前再按真的那批量一次（2026-10-26 审核纠正：原来这里写「预算按计划算偏保守」）。
+ */
+export function planMaterialRefs(
+  materials: Card[] | undefined,
+  direct: true | { cap?: number; strict?: boolean },
+): { count: number; cards: ReadonlySet<string>; bindCompact: (offset?: number) => string } {
+  if (!materials?.length) return { count: 0, cards: new Set(), bindCompact: () => "" };
+  const d = direct === true ? { cap: undefined as number | undefined } : direct;
+  const picks = allocateRefs(materials, undefined, true, d.cap);
+  return { count: picks.length, cards: new Set(picks.map((p) => p.card.id)), bindCompact: (offset = 0) => compactBind(picks, offset) };
+}
+
 export async function prepareMaterialRefs(
   materials: Card[] | undefined,
   target: RefTarget,
@@ -1402,38 +1456,9 @@ export async function prepareMaterialRefs(
    * ★★ 这也正是 2026-08-16「编号 → 颜色」那次改造**一个字都不用动这里**的原因：
    *   这个构造器从头到尾不认识 label，两种标记方案对它完全透明。
    */
-  const compact = (offset = 0): string => {
-    const at = (p: (typeof good)[number]) => zhPrompt`@图片${offset + good.indexOf(p) + 1}`;
-    const chars = new Set<Card>();
-    const charParts: string[] = [];
-    for (const p of good) {
-      if (p.card.type !== "character" || chars.has(p.card)) continue;
-      chars.add(p.card);
-      charParts.push(zhPrompt`${p.card.name}=${good.filter((g) => g.card === p.card).map(at).join("")}`);
-    }
-    // 非人物卡照旧按卡种说人话：一句"只锁形象"套在场景卡/画风卡上是胡话（见 BIND_HINT），
-    // 而白模路上它们本来就少（挂卡面板默认只给人物卡）
-    const otherSaid = new Set<Card>();
-    const otherParts: string[] = [];
-    for (const p of good) {
-      if (p.card.type === "character" || otherSaid.has(p.card)) continue;
-      otherSaid.add(p.card);
-      const mine = good.filter((g) => g.card === p.card);
-      otherParts.push(zhPrompt`${mine.map(at).join("")}是${CARD_TYPE_PROMPT[p.card.type]}「${p.card.name}」${BIND_HINT[p.card.type]}`);
-    }
-    if (charParts.length === 0 && otherParts.length === 0) return "";
-    // ★ 收尾那句摆在**最后**，别夹在两组中间：夹在中间时「只锁形象」会读起来像在说
-    //   后面那张场景卡（"不要照抄其构图与背景"对场景卡恰恰是反的），一句放错位置的
-    //   限制比没有更坏
-    const body = [charParts.join("；"), otherParts.join("；")].filter(Boolean).join("；");
-    const foot =
-      charParts.length > 0
-        ? zhPrompt`。等号右边的图只用来锁这个角色的长相、发色与服装，不要照抄其构图与背景。`
-        : zhPrompt`。参考图只用于锁定形象，不要照抄它们的构图、背景、边框与文字。`;
-    // ★ 设定稿那句接在最后（同 foot 的理由：限制句夹在中间会被读成在说后面那张卡）
-    const auxTail = hasSheet(good) ? SHEET_CLAUSE : "";
-    return softenForImage(zhPrompt`。参考图：${body}${foot}${auxTail}`);
-  };
+  // ★ 构造器本身在 compactBind（模块级）：出片前的预算（planMaterialRefs → segmentGen.promptRoomOf）拿**计划**的那批图拼同一句，
+  //   这里拿**真准备成**的那批（good）拼 —— 一个构造器两种输入，别在预算那一侧另抄一份（抄了就是作者那一屏说放得下、出片那一拍放不下）
+  const compact = (offset = 0): string => compactBind(good, offset);
 
   return {
     refs: good.map((p) => p.url),
@@ -3222,6 +3247,12 @@ export interface GenSpec {
   /** 声明的生成模式（segmentGen 铸契约时定，见 types.GenMode）。validateGenSpec 在花钱之前核对它与槽位一致 */
   mode: GenMode;
   plot: string;
+  /**
+   * 这一发的提示词上限（2026-10-26，文字模板 P1）—— **由 segmentGen 定**（promptCapOf，与出片前的预算 promptRoomOf 同一个数），这一层不再自己按档位推一遍。
+   * composeSegments 最后那一刀按 max 截；strict = 超了**整句拒、绝不截**（文字模板段：正文是这个模板的商品本身，validateGenSpec 在花钱之前核）。
+   * **必填**：原来这一层自己拿 promptMaxOf(档位) 截，文字模板段在电影级上放到 1000 字之后，漏传的那一处会按 500 把正文拦腰截掉，零报错。
+   */
+  promptCap: { max: number; strict: boolean };
   firstFrame: string;
   lastFrame: string;
   durationSec: number;
@@ -3319,6 +3350,12 @@ export function validateGenSpec(sg: GenSpec): void {
     return;
   }
   if (!sg.plot.trim()) throw new Error(t`生成契约不完整：提示词是空的`);
+  // 文字模板段的提示词超了上限：整句拒，不截（segmentGen 在拼的那一拍已经拦过一次，这是花钱之前的最后一道）
+  if (sg.promptCap.strict && sg.plot.length > sg.promptCap.max) {
+    const len = sg.plot.length;
+    const max = sg.promptCap.max;
+    throw new Error(t`生成契约不一致：这一发的提示词有 ${len} 字，超过这一档的上限 ${max} 字（文字模板段不截字）——视频这一发没有发出去，请把这句话反馈给我们`);
+  }
   /** 请求按什么形状拼（样片第一步的槽位照普通出片摆，互斥规则与普通出片同一套） */
   const shape = sg.mode === "draft" ? slotModeOf(sg) : sg.mode;
   if (sg.mode === "draft" && (shape === "edit" || shape === "reference" || shape === "extend" || shape === "minimax"))
@@ -3545,7 +3582,7 @@ export async function composeSegments(
       if (sg.mode === "minimax") {
         const url2 = await minimaxVideo({
           model: tier.model,
-          prompt: sg.plot.slice(0, VIDEO_PROMPT_MAX),
+          prompt: sg.plot.slice(0, sg.promptCap.max),
           firstFrame: await shrinkFrameFor720p(first),
           // 与报价同一把尺：clampDuration 对按发计价的档吸附到 6/10 整档（economy.durationStepsOf）
           durationSec: clampDuration(sg.durationSec, sg.videoTier),
@@ -3602,8 +3639,8 @@ export async function composeSegments(
           durationSec: clampDuration(sg.durationSec, sg.videoTier),
           // 带首帧 / 尾帧时不写画幅（成片跟着图的比例走，服务端补 adaptive）；参考图与纯文字必须写具体比例（H3-Lite 的参考图不收 adaptive）
           ratio: images.some((im) => im.role !== "reference_image") ? undefined : aspectOf(sg.aspect).ratio,
-          // 最后一道硬顶与方舟那几档同一个问法（economy.promptMaxOf；服务端 V2 的上限是 2000，这里更紧）
-          prompt: sg.plot.slice(0, promptMaxOf(sg.videoTier)),
+          // 最后一道硬顶与方舟那几档同一个数（GenSpec.promptCap，segmentGen 的 promptCapOf 定；服务端 V2 的上限是 2000，这里更紧）
+          prompt: sg.plot.slice(0, sg.promptCap.max),
           images,
           onProgress: progOf(tier.id),
           // ★ 受理回调必须给（同上两支）：不给就没有凭据，"没接到结果"那一支等于不存在
@@ -3619,9 +3656,9 @@ export async function composeSegments(
       // 样片第一步的请求形状照槽位来（slotModeOf），其余就是声明的 mode
       const shape = sg.mode === "draft" ? slotModeOf(sg) : sg.mode;
       const refMode = shape === "ref-images" || shape === "reference" || shape === "edit" || shape === "extend";
-      // 最后一道硬顶：按档位问 economy.promptMaxOf（2.x 两档 500，其余 400）；白模复刻段仍按 400（它的预算是按 400 反推的）
-      const promptCap = shape === "edit" ? VIDEO_PROMPT_MAX : promptMaxOf(sg.videoTier);
-      const url = await generateVideo(sg.plot.slice(0, promptCap), refMode ? "" : await shrinkFrameFor720p(first), {
+      // 最后一道硬顶：上限由 segmentGen 定（GenSpec.promptCap，与出片前的预算同一个数）；文字模板段（strict）超了的
+      // validateGenSpec 刚整句拒过，走到这里一定放得下 —— 截只对普通段生效
+      const url = await generateVideo(sg.plot.slice(0, sg.promptCap.max), refMode ? "" : await shrinkFrameFor720p(first), {
         // ★ 时长按档位夹（2.5 不收 3 秒）。与 economy.segTokens 用的是同一个函数 ——
         //   只在这一侧夹的话，界面报 3 秒的价、方舟出 4 秒的片。
         //   （白模段不受影响：refVideoUrl 非空时 arkClient 走 BLOCKOUT_TASK 的 duration:-1，

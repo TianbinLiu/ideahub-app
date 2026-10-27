@@ -12,7 +12,9 @@
 //   ⑥ 没有 @ 的句子不走快路并改了字；⑦ extraRefLines 的编号写成下标（图片2 说成 图片1）；
 //   ⑧ usableExtraRefs 不滤空地址（回炉工程里的墓碑被当成一张图）；⑨ 全角 ＠ 不认；⑩ 改名不守边界（@Ref12 被连带改掉）；
 //   ⑪ 插入不补空格（@Ref1abc 认不回来）；⑫ 保留名不拦（一张图起名叫「图片1」）；
-//   ⑬ 画结束画面也带站位构图那一类（drawExtraRefs 不滤 layout）。
+//   ⑬ 画结束画面也带站位构图那一类（drawExtraRefs 不滤 layout）；
+//   ⑭ 保留名只认「图片N」、不认「图N / 参考图N」（2026-10-26 文字模板的「保留名扩大」；图位的认法与改写在 check-text-template）；
+//   ⑮ slotGaps 分大小写；⑯ slotGaps 按前缀认（「披风」被「披风内衬」顶上）（2026-10-26 审核后加的图位缺口，各自试红过）。
 //
 // 用法：node scripts/check-ref-mentions.mjs [--module=<另一份 refMentions.ts 的路径，造违规试红用>]
 import fs from "node:fs";
@@ -152,10 +154,20 @@ eq("refNameIssue 保留：帧的另一个叫法", M.refNameIssue("最后一帧",
 eq("名字叫 first 时，@first frame 仍然认成帧（最长的先试）", run("@first frame 与 @first", M.mentionTargets({ cards: [], extras: [{ id: "e5", name: "first", n: 3 }], frames: { first: 1 } })).text, "first frame（图片1） 与 first（图片3）");
 eq("refNameIssue 重名不分大小写", M.refNameIssue("ref1", ["Ref1"]), "taken");
 eq("refNameIssue 能用", M.refNameIssue("杯子", ["Ref1", "凛"]), null);
-eq("uniqueRefName 不重名就用原名", M.uniqueRefName("参考图", ["凛"]), "参考图");
-eq("uniqueRefName 重名接数字", M.uniqueRefName("参考图", ["参考图", "参考图2"]), "参考图3");
+eq("uniqueRefName 不重名就用原名", M.uniqueRefName("参考", ["凛"]), "参考");
+eq("uniqueRefName 重名接数字", M.uniqueRefName("参考", ["参考", "参考2"]), "参考3");
 ran++;
 if (M.refNameIssue(M.uniqueRefName("图片", []), []) !== null) fail(`uniqueRefName("图片") 给出了一个不能用的名字：${show(M.uniqueRefName("图片", []))}`);
+// 保留名扩大（2026-10-26 文字模板）：「第几张图」的叫法本身、以及含着图位写法的名字都不行；基名接上数字就成了保留名的也换掉
+eq("refNameIssue 保留：图N", M.refNameIssue("图1", []), "reserved");
+eq("refNameIssue 保留：参考图（原来的默认名）", M.refNameIssue("参考图", []), "reserved");
+eq("refNameIssue 保留：参考图N", M.refNameIssue("参考图2", []), "reserved");
+eq("refNameIssue 保留：英文 image2", M.refNameIssue("image2", []), "reserved");
+eq("refNameIssue 保留：含着图位写法（草图2）", M.refNameIssue("草图2", []), "reserved");
+eq("refNameIssue 能用：截图2（「截图」是一个词，不是图位）", M.refNameIssue("截图2", []), null);
+eq("refNameIssue 能用：Ref2", M.refNameIssue("Ref2", []), null);
+ran++;
+if (M.refNameIssue(M.uniqueRefName("参考图", []), []) !== null) fail(`uniqueRefName("参考图") 给出了一个不能用的名字：${show(M.uniqueRefName("参考图", []))}`);
 
 // ── (f) 系统兜底句 ──
 eq("extraRefLines 空", M.extraRefLines([]), "");
@@ -221,10 +233,27 @@ eq(
     { id: "d", url: "https://x/1.jpg", name: "三", role: "prop" },
     { id: "e", url: "https://x/2.jpg", name: "四", role: "prop" },
     { id: "f", url: "https://x/3.jpg", name: "五", role: "prop" },
+    { id: "g", url: "https://x/4.jpg", name: "六", role: "prop" },
+    { id: "h", url: "https://x/5.jpg", name: "七", role: "prop" },
   ]).map((x) => x.id),
-  ["a", "d", "e"],
+  // 2026-10-26 起按「任何一种段最多挂几张」截（文字模板段 4 张）：这一段真带几张另问 extraRefMaxOf
+  ["a", "d", "e", "f", "g"].slice(0, Math.max(M.EXTRA_REF_MAX, M.TEXT_TPL_EXTRA_MAX)),
 );
 eq("usableExtraRefs 不是数组", M.usableExtraRefs(undefined), []);
+eq("extraRefMaxOf：普通段 EXTRA_REF_MAX、文字模板段 TEXT_TPL_EXTRA_MAX", [M.extraRefMaxOf({ textTpl: false }), M.extraRefMaxOf({ textTpl: true })], [M.EXTRA_REF_MAX, M.TEXT_TPL_EXTRA_MAX]);
+eq("extraRefMaxOf：今天是 3 与 4", [M.extraRefMaxOf({ textTpl: false }), M.extraRefMaxOf({ textTpl: true })], [3, 4]);
+// 文字模板段的图位缺口（slotGaps）：按名字认、大小写不分（与 compileMentions 同一个认法），多挂的图不算缺口也不报
+eq("slotGaps：都补齐了", M.slotGaps(["女仆装", "特写"], [{ name: "特写" }, { name: "女仆装" }]), []);
+eq("slotGaps：一张都没挂", M.slotGaps(["女仆装", "特写"], []), ["女仆装", "特写"]);
+eq("slotGaps：补了 3/4（缺的那个按模板里的次序报）", M.slotGaps(["a", "b", "c", "d"], [{ name: "a" }, { name: "c" }, { name: "d" }]), ["b"]);
+eq("slotGaps：大小写不分", M.slotGaps(["Cape"], [{ name: "cape" }]), []);
+eq("slotGaps：多挂一张不是图位的图不算", M.slotGaps(["披风"], [{ name: "披风" }, { name: "草图" }]), []);
+eq("slotGaps：零图位的模板没有缺口", M.slotGaps([], [{ name: "草图" }]), []);
+eq("slotGaps：名字只是前缀对上不算（「披风」≠「披风内衬」）", M.slotGaps(["披风"], [{ name: "披风内衬" }]), ["披风"]);
+// isSlotName：与 slotGaps 同一个认法（flowStore 的图位规矩问它：图位名不许改、删图位的图时 @名字 留着）
+eq("isSlotName：大小写不分", M.isSlotName(["Cape", "伞"], "cape"), true);
+eq("isSlotName：前缀不算", M.isSlotName(["披风"], "披风内衬"), false);
+eq("isSlotName：零图位", M.isSlotName([], "披风"), false);
 
 if (problems.length) {
   console.error(`\n❌ 参考点名检查没过（${problems.length} 条）：\n`);

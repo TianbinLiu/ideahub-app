@@ -1156,6 +1156,13 @@ export interface VideoSegment {
    */
   carried?: boolean;
   /**
+   * 这一段出自文字模板（FlowNode.textTpl，组稿那一拍记；判否定，老数据缺它 = 不是）。**只在本机流转**：
+   * 发布与回炉替换之前 data/videos.stripLocalOnly 把这种段的 plot 置空、这一位去掉 —— 模板正文是作者的东西，
+   * 不随别人的作品外流（与公开配方不带正文同一条，主人 10-26 授权我定的「正文公开但不随作品 / 配方外流」）。
+   * 剪辑页「一键成片」读的是本机这份，照常拿得到全文。
+   */
+  fromTextTpl?: boolean;
+  /**
    * 该段出片时的画幅；缺省=横屏（老数据）。
    * ★ 播放端只把它当**提示**用（首帧还没解码出来时先按它排版），真正的判据是
    *   `<video>` 的 videoWidth/videoHeight——用户上传/换过的段、以及服务端可能
@@ -1504,6 +1511,61 @@ export function tplCategoryLabel(id: string | undefined): string | null {
   return TPL_CATEGORIES.find((c) => c.id === id)?.label ?? null;
 }
 
+/**
+ * 文字模板（纯文字 + 本机封面图的视频模板，2026-10-26）的一个**图位**：正文里的 `@名字`，使用者套用时按名字补一张临时参考图
+ * （data/refMentions：名字的规矩、正文里「图N」怎么改写成 @名字）。hint = 作者写给使用者的一句「这里该放什么图」。
+ */
+export interface TextTplSlot {
+  name: string;
+  hint: string;
+}
+
+/**
+ * 一段是从哪个文字模板套来的（`FlowNode.textTpl`）—— 出处快照，只在套用那一拍写（flowStore 套用文字模板那一支）。
+ * ★ 有它 = **文字模板段**：出片那一侧据它换几条规矩，判据各在一处 ——
+ *   长提示词（economy.promptMaxOf 的 long，经 flowStore.nodePromptMax / segmentGen 的 SegmentGenInput.textTpl）、
+ *   补画几张（data/drawPlan.textTplDraw：有图位一张帧都不画、零图位只补开头一张）、能带几张临时参考图（refMentions.extraRefMaxOf）、
+ *   放不下就在花钱之前整句拒而不是截（segmentGen.promptRoomOf）、图位的图传不上去就不发（segmentGen）。
+ * ★ 判否定（缺省 = 普通段）：老草稿天然缺它。节点上 `tpl` 恒 null（白模 / 经典那套模板快照与它无关：tplOfNode 为真会让直出车道整句拒）。
+ * @property slots 模板的图位（按模板定，不随使用者手上有没有图变 —— 报价按它算，补图前后同一个数）
+ * @property tiers 这个模板能跑的档（作者存模板时按档位能力算好的；不在里面的档不让选）
+ * @property sig 作者存的那份正文的指纹（data/textTemplate.textTplSig）—— 正文被改过就对不上
+ */
+export interface TextTplOrigin {
+  id: string;
+  remoteId?: string;
+  title: string;
+  slots: TextTplSlot[];
+  tiers: string[];
+  sig: string;
+  ownerId?: string;
+}
+
+/**
+ * 文字模板的**商品本身**（`VideoTemplate.text`，2026-10-26 文字模板 P1）：一段作者写好的正文 + 几个图位 + 规格。
+ * ★ 判否定（缺省 = 不是文字模板）：老模板天然缺它。「一个模板是哪一种」只问 data/templates.templateKindOf（白模 / 文字 / 经典），
+ *   别在调用点写 `t.text ?` / `!t.refVideo` —— 文字模板也没有 refVideo，按老二分会被当成经典配方（铺成简约模式、一句话框拼「画面要求」）。
+ * ★ 红线：文字模板**永远不带 refVideo**、正文也不镜像进 recipe.beats（老 App 会把带 refVideo 的条目当白模、按 r2v 扣钱；
+ *   recipe 只是类型上必填的那一格，由 data/templates.textTplRecipe 从这一份派生，套用一个字都不读它）。
+ * @property v 形状版本（今天恒 1；改形状时加一档，读的那一侧按版本判）
+ * @property prompt 正文 —— 存进来之前已经定型（data/textTemplate.canonTextTplPrompt：存的就是会发的样子，saveTemplate 再过一遍兜底）
+ * @property slots 图位（正文里的 `@名字`；使用者套用时按名字各补一张临时参考图）
+ * @property timecode 正文保留了按秒写的时间轴（「0-2s…」，只有收时间码的档认，videoTierTable 的 timecodeOk）。
+ *   缺省 = 没有（时间轴已改写成「镜头N：」或本来就没有）。只用来如实展示；能跑哪几档已经算进 tiers
+ * @property durationSec 作者定的时长（秒）—— 套用时按档位夹一下（economy.clampDuration）就是这一段的时长
+ * @property aspect 画幅
+ * @property tiers 能跑的档（作者存模板时按档位能力算好的）。**第一个 = 作者选的默认档**；不在里面的档不让选（flowStore.textTplIssue）
+ */
+export interface TextTplSpec {
+  v: 1;
+  prompt: string;
+  slots: TextTplSlot[];
+  timecode?: boolean;
+  durationSec: number;
+  aspect: VideoAspect;
+  tiers: string[];
+}
+
 export interface VideoTemplate {
   id: string;
   title: string;
@@ -1527,11 +1589,12 @@ export interface VideoTemplate {
   source?: string;
   /**
    * 白模参考视频。**存在 = 白模模板**（出片走 r2v：把参考视频逐镜头复刻、只换主体）；
-   * 缺省 = 经典配方模板。
+   * 缺省 = 经典配方模板，**或者文字模板**（下面的 `text`，2026-10-26）。
    *
-   * ★ 判定一律写**存在性/否定式**（`!t.refVideo` → 经典路）：这是后加字段，老数据
-   *   天然缺它、天然走经典路 —— 不需要迁移，也**绝不许**拿它和某个值等值比
-   *   （`visibility` 那条坑的同族，见 docs/api-contract.md「可见性」）。
+   * ★ 判定一律写**存在性/否定式**：这是后加字段，老数据天然缺它、天然走经典路 —— 不需要迁移，
+   *   也**绝不许**拿它和某个值等值比（`visibility` 那条坑的同族，见 docs/api-contract.md「可见性」）。
+   * ★★ 「是哪一种模板」只问 data/templates.templateKindOf（2026-10-26 起）：`!t.refVideo` 不再等于经典 ——
+   *   文字模板也没有 refVideo，按老二分判它会铺成简约模式、档位标「模型不限」、发布只翻本机布尔。
    * ★ 四个数值是**服务端登记值的镜像**（服务端从 Cloudinary 上传回执写入，不信客户端
    *   报的任何数）。报价的输入时长只从 `durationSec` 读，别拿 `<video>` 在本机现探 ——
    *   报价（App）与结算（server 按 url 反查同一份登记值）必须算同一个数。
@@ -1569,6 +1632,12 @@ export interface VideoTemplate {
      */
     publicId?: string;
   };
+  /**
+   * **文字模板**（纯文字 + 本机封面图，2026-10-26 文字模板 P1）：有它 = 文字模板。形状与红线见 TextTplSpec。
+   * ★ 判否定（缺省 = 不是），后加字段：老数据天然缺它。种类只问 data/templates.templateKindOf。
+   * ★ P1 只存在本机库（mine），不登记服务端、不上市场（data/templates 的登记 / 发布那两处对它整句拒）。
+   */
+  text?: TextTplSpec;
   /**
    * 白模人偶的**角色位**：标记 ↔ 这个标记在原视频里替换掉的是谁。
    * **有内容 = 可以逐个角色位挂人物卡**（V2 白模模板）；缺省 = 没有角色位

@@ -56,7 +56,7 @@ import {
   rederiveKey,
   useStudio,
 } from "../studioStore";
-import { appendQuote, appendSpecsQuote, CUSTOM_MID_MAX, nodeBlank, recastBlocked, nodeDerived, nodeDone, nodeCost, tplOfNode, useFlow, type FlowNode, nodeAnnPlan, annSkipNote, redrawCost, derivesProposals, nodeLocked, deriveCostOf, nodeRefPlan, nodeFramesComeFromDerive, nodeEditFrames, newFlowNode, nodeEmptyFrames, nodeNoDraw, nodeDraftOn, nodeFramed } from "../flowStore";
+import { appendQuote, appendSpecsQuote, CUSTOM_MID_MAX, nodePromptMax, nodeBlank, recastBlocked, nodeDerived, nodeDone, nodeCost, tplOfNode, useFlow, type FlowNode, nodeAnnPlan, annSkipNote, redrawCost, derivesProposals, nodeLocked, deriveCostOf, nodeRefPlan, nodeFramesComeFromDerive, nodeEditFrames, newFlowNode, nodeEmptyFrames, nodeNoDraw, nodeDraftOn, nodeFramed } from "../flowStore";
 import TierRow from "../../components/flow/TierRow";
 // 选模板弹层借画布那一份（铁律六：市场懒加载/分段组折叠/预览确认全在那一个实现里）。
 // FlowCanvas 不 import 本文件，方向安全（它俩只在 StudioPage/FlowPage 各自的树里出现）
@@ -74,6 +74,7 @@ import { CHAIN, focusCam } from "../scene/layout";
 import DeleteSegBtn, { removeNodeWithUndo } from "../../components/flow/DeleteSegBtn";
 import CastPreviewCard from "../../components/flow/CastPreviewCard";
 import FixSegmentBox from "../../components/flow/FixSegmentBox";
+import TextTplBanner from "../../components/flow/TextTplBanner";
 import DraftModeBox from "../../components/flow/DraftModeBox";
 import StageOverlay from "../stage/StageOverlay";
 import ConfirmDialog from "../../components/ConfirmDialog";
@@ -1085,7 +1086,8 @@ function EditorPanel() {
               value={editor.requirement}
               onChange={(e) => useStudio.getState().setRequirement(e.target.value)}
               // 参考图直出这句就是出片提示词，上限按档位（economy.promptMaxOf）；推演 / 自定义照旧 300
-              maxLength={lane === "direct" ? promptMaxOf(editor.videoTier) : 300}
+              // 铸段窗落的是新段，不是文字模板段（文字模板只从模板货架套用）
+              maxLength={lane === "direct" ? promptMaxOf(editor.videoTier, { long: false }) : 300}
               placeholder={t`例：主角在雨里发现了那封信的真正收件人……`}
               className="min-h-0 w-full flex-1 resize-none rounded-lg border border-slate-600 bg-black/30 px-2.5 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-cyan-400"
             />
@@ -1328,8 +1330,8 @@ function ProposalsPanel() {
   function mentionInto(name: string) {
     if (!node || !chosen) return;
     const ins = insertMention(chosen.plot, chosen.plot.length, name);
-    // 上限按档位问 economy.promptMaxOf（2.x 两档 500），与画布同一个数
-    const promptMax = promptMaxOf(node.videoTier);
+    // 上限问 flowStore.nodePromptMax（2.x 两档 500，文字模板段在电影级上 1000），与画布同一个数
+    const promptMax = nodePromptMax(node);
     if (ins.text.length > promptMax) {
       useFlow.setState({ err: t`再写进去就超过 ${promptMax} 字的上限了——先删几个字` });
       return;
@@ -1546,6 +1548,12 @@ function ProposalsPanel() {
           ★ 2.62 发版评审抓到：下面方案台在这种段上不再说「不画帧」（那是假话），卡面退回推演段的说法（「待推演」），
           而直出段没有推演那一步 —— 这一句把「什么时候画、收不收钱」说清 */}
       {!blockout && <DirectNoRefNote node={node} className="mx-3 mt-2 flex-none" />}
+      {/* 文字模板段：出处、出片前还差什么、摘掉出处（与画布同一份 TextTplBanner） */}
+      {node.textTpl && (
+        <div className="mx-3 mt-2 flex-none">
+          <TextTplBanner nodeId={node.id} compact />
+        </div>
+      )}
       {/* 方案台：与工作流页共用同一个组件（铁律六）。工坊这边的"未选定"天然就是
           chosenId === null——不需要另一套标记。白模段没有方案台（上面那段 ★）——走专属面板 */}
       {blockout && chosen ? (
@@ -1605,7 +1613,7 @@ function ProposalsPanel() {
           /* 分镜表（N2，与画布方案台同一份）：选定那一套的剧情框能写成几个镜头、给台词点明谁说的；上限按档位 */
           shotEdit={{
             speakers: (node.materials ?? []).filter((c) => c.type === "character").map((c) => ({ id: c.id, name: c.name, voiced: !!voiceOf(c.id) })),
-            max: promptMaxOf(node.videoTier),
+            max: nodePromptMax(node),
             canAdd: shotsOkOf(node.videoTier),
           }}
           switchWarn={(p) =>
@@ -1655,13 +1663,18 @@ function ProposalsPanel() {
                 onAdd={(url) =>
                   useFlow.getState().addExtraRef(node.id, {
                     url,
-                    name: uniqueRefName(t`参考图`, [...extraRefs.map((x) => x.name), ...(node.materials ?? []).map((c) => c.name)]),
+                    // 默认名「参考 / 参考2…」：不叫「参考图N」—— 那是正文里「第几张图」的叫法，是保留名（refMentions.refNameIssue）
+                    name: uniqueRefName(t`参考`, [...extraRefs.map((x) => x.name), ...(node.materials ?? []).map((c) => c.name)]),
                     role: "free",
                   })
                 }
                 onUpdate={(id, patch) => useFlow.getState().updateExtraRef(node.id, id, patch)}
                 onRemove={(id) => useFlow.getState().removeExtraRef(node.id, id)}
                 onError={(msg) => useFlow.setState({ err: msg })}
+                // 文字模板段的图位（与画布那一面同一套接法）
+                slots={node.textTpl?.slots}
+                onFillSlot={(name, url) => useFlow.getState().addExtraRef(node.id, { url, name, role: "free" })}
+                onReplace={(id, url) => useFlow.getState().replaceExtraRefUrl(node.id, id, url)}
               />
             </div>
           )}

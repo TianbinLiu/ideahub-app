@@ -184,6 +184,9 @@ msgstr "，这一次已经计费"
 #. 列举几个名字时的分隔符
 #. 列举几个名字时的分隔符
 #. 列举几个名字时的分隔符
+#. 列举几个名字时的分隔符
+#. 列举几个名字时的分隔符
+#. 列举几个名字时的分隔符
 #. 列举几个图位名 / 还缺的几项时的分隔符
 #. 列举几个文件名 / 动作组 / 表情名时的分隔符
 #. 列举几个段号时的分隔符（第 1、3 段）
@@ -200,6 +203,7 @@ msgstr "，这一次已经计费"
 #: src/components/flow/LeadShotsWizard.tsx
 #: src/components/flow/panelIssueText.ts
 #: src/components/flow/RefStrip.tsx
+#: src/components/flow/TierRow.tsx
 #: src/components/TemplateShelf.tsx
 #: src/components/VideoCardAnnotator.tsx
 #: src/components/VideoTemplateExtractor.tsx
@@ -1680,6 +1684,10 @@ msgstr "{prefix} · 已等 {sec} 秒"
 msgid "{quotedList}{quotedName}"
 msgstr "{quotedList}{quotedName}"
 
+#: src/components/TextTemplateSheet.tsx
+msgid "{rawLen} 字"
+msgstr "{rawLen} 字"
+
 #: src/data/account.ts
 msgid "{reason}——卡在这台设备上有，但换台设备或重启后可能就没了。"
 msgstr "{reason}——卡在这台设备上有，但换台设备或重启后可能就没了。"
@@ -1740,6 +1748,14 @@ msgstr "{startNames}一段只用一张起拍画面。哪张没适配，点进那
 #: src/components/flow/ModePicker.tsx
 msgid "{steps} 步"
 msgstr "{steps} 步"
+
+#: src/components/TemplateShelf.tsx
+msgid "{textSec}s · 只用文字"
+msgstr "{textSec}s · 只用文字"
+
+#: src/components/TemplateShelf.tsx
+msgid "{textSec}s · 要补 {textSlots} 张图"
+msgstr "{textSec}s · 要补 {textSlots} 张图"
 
 #: src/ai/arkClient.ts
 msgid "{tierLabel}档 · {status} {sec}s"
@@ -1913,6 +1929,11 @@ msgstr "「{0}」最短 {1} 秒"
 #: src/components/TemplateShelf.tsx
 msgid "「{0}」分类下还没有模板——点「全部」看现有的，或做一个发布出来占坑"
 msgstr "「{0}」分类下还没有模板——点「全部」看现有的，或做一个发布出来占坑"
+
+#. placeholder {0}: f.labels.slice(0, 3).join("、")
+#: src/components/TextTemplateSheet.tsx
+msgid "「{0}」加了引号：引号里的字可能被当成台词念出来或写进画面。"
+msgstr "「{0}」加了引号：引号里的字可能被当成台词念出来或写进画面。"
 
 #. placeholder {0}: s.created.name
 #: src/pages/SupportModelNewPage.tsx
@@ -2474,6 +2495,10 @@ msgstr "「{realLabel}」档（会员档：开通会员套餐或充值过任意�
 msgid "「{realLabel}」档（在「工作流」或「简约模式」里直出）"
 msgstr "「{realLabel}」档（在「工作流」或「简约模式」里直出）"
 
+#: src/studio/flowStore.ts
+msgid "「{slot}」是文字模板的图位，名字跟着模板走、不能改——想换图点「换图」"
+msgstr "「{slot}」是文字模板的图位，名字跟着模板走、不能改——想换图点「换图」"
+
 #: src/components/flow/DialogueWizard.tsx
 msgid "「{staleText}」过期了（人、整体交代或双人镜头改过）—— 回上一步重画一下。"
 msgstr "「{staleText}」过期了（人、整体交代或双人镜头改过）—— 回上一步重画一下。"
@@ -2656,6 +2681,11 @@ msgstr "「关注」那格点开是你关注过的人的名单，就地能取关
 #: src/studio/segmentGen.ts
 msgid "「台词别显示成字幕」那句没能发出去（提示词已经写满）——成片里可能出现台词字幕；把要求写短些就能带上"
 msgstr "「台词别显示成字幕」那句没能发出去（提示词已经写满）——成片里可能出现台词字幕；把要求写短些就能带上"
+
+#. placeholder {0}: f.count
+#: src/components/TextTemplateSheet.tsx
+msgid "「时间轴」那一段之外还有 {0} 处像时间码的写法：它们不算进时间轴，也不决定模板时长。"
+msgstr "「时间轴」那一段之外还有 {0} 处像时间码的写法：它们不算进时间轴，也不决定模板时长。"
 
 #: src/components/cut/CutAgentSheet.tsx
 msgid "「片段 2」是时间轴上从左数第 2 个（左上角亮底的数字）。重拍画面在这里办不了，去「圈选」。"
@@ -4286,12 +4316,20 @@ msgid "0/{0} 段"
 msgstr "0/{0} 段"
 
 #: src/components/TemplateCreateCard.tsx
-msgid "① 传视频"
-msgstr "① 传视频"
+#~ msgid "① 传视频"
+#~ msgstr "① 传视频"
+
+#: src/components/TemplateCreateCard.tsx
+msgid "① 传视频 / 写提示词"
+msgstr "① 传视频 / 写提示词"
 
 #: src/components/flow/ModePicker.tsx
 msgid "① 先选出片模型"
 msgstr "① 先选出片模型"
+
+#: src/components/TemplateCreateCard.tsx
+msgid "① 写提示词"
+msgstr "① 写提示词"
 
 #: src/pages/CustomCardPage.tsx
 msgid "① 卡名与简介"
@@ -4315,8 +4353,12 @@ msgid "1K 贴图 · 4 万面 · 加载最快（她 0.9MB／他 0.8MB）· 老手
 msgstr "1K 贴图 · 4 万面 · 加载最快（她 0.9MB／他 0.8MB）· 老手机选它"
 
 #: src/components/TemplateCreateCard.tsx
-msgid "② AI 换成白模"
-msgstr "② AI 换成白模"
+#~ msgid "② AI 换成白模"
+#~ msgstr "② AI 换成白模"
+
+#: src/components/TemplateCreateCard.tsx
+msgid "② 做成模板"
+msgstr "② 做成模板"
 
 #. placeholder {0}: CARD_TYPE_LABELS[type]
 #. placeholder {1}: slots.length
@@ -4332,6 +4374,10 @@ msgstr "② 图位（{0}共 {1} 格）"
 msgid "② 挑一种做法（每一种都是固定几步，跟着点就行）"
 msgstr "② 挑一种做法（每一种都是固定几步，跟着点就行）"
 
+#: src/components/TemplateCreateCard.tsx
+msgid "② 选封面"
+msgstr "② 选封面"
+
 #: src/studio/quality.ts
 msgid "2K 贴图 · 8 万面（推荐；她 1.9MB／他 1.8MB）"
 msgstr "2K 贴图 · 8 万面（推荐；她 1.9MB／他 1.8MB）"
@@ -4346,8 +4392,12 @@ msgstr "③ {0}（选填）"
 #~ msgstr "③ 人物信息"
 
 #: src/components/TemplateCreateCard.tsx
-msgid "③ 发布到市场"
-msgstr "③ 发布到市场"
+#~ msgid "③ 发布到市场"
+#~ msgstr "③ 发布到市场"
+
+#: src/components/TemplateCreateCard.tsx
+msgid "③ 套用出片"
+msgstr "③ 套用出片"
 
 #: src/components/flow/CastPicker.tsx
 msgid "3D 动画"
@@ -4879,6 +4929,10 @@ msgstr "一句话说清 TA 是谁"
 msgid "一句话说清它产出什么（选方案时会显示）"
 msgstr "一句话说清它产出什么（选方案时会显示）"
 
+#: src/components/TextTemplateSheet.tsx
+msgid "一句话说说这个模板拍的是什么"
+msgstr "一句话说说这个模板拍的是什么"
+
 #: src/studio/structuredSkills.ts
 msgid "一场戏 → 九宫格分镜"
 msgstr "一场戏 → 九宫格分镜"
@@ -4985,12 +5039,20 @@ msgid "一段一段来"
 msgstr "一段一段来"
 
 #: src/components/flow/RefStrip.tsx
-msgid "一段最多 {EXTRA_REF_MAX} 张临时参考图"
-msgstr "一段最多 {EXTRA_REF_MAX} 张临时参考图"
+#~ msgid "一段最多 {EXTRA_REF_MAX} 张临时参考图"
+#~ msgstr "一段最多 {EXTRA_REF_MAX} 张临时参考图"
 
 #: src/studio/flowStore.ts
-msgid "一段最多 {EXTRA_REF_MAX} 张临时参考图（它们与帧、卡片形象图共用同一份参考图额度）——先删一张再加"
-msgstr "一段最多 {EXTRA_REF_MAX} 张临时参考图（它们与帧、卡片形象图共用同一份参考图额度）——先删一张再加"
+#~ msgid "一段最多 {EXTRA_REF_MAX} 张临时参考图（它们与帧、卡片形象图共用同一份参考图额度）——先删一张再加"
+#~ msgstr "一段最多 {EXTRA_REF_MAX} 张临时参考图（它们与帧、卡片形象图共用同一份参考图额度）——先删一张再加"
+
+#: src/components/flow/RefStrip.tsx
+msgid "一段最多 {extraMax} 张临时参考图"
+msgstr "一段最多 {extraMax} 张临时参考图"
+
+#: src/studio/flowStore.ts
+msgid "一段最多 {max} 张临时参考图（它们与帧、卡片形象图共用同一份参考图额度）——先删一张再加"
+msgstr "一段最多 {max} 张临时参考图（它们与帧、卡片形象图共用同一份参考图额度）——先删一张再加"
 
 #: src/components/flow/ShotListEditor.tsx
 msgid "一段最多 {SHOT_MAX} 个镜头（再多每个镜头只剩一两秒，模型顾不过来）"
@@ -5037,6 +5099,10 @@ msgstr "一键成片"
 #: src/studio/cutAutoEdit.ts
 msgid "一键成片要 {price} token，余额不够——去「我的」页充值"
 msgstr "一键成片要 {price} token，余额不够——去「我的」页充值"
+
+#: src/components/TextTemplateSheet.tsx
+msgid "一键改"
+msgstr "一键改"
 
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "万一<0>两个人偶站得几乎重叠</0>、从左往右数不出先后：挂在这个位置上 的卡<1>可能会换错人</1>（模型也只能按从左到右去找）。 不想赌，就把这个位子删掉 —— 那两个人偶会保持白色人偶原样出现在片子里。"
@@ -5100,6 +5166,7 @@ msgid "上一次{app}登录被这一次顶替了。"
 msgstr "上一次{app}登录被这一次顶替了。"
 
 #: src/components/PhotoSubjectPicker.tsx
+#: src/components/TextTemplateSheet.tsx
 #: src/components/VideoTemplateExtractor.tsx
 #: src/pages/SupportModelNewPage.tsx
 #: src/pages/SupportPersonaNewPage.tsx
@@ -5427,6 +5494,7 @@ msgid "上面那块现在不是你的包（预览没画出来）。先点「重�
 msgstr "上面那块现在不是你的包（预览没画出来）。先点「重新加载预览」，画出来了再试跑。"
 
 #: src/components/guide/GuideOverlay.tsx
+#: src/components/TextTemplateSheet.tsx
 #: src/pages/SimpleModePage.tsx
 #: src/pages/SupportPersonaNewPage.tsx
 #: src/pages/tutor/TutorRunPage.tsx
@@ -5954,6 +6022,10 @@ msgstr "临时参考图在这一档发不出去（上面那几张变淡的）。
 msgid "临时参考图没能传上去，这一段不带它们出片"
 msgstr "临时参考图没能传上去，这一段不带它们出片"
 
+#: src/studio/segmentGen.ts
+msgid "临时参考图没能传上去（这一段只靠它们出片），视频这一发没有发出去——过一会儿再点一次生成"
+msgstr "临时参考图没能传上去（这一段只靠它们出片），视频这一发没有发出去——过一会儿再点一次生成"
+
 #: src/ai/real.ts
 msgid "为「{name}」铸造 3D 建模 {n}/{total}…"
 msgstr "为「{name}」铸造 3D 建模 {n}/{total}…"
@@ -6404,6 +6476,15 @@ msgstr "从成片截取封面帧"
 msgid "从模板市场下架"
 msgstr "从模板市场下架"
 
+#: src/components/guide/tours.tsx
+msgid "从模板货架打开时，最下面还有一条<0>「只用文字 + 封面」</0>：贴一段提示词、 给写到「图1 / 图2」的地方起名、选一张封面就存好了，<1>做模板不花 token</1>。 别人套用时按名字补上自己的图，出一段的价在选档那一步报。"
+msgstr "从模板货架打开时，最下面还有一条<0>「只用文字 + 封面」</0>：贴一段提示词、 给写到「图1 / 图2」的地方起名、选一张封面就存好了，<1>做模板不花 token</1>。 别人套用时按名字补上自己的图，出一段的价在选档那一步报。"
+
+#. placeholder {0}: VIDEO_ASPECTS.find((a) => a.id === d.aspect)?.label
+#: src/components/TextTemplateSheet.tsx
+msgid "从相册选一张图，按{0}居中裁成 720p。"
+msgstr "从相册选一张图，按{0}居中裁成 720p。"
+
 #: src/pages/WorkshopMinePage.tsx
 msgid "从视频提取卡片"
 msgstr "从视频提取卡片"
@@ -6578,12 +6659,16 @@ msgid "传一段示例视频当整段参考（多图+参考视频模式）"
 msgstr "传一段示例视频当整段参考（多图+参考视频模式）"
 
 #: src/components/TemplateCreateCard.tsx
-msgid "传一段视频，AI 把里面的人换成白模人偶；别人挂上自己的角色卡，就能照着你的镜头拍一遍。"
-msgstr "传一段视频，AI 把里面的人换成白模人偶；别人挂上自己的角色卡，就能照着你的镜头拍一遍。"
+#~ msgid "传一段视频，AI 把里面的人换成白模人偶；别人挂上自己的角色卡，就能照着你的镜头拍一遍。"
+#~ msgstr "传一段视频，AI 把里面的人换成白模人偶；别人挂上自己的角色卡，就能照着你的镜头拍一遍。"
 
 #: src/components/TemplateShelf.tsx
 #~ msgid "传一段视频做白模模板（自己做好的白模片也行）"
 #~ msgstr "传一段视频做白模模板（自己做好的白模片也行）"
+
+#: src/components/TemplateCreateCard.tsx
+msgid "传一段视频让 AI 换成白模人偶，或者只写一段提示词配一张封面；别人换上自己的角色或图片，就能照着你的做法出片。"
+msgstr "传一段视频让 AI 换成白模人偶，或者只写一段提示词配一张封面；别人换上自己的角色或图片，就能照着你的做法出片。"
 
 #: src/components/VideoTemplateExtractor.tsx
 msgid "传上去不花钱 · 下一步框出 {minSec}~{maxSec} 秒 · 报价确认后才开炼"
@@ -6598,8 +6683,12 @@ msgstr "传图"
 #~ msgstr "传图与信息"
 
 #: src/components/TemplateCreateCard.tsx
-msgid "传视频、换白模，别人照着你拍"
-msgstr "传视频、换白模，别人照着你拍"
+#~ msgid "传视频、换白模，别人照着你拍"
+#~ msgstr "传视频、换白模，别人照着你拍"
+
+#: src/components/TemplateCreateCard.tsx
+msgid "传视频或写提示词，别人照着你拍"
+msgstr "传视频或写提示词，别人照着你拍"
 
 #: src/pages/CustomCardPage.tsx
 msgid "传素材，AI 生成图位"
@@ -6989,6 +7078,14 @@ msgstr "例：白裙短发，左耳一枚贝壳耳坠，身形纤细，眼神安
 #~ msgid "例：白裙短发的海边少女，左耳一枚贝壳耳坠，安静但固执；画风为二次元厚涂"
 #~ msgstr "例：白裙短发的海边少女，左耳一枚贝壳耳坠，安静但固执；画风为二次元厚涂"
 
+#: src/components/TextTemplateSheet.tsx
+msgid "例：蓝发少女变装"
+msgstr "例：蓝发少女变装"
+
+#: src/components/TextTemplateSheet.tsx
+msgid "例：蓝发少女站在 Blender 界面里…… 0-2s：换上图1 的服装…… 2-5s：……"
+msgstr "例：蓝发少女站在 Blender 界面里…… 0-2s：换上图1 的服装…… 2-5s：……"
+
 #: src/pages/tutor/TutorNewPage.tsx
 msgid "例：计算机网络"
 msgstr "例：计算机网络"
@@ -7176,6 +7273,10 @@ msgstr "做成模板（不出片）"
 #: src/components/VideoTemplateExtractor.tsx
 msgid "做成模板这一次的消耗"
 msgstr "做成模板这一次的消耗"
+
+#: src/components/TemplateCreateCard.tsx
+msgid "做模板不花 token；套用出片时按出片模型计费，选档那一步会报价。"
+msgstr "做模板不花 token；套用出片时按出片模型计费，选档那一步会报价。"
 
 #: src/components/guide/tours.tsx
 msgid "做自己的模板"
@@ -7494,6 +7595,10 @@ msgstr "先说一句你遇到了什么，客服才知道从哪儿开始。"
 #: src/components/ReportButton.tsx
 msgid "先选一个理由"
 msgstr "先选一个理由"
+
+#: src/components/TextTemplateSheet.tsx
+msgid "先选一张封面"
+msgstr "先选一张封面"
 
 #: src/pages/RecipePage.tsx
 msgid "先选角"
@@ -8075,6 +8180,14 @@ msgstr "写一场戏，AI 写成 4~9 格分镜、一次画出整组画面；挑�
 msgid "写一段卡组简介：这套卡适合生成什么样的视频？"
 msgstr "写一段卡组简介：这套卡适合生成什么样的视频？"
 
+#: src/components/TemplateCreateCard.tsx
+msgid "写一段提示词、选一张封面图，做成能反复套用的模板；别人补上自己的图片，就能照着你的做法出片。"
+msgstr "写一段提示词、选一张封面图，做成能反复套用的模板；别人补上自己的图片，就能照着你的做法出片。"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "写一段提示词、选一张封面图；不传视频，做模板不花 token"
+msgstr "写一段提示词、选一张封面图；不传视频，做模板不花 token"
+
 #: src/pages/tutor/TutorRunPage.tsx
 msgid "写下你的答案…"
 msgstr "写下你的答案…"
@@ -8111,6 +8224,11 @@ msgstr "写分镜没成：{why}。{moneyLine}"
 #: src/studio/structuredSkills.ts
 msgid "写分镜要 {price} token，余额不够——去「我的」页充值"
 msgstr "写分镜要 {price} token，余额不够——去「我的」页充值"
+
+#. placeholder {0}: f.expose.slice(0, 3).join("、")
+#: src/components/TextTemplateSheet.tsx
+msgid "写到了「{0}」：以后发布到市场时会进人工审核。"
+msgstr "写到了「{0}」：以后发布到市场时会进人工审核。"
 
 #. placeholder {0}: picked.size
 #: src/components/flow/ThemeRewriteSheet.tsx
@@ -8153,6 +8271,10 @@ msgstr "写成 {DIALOGUE_LINES_MIN}~{DIALOGUE_LINES_MAX} 句，两人轮流说�
 #: src/components/flow/GridShotsWizard.tsx
 msgid "写成 {GRID_SHOTS_MIN}~{GRID_SHOTS_MAX} 格：每格写景别、画面（一个瞬间，给画面用）、动作（接下来几秒发生什么，给视频用）和画面里有谁。写完逐格可改、可删。"
 msgstr "写成 {GRID_SHOTS_MIN}~{GRID_SHOTS_MAX} 格：每格写景别、画面（一个瞬间，给画面用）、动作（接下来几秒发生什么，给视频用）和画面里有谁。写完逐格可改、可删。"
+
+#: src/components/TemplateCreateCard.tsx
+msgid "写提示词、选封面，别人照着你拍"
+msgstr "写提示词、选封面，别人照着你拍"
 
 #: src/studio/cutAutoEdit.ts
 msgid "写旁白"
@@ -8604,6 +8726,10 @@ msgstr "分段组 · 整条已切成 {groupCount} 段各自登记（这张卡是
 #: src/pages/PublishPage.tsx
 msgid "分类"
 msgstr "分类"
+
+#: src/components/TextTemplateSheet.tsx
+msgid "分类（选填）"
+msgstr "分类（选填）"
 
 #: src/components/flow/GridShotsWizard.tsx
 #: src/pages/RecipePage.tsx
@@ -9677,6 +9803,10 @@ msgstr "去我的仓库做一张"
 msgid "去掉"
 msgstr "去掉"
 
+#: src/components/TextTemplateSheet.tsx
+msgid "去掉引号"
+msgstr "去掉引号"
+
 #: src/components/flow/RefMarkToggle.tsx
 msgid "去掉示例视频里的水印 / 台标"
 msgstr "去掉示例视频里的水印 / 台标"
@@ -9768,6 +9898,11 @@ msgstr "参数版"
 msgid "参数这一栏这版还不能在 App 里改。对不上的话去 Cubism 里把参数 id 改成标准名（ParamAngleX 这一套）再导出一次。"
 msgstr "参数这一栏这版还不能在 App 里改。对不上的话去 Cubism 里把参数 id 改成标准名（ParamAngleX 这一套）再导出一次。"
 
+#: src/components/flow/FlowCanvas.tsx
+#: src/studio/ui/projection.tsx
+msgid "参考"
+msgstr "参考"
+
 #: src/studio/ui/SchemeEditorSheet.tsx
 msgid "参考主裁剪"
 msgstr "参考主裁剪"
@@ -9778,8 +9913,8 @@ msgstr "参考卡片形象直接出片（省掉设定帧）…"
 
 #: src/components/flow/FlowCanvas.tsx
 #: src/studio/ui/projection.tsx
-msgid "参考图"
-msgstr "参考图"
+#~ msgid "参考图"
+#~ msgstr "参考图"
 
 #: src/pages/CardDetailPage.tsx
 msgid "参考图怎么被 AI 取用"
@@ -10514,6 +10649,14 @@ msgstr "只有模板作者能改分类"
 msgid "只用文字"
 msgstr "只用文字"
 
+#: src/components/VideoTemplateExtractor.tsx
+msgid "只用文字 + 封面"
+msgstr "只用文字 + 封面"
+
+#: src/components/TextTemplateSheet.tsx
+msgid "只用文字 + 封面做模板"
+msgstr "只用文字 + 封面做模板"
+
 #: src/data/economy.ts
 msgid "只画 1 张主图 · 它同时就是卡面"
 msgstr "只画 1 张主图 · 它同时就是卡面"
@@ -10894,6 +11037,7 @@ msgstr "同时上架到模板市场（工作流模板）"
 #~ msgstr "同样 2 张，换最新旗舰模型来画 · 形象更准、细节更实，出图较慢"
 
 #: src/components/flow/RefStrip.tsx
+#: src/components/TextTemplateSheet.tsx
 #: src/pages/SupportModelNewPage.tsx
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "名字"
@@ -10968,6 +11112,10 @@ msgstr "和 AI 客服聊不明白的问题，点「转人工」就会出现在�
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "和你是什么关系"
 msgstr "和你是什么关系"
+
+#: src/components/TextTemplateSheet.tsx
+msgid "和别的图位重名了"
+msgstr "和别的图位重名了"
 
 #: src/studio/ui/NpcDialog.tsx
 msgid "和铸卡师说点什么…"
@@ -11170,7 +11318,9 @@ msgstr "国风"
 msgid "图会被怎么处理"
 msgstr "图会被怎么处理"
 
+#: src/components/TextTemplateSheet.tsx
 #: src/pages/CustomCardPage.tsx
+#: src/pages/TemplateDetailPage.tsx
 msgid "图位"
 msgstr "图位"
 
@@ -11190,6 +11340,14 @@ msgstr "图位（{0}/{MAX_CARD_VIEWS}）"
 msgid "图位（按方案「{0}」· {1} 格）"
 msgstr "图位（按方案「{0}」· {1} 格）"
 
+#: src/data/templates.ts
+msgid "图位「{name}」在正文里没被点到——在正文里写一处「@{name}」，或者删掉这个图位"
+msgstr "图位「{name}」在正文里没被点到——在正文里写一处「@{name}」，或者删掉这个图位"
+
+#: src/data/templates.ts
+msgid "图位「{shown}」的名字用不了（空的、与别的图位重名，或者是「图1 / 参考图2」这类编号写法）——回参考图那一步改个名字"
+msgstr "图位「{shown}」的名字用不了（空的、与别的图位重名，或者是「图1 / 参考图2」这类编号写法）——回参考图那一步改个名字"
+
 #: src/data/promptSchemes.ts
 msgid "图位「{tag}」要 AI 出图，但还没写提示词"
 msgstr "图位「{tag}」要 AI 出图，但还没写提示词"
@@ -11201,6 +11359,10 @@ msgstr "图位名「{tag}」超过 {VIEW_TAG_MAX} 个字——太长的话这张
 #: src/components/guide/tours.tsx
 msgid "图位怎么摆、怎么改"
 msgstr "图位怎么摆、怎么改"
+
+#: src/studio/segmentGen.ts
+msgid "图位的图没能传上去（这个文字模板靠它们锁定画面），视频这一发没有发出去——过一会儿再点一次生成"
+msgstr "图位的图没能传上去（这个文字模板靠它们锁定画面），视频这一发没有发出去——过一会儿再点一次生成"
 
 #: src/components/CoverPicker.tsx
 msgid "图片加载失败"
@@ -11606,10 +11768,29 @@ msgstr "套模板"
 msgid "套用＝复刻这段的场景与运镜，人偶换成你挂的角色卡。时长与画幅跟这段视频走。"
 msgstr "套用＝复刻这段的场景与运镜，人偶换成你挂的角色卡。时长与画幅跟这段视频走。"
 
+#. placeholder {0}: priceTag(quote.tokens)
+#: src/components/TextTemplateSheet.tsx
+msgid "套用一次出一段 {0}。做模板本身不花 token。"
+msgstr "套用一次出一段 {0}。做模板本身不花 token。"
+
+#. placeholder {0}: priceTag(quote.tokens)
+#: src/components/TextTemplateSheet.tsx
+msgid "套用一次出一段 {0}（含先画 1 张开头画面）。做模板本身不花 token。"
+msgstr "套用一次出一段 {0}（含先画 1 张开头画面）。做模板本身不花 token。"
+
 #. placeholder {0}: fmtTokens(tokens)
 #: src/pages/TemplateDetailPage.tsx
 msgid "套用一次约 <0>{0}</0> token（按模板视频时长计）"
 msgstr "套用一次约 <0>{0}</0> token（按模板视频时长计）"
+
+#. placeholder {0}: textSpec.slots.map((x) => x.name).join("、")
+#: src/pages/TemplateDetailPage.tsx
+msgid "套用之后在参考清单里按名字补上 {textSlots} 张图（{0}），补齐才能出片。"
+msgstr "套用之后在参考清单里按名字补上 {textSlots} 张图（{0}），补齐才能出片。"
+
+#: src/pages/TemplateDetailPage.tsx
+msgid "套用后只能在这几档之间换"
+msgstr "套用后只能在这几档之间换"
 
 #: src/pages/TemplateDetailPage.tsx
 msgid "套用后在「画质」那一排自己选"
@@ -11618,6 +11799,10 @@ msgstr "套用后在「画质」那一排自己选"
 #: src/pages/TemplateDetailPage.tsx
 msgid "套用失败"
 msgstr "套用失败"
+
+#: src/components/TextTemplateSheet.tsx
+msgid "套用的人默认落在这一档；跑得了的档都会记进模板，套用的人可以在这几档之间换。"
+msgstr "套用的人默认落在这一档；跑得了的档都会记进模板，套用的人可以在这几档之间换。"
 
 #: src/pages/SimpleModePage.tsx
 msgid "套用的模板"
@@ -11797,6 +11982,10 @@ msgstr "存草稿"
 msgid "存这张卡"
 msgstr "存这张卡"
 
+#: src/components/TextTemplateSheet.tsx
+msgid "存进我的模板"
+msgstr "存进我的模板"
+
 #: src/pages/CustomCardPage.tsx
 msgid "存进本机卡片库…"
 msgstr "存进本机卡片库…"
@@ -11851,6 +12040,7 @@ msgid "安装并使用"
 msgstr "安装并使用"
 
 #: src/components/AvatarPicker.tsx
+#: src/components/TextTemplateSheet.tsx
 #: src/components/VideoCardAnnotator.tsx
 #: src/pages/DeckDetailPage.tsx
 #: src/pages/tutor/TutorNewPage.tsx
@@ -12119,6 +12309,7 @@ msgstr "封禁挡的是<0>登录与一切带登录态的请求</0>，对方会�
 #: src/components/BranchPlayer.tsx
 #: src/components/CoverPicker.tsx
 #: src/components/SegmentPlayer.tsx
+#: src/components/TextTemplateSheet.tsx
 #: src/data/publishAssets.ts
 #: src/pages/SupportModelNewPage.tsx
 msgid "封面"
@@ -12681,6 +12872,11 @@ msgstr "已复制"
 msgid "已复制主页链接"
 msgstr "已复制主页链接"
 
+#. placeholder {0}: saved.title
+#: src/components/TextTemplateSheet.tsx
+msgid "已存进「我的模板」：{0}"
+msgstr "已存进「我的模板」：{0}"
+
 #: src/pages/tutor/TutorHomePage.tsx
 msgid "已学完"
 msgstr "已学完"
@@ -12794,6 +12990,10 @@ msgstr "已接上 {0} 段"
 #: src/components/VideoTemplateExtractor.tsx
 msgid "已提取模板「{gotTitle}」"
 msgstr "已提取模板「{gotTitle}」"
+
+#: src/components/flow/TextTplBanner.tsx
+msgid "已摘掉模板出处：现在是普通的参考图直出段，正文和图都留着"
+msgstr "已摘掉模板出处：现在是普通的参考图直出段，正文和图都留着"
 
 #: src/components/ReportButton.tsx
 msgid "已收到，管理员会尽快处理。"
@@ -12919,8 +13119,12 @@ msgid "已经有一条工作流在跑"
 msgstr "已经有一条工作流在跑"
 
 #: src/components/TemplateCreateCard.tsx
-msgid "已经有做好的白模 / 人偶片？点开后选「它本来就是白模 / 人偶片，直接用」，不用再让 AI 换一遍。每条路都要花 token，按下开始之前会先报出价钱。"
-msgstr "已经有做好的白模 / 人偶片？点开后选「它本来就是白模 / 人偶片，直接用」，不用再让 AI 换一遍。每条路都要花 token，按下开始之前会先报出价钱。"
+msgid "已经有做好的白模 / 人偶片？点开后选「它本来就是白模 / 人偶片，直接用」，不用再让 AI 换一遍。传视频的两条都要花 token，按下开始之前会先报出价钱；只用文字 + 封面做模板不花。"
+msgstr "已经有做好的白模 / 人偶片？点开后选「它本来就是白模 / 人偶片，直接用」，不用再让 AI 换一遍。传视频的两条都要花 token，按下开始之前会先报出价钱；只用文字 + 封面做模板不花。"
+
+#: src/components/TemplateCreateCard.tsx
+#~ msgid "已经有做好的白模 / 人偶片？点开后选「它本来就是白模 / 人偶片，直接用」，不用再让 AI 换一遍。每条路都要花 token，按下开始之前会先报出价钱。"
+#~ msgstr "已经有做好的白模 / 人偶片？点开后选「它本来就是白模 / 人偶片，直接用」，不用再让 AI 换一遍。每条路都要花 token，按下开始之前会先报出价钱。"
 
 #: src/components/blockout/VisionFramePicker.tsx
 msgid "已经标满 {BLOCKOUTIZE_FRAME_MAX} 帧了（再多也只是买重复的画面）——先删掉一帧再标。"
@@ -14278,6 +14482,10 @@ msgstr "把 1～3 种音色按比例调成自己的嗓子，可以发布成声�
 msgid "把「<0>{0}</0>」挂到 <1>{1}</1> 身上？"
 msgstr "把「<0>{0}</0>」挂到 <1>{1}</1> 身上？"
 
+#: src/components/guide/tours.tsx
+msgid "把一段参考视频（或者一段提示词）变成能反复套用的<0>模板</0>。第一步就是在这里<1>选做法</1>：选哪条决定后面几步长什么样，也决定花不花钱、花多少。<2>上传之前</2>随时能点「‹ 换一种做法」回来换。 传完就定死了——要换只能取消整个重来。"
+msgstr "把一段参考视频（或者一段提示词）变成能反复套用的<0>模板</0>。第一步就是在这里<1>选做法</1>：选哪条决定后面几步长什么样，也决定花不花钱、花多少。<2>上传之前</2>随时能点「‹ 换一种做法」回来换。 传完就定死了——要换只能取消整个重来。"
+
 #: src/studio/ui/FuseFrameSheet.tsx
 msgid "把几张图合成一张画面。把上一段的<0>结尾帧</0>融成下一段的<1>开头帧</1>，两段接起来就没有跳变——这是做长片\"看不出接缝\"的常用手法。"
 msgstr "把几张图合成一张画面。把上一段的<0>结尾帧</0>融成下一段的<1>开头帧</1>，两段接起来就没有跳变——这是做长片\"看不出接缝\"的常用手法。"
@@ -14319,6 +14527,10 @@ msgstr "把播放头挪到第几秒"
 #: src/components/blockout/VisionFramePicker.tsx
 msgid "把播放头挪到选段里的第几秒"
 msgstr "把播放头挪到选段里的第几秒"
+
+#: src/components/TextTemplateSheet.tsx
+msgid "把整段提示词贴进来：人物、场景、按秒写的时间轴、约束都行。写到「图1 / 图2…」的地方，下一步会变成图位，套用的人按名字补自己的图。做模板不花 token。"
+msgstr "把整段提示词贴进来：人物、场景、按秒写的时间轴、约束都行。写到「图1 / 图2…」的地方，下一步会变成图位，套用的人按名字补自己的图。做模板不花 token。"
 
 #: src/components/flow/ScriptSkillSheet.tsx
 msgid "把整篇剧本贴进来：谁在哪儿做什么、接着发生什么……（故事梗概或分场脚本都行）"
@@ -14538,8 +14750,8 @@ msgid "拨打 {tel}"
 msgstr "拨打 {tel}"
 
 #: src/components/guide/tours.tsx
-msgid "拿一段参考视频，让 AI 把它变成能反复套用的<0>模板</0>。第一步就是在这里<1>选做法</1>：选哪条决定后面几步长什么样，也决定花不花钱、花多少。<2>上传之前</2>随时能点「‹ 换一种做法」回来换。 传完就定死了——要换只能取消整个重来。"
-msgstr "拿一段参考视频，让 AI 把它变成能反复套用的<0>模板</0>。第一步就是在这里<1>选做法</1>：选哪条决定后面几步长什么样，也决定花不花钱、花多少。<2>上传之前</2>随时能点「‹ 换一种做法」回来换。 传完就定死了——要换只能取消整个重来。"
+#~ msgid "拿一段参考视频，让 AI 把它变成能反复套用的<0>模板</0>。第一步就是在这里<1>选做法</1>：选哪条决定后面几步长什么样，也决定花不花钱、花多少。<2>上传之前</2>随时能点「‹ 换一种做法」回来换。 传完就定死了——要换只能取消整个重来。"
+#~ msgstr "拿一段参考视频，让 AI 把它变成能反复套用的<0>模板</0>。第一步就是在这里<1>选做法</1>：选哪条决定后面几步长什么样，也决定花不花钱、花多少。<2>上传之前</2>随时能点「‹ 换一种做法」回来换。 传完就定死了——要换只能取消整个重来。"
 
 #: src/components/guide/tours.tsx
 #~ msgid "拿一段参考视频，让 AI 把它变成能反复套用的<0>模板</0>。第一步就是在这里<1>选做法</1>：选哪条决定后面几步长什么样，也决定花不花钱、花多少。<2>上传之前</2>随时能点「‹ 换一种做法」回来换（在白模与经典之间换，已经选好的文件要重新选一次）。 传完就定死了——要换只能取消整个重来。"
@@ -14655,6 +14867,10 @@ msgstr "按 @{0} 的流程做的同款：《{1}》"
 #: src/studio/studioStore.ts
 msgid "按「{q}」翻出 {count} 张。"
 msgstr "按「{q}」翻出 {count} 张。"
+
+#: src/studio/segmentGen.ts
+msgid "按临时参考图直接出片（省掉设定帧）…"
+msgstr "按临时参考图直接出片（省掉设定帧）…"
 
 #: src/studio/structuredSkills.ts
 msgid "按主题改写全片剧本"
@@ -15018,6 +15234,10 @@ msgstr "换人不换景"
 msgid "换到「{0}」档会有这些变化："
 msgstr "换到「{0}」档会有这些变化："
 
+#: src/components/flow/RefStrip.tsx
+msgid "换图"
+msgstr "换图"
+
 #. placeholder {0}: run.plan.fades.length
 #: src/components/cut/AutoEditSheet.tsx
 msgid "换场的 {0} 处加闪黑（上面标着 ◐ 的片段）"
@@ -15341,6 +15561,15 @@ msgstr "提炼模板素材卡…"
 msgid "提示上那一段已经不在垃圾桶里了（之后又删过别的段），没有恢复"
 msgstr "提示上那一段已经不在垃圾桶里了（之后又删过别的段），没有恢复"
 
+#: src/components/TextTemplateSheet.tsx
+msgid "提示套用的人放什么图（选填，例：全身立绘，正面）"
+msgstr "提示套用的人放什么图（选填，例：全身立绘，正面）"
+
+#: src/components/TextTemplateSheet.tsx
+#: src/pages/TemplateDetailPage.tsx
+msgid "提示词"
+msgstr "提示词"
+
 #: src/studio/blockoutPrompt.ts
 msgid "提示词合成失败：AI 什么都没返回——这一段的要求请自己写，或用下面那份默认写法。"
 msgstr "提示词合成失败：AI 什么都没返回——这一段的要求请自己写，或用下面那份默认写法。"
@@ -15380,6 +15609,14 @@ msgstr "提示词合成失败（{why}）——这一段的要求请自己写，�
 #: src/ai/minimaxVideo.ts
 msgid "提示词或图片没过 MiniMax 的内容审核——改一改再出片"
 msgstr "提示词或图片没过 MiniMax 的内容审核——改一改再出片"
+
+#: src/ai/arkClient.ts
+msgid "提示词没过方舟的内容审核——改掉里面可能被拦的说法再试"
+msgstr "提示词没过方舟的内容审核——改掉里面可能被拦的说法再试"
+
+#: src/studio/segmentGen.ts
+msgid "提示词没过方舟的内容审核——这一段的正文来自文字模板，换图没用：改掉正文里可能被拦的说法再试"
+msgstr "提示词没过方舟的内容审核——这一段的正文来自文字模板，换图没用：改掉正文里可能被拦的说法再试"
 
 #: src/pages/DiscoverPage.tsx
 msgid "搜人功能还没上线 · 之后会有，App 不用重装"
@@ -15512,6 +15749,14 @@ msgstr "摘掉"
 #: src/components/flow/FlowCanvas.tsx
 msgid "摘掉模板，改为自选"
 msgstr "摘掉模板，改为自选"
+
+#: src/components/flow/TextTplBanner.tsx
+msgid "摘掉模板出处"
+msgstr "摘掉模板出处"
+
+#: src/studio/flowStore.ts
+msgid "摘掉模板出处之后正文放不下（多出来的 {over} 字会在出片时从尾巴截掉）——先把正文删短 {over} 字再摘"
+msgstr "摘掉模板出处之后正文放不下（多出来的 {over} 字会在出片时从尾巴截掉）——先把正文删短 {over} 字再摘"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "摸{areaName}播哪个动作"
@@ -15743,6 +15988,10 @@ msgstr "改写中…"
 #: src/components/flow/ThemeRewriteSheet.tsx
 msgid "改写了 {0} 段，勾掉不想改的"
 msgstr "改写了 {0} 段，勾掉不想改的"
+
+#: src/components/TextTemplateSheet.tsx
+msgid "改写成镜头"
+msgstr "改写成镜头"
 
 #: src/studio/structuredSkills.ts
 msgid "改写要 {p} token，余额不够——去「我的」页充值"
@@ -16030,9 +16279,61 @@ msgstr "文件地址不对，这一份没能交出去。"
 msgid "文件格式：{0}"
 msgstr "文件格式：{0}"
 
+#: src/components/TemplateShelf.tsx
+msgid "文字"
+msgstr "文字"
+
 #: src/studio/ui/NpcDialog.tsx
 msgid "文字描述"
 msgstr "文字描述"
+
+#: src/components/TextTemplateSheet.tsx
+msgid "文字模板"
+msgstr "文字模板"
+
+#: src/pages/TemplateDetailPage.tsx
+msgid "文字模板 · {textSec}s · 要补 {textSlots} 张图"
+msgstr "文字模板 · {textSec}s · 要补 {textSlots} 张图"
+
+#: src/components/flow/TierRow.tsx
+msgid "文字模板「{title}」只在这几档上跑：{names}"
+msgstr "文字模板「{title}」只在这几档上跑：{names}"
+
+#: src/data/templates.ts
+msgid "文字模板不带参考视频——这条模板的数据不对，没有存"
+msgstr "文字模板不带参考视频——这条模板的数据不对，没有存"
+
+#: src/data/templates.ts
+msgid "文字模板最多 {max} 个图位"
+msgstr "文字模板最多 {max} 个图位"
+
+#: src/pages/TemplateDetailPage.tsx
+msgid "文字模板现在只存在这台设备上，发布到市场要等下一版。"
+msgstr "文字模板现在只存在这台设备上，发布到市场要等下一版。"
+
+#: src/studio/segmentGen.ts
+msgid "文字模板的图位还没补齐：{names} 还没有同名的参考图（缺 {n} 张），视频这一发没有发出去——在参考清单里给每个图位各加一张图、名字与图位一致，再点生成"
+msgstr "文字模板的图位还没补齐：{names} 还没有同名的参考图（缺 {n} 张），视频这一发没有发出去——在参考清单里给每个图位各加一张图、名字与图位一致，再点生成"
+
+#: src/data/templates.ts
+msgid "文字模板的时长不对，回规格那一步重选"
+msgstr "文字模板的时长不对，回规格那一步重选"
+
+#: src/data/templates.ts
+msgid "文字模板的正文是空的，没法存"
+msgstr "文字模板的正文是空的，没法存"
+
+#: src/data/templates.ts
+#~ msgid "文字模板至少要有一档能出片——回规格那一步选一档"
+#~ msgstr "文字模板至少要有一档能出片——回规格那一步选一档"
+
+#: src/data/templates.ts
+msgid "文字模板这一版只存在这台设备上，还不能登记到服务器（上市场要等下一版）"
+msgstr "文字模板这一版只存在这台设备上，还不能登记到服务器（上市场要等下一版）"
+
+#: src/data/templates.ts
+msgid "文字模板这一版只存在这台设备上、还不能上市场（要等下一版）"
+msgstr "文字模板这一版只存在这台设备上、还不能上市场（要等下一版）"
 
 #: src/components/CardModelFit.tsx
 #~ msgid "文字版形象描述（{noRefNames}、真人档用）"
@@ -16221,6 +16522,7 @@ msgstr "无预览帧"
 #: src/components/flow/FlowCanvas.tsx
 #: src/components/flow/LeadShotsWizard.tsx
 #: src/components/flow/SegSettings.tsx
+#: src/components/TextTemplateSheet.tsx
 #: src/studio/ui/PlanBoard.tsx
 msgid "时长"
 msgstr "时长"
@@ -16252,6 +16554,14 @@ msgstr "时间轴上还没有片段，没有可写的"
 #: src/components/guide/tours.tsx
 msgid "时间轴下面那一块：AI <0>只看这几帧</0>去认画面里有谁—— 被看漏的人照样会变成白人偶，但清单里<1>没有他的位置，谁的卡都挂不上</1>， 还会把别人的位置挤歪。可以让它自动挑，也可以自己标人最全的几帧；<2>帧数不进报价</2>：多看几帧更准，也不额外收费。"
 msgstr "时间轴下面那一块：AI <0>只看这几帧</0>去认画面里有谁—— 被看漏的人照样会变成白人偶，但清单里<1>没有他的位置，谁的卡都挂不上</1>， 还会把别人的位置挤歪。可以让它自动挑，也可以自己标人最全的几帧；<2>帧数不进报价</2>：多看几帧更准，也不额外收费。"
+
+#: src/components/TextTemplateSheet.tsx
+msgid "时间轴中间有空档或重叠，检查一下。"
+msgstr "时间轴中间有空档或重叠，检查一下。"
+
+#: src/components/TextTemplateSheet.tsx
+msgid "时间轴写到第 {timecodeEnd} 秒，模板时长至少要 {timecodeEnd} 秒。"
+msgstr "时间轴写到第 {timecodeEnd} 秒，模板时长至少要 {timecodeEnd} 秒。"
 
 #: src/pages/CutPage.tsx
 msgid "时间轴刚好在这一拍被改过，这一句没有落地——再说一次"
@@ -16395,6 +16705,16 @@ msgstr "有 {0} 个文件不在我们收的类型里，不会被带上（{1}）�
 msgid "有 {0} 个阶段该回访了"
 msgstr "有 {0} 个阶段该回访了"
 
+#. placeholder {0}: f.count
+#: src/components/TextTemplateSheet.tsx
+msgid "有 {0} 句台词：出声的档会把它配成语音。"
+msgstr "有 {0} 句台词：出声的档会把它配成语音。"
+
+#. placeholder {0}: f.count
+#: src/components/TextTemplateSheet.tsx
+msgid "有 {0} 处【】：模型会把它当成要画出来的字。建议改成「标题：」的写法。"
+msgstr "有 {0} 处【】：模型会把它当成要画出来的字。建议改成「标题：」的写法。"
+
 #. placeholder {0}: outside.length
 #. placeholder {1}: outside.map((m) => m.toFixed(1)).join(" / ")
 #: src/components/blockout/BoxFramePicker.tsx
@@ -16497,6 +16817,14 @@ msgstr "有一发白模化还没取回结果"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "有一句超过 {0} 字了，发布会被服务端拒掉。"
 msgstr "有一句超过 {0} 字了，发布会被服务端拒掉。"
+
+#: src/ai/arkClient.ts
+msgid "有一张参考图方舟没拉到（多半是图刚传上去还没就绪）——过一会儿再点一次生成"
+msgstr "有一张参考图方舟没拉到（多半是图刚传上去还没就绪）——过一会儿再点一次生成"
+
+#: src/ai/arkClient.ts
+msgid "有一张参考图没过方舟的审核（常见是真人照片）——换掉那张图再试"
+msgstr "有一张参考图没过方舟的审核（常见是真人照片）——换掉那张图再试"
 
 #: src/studio/cutAgent.ts
 msgid "有一截没听懂，问模型又没问成（{reason}）。"
@@ -16601,6 +16929,10 @@ msgstr "有一段正在生成中，等它跑完再换走向（换走向会挪动
 #: src/studio/flowStore.ts
 msgid "有一段正在生成中，等它跑完再接"
 msgstr "有一段正在生成中，等它跑完再接"
+
+#: src/studio/flowStore.ts
+msgid "有一段正在生成中，等它跑完再摘模板出处"
+msgstr "有一段正在生成中，等它跑完再摘模板出处"
 
 #: src/studio/flowStore.ts
 msgid "有一段正在生成中，等它跑完再改「去水印」"
@@ -17782,6 +18114,10 @@ msgstr "模板市场 · 工作流"
 msgid "模板市场的「工作流」货架上会多一张卡，这条作品就是它的示例视频；别人从那儿点进来按这条流程做同款。随时能在编辑页下架。"
 msgstr "模板市场的「工作流」货架上会多一张卡，这条作品就是它的示例视频；别人从那儿点进来按这条流程做同款。随时能在编辑页下架。"
 
+#: src/data/templates.ts
+msgid "模板时长在这一档的时长范围之外"
+msgstr "模板时长在这一档的时长范围之外"
+
 #: src/components/guide/tours.tsx
 msgid "模板是成品配方"
 msgstr "模板是成品配方"
@@ -17793,6 +18129,11 @@ msgstr "模板标题（别人在市场里看到的就是它）"
 #: src/components/VideoTemplateExtractor.tsx
 msgid "模板登记好了，去「我的模板」看看"
 msgstr "模板登记好了，去「我的模板」看看"
+
+#. placeholder {0}: gaps.length
+#: src/components/flow/RefStrip.tsx
+msgid "模板的图位还缺 {0} 张，补齐才能出片："
+msgstr "模板的图位还缺 {0} 张，补齐才能出片："
 
 #: src/api/uploads.ts
 msgid "模板视频只收 mp4 / mov 格式（AI 出片引擎只认这两种），当前是 {mime}，请转码后重试。"
@@ -18208,6 +18549,7 @@ msgid "正在确认服务器支持哪几种模板…"
 msgstr "正在确认服务器支持哪几种模板…"
 
 #: src/components/TemplateCreateCard.tsx
+#: src/components/TextTemplateSheet.tsx
 msgid "正在确认登录状态，稍等一下再点"
 msgstr "正在确认登录状态，稍等一下再点"
 
@@ -18317,6 +18659,31 @@ msgstr "正在重试…"
 msgid "正在问总大小…"
 msgstr "正在问总大小…"
 
+#: src/data/templates.ts
+msgid "正文太长了：文字模板最多 {max} 字（只有电影级收这么长；其余档 500 字）——回第一步删短一些"
+msgstr "正文太长了：文字模板最多 {max} 字（只有电影级收这么长；其余档 500 字）——回第一步删短一些"
+
+#: src/studio/flowStore.ts
+#~ msgid "正文有 {len} 字，摘掉模板出处之后这一档最多 {max} 字（多出来的会在出片时被截掉）——先把正文删到 {max} 字以内再摘"
+#~ msgstr "正文有 {len} 字，摘掉模板出处之后这一档最多 {max} 字（多出来的会在出片时被截掉）——先把正文删到 {max} 字以内再摘"
+
+#: src/data/templates.ts
+msgid "正文比这一档放得下的长"
+msgstr "正文比这一档放得下的长"
+
+#: src/data/templates.ts
+msgid "正文的时间轴写到第 {m} 秒，模板时长只有 {durationSec} 秒——回规格那一步把时长调到 {m} 秒以上，或者把时间轴改短"
+msgstr "正文的时间轴写到第 {m} 秒，模板时长只有 {durationSec} 秒——回规格那一步把时长调到 {m} 秒以上，或者把时间轴改短"
+
+#: src/studio/flowStore.ts
+msgid "正文的时间轴写到第 {m} 秒，这一段只有 {dur} 秒——后面那几秒模型拍不到、钱照整段收。去 ⚙ 本段设置把时长调到 {m} 秒以上，或者把时间轴改短"
+msgstr "正文的时间轴写到第 {m} 秒，这一段只有 {dur} 秒——后面那几秒模型拍不到、钱照整段收。去 ⚙ 本段设置把时长调到 {m} 秒以上，或者把时间轴改短"
+
+#. placeholder {0}: f.hits.join(" ")
+#: src/components/TextTemplateSheet.tsx
+msgid "正文里写了 {0}——时长、画幅、分辨率在「规格」那一步选，先把这几处删掉。"
+msgstr "正文里写了 {0}——时长、画幅、分辨率在「规格」那一步选，先把这几处删掉。"
+
 #: src/components/StepDots.tsx
 msgid "步骤"
 msgstr "步骤"
@@ -18339,6 +18706,10 @@ msgstr "段已删"
 #: src/studio/structuredSkills.ts
 msgid "段数对不上就整发作废，不写回"
 msgstr "段数对不上就整发作废，不写回"
+
+#: src/components/TextTemplateSheet.tsx
+msgid "段数比一段能放的镜头（{SHOT_MAX} 个）多：保留秒数只能在电影级上跑；想在别的档上跑，先把相邻几段合并成 {SHOT_MAX} 段以内。"
+msgstr "段数比一段能放的镜头（{SHOT_MAX} 个）多：保留秒数只能在电影级上跑；想在别的档上跑，先把相邻几段合并成 {SHOT_MAX} 段以内。"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "段间承接"
@@ -18372,6 +18743,10 @@ msgstr "每个卡组下面有一颗<0>「分享到创意工坊」</0>：分享�
 #: src/pages/CardDetailPage.tsx
 msgid "每个图位各锁住一件事：{parts}。"
 msgstr "每个图位各锁住一件事：{parts}。"
+
+#: src/components/TextTemplateSheet.tsx
+msgid "每个图位起一个短名字（最多 {EXTRA_REF_NAME_MAX} 个字），正文里的「图N」会改成「@名字」。套用的人按名字补一张自己的图，出片时编号自动对上。"
+msgstr "每个图位起一个短名字（最多 {EXTRA_REF_NAME_MAX} 个字），正文里的「图N」会改成「@名字」。套用的人按名字补一张自己的图，出片时编号自动对上。"
 
 #: src/pages/tutor/TutorNewPage.tsx
 msgid "每个概念先落到一道能算的小题上，算完再谈名词。"
@@ -18773,9 +19148,21 @@ msgstr "没有标题或作者里带「{word}」的工作流"
 msgid "没有片段 {ref}（时间轴上一共 {count} 个）"
 msgstr "没有片段 {ref}（时间轴上一共 {count} 个）"
 
+#: src/components/VideoTemplateExtractor.tsx
+msgid "没有视频？"
+msgstr "没有视频？"
+
+#: src/components/guide/tours.tsx
+msgid "没有视频也能做"
+msgstr "没有视频也能做"
+
 #: src/components/TemplateShelf.tsx
 msgid "没有能用{nm}出片的模板——点写着「{name}」的那颗筛选键换一个模型，或者选回「全部模型」。"
 msgstr "没有能用{nm}出片的模板——点写着「{name}」的那颗筛选键换一个模型，或者选回「全部模型」。"
+
+#: src/components/TemplateShelf.tsx
+msgid "没有能用{nm}出片的模板——现有的 {hidden} 个要的出片模型里都没有它。点写着「{name}」的那颗筛选键换一个模型，或者选回「全部模型」。"
+msgstr "没有能用{nm}出片的模板——现有的 {hidden} 个要的出片模型里都没有它。点写着「{name}」的那颗筛选键换一个模型，或者选回「全部模型」。"
 
 #: src/components/TemplateShelf.tsx
 msgid "没有能用{nm}出片的模板。现有的 {hidden} 个都要按参考视频逐镜头复刻，你现在能用的出片模型都做不到——选回「全部模型」看看。"
@@ -19972,6 +20359,10 @@ msgstr "现做主角"
 msgid "现做主角没成，回去看原因"
 msgstr "现做主角没成，回去看原因"
 
+#: src/components/TextTemplateSheet.tsx
+msgid "现在只存在这台设备上，你自己随时能套用。发布到市场要等下一版（服务端那一半还没上线）。"
+msgstr "现在只存在这台设备上，你自己随时能套用。发布到市场要等下一版（服务端那一半还没上线）。"
+
 #: src/components/DraftSheet.tsx
 msgid "现在打不开这条草稿"
 msgstr "现在打不开这条草稿"
@@ -20177,6 +20568,10 @@ msgstr "生成契约不一致：样片定稿只带样片本身（提示词、画
 #: src/ai/real.ts
 msgid "生成契约不一致：真人档只收首帧，不收参考图 / 参考视频 / 参考音频"
 msgstr "生成契约不一致：真人档只收首帧，不收参考图 / 参考视频 / 参考音频"
+
+#: src/ai/real.ts
+msgid "生成契约不一致：这一发的提示词有 {len} 字，超过这一档的上限 {max} 字（文字模板段不截字）——视频这一发没有发出去，请把这句话反馈给我们"
+msgstr "生成契约不一致：这一发的提示词有 {len} 字，超过这一档的上限 {max} 字（文字模板段不截字）——视频这一发没有发出去，请把这句话反馈给我们"
 
 #: src/ai/real.ts
 msgid "生成契约不一致：这一段声明按「{declared}」出片，而槽位里实际是「{actual}」（报价与请求会是两把尺）——没有花钱，请把这句话反馈给我们"
@@ -20399,9 +20794,16 @@ msgstr "用这一版"
 msgid "用这一版重新公开"
 msgstr "用这一版重新公开"
 
+#: src/components/TextTemplateSheet.tsx
 #: src/components/VideoTemplateExtractor.tsx
+#: src/pages/TemplateDetailPage.tsx
 msgid "用这个模板出片"
 msgstr "用这个模板出片"
+
+#. placeholder {0}: priceTag(textQuote.tokens)
+#: src/pages/TemplateDetailPage.tsx
+msgid "用这个模板出片（{0}）"
+msgstr "用这个模板出片（{0}）"
 
 #: src/components/PhotoSubjectPicker.tsx
 msgid "用这张"
@@ -20516,6 +20918,7 @@ msgstr "画布里还有本机地址，换台设备取回来会是空的"
 #: src/components/flow/GridShotsWizard.tsx
 #: src/components/flow/LeadShotsWizard.tsx
 #: src/components/flow/SegSettings.tsx
+#: src/components/TextTemplateSheet.tsx
 #: src/studio/ui/projection.tsx
 msgid "画幅"
 msgstr "画幅"
@@ -20793,6 +21196,10 @@ msgstr "登录后可以收藏卡片、组建卡组"
 #: src/pages/VideoPage.tsx
 msgid "登录后可收入卡组"
 msgstr "登录后可收入卡组"
+
+#: src/components/TextTemplateSheet.tsx
+msgid "登录后存进我的模板"
+msgstr "登录后存进我的模板"
 
 #: src/components/SocialPanel.tsx
 msgid "登录后才能互动"
@@ -21374,6 +21781,10 @@ msgstr "真人档暂不支持圈选改画面（改图引擎会拒收真人脸）
 msgid "真人档本来就是直出，不需要再切自定义"
 msgstr "真人档本来就是直出，不需要再切自定义"
 
+#: src/studio/segmentGen.ts
+msgid "真人档跑不了文字模板段（这一档只认一张起拍画面、不收参考图）——换成模板能跑的那一档再出片"
+msgstr "真人档跑不了文字模板段（这一档只认一张起拍画面、不收参考图）——换成模板能跑的那一档再出片"
+
 #: src/components/CardModelFit.tsx
 #~ msgid "真人档适用"
 #~ msgstr "真人档适用"
@@ -21800,6 +22211,10 @@ msgstr "空 = 不带开头帧"
 #: src/components/flow/CustomFrameSlots.tsx
 msgid "空 = 不画，卡片形象图直接给视频模型"
 msgstr "空 = 不画，卡片形象图直接给视频模型"
+
+#: src/components/flow/CustomFrameSlots.tsx
+msgid "空 = 不画，参考图直接给视频模型"
+msgstr "空 = 不画，参考图直接给视频模型"
 
 #: src/components/flow/CustomFrameSlots.tsx
 msgid "空 = 不画，视频按提示词往下拍"
@@ -22816,6 +23231,10 @@ msgstr "答对三分之二才进下一阶段；答案由老师按你的教材判
 msgid "简介"
 msgstr "简介"
 
+#: src/components/TextTemplateSheet.tsx
+msgid "简介（选填）"
+msgstr "简介（选填）"
+
 #: src/data/agentSkills.ts
 msgid "简介最多 {SKILL_INTRO_MAX} 个字"
 msgstr "简介最多 {SKILL_INTRO_MAX} 个字"
@@ -22969,6 +23388,11 @@ msgctxt "人格向导的步骤名：导入聊天记录、发过的文案等素�
 msgid "素材"
 msgstr "素材"
 
+#: src/components/TextTemplateSheet.tsx
+msgctxt "文字模板图位的默认名字前缀（后面接编号：素材1）；会写进正文当 @名字，英文写成 Ref"
+msgid "素材"
+msgstr "素材"
+
 #: src/studio/ui/projection.tsx
 msgid "素材卡"
 msgstr "素材卡"
@@ -23003,6 +23427,10 @@ msgstr "素材卡（选） · 已选 {0} 张 —— 缺帧补画时当参考"
 #: src/studio/segmentGen.ts
 msgid "素材卡上没有可用的形象参考图，改为先按描述画一张设定帧再出片（多花约一张出图的钱）"
 msgstr "素材卡上没有可用的形象参考图，改为先按描述画一张设定帧再出片（多花约一张出图的钱）"
+
+#: src/pages/FlowPage.tsx
+msgid "素材卡上还没有形象参考图：这次只把临时参考图交给「{tierLabel}」档直接出片（不画设定帧），卡只按文字参与——想让卡的样子进画面，去卡片详情页给卡加几张形象图"
+msgstr "素材卡上还没有形象参考图：这次只把临时参考图交给「{tierLabel}」档直接出片（不画设定帧），卡只按文字参与——想让卡的样子进画面，去卡片详情页给卡加几张形象图"
 
 #: src/pages/FlowPage.tsx
 msgid "素材卡上还没有形象参考图（去卡片详情页加几张），这次只能先按描述画一张设定帧再出片"
@@ -23178,6 +23606,10 @@ msgstr "给小梦换一套 Live2D 形象"
 #: src/studio/StudioPage.tsx
 msgid "给工程起名"
 msgstr "给工程起名"
+
+#: src/components/TextTemplateSheet.tsx
+msgid "给模板起个名字"
+msgstr "给模板起个名字"
 
 #: src/components/guide/tours.tsx
 msgid "给每一段写一句话，它会<0>烧进画面</0>当字幕；点<1>🔊 配音</1>，就用选好的音色把它念出来 —— 配音现在不收 token， 字数按这一段的时长封顶。有配音时，配乐和这一段的原声会自动压低。"
@@ -23808,6 +24240,10 @@ msgstr "补充说明（可选）：比如「重点学它的运镜和胶片质感
 msgid "补充说明（选填，管理员会看到）"
 msgstr "补充说明（选填，管理员会看到）"
 
+#: src/components/flow/RefStrip.tsx
+msgid "补图"
+msgstr "补图"
+
 #: src/pages/CustomCardPage.tsx
 msgid "补救：进卡片详情页，把没同步的那张<0>先删掉、再重新加一次</0>（图位已经满了的话必须先删 —— 满格时没有「+」按钮）。"
 msgstr "补救：进卡片详情页，把没同步的那张<0>先删掉、再重新加一次</0>（图位已经满了的话必须先删 —— 满格时没有「+」按钮）。"
@@ -23969,6 +24405,7 @@ msgstr "要检查的模型包既没有文件也没有直传编号（这是调用
 msgid "见习冒险家 · 她"
 msgstr "见习冒险家 · 她"
 
+#: src/components/TextTemplateSheet.tsx
 #: src/studio/ui/projection.tsx
 msgid "规格"
 msgstr "规格"
@@ -24062,6 +24499,23 @@ msgstr "订单已创建，请完成支付。付款完成后额度会自动到账
 #: src/pages/ProfilePage.tsx
 msgid "订阅套餐"
 msgstr "订阅套餐"
+
+#. placeholder {0}: f.nums.length
+#: src/components/TextTemplateSheet.tsx
+msgid "认出 {0} 个图位，一段最多带 4 张参考图——合并几个再存。"
+msgstr "认出 {0} 个图位，一段最多带 4 张参考图——合并几个再存。"
+
+#. placeholder {0}: f.nums.length
+#. placeholder {1}: f.nums.map(slotLabel).join("、")
+#: src/components/TextTemplateSheet.tsx
+msgid "认出 {0} 个图位（{1}），下一步给它们起名。"
+msgstr "认出 {0} 个图位（{1}），下一步给它们起名。"
+
+#. placeholder {0}: f.beats
+#. placeholder {1}: f.maxSec
+#: src/components/TextTemplateSheet.tsx
+msgid "认出 {0} 段时间轴，写到第 {1} 秒。按秒写的时间轴只有电影级照着走；改写成「镜头1：/ 镜头2：」草稿和高清也能跑（秒数不再写死）。"
+msgstr "认出 {0} 段时间轴，写到第 {1} 秒。按秒写的时间轴只有电影级照着走；改写成「镜头1：/ 镜头2：」草稿和高清也能跑（秒数不再写死）。"
 
 #: src/components/blockout/DetectRolesEntry.tsx
 msgid "认好了 ✓"
@@ -24790,6 +25244,10 @@ msgstr "赞了你的评论"
 msgid "走出壁画"
 msgstr "走出壁画"
 
+#: src/components/TextTemplateSheet.tsx
+msgid "起一个名字"
+msgstr "起一个名字"
+
 #: src/components/CardModelFit.tsx
 msgid "起拍画面"
 msgstr "起拍画面"
@@ -24818,6 +25276,10 @@ msgstr "起点 ＝当前帧"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "超出上限 {over} 字。送去分析时会从最前面截掉这一段，保留最近的 {MATERIAL_TOTAL_MAX} 字（越靠后越像现在的 TA）。"
 msgstr "超出上限 {over} 字。送去分析时会从最前面截掉这一段，保留最近的 {MATERIAL_TOTAL_MAX} 字（越靠后越像现在的 TA）。"
+
+#: src/components/TextTemplateSheet.tsx
+msgid "超过 9 段：模型照不过来，合并几段再存。"
+msgstr "超过 9 段：模型照不过来，合并几段再存。"
 
 #: src/components/flow/CameraChips.tsx
 msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜头运动"
@@ -25128,6 +25590,11 @@ msgstr "还有 {emptyCount} 个角色位没挂卡 —— <0>可以直接出片</
 msgid "还有 {unrun} 项没试。"
 msgstr "还有 {unrun} 项没试。"
 
+#. placeholder {0}: rewritten.missing.map(slotLabel).join("、")
+#: src/components/TextTemplateSheet.tsx
+msgid "还有图位没起名：{0}"
+msgstr "还有图位没起名：{0}"
+
 #: src/data/appUpdate.ts
 msgid "还没允许这个 App 安装应用：先去开启「允许安装未知应用」，再点一次。"
 msgstr "还没允许这个 App 安装应用：先去开启「允许安装未知应用」，再点一次。"
@@ -25190,8 +25657,8 @@ msgid "还没有作品"
 msgstr "还没有作品"
 
 #: src/components/TemplateShelf.tsx
-msgid "还没有你自己的模板"
-msgstr "还没有你自己的模板"
+#~ msgid "还没有你自己的模板"
+#~ msgstr "还没有你自己的模板"
 
 #: src/components/TemplateShelf.tsx
 #~ msgid "还没有你自己的模板——上面那两个入口都能做一个"
@@ -25496,6 +25963,10 @@ msgstr "这一发已经取不回来了：这一档的成片任务只能在受理
 #: src/data/videoJobs.ts
 msgid "这一发已经取不回来了：这一档的成片任务只能在受理之后 7 天内查到，现在已经过了。这一发本来就没有扣 token，点「知道了」消掉这条就好。"
 msgstr "这一发已经取不回来了：这一档的成片任务只能在受理之后 7 天内查到，现在已经过了。这一发本来就没有扣 token，点「知道了」消掉这条就好。"
+
+#: src/studio/segmentGen.ts
+msgid "这一发带不上图位的图（不是参考图那一种请求），视频这一发没有发出去——换成模板能跑的那一档，或过一会儿再点一次生成"
+msgstr "这一发带不上图位的图（不是参考图那一种请求），视频这一发没有发出去——换成模板能跑的那一档，或过一会儿再点一次生成"
 
 #: src/data/videoJobs.ts
 msgid "这一发我们不再跟进了：任务号还在下面，如果一直没取回来，把它发给客服还有机会。如果上游那边其实是失败了，扣的 token 会自动退回（到账时会通知你）；如果是出成了却没取回，这笔钱就无法挽回了——重新生成是再花一次钱。"
@@ -25804,6 +26275,10 @@ msgstr "这一格要画成什么样？（画风句会自动接上）"
 msgid "这一格还没写画面"
 msgstr "这一格还没写画面"
 
+#: src/data/templates.ts
+msgid "这一档一次收的参考图比图位少"
+msgstr "这一档一次收的参考图比图位少"
+
 #: src/studio/segmentGen.ts
 msgid "这一档一段最多带 {max} 张图：临时参考图这次只带了前 {sent} 张（其余的变淡显示在参考清单里）"
 msgstr "这一档一段最多带 {max} 张图：临时参考图这次只带了前 {sent} 张（其余的变淡显示在参考清单里）"
@@ -25816,9 +26291,17 @@ msgstr "这一档一段最多带 {max} 张图：帧和卡片形象图已经把�
 #~ msgid "这一档不对当前套餐开放，去「我的」页升级套餐后再试"
 #~ msgstr "这一档不对当前套餐开放，去「我的」页升级套餐后再试"
 
+#: src/data/templates.ts
+msgid "这一档不收参考图，图位的图发不出去"
+msgstr "这一档不收参考图，图位的图发不出去"
+
 #: src/studio/flowStore.ts
 msgid "这一档不经过方案台。"
 msgstr "这一档不经过方案台。"
+
+#: src/data/templates.ts
+msgid "这一档不认按秒写的时间轴"
+msgstr "这一档不认按秒写的时间轴"
 
 #: src/studio/ui/PlanBoard.tsx
 msgid "这一档最短 {minSec} 秒"
@@ -25839,6 +26322,14 @@ msgstr "这一档出片不出声，台词说不出来 —— 换到「{names}」
 #: src/components/flow/DialogueWizard.tsx
 #~ msgid "这一档出片不出声，台词说不出来 —— 换到高清或电影级。"
 #~ msgstr "这一档出片不出声，台词说不出来 —— 换到高清或电影级。"
+
+#: src/data/templates.ts
+msgid "这一档只认一张起拍照片，没有参考图"
+msgstr "这一档只认一张起拍照片，没有参考图"
+
+#: src/data/templates.ts
+msgid "这一档已经下线"
+msgstr "这一档已经下线"
 
 #: src/data/account.ts
 msgid "这一档是会员档——开通会员套餐（或充值过任意一笔）后可用"
@@ -25998,6 +26489,26 @@ msgid "这一段在确认之前被改过了（时长/画面/选中的走向变�
 msgstr "这一段在确认之前被改过了（时长/画面/选中的走向变了）：现在要 {nowLabel}，卡上写的是 {cardLabel}——重说一句，我按新价再摆一张卡"
 
 #: src/studio/flowStore.ts
+msgid "这一段套用的文字模板「{title}」只在「{names}」档上跑得通（正文的长短、图位、时间轴都是按那几档写的）——去 ⚙ 本段设置换回其中一档"
+msgstr "这一段套用的文字模板「{title}」只在「{names}」档上跑得通（正文的长短、图位、时间轴都是按那几档写的）——去 ⚙ 本段设置换回其中一档"
+
+#: src/studio/flowStore.ts
+msgid "这一段套用的文字模板「{title}」在「{label}」档上跑不了：{reason}——去 ⚙ 本段设置换一档，或者先「摘掉模板出处」按普通段出片"
+msgstr "这一段套用的文字模板「{title}」在「{label}」档上跑不了：{reason}——去 ⚙ 本段设置换一档，或者先「摘掉模板出处」按普通段出片"
+
+#: src/studio/flowStore.ts
+msgid "这一段套用的文字模板「{title}」没有认得出的出片档了——先「摘掉模板出处」，再按普通段出片"
+msgstr "这一段套用的文字模板「{title}」没有认得出的出片档了——先「摘掉模板出处」，再按普通段出片"
+
+#: src/studio/flowStore.ts
+msgid "这一段套用的是文字模板「{title}」，做法跟着模板走——想换做法，先「摘掉模板出处」（正文和图都留着，变成普通的参考图直出段）"
+msgstr "这一段套用的是文字模板「{title}」，做法跟着模板走——想换做法，先「摘掉模板出处」（正文和图都留着，变成普通的参考图直出段）"
+
+#: src/components/flow/TextTplBanner.tsx
+msgid "这一段套用的是文字模板「{title}」：做法跟着模板走（参考图直出），正文与图位照模板写好的发。"
+msgstr "这一段套用的是文字模板「{title}」：做法跟着模板走（参考图直出），正文与图位照模板写好的发。"
+
+#: src/studio/flowStore.ts
 msgid "这一段套着模板——先「摘掉模板」（改为自选）再改成参考图直出"
 msgstr "这一段套着模板——先「摘掉模板」（改为自选）再改成参考图直出"
 
@@ -26096,6 +26607,10 @@ msgstr "这一段拍什么？缺的帧按这句补画"
 #: src/studio/ui/projection.tsx
 msgid "这一段拍什么（重新推演就按这句话）"
 msgstr "这一段拍什么（重新推演就按这句话）"
+
+#: src/studio/flowStore.ts
+msgid "这一段挂着 {extras} 张参考图，普通段最多 {cap} 张（多出来的出片时带不出去）——先删到 {cap} 张再摘"
+msgstr "这一段挂着 {extras} 张参考图，普通段最多 {cap} 张（多出来的出片时带不出去）——先删到 {cap} 张再摘"
 
 #: src/components/recipe/RecipeView.tsx
 msgid "这一段按模板视频复刻，换成谁由挂上去的卡决定（原作的挂法不随配方带走）。"
@@ -26225,6 +26740,10 @@ msgstr "这一段的截帧流还在取（成片有 20MB 级，稍等几秒再点
 #: src/studio/flowStore.ts
 msgid "这一段的方案已经换了，融好的开头帧没处放（图钱已经花掉）"
 msgstr "这一段的方案已经换了，融好的开头帧没处放（图钱已经花掉）"
+
+#: src/studio/segmentGen.ts
+msgid "这一段的正文放不下：这一档最多发 {cap} 字，其中素材设定与点名句要占 {reserved} 字，正文还要删 {over} 字——文字模板段不会替你截掉后面的字，视频这一发没有发出去"
+msgstr "这一段的正文放不下：这一档最多发 {cap} 字，其中素材设定与点名句要占 {reserved} 字，正文还要删 {over} 字——文字模板段不会替你截掉后面的字，视频这一发没有发出去"
 
 #: src/studio/ui/projection.tsx
 msgid "这一段的画质档"
@@ -26529,9 +27048,17 @@ msgstr "这个包里没有动作组：待机和各个动作都不会演。"
 msgid "这个包里没有它 —— 换一个，或者回 Cubism 重新导出。"
 msgstr "这个包里没有它 —— 换一个，或者回 Cubism 重新导出。"
 
+#: src/components/TextTemplateSheet.tsx
+msgid "这个名字是保留的写法，换一个"
+msgstr "这个名字是保留的写法，换一个"
+
 #: src/studio/flowStore.ts
-msgid "这个名字留给帧和模型自己的写法了（首帧 / 尾帧 / 图片1…）——换一个"
-msgstr "这个名字留给帧和模型自己的写法了（首帧 / 尾帧 / 图片1…）——换一个"
+msgid "这个名字留给帧和图片编号的写法了（首帧 / 尾帧 / 图片1 / 图1 / 参考图2 / 效果图…）——换一个"
+msgstr "这个名字留给帧和图片编号的写法了（首帧 / 尾帧 / 图片1 / 图1 / 参考图2 / 效果图…）——换一个"
+
+#: src/studio/flowStore.ts
+#~ msgid "这个名字留给帧和模型自己的写法了（首帧 / 尾帧 / 图片1…）——换一个"
+#~ msgstr "这个名字留给帧和模型自己的写法了（首帧 / 尾帧 / 图片1…）——换一个"
 
 #: src/pages/SupportPage.tsx
 msgid "这个回答有帮助吗？"
@@ -26561,6 +27088,18 @@ msgstr "这个文件读不了。"
 #: src/live2d/bundlePreview.ts
 msgid "这个文件读不出来（{why}）。多半是它还在网盘/云端没下到本机，或者已经被移动、删除了 —— 先把它存进手机里再选一次。"
 msgstr "这个文件读不出来（{why}）。多半是它还在网盘/云端没下到本机，或者已经被移动、删除了 —— 先把它存进手机里再选一次。"
+
+#: src/data/templates.ts
+msgid "这个文字模板在服务器上也有一份，这一版 App 还删不了它——更新到新版再删"
+msgstr "这个文字模板在服务器上也有一份，这一版 App 还删不了它——更新到新版再删"
+
+#: src/studio/flowStore.ts
+msgid "这个文字模板有 {n} 个图位（{list}），一张图都还没补：在参考清单里按图位的名字各加一张图再生成；不想用这些图位，就先「摘掉模板出处」"
+msgstr "这个文字模板有 {n} 个图位（{list}），一张图都还没补：在参考清单里按图位的名字各加一张图再生成；不想用这些图位，就先「摘掉模板出处」"
+
+#: src/studio/flowStore.ts
+msgid "这个文字模板的数据不完整（正文、图位或能跑的档缺了），用不了——回「我的模板」删掉它重做一个"
+msgstr "这个文字模板的数据不完整（正文、图位或能跑的档缺了），用不了——回「我的模板」删掉它重做一个"
 
 #. placeholder {0}: rest.length
 #. placeholder {1}: rest.join(" / ")
@@ -26647,6 +27186,10 @@ msgstr "这个模板认出了 {0} 个人物，超过了一次能挂卡的 {BLOCK
 #: src/data/templates.ts
 msgid "这个模板还没登记到服务器，先登记再识别角色位"
 msgstr "这个模板还没登记到服务器，先登记再识别角色位"
+
+#: src/studio/flowStore.ts
+msgid "这个模板里没有可铺的分镜（数据可能不完整），用不了——换一个模板"
+msgstr "这个模板里没有可铺的分镜（数据可能不完整），用不了——换一个模板"
 
 #: src/studio/cutIssues.ts
 msgid "这个片段已经不在时间轴上了，重新点一个再操作。"
@@ -27375,6 +27918,10 @@ msgstr "这张图片打不开"
 msgid "这张图解不开（常见于 HEIC 等手机专有格式，或文件已损坏）——换成 JPG / PNG，或截个图再传"
 msgstr "这张图解不开（常见于 HEIC 等手机专有格式，或文件已损坏）——换成 JPG / PNG，或截个图再传"
 
+#: src/components/TextTemplateSheet.tsx
+msgid "这张图读不出来——换一张 JPG / PNG / WebP 试试"
+msgstr "这张图读不出来——换一张 JPG / PNG / WebP 试试"
+
 #: src/studio/ui/PlanBoard.tsx
 msgid "这张图读不出来——换一张试试（支持 jpg/png/webp）"
 msgstr "这张图读不出来——换一张试试（支持 jpg/png/webp）"
@@ -27679,6 +28226,10 @@ msgstr "这条模板已经被作者删了，刷新列表看看别的。"
 msgid "这条模板没有公开，只有作者自己能用。"
 msgstr "这条模板没有公开，只有作者自己能用。"
 
+#: src/data/templates.ts
+msgid "这条正文在选的档上都跑不了（正文长度、时间轴写法、图位数或时长对不上）——回规格那一步换一档"
+msgstr "这条正文在选的档上都跑不了（正文长度、时间轴写法、图位数或时长对不上）——回规格那一步换一档"
+
 #: src/components/flow/ThemeRewriteSheet.tsx
 msgid "这条流水线没有可改的段：已出片的段与白模段不会改。"
 msgstr "这条流水线没有可改的段：已出片的段与白模段不会改。"
@@ -27836,6 +28387,10 @@ msgstr "这次没连上服务器。现在删只会删掉这台设备上的那份
 msgid "这次没连上服务器。现在删只会删掉这台设备上的那份，下次登录它还会回来——等联网了再删。"
 msgstr "这次没连上服务器。现在删只会删掉这台设备上的那份，下次登录它还会回来——等联网了再删。"
 
+#: src/components/TextTemplateSheet.tsx
+msgid "这段正文在哪一档上都跑不了——看每一档下面那句原因，回去改正文或换时长。"
+msgstr "这段正文在哪一档上都跑不了——看每一档下面那句原因，回去改正文或换时长。"
+
 #: src/components/blockout/arkVideoRules.ts
 msgid "这段视频只有约 {sec} 秒。白模模板要求素材至少 {min} 秒：AI 把画面里的人换成白模时会把成片截短零点几秒，{min} 秒进去才能保证做出来的模板还够 {outMin} 秒——短于 {outMin} 秒的模板谁都套用不了。换一条长一点的素材吧。"
 msgstr "这段视频只有约 {sec} 秒。白模模板要求素材至少 {min} 秒：AI 把画面里的人换成白模时会把成片截短零点几秒，{min} 秒进去才能保证做出来的模板还够 {outMin} 秒——短于 {outMin} 秒的模板谁都套用不了。换一条长一点的素材吧。"
@@ -27884,6 +28439,11 @@ msgstr "这段话直接发给 AI：编号与角色名改错会换错人，其余
 #: src/utils/wav.ts
 msgid "这段音频只有 {got}s，短于 {minSec}s 下限——换一段长一点的"
 msgstr "这段音频只有 {got}s，短于 {minSec}s 下限——换一段长一点的"
+
+#. placeholder {0}: [...f.expose, ...f.minor].slice(0, 4).join("、")
+#: src/components/TextTemplateSheet.tsx
+msgid "这种内容（{0}）不能发布到市场，自己用不受影响，出片照常由模型审核。"
+msgstr "这种内容（{0}）不能发布到市场，自己用不受影响，出片照常由模型审核。"
 
 #: src/ai/real.ts
 msgid "这种卡没有起拍画面（只有人物、场景、道具卡画得出一个开场镜头）"
@@ -28058,6 +28618,10 @@ msgstr "选一个大方向就行，后面 AI 会照着写。"
 #: src/pages/tutor/TutorNewPage.tsx
 msgid "选一份 .md / .txt"
 msgstr "选一份 .md / .txt"
+
+#: src/components/TextTemplateSheet.tsx
+msgid "选一张图"
+msgstr "选一张图"
 
 #: src/components/VideoTemplateExtractor.tsx
 msgid "选一段参考视频"
@@ -29189,6 +29753,10 @@ msgstr "墨白"
 #: src/pages/SupportPersonasPage.tsx
 msgid "默认人设"
 msgstr "默认人设"
+
+#: src/components/TextTemplateSheet.tsx
+msgid "默认出片模型"
+msgstr "默认出片模型"
 
 #: src/components/guide/tours.tsx
 msgid "默认铸卡是 <0>AI 全自动出图</0>（3D 工坊找铸卡师）。 这一页反过来：<1>用你自己的图，不耗 token</1>； 也可以只交一张素材，让 AI 按方案把图位都画出来。要花 token 的只有那几颗带 AI 的键（AI 生成图位、圈选改图、场景卡与道具卡的识别），价钱都当面标着，不点就不花。 铸出来的卡与 AI 铸的完全同一种东西 —— 能进卡组、当出片的形象参考、发布到创意工坊。"

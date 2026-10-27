@@ -1038,7 +1038,7 @@ export function publishVideo(draft: DraftVideo, opts?: { shareRecipe?: boolean; 
   // ★ 段上的 poster（成片第一帧，dataURL、百 KB 级）只给剪辑/画布看，**不进发布体**：
   //   服务端不存它（zod strip），带着走只会把请求体和待发队列（localStorage，几 MB 上限）
   //   各撑大 N × 百 KB —— 待发队列写失败是吞掉的，那正是"作品唯一备份"所在（2026-09-05）。
-  draft = stripPosters(draft);
+  draft = stripLocalOnly(draft);
   const item: VideoItem = {
     id: uid("v"),
     // ★ 把幂等键带到列表这一条上：删除时要靠它把队列里的那份一起清掉
@@ -2224,7 +2224,7 @@ export async function reviseVideo(id: string, draft: DraftVideo, baseRevision: n
   //   服务端的 segmentBody 里没有这个键、zod 会 strip，带着走只是把请求体白撑大 N × 百 KB。
   //   ⚠ 剥完那份也是下面 `retainAfterRevise` 的 `before` —— 与 publishVideo 那条路一致，
   //     配对表里本来就不会有 poster 这一项（它永远没有云端孪生）。
-  const posterless = stripPosters(draft);
+  const posterless = stripLocalOnly(draft);
   // ★ 再把本机资产（dataURL 帧 / `idb:` 成片）传成永久 URL，然后才发那个 JSON。
   //   少这一步的话，`idb:merged:xxx` 会被服务端 `kept` 原样落库 —— 200、revision 照涨、
   //   客户端判通过，而观众端全黑屏（publishAssets 文件头那次事故的同型）。
@@ -2793,18 +2793,40 @@ if (import.meta.env.DEV && typeof window !== "undefined") {
 }
 
 /**
- * 发布体里剥掉各段的 `poster`（成片第一帧 dataURL，只管显示）。branchTree 各节点的段一并剥。
- * ★ 只在 publishVideo 入口调一次：pushPublish / queuePending / 本机缓存条目拿到的都是剥过的那份。
+ * 发布体里的作品简介去掉文字模板段的正文（组稿那一拍把各段 plot 拼成了预填的简介；人在发布页没改过的话正文会照原样公开）。
+ * 按原文逐字去掉（人自己写的话一个字不动），再收拾多出来的空行。
  */
-function stripPosters(d: DraftVideo): DraftVideo {
+function textTplDescriptionOf(d: DraftVideo): string {
+  let desc = d.description ?? "";
+  for (const s of d.segments) if (s.fromTextTpl && s.plot) desc = desc.split(s.plot).join("");
+  return desc.replace(/\n{2,}/g, "\n").trim();
+}
+
+/**
+ * 发布体里剥掉只在本机流转的东西 —— 各段的 `poster`（成片第一帧 dataURL，只管显示）与文字模板段的正文（`fromTextTpl`，2026-10-26）。
+ * branchTree 各节点的段一并剥。
+ * ★ 发布（publishVideo 入口）与回炉替换各调一次：pushPublish / queuePending / 本机缓存条目拿到的都是剥过的那份。
+ */
+function stripLocalOnly(d: DraftVideo): DraftVideo {
   type Seg = DraftVideo["segments"][number];
   const strip = (s: Seg): Seg => {
-    if (!s.poster) return s;
+    if (!s.poster && !s.fromTextTpl) return s;
     const rest = { ...s };
     delete rest.poster;
+    // 文字模板段的正文不随作品外流（types.VideoSegment.fromTextTpl 的 ★）：发布体里 plot 置空、标记去掉。
+    // ★ 在这一处（发布与回炉替换都经它）做，不在组稿那一拍做：剪辑页的一键成片要读全文
+    if (rest.fromTextTpl) {
+      rest.plot = "";
+      delete rest.fromTextTpl;
+    }
     return rest;
   };
-  const out: DraftVideo = { ...d, segments: d.segments.map(strip) };
+  const out: DraftVideo = {
+    ...d,
+    segments: d.segments.map(strip),
+    // 作品简介原来是各段 plot 拼起来的（组稿那一拍预填），文字模板段的正文在那儿也要拿掉 —— 发布页上人没改过的话就会照原样公开
+    description: textTplDescriptionOf(d),
+  };
   if (d.branchTree) {
     const nodes: NonNullable<DraftVideo["branchTree"]>["nodes"] = {};
     for (const [k, n] of Object.entries(d.branchTree.nodes)) nodes[k] = { ...n, segment: strip(n.segment) };

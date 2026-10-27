@@ -51,19 +51,35 @@ import {
   setTemplateCategory,
   setTemplatePublished,
   templateGroupOf,
+  templateKindOf,
   templatePlanIssue,
   templatePlanUpgradeable,
   templateTiers,
+  textTplSpecOf,
   updateTemplate,
 } from "../data/templates";
-import { blockoutPriceIssue, blockoutTier, fmtTokens, r2vTokens } from "../data/economy";
+import { textTplQuote } from "../studio/flowStore";
+import { blockoutPriceIssue, blockoutTier, fmtTokens, priceTag, r2vTokens } from "../data/economy";
 import { tierShownModel } from "../data/account";
 import UpgradeLink from "../components/UpgradeLink";
 import { useCurrentUser } from "../hooks/useAccount";
 import { useBackOr } from "../hooks/useBackOr";
 import { useFlow } from "../studio/flowStore";
 import { useApplyTemplate } from "../components/flow/useApplyTemplate";
+import { excerptAround } from "../data/textTemplate";
 import { CARD_TYPE_LABELS, Card, TPL_CATEGORIES, VideoTemplate, slotLabel, viewsOf } from "../types";
+
+/** 文字模板正文里点到 `@名字` 的那几处（详情页图位下面摆的上下文；摘法只在 textTemplate.excerptAround，作者那一屏同一个） */
+function mentionLines(prompt: string, name: string): string[] {
+  const out: string[] = [];
+  const low = prompt.toLowerCase();
+  const key = `@${name}`.toLowerCase();
+  for (let at = low.indexOf(key); at >= 0; at = low.indexOf(key, at + key.length)) {
+    const cut = excerptAround(prompt, at, at + key.length);
+    if (!out.includes(cut)) out.push(cut);
+  }
+  return out;
+}
 
 /* i18n-frozen: 配方分镜骨架里的占位符原样（data/templates.fillBeat 按这几个字换成用户那句话）—— 下面列的分镜里写的就是它，界面照原样画才对得上 */
 const THEME_TOKEN = "{{主题}}";
@@ -284,7 +300,16 @@ function ModelRow({ t: tpl }: { t: VideoTemplate }) {
           <Trans>不限</Trans>
         </span>
       )}
-      <span>{tiers ? <Trans>固定，套用后不能换</Trans> : <Trans>套用后在「画质」那一排自己选</Trans>}</span>
+      <span>
+        {!tiers ? (
+          <Trans>套用后在「画质」那一排自己选</Trans>
+        ) : templateKindOf(tpl) === "text" && tiers.length > 1 ? (
+          // 文字模板：作者存模板时按档位能力算好的那几档之间能换（flowStore.textTplTierIssue 只挡名单之外的）
+          <Trans>套用后只能在这几档之间换</Trans>
+        ) : (
+          <Trans>固定，套用后不能换</Trans>
+        )}
+      </span>
     </div>
   );
 }
@@ -320,7 +345,9 @@ function OwnerBar({
   /** 删除的第一段：按钮已经变成「真的删掉？」，再点一下才真动手（见下面那颗按钮的 ★★） */
   const [armed, setArmed] = useState(false);
   const dirty = title !== tpl.title || intro !== tpl.intro;
-  const blockout = !!tpl.refVideo;
+  // 种类只问 templateKindOf（文字模板也没有 refVideo，按 !refVideo 判它会落进经典那颗「发布到模板市场」—— 点了必被 setTemplatePublished 整句拒）
+  const kind = templateKindOf(tpl);
+  const blockout = kind === "blockout";
   const rs = remoteStateOf(tpl);
   const regIssue = registerIssueOf(tpl.id);
 
@@ -343,6 +370,14 @@ function OwnerBar({
 
   /** 白模的发布区按远端状态机走；经典配方保持原来的一颗切换按钮 */
   function publishArea() {
+    // 文字模板 P1 只存本机：发布要等服务端那一半（试炼闸换成文字模板的证据链）。不摆一颗点了必被拒的键，照实说
+    if (kind === "text") {
+      return (
+        <span className="text-[11px] leading-relaxed text-slate-400">
+          <Trans>文字模板现在只存在这台设备上，发布到市场要等下一版。</Trans>
+        </span>
+      );
+    }
     if (!blockout) {
       return (
         <button
@@ -582,11 +617,17 @@ export default function TemplateDetailPage() {
   //   作者那一行不出时，讲发布/删除的那两步会退成居中卡片，照样读得通。
   // ⚠ 必须挂在**这个**组件上，不能挂在下面的 `OwnerBar`：那一块只对作者渲染，
   //   挂在那儿等于"只有作者会自动看到引导"，而且它随发布状态挂载/卸载。
-  useAutoGuide("tpldetail", true);
+  // ★ 文字模板（2026-10-26）不自动弹：这份引导讲的是白模那一种（视频就是成片、角色位、试炼），文字模板一样都没有 ——
+  //   对着一个文字模板放「白模那种模板：视频就是成片」，是引导指着不存在的东西说话。标题栏那颗 ? 仍能手动看
+  const { id } = useParams();
+  const textPage = (() => {
+    const x = id ? getTemplate(id) : null;
+    return !!x && templateKindOf(x) === "text";
+  })();
+  useAutoGuide("tpldetail", !textPage);
   useTemplatesVersion();
   useSocialVersion();
   const { t } = useLingui();
-  const { id } = useParams();
   const nav = useNavigate();
   // 有上一页就回退，深链冷启动时退回模板市场（hooks/useBackOr）
   const back = useBackOr("/templates");
@@ -655,7 +696,11 @@ export default function TemplateDetailPage() {
   const ownedHere = myTemplates().some((x) => x.id === tpl.id);
   const editableHere = hasLocalTemplate(tpl.id);
   const rs = remoteStateOf(tpl);
-  const isMine = tpl.refVideo ? (rs ? rs.isOwner : ownedHere) : ownedHere && user?.name === tpl.author;
+  const kind = templateKindOf(tpl);
+  // 文字模板只活在本机库（P1 不登记）：「是不是我的」= 本机 mine 里有它（myTemplates 已按 deviceOwner 分好人），不拿显示名比
+  const isMine = kind === "blockout" ? (rs ? rs.isOwner : ownedHere) : kind === "text" ? ownedHere : ownedHere && user?.name === tpl.author;
+  const textSpec = textTplSpecOf(tpl);
+  const textQuote = textSpec ? textTplQuote(tpl) : null;
 
   // 白模在闸门没开 / 模板视频本身不合方舟窗口时「看得见但点不动 + 说原因」
   // （原因印在 BlockoutInfo 的成本行里，作者本人看到的是另一句措辞）
@@ -663,8 +708,10 @@ export default function TemplateDetailPage() {
   //   问的是同一句，被它拦下的人正是被领到这一页来的）。目录侧的拒绝排在前面：闸没开 / 模板视频坏了的时候
   //   说「升级套餐后可用」是把人骗去付钱。
   const planBlocked = templatePlanIssue(tpl);
-  const applyBlocked = (tpl.refVideo ? blockoutIssue(tpl) : null) ?? planBlocked;
+  const applyBlocked = (kind === "blockout" ? blockoutIssue(tpl) : null) ?? planBlocked;
   const tplSecs = tpl.refVideo ? (refVideoRealSec(tpl.refVideo) ?? tpl.refVideo.durationSec).toFixed(1) : "";
+  const textSec = textSpec?.durationSec ?? 0;
+  const textSlots = textSpec?.slots.length ?? 0;
   const beatCount = tpl.recipe.beats.length;
   const beatSec = tpl.recipe.durationSec;
   const cardCount = tpl.cards.length;
@@ -750,7 +797,11 @@ export default function TemplateDetailPage() {
         @{tpl.author} ·{" "}
         {/* ★ 有真实秒数就报真实的：这一行是"这个模板长什么样"，不是账单。
             计价那个整数锚点在下面 BlockoutInfo 的成本行里说清楚。 */}
-        {tpl.refVideo ? t`白模复刻 · 模板视频 ${tplSecs}s` : t`${beatCount} 段 · 每段 ${beatSec}s`}
+        {kind === "blockout"
+          ? t`白模复刻 · 模板视频 ${tplSecs}s`
+          : kind === "text"
+            ? t`文字模板 · ${textSec}s · 要补 ${textSlots} 张图`
+            : t`${beatCount} 段 · 每段 ${beatSec}s`}
       </div>
       <ModelRow t={tpl} />
       <p className="mb-4 text-sm leading-relaxed text-slate-300">{tpl.intro}</p>
@@ -763,8 +814,23 @@ export default function TemplateDetailPage() {
         title={applyBlocked ?? undefined}
         className="mb-1 block w-full rounded-xl bg-brand py-2.5 text-center text-sm font-bold text-ink active:opacity-60 disabled:bg-slate-700 disabled:text-slate-400"
       >
-        {tpl.refVideo ? <Trans>⚡ 用这个模板出片（挂上你的角色卡）</Trans> : <Trans>⚡ 用这个模板出片（只需一句话）</Trans>}
+        {kind === "blockout" ? (
+          <Trans>⚡ 用这个模板出片（挂上你的角色卡）</Trans>
+        ) : kind === "text" ? (
+          textQuote ? (
+            <Trans>用这个模板出片（{priceTag(textQuote.tokens)}）</Trans>
+          ) : (
+            <Trans>用这个模板出片</Trans>
+          )
+        ) : (
+          <Trans>⚡ 用这个模板出片（只需一句话）</Trans>
+        )}
       </button>
+      {kind === "text" && textSpec && textSlots > 0 && (
+        <p className="mb-1 text-[11px] leading-relaxed text-slate-400">
+          <Trans>套用之后在参考清单里按名字补上 {textSlots} 张图（{textSpec.slots.map((x) => x.name).join("、")}），补齐才能出片。</Trans>
+        </p>
+      )}
       {discardDialog}
       {/* 灰着的原因要写在屏幕上（2026-10-14 UX 课走查）：原来只在 title 里，手机上看不见；套餐那一档还给「去升级」 */}
       {applyBlocked && !applyErr && (
@@ -790,8 +856,31 @@ export default function TemplateDetailPage() {
           {cardCount > 0 ? <Trans>🧪 怎么做出来的 · 含 {cardCount} 张卡</Trans> : <Trans>🧪 怎么做出来的</Trans>}
         </summary>
         <div className="px-3 pb-3">
-        {/* 生成配方：明着给，用户才知道它为什么像，也才能照着改 */}
-        <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
+        {/* 文字模板：整段正文原样摆出来（套用之后发给模型的就是它），再列图位 —— 每个图位带着正文里点到它的那几句 */}
+        {textSpec && (
+          <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
+            <div className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>提示词</Trans></div>
+            <p className="whitespace-pre-wrap text-xs leading-relaxed text-slate-300">{textSpec.prompt}</p>
+            {textSpec.slots.length > 0 && (
+              <div className="mt-3 space-y-1.5">
+                <div className="text-[11px] text-slate-500"><Trans>图位</Trans></div>
+                {textSpec.slots.map((x) => (
+                  <div key={x.name} className="rounded-lg bg-black/25 px-2.5 py-1.5">
+                    <div className="text-xs font-semibold text-slate-200">@{x.name}</div>
+                    {x.hint && <div className="text-[11px] text-slate-400">{x.hint}</div>}
+                    {mentionLines(textSpec.prompt, x.name).map((line) => (
+                      <div key={line} className="mt-0.5 text-[11px] leading-relaxed text-slate-500">
+                        {line}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        {/* 生成配方：明着给，用户才知道它为什么像，也才能照着改（文字模板没有分镜骨架，上面已经摆了正文） */}
+        {!textSpec && <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
           <div className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>🧪 生成配方</Trans></div>
           <div className="mb-2">
             <div className="mb-1 text-[11px] text-slate-500"><Trans>画面质感与运镜</Trans></div>
@@ -814,7 +903,7 @@ export default function TemplateDetailPage() {
               <p className="text-xs leading-relaxed text-slate-500">{tpl.source}</p>
             </div>
           )}
-        </div>
+        </div>}
 
         {tpl.cards.length > 0 && (
           <div className="mb-4">

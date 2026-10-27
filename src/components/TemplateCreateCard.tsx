@@ -15,14 +15,16 @@
 //   （templates.blockoutizeBlockReason）选文件之前说。这里只说「开始前会报价」，别另算一份。
 //   ⚠ 「每条路都要花 token」别改回「白模化要花 token」：自带白模片那条也收钱（economy.ownRefTemplateCost，提取器里写着「只认人、不出片 · 约 …」），
 //   只点名其中一条收钱 = 当面告诉人另一条不要钱（tours.tsx 工坊那一步的注释记过同一个坑，2026-10-21 评审又抓到一次）。
-// ★ 门控在宿主（TemplateShelf 的 blockoutCap = remoteTemplatesCapable 唯一实现）：老服务端 / 离线不渲染这张卡。
+// ★ 两种路数（2026-10-26 文字模板 P1）：video = 宿主的 blockoutCap（remoteTemplatesCapable 唯一实现）为真时说「传视频 / 写提示词」两样，
+//   为假时只说「写提示词 + 选封面」（那条不碰服务端，离线 / 老服务端也做得了，所以这张卡不再整张藏）。
+//   ⚠ 钱上那句跟着改：做文字模板不调 AI、不花 token —— 只说「视频那几条要花」，别再写「每条路都要花」（那句对文字路是假话）。
 import { useLocation, useNavigate } from "react-router";
 import { Trans, useLingui } from "@lingui/react/macro";
 import Icon from "./Icon";
 import { useAuthState } from "../hooks/useAccount";
 import { showToast } from "../data/toast";
 
-export default function TemplateCreateCard({ variant, onStart }: { variant: "hero" | "slim"; onStart: () => void }) {
+export default function TemplateCreateCard({ variant, video, onStart }: { variant: "hero" | "slim"; video: boolean; onStart: () => void }) {
   const { t } = useLingui();
   const auth = useAuthState();
   const nav = useNavigate();
@@ -48,7 +50,7 @@ export default function TemplateCreateCard({ variant, onStart }: { variant: "her
             <Trans>再做一个视频模板</Trans>
           </span>
           <span className="block truncate text-[11px] text-slate-400">
-            <Trans>传视频、换白模，别人照着你拍</Trans>
+            {video ? <Trans>传视频或写提示词，别人照着你拍</Trans> : <Trans>写提示词、选封面，别人照着你拍</Trans>}
           </span>
         </span>
         <span className="flex-none rounded-full bg-brand px-3 py-1 text-[11px] font-bold text-ink">
@@ -82,21 +84,25 @@ export default function TemplateCreateCard({ variant, onStart }: { variant: "her
             <Trans>创建属于你的视频模板</Trans>
           </span>
           <span className="text-[11px] leading-relaxed text-slate-300">
-            <Trans>传一段视频，AI 把里面的人换成白模人偶；别人挂上自己的角色卡，就能照着你的镜头拍一遍。</Trans>
+            {video ? (
+              <Trans>传一段视频让 AI 换成白模人偶，或者只写一段提示词配一张封面；别人换上自己的角色或图片，就能照着你的做法出片。</Trans>
+            ) : (
+              <Trans>写一段提示词、选一张封面图，做成能反复套用的模板；别人补上自己的图片，就能照着你的做法出片。</Trans>
+            )}
           </span>
           {/* 三步预览（剪映 / PixVerse 都把「点进去之后要做什么」摆在入口上）。数字是真的先后，不是装饰。
               ★ 箭头跟前一步粘在一起（nowrap）：英文三步放不下一行，分开排的话第三行会以一个孤零零的 › 开头（浏览器 363px 宽实测） */}
           <span className="flex flex-wrap items-center gap-x-1 gap-y-0.5 text-[10px] text-sky-200/90">
             <span className="inline-flex items-center gap-1 whitespace-nowrap">
-              <Trans>① 传视频</Trans>
+              {video ? <Trans>① 传视频 / 写提示词</Trans> : <Trans>① 写提示词</Trans>}
               <Icon name="chevron" size={10} className="opacity-60" />
             </span>
             <span className="inline-flex items-center gap-1 whitespace-nowrap">
-              <Trans>② AI 换成白模</Trans>
+              {video ? <Trans>② 做成模板</Trans> : <Trans>② 选封面</Trans>}
               <Icon name="chevron" size={10} className="opacity-60" />
             </span>
             <span className="whitespace-nowrap">
-              <Trans>③ 发布到市场</Trans>
+              <Trans>③ 套用出片</Trans>
             </span>
           </span>
           <span className="mt-1 inline-flex w-fit items-center gap-1 rounded-full bg-brand px-4 py-1.5 text-xs font-bold text-ink">
@@ -107,9 +113,15 @@ export default function TemplateCreateCard({ variant, onStart }: { variant: "her
       </button>
       {/* ★★ 这句别删（2026-08-17 那次改文案的教训）：带着一段自己做好的白模片点进去的人，不知道有第二条路，会再付费白模化一次、画质还更差。
           原来塞在按钮文字的括号里，现在放到卡片下面，并点名提取器里那条路的原话 */}
-      <p className="mt-1.5 px-1 text-[11px] leading-relaxed text-slate-400">
-        <Trans>已经有做好的白模 / 人偶片？点开后选「它本来就是白模 / 人偶片，直接用」，不用再让 AI 换一遍。每条路都要花 token，按下开始之前会先报出价钱。</Trans>
-      </p>
+      {video ? (
+        <p className="mt-1.5 px-1 text-[11px] leading-relaxed text-slate-400">
+          <Trans>已经有做好的白模 / 人偶片？点开后选「它本来就是白模 / 人偶片，直接用」，不用再让 AI 换一遍。传视频的两条都要花 token，按下开始之前会先报出价钱；只用文字 + 封面做模板不花。</Trans>
+        </p>
+      ) : (
+        <p className="mt-1.5 px-1 text-[11px] leading-relaxed text-slate-400">
+          <Trans>做模板不花 token；套用出片时按出片模型计费，选档那一步会报价。</Trans>
+        </p>
+      )}
     </div>
   );
 }
