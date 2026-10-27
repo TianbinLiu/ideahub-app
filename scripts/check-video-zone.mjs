@@ -11,6 +11,7 @@
 // ★ 仓内门禁纪律：写完先造真违规试红（--module= 指向改坏的副本）。逐条试过，下面五条各自变红：
 //   ① parseZone 不查 v；② providers 不过滤认不出的名字；③ deniesOf 在 null 上回 true；④ zoneOfDenial 不把 gate 记成 on；
 //   ⑤ regionalOf 把 observe 也当地区。
+//   2026-10-26 终审加 tierGoOf（「换到哪一档就有」三种结局）与真表 + providers ["minimax"] 的反例，试红一条：⑥ tierGoOf 一档都做不了时回两串空名字（8 条变红）。
 //
 // 用法：node scripts/check-video-zone.mjs [--module=<另一份 videoZoneRules.ts 的路径，造违规试红用>]
 import path from "node:path";
@@ -100,8 +101,42 @@ eq("gate 变了 = 变了（措辞要跟着换）", M.sameZone(a, { ...a, gate: "
 eq("不知道 → 知道 = 变了", M.sameZone(null, a), false);
 eq("一直不知道 = 没变", M.sameZone(null, null), true);
 
+// ── tierGoOf：「换到哪一档就有」的三种结局（2026-10-26 终审）──
+//   null 必须与「全是会员档」分开：原来混在一起，句子印出「换到「」就有」「用「」出的段才能延长（会员档）」，还摆着「去升级」。
+{
+  const rows = [{ id: "a", x: true }, { id: "b", x: true }, { id: "c", x: false }];
+  const has = (r) => r.x;
+  const ids = (go) => go && { usable: go.usable.map((r) => r.id), member: go.member.map((r) => r.id) };
+  eq("有人用得了：usable 非空", ids(M.tierGoOf(rows, has, (r) => r.id === "b")), { usable: ["a"], member: ["b"] });
+  eq("做得了的全是会员档：usable 空、member 非空（不是 null）", ids(M.tierGoOf(rows, has, () => true)), { usable: [], member: ["a", "b"] });
+  eq("一档都做不了：null（不是两串空名字）", M.tierGoOf(rows, () => false, () => false), null);
+  eq("一档都摆不出来：null", M.tierGoOf([], has, () => false), null);
+}
+// 真表 + providers ["minimax"]（门禁开着的海外）：摆得出来的只剩「真人」档 —— 下面这几件事 account.tierGo / tierNamesFor 都必须落到 null，
+// 调用方说 noTierLine（反例：哪天给「真人」那一行误开了某一位，或者 H3 那几行加进来了，这里会红 —— 那时去看那几句话还对不对，再改这张表）
+{
+  const T = await import(url.pathToFileURL(path.join(root, "src/data/videoTierTable.ts")).href);
+  const live = T.VIDEO_TIER_SPECS.filter((r) => !r.retireAt);
+  const intl = live.filter((r) => !M.deniesOf({ providers: ["minimax"] }, r.provider ?? "ark"));
+  const both = live.filter((r) => !M.deniesOf({ providers: ["ark", "minimax"] }, r.provider ?? "ark"));
+  eq("海外门禁开着时摆得出来的档（真表）", intl.map((r) => r.id), ["real"]);
+  const NEEDS = {
+    "收参考图（refImg）": (r) => r.refImg,
+    "带参考视频（refVid + 有价签）": (r) => r.refVid && r.r2vMult !== null,
+    "能延长（extendOk）": (r) => r.extendOk,
+    "带声音样本（refAudio）": (r) => r.refAudio,
+    "出声（audio）": (r) => r.audio,
+    "收认证素材（assetRef）": (r) => r.assetRef,
+  };
+  for (const [what, has] of Object.entries(NEEDS)) {
+    eq(`海外门禁开着 · ${what}：没有可换的档 = null`, M.tierGoOf(intl, has, () => false), null);
+    ran++;
+    if (!M.tierGoOf(both, has, () => false)) problems.push(`境内两家都给 · ${what}：应该有可换的档（真表里一行都没有了？）`);
+  }
+}
+
 if (problems.length) {
   console.error(`❌ 出片地区规则有 ${problems.length} 条对不上（共 ${ran} 条，src/data/videoZoneRules.ts）：\n   ${problems.join("\n   ")}`);
   process.exit(1);
 }
-console.log(`✓ 出片地区规则 ${ran} 条正反例全过（videoZoneRules：回包解析 / 403 记法 / 不知道不拦 / 措辞挑哪种）`);
+console.log(`✓ 出片地区规则 ${ran} 条正反例全过（videoZoneRules：回包解析 / 403 记法 / 不知道不拦 / 措辞挑哪种 / 换到哪一档的三种结局）`);

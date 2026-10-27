@@ -1523,6 +1523,10 @@ msgstr "{names}是声明过的真人素材，「{label}」档的供应商拒收�
 #~ msgstr "{names}是声明过的真人素材，「{label}」档的供应商拒收真人照片（实测名人按版权拦、普通人按隐私拦，整发被拒）；而「{realTier}」档做不了白模复刻——真人卡与白模模板不能同用：把真人卡取下换一张非真人卡，或不用模板、换「{realTier}」档以卡上照片起拍直出"
 
 #: src/data/account.ts
+msgid "{names}是真人卡，「{label}」档不收真人照片——换{realPath}"
+msgstr "{names}是真人卡，「{label}」档不收真人照片——换{realPath}"
+
+#: src/data/account.ts
 msgid "{names}是真人卡，「{label}」档不收真人照片——换{realPath}；{assetPath}只在「简约模式」不带首帧、且卡勾了「火山引擎适用」时可用"
 msgstr "{names}是真人卡，「{label}」档不收真人照片——换{realPath}；{assetPath}只在「简约模式」不带首帧、且卡勾了「火山引擎适用」时可用"
 
@@ -1600,6 +1604,11 @@ msgstr "{place}用不了这一档的出片模型，这里出片只提供 {via}�
 msgid "{place}用不了这一档的出片模型，这里出片只提供 {via}（「{names}」档）。"
 msgstr "{place}用不了这一档的出片模型，这里出片只提供 {via}（「{names}」档）。"
 
+#. 一个分句、不带句号，接在「——」后面；place 是「你所在的地区（美国）」（英文首字母大写）；ability 是「能往后延长」这类定语（英文是 can extend a clip 这类动词短语）
+#: src/data/account.ts
+msgid "{place}目前没有{ability}的出片模型"
+msgstr "{place}目前没有{ability}的出片模型"
+
 #: src/data/account.ts
 msgid "{place}目前没有可用的出片模型"
 msgstr "{place}目前没有可用的出片模型"
@@ -1621,6 +1630,10 @@ msgstr "{quotedList}{quotedName}"
 #: src/data/account.ts
 msgid "{reason}——卡在这台设备上有，但换台设备或重启后可能就没了。"
 msgstr "{reason}——卡在这台设备上有，但换台设备或重启后可能就没了。"
+
+#: src/components/flow/FixSegmentBox.tsx
+msgid "{refNone}。"
+msgstr "{refNone}。"
 
 #: src/studio/gridDraftStore.ts
 msgid "{rejected} 格没过内容审核"
@@ -1880,6 +1893,11 @@ msgstr "「{0}」档（会员档）"
 
 #. placeholder {0}: tier.label
 #: src/studio/segmentGen.ts
+msgid "「{0}」档不支持参考图，改为先按描述画一张设定帧再出片"
+msgstr "「{0}」档不支持参考图，改为先按描述画一张设定帧再出片"
+
+#. placeholder {0}: tier.label
+#: src/studio/segmentGen.ts
 msgid "「{0}」档不支持参考图，改为先按描述画一张设定帧再出片（想直接用卡片形象请选「{names}」）"
 msgstr "「{0}」档不支持参考图，改为先按描述画一张设定帧再出片（想直接用卡片形象请选「{names}」）"
 
@@ -1892,6 +1910,11 @@ msgstr "「{0}」档不支持参考图，改为先按描述画一张设定帧再
 #: src/studio/segmentGen.ts
 msgid "「{0}」档不支持参考图，改为先按描述画一张设定帧再出片（直接用卡片形象要「{names}」，会员档）"
 msgstr "「{0}」档不支持参考图，改为先按描述画一张设定帧再出片（直接用卡片形象要「{names}」，会员档）"
+
+#. placeholder {0}: refTier.label
+#: src/studio/segmentGen.ts
+msgid "「{0}」档不支持带参考视频出片——{none}：移除参考视频再出片"
+msgstr "「{0}」档不支持带参考视频出片——{none}：移除参考视频再出片"
 
 #. placeholder {0}: refTier.label
 #: src/studio/segmentGen.ts
@@ -1915,6 +1938,11 @@ msgstr "「{0}」档不支持带参考视频出片——带得了的「{names}�
 
 #. placeholder {0}: o.tier.label
 #: src/studio/segmentGen.ts
+msgid "「{0}」档出片无声，台词不会被配音"
+msgstr "「{0}」档出片无声，台词不会被配音"
+
+#. placeholder {0}: o.tier.label
+#: src/studio/segmentGen.ts
 msgid "「{0}」档出片无声，台词不会被配音（要声音得用「{names}」，会员档）"
 msgstr "「{0}」档出片无声，台词不会被配音（要声音得用「{names}」，会员档）"
 
@@ -1927,6 +1955,11 @@ msgstr "「{0}」档出片无声，台词不会被配音（要声音选「{names
 #: src/studio/segmentGen.ts
 #~ msgid "「{0}」档出片无声，台词不会被配音（要声音选「高清」或「电影级」）"
 #~ msgstr "「{0}」档出片无声，台词不会被配音（要声音选「高清」或「电影级」）"
+
+#. placeholder {0}: tier.label
+#: src/studio/segmentGen.ts
+msgid "「{0}」档协议上不收参考图，临时参考图这次没发出去"
+msgstr "「{0}」档协议上不收参考图，临时参考图这次没发出去"
 
 #. placeholder {0}: tier.label
 #: src/studio/segmentGen.ts
@@ -2029,6 +2062,15 @@ msgstr "「{catLabel}」近期热播"
 msgid "「{ch}」"
 msgstr "「{ch}」"
 
+#: src/components/flow/FlowCanvas.tsx
+#: src/studio/ui/projection.tsx
+msgid "「{cur}」档带不了参考视频——{none}：摘掉示例视频，否则这一段出不了片。"
+msgstr "「{cur}」档带不了参考视频——{none}：摘掉示例视频，否则这一段出不了片。"
+
+#: src/studio/ui/projection.tsx
+msgid "「{cur}」档带不了参考视频——{none}：直接跳过这一步，自己给首尾帧"
+msgstr "「{cur}」档带不了参考视频——{none}：直接跳过这一步，自己给首尾帧"
+
 #: src/studio/ui/projection.tsx
 msgid "「{cur}」档带不了参考视频——到「定规格」那一步换成「{usable}」，或直接跳过这一步自己给首尾帧"
 msgstr "「{cur}」档带不了参考视频——到「定规格」那一步换成「{usable}」，或直接跳过这一步自己给首尾帧"
@@ -2051,12 +2093,20 @@ msgid "「{cur}」档带不了参考视频；带得了的「{member}」是会员
 msgstr "「{cur}」档带不了参考视频；带得了的「{member}」是会员档，开通会员套餐（或充值过任意一笔）后可用——或直接跳过这一步自己给首尾帧"
 
 #: src/components/flow/FlowCanvas.tsx
+msgid "「{cur}」档收不了参考图：这一段出片前会先按提示词画帧（计费）。"
+msgstr "「{cur}」档收不了参考图：这一段出片前会先按提示词画帧（计费）。"
+
+#: src/components/flow/FlowCanvas.tsx
 msgid "「{cur}」档收不了参考图：这一段出片前会先按提示词画帧（计费）。人物图直接给视频模型要「{names}」（会员档）。"
 msgstr "「{cur}」档收不了参考图：这一段出片前会先按提示词画帧（计费）。人物图直接给视频模型要「{names}」（会员档）。"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "「{cur}」档收不了参考图：这一段出片前会先按提示词画帧（计费）。想让人物图直接给视频模型，到 ⚙ 本段设置换成「{names}」。"
 msgstr "「{cur}」档收不了参考图：这一段出片前会先按提示词画帧（计费）。想让人物图直接给视频模型，到 ⚙ 本段设置换成「{names}」。"
+
+#: src/studio/flowStore.ts
+msgid "「{extLabel}」档还不能延长——{none}"
+msgstr "「{extLabel}」档还不能延长——{none}"
 
 #: src/studio/flowStore.ts
 msgid "「{extLabel}」档还不能延长——去 ⚙ 本段设置换成「{names}」档"
@@ -2099,6 +2149,10 @@ msgstr "「{label}」档没有样片模式（只有「{names}」有）"
 #: src/data/account.ts
 msgid "「{label}」档的模型已于 {day}停用——换一档再出片"
 msgstr "「{label}」档的模型已于 {day}停用——换一档再出片"
+
+#: src/studio/flowStore.ts
+msgid "「{label}」档还不能延长——{none}"
+msgstr "「{label}」档还不能延长——{none}"
 
 #: src/studio/flowStore.ts
 msgid "「{label}」档还不能延长——用「{names}」出的段才能延长"
@@ -2332,6 +2386,10 @@ msgid "「{staleText}」过期了（人、整体交代或双人镜头改过）�
 msgstr "「{staleText}」过期了（人、整体交代或双人镜头改过）—— 回上一步重画一下。"
 
 #: src/pages/FlowPage.tsx
+msgid "「{tierLabel}」档不支持参考图：会先按描述画一张设定帧再出片"
+msgstr "「{tierLabel}」档不支持参考图：会先按描述画一张设定帧再出片"
+
+#: src/pages/FlowPage.tsx
 msgid "「{tierLabel}」档不支持参考图：会先按描述画一张设定帧再出片。想直接用卡片形象，在「⚙ 本段设置」里换成「{names}」"
 msgstr "「{tierLabel}」档不支持参考图：会先按描述画一张设定帧再出片。想直接用卡片形象，在「⚙ 本段设置」里换成「{names}」"
 
@@ -2352,6 +2410,10 @@ msgid "「{tierLabel}」档协议上不收参考图，不能按参考图生视�
 msgstr "「{tierLabel}」档协议上不收参考图，不能按参考图生视频出片"
 
 #: src/components/flow/RefStrip.tsx
+msgid "「{tierLabel}」档协议上不收参考图：卡片形象只用来画首尾帧，出片时模型看到的只有首尾帧。"
+msgstr "「{tierLabel}」档协议上不收参考图：卡片形象只用来画首尾帧，出片时模型看到的只有首尾帧。"
+
+#: src/components/flow/RefStrip.tsx
 msgid "「{tierLabel}」档协议上不收参考图：卡片形象只用来画首尾帧，出片时模型看到的只有首尾帧。想让模型直接看到卡片形象与临时参考图，换「{imgUsable}」。"
 msgstr "「{tierLabel}」档协议上不收参考图：卡片形象只用来画首尾帧，出片时模型看到的只有首尾帧。想让模型直接看到卡片形象与临时参考图，换「{imgUsable}」。"
 
@@ -2362,6 +2424,10 @@ msgstr "「{tierLabel}」档协议上不收参考图：卡片形象只用来画�
 #: src/components/flow/RefStrip.tsx
 msgid "「{tierLabel}」档协议上不收参考图：卡片形象只用来画首尾帧，出片时模型看到的只有首尾帧。让模型直接看到卡片形象与临时参考图要「{imgMember}」（会员档）。"
 msgstr "「{tierLabel}」档协议上不收参考图：卡片形象只用来画首尾帧，出片时模型看到的只有首尾帧。让模型直接看到卡片形象与临时参考图要「{imgMember}」（会员档）。"
+
+#: src/components/flow/RefStrip.tsx
+msgid "「{tierLabel}」档带不了示例视频——{vidNone}。"
+msgstr "「{tierLabel}」档带不了示例视频——{vidNone}。"
 
 #: src/components/flow/RefStrip.tsx
 msgid "「{tierLabel}」档带不了示例视频——换成「{vidUsable}」之后这里才排得出清单。"
@@ -2386,6 +2452,10 @@ msgstr "「{tierLabel}」档没有样片模式（只有「{names}」有）"
 #: src/ai/real.ts
 msgid "「{tierLabel}」档跑不了白模模板（模板对出片模型是硬要求）"
 msgstr "「{tierLabel}」档跑不了白模模板（模板对出片模型是硬要求）"
+
+#: src/studio/segmentGen.ts
+msgid "「{tierLabel}」档还不能延长——{none}"
+msgstr "「{tierLabel}」档还不能延长——{none}"
 
 #: src/studio/segmentGen.ts
 msgid "「{tierLabel}」档还不能延长——去 ⚙ 本段设置换成「{names}」档"
@@ -2439,6 +2509,10 @@ msgid "「{title}」要两个人：按点的先后，先点的是第一个人。
 msgstr "「{title}」要两个人：按点的先后，先点的是第一个人。"
 
 #: src/components/flow/ModePicker.tsx
+msgid "「{title}」要收参考图的模型：{none}"
+msgstr "「{title}」要收参考图的模型：{none}"
+
+#: src/components/flow/ModePicker.tsx
 msgid "「{title}」要收参考图的模型：「{member}」才有（会员档）"
 msgstr "「{title}」要收参考图的模型：「{member}」才有（会员档）"
 
@@ -2449,6 +2523,10 @@ msgstr "「{title}」要收参考图的模型：换到「{usable}」就有"
 #: src/components/flow/ModePicker.tsx
 #~ msgid "「{title}」要收参考图的模型：换到高清或电影级就有"
 #~ msgstr "「{title}」要收参考图的模型：换到高清或电影级就有"
+
+#: src/components/flow/ModePicker.tsx
+msgid "「{title}」要能出声的模型（台词得说出来）：{none}"
+msgstr "「{title}」要能出声的模型（台词得说出来）：{none}"
 
 #: src/components/flow/ModePicker.tsx
 msgid "「{title}」要能出声的模型（台词得说出来）：「{member}」才有（会员档）"
@@ -3817,6 +3895,10 @@ msgstr "🔄 重新写（{writePrice}，会换掉上面的对白）"
 #: src/components/flow/LeadShotsWizard.tsx
 msgid "🔄 重新拆（{splitPrice}，会换掉上面的分镜）"
 msgstr "🔄 重新拆（{splitPrice}，会换掉上面的分镜）"
+
+#: src/components/flow/RefStrip.tsx
+msgid "🔇 {idleNames} 带着声音样本，但「{tierLabel}」档出片无声——{audioNone}。"
+msgstr "🔇 {idleNames} 带着声音样本，但「{tierLabel}」档出片无声——{audioNone}。"
 
 #: src/components/flow/RefStrip.tsx
 msgid "🔇 {idleNames} 带着声音样本，但「{tierLabel}」档出片无声——要配音换「{audioUsable}」。"
@@ -7300,6 +7382,10 @@ msgstr "免费版"
 msgid "免费版：每天自动补 {daily} 套餐 token（最多攒到 {cap}），能用「{names}」档出片。开通会员套餐或充值任意一笔，全部档位都能用。"
 msgstr "免费版：每天自动补 {daily} 套餐 token（最多攒到 {cap}），能用「{names}」档出片。开通会员套餐或充值任意一笔，全部档位都能用。"
 
+#: src/pages/ProfilePage.tsx
+msgid "免费版：每天自动补 {daily} 套餐 token（最多攒到 {cap}）。开通会员套餐或充值任意一笔，全部档位都能用。"
+msgstr "免费版：每天自动补 {daily} 套餐 token（最多攒到 {cap}）。开通会员套餐或充值任意一笔，全部档位都能用。"
+
 #: src/components/flow/ThemeRewriteSheet.tsx
 msgid "全不选"
 msgstr "全不选"
@@ -9541,6 +9627,11 @@ msgstr "参考图直出也得写一句这段要拍什么——这句话就是出
 #: src/studio/studioStore.ts
 msgid "参考图直出的方案摆上桌了——人物图会直接给视频模型、不画帧。提示词确认没问题，就点「⚡ 生成本段视频」。"
 msgstr "参考图直出的方案摆上桌了——人物图会直接给视频模型、不画帧。提示词确认没问题，就点「⚡ 生成本段视频」。"
+
+#: src/components/flow/FlowCanvas.tsx
+#: src/studio/ui/projection.tsx
+msgid "参考图直出要收参考图的模型——{none}"
+msgstr "参考图直出要收参考图的模型——{none}"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "参考图直出要收参考图的模型——「{names}」是会员档，开通会员套餐（或充值过任意一笔）后可用"
@@ -15281,6 +15372,11 @@ msgstr "收入我的卡组"
 msgid "收到，让我看看成色……（炉火升起）"
 msgstr "收到，让我看看成色……（炉火升起）"
 
+#. 定语，接在「目前没有…的出片模型」中间；英文写成接在 video model that 后面的动词短语：takes reference images
+#: src/data/account.ts
+msgid "收参考图"
+msgstr "收参考图"
+
 #: src/pages/CardDetailPage.tsx
 msgid "收参考图的出片模型（{names}）与白模模板挂卡：每张人物卡都各带自己的形象图（先每卡 1 张，预算有余再补第 2 张；一段最多几张按所选模型的协议走）。出片前补画设定帧那一步（以及收不到参考图的档位）：一段里只有「第一张人物卡」能带形象参考图——先取 {MAX_CHAR_REFS} 张（优先{face} + {body}），标成「出片用」的第 3 张要等同段每张卡都拿到第 1 张之后，预算还有余才补得上；其余人物卡在那一步只按文字设定参与（画帧的出图模型只吃第一个人物的图）。所以上面的「出片用 / 仅展示」是按补画设定帧那一步、按\"这张卡就是那第一张人物卡\"标的：它排在别的人物卡后面时，标着出片用的那几张在那一步同样进不了模型（生成步骤里会点名说明）。{detail}这一格铸卡不会自动出图，只能自己传。"
 msgstr "收参考图的出片模型（{names}）与白模模板挂卡：每张人物卡都各带自己的形象图（先每卡 1 张，预算有余再补第 2 张；一段最多几张按所选模型的协议走）。出片前补画设定帧那一步（以及收不到参考图的档位）：一段里只有「第一张人物卡」能带形象参考图——先取 {MAX_CHAR_REFS} 张（优先{face} + {body}），标成「出片用」的第 3 张要等同段每张卡都拿到第 1 张之后，预算还有余才补得上；其余人物卡在那一步只按文字设定参与（画帧的出图模型只吃第一个人物的图）。所以上面的「出片用 / 仅展示」是按补画设定帧那一步、按\"这张卡就是那第一张人物卡\"标的：它排在别的人物卡后面时，标着出片用的那几张在那一步同样进不了模型（生成步骤里会点名说明）。{detail}这一格铸卡不会自动出图，只能自己传。"
@@ -15305,6 +15401,11 @@ msgstr "收藏"
 #: src/pages/ProfilePage.tsx
 msgid "收藏的这几条都打不开了：作者删了，或者改成了仅自己可见"
 msgstr "收藏的这几条都打不开了：作者删了，或者改成了仅自己可见"
+
+#. 定语，接在「目前没有…的出片模型」中间（认证素材 = 卡上勾了「火山引擎适用」）；英文：accepts verified portrait assets
+#: src/data/account.ts
+msgid "收认证素材"
+msgstr "收认证素材"
 
 #: src/pages/PublishPage.tsx
 #~ msgid "收费方式"
@@ -23047,6 +23148,26 @@ msgstr "背景"
 msgid "背景卡"
 msgstr "背景卡"
 
+#. 定语，接在「目前没有…的出片模型」中间；英文写成接在 video model that 后面的动词短语：generates sound
+#: src/data/account.ts
+msgid "能出声"
+msgstr "能出声"
+
+#. 定语，接在「目前没有…的出片模型」中间；英文写成接在 video model that 后面的动词短语：can take a reference video
+#: src/data/account.ts
+msgid "能带参考视频"
+msgstr "能带参考视频"
+
+#. 定语，接在「目前没有…的出片模型」中间；英文写成接在 video model that 后面的动词短语：can take voice samples
+#: src/data/account.ts
+msgid "能带声音样本"
+msgstr "能带声音样本"
+
+#. 定语，接在「目前没有…的出片模型」中间；英文写成接在 video model that 后面的动词短语：can extend a clip
+#: src/data/account.ts
+msgid "能往后延长"
+msgstr "能往后延长"
+
 #: src/components/flow/FixSegmentBox.tsx
 msgid "能按参考视频出片的「{refNames}」是会员档——开通会员套餐（或充值过任意一笔）后可用"
 msgstr "能按参考视频出片的「{refNames}」是会员档——开通会员套餐（或充值过任意一笔）后可用"
@@ -25357,6 +25478,10 @@ msgid "这一档最短 {minSec} 秒"
 msgstr "这一档最短 {minSec} 秒"
 
 #: src/components/flow/DialogueWizard.tsx
+msgid "这一档出片不出声，台词说不出来 —— {none}。"
+msgstr "这一档出片不出声，台词说不出来 —— {none}。"
+
+#: src/components/flow/DialogueWizard.tsx
 msgid "这一档出片不出声，台词说不出来 —— 出声的「{names}」是会员档。"
 msgstr "这一档出片不出声，台词说不出来 —— 出声的「{names}」是会员档。"
 
@@ -26425,6 +26550,11 @@ msgstr "这台服务器没配语音，只动口型"
 #: src/components/TemplateShelf.tsx
 msgid "这台服务器用不了"
 msgstr "这台服务器用不了"
+
+#. 一个分句、不带句号，接在「——」后面；ability 是「能往后延长」这类定语（英文是 can extend a clip 这类动词短语）
+#: src/data/account.ts
+msgid "这台服务器目前没有{ability}的出片模型"
+msgstr "这台服务器目前没有{ability}的出片模型"
 
 #: src/data/account.ts
 msgid "这台服务器目前没有接上出片模型"

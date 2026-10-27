@@ -24,7 +24,7 @@ import { castPreviewImage, frameUrlAt, fuseStageFrame, AI_REAL, ArkTaskFailed, A
 import { frameMoment, isMultiShot, momentCards } from "../data/shotScript";
 import { endFrameUsed } from "../data/drawPlan";
 import { isArkAssetUrl, reasonClause, transferArkVideo } from "../ai/arkClient";
-import { canAfford, defaultTierId, draftModeIssue, draftModeOffered, frozenNote, myCards, realFaceIssue, spendTokens, tierBlockReason, tierGo, tierOffered, tierRegionIssue, tierRegionRecheck, usableTierId, walletOf, type TierNeed } from "../data/account";
+import { canAfford, defaultTierId, draftModeIssue, draftModeOffered, frozenNote, myCards, noTierLine, realFaceIssue, spendTokens, tierBlockReason, tierGo, tierOffered, tierRegionIssue, tierRegionRecheck, usableTierId, walletOf, type TierNeed } from "../data/account";
 import { refreshVideoZone, zoneIsRegional } from "../data/videoZone";
 import { showToast } from "../data/toast";
 import {
@@ -316,6 +316,11 @@ export function extendIssue(nodes: FlowNode[], idx: number): string | null {
   if (!tier.refVid || tier.r2vMult === null || !tier.extendOk) {
     // 能延长的档按能力现算（extendOk）；这个人一档都用不了时说那是会员档（account.tierGo）
     const go = tierGo((x) => x.extendOk);
+    // 摆得出来的档里一档都不能延长（门禁开着的海外只剩「真人」档，2026-10-26 终审）：说地区 / 这台服务器的事实，不说「会员档」（account.noTierLine）
+    if (!go) {
+      const none = noTierLine("extend");
+      return t`「${label}」档还不能延长——${none}`;
+    }
     const names = go.names;
     return go.member
       ? t`「${label}」档还不能延长——用「${names}」出的段才能延长（会员档）`
@@ -4155,9 +4160,12 @@ export const useFlow = create<FlowState>()((set, get) => ({
       const extLabel = extTier.label;
       if (!extTier.refVid || extTier.r2vMult === null || !extTier.extendOk) {
         const go = tierGo((x) => x.extendOk);
-        const names = go.names;
+        const names = go?.names ?? "";
+        const none = go ? "" : noTierLine("extend");
         set({
-          err: go.member
+          err: !go
+            ? t`「${extLabel}」档还不能延长——${none}`
+            : go.member
             ? t`「${extLabel}」档还不能延长——能延长的「${names}」是会员档（开通会员套餐或充值过任意一笔后可用）`
             : t`「${extLabel}」档还不能延长——去 ⚙ 本段设置换成「${names}」档`,
         });

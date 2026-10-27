@@ -11,7 +11,7 @@ import Icon, { type IconName } from "../Icon";
 import Warn from "../Warn";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { memberTiersLine, regionTiersLine, tierBlockReason, tierNamesFor, tierOffered, tierShownModel, tierShownModelId } from "../../data/account";
+import { memberTiersLine, noTierLine, regionTiersLine, tierBlockReason, tierNamesFor, tierOffered, tierShownModel, tierShownModelId } from "../../data/account";
 import { CHAT_TURN_TOKENS, CHECKED_PANEL_TOKENS, clampDuration, fmtTokens, IMAGE_TOKENS, segTokens, tierOf, VIDEO_TIERS } from "../../data/economy";
 import { useAccountVersion } from "../../hooks/useAccount";
 import UpgradeLink from "../UpgradeLink";
@@ -248,6 +248,18 @@ export default function ModePicker({
               const why = modeBlock(m.id, caps);
               // 档名按能力现算、按这个人用不用得了分两种说法（2026-10-07：原来写死「高清或电影级」，免费用户被指去两个点不动的档）
               const names = why === "refImg" ? refNames : why === "audio" ? audioNames : null;
+              // ★ 摆得出来的档里一档都解不了这个原因（tierNamesFor 回 null —— 门禁开着的海外只剩「真人」档，2026-10-26 终审）：
+              //   原来落到下面那支，印出「换到「」就有」。说地区 / 这台服务器的事实（account.noTierLine，与上面 regionLine 同一种措辞），不编一条路、不给「去升级」
+              if ((why === "refImg" || why === "audio") && !names) {
+                const none = noTierLine(why);
+                return (
+                  <p key={m.id}>
+                    {why === "refImg"
+                      ? t`「${title}」要收参考图的模型：${none}`
+                      : t`「${title}」要能出声的模型（台词得说出来）：${none}`}
+                  </p>
+                );
+              }
               if (names && !names.usable && names.member) {
                 const member = names.member;
                 return (

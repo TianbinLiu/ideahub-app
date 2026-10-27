@@ -20,6 +20,7 @@ import { PLANS, PLATFORM_CUT, VIDEO_TIERS, fmtTokens, joinTierNames, modelLabel,
 import { cardInputOf, modelsOfTiers, type VideoModelOf } from "./cardFit";
 import { serverFreeVideo, serverSupports, subscribeServerCaps } from "./serverCaps";
 import { refreshVideoZone, subscribeVideoZone, videoZone, zoneDenies, zoneIsRegional, type VideoProvider } from "./videoZone";
+import { tierGoOf } from "./videoZoneRules";
 import { FREE_DEFAULT_CHAIN, PAID_DEFAULT_CHAIN, SEEDANCE_2_5, firstLiveTierId } from "./videoTierTable";
 import { idbGet, idbRead, idbSet } from "./db";
 // 转存（dataURL → 永久 URL）的唯一入口，与发布/换封面/详情页加图共用（铁律六）
@@ -1308,13 +1309,46 @@ export function memberTiersLine(): string | null {
  * 有某种能力的档、**按这个人用不用得了**分两串名字（都只算摆得出来的档）：usable = 现在就能换过去的，member = 开通会员才能用的。
  * 空串 = 没有。★ 句子里「换到哪一档就有」一律从这里取（economy.tierNamesWhere 是不看套餐的目录版）：写死「高清或电影级」的话，
  *   免费用户被指去两个点不动的档，而他唯一能用的「草稿」一个字都没提（2026-10-07 加免费档限制时清点过二十来处）。
+ * ★★ **null = 摆得出来的档里一档都没有这种能力**（2026-10-26 终审，规则在 videoZoneRules.tierGoOf）：门禁开着的海外只剩「真人」档时就是这样。
+ *   这一种说 noTierLine（地区 / 这台服务器），不写「换到「」」、不写「会员档」、不给「去升级」—— 原来回两串空名字，句子里印出一对空引号。
  */
-export function tierNamesFor(pred: (t: VideoTier) => boolean): { usable: string; member: string } {
-  const offered = offeredTiers().filter(pred);
-  return {
-    usable: joinTierNames(offered.filter((x) => !tierBlockReason(x)).map((x) => x.label)),
-    member: joinTierNames(offered.filter((x) => !!tierBlockReason(x)).map((x) => x.label)),
-  };
+export function tierNamesFor(pred: (t: VideoTier) => boolean): { usable: string; member: string } | null {
+  const go = tierGoOf(offeredTiers(), pred, (x) => !!tierBlockReason(x));
+  if (!go) return null;
+  return { usable: joinTierNames(go.usable.map((x) => x.label)), member: joinTierNames(go.member.map((x) => x.label)) };
+}
+
+/**
+ * tierNamesFor / tierGo 回 null 时那件事要的能力 —— 只用来挑 noTierLine 的说法。
+ * extend = 能往后延长（extendOk）、refVid = 能带参考视频出片、refImg = 收参考图、refAudio = 带声音样本、audio = 出片出声、assetRef = 收认证素材（火山引擎适用）。
+ */
+export type TierAbility = "extend" | "refVid" | "refImg" | "refAudio" | "audio" | "assetRef";
+
+/** noTierLine 里「…的出片模型」中间那一截（模块顶层只放描述符，渲染时再翻 —— 开机先激活语言再 import App） */
+const TIER_ABILITY_TEXT: Record<TierAbility, MessageDescriptor> = {
+  extend: msg({ message: "能往后延长", comment: "定语，接在「目前没有…的出片模型」中间；英文写成接在 video model that 后面的动词短语：can extend a clip" }),
+  refVid: msg({ message: "能带参考视频", comment: "定语，接在「目前没有…的出片模型」中间；英文写成接在 video model that 后面的动词短语：can take a reference video" }),
+  refImg: msg({ message: "收参考图", comment: "定语，接在「目前没有…的出片模型」中间；英文写成接在 video model that 后面的动词短语：takes reference images" }),
+  refAudio: msg({ message: "能带声音样本", comment: "定语，接在「目前没有…的出片模型」中间；英文写成接在 video model that 后面的动词短语：can take voice samples" }),
+  audio: msg({ message: "能出声", comment: "定语，接在「目前没有…的出片模型」中间；英文写成接在 video model that 后面的动词短语：generates sound" }),
+  assetRef: msg({ message: "收认证素材", comment: "定语，接在「目前没有…的出片模型」中间（认证素材 = 卡上勾了「火山引擎适用」）；英文：accepts verified portrait assets" }),
+};
+
+/**
+ * 「换到哪一档就有」没有可换的那一种（tierNamesFor / tierGo 回 null）的那一句 —— 一个分句、不带句号，调用方接在「——」「：」后面。
+ * ★ 措辞照 zoneLead 的两种（videoZone.zoneIsRegional）：门禁开着说「你所在的地区（美国）目前没有…的出片模型」；没开（off / observe）或地区不知道时
+ *   缺的那几档是这台服务器没接上 / 停用了，说「这台服务器目前没有…」。不写供应商名、不写档名、不说「会员档」（付钱治不了）。
+ */
+export function noTierLine(what: TierAbility): string {
+  const ability = i18n._(TIER_ABILITY_TEXT[what]);
+  if (!zoneIsRegional()) {
+    return t({ message: `这台服务器目前没有${ability}的出片模型`, comment: "一个分句、不带句号，接在「——」后面；ability 是「能往后延长」这类定语（英文是 can extend a clip 这类动词短语）" });
+  }
+  const place = zonePlace();
+  return t({
+    message: `${place}目前没有${ability}的出片模型`,
+    comment: "一个分句、不带句号，接在「——」后面；place 是「你所在的地区（美国）」（英文首字母大写）；ability 是「能往后延长」这类定语（英文是 can extend a clip 这类动词短语）",
+  });
 }
 
 /**
@@ -1362,9 +1396,11 @@ export function planRequiredLine(): string {
 /**
  * 「去换哪几档」那一串：先给这个人**用得了的**；一档都用不了时给那几档会员档的名字，并标出来（member = true，调用方换一句「是会员档」的说法）。
  * 句子都是整句、两种说法各一条（多语言）：别把「（会员档）」当半句拼上去。
+ * ★★ null = 摆得出来的档里一档都没有这种能力（见 tierNamesFor 的 ★★）：说 noTierLine，不说「会员档」、不给「去升级」。
  */
-export function tierGo(pred: (t: VideoTier) => boolean): { names: string; member: boolean } {
+export function tierGo(pred: (t: VideoTier) => boolean): { names: string; member: boolean } | null {
   const n = tierNamesFor(pred);
+  if (!n) return null;
   return n.usable ? { names: n.usable, member: false } : { names: n.member, member: true };
 }
 
@@ -1455,6 +1491,9 @@ export function realFaceIssue(
   // 收授权素材的那几档（assetRef：Seedance 2.0 / 2.5 系列 —— 2026-10-07 起多了「草稿」）。按能力 + 这个人用不用得了现算（tierGo）：
   // 先给他用得了的（免费用户是「草稿」），一档都用不了才列会员档并标出来 —— 原来按目录列「草稿」「高清」「电影级」，免费用户被指去两个点不动的档
   const asset = tierGo((x) => x.assetRef);
+  // ★ 摆得出来的档里一档都不收认证素材（门禁开着的海外只剩「真人」档，2026-10-26 终审）：「勾选「火山引擎适用」后换「」档（会员档）」是一条不存在的路，
+  //   只说换「真人」档（它就是这时摆得出来的那一档）
+  if (!asset) return t`${names}是真人卡，「${label}」档不收真人照片——换${realPath}`;
   const assetPath = asset.member ? t`「${asset.names}」档（会员档）` : t`「${asset.names}」档`;
   // ★ 「真人」档只在画布（工作流 / 简约模式）上能直出 —— 工坊整个建立在推演上，那一档在工坊是灰的（deriveIssue）。
   //   这句话画布、工坊方案台、工坊节点卡三处都会印，所以把去哪儿用它说在句子里，别指一条在工坊里走不通的路

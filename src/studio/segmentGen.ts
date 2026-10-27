@@ -25,7 +25,7 @@ import { frameSlotsOf, framesToDraw, type DrawInput } from "../data/drawPlan";
 import { refVideoIssue } from "../data/templates";
 import { ShotSpec, shotLineOf, CardType, ID_LINE_MAX, CARD_TYPE_PROMPT, idLineOf, viewsOf, feedsModel, TEXT_DESC_MAX, aspectOf, startFramesAllowed, type Card, type GenMode, type VideoAspect, type VideoTemplate } from "../types";
 import { voiceOf } from "../data/cardVoice";
-import { isRemoteMode, tierGo } from "../data/account";
+import { isRemoteMode, noTierLine, tierGo } from "../data/account";
 import { ratioFor } from "../ai/arkClient";
 import { t } from "@lingui/core/macro";
 
@@ -1059,6 +1059,8 @@ function voiceRefsFor(o: {
           : (() => {
               // 带得了声音样本的档按能力现算、先说这个人用得了的（account.tierGo；原来写死「高清」「电影级」）
               const go = tierGo((x) => x.refAudio);
+              // 摆得出来的档里一档都带不了声音样本（门禁开着的海外只剩「真人」档）：只说台词不会被配音，不指一档不存在的档
+              if (!go) return t`「${o.tier.label}」档出片无声，台词不会被配音`;
               const names = go.names;
               return go.member
                 ? t`「${o.tier.label}」档出片无声，台词不会被配音（要声音得用「${names}」，会员档）`
@@ -1191,9 +1193,12 @@ export async function generateSegment(
       const tierLabel = refTier.label;
       // 能延长的档按能力现算（extendOk），这个人一档都用不了时说那是会员档（account.tierGo）
       const go = tierGo((x) => x.extendOk);
-      const names = go.names;
+      const names = go?.names ?? "";
+      const none = go ? "" : noTierLine("extend");
       throw new Error(
-        go.member
+        !go
+          ? t`「${tierLabel}」档还不能延长——${none}`
+          : go.member
           ? t`「${tierLabel}」档还不能延长——能延长的「${names}」是会员档（开通会员套餐或充值过任意一笔后可用）`
           : t`「${tierLabel}」档还不能延长——去 ⚙ 本段设置换成「${names}」档`,
       );
@@ -1277,9 +1282,12 @@ export async function generateSegment(
     const refTier = tierOf(input.videoTier);
     if (!refTier.refVid) {
       const go = tierGo((x) => x.refVid);
-      const names = go.names;
+      const names = go?.names ?? "";
+      const none = go ? "" : noTierLine("refVid");
       throw new Error(
-        go.member
+        !go
+          ? t`「${refTier.label}」档不支持带参考视频出片——${none}：移除参考视频再出片`
+          : go.member
           ? t`「${refTier.label}」档不支持带参考视频出片——带得了的「${names}」是会员档；移除参考视频，或开通会员套餐（或充值过任意一笔）`
           : t`「${refTier.label}」档不支持带参考视频出片——去 ⚙ 本段设置换成「${names}」档，或移除参考视频`,
       );
@@ -1570,6 +1578,7 @@ export async function generateSegment(
         ? t`素材卡上没有可用的形象参考图，改为先按描述画一张设定帧再出片（多花约一张出图的钱）`
         : (() => {
             const go = tierGo((x) => x.refImg);
+            if (!go) return t`「${tier.label}」档不支持参考图，改为先按描述画一张设定帧再出片`;
             const names = go.names;
             return go.member
               ? t`「${tier.label}」档不支持参考图，改为先按描述画一张设定帧再出片（直接用卡片形象要「${names}」，会员档）`
@@ -1781,6 +1790,7 @@ export async function generateSegment(
         ? t`这一段没走参考图出片，临时参考图这次没发出去`
         : (() => {
             const go = tierGo((x) => x.refImg);
+            if (!go) return t`「${tier.label}」档协议上不收参考图，临时参考图这次没发出去`;
             const names = go.names;
             return go.member
               ? t`「${tier.label}」档协议上不收参考图，临时参考图这次没发出去（用它们要「${names}」，会员档）`

@@ -18,7 +18,7 @@ import { priceTag } from "../../data/economy";
 import Warn from "../Warn";
 import { useState } from "react";
 import { AI_REAL } from "../../ai";
-import { tierBlockReason, tierGo, tierPlanBlocked } from "../../data/account";
+import { noTierLine, tierBlockReason, tierGo, tierPlanBlocked } from "../../data/account";
 import { durationChoices, materialRefSecs, minUsageNote, r2vPriceIssue, r2vTokens, tierOf } from "../../data/economy";
 import { useAccountVersion } from "../../hooks/useAccount";
 import UpgradeLink from "../UpgradeLink";
@@ -83,7 +83,9 @@ export default function FixSegmentBox({
   const planUpgradeable = tierPlanBlocked(tier);
   /** 能按参考视频出片的档（重拍 / 示例视频那一类）：这个人一档都用不了时，r2v 那句话后面说清它们是会员档 */
   const refGo = tierGo((x) => x.refVid && x.r2vMult !== null);
-  const refNames = refGo.names;
+  const refNames = refGo?.names ?? "";
+  /** 摆得出来的档里一档都做不了按参考视频出片（门禁开着的海外只剩「真人」档）：r2v 那句话后面补一句地区 / 这台服务器的事实（account.noTierLine），不说会员档 */
+  const refNone = refGo ? "" : noTierLine("refVid");
   const planNote = (issue: string | null) =>
     issue ? (
       <Warn>
@@ -157,12 +159,18 @@ export default function FixSegmentBox({
         (priceIssue ? (
           <Warn>
             {priceIssue}
-            {refGo.member && refNames && (
+            {refGo?.member && refNames && (
               <>
                 {"　"}
                 {t`能按参考视频出片的「${refNames}」是会员档——开通会员套餐（或充值过任意一笔）后可用`}
                 {"　"}
                 <UpgradeLink />
+              </>
+            )}
+            {refNone && (
+              <>
+                {"　"}
+                {t`${refNone}。`}
               </>
             )}
           </Warn>

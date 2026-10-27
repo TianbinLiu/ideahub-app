@@ -7,7 +7,7 @@ import { useMemo, useRef, useState } from "react";
 import Warn from "../../components/Warn";
 import { useNavigate } from "react-router";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { deckCoverOf, memberTiersLine, myCards, myDecks, realFaceIssue, regionTiersLine, tierBlockReason, tierNamesFor, tierOffered, tierShownModel, tierShownModelId } from "../../data/account";
+import { deckCoverOf, memberTiersLine, myCards, myDecks, noTierLine, realFaceIssue, regionTiersLine, tierBlockReason, tierNamesFor, tierOffered, tierShownModel, tierShownModelId } from "../../data/account";
 import { ONE_IMAGE, VIDEO_TIERS, deriveIssue, durationChoices, fmtTokens, priceTag, promptMaxOf, r2vBlockLines, segTokens, shotsOkOf, tierOf } from "../../data/economy";
 import { useAccountVersion } from "../../hooks/useAccount";
 import UpgradeLink from "../../components/UpgradeLink";
@@ -393,9 +393,18 @@ function EditorPanel() {
    */
   // 收参考图的那几档按能力现算（2026-10-07 加了「草稿」：原来写死「高清 / 电影级」）—— 优先说这个人用得了的，一档都用不了才说会员档
   const refImgNames = tierNamesFor((x) => x.refImg);
-  const refImgList = refImgNames.usable || refImgNames.member;
+  /** 摆得出来的档里一档都不收参考图（门禁开着的海外只剩「真人」档）时那一句（account.noTierLine）—— 别印一对空引号「（「」）」 */
+  const directBlock = refImgNames
+    ? (() => {
+        const refImgList = refImgNames.usable || refImgNames.member;
+        return t`参考图直出要收参考图的模型（「${refImgList}」）`;
+      })()
+    : (() => {
+        const none = noTierLine("refImg");
+        return t`参考图直出要收参考图的模型——${none}`;
+      })();
   const laneBlock = (tierId: string): string | null =>
-    lane === "direct" ? (modeBlock("direct", modeTierOf(tierId)) ? t`参考图直出要收参考图的模型（「${refImgList}」）` : null) : deriveIssue(tierId);
+    lane === "direct" ? (modeBlock("direct", modeTierOf(tierId)) ? directBlock : null) : deriveIssue(tierId);
   /** 这一窗摆哪几档：停用的、服务端不支持的不摆（account.tierOffered）；正选着的那一档例外（藏起来就不知道自己在哪一档） */
   const shownTiers = VIDEO_TIERS.filter((tier) => tierOffered(tier) || tier.id === editor.videoTier);
   /** 套餐那一类原因并成一句（account.memberTiersLine，与 TierRow / 选法屏同一句）+「去升级」 */
@@ -625,11 +634,15 @@ function EditorPanel() {
                   // 原来那句「换成高清」对他是一条走不通的路）
                   const cur = tierOf(editor.videoTier).label;
                   const vid = tierNamesFor((x) => x.refVid);
-                  const usable = vid.usable;
-                  const member = vid.member;
+                  const usable = vid?.usable ?? "";
+                  const member = vid?.member ?? "";
+                  // 摆得出来的档里一档都带不了参考视频（门禁开着的海外只剩「真人」档）：不说会员档、不给「去升级」（付钱治不了地区）
+                  const none = vid ? "" : noTierLine("refVid");
                   return (
                     <Warn compact>
-                      {usable ? (
+                      {none ? (
+                        <Trans>「{cur}」档带不了参考视频——{none}：直接跳过这一步，自己给首尾帧</Trans>
+                      ) : usable ? (
                         <Trans>「{cur}」档带不了参考视频——到「定规格」那一步换成「{usable}」，或直接跳过这一步自己给首尾帧</Trans>
                       ) : (
                         <>
@@ -1090,11 +1103,15 @@ function EditorPanel() {
                 // 带得了参考视频的档按能力现算（原来写死「电影级」，2026-10-05 起高清也带得了）；这个人一档都用不了时说会员档 +「去升级」
                 const cur = tierOf(editor.videoTier).label;
                 const vid = tierNamesFor((x) => x.refVid);
-                const usable = vid.usable;
-                const member = vid.member;
+                const usable = vid?.usable ?? "";
+                const member = vid?.member ?? "";
+                // 同上：一档都带不了参考视频时只说事实与出路（摘掉示例视频），不说会员档、不给「去升级」
+                const none = vid ? "" : noTierLine("refVid");
                 return (
                   <Warn compact className="mb-1.5">
-                    {usable ? (
+                    {none ? (
+                      <Trans>「{cur}」档带不了参考视频——{none}：摘掉示例视频，否则这一段出不了片。</Trans>
+                    ) : usable ? (
                       <Trans>「{cur}」档带不了参考视频——选「{usable}」，否则这一段出不了片</Trans>
                     ) : (
                       <>

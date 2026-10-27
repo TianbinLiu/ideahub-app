@@ -1,8 +1,9 @@
 // 出片地区的**纯规则**（2026-10-26 出片地区 P1 审核：测得到的规则进构建检查）—— 零运行时依赖，
 // 构建里 scripts/check-video-zone.mjs 直接 import 它跑正反例（Node 只剥类型，所以这里一个值 import 都不能有）。
 //
-// 管四件事：回包怎么读（parseZone）、403 REGION_UNAVAILABLE 的回包怎么记（zoneOfDenial）、
-// 「这一家给不给」（deniesOf，三态里「不知道」恒不拦）、缺的那一家该不该说成「地区」（regionalOf，只挑措辞）。
+// 管五件事：回包怎么读（parseZone）、403 REGION_UNAVAILABLE 的回包怎么记（zoneOfDenial）、
+// 「这一家给不给」（deniesOf，三态里「不知道」恒不拦）、缺的那一家该不该说成「地区」（regionalOf，只挑措辞）、
+// 「换到哪一档就有」那串档名分哪三种结局（tierGoOf：给得出的档里一档都做不了这件事单列一种）。
 // 问（网络 / 监听 / 广播）在 data/videoZone，它从这里取规则；把结论说成人话在 data/account。契约见 docs/api-contract.md「出片地区」。
 
 /** 出片供应商：ark = 火山方舟（Seedance），minimax = MiniMax。与档位表的 `provider`（economy.providerOf）同一套名字 */
@@ -78,6 +79,27 @@ export function deniesOf(zone: Pick<VideoZoneFacts, "providers"> | null, provide
  */
 export function regionalOf(zone: Pick<VideoZoneFacts, "gate"> | null): boolean {
   return zone?.gate === "on";
+}
+
+/**
+ * 「换到哪一档就有」那串档名怎么分 —— account.tierNamesFor / tierGo 的纯规则（2026-10-26 终审）。三种结局：
+ *   · `{ usable, member }`，usable 非空：先说这个人现在就换得过去的；
+ *   · `{ usable: [], member }`：做得了的档都是会员档（说「是会员档」、可以给「去升级」）；
+ *   · **null**：摆得出来的档里**一档都做不了**这件事。门禁开着的海外只剩只认起拍画面的「真人」档（MiniMax 海螺）时，
+ *     收参考图 / 能出声 / 能延长 / 带参考视频 / 带声音样本 / 收认证素材全落在这一种上。
+ * ★★ 为什么单列（终审抓到）：原来这一种与「全是会员档」混在一起（usable 空、member 也空），句子成了「换到「」就有」
+ *   「用「」出的段才能延长（会员档）」，有的旁边还摆着「去升级」—— 指去一档不存在的档，把地区原因说成套餐原因（付钱治不了地区）。
+ *   这一种由调用方说 account.noTierLine（地区 / 这台服务器两种措辞），不写「会员档」、不给「去升级」。
+ *   回 null 而不是两串空名字：调用方读 `.usable` / `.names` 之前编译器就逼着它先处理这一种（漏了编译不过，而不是零报错地印出一对空引号）。
+ * 构建里 check-video-zone 拿真表 + providers ["minimax"] 实跑。
+ * @param offered 摆得出来的档（account 传 offeredTiers：没停用、这台服务端认、地区给）
+ * @param has 这件事要的能力
+ * @param blocked 这个人用不了（套餐挡着；account 传 tierBlockReason）
+ */
+export function tierGoOf<T>(offered: readonly T[], has: (t: T) => boolean, blocked: (t: T) => boolean): { usable: T[]; member: T[] } | null {
+  const rows = offered.filter(has);
+  if (!rows.length) return null;
+  return { usable: rows.filter((x) => !blocked(x)), member: rows.filter((x) => blocked(x)) };
 }
 
 /** 两份结论是不是同一个意思（换没换 → 要不要广播 / 调用方要不要从头再判一遍） */

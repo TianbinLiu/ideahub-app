@@ -96,7 +96,7 @@ import {
   type FlowNode,
   type FlowTemplate,
 } from "../../studio/flowStore";
-import { myCards, tierBlockReason, tierNamesFor, tierPlanBlocked, tierShownModel, usableTierId } from "../../data/account";
+import { myCards, noTierLine, tierBlockReason, tierNamesFor, tierPlanBlocked, tierShownModel, usableTierId } from "../../data/account";
 import UpgradeLink from "../UpgradeLink";
 import { useAccountVersion } from "../../hooks/useAccount";
 import {
@@ -1439,6 +1439,11 @@ function NodePanel({
                 ? (() => {
                     // 收参考图的档按能力现算、先说这个人用得了的（2026-10-07：原来写死「高清或电影级」，免费用户能用的「草稿」没提）
                     const n = tierNamesFor((x) => x.refImg);
+                    // 摆得出来的档里一档都不收参考图（门禁开着的海外只剩「真人」档）：说地区 / 这台服务器的事实，不编一条路（account.noTierLine）
+                    if (!n) {
+                      const none = noTierLine("refImg");
+                      return t`参考图直出要收参考图的模型——${none}`;
+                    }
                     const names = n.usable || n.member;
                     return n.usable
                       ? t`参考图直出要收参考图的模型——到 ⚙ 本段设置换成「${names}」`
@@ -1753,11 +1758,15 @@ function NodePanel({
                       // 带得了参考视频的档按能力现算、按这个人用不用得了分两种说法（免费用户一档都没有：高清 / 电影级都是会员档）
                       const cur = tierOf(node.videoTier).label;
                       const vid = tierNamesFor((x) => x.refVid);
-                      const usable = vid.usable;
-                      const member = vid.member;
+                      const usable = vid?.usable ?? "";
+                      const member = vid?.member ?? "";
+                      // 摆得出来的档里一档都带不了参考视频（门禁开着的海外只剩「真人」档）：不说会员档、不给「去升级」（付钱治不了地区）
+                      const none = vid ? "" : noTierLine("refVid");
                       return (
                         <Warn compact className="mt-1">
-                          {usable ? (
+                          {none ? (
+                            <Trans>「{cur}」档带不了参考视频——{none}：摘掉示例视频，否则这一段出不了片。</Trans>
+                          ) : usable ? (
                             <Trans>「{cur}」档带不了参考视频——去 ⚙ 本段设置换成「{usable}」，否则这一段出不了片。</Trans>
                           ) : (
                             <>
@@ -2686,10 +2695,13 @@ export function DirectNoRefNote({ node, className = "" }: { node: FlowNode; clas
   // 收参考图的档按能力现算（先说这个人用得了的；一档都用不了时那几档是会员档）
   const cur = tier.label;
   const n = tierNamesFor((x) => x.refImg);
-  const names = n.usable || n.member;
+  const names = n ? n.usable || n.member : "";
   return (
     <p className={`rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200 ${className}`}>
-      {n.usable ? (
+      {/* 摆得出来的档里一档都不收参考图（门禁开着的海外只剩「真人」档）：只说这一段会怎样，不指一档不存在的档 */}
+      {!n ? (
+        <Trans>「{cur}」档收不了参考图：这一段出片前会先按提示词画帧（计费）。</Trans>
+      ) : n.usable ? (
         <Trans>「{cur}」档收不了参考图：这一段出片前会先按提示词画帧（计费）。想让人物图直接给视频模型，到 ⚙ 本段设置换成「{names}」。</Trans>
       ) : (
         <Trans>「{cur}」档收不了参考图：这一段出片前会先按提示词画帧（计费）。人物图直接给视频模型要「{names}」（会员档）。</Trans>

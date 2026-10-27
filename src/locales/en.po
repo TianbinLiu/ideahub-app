@@ -1523,6 +1523,10 @@ msgstr "{names}: declared as real-person material, and the “{label}” tier's 
 #~ msgstr "{names}: declared as real-person material, and the “{label}” tier's provider rejects photos of real people (in testing, celebrities are blocked for copyright and everyone else for privacy, and the whole request is rejected); meanwhile the “{realTier}” tier can't do blockout remakes — real-person cards and blockout templates can't be used together: swap the real-person card for a non-real-person card, or drop the template and switch to “{realTier}” to start from the card's photo and render directly"
 
 #: src/data/account.ts
+msgid "{names}是真人卡，「{label}」档不收真人照片——换{realPath}"
+msgstr "Real-person cards: {names}. The “{label}” tier doesn’t take real-person photos — switch to {realPath}."
+
+#: src/data/account.ts
 msgid "{names}是真人卡，「{label}」档不收真人照片——换{realPath}；{assetPath}只在「简约模式」不带首帧、且卡勾了「火山引擎适用」时可用"
 msgstr "Real-person cards: {names}. The “{label}” tier doesn’t take real-person photos — switch to {realPath}. {assetPath} can only be used in Simple mode with no opening frame, on cards marked “Volcengine verified”."
 
@@ -1600,6 +1604,11 @@ msgstr "{place} can't use this tier's video model; video here is only offered by
 msgid "{place}用不了这一档的出片模型，这里出片只提供 {via}（「{names}」档）。"
 msgstr "{place} can't use this tier's video model; video here is only offered by {via} (“{names}”)."
 
+#. 一个分句、不带句号，接在「——」后面；place 是「你所在的地区（美国）」（英文首字母大写）；ability 是「能往后延长」这类定语（英文是 can extend a clip 这类动词短语）
+#: src/data/account.ts
+msgid "{place}目前没有{ability}的出片模型"
+msgstr "{place} currently has no video model that {ability}"
+
 #: src/data/account.ts
 msgid "{place}目前没有可用的出片模型"
 msgstr "{place} has no video models available right now"
@@ -1621,6 +1630,10 @@ msgstr "{quotedList}, {quotedName}"
 #: src/data/account.ts
 msgid "{reason}——卡在这台设备上有，但换台设备或重启后可能就没了。"
 msgstr "{reason} — the card is on this device, but it may be gone after you switch devices or restart."
+
+#: src/components/flow/FixSegmentBox.tsx
+msgid "{refNone}。"
+msgstr "{refNone}."
 
 #: src/studio/gridDraftStore.ts
 msgid "{rejected} 格没过内容审核"
@@ -1880,6 +1893,11 @@ msgstr "“{0}” (member-only)"
 
 #. placeholder {0}: tier.label
 #: src/studio/segmentGen.ts
+msgid "「{0}」档不支持参考图，改为先按描述画一张设定帧再出片"
+msgstr "The “{0}” tier doesn't support reference images, so a setup frame will be drawn from the description first"
+
+#. placeholder {0}: tier.label
+#: src/studio/segmentGen.ts
 msgid "「{0}」档不支持参考图，改为先按描述画一张设定帧再出片（想直接用卡片形象请选「{names}」）"
 msgstr "The “{0}” tier doesn't support reference images, so a setup frame will be drawn from the description first (to use the card images directly, choose “{names}”)"
 
@@ -1892,6 +1910,11 @@ msgstr "The “{0}” tier doesn't support reference images, so a setup frame wi
 #: src/studio/segmentGen.ts
 msgid "「{0}」档不支持参考图，改为先按描述画一张设定帧再出片（直接用卡片形象要「{names}」，会员档）"
 msgstr "The “{0}” tier doesn't support reference images, so a setup frame will be drawn from the description first (using the card images directly needs “{names}”, a member tier)"
+
+#. placeholder {0}: refTier.label
+#: src/studio/segmentGen.ts
+msgid "「{0}」档不支持带参考视频出片——{none}：移除参考视频再出片"
+msgstr "The “{0}” tier can't render with a reference video — {none}: remove the reference video and try again"
 
 #. placeholder {0}: refTier.label
 #: src/studio/segmentGen.ts
@@ -1915,6 +1938,11 @@ msgstr "The “{0}” tier can't render with a reference video — that needs a 
 
 #. placeholder {0}: o.tier.label
 #: src/studio/segmentGen.ts
+msgid "「{0}」档出片无声，台词不会被配音"
+msgstr "The “{0}” tier renders without sound, so dialogue won't be voiced"
+
+#. placeholder {0}: o.tier.label
+#: src/studio/segmentGen.ts
 msgid "「{0}」档出片无声，台词不会被配音（要声音得用「{names}」，会员档）"
 msgstr "The “{0}” tier renders without sound, so dialogue won't be voiced (sound needs “{names}”, a member tier)"
 
@@ -1927,6 +1955,11 @@ msgstr "The “{0}” tier renders without sound, so dialogue won't be voiced (c
 #: src/studio/segmentGen.ts
 #~ msgid "「{0}」档出片无声，台词不会被配音（要声音选「高清」或「电影级」）"
 #~ msgstr "The “{0}” tier renders without sound, so dialogue won't be voiced (choose “HD” or “Cinematic” for sound)"
+
+#. placeholder {0}: tier.label
+#: src/studio/segmentGen.ts
+msgid "「{0}」档协议上不收参考图，临时参考图这次没发出去"
+msgstr "The “{0}” tier doesn't accept reference images, so the extra reference images weren't sent this time"
 
 #. placeholder {0}: tier.label
 #: src/studio/segmentGen.ts
@@ -2029,6 +2062,15 @@ msgstr "Recently popular in “{catLabel}”"
 msgid "「{ch}」"
 msgstr "“{ch}”"
 
+#: src/components/flow/FlowCanvas.tsx
+#: src/studio/ui/projection.tsx
+msgid "「{cur}」档带不了参考视频——{none}：摘掉示例视频，否则这一段出不了片。"
+msgstr "“{cur}” can't take a reference video — {none}: remove the sample video, or this segment can't be generated."
+
+#: src/studio/ui/projection.tsx
+msgid "「{cur}」档带不了参考视频——{none}：直接跳过这一步，自己给首尾帧"
+msgstr "“{cur}” can't take a reference video — {none}: skip this step and provide the first and last frames yourself"
+
 #: src/studio/ui/projection.tsx
 msgid "「{cur}」档带不了参考视频——到「定规格」那一步换成「{usable}」，或直接跳过这一步自己给首尾帧"
 msgstr "The “{cur}” tier can't take a reference video — switch to “{usable}” in the Specs step, or skip this step and provide the first and last frames yourself"
@@ -2051,12 +2093,20 @@ msgid "「{cur}」档带不了参考视频；带得了的「{member}」是会员
 msgstr "The “{cur}” tier can't take a reference video; that needs a member tier (“{member}”), available once you subscribe to a plan (or make any top-up once) — or skip this step and provide the first and last frames yourself"
 
 #: src/components/flow/FlowCanvas.tsx
+msgid "「{cur}」档收不了参考图：这一段出片前会先按提示词画帧（计费）。"
+msgstr "The “{cur}” tier can't take reference images: frames will be drawn from the prompt before this segment renders (charged)."
+
+#: src/components/flow/FlowCanvas.tsx
 msgid "「{cur}」档收不了参考图：这一段出片前会先按提示词画帧（计费）。人物图直接给视频模型要「{names}」（会员档）。"
 msgstr "The “{cur}” tier can't take reference images: frames will be drawn from the prompt before this segment renders (charged). Sending the character images straight to the video model needs “{names}” (member tier)."
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "「{cur}」档收不了参考图：这一段出片前会先按提示词画帧（计费）。想让人物图直接给视频模型，到 ⚙ 本段设置换成「{names}」。"
 msgstr "The “{cur}” tier can't take reference images: frames will be drawn from the prompt before this segment renders (charged). To send the character images straight to the video model, switch to “{names}” in ⚙ Segment settings."
+
+#: src/studio/flowStore.ts
+msgid "「{extLabel}」档还不能延长——{none}"
+msgstr "The “{extLabel}” tier can’t extend yet — {none}"
 
 #: src/studio/flowStore.ts
 msgid "「{extLabel}」档还不能延长——去 ⚙ 本段设置换成「{names}」档"
@@ -2099,6 +2149,10 @@ msgstr "The “{label}” tier has no preview-draft mode (only “{names}” has
 #: src/data/account.ts
 msgid "「{label}」档的模型已于 {day}停用——换一档再出片"
 msgstr "The model behind the “{label}” tier was retired on {day} — pick another tier to generate"
+
+#: src/studio/flowStore.ts
+msgid "「{label}」档还不能延长——{none}"
+msgstr "The “{label}” tier can’t extend yet — {none}"
 
 #: src/studio/flowStore.ts
 msgid "「{label}」档还不能延长——用「{names}」出的段才能延长"
@@ -2332,6 +2386,10 @@ msgid "「{staleText}」过期了（人、整体交代或双人镜头改过）�
 msgstr "“{staleText}” is out of date (the people, the setting or the two-shot changed) — go back a step and redraw it."
 
 #: src/pages/FlowPage.tsx
+msgid "「{tierLabel}」档不支持参考图：会先按描述画一张设定帧再出片"
+msgstr "The “{tierLabel}” tier doesn't support reference images: a setup frame is drawn from the description before rendering"
+
+#: src/pages/FlowPage.tsx
 msgid "「{tierLabel}」档不支持参考图：会先按描述画一张设定帧再出片。想直接用卡片形象，在「⚙ 本段设置」里换成「{names}」"
 msgstr "The “{tierLabel}” tier doesn't support reference images: a setup frame is drawn from the description before rendering. To use the card images directly, switch to “{names}” in “⚙ segment settings”"
 
@@ -2352,6 +2410,10 @@ msgid "「{tierLabel}」档协议上不收参考图，不能按参考图生视�
 msgstr "The “{tierLabel}” tier's protocol doesn't accept reference images, so it can't render from reference images"
 
 #: src/components/flow/RefStrip.tsx
+msgid "「{tierLabel}」档协议上不收参考图：卡片形象只用来画首尾帧，出片时模型看到的只有首尾帧。"
+msgstr "The “{tierLabel}” tier doesn't accept reference images: card images are only used to draw the first and last frames, and those frames are all the video model sees."
+
+#: src/components/flow/RefStrip.tsx
 msgid "「{tierLabel}」档协议上不收参考图：卡片形象只用来画首尾帧，出片时模型看到的只有首尾帧。想让模型直接看到卡片形象与临时参考图，换「{imgUsable}」。"
 msgstr "The “{tierLabel}” tier doesn't accept reference images: card images are only used to draw the first and last frames, and those frames are all the video model sees. To let the model see card images and extra reference images directly, switch to “{imgUsable}”."
 
@@ -2362,6 +2424,10 @@ msgstr "The “{tierLabel}” tier doesn't accept reference images: card images 
 #: src/components/flow/RefStrip.tsx
 msgid "「{tierLabel}」档协议上不收参考图：卡片形象只用来画首尾帧，出片时模型看到的只有首尾帧。让模型直接看到卡片形象与临时参考图要「{imgMember}」（会员档）。"
 msgstr "The “{tierLabel}” tier doesn't accept reference images: card images are only used to draw the first and last frames, and those frames are all the video model sees. Letting the model see card images and extra reference images directly needs “{imgMember}” (member tier)."
+
+#: src/components/flow/RefStrip.tsx
+msgid "「{tierLabel}」档带不了示例视频——{vidNone}。"
+msgstr "The “{tierLabel}” tier can't take a sample video — {vidNone}."
 
 #: src/components/flow/RefStrip.tsx
 msgid "「{tierLabel}」档带不了示例视频——换成「{vidUsable}」之后这里才排得出清单。"
@@ -2386,6 +2452,10 @@ msgstr "The “{tierLabel}” tier has no preview-draft mode (only “{names}”
 #: src/ai/real.ts
 msgid "「{tierLabel}」档跑不了白模模板（模板对出片模型是硬要求）"
 msgstr "The “{tierLabel}” tier can't run blockout templates (a template requires a specific video model)"
+
+#: src/studio/segmentGen.ts
+msgid "「{tierLabel}」档还不能延长——{none}"
+msgstr "The “{tierLabel}” tier can’t extend yet — {none}"
 
 #: src/studio/segmentGen.ts
 msgid "「{tierLabel}」档还不能延长——去 ⚙ 本段设置换成「{names}」档"
@@ -2439,6 +2509,10 @@ msgid "「{title}」要两个人：按点的先后，先点的是第一个人。
 msgstr "“{title}” needs two people: the one you tap first is the first person."
 
 #: src/components/flow/ModePicker.tsx
+msgid "「{title}」要收参考图的模型：{none}"
+msgstr "“{title}” needs a model that takes reference images: {none}"
+
+#: src/components/flow/ModePicker.tsx
 msgid "「{title}」要收参考图的模型：「{member}」才有（会员档）"
 msgstr "“{title}” needs a model that takes reference images — only on a member tier (“{member}”)"
 
@@ -2449,6 +2523,10 @@ msgstr "“{title}” needs a model that takes reference images: switch to “{u
 #: src/components/flow/ModePicker.tsx
 #~ msgid "「{title}」要收参考图的模型：换到高清或电影级就有"
 #~ msgstr "“{title}” needs a model that takes reference images: switch to HD or Cinematic to get it"
+
+#: src/components/flow/ModePicker.tsx
+msgid "「{title}」要能出声的模型（台词得说出来）：{none}"
+msgstr "“{title}” needs a model with sound (the lines have to be spoken): {none}"
 
 #: src/components/flow/ModePicker.tsx
 msgid "「{title}」要能出声的模型（台词得说出来）：「{member}」才有（会员档）"
@@ -3817,6 +3895,10 @@ msgstr "🔄 Rewrite ({writePrice}, replaces the dialogue above)"
 #: src/components/flow/LeadShotsWizard.tsx
 msgid "🔄 重新拆（{splitPrice}，会换掉上面的分镜）"
 msgstr "🔄 Split again ({splitPrice}; replaces the shots above)"
+
+#: src/components/flow/RefStrip.tsx
+msgid "🔇 {idleNames} 带着声音样本，但「{tierLabel}」档出片无声——{audioNone}。"
+msgstr "🔇 {idleNames} has a voice sample, but the “{tierLabel}” tier renders without sound — {audioNone}."
 
 #: src/components/flow/RefStrip.tsx
 msgid "🔇 {idleNames} 带着声音样本，但「{tierLabel}」档出片无声——要配音换「{audioUsable}」。"
@@ -7296,6 +7378,10 @@ msgstr "Free"
 msgid "免费版：每天自动补 {daily} 套餐 token（最多攒到 {cap}），能用「{names}」档出片。开通会员套餐或充值任意一笔，全部档位都能用。"
 msgstr "Free plan: {daily} plan tokens are added every day (saving up to {cap}), and you can generate on “{names}”. Subscribe to a plan or make any top-up once to unlock every tier."
 
+#: src/pages/ProfilePage.tsx
+msgid "免费版：每天自动补 {daily} 套餐 token（最多攒到 {cap}）。开通会员套餐或充值任意一笔，全部档位都能用。"
+msgstr "Free plan: {daily} plan tokens are added every day (saving up to {cap}). Subscribe to a plan or make any top-up once to unlock every tier."
+
 #: src/components/flow/ThemeRewriteSheet.tsx
 msgid "全不选"
 msgstr "Select none"
@@ -9533,6 +9619,11 @@ msgstr "A direct render from reference images still needs one sentence about wha
 #: src/studio/studioStore.ts
 msgid "参考图直出的方案摆上桌了——人物图会直接给视频模型、不画帧。提示词确认没问题，就点「⚡ 生成本段视频」。"
 msgstr "The direct plan is on the table — the character images go straight to the video model and no frames are drawn. Once the prompt looks right, tap “⚡ Generate this segment's video”."
+
+#: src/components/flow/FlowCanvas.tsx
+#: src/studio/ui/projection.tsx
+msgid "参考图直出要收参考图的模型——{none}"
+msgstr "Direct from reference images needs a model that takes reference images — {none}"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "参考图直出要收参考图的模型——「{names}」是会员档，开通会员套餐（或充值过任意一笔）后可用"
@@ -15273,6 +15364,11 @@ msgstr "Add to my cards"
 msgid "收到，让我看看成色……（炉火升起）"
 msgstr "Got it. Let me see what they're made of… (The forge fires up)"
 
+#. 定语，接在「目前没有…的出片模型」中间；英文写成接在 video model that 后面的动词短语：takes reference images
+#: src/data/account.ts
+msgid "收参考图"
+msgstr "takes reference images"
+
 #: src/pages/CardDetailPage.tsx
 msgid "收参考图的出片模型（{names}）与白模模板挂卡：每张人物卡都各带自己的形象图（先每卡 1 张，预算有余再补第 2 张；一段最多几张按所选模型的协议走）。出片前补画设定帧那一步（以及收不到参考图的档位）：一段里只有「第一张人物卡」能带形象参考图——先取 {MAX_CHAR_REFS} 张（优先{face} + {body}），标成「出片用」的第 3 张要等同段每张卡都拿到第 1 张之后，预算还有余才补得上；其余人物卡在那一步只按文字设定参与（画帧的出图模型只吃第一个人物的图）。所以上面的「出片用 / 仅展示」是按补画设定帧那一步、按\"这张卡就是那第一张人物卡\"标的：它排在别的人物卡后面时，标着出片用的那几张在那一步同样进不了模型（生成步骤里会点名说明）。{detail}这一格铸卡不会自动出图，只能自己传。"
 msgstr "On video models that take reference images ({names}) and with blockout template rigging: every character card brings its own likeness images (1 per card first, a 2nd when budget allows; the per-segment maximum follows the chosen model's protocol). In the setting-frame step (and on tiers that don't take reference images): only the “first character card” in a segment can bring likeness references — {MAX_CHAR_REFS} images are taken first ({face} + {body} preferred); a 3rd image marked “used” only comes in after every card in the segment has its 1st and budget is left; the other character cards take part in that step by text only (the image model that draws frames only takes the first character's images). So the “used / display only” labels above are for the setting-frame step and assume this card is that first character card: when it sits behind other character cards, images marked “used” don't reach the model in that step either (the generation steps say so). {detail} isn't drawn automatically when forging — upload it yourself."
@@ -15297,6 +15393,11 @@ msgstr "Saved"
 #: src/pages/ProfilePage.tsx
 msgid "收藏的这几条都打不开了：作者删了，或者改成了仅自己可见"
 msgstr "None of these saved videos can be opened: the creators deleted them or set them to Only me"
+
+#. 定语，接在「目前没有…的出片模型」中间（认证素材 = 卡上勾了「火山引擎适用」）；英文：accepts verified portrait assets
+#: src/data/account.ts
+msgid "收认证素材"
+msgstr "accepts verified portrait assets"
 
 #: src/pages/PublishPage.tsx
 #~ msgid "收费方式"
@@ -23039,6 +23140,26 @@ msgstr "Background"
 msgid "背景卡"
 msgstr "Background card"
 
+#. 定语，接在「目前没有…的出片模型」中间；英文写成接在 video model that 后面的动词短语：generates sound
+#: src/data/account.ts
+msgid "能出声"
+msgstr "generates sound"
+
+#. 定语，接在「目前没有…的出片模型」中间；英文写成接在 video model that 后面的动词短语：can take a reference video
+#: src/data/account.ts
+msgid "能带参考视频"
+msgstr "can take a reference video"
+
+#. 定语，接在「目前没有…的出片模型」中间；英文写成接在 video model that 后面的动词短语：can take voice samples
+#: src/data/account.ts
+msgid "能带声音样本"
+msgstr "can take voice samples"
+
+#. 定语，接在「目前没有…的出片模型」中间；英文写成接在 video model that 后面的动词短语：can extend a clip
+#: src/data/account.ts
+msgid "能往后延长"
+msgstr "can extend a clip"
+
 #: src/components/flow/FixSegmentBox.tsx
 msgid "能按参考视频出片的「{refNames}」是会员档——开通会员套餐（或充值过任意一笔）后可用"
 msgstr "Generating from a reference video needs a member tier (“{refNames}”) — available once you subscribe to a plan (or make any top-up once)"
@@ -25349,6 +25470,10 @@ msgid "这一档最短 {minSec} 秒"
 msgstr "This tier needs at least {minSec}s"
 
 #: src/components/flow/DialogueWizard.tsx
+msgid "这一档出片不出声，台词说不出来 —— {none}。"
+msgstr "This tier renders without sound, so the lines can’t be spoken — {none}."
+
+#: src/components/flow/DialogueWizard.tsx
 msgid "这一档出片不出声，台词说不出来 —— 出声的「{names}」是会员档。"
 msgstr "This tier renders without sound, so the lines can’t be spoken — sound needs a member tier (“{names}”)."
 
@@ -26417,6 +26542,11 @@ msgstr "This server has no speech configured; lips move, no voice"
 #: src/components/TemplateShelf.tsx
 msgid "这台服务器用不了"
 msgstr "Not available on this server"
+
+#. 一个分句、不带句号，接在「——」后面；ability 是「能往后延长」这类定语（英文是 can extend a clip 这类动词短语）
+#: src/data/account.ts
+msgid "这台服务器目前没有{ability}的出片模型"
+msgstr "This server currently has no video model that {ability}"
 
 #: src/data/account.ts
 msgid "这台服务器目前没有接上出片模型"

@@ -14,7 +14,7 @@ import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { AI_REAL } from "../../ai";
-import { myCards, realFaceIssue, tierGo } from "../../data/account";
+import { myCards, noTierLine, realFaceIssue, tierGo } from "../../data/account";
 import { subscribeVoices, voiceOf, voicesVersion } from "../../data/cardVoice";
 import {
   DIALOGUE_LEAD_MAX,
@@ -649,10 +649,14 @@ export default function DialogueWizard({
               // ★ 与这一句的闸（上面的 !tier.audio、下面那颗键的 disabled）同一位 audio（2026-10-26 审核）：按 refAudio 数的话，
               //   出声却不收声音样本的档（MiniMax H3）在这里能落段，提示却不提它；声音样本带不带得上由 voiceRefsFor 另说
               const go = tierGo((x) => x.audio);
-              const names = go.names;
+              // 摆得出来的档里一档都出不了声（门禁开着的海外只剩「真人」档）：不说「换到「」」，说地区 / 这台服务器的事实（account.noTierLine）
+              const none = go ? "" : noTierLine("audio");
+              const names = go?.names ?? "";
               return (
                 <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200">
-                  {go.member ? (
+                  {!go ? (
+                    <Trans>这一档出片不出声，台词说不出来 —— {none}。</Trans>
+                  ) : go.member ? (
                     <Trans>这一档出片不出声，台词说不出来 —— 出声的「{names}」是会员档。</Trans>
                   ) : (
                     <Trans>这一档出片不出声，台词说不出来 —— 换到「{names}」。</Trans>

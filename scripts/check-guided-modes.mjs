@@ -117,6 +117,20 @@ for (const refImg of [false, true])
       }
     }
 
+// 门禁开着的海外（真表 + providers ["minimax"]，2026-10-26 终审反例）：摆得出来的只剩「真人」档，被挡的「主角定妆」（refImg）、「对话正反打」（audio）
+//   在给得出的档里一档都解不了 —— 选法屏那一行必须走 account.noTierLine（tierNamesFor 回 null），原来印的是「换到「」就有」。
+//   「换到哪一档就有」三种结局的规则本身在 videoZoneRules.tierGoOf（check-video-zone 实跑），这里只钉「这种情形真的会出现」。
+{
+  const Z = await import(url.pathToFileURL(path.join(root, "src/data/videoZoneRules.ts")).href);
+  const intl = T.VIDEO_TIER_SPECS.filter((r) => !r.retireAt && !Z.deniesOf({ providers: ["minimax"] }, r.provider ?? "ark"));
+  for (const why of ["refImg", "audio"]) {
+    const hiddenBy = intl.flatMap((r) => M.GUIDED_MODES.filter((m) => M.modeBlock(m.id, M.modeTierOfSpec(r)) === why).map((m) => m.id));
+    ran++;
+    if (!hiddenBy.length) problems.push(`海外门禁开着时没有哪个模式因为「${why}」被挡了 —— 档位表改了？去看选法屏那几句话还要不要 noTierLine 那一支`);
+    eq(`海外门禁开着：能解开「${why}」的档一档都没有（选法屏说 noTierLine，不说「换到「」就有」）`, Z.tierGoOf(intl, (r) => M.clearsBlock(why, M.modeTierOfSpec(r)), () => false), null);
+  }
+}
+
 // 清单本身：id 不重复、每组至少一个、步骤数是正整数
 {
   const all = M.GUIDED_MODES.map((m) => m.id);

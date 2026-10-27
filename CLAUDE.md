@@ -232,6 +232,9 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   **出路只指做得了这件事的档**（P1 审核）：要特定能力的调用方传 `tierBlockReason(tier, need)`（白模模板 blockoutOk、重拍 refVid、延长 extendOk、样片 draftOk、定稿 `() => false`），
   缺省也**不往只认一张起拍画面的档（startOnly，真人档）上指**；抄来的档同理（`usableTierId` 找不到近邻时留着原档、由 `flowStore.tierCopyNote` 说一句，不落到「真人」）。
   **「去升级」只在 `account.tierPlanBlocked`（摆得出来、只是套餐挡着）时画**：付钱治不了地区（模板用 `templatePlanUpgradeable`、样片用 `draftModeUpgradeable`）。
+  **「换到哪一档就有」有三种结局**（终审，规则 `videoZoneRules.tierGoOf`，`check-video-zone` 拿真表 + providers `["minimax"]` 实跑）：`account.tierGo` / `tierNamesFor` 回 **null** =
+  摆得出来的档里一档都做不了这件事（门禁开着的海外只剩「真人」档时，收参考图 / 出声 / 延长 / 参考视频 / 声音样本 / 认证素材全是这样）——
+  说 `account.noTierLine(能力)`（地区 / 这台服务器两种措辞），不写「换到「」」、不写「会员档」、不给「去升级」；原来回两串空名字，句子里印一对空引号还把地区说成套餐。
   ④ 服务端 403 `REGION_UNAVAILABLE` 认 `code` 不认 message（那句是英中并排、给老 App 兜底的）：`arkClient.ArkRegionDenied`（带 `billed`）、话在 `account.regionDeniedLine`，
   钱只走 `ai/failCharge`（照回包 `billed`）；白模化在 `api/branch.blockoutPost` 按 `billed` 两句各说。收到就把回包里的地区记下并重问（`noteRegionDenied`）。
   ⑤ 门禁只拦视频那一发，出片前补画的帧 / 推演各自先结算：**花第一笔钱之前现问一次地区再重判**（`refreshVideoZone`：genNode / deriveProposals / 工坊 generateNode / 剪辑页按圈选重做，
