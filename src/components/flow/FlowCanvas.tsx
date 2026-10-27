@@ -1930,8 +1930,10 @@ function NodePanel({
               onAdd={(url) =>
                 addExtraRef(node.id, {
                   url,
-                  // 默认名：「参考图 / 参考图2…」（不与别的参考图、这一段的卡重名）；加完当场能改
-                  name: uniqueRefName(t`参考图`, [...extraRefs.map((x) => x.name), ...mats.map((c) => c.name)]),
+                  // 默认名：「参考 / 参考2…」（不与别的参考图、这一段的卡重名）；加完当场能改。
+                  // ★ 不叫「参考图 / 参考图2」（2026-10-26 改）：那是正文里「第几张图」的叫法，是保留名 —— 人写的「参考图2」
+                  //   与系统兜底句里的「图片4「参考图2」」会撞名又错位（refMentions.refNameIssue）
+                  name: uniqueRefName(t`参考`, [...extraRefs.map((x) => x.name), ...mats.map((c) => c.name)]),
                   role: "free",
                 })
               }

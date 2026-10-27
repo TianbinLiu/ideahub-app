@@ -9584,6 +9584,11 @@ msgstr "参数版"
 msgid "参数这一栏这版还不能在 App 里改。对不上的话去 Cubism 里把参数 id 改成标准名（ParamAngleX 这一套）再导出一次。"
 msgstr "参数这一栏这版还不能在 App 里改。对不上的话去 Cubism 里把参数 id 改成标准名（ParamAngleX 这一套）再导出一次。"
 
+#: src/components/flow/FlowCanvas.tsx
+#: src/studio/ui/projection.tsx
+msgid "参考"
+msgstr "参考"
+
 #: src/studio/ui/SchemeEditorSheet.tsx
 msgid "参考主裁剪"
 msgstr "参考主裁剪"
@@ -9594,8 +9599,8 @@ msgstr "参考卡片形象直接出片（省掉设定帧）…"
 
 #: src/components/flow/FlowCanvas.tsx
 #: src/studio/ui/projection.tsx
-msgid "参考图"
-msgstr "参考图"
+#~ msgid "参考图"
+#~ msgstr "参考图"
 
 #: src/pages/CardDetailPage.tsx
 msgid "参考图怎么被 AI 取用"
@@ -26196,8 +26201,12 @@ msgid "这个包里没有它 —— 换一个，或者回 Cubism 重新导出。
 msgstr "这个包里没有它 —— 换一个，或者回 Cubism 重新导出。"
 
 #: src/studio/flowStore.ts
-msgid "这个名字留给帧和模型自己的写法了（首帧 / 尾帧 / 图片1…）——换一个"
-msgstr "这个名字留给帧和模型自己的写法了（首帧 / 尾帧 / 图片1…）——换一个"
+msgid "这个名字留给帧和图片编号的写法了（首帧 / 尾帧 / 图片1 / 图1 / 参考图2…）——换一个"
+msgstr "这个名字留给帧和图片编号的写法了（首帧 / 尾帧 / 图片1 / 图1 / 参考图2…）——换一个"
+
+#: src/studio/flowStore.ts
+#~ msgid "这个名字留给帧和模型自己的写法了（首帧 / 尾帧 / 图片1…）——换一个"
+#~ msgstr "这个名字留给帧和模型自己的写法了（首帧 / 尾帧 / 图片1…）——换一个"
 
 #: src/pages/SupportPage.tsx
 msgid "这个回答有帮助吗？"

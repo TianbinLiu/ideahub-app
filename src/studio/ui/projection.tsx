@@ -1633,7 +1633,8 @@ function ProposalsPanel() {
                 onAdd={(url) =>
                   useFlow.getState().addExtraRef(node.id, {
                     url,
-                    name: uniqueRefName(t`参考图`, [...extraRefs.map((x) => x.name), ...(node.materials ?? []).map((c) => c.name)]),
+                    // 默认名「参考 / 参考2…」：不叫「参考图N」—— 那是正文里「第几张图」的叫法，是保留名（refMentions.refNameIssue）
+                    name: uniqueRefName(t`参考`, [...extraRefs.map((x) => x.name), ...(node.materials ?? []).map((c) => c.name)]),
                     role: "free",
                   })
                 }

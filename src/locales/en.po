@@ -9576,6 +9576,11 @@ msgstr "parameter-based"
 msgid "参数这一栏这版还不能在 App 里改。对不上的话去 Cubism 里把参数 id 改成标准名（ParamAngleX 这一套）再导出一次。"
 msgstr "Parameters can't be edited in the app yet. If they don't match, rename the parameter ids in Cubism to the standard names (the ParamAngleX set) and export again."
 
+#: src/components/flow/FlowCanvas.tsx
+#: src/studio/ui/projection.tsx
+msgid "参考"
+msgstr "Ref"
+
 #: src/studio/ui/SchemeEditorSheet.tsx
 msgid "参考主裁剪"
 msgstr "Reference: main crop"
@@ -9586,8 +9591,8 @@ msgstr "Rendering directly from the card images (no setup frames)…"
 
 #: src/components/flow/FlowCanvas.tsx
 #: src/studio/ui/projection.tsx
-msgid "参考图"
-msgstr "Ref"
+#~ msgid "参考图"
+#~ msgstr "Ref"
 
 #: src/pages/CardDetailPage.tsx
 msgid "参考图怎么被 AI 取用"
@@ -26188,8 +26193,12 @@ msgid "这个包里没有它 —— 换一个，或者回 Cubism 重新导出。
 msgstr "This bundle doesn't have it — pick another, or re-export from Cubism."
 
 #: src/studio/flowStore.ts
-msgid "这个名字留给帧和模型自己的写法了（首帧 / 尾帧 / 图片1…）——换一个"
-msgstr "That name is reserved for frames and the model's own notation (first frame / last frame / 图片1…) — pick another"
+msgid "这个名字留给帧和图片编号的写法了（首帧 / 尾帧 / 图片1 / 图1 / 参考图2…）——换一个"
+msgstr "That name is reserved for frames and image numbering (first frame / last frame / 图片1 / 图1 / 参考图2…) — pick another"
+
+#: src/studio/flowStore.ts
+#~ msgid "这个名字留给帧和模型自己的写法了（首帧 / 尾帧 / 图片1…）——换一个"
+#~ msgstr "That name is reserved for frames and the model's own notation (first frame / last frame / 图片1…) — pick another"
 
 #: src/pages/SupportPage.tsx
 msgid "这个回答有帮助吗？"

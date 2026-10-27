@@ -12,7 +12,8 @@
 //   ⑥ 没有 @ 的句子不走快路并改了字；⑦ extraRefLines 的编号写成下标（图片2 说成 图片1）；
 //   ⑧ usableExtraRefs 不滤空地址（回炉工程里的墓碑被当成一张图）；⑨ 全角 ＠ 不认；⑩ 改名不守边界（@Ref12 被连带改掉）；
 //   ⑪ 插入不补空格（@Ref1abc 认不回来）；⑫ 保留名不拦（一张图起名叫「图片1」）；
-//   ⑬ 画结束画面也带站位构图那一类（drawExtraRefs 不滤 layout）。
+//   ⑬ 画结束画面也带站位构图那一类（drawExtraRefs 不滤 layout）；
+//   ⑭ 保留名只认「图片N」、不认「图N / 参考图N」（2026-10-26 文字模板的「保留名扩大」；图位的认法与改写在 check-text-template）。
 //
 // 用法：node scripts/check-ref-mentions.mjs [--module=<另一份 refMentions.ts 的路径，造违规试红用>]
 import fs from "node:fs";
@@ -152,10 +153,20 @@ eq("refNameIssue 保留：帧的另一个叫法", M.refNameIssue("最后一帧",
 eq("名字叫 first 时，@first frame 仍然认成帧（最长的先试）", run("@first frame 与 @first", M.mentionTargets({ cards: [], extras: [{ id: "e5", name: "first", n: 3 }], frames: { first: 1 } })).text, "first frame（图片1） 与 first（图片3）");
 eq("refNameIssue 重名不分大小写", M.refNameIssue("ref1", ["Ref1"]), "taken");
 eq("refNameIssue 能用", M.refNameIssue("杯子", ["Ref1", "凛"]), null);
-eq("uniqueRefName 不重名就用原名", M.uniqueRefName("参考图", ["凛"]), "参考图");
-eq("uniqueRefName 重名接数字", M.uniqueRefName("参考图", ["参考图", "参考图2"]), "参考图3");
+eq("uniqueRefName 不重名就用原名", M.uniqueRefName("参考", ["凛"]), "参考");
+eq("uniqueRefName 重名接数字", M.uniqueRefName("参考", ["参考", "参考2"]), "参考3");
 ran++;
 if (M.refNameIssue(M.uniqueRefName("图片", []), []) !== null) fail(`uniqueRefName("图片") 给出了一个不能用的名字：${show(M.uniqueRefName("图片", []))}`);
+// 保留名扩大（2026-10-26 文字模板）：「第几张图」的叫法本身、以及含着图位写法的名字都不行；基名接上数字就成了保留名的也换掉
+eq("refNameIssue 保留：图N", M.refNameIssue("图1", []), "reserved");
+eq("refNameIssue 保留：参考图（原来的默认名）", M.refNameIssue("参考图", []), "reserved");
+eq("refNameIssue 保留：参考图N", M.refNameIssue("参考图2", []), "reserved");
+eq("refNameIssue 保留：英文 image2", M.refNameIssue("image2", []), "reserved");
+eq("refNameIssue 保留：含着图位写法（草图2）", M.refNameIssue("草图2", []), "reserved");
+eq("refNameIssue 能用：截图2（「截图」是一个词，不是图位）", M.refNameIssue("截图2", []), null);
+eq("refNameIssue 能用：Ref2", M.refNameIssue("Ref2", []), null);
+ran++;
+if (M.refNameIssue(M.uniqueRefName("参考图", []), []) !== null) fail(`uniqueRefName("参考图") 给出了一个不能用的名字：${show(M.uniqueRefName("参考图", []))}`);
 
 // ── (f) 系统兜底句 ──
 eq("extraRefLines 空", M.extraRefLines([]), "");
