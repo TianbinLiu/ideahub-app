@@ -2771,7 +2771,7 @@ App `src/data/economy.ts` 是**报价**口径。不一致的后果是"报价 216
   工坊 `studioStore.generateNode`、剪辑页按圈选重做：现问一次再按问到的那份重判这一档 —— 门禁只拦视频，会话中途开关过 VPN 的人不现问就会先付图钱 / 推演费，再被 403）。
   同步看状态的宿主（工坊 `genNodeVideo` 受理即收窗、画布 agent 700 毫秒后报回执）**调之前自己先问**，genNode 的同步门禁就在打上 generating 之前拒。
   **反方向**也问：同步门禁拿地区拒之前先现问一次（`account.tierRegionRecheck`），结论变了从头再判 —— 不然人在前台关了 VPN（不发 visibilitychange），
-  最多 10 分钟里每一次点都被拒。两次顺手重问之间至少隔 10 秒（花钱之前那一次 5 秒）；一发最多等 6 秒（问不到就放行，服务端照样拦）。
+  最多 10 分钟里每一次点都被拒。两次顺手重问之间至少隔 10 秒（花钱之前那一次 5 秒）；花钱之前那一次**连同能力位还没探到时要先补的那一发健康探测**整体最多等 6 秒（`refreshVideoZone` 自己掐；问不到就放行，服务端照样拦，没等完的那一发照常在后台记下结论）。
 - **摆档**：这个地区不给的档进 `account.tierOffIssue`（地区那一支 `tierRegionIssue`，排在「已停用」之后、「服务端不支持」之前）——
   于是 `offeredTiers` 不摆它，`tierBlockReason` 说它，`usableTierId` 换掉它（抄来的档；找不到做得了同样事的近邻时**留着原档**、说一句，不落到「真人」档）。
   档位那一排（TierRow / 选法屏 ModePicker / 工坊铸段窗）下面印一句 `account.regionTiersLine`（「你所在的地区（美国）出片只提供 MiniMax」）。

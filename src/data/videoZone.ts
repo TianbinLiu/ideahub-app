@@ -143,12 +143,18 @@ export function zoneIsRegional(): boolean {
  * 回 true = 这一次问到的结论与问之前**不一样**（account.tierRegionRecheck 拿它决定要不要从头再判一遍门禁）。
  * ★★ 为什么要等这一发（2026-10-26 设计审核，钱）：服务端的地区门禁只管视频那一发，出片前补画的设定帧、推演的方案各自先结算 ——
  *   会话中途开关过 VPN 的人，App 上一次问到的还是旧地区，就会先付图钱、到视频那一发才被 403。离上一次问不到 5 秒就不再问。
- * ★ 问不到（断网 / 超时 / 老服务端）照旧放行：沿用上一次的结论，服务端照样拦，视频那一发不扣钱。最多多等 TIMEOUT_MS。
+ * ★ 问不到（断网 / 超时 / 老服务端）照旧放行：沿用上一次的结论，服务端照样拦，视频那一发不扣钱。**整体**最多多等 TIMEOUT_MS。
+ * ★★ 「整体」是这里自己掐的（2026-10-26 终审）：probe 在能力位还没探到时要先等一发健康探测（serverCaps 自带 10 秒超时），
+ *   再发地区那一发（6 秒）—— 不在这里掐，genNode / deriveProposals 打上「generating · 准备中…」之后最多会卡约 16 秒，
+ *   老服务端上也会（等完健康探测才知道根本不用问）。掐了之后没等完的那一发照常在后台跑完、结论照常记下，只是这一次花钱不等它：
+ *   服务端照样拦，视频那一发不扣钱。
  */
 export async function refreshVideoZone(): Promise<boolean> {
   watch();
   const before = known;
-  await probe(5_000);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  await Promise.race([probe(5_000), new Promise<void>((r) => (timer = setTimeout(r, TIMEOUT_MS)))]);
+  clearTimeout(timer);
   return !sameZone(before, known);
 }
 
