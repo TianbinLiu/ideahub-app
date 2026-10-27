@@ -13,6 +13,11 @@ msgstr ""
 "Language-Team: \n"
 "Plural-Forms: \n"
 
+#. 参数行各项之间的分隔符
+#: src/components/video/RemakeCard.tsx
+msgid " · "
+msgstr " · "
+
 #. placeholder {0}: targets.length
 #: src/components/DownloadSheet.tsx
 msgid " · {0} 个文件"
@@ -222,7 +227,6 @@ msgid "、"
 msgstr ", "
 
 #. 几条「第 N 段换了档」的说明连成一行时的分隔符
-#. 几条「第 N 段换了档」的说明连成一行时的分隔符
 #. 几条提示连成一串时的分隔符（出片 / 铸卡 / 推演 / 改图的进度行与完成提示共用）
 #. 列举「每个图位锁什么」时的分隔符
 #. 列举包里缺的几个文件时的分隔符
@@ -242,10 +246,9 @@ msgstr ", "
 #. 把铸卡时的几条说明连成一句时的分隔符
 #: src/ai/real.ts
 #: src/components/flow/SegSettings.tsx
+#: src/hooks/useRemake.tsx
 #: src/live2d/bundlePreview.ts
 #: src/pages/CardDetailPage.tsx
-#: src/pages/FeedPage.tsx
-#: src/pages/VideoPage.tsx
 #: src/studio/dialogueDraftStore.ts
 #: src/studio/flowStore.ts
 #: src/studio/gridDraftStore.ts
@@ -770,10 +773,13 @@ msgstr "{0, plural, one {# open slot} other {# open slots}}"
 msgid "{0} 个角色位可换人"
 msgstr "{0, plural, one {# recastable slot} other {# recastable slots}}"
 
-#. placeholder {0}: it.remixCount
 #. placeholder {0}: video.remixCount
+#: src/components/video/RemakeCard.tsx
+msgid "{0} 人做了同款"
+msgstr "{0, plural, one {# person made} other {# people made}} their own version"
+
+#. placeholder {0}: it.remixCount
 #: src/components/WorkflowShelf.tsx
-#: src/pages/VideoPage.tsx
 msgid "{0} 人按这条的流程做了同款"
 msgstr "{0, plural, one {# person remade this with its process} other {# people remade this with its process}}"
 
@@ -793,10 +799,8 @@ msgid "{0} 字"
 msgstr "{0} chars"
 
 #. placeholder {0}: d.cardIds.length
-#. placeholder {0}: deck.cards.length
 #. placeholder {0}: materials.length
 #: src/components/MaterialSheet.tsx
-#: src/pages/VideoPage.tsx
 #: src/pages/WorkshopMinePage.tsx
 msgid "{0} 张"
 msgstr "{0, plural, one {# card} other {# cards}}"
@@ -908,6 +912,7 @@ msgstr "{0, plural, one {# comment} other {# comments}}"
 #. placeholder {0}: s.segs
 #: src/components/recipe/RecipeView.tsx
 #: src/components/TemplateShelf.tsx
+#: src/components/video/RemakeCard.tsx
 #: src/components/WorkflowShelf.tsx
 #: src/pages/FlowPage.tsx
 msgid "{0} 段"
@@ -949,6 +954,11 @@ msgstr "{0, plural, one {# segment uses a template} other {# segments use templa
 #: src/pages/CustomCardPage.tsx
 msgid "{0} 等 {1} 张没能同步（{2}）。卡本身在服务器上，只有这几张图还只留在这台设备，换设备或重新登录后它们会消失。"
 msgstr "{0} and others ({1, plural, one {# image} other {# images}} in total) couldn't be synced ({2}). The card itself is on the server; only these images remain on this device, and they'll disappear if you switch devices or sign in again."
+
+#. placeholder {0}: formatPlays(fans)
+#: src/pages/VideoPage.tsx
+msgid "{0} 粉丝"
+msgstr "{0} followers"
 
 #. placeholder {0}: s.verifyWarn.length
 #: src/pages/SupportModelNewPage.tsx
@@ -1076,10 +1086,8 @@ msgstr "{0}s blockout remake"
 msgid "{0}s 白模复刻 · {1} 个角色位"
 msgstr "{0}s blockout remake · {1, plural, one {# role slot} other {# role slots}}"
 
-#. placeholder {0}: formatPlays(plays)
 #. placeholder {0}: formatPlays(v.plays)
 #: src/pages/DiscoverPage.tsx
-#: src/pages/VideoPage.tsx
 msgid "{0}播放"
 msgstr "{0} plays"
 
@@ -1119,6 +1127,12 @@ msgstr "{0}: that's a segment setting. Open that segment's editor — duration, 
 #: src/pages/VideoPage.tsx
 msgid "{0}重新剪辑过"
 msgstr "Re-edited {0}"
+
+#. placeholder {0}: relativeTime(video.revisedAt)
+#. placeholder {1}: revisionLabel(video.revision)
+#: src/pages/VideoPage.tsx
+msgid "{0}重新剪辑过 · {1}"
+msgstr "re-edited {0} · {1}"
 
 #. placeholder {0}: s.label
 #. placeholder {1}: s.locks
@@ -1346,6 +1360,10 @@ msgstr "{installs, plural, one {Installed by # person} other {Installed by # peo
 #: src/data/publishAssets.ts
 msgid "{label} 太大（{sizeMb}MB，上限 5MB）"
 msgstr "{label} is too large ({sizeMb}MB; the limit is 5MB)"
+
+#: src/components/video/RemakeCard.tsx
+msgid "{label}（{model}）"
+msgstr "{label} ({model})"
 
 #. 生成契约那一行里的「档位名（模型名）」，如「草稿（MiniMax H3 Lite）」
 #: src/studio/genLog.ts
@@ -1861,7 +1879,7 @@ msgstr "{who} (mark: {0}) (currently attached: {1})"
 msgid "{who}（现在挂着 {0}）"
 msgstr "{who} (currently attached: {0})"
 
-#: src/pages/VideoPage.tsx
+#: src/components/video/RemakeCard.tsx
 msgid "{why}——卡在这台设备上有，但换台设备或重启后可能就没了，联网后再点一次。"
 msgstr "{why} — the cards are on this device, but they may be gone after you switch devices or restart. Tap again once you're online."
 
@@ -2790,6 +2808,10 @@ msgstr "⇤ Start here"
 msgid "＋ 上传我的 Live2D 模型"
 msgstr "+ Upload my Live2D model"
 
+#: src/pages/VideoPage.tsx
+msgid "+ 关注"
+msgstr "+ Follow"
+
 #: src/studio/ui/SchemeEditorSheet.tsx
 msgid "＋ 再加一个图位"
 msgstr "＋ Add another slot"
@@ -3357,8 +3379,8 @@ msgid "⚡ 用这个模板出片（挂上你的角色卡）"
 msgstr "⚡ Make a video with this template (attach your character cards)"
 
 #: src/pages/VideoPage.tsx
-msgid "⚡ 解锁观看"
-msgstr "⚡ Unlock to watch"
+#~ msgid "⚡ 解锁观看"
+#~ msgstr "⚡ Unlock to watch"
 
 #: src/components/flow/DialogueWizard.tsx
 #: src/components/flow/GridShotsWizard.tsx
@@ -3456,7 +3478,7 @@ msgstr "✓ Rendered"
 msgid "✓ 已加为中间帧"
 msgstr "✓ Added as a middle frame"
 
-#: src/pages/VideoPage.tsx
+#: src/components/video/RemakeCard.tsx
 msgid "✓ 已在我的卡组"
 msgstr "✓ In my cards"
 
@@ -3889,8 +3911,8 @@ msgid "🎴 模板卡组 · {cardCount} 张"
 msgstr "🎴 Template deck · {cardCount, plural, one {# card} other {# cards}}"
 
 #: src/pages/VideoPage.tsx
-msgid "🎴 用这套卡去创作"
-msgstr "🎴 Create with these cards"
+#~ msgid "🎴 用这套卡去创作"
+#~ msgstr "🎴 Create with these cards"
 
 #: src/pages/WorkshopMinePage.tsx
 #~ msgid "🎴 进入 3D 工坊"
@@ -4052,7 +4074,6 @@ msgid "🔇 {quietNames} 在这一段没有台词，这次不带声音样本。"
 msgstr "🔇 No lines for {quietNames} in this segment, so their voice samples aren't sent this time."
 
 #: src/components/flow/SegPlayer.tsx
-#: src/components/SegmentPlayer.tsx
 msgid "🔇 已静音"
 msgstr "🔇 Muted"
 
@@ -4093,7 +4114,6 @@ msgid "🔊 已录 {0}s（铸卡时存进这张卡）"
 msgstr "🔊 Recorded {0}s (saved to this card when minting)"
 
 #: src/components/blockout/VideoStage.tsx
-#: src/components/SegmentPlayer.tsx
 msgid "🔊 有声"
 msgstr "🔊 Sound on"
 
@@ -4761,6 +4781,10 @@ msgstr "What do they do"
 #: src/pages/ProfilePage.tsx
 msgid "TA 的作品需要连上服务器 · 当前是离线模式"
 msgstr "Their videos need a server connection · you're offline"
+
+#: src/components/video/RelatedWorks.tsx
+msgid "TA 的更多作品"
+msgstr "More from this creator"
 
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "TA 自己不聊的东西。平台的安全底线是另外固定注入的，不用写在这里。"
@@ -6229,10 +6253,14 @@ msgstr "Cloud voice can't speak right now, try again later"
 msgid "云端语音没回应（等了 {secs} 秒），稍后再试"
 msgstr "Cloud voice didn't respond (waited {secs}s) — try again later"
 
-#: src/pages/DiscoverPage.tsx
+#: src/components/VideoTile.tsx
 #: src/pages/ProfilePage.tsx
 msgid "互动"
 msgstr "Interactive"
+
+#: src/pages/VideoPage.tsx
+msgid "互动 · {branchPoints} 个分支点"
+msgstr "Interactive · {branchPoints, plural, one {# branch point} other {# branch points}}"
 
 #: src/pages/FeedPage.tsx
 msgid "互动 · 你来选"
@@ -6247,8 +6275,12 @@ msgid "互动视频"
 msgstr "Interactive video"
 
 #: src/pages/VideoPage.tsx
-msgid "互动视频 · {branchPoints} 个分支点"
-msgstr "Interactive video · {branchPoints, plural, one {# branch point} other {# branch points}}"
+#~ msgid "互动视频 · {branchPoints} 个分支点"
+#~ msgstr "Interactive video · {branchPoints, plural, one {# branch point} other {# branch points}}"
+
+#: src/pages/VideoPage.tsx
+msgid "互动视频 · {branchPoints} 个分支点 · {endings} 个结局"
+msgstr "Interactive video · {branchPoints, plural, one {# branch point} other {# branch points}} · {endings, plural, one {# ending} other {# endings}}"
 
 #: src/components/DownloadSheet.tsx
 msgid "互动视频没有单条成片。"
@@ -7114,6 +7146,7 @@ msgstr "Infringement / passing off others' work"
 #: src/components/support/VoiceSheet.tsx
 #: src/pages/CardDetailPage.tsx
 #: src/pages/TemplateDetailPage.tsx
+#: src/pages/VideoPage.tsx
 msgid "保存"
 msgstr "Save"
 
@@ -7143,7 +7176,6 @@ msgstr "Save changes (about {0} per forge with it)"
 #: src/components/DownloadSheet.tsx
 #: src/components/FeedActionSheet.tsx
 #: src/components/ShareSheet.tsx
-#: src/pages/VideoPage.tsx
 msgid "保存到本地"
 msgstr "Save to device"
 
@@ -7189,8 +7221,8 @@ msgid "保存资料"
 msgstr "Save profile"
 
 #: src/pages/VideoPage.tsx
-msgid "保存这一集到本地"
-msgstr "Save this episode to device"
+#~ msgid "保存这一集到本地"
+#~ msgstr "Save this episode to device"
 
 #: src/components/support/VoiceSheet.tsx
 msgid "保存这把混音"
@@ -7237,28 +7269,31 @@ msgstr "Make a template"
 msgid "做了你的同款"
 msgstr "remixed your video"
 
+#: src/components/video/RemakeCard.tsx
+msgid "做你自己的版本"
+msgstr "Make your own version"
+
 #: src/components/guide/tours.tsx
+#: src/components/video/VideoDock.tsx
 #: src/pages/FeedPage.tsx
 msgid "做同款"
 msgstr "Remix"
 
-#: src/pages/FeedPage.tsx
+#: src/hooks/useRemake.tsx
 #: src/pages/RecipePage.tsx
-#: src/pages/VideoPage.tsx
 msgctxt "丢弃确认卡里「…再回来X」的那个动作（英文用小写动词短语）"
 msgid "做同款"
 msgstr "remix"
 
 #: src/pages/VideoPage.tsx
-msgid "做同款：同一份分段剧本，生成你自己的版本"
-msgstr "Remix: same segment script, your own version"
+#~ msgid "做同款：同一份分段剧本，生成你自己的版本"
+#~ msgstr "Remix: same segment script, your own version"
 
 #: src/pages/VideoPage.tsx
-msgid "做同款：同一份分段剧本和卡组，生成你自己的版本"
-msgstr "Remix: same segment script and deck, your own version"
+#~ msgid "做同款：同一份分段剧本和卡组，生成你自己的版本"
+#~ msgstr "Remix: same segment script and deck, your own version"
 
-#: src/pages/FeedPage.tsx
-#: src/pages/VideoPage.tsx
+#: src/hooks/useRemake.tsx
 msgid "做同款（丢弃上面那条流水线）"
 msgstr "Remix (discard the pipeline above)"
 
@@ -7662,6 +7697,7 @@ msgstr "On the free plan, MiniMax videos are text-only, and this segment include
 msgid "全不选"
 msgstr "Select none"
 
+#: src/components/PlayerControls.tsx
 #: src/pages/FeedPage.tsx
 msgid "全屏"
 msgstr "Full screen"
@@ -7669,6 +7705,10 @@ msgstr "Full screen"
 #: src/components/guide/tours.tsx
 msgid "全屏与转屏"
 msgstr "Full screen and rotate"
+
+#: src/components/FeedActionSheet.tsx
+msgid "全屏观看"
+msgstr "Watch full screen"
 
 #: src/data/danmaku.ts
 msgid "全息广告那一下鸡皮疙瘩起来了"
@@ -7836,6 +7876,10 @@ msgstr "Following {0}"
 #: src/pages/AdminPage.tsx
 msgid "关注关系"
 msgstr "Follows"
+
+#: src/pages/VideoPage.tsx
+msgid "关注没成功：{why}"
+msgstr "Couldn't follow: {why}"
 
 #: src/pages/FeedPage.tsx
 msgid "关注的创作者还没有新作品"
@@ -8027,11 +8071,11 @@ msgid "再裁掉台标与水印"
 msgstr "Crop out logos and watermarks"
 
 #: src/components/DeleteConfirmShell.tsx
+#: src/components/video/RemakeCard.tsx
 #: src/pages/CardDetailPage.tsx
 #: src/pages/EditPage.tsx
 #: src/pages/PublishPage.tsx
 #: src/pages/tutor/TutorNewPage.tsx
-#: src/pages/VideoPage.tsx
 msgid "再试一次"
 msgstr "Try again"
 
@@ -8604,6 +8648,7 @@ msgid "分了镜头：不用结束画面"
 msgstr "Split into shots: no end frame"
 
 #: src/pages/FeedPage.tsx
+#: src/pages/VideoPage.tsx
 msgid "分享"
 msgstr "Share"
 
@@ -9261,6 +9306,7 @@ msgstr "Add-on tokens · top-ups / welcome credit / creator rewards, never expir
 msgid "加载中…"
 msgstr "Loading…"
 
+#: src/components/CommentSheet.tsx
 #: src/components/support/VoiceMarket.tsx
 #: src/pages/SupportModelsPage.tsx
 #: src/pages/SupportPersonasPage.tsx
@@ -9716,6 +9762,10 @@ msgstr "{0}s in the original (outside the selection)"
 msgid "原视频音轨"
 msgstr "Original video audio"
 
+#: src/components/video/RelatedWorks.tsx
+msgid "去 TA 的主页 ›"
+msgstr "Go to their profile ›"
+
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "去人格市场"
 msgstr "Go to the persona market"
@@ -10072,9 +10122,9 @@ msgid "发布"
 msgstr "Publish page"
 
 #: src/pages/VideoPage.tsx
-msgctxt "评论输入框旁那颗键：把这条评论发出去（不是发布作品）"
-msgid "发布"
-msgstr "Post"
+#~ msgctxt "评论输入框旁那颗键：把这条评论发出去（不是发布作品）"
+#~ msgid "发布"
+#~ msgstr "Post"
 
 #: src/pages/TemplateDetailPage.tsx
 msgid "发布（需先试炼）"
@@ -10090,9 +10140,9 @@ msgid "发布中…"
 msgstr "Publishing…"
 
 #: src/pages/VideoPage.tsx
-msgctxt "评论输入框旁那颗键：正在把这条评论发出去（不是发布作品）"
-msgid "发布中…"
-msgstr "Posting…"
+#~ msgctxt "评论输入框旁那颗键：正在把这条评论发出去（不是发布作品）"
+#~ msgid "发布中…"
+#~ msgstr "Posting…"
 
 #: src/components/guide/tours.tsx
 msgid "发布之后怎么改"
@@ -10184,6 +10234,10 @@ msgstr "Bullet"
 #: src/components/DanmakuInput.tsx
 msgid "发条友善的弹幕"
 msgstr "Send a friendly bullet comment"
+
+#: src/pages/VideoPage.tsx
+msgid "发条弹幕…"
+msgstr "Bullet comment…"
 
 #: src/components/support/SafetyCard.tsx
 msgid "发短信 {sms}"
@@ -10398,6 +10452,10 @@ msgstr "Removing…"
 msgid "取消公开"
 msgstr "Unshare"
 
+#: src/pages/VideoPage.tsx
+msgid "取消关注没成功：{why}"
+msgstr "Couldn't unfollow: {why}"
+
 #: src/components/WorkshopShareBar.tsx
 msgid "取消分享失败：{err}"
 msgstr "Unsharing failed: {err}"
@@ -10436,6 +10494,10 @@ msgstr "Remove from my list"
 msgid "取消收藏失败，稍后再试。"
 msgstr "Couldn't remove it from your list. Try again later."
 
+#: src/pages/VideoPage.tsx
+msgid "取消收藏没成功：{why}"
+msgstr "Couldn't remove from favorites: {why}"
+
 #: src/components/CommentSheet.tsx
 #: src/components/support/VoiceMarket.tsx
 msgid "取消点赞"
@@ -10449,8 +10511,7 @@ msgstr "Unlike"
 msgid "取消铸段"
 msgstr "Cancel new segment"
 
-#: src/components/BranchPlayer.tsx
-#: src/components/SegmentPlayer.tsx
+#: src/components/PlayerControls.tsx
 msgid "取消静音"
 msgstr "Unmute"
 
@@ -11006,6 +11067,11 @@ msgstr "Split template: one video in {count, plural, one {# segment} other {# se
 #: src/components/blockout/arkVideoRules.ts
 msgid "同一秒被标了不止一次。删掉重复的那几帧再来（重复的帧认不出更多人）。"
 msgstr "The same second is marked more than once. Remove the duplicate frames and try again (duplicate frames won't find any more people)."
+
+#. placeholder {0}: videoCategoryLabel(video.category)
+#: src/components/video/RelatedWorks.tsx
+msgid "同分区 · {0}"
+msgstr "Same category · {0}"
 
 #: src/pages/LoginPage.tsx
 msgid "同意协议"
@@ -11632,6 +11698,10 @@ msgstr "Remix · same style"
 #: src/components/flow/EffectWizard.tsx
 msgid "夕阳下腾空翻板，落地滑向镜头"
 msgstr "A kickflip in the sunset, landing and rolling toward the camera"
+
+#: src/components/video/RemakeCard.tsx
+msgid "多个档位"
+msgstr "Several tiers"
 
 #: src/components/flow/SegPlayer.tsx
 msgid "多半是刚换过走向或重推了方案。挑回原来那一套（或炼完这一套）就能回看"
@@ -12421,6 +12491,10 @@ msgstr "Show segments ▾"
 msgid "展开求助卡"
 msgstr "Expand help card"
 
+#: src/pages/VideoPage.tsx
+msgid "展开简介"
+msgstr "Show description"
+
 #: src/components/guide/tours.tsx
 msgid "工作台里的「删除」不是从列表里划掉：<0>云端那段模板视频和原始素材会一起没掉</0>， 谁都找不回。所以要点两下才认。"
 msgstr "“Delete” in the workbench doesn't just cross it off a list: <0>the template video in the cloud and the original footage are gone along with it</0>, and no one can get them back. That's why it takes two taps."
@@ -12669,6 +12743,7 @@ msgid "已公开：看到这条作品的人能点「查看制作过程」照着�
 msgstr "Shared: anyone who sees this video can tap \"View process\" and follow it."
 
 #: src/pages/ProfilePage.tsx
+#: src/pages/VideoPage.tsx
 msgid "已关注"
 msgstr "Following"
 
@@ -13263,8 +13338,8 @@ msgid "已阅读并同意<0>《用户协议》</0>与<1>《隐私政策》</1>"
 msgstr "I have read and agree to the <0>User Agreement</0> and the <1>Privacy Policy</1>"
 
 #: src/components/BranchPlayer.tsx
-msgid "已静音"
-msgstr "Muted"
+#~ msgid "已静音"
+#~ msgstr "Muted"
 
 #: src/pages/ProfilePage.tsx
 msgid "已领取"
@@ -13333,6 +13408,10 @@ msgstr "Custom segments with a reference video don't support circle edits yet �
 #: src/components/workshop/CardTile.tsx
 msgid "带声音样本"
 msgstr "Has a voice sample"
+
+#: src/components/video/RemakeCard.tsx
+msgid "带着这套卡去工坊"
+msgstr "Take these cards to the Workshop"
 
 #: src/pages/CustomCardPage.tsx
 msgid "带背景"
@@ -13539,6 +13618,7 @@ msgid "张嘴"
 msgstr "Mouth open"
 
 #: src/pages/AdminPage.tsx
+#: src/pages/VideoPage.tsx
 msgid "弹幕"
 msgstr "Bullet comments"
 
@@ -13546,6 +13626,18 @@ msgstr "Bullet comments"
 msgctxt "举报对象的类别（单数）"
 msgid "弹幕"
 msgstr "Bullet comment"
+
+#: src/pages/VideoPage.tsx
+msgid "弹幕 {dmCount}"
+msgstr "Bullet comments {dmCount}"
+
+#: src/pages/VideoPage.tsx
+msgid "弹幕 {dmCount}+"
+msgstr "Bullet comments {dmCount}+"
+
+#: src/pages/VideoPage.tsx
+msgid "弹幕只挂在开场那一段上"
+msgstr "Bullet comments only run on the opening segment"
 
 #: src/components/DanmakuInput.tsx
 msgid "弹幕样式"
@@ -14135,8 +14227,8 @@ msgid "我 的主页"
 msgstr "My profile"
 
 #: src/pages/VideoPage.tsx
-msgid "我也要创作"
-msgstr "Create mine"
+#~ msgid "我也要创作"
+#~ msgstr "Create mine"
 
 #: src/pages/SettingsPage.tsx
 msgid "我们对涉及未成年人内容的立场与处理方式（在官网打开）"
@@ -14846,13 +14938,13 @@ msgid "按 {refCount} 张参考图出片（帧与卡片形象同发）…"
 msgstr "Rendering from {refCount, plural, one {# reference image} other {# reference images}} (frames and card images sent together)…"
 
 #. placeholder {0}: authorDisplayName(video.remixOf.author, video.remixOf.authorId)
-#: src/pages/VideoPage.tsx
+#: src/components/video/RemakeCard.tsx
 msgid "按 @{0} 的流程做的同款"
 msgstr "Remade with @{0}'s process"
 
 #. placeholder {0}: authorDisplayName(video.remixOf.author, video.remixOf.authorId)
 #. placeholder {1}: video.remixOf.title
-#: src/pages/VideoPage.tsx
+#: src/components/video/RemakeCard.tsx
 msgid "按 @{0} 的流程做的同款：《{1}》"
 msgstr "Remade with @{0}'s process: “{1}”"
 
@@ -15783,7 +15875,7 @@ msgstr "Undo / redo has to be said on its own: the other changes in this sentenc
 
 #: src/components/blockout/BoxFramePicker.tsx
 #: src/components/blockout/VideoStage.tsx
-#: src/components/BranchPlayer.tsx
+#: src/components/PlayerControls.tsx
 #: src/components/SegmentPlayer.tsx
 #: src/pages/CutPage.tsx
 msgid "播放"
@@ -15811,7 +15903,7 @@ msgstr "The playhead isn't in the selected clip — tap the clip first (it plays
 msgid "播放头处分割"
 msgstr "Split at playhead"
 
-#: src/components/SegmentPlayer.tsx
+#: src/components/PlayerControls.tsx
 #: src/pages/FeedPage.tsx
 msgid "播放进度"
 msgstr "Playback progress"
@@ -15844,7 +15936,7 @@ msgstr "Keep these cards"
 msgid "收不到图时用文字版形象描述"
 msgstr "Uses the text description when images can’t get through"
 
-#: src/pages/VideoPage.tsx
+#: src/components/video/RemakeCard.tsx
 msgid "收入我的卡组"
 msgstr "Add to my cards"
 
@@ -15866,11 +15958,12 @@ msgstr "On video models that take reference images ({names}) and with blockout t
 #~ msgid "收参考图的档位（{tiers}）与白模模板挂卡：每张人物卡都各带自己的形象图（先每卡 1 张，预算有余再补第 2 张；一段最多几张按所选档位的协议走）。出片前补画设定帧那一步（以及收不到参考图的档位）：一段里只有「第一张人物卡」能带形象参考图——先取 {MAX_CHAR_REFS} 张（优先{face} + {body}），标成「出片用」的第 3 张要等同段每张卡都拿到第 1 张之后，预算还有余才补得上；其余人物卡在那一步只按文字设定参与（画帧的出图模型只吃第一个人物的图）。所以上面的「出片用 / 仅展示」是按补画设定帧那一步、按\"这张卡就是那第一张人物卡\"标的：它排在别的人物卡后面时，标着出片用的那几张在那一步同样进不了模型（生成步骤里会点名说明）。{detail}这一格铸卡不会自动出图，只能自己传。"
 #~ msgstr "On tiers that take reference images ({tiers}) and with blockout template rigging: every character card brings its own likeness images (1 per card first, a 2nd when budget allows; the per-segment maximum follows the chosen tier's protocol). In the setting-frame step (and on tiers that don't take reference images): only the “first character card” in a segment can bring likeness references — {MAX_CHAR_REFS} images are taken first ({face} + {body} preferred); a 3rd image marked “used” only comes in after every card in the segment has its 1st and budget is left; the other character cards take part in that step by text only (the image model that draws frames only takes the first character's images). So the “used / display only” labels above are for the setting-frame step and assume this card is that first character card: when it sits behind other character cards, images marked “used” don't reach the model in that step either (the generation steps say so). {detail} isn't drawn automatically when forging — upload it yourself."
 
-#: src/pages/VideoPage.tsx
+#: src/components/video/RemakeCard.tsx
 msgid "收取中…"
 msgstr "Adding…"
 
 #: src/pages/FeedPage.tsx
+#: src/pages/VideoPage.tsx
 msgid "收藏"
 msgstr "Save"
 
@@ -15878,6 +15971,10 @@ msgstr "Save"
 msgctxt "主页页签：我收藏的作品（名词，不是收藏键）"
 msgid "收藏"
 msgstr "Saved"
+
+#: src/pages/VideoPage.tsx
+msgid "收藏没成功：{why}"
+msgstr "Couldn't save to favorites: {why}"
 
 #: src/pages/ProfilePage.tsx
 msgid "收藏的这几条都打不开了：作者删了，或者改成了仅自己可见"
@@ -15933,6 +16030,10 @@ msgstr "Collapse plan board"
 #: src/studio/studioStore.ts
 msgid "收起画布"
 msgstr "Close canvas"
+
+#: src/pages/VideoPage.tsx
+msgid "收起简介"
+msgstr "Hide description"
 
 #: src/pages/FlowPage.tsx
 msgid "收起补充要求"
@@ -16473,6 +16574,10 @@ msgstr "Ark can't find this run anymore (no task with that ID), and we never man
 #~ msgid "方舟里有 {0} 份已授权素材，点一份接上："
 #~ msgstr "Ark has {0, plural, one {# authorized asset} other {# authorized assets}}. Tap one to link it:"
 
+#: src/components/video/RemakeCard.tsx
+msgid "无声"
+msgstr "No sound"
+
 #: src/components/WorkflowShelf.tsx
 #: src/pages/RecipePage.tsx
 msgid "无标题"
@@ -16591,14 +16696,17 @@ msgstr "Nickname and bio"
 msgid "昵称是别人看到的名字，简介挂在主页名字底下。这两样改完要点<0>「保存资料」</0>才算数 —— 头像不用，点了就换。"
 msgstr "Your nickname is the name other people see, and your bio sits under your name on your profile. Changes to these two only count once you tap <0>“Save profile”</0> — the avatar doesn't need that; it changes as soon as you pick one."
 
+#: src/pages/VideoPage.tsx
+msgid "显示弹幕"
+msgstr "Show bullet comments"
+
 #: src/components/flow/GridShotsWizard.tsx
 msgid "景别"
 msgstr "Shot size"
 
 #: src/components/blockout/BoxFramePicker.tsx
 #: src/components/blockout/VideoStage.tsx
-#: src/components/BranchPlayer.tsx
-#: src/components/SegmentPlayer.tsx
+#: src/components/PlayerControls.tsx
 #: src/pages/CutPage.tsx
 msgid "暂停"
 msgstr "Pause"
@@ -16754,8 +16862,8 @@ msgid "有 {count} 格没写画面，没收"
 msgstr "{count, plural, one {# panel had no picture and was dropped} other {# panels had no picture and were dropped}}"
 
 #: src/pages/VideoPage.tsx
-msgid "有 {dropped} 个 @ 没能送达（对方不会收到通知）"
-msgstr "{dropped, plural, one {# @mention wasn't delivered (they won't be notified)} other {# @mentions weren't delivered (they won't be notified)}}"
+#~ msgid "有 {dropped} 个 @ 没能送达（对方不会收到通知）"
+#~ msgstr "{dropped, plural, one {# @mention wasn't delivered (they won't be notified)} other {# @mentions weren't delivered (they won't be notified)}}"
 
 #: src/components/VideoTemplateExtractor.tsx
 msgid "有 {droppedCount} 刀落不下去，已被忽略：第 {droppedSecs} 秒——离片头、片尾或相邻的刀不足 {partMinSec} 秒，切出来会有短于 {partMinSec} 秒的段（AI 引擎收不下）。把这几刀删掉，或挪远一点再标。"
@@ -16986,7 +17094,7 @@ msgstr "Some panels mention “{names}” in the picture, so they were added to 
 msgid "有几格还没写画面——写上，或者删掉那几格再画"
 msgstr "Some panels have no picture yet — fill them in, or delete those panels, then draw"
 
-#: src/components/BranchPlayer.tsx
+#: src/components/video/RemakeCard.tsx
 msgid "有声"
 msgstr "Sound on"
 
@@ -17499,8 +17607,18 @@ msgid "本段设置"
 msgstr "Segment settings"
 
 #: src/pages/VideoPage.tsx
-msgid "本片卡组"
-msgstr "Cards from this video"
+#~ msgid "本片卡组"
+#~ msgstr "Cards from this video"
+
+#. placeholder {0}: deck.name
+#: src/components/video/RemakeCard.tsx
+msgid "本片卡组 · {0}"
+msgstr "Deck · {0}"
+
+#. placeholder {0}: deck.cards.length
+#: src/components/video/RemakeCard.tsx
+msgid "本片卡组 · {0} 张"
+msgstr "Deck · {0, plural, one {# card} other {# cards}}"
 
 #: src/components/DanmakuInput.tsx
 msgid "本片弹幕 {othersCount} 条"
@@ -17578,7 +17696,7 @@ msgstr "Release to stop · {0}s"
 #~ msgid "查状态没成：{0}"
 #~ msgstr "Status check failed: {0}"
 
-#: src/pages/VideoPage.tsx
+#: src/components/video/RemakeCard.tsx
 msgid "查看制作过程"
 msgstr "View process"
 
@@ -18286,6 +18404,10 @@ msgstr "Loading this bundle…"
 msgid "正在发布…"
 msgstr "Publishing…"
 
+#: src/components/video/RelatedWorks.tsx
+msgid "正在取 TA 的其他作品…"
+msgstr "Loading their other videos…"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "正在取人格与声音…"
 msgstr "Loading personas and voices…"
@@ -18317,6 +18439,10 @@ msgstr "Loading shared cards…"
 #: src/pages/WorkshopPage.tsx
 msgid "正在取卡组广场…"
 msgstr "Loading shared decks…"
+
+#: src/components/video/RelatedWorks.tsx
+msgid "正在取同分区的作品…"
+msgstr "Loading the same category…"
 
 #: src/pages/SettingsBlockedPage.tsx
 msgid "正在取名单…"
@@ -18362,6 +18488,11 @@ msgstr "Unsharing…"
 #: src/pages/NotificationsPage.tsx
 msgid "正在取消息…"
 msgstr "Loading messages…"
+
+#: src/components/CommentSheet.tsx
+#: src/pages/VideoPage.tsx
+msgid "正在取评论…"
+msgstr "Loading comments…"
 
 #: src/pages/tutor/TutorHomePage.tsx
 msgid "正在取课程…"
@@ -18552,9 +18683,9 @@ msgstr "Checking your sign-in. Wait a moment, then tap again."
 
 #: src/components/AuthPending.tsx
 #: src/components/SocialPanel.tsx
+#: src/components/video/RemakeCard.tsx
 #: src/pages/FeedPage.tsx
 #: src/pages/ProfilePage.tsx
-#: src/pages/VideoPage.tsx
 msgid "正在确认登录状态…"
 msgstr "Checking your sign-in…"
 
@@ -18859,6 +18990,10 @@ msgstr "Couldn’t write it ({why}). {0}"
 msgid "没删掉，请重试"
 msgstr "Couldn't delete it. Please try again"
 
+#: src/components/video/RelatedWorks.tsx
+msgid "没取到 TA 的其他作品"
+msgstr "Couldn't load their other videos"
+
 #: src/pages/WorkshopPage.tsx
 msgid "没取到：{error}"
 msgstr "Couldn't load: {error}"
@@ -18868,10 +19003,22 @@ msgstr "Couldn't load: {error}"
 #~ msgid "没取到授权照片（{0}）——授权时传的照片就在你相册里，下一步从相册选一样"
 #~ msgstr "Couldn't fetch the authorized photo ({0}) — the photo you used for authorization is in your gallery, and choosing it from there in the next step works just as well"
 
+#: src/components/CommentSheet.tsx
+msgid "没取到更多评论：{why}"
+msgstr "Couldn't load more comments: {why}"
+
 #. placeholder {0}: (e instanceof Error ? e.message : String(e)).slice(0, 80)
 #: src/pages/CustomCardPage.tsx
 msgid "没取到火山引擎认证时传的那张照片（{0}）"
 msgstr "Couldn’t fetch the photo uploaded during Volcengine verification ({0})"
+
+#: src/components/CommentSheet.tsx
+msgid "没取到评论"
+msgstr "Couldn't load comments"
+
+#: src/pages/VideoPage.tsx
+msgid "没取到评论，点开重试"
+msgstr "Couldn't load comments — tap to retry"
 
 #: src/pages/CardDetailPage.tsx
 msgid "没取消成功——服务端没收到（{why}），勾选保持原样；网络好了再点一次。"
@@ -19462,6 +19609,10 @@ msgstr "failed review: "
 #: src/studio/gridDraftStore.ts
 msgid "没连上出图服务"
 msgstr "Couldn’t reach the image service"
+
+#: src/components/video/RelatedWorks.tsx
+msgid "没连上服务器，下面是这台设备上已有的几条"
+msgstr "Couldn't reach the server — these are the ones already on this device"
 
 #: src/components/SeedBadge.tsx
 msgid "没连上服务器时显示的示例内容，不是真实用户作品"
@@ -20468,9 +20619,8 @@ msgid "现在选的不是两个人（或两个人同名）—— 回第一步重
 msgstr "The selection isn’t exactly two people (or they share a name) — go back to the first step and pick again."
 
 #: src/components/flow/ScriptSkillSheet.tsx
-#: src/pages/FeedPage.tsx
+#: src/hooks/useRemake.tsx
 #: src/pages/RecipePage.tsx
-#: src/pages/VideoPage.tsx
 msgid "现在铺不了（可能有一段正在生成中），稍后再试"
 msgstr "Can't lay it out right now (a segment may be generating) — try again later"
 
@@ -21185,7 +21335,7 @@ msgstr "Log in to create videos, collect cards and manage decks"
 msgid "登录后可以收藏卡片、组建卡组"
 msgstr "Log in to collect cards and build decks"
 
-#: src/pages/VideoPage.tsx
+#: src/components/video/RemakeCard.tsx
 msgid "登录后可收入卡组"
 msgstr "Log in to add these cards"
 
@@ -23748,6 +23898,8 @@ msgid "网络不好，或者这条链接已经过期（隔天打开的草稿常�
 msgstr "Poor network, or the link has expired (common for drafts opened the next day)"
 
 #: src/ai/arkClient.ts
+#: src/data/account.ts
+#: src/data/videos.ts
 msgid "网络不通"
 msgstr "no network"
 
@@ -24452,6 +24604,10 @@ msgstr "Decode failed"
 msgid "解锁后永久可看"
 msgstr "Unlock once, watch forever"
 
+#: src/pages/VideoPage.tsx
+msgid "解锁观看"
+msgstr "Unlock to watch"
+
 #: src/pages/SettingsBlockedPage.tsx
 msgid "解除"
 msgstr "Unblock"
@@ -24652,14 +24808,22 @@ msgctxt "举报对象的类别（单数）"
 msgid "评论"
 msgstr "Comment"
 
+#: src/pages/VideoPage.tsx
+msgid "评论 · {cCount}"
+msgstr "Comments · {cCount}"
+
 #: src/components/SocialPanel.tsx
 msgid "评论 · {commentCount}"
 msgstr "Comments · {commentCount}"
 
 #. placeholder {0}: comments.length
 #: src/pages/VideoPage.tsx
-msgid "评论 {0}"
-msgstr "{0, plural, one {# comment} other {# comments}}"
+#~ msgid "评论 {0}"
+#~ msgstr "{0, plural, one {# comment} other {# comments}}"
+
+#: src/pages/VideoPage.tsx
+msgid "评论 {cCount}"
+msgstr "Comments {cCount}"
 
 #: src/pages/NotificationsPage.tsx
 msgid "评论了你发布的老师"
@@ -24670,7 +24834,6 @@ msgid "评论了你的作品"
 msgstr "commented on your video"
 
 #: src/components/CommentSheet.tsx
-#: src/pages/VideoPage.tsx
 msgid "评论没发出去，请重试"
 msgstr "Comment didn't send. Try again"
 
@@ -24918,9 +25081,12 @@ msgid "说点什么"
 msgstr "Say something"
 
 #: src/components/CommentSheet.tsx
-#: src/pages/VideoPage.tsx
 msgid "说点什么，@ 可以叫上别人"
 msgstr "Say something; use @ to mention someone"
+
+#: src/components/video/VideoDock.tsx
+msgid "说点什么…"
+msgstr "Say something…"
 
 #: src/components/flow/DialogueWizard.tsx
 msgid "说的时候在做什么（选填）：例「放下杯子」「笑了笑」"
@@ -25847,6 +26013,10 @@ msgstr "No teacher generated yet"
 #: src/components/flow/EffectWizard.tsx
 msgid "还没画"
 msgstr "Not drawn yet"
+
+#: src/data/account.ts
+msgid "还没登录"
+msgstr "Not signed in"
 
 #: src/data/account.ts
 msgid "还没登录，删不了。"
@@ -27760,7 +27930,7 @@ msgstr "This deck has no cards yet"
 msgid "这套卡组里没有匹配「{q}」的卡"
 msgstr "No cards in this deck match “{q}”"
 
-#: src/pages/VideoPage.tsx
+#: src/components/video/RemakeCard.tsx
 msgid "这套卡里有声明过「真实人物」的卡，它的形象参考图只留给作者本人 —— 照片里的人授权的是作者用，不是所有人用。你仍然收得下这张卡的设定（名字、简介、身份句），但出片时得自己给形象。"
 msgstr "Some cards in this set are marked as “real people”, so their reference images stay with the creator — the person in the photo authorized the creator's use, not everyone's. You can still add the card's details (name, bio, identity line), but you'll need to provide the look yourself when making videos."
 
@@ -28047,6 +28217,10 @@ msgstr "This is the full generation prompt used to mint this card."
 #: src/pages/EditPage.tsx
 msgid "这条作品<0>至少</0>有 {danmakuCount} 条弹幕（只数到这么多，实际更多）。弹幕是按全片时间轴打的，换内容会让它们对不上画面，所以会被<1>全部</1>清空，且无法恢复。"
 msgstr "This video has <0>at least</0> {danmakuCount, plural, one {# bullet comment} other {# bullet comments}} (that's all that were counted; there are more). Bullet comments are pinned to the whole video's timeline, so changing the content would put them out of sync with the picture — they'll <1>all</1> be cleared, and can't be restored."
+
+#: src/data/videos.ts
+msgid "这条作品不在了"
+msgstr "This video is no longer here"
 
 #: src/data/videos.ts
 msgid "这条作品不在这台设备上，刷新一下再试"
@@ -28446,8 +28620,8 @@ msgstr "This kind of content ({0}) can't be published to the marketplace. Using 
 msgid "这种卡没有起拍画面（只有人物、场景、道具卡画得出一个开场镜头）"
 msgstr "This card type has no opening frame (only character, scene and prop cards can make an opening shot)"
 
+#: src/components/video/RemakeCard.tsx
 #: src/pages/PublishPage.tsx
-#: src/pages/VideoPage.tsx
 msgid "这组卡没能同步到服务器"
 msgstr "These cards couldn't be synced to the server"
 
@@ -28545,6 +28719,7 @@ msgid "退出与存草稿"
 msgstr "Leaving and saving drafts"
 
 #: src/pages/FeedPage.tsx
+#: src/pages/VideoPage.tsx
 msgid "退出全屏"
 msgstr "Exit full screen"
 
@@ -28762,6 +28937,11 @@ msgstr "A selection longer than {segMaxSec} seconds can only be registered as th
 #: src/pages/SimpleModePage.tsx
 msgid "选起点"
 msgstr "Start"
+
+#. placeholder {0}: parts.length
+#: src/pages/VideoPage.tsx
+msgid "选集（{0}）"
+msgstr "Episodes ({0})"
 
 #: src/live2d/bundlePreview.ts
 msgid "透明度组"
@@ -29066,6 +29246,7 @@ msgstr "Start over?"
 msgid "重新打开"
 msgstr "Reopen"
 
+#: src/components/PlayerControls.tsx
 #: src/components/SegmentPlayer.tsx
 msgid "重新播放"
 msgstr "Replay"
@@ -29197,10 +29378,12 @@ msgstr "Re-detecting <0>overwrites the current descriptions</0> (including your 
 
 #: src/components/blockout/VideoStage.tsx
 #: src/components/BootFailed.tsx
+#: src/components/CommentSheet.tsx
 #: src/components/flow/SegPlayer.tsx
 #: src/components/LocalStoreIssue.tsx
 #: src/components/support/SupportStage.tsx
 #: src/components/UpdateSheet.tsx
+#: src/components/video/RelatedWorks.tsx
 #: src/components/WorkflowShelf.tsx
 #: src/pages/CardDetailPage.tsx
 #: src/pages/CustomCardPage.tsx
@@ -29358,6 +29541,10 @@ msgstr "Lay out as my workflow"
 msgid "铺方案免费 · 出片时在方案台按原价结算"
 msgstr "Laying out the plan is free · the video is charged at the regular price on the plan board"
 
+#: src/components/FeedActionSheet.tsx
+msgid "铺满屏幕"
+msgstr "Fill the screen"
+
 #: src/components/flow/ScriptSkillSheet.tsx
 msgid "铺进去的每一段都是已挑定的一套方案（镜头字段会进方案台与出片提示词），从第 1 段开始逐段炼；想换走向就在那一段上重新推演。"
 msgstr "Each segment laid out is an already-chosen plan (its shot fields go into the plan board and the render prompt). Render them one at a time starting from segment 1; to change direction, re-plan that segment."
@@ -29502,8 +29689,7 @@ msgstr "cyan"
 msgid "青年牌手 · 他"
 msgstr "Young card player · he"
 
-#: src/components/BranchPlayer.tsx
-#: src/components/SegmentPlayer.tsx
+#: src/components/PlayerControls.tsx
 msgid "静音"
 msgstr "Mute"
 

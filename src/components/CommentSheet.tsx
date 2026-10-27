@@ -16,6 +16,10 @@ import {
   authorSentinelOf,
   commentAvatarOf,
   commentCountOf,
+  commentsMore,
+  commentsStatus,
+  loadMoreComments,
+  retryComments,
   commentPending,
   ensureComments,
   isMyVideo,
@@ -32,6 +36,7 @@ import ReportButton from "./ReportButton";
 import MentionInput from "./MentionInput";
 import MentionText from "./MentionText";
 import BlockButton from "./BlockButton";
+import Spinner from "./Spinner";
 
 /** 顶层评论 + 挂在它下面的回复。渲染前分一次组，不在 JSX 里现算 */
 interface Thread {
@@ -71,7 +76,11 @@ function buildThreads(list: VideoComment[]): Thread[] {
   return tops;
 }
 
-export default function CommentSheet({ video, onClose }: { video: VideoItem; onClose: () => void }) {
+/**
+ * @param autoFocus 打开就聚焦输入框（详情页吸底栏那颗「说点什么…」点进来 = 要写；首页右栏 / 详情页评论卡点进来 = 先看）。
+ *   必填：漏传零症状（要写的人还得再点一下输入框）。
+ */
+export default function CommentSheet({ video, onClose, autoFocus }: { video: VideoItem; onClose: () => void; autoFocus: boolean }) {
   const { t } = useLingui();
   // video.comments 由 addReply 原地换新数组，本地 state 拿快照驱动渲染
   const [list, setList] = useState<VideoComment[]>(video.comments);
@@ -108,6 +117,24 @@ export default function CommentSheet({ video, onClose }: { video: VideoItem; onC
   /** 哪一条评论展开了「⋯」后面的三颗键（删除 / 举报 / 拉黑）。常用的只有「回复」，四颗同权重并排会把它淹掉（2026-10-23） */
   const [moreFor, setMoreFor] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  // 要写就把光标放进去：等一帧（抽屉的面板这一拍还在挂载，useDialogShell 也在这一拍把焦点给面板）
+  useEffect(() => {
+    if (!autoFocus) return;
+    const raf = requestAnimationFrame(() => requestAnimationFrame(() => inputRef.current?.focus()));
+    return () => cancelAnimationFrame(raf);
+  }, [autoFocus]);
+  /** 评论到了没有（videos.commentsStatus 一处判）：没到之前别说「还没有评论」 */
+  const status = commentsStatus(video.id);
+  const [moreBusy, setMoreBusy] = useState(false);
+  const [moreErr, setMoreErr] = useState("");
+  async function more() {
+    if (moreBusy) return;
+    setMoreBusy(true);
+    setMoreErr("");
+    const why = await loadMoreComments(video.id);
+    setMoreBusy(false);
+    if (why) setMoreErr(t`没取到更多评论：${why}`);
+  }
   useEffect(() => {
     setList(video.comments);
     setReplyTo(null);
@@ -272,7 +299,35 @@ export default function CommentSheet({ video, onClose }: { video: VideoItem; onC
               {th.replies.map((r) => row(r, true))}
             </div>
           ))}
-          {list.length === 0 && <div className="py-10 text-center text-sm text-slate-500"><Trans>还没有评论，抢个沙发</Trans></div>}
+          {/* 空的时候先问评论到了没有（2026-10-26 视频详情页 P0-3）：详情那一跳没回来时说「还没有评论」是假话（docs/ux-review-csci187-2026-10-14.md 那一条） */}
+          {list.length === 0 &&
+            (status === "pending" ? (
+              <div className="flex items-center justify-center gap-2 py-10 text-sm text-slate-400">
+                <Spinner size="sm" />
+                <Trans>正在取评论…</Trans>
+              </div>
+            ) : status === "failed" ? (
+              <div className="flex flex-col items-center gap-2 py-10 text-sm text-danger-300">
+                <Trans>没取到评论</Trans>
+                <button onClick={() => retryComments(video.id)} className="rounded-full bg-panel px-3.5 py-1.5 text-xs text-slate-200 ring-1 ring-slate-700">
+                  <Trans>重试</Trans>
+                </button>
+              </div>
+            ) : (
+              <div className="py-10 text-center text-sm text-slate-400">
+                <Trans>还没有评论，抢个沙发</Trans>
+              </div>
+            ))}
+          {/* 翻页：还有没有只认服务端的游标（videos.commentsMore 的 ★），失败的话就摆在这颗键旁边 */}
+          {list.length > 0 && commentsMore(video) && (
+            <div className="flex flex-col items-center gap-1 pb-2">
+              <button onClick={() => void more()} disabled={moreBusy} className="flex items-center gap-1.5 text-xs text-brand disabled:opacity-40">
+                {moreBusy && <Spinner size="xs" />}
+                <Trans>加载更多</Trans>
+              </button>
+              {moreErr && <p className="text-[11px] text-danger-300">{moreErr}</p>}
+            </div>
+          )}
         </div>
         <div
           className="border-t border-slate-700/60 px-4 py-3"

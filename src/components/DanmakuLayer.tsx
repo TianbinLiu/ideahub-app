@@ -23,10 +23,9 @@ import {
 /** 恒定速度（px/秒）。390px 宽的竖屏上一条弹幕横穿一屏约 7 秒 ——
  *  再快看不清，再慢屏幕上会同时挤着太多条 */
 const SPEED_PX_PER_S = 56;
-/** 轨道高度与条数。4 条 ≈ 112px，只占画面上部一小条；
- *  B 站手机端默认也就占屏高 25% 上下，多了就是拿弹幕把视频糊住 */
+/** 轨道高度。条数由宿主给（lanes）：首页与详情页竖屏 4 条 ≈ 112px，只占画面上部一小条；
+ *  B 站手机端默认也就占屏高 25% 上下，多了就是拿弹幕把视频糊住。详情页横屏 3 条（16:9 在 375 宽下只有 211px 高，4 条要占 112px） */
 const LANE_H = 28;
-const LANES = 4;
 /** 同轨前后两条之间至少留这么宽的空当（px），否则读起来是连在一起的一长串 */
 const LANE_GAP = 36;
 const FONT_PX = 15;
@@ -62,11 +61,14 @@ export default function DanmakuLayer({
   paused,
   /** 轨道从容器顶往下多远开始铺。首页要避开「关注 / 推荐」那一行，所以收 CSS 值 */
   top,
+  /** 几条轨道（必填：首页 4、详情页竖屏 4 / 横屏 3） */
+  lanes,
 }: {
   videoId: string;
   time: number;
   paused: boolean;
   top: string;
+  lanes: number;
 }) {
   const version = useSyncExternalStore(subscribeDanmaku, danmakuVersion, () => 0);
   const boxRef = useRef<HTMLDivElement>(null);
@@ -74,7 +76,7 @@ export default function DanmakuLayer({
   /** 上一次扫到的时间点：(cursor, time] 区间内的弹幕这一拍放出去 */
   const cursor = useRef(0);
   /** 每条轨道"最早什么时候能再放下一条"（同样是视频时间轴上的秒数） */
-  const laneFreeAt = useRef<number[]>(Array(LANES).fill(0));
+  const laneFreeAt = useRef<number[]>(Array(lanes).fill(0));
   /** 这一轮（上次跳变以来）已经放过的弹幕 id，避免同一条被放两次 */
   const shown = useRef<Set<string>>(new Set());
   const seq = useRef(0);
@@ -92,13 +94,14 @@ export default function DanmakuLayer({
 
   function reset(at: number) {
     setLive([]);
-    laneFreeAt.current = Array(LANES).fill(0);
+    laneFreeAt.current = Array(lanes).fill(0);
     shown.current = new Set();
     cursor.current = at;
   }
 
-  // 换作品要整层清空并把游标归位
-  useEffect(() => reset(0), [videoId]);
+  // 换作品要整层清空并把游标归位；轨道数变了（详情页转了画幅）同样重排，不然越界的那几条轨道还挂着字
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => reset(0), [videoId, lanes]);
 
   useEffect(() => {
     const dt = time - cursor.current;
@@ -155,7 +158,7 @@ export default function DanmakuLayer({
     <div
       ref={boxRef}
       className="pointer-events-none absolute inset-x-0 z-10 overflow-hidden"
-      style={{ top, height: LANES * LANE_H }}
+      style={{ top, height: lanes * LANE_H }}
       aria-hidden
     >
       {live.map((b) => (

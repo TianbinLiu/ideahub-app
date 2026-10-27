@@ -27,7 +27,7 @@ import AdminPage from "./pages/AdminPage";
 import NotificationsPage from "./pages/NotificationsPage";
 import LoginPage from "./pages/LoginPage";
 import OauthCallbackPage from "./pages/OauthCallbackPage";
-import VideoPage from "./pages/VideoPage";
+import { VideoRoute } from "./pages/VideoPage";
 import RecipePage from "./pages/RecipePage";
 import PublishPage from "./pages/PublishPage";
 import EditPage from "./pages/EditPage";
@@ -368,7 +368,7 @@ export default function App() {
           </RequireAuth>
         }
       />
-      <Route path="/video/:id" element={<VideoPage />} />
+      <Route path="/video/:id" element={<VideoRoute />} />
       {/* 制作过程（公开配方，2026-10-02）：作者公开了才有内容；不套 RequireAuth —— 看是公开的，「做同款」跳 /flow 时那边的 RequireAuth 自然接住 */}
       <Route path="/video/:id/recipe" element={<RecipePage />} />
       <Route path="/card/:id" element={<CardDetailPage />} />

@@ -501,9 +501,19 @@ export async function setLike(id: string, on: boolean): Promise<LikeResult> {
 }
 
 /** GET /api/branch/videos/:id/comments（optionalAuth） */
-export async function listComments(id: string): Promise<ApiComment[]> {
-  const res = await apiGet<Record<string, unknown>>(`/api/branch/videos/${encodeURIComponent(id)}/comments`);
-  return pickList<ApiComment>(res, ["comments", "items", "data"]);
+/**
+ * GET /api/branch/videos/:id/comments —— 评论翻页（2026-10-26 视频详情页 P0-3 才有调用方）。
+ * 服务端按 createdAt 倒序、游标是它自己编的（不透明：原样带回去，别在客户端拼），limit 1~100（缺省 50）。
+ * @returns nextCursor = null 就是翻到底了（判「还有没有」只认它：commentCount 是全量计数，列表却滤掉了被拉黑的人）
+ */
+export async function listComments(id: string, o: { cursor?: string; limit?: number } = {}): Promise<{ items: ApiComment[]; nextCursor: string | null }> {
+  const q = new URLSearchParams();
+  if (o.cursor) q.set("cursor", o.cursor);
+  if (o.limit) q.set("limit", String(o.limit));
+  const qs = q.toString();
+  const res = await apiGet<Record<string, unknown>>(`/api/branch/videos/${encodeURIComponent(id)}/comments${qs ? `?${qs}` : ""}`);
+  const next = res && typeof res.nextCursor === "string" && res.nextCursor ? res.nextCursor : null;
+  return { items: pickList<ApiComment>(res, ["comments", "items", "data"]), nextCursor: next };
 }
 
 /**

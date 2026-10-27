@@ -46,6 +46,14 @@ import Icon from "./Icon";
  */
 const DETAIL_MAX = 500;
 
+/**
+ * 这颗举报键摆不摆得出来 —— 与下面组件里那道闸**同一个判据**（离线没有「别人」、自己的东西该删不该举报、没有 id 没法举报）。
+ * 详情页动作条按它决定第五格放举报还是放「保存」（2026-10-26 视频详情页 P0-4：组件自己回 null，父组件按五格排就留一个空洞）。
+ */
+export function canReport(o: { mine: boolean; targetId: string }): boolean {
+  return !o.mine && isRemoteMode() && !!o.targetId;
+}
+
 export default function ReportButton({
   targetType,
   targetId,
@@ -54,6 +62,7 @@ export default function ReportButton({
   mine = false,
   className = "",
   row = false,
+  cell = false,
 }: {
   targetType: ReportTargetType;
   targetId: string;
@@ -63,6 +72,8 @@ export default function ReportButton({
   className?: string;
   /** 整行样式（2026-10-21 首页长按菜单那一行：图标 + 「举报」）。默认是内容旁那颗 11px 小字键 */
   row?: boolean;
+  /** 动作条的一格（2026-10-26 视频详情页：图标 22 在上、11px 字在下）。弹层、理由表、失败红字与另两种一样 */
+  cell?: boolean;
 }) {
   const user = useCurrentUser();
   const auth = useAuthState();
@@ -77,7 +88,7 @@ export default function ReportButton({
   /** 这次会话里已经举报过了。★ 只是"别让他反复点"，服务端那边还有一道按人去重的 409 */
   const [done, setDone] = useState(false);
 
-  if (mine || !isRemoteMode() || !targetId) return null;
+  if (!canReport({ mine, targetId })) return null;
 
   // ★ 每类各写整句，不拿类别名往「举报这条…」里拼（量词也不一样：人格是「这个」）
   const title =
@@ -114,13 +125,18 @@ export default function ReportButton({
       }}
       disabled={done}
       className={
-        row
-          ? `flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm text-slate-200 active:bg-white/5 disabled:opacity-40 ${className}`
-          : `text-[11px] text-slate-500 active:opacity-60 disabled:opacity-40 ${className}`
+        cell
+          ? `flex min-h-[52px] flex-col items-center justify-center gap-0.5 active:opacity-60 disabled:opacity-40 ${className}`
+          : row
+            ? `flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm text-slate-200 active:bg-white/5 disabled:opacity-40 ${className}`
+            : `text-[11px] text-slate-500 active:opacity-60 disabled:opacity-40 ${className}`
       }
     >
+      {cell && <Icon name="flag" size={22} className="text-slate-300" />}
       {row && <Icon name="flag" size={18} className="text-slate-400" />}
-      {done ? t`已举报` : t({ message: "举报", context: "内容旁那颗小键：举报这一条（动作，不是管理后台的举报列表）" })}
+      <span className={cell ? "text-[11px] text-slate-300" : undefined}>
+        {done ? t`已举报` : t({ message: "举报", context: "内容旁那颗小键：举报这一条（动作，不是管理后台的举报列表）" })}
+      </span>
     </button>
   );
 

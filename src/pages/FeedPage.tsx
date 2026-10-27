@@ -34,7 +34,8 @@ import { danmakuNeedsLogin, danmakuOn, danmakuSessionPending, subscribeDanmaku }
 import { hasPurchased, isCollected, isFollowing, toggleCollect, toggleFollow } from "../data/account";
 import { fmtTokens } from "../data/economy";
 import { useAuthState, useCurrentUser } from "../hooks/useAccount";
-import { requestLandscape } from "../hooks/useOrientationLock";
+import { useImmersive } from "../hooks/useImmersive";
+import { useRemake } from "../hooks/useRemake";
 import { useVideosVersion } from "../hooks/useVideos";
 import Avatar from "../components/Avatar";
 import CommentSheet from "../components/CommentSheet";
@@ -46,9 +47,6 @@ import AigcBadge, { isAigcWork } from "../components/AigcBadge";
 import SeedBadge from "../components/SeedBadge";
 import Icon, { type IconName } from "../components/Icon";
 import CharacterPerch, { usePerchBurst, type PerchPose } from "../components/CharacterPerch";
-import { remakeNodesOf, remakeableOf, useFlow } from "../studio/flowStore";
-import { showToast } from "../data/toast";
-import { useApplyTemplate } from "../components/flow/useApplyTemplate";
 import { VideoAspect, VideoItem, aspectFromSize, aspectOf, formatDuration, formatPlays, segsTotal, videoCategoryLabel } from "../types";
 import { useMediaUrl } from "../utils/mediaUrl";
 import FeedActionSheet, { type FeedSpeed } from "../components/FeedActionSheet";
@@ -653,38 +651,9 @@ function FeedItem({
     onPointerUp: (e: React.PointerEvent) => e.stopPropagation(),
   };
 
-  // 做同款（第八条整表覆盖入口，守卫与套模板同一份实现）。付费未解锁的不给：
-  // 配方（分段剧本）是付费内容的一部分，锁着的只出封面
-  const canRemake = !locked && remakeableOf(video.segments);
-  const { guard: remakeGuard, dialog: remakeDialog } = useApplyTemplate();
-  /** 做同款被就地拒时那句话（flowStore.err 只画在工作流页，这里不接就没人看得见）。
-   *  几秒后自清：feed 上没有常驻错误位，这行是临时的 */
-  const [remakeErr, setRemakeErr] = useState("");
-  function remake() {
-    remakeGuard(
-      () => {
-        const built = remakeNodesOf(video.segments, video.deck?.cards ?? []);
-        const ok = useFlow.getState().seed(built.nodes, {
-          mode: "workflow",
-          origin: "solo",
-          // 同款署名（2026-10-02）：发布时随稿子上行，原作页据它记一次「N 人做了同款」
-          remixOf: { videoId: video.id, title: video.title, author: video.author },
-        });
-        // 换了档（原作用的是会员档 / 已停用的档）要说出来（remakeNodesOf 的 ★）
-        if (ok && built.notes.length) showToast(built.notes.join(t({ message: "；", comment: "几条「第 N 段换了档」的说明连成一行时的分隔符" })), 6000);
-        if (ok) navigate("/flow");
-        else {
-          setRemakeErr(useFlow.getState().err || t`现在铺不了（可能有一段正在生成中），稍后再试`);
-          window.setTimeout(() => setRemakeErr(""), 5000);
-        }
-        return ok;
-      },
-      {
-        label: t`做同款（丢弃上面那条流水线）`,
-        noun: t({ message: "做同款", context: "丢弃确认卡里「…再回来X」的那个动作（英文用小写动词短语）" }),
-      },
-    );
-  }
+  // 做同款（第八条整表覆盖入口，守卫与套模板同一份实现）。付费未解锁的不给：配方（分段剧本）是付费内容的一部分，锁着的只出封面。
+  //   实现只有 hooks/useRemake 一份（与作品详情页共用）；被就地拒的那句话几秒后自清（feed 上没有常驻错误位）
+  const { canRemake, remake, err: remakeErr, dialog: remakeDialog } = useRemake(video, video.segments, locked);
 
   /** 开分享面板（QQ / 微信占位 / 复制预览链接）。
    *  ★ 此前这里直接 navigator.share 一个 `${location.origin}/#/video/…`——
@@ -802,6 +771,7 @@ function FeedItem({
           time={durBefore + prog.t}
           paused={paused}
           top={`calc(env(safe-area-inset-top, 0px) + ${immersive ? 20 : 62}px)`}
+          lanes={4}
         />
       )}
 
@@ -1075,7 +1045,7 @@ function FeedItem({
         />
       </div>
 
-      {cmtOpen && <CommentSheet video={video} onClose={() => setCmtOpen(false)} />}
+      {cmtOpen && <CommentSheet video={video} onClose={() => setCmtOpen(false)} autoFocus={false} />}
       {/* ★ saveLocal={null} = 「保存到本地」这个入口**在首页不存在**：这颗键只拿到 video，
           没有"当前第几集"的上下文（多 P 作品要存哪一集问不出来）；下载又是低频动作，
           走一次点击进详情页就有全套面板 —— 与举报键放详情页的取舍同类。 */}
@@ -1095,6 +1065,10 @@ function FeedItem({
           landscape={shownAspect === "landscape"}
           onClearScreen={onEnterFull}
           onClose={() => setMenuOpen(false)}
+          // 首页这一格：「保存到本地」是去详情页里选（能不能存、存哪几集只在 videoDownload.planDownload 一处判，详情页那颗键就是它的画法）
+          host="feed"
+          onSaveLocal={() => navigate(`/video/${video.id}`)}
+          block={null}
         />
       )}
       {/* 发弹幕时视频**不暂停**：弹幕的意思就是"此刻"，停下来发就名不副实了。
@@ -1260,58 +1234,9 @@ export default function FeedPage() {
   const rootRef = useRef<HTMLDivElement>(null);
   // 沉浸/全屏态。放在页面这层而不是单条视频里：关注/推荐页签、底部 TabBar、退出键
   // 都不归 FeedItem 管，而它们必须一起消失
-  const [immersive, setImmersive] = useState(false);
   const [activeAspect, setActiveAspect] = useState<VideoAspect>("portrait");
-
-  const enterFull = async () => {
-    // 真·全屏优先：它才能一并遮住系统/浏览器界面，也是安卓返回键能退出的那一层。
-    // 不支持或被拒都不致命——下面的沉浸态照样把边角元素收起来
-    try {
-      await rootRef.current?.requestFullscreen?.();
-    } catch {
-      /* WebView 版本老 / 被策略拒绝：降级成"只收边角元素"，仍比什么都不做强 */
-    }
-    setImmersive(true);
-  };
-  const exitFull = () => {
-    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
-    setImmersive(false);
-  };
-
-  // 转屏只对横屏片做，且必须在进入全屏之后——两个平台都只允许全屏态下锁方向。
-  // 跟着 activeAspect 走：全屏里划到一条竖屏片，屏幕转回来，不然竖片横躺着看。
-  // ★ 只表达意图，不自己去锁：真正下手的是 useOrientationLock（App 级的全局竖屏锁）。
-  //   它每次切路由都会 lock(portrait)，这里再各自锁一次必然打架——真机上就是
-  //   "点了转屏没反应"。方向只能有一个主人。
-  useEffect(() => {
-    requestLandscape(immersive && activeAspect === "landscape");
-  }, [immersive, activeAspect]);
-
-  // 用安卓返回键 / Esc / 系统手势退出全屏时把沉浸态一起收掉，
-  // 否则页面停在"什么按钮都没有"的样子，只剩那一枚退出键能脱身
-  useEffect(() => {
-    const onChange = () => {
-      if (!document.fullscreenElement) setImmersive(false);
-    };
-    document.addEventListener("fullscreenchange", onChange);
-    return () => document.removeEventListener("fullscreenchange", onChange);
-  }, []);
-
-  // 底栏在 TabLayout 里、不归本页渲染——用 body 上的标记让它一起隐身（见 index.css）。
-  // 离开首页/卸载必须清掉，否则底栏在别的页面也跟着消失
-  useEffect(() => {
-    if (immersive) document.body.dataset.immersive = "1";
-    else delete document.body.dataset.immersive;
-  }, [immersive]);
-  useEffect(
-    () => () => {
-      delete document.body.dataset.immersive;
-      // 横屏请求也必须撤：不撤的话离开首页后整个 App 还锁在横屏里
-      requestLandscape(false);
-      if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
-    },
-    [],
-  );
+  // 沉浸 / 全屏态（真全屏优先、横屏片转屏、退出全屏时一起收、底栏隐身、卸载时撤掉）—— 与作品详情页共用 hooks/useImmersive 一份
+  const { immersive, enter: enterFull, exit: exitFull } = useImmersive(rootRef, activeAspect);
 
   // 切流后回到顶部并重置当前屏（首次挂载不算切流）。
   // ★ 认「上一次处理过的是哪条流」，不认「是不是第一次跑」（2026-09-18 改）：原来是一个 `firstRun` ref，

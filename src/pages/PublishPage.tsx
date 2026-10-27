@@ -427,7 +427,7 @@ export default function PublishPage() {
       <main className="mx-auto grid max-w-6xl gap-6 px-4 py-5 lg:grid-cols-[1.2fr_1fr]">
         {/* 成片预览 */}
         <div>
-          <SegmentPlayer segments={draft.segments} cover={cover || draft.cover} />
+          <SegmentPlayer segments={draft.segments} cover={cover || draft.cover} frame="card" rate={1} overlay={null} onFull={null} />
           <div className="mt-2 text-center text-xs text-slate-500"><Trans>成片预览（各段按时间线依次播放）</Trans></div>
           {/* 看完成片还想动片段 / 配乐：回到合并之前接着剪（合并时源段留了底才有这条路，见 canReopenCut） */}
           {canReopenCut && (

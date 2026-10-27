@@ -495,37 +495,55 @@ export async function setAvatarImage(img: { dataUrl: string; blob: Blob }): Prom
 export function toggleFollow(author: string): boolean {
   const u = currentUser();
   if (!u || !db) return false;
-  const i = u.following.indexOf(author);
-  if (i >= 0) u.following.splice(i, 1);
-  else u.following.push(author);
-  persist();
-  const on = u.following.includes(author);
-  if (remoteOn()) {
-    // 本地模型按「作者名」关注，服务端按 userId。名字→id 由 api/branch 的登记表反查
-    // （videos 列表映射时登记的）。查不到就只在本地生效，等下次拿到 id 再同步。
-    const uid2 = branch.authorIdOf(author);
-    if (!uid2) {
-      console.warn(`[account] 未知作者 id：${author}，关注只在本地生效`);
-      return on;
-    }
-    void branch
-      .toggleFollowUser(uid2)
-      .then((following) => {
-        // 服务端是 toggle，可能与本地乐观值不一致（比如之前就关注过），以服务端为准
-        if (following === null || following === u.following.includes(author)) return;
-        if (following) u.following.push(author);
-        else u.following.splice(u.following.indexOf(author), 1);
-        persist();
-      })
-      .catch((e) => {
-        // 回滚
-        if (on) u.following.splice(u.following.indexOf(author), 1);
-        else u.following.push(author);
-        persist();
-        emitApiError("toggleFollow", e);
-      });
-  }
+  const on = !u.following.includes(author);
+  // 同步外壳（首页右栏）：本机那份在 setFollow 的第一个 await 之前就翻过来了；失败的话仍只走 emitApiError（首页右栏没有键旁的位置）
+  void setFollow(author, on).then((why) => {
+    if (why) emitApiError("toggleFollow", new Error(why));
+  });
   return on;
+}
+
+/**
+ * 关注 / 取消关注 —— 乐观改本机，远端**等结果**；失败回滚并回一句话（null = 成了）。toggleFollow 是它的同步外壳。
+ * ★ 2026-10-26 视频详情页 P0-4（审核第 ⑪ 条）：详情页作者条那颗「+ 关注」失败要把原因摆在键旁（照 setAvatarImage 的写法），
+ *   原来只有 toggleFollow：失败静默回滚 + emitApiError（全 app 没人监听）—— 人看着「已关注」跳回「+ 关注」，不知道为什么。
+ */
+export async function setFollow(author: string, on: boolean): Promise<string | null> {
+  const u = currentUser();
+  if (!u || !db) return t`还没登录`;
+  const was = u.following.includes(author);
+  if (was !== on) {
+    if (on) u.following.push(author);
+    else u.following.splice(u.following.indexOf(author), 1);
+    persist();
+  }
+  if (!remoteOn()) return null;
+  // 本地模型按「作者名」关注，服务端按 userId。名字→id 由 api/branch 的登记表反查
+  // （videos 列表映射时登记的）。查不到就只在本地生效，等下次拿到 id 再同步。
+  const uid2 = branch.authorIdOf(author);
+  if (!uid2) {
+    console.warn(`[account] 未知作者 id：${author}，关注只在本地生效`);
+    return null;
+  }
+  if (was === on) return null;
+  try {
+    const following = await branch.toggleFollowUser(uid2);
+    // 服务端是 toggle，可能与本地乐观值不一致（比如之前就关注过），以服务端为准
+    if (following !== null && following !== u.following.includes(author)) {
+      if (following) u.following.push(author);
+      else u.following.splice(u.following.indexOf(author), 1);
+      persist();
+    }
+    return null;
+  } catch (e) {
+    // 回滚（只在本机那份还停在这一次乐观值上时回：在途期间人又点了一下，就别把他新点的那一下抹掉）
+    if (u.following.includes(author) === on) {
+      if (on) u.following.splice(u.following.indexOf(author), 1);
+      else u.following.push(author);
+      persist();
+    }
+    return e instanceof Error && e.message ? e.message : t`网络不通`;
+  }
 }
 
 export function isFollowing(author: string): boolean {
@@ -622,30 +640,42 @@ async function syncCollects(u: User): Promise<void> {
 export function toggleCollect(videoId: string): boolean {
   const u = currentUser();
   if (!u || !db) return false;
+  const on = !(u.collects ?? []).includes(videoId);
+  // 同步外壳（首页右栏）：失败仍只走 emitApiError（首页右栏没有键旁的位置）
+  void setCollect(videoId, on).then((why) => {
+    if (why) emitApiError("toggleCollect", new Error(why));
+  });
+  return on;
+}
+
+/**
+ * 收藏 / 取消收藏 —— 乐观改本机，远端**等结果**；失败回滚并回一句话（null = 成了）。toggleCollect 是它的同步外壳。
+ * ★ 详情页动作条那一格要把失败摆在键旁（审核第 ⑪ 条，同 setFollow）。
+ * ⚠ 收藏是**显式的两个方向**（POST/DELETE），不是服务端 toggle —— 服务端 toggle 在弱网重发时会把状态翻回去，而这里的重发是幂等的。
+ */
+export async function setCollect(videoId: string, on: boolean): Promise<string | null> {
+  const u = currentUser();
+  if (!u || !db) return t`还没登录`;
   u.collects ??= [];
   const i = u.collects.indexOf(videoId);
-  if (i >= 0) u.collects.splice(i, 1);
-  else u.collects.push(videoId);
+  if (on && i < 0) u.collects.push(videoId);
+  else if (!on && i >= 0) u.collects.splice(i, 1);
   persist();
   saveCollects(); // 本机那一份仍然写：离线兜底 + 远端失败时界面已经翻过来的那一拍
-  const on = u.collects.includes(videoId);
-  if (remoteOn()) {
-    // ★ 乐观 + 失败回滚，照 toggleFollow 那套（同一形状，别另写一份）。
-    //   ⚠ 收藏是**显式的两个方向**（POST/DELETE），不是服务端 toggle —— 服务端
-    //   toggle 在弱网重发时会把状态翻回去，而这里的重发是幂等的。
-    void branch
-      .setCollected(videoId, on)
-      .then(() => saveCollects())
-      .catch((e) => {
-        const j = u.collects?.indexOf(videoId) ?? -1;
-        if (on && j >= 0) u.collects!.splice(j, 1);
-        else if (!on) u.collects!.push(videoId);
-        persist();
-        saveCollects();
-        emitApiError("toggleCollect", e);
-      });
+  if (!remoteOn()) return null;
+  try {
+    await branch.setCollected(videoId, on);
+    saveCollects();
+    return null;
+  } catch (e) {
+    // 回滚（只在还停在这一次的乐观值上时：在途期间又点了一下，就别抹掉新那一下）
+    const j = u.collects?.indexOf(videoId) ?? -1;
+    if (on && j >= 0) u.collects!.splice(j, 1);
+    else if (!on && j < 0) u.collects!.push(videoId);
+    persist();
+    saveCollects();
+    return e instanceof Error && e.message ? e.message : t`网络不通`;
   }
-  return on;
 }
 
 export function isCollected(videoId: string): boolean {
