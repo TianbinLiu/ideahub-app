@@ -2418,6 +2418,10 @@ msgid "「{names}」的声音样本这次没带上（这一档的参考音频合
 msgstr "The voice sample for {names} wasn't sent this time (on this tier all reference audio together can be at most {capSec} seconds) — the model picks the voice for their lines; trim the samples and they will all fit"
 
 #: src/data/account.ts
+msgid "「{names}」要带图出片——免费版在这一档上只能用文字出片（开通会员套餐或充值过任意一笔后可以带图）"
+msgstr "“{names}” needs images in the video request — on this tier, the free plan can only make videos from text (subscribe to a plan or make any top-up once to use images)"
+
+#: src/data/account.ts
 msgid "「{names}」要带图出片——免费版用 {via} 出片时只能用文字（开通会员套餐或充值过任意一笔后可以带图）"
 msgstr "“{names}” needs images in the video request — on {via}, the free plan can only make videos from text (subscribe to a plan or make any top-up once to use images)"
 
@@ -7526,6 +7530,14 @@ msgid "免费版：每天自动补 {daily} 套餐 token（最多攒到 {cap}）�
 msgstr "Free plan: {daily} plan tokens are added every day (saving up to {cap}). Subscribe to a plan or make any top-up once to unlock every tier."
 
 #: src/data/account.ts
+msgid "免费版在这一档上只能用文字出片：首帧 / 尾帧（含承接上一段的结尾）、卡片形象图与临时参考图都不发给视频模型，卡片只按文字参与（开通会员套餐或充值过任意一笔后可以带图）"
+msgstr "On the free plan, videos on this tier are text-only: start/end frames (including the carried-over ending of the previous segment), card images and extra reference images are not sent to the video model; cards count as text only (subscribe or top up once to include images)"
+
+#: src/data/account.ts
+msgid "免费版在这一档上只能用文字出片：首帧 / 尾帧带不上（开通会员套餐或充值过任意一笔后可以带图）"
+msgstr "On this tier, the free plan can only make videos from text: first / last frames can't be included (subscribe to a plan or make any top-up once to use images)"
+
+#: src/data/account.ts
 msgid "免费版用 {via} 出片时只能用文字：首帧 / 尾帧（含承接上一段的结尾）、卡片形象图与临时参考图都不发给视频模型，卡片只按文字参与（开通会员套餐或充值过任意一笔后可以带图）"
 msgstr "On the free plan, {via} videos are text-only: start/end frames (including the carried-over ending of the previous segment), card images and extra reference images are not sent to the video model; cards count as text only (subscribe or top up once to include images)"
 
@@ -10747,6 +10759,10 @@ msgid "合成失败：第 {segList} 段的视频取不到了。这几段的视�
 msgstr "Merge failed: the video for segment {segList} can't be fetched any more. These segments were still on temporary links (they never got moved to permanent storage), and temporary links only live 24 hours — once expired they're gone. This piece can't be merged right now: open the draft under Me → Drafts and regenerate those segments (this costs again), or delete them and merge again."
 
 #: src/pages/CutPage.tsx
+msgid "合成失败：第 {segList} 段的视频取不到了。这几段的视频还挂在临时链接上（当初没能转存成长期地址），这种链接有时效，现在已经取不到了。这条片子现在合不了：删掉这几段再合；要留下它们，只能回「我的 → 草稿」打开草稿把这几段重新出片（会再花一次钱）。"
+msgstr "Merge failed: the video for segment {segList} can't be fetched any more. These segments were still on temporary links (they never got moved to permanent storage), and those links expire — they can't be fetched now. This piece can't be merged right now: delete those segments and merge again; to keep them, the only way is to open the draft under Me → Drafts and regenerate them (this costs again)."
+
+#: src/pages/CutPage.tsx
 #~ msgid "合成失败：第 {segList} 段的视频取不到了（HTTP {http}）。这几段揣的还是方舟的临时链接、当初没能转存成永久地址，而那种链接只活 24 小时——过期之后合成器也拉不到。这条片子现在合不了：回「我的 → 草稿」打开草稿把这几段重新出片（会再花一次钱），或者删掉它们再合。"
 #~ msgstr "Merge failed: the video for segment {segList} can't be fetched any more (HTTP {http}). These segments still hold Ark's temporary links, which never got moved to permanent storage, and those links live only 24 hours — once expired the compositor can't pull them either. This video can't be merged right now: open the draft under “Me → Drafts” and regenerate those segments (this costs again), or delete them and merge."
 
@@ -13856,6 +13872,10 @@ msgid "成片转存没成（{reason}）——先用临时链接（有时效）�
 msgstr "Moving to permanent storage failed ({reason}) — using the temporary link for now (it expires); the server will try moving it again when you publish"
 
 #: src/studio/genLog.ts
+msgid "成片转存没成（{reason}）——先用临时链接（有时效），预览帧稍后自动补上"
+msgstr "Moving to permanent storage failed ({reason}) — using the temporary link for now (it expires); the preview frame will be filled in automatically later"
+
+#: src/studio/genLog.ts
 msgid "成片转存没成（{reason}）——先用方舟临时链接，预览帧稍后自动补上"
 msgstr "Moving to permanent storage failed ({reason}) — using Ark's temporary link for now; the preview frame will be filled in automatically later"
 
@@ -16635,6 +16655,10 @@ msgstr "Every dream starts with an idea"
 #: src/components/UpdateSheet.tsx
 msgid "有新版本 {0}"
 msgstr "New version {0} available"
+
+#: src/pages/PublishPage.tsx
+msgid "有片段还挂在临时链接上（有时效）——尽快发布，发布后会换成长期地址"
+msgstr "Some segments are still on temporary links (they expire) — publish soon; publishing swaps them for permanent ones"
 
 #: src/pages/PublishPage.tsx
 msgid "有片段还挂在临时链接上（约 24 小时有效）——尽快发布，发布后会换成长期地址"

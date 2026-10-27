@@ -1429,9 +1429,25 @@ function textOnlyLine(tiers: VideoTier[]): string {
   return t`「${names}」档用 ${via} 出片时，免费版只能用文字（不补画首帧尾帧、不带参考图）——带图出片要开通会员套餐（或充值过任意一笔）`;
 }
 
-/** 只能纯文字出片的那几档背后是哪几家（今天只有 MiniMax）—— 下面两句共用 */
-function textOnlyVia(): string {
-  return providerNames(VIDEO_TIERS.filter(tierTextOnly));
+/**
+ * 这一档的供应商**能不能写出名字** —— 地区问到了、这个地区又给这一家时回那一家，否则 null（调用方说「这一档」，不点名）。
+ * 与 tierShownModel / recordedModelName 同一个口径（地区不知道不写供应商、这个地区给不出的那一家不写）；只是这里要的是「哪家」，不是模型名。
+ * ★ 为什么要有它（2026-10-26 P2b 审核）：老草稿或做同款抄来的 H3 段，冷启动、地区还没问到时一打开参考清单 / 出片，
+ *   原来就印出「免费版用 MiniMax 出片时…」「先用 MiniMax 的临时链接」—— 美国的机器第一次打开就看到供应商名，零报错。
+ *   textOnlyVia 与 studio/genLog 的「转存没成」都问它。
+ */
+export function tierShownProvider(tierId: string): VideoProvider | null {
+  const p = providerOf(tierId);
+  return videoZone() && !zoneDenies(p) ? p : null;
+}
+
+/**
+ * 只能纯文字出片的那几档背后、**写得出名字**的是哪几家（今天只有 MiniMax）—— 下面三句共用。
+ * null = 不写供应商名（地区还不知道，或这个地区一家都给不出；见 tierShownProvider），三句各换成说「这一档」的那一种。
+ */
+function textOnlyVia(): string | null {
+  const tiers = VIDEO_TIERS.filter((x) => tierTextOnly(x) && tierShownProvider(x.id));
+  return tiers.length ? providerNames(tiers) : null;
 }
 
 /**
@@ -1442,6 +1458,7 @@ function textOnlyVia(): string {
 export function textOnlyModesLine(titles: string[]): string {
   const names = joinTierNames(titles);
   const via = textOnlyVia();
+  if (!via) return t`「${names}」要带图出片——免费版在这一档上只能用文字出片（开通会员套餐或充值过任意一笔后可以带图）`;
   return t`「${names}」要带图出片——免费版用 ${via} 出片时只能用文字（开通会员套餐或充值过任意一笔后可以带图）`;
 }
 
@@ -1451,6 +1468,7 @@ export function textOnlyModesLine(titles: string[]): string {
  */
 export function textOnlyFramesLine(): string {
   const via = textOnlyVia();
+  if (!via) return t`免费版在这一档上只能用文字出片：首帧 / 尾帧带不上（开通会员套餐或充值过任意一笔后可以带图）`;
   return t`免费版用 ${via} 出片时只能用文字：首帧 / 尾帧带不上（开通会员套餐或充值过任意一笔后可以带图）`;
 }
 
@@ -1460,6 +1478,8 @@ export function textOnlyFramesLine(): string {
  */
 export function textOnlyRefsLine(): string {
   const via = textOnlyVia();
+  if (!via)
+    return t`免费版在这一档上只能用文字出片：首帧 / 尾帧（含承接上一段的结尾）、卡片形象图与临时参考图都不发给视频模型，卡片只按文字参与（开通会员套餐或充值过任意一笔后可以带图）`;
   return t`免费版用 ${via} 出片时只能用文字：首帧 / 尾帧（含承接上一段的结尾）、卡片形象图与临时参考图都不发给视频模型，卡片只按文字参与（开通会员套餐或充值过任意一笔后可以带图）`;
 }
 

@@ -29,6 +29,7 @@ import VisibilityPicker from "../components/VisibilityPicker";
 import SegmentPlayer from "../components/SegmentPlayer";
 import TagInput from "../components/TagInput";
 import { isArkAssetUrl } from "../ai/arkClient";
+import { isMinimaxV2VideoUrl } from "../data/upstreamVideo";
 import { addCards, createDeck, deckSynced } from "../data/account";
 import { getVideo, publishVideo, reviseVideo, type ReviseResult } from "../data/videos";
 import { useVideosVersion } from "../hooks/useVideos";
@@ -470,9 +471,15 @@ export default function PublishPage() {
           </div>
           {/* 2026-08-20 起成片出片即转存永久地址，这句只对"转存失败退回方舟直链"的少数段成立 ——
               无条件挂着就是对多数用户撒谎（他们的链接根本不会过期） */}
+          {/* ★ 24 小时是方舟 TOS 链接的事实；MiniMax H3 的成片链接（isArkAssetUrl 也认它）有时效、但上游没说多久 —— 有 H3 链接的就不写小时数
+              （2026-10-26 P2b 审核：与 data/videoJobs「MiniMax 不许出现编出来的小时数」同一条；两种混着时也不写，H3 那几段可能更早过期） */}
           {draft.segments.some((sg) => isArkAssetUrl(sg.videoUrl)) && (
             <div className="mt-2 text-center text-[11px] leading-relaxed text-slate-500">
-              <Trans>有片段还挂在临时链接上（约 24 小时有效）——尽快发布，发布后会换成长期地址</Trans>
+              {draft.segments.some((sg) => isMinimaxV2VideoUrl(sg.videoUrl)) ? (
+                <Trans>有片段还挂在临时链接上（有时效）——尽快发布，发布后会换成长期地址</Trans>
+              ) : (
+                <Trans>有片段还挂在临时链接上（约 24 小时有效）——尽快发布，发布后会换成长期地址</Trans>
+              )}
             </div>
           )}
         </div>

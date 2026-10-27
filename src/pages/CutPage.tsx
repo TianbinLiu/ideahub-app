@@ -28,6 +28,7 @@ import Icon from "../components/Icon";
 import { AI_REAL, ArkRegionDenied, ArkTaskFailed, ArkTaskUnknown, SegmentGenFailed, chargeNote, chargeOnFail, refineFrame, regenSegment, unwrapFailure } from "../ai";
 import { ANN_CLAUSE } from "../studio/segmentGen";
 import { isArkAssetUrl, reasonClause, requestArkTransfer, transferStatus } from "../ai/arkClient";
+import { isMinimaxV2VideoUrl } from "../data/upstreamVideo";
 import { refreshVideoZone, zoneIsRegional } from "../data/videoZone";
 import { canAfford, frozenNote, isRemoteMode, spendTokens, tierBlockReason, tierOffered, tierRegionIssue, walletOf } from "../data/account";
 import UpgradeLink from "../components/UpgradeLink";
@@ -1535,6 +1536,11 @@ export default function CutPage() {
      *   用户读不出"哪一段""为什么""接下来怎么办"。
      */
     const stillArk: number[] = [];
+    /**
+     * stillArk 里挂的是 MiniMax H3 成片链接的那几段（isArkAssetUrl 也认 H3 的主机，data/upstreamVideo）。
+     * ★ 失败那句话按它分开说（2026-10-26 P2b 审核）：「24 小时」只是方舟 TOS 链接的事实，H3 的链接有时效、上游没说多久 —— 不许编一个小时数。
+     */
+    const stillH3: number[] = [];
     try {
       // ★ 老草稿自救：还是方舟直链的段先转存成永久地址（服务端拉，全球 CDN）。
       //   出片那一刻的转存 2026-08-20 才上线，在那之前炼的段揣的还是 TOS 直链 ——
@@ -1583,8 +1589,11 @@ export default function CutPage() {
           } catch {
             /* 见上：失败照旧 */
           }
-          // 转存没换成永久地址 ⇒ 这一段接下来会拿临时链接去拉，过了 24 小时就是 403
-          if (isArkAssetUrl(next[i].videoUrl)) stillArk.push(i + 1);
+          // 转存没换成永久地址 ⇒ 这一段接下来会拿临时链接去拉，过期了就是 403（方舟 24 小时；H3 有时效、上游没说多久）
+          if (isArkAssetUrl(next[i].videoUrl)) {
+            stillArk.push(i + 1);
+            if (isMinimaxV2VideoUrl(next[i].videoUrl)) stillH3.push(i + 1);
+          }
         }
         if (cancelRef.current) {
           setBusy("");
@@ -1945,9 +1954,14 @@ export default function CutPage() {
         //   可能来自别的地址，硬套一个原因就是换了一种骗人。
         const http = /Response code:\s*(\d{3})/.exec(raw)?.[1];
         const segList = stillArk.join(t({ message: "、", comment: "列举几个段号时的分隔符（第 1、3 段）" }));
+        // ★ 有 H3 链接的那一种不写小时数（stillH3 的 ★；两家混着时也不写 —— H3 那几段可能更早过期）。出口先说「删掉再合」：
+        //   H3 的任务上游 7 天内还查得到、再查会给新地址，可剪辑稿里的段不记任务号（取回凭据在出片成功那一拍就结案了），App 里没有一条路拿它重查 ——
+        //   要留下这几段只剩重新出片，这一条照实说、并说清会再花一次钱（不说的话人只会对着一条合不了的片子干等）
         const failMsg =
           (http === "403" || http === "404") && stillArk.length
-            ? t`合成失败：第 ${segList} 段的视频取不到了。这几段的视频还挂在临时链接上（当初没能转存成长期地址），临时链接只有 24 小时——过期之后就取不到了。这条片子现在合不了：回「我的 → 草稿」打开草稿把这几段重新出片（会再花一次钱），或者删掉它们再合。`
+            ? stillH3.length
+              ? t`合成失败：第 ${segList} 段的视频取不到了。这几段的视频还挂在临时链接上（当初没能转存成长期地址），这种链接有时效，现在已经取不到了。这条片子现在合不了：删掉这几段再合；要留下它们，只能回「我的 → 草稿」打开草稿把这几段重新出片（会再花一次钱）。`
+              : t`合成失败：第 ${segList} 段的视频取不到了。这几段的视频还挂在临时链接上（当初没能转存成长期地址），临时链接只有 24 小时——过期之后就取不到了。这条片子现在合不了：回「我的 → 草稿」打开草稿把这几段重新出片（会再花一次钱），或者删掉它们再合。`
             : t`合成失败：${raw}`;
         if (aliveRef.current) {
           setErr(failMsg);
