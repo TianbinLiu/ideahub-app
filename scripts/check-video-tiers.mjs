@@ -95,6 +95,12 @@ for (const t of T) {
   // 上游分辨率的唯一读法：V2 的行是那一格大写的，别的行就是 resolution
   ok(`「${t.id}」的 upstreamResOf 不对：${M.upstreamResOf(t)}`, M.upstreamResOf(t) === (t.upstreamResolution ?? t.resolution));
 }
+// （模型, 上游分辨率）一行一对（2026-10-26 P2b 审核）：服务端登记表里的一发只记这两样，economy.tierIdOf 按它们认回是哪一档 ——
+//   两行撞了，取回安放的那一段就落到排在前面的那一行上（之后的重拍 / 报价按错的档算）。每一行都要按自己的两样认得回自己
+for (const t of T) {
+  const back = T.find((x) => x.model === t.model && M.upstreamResOf(x) === M.upstreamResOf(t));
+  ok(`「${t.id}」按（${t.model}, ${M.upstreamResOf(t)}）认回的是「${back?.id}」—— 服务端登记表里的这一发会被认成另一档（economy.tierIdOf）`, back === t);
+}
 
 // ── 真人档语义的能力位（2026-10-26 出片地区 P2a：从 flatCost / provider 里拆出来，scripts/check-tier-semantics.mjs 管调用方）──
 //   这几条是**长期成立**的蕴含（P2b 加 MiniMax H3 那几行也要过），不是钉今天的值；今天的值另在最后两条钉住。
@@ -402,6 +408,17 @@ const FAMILY_ZH = { fast: "极速", draft: "草稿", std: "标准", hd: "高清"
   const keyRe = (k) => new RegExp(`^\\s*(?:${k}|"${k}"):\\s*\\(\\)\\s*=>`, "m");
   for (const f of new Set(T.map((t) => t.family))) ok(`economy.FAMILY_LABEL 里没有 family「${f}」的档名`, keyRe(f).test(labels));
   for (const t of T) ok(`economy.TIER_DESC 里没有「${t.id}」的一句话说明`, keyRe(t.id.replace(/-/g, "\\-")).test(descs));
+  // 服务端登记表 → 档位、档位 → 模型显示名 / 完整 id：分辨率一律按 upstreamResOf 读（2026-10-26 P2b 审核）。读回那一格占位的小写 resolution 的话，
+  //   服务端登记的 MiniMax H3（大写 480P / 768P）一发都认不出，H3「高清」「电影级」的模型名也看不出是 768P
+  for (const name of ["tierIdOf", "tierModelLabel", "tierModelId"]) {
+    const body = new RegExp(`export function ${name}\\([^)]*\\)[^{]*\\{([\\s\\S]*?)\\n\\}`).exec(src)?.[1];
+    ok(`economy.ts 里找不到 ${name}`, !!body);
+    if (body)
+      ok(
+        `economy.${name} 没按 upstreamResOf 读分辨率（又读回了 resolution 那一格占位）—— 上游分辨率的唯一读法在 videoTierTable.upstreamResOf`,
+        /upstreamResOf\(/.test(body) && !/\.resolution\b/.test(body),
+      );
+  }
 }
 
 if (problems.length) {
@@ -411,5 +428,5 @@ if (problems.length) {
   process.exit(1);
 }
 console.log(
-  `✓ 出片档位表检查通过（${ran} 条：每格必写 / 真人档语义的能力位 / 同模型一致 / 免费档 = 服务端 / MiniMax H3 三行 = 服务端 / 停用与默认档链 / 每秒 token / 含输入视频的最低用量 / 模型显示名 / tierOf 不按下标 / 档名与说明齐全）`,
+  `✓ 出片档位表检查通过（${ran} 条：每格必写 / 真人档语义的能力位 / 同模型一致 / 免费档 = 服务端 / MiniMax H3 三行 = 服务端 / 停用与默认档链 / 每秒 token / 含输入视频的最低用量 / 模型显示名 / tierOf 不按下标 / 档名与说明齐全 / (模型, 上游分辨率) 一行一对、按它认回档位）`,
 );

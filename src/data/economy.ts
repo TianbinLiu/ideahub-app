@@ -48,6 +48,7 @@ import {
   modelLabel,
   perSecTokens,
   tierRetiredAt,
+  upstreamResOf,
   type TierFamily,
   type VideoTierSpec,
 } from "./videoTierTable";
@@ -476,26 +477,35 @@ export function draftTierId(): string {
  * 档位 → 给人看的模型名（「Seedance 2.0 mini · 480p」）。**界面上显示「这一段交给哪个模型」一律走它**，别直接 modelLabel(tier.model)：
  * 「草稿」与「高清」是同一个模型，只差分辨率 —— 只印模型名的话两档看起来一模一样，用户不知道自己付的是哪一种。
  * 720p 是改之前的样子（不写），别的分辨率接在后面。
+ * ★ 分辨率按**发给上游的那一格**写（videoTierTable.upstreamResOf，2026-10-26 P2b 审核）：MiniMax H3 那三行的 resolution 只是为「每行都写」占的位
+ *   （480p / 720p），真发的是 upstreamResolution（480P / 768P）—— 读占位那一格的话「高清」「电影级」的 H3 写成不带分辨率（看不出是 768P）、
+ *   「草稿」写成小写 480p，与上游、服务端登记表都对不上。
  */
-export function tierModelLabel(tier: Pick<VideoTierSpec, "model" | "resolution">): string {
+export function tierModelLabel(tier: Pick<VideoTierSpec, "model" | "resolution" | "upstreamResolution">): string {
   const name = modelLabel(tier.model);
-  return tier.resolution === "720p" ? name : `${name} · ${tier.resolution}`;
+  const res = upstreamResOf(tier);
+  return res === "720p" ? name : `${name} · ${res}`;
 }
 
 /**
  * 服务端登记表里的一发（只有模型与分辨率，没有档位 id）→ 是哪一档。认不出 = undefined（调用方别写 videoTier，交给 tierOf 兜底）。
  * ★ 必须连分辨率一起认：「草稿」与「高清」是同一个模型 —— 只按模型认的话，取回来的 480p 成片会被当成「高清」，之后的重拍 / 延长按错的档报价。
  *   分辨率缺省（老服务端不登记这一格）= 720p（2026-10-07 之前只有 720p）。
+ * ★ 分辨率按**发给上游的那一格**比（videoTierTable.upstreamResOf —— 上游分辨率的唯一读法，2026-10-26 P2b 审核）：服务端登记 MiniMax H3 的那一发
+ *   记的是上游原样的大写 480P / 768P（server recordMinimaxV2Task），拿档位行里只为「每行都写」占位的小写 resolution 比，每一发 H3 都认不出 ——
+ *   取回安放的那一段落到 tierOf 的兜底档（Seedance）上，之后的重拍 / 报价按错的档算。方舟那几行 upstreamResOf 就是 resolution，行为不变。
+ *   (模型, 上游分辨率) 在档位表里一行一对（scripts/check-video-tiers.mjs 钉着），所以这里取第一个不会挑错。
  */
 export function tierIdOf(model: string | undefined, resolution: string | undefined): string | undefined {
   if (!model) return undefined;
   const res = resolution || "720p";
-  return VIDEO_TIERS.find((t) => t.model === model && t.resolution === res)?.id;
+  return VIDEO_TIERS.find((t) => t.model === model && upstreamResOf(t) === res)?.id;
 }
 
-/** 同上，但用完整的模型 id（档位按钮的 title：要查证的人看的那一份）。同一个模型的两档靠分辨率分开 */
-export function tierModelId(tier: Pick<VideoTierSpec, "model" | "resolution">): string {
-  return tier.resolution === "720p" ? tier.model : `${tier.model} · ${tier.resolution}`;
+/** 同上，但用完整的模型 id（档位按钮的 title：要查证的人看的那一份）。同一个模型的两档靠分辨率分开；分辨率同 tierModelLabel 按上游那一格写 */
+export function tierModelId(tier: Pick<VideoTierSpec, "model" | "resolution" | "upstreamResolution">): string {
+  const res = upstreamResOf(tier);
+  return res === "720p" ? tier.model : `${tier.model} · ${res}`;
 }
 
 /**
