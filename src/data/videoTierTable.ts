@@ -243,8 +243,8 @@ export type TierApi = "ark" | "minimax-v1" | "minimax-v2";
  * 按请求形状（VideoTier.api）分流的**唯一写法**：每一种 api 都要给一个值。
  * `cases` 的类型是「TierApi 的每一个成员都是必填键」—— TierApi 加一个成员，所有调用点同时编译不过，
  * 每一处都得写清新协议在这里走哪一支（不会像等号比较那样悄悄落进 ark 那一支）。
- * 调用点：real.slotModeOf、segmentGen 的参考清单预览 / 样片闸 / 真人档那一支、flowStore.nodeDraftEligible、account 的「这台服务端认不认」（tierServerOff）
- * 与「免费版只能纯文字」（tierTextOnly）。
+ * 调用点：real.slotModeOf、segmentGen 的参考清单预览 / 样片闸 / 真人档那一支、flowStore.nodeDraftEligible、account 的「这台服务端认不认」（tierServerOff）、
+ * 「免费版只能纯文字」（tierTextOnly）与「还没问清，别改写抄来的档」（tierUnsettled）。
  * （2026-10-26 加 "minimax-v2" 时 tsc 在前五处各报一次 TS2345，一处不漏 —— 逐处写了 V2 走哪一支。）
  */
 export function apiCase<T>(api: TierApi, cases: { readonly [K in TierApi]: T }): T {
@@ -417,7 +417,8 @@ export interface VideoTierSpec {
  * 档位表本体。一行一档，**每一格都写**（能力位、分辨率、freeOk 一个都不许靠缺省）。
  * ★ 顺序 = 界面上那一排的顺序（Seedance 那几档按价钱从低到高；MiniMax H3 三行各排在同 family 的 Seedance 那一行后面）。
  *   **判据一律认 id**，不认下标：economy.tierOf 的兜底是显式 id（firstLiveTierId），在前面插一档不会悄悄改掉「认不出的 id 落到哪一档」。
- *   ⚠ 同 family 里 Seedance 排在前面是有意的：account.usableTierId 的近邻按表的顺序取第一个 —— 境内（两家都给）抄来的档先落回 Seedance（主人 10-26：境内默认仍是 Seedance）。
+ *   ⚠ 同 family 里 Seedance 排在前面是有意的：被挡住的档换到哪一档（videoZoneRules.stepAsideOf，先同一颗芯片、再能力最接近）都按表的顺序取第一个 ——
+ *   境内（两家都给）抄来的档先落回 Seedance（主人 10-26：境内默认仍是 Seedance）。
  * ✅ 2026-08-16 拿 8 月账单明细逐行核过 mult。写成 `4.2 / 15`、`23 / 15` 这种**分数形态**是有意的：分子就是账单上那个「元/千token × 1000」的数。
  */
 export const VIDEO_TIER_SPECS: readonly VideoTierSpec[] = [

@@ -19,8 +19,8 @@ import { adoptRemoteAssets, assetOf, claimLegacyAssets, hasAsset, removeAsset, s
 import { PLANS, PLATFORM_CUT, VIDEO_TIERS, apiCase, fmtTokens, joinTierNames, modelLabel, planOf, providerOf, tierModelId, tierModelLabel, tierOf, tierRetireDay, tierRetired, type VideoTier } from "./economy";
 import { cardInputOf, modelsOfTiers, type VideoModelOf } from "./cardFit";
 import { serverFreeVideo, serverSupports, subscribeServerCaps } from "./serverCaps";
-import { minimaxV2Offered, refreshVideoZone, subscribeVideoZone, videoZone, zoneDenies, zoneIsRegional, type VideoProvider } from "./videoZone";
-import { tierGoOf } from "./videoZoneRules";
+import { minimaxV2Offered, minimaxV2Unsettled, refreshVideoZone, subscribeVideoZone, videoZone, zoneDenies, zoneIsRegional, type VideoProvider } from "./videoZone";
+import { stepAsideOf, tierGoOf } from "./videoZoneRules";
 import { FREE_DEFAULT_CHAIN, PAID_DEFAULT_CHAIN, SEEDANCE_2_5, firstLiveTierId, providerOfModel, upstreamResOf } from "./videoTierTable";
 import { idbGet, idbRead, idbSet } from "./db";
 // 转存（dataURL → 永久 URL）的唯一入口，与发布/换封面/详情页加图共用（铁律六）
@@ -995,6 +995,18 @@ function serverOffLine(tier: VideoTier): string {
 const PROVIDER_NAME: Record<VideoProvider, string> = { ark: "Seedance", minimax: "MiniMax" };
 
 /**
+ * 同一颗芯片的两家（Seedance / MiniMax H3）**同名**（档名按芯片取）—— 两档并提时（「原来是「电影级」，改用「电影级」」）用它分清 `tier` 是哪一家：
+ * 回这一档的供应商名；回 null = 不用分（不是同一颗芯片的两行），或者分不了（地区还不知道：不写供应商名，tierShownModel 那条 ★★）。
+ * 换档说明（flowStore.tierSwapNote）、换档代价（TierRow.tierSwitchLoss）、地区那一句（tierRegionIssue）用。
+ * ★ 同名只在至少一边是 MiniMax H3 时才会碰上，而 H3 三档只在地区问到了才摆，所以地区不知道的那一支几乎走不到；走到了就只写档名（宁可读着别扭，也不在美国的机器上先写 Seedance）。
+ * ⚠ 调用方别拿它给**被地区拦下的那一家**点名（这几句话只写这个地区给得出的供应商，见上面那段 ★）。
+ */
+export function sameChipProvider(tier: VideoTier, other: VideoTier): string | null {
+  if (tier.id === other.id || tier.family !== other.family || !videoZone()) return null;
+  return PROVIDER_NAME[providerOf(tier.id)];
+}
+
+/**
  * 调用方这一件事要哪种能力的档（白模模板 blockoutOk、重拍 refVid、延长 extendOk、样片 draftOk…）—— 只用来挑「换成哪一档」那条出路：
  * 被地区挡住时只往**做得了这件事**的档上指（2026-10-26 P1 审核）。不传 = 普通出片 / 推演。定稿这类换不了档的事传 `() => false`（没有可换的）。
  */
@@ -1623,13 +1635,14 @@ function nameSep(): string {
  * ★ 2026-10-26（出片地区 P2b）：退的时候先找**同一颗芯片**（family）在这个地区摆得出来的那一行 —— 海外付过钱的人默认「高清」，
  *   落在 MiniMax H3 Highspeed 上（原来退到「摆得出来的第一档」，就成了 H3-Lite 的「草稿」）；同一颗芯片一行都摆不出来再落第一档。
  *   默认档链本身仍写 Seedance 那几行的 id（它们的 id 就是 family 名）：境内照旧默认 Seedance（主人 10-26）；「记住上次选的那一家」是界面那一步的事。
+ *   「先同一颗芯片、再能力最接近」只有 videoZoneRules.stepAsideOf 一处，与 usableTierId 共用（2026-10-26 P2b 审核：原来两处各有一套规矩）。
  */
 export function defaultTierId(): string {
   const id = chainTierId();
   if (!zoneDenies(providerOf(id))) return id;
-  const family = tierOf(id).family;
   const offered = offeredTiers();
-  return offered.find((x) => x.family === family)?.id ?? offered[0]?.id ?? id;
+  // usable 恒真：默认档链本来就按付没付过钱挑过（免费链只有免费档），这里只是把被地区挡住的那一行挪到同一颗芯片 / 最接近的那一行上
+  return stepAsideOf(tierOf(id), offered, () => true)?.id ?? offered[0]?.id ?? id;
 }
 
 /** 默认档链上第一个用得了的那一档（停用 / 服务端不支持 / 地区不给都往后退，全退完回链尾）—— defaultTierId 与 usableTierId 的兜底共用 */
@@ -1652,11 +1665,15 @@ export function usableTierId(id: string | undefined): string {
   //   （2026-10-26 前写的是 `!x.flatCost`「按发计价」—— 计价模型与出片方式是两件事，今天碰巧都落在真人档上）
   // ★ 出片地区：这个地区不给原档的供应商时同样换（原档 tierBlockReason 非空），近邻按上面那条找；调用方把「换了档」说出来（flowStore.tierCopyNote）。
   //   地区**不知道**时不拦（videoZone 的 ★★），所以冷启动问慢半拍不会把节点上的档改写掉（2026-10-26 设计审核）。
+  // ★ 近邻之前先试**同一颗芯片**的另一家（2026-10-26 P2b 审核；规则只在 videoZoneRules.stepAsideOf，与 defaultTierId 共用）：
+  //   海外付过钱的人抄来的「电影级」落到 MiniMax 的「电影级」，不是表里排第一的 H3-Lite「草稿」（480P）；V2 没开时抄来的 H3「高清」落回 Seedance「高清」。
   const want = id ? tierOf(id) : null;
+  // ★ 还没问清的不改写（2026-10-26 P2b 审核）：MiniMax H3 三档在地区 / 健康端点的 minimaxV2 还没问到时不摆（摆出来点下去必回 501），
+  //   但「不摆」与「把抄来的档改写掉」是两件事 —— 冷启动问慢半拍时做同款一份 H3 的作品，不该每一段都被持久改写成 Seedance
+  //  （与地区不知道时不拦同一条，videoZone 的 ★★）。套餐那一道照样过：免费用户抄来的会员档仍按下面的近邻换。
+  if (want && want.id === id && tierUnsettled(want) && (tierFreeOk(want) || payingNow() !== false)) return id;
   if (want && want.id === id) {
-    const near = offeredTiers().find(
-      (x) => !x.startOnly && x.refImg === want.refImg && x.audio === want.audio && !tierBlockReason(x),
-    );
+    const near = stepAsideOf(want, offeredTiers(), (x) => !tierBlockReason(x));
     if (near) return near.id;
   }
   const d = defaultTierId();
@@ -1667,6 +1684,14 @@ export function usableTierId(id: string | undefined): string {
   //   缺省（id 为空 = 一段全新的段，没有可抄的档）仍落 defaultTierId，可以是「真人」—— 那是这个地区唯一出得了片的一档。
   if (!id || !tierOf(d).startOnly) return d;
   return want && want.id === id ? id : chainTierId();
+}
+
+/**
+ * 这一档用不用得了**还没问清**（不是确定用不了）—— usableTierId 不拿「还不知道」改写抄来的档。
+ * 方舟 / 真人档：地区不知道时 tierOffIssue 本来就不拦，恒为假；MiniMax H3：地区或健康端点的 minimaxV2 还没问到（videoZone.minimaxV2Unsettled）。
+ */
+function tierUnsettled(tier: VideoTier): boolean {
+  return apiCase(tier.api, { ark: false, "minimax-v1": false, "minimax-v2": minimaxV2Unsettled() });
 }
 
 /**

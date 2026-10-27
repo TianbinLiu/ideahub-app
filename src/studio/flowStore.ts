@@ -24,7 +24,7 @@ import { castPreviewImage, frameUrlAt, fuseStageFrame, AI_REAL, ArkRegionDenied,
 import { frameMoment, isMultiShot, momentCards } from "../data/shotScript";
 import { endFrameUsed } from "../data/drawPlan";
 import { isArkAssetUrl, reasonClause, transferArkVideo } from "../ai/arkClient";
-import { canAfford, defaultTierId, draftModeIssue, draftModeOffered, frozenNote, myCards, noTierLine, realFaceIssue, spendTokens, tierBlockReason, tierGo, tierOffered, tierRegionGate, tierRegionIssue, tierRegionRecheck, usableTierId, walletOf, type TierNeed } from "../data/account";
+import { canAfford, defaultTierId, draftModeIssue, draftModeOffered, frozenNote, myCards, noTierLine, realFaceIssue, sameChipProvider, spendTokens, tierBlockReason, tierGo, tierOffered, tierRegionGate, tierRegionIssue, tierRegionRecheck, usableTierId, walletOf, type TierNeed } from "../data/account";
 import { refreshVideoZone, zoneIsRegional } from "../data/videoZone";
 import { showToast } from "../data/toast";
 import {
@@ -1028,6 +1028,15 @@ function tierSwapNote(i: number, from: string, to: string): string {
   const b = tierOf(to).label;
   if (a.id !== from) return t`第 ${n} 段原来的档位已经下线，改用「${b}」档`;
   const label = a.label;
+  // ★ 换的是同一颗芯片的另一家（2026-10-26 P2b 审核：usableTierId 先落同一颗芯片）：两家同名，「原来是「电影级」，改用「电影级」」读不懂 ——
+  //   点名换过去的那一家（account.sameChipProvider：地区问到了才写）。地区那一支只写这个地区给得出的那一家（被拦的 Seedance 不点名）；
+  //   服务端没开 V2 那一支把原来那一家（MiniMax）也说出来。会员档 / 停用不会落到这里（同一颗芯片两家的套餐门槛相同，停用的两档没有另一家）。
+  const viaB = sameChipProvider(tierOf(to), a);
+  if (viaB) {
+    if (tierRegionIssue(a) && zoneIsRegional()) return t`第 ${n} 段原来的「${label}」档你所在的地区用不了，改用同一档的 ${viaB}（「${b}」档）`;
+    const viaA = sameChipProvider(a, tierOf(to));
+    if (!tierOffered(a) && viaA) return t`第 ${n} 段原来用 ${viaA} 出「${label}」档（这台服务器还不支持），改用同一档的 ${viaB}（「${b}」档）`;
+  }
   if (tierRetired(a)) return t`第 ${n} 段原来是「${label}」档（模型已停用），改用「${b}」档`;
   // ★ 地区排在「服务端不支持」之前（与 tierOffIssue 同一个顺序）：原来摆不出来的只剩「服务端不支持」一种，地区一来这句话就会把原因说错（2026-10-26 设计审核）。
   //   门禁没开时（videoZone.zoneIsRegional 为假）藏掉那一家的是这台服务器没接上它，落到下面「这台服务器还不支持」那一句（P1 审核）

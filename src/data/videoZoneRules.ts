@@ -4,7 +4,8 @@
 // 管六件事：回包怎么读（parseZone）、403 REGION_UNAVAILABLE 的回包怎么记（zoneOfDenial）、
 // 「这一家给不给」（deniesOf，三态里「不知道」恒不拦）、MiniMax H3 三档摆不摆（v2OfferedOf，「不知道」= 不摆，与 deniesOf 相反）、
 // 缺的那一家该不该说成「地区」（regionalOf，只挑措辞）、
-// 「换到哪一档就有」那串档名分哪三种结局（tierGoOf：给得出的档里一档都做不了这件事单列一种）。
+// 「换到哪一档就有」那串档名分哪三种结局（tierGoOf：给得出的档里一档都做不了这件事单列一种）、
+// 一档被挡住时换到哪一档（stepAsideOf：先同一颗芯片的另一家、再能力最接近的）。
 // 问（网络 / 监听 / 广播）在 data/videoZone，它从这里取规则；把结论说成人话在 data/account。契约见 docs/api-contract.md「出片地区」。
 
 /** 出片供应商：ark = 火山方舟（Seedance），minimax = MiniMax。与档位表的 `provider`（economy.providerOf）同一套名字 */
@@ -88,6 +89,18 @@ export function v2OfferedOf(zone: Pick<VideoZoneFacts, "providers"> | null, v2Ca
 }
 
 /**
+ * MiniMax H3（V2）三档「用不用得了」**还没问清**（不是确定用不了）—— account.usableTierId 据此不改写抄来的 H3 档（2026-10-26 P2b 审核）。
+ * 三种：地区还没问到（服务端没说确定没开 V2）；地区问到了、给 MiniMax，但健康端点的 minimaxV2 还没探到。
+ * 确定的两种不算：服务端明说没开（minimaxV2 === false）—— 换到同一颗芯片的 Seedance；地区问到了、不给 MiniMax —— 那是地区的话。
+ * ★ 为什么（videoZone 的 ★★「不知道 = 不改写」）：v2OfferedOf 在「不知道」时不摆 H3（摆出来点下去必回 501），而摆不摆与改不改节点上的档是两件事 ——
+ *   冷启动问慢半拍时做同款一份 H3 的作品，不该把每一段持久改写成 Seedance（问到之后它们本来就摆得出来）。
+ */
+export function v2UnsettledOf(zone: Pick<VideoZoneFacts, "providers"> | null, v2Cap: boolean | null): boolean {
+  if (v2Cap === false) return false;
+  return !zone || (zone.providers.includes("minimax") && v2Cap === null);
+}
+
+/**
  * 缺的那几家是不是「地区」的缘故（只挑措辞）：门禁开着（gate "on"）时是；off / observe 时 providers 只说这台服务器接上了哪几家，
  * 缺的那一家是这台服务器没接上（多半是没配 key）。地区不知道时为 false。
  */
@@ -114,6 +127,29 @@ export function tierGoOf<T>(offered: readonly T[], has: (t: T) => boolean, block
   const rows = offered.filter(has);
   if (!rows.length) return null;
   return { usable: rows.filter((x) => !blocked(x)), member: rows.filter((x) => blocked(x)) };
+}
+
+/**
+ * 一档被挡住（地区不给 / 这台服务端不认 / 套餐挡着）时**换到哪一档** —— account.defaultTierId 与 usableTierId 共用的纯规则（2026-10-26 P2b 审核）：
+ *   ① 先找**同一颗芯片**（family 相同）里摆得出来、这个人用得了的另一行：海外付过钱的人抄来的「电影级」（Seedance 2.5）落到 MiniMax 的「电影级」上，
+ *      服务端没开 V2 时抄来的 MiniMax「高清」落到 Seedance 的「高清」上；
+ *   ② 找不到再找能力最接近的（收不收参考图、出不出声都与原档一样），按档位表的顺序取第一个（便宜的排在前面；同 family 里 Seedance 排在前面，境内先落回 Seedance）。
+ *   两步都不往只认一张起拍画面的档（startOnly，真人档）上落：它做不了推演、只收真人卡的照片。都没有 = undefined（调用方各自兜底）。
+ * ★★ 为什么先看芯片（审核抓到）：原来只有第②步，而 MiniMax H3 三行能力位都一样（收参考图、出声），表里排第一个的是 H3-Lite —— 海外付过钱的人
+ *   做同款、按配方做同款、套经典模板时，Seedance 的「高清」「电影级」被地区挡住，一律落到 480P 的「草稿」上（tierCopyNote 还照说「改用「草稿」档」）；
+ *   V2 没开时抄来的 H3「高清」也落到 Seedance「草稿」上。同一件事「被挡了换到哪一档」defaultTierId 已经先看芯片，两处各有一套规矩。
+ * 构建里 check-video-zone 拿真表实跑。
+ * @param want 被挡住的那一档
+ * @param offered 摆得出来的档（account 传 offeredTiers，顺序同档位表）
+ * @param usable 这个人现在用得了（usableTierId 传 !tierBlockReason；defaultTierId 传恒真 —— 默认档链本来就按付没付过钱挑过）
+ */
+export function stepAsideOf<T extends { id: string; family: string; startOnly: boolean; refImg: boolean; audio: boolean }>(
+  want: T,
+  offered: readonly T[],
+  usable: (t: T) => boolean,
+): T | undefined {
+  const ok = (x: T) => x.id !== want.id && !x.startOnly && usable(x);
+  return offered.find((x) => x.family === want.family && ok(x)) ?? offered.find((x) => x.refImg === want.refImg && x.audio === want.audio && ok(x));
 }
 
 /** 两份结论是不是同一个意思（换没换 → 要不要广播 / 调用方要不要从头再判一遍） */

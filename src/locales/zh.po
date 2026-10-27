@@ -22004,6 +22004,14 @@ msgid "第 {n} 段原来是「{label}」档（这台服务器还不支持），�
 msgstr "第 {n} 段原来是「{label}」档（这台服务器还不支持），改用「{b}」档"
 
 #: src/studio/flowStore.ts
+msgid "第 {n} 段原来用 {viaA} 出「{label}」档（这台服务器还不支持），改用同一档的 {viaB}（「{b}」档）"
+msgstr "第 {n} 段原来用 {viaA} 出「{label}」档（这台服务器还不支持），改用同一档的 {viaB}（「{b}」档）"
+
+#: src/studio/flowStore.ts
+msgid "第 {n} 段原来的「{label}」档你所在的地区用不了，改用同一档的 {viaB}（「{b}」档）"
+msgstr "第 {n} 段原来的「{label}」档你所在的地区用不了，改用同一档的 {viaB}（「{b}」档）"
+
+#: src/studio/flowStore.ts
 msgid "第 {n} 段原来的档位已经下线，改用「{b}」档"
 msgstr "第 {n} 段原来的档位已经下线，改用「{b}」档"
 

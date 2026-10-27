@@ -25,7 +25,7 @@
 // ★ 结论变了就广播（subscribeVideoZone）：account 把它接进自己的版本号，订阅了账号的档位那一排会重画。
 import { API_BASE, getToken, withAppVersion } from "../api/client";
 import { noServerLayer, probeServerCaps, serverSupports } from "./serverCaps";
-import { deniesOf, parseZone, regionalOf, sameZone, v2OfferedOf, zoneOfDenial, type VideoProvider, type VideoZoneFacts } from "./videoZoneRules";
+import { deniesOf, parseZone, regionalOf, sameZone, v2OfferedOf, v2UnsettledOf, zoneOfDenial, type VideoProvider, type VideoZoneFacts } from "./videoZoneRules";
 
 export type { VideoGate, VideoProvider, VideoZoneKind } from "./videoZoneRules";
 
@@ -135,6 +135,14 @@ export function zoneDenies(provider: VideoProvider): boolean {
  */
 export function minimaxV2Offered(): boolean {
   return v2OfferedOf(videoZone(), serverSupports("minimaxV2"));
+}
+
+/**
+ * MiniMax H3（V2）三档用不用得了**还没问清**（地区或健康端点的 minimaxV2 还没问到；规则在 videoZoneRules.v2UnsettledOf）——
+ * account.usableTierId 据此不改写抄来的 H3 档（不知道 = 不改写；摆不摆另由 minimaxV2Offered 判）。
+ */
+export function minimaxV2Unsettled(): boolean {
+  return v2UnsettledOf(videoZone(), serverSupports("minimaxV2"));
 }
 
 /**
