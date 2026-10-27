@@ -96,7 +96,7 @@ import {
   type FlowNode,
   type FlowTemplate,
 } from "../../studio/flowStore";
-import { myCards, tierBlockReason, tierNamesFor, tierPlanBlocked, usableTierId } from "../../data/account";
+import { myCards, tierBlockReason, tierNamesFor, tierPlanBlocked, tierShownModel, usableTierId } from "../../data/account";
 import UpgradeLink from "../UpgradeLink";
 import { useAccountVersion } from "../../hooks/useAccount";
 import {
@@ -108,7 +108,7 @@ import {
   subscribeTemplates,
   templatesVersion,
 } from "../../data/templates";
-import { CHAT_TURN_TOKENS, ONE_IMAGE, blockoutTier, clampDuration, durationChoices, fmtTokens, materialRefSecs, minUsageNote, priceTag, promptMaxOf, proposalsCost, shotsOkOf, tierModelLabel, tierOf } from "../../data/economy";
+import { CHAT_TURN_TOKENS, ONE_IMAGE, blockoutTier, clampDuration, durationChoices, fmtTokens, materialRefSecs, minUsageNote, priceTag, promptMaxOf, proposalsCost, shotsOkOf, tierOf } from "../../data/economy";
 import { AGENT_PHRASES, executeAgentProposal, runCanvasAgent, type AgentOutcome, type AgentProposal } from "../../studio/canvasAgent";
 import { EXAMPLES, phraseText, templatePhrase } from "../../studio/agentGrammar";
 import { useLang } from "../../i18n/useLang";
@@ -2872,7 +2872,9 @@ export function TemplatePicker({
   useAccountVersion();
   const need = blockoutTier();
   const needLabel = need?.label ?? "";
-  const needModel = need ? tierModelLabel(need) : "";
+  // 括号里的模型名只在地区问到了、这一档又摆得出来时写（account.tierShownModel，2026-10-26 审核：「卡片信息」包括模板卡，这一抽屉原来漏了）——
+  // 地区不知道时美国的机器在这里照样看到「Seedance 2.5」；门禁开着时更会紧挨着下面那句「你所在的地区只提供 MiniMax」把被拦的那一家点名
+  const needModel = need ? tierShownModel(need) : null;
   // 地区挡住时出路只指同样做得了白模的档（白模钉死一档 = 没有可换的；account.tierRegionIssue 的 need）——
   // 原来上一句刚说「不能换别的画质档」，下一句就叫人换成「真人」档（2026-10-26 P1 审核）
   const needIssue = need ? tierBlockReason(need, (x) => x.blockoutOk) : null;
@@ -2891,7 +2893,11 @@ export function TemplatePicker({
         </div>
         {need && (
           <p className="mb-1.5 flex-none text-[11px] leading-relaxed text-slate-400">
-            <Trans>白模模板固定用「{needLabel}」（{needModel}）出片：选了之后这一段不能换别的画质档。</Trans>
+            {needModel ? (
+              <Trans>白模模板固定用「{needLabel}」（{needModel}）出片：选了之后这一段不能换别的画质档。</Trans>
+            ) : (
+              <Trans>白模模板固定用「{needLabel}」出片：选了之后这一段不能换别的画质档。</Trans>
+            )}
             {needIssue && (
               <span className="text-warn-300/90">
                 {" "}

@@ -2279,8 +2279,12 @@ msgid "「{names}」的声音样本这次没带上（这一档的参考音频合
 msgstr "The voice sample for {names} wasn't sent this time (on this tier all reference audio together can be at most {capSec} seconds) — the model picks the voice for their lines; trim the samples and they will all fit"
 
 #: src/data/economy.ts
-msgid "「{names}」跑不了白模模板（模板对出片模型是硬要求）——白模模板只有「{openLabel}」（{openModel}）跑得了"
-msgstr "“{names}” can't run blockout templates (a template requires a specific video model) — only “{openLabel}” ({openModel}) can"
+#~ msgid "「{names}」跑不了白模模板（模板对出片模型是硬要求）——白模模板只有「{openLabel}」（{openModel}）跑得了"
+#~ msgstr "“{names}” can't run blockout templates (a template requires a specific video model) — only “{openLabel}” ({openModel}) can"
+
+#: src/data/economy.ts
+msgid "「{names}」跑不了白模模板（模板对出片模型是硬要求）——白模模板只有「{openLabel}」跑得了"
+msgstr "“{names}” can't run blockout templates (a template requires a specific video model) — only “{openLabel}” can"
 
 #: src/data/economy.ts
 msgid "「{names}」这一档暂未开放按参考视频出片，等开放后再来"
@@ -2642,8 +2646,18 @@ msgstr "+ Save as skill"
 #. placeholder {0}: tierModelLabel(tier)
 #. placeholder {1}: fmtTokens(videoTokens)
 #: src/components/blockout/BlockoutTrimmer.tsx
-msgid "+ 把这 {durSec} 秒整段换成白模人偶（{0} · {1}）"
-msgstr "+ turning all {durSec}s into white mannequins ({0} · {1})"
+#~ msgid "+ 把这 {durSec} 秒整段换成白模人偶（{0} · {1}）"
+#~ msgstr "+ turning all {durSec}s into white mannequins ({0} · {1})"
+
+#. placeholder {0}: fmtTokens(videoTokens)
+#: src/components/blockout/BlockoutTrimmer.tsx
+msgid "+ 把这 {durSec} 秒整段换成白模人偶（{tierModel} · {0}）"
+msgstr "+ turning all {durSec}s into white mannequins ({tierModel} · {0})"
+
+#. placeholder {0}: fmtTokens(videoTokens)
+#: src/components/blockout/BlockoutTrimmer.tsx
+msgid "+ 把这 {durSec} 秒整段换成白模人偶（「{tierLabel}」档 · {0}）"
+msgstr "+ turning all {durSec}s into white mannequins (“{tierLabel}” tier · {0})"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "＋ 插一张中间帧（把这一段拆成两段，从这一帧断开）"
@@ -6574,6 +6588,18 @@ msgstr "Your approval"
 msgid "你标的那几帧都落在选中的这一段外面了（选段后来被拖动过）——回去把标记删掉重标，或者切回「自动」。"
 msgstr "The frames you marked are all outside the selected part (the selection was moved afterwards) — go back, delete the marks and mark again, or switch back to “Auto”."
 
+#: src/pages/CardDetailPage.tsx
+msgid "你现在能用的出片模型都不参考声音样本（样本先留着，换了能用的模型还用得上）。样本只存在这台设备上，分享卡片不带它。"
+msgstr "None of the video models available to you use voice samples (keep it anyway — it works again once a model that does is available to you). The sample stays on this device and isn't included when you share the card."
+
+#: src/pages/CustomCardPage.tsx
+msgid "你现在能用的出片模型都不参考声音样本（样本照样存进这张卡，换了能用的模型还用得上）。样本只存在这台设备上，不随分享带走。"
+msgstr "None of the video models available to you use voice samples (the sample is still saved to this card and works again once a model that does is available to you). It stays on this device and isn't included when you share."
+
+#: src/components/VolcCompatToggle.tsx
+msgid "你现在能用的出片模型都不收火山引擎认证素材（认证先留着，可以随时取消）"
+msgstr "None of the video models available to you take Volcengine-verified assets (the verification stays, and you can remove it any time)"
+
 #: src/components/CardModelFit.tsx
 msgid "你现在能用的出片模型都用不上它（起拍画面先留着，可以随时取消）"
 msgstr "None of the video models available to you use these right now (the opening frames stay, and you can remove them any time)"
@@ -7074,14 +7100,23 @@ msgstr "View the video first"
 msgid "先去逛逛，好了叫我"
 msgstr "Look around, tell me when it's done"
 
+#: src/components/VideoCardAnnotator.tsx
+msgid "先听一遍：要的是<0>这个人说话</0>的干净片段。你现在能用的出片模型都不参考声音样本（样本照样存进这张卡，换了能用的模型还用得上）。 样本只存在这台设备上，分享卡片不带它。"
+msgstr "Listen to it first: you want a clean clip of <0>this person speaking</0>. None of the video models available to you use voice samples (the clip is still saved to this card and works again once a model that does is available to you). The sample stays on this device and isn't included when you share the card."
+
 #. placeholder {0}: voiceTierNames()
 #: src/components/VideoCardAnnotator.tsx
-msgid "先听一遍：要的是<0>这个人说话</0>的干净片段。出片走「{0}」且台词写在引号里时， 会把这段声音发给 AI 作音色参考（免费）。样本只存在这台设备上，分享卡片不带它。"
-msgstr "Listen to it first: you want a clean clip of <0>this person speaking</0>. When a video renders on the “{0}” tier with dialogue in quotes, this clip is sent to the AI as a voice reference (free). The sample stays on this device and isn't included when you share the card."
+#~ msgid "先听一遍：要的是<0>这个人说话</0>的干净片段。出片走「{0}」且台词写在引号里时， 会把这段声音发给 AI 作音色参考（免费）。样本只存在这台设备上，分享卡片不带它。"
+#~ msgstr "Listen to it first: you want a clean clip of <0>this person speaking</0>. When a video renders on the “{0}” tier with dialogue in quotes, this clip is sent to the AI as a voice reference (free). The sample stays on this device and isn't included when you share the card."
 
 #: src/components/VideoCardAnnotator.tsx
 #~ msgid "先听一遍：要的是<0>这个人说话</0>的干净片段。出片走「高清/电影级」且台词写在引号里时， 会把这段声音发给 AI 作音色参考（免费）。样本只存在这台设备上，分享卡片不带它。"
 #~ msgstr "Listen to it first: you want a clean clip of <0>this person speaking</0>. When a video renders on the HD or Cinematic tier with dialogue in quotes, this clip is sent to the AI as a voice reference (free). The sample stays on this device and isn't included when you share the card."
+
+#. placeholder {0}: voiceModelsNames()
+#: src/components/VideoCardAnnotator.tsx
+msgid "先听一遍：要的是<0>这个人说话</0>的干净片段。用 {0} 出片、台词写在引号里时， 会把这段声音发给 AI 作音色参考（免费）。样本只存在这台设备上，分享卡片不带它。"
+msgstr "Listen to it first: you want a clean clip of <0>this person speaking</0>. When rendering with {0}, dialogue written in quotes sends this clip to the AI as a voice reference (free). The sample stays on this device and isn't included when you share the card."
 
 #: src/pages/CutPage.tsx
 msgid "先存起来，圈完所有要改的地方再一次性重新生成"
@@ -8044,6 +8079,10 @@ msgstr "{count, plural, one {The # frame drawn before the video was charged} oth
 msgid "出片前补画"
 msgstr "Drawn before rendering"
 
+#: src/pages/CardDetailPage.tsx
+msgid "出片前补画设定帧那一步（以及收不到参考图的档位）：一段里只有「第一张人物卡」能带形象参考图——先取 {MAX_CHAR_REFS} 张（优先{face} + {body}），标成「出片用」的第 3 张要等同段每张卡都拿到第 1 张之后，预算还有余才补得上；其余人物卡在那一步只按文字设定参与（画帧的出图模型只吃第一个人物的图）。所以上面的「出片用 / 仅展示」是按补画设定帧那一步、按\"这张卡就是那第一张人物卡\"标的：它排在别的人物卡后面时，标着出片用的那几张在那一步同样进不了模型（生成步骤里会点名说明）。{detail}这一格铸卡不会自动出图，只能自己传。"
+msgstr "In the setting-frame step (and on tiers that don't take reference images): only the “first character card” in a segment can bring likeness references — {MAX_CHAR_REFS} images are taken first ({face} + {body} preferred); a 3rd image marked “used” only comes in after every card in the segment has its 1st and budget is left; the other character cards take part in that step by text only (the image model that draws frames only takes the first character's images). So the “used / display only” labels above are for the setting-frame step and assume this card is that first character card: when it sits behind other character cards, images marked “used” don't reach the model in that step either (the generation steps say so). {detail} isn't drawn automatically when forging — upload it yourself."
+
 #: src/components/guide/tours.tsx
 msgid "出片前这里显示你给的<0>开头帧</0>（没给就先空着），出片后就地回放这一段。 不满意就改下面那句话（或换圈选）再来一次。"
 msgstr "Before rendering, this shows the <0>opening frame</0> you provided (it stays empty if you didn't); after rendering, this segment plays back right here. Not happy? Change the sentence below (or circle something else) and try again."
@@ -8102,8 +8141,16 @@ msgstr "The fixed line that stands for this card in video prompts (the same word
 #~ msgstr "When making videos, this kind of card always gets its first image ({first}) fed to the AI. A segment takes at most {MAX_REF_IMAGES, plural, one {# reference image} other {# reference images}} in total, and the second image only gets in if there's budget left — so the fewer cards in the segment, the more likely it actually reaches the model. When the budget runs short, “each card's second image is dropped first”, and with even more cards whole cards get left out (the generation steps name each one in both cases). (Attaching cards to a blockout template and direct reference-image output in Simple mode are more generous: reference images go straight into the video model, up to the limit of the chosen tier.)"
 
 #: src/pages/CardDetailPage.tsx
-msgid "出片时这类卡先保证第 1 张（{first}）喂给 AI。出片前补画设定帧那一步（以及收不到参考图的档位）：同一段里参考图总共最多 {MAX_REF_IMAGES} 张，预算还有余才一轮一轮地轮到第 2、第 3 张 —— 同段挂的卡越少，它越可能真的进模型；预算不够时先被丢的是各卡靠后的那几张，卡再多下去整张卡都会带不上（生成步骤里会逐张点名）。收参考图的档位（{tiers}）与白模挂卡：参考图直接进视频模型，各卡一张一张轮着带，上限按所选档位的协议走。"
-msgstr "When generating, the 1st image of this card ({first}) is fed to the AI first. In the setting-frame step (and on tiers that don't take reference images): a segment carries at most {MAX_REF_IMAGES} reference images in total, and the 2nd and 3rd images only come in round by round when budget is left — the fewer cards a segment has, the more likely it really reaches the model; when the budget runs out, the later images of each card are dropped first, and with even more cards whole cards are left out (the generation steps name each one). On tiers that take reference images ({tiers}) and with blockout rigging: reference images go straight to the video model, one image per card in turn, up to that tier's protocol limit."
+msgid "出片时这类卡先保证第 1 张（{first}）喂给 AI。出片前补画设定帧那一步（以及收不到参考图的档位）：同一段里参考图总共最多 {MAX_REF_IMAGES} 张，预算还有余才一轮一轮地轮到第 2、第 3 张 —— 同段挂的卡越少，它越可能真的进模型；预算不够时先被丢的是各卡靠后的那几张，卡再多下去整张卡都会带不上（生成步骤里会逐张点名）。"
+msgstr "When generating, the 1st image of this card ({first}) is fed to the AI first. In the setting-frame step (and on tiers that don't take reference images): a segment carries at most {MAX_REF_IMAGES} reference images in total, and the 2nd and 3rd images only come in round by round when budget is left — the fewer cards a segment has, the more likely it really reaches the model; when the budget runs out, the later images of each card are dropped first, and with even more cards whole cards are left out (the generation steps name each one)."
+
+#: src/pages/CardDetailPage.tsx
+msgid "出片时这类卡先保证第 1 张（{first}）喂给 AI。出片前补画设定帧那一步（以及收不到参考图的档位）：同一段里参考图总共最多 {MAX_REF_IMAGES} 张，预算还有余才一轮一轮地轮到第 2、第 3 张 —— 同段挂的卡越少，它越可能真的进模型；预算不够时先被丢的是各卡靠后的那几张，卡再多下去整张卡都会带不上（生成步骤里会逐张点名）。收参考图的出片模型（{names}）与白模挂卡：参考图直接进视频模型，各卡一张一张轮着带，上限按所选模型的协议走。"
+msgstr "When generating, the 1st image of this card ({first}) is fed to the AI first. In the setting-frame step (and on tiers that don't take reference images): a segment carries at most {MAX_REF_IMAGES} reference images in total, and the 2nd and 3rd images only come in round by round when budget is left — the fewer cards a segment has, the more likely it really reaches the model; when the budget runs out, the later images of each card are dropped first, and with even more cards whole cards are left out (the generation steps name each one). On video models that take reference images ({names}) and with blockout rigging: reference images go straight to the video model, one image per card in turn, up to that model's protocol limit."
+
+#: src/pages/CardDetailPage.tsx
+#~ msgid "出片时这类卡先保证第 1 张（{first}）喂给 AI。出片前补画设定帧那一步（以及收不到参考图的档位）：同一段里参考图总共最多 {MAX_REF_IMAGES} 张，预算还有余才一轮一轮地轮到第 2、第 3 张 —— 同段挂的卡越少，它越可能真的进模型；预算不够时先被丢的是各卡靠后的那几张，卡再多下去整张卡都会带不上（生成步骤里会逐张点名）。收参考图的档位（{tiers}）与白模挂卡：参考图直接进视频模型，各卡一张一张轮着带，上限按所选档位的协议走。"
+#~ msgstr "When generating, the 1st image of this card ({first}) is fed to the AI first. In the setting-frame step (and on tiers that don't take reference images): a segment carries at most {MAX_REF_IMAGES} reference images in total, and the 2nd and 3rd images only come in round by round when budget is left — the fewer cards a segment has, the more likely it really reaches the model; when the budget runs out, the later images of each card are dropped first, and with even more cards whole cards are left out (the generation steps name each one). On tiers that take reference images ({tiers}) and with blockout rigging: reference images go straight to the video model, one image per card in turn, up to that tier's protocol limit."
 
 #: src/components/TemplateShelf.tsx
 #: src/pages/TemplateDetailPage.tsx
@@ -8136,13 +8183,13 @@ msgstr "The video request has a parameter the server doesn't accept (usually som
 
 #. placeholder {0}: voiceTierNames()
 #: src/pages/CardDetailPage.tsx
-msgid "出片走「{0}」档、台词写在引号里时，AI 会参考这段声音的音色（尽力而为，不是复刻）。样本只存在这台设备上，分享卡片不带它。"
-msgstr "When a video renders on the “{0}” tier with dialogue in quotes, the AI uses this clip as a voice reference (best effort, not a clone). The sample stays on this device and isn't included when you share the card."
+#~ msgid "出片走「{0}」档、台词写在引号里时，AI 会参考这段声音的音色（尽力而为，不是复刻）。样本只存在这台设备上，分享卡片不带它。"
+#~ msgstr "When a video renders on the “{0}” tier with dialogue in quotes, the AI uses this clip as a voice reference (best effort, not a clone). The sample stays on this device and isn't included when you share the card."
 
 #. placeholder {0}: voiceTierNames()
 #: src/pages/CustomCardPage.tsx
-msgid "出片走「{0}」档、台词写在引号里时，AI 会参考这段音色说话。样本只存在这台设备上，不随分享带走。"
-msgstr "On the “{0}” tier, with dialogue written in quotes, the AI uses this voice as a reference. The sample stays on this device and isn't included when you share."
+#~ msgid "出片走「{0}」档、台词写在引号里时，AI 会参考这段音色说话。样本只存在这台设备上，不随分享带走。"
+#~ msgstr "On the “{0}” tier, with dialogue written in quotes, the AI uses this voice as a reference. The sample stays on this device and isn't included when you share."
 
 #: src/pages/CardDetailPage.tsx
 #~ msgid "出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段声音的音色（尽力而为，不是复刻）。样本只存在这台设备上，分享卡片不带它。"
@@ -15227,8 +15274,12 @@ msgid "收到，让我看看成色……（炉火升起）"
 msgstr "Got it. Let me see what they're made of… (The forge fires up)"
 
 #: src/pages/CardDetailPage.tsx
-msgid "收参考图的档位（{tiers}）与白模模板挂卡：每张人物卡都各带自己的形象图（先每卡 1 张，预算有余再补第 2 张；一段最多几张按所选档位的协议走）。出片前补画设定帧那一步（以及收不到参考图的档位）：一段里只有「第一张人物卡」能带形象参考图——先取 {MAX_CHAR_REFS} 张（优先{face} + {body}），标成「出片用」的第 3 张要等同段每张卡都拿到第 1 张之后，预算还有余才补得上；其余人物卡在那一步只按文字设定参与（画帧的出图模型只吃第一个人物的图）。所以上面的「出片用 / 仅展示」是按补画设定帧那一步、按\"这张卡就是那第一张人物卡\"标的：它排在别的人物卡后面时，标着出片用的那几张在那一步同样进不了模型（生成步骤里会点名说明）。{detail}这一格铸卡不会自动出图，只能自己传。"
-msgstr "On tiers that take reference images ({tiers}) and with blockout template rigging: every character card brings its own likeness images (1 per card first, a 2nd when budget allows; the per-segment maximum follows the chosen tier's protocol). In the setting-frame step (and on tiers that don't take reference images): only the “first character card” in a segment can bring likeness references — {MAX_CHAR_REFS} images are taken first ({face} + {body} preferred); a 3rd image marked “used” only comes in after every card in the segment has its 1st and budget is left; the other character cards take part in that step by text only (the image model that draws frames only takes the first character's images). So the “used / display only” labels above are for the setting-frame step and assume this card is that first character card: when it sits behind other character cards, images marked “used” don't reach the model in that step either (the generation steps say so). {detail} isn't drawn automatically when forging — upload it yourself."
+msgid "收参考图的出片模型（{names}）与白模模板挂卡：每张人物卡都各带自己的形象图（先每卡 1 张，预算有余再补第 2 张；一段最多几张按所选模型的协议走）。出片前补画设定帧那一步（以及收不到参考图的档位）：一段里只有「第一张人物卡」能带形象参考图——先取 {MAX_CHAR_REFS} 张（优先{face} + {body}），标成「出片用」的第 3 张要等同段每张卡都拿到第 1 张之后，预算还有余才补得上；其余人物卡在那一步只按文字设定参与（画帧的出图模型只吃第一个人物的图）。所以上面的「出片用 / 仅展示」是按补画设定帧那一步、按\"这张卡就是那第一张人物卡\"标的：它排在别的人物卡后面时，标着出片用的那几张在那一步同样进不了模型（生成步骤里会点名说明）。{detail}这一格铸卡不会自动出图，只能自己传。"
+msgstr "On video models that take reference images ({names}) and with blockout template rigging: every character card brings its own likeness images (1 per card first, a 2nd when budget allows; the per-segment maximum follows the chosen model's protocol). In the setting-frame step (and on tiers that don't take reference images): only the “first character card” in a segment can bring likeness references — {MAX_CHAR_REFS} images are taken first ({face} + {body} preferred); a 3rd image marked “used” only comes in after every card in the segment has its 1st and budget is left; the other character cards take part in that step by text only (the image model that draws frames only takes the first character's images). So the “used / display only” labels above are for the setting-frame step and assume this card is that first character card: when it sits behind other character cards, images marked “used” don't reach the model in that step either (the generation steps say so). {detail} isn't drawn automatically when forging — upload it yourself."
+
+#: src/pages/CardDetailPage.tsx
+#~ msgid "收参考图的档位（{tiers}）与白模模板挂卡：每张人物卡都各带自己的形象图（先每卡 1 张，预算有余再补第 2 张；一段最多几张按所选档位的协议走）。出片前补画设定帧那一步（以及收不到参考图的档位）：一段里只有「第一张人物卡」能带形象参考图——先取 {MAX_CHAR_REFS} 张（优先{face} + {body}），标成「出片用」的第 3 张要等同段每张卡都拿到第 1 张之后，预算还有余才补得上；其余人物卡在那一步只按文字设定参与（画帧的出图模型只吃第一个人物的图）。所以上面的「出片用 / 仅展示」是按补画设定帧那一步、按\"这张卡就是那第一张人物卡\"标的：它排在别的人物卡后面时，标着出片用的那几张在那一步同样进不了模型（生成步骤里会点名说明）。{detail}这一格铸卡不会自动出图，只能自己传。"
+#~ msgstr "On tiers that take reference images ({tiers}) and with blockout template rigging: every character card brings its own likeness images (1 per card first, a 2nd when budget allows; the per-segment maximum follows the chosen tier's protocol). In the setting-frame step (and on tiers that don't take reference images): only the “first character card” in a segment can bring likeness references — {MAX_CHAR_REFS} images are taken first ({face} + {body} preferred); a 3rd image marked “used” only comes in after every card in the segment has its 1st and budget is left; the other character cards take part in that step by text only (the image model that draws frames only takes the first character's images). So the “used / display only” labels above are for the setting-frame step and assume this card is that first character card: when it sits behind other character cards, images marked “used” don't reach the model in that step either (the generation steps say so). {detail} isn't drawn automatically when forging — upload it yourself."
 
 #: src/pages/VideoPage.tsx
 msgid "收取中…"
@@ -16712,8 +16763,12 @@ msgstr "This segment continues from the previous segment's ending frame, so the 
 
 #. placeholder {0}: tierModelLabel(tierOf(node.videoTier))
 #: src/components/flow/SegSettings.tsx
-msgid "本段模型：{0}"
-msgstr "Model: {0}"
+#~ msgid "本段模型：{0}"
+#~ msgstr "Model: {0}"
+
+#: src/components/flow/SegSettings.tsx
+msgid "本段模型：{shownModel}"
+msgstr "Model: {shownModel}"
 
 #: src/components/ForgeOverlay.tsx
 msgid "本段炼成"
@@ -17114,8 +17169,12 @@ msgstr "brown"
 
 #. placeholder {0}: tierModelLabel(tierOf(editor.videoTier))
 #: src/studio/ui/projection.tsx
-msgid "模型：{0}"
-msgstr "Model: {0}"
+#~ msgid "模型：{0}"
+#~ msgstr "Model: {0}"
+
+#: src/studio/ui/projection.tsx
+msgid "模型：{editorModel}"
+msgstr "Model: {editorModel}"
 
 #: src/components/flow/DirectTips.tsx
 msgid "模型不记得上一段在哪：把地点、时间和光线再写一遍（例：「还是雨夜的旧书店，暖黄的灯光」），不然切镜头之后可能换个地方。"
@@ -19266,14 +19325,23 @@ msgstr "Couldn't re-encode the photo"
 msgid "照的是你的《{0}》"
 msgstr "Based on your video \"{0}\""
 
+#: src/components/VoiceRecorder.tsx
+msgid "照着下面这句念（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）——你现在能用的出片模型都不参考声音样本，录下来先存进这张卡，换了能用的模型还用得上。"
+msgstr "Read the sentence below ({VOICE_MIN_SEC}–{VOICE_MAX_SEC}s). None of the video models available to you use voice samples — the recording is saved to this card and works again once a model that does is available to you."
+
 #. placeholder {0}: voiceTierNames()
 #: src/components/VoiceRecorder.tsx
-msgid "照着下面这句念（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）——出片走「{0}」档、台词写在引号里时，AI 会参考这段音色。"
-msgstr "Read the sentence below ({VOICE_MIN_SEC}–{VOICE_MAX_SEC}s). When a segment renders on the “{0}” tier with dialogue in quotes, AI uses this voice as a reference."
+#~ msgid "照着下面这句念（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）——出片走「{0}」档、台词写在引号里时，AI 会参考这段音色。"
+#~ msgstr "Read the sentence below ({VOICE_MIN_SEC}–{VOICE_MAX_SEC}s). When a segment renders on the “{0}” tier with dialogue in quotes, AI uses this voice as a reference."
 
 #: src/components/VoiceRecorder.tsx
 #~ msgid "照着下面这句念（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）——出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段音色。"
 #~ msgstr "Read the sentence below ({VOICE_MIN_SEC}–{VOICE_MAX_SEC}s). When a segment renders on the HD or Cinematic tier with dialogue in quotes, AI uses this voice as a reference."
+
+#. placeholder {0}: voiceModelsNames()
+#: src/components/VoiceRecorder.tsx
+msgid "照着下面这句念（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）——用 {0} 出片、台词写在引号里时，AI 会参考这段音色。"
+msgstr "Read the sentence below ({VOICE_MIN_SEC}–{VOICE_MAX_SEC}s). When rendering with {0}, AI uses this voice as a reference for dialogue written in quotes."
 
 #: src/components/flow/DialogueWizard.tsx
 msgid "照着现在这张双人镜头画：只沿用地方、光线与两人的衣服，站位按这个机位重新摆。画完 AI 会看一遍（价钱里含这一次）。"
@@ -19770,6 +19838,15 @@ msgstr "Generation log"
 #: src/pages/SupportModelNewPage.tsx
 msgid "生气"
 msgstr "Angry"
+
+#. placeholder {0}: voiceModelsNames()
+#: src/pages/CustomCardPage.tsx
+msgid "用 {0} 出片、台词写在引号里时，AI 会参考这段音色说话。样本只存在这台设备上，不随分享带走。"
+msgstr "When rendering with {0}, the AI uses this voice as a reference for dialogue written in quotes. The sample stays on this device and isn't included when you share."
+
+#: src/pages/CardDetailPage.tsx
+msgid "用 {voiceNames} 出片、台词写在引号里时，AI 会参考这段声音的音色（尽力而为，不是复刻）。样本只存在这台设备上，分享卡片不带它。"
+msgstr "When rendering with {voiceNames}, the AI uses this clip as a voice reference for dialogue written in quotes (best effort, not a clone). The sample stays on this device and isn't included when you share the card."
 
 #: src/pages/LoginPage.tsx
 msgid "用{name}登录"
@@ -20565,6 +20642,10 @@ msgstr "Before publishing a blockout"
 #: src/components/flow/FlowCanvas.tsx
 msgid "白模模板固定用「{needLabel}」（{needModel}）出片：选了之后这一段不能换别的画质档。"
 msgstr "Blockout templates always render on “{needLabel}” ({needModel}): once you pick one, this segment can't switch to another quality tier."
+
+#: src/components/flow/FlowCanvas.tsx
+msgid "白模模板固定用「{needLabel}」出片：选了之后这一段不能换别的画质档。"
+msgstr "Blockout templates always render on “{needLabel}”: once you pick one, this segment can't switch to another quality tier."
 
 #: src/data/templates.ts
 msgid "白模模板已生成"
@@ -25384,8 +25465,12 @@ msgstr "Leave empty for no narration on this clip"
 
 #. placeholder {0}: tierModelLabel(tier)
 #: src/components/flow/ModePicker.tsx
-msgid "这一段交给 {0} 生成"
-msgstr "This segment will be generated by {0}"
+#~ msgid "这一段交给 {0} 生成"
+#~ msgstr "This segment will be generated by {0}"
+
+#: src/components/flow/ModePicker.tsx
+msgid "这一段交给 {shownModel} 生成"
+msgstr "This segment will be generated by {shownModel}"
 
 #: src/studio/segmentGen.ts
 #~ msgid "这一段以「{name}」卡上的图起拍——去卡片页勾「真人档适用」可以换成专门画好的起拍画面"
@@ -26728,8 +26813,16 @@ msgstr "This card has no video line yet — prompts then carry only its name, an
 
 #. placeholder {0}: voiceTierNames()
 #: src/pages/CardDetailPage.tsx
-msgid "这张卡还没有声音样本。在创意工坊「我的仓库」里从视频提取、圈选人物时可以顺手取一段（2~15 秒）——出片走「{0}」档且台词写在引号里时，AI 会参考这段声音的音色。"
-msgstr "This card has no voice sample yet. You can grab a clip (2–15s) while extracting from a video and circling a character in the Workshop's My Library — when a video renders on the “{0}” tier with dialogue in quotes, the AI uses it as a voice reference."
+#~ msgid "这张卡还没有声音样本。在创意工坊「我的仓库」里从视频提取、圈选人物时可以顺手取一段（2~15 秒）——出片走「{0}」档且台词写在引号里时，AI 会参考这段声音的音色。"
+#~ msgstr "This card has no voice sample yet. You can grab a clip (2–15s) while extracting from a video and circling a character in the Workshop's My Library — when a video renders on the “{0}” tier with dialogue in quotes, the AI uses it as a voice reference."
+
+#: src/pages/CardDetailPage.tsx
+msgid "这张卡还没有声音样本。在创意工坊「我的仓库」里从视频提取、圈选人物时可以顺手取一段（2~15 秒）——用 {voiceNames} 出片、台词写在引号里时，AI 会参考这段声音的音色。"
+msgstr "This card has no voice sample yet. You can grab a clip (2–15s) while extracting from a video and circling a character in the Workshop's My Library — when rendering with {voiceNames}, the AI uses it as a voice reference for dialogue in quotes."
+
+#: src/pages/CardDetailPage.tsx
+msgid "这张卡还没有声音样本。在创意工坊「我的仓库」里从视频提取、圈选人物时可以顺手取一段（2~15 秒）。你现在能用的出片模型都不参考声音样本——样本属于这张卡，换了能用的模型还用得上。"
+msgstr "This card has no voice sample yet. You can grab a clip (2–15s) while extracting from a video and circling a character in the Workshop's My Library. None of the video models available to you use voice samples — the sample belongs to this card and works again once a model that does is available to you."
 
 #. placeholder {0}: voiceTierNames()
 #: src/pages/CardDetailPage.tsx

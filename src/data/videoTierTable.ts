@@ -318,7 +318,7 @@ export interface VideoTierSpec {
    * 能不能**带卡上的声音样本**（参考音频）出片。每行必写。今天 = audio && refImg（草稿 / 高清 / 电影级：出声、又走参考类请求）。
    * ★ 单独一位（2026-10-26，出片地区 P2a）：海外 MiniMax H3（P2b）出声、收参考图，却**不收**参考音频 —— 再写 `audio && refImg`
    *   的话那几档会带上声音样本、在花钱之前被契约核对（real.validateGenSpec 的「不收声音样本」那一条）整段拒掉（带声音样本的对话段一律出不了片）。
-   *   读它的：economy.refAudioSecOf / voiceTierNames / shotsOkOf、segmentGen 的声音样本判定（voiceRefsFor / refPlanOf）、real.validateGenSpec（最后一道）、
+   *   读它的：economy.refAudioSecOf / shotsOkOf、account.voiceModelsNames（卡片页声音区那几句）、segmentGen 的声音样本判定（voiceRefsFor / refPlanOf）、real.validateGenSpec（最后一道）、
    *   TierRow 的换档损失、几处「要声音样本换哪一档」。`audio && refImg` 的写法 scripts/check-tier-semantics.mjs 不许再出现。
    * ★ refAudio ⇒ audio && refImg（不出声的档带声音样本没有意义；参考音频只能随参考类请求发），构建检查钉着。
    */

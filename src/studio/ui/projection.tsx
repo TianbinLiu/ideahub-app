@@ -7,8 +7,8 @@ import { useMemo, useRef, useState } from "react";
 import Warn from "../../components/Warn";
 import { useNavigate } from "react-router";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { deckCoverOf, memberTiersLine, myCards, myDecks, realFaceIssue, regionTiersLine, tierBlockReason, tierNamesFor, tierOffered } from "../../data/account";
-import { ONE_IMAGE, VIDEO_TIERS, deriveIssue, durationChoices, fmtTokens, priceTag, promptMaxOf, r2vBlockLines, segTokens, shotsOkOf, tierModelId, tierModelLabel, tierOf } from "../../data/economy";
+import { deckCoverOf, memberTiersLine, myCards, myDecks, realFaceIssue, regionTiersLine, tierBlockReason, tierNamesFor, tierOffered, tierShownModel, tierShownModelId } from "../../data/account";
+import { ONE_IMAGE, VIDEO_TIERS, deriveIssue, durationChoices, fmtTokens, priceTag, promptMaxOf, r2vBlockLines, segTokens, shotsOkOf, tierOf } from "../../data/economy";
 import { useAccountVersion } from "../../hooks/useAccount";
 import UpgradeLink from "../../components/UpgradeLink";
 import StepDots from "../../components/StepDots";
@@ -427,6 +427,8 @@ function EditorPanel() {
       ? nodeFramed([...path, { ...customDraft, videoTier: tierId }], segIndex, useFlow.getState().mode)
       : lane !== "direct" || !!prev?.lastFrame;
   const faceNote = realFaceIssue(slotCards, editor.videoTier, { blockout: false, framed: laneFramedFor(editor.videoTier) });
+  /** 「模型：…」那一行（account.tierShownModel；null = 地区不知道 / 这个地区给不出，不写） */
+  const editorModel = tierShownModel(tierOf(editor.videoTier));
   /**
    * 按模型适配那句。ownFrame 只管**真人档**那半句（起拍画面来自没勾「起拍画面」的卡时提醒，segmentGen.cardFitNote）——
    * 这一窗用到它的三条车道都选不了真人档（推演三套 / 自定义被 deriveIssue 挡，参考图直出被 modeBlock 挡；跟着做的几条车道由向导自己管，不读它），所以恒传真 = 不说那半句。
@@ -770,13 +772,14 @@ function EditorPanel() {
                 //   framed 按车道与这一档问（laneFramedFor）：推演三套恒带帧；直出与自定义在收参考图的档上可以一张帧都不带
                 const block = tierBlockReason(tier) ?? realFaceIssue(slotCards, tier.id, { blockout: false, framed: laneFramedFor(tier.id) }) ?? laneBlock(tier.id);
                 const desc = tier.desc;
-                const model = tierModelId(tier);
+                // title 里的完整模型 id 与「模型：」那一行同一个口径（account.tierShownModelId）：地区不知道 / 这个地区给不出时不写
+                const model = tierShownModelId(tier);
                 return (
                   <button
                     key={tier.id}
                     onClick={() => useStudio.getState().setVideoTier(tier.id)}
                     disabled={editor.generating || !!block}
-                    title={block ?? t`${desc}（${model}）`}
+                    title={block ?? (model ? t`${desc}（${model}）` : desc)}
                     className={`rounded-lg border px-1 py-1 text-center transition disabled:opacity-40 ${
                       on
                         ? "border-cyan-400 bg-cyan-400/10 text-cyan-100"
@@ -814,12 +817,13 @@ function EditorPanel() {
                 没说这一段交给谁生成 —— 而 1.0 与 2.0 的观感差别很大，用户对不上账时
                 无从判断。名字由 tierOf(...).model 推导，与发给方舟的 id 同源，
                 不会出现"界面写着一个、实际跑另一个"。完整 id 放在 title 里。 */}
-            <div
-              className="mt-1 text-center text-[9px] text-slate-500"
-              title={tierModelId(tierOf(editor.videoTier))}
-            >
-              <Trans>模型：{tierModelLabel(tierOf(editor.videoTier))}</Trans>
-            </div>
+            {/* ★ 2026-10-26（出片地区 · 主人第 2 件审核）：只在地区问到了、这一档又摆得出来时写（account.tierShownModel，一处出口）；
+                写不出来时整行不摆（上面那排档位按钮已经写着档位名） */}
+            {editorModel && (
+              <div className="mt-1 text-center text-[9px] text-slate-500" title={tierShownModelId(tierOf(editor.videoTier))}>
+                <Trans>模型：{editorModel}</Trans>
+              </div>
+            )}
           </div>
         </div>
       ) : (

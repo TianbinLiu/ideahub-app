@@ -12,6 +12,8 @@
 //   ① cardInputOf 不看 startOnly（真人档被说成「只经由帧」）；② refs 上的真人卡不看 hasAsset（恒 asset）；
 //   ③ modelsOfTiers 不并同一个模型（「草稿」「高清」各一行）；④ fitRowsForCard 分组时不看 byProvider（地区不知道时也分家）；
 //   ⑤ fitRowsForDeck 把背景卡算进 total；⑥ cardFit.ts 里写回一句 `tier.flatCost`。
+//   （2026-10-26 审核补）⑦ STATE_ORDER 里删掉一种状态（onlyAsStart）：「进得了卡组页那一行」那条变红（tsc 那边是 StatesMissingFromOrder 的赋值错）。
+//   卡组「张数加起来 = total」改按 deckRowStates 求和 —— 原来按 Object.values(counts) 求和，STATE_ORDER 漏了状态它照样等于 total。
 //
 // 用法：node scripts/check-card-fit.mjs [--module=<另一份 cardFit.ts 的路径，造违规试红用>]
 import fs from "node:fs";
@@ -176,8 +178,10 @@ eq("真人卡 · 认证过 · 11-24 之前", rowsOf(realCard, live(NOW_BEFORE), 
   eq("卡组：total 不算背景卡", out.total, 3);
   for (const g of out.groups)
     for (const r of g.rows) {
-      const sum = Object.values(r.counts).reduce((a, b) => a + b, 0);
-      eq(`卡组：「${r.models.map((m) => m.model).join(",")}」那一行张数加起来 = total`, sum, out.total);
+      // 按卡组页真读的那一份（deckRowStates，只认 STATE_ORDER）求和，不按 counts 的全部键：STATE_ORDER 漏了某种状态时，
+      // 页面会悄悄少数几张，而 Object.values(counts) 求和照样等于 total（2026-10-26 审核）
+      const sum = M.deckRowStates(r.counts).reduce((a, x) => a + x.n, 0);
+      eq(`卡组：「${r.models.map((m) => m.model).join(",")}」那一行张数（按 deckRowStates）加起来 = total`, sum, out.total);
     }
   eq(
     "卡组：对每张卡结论都相同的模型并成一行（2.0 mini 与 2.5、1.0 两档各并一行）",
@@ -208,6 +212,24 @@ eq("真人卡 · 认证过 · 11-24 之前", rowsOf(realCard, live(NOW_BEFORE), 
   );
   eq("卡组：真人卡结论不同（一个有认证、一个不收真人照片）就不并", mixed.groups[0].rows.length, 2);
   eq("卡组：全是背景卡 → total 0", M.fitRowsForDeck([bg], models(SPECS), ctxOf, true).total, 0);
+}
+
+// ── 每一种状态都造得出来，而且每一种都进得了卡组页那一行（deckRowStates 只认 STATE_ORDER）──
+//   类型那一层另有穷举断言（cardFit.ts 的 StatesMissingFromOrder）；这里拿真表与几行假想的能力位把 12 种状态逐一造出来，
+//   每一种单独当一个卡组的 counts 喂给 deckRowStates，必须原样回来 —— 漏进 STATE_ORDER 的那一种在这里回空数组
+{
+  const made = new Map();
+  const tryOn = (card, caps, ctx) => {
+    const s = M.cardFitOn(card, caps, ctx);
+    if (s) made.set(s, true);
+  };
+  for (const caps of [...SPECS, refsRealFace, refsNoReal, startNoReal]) {
+    for (const card of [char, charText, charFrames, realCard, scene, style])
+      for (const ctx of [ctx0, { hasAsset: true, startOk: true }, { hasAsset: false, startOk: false }]) tryOn(card, caps, ctx);
+  }
+  const ALL = ["image", "asset", "needAsset", "realPhoto", "noRealFace", "text", "frameOnly", "photo", "startFrames", "ownImage", "onlyAsStart", "textOnly"];
+  eq("12 种状态都造得出来（FitState 加了一种，这里与上面的正反例都要补）", [...made.keys()].sort(), [...ALL].sort());
+  for (const s of ALL) eq(`「${s}」进得了卡组页那一行（STATE_ORDER 里有它）`, M.deckRowStates({ [s]: 2 }), [{ state: s, n: 2 }]);
 }
 
 if (problems.length) {

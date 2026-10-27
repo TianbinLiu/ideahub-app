@@ -683,26 +683,9 @@ export function tierNamesWhere(pred: (t: VideoTier) => boolean): string {
   return joinTierNames(VIDEO_TIERS.filter((x) => pred(x) && !tierRetired(x)).map((x) => x.label));
 }
 
-/**
- * 出片会参考卡上声音样本的那几档（VideoTier.refAudio：2.x 的「草稿」「高清」「电影级」）。卡片页 / 录音 / 圈选取声音几处说明共用，
- * 原来各写「高清/电影级」—— 加了「草稿」之后那几句都少说一档。目录口径（说的是「哪几档会用它」，不看套餐）。
- */
-export function voiceTierNames(): string {
-  return tierNamesWhere((x) => x.refAudio);
-}
-
-/**
- * **收参考图**的档有哪几档（2.x：草稿 / 高清 / 电影级）—— 卡片页「形象参考」下那句取舍说明（CardDetailPage.pipelineNoteFor）用。
- * 用「 / 」并列（这是分类的名字，不是指路的句子，不加引号）。目录口径、不看套餐。
- * ★ 「按模型适配」那一格的行首 2026-10-26 起不读它了：改成按具体模型写、只列摆得出来的（account.offeredVideoModels）；
- *   同一格原来另有一行「收不到形象图的档」（noRefImgTierList），随之删掉。
- * ★ 只认一张起拍画面的档（startOnly，真人档）不算在内：卡在那一档上只当起拍画面。
- */
-export function refImgTierList(): string {
-  return VIDEO_TIERS.filter((x) => x.refImg && !x.startOnly && !tierRetired(x))
-    .map((x) => x.label)
-    .join(" / ");
-}
+// ★ 原来这里还有 voiceTierNames（会参考声音样本的那几档）与 refImgTierList（收参考图的那几档）：目录口径的档名，卡片页声音区 / 录音 /
+//   形象参考取舍那几句读它们。2026-10-26（出片地区 · 主人第 2 件审核）改成按「此刻摆得出来的模型」说，搬去 account
+//   （voiceModelsNames / refImgModelsNames：economy 不认识地区，account 才认识；account 已经 import economy，反过来成环）—— 这两个没有调用方了，删掉。
 
 /**
  * 同一个原因、一档或几档合成一整句（labels 是档位的界面名）。单档（r2vPriceIssue）与合并（r2vBlockLines）读同一份措辞。
@@ -723,8 +706,9 @@ function r2vBlockText(block: R2vBlock, labels: string[], scope: R2vScope): strin
       const open = blockoutTier();
       if (!open) return t`「${names}」这一档暂未开放白模模板出片，等开放后再来`;
       const openLabel = open.label;
-      const openModel = tierModelLabel(open);
-      return t`「${names}」跑不了白模模板（模板对出片模型是硬要求）——白模模板只有「${openLabel}」（${openModel}）跑得了`;
+      // ★ 不写那一档的模型名（2026-10-26 出片地区 · 主人第 2 件审核）：economy 是目录、不知道地区，写了就是地区不知道时也点名 Seedance、
+      //   海外门禁开着时给被拦的那一家点名。说「哪个模型」只走 account.tierShownModel（白模段档位那一排的芯片上已经写着档位名）
+      return t`「${names}」跑不了白模模板（模板对出片模型是硬要求）——白模模板只有「${openLabel}」跑得了`;
     }
     const open = VIDEO_TIERS.filter((x) => !r2vBlockOfTier(x));
     if (!open.length) return t`「${names}」这一档暂未开放按参考视频出片，等开放后再来`;

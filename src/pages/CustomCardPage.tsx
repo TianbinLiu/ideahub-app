@@ -43,7 +43,7 @@ import VolcCompatToggle from "../components/VolcCompatToggle";
 import VoiceRecorder from "../components/VoiceRecorder";
 import VoiceUploadButton from "../components/VoiceUploadButton";
 import { fetchPortraitAssetImage } from "../api/portrait";
-import { addCards, bindCardAsset, canAfford, frozenNote, isRemoteMode, spendTokens, walletOf } from "../data/account";
+import { addCards, bindCardAsset, canAfford, frozenNote, isRemoteMode, spendTokens, voiceModelsNames, walletOf } from "../data/account";
 import { API_ON } from "../api/client";
 import { prepareCardImage } from "../data/cardViews";
 import { joinViewNote } from "../types";
@@ -65,7 +65,7 @@ import {
 import { chatVision } from "../ai/arkClient";
 import { CARD_SCOPE, ID_LINE_SPEC } from "../ai/cardScope";
 import FrameAnnotator from "../components/FrameAnnotator";
-import { CHAT_TURN_TOKENS, ONE_IMAGE, fmtTokens, schemeCost, tierNamesWhere, voiceTierNames } from "../data/economy";
+import { CHAT_TURN_TOKENS, ONE_IMAGE, fmtTokens, schemeCost, tierNamesWhere } from "../data/economy";
 import { saveVoice } from "../data/cardVoice";
 import { heartbeatJob, startJob } from "../data/jobs";
 // ★★ 这一页的表单状态全在 store 里（理由见 customCardStore 文件头）：AI 出图 / 铸卡上传
@@ -1562,7 +1562,8 @@ export default function CustomCardPage() {
             />
             <Trans>我确认已依法取得画面中人物对使用其肖像生成内容的同意，相应责任由我承担</Trans>
           </label>
-          <div className="mt-2">
+          {/* empty:hidden：勾选框不摆时（海外只剩不收认证素材的模型，判据在 VolcCompatToggle 里）别留一截空白 */}
+          <div className="mt-2 empty:hidden">
             <VolcCompatToggle
               boundId={pendingAsset?.assetId ?? null}
               onBound={(assetId, note) => {
@@ -2217,7 +2218,12 @@ export default function CustomCardPage() {
             </div>
           )}
           <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
-            <Trans>出片走「{voiceTierNames()}」档、台词写在引号里时，AI 会参考这段音色说话。样本只存在这台设备上，不随分享带走。</Trans>
+            {/* 会参考声音样本的模型按「此刻摆得出来的」说（account.voiceModelsNames，2026-10-26 审核：原来按目录列档名，海外一档都摆不出来） */}
+            {voiceModelsNames() ? (
+              <Trans>用 {voiceModelsNames()} 出片、台词写在引号里时，AI 会参考这段音色说话。样本只存在这台设备上，不随分享带走。</Trans>
+            ) : (
+              <Trans>你现在能用的出片模型都不参考声音样本（样本照样存进这张卡，换了能用的模型还用得上）。样本只存在这台设备上，不随分享带走。</Trans>
+            )}
           </p>
         </section>
       )}

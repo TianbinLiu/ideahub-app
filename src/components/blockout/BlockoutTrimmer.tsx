@@ -45,9 +45,10 @@ import {
   blockoutizeCost,
   blockoutizeIssue,
   fmtTokens,
-  tierModelLabel,
   r2vTokens,
 } from "../../data/economy";
+import { tierShownModel } from "../../data/account";
+import { useAccountVersion } from "../../hooks/useAccount";
 import { autoVisionFrames, visionFrameCount } from "../../data/templates";
 import { serverSupports } from "../../data/serverCaps";
 
@@ -178,6 +179,8 @@ export default function BlockoutTrimmer({
 }: BlockoutTrimmerProps) {
   /** 本机 `<video>` 解出来的元数据。有登记值时只用来**比对**，没有时它就是唯一的依据 */
   const { t } = useLingui();
+  // 报价那句里的模型名按地区写（account.tierShownModel）：地区是异步问到的，订阅账号的版本号，到了就重画
+  useAccountVersion();
   const [probe, setProbe] = useState<VideoNatural | null>(null);
   /** 选段与裁剪框。★ 「看哪几帧」**不存在这里**：它按绝对秒存在 marks 里（见下） */
   const [sel, setSel] = useState<BlockoutSelection | null>(null);
@@ -287,6 +290,9 @@ export default function BlockoutTrimmer({
   //   服务端按 3 帧扣"。
   const priceIssue = blockoutizeIssue();
   const tier = blockoutTier();
+  /** 白模那一发交给哪个模型：只在地区问到了、这一档又摆得出来时写模型名（account.tierShownModel，一处出口），否则写档位名 */
+  const tierModel = tier ? tierShownModel(tier) : null;
+  const tierLabel = tier?.label ?? "";
   const durSec = outSel?.durSec ?? 0;
   const autoFrames = autoVisionFrames(durSec);
   const frameCount = outSel ? visionFrameCount(durSec, outSel.frameTimes) : 0;
@@ -471,7 +477,11 @@ export default function BlockoutTrimmer({
               {videoTokens !== null && tier && (
                 <>
                   {" "}
-                  <Trans>+ 把这 {durSec} 秒整段换成白模人偶（{tierModelLabel(tier)} · {fmtTokens(videoTokens)}）</Trans>
+                  {tierModel ? (
+                    <Trans>+ 把这 {durSec} 秒整段换成白模人偶（{tierModel} · {fmtTokens(videoTokens)}）</Trans>
+                  ) : (
+                    <Trans>+ 把这 {durSec} 秒整段换成白模人偶（「{tierLabel}」档 · {fmtTokens(videoTokens)}）</Trans>
+                  )}
                 </>
               )}
               {t({ message: "。", comment: "句末句号，收住上面那一两句报价说明" })}

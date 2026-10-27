@@ -210,8 +210,12 @@ export interface DeckFitRow<T, P extends string> {
   counts: Partial<Record<FitState, number>>;
 }
 
-/** 状态的固定顺序（卡组页一行里各状态的先后；与卡片页那几句的先后一致） */
-const STATE_ORDER: readonly FitState[] = [
+/**
+ * 状态的固定顺序（卡组页一行里各状态的先后；与卡片页那几句的先后一致）。
+ * ★★ 必须列全 FitState（下面那个类型断言钉着，漏一个是 tsc 错）：卡组页拼句子读的是 deckRowStates、并行比的是 countsKey，
+ *   两者都只认这张表 —— 新加一种状态忘了放进来，卡组页会悄悄少数几张，结论不同的模型也会被并成一行，全程零报错（2026-10-26 审核）。
+ */
+const STATE_ORDER = [
   "image",
   "asset",
   "needAsset",
@@ -224,7 +228,11 @@ const STATE_ORDER: readonly FitState[] = [
   "onlyAsStart",
   "textOnly",
   "noRealFace",
-];
+] as const satisfies readonly FitState[];
+/** FitState 里没进 STATE_ORDER 的那几种 —— 必须是 never（否则下一行的赋值是 tsc 错） */
+type StatesMissingFromOrder = Exclude<FitState, (typeof STATE_ORDER)[number]>;
+const STATE_ORDER_COMPLETE: [StatesMissingFromOrder] extends [never] ? true : false = true;
+void STATE_ORDER_COMPLETE;
 
 /** counts 的签名（并行用）：按固定顺序写出来，键的插入顺序不影响 */
 function countsKey(c: Partial<Record<FitState, number>>): string {

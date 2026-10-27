@@ -16,8 +16,8 @@ import { claimPendingTerms, reconcileTermsWithServer } from "./agreements";
 import { showToast } from "./toast";
 import { claimLegacyVoices, removeVoice } from "./cardVoice";
 import { adoptRemoteAssets, assetOf, claimLegacyAssets, hasAsset, removeAsset, saveAsset, setAssetSyncIssue, type CardAsset } from "./cardAsset";
-import { PLANS, PLATFORM_CUT, VIDEO_TIERS, fmtTokens, joinTierNames, modelLabel, planOf, providerOf, tierModelLabel, tierOf, tierRetireDay, tierRetired, type VideoTier } from "./economy";
-import { modelsOfTiers, type VideoModelOf } from "./cardFit";
+import { PLANS, PLATFORM_CUT, VIDEO_TIERS, fmtTokens, joinTierNames, modelLabel, planOf, providerOf, tierModelId, tierModelLabel, tierOf, tierRetireDay, tierRetired, type VideoTier } from "./economy";
+import { cardInputOf, modelsOfTiers, type VideoModelOf } from "./cardFit";
 import { serverFreeVideo, serverSupports, subscribeServerCaps } from "./serverCaps";
 import { refreshVideoZone, subscribeVideoZone, videoZone, zoneDenies, zoneIsRegional, type VideoProvider } from "./videoZone";
 import { FREE_DEFAULT_CHAIN, PAID_DEFAULT_CHAIN, SEEDANCE_2_5, firstLiveTierId } from "./videoTierTable";
@@ -1126,8 +1126,11 @@ export function offeredTiers(): VideoTier[] {
 
 // ── 「哪个出片模型」怎么写（2026-10-26 出片地区 · 主人第 2 件：卡片信息写具体模型名，并按地区只列给得出的）──
 //
-// ★★ 卡片页「按模型适配」、卡组页的适配摘要、模板货架（卡面角标 / 「出片模型」筛选 / 筛空了那句）、模板详情「出片模型」那一行，
-//   说「哪个模型」只读这一组（一处出口；卡怎么进模型的判据在 data/cardFit，只读档位表能力位）：
+// ★★ 卡片页「按模型适配」、卡组页的适配摘要、模板货架（卡面角标 / 「出片模型」筛选 / 筛空了那句）、模板详情「出片模型」那一行、
+//   画布 / 工坊的选模板抽屉，以及创作界面（选法屏、本段设置、工坊铸段窗、白模化报价、档位按钮的 title）、卡片页的声音说明 / 形象参考取舍 /
+//   「火山引擎适用」，说「哪个模型」只读这一组（一处出口；卡怎么进模型的判据在 data/cardFit，只读档位表能力位）。
+//   构建里 check-tier-semantics 的 [model-name] 规则钉着：economy.tierModelLabel / modelLabel / tierModelId 只在白名单里的函数调用（2026-10-26 审核）。
+//   ⚠ P2b 接 MiniMax H3 时如果让同一档在不同地区落到不同的模型，只改这一组（tierShownModel 按地区解析出真发的那个），界面不用再动。
 //   · 地区问到了（data/videoZone 非 null）：写具体模型名（Seedance 2.0 mini / MiniMax Hailuo 2.3 Fast…），按家分组，
 //     只写这个地区给得出的 —— 列哪几档仍只问 offeredTiers（tierOffIssue 已按地区筛过），这里**不另读地区判给不给**
 //     （2026-10-26 设计审核：两份「这个人能用什么」会分叉，地区不知道时两边口径还相反）；
@@ -1200,6 +1203,50 @@ export function videoModelsNames(models: VideoModelOf<VideoTier, VideoProvider>[
   if (!models.length) return "";
   if (!named) return tiersAsNoun(models.flatMap((m) => m.tiers));
   return models.map((m) => modelLabel(m.model)).join(nameSep());
+}
+
+/**
+ * 档位按钮 / 「本段模型」那一行 title 里的完整模型 id（要查证的人看的那一份）：与 tierShownModel 同一个口径 ——
+ * 地区不知道、或这一档在这个地区给不出时回 undefined（不写；title 在桌面浏览器悬停时看得见，「doubao-seedance-…」一样是供应商名）。
+ */
+export function tierShownModelId(tier: VideoTier): string | undefined {
+  return tierShownModel(tier) ? tierModelId(tier) : undefined;
+}
+
+/** 摆给这个人的、有某种能力的那几档按模型并起来（名字照 videoModelsNames 写）。空串 = 一个都没有（调用方换一句不点名的话） */
+function offeredModelsNamesWhere(pred: (t: VideoTier) => boolean): string {
+  const named = videoZone() !== null;
+  return videoModelsNames(modelsOfTiers(offeredTiers().filter(pred), (x) => providerOf(x.id)), named);
+}
+
+/**
+ * 出片会参考卡上声音样本的那几个模型（VideoTier.refAudio）在句子里写成什么 —— 卡片页声音区、录音、自己传图做卡片、从视频圈选取声音四处共用。
+ * ★ 2026-10-26（出片地区 · 主人第 2 件审核）：原来是 economy.voiceTierNames（目录口径的档名）—— 同一页上「按模型适配」那一格已经按地区只列给得出的，
+ *   声音区还说「出片走「草稿」「高清」「电影级」档会参考音色」，海外门禁开着时那几档一档都摆不出来，同一页上下自相矛盾。
+ * 空串 = 现在能用的模型都不参考声音样本（调用方说那一句；取声音、录音的入口照常留着：样本属于这张卡，换地区 / 换模型以后还能用）。
+ */
+export function voiceModelsNames(): string {
+  return offeredModelsNamesWhere((x) => x.refAudio);
+}
+
+/**
+ * 卡的形象图直接当参考图进模型的那几个模型（cardFit.cardInputOf === "refs"，与「按模型适配」那一格同一个判据）在句子里写成什么 ——
+ * 卡片页「形象参考」的取舍规则（CardDetailPage.pipelineNoteFor）用。原来是 economy.refImgTierList（目录口径的档名），同上一条的理由。空串 = 一个都没有。
+ */
+export function refImgModelsNames(): string {
+  return offeredModelsNamesWhere((x) => cardInputOf(x) === "refs");
+}
+
+/**
+ * 「火山引擎适用」那个勾选框（components/VolcCompatToggle，三个宿主共用）此刻怎么摆 —— **唯一判据**（2026-10-26 出片地区 · 主人第 2 件审核）：
+ *   · "on"   = 照常摆（有摆得出来的模型收火山引擎认证素材，VideoTier.assetRef）；
+ *   · "keep" = 这张卡已经认证过、但现在能用的模型一个都不收认证素材（海外门禁开着时）：勾选框照样摆、旁边说一句 —— **撤回肖像授权不能被地区挡住**；
+ *   · "off"  = 没认证过、又一个收认证素材的模型都没有：不摆（勾上会当场打开火山引擎 cn-beijing 的活体认证，海外的人走进去也用不上）。
+ * 列哪几档只问 offeredTiers（地区不知道时照今天的样子全摆 —— 与卡片页「按模型适配」那一格同一个口径：那一格在说「要先勾「火山引擎适用」」时，勾选框就得在）。
+ */
+export function volcEntryState(boundId: string | null): "on" | "keep" | "off" {
+  if (offeredTiers().some((x) => x.assetRef)) return "on";
+  return boundId ? "keep" : "off";
 }
 
 /**

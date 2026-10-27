@@ -15,8 +15,8 @@ import Warn from "../Warn";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
-import { memberTiersLine, realFaceIssue, regionTiersLine, tierBlockReason, tierOffered } from "../../data/account";
-import { blockoutPriceIssue, clampDuration, deriveIssue, fmtTokens, tierModelId, tierOf, VIDEO_TIERS } from "../../data/economy";
+import { memberTiersLine, realFaceIssue, regionTiersLine, tierBlockReason, tierOffered, tierShownModelId } from "../../data/account";
+import { blockoutPriceIssue, clampDuration, deriveIssue, fmtTokens, tierOf, VIDEO_TIERS } from "../../data/economy";
 import { useAccountVersion } from "../../hooks/useAccount";
 import UpgradeLink from "../UpgradeLink";
 import { chosenOf, nodeCost, nodeFramed, tplOfNode, useFlow } from "../../studio/flowStore";
@@ -162,7 +162,8 @@ export default function TierRow({
           const faceBlock = realFaceIssue(node.materials, tier.id, { blockout, framed });
           const block = tierBlockReason(tier) ?? r2vBlock ?? faceBlock ?? (needsDerive ? deriveIssue(tier.id) : null);
           const desc = tier.desc;
-          const model = tierModelId(tier);
+          // title 里的完整模型 id 只在地区问到了、这一档又摆得出来时写（account.tierShownModelId，与「本段模型」那一行同一个口径）
+          const model = tierShownModelId(tier);
           return (
             <button
               key={tier.id}
@@ -173,7 +174,7 @@ export default function TierRow({
                 else apply(tier.id);
               }}
               disabled={!!block}
-              title={block ?? t`${desc}（${model}）`}
+              title={block ?? (model ? t`${desc}（${model}）` : desc)}
               className={`rounded-lg px-2.5 py-1.5 text-[11px] disabled:opacity-40 ${
                 node.videoTier === tier.id ? "bg-brand text-ink" : "bg-panel text-slate-300"
               }`}

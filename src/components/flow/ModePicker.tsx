@@ -11,8 +11,8 @@ import Icon, { type IconName } from "../Icon";
 import Warn from "../Warn";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { memberTiersLine, regionTiersLine, tierBlockReason, tierNamesFor, tierOffered } from "../../data/account";
-import { CHAT_TURN_TOKENS, CHECKED_PANEL_TOKENS, clampDuration, fmtTokens, IMAGE_TOKENS, segTokens, tierModelId, tierModelLabel, tierOf, VIDEO_TIERS } from "../../data/economy";
+import { memberTiersLine, regionTiersLine, tierBlockReason, tierNamesFor, tierOffered, tierShownModel, tierShownModelId } from "../../data/account";
+import { CHAT_TURN_TOKENS, CHECKED_PANEL_TOKENS, clampDuration, fmtTokens, IMAGE_TOKENS, segTokens, tierOf, VIDEO_TIERS } from "../../data/economy";
 import { useAccountVersion } from "../../hooks/useAccount";
 import UpgradeLink from "../UpgradeLink";
 import { GUIDED_GROUPS, GUIDED_MODES, clearsBlock, modeBlock, modeTierOfSpec, type GuidedGroup, type GuidedModeId, type ModeTier } from "../../data/guidedModes";
@@ -100,6 +100,12 @@ export default function ModePicker({
   /** 出片地区那一句（account.regionTiersLine，与 TierRow / 工坊铸段窗同一句）；地区不知道 / 没有哪一档被拦时为 null */
   const regionLine = regionTiersLine();
   /**
+   * 「这一段交给哪个模型生成」：只在地区问到了、这一档又摆得出来时写（account.tierShownModel，一处出口）——
+   * 地区不知道时美国的机器在这一屏（加一段的第一屏）会先看到「Seedance」；门禁开着、正选着被拦的那一档时，这句会紧挨着地区那句给被拦的那一家点名（2026-10-26 审核）。
+   * 写不出来时整行不摆：上面那排芯片已经写着档位名了。
+   */
+  const shownModel = tierShownModel(tier);
+  /**
    * 宿主递进来的这一档本身就用不了（会员档 / 已停用 / 服务端不支持）—— 宿主的默认档本来都按 usableTierId 给，这里是最后一道：
    * 把原因说在最上面，并把下面的模式全灰掉 —— 不然挑了模式就进向导，写分镜 / 画画面的钱先花出去，出片那一步才被拦下。
    */
@@ -133,7 +139,7 @@ export default function ModePicker({
                 key={x.id}
                 onClick={() => onTier(x.id)}
                 disabled={blocked}
-                title={tierModelId(x)}
+                title={tierShownModelId(x)}
                 // 常规档的芯片（px-3.5 py-1.5 text-xs）：这排是这一屏的第一个决定，紧凑档 22px 高手指点不准（2026-10-14 UX 课收口）
                 className={`rounded-full px-3.5 py-1.5 text-xs transition active:opacity-60 disabled:opacity-40 ${
                   x.id === tier.id ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-300"
@@ -144,9 +150,11 @@ export default function ModePicker({
             );
           })}
         </div>
-        <p className="mt-1 text-[10px] text-slate-500">
-          <Trans>这一段交给 {tierModelLabel(tier)} 生成</Trans>
-        </p>
+        {shownModel && (
+          <p className="mt-1 text-[10px] text-slate-500">
+            <Trans>这一段交给 {shownModel} 生成</Trans>
+          </p>
+        )}
         {tierIssue && <Warn compact className="mt-0.5">{tierIssue}</Warn>}
         {regionLine && (
           <Warn tone="info" compact className="mt-0.5">
