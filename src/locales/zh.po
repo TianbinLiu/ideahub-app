@@ -12364,8 +12364,12 @@ msgid "已删除的作品"
 msgstr "已删除的作品"
 
 #: src/pages/CardDetailPage.tsx
-msgid "已到 {MAX_CARD_VIEWS} 张上限 —— 方舟建议不要堆满，素材太多模型反而判断不出该优先保哪些特征。"
-msgstr "已到 {MAX_CARD_VIEWS} 张上限 —— 方舟建议不要堆满，素材太多模型反而判断不出该优先保哪些特征。"
+msgid "已到 {MAX_CARD_VIEWS} 张上限 —— 建议不要堆满，素材太多模型反而判断不出该优先保哪些特征。"
+msgstr "已到 {MAX_CARD_VIEWS} 张上限 —— 建议不要堆满，素材太多模型反而判断不出该优先保哪些特征。"
+
+#: src/pages/CardDetailPage.tsx
+#~ msgid "已到 {MAX_CARD_VIEWS} 张上限 —— 方舟建议不要堆满，素材太多模型反而判断不出该优先保哪些特征。"
+#~ msgstr "已到 {MAX_CARD_VIEWS} 张上限 —— 方舟建议不要堆满，素材太多模型反而判断不出该优先保哪些特征。"
 
 #: src/pages/ProfilePage.tsx
 msgid "已到账"
@@ -13245,6 +13249,10 @@ msgstr "当参考图"
 #: src/components/flow/SegPlayer.tsx
 msgid "当尾帧"
 msgstr "当尾帧"
+
+#: src/components/recipe/RecipeView.tsx
+msgid "当时用的是另一个出片模型"
+msgstr "当时用的是另一个出片模型"
 
 #: src/components/recipe/RecipeView.tsx
 msgid "当时的模型：{model}"
@@ -19418,8 +19426,12 @@ msgid "照片起拍，视频约 {fxVideo} / 一发"
 msgstr "照片起拍，视频约 {fxVideo} / 一发"
 
 #: src/pages/CustomCardPage.tsx
-msgid "照片里有人：「{refTiers}」档直接收参考图，出片可能被方舟拒掉（没受理不扣视频钱）；别的档不受影响"
-msgstr "照片里有人：「{refTiers}」档直接收参考图，出片可能被方舟拒掉（没受理不扣视频钱）；别的档不受影响"
+#~ msgid "照片里有人：「{refTiers}」档直接收参考图，出片可能被方舟拒掉（没受理不扣视频钱）；别的档不受影响"
+#~ msgstr "照片里有人：「{refTiers}」档直接收参考图，出片可能被方舟拒掉（没受理不扣视频钱）；别的档不受影响"
+
+#: src/pages/CustomCardPage.tsx
+msgid "照片里有人：收参考图的出片模型（{refNames}）会直接拿到这张照片，出片时可能被拒（没受理不扣视频钱）；别的模型不受影响"
+msgstr "照片里有人：收参考图的出片模型（{refNames}）会直接拿到这张照片，出片时可能被拒（没受理不扣视频钱）；别的模型不受影响"
 
 #: src/pages/CustomCardPage.tsx
 #~ msgid "照片里有人：默认档出片不受影响；高清 / 超清档可能被方舟拒掉（没受理不扣视频钱）"

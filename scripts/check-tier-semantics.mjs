@@ -28,7 +28,8 @@
 //      直接调取名函数的地方一律无条件写目录里的模型名 —— 美国的机器第一次打开就看到「Seedance」、海外门禁开着时紧挨着地区那句给被拦的那一家点名，
 //      零报错。CLAUDE.md「出片地区」⑥ 原来写着「只走 offeredVideoModels 一处」，却没有任何检查钉住（审核抓到选模板抽屉、选法屏、本段设置、
 //      工坊铸段窗、白模化报价五处还在直接调）。白名单里的都写了理由：取名函数本身、出图模型（Seedream，地区门禁只拦出片）、
-//      配方里记着的作者当时用的模型（历史事实）、今天一档都走不到的「报不出价」那一支。
+//      今天一档都走不到的「报不出价」那一支。配方里记着的作者当时用的模型原来也在白名单里（「历史事实」），终审改走 account.recordedModelName：
+//      历史事实也是供应商名，地区不知道的美国机器照样印出 Seedance。
 //      放行标记是 `model-name-ok: 理由`。
 //
 // 放行：命中行或它上一行写 `tier-semantics-ok: 理由`（理由要写；只写标记不写理由不算）；⑤ 用 `model-name-ok: 理由`。
@@ -85,10 +86,10 @@ const MODEL_NAME_OK = new Map([
     ]),
   ],
   // 唯一出口：只在地区问到了、这一档又摆得出来时写（见那一组的头注释）
-  ["data/account.ts", new Set(["tierShownModel", "tierShownModelId", "modelWithTiers", "videoModelsNames"])],
+  // recordedModelName：配方里记着的、作者当时用的那个模型（制作过程页）—— 也按地区写（2026-10-26 终审：原来 RecipeView 直接调 modelLabel、无条件写）
+  ["data/account.ts", new Set(["tierShownModel", "tierShownModelId", "modelWithTiers", "videoModelsNames", "recordedModelName"])],
   ["ai/arkClient.ts", new Set(["imageModelGoneError", "runImageGroup"])], // 出图模型（Seedream）的报错
   ["studio/ui/NpcDialog.tsx", new Set(["ForgeForm"])], // 铸卡时「本次出图：…」—— 出图模型
-  ["components/recipe/RecipeView.tsx", new Set(["NodeCard"])], // 配方里记着的、作者当时用的那个模型（与今天这一档的模型对不上时才说）：历史事实
 ]);
 const API_OK = new Map([["data/videoTierTable.ts", null]]);
 

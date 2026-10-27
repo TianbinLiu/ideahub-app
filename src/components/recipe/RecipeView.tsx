@@ -8,8 +8,9 @@
 import { i18n } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { usableTierId } from "../../data/account";
-import { fmtTokens, modelLabel, tierOf } from "../../data/economy";
+import { recordedModelName, usableTierId } from "../../data/account";
+import { useAccountVersion } from "../../hooks/useAccount";
+import { fmtTokens, tierOf } from "../../data/economy";
 import { recipeSummary, recipeVideoCost, type RecipeNode, type RecipeNodeFlag, type RecipeSlotWhy, type WorkflowRecipe } from "../../data/recipe";
 import { CARD_TYPE_LABELS, formatDuration, shotLineDisplay } from "../../types";
 import Icon from "../Icon";
@@ -74,9 +75,16 @@ function NodeCard({ recipe, node, index, onTemplate }: { recipe: WorkflowRecipe;
   const cards = node.cards.map((id) => recipe.deck.find((c) => c.cardId === id)).filter((c): c is NonNullable<typeof c> => !!c);
   const slots = node.slots.map((i) => recipe.cast[i]).filter(Boolean);
   const shot = shotLineDisplay(node.shot);
-  /** 配方里记着的模型 id 与这一档今天的模型对不上（换过型号）时才说一句。名字走 economy.modelLabel（出片模型名只从那一处推导），完整 id 放 title */
-  const modelId = node.model && tierOf(node.tier).model !== node.model ? node.model : null;
-  const model = modelId ? modelLabel(modelId) : null;
+  // 地区问到了 / 变了要重画（「当时的模型」写不写名字跟着地区走）
+  useAccountVersion();
+  /**
+   * 配方里记着的模型 id 与这一档今天的模型对不上（换过型号）时才说一句。
+   * ★ 名字只走 account.recordedModelName（2026-10-26 出片地区终审）：地区不知道、或这个地区给不出那一家时不写名字（写「另一个出片模型」），
+   *   完整 id 也不放 title —— 原来无条件写 modelLabel，美国的机器地区还不知道时也印出 Seedance
+   */
+  const recorded = node.model && tierOf(node.tier).model !== node.model ? node.model : null;
+  const model = recorded ? recordedModelName(recorded) : null;
+  const modelId = model ? recorded : null;
   return (
     <div className="rounded-xl border border-slate-700/70 bg-panel p-3">
       <div className="flex items-start gap-2">
@@ -140,9 +148,9 @@ function NodeCard({ recipe, node, index, onTemplate }: { recipe: WorkflowRecipe;
           ))}
         </ul>
       )}
-      {model && (
+      {recorded && (
         <div className="mt-1 text-[10px] text-slate-500" title={modelId ?? undefined}>
-          {t`当时的模型：${model}`}
+          {model ? t`当时的模型：${model}` : t`当时用的是另一个出片模型`}
         </div>
       )}
     </div>

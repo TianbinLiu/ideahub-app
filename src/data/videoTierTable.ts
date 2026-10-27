@@ -39,13 +39,26 @@ export const MINIMAX_REAL = "MiniMax-Hailuo-2.3-Fast";
  */
 export function modelLabel(modelId: string): string {
   const raw = String(modelId || "");
-  if (/^MiniMax-[A-Za-z0-9]/.test(raw)) return raw.replace(/-+/g, " ").trim();
+  if (MINIMAX_MODEL_ID.test(raw)) return raw.replace(/-+/g, " ").trim();
   const s = raw.replace(/^doubao-/, "").replace(/-\d{6,8}$/, "");
   const m = /^([a-z0-9]+)-(\d+)-(\d+)(?:-(.+))?$/.exec(s);
   if (!m) return modelId;
   const family = m[1].charAt(0).toUpperCase() + m[1].slice(1);
   const variant = m[4] ? ` ${m[4].replace(/-/g, " ")}` : "";
   return `${family} ${m[2]}.${m[3]}${variant}`;
+}
+
+/** MiniMax 的模型 id 长什么样（`MiniMax-H3`、`MiniMax-Hailuo-2.3-Fast`）—— modelLabel 与 providerOfModel 共用这一条，别各抄一份 */
+const MINIMAX_MODEL_ID = /^MiniMax-[A-Za-z0-9]/;
+
+/**
+ * 一个**记下来的**出片模型 id 是哪一家的（2026-10-26 出片地区终审）—— 配方 / 作品里记着「当时用的是哪个模型」，那一档今天可能已经换了型号，
+ * 按档位的 provider 认不出它；account.recordedModelName 拿它判「这个地区给不给这一家、写不写名字」。
+ * ★ 与档位表的 provider 同一套名字；认不出的（`doubao-…`、空串、以后的新型号）一律按方舟（档位表的缺省也是方舟）。构建里 check-video-tiers 核对每一行
+ *   providerOfModel(行.model) === 行.provider ?? "ark"。
+ */
+export function providerOfModel(modelId: string): "ark" | "minimax" {
+  return MINIMAX_MODEL_ID.test(String(modelId || "")) ? "minimax" : "ark";
 }
 
 /**

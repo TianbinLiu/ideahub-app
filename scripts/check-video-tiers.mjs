@@ -244,6 +244,13 @@ for (const t of T) {
       "doubao-seedream-5-0-pro-260628": "Seedream 5.0 pro",
     };
     for (const [id, name] of Object.entries(want)) eq(`modelLabel(${id})`, L(id), name);
+    // 哪一家（providerOfModel，2026-10-26 终审：配方里记着的模型按它判写不写名字）：档位表每一行都要与它的 provider 对得上
+    if (typeof M.providerOfModel === "function") {
+      for (const t of T) eq(`providerOfModel(「${t.id}」的模型 ${t.model})`, M.providerOfModel(t.model), t.provider ?? "ark");
+      eq("providerOfModel：MiniMax H3", M.providerOfModel("MiniMax-H3-Lite"), "minimax");
+      eq("providerOfModel：认不出的按方舟", M.providerOfModel("some-new-model"), "ark");
+      eq("providerOfModel：空串按方舟", M.providerOfModel(""), "ark");
+    } else ok("videoTierTable 里找不到 providerOfModel", false);
     // 反例：认不出的原样回（id 本身是最准确的信息，不许回「未知模型」），空串不炸
     eq("认不出的 id 原样回", L("some-new-model"), "some-new-model");
     eq("只有前缀的 MiniMax- 不当成型号", L("MiniMax-"), "MiniMax-");

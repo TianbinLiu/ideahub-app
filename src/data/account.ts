@@ -21,7 +21,7 @@ import { cardInputOf, modelsOfTiers, type VideoModelOf } from "./cardFit";
 import { serverFreeVideo, serverSupports, subscribeServerCaps } from "./serverCaps";
 import { refreshVideoZone, subscribeVideoZone, videoZone, zoneDenies, zoneIsRegional, type VideoProvider } from "./videoZone";
 import { tierGoOf } from "./videoZoneRules";
-import { FREE_DEFAULT_CHAIN, PAID_DEFAULT_CHAIN, SEEDANCE_2_5, firstLiveTierId } from "./videoTierTable";
+import { FREE_DEFAULT_CHAIN, PAID_DEFAULT_CHAIN, SEEDANCE_2_5, firstLiveTierId, providerOfModel } from "./videoTierTable";
 import { idbGet, idbRead, idbSet } from "./db";
 // 转存（dataURL → 永久 URL）的唯一入口，与发布/换封面/详情页加图共用（铁律六）
 import { toPermanentUrl } from "./publishAssets";
@@ -1176,6 +1176,17 @@ export function offeredVideoModels(): OfferedVideoModels {
 export function tierShownModel(tier: VideoTier): string | null {
   const { named, models } = offeredVideoModels();
   return named && models.some((m) => m.tiers.some((x) => x.id === tier.id)) ? tierModelLabel(tier) : null;
+}
+
+/**
+ * 配方 / 作品里**记下来的**那个出片模型 id 在界面上写成什么（2026-10-26 出片地区终审：制作过程页「当时的模型：…」）：
+ * 地区问到了、这个地区又给这一家 → 模型名（economy.modelLabel）；否则 null —— 调用方写一句不点名的（「当时用的是另一个出片模型」），完整 id 也不放 title。
+ * ★ 原来 RecipeView 直接调 modelLabel（[model-name] 白名单里写着「历史事实」），地区不知道的美国机器、门禁开着的海外照样印出 Seedance。
+ *   历史事实也是供应商名：与 tierShownModel 同一个口径（地区不知道不写、这个地区给不出的那一家不写）。哪一家只问 videoTierTable.providerOfModel。
+ */
+export function recordedModelName(modelId: string): string | null {
+  if (!videoZone() || zoneDenies(providerOfModel(modelId))) return null;
+  return modelLabel(modelId);
 }
 
 /** 一家在分组标题上写成什么（品牌名不翻译，括号里的公司 / 产品名照常翻） */

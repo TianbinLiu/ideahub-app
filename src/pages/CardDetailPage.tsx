@@ -580,7 +580,8 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
       )}
       {owned && full && (
         <p className="mt-1 text-[10px] text-slate-500">
-          <Trans>已到 {MAX_CARD_VIEWS} 张上限 —— 方舟建议不要堆满，素材太多模型反而判断不出该优先保哪些特征。</Trans>
+          {/* 不写供应商名（2026-10-26 出片地区终审）：地区还不知道 / 门禁开着时这一页不该出现「方舟」字样，这句话的意思不靠它 */}
+          <Trans>已到 {MAX_CARD_VIEWS} 张上限 —— 建议不要堆满，素材太多模型反而判断不出该优先保哪些特征。</Trans>
         </p>
       )}
       {note && <p className="mt-1 text-[11px] text-warn-400">{note}</p>}

@@ -43,7 +43,7 @@ import VolcCompatToggle from "../components/VolcCompatToggle";
 import VoiceRecorder from "../components/VoiceRecorder";
 import VoiceUploadButton from "../components/VoiceUploadButton";
 import { fetchPortraitAssetImage } from "../api/portrait";
-import { addCards, bindCardAsset, canAfford, frozenNote, isRemoteMode, spendTokens, voiceModelsNames, walletOf } from "../data/account";
+import { addCards, bindCardAsset, canAfford, frozenNote, isRemoteMode, refImgModelsNames, spendTokens, voiceModelsNames, walletOf } from "../data/account";
 import { API_ON } from "../api/client";
 import { prepareCardImage } from "../data/cardViews";
 import { joinViewNote } from "../types";
@@ -65,7 +65,7 @@ import {
 import { chatVision } from "../ai/arkClient";
 import { CARD_SCOPE, ID_LINE_SPEC } from "../ai/cardScope";
 import FrameAnnotator from "../components/FrameAnnotator";
-import { CHAT_TURN_TOKENS, ONE_IMAGE, fmtTokens, schemeCost, tierNamesWhere } from "../data/economy";
+import { CHAT_TURN_TOKENS, ONE_IMAGE, fmtTokens, schemeCost } from "../data/economy";
 import { saveVoice } from "../data/cardVoice";
 import { heartbeatJob, startJob } from "../data/jobs";
 // ★★ 这一页的表单状态全在 store 里（理由见 customCardStore 文件头）：AI 出图 / 铸卡上传
@@ -1062,9 +1062,14 @@ export default function CustomCardPage() {
       if (!s.idLine.trim() && r.idLine) setIdLine(r.idLine.slice(0, ID_LINE_MAX));
       if (!s.tagText.trim() && r.tags.length > 0) setTagText(r.tags.slice(0, TAG_MAX).join(" "));
       if (startType === "scene" && r.hasPeople) {
-        // 会被拒的是「直接收参考图」的那几档（2.x），按能力现算（原来写的「高清 / 超清」—— 超清这一档从来不存在）
-        const refTiers = tierNamesWhere((x) => x.refImg);
-        setRecogMsg({ tone: "warn", text: t`照片里有人：「${refTiers}」档直接收参考图，出片可能被方舟拒掉（没受理不扣视频钱）；别的档不受影响` });
+        // 会被拒的是卡图直接当参考图进模型的那几个出片模型（原来写的「高清 / 超清」—— 超清这一档从来不存在）。
+        // ★ 名字只走 account.refImgModelsNames（2026-10-26 终审）：原来按目录列档名、还点名「方舟」—— 美国的机器地区还不知道时也写供应商名，
+        //   门禁开着时列的是一档都摆不出来的档。现在地区问到了写这个地区给得出的模型名、不知道时只写档名（与同一页「按模型适配」同一个口径）；
+        //   一个都没有时这句整个不说（没有哪个模型会直接拿到这张照片）
+        const refNames = refImgModelsNames();
+        if (refNames) {
+          setRecogMsg({ tone: "warn", text: t`照片里有人：收参考图的出片模型（${refNames}）会直接拿到这张照片，出片时可能被拒（没受理不扣视频钱）；别的模型不受影响` });
+        }
       }
       job.done({ msg: t`识别好了，回去看看填得对不对`, silent: s.mounted });
     } catch (e) {

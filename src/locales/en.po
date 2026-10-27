@@ -12356,8 +12356,12 @@ msgid "已删除的作品"
 msgstr "Deleted video"
 
 #: src/pages/CardDetailPage.tsx
-msgid "已到 {MAX_CARD_VIEWS} 张上限 —— 方舟建议不要堆满，素材太多模型反而判断不出该优先保哪些特征。"
-msgstr "You've reached the limit of {MAX_CARD_VIEWS, plural, one {# image} other {# images}} — Ark recommends not filling every slot, since with too many references the model can't tell which features to prioritize."
+msgid "已到 {MAX_CARD_VIEWS} 张上限 —— 建议不要堆满，素材太多模型反而判断不出该优先保哪些特征。"
+msgstr "You've reached the limit of {MAX_CARD_VIEWS, plural, one {# image} other {# images}} — it's best not to fill every slot, since with too many references the model can't tell which features to prioritize."
+
+#: src/pages/CardDetailPage.tsx
+#~ msgid "已到 {MAX_CARD_VIEWS} 张上限 —— 方舟建议不要堆满，素材太多模型反而判断不出该优先保哪些特征。"
+#~ msgstr "You've reached the limit of {MAX_CARD_VIEWS, plural, one {# image} other {# images}} — Ark recommends not filling every slot, since with too many references the model can't tell which features to prioritize."
 
 #: src/pages/ProfilePage.tsx
 msgid "已到账"
@@ -13237,6 +13241,10 @@ msgstr "As a reference"
 #: src/components/flow/SegPlayer.tsx
 msgid "当尾帧"
 msgstr "As last frame"
+
+#: src/components/recipe/RecipeView.tsx
+msgid "当时用的是另一个出片模型"
+msgstr "Made with a different video model at the time"
 
 #: src/components/recipe/RecipeView.tsx
 msgid "当时的模型：{model}"
@@ -19410,8 +19418,12 @@ msgid "照片起拍，视频约 {fxVideo} / 一发"
 msgstr "Starts from the photo, video about {fxVideo} per run"
 
 #: src/pages/CustomCardPage.tsx
-msgid "照片里有人：「{refTiers}」档直接收参考图，出片可能被方舟拒掉（没受理不扣视频钱）；别的档不受影响"
-msgstr "There are people in the photo. “{refTiers}” take reference images directly, so the video may be rejected by Ark (you aren't charged for video that isn't accepted); other tiers aren't affected"
+#~ msgid "照片里有人：「{refTiers}」档直接收参考图，出片可能被方舟拒掉（没受理不扣视频钱）；别的档不受影响"
+#~ msgstr "There are people in the photo. “{refTiers}” take reference images directly, so the video may be rejected by Ark (you aren't charged for video that isn't accepted); other tiers aren't affected"
+
+#: src/pages/CustomCardPage.tsx
+msgid "照片里有人：收参考图的出片模型（{refNames}）会直接拿到这张照片，出片时可能被拒（没受理不扣视频钱）；别的模型不受影响"
+msgstr "There are people in the photo. Video models that take reference images ({refNames}) receive this photo directly, so the video may be rejected (you aren't charged for video that isn't accepted); other models aren't affected"
 
 #: src/pages/CustomCardPage.tsx
 #~ msgid "照片里有人：默认档出片不受影响；高清 / 超清档可能被方舟拒掉（没受理不扣视频钱）"
