@@ -1291,6 +1291,27 @@ msgstr "{flatIssue} For the “{realTier}” tier, render directly from “Workf
 msgid "{head} · 演示"
 msgstr "{head} · demo"
 
+#: src/data/account.ts
+msgid "{head}——{destVia} 的「{names}」档做得到（会员档：开通会员套餐或充值过任意一笔后可用）"
+msgstr "{head} — “{names}” on {destVia} can (member-only: subscribe to a plan or make any top-up once to use it)"
+
+#. 前一截是「某档做不了某件事」的整句（不带句号），后一截是「你所在的地区目前没有…的出片模型」
+#: src/data/account.ts
+msgid "{head}——{none}"
+msgstr "{head} — {none}"
+
+#: src/data/account.ts
+msgid "{head}——「{names}」档做得到（会员档：开通会员套餐或充值过任意一笔后可用）"
+msgstr "{head} — “{names}” can (member-only: subscribe to a plan or make any top-up once to use it)"
+
+#: src/data/account.ts
+msgid "{head}——换到 {destVia} 的「{names}」档就有"
+msgstr "{head} — switch to “{names}” on {destVia}"
+
+#: src/data/account.ts
+msgid "{head}——换到「{names}」档就有"
+msgstr "{head} — switch to “{names}”"
+
 #: src/data/videoJobs.ts
 msgid "{hh}:{mm} 提交的那一发（服务器登记）"
 msgstr "Job submitted at {hh}:{mm} (registered on the server)"
@@ -1339,6 +1360,18 @@ msgstr "{lead}, so the “{label}” tier isn't available — switch to “{name
 #: src/data/account.ts
 msgid "{lead}，「{label}」档用不了——能换的「{member}」是会员档（开通会员套餐或充值过任意一笔后可用）"
 msgstr "{lead}, so the “{label}” tier isn't available — the one you could switch to, “{member}”, is member-only (subscribe to a plan or make any top-up once to use it)"
+
+#: src/data/account.ts
+msgid "{lead}，「{label}」档要换成 {via} 的「{label}」才能出片"
+msgstr "{lead}, so “{label}” has to switch to “{label}” on {via} to render"
+
+#: src/data/account.ts
+msgid "{lead}，「{label}」档要换成 {via} 的「{label}」才能出片（会员档：开通会员套餐或充值过任意一笔后可用）"
+msgstr "{lead}, so “{label}” has to switch to “{label}” on {via} to render (member-only: subscribe to a plan or make any top-up once to use it)"
+
+#: src/data/account.ts
+msgid "{lead}，「{label}」档要换成 {via} 的「{label}」才能出片（会员档：开通会员套餐或充值过任意一笔后可用）；现在就能用的是「{names}」档"
+msgstr "{lead}, so “{label}” has to switch to “{label}” on {via} to render (member-only: subscribe to a plan or make any top-up once to use it); you can use “{names}” right now"
 
 #: src/components/CardModelFit.tsx
 #: src/pages/DeckDetailPage.tsx
@@ -1743,6 +1776,14 @@ msgstr "{used}/{SCHEME_SLOT_PROMPT_MAX} · over {SLOT_PROMPT_SOFT_HAN} Chinese c
 #: src/pages/SupportModelNewPage.tsx
 msgid "{value}（包里没有）"
 msgstr "{value} (not in bundle)"
+
+#: src/data/account.ts
+msgid "{via} 出的「{label}」做不了按参考视频出片（片段重拍、自定义的示例视频都属于这一类）"
+msgstr "“{label}” on {via} can't render from a reference video (reshoots and custom sample videos both work this way)"
+
+#: src/data/account.ts
+msgid "{via} 出的「{label}」跑不了白模模板（模板对出片模型是硬要求）"
+msgstr "“{label}” on {via} can't run blockout templates (a template requires a specific video model)"
 
 #: src/live2d/bundlePreview.ts
 msgid "{what}：{ref}"
@@ -2150,6 +2191,14 @@ msgstr "The “{label}” tier has no preview-draft mode (only “{names}” has
 msgid "「{label}」档的模型已于 {day}停用——换一档再出片"
 msgstr "The model behind the “{label}” tier was retired on {day} — pick another tier to generate"
 
+#: src/data/account.ts
+msgid "「{label}」档眼下用的这个出片模型做不了按参考视频出片（片段重拍、自定义的示例视频都属于这一类）"
+msgstr "The video model “{label}” is using right now can't render from a reference video (reshoots and custom sample videos both work this way)"
+
+#: src/data/account.ts
+msgid "「{label}」档眼下用的这个出片模型跑不了白模模板（模板对出片模型是硬要求）"
+msgstr "The video model “{label}” is using right now can't run blockout templates (a template requires a specific video model)"
+
 #: src/studio/flowStore.ts
 msgid "「{label}」档还不能延长——{none}"
 msgstr "The “{label}” tier can’t extend yet — {none}"
@@ -2331,6 +2380,14 @@ msgstr "“{names}”"
 #: src/data/account.ts
 msgid "「{names}」档用 {via} 出片时，免费版只能用文字（不补画首帧尾帧、不带参考图）——带图出片要开通会员套餐（或充值过任意一笔）"
 msgstr "On {via}, the free plan can only make “{names}” videos from text (no drawn first/last frames, no reference images) — subscribe to a plan (or make any top-up once) to use images"
+
+#: src/data/economy.ts
+msgid "「{names}」档眼下用的这个出片模型做不了按参考视频出片（片段重拍、自定义的示例视频都属于这一类）"
+msgstr "The video model “{names}” is using right now can't render from a reference video (reshoots and custom sample videos both work this way)"
+
+#: src/data/economy.ts
+msgid "「{names}」档眼下用的这个出片模型跑不了白模模板（模板对出片模型是硬要求）"
+msgstr "The video model “{names}” is using right now can't run blockout templates (a template requires a specific video model)"
 
 #: src/studio/segmentGen.ts
 msgid "「{names}」的声音样本这次没带上（这一档的参考音频合计最长 {capSec} 秒）——这几位的台词音色由模型定；把样本剪短些就能都带上"
@@ -10477,6 +10534,11 @@ msgstr "Dialogue will no longer be voiced (“{0}” has no voiceover yet)"
 
 #. placeholder {0}: next.label
 #: src/components/flow/TierRow.tsx
+msgid "台词不再带音色样本（{via} 出的「{0}」不收声音样本，台词照样配音、音色由模型定）"
+msgstr "Dialogue no longer uses the voice sample (“{0}” on {via} doesn't take voice samples — lines are still voiced, in a voice the model picks)"
+
+#. placeholder {0}: next.label
+#: src/components/flow/TierRow.tsx
 msgid "台词不再带音色样本（「{0}」档不收声音样本，台词照样配音、音色由模型定）"
 msgstr "Dialogue no longer uses the voice sample (“{0}” doesn't take voice samples — lines are still voiced, in a voice the model picks)"
 
@@ -14393,6 +14455,11 @@ msgstr "Casting failed (no reason was given — this is a bug, please report it)
 #: src/components/guide/tours.tsx
 msgid "挂卡面板"
 msgstr "Casting panel"
+
+#. placeholder {0}: next.label
+#: src/components/flow/TierRow.tsx
+msgid "挂在这一段上的示例视频会被摘掉（{via} 出的「{0}」带不了参考视频）"
+msgstr "The example video on this segment will be removed (“{0}” on {via} can't take a reference video)"
 
 #. placeholder {0}: next.label
 #: src/components/flow/TierRow.tsx
@@ -23204,6 +23271,11 @@ msgstr "can extend a clip"
 #: src/components/flow/FixSegmentBox.tsx
 msgid "能按参考视频出片的「{refNames}」是会员档——开通会员套餐（或充值过任意一笔）后可用"
 msgstr "Generating from a reference video needs a member tier (“{refNames}”) — available once you subscribe to a plan (or make any top-up once)"
+
+#. 定语，接在「目前没有…的出片模型」中间；英文写成接在 video model that 后面的动词短语：can run blockout templates
+#: src/data/account.ts
+msgid "能跑白模模板"
+msgstr "can run blockout templates"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "脸红"

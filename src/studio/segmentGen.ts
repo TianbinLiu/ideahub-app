@@ -15,7 +15,7 @@
 import { AI_REAL, ARK_REF_IMAGES_MAX, ArkTaskUnknown, SegmentGenFailed, VIDEO_PROMPT_MAX, composeSegments, generateFrame, notesInParens, planCardRefs, prepareMaterialRefs, refCardIds, refineFrame, type KeptFrames } from "../ai";
 import { compileMentions, drawExtraRefs, extraRefLines, mentionTargets, plainMentions, usableExtraRefs, type ExtraRef } from "../data/refMentions";
 import { uploadImage } from "../api/uploads";
-import { IMAGE_TOKENS, apiCase, blockoutPriceIssue, blockoutTier, fmtTokens, r2vPriceIssue, tierOf, clampDuration, videoTokensOfSpec, promptMaxOf, refAudioSecOf, materialRefSecs, minUsageNote, type VideoTier } from "../data/economy";
+import { IMAGE_TOKENS, apiCase, blockoutTier, fmtTokens, tierOf, clampDuration, videoTokensOfSpec, promptMaxOf, refAudioSecOf, materialRefSecs, minUsageNote, type VideoTier } from "../data/economy";
 // 设定帧那一步最多喂几张参考图（经典路的预算）：那句提示里的数字从它取，不写死（2026-10-10 文案复核抓到写死的「3 张」）
 import { MAX_REF_IMAGES } from "../ai/real";
 import { frameMoment, isMultiShot, lineSpeakers, momentCards, packShots } from "../data/shotScript";
@@ -25,7 +25,7 @@ import { frameSlotsOf, framesToDraw, type DrawInput } from "../data/drawPlan";
 import { refVideoIssue } from "../data/templates";
 import { ShotSpec, shotLineOf, CardType, ID_LINE_MAX, CARD_TYPE_PROMPT, idLineOf, viewsOf, feedsModel, TEXT_DESC_MAX, aspectOf, startFramesAllowed, type Card, type GenMode, type VideoAspect, type VideoTemplate } from "../types";
 import { voiceOf } from "../data/cardVoice";
-import { isRemoteMode, noTierLine, tierGo } from "../data/account";
+import { isRemoteMode, noTierLine, r2vTierIssue, tierGo } from "../data/account";
 import { ratioFor } from "../ai/arkClient";
 import { t } from "@lingui/core/macro";
 
@@ -453,8 +453,9 @@ export function blockoutIssue(o: {
   /** 返修：不要求挂人物卡（改的是画面，不是换人） */
   revise?: boolean;
 }): string | null {
-  // 返修（本段成片当参考视频）问「能不能带参考视频」，白模模板问「能不能跑白模模板」—— 2026-10-05 起是两件事（高清能前者、不能后者）
-  const price = o.revise ? r2vPriceIssue(o.videoTier) : blockoutPriceIssue(o.videoTier);
+  // 返修（本段成片当参考视频）问「能不能带参考视频」，白模模板问「能不能跑白模模板」—— 2026-10-05 起是两件事（高清能前者、不能后者）。
+  // 判据在 economy（r2vPriceIssue / blockoutPriceIssue），话走 account.r2vTierIssue：同一颗芯片的两家同名，按地区说清是哪一家（2026-10-26 P2b 审核）
+  const price = r2vTierIssue(tierOf(o.videoTier), o.revise ? "refVideo" : "blockout");
   if (price) return price;
   // ★ 排在价目之后、其它条件之前：这一条是"这个模板根本用不了"，与用户挂没挂卡无关 ——
   //   先让他去换模板，而不是先催他挂卡、挂完再告诉他这个模板本来就废了。

@@ -15,8 +15,8 @@ import Warn from "../Warn";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
-import { memberTiersLine, realFaceIssue, regionTiersLine, tierBlockReason, tierOffered, tierShownModelId } from "../../data/account";
-import { blockoutPriceIssue, clampDuration, deriveIssue, fmtTokens, tierOf, VIDEO_TIERS } from "../../data/economy";
+import { memberTiersLine, r2vTierIssue, realFaceIssue, regionTiersLine, sameChipProvider, tierBlockReason, tierOffered, tierShownModelId } from "../../data/account";
+import { clampDuration, deriveIssue, fmtTokens, tierOf, VIDEO_TIERS } from "../../data/economy";
 import { useAccountVersion } from "../../hooks/useAccount";
 import UpgradeLink from "../UpgradeLink";
 import { chosenOf, nodeCost, nodeFramed, tplOfNode, useFlow } from "../../studio/flowStore";
@@ -36,9 +36,12 @@ export function tierSwitchLoss(nodeId: string, nextId: string): MessageDescripto
   const cur = tierOf(node.videoTier);
   const prop = chosenOf(node);
   const loss: MessageDescriptor[] = [];
+  // ★ 换到同一颗芯片的另一家（Seedance 草稿 → MiniMax 草稿，2026-10-26 P2b 审核）：两家同名，「「草稿」档不收声音样本」读着像这一档自己变了 ——
+  //   点名换过去的那一家（account.sameChipProvider：地区问到了才写；H3 三档只在地区问到了才摆，所以这里几乎总写得出来）
+  const via = sameChipProvider(next, cur);
   // 参考视频：只有支持 r2v/参考视频的档带得动，换过去必须摘掉（不摘的话出片被整句拒）
   if (node.customRef && !next.refVid) {
-    loss.push(msg`挂在这一段上的示例视频会被摘掉（「${next.label}」档带不了参考视频）`);
+    loss.push(via ? msg`挂在这一段上的示例视频会被摘掉（${via} 出的「${next.label}」带不了参考视频）` : msg`挂在这一段上的示例视频会被摘掉（「${next.label}」档带不了参考视频）`);
   }
   // 形象图：2.0 → 1.0 的核心落差。已经出过片的段不提这条（它已经拍完了）
   if (cur.refImg && !next.refImg && (node.materials?.length ?? 0) > 0) {
@@ -66,7 +69,11 @@ export function tierSwitchLoss(nodeId: string, nextId: string): MessageDescripto
     );
   } else if (quote && cur.refAudio && !next.refAudio) {
     // 走到这里 next 一定出声（上一支接住了不出声的）：台词照样配音，只是不再按卡上的声音
-    loss.push(msg`台词不再带音色样本（「${next.label}」档不收声音样本，台词照样配音、音色由模型定）`);
+    loss.push(
+      via
+        ? msg`台词不再带音色样本（${via} 出的「${next.label}」不收声音样本，台词照样配音、音色由模型定）`
+        : msg`台词不再带音色样本（「${next.label}」档不收声音样本，台词照样配音、音色由模型定）`,
+    );
   }
   // ★ **升档也有变化**（2026-08-30 补）：收参考图的档上，帧改当参考图发 + 提示词点名
   //   （segmentGen 的 framesAsRefs）—— 卡片形象能同发了，但"必须从这一帧起拍"从协议级
@@ -150,7 +157,8 @@ export default function TierRow({
           // ★ 白模节点上，跑不了白模模板的档位也要禁掉（判断在 economy.blockoutPriceIssue 一处；2026-10-05 起不再问 r2vPriceIssue ——
           //   高清能带参考视频、但跑不了白模模板，问错那一句高清就会在白模段上变成可选）：
           //   切过去出片必被门禁整句拒，让人选一个必失败的档不如当场说不能选
-          const r2vBlock = blockout ? blockoutPriceIssue(tier.id) : null;
+          //   话走 account.r2vTierIssue（判据仍是 blockoutPriceIssue）：MiniMax 的「电影级」与 Seedance 的「电影级」同名，按地区点名是哪一家（2026-10-26 P2b 审核）
+          const r2vBlock = blockout ? r2vTierIssue(tier, "blockout") : null;
           // ★ 按发计价档（真人）走不了推演（判定在 economy.deriveIssue 一处）——工坊这一面
           //   的主路正是推演，切过去之后「重新推演三套」必被拒。宿主是画布时那条路还在
           //   （画布可以直出），所以这一条只在**需要推演**的宿主上拦：由 prop 决定。
@@ -170,7 +178,9 @@ export default function TierRow({
               onClick={() => {
                 if (tier.id === node.videoTier) return;
                 const loss = tierSwitchLoss(node.id, tier.id);
-                if (loss.length) setAsk({ nodeId: node.id, id: tier.id, label: tier.label, loss });
+                // 卡上的档名：换到同一颗芯片的另一家时带上是哪一家（「换到「草稿 · MiniMax」档」—— 两家同名，只写「草稿」看不出换了什么）
+                const via = sameChipProvider(tier, tierOf(node.videoTier));
+                if (loss.length) setAsk({ nodeId: node.id, id: tier.id, label: via ? `${tier.label} · ${via}` : tier.label, loss });
                 else apply(tier.id);
               }}
               disabled={!!block}

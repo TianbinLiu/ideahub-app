@@ -1291,6 +1291,27 @@ msgstr "{flatIssue}{realTier}档去「工作流」或「简约模式」直出。
 msgid "{head} · 演示"
 msgstr "{head} · 演示"
 
+#: src/data/account.ts
+msgid "{head}——{destVia} 的「{names}」档做得到（会员档：开通会员套餐或充值过任意一笔后可用）"
+msgstr "{head}——{destVia} 的「{names}」档做得到（会员档：开通会员套餐或充值过任意一笔后可用）"
+
+#. 前一截是「某档做不了某件事」的整句（不带句号），后一截是「你所在的地区目前没有…的出片模型」
+#: src/data/account.ts
+msgid "{head}——{none}"
+msgstr "{head}——{none}"
+
+#: src/data/account.ts
+msgid "{head}——「{names}」档做得到（会员档：开通会员套餐或充值过任意一笔后可用）"
+msgstr "{head}——「{names}」档做得到（会员档：开通会员套餐或充值过任意一笔后可用）"
+
+#: src/data/account.ts
+msgid "{head}——换到 {destVia} 的「{names}」档就有"
+msgstr "{head}——换到 {destVia} 的「{names}」档就有"
+
+#: src/data/account.ts
+msgid "{head}——换到「{names}」档就有"
+msgstr "{head}——换到「{names}」档就有"
+
 #: src/data/videoJobs.ts
 msgid "{hh}:{mm} 提交的那一发（服务器登记）"
 msgstr "{hh}:{mm} 提交的那一发（服务器登记）"
@@ -1339,6 +1360,18 @@ msgstr "{lead}，「{label}」档用不了——换成「{names}」档"
 #: src/data/account.ts
 msgid "{lead}，「{label}」档用不了——能换的「{member}」是会员档（开通会员套餐或充值过任意一笔后可用）"
 msgstr "{lead}，「{label}」档用不了——能换的「{member}」是会员档（开通会员套餐或充值过任意一笔后可用）"
+
+#: src/data/account.ts
+msgid "{lead}，「{label}」档要换成 {via} 的「{label}」才能出片"
+msgstr "{lead}，「{label}」档要换成 {via} 的「{label}」才能出片"
+
+#: src/data/account.ts
+msgid "{lead}，「{label}」档要换成 {via} 的「{label}」才能出片（会员档：开通会员套餐或充值过任意一笔后可用）"
+msgstr "{lead}，「{label}」档要换成 {via} 的「{label}」才能出片（会员档：开通会员套餐或充值过任意一笔后可用）"
+
+#: src/data/account.ts
+msgid "{lead}，「{label}」档要换成 {via} 的「{label}」才能出片（会员档：开通会员套餐或充值过任意一笔后可用）；现在就能用的是「{names}」档"
+msgstr "{lead}，「{label}」档要换成 {via} 的「{label}」才能出片（会员档：开通会员套餐或充值过任意一笔后可用）；现在就能用的是「{names}」档"
 
 #: src/components/CardModelFit.tsx
 #: src/pages/DeckDetailPage.tsx
@@ -1743,6 +1776,14 @@ msgstr "{used}/{SCHEME_SLOT_PROMPT_MAX} · 超过 {SLOT_PROMPT_SOFT_HAN} 个汉�
 #: src/pages/SupportModelNewPage.tsx
 msgid "{value}（包里没有）"
 msgstr "{value}（包里没有）"
+
+#: src/data/account.ts
+msgid "{via} 出的「{label}」做不了按参考视频出片（片段重拍、自定义的示例视频都属于这一类）"
+msgstr "{via} 出的「{label}」做不了按参考视频出片（片段重拍、自定义的示例视频都属于这一类）"
+
+#: src/data/account.ts
+msgid "{via} 出的「{label}」跑不了白模模板（模板对出片模型是硬要求）"
+msgstr "{via} 出的「{label}」跑不了白模模板（模板对出片模型是硬要求）"
 
 #: src/live2d/bundlePreview.ts
 msgid "{what}：{ref}"
@@ -2150,6 +2191,14 @@ msgstr "「{label}」档没有样片模式（只有「{names}」有）"
 msgid "「{label}」档的模型已于 {day}停用——换一档再出片"
 msgstr "「{label}」档的模型已于 {day}停用——换一档再出片"
 
+#: src/data/account.ts
+msgid "「{label}」档眼下用的这个出片模型做不了按参考视频出片（片段重拍、自定义的示例视频都属于这一类）"
+msgstr "「{label}」档眼下用的这个出片模型做不了按参考视频出片（片段重拍、自定义的示例视频都属于这一类）"
+
+#: src/data/account.ts
+msgid "「{label}」档眼下用的这个出片模型跑不了白模模板（模板对出片模型是硬要求）"
+msgstr "「{label}」档眼下用的这个出片模型跑不了白模模板（模板对出片模型是硬要求）"
+
 #: src/studio/flowStore.ts
 msgid "「{label}」档还不能延长——{none}"
 msgstr "「{label}」档还不能延长——{none}"
@@ -2331,6 +2380,14 @@ msgstr "「{names}」档"
 #: src/data/account.ts
 msgid "「{names}」档用 {via} 出片时，免费版只能用文字（不补画首帧尾帧、不带参考图）——带图出片要开通会员套餐（或充值过任意一笔）"
 msgstr "「{names}」档用 {via} 出片时，免费版只能用文字（不补画首帧尾帧、不带参考图）——带图出片要开通会员套餐（或充值过任意一笔）"
+
+#: src/data/economy.ts
+msgid "「{names}」档眼下用的这个出片模型做不了按参考视频出片（片段重拍、自定义的示例视频都属于这一类）"
+msgstr "「{names}」档眼下用的这个出片模型做不了按参考视频出片（片段重拍、自定义的示例视频都属于这一类）"
+
+#: src/data/economy.ts
+msgid "「{names}」档眼下用的这个出片模型跑不了白模模板（模板对出片模型是硬要求）"
+msgstr "「{names}」档眼下用的这个出片模型跑不了白模模板（模板对出片模型是硬要求）"
 
 #: src/studio/segmentGen.ts
 msgid "「{names}」的声音样本这次没带上（这一档的参考音频合计最长 {capSec} 秒）——这几位的台词音色由模型定；把样本剪短些就能都带上"
@@ -10485,6 +10542,11 @@ msgstr "台词不会再被配音（「{0}」档暂无配音）"
 
 #. placeholder {0}: next.label
 #: src/components/flow/TierRow.tsx
+msgid "台词不再带音色样本（{via} 出的「{0}」不收声音样本，台词照样配音、音色由模型定）"
+msgstr "台词不再带音色样本（{via} 出的「{0}」不收声音样本，台词照样配音、音色由模型定）"
+
+#. placeholder {0}: next.label
+#: src/components/flow/TierRow.tsx
 msgid "台词不再带音色样本（「{0}」档不收声音样本，台词照样配音、音色由模型定）"
 msgstr "台词不再带音色样本（「{0}」档不收声音样本，台词照样配音、音色由模型定）"
 
@@ -14401,6 +14463,11 @@ msgstr "挂卡没成功（原因没说清——这是个 bug，请反馈）"
 #: src/components/guide/tours.tsx
 msgid "挂卡面板"
 msgstr "挂卡面板"
+
+#. placeholder {0}: next.label
+#: src/components/flow/TierRow.tsx
+msgid "挂在这一段上的示例视频会被摘掉（{via} 出的「{0}」带不了参考视频）"
+msgstr "挂在这一段上的示例视频会被摘掉（{via} 出的「{0}」带不了参考视频）"
 
 #. placeholder {0}: next.label
 #: src/components/flow/TierRow.tsx
@@ -23212,6 +23279,11 @@ msgstr "能往后延长"
 #: src/components/flow/FixSegmentBox.tsx
 msgid "能按参考视频出片的「{refNames}」是会员档——开通会员套餐（或充值过任意一笔）后可用"
 msgstr "能按参考视频出片的「{refNames}」是会员档——开通会员套餐（或充值过任意一笔）后可用"
+
+#. 定语，接在「目前没有…的出片模型」中间；英文写成接在 video model that 后面的动词短语：can run blockout templates
+#: src/data/account.ts
+msgid "能跑白模模板"
+msgstr "能跑白模模板"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "脸红"

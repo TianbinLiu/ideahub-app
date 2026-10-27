@@ -644,7 +644,7 @@ export function r2vTokens(inputSec: number, tierId?: string): number | null {
 export function r2vPriceIssue(tierId?: string): string | null {
   const tier = tierOf(tierId);
   const block = r2vBlockOfTier(tier);
-  return block ? r2vBlockText(block, [tier.label], "refVideo") : null;
+  return block ? r2vBlockText(block, [tier], "refVideo") : null;
 }
 
 /**
@@ -655,7 +655,12 @@ export function r2vPriceIssue(tierId?: string): string | null {
 export function blockoutPriceIssue(tierId?: string): string | null {
   const tier = tierOf(tierId);
   const block = blockoutBlockOfTier(tier);
-  return block ? r2vBlockText(block, [tier.label], "blockout") : null;
+  return block ? r2vBlockText(block, [tier], "blockout") : null;
+}
+
+/** 白模模板那件事的原因本身（不带档位名，null = 跑得了）—— r2vBlockOf 的白模版（account.r2vTierIssue 用它判「哪几档跑得了」） */
+export function blockoutBlockOf(tierId?: string): R2vBlock | null {
+  return blockoutBlockOfTier(tierOf(tierId));
 }
 
 /** 走不了白模（r2v）的两种原因：闸门没开（closed），或闸开了但价签没钉（unpriced，model 是括号里点名的模型显示名） */
@@ -689,7 +694,7 @@ function blockoutBlockOfTier(tier: VideoTier): R2vBlock | null {
 }
 
 /** 这句话说的是哪件事：带参考视频出片（返修 / 示例视频），还是跑白模模板 */
-type R2vScope = "refVideo" | "blockout";
+export type R2vScope = "refVideo" | "blockout";
 
 /**
  * 几个档位名接成一串：整串外面那对引号由整句自己带（中文「极速」「标准」，英文 “Fast”, “Standard”）。
@@ -730,12 +735,18 @@ export function tierNamesWhere(pred: (t: VideoTier) => boolean): string {
  *   「blockout」= 白模段的档位那一排（r2vBlockLines）与白模出片闸；「refVideo」= 返修（FixSegmentBox 的片段重拍）与示例视频。
  *   原来一句话包两件事（「白模模板复刻、返修都属于这一类——只有电影级做得到」），高清开了之后那句话一半是错的。
  */
-function r2vBlockText(block: R2vBlock, labels: string[], scope: R2vScope): string {
-  const names = joinTierNames(labels);
+function r2vBlockText(block: R2vBlock, tiers: VideoTier[], scope: R2vScope): string {
+  const names = joinTierNames(tiers.map((x) => x.label));
+  // ★ 被挡的档所在的芯片（2026-10-26 P2b 审核）：同一颗芯片的两家同名（Seedance / MiniMax H3），「做得到的那几档」里要去掉同一颗芯片的行 ——
+  //   不然 MiniMax 的「高清」说「「高清」做不了…只有「高清」「电影级」做得到」，MiniMax 的「电影级」说「「电影级」跑不了白模模板——只有「电影级」跑得了」。
+  //   同一颗芯片的另一家做得到时这里**只说这一家的模型做不了**、不说去哪儿：economy 不认地区，写不出供应商（海外那一家还摆不出来）——
+  //   去哪一家由 account.r2vTierIssue 按地区补上（片段重拍、白模段的档位那一排、出片闸都问它）
+  const families = new Set(tiers.map((x) => x.family));
   if (block.kind === "closed") {
     if (scope === "blockout") {
       const open = blockoutTier();
       if (!open) return t`「${names}」这一档暂未开放白模模板出片，等开放后再来`;
+      if (families.has(open.family)) return t`「${names}」档眼下用的这个出片模型跑不了白模模板（模板对出片模型是硬要求）`;
       const openLabel = open.label;
       // ★ 不写那一档的模型名（2026-10-26 出片地区 · 主人第 2 件审核）：economy 是目录、不知道地区，写了就是地区不知道时也点名 Seedance、
       //   海外门禁开着时给被拦的那一家点名。说「哪个模型」只走 account.tierShownModel（白模段档位那一排的芯片上已经写着档位名）
@@ -743,6 +754,7 @@ function r2vBlockText(block: R2vBlock, labels: string[], scope: R2vScope): strin
     }
     const open = VIDEO_TIERS.filter((x) => !r2vBlockOfTier(x));
     if (!open.length) return t`「${names}」这一档暂未开放按参考视频出片，等开放后再来`;
+    if (open.some((x) => families.has(x.family))) return t`「${names}」档眼下用的这个出片模型做不了按参考视频出片（片段重拍、自定义的示例视频都属于这一类）`;
     const openNames = joinTierNames(open.map((x) => x.label));
     return t`「${names}」做不了按参考视频出片（片段重拍、自定义的示例视频都属于这一类）——这类出片只有「${openNames}」做得到`;
   }
@@ -761,7 +773,7 @@ function r2vBlockText(block: R2vBlock, labels: string[], scope: R2vScope): strin
  * ★ 两个调用方（本段设置抽屉、工坊 TierBlockNote）都只在白模段上问它，所以按白模判据（blockoutOk），不是 refVid。
  */
 export function r2vBlockLines(): string[] {
-  const groups = new Map<string, { block: R2vBlock; labels: string[] }>();
+  const groups = new Map<string, { block: R2vBlock; tiers: VideoTier[] }>();
   // ★ 同一颗芯片里有一行跑得了白模的（「电影级」的 Seedance 那一行），那颗芯片就不算在「跑不了」里（2026-10-26 P2b）：
   //   MiniMax H3 那一行也叫「电影级」、跑不了白模，不剔掉的话这句话会说「「电影级」跑不了白模模板——白模模板只有「电影级」跑得了」。
   //   地区不给 Seedance 时那颗芯片整个用不了白模，那是出片地区的话（account.tierRegionIssue / 模板那几句），不在这里说。
@@ -772,10 +784,10 @@ export function r2vBlockLines(): string[] {
     // 报不出价的按模型分开说（括号里点名的是各自的模型），暂未开放的并成一句
     const key = block.kind === "unpriced" ? `unpriced:${block.model}` : block.kind;
     const hit = groups.get(key);
-    if (hit) hit.labels.push(tier.label);
-    else groups.set(key, { block, labels: [tier.label] });
+    if (hit) hit.tiers.push(tier);
+    else groups.set(key, { block, tiers: [tier] });
   }
-  return [...groups.values()].map((g) => r2vBlockText(g.block, g.labels, "blockout"));
+  return [...groups.values()].map((g) => r2vBlockText(g.block, g.tiers, "blockout"));
 }
 
 /**

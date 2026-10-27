@@ -16,7 +16,7 @@ import { claimPendingTerms, reconcileTermsWithServer } from "./agreements";
 import { showToast } from "./toast";
 import { claimLegacyVoices, removeVoice } from "./cardVoice";
 import { adoptRemoteAssets, assetOf, claimLegacyAssets, hasAsset, removeAsset, saveAsset, setAssetSyncIssue, type CardAsset } from "./cardAsset";
-import { PLANS, PLATFORM_CUT, VIDEO_TIERS, apiCase, fmtTokens, joinTierNames, modelLabel, planOf, providerOf, tierModelId, tierModelLabel, tierOf, tierRetireDay, tierRetired, type VideoTier } from "./economy";
+import { PLANS, PLATFORM_CUT, VIDEO_TIERS, apiCase, blockoutBlockOf, blockoutPriceIssue, fmtTokens, joinTierNames, modelLabel, planOf, providerOf, r2vBlockOf, r2vPriceIssue, tierModelId, tierModelLabel, tierOf, tierRetireDay, tierRetired, type R2vScope, type VideoTier } from "./economy";
 import { cardInputOf, modelsOfTiers, type VideoModelOf } from "./cardFit";
 import { serverFreeVideo, serverSupports, subscribeServerCaps } from "./serverCaps";
 import { minimaxV2Offered, minimaxV2Unsettled, refreshVideoZone, subscribeVideoZone, videoZone, zoneDenies, zoneIsRegional, type VideoProvider } from "./videoZone";
@@ -1088,6 +1088,21 @@ export function tierRegionIssue(tier: VideoTier, need?: TierNeed): string | null
   const lead = zoneLead(ok);
   const go = ok.filter((x) => !x.startOnly && (!need || need(x)));
   if (!go.length) return t`${lead}，「${label}」档用不了`;
+  // ★ 同一颗芯片在这里另有一家做得了（2026-10-26 P2b 审核）：两家同名（档名按芯片取），原来这一句说
+  //   「你所在的地区（美国）出片只提供 MiniMax，「电影级」档用不了——换成「草稿」「高清」「电影级」档」，自相矛盾。
+  //   先指同一颗芯片的那一行、点名它是哪一家（只写这个地区给得出的那一家；被拦的这一家不点名）；它是会员档时再列别的用得了的档。
+  //   走到这里地区一定问到了（zoneDenies 为真），所以写得出供应商。
+  const same = go.find((x) => x.family === tier.family);
+  if (same) {
+    const via = PROVIDER_NAME[providerOf(same.id)];
+    if (!tierBlockReason(same)) return t`${lead}，「${label}」档要换成 ${via} 的「${label}」才能出片`;
+    const others = go.filter((x) => x.family !== tier.family && !tierBlockReason(x)).map((x) => x.label);
+    if (others.length) {
+      const names = joinTierNames(others);
+      return t`${lead}，「${label}」档要换成 ${via} 的「${label}」才能出片（会员档：开通会员套餐或充值过任意一笔后可用）；现在就能用的是「${names}」档`;
+    }
+    return t`${lead}，「${label}」档要换成 ${via} 的「${label}」才能出片（会员档：开通会员套餐或充值过任意一笔后可用）`;
+  }
   const usable = go.filter((x) => !tierBlockReason(x)).map((x) => x.label);
   if (usable.length) {
     const names = joinTierNames(usable);
@@ -1429,9 +1444,10 @@ export function tierNamesFor(pred: (t: VideoTier) => boolean): { usable: string;
 
 /**
  * tierNamesFor / tierGo 回 null 时那件事要的能力 —— 只用来挑 noTierLine 的说法。
- * extend = 能往后延长（extendOk）、refVid = 能带参考视频出片、refImg = 收参考图、refAudio = 带声音样本、audio = 出片出声、assetRef = 收认证素材（火山引擎适用）。
+ * extend = 能往后延长（extendOk）、refVid = 能带参考视频出片、refImg = 收参考图、refAudio = 带声音样本、audio = 出片出声、assetRef = 收认证素材（火山引擎适用）、
+ * blockout = 能跑白模模板（blockoutOk）。
  */
-export type TierAbility = "extend" | "refVid" | "refImg" | "refAudio" | "audio" | "assetRef";
+export type TierAbility = "extend" | "refVid" | "refImg" | "refAudio" | "audio" | "assetRef" | "blockout";
 
 /** noTierLine 里「…的出片模型」中间那一截（模块顶层只放描述符，渲染时再翻 —— 开机先激活语言再 import App） */
 const TIER_ABILITY_TEXT: Record<TierAbility, MessageDescriptor> = {
@@ -1441,6 +1457,7 @@ const TIER_ABILITY_TEXT: Record<TierAbility, MessageDescriptor> = {
   refAudio: msg({ message: "能带声音样本", comment: "定语，接在「目前没有…的出片模型」中间；英文写成接在 video model that 后面的动词短语：can take voice samples" }),
   audio: msg({ message: "能出声", comment: "定语，接在「目前没有…的出片模型」中间；英文写成接在 video model that 后面的动词短语：generates sound" }),
   assetRef: msg({ message: "收认证素材", comment: "定语，接在「目前没有…的出片模型」中间（认证素材 = 卡上勾了「火山引擎适用」）；英文：accepts verified portrait assets" }),
+  blockout: msg({ message: "能跑白模模板", comment: "定语，接在「目前没有…的出片模型」中间；英文写成接在 video model that 后面的动词短语：can run blockout templates" }),
 };
 
 /**
@@ -1511,6 +1528,63 @@ export function tierGo(pred: (t: VideoTier) => boolean): { names: string; member
   const n = tierNamesFor(pred);
   if (!n) return null;
   return n.usable ? { names: n.usable, member: false } : { names: n.member, member: true };
+}
+
+/**
+ * 这一档带不了参考视频（scope "refVideo"：片段重拍、自定义的示例视频）/ 跑不了白模模板（"blockout"）的**整句**（null = 能）——
+ * 片段重拍（FixSegmentBox）、白模段的档位那一排（TierRow 的 title）、出片闸（segmentGen.blockoutIssue）都只问它。
+ * 判据只在 economy（r2vBlockOf / blockoutBlockOf：闸门 + 价签），这里只管**说**，并把「去哪一档」按这个人、这个地区说准（2026-10-26 P2b 审核）：
+ * ★★ 同一颗芯片的两家同名：economy 那一句原来对 MiniMax 的「高清」说「「高清」做不了…这类出片只有「高清」「电影级」做得到」，
+ *   对 MiniMax 的「电影级」说「「电影级」跑不了白模模板——只有「电影级」跑得了」；economy 不认地区，海外还会把人指向根本摆不出来的 Seedance。
+ *   所以：同一颗芯片的另一家做得到时，按地区点名两边是哪一家（只写摆得出来的那几家；地区不知道就不写供应商）；做得到的那几档只从
+ *   **摆得出来的**里数（tierGoOf：先给用得了的，全是会员档就说会员档，一档都没有就说 noTierLine —— 海外的 H3 就是这一种）。
+ * ★ 报不出价（unpriced）与全表都没开（「暂未开放」）照旧是 economy 那一句（与地区无关）。别的情形也照 economy（被挡的档没有同芯片的另一家做得到时，
+ *   economy 那句不自相矛盾）—— 只有「同一颗芯片的另一家做得到」这一种换说法，FixSegmentBox 据 r2vSameChipOpen 决定还要不要在后面补「会员档 / 没有」那半句。
+ */
+export function r2vTierIssue(tier: VideoTier, scope: R2vScope): string | null {
+  const base = scope === "refVideo" ? r2vPriceIssue(tier.id) : blockoutPriceIssue(tier.id);
+  if (!base || !r2vSameChipOpen(tier, scope)) return base;
+  const can = r2vCan(scope);
+  const label = tier.label;
+  const named = !!videoZone();
+  // 被挡的这一档是哪一家：地区问到了、又不是被地区拦下的那一家才写（这几句话不给被拦的那一家点名）
+  const via = named && !zoneDenies(providerOf(tier.id)) ? PROVIDER_NAME[providerOf(tier.id)] : null;
+  const head =
+    scope === "refVideo"
+      ? via
+        ? t`${via} 出的「${label}」做不了按参考视频出片（片段重拍、自定义的示例视频都属于这一类）`
+        : t`「${label}」档眼下用的这个出片模型做不了按参考视频出片（片段重拍、自定义的示例视频都属于这一类）`
+      : via
+        ? t`${via} 出的「${label}」跑不了白模模板（模板对出片模型是硬要求）`
+        : t`「${label}」档眼下用的这个出片模型跑不了白模模板（模板对出片模型是硬要求）`;
+  const go = tierGoOf(offeredTiers(), can, (x) => !!tierBlockReason(x));
+  if (!go) {
+    const none = noTierLine(scope === "refVideo" ? "refVid" : "blockout");
+    return t({ message: `${head}——${none}`, comment: "前一截是「某档做不了某件事」的整句（不带句号），后一截是「你所在的地区目前没有…的出片模型」" });
+  }
+  const rows = go.usable.length ? go.usable : go.member;
+  const names = joinTierNames(rows.map((x) => x.label));
+  // 做得到的那几档的供应商（与被挡的档同一颗芯片 = 同名，才要点名；地区不知道不写）
+  const destVia = named && rows.some((x) => x.family === tier.family) ? providerNames(rows) : null;
+  if (go.usable.length) {
+    return destVia ? t`${head}——换到 ${destVia} 的「${names}」档就有` : t`${head}——换到「${names}」档就有`;
+  }
+  return destVia
+    ? t`${head}——${destVia} 的「${names}」档做得到（会员档：开通会员套餐或充值过任意一笔后可用）`
+    : t`${head}——「${names}」档做得到（会员档：开通会员套餐或充值过任意一笔后可用）`;
+}
+
+/** 这件事（带参考视频 / 跑白模模板）这一档做不做得到 —— 判据只在 economy（闸门 + 价签） */
+function r2vCan(scope: R2vScope): (x: VideoTier) => boolean {
+  return (x) => !(scope === "refVideo" ? r2vBlockOf(x.id) : blockoutBlockOf(x.id));
+}
+
+/**
+ * 这一档做不到、**同一颗芯片的另一家**（目录里）做得到 —— r2vTierIssue 换说法的那一种（FixSegmentBox 据此不再自己补「会员档 / 没有」那半句：r2vTierIssue 已经说了）。
+ */
+export function r2vSameChipOpen(tier: VideoTier, scope: R2vScope): boolean {
+  const can = r2vCan(scope);
+  return !can(tier) && VIDEO_TIERS.some((x) => x.family === tier.family && x.id !== tier.id && can(x));
 }
 
 /**
