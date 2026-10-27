@@ -16,6 +16,9 @@
 // ★ 取消勾选 = 解绑，具体做什么由宿主决定（造卡流程 = 丢掉待绑定；详情页 = 当场解绑）。
 // ★ 服务端没配 AK/SK 时邀约会 503 —— 只在出错时才摆出「填 asset ID」的手填退路（铁律八：
 //   坏了要有出口；没坏就别占地方）。
+// ★ 摆不摆只问 account.volcEntryState（2026-10-26 出片地区 · 主人第 2 件审核，放在这里而不是三个宿主各加一道闸）：
+//   现在能用的模型一个都不收火山引擎认证素材（海外门禁开着时）—— 没认证过的卡不摆（勾上会当场打开火山引擎 cn-beijing 的活体认证，走进去也用不上）；
+//   **认证过的卡照样摆、旁边说一句**：撤回肖像授权不能被地区挡住。地区不知道时照今天的样子摆（与「按模型适配」那一格同一个口径）。
 // ★ 走系统浏览器而不是 App 内 WebView：那一页要登录火山账号并做活体认证，系统浏览器才有
 //   相机权限与已登录态，也让用户看得见地址栏是 volcengine.com（在我们自己的 WebView 里让人
 //   输火山密码，是钓鱼页的形状）。
@@ -28,10 +31,13 @@ import {
   type PortraitAsset,
   type PortraitInvite,
 } from "../api/portrait";
+import { volcEntryState } from "../data/account";
 import { normalizeAssetId } from "../data/cardAsset";
+import { useAccountVersion } from "../hooks/useAccount";
 import { relativeTime } from "../types";
 import { onBrowserFinished, openExternal } from "../utils/openExternal";
 import QrCode from "./QrCode";
+import Warn from "./Warn";
 
 /** 等火山结果的慢轮询：间隔与上限。★ 上限到了就停，别让一张忘在后台的页一直打方舟的 OpenAPI */
 const POLL_MS = 8_000;
@@ -60,6 +66,8 @@ export default function VolcCompatToggle({
   disabled?: boolean;
 }) {
   const { t } = useLingui();
+  // 摆不摆跟着「此刻摆得出来的模型」走（account.volcEntryState）：地区是异步问到的，订阅账号的版本号，到了就重画
+  useAccountVersion();
   const [phase, setPhase] = useState<Phase>("idle");
   const [busy, setBusy] = useState(false);
   /** 只放**出了事**的话：查不到、发不起、审核没过。正常路径上一个字都不说 */
@@ -240,6 +248,9 @@ export default function VolcCompatToggle({
 
   const checked = !!boundId;
   const open = phase !== "idle" || manual || !!msg || failed.length > 0;
+  // ★ 早退排在所有 hook 之后（hook 写在早退之后，状态一变整棵树当场崩）。流程已经开着（等火山回来的那几分钟里地区变了）不收：让这一轮走完
+  const entry = volcEntryState(boundId);
+  if (entry === "off" && !open) return null;
 
   return (
     <div>
@@ -265,6 +276,11 @@ export default function VolcCompatToggle({
         />
         <Trans>火山引擎适用</Trans>
       </label>
+      {entry === "keep" && (
+        <Warn compact className="ml-5 mt-1">
+          <Trans>你现在能用的出片模型都不收火山引擎认证素材（认证先留着，可以随时取消）</Trans>
+        </Warn>
+      )}
 
       {open && (
         <div className="mt-1.5 space-y-1.5 pl-5">

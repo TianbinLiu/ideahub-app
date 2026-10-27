@@ -20,13 +20,15 @@
 import { currentRoute, startJob } from "../data/jobs";
 import { t } from "@lingui/core/macro";
 import { create } from "zustand";
-import { castPreviewImage, frameUrlAt, fuseStageFrame, AI_REAL, ArkTaskFailed, ArkTaskUnknown, SegmentGenFailed, briefArkReason, chargeNote, chargeOnFail, generateFrame, generateProposals, keptFrameCount, notesInParens, prepareMaterialRefs, recaptureSegment, refineFrame, takeVideoTask, transferStatus, unwrapFailure } from "../ai";
+import { castPreviewImage, frameUrlAt, fuseStageFrame, AI_REAL, ArkRegionDenied, ArkTaskFailed, ArkTaskUnknown, SegmentGenFailed, briefArkReason, chargeNote, chargeOnFail, generateFrame, generateProposals, keptFrameCount, notesInParens, prepareMaterialRefs, recaptureSegment, refineFrame, takeVideoTask, transferStatus, unwrapFailure } from "../ai";
 import { frameMoment, isMultiShot, momentCards } from "../data/shotScript";
 import { endFrameUsed } from "../data/drawPlan";
-import { isArkAssetUrl, transferArkVideo } from "../ai/arkClient";
-import { canAfford, defaultTierId, draftModeIssue, draftModeOffered, frozenNote, myCards, realFaceIssue, spendTokens, tierBlockReason, tierGo, tierOffered, usableTierId, walletOf } from "../data/account";
+import { isArkAssetUrl, reasonClause, transferArkVideo } from "../ai/arkClient";
+import { canAfford, defaultTierId, draftModeIssue, draftModeOffered, frozenNote, myCards, noTierLine, realFaceIssue, spendTokens, tierBlockReason, tierGo, tierOffered, tierRegionGate, tierRegionIssue, tierRegionRecheck, usableTierId, walletOf, type TierNeed } from "../data/account";
+import { refreshVideoZone, zoneIsRegional } from "../data/videoZone";
 import { showToast } from "../data/toast";
 import {
+  apiCase,
   r2vTokens,
   ONE_IMAGE,
   providerOf,
@@ -314,6 +316,11 @@ export function extendIssue(nodes: FlowNode[], idx: number): string | null {
   if (!tier.refVid || tier.r2vMult === null || !tier.extendOk) {
     // 能延长的档按能力现算（extendOk）；这个人一档都用不了时说那是会员档（account.tierGo）
     const go = tierGo((x) => x.extendOk);
+    // 摆得出来的档里一档都不能延长（门禁开着的海外只剩「真人」档，2026-10-26 终审）：说地区 / 这台服务器的事实，不说「会员档」（account.noTierLine）
+    if (!go) {
+      const none = noTierLine("extend");
+      return t`「${label}」档还不能延长——${none}`;
+    }
     const names = go.names;
     return go.member
       ? t`「${label}」档还不能延长——用「${names}」出的段才能延长（会员档）`
@@ -383,13 +390,15 @@ export function draftStageOf(p: Proposal): "draft" | "final" | null {
 
 /**
  * 这一段的**做法**能不能走样片（不看开关、不看档位）：只有普通出片那条路 —— 白模模板 / 延长 / 示例视频都带视频输入（方舟：样片不收视频输入），
- * 真人档是另一家供应商。
+ * 真人档是另一套请求（样片是方舟协议里的一种请求，VideoTier.api 不是 ark 的档没有这回事）。
+ * ★ 2026-10-26 起按请求形状（api）判，不按供应商：结果与原来的 `provider !== "minimax"` 逐档相同，判据说的才是这件事本身。
  */
 export function nodeDraftEligible(node: FlowNode): boolean {
   if (tplOfNode(node)?.refVideo) return false;
   if (node.extendFrom) return false;
   if (node.custom && node.customRef) return false;
-  return providerOf(node.videoTier) !== "minimax";
+  // apiCase 不写等号：加一种 api 时 tsc 逼着在这里表态（样片是方舟协议里的一种请求，别家协议有没有要逐个说）
+  return apiCase(tierOf(node.videoTier).api, { ark: true, "minimax-v1": false });
 }
 
 /**
@@ -421,7 +430,8 @@ export function draftFinalIssue(node: FlowNode, now = Date.now()): string | null
   if (draftStageOf(p) !== "draft") return t`这一段现在放的不是样片，没有可以定稿的`;
   // ★ 我们的期限是 7 天差 1 小时（DRAFT_VALID_MS，服务端同一个数）：别说成「过了 7 天」—— 6 天 23 小时半回来的人读到的是一句自相矛盾的话
   if (draftValidLeft(p, now) <= 0) return t`这条样片已经过了定稿期限（方舟的样片只留 7 天，我们在到期前 1 小时停止定稿）——要成片就重新生成（会重新计费）`;
-  return draftModeIssue(tierOf(draftTierId()));
+  // 定稿只认样片任务号、换不了档：地区挡住时不指「换成哪一档」（() => false，见 account.tierRegionIssue 的 ★★）
+  return draftModeIssue(tierOf(draftTierId()), () => false);
 }
 
 /**
@@ -984,7 +994,8 @@ export function remakeNodesOf(segs: VideoSegment[], cards: Card[]): RecipeBuild 
     //   悄悄换的话，按原作的档位想象的画面与价钱都对不上（2026-10-07 免费档限制）
     const want = seg.videoTier || undefined;
     const tier = usableTierId(want);
-    if (want && tier !== want) notes.push(tierSwapNote(i, want, tier));
+    const tierNote = want ? tierCopyNote(i, want, tier) : null;
+    if (tierNote) notes.push(tierNote);
     const p: Proposal = {
       id: uid("prop"),
       title: seg.title || t`第 ${i + 1} 段`,
@@ -1008,7 +1019,7 @@ export function remakeNodesOf(segs: VideoSegment[], cards: Card[]): RecipeBuild 
 
 /**
  * 「第 N 段原来是 A 档，换成了 B 档（为什么）」—— 抄别人的东西换了档时那一句（做同款 / 按配方做同款 / 经典模板共用）。
- * 原因按 tierBlockReason 的口径分三种：会员档、已停用、这台服务端不支持。
+ * 原因按 tierBlockReason 的口径分四种：会员档、已停用、你所在的地区不提供（出片地区）、这台服务端不支持。
  */
 function tierSwapNote(i: number, from: string, to: string): string {
   const n = i + 1;
@@ -1017,10 +1028,26 @@ function tierSwapNote(i: number, from: string, to: string): string {
   if (a.id !== from) return t`第 ${n} 段原来的档位已经下线，改用「${b}」档`;
   const label = a.label;
   if (tierRetired(a)) return t`第 ${n} 段原来是「${label}」档（模型已停用），改用「${b}」档`;
+  // ★ 地区排在「服务端不支持」之前（与 tierOffIssue 同一个顺序）：原来摆不出来的只剩「服务端不支持」一种，地区一来这句话就会把原因说错（2026-10-26 设计审核）。
+  //   门禁没开时（videoZone.zoneIsRegional 为假）藏掉那一家的是这台服务器没接上它，落到下面「这台服务器还不支持」那一句（P1 审核）
+  if (tierRegionIssue(a) && zoneIsRegional()) return t`第 ${n} 段原来是「${label}」档（你所在的地区用不了），改用「${b}」档`;
   // ★ 摆不出来的（停用之外只剩「这台服务端不支持」）先判，剩下的才是套餐那一道 —— 判据与 tierBlockReason 同一个顺序
   //   （原来按目录的 freeOk 判会员档：服务端关了免费档限制时这句话就说错了；account.tierFreeOk 那条 ★）
   if (!tierOffered(a)) return t`第 ${n} 段原来是「${label}」档（这台服务器还不支持），改用「${b}」档`;
   return t`第 ${n} 段原来是「${label}」档（会员档），改用你能用的「${b}」档——开通会员套餐（或充值过任意一笔）后可以换回去`;
+}
+
+/**
+ * 抄别人的档时那一句（做同款 / 按配方做同款 / 经典模板共用；null = 不用说）：换了档 → tierSwapNote；**没换、但这一档这个人用不了** → 照实说原因。
+ * ★ 第二种是 2026-10-26 P1 审核之后才有的：usableTierId 在地区挡住原档、又找不到做得了同样事的近邻时**留着原档**（不往「真人」档上落），
+ *   这时一个字不说的话，人要到点生成才第一次听说这一段用不了。
+ */
+function tierCopyNote(i: number, from: string, to: string): string | null {
+  if (to !== from) return tierSwapNote(i, from, to);
+  const blocked = tierBlockReason(tierOf(from));
+  if (!blocked) return null;
+  const n = i + 1;
+  return t`第 ${n} 段：${blocked}`;
 }
 
 /** 这条作品够不够格「做同款」：至少一段带剧本文字（纯上传/无剧本的作品没有配方可抄） */
@@ -1101,7 +1128,8 @@ export function recipeNodesOf(recipe: WorkflowRecipe, picks: RecipePicks): Recip
     }
     // ★ 认不出 / 用不了（会员档、已停用、服务端不支持）都换成这个人能用的默认档，换了就说（tierSwapNote）
     const tier = usableTierId(rn.tier);
-    if (tier !== rn.tier) notes.push(tierSwapNote(i, rn.tier, tier));
+    const tierNote = tierCopyNote(i, rn.tier, tier);
+    if (tierNote) notes.push(tierNote);
     else if (rn.model && tierOf(tier).model !== rn.model) notes.push(t`第 ${i + 1} 段那一档底下的模型已经换代，画面风格可能与原作不同`);
     const p: Proposal = {
       id: uid("prop"),
@@ -1864,8 +1892,9 @@ interface FlowState {
    * 一次接几段在末尾（跟着做 C「九宫格分镜」：挑中的几格各成一段，2026-10-05）。门禁与 appendNode 同一处（appendIssue：
    * 白模尾段拒 / 末段未出片拒 / 生成中拒），每段用 appendedNode 拼（与 appendSpecsQuote 报价的同一批）。
    * 返回新段的 id（按顺序）；被拒 = null，原因在 err。
+   * `opts.tierGate: false` = 不问档位门禁，同 appendNode 的那一位：**只给已经花了钱才来落地的**（跟着做向导落的是付过钱的格子 / 机位 / 关键帧），理由见实现。
    */
-  appendSpecs: (specs: AppendSpec[]) => string[] | null;
+  appendSpecs: (specs: AppendSpec[], opts?: { tierGate?: boolean }) => string[] | null;
   /**
    * 「修这一段 · 延长」（2026-10-05）：在流水线末尾接一段**延长段**（FlowNode.extendFrom），接着最后一段的成片往后拍 durationSec 秒。
    * 门禁 extendIssue（只延长最后一段 / 成片已转存 / 档位能带参考视频）+ appendNode 自己那一道（appendIssue）；落什么只在 extendSpec。
@@ -2179,7 +2208,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
     // 经典配方存的 videoTier 是提取器写死的默认值（CLAUDE.md「模板对出片模型是硬要求」那条：它不是事实）——
     // 这个人用不了那一档（会员档 / 已停用）就换成他能用的默认档，换了说一句（轻提示：简约模式页上没有常驻的提示位）
     const classicTier = usableTierId(tmpl.recipe.videoTier);
-    if (tmpl.recipe.videoTier && classicTier !== tmpl.recipe.videoTier) showToast(tierSwapNote(0, tmpl.recipe.videoTier, classicTier), 6000);
+    const classicNote = tmpl.recipe.videoTier ? tierCopyNote(0, tmpl.recipe.videoTier, classicTier) : null;
+    if (classicNote) showToast(classicNote, 6000);
     set({
       // 一个 beat 一段。段与段之间沿用尾帧续作（chain），模板才有连贯性
       nodes: tmpl.recipe.beats.map((_, i) =>
@@ -2754,6 +2784,9 @@ export const useFlow = create<FlowState>()((set, get) => ({
     {
       const blocked = tierBlockReason(tierOf(node.videoTier));
       if (blocked) {
+        // ★ 拒的原因是出片地区时先现问一次（反方向：旧结论说被拦、其实已经能用了 —— account.tierRegionRecheck 的 ★）；
+        //   结论变了就从头再走一遍（等的这几秒里 busy / 余额都可能变，别接着往下走）
+        if (await tierRegionRecheck(tierOf(node.videoTier))) return get().deriveProposals(nodeId);
         set({ err: blocked });
         return false;
       }
@@ -2793,8 +2826,20 @@ export const useFlow = create<FlowState>()((set, get) => ({
     }
     const myRun = get().genRun + 1;
     set({ busy: true, err: "", genRun: myRun, genFrom: currentRoute() });
-    if (AI_REAL) spendTokens(propCost);
     get().updateNode(nodeId, { status: "generating", progress: t`推演三种走向…` });
+    // ★★ 出片地区：推演（一次对话 + 最多 6 张图）先现问一次地区再花钱，理由同 genNode 那一处 —— 推演出来的方案在这个地区出不了片的话，
+    //   这一笔就白花了；地区门禁只拦视频，管不到推演。排在「打上 generating」之后（画布的 agent 700 毫秒后按这个状态报回执，同 genNode 的 ★）
+    await refreshVideoZone();
+    {
+      const region = tierRegionIssue(tierOf(node.videoTier));
+      if (region) {
+        // 原样退回（这一炉一分钱没花）：状态、进度回到点之前
+        get().updateNode(nodeId, { status: node.status, progress: node.progress });
+        set(get().genRun === myRun ? { busy: false, err: region } : {});
+        return false;
+      }
+    }
+    if (AI_REAL) spendTokens(propCost);
     /** 帧一张都没画成、因为出图模型用不了了（real.generateProposals 的 onFramesGone）：剧情照收，原因说在下面 */
     let framesGone = "";
     try {
@@ -2945,6 +2990,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
     {
       const blocked = tierBlockReason(tierOf(node.videoTier));
       if (blocked) {
+        // 原因是出片地区时顺手现问一次（反方向：旧结论说被拦、其实已经能用了，account.tierRegionRecheck）—— 下一次点就用上新结论
+        void tierRegionRecheck(tierOf(node.videoTier));
         set({ err: blocked });
         return false;
       }
@@ -2961,6 +3008,16 @@ export const useFlow = create<FlowState>()((set, get) => ({
       get().updateNode(nodeId, { status: "idle", progress: "" });
       set(get().genRun === myRun ? { busy: false, frameEdit: null, ...patch } : { frameEdit: null });
     };
+    // ★★ 出片地区（2026-10-26 终审，钱）：花这一张图的钱之前现问一次地区再判（account.tierRegionGate）—— 上面那道同步闸读的是旧结论，
+    //   改好的帧只在这一档出得了片时才有用。排在「打上 generating」之后（busy 已占上，等的这几秒里点不出第二炉）；拒了原样退回、一分钱没花
+    {
+      const region = await tierRegionGate(tierOf(node.videoTier));
+      if (region) {
+        get().updateNode(nodeId, { status: node.status, progress: node.progress });
+        set(get().genRun === myRun ? { busy: false, frameEdit: null, err: region } : { frameEdit: null });
+        return false;
+      }
+    }
     try {
       const notes: string[] = [];
       let next: string;
@@ -3035,6 +3092,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
     {
       const blocked = tierBlockReason(tierOf(node.videoTier));
       if (blocked) {
+        // 原因是出片地区时顺手现问一次（反方向：旧结论说被拦、其实已经能用了，account.tierRegionRecheck）—— 下一次点就用上新结论
+        void tierRegionRecheck(tierOf(node.videoTier));
         set({ err: blocked });
         return false;
       }
@@ -3070,6 +3129,15 @@ export const useFlow = create<FlowState>()((set, get) => ({
     const myRun = get().genRun + 1;
     set({ busy: true, err: "", genRun: myRun, genFrom: currentRoute() });
     get().updateNode(nodeId, { status: "generating", progress: t`按修改重画画面…`, regenning: true });
+    // ★★ 出片地区（2026-10-26 终审，钱）：重画要几张图的钱，花之前现问一次地区再判（account.tierRegionGate，理由同 editFrame 那一处）；拒了原样退回
+    {
+      const region = await tierRegionGate(tierOf(node.videoTier));
+      if (region) {
+        get().updateNode(nodeId, { status: node.status, progress: node.progress, regenning: false });
+        set(get().genRun === myRun ? { busy: false, err: region } : {});
+        return false;
+      }
+    }
     try {
       // ★ 必须把本段画幅递下去：Seedream 的画布比例得与视频画幅一致，缺了它重画出来的
       //   帧是横的，喂给竖屏 Seedance 任务会被静默裁一刀（人物常被裁掉半个头）。
@@ -3212,7 +3280,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
     return newId;
   },
 
-  appendSpecs: (specs) => {
+  appendSpecs: (specs, opts) => {
     let ids: string[] | null = null;
     set((s) => {
       const issue = appendIssue(s);
@@ -3221,9 +3289,16 @@ export const useFlow = create<FlowState>()((set, get) => ({
       const built: FlowNode[] = [];
       for (const sp of specs) built.push(appendedNode([...s.nodes, ...built], sp));
       // 档位门禁（同 appendNode）：一段落不了就一段都不落
-      for (const n of built) {
-        const tierIssue = tierBlockReason(tierOf(n.videoTier));
-        if (tierIssue) return { err: tierIssue };
+      // ★★ 但**已经花了钱才来落地的**不问（opts.tierGate === false，三个跟着做向导这么传 —— 2026-10-26 出片地区终审抓到）：
+      //   九宫格的格子、对话正反打的三个机位、特效同款的关键帧都是先付图钱、几分钟后才落段，这一道的答案在这期间会变 ——
+      //   地区变了（前台关 VPN 不发 visibilitychange）、套餐状态从「还不知道」变成「没付过钱」、跨过停用时刻。这里一拒，付过钱的画面
+      //   只活在向导里（门禁开着的海外唯一给得出的「真人」档上九宫格 / 对话正反打本来就不摆，没有第二条落段的路）。
+      //   落下来没有坏处：出片那一拍 genNode 照样现问地区、拦下并说清楚，这几段的档位行能换到用得了的档，画面留着（也进草稿）。
+      if (opts?.tierGate !== false) {
+        for (const n of built) {
+          const tierIssue = tierBlockReason(tierOf(n.videoTier));
+          if (tierIssue) return { err: tierIssue };
+        }
       }
       ids = built.map((n) => n.id);
       // 光标停在新落的第一段（与 appendNode 同一个写法）；pinUnstatedTpl 同拍（理由见 addNode 的 ★★★）
@@ -3665,6 +3740,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
     {
       const blocked = tierBlockReason(tierOf(node.videoTier));
       if (blocked) {
+        // 原因是出片地区时顺手现问一次（反方向：旧结论说被拦、其实已经能用了，account.tierRegionRecheck）—— 下一次点就用上新结论
+        void tierRegionRecheck(tierOf(node.videoTier));
         set({ err: blocked });
         return false;
       }
@@ -3677,6 +3754,15 @@ export const useFlow = create<FlowState>()((set, get) => ({
     if (AI_REAL && !canAfford(ONE_IMAGE)) {
       set({ err: frozenNote() ?? t`合成预览要一张图的钱（${fmtTokens(ONE_IMAGE)} token），余额不够——去「我的」页充值` });
       return false;
+    }
+    // ★★ 出片地区（2026-10-26 终审，钱）：花这一张图的钱之前现问一次地区再判（account.tierRegionGate；上面那道同步闸读的是旧结论）。
+    //   白模段：出路只指跑得了白模的档（blockoutOk）
+    {
+      const region = await tierRegionGate(tierOf(node.videoTier), (x) => x.blockoutOk);
+      if (region) {
+        set({ err: region });
+        return false;
+      }
     }
     const job = startJob({ kind: "cast-preview", title: t`合成预览`, page: "/studio", route: "/studio", progress: t`把角色放进白模画面…` });
     try {
@@ -3729,6 +3815,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
     {
       const blocked = tierBlockReason(tierOf(node.videoTier));
       if (blocked) {
+        // 原因是出片地区时顺手现问一次（反方向：旧结论说被拦、其实已经能用了，account.tierRegionRecheck）—— 下一次点就用上新结论
+        void tierRegionRecheck(tierOf(node.videoTier));
         set({ err: blocked });
         return false;
       }
@@ -3762,6 +3850,19 @@ export const useFlow = create<FlowState>()((set, get) => ({
     });
     if (AI_REAL && !canAfford(ONE_IMAGE)) {
       set({ err: frozenNote() ?? t`导演台融图要一张图的钱（${fmtTokens(ONE_IMAGE)} token），余额不够——去「我的」页充值` });
+      return false;
+    }
+    // ★★ 出片地区（2026-10-26 终审，钱）：花这一张图的钱之前现问一次地区再判（account.tierRegionGate；上面那道同步闸读的是旧结论）
+    {
+      const region = await tierRegionGate(tierOf(node.videoTier));
+      if (region) {
+        set({ err: region });
+        return false;
+      }
+    }
+    // 问的那几秒里这一段可能开炼了（上面那道同步闸是问之前的样子）：开炼了就不融，免得融好的帧写进一段正在出片的段
+    if (get().busy || get().nodes.find((n) => n.id === nodeId)?.status === "generating") {
+      set({ err: t`这一段正在出片，等它结束再换开头帧` });
       return false;
     }
     const job = startJob({ kind: "stage-fuse", title: t`导演台融图`, page: "/studio", route: "/studio", progress: t`把构图示意融成开头帧…` });
@@ -4108,9 +4209,12 @@ export const useFlow = create<FlowState>()((set, get) => ({
       const extLabel = extTier.label;
       if (!extTier.refVid || extTier.r2vMult === null || !extTier.extendOk) {
         const go = tierGo((x) => x.extendOk);
-        const names = go.names;
+        const names = go?.names ?? "";
+        const none = go ? "" : noTierLine("extend");
         set({
-          err: go.member
+          err: !go
+            ? t`「${extLabel}」档还不能延长——${none}`
+            : go.member
             ? t`「${extLabel}」档还不能延长——能延长的「${names}」是会员档（开通会员套餐或充值过任意一笔后可用）`
             : t`「${extLabel}」档还不能延长——去 ⚙ 本段设置换成「${names}」档`,
         });
@@ -4151,6 +4255,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
     if (fin) {
       const issue = draftFinalIssue(node);
       if (issue) {
+        // 反方向现问（见下面档位门禁那一处的 ★）：定稿问的是出样片那一档
+        if (await tierRegionRecheck(tierOf(draftTierId()))) return get().genNode(id, opts);
         set({ err: issue });
         return false;
       }
@@ -4161,6 +4267,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
       // 套餐那一道（免费版没有电影级）与服务端能力位：开关开着、档位也摆得出来，但这个人用不了 —— 当场说人话
       const issue = draftModeIssue(tierOf(node.videoTier));
       if (issue) {
+        if (await tierRegionRecheck(tierOf(node.videoTier))) return get().genNode(id, opts);
         set({ err: issue });
         return false;
       }
@@ -4172,11 +4279,20 @@ export const useFlow = create<FlowState>()((set, get) => ({
      * 取回可能在几小时后，那时这一段的档位可能已经换过了，现问会问错（reviseAudioPatch 的 ★）
      */
     const reviseAudio = rv ? reviseAudioOf(genTier) : undefined;
+    /**
+     * 这一发要哪种能力的档 —— 只给地区那一支挑「换成哪一档」的出路（account.tierRegionIssue 的 ★★）：定稿换不了档、重拍要能按参考视频出片、
+     * 延长要能延长；普通出片不传（不往「真人」档上指）。
+     */
+    const need: TierNeed | undefined = fin ? () => false : rv ? (x) => x.refVid && x.r2vMult !== null : ext ? (x) => x.extendOk : undefined;
     // 档位门禁（会员档 / 已停用 / 服务端不支持）。UI 上那一档本来就点不动，会走到这里的是"草稿里存着这一档、
     // 而套餐后来降了 / 模型停用了"这种存量情况 —— 与其让它飞到服务端换一句 403，不如当场说人话。
     // ★ 判断本身在 data/account.tierBlockReason，这里只是调用点（铁律六）。定稿的那一道 draftFinalIssue 已经问过了
-    const blocked = fin ? null : tierBlockReason(tierOf(node.videoTier));
+    const blocked = fin ? null : tierBlockReason(tierOf(node.videoTier), need);
     if (blocked) {
+      // ★ 拒的原因是出片地区时先现问一次地区（2026-10-26 P1 审核，反方向）：这一场会话上一次问到的是「被拦」，人在前台关了 VPN
+      //   （visibilitychange 不会发），不问的话最多 10 分钟里每一次点都被这一句拒。结论变了就**从头**再走一遍（busy、顺序、余额都重判）。
+      //   只在拒的这一支 await：放行的那一发照旧在第一个 await 之前就打上 generating（工坊受理即收窗、画布 agent 的回执认这一条）
+      if (await tierRegionRecheck(tierOf(node.videoTier))) return get().genNode(id, opts);
       set({ err: blocked });
       return false;
     }
@@ -4229,7 +4345,6 @@ export const useFlow = create<FlowState>()((set, get) => ({
     const myRun = get().genRun + 1;
     set({ busy: true, err: "", genRun: myRun, genFrom: currentRoute() });
     patchNode({ status: "generating", progress: t`准备中…`, error: undefined, steps: [] });
-    set({ genStarted: { id, at: Date.now() } });
     /** 这一发的方舟任务号（受理之后才有）。空 = 还没被受理，也就一分钱都没花 */
     let taskId = "";
     /** 受理时刻（样片的 7 天有效期从这一刻起算，写进 Proposal.draftAt） */
@@ -4238,6 +4353,23 @@ export const useFlow = create<FlowState>()((set, get) => ({
     const draftDur = clampDuration(prop.durationSec, node.videoTier);
     const draftRatio = aspectOf(node.aspect).ratio;
     try {
+      // ★★ 出片地区（2026-10-26 设计审核，钱）：花第一笔钱之前现问一次地区（data/videoZone.refreshVideoZone），再按问到的那份重判这一档。
+      //   服务端的地区门禁只拦视频那一发，出片前补画的设定帧在它之前各自结算 —— 会话中途开关过 VPN 的人，上一次问到的还是旧地区，
+      //   不现问的话就是先付图钱、视频那一发再被 403。问不到就沿用上一次的结论放行（服务端照样拦，视频那一发不扣钱）。
+      // ★ 排在「打上 generating」**之后**、第一笔钱之前：工坊（studioStore.genNodeVideo）与画布的 agent 都认「门禁与打上 generating 都在 genNode
+      //   第一个 await 之前」这一条（受理即收窗、700 毫秒后探状态报回执），把 await 插到前面会让它们把真开炼的一发当成没点着。
+      // ★★ 所以那两处**自己先现问一次**再调 genNode（2026-10-26 P1 审核）：上面的同步门禁于是已经拿到新地区、在打上 generating 之前整句拒；
+      //   这里这一发落在 5 秒间隔里、当场返回。这里拒得到的只剩没先问的宿主（画布上那几颗键）：节点退回点之前的样子、原因写进 err（宿主都画它）。
+      //   genStarted 排在这一道之后：画布「提交即收窗」认它，没过地区的一发不收窗、不吐「已开始生成」（原来先写了它，拒了也说已开始）
+      await refreshVideoZone();
+      const region = tierRegionIssue(tierOf(genTier), need);
+      if (region) {
+        // 原样退回（这一炉一分钱没花、凭据也没落）：状态、原来那句错误、步骤日志回到点之前
+        patchNode({ status: node.status, progress: node.progress, error: node.error, steps: node.steps });
+        set(get().genRun === myRun ? { busy: false, err: region } : {});
+        return false;
+      }
+      if (get().genRun === myRun) set({ genStarted: { id, at: Date.now() } });
       // 承接判定走**唯一实现** nodeCarry（报价那边读的就是它）。
       // ★★ 2026-09-03 收口：这里原来手抄了一份逐字相同的判断。判据相同的时候它只是冗余，
       //   但从这一版起**报价依赖它**了（annsCost 按"真会重画的圈选"数，而那取决于有没有
@@ -4329,6 +4461,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
             taskId: id2,
             // ★ 记下这一发是哪家出的：取回按它分流。分错家会让方舟那条 404 分支
             //   对着一发还活着的真人档成片说「钱无法挽回」（见 VideoJob.provider 的 ★）
+            // ★ 这里问的就是「哪家」，读 provider 是对的（别「顺手」改成 api：MiniMax 的 V2 任务会被记成方舟的）
+            // tier-semantics-ok: 取回凭据按供应商分流
             provider: providerOf(node.videoTier) === "minimax" ? "minimax" : "ark",
             nodeId: id,
             proposalId: node.chosenId,
@@ -4471,8 +4605,9 @@ export const useFlow = create<FlowState>()((set, get) => ({
       //   用户面前唯一可点的就是「♻ 重新生成」= 重新下一单，而那一发的成片其实
       //   在方舟那边好好地存在着（2026-08-18 那 ¥27 就是这么丢的）。
       if (e instanceof ArkTaskUnknown) {
-        // 这一发是哪家出的（判据与上面落凭据那处同源）
-        const flat = providerOf(node.videoTier) === "minimax";
+        // 这一发是哪家出的（判据与上面落凭据那处同源）—— 话里说的是「上游 / 方舟那边」，问的就是供应商
+        // tier-semantics-ok: 这句话按供应商说「任务在哪家那边跑」
+        const atMinimax = providerOf(node.videoTier) === "minimax";
         // 凭据**留着**（这一支绝不 dropVideoJob）：它是取回入口能不能出现的唯一依据。
         // 日志那一行也不许写"失败"——步骤日志是用户回看这一段怎么回事的地方。
         // ★ 截断窗口按英文放宽（2026-09-16，下面几处同）：英文比中文长一倍多，80 / 150 / 160 会把
@@ -4484,7 +4619,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
           // 短句给段导航条上那颗角标；那笔钱的完整说明在取回卡上（videoJobNote 一处实现）
           // ★ 说"哪家"要按 provider 说：真人档那一发在海螺（MiniMax）那边，
           //   写死"方舟"会让用户拿着错的词去问客服
-          error: flat
+          error: atMinimax
             ? t`没接到出片结果，任务可能还在上游那边跑——用下面的「取回」领回来，别重新生成`
             : t`没接到出片结果，任务可能还在方舟那边跑——用下面的「取回」领回来，别重新生成`,
         });
@@ -4500,7 +4635,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
         if (get().genRun !== myRun) return false;
         // ★ 24 小时是**方舟产物**的物理事实；真人档那边我们没量过留存，不许编一个数
         //   （同 videoJobNote 里那条 ★★）
-        const pendingErr = flat
+        const pendingErr = atMinimax
           ? t`第 ${idx + 1} 段${msg.slice(0, 240)}点下面那颗「取回」把它领回来，不再花一分钱；「重新生成」是重新下一单、会再花一次。`
           : t`第 ${idx + 1} 段${msg.slice(0, 240)}成片 24 小时内都能取回：点下面那颗「取回」，不再花一分钱；「重新生成」是重新下一单、会再花一次。`;
         // 记下这一句说的是哪一发：后来认出它退了钱时由 settleRefundedPending 撤掉（pendingErrNote 的 ★）
@@ -4554,10 +4689,16 @@ export const useFlow = create<FlowState>()((set, get) => ({
       const money = chargeNote(fc, fc.video ? Math.max(0, cost - framesSettled * ONE_IMAGE) : ONE_IMAGE);
       const inner = unwrapFailure(e);
       /** 一句给人看的原因：上游明说失败的那种已经按错误码说成人话（arkFailReason），别把方舟的英文原话整段贴上来 */
-      const why = inner instanceof ArkTaskFailed ? inner.reason : msg.slice(0, 240);
+      // ★ 摘掉句末标点（reasonClause）：下面拼的是「…：${why}。${moneyLine}」，而地区那一句（ArkRegionDenied）是两整句、自带句号 ——
+      //   原来出片前画过帧时屏幕上是「…也没有扣费。。已经画好的 2 张…」（2026-10-26 P1 审核）
+      // ★ 地区那一句（ArkRegionDenied）不截（2026-10-26 终审）：长度有界的整句，英文配上长国名能到 250 字 —— 按 240 截会断在词中间、
+      //   把括号里钱的短语截掉；钱上的话已经不在它里面（chargeNote 的 regionNoCharge）
+      const region = inner instanceof ArkRegionDenied;
+      const why = reasonClause(inner instanceof ArkTaskFailed ? inner.reason : region ? inner.message : msg.slice(0, 240));
       // 失败也留在日志里：卡在哪一步、跑了多久，比一句"生成失败"有用得多
       log.fail(money ? t`失败：${why.slice(0, 160)}（${money.brief}）` : t`失败：${why.slice(0, 160)}`);
-      patchNode({ status: "failed", progress: "", error: (money ? t`${why}（${money.brief}）` : why).slice(0, 240) });
+      const nodeErr = money ? t`${why}（${money.brief}）` : why;
+      patchNode({ status: "failed", progress: "", error: region ? nodeErr : nodeErr.slice(0, 240) });
       const n = idx + 1;
       const moneyLine = money?.line ?? "";
       set(

@@ -6,6 +6,7 @@
 import type { BranchTree, Card, CardRole, CardType, DraftVideo, TemplateRecipe, VideoDeck, VideoPart, VideoSegment } from "../types";
 import { API_BASE, ApiError, apiDelete, apiGet, apiPatch, apiPost, getToken, withAppVersion } from "./client";
 import { t } from "@lingui/core/macro";
+import { noteRegionDenied } from "../data/videoZone";
 
 // ── DTO ──────────────────────────────────────────────────
 
@@ -762,7 +763,7 @@ export async function updateCardMeta(
     tags?: string[];
     idLine?: string;
     textDesc?: string;
-    /** null = 取消「真人档适用」（服务端 $unset） */
+    /** null = 取消「起拍画面」那一勾（2026-10-26 之前叫「真人档适用」；服务端 $unset） */
     startFrames?: Card["startFrames"] | null;
   },
 ): Promise<ApiCard | null> {
@@ -1289,6 +1290,23 @@ async function blockoutPost(
   }
   if (data.ok !== true) {
     const status = res.status;
+    // ★ 出片地区（403 REGION_UNAVAILABLE，2026-10-26）：认 code 说本端的整句（服务端那句是「英文 / 中文」并排一行，给老 App 兜底）。
+    //   白模化要用电影级那一个模型；它在看帧之前就预检，平常一发都不出网、billed:false；只有两次请求之间门禁被拨到 on 的那个窄窗口
+    //   是看帧之后才拦、billed:true（契约「出片地区 → 被拦的回包」最后一条）—— 钱上两句各说各的，别把扣过的说成没扣。
+    //   回包里的地区当场记下并重问一次（data/videoZone），提取窗的白模入口跟着收起来。
+    if (data.code === "REGION_UNAVAILABLE") {
+      noteRegionDenied(data);
+      const billed = data.billed === true;
+      throw new BlockoutizeError(
+        billed
+          ? t`你所在的地区用不了白模化要用的出片模型——看帧那一笔已经花了、不退；出片那一发没有受理。`
+          : t`你所在的地区用不了白模化要用的出片模型——这一次没有受理，也没有扣费。`,
+        status,
+        data.code,
+        billed,
+        phase,
+      );
+    }
     throw new BlockoutizeError(
       typeof data.message === "string" && data.message
         ? data.message

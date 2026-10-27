@@ -6,7 +6,9 @@
 //
 // 页面读的全是同步函数（myCards() / currentUser() / isFollowing()…），签名一个没动；
 // 变更仍通过 subscribeAccount + 版本号广播，远端回包回填时也走同一条广播。
-import { t } from "@lingui/core/macro";
+import { i18n } from "@lingui/core";
+import { msg, t } from "@lingui/core/macro";
+import type { MessageDescriptor } from "@lingui/core";
 import { V3_CARD_WIPE_MS, Card, SHARE_NOTE_MAX, uid, viewTag, type CardView } from "../types";
 // data → mock 是既有方向（data/videos.ts 也从 mock/frames 取种子帧），不成环
 import { MARKET_DECKS, marketCardsByName } from "../mock/ai";
@@ -14,9 +16,12 @@ import { claimPendingTerms, reconcileTermsWithServer } from "./agreements";
 import { showToast } from "./toast";
 import { claimLegacyVoices, removeVoice } from "./cardVoice";
 import { adoptRemoteAssets, assetOf, claimLegacyAssets, hasAsset, removeAsset, saveAsset, setAssetSyncIssue, type CardAsset } from "./cardAsset";
-import { PLANS, PLATFORM_CUT, VIDEO_TIERS, fmtTokens, joinTierNames, planOf, tierOf, tierRetireDay, tierRetired, type VideoTier } from "./economy";
+import { PLANS, PLATFORM_CUT, VIDEO_TIERS, fmtTokens, joinTierNames, modelLabel, planOf, providerOf, tierModelId, tierModelLabel, tierOf, tierRetireDay, tierRetired, type VideoTier } from "./economy";
+import { cardInputOf, modelsOfTiers, type VideoModelOf } from "./cardFit";
 import { serverFreeVideo, serverSupports, subscribeServerCaps } from "./serverCaps";
-import { FREE_DEFAULT_CHAIN, PAID_DEFAULT_CHAIN, SEEDANCE_2_5, firstLiveTierId } from "./videoTierTable";
+import { refreshVideoZone, subscribeVideoZone, videoZone, zoneDenies, zoneIsRegional, type VideoProvider } from "./videoZone";
+import { tierGoOf } from "./videoZoneRules";
+import { FREE_DEFAULT_CHAIN, PAID_DEFAULT_CHAIN, SEEDANCE_2_5, firstLiveTierId, providerOfModel } from "./videoTierTable";
 import { idbGet, idbRead, idbSet } from "./db";
 // 转存（dataURL → 永久 URL）的唯一入口，与发布/换封面/详情页加图共用（铁律六）
 import { toPermanentUrl } from "./publishAssets";
@@ -129,6 +134,9 @@ export async function readyAccount(): Promise<void> {
   // 远端模式下才不会连打两次 /api/auth/me + 卡片卡组。
   if (readyPromise) return readyPromise;
   if (db) return;
+  // 开机顺手问一次出片地区（data/videoZone，不等它）：问到之前档位那一排照老样子全摆，问到之后这个地区不给的档才收起来 ——
+  // 早问一拍，人走到创作入口时多半已经问到了，少看一次「摆出来又收回去」。直连 / 离线 / 老服务端上它什么都不发
+  void videoZone();
   const p = (async () => {
     if (API_ON) {
       const ok = await readyRemote();
@@ -918,32 +926,356 @@ export function balanceNote(): string {
 
 // 能力位探测到了 / 变了：订阅了账号的界面一起重画（「草稿」档在老服务端上要藏起来，探测是异步的）
 subscribeServerCaps(() => emit());
+// 出片地区问到了 / 变了（data/videoZone）：同上 —— 这个地区不给的档要藏起来，问是异步的、会话中途还会变
+subscribeVideoZone(() => emit());
+
+/** 这台服务端认不认这一档（480p 的「草稿」档要 res480 能力位；还没探到 = 认，见 tierOffIssue 的 ★） */
+function tierServerOff(tier: VideoTier): boolean {
+  return tier.resolution !== "720p" && serverSupports("res480") === false;
+}
 
 /**
- * 这一档**眼下根本用不了**的原因（与套餐无关）：模型已经停用（retireAt），或者这台服务端还不支持它（480p 的「草稿」档要服务端 res480 能力位）。
- * null = 用得了。★ 这两种档界面上**不摆**（offeredTiers），这句话是给「这一段早就挂着这一档」的情形说的（老草稿、做同款抄来的、停用那一刻正摆着的）。
- * ★ 服务端还没探到（serverSupports 回 null）时放行：提交那一刻服务端会同步 400、一分钱不花，比慢半拍把免费用户唯一的档藏起来好。
+ * 这一档**眼下根本用不了**的原因（与套餐无关）：模型已经停用（retireAt）、你所在的地区不给这一档的供应商（出片地区，tierRegionIssue），
+ * 或者这台服务端还不支持它（480p 的「草稿」档要服务端 res480 能力位）。
+ * null = 用得了。★ 这三种档界面上**不摆**（offeredTiers），这句话是给「这一段早就挂着这一档」的情形说的（老草稿、做同款抄来的、停用那一刻正摆着的）。
+ * ★ 服务端还没探到（serverSupports 回 null）时放行：提交那一刻服务端会同步 400、一分钱不花，比慢半拍把免费用户唯一的档藏起来好。地区同理（videoZone 的 ★★）。
+ * ★ 地区排在停用之后、服务端支持之前：停用了的档说「停用」最准；地区比「服务端要更新」更根本（更新了这个地区也照样用不了）。
+ * `need` 只影响地区那一支的出路（见 tierRegionIssue）。
  */
-function tierOffIssue(tier: VideoTier): string | null {
+function tierOffIssue(tier: VideoTier, need?: TierNeed): string | null {
   const label = tier.label;
   if (tierRetired(tier)) {
     const day = tierRetireDay(tier);
     return t`「${label}」档的模型已于 ${day}停用——换一档再出片`;
   }
-  if (tier.resolution !== "720p" && serverSupports("res480") === false) {
+  const region = tierRegionIssue(tier, need);
+  if (region) return region;
+  if (tierServerOff(tier)) {
     return t`这台服务器还不支持「${label}」档（服务端需要更新）——先换一档出片`;
   }
   return null;
 }
 
-/** 这一档现在摆不摆出来（没停用、这台服务端支持）。档位那一排、选法屏、货架的「出片模型」筛选都只摆这些 */
+// ── 出片地区（2026-10-26 出片地区 P1；判据在 data/videoZone，这里只把它说成人话、接进 tierOffIssue）──
+//
+// ★★ 判「这一档在这个地区给不给」只有 videoZone.zoneDenies(这一档的供应商) 一处：App 不自己按国家另判一遍（服务端 observe 时 providers 照样带着方舟，
+//   App 照样摆；切 on 之后才藏 —— 见 data/videoZone 文件头）。地区不知道（老服务端 / 还没问到）时一档都不拦、话一句都不说。
+// ★ 这几句话只写这个地区**给得出的**供应商名（MiniMax），不写被拦的那一家（2026-10-26 主人第 2 件：海外的机器上不出现 Seedance 字样）；
+//   档位名照写（「高清」「电影级」是我们自己的档名，不是供应商）。
+// ★ 档名一律现算（regionTiers），不写死「真人」：P2b 起海外会有自己的几档。
+
+/** 供应商 → 给人看的名字（品牌名，不翻译）。只用来说「这个地区出片只提供哪几家」 */
+const PROVIDER_NAME: Record<VideoProvider, string> = { ark: "Seedance", minimax: "MiniMax" };
+
+/**
+ * 调用方这一件事要哪种能力的档（白模模板 blockoutOk、重拍 refVid、延长 extendOk、样片 draftOk…）—— 只用来挑「换成哪一档」那条出路：
+ * 被地区挡住时只往**做得了这件事**的档上指（2026-10-26 P1 审核）。不传 = 普通出片 / 推演。定稿这类换不了档的事传 `() => false`（没有可换的）。
+ */
+export type TierNeed = (t: VideoTier) => boolean;
+
+/**
+ * 这个地区此刻**给得出**的档（没停用、这台服务端认、地区给这一家）。
+ * ★ 不走 offeredTiers / tierNamesFor：它们经 tierOffIssue 绕回 tierRegionIssue —— 被拦的那一档要算「能换到哪几档」时会无限递归。
+ *   给得出的档上再问 tierBlockReason 是安全的（tierRegionIssue 对它们第一行就回 null）。
+ */
+function regionTiers(): VideoTier[] {
+  return VIDEO_TIERS.filter((x) => !tierRetired(x) && !tierServerOff(x) && !zoneDenies(providerOf(x.id)));
+}
+
+/**
+ * 「你所在的地区（美国）」这一截 —— 当**句首主语**用的名词短语（英文首字母大写）。国家判不出（Tor / 只从一次 403 里得知地区）时只说「你所在的地区」。
+ * ★ 国名按界面语言现取（Intl.DisplayNames，取不到就写国家码）；台湾在中文界面写「中国台湾」（Intl 的中文名是「台湾」，与国内的通行写法不一致）。
+ */
+function zonePlace(): string {
+  const code = videoZone()?.country ?? "";
+  if (!code) return t({ message: "你所在的地区", comment: "当句首主语用的名词短语（英文首字母大写：Your region）；后面直接接谓语" });
+  let name = code;
+  try {
+    if (i18n.locale === "en") name = new Intl.DisplayNames(["en"], { type: "region" }).of(code) ?? code;
+    // i18n-ignore-next-line: 中文界面里这一个地名的写法（与国内通行写法一致），只在中文界面用，英文界面走上一行的 Intl
+    else if (code === "TW") name = "中国台湾";
+    else name = new Intl.DisplayNames(["zh-CN"], { type: "region" }).of(code) ?? code;
+  } catch {
+    /* 老 WebView 没有 Intl.DisplayNames：写国家码 */
+  }
+  return t({ message: `你所在的地区（${name}）`, comment: "当句首主语用的名词短语（英文首字母大写：Your region (United States)）；name 是国家或地区名" });
+}
+
+/** 这几档背后是哪几家（去重、按档位表的顺序），按界面语言的列举方式连起来 */
+function providerNames(tiers: VideoTier[]): string {
+  return [...new Set(tiers.map((x) => PROVIDER_NAME[providerOf(x.id)]))].join(nameSep());
+}
+
+/**
+ * 「这里出片只提供哪几家」那半句（句首，后面能直接接「，…」）—— tierRegionIssue 与 regionTiersLine 共用。`ok` = regionTiers()，非空。
+ * ★★ 措辞分两种（videoZone.zoneIsRegional，2026-10-26 P1 审核）：门禁开着（gate "on"）说地区；门禁没开（off / observe）时 providers 只是
+ *   「这台服务器接上了哪几家」（没配 key 的那家永远不报），缺的那一家是这台服务器没接上 —— 原来一律说成「你所在的地区只提供 …」，
+ *   没配 MiniMax 的服务器会对中国用户说「你所在的地区（中国）出片只提供 Seedance」，本机验证路（内存服务端多半连方舟 key 都没有）上还会说成地区。
+ *   措辞只挑话，**藏不藏照旧只看 providers**（data/videoZone 文件头的 ★★）。
+ */
+function zoneLead(ok: VideoTier[]): string {
+  const via = providerNames(ok);
+  if (!zoneIsRegional()) {
+    return t({ message: `这台服务器出片只接了 ${via}`, comment: "句首的半句，后面可能接「，「草稿」档用不了」；via 是供应商名（Seedance / MiniMax）" });
+  }
+  const place = zonePlace();
+  return t({ message: `${place}出片只提供 ${via}`, comment: "句首的半句，后面可能接「，「草稿」档用不了」；place 是「你所在的地区（美国）」；via 是供应商名" });
+}
+
+/** 一档都给不出时那半句（同 zoneLead 的两种措辞） */
+function zoneNoneLead(): string {
+  if (!zoneIsRegional()) return t`这台服务器目前没有接上出片模型`;
+  const place = zonePlace();
+  return t`${place}目前没有可用的出片模型`;
+}
+
+/**
+ * 这一档在你所在的地区**确定**用不了的那一整句（null = 用得了，或者地区还不知道）—— tierOffIssue 的地区那一支，也给 tierSwapNote / 剪辑页判「是不是地区原因」。
+ * ★★ 出路（「换成哪一档」）只指**做得了这件事**的档（2026-10-26 P1 审核）：原来按「这个地区摆得出来的任何一档」算 —— 白模模板（钉死档位）、
+ *   样片定稿（只认出样片那一档）、重拍 / 延长（要 refVid / extendOk）上都会指一条走不通的路，还会指去「真人」档、劝免费用户为它付钱。
+ *   · `need`：调用方这件事要的能力（见 TierNeed）。不传 = 普通出片 / 推演。
+ *   · 两种都**不往只认一张起拍画面的档（startOnly，真人档）上指**：它做不了推演、只收真人卡的照片（与 usableTierId 的近邻规则同一条）。
+ *   · 有出路：先给这个人用得了的，一档都用不了时说那几档是会员档；没有出路只说事实，不编一条路。
+ * ★ 措辞（地区 / 这台服务器）见 zoneLead。
+ */
+export function tierRegionIssue(tier: VideoTier, need?: TierNeed): string | null {
+  if (!zoneDenies(providerOf(tier.id))) return null;
+  const label = tier.label;
+  const ok = regionTiers();
+  if (!ok.length) {
+    const none = zoneNoneLead();
+    return t`${none}，「${label}」档用不了`;
+  }
+  const lead = zoneLead(ok);
+  const go = ok.filter((x) => !x.startOnly && (!need || need(x)));
+  if (!go.length) return t`${lead}，「${label}」档用不了`;
+  const usable = go.filter((x) => !tierBlockReason(x)).map((x) => x.label);
+  if (usable.length) {
+    const names = joinTierNames(usable);
+    return t`${lead}，「${label}」档用不了——换成「${names}」档`;
+  }
+  const member = joinTierNames(go.map((x) => x.label));
+  return t`${lead}，「${label}」档用不了——能换的「${member}」是会员档（开通会员套餐或充值过任意一笔后可用）`;
+}
+
+/**
+ * 花钱的门禁（store 的 action，不是 render）拿 tierBlockReason 拒之前问它：拒的原因是出片地区时现问一次地区（2026-10-26 P1 审核）。
+ * ★ 管的是**反方向**：旧结论说「被拦」、其实已经能用了 —— 人在前台下拉通知栏关了 VPN（visibilitychange 不会发），
+ *   不现问的话最多 10 分钟里每一次点都被拒，档位那一排也一直藏着。正方向（旧结论说能用、其实被拦）由 refreshVideoZone 的调用方管。
+ * 回 true = 结论变了，调用方**从头**再判一遍门禁（busy、余额那几道也要重判：等的这几秒世界会变）；false = 没变（或原因不是地区），照原来那句拒。
+ * 离上一次问不到 5 秒就不再问（refreshVideoZone），所以连点几下不会连发。
+ */
+export async function tierRegionRecheck(tier: VideoTier): Promise<boolean> {
+  if (!zoneDenies(providerOf(tier.id))) return false;
+  return refreshVideoZone();
+}
+
+/**
+ * 「先付图钱 / 对话钱、视频最后才出」的那几样动作，花第一笔钱之前问它（出片地区 ⑤，2026-10-26 终审）：现问一次地区（refreshVideoZone，整体最多等 6 秒），
+ * 再按问到的那份判这一档在地区上给不给。回 null = 可以花；否则整句原因（tierRegionIssue），调用方一分钱不花、原样退回状态。
+ * ★★ 为什么（终审抓到）：原来只有 genNode / deriveProposals / 工坊 generateNode / 剪辑页重拍现问；改帧、重画、合成预览、导演台融图、
+ *   三个跟着做向导（九宫格出一组画面 / 单格重画、对话正反打画三个机位、特效同款画关键帧）只读旧结论 —— 人在选法屏选了档、进了向导，
+ *   之后地区变了（前台下拉通知栏关 VPN 不发 visibilitychange），图钱照样付掉，落段 / 出片时才被地区拦下。门禁开着的海外唯一给得出的
+ *   「真人」档上九宫格 / 对话正反打本来就不摆，付过钱的格子没有任何落段的路。
+ * ★ 两个方向一次管住：旧结论说能用、其实已经被拦 → 这里拒；旧结论说被拦、其实已经能用 → 这里放行（问到的就是新结论）。
+ * ★ 只管地区那一支：套餐 / 停用 / 服务端支持仍由调用方原来那道同步闸（tierBlockReason）管。`need` 同 tierRegionIssue（只挑「换成哪一档」的出路）。
+ * ★ genNode / deriveProposals / 工坊 generateNode 自己内联了同样两行（它们还要按 need 挑出路、拒了退回更多状态），别改成两套判据。
+ */
+export async function tierRegionGate(tier: VideoTier, need?: TierNeed): Promise<string | null> {
+  await refreshVideoZone();
+  return tierRegionIssue(tier, need);
+}
+
+/**
+ * 档位那一排下面那一行说明（null = 不说：地区不知道，或者这个地区没有哪一档被拦）。TierRow、选法屏（ModePicker）、工坊铸段窗三处都只印这一句。
+ * 与 tierRegionIssue 分工：这句说「这里给什么」（被拦的档已经不摆了，不点名）；那句说「挂着的这一档为什么用不了、换哪一档」。
+ */
+export function regionTiersLine(): string | null {
+  if (!videoZone()) return null;
+  const hidden = VIDEO_TIERS.some((x) => !tierRetired(x) && !tierServerOff(x) && zoneDenies(providerOf(x.id)));
+  if (!hidden) return null;
+  const ok = regionTiers();
+  return ok.length ? zoneLead(ok) : zoneNoneLead();
+}
+
+/**
+ * 服务端 403 REGION_UNAVAILABLE 的本端那一句（arkClient.billingDenialError 用；那一层不知道是哪一档，所以不点档名）。
+ * 调用前回包里的地区已经记进 data/videoZone（noteRegionDenied），这里按记下的那份说「这个地区能用哪几档」。
+ * ★ 只说地区，不说钱 —— 钱的那一句只在 ai/failCharge（照回包的 billed；没扣的那一句是它的 regionNoCharge —— 2026-10-26 终审从 message 里挪出去，
+ *   调用方截原因时截不掉它）。服务端契约：出片与真人档这两条路被拦恒为没扣。
+ * ★ 「能用」不说成「换成」：被拦的可能是重拍 / 延长 / 样片定稿，这个地区能用的档未必做得了那几样（服务端那句「没有可换的」就是这个意思）。
+ * ★ 记下的那份不是门禁开着时的结论（zoneIsRegional 为假）就不列供应商、不列档名（2026-10-26 P1 审核）：403 回包里读不出地区
+ *   （形状不对、zone 不在三种之内）时 noteRegionDenied 什么都没记 —— 地区不知道时 regionTiers 把每一档都当成给得出，
+ *   沿用的若是 observe 时的旧结论也一样，句子会把刚被拒的那一家、那一档列成「这里能用」。
+ */
+export function regionDeniedLine(): string {
+  if (!zoneIsRegional()) return t`你所在的地区用不了这一档的出片模型。`;
+  const place = zonePlace();
+  const ok = regionTiers();
+  if (!ok.length) return t`${place}目前没有可用的出片模型。`;
+  const via = providerNames(ok);
+  const usable = ok.filter((x) => !tierBlockReason(x)).map((x) => x.label);
+  if (usable.length) {
+    const names = joinTierNames(usable);
+    return t`${place}用不了这一档的出片模型，这里出片只提供 ${via}（「${names}」档）。`;
+  }
+  const member = joinTierNames(ok.map((x) => x.label));
+  return t`${place}用不了这一档的出片模型，这里出片只提供 ${via}（「${member}」档，会员档：开通会员套餐或充值过任意一笔后可用）。`;
+}
+
+/** 这一档现在摆不摆出来（没停用、这台服务端支持、地区给）。档位那一排、选法屏、货架的「出片模型」筛选都只摆这些 */
 export function tierOffered(tier: VideoTier): boolean {
   return tierOffIssue(tier) === null;
+}
+
+/**
+ * 这一档**摆得出来、只是套餐挡着** —— 宿主在 tierBlockReason / templatePlanIssue / draftFinalIssue 那句话后面画不画「去升级」只问它（2026-10-26 P1 审核）。
+ * ★★ 付钱治不了地区、停用、服务端不支持（服务端把地区门禁排在套餐门禁之前，理由正是这个）：在那几种原因旁边摆「去升级」，就是把人骗去付钱。
+ *   原来几处宿主无条件画（模板详情页、画布选白模模板的抽屉）、或只看服务端能力位（样片定稿那一栏），地区一来就挨着「你所在的地区用不了」摆一颗「去升级」。
+ */
+export function tierPlanBlocked(tier: VideoTier): boolean {
+  return tierOffered(tier) && !!tierBlockReason(tier);
 }
 
 /** 现在摆得出来的那几档（顺序同档位表）。★ 判据只在 tierOffIssue：界面别自己拿 retireAt 或能力位去筛 */
 export function offeredTiers(): VideoTier[] {
   return VIDEO_TIERS.filter(tierOffered);
+}
+
+// ── 「哪个出片模型」怎么写（2026-10-26 出片地区 · 主人第 2 件：卡片信息写具体模型名，并按地区只列给得出的）──
+//
+// ★★ 卡片页「按模型适配」、卡组页的适配摘要、模板货架（卡面角标 / 「出片模型」筛选 / 筛空了那句）、模板详情「出片模型」那一行、
+//   画布 / 工坊的选模板抽屉，以及创作界面（选法屏、本段设置、工坊铸段窗、白模化报价、档位按钮的 title）、卡片页的声音说明 / 形象参考取舍 /
+//   「火山引擎适用」，说「哪个模型」只读这一组（一处出口；卡怎么进模型的判据在 data/cardFit，只读档位表能力位）。
+//   构建里 check-tier-semantics 的 [model-name] 规则钉着：economy.tierModelLabel / modelLabel / tierModelId 只在白名单里的函数调用（2026-10-26 审核）。
+//   ⚠ P2b 接 MiniMax H3 时如果让同一档在不同地区落到不同的模型，只改这一组（tierShownModel 按地区解析出真发的那个），界面不用再动。
+//   · 地区问到了（data/videoZone 非 null）：写具体模型名（Seedance 2.0 mini / MiniMax Hailuo 2.3 Fast…），按家分组，
+//     只写这个地区给得出的 —— 列哪几档仍只问 offeredTiers（tierOffIssue 已按地区筛过），这里**不另读地区判给不给**
+//     （2026-10-26 设计审核：两份「这个人能用什么」会分叉，地区不知道时两边口径还相反）；
+//   · 地区不知道（老服务端没有 videoZone 能力位 / dev 直连 / 离线演示包 / 这一场还没问到）：**只写档位名，不写供应商与模型名**
+//     （主人 10-26：美国的机器第一次打开不该先看到 Seedance 字样；批评意见：服务端没报地区时只写档位名）。
+//     列哪几档照今天的样子（offeredTiers 在地区不知道时不按地区拦）。问到之后 videoZone 广播 → account emit → 订阅了账号的页面重画。
+// ★ 这只是**展示口径**：真正挡住某个地区用某一家的是服务端出片门禁（403 REGION_UNAVAILABLE），见 data/videoZone 文件头。
+
+/** 摆给这个人的出片模型（offeredTiers 按模型并起来）+ 能不能写名字 */
+export interface OfferedVideoModels {
+  /** 地区问到了：可以写模型名 / 供应商名。false = 只写档位名（见上） */
+  named: boolean;
+  /** 顺序同档位表；一个模型挂着它的那几档（「草稿」「高清」都是 Seedance 2.0 mini） */
+  models: VideoModelOf<VideoTier, VideoProvider>[];
+}
+
+export function offeredVideoModels(): OfferedVideoModels {
+  return { named: videoZone() !== null, models: modelsOfTiers(offeredTiers(), (x) => providerOf(x.id)) };
+}
+
+/**
+ * 一档在「说哪个模型」的地方写成什么：地区问到了、这一档又摆得出来 → 模型名（economy.tierModelLabel，带分辨率：「草稿」「高清」同一个模型）；
+ * 否则 null —— 调用方只写档位名（地区不知道时不写供应商；这个地区给不出的那一家更不写）。
+ */
+export function tierShownModel(tier: VideoTier): string | null {
+  const { named, models } = offeredVideoModels();
+  return named && models.some((m) => m.tiers.some((x) => x.id === tier.id)) ? tierModelLabel(tier) : null;
+}
+
+/**
+ * 配方 / 作品里**记下来的**那个出片模型 id 在界面上写成什么（2026-10-26 出片地区终审：制作过程页「当时的模型：…」）：
+ * 地区问到了、这个地区又给这一家 → 模型名（economy.modelLabel）；否则 null —— 调用方写一句不点名的（「当时用的是另一个出片模型」），完整 id 也不放 title。
+ * ★ 原来 RecipeView 直接调 modelLabel（[model-name] 白名单里写着「历史事实」），地区不知道的美国机器、门禁开着的海外照样印出 Seedance。
+ *   历史事实也是供应商名：与 tierShownModel 同一个口径（地区不知道不写、这个地区给不出的那一家不写）。哪一家只问 videoTierTable.providerOfModel。
+ */
+export function recordedModelName(modelId: string): string | null {
+  if (!videoZone() || zoneDenies(providerOfModel(modelId))) return null;
+  return modelLabel(modelId);
+}
+
+/** 一家在分组标题上写成什么（品牌名不翻译，括号里的公司 / 产品名照常翻） */
+const PROVIDER_GROUP: Record<VideoProvider, MessageDescriptor> = {
+  ark: msg({ message: "Seedance（字节跳动）", comment: "卡片页「按模型适配」里一组的标题：Seedance 是模型品牌名（不翻译），括号里是公司名" }),
+  minimax: msg({ message: "MiniMax（海螺）", comment: "卡片页「按模型适配」里一组的标题：MiniMax 是品牌名（不翻译），括号里是它的视频产品名 Hailuo" }),
+};
+
+export function providerGroupName(p: VideoProvider): string {
+  return i18n._(PROVIDER_GROUP[p]);
+}
+
+/** 几档的名字（「草稿」「高清」）当一个名词用：「「草稿」「高清」档」 */
+function tiersAsNoun(tiers: VideoTier[]): string {
+  const names = joinTierNames(tiers.map((x) => x.label));
+  return t({ message: `「${names}」档`, comment: "几个档位名当一个名词用（后面接冒号或「用」）；names 已经用「」「接好，英文是 “Lite”, “HD”" });
+}
+
+/** 一个模型带着它的档名：「Seedance 2.0 mini（草稿 / 高清）」；要停用的标上哪天（「（极速，11月24日停用）」） */
+function modelWithTiers(m: VideoModelOf<VideoTier, VideoProvider>): string {
+  const model = modelLabel(m.model);
+  const tiers = m.tiers.map((x) => x.label).join(" / ");
+  const day = m.tiers.every((x) => !!x.retireAt) ? tierRetireDay(m.tiers[0]) : "";
+  return day
+    ? t({ message: `${model}（${tiers}，${day}停用）`, comment: "模型名后面括号里是挂在它上面的档位名，再加停用日期（11月24日 / November 24）" })
+    : t({ message: `${model}（${tiers}）`, comment: "模型名后面括号里是挂在它上面的档位名（草稿 / 高清）" });
+}
+
+/**
+ * 几个模型在一行开头写成什么（卡片页 / 卡组页「按模型适配」的行首，后面接「：原因」）：
+ * 有名字 → 「Seedance 2.0 mini（草稿 / 高清）、Seedance 2.5（电影级）」；没名字 → 「「草稿」「高清」「电影级」档」。
+ */
+export function videoModelsLead(models: VideoModelOf<VideoTier, VideoProvider>[], named: boolean): string {
+  if (!named) return tiersAsNoun(models.flatMap((m) => m.tiers));
+  return models.map(modelWithTiers).join(nameSep());
+}
+
+/**
+ * 几个模型在句子里写成什么（勾选框的名字、脚注）：有名字 → 「Seedance 1.0 pro、MiniMax Hailuo 2.3 Fast」；没名字 → 「「标准」「真人」档」。
+ * 空数组回空串（调用方换一句不点名的话）。
+ */
+export function videoModelsNames(models: VideoModelOf<VideoTier, VideoProvider>[], named: boolean): string {
+  if (!models.length) return "";
+  if (!named) return tiersAsNoun(models.flatMap((m) => m.tiers));
+  return models.map((m) => modelLabel(m.model)).join(nameSep());
+}
+
+/**
+ * 档位按钮 / 「本段模型」那一行 title 里的完整模型 id（要查证的人看的那一份）：与 tierShownModel 同一个口径 ——
+ * 地区不知道、或这一档在这个地区给不出时回 undefined（不写；title 在桌面浏览器悬停时看得见，「doubao-seedance-…」一样是供应商名）。
+ */
+export function tierShownModelId(tier: VideoTier): string | undefined {
+  return tierShownModel(tier) ? tierModelId(tier) : undefined;
+}
+
+/** 摆给这个人的、有某种能力的那几档按模型并起来（名字照 videoModelsNames 写）。空串 = 一个都没有（调用方换一句不点名的话） */
+function offeredModelsNamesWhere(pred: (t: VideoTier) => boolean): string {
+  const named = videoZone() !== null;
+  return videoModelsNames(modelsOfTiers(offeredTiers().filter(pred), (x) => providerOf(x.id)), named);
+}
+
+/**
+ * 出片会参考卡上声音样本的那几个模型（VideoTier.refAudio）在句子里写成什么 —— 卡片页声音区、录音、自己传图做卡片、从视频圈选取声音四处共用。
+ * ★ 2026-10-26（出片地区 · 主人第 2 件审核）：原来是 economy.voiceTierNames（目录口径的档名）—— 同一页上「按模型适配」那一格已经按地区只列给得出的，
+ *   声音区还说「出片走「草稿」「高清」「电影级」档会参考音色」，海外门禁开着时那几档一档都摆不出来，同一页上下自相矛盾。
+ * 空串 = 现在能用的模型都不参考声音样本（调用方说那一句；取声音、录音的入口照常留着：样本属于这张卡，换地区 / 换模型以后还能用）。
+ */
+export function voiceModelsNames(): string {
+  return offeredModelsNamesWhere((x) => x.refAudio);
+}
+
+/**
+ * 卡的形象图直接当参考图进模型的那几个模型（cardFit.cardInputOf === "refs"，与「按模型适配」那一格同一个判据）在句子里写成什么 ——
+ * 卡片页「形象参考」的取舍规则（CardDetailPage.pipelineNoteFor）用。原来是 economy.refImgTierList（目录口径的档名），同上一条的理由。空串 = 一个都没有。
+ */
+export function refImgModelsNames(): string {
+  return offeredModelsNamesWhere((x) => cardInputOf(x) === "refs");
+}
+
+/**
+ * 「火山引擎适用」那个勾选框（components/VolcCompatToggle，三个宿主共用）此刻怎么摆 —— **唯一判据**（2026-10-26 出片地区 · 主人第 2 件审核）：
+ *   · "on"   = 照常摆（有摆得出来的模型收火山引擎认证素材，VideoTier.assetRef）；
+ *   · "keep" = 这张卡已经认证过、但现在能用的模型一个都不收认证素材（海外门禁开着时）：勾选框照样摆、旁边说一句 —— **撤回肖像授权不能被地区挡住**；
+ *   · "off"  = 没认证过、又一个收认证素材的模型都没有：不摆（勾上会当场打开火山引擎 cn-beijing 的活体认证，海外的人走进去也用不上）。
+ * 列哪几档只问 offeredTiers（地区不知道时照今天的样子全摆 —— 与卡片页「按模型适配」那一格同一个口径：那一格在说「要先勾「火山引擎适用」」时，勾选框就得在）。
+ */
+export function volcEntryState(boundId: string | null): "on" | "keep" | "off" {
+  if (offeredTiers().some((x) => x.assetRef)) return "on";
+  return boundId ? "keep" : "off";
 }
 
 /**
@@ -979,9 +1311,11 @@ function memberLine(labels: string[]): string {
  *   宁可让请求打出去由服务端说了算，也不能因为镜像慢半拍就把付费用户的档位锁死
  *   ——那会表现成"我明明买了套餐却点不动"，而且刷新也好不了。新段的默认档在不知道时落在免费档上（defaultTierId），两头都不吃亏。
  * ★★ 管理员放行（服务端的 billedForward 对 admin 同时跳过套餐门禁与扣费；这边灰着就是给他看一句与事实相反的话）—— 在 payingNow 里。
+ * ★ `need`（这件事要哪种能力的档）只影响地区那一支「换成哪一档」的出路（tierRegionIssue）；判能不能用一个字不变。
+ *   要特定能力的调用方（白模模板、样片、定稿、重拍、延长）传它，别让一句「换成「X」档」把人指去一档做不了这件事的档。
  */
-export function tierBlockReason(tier: VideoTier): string | null {
-  const off = tierOffIssue(tier);
+export function tierBlockReason(tier: VideoTier, need?: TierNeed): string | null {
+  const off = tierOffIssue(tier, need);
   if (off) return off;
   if (tierFreeOk(tier)) return null;
   // true（付过钱 / 管理员）或 null（还不知道）都放行
@@ -1003,13 +1337,46 @@ export function memberTiersLine(): string | null {
  * 有某种能力的档、**按这个人用不用得了**分两串名字（都只算摆得出来的档）：usable = 现在就能换过去的，member = 开通会员才能用的。
  * 空串 = 没有。★ 句子里「换到哪一档就有」一律从这里取（economy.tierNamesWhere 是不看套餐的目录版）：写死「高清或电影级」的话，
  *   免费用户被指去两个点不动的档，而他唯一能用的「草稿」一个字都没提（2026-10-07 加免费档限制时清点过二十来处）。
+ * ★★ **null = 摆得出来的档里一档都没有这种能力**（2026-10-26 终审，规则在 videoZoneRules.tierGoOf）：门禁开着的海外只剩「真人」档时就是这样。
+ *   这一种说 noTierLine（地区 / 这台服务器），不写「换到「」」、不写「会员档」、不给「去升级」—— 原来回两串空名字，句子里印出一对空引号。
  */
-export function tierNamesFor(pred: (t: VideoTier) => boolean): { usable: string; member: string } {
-  const offered = offeredTiers().filter(pred);
-  return {
-    usable: joinTierNames(offered.filter((x) => !tierBlockReason(x)).map((x) => x.label)),
-    member: joinTierNames(offered.filter((x) => !!tierBlockReason(x)).map((x) => x.label)),
-  };
+export function tierNamesFor(pred: (t: VideoTier) => boolean): { usable: string; member: string } | null {
+  const go = tierGoOf(offeredTiers(), pred, (x) => !!tierBlockReason(x));
+  if (!go) return null;
+  return { usable: joinTierNames(go.usable.map((x) => x.label)), member: joinTierNames(go.member.map((x) => x.label)) };
+}
+
+/**
+ * tierNamesFor / tierGo 回 null 时那件事要的能力 —— 只用来挑 noTierLine 的说法。
+ * extend = 能往后延长（extendOk）、refVid = 能带参考视频出片、refImg = 收参考图、refAudio = 带声音样本、audio = 出片出声、assetRef = 收认证素材（火山引擎适用）。
+ */
+export type TierAbility = "extend" | "refVid" | "refImg" | "refAudio" | "audio" | "assetRef";
+
+/** noTierLine 里「…的出片模型」中间那一截（模块顶层只放描述符，渲染时再翻 —— 开机先激活语言再 import App） */
+const TIER_ABILITY_TEXT: Record<TierAbility, MessageDescriptor> = {
+  extend: msg({ message: "能往后延长", comment: "定语，接在「目前没有…的出片模型」中间；英文写成接在 video model that 后面的动词短语：can extend a clip" }),
+  refVid: msg({ message: "能带参考视频", comment: "定语，接在「目前没有…的出片模型」中间；英文写成接在 video model that 后面的动词短语：can take a reference video" }),
+  refImg: msg({ message: "收参考图", comment: "定语，接在「目前没有…的出片模型」中间；英文写成接在 video model that 后面的动词短语：takes reference images" }),
+  refAudio: msg({ message: "能带声音样本", comment: "定语，接在「目前没有…的出片模型」中间；英文写成接在 video model that 后面的动词短语：can take voice samples" }),
+  audio: msg({ message: "能出声", comment: "定语，接在「目前没有…的出片模型」中间；英文写成接在 video model that 后面的动词短语：generates sound" }),
+  assetRef: msg({ message: "收认证素材", comment: "定语，接在「目前没有…的出片模型」中间（认证素材 = 卡上勾了「火山引擎适用」）；英文：accepts verified portrait assets" }),
+};
+
+/**
+ * 「换到哪一档就有」没有可换的那一种（tierNamesFor / tierGo 回 null）的那一句 —— 一个分句、不带句号，调用方接在「——」「：」后面。
+ * ★ 措辞照 zoneLead 的两种（videoZone.zoneIsRegional）：门禁开着说「你所在的地区（美国）目前没有…的出片模型」；没开（off / observe）或地区不知道时
+ *   缺的那几档是这台服务器没接上 / 停用了，说「这台服务器目前没有…」。不写供应商名、不写档名、不说「会员档」（付钱治不了）。
+ */
+export function noTierLine(what: TierAbility): string {
+  const ability = i18n._(TIER_ABILITY_TEXT[what]);
+  if (!zoneIsRegional()) {
+    return t({ message: `这台服务器目前没有${ability}的出片模型`, comment: "一个分句、不带句号，接在「——」后面；ability 是「能往后延长」这类定语（英文是 can extend a clip 这类动词短语）" });
+  }
+  const place = zonePlace();
+  return t({
+    message: `${place}目前没有${ability}的出片模型`,
+    comment: "一个分句、不带句号，接在「——」后面；place 是「你所在的地区（美国）」（英文首字母大写）；ability 是「能往后延长」这类定语（英文是 can extend a clip 这类动词短语）",
+  });
 }
 
 /**
@@ -1021,15 +1388,26 @@ export function draftModeOffered(tier: VideoTier): boolean {
   return tier.draftOk && tierOffered(tier) && serverSupports("draftMode") !== false;
 }
 
-/** 这一段现在能不能走样片（null = 能）：摆不出来的说为什么，摆得出来的再过套餐那一道（会员档，与 tierBlockReason 同一句） */
-export function draftModeIssue(tier: VideoTier): string | null {
+/**
+ * 这一段现在能不能走样片（null = 能）：摆不出来的说为什么，摆得出来的再过套餐那一道（会员档，与 tierBlockReason 同一句）。
+ * `need` 缺省 = 有样片模式的档（地区挡住时只往那几档上指）；定稿换不了档，draftFinalIssue 传 `() => false`。
+ */
+export function draftModeIssue(tier: VideoTier, need: TierNeed = (x) => x.draftOk): string | null {
   if (!tier.draftOk) {
     const label = tier.label;
     const names = joinTierNames(offeredTiers().filter((x) => x.draftOk).map((x) => x.label));
     return names ? t`「${label}」档没有样片模式（只有「${names}」有）` : t`「${label}」档没有样片模式`;
   }
   if (serverSupports("draftMode") === false) return t`这台服务器还不支持样片模式（服务端需要更新）`;
-  return tierBlockReason(tier);
+  return tierBlockReason(tier, need);
+}
+
+/**
+ * draftModeIssue 那句话后面能不能给「去升级」：挡住他的是套餐（tierPlanBlocked），不是这一档没有样片、服务端还不会、地区不给 ——
+ * 那几种付钱都治不了（与 draftModeIssue 同一个顺序判）。DraftModeBox 的开关与定稿两栏都问它（定稿问的是出样片那一档）。
+ */
+export function draftModeUpgradeable(tier: VideoTier): boolean {
+  return tier.draftOk && serverSupports("draftMode") !== false && tierPlanBlocked(tier);
 }
 
 /**
@@ -1046,9 +1424,11 @@ export function planRequiredLine(): string {
 /**
  * 「去换哪几档」那一串：先给这个人**用得了的**；一档都用不了时给那几档会员档的名字，并标出来（member = true，调用方换一句「是会员档」的说法）。
  * 句子都是整句、两种说法各一条（多语言）：别把「（会员档）」当半句拼上去。
+ * ★★ null = 摆得出来的档里一档都没有这种能力（见 tierNamesFor 的 ★★）：说 noTierLine，不说「会员档」、不给「去升级」。
  */
-export function tierGo(pred: (t: VideoTier) => boolean): { names: string; member: boolean } {
+export function tierGo(pred: (t: VideoTier) => boolean): { names: string; member: boolean } | null {
   const n = tierNamesFor(pred);
+  if (!n) return null;
   return n.usable ? { names: n.usable, member: false } : { names: n.member, member: true };
 }
 
@@ -1139,6 +1519,9 @@ export function realFaceIssue(
   // 收授权素材的那几档（assetRef：Seedance 2.0 / 2.5 系列 —— 2026-10-07 起多了「草稿」）。按能力 + 这个人用不用得了现算（tierGo）：
   // 先给他用得了的（免费用户是「草稿」），一档都用不了才列会员档并标出来 —— 原来按目录列「草稿」「高清」「电影级」，免费用户被指去两个点不动的档
   const asset = tierGo((x) => x.assetRef);
+  // ★ 摆得出来的档里一档都不收认证素材（门禁开着的海外只剩「真人」档，2026-10-26 终审）：「勾选「火山引擎适用」后换「」档（会员档）」是一条不存在的路，
+  //   只说换「真人」档（它就是这时摆得出来的那一档）
+  if (!asset) return t`${names}是真人卡，「${label}」档不收真人照片——换${realPath}`;
   const assetPath = asset.member ? t`「${asset.names}」档（会员档）` : t`「${asset.names}」档`;
   // ★ 「真人」档只在画布（工作流 / 简约模式）上能直出 —— 工坊整个建立在推演上，那一档在工坊是灰的（deriveIssue）。
   //   这句话画布、工坊方案台、工坊节点卡三处都会印，所以把去哪儿用它说在句子里，别指一条在工坊里走不通的路
@@ -1151,8 +1534,12 @@ export function realFaceIssue(
 
 /** 几张卡的名字各加一对引号、按界面语言的列举分隔符连起来（中文「凛」、「樱」，英文 “Rin”, “Sakura”） */
 function quotedNames(names: string[]): string {
-  const sep = t({ message: "、", comment: "列举几个名字时的分隔符" });
-  return names.map((name) => t({ message: `「${name}」`, comment: "给一个名字（卡名）加引号：中文「」，英文用弯引号" })).join(sep);
+  return names.map((name) => t({ message: `「${name}」`, comment: "给一个名字（卡名）加引号：中文「」，英文用弯引号" })).join(nameSep());
+}
+
+/** 列举几个名字时的分隔符（中文「、」，英文「, 」）—— 本文件里卡名、供应商名两处共用一份 */
+function nameSep(): string {
+  return t({ message: "、", comment: "列举几个名字时的分隔符" });
 }
 
 /**
@@ -1160,10 +1547,21 @@ function quotedNames(names: string[]): string {
  * 付过钱（或管理员）：「标准」，它停用之后「高清」；免费用户**或还不知道**：「极速」，它停用之后「草稿」（主人 10-07 拍板）。
  * ★ 不知道时落在免费档上：冷启动镜像慢半拍时，免费用户一出生就在一个点不动的会员档上，推演 / 画帧的钱会先花出去再被出片闸拦下；
  *   付费用户只是多点一下换档。★ 链上的档停用 / 这台服务端不支持就往后退（firstLiveTierId）。
+ * ★ 出片地区（2026-10-26）：链上的档全是方舟的，你所在的地区确定不给方舟时（门禁切 on 之后的海外）链上一档都落不下 ——
+ *   firstLiveTierId 会回链尾那一档，新段一出生就在一个这个地区用不了的档上（设计审核抓到）。这时落在**这个地区摆得出来的第一档**上
+ *   （P1 只有「真人」，它是会员档、只认真人卡起拍，免费用户那里由 tierBlockReason 照实说）；一档都没有就留在链尾，由出片闸说「这个地区没有可用的出片模型」。
+ *   只在**地区**挡住时这么退：链尾是因为停用 / 服务端不支持才落下的，照旧回链尾（那两种话各自更准）。地区不知道时 tierRegionIssue 恒为 null，这一支走不到。
  */
 export function defaultTierId(): string {
+  const id = chainTierId();
+  if (!zoneDenies(providerOf(id))) return id;
+  return offeredTiers()[0]?.id ?? id;
+}
+
+/** 默认档链上第一个用得了的那一档（停用 / 服务端不支持 / 地区不给都往后退，全退完回链尾）—— defaultTierId 与 usableTierId 的兜底共用 */
+function chainTierId(): string {
   const chain = payingNow() === true ? PAID_DEFAULT_CHAIN : FREE_DEFAULT_CHAIN;
-  return firstLiveTierId(chain, Date.now(), (id) => tierOffIssue(tierOf(id)) === null);
+  return firstLiveTierId(chain, Date.now(), (x) => tierOffIssue(tierOf(x)) === null);
 }
 
 /**
@@ -1176,15 +1574,25 @@ export function usableTierId(id: string | undefined): string {
   // ★ 换到**能力最接近**的那一档（2026-10-07 评审抓到）：原来一律落默认档 —— 免费用户照做一份「高清」配方落在「极速」上，
   //   参考图、声音、首尾帧一样都没了；而「草稿」与「高清」是同一个模型、只差分辨率，那些全都在。所以先找一档收不收参考图、
   //   出不出声都与原档一样、这个人现在用得了的（按档位表的顺序取第一个 —— 便宜的排在前面），找不到才退回默认档。
-  //   只在方舟的档里找：真人档按发计价、做不了推演，不该被「换过去」。
+  //   不往只认一张起拍画面的档（startOnly，真人档）上换：它做不了推演、只收真人卡的照片，不该被「换过去」。
+  //   （2026-10-26 前写的是 `!x.flatCost`「按发计价」—— 计价模型与出片方式是两件事，今天碰巧都落在真人档上）
+  // ★ 出片地区：这个地区不给原档的供应商时同样换（原档 tierBlockReason 非空），近邻按上面那条找；调用方把「换了档」说出来（flowStore.tierCopyNote）。
+  //   地区**不知道**时不拦（videoZone 的 ★★），所以冷启动问慢半拍不会把节点上的档改写掉（2026-10-26 设计审核）。
   const want = id ? tierOf(id) : null;
   if (want && want.id === id) {
     const near = offeredTiers().find(
-      (x) => !x.flatCost && x.refImg === want.refImg && x.audio === want.audio && !tierBlockReason(x),
+      (x) => !x.startOnly && x.refImg === want.refImg && x.audio === want.audio && !tierBlockReason(x),
     );
     if (near) return near.id;
   }
-  return defaultTierId();
+  const d = defaultTierId();
+  // ★★ 抄来的档不往只认一张起拍画面的档（startOnly，真人档）上落（2026-10-26 P1 审核）：defaultTierId 在地区挡住整条默认档链时退到
+  //   这个地区摆得出来的第一档 —— P1 的海外那就是「真人」，做同款 / 按配方做同款 / 经典模板 / 承接上一段档位会把每一段都改写成它
+  //   （做不了推演、只收真人卡），与上面近邻那条规矩相反，tierCopyNote 还会逐段说「改用「真人」档」。
+  //   这时**留着原档**（认得出的话），由 tierRegionIssue 说清为什么、怎么办（调用方的 tierCopyNote 照样说一句）；认不出的落到默认档链上那一档。
+  //   缺省（id 为空 = 一段全新的段，没有可抄的档）仍落 defaultTierId，可以是「真人」—— 那是这个地区唯一出得了片的一档。
+  if (!id || !tierOf(d).startOnly) return d;
+  return want && want.id === id ? id : chainTierId();
 }
 
 /**
@@ -1764,9 +2172,9 @@ export async function updateCardMeta(
     summary?: string;
     tags?: string[];
     idLine?: string;
-    /** 按模型适配：文字版形象描述，空串 = 取消卡上「文字版形象描述」那一勾（2026-10-10 之前叫「标准/极速适用」，名字现随 noRefImgTierList 写） */
+    /** 按模型适配：文字版形象描述，空串 = 取消卡上「文字版形象描述」那一勾（2026-10-10 之前叫「标准/极速适用」；括号里写读它的那几个模型，随 account.offeredVideoModels 写，见 CardModelFit） */
     textDesc?: string;
-    /** 按模型适配：真人档起拍画面，null = 取消「真人档适用」 */
+    /** 按模型适配：真人档起拍画面，null = 取消「起拍画面」那一勾（2026-10-26 之前叫「真人档适用」） */
     startFrames?: Card["startFrames"] | null;
   },
 ): Promise<string | null> {

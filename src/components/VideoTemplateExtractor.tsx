@@ -54,8 +54,9 @@ import {
   uploadTemplateVideo,
   type TemplateVideoReceipt,
 } from "../api/uploads";
-import { balanceNote, canAfford, frozenNote, spendTokens } from "../data/account";
-import { TEMPLATE_MAX_CARDS, fmtTokens, ownRefTemplateCost, templateCost } from "../data/economy";
+import { balanceNote, canAfford, frozenNote, spendTokens, tierRegionIssue } from "../data/account";
+import { TEMPLATE_MAX_CARDS, blockoutTier, fmtTokens, ownRefTemplateCost, templateCost } from "../data/economy";
+import { useAccountVersion } from "../hooks/useAccount";
 import {
   ARK_EDIT_RULES,
   BLOCKOUT_INPUT_RULES,
@@ -416,6 +417,8 @@ export default function VideoTemplateExtractor({
   //   （到了 AI 白模化的框选屏，那颗 ? 换讲「选段与裁剪」那份，它的首次自动弹在 TrimAutoGuide —— 见 aiTrimScreen）。
   useAutoGuide("extractor");
   const { t } = useLingui();
+  // 套餐镜像 / 出片地区都是异步到的（blockoutizeBlockReason 与下面 blockoutRegion 在 render 里现算）：订阅账号的版本号，到了就重画
+  useAccountVersion();
   const [file, setFile] = useState<File | null>(null);
   const [frameN, setFrameN] = useState(6);
   const [frames, setFrames] = useState<string[]>([]);
@@ -697,6 +700,15 @@ export default function VideoTemplateExtractor({
    *   存下来就会停在"还不知道"那一拍上，而那一拍恰恰是**放行**的（乐观口径）。
    */
   const blockoutBlock = blockout ? blockoutizeBlockReason() : null;
+  /**
+   * 白模那一档在你所在的地区用不了（出片地区，判据 account.tierRegionIssue —— blockoutizeBlockReason 里那句话也是它给的）。
+   * ★ 为什么连两条路的选项都收起来（2026-10-26 设计审核）：两条白模路都只走那一档；选项摆着的话人会去选、去传一段几十 MB 的视频，
+   *   而这件事在这个地区怎么都做不成 —— 原因摆在上面，选项不摆。地区不知道时为 null，照老样子摆（服务端在看帧之前预检，不扣钱）。
+   * ★ 出路只指同样做得了白模的档（need = blockoutOk；白模钉死一档 = 没有可换的），所以这句话不会再叫人「换成」做不了白模的档；
+   *   门禁没开时（服务器没接上方舟）它说的是「这台服务器出片只接了 …」，不说成地区（2026-10-26 P1 审核）。
+   */
+  const bTier = blockoutTier();
+  const blockoutRegion = bTier ? tierRegionIssue(bTier, (x) => x.blockoutOk) : null;
 
   /**
    * 「AI 白模化的框选屏」在不在屏上：与下面 JSX 渲染 BlockoutTrimmer 的那一支同一组条件，再加 route === "aiBlockout"。
@@ -727,7 +739,7 @@ export default function VideoTemplateExtractor({
    *   改名要几处一起改，英文也一样（Classic recipe）。
    */
   const routeOpts = [
-    ...(blockoutReady
+    ...(blockoutReady && !blockoutRegion
       ? ([
           {
             v: "aiBlockout" as const,
@@ -1391,14 +1403,24 @@ export default function VideoTemplateExtractor({
                 "在第 2 步上被挡住、却没有任何一行字"的空窗。
               ★★ 措辞里不许出现「上面 / 下面」的方位词：这句话现在会在两步里出现，
                 方位在其中一步必然是错的。 */}
-            {blockout && blockoutBlock && (
+            {/* 出片地区不给白模那一档：先说为什么（tierRegionIssue，出路按白模的能力挑 = 没有可换的），再说这一屏的事实 */}
+            {blockoutRegion ? (
               <p className="mb-3 rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-[11px] leading-relaxed text-danger-300">
-                {blockoutBlock}
+                {blockoutRegion}
                 <br />
-                {/* 「经典配方」那条路已经收掉（routeOpts 只剩白模两条），原来这句还指着它（2026-10-10 文案复核抓到）；
-                    分享做法的路是发布作品时公开「制作过程」（与下面那条琥珀提示同一句） */}
-                <Trans>白模那两条路都只走这一档，所以现在还开不了 —— 开通会员套餐（或充值过任意一笔）就能用；想把一条片的做法分享给别人，发布作品时公开「制作过程」就行。</Trans>
+                <Trans>白模模板的两条路都只走这一档，这里做不了白模模板。想把一条片的做法分享给别人，发布作品时公开「制作过程」就行。</Trans>
               </p>
+            ) : (
+              blockout &&
+              blockoutBlock && (
+                <p className="mb-3 rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-[11px] leading-relaxed text-danger-300">
+                  {blockoutBlock}
+                  <br />
+                  {/* 「经典配方」那条路已经收掉（routeOpts 只剩白模两条），原来这句还指着它（2026-10-10 文案复核抓到）；
+                      分享做法的路是发布作品时公开「制作过程」（与下面那条琥珀提示同一句） */}
+                  <Trans>白模那两条路都只走这一档，所以现在还开不了 —— 开通会员套餐（或充值过任意一笔）就能用；想把一条片的做法分享给别人，发布作品时公开「制作过程」就行。</Trans>
+                </p>
+              )
             )}
 
             {/* ══ 第 1 步：这段视频要做成什么（三选一）══════════════════
@@ -1416,8 +1438,9 @@ export default function VideoTemplateExtractor({
               <div data-guide="extractor-routes" className="space-y-2">
                 <div className="mb-1 text-sm font-semibold text-slate-200"><Trans>这段视频要做成什么？</Trans></div>
                 {/* 路线表为空的两种情形分开说（没探完 ≠ 不支持）：白模模板的两条路都在服务端，经典配方那条本机路 2026-10-02 收掉了 */}
-                {!probed && routeOpts.length === 0 && <p className="text-xs text-slate-500"><Trans>正在确认服务器支持哪几种模板…</Trans></p>}
-                {probed && routeOpts.length === 0 && (
+                {/* 地区不给那一档时路线表是空的，原因已经在上面那条红字里，这两句都不说（不是「正在确认」也不是「服务器不支持」） */}
+                {!blockoutRegion && !probed && routeOpts.length === 0 && <p className="text-xs text-slate-500"><Trans>正在确认服务器支持哪几种模板…</Trans></p>}
+                {!blockoutRegion && probed && routeOpts.length === 0 && (
                   <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-xs leading-relaxed text-warn-300/90">
                     <Trans>白模模板要连上服务器才能做（这台服务器不支持，或现在没联网）。想把一条片的做法分享给别人，发布作品时公开「制作过程」就行。</Trans>
                   </p>

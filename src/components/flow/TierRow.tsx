@@ -15,8 +15,8 @@ import Warn from "../Warn";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
-import { memberTiersLine, realFaceIssue, tierBlockReason, tierOffered } from "../../data/account";
-import { blockoutPriceIssue, clampDuration, deriveIssue, fmtTokens, tierModelId, tierOf, VIDEO_TIERS } from "../../data/economy";
+import { memberTiersLine, realFaceIssue, regionTiersLine, tierBlockReason, tierOffered, tierShownModelId } from "../../data/account";
+import { blockoutPriceIssue, clampDuration, deriveIssue, fmtTokens, tierOf, VIDEO_TIERS } from "../../data/economy";
 import { useAccountVersion } from "../../hooks/useAccount";
 import UpgradeLink from "../UpgradeLink";
 import { chosenOf, nodeCost, nodeFramed, tplOfNode, useFlow } from "../../studio/flowStore";
@@ -48,20 +48,32 @@ export function tierSwitchLoss(nodeId: string, nextId: string): MessageDescripto
   if (cur.flf && !next.flf && prop.lastFrame) {
     loss.push(msg`这一段的结束画面不再锁得住（「${next.label}」档只认起拍帧）`);
   }
-  // 音色样本。★ 与相邻两条同口径：只在**这一段真的有台词**时才提（引号里的台词才会被配音）
-  if (cur.audio && !next.audio && /[「"']/.test(prop.plot)) {
+  // 台词。★ 与相邻两条同口径：只在**这一段真的有台词**时才提（引号里的台词才会被配音）
+  // ★ 两件事分开判（2026-10-26 审核）：「台词还说不说得出来」看 audio，「还带不带得了声音样本」看 refAudio。
+  //   只看 refAudio 的话，从出声却不收声音样本的档（海外 MiniMax H3）换到无声档一句都不说 —— 台词整句没了，却是静默降级（铁律八）。
+  //   今天出声的档都收声音样本（refAudio ⇔ audio），两支的结果与只判一处时逐档相同。
+  const quote = /[「"']/.test(prop.plot);
+  if (quote && cur.audio && !next.audio) {
+    // 换过去出片不出声（真人档按无声报、话说成「暂无配音」）；原来带没带声音样本决定开头那半句
     loss.push(
-      next.flatCost
-        ? msg`台词不再带音色样本（「${next.label}」档暂无配音）`
-        : msg`台词不再带音色样本（「${next.label}」档出片无声）`,
+      cur.refAudio
+        ? next.startOnly
+          ? msg`台词不再带音色样本（「${next.label}」档暂无配音）`
+          : msg`台词不再带音色样本（「${next.label}」档出片无声）`
+        : next.startOnly
+          ? msg`台词不会再被配音（「${next.label}」档暂无配音）`
+          : msg`台词不会再被配音（「${next.label}」档出片无声）`,
     );
+  } else if (quote && cur.refAudio && !next.refAudio) {
+    // 走到这里 next 一定出声（上一支接住了不出声的）：台词照样配音，只是不再按卡上的声音
+    loss.push(msg`台词不再带音色样本（「${next.label}」档不收声音样本，台词照样配音、音色由模型定）`);
   }
   // ★ **升档也有变化**（2026-08-30 补）：收参考图的档上，帧改当参考图发 + 提示词点名
   //   （segmentGen 的 framesAsRefs）—— 卡片形象能同发了，但"必须从这一帧起拍"从协议级
   //   硬约束降成软引导。这是好事也是代价，两头都要说，不能只在降档时说。
   // ★ 判据走 segmentGen.carryIsHard 一处（2026-09-03 收口）：这里原来手写
   //   `!cur.refImg && next.refImg`，与 framesAsRefs 是同一条规则的第二份实现 ——
-  //   哪天加一档 flatCost 且收参考图的，两份必然只改到一份，而且零症状。
+  //   哪天加一档只认起拍画面（startOnly）却收参考图的，两份必然只改到一份，而且零症状。
   if (carryIsHard(cur.id) && !carryIsHard(next.id) && (prop.firstFrame || prop.lastFrame)) {
     loss.push(msg`首尾帧会改成"参考图 + 提示词点名"发出去（换来的是素材卡形象能一起发；代价是起止画面不再是硬约束）`);
   }
@@ -102,6 +114,8 @@ export default function TierRow({
   const shown = VIDEO_TIERS.filter((tier) => tierOffered(tier) || tier.id === node.videoTier);
   // 套餐那一类原因并成一句（account.memberTiersLine）+「去升级」；这一段挂着的档本身用不了（停用 / 服务端不支持）另说一句
   const memberLine = memberTiersLine();
+  /** 出片地区那一句（account.regionTiersLine：这个地区出片只提供哪几家；地区不知道 / 没有哪一档被拦时为 null）。与选法屏、工坊铸段窗同一句 */
+  const regionLine = regionTiersLine();
   const curTier = tierOf(node.videoTier);
   const curOff = tierOffered(curTier) ? null : tierBlockReason(curTier);
 
@@ -148,7 +162,8 @@ export default function TierRow({
           const faceBlock = realFaceIssue(node.materials, tier.id, { blockout, framed });
           const block = tierBlockReason(tier) ?? r2vBlock ?? faceBlock ?? (needsDerive ? deriveIssue(tier.id) : null);
           const desc = tier.desc;
-          const model = tierModelId(tier);
+          // title 里的完整模型 id 只在地区问到了、这一档又摆得出来时写（account.tierShownModelId，与「本段模型」那一行同一个口径）
+          const model = tierShownModelId(tier);
           return (
             <button
               key={tier.id}
@@ -159,7 +174,7 @@ export default function TierRow({
                 else apply(tier.id);
               }}
               disabled={!!block}
-              title={block ?? t`${desc}（${model}）`}
+              title={block ?? (model ? t`${desc}（${model}）` : desc)}
               className={`rounded-lg px-2.5 py-1.5 text-[11px] disabled:opacity-40 ${
                 node.videoTier === tier.id ? "bg-brand text-ink" : "bg-panel text-slate-300"
               }`}
@@ -176,6 +191,11 @@ export default function TierRow({
           里出现过两遍）。宿主自己的别的理由（r2v 闸、真人卡）仍由宿主印，那是另一件事。
           「去升级」只治得了套餐门槛那一类原因，所以跟着 tierBlocks 一起出现。 */}
       {curOff && <Warn compact>{curOff}</Warn>}
+      {regionLine && (
+        <Warn tone="info" compact>
+          {regionLine}
+        </Warn>
+      )}
       {memberLine && (
         <Warn compact>
           {memberLine}

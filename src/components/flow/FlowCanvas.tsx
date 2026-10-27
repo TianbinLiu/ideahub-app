@@ -96,7 +96,7 @@ import {
   type FlowNode,
   type FlowTemplate,
 } from "../../studio/flowStore";
-import { myCards, tierBlockReason, tierNamesFor, usableTierId } from "../../data/account";
+import { myCards, noTierLine, tierBlockReason, tierNamesFor, tierPlanBlocked, tierShownModel, usableTierId } from "../../data/account";
 import UpgradeLink from "../UpgradeLink";
 import { useAccountVersion } from "../../hooks/useAccount";
 import {
@@ -108,7 +108,7 @@ import {
   subscribeTemplates,
   templatesVersion,
 } from "../../data/templates";
-import { CHAT_TURN_TOKENS, ONE_IMAGE, blockoutTier, clampDuration, durationChoices, fmtTokens, materialRefSecs, minUsageNote, priceTag, promptMaxOf, proposalsCost, tierModelLabel, tierOf } from "../../data/economy";
+import { CHAT_TURN_TOKENS, ONE_IMAGE, blockoutTier, clampDuration, durationChoices, fmtTokens, materialRefSecs, minUsageNote, priceTag, promptMaxOf, proposalsCost, shotsOkOf, tierOf } from "../../data/economy";
 import { AGENT_PHRASES, executeAgentProposal, runCanvasAgent, type AgentOutcome, type AgentProposal } from "../../studio/canvasAgent";
 import { EXAMPLES, phraseText, templatePhrase } from "../../studio/agentGrammar";
 import { useLang } from "../../i18n/useLang";
@@ -510,7 +510,8 @@ export default function FlowCanvas({
    */
   function finishGrid(specs: AppendSpec[], generate: boolean) {
     if (!gridSheet) return;
-    const ids = useFlow.getState().appendSpecs(specs);
+    // 落的是付过钱的格子：不拿档位门禁拒（flowStore.appendSpecs 的 tierGate 那一段 ★★），出片那一拍 genNode 照样拦并说清楚
+    const ids = useFlow.getState().appendSpecs(specs, { tierGate: false });
     if (!ids?.length) return;
     setGridSheet(null);
     resetGridScene();
@@ -524,7 +525,7 @@ export default function FlowCanvas({
   /** G 的向导点了「生成这一段」/「只铺成这一段」：与 C 同一对入口（appendSpecs 落段 + genNode 出片），落完清掉这一次的关键帧 */
   function finishEffect(specs: AppendSpec[], generate: boolean) {
     if (!effectSheet) return;
-    const ids = useFlow.getState().appendSpecs(specs);
+    const ids = useFlow.getState().appendSpecs(specs, { tierGate: false });
     if (!ids?.length) return;
     setEffectSheet(null);
     resetEffect();
@@ -538,7 +539,7 @@ export default function FlowCanvas({
   /** I 的向导点了「铺成 N 段」：与 C 同一对入口（appendSpecs 落段 + genNode 出第一段），落完清掉这一次的对白（三个机位留着，接着往下说不用再画） */
   function finishDialogue(specs: AppendSpec[], generate: boolean) {
     if (!dialogueSheet) return;
-    const ids = useFlow.getState().appendSpecs(specs);
+    const ids = useFlow.getState().appendSpecs(specs, { tierGate: false });
     if (!ids?.length) return;
     setDialogueSheet(null);
     resetDialogueLines();
@@ -1218,9 +1219,9 @@ function NodePanel({
   const named = !!tpl?.refVideo && !!tpl.roles?.length;
   /** 模板模式？由节点事实派生（有白模模板快照），不是独立 UI 状态 —— 两份真相必然漂 */
   const tplMode = !!tpl?.refVideo;
-  /** 按发直出档（真人档）：没有方案台，文本框直接写 plot、按钮直接开炼——
-   *  与 tplMode 同一条直出产线，判据只有档位表的 flatCost 一格 */
-  const flatTier = !!tierOf(node.videoTier).flatCost;
+  /** 只认一张起拍画面的档（真人档）：没有方案台，文本框直接写 plot、按钮直接开炼——
+   *  与 tplMode 同一条直出产线，判据只有档位表的 startOnly 一格（2026-10-26 前读的是按发计价表 flatCost：计价模型与出片方式是两件事） */
+  const flatTier = tierOf(node.videoTier).startOnly;
   /** 自定义直出段（主人点名的第三车道）：帧自己给、跳过方案台。事实在 FlowNode.custom
    *  （setNodeCustom 唯一写点），tplMode/flatTier 在场时它让位（store 也拦） */
   const custom = !!node.custom && !tplMode && !flatTier;
@@ -1298,8 +1299,8 @@ function NodePanel({
   const extraRefs = usableExtraRefs(node.extraRefs);
   /** 这一档的提示词上限（economy.promptMaxOf：2.x 两档 500、其余 400；套模板的段另按 400，不走这里） */
   const promptMax = promptMaxOf(node.videoTier);
-  /** 分镜 / 台词只开在出声又收参考图的档（草稿 / 高清 / 电影级）：别的档台词不会按卡的声音配，多镜头也没验过 */
-  const shotsOk = tierOf(node.videoTier).refImg && tierOf(node.videoTier).audio === true;
+  /** 分镜 / 台词只开在带得了声音样本的档（草稿 / 高清 / 电影级）：别的档台词不会按卡的声音配，多镜头也没验过（判据只在 economy.shotsOkOf） */
+  const shotsOk = shotsOkOf(node.videoTier);
   /** 运镜芯片对着哪段字：分了镜就是正在写的那个镜头，否则整段 */
   const shotsNow = writesPlot ? parseShots(p.plot).shots : [];
   const shotIdx = Math.min(activeShot, Math.max(0, shotsNow.length - 1));
@@ -1439,6 +1440,11 @@ function NodePanel({
                 ? (() => {
                     // 收参考图的档按能力现算、先说这个人用得了的（2026-10-07：原来写死「高清或电影级」，免费用户能用的「草稿」没提）
                     const n = tierNamesFor((x) => x.refImg);
+                    // 摆得出来的档里一档都不收参考图（门禁开着的海外只剩「真人」档）：说地区 / 这台服务器的事实，不编一条路（account.noTierLine）
+                    if (!n) {
+                      const none = noTierLine("refImg");
+                      return t`参考图直出要收参考图的模型——${none}`;
+                    }
                     const names = n.usable || n.member;
                     return n.usable
                       ? t`参考图直出要收参考图的模型——到 ⚙ 本段设置换成「${names}」`
@@ -1753,11 +1759,15 @@ function NodePanel({
                       // 带得了参考视频的档按能力现算、按这个人用不用得了分两种说法（免费用户一档都没有：高清 / 电影级都是会员档）
                       const cur = tierOf(node.videoTier).label;
                       const vid = tierNamesFor((x) => x.refVid);
-                      const usable = vid.usable;
-                      const member = vid.member;
+                      const usable = vid?.usable ?? "";
+                      const member = vid?.member ?? "";
+                      // 摆得出来的档里一档都带不了参考视频（门禁开着的海外只剩「真人」档）：不说会员档、不给「去升级」（付钱治不了地区）
+                      const none = vid ? "" : noTierLine("refVid");
                       return (
                         <Warn compact className="mt-1">
-                          {usable ? (
+                          {none ? (
+                            <Trans>「{cur}」档带不了参考视频——{none}：摘掉示例视频，否则这一段出不了片。</Trans>
+                          ) : usable ? (
                             <Trans>「{cur}」档带不了参考视频——去 ⚙ 本段设置换成「{usable}」，否则这一段出不了片。</Trans>
                           ) : (
                             <>
@@ -2315,7 +2325,7 @@ function PlanSheet({ nodeId, onClose }: { nodeId: string; onClose: () => void })
             shotEdit={{
               speakers: (node.materials ?? []).filter((c) => c.type === "character").map((c) => ({ id: c.id, name: c.name, voiced: !!voiceOf(c.id) })),
               max: promptMaxOf(node.videoTier),
-              canAdd: tierOf(node.videoTier).refImg && tierOf(node.videoTier).audio === true,
+              canAdd: shotsOkOf(node.videoTier),
             }}
             // 改这一帧（N3）：画布这一面此前没有（只有工坊方案台有一句话改帧）；同一个组件、同一处实现
             actions={() => (
@@ -2673,23 +2683,26 @@ function AgentPalette({ draft, onClose, onPick }: { draft: string; onClose: () =
  * ★ 工坊那一面为什么要它（2.62 发版评审抓到）：方案台在这种段上不再说「不画帧」（那是假话，会补画、会计费），
  *   卡面于是退回推演段的说法（「待推演」「AI 会在推演时自拟首尾帧」）—— 而直出段根本没有推演那一步。这一句把「什么时候画、收不收钱」说清。
  * ★ 只在真的会补画时说（nodeRefPlan 的 draws，与报价 / 出片同一份判定）：首帧已经有了、这一档又不画结束画面时一张都不画，
- *   「出片前会先按提示词画帧（计费）」就是假话（原来画布按「收不收参考图」一刀切地说）。真人档（flatCost）照片起拍、不在此列；延长段另有说法。
+ *   「出片前会先按提示词画帧（计费）」就是假话（原来画布按「收不收参考图」一刀切地说）。真人档（startOnly）照片起拍、不在此列；延长段另有说法。
  */
 export function DirectNoRefNote({ node, className = "" }: { node: FlowNode; className?: string }) {
   const nodes = useFlow((s) => s.nodes);
   const mode = useFlow((s) => s.mode);
   const tier = tierOf(node.videoTier);
-  if (!node.direct || node.extendFrom || tier.flatCost || tier.refImg) return null;
+  if (!node.direct || node.extendFrom || tier.startOnly || tier.refImg) return null;
   const idx = nodes.findIndex((n) => n.id === node.id);
   const draws = idx >= 0 ? nodeRefPlan(nodes, idx, mode)?.draws : undefined;
   if (!draws || (!draws.first && !draws.last)) return null;
   // 收参考图的档按能力现算（先说这个人用得了的；一档都用不了时那几档是会员档）
   const cur = tier.label;
   const n = tierNamesFor((x) => x.refImg);
-  const names = n.usable || n.member;
+  const names = n ? n.usable || n.member : "";
   return (
     <p className={`rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200 ${className}`}>
-      {n.usable ? (
+      {/* 摆得出来的档里一档都不收参考图（门禁开着的海外只剩「真人」档）：只说这一段会怎样，不指一档不存在的档 */}
+      {!n ? (
+        <Trans>「{cur}」档收不了参考图：这一段出片前会先按提示词画帧（计费）。</Trans>
+      ) : n.usable ? (
         <Trans>「{cur}」档收不了参考图：这一段出片前会先按提示词画帧（计费）。想让人物图直接给视频模型，到 ⚙ 本段设置换成「{names}」。</Trans>
       ) : (
         <Trans>「{cur}」档收不了参考图：这一段出片前会先按提示词画帧（计费）。人物图直接给视频模型要「{names}」（会员档）。</Trans>
@@ -2872,8 +2885,14 @@ export function TemplatePicker({
   useAccountVersion();
   const need = blockoutTier();
   const needLabel = need?.label ?? "";
-  const needModel = need ? tierModelLabel(need) : "";
-  const needIssue = need ? tierBlockReason(need) : null;
+  // 括号里的模型名只在地区问到了、这一档又摆得出来时写（account.tierShownModel，2026-10-26 审核：「卡片信息」包括模板卡，这一抽屉原来漏了）——
+  // 地区不知道时美国的机器在这里照样看到「Seedance 2.5」；门禁开着时更会紧挨着下面那句「你所在的地区只提供 MiniMax」把被拦的那一家点名
+  const needModel = need ? tierShownModel(need) : null;
+  // 地区挡住时出路只指同样做得了白模的档（白模钉死一档 = 没有可换的；account.tierRegionIssue 的 need）——
+  // 原来上一句刚说「不能换别的画质档」，下一句就叫人换成「真人」档（2026-10-26 P1 审核）
+  const needIssue = need ? tierBlockReason(need, (x) => x.blockoutOk) : null;
+  /** 挡住他的是套餐才给「去升级」（account.tierPlanBlocked）：原因是出片地区时付钱治不了 */
+  const needUpgradeable = !!need && tierPlanBlocked(need);
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60" onClick={onClose}>
       <div
@@ -2887,13 +2906,21 @@ export function TemplatePicker({
         </div>
         {need && (
           <p className="mb-1.5 flex-none text-[11px] leading-relaxed text-slate-400">
-            <Trans>白模模板固定用「{needLabel}」（{needModel}）出片：选了之后这一段不能换别的画质档。</Trans>
+            {needModel ? (
+              <Trans>白模模板固定用「{needLabel}」（{needModel}）出片：选了之后这一段不能换别的画质档。</Trans>
+            ) : (
+              <Trans>白模模板固定用「{needLabel}」出片：选了之后这一段不能换别的画质档。</Trans>
+            )}
             {needIssue && (
               <span className="text-warn-300/90">
                 {" "}
                 {needIssue}
-                {"　"}
-                <UpgradeLink />
+                {needUpgradeable && (
+                  <>
+                    {"　"}
+                    <UpgradeLink />
+                  </>
+                )}
               </span>
             )}
           </p>

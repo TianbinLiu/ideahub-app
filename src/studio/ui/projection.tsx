@@ -7,8 +7,8 @@ import { useMemo, useRef, useState } from "react";
 import Warn from "../../components/Warn";
 import { useNavigate } from "react-router";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { deckCoverOf, memberTiersLine, myCards, myDecks, realFaceIssue, tierBlockReason, tierNamesFor, tierOffered } from "../../data/account";
-import { ONE_IMAGE, VIDEO_TIERS, deriveIssue, durationChoices, fmtTokens, priceTag, promptMaxOf, r2vBlockLines, segTokens, tierModelId, tierModelLabel, tierOf } from "../../data/economy";
+import { deckCoverOf, memberTiersLine, myCards, myDecks, noTierLine, realFaceIssue, regionTiersLine, tierBlockReason, tierNamesFor, tierOffered, tierShownModel, tierShownModelId } from "../../data/account";
+import { ONE_IMAGE, VIDEO_TIERS, deriveIssue, durationChoices, fmtTokens, priceTag, promptMaxOf, r2vBlockLines, segTokens, shotsOkOf, tierOf } from "../../data/economy";
 import { useAccountVersion } from "../../hooks/useAccount";
 import UpgradeLink from "../../components/UpgradeLink";
 import StepDots from "../../components/StepDots";
@@ -393,13 +393,24 @@ function EditorPanel() {
    */
   // 收参考图的那几档按能力现算（2026-10-07 加了「草稿」：原来写死「高清 / 电影级」）—— 优先说这个人用得了的，一档都用不了才说会员档
   const refImgNames = tierNamesFor((x) => x.refImg);
-  const refImgList = refImgNames.usable || refImgNames.member;
+  /** 摆得出来的档里一档都不收参考图（门禁开着的海外只剩「真人」档）时那一句（account.noTierLine）—— 别印一对空引号「（「」）」 */
+  const directBlock = refImgNames
+    ? (() => {
+        const refImgList = refImgNames.usable || refImgNames.member;
+        return t`参考图直出要收参考图的模型（「${refImgList}」）`;
+      })()
+    : (() => {
+        const none = noTierLine("refImg");
+        return t`参考图直出要收参考图的模型——${none}`;
+      })();
   const laneBlock = (tierId: string): string | null =>
-    lane === "direct" ? (modeBlock("direct", modeTierOf(tierId)) ? t`参考图直出要收参考图的模型（「${refImgList}」）` : null) : deriveIssue(tierId);
+    lane === "direct" ? (modeBlock("direct", modeTierOf(tierId)) ? directBlock : null) : deriveIssue(tierId);
   /** 这一窗摆哪几档：停用的、服务端不支持的不摆（account.tierOffered）；正选着的那一档例外（藏起来就不知道自己在哪一档） */
   const shownTiers = VIDEO_TIERS.filter((tier) => tierOffered(tier) || tier.id === editor.videoTier);
   /** 套餐那一类原因并成一句（account.memberTiersLine，与 TierRow / 选法屏同一句）+「去升级」 */
   const memberLine = memberTiersLine();
+  /** 出片地区那一句（account.regionTiersLine，与 TierRow / 选法屏同一句）；地区不知道 / 没有哪一档被拦时为 null */
+  const regionLine = regionTiersLine();
   /** 车道那一类原因（套餐之外）。去重：参考图直出在极速、标准两档上是同一句话，别在一行里说两遍；
    *  套餐挡住的档不再各说一句（并进 memberLine）；正选着的那一档本身用不了（停用 / 服务端不支持）时说它那一句 */
   const curTierOff = tierOffered(tierOf(editor.videoTier)) ? null : tierBlockReason(tierOf(editor.videoTier));
@@ -425,8 +436,10 @@ function EditorPanel() {
       ? nodeFramed([...path, { ...customDraft, videoTier: tierId }], segIndex, useFlow.getState().mode)
       : lane !== "direct" || !!prev?.lastFrame;
   const faceNote = realFaceIssue(slotCards, editor.videoTier, { blockout: false, framed: laneFramedFor(editor.videoTier) });
+  /** 「模型：…」那一行（account.tierShownModel；null = 地区不知道 / 这个地区给不出，不写） */
+  const editorModel = tierShownModel(tierOf(editor.videoTier));
   /**
-   * 按模型适配那句。ownFrame 只管**真人档**那半句（起拍画面来自没勾「真人档适用」的卡时提醒，segmentGen.cardFitNote）——
+   * 按模型适配那句。ownFrame 只管**真人档**那半句（起拍画面来自没勾「起拍画面」的卡时提醒，segmentGen.cardFitNote）——
    * 这一窗用到它的三条车道都选不了真人档（推演三套 / 自定义被 deriveIssue 挡，参考图直出被 modeBlock 挡；跟着做的几条车道由向导自己管，不读它），所以恒传真 = 不说那半句。
    * ⚠ 别读成「工坊的段都带帧」：自定义 / 直出在收参考图的档上可以一张帧都不带（见上面 laneFramedFor）
    */
@@ -621,11 +634,15 @@ function EditorPanel() {
                   // 原来那句「换成高清」对他是一条走不通的路）
                   const cur = tierOf(editor.videoTier).label;
                   const vid = tierNamesFor((x) => x.refVid);
-                  const usable = vid.usable;
-                  const member = vid.member;
+                  const usable = vid?.usable ?? "";
+                  const member = vid?.member ?? "";
+                  // 摆得出来的档里一档都带不了参考视频（门禁开着的海外只剩「真人」档）：不说会员档、不给「去升级」（付钱治不了地区）
+                  const none = vid ? "" : noTierLine("refVid");
                   return (
                     <Warn compact>
-                      {usable ? (
+                      {none ? (
+                        <Trans>「{cur}」档带不了参考视频——{none}：直接跳过这一步，自己给首尾帧</Trans>
+                      ) : usable ? (
                         <Trans>「{cur}」档带不了参考视频——到「定规格」那一步换成「{usable}」，或直接跳过这一步自己给首尾帧</Trans>
                       ) : (
                         <>
@@ -768,13 +785,14 @@ function EditorPanel() {
                 //   framed 按车道与这一档问（laneFramedFor）：推演三套恒带帧；直出与自定义在收参考图的档上可以一张帧都不带
                 const block = tierBlockReason(tier) ?? realFaceIssue(slotCards, tier.id, { blockout: false, framed: laneFramedFor(tier.id) }) ?? laneBlock(tier.id);
                 const desc = tier.desc;
-                const model = tierModelId(tier);
+                // title 里的完整模型 id 与「模型：」那一行同一个口径（account.tierShownModelId）：地区不知道 / 这个地区给不出时不写
+                const model = tierShownModelId(tier);
                 return (
                   <button
                     key={tier.id}
                     onClick={() => useStudio.getState().setVideoTier(tier.id)}
                     disabled={editor.generating || !!block}
-                    title={block ?? t`${desc}（${model}）`}
+                    title={block ?? (model ? t`${desc}（${model}）` : desc)}
                     className={`rounded-lg border px-1 py-1 text-center transition disabled:opacity-40 ${
                       on
                         ? "border-cyan-400 bg-cyan-400/10 text-cyan-100"
@@ -802,17 +820,23 @@ function EditorPanel() {
                 <UpgradeLink />
               </Warn>
             )}
+            {regionLine && (
+              <Warn tone="info" compact className="mt-1">
+                {regionLine}
+              </Warn>
+            )}
             {fitNote && <p className="mt-1 text-[9px] leading-[13px] text-slate-400">{fitNote}</p>}
             {/* ★ 写出**真正会被调用的那个模型**。「极速/标准/高清」只说了画质档次，
                 没说这一段交给谁生成 —— 而 1.0 与 2.0 的观感差别很大，用户对不上账时
                 无从判断。名字由 tierOf(...).model 推导，与发给方舟的 id 同源，
                 不会出现"界面写着一个、实际跑另一个"。完整 id 放在 title 里。 */}
-            <div
-              className="mt-1 text-center text-[9px] text-slate-500"
-              title={tierModelId(tierOf(editor.videoTier))}
-            >
-              <Trans>模型：{tierModelLabel(tierOf(editor.videoTier))}</Trans>
-            </div>
+            {/* ★ 2026-10-26（出片地区 · 主人第 2 件审核）：只在地区问到了、这一档又摆得出来时写（account.tierShownModel，一处出口）；
+                写不出来时整行不摆（上面那排档位按钮已经写着档位名） */}
+            {editorModel && (
+              <div className="mt-1 text-center text-[9px] text-slate-500" title={tierShownModelId(tierOf(editor.videoTier))}>
+                <Trans>模型：{editorModel}</Trans>
+              </div>
+            )}
           </div>
         </div>
       ) : (
@@ -1079,11 +1103,15 @@ function EditorPanel() {
                 // 带得了参考视频的档按能力现算（原来写死「电影级」，2026-10-05 起高清也带得了）；这个人一档都用不了时说会员档 +「去升级」
                 const cur = tierOf(editor.videoTier).label;
                 const vid = tierNamesFor((x) => x.refVid);
-                const usable = vid.usable;
-                const member = vid.member;
+                const usable = vid?.usable ?? "";
+                const member = vid?.member ?? "";
+                // 同上：一档都带不了参考视频时只说事实与出路（摘掉示例视频），不说会员档、不给「去升级」
+                const none = vid ? "" : noTierLine("refVid");
                 return (
                   <Warn compact className="mb-1.5">
-                    {usable ? (
+                    {none ? (
+                      <Trans>「{cur}」档带不了参考视频——{none}：摘掉示例视频，否则这一段出不了片。</Trans>
+                    ) : usable ? (
                       <Trans>「{cur}」档带不了参考视频——选「{usable}」，否则这一段出不了片</Trans>
                     ) : (
                       <>
@@ -1556,7 +1584,7 @@ function ProposalsPanel() {
           shotEdit={{
             speakers: (node.materials ?? []).filter((c) => c.type === "character").map((c) => ({ id: c.id, name: c.name, voiced: !!voiceOf(c.id) })),
             max: promptMaxOf(node.videoTier),
-            canAdd: tierOf(node.videoTier).refImg && tierOf(node.videoTier).audio === true,
+            canAdd: shotsOkOf(node.videoTier),
           }}
           switchWarn={(p) =>
             pickedId != null && pickedId !== p.id && idx < path.length - 1

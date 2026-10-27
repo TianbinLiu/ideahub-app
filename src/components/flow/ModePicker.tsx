@@ -11,11 +11,11 @@ import Icon, { type IconName } from "../Icon";
 import Warn from "../Warn";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { memberTiersLine, tierBlockReason, tierNamesFor, tierOffered } from "../../data/account";
-import { CHAT_TURN_TOKENS, CHECKED_PANEL_TOKENS, clampDuration, fmtTokens, IMAGE_TOKENS, segTokens, tierModelId, tierModelLabel, tierOf, VIDEO_TIERS } from "../../data/economy";
+import { memberTiersLine, noTierLine, regionTiersLine, tierBlockReason, tierNamesFor, tierOffered, tierShownModel, tierShownModelId } from "../../data/account";
+import { CHAT_TURN_TOKENS, CHECKED_PANEL_TOKENS, clampDuration, fmtTokens, IMAGE_TOKENS, segTokens, tierOf, VIDEO_TIERS } from "../../data/economy";
 import { useAccountVersion } from "../../hooks/useAccount";
 import UpgradeLink from "../UpgradeLink";
-import { GUIDED_GROUPS, GUIDED_MODES, modeBlock, type GuidedGroup, type GuidedModeId, type ModeTier } from "../../data/guidedModes";
+import { GUIDED_GROUPS, GUIDED_MODES, clearsBlock, modeBlock, modeTierOfSpec, type GuidedGroup, type GuidedModeId, type ModeTier } from "../../data/guidedModes";
 import { GRID_DEFAULT_SEC } from "../../data/gridShots";
 import { LEAD_DEFAULT_SEC } from "../../data/sceneShots";
 
@@ -64,10 +64,9 @@ const MODE_TEXT: Record<GuidedModeId, { icon: IconName; title: MessageDescriptor
   template: { icon: "file", title: msg`套模板`, tag: msg`换人不换景`, desc: msg`挑一条模板片，把画面里的人换成你的角色，场景与运镜照它走（模板按这个模型筛）` },
 };
 
-/** economy.VideoTier → 判定要的那几位能力（判据只在 guidedModes.modeBlock） */
+/** economy.VideoTier → 判定要的那几位能力（判据只在 guidedModes.modeBlock；取哪几位在 guidedModes.modeTierOfSpec，构建检查拿真表核） */
 export function modeTierOf(tierId: string): ModeTier {
-  const tier = tierOf(tierId);
-  return { refImg: !!tier.refImg, flat: !!tier.flatCost, audio: !!tier.audio };
+  return modeTierOfSpec(tierOf(tierId));
 }
 
 export default function ModePicker({
@@ -98,6 +97,14 @@ export default function ModePicker({
   const caps = modeTierOf(tierId);
   /** 套餐点不动的那几档并成一句（account.memberTiersLine，与 TierRow 同一句）+「去升级」 */
   const memberLine = memberTiersLine();
+  /** 出片地区那一句（account.regionTiersLine，与 TierRow / 工坊铸段窗同一句）；地区不知道 / 没有哪一档被拦时为 null */
+  const regionLine = regionTiersLine();
+  /**
+   * 「这一段交给哪个模型生成」：只在地区问到了、这一档又摆得出来时写（account.tierShownModel，一处出口）——
+   * 地区不知道时美国的机器在这一屏（加一段的第一屏）会先看到「Seedance」；门禁开着、正选着被拦的那一档时，这句会紧挨着地区那句给被拦的那一家点名（2026-10-26 审核）。
+   * 写不出来时整行不摆：上面那排芯片已经写着档位名了。
+   */
+  const shownModel = tierShownModel(tier);
   /**
    * 宿主递进来的这一档本身就用不了（会员档 / 已停用 / 服务端不支持）—— 宿主的默认档本来都按 usableTierId 给，这里是最后一道：
    * 把原因说在最上面，并把下面的模式全灰掉 —— 不然挑了模式就进向导，写分镜 / 画画面的钱先花出去，出片那一步才被拦下。
@@ -106,14 +113,24 @@ export default function ModePicker({
   /** 摆哪几档：停用的、服务端不支持的不摆（account.tierOffered）；正选着的那一档例外（藏起来就不知道自己在哪一档） */
   const shown = VIDEO_TIERS.filter((x) => tierOffered(x) || x.id === tier.id);
   const hidden = GUIDED_MODES.filter((m) => modeBlock(m.id, caps) !== null);
-  /** 「换到哪一档就有」：按这个人用得了的说（account.tierNamesFor）；一档都用不了时说那几档是会员档 */
-  const refNames = tierNamesFor((x) => x.refImg);
-  const audioNames = tierNamesFor((x) => x.audio && x.refImg);
+  /**
+   * 「换到哪一档就有」：按这个人用得了的说（account.tierNamesFor）；一档都用不了时说那几档是会员档。
+   * ★ 哪些档算数只问 guidedModes.clearsBlock —— 与挡它的 modeBlock 同一位（2026-10-26 审核：「要能出声的模型」原来按 refAudio 数，
+   *   挡对话正反打的却是 audio；出声却不收声音样本的档一来，能用的那一档提示里永远不提）。
+   */
+  const refNames = tierNamesFor((x) => clearsBlock("refImg", modeTierOfSpec(x)));
+  const audioNames = tierNamesFor((x) => clearsBlock("audio", modeTierOfSpec(x)));
   return (
     <div className="space-y-3">
       <div>
         <div className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>① 先选出片模型</Trans></div>
-        <div className="no-scrollbar flex gap-1.5 overflow-x-auto">
+        {/* ★ 换行排，不横向滚（2026-10-26，与 TierRow 同一种排法）：原来是一行 no-scrollbar overflow-x-auto，六档摆不下时后面几颗
+            被挤出屏幕、滚动条又藏着 —— 排在最后的正是「真人」，人看不见、也不知道还能往右划。
+            量法（2026-10-26，开发服务器的真样式里摆同样六颗芯片量 getBoundingClientRect）：360 宽的手机上，画布「＋ 加一段」的抽屉
+            （Sheet p-4）内容宽 328px、工坊铸段窗（inset-x-2 + 边框 + p-3）318px；六颗常规档芯片（px-3.5 text-xs、gap-1.5）中文一行要 354px
+            （第一屏只露出前五颗，「真人」整颗在外面）、英文 446px（只露出前四颗，「Cinematic」「Real-person」都在外面）。
+            换行之后两处都是两行、六颗全在屏上（高 62px，原来 28px）；11-24 极速 / 标准停用之后剩四颗（中文 238px、英文 303px），自动回到一行。 */}
+        <div className="flex flex-wrap gap-1.5">
           {/* ★ 回调参数叫 x 不叫 t：t 是 useLingui 给的翻译函数，同名会把它遮住 */}
           {shown.map((x) => {
             const blocked = !!tierBlockReason(x);
@@ -122,9 +139,9 @@ export default function ModePicker({
                 key={x.id}
                 onClick={() => onTier(x.id)}
                 disabled={blocked}
-                title={tierModelId(x)}
+                title={tierShownModelId(x)}
                 // 常规档的芯片（px-3.5 py-1.5 text-xs）：这排是这一屏的第一个决定，紧凑档 22px 高手指点不准（2026-10-14 UX 课收口）
-                className={`flex-none rounded-full px-3.5 py-1.5 text-xs transition active:opacity-60 disabled:opacity-40 ${
+                className={`rounded-full px-3.5 py-1.5 text-xs transition active:opacity-60 disabled:opacity-40 ${
                   x.id === tier.id ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-300"
                 }`}
               >
@@ -133,10 +150,17 @@ export default function ModePicker({
             );
           })}
         </div>
-        <p className="mt-1 text-[10px] text-slate-500">
-          <Trans>这一段交给 {tierModelLabel(tier)} 生成</Trans>
-        </p>
+        {shownModel && (
+          <p className="mt-1 text-[10px] text-slate-500">
+            <Trans>这一段交给 {shownModel} 生成</Trans>
+          </p>
+        )}
         {tierIssue && <Warn compact className="mt-0.5">{tierIssue}</Warn>}
+        {regionLine && (
+          <Warn tone="info" compact className="mt-0.5">
+            {regionLine}
+          </Warn>
+        )}
         {memberLine && (
           <p className="mt-0.5 text-[10px] leading-relaxed text-slate-500">
             {memberLine}
@@ -182,7 +206,7 @@ export default function ModePicker({
                       : m.id === "dialogue"
                       ? t`写对白 ${chatPrice}，三个机位每张 ${gridPanelPrice}（含 AI 看一遍），每句一段约 ${gridVideo} / ${gridSec} 秒`
                       : m.id === "effect"
-                      ? caps.flat
+                      ? caps.startOnly
                         ? t`照片起拍，视频约 ${fxVideo} / 一发`
                         : t`关键帧 ${panelPrice}，视频约 ${fxVideo} / ${fxSec} 秒`
                       : m.id === "cards"
@@ -205,7 +229,7 @@ export default function ModePicker({
                         <span className="rounded-full bg-slate-700/70 px-2 py-0.5 text-[10px] text-slate-300"><Trans>{steps} 步</Trans></span>
                       </span>
                       <span className="mt-1 block text-[11px] leading-relaxed text-slate-400">
-                        {m.id === "direct" && caps.flat ? t`真人卡的照片起拍，写一句话直接出片` : t(text.desc)}
+                        {m.id === "direct" && caps.startOnly ? t`真人卡的照片起拍，写一句话直接出片` : t(text.desc)}
                       </span>
                       {price && <span className="mt-0.5 block text-[10px] text-slate-500">{price}</span>}
                     </span>
@@ -224,6 +248,18 @@ export default function ModePicker({
               const why = modeBlock(m.id, caps);
               // 档名按能力现算、按这个人用不用得了分两种说法（2026-10-07：原来写死「高清或电影级」，免费用户被指去两个点不动的档）
               const names = why === "refImg" ? refNames : why === "audio" ? audioNames : null;
+              // ★ 摆得出来的档里一档都解不了这个原因（tierNamesFor 回 null —— 门禁开着的海外只剩「真人」档，2026-10-26 终审）：
+              //   原来落到下面那支，印出「换到「」就有」。说地区 / 这台服务器的事实（account.noTierLine，与上面 regionLine 同一种措辞），不编一条路、不给「去升级」
+              if ((why === "refImg" || why === "audio") && !names) {
+                const none = noTierLine(why);
+                return (
+                  <p key={m.id}>
+                    {why === "refImg"
+                      ? t`「${title}」要收参考图的模型：${none}`
+                      : t`「${title}」要能出声的模型（台词得说出来）：${none}`}
+                  </p>
+                );
+              }
               if (names && !names.usable && names.member) {
                 const member = names.member;
                 return (

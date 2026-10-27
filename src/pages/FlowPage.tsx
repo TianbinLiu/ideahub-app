@@ -774,6 +774,8 @@ function NodeScreen({
                     : (() => {
                         // 收参考图的档按能力现算、先说这个人用得了的（account.tierGo）
                         const go = tierGo((x) => x.refImg);
+                        // 摆得出来的档里一档都不收参考图（门禁开着的海外只剩「真人」档）：只说这一段会怎样，不指一档不存在的档（account.tierGo 回 null）
+                        if (!go) return t`「${tierLabel}」档不支持参考图：会先按描述画一张设定帧再出片`;
                         const names = go.names;
                         return go.member
                           ? t`「${tierLabel}」档不支持参考图：会先按描述画一张设定帧再出片。直接用卡片形象要「${names}」（会员档）`

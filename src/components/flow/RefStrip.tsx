@@ -16,7 +16,7 @@ import { useEffect, useRef, useState } from "react";
 import InfoTip from "../InfoTip";
 import Spinner from "../Spinner";
 import { showToast } from "../../data/toast";
-import { tierNamesFor } from "../../data/account";
+import { noTierLine, tierNamesFor } from "../../data/account";
 import { useLang } from "../../i18n/useLang";
 import { VIDEO_REF_WINDOW, fileToRefImage } from "../../utils/image";
 import type { RefPlan, RefPlanItem } from "../../studio/segmentGen";
@@ -103,13 +103,17 @@ export default function RefStrip({
   // 「换哪一档就有」按能力现算、按这个人用不用得了分两种说法（account.tierNamesFor；2026-10-07 起原来写死的「高清」「电影级」对免费用户是死路）
   const vidNames = tierNamesFor((x) => x.refVid);
   const imgNames = tierNamesFor((x) => x.refImg);
-  const audioNames = tierNamesFor((x) => x.audio && x.refImg);
-  const vidUsable = vidNames.usable;
-  const vidMember = vidNames.member;
-  const imgUsable = imgNames.usable;
-  const imgMember = imgNames.member;
-  const audioUsable = audioNames.usable;
-  const audioMember = audioNames.member;
+  // 「要配音换哪一档」= 带得了声音样本的那几档（VideoTier.refAudio）
+  const audioNames = tierNamesFor((x) => x.refAudio);
+  // null = 摆得出来的档里一档都没有这种能力（门禁开着的海外只剩「真人」档）：说地区 / 这台服务器的事实（account.noTierLine），不说「换到「」」、不说会员档
+  const vidUsable = vidNames?.usable ?? "";
+  const vidMember = vidNames?.member ?? "";
+  const vidNone = vidNames ? "" : noTierLine("refVid");
+  const imgUsable = imgNames?.usable ?? "";
+  const imgMember = imgNames?.member ?? "";
+  const audioUsable = audioNames?.usable ?? "";
+  const audioMember = audioNames?.member ?? "";
+  const audioNone = audioNames ? "" : noTierLine("refAudio");
   const items = plan.items;
   const numOf = (id: string) => items.find((it) => it.kind === "extra" && it.extra?.id === id)?.n ?? null;
   const firstN = items.find((it) => it.kind === "first")?.n;
@@ -236,13 +240,17 @@ export default function RefStrip({
           {plan.why === "real" ? (
             <Trans>真人档只认一张起拍画面，不收参考图：卡片与临时参考图只按文字参与。</Trans>
           ) : plan.why === "refvid" ? (
-            vidUsable ? (
+            vidNone ? (
+              <Trans>「{tierLabel}」档带不了示例视频——{vidNone}。</Trans>
+            ) : vidUsable ? (
               <Trans>「{tierLabel}」档带不了示例视频——换成「{vidUsable}」之后这里才排得出清单。</Trans>
             ) : (
               <Trans>「{tierLabel}」档带不了示例视频；带得了的「{vidMember}」是会员档（开通会员套餐或充值过任意一笔后可用）。</Trans>
             )
           ) : imgUsable ? (
             <Trans>「{tierLabel}」档协议上不收参考图：卡片形象只用来画首尾帧，出片时模型看到的只有首尾帧。想让模型直接看到卡片形象与临时参考图，换「{imgUsable}」。</Trans>
+          ) : !imgNames ? (
+            <Trans>「{tierLabel}」档协议上不收参考图：卡片形象只用来画首尾帧，出片时模型看到的只有首尾帧。</Trans>
           ) : (
             <Trans>「{tierLabel}」档协议上不收参考图：卡片形象只用来画首尾帧，出片时模型看到的只有首尾帧。让模型直接看到卡片形象与临时参考图要「{imgMember}」（会员档）。</Trans>
           )}
@@ -355,7 +363,9 @@ export default function RefStrip({
           {plan.voiceIdle.why === "quote" ? (
             <Trans>🔇 {idleNames} 带着声音样本，但句子里没有台词——把台词写进引号（「」或 “”）里，才会按这张卡的声音配音。</Trans>
           ) : plan.voiceIdle.why === "tier" ? (
-            audioUsable ? (
+            audioNone ? (
+              <Trans>🔇 {idleNames} 带着声音样本，但「{tierLabel}」档出片无声——{audioNone}。</Trans>
+            ) : audioUsable ? (
               <Trans>🔇 {idleNames} 带着声音样本，但「{tierLabel}」档出片无声——要配音换「{audioUsable}」。</Trans>
             ) : (
               <Trans>🔇 {idleNames} 带着声音样本，但「{tierLabel}」档出片无声——配音要「{audioMember}」（会员档）。</Trans>

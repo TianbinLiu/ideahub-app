@@ -14,7 +14,7 @@ import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { AI_REAL } from "../../ai";
-import { myCards, realFaceIssue, tierGo } from "../../data/account";
+import { myCards, noTierLine, realFaceIssue, tierGo } from "../../data/account";
 import { subscribeVoices, voiceOf, voicesVersion } from "../../data/cardVoice";
 import {
   DIALOGUE_LEAD_MAX,
@@ -279,7 +279,7 @@ export default function DialogueWizard({
           {!lineN ? (
             <div className="space-y-2">
               <button
-                onClick={() => void writeLines({ names, place: place?.name ?? "" })}
+                onClick={() => void writeLines({ names, place: place?.name ?? "", tierId })}
                 disabled={d.writing || d.situation.trim().length < SITUATION_MIN}
                 className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-brand/90 py-2.5 text-sm font-bold text-ink disabled:opacity-40"
               >
@@ -384,7 +384,7 @@ export default function DialogueWizard({
                   <Trans>＋ 加一句</Trans>
                 </button>
                 <button
-                  onClick={() => void writeLines({ names, place: place?.name ?? "" })}
+                  onClick={() => void writeLines({ names, place: place?.name ?? "", tierId })}
                   disabled={d.writing || d.situation.trim().length < SITUATION_MIN}
                   className="flex items-center gap-1.5 rounded-full bg-slate-700/60 px-3 py-1 text-[11px] text-slate-200 disabled:opacity-40"
                 >
@@ -529,7 +529,7 @@ export default function DialogueWizard({
                 className="w-full rounded-lg border border-slate-700 bg-black/30 px-2.5 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand disabled:opacity-40"
               />
               <button
-                onClick={() => void redrawAngle(focus, { cast, place, ask })}
+                onClick={() => void redrawAngle(focus, { cast, place, ask, tierId })}
                 disabled={!!d.drawing || !!d.panels[focus]?.busy || (focus !== "two" && !d.panels.two?.image)}
                 className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-brand/90 py-2.5 text-sm font-bold text-ink disabled:opacity-40"
               >
@@ -555,7 +555,7 @@ export default function DialogueWizard({
           {d.drawErr && <p className="text-[11px] leading-relaxed text-danger-300">{d.drawErr}</p>}
           {d.drawNote && !d.drawing && <p className="text-[10px] leading-relaxed text-slate-400">{d.drawNote}</p>}
           <button
-            onClick={() => void drawAngles({ cast, place })}
+            onClick={() => void drawAngles({ cast, place, tierId })}
             disabled={!!d.drawing || d.writing}
             className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
           >
@@ -645,12 +645,18 @@ export default function DialogueWizard({
           </div>
           {!tier.audio &&
             (() => {
-              // 出声的档按能力现算、先说这个人用得了的（account.tierGo；原来写死「高清或电影级」，免费用户能用的「草稿」没提）
-              const go = tierGo((x) => x.audio && x.refImg);
-              const names = go.names;
+              // 出声的档按能力现算、先说这个人用得了的（account.tierGo；原来写死「高清或电影级」，免费用户能用的「草稿」没提）。
+              // ★ 与这一句的闸（上面的 !tier.audio、下面那颗键的 disabled）同一位 audio（2026-10-26 审核）：按 refAudio 数的话，
+              //   出声却不收声音样本的档（MiniMax H3）在这里能落段，提示却不提它；声音样本带不带得上由 voiceRefsFor 另说
+              const go = tierGo((x) => x.audio);
+              // 摆得出来的档里一档都出不了声（门禁开着的海外只剩「真人」档）：不说「换到「」」，说地区 / 这台服务器的事实（account.noTierLine）
+              const none = go ? "" : noTierLine("audio");
+              const names = go?.names ?? "";
               return (
                 <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200">
-                  {go.member ? (
+                  {!go ? (
+                    <Trans>这一档出片不出声，台词说不出来 —— {none}。</Trans>
+                  ) : go.member ? (
                     <Trans>这一档出片不出声，台词说不出来 —— 出声的「{names}」是会员档。</Trans>
                   ) : (
                     <Trans>这一档出片不出声，台词说不出来 —— 换到「{names}」。</Trans>

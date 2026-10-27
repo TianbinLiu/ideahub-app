@@ -15,7 +15,7 @@
 import { AI_REAL, ARK_REF_IMAGES_MAX, ArkTaskUnknown, SegmentGenFailed, VIDEO_PROMPT_MAX, composeSegments, generateFrame, notesInParens, planCardRefs, prepareMaterialRefs, refCardIds, refineFrame, type KeptFrames } from "../ai";
 import { compileMentions, drawExtraRefs, extraRefLines, mentionTargets, plainMentions, usableExtraRefs, type ExtraRef } from "../data/refMentions";
 import { uploadImage } from "../api/uploads";
-import { IMAGE_TOKENS, blockoutPriceIssue, blockoutTier, fmtTokens, r2vPriceIssue, tierOf, providerOf, clampDuration, videoTokensOfSpec, promptMaxOf, refAudioSecOf, materialRefSecs, minUsageNote, type VideoTier } from "../data/economy";
+import { IMAGE_TOKENS, apiCase, blockoutPriceIssue, blockoutTier, fmtTokens, r2vPriceIssue, tierOf, clampDuration, videoTokensOfSpec, promptMaxOf, refAudioSecOf, materialRefSecs, minUsageNote, type VideoTier } from "../data/economy";
 // 设定帧那一步最多喂几张参考图（经典路的预算）：那句提示里的数字从它取，不写死（2026-10-10 文案复核抓到写死的「3 张」）
 import { MAX_REF_IMAGES } from "../ai/real";
 import { frameMoment, isMultiShot, lineSpeakers, momentCards, packShots } from "../data/shotScript";
@@ -25,7 +25,7 @@ import { frameSlotsOf, framesToDraw, type DrawInput } from "../data/drawPlan";
 import { refVideoIssue } from "../data/templates";
 import { ShotSpec, shotLineOf, CardType, ID_LINE_MAX, CARD_TYPE_PROMPT, idLineOf, viewsOf, feedsModel, TEXT_DESC_MAX, aspectOf, startFramesAllowed, type Card, type GenMode, type VideoAspect, type VideoTemplate } from "../types";
 import { voiceOf } from "../data/cardVoice";
-import { isRemoteMode, tierGo } from "../data/account";
+import { isRemoteMode, noTierLine, tierGo } from "../data/account";
 import { ratioFor } from "../ai/arkClient";
 import { t } from "@lingui/core/macro";
 
@@ -159,7 +159,8 @@ export interface SegmentGenInput {
  *  ⑤ 没有圈选标注 —— 圈选改的就是设定帧，没有帧可改。
  */
 /**
- * 这一段的台词能不能带上人物卡的**声音样本**（音色参考）—— 唯一实现。
+ * 这一段的台词能不能带上人物卡的**声音样本**（音色参考）。
+ * 本函数判 ① 与合计时长；② ③ 由 voiceRefsFor（出片）与 refPlanOf（参考清单）按同一组条件判，出片前 real.validateGenSpec 再核一次 ③。
  *
  * 三个条件（少一个都不发）：
  *  ① 剧情里真有台词（「」/ "" 引号内文字 —— 与 Seedance 的配音语义同一判据：
@@ -167,7 +168,9 @@ export interface SegmentGenInput {
  *  ② 走的是参考生视频模式（refVideoOn 为真）：方舟实测首尾帧任务混参考媒体直接 400，
  *     所以**工作流的首尾帧承接段带不了音色参考** —— 那不是漏做，是协议互斥。
  *     （hd/ultra 的首帧段台词照样被配音，只是音色随机 —— 那种情况由出片处如实说。）
- *  ③ 档位真出声（VideoTier.audio；1.x 收下 generate_audio 静默忽略，样本发了也是哑的）。
+ *  ③ 档位带得了声音样本（VideoTier.refAudio；今天 = audio && refImg：1.x 收下 generate_audio 静默忽略，样本发了也是哑的。
+ *     海外 MiniMax H3 出声却没有 refAudio —— 所以**别回去读 audio**，那正是 2026-10-26 拆掉的代用判据；
+ *     scripts/check-tier-semantics.mjs 不许拼 audio && refImg，单读 audio 它抓不到，只能靠这一句）。
  * 计费：阶段 0 直连实测**零加价**（usage 逐位相同），所以报价侧一项都不用加。
  */
 export function voicedCardsOf(o: { plot: string; materials?: Card[]; capSec?: number | null }): Card[] {
@@ -290,7 +293,7 @@ export function frameFree(o: {
 /**
  * 真人档的起拍画面**从哪张卡来** —— 唯一实现（出片那一支与本段设置里那句提示共用）。
  * 顺序：真人卡 > 其它人物卡 > 场景卡 > 道具卡 > 风格卡 > 背景卡（真人优先是这一档存在的理由，再按"画面主体"排）；
- * 第一张拿得出图的卡说了算：它勾了「真人档适用」就用这一画幅的起拍画面，否则用它第一张「出片用」的图
+ * 第一张拿得出图的卡说了算：它勾了「起拍画面」（2026-10-26 之前叫「真人档适用」）就用这一画幅的起拍画面，否则用它第一张「出片用」的图
  * （作者标「仅展示」的不取，types.feedsModel 一处判据）。
  * ★ 真人卡永远以照片起拍（types.startFramesAllowed）：哪怕带着起拍画面的老数据也不取。
  */
@@ -315,7 +318,7 @@ export function startSourceOf(
  * 「这一段挂的卡在这一档上有哪些没适配」—— 本段设置 / 工坊方案台在档位下面印的那一句（按模型适配，2026-09-30）。
  * null = 没什么要说的。只说**能就地补**的事（勾哪个选项），不复述档位能力。
  * · 标准 / 极速：设定帧只画得进分到图的那几张卡（经典路分配：一段只有第一张人物卡、共 3 张图），其余又没写文字版形象描述的点名；
- * · 真人档：起拍画面来自一张没勾「真人档适用」的卡时提一句（ownFrame = 这一段已经有首帧 / 承接帧，就不提）。
+ * · 真人档：起拍画面来自一张没勾「起拍画面」的卡时提一句（ownFrame = 这一段已经有首帧 / 承接帧，就不提）。
  */
 export function cardFitNote(
   materials: Card[] | undefined,
@@ -324,14 +327,14 @@ export function cardFitNote(
 ): string | null {
   if (!materials?.length) return null;
   const tier = tierOf(tierId);
-  if (tier.flatCost) {
+  if (tier.startOnly) {
     if (o.ownFrame) return null;
     const src = startSourceOf(materials, o.aspect);
     if (!src || src.fromStartFrame) return null;
     // 起拍来源卡不能有起拍画面（风格 / 背景卡，或真人卡 —— 真人卡以照片起拍正是这一档的本意）就没什么可勾的
     if (!startFramesAllowed(src.card)) return null;
     const name = src.card.name;
-    return t`这一段以「${name}」卡上的图起拍——去卡片页勾「真人档适用」可以换成专门画好的起拍画面`;
+    return t`这一段以「${name}」卡上的图起拍——去卡片页勾「起拍画面」可以换成专门画好的起拍画面`;
   }
   if (tier.refImg) return null;
   const drawn = refCardIds(materials, false);
@@ -487,7 +490,8 @@ export function blockoutOn(o: Parameters<typeof blockoutIssue>[0] & { refVideoUr
  */
 export function carryIsHard(tierId: string | undefined): boolean {
   const t = tierOf(tierId);
-  return !!t.flatCost || !t.refImg;
+  // ★ 只认一张起拍画面的档（startOnly）读能力位，不读按发计价表（2026-10-26：计价模型与出片方式是两件事）
+  return t.startOnly || !t.refImg;
 }
 
 /**
@@ -546,7 +550,7 @@ export function refSlotsOf(o: {
   const framesAsRefs = !blockout && !refMode && !carryIsHard(o.videoTier);
   // ★ 补画哪几张只问 data/drawPlan（报价 economy.segmentCost 读的是同一个函数）；白模一张设定帧都不画：画面整个来自模板视频
   const drawIn: DrawInput = {
-    tier: { flf: tier.flf, flat: !!tier.flatCost },
+    tier: { flf: tier.flf, startOnly: tier.startOnly },
     hasFirstFrame: !!o.first,
     hasLastFrame: !!o.last,
     refMode,
@@ -679,9 +683,9 @@ export function refPlanOf(
   const speaking = speakingVoiced(o.plot, mats);
   /** 带声音、这一段却没有他的台词 —— 这次不带 */
   const quiet = quietVoiced(o.plot, mats);
-  /** 声音样本带得上 / 带不上（判据与 voiceRefsFor 同一组：有台词 + 参考类请求 + 档位出声） */
+  /** 声音样本带得上 / 带不上（判据与 voiceRefsFor 同一组：有台词 + 参考类请求 + 档位收声音样本 VideoTier.refAudio） */
   const voiceBits = (referenceMode: boolean): Pick<RefPlan, "voices" | "voiceIdle" | "voiceOver" | "voiceQuiet"> => {
-    const ok = referenceMode && tier.audio === true && voiced.length > 0;
+    const ok = referenceMode && tier.refAudio && voiced.length > 0;
     const voiceQuiet = quiet.length ? quiet : null;
     if (ok) {
       // 合计时长装不下的那几张（与 voiceRefsFor 出片时点名的是同一批：都问 fitVoices，装的都是「说台词的」那一批）
@@ -690,10 +694,13 @@ export function refPlanOf(
       return { voices: voiced, voiceIdle: null, voiceOver: over.length && capSec !== null ? { cards: over, capSec } : null, voiceQuiet };
     }
     // 有台词、请求也收声音样本，只是带声音的那几位都没台词：只说「这次不带」，别说成「句子里没有台词」
-    if (referenceMode && tier.audio === true && voiceQuiet && !speaking.length)
+    if (referenceMode && tier.refAudio && voiceQuiet && !speaking.length)
       return { voices: [], voiceIdle: null, voiceOver: null, voiceQuiet };
     if (!withVoice.length) return { voices: [], voiceIdle: null, voiceOver: null, voiceQuiet: null };
-    return { voices: [], voiceIdle: { cards: withVoice, why: !tier.audio ? "tier" : !referenceMode ? "mode" : "quote" }, voiceOver: null, voiceQuiet: null };
+    // ★ 出声却不收声音样本的档（refAudio 假、audio 真；今天没有这样的档，海外 MiniMax H3 是）归到「出片方式带不了参考音频」那句：
+    //   台词照样配音、音色由模型定 —— 别落进「quote」，那句说的是「句子里没有台词」，是假话
+    const why = !tier.audio ? "tier" : !referenceMode || !tier.refAudio ? "mode" : "quote";
+    return { voices: [], voiceIdle: { cards: withVoice, why }, voiceOver: null, voiceQuiet: null };
   };
   // 自定义 + 示例视频：帧当参考图，卡片的图一张都不发
   if (o.materialRef) {
@@ -707,7 +714,8 @@ export function refPlanOf(
     // 素材参考这条路不补画（帧来自示例视频或你自己给的）
     return { sends: true, why: null, items, textOnly: textOnlyOf(new Set()), extrasDropped: false, refVideo: true, ...voiceBits(true), refMode: false, draws: { first: false, last: false } };
   }
-  if (providerOf(o.videoTier) === "minimax")
+  // ★ 判据与 generateSegment 的真人档那一支同一个（请求形状 VideoTier.api，apiCase：加一种 api 时 tsc 逼着在这里表态）：清单预览的就是那一发会怎么拼
+  if (apiCase(tier.api, { ark: false, "minimax-v1": true }))
     // 真人档一张设定帧都不画：首帧就是真人卡的照片
     return { sends: false, why: "real", items: [], textOnly: textOnlyOf(new Set()), extrasDropped: extras.length > 0, refVideo: false, ...voiceBits(false), refMode: false, draws: { first: false, last: false } };
   /** 首帧的缩略图（没有 = 还没画） */
@@ -1031,10 +1039,11 @@ function voiceRefsFor(o: {
 }): { refAudios?: string[]; voiceLine: string; notes: string[] } {
   const capSec = refAudioSecOf(o.tier.id);
   const voiced = voicedCardsOf({ plot: o.plot, materials: o.materials, capSec });
-  const ok = o.referenceMode && o.tier.audio === true && voiced.length > 0;
+  // ★ 档位收不收声音样本只问 VideoTier.refAudio（2026-10-26 起；原来读 audio，靠「参考类请求」顺带排掉不收参考图的档）
+  const ok = o.referenceMode && o.tier.refAudio && voiced.length > 0;
   const notes: string[] = [];
   // 合计时长装不下的那几张要点名（否则那个人的台词音色随机，而卡上明明有声音样本）
-  if (o.referenceMode && o.tier.audio === true && capSec !== null && hasDialogue(o.plot)) {
+  if (o.referenceMode && o.tier.refAudio && capSec !== null && hasDialogue(o.plot)) {
     const dropped = fitVoices(speakingVoiced(o.plot, o.materials), capSec).dropped;
     if (dropped.length) {
       const names = dropped.map((c) => c.name).join(t({ message: "、", comment: "列举几个名字时的分隔符" }));
@@ -1045,19 +1054,23 @@ function voiceRefsFor(o: {
   if (!ok && voiced.length > 0) {
     if (!o.tier.audio)
       notes.push(
-        o.tier.flatCost
+        o.tier.startOnly
           ? t`「${o.tier.label}」档暂无配音，台词只以画面呈现`
           : (() => {
-              // 出声的档按能力现算、先说这个人用得了的（account.tierGo；原来写死「高清」「电影级」）
-              const go = tierGo((x) => x.audio && x.refImg);
+              // 带得了声音样本的档按能力现算、先说这个人用得了的（account.tierGo；原来写死「高清」「电影级」）
+              const go = tierGo((x) => x.refAudio);
+              // 摆得出来的档里一档都带不了声音样本（门禁开着的海外只剩「真人」档）：只说台词不会被配音，不指一档不存在的档
+              if (!go) return t`「${o.tier.label}」档出片无声，台词不会被配音`;
               const names = go.names;
               return go.member
                 ? t`「${o.tier.label}」档出片无声，台词不会被配音（要声音得用「${names}」，会员档）`
                 : t`「${o.tier.label}」档出片无声，台词不会被配音（要声音选「${names}」）`;
             })(),
       );
-    else if (!o.referenceMode)
-      // ★ 能走到这里的只有白模段（它自己就是 r2v，且 tier.audio 为真的两档都收参考图）——
+    // ★ 出声却不收声音样本的档（refAudio 假；今天没有，海外 MiniMax H3 是）也落进这一句：「本档的出片方式与参考音频互斥」对它成立，
+    //   不落进来的话 ok 为假、两个分支都不进 —— 声音样本悄悄没带上，一个字都不说（铁律八）
+    else if (!o.referenceMode || !o.tier.refAudio)
+      // ★ 不是参考类请求还能走到这里的只有白模段（它自己就是 r2v，且 tier.audio 为真的两档都收参考图）——
       //   所以话要按白模说。原话「本档只能走首尾帧」在这唯一的场合是假的（白模根本没有首尾帧）
       notes.push(
         o.blockout
@@ -1139,7 +1152,8 @@ export async function generateSegment(
     return { url: res?.url, firstFrame: "", lastFrame: res?.lastFrame || "", poster: res?.poster, realDurationSec: res?.durationSec };
   }
   // 样片第一步只走普通出片那条路（理由见 draftMode 的 ★）。界面那几道闸（nodeDraftEligible）已经按同一个口径拦过，这里是最后一道
-  if (dm === "draft" && (input.refVideoUrl || input.extendRef || input.materialRef || providerOf(input.videoTier) === "minimax")) {
+  // 「这套请求有没有样片」与 flowStore.nodeDraftEligible 同一个答案（样片只在方舟协议里）；apiCase 让新协议在这里也得表态
+  if (dm === "draft" && (input.refVideoUrl || input.extendRef || input.materialRef || apiCase(tierOf(input.videoTier).api, { ark: false, "minimax-v1": true }))) {
     throw new Error(t`这一段的做法走不了样片（样片不收参考视频，也不走真人档）——关掉「先出样片」再生成`);
   }
   let first = input.firstFrame;
@@ -1179,9 +1193,12 @@ export async function generateSegment(
       const tierLabel = refTier.label;
       // 能延长的档按能力现算（extendOk），这个人一档都用不了时说那是会员档（account.tierGo）
       const go = tierGo((x) => x.extendOk);
-      const names = go.names;
+      const names = go?.names ?? "";
+      const none = go ? "" : noTierLine("extend");
       throw new Error(
-        go.member
+        !go
+          ? t`「${tierLabel}」档还不能延长——${none}`
+          : go.member
           ? t`「${tierLabel}」档还不能延长——能延长的「${names}」是会员档（开通会员套餐或充值过任意一笔后可用）`
           : t`「${tierLabel}」档还不能延长——去 ⚙ 本段设置换成「${names}」档`,
       );
@@ -1265,9 +1282,12 @@ export async function generateSegment(
     const refTier = tierOf(input.videoTier);
     if (!refTier.refVid) {
       const go = tierGo((x) => x.refVid);
-      const names = go.names;
+      const names = go?.names ?? "";
+      const none = go ? "" : noTierLine("refVid");
       throw new Error(
-        go.member
+        !go
+          ? t`「${refTier.label}」档不支持带参考视频出片——${none}：移除参考视频再出片`
+          : go.member
           ? t`「${refTier.label}」档不支持带参考视频出片——带得了的「${names}」是会员档；移除参考视频，或开通会员套餐（或充值过任意一笔）`
           : t`「${refTier.label}」档不支持带参考视频出片——去 ⚙ 本段设置换成「${names}」档，或移除参考视频`,
       );
@@ -1394,11 +1414,13 @@ export async function generateSegment(
     };
   }
 
-  // ── 真人档（MiniMax，flatCost 计价）：帧来源整个不同，在这里备好再交 composeSegments ──
-  // 这条路**一张 Seedream 设定帧都不画**（报价侧 segmentCost 的 draws 同口径 = 0）：
+  // ── 真人档（MiniMax V1 海螺，只认一张起拍画面）：帧来源整个不同，在这里备好再交 composeSegments ──
+  // 这条路**一张 Seedream 设定帧都不画**（报价侧 segmentCost 的 draws 同口径 = 0，那边读 startOnly —— 与 api 一一对应，构建检查钉着）：
   // 首帧就是真人卡的照片（或用户设定帧/承接帧），提示词驱动它动起来 —— 三发探针
   // 验证过的 i2v 形态。出片调用的分流在 composeSegments（尾帧捕获/承接共用那条产线）。
-  if (providerOf(input.videoTier) === "minimax") {
+  // ★ 按请求形状（VideoTier.api）分流，不按供应商：海外 MiniMax H3（P2b，V2 接口）也是 MiniMax，却收参考图、走另一套请求。
+  //   apiCase 不写等号：加 minimax-v2 时这里在 tsc 就红（等号比较会让它悄悄落进下面方舟那条路，按方舟补画设定帧、拼请求）
+  if (apiCase(tierOf(input.videoTier).api, { ark: false, "minimax-v1": true })) {
     if (blockout) {
       // 跑得了白模模板的那一档只问 economy.blockoutTier（唯一实现），别写死「电影级」
       const bt = blockoutTier()?.label ?? "";
@@ -1556,6 +1578,7 @@ export async function generateSegment(
         ? t`素材卡上没有可用的形象参考图，改为先按描述画一张设定帧再出片（多花约一张出图的钱）`
         : (() => {
             const go = tierGo((x) => x.refImg);
+            if (!go) return t`「${tier.label}」档不支持参考图，改为先按描述画一张设定帧再出片`;
             const names = go.names;
             return go.member
               ? t`「${tier.label}」档不支持参考图，改为先按描述画一张设定帧再出片（直接用卡片形象要「${names}」，会员档）`
@@ -1670,7 +1693,7 @@ export async function generateSegment(
   const draw = blockout
     ? { first: false, last: false }
     : framesToDraw({
-        tier: { flf: tier.flf, flat: !!tier.flatCost },
+        tier: { flf: tier.flf, startOnly: tier.startOnly },
         hasFirstFrame: !!first,
         hasLastFrame: !!last,
         refMode,
@@ -1767,6 +1790,7 @@ export async function generateSegment(
         ? t`这一段没走参考图出片，临时参考图这次没发出去`
         : (() => {
             const go = tierGo((x) => x.refImg);
+            if (!go) return t`「${tier.label}」档协议上不收参考图，临时参考图这次没发出去`;
             const names = go.names;
             return go.member
               ? t`「${tier.label}」档协议上不收参考图，临时参考图这次没发出去（用它们要「${names}」，会员档）`

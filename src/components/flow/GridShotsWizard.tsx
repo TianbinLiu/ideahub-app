@@ -332,7 +332,7 @@ export default function GridShotsWizard({
           {!shotN ? (
             <div className="space-y-2">
               <button
-                onClick={() => void writeShots({ cast: cast.map((c) => c.name), place: place?.name ?? "" })}
+                onClick={() => void writeShots({ cast: cast.map((c) => c.name), place: place?.name ?? "", tierId })}
                 disabled={d.writing || d.scene.trim().length < SCENE_MIN}
                 className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-brand/90 py-2.5 text-sm font-bold text-ink disabled:opacity-40"
               >
@@ -468,7 +468,7 @@ export default function GridShotsWizard({
                   <Trans>＋ 加一格</Trans>
                 </button>
                 <button
-                  onClick={() => void writeShots({ cast: cast.map((c) => c.name), place: place?.name ?? "" })}
+                  onClick={() => void writeShots({ cast: cast.map((c) => c.name), place: place?.name ?? "", tierId })}
                   disabled={d.writing || !!d.drawing || panelBusy || d.scene.trim().length < SCENE_MIN}
                   className="flex items-center gap-1.5 rounded-full bg-slate-700/60 px-3 py-1 text-[11px] text-slate-200 disabled:opacity-40"
                 >
@@ -654,7 +654,7 @@ export default function GridShotsWizard({
                     </p>
                   )}
                   <button
-                    onClick={() => void redrawPanel(focus, { cast, place, ask })}
+                    onClick={() => void redrawPanel(focus, { cast, place, ask, tierId })}
                     // ★ 不看 canDraw：单画一格走单张出图（drawGridPanel），与服务端能不能出组图无关
                     disabled={!!d.drawing || !!d.panels[focus]?.busy || !!focusCastIssue}
                     className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-brand/90 py-2.5 text-sm font-bold text-ink disabled:opacity-40"
@@ -753,7 +753,7 @@ export default function GridShotsWizard({
             </>
           ) : (
             <button
-              onClick={() => void drawGroup({ cast, place })}
+              onClick={() => void drawGroup({ cast, place, tierId })}
               disabled={!!d.drawing || d.writing || panelBusy || !shotN || canDraw === false || canDraw === "asking" || !!drawCastIssue}
               className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
             >

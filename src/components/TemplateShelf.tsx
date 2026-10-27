@@ -55,8 +55,9 @@ import {
   templatesVersion,
   type BlockoutJob,
 } from "../data/templates";
-import { tierBlockReason, tierOffered } from "../data/account";
-import { VIDEO_TIERS, blockoutTier, tierModelLabel, type VideoTier } from "../data/economy";
+import { tierBlockReason, tierOffered, tierPlanBlocked, tierRegionIssue, tierShownModel } from "../data/account";
+import { zoneIsRegional } from "../data/videoZone";
+import { VIDEO_TIERS, blockoutTier, type VideoTier } from "../data/economy";
 import { remoteOn } from "../data/videos";
 import { useFlow } from "../studio/flowStore";
 import { useApplyTemplate } from "./flow/useApplyTemplate";
@@ -122,7 +123,19 @@ export function TemplateCard({
   const catLabel = tplCategoryLabel(tpl.category);
   /** 这个模板能在哪几个出片模型上跑（data/templates.templateTiers 唯一实现）：null = 不限，[] = 闸门全关（不标） */
   const tiers = templateTiers(tpl);
+  /**
+   * 角标写具体模型名（2026-10-26 出片地区 · 主人第 2 件：「卡片信息」包括模板卡）—— 只在地区问到了、这一档又摆得出来时写
+   * （account.tierShownModel，一处出口）；地区不知道时照旧只写档位名，不写供应商。
+   */
+  const tierModels = tiers?.map(tierShownModel) ?? [];
+  const tierModelNames = tierModels.every((x) => !!x) ? tierModels.join(" / ") : "";
   const tierNames = tiers?.map((x) => x.label).join(" / ") ?? "";
+  /**
+   * 你所在的地区（或这台服务器）给不出它要的那一档（account.tierRegionIssue 一处判据）：角标换成一枚「用不了」，
+   * 不写它要的那个模型 —— 这个地区给不出的那一家不写名字（批评意见：白模模板对海外用户标出来，别静默拿掉）。
+   * 措辞分地区 / 服务器（videoZone.zoneIsRegional，与档位那一排同一个分法）。
+   */
+  const regionOff = !!tiers?.length && tiers.every((x) => !!tierRegionIssue(x));
   /** 这个账号的套餐用不了它要求的那一档（只是提示：套餐还不知道时不标，见 templatePlanIssue） */
   const planLocked = !!templatePlanIssue(tpl);
   return (
@@ -180,6 +193,11 @@ export function TemplateCard({
                   套餐用不了那一档时加一把锁、换成琥珀色 —— 原因在详情页与筛选面板里整句说，卡面只负责一眼看得出。 */}
               {tiers === null ? (
                 <span className="flex-none rounded-full px-1.5 py-0.5 bg-white/15 text-[9px]"><Trans>模型不限</Trans></span>
+              ) : regionOff ? (
+                <span className="flex flex-none items-center gap-0.5 rounded-full bg-warn-500/25 px-1.5 py-0.5 text-[9px] text-warn-100">
+                  <Icon name="ban" size={9} />
+                  {zoneIsRegional() ? <Trans>你所在的地区用不了</Trans> : <Trans>这台服务器用不了</Trans>}
+                </span>
               ) : tiers.length > 0 ? (
                 <span
                   className={`flex flex-none items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] ${
@@ -187,7 +205,7 @@ export function TemplateCard({
                   }`}
                 >
                   {planLocked && <Icon name="lock" size={9} />}
-                  <Trans>仅{tierNames}</Trans>
+                  {tierModelNames ? <Trans>仅 {tierModelNames}</Trans> : <Trans>仅{tierNames}</Trans>}
                 </span>
               ) : null}
               {catLabel && <span className="rounded-full px-1.5 py-0.5 bg-white/15 text-[9px]">{catLabel}</span>}
@@ -837,13 +855,14 @@ export default function TemplateShelf({
                 setTierSheet(false);
               }}
             />
-            {/* 停用的、这台服务端不支持的档不摆（account.tierOffered）：拿它们筛只会得到一个永远空的货架 */}
+            {/* 停用的、这台服务端不支持的、这个地区给不出的档不摆（account.tierOffered）：拿它们筛只会得到一个永远空的货架。
+                档名下面那行模型名只在地区问到了、这一档又摆得出来时写（account.tierShownModel；地区不知道时不写供应商） */}
             {VIDEO_TIERS.filter((tier) => tierOffered(tier) || tierPicked?.id === tier.id).map((tier) => (
               <TierOption
                 key={tier.id}
                 on={tierPicked?.id === tier.id}
                 label={tier.label}
-                sub={tierModelLabel(tier)}
+                sub={tierShownModel(tier)}
                 count={tierCounts.get(tier.id) ?? 0}
                 // 这个账号的套餐用不了这一档（account.tierBlockReason，唯一实现）：照样能选来逛，只是把话说在前面
                 note={tierBlockReason(tier)}
@@ -869,26 +888,44 @@ export default function TemplateShelf({
 /** tierEmptyText 会不会说成「它是会员档——开通会员套餐…」那一句（判据只在这里：文案与「旁边放不放看板娘」读同一个答案） */
 function tierEmptyGated(picked: VideoTier): boolean {
   const need = blockoutTier();
-  return !!need && need.id !== picked.id && !!tierBlockReason(need);
+  // 「它是会员档」只在挡住他的确实是套餐时说（account.tierPlanBlocked）：原因是出片地区时付钱治不了（2026-10-26 P1 审核）
+  return !!need && need.id !== picked.id && tierPlanBlocked(need);
+}
+
+/**
+ * 句子里点一档：「「电影级」（Seedance 2.5）」—— 括号里的模型名只在地区问到了、这一档又摆得出来时写（account.tierShownModel），
+ * 否则只写档名（地区不知道时不写供应商；这个地区给不出的那一家更不写）。
+ */
+function tierRef(tier: VideoTier): string {
+  const label = tier.label;
+  const model = tierShownModel(tier);
+  return model
+    ? i18n._(msg({ message: `「${label}」（${model}）`, comment: "句子里点一档：档位名加引号，括号里是它的出片模型名" }))
+    : i18n._(msg({ message: `「${label}」`, comment: "句子里点一档：档位名加引号（中文「」，英文弯引号）" }));
 }
 
 function tierEmptyText(picked: VideoTier, hidden: number): string {
   const name = picked.label;
-  const model = tierModelLabel(picked);
+  const nm = tierRef(picked);
   const need = blockoutTier();
   if (need && need.id !== picked.id) {
-    const needLabel = need.label;
-    const needModel = tierModelLabel(need);
+    // 它们要的那一档这个人此刻摆不出来（这个地区给不出 / 这台服务端不支持）：别指一条走不通的路（「只有它做得到——换过去」）
+    if (!tierOffered(need)) {
+      return i18n._(
+        msg`没有能用${nm}出片的模板。现有的 ${hidden} 个都要按参考视频逐镜头复刻，你现在能用的出片模型都做不到——选回「全部模型」看看。`,
+      );
+    }
+    const needNm = tierRef(need);
     // 那一档这个人用不了（会员档，2026-10-07 免费档限制）：照实说「它是会员档」，别只叫人换过去
     return tierEmptyGated(picked)
       ? i18n._(
-          msg`没有能用「${name}」（${model}）出片的模板。现有的 ${hidden} 个都要按参考视频逐镜头复刻，只有「${needLabel}」（${needModel}）做得到，而它是会员档——开通会员套餐（或充值过任意一笔）后可用，或者选回「全部模型」看看。`,
+          msg`没有能用${nm}出片的模板。现有的 ${hidden} 个都要按参考视频逐镜头复刻，只有${needNm}做得到，而它是会员档——开通会员套餐（或充值过任意一笔）后可用，或者选回「全部模型」看看。`,
         )
       : i18n._(
-          msg`没有能用「${name}」（${model}）出片的模板。现有的 ${hidden} 个都要按参考视频逐镜头复刻，只有「${needLabel}」（${needModel}）做得到——点写着「${name}」的那颗筛选键换一个模型，或者选回「全部模型」。`,
+          msg`没有能用${nm}出片的模板。现有的 ${hidden} 个都要按参考视频逐镜头复刻，只有${needNm}做得到——点写着「${name}」的那颗筛选键换一个模型，或者选回「全部模型」。`,
         );
   }
-  return i18n._(msg`没有能用「${name}」（${model}）出片的模板——点写着「${name}」的那颗筛选键换一个模型，或者选回「全部模型」。`);
+  return i18n._(msg`没有能用${nm}出片的模板——点写着「${name}」的那颗筛选键换一个模型，或者选回「全部模型」。`);
 }
 
 /** 筛选面板里的一行：档位名 + 模型名 + 选了会剩几个；套餐用不了的那一档把原因写在下面（照样能选） */
@@ -902,7 +939,8 @@ function TierOption({
 }: {
   on: boolean;
   label: string;
-  sub: string;
+  /** 档名下面那行（模型名）；null = 不写（地区不知道 / 这一档这个地区给不出） */
+  sub: string | null;
   count: number;
   note?: string | null;
   onPick: () => void;
@@ -917,7 +955,7 @@ function TierOption({
     >
       <span className="min-w-0 flex-1">
         <span className="block text-xs font-semibold text-slate-100">{label}</span>
-        <span className="block truncate text-[10px] text-slate-500">{sub}</span>
+        {sub && <span className="block truncate text-[10px] text-slate-500">{sub}</span>}
         {note && <span className="mt-0.5 block text-[10px] leading-relaxed text-warn-300/80">{note}</span>}
       </span>
       <span className="flex-none text-[11px] text-slate-400">

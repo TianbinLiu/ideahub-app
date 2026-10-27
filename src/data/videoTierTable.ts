@@ -21,6 +21,47 @@ export const SEEDANCE_2_5 = "doubao-seedance-2-5-260628";
 export const MINIMAX_REAL = "MiniMax-Hailuo-2.3-Fast";
 
 /**
+ * 模型 id → 给人看的名字（`doubao-seedance-2-0-mini-260615` → `Seedance 2.0 mini`，`MiniMax-Hailuo-2.3-Fast` → `MiniMax Hailuo 2.3 Fast`）。
+ * 出片、出图两边的模型名都从这里推导；界面上说「这一段交给哪个出片模型」一律走 economy.tierModelLabel（它在这个名字后面接分辨率），
+ * 手上只有 id、没有档位时（配方里记着的「当时的模型」）才直接用它。economy 原样转出（`economy.modelLabel`），调用方照旧从 economy 引。
+ *
+ * ★ **从 id 推导，不另外维护一张对照表**。手写一张 `{id: 名字}` 的表，加档位时忘了补
+ *   就是"界面上写着标准档、实际跑的是另一个模型"——而这种错没有任何症状，只会让人
+ *   在对不上账时怀疑是自己记错了。推导出来的名字永远跟着真正发出去的那个 id 走。
+ * ★ 认不出来就**原样返回 id**，不返回"未知模型"：id 本身就是最准确的信息，
+ *   宁可显示得难看一点，也不能把它藏起来。构建里 check-video-tiers.mjs 核对档位表里每个模型都认得出（2026-10-26 加：
+ *   真人档的 `MiniMax-Hailuo-2.3-Fast` 从 09-26 起就一直原样上屏 —— 方舟那套规则只认小写开头，而这件事零报错）。
+ * ★ 方舟的 id（`doubao-<家族>-<主>-<次>-<变体>-<日期>`）：去掉 `doubao-` 前缀与尾巴上那串日期（`-260615` 是方舟的版本戳，
+ *   对用户没有意义；要查证的人看档位说明里的完整 id（title））。
+ * ★ MiniMax 的 id 本身就是官方名、只是用连字符连着（`MiniMax-H3-Highspeed`、`MiniMax-Hailuo-2.3-Fast`），把连字符换成空格就是。
+ *   ⚠ 别把它并进方舟那条正则：那条要的是「主-次」两段数字（`2-0` → `2.0`），MiniMax 的版本号本来就带点（`2.3`），硬套会认错。
+ * ★ 放在这个零依赖模块里（2026-10-26 从 economy 搬过来）只为让构建检查能直接 import 它跑正反例 —— 规则本身一个字没变（方舟那一半）。
+ */
+export function modelLabel(modelId: string): string {
+  const raw = String(modelId || "");
+  if (MINIMAX_MODEL_ID.test(raw)) return raw.replace(/-+/g, " ").trim();
+  const s = raw.replace(/^doubao-/, "").replace(/-\d{6,8}$/, "");
+  const m = /^([a-z0-9]+)-(\d+)-(\d+)(?:-(.+))?$/.exec(s);
+  if (!m) return modelId;
+  const family = m[1].charAt(0).toUpperCase() + m[1].slice(1);
+  const variant = m[4] ? ` ${m[4].replace(/-/g, " ")}` : "";
+  return `${family} ${m[2]}.${m[3]}${variant}`;
+}
+
+/** MiniMax 的模型 id 长什么样（`MiniMax-H3`、`MiniMax-Hailuo-2.3-Fast`）—— modelLabel 与 providerOfModel 共用这一条，别各抄一份 */
+const MINIMAX_MODEL_ID = /^MiniMax-[A-Za-z0-9]/;
+
+/**
+ * 一个**记下来的**出片模型 id 是哪一家的（2026-10-26 出片地区终审）—— 配方 / 作品里记着「当时用的是哪个模型」，那一档今天可能已经换了型号，
+ * 按档位的 provider 认不出它；account.recordedModelName 拿它判「这个地区给不给这一家、写不写名字」。
+ * ★ 与档位表的 provider 同一套名字；认不出的（`doubao-…`、空串、以后的新型号）一律按方舟（档位表的缺省也是方舟）。构建里 check-video-tiers 核对每一行
+ *   providerOfModel(行.model) === 行.provider ?? "ark"。
+ */
+export function providerOfModel(modelId: string): "ark" | "minimax" {
+  return MINIMAX_MODEL_ID.test(String(modelId || "")) ? "minimax" : "ark";
+}
+
+/**
  * Seedance 1.0 pro / pro fast（「标准」「极速」两档）的**停用时刻**。
  * ★ 方舟第十批下线公告：这两个模型 2026-11-24 14:00（北京时间）停服。我们**提前一小时**自己停（主人 10-07 拍板）：
  *   停服那一刻还在排队的任务结局没人说得准（受理了、钱扣了、片出不来），提前停就不会有新任务落进那个窗口。
@@ -159,21 +200,77 @@ export const DRAFT_FINAL_MULT = 77 / 15;
 /** 样片任务号在方舟那边的有效期是 7 天；我们只在**还剩一小时以上**时才让人定稿（服务端同一个数） */
 export const DRAFT_VALID_MS = 7 * 24 * 3600_000 - 3600_000;
 
+/**
+ * 界面上那颗档位芯片是哪一档（「草稿」「高清」「电影级」……）。今天每档一行、family 与 id 相同；
+ * 出片地区 P2b 起同一个 family 会有两家各一行（国内 Seedance、海外 MiniMax H3），芯片按它并成一颗。
+ */
+export type TierFamily = "fast" | "draft" | "std" | "hd" | "ultra" | "real";
+
+/**
+ * 出片请求按哪套协议拼。ark = 方舟 contents/generations/tasks（ai/arkClient）；minimax-v1 = 服务端 /api/minimax 代理的
+ * V1 视频接口（海螺 2.3 Fast：只收一张首帧，ai/minimaxVideo）。出片地区 P2b 接 MiniMax H3 时再加 minimax-v2，别图省事先把名字放进来。
+ * ★ 按它分流**只走 apiCase**（下面）：加 minimax-v2 时每个分流点都在 tsc 红（Record 缺键），逼着逐处决定它走哪一支。
+ *   ⚠ 等号比较（`tier.api === "minimax-v1"`）做不到这一点 —— 联合类型变大时等号一个错都不报，新的一行会悄悄落进方舟那一支
+ *   （补画设定帧、按方舟拼请求）。原来这里写「TypeScript 会指出来」，而当时的五处全是等号（2026-10-26 审核指出）；
+ *   scripts/check-tier-semantics.mjs ④ 钉着不许再写等号 / switch。
+ */
+export type TierApi = "ark" | "minimax-v1";
+
+/**
+ * 按请求形状（VideoTier.api）分流的**唯一写法**：每一种 api 都要给一个值。
+ * `cases` 的类型是「TierApi 的每一个成员都是必填键」—— TierApi 加一个成员，所有调用点同时编译不过，
+ * 每一处都得写清新协议在这里走哪一支（不会像等号比较那样悄悄落进 ark 那一支）。
+ * 调用点：real.slotModeOf、segmentGen 的参考清单预览 / 样片闸 / 真人档那一支、flowStore.nodeDraftEligible。
+ * （2026-10-26 试过：TierApi 临时加上 "minimax-v2"，tsc 在这五处各报一次 TS2345，一处不漏。）
+ */
+export function apiCase<T>(api: TierApi, cases: { readonly [K in TierApi]: T }): T {
+  return cases[api];
+}
+
 /** Seedance 档位的能力与价目（不含界面文案）：id 持久化在 VideoSegment.videoTier / EditorState.videoTier */
 export interface VideoTierSpec {
   id: string;
   model: string;
   /**
-   * 这一档走哪个供应商。缺省（不写）= 方舟（Seedance）。
-   * ★ 加它是因为**计价模型根本不同**：方舟按 token 连续计（时长×每秒×系数），MiniMax 按发固定价（见 flatCost）。
-   *   协议层（谁来出片）也按它分流：ark → ai/arkClient，minimax → server 的 /api/minimax 代理。
+   * 这一档是界面上哪一颗芯片（见 TierFamily）。每行必写。
+   * ★ 它只回答「这是哪一颗芯片」，**不许拿它判能力**（判能力一律读下面的能力位）：同一个 family 的两行（P2b 起）能力并不相同。
+   * ★ 同一家供应商里一个 family 只有一行（构建检查钉着）—— 不然「换到同 family 的另一家」就不知道换到哪一行。
+   */
+  family: TierFamily;
+  /**
+   * 这一档走哪个供应商（**只回答「哪家」**）。缺省（不写）= 方舟（Seedance）。
+   * 读它的只该是说「哪家」的地方：取回凭据记谁家（flowStore 落凭据、videoJobs、real.takeVideoTask 按它分流）、
+   * 「任务可能还在上游 / 方舟那边跑」那句话、剪辑页重拍只认方舟那条路。
+   * ★ 2026-10-26 起**协议形状**另读 api、**真人档语义**另读 startOnly / refAudio：原来十几处拿 `provider === "minimax"` 与 flatCost
+   *   代替「只认一张起拍画面」「带不了声音样本」，今天碰巧都落在真人档一行上；海外 MiniMax H3（P2b）也是 provider minimax，
+   *   却收参考图、按秒计价 —— 那些代用判据会一起判错，而且零报错。构建里 scripts/check-tier-semantics.mjs 钉着不许再这么写。
    * ★ 判否定：缺省即 ark，别到处 `?? "ark"`（第二处默认值）——统一走 economy.providerOf()。
    */
   provider?: "ark" | "minimax";
   /**
+   * 出片请求按哪套协议拼（见 TierApi）。每行必写。**只给拼请求形状的那几处读**：real.slotModeOf（→ composeSegments /
+   * validateGenSpec 读的 mode）、segmentGen 的真人档那一支（备帧 + 参考清单的预览）、样片能不能走（flowStore.nodeDraftEligible）。
+   * 读法一律 apiCase(tier.api, { … })，不写等号（理由见 TierApi）。
+   * ★ 与 provider 分工：provider 是「哪家」、api 是「请求长什么样」—— 同一家可以有两套协议（MiniMax V1 的海螺、V2 的 H3）。
+   * ★ 与供应商对得上（ark ⇔ 方舟、minimax-* ⇔ MiniMax），构建检查钉着。
+   */
+  api: TierApi;
+  /**
+   * **只认一张起拍画面**：没有推演三套、出片前一张设定帧都不画、不收参考图 / 尾帧 / 参考视频 / 声音样本 ——
+   * 今天的真人档（海螺 2.3 Fast 图生视频，起拍画面就是真人卡的照片）。每行必写。
+   * ★ 2026-10-26 从 flatCost 里拆出来（出片地区 P2a）：「按发计价」说的是**计价模型**，「只认起拍画面」说的是**出片方式**，
+   *   今天碰巧重合在真人档一行上。读这层语义的十几处（推演闸 deriveIssue、补画几张 drawPlan、选法屏 modeBlock、特效同款 effectsOn、
+   *   段间承接硬不硬 carryIsHard、就近换档 usableTierId、画布的直出车道……）一律读它，flatCost 只在报价与时长吸附里读。
+   * ★ 与 api === "minimax-v1" 一一对应（构建检查钉着）：真人档那一支（segmentGen）按 api 走，上面那些按它判 —— 两边说的是同一条产线，漂开就是
+   *   「参考清单说一张帧都不画、出片却按方舟那条路补画了两张」。
+   */
+  startOnly: boolean;
+  /**
    * **按发固定计价表**（token/发，按时长档查）。非空 = 这一档不按 token 连续计，segTokens 改查这张表。
    * ★★ 报价=实扣的锚（成本价 1.0x）：官方美元单价 × 全仓锚 **$1 = 447,563 token** 折算取整（2026-09-26 起）。
    *   ⚠ server 的结算价（config/tokens.MINIMAX_FLAT_COST，按**模型**分行）必须与「真人」那一行逐条相等（realPersonProxy.spec.js 钉着）。
+   * ★ 只是**价目**：只在 economy.segTokens（报价）与 economy.durationStepsOf（能选哪几个整档时长，clampDuration 吸附也走它）里读。
+   *   拿它判「是不是真人档」的写法 2026-10-26 全部改读 startOnly（scripts/check-tier-semantics.mjs 钉着）。
    */
   flatCost?: Record<number, number>;
   /** token 消耗系数（相对标准档；按模型单价折算）。flatCost 档不看它，随便填 1 */
@@ -231,6 +328,15 @@ export interface VideoTierSpec {
    */
   audio: boolean;
   /**
+   * 能不能**带卡上的声音样本**（参考音频）出片。每行必写。今天 = audio && refImg（草稿 / 高清 / 电影级：出声、又走参考类请求）。
+   * ★ 单独一位（2026-10-26，出片地区 P2a）：海外 MiniMax H3（P2b）出声、收参考图，却**不收**参考音频 —— 再写 `audio && refImg`
+   *   的话那几档会带上声音样本、在花钱之前被契约核对（real.validateGenSpec 的「不收声音样本」那一条）整段拒掉（带声音样本的对话段一律出不了片）。
+   *   读它的：economy.refAudioSecOf / shotsOkOf、account.voiceModelsNames（卡片页声音区那几句）、segmentGen 的声音样本判定（voiceRefsFor / refPlanOf）、real.validateGenSpec（最后一道）、
+   *   TierRow 的换档损失、几处「要声音样本换哪一档」。`audio && refImg` 的写法 scripts/check-tier-semantics.mjs 不许再出现。
+   * ★ refAudio ⇒ audio && refImg（不出声的档带声音样本没有意义；参考音频只能随参考类请求发），构建检查钉着。
+   */
+  refAudio: boolean;
+  /**
    * 这一档收不收**真人照片素材**（声明过 `Card.realPerson` 的卡当参考图）。
    * ★★ 方舟各档全 false 是**实测结论**（2026-08-24）：方舟对真人参考图两套探测器全拦（名人按版权、普通人按隐私），整发拒收。
    *   只有 MiniMax 真人档是 true —— 门禁（account.realFaceIssue）靠它放行，本表之外不许再翻 realPerson。
@@ -270,17 +376,20 @@ export interface VideoTierSpec {
  */
 export const VIDEO_TIER_SPECS: readonly VideoTierSpec[] = [
   // fast 是 1.0-pro fast：`generate_audio` 收下就扔（实测），所以 audio 显式 false。免费档之一（主人 10-07），11-24 下线
-  { id: "fast", model: SEEDANCE_1_0_PRO_FAST, mult: 4.2 / 15, resolution: "720p", flf: false, refImg: false, refVid: false, r2vMult: null, extendOk: false, blockoutOk: false, draftOk: false, audio: false, realFace: false, assetRef: false, freeOk: true, retireAt: RETIRE_1_0_AT, minSec: 3, maxSec: 10 },
+  { id: "fast", family: "fast", api: "ark", startOnly: false, model: SEEDANCE_1_0_PRO_FAST, mult: 4.2 / 15, resolution: "720p", flf: false, refImg: false, refVid: false, r2vMult: null, extendOk: false, blockoutOk: false, draftOk: false, audio: false, refAudio: false, realFace: false, assetRef: false, freeOk: true, retireAt: RETIRE_1_0_AT, minSec: 3, maxSec: 10 },
   // ★ 草稿（2026-10-07 新加）：与高清**同一个模型**（2.0 mini），只是 480p —— 每秒 10,044 raw token（864×496 / 496×864），
   //   约高清的 47%。能力与高清一样（参考图 9 张、出声、收可信素材），只是不带参考视频（服务端把参考视频那几条路钉在 720p）。
   //   免费档之一，也是 11-24 之后免费用户唯一的档（极速下线）。
-  { id: "draft", model: SEEDANCE_2_0_MINI, mult: 23 / 15, resolution: "480p", flf: true, refImg: true, refImagesMax: 9, refVid: false, r2vMult: null, extendOk: false, blockoutOk: false, draftOk: false, audio: true, realFace: false, assetRef: true, freeOk: true, minSec: 4, maxSec: 15 },
-  { id: "std", model: SEEDANCE_1_0_PRO, mult: 1, resolution: "720p", flf: true, refImg: false, refVid: false, r2vMult: null, extendOk: false, blockoutOk: false, draftOk: false, audio: false, realFace: false, assetRef: false, freeOk: false, retireAt: RETIRE_1_0_AT, minSec: 3, maxSec: 10 },
+  { id: "draft", family: "draft", api: "ark", startOnly: false, model: SEEDANCE_2_0_MINI, mult: 23 / 15, resolution: "480p", flf: true, refImg: true, refImagesMax: 9, refVid: false, r2vMult: null, extendOk: false, blockoutOk: false, draftOk: false, audio: true, refAudio: true, realFace: false, assetRef: true, freeOk: true, minSec: 4, maxSec: 15 },
+  { id: "std", family: "std", api: "ark", startOnly: false, model: SEEDANCE_1_0_PRO, mult: 1, resolution: "720p", flf: true, refImg: false, refVid: false, r2vMult: null, extendOk: false, blockoutOk: false, draftOk: false, audio: false, refAudio: false, realFace: false, assetRef: false, freeOk: false, retireAt: RETIRE_1_0_AT, minSec: 3, maxSec: 10 },
   // ★ hd 的视频参考 2026-10-05 开（主人「合」）：refVid true、r2vMult = HD_R2V_MULT。延长不开（extendOk，接缝会跳）；白模模板不开（blockoutOk）。
   // ★ minSec 4（2.0 mini 不收 3 秒）、maxSec 15（2.0 系列的协议上限）
-  { id: "hd", model: SEEDANCE_2_0_MINI, mult: 23 / 15, resolution: "720p", flf: true, refImg: true, refImagesMax: 9, refVid: true, r2vMult: HD_R2V_MULT, extendOk: false, blockoutOk: false, draftOk: false, audio: true, realFace: false, assetRef: true, freeOk: false, minSec: 4, maxSec: 15 },
+  { id: "hd", family: "hd", api: "ark", startOnly: false, model: SEEDANCE_2_0_MINI, mult: 23 / 15, resolution: "720p", flf: true, refImg: true, refImagesMax: 9, refVid: true, r2vMult: HD_R2V_MULT, extendOk: false, blockoutOk: false, draftOk: false, audio: true, refAudio: true, realFace: false, assetRef: true, freeOk: false, minSec: 4, maxSec: 15 },
   {
     id: "ultra",
+    family: "ultra",
+    api: "ark",
+    startOnly: false,
     model: SEEDANCE_2_5,
     mult: ULTRA_MULT,
     resolution: "720p",
@@ -297,6 +406,8 @@ export const VIDEO_TIER_SPECS: readonly VideoTierSpec[] = [
     // 样片（draft 模式）只有 2.5 有（方舟官方：draft / draft_task 仅 Seedance 2.5 支持）
     draftOk: true,
     audio: true,
+    // 声音样本：2.5 单段 2~30 秒、合计 ≤ 30 秒（economy.refAudioSecOf）
+    refAudio: true,
     realFace: false,
     assetRef: true,
     freeOk: false,
@@ -305,11 +416,16 @@ export const VIDEO_TIER_SPECS: readonly VideoTierSpec[] = [
   },
   {
     id: "real",
+    family: "real",
     // 供应商换成 MiniMax（海螺，768P）：方舟对真人参考图两套探测器全拦，海螺同一批图输入输出两端都放行且成片落地。
     // ⚠ 合规口径 2026-09-26 变了：服务端走**国际站** `api.minimax.io`，真人照片**是出境的**。
     // ★ 2026-09-26 换成 2.3-Fast：官方同能力、便宜 37%；它只支持图生视频，而真人档首帧恒为真人照片，不构成问题。
     model: MINIMAX_REAL,
     provider: "minimax",
+    // V1 视频接口（服务端 /api/minimax 代理）：只收一张首帧
+    api: "minimax-v1",
+    // ★ 全表唯一的 true：只认一张起拍画面（真人卡的照片），没有推演、不画设定帧、不收参考图
+    startOnly: true,
     // 按发一口价：官方 $0.19/发(6s)、$0.32/发(10s)，按全仓锚 $1=447,563 折算取整。⚠ server 的 MINIMAX_FLAT_COST 必须逐条相等。
     flatCost: { 6: 85_000, 10: 143_200 },
     mult: 1,
@@ -325,6 +441,7 @@ export const VIDEO_TIER_SPECS: readonly VideoTierSpec[] = [
     draftOk: false,
     // 海螺出片有没有原生音频没实测过——先按无声报（往少承诺的方向错）
     audio: false,
+    refAudio: false,
     // ★ 全表唯一的 true：realFaceIssue 靠它放行（唯一判定处）
     realFace: true,
     assetRef: false,

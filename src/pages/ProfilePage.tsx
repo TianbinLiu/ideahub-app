@@ -1775,12 +1775,17 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
         const q = freeQuota();
         const daily = fmtTokens(q.dailyTokens);
         const cap = fmtTokens(q.dailyCapTokens);
-        const names = tierNamesFor(tierFreeOk).usable;
+        // 摆得出来的档里一档免费档都没有（门禁开着的海外只剩「真人」这一档会员档，2026-10-26 终审）：不印「能用「」档出片」
+        const names = tierNamesFor(tierFreeOk)?.usable ?? "";
         return (
           <div className="mb-4 rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-[11px] leading-relaxed text-sky-100">
-            <Trans>
-              免费版：每天自动补 {daily} 套餐 token（最多攒到 {cap}），能用「{names}」档出片。开通会员套餐或充值任意一笔，全部档位都能用。
-            </Trans>
+            {names ? (
+              <Trans>
+                免费版：每天自动补 {daily} 套餐 token（最多攒到 {cap}），能用「{names}」档出片。开通会员套餐或充值任意一笔，全部档位都能用。
+              </Trans>
+            ) : (
+              <Trans>免费版：每天自动补 {daily} 套餐 token（最多攒到 {cap}）。开通会员套餐或充值任意一笔，全部档位都能用。</Trans>
+            )}
           </div>
         );
       })()}
@@ -1812,7 +1817,7 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
             免费档的「领取」不是付款，留着。 */}
         {PLANS.filter((p) => !playItems || p.price === 0).map((p) => {
           const current = wallet.planId === p.id;
-          const freeTierNames = p.price === 0 ? tierNamesFor(tierFreeOk).usable : "";
+          const freeTierNames = p.price === 0 ? (tierNamesFor(tierFreeOk)?.usable ?? "") : "";
           // ★ 一张抽屉只有一颗主键（《Refactoring UI》§2.8，2026-10-23）：「推荐」= 比现在这一档贵一级的那档（没有就是最便宜的付费档）；
           //   其余价签退成次级键。原来三行各一颗 bg-brand，看不出该点哪个
           const recommended = p.id === recommendedPlanId;

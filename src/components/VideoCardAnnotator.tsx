@@ -13,8 +13,8 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { AI_REAL, PortraitViewsPartial, briefArkReason, chargeNote, chargeOnFail, portraitViews } from "../ai";
-import { addCards, bindCardAsset, canAfford, createDeck, frozenNote, spendTokens } from "../data/account";
-import { ONE_IMAGE, fmtTokens, schemeCost, voiceTierNames } from "../data/economy";
+import { addCards, bindCardAsset, canAfford, createDeck, frozenNote, spendTokens, voiceModelsNames } from "../data/account";
+import { ONE_IMAGE, fmtTokens, schemeCost } from "../data/economy";
 import { VOICE_MAX_SEC, VOICE_MIN_SEC, saveVoice } from "../data/cardVoice";
 import { startJob } from "../data/jobs";
 import { deviceOwner, workOwner } from "../data/deviceOwner";
@@ -935,7 +935,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                     {/* 「火山引擎适用」（components/VolcCompatToggle，三个宿主共用一份）。2026-09-30 主人拍板：
                         不写“哪一档需要认证”的说明，能用哪几档由档位按钮本身可不可点表达。
                         拿到的 assetId 攒在 pendingAsset，存卡成功才落 cardAsset 侧库（与声音样本同一条规则）。 */}
-                    <div className="mt-1.5">
+                    <div className="mt-1.5 empty:hidden">
                       <VolcCompatToggle
                         boundId={pendingAsset?.assetId ?? null}
                         onBound={(assetId, note) => setPendingAsset({ assetId, note })}
@@ -1185,10 +1185,18 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                   {/* 试听是必经的把关点：段里没人说话/全是 BGM 时，只有耳朵能发现 */}
                   <audio controls src={pendingVoice.dataUrl} className="h-8 w-full" />
                   <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
-                    <Trans>
-                      先听一遍：要的是<b className="font-bold text-slate-300">这个人说话</b>的干净片段。出片走「{voiceTierNames()}」且台词写在引号里时，
-                      会把这段声音发给 AI 作音色参考（免费）。样本只存在这台设备上，分享卡片不带它。
-                    </Trans>
+                    {/* 会参考声音样本的模型按「此刻摆得出来的」说（account.voiceModelsNames，2026-10-26 审核） */}
+                    {voiceModelsNames() ? (
+                      <Trans>
+                        先听一遍：要的是<b className="font-bold text-slate-300">这个人说话</b>的干净片段。用 {voiceModelsNames()} 出片、台词写在引号里时，
+                        会把这段声音发给 AI 作音色参考（免费）。样本只存在这台设备上，分享卡片不带它。
+                      </Trans>
+                    ) : (
+                      <Trans>
+                        先听一遍：要的是<b className="font-bold text-slate-300">这个人说话</b>的干净片段。你现在能用的出片模型都不参考声音样本（样本照样存进这张卡，换了能用的模型还用得上）。
+                        样本只存在这台设备上，分享卡片不带它。
+                      </Trans>
+                    )}
                   </p>
                 </div>
               ) : (

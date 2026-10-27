@@ -40,10 +40,15 @@ export interface ServerCaps {
    * 老服务端没有这个端点 —— 真机上不存在的路径回 200 + index.html，所以不能靠状态码试，只认这一位。
    */
   clientEvents: boolean;
+  /**
+   * 有 `GET /api/video/zone`（出片地区，2026-10-26）。只说有没有这条路、不带地区本身 —— 地区会在会话中途变（开关 VPN），
+   * 而这份能力位记一整场会话；地区由 data/videoZone 另问、另记。老服务端没有这一位 = 地区不知道，照今天的样子摆。
+   */
+  videoZone: boolean;
 }
 
 /** 布尔的那几位（serverSupports 只答这几样） */
-export type BoolCap = "res480" | "draftMode" | "failRefund" | "failRefundMinimax" | "imageGroups" | "clientEvents";
+export type BoolCap = "res480" | "draftMode" | "failRefund" | "failRefundMinimax" | "imageGroups" | "clientEvents" | "videoZone";
 
 /** 健康端点的 JSON → ServerCaps（形状不对的位一律按「没有」）。**唯一解析处** */
 function capsOf(j: Record<string, unknown>): ServerCaps {
@@ -61,6 +66,7 @@ function capsOf(j: Record<string, unknown>): ServerCaps {
     imageGroups: j.imageGroups === true,
     freeVideo: j.freeVideoGate === false ? "legacy" : list,
     clientEvents: j.clientEvents === true,
+    videoZone: j.videoZone === true,
   };
 }
 
@@ -69,17 +75,21 @@ let probe: Promise<ServerCaps | null> | null = null;
 /** 上一次探测没答上来（断网 / 5xx / 429 / 正文读不出来）的时刻：之后 30 秒内不再重探 —— serverSupports 在 render 里被问，不节流就是每画一次发一发 */
 let failedAt = 0;
 const RETRY_MS = 30_000;
-const NONE: ServerCaps = { res480: false, draftMode: false, failRefund: false, failRefundMinimax: false, imageGroups: false, freeVideo: null, clientEvents: false };
+const NONE: ServerCaps = { res480: false, draftMode: false, failRefund: false, failRefundMinimax: false, imageGroups: false, freeVideo: null, clientEvents: false, videoZone: false };
 /**
  * 直连 / 离线：没有服务端那一层，能力全在；免费档清单按档位表（freeVideo null）。
  * ★ clientEvents 例外、是 false：那几样「全在」说的是方舟能力（dev 直连方舟、离线走 mock，本来就不经服务端），
  *   而失败上报是**发给服务端的一条请求** —— 没有服务端就没有可报的地方，dev 里的渲染错也不该往任何地方发。
+ *   videoZone 同理（data/videoZone 本来也不在直连 / 离线时问）：dev 的出片不经服务端、没有地区门禁，地区当「不知道」照老样子摆。
  */
-const ALL: ServerCaps = { res480: true, draftMode: true, failRefund: true, failRefundMinimax: true, imageGroups: true, freeVideo: null, clientEvents: false };
+const ALL: ServerCaps = { res480: true, draftMode: true, failRefund: true, failRefundMinimax: true, imageGroups: true, freeVideo: null, clientEvents: false, videoZone: false };
 const listeners = new Set<() => void>();
 
-/** 没有服务端那一层（dev 直连方舟 / 离线演示包）：能力全在 */
-function direct(): boolean {
+/**
+ * 没有服务端那一层（dev 直连方舟 / 离线演示包）—— **唯一判据**：这里能力全在；data/videoZone 也拿它决定「不问地区」（地区一直是不知道）。
+ * ★ 2026-10-26 P1 审核：原来 videoZone 里另抄了一份同样的式子，同一条规则两处写。
+ */
+export function noServerLayer(): boolean {
   return import.meta.env.DEV || !API_ON;
 }
 
@@ -93,7 +103,7 @@ export function subscribeServerCaps(fn: () => void): () => void {
  * ★ 直连 / 离线时不发请求，直接回「全在」。
  */
 export function probeServerCaps(): Promise<ServerCaps | null> {
-  if (direct()) return Promise.resolve(ALL);
+  if (noServerLayer()) return Promise.resolve(ALL);
   if (caps) return Promise.resolve(caps);
   if (!probe && Date.now() - failedAt < RETRY_MS) return Promise.resolve(null);
   probe ??= fetch(`${API_BASE}/api/ark/health`, { headers: withAppVersion(`${API_BASE}/api/ark/health`), signal: AbortSignal.timeout(10_000) })
@@ -139,7 +149,7 @@ export function probeServerCaps(): Promise<ServerCaps | null> {
  * ★ null 时调用方放行（见文件头）。别把 null 当 false：探测慢半拍就把免费用户唯一的档藏起来，比放行一次必然同步 400 的请求更坏。
  */
 export function serverSupports(cap: BoolCap): boolean | null {
-  if (direct()) return true;
+  if (noServerLayer()) return true;
   if (caps) return caps[cap];
   void probeServerCaps();
   return null;
@@ -150,7 +160,7 @@ export function serverSupports(cap: BoolCap): boolean | null {
  * 同步、render 里能调；第一次问的时候顺手发起探测（同 serverSupports）。
  */
 export function serverFreeVideo(): ServerCaps["freeVideo"] {
-  if (direct()) return null;
+  if (noServerLayer()) return null;
   if (caps) return caps.freeVideo;
   void probeServerCaps();
   return null;

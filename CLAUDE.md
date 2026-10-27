@@ -192,12 +192,16 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   读的都是这一份。**不给「解除固定」的出口**：换到别的模型不是效果差一点，是出不了片 —— 用户该做的是按自己能用的模型挑模板。
   套餐用不了那一档时在**选模板那一步**就说（`templatePlanIssue` = `templateTiers` + `account.tierBlockReason`；货架「用它出片」领去详情页、
   详情页出片键灰掉并给「去升级」），别等人挂完卡点了生成才第一次听说。卡这一侧的同一条口径在 `data/cardFit`（卡片页「按模型适配」那一格
-  与卡组页的摘要读同一份状态，页面只负责说成句子）。
+  与卡组页的摘要读同一份状态，页面只负责说成句子；2026-10-26 起**按具体模型**算、只读档位表能力位 startOnly / refImg / assetRef / realFace，
+  零依赖，构建里 `check-card-fit.mjs` 拿真表实跑；写哪几个模型、写不写名字见下面「出片地区」⑥）。
 - **免费档限制 / 「草稿」档 / 电影级「样片」/ 失败退回 token**（2026-10-07 主人拍板，契约见 docs/api-contract.md「视频档位」「纯任务的参数钉子、样片两步、停用」
   「受理之后失败的退款」）。六条规矩：
   ① **档位的能力 / 价目 / 分辨率只在 `data/videoTierTable`**（零依赖，构建里 `check-video-tiers.mjs` 核对，服务端 `config/tokens.js` 逐条相等）。
   「草稿」与「高清」是**同一个模型**（2.0 mini），只差分辨率（480p / 720p）与谁能用 —— 一律按 **(模型, 分辨率)** 认（`economy.tierIdOf` / `tierModelLabel`），
   480p / 1080p 的价按官方像素表 × 画幅（`perSecTokens`，画幅缺省按最贵一格），720p 照旧 21,600。
+  界面上说「出片模型叫什么」**只走 account 那一组**（`tierShownModel` / `tierShownModelId` / `videoModelsLead` / `videoModelsNames` / `voiceModelsNames` / `refImgModelsNames`，配方里记着的模型走 `recordedModelName`）——
+  它们按地区写（地区不知道时只写档位名、这个地区给不出的那一家不写），见下面「出片地区」⑥；`economy.tierModelLabel` / `tierModelId` / `modelLabel` 只在 `check-tier-semantics` 的 `[model-name]` 白名单里调。
+  名字的**推导**只在 `videoTierTable.modelLabel`（2026-10-26 起认得 MiniMax 的 id —— 原来「真人」档把 `MiniMax-Hailuo-2.3-Fast` 原样印在屏上），`check-video-tiers.mjs` 核对档位表里每个模型都认得出。
   ② **谁能用哪一档只问 `account.tierBlockReason`**：免费档白名单（`account.tierFreeOk`：健康端点报了 `freeVideo` / `freeVideoGate` 就照服务端，
   没报按档位表的 `freeOk` —— 运维关掉 `FREE_VIDEO_GATE` 时新 App 跟着放开）+ 付过钱（套餐价 > 0 **或** 钱包回包顶层的 `paid`）+ 停用（极速 / 标准 2026-11-24 13:00）
   + 服务端能力位（`data/serverCaps` 一处探测、`capsOf` 一处解析）；默认档 `account.defaultTierId`；抄别人的档换不了就换**能力最接近**的（`usableTierId`：高清 → 草稿）。
@@ -217,6 +221,52 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   只在能力位为真时，**按供应商分开问**（方舟 `failRefund`，真人档 `failRefundMinimax` = 健康端点的 `minimaxFailRefund`）。站内通知 `GEN_TASK_REFUND` 点进去开钱包。
   ⑥ **样片第一步只走参考图那一种请求**：帧转参考图失败时普通出片退回首尾帧，而 2.5 的首尾帧任务只收 `ratio: "adaptive"`，服务端按 480p 那一行最贵的一格结算 ——
   样片那一发在花钱之前整句拒（`segmentGen` 的样片闸，`arkClient` 另有一道协议断言），报价才等于实扣；拒之前补画好的帧照 ④ 留在方案上，再点一次只重传、不重画。契约核对那句在远端模式说「以服务器结算为准」（钱不按本机报价扣）。
+- **出片地区：App 只照服务端下发的 `providers` 摆档，不自己按国家判**（2026-10-26 出片地区 P1，主人「海外由于政策原因只能用 MiniMax」；契约见 docs/api-contract.md「出片地区」，服务端 server#131）。六条规矩：
+  ① 「这台设备此刻能用哪几家出片」只有 `data/videoZone` 一处（`GET /api/video/zone`，健康端点报了 `videoZone` 能力位才问、no-store）；判「这一家给不给」只走 `zoneDenies`。
+  规则（回包怎么读、403 怎么记、「不知道」不拦、措辞挑哪种）在零依赖的 `data/videoZoneRules`，构建里 `check-video-zone.mjs` 实跑；「有没有服务端那一层」只问 `serverCaps.noServerLayer`。
+  **不拿 `gate` 决定藏不藏、不认国家名单**：服务端 observe 时 providers 照样带着方舟，App 照样摆；切 `off` 急停下一次问到就全摆回来 —— App 另判一遍就是两把尺。
+  `gate` 只挑措辞（`zoneIsRegional`）：off / observe 时 providers 是「这台服务器接上了哪几家」，缺的那一家说成「这台服务器没接上」，不说成地区（P1 审核）。
+  ② **地区不知道 = 照今天的样子摆**（老服务端 / dev 直连 / 离线 / 还没问到）：不藏档、不改写节点上的档位、句子里不写供应商名；「问不到」绝不当「境内」也不当「海外」。
+  问到之后再问不到沿用这一场会话上一次的结论，**不跨会话落盘**（冷启动拿旧缓存藏档 / 改写节点，与「问慢半拍当海外」是同一个事故形状）。
+  ③ 这个地区不给的档进 `account.tierOffIssue` 的地区那一支（`tierRegionIssue`，排在停用之后、服务端不支持之前）：不摆、灰着说为什么、抄来的档换掉，
+  默认档链落不下时退到这个地区摆得出来的第一档（`defaultTierId`）；档位那一排下面那句只有 `regionTiersLine`。凡是按「摆不出来」分原因说话的地方
+  （`flowStore.tierSwapNote`、剪辑页重拍）都要先问地区这一种，不然会说成「服务器还不支持」。话里只写这个地区**给得出的**供应商名。
+  **出路只指做得了这件事的档**（P1 审核）：要特定能力的调用方传 `tierBlockReason(tier, need)`（白模模板 blockoutOk、重拍 refVid、延长 extendOk、样片 draftOk、定稿 `() => false`），
+  缺省也**不往只认一张起拍画面的档（startOnly，真人档）上指**；抄来的档同理（`usableTierId` 找不到近邻时留着原档、由 `flowStore.tierCopyNote` 说一句，不落到「真人」）。
+  **「去升级」只在 `account.tierPlanBlocked`（摆得出来、只是套餐挡着）时画**：付钱治不了地区（模板用 `templatePlanUpgradeable`、样片用 `draftModeUpgradeable`）。
+  **「换到哪一档就有」有三种结局**（终审，规则 `videoZoneRules.tierGoOf`，`check-video-zone` 拿真表 + providers `["minimax"]` 实跑）：`account.tierGo` / `tierNamesFor` 回 **null** =
+  摆得出来的档里一档都做不了这件事（门禁开着的海外只剩「真人」档时，收参考图 / 出声 / 延长 / 参考视频 / 声音样本 / 认证素材全是这样）——
+  说 `account.noTierLine(能力)`（地区 / 这台服务器两种措辞），不写「换到「」」、不写「会员档」、不给「去升级」；原来回两串空名字，句子里印一对空引号还把地区说成套餐。
+  ④ 服务端 403 `REGION_UNAVAILABLE` 认 `code` 不认 message（那句是英中并排、给老 App 兜底的）：`arkClient.ArkRegionDenied`（带 `billed`）、话在 `account.regionDeniedLine`，
+  钱只走 `ai/failCharge`（照回包 `billed`；没扣的那一句「这一发没有受理，也没有扣费」也在那里 —— 终审从 message 里挪出去：剪辑页按 110 字、genNode 按 240 字截原因时，
+  英文的长国名会把它整个截掉）。`ArkRegionDenied.message` 是长度有界的整句，展示原因时**不截**（同 `ArkTaskFailed.reason`）；白模化在 `api/branch.blockoutPost` 按 `billed` 两句各说。收到就把回包里的地区记下并重问（`noteRegionDenied`）。
+  ⑤ 门禁只拦视频那一发，出片前补画的帧 / 推演各自先结算：**花第一笔钱之前现问一次地区再重判**（`refreshVideoZone`：genNode / deriveProposals / 工坊 generateNode / 剪辑页按圈选重做，
+  排在「打上 generating」之后、第一笔钱之前 —— 工坊受理即收窗、画布 agent 的回执都认「genNode 第一个 await 之前就打上 generating」；拒了就原样退回状态、原因写 err）。
+  **同步看状态的宿主自己先问**再调（工坊 `genNodeVideo`、画布 agent 执行推演 / 出片之前）：它们 await 完再调，genNode 的同步门禁就拿到新地区、在打上 generating 之前拒；
+  `genStarted`（画布「提交即收窗」）排在地区那一道之后。**反方向**（旧结论说被拦、其实已经能用了）：同步门禁拿地区拒之前先 `account.tierRegionRecheck`，
+  结论变了从头再判一遍（genNode / deriveProposals / generateNode 三处；其余花钱的门禁顺手 `void` 一次，下一次点就用上新结论）。
+  其余「先付图钱 / 对话钱、视频最后才出」的入口走 `account.tierRegionGate(档, need)`（现问 + 按问到的那份判，两个方向一次管住；终审补）：
+  改帧 `editFrame`、重画（`flowStore.regenProposal` / 工坊 `regenProposal`）、合成预览、导演台融图，以及三个跟着做向导的每一笔
+  （九宫格写分镜 / 出一组画面 / 单格重画、对话正反打写对白 / 画机位 / 单张重画、特效同款画关键帧、主角定妆拆镜头 —— 向导把挑的 `tierId` 传进 store 函数）。
+  「现做一个主角」不问：画出来的是收进卡片库的卡，与自建卡同一个口径。接着等上一组组图不问（那一组付过钱）。
+  向导落段 `appendSpecs(specs, { tierGate: false })`（同 appendNode 的先例）：落的是付过钱的画面，不拿档位门禁拒，出片那一拍 genNode 照样拦并说清楚。
+  新加一条「先花钱、后出视频」的入口也要接这一步。地区那句（`ArkRegionDenied`）自带句号，接在「：」后面再补「。」的地方先过 `arkClient.reasonClause`。
+  ⑥ **说「哪个出片模型」只走 `account.offeredVideoModels` 那一组**（2026-10-26 主人第 2 件：卡片信息写具体模型名，「卡片信息」包括模板卡）：卡片页「按模型适配」、
+  卡组页摘要、模板货架（卡面角标 / 「出片模型」筛选 / 筛空了那句）、模板详情「出片模型」那一行、画布 / 工坊的选模板抽屉；同一天审核之后创作界面也收进来了 ——
+  选法屏「这一段交给 … 生成」、本段设置「本段模型」、工坊铸段窗「模型：」、白模化报价、档位按钮的 title（`tierShownModelId`），以及卡片页的声音说明
+  （`voiceModelsNames`）、形象参考的取舍规则（`refImgModelsNames`）。地区问到了 → 按家分组（`providerGroupName`）、行首写具体模型名
+  （`videoModelsLead` / `videoModelsNames`、单档 `tierShownModel`），只列 `offeredTiers` 给得出的（地区已在 tierOffIssue 里筛过，这里**不另读地区**）；
+  **地区不知道时只写档位名、不写 Seedance / MiniMax 字样**（美国的机器第一次打开不先看到 Seedance；创作界面上写不出模型名的那一行整行不摆）。
+  构建里 `check-tier-semantics` 的 `[model-name]` 钉着：`economy.tierModelLabel` / `tierModelId` 与 `modelLabel` 只在白名单里的函数调用
+  （取名函数本身、出图模型、今天走不到的「报不出价」那一支；放行标记 `model-name-ok: 理由`）。配方里记着的作者当时用的模型（制作过程页「当时的模型」）
+  也按地区写：`account.recordedModelName`（哪一家只问 `videoTierTable.providerOfModel`；地区不知道 / 这个地区给不出时写「当时用的是另一个出片模型」，终审补）。
+  卡片页其余点名供应商的句子也收了（终审）：自建卡「照片里有人」那句走 `refImgModelsNames`（一个都没有时不说）、形象图上限那句不再写「方舟建议」。
+  卡片页那两个勾选框随之改名：「文字版形象描述（… 用）」「起拍画面（… 用）」（后者 2026-10-26 之前叫「真人档适用」），括号里写读它的模型
+  （按 cardInput：只经由帧 / 只认起拍画面），一个都不剩时换一句不点名的。「火山引擎适用」摆不摆只问 `account.volcEntryState`（判据在 VolcCompatToggle 里，
+  三个宿主不各加闸）：现在能用的模型一个都不收认证素材时，没认证过的卡不摆、**认证过的照样摆着好取消**（撤回授权不能被地区挡住）。
+  白模模板在这个地区跑不了时卡面角标换成「你所在的地区用不了」（门禁没开时说「这台服务器用不了」），不写它要的那个模型。
+  ⚠ 还没收进来的：`realFaceIssue` 里「这一档收认证素材、卡还没勾」那一支（tier.assetRef 为真）指向「火山引擎适用」—— 海外门禁开着时只在段停在这个地区给不出的档上才会出现，
+  那时会指向一个不摆的勾选框（地区那一句由 tierBlockReason 先说）；P2b 接 MiniMax H3 时要跟着改。最后一支「换收认证素材的档」在一档都没有时已经不说（终审）。
 - **方舟第十批下线（2026-11-24 14:00）的 App 这一半**（2026-10-10 主人拍板，2.63；契约见 docs/api-contract.md「出图模型下线与改发」「请求头 X-App-Version」，
   强制更新见 docs/app-distribution.md「强制更新」）。五条规矩：
   ① **出图型号只认价目表里那两个**（`economy.IMAGE_TOKENS_BY_MODEL`：速写 = `doubao-seedream-4-0-20260415`（4.0 的继任，13,333，沿用 4.0 的价、待账单核）、
