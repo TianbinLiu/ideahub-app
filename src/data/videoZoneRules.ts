@@ -1,8 +1,9 @@
 // 出片地区的**纯规则**（2026-10-26 出片地区 P1 审核：测得到的规则进构建检查）—— 零运行时依赖，
 // 构建里 scripts/check-video-zone.mjs 直接 import 它跑正反例（Node 只剥类型，所以这里一个值 import 都不能有）。
 //
-// 管五件事：回包怎么读（parseZone）、403 REGION_UNAVAILABLE 的回包怎么记（zoneOfDenial）、
-// 「这一家给不给」（deniesOf，三态里「不知道」恒不拦）、缺的那一家该不该说成「地区」（regionalOf，只挑措辞）、
+// 管六件事：回包怎么读（parseZone）、403 REGION_UNAVAILABLE 的回包怎么记（zoneOfDenial）、
+// 「这一家给不给」（deniesOf，三态里「不知道」恒不拦）、MiniMax H3 三档摆不摆（v2OfferedOf，「不知道」= 不摆，与 deniesOf 相反）、
+// 缺的那一家该不该说成「地区」（regionalOf，只挑措辞）、
 // 「换到哪一档就有」那串档名分哪三种结局（tierGoOf：给得出的档里一档都做不了这件事单列一种）。
 // 问（网络 / 监听 / 广播）在 data/videoZone，它从这里取规则；把结论说成人话在 data/account。契约见 docs/api-contract.md「出片地区」。
 
@@ -71,6 +72,19 @@ export function zoneOfDenial(body: unknown, prev: VideoZoneFacts | null): VideoZ
  */
 export function deniesOf(zone: Pick<VideoZoneFacts, "providers"> | null, provider: VideoProvider): boolean {
   return !!zone && !zone.providers.includes(provider);
+}
+
+/**
+ * MiniMax H3（V2）三档摆不摆 —— 唯一判据（data/videoZone.minimaxV2Offered 拿此刻的结论与健康端点的 minimaxV2 问它；2026-10-26 出片地区 P2b）。
+ * 契约「H3 三档摆不摆」：健康端点的 `minimaxV2` 为真 **且** `/api/video/zone` 的 providers 里有 minimax，两位都真才摆。
+ * ★★ 与 deniesOf 的三态**相反**：地区不知道（null）或能力位不知道（null）= **不摆**。
+ *   · 能力位：V2 那条路在老服务端上根本不存在（SPA 回退 200 + index.html），MiniMax 走中国站的服务器也没有 V2 —— 摆出来就是一颗点下去必回 501 的键，
+ *     而出片前补画的设定帧那时已经各自结算过了；
+ *   · 地区：providers 里的 minimax 不分真人档与 H3，这台服务器走中国站时境内回包里照样有它 —— 只看一位就会在没有 V2 的服务器上摆出 H3（契约原话）。
+ *     问不到地区的那一刻，原来那几档（Seedance、真人档）照老样子摆，不会少一档能用的。
+ */
+export function v2OfferedOf(zone: Pick<VideoZoneFacts, "providers"> | null, v2Cap: boolean | null): boolean {
+  return v2Cap === true && !!zone && zone.providers.includes("minimax");
 }
 
 /**

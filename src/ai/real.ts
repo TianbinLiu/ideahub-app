@@ -3269,9 +3269,10 @@ export function genModeOf(sg: Omit<GenSpec, "mode">): GenMode {
  */
 export function slotModeOf(sg: Omit<GenSpec, "mode">): GenMode {
   // ★ 按请求形状（VideoTier.api）认，不按供应商（2026-10-26）：mode "minimax" 就是 V1 那一发（海螺：只收一张首帧）；
-  //   海外 MiniMax H3（出片地区 P2b，V2 接口）也是 MiniMax，收参考图、是另一种请求，到时另加一种 mode。
-  //   走 apiCase 不写等号：加 minimax-v2 时这里在 tsc 就红，逼着写它的 mode（等号比较会让它悄悄落进下面方舟那几种）
-  const byApi = apiCase<GenMode | null>(tierOf(sg.videoTier).api, { ark: null, "minimax-v1": "minimax" });
+  //   海外 MiniMax H3（出片地区 P2b，V2 接口）也是 MiniMax，却收参考图：它的槽位与方舟那几种同形（文生 / 首帧 / 首尾帧 / 参考图），
+  //   回 null 照下面那几种认 mode；请求按哪套协议拼（V2 的 content[] 与 role）在 composeSegments 按 api 分（P2b 出片那一步）。
+  //   走 apiCase 不写等号：加一种 api 时这里在 tsc 就红，逼着写它的 mode（等号比较会让它悄悄落进下面方舟那几种）
+  const byApi = apiCase<GenMode | null>(tierOf(sg.videoTier).api, { ark: null, "minimax-v1": "minimax", "minimax-v2": null });
   if (byApi) return byApi;
   if (sg.refVideoUrl) return sg.refTask === "reference" ? "reference" : sg.refTask === "extend" ? "extend" : "edit";
   if (sg.refImages?.length) return "ref-images";

@@ -31,6 +31,8 @@
 //      今天一档都走不到的「报不出价」那一支。配方里记着的作者当时用的模型原来也在白名单里（「历史事实」），终审改走 account.recordedModelName：
 //      历史事实也是供应商名，地区不知道的美国机器照样印出 Seedance。
 //      放行标记是 `model-name-ok: 理由`。
+//   ⑥ [secCost]（2026-10-26 出片地区 P2b）：按秒计价（MiniMax H3 三档的 secCost）只在 data/videoTierTable.ts（表本身）与 economy.segTokens 里出现 ——
+//      与 flatCost 同一个理由：价目只该有一处读法，第二处读它的地方就是第二份报价（报价 ≠ 实扣零报错）。判「是不是 H3 / 请求怎么拼」读 api（apiCase）。
 //
 // 放行：命中行或它上一行写 `tier-semantics-ok: 理由`（理由要写；只写标记不写理由不算）；⑤ 用 `model-name-ok: 理由`。
 // 局限（宁可漏报）：拆成两行写的比较、先存进变量再比的（`const p = providerOf(x); if (p === "minimax")`、`const ok = t.audio;` 下一行
@@ -48,6 +50,8 @@
 //   （2026-10-26 加 ⑤ 时再试，下面各自变红）⑱ ModePicker 写回 `{tierModelLabel(tier)}`；⑲ FlowCanvas 选模板抽屉写回 `tierModelLabel(need)`；
 //   ⑳ TierRow 的 title 写回 `tierModelId(tier)`；㉑ economy.r2vBlockText 写回 `tierModelLabel(open)`（economy 里白名单之外的函数）；
 //   ㉒ account 里白名单之外的函数（offeredVideoModels）调 `modelLabel(`；㉓ 放行标记只写「model-name-ok:」不写理由。
+//   （2026-10-26 出片地区 P2b 加 ⑥ 时再试，下面各自变红）㉔ economy.clampDuration 里读 `tierOf(tierId).secCost`（economy 里白名单之外的函数）；
+//   ㉕ account 里读 `t.secCost`。
 //   反例（不该红）：account.usableTierId 的 `x.refImg === want.refImg && x.audio === want.audio`（那是「能力一样」，不是「两样都有」）；
 //   economy.providerOf 的 `provider ?? "ark"`（唯一那处缺省，后面不接比较）；ModePicker 的 `clearsBlock("audio", …)`（字在字符串里）。
 //
@@ -64,6 +68,10 @@ const SRC = path.resolve(srcArg ?? path.join(root, "src"));
 const FLAT_OK = new Map([
   ["data/videoTierTable.ts", null],
   ["data/economy.ts", new Set(["segTokens", "durationStepsOf"])],
+]);
+const SEC_COST_OK = new Map([
+  ["data/videoTierTable.ts", null],
+  ["data/economy.ts", new Set(["segTokens"])],
 ]);
 const PROVIDER_OK = new Map([
   ["data/videoJobs.ts", null],
@@ -105,6 +113,12 @@ const RULES = [
     say: "按发计价表（flatCost）只在 economy.segTokens / durationStepsOf 里读 —— 判「只认一张起拍画面（真人档）」读 VideoTier.startOnly，要整档时长问 economy.durationStepsOf",
   },
   {
+    name: "secCost",
+    re: /\bsecCost\b/,
+    ok: SEC_COST_OK,
+    say: "按秒价目（secCost，MiniMax H3 三档）只在 economy.segTokens 里读 —— 要价钱问 segTokens / segmentCost，要判「是不是 H3 / 请求怎么拼」走 apiCase(tier.api, …)",
+  },
+  {
     name: "provider",
     re: new RegExp(
       [
@@ -139,7 +153,7 @@ const RULES = [
       ].join("|"),
     ),
     ok: API_OK,
-    say: "按请求形状分流只走 apiCase(tier.api, { ark: …, \"minimax-v1\": … })（economy 转出）—— 等号与 switch 在 TierApi 加成员时一个错都不报",
+    say: "按请求形状分流只走 apiCase(tier.api, { ark: …, \"minimax-v1\": …, \"minimax-v2\": … })（economy 转出）—— 等号与 switch 在 TierApi 加成员时一个错都不报",
   },
   {
     name: "model-name",
@@ -242,5 +256,5 @@ if (hits.length) {
   process.exit(1);
 }
 console.log(
-  `✓ check-tier-semantics：${scanned} 个文件里档位语义都读能力位（flatCost 只在报价 / 整档时长、供应商比较只在取回分流、没有 audio && refImg、api 分流只走 apiCase、出片模型名只走 account 那一组）`,
+  `✓ check-tier-semantics：${scanned} 个文件里档位语义都读能力位（flatCost 只在报价 / 整档时长、secCost 只在报价、供应商比较只在取回分流、没有 audio && refImg、api 分流只走 apiCase、出片模型名只走 account 那一组）`,
 );

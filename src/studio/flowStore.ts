@@ -398,7 +398,8 @@ export function nodeDraftEligible(node: FlowNode): boolean {
   if (node.extendFrom) return false;
   if (node.custom && node.customRef) return false;
   // apiCase 不写等号：加一种 api 时 tsc 逼着在这里表态（样片是方舟协议里的一种请求，别家协议有没有要逐个说）
-  return apiCase(tierOf(node.videoTier).api, { ark: true, "minimax-v1": false });
+  //   MiniMax H3（V2）没有样片两步（官方 V2 没有 draft；档位表 draftOk 也是假）
+  return apiCase(tierOf(node.videoTier).api, { ark: true, "minimax-v1": false, "minimax-v2": false });
 }
 
 /**

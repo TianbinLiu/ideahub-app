@@ -16,12 +16,12 @@ import { claimPendingTerms, reconcileTermsWithServer } from "./agreements";
 import { showToast } from "./toast";
 import { claimLegacyVoices, removeVoice } from "./cardVoice";
 import { adoptRemoteAssets, assetOf, claimLegacyAssets, hasAsset, removeAsset, saveAsset, setAssetSyncIssue, type CardAsset } from "./cardAsset";
-import { PLANS, PLATFORM_CUT, VIDEO_TIERS, fmtTokens, joinTierNames, modelLabel, planOf, providerOf, tierModelId, tierModelLabel, tierOf, tierRetireDay, tierRetired, type VideoTier } from "./economy";
+import { PLANS, PLATFORM_CUT, VIDEO_TIERS, apiCase, fmtTokens, joinTierNames, modelLabel, planOf, providerOf, tierModelId, tierModelLabel, tierOf, tierRetireDay, tierRetired, type VideoTier } from "./economy";
 import { cardInputOf, modelsOfTiers, type VideoModelOf } from "./cardFit";
 import { serverFreeVideo, serverSupports, subscribeServerCaps } from "./serverCaps";
-import { refreshVideoZone, subscribeVideoZone, videoZone, zoneDenies, zoneIsRegional, type VideoProvider } from "./videoZone";
+import { minimaxV2Offered, refreshVideoZone, subscribeVideoZone, videoZone, zoneDenies, zoneIsRegional, type VideoProvider } from "./videoZone";
 import { tierGoOf } from "./videoZoneRules";
-import { FREE_DEFAULT_CHAIN, PAID_DEFAULT_CHAIN, SEEDANCE_2_5, firstLiveTierId, providerOfModel } from "./videoTierTable";
+import { FREE_DEFAULT_CHAIN, PAID_DEFAULT_CHAIN, SEEDANCE_2_5, firstLiveTierId, providerOfModel, upstreamResOf } from "./videoTierTable";
 import { idbGet, idbRead, idbSet } from "./db";
 // 转存（dataURL → 永久 URL）的唯一入口，与发布/换封面/详情页加图共用（铁律六）
 import { toPermanentUrl } from "./publishAssets";
@@ -929,16 +929,28 @@ subscribeServerCaps(() => emit());
 // 出片地区问到了 / 变了（data/videoZone）：同上 —— 这个地区不给的档要藏起来，问是异步的、会话中途还会变
 subscribeVideoZone(() => emit());
 
-/** 这台服务端认不认这一档（480p 的「草稿」档要 res480 能力位；还没探到 = 认，见 tierOffIssue 的 ★） */
+/**
+ * 这台服务端认不认这一档（还没探到时各协议口径不同，见 tierOffIssue 的 ★）：
+ *   · 方舟：480p 的「草稿」档要 res480 能力位（还没探到 = 认）；
+ *   · MiniMax H3（V2）：健康端点的 minimaxV2 为真、**且**地区问到了、给 MiniMax（videoZone.minimaxV2Offered；任何一样不知道 = 不认 ——
+ *     V2 那条路在老服务端上根本不存在，摆出来就是一颗点下去必回 501 的键，而出片前补画的帧已经各自结算过了）。老服务端没有这一位 = 三档一档都不摆；
+ *   · 真人档（V1）：没有能力位，照旧。
+ * ★ 按协议分支走 apiCase（加一种协议时 tsc 逼着在这里表态）。
+ */
 function tierServerOff(tier: VideoTier): boolean {
-  return tier.resolution !== "720p" && serverSupports("res480") === false;
+  return apiCase(tier.api, {
+    ark: tier.resolution !== "720p" && serverSupports("res480") === false,
+    "minimax-v1": false,
+    "minimax-v2": !minimaxV2Offered(),
+  });
 }
 
 /**
  * 这一档**眼下根本用不了**的原因（与套餐无关）：模型已经停用（retireAt）、你所在的地区不给这一档的供应商（出片地区，tierRegionIssue），
- * 或者这台服务端还不支持它（480p 的「草稿」档要服务端 res480 能力位）。
+ * 或者这台服务端还不支持它（480p 的「草稿」档要服务端 res480 能力位；MiniMax H3 三档要 minimaxV2 能力位 + 问到了地区）。
  * null = 用得了。★ 这三种档界面上**不摆**（offeredTiers），这句话是给「这一段早就挂着这一档」的情形说的（老草稿、做同款抄来的、停用那一刻正摆着的）。
  * ★ 服务端还没探到（serverSupports 回 null）时放行：提交那一刻服务端会同步 400、一分钱不花，比慢半拍把免费用户唯一的档藏起来好。地区同理（videoZone 的 ★★）。
+ *   **MiniMax H3 三档反过来**：不知道 = 用不了（理由见 tierServerOff），话也分两种（服务端确定没开 / 还在问）。
  * ★ 地区排在停用之后、服务端支持之前：停用了的档说「停用」最准；地区比「服务端要更新」更根本（更新了这个地区也照样用不了）。
  * `need` 只影响地区那一支的出路（见 tierRegionIssue）。
  */
@@ -950,10 +962,25 @@ function tierOffIssue(tier: VideoTier, need?: TierNeed): string | null {
   }
   const region = tierRegionIssue(tier, need);
   if (region) return region;
-  if (tierServerOff(tier)) {
-    return t`这台服务器还不支持「${label}」档（服务端需要更新）——先换一档出片`;
-  }
+  if (tierServerOff(tier)) return serverOffLine(tier);
   return null;
+}
+
+/**
+ * tierServerOff 为真时那一句。MiniMax H3 那三行与同一颗芯片的 Seedance 那一行同名（「草稿」），只说「「草稿」档不支持」会被读成 Seedance 那一档也不行 ——
+ * 所以点名这一家（MiniMax 是供应商名；这三行只在地区问到了、给 MiniMax 时才摆过，挂在段上的人本来就是在用它）。
+ */
+function serverOffLine(tier: VideoTier): string {
+  const label = tier.label;
+  const via = PROVIDER_NAME[providerOf(tier.id)];
+  return apiCase(tier.api, {
+    ark: t`这台服务器还不支持「${label}」档（服务端需要更新）——先换一档出片`,
+    "minimax-v1": t`这台服务器还不支持「${label}」档（服务端需要更新）——先换一档出片`,
+    "minimax-v2":
+      serverSupports("minimaxV2") === false
+        ? t`这台服务器还不支持用 ${via} 出「${label}」档（服务端需要更新）——先换一档出片`
+        : t`还在确认这台服务器与你所在的地区能不能用 ${via} 出「${label}」档——稍等再试，或先换一档出片`,
+  });
 }
 
 // ── 出片地区（2026-10-26 出片地区 P1；判据在 data/videoZone，这里只把它说成人话、接进 tierOffIssue）──
@@ -1283,12 +1310,37 @@ export function volcEntryState(boundId: string | null): "on" | "keep" | "off" {
  * ★ 判据跟着服务端走（2026-10-07 评审抓到）：健康端点报了 freeVideo 就照它；运维关掉 FREE_VIDEO_GATE 时（freeVideoGate: false）
  *   服务端退回改版前的口径 —— 只挡电影级（Seedance 2.5），新 App 跟着放开（原来只看本机 freeOk，开关对新 App 不起作用）；
  *   没报（老服务端 / 直连 / 还没探到）按档位表的 freeOk。按（模型, 分辨率）认，不按模型：「草稿」与「高清」是同一个模型。
+ * ★ 分辨率按**发给上游的写法**比（videoTierTable.upstreamResOf，2026-10-26 出片地区 P2b）：服务端那一行 MiniMax H3-Lite 写的是大写 480P ——
+ *   拿档位行里那一格小写的 resolution 比永远对不上，免费用户看见的是灰键、服务端其实放行（2026-10-26 审核点名）。
+ * ★ 关闸（legacy）时服务端只挡 Seedance 2.5，MiniMax H3 三档对免费版都开（服务端 videoPlanDenial 关闸那一支）—— 这里同一个口径。
+ * ⚠ 这一位只回答「这一档开不开」：免费版在 H3 上只能纯文字出片，带不带图另问 tierTextOnly。
  */
 export function tierFreeOk(tier: VideoTier): boolean {
   const fv = serverFreeVideo();
   if (fv === "legacy") return tier.model !== SEEDANCE_2_5;
-  if (fv) return fv.some((x) => x.model === tier.model && x.resolution === tier.resolution);
+  if (fv) {
+    const res = upstreamResOf(tier);
+    return fv.some((x) => x.model === tier.model && x.resolution === res);
+  }
   return tier.freeOk;
+}
+
+/**
+ * 这个人在这一档上**只能纯文字出片**（不补画帧、不带首帧 / 尾帧 / 参考图）—— **唯一判据**（2026-10-26 出片地区 P2b；服务端 tokens.MINIMAX_V2_FREE_TEXT_ONLY）。
+ * 今天 = MiniMax H3（V2）的档 + 健康端点没说放开（minimaxV2FreeTextOnly 不是 false）+ 确定没付过钱。
+ * ★ 为什么（服务端那条 ★）：服务端分不出图里是不是真人，H3 收不收真人照片还没验过 —— 不拦的话免费档里那一档 H3-Lite 就成了不花钱的真人出片。
+ *   付过钱的人（与管理员）带图照常。服务端带图的那一发回 403 PLAN_REQUIRED + freeTextOnly（扣费之前；但出片前补画的设定帧已经各自结算过了）——
+ *   所以 App 要在**补画之前**就照它只发纯文字：报价（补画几张、参考清单）与出片（segmentGen / composeSegments）都只问这一处（P2b 出片那一步接上）。
+ * ★ 付没付过钱还不知道（payingNow 回 null）时**不算**只能纯文字，与 tierBlockReason 同一个乐观口径：不能因为镜像慢半拍就悄悄把付费用户的帧与参考图摘掉。
+ *   真是免费用户的话服务端会在视频那一发之前拒（不扣视频的钱）。
+ * ★ 不跟着免费档总开关（freeVideo "legacy"）走：服务端那一条也不跟（关闸时 H3 三档对免费版都开，带图照样要付过钱）。
+ */
+export function tierTextOnly(tier: VideoTier): boolean {
+  return apiCase(tier.api, {
+    ark: false,
+    "minimax-v1": false,
+    "minimax-v2": serverSupports("minimaxV2FreeTextOnly") !== false && payingNow() === false,
+  });
 }
 
 /** 「会员档」那一整句：一档或几档并成一句（档位那一排、选法屏、工坊铸段窗都只说这一句，别一档一句糊四遍） */
@@ -1324,13 +1376,30 @@ export function tierBlockReason(tier: VideoTier, need?: TierNeed): string | null
 }
 
 /**
- * 这一排里**因为套餐**点不动的那几档并成一句（null = 没有）。档位那一排（TierRow）、选法屏（ModePicker）、工坊铸段窗都只印这一句 + 「去升级」，
+ * 这一排里**因为套餐**点不动（或做不全）的那几档并成一句（null = 没有）。档位那一排（TierRow）、选法屏（ModePicker）、工坊铸段窗都只印这一句 + 「去升级」，
  * 不再一档一句（四档同一个原因糊四遍，同 economy.r2vBlockLines 治过的那件事）。停用 / 服务端不支持的档本来就不摆，不在这句里。
+ * ★ 免费档里只能纯文字出片的那几档（tierTextOnly：MiniMax H3-Lite）也在这一句里说清（2026-10-26 出片地区 P2b）：它们点得动、价钱照常，
+ *   只是不补画帧、不带参考图 —— 付钱治得了，所以与会员档同一句、同一颗「去升级」。
  */
 export function memberTiersLine(): string | null {
   if (payingNow() !== false) return null;
-  const labels = offeredTiers().filter((x) => !tierFreeOk(x)).map((x) => x.label);
-  return labels.length ? memberLine(labels) : null;
+  const offered = offeredTiers();
+  const labels = offered.filter((x) => !tierFreeOk(x)).map((x) => x.label);
+  const textOnly = offered.filter((x) => tierFreeOk(x) && tierTextOnly(x));
+  const member = labels.length ? memberLine(labels) : null;
+  const text = textOnly.length ? textOnlyLine(textOnly) : null;
+  if (member && text) return t({ message: `${member}；${text}`, comment: "两个整句接成一句：前一句说哪几档是会员档，后一句说免费版在哪几档上只能用文字出片" });
+  return member ?? text;
+}
+
+/**
+ * 「免费版在这几档上只能用文字出片」那一句（tierTextOnly 为真的档；今天只有 MiniMax H3-Lite）。点名供应商：同一颗芯片的 Seedance 那一行（境内两家都摆）带图照常，
+ * 只说「「草稿」档」会被读成两家都不行。这几档只在地区问到了、给 MiniMax 时才摆，所以这里写得出 MiniMax（不违「地区不知道不写供应商」）。
+ */
+function textOnlyLine(tiers: VideoTier[]): string {
+  const names = joinTierNames(tiers.map((x) => x.label));
+  const via = providerNames(tiers);
+  return t`「${names}」档用 ${via} 出片时，免费版只能用文字（不补画首帧尾帧、不带参考图）——带图出片要开通会员套餐（或充值过任意一笔）`;
 }
 
 /**
@@ -1551,11 +1620,16 @@ function nameSep(): string {
  *   firstLiveTierId 会回链尾那一档，新段一出生就在一个这个地区用不了的档上（设计审核抓到）。这时落在**这个地区摆得出来的第一档**上
  *   （P1 只有「真人」，它是会员档、只认真人卡起拍，免费用户那里由 tierBlockReason 照实说）；一档都没有就留在链尾，由出片闸说「这个地区没有可用的出片模型」。
  *   只在**地区**挡住时这么退：链尾是因为停用 / 服务端不支持才落下的，照旧回链尾（那两种话各自更准）。地区不知道时 tierRegionIssue 恒为 null，这一支走不到。
+ * ★ 2026-10-26（出片地区 P2b）：退的时候先找**同一颗芯片**（family）在这个地区摆得出来的那一行 —— 海外付过钱的人默认「高清」，
+ *   落在 MiniMax H3 Highspeed 上（原来退到「摆得出来的第一档」，就成了 H3-Lite 的「草稿」）；同一颗芯片一行都摆不出来再落第一档。
+ *   默认档链本身仍写 Seedance 那几行的 id（它们的 id 就是 family 名）：境内照旧默认 Seedance（主人 10-26）；「记住上次选的那一家」是界面那一步的事。
  */
 export function defaultTierId(): string {
   const id = chainTierId();
   if (!zoneDenies(providerOf(id))) return id;
-  return offeredTiers()[0]?.id ?? id;
+  const family = tierOf(id).family;
+  const offered = offeredTiers();
+  return offered.find((x) => x.family === family)?.id ?? offered[0]?.id ?? id;
 }
 
 /** 默认档链上第一个用得了的那一档（停用 / 服务端不支持 / 地区不给都往后退，全退完回链尾）—— defaultTierId 与 usableTierId 的兜底共用 */

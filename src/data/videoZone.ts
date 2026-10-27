@@ -24,8 +24,8 @@
 //   另加两处：`online`（断网恢复）、花第一笔钱之前（refreshVideoZone，出片 / 推演 —— 见那个函数的 ★）。
 // ★ 结论变了就广播（subscribeVideoZone）：account 把它接进自己的版本号，订阅了账号的档位那一排会重画。
 import { API_BASE, getToken, withAppVersion } from "../api/client";
-import { noServerLayer, probeServerCaps } from "./serverCaps";
-import { deniesOf, parseZone, regionalOf, sameZone, zoneOfDenial, type VideoProvider, type VideoZoneFacts } from "./videoZoneRules";
+import { noServerLayer, probeServerCaps, serverSupports } from "./serverCaps";
+import { deniesOf, parseZone, regionalOf, sameZone, v2OfferedOf, zoneOfDenial, type VideoProvider, type VideoZoneFacts } from "./videoZoneRules";
 
 export type { VideoGate, VideoProvider, VideoZoneKind } from "./videoZoneRules";
 
@@ -127,6 +127,14 @@ export function videoZone(): VideoZone | null {
  */
 export function zoneDenies(provider: VideoProvider): boolean {
   return deniesOf(videoZone(), provider);
+}
+
+/**
+ * MiniMax H3（V2）三档此刻摆不摆 —— 唯一判据（account.tierServerOff 拿它藏那三档；规则本身是 videoZoneRules.v2OfferedOf）。
+ * 健康端点的 minimaxV2 为真 **且** 地区问到了、providers 里有 minimax 才摆；任何一样不知道都不摆（与 zoneDenies 的「不知道不拦」相反，理由见 v2OfferedOf）。
+ */
+export function minimaxV2Offered(): boolean {
+  return v2OfferedOf(videoZone(), serverSupports("minimaxV2"));
 }
 
 /**

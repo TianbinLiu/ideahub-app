@@ -88,6 +88,11 @@ eq("特效同款是第三组（复刻 · 同款）、三步", M.GUIDED_MODES.fin
     std: NO_REF, // 标准（1.0 pro）
     hd: ALL, // 高清（2.0 mini）
     ultra: ALL, // 电影级（2.5）
+    // MiniMax H3 三档（出片地区 P2b，2026-10-26）：收参考图、出声、不只认起拍画面 —— 与 2.x 那几档摆同一批（主人 10-26：九宫格、对话、主角定妆在 H3 上照常能用，
+    //   出图仍走 Seedream）。不收声音样本那一件由各向导自己说（对话正反打的说明不能再写「按卡上的声音说出来」，P2b 界面那一步）
+    "draft-mm": ALL,
+    "hd-mm": ALL,
+    "ultra-mm": ALL,
     real: ["direct", "effect", "template"], // 真人（MiniMax 海螺，只认一张起拍画面）
   };
   for (const row of T.VIDEO_TIER_SPECS) {
@@ -117,17 +122,31 @@ for (const refImg of [false, true])
       }
     }
 
-// 门禁开着的海外（真表 + providers ["minimax"]，2026-10-26 终审反例）：摆得出来的只剩「真人」档，被挡的「主角定妆」（refImg）、「对话正反打」（audio）
-//   在给得出的档里一档都解不了 —— 选法屏那一行必须走 account.noTierLine（tierNamesFor 回 null），原来印的是「换到「」就有」。
-//   「换到哪一档就有」三种结局的规则本身在 videoZoneRules.tierGoOf（check-video-zone 实跑），这里只钉「这种情形真的会出现」。
+// 门禁开着的海外（真表 + providers ["minimax"]，2026-10-26 终审反例）。两种服务端（出片地区 P2b 起）：
+//   · 没开 MiniMax H3（V2）—— 老服务端、MiniMax 走中国站的服务端（健康端点 minimaxV2 不为真，H3 三档不摆，videoZoneRules.v2OfferedOf）：
+//     摆得出来的只剩「真人」档，被挡的「主角定妆」（refImg）、「对话正反打」（audio）在给得出的档里一档都解不了 ——
+//     选法屏那一行必须走 account.noTierLine（tierNamesFor 回 null），原来印的是「换到「」就有」；
+//   · 开着 V2：H3 三档摆得出来，那两个模式换到 H3 就有（「换到哪一档就有」说的就是这三档）。
+//   「换到哪一档就有」三种结局的规则本身在 videoZoneRules.tierGoOf（check-video-zone 实跑），这里只钉「这两种情形真的会出现」。
 {
   const Z = await import(url.pathToFileURL(path.join(root, "src/data/videoZoneRules.ts")).href);
-  const intl = T.VIDEO_TIER_SPECS.filter((r) => !r.retireAt && !Z.deniesOf({ providers: ["minimax"] }, r.provider ?? "ark"));
+  const zone = { providers: ["minimax"] };
+  const intl = (v2Cap) =>
+    T.VIDEO_TIER_SPECS.filter((r) => !r.retireAt && !Z.deniesOf(zone, r.provider ?? "ark") && (r.api !== "minimax-v2" || Z.v2OfferedOf(zone, v2Cap)));
   for (const why of ["refImg", "audio"]) {
-    const hiddenBy = intl.flatMap((r) => M.GUIDED_MODES.filter((m) => M.modeBlock(m.id, M.modeTierOfSpec(r)) === why).map((m) => m.id));
+    const hiddenBy = intl(false).flatMap((r) => M.GUIDED_MODES.filter((m) => M.modeBlock(m.id, M.modeTierOfSpec(r)) === why).map((m) => m.id));
     ran++;
-    if (!hiddenBy.length) problems.push(`海外门禁开着时没有哪个模式因为「${why}」被挡了 —— 档位表改了？去看选法屏那几句话还要不要 noTierLine 那一支`);
-    eq(`海外门禁开着：能解开「${why}」的档一档都没有（选法屏说 noTierLine，不说「换到「」就有」）`, Z.tierGoOf(intl, (r) => M.clearsBlock(why, M.modeTierOfSpec(r)), () => false), null);
+    if (!hiddenBy.length) problems.push(`海外门禁开着（服务端没开 V2）时没有哪个模式因为「${why}」被挡了 —— 档位表改了？去看选法屏那几句话还要不要 noTierLine 那一支`);
+    eq(
+      `海外门禁开着 · 服务端没开 V2：能解开「${why}」的档一档都没有（选法屏说 noTierLine，不说「换到「」就有」）`,
+      Z.tierGoOf(intl(false), (r) => M.clearsBlock(why, M.modeTierOfSpec(r)), () => false),
+      null,
+    );
+    eq(
+      `海外门禁开着 · 服务端开着 V2：能解开「${why}」的是 H3 三档`,
+      Z.tierGoOf(intl(true), (r) => M.clearsBlock(why, M.modeTierOfSpec(r)), () => false)?.usable.map((r) => r.id),
+      ["draft-mm", "hd-mm", "ultra-mm"],
+    );
   }
 }
 

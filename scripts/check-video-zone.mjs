@@ -12,6 +12,7 @@
 //   ① parseZone 不查 v；② providers 不过滤认不出的名字；③ deniesOf 在 null 上回 true；④ zoneOfDenial 不把 gate 记成 on；
 //   ⑤ regionalOf 把 observe 也当地区。
 //   2026-10-26 终审加 tierGoOf（「换到哪一档就有」三种结局）与真表 + providers ["minimax"] 的反例，试红一条：⑥ tierGoOf 一档都做不了时回两串空名字（8 条变红）。
+//   2026-10-26 出片地区 P2b 加 v2OfferedOf（MiniMax H3 三档摆不摆）时再试两条，各自变红：⑦ 地区不知道也摆；⑧ 不看能力位（老服务端上也摆）。
 //
 // 用法：node scripts/check-video-zone.mjs [--module=<另一份 videoZoneRules.ts 的路径，造违规试红用>]
 import path from "node:path";
@@ -72,6 +73,14 @@ eq("海外只给 MiniMax：不拦 MiniMax", M.deniesOf({ providers: ["minimax"] 
 eq("境内两家都给：都不拦", [M.deniesOf({ providers: ["ark", "minimax"] }, "ark"), M.deniesOf({ providers: ["ark", "minimax"] }, "minimax")], [false, false]);
 eq("一家都不给：两家都拦", [M.deniesOf({ providers: [] }, "ark"), M.deniesOf({ providers: [] }, "minimax")], [true, true]);
 
+// ── v2OfferedOf：MiniMax H3 三档摆不摆（2026-10-26 出片地区 P2b）—— 两位都真才摆；任何一位不知道都不摆（与 deniesOf 相反）──
+eq("能力位真 + 海外给 MiniMax：摆", M.v2OfferedOf({ providers: ["minimax"] }, true), true);
+eq("能力位真 + 境内两家都给：摆（境内的人也能选 MiniMax）", M.v2OfferedOf({ providers: ["ark", "minimax"] }, true), true);
+eq("能力位真 + 地区不知道：不摆（地区不知道 ≠ 给 MiniMax）", M.v2OfferedOf(null, true), false);
+eq("能力位不知道（还没探到）：不摆", M.v2OfferedOf({ providers: ["minimax"] }, null), false);
+eq("能力位假（老服务端 / MiniMax 走中国站）：不摆 —— providers 里的 minimax 只说明有真人档", M.v2OfferedOf({ providers: ["ark", "minimax"] }, false), false);
+eq("地区不给 MiniMax（门禁开着的境内只给 Seedance 的那种服务器、blocked）：不摆", [M.v2OfferedOf({ providers: ["ark"] }, true), M.v2OfferedOf({ providers: [] }, true)], [false, false]);
+
 // ── zoneOfDenial：403 REGION_UNAVAILABLE 的回包 ──
 const body = { ok: false, code: "REGION_UNAVAILABLE", reason: "region", zone: "intl", providers: ["minimax"], message: "…", billed: false };
 const prevUS = { zone: "intl", country: "US", providers: ["ark", "minimax"], gate: "observe" };
@@ -112,24 +121,32 @@ eq("一直不知道 = 没变", M.sameZone(null, null), true);
   eq("一档都做不了：null（不是两串空名字）", M.tierGoOf(rows, () => false, () => false), null);
   eq("一档都摆不出来：null", M.tierGoOf([], has, () => false), null);
 }
-// 真表 + providers ["minimax"]（门禁开着的海外）：摆得出来的只剩「真人」档 —— 下面这几件事 account.tierGo / tierNamesFor 都必须落到 null，
-// 调用方说 noTierLine（反例：哪天给「真人」那一行误开了某一位，或者 H3 那几行加进来了，这里会红 —— 那时去看那几句话还对不对，再改这张表）
+// 真表 + providers ["minimax"]（门禁开着的海外）。两种服务端（出片地区 P2b 起）：
+//   · 没开 MiniMax H3（V2：老服务端、MiniMax 走中国站）：摆得出来的只剩「真人」档 —— 下面这几件事 account.tierGo / tierNamesFor 都必须落到 null，
+//     调用方说 noTierLine（反例：哪天给「真人」那一行误开了某一位，这里会红 —— 那时去看那几句话还对不对，再改这张表）；
+//   · 开着 V2：H3 三档也摆得出来 —— 收参考图、出声这两件换到 H3 就有；带参考视频 / 延长 / 声音样本 / 认证素材 H3 都没有，照旧 null。
+//   摆不摆 H3 照 account 的口径：deniesOf（地区给不给这一家）+ v2OfferedOf（H3 三档另要能力位）。
 {
   const T = await import(url.pathToFileURL(path.join(root, "src/data/videoTierTable.ts")).href);
   const live = T.VIDEO_TIER_SPECS.filter((r) => !r.retireAt);
-  const intl = live.filter((r) => !M.deniesOf({ providers: ["minimax"] }, r.provider ?? "ark"));
-  const both = live.filter((r) => !M.deniesOf({ providers: ["ark", "minimax"] }, r.provider ?? "ark"));
-  eq("海外门禁开着时摆得出来的档（真表）", intl.map((r) => r.id), ["real"]);
+  const offeredIn = (zone, v2Cap) => live.filter((r) => !M.deniesOf(zone, r.provider ?? "ark") && (r.api !== "minimax-v2" || M.v2OfferedOf(zone, v2Cap)));
+  const intl = offeredIn({ providers: ["minimax"] }, false);
+  const intlV2 = offeredIn({ providers: ["minimax"] }, true);
+  const both = offeredIn({ providers: ["ark", "minimax"] }, false);
+  eq("海外门禁开着时摆得出来的档（真表 · 服务端没开 V2）", intl.map((r) => r.id), ["real"]);
+  eq("海外门禁开着时摆得出来的档（真表 · 服务端开着 V2）", intlV2.map((r) => r.id), ["draft-mm", "hd-mm", "ultra-mm", "real"]);
+  eq("境内两家都给、服务端没开 V2：H3 三档不摆（只有 providers 里的 minimax 不够）", both.some((r) => r.api === "minimax-v2"), false);
   const NEEDS = {
-    "收参考图（refImg）": (r) => r.refImg,
-    "带参考视频（refVid + 有价签）": (r) => r.refVid && r.r2vMult !== null,
-    "能延长（extendOk）": (r) => r.extendOk,
-    "带声音样本（refAudio）": (r) => r.refAudio,
-    "出声（audio）": (r) => r.audio,
-    "收认证素材（assetRef）": (r) => r.assetRef,
+    "收参考图（refImg）": [(r) => r.refImg, ["draft-mm", "hd-mm", "ultra-mm"]],
+    "带参考视频（refVid + 有价签）": [(r) => r.refVid && r.r2vMult !== null, null],
+    "能延长（extendOk）": [(r) => r.extendOk, null],
+    "带声音样本（refAudio）": [(r) => r.refAudio, null],
+    "出声（audio）": [(r) => r.audio, ["draft-mm", "hd-mm", "ultra-mm"]],
+    "收认证素材（assetRef）": [(r) => r.assetRef, null],
   };
-  for (const [what, has] of Object.entries(NEEDS)) {
-    eq(`海外门禁开着 · ${what}：没有可换的档 = null`, M.tierGoOf(intl, has, () => false), null);
+  for (const [what, [has, withV2]] of Object.entries(NEEDS)) {
+    eq(`海外门禁开着 · 服务端没开 V2 · ${what}：没有可换的档 = null`, M.tierGoOf(intl, has, () => false), null);
+    eq(`海外门禁开着 · 服务端开着 V2 · ${what}：换得过去的档`, M.tierGoOf(intlV2, has, () => false)?.usable.map((r) => r.id) ?? null, withV2);
     ran++;
     if (!M.tierGoOf(both, has, () => false)) problems.push(`境内两家都给 · ${what}：应该有可换的档（真表里一行都没有了？）`);
   }

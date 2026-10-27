@@ -715,7 +715,8 @@ export function refPlanOf(
     return { sends: true, why: null, items, textOnly: textOnlyOf(new Set()), extrasDropped: false, refVideo: true, ...voiceBits(true), refMode: false, draws: { first: false, last: false } };
   }
   // ★ 判据与 generateSegment 的真人档那一支同一个（请求形状 VideoTier.api，apiCase：加一种 api 时 tsc 逼着在这里表态）：清单预览的就是那一发会怎么拼
-  if (apiCase(tier.api, { ark: false, "minimax-v1": true }))
+  //   MiniMax H3（V2）不是这一支：它收首尾帧与参考图，清单照下面普通那几种排（图位预算按它的 refImagesMax = 5）
+  if (apiCase(tier.api, { ark: false, "minimax-v1": true, "minimax-v2": false }))
     // 真人档一张设定帧都不画：首帧就是真人卡的照片
     return { sends: false, why: "real", items: [], textOnly: textOnlyOf(new Set()), extrasDropped: extras.length > 0, refVideo: false, ...voiceBits(false), refMode: false, draws: { first: false, last: false } };
   /** 首帧的缩略图（没有 = 还没画） */
@@ -1153,7 +1154,8 @@ export async function generateSegment(
   }
   // 样片第一步只走普通出片那条路（理由见 draftMode 的 ★）。界面那几道闸（nodeDraftEligible）已经按同一个口径拦过，这里是最后一道
   // 「这套请求有没有样片」与 flowStore.nodeDraftEligible 同一个答案（样片只在方舟协议里）；apiCase 让新协议在这里也得表态
-  if (dm === "draft" && (input.refVideoUrl || input.extendRef || input.materialRef || apiCase(tierOf(input.videoTier).api, { ark: false, "minimax-v1": true }))) {
+  //   MiniMax H3（V2）也没有样片两步（draftOk 为假，界面那几道闸本来就摆不出来）
+  if (dm === "draft" && (input.refVideoUrl || input.extendRef || input.materialRef || apiCase(tierOf(input.videoTier).api, { ark: false, "minimax-v1": true, "minimax-v2": true }))) {
     throw new Error(t`这一段的做法走不了样片（样片不收参考视频，也不走真人档）——关掉「先出样片」再生成`);
   }
   let first = input.firstFrame;
@@ -1419,8 +1421,9 @@ export async function generateSegment(
   // 首帧就是真人卡的照片（或用户设定帧/承接帧），提示词驱动它动起来 —— 三发探针
   // 验证过的 i2v 形态。出片调用的分流在 composeSegments（尾帧捕获/承接共用那条产线）。
   // ★ 按请求形状（VideoTier.api）分流，不按供应商：海外 MiniMax H3（P2b，V2 接口）也是 MiniMax，却收参考图、走另一套请求。
-  //   apiCase 不写等号：加 minimax-v2 时这里在 tsc 就红（等号比较会让它悄悄落进下面方舟那条路，按方舟补画设定帧、拼请求）
-  if (apiCase(tierOf(input.videoTier).api, { ark: false, "minimax-v1": true })) {
+  //   apiCase 不写等号：加一种 api 时这里在 tsc 就红（等号比较会让它悄悄落进下面方舟那条路，按方舟补画设定帧、拼请求）
+  //   MiniMax H3（V2）不走这一支：帧与参考图照普通那条路备（补画规矩同 drawPlan）；请求按哪套协议拼在 composeSegments 按 api 分（P2b 出片那一步）
+  if (apiCase(tierOf(input.videoTier).api, { ark: false, "minimax-v1": true, "minimax-v2": false })) {
     if (blockout) {
       // 跑得了白模模板的那一档只问 economy.blockoutTier（唯一实现），别写死「电影级」
       const bt = blockoutTier()?.label ?? "";

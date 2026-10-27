@@ -1363,6 +1363,11 @@ msgstr "{list}没能存到服务器（{reason}）——这几张只留在这台�
 msgid "{looseNames} 没对上这一段的任何参考——检查名字，或点上面的图重新写进句子（发出去时它只是普通文字）。"
 msgstr "{looseNames} 没对上这一段的任何参考——检查名字，或点上面的图重新写进句子（发出去时它只是普通文字）。"
 
+#. 两个整句接成一句：前一句说哪几档是会员档，后一句说免费版在哪几档上只能用文字出片
+#: src/data/account.ts
+msgid "{member}；{text}"
+msgstr "{member}；{text}"
+
 #: src/studio/gridDraftStore.ts
 msgid "{missing} 格模型没画"
 msgstr "{missing} 格模型没画"
@@ -2322,6 +2327,10 @@ msgstr "「{names}」是会员档——开通会员套餐（或充值过任意�
 #: src/data/account.ts
 msgid "「{names}」档"
 msgstr "「{names}」档"
+
+#: src/data/account.ts
+msgid "「{names}」档用 {via} 出片时，免费版只能用文字（不补画首帧尾帧、不带参考图）——带图出片要开通会员套餐（或充值过任意一笔）"
+msgstr "「{names}」档用 {via} 出片时，免费版只能用文字（不补画首帧尾帧、不带参考图）——带图出片要开通会员套餐（或充值过任意一笔）"
 
 #: src/studio/segmentGen.ts
 msgid "「{names}」的声音样本这次没带上（这一档的参考音频合计最长 {capSec} 秒）——这几位的台词音色由模型定；把样本剪短些就能都带上"
@@ -4283,6 +4292,10 @@ msgstr "④ 标签（选填）"
 msgid "480p 省钱档 · 与「{hd}」同一个模型、画面小一号；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音"
 msgstr "480p 省钱档 · 与「{hd}」同一个模型、画面小一号；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音"
 
+#: src/data/economy.ts
+msgid "480p 省钱档 · 可直接用素材卡的形象参考图出片（一段最多 {max} 张图）· 出片一定带 AI 生成的环境音，不参考卡上的声音样本"
+msgstr "480p 省钱档 · 可直接用素材卡的形象参考图出片（一段最多 {max} 张图）· 出片一定带 AI 生成的环境音，不参考卡上的声音样本"
+
 #: src/studio/quality.ts
 msgid "4K 贴图 · 15 万面 · 最清楚但吃显存（她 3.9MB／他 3.8MB）"
 msgstr "4K 贴图 · 15 万面 · 最清楚但吃显存（她 3.9MB／他 3.8MB）"
@@ -4290,6 +4303,14 @@ msgstr "4K 贴图 · 15 万面 · 最清楚但吃显存（她 3.9MB／他 3.8MB�
 #: src/pages/LoginPage.tsx
 msgid "6 位验证码"
 msgstr "6 位验证码"
+
+#: src/data/economy.ts
+msgid "768p · 可直接用素材卡的形象参考图出片（一段最多 {max} 张图）· 出片一定带 AI 生成的环境音，不参考卡上的声音样本"
+msgstr "768p · 可直接用素材卡的形象参考图出片（一段最多 {max} 张图）· 出片一定带 AI 生成的环境音，不参考卡上的声音样本"
+
+#: src/data/economy.ts
+msgid "768p · 可直接用素材卡的形象参考图出片（一段最多 {max} 张图）· 出片一定带 AI 生成的环境音，不参考卡上的声音样本；没有往后延长、样片和白模模板"
+msgstr "768p · 可直接用素材卡的形象参考图出片（一段最多 {max} 张图）· 出片一定带 AI 生成的环境音，不参考卡上的声音样本；没有往后延长、样片和白模模板"
 
 #: src/pages/ProfilePage.tsx
 #~ msgid "add-on token · 直充 / 新人额度 / 创作收益，不过期"
@@ -24786,6 +24807,10 @@ msgstr "还在排队——过几分钟再点一次「取回」。这一发的钱
 msgid "还在改写：收起不会丢，好了顶上会提示；从「/」面板再打开就接得回来"
 msgstr "还在改写：收起不会丢，好了顶上会提示；从「/」面板再打开就接得回来"
 
+#: src/data/account.ts
+msgid "还在确认这台服务器与你所在的地区能不能用 {via} 出「{label}」档——稍等再试，或先换一档出片"
+msgstr "还在确认这台服务器与你所在的地区能不能用 {via} 出「{label}」档——稍等再试，或先换一档出片"
+
 #: src/components/blockout/BlockoutTrimmer.tsx
 msgid "还在读这段视频"
 msgstr "还在读这段视频"
@@ -26660,6 +26685,10 @@ msgstr "这台服务器还不支持核对角色位（回包形状不对，可能
 #: src/data/templates.ts
 msgid "这台服务器还不支持模板分类（旧版服务端）——升级后再试"
 msgstr "这台服务器还不支持模板分类（旧版服务端）——升级后再试"
+
+#: src/data/account.ts
+msgid "这台服务器还不支持用 {via} 出「{label}」档（服务端需要更新）——先换一档出片"
+msgstr "这台服务器还不支持用 {via} 出「{label}」档（服务端需要更新）——先换一档出片"
 
 #: src/data/projects.ts
 msgid "这台服务器还不支持留存工坊工程"
