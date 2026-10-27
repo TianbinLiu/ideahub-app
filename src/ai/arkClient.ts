@@ -517,6 +517,8 @@ export function briefArkReason(e: unknown, max = 40): string {
   if (e instanceof ArkRegionDenied) return e.reason.slice(0, Math.max(max, 60));
   // 出图被拒：原因已经按码说成人话了（imageRefusalError）—— 尤其「模型停用、请更新 App」那句不能退成「服务器返回 400」
   if (e instanceof ArkImageRefused) return e.reason.slice(0, Math.max(max, 60));
+  // 出片提交被同步拒：同上（videoRefusalError 已按码分清文字 / 图片 / 图没拉到）
+  if (e instanceof ArkVideoRefused) return e.reason.slice(0, Math.max(max, 60));
   if (e instanceof ArkHttpError) {
     const status = e.status;
     return t`服务器返回 ${status}`;
@@ -682,17 +684,71 @@ export function modelGoneCode(code: string, message = ""): boolean {
   return /^model not allowed$/i.test(message.trim());
 }
 
-/** 非 2xx 回包里的几样：我们服务端的顶层 `code` / `message`，方舟原样透传的 `error.code` / `error.message` */
-function errorBodyOf(body: string): { code: string; message: string; upstreamCode: string } {
+/**
+ * 非 2xx 回包里的几样：我们服务端的顶层 `code` / `message`，方舟原样透传的 `error.code` / `error.message` / `error.param`
+ * （upstreamMessage / upstreamParam 只给 videoRefusalError 认「参考图没拉到」那一种用，见那里的 ⚠）
+ */
+function errorBodyOf(body: string): { code: string; message: string; upstreamCode: string; upstreamMessage: string; upstreamParam: string } {
   const str = (v: unknown) => (typeof v === "string" ? v : "");
+  const none = { code: "", message: "", upstreamCode: "", upstreamMessage: "", upstreamParam: "" };
   try {
     const j = JSON.parse(body) as Record<string, unknown> | null;
-    if (!j || typeof j !== "object") return { code: "", message: "", upstreamCode: "" };
+    if (!j || typeof j !== "object") return none;
     const err = j.error && typeof j.error === "object" ? (j.error as Record<string, unknown>) : {};
-    return { code: str(j.code), message: str(j.message), upstreamCode: str(err.code) };
+    return { code: str(j.code), message: str(j.message), upstreamCode: str(err.code), upstreamMessage: str(err.message), upstreamParam: str(err.param) };
   } catch {
-    return { code: "", message: "", upstreamCode: "" };
+    return none;
   }
+}
+
+/**
+ * 出片任务**提交时**被方舟同步拒了（400）—— 带一句给人看的原因（2026-10-26，文字模板 P1）。
+ * @param input 被拒的是哪一样（话由它挑，调用方也可以按它补一句）：text = 提示词没过审；image = 某张参考图没过审（常见是真人照片）；
+ *   either = 方舟只说「输入」没过审、没说是文字还是图；fetch = 方舟没拉到某张参考图（图床上那张图还没就绪）
+ * ★ 仍是 ArkHttpError（status / code 原样）：钱上的判定只认类型（ai/failCharge：服务端明说失败 = 没受理、没扣），一个字不变。
+ * ★ message 里不说钱（同 ArkRegionDenied 的理由：调用方截原因时会截掉那半句，钱只走 ai/failCharge）。
+ */
+export class ArkVideoRefused extends ArkHttpError {
+  constructor(
+    message: string,
+    status: number,
+    code: string,
+    readonly upstreamCode: string,
+    readonly reason: string,
+    readonly input: "text" | "image" | "either" | "fetch",
+  ) {
+    super(message, status, code);
+    this.name = "ArkVideoRefused";
+  }
+}
+
+/**
+ * 出片任务提交那一发的 400 → 一句人话（ArkVideoRefused）—— **唯一实现**（generateVideo 的 arkFetch 把它当 describeRefusal 传进去）。
+ * 回 null = 不归它说：不是 400、或者回包带着我们服务端自己的顶层码（MODEL_RETIRED / VIDEO_PARAMS_NOT_ALLOWED … 归 requestRefusalError；
+ * 402 / 403 / 429 归 billingDenialError），或者认不出（照旧走 arkFetch 最后那一支）。
+ * ★ 原来这一发的 400 一律落进 arkFetch 最后那一支：屏幕上是一截 `Ark /contents/generations/tasks 400: {"error":{…}}`，
+ *   文字被拒、图被拒、图没拉到三种出路完全不同的事长得一模一样（审核抓到；文字模板段的正文是别人写的，使用者改不了图之外的东西，
+ *   分不清是哪一样就不知道该换图还是该改字）。
+ * ★ 内容审核按方舟的码认（错误码表 code_error-codes：InputText… / InputImage… SensitiveContentDetected、PrivacyInformation）。
+ * ⚠ 「参考图没拉到」那一种方舟给的是**通用码** `InvalidParameter`（2026-10-26 付费小验两次撞上：`content[3]` / `content[2]`，
+ *   message「invalid image format (detected format); received: ""」—— 图刚传到我们图床的几秒里方舟去拉、拉回空的；不扣钱，几分钟后重发即过）。
+ *   码说明不了是哪一种，只能认方舟回包里那句**机器原话**（不是我们的界面文案、不随界面语言变）：参数是 `content[N]` + 「invalid image format」+ 收到的是空串。
+ *   认不出就落回原来那一支（说「服务器返回 400」），不往「再试一次」上靠 —— 把参数真错了的请求说成「再试一次」，人会一直重试一发必然被拒的请求。
+ */
+export function videoRefusalError(status: number, body: string): ArkVideoRefused | null {
+  if (status !== 400) return null;
+  const p = errorBodyOf(body);
+  // 我们服务端自己的码（顶层 code）归 requestRefusalError 说（它们的话更准），这里让开
+  if (p.code) return null;
+  const up = p.upstreamCode;
+  const make = (line: string, input: ArkVideoRefused["input"]) => new ArkVideoRefused(line, status, p.code, up, line, input);
+  if (/^InputText\w*SensitiveContentDetected/i.test(up)) return make(t`提示词没过方舟的内容审核——改掉里面可能被拦的说法再试`, "text");
+  if (/^InputImage\w*SensitiveContentDetected/i.test(up) || /PrivacyInformation/i.test(up))
+    return make(t`有一张参考图没过方舟的审核（常见是真人照片）——换掉那张图再试`, "image");
+  if (/^(Input\w*)?SensitiveContentDetected/i.test(up)) return make(t`输入的文字或图片没过方舟的内容审核`, "either");
+  if (/^InvalidParameter$/i.test(up) && /^content\[\d+\]$/.test(p.upstreamParam) && /invalid image format/i.test(p.upstreamMessage) && /received:\s*""/.test(p.upstreamMessage))
+    return make(t`有一张参考图方舟没拉到（多半是图刚传上去还没就绪）——过一会儿再点一次生成`, "fetch");
+  return null;
 }
 
 /** 出图模型用不了了 → ArkImageModelGone；别的失败回 null（组图受理那一支只要这一句，其余照它自己的说法） */
@@ -1769,6 +1825,8 @@ export async function generateVideo(
     },
     // 创建请求体带 2-3MB base64 首尾帧，慢网下 30s 会掐死在上传半途（2026-08-07 实测连超两次）
     120_000,
+    // 提交时被方舟同步拒（文字 / 图没过审、参考图没拉到）：说成人话、分清是哪一样（videoRefusalError 的 ★）
+    videoRefusalError,
   );
   const id = created.id;
   // ★ 受理即交号（理由钉在 onTask 上）：从这一行往后，这一发的钱已经花掉了

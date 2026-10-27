@@ -327,6 +327,8 @@ function buildBranchTree(
       segment: {
         title: proposal.title,
         plot: proposal.plot,
+        // 文字模板段的正文在发布之前剥掉（同 segments 那一份，data/videos.stripLocalOnly）
+        ...(node.textTpl ? { fromTextTpl: true } : {}),
         firstFrame: proposal.firstFrame,
         lastFrame: proposal.lastFrame,
         durationSec: proposal.durationSec,
@@ -2481,6 +2483,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
       return {
         title: p.title,
         plot: shotLine ? `${shotLine}。${p.plot}` : p.plot,
+        // 文字模板段：本机照写全文（剪辑页一键成片要读），发布 / 回炉替换之前由 data/videos.stripLocalOnly 置空（types.VideoSegment.fromTextTpl 的 ★）
+        ...(n.textTpl ? { fromTextTpl: true } : {}),
         firstFrame: p.firstFrame,
         lastFrame: p.lastFrame,
         poster: p.poster,

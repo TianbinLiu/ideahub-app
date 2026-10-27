@@ -34,7 +34,8 @@ import {
   type CardSlot,
   type CardType,
 } from "../types";
-import { drawCount } from "./drawPlan";
+import { drawCount, textTplDraw } from "./drawPlan";
+import { TEXT_TPL_PROMPT_MAX } from "./textTemplate";
 import {
   DRAFT_FINAL_MULT,
   PAID_DEFAULT_CHAIN,
@@ -335,12 +336,18 @@ export { modelLabel };
  *   拿到的是 4 秒的片，差 33% 且无从察觉。
  */
 /**
- * 这一档的出片提示词上限（字符）—— **唯一判定**（输入框的 maxLength、点图 / 运镜芯片的长度闸、segmentGen 给正文留位、
- * ai/real 最后那一刀都问它）。收参考图的两档（2.x：高清 / 电影级）= 官方建议值 500，其余 = 400（理由见 types.VIDEO_PROMPT_MAX_V2）。
+ * 这一档的出片提示词上限（字符）—— **唯一判定**（输入框的 maxLength、点图 / 运镜芯片的长度闸都问它；出片那一侧经 segmentGen.promptCapOf 问它，
+ * 写进契约 GenSpec.promptCap，ai/real 最后那一刀与 validateGenSpec 读那一格）。收参考图的两档（2.x：高清 / 电影级）= 官方建议值 500，其余 = 400（理由见 types.VIDEO_PROMPT_MAX_V2）。
  * ★ 按**能力**判（refImg）不按档位 id 判：新加一档 2.x 模型时不用回来改这里。
+ * ★ 文字模板段（2026-10-26）在收长提示词的档（VideoTier.longPromptOk，今天只有电影级）上是 data/textTemplate.TEXT_TPL_PROMPT_MAX（1000）；
+ *   别的档照旧 500 / 400。`long` **必填**：可选的话新调用点漏传就把文字模板段按 500 拦 / 按 500 算预算 —— 作者那一屏说放得下、出片那一拍却整句拒
+ *   （或反过来），零报错。不是文字模板段的调用方显式传 `{ long: false }`（那是一个看得见的决定）。
+ * @param o.long 这一段是文字模板段（flowStore.nodePromptMax 按节点判，出片那一侧按 SegmentGenInput.textTpl 判）
  */
-export function promptMaxOf(tierId: string | undefined): number {
-  return tierOf(tierId).refImg ? VIDEO_PROMPT_MAX_V2 : VIDEO_PROMPT_MAX;
+export function promptMaxOf(tierId: string | undefined, o: { long: boolean }): number {
+  const tier = tierOf(tierId);
+  if (o.long && tier.longPromptOk) return TEXT_TPL_PROMPT_MAX;
+  return tier.refImg ? VIDEO_PROMPT_MAX_V2 : VIDEO_PROMPT_MAX;
 }
 
 /**
@@ -1416,6 +1423,11 @@ export function segmentCost(o: {
   noDraw: boolean;
   /** 这一段的剧情分了两个以上镜头（data/drawPlan 的规矩 ②：不画结束画面）。必填，理由同上 */
   multiShot: boolean;
+  /**
+   * 这一段是文字模板段时模板有几个图位（data/drawPlan 的规矩 ③：有图位一张帧都不画、零图位只补画开头一张）；null = 不是文字模板段。
+   * 必填，理由同上。★ 按**模板的图位数**算，不按此刻手上有几张图 —— 补图之前（货架 / 详情页）与补图之后（生成键）报的是同一个数
+   */
+  textTplSlots: number | null;
   /** 这一段送进请求体的画幅（"9:16" / "16:9"）：480p 的每秒数按画幅不同（segTokens 的 ★）。缺省按最贵的一格报 */
   ratio?: string;
   /**
@@ -1454,6 +1466,7 @@ export function segmentCost(o: {
     refMode: o.refMode,
     noDraw: o.noDraw,
     multiShot: o.multiShot,
+    ...textTplDraw(o.textTplSlots),
   });
   return (o.draft ? draftStepTokens(o.durationSec, o.ratio) : segTokens(o.durationSec, o.tierId, o.ratio)) + draws * IMAGE_TOKENS;
 }

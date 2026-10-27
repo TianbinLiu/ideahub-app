@@ -49,6 +49,7 @@ import RefMarkToggle from "./RefMarkToggle";
 import RefStrip from "./RefStrip";
 import ModePicker, { modeTierOf } from "./ModePicker";
 import { RestatePlaceTip, SceneCardTip } from "./DirectTips";
+import TextTplBanner from "./TextTplBanner";
 import LeadShotsWizard from "./LeadShotsWizard";
 import GridShotsWizard from "./GridShotsWizard";
 import EffectWizard from "./EffectWizard";
@@ -85,6 +86,7 @@ import {
   nodeRefPlan,
   nodeEmptyFrames,
   nodeNoDraw,
+  nodePromptMax,
   nodeFramesComeFromDerive,
   nodeEditFrames,
   planOf,
@@ -108,7 +110,7 @@ import {
   subscribeTemplates,
   templatesVersion,
 } from "../../data/templates";
-import { CHAT_TURN_TOKENS, ONE_IMAGE, blockoutTier, clampDuration, durationChoices, fmtTokens, materialRefSecs, minUsageNote, priceTag, promptMaxOf, proposalsCost, shotsOkOf, tierOf } from "../../data/economy";
+import { CHAT_TURN_TOKENS, ONE_IMAGE, blockoutTier, clampDuration, durationChoices, fmtTokens, materialRefSecs, minUsageNote, priceTag, proposalsCost, shotsOkOf, tierOf } from "../../data/economy";
 import { AGENT_PHRASES, executeAgentProposal, runCanvasAgent, type AgentOutcome, type AgentProposal } from "../../studio/canvasAgent";
 import { EXAMPLES, phraseText, templatePhrase } from "../../studio/agentGrammar";
 import { useLang } from "../../i18n/useLang";
@@ -1297,8 +1299,8 @@ function NodePanel({
   const mounted = named ? (tpl!.roles ?? []).filter((r) => castOfNode[r.label]).length : 0;
   /** 这一段的临时参考图（回炉工程里地址被瘦身掉的当没有，判据在 refMentions 一处） */
   const extraRefs = usableExtraRefs(node.extraRefs);
-  /** 这一档的提示词上限（economy.promptMaxOf：2.x 两档 500、其余 400；套模板的段另按 400，不走这里） */
-  const promptMax = promptMaxOf(node.videoTier);
+  /** 这一段的提示词上限（flowStore.nodePromptMax：2.x 两档 500、其余 400，文字模板段在电影级上 1000；套模板的段另按 400，不走这里） */
+  const promptMax = nodePromptMax(node);
   /** 分镜 / 台词只开在带得了声音样本的档（草稿 / 高清 / 电影级）：别的档台词不会按卡的声音配，多镜头也没验过（判据只在 economy.shotsOkOf） */
   const shotsOk = shotsOkOf(node.videoTier);
   /** 运镜芯片对着哪段字：分了镜就是正在写的那个镜头，否则整段 */
@@ -1396,8 +1398,10 @@ function NodePanel({
           不是藏在自选里的开关）。切换是真操作（套/摘模板、setNodeCustom），不是换皮。
           摘模板的确认在下面那块；套着模板点「自定义」由 store 整句拒并指路（先摘）。
           ★ 延长段不摆（2026-10-05 界面走查）：切到别的页签之后它照样按延长出片（genNode 认 extendFrom），屏幕上却是另一种做法；
-            store 那三个入口也对延长段整句拒，下面的横幅说清「想换就删段重加」。 */}
-      {!extend && (
+            store 那三个入口也对延长段整句拒，下面的横幅说清「想换就删段重加」。
+          ★ 文字模板段同样不摆（2026-10-26，flowStore.textTplLaneLocked）：换做法只有横幅里那颗「摘掉模板出处」 */}
+      {node.textTpl && <TextTplBanner nodeId={node.id} />}
+      {!extend && !node.textTpl && (
         <div data-guide="canvas-modes" className="flex gap-1 self-start rounded-full bg-panel p-0.5">
           <button
             onClick={() => !tplMode && setPicker(true)}
@@ -1895,7 +1899,8 @@ function NodePanel({
               {/* 这一档收不了参考图（1.0 两档）：参考图直出退回先画帧 —— 说出来（判据与那句话只在 DirectNoRefNote 一处，工坊方案台同一份） */}
               <DirectNoRefNote node={node} />
               {/* 紧挨着上面那排素材卡：推荐挂一张场景卡（说不说的判断在 DirectTips 一处，工坊铸段窗同一份） */}
-              <SceneCardTip cards={mats} tierId={node.videoTier} />
+              {/* 文字模板段不劝挂场景卡：地点 / 光线写在模板正文里，再挂一张卡会和正文抢（参考图直出那两句提示是给自己写正文的人的） */}
+              {!node.textTpl && <SceneCardTip cards={mats} tierId={node.videoTier} />}
               {/* ★ 只在真的不补画帧时说（判据 flowStore.nodeNoDraw，与报价 / 出片同一个；2.62 发版评审抓到）：换到极速 / 标准之后
                   承接帧走首帧参数、结束画面照样补画并计费，这句「当图片 1 发，不画新帧」就与上面那条黄字、生成键上的价钱对着干 */}
               {index > 0 && node.chain && nodeNoDraw(node) && (
@@ -1930,18 +1935,24 @@ function NodePanel({
               onAdd={(url) =>
                 addExtraRef(node.id, {
                   url,
-                  // 默认名：「参考图 / 参考图2…」（不与别的参考图、这一段的卡重名）；加完当场能改
-                  name: uniqueRefName(t`参考图`, [...extraRefs.map((x) => x.name), ...mats.map((c) => c.name)]),
+                  // 默认名：「参考 / 参考2…」（不与别的参考图、这一段的卡重名）；加完当场能改。
+                  // ★ 不叫「参考图 / 参考图2」（2026-10-26 改）：那是正文里「第几张图」的叫法，是保留名 —— 人写的「参考图2」
+                  //   与系统兜底句里的「图片4「参考图2」」会撞名又错位（refMentions.refNameIssue）
+                  name: uniqueRefName(t`参考`, [...extraRefs.map((x) => x.name), ...mats.map((c) => c.name)]),
                   role: "free",
                 })
               }
               onUpdate={(id, patch) => updateExtraRef(node.id, id, patch)}
               onRemove={(id) => removeExtraRef(node.id, id)}
               onError={(msg) => useFlow.setState({ err: msg })}
+              // 文字模板段的图位：缺的按图位名补（名字就是正文里的 @它），图位的图换图只走 replaceExtraRefUrl
+              slots={node.textTpl?.slots}
+              onFillSlot={(name, url) => addExtraRef(node.id, { url, name, role: "free" })}
+              onReplace={(id, url) => useFlow.getState().replaceExtraRefUrl(node.id, id, url)}
             />
           )}
           {/* 参考图直出接在上一段后面：写之前提醒把地点 / 时间 / 光线再写一遍（2026-10-04 付费验证：切镜之后场景漂了，见 DirectTips） */}
-          {direct && <RestatePlaceTip chained={index > 0 && !!node.chain} />}
+          {direct && !node.textTpl && <RestatePlaceTip chained={index > 0 && !!node.chain} />}
           {((custom && customStep === "content") || direct) && (
             /* 自定义 / 参考图直出车道的要求框 = 分镜表（N2）：一个镜头时就是原来那一个输入框；「＋ 镜头」写成几个镜头，「＋ 台词」点明谁说的。
                文字是唯一真身（读写规则在 data/shotScript），写的仍是这一套方案的 plot */
@@ -2324,7 +2335,7 @@ function PlanSheet({ nodeId, onClose }: { nodeId: string; onClose: () => void })
             // 分镜表（N2）：选定那一套的剧情框能写成几个镜头、给台词点明谁说的；上限按档位（2.x 两档 500）
             shotEdit={{
               speakers: (node.materials ?? []).filter((c) => c.type === "character").map((c) => ({ id: c.id, name: c.name, voiced: !!voiceOf(c.id) })),
-              max: promptMaxOf(node.videoTier),
+              max: nodePromptMax(node),
               canAdd: shotsOkOf(node.videoTier),
             }}
             // 改这一帧（N3）：画布这一面此前没有（只有工坊方案台有一句话改帧）；同一个组件、同一处实现

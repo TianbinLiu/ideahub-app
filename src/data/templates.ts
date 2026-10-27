@@ -15,12 +15,15 @@ import * as uploadsApi from "../api/uploads";
 import { fetchArkTask } from "../ai/arkClient";
 import { serverSupports } from "./serverCaps";
 import { canAfford, currentUser, frozenNote, refreshRemoteWallet, tierBlockReason, tierPlanBlocked } from "./account";
-import { blockoutTier, blockoutizeCost, blockoutizeIssue, fmtTokens, type VideoTier } from "./economy";
+import { blockoutTier, blockoutizeCost, blockoutizeIssue, fmtTokens, promptMaxOf, tierOf, type VideoTier } from "./economy";
 import { toPermanentUrl } from "./publishAssets";
 import { remoteOn } from "./videos";
 import { i18n, type MessageDescriptor } from "@lingui/core";
 import { msg, t } from "@lingui/core/macro";
-import { V3_CARD_WIPE_MS, Card, MarkBox, VideoAspect, VideoTemplate, uid } from "../types";
+import { V3_CARD_WIPE_MS, Card, MarkBox, VideoAspect, VideoTemplate, uid, type TemplateRecipe, type TextTplSlot, type TextTplSpec } from "../types";
+import { canonTextTplPrompt, maxTimecodeSec, TEXT_TPL_PROMPT_MAX, textTplCompiledLen, textTplTierMiss, timecodeBeats, type TextTplTierMiss } from "./textTemplate";
+import { packShots } from "./shotScript";
+import { cleanRefName, refNameIssue, TEXT_TPL_EXTRA_MAX } from "./refMentions";
 import { deviceOwner, mayClaimLegacy, onViewerChange, workOwner } from "./deviceOwner";
 import { splitByOwner } from "./ownerSplit";
 import { registerTemplateResolver } from "./recipe";
@@ -1093,7 +1096,10 @@ async function registerTemplateOnce(id: string): Promise<void> {
   // mineRemote 条目天生带 remoteId，下面会走"已登记 → 刷新"那条路（同 setTemplatePublished 的 ★★）
   const tpl = mine.find((x) => x.id === id) ?? mineRemote.find((x) => x.id === id);
   if (!tpl) throw new Error(t`这个模板不在本机库里`);
-  if (!tpl.refVideo) throw new Error(t`经典配方模板首发只存本机，不需要登记到服务器`);
+  // 种类只问 templateKindOf：文字模板也没有 refVideo，按老写法 `!tpl.refVideo` 它会听到一句「经典配方模板…」
+  const kind = templateKindOf(tpl);
+  if (kind === "text") throw new Error(t`文字模板这一版只存在这台设备上，还不能登记到服务器（上市场要等下一版）`);
+  if (kind === "classic" || !tpl.refVideo) throw new Error(t`经典配方模板首发只存本机，不需要登记到服务器`);
   if (tpl.remoteId) {
     await refreshRemoteTemplate(id);
     return;
@@ -1345,7 +1351,11 @@ export async function setTemplatePublished(id: string, on: boolean): Promise<num
   //   647 行的注释早写了这个坑的形状，这里当时还是漏了。三份列表一个都不能少。
   const tpl = local ?? mineRemote.find((x) => x.id === id) ?? shared.find((x) => x.id === id);
   if (!tpl) throw new Error(t`这个模板不在本机库里`);
-  if (!tpl.refVideo) {
+  const kind = templateKindOf(tpl);
+  // ★ 文字模板（P1）只存在本机：不登记、不上市场。按老写法它会落进经典那条「只翻本机布尔」—— 等于只在作者自己的货架上「上了市场」，
+  //   别人一个都看不见，而详情页会说已发布（2026-10-26 审核：上市场要走服务端那套预审，下一版）
+  if (kind === "text") throw new Error(t`文字模板这一版只存在这台设备上、还不能上市场（要等下一版）`);
+  if (kind === "classic") {
     updateTemplate(id, { published: on }); // 经典路：存量行为原样保留
     return null;
   }
@@ -1515,7 +1525,13 @@ export async function deleteTemplateEverywhere(id: string): Promise<number | nul
     emit();
     return null;
   }
-  if (tpl.refVideo && tpl.remoteId) {
+  const kind = templateKindOf(tpl);
+  // ★ 文字模板（P1）只存在本机，删本机那一条就是全部。万一它带着 remoteId（下一版登记过、又回到这一版的 App）：
+  //   这一版不认识服务端那一份怎么删，只删本机的话远端那条会经 mineRemote 被补回「我的模板」、还挂在市场上 —— 整句拒、本机原样保留
+  if (kind === "text" && tpl.remoteId) {
+    throw new Error(t`这个文字模板在服务器上也有一份，这一版 App 还删不了它——更新到新版再删`);
+  }
+  if (kind === "blockout" && tpl.remoteId) {
     if (!remoteOn()) {
       throw new Error(t`现在连不上服务器——这个模板在服务端还有登记（含托管的视频），联网后再删`);
     }
@@ -1573,6 +1589,14 @@ export interface NewTemplate {
    * 没有公网 URL 的"白模模板"连作者自己都用不了（方舟 r2v 只收 URL），存半成品是骗人。
    */
   refVideo?: VideoTemplate["refVideo"];
+  /**
+   * **文字模板**那一份（2026-10-26 文字模板 P1，形状见 types.TextTplSpec）。
+   * ★ 类型里必须有名字（CLAUDE.md「服务端加字段、本机库那几跳必须一起搬」那条坑的原话）：saveTemplate 是 `{...input}` 展开，
+   *   哪天改成逐字段搬、又漏了它，文字模板落进 mine 就成了一条 beats 为空的「经典配方模板」—— 套用被兜底整句拒，作者只看到「用不了」。
+   * ★ 与 refVideo 互斥（文字模板永远不带参考视频，saveTemplate 两样都带时整句拒）。recipe 会被 textTplRecipe(text) 覆盖（传什么都行，惯例传它）。
+   * ★ 只落本机、**不自动登记**（P1 不碰服务端；registerTemplate / setTemplatePublished 对它整句拒）。
+   */
+  text?: VideoTemplate["text"];
   /** 白模人偶的角色位（服务端登记值的镜像）。只有白模化那条路（V2）会带 */
   roles?: VideoTemplate["roles"];
   /**
@@ -1617,12 +1641,21 @@ export interface NewTemplate {
   remoteId?: string;
 }
 
+/**
+ * 落一条模板进本机库。
+ * @throws 文字模板那一份不合格（normTextTplSpec 的整句：作者那一屏先拦，这里是最后一道）、或与参考视频同时带着 —— 一个字都没存
+ */
 export function saveTemplate(input: NewTemplate): VideoTemplate {
   // ★ 记在「内存里这摊活是谁的」名下（workOwner）：白模化 / 登记是几分钟的活，落库那一拍会话可能刚好失效
   const owner = workOwner() || undefined;
+  const { text: rawText, ...rest } = input;
+  // 文字模板：先过不变量（定型正文、收拾图位与档位），recipe 由它派生 —— 同一份数据只有一处真身（textTplRecipe 的 ★）
+  if (rawText && input.refVideo) throw new Error(t`文字模板不带参考视频——这条模板的数据不对，没有存`);
+  const text = rawText ? normTextTplSpec(rawText) : undefined;
   const tpl: VideoTemplate = {
     id: uid("tpl"),
-    ...input,
+    ...rest,
+    ...(text ? { text, recipe: textTplRecipe(text) } : {}),
     owner,
     // i18n-ignore-next-line: 落库的作者名兜底，经典配方模板在详情页按名字比对归属（身份值，不翻）
     author: currentUser()?.name ?? "我",
@@ -1641,7 +1674,8 @@ export function saveTemplate(input: NewTemplate): VideoTemplate {
   //   作者连自己的试炼片都出不了。失败不静默——registerTemplate 会把原因记进
   //   registerErrors 并 emit，详情页显示原因 + 「重新登记」；这里 catch 掉的只是
   //   "重复上报"（错误本体已经落在 registerErrors 里了），不是把错误吞掉。
-  if (tpl.refVideo && !tpl.remoteId) {
+  // ★ 只有白模模板登记（种类只问 templateKindOf）：文字模板 P1 只存本机、经典配方从来不登记
+  if (templateKindOf(tpl) === "blockout" && !tpl.remoteId) {
     void registerTemplate(tpl.id).catch(() => {});
   }
   return tpl;
@@ -1868,6 +1902,163 @@ export function refVideoOwnerNote(ref: VideoTemplate["refVideo"]): string | null
   return t`这个模板的白模视频不满足 AI 出片引擎要求的 ${min}~${max} 秒，所以它没法用来出片，也不能发布。这是我们当时的校验漏掉了，不是你操作错了——你之前那几次试炼失败都没有扣费。请重新做一个模板：框选时至少选 ${floor} 秒（AI 换白模时会把成片截短零点几秒，得留出这个余量）。`;
 }
 
+// ── 模板是哪一种：白模 / 文字 / 经典配方 ──────────────────────────────
+
+/** 模板的种类（templateKindOf 的答案） */
+export type TemplateKind = "blockout" | "text" | "classic";
+
+/**
+ * 「这个模板是哪一种」—— **唯一判据**（2026-10-26 文字模板 P1）。
+ *   · 有参考视频（refVideo）= 白模模板（r2v 逐镜头复刻，只换主体）；
+ *   · 有文字模板那一份（text）= 文字模板（一段正文 + 几个图位，套用铺一段参考图直出段）；
+ *   · 都没有 = 经典配方模板（一句话换主题，本机老数据）。
+ * ★★ 为什么必须收成一处：原来全仓按 `!t.refVideo` 当经典判，而文字模板也没有 refVideo —— 漏改一处，
+ *   它就在那一处被当成经典配方：铺成简约模式（0 段还回 true）、货架标「模型不限」、发布只翻本机布尔、档位不受限，全程零报错。
+ *   新写一个按种类分叉的地方一律问它，别再写 `tpl.refVideo ?` / `tpl.text ?`。
+ * ★ refVideo 排在前面：文字模板**永远不带** refVideo（types.TextTplSpec 的红线）；两样都有的坏数据按白模认 —— 与老 App、服务端认它的方式一致
+ *   （往文字那一侧认的话，同一条模板在老 App 上按 r2v 收钱、在这里按文字出片，两把尺）。
+ * ★ 判否定：两个字段都是后加的、缺省 = 老路，零迁移。
+ */
+export function templateKindOf(tpl: Pick<VideoTemplate, "refVideo" | "text">): TemplateKind {
+  if (tpl.refVideo) return "blockout";
+  if (tpl.text) return "text";
+  return "classic";
+}
+
+/**
+ * 文字模板那一份**能不能用**（形状对不对）—— 读文字模板的正文 / 图位 / 档位一律经它（套用、报价、货架卡面、档位标注）。
+ * null = 不是文字模板，或者形状坏了（老版本写坏的、手改过的本机库）：调用方按「这个模板用不了」处理，别拿 undefined 去 `.slots.map`。
+ */
+export function textTplSpecOf(tpl: Pick<VideoTemplate, "refVideo" | "text">): TextTplSpec | null {
+  if (templateKindOf(tpl) !== "text") return null;
+  const s = tpl.text;
+  if (!s || s.v !== 1 || typeof s.prompt !== "string" || !s.prompt.trim() || !Array.isArray(s.slots) || !Array.isArray(s.tiers)) return null;
+  if (!Number.isFinite(s.durationSec) || s.durationSec <= 0) return null;
+  // 元素也要核（审核：只核数组的话，本机库里一个 null 图位就让 textTplAppendSpec 的 .map 抛 TypeError —— 货架报价在渲染路径上调它，整块崩）。
+  // v 不认识的（将来的 v2 形状）一律当用不了，别当 v1 读
+  if (!s.slots.every((x) => !!x && typeof x === "object" && typeof x.name === "string" && !!x.name.trim())) return null;
+  if (!s.tiers.every((id) => typeof id === "string")) return null;
+  return s;
+}
+
+/**
+ * 文字模板的 recipe（VideoTemplate.recipe 在类型上必填）—— **从 text 派生的惰性一格**，套用一个字都不读它。
+ * ★ 红线：正文**不镜像**进 beats / framePrompt（types.TextTplSpec 的 ★）：哪条路漏判了种类、落进经典分支，空 beats 会被整句拒
+ *   （applyTemplate 的兜底），而不是拿正文铺成一条简约流水线。
+ * ★ saveTemplate 存文字模板时一律用它覆盖调用方给的 recipe（同一份数据只有一处真身）。
+ */
+export function textTplRecipe(spec: Pick<TextTplSpec, "durationSec" | "aspect" | "tiers">): TemplateRecipe {
+  return { styleHint: "", beats: [], durationSec: spec.durationSec, videoTier: spec.tiers[0] ?? "", aspect: spec.aspect, framePrompt: "" };
+}
+
+/**
+ * 存进本机之前把文字模板那一份收拾成不变量成立的样子 —— saveTemplate 的唯一入口，不合格整句抛（作者那一屏先拦，这里是最后一道）。
+ * 正文定型（canonTextTplPrompt：存的就是会发的样子）、图位名过 cleanRefName 并去重（大小写不分，认法同 refMentions.slotGaps）、
+ * 档位只留认得出的 id 并去重（顺序保留：第一个 = 默认档）、时长取整、画幅只认竖 / 横。
+ */
+function normTextTplSpec(raw: TextTplSpec): TextTplSpec {
+  const prompt = canonTextTplPrompt(raw.prompt, packShots);
+  if (!prompt) throw new Error(t`文字模板的正文是空的，没法存`);
+  const durationSec = Math.round(Number(raw.durationSec));
+  if (!Number.isFinite(durationSec) || durationSec <= 0) throw new Error(t`文字模板的时长不对，回规格那一步重选`);
+  // 时间轴写到的秒数比模板时长还长：后面那几秒哪一档都拍不到（审核：原来只在套用后出片前才说）
+  const need = maxTimecodeSec(prompt);
+  if (need !== null && need > durationSec) {
+    const m = Math.ceil(need);
+    throw new Error(t`正文的时间轴写到第 ${m} 秒，模板时长只有 ${durationSec} 秒——回规格那一步把时长调到 ${m} 秒以上，或者把时间轴改短`);
+  }
+  const slots: TextTplSlot[] = [];
+  for (const s of Array.isArray(raw.slots) ? raw.slots : []) {
+    const name = cleanRefName(s?.name ?? "");
+    // ★ 图位名就是使用者要补的那张临时参考图的名字（flowStore.addExtraRef 过 refNameIssue）：空的 / 保留名（图1、参考图2…）/ 重名的存进来，
+    //   套用的人一张图都补不进那个位 —— 模板从出生起就用不了，所以整句拒，不替作者改名
+    const issue = refNameIssue(name, slots.map((x) => x.name));
+    if (issue) {
+      const shown = s?.name ?? "";
+      throw new Error(t`图位「${shown}」的名字用不了（空的、与别的图位重名，或者是「图1 / 参考图2」这类编号写法）——回参考图那一步改个名字`);
+    }
+    slots.push({ name, hint: typeof s.hint === "string" ? s.hint.trim() : "" });
+  }
+  if (slots.length > TEXT_TPL_EXTRA_MAX) {
+    const max = TEXT_TPL_EXTRA_MAX;
+    throw new Error(t`文字模板最多 ${max} 个图位`);
+  }
+  // 每个图位都要在正文里被 @ 点到：没被点到的图位，使用者补了图也不知道这张图是干什么的（模型只拿到系统兜底的一句用途）
+  const unnamed = slots.find((s) => !prompt.includes(`@${s.name}`));
+  if (unnamed) {
+    const name = unnamed.name;
+    throw new Error(t`图位「${name}」在正文里没被点到——在正文里写一处「@${name}」，或者删掉这个图位`);
+  }
+  if (textTplCompiledLen(prompt, slots.map((s) => s.name)) > TEXT_TPL_PROMPT_MAX) {
+    const max = TEXT_TPL_PROMPT_MAX;
+    throw new Error(t`正文太长了：文字模板最多 ${max} 字（只有电影级收这么长；其余档 500 字）——回第一步删短一些`);
+  }
+  // 时间轴写不写秒数按正文认（不信调用方给的那一位）：带秒数的正文只有认秒数的档跑得了
+  const timecode = timecodeBeats(prompt).length > 0;
+  const shape = { prompt, slots, timecode, durationSec };
+  // 档位只留认得出、而且这条正文 + 这几个图位 + 这个时长**真跑得了**的（textTemplate.textTplTierMiss 一处判；原来只核 id，审核抓到）。
+  // 顺序保留：第一个 = 默认档（作者那一屏保证它跑得了）
+  const tiers = [...new Set((Array.isArray(raw.tiers) ? raw.tiers : []).filter((id) => typeof id === "string" && !textTplTierMissOf(shape, id)))];
+  if (!tiers.length) throw new Error(t`这条正文在选的档上都跑不了（正文长度、时间轴写法、图位数或时长对不上）——回规格那一步换一档`);
+  const aspect: VideoAspect = raw.aspect === "portrait" ? "portrait" : "landscape";
+  return { v: 1, prompt, slots, ...(timecode ? { timecode: true } : {}), durationSec, aspect, tiers };
+}
+
+/** 一档跑不了某个文字模板的原因（textTemplate.TextTplTierMiss 之外加「档位认不出」） */
+export type TextTplTierWhy = TextTplTierMiss | "unknown";
+
+/**
+ * 这个文字模板在 `tierId` 这一档上跑不跑得了 —— null = 跑得了。规则只在 data/textTemplate.textTplTierMiss，这里只把档位能力与上限喂进去：
+ * 上限按文字模板段问 economy.promptMaxOf(id, { long: true })，正文按编译之后的估计长度（textTplCompiledLen）。
+ * 作者那一屏算「能在哪几档上跑」、saveTemplate 过滤、套用后档位那一排（flowStore.textTplTierIssue）读的都是它。
+ */
+export function textTplTierMissOf(
+  spec: Pick<TextTplSpec, "prompt" | "slots" | "timecode" | "durationSec">,
+  tierId: string,
+): TextTplTierWhy | null {
+  const tier = tierOf(tierId);
+  if (tier.id !== tierId) return "unknown";
+  const slots = Array.isArray(spec.slots) ? spec.slots : [];
+  const names = slots.map((s) => s?.name ?? "");
+  return textTplTierMiss(
+    { promptLen: textTplCompiledLen(spec.prompt, names), slots: slots.length, timecode: !!spec.timecode, durationSec: spec.durationSec },
+    tier,
+    promptMaxOf(tierId, { long: true }),
+  );
+}
+
+/** 一档跑不了这个文字模板时那半句原因（作者那一屏与档位那一排共用） */
+export function textTplTierWhyText(why: TextTplTierWhy): string {
+  switch (why) {
+    case "startOnly":
+      return t`这一档只认一张起拍照片，没有参考图`;
+    case "refImg":
+      return t`这一档不收参考图，图位的图发不出去`;
+    case "slots":
+      return t`这一档一次收的参考图比图位少`;
+    case "long":
+      return t`正文比这一档放得下的长`;
+    case "timecode":
+      return t`这一档不认按秒写的时间轴`;
+    case "duration":
+      return t`模板时长在这一档的时长范围之外`;
+    default:
+      return t`这一档已经下线`;
+  }
+}
+
+/**
+ * 套用文字模板时这一段落在哪一档 —— **模板的默认档**（tiers 的第一个），这个人用不了（会员档 / 停用 / 地区）就换成 tiers 里第一个用得了的；
+ * 一个都用不了仍落默认档（出片前的门禁 account.tierBlockReason 会说清为什么、怎么办）。null = 模板里一档都认不出（数据坏了）。
+ * ★ 只在 tiers 里挑：档位那一排上别的档由 flowStore.textTplIssue 挡（模板说好在哪几档上跑，就只在那几档上跑）。
+ * ★ 与 account.usableTierId 不同：那个会换到「能力最接近」的任何一档，这里出了 tiers 就不算这个模板了。
+ */
+export function textTplStartTier(spec: Pick<TextTplSpec, "tiers">): string | null {
+  const known = spec.tiers.filter((id) => tierOf(id).id === id);
+  if (!known.length) return null;
+  return known.find((id) => !tierBlockReason(tierOf(id))) ?? known[0];
+}
+
 // ── 这个模板能在哪几个出片模型上跑 ────────────────────────────────
 
 /**
@@ -1879,6 +2070,8 @@ export function refVideoOwnerNote(ref: VideoTemplate["refVideo"]): string | null
  *     （economy.blockoutTier，今天是电影级 / Seedance 2.5）。闸门全关 ⇒ 空数组 = 现在哪一档都跑不了。
  *     ⚠ 别拿 refVid 判：它只说明这一档能带参考视频（高清 2026-10-05 起也开着），而白模化那一发由服务端钉在 2.5，
  *       高清跑不了白模模板 —— 两位在档位表上是分开的（videoTierTable 的 blockoutOk 那条 ★）。
+ *   · 文字模板（2026-10-26）⇒ **作者存模板时按档位能力算好的那几档**（TextTplSpec.tiers：收不收参考图、收不收长提示词 / 时间码、时长窗口）。
+ *     那是这条正文 + 这几个图位真跑得了的档，不是猜的：套用时档位只在里面挑（textTplStartTier），出片前不在里面的整句拒（flowStore.textTplIssue）。
  *   · 经典配方模板（一句话换主题）⇒ **null = 不限**。
  *     ⚠ 它存着的 `recipe.videoTier` **不是事实**：那是提取器写死的默认值（VideoTemplateExtractor 里的 "hd"，
  *       apiToTemplate 的兜底也是 "hd"），没有任何一次出片为它作证 —— 拿它当"适用档位"就是替作者编了一个承诺。
@@ -1890,14 +2083,20 @@ export function refVideoOwnerNote(ref: VideoTemplate["refVideo"]): string | null
  * ★ 哪天"不止一档"了（开了第二档 blockoutOk，或者工作流模板进市场）：那时"哪几档"要改成**由事实定** ——
  *   服务端试炼闸记下的 provenModels、作品逐段记的 videoTier —— 而不是在这里猜。见 docs/template-workflow-research.md §三 B。
  */
-export function templateTiers(tpl: Pick<VideoTemplate, "refVideo">): VideoTier[] | null {
-  if (!tpl.refVideo) return null;
+export function templateTiers(tpl: Pick<VideoTemplate, "refVideo" | "text">): VideoTier[] | null {
+  const kind = templateKindOf(tpl);
+  if (kind === "classic") return null;
+  if (kind === "text") {
+    // 文字模板 ⇒ 作者存模板时按档位能力算好的那几档（textTplSpecOf；认不出的 id 不算）。形状坏了 = [] = 哪一档都跑不了（与闸门全关同一种标注）
+    const spec = textTplSpecOf(tpl);
+    return spec ? spec.tiers.filter((id) => tierOf(id).id === id).map((id) => tierOf(id)) : [];
+  }
   const tier = blockoutTier();
   return tier ? [tier] : [];
 }
 
 /** 这个模板在 `tierId` 这一档上能不能出片（货架筛选用）。不限档位的模板对每一档都算能 */
-export function templateRunsOn(tpl: Pick<VideoTemplate, "refVideo">, tierId: string): boolean {
+export function templateRunsOn(tpl: Pick<VideoTemplate, "refVideo" | "text">, tierId: string): boolean {
   const tiers = templateTiers(tpl);
   return tiers === null || tiers.some((x) => x.id === tierId);
 }
@@ -1916,7 +2115,7 @@ export function templateRunsOn(tpl: Pick<VideoTemplate, "refVideo">, tierId: str
  *   白模模板钉死一档，等于没有可换的；原来会指去「真人」档（选白模模板的抽屉上一行刚说「不能换别的画质档」）。
  *   旁边画不画「去升级」只问 templatePlanUpgradeable（付钱治不了地区）。
  */
-export function templatePlanIssue(tpl: Pick<VideoTemplate, "refVideo">): string | null {
+export function templatePlanIssue(tpl: Pick<VideoTemplate, "refVideo" | "text">): string | null {
   const tiers = templateTiers(tpl);
   if (!tiers?.length) return null;
   const runs = (x: VideoTier) => tiers.some((y) => y.id === x.id);
@@ -1929,7 +2128,7 @@ export function templatePlanIssue(tpl: Pick<VideoTemplate, "refVideo">): string 
  * （2026-10-26 P1 审核：模板详情页原来无条件画，地区一来就挨着「你所在的地区用不了」摆一颗「去升级」，那是把人骗去付钱）。
  * 判的是那句话说的那一档（reasons[0] 对应 tiers[0]）。
  */
-export function templatePlanUpgradeable(tpl: Pick<VideoTemplate, "refVideo">): boolean {
+export function templatePlanUpgradeable(tpl: Pick<VideoTemplate, "refVideo" | "text">): boolean {
   const tiers = templateTiers(tpl);
   return !!tiers?.length && !!templatePlanIssue(tpl) && tierPlanBlocked(tiers[0]);
 }

@@ -320,6 +320,23 @@ export interface VideoTierSpec {
    */
   draftOk: boolean;
   /**
+   * 这一档能不能收**文字模板段的长提示词**（data/textTemplate.TEXT_TPL_PROMPT_MAX = 1000 字；别的段照旧按 economy.promptMaxOf 的 500 / 400）。
+   * 每行必写（同 refImg 的理由）。读它的只有 economy.promptMaxOf（`long` 那一支）—— 别在别处拿它自己判长度。
+   * ★ 今天只有电影级（2026-10-26 付费小验 A / B，¥13.5）：Seedance 2.5 上 936 字五段带秒数的长版**逐段照做**（连 Blender 界面这种细节都画出来了），
+   *   375 字的短版顺序也对、但丢了界面与换装细节；2000 字两档都受理（方舟没有硬上限，受理即开跑、取消不了）。
+   *   2.0 mini（草稿 / 高清）没验长提示词照做到哪一步 —— 官方建议仍是 500 字以内，没验过的不开（往少承诺的方向错）。
+   * ★ 只给文字模板段：作者的长正文是这个模板的商品本身（按段截掉就是另一件商品）；普通段的输入框仍按 500 拦，
+   *   段上挂的卡越多点名句越长，长提示词在那里换不来什么。
+   */
+  longPromptOk: boolean;
+  /**
+   * 这一档**照不照秒数写的时间轴**（「0-2s：…」「2-7秒：…」）。每行必写。文字模板那一侧（作者那一屏的体检、哪几档能跑这个模板）读它：
+   * 认不出时间码的档，时间轴要改写成「镜头N：」（data/textTemplate.timecodesToShots）。
+   * ★ 今天只有电影级：官方 2.5 提示词指南「2.0 不响应时间戳、只响应镜头序号，2.5 响应整数秒的时间戳」；付费小验 C / D（草稿，¥4.6）：
+   *   秒数版顺序对、节奏提前约 1 秒、丢了一拍，「镜头1~4」版四个镜头都做到。
+   */
+  timecodeOk: boolean;
+  /**
    * 这一档的出片**带不带 AI 生成的环境音**（协议侧发 `generate_audio: true`）。
    * ★★ 分界在**模型代际，不在价钱** —— 2026-08-15 实测：2.x 真出声（2.0-mini -30.2dB、2.5 -27.5dB），1.x **收下这个参数却静默忽略**。
    * ★ 开音频**零额外成本**（2026-08-15 费用中心逐行核对：有声 / 无声两发用量与单价完全相同），所以这一格**不进任何报价公式**。
@@ -376,15 +393,15 @@ export interface VideoTierSpec {
  */
 export const VIDEO_TIER_SPECS: readonly VideoTierSpec[] = [
   // fast 是 1.0-pro fast：`generate_audio` 收下就扔（实测），所以 audio 显式 false。免费档之一（主人 10-07），11-24 下线
-  { id: "fast", family: "fast", api: "ark", startOnly: false, model: SEEDANCE_1_0_PRO_FAST, mult: 4.2 / 15, resolution: "720p", flf: false, refImg: false, refVid: false, r2vMult: null, extendOk: false, blockoutOk: false, draftOk: false, audio: false, refAudio: false, realFace: false, assetRef: false, freeOk: true, retireAt: RETIRE_1_0_AT, minSec: 3, maxSec: 10 },
+  { id: "fast", family: "fast", api: "ark", startOnly: false, model: SEEDANCE_1_0_PRO_FAST, mult: 4.2 / 15, resolution: "720p", flf: false, refImg: false, refVid: false, r2vMult: null, extendOk: false, blockoutOk: false, draftOk: false, longPromptOk: false, timecodeOk: false, audio: false, refAudio: false, realFace: false, assetRef: false, freeOk: true, retireAt: RETIRE_1_0_AT, minSec: 3, maxSec: 10 },
   // ★ 草稿（2026-10-07 新加）：与高清**同一个模型**（2.0 mini），只是 480p —— 每秒 10,044 raw token（864×496 / 496×864），
   //   约高清的 47%。能力与高清一样（参考图 9 张、出声、收可信素材），只是不带参考视频（服务端把参考视频那几条路钉在 720p）。
   //   免费档之一，也是 11-24 之后免费用户唯一的档（极速下线）。
-  { id: "draft", family: "draft", api: "ark", startOnly: false, model: SEEDANCE_2_0_MINI, mult: 23 / 15, resolution: "480p", flf: true, refImg: true, refImagesMax: 9, refVid: false, r2vMult: null, extendOk: false, blockoutOk: false, draftOk: false, audio: true, refAudio: true, realFace: false, assetRef: true, freeOk: true, minSec: 4, maxSec: 15 },
-  { id: "std", family: "std", api: "ark", startOnly: false, model: SEEDANCE_1_0_PRO, mult: 1, resolution: "720p", flf: true, refImg: false, refVid: false, r2vMult: null, extendOk: false, blockoutOk: false, draftOk: false, audio: false, refAudio: false, realFace: false, assetRef: false, freeOk: false, retireAt: RETIRE_1_0_AT, minSec: 3, maxSec: 10 },
+  { id: "draft", family: "draft", api: "ark", startOnly: false, model: SEEDANCE_2_0_MINI, mult: 23 / 15, resolution: "480p", flf: true, refImg: true, refImagesMax: 9, refVid: false, r2vMult: null, extendOk: false, blockoutOk: false, draftOk: false, longPromptOk: false, timecodeOk: false, audio: true, refAudio: true, realFace: false, assetRef: true, freeOk: true, minSec: 4, maxSec: 15 },
+  { id: "std", family: "std", api: "ark", startOnly: false, model: SEEDANCE_1_0_PRO, mult: 1, resolution: "720p", flf: true, refImg: false, refVid: false, r2vMult: null, extendOk: false, blockoutOk: false, draftOk: false, longPromptOk: false, timecodeOk: false, audio: false, refAudio: false, realFace: false, assetRef: false, freeOk: false, retireAt: RETIRE_1_0_AT, minSec: 3, maxSec: 10 },
   // ★ hd 的视频参考 2026-10-05 开（主人「合」）：refVid true、r2vMult = HD_R2V_MULT。延长不开（extendOk，接缝会跳）；白模模板不开（blockoutOk）。
   // ★ minSec 4（2.0 mini 不收 3 秒）、maxSec 15（2.0 系列的协议上限）
-  { id: "hd", family: "hd", api: "ark", startOnly: false, model: SEEDANCE_2_0_MINI, mult: 23 / 15, resolution: "720p", flf: true, refImg: true, refImagesMax: 9, refVid: true, r2vMult: HD_R2V_MULT, extendOk: false, blockoutOk: false, draftOk: false, audio: true, refAudio: true, realFace: false, assetRef: true, freeOk: false, minSec: 4, maxSec: 15 },
+  { id: "hd", family: "hd", api: "ark", startOnly: false, model: SEEDANCE_2_0_MINI, mult: 23 / 15, resolution: "720p", flf: true, refImg: true, refImagesMax: 9, refVid: true, r2vMult: HD_R2V_MULT, extendOk: false, blockoutOk: false, draftOk: false, longPromptOk: false, timecodeOk: false, audio: true, refAudio: true, realFace: false, assetRef: true, freeOk: false, minSec: 4, maxSec: 15 },
   {
     id: "ultra",
     family: "ultra",
@@ -405,6 +422,9 @@ export const VIDEO_TIER_SPECS: readonly VideoTierSpec[] = [
     blockoutOk: true,
     // 样片（draft 模式）只有 2.5 有（方舟官方：draft / draft_task 仅 Seedance 2.5 支持）
     draftOk: true,
+    // 文字模板段的长提示词（1000 字）与秒数时间轴只有 2.5 照做（2026-10-26 付费小验 A / B；见这两格的注释）
+    longPromptOk: true,
+    timecodeOk: true,
     audio: true,
     // 声音样本：2.5 单段 2~30 秒、合计 ≤ 30 秒（economy.refAudioSecOf）
     refAudio: true,
@@ -439,6 +459,8 @@ export const VIDEO_TIER_SPECS: readonly VideoTierSpec[] = [
     extendOk: false,
     blockoutOk: false,
     draftOk: false,
+    longPromptOk: false,
+    timecodeOk: false,
     // 海螺出片有没有原生音频没实测过——先按无声报（往少承诺的方向错）
     audio: false,
     refAudio: false,

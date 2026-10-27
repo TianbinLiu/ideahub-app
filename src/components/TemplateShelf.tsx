@@ -24,6 +24,7 @@ import Sheet from "./Sheet";
 // （播放/点赞数 2026-08-29 随卡片减法收进详情页，本文件不再读 social）
 import VideoTemplateExtractor from "./VideoTemplateExtractor";
 import TemplateCreateCard from "./TemplateCreateCard";
+import TextTemplateSheet from "./TextTemplateSheet";
 import WorkflowShelf from "./WorkflowShelf";
 import {
   groupRows,
@@ -48,10 +49,12 @@ import {
   readyTemplates,
   sharedLoadIssue,
   subscribeTemplates,
+  templateKindOf,
   templatePlanIssue,
   templateRunsOn,
   templateTiers,
   templatesLoadIssue,
+  textTplSpecOf,
   templatesVersion,
   type BlockoutJob,
 } from "../data/templates";
@@ -98,6 +101,12 @@ export function TemplateCard({
    *    **纯黑**的（`t.cover && <img>` 直接不渲染），看起来像模板坏了。 */
   const { t } = useLingui();
   const cover = tpl.cover || refVideoPoster(tpl.refVideo);
+  /** 哪一种模板（data/templates.templateKindOf 唯一判据）：卡面的视频预览、角标、时长那一格按它分 —— 文字模板也没有 refVideo，别按 `tpl.refVideo ?` 判成经典 */
+  const kind = templateKindOf(tpl);
+  /** 文字模板那一份（形状坏了 = null：卡面照样画，时长那一格不写） */
+  const textSpec = textTplSpecOf(tpl);
+  const textSec = textSpec?.durationSec ?? 0;
+  const textSlots = textSpec?.slots.length ?? 0;
   /**
    * 自动循环预览（2026-08-29，backlog 2.8-④ 对标 Higgsfield 的"名字+动图+一个键"）：
    * 白模模板的卡面就是它的参考视频在静音循环——替掉原来那颗「▶ 预览」开关。
@@ -142,7 +151,7 @@ export function TemplateCard({
     <div data-guide={guide} className="overflow-hidden rounded-xl border border-slate-700/70 bg-panel">
       <Link to={`/template/${tpl.id}`} className="block">
         <div className="relative aspect-[16/10] bg-black/40">
-          {tpl.refVideo ? (
+          {kind === "blockout" && tpl.refVideo ? (
             <video
               ref={vidRef}
               src={tpl.refVideo.url}
@@ -158,9 +167,15 @@ export function TemplateCard({
           )}
           {/* 左上角的能力角标排成一行（2026-10-23）：原来第二枚按固定偏移 left-[3.1rem] 摆，英文下「Blockout」比「白模」宽一截就叠上去 */}
           <span className="absolute left-2 top-2 flex items-center gap-1">
-          {tpl.refVideo && (
+          {kind === "blockout" && (
             <span className="rounded bg-black/60 px-1.5 py-0.5 text-[9px] font-bold text-white">
               <Trans>白模</Trans>
+            </span>
+          )}
+          {/* 文字模板（2026-10-26 P1）：一段写好的提示词 + 几个图位，与白模那种「按视频复刻」是两件商品，卡面要一眼分得开 */}
+          {kind === "text" && (
+            <span className="rounded bg-black/60 px-1.5 py-0.5 text-[9px] font-bold text-white">
+              <Trans>文字</Trans>
             </span>
           )}
           {/* ★ V2 标识：这个模板有**角色位**，套用时能逐个人偶换人（V1 只能整段换一个主体）。
@@ -211,9 +226,15 @@ export function TemplateCard({
               {catLabel && <span className="rounded-full px-1.5 py-0.5 bg-white/15 text-[9px]">{catLabel}</span>}
               {/* 白模只有一段（整段复刻），报"模板视频几秒"比"1 段"信息量大 */}
               <span>
-                {tpl.refVideo
+                {kind === "blockout" && tpl.refVideo
                   ? t`${(refVideoRealSec(tpl.refVideo) ?? tpl.refVideo.durationSec).toFixed(1)}s 复刻`
-                  : t`${tpl.recipe.beats.length} 段`}
+                  : kind === "text"
+                    ? textSpec
+                      ? textSlots
+                        ? t`${textSec}s · 要补 ${textSlots} 张图`
+                        : t`${textSec}s · 只用文字`
+                      : null
+                    : t`${tpl.recipe.beats.length} 段`}
               </span>
               {/* ★★ 模板视频本身出不了片时打角标，**但不从列表里拿掉**：东西静默消失，
                   用户只会以为是我们弄丢了（铁律八）。判据只有 refVideoIssue 一处 */}
@@ -484,6 +505,9 @@ export default function TemplateShelf({
   // 老服务端 / 离线时不摆一个走到上传那步才失败的按钮（CLAUDE.md「永远点不动的选项」）
   const [blockoutCap, setBlockoutCap] = useState(false);
   const [extract, setExtract] = useState(false);
+  const [textSheet, setTextSheet] = useState(false);
+  /** 「做一个模板」：白模那两条路开着就去提取器第一屏（三条路摆在一起），开不了就直接开「只用文字 + 封面」那一屏 —— 不让人先看一屏「服务器不支持」 */
+  const startCreate = () => (blockoutCap ? setExtract(true) : setTextSheet(true));
   /** 套用被就地拒绝时那句话（分段组凑不齐）。★ 不走 flowStore.err：那条错误条只画在
    *  工作流页与画布上，而用户此刻站在模板列表里 —— 写进那里等于没人看得见 */
   const [pickErr, setPickErr] = useState("");
@@ -678,9 +702,11 @@ export default function TemplateShelf({
             "圆边框缺了一截"。负外边距让这 2px 不占版面，与改之前逐像素同位。 */}
       {/* 「创建属于你的视频模板」入口（2026-10-21 起；原来是「我的模板」里一行虚线文字）。市场与「我的模板」两格都摆 ——
           大多数人逛的是市场，只摆在「我的模板」里等于藏起来（调研：CapCut 的创作者 banner 就在模板栏里）。
-          还没做过模板的人给大卡，做过的给一行小条。门控仍是 blockoutCap（与提取器里那两条路同一个探测） */}
-      {(tab === "market" || tab === "mine") && blockoutCap && (
-        <TemplateCreateCard variant={mineRows > 0 ? "slim" : "hero"} onStart={() => setExtract(true)} />
+          还没做过模板的人给大卡，做过的给一行小条。
+          ★ 2026-10-26 起不再按 blockoutCap 整张藏：「只用文字 + 封面」那条不碰服务端，离线 / 老服务端上也做得了 ——
+            blockoutCap 只决定卡上说几条路、点了先去提取器第一屏（三条路）还是直接开文字那一屏（startCreate） */}
+      {(tab === "market" || tab === "mine") && (
+        <TemplateCreateCard variant={mineRows > 0 ? "slim" : "hero"} video={blockoutCap} onStart={startCreate} />
       )}
 
       {/* 空架子不摆筛选（Refactoring UI §8.4：空态里把没用的控件藏起来而不是灰掉）。
@@ -800,23 +826,21 @@ export default function TemplateShelf({
           <EmptyState
             // 搜了 / 筛了没有 = wonder；真的空（市场还没有、我还没做过）= nap
             // 「会员档——开通会员套餐…」那一句是钱上的话：不放看板娘（EmptyState 头上的禁区），退回灰图标
-            mascot={tierPicked && catRows.length > 0 && tierEmptyGated(tierPicked) ? undefined : q.trim() || cat || tierPicked ? "wonder" : "nap"}
+            mascot={tierPicked && catRows.length > 0 && tierEmptyGated(tierPicked, catRows) ? undefined : q.trim() || cat || tierPicked ? "wonder" : "nap"}
             icon="search"
             cta={
               // 空态自己带出口（Refactoring UI「别忽视空状态」，2026-10-23）：说「做一个」就给做一个的键
-              blockoutCap && !tierPicked && !cat && !q.trim()
-                ? { label: t`做一个模板`, onClick: () => setExtract(true), primary: tab === "mine" }
+              !tierPicked && !cat && !q.trim()
+                ? { label: t`做一个模板`, onClick: startCreate, primary: tab === "mine" }
                 : undefined
             }
             text={
               tierPicked && catRows.length > 0
-                ? tierEmptyText(tierPicked, catRows.length)
+                ? tierEmptyText(tierPicked, catRows)
                 : cat && allRows.length > 0
                 ? t`「${tplCategoryLabel(cat)}」分类下还没有模板——点「全部」看现有的，或做一个发布出来占坑`
                 : tab === "mine"
-                  ? blockoutCap
-                    ? t`还没有你自己的模板——点上面那张卡做一个`
-                    : t`还没有你自己的模板`
+                  ? t`还没有你自己的模板——点上面那张卡做一个`
                   : q.trim()
                     ? t`没有匹配的模板，换个词试试`
                     : t`市场上还没有公开的模板。做一个自己的、发布出来，这里就有了。`
@@ -831,8 +855,14 @@ export default function TemplateShelf({
           defaultBlockout
           onClose={() => setExtract(false)}
           onDone={(tpl) => pick(tpl)}
+          onPickText={() => {
+            setExtract(false);
+            setTextSheet(true);
+          }}
         />
       )}
+      {/* 「只用文字 + 封面」（文字模板 P1）：存好之后「用这个模板出片」走同一个 pick（套用只有 applyTemplate 一个入口，守卫也在 pick 里） */}
+      {textSheet && <TextTemplateSheet onClose={() => setTextSheet(false)} onUse={(tpl) => pick(tpl)} />}
 
       {tierSheet && (
         <Sheet onClose={() => setTierSheet(false)}>
@@ -885,8 +915,17 @@ export default function TemplateShelf({
  * ★ 「它们要的是哪一档」只问 economy.blockoutTier（唯一实现）；选的正是那一档还一个不剩，就只说没有。
  * ★ 模块级函数拿不到 useLingui：用 i18n._(msg) 在调用那一刻按当前语言翻（与 TemplateDetailPage.blockoutIssue 同一种写法）。
  */
+/**
+ * 被筛掉的那几行是不是**全是白模模板**（templateKindOf 唯一判据）—— 「现有的 N 个都要按参考视频逐镜头复刻、只有某一档做得到」那几句只在这时说。
+ * ★ 2026-10-26 文字模板 P1：文字模板也会被这颗筛选挡住（它只在作者选的那几档上跑），原来那句话对它是假的 —— 它不复刻视频、也不只认一档。
+ */
+function hiddenAllBlockout(hidden: readonly { parts: VideoTemplate[] }[]): boolean {
+  return hidden.every((r) => r.parts.every((p) => templateKindOf(p) === "blockout"));
+}
+
 /** tierEmptyText 会不会说成「它是会员档——开通会员套餐…」那一句（判据只在这里：文案与「旁边放不放看板娘」读同一个答案） */
-function tierEmptyGated(picked: VideoTier): boolean {
+function tierEmptyGated(picked: VideoTier, hidden: readonly { parts: VideoTemplate[] }[]): boolean {
+  if (!hiddenAllBlockout(hidden)) return false;
   const need = blockoutTier();
   // 「它是会员档」只在挡住他的确实是套餐时说（account.tierPlanBlocked）：原因是出片地区时付钱治不了（2026-10-26 P1 审核）
   return !!need && need.id !== picked.id && tierPlanBlocked(need);
@@ -904,9 +943,14 @@ function tierRef(tier: VideoTier): string {
     : i18n._(msg({ message: `「${label}」`, comment: "句子里点一档：档位名加引号（中文「」，英文弯引号）" }));
 }
 
-function tierEmptyText(picked: VideoTier, hidden: number): string {
+function tierEmptyText(picked: VideoTier, hiddenRows: readonly { parts: VideoTemplate[] }[]): string {
   const name = picked.label;
   const nm = tierRef(picked);
+  const hidden = hiddenRows.length;
+  // 被挡住的不全是白模模板（有文字模板）：各要各的档，别说「都要按参考视频复刻、只有某一档做得到」
+  if (!hiddenAllBlockout(hiddenRows)) {
+    return i18n._(msg`没有能用${nm}出片的模板——现有的 ${hidden} 个要的出片模型里都没有它。点写着「${name}」的那颗筛选键换一个模型，或者选回「全部模型」。`);
+  }
   const need = blockoutTier();
   if (need && need.id !== picked.id) {
     // 它们要的那一档这个人此刻摆不出来（这个地区给不出 / 这台服务端不支持）：别指一条走不通的路（「只有它做得到——换过去」）
@@ -917,7 +961,7 @@ function tierEmptyText(picked: VideoTier, hidden: number): string {
     }
     const needNm = tierRef(need);
     // 那一档这个人用不了（会员档，2026-10-07 免费档限制）：照实说「它是会员档」，别只叫人换过去
-    return tierEmptyGated(picked)
+    return tierEmptyGated(picked, hiddenRows)
       ? i18n._(
           msg`没有能用${nm}出片的模板。现有的 ${hidden} 个都要按参考视频逐镜头复刻，只有${needNm}做得到，而它是会员档——开通会员套餐（或充值过任意一笔）后可用，或者选回「全部模型」看看。`,
         )

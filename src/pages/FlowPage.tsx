@@ -45,7 +45,7 @@ import { markSpecOf, myTemplates, splitCastRoles, templateGroupOf } from "../dat
 //   理由见那边的 ★★：它原来只长在这一页的 simple 闸里，画布与工坊一个像素都看不到）
 import { SegmentRecoverList } from "../components/flow/SegmentRecoverCards";
 import { clampDuration, fmtTokens, priceTag, tierOf } from "../data/economy";
-import { annSkipNote, chosenOf, deriveCostOf, flowCost, FlowNode, frontierOf, nodeCost, nodeDerived, nodeDone, nodeEmptyFrames, nodeRefOn, planOf, realVideoOfNode, redrawCost, requirementOf, tplOfNode, useFlow } from "../studio/flowStore";
+import { annSkipNote, chosenOf, deriveCostOf, flowCost, FlowNode, frontierOf, nodeCost, nodeDerived, nodeDone, nodeEmptyFrames, nodeRefOn, nodeRefPlan, planOf, realVideoOfNode, redrawCost, requirementOf, tplOfNode, useFlow } from "../studio/flowStore";
 import PlanBoard from "../studio/ui/PlanBoard";
 import FuseFrameSheet, { fuseSourcesOf } from "../studio/ui/FuseFrameSheet";
 import CustomFrameSlots from "../components/flow/CustomFrameSlots";
@@ -396,6 +396,12 @@ function NodeScreen({
    *   "直接用卡片形象、不画设定帧"，实际却在承接上一段真实尾帧并按文字补画结束帧。
    */
   const refOn = useFlow((s) => nodeRefOn(s.nodes, index, s.mode));
+  /**
+   * 走参考生视频时**真有几张卡片形象图**发出去（参考清单 nodeRefPlan → RefPlan.cardImages，与出片同一个分配）。
+   * ★ refOn 为真不等于卡的图进了模型（2026-10-26 审核抓到）：只挂临时参考图、挂的卡没有形象图时也走参考生视频，
+   *   那时说「把素材卡的形象参考图交给某档出片」就是假话 —— 真发出去的只有临时参考图，卡只按文字参与。
+   */
+  const refCardImages = useFlow((s) => nodeRefPlan(s.nodes, index, s.mode)?.cardImages ?? 0);
   /** 本段走白模复刻（r2v）。判定与报价（nodeCost）同源：模板快照带 refVideo（存在性） */
   const blockout = !!tpl?.refVideo;
   /** 本段走白模**点名**路（V2：模板登记了角色位）。判据是存在性（`roles?.length`，
@@ -768,7 +774,9 @@ function NodeScreen({
             {matCount > 0 && (
               <p className="text-[10px] leading-relaxed text-slate-500">
                 {refOn
-                  ? t`直接把素材卡的形象参考图交给「${tierLabel}」档出片，不再画设定帧（更快也更省）`
+                  ? refCardImages > 0
+                    ? t`直接把素材卡的形象参考图交给「${tierLabel}」档出片，不再画设定帧（更快也更省）`
+                    : t`素材卡上还没有形象参考图：这次只把临时参考图交给「${tierLabel}」档直接出片（不画设定帧），卡只按文字参与——想让卡的样子进画面，去卡片详情页给卡加几张形象图`
                   : tierOf(node.videoTier).refImg
                     ? t`素材卡上还没有形象参考图（去卡片详情页加几张），这次只能先按描述画一张设定帧再出片`
                     : (() => {
