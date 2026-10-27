@@ -25,6 +25,7 @@ const modArg = process.argv.find((a) => a.startsWith("--module="))?.slice("--mod
 const modPath = path.resolve(modArg ?? path.join(root, "src/data/cardFit.ts"));
 const M = await import(url.pathToFileURL(modPath).href);
 const T = await import(url.pathToFileURL(path.join(root, "src/data/videoTierTable.ts")).href);
+const Z = await import(url.pathToFileURL(path.join(root, "src/data/videoZoneRules.ts")).href);
 
 const problems = [];
 let ran = 0;
@@ -62,9 +63,12 @@ const live = (now) => SPECS.filter((s) => !T.tierRetiredAt(s, now));
 eq("真表每一行的 cardInput", Object.fromEntries(SPECS.map((s) => [s.id, M.cardInputOf(s)])), {
   fast: "frames",
   draft: "refs",
+  "draft-mm": "refs",
   std: "frames",
   hd: "refs",
+  "hd-mm": "refs",
   ultra: "refs",
+  "ultra-mm": "refs",
   real: "start",
 });
 for (const s of SPECS) {
@@ -126,14 +130,18 @@ eq("档位：用得上 / 部分 / 用不上 / 只用文字", ["image", "frameOnl
 // ── 按模型并档 ──
 const models = (specs) => M.modelsOfTiers(specs, prov);
 const shape = (ms) => ms.map((m) => `${m.model}[${m.tiers.map((x) => x.id).join("+")}]`);
-eq("今天 6 档 → 5 个模型（「草稿」「高清」同一个 2.0 mini）", shape(models(SPECS)), [
+// 2026-10-26 出片地区 P2b 加 MiniMax H3 三档（各一个模型）：9 档 → 8 个模型
+eq("今天 9 档 → 8 个模型（「草稿」「高清」同一个 2.0 mini；H3 三档各一个模型）", shape(models(SPECS)), [
   `${T.SEEDANCE_1_0_PRO_FAST}[fast]`,
   `${T.SEEDANCE_2_0_MINI}[draft+hd]`,
+  `${T.MINIMAX_H3_LITE}[draft-mm]`,
   `${T.SEEDANCE_1_0_PRO}[std]`,
+  `${T.MINIMAX_H3_HIGHSPEED}[hd-mm]`,
   `${T.SEEDANCE_2_5}[ultra]`,
+  `${T.MINIMAX_H3}[ultra-mm]`,
   `${T.MINIMAX_REAL}[real]`,
 ]);
-eq("供应商跟着调用方给的走", models(SPECS).map((m) => m.provider), ["ark", "ark", "ark", "ark", "minimax"]);
+eq("供应商跟着调用方给的走", models(SPECS).map((m) => m.provider), ["ark", "ark", "minimax", "ark", "minimax", "ark", "minimax", "minimax"]);
 
 // ── 卡片页分组 ──
 const rowsOf = (card, specs, byProvider, ctx = ctx0) =>
@@ -143,25 +151,33 @@ const rowsOf = (card, specs, byProvider, ctx = ctx0) =>
   }));
 eq("非真人人物卡 · 11-24 之前 · 分家", rowsOf(char, live(NOW_BEFORE), true), [
   { provider: "ark", rows: ["image:draft+hd,ultra", "frameOnly:fast,std"] },
-  { provider: "minimax", rows: ["ownImage:real"] },
+  { provider: "minimax", rows: ["image:draft-mm,hd-mm,ultra-mm", "ownImage:real"] },
 ]);
 eq("非真人人物卡 · 11-24 之后 · 1.0 那一行自己没了", rowsOf(char, live(NOW_AFTER), true), [
   { provider: "ark", rows: ["image:draft+hd,ultra"] },
-  { provider: "minimax", rows: ["ownImage:real"] },
+  { provider: "minimax", rows: ["image:draft-mm,hd-mm,ultra-mm", "ownImage:real"] },
 ]);
-eq("地区不知道（不分家）：一组、不写供应商，行的先后照旧（收参考图 → 只经由帧 → 只认起拍画面）", rowsOf(char, live(NOW_BEFORE), false), [
+// 地区不知道时 MiniMax H3 三档不摆（videoZoneRules.v2OfferedOf：不知道 = 不摆），account.offeredTiers 传进来的就没有它们
+const unknownZone = (s) => s.api !== "minimax-v2" || Z.v2OfferedOf(null, true);
+eq("地区不知道（不分家）：一组、不写供应商，行的先后照旧（收参考图 → 只经由帧 → 只认起拍画面）", rowsOf(char, live(NOW_BEFORE).filter(unknownZone), false), [
   { provider: null, rows: ["image:draft+hd,ultra", "frameOnly:fast,std", "ownImage:real"] },
 ]);
 eq(
-  "传进来只有 MiniMax（海外）：只有 minimax 一组，不凭空多出 Seedance",
+  "传进来只有 MiniMax（海外、服务端开着 V2）：只有 minimax 一组，不凭空多出 Seedance",
   rowsOf(char, SPECS.filter((s) => prov(s) === "minimax"), true),
+  [{ provider: "minimax", rows: ["image:draft-mm,hd-mm,ultra-mm", "ownImage:real"] }],
+);
+eq(
+  "传进来只有 MiniMax（海外、服务端没开 V2）：只有真人档那一行",
+  rowsOf(char, SPECS.filter((s) => prov(s) === "minimax" && (s.api !== "minimax-v2" || Z.v2OfferedOf({ providers: ["minimax"] }, false))), true),
   [{ provider: "minimax", rows: ["ownImage:real"] }],
 );
 eq("一个模型都没有（这个地区给不出）：空", rowsOf(char, [], true), []);
 eq("背景卡：空", rowsOf(bg, SPECS, true), []);
 eq("真人卡 · 认证过 · 11-24 之前", rowsOf(realCard, live(NOW_BEFORE), true, { hasAsset: true, startOk: false }), [
   { provider: "ark", rows: ["asset:draft+hd,ultra", "noRealFace:fast,std"] },
-  { provider: "minimax", rows: ["photo:real"] },
+  // MiniMax H3 收不收真人照片没验过 ⇒ 按不收（realFace / assetRef 都是假），真人卡照旧只走「真人」档
+  { provider: "minimax", rows: ["noRealFace:draft-mm,hd-mm,ultra-mm", "photo:real"] },
 ]);
 
 // ── 卡组页 ──
@@ -188,7 +204,7 @@ eq("真人卡 · 认证过 · 11-24 之前", rowsOf(realCard, live(NOW_BEFORE), 
     out.groups.map((g) => ({ provider: g.provider, rows: g.rows.map((r) => r.models.map((m) => m.tiers.map((x) => x.id).join("+")).join(",")) })),
     [
       { provider: "ark", rows: ["draft+hd,ultra", "fast,std"] },
-      { provider: "minimax", rows: ["real"] },
+      { provider: "minimax", rows: ["draft-mm,hd-mm,ultra-mm", "real"] },
     ],
   );
   eq(

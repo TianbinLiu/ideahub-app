@@ -7,9 +7,10 @@ import { useMemo, useRef, useState } from "react";
 import Warn from "../../components/Warn";
 import { useNavigate } from "react-router";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { deckCoverOf, memberTiersLine, myCards, myDecks, noTierLine, realFaceIssue, regionTiersLine, tierBlockReason, tierNamesFor, tierOffered, tierShownModel, tierShownModelId } from "../../data/account";
+import { deckCoverOf, memberTiersLine, myCards, myDecks, noTierLine, realFaceIssue, regionTiersLine, textOnlyFramesLine, textOnlyModesLine, providerShown, tierBlockReason, tierListed, tierNamesFor, tierOfPreferred, tierOffered, tierShownModel, tierShownModelId, tierTextOnly } from "../../data/account";
 import { ONE_IMAGE, VIDEO_TIERS, deriveIssue, durationChoices, fmtTokens, priceTag, promptMaxOf, r2vBlockLines, segTokens, shotsOkOf, tierOf } from "../../data/economy";
-import { useAccountVersion } from "../../hooks/useAccount";
+import { useAccountVersion, useProviderPref } from "../../hooks/useAccount";
+import ProviderSwitch from "../../components/flow/ProviderSwitch";
 import UpgradeLink from "../../components/UpgradeLink";
 import StepDots from "../../components/StepDots";
 import { CloseButton } from "../../components/IconTapButton";
@@ -332,6 +333,8 @@ function EditorPanel() {
   const { t } = useLingui();
   // 套餐 / 付没付过钱 / 服务端能力位都是异步到的：订阅账号的版本号，到了就重画档位那一排
   useAccountVersion();
+  // 两家都给得出时摆哪一家（account.tierListed 读偏好）
+  useProviderPref();
   // ★★ hook 一律排在早退**之前**（本文件两处栽过，2026-08-30 同日各修一次）：
   // editor 从 null 变非 null 的那一拍 hook 数就对不上，React 抛
   // 「Rendered more hooks than during the previous render」——整个投影窗当场崩掉，
@@ -404,10 +407,19 @@ function EditorPanel() {
         const none = noTierLine("refImg");
         return t`参考图直出要收参考图的模型——${none}`;
       })();
-  const laneBlock = (tierId: string): string | null =>
-    lane === "direct" ? (modeBlock("direct", modeTierOf(tierId)) ? directBlock : null) : deriveIssue(tierId);
+  const laneBlock = (tierId: string): string | null => {
+    if (lane === "direct") {
+      const why = modeBlock("direct", modeTierOf(tierId));
+      // 只能纯文字出片的档（免费版在 MiniMax H3 上，modeBlock 的 textOnly）：参考图直出带不上卡片图 —— 说付钱的事，不说「要收参考图的模型」
+      return why === "textOnly" ? textOnlyModesLine([t`参考图直出`]) : why ? directBlock : null;
+    }
+    // 推演三套要画帧（推演那一笔就含图钱）：只能纯文字出片的档上画出来的帧带不进出片（与选法屏不摆它同一个判据，2026-10-26 P2b 审核）
+    if (lane === "cards" && modeBlock("cards", modeTierOf(tierId)) === "textOnly") return textOnlyModesLine([t`AI 推演三套`]);
+    return deriveIssue(tierId);
+  };
   /** 这一窗摆哪几档：停用的、服务端不支持的不摆（account.tierOffered）；正选着的那一档例外（藏起来就不知道自己在哪一档） */
-  const shownTiers = VIDEO_TIERS.filter((tier) => tierOffered(tier) || tier.id === editor.videoTier);
+  //   两家都给得出的芯片只摆这个人选的那一家（account.tierListed；选在档位上面那颗 ProviderSwitch 上）
+  const shownTiers = VIDEO_TIERS.filter((tier) => tierListed(tier) || tier.id === editor.videoTier);
   /** 套餐那一类原因并成一句（account.memberTiersLine，与 TierRow / 选法屏同一句）+「去升级」 */
   const memberLine = memberTiersLine();
   /** 出片地区那一句（account.regionTiersLine，与 TierRow / 选法屏同一句）；地区不知道 / 没有哪一档被拦时为 null */
@@ -770,6 +782,15 @@ function EditorPanel() {
               <span className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>视频档位</Trans></span>
               <span className="text-[10px] text-slate-500"><Trans>合成本段预计消耗</Trans></span>
             </div>
+            {/* 境内同一档两家都给得出时：先选哪一家（换成同一颗芯片的另一家那一行；那一行这个人用不了就不换，芯片上照样灰着说原因） */}
+            <ProviderSwitch
+              className="mb-1.5"
+              current={providerShown(tierOf(editor.videoTier))}
+              onPick={(p) => {
+                const twin = tierOfPreferred(tierOf(editor.videoTier), p);
+                if (twin.id !== editor.videoTier && !tierBlockReason(twin)) useStudio.getState().setVideoTier(twin.id);
+              }}
+            />
             {/* ★ 三列网格（2026-10-07 加了「草稿」之后最多六档）：一行 flex-1 挤六个，375 宽的屏上每颗只剩五十来像素、价钱折成两行 */}
             <div className="grid grid-cols-3 gap-1.5">
               {shownTiers.map((tier) => {
@@ -913,6 +934,7 @@ function EditorPanel() {
                 aspectCssValue={aspectCss(editor.aspect)}
                 canEdit={!editor.generating}
                 fates={customFates ?? { first: prev?.lastFrame ? "carry" : "draw", last: "draw" }}
+                textOnlyNote={tierTextOnly(tierOf(editor.videoTier)) ? textOnlyFramesLine() : null}
                 onFrame={(which, url) =>
                   which === "first"
                     ? useStudio.getState().setStartFrame(url || null)

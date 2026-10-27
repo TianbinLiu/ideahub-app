@@ -15,9 +15,11 @@ import Warn from "../Warn";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
-import { memberTiersLine, realFaceIssue, regionTiersLine, tierBlockReason, tierOffered, tierShownModelId } from "../../data/account";
-import { blockoutPriceIssue, clampDuration, deriveIssue, fmtTokens, tierOf, VIDEO_TIERS } from "../../data/economy";
-import { useAccountVersion } from "../../hooks/useAccount";
+import { memberTiersLine, r2vTierIssue, realFaceIssue, regionTiersLine, providerShown, sameChipProvider, tierBlockReason, tierListed, tierOfPreferred, tierOffered, tierShownModelId } from "../../data/account";
+import { clampDuration, deriveIssue, fmtTokens, tierOf, VIDEO_TIERS } from "../../data/economy";
+import type { VideoProvider } from "../../data/videoZoneRules";
+import ProviderSwitch from "./ProviderSwitch";
+import { useAccountVersion, useProviderPref } from "../../hooks/useAccount";
 import UpgradeLink from "../UpgradeLink";
 import { chosenOf, nodeCost, nodeFramed, textTplTierIssue, tplOfNode, useFlow } from "../../studio/flowStore";
 import { carryIsHard } from "../../studio/segmentGen";
@@ -36,9 +38,12 @@ export function tierSwitchLoss(nodeId: string, nextId: string): MessageDescripto
   const cur = tierOf(node.videoTier);
   const prop = chosenOf(node);
   const loss: MessageDescriptor[] = [];
+  // ★ 换到同一颗芯片的另一家（Seedance 草稿 → MiniMax 草稿，2026-10-26 P2b 审核）：两家同名，「「草稿」档不收声音样本」读着像这一档自己变了 ——
+  //   点名换过去的那一家（account.sameChipProvider：地区问到了才写；H3 三档只在地区问到了才摆，所以这里几乎总写得出来）
+  const via = sameChipProvider(next, cur);
   // 参考视频：只有支持 r2v/参考视频的档带得动，换过去必须摘掉（不摘的话出片被整句拒）
   if (node.customRef && !next.refVid) {
-    loss.push(msg`挂在这一段上的示例视频会被摘掉（「${next.label}」档带不了参考视频）`);
+    loss.push(via ? msg`挂在这一段上的示例视频会被摘掉（${via} 出的「${next.label}」带不了参考视频）` : msg`挂在这一段上的示例视频会被摘掉（「${next.label}」档带不了参考视频）`);
   }
   // 形象图：2.0 → 1.0 的核心落差。已经出过片的段不提这条（它已经拍完了）
   if (cur.refImg && !next.refImg && (node.materials?.length ?? 0) > 0) {
@@ -66,7 +71,11 @@ export function tierSwitchLoss(nodeId: string, nextId: string): MessageDescripto
     );
   } else if (quote && cur.refAudio && !next.refAudio) {
     // 走到这里 next 一定出声（上一支接住了不出声的）：台词照样配音，只是不再按卡上的声音
-    loss.push(msg`台词不再带音色样本（「${next.label}」档不收声音样本，台词照样配音、音色由模型定）`);
+    loss.push(
+      via
+        ? msg`台词不再带音色样本（${via} 出的「${next.label}」不收声音样本，台词照样配音、音色由模型定）`
+        : msg`台词不再带音色样本（「${next.label}」档不收声音样本，台词照样配音、音色由模型定）`,
+    );
   }
   // ★ **升档也有变化**（2026-08-30 补）：收参考图的档上，帧改当参考图发 + 提示词点名
   //   （segmentGen 的 framesAsRefs）—— 卡片形象能同发了，但"必须从这一帧起拍"从协议级
@@ -95,6 +104,8 @@ export default function TierRow({
   const { t } = useLingui();
   // 套餐 / 付没付过钱 / 服务端能力位都是异步到的：订阅账号的版本号，到了就重画（不然免费用户的会员档要等下一次别的重画才灰）
   useAccountVersion();
+  // 两家都给得出时摆哪一家（account.tierListed 读偏好）：选完那一拍这一排要跟着换
+  useProviderPref();
   const nodes = useFlow((s) => s.nodes);
   const mode = useFlow((s) => s.mode);
   const index = nodes.findIndex((n) => n.id === nodeId);
@@ -111,7 +122,8 @@ export default function TierRow({
   const framed = !!needsDerive || nodeFramed(nodes, index, mode);
   // ★ 摆哪几档：停用的、这台服务端不支持的不摆（account.tierOffered）—— 只有这一段**正挂着**的那一档例外：
   //   藏起来的话这一排一个高亮都没有，人不知道自己在哪一档、为什么出不了片（它会灰着，原因印在下面）
-  const shown = VIDEO_TIERS.filter((tier) => tierOffered(tier) || tier.id === node.videoTier);
+  //   两家都给得出的芯片只摆这个人选的那一家（account.tierListed；选在下面那颗 ProviderSwitch 上）
+  const shown = VIDEO_TIERS.filter((tier) => tierListed(tier) || tier.id === node.videoTier);
   // 套餐那一类原因并成一句（account.memberTiersLine）+「去升级」；这一段挂着的档本身用不了（停用 / 服务端不支持）另说一句
   const memberLine = memberTiersLine();
   /** 出片地区那一句（account.regionTiersLine：这个地区出片只提供哪几家；地区不知道 / 没有哪一档被拦时为 null）。与选法屏、工坊铸段窗同一句 */
@@ -141,8 +153,20 @@ export default function TierRow({
     onDone?.();
   }
 
+  /** 换家：换成同一颗芯片的另一家那一行，走与点芯片同一条路（换档代价先说完）。另一家那一行这个人用不了就不换，芯片上照样灰着说原因 */
+  function switchProvider(p: VideoProvider) {
+    const twin = tierOfPreferred(tierOf(node!.videoTier), p);
+    if (twin.id === node!.videoTier || tierBlockReason(twin)) return;
+    const loss = tierSwitchLoss(node!.id, twin.id);
+    const via = sameChipProvider(twin, tierOf(node!.videoTier));
+    if (loss.length) setAsk({ nodeId: node!.id, id: twin.id, label: via ? `${twin.label} · ${via}` : twin.label, loss });
+    else apply(twin.id);
+  }
+
   return (
     <div className="space-y-1.5">
+      {/* 境内同一档两家都给得出时：先选哪一家（ProviderSwitch 自己判摆不摆），再选档 */}
+      <ProviderSwitch current={providerShown(curTier)} onPick={switchProvider} />
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="w-10 flex-none text-[11px] text-slate-400"><Trans>画质</Trans></span>
         {/* ★ 回调参数叫 tier 不叫 t：t 是 useLingui 给的翻译函数，同名会把它遮住 */}
@@ -150,7 +174,8 @@ export default function TierRow({
           // ★ 白模节点上，跑不了白模模板的档位也要禁掉（判断在 economy.blockoutPriceIssue 一处；2026-10-05 起不再问 r2vPriceIssue ——
           //   高清能带参考视频、但跑不了白模模板，问错那一句高清就会在白模段上变成可选）：
           //   切过去出片必被门禁整句拒，让人选一个必失败的档不如当场说不能选
-          const r2vBlock = blockout ? blockoutPriceIssue(tier.id) : null;
+          //   话走 account.r2vTierIssue（判据仍是 blockoutPriceIssue）：MiniMax 的「电影级」与 Seedance 的「电影级」同名，按地区点名是哪一家（2026-10-26 P2b 审核）
+          const r2vBlock = blockout ? r2vTierIssue(tier, "blockout") : null;
           // ★ 按发计价档（真人）走不了推演（判定在 economy.deriveIssue 一处）——工坊这一面
           //   的主路正是推演，切过去之后「重新推演三套」必被拒。宿主是画布时那条路还在
           //   （画布可以直出），所以这一条只在**需要推演**的宿主上拦：由 prop 决定。
@@ -171,7 +196,9 @@ export default function TierRow({
               onClick={() => {
                 if (tier.id === node.videoTier) return;
                 const loss = tierSwitchLoss(node.id, tier.id);
-                if (loss.length) setAsk({ nodeId: node.id, id: tier.id, label: tier.label, loss });
+                // 卡上的档名：换到同一颗芯片的另一家时带上是哪一家（「换到「草稿 · MiniMax」档」—— 两家同名，只写「草稿」看不出换了什么）
+                const via = sameChipProvider(tier, tierOf(node.videoTier));
+                if (loss.length) setAsk({ nodeId: node.id, id: tier.id, label: via ? `${tier.label} · ${via}` : tier.label, loss });
                 else apply(tier.id);
               }}
               disabled={!!block}

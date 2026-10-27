@@ -1206,6 +1206,11 @@ msgstr "{count} 张"
 msgid "{count} 张新卡飞进你的卡组了。"
 msgstr "{count} 张新卡飞进你的卡组了。"
 
+#. 剩余时间（几天几小时），嵌在「还剩 …」里；英文写成 6d 23h
+#: src/data/videoJobs.ts
+msgid "{d} 天 {h} 小时"
+msgstr "{d} 天 {h} 小时"
+
 #: src/components/flow/TierRow.tsx
 #: src/studio/ui/projection.tsx
 msgid "{desc}（{model}）"
@@ -1305,9 +1310,35 @@ msgstr "{fileName} 里没有文字。"
 msgid "{flatIssue}{realTier}档去「工作流」或「简约模式」直出。"
 msgstr "{flatIssue}{realTier}档去「工作流」或「简约模式」直出。"
 
+#. 剩余时间（几小时几分钟），嵌在「还剩 …」里；英文写成 5h 12m
+#: src/data/videoJobs.ts
+msgid "{h} 小时 {m} 分钟"
+msgstr "{h} 小时 {m} 分钟"
+
 #: src/ai/index.ts
 msgid "{head} · 演示"
 msgstr "{head} · 演示"
+
+#: src/data/account.ts
+msgid "{head}——{destVia} 的「{names}」档做得到（会员档：开通会员套餐或充值过任意一笔后可用）"
+msgstr "{head}——{destVia} 的「{names}」档做得到（会员档：开通会员套餐或充值过任意一笔后可用）"
+
+#. 前一截是「某档做不了某件事」的整句（不带句号），后一截是「你所在的地区目前没有…的出片模型」
+#: src/data/account.ts
+msgid "{head}——{none}"
+msgstr "{head}——{none}"
+
+#: src/data/account.ts
+msgid "{head}——「{names}」档做得到（会员档：开通会员套餐或充值过任意一笔后可用）"
+msgstr "{head}——「{names}」档做得到（会员档：开通会员套餐或充值过任意一笔后可用）"
+
+#: src/data/account.ts
+msgid "{head}——换到 {destVia} 的「{names}」档就有"
+msgstr "{head}——换到 {destVia} 的「{names}」档就有"
+
+#: src/data/account.ts
+msgid "{head}——换到「{names}」档就有"
+msgstr "{head}——换到「{names}」档就有"
 
 #: src/data/videoJobs.ts
 msgid "{hh}:{mm} 提交的那一发（服务器登记）"
@@ -1333,6 +1364,11 @@ msgstr "{label} 太大（{sizeMb}MB，上限 5MB）"
 #: src/components/video/RemakeCard.tsx
 msgid "{label}（{model}）"
 msgstr "{label}（{model}）"
+
+#. 生成契约那一行里的「档位名（模型名）」，如「草稿（MiniMax H3 Lite）」
+#: src/studio/genLog.ts
+msgid "{label}（{named}）"
+msgstr "{label}（{named}）"
 
 #: src/data/economy.ts
 #~ msgid "{lack}是声明过的真人素材，但还没有方舟可信素材 ID —— 「{label}」档不收直接上传的真人照片，只收本人授权过的素材。去卡片详情页按提示做一次肖像授权并填上素材 ID，或先把这张卡取下"
@@ -1362,6 +1398,18 @@ msgstr "{lead}，「{label}」档用不了——换成「{names}」档"
 msgid "{lead}，「{label}」档用不了——能换的「{member}」是会员档（开通会员套餐或充值过任意一笔后可用）"
 msgstr "{lead}，「{label}」档用不了——能换的「{member}」是会员档（开通会员套餐或充值过任意一笔后可用）"
 
+#: src/data/account.ts
+msgid "{lead}，「{label}」档要换成 {via} 的「{label}」才能出片"
+msgstr "{lead}，「{label}」档要换成 {via} 的「{label}」才能出片"
+
+#: src/data/account.ts
+msgid "{lead}，「{label}」档要换成 {via} 的「{label}」才能出片（会员档：开通会员套餐或充值过任意一笔后可用）"
+msgstr "{lead}，「{label}」档要换成 {via} 的「{label}」才能出片（会员档：开通会员套餐或充值过任意一笔后可用）"
+
+#: src/data/account.ts
+msgid "{lead}，「{label}」档要换成 {via} 的「{label}」才能出片（会员档：开通会员套餐或充值过任意一笔后可用）；现在就能用的是「{names}」档"
+msgstr "{lead}，「{label}」档要换成 {via} 的「{label}」才能出片（会员档：开通会员套餐或充值过任意一笔后可用）；现在就能用的是「{names}」档"
+
 #: src/components/CardModelFit.tsx
 #: src/pages/DeckDetailPage.tsx
 msgid "{lead}：{reason}"
@@ -1384,6 +1432,16 @@ msgstr "{list}没能存到服务器（{reason}）——这几张只留在这台�
 #: src/components/flow/RefStrip.tsx
 msgid "{looseNames} 没对上这一段的任何参考——检查名字，或点上面的图重新写进句子（发出去时它只是普通文字）。"
 msgstr "{looseNames} 没对上这一段的任何参考——检查名字，或点上面的图重新写进句子（发出去时它只是普通文字）。"
+
+#. 剩余时间（几分钟），嵌在「还剩 …」里；英文写成 12 min
+#: src/data/videoJobs.ts
+msgid "{m} 分钟"
+msgstr "{m} 分钟"
+
+#. 两个整句接成一句：前一句说哪几档是会员档，后一句说免费版在哪几档上只能用文字出片
+#: src/data/account.ts
+msgid "{member}；{text}"
+msgstr "{member}；{text}"
 
 #: src/studio/gridDraftStore.ts
 msgid "{missing} 格模型没画"
@@ -1730,6 +1788,10 @@ msgid "{tierLabel}档 · 成片转存没成（{reason}）——先用方舟临�
 msgstr "{tierLabel}档 · 成片转存没成（{reason}）——先用方舟临时链接，预览帧稍后自动补上"
 
 #: src/ai/arkClient.ts
+msgid "{tierLabel}档 · 成片还在转存（服务器后台在搬）——先用临时链接，搬好之后自动换上"
+msgstr "{tierLabel}档 · 成片还在转存（服务器后台在搬）——先用临时链接，搬好之后自动换上"
+
+#: src/ai/arkClient.ts
 msgid "{tierLabel}档 · 排队中 {sec}s"
 msgstr "{tierLabel}档 · 排队中 {sec}s"
 
@@ -1772,6 +1834,14 @@ msgstr "{used}/{SCHEME_SLOT_PROMPT_MAX} · 超过 {SLOT_PROMPT_SOFT_HAN} 个汉�
 #: src/pages/SupportModelNewPage.tsx
 msgid "{value}（包里没有）"
 msgstr "{value}（包里没有）"
+
+#: src/data/account.ts
+msgid "{via} 出的「{label}」做不了按参考视频出片（片段重拍、自定义的示例视频都属于这一类）"
+msgstr "{via} 出的「{label}」做不了按参考视频出片（片段重拍、自定义的示例视频都属于这一类）"
+
+#: src/data/account.ts
+msgid "{via} 出的「{label}」跑不了白模模板（模板对出片模型是硬要求）"
+msgstr "{via} 出的「{label}」跑不了白模模板（模板对出片模型是硬要求）"
 
 #: src/live2d/bundlePreview.ts
 msgid "{what}：{ref}"
@@ -2184,6 +2254,14 @@ msgstr "「{label}」档没有样片模式（只有「{names}」有）"
 msgid "「{label}」档的模型已于 {day}停用——换一档再出片"
 msgstr "「{label}」档的模型已于 {day}停用——换一档再出片"
 
+#: src/data/account.ts
+msgid "「{label}」档眼下用的这个出片模型做不了按参考视频出片（片段重拍、自定义的示例视频都属于这一类）"
+msgstr "「{label}」档眼下用的这个出片模型做不了按参考视频出片（片段重拍、自定义的示例视频都属于这一类）"
+
+#: src/data/account.ts
+msgid "「{label}」档眼下用的这个出片模型跑不了白模模板（模板对出片模型是硬要求）"
+msgstr "「{label}」档眼下用的这个出片模型跑不了白模模板（模板对出片模型是硬要求）"
+
 #: src/studio/flowStore.ts
 msgid "「{label}」档还不能延长——{none}"
 msgstr "「{label}」档还不能延长——{none}"
@@ -2362,9 +2440,29 @@ msgstr "「{names}」是会员档——开通会员套餐（或充值过任意�
 msgid "「{names}」档"
 msgstr "「{names}」档"
 
+#: src/data/account.ts
+msgid "「{names}」档用 {via} 出片时，免费版只能用文字（不补画首帧尾帧、不带参考图）——带图出片要开通会员套餐（或充值过任意一笔）"
+msgstr "「{names}」档用 {via} 出片时，免费版只能用文字（不补画首帧尾帧、不带参考图）——带图出片要开通会员套餐（或充值过任意一笔）"
+
+#: src/data/economy.ts
+msgid "「{names}」档眼下用的这个出片模型做不了按参考视频出片（片段重拍、自定义的示例视频都属于这一类）"
+msgstr "「{names}」档眼下用的这个出片模型做不了按参考视频出片（片段重拍、自定义的示例视频都属于这一类）"
+
+#: src/data/economy.ts
+msgid "「{names}」档眼下用的这个出片模型跑不了白模模板（模板对出片模型是硬要求）"
+msgstr "「{names}」档眼下用的这个出片模型跑不了白模模板（模板对出片模型是硬要求）"
+
 #: src/studio/segmentGen.ts
 msgid "「{names}」的声音样本这次没带上（这一档的参考音频合计最长 {capSec} 秒）——这几位的台词音色由模型定；把样本剪短些就能都带上"
 msgstr "「{names}」的声音样本这次没带上（这一档的参考音频合计最长 {capSec} 秒）——这几位的台词音色由模型定；把样本剪短些就能都带上"
+
+#: src/data/account.ts
+msgid "「{names}」要带图出片——免费版在这一档上只能用文字出片（开通会员套餐或充值过任意一笔后可以带图）"
+msgstr "「{names}」要带图出片——免费版在这一档上只能用文字出片（开通会员套餐或充值过任意一笔后可以带图）"
+
+#: src/data/account.ts
+msgid "「{names}」要带图出片——免费版用 {via} 出片时只能用文字（开通会员套餐或充值过任意一笔后可以带图）"
+msgstr "「{names}」要带图出片——免费版用 {via} 出片时只能用文字（开通会员套餐或充值过任意一笔后可以带图）"
 
 #: src/data/economy.ts
 #~ msgid "「{names}」跑不了白模模板（模板对出片模型是硬要求）——白模模板只有「{openLabel}」（{openModel}）跑得了"
@@ -4353,6 +4451,10 @@ msgstr "④ 标签（选填）"
 msgid "480p 省钱档 · 与「{hd}」同一个模型、画面小一号；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音"
 msgstr "480p 省钱档 · 与「{hd}」同一个模型、画面小一号；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音"
 
+#: src/data/economy.ts
+msgid "480p 省钱档 · 可直接用素材卡的形象参考图出片（一段最多 {max} 张图）· 出片一定带 AI 生成的环境音，不参考卡上的声音样本"
+msgstr "480p 省钱档 · 可直接用素材卡的形象参考图出片（一段最多 {max} 张图）· 出片一定带 AI 生成的环境音，不参考卡上的声音样本"
+
 #: src/studio/quality.ts
 msgid "4K 贴图 · 15 万面 · 最清楚但吃显存（她 3.9MB／他 3.8MB）"
 msgstr "4K 贴图 · 15 万面 · 最清楚但吃显存（她 3.9MB／他 3.8MB）"
@@ -4360,6 +4462,14 @@ msgstr "4K 贴图 · 15 万面 · 最清楚但吃显存（她 3.9MB／他 3.8MB�
 #: src/pages/LoginPage.tsx
 msgid "6 位验证码"
 msgstr "6 位验证码"
+
+#: src/data/economy.ts
+msgid "768p · 可直接用素材卡的形象参考图出片（一段最多 {max} 张图）· 出片一定带 AI 生成的环境音，不参考卡上的声音样本"
+msgstr "768p · 可直接用素材卡的形象参考图出片（一段最多 {max} 张图）· 出片一定带 AI 生成的环境音，不参考卡上的声音样本"
+
+#: src/data/economy.ts
+msgid "768p · 可直接用素材卡的形象参考图出片（一段最多 {max} 张图）· 出片一定带 AI 生成的环境音，不参考卡上的声音样本；没有往后延长、样片和白模模板"
+msgstr "768p · 可直接用素材卡的形象参考图出片（一段最多 {max} 张图）· 出片一定带 AI 生成的环境音，不参考卡上的声音样本；没有往后延长、样片和白模模板"
 
 #: src/pages/ProfilePage.tsx
 #~ msgid "add-on token · 直充 / 新人额度 / 创作收益，不过期"
@@ -4426,6 +4536,7 @@ msgid "AI 指挥没连上（{why}），先按本地句式办了能办的。"
 msgstr "AI 指挥没连上（{why}），先按本地句式办了能办的。"
 
 #: src/components/flow/ModePicker.tsx
+#: src/studio/ui/projection.tsx
 msgid "AI 推演三套"
 msgstr "AI 推演三套"
 
@@ -4564,6 +4675,42 @@ msgstr "canvas 不可用"
 #: src/pages/ProfilePage.tsx
 msgid "Google Play 还在等这笔付款完成，到账后余额会自动更新"
 msgstr "Google Play 还在等这笔付款完成，到账后余额会自动更新"
+
+#: src/ai/minimaxVideo.ts
+msgid "MiniMax 出片 {minutes} 分钟没出结果——任务多半还在上游跑，不是失败。"
+msgstr "MiniMax 出片 {minutes} 分钟没出结果——任务多半还在上游跑，不是失败。"
+
+#: src/ai/minimaxVideo.ts
+msgid "MiniMax 出片创建失败（HTTP {status}）"
+msgstr "MiniMax 出片创建失败（HTTP {status}）"
+
+#: src/ai/minimaxVideo.ts
+msgid "MiniMax 出片创建没收到回包：{detail}"
+msgstr "MiniMax 出片创建没收到回包：{detail}"
+
+#: src/ai/minimaxVideo.ts
+msgid "MiniMax 出片失败：{reason}"
+msgstr "MiniMax 出片失败：{reason}"
+
+#: src/ai/minimaxVideo.ts
+msgid "MiniMax 出片请求里有服务器不收的东西——把这句话反馈给我们"
+msgstr "MiniMax 出片请求里有服务器不收的东西——把这句话反馈给我们"
+
+#: src/ai/minimaxVideo.ts
+msgid "MiniMax 受理了这一发却没给任务号——把这句话反馈给我们"
+msgstr "MiniMax 受理了这一发却没给任务号——把这句话反馈给我们"
+
+#: src/components/flow/ProviderSwitch.tsx
+msgid "MiniMax 的服务器在境外：用它出片时，这一段的提示词和参考图（包括人物卡的照片）会交给 MiniMax 处理。不想这样就留在 Seedance，随时能在这里换回来。"
+msgstr "MiniMax 的服务器在境外：用它出片时，这一段的提示词和参考图（包括人物卡的照片）会交给 MiniMax 处理。不想这样就留在 Seedance，随时能在这里换回来。"
+
+#: src/ai/minimaxVideo.ts
+msgid "MiniMax 那边没有受理这一发——过一会儿再点；一直这样请把这句话反馈给我们"
+msgstr "MiniMax 那边没有受理这一发——过一会儿再点；一直这样请把这句话反馈给我们"
+
+#: src/ai/minimaxVideo.ts
+msgid "MiniMax 那边这会儿太忙——过一会儿再点"
+msgstr "MiniMax 那边这会儿太忙——过一会儿再点"
 
 #. 卡片页「按模型适配」里一组的标题：MiniMax 是品牌名（不翻译），括号里是它的视频产品名 Hailuo
 #: src/data/account.ts
@@ -5146,10 +5293,14 @@ msgid "上传中断了（网络不可用）"
 msgstr "上传中断了（网络不可用）"
 
 #. placeholder {0}: i + 1
-#. placeholder {1}: extrasIn.length
+#. placeholder {1}: extrasSent.length
 #: src/studio/segmentGen.ts
 msgid "上传临时参考图 {0}/{1}…"
 msgstr "上传临时参考图 {0}/{1}…"
+
+#: src/ai/real.ts
+msgid "上传参考图 {n}/{total}…"
+msgstr "上传参考图 {n}/{total}…"
 
 #. placeholder {0}: i + 1
 #. placeholder {1}: toSend.length
@@ -6459,6 +6610,7 @@ msgid "任务号：{0}"
 msgstr "任务号：{0}"
 
 #: src/ai/arkClient.ts
+#: src/ai/minimaxVideo.ts
 msgid "任务被取消了"
 msgstr "任务被取消了"
 
@@ -6738,6 +6890,10 @@ msgstr "你可以在自己的卡片详情页按「分享到创意工坊」，成
 #: src/pages/WorkshopPage.tsx
 msgid "你可以第一个"
 msgstr "你可以第一个"
+
+#: src/ai/minimaxVideo.ts
+msgid "你同时在出的 MiniMax 视频已经有 {limit} 段了——等其中一段出来再点"
+msgstr "你同时在出的 MiniMax 视频已经有 {limit} 段了——等其中一段出来再点"
 
 #: src/pages/SupportPage.tsx
 msgid "你好，我是{name}，启梦的 AI 客服。账号、扣费、出片取回、安装更新都可以问我；我解决不了的会帮你转给人工。"
@@ -7520,6 +7676,26 @@ msgstr "免费版：每天自动补 {daily} 套餐 token（最多攒到 {cap}）
 #: src/pages/ProfilePage.tsx
 msgid "免费版：每天自动补 {daily} 套餐 token（最多攒到 {cap}）。开通会员套餐或充值任意一笔，全部档位都能用。"
 msgstr "免费版：每天自动补 {daily} 套餐 token（最多攒到 {cap}）。开通会员套餐或充值任意一笔，全部档位都能用。"
+
+#: src/data/account.ts
+msgid "免费版在这一档上只能用文字出片：首帧 / 尾帧（含承接上一段的结尾）、卡片形象图与临时参考图都不发给视频模型，卡片只按文字参与（开通会员套餐或充值过任意一笔后可以带图）"
+msgstr "免费版在这一档上只能用文字出片：首帧 / 尾帧（含承接上一段的结尾）、卡片形象图与临时参考图都不发给视频模型，卡片只按文字参与（开通会员套餐或充值过任意一笔后可以带图）"
+
+#: src/data/account.ts
+msgid "免费版在这一档上只能用文字出片：首帧 / 尾帧带不上（开通会员套餐或充值过任意一笔后可以带图）"
+msgstr "免费版在这一档上只能用文字出片：首帧 / 尾帧带不上（开通会员套餐或充值过任意一笔后可以带图）"
+
+#: src/data/account.ts
+msgid "免费版用 {via} 出片时只能用文字：首帧 / 尾帧（含承接上一段的结尾）、卡片形象图与临时参考图都不发给视频模型，卡片只按文字参与（开通会员套餐或充值过任意一笔后可以带图）"
+msgstr "免费版用 {via} 出片时只能用文字：首帧 / 尾帧（含承接上一段的结尾）、卡片形象图与临时参考图都不发给视频模型，卡片只按文字参与（开通会员套餐或充值过任意一笔后可以带图）"
+
+#: src/data/account.ts
+msgid "免费版用 {via} 出片时只能用文字：首帧 / 尾帧带不上（开通会员套餐或充值过任意一笔后可以带图）"
+msgstr "免费版用 {via} 出片时只能用文字：首帧 / 尾帧带不上（开通会员套餐或充值过任意一笔后可以带图）"
+
+#: src/ai/minimaxVideo.ts
+msgid "免费版用 MiniMax 出片只能用文字：这一段带着画面或参考图——开通会员套餐（或充值过任意一笔）后可以带图"
+msgstr "免费版用 MiniMax 出片只能用文字：这一段带着画面或参考图——开通会员套餐（或充值过任意一笔）后可以带图"
 
 #: src/components/flow/ThemeRewriteSheet.tsx
 msgid "全不选"
@@ -8415,6 +8591,14 @@ msgstr "出片模型"
 #: src/pages/TemplateDetailPage.tsx
 msgid "出片模型是固定的：按参考视频逐镜头复刻只有「{gateLabel}」做得到，套用后这一段不能换别的画质档。"
 msgstr "出片模型是固定的：按参考视频逐镜头复刻只有「{gateLabel}」做得到，套用后这一段不能换别的画质档。"
+
+#: src/components/flow/ProviderSwitch.tsx
+msgid "出片模型来自"
+msgstr "出片模型来自"
+
+#: src/components/flow/ProviderSwitch.tsx
+msgid "出片模型来自哪一家"
+msgstr "出片模型来自哪一家"
 
 #: src/pages/CardDetailPage.tsx
 msgid "出片用"
@@ -9794,8 +9978,10 @@ msgstr "参考图未被受理，该帧改用纯文字重画"
 msgid "参考图生视频（reference_image）"
 msgstr "参考图生视频（reference_image）"
 
+#: src/components/flow/FlowCanvas.tsx
 #: src/components/flow/ModePicker.tsx
 #: src/studio/studioStore.ts
+#: src/studio/ui/projection.tsx
 msgid "参考图直出"
 msgstr "参考图直出"
 
@@ -10668,6 +10854,11 @@ msgstr "台词不会再被配音（「{0}」档暂无配音）"
 
 #. placeholder {0}: next.label
 #: src/components/flow/TierRow.tsx
+msgid "台词不再带音色样本（{via} 出的「{0}」不收声音样本，台词照样配音、音色由模型定）"
+msgstr "台词不再带音色样本（{via} 出的「{0}」不收声音样本，台词照样配音、音色由模型定）"
+
+#. placeholder {0}: next.label
+#: src/components/flow/TierRow.tsx
 msgid "台词不再带音色样本（「{0}」档不收声音样本，台词照样配音、音色由模型定）"
 msgstr "台词不再带音色样本（「{0}」档不收声音样本，台词照样配音、音色由模型定）"
 
@@ -10792,6 +10983,10 @@ msgid "合成失败：第 {segList} 段的视频取不到了。这几段的视�
 msgstr "合成失败：第 {segList} 段的视频取不到了。这几段的视频还挂在临时链接上（当初没能转存成长期地址），临时链接只有 24 小时——过期之后就取不到了。这条片子现在合不了：回「我的 → 草稿」打开草稿把这几段重新出片（会再花一次钱），或者删掉它们再合。"
 
 #: src/pages/CutPage.tsx
+msgid "合成失败：第 {segList} 段的视频取不到了。这几段的视频还挂在临时链接上（当初没能转存成长期地址），这种链接有时效，现在已经取不到了。这条片子现在合不了：删掉这几段再合；要留下它们，只能回「我的 → 草稿」打开草稿把这几段重新出片（会再花一次钱）。"
+msgstr "合成失败：第 {segList} 段的视频取不到了。这几段的视频还挂在临时链接上（当初没能转存成长期地址），这种链接有时效，现在已经取不到了。这条片子现在合不了：删掉这几段再合；要留下它们，只能回「我的 → 草稿」打开草稿把这几段重新出片（会再花一次钱）。"
+
+#: src/pages/CutPage.tsx
 #~ msgid "合成失败：第 {segList} 段的视频取不到了（HTTP {http}）。这几段揣的还是方舟的临时链接、当初没能转存成永久地址，而那种链接只活 24 小时——过期之后合成器也拉不到。这条片子现在合不了：回「我的 → 草稿」打开草稿把这几段重新出片（会再花一次钱），或者删掉它们再合。"
 #~ msgstr "合成失败：第 {segList} 段的视频取不到了（HTTP {http}）。这几段揣的还是方舟的临时链接、当初没能转存成永久地址，而那种链接只活 24 小时——过期之后合成器也拉不到。这条片子现在合不了：回「我的 → 草稿」打开草稿把这几段重新出片（会再花一次钱），或者删掉它们再合。"
 
@@ -10889,6 +11084,10 @@ msgstr "同分区 · {0}"
 #: src/pages/LoginPage.tsx
 msgid "同意协议"
 msgstr "同意协议"
+
+#: src/components/flow/ProviderSwitch.tsx
+msgid "同意并改用"
+msgstr "同意并改用"
 
 #: src/App.tsx
 #: src/pages/LoginPage.tsx
@@ -13206,6 +13405,10 @@ msgstr "市场里还没有别人公开的形象。"
 msgid "市场页签顶上能<0>按词搜</0>，搜索框右边那颗<1>出片模型</1>只留你想用的那个模型出得了片的模板，下面那排芯片<2>按类筛</2>，三个叠在一起生效。选中的分类在「我的模板」里也管用，没分过类的老模板只在「全部」下出现——找不到自己做的，先点回「全部」。"
 msgstr "市场页签顶上能<0>按词搜</0>，搜索框右边那颗<1>出片模型</1>只留你想用的那个模型出得了片的模板，下面那排芯片<2>按类筛</2>，三个叠在一起生效。选中的分类在「我的模板」里也管用，没分过类的老模板只在「全部」下出现——找不到自己做的，先点回「全部」。"
 
+#: src/components/flow/CustomFrameSlots.tsx
+msgid "带不上"
+msgstr "带不上"
+
 #: src/studio/segmentGen.ts
 msgid "带参考视频的自定义段暂不支持圈选改画面——清掉圈选标注再出片"
 msgstr "带参考视频的自定义段暂不支持圈选改画面——清掉圈选标注再出片"
@@ -13934,6 +14137,14 @@ msgstr "成片太大（{mb}MB，这台服务器的上限是 20MB）——先在�
 msgid "成片已经出来了，取下载地址时没收到回包——凭据还在，过一会儿再点「取回」，不花钱。"
 msgstr "成片已经出来了，取下载地址时没收到回包——凭据还在，过一会儿再点「取回」，不花钱。"
 
+#: src/ai/minimaxVideo.ts
+msgid "成片已经出来了，这一次没拿到地址——凭据还在，用「取回」领回来，不花钱。"
+msgstr "成片已经出来了，这一次没拿到地址——凭据还在，用「取回」领回来，不花钱。"
+
+#: src/ai/minimaxVideo.ts
+msgid "成片已经出来了，这一次没拿到地址——凭据还在，过一会儿再点「取回」，不花钱。"
+msgstr "成片已经出来了，这一次没拿到地址——凭据还在，过一会儿再点「取回」，不花钱。"
+
 #: src/components/flow/SegmentRecoverCards.tsx
 msgid "成片已经取回，放进了流水线，也存进了草稿"
 msgstr "成片已经取回，放进了流水线，也存进了草稿"
@@ -13967,9 +14178,22 @@ msgstr "成片解码失败——换「本地上传」或下面各段的首尾帧
 msgid "成片读不出来（{0}）"
 msgstr "成片读不出来（{0}）"
 
+#: src/ai/real.ts
 #: src/studio/genLog.ts
 msgid "成片转存中（换成永久地址）"
 msgstr "成片转存中（换成永久地址）"
+
+#: src/studio/genLog.ts
+msgid "成片转存没成（{reason}）——先用 MiniMax 的临时链接，预览帧稍后自动补上"
+msgstr "成片转存没成（{reason}）——先用 MiniMax 的临时链接，预览帧稍后自动补上"
+
+#: src/ai/real.ts
+msgid "成片转存没成（{reason}）——先用临时链接（有时效），发布时服务器会再转存一次"
+msgstr "成片转存没成（{reason}）——先用临时链接（有时效），发布时服务器会再转存一次"
+
+#: src/studio/genLog.ts
+msgid "成片转存没成（{reason}）——先用临时链接（有时效），预览帧稍后自动补上"
+msgstr "成片转存没成（{reason}）——先用临时链接（有时效），预览帧稍后自动补上"
 
 #: src/studio/genLog.ts
 msgid "成片转存没成（{reason}）——先用方舟临时链接，预览帧稍后自动补上"
@@ -13978,6 +14202,14 @@ msgstr "成片转存没成（{reason}）——先用方舟临时链接，预览�
 #: src/studio/flowStore.ts
 msgid "成片还在转存（换成永久地址），转存完才能延长——稍等一会儿再来"
 msgstr "成片还在转存（换成永久地址），转存完才能延长——稍等一会儿再来"
+
+#: src/ai/real.ts
+msgid "成片还在转存（服务器后台在搬）——先用临时链接，搬好之后自动换上"
+msgstr "成片还在转存（服务器后台在搬）——先用临时链接，搬好之后自动换上"
+
+#: src/studio/genLog.ts
+msgid "成片还在转存（服务器后台在搬）——先用临时链接，搬好之后自动换上、预览帧跟着补"
+msgstr "成片还在转存（服务器后台在搬）——先用临时链接，搬好之后自动换上、预览帧跟着补"
 
 #: src/components/CoverPicker.tsx
 msgid "成片还在载入，稍等一下再截"
@@ -14684,6 +14916,11 @@ msgstr "挂卡没成功（原因没说清——这是个 bug，请反馈）"
 #: src/components/guide/tours.tsx
 msgid "挂卡面板"
 msgstr "挂卡面板"
+
+#. placeholder {0}: next.label
+#: src/components/flow/TierRow.tsx
+msgid "挂在这一段上的示例视频会被摘掉（{via} 出的「{0}」带不了参考视频）"
+msgstr "挂在这一段上的示例视频会被摘掉（{via} 出的「{0}」带不了参考视频）"
 
 #. placeholder {0}: next.label
 #: src/components/flow/TierRow.tsx
@@ -15461,6 +15698,10 @@ msgstr "提示词合成失败：AI 改动了「{sentence}」这句成组绑定�
 msgid "提示词合成失败（{why}）——这一段的要求请自己写，或用下面那份默认写法。"
 msgstr "提示词合成失败（{why}）——这一段的要求请自己写，或用下面那份默认写法。"
 
+#: src/ai/minimaxVideo.ts
+msgid "提示词或图片没过 MiniMax 的内容审核——改一改再出片"
+msgstr "提示词或图片没过 MiniMax 的内容审核——改一改再出片"
+
 #: src/ai/arkClient.ts
 msgid "提示词没过方舟的内容审核——改掉里面可能被拦的说法再试"
 msgstr "提示词没过方舟的内容审核——改掉里面可能被拦的说法再试"
@@ -15918,6 +16159,10 @@ msgstr "改成下雨天"
 #: src/components/flow/FrameEditBox.tsx
 msgid "改成夜晚"
 msgstr "改成夜晚"
+
+#: src/components/flow/ProviderSwitch.tsx
+msgid "改用 MiniMax 出片？"
+msgstr "改用 MiniMax 出片？"
 
 #: src/pages/CardDetailPage.tsx
 msgid "改的是你库里这一份。已经随作品发布、或被别人装走的那些是当时的副本，不会跟着变。"
@@ -16880,6 +17125,10 @@ msgid "有新版本 {0}"
 msgstr "有新版本 {0}"
 
 #: src/pages/PublishPage.tsx
+msgid "有片段还挂在临时链接上（有时效）——尽快发布，发布后会换成长期地址"
+msgstr "有片段还挂在临时链接上（有时效）——尽快发布，发布后会换成长期地址"
+
+#: src/pages/PublishPage.tsx
 msgid "有片段还挂在临时链接上（约 24 小时有效）——尽快发布，发布后会换成长期地址"
 msgstr "有片段还挂在临时链接上（约 24 小时有效）——尽快发布，发布后会换成长期地址"
 
@@ -16999,9 +17248,17 @@ msgstr "服务器没能删掉这张卡（{why}）。本地这份先留着——�
 msgid "服务器没能删掉这条作品（{why}）。本地这份先留着——删了它下次启动也会回来。"
 msgstr "服务器没能删掉这条作品（{why}）。本地这份先留着——删了它下次启动也会回来。"
 
+#: src/ai/real.ts
+msgid "服务器没能把它搬到长期地址"
+msgstr "服务器没能把它搬到长期地址"
+
 #: src/data/videoJobs.ts
 msgid "服务器登记的这一发已经过了 24 小时，成片取不到了。如果你当时已经在别处拿到了它，忽略这条就好。"
 msgstr "服务器登记的这一发已经过了 24 小时，成片取不到了。如果你当时已经在别处拿到了它，忽略这条就好。"
+
+#: src/data/videoJobs.ts
+msgid "服务器登记的这一发已经过了 7 天，上游查不到它了。如果你当时已经在别处拿到了它，忽略这条就好。"
+msgstr "服务器登记的这一发已经过了 7 天，上游查不到它了。如果你当时已经在别处拿到了它，忽略这条就好。"
 
 #: src/components/flow/SegmentRecoverCards.tsx
 msgid "服务器登记的那一发没出成（{why}）。{moneyLine}要这一段的话重新生成（会重新计费）。"
@@ -19142,6 +19399,10 @@ msgstr "没画成（{why}），没有扣钱。"
 msgid "没画成（{why}）。{0}"
 msgstr "没画成（{why}）。{0}"
 
+#: src/ai/minimaxVideo.ts
+msgid "没等到 MiniMax 回话——过一会儿再点"
+msgstr "没等到 MiniMax 回话——过一会儿再点"
+
 #. moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格
 #: src/pages/CustomCardPage.tsx
 msgid "没等到识别结果。{moneyLine}可以先自己填"
@@ -20427,8 +20688,16 @@ msgid "生成契约"
 msgstr "生成契约"
 
 #: src/ai/real.ts
+msgid "生成契约不一致：「{tierLabel}」档一段最多带 {refMax} 张参考图，这一发排了 {refCount} 张——视频这一发没有发出去，请把这句话反馈给我们"
+msgstr "生成契约不一致：「{tierLabel}」档一段最多带 {refMax} 张参考图，这一发排了 {refCount} 张——视频这一发没有发出去，请把这句话反馈给我们"
+
+#: src/ai/real.ts
 msgid "生成契约不一致：「{tierLabel}」档不收声音样本（参考音频）"
 msgstr "生成契约不一致：「{tierLabel}」档不收声音样本（参考音频）"
+
+#: src/ai/real.ts
+msgid "生成契约不一致：MiniMax H3 不支持「{label}」这种出片——视频这一发没有发出去，请把这句话反馈给我们"
+msgstr "生成契约不一致：MiniMax H3 不支持「{label}」这种出片——视频这一发没有发出去，请把这句话反馈给我们"
 
 #: src/ai/real.ts
 msgid "生成契约不一致：参考图 / 参考视频与首尾帧不能混发（方舟三种场景互斥）"
@@ -20457,6 +20726,10 @@ msgstr "生成契约不一致：这一发的提示词有 {len} 字，超过这�
 #: src/ai/real.ts
 msgid "生成契约不一致：这一段声明按「{declared}」出片，而槽位里实际是「{actual}」（报价与请求会是两把尺）——没有花钱，请把这句话反馈给我们"
 msgstr "生成契约不一致：这一段声明按「{declared}」出片，而槽位里实际是「{actual}」（报价与请求会是两把尺）——没有花钱，请把这句话反馈给我们"
+
+#: src/ai/real.ts
+msgid "生成契约不完整：「{tierLabel}」档没写发给 MiniMax 的分辨率——视频这一发没有发出去，请把这句话反馈给我们"
+msgstr "生成契约不完整：「{tierLabel}」档没写发给 MiniMax 的分辨率——视频这一发没有发出去，请把这句话反馈给我们"
 
 #: src/ai/real.ts
 msgid "生成契约不完整：提示词是空的"
@@ -22525,8 +22798,16 @@ msgid "第 {list} 格的分镜在画好之后改过，画面还是按原来那�
 msgstr "第 {list} 格的分镜在画好之后改过，画面还是按原来那版画的——回第 3 步重画，或者回第 4 步把它取下"
 
 #: src/ai/real.ts
+msgid "第 {n} 张参考图不是图片地址（MiniMax 不收方舟的可信素材），视频这一发没有发出去——换一张卡或换一档再出片"
+msgstr "第 {n} 张参考图不是图片地址（MiniMax 不收方舟的可信素材），视频这一发没有发出去——换一张卡或换一档再出片"
+
+#: src/ai/real.ts
 msgid "第 {n} 张参考图未采用（「{name}」的{view}，比例越界或读不出来）"
 msgstr "第 {n} 张参考图未采用（「{name}」的{view}，比例越界或读不出来）"
+
+#: src/ai/real.ts
+msgid "第 {n} 张参考图没能传到图床（{why}），视频这一发没有发出去——过一会儿再点一次生成"
+msgstr "第 {n} 张参考图没能传到图床（{why}），视频这一发没有发出去——过一会儿再点一次生成"
 
 #: src/studio/gridDraftStore.ts
 msgid "第 {n} 格：{err}"
@@ -22551,6 +22832,14 @@ msgstr "第 {n} 段原来是「{label}」档（模型已停用），改用「{b}
 #: src/studio/flowStore.ts
 msgid "第 {n} 段原来是「{label}」档（这台服务器还不支持），改用「{b}」档"
 msgstr "第 {n} 段原来是「{label}」档（这台服务器还不支持），改用「{b}」档"
+
+#: src/studio/flowStore.ts
+msgid "第 {n} 段原来用 {viaA} 出「{label}」档（这台服务器还不支持），改用同一档的 {viaB}（「{b}」档）"
+msgstr "第 {n} 段原来用 {viaA} 出「{label}」档（这台服务器还不支持），改用同一档的 {viaB}（「{b}」档）"
+
+#: src/studio/flowStore.ts
+msgid "第 {n} 段原来的「{label}」档你所在的地区用不了，改用同一档的 {viaB}（「{b}」档）"
+msgstr "第 {n} 段原来的「{label}」档你所在的地区用不了，改用同一档的 {viaB}（「{b}」档）"
 
 #: src/studio/flowStore.ts
 msgid "第 {n} 段原来的档位已经下线，改用「{b}」档"
@@ -23772,6 +24061,11 @@ msgstr "能往后延长"
 #: src/components/flow/FixSegmentBox.tsx
 msgid "能按参考视频出片的「{refNames}」是会员档——开通会员套餐（或充值过任意一笔）后可用"
 msgstr "能按参考视频出片的「{refNames}」是会员档——开通会员套餐（或充值过任意一笔）后可用"
+
+#. 定语，接在「目前没有…的出片模型」中间；英文写成接在 video model that 后面的动词短语：can run blockout templates
+#: src/data/account.ts
+msgid "能跑白模模板"
+msgstr "能跑白模模板"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "脸红"
@@ -25419,6 +25713,10 @@ msgstr "还在排队——过几分钟再点一次「取回」。这一发的钱
 msgid "还在改写：收起不会丢，好了顶上会提示；从「/」面板再打开就接得回来"
 msgstr "还在改写：收起不会丢，好了顶上会提示；从「/」面板再打开就接得回来"
 
+#: src/data/account.ts
+msgid "还在确认这台服务器与你所在的地区能不能用 {via} 出「{label}」档——稍等再试，或先换一档出片"
+msgstr "还在确认这台服务器与你所在的地区能不能用 {via} 出「{label}」档——稍等再试，或先换一档出片"
+
 #: src/components/blockout/BlockoutTrimmer.tsx
 msgid "还在读这段视频"
 msgstr "还在读这段视频"
@@ -25829,6 +26127,18 @@ msgstr "这一发已经取不回来了：方舟的成片只在服务器上留 24
 msgid "这一发已经取不回来了：方舟的成片只在服务器上留 24 小时，现在已经过期。已经花掉的钱无法挽回——这不是超时重来，重新生成是再花一次钱。"
 msgstr "这一发已经取不回来了：方舟的成片只在服务器上留 24 小时，现在已经过期。已经花掉的钱无法挽回——这不是超时重来，重新生成是再花一次钱。"
 
+#: src/data/videoJobs.ts
+msgid "这一发已经取不回来了：这一档的成片任务只能在受理之后 7 天内查到，现在已经过了。如果上游那边其实是失败了，扣的 token 会自动退回（到账时会通知你）；如果是出成了却没取回，这笔钱就无法挽回了——重新生成是再花一次钱。"
+msgstr "这一发已经取不回来了：这一档的成片任务只能在受理之后 7 天内查到，现在已经过了。如果上游那边其实是失败了，扣的 token 会自动退回（到账时会通知你）；如果是出成了却没取回，这笔钱就无法挽回了——重新生成是再花一次钱。"
+
+#: src/data/videoJobs.ts
+msgid "这一发已经取不回来了：这一档的成片任务只能在受理之后 7 天内查到，现在已经过了。已经花掉的钱无法挽回——重新生成是再花一次钱。"
+msgstr "这一发已经取不回来了：这一档的成片任务只能在受理之后 7 天内查到，现在已经过了。已经花掉的钱无法挽回——重新生成是再花一次钱。"
+
+#: src/data/videoJobs.ts
+msgid "这一发已经取不回来了：这一档的成片任务只能在受理之后 7 天内查到，现在已经过了。这一发本来就没有扣 token，点「知道了」消掉这条就好。"
+msgstr "这一发已经取不回来了：这一档的成片任务只能在受理之后 7 天内查到，现在已经过了。这一发本来就没有扣 token，点「知道了」消掉这条就好。"
+
 #: src/studio/segmentGen.ts
 msgid "这一发带不上图位的图（不是参考图那一种请求），视频这一发没有发出去——换成模板能跑的那一档，或过一会儿再点一次生成"
 msgstr "这一发带不上图位的图（不是参考图那一种请求），视频这一发没有发出去——换成模板能跑的那一档，或过一会儿再点一次生成"
@@ -25890,6 +26200,10 @@ msgstr "这一发没有受理，也没有扣费。"
 msgid "这一发没有扣 token，任务多半还在上游跑 —— 点「取回」把它领回来；点「重新生成」是重新下一单。出片通常 1~2 分钟，隔一会儿再点一次。"
 msgstr "这一发没有扣 token，任务多半还在上游跑 —— 点「取回」把它领回来；点「重新生成」是重新下一单。出片通常 1~2 分钟，隔一会儿再点一次。"
 
+#: src/data/videoJobs.ts
+msgid "这一发没有扣 token。成片在受理之后 7 天内都取得回来（还剩 {rest}）——点「取回」把它领回来，不花钱；点「重新生成」是重新下一单。还在出片的话，隔一会儿再点一次。"
+msgstr "这一发没有扣 token。成片在受理之后 7 天内都取得回来（还剩 {rest}）——点「取回」把它领回来，不花钱；点「重新生成」是重新下一单。还在出片的话，隔一会儿再点一次。"
+
 #: src/components/TemplateShelf.tsx
 msgid "这一发白模化已经取不回来了"
 msgstr "这一发白模化已经取不回来了"
@@ -25903,12 +26217,20 @@ msgid "这一发的状态暂时查不到（{why}）——联网后再点一次�
 msgstr "这一发的状态暂时查不到（{why}）——联网后再点一次「取回」，凭据还在，也不花钱"
 
 #: src/data/videoJobs.ts
+msgid "这一发的钱在提交那一刻就已经扣了，万一最后没出成会自动退回。成片在受理之后 7 天内都取得回来（还剩 {rest}）——点「取回」不重新下单、不再花一分钱；点「重新生成」是重新下一单、会再花一次。还在出片的话，隔一会儿再点一次。"
+msgstr "这一发的钱在提交那一刻就已经扣了，万一最后没出成会自动退回。成片在受理之后 7 天内都取得回来（还剩 {rest}）——点「取回」不重新下单、不再花一分钱；点「重新生成」是重新下一单、会再花一次。还在出片的话，隔一会儿再点一次。"
+
+#: src/data/videoJobs.ts
 msgid "这一发的钱在提交那一刻就已经扣了，任务多半还在上游跑；万一最后没出成，会自动退回 —— 点「取回」不重新下单、不再花一分钱；点「重新生成」是重新下一单、会再花一次。出片通常 1~2 分钟，隔一会儿再点一次。"
 msgstr "这一发的钱在提交那一刻就已经扣了，任务多半还在上游跑；万一最后没出成，会自动退回 —— 点「取回」不重新下单、不再花一分钱；点「重新生成」是重新下一单、会再花一次。出片通常 1~2 分钟，隔一会儿再点一次。"
 
 #: src/data/videoJobs.ts
 msgid "这一发的钱在提交那一刻就已经花掉了，任务多半还在上游跑 —— 点「取回」不重新下单、不再花一分钱；点「重新生成」是重新下一单、会再花一次。出片通常 1~2 分钟，隔一会儿再点一次。"
 msgstr "这一发的钱在提交那一刻就已经花掉了，任务多半还在上游跑 —— 点「取回」不重新下单、不再花一分钱；点「重新生成」是重新下一单、会再花一次。出片通常 1~2 分钟，隔一会儿再点一次。"
+
+#: src/data/videoJobs.ts
+msgid "这一发的钱在提交那一刻就已经花掉了。成片在受理之后 7 天内都取得回来（还剩 {rest}）——点「取回」不重新下单、不再花一分钱；点「重新生成」是重新下一单、会再花一次。还在出片的话，隔一会儿再点一次。"
+msgstr "这一发的钱在提交那一刻就已经花掉了。成片在受理之后 7 天内都取得回来（还剩 {rest}）——点「取回」不重新下单、不再花一分钱；点「重新生成」是重新下一单、会再花一次。还在出片的话，隔一会儿再点一次。"
 
 #: src/ai/minimaxVideo.ts
 msgid "这一发还在上游排队或生成中（当前状态：{shown}）——过几分钟再点一次「取回」，查询不花钱、凭据也还在。"
@@ -26131,6 +26453,14 @@ msgstr "这一格还没写画面"
 #: src/data/templates.ts
 msgid "这一档一次收的参考图比图位少"
 msgstr "这一档一次收的参考图比图位少"
+
+#: src/studio/segmentGen.ts
+msgid "这一档一段最多带 {max} 张图：临时参考图这次只带了前 {sent} 张（其余的变淡显示在参考清单里）"
+msgstr "这一档一段最多带 {max} 张图：临时参考图这次只带了前 {sent} 张（其余的变淡显示在参考清单里）"
+
+#: src/studio/segmentGen.ts
+msgid "这一档一段最多带 {max} 张图：帧和卡片形象图已经把位占满，临时参考图这次一张都带不上（变淡显示在参考清单里）"
+msgstr "这一档一段最多带 {max} 张图：帧和卡片形象图已经把位占满，临时参考图这次一张都带不上（变淡显示在参考清单里）"
 
 #: src/ai/arkClient.ts
 #~ msgid "这一档不对当前套餐开放，去「我的」页升级套餐后再试"
@@ -26560,6 +26890,10 @@ msgstr "这一段现在选中的走向还没有成片"
 #: src/studio/segmentGen.ts
 msgid "这一段的做法走不了样片（样片不收参考视频，也不走真人档）——关掉「先出样片」再生成"
 msgstr "这一段的做法走不了样片（样片不收参考视频，也不走真人档）——关掉「先出样片」再生成"
+
+#: src/ai/minimaxVideo.ts
+msgid "这一段的出片请求太大了（图片要先传到图床再发）——把这句话反馈给我们"
+msgstr "这一段的出片请求太大了（图片要先传到图床再发）——把这句话反馈给我们"
 
 #. placeholder {0}: res.status
 #: src/data/videoDownload.ts
@@ -27266,6 +27600,10 @@ msgstr "这台服务器不支持识别角色位（回包形状不对，可能需
 msgid "这台服务器出片只接了 {via}"
 msgstr "这台服务器出片只接了 {via}"
 
+#: src/ai/minimaxVideo.ts
+msgid "这台服务器没有开 MiniMax H3 出片——先换一档出片"
+msgstr "这台服务器没有开 MiniMax H3 出片——先换一档出片"
+
 #: src/data/projects.ts
 msgid "这台服务器没有正常应答（工程可能还在）。"
 msgstr "这台服务器没有正常应答（工程可能还在）。"
@@ -27298,6 +27636,10 @@ msgstr "这台服务器目前没有接上出片模型"
 #: src/api/companion.ts
 msgid "这台服务器还不会解析 Live2D 模型包（需要更新服务端），暂时传不了。"
 msgstr "这台服务器还不会解析 Live2D 模型包（需要更新服务端），暂时传不了。"
+
+#: src/ai/minimaxVideo.ts
+msgid "这台服务器还不支持 MiniMax H3 出片（HTTP {status}）——先换一档出片"
+msgstr "这台服务器还不支持 MiniMax H3 出片（HTTP {status}）——先换一档出片"
 
 #: src/data/account.ts
 msgid "这台服务器还不支持「{label}」档（服务端需要更新）——先换一档出片"
@@ -27378,6 +27720,10 @@ msgstr "这台服务器还不支持核对角色位（回包形状不对，可能
 #: src/data/templates.ts
 msgid "这台服务器还不支持模板分类（旧版服务端）——升级后再试"
 msgstr "这台服务器还不支持模板分类（旧版服务端）——升级后再试"
+
+#: src/data/account.ts
+msgid "这台服务器还不支持用 {via} 出「{label}」档（服务端需要更新）——先换一档出片"
+msgstr "这台服务器还不支持用 {via} 出「{label}」档（服务端需要更新）——先换一档出片"
 
 #: src/data/projects.ts
 msgid "这台服务器还不支持留存工坊工程"

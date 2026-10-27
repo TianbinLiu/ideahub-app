@@ -16,10 +16,10 @@ import { useEffect, useRef, useState } from "react";
 import InfoTip from "../InfoTip";
 import Spinner from "../Spinner";
 import { showToast } from "../../data/toast";
-import { noTierLine, tierNamesFor } from "../../data/account";
+import { noTierLine, textOnlyRefsLine, tierNamesFor } from "../../data/account";
 import { useLang } from "../../i18n/useLang";
 import { VIDEO_REF_WINDOW, fileToRefImage } from "../../utils/image";
-import type { RefPlan, RefPlanItem } from "../../studio/segmentGen";
+import { extrasCapLine, type RefPlan, type RefPlanItem } from "../../studio/segmentGen";
 import {
   EXTRA_REF_NAME_MAX,
   EXTRA_REF_ROLES,
@@ -267,6 +267,9 @@ export default function RefStrip({
         <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
           {plan.why === "real" ? (
             <Trans>真人档只认一张起拍画面，不收参考图：卡片与临时参考图只按文字参与。</Trans>
+          ) : plan.why === "textOnly" ? (
+            // 免费版在 MiniMax H3 上只能纯文字出片（account.tierTextOnly；出片进度里摘图那一句是同一句）
+            textOnlyRefsLine()
           ) : plan.why === "refvid" ? (
             vidNone ? (
               <Trans>「{tierLabel}」档带不了示例视频——{vidNone}。</Trans>
@@ -333,11 +336,17 @@ export default function RefStrip({
           ))}
         </div>
       )}
-      {plan.extrasDropped && (
+      {/* 两种「带不出去」分开说（RefPlan.extrasCap 的 ★）：图位不够只带得上前几张（MiniMax H3 一段 5 张图）说「最多带 N 张」，与出片进度同一句；
+          档位 / 请求形状本来就发不出临时参考图的才说「这一档发不出去」 */}
+      {plan.extrasCap ? (
+        <Warn compact className="mt-1">
+          {extrasCapLine(plan.extrasCap)}
+        </Warn>
+      ) : plan.extrasDropped ? (
         <Warn compact className="mt-1">
           <Trans>临时参考图在这一档发不出去（上面那几张变淡的）。</Trans>
         </Warn>
-      )}
+      ) : null}
 
       {/* 编辑条：改名 / 用途 / 写进句子 / 删除 */}
       {selected && (

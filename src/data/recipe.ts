@@ -24,6 +24,7 @@
 //   FlowNode 的类型在 store 层，这里不能引；所以每一格都自己验形状，读不出来的当没有。
 import { r2vTokens, segTokens, tierOf } from "./economy";
 import { dropMention, usableExtraRefs, type ExtraRef } from "./refMentions";
+import { isMinimaxV2VideoUrl } from "./upstreamVideo";
 import type { CardType, CardView, ShotSpec, VideoAspect } from "../types";
 
 /** 随配方带走的一张卡（字段与作品卡组快照同一批） */
@@ -110,9 +111,9 @@ const rec = (v: unknown): Rec | null => (typeof v === "object" && v !== null && 
 const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 const str = (v: unknown, max: number): string => (typeof v === "string" ? v.trim().slice(0, max) : "");
 
-/** 别人的设备取得到的地址：http(s)，且不是方舟的临时链接（约 24 小时过期）。与 projects 的不变量同一条判据 */
+/** 别人的设备取得到的地址：http(s)，且不是上游的临时链接（方舟约 24 小时过期；MiniMax H3 的成片 CDN 也有时效，判据在 data/upstreamVideo）。与 projects 的不变量同一条判据 */
 function isPublicUrl(v: unknown): v is string {
-  return typeof v === "string" && /^https?:\/\//i.test(v) && !/\.(volces|volccdn)\.com\//i.test(v) && v.length <= 2000;
+  return typeof v === "string" && /^https?:\/\//i.test(v) && !/\.(volces|volccdn)\.com\//i.test(v) && !isMinimaxV2VideoUrl(v) && v.length <= 2000;
 }
 
 export interface ProjectRecipeOpts {

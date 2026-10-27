@@ -24,7 +24,7 @@ import { useNavigate } from "react-router";
 import SegSettings from "../components/flow/SegSettings";
 import { chosenOf, nodeCost, nodeDone, nodeEmptyFrames, tplOfNode, useFlow } from "../studio/flowStore";
 import { fmtTokens, priceTag, tierOf } from "../data/economy";
-import { tierBlockReason } from "../data/account";
+import { textOnlyFramesLine, tierBlockReason, tierTextOnly } from "../data/account";
 import {
   browseTemplates,
   groupRows,
@@ -447,6 +447,7 @@ function StepGo({
                 canEdit={!busy}
                 fates={nodeEmptyFrames(nodes, Math.max(0, nodes.findIndex((n) => n.id === nodeId)), mode)}
                 drawNote={t`空 = AI 按上面那句话补画（计费）`}
+                textOnlyNote={tierTextOnly(tierOf(node.videoTier)) ? textOnlyFramesLine() : null}
                 onFrame={(which, url) => setFrame(nodeId, which, url)}
                 onFuse={setFuse}
                 onError={(msg) => useFlow.setState({ err: msg })}

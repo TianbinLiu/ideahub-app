@@ -18,8 +18,8 @@ import { priceTag } from "../../data/economy";
 import Warn from "../Warn";
 import { useState } from "react";
 import { AI_REAL } from "../../ai";
-import { noTierLine, tierBlockReason, tierGo, tierPlanBlocked } from "../../data/account";
-import { durationChoices, materialRefSecs, minUsageNote, r2vPriceIssue, r2vTokens, tierOf } from "../../data/economy";
+import { noTierLine, r2vSameChipOpen, r2vTierIssue, tierBlockReason, tierGo, tierPlanBlocked } from "../../data/account";
+import { durationChoices, materialRefSecs, minUsageNote, r2vTokens, tierOf } from "../../data/economy";
 import { useAccountVersion } from "../../hooks/useAccount";
 import UpgradeLink from "../UpgradeLink";
 import {
@@ -100,7 +100,11 @@ export default function FixSegmentBox({
     ) : null;
 
   // ── 片段重拍 ──
-  const priceIssue = r2vPriceIssue(node.videoTier);
+  // ★ 走 account.r2vTierIssue（判据仍在 economy.r2vPriceIssue）：H3 的「高清」与 Seedance 的「高清」同名，economy 那一句会说
+  //   「「高清」做不了…只有「高清」「电影级」做得到」—— 那一种由 account 按地区把两边是哪一家、去哪一档说全（2026-10-26 P2b 审核），
+  //   下面「会员档 / 这里没有」那半句也已经在里面了（r2vSameChipOpen），不再补
+  const priceIssue = r2vTierIssue(tier, "refVideo");
+  const sameChip = r2vSameChipOpen(tier, "refVideo");
   const sec = reviseSecOf(prop);
   const reviseCost = r2vTokens(sec, node.videoTier);
   const a = Math.max(0, Math.min(from, sec - 1));
@@ -159,7 +163,7 @@ export default function FixSegmentBox({
         (priceIssue ? (
           <Warn>
             {priceIssue}
-            {refGo?.member && refNames && (
+            {!sameChip && refGo?.member && refNames && (
               <>
                 {"　"}
                 {t`能按参考视频出片的「${refNames}」是会员档——开通会员套餐（或充值过任意一笔）后可用`}
@@ -167,7 +171,14 @@ export default function FixSegmentBox({
                 <UpgradeLink />
               </>
             )}
-            {refNone && (
+            {/* 同一颗芯片那一种：r2vTierIssue 已经说了「是会员档」，这里只补那颗「去升级」 */}
+            {sameChip && refGo?.member && (
+              <>
+                {"　"}
+                <UpgradeLink />
+              </>
+            )}
+            {!sameChip && refNone && (
               <>
                 {"　"}
                 {t`${refNone}。`}

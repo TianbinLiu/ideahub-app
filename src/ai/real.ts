@@ -41,6 +41,7 @@ import {
   TEMPLATE_MAX_CARDS,
   apiCase,
   clampDuration,
+  lastFrameOnlyOk,
   imageTierOf,
   slotsFor,
   tierNamesWhere,
@@ -57,7 +58,8 @@ import { serverSupports } from "../data/serverCaps";
 // ★ 别名 schemeSlotPrompt：本文件下面已经有一个**铸卡**用的 slotPrompt(type,name,...)，
 //   两者管的是完全不同的两件事（那个拼铸卡提示词，这个拼方案图位提示词）。
 import { isGenerated, isSheetSlot, slotCardTag, slotKey, slotPrompt as schemeSlotPrompt, slotSize, type PromptScheme } from "../data/promptSchemes";
-import { minimaxVideo, takeMinimaxTask } from "./minimaxVideo";
+import { minimaxV2Video, minimaxVideo, takeMinimaxTask, takeMinimaxV2Task, type MinimaxV2Role } from "./minimaxVideo";
+import { uploadImage } from "../api/uploads";
 import { refableViews } from "../data/cardViews";
 import { drawExtraRefs, plainMentions } from "../data/refMentions";
 import { frameMoment, momentCards } from "../data/shotScript";
@@ -92,7 +94,10 @@ import {
   generateVideo,
   isArkAssetUrl,
   MODELS,
+  requestArkTransfer,
   runImageGroup,
+  transferStatus,
+  type ArkProgress,
   type ImageGroupState,
 } from "./arkClient";
 // 界面文案（铸卡 / 推演 / 提卡 / 出片产线的进度、报错、逐张点名的提示、契约核对）走宏；发给模型的指令仍冻结中文——本文件的宏只用于界面文案
@@ -3300,13 +3305,17 @@ export function genModeOf(sg: Omit<GenSpec, "mode">): GenMode {
  */
 export function slotModeOf(sg: Omit<GenSpec, "mode">): GenMode {
   // ★ 按请求形状（VideoTier.api）认，不按供应商（2026-10-26）：mode "minimax" 就是 V1 那一发（海螺：只收一张首帧）；
-  //   海外 MiniMax H3（出片地区 P2b，V2 接口）也是 MiniMax，收参考图、是另一种请求，到时另加一种 mode。
-  //   走 apiCase 不写等号：加 minimax-v2 时这里在 tsc 就红，逼着写它的 mode（等号比较会让它悄悄落进下面方舟那几种）
-  const byApi = apiCase<GenMode | null>(tierOf(sg.videoTier).api, { ark: null, "minimax-v1": "minimax" });
+  //   海外 MiniMax H3（出片地区 P2b，V2 接口）也是 MiniMax，却收参考图：它的槽位与方舟那几种同形（文生 / 首帧 / 首尾帧 / 参考图），
+  //   回 null 照下面那几种认 mode；请求按哪套协议拼（V2 的 content[] 与 role）在 composeSegments 按 api 分。
+  //   走 apiCase 不写等号：加一种 api 时这里在 tsc 就红，逼着写它的 mode（等号比较会让它悄悄落进下面方舟那几种）
+  const tier = tierOf(sg.videoTier);
+  const byApi = apiCase<GenMode | null>(tier.api, { ark: null, "minimax-v1": "minimax", "minimax-v2": null });
   if (byApi) return byApi;
   if (sg.refVideoUrl) return sg.refTask === "reference" ? "reference" : sg.refTask === "extend" ? "extend" : "edit";
   if (sg.refImages?.length) return "ref-images";
-  if (sg.firstFrame) return sg.lastFrame && tierOf(sg.videoTier).flf ? "flf" : "i2v";
+  if (sg.firstFrame) return sg.lastFrame && tier.flf ? "flf" : "i2v";
+  // ★ 只给了尾帧：收它的协议（MiniMax H3，economy.lastFrameOnlyOk）按首尾帧那一种拼、只带 last_frame；方舟那几档照旧当文生（尾帧不发）
+  if (sg.lastFrame && tier.flf && lastFrameOnlyOk(tier)) return "flf";
   return "t2v";
 }
 
@@ -3354,6 +3363,11 @@ export function validateGenSpec(sg: GenSpec): void {
   const refMedia = shape === "ref-images" || shape === "reference" || shape === "edit" || shape === "extend";
   if (refMedia && (sg.firstFrame || sg.lastFrame)) throw new Error(t`生成契约不一致：参考图 / 参考视频与首尾帧不能混发（方舟三种场景互斥）`);
   if (shape === "ref-images" && !tier.refImg) throw new Error(t`「${tierLabel}」档协议上不收参考图，不能按参考图生视频出片`);
+  // 参考图张数的协议上限（VideoTier.refImagesMax：2.0 系列 9、2.5 是 30、MiniMax H3 5）—— 超了是整发 400（H3 第 6 张起服务端报不了价、扣费之前拒）。
+  // 图位预算在准备卡片图那一步就按它扣（segmentGen.refSlotsOf），这一条正常走不到；它管的是那道预算哪天算错（2026-10-26 出片地区 P2b：H3 只有 5 张的位）
+  const refCount = sg.refImages?.length ?? 0;
+  const refMax = tier.refImagesMax;
+  if (refMax !== undefined && refCount > refMax) throw new Error(t`生成契约不一致：「${tierLabel}」档一段最多带 ${refMax} 张参考图，这一发排了 ${refCount} 张——视频这一发没有发出去，请把这句话反馈给我们`);
   if ((shape === "edit" || shape === "reference" || shape === "extend") && !tier.refVid) throw new Error(t`「${tierLabel}」档不支持带参考视频出片`);
   // 2026-10-05 起「能带参考视频」≠「能延长」≠「能跑白模模板」（高清只有第一样）：三件分开核，判据各在档位表的一位上
   if (shape === "extend" && !tier.extendOk) {
@@ -3378,10 +3392,14 @@ export function validateGenSpec(sg: GenSpec): void {
  * 只描述、不判断——判断在 validateGenSpec / segmentGen
  */
 export function describeGenSpec(sg: GenSpec, carried: boolean): Extract<GenEvent, { kind: "contract" }> {
+  const tier = tierOf(sg.videoTier);
   return {
     kind: "contract",
     mode: sg.mode,
-    tier: tierOf(sg.videoTier).id,
+    tier: tier.id,
+    // ★ 真正发出去的模型 id（2026-10-26 出片地区 P2b）：两家同一颗芯片同名（「草稿」= Seedance 2.0 mini 或 MiniMax H3 Lite），
+    //   只记档位的话回看日志分不出这一发交给了谁。怎么写成名字（地区不知道不写、这个地区给不出的那一家不写）在 studio/genLog
+    model: tier.model,
     ratio: aspectOf(sg.aspect).ratio,
     durationSec: sg.durationSec,
     ...(sg.refVideoSec ? { refSec: sg.refVideoSec } : {}),
@@ -3390,6 +3408,86 @@ export function describeGenSpec(sg: GenSpec, carried: boolean): Extract<GenEvent
     carried,
     chars: sg.plot.length,
   };
+}
+
+/**
+ * 上游给的**临时**成片（MiniMax H3 的成片 CDN；判据 arkClient.isArkAssetUrl，方舟 ∪ H3）→ 永久地址：服务端拉下来转存我们的图床
+ * （POST /api/ark/transfer-video，契约「MiniMax H3（V2）出片」→「成片地址与转存」：两家都认、不计费）。出片与取回共用这一份。
+ * ★ 方舟那条路不走这里：arkClient.generateVideo 在轮询那一拍顺手转存（`?transfer=1`），那是方舟的唯一收口；H3 的查询端点不替你转存，所以这里补这一步。
+ * ★ 失败**不挡出片**：退回临时链接、把原因说出来（transferFailed 事件进步骤日志）；flowStore.settleNodeMedia 之后接着盯服务端后台那一趟
+ *   （isArkAssetUrl 认 H3 的主机，mediaUnsettled 因此成立），拿到永久地址就换上。
+ * ★★ 走**受理式 + 有上限的短轮询**（requestArkTransfer `wait:false` + transferStatus），不走阻塞式 transferArkVideo（2026-10-26 P2b 审核）：
+ *   阻塞式要在一个请求里等服务端把成片搬完（客户端 180 秒、服务端预算 165 秒，中间隔着 Cloudflare 125 秒的读超时 —— CLAUDE.md 那格坑，
+ *   剪辑页「老草稿自救」2026-09-07 就是因此换掉的）。成片已经付过钱、拿到手了，composeSegments 却要再卡最多约 2 分钟才交回 genNode：
+ *   这期间 busy 一直亮着、节点也不落地，App 被切走或杀掉，结果就落不到节点上（只剩取回卡兜底）；搬得慢时还会退成一句服务端的中文进步骤日志。
+ *   现在最多等 TRANSFER_WAIT_MS：搬好了就换上；还在搬（pending）就先交临时链接（transferPending），由 settleNodeMedia 接着盯
+ *   （服务端那一趟是后台任务，与这个请求的生死无关，下次问就是现成的）。
+ */
+async function permanentVideoUrl(url: string, onEv: (ev: ArkProgress) => void): Promise<string> {
+  if (!isArkAssetUrl(url)) return url;
+  onEv({ kind: "transfer" });
+  try {
+    let got = await requestArkTransfer(url);
+    const until = Date.now() + TRANSFER_WAIT_MS;
+    while (got.state === "pending" && Date.now() < until) {
+      await new Promise((r) => setTimeout(r, TRANSFER_POLL_MS));
+      const hit = (await transferStatus([url]).catch(() => null))?.[url];
+      // `none` = 服务端没有这条的登记（不是一种进展）：别写回 got（同 CutPage 合并前那一段）
+      if (hit && hit.state !== "none") got = { state: hit.state, ...(hit.url ? { url: hit.url } : {}) };
+    }
+    if (got.state === "done" && got.url) return got.url;
+    // 服务端明说搬失败了：原因用我们自己的话（服务端那句是给运维看的中文，还可能带着另一家的名字）
+    if (got.state === "failed") onEv({ kind: "transferFailed", reason: t`服务器没能把它搬到长期地址` });
+    else onEv({ kind: "transferPending" });
+    return url;
+  } catch (e) {
+    onEv({ kind: "transferFailed", reason: e instanceof Error ? e.message : String(e) });
+    return url;
+  }
+}
+
+/**
+ * permanentVideoUrl 最多等多久、隔多久问一次。20 秒：服务端搬一条几 MB 到几十 MB 的成片通常十几秒（剪辑页合并前那一段的实测口径），
+ * 再长就是在拿已经到手的成片换一个 busy 一直亮着的窗口 —— 没搬完的交给 settleNodeMedia（每 30 秒问一次、最多 12 分钟）。
+ */
+const TRANSFER_WAIT_MS = 20_000;
+const TRANSFER_POLL_MS = 3_000;
+
+/**
+ * 我们图床上的图：MiniMax H3（V2）的请求只收 `https://res.cloudinary.com/<我们的 cloud>/image/upload/…`（服务端白名单：上游拿我们的 key 去拉这个地址，
+ * data: 内联图、别人的网址、方舟的临时链接一律拒）。客户端不知道 cloud 名 —— 按形状认，别人的 cloud 由服务端那一道拒（不扣钱）。
+ * ★ Cloudinary 的**视频**抽帧（`…/video/upload/so_…`，成片预览帧走的那条快路）不是 image/upload：照样要重新传一次。
+ */
+const OWN_IMAGE_RE = /^https:\/\/res\.cloudinary\.com\/[^/]+\/image\/upload\//i;
+
+/**
+ * 一段 H3 出片要带的图 → 我们图床上的地址（`OWN_IMAGE_RE`）。不是的（本机 dataURL、承接来的抽帧地址、卡片形象图的别处地址）逐张传一次图床（不计费）。
+ * ★ 传不上去就整句抛（**视频那一发还没发出去**：出片前补画的帧已经结算过，由 SegmentGenFailed 带着 kept 留在方案上、下一次不重画）——
+ *   带着服务端必拒的地址发出去也是被拒，只是多一趟。
+ * ★ 不是图片地址的（`asset://` 可信素材：那是 Seedance 的协议，H3 三档 assetRef 为假、按理走不到这里）整句拒，别静默丢掉一张（丢了编号就错位）。
+ */
+async function ownImageUrls(srcs: string[], say: (s: string) => void): Promise<string[]> {
+  const out: string[] = [];
+  for (let k = 0; k < srcs.length; k++) {
+    const src = srcs[k];
+    const n = k + 1;
+    const total = srcs.length;
+    if (OWN_IMAGE_RE.test(src)) {
+      out.push(src);
+      continue;
+    }
+    if (!/^(data:image\/|https?:\/\/)/i.test(src)) throw new Error(t`第 ${n} 张参考图不是图片地址（MiniMax 不收方舟的可信素材），视频这一发没有发出去——换一张卡或换一档再出片`);
+    say(t`上传参考图 ${n}/${total}…`);
+    try {
+      // 帧压到 720p 再传（与方舟那条同一个理由：2560 的 dataURL 白白撑大上传；非 dataURL 原样）
+      const shrunk = await shrinkFrameFor720p(src);
+      out.push(await uploadImage(await (await fetch(shrunk)).blob(), `mm-ref-${n}.jpg`));
+    } catch (e) {
+      const why = e instanceof Error ? e.message.slice(0, 60) : String(e);
+      throw new Error(t`第 ${n} 张参考图没能传到图床（${why}），视频这一发没有发出去——过一会儿再点一次生成`);
+    }
+  }
+  return out;
 }
 
 /**
@@ -3428,6 +3526,26 @@ export async function composeSegments(
     carryTail = null;
     // ★ 契约行：这一发到底发了什么（模式 / 档 / 画幅 / 时长 / 参考几张），进步骤日志给人看（2026-09-06）
     onProgress?.(i, segments.length, encodeGenEvent(describeGenSpec(sg, !!prevTail)));
+    /**
+     * 成片到手之后那一步 —— 每条出片支路共用这一份（2026-10-26 加 MiniMax H3 那一支时收成一个，原来三份逐字相同的拷贝）：
+     * 截真实首尾帧（回填节点 / 草稿的卡面，并作为下一段的起拍帧）、量真实时长。截不到不拖垮整段（下一段退回设定衔接），但原因要进步骤日志。
+     */
+    const captureInto = async (url: string): Promise<void> => {
+      try {
+        onProgress?.(i, segments.length, t`捕获本段真实尾帧…`);
+        const cap = await captureVideoHeadTail(url);
+        res.lastFrame = cap.tail;
+        res.poster = cap.head;
+        res.durationSec = cap.durationSec;
+        carryTail = cap.tail;
+      } catch (e2) {
+        // ⚠ 样片定稿的 1080p 成片在方舟直链上是 10 bit 的 H.265：有的手机 WebView 解不了，截帧会失败（服务端转存时转成 H.264，换上永久地址之后补截）
+        console.warn(`[ai] 第 ${i + 1} 段真实尾帧捕获失败（下一段沿用设定帧）:`, e2);
+        onProgress?.(i, segments.length, captureIssueLine(e2));
+      }
+    };
+    /** 这一档的轮询 / 转存事件 → 进度行（结构化事件，句子由 studio/genLog 按界面语言写） */
+    const progOf = (tierId: string) => (ev: ArkProgress) => onProgress?.(i, segments.length, encodeGenEvent({ ...ev, tier: tierId }));
     try {
       // 尾帧续作：本段设定首帧 = 上一段设定尾帧（承接关系）时，改用上一段视频的
       // 真实结尾起拍——设定尾帧只是分镜蓝图，视频（尤其极速档）不一定拍到那儿。
@@ -3449,20 +3567,10 @@ export async function composeSegments(
           // 只拿来给轮询死线定尺寸（不进请求体：时长由样片沿用）
           durationSec: sg.durationSec,
           onTask: (taskId) => onTask?.(taskId, i),
-          onProgress: (ev) => onProgress?.(i, segments.length, encodeGenEvent({ ...ev, tier: tier.id })),
+          onProgress: progOf(tier.id),
         });
         res.url = url3;
-        try {
-          onProgress?.(i, segments.length, t`捕获本段真实尾帧…`);
-          const cap = await captureVideoHeadTail(url3);
-          res.lastFrame = cap.tail;
-          res.poster = cap.head;
-          res.durationSec = cap.durationSec;
-          carryTail = cap.tail;
-        } catch (e2) {
-          // ⚠ 1080p 成片在方舟直链上是 10 bit 的 H.265：有的手机 WebView 解不了，截帧会失败（服务端转存时转成 H.264，换上永久地址之后补截）—— 原因进步骤日志
-          onProgress?.(i, segments.length, captureIssueLine(e2));
-        }
+        await captureInto(url3);
         out.push(res);
         continue;
       }
@@ -3478,23 +3586,69 @@ export async function composeSegments(
           firstFrame: await shrinkFrameFor720p(first),
           // 与报价同一把尺：clampDuration 对按发计价的档吸附到 6/10 整档（economy.durationStepsOf）
           durationSec: clampDuration(sg.durationSec, sg.videoTier),
-          onProgress: (ev) => onProgress?.(i, segments.length, encodeGenEvent({ ...ev, tier: tier.id })),
+          onProgress: progOf(tier.id),
           // ★ 受理回调必须给：不给就没有凭据，"没接到结果"那一支等于不存在
           //   （与方舟那条同一条约定，见 minimaxVideo 的 onTask）
           onTask: (taskId) => onTask?.(taskId, i),
         });
         res.url = url2;
-        try {
-          onProgress?.(i, segments.length, t`捕获本段真实尾帧…`);
-          const cap = await captureVideoHeadTail(url2);
-          res.lastFrame = cap.tail;
-          res.poster = cap.head;
-          res.durationSec = cap.durationSec;
-          carryTail = cap.tail;
-        } catch (e2) {
-          // 与方舟路同款兜底：捕获失败不拖垮整段，下一段退回设定衔接 —— 但原因要进步骤日志
-          onProgress?.(i, segments.length, captureIssueLine(e2));
+        await captureInto(url2);
+        out.push(res);
+        continue;
+      }
+      // ── MiniMax H3（V2）在这里分流（2026-10-26 出片地区 P2b；契约「MiniMax H3（V2）出片」）────────────
+      // 槽位与方舟那几种同形（文生 / 首帧 / 首尾帧 / 只给尾帧 / 参考图，slotModeOf 认），请求按 V2 的 content[] 拼：一条文字 + 至多 5 张图，
+      // 每张图带 role（first_frame / last_frame / reference_image）；首尾帧与参考图不混（validateGenSpec 已按 mode 核过）。
+      // 尾帧捕获 / 段间承接 / 进度与另外几条同一条产线（captureInto）。
+      // ★ apiCase 不写等号：加一种 api 时这里在 tsc 就红（等号比较会让新协议悄悄落进下面方舟那一支）
+      if (apiCase(tier.api, { ark: false, "minimax-v1": false, "minimax-v2": true })) {
+        /** 上游的大写分辨率（480P / 768P）：服务端价目表与免费档都按它认，档位表的 V2 行必写（check-video-tiers 钉着） */
+        const resolution = tier.upstreamResolution;
+        if (!resolution) {
+          const tierLabel = tier.label;
+          throw new Error(t`生成契约不完整：「${tierLabel}」档没写发给 MiniMax 的分辨率——视频这一发没有发出去，请把这句话反馈给我们`);
         }
+        // 每张图是什么角色：按契约的 mode（与 validateGenSpec 核对过的同一个）。V2 没有样片、参考视频、真人档那几种 —— 走到这里的只会是下面四种
+        const plan: { src: string; role: MinimaxV2Role }[] | null =
+          sg.mode === "ref-images"
+            ? (sg.refImages ?? []).map((src) => ({ src, role: "reference_image" as const }))
+            : sg.mode === "i2v"
+              ? [{ src: first, role: "first_frame" as const }]
+              : sg.mode === "flf"
+                ? [
+                    // 只给尾帧（first 为空）也收（economy.lastFrameOnlyOk）：只带 last_frame
+                    ...(first ? [{ src: first, role: "first_frame" as const }] : []),
+                    ...(last ? [{ src: last, role: "last_frame" as const }] : []),
+                  ]
+                : sg.mode === "t2v"
+                  ? []
+                  : null;
+        if (!plan) {
+          const label = GEN_MODE_LABEL[sg.mode];
+          throw new Error(t`生成契约不一致：MiniMax H3 不支持「${label}」这种出片——视频这一发没有发出去，请把这句话反馈给我们`);
+        }
+        const urls = await ownImageUrls(
+          plan.map((p) => p.src),
+          (s) => onProgress?.(i, segments.length, s),
+        );
+        const images = plan.map((p, k) => ({ url: urls[k], role: p.role }));
+        const url4 = await minimaxV2Video({
+          model: tier.model,
+          resolution,
+          // 与报价同一把尺：clampDuration 对按秒计价的档取窗口内的整数（服务端只收整数，不替你取整）
+          durationSec: clampDuration(sg.durationSec, sg.videoTier),
+          // 带首帧 / 尾帧时不写画幅（成片跟着图的比例走，服务端补 adaptive）；参考图与纯文字必须写具体比例（H3-Lite 的参考图不收 adaptive）
+          ratio: images.some((im) => im.role !== "reference_image") ? undefined : aspectOf(sg.aspect).ratio,
+          // 最后一道硬顶与方舟那几档同一个数（GenSpec.promptCap，segmentGen 的 promptCapOf 定；服务端 V2 的上限是 2000，这里更紧）
+          prompt: sg.plot.slice(0, sg.promptCap.max),
+          images,
+          onProgress: progOf(tier.id),
+          // ★ 受理回调必须给（同上两支）：不给就没有凭据，"没接到结果"那一支等于不存在
+          onTask: (taskId) => onTask?.(taskId, i),
+        });
+        // ★ 拿到的是 MiniMax 的临时地址（有时效）：先换成永久地址，再截帧（截帧走 Cloudinary 抽帧那条快路）
+        res.url = await permanentVideoUrl(url4, progOf(tier.id));
+        await captureInto(res.url);
         out.push(res);
         continue;
       }
@@ -3525,23 +3679,13 @@ export async function composeSegments(
         draft: sg.mode === "draft",
         ratio: aspectOf(sg.aspect).ratio,
         onTask: (taskId) => onTask?.(taskId, i),
-        onProgress: (ev) => onProgress?.(i, segments.length, encodeGenEvent({ ...ev, tier: tier.id })),
+        onProgress: progOf(tier.id),
       });
       // 视频较大（数 MB），存 URL 而非 dataURL——localStorage 放不下 base64 视频；
       // 方舟 URL 24h 有效，超时后播放器自动回退首尾帧渐变
       res.url = url;
       // 捕获真实尾帧：回填节点/草稿（卡面显示真实结尾），并作为下一段的起拍帧
-      try {
-        onProgress?.(i, segments.length, t`捕获本段真实尾帧…`);
-        const cap = await captureVideoHeadTail(url);
-        res.lastFrame = cap.tail;
-        res.poster = cap.head;
-        res.durationSec = cap.durationSec;
-        carryTail = cap.tail;
-      } catch (e2) {
-        console.warn(`[ai] 第 ${i + 1} 段真实尾帧捕获失败（下一段沿用设定帧）:`, e2);
-        onProgress?.(i, segments.length, captureIssueLine(e2));
-      }
+      await captureInto(url);
     } catch (e) {
       res.error = e instanceof Error ? e.message : String(e);
       // ★ 原样错误对象跟着走（见 SegmentResult.failure 的 ★★）：钱上那句话只认类型
@@ -3578,16 +3722,37 @@ export async function composeSegments(
  */
 export async function takeVideoTask(
   taskId: string,
-  onProgress?: (status: string) => void,
-  provider?: "ark" | "minimax",
+  onProgress: ((status: string) => void) | undefined,
+  /**
+   * 这一发是哪家、哪一版接口建的（取回凭据上那两位，data/videoJobs.VideoJob 的 provider / api）—— **必填**（2026-10-26 P2b 审核）：
+   * 漏传是零症状的，而走错路的后果是一发好好活着的成片永远取不回（V2 的号去问 V1 / 方舟）。调用方直接把凭据递进来。
+   */
+  route: { provider?: "ark" | "minimax"; api?: "v2" },
 ): Promise<{ url: string; lastFrame?: string; poster?: string; durationSec?: number; width?: number; height?: number }> {
+  const provider = route.provider;
   // ★★ 按家分流（2026-08-31）。**分错家的后果不是"取不到"**：下面那条 404 分支会对着
   //   一发在上游好好活着的真人档成片说「已经花掉的钱无法挽回」—— 一句权威的死刑判决，
   //   而听到它的用户不会来报 bug，他会直接走。
   // ★ 判**有值**（`=== "minimax"`）而不是判否定：老凭据没有 provider 这一位，
   //   它们全是方舟的，缺省必须落回方舟那条路。
   if (provider === "minimax") {
-    const { url } = await takeMinimaxTask(taskId, onProgress);
+    // ★ MiniMax 两版接口两条查询（2026-10-26 P2b 审核）：H3（V2）的号拿去问 V1 的查询，服务端认得出是 H3 的号就回 404 —— 永远取不回。
+    //   判**有值**（=== "v2"）：老凭据没有 api 这一位，它们全是真人档（V1）的
+    // tier-semantics-ok: 这是取回凭据上记下的那一版接口（VideoJob.api 只有 "v2" 一个值），不是档位的 api —— 落凭据那一拍已经按 apiCase 定过
+    const got = route.api === "v2" ? await takeMinimaxV2Task(taskId, onProgress) : await takeMinimaxTask(taskId, onProgress);
+    // ★ H3 的成片地址有时效（MiniMax 的成片 CDN）：先换成永久地址再截帧 —— 与出片那一支同一份（permanentVideoUrl；真人档 V1 的地址它不认、原样返回）。
+    //   转存没成不挡取回：拿着临时链接往下走，flowStore.settleNodeMedia 接着盯服务端后台那一趟
+    // ★ 没成 / 还在搬也要说出来（2026-10-26 P2b 审核：原来只转了「转存中」那一个事件，没成的那一句被整个吞掉 —— 没人告诉人手上是一条有时效的链接）。
+    //   不写供应商名（地区不知道时不写，account.tierShownModel 那条口径）
+    const url = await permanentVideoUrl(got.url, (ev) => {
+      if (ev.kind === "transfer") onProgress?.(t`成片转存中（换成永久地址）`);
+      else if (ev.kind === "transferPending") onProgress?.(t`成片还在转存（服务器后台在搬）——先用临时链接，搬好之后自动换上`);
+      else if (ev.kind === "transferFailed") {
+        const reason = ev.reason;
+        // 「发布时再转存」是服务端契约（发布时段的地址还是上游临时链接的，服务端下载再转存）；settleNodeMedia 见服务端明说失败就不再盯，所以不说「会自动重试」
+        onProgress?.(t`成片转存没成（${reason}）——先用临时链接（有时效），发布时服务器会再转存一次`);
+      }
+    });
     let lastFrame: string | undefined;
     let poster: string | undefined;
     let meta: { durationSec?: number; width?: number; height?: number } | undefined;
