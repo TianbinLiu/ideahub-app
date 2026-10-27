@@ -9072,6 +9072,7 @@ msgstr "Add-on tokens · top-ups / welcome credit / creator rewards, never expir
 msgid "加载中…"
 msgstr "Loading…"
 
+#: src/components/CommentSheet.tsx
 #: src/components/support/VoiceMarket.tsx
 #: src/pages/SupportModelsPage.tsx
 #: src/pages/SupportPersonasPage.tsx
@@ -18099,6 +18100,10 @@ msgstr "Unsharing…"
 msgid "正在取消息…"
 msgstr "Loading messages…"
 
+#: src/components/CommentSheet.tsx
+msgid "正在取评论…"
+msgstr "Loading comments…"
+
 #: src/pages/tutor/TutorHomePage.tsx
 msgid "正在取课程…"
 msgstr "Loading courses…"
@@ -18604,10 +18609,18 @@ msgstr "Couldn't load: {error}"
 #~ msgid "没取到授权照片（{0}）——授权时传的照片就在你相册里，下一步从相册选一样"
 #~ msgstr "Couldn't fetch the authorized photo ({0}) — the photo you used for authorization is in your gallery, and choosing it from there in the next step works just as well"
 
+#: src/components/CommentSheet.tsx
+msgid "没取到更多评论：{why}"
+msgstr "Couldn't load more comments: {why}"
+
 #. placeholder {0}: (e instanceof Error ? e.message : String(e)).slice(0, 80)
 #: src/pages/CustomCardPage.tsx
 msgid "没取到火山引擎认证时传的那张照片（{0}）"
 msgstr "Couldn’t fetch the photo uploaded during Volcengine verification ({0})"
+
+#: src/components/CommentSheet.tsx
+msgid "没取到评论"
+msgstr "Couldn't load comments"
 
 #: src/pages/CardDetailPage.tsx
 msgid "没取消成功——服务端没收到（{why}），勾选保持原样；网络好了再点一次。"
@@ -23451,6 +23464,7 @@ msgid "网络不好，或者这条链接已经过期（隔天打开的草稿常�
 msgstr "Poor network, or the link has expired (common for drafts opened the next day)"
 
 #: src/ai/arkClient.ts
+#: src/data/videos.ts
 msgid "网络不通"
 msgstr "no network"
 
@@ -27695,6 +27709,10 @@ msgid "这条作品<0>至少</0>有 {danmakuCount} 条弹幕（只数到这么�
 msgstr "This video has <0>at least</0> {danmakuCount, plural, one {# bullet comment} other {# bullet comments}} (that's all that were counted; there are more). Bullet comments are pinned to the whole video's timeline, so changing the content would put them out of sync with the picture — they'll <1>all</1> be cleared, and can't be restored."
 
 #: src/data/videos.ts
+msgid "这条作品不在了"
+msgstr "This video is no longer here"
+
+#: src/data/videos.ts
 msgid "这条作品不在这台设备上，刷新一下再试"
 msgstr "This video isn't on this device. Refresh and try again"
 
@@ -28844,6 +28862,7 @@ msgstr "Re-detecting <0>overwrites the current descriptions</0> (including your 
 
 #: src/components/blockout/VideoStage.tsx
 #: src/components/BootFailed.tsx
+#: src/components/CommentSheet.tsx
 #: src/components/flow/SegPlayer.tsx
 #: src/components/LocalStoreIssue.tsx
 #: src/components/support/SupportStage.tsx

@@ -1045,7 +1045,7 @@ function FeedItem({
         />
       </div>
 
-      {cmtOpen && <CommentSheet video={video} onClose={() => setCmtOpen(false)} />}
+      {cmtOpen && <CommentSheet video={video} onClose={() => setCmtOpen(false)} autoFocus={false} />}
       {/* ★ saveLocal={null} = 「保存到本地」这个入口**在首页不存在**：这颗键只拿到 video，
           没有"当前第几集"的上下文（多 P 作品要存哪一集问不出来）；下载又是低频动作，
           走一次点击进详情页就有全套面板 —— 与举报键放详情页的取舍同类。 */}
