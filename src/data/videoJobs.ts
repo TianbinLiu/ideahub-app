@@ -49,6 +49,30 @@ import { serverSupports, type BoolCap } from "./serverCaps";
 export const VIDEO_JOB_TTL_MS = 24 * 3600_000;
 
 /**
+ * **MiniMax H3（V2）** 的凭据有效期 —— 7 天差 1 小时（2026-10-26 出片地区 P2b 审核）。
+ * ★★ 为什么不跟上面那个 24 小时：那个数是方舟 TOS 的物理事实，H3 不是。契约（docs/api-contract.md「MiniMax H3（V2）出片」→「查询」「成片地址与转存」）：
+ *   H3 的任务在上游**受理之后 7 天内都查得到**（官方说法；服务端 GET /api/minimax/v2/video/:taskId 照账放行、不计费），成片地址有时效、
+ *   但再查一次就给一个新的。原来一律按 24 小时算，隔夜回来的人看到的是「第 N 段那一发已经取不回来了」、取回键被撤掉、
+ *   正文还说钱「无法挽回 / 退不了」—— 对一条还在、取回不花钱的成片，把人引去「重新生成」再付一次。
+ * ★ 差 1 小时：上游的 7 天从它受理那一刻算，我们的 createdAt 是受理回执到手那一拍记的（晚几秒到几十秒），而过期之后卡上要说「取不回来了」——
+ *   宁可早一点收手，别在第 7 天的最后几分钟摆一颗点了必然 404 的「取回」（economy.DRAFT_VALID_MS 样片 7 天是同一个余量）。
+ * ★ 只有 V2 这么算：真人档（V1，api 缺省）我们没量过留存，照旧按上面那个数提醒（videoJobNote 里那条「不许出现小时数」管它的话）。
+ * ⚠ 服务端改了 H3 的查询窗口（契约里那句「7 天」）要跟着改这里与 videoJobNote 里 V2 那几句话。
+ */
+export const MINIMAX_V2_JOB_TTL_MS = 7 * 24 * 3600_000 - 3600_000;
+
+/** 这条凭据是 MiniMax H3（V2 接口）建的吗（VideoJob.api；判**有值**：老凭据没有这一位，它们是方舟或真人档 V1） */
+function isV2Job(job: VideoJob): boolean {
+  // tier-semantics-ok: 取回凭据上记下的那一版接口（VideoJob.api 只有 "v2" 一个值），不是档位的 api —— 落凭据那一拍已经按 apiCase 定过
+  return job.api === "v2";
+}
+
+/** 这条凭据多久之后取不回来（按建它的那一版接口分开，见上面两个常量） */
+function ttlOf(job: VideoJob): number {
+  return isV2Job(job) ? MINIMAX_V2_JOB_TTL_MS : VIDEO_JOB_TTL_MS;
+}
+
+/**
  * 过期多久之后把记录**真删掉**（纯粹的存储卫生，不是关于钱的规则）。
  * ★ 为什么不到期就删：过期那一刻用户多半还不知道这一发废了，那条"取不回来了、
  *   钱无法挽回"的说明本身就是要给他看的（他可以点「知道了」消掉，见 dismissVideoJob）。
@@ -75,6 +99,7 @@ export interface VideoJob {
    * ★★ 为什么非有不可：两版的查询是两条路（V1 `GET /api/minimax/video/:id` + 取件，V2 `GET /api/minimax/v2/video/:id`），只记 provider 的话 H3 的任务
    *   走 V1 的查询 —— 服务端认得出是 H3 的号就回 404，取回卡永远停在「暂时查不到」（real.takeVideoTask 按它分流）。
    * ★ 退款能力位照旧按 provider 取（refundCapOf）：服务端 H3 的失败退款与真人档同一个开关（MINIMAX_FAIL_REFUND / 健康端点 minimaxFailRefund）。
+   * ★ 有效期也按它分开（ttlOf）：H3 的任务上游 7 天内都查得到，不是方舟的 24 小时（MINIMAX_V2_JOB_TTL_MS 的 ★★）。
    */
   api?: "v2";
   /** 任务号 —— 取回全靠它（两家的查询与取件都不计费） */
@@ -272,14 +297,14 @@ function persist(): void {
 }
 
 function expiresAt(job: VideoJob): number {
-  return job.createdAt + VIDEO_JOB_TTL_MS;
+  return job.createdAt + ttlOf(job);
 }
 
 function prunable(job: VideoJob): boolean {
   return Date.now() >= expiresAt(job) + PRUNE_AFTER_EXPIRY_MS;
 }
 
-/** 过期了吗（过期 = 成片在方舟那边已经没了，取不回来）。**唯一实现**，界面别自己减时间戳 */
+/** 过期了吗（过期 = 成片在上游那边已经查不到了，取不回来；方舟 24 小时、MiniMax H3 7 天，见 ttlOf）。**唯一实现**，界面别自己减时间戳 */
 export function videoJobExpired(job: VideoJob): boolean {
   return Date.now() >= expiresAt(job);
 }
@@ -327,6 +352,8 @@ export function videoJobNote(job: VideoJob): string {
    * 正在问（undefined）」。settled（出成了）、lost（交人工）、skipped（本来没扣）、没有这一笔账都不会自动退
    */
   const promise = refunds && !noRecord && (!charge || charge.state === "pending");
+  // MiniMax H3（V2）：上游 7 天内都查得到，另说一套（见 MINIMAX_V2_JOB_TTL_MS 的 ★★）
+  if (isV2Job(job)) return v2JobNote(job, left, charge, promise);
   if (left <= 0) {
     // ★ 登记表补来的那种不能断言"钱白花了"：它很可能在别的设备 / 官网上早就取到了（见 videoJobFromServer）
     if (videoJobFromServer(job))
@@ -372,6 +399,44 @@ export function videoJobNote(job: VideoJob): string {
   return h > 0
     ? t`还剩 ${h} 小时 ${m} 分钟可以取回——方舟的成片只留 24 小时，过期就没了。这一发的钱在提交那一刻就已经花掉了，取回不再花一分钱；点「重新生成」是重新下一单、会再花一次。`
     : t`还剩 ${m} 分钟可以取回——方舟的成片只留 24 小时，过期就没了。这一发的钱在提交那一刻就已经花掉了，取回不再花一分钱；点「重新生成」是重新下一单、会再花一次。`;
+}
+
+/**
+ * MiniMax H3（V2）那一发的那句话（videoJobNote 的一支；退了钱 / 正在退的两种在上面已经说过了）。
+ * ★★ 没过期的时候**不说「取不回来 / 无法挽回」**：上游受理之后 7 天内都查得到（契约「查询」），取回不花钱 —— 这时说钱没了，
+ *   人就去点「重新生成」再付一次（2026-10-26 P2b 审核）。7 天是官方写明的查询窗口（不是我们编的数，与真人档那条「不许出现小时数」不冲突）。
+ * ★ 不写供应商名（「上游」）：地区不知道时不写（account.tierShownModel 那条口径），这里不去问地区。
+ * ★ 过期之后（7 天外）上游明说查不到（404 TASK_NOT_FOUND），这时才说取不回来；钱上的几种结局与方舟那一支同一组判据（promise / skipped / lost）。
+ */
+function v2JobNote(job: VideoJob, left: number, charge: TaskRefund | null | undefined, promise: boolean): string {
+  if (left <= 0) {
+    if (videoJobFromServer(job))
+      return t`服务器登记的这一发已经过了 7 天，上游查不到它了。如果你当时已经在别处拿到了它，忽略这条就好。`;
+    if (charge?.state === "skipped")
+      return t`这一发已经取不回来了：这一档的成片任务只能在受理之后 7 天内查到，现在已经过了。这一发本来就没有扣 token，点「知道了」消掉这条就好。`;
+    if (charge?.state === "lost") {
+      return t`这一发已经取不回来了，我们也一直没能向上游确认它的结局，所以没有自动退回——把下面的任务号发给客服，由人工核对这笔钱；重新生成是再花一次钱。`;
+    }
+    return promise
+      ? t`这一发已经取不回来了：这一档的成片任务只能在受理之后 7 天内查到，现在已经过了。如果上游那边其实是失败了，扣的 token 会自动退回（到账时会通知你）；如果是出成了却没取回，这笔钱就无法挽回了——重新生成是再花一次钱。`
+      : t`这一发已经取不回来了：这一档的成片任务只能在受理之后 7 天内查到，现在已经过了。已经花掉的钱无法挽回——重新生成是再花一次钱。`;
+  }
+  const rest = leftText(left);
+  if (charge?.state === "skipped")
+    return t`这一发没有扣 token。成片在受理之后 7 天内都取得回来（还剩 ${rest}）——点「取回」把它领回来，不花钱；点「重新生成」是重新下一单。还在出片的话，隔一会儿再点一次。`;
+  return promise
+    ? t`这一发的钱在提交那一刻就已经扣了，万一最后没出成会自动退回。成片在受理之后 7 天内都取得回来（还剩 ${rest}）——点「取回」不重新下单、不再花一分钱；点「重新生成」是重新下一单、会再花一次。还在出片的话，隔一会儿再点一次。`
+    : t`这一发的钱在提交那一刻就已经花掉了。成片在受理之后 7 天内都取得回来（还剩 ${rest}）——点「取回」不重新下单、不再花一分钱；点「重新生成」是重新下一单、会再花一次。还在出片的话，隔一会儿再点一次。`;
+}
+
+/** 「还剩多久」那一截（v2JobNote 用）：一天以上写到小时，一天以内写到分钟 */
+function leftText(ms: number): string {
+  const d = Math.floor(ms / 86_400_000);
+  const h = Math.floor((ms % 86_400_000) / 3600_000);
+  const m = Math.floor((ms % 3600_000) / 60_000);
+  if (d > 0) return t({ message: `${d} 天 ${h} 小时`, comment: "剩余时间（几天几小时），嵌在「还剩 …」里；英文写成 6d 23h" });
+  if (h > 0) return t({ message: `${h} 小时 ${m} 分钟`, comment: "剩余时间（几小时几分钟），嵌在「还剩 …」里；英文写成 5h 12m" });
+  return t({ message: `${m} 分钟`, comment: "剩余时间（几分钟），嵌在「还剩 …」里；英文写成 12 min" });
 }
 
 // ── 「这一发退没退钱」（GET /api/ark/task-charges/:id）────────────────────
