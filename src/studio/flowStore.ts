@@ -4475,11 +4475,16 @@ export const useFlow = create<FlowState>()((set, get) => ({
             // ★ 记下这一发是哪家出的：取回按它分流。分错家会让方舟那条 404 分支
             //   对着一发还活着的真人档成片说「钱无法挽回」（见 VideoJob.provider 的 ★）
             // ★ 这里问的就是「哪家」，读 provider 是对的（别「顺手」改成 api：MiniMax 的 V2 任务会被记成方舟的）
+            // ★★ 家与接口版本一律按**这一发真正发出去的那一档**（genTier）算，不按这一段现在挂的档（node.videoTier）——
+            //   与下面的 videoTier: genTier、reviseAudioOf(genTier) 同一个口径（2026-10-26 P2b 审核）。两者只在定稿时不同：
+            //   定稿永远发给出样片的那一档（方舟），而这一段出完样片之后可能在档位那一排换到了同一颗芯片的 MiniMax H3（TierRow 只改 videoTier、不清样片）。
+            //   按 node.videoTier 记的话，发给方舟的那一发被记成 MiniMax V2：取回去问 /v2/video/:id 永远 404、登记表也不再按方舟补，
+            //   24 小时之后卡上还说「钱退不了」—— 而那条 1080p 成片在方舟上好好的。构建里 check-tier-semantics 的 [job-tier] 钉着：这个调用里不许出现 node.videoTier
             // tier-semantics-ok: 取回凭据按供应商分流
-            provider: providerOf(node.videoTier) === "minimax" ? "minimax" : "ark",
+            provider: providerOf(genTier) === "minimax" ? "minimax" : "ark",
             // ★ 同一家 MiniMax 有两版接口（真人档 V1 / H3 V2），取回走的查询不同：V2 的号去问 V1 的查询永远取不回（2026-10-26 P2b 审核）。
             //   这一位问的是「请求按哪一版拼」，读 api（apiCase：加一种协议时 tsc 逼着在这里表态）；缺省 = V1 或方舟（判否定，老凭据没有它）
-            ...apiCase(tierOf(node.videoTier).api, { ark: {}, "minimax-v1": {}, "minimax-v2": { api: "v2" as const } }),
+            ...apiCase(tierOf(genTier).api, { ark: {}, "minimax-v1": {}, "minimax-v2": { api: "v2" as const } }),
             nodeId: id,
             proposalId: node.chosenId,
             seg: idx + 1,
@@ -4621,9 +4626,9 @@ export const useFlow = create<FlowState>()((set, get) => ({
       //   用户面前唯一可点的就是「♻ 重新生成」= 重新下一单，而那一发的成片其实
       //   在方舟那边好好地存在着（2026-08-18 那 ¥27 就是这么丢的）。
       if (e instanceof ArkTaskUnknown) {
-        // 这一发是哪家出的（判据与上面落凭据那处同源）—— 话里说的是「上游 / 方舟那边」，问的就是供应商
+        // 这一发是哪家出的（判据与上面落凭据那处同源：按真正发出去的那一档 genTier，定稿发给的是出样片的那一档）—— 话里说的是「上游 / 方舟那边」，问的就是供应商
         // tier-semantics-ok: 这句话按供应商说「任务在哪家那边跑」
-        const atMinimax = providerOf(node.videoTier) === "minimax";
+        const atMinimax = providerOf(genTier) === "minimax";
         // 凭据**留着**（这一支绝不 dropVideoJob）：它是取回入口能不能出现的唯一依据。
         // 日志那一行也不许写"失败"——步骤日志是用户回看这一段怎么回事的地方。
         // ★ 截断窗口按英文放宽（2026-09-16，下面几处同）：英文比中文长一倍多，80 / 150 / 160 会把
