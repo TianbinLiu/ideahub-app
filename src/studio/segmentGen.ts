@@ -1284,8 +1284,9 @@ export function promptRoomOf(o: SegmentPlanInput & { shot?: ShotSpec; roles?: Se
 /**
  * 文字模板段这一发放不下 / 图位的图发不出去时的那一句（花钱之前整句拒，绝不截字、不退成普通文字）。
  * ★ 钱上的话不在这里说：genNode 的 catch 只走 ai/failCharge（随 SegmentGenFailed 带出去的画面张数由它说）。
+ * ★ 出片前的门禁（flowStore.textTplIssue）说的也是这一句（导出给它用）：门禁与出片那一拍措辞同一处。
  */
-function textTplTooLong(r: { cap: number; reserved: number; over: number }): Error {
+export function textTplTooLong(r: { cap: number; reserved: number; over: number }): Error {
   const { cap, reserved, over } = r;
   return new Error(
     t`这一段的正文放不下：这一档最多发 ${cap} 字，其中素材设定与点名句要占 ${reserved} 字，正文还要删 ${over} 字——文字模板段不会替你截掉后面的字，视频这一发没有发出去`,
@@ -1294,9 +1295,9 @@ function textTplTooLong(r: { cap: number; reserved: number; over: number }): Err
 
 /**
  * 文字模板段的图位没补齐时的那一句（花钱之前整句拒：缺图的图位不退成普通文字照样出片）。名字带 @，与正文里的写法一致，人一眼对得上。
- * ★ 钱上的话同样不在这里说（genNode 的 catch 只走 ai/failCharge；这一拍什么都还没花）。
+ * ★ 钱上的话同样不在这里说（genNode 的 catch 只走 ai/failCharge；这一拍什么都还没花）。出片前的门禁（flowStore.textTplIssue）说的也是这一句。
  */
-function textTplGapsError(gaps: readonly string[]): Error {
+export function textTplGapsError(gaps: readonly string[]): Error {
   const names = gaps.map((n) => `@${n}`).join(t({ message: "、", comment: "列举几个名字时的分隔符" }));
   const n = gaps.length;
   return new Error(
@@ -1765,7 +1766,7 @@ export async function generateSegment(
     }
     if (input.anns.length) throw new Error(t`真人档暂不支持圈选改画面（改图引擎会拒收真人脸）——清掉圈选标注再出片`);
     // 文字模板段的图位靠参考图发、正文可能比 400 长：这一档两样都接不住。这里是出片那一拍的最后一道（一分没花）——
-    // 「按模板的档位名单先拦」的那道门禁（textTplIssue，genNode 起手与档位行都问）在下一步（套用那一支）才落地，今天只有这一道。
+    // 「按模板的档位名单先拦」的那道门禁（flowStore.textTplIssue，genNode 起手问）挡在更前面：模板的档位名单里没有真人档。
     // 话对零图位的模板也得成立：别说成「图位的图要当参考图发」（零图位的模板没有图位）
     if (textTpl) throw new Error(t`真人档跑不了文字模板段（这一档只认一张起拍画面、不收参考图）——换成模板能跑的那一档再出片`);
     // 优先取声明过真人的卡（这一档存在的理由），再退任意有图的卡
@@ -1832,7 +1833,7 @@ export async function generateSegment(
   if (textTpl) {
     // ① 图位补齐了没有（refMentions.slotGaps，2026-10-26 审核抓到）：缺一个都不发。不拦的话 —— 一张都没挂时 hasSendableRefs 为假、
     //   有图位的段又一张帧都不画（drawPlan 规矩 ③），这一发就按 t2v 发出纯文字请求，正文里的 @名字 退成普通文字，视频钱照扣；
-    //   只补了 3/4 张时第 4 个图位同样静默落空。这里是出片那一拍的最后一道防线；套用之后的「待补格」与出片前的门禁（textTplIssue）在下一步。
+    //   只补了 3/4 张时第 4 个图位同样静默落空。这里是出片那一拍的最后一道防线；出片前的门禁（flowStore.textTplIssue，genNode 起手）问的是同一个 slotGaps。
     const gaps = slotGaps(textTpl.slotNames, extrasIn);
     if (gaps.length) throw new SegmentGenFailed(textTplGapsError(gaps), 0, "video", null);
     // ② 正文放不放得下，先按计划量一次：用的是 promptRoomOf（作者那一屏的逐档表、生成键旁「还要删 N 字」问的同一个函数）。

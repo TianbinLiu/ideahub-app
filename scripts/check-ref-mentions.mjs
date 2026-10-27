@@ -250,6 +250,10 @@ eq("slotGaps：大小写不分", M.slotGaps(["Cape"], [{ name: "cape" }]), []);
 eq("slotGaps：多挂一张不是图位的图不算", M.slotGaps(["披风"], [{ name: "披风" }, { name: "草图" }]), []);
 eq("slotGaps：零图位的模板没有缺口", M.slotGaps([], [{ name: "草图" }]), []);
 eq("slotGaps：名字只是前缀对上不算（「披风」≠「披风内衬」）", M.slotGaps(["披风"], [{ name: "披风内衬" }]), ["披风"]);
+// isSlotName：与 slotGaps 同一个认法（flowStore 的图位规矩问它：图位名不许改、删图位的图时 @名字 留着）
+eq("isSlotName：大小写不分", M.isSlotName(["Cape", "伞"], "cape"), true);
+eq("isSlotName：前缀不算", M.isSlotName(["披风"], "披风内衬"), false);
+eq("isSlotName：零图位", M.isSlotName([], "披风"), false);
 
 if (problems.length) {
   console.error(`\n❌ 参考点名检查没过（${problems.length} 条）：\n`);

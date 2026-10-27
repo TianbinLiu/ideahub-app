@@ -185,6 +185,7 @@ msgstr "，这一次已经计费"
 #. 列举几个名字时的分隔符
 #. 列举几个名字时的分隔符
 #. 列举几个名字时的分隔符
+#. 列举几个名字时的分隔符
 #. 列举几个图位名 / 还缺的几项时的分隔符
 #. 列举几个文件名 / 动作组 / 表情名时的分隔符
 #. 列举几个段号时的分隔符（第 1、3 段）
@@ -1684,6 +1685,14 @@ msgstr "{startNames}一段只用一张起拍画面。哪张没适配，点进那
 msgid "{steps} 步"
 msgstr "{steps} 步"
 
+#: src/components/TemplateShelf.tsx
+msgid "{textSec}s · 只用文字"
+msgstr "{textSec}s · 只用文字"
+
+#: src/components/TemplateShelf.tsx
+msgid "{textSec}s · 要补 {textSlots} 张图"
+msgstr "{textSec}s · 要补 {textSlots} 张图"
+
 #: src/ai/arkClient.ts
 msgid "{tierLabel}档 · {status} {sec}s"
 msgstr "{tierLabel}档 · {status} {sec}s"
@@ -2376,6 +2385,10 @@ msgstr "「{realLabel}」档（会员档：开通会员套餐或充值过任意�
 #: src/data/account.ts
 msgid "「{realLabel}」档（在「工作流」或「简约模式」里直出）"
 msgstr "「{realLabel}」档（在「工作流」或「简约模式」里直出）"
+
+#: src/studio/flowStore.ts
+msgid "「{slot}」是文字模板的图位，名字跟着模板走、不能改——想换图点「换图」"
+msgstr "「{slot}」是文字模板的图位，名字跟着模板走、不能改——想换图点「换图」"
 
 #: src/components/flow/DialogueWizard.tsx
 msgid "「{staleText}」过期了（人、整体交代或双人镜头改过）—— 回上一步重画一下。"
@@ -11009,6 +11022,10 @@ msgstr "图位（{0}/{MAX_CARD_VIEWS}）"
 msgid "图位（按方案「{0}」· {1} 格）"
 msgstr "图位（按方案「{0}」· {1} 格）"
 
+#: src/data/templates.ts
+msgid "图位「{shown}」的名字用不了（空的、与别的图位重名，或者是「图1 / 参考图2」这类编号写法）——回参考图那一步改个名字"
+msgstr "图位「{shown}」的名字用不了（空的、与别的图位重名，或者是「图1 / 参考图2」这类编号写法）——回参考图那一步改个名字"
+
 #: src/data/promptSchemes.ts
 msgid "图位「{tag}」要 AI 出图，但还没写提示词"
 msgstr "图位「{tag}」要 AI 出图，但还没写提示词"
@@ -15819,13 +15836,45 @@ msgstr "文件地址不对，这一份没能交出去。"
 msgid "文件格式：{0}"
 msgstr "文件格式：{0}"
 
+#: src/components/TemplateShelf.tsx
+msgid "文字"
+msgstr "文字"
+
 #: src/studio/ui/NpcDialog.tsx
 msgid "文字描述"
 msgstr "文字描述"
 
+#: src/data/templates.ts
+msgid "文字模板不带参考视频——这条模板的数据不对，没有存"
+msgstr "文字模板不带参考视频——这条模板的数据不对，没有存"
+
+#: src/data/templates.ts
+msgid "文字模板最多 {max} 个图位"
+msgstr "文字模板最多 {max} 个图位"
+
 #: src/studio/segmentGen.ts
 msgid "文字模板的图位还没补齐：{names} 还没有同名的参考图（缺 {n} 张），视频这一发没有发出去——在参考清单里给每个图位各加一张图、名字与图位一致，再点生成"
 msgstr "文字模板的图位还没补齐：{names} 还没有同名的参考图（缺 {n} 张），视频这一发没有发出去——在参考清单里给每个图位各加一张图、名字与图位一致，再点生成"
+
+#: src/data/templates.ts
+msgid "文字模板的时长不对，回规格那一步重选"
+msgstr "文字模板的时长不对，回规格那一步重选"
+
+#: src/data/templates.ts
+msgid "文字模板的正文是空的，没法存"
+msgstr "文字模板的正文是空的，没法存"
+
+#: src/data/templates.ts
+msgid "文字模板至少要有一档能出片——回规格那一步选一档"
+msgstr "文字模板至少要有一档能出片——回规格那一步选一档"
+
+#: src/data/templates.ts
+msgid "文字模板这一版只存在这台设备上，还不能登记到服务器（上市场要等下一版）"
+msgstr "文字模板这一版只存在这台设备上，还不能登记到服务器（上市场要等下一版）"
+
+#: src/data/templates.ts
+msgid "文字模板这一版只存在这台设备上、还不能上市场（要等下一版）"
+msgstr "文字模板这一版只存在这台设备上、还不能上市场（要等下一版）"
 
 #: src/components/CardModelFit.tsx
 #~ msgid "文字版形象描述（{noRefNames}、真人档用）"
@@ -16402,6 +16451,10 @@ msgstr "有一段正在生成中，等它跑完再换走向（换走向会挪动
 #: src/studio/flowStore.ts
 msgid "有一段正在生成中，等它跑完再接"
 msgstr "有一段正在生成中，等它跑完再接"
+
+#: src/studio/flowStore.ts
+msgid "有一段正在生成中，等它跑完再摘模板出处"
+msgstr "有一段正在生成中，等它跑完再摘模板出处"
 
 #: src/studio/flowStore.ts
 msgid "有一段正在生成中，等它跑完再改「去水印」"
@@ -18106,6 +18159,14 @@ msgstr "正在重试…"
 msgid "正在问总大小…"
 msgstr "正在问总大小…"
 
+#: src/studio/flowStore.ts
+msgid "正文有 {len} 字，摘掉模板出处之后这一档最多 {max} 字（多出来的会在出片时被截掉）——先把正文删到 {max} 字以内再摘"
+msgstr "正文有 {len} 字，摘掉模板出处之后这一档最多 {max} 字（多出来的会在出片时被截掉）——先把正文删到 {max} 字以内再摘"
+
+#: src/studio/flowStore.ts
+msgid "正文的时间轴写到第 {m} 秒，这一段只有 {dur} 秒——后面那几秒模型拍不到、钱照整段收。去 ⚙ 本段设置把时长调到 {m} 秒以上，或者把时间轴改短"
+msgstr "正文的时间轴写到第 {m} 秒，这一段只有 {dur} 秒——后面那几秒模型拍不到、钱照整段收。去 ⚙ 本段设置把时长调到 {m} 秒以上，或者把时间轴改短"
+
 #: src/components/StepDots.tsx
 msgid "步骤"
 msgstr "步骤"
@@ -18565,6 +18626,10 @@ msgstr "没有片段 {ref}（时间轴上一共 {count} 个）"
 #: src/components/TemplateShelf.tsx
 msgid "没有能用{nm}出片的模板——点写着「{name}」的那颗筛选键换一个模型，或者选回「全部模型」。"
 msgstr "没有能用{nm}出片的模板——点写着「{name}」的那颗筛选键换一个模型，或者选回「全部模型」。"
+
+#: src/components/TemplateShelf.tsx
+msgid "没有能用{nm}出片的模板——现有的 {hidden} 个要的出片模型里都没有它。点写着「{name}」的那颗筛选键换一个模型，或者选回「全部模型」。"
+msgstr "没有能用{nm}出片的模板——现有的 {hidden} 个要的出片模型里都没有它。点写着「{name}」的那颗筛选键换一个模型，或者选回「全部模型」。"
 
 #: src/components/TemplateShelf.tsx
 msgid "没有能用{nm}出片的模板。现有的 {hidden} 个都要按参考视频逐镜头复刻，你现在能用的出片模型都做不到——选回「全部模型」看看。"
@@ -25734,6 +25799,18 @@ msgid "这一段在确认之前被改过了（时长/画面/选中的走向变�
 msgstr "这一段在确认之前被改过了（时长/画面/选中的走向变了）：现在要 {nowLabel}，卡上写的是 {cardLabel}——重说一句，我按新价再摆一张卡"
 
 #: src/studio/flowStore.ts
+msgid "这一段套用的文字模板「{title}」只在「{names}」档上跑得通（正文的长短、图位、时间轴都是按那几档写的）——去 ⚙ 本段设置换回其中一档"
+msgstr "这一段套用的文字模板「{title}」只在「{names}」档上跑得通（正文的长短、图位、时间轴都是按那几档写的）——去 ⚙ 本段设置换回其中一档"
+
+#: src/studio/flowStore.ts
+msgid "这一段套用的文字模板「{title}」没有认得出的出片档了——先「摘掉模板出处」，再按普通段出片"
+msgstr "这一段套用的文字模板「{title}」没有认得出的出片档了——先「摘掉模板出处」，再按普通段出片"
+
+#: src/studio/flowStore.ts
+msgid "这一段套用的是文字模板「{title}」，做法跟着模板走——想换做法，先「摘掉模板出处」（正文和图都留着，变成普通的参考图直出段）"
+msgstr "这一段套用的是文字模板「{title}」，做法跟着模板走——想换做法，先「摘掉模板出处」（正文和图都留着，变成普通的参考图直出段）"
+
+#: src/studio/flowStore.ts
 msgid "这一段套着模板——先「摘掉模板」（改为自选）再改成参考图直出"
 msgstr "这一段套着模板——先「摘掉模板」（改为自选）再改成参考图直出"
 
@@ -25832,6 +25909,10 @@ msgstr "这一段拍什么？缺的帧按这句补画"
 #: src/studio/ui/projection.tsx
 msgid "这一段拍什么（重新推演就按这句话）"
 msgstr "这一段拍什么（重新推演就按这句话）"
+
+#: src/studio/flowStore.ts
+msgid "这一段挂着 {extras} 张参考图，普通段最多 {cap} 张（多出来的出片时带不出去）——先删到 {cap} 张再摘"
+msgstr "这一段挂着 {extras} 张参考图，普通段最多 {cap} 张（多出来的出片时带不出去）——先删到 {cap} 张再摘"
 
 #: src/components/recipe/RecipeView.tsx
 msgid "这一段按模板视频复刻，换成谁由挂上去的卡决定（原作的挂法不随配方带走）。"
@@ -26302,6 +26383,18 @@ msgstr "这个文件读不了。"
 msgid "这个文件读不出来（{why}）。多半是它还在网盘/云端没下到本机，或者已经被移动、删除了 —— 先把它存进手机里再选一次。"
 msgstr "这个文件读不出来（{why}）。多半是它还在网盘/云端没下到本机，或者已经被移动、删除了 —— 先把它存进手机里再选一次。"
 
+#: src/data/templates.ts
+msgid "这个文字模板在服务器上也有一份，这一版 App 还删不了它——更新到新版再删"
+msgstr "这个文字模板在服务器上也有一份，这一版 App 还删不了它——更新到新版再删"
+
+#: src/studio/flowStore.ts
+msgid "这个文字模板有 {n} 个图位（{list}），一张图都还没补：在参考清单里按图位的名字各加一张图再生成；不想用这些图位，就先「摘掉模板出处」"
+msgstr "这个文字模板有 {n} 个图位（{list}），一张图都还没补：在参考清单里按图位的名字各加一张图再生成；不想用这些图位，就先「摘掉模板出处」"
+
+#: src/studio/flowStore.ts
+msgid "这个文字模板的数据不完整（正文、图位或能跑的档缺了），用不了——回「我的模板」删掉它重做一个"
+msgstr "这个文字模板的数据不完整（正文、图位或能跑的档缺了），用不了——回「我的模板」删掉它重做一个"
+
 #. placeholder {0}: rest.length
 #. placeholder {1}: rest.join(" / ")
 #: src/pages/SupportModelNewPage.tsx
@@ -26387,6 +26480,10 @@ msgstr "这个模板认出了 {0} 个人物，超过了一次能挂卡的 {BLOCK
 #: src/data/templates.ts
 msgid "这个模板还没登记到服务器，先登记再识别角色位"
 msgstr "这个模板还没登记到服务器，先登记再识别角色位"
+
+#: src/studio/flowStore.ts
+msgid "这个模板里没有可铺的分镜（数据可能不完整），用不了——换一个模板"
+msgstr "这个模板里没有可铺的分镜（数据可能不完整），用不了——换一个模板"
 
 #: src/studio/cutIssues.ts
 msgid "这个片段已经不在时间轴上了，重新点一个再操作。"

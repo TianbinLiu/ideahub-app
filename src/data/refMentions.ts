@@ -61,13 +61,21 @@ export function extraRefMaxOf(o: { textTpl: boolean }): number {
  * 认法与 compileMentions 认 `@名字` 同一个：按名字、大小写不分（图位名与临时参考图的名字都过了 cleanRefName）。
  * ★ 为什么缺一个就要拦：图位的图没挂上，正文里的 `@名字` 编译时退成普通文字（只在 noteLoose 那里说一句「没对上」），
  *   这一发照样按纯文字（或少一张图）发出去、视频钱照扣 —— 拍出来的是一段与模板说好的不一样的片。
- * 读它的：出片那一拍的最后一道闸（segmentGen.generateSegment，花钱之前）；套用之后的「待补格」与出片前的门禁在下一步也该读它。
+ * 读它的：出片那一拍的最后一道闸（segmentGen.generateSegment，花钱之前）、出片前的门禁（flowStore.textTplIssue）；套用之后的「待补格」也该读它。
  * @param slots 模板的图位名（TextTplOrigin.slots 的 name）
  * @param extras 这一段真带得出去的临时参考图（segmentExtras：已过 usableExtraRefs、已按上限截过 —— 空地址的当没有）
  */
 export function slotGaps(slots: readonly string[], extras: readonly { name: string }[]): string[] {
-  const have = new Set(extras.map((x) => x.name.toLowerCase()));
-  return slots.filter((n) => !have.has(n.toLowerCase()));
+  return slots.filter((n) => !isSlotName(extras.map((x) => x.name), n));
+}
+
+/**
+ * 这个名字是不是这几个图位里的一个 —— 认法与 slotGaps 同一个（按名字、大小写不分）。
+ * flowStore 的图位规矩（图位名不许改、删图位的图时句子里的 @名字 留着）问它，别在调用点各写一遍 `toLowerCase()`。
+ */
+export function isSlotName(slots: readonly string[], name: string): boolean {
+  const low = name.toLowerCase();
+  return slots.some((n) => n.toLowerCase() === low);
 }
 
 /** 任何一种段最多挂几张（usableExtraRefs 只按它截：它答的是「这些图还在不在」，这一段带几张另问 extraRefMaxOf） */
