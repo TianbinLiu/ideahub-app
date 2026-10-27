@@ -1243,7 +1243,9 @@ export interface PromptRoom {
  * 「还要删 N 字」、出片前那道闸（文字模板段放不下在花钱之前整句拒）都问它；出片那一拍 generateSegment 用的是同一个拼法（mainPrompt），
  * 只是喂的是真准备成的图。
  * ★ 按**编译之后**的长度算（`@名字` 会编成「名字（图片N）」，每处多出四五个字）：作者看到的字数与模型收到的不是一个数，这里说的是后者。
- * ★ 按计划算（卡片图按分配计划，planMaterialRefs）：真取图那一拍个别图读不出来时绑定句会变短 —— 这里偏保守，宁可说放不下。
+ * ⚠ 按计划算（卡片图按分配计划，planMaterialRefs），**不是**上界：真取图那一拍某张卡的图读不出来时，那张卡从「发了图的卡」里掉出去 ——
+ *   绑定句短了，materialText 却改给它拼文字版形象描述（最多 TEXT_DESC_MAX 字），真拼出来可能比这里算的长（2026-10-26 审核纠正：原来这里写「偏保守」）。
+ *   所以出片那一拍在卡图真准备好之后、任何补画之前再按真的那批量一次（generateSegment 的 promptWith），文字模板段放不下仍在花钱之前整句拒。
  * 回 null = 这一段不走主路（带示例视频 / 延长 / 真人档那几条路各有拼法，文字模板段不会落在那里）。
  * ★ 输入与 genNode 交给 generateSegment 的那一份逐项同源（界面那一侧只经 flowStore.nodePromptRoom 拼，别在组件里自己凑）。
  */
@@ -2060,6 +2062,41 @@ export async function generateSegment(
         // 文字模板段：有图位一张帧都不画、零图位只补开头一张（drawPlan.textTplDraw；refSlotsOf 与报价展开的同一个）
         ...textTplDraw(textTpl ? textTpl.slotNames.length : null),
       });
+  // ── 拼提示词的共用那半（唯一拼法在 mainPrompt）：下面「补画之前先量一次」与真拼那一次喂的是同一份，只差帧与临时参考图这一发真发出去了几张 ──
+  /** 白模有两条**互斥**的路，判据是这个模板有没有角色位（**存在性**，见 SegmentGenInput.roles 的 ★★）：有 = V2，正文里已经是点名映射 */
+  const named = blockout && !!input.roles?.length;
+  /** 这一发的提示词上限（promptCapOf：2.x 两档 500、其余 400；文字模板段在收长提示词的档上 1000；白模复刻段与返修仍按 400） */
+  const cap = promptCapOf({ videoTier: input.videoTier, edit: blockout, textTpl });
+  const promptWith = (sent: { frameRefs: number; hasFirst: boolean; hasLast: boolean; extrasSent: boolean }) =>
+    mainPrompt({
+      plot: input.plot,
+      shot: input.shot,
+      anns: input.anns,
+      materials: input.materials,
+      blockout,
+      named,
+      revise: !!input.revise,
+      refMode,
+      ...sent,
+      // 承接成立时 first 已被上一段真实尾帧顶替（见上面那行 ②）
+      carried: !!input.carryFrame,
+      extras: extrasIn,
+      // 没有承接帧 / 底图时素材卡的图就是 <图片1> 起；offset 由 mainPrompt 按帧与临时参考图现数
+      cards: refs ? { bindCompact: refs.bindCompact, cards: refs.cards, count: refs.refs.length } : null,
+      cap,
+    });
+  // ★ 文字模板段：卡图真准备好了（refs 是真读出来的那批），**补画之前**按它再量一次（2026-10-26 审核抓到）——
+  //   开头那道按计划量的闸（promptRoomOf）不是「偏保守」：某张卡的图真读不出来时，那张卡从「发了图的卡」里掉出去，
+  //   materialText 改给它拼文字版形象描述（最多 TEXT_DESC_MAX 字），绑定句短了、素材设定却可能更长。原来第二次量排在补画、上传帧之后，
+  //   零图位的段挂了卡、其中一张图坏掉时，开头那张帧先按张收了钱才整句拒。现在这一次排在任何补画之前（这时还一分没花在补画上）。
+  //   帧按「手上有的 + 马上要补画的」算（framesAsRefs 时它们会当参考图发），临时参考图按「这一发是参考类请求就发」算 —— 与下面真拼时的成功路径同一个样子。
+  if (textTpl) {
+    const willFirst = !!first || draw.first;
+    const willLast = !!last || draw.last;
+    const willFrameRefs = framesAsRefs ? Number(willFirst) + Number(willLast) : 0;
+    const pre = promptWith({ frameRefs: willFrameRefs, hasFirst: willFirst, hasLast: willLast, extrasSent: extrasIn.length > 0 && (refMode || willFrameRefs > 0) });
+    if (pre.over > 0) throw new SegmentGenFailed(textTplTooLong(pre), imagesSettled, "video", keptOrNull());
+  }
   // ★ 一张帧只画一个瞬间（shotScript.frameMoment）：分了镜的段，开头画面取第一个镜头、结束画面取最后一个，引号里的台词摘掉。
   //   外壳走 generateFrame 不走封面那层（2026-10-03 第二次付费验证：结束画面被画成三格分镜图、格子里写着台词）
   // ★ 这一刻里有谁就只带谁的卡（momentCards，2026-10-04）：结束画面「特写，夜川…」只带夜川，
@@ -2184,38 +2221,17 @@ export async function generateSegment(
           })(),
     );
   }
-  // ── 拼提示词：唯一拼法在 mainPrompt（出片之前的预算 promptRoomOf 用的是同一个，喂的是计划；这里喂真准备成的图与真画好的帧）──
+  // ── 拼提示词：唯一拼法在 mainPrompt（出片之前的预算 promptRoomOf 用的是同一个，喂的是计划；这里喂真准备成的图与真画好、真传上去的帧）──
   //   各截的取舍（参考生视频的紧凑式点名句前置、白模 V1 / V2 两条互斥的路、截的是正文、为什么不拼素材设定…）都写在 mainPrompt 里。
-  /** 白模有两条**互斥**的路，判据是这个模板有没有角色位（**存在性**，见 SegmentGenInput.roles 的 ★★）：有 = V2，正文里已经是点名映射 */
-  const named = blockout && !!input.roles?.length;
-  /** 这一发的提示词上限（promptCapOf：2.x 两档 500、其余 400；文字模板段在收长提示词的档上 1000；白模复刻段与返修仍按 400） */
-  const cap = promptCapOf({ videoTier: input.videoTier, edit: blockout, textTpl });
-  const mp = mainPrompt({
-    plot: input.plot,
-    shot: input.shot,
-    anns: input.anns,
-    materials: input.materials,
-    blockout,
-    named,
-    revise: !!input.revise,
-    refMode,
-    frameRefs: sendFrameRefs ? frameRefs.length : 0,
-    hasFirst: !!first,
-    hasLast: !!last,
-    // 承接成立时 first 已被上一段真实尾帧顶替（见上面那行 ②）
-    carried: !!input.carryFrame,
-    extras: extrasIn,
-    extrasSent: extraUrls.length > 0,
-    // 没有承接帧 / 底图时素材卡的图就是 <图片1> 起；offset 由 mainPrompt 按帧与临时参考图现数
-    cards: refs ? { bindCompact: refs.bindCompact, cards: refs.cards, count: refs.refs.length } : null,
-    cap,
-  });
+  const mp = promptWith({ frameRefs: sendFrameRefs ? frameRefs.length : 0, hasFirst: !!first, hasLast: !!last, extrasSent: extraUrls.length > 0 });
   noteLoose(mp.said.loose);
   // 卡片形象图接在帧后面（编号顺延），绑定句按这个 offset 说话 —— 差一位就是"张三的脸给了李四"
   // ★ **不截**：图位预算在 prepareMaterialRefs 那一步就按 frameSlots 扣过了（见那段 ★★），
   //   这里再截会让绑定句（按 refs 全量编号）点到没发出去的编号上
   const cardRefs = mp.cardRefsSent && refUrls ? refUrls : [];
-  // ★ 文字模板段：真拼出来还是放不下（上面那道按计划量的闸偏保守，走到这里多半是卡图换成了更长的文字描述）—— 视频之前整句拒，绝不截
+  // ★ 文字模板段：真拼出来还是放不下 —— 视频之前整句拒，绝不截。补画之前那一次已经按真读出来的卡图量过，走到这里只剩一种：
+  //   帧没能转成参考图、退回了首尾帧（卡片形象图这一发发不出去，有文字版形象描述的卡改拼文字，可能更长）。那时开头帧已经画了、按张收过钱 ——
+  //   随错误留在方案上（keptOrNull），重试不再重画；钱上的话照旧交给 ai/failCharge。
   if (textTpl && mp.over > 0) throw new SegmentGenFailed(textTplTooLong(mp), imagesSettled, "video", keptOrNull());
   const plot = mp.plot;
   // ★ 但"截了要说"（铁律八）。V2 白模路把这条从"理论风险"变成了"每天都可能发生"：

@@ -21,7 +21,8 @@
 //   ⑳ 否定词管整个小句（「不得不」「为避免…而」）；㉑ 时间码左边界不认】）；㉒ 紧跟时间码的【X】直接并进去；㉓ 段标题带冒号改在同一行；
 //   ㉔ 时间轴不按段筛（段外的假时间码参与改写）；㉕ 改【】在引号前放冒号；㉖ 体检不把标题 / 图位提示算进内容规则。
 //   出片那一拍的闸（(k)，--segmentGen= 指向改坏的副本，各自试红过）：㉗ 缺图位的闸挪到圈选改帧之后；㉘ 传不上去那道闸改回只判 textTpl；
-//   ㉙「这一发带不上图位的图」那一支改回只判 textTpl；㉚ tplSlotsOn 不看图位个数。
+//   ㉙「这一发带不上图位的图」那一支改回只判 textTpl；㉚ tplSlotsOn 不看图位个数；
+//   ㉛ 按真卡图量正文的那一次挪到补画之后；㉜ 真拼那一次另抄一份 mainPrompt 的参数（不经 promptWith）。
 //
 // 用法：node scripts/check-text-template.mjs [--module=<另一份 textTemplate.ts>] [--refs=<另一份 refMentions.ts>] [--segmentGen=<另一份 segmentGen.ts>]（造违规试红用）
 import fs from "node:fs";
@@ -588,6 +589,15 @@ eq("几样一起看（正文 + 标题 + 图位提示）", T.textTplPolicyFlags("
   ok("generateSegment：tplSlotsOn 的定义变了（要按图位个数判：textTpl.slotNames.length > 0）", /const tplSlotsOn = !!textTpl && textTpl\.slotNames\.length > 0;/.test(gen));
   ok("generateSegment：传不上去那道闸又只判 textTpl 了", /if \(tplSlotsOn \|\| \(refMode && !refUrls\)\)/.test(gen) && !/if \(textTpl \|\| \(refMode && !refUrls\)\)/.test(gen));
   ok("generateSegment：「这一发带不上图位的图」那一支又只判 textTpl 了", /\} else if \(extrasIn\.length && tplSlotsOn\)/.test(gen) && !/\} else if \(extrasIn\.length && textTpl\)/.test(gen));
+  // 按真读出来的卡图再量一次正文放不放得下：排在卡图准备好之后、任何补画之前（原来排在补画、上传帧之后 —— 零图位的段先收了开头帧的钱才拒）。
+  // 量的与真拼的是同一个拼法：generateSegment 里 mainPrompt 只出现一次（在 promptWith 里），两次都经它
+  const prepared = at("const refs = slots.prepare ? await prepareMaterialRefs(");
+  const preCheck = at("if (pre.over > 0)");
+  const firstDraw = at("if (draw.first) {");
+  ok("generateSegment：找不到准备卡图 / 补画开头帧那两行（改了写法就同步改这里）", prepared >= 0 && firstDraw >= 0);
+  ok("generateSegment：按真卡图量正文的那一次（if (pre.over > 0)）没找到", preCheck >= 0);
+  ok("generateSegment：按真卡图量正文的那一次要排在卡图准备好之后、补画开头帧之前", preCheck > prepared && preCheck < firstDraw);
+  ok("generateSegment：mainPrompt 要只在 promptWith 里出现一次（量的与真拼的同一个拼法）", (gen.match(/\bmainPrompt\(\{/g) ?? []).length === 1 && /const promptWith = \([^)]*\) =>\s*mainPrompt\(\{/.test(gen));
 }
 
 if (problems.length) {

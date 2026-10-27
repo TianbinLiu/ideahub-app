@@ -1323,7 +1323,9 @@ function compactBind(good: readonly { card: Card; view: CardView }[], offset: nu
  * 卡片形象图的**分配计划**连同那一句紧凑式绑定句（不取图、不联网）—— segmentGen.promptRoomOf 按它在出片之前算「正文还剩多少字」。
  * ★ 与 prepareMaterialRefs 同一个分配（allocateRefs）、同一个构造器（compactBind）；`direct` 的取值与那边同名参数逐一对应
  *   （只用于直通路：true = 白模严格闸 + 2.5 上限；对象 = 直通路 + 档位上限）。
- * ⚠ 这是计划：真取图那一拍个别图读不出来会被跳过（编号前移、绑定句变短）—— 预算按计划算偏保守（宁可说放不下，不让出片那一拍截字）。
+ * ⚠ 这是计划，**不是**上界：真取图那一拍个别图读不出来会被跳过（编号前移、绑定句变短），可那张卡随即改拼文字版形象描述
+ *   （segmentGen.materialText，最多 TEXT_DESC_MAX 字）—— 真拼出来可能比按计划算的长。所以 segmentGen 在卡图真准备好之后、
+ *   任何补画之前再按真的那批量一次（2026-10-26 审核纠正：原来这里写「预算按计划算偏保守」）。
  */
 export function planMaterialRefs(
   materials: Card[] | undefined,
