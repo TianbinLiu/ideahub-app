@@ -184,6 +184,7 @@ msgstr ", and this run has already been charged"
 #. 列举几个名字时的分隔符
 #. 列举几个名字时的分隔符
 #. 列举几个名字时的分隔符
+#. 列举几个名字时的分隔符
 #. 列举几个图位名 / 还缺的几项时的分隔符
 #. 列举几个文件名 / 动作组 / 表情名时的分隔符
 #. 列举几个段号时的分隔符（第 1、3 段）
@@ -4834,12 +4835,20 @@ msgid "一段一段来"
 msgstr "One segment at a time"
 
 #: src/components/flow/RefStrip.tsx
-msgid "一段最多 {EXTRA_REF_MAX} 张临时参考图"
-msgstr "Up to {EXTRA_REF_MAX} extra reference images per segment"
+#~ msgid "一段最多 {EXTRA_REF_MAX} 张临时参考图"
+#~ msgstr "Up to {EXTRA_REF_MAX} extra reference images per segment"
 
 #: src/studio/flowStore.ts
-msgid "一段最多 {EXTRA_REF_MAX} 张临时参考图（它们与帧、卡片形象图共用同一份参考图额度）——先删一张再加"
-msgstr "Up to {EXTRA_REF_MAX} extra reference images per segment (they share the reference-image budget with frames and card images) — remove one before adding another"
+#~ msgid "一段最多 {EXTRA_REF_MAX} 张临时参考图（它们与帧、卡片形象图共用同一份参考图额度）——先删一张再加"
+#~ msgstr "Up to {EXTRA_REF_MAX} extra reference images per segment (they share the reference-image budget with frames and card images) — remove one before adding another"
+
+#: src/components/flow/RefStrip.tsx
+msgid "一段最多 {extraMax} 张临时参考图"
+msgstr "Up to {extraMax} extra reference images per segment"
+
+#: src/studio/flowStore.ts
+msgid "一段最多 {max} 张临时参考图（它们与帧、卡片形象图共用同一份参考图额度）——先删一张再加"
+msgstr "Up to {max} extra reference images per segment (they share the reference-image budget with frames and card images) — remove one before adding another"
 
 #: src/components/flow/ShotListEditor.tsx
 msgid "一段最多 {SHOT_MAX} 个镜头（再多每个镜头只剩一两秒，模型顾不过来）"
@@ -15802,6 +15811,10 @@ msgstr "File format: {0}"
 msgid "文字描述"
 msgstr "Text description"
 
+#: src/studio/segmentGen.ts
+msgid "文字模板的图位还没补齐：{names} 还没有同名的参考图（缺 {n} 张），视频这一发没有发出去——在参考清单里给每个图位各加一张图、名字与图位一致，再点生成"
+msgstr "The text template's image slots aren't all filled: {names} has no reference image with the same name ({n} missing), so the video request wasn't sent. In the reference list, add one image per slot, named to match the slot, then generate again"
+
 #: src/components/CardModelFit.tsx
 #~ msgid "文字版形象描述（{noRefNames}、真人档用）"
 #~ msgstr "Text likeness description (used by {noRefNames} and the real-person tier)"
@@ -21127,8 +21140,8 @@ msgid "真人档本来就是直出，不需要再切自定义"
 msgstr "The real-person tier already renders directly; no need to switch to Custom"
 
 #: src/studio/segmentGen.ts
-msgid "真人档跑不了文字模板段（图位的图要当参考图发，这一档只认一张起拍画面）——换成模板能跑的那一档再出片"
-msgstr "The Real Person tier can't run a text template segment (the slot images must be sent as reference images, and this tier only takes one starting frame). Switch to a tier the template supports and generate again"
+msgid "真人档跑不了文字模板段（这一档只认一张起拍画面、不收参考图）——换成模板能跑的那一档再出片"
+msgstr "The Real Person tier can't run a text template segment (it only takes one starting frame and no reference images). Switch to a tier the template supports and generate again"
 
 #: src/components/CardModelFit.tsx
 #~ msgid "真人档适用"

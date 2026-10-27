@@ -47,12 +47,27 @@ export const TEXT_TPL_EXTRA_MAX = 4;
 
 /**
  * 这一段**最多能带几张**临时参考图 —— 唯一判定（文字模板段 TEXT_TPL_EXTRA_MAX，其余 EXTRA_REF_MAX）。
- * 读它的：加图那一道闸（flowStore 加临时参考图）、出片与参考清单真发几张（segmentGen.segmentExtras）。
+ * 读它的：加图那一道闸（flowStore.addExtraRef）、出片与参考清单真发几张（segmentGen.segmentExtras）、
+ * 参考清单那颗「＋ 参考图」灰不灰（segmentGen.refPlanOf 的 extraMax → RefStrip）。
  * ★ 别在调用点写 `textTpl ? 4 : 3`：两处各写一份，加图时放进去的第 4 张出片时被悄悄截掉（或反过来），零报错。
  * @param o.textTpl 这一段是文字模板段（FlowNode.textTpl 在不在 / SegmentGenInput.textTpl 非空）
  */
 export function extraRefMaxOf(o: { textTpl: boolean }): number {
   return o.textTpl ? TEXT_TPL_EXTRA_MAX : EXTRA_REF_MAX;
+}
+
+/**
+ * 文字模板段的**图位缺口**：模板的图位里，这一段（这一发）找不到同名临时参考图的那几个 —— 唯一判定（2026-10-26 审核抓到）。
+ * 认法与 compileMentions 认 `@名字` 同一个：按名字、大小写不分（图位名与临时参考图的名字都过了 cleanRefName）。
+ * ★ 为什么缺一个就要拦：图位的图没挂上，正文里的 `@名字` 编译时退成普通文字（只在 noteLoose 那里说一句「没对上」），
+ *   这一发照样按纯文字（或少一张图）发出去、视频钱照扣 —— 拍出来的是一段与模板说好的不一样的片。
+ * 读它的：出片那一拍的最后一道闸（segmentGen.generateSegment，花钱之前）；套用之后的「待补格」与出片前的门禁在下一步也该读它。
+ * @param slots 模板的图位名（TextTplOrigin.slots 的 name）
+ * @param extras 这一段真带得出去的临时参考图（segmentExtras：已过 usableExtraRefs、已按上限截过 —— 空地址的当没有）
+ */
+export function slotGaps(slots: readonly string[], extras: readonly { name: string }[]): string[] {
+  const have = new Set(extras.map((x) => x.name.toLowerCase()));
+  return slots.filter((n) => !have.has(n.toLowerCase()));
 }
 
 /** 任何一种段最多挂几张（usableExtraRefs 只按它截：它答的是「这些图还在不在」，这一段带几张另问 extraRefMaxOf） */

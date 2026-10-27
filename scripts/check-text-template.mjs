@@ -20,8 +20,10 @@
 //   ⑰ 改写不核「认不认得回原来的名字」（披风 / 披风内衬）；⑱ 保留名不看「接上数字就成图位」（效果图）；⑲ 词表 B 去掉年龄；
 //   ⑳ 否定词管整个小句（「不得不」「为避免…而」）；㉑ 时间码左边界不认】）；㉒ 紧跟时间码的【X】直接并进去；㉓ 段标题带冒号改在同一行；
 //   ㉔ 时间轴不按段筛（段外的假时间码参与改写）；㉕ 改【】在引号前放冒号；㉖ 体检不把标题 / 图位提示算进内容规则。
+//   出片那一拍的闸（(k)，--segmentGen= 指向改坏的副本，各自试红过）：㉗ 缺图位的闸挪到圈选改帧之后；㉘ 传不上去那道闸改回只判 textTpl；
+//   ㉙「这一发带不上图位的图」那一支改回只判 textTpl；㉚ tplSlotsOn 不看图位个数。
 //
-// 用法：node scripts/check-text-template.mjs [--module=<另一份 textTemplate.ts>] [--refs=<另一份 refMentions.ts>]（造违规试红用）
+// 用法：node scripts/check-text-template.mjs [--module=<另一份 textTemplate.ts>] [--refs=<另一份 refMentions.ts>] [--segmentGen=<另一份 segmentGen.ts>]（造违规试红用）
 import fs from "node:fs";
 import path from "node:path";
 import url from "node:url";
@@ -566,6 +568,26 @@ eq("几样一起看（正文 + 标题 + 图位提示）", T.textTplPolicyFlags("
   eq("指纹稳定", T.textTplSig(canon(OWNER)), sig);
   ok("改一个字指纹就变", T.textTplSig(canon(OWNER.replace("少女", "女子"))) !== sig);
   ok("指纹的形状（长度-8位十六进制）", /^[0-9a-z]+-[0-9a-f]{8}$/.test(sig));
+}
+
+// ── (k) 出片那一拍的文字模板闸（从 segmentGen 源文件抠：那个文件不是零依赖的，跑不起来，只能核位置）──
+// 判错全是零报错的：缺图位的闸排在补画 / 圈选改帧之后 = 先花图钱再拒；「图位的图发不出去就不出片」只判 textTpl 不判有没有图位
+// = 零图位的段被说成「图位的图没能传上去」（2026-10-26 审核抓到）。
+{
+  const SG = fs.readFileSync(arg("segmentGen") ? path.resolve(arg("segmentGen")) : path.join(root, "src/studio/segmentGen.ts"), "utf8");
+  const from = SG.indexOf("export async function generateSegment(");
+  ok("segmentGen.ts：找不到 generateSegment（改名了就同步改这里的抠法）", from >= 0);
+  const gen = from >= 0 ? SG.slice(from) : "";
+  const at = (needle) => gen.indexOf(needle);
+  const gap = at("slotGaps(textTpl.slotNames, extrasIn)");
+  const spend = [at("redrawnAnns(input.anns"), at("imageStep(")].filter((i) => i >= 0);
+  ok("generateSegment：缺图位的闸（slotGaps(textTpl.slotNames, extrasIn)）没找到", gap >= 0);
+  ok("generateSegment：找不到花钱的那几步（redrawnAnns(input.anns / imageStep(）——改了写法就同步改这里", spend.length === 2);
+  ok("generateSegment：缺图位的闸要排在圈选改帧、补画之前（先花图钱再拒）", gap >= 0 && spend.every((i) => gap < i));
+  // 「图位的图传不上去 / 这一发带不上」那两道 throw 只认有图位的段（tplSlotsOn），不认 textTpl 本身
+  ok("generateSegment：tplSlotsOn 的定义变了（要按图位个数判：textTpl.slotNames.length > 0）", /const tplSlotsOn = !!textTpl && textTpl\.slotNames\.length > 0;/.test(gen));
+  ok("generateSegment：传不上去那道闸又只判 textTpl 了", /if \(tplSlotsOn \|\| \(refMode && !refUrls\)\)/.test(gen) && !/if \(textTpl \|\| \(refMode && !refUrls\)\)/.test(gen));
+  ok("generateSegment：「这一发带不上图位的图」那一支又只判 textTpl 了", /\} else if \(extrasIn\.length && tplSlotsOn\)/.test(gen) && !/\} else if \(extrasIn\.length && textTpl\)/.test(gen));
 }
 
 if (problems.length) {

@@ -21,7 +21,6 @@ import { useLang } from "../../i18n/useLang";
 import { VIDEO_REF_WINDOW, fileToRefImage } from "../../utils/image";
 import type { RefPlan, RefPlanItem } from "../../studio/segmentGen";
 import {
-  EXTRA_REF_MAX,
   EXTRA_REF_NAME_MAX,
   EXTRA_REF_ROLES,
   FRAME_ALIASES,
@@ -160,7 +159,9 @@ export default function RefStrip({
     if (nameDraft === selected.name) return;
     if (!onUpdate(selected.id, { name: nameDraft })) setNameDraft(selected.name);
   };
-  const full = extras.length >= EXTRA_REF_MAX;
+  // 这一段最多几张由计划带来（segmentGen.refPlanOf → refMentions.extraRefMaxOf：文字模板段 4、其余 3），与加图那道闸、出片截的同一个数
+  const extraMax = plan.extraMax;
+  const full = extras.length >= extraMax;
   /** 没发出去的临时参考图（这一档不收 / 模板段）也要摆出来：人得找得到它、删得掉它 */
   const orphanExtras = extras.filter((x) => numOf(x.id) === null);
   const textOnlyNames = plan.textOnly.map((c) => c.name).join(t({ message: "、", comment: "列举几个名字时的分隔符" }));
@@ -220,7 +221,7 @@ export default function RefStrip({
           type="button"
           onClick={() => fileRef.current?.click()}
           disabled={!canEdit || reading || full}
-          title={full ? t`一段最多 ${EXTRA_REF_MAX} 张临时参考图` : undefined}
+          title={full ? t`一段最多 ${extraMax} 张临时参考图` : undefined}
           className="flex-none rounded-full bg-slate-700 px-2.5 py-1 text-[11px] font-semibold text-slate-100 disabled:opacity-40"
         >
           {reading ? <Spinner size="xs" /> : <Trans>＋ 参考图</Trans>}

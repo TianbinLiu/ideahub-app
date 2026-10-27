@@ -13,7 +13,7 @@
 // 计费与 store 写入**不在这里**：两边的账本与状态形状不同（flowStore 写 videoByProposal，
 // 工坊写 proposal.videoUrl），这里只负责"把一段炼出来"，纯函数式地把结果交回去。
 import { AI_REAL, ARK_REF_IMAGES_MAX, ArkTaskUnknown, ArkVideoRefused, SegmentGenFailed, VIDEO_PROMPT_MAX, composeSegments, generateFrame, notesInParens, planCardRefs, planMaterialRefs, prepareMaterialRefs, refCardIds, refineFrame, type KeptFrames } from "../ai";
-import { compileMentions, drawExtraRefs, extraRefLines, extraRefMaxOf, mentionTargets, plainMentions, usableExtraRefs, type CompiledMentions, type ExtraRef } from "../data/refMentions";
+import { compileMentions, drawExtraRefs, extraRefLines, extraRefMaxOf, mentionTargets, plainMentions, slotGaps, usableExtraRefs, type CompiledMentions, type ExtraRef } from "../data/refMentions";
 import { uploadImage } from "../api/uploads";
 import { IMAGE_TOKENS, apiCase, blockoutPriceIssue, blockoutTier, fmtTokens, r2vPriceIssue, tierOf, clampDuration, videoTokensOfSpec, promptMaxOf, refAudioSecOf, materialRefSecs, minUsageNote, type VideoTier } from "../data/economy";
 // 设定帧那一步最多喂几张参考图（经典路的预算）：那句提示里的数字从它取，不写死（2026-10-10 文案复核抓到写死的「3 张」）
@@ -144,9 +144,10 @@ export interface SegmentGenInput {
   draftMode: null | "draft" | { finalOf: { taskId: string; durationSec: number; ratio?: string } };
   /**
    * 这一段是**文字模板段**（2026-10-26，文字模板 P1；FlowNode.textTpl 经 flowStore.textTplGenOf 一处给）：null = 不是。
-   * 有它，出片这一侧换五条规矩（各自的判据在一处）：提示词上限放到 1000（economy.promptMaxOf 的 long，只在收长提示词的档上）、
+   * 有它，出片这一侧换六条规矩（各自的判据在一处）：提示词上限放到 1000（economy.promptMaxOf 的 long，只在收长提示词的档上）、
    * 有图位一张帧都不画 / 零图位只补开头一张（data/drawPlan.textTplDraw）、能带 4 张临时参考图（refMentions.extraRefMaxOf）、
-   * 正文放不下**在视频那一发之前整句拒、不截**（promptRoomOf 同一套拼法）、图位的图传不上去就不发（不退成普通文字照样出片）。
+   * 正文放不下**在视频那一发之前整句拒、不截**（promptRoomOf 同一套拼法）、图位没补齐不发（refMentions.slotGaps）、
+   * 图位的图传不上去就不发（不退成普通文字照样出片；只对有图位的段，零图位的段上人自己加的图与普通段同样处理）。
    * **必填**：可选的话漏传就悄悄按普通段截字、补画，而报价是按文字模板段报的 —— 零症状。
    * ★ 返修 / 延长 / 定稿不带（genNode 传 null）：那几条路发的不是模板正文。
    */
@@ -155,8 +156,12 @@ export interface SegmentGenInput {
 
 /** 出片这一侧要知道的文字模板段的事（FlowNode.textTpl 的投影，flowStore.textTplGenOf 一处给） */
 export interface TextTplGen {
-  /** 模板有几个图位（按模板定，不随此刻手上有几张图变 —— 报价按它算，补图前后同一个数） */
-  slots: number;
+  /**
+   * 模板的图位名（按模板定，不随此刻手上有几张图变 —— 报价按它的**个数**算，补图前后同一个数）。
+   * 个数与名字是同一份（别另存一个 slots 数：两格一漂就是「按 3 个图位报价、按 4 个名字拦缺图」）。
+   * 名字给出片那一拍的缺图位闸（refMentions.slotGaps）：只要有一个图位找不到同名的图，就在花钱之前整句拒。
+   */
+  slotNames: readonly string[];
 }
 
 /**
@@ -599,7 +604,7 @@ export function refSlotsOf(o: {
     refMode,
     noDraw: o.noDraw,
     multiShot: o.multiShot,
-    ...textTplDraw(o.textTpl ? o.textTpl.slots : null),
+    ...textTplDraw(o.textTpl ? o.textTpl.slotNames.length : null),
   };
   const draw = blockout ? { first: false, last: false } : framesToDraw(drawIn);
   const needDraw = draw.first || draw.last;
@@ -672,6 +677,11 @@ export interface RefPlan {
   refMode: boolean;
   /** 出片前要补画哪几张（data/drawPlan 的答案，与出片、报价同源）—— 帧位空着时那句说明用 */
   draws: { first: boolean; last: boolean };
+  /**
+   * 这一段最多能挂几张临时参考图（refMentions.extraRefMaxOf：文字模板段 4、其余 3）—— 参考清单那颗「＋ 参考图」灰不灰、提示里的数读它，
+   * 与出片 segmentExtras 截的、加图那道闸（flowStore.addExtraRef）拦的是同一个数。别在组件里写死 EXTRA_REF_MAX（2026-10-26 审核抓到）。
+   */
+  extraMax: number;
 }
 
 /** 帧位空着时那一格出片时会怎样（「自定义」与简约那两格帧位上的说明，2026-10-04） */
@@ -751,6 +761,8 @@ export function refPlanOf(o: SegmentPlanInput): RefPlan {
   const tier = tierOf(o.videoTier);
   const mats = o.materials ?? [];
   const extras = segmentExtras(o);
+  /** 这一段最多挂几张临时参考图（与 segmentExtras 截的同一个判定） */
+  const extraMax = extraRefMaxOf({ textTpl: !!o.textTpl });
   const items: RefPlanItem[] = [];
   const push = (it: Omit<RefPlanItem, "n">) => items.push({ ...it, n: items.length + 1 });
   /** 没把图送进视频模型的卡（背景卡只走文字，不算） */
@@ -783,23 +795,23 @@ export function refPlanOf(o: SegmentPlanInput): RefPlan {
   // 自定义 + 示例视频：帧当参考图，卡片的图一张都不发
   if (o.materialRef) {
     if (!tier.refVid)
-      return { sends: false, why: "refvid", items: [], textOnly: textOnlyOf(new Set()), extrasDropped: extras.length > 0, refVideo: true, ...voiceBits(false), refMode: false, draws: { first: false, last: false } };
+      return { sends: false, why: "refvid", items: [], textOnly: textOnlyOf(new Set()), extrasDropped: extras.length > 0, refVideo: true, ...voiceBits(false), refMode: false, draws: { first: false, last: false }, extraMax };
     const firstRef = o.carryFrame || o.firstFrame || "";
     if (firstRef) push({ kind: "first", src: firstRef, carried: !!o.carryFrame });
     for (const m of o.materialRef.mids ?? []) if (m) push({ kind: "mid", src: m });
     if (o.lastFrame) push({ kind: "last", src: o.lastFrame });
     for (const x of extras) push({ kind: "extra", src: x.url, extra: x });
     // 素材参考这条路不补画（帧来自示例视频或你自己给的）
-    return { sends: true, why: null, items, textOnly: textOnlyOf(new Set()), extrasDropped: false, refVideo: true, ...voiceBits(true), refMode: false, draws: { first: false, last: false } };
+    return { sends: true, why: null, items, textOnly: textOnlyOf(new Set()), extrasDropped: false, refVideo: true, ...voiceBits(true), refMode: false, draws: { first: false, last: false }, extraMax };
   }
   // ★ 判据与 generateSegment 的真人档那一支同一个（请求形状 VideoTier.api，apiCase：加一种 api 时 tsc 逼着在这里表态）：清单预览的就是那一发会怎么拼
   if (apiCase(tier.api, { ark: false, "minimax-v1": true }))
     // 真人档一张设定帧都不画：首帧就是真人卡的照片
-    return { sends: false, why: "real", items: [], textOnly: textOnlyOf(new Set()), extrasDropped: extras.length > 0, refVideo: false, ...voiceBits(false), refMode: false, draws: { first: false, last: false } };
+    return { sends: false, why: "real", items: [], textOnly: textOnlyOf(new Set()), extrasDropped: extras.length > 0, refVideo: false, ...voiceBits(false), refMode: false, draws: { first: false, last: false }, extraMax };
   const { firstSrc, first, last, slots } = planMain(o);
   const blockout = !!o.refVideoUrl;
   if (!blockout && !slots.refMode && !slots.framesAsRefs)
-    return { sends: false, why: "tier", items: [], textOnly: textOnlyOf(new Set()), extrasDropped: extras.length > 0, refVideo: false, ...voiceBits(false), refMode: false, draws: slots.draw };
+    return { sends: false, why: "tier", items: [], textOnly: textOnlyOf(new Set()), extrasDropped: extras.length > 0, refVideo: false, ...voiceBits(false), refMode: false, draws: slots.draw, extraMax };
   if (slots.framesAsRefs) {
     // 两格各自：已经有、或出片前会补画（data/drawPlan：不补画帧的段缺的不补、多镜头的段不画结束画面）—— 与出片发出去的张数同一个答案。
     // 不补画的段可以只有一张尾帧（只给了结束帧），那时开头那一格不摆
@@ -820,6 +832,7 @@ export function refPlanOf(o: SegmentPlanInput): RefPlan {
     ...voiceBits(!blockout),
     refMode: slots.refMode,
     draws: slots.draw,
+    extraMax,
   };
 }
 
@@ -1266,6 +1279,18 @@ function textTplTooLong(r: { cap: number; reserved: number; over: number }): Err
 }
 
 /**
+ * 文字模板段的图位没补齐时的那一句（花钱之前整句拒：缺图的图位不退成普通文字照样出片）。名字带 @，与正文里的写法一致，人一眼对得上。
+ * ★ 钱上的话同样不在这里说（genNode 的 catch 只走 ai/failCharge；这一拍什么都还没花）。
+ */
+function textTplGapsError(gaps: readonly string[]): Error {
+  const names = gaps.map((n) => `@${n}`).join(t({ message: "、", comment: "列举几个名字时的分隔符" }));
+  const n = gaps.length;
+  return new Error(
+    t`文字模板的图位还没补齐：${names} 还没有同名的参考图（缺 ${n} 张），视频这一发没有发出去——在参考清单里给每个图位各加一张图、名字与图位一致，再点生成`,
+  );
+}
+
+/**
  * 文字模板段的提示词在提交时被方舟拒了（arkClient.ArkVideoRefused，input === "text"）：换一句话 —— 正文是模板作者写的、使用者手上能换的只有图，
  * 原话「改掉里面可能被拦的说法」要说清改的是模板的正文（2026-10-26 审核：文字被拒与图被拒出路完全不同）。
  * ★ 类型、状态码、上游码原样保留（钱上的判定只认类型，ai/failCharge：提交时被拒 = 没受理、没扣）；图被拒 / 没拉到的那几句本来就指着图，不动。
@@ -1454,6 +1479,12 @@ export async function generateSegment(
    * genNode 在返修 / 延长 / 定稿上本来就传 null，这里再兜一次：「文字模板段不截字」那条闸不该拦在一发返修上。
    */
   const textTpl = input.refVideoUrl ? null : input.textTpl;
+  /**
+   * 这一段的临时参考图里有**图位的图**（有图位的文字模板段）。「图位的图发不出去就不出片」那两道闸只认它，不认 textTpl 本身：
+   * 零图位的文字模板段上，人自己加的临时参考图与普通段一样只是锦上添花，发不出去就说一句、照常出片（2026-10-26 审核抓到：
+   * 原来只判 textTpl，零图位的段传不上去被说成「图位的图没能传上去」，不走参考类请求时被整句拒、原因还说成「带不上图位的图」）。
+   */
+  const tplSlotsOn = !!textTpl && textTpl.slotNames.length > 0;
   /** 这一段挂的临时参考图（N1）：带哪几张、最多几张只问 segmentExtras（参考清单与报价读的是同一个） */
   const extrasIn = segmentExtras(input);
   const cardTargets = (input.materials ?? []).map((c) => ({ id: c.id, name: c.name }));
@@ -1719,8 +1750,10 @@ export async function generateSegment(
       throw new Error(t`白模模板出片只在方舟档（真人档没有 r2v 能力）——这一段换回「${bt}」档，或换掉模板`);
     }
     if (input.anns.length) throw new Error(t`真人档暂不支持圈选改画面（改图引擎会拒收真人脸）——清掉圈选标注再出片`);
-    // 文字模板段的图位靠参考图发、正文可能比 400 长：这一档两样都接不住（出片前那道闸 textTplIssue 按模板的档位名单先拦，这里是最后一道，一分没花）
-    if (textTpl) throw new Error(t`真人档跑不了文字模板段（图位的图要当参考图发，这一档只认一张起拍画面）——换成模板能跑的那一档再出片`);
+    // 文字模板段的图位靠参考图发、正文可能比 400 长：这一档两样都接不住。这里是出片那一拍的最后一道（一分没花）——
+    // 「按模板的档位名单先拦」的那道门禁（textTplIssue，genNode 起手与档位行都问）在下一步（套用那一支）才落地，今天只有这一道。
+    // 话对零图位的模板也得成立：别说成「图位的图要当参考图发」（零图位的模板没有图位）
+    if (textTpl) throw new Error(t`真人档跑不了文字模板段（这一档只认一张起拍画面、不收参考图）——换成模板能跑的那一档再出片`);
     // 优先取声明过真人的卡（这一档存在的理由），再退任意有图的卡
     const byReal = (input.materials ?? []).filter((c) => c.realPerson === true).concat(input.materials ?? []);
     // 起拍画面从哪张卡来（唯一实现 startSourceOf：与本段设置里那句提示同一套判据）
@@ -1736,7 +1769,7 @@ export async function generateSegment(
       throw new Error(t`真人档需要一张起拍画面：挂一张带照片的真人卡，或自己传一张开头帧`);
     }
     const flatSec = clampDuration(input.durationSec, input.videoTier);
-    /** 真人档的提示词上限（promptCapOf：这一档不收参考图，400）。真人档不在任何文字模板的档位里（textTplIssue 先拦） */
+    /** 真人档的提示词上限（promptCapOf：这一档不收参考图，400）。走到这里的一定不是文字模板段（上面那一行整句拒了） */
     const mmCap = promptCapOf({ videoTier: input.videoTier, edit: false, textTpl: null });
     // 这一档只认一张第一帧：临时参考图发不出去（说出来），句子里的 @点名退成名字
     if (extrasIn.length) notes.push(t`真人档只认一张起拍画面，临时参考图这次没发出去`);
@@ -1781,10 +1814,16 @@ export async function generateSegment(
     return { url: res?.url, firstFrame: firstSrc, lastFrame: res?.lastFrame || firstSrc, poster: res?.poster, realDurationSec: res?.durationSec };
   }
 
-  // ── 文字模板段：正文放不放得下，在花任何一分钱之前（圈选改帧、补画都要花钱）先按计划量一次 ──
-  //   用的是 promptRoomOf（作者那一屏的逐档表、生成键旁「还要删 N 字」问的同一个函数）。放不下就整句拒：正文是这个模板的商品本身，
-  //   从尾巴截掉一截就是另一件商品（普通段的老做法是截了说一句、照收钱）。下面真拼的那一拍（mainPrompt）还会按真准备成的图再量一次。
+  // ── 文字模板段：两道闸都排在花任何一分钱之前（圈选改帧、补画都要花钱）──
   if (textTpl) {
+    // ① 图位补齐了没有（refMentions.slotGaps，2026-10-26 审核抓到）：缺一个都不发。不拦的话 —— 一张都没挂时 hasSendableRefs 为假、
+    //   有图位的段又一张帧都不画（drawPlan 规矩 ③），这一发就按 t2v 发出纯文字请求，正文里的 @名字 退成普通文字，视频钱照扣；
+    //   只补了 3/4 张时第 4 个图位同样静默落空。这里是出片那一拍的最后一道防线；套用之后的「待补格」与出片前的门禁（textTplIssue）在下一步。
+    const gaps = slotGaps(textTpl.slotNames, extrasIn);
+    if (gaps.length) throw new SegmentGenFailed(textTplGapsError(gaps), 0, "video", null);
+    // ② 正文放不放得下，先按计划量一次：用的是 promptRoomOf（作者那一屏的逐档表、生成键旁「还要删 N 字」问的同一个函数）。
+    //   放不下就整句拒：正文是这个模板的商品本身，从尾巴截掉一截就是另一件商品（普通段的老做法是截了说一句、照收钱）。
+    //   卡图真准备好之后（补画之前）还会按真的那批再量一次 —— 卡图读不出来时那张卡改拼文字描述，可能比计划长（见 promptRoomOf 的 ⚠）。
     const room = promptRoomOf(input);
     if (room && room.over > 0) throw new SegmentGenFailed(textTplTooLong(room), 0, "video", null);
   }
@@ -2007,7 +2046,7 @@ export async function generateSegment(
         noDraw: input.noDraw,
         multiShot: isMultiShot(input.plot),
         // 文字模板段：有图位一张帧都不画、零图位只补开头一张（drawPlan.textTplDraw；refSlotsOf 与报价展开的同一个）
-        ...textTplDraw(textTpl ? textTpl.slots : null),
+        ...textTplDraw(textTpl ? textTpl.slotNames.length : null),
       });
   // ★ 一张帧只画一个瞬间（shotScript.frameMoment）：分了镜的段，开头画面取第一个镜头、结束画面取最后一个，引号里的台词摘掉。
   //   外壳走 generateFrame 不走封面那层（2026-10-03 第二次付费验证：结束画面被画成三格分镜图、格子里写着台词）
@@ -2091,12 +2130,14 @@ export async function generateSegment(
     } catch {
       extraUrls = [];
       // ★ 两种段传不上去就不能照样出片（2026-10-26）：在视频那一发之前整句拒（视频一分没扣；出片前画好的画面随错误带出去，钱上的话交给 ai/failCharge）
-      //   · 文字模板段：图位的图就是这个模板的商品本身，退成「不带图」照样出片 = 拍一段与模板说好的不一样的片、照收钱；
-      //   · 只靠临时参考图走参考生视频的段（没挂卡、或卡图一张都没读出来）：没了它们这一发一张参考图都没有，契约核对会整句拒、话还说不清。
-      if (textTpl || (refMode && !refUrls)) {
+      //   · 有图位的文字模板段（tplSlotsOn）：图位的图就是这个模板的商品本身，退成「不带图」照样出片 = 拍一段与模板说好的不一样的片、照收钱；
+      //   · 只靠临时参考图走参考生视频的段（没挂卡、或卡图一张都没读出来；零图位的文字模板段也落在这里）：没了它们这一发一张参考图都没有，
+      //     契约核对会整句拒、话还说不清。
+      //   零图位的文字模板段在别的情况下与普通段一样：人自己加的临时参考图传不上去就说一句、不带它们出片。
+      if (tplSlotsOn || (refMode && !refUrls)) {
         throw new SegmentGenFailed(
           new Error(
-            textTpl
+            tplSlotsOn
               ? t`图位的图没能传上去（这个文字模板靠它们锁定画面），视频这一发没有发出去——过一会儿再点一次生成`
               : t`临时参考图没能传上去（这一段只靠它们出片），视频这一发没有发出去——过一会儿再点一次生成`,
           ),
@@ -2107,8 +2148,9 @@ export async function generateSegment(
       }
       notes.push(t`临时参考图没能传上去，这一段不带它们出片`);
     }
-  } else if (extrasIn.length && textTpl) {
-    // 文字模板段这一发不是参考类请求（档位不收参考图 / 帧没能转成参考图退回了首尾帧）：图位的图发不出去，不退成不带图照样出片（理由同上）
+  } else if (extrasIn.length && tplSlotsOn) {
+    // 有图位的文字模板段这一发不是参考类请求（档位不收参考图 / 帧没能转成参考图退回了首尾帧）：图位的图发不出去，不退成不带图照样出片（理由同上）。
+    // 零图位的段落到下面那一支（与普通段同一句「临时参考图这次没发出去」）
     throw new SegmentGenFailed(
       new Error(t`这一发带不上图位的图（不是参考图那一种请求），视频这一发没有发出去——换成模板能跑的那一档，或过一会儿再点一次生成`),
       imagesSettled,

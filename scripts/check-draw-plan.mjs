@@ -62,7 +62,8 @@ eq("textTplDraw：有 4 个图位 = 一张帧都不画", M.textTplDraw(4), { noF
 eq("textTplDraw：零图位 = 只补画开头一张", M.textTplDraw(0), { noFrames: false, firstOnly: true });
 const tt = (slots, o = {}) => M.framesToDraw({ ...base, noDraw: true, ...M.textTplDraw(slots), ...o });
 eq("有图位的文字模板段：两帧都缺也一张不画", tt(4), none);
-eq("有图位的文字模板段：参考生视频没走成（卡与图都没有）也一张不画 —— 由模板定，不看手上有没有图", tt(2, { refMode: false }), none);
+// 补画规则只管「画不画帧」：图位一张图都没挂的那一发由 segmentGen 的缺图位闸（refMentions.slotGaps）在花钱之前整句拒，不会落成纯文字出片
+eq("有图位的文字模板段：参考生视频没走成（卡与图都没有）也一张不画 —— 由模板定，不看手上有没有图（缺图由出片前那道闸拦）", tt(2, { refMode: false }), none);
 eq("零图位的文字模板段：只补画开头一张", tt(0), { first: true, last: false });
 eq("零图位的文字模板段 + 多镜头：只补画开头一张", tt(0, { multiShot: true }), { first: true, last: false });
 eq("零图位的文字模板段 + 已经有开头帧：不画", tt(0, { hasFirstFrame: true }), none);

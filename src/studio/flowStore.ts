@@ -68,10 +68,10 @@ import { type BlockoutCastSlot, blockoutApplySkeleton, castNameIssue, composeBlo
 import { GenStep, createGenLog, splitStatus } from "./genLog";
 import { ANN_CLAUSE, blockoutIssue, emptyFrameFates, frameFree, generateSegment, promptRoomOf, redrawnAnns, refPlanOf, refVideoOn, revisePlotOf, segmentExtras, type EmptyFrameFate, type PromptRoom, type RefPlan, type TextTplGen } from "./segmentGen";
 import {
-  EXTRA_REF_MAX,
   cleanRefName,
   drawExtraRefs,
   dropMention,
+  extraRefMaxOf,
   mentionTargets,
   mentionedKeys,
   plainMentions,
@@ -1495,7 +1495,7 @@ export function nodeCost(nodes: FlowNode[], idx: number, mode: FlowMode, tierOve
     noDraw: nodeNoDraw(node, tierOverride),
     multiShot: isMultiShot(prop.plot),
     // 文字模板段：按模板的图位数定补不补画（有图位不画、零图位只补开头一张）—— genNode 交给出片的是同一个 textTplGenOf
-    textTplSlots: textTplGenOf(node)?.slots ?? null,
+    textTplSlots: textTplGenOf(node)?.slotNames.length ?? null,
     refVideo: refVideo ? { inputSec: refVideo.durationSec } : undefined,
     // 先出样片：视频那一半按 480p 样片的价报（与 genNode 发的同一个判定）
     draft: nodeDraftOn(node, tierOverride),
@@ -1548,7 +1548,7 @@ export function noDrawFor(o: { direct?: boolean; custom?: boolean; customRef: bo
  * ★ 图位数按**模板**的（textTpl.slots），不按此刻挂了几张临时参考图：报价在补图前后是同一个数（drawPlan.textTplDraw 的 ★）。
  */
 export function textTplGenOf(node: FlowNode): TextTplGen | null {
-  return node.textTpl ? { slots: node.textTpl.slots.length } : null;
+  return node.textTpl ? { slotNames: node.textTpl.slots.map((x) => x.name) } : null;
 }
 
 /**
@@ -4130,8 +4130,11 @@ export const useFlow = create<FlowState>()((set, get) => ({
       return null;
     }
     const list = usableExtraRefs(node.extraRefs);
-    if (list.length >= EXTRA_REF_MAX) {
-      set({ err: t`一段最多 ${EXTRA_REF_MAX} 张临时参考图（它们与帧、卡片形象图共用同一份参考图额度）——先删一张再加` });
+    // 这一段最多几张只问 refMentions.extraRefMaxOf（文字模板段 4、其余 3）—— 出片那一侧 segmentExtras 截的是同一个数。
+    // 2026-10-26 审核抓到：原来这里写死 EXTRA_REF_MAX（3），文字模板段挂满 4 个图位后删掉一张想换图，就再也加不回第 4 张
+    const max = extraRefMaxOf({ textTpl: !!textTplGenOf(node) });
+    if (list.length >= max) {
+      set({ err: t`一段最多 ${max} 张临时参考图（它们与帧、卡片形象图共用同一份参考图额度）——先删一张再加` });
       return null;
     }
     const name = cleanRefName(ref.name);
