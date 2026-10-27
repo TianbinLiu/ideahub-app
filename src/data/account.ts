@@ -1101,7 +1101,8 @@ export function regionTiersLine(): string | null {
 /**
  * 服务端 403 REGION_UNAVAILABLE 的本端那一句（arkClient.billingDenialError 用；那一层不知道是哪一档，所以不点档名）。
  * 调用前回包里的地区已经记进 data/videoZone（noteRegionDenied），这里按记下的那份说「这个地区能用哪几档」。
- * ★ 只说地区，不说钱 —— 钱的那半句由调用方按回包的 billed 接（服务端契约：出片与真人档这两条路被拦恒为没扣）。
+ * ★ 只说地区，不说钱 —— 钱的那一句只在 ai/failCharge（照回包的 billed；没扣的那一句是它的 regionNoCharge —— 2026-10-26 终审从 message 里挪出去，
+ *   调用方截原因时截不掉它）。服务端契约：出片与真人档这两条路被拦恒为没扣。
  * ★ 「能用」不说成「换成」：被拦的可能是重拍 / 延长 / 样片定稿，这个地区能用的档未必做得了那几样（服务端那句「没有可换的」就是这个意思）。
  * ★ 记下的那份不是门禁开着时的结论（zoneIsRegional 为假）就不列供应商、不列档名（2026-10-26 P1 审核）：403 回包里读不出地区
  *   （形状不对、zone 不在三种之内）时 noteRegionDenied 什么都没记 —— 地区不知道时 regionTiers 把每一档都当成给得出，

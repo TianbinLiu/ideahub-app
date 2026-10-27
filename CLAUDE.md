@@ -236,7 +236,8 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   摆得出来的档里一档都做不了这件事（门禁开着的海外只剩「真人」档时，收参考图 / 出声 / 延长 / 参考视频 / 声音样本 / 认证素材全是这样）——
   说 `account.noTierLine(能力)`（地区 / 这台服务器两种措辞），不写「换到「」」、不写「会员档」、不给「去升级」；原来回两串空名字，句子里印一对空引号还把地区说成套餐。
   ④ 服务端 403 `REGION_UNAVAILABLE` 认 `code` 不认 message（那句是英中并排、给老 App 兜底的）：`arkClient.ArkRegionDenied`（带 `billed`）、话在 `account.regionDeniedLine`，
-  钱只走 `ai/failCharge`（照回包 `billed`）；白模化在 `api/branch.blockoutPost` 按 `billed` 两句各说。收到就把回包里的地区记下并重问（`noteRegionDenied`）。
+  钱只走 `ai/failCharge`（照回包 `billed`；没扣的那一句「这一发没有受理，也没有扣费」也在那里 —— 终审从 message 里挪出去：剪辑页按 110 字、genNode 按 240 字截原因时，
+  英文的长国名会把它整个截掉）。`ArkRegionDenied.message` 是长度有界的整句，展示原因时**不截**（同 `ArkTaskFailed.reason`）；白模化在 `api/branch.blockoutPost` 按 `billed` 两句各说。收到就把回包里的地区记下并重问（`noteRegionDenied`）。
   ⑤ 门禁只拦视频那一发，出片前补画的帧 / 推演各自先结算：**花第一笔钱之前现问一次地区再重判**（`refreshVideoZone`：genNode / deriveProposals / 工坊 generateNode / 剪辑页按圈选重做，
   排在「打上 generating」之后、第一笔钱之前 —— 工坊受理即收窗、画布 agent 的回执都认「genNode 第一个 await 之前就打上 generating」；拒了就原样退回状态、原因写 err）。
   **同步看状态的宿主自己先问**再调（工坊 `genNodeVideo`、画布 agent 执行推演 / 出片之前）：它们 await 完再调，genNode 的同步门禁就拿到新地区、在打上 generating 之前拒；

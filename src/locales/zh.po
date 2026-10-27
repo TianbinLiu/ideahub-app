@@ -1345,11 +1345,6 @@ msgstr "{lead}，「{label}」档用不了——能换的「{member}」是会员
 msgid "{lead}：{reason}"
 msgstr "{lead}：{reason}"
 
-#. line 是一整句（自带句号）：所在地区用不了这一档的出片模型、这个地区能用哪几档；后面另起一整句
-#: src/ai/arkClient.ts
-msgid "{line}这一发没有受理，也没有扣费。"
-msgstr "{line}这一发没有受理，也没有扣费。"
-
 #. 铸卡师念的话。list 是前三张的名字（已用分隔符连好），count 是丢的总张数（大于 3），reason 是失败原因整句
 #: src/studio/studioStore.ts
 msgid "{list} 等 {count} 张没能存到服务器（{reason}）——这几张只留在这台设备上，换设备或者重新登录就没了。想留住的话，回卡片详情页把它重新挂一次。"
@@ -18420,6 +18415,11 @@ msgstr "没有匹配的用户"
 msgid "没有匹配的评论"
 msgstr "没有匹配的评论"
 
+#: src/ai/failCharge.ts
+msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
+msgid "没有受理、没扣钱"
+msgstr "没有受理、没扣钱"
+
 #: src/studio/ui/projection.tsx
 msgid "没有叫「{q}」的卡组"
 msgstr "没有叫「{q}」的卡组"
@@ -25222,6 +25222,11 @@ msgstr "这一发没出成，扣的 token 已经退回——没有成片可取�
 #: src/ai/failCharge.ts
 msgid "这一发没出成，扣的 token 已经退回。"
 msgstr "这一发没出成，扣的 token 已经退回。"
+
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "这一发没有受理，也没有扣费。"
+msgstr "这一发没有受理，也没有扣费。"
 
 #: src/data/videoJobs.ts
 msgid "这一发没有扣 token，任务多半还在上游跑 —— 点「取回」把它领回来；点「重新生成」是重新下一单。出片通常 1~2 分钟，隔一会儿再点一次。"

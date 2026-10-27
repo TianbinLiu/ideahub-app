@@ -2780,7 +2780,7 @@ App `src/data/economy.ts` 是**报价**口径。不一致的后果是"报价 216
   缺省不往只认一张起拍画面的「真人」档上指）。地区原因旁边不摆「去升级」（`account.tierPlanBlocked`：付钱治不了地区）。
 - **默认档**：默认档链（std→hd / fast→draft）全是方舟的。地区不给方舟时链上落不下，`account.defaultTierId` 退到这个地区摆得出来的第一档（P1 只有「真人」）。
 - **被拦时说什么**：`arkClient.billingDenialError` 认 `code`，抛 `ArkRegionDenied`（ArkHttpError 的子类，带 `billed`），话由 `account.regionDeniedLine` 说
-  （不点档名、只说这个地区能用哪几档；回包里读不出地区时不列供应商、不列档名；回包 `billed` 不为 true 时接「这一发没有受理，也没有扣费」）。钱只认 `ai/failCharge`：照回包的 `billed`。
+  （不点档名、只说这个地区能用哪几档；回包里读不出地区时不列供应商、不列档名；message 里不说钱）。钱只认 `ai/failCharge`：照回包的 `billed`，没扣的那一句「这一发没有受理，也没有扣费」也在那里（终审从 message 里挪出去：调用方截原因时英文长国名会把它截掉）；展示原因时这句不截（长度有界）。
   白模化（`api/branch.blockoutPost`）按 `billed` 两句各说各的；提取窗在地区不给白模那一档时收起两条白模路的选项、只留原因。
 - **还没做（P2b 起）**：MiniMax H3 三档（海外的草稿 / 高清 / 电影级）、中国用户选 MiniMax、换档句子按 family 去重、给海外免费用户一档、卡片与模板写具体模型名。
   在那之前门禁一直是 `observe`（主人定：带 P2b 的 App 发版那天再切 `on`），App 这一侧的藏档逻辑在线上不会生效。

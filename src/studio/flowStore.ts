@@ -20,7 +20,7 @@
 import { currentRoute, startJob } from "../data/jobs";
 import { t } from "@lingui/core/macro";
 import { create } from "zustand";
-import { castPreviewImage, frameUrlAt, fuseStageFrame, AI_REAL, ArkTaskFailed, ArkTaskUnknown, SegmentGenFailed, briefArkReason, chargeNote, chargeOnFail, generateFrame, generateProposals, keptFrameCount, notesInParens, prepareMaterialRefs, recaptureSegment, refineFrame, takeVideoTask, transferStatus, unwrapFailure } from "../ai";
+import { castPreviewImage, frameUrlAt, fuseStageFrame, AI_REAL, ArkRegionDenied, ArkTaskFailed, ArkTaskUnknown, SegmentGenFailed, briefArkReason, chargeNote, chargeOnFail, generateFrame, generateProposals, keptFrameCount, notesInParens, prepareMaterialRefs, recaptureSegment, refineFrame, takeVideoTask, transferStatus, unwrapFailure } from "../ai";
 import { frameMoment, isMultiShot, momentCards } from "../data/shotScript";
 import { endFrameUsed } from "../data/drawPlan";
 import { isArkAssetUrl, reasonClause, transferArkVideo } from "../ai/arkClient";
@@ -4691,10 +4691,14 @@ export const useFlow = create<FlowState>()((set, get) => ({
       /** 一句给人看的原因：上游明说失败的那种已经按错误码说成人话（arkFailReason），别把方舟的英文原话整段贴上来 */
       // ★ 摘掉句末标点（reasonClause）：下面拼的是「…：${why}。${moneyLine}」，而地区那一句（ArkRegionDenied）是两整句、自带句号 ——
       //   原来出片前画过帧时屏幕上是「…也没有扣费。。已经画好的 2 张…」（2026-10-26 P1 审核）
-      const why = reasonClause(inner instanceof ArkTaskFailed ? inner.reason : msg.slice(0, 240));
+      // ★ 地区那一句（ArkRegionDenied）不截（2026-10-26 终审）：长度有界的整句，英文配上长国名能到 250 字 —— 按 240 截会断在词中间、
+      //   把括号里钱的短语截掉；钱上的话已经不在它里面（chargeNote 的 regionNoCharge）
+      const region = inner instanceof ArkRegionDenied;
+      const why = reasonClause(inner instanceof ArkTaskFailed ? inner.reason : region ? inner.message : msg.slice(0, 240));
       // 失败也留在日志里：卡在哪一步、跑了多久，比一句"生成失败"有用得多
       log.fail(money ? t`失败：${why.slice(0, 160)}（${money.brief}）` : t`失败：${why.slice(0, 160)}`);
-      patchNode({ status: "failed", progress: "", error: (money ? t`${why}（${money.brief}）` : why).slice(0, 240) });
+      const nodeErr = money ? t`${why}（${money.brief}）` : why;
+      patchNode({ status: "failed", progress: "", error: region ? nodeErr : nodeErr.slice(0, 240) });
       const n = idx + 1;
       const moneyLine = money?.line ?? "";
       set(

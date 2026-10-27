@@ -25,7 +25,7 @@ import FrameAnnotator, { drawCover } from "../components/FrameAnnotator";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
 import Icon from "../components/Icon";
-import { AI_REAL, ArkTaskFailed, ArkTaskUnknown, SegmentGenFailed, chargeNote, chargeOnFail, refineFrame, regenSegment, unwrapFailure } from "../ai";
+import { AI_REAL, ArkRegionDenied, ArkTaskFailed, ArkTaskUnknown, SegmentGenFailed, chargeNote, chargeOnFail, refineFrame, regenSegment, unwrapFailure } from "../ai";
 import { ANN_CLAUSE } from "../studio/segmentGen";
 import { isArkAssetUrl, reasonClause, requestArkTransfer, transferStatus } from "../ai/arkClient";
 import { refreshVideoZone, zoneIsRegional } from "../data/videoZone";
@@ -1441,7 +1441,10 @@ export default function CutPage() {
       if (inner instanceof ArkTaskFailed) dropVideoJob(inner.taskId);
       // ★ 说清"前面几段已经保住了"：不说的话用户以为整轮白花，会再点一次（再收一遍）
       // 摘掉句末标点再接「。」（arkClient.reasonClause：地区那一句自带句号，原来成了「…也没有扣费。。」）
-      const why = reasonClause((inner instanceof ArkTaskFailed ? inner.reason : e instanceof Error ? e.message : String(e)).slice(0, 110));
+      // ★ 地区那一句（ArkRegionDenied）不截（2026-10-26 终审）：它是长度有界的整句，英文 170~240 字，按 110 截会断在词中间；钱上的那半句在 chargeNote 里
+      const why = reasonClause(
+        inner instanceof ArkTaskFailed ? inner.reason : inner instanceof ArkRegionDenied ? inner.message : (e instanceof Error ? e.message : String(e)).slice(0, 110),
+      );
       // ★ 钱上那句话（2026-10-07）：只认类型、只走 ai/failCharge —— 受理之后上游明说失败的那一发现在会退回，
       //   这一段刚改好的画面另说（它们各自结算过）。视频那一发之前的失败（改图本身失败）按一张图的价说
       const fc = chargeOnFail(e);
