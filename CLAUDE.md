@@ -116,7 +116,11 @@ src/
                采样在 `live2d/companionModel.probeParams`），构建里 `scripts/check-live2d-motion-check.mjs` 实跑
   hooks/
   mock/        无后端时的假数据
-  pages/       路由页面（hash 路由）；`WorkshopPage` = 创意工坊第一层 = 市场（/workshop：一个搜索框 + 卡片 / 卡组 / 模板 / 工作流四类，搜索词与筛选都在地址里，
+  pages/       路由页面（hash 路由）；`VideoPage` = 作品详情页（/video/:id，2026-10-26 重排，路由经 `VideoRoute` 按 id 重挂）：满宽播放器（`frame="bleed"`，
+               控制条 `components/PlayerControls` 两个播放器共用、外框规矩在 `components/playerFrame`、全屏 `hooks/useImmersive`）→ 弹幕条 → 标题 → 作者条 → 动作条 →
+               评论预览卡（点开 = 首页同一个 `CommentSheet`，「到了没有」问 `videos.commentsStatus`）→ `components/video/RemakeCard`（做你自己的版本，卡里无实心键）
+               → `components/video/RelatedWorks`（进视口才问）→ 吸底栏 `components/video/VideoDock`（全页唯一实心主键「做同款」，`hooks/useRemake` 与首页共用）；
+               来由与量出来的数在 docs/video-detail-redesign-2026-10.md；`WorkshopPage` = 创意工坊第一层 = 市场（/workshop：一个搜索框 + 卡片 / 卡组 / 模板 / 工作流四类，搜索词与筛选都在地址里，
                不登录也能逛），`WorkshopMinePage` = 第二层「我的仓库」（/workshop/mine：自己的卡片 / 卡组 / 模板 + 三个造卡入口；
                2026-10-20 主人点名「第一层以市场搜索为主」改的版，两层共用一张卡 `components/workshop/CardTile`）；`RecipePage` = 制作过程（/video/:id/recipe：四档结局 + 分镜 + 选角一屏 + 按配方做同款，
                共用视图在 `components/recipe/RecipeView`，发布页 / 编辑页的「别人会看到这些」预览也画它）；`SupportPage` = AI 客服，`SupportModelsPage` / `SupportPersonasPage` =
@@ -840,7 +844,7 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   **页面卡片的边框留着是量过的决定**（同日）：ink 对 panel 只有 1.10:1，深色界面靠底色分层要把 panel 整体调亮；GitHub / shadcn 的深色卡片也都带边框。只有卡里套的内层盒子不描边（底色那一级差够了）。
 - **价钱一律 `economy.priceTag(n)`**（`⚡12k`），按钮上写「生成本段（⚡12k）」；⚡ 只表示「要花钱」，不花钱的动作（做同款）用招牌字形。重做类动作前缀 ♻，别再用 ✨ / 🎲 / 📼。
 - **头像两档**：列表行 36（消息 / 关注 / 管理页）、评论 32（楼中楼 24）；个人页头图 92、首页右栏 44 是另两种控件。
-- **评论行只常显「回复」**，删除 / 举报 / 拉黑收在「⋯」后面原地展开（评论抽屉与作品页同一套）。
+- **评论行只常显「回复」**，删除 / 举报 / 拉黑收在「⋯」后面原地展开（作品页的评论就是首页那个评论抽屉 `CommentSheet`，2026-10-26 起页内不再另画一份评论列表）。
 - **`.claude/skills/refactoring-ui/` 是装进仓库的《Refactoring UI》审查 skill**（非官方、MIT，SKILL.md 头上那段写了本仓优先级：CLAUDE.md 约定赢、令牌只有五个、不跑它的调色板工作流）。
   说「设计评审 / 这页看着不对 / 配色 / 空状态」时它会触发；走查记录正本 docs/ui-refactoring-ui-pass-2026-10-23.md。
 - **多步功能的步骤进度只有一份 `components/StepDots`**（2026-10-22 主人点名）：横线上一排圆点，做完实心、没到空心、当前那颗外圈放大，每颗下面两三个字；
@@ -1144,6 +1148,7 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   第十节 = 真机验证 + 第六批：画布那一面（FlowCanvas）漏掉的主键 / 价签 / emoji，首页冷启动「还没有作品」其实是在取 —— 走查按「面」列清单，不按页面
 - [`docs/ui-benchmark-2026-10.md`](docs/ui-benchmark-2026-10.md) — 对标抖音 / TikTok / 快手 / B 站 / 剪映 / CapCut 等：模板创建入口、首页、分区、「我的」、小组件五节（2026-10-21）：
   做了插画模板入口卡、首页长按层（两侧 2× / 中间更多操作）与双击粒子、分区搜索历史与近期热播、「我的」品牌带与草稿改笔、三枚招牌字形；没做的与等主人定的五件事在第七节
+- [`docs/video-detail-redesign-2026-10.md`](docs/video-detail-redesign-2026-10.md) — 作品详情页重做（2026-10-26）：改之前的四个问题、从上到下每一块怎么做、我替主人定的几条（评论用预览卡 + 抽屉、举报在动作条第 5 格、不加收藏数）、竖屏播放器 44vh 怎么量出来的、两份对抗审核的修正、没做的（服务端计数、同款列表、模拟器验全屏 / 转屏）
 - [`docs/ux-review-csci187-2026-10-14.md`](docs/ux-review-csci187-2026-10-14.md) — 按 CSCI 187 六个 UX 框架 + 惯例 + Goodwin「好产品礼仪」走查 App：改了 20 来处（删草稿改撤销、方勾选框、页签名字、设置分组、反馈落在键旁…），没改的 21 条按框架排好等主人定（发布页主键在三屏外、点赞失败静默回滚、工坊两个意思、token 五个名字…）
 - [`docs/node-modes-libtv-alignment.md`](docs/node-modes-libtv-alignment.md) — 工作流节点「自选卡片 / 自定义」对齐 LibTV 节点：调研、方案、主人拍板与落地记录（N1 参考清单 + @ 点名、N3 关键画面可改可截、N2 分镜表都已落地；含与已有「圈图改图」的对比、官方文档查到的几条协议事实、等主人定的两件事）
 - [`docs/guided-modes-design.md`](docs/guided-modes-design.md) — 工作流的「跟着做」模式（参考图直出 / 主角定妆·多镜头 / 九宫格分镜 / 推演三套 / 套模板 / 自定义）：每个模式固定步骤（2026-10-04 方案，主人「开工」五条全认；第一期 A、第二期 B、第三期 C 已落地，A、B 各付费验过一次；C 的服务端组图任务 server#106 2026-10-06 已合并上线，C 同日付费验过（¥4.50；App 重开后向导里选的人会丢 —— 10-07 已修））
