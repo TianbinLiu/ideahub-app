@@ -62,6 +62,7 @@ import { stageFuseInstruction, type StageState } from "./stage/stageState";
 import {
   BLOCKOUT_MAX_ROLES,
   markDescOfLabel,
+  markExprOfLabel,
   markSpecOf,
   refVideoIssue,
   splitCastRoles,
@@ -612,6 +613,8 @@ export type FlowTemplate = {
    *   只是括号永远不出现，而"没有括号"与"这段素材本来就没什么可描述的"长得一模一样。
    */
   markDescs?: VideoTemplate["markDescs"];
+  /** 神态（`VideoTemplate.markExprs` 的镜像，与 markSlots 对齐）。同一批进快照、同一条存在性语义：漏在这里神态句永远不写、零症状 */
+  markExprs?: VideoTemplate["markExprs"];
 } | null;
 
 /**
@@ -661,6 +664,7 @@ function snapTpl(src: VideoTemplate): FlowTemplate {
     ...(src.markBoxes?.length ? { markBoxes: src.markBoxes } : {}),
     ...(src.markBoxAtSec !== undefined ? { markBoxAtSec: src.markBoxAtSec } : {}),
     ...(src.markDescs?.length ? { markDescs: src.markDescs } : {}),
+    ...(src.markExprs?.length ? { markExprs: src.markExprs } : {}),
     ...(src.group ? { group: src.group } : {}),
   };
 }
@@ -2780,7 +2784,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
       // ★ `desc`（原来是谁，给 chat 读）与 `mark`（白模视频里那个人偶什么样，写进括号）
       //   是**两位**，别合并 —— 理由见 blockoutPrompt.BlockoutCastSlot 的 ★★★。
       //   取值只有 markDescOfLabel 一处（连接键 markSlots.indexOf(label)，与框同源）。
-      slots.push({ label: r.label, desc: r.desc, mark: markDescOfLabel(tpl, r.label), card });
+      // 神态（方案 D）：取值只有 markExprOfLabel 一处，与描述同一个连接键；没有 = ""（套用提示词逐字节不变）
+      slots.push({ label: r.label, desc: r.desc, mark: markDescOfLabel(tpl, r.label), expr: markExprOfLabel(tpl, r.label), card });
     }
     if (missing.length > 0) {
       const lost = missing.join(sep);

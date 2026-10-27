@@ -756,6 +756,31 @@ export function videoRefusalError(status: number, body: string): ArkVideoRefused
   return null;
 }
 
+/**
+ * 「参考图没拉到」之后自动重交一次前等多久。
+ * ★ 2026-10-26 付费小验两次撞上：一次重发即过、一次几分钟后重发即过（都是图刚传上我们图床的那几秒里方舟去拉、拉回空的）。
+ *   20 秒是折中：出片本来就要等几分钟，多等 20 秒不显眼；再长就像卡住了。第二次还拉不到才把那句「过一会儿再点一次」交给人。
+ */
+export const REF_FETCH_RETRY_MS = 20_000;
+
+/**
+ * 出片任务提交：被方舟以「参考图没拉到」同步拒时（ArkVideoRefused，input === "fetch"），等 REF_FETCH_RETRY_MS 自动再交**一次**。
+ * ★ 为什么能自动重交：同步 400 = 没受理、没扣钱（ai/failCharge 认的就是这一条），重交不会多花一分钱；
+ *   而这一种失败人能做的也只有「过一会儿再点」—— 原来要人自己点第二次（两次付费小验都是手动重发才过）。
+ * ★ 只重交这一种、只一次：文字 / 图没过审重交一万次也是拒；参数真错了的请求被认成「没拉到」的可能已经由 videoRefusalError 的认法挡住
+ *   （content[N] + invalid image format + 收到空串，三样都要对上）。第二次还拒就原样抛出（话还是「过一会儿再点一次」）。
+ * ★ 不往进度里写一行：等的这 20 秒里界面照旧是「提交中」；要说的话得给 ArkProgress 加一种事件、再接进步骤日志，这一版先不加。
+ */
+export async function submitWithFetchRetry<T>(submit: () => Promise<T>, waitMs = REF_FETCH_RETRY_MS): Promise<T> {
+  try {
+    return await submit();
+  } catch (e) {
+    if (!(e instanceof ArkVideoRefused) || e.input !== "fetch") throw e;
+    await new Promise((r) => setTimeout(r, waitMs));
+    return submit();
+  }
+}
+
 /** 出图模型用不了了 → ArkImageModelGone；别的失败回 null（组图受理那一支只要这一句，其余照它自己的说法） */
 export function imageModelGoneError(status: number, body: string, model: string): ArkImageModelGone | null {
   const p = errorBodyOf(body);
@@ -1760,7 +1785,7 @@ export async function generateVideo(
   }
   // 实测（2026-08-06，本账号）：720p/6s 首尾帧任务创建 1.5s、生成约 35-60s；
   // base64 dataURL 与 https URL 两种帧输入均被受理。
-  const created = await arkFetch<{ id: string }>(
+  const submit = () => arkFetch<{ id: string }>(
     "/contents/generations/tasks",
     {
       method: "POST",
@@ -1843,6 +1868,8 @@ export async function generateVideo(
     // 提交时被方舟同步拒（文字 / 图没过审、参考图没拉到）：说成人话、分清是哪一样（videoRefusalError 的 ★）
     videoRefusalError,
   );
+  // 参考图没拉到（图刚传上图床、方舟拉回空的）：等一会儿自动再交一次（submitWithFetchRetry 的 ★）
+  const created = await submitWithFetchRetry(submit);
   const id = created.id;
   // ★ 受理即交号（理由钉在 onTask 上）：从这一行往后，这一发的钱已经花掉了
   opts?.onTask?.(id);

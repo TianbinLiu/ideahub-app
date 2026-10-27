@@ -72,6 +72,7 @@ import {
   setTemplatePublished,
   subscribeTemplates,
   templatesVersion,
+  markExprOfLabel,
 } from "../../data/templates";
 import { uid, VideoTemplate } from "../../types";
 
@@ -81,6 +82,12 @@ interface Row {
   key: string;
   label: string;
   desc: string;
+  /**
+   * 这个人在示例视频里的神态（只读，打开面板那一刻按原来的位置取 —— markExprOfLabel）。
+   * ★ 跟着「人」走、不跟着位置走：作者把这一行改成别的位置时，服务端 PATCH /roles 按 desc 认人把神态搬过去；
+   *   所以这里存打开时取到的那一句，不按改过的 label 现取（现取会把别人的神态显示在这一行上）。新加的行没有神态。
+   */
+  expr: string;
   doomed: boolean;
 }
 
@@ -97,7 +104,7 @@ export default function RoleConfirmSheet({ t: tpl, onClose }: { t: VideoTemplate
   //   第一次打开时强制放一遍，看过一次不再自动弹；标题栏那颗 ? 随时能重看。
   useAutoGuide("roleconfirm");
   const [rows, setRows] = useState<Row[]>(() =>
-    (tpl.roles ?? []).map((r) => ({ key: uid("role"), label: r.label, desc: r.desc, doomed: false })),
+    (tpl.roles ?? []).map((r) => ({ key: uid("role"), label: r.label, desc: r.desc, expr: markExprOfLabel(tpl, r.label), doomed: false })),
   );
   const [busy, setBusy] = useState(false);
   const [issue, setIssue] = useState("");
@@ -459,6 +466,12 @@ export default function RoleConfirmSheet({ t: tpl, onClose }: { t: VideoTemplate
                     placeholder={descGoesToPrompt ? t`例：白色、弯腰前倾、在最左那盏路灯下` : t`例：白发、黑袍的少年`}
                     className="w-full rounded-lg bg-black/40 px-2 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-500"
                   />
+                  {/* 神态（方案 D）：只读 —— 白模化时看帧记下的，套用时按卡名写进「神态：…」那一句（≤ 3 个角色位的模板才写） */}
+                  {r.expr && (
+                    <div className="mt-1 text-[10px] leading-relaxed text-slate-400">
+                      <Trans>神态：{r.expr}</Trans>
+                    </div>
+                  )}
                 </div>
                 {/* ★ 最后一条不给删：**不摆点不动的按钮**（本仓老坑），整句解释与出口画在列表下方。
                     判据问的是 data 层的 roleFloorIssue，这里不写 rows.length <= 1。
@@ -493,7 +506,7 @@ export default function RoleConfirmSheet({ t: tpl, onClose }: { t: VideoTemplate
             onClick={() =>
               setRows((rs0) => [
                 ...rs0,
-                { key: uid("role"), label: ordinal ? (freeSlots[0] ?? "") : "", desc: "", doomed: false },
+                { key: uid("role"), label: ordinal ? (freeSlots[0] ?? "") : "", desc: "", expr: "", doomed: false },
               ])
             }
             className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-slate-600 py-2.5 text-[11px] text-slate-400"

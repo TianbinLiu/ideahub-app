@@ -1007,6 +1007,11 @@ export interface ApiBranchTemplate {
    */
   markDescs?: string[];
   /**
+   * 与 markSlots 按下标对齐的神态（2026-10-26，服务端 #133 起）。长度不等于 markSlots 或全是空串时服务端不发；
+   * 客户端解析在 data/templates.markExprsOf，含义见 types.VideoTemplate.markExprs。
+   */
+  markExprs?: string[];
+  /**
    * 长视频分段登记的归组（2026-08-20）。**只在真有的时候出现**（存在性判断，同 roles）：
    * 整段登记/存量模板整个字段缺失。`sourceUrl` 是原片地址 —— 合并成片时拿它解原片音轨。
    */
