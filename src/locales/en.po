@@ -222,7 +222,6 @@ msgid "、"
 msgstr ", "
 
 #. 几条「第 N 段换了档」的说明连成一行时的分隔符
-#. 几条「第 N 段换了档」的说明连成一行时的分隔符
 #. 几条提示连成一串时的分隔符（出片 / 铸卡 / 推演 / 改图的进度行与完成提示共用）
 #. 列举「每个图位锁什么」时的分隔符
 #. 列举包里缺的几个文件时的分隔符
@@ -242,10 +241,9 @@ msgstr ", "
 #. 把铸卡时的几条说明连成一句时的分隔符
 #: src/ai/real.ts
 #: src/components/flow/SegSettings.tsx
+#: src/hooks/useRemake.tsx
 #: src/live2d/bundlePreview.ts
 #: src/pages/CardDetailPage.tsx
-#: src/pages/FeedPage.tsx
-#: src/pages/VideoPage.tsx
 #: src/studio/dialogueDraftStore.ts
 #: src/studio/flowStore.ts
 #: src/studio/gridDraftStore.ts
@@ -6078,7 +6076,7 @@ msgstr "Cloud voice can't speak right now, try again later"
 msgid "云端语音没回应（等了 {secs} 秒），稍后再试"
 msgstr "Cloud voice didn't respond (waited {secs}s) — try again later"
 
-#: src/pages/DiscoverPage.tsx
+#: src/components/VideoTile.tsx
 #: src/pages/ProfilePage.tsx
 msgid "互动"
 msgstr "Interactive"
@@ -7086,9 +7084,8 @@ msgstr "remixed your video"
 msgid "做同款"
 msgstr "Remix"
 
-#: src/pages/FeedPage.tsx
+#: src/hooks/useRemake.tsx
 #: src/pages/RecipePage.tsx
-#: src/pages/VideoPage.tsx
 msgctxt "丢弃确认卡里「…再回来X」的那个动作（英文用小写动词短语）"
 msgid "做同款"
 msgstr "remix"
@@ -7101,8 +7098,7 @@ msgstr "Remix: same segment script, your own version"
 msgid "做同款：同一份分段剧本和卡组，生成你自己的版本"
 msgstr "Remix: same segment script and deck, your own version"
 
-#: src/pages/FeedPage.tsx
-#: src/pages/VideoPage.tsx
+#: src/hooks/useRemake.tsx
 msgid "做同款（丢弃上面那条流水线）"
 msgstr "Remix (discard the pipeline above)"
 
@@ -20207,9 +20203,8 @@ msgid "现在选的不是两个人（或两个人同名）—— 回第一步重
 msgstr "The selection isn’t exactly two people (or they share a name) — go back to the first step and pick again."
 
 #: src/components/flow/ScriptSkillSheet.tsx
-#: src/pages/FeedPage.tsx
+#: src/hooks/useRemake.tsx
 #: src/pages/RecipePage.tsx
-#: src/pages/VideoPage.tsx
 msgid "现在铺不了（可能有一段正在生成中），稍后再试"
 msgstr "Can't lay it out right now (a segment may be generating) — try again later"
 

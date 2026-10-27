@@ -45,9 +45,7 @@ import { useAuthState, useCurrentUser } from "../hooks/useAccount";
 import type { AuthState } from "../data/account";
 import { useVideosVersion } from "../hooks/useVideos";
 import { useStudio } from "../studio/studioStore";
-import { remakeNodesOf, remakeableOf, useFlow } from "../studio/flowStore";
-import { showToast } from "../data/toast";
-import { useApplyTemplate } from "../components/flow/useApplyTemplate";
+import { useRemake } from "../hooks/useRemake";
 import TarotCard from "../components/TarotCard";
 import { CARD_TYPE_LABELS, VideoComment, formatPlays, relativeTime, revisionLabel, videoCategoryLabel } from "../types";
 import BlockButton from "../components/BlockButton";
@@ -194,11 +192,6 @@ export default function VideoPage() {
   const [commentErr, setCommentErr] = useState("");
   /** 评论发出去了、但有几个 @ 服务端没认下来。黄字：评论本身是成功的 */
   const [mentionWarn, setMentionWarn] = useState("");
-  /** 做同款被就地拒时那句话（seed 被 canReplaceNodes 整句拒 —— flowStore.err 只画在
-   *  工作流页，用户此刻站在详情页，不接住就是没人看得见） */
-  const [remakeErr, setRemakeErr] = useState("");
-  // 做同款 = 第八条整表覆盖入口，守卫与套模板同一份实现（先问脏/成了再断草稿）
-  const { guard: remakeGuard, dialog: remakeDialog } = useApplyTemplate();
   // 多 P：老作品 partsOf 归一成单 P，pi 越界（编辑删 P 后）自动夹回
   const parts = useMemo(() => (video ? partsOf(video) : []), [video, version]);
   const [pi, setPi] = useState(0);
@@ -211,6 +204,8 @@ export default function VideoPage() {
   //   也能随手改成作者的昵称，而这一格是**付费墙** —— 判错的方向是白看付费内容。
   //   同一条闸还传导给「保存到本地」（videoDownload.planDownload 的 ① 明写靠这里）。
   const locked = !!video && partPrice > 0 && !isMyVideo(video) && !hasPurchased(video.id, piSafe);
+  // 做同款 = 第八条整表覆盖入口：照**当前这一 P** 的分段剧本铺（hooks/useRemake，与首页同一份；守卫、付费没解锁不给、被拒那句话自清都在里面）
+  const { canRemake, remake, err: remakeErr, dialog: remakeDialog } = useRemake(video, part?.segments ?? video?.segments ?? [], locked);
   const [payErr, setPayErr] = useState("");
   /** 分享面板（与首页右侧栏那颗共用 ShareSheet 一份实现） */
   const [shareOpen, setShareOpen] = useState(false);
@@ -675,28 +670,9 @@ export default function VideoPage() {
           </Link>
         )}
 
-        {remakeableOf(part?.segments ?? video.segments) && (
+        {canRemake && (
           <button
-            onClick={() =>
-              remakeGuard(() => {
-                const segs = part?.segments ?? video.segments;
-                const built = remakeNodesOf(segs, video.deck?.cards ?? []);
-                const ok = useFlow.getState().seed(built.nodes, {
-                  mode: "workflow",
-                  origin: "solo",
-                  // 同款署名（2026-10-02）：发布时随稿子上行，原作页据它记一次「N 人做了同款」
-                  remixOf: { videoId: video.id, title: video.title, author: video.author },
-                });
-                // 换了档（原作用的是会员档 / 已停用的档）要说出来（remakeNodesOf 的 ★）
-                if (ok && built.notes.length) showToast(built.notes.join(t({ message: "；", comment: "几条「第 N 段换了档」的说明连成一行时的分隔符" })), 6000);
-                if (ok) navigate("/flow");
-                else setRemakeErr(useFlow.getState().err || t`现在铺不了（可能有一段正在生成中），稍后再试`);
-                return ok;
-              }, {
-                label: t`做同款（丢弃上面那条流水线）`,
-                noun: t({ message: "做同款", context: "丢弃确认卡里「…再回来X」的那个动作（英文用小写动词短语）" }),
-              })
-            }
+            onClick={remake}
             className="mt-6 inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-gold/90 px-4 py-2.5 text-sm font-bold text-ink active:scale-[0.99]"
           >
             {/* 招牌字形「remix」代替 ⚡：⚡ 在全 app 是「要花钱」的意思，而做同款是铺流水线、不花钱（首页那颗 2026-10-21 先改的） */}
