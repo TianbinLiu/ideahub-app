@@ -98,7 +98,7 @@ import {
   type FlowNode,
   type FlowTemplate,
 } from "../../studio/flowStore";
-import { myCards, noTierLine, tierBlockReason, tierNamesFor, tierPlanBlocked, tierShownModel, usableTierId } from "../../data/account";
+import { myCards, noTierLine, textOnlyFramesLine, textOnlyModesLine, tierBlockReason, tierNamesFor, tierPlanBlocked, tierShownModel, tierTextOnly, usableTierId } from "../../data/account";
 import UpgradeLink from "../UpgradeLink";
 import { useAccountVersion } from "../../hooks/useAccount";
 import {
@@ -1440,7 +1440,10 @@ function NodePanel({
             onClick={() => !direct && setNodeDirect(node.id, true)}
             disabled={locked || generating || busy || done || (!direct && !!modeBlock("direct", modeTierOf(node.videoTier)))}
             title={
-              !direct && modeBlock("direct", modeTierOf(node.videoTier))
+              // ★ 只能纯文字出片的档（免费版在 MiniMax H3 上，guidedModes.modeBlock 的 textOnly）：参考图直出就是把卡片图发给视频模型，带不上 —— 说付钱的事
+              !direct && modeBlock("direct", modeTierOf(node.videoTier)) === "textOnly"
+                ? textOnlyModesLine([t`参考图直出`])
+                : !direct && modeBlock("direct", modeTierOf(node.videoTier))
                 ? (() => {
                     // 收参考图的档按能力现算、先说这个人用得了的（2026-10-07：原来写死「高清或电影级」，免费用户能用的「草稿」没提）
                     const n = tierNamesFor((x) => x.refImg);
@@ -1656,6 +1659,7 @@ function NodePanel({
                 aspectCssValue={aspectCss(node.aspect)}
                 canEdit={!locked && !generating}
                 fates={nodeEmptyFrames(nodes, index, mode)}
+                textOnlyNote={tierTextOnly(tierOf(node.videoTier)) ? textOnlyFramesLine() : null}
                 onFrame={(which, url) => setFrame(node.id, which, url)}
                 onFuse={setFuse}
                 onError={(msg) => useFlow.setState({ err: msg })}

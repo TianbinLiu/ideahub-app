@@ -11,9 +11,10 @@ import Icon, { type IconName } from "../Icon";
 import Warn from "../Warn";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { memberTiersLine, noTierLine, regionTiersLine, tierBlockReason, tierNamesFor, tierOffered, tierShownModel, tierShownModelId } from "../../data/account";
-import { CHAT_TURN_TOKENS, CHECKED_PANEL_TOKENS, clampDuration, fmtTokens, IMAGE_TOKENS, segTokens, tierOf, VIDEO_TIERS } from "../../data/economy";
-import { useAccountVersion } from "../../hooks/useAccount";
+import { memberTiersLine, noTierLine, regionTiersLine, textOnlyModesLine, providerShown, tierBlockReason, tierListed, tierNamesFor, tierOfPreferred, tierShownModel, tierShownModelId, tierTextOnly } from "../../data/account";
+import { CHAT_TURN_TOKENS, CHECKED_PANEL_TOKENS, clampDuration, fmtTokens, IMAGE_TOKENS, segTokens, tierOf, VIDEO_TIERS, type VideoTier } from "../../data/economy";
+import ProviderSwitch from "./ProviderSwitch";
+import { useAccountVersion, useProviderPref } from "../../hooks/useAccount";
 import UpgradeLink from "../UpgradeLink";
 import { GUIDED_GROUPS, GUIDED_MODES, clearsBlock, modeBlock, modeTierOfSpec, type GuidedGroup, type GuidedModeId, type ModeTier } from "../../data/guidedModes";
 import { GRID_DEFAULT_SEC } from "../../data/gridShots";
@@ -64,9 +65,17 @@ const MODE_TEXT: Record<GuidedModeId, { icon: IconName; title: MessageDescriptor
   template: { icon: "file", title: msg`套模板`, tag: msg`换人不换景`, desc: msg`挑一条模板片，把画面里的人换成你的角色，场景与运镜照它走（模板按这个模型筛）` },
 };
 
-/** economy.VideoTier → 判定要的那几位能力（判据只在 guidedModes.modeBlock；取哪几位在 guidedModes.modeTierOfSpec，构建检查拿真表核） */
+/**
+ * economy.VideoTier → 判定要的那几位能力（判据只在 guidedModes.modeBlock；取哪几位在 guidedModes.modeTierOfSpec，构建检查拿真表核）。
+ * ★ 带上「这个人在这一档上只能纯文字出片」（account.tierTextOnly，2026-10-26 P2b 审核）：免费版在 MiniMax H3 上，要带图的做法一律不摆。
+ */
 export function modeTierOf(tierId: string): ModeTier {
-  return modeTierOfSpec(tierOf(tierId));
+  return tierModeOf(tierOf(tierId));
+}
+
+/** 同上，收档位对象（「换到哪一档就有」逐档问它） */
+function tierModeOf(tier: VideoTier): ModeTier {
+  return modeTierOfSpec(tier, tierTextOnly(tier));
 }
 
 export default function ModePicker({
@@ -93,6 +102,8 @@ export default function ModePicker({
   const { t } = useLingui();
   // 套餐 / 付没付过钱 / 服务端能力位都是异步到的：订阅账号的版本号，到了就重画
   useAccountVersion();
+  // 两家都给得出时摆哪一家（account.tierListed 读偏好）
+  useProviderPref();
   const tier = tierOf(tierId);
   const caps = modeTierOf(tierId);
   /** 套餐点不动的那几档并成一句（account.memberTiersLine，与 TierRow 同一句）+「去升级」 */
@@ -111,19 +122,37 @@ export default function ModePicker({
    */
   const tierIssue = tierBlockReason(tier);
   /** 摆哪几档：停用的、服务端不支持的不摆（account.tierOffered）；正选着的那一档例外（藏起来就不知道自己在哪一档） */
-  const shown = VIDEO_TIERS.filter((x) => tierOffered(x) || x.id === tier.id);
+  //   两家都给得出的芯片只摆这个人选的那一家（account.tierListed；选在上面那颗 ProviderSwitch 上）
+  const shown = VIDEO_TIERS.filter((x) => tierListed(x) || x.id === tier.id);
   const hidden = GUIDED_MODES.filter((m) => modeBlock(m.id, caps) !== null);
   /**
    * 「换到哪一档就有」：按这个人用得了的说（account.tierNamesFor）；一档都用不了时说那几档是会员档。
    * ★ 哪些档算数只问 guidedModes.clearsBlock —— 与挡它的 modeBlock 同一位（2026-10-26 审核：「要能出声的模型」原来按 refAudio 数，
    *   挡对话正反打的却是 audio；出声却不收声音样本的档一来，能用的那一档提示里永远不提）。
    */
-  const refNames = tierNamesFor((x) => clearsBlock("refImg", modeTierOfSpec(x)));
-  const audioNames = tierNamesFor((x) => clearsBlock("audio", modeTierOfSpec(x)));
+  const refNames = tierNamesFor((x) => clearsBlock("refImg", tierModeOf(x)));
+  const audioNames = tierNamesFor((x) => clearsBlock("audio", tierModeOf(x)));
+  /**
+   * 同上，但不算「只能纯文字」那一道 —— 上面两个回 null（没有一档解得了）、这里却有的话，挡住他的其实是付钱（免费版在 H3 上只能用文字），
+   * 不是「这里没有收参考图 / 能出声的模型」：说 textOnlyModesLine + 去升级，别说 noTierLine（那是一句与事实相反的话）
+   */
+  const refPaid = tierNamesFor((x) => clearsBlock("refImg", modeTierOfSpec(x, false)));
+  const audioPaid = tierNamesFor((x) => clearsBlock("audio", modeTierOfSpec(x, false)));
+  /** 因为只能纯文字出片而不摆的那几种做法：并成一句（一种一句的话免费用户会读到七句一样的话） */
+  const textOnlyHidden = hidden.filter((m) => modeBlock(m.id, caps) === "textOnly");
   return (
     <div className="space-y-3">
       <div>
         <div className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>① 先选出片模型</Trans></div>
+        {/* 境内同一档两家都给得出时：先选哪一家（换家 = 换成同一颗芯片的另一家那一行；那一行这个人用不了就不换，芯片上照样灰着说原因） */}
+        <ProviderSwitch
+          className="mb-1.5"
+          current={providerShown(tier)}
+          onPick={(p) => {
+            const twin = tierOfPreferred(tier, p);
+            if (twin.id !== tier.id && !tierBlockReason(twin)) onTier(twin.id);
+          }}
+        />
         {/* ★ 换行排，不横向滚（2026-10-26，与 TierRow 同一种排法）：原来是一行 no-scrollbar overflow-x-auto，六档摆不下时后面几颗
             被挤出屏幕、滚动条又藏着 —— 排在最后的正是「真人」，人看不见、也不知道还能往右划。
             量法（2026-10-26，开发服务器的真样式里摆同样六颗芯片量 getBoundingClientRect）：360 宽的手机上，画布「＋ 加一段」的抽屉
@@ -243,14 +272,32 @@ export default function ModePicker({
         {/* 这一档上没有的模式：说清换到哪儿就有（判据 guidedModes.modeBlock 的两种原因） */}
         {hidden.length > 0 && (
           <div className="space-y-0.5 text-[10px] leading-relaxed text-slate-500">
+            {textOnlyHidden.length > 0 && (
+              <p>
+                {textOnlyModesLine(textOnlyHidden.map((m) => t(MODE_TEXT[m.id].title)))}
+                {"　"}
+                <UpgradeLink />
+              </p>
+            )}
             {hidden.map((m) => {
               const title = t(MODE_TEXT[m.id].title);
               const why = modeBlock(m.id, caps);
+              if (why === "textOnly") return null;
               // 档名按能力现算、按这个人用不用得了分两种说法（2026-10-07：原来写死「高清或电影级」，免费用户被指去两个点不动的档）
               const names = why === "refImg" ? refNames : why === "audio" ? audioNames : null;
               // ★ 摆得出来的档里一档都解不了这个原因（tierNamesFor 回 null —— 门禁开着的海外只剩「真人」档，2026-10-26 终审）：
               //   原来落到下面那支，印出「换到「」就有」。说地区 / 这台服务器的事实（account.noTierLine，与上面 regionLine 同一种措辞），不编一条路、不给「去升级」
               if ((why === "refImg" || why === "audio") && !names) {
+                // 摆得出来的档里有解得了的、只是这个人在那几档上只能用文字：是付钱的事（见 refPaid 的注释）
+                if (why === "refImg" ? refPaid : audioPaid) {
+                  return (
+                    <p key={m.id}>
+                      {textOnlyModesLine([title])}
+                      {"　"}
+                      <UpgradeLink />
+                    </p>
+                  );
+                }
                 const none = noTierLine(why);
                 return (
                   <p key={m.id}>

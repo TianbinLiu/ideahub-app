@@ -1192,6 +1192,11 @@ msgstr "{count, plural, one {# card} other {# cards}}"
 msgid "{count} 张新卡飞进你的卡组了。"
 msgstr "{count, plural, one {# new card flew} other {# new cards flew}} into your deck."
 
+#. 剩余时间（几天几小时），嵌在「还剩 …」里；英文写成 6d 23h
+#: src/data/videoJobs.ts
+msgid "{d} 天 {h} 小时"
+msgstr "{d}d {h}h"
+
 #: src/components/flow/TierRow.tsx
 #: src/studio/ui/projection.tsx
 msgid "{desc}（{model}）"
@@ -1291,9 +1296,35 @@ msgstr "{fileName} has no text."
 msgid "{flatIssue}{realTier}档去「工作流」或「简约模式」直出。"
 msgstr "{flatIssue} For the “{realTier}” tier, render directly from “Workflow” or “Simple mode”."
 
+#. 剩余时间（几小时几分钟），嵌在「还剩 …」里；英文写成 5h 12m
+#: src/data/videoJobs.ts
+msgid "{h} 小时 {m} 分钟"
+msgstr "{h}h {m}m"
+
 #: src/ai/index.ts
 msgid "{head} · 演示"
 msgstr "{head} · demo"
+
+#: src/data/account.ts
+msgid "{head}——{destVia} 的「{names}」档做得到（会员档：开通会员套餐或充值过任意一笔后可用）"
+msgstr "{head} — “{names}” on {destVia} can (member-only: subscribe to a plan or make any top-up once to use it)"
+
+#. 前一截是「某档做不了某件事」的整句（不带句号），后一截是「你所在的地区目前没有…的出片模型」
+#: src/data/account.ts
+msgid "{head}——{none}"
+msgstr "{head} — {none}"
+
+#: src/data/account.ts
+msgid "{head}——「{names}」档做得到（会员档：开通会员套餐或充值过任意一笔后可用）"
+msgstr "{head} — “{names}” can (member-only: subscribe to a plan or make any top-up once to use it)"
+
+#: src/data/account.ts
+msgid "{head}——换到 {destVia} 的「{names}」档就有"
+msgstr "{head} — switch to “{names}” on {destVia}"
+
+#: src/data/account.ts
+msgid "{head}——换到「{names}」档就有"
+msgstr "{head} — switch to “{names}”"
 
 #: src/data/videoJobs.ts
 msgid "{hh}:{mm} 提交的那一发（服务器登记）"
@@ -1315,6 +1346,11 @@ msgstr "{installs, plural, one {Installed by # person} other {Installed by # peo
 #: src/data/publishAssets.ts
 msgid "{label} 太大（{sizeMb}MB，上限 5MB）"
 msgstr "{label} is too large ({sizeMb}MB; the limit is 5MB)"
+
+#. 生成契约那一行里的「档位名（模型名）」，如「草稿（MiniMax H3 Lite）」
+#: src/studio/genLog.ts
+msgid "{label}（{named}）"
+msgstr "{label} ({named})"
 
 #: src/data/economy.ts
 #~ msgid "{lack}是声明过的真人素材，但还没有方舟可信素材 ID —— 「{label}」档不收直接上传的真人照片，只收本人授权过的素材。去卡片详情页按提示做一次肖像授权并填上素材 ID，或先把这张卡取下"
@@ -1344,6 +1380,18 @@ msgstr "{lead}, so the “{label}” tier isn't available — switch to “{name
 msgid "{lead}，「{label}」档用不了——能换的「{member}」是会员档（开通会员套餐或充值过任意一笔后可用）"
 msgstr "{lead}, so the “{label}” tier isn't available — the one you could switch to, “{member}”, is member-only (subscribe to a plan or make any top-up once to use it)"
 
+#: src/data/account.ts
+msgid "{lead}，「{label}」档要换成 {via} 的「{label}」才能出片"
+msgstr "{lead}, so “{label}” has to switch to “{label}” on {via} to render"
+
+#: src/data/account.ts
+msgid "{lead}，「{label}」档要换成 {via} 的「{label}」才能出片（会员档：开通会员套餐或充值过任意一笔后可用）"
+msgstr "{lead}, so “{label}” has to switch to “{label}” on {via} to render (member-only: subscribe to a plan or make any top-up once to use it)"
+
+#: src/data/account.ts
+msgid "{lead}，「{label}」档要换成 {via} 的「{label}」才能出片（会员档：开通会员套餐或充值过任意一笔后可用）；现在就能用的是「{names}」档"
+msgstr "{lead}, so “{label}” has to switch to “{label}” on {via} to render (member-only: subscribe to a plan or make any top-up once to use it); you can use “{names}” right now"
+
 #: src/components/CardModelFit.tsx
 #: src/pages/DeckDetailPage.tsx
 msgid "{lead}：{reason}"
@@ -1366,6 +1414,16 @@ msgstr "{list} couldn't be saved to the server ({reason}) — this device now ho
 #: src/components/flow/RefStrip.tsx
 msgid "{looseNames} 没对上这一段的任何参考——检查名字，或点上面的图重新写进句子（发出去时它只是普通文字）。"
 msgstr "{looseNames} doesn't match any reference in this segment — check the name, or tap an image above to insert it again (it is sent as plain text)."
+
+#. 剩余时间（几分钟），嵌在「还剩 …」里；英文写成 12 min
+#: src/data/videoJobs.ts
+msgid "{m} 分钟"
+msgstr "{m} min"
+
+#. 两个整句接成一句：前一句说哪几档是会员档，后一句说免费版在哪几档上只能用文字出片
+#: src/data/account.ts
+msgid "{member}；{text}"
+msgstr "{member}; {text}"
 
 #: src/studio/gridDraftStore.ts
 msgid "{missing} 格模型没画"
@@ -1712,6 +1770,10 @@ msgid "{tierLabel}档 · 成片转存没成（{reason}）——先用方舟临�
 msgstr "{tierLabel} tier · moving to permanent storage failed ({reason}) — using Ark's temporary link for now; the preview frame will be filled in automatically later"
 
 #: src/ai/arkClient.ts
+msgid "{tierLabel}档 · 成片还在转存（服务器后台在搬）——先用临时链接，搬好之后自动换上"
+msgstr "{tierLabel} tier · still moving the video to permanent storage (the server is working on it) — using the temporary link for now; it's swapped in automatically once done"
+
+#: src/ai/arkClient.ts
 msgid "{tierLabel}档 · 排队中 {sec}s"
 msgstr "{tierLabel} tier · queued {sec}s"
 
@@ -1754,6 +1816,14 @@ msgstr "{used}/{SCHEME_SLOT_PROMPT_MAX} · over {SLOT_PROMPT_SOFT_HAN} Chinese c
 #: src/pages/SupportModelNewPage.tsx
 msgid "{value}（包里没有）"
 msgstr "{value} (not in bundle)"
+
+#: src/data/account.ts
+msgid "{via} 出的「{label}」做不了按参考视频出片（片段重拍、自定义的示例视频都属于这一类）"
+msgstr "“{label}” on {via} can't render from a reference video (reshoots and custom sample videos both work this way)"
+
+#: src/data/account.ts
+msgid "{via} 出的「{label}」跑不了白模模板（模板对出片模型是硬要求）"
+msgstr "“{label}” on {via} can't run blockout templates (a template requires a specific video model)"
 
 #: src/live2d/bundlePreview.ts
 msgid "{what}：{ref}"
@@ -2166,6 +2236,14 @@ msgstr "The “{label}” tier has no preview-draft mode (only “{names}” has
 msgid "「{label}」档的模型已于 {day}停用——换一档再出片"
 msgstr "The model behind the “{label}” tier was retired on {day} — pick another tier to generate"
 
+#: src/data/account.ts
+msgid "「{label}」档眼下用的这个出片模型做不了按参考视频出片（片段重拍、自定义的示例视频都属于这一类）"
+msgstr "The video model “{label}” is using right now can't render from a reference video (reshoots and custom sample videos both work this way)"
+
+#: src/data/account.ts
+msgid "「{label}」档眼下用的这个出片模型跑不了白模模板（模板对出片模型是硬要求）"
+msgstr "The video model “{label}” is using right now can't run blockout templates (a template requires a specific video model)"
+
 #: src/studio/flowStore.ts
 msgid "「{label}」档还不能延长——{none}"
 msgstr "The “{label}” tier can’t extend yet — {none}"
@@ -2344,9 +2422,29 @@ msgstr "Member-only: “{names}” — subscribe to a plan (or make any top-up o
 msgid "「{names}」档"
 msgstr "“{names}”"
 
+#: src/data/account.ts
+msgid "「{names}」档用 {via} 出片时，免费版只能用文字（不补画首帧尾帧、不带参考图）——带图出片要开通会员套餐（或充值过任意一笔）"
+msgstr "On {via}, the free plan can only make “{names}” videos from text (no drawn first/last frames, no reference images) — subscribe to a plan (or make any top-up once) to use images"
+
+#: src/data/economy.ts
+msgid "「{names}」档眼下用的这个出片模型做不了按参考视频出片（片段重拍、自定义的示例视频都属于这一类）"
+msgstr "The video model “{names}” is using right now can't render from a reference video (reshoots and custom sample videos both work this way)"
+
+#: src/data/economy.ts
+msgid "「{names}」档眼下用的这个出片模型跑不了白模模板（模板对出片模型是硬要求）"
+msgstr "The video model “{names}” is using right now can't run blockout templates (a template requires a specific video model)"
+
 #: src/studio/segmentGen.ts
 msgid "「{names}」的声音样本这次没带上（这一档的参考音频合计最长 {capSec} 秒）——这几位的台词音色由模型定；把样本剪短些就能都带上"
 msgstr "The voice sample for {names} wasn't sent this time (on this tier all reference audio together can be at most {capSec} seconds) — the model picks the voice for their lines; trim the samples and they will all fit"
+
+#: src/data/account.ts
+msgid "「{names}」要带图出片——免费版在这一档上只能用文字出片（开通会员套餐或充值过任意一笔后可以带图）"
+msgstr "“{names}” needs images in the video request — on this tier, the free plan can only make videos from text (subscribe to a plan or make any top-up once to use images)"
+
+#: src/data/account.ts
+msgid "「{names}」要带图出片——免费版用 {via} 出片时只能用文字（开通会员套餐或充值过任意一笔后可以带图）"
+msgstr "“{names}” needs images in the video request — on {via}, the free plan can only make videos from text (subscribe to a plan or make any top-up once to use images)"
 
 #: src/data/economy.ts
 #~ msgid "「{names}」跑不了白模模板（模板对出片模型是硬要求）——白模模板只有「{openLabel}」（{openModel}）跑得了"
@@ -4333,6 +4431,10 @@ msgstr "④ Tags (optional)"
 msgid "480p 省钱档 · 与「{hd}」同一个模型、画面小一号；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音"
 msgstr "Budget 480p tier · same model as “{hd}” at a smaller size; can render straight from the cards' reference images · videos come with AI-generated ambient sound"
 
+#: src/data/economy.ts
+msgid "480p 省钱档 · 可直接用素材卡的形象参考图出片（一段最多 {max} 张图）· 出片一定带 AI 生成的环境音，不参考卡上的声音样本"
+msgstr "Budget 480p tier · can render straight from the cards' reference images (up to {max} images per segment) · videos always come with AI-generated ambient sound; voice samples on cards aren't used"
+
 #: src/studio/quality.ts
 msgid "4K 贴图 · 15 万面 · 最清楚但吃显存（她 3.9MB／他 3.8MB）"
 msgstr "4K textures · 150K faces · sharpest but heavy on GPU memory (she 3.9MB / he 3.8MB)"
@@ -4340,6 +4442,14 @@ msgstr "4K textures · 150K faces · sharpest but heavy on GPU memory (she 3.9MB
 #: src/pages/LoginPage.tsx
 msgid "6 位验证码"
 msgstr "6-digit code"
+
+#: src/data/economy.ts
+msgid "768p · 可直接用素材卡的形象参考图出片（一段最多 {max} 张图）· 出片一定带 AI 生成的环境音，不参考卡上的声音样本"
+msgstr "768p · can render straight from the cards' reference images (up to {max} images per segment) · videos always come with AI-generated ambient sound; voice samples on cards aren't used"
+
+#: src/data/economy.ts
+msgid "768p · 可直接用素材卡的形象参考图出片（一段最多 {max} 张图）· 出片一定带 AI 生成的环境音，不参考卡上的声音样本；没有往后延长、样片和白模模板"
+msgstr "768p · can render straight from the cards' reference images (up to {max} images per segment) · videos always come with AI-generated ambient sound; voice samples on cards aren't used. No extending, preview drafts or blockout templates"
 
 #: src/pages/ProfilePage.tsx
 #~ msgid "add-on token · 直充 / 新人额度 / 创作收益，不过期"
@@ -4402,6 +4512,7 @@ msgid "AI 指挥没连上（{why}），先按本地句式办了能办的。"
 msgstr "Couldn't reach the AI director ({why}), so I did what plain phrasing allows. "
 
 #: src/components/flow/ModePicker.tsx
+#: src/studio/ui/projection.tsx
 msgid "AI 推演三套"
 msgstr "AI drafts three"
 
@@ -4540,6 +4651,42 @@ msgstr "Canvas unavailable"
 #: src/pages/ProfilePage.tsx
 msgid "Google Play 还在等这笔付款完成，到账后余额会自动更新"
 msgstr "Google Play is still waiting for this payment to clear; your balance updates once it does."
+
+#: src/ai/minimaxVideo.ts
+msgid "MiniMax 出片 {minutes} 分钟没出结果——任务多半还在上游跑，不是失败。"
+msgstr "No MiniMax result after {minutes} min — the task is most likely still running upstream; this is not a failure."
+
+#: src/ai/minimaxVideo.ts
+msgid "MiniMax 出片创建失败（HTTP {status}）"
+msgstr "Couldn't create the MiniMax video (HTTP {status})"
+
+#: src/ai/minimaxVideo.ts
+msgid "MiniMax 出片创建没收到回包：{detail}"
+msgstr "No reply when creating the MiniMax video: {detail}"
+
+#: src/ai/minimaxVideo.ts
+msgid "MiniMax 出片失败：{reason}"
+msgstr "MiniMax video failed: {reason}"
+
+#: src/ai/minimaxVideo.ts
+msgid "MiniMax 出片请求里有服务器不收的东西——把这句话反馈给我们"
+msgstr "The MiniMax video request contained something the server doesn't accept — please report this message to us"
+
+#: src/ai/minimaxVideo.ts
+msgid "MiniMax 受理了这一发却没给任务号——把这句话反馈给我们"
+msgstr "MiniMax accepted this run but returned no task ID — please report this message to us"
+
+#: src/components/flow/ProviderSwitch.tsx
+msgid "MiniMax 的服务器在境外：用它出片时，这一段的提示词和参考图（包括人物卡的照片）会交给 MiniMax 处理。不想这样就留在 Seedance，随时能在这里换回来。"
+msgstr "MiniMax's servers are outside mainland China: when you generate with it, this segment's prompt and reference images (including character card photos) are processed by MiniMax. If you'd rather not, stay on Seedance — you can switch back here any time."
+
+#: src/ai/minimaxVideo.ts
+msgid "MiniMax 那边没有受理这一发——过一会儿再点；一直这样请把这句话反馈给我们"
+msgstr "MiniMax didn't accept this run — try again in a moment; if it keeps happening, please report this message to us"
+
+#: src/ai/minimaxVideo.ts
+msgid "MiniMax 那边这会儿太忙——过一会儿再点"
+msgstr "MiniMax is too busy right now — try again in a moment"
 
 #. 卡片页「按模型适配」里一组的标题：MiniMax 是品牌名（不翻译），括号里是它的视频产品名 Hailuo
 #: src/data/account.ts
@@ -5118,10 +5265,14 @@ msgid "上传中断了（网络不可用）"
 msgstr "The upload was interrupted (network unavailable)"
 
 #. placeholder {0}: i + 1
-#. placeholder {1}: extrasIn.length
+#. placeholder {1}: extrasSent.length
 #: src/studio/segmentGen.ts
 msgid "上传临时参考图 {0}/{1}…"
 msgstr "Uploading extra reference image {0}/{1}…"
+
+#: src/ai/real.ts
+msgid "上传参考图 {n}/{total}…"
+msgstr "Uploading reference image {n}/{total}…"
 
 #. placeholder {0}: i + 1
 #. placeholder {1}: toSend.length
@@ -6423,6 +6574,7 @@ msgid "任务号：{0}"
 msgstr "Task ID: {0}"
 
 #: src/ai/arkClient.ts
+#: src/ai/minimaxVideo.ts
 msgid "任务被取消了"
 msgstr "the task was cancelled"
 
@@ -6702,6 +6854,10 @@ msgstr "Tap “Share to the Workshop” on one of your card pages to be the firs
 #: src/pages/WorkshopPage.tsx
 msgid "你可以第一个"
 msgstr "You could be the first"
+
+#: src/ai/minimaxVideo.ts
+msgid "你同时在出的 MiniMax 视频已经有 {limit} 段了——等其中一段出来再点"
+msgstr "You already have {limit} MiniMax videos generating at once — wait for one to finish, then try again"
 
 #: src/pages/SupportPage.tsx
 msgid "你好，我是{name}，启梦的 AI 客服。账号、扣费、出片取回、安装更新都可以问我；我解决不了的会帮你转给人工。"
@@ -7481,6 +7637,26 @@ msgstr "Free plan: {daily} plan tokens are added every day (saving up to {cap}),
 #: src/pages/ProfilePage.tsx
 msgid "免费版：每天自动补 {daily} 套餐 token（最多攒到 {cap}）。开通会员套餐或充值任意一笔，全部档位都能用。"
 msgstr "Free plan: {daily} plan tokens are added every day (saving up to {cap}). Subscribe to a plan or make any top-up once to unlock every tier."
+
+#: src/data/account.ts
+msgid "免费版在这一档上只能用文字出片：首帧 / 尾帧（含承接上一段的结尾）、卡片形象图与临时参考图都不发给视频模型，卡片只按文字参与（开通会员套餐或充值过任意一笔后可以带图）"
+msgstr "On the free plan, videos on this tier are text-only: start/end frames (including the carried-over ending of the previous segment), card images and extra reference images are not sent to the video model; cards count as text only (subscribe or top up once to include images)"
+
+#: src/data/account.ts
+msgid "免费版在这一档上只能用文字出片：首帧 / 尾帧带不上（开通会员套餐或充值过任意一笔后可以带图）"
+msgstr "On this tier, the free plan can only make videos from text: first / last frames can't be included (subscribe to a plan or make any top-up once to use images)"
+
+#: src/data/account.ts
+msgid "免费版用 {via} 出片时只能用文字：首帧 / 尾帧（含承接上一段的结尾）、卡片形象图与临时参考图都不发给视频模型，卡片只按文字参与（开通会员套餐或充值过任意一笔后可以带图）"
+msgstr "On the free plan, {via} videos are text-only: start/end frames (including the carried-over ending of the previous segment), card images and extra reference images are not sent to the video model; cards count as text only (subscribe or top up once to include images)"
+
+#: src/data/account.ts
+msgid "免费版用 {via} 出片时只能用文字：首帧 / 尾帧带不上（开通会员套餐或充值过任意一笔后可以带图）"
+msgstr "On {via}, the free plan can only make videos from text: first / last frames can't be included (subscribe to a plan or make any top-up once to use images)"
+
+#: src/ai/minimaxVideo.ts
+msgid "免费版用 MiniMax 出片只能用文字：这一段带着画面或参考图——开通会员套餐（或充值过任意一笔）后可以带图"
+msgstr "On the free plan, MiniMax videos are text-only, and this segment includes frames or reference images — subscribe (or top up once) to include images"
 
 #: src/components/flow/ThemeRewriteSheet.tsx
 msgid "全不选"
@@ -8363,6 +8539,14 @@ msgstr "Video model"
 #: src/pages/TemplateDetailPage.tsx
 msgid "出片模型是固定的：按参考视频逐镜头复刻只有「{gateLabel}」做得到，套用后这一段不能换别的画质档。"
 msgstr "The video model is fixed: only “{gateLabel}” can remake a reference video shot by shot, so this segment can't switch to another quality tier once you use the template."
+
+#: src/components/flow/ProviderSwitch.tsx
+msgid "出片模型来自"
+msgstr "Video model from"
+
+#: src/components/flow/ProviderSwitch.tsx
+msgid "出片模型来自哪一家"
+msgstr "Which provider the video model comes from"
 
 #: src/pages/CardDetailPage.tsx
 msgid "出片用"
@@ -9736,8 +9920,10 @@ msgstr "The reference images weren't accepted, so this frame is being redrawn fr
 msgid "参考图生视频（reference_image）"
 msgstr "Reference images to video (reference_image)"
 
+#: src/components/flow/FlowCanvas.tsx
 #: src/components/flow/ModePicker.tsx
 #: src/studio/studioStore.ts
+#: src/studio/ui/projection.tsx
 msgid "参考图直出"
 msgstr "Reference images, direct"
 
@@ -10599,6 +10785,11 @@ msgstr "Dialogue will no longer be voiced (“{0}” has no voiceover yet)"
 
 #. placeholder {0}: next.label
 #: src/components/flow/TierRow.tsx
+msgid "台词不再带音色样本（{via} 出的「{0}」不收声音样本，台词照样配音、音色由模型定）"
+msgstr "Dialogue no longer uses the voice sample (“{0}” on {via} doesn't take voice samples — lines are still voiced, in a voice the model picks)"
+
+#. placeholder {0}: next.label
+#: src/components/flow/TierRow.tsx
 msgid "台词不再带音色样本（「{0}」档不收声音样本，台词照样配音、音色由模型定）"
 msgstr "Dialogue no longer uses the voice sample (“{0}” doesn't take voice samples — lines are still voiced, in a voice the model picks)"
 
@@ -10723,6 +10914,10 @@ msgid "合成失败：第 {segList} 段的视频取不到了。这几段的视�
 msgstr "Merge failed: the video for segment {segList} can't be fetched any more. These segments were still on temporary links (they never got moved to permanent storage), and temporary links only live 24 hours — once expired they're gone. This piece can't be merged right now: open the draft under Me → Drafts and regenerate those segments (this costs again), or delete them and merge again."
 
 #: src/pages/CutPage.tsx
+msgid "合成失败：第 {segList} 段的视频取不到了。这几段的视频还挂在临时链接上（当初没能转存成长期地址），这种链接有时效，现在已经取不到了。这条片子现在合不了：删掉这几段再合；要留下它们，只能回「我的 → 草稿」打开草稿把这几段重新出片（会再花一次钱）。"
+msgstr "Merge failed: the video for segment {segList} can't be fetched any more. These segments were still on temporary links (they never got moved to permanent storage), and those links expire — they can't be fetched now. This piece can't be merged right now: delete those segments and merge again; to keep them, the only way is to open the draft under Me → Drafts and regenerate them (this costs again)."
+
+#: src/pages/CutPage.tsx
 #~ msgid "合成失败：第 {segList} 段的视频取不到了（HTTP {http}）。这几段揣的还是方舟的临时链接、当初没能转存成永久地址，而那种链接只活 24 小时——过期之后合成器也拉不到。这条片子现在合不了：回「我的 → 草稿」打开草稿把这几段重新出片（会再花一次钱），或者删掉它们再合。"
 #~ msgstr "Merge failed: the video for segment {segList} can't be fetched any more (HTTP {http}). These segments still hold Ark's temporary links, which never got moved to permanent storage, and those links live only 24 hours — once expired the compositor can't pull them either. This video can't be merged right now: open the draft under “Me → Drafts” and regenerate those segments (this costs again), or delete them and merge."
 
@@ -10815,6 +11010,10 @@ msgstr "The same second is marked more than once. Remove the duplicate frames an
 #: src/pages/LoginPage.tsx
 msgid "同意协议"
 msgstr "Agree to the terms"
+
+#: src/components/flow/ProviderSwitch.tsx
+msgid "同意并改用"
+msgstr "Agree and switch"
 
 #: src/App.tsx
 #: src/pages/LoginPage.tsx
@@ -13123,6 +13322,10 @@ msgstr "No one else has published a look to the market yet."
 msgid "市场页签顶上能<0>按词搜</0>，搜索框右边那颗<1>出片模型</1>只留你想用的那个模型出得了片的模板，下面那排芯片<2>按类筛</2>，三个叠在一起生效。选中的分类在「我的模板」里也管用，没分过类的老模板只在「全部」下出现——找不到自己做的，先点回「全部」。"
 msgstr "On the market tab you can <0>search by keyword</0> at the top, the <1>Video model</1> button to the right of the search box keeps only the templates that the model you want can render, and the row of chips below <2>filters by category</2>; all three work together. The category you pick also applies in “My templates”, and older templates without a category only show under “All” — if you can't find one you made, tap “All” first."
 
+#: src/components/flow/CustomFrameSlots.tsx
+msgid "带不上"
+msgstr "Not included"
+
 #: src/studio/segmentGen.ts
 msgid "带参考视频的自定义段暂不支持圈选改画面——清掉圈选标注再出片"
 msgstr "Custom segments with a reference video don't support circle edits yet — clear the circle annotations, then generate"
@@ -13834,6 +14037,14 @@ msgstr "The finished video is too big ({mb}MB; this server's limit is 20MB) — 
 msgid "成片已经出来了，取下载地址时没收到回包——凭据还在，过一会儿再点「取回」，不花钱。"
 msgstr "The video is done, but there was no reply when fetching its download link — the receipt is still here; tap “Recover” again in a little while, at no cost."
 
+#: src/ai/minimaxVideo.ts
+msgid "成片已经出来了，这一次没拿到地址——凭据还在，用「取回」领回来，不花钱。"
+msgstr "The video is done, but this time we didn't get its link — the receipt is still here; use “Recover” to get it, at no cost."
+
+#: src/ai/minimaxVideo.ts
+msgid "成片已经出来了，这一次没拿到地址——凭据还在，过一会儿再点「取回」，不花钱。"
+msgstr "The video is done, but this time we didn't get its link — the receipt is still here; tap “Recover” again in a little while, at no cost."
+
 #: src/components/flow/SegmentRecoverCards.tsx
 msgid "成片已经取回，放进了流水线，也存进了草稿"
 msgstr "Video recovered: it is in the pipeline and saved to your drafts"
@@ -13867,9 +14078,22 @@ msgstr "Couldn't decode the video — use “Upload from device” or the segmen
 msgid "成片读不出来（{0}）"
 msgstr "Couldn't read the finished video ({0})"
 
+#: src/ai/real.ts
 #: src/studio/genLog.ts
 msgid "成片转存中（换成永久地址）"
 msgstr "Moving the video to permanent storage"
+
+#: src/studio/genLog.ts
+msgid "成片转存没成（{reason}）——先用 MiniMax 的临时链接，预览帧稍后自动补上"
+msgstr "Couldn't move the video to permanent storage ({reason}) — using MiniMax's temporary link for now; preview frames will be filled in automatically later"
+
+#: src/ai/real.ts
+msgid "成片转存没成（{reason}）——先用临时链接（有时效），发布时服务器会再转存一次"
+msgstr "Moving to permanent storage failed ({reason}) — using the temporary link for now (it expires); the server will try moving it again when you publish"
+
+#: src/studio/genLog.ts
+msgid "成片转存没成（{reason}）——先用临时链接（有时效），预览帧稍后自动补上"
+msgstr "Moving to permanent storage failed ({reason}) — using the temporary link for now (it expires); the preview frame will be filled in automatically later"
 
 #: src/studio/genLog.ts
 msgid "成片转存没成（{reason}）——先用方舟临时链接，预览帧稍后自动补上"
@@ -13878,6 +14102,14 @@ msgstr "Moving to permanent storage failed ({reason}) — using Ark's temporary 
 #: src/studio/flowStore.ts
 msgid "成片还在转存（换成永久地址），转存完才能延长——稍等一会儿再来"
 msgstr "The clip is still moving to permanent storage — it can be extended once that finishes. Check back shortly"
+
+#: src/ai/real.ts
+msgid "成片还在转存（服务器后台在搬）——先用临时链接，搬好之后自动换上"
+msgstr "Still moving the video to permanent storage (the server is working on it) — using the temporary link for now; it's swapped in automatically once done"
+
+#: src/studio/genLog.ts
+msgid "成片还在转存（服务器后台在搬）——先用临时链接，搬好之后自动换上、预览帧跟着补"
+msgstr "Still moving the video to permanent storage (the server is working on it) — using the temporary link for now; it's swapped in automatically once done, and the preview frame follows"
 
 #: src/components/CoverPicker.tsx
 msgid "成片还在载入，稍等一下再截"
@@ -14584,6 +14816,11 @@ msgstr "Casting failed (no reason was given — this is a bug, please report it)
 #: src/components/guide/tours.tsx
 msgid "挂卡面板"
 msgstr "Casting panel"
+
+#. placeholder {0}: next.label
+#: src/components/flow/TierRow.tsx
+msgid "挂在这一段上的示例视频会被摘掉（{via} 出的「{0}」带不了参考视频）"
+msgstr "The example video on this segment will be removed (“{0}” on {via} can't take a reference video)"
 
 #. placeholder {0}: next.label
 #: src/components/flow/TierRow.tsx
@@ -15361,6 +15598,10 @@ msgstr "Couldn't compose the prompt: the AI changed the group binding “{senten
 msgid "提示词合成失败（{why}）——这一段的要求请自己写，或用下面那份默认写法。"
 msgstr "Couldn't compose the prompt ({why}) — write this segment's request yourself, or use the default version below."
 
+#: src/ai/minimaxVideo.ts
+msgid "提示词或图片没过 MiniMax 的内容审核——改一改再出片"
+msgstr "The prompt or images didn't pass MiniMax's content review — revise them and try again"
+
 #: src/ai/arkClient.ts
 msgid "提示词没过方舟的内容审核——改掉里面可能被拦的说法再试"
 msgstr "The prompt didn't pass Ark's content review. Reword whatever might have been flagged and try again"
@@ -15809,6 +16050,10 @@ msgstr "Make it rainy"
 #: src/components/flow/FrameEditBox.tsx
 msgid "改成夜晚"
 msgstr "Make it night"
+
+#: src/components/flow/ProviderSwitch.tsx
+msgid "改用 MiniMax 出片？"
+msgstr "Switch to MiniMax?"
 
 #: src/pages/CardDetailPage.tsx
 msgid "改的是你库里这一份。已经随作品发布、或被别人装走的那些是当时的副本，不会跟着变。"
@@ -16764,6 +17009,10 @@ msgid "有新版本 {0}"
 msgstr "New version {0} available"
 
 #: src/pages/PublishPage.tsx
+msgid "有片段还挂在临时链接上（有时效）——尽快发布，发布后会换成长期地址"
+msgstr "Some segments are still on temporary links (they expire) — publish soon; publishing swaps them for permanent ones"
+
+#: src/pages/PublishPage.tsx
 msgid "有片段还挂在临时链接上（约 24 小时有效）——尽快发布，发布后会换成长期地址"
 msgstr "Some segments are still on temporary links (valid about 24 hours) — publish soon; publishing swaps them for permanent ones"
 
@@ -16883,9 +17132,17 @@ msgstr "The server couldn't delete this card ({why}). The copy on this device st
 msgid "服务器没能删掉这条作品（{why}）。本地这份先留着——删了它下次启动也会回来。"
 msgstr "The server couldn't delete this video ({why}). The copy on this device stays for now — if you deleted it, it would come back the next time the app starts."
 
+#: src/ai/real.ts
+msgid "服务器没能把它搬到长期地址"
+msgstr "the server couldn't move it to permanent storage"
+
 #: src/data/videoJobs.ts
 msgid "服务器登记的这一发已经过了 24 小时，成片取不到了。如果你当时已经在别处拿到了它，忽略这条就好。"
 msgstr "This job from the server's records is more than 24 hours old, so its video can no longer be fetched. If you already got it somewhere else back then, just ignore this."
+
+#: src/data/videoJobs.ts
+msgid "服务器登记的这一发已经过了 7 天，上游查不到它了。如果你当时已经在别处拿到了它，忽略这条就好。"
+msgstr "This job from the server's records is more than 7 days old, so it can no longer be looked up upstream. If you already got it somewhere else back then, just ignore this."
 
 #: src/components/flow/SegmentRecoverCards.tsx
 msgid "服务器登记的那一发没出成（{why}）。{moneyLine}要这一段的话重新生成（会重新计费）。"
@@ -18987,6 +19244,10 @@ msgstr "Couldn’t draw them ({why}). Nothing was charged."
 msgid "没画成（{why}）。{0}"
 msgstr "Couldn’t draw them ({why}). {0}"
 
+#: src/ai/minimaxVideo.ts
+msgid "没等到 MiniMax 回话——过一会儿再点"
+msgstr "MiniMax didn't respond in time — try again in a moment"
+
 #. moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格
 #: src/pages/CustomCardPage.tsx
 msgid "没等到识别结果。{moneyLine}可以先自己填"
@@ -20269,8 +20530,16 @@ msgid "生成契约"
 msgstr "Generation spec"
 
 #: src/ai/real.ts
+msgid "生成契约不一致：「{tierLabel}」档一段最多带 {refMax} 张参考图，这一发排了 {refCount} 张——视频这一发没有发出去，请把这句话反馈给我们"
+msgstr "Generation contract mismatch: the “{tierLabel}” tier takes at most {refMax} reference images per segment, but this run lined up {refCount} — the video request was not sent; please report this message to us"
+
+#: src/ai/real.ts
 msgid "生成契约不一致：「{tierLabel}」档不收声音样本（参考音频）"
 msgstr "Generation spec mismatch: the “{tierLabel}” tier doesn't take voice samples (reference audio)"
+
+#: src/ai/real.ts
+msgid "生成契约不一致：MiniMax H3 不支持「{label}」这种出片——视频这一发没有发出去，请把这句话反馈给我们"
+msgstr "Generation contract mismatch: MiniMax H3 doesn't support “{label}” — the video request was not sent; please report this message to us"
 
 #: src/ai/real.ts
 msgid "生成契约不一致：参考图 / 参考视频与首尾帧不能混发（方舟三种场景互斥）"
@@ -20299,6 +20568,10 @@ msgstr "Generation contract mismatch: this request's prompt has {len} characters
 #: src/ai/real.ts
 msgid "生成契约不一致：这一段声明按「{declared}」出片，而槽位里实际是「{actual}」（报价与请求会是两把尺）——没有花钱，请把这句话反馈给我们"
 msgstr "Nothing was charged. Generation spec mismatch: this segment declares “{declared}” but its slots imply “{actual}” (the quote and the request would disagree) — please send us this message"
+
+#: src/ai/real.ts
+msgid "生成契约不完整：「{tierLabel}」档没写发给 MiniMax 的分辨率——视频这一发没有发出去，请把这句话反馈给我们"
+msgstr "Incomplete generation contract: the “{tierLabel}” tier has no MiniMax resolution set — the video request was not sent; please report this message to us"
 
 #: src/ai/real.ts
 msgid "生成契约不完整：提示词是空的"
@@ -22367,8 +22640,16 @@ msgid "第 {list} 格的分镜在画好之后改过，画面还是按原来那�
 msgstr "Panel {list}: the storyboard was edited after the picture was drawn, so the picture still follows the old version — go back to step 3 to redraw it, or to step 4 to deselect it"
 
 #: src/ai/real.ts
+msgid "第 {n} 张参考图不是图片地址（MiniMax 不收方舟的可信素材），视频这一发没有发出去——换一张卡或换一档再出片"
+msgstr "Reference image {n} isn't an image link (MiniMax doesn't accept Ark trusted assets), so the video request was not sent — swap the card or switch tiers and try again"
+
+#: src/ai/real.ts
 msgid "第 {n} 张参考图未采用（「{name}」的{view}，比例越界或读不出来）"
 msgstr "Reference image {n} wasn't used (“{name}”, “{view}”: its aspect ratio is out of range or it couldn't be read)"
+
+#: src/ai/real.ts
+msgid "第 {n} 张参考图没能传到图床（{why}），视频这一发没有发出去——过一会儿再点一次生成"
+msgstr "Couldn't upload reference image {n} ({why}), so the video request was not sent — try Generate again in a moment"
 
 #: src/studio/gridDraftStore.ts
 msgid "第 {n} 格：{err}"
@@ -22393,6 +22674,14 @@ msgstr "Segment {n} was on “{label}” (model retired); switched to “{b}”"
 #: src/studio/flowStore.ts
 msgid "第 {n} 段原来是「{label}」档（这台服务器还不支持），改用「{b}」档"
 msgstr "Segment {n} was on “{label}” (not supported by this server yet); switched to “{b}”"
+
+#: src/studio/flowStore.ts
+msgid "第 {n} 段原来用 {viaA} 出「{label}」档（这台服务器还不支持），改用同一档的 {viaB}（「{b}」档）"
+msgstr "Segment {n} was on “{label}” via {viaA} (not supported by this server yet); switched to the same tier via {viaB} (“{b}”)"
+
+#: src/studio/flowStore.ts
+msgid "第 {n} 段原来的「{label}」档你所在的地区用不了，改用同一档的 {viaB}（「{b}」档）"
+msgstr "Segment {n}'s “{label}” isn't available in your region; switched to the same tier via {viaB} (“{b}”)"
 
 #: src/studio/flowStore.ts
 msgid "第 {n} 段原来的档位已经下线，改用「{b}」档"
@@ -23612,6 +23901,11 @@ msgstr "can extend a clip"
 #: src/components/flow/FixSegmentBox.tsx
 msgid "能按参考视频出片的「{refNames}」是会员档——开通会员套餐（或充值过任意一笔）后可用"
 msgstr "Generating from a reference video needs a member tier (“{refNames}”) — available once you subscribe to a plan (or make any top-up once)"
+
+#. 定语，接在「目前没有…的出片模型」中间；英文写成接在 video model that 后面的动词短语：can run blockout templates
+#: src/data/account.ts
+msgid "能跑白模模板"
+msgstr "can run blockout templates"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "脸红"
@@ -25245,6 +25539,10 @@ msgstr "Still queued — tap “Recover” again in a few minutes. This run has 
 msgid "还在改写：收起不会丢，好了顶上会提示；从「/」面板再打开就接得回来"
 msgstr "Still rewriting: closing won't lose it — a banner at the top will tell you when it's done, and reopening from the “/” panel picks it back up"
 
+#: src/data/account.ts
+msgid "还在确认这台服务器与你所在的地区能不能用 {via} 出「{label}」档——稍等再试，或先换一档出片"
+msgstr "Still checking whether this server and your region allow “{label}” on {via} — try again in a moment, or pick another tier for now"
+
 #: src/components/blockout/BlockoutTrimmer.tsx
 msgid "还在读这段视频"
 msgstr "Still reading this video"
@@ -25651,6 +25949,18 @@ msgstr "This job can no longer be recovered: Ark keeps videos on its servers for
 msgid "这一发已经取不回来了：方舟的成片只在服务器上留 24 小时，现在已经过期。已经花掉的钱无法挽回——这不是超时重来，重新生成是再花一次钱。"
 msgstr "This job can no longer be recovered: Ark keeps videos on its servers for only 24 hours, and it has expired. The money already spent can't be recovered — this isn't a timeout retry, and regenerating costs again."
 
+#: src/data/videoJobs.ts
+msgid "这一发已经取不回来了：这一档的成片任务只能在受理之后 7 天内查到，现在已经过了。如果上游那边其实是失败了，扣的 token 会自动退回（到账时会通知你）；如果是出成了却没取回，这笔钱就无法挽回了——重新生成是再花一次钱。"
+msgstr "This job can no longer be recovered: jobs on this tier can only be looked up within 7 days of being accepted, and that window has passed. If it actually failed upstream, the tokens are refunded automatically (you'll get a notification when they land); if it succeeded but wasn't recovered, that money can't be recovered — regenerating costs again."
+
+#: src/data/videoJobs.ts
+msgid "这一发已经取不回来了：这一档的成片任务只能在受理之后 7 天内查到，现在已经过了。已经花掉的钱无法挽回——重新生成是再花一次钱。"
+msgstr "This job can no longer be recovered: jobs on this tier can only be looked up within 7 days of being accepted, and that window has passed. The money already spent can't be recovered — regenerating costs again."
+
+#: src/data/videoJobs.ts
+msgid "这一发已经取不回来了：这一档的成片任务只能在受理之后 7 天内查到，现在已经过了。这一发本来就没有扣 token，点「知道了」消掉这条就好。"
+msgstr "This job can no longer be recovered: jobs on this tier can only be looked up within 7 days of being accepted, and that window has passed. No tokens were charged for it; tap “Got it” to clear this."
+
 #: src/studio/segmentGen.ts
 msgid "这一发带不上图位的图（不是参考图那一种请求），视频这一发没有发出去——换成模板能跑的那一档，或过一会儿再点一次生成"
 msgstr "This request can't carry the template's slot images (it isn't a reference-image request), so the video request was not sent. Switch to a tier the template supports, or try generating again in a moment"
@@ -25712,6 +26022,10 @@ msgstr "This request wasn't accepted and nothing was charged."
 msgid "这一发没有扣 token，任务多半还在上游跑 —— 点「取回」把它领回来；点「重新生成」是重新下一单。出片通常 1~2 分钟，隔一会儿再点一次。"
 msgstr "No tokens were charged for this job, and it's most likely still running upstream — tap “Recover” to collect it; tapping “Regenerate” places a new order. Videos usually take 1–2 minutes, so tap again in a little while."
 
+#: src/data/videoJobs.ts
+msgid "这一发没有扣 token。成片在受理之后 7 天内都取得回来（还剩 {rest}）——点「取回」把它领回来，不花钱；点「重新生成」是重新下一单。还在出片的话，隔一会儿再点一次。"
+msgstr "No tokens were charged for this job. Its video can be recovered for up to 7 days after it was accepted ({rest} left) — tap “Recover” to collect it, free of charge; tapping “Regenerate” places a new order. If it's still rendering, tap again in a little while."
+
 #: src/components/TemplateShelf.tsx
 msgid "这一发白模化已经取不回来了"
 msgstr "This blockout job can no longer be recovered"
@@ -25725,12 +26039,20 @@ msgid "这一发的状态暂时查不到（{why}）——联网后再点一次�
 msgstr "Can't look up this run's status right now ({why}) — once you're online, tap “Recover” again; the receipt is still there and it costs nothing"
 
 #: src/data/videoJobs.ts
+msgid "这一发的钱在提交那一刻就已经扣了，万一最后没出成会自动退回。成片在受理之后 7 天内都取得回来（还剩 {rest}）——点「取回」不重新下单、不再花一分钱；点「重新生成」是重新下一单、会再花一次。还在出片的话，隔一会儿再点一次。"
+msgstr "This job was charged the moment it was submitted; if it ends up failing it's refunded automatically. Its video can be recovered for up to 7 days after it was accepted ({rest} left) — tapping “Recover” doesn't place a new order and costs nothing more; tapping “Regenerate” places a new order and costs again. If it's still rendering, tap again in a little while."
+
+#: src/data/videoJobs.ts
 msgid "这一发的钱在提交那一刻就已经扣了，任务多半还在上游跑；万一最后没出成，会自动退回 —— 点「取回」不重新下单、不再花一分钱；点「重新生成」是重新下一单、会再花一次。出片通常 1~2 分钟，隔一会儿再点一次。"
 msgstr "This job was charged the moment it was submitted, and it's most likely still running upstream; if it ends up failing it's refunded automatically — tapping “Recover” doesn't place a new order and costs nothing more; tapping “Regenerate” places a new order and costs again. Videos usually take 1–2 minutes, so tap again in a little while."
 
 #: src/data/videoJobs.ts
 msgid "这一发的钱在提交那一刻就已经花掉了，任务多半还在上游跑 —— 点「取回」不重新下单、不再花一分钱；点「重新生成」是重新下一单、会再花一次。出片通常 1~2 分钟，隔一会儿再点一次。"
 msgstr "This job was paid for the moment it was submitted, and it's most likely still running upstream — tapping “Recover” doesn't place a new order and costs nothing more; tapping “Regenerate” places a new order and costs again. Videos usually take 1–2 minutes, so tap again in a little while."
+
+#: src/data/videoJobs.ts
+msgid "这一发的钱在提交那一刻就已经花掉了。成片在受理之后 7 天内都取得回来（还剩 {rest}）——点「取回」不重新下单、不再花一分钱；点「重新生成」是重新下一单、会再花一次。还在出片的话，隔一会儿再点一次。"
+msgstr "This job was paid for the moment it was submitted. Its video can be recovered for up to 7 days after it was accepted ({rest} left) — tapping “Recover” doesn't place a new order and costs nothing more; tapping “Regenerate” places a new order and costs again. If it's still rendering, tap again in a little while."
 
 #: src/ai/minimaxVideo.ts
 msgid "这一发还在上游排队或生成中（当前状态：{shown}）——过几分钟再点一次「取回」，查询不花钱、凭据也还在。"
@@ -25953,6 +26275,14 @@ msgstr "This panel has no picture yet"
 #: src/data/templates.ts
 msgid "这一档一次收的参考图比图位少"
 msgstr "this tier takes fewer reference images than there are slots"
+
+#: src/studio/segmentGen.ts
+msgid "这一档一段最多带 {max} 张图：临时参考图这次只带了前 {sent} 张（其余的变淡显示在参考清单里）"
+msgstr "This tier takes at most {max} images per segment: only the first {sent} extra reference images were sent this time (the rest are shown faded in the reference list)"
+
+#: src/studio/segmentGen.ts
+msgid "这一档一段最多带 {max} 张图：帧和卡片形象图已经把位占满，临时参考图这次一张都带不上（变淡显示在参考清单里）"
+msgstr "This tier takes at most {max} images per segment: the frames and card images already fill every slot, so none of the extra reference images fit this time (they're shown faded in the reference list)"
 
 #: src/ai/arkClient.ts
 #~ msgid "这一档不对当前套餐开放，去「我的」页升级套餐后再试"
@@ -26382,6 +26712,10 @@ msgstr "The direction selected for this segment has no video yet"
 #: src/studio/segmentGen.ts
 msgid "这一段的做法走不了样片（样片不收参考视频，也不走真人档）——关掉「先出样片」再生成"
 msgstr "This segment's mode can't use a preview draft (drafts don't take a reference video or the Real-person tier) — turn off “Preview draft first” and generate again"
+
+#: src/ai/minimaxVideo.ts
+msgid "这一段的出片请求太大了（图片要先传到图床再发）——把这句话反馈给我们"
+msgstr "This segment's video request is too large (images must be uploaded before sending) — please report this message to us"
 
 #. placeholder {0}: res.status
 #: src/data/videoDownload.ts
@@ -27088,6 +27422,10 @@ msgstr "This server doesn't support detecting roles (the reply had the wrong sha
 msgid "这台服务器出片只接了 {via}"
 msgstr "This server only has {via} connected for video"
 
+#: src/ai/minimaxVideo.ts
+msgid "这台服务器没有开 MiniMax H3 出片——先换一档出片"
+msgstr "This server doesn't have MiniMax H3 video enabled — switch to another tier for now"
+
 #: src/data/projects.ts
 msgid "这台服务器没有正常应答（工程可能还在）。"
 msgstr "This server didn't respond normally (the project may still be there)."
@@ -27120,6 +27458,10 @@ msgstr "This server has no video models connected right now"
 #: src/api/companion.ts
 msgid "这台服务器还不会解析 Live2D 模型包（需要更新服务端），暂时传不了。"
 msgstr "This server can't parse Live2D model packages yet (it needs a server update), so uploading isn't possible for now."
+
+#: src/ai/minimaxVideo.ts
+msgid "这台服务器还不支持 MiniMax H3 出片（HTTP {status}）——先换一档出片"
+msgstr "This server doesn't support MiniMax H3 video yet (HTTP {status}) — switch to another tier for now"
 
 #: src/data/account.ts
 msgid "这台服务器还不支持「{label}」档（服务端需要更新）——先换一档出片"
@@ -27200,6 +27542,10 @@ msgstr "This server doesn't support checking role slots yet (the reply had the w
 #: src/data/templates.ts
 msgid "这台服务器还不支持模板分类（旧版服务端）——升级后再试"
 msgstr "This server doesn't support template categories yet (older server version) — try again after it's upgraded"
+
+#: src/data/account.ts
+msgid "这台服务器还不支持用 {via} 出「{label}」档（服务端需要更新）——先换一档出片"
+msgstr "This server doesn't support “{label}” on {via} yet (the server needs an update) — pick another tier for now"
 
 #: src/data/projects.ts
 msgid "这台服务器还不支持留存工坊工程"

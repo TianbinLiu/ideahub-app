@@ -54,6 +54,11 @@ export interface ModeTier {
   startOnly: boolean;
   /** 出片带声音（economy.VideoTier.audio）：台词说得出来 */
   audio: boolean;
+  /**
+   * 这个人在这一档上**只能纯文字出片**（account.tierTextOnly：免费版在 MiniMax H3 上，服务端 MINIMAX_V2_FREE_TEXT_ONLY）。
+   * ★ 不是档位表的能力位，是「这个人 × 这一档」—— 所以 modeTierOfSpec 让调用方显式传（选法屏传 account.tierTextOnly，构建检查两种都过一遍）。
+   */
+  textOnly: boolean;
 }
 
 /**
@@ -66,8 +71,21 @@ export interface ModeTier {
  * ★ 「九宫格分镜」只挡真人档：它的出片是「那一格的画面当开头帧」—— 收参考图的两档另带人物图（帧当参考图发），
  *   1.0 两档那一格当首帧硬约束（标准档照旧补画结束帧，flowStore.noDrawFor）；真人档的起拍画面只能是真人卡的照片，一格画面放不进去。
  * ★ 「套模板」不按档位挡：模板能在哪几档跑由模板自己说（data/templates.templateRunsOn），货架按选的模型筛。
+ * · textOnly —— 这个人在这一档上只能纯文字出片（2026-10-26 出片地区 P2b 审核：免费版在 MiniMax H3 上）：**除了「自定义」都不摆**。
+ *   ★★ 为什么（审核抓到）：门禁开着的海外，免费用户（含 Play 审核账号）唯一能用的档就是 H3-Lite「草稿」，而原来这里只看档位能力，
+ *   参考图直出 / 主角定妆 / 九宫格 / 对话正反打 / 特效同款 / 推演三套 / 套模板照摆 —— 它们要么先花钱画图（组图按张、三个机位、关键帧、定妆两张、推演的帧），
+ *   要么整个就是「把卡片图 / 参考视频发给视频模型」；视频那一发带了图，服务端在扣视频费之前回 403 PLAN_REQUIRED + freeTextOnly，
+ *   图钱已经花了、产物没有任何落段的路。「自定义」留着：它是写一句话、不画帧就能出的那条路（帧位由 CustomFrameSlots 按 tierTextOnly 关掉）。
+ *   排在能力那几种原因**之后**：能力本身就不够的档照旧说「要收参考图 / 要能出声」（换档才有），只差付钱的才说这一种。
  */
-export function modeBlock(id: GuidedModeId, tier: ModeTier): "refImg" | "startOnly" | "audio" | null {
+export function modeBlock(id: GuidedModeId, tier: ModeTier): "refImg" | "startOnly" | "audio" | "textOnly" | null {
+  const why = capBlock(id, tier);
+  if (why === null && tier.textOnly && id !== "custom") return "textOnly";
+  return why;
+}
+
+/** 档位能力那几种原因（modeBlock 的前一半；textOnly 排在它们后面） */
+function capBlock(id: GuidedModeId, tier: ModeTier): "refImg" | "startOnly" | "audio" | null {
   switch (id) {
     case "direct":
       return tier.refImg || tier.startOnly ? null : "refImg";
@@ -99,17 +117,20 @@ export function modesOn(tier: ModeTier): GuidedModeDef[] {
  *   档位表加一行（P2b 的 MiniMax H3）或改了某一行的 startOnly / refImg，选法屏摆哪几个模式一条都没人核。
  *   挪到零依赖模块里，scripts/check-guided-modes.mjs 就能拿真表的每一行过一遍。
  */
-export function modeTierOfSpec(tier: Pick<VideoTierSpec, "refImg" | "startOnly" | "audio">): ModeTier {
-  return { refImg: tier.refImg, startOnly: tier.startOnly, audio: tier.audio };
+export function modeTierOfSpec(tier: Pick<VideoTierSpec, "refImg" | "startOnly" | "audio">, textOnly: boolean): ModeTier {
+  // textOnly 必填（不给缺省）：漏传是零症状的 —— 免费用户在 H3 上又看见那几种先花图钱、最后出不了片的做法
+  return { refImg: tier.refImg, startOnly: tier.startOnly, audio: tier.audio, textOnly };
 }
 
 /**
  * 换到什么样的档，modeBlock 说的这个原因就不再挡 —— 选法屏「换到「…」就有」那句按它数档名（ModePicker）。
  * ★ 与 modeBlock 同一位（2026-10-26 审核）：原来那句按「带得了声音样本」（refAudio）数，而 modeBlock 挡对话正反打认的是「出声」（audio）——
  *   今天两位落在同一批档上，出声却不收声音样本的档（MiniMax H3）一来，对话正反打在它上面能用、提示却永远不提它。
- *   构建检查核对（三位能力的八种组合）：clearsBlock(why, 档) ⇔ 这一档上没有任何模式因为 why 被挡 —— 宽了指去点不动的档，窄了漏掉能用的档。
+ *   构建检查核对（四位的十六种组合）：clearsBlock(why, 档) ⇔ 会因为 why 被挡的那几种做法在这一档上全都摆得出来 —— 宽了指去点不动的档，窄了漏掉能用的档。
  * startOnly 那个原因没有「换到哪一档」的说法（选法屏另有一句），所以不在这里。
+ * ★ 只能纯文字出片的档（textOnly）解不了这两种（2026-10-26 P2b 审核）：换过去那几种做法照样不摆（被 textOnly 挡）——「换到「草稿」就有」会把免费用户
+ *   指去一档他用不了这几种做法的档。
  */
 export function clearsBlock(why: "refImg" | "audio", tier: ModeTier): boolean {
-  return why === "refImg" ? tier.refImg : tier.audio;
+  return !tier.textOnly && (why === "refImg" ? tier.refImg : tier.audio);
 }

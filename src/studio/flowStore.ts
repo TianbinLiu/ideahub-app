@@ -25,7 +25,7 @@ import { frameMoment, isMultiShot, momentCards } from "../data/shotScript";
 import { endFrameUsed, textTplDraw } from "../data/drawPlan";
 import { maxTimecodeSec, textTplSig } from "../data/textTemplate";
 import { isArkAssetUrl, reasonClause, transferArkVideo } from "../ai/arkClient";
-import { canAfford, defaultTierId, draftModeIssue, draftModeOffered, frozenNote, myCards, noTierLine, realFaceIssue, spendTokens, tierBlockReason, tierGo, tierOffered, tierRegionGate, tierRegionIssue, tierRegionRecheck, usableTierId, walletOf, type TierNeed } from "../data/account";
+import { canAfford, defaultTierId, draftModeIssue, draftModeOffered, frozenNote, myCards, noTierLine, realFaceIssue, sameChipProvider, spendTokens, tierBlockReason, tierGo, tierOffered, tierRegionGate, tierRegionIssue, tierRegionRecheck, tierTextOnly, usableTierId, walletOf, type TierNeed } from "../data/account";
 import { refreshVideoZone, zoneIsRegional } from "../data/videoZone";
 import { showToast } from "../data/toast";
 import {
@@ -417,7 +417,8 @@ export function nodeDraftEligible(node: FlowNode): boolean {
   if (node.extendFrom) return false;
   if (node.custom && node.customRef) return false;
   // apiCase 不写等号：加一种 api 时 tsc 逼着在这里表态（样片是方舟协议里的一种请求，别家协议有没有要逐个说）
-  return apiCase(tierOf(node.videoTier).api, { ark: true, "minimax-v1": false });
+  //   MiniMax H3（V2）没有样片两步（官方 V2 没有 draft；档位表 draftOk 也是假）
+  return apiCase(tierOf(node.videoTier).api, { ark: true, "minimax-v1": false, "minimax-v2": false });
 }
 
 /**
@@ -1049,6 +1050,15 @@ function tierSwapNote(i: number, from: string, to: string): string {
   const b = tierOf(to).label;
   if (a.id !== from) return t`第 ${n} 段原来的档位已经下线，改用「${b}」档`;
   const label = a.label;
+  // ★ 换的是同一颗芯片的另一家（2026-10-26 P2b 审核：usableTierId 先落同一颗芯片）：两家同名，「原来是「电影级」，改用「电影级」」读不懂 ——
+  //   点名换过去的那一家（account.sameChipProvider：地区问到了才写）。地区那一支只写这个地区给得出的那一家（被拦的 Seedance 不点名）；
+  //   服务端没开 V2 那一支把原来那一家（MiniMax）也说出来。会员档 / 停用不会落到这里（同一颗芯片两家的套餐门槛相同，停用的两档没有另一家）。
+  const viaB = sameChipProvider(tierOf(to), a);
+  if (viaB) {
+    if (tierRegionIssue(a) && zoneIsRegional()) return t`第 ${n} 段原来的「${label}」档你所在的地区用不了，改用同一档的 ${viaB}（「${b}」档）`;
+    const viaA = sameChipProvider(a, tierOf(to));
+    if (!tierOffered(a) && viaA) return t`第 ${n} 段原来用 ${viaA} 出「${label}」档（这台服务器还不支持），改用同一档的 ${viaB}（「${b}」档）`;
+  }
   if (tierRetired(a)) return t`第 ${n} 段原来是「${label}」档（模型已停用），改用「${b}」档`;
   // ★ 地区排在「服务端不支持」之前（与 tierOffIssue 同一个顺序）：原来摆不出来的只剩「服务端不支持」一种，地区一来这句话就会把原因说错（2026-10-26 设计审核）。
   //   门禁没开时（videoZone.zoneIsRegional 为假）藏掉那一家的是这台服务器没接上它，落到下面「这台服务器还不支持」那一句（P1 审核）
@@ -1633,7 +1643,9 @@ export function nodeCost(nodes: FlowNode[], idx: number, mode: FlowMode, tierOve
   //   承接段的开头画面由上一段真实尾帧顶替，圈在前半段的那几条重画出来就被整张覆盖 ——
   //   原来按总数收，等于为一张必然作废的图收钱。判据只有一处：segmentGen.redrawnAnns，
   //   出片那边的循环遍历的就是它（两处各写一遍 = 本仓头号事故形状）。
-  const annsCost = refVideo ? 0 : annRedrawCost(redrawnAnns(node.anns, prop.durationSec, !!carry).length);
+  // ★ 只能纯文字出片（免费版在 MiniMax H3 上，account.tierTextOnly —— 出片 segmentGen 问的同一个）：一张画面都不画、不改，圈选只当文字要求发出去（不计费）
+  const textOnly = tierTextOnly(tierOf(tierOverride ?? node.videoTier));
+  const annsCost = refVideo || textOnly ? 0 : annRedrawCost(redrawnAnns(node.anns, prop.durationSec, !!carry).length);
   return annsCost + segmentCost({
     durationSec: prop.durationSec,
     tierId: tierOverride ?? node.videoTier,
@@ -1645,6 +1657,7 @@ export function nodeCost(nodes: FlowNode[], idx: number, mode: FlowMode, tierOve
     // 补不补画、补几张：与出片（genNode → segmentGen）同一组输入，规则只在 data/drawPlan
     noDraw: nodeNoDraw(node, tierOverride),
     multiShot: isMultiShot(prop.plot),
+    textOnly,
     // 文字模板段：按模板的图位数定补不补画（有图位不画、零图位只补开头一张）—— genNode 交给出片的是同一个 textTplGenOf
     textTplSlots: textTplGenOf(node)?.slotNames.length ?? null,
     refVideo: refVideo ? { inputSec: refVideo.durationSec } : undefined,
@@ -4774,8 +4787,16 @@ export const useFlow = create<FlowState>()((set, get) => ({
             // ★ 记下这一发是哪家出的：取回按它分流。分错家会让方舟那条 404 分支
             //   对着一发还活着的真人档成片说「钱无法挽回」（见 VideoJob.provider 的 ★）
             // ★ 这里问的就是「哪家」，读 provider 是对的（别「顺手」改成 api：MiniMax 的 V2 任务会被记成方舟的）
+            // ★★ 家与接口版本一律按**这一发真正发出去的那一档**（genTier）算，不按这一段现在挂的档（node.videoTier）——
+            //   与下面的 videoTier: genTier、reviseAudioOf(genTier) 同一个口径（2026-10-26 P2b 审核）。两者只在定稿时不同：
+            //   定稿永远发给出样片的那一档（方舟），而这一段出完样片之后可能在档位那一排换到了同一颗芯片的 MiniMax H3（TierRow 只改 videoTier、不清样片）。
+            //   按 node.videoTier 记的话，发给方舟的那一发被记成 MiniMax V2：取回去问 /v2/video/:id 永远 404、登记表也不再按方舟补，
+            //   24 小时之后卡上还说「钱退不了」—— 而那条 1080p 成片在方舟上好好的。构建里 check-tier-semantics 的 [job-tier] 钉着：这个调用里不许出现 node.videoTier
             // tier-semantics-ok: 取回凭据按供应商分流
-            provider: providerOf(node.videoTier) === "minimax" ? "minimax" : "ark",
+            provider: providerOf(genTier) === "minimax" ? "minimax" : "ark",
+            // ★ 同一家 MiniMax 有两版接口（真人档 V1 / H3 V2），取回走的查询不同：V2 的号去问 V1 的查询永远取不回（2026-10-26 P2b 审核）。
+            //   这一位问的是「请求按哪一版拼」，读 api（apiCase：加一种协议时 tsc 逼着在这里表态）；缺省 = V1 或方舟（判否定，老凭据没有它）
+            ...apiCase(tierOf(genTier).api, { ark: {}, "minimax-v1": {}, "minimax-v2": { api: "v2" as const } }),
             nodeId: id,
             proposalId: node.chosenId,
             seg: idx + 1,
@@ -4917,9 +4938,9 @@ export const useFlow = create<FlowState>()((set, get) => ({
       //   用户面前唯一可点的就是「♻ 重新生成」= 重新下一单，而那一发的成片其实
       //   在方舟那边好好地存在着（2026-08-18 那 ¥27 就是这么丢的）。
       if (e instanceof ArkTaskUnknown) {
-        // 这一发是哪家出的（判据与上面落凭据那处同源）—— 话里说的是「上游 / 方舟那边」，问的就是供应商
+        // 这一发是哪家出的（判据与上面落凭据那处同源：按真正发出去的那一档 genTier，定稿发给的是出样片的那一档）—— 话里说的是「上游 / 方舟那边」，问的就是供应商
         // tier-semantics-ok: 这句话按供应商说「任务在哪家那边跑」
-        const atMinimax = providerOf(node.videoTier) === "minimax";
+        const atMinimax = providerOf(genTier) === "minimax";
         // 凭据**留着**（这一支绝不 dropVideoJob）：它是取回入口能不能出现的唯一依据。
         // 日志那一行也不许写"失败"——步骤日志是用户回看这一段怎么回事的地方。
         // ★ 截断窗口按英文放宽（2026-09-16，下面几处同）：英文比中文长一倍多，80 / 150 / 160 会把
@@ -5059,7 +5080,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
     const orphan = !jobLandsInPlace(s0.nodes, job);
     set({ busy: true, err: "" });
     try {
-      const res = await takeVideoTask(job.taskId, prog, job.provider);
+      const res = await takeVideoTask(job.taskId, prog, job);
       if (ownerEpoch() !== epochAtStart) throw new Error(t`取回期间换了账号，这一发留给原来那个账号，下次登录时再取。`);
       const { url, lastFrame, poster } = res;
       // ★ 与 genNode 成功那一行**同一条规则**（"拿到结果才扣"）：接不到结果的那一发

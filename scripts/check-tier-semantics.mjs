@@ -31,6 +31,12 @@
 //      今天一档都走不到的「报不出价」那一支。配方里记着的作者当时用的模型原来也在白名单里（「历史事实」），终审改走 account.recordedModelName：
 //      历史事实也是供应商名，地区不知道的美国机器照样印出 Seedance。
 //      放行标记是 `model-name-ok: 理由`。
+//   ⑥ [secCost]（2026-10-26 出片地区 P2b）：按秒计价（MiniMax H3 三档的 secCost）只在 data/videoTierTable.ts（表本身）与 economy.segTokens 里出现 ——
+//      与 flatCost 同一个理由：价目只该有一处读法，第二处读它的地方就是第二份报价（报价 ≠ 实扣零报错）。判「是不是 H3 / 请求怎么拼」读 api（apiCase）。
+//   ⑦ [job-tier]（2026-10-26 出片地区 P2b 审核）：落取回凭据的 `rememberVideoJob( … )` 那一整个调用里（跨多行，注释与字符串不算）不许出现 `node.videoTier` ——
+//      凭据上的家（provider）、接口版本（api）、档位都按**这一发真正发出去的那一档**算（flowStore.genNode 的 genTier）。定稿永远发给出样片的那一档（方舟），
+//      而这一段之后可能在档位那一排换到了同一颗芯片的 MiniMax H3：按 node.videoTier 记的话，发给方舟的那一发被记成 MiniMax V2，
+//      取回去问 /v2/video/:id 永远 404，24 小时之后卡上说「钱退不了」，零报错。这一条没有放行标记；一个调用都没扫到也算红（拼法改了这道门就静默失效）。
 //
 // 放行：命中行或它上一行写 `tier-semantics-ok: 理由`（理由要写；只写标记不写理由不算）；⑤ 用 `model-name-ok: 理由`。
 // 局限（宁可漏报）：拆成两行写的比较、先存进变量再比的（`const p = providerOf(x); if (p === "minimax")`、`const ok = t.audio;` 下一行
@@ -48,6 +54,10 @@
 //   （2026-10-26 加 ⑤ 时再试，下面各自变红）⑱ ModePicker 写回 `{tierModelLabel(tier)}`；⑲ FlowCanvas 选模板抽屉写回 `tierModelLabel(need)`；
 //   ⑳ TierRow 的 title 写回 `tierModelId(tier)`；㉑ economy.r2vBlockText 写回 `tierModelLabel(open)`（economy 里白名单之外的函数）；
 //   ㉒ account 里白名单之外的函数（offeredVideoModels）调 `modelLabel(`；㉓ 放行标记只写「model-name-ok:」不写理由。
+//   （2026-10-26 出片地区 P2b 加 ⑥ 时再试，下面各自变红）㉔ economy.clampDuration 里读 `tierOf(tierId).secCost`（economy 里白名单之外的函数）；
+//   ㉕ account 里读 `t.secCost`。
+//   （P2b 审核加 ⑦ 时再试，下面各自变红）㉖ flowStore.genNode 的 rememberVideoJob 里 provider 写回 `providerOf(node.videoTier)`；
+//   ㉗ 同一个调用里 api 写回 `apiCase(tierOf(node.videoTier).api, …)`；㉘ 把 rememberVideoJob 改名（一个调用都扫不到）。
 //   反例（不该红）：account.usableTierId 的 `x.refImg === want.refImg && x.audio === want.audio`（那是「能力一样」，不是「两样都有」）；
 //   economy.providerOf 的 `provider ?? "ark"`（唯一那处缺省，后面不接比较）；ModePicker 的 `clearsBlock("audio", …)`（字在字符串里）。
 //
@@ -64,6 +74,10 @@ const SRC = path.resolve(srcArg ?? path.join(root, "src"));
 const FLAT_OK = new Map([
   ["data/videoTierTable.ts", null],
   ["data/economy.ts", new Set(["segTokens", "durationStepsOf"])],
+]);
+const SEC_COST_OK = new Map([
+  ["data/videoTierTable.ts", null],
+  ["data/economy.ts", new Set(["segTokens"])],
 ]);
 const PROVIDER_OK = new Map([
   ["data/videoJobs.ts", null],
@@ -105,6 +119,12 @@ const RULES = [
     say: "按发计价表（flatCost）只在 economy.segTokens / durationStepsOf 里读 —— 判「只认一张起拍画面（真人档）」读 VideoTier.startOnly，要整档时长问 economy.durationStepsOf",
   },
   {
+    name: "secCost",
+    re: /\bsecCost\b/,
+    ok: SEC_COST_OK,
+    say: "按秒价目（secCost，MiniMax H3 三档）只在 economy.segTokens 里读 —— 要价钱问 segTokens / segmentCost，要判「是不是 H3 / 请求怎么拼」走 apiCase(tier.api, …)",
+  },
+  {
     name: "provider",
     re: new RegExp(
       [
@@ -139,7 +159,7 @@ const RULES = [
       ].join("|"),
     ),
     ok: API_OK,
-    say: "按请求形状分流只走 apiCase(tier.api, { ark: …, \"minimax-v1\": … })（economy 转出）—— 等号与 switch 在 TierApi 加成员时一个错都不报",
+    say: "按请求形状分流只走 apiCase(tier.api, { ark: …, \"minimax-v1\": …, \"minimax-v2\": … })（economy 转出）—— 等号与 switch 在 TierApi 加成员时一个错都不报",
   },
   {
     name: "model-name",
@@ -201,6 +221,41 @@ function codeOf(raw, inBlock) {
   }
 }
 
+/** ⑦ [job-tier]：落取回凭据的调用（`function rememberVideoJob(` 那个定义不算） */
+const JOB_CALL = /(?<![\w$.])rememberVideoJob\s*\(/g;
+const JOB_BAD = /\bnode\.videoTier\b/;
+const JOB_SAY =
+  "取回凭据的 provider / api / videoTier 按这一发真正发出去的那一档算（flowStore.genNode 的 genTier：定稿发给出样片的那一档），别读 node.videoTier —— 这一段之后可能换到了同一颗芯片的另一家";
+let jobCalls = 0;
+
+/**
+ * ⑦ 在一个文件**去掉注释、字符串换成 x** 之后的整段代码里找 rememberVideoJob( … ) 的每一个调用，按括号配对取出整个参数，看里面有没有 node.videoTier。
+ * 跨多行（那个对象字面量几十行）所以不走逐行的 RULES。
+ */
+function scanJobCalls(rel, codeLines) {
+  const joined = codeLines.join("\n");
+  for (const m of joined.matchAll(JOB_CALL)) {
+    if (/function\s+$/.test(joined.slice(Math.max(0, m.index - 16), m.index))) continue;
+    const open = m.index + m[0].length - 1;
+    let depth = 0;
+    let end = joined.length;
+    for (let k = open; k < joined.length; k++) {
+      if (joined[k] === "(") depth++;
+      else if (joined[k] === ")" && --depth === 0) {
+        end = k + 1;
+        break;
+      }
+    }
+    jobCalls++;
+    const args = joined.slice(open, end);
+    const bad = JOB_BAD.exec(args);
+    if (bad) {
+      const line = joined.slice(0, open + bad.index).split("\n").length;
+      hits.push(`${rel}:${line}  [job-tier] rememberVideoJob( … ) 里读了 node.videoTier\n      → ${JOB_SAY}`);
+    }
+  }
+}
+
 const hits = [];
 let scanned = 0;
 for (const file of walk(SRC)) {
@@ -209,11 +264,14 @@ for (const file of walk(SRC)) {
   const lines = fs.readFileSync(file, "utf8").split(/\r?\n/);
   let fn = null;
   let inBlock = false;
+  /** 这个文件去掉注释、字符串换成 x 之后的每一行（⑦ 跨行扫用；位置与原行一一对应） */
+  const codeLines = [];
   lines.forEach((raw, i) => {
     const top = /^(?:export\s+)?(?:default\s+)?(?:async\s+)?function\*?\s+([\w$]+)/.exec(raw);
     if (top) fn = top[1];
     const [code, still] = codeOf(raw, inBlock);
     inBlock = still;
+    codeLines.push(maskStrings(code));
     if (code.trim()) {
       for (const r of RULES) {
         if (!(r.test ? r.test(code) : r.re.test(code))) continue;
@@ -226,14 +284,21 @@ for (const file of walk(SRC)) {
     }
     if (/^\}/.test(raw)) fn = null;
   });
+  scanJobCalls(rel, codeLines);
 }
 
 if (!scanned) {
   console.error(`✗ check-tier-semantics：${SRC} 下一个 .ts / .tsx 都没扫到（路径不对？）`);
   process.exit(1);
 }
+if (!jobCalls) {
+  console.error(
+    `✗ check-tier-semantics [job-tier]：${SRC} 里一处 rememberVideoJob( … ) 调用都没扫到 —— 改了名字就把 JOB_CALL 一起改，否则这条规则什么都不查`,
+  );
+  process.exit(1);
+}
 if (hits.length) {
-  console.error(`\n❌ check-tier-semantics：${hits.length} 处拿价目表 / 供应商 / audio && refImg 推档位语义，或绕过 account 直接写出片模型名（扫了 ${scanned} 个文件）：\n`);
+  console.error(`\n❌ check-tier-semantics：${hits.length} 处拿价目表 / 供应商 / audio && refImg 推档位语义、绕过 account 直接写出片模型名，或落取回凭据时读了这一段现在挂的档（扫了 ${scanned} 个文件）：\n`);
   for (const h of hits) console.error("  · " + h);
   console.error(
     "\n改法：档位语义读 src/data/videoTierTable.ts 的能力位（startOnly / refAudio），请求形状走 apiCase；真问「哪家」的那一行或上一行写 tier-semantics-ok: 理由。\n" +
@@ -242,5 +307,5 @@ if (hits.length) {
   process.exit(1);
 }
 console.log(
-  `✓ check-tier-semantics：${scanned} 个文件里档位语义都读能力位（flatCost 只在报价 / 整档时长、供应商比较只在取回分流、没有 audio && refImg、api 分流只走 apiCase、出片模型名只走 account 那一组）`,
+  `✓ check-tier-semantics：${scanned} 个文件里档位语义都读能力位（flatCost 只在报价 / 整档时长、secCost 只在报价、供应商比较只在取回分流、没有 audio && refImg、api 分流只走 apiCase、出片模型名只走 account 那一组、${jobCalls} 处落取回凭据都按真发出去的那一档记）`,
 );

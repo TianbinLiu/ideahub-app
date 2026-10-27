@@ -12,6 +12,9 @@
 //   ⚠ **涨价方向反过来**（App 先发、服务端后上）：App 的报价只在本机算，服务端先涨的话没升级的 App 报少扣多。判据：
 //   过渡期里既不许「界面能点、服务端拒」，也不许「报价 < 实扣」（放宽窗口 / 降价 = 服务端先；涨价 = App 先）。
 //   涨价的样板是 materialRefInputSec（2026-10-19）。
+// ★★ MiniMax H3 三行（出片地区 P2b，2026-10-26）另有一份契约：server config/tokens.js 的 MINIMAX_SEC_COST（按秒价目）/ MINIMAX_V2_MAX_IMAGES /
+//   VIDEO_SEC_WINDOW 的 H3 三格 / FREE_VIDEO_ALLOW 的 H3-Lite 那一行，server tests/arkProxy.spec.js 的 APP_MM_TIERS 抄了这三行（「跨仓 MiniMax H3 价目」）。
+//   本仓的 scripts/check-video-tiers.mjs 反过来抄一份服务端的数逐条核。新增档位走「服务端先上」（server#132 部署之后带这三行的 App 才能发）。
 
 // ── 模型 id ───────────────────────────────────────────────────────────
 export const SEEDANCE_1_0_PRO_FAST = "doubao-seedance-1-0-pro-fast-251015";
@@ -19,6 +22,19 @@ export const SEEDANCE_1_0_PRO = "doubao-seedance-1-0-pro-250528";
 export const SEEDANCE_2_0_MINI = "doubao-seedance-2-0-mini-260615";
 export const SEEDANCE_2_5 = "doubao-seedance-2-5-260628";
 export const MINIMAX_REAL = "MiniMax-Hailuo-2.3-Fast";
+/**
+ * MiniMax H3 三个模型（国际站 V2 出片，2026-10-26）：「草稿 / 高清 / 电影级」在 MiniMax 上的对标（主人 10-26 定：草稿 → H3-Lite 480P、
+ * 高清 → H3-Highspeed 768P、电影级 → H3 768P，2K 先不开）。与服务端 config/tokens 的 MINIMAX_H3_* 逐字相等。
+ * ★ 与 MINIMAX_REAL（真人档的海螺 2.3，V1 接口、按发一口价）不是一回事：H3 走 V2 接口、按秒计价、收参考图。
+ */
+export const MINIMAX_H3_LITE = "MiniMax-H3-Lite";
+export const MINIMAX_H3_HIGHSPEED = "MiniMax-H3-Highspeed";
+export const MINIMAX_H3 = "MiniMax-H3";
+/**
+ * H3 一段（一个 V2 任务）最多几张图：首帧 + 尾帧 + 参考图**合计**（V2 里首尾帧与参考图互斥，所以参考图单独也是这个数）。
+ * = 官方每个任务免费的张数 —— 价目里因此没有「每张图多少钱」；第 6 张起服务端报不了价、在扣费之前整句拒。与服务端 MINIMAX_V2_MAX_IMAGES 相等
+ */
+export const MINIMAX_V2_MAX_IMAGES = 5;
 
 /**
  * 模型 id → 给人看的名字（`doubao-seedance-2-0-mini-260615` → `Seedance 2.0 mini`，`MiniMax-Hailuo-2.3-Fast` → `MiniMax Hailuo 2.3 Fast`）。
@@ -92,6 +108,12 @@ export const SEC_720P_TOKENS = (1280 * 720 * 24) / 1024;
 /** 档位能选的分辨率（送进请求体的 resolution）。1080p 不是档位：只出现在电影级「样片」的定稿那一步 */
 export type TierResolution = "480p" | "720p";
 export type VideoResolution = TierResolution | "1080p";
+/**
+ * MiniMax H3（V2）请求体里的分辨率写法：上游的大写原样（`480P` / `768P`；2K 先不开）。只有 api "minimax-v2" 的行写它（VideoTierSpec.upstreamResolution）。
+ * ★ 与小写的 TierResolution 是两套写法、**不归一大小写**：服务端价目表（MINIMAX_SEC_COST）、免费档清单（FREE_VIDEO_ALLOW）、健康端点的 freeVideo
+ *   都按上游原样认（server tokens.js FREE_VIDEO_ALLOW 的 ★）—— 拿小写的 resolution 去比，免费用户看见灰键、服务端其实放行（2026-10-26 审核）。
+ */
+export type UpstreamResolution = "480P" | "768P";
 
 /** 模型属于哪一代（像素表按代分）。认不出 = null */
 function seedanceFamily(model: string): "2.0" | "2.5" | null {
@@ -201,30 +223,41 @@ export const DRAFT_FINAL_MULT = 77 / 15;
 export const DRAFT_VALID_MS = 7 * 24 * 3600_000 - 3600_000;
 
 /**
- * 界面上那颗档位芯片是哪一档（「草稿」「高清」「电影级」……）。今天每档一行、family 与 id 相同；
- * 出片地区 P2b 起同一个 family 会有两家各一行（国内 Seedance、海外 MiniMax H3），芯片按它并成一颗。
+ * 界面上那颗档位芯片是哪一档（「草稿」「高清」「电影级」……）。Seedance 那几行 family 与 id 相同；
+ * 出片地区 P2b（2026-10-26）起 draft / hd / ultra 三个 family 各有两家各一行（Seedance、MiniMax H3：id 带 -mm），芯片按它并成一颗、档名也按它取（economy 的 FAMILY_LABEL）。
  */
 export type TierFamily = "fast" | "draft" | "std" | "hd" | "ultra" | "real";
 
 /**
  * 出片请求按哪套协议拼。ark = 方舟 contents/generations/tasks（ai/arkClient）；minimax-v1 = 服务端 /api/minimax 代理的
- * V1 视频接口（海螺 2.3 Fast：只收一张首帧，ai/minimaxVideo）。出片地区 P2b 接 MiniMax H3 时再加 minimax-v2，别图省事先把名字放进来。
- * ★ 按它分流**只走 apiCase**（下面）：加 minimax-v2 时每个分流点都在 tsc 红（Record 缺键），逼着逐处决定它走哪一支。
+ * V1 视频接口（海螺 2.3 Fast：只收一张首帧，ai/minimaxVideo）；minimax-v2 = 服务端 /api/minimax/v2 的 V2 视频接口
+ * （MiniMax H3 三档，2026-10-26 出片地区 P2b：文生 / 首帧 / 首尾帧 / 只给尾帧 / 参考图（≤5），按秒计价、一定出声；契约「MiniMax H3（V2）出片」）。
+ * ★ 按它分流**只走 apiCase**（下面）：加一种协议时每个分流点都在 tsc 红（Record 缺键），逼着逐处决定它走哪一支。
  *   ⚠ 等号比较（`tier.api === "minimax-v1"`）做不到这一点 —— 联合类型变大时等号一个错都不报，新的一行会悄悄落进方舟那一支
  *   （补画设定帧、按方舟拼请求）。原来这里写「TypeScript 会指出来」，而当时的五处全是等号（2026-10-26 审核指出）；
  *   scripts/check-tier-semantics.mjs ④ 钉着不许再写等号 / switch。
  */
-export type TierApi = "ark" | "minimax-v1";
+export type TierApi = "ark" | "minimax-v1" | "minimax-v2";
 
 /**
  * 按请求形状（VideoTier.api）分流的**唯一写法**：每一种 api 都要给一个值。
  * `cases` 的类型是「TierApi 的每一个成员都是必填键」—— TierApi 加一个成员，所有调用点同时编译不过，
  * 每一处都得写清新协议在这里走哪一支（不会像等号比较那样悄悄落进 ark 那一支）。
- * 调用点：real.slotModeOf、segmentGen 的参考清单预览 / 样片闸 / 真人档那一支、flowStore.nodeDraftEligible。
- * （2026-10-26 试过：TierApi 临时加上 "minimax-v2"，tsc 在这五处各报一次 TS2345，一处不漏。）
+ * 调用点：real.slotModeOf、segmentGen 的参考清单预览 / 样片闸 / 真人档那一支、flowStore.nodeDraftEligible、flowStore 落取回凭据（记 VideoJob.api）、account 的「这台服务端认不认」（tierServerOff）、
+ * 「免费版只能纯文字」（tierTextOnly）与「还没问清，别改写抄来的档」（tierUnsettled）。
+ * （2026-10-26 加 "minimax-v2" 时 tsc 在前五处各报一次 TS2345，一处不漏 —— 逐处写了 V2 走哪一支。）
  */
 export function apiCase<T>(api: TierApi, cases: { readonly [K in TierApi]: T }): T {
   return cases[api];
+}
+
+/**
+ * 这一档的请求**只带一张尾帧**（没有首帧）收不收 —— 协议的事实，按请求形状（api）答：MiniMax H3（V2）收（2026-10-26 付费小验：
+ * H3-Lite 480P 只给尾帧照常出片，成片跟着尾帧的比例走），方舟那几档的首尾帧任务要先有首帧（只给尾帧时照旧按文生拼、尾帧不发），真人档只收首帧。
+ * 读它的两处必须同一个答案：real.slotModeOf（槽位 → 模式）与 segmentGen 声明契约的那一行（声明 ≠ 槽位 = 花钱之前整句拒）。
+ */
+export function lastFrameOnlyOk(spec: Pick<VideoTierSpec, "api">): boolean {
+  return apiCase(spec.api, { ark: false, "minimax-v1": false, "minimax-v2": true });
 }
 
 /** Seedance 档位的能力与价目（不含界面文案）：id 持久化在 VideoSegment.videoTier / EditorState.videoTier */
@@ -273,14 +306,29 @@ export interface VideoTierSpec {
    *   拿它判「是不是真人档」的写法 2026-10-26 全部改读 startOnly（scripts/check-tier-semantics.mjs 钉着）。
    */
   flatCost?: Record<number, number>;
-  /** token 消耗系数（相对标准档；按模型单价折算）。flatCost 档不看它，随便填 1 */
+  /**
+   * **按秒计价**（token / 秒，MiniMax H3（V2）那三行必写、别的行不写，构建检查钉着）：一段的价 = 窗口内的整数秒（clampDuration）× 它，
+   * 不分画幅、不分文生 / 首帧 / 尾帧 / 首尾帧 / 参考图（官方同模型同分辨率一个单价；一段至多 MINIMAX_V2_MAX_IMAGES 张图，都在免费张数内）。
+   * ★★ 报价 = 实扣的锚：= 美元刊例 × 6.71345 ÷ 15 元/百万 token（$1 = 447,563 token，取整到百位，与 flatCost 同一把尺），
+   *   与服务端 config/tokens.MINIMAX_SEC_COST 逐条相等（server arkProxy.spec「跨仓 MiniMax H3 价目」抄了这三行；本仓 check-video-tiers 抄了服务端那张表）。
+   *   调价两仓同一个提交改；涨价走「App 先上」（文件头那条 ⚠）。
+   * ★ 只是**价目**：只在 economy.segTokens 里读（scripts/check-tier-semantics.mjs 钉着）。判「是不是 H3 / 请求怎么拼」读 api（apiCase）。
+   */
+  secCost?: number;
+  /** token 消耗系数（相对标准档；按模型单价折算）。flatCost / secCost 档不看它，随便填 1 */
   mult: number;
   /**
    * 送进请求体的分辨率（2026-10-07 起每行必写）。★ 价钱跟着它走（perSecTokens）：「草稿」与「高清」同一个模型，只差这一格。
    * ★ 只管纯任务：r2v / 延长 / 白模 / 返修那几条路服务端钉死 720p（resolveR2v），协议层 arkClient 照钉。
-   * 真人档（MiniMax 768P）这一格不发给任何人，写 720p 只是为了「每行都写」。
+   * 真人档（MiniMax 768P）这一格不发给任何人，写 720p 只是为了「每行都写」。MiniMax H3 那三行同理（发出去的是 upstreamResolution）：
+   * 草稿那一行写 480p（与同 family 的 Seedance 那一行同一格，480p 的档开不了参考视频那条规矩也照样管它），另外两行写 720p。
    */
   resolution: TierResolution;
+  /**
+   * 发给 MiniMax V2 的分辨率（上游的大写原样：`480P` / `768P`，见 UpstreamResolution）。api "minimax-v2" 的行必写、别的行不写（构建检查钉着）。
+   * ★ 服务端的价目表、免费档清单、健康端点的 freeVideo 都按它认（不按上面那一格小写的 resolution）—— 读法一律走 upstreamResOf。
+   */
+  upstreamResolution?: UpstreamResolution;
   /** 是否支持首尾帧模式（flf2v）。实测 pro-fast 只收首帧：报 task_type flf2v not support */
   flf: boolean;
   /**
@@ -291,8 +339,8 @@ export interface VideoTierSpec {
    */
   refImg: boolean;
   /**
-   * 这一档**协议上**一次最多收几张参考图（只对 refImg/assetRef 为真的档有意义）：2.0 系列 1–9 张、2.5 是 1–30 张。
-   * ★ 预算分配（ai/real.allocateRefs）按它砍：少发是白白砍功能，多发是整条请求 400（2.0 收到第 10 张不是忽略是拒收）。
+   * 这一档**协议上**一次最多收几张参考图（只对 refImg/assetRef 为真的档有意义）：2.0 系列 1–9 张、2.5 是 1–30 张、MiniMax H3 5 张（MINIMAX_V2_MAX_IMAGES）。
+   * ★ 预算分配（ai/real.allocateRefs）按它砍：少发是白白砍功能，多发是整条请求 400（2.0 收到第 10 张不是忽略是拒收；H3 第 6 张起服务端报不了价、扣费之前拒）。
    */
   refImagesMax?: number;
   /**
@@ -342,10 +390,12 @@ export interface VideoTierSpec {
    * ★ 开音频**零额外成本**（2026-08-15 费用中心逐行核对：有声 / 无声两发用量与单价完全相同），所以这一格**不进任何报价公式**。
    * ★ 协议侧（ai/arkClient.generateVideo）按 **model id** 回查这一格（economy.videoAudioOn）：同一个模型的几行这一格必须相同（构建检查钉着）。
    * ⚠ 今天挡住白模声音的只有 app 自己的 `arkClient.BLOCKOUT_TASK`（版权拦截换来的），要动先读那个常量头上那段 ★★。
+   * ★ MiniMax H3 三行恒为 true：H3 **一定出声**、V2 接口没有开关（2026-10-26 付费小验：5 发成片都带 AAC 音轨）—— V2 请求里不发 generate_audio。
    */
   audio: boolean;
   /**
-   * 能不能**带卡上的声音样本**（参考音频）出片。每行必写。今天 = audio && refImg（草稿 / 高清 / 电影级：出声、又走参考类请求）。
+   * 能不能**带卡上的声音样本**（参考音频）出片。每行必写。Seedance 那几行 = audio && refImg（草稿 / 高清 / 电影级：出声、又走参考类请求）；
+   * MiniMax H3 三行出声、收参考图，这一位却是 false（V2 今天不收 audio_url，服务端整句拒）。
    * ★ 单独一位（2026-10-26，出片地区 P2a）：海外 MiniMax H3（P2b）出声、收参考图，却**不收**参考音频 —— 再写 `audio && refImg`
    *   的话那几档会带上声音样本、在花钱之前被契约核对（real.validateGenSpec 的「不收声音样本」那一条）整段拒掉（带声音样本的对话段一律出不了片）。
    *   读它的：economy.refAudioSecOf / shotsOkOf、account.voiceModelsNames（卡片页声音区那几句）、segmentGen 的声音样本判定（voiceRefsFor / refPlanOf）、real.validateGenSpec（最后一道）、
@@ -357,6 +407,7 @@ export interface VideoTierSpec {
    * 这一档收不收**真人照片素材**（声明过 `Card.realPerson` 的卡当参考图）。
    * ★★ 方舟各档全 false 是**实测结论**（2026-08-24）：方舟对真人参考图两套探测器全拦（名人按版权、普通人按隐私），整发拒收。
    *   只有 MiniMax 真人档是 true —— 门禁（account.realFaceIssue）靠它放行，本表之外不许再翻 realPerson。
+   * ★ MiniMax H3 三行 false：H3 收不收真人照片**没验过**（2026-10-26 付费小验手上没有授权照片）⇒ 一律按不收报，真人卡照旧只走「真人」档。
    */
   realFace: boolean;
   /**
@@ -368,7 +419,10 @@ export interface VideoTierSpec {
    * **免费用户能不能用这一档出片**（2026-10-07 主人拍板：没付过钱的用户只能用「极速」与「草稿」）。白名单：新加一档默认就是会员档，除非有人明写 true。
    * ★ 判据只有 data/account.tierBlockReason 一处（「付过钱」= 套餐价 > 0 或付过任何一笔，与服务端 isPaidUser 同口径）；这只是**提示**，
    *   真正的拦截在服务端（videoPlanDenial，403 PLAN_REQUIRED）。
-   * ★★ 与服务端 FREE_VIDEO_ALLOW 逐条相等（下面的 FREE_VIDEO_ALLOW 是它的镜像，构建检查核对两者）。
+   * ★★ 与服务端 FREE_VIDEO_ALLOW 逐条相等（下面的 FREE_VIDEO_ALLOW 是它的镜像，构建检查核对两者；按 (模型, 上游分辨率) 认，见 upstreamResOf）。
+   * ★ 2026-10-26 加 MiniMax H3-Lite · 480P（「草稿」在 MiniMax 上的对标）：出片按地区下发之后海外只有 MiniMax，海外的免费用户（含 Play 的审核账号）要能出片。
+   *   ⚠ 免费版在 H3 上**只能纯文字出片**（服务端 MINIMAX_V2_FREE_TEXT_ONLY，健康端点的 minimaxV2FreeTextOnly）：这一位只回答「这一档开不开」，
+   *   带不带图另判 —— 唯一判据 account.tierTextOnly。
    */
   freeOk: boolean;
   /** 停用时刻（ISO，带时区）。过了这一刻：服务端整句拒新任务，App 把这一档藏起来、默认档往后退（tierRetired）。缺省 = 不下线 */
@@ -387,8 +441,10 @@ export interface VideoTierSpec {
 
 /**
  * 档位表本体。一行一档，**每一格都写**（能力位、分辨率、freeOk 一个都不许靠缺省）。
- * ★ 顺序 = 界面上那一排的顺序（按价钱从低到高）。**判据一律认 id**，不认下标：economy.tierOf 的兜底是显式 id（firstLiveTierId），
- *   在前面插一档不会悄悄改掉「认不出的 id 落到哪一档」。
+ * ★ 顺序 = 界面上那一排的顺序（Seedance 那几档按价钱从低到高；MiniMax H3 三行各排在同 family 的 Seedance 那一行后面）。
+ *   **判据一律认 id**，不认下标：economy.tierOf 的兜底是显式 id（firstLiveTierId），在前面插一档不会悄悄改掉「认不出的 id 落到哪一档」。
+ *   ⚠ 同 family 里 Seedance 排在前面是有意的：被挡住的档换到哪一档（videoZoneRules.stepAsideOf，先同一颗芯片、再能力最接近）都按表的顺序取第一个 ——
+ *   境内（两家都给）抄来的档先落回 Seedance（主人 10-26：境内默认仍是 Seedance）。
  * ✅ 2026-08-16 拿 8 月账单明细逐行核过 mult。写成 `4.2 / 15`、`23 / 15` 这种**分数形态**是有意的：分子就是账单上那个「元/千token × 1000」的数。
  */
 export const VIDEO_TIER_SPECS: readonly VideoTierSpec[] = [
@@ -398,10 +454,21 @@ export const VIDEO_TIER_SPECS: readonly VideoTierSpec[] = [
   //   约高清的 47%。能力与高清一样（参考图 9 张、出声、收可信素材），只是不带参考视频（服务端把参考视频那几条路钉在 720p）。
   //   免费档之一，也是 11-24 之后免费用户唯一的档（极速下线）。
   { id: "draft", family: "draft", api: "ark", startOnly: false, model: SEEDANCE_2_0_MINI, mult: 23 / 15, resolution: "480p", flf: true, refImg: true, refImagesMax: 9, refVid: false, r2vMult: null, extendOk: false, blockoutOk: false, draftOk: false, longPromptOk: false, timecodeOk: false, audio: true, refAudio: true, realFace: false, assetRef: true, freeOk: true, minSec: 4, maxSec: 15 },
+  // ── MiniMax H3 三行（出片地区 P2b，2026-10-26）：「草稿 / 高清 / 电影级」在 MiniMax 上的对标（海外只给 MiniMax；境内的人也能选）。
+  //   走服务端 /api/minimax/v2（国际站 V2，api "minimax-v2"），按秒计价（secCost = 服务端 MINIMAX_SEC_COST），与同 family 的 Seedance 那一行是同一颗芯片。
+  //   能力位照 2026-10-26 付费小验（6 发，$1.00）：首帧 / 首尾帧 / **只给尾帧**都收（flf）；参考图最多 5 张（H3-Highspeed 三张参考图实测收）；
+  //   成片一定带声音（audio，API 没有开关）却不收声音样本（refAudio，V2 不收 audio_url）；不收参考视频（refVid / r2vMult）、
+  //   没有白模、延长、样片两步；真人照片没验过 ⇒ 按不收报（realFace）；方舟的可信素材 asset:// 是 Seedance 的协议（assetRef）。
+  //   时长 4~15 的整数（官方 V2 的枚举，与服务端 VIDEO_SEC_WINDOW 的 H3 三格相等；clampDuration 本来就取窗口内的整数）。
+  //   ★ 摆不摆：服务端健康端点的 minimaxV2 为真 **且** 地区问到了、providers 里有 minimax（account.tierServerOff → videoZone.minimaxV2Offered；
+  //     老服务端没有这一位 = 三行一行都不摆）。免费版能用 H3-Lite，但只能纯文字出片（account.tierTextOnly）。
+  { id: "draft-mm", family: "draft", provider: "minimax", api: "minimax-v2", startOnly: false, model: MINIMAX_H3_LITE, secCost: 11_200, mult: 1, resolution: "480p", upstreamResolution: "480P", flf: true, refImg: true, refImagesMax: MINIMAX_V2_MAX_IMAGES, refVid: false, r2vMult: null, extendOk: false, blockoutOk: false, draftOk: false, longPromptOk: false, timecodeOk: false, audio: true, refAudio: false, realFace: false, assetRef: false, freeOk: true, minSec: 4, maxSec: 15 },
   { id: "std", family: "std", api: "ark", startOnly: false, model: SEEDANCE_1_0_PRO, mult: 1, resolution: "720p", flf: true, refImg: false, refVid: false, r2vMult: null, extendOk: false, blockoutOk: false, draftOk: false, longPromptOk: false, timecodeOk: false, audio: false, refAudio: false, realFace: false, assetRef: false, freeOk: false, retireAt: RETIRE_1_0_AT, minSec: 3, maxSec: 10 },
   // ★ hd 的视频参考 2026-10-05 开（主人「合」）：refVid true、r2vMult = HD_R2V_MULT。延长不开（extendOk，接缝会跳）；白模模板不开（blockoutOk）。
   // ★ minSec 4（2.0 mini 不收 3 秒）、maxSec 15（2.0 系列的协议上限）
   { id: "hd", family: "hd", api: "ark", startOnly: false, model: SEEDANCE_2_0_MINI, mult: 23 / 15, resolution: "720p", flf: true, refImg: true, refImagesMax: 9, refVid: true, r2vMult: HD_R2V_MULT, extendOk: false, blockoutOk: false, draftOk: false, longPromptOk: false, timecodeOk: false, audio: true, refAudio: true, realFace: false, assetRef: true, freeOk: false, minSec: 4, maxSec: 15 },
+  // MiniMax H3 Highspeed · 768P（「高清」的对标，会员档）。能力位同 draft-mm 那一行的注释
+  { id: "hd-mm", family: "hd", provider: "minimax", api: "minimax-v2", startOnly: false, model: MINIMAX_H3_HIGHSPEED, secCost: 26_900, mult: 1, resolution: "720p", upstreamResolution: "768P", flf: true, refImg: true, refImagesMax: MINIMAX_V2_MAX_IMAGES, refVid: false, r2vMult: null, extendOk: false, blockoutOk: false, draftOk: false, longPromptOk: false, timecodeOk: false, audio: true, refAudio: false, realFace: false, assetRef: false, freeOk: false, minSec: 4, maxSec: 15 },
   {
     id: "ultra",
     family: "ultra",
@@ -434,6 +501,8 @@ export const VIDEO_TIER_SPECS: readonly VideoTierSpec[] = [
     minSec: 4,
     maxSec: 30,
   },
+  // MiniMax H3 · 768P（「电影级」的对标，会员档；2K 先不开）。能力位同 draft-mm 那一行的注释 —— 电影级 Seedance 那几样（延长、样片、白模模板）它都没有
+  { id: "ultra-mm", family: "ultra", provider: "minimax", api: "minimax-v2", startOnly: false, model: MINIMAX_H3, secCost: 35_800, mult: 1, resolution: "720p", upstreamResolution: "768P", flf: true, refImg: true, refImagesMax: MINIMAX_V2_MAX_IMAGES, refVid: false, r2vMult: null, extendOk: false, blockoutOk: false, draftOk: false, longPromptOk: false, timecodeOk: false, audio: true, refAudio: false, realFace: false, assetRef: false, freeOk: false, minSec: 4, maxSec: 15 },
   {
     id: "real",
     family: "real",
@@ -476,14 +545,26 @@ export const VIDEO_TIER_SPECS: readonly VideoTierSpec[] = [
 ];
 
 /**
- * 免费用户能出片的（模型, 分辨率）—— **服务端 config/tokens.FREE_VIDEO_ALLOW 的镜像**（label 是给服务端那句拒绝话用的冻结中文档名）。
+ * 免费用户能出片的（模型, **上游**分辨率）—— **服务端 config/tokens.FREE_VIDEO_ALLOW 的镜像**（label 是给服务端那句拒绝话用的冻结中文档名）。
  * ★ 档位表里 freeOk 的那几行必须与它一一对应（构建检查核对）：两仓各写一份、差一行就是「界面能点、服务端 403」。只管纯任务（不含 r2v / 样片）。
+ * ★ 分辨率按发给上游的原样写（upstreamResOf）：Seedance 小写 480p，MiniMax 大写 480P —— 与服务端、健康端点的 freeVideo 逐字相等，不归一大小写。
+ * ★ 服务端那份每条还带 kind（task / minimax_v2）：这边按模型就分得出是哪条链路（两家的模型 id 不重），不另抄。
  */
 /* i18n-frozen: 跨仓契约的冻结中文档名（服务端那句拒绝话里用），不是界面文案 */
-export const FREE_VIDEO_ALLOW: ReadonlyArray<{ model: string; resolution: TierResolution; label: string }> = [
+export const FREE_VIDEO_ALLOW: ReadonlyArray<{ model: string; resolution: TierResolution | UpstreamResolution; label: string }> = [
   { model: SEEDANCE_1_0_PRO_FAST, resolution: "720p", label: "极速" },
   { model: SEEDANCE_2_0_MINI, resolution: "480p", label: "草稿" },
+  { model: MINIMAX_H3_LITE, resolution: "480P", label: "草稿" },
 ];
+
+/**
+ * 这一档发给上游的分辨率写法 —— 免费档清单、健康端点的 freeVideo、服务端价目表都按它认（**唯一读法**，别直接读 resolution 去比）。
+ * 方舟那几行就是 resolution（小写 480p / 720p）；MiniMax H3（V2）那三行是 upstreamResolution（大写 480P / 768P）。
+ * ⚠ 真人档（V1）这一格没意义（它不在免费档里、价目按发查），读到的是那一行为了「每行都写」的 720p。
+ */
+export function upstreamResOf(spec: Pick<VideoTierSpec, "resolution" | "upstreamResolution">): TierResolution | UpstreamResolution {
+  return spec.upstreamResolution ?? spec.resolution;
+}
 
 /** 这一档到 now 为止停用了没有（retireAt 缺省 = 不下线）。★ 唯一判据：界面藏不藏、默认档往哪退、出片拦不拦都问它 */
 export function tierRetiredAt(spec: Pick<VideoTierSpec, "retireAt">, now: number): boolean {

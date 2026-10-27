@@ -19,6 +19,9 @@
 //   （2026-10-26 出片地区 P2a 把真人档语义拆成能力位时再试五条）⑬ 删掉「真人」那一行的 startOnly；⑭ 「高清」的 refAudio 写成 false
 //   （今天 refAudio = audio && refImg 那一条红）；⑮ 「真人」的 api 写成 ark（与 provider 对不上 + startOnly ⇔ minimax-v1 两条红）；
 //   ⑯ 「草稿」的 family 写成 hd（同一家两行一个 family）；⑰ 「草稿」的 refImg 写成 false（同一个模型的两行能力不一致 + refAudio ⇒ refImg）。
+//   （2026-10-26 出片地区 P2b 加 MiniMax H3 三行时再试七条，各自变红）⑱ 「高清」那一行写上 secCost；⑲ 「draft-mm」不写 upstreamResolution；
+//   ⑳ FREE_VIDEO_ALLOW 的 H3-Lite 写成小写 480p；㉑ 「draft-mm」的 secCost 改成 11,100（与服务端那份不等）；
+//   ㉒ economy.segTokens 删掉 secCost 那一支（--economy=）；㉓ economy.TIER_DESC 少「hd-mm」那一句；㉔ 「hd-mm」排到「hd」前面。
 //   （2026-10-26 文字模板加 longPromptOk / timecodeOk 时再试三条）⑱ 删掉「高清」那一行的 timecodeOk（每格必写）；
 //   ⑲ 「高清」的 longPromptOk 写成 true（只有电影级 + 同一个模型的「草稿」与它不一致）；⑳ 「真人」的 timecodeOk 写成 true（只有电影级 + 不收参考图）。
 //
@@ -59,8 +62,10 @@ const byId = new Map(T.map((t) => [t.id, t]));
 const ark = T.filter((t) => t.api === "ark");
 /** 每一行都得**写出来**的格子（缺省 = 第二处默认值，见各格的注释） */
 const REQUIRED_BOOL = ["flf", "refImg", "refVid", "extendOk", "blockoutOk", "draftOk", "longPromptOk", "timecodeOk", "audio", "refAudio", "startOnly", "realFace", "assetRef", "freeOk"];
-/** 出片请求的协议（videoTierTable.TierApi）与芯片家族（TierFamily）的合法值：加一种就来这里加一行（P2b 的 minimax-v2） */
-const APIS = ["ark", "minimax-v1"];
+/** 出片请求的协议（videoTierTable.TierApi）与芯片家族（TierFamily）的合法值：加一种就来这里加一行 */
+const APIS = ["ark", "minimax-v1", "minimax-v2"];
+/** MiniMax H3（V2）那几行（按秒计价、上游分辨率大写）：认 api */
+const v2 = T.filter((t) => t.api === "minimax-v2");
 const FAMILIES = ["fast", "draft", "std", "hd", "ultra", "real"];
 const FAR_FUTURE = Date.parse("2099-01-01T00:00:00Z");
 
@@ -80,6 +85,23 @@ for (const t of T) {
   if (t.api === "ark") ok(`「${t.id}」（${t.model}, ${t.resolution}）不在像素表里`, M.hasPriceTable(t.model, t.resolution));
   // 样片只有 2.5 有（方舟官方：draft 仅 Seedance 2.5）
   if (t.draftOk) ok(`「${t.id}」开了 draftOk，但模型不是 Seedance 2.5`, /seedance-2-5/.test(t.model));
+  // 按秒计价与上游分辨率只给 MiniMax H3（V2）那几行，而且那几行必写（2026-10-26 出片地区 P2b）：
+  //   别的行写了 secCost，segTokens 就按秒报价、请求却按方舟那一套拼（报价 ≠ 实扣）；V2 的行少写一格就是报不出价 / 免费档对不上
+  if (t.api === "minimax-v2") {
+    ok(`「${t.id}」是 MiniMax H3（V2）的档，secCost 要写成正整数（token / 秒）`, Number.isInteger(t.secCost) && t.secCost > 0);
+    ok(`「${t.id}」是 MiniMax H3（V2）的档，upstreamResolution 要写 480P / 768P（上游的大写原样）：${t.upstreamResolution}`, t.upstreamResolution === "480P" || t.upstreamResolution === "768P");
+    ok(`「${t.id}」是按秒计价的档，不许再写按发价表 flatCost（segTokens 先认哪一张就按哪一张报）`, t.flatCost === undefined);
+  } else {
+    ok(`「${t.id}」不是 MiniMax H3（V2）的档，不许写 secCost / upstreamResolution（按秒价目与上游大写分辨率只给 V2）`, t.secCost === undefined && t.upstreamResolution === undefined);
+  }
+  // 上游分辨率的唯一读法：V2 的行是那一格大写的，别的行就是 resolution
+  ok(`「${t.id}」的 upstreamResOf 不对：${M.upstreamResOf(t)}`, M.upstreamResOf(t) === (t.upstreamResolution ?? t.resolution));
+}
+// （模型, 上游分辨率）一行一对（2026-10-26 P2b 审核）：服务端登记表里的一发只记这两样，economy.tierIdOf 按它们认回是哪一档 ——
+//   两行撞了，取回安放的那一段就落到排在前面的那一行上（之后的重拍 / 报价按错的档算）。每一行都要按自己的两样认得回自己
+for (const t of T) {
+  const back = T.find((x) => x.model === t.model && M.upstreamResOf(x) === M.upstreamResOf(t));
+  ok(`「${t.id}」按（${t.model}, ${M.upstreamResOf(t)}）认回的是「${back?.id}」—— 服务端登记表里的这一发会被认成另一档（economy.tierIdOf）`, back === t);
 }
 
 // ── 真人档语义的能力位（2026-10-26 出片地区 P2a：从 flatCost / provider 里拆出来，scripts/check-tier-semantics.mjs 管调用方）──
@@ -107,9 +129,14 @@ for (const t of T) {
     ok(`同一家供应商里 family「${t.family}」有两行：「${seen.get(k)}」与「${t.id}」`, !seen.has(k));
     seen.set(k, t.id);
   }
-  // 今天的值钉住（行为不变那一步的锚）：P2b 加 MiniMax H3 时改这两行 —— 那几档 refAudio 为假、startOnly 为假
+  // 今天的值钉住：2026-10-26 P2b 加了 MiniMax H3 三行 —— 那几档 refAudio 为假（出声、收参考图，却不收声音样本）、startOnly 为假
   eq("只认一张起拍画面的只有「真人」", T.filter((t) => t.startOnly).map((t) => t.id), ["real"]);
-  eq("今天 refAudio = audio && refImg（草稿 / 高清 / 电影级）", T.filter((t) => t.refAudio).map((t) => t.id), T.filter((t) => t.audio && t.refImg).map((t) => t.id));
+  eq("带得了声音样本的只有 Seedance 那三档（草稿 / 高清 / 电影级）", T.filter((t) => t.refAudio).map((t) => t.id), ["draft", "hd", "ultra"]);
+  eq(
+    "出声又收参考图、却不收声音样本的是 MiniMax H3 三档（refAudio 不能再写成 audio && refImg）",
+    T.filter((t) => t.audio && t.refImg && !t.refAudio).map((t) => t.id),
+    ["draft-mm", "hd-mm", "ultra-mm"],
+  );
 }
 
 // ── 同一个模型的几行：协议层按模型查音频与时长窗口，必须一致 ──
@@ -140,17 +167,108 @@ for (const t of T) {
   if (t.longPromptOk || t.timecodeOk) ok(`「${t.id}」开了 longPromptOk / timecodeOk，却不收参考图或只认起拍画面（文字模板段的图位是参考图）`, t.refImg && !t.startOnly);
 }
 
-// ── 免费档：与服务端 FREE_VIDEO_ALLOW 逐条相等 ──
+
+// ── 抄自服务端（server 分支 claude/minimax-h3-p2b，server#132 · de3ca98 的 src/config/tokens.js 与 tests/arkProxy.spec.js）──
+//   为什么抄不读：同服务端 arkProxy.spec「跨仓档位表一致性」开头那段 —— 两仓独立部署，读另一个仓的文件的写法在 CI 上只能「文件不在就跳过」。
+//   抄一份的代价是调价 / 改免费档要动两个仓，那正是想要的提醒。服务端那边反过来抄了 App 这三行（APP_MM_TIERS）。
+/* 服务端 tokens.FREE_VIDEO_ALLOW（kind 这一格 App 按模型分得出，不抄）*/
+const SERVER_FREE_VIDEO_ALLOW = [
+  { model: "doubao-seedance-1-0-pro-fast-251015", resolution: "720p", label: "极速" },
+  { model: "doubao-seedance-2-0-mini-260615", resolution: "480p", label: "草稿" },
+  { model: "MiniMax-H3-Lite", resolution: "480P", label: "草稿" },
+];
+/* 服务端 tokens.MINIMAX_SEC_COST（(H3 模型, 上游分辨率) → token / 秒）*/
+const SERVER_MINIMAX_SEC_COST = {
+  "MiniMax-H3-Lite": { "480P": 11_200 },
+  "MiniMax-H3-Highspeed": { "768P": 26_900 },
+  "MiniMax-H3": { "768P": 35_800 },
+};
+/* 服务端 tokens.MINIMAX_V2_MAX_IMAGES、VIDEO_SEC_WINDOW 的 H3 三格、MINIMAX_V2_FREE_TEXT_ONLY */
+const SERVER_MINIMAX_V2_MAX_IMAGES = 5;
+const SERVER_H3_SEC_WINDOW = { "MiniMax-H3-Lite": [4, 15], "MiniMax-H3-Highspeed": [4, 15], "MiniMax-H3": [4, 15] };
+const SERVER_MINIMAX_V2_FREE_TEXT_ONLY = true;
+/* 服务端 arkProxy.spec 的 APP_MM_TIERS —— App 这三行的契约（label 是 family 的冻结中文档名，与免费档清单同一套）*/
+const SERVER_APP_MM_TIERS = [
+  { id: "draft-mm", family: "draft", model: "MiniMax-H3-Lite", upstreamResolution: "480P", secCost: 11_200, minSec: 4, maxSec: 15, refImagesMax: 5, freeOk: true, label: "草稿" },
+  { id: "hd-mm", family: "hd", model: "MiniMax-H3-Highspeed", upstreamResolution: "768P", secCost: 26_900, minSec: 4, maxSec: 15, refImagesMax: 5, freeOk: false, label: "高清" },
+  { id: "ultra-mm", family: "ultra", model: "MiniMax-H3", upstreamResolution: "768P", secCost: 35_800, minSec: 4, maxSec: 15, refImagesMax: 5, freeOk: false, label: "电影级" },
+];
+/* family → 冻结中文档名（只为与服务端那份的 label 对账；界面上的档名在 economy 的 FAMILY_LABEL，走 Lingui）*/
+const FAMILY_ZH = { fast: "极速", draft: "草稿", std: "标准", hd: "高清", ultra: "电影级", real: "真人" };
+
+// ── 免费档：与服务端 FREE_VIDEO_ALLOW 逐条相等（按 (模型, 上游分辨率) 认：Seedance 小写 480p、MiniMax 大写 480P，不归一大小写）──
 {
   const key = (x) => `${x.model}@${x.resolution}`;
-  const fromRows = ark.filter((t) => t.freeOk).map(key).sort();
+  const fromRows = T.filter((t) => t.freeOk).map((t) => key({ model: t.model, resolution: M.upstreamResOf(t) })).sort();
   const fromAllow = M.FREE_VIDEO_ALLOW.map(key).sort();
-  eq("freeOk 的方舟档 = FREE_VIDEO_ALLOW（服务端那份的镜像）", fromRows, fromAllow);
+  eq("freeOk 的档 = FREE_VIDEO_ALLOW（服务端那份的镜像；MiniMax 那一行按上游分辨率）", fromRows, fromAllow);
+  eq("FREE_VIDEO_ALLOW = 服务端 tokens.FREE_VIDEO_ALLOW（抄的那份，含档名）", M.FREE_VIDEO_ALLOW, SERVER_FREE_VIDEO_ALLOW);
+  eq(
+    "免费档清单里的档名 = 那一行 family 的档名（服务端拒绝话与 403 的 allowed 用它）",
+    M.FREE_VIDEO_ALLOW.map((x) => x.label),
+    M.FREE_VIDEO_ALLOW.map((x) => FAMILY_ZH[T.find((t) => t.freeOk && t.model === x.model && M.upstreamResOf(t) === x.resolution)?.family] ?? "?"),
+  );
   // 认 api 不认 provider（2026-10-26）：P2b 海外免费档是 MiniMax H3-Lite（minimax-v2），这条说的是 V1 那一档（真人）
   eq("真人档（MiniMax V1）不是免费档", T.filter((t) => t.api === "minimax-v1" && t.freeOk).map((t) => t.id), []);
-  ok("至少有一档免费的方舟档在 11-24 之后还活着（不然免费用户一档都没有）", ark.some((t) => t.freeOk && !M.tierRetiredAt(t, FAR_FUTURE)));
-  // 主人 10-07 拍板的两档（极速 / 草稿），钉住：改免费档是产品决定，改的人要来这里改这一行
-  eq("免费档是「极速」「草稿」", T.filter((t) => t.freeOk).map((t) => t.id), ["fast", "draft"]);
+  ok("至少有一档免费的方舟档在 11-24 之后还活着（不然境内的免费用户一档都没有）", ark.some((t) => t.freeOk && !M.tierRetiredAt(t, FAR_FUTURE)));
+  ok("至少有一档免费的 MiniMax H3 档（不然海外的免费用户与 Play 的审核账号一档都没有，主人 10-26）", v2.some((t) => t.freeOk && !M.tierRetiredAt(t, FAR_FUTURE)));
+  // 主人 10-07 拍板的两档（极速 / 草稿）+ 10-26 加的海外对标（MiniMax H3-Lite），钉住：改免费档是产品决定，改的人要来这里改这一行
+  eq("免费档是「极速」「草稿」「草稿（MiniMax H3-Lite）」", T.filter((t) => t.freeOk).map((t) => t.id), ["fast", "draft", "draft-mm"]);
+}
+
+// ── MiniMax H3（V2）三行（出片地区 P2b，2026-10-26）：与服务端逐条相等 + 付费小验的能力位 ──
+{
+  const pick = (t) => ({
+    id: t.id,
+    family: t.family,
+    model: t.model,
+    upstreamResolution: t.upstreamResolution,
+    secCost: t.secCost,
+    minSec: t.minSec,
+    maxSec: t.maxSec,
+    refImagesMax: t.refImagesMax,
+    freeOk: t.freeOk,
+    label: FAMILY_ZH[t.family],
+  });
+  eq("V2 三行 = 服务端 arkProxy.spec 的 APP_MM_TIERS（逐格，含顺序）", v2.map(pick), SERVER_APP_MM_TIERS);
+  const cells = (o) => Object.entries(o).flatMap(([m, row]) => Object.entries(row).map(([r, v]) => `${m}@${r}=${v}`)).sort();
+  eq("每秒价 = 服务端 MINIMAX_SEC_COST（(模型, 上游分辨率) 集合与每一格都相等）", v2.map((t) => `${t.model}@${t.upstreamResolution}=${t.secCost}`).sort(), cells(SERVER_MINIMAX_SEC_COST));
+  eq("一段最多几张图 = 服务端 MINIMAX_V2_MAX_IMAGES", [M.MINIMAX_V2_MAX_IMAGES, ...v2.map((t) => t.refImagesMax)], [SERVER_MINIMAX_V2_MAX_IMAGES, ...v2.map(() => SERVER_MINIMAX_V2_MAX_IMAGES)]);
+  eq("时长窗口 = 服务端 VIDEO_SEC_WINDOW 的 H3 三格", Object.fromEntries(v2.map((t) => [t.model, [t.minSec, t.maxSec]])), SERVER_H3_SEC_WINDOW);
+  eq("模型 id = 服务端 MINIMAX_H3_*", [M.MINIMAX_H3_LITE, M.MINIMAX_H3_HIGHSPEED, M.MINIMAX_H3], Object.keys(SERVER_MINIMAX_SEC_COST));
+  // 每秒价回溯得到刊例：美元 × 6.71345 ÷ 15 元/百万 token，取整到百位（服务端那一组同一个式子）
+  const USD = { "MiniMax-H3-Lite": 0.025, "MiniMax-H3-Highspeed": 0.06, "MiniMax-H3": 0.08 };
+  for (const t of v2) eq(`「${t.id}」每秒价回溯刊例（$${USD[t.model]} / 秒）`, t.secCost, Math.round((((USD[t.model] * 6.71345) / 15) * 1e6) / 100) * 100);
+  // 一段的价 = 窗口内的整数秒 × 每秒价（economy.segTokens，与服务端 minimaxV2Tokens 同一个式子）：契约那张表逐格钉住
+  const price = (id, s) => s * byId.get(id).secCost;
+  eq(
+    "一段的价（契约「MiniMax H3（V2）出片」→「钱」那张表：4 / 5 / 10 / 15 秒）",
+    [4, 5, 10, 15].map((s) => ["draft-mm", "hd-mm", "ultra-mm"].map((id) => price(id, s))),
+    [
+      [44_800, 107_600, 143_200],
+      [56_000, 134_500, 179_000],
+      [112_000, 269_000, 358_000],
+      [168_000, 403_500, 537_000],
+    ],
+  );
+  ok("档位越高每秒越贵（草稿 < 高清 < 电影级；倒挂 = 用户为更好的片付更少）", v2.every((t, i) => i === 0 || t.secCost > v2[i - 1].secCost));
+  // 能力位 = 2026-10-26 付费小验（6 发）的结论：首帧 / 首尾帧 / 只给尾帧都收、参考图 ≤ 5、一定出声；不收参考视频 / 声音样本、没有白模 / 延长 / 样片、
+  //   真人照片没验过按不收、可信素材是 Seedance 的协议。改任何一格先有新的实测
+  const CAPS = { provider: "minimax", startOnly: false, flf: true, refImg: true, refVid: false, r2vMult: null, extendOk: false, blockoutOk: false, draftOk: false, audio: true, refAudio: false, realFace: false, assetRef: false };
+  for (const t of v2) eq(`「${t.id}」的能力位（H3 实测）`, Object.fromEntries(Object.keys(CAPS).map((k) => [k, t[k]])), CAPS);
+  // 同一颗芯片：每一行 V2 都有同 family 的 Seedance 那一行，而且排在它后面（境内的近邻 usableTierId 按表的顺序先落回 Seedance）
+  for (const t of v2) {
+    const arkRow = ark.find((x) => x.family === t.family);
+    ok(`「${t.id}」的 family「${t.family}」没有 Seedance 那一行（芯片并不成一颗）`, !!arkRow);
+    if (arkRow) ok(`「${t.id}」要排在同 family 的「${arkRow.id}」后面`, T.indexOf(t) > T.indexOf(arkRow));
+  }
+  // 免费版在 H3 上只能纯文字：App 没问到（健康端点没报 minimaxV2FreeTextOnly）时按「只能纯文字」—— 与服务端今天的常量同向（服务端放开了才会报 false）
+  const caps = fs.readFileSync(path.join(root, "src/data/serverCaps.ts"), "utf8");
+  ok(
+    `serverCaps 读 minimaxV2FreeTextOnly 要判否定（没报 = 只能纯文字，与服务端 MINIMAX_V2_FREE_TEXT_ONLY = ${SERVER_MINIMAX_V2_FREE_TEXT_ONLY} 同向）`,
+    SERVER_MINIMAX_V2_FREE_TEXT_ONLY === true && /minimaxV2FreeTextOnly:\s*j\.minimaxV2FreeTextOnly\s*!==\s*false/.test(caps),
+  );
+  ok("serverCaps 读 minimaxV2 要判肯定（没报 = 没有，H3 三档不摆）", /minimaxV2:\s*j\.minimaxV2\s*===\s*true/.test(caps));
 }
 
 // ── 停用 ──
@@ -289,6 +407,31 @@ for (const t of T) {
     "economy.ts 里又写了一份 modelLabel —— 规则只在 videoTierTable.modelLabel，economy 只转出（export { modelLabel }）",
     !/export function modelLabel\(/.test(src) && /export \{ modelLabel \}/.test(src),
   );
+  // 按秒计价（2026-10-26 P2b）：segTokens 要先认 secCost、再认 flatCost、最后按像素 × 系数 —— 漏了 secCost 那一支，H3 三档就按方舟的像素表报价
+  //   （「MiniMax-H3」不在像素表里，退回最大一格 × 系数 1，报得比实扣低一截）。secCost 别处不许读，由 check-tier-semantics 管
+  const seg = /export function segTokens\([^)]*\)[^{]*\{([\s\S]*?)\n\}/.exec(src);
+  ok("economy.ts 里找不到 segTokens", !!seg);
+  if (seg) ok("economy.segTokens 没按 secCost 报价（按秒计价的档要 clampDuration × secCost，排在 flatCost 与像素表之前）", /sec\s*\*\s*t\.secCost/.test(seg[1]) && seg[1].indexOf("secCost") < seg[1].indexOf("flatCost"));
+  // 档名按 family、说明按 id（economy 的 FAMILY_LABEL / TIER_DESC）：表里每一个 family 都要有档名、每一行都要有说明 ——
+  //   漏了档名，界面上印的是 family 的 id；漏了说明，那一档的 title 是空的（都零报错）
+  const block = (name) => new RegExp(`const ${name}\\b[^\\n]*?=\\s*\\{([\\s\\S]*?)\\n\\};`).exec(src)?.[1] ?? "";
+  const labels = block("FAMILY_LABEL");
+  const descs = block("TIER_DESC");
+  ok("economy.ts 里找不到 FAMILY_LABEL / TIER_DESC", !!labels && !!descs);
+  const keyRe = (k) => new RegExp(`^\\s*(?:${k}|"${k}"):\\s*\\(\\)\\s*=>`, "m");
+  for (const f of new Set(T.map((t) => t.family))) ok(`economy.FAMILY_LABEL 里没有 family「${f}」的档名`, keyRe(f).test(labels));
+  for (const t of T) ok(`economy.TIER_DESC 里没有「${t.id}」的一句话说明`, keyRe(t.id.replace(/-/g, "\\-")).test(descs));
+  // 服务端登记表 → 档位、档位 → 模型显示名 / 完整 id：分辨率一律按 upstreamResOf 读（2026-10-26 P2b 审核）。读回那一格占位的小写 resolution 的话，
+  //   服务端登记的 MiniMax H3（大写 480P / 768P）一发都认不出，H3「高清」「电影级」的模型名也看不出是 768P
+  for (const name of ["tierIdOf", "tierModelLabel", "tierModelId"]) {
+    const body = new RegExp(`export function ${name}\\([^)]*\\)[^{]*\\{([\\s\\S]*?)\\n\\}`).exec(src)?.[1];
+    ok(`economy.ts 里找不到 ${name}`, !!body);
+    if (body)
+      ok(
+        `economy.${name} 没按 upstreamResOf 读分辨率（又读回了 resolution 那一格占位）—— 上游分辨率的唯一读法在 videoTierTable.upstreamResOf`,
+        /upstreamResOf\(/.test(body) && !/\.resolution\b/.test(body),
+      );
+  }
 }
 
 if (problems.length) {
@@ -297,4 +440,6 @@ if (problems.length) {
   console.error("\n改法：档位的能力 / 价目 / 分辨率 / 谁能用只在 src/data/videoTierTable.ts；改免费档或降价先改服务端 config/tokens.js（服务端先发），涨价反过来 App 先发（videoTierTable 文件头）。\n");
   process.exit(1);
 }
-console.log(`✓ 出片档位表检查通过（${ran} 条：每格必写 / 真人档语义的能力位 / 同模型一致 / 文字模板段两格 / 免费档 = 服务端 / 停用与默认档链 / 每秒 token / 含输入视频的最低用量 / 模型显示名 / tierOf 不按下标）`);
+console.log(
+  `✓ 出片档位表检查通过（${ran} 条：每格必写 / 真人档语义的能力位 / 同模型一致 / 文字模板段两格 / 免费档 = 服务端 / MiniMax H3 三行 = 服务端 / 停用与默认档链 / 每秒 token / 含输入视频的最低用量 / 模型显示名 / tierOf 不按下标 / 档名与说明齐全 / (模型, 上游分辨率) 一行一对、按它认回档位）`,
+);

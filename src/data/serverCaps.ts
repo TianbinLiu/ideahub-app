@@ -45,10 +45,32 @@ export interface ServerCaps {
    * 而这份能力位记一整场会话；地区由 data/videoZone 另问、另记。老服务端没有这一位 = 地区不知道，照今天的样子摆。
    */
   videoZone: boolean;
+  /**
+   * 这台服务端开着 MiniMax H3（V2）出片（`POST /api/minimax/v2/video`，健康端点的 `minimaxV2`，2026-10-26 出片地区 P2b）。
+   * 服务端只在 MiniMax 走国际站时为真（没有单独的开关）；为假时那条路回 501 MINIMAX_V2_OFF。老服务端没有这一位 = 没有。
+   * ★ H3 三档摆不摆 = 这一位为真 **且** 地区问到了、providers 里有 minimax（契约「H3 三档摆不摆」）—— 两样合起来只在 videoZone.minimaxV2Offered 一处判。
+   *   与 res480 那几位「还不知道 = 放行」的口径相反（不知道 = 不摆）：V2 那条路在老服务端上根本不存在，出片前补画的帧已经各自结算过了。
+   */
+  minimaxV2: boolean;
+  /**
+   * 没付过钱的人在 H3 上**只能纯文字出片**（健康端点的 `minimaxV2FreeTextOnly`，服务端常量 MINIMAX_V2_FREE_TEXT_ONLY，今天为真）。
+   * 判否定：只有明说 false 才算放开 —— 没报（老服务端 / 这一位还没下发）按「只能纯文字」，往从严的一侧退（带图的那一发服务端会 403、补画的图钱白花）。
+   * 读它的只有 account.tierTextOnly（唯一判据）。
+   */
+  minimaxV2FreeTextOnly: boolean;
 }
 
 /** 布尔的那几位（serverSupports 只答这几样） */
-export type BoolCap = "res480" | "draftMode" | "failRefund" | "failRefundMinimax" | "imageGroups" | "clientEvents" | "videoZone";
+export type BoolCap =
+  | "res480"
+  | "draftMode"
+  | "failRefund"
+  | "failRefundMinimax"
+  | "imageGroups"
+  | "clientEvents"
+  | "videoZone"
+  | "minimaxV2"
+  | "minimaxV2FreeTextOnly";
 
 /** 健康端点的 JSON → ServerCaps（形状不对的位一律按「没有」）。**唯一解析处** */
 function capsOf(j: Record<string, unknown>): ServerCaps {
@@ -67,6 +89,8 @@ function capsOf(j: Record<string, unknown>): ServerCaps {
     freeVideo: j.freeVideoGate === false ? "legacy" : list,
     clientEvents: j.clientEvents === true,
     videoZone: j.videoZone === true,
+    minimaxV2: j.minimaxV2 === true,
+    minimaxV2FreeTextOnly: j.minimaxV2FreeTextOnly !== false,
   };
 }
 
@@ -75,14 +99,37 @@ let probe: Promise<ServerCaps | null> | null = null;
 /** 上一次探测没答上来（断网 / 5xx / 429 / 正文读不出来）的时刻：之后 30 秒内不再重探 —— serverSupports 在 render 里被问，不节流就是每画一次发一发 */
 let failedAt = 0;
 const RETRY_MS = 30_000;
-const NONE: ServerCaps = { res480: false, draftMode: false, failRefund: false, failRefundMinimax: false, imageGroups: false, freeVideo: null, clientEvents: false, videoZone: false };
+const NONE: ServerCaps = {
+  res480: false,
+  draftMode: false,
+  failRefund: false,
+  failRefundMinimax: false,
+  imageGroups: false,
+  freeVideo: null,
+  clientEvents: false,
+  videoZone: false,
+  minimaxV2: false,
+  minimaxV2FreeTextOnly: true,
+};
 /**
  * 直连 / 离线：没有服务端那一层，能力全在；免费档清单按档位表（freeVideo null）。
  * ★ clientEvents 例外、是 false：那几样「全在」说的是方舟能力（dev 直连方舟、离线走 mock，本来就不经服务端），
  *   而失败上报是**发给服务端的一条请求** —— 没有服务端就没有可报的地方，dev 里的渲染错也不该往任何地方发。
  *   videoZone 同理（data/videoZone 本来也不在直连 / 离线时问）：dev 的出片不经服务端、没有地区门禁，地区当「不知道」照老样子摆。
+ *   minimaxV2 同理（2026-10-26）：H3 只经服务端的 /api/minimax/v2 出片（MiniMax 的 key 在服务端），dev 直连方舟、离线走 mock 都没有它 —— 三档不摆。
  */
-const ALL: ServerCaps = { res480: true, draftMode: true, failRefund: true, failRefundMinimax: true, imageGroups: true, freeVideo: null, clientEvents: false, videoZone: false };
+const ALL: ServerCaps = {
+  res480: true,
+  draftMode: true,
+  failRefund: true,
+  failRefundMinimax: true,
+  imageGroups: true,
+  freeVideo: null,
+  clientEvents: false,
+  videoZone: false,
+  minimaxV2: false,
+  minimaxV2FreeTextOnly: true,
+};
 const listeners = new Set<() => void>();
 
 /**
@@ -147,9 +194,12 @@ export function probeServerCaps(): Promise<ServerCaps | null> {
 /**
  * 这台服务端会不会这一样：true / false / null（还不知道）。**同步**，render 里能调；第一次问的时候顺手发起探测。
  * ★ null 时调用方放行（见文件头）。别把 null 当 false：探测慢半拍就把免费用户唯一的档藏起来，比放行一次必然同步 400 的请求更坏。
+ *   例外是 minimaxV2（不知道 = 不摆，理由见 ServerCaps.minimaxV2）—— 那一位的读法只在 videoZone.minimaxV2Offered。
+ * ★ 没有服务端那一层时答 ALL 那一份（2026-10-26 起；原来一律答 true —— 当时问到的几位在 ALL 里本来都是 true，
+ *   而 minimaxV2 在 dev / 离线包里是假的：H3 只经服务端出片）。
  */
 export function serverSupports(cap: BoolCap): boolean | null {
-  if (noServerLayer()) return true;
+  if (noServerLayer()) return ALL[cap];
   if (caps) return caps[cap];
   void probeServerCaps();
   return null;
