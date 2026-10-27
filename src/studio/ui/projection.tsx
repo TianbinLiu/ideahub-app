@@ -7,7 +7,7 @@ import { useMemo, useRef, useState } from "react";
 import Warn from "../../components/Warn";
 import { useNavigate } from "react-router";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { deckCoverOf, memberTiersLine, myCards, myDecks, noTierLine, realFaceIssue, regionTiersLine, tierBlockReason, tierNamesFor, tierOffered, tierShownModel, tierShownModelId } from "../../data/account";
+import { deckCoverOf, memberTiersLine, myCards, myDecks, noTierLine, realFaceIssue, regionTiersLine, textOnlyFramesLine, textOnlyModesLine, tierBlockReason, tierNamesFor, tierOffered, tierShownModel, tierShownModelId, tierTextOnly } from "../../data/account";
 import { ONE_IMAGE, VIDEO_TIERS, deriveIssue, durationChoices, fmtTokens, priceTag, promptMaxOf, r2vBlockLines, segTokens, shotsOkOf, tierOf } from "../../data/economy";
 import { useAccountVersion } from "../../hooks/useAccount";
 import UpgradeLink from "../../components/UpgradeLink";
@@ -403,8 +403,16 @@ function EditorPanel() {
         const none = noTierLine("refImg");
         return t`参考图直出要收参考图的模型——${none}`;
       })();
-  const laneBlock = (tierId: string): string | null =>
-    lane === "direct" ? (modeBlock("direct", modeTierOf(tierId)) ? directBlock : null) : deriveIssue(tierId);
+  const laneBlock = (tierId: string): string | null => {
+    if (lane === "direct") {
+      const why = modeBlock("direct", modeTierOf(tierId));
+      // 只能纯文字出片的档（免费版在 MiniMax H3 上，modeBlock 的 textOnly）：参考图直出带不上卡片图 —— 说付钱的事，不说「要收参考图的模型」
+      return why === "textOnly" ? textOnlyModesLine([t`参考图直出`]) : why ? directBlock : null;
+    }
+    // 推演三套要画帧（推演那一笔就含图钱）：只能纯文字出片的档上画出来的帧带不进出片（与选法屏不摆它同一个判据，2026-10-26 P2b 审核）
+    if (lane === "cards" && modeBlock("cards", modeTierOf(tierId)) === "textOnly") return textOnlyModesLine([t`AI 推演三套`]);
+    return deriveIssue(tierId);
+  };
   /** 这一窗摆哪几档：停用的、服务端不支持的不摆（account.tierOffered）；正选着的那一档例外（藏起来就不知道自己在哪一档） */
   const shownTiers = VIDEO_TIERS.filter((tier) => tierOffered(tier) || tier.id === editor.videoTier);
   /** 套餐那一类原因并成一句（account.memberTiersLine，与 TierRow / 选法屏同一句）+「去升级」 */
@@ -912,6 +920,7 @@ function EditorPanel() {
                 aspectCssValue={aspectCss(editor.aspect)}
                 canEdit={!editor.generating}
                 fates={customFates ?? { first: prev?.lastFrame ? "carry" : "draw", last: "draw" }}
+                textOnlyNote={tierTextOnly(tierOf(editor.videoTier)) ? textOnlyFramesLine() : null}
                 onFrame={(which, url) =>
                   which === "first"
                     ? useStudio.getState().setStartFrame(url || null)

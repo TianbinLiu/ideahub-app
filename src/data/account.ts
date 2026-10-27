@@ -1429,6 +1429,31 @@ function textOnlyLine(tiers: VideoTier[]): string {
   return t`「${names}」档用 ${via} 出片时，免费版只能用文字（不补画首帧尾帧、不带参考图）——带图出片要开通会员套餐（或充值过任意一笔）`;
 }
 
+/** 只能纯文字出片的那几档背后是哪几家（今天只有 MiniMax）—— 下面两句共用 */
+function textOnlyVia(): string {
+  return providerNames(VIDEO_TIERS.filter(tierTextOnly));
+}
+
+/**
+ * 只能纯文字出片的档上（tierTextOnly），**要带图**的那几种做法为什么不摆 / 点不动 —— 选法屏（ModePicker）、画布「直出」页签、工坊铸段窗共用一句
+ * （判据在 guidedModes.modeBlock 的 textOnly；2026-10-26 出片地区 P2b 审核）。宿主在后面接「去升级」（付钱治得了）。
+ * @param titles 做法的名字（已翻译；按 joinTierNames 的分隔符接成一串）
+ */
+export function textOnlyModesLine(titles: string[]): string {
+  const names = joinTierNames(titles);
+  const via = textOnlyVia();
+  return t`「${names}」要带图出片——免费版用 ${via} 出片时只能用文字（开通会员套餐或充值过任意一笔后可以带图）`;
+}
+
+/**
+ * 「自定义」的两格帧位在只能纯文字出片的档上那一句（CustomFrameSlots 的 textOnlyNote；宿主按 tierTextOnly 给）：帧带不上 ——
+ * 视频那一发带了首帧 / 尾帧，服务端在扣视频费之前回 403 PLAN_REQUIRED + freeTextOnly（2026-10-26 P2b 审核）。
+ */
+export function textOnlyFramesLine(): string {
+  const via = textOnlyVia();
+  return t`免费版用 ${via} 出片时只能用文字：首帧 / 尾帧带不上（开通会员套餐或充值过任意一笔后可以带图）`;
+}
+
 /**
  * 有某种能力的档、**按这个人用不用得了**分两串名字（都只算摆得出来的档）：usable = 现在就能换过去的，member = 开通会员才能用的。
  * 空串 = 没有。★ 句子里「换到哪一档就有」一律从这里取（economy.tierNamesWhere 是不看套餐的目录版）：写死「高清或电影级」的话，

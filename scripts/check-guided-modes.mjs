@@ -18,6 +18,8 @@
 //   ⑬ 真表「草稿」那一行的 refImg 写成 false（--tiers= 指向改过的副本）；⑭ 真表新加一行不写 ROW_MODES；
 //   ⑮ clearsBlock("audio") 写成 audio && refImg（比闸窄：出声的档提示里不提 —— 审核指出的按 refAudio 数就是这一种）；
 //   ⑯ clearsBlock("audio") 恒 true（比闸宽：无声的档被说成「换过去就有」）。
+//   2026-10-26 P2b 审核加「只能纯文字出片」（textOnly：免费版在 MiniMax H3 上）时再试三条，各自变红：⑰ modeBlock 不看 textOnly（免费用户在 H3 上又看见
+//   九宫格 / 对话 / 特效…）；⑱ textOnly 时连「自定义」也不摆（免费用户一个做法都没有）；⑲ clearsBlock 不看 textOnly（「换到「草稿」就有」把人指去用不了的档）。
 //
 // 用法：node scripts/check-guided-modes.mjs [--module=<另一份 guidedModes.ts 的路径，造违规试红用>] [--tiers=<另一份 videoTierTable.ts>]
 import fs from "node:fs";
@@ -48,12 +50,14 @@ fs.readFileSync(modPath, "utf8")
   });
 
 const TIERS = {
-  fast: { refImg: false, startOnly: false, audio: false }, // 极速（1.0 pro fast）
-  std: { refImg: false, startOnly: false, audio: false }, // 标准（1.0 pro）
-  draft: { refImg: true, startOnly: false, audio: true }, // 草稿（2.0 mini 480p，2026-10-07 加：与高清同样的能力，免费档）
-  hd: { refImg: true, startOnly: false, audio: true }, // 高清（2.0 mini）
-  ultra: { refImg: true, startOnly: false, audio: true }, // 电影级（2.5）
-  real: { refImg: false, startOnly: true, audio: false }, // 真人（MiniMax 海螺，只认一张起拍画面；出不出声没实测，按无声报）
+  fast: { refImg: false, startOnly: false, audio: false, textOnly: false }, // 极速（1.0 pro fast）
+  std: { refImg: false, startOnly: false, audio: false, textOnly: false }, // 标准（1.0 pro）
+  draft: { refImg: true, startOnly: false, audio: true, textOnly: false }, // 草稿（2.0 mini 480p，2026-10-07 加：与高清同样的能力，免费档）
+  hd: { refImg: true, startOnly: false, audio: true, textOnly: false }, // 高清（2.0 mini）
+  ultra: { refImg: true, startOnly: false, audio: true, textOnly: false }, // 电影级（2.5）
+  real: { refImg: false, startOnly: true, audio: false, textOnly: false }, // 真人（MiniMax 海螺，只认一张起拍画面；出不出声没实测，按无声报）
+  // 免费版在 MiniMax H3-Lite 上（2026-10-26 P2b 审核）：收参考图、出声，但这个人只能纯文字出片
+  draftTextOnly: { refImg: true, startOnly: false, audio: true, textOnly: true },
 };
 const ids = (tier) => M.modesOn(tier).map((m) => m.id);
 
@@ -75,6 +79,13 @@ eq("九宫格分镜是第二组（跟着高手做）、五步", M.GUIDED_MODES.f
 eq("为什么：1.0 档上的对话正反打（出不了声，台词说不出来）", M.modeBlock("dialogue", TIERS.std), "audio");
 eq("为什么：真人档上的对话正反打（同样按无声报）", M.modeBlock("dialogue", TIERS.real), "audio");
 eq("特效同款在真人档上能用（照片起拍的那几条，判据在 effectPresets.effectsOn）", M.modeBlock("effect", TIERS.real), null);
+// 只能纯文字出片（textOnly）：要带图的做法一律不摆，只剩「自定义」（写一句话、不画帧）—— 不然免费用户先付了图钱，视频那一发服务端回 403 freeTextOnly
+eq("只能纯文字出片：只剩「自定义」", ids(TIERS.draftTextOnly), ["custom"]);
+for (const id of ["direct", "lead", "grid", "dialogue", "cards", "effect", "template"]) {
+  eq(`为什么：只能纯文字出片时的「${id}」`, M.modeBlock(id, TIERS.draftTextOnly), "textOnly");
+}
+eq("能力本身不够的原因排在 textOnly 前面（1.0 档 + 只能纯文字：参考图直出照旧说收不了参考图）", M.modeBlock("direct", { ...TIERS.std, textOnly: true }), "refImg");
+eq("能力本身不够的原因排在 textOnly 前面（无声 + 只能纯文字：对话正反打照旧说出不了声）", M.modeBlock("dialogue", { ...TIERS.std, textOnly: true }), "audio");
 eq("对话正反打是第二组（跟着高手做）、四步", M.GUIDED_MODES.find((m) => m.id === "dialogue"), { id: "dialogue", letter: "I", group: "pro", steps: 4 });
 eq("特效同款是第三组（复刻 · 同款）、三步", M.GUIDED_MODES.find((m) => m.id === "effect"), { id: "effect", letter: "G", group: "replica", steps: 3 });
 
@@ -102,25 +113,36 @@ eq("特效同款是第三组（复刻 · 同款）、三步", M.GUIDED_MODES.fin
       problems.push(`档位表新加了一行「${row.id}」，这里没写它该摆哪几个模式 —— 在 ROW_MODES 里写下（想清楚这一档上有哪些做法能用）`);
       continue;
     }
-    eq(`真表「${row.id}」那一行摆哪几个模式`, ids(M.modeTierOfSpec(row)), want);
+    eq(`真表「${row.id}」那一行摆哪几个模式（付过钱）`, ids(M.modeTierOfSpec(row, false)), want);
+    // 同一行、这个人只能纯文字出片时（免费版在 H3 上；方舟那几行 account.tierTextOnly 恒假，这里只为核「textOnly 那一位单独就把带图的做法全挡掉」）
+    eq(`真表「${row.id}」那一行 · 只能纯文字出片时摆哪几个模式`, ids(M.modeTierOfSpec(row, true)), want.filter((m) => m === "custom"));
   }
+  eq("H3-Lite「草稿」· 免费版（只能纯文字）：只剩「自定义」", ids(M.modeTierOfSpec(T.VIDEO_TIER_SPECS.find((r) => r.id === "draft-mm"), true)), ["custom"]);
   for (const id of Object.keys(ROW_MODES)) {
     ran++;
     if (!T.VIDEO_TIER_SPECS.some((r) => r.id === id)) problems.push(`ROW_MODES 里的「${id}」在档位表里已经没有了 —— 删掉这一条`);
   }
 }
 
-// 「换到哪一档就有」：clearsBlock(why, 档) ⇔ 这一档上没有任何模式因为 why 被挡（三位能力的八种组合全过一遍）。
-//   宽了 = 提示把人指去一个点不动的档；窄了 = 能用的档提示里不提（审核指出的那种：按 refAudio 数、闸却认 audio）
-for (const refImg of [false, true])
-  for (const startOnly of [false, true])
-    for (const audio of [false, true]) {
-      const tier = { refImg, startOnly, audio };
-      for (const why of ["refImg", "audio"]) {
-        const blocked = M.GUIDED_MODES.filter((m) => M.modeBlock(m.id, tier) === why).map((m) => m.id);
-        eq(`clearsBlock("${why}", ${show(tier)})（这一档上因为它被挡的：${show(blocked)}）`, M.clearsBlock(why, tier), blocked.length === 0);
-      }
+// 「换到哪一档就有」：clearsBlock(why, 档) ⇔ 会因为 why 被挡的那几种做法（任何一种组合上被 why 挡过的）在这一档上全都摆得出来（四位的十六种组合全过一遍）。
+//   宽了 = 提示把人指去一个点不动的档；窄了 = 能用的档提示里不提（审核指出的那种：按 refAudio 数、闸却认 audio）。
+//   ★ 2026-10-26 P2b 审核改成这个说法：加了 textOnly 之后「这一档上没有模式因为 why 被挡」不够 —— 只能纯文字的 H3 上没有一种做法是因为 refImg 被挡的，
+//   但参考图直出照样不摆（被 textOnly 挡），把它算成「换过去就有」就是把免费用户指去用不了的档。
+{
+  const combos = [];
+  for (const refImg of [false, true])
+    for (const startOnly of [false, true])
+      for (const audio of [false, true]) for (const textOnly of [false, true]) combos.push({ refImg, startOnly, audio, textOnly });
+  for (const why of ["refImg", "audio"]) {
+    const W = M.GUIDED_MODES.filter((m) => combos.some((c) => M.modeBlock(m.id, c) === why)).map((m) => m.id);
+    ran++;
+    if (!W.length) problems.push(`没有哪种做法会因为「${why}」被挡 —— clearsBlock 的这一支没人用了？`);
+    for (const tier of combos) {
+      const open = W.every((id) => M.modeBlock(id, tier) === null);
+      eq(`clearsBlock("${why}", ${show(tier)})（会因为它被挡的 ${show(W)} 在这一档上${open ? "都摆得出来" : "有摆不出来的"}）`, M.clearsBlock(why, tier), open);
     }
+  }
+}
 
 // 门禁开着的海外（真表 + providers ["minimax"]，2026-10-26 终审反例）。两种服务端（出片地区 P2b 起）：
 //   · 没开 MiniMax H3（V2）—— 老服务端、MiniMax 走中国站的服务端（健康端点 minimaxV2 不为真，H3 三档不摆，videoZoneRules.v2OfferedOf）：
@@ -134,18 +156,24 @@ for (const refImg of [false, true])
   const intl = (v2Cap) =>
     T.VIDEO_TIER_SPECS.filter((r) => !r.retireAt && !Z.deniesOf(zone, r.provider ?? "ark") && (r.api !== "minimax-v2" || Z.v2OfferedOf(zone, v2Cap)));
   for (const why of ["refImg", "audio"]) {
-    const hiddenBy = intl(false).flatMap((r) => M.GUIDED_MODES.filter((m) => M.modeBlock(m.id, M.modeTierOfSpec(r)) === why).map((m) => m.id));
+    const hiddenBy = intl(false).flatMap((r) => M.GUIDED_MODES.filter((m) => M.modeBlock(m.id, M.modeTierOfSpec(r, false)) === why).map((m) => m.id));
     ran++;
     if (!hiddenBy.length) problems.push(`海外门禁开着（服务端没开 V2）时没有哪个模式因为「${why}」被挡了 —— 档位表改了？去看选法屏那几句话还要不要 noTierLine 那一支`);
     eq(
       `海外门禁开着 · 服务端没开 V2：能解开「${why}」的档一档都没有（选法屏说 noTierLine，不说「换到「」就有」）`,
-      Z.tierGoOf(intl(false), (r) => M.clearsBlock(why, M.modeTierOfSpec(r)), () => false),
+      Z.tierGoOf(intl(false), (r) => M.clearsBlock(why, M.modeTierOfSpec(r, false)), () => false),
       null,
     );
     eq(
       `海外门禁开着 · 服务端开着 V2：能解开「${why}」的是 H3 三档`,
-      Z.tierGoOf(intl(true), (r) => M.clearsBlock(why, M.modeTierOfSpec(r)), () => false)?.usable.map((r) => r.id),
+      Z.tierGoOf(intl(true), (r) => M.clearsBlock(why, M.modeTierOfSpec(r, false)), () => false)?.usable.map((r) => r.id),
       ["draft-mm", "hd-mm", "ultra-mm"],
+    );
+    // 免费版（H3 上只能纯文字）：H3 三档一档都解不了 —— 选法屏走 refPaid / audioPaid 那一支说「要带图出片——免费版只能用文字」+ 去升级，不说 noTierLine
+    eq(
+      `海外门禁开着 · 服务端开着 V2 · 免费版（H3 上只能纯文字）：能解开「${why}」的档一档都没有`,
+      Z.tierGoOf(intl(true), (r) => M.clearsBlock(why, M.modeTierOfSpec(r, r.api === "minimax-v2")), () => false),
+      null,
     );
   }
 }
@@ -170,4 +198,4 @@ if (problems.length) {
   console.error("\n改法：规则只在 src/data/guidedModes.ts 的 modeBlock；选法屏只画它的答案。\n");
   process.exit(1);
 }
-console.log(`✓ 「跟着做」模式检查通过（${ran} 条：六档各能用哪几个模式 / 真表每一行 / 为什么不能用 / 「换到哪一档就有」与闸同一位 / 清单形状）`);
+console.log(`✓ 「跟着做」模式检查通过（${ran} 条：六档各能用哪几个模式 / 只能纯文字出片 / 真表每一行 / 为什么不能用 / 「换到哪一档就有」与闸同一位 / 清单形状）`);

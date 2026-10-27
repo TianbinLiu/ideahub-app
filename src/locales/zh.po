@@ -2393,6 +2393,10 @@ msgstr "「{names}」档眼下用的这个出片模型跑不了白模模板（�
 msgid "「{names}」的声音样本这次没带上（这一档的参考音频合计最长 {capSec} 秒）——这几位的台词音色由模型定；把样本剪短些就能都带上"
 msgstr "「{names}」的声音样本这次没带上（这一档的参考音频合计最长 {capSec} 秒）——这几位的台词音色由模型定；把样本剪短些就能都带上"
 
+#: src/data/account.ts
+msgid "「{names}」要带图出片——免费版用 {via} 出片时只能用文字（开通会员套餐或充值过任意一笔后可以带图）"
+msgstr "「{names}」要带图出片——免费版用 {via} 出片时只能用文字（开通会员套餐或充值过任意一笔后可以带图）"
+
 #: src/data/economy.ts
 #~ msgid "「{names}」跑不了白模模板（模板对出片模型是硬要求）——白模模板只有「{openLabel}」（{openModel}）跑得了"
 #~ msgstr "「{names}」跑不了白模模板（模板对出片模型是硬要求）——白模模板只有「{openLabel}」（{openModel}）跑得了"
@@ -4434,6 +4438,7 @@ msgid "AI 指挥没连上（{why}），先按本地句式办了能办的。"
 msgstr "AI 指挥没连上（{why}），先按本地句式办了能办的。"
 
 #: src/components/flow/ModePicker.tsx
+#: src/studio/ui/projection.tsx
 msgid "AI 推演三套"
 msgstr "AI 推演三套"
 
@@ -7459,6 +7464,10 @@ msgstr "免费版：每天自动补 {daily} 套餐 token（最多攒到 {cap}）
 msgid "免费版：每天自动补 {daily} 套餐 token（最多攒到 {cap}）。开通会员套餐或充值任意一笔，全部档位都能用。"
 msgstr "免费版：每天自动补 {daily} 套餐 token（最多攒到 {cap}）。开通会员套餐或充值任意一笔，全部档位都能用。"
 
+#: src/data/account.ts
+msgid "免费版用 {via} 出片时只能用文字：首帧 / 尾帧带不上（开通会员套餐或充值过任意一笔后可以带图）"
+msgstr "免费版用 {via} 出片时只能用文字：首帧 / 尾帧带不上（开通会员套餐或充值过任意一笔后可以带图）"
+
 #: src/components/flow/ThemeRewriteSheet.tsx
 msgid "全不选"
 msgstr "全不选"
@@ -9687,8 +9696,10 @@ msgstr "参考图未被受理，该帧改用纯文字重画"
 msgid "参考图生视频（reference_image）"
 msgstr "参考图生视频（reference_image）"
 
+#: src/components/flow/FlowCanvas.tsx
 #: src/components/flow/ModePicker.tsx
 #: src/studio/studioStore.ts
+#: src/studio/ui/projection.tsx
 msgid "参考图直出"
 msgstr "参考图直出"
 
@@ -13009,6 +13020,10 @@ msgstr "市场里还没有别人公开的形象。"
 #: src/components/guide/tours.tsx
 msgid "市场页签顶上能<0>按词搜</0>，搜索框右边那颗<1>出片模型</1>只留你想用的那个模型出得了片的模板，下面那排芯片<2>按类筛</2>，三个叠在一起生效。选中的分类在「我的模板」里也管用，没分过类的老模板只在「全部」下出现——找不到自己做的，先点回「全部」。"
 msgstr "市场页签顶上能<0>按词搜</0>，搜索框右边那颗<1>出片模型</1>只留你想用的那个模型出得了片的模板，下面那排芯片<2>按类筛</2>，三个叠在一起生效。选中的分类在「我的模板」里也管用，没分过类的老模板只在「全部」下出现——找不到自己做的，先点回「全部」。"
+
+#: src/components/flow/CustomFrameSlots.tsx
+msgid "带不上"
+msgstr "带不上"
 
 #: src/studio/segmentGen.ts
 msgid "带参考视频的自定义段暂不支持圈选改画面——清掉圈选标注再出片"
