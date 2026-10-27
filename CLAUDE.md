@@ -242,6 +242,11 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   **同步看状态的宿主自己先问**再调（工坊 `genNodeVideo`、画布 agent 执行推演 / 出片之前）：它们 await 完再调，genNode 的同步门禁就拿到新地区、在打上 generating 之前拒；
   `genStarted`（画布「提交即收窗」）排在地区那一道之后。**反方向**（旧结论说被拦、其实已经能用了）：同步门禁拿地区拒之前先 `account.tierRegionRecheck`，
   结论变了从头再判一遍（genNode / deriveProposals / generateNode 三处；其余花钱的门禁顺手 `void` 一次，下一次点就用上新结论）。
+  其余「先付图钱 / 对话钱、视频最后才出」的入口走 `account.tierRegionGate(档, need)`（现问 + 按问到的那份判，两个方向一次管住；终审补）：
+  改帧 `editFrame`、重画（`flowStore.regenProposal` / 工坊 `regenProposal`）、合成预览、导演台融图，以及三个跟着做向导的每一笔
+  （九宫格写分镜 / 出一组画面 / 单格重画、对话正反打写对白 / 画机位 / 单张重画、特效同款画关键帧、主角定妆拆镜头 —— 向导把挑的 `tierId` 传进 store 函数）。
+  「现做一个主角」不问：画出来的是收进卡片库的卡，与自建卡同一个口径。接着等上一组组图不问（那一组付过钱）。
+  向导落段 `appendSpecs(specs, { tierGate: false })`（同 appendNode 的先例）：落的是付过钱的画面，不拿档位门禁拒，出片那一拍 genNode 照样拦并说清楚。
   新加一条「先花钱、后出视频」的入口也要接这一步。地区那句（`ArkRegionDenied`）自带句号，接在「：」后面再补「。」的地方先过 `arkClient.reasonClause`。
   ⑥ **说「哪个出片模型」只走 `account.offeredVideoModels` 那一组**（2026-10-26 主人第 2 件：卡片信息写具体模型名，「卡片信息」包括模板卡）：卡片页「按模型适配」、
   卡组页摘要、模板货架（卡面角标 / 「出片模型」筛选 / 筛空了那句）、模板详情「出片模型」那一行、画布 / 工坊的选模板抽屉；同一天审核之后创作界面也收进来了 ——

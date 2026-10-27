@@ -2768,7 +2768,8 @@ App `src/data/economy.ts` 是**报价**口径。不一致的后果是"报价 216
   问到之后再问不到，沿用这一场会话上一次问到的结论；**不跨会话落盘**（开关 VPN / 换网络都会改地区，旧缓存在冷启动那一刻拿来藏档是同一个事故形状）。
 - **什么时候问**：开机（`account.readyAccount` 顺手发起）、回到前台（visibilitychange）、恢复联网（online）、App 开着且页面可见时每 10 分钟、
   收到一次 `REGION_UNAVAILABLE` 之后（回包里的 zone / providers 当场记下，再问一次补国家）、**花第一笔钱之前**（`flowStore.genNode` / `deriveProposals`、
-  工坊 `studioStore.generateNode`、剪辑页按圈选重做：现问一次再按问到的那份重判这一档 —— 门禁只拦视频，会话中途开关过 VPN 的人不现问就会先付图钱 / 推演费，再被 403）。
+  工坊 `studioStore.generateNode`、剪辑页按圈选重做：现问一次再按问到的那份重判这一档 —— 门禁只拦视频，会话中途开关过 VPN 的人不现问就会先付图钱 / 推演费，再被 403；
+  改帧、重画、合成预览、导演台融图与三个跟着做向导里的每一笔图钱 / 对话钱同样先问，走 `account.tierRegionGate`；向导落段不拿档位门禁拒付过钱的画面，出片那一拍再拦）。
   同步看状态的宿主（工坊 `genNodeVideo` 受理即收窗、画布 agent 700 毫秒后报回执）**调之前自己先问**，genNode 的同步门禁就在打上 generating 之前拒。
   **反方向**也问：同步门禁拿地区拒之前先现问一次（`account.tierRegionRecheck`），结论变了从头再判 —— 不然人在前台关了 VPN（不发 visibilitychange），
   最多 10 分钟里每一次点都被拒。两次顺手重问之间至少隔 10 秒（花钱之前那一次 5 秒）；花钱之前那一次**连同能力位还没探到时要先补的那一发健康探测**整体最多等 6 秒（`refreshVideoZone` 自己掐；问不到就放行，服务端照样拦，没等完的那一发照常在后台记下结论）。

@@ -13,7 +13,7 @@
 import { t } from "@lingui/core/macro";
 import { create } from "zustand";
 import { AI_REAL, chargeNote, chargeOnFail, generateFrame, shotGroupRefs } from "../ai";
-import { canAfford, frozenNote, spendTokens } from "../data/account";
+import { canAfford, frozenNote, spendTokens, tierRegionGate } from "../data/account";
 import { onOwnerSwitch, workOwner } from "../data/deviceOwner";
 import {
   DIALOGUE_LINES_MAX,
@@ -28,7 +28,7 @@ import {
   type DialogueLine,
   type DialogueNote,
 } from "../data/dialogueShots";
-import { CHAT_TURN_TOKENS, CHECKED_PANEL_TOKENS, IMAGE_TOKENS, clampDuration, fmtTokens } from "../data/economy";
+import { CHAT_TURN_TOKENS, CHECKED_PANEL_TOKENS, IMAGE_TOKENS, clampDuration, fmtTokens, tierOf, type VideoTier } from "../data/economy";
 import { currentRoute, startJob } from "../data/jobs";
 import { uid, type Card, type Proposal, type VideoAspect } from "../types";
 import type { AppendSpec } from "./flowStore";
@@ -153,6 +153,9 @@ function patchPanel(who: string, angle: DialogueAngle, f: (p: AnglePanel | null)
   writeFor(who, { panels: { ...cur.panels, [angle]: f(cur.panels[angle]) } });
 }
 
+/** 对话正反打要的档（出声：台词得说出来，guidedModes.modeBlock 挡它认的就是 audio）—— 地区挡住时 tierRegionGate 只往这几档上指 */
+const NEED_AUDIO = (x: VideoTier) => x.audio;
+
 export function setDialogue(patch: Partial<DialogueDraft>): void {
   useDialogueDraft.setState(patch);
 }
@@ -176,13 +179,20 @@ export function anyAngle(d: Pick<DialogueDraft, "panels">): boolean {
  *   要换地方，在这一步把整体交代改掉、再去第③步重画。
  * ★ 钱上的话按错误**类型**说（ai/failCharge 一处）：形状不对 / 截断那几句自己就说了「已计费」，网络那一档由 chargeNote 补一句。
  */
-export async function writeLines(o: { names: readonly [string, string]; place: string }): Promise<void> {
+export async function writeLines(o: { names: readonly [string, string]; place: string; tierId: string }): Promise<void> {
   const s = useDialogueDraft.getState();
   if (s.writing || s.drawing) return;
   const who = ownerOfDraft();
   const situation = s.situation;
   useDialogueDraft.setState({ writing: true, writeErr: "" });
   try {
+    // ★★ 出片地区（2026-10-26 终审，钱）：花这一次对话的钱之前现问一次地区、再按问到的那份判向导挑的这一档（account.tierRegionGate）——
+    //   选法屏只在挑的那一拍判过一次，之后地区变了，写对白、画机位的钱照样付掉，落段才被拦下。writing 已占上；拒了 finally 复位
+    const region = await tierRegionGate(tierOf(o.tierId), NEED_AUDIO);
+    if (region) {
+      writeFor(who, { writeErr: region });
+      return;
+    }
     const r = await runDialogue({ situation, names: o.names, place: o.place });
     const cur = stateFor(who);
     const keepLead = !!cur?.lead.trim() && !!cur && anyAngle(cur);
@@ -338,17 +348,27 @@ function backTo(before: AnglePanel | null, cur: AnglePanel | null, err?: string)
 /**
  * 画三个机位 —— 领一张后台任务票：先画双人镜头，画成了再拿它当参考**并行**画两个过肩。结果写回开工那一拍那个人的向导。
  * ★ 双人镜头没画成就停（两个过肩要照着它画，没有它就对不上）：只花了没画成的那一张的钱（多半没扣，按类型说）。
- * @param o.cast 两个人（按点的先后 = A / B），o.place 场景卡；画幅在 draft.aspect（画之前定）
+ * ★★ 出片地区（2026-10-26 终审，钱）：开画之前现问一次地区、再按问到的那份判向导挑的这一档（account.tierRegionGate，理由见 writeLines）。
+ * @param o.cast 两个人（按点的先后 = A / B），o.place 场景卡，o.tierId 向导挑的档；画幅在 draft.aspect（画之前定）
  */
-export async function drawAngles(o: { cast: Card[]; place: Card | null }): Promise<void> {
-  const s = useDialogueDraft.getState();
-  if (s.drawing || s.writing || !s.aspect || o.cast.length !== 2) return;
+export async function drawAngles(o: { cast: Card[]; place: Card | null; tierId: string }): Promise<void> {
+  const s0 = useDialogueDraft.getState();
+  if (s0.drawing || s0.writing || !s0.aspect || o.cast.length !== 2) return;
   if (AI_REAL && !canAfford(ANGLES_TOKENS)) {
     const price = fmtTokens(ANGLES_TOKENS);
     useDialogueDraft.setState({ drawErr: frozenNote() ?? t`画三个机位最多要 ${price} token，余额不够——去「我的」页充值` });
     return;
   }
   const who = ownerOfDraft();
+  // 先占上 drawing（等的这几秒里点不出第二组），问完按问到的那份判；拒了原样退回，一分钱没花
+  writeFor(who, { drawing: t`先画双人镜头…`, drawErr: "" });
+  const region = await tierRegionGate(tierOf(o.tierId), NEED_AUDIO);
+  // 问的那几秒里换了账号：这一份向导已经停进别人名下，不画（下面全按这一刻的那份）
+  const s = useDialogueDraft.getState();
+  if (region || ownerOfDraft() !== who || !s.aspect) {
+    writeFor(who, { drawing: "", ...(region ? { drawErr: region } : {}) });
+    return;
+  }
   const page = currentRoute();
   const names: [string, string] = [o.cast[0].name, o.cast[1].name];
   const lead = s.lead;
@@ -405,8 +425,9 @@ export async function drawAngles(o: { cast: Card[]; place: Card | null }): Promi
 /**
  * 单张重画（一张图）。过肩照着现在那张双人镜头画（没有双人镜头就先别画过肩：对不上）。
  * @param ask 人补的一句要求（「沈舟戴着眼镜」）；空 = 照原样重画
+ * ★★ 出片地区（2026-10-26 终审，钱）：开画之前现问一次地区再判（account.tierRegionGate，理由见 writeLines）；o.tierId = 向导挑的档。
  */
-export async function redrawAngle(angle: DialogueAngle, o: { cast: Card[]; place: Card | null; ask: string }): Promise<void> {
+export async function redrawAngle(angle: DialogueAngle, o: { cast: Card[]; place: Card | null; ask: string; tierId: string }): Promise<void> {
   const s = useDialogueDraft.getState();
   const before = s.panels[angle];
   if (s.drawing || !s.aspect || o.cast.length !== 2 || before?.busy) return;
@@ -426,6 +447,13 @@ export async function redrawAngle(angle: DialogueAngle, o: { cast: Card[]; place
   const names: [string, string] = [o.cast[0].name, o.cast[1].name];
   const notes: string[] = [];
   patchPanel(who, angle, busyOf);
+  {
+    const region = await tierRegionGate(tierOf(o.tierId), NEED_AUDIO);
+    if (region) {
+      patchPanel(who, angle, (cur) => backTo(before, cur, region));
+      return;
+    }
+  }
   try {
     const p = await drawOne(angle, { cast: o.cast, place: o.place, names, lead: s.lead, aspect: s.aspect, base, ask: o.ask, notes });
     patchPanel(who, angle, () => p);

@@ -1071,6 +1071,22 @@ export async function tierRegionRecheck(tier: VideoTier): Promise<boolean> {
 }
 
 /**
+ * 「先付图钱 / 对话钱、视频最后才出」的那几样动作，花第一笔钱之前问它（出片地区 ⑤，2026-10-26 终审）：现问一次地区（refreshVideoZone，整体最多等 6 秒），
+ * 再按问到的那份判这一档在地区上给不给。回 null = 可以花；否则整句原因（tierRegionIssue），调用方一分钱不花、原样退回状态。
+ * ★★ 为什么（终审抓到）：原来只有 genNode / deriveProposals / 工坊 generateNode / 剪辑页重拍现问；改帧、重画、合成预览、导演台融图、
+ *   三个跟着做向导（九宫格出一组画面 / 单格重画、对话正反打画三个机位、特效同款画关键帧）只读旧结论 —— 人在选法屏选了档、进了向导，
+ *   之后地区变了（前台下拉通知栏关 VPN 不发 visibilitychange），图钱照样付掉，落段 / 出片时才被地区拦下。门禁开着的海外唯一给得出的
+ *   「真人」档上九宫格 / 对话正反打本来就不摆，付过钱的格子没有任何落段的路。
+ * ★ 两个方向一次管住：旧结论说能用、其实已经被拦 → 这里拒；旧结论说被拦、其实已经能用 → 这里放行（问到的就是新结论）。
+ * ★ 只管地区那一支：套餐 / 停用 / 服务端支持仍由调用方原来那道同步闸（tierBlockReason）管。`need` 同 tierRegionIssue（只挑「换成哪一档」的出路）。
+ * ★ genNode / deriveProposals / 工坊 generateNode 自己内联了同样两行（它们还要按 need 挑出路、拒了退回更多状态），别改成两套判据。
+ */
+export async function tierRegionGate(tier: VideoTier, need?: TierNeed): Promise<string | null> {
+  await refreshVideoZone();
+  return tierRegionIssue(tier, need);
+}
+
+/**
  * 档位那一排下面那一行说明（null = 不说：地区不知道，或者这个地区没有哪一档被拦）。TierRow、选法屏（ModePicker）、工坊铸段窗三处都只印这一句。
  * 与 tierRegionIssue 分工：这句说「这里给什么」（被拦的档已经不摆了，不点名）；那句说「挂着的这一档为什么用不了、换哪一档」。
  */

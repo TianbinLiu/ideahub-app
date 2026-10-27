@@ -279,7 +279,7 @@ export default function DialogueWizard({
           {!lineN ? (
             <div className="space-y-2">
               <button
-                onClick={() => void writeLines({ names, place: place?.name ?? "" })}
+                onClick={() => void writeLines({ names, place: place?.name ?? "", tierId })}
                 disabled={d.writing || d.situation.trim().length < SITUATION_MIN}
                 className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-brand/90 py-2.5 text-sm font-bold text-ink disabled:opacity-40"
               >
@@ -384,7 +384,7 @@ export default function DialogueWizard({
                   <Trans>＋ 加一句</Trans>
                 </button>
                 <button
-                  onClick={() => void writeLines({ names, place: place?.name ?? "" })}
+                  onClick={() => void writeLines({ names, place: place?.name ?? "", tierId })}
                   disabled={d.writing || d.situation.trim().length < SITUATION_MIN}
                   className="flex items-center gap-1.5 rounded-full bg-slate-700/60 px-3 py-1 text-[11px] text-slate-200 disabled:opacity-40"
                 >
@@ -529,7 +529,7 @@ export default function DialogueWizard({
                 className="w-full rounded-lg border border-slate-700 bg-black/30 px-2.5 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand disabled:opacity-40"
               />
               <button
-                onClick={() => void redrawAngle(focus, { cast, place, ask })}
+                onClick={() => void redrawAngle(focus, { cast, place, ask, tierId })}
                 disabled={!!d.drawing || !!d.panels[focus]?.busy || (focus !== "two" && !d.panels.two?.image)}
                 className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-brand/90 py-2.5 text-sm font-bold text-ink disabled:opacity-40"
               >
@@ -555,7 +555,7 @@ export default function DialogueWizard({
           {d.drawErr && <p className="text-[11px] leading-relaxed text-danger-300">{d.drawErr}</p>}
           {d.drawNote && !d.drawing && <p className="text-[10px] leading-relaxed text-slate-400">{d.drawNote}</p>}
           <button
-            onClick={() => void drawAngles({ cast, place })}
+            onClick={() => void drawAngles({ cast, place, tierId })}
             disabled={!!d.drawing || d.writing}
             className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
           >

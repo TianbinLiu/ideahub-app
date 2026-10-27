@@ -13,7 +13,8 @@ import { t } from "@lingui/core/macro";
 import { create } from "zustand";
 import { chargeNote, chargeOnFail } from "../ai/failCharge";
 import { onOwnerSwitch, workOwner } from "../data/deviceOwner";
-import { CHAT_TURN_TOKENS } from "../data/economy";
+import { CHAT_TURN_TOKENS, tierOf } from "../data/economy";
+import { tierRegionGate } from "../data/account";
 import { currentRoute, startJob } from "../data/jobs";
 import type { SceneNote } from "../data/sceneShots";
 import { forgeLead, type LeadForged } from "./leadCast";
@@ -165,6 +166,14 @@ export async function splitScene(o: { tierId: string; cast: string[]; durationSe
   const scene = s.scene;
   useLeadDraft.setState({ splitting: true, splitErr: "" });
   try {
+    // ★★ 出片地区（2026-10-26 终审，钱）：花这一次对话的钱之前现问一次地区、再按问到的那份判向导挑的这一档（account.tierRegionGate）——
+    //   选法屏只在挑的那一拍判过一次，之后地区变了，拆镜头的钱照样付掉，落段才被拦下。主角定妆要收参考图的档（出路只往那几档上指）。
+    //   splitting 已占上；拒了 finally 复位。★ 「现做一个主角」（forgeIntoCast）不问：画出来的是一张收进卡片库的卡，别处照样用得上（与自建卡同一个口径）
+    const region = await tierRegionGate(tierOf(o.tierId), (x) => x.refImg);
+    if (region) {
+      writeFor(who, { splitErr: region });
+      return;
+    }
     const r = await runSceneToShots({ scene, cast: o.cast, tierId: o.tierId, durationSec: o.durationSec });
     writeFor(who, { script: r.text, scriptScene: scene, scriptDemo: r.demo, scriptAi: true, notes: r.notes });
   } catch (e) {

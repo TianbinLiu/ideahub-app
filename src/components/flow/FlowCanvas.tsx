@@ -510,7 +510,8 @@ export default function FlowCanvas({
    */
   function finishGrid(specs: AppendSpec[], generate: boolean) {
     if (!gridSheet) return;
-    const ids = useFlow.getState().appendSpecs(specs);
+    // 落的是付过钱的格子：不拿档位门禁拒（flowStore.appendSpecs 的 tierGate 那一段 ★★），出片那一拍 genNode 照样拦并说清楚
+    const ids = useFlow.getState().appendSpecs(specs, { tierGate: false });
     if (!ids?.length) return;
     setGridSheet(null);
     resetGridScene();
@@ -524,7 +525,7 @@ export default function FlowCanvas({
   /** G 的向导点了「生成这一段」/「只铺成这一段」：与 C 同一对入口（appendSpecs 落段 + genNode 出片），落完清掉这一次的关键帧 */
   function finishEffect(specs: AppendSpec[], generate: boolean) {
     if (!effectSheet) return;
-    const ids = useFlow.getState().appendSpecs(specs);
+    const ids = useFlow.getState().appendSpecs(specs, { tierGate: false });
     if (!ids?.length) return;
     setEffectSheet(null);
     resetEffect();
@@ -538,7 +539,7 @@ export default function FlowCanvas({
   /** I 的向导点了「铺成 N 段」：与 C 同一对入口（appendSpecs 落段 + genNode 出第一段），落完清掉这一次的对白（三个机位留着，接着往下说不用再画） */
   function finishDialogue(specs: AppendSpec[], generate: boolean) {
     if (!dialogueSheet) return;
-    const ids = useFlow.getState().appendSpecs(specs);
+    const ids = useFlow.getState().appendSpecs(specs, { tierGate: false });
     if (!ids?.length) return;
     setDialogueSheet(null);
     resetDialogueLines();

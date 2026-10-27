@@ -24,7 +24,7 @@ import { castPreviewImage, frameUrlAt, fuseStageFrame, AI_REAL, ArkTaskFailed, A
 import { frameMoment, isMultiShot, momentCards } from "../data/shotScript";
 import { endFrameUsed } from "../data/drawPlan";
 import { isArkAssetUrl, reasonClause, transferArkVideo } from "../ai/arkClient";
-import { canAfford, defaultTierId, draftModeIssue, draftModeOffered, frozenNote, myCards, noTierLine, realFaceIssue, spendTokens, tierBlockReason, tierGo, tierOffered, tierRegionIssue, tierRegionRecheck, usableTierId, walletOf, type TierNeed } from "../data/account";
+import { canAfford, defaultTierId, draftModeIssue, draftModeOffered, frozenNote, myCards, noTierLine, realFaceIssue, spendTokens, tierBlockReason, tierGo, tierOffered, tierRegionGate, tierRegionIssue, tierRegionRecheck, usableTierId, walletOf, type TierNeed } from "../data/account";
 import { refreshVideoZone, zoneIsRegional } from "../data/videoZone";
 import { showToast } from "../data/toast";
 import {
@@ -1892,8 +1892,9 @@ interface FlowState {
    * 一次接几段在末尾（跟着做 C「九宫格分镜」：挑中的几格各成一段，2026-10-05）。门禁与 appendNode 同一处（appendIssue：
    * 白模尾段拒 / 末段未出片拒 / 生成中拒），每段用 appendedNode 拼（与 appendSpecsQuote 报价的同一批）。
    * 返回新段的 id（按顺序）；被拒 = null，原因在 err。
+   * `opts.tierGate: false` = 不问档位门禁，同 appendNode 的那一位：**只给已经花了钱才来落地的**（跟着做向导落的是付过钱的格子 / 机位 / 关键帧），理由见实现。
    */
-  appendSpecs: (specs: AppendSpec[]) => string[] | null;
+  appendSpecs: (specs: AppendSpec[], opts?: { tierGate?: boolean }) => string[] | null;
   /**
    * 「修这一段 · 延长」（2026-10-05）：在流水线末尾接一段**延长段**（FlowNode.extendFrom），接着最后一段的成片往后拍 durationSec 秒。
    * 门禁 extendIssue（只延长最后一段 / 成片已转存 / 档位能带参考视频）+ appendNode 自己那一道（appendIssue）；落什么只在 extendSpec。
@@ -3007,6 +3008,16 @@ export const useFlow = create<FlowState>()((set, get) => ({
       get().updateNode(nodeId, { status: "idle", progress: "" });
       set(get().genRun === myRun ? { busy: false, frameEdit: null, ...patch } : { frameEdit: null });
     };
+    // ★★ 出片地区（2026-10-26 终审，钱）：花这一张图的钱之前现问一次地区再判（account.tierRegionGate）—— 上面那道同步闸读的是旧结论，
+    //   改好的帧只在这一档出得了片时才有用。排在「打上 generating」之后（busy 已占上，等的这几秒里点不出第二炉）；拒了原样退回、一分钱没花
+    {
+      const region = await tierRegionGate(tierOf(node.videoTier));
+      if (region) {
+        get().updateNode(nodeId, { status: node.status, progress: node.progress });
+        set(get().genRun === myRun ? { busy: false, frameEdit: null, err: region } : { frameEdit: null });
+        return false;
+      }
+    }
     try {
       const notes: string[] = [];
       let next: string;
@@ -3118,6 +3129,15 @@ export const useFlow = create<FlowState>()((set, get) => ({
     const myRun = get().genRun + 1;
     set({ busy: true, err: "", genRun: myRun, genFrom: currentRoute() });
     get().updateNode(nodeId, { status: "generating", progress: t`按修改重画画面…`, regenning: true });
+    // ★★ 出片地区（2026-10-26 终审，钱）：重画要几张图的钱，花之前现问一次地区再判（account.tierRegionGate，理由同 editFrame 那一处）；拒了原样退回
+    {
+      const region = await tierRegionGate(tierOf(node.videoTier));
+      if (region) {
+        get().updateNode(nodeId, { status: node.status, progress: node.progress, regenning: false });
+        set(get().genRun === myRun ? { busy: false, err: region } : {});
+        return false;
+      }
+    }
     try {
       // ★ 必须把本段画幅递下去：Seedream 的画布比例得与视频画幅一致，缺了它重画出来的
       //   帧是横的，喂给竖屏 Seedance 任务会被静默裁一刀（人物常被裁掉半个头）。
@@ -3260,7 +3280,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
     return newId;
   },
 
-  appendSpecs: (specs) => {
+  appendSpecs: (specs, opts) => {
     let ids: string[] | null = null;
     set((s) => {
       const issue = appendIssue(s);
@@ -3269,9 +3289,16 @@ export const useFlow = create<FlowState>()((set, get) => ({
       const built: FlowNode[] = [];
       for (const sp of specs) built.push(appendedNode([...s.nodes, ...built], sp));
       // 档位门禁（同 appendNode）：一段落不了就一段都不落
-      for (const n of built) {
-        const tierIssue = tierBlockReason(tierOf(n.videoTier));
-        if (tierIssue) return { err: tierIssue };
+      // ★★ 但**已经花了钱才来落地的**不问（opts.tierGate === false，三个跟着做向导这么传 —— 2026-10-26 出片地区终审抓到）：
+      //   九宫格的格子、对话正反打的三个机位、特效同款的关键帧都是先付图钱、几分钟后才落段，这一道的答案在这期间会变 ——
+      //   地区变了（前台关 VPN 不发 visibilitychange）、套餐状态从「还不知道」变成「没付过钱」、跨过停用时刻。这里一拒，付过钱的画面
+      //   只活在向导里（门禁开着的海外唯一给得出的「真人」档上九宫格 / 对话正反打本来就不摆，没有第二条落段的路）。
+      //   落下来没有坏处：出片那一拍 genNode 照样现问地区、拦下并说清楚，这几段的档位行能换到用得了的档，画面留着（也进草稿）。
+      if (opts?.tierGate !== false) {
+        for (const n of built) {
+          const tierIssue = tierBlockReason(tierOf(n.videoTier));
+          if (tierIssue) return { err: tierIssue };
+        }
       }
       ids = built.map((n) => n.id);
       // 光标停在新落的第一段（与 appendNode 同一个写法）；pinUnstatedTpl 同拍（理由见 addNode 的 ★★★）
@@ -3728,6 +3755,15 @@ export const useFlow = create<FlowState>()((set, get) => ({
       set({ err: frozenNote() ?? t`合成预览要一张图的钱（${fmtTokens(ONE_IMAGE)} token），余额不够——去「我的」页充值` });
       return false;
     }
+    // ★★ 出片地区（2026-10-26 终审，钱）：花这一张图的钱之前现问一次地区再判（account.tierRegionGate；上面那道同步闸读的是旧结论）。
+    //   白模段：出路只指跑得了白模的档（blockoutOk）
+    {
+      const region = await tierRegionGate(tierOf(node.videoTier), (x) => x.blockoutOk);
+      if (region) {
+        set({ err: region });
+        return false;
+      }
+    }
     const job = startJob({ kind: "cast-preview", title: t`合成预览`, page: "/studio", route: "/studio", progress: t`把角色放进白模画面…` });
     try {
       const cover = await castPreviewImage({
@@ -3814,6 +3850,19 @@ export const useFlow = create<FlowState>()((set, get) => ({
     });
     if (AI_REAL && !canAfford(ONE_IMAGE)) {
       set({ err: frozenNote() ?? t`导演台融图要一张图的钱（${fmtTokens(ONE_IMAGE)} token），余额不够——去「我的」页充值` });
+      return false;
+    }
+    // ★★ 出片地区（2026-10-26 终审，钱）：花这一张图的钱之前现问一次地区再判（account.tierRegionGate；上面那道同步闸读的是旧结论）
+    {
+      const region = await tierRegionGate(tierOf(node.videoTier));
+      if (region) {
+        set({ err: region });
+        return false;
+      }
+    }
+    // 问的那几秒里这一段可能开炼了（上面那道同步闸是问之前的样子）：开炼了就不融，免得融好的帧写进一段正在出片的段
+    if (get().busy || get().nodes.find((n) => n.id === nodeId)?.status === "generating") {
+      set({ err: t`这一段正在出片，等它结束再换开头帧` });
       return false;
     }
     const job = startJob({ kind: "stage-fuse", title: t`导演台融图`, page: "/studio", route: "/studio", progress: t`把构图示意融成开头帧…` });

@@ -363,7 +363,7 @@ export default function EffectWizard({
               )}
               {d.drawErr && <p className="text-[11px] leading-relaxed text-danger-300">{d.drawErr}</p>}
               <button
-                onClick={() => void drawKeyframe({ cast, productCard })}
+                onClick={() => void drawKeyframe({ cast, productCard, tierId })}
                 disabled={d.drawing || !castOk}
                 className="w-full rounded-full bg-panel py-1.5 text-[11px] text-slate-200 disabled:opacity-40"
               >

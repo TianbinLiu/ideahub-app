@@ -5,7 +5,7 @@ import { AI_REAL, MaterialFile, chargeNote, chargeOnFail, deriveCharacterModels,
 import { frameMoment, momentCards } from "../data/shotScript";
 import { DECK_CAM, MARKET, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
-import { acquireCard, addCards as saveCardsToAccount, canAfford, frozenNote, myCards, myDecks, plazaCards, realFaceIssue, spendTokens, tierBlockReason, tierRegionIssue, tierRegionRecheck, usableTierId, walletOf, type AddCardsResult } from "../data/account";
+import { acquireCard, addCards as saveCardsToAccount, canAfford, frozenNote, myCards, myDecks, plazaCards, realFaceIssue, spendTokens, tierBlockReason, tierRegionGate, tierRegionIssue, tierRegionRecheck, usableTierId, walletOf, type AddCardsResult } from "../data/account";
 import { refreshVideoZone } from "../data/videoZone";
 import { CHAT_TURN_TOKENS, DECK_MAX_3D, deriveIssue, DECK_MAX_CARDS, fallbackTierId, MODEL3D_TOKENS, deckCardsCost, deckModel3dCost, fmtTokens, proposalsCost, styleWants3d, tierOf, videoAudioOn } from "../data/economy";
 // 单向依赖：工坊把活动路径喂给工作流。flowStore 不认识 studioStore（见其文件头）
@@ -1678,6 +1678,15 @@ export const useStudio = create<StudioState>()((set, get) => ({
     }
     set({ proposalRegen: proposalId });
     try {
+      // ★★ 出片地区（2026-10-26 终审，钱）：花重画的图钱之前现问一次地区再判（account.tierRegionGate；与 flowStore.regenProposal 同一处判据）。
+      //   proposalRegen 已占上，等的这几秒里点不出第二炉；拒了 finally 复位，话走 notice（投影窗开着时 NpcDialog 不画）
+      {
+        const region = await tierRegionGate(tierOf(node.videoTier));
+        if (region) {
+          set({ notice: { at: Date.now(), text: region } });
+          return false;
+        }
+      }
       // ★ 必须把本段画幅递下去：Seedream 的画布比例得与视频画幅一致，缺了它重画出来的帧
       //   是横的，喂给竖屏 Seedance 任务会被静默裁一刀（人物常被裁掉半个头）。
       //   见 CLAUDE.md「改了画幅却发现出片还是横的」那一条
@@ -1957,7 +1966,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
   layWizardNodes: (specs, say) => {
     const { editor } = get();
     if (!editor || editor.generating) return { ok: false, why: t`铸段窗正忙，稍后再试` };
-    const ids = useFlow.getState().appendSpecs(specs);
+    // 三个跟着做向导落的都是付过钱的画面：不拿档位门禁拒（flowStore.appendSpecs 的 tierGate 那一段 ★★），出片那一拍 genNode 照样拦并说清楚
+    const ids = useFlow.getState().appendSpecs(specs, { tierGate: false });
     if (!ids?.length) return { ok: false, why: useFlow.getState().err || t`现在铺不了这几段，稍后再试。` };
     set({ spreadOpen: false, focus: { nodeId: ids[0] }, projection: "proposals", editor: null });
     get().npcSay(say);
