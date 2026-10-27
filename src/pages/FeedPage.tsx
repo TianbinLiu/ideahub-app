@@ -1065,6 +1065,10 @@ function FeedItem({
           landscape={shownAspect === "landscape"}
           onClearScreen={onEnterFull}
           onClose={() => setMenuOpen(false)}
+          // 首页这一格：「保存到本地」是去详情页里选（能不能存、存哪几集只在 videoDownload.planDownload 一处判，详情页那颗键就是它的画法）
+          host="feed"
+          onSaveLocal={() => navigate(`/video/${video.id}`)}
+          block={null}
         />
       )}
       {/* 发弹幕时视频**不暂停**：弹幕的意思就是"此刻"，停下来发就名不副实了。

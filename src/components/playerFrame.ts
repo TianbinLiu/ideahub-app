@@ -12,10 +12,13 @@ import { aspectCss, type VideoAspect } from "../types";
 export type PlayerFrame = "card" | "bleed" | "full";
 
 /**
- * 详情页竖屏作品播放器最高占视口多少（vh）。
- * ★ 先填 50（设计估算：375×812 下动作条底沿约 750px、吸底栏顶沿约 752px），真机量完再改 —— 量法写在 docs/video-detail-redesign-2026-10.md。
+ * 详情页竖屏作品播放器最高占视口多少（vh）—— 目标：首屏露出整条动作条（赞 · 评 · 藏 · 分享 · 举报），底沿不被吸底栏挡住。
+ * ★ 2026-10-26 浏览器 375×812 实测：播放器底沿到动作条底沿之间最多 275px（两行标题 + 统计 + 徽标 + 弹幕条 + 作者条 + 动作条；简介折叠时不占位）。
+ *   真机要再算安全区（浏览器里是 0，CLAUDE.md「safe-top」那一格的坑）：顶栏 59 + 状态栏 41 = 100px；吸底栏 53px 里的 8px 底边距被手势条 24px 顶替 ⇒ 69px、顶沿在 743px。
+ *   ⇒ 播放器最多 743 − 100 − 275 = 368px ≈ 45vh，取 44（留 11px）。设计稿原来填的 50 是按安全区为 0 估的，真机上动作条会压到吸底栏底下。
+ *   更矮的屏（640 高）怎么取都放不下，靠滚动；Pixel 8（915 高）上余量很宽。
  */
-export const PORTRAIT_MAX_VH = 50;
+export const PORTRAIT_MAX_VH = 44;
 
 /** 播放框的 style 与 class（三种外框一处定，两个播放器都问它） */
 export function frameLook(frame: PlayerFrame, aspect: VideoAspect | undefined): { style: CSSProperties; className: string } {
