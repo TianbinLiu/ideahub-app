@@ -286,6 +286,8 @@ export interface ListVideosParams {
    *   根本不是他发的作品，而且一个错都不报。
    */
   author?: string;
+  /** 只要照这条作品做的同款（作品 id，2026-10-29 服务端加）。同 author：老服务端会 strip 掉照常回推荐流，认回显的 remixOf */
+  remixOf?: string;
 }
 
 export interface ListVideosResult {
@@ -299,6 +301,8 @@ export interface ListVideosResult {
    *   判这个键在不在（形状），不判状态码 —— Capacitor 那边状态码恒 200。
    */
   author?: string;
+  /** 服务端真正生效了的 remixOf 过滤（能力探针，理由同 author） */
+  remixOf?: string;
 }
 
 // ── 作者名 ↔ userId 登记处 ────────────────────────────────
@@ -383,12 +387,14 @@ export async function listVideos(params: ListVideosParams = {}): Promise<ListVid
       cursor: params.cursor,
       limit: params.limit,
       author: params.author,
+      remixOf: params.remixOf,
     },
   });
   return {
     items: pickList<ApiVideo>(res, ["items", "videos", "data"]),
     nextCursor: pick<string>(res, ["nextCursor"]) ?? null,
     author: pick<string>(res, ["author"]) ?? undefined,
+    remixOf: pick<string>(res, ["remixOf"]) ?? undefined,
   };
 }
 
@@ -608,6 +614,8 @@ export interface DanmakuPage {
   items: ApiDanmaku[];
   /** 服务端截断了没有。截断了要让用户知道，别假装"这条作品就这么多弹幕" */
   truncated: boolean;
+  /** 这条作品一共多少条（拉黑的人不算；2026-10-29 服务端加，老服务端没有 = undefined） */
+  total?: number;
 }
 
 /** GET /api/branch/videos/:id/danmaku（optionalAuth）。返回已按 at 升序 */
@@ -615,7 +623,12 @@ export async function listDanmaku(id: string, limit?: number): Promise<DanmakuPa
   const res = await apiGet<Record<string, unknown>>(`/api/branch/videos/${encodeURIComponent(id)}/danmaku`, {
     query: { limit },
   });
-  return { items: pickList<ApiDanmaku>(res, ["items", "danmaku", "data"]), truncated: pick<boolean>(res, ["truncated"]) === true };
+  const total = pick<number>(res, ["total"]);
+  return {
+    items: pickList<ApiDanmaku>(res, ["items", "danmaku", "data"]),
+    truncated: pick<boolean>(res, ["truncated"]) === true,
+    ...(typeof total === "number" && Number.isFinite(total) && total >= 0 ? { total } : {}),
+  };
 }
 
 /** POST /api/branch/videos/:id/danmaku（requireAuth） */

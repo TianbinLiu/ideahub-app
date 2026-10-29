@@ -53,6 +53,7 @@ import {
 } from "../data/videos";
 import {
   danmakuFetched,
+  danmakuTotal,
   danmakuNeedsLogin,
   danmakuOf,
   danmakuOn,
@@ -309,8 +310,10 @@ export default function VideoPage() {
   /** 弹幕摆不摆：解锁了、多 P 老作品只在第 1 集（弹幕是挂在作品上的全片秒，不分集） */
   const dmHere = !locked && piSafe === 0;
   const dmFetched = danmakuFetched(video.id);
-  const dmCount = danmakuOf(video.id).length;
-  const dmTrunc = isTruncated(video.id);
+  // 条数：服务端给了总数（2026-10-29 起）就写总数（拉黑的人不算，与列表同一个过滤）；老服务端退回手上的条数、截断过写「n+」
+  const dmTotal = danmakuTotal(video.id);
+  const dmCount = dmTotal ?? danmakuOf(video.id).length;
+  const dmTrunc = dmTotal === null && isTruncated(video.id);
   const lanes = aspect === "landscape" ? 3 : 4;
   const overlay: PlayerOverlay =
     dmHere && dmOn

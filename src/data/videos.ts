@@ -2094,6 +2094,24 @@ export async function fetchAuthorWorks(userId: string, limit = 30): Promise<Auth
 }
 
 /**
+ * 照这条作品做的同款（作品详情页「照这条做的同款」那一块，2026-10-29）。口径与详情的 remixCount 同一个（服务端一处）：
+ * 非私密、没下架、不算原作者自己的。
+ * ★ 认服务端**回显的 remixOf**（判形状）：老服务端不认这个参数，会 strip 掉照常回推荐流 —— 不回显就当「这台服务器没有这个列表」，
+ *   一条都不摆（与 fetchAuthorWorks 的 partial 不同：推荐流里筛不出同款，摆出来就是别人的作品）。
+ */
+export async function fetchRemixes(videoId: string, limit = 6): Promise<{ status: "ok"; items: VideoItem[] } | { status: "unsupported" } | { status: "failed"; error: string }> {
+  if (!remoteOn()) return { status: "unsupported" };
+  const rid = realId(videoId);
+  try {
+    const res = await branch.listVideos({ remixOf: rid, limit });
+    if (res.remixOf !== rid) return { status: "unsupported" };
+    return { status: "ok", items: res.items.map(toVideoItem) };
+  } catch (e) {
+    return { status: "failed", error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/**
  * 确保这条作品的评论已经拉下来（首页的评论抽屉用）。
  *
  * ★★ 这是在修一个真 bug：**列表接口不返回 comments**，只有详情接口返回。
