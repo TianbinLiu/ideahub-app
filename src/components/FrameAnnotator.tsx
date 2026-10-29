@@ -4,6 +4,7 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useRef, useState } from "react";
 import { AIGC_BADGE_TEXT } from "../data/aigcLabel";
+import { useBackLayer } from "../hooks/useBackLayer";
 import { CloseButton } from "./IconTapButton";
 
 /** object-cover 语义地把图/视频画满画布（保持比例、居中裁切） */
@@ -90,6 +91,8 @@ export default function FrameAnnotator({
   onClose: () => void;
 }) {
   const { t } = useLingui();
+  // 手机返回键先关这块画板（hooks/useBackLayer），与 ✕ / 点遮罩同一个 onClose —— 它常叠在回看 / 方案台上，层栈让它先关
+  useBackLayer(true, onClose, "frame-annotator");
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
   const [ellipse, setEllipse] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);

@@ -266,6 +266,8 @@ export default function SupportPage() {
   const [voiceSheetOpen, setVoiceSheetOpen] = useState(false);
   const ticketsOpen = params.get("tab") === "tickets";
   const highlightTicket = params.get("ticket") || "";
+  // 手机返回键先退出「我的工单」回到对话（hooks/useBackLayer），与页顶栏那颗返回键同一个 showTickets(false)
+  useBackLayer(ticketsOpen, () => showTickets(false), "support-tickets");
 
   const playerRef = useRef<SpeechPlayer | null>(null);
   const runRef = useRef(0);
