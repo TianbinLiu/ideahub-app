@@ -11,14 +11,17 @@
 //   极速连尾帧都锁不住。这些都要在**换之前**说清楚，并且真正说不通的（挂着参考视频）
 //   得当场清掉，否则出片会被 segmentGen 的门禁整句拒（钱没花，但用户白等一轮）。
 import type { MessageDescriptor } from "@lingui/core";
+import Warn from "../Warn";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
-import { memberTiersLine, realFaceIssue, tierBlockReason, tierOffered } from "../../data/account";
-import { blockoutPriceIssue, clampDuration, deriveIssue, fmtTokens, tierModelId, tierOf, VIDEO_TIERS } from "../../data/economy";
-import { useAccountVersion } from "../../hooks/useAccount";
+import { chipLabelIn, memberTiersLine, r2vTierIssue, realFaceIssue, regionTiersLine, providerShown, sameChipProvider, tierBlockReason, tierListed, tierOfPreferred, tierOffered, tierShownModelId } from "../../data/account";
+import { clampDuration, deriveIssue, fmtTokens, tierOf, VIDEO_TIERS, type VideoTier } from "../../data/economy";
+import type { VideoProvider } from "../../data/videoZoneRules";
+import ProviderSwitch from "./ProviderSwitch";
+import { useAccountVersion, useProviderPref } from "../../hooks/useAccount";
 import UpgradeLink from "../UpgradeLink";
-import { chosenOf, nodeCost, nodeFramed, tplOfNode, useFlow } from "../../studio/flowStore";
+import { chosenOf, nodeCost, nodeFramed, textTplTierIssue, tplOfNode, useFlow } from "../../studio/flowStore";
 import { carryIsHard } from "../../studio/segmentGen";
 
 /**
@@ -35,9 +38,12 @@ export function tierSwitchLoss(nodeId: string, nextId: string): MessageDescripto
   const cur = tierOf(node.videoTier);
   const prop = chosenOf(node);
   const loss: MessageDescriptor[] = [];
+  // ★ 换到同一颗芯片的另一家（Seedance 草稿 → MiniMax 草稿，2026-10-26 P2b 审核）：两家同名，「「草稿」档不收声音样本」读着像这一档自己变了 ——
+  //   点名换过去的那一家（account.sameChipProvider：地区问到了才写；H3 三档只在地区问到了才摆，所以这里几乎总写得出来）
+  const via = sameChipProvider(next, cur);
   // 参考视频：只有支持 r2v/参考视频的档带得动，换过去必须摘掉（不摘的话出片被整句拒）
   if (node.customRef && !next.refVid) {
-    loss.push(msg`挂在这一段上的示例视频会被摘掉（「${next.label}」档带不了参考视频）`);
+    loss.push(via ? msg`挂在这一段上的示例视频会被摘掉（${via} 出的「${next.label}」带不了参考视频）` : msg`挂在这一段上的示例视频会被摘掉（「${next.label}」档带不了参考视频）`);
   }
   // 形象图：2.0 → 1.0 的核心落差。已经出过片的段不提这条（它已经拍完了）
   if (cur.refImg && !next.refImg && (node.materials?.length ?? 0) > 0) {
@@ -47,12 +53,28 @@ export function tierSwitchLoss(nodeId: string, nextId: string): MessageDescripto
   if (cur.flf && !next.flf && prop.lastFrame) {
     loss.push(msg`这一段的结束画面不再锁得住（「${next.label}」档只认起拍帧）`);
   }
-  // 音色样本。★ 与相邻两条同口径：只在**这一段真的有台词**时才提（引号里的台词才会被配音）
-  if (cur.audio && !next.audio && /[「"']/.test(prop.plot)) {
+  // 台词。★ 与相邻两条同口径：只在**这一段真的有台词**时才提（引号里的台词才会被配音）
+  // ★ 两件事分开判（2026-10-26 审核）：「台词还说不说得出来」看 audio，「还带不带得了声音样本」看 refAudio。
+  //   只看 refAudio 的话，从出声却不收声音样本的档（海外 MiniMax H3）换到无声档一句都不说 —— 台词整句没了，却是静默降级（铁律八）。
+  //   今天出声的档都收声音样本（refAudio ⇔ audio），两支的结果与只判一处时逐档相同。
+  const quote = /[「"']/.test(prop.plot);
+  if (quote && cur.audio && !next.audio) {
+    // 换过去出片不出声（真人档按无声报、话说成「暂无配音」）；原来带没带声音样本决定开头那半句
     loss.push(
-      next.flatCost
-        ? msg`台词不再带音色样本（「${next.label}」档暂无配音）`
-        : msg`台词不再带音色样本（「${next.label}」档出片无声）`,
+      cur.refAudio
+        ? next.startOnly
+          ? msg`台词不再带音色样本（「${next.label}」档暂无配音）`
+          : msg`台词不再带音色样本（「${next.label}」档出片无声）`
+        : next.startOnly
+          ? msg`台词不会再被配音（「${next.label}」档暂无配音）`
+          : msg`台词不会再被配音（「${next.label}」档出片无声）`,
+    );
+  } else if (quote && cur.refAudio && !next.refAudio) {
+    // 走到这里 next 一定出声（上一支接住了不出声的）：台词照样配音，只是不再按卡上的声音
+    loss.push(
+      via
+        ? msg`台词不再带音色样本（${via} 出的「${next.label}」不收声音样本，台词照样配音、音色由模型定）`
+        : msg`台词不再带音色样本（「${next.label}」档不收声音样本，台词照样配音、音色由模型定）`,
     );
   }
   // ★ **升档也有变化**（2026-08-30 补）：收参考图的档上，帧改当参考图发 + 提示词点名
@@ -60,7 +82,7 @@ export function tierSwitchLoss(nodeId: string, nextId: string): MessageDescripto
   //   硬约束降成软引导。这是好事也是代价，两头都要说，不能只在降档时说。
   // ★ 判据走 segmentGen.carryIsHard 一处（2026-09-03 收口）：这里原来手写
   //   `!cur.refImg && next.refImg`，与 framesAsRefs 是同一条规则的第二份实现 ——
-  //   哪天加一档 flatCost 且收参考图的，两份必然只改到一份，而且零症状。
+  //   哪天加一档只认起拍画面（startOnly）却收参考图的，两份必然只改到一份，而且零症状。
   if (carryIsHard(cur.id) && !carryIsHard(next.id) && (prop.firstFrame || prop.lastFrame)) {
     loss.push(msg`首尾帧会改成"参考图 + 提示词点名"发出去（换来的是素材卡形象能一起发；代价是起止画面不再是硬约束）`);
   }
@@ -82,6 +104,8 @@ export default function TierRow({
   const { t } = useLingui();
   // 套餐 / 付没付过钱 / 服务端能力位都是异步到的：订阅账号的版本号，到了就重画（不然免费用户的会员档要等下一次别的重画才灰）
   useAccountVersion();
+  // 两家都给得出时摆哪一家（account.tierListed 读偏好）：选完那一拍这一排要跟着换
+  useProviderPref();
   const nodes = useFlow((s) => s.nodes);
   const mode = useFlow((s) => s.mode);
   const index = nodes.findIndex((n) => n.id === nodeId);
@@ -98,9 +122,12 @@ export default function TierRow({
   const framed = !!needsDerive || nodeFramed(nodes, index, mode);
   // ★ 摆哪几档：停用的、这台服务端不支持的不摆（account.tierOffered）—— 只有这一段**正挂着**的那一档例外：
   //   藏起来的话这一排一个高亮都没有，人不知道自己在哪一档、为什么出不了片（它会灰着，原因印在下面）
-  const shown = VIDEO_TIERS.filter((tier) => tierOffered(tier) || tier.id === node.videoTier);
+  //   两家都给得出的芯片只摆这个人选的那一家（account.tierListed；选在下面那颗 ProviderSwitch 上）
+  const shown = VIDEO_TIERS.filter((tier) => tierListed(tier) || tier.id === node.videoTier);
   // 套餐那一类原因并成一句（account.memberTiersLine）+「去升级」；这一段挂着的档本身用不了（停用 / 服务端不支持）另说一句
   const memberLine = memberTiersLine();
+  /** 出片地区那一句（account.regionTiersLine：这个地区出片只提供哪几家；地区不知道 / 没有哪一档被拦时为 null）。与选法屏、工坊铸段窗同一句 */
+  const regionLine = regionTiersLine();
   const curTier = tierOf(node.videoTier);
   const curOff = tierOffered(curTier) ? null : tierBlockReason(curTier);
 
@@ -126,46 +153,74 @@ export default function TierRow({
     onDone?.();
   }
 
+  /** 这一档在这一段上能不能选（芯片灰不灰、换家换不换，同一句 —— 2026-10-29 发版前复核：原来换家只问套餐，白模段被换到跑不了白模的那一家） */
+  function blockOf(tier: VideoTier): string | null {
+    // ★ 白模节点上，跑不了白模模板的档位也要禁掉（判断在 economy.blockoutPriceIssue 一处；2026-10-05 起不再问 r2vPriceIssue ——
+    //   高清能带参考视频、但跑不了白模模板，问错那一句高清就会在白模段上变成可选）：
+    //   切过去出片必被门禁整句拒，让人选一个必失败的档不如当场说不能选
+    //   话走 account.r2vTierIssue（判据仍是 blockoutPriceIssue）：MiniMax 的「电影级」与 Seedance 的「电影级」同名，按地区点名是哪一家（2026-10-26 P2b 审核）
+    const r2vBlock = blockout ? r2vTierIssue(tier, "blockout") : null;
+    // ★ 按发计价档（真人）走不了推演（判定在 economy.deriveIssue 一处）——工坊这一面
+    //   的主路正是推演，切过去之后「重新推演三套」必被拒。宿主是画布时那条路还在
+    //   （画布可以直出），所以这一条只在**需要推演**的宿主上拦：由 prop 决定。
+    // ★★ 这一段挂着的真人卡在这一档过不过得去（2026-09-30 主人拍板：过不去的档**直接灰掉**，
+    //   不是选了再报错）。判据只有 account.realFaceIssue 一处，与出片闸（flowStore.genNode /
+    //   deriveProposals）问的是同一句 —— 界面说能选、闸却拒，就是两面打架。
+    //   没勾「火山引擎适用」的真人卡：只收认证素材的档（高清 / 电影级）灰；1.0 两档本来就不收真人照片，也灰。
+    //   勾了的也只在不带帧时放行（framed，2026-09-30 付费实测：帧里的真人脸会被整发拒）。
+    const faceBlock = realFaceIssue(node!.materials, tier.id, { blockout, framed });
+    // 文字模板段只在模板说好的那几档上跑（flowStore.textTplTierIssue，出片前的门禁问的是同一个）：目录侧的拒绝排在套餐前面 —— 别把人领去付钱
+    return textTplTierIssue(node!, tier.id) ?? tierBlockReason(tier) ?? r2vBlock ?? faceBlock ?? (needsDerive ? deriveIssue(tier.id) : null);
+  }
+
+  /** 换家：换成同一颗芯片的另一家那一行，走与点芯片同一条路（同一个 blockOf、换档代价先说完）。那一行这一段用不了就不换，把原因交回开关 */
+  function switchProvider(p: VideoProvider): string | null {
+    const twin = tierOfPreferred(tierOf(node!.videoTier), p);
+    if (twin.id === node!.videoTier) return null;
+    const why = blockOf(twin);
+    if (why) return why;
+    const loss = tierSwitchLoss(node!.id, twin.id);
+    const via = sameChipProvider(twin, tierOf(node!.videoTier));
+    if (loss.length) setAsk({ nodeId: node!.id, id: twin.id, label: via ? `${twin.label} · ${via}` : twin.label, loss });
+    else apply(twin.id);
+    return null;
+  }
+
   return (
     <div className="space-y-1.5">
+      {/* 境内同一档两家都给得出时：先选哪一家（ProviderSwitch 自己判摆不摆），再选档 */}
+      <ProviderSwitch current={providerShown(curTier)} onPick={switchProvider} />
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="w-10 flex-none text-[11px] text-slate-400"><Trans>画质</Trans></span>
         {/* ★ 回调参数叫 tier 不叫 t：t 是 useLingui 给的翻译函数，同名会把它遮住 */}
         {shown.map((tier) => {
-          // ★ 白模节点上，跑不了白模模板的档位也要禁掉（判断在 economy.blockoutPriceIssue 一处；2026-10-05 起不再问 r2vPriceIssue ——
-          //   高清能带参考视频、但跑不了白模模板，问错那一句高清就会在白模段上变成可选）：
-          //   切过去出片必被门禁整句拒，让人选一个必失败的档不如当场说不能选
-          const r2vBlock = blockout ? blockoutPriceIssue(tier.id) : null;
-          // ★ 按发计价档（真人）走不了推演（判定在 economy.deriveIssue 一处）——工坊这一面
-          //   的主路正是推演，切过去之后「重新推演三套」必被拒。宿主是画布时那条路还在
-          //   （画布可以直出），所以这一条只在**需要推演**的宿主上拦：由 prop 决定。
-          // ★★ 这一段挂着的真人卡在这一档过不过得去（2026-09-30 主人拍板：过不去的档**直接灰掉**，
-          //   不是选了再报错）。判据只有 account.realFaceIssue 一处，与出片闸（flowStore.genNode /
-          //   deriveProposals）问的是同一句 —— 界面说能选、闸却拒，就是两面打架。
-          //   没勾「火山引擎适用」的真人卡：只收认证素材的档（高清 / 电影级）灰；1.0 两档本来就不收真人照片，也灰。
-          //   勾了的也只在不带帧时放行（framed，2026-09-30 付费实测：帧里的真人脸会被整发拒）。
-          const faceBlock = realFaceIssue(node.materials, tier.id, { blockout, framed });
-          const block = tierBlockReason(tier) ?? r2vBlock ?? faceBlock ?? (needsDerive ? deriveIssue(tier.id) : null);
+          // 能不能选只问 blockOf（换家那颗开关问的是同一个）
+          const block = blockOf(tier);
+          // 跑不了白模的档不报价（点不动，价钱没有意义）
+          const r2vBlock = blockout ? r2vTierIssue(tier, "blockout") : null;
           const desc = tier.desc;
-          const model = tierModelId(tier);
+          // title 里的完整模型 id 只在地区问到了、这一档又摆得出来时写（account.tierShownModelId，与「本段模型」那一行同一个口径）
+          const model = tierShownModelId(tier);
           return (
             <button
               key={tier.id}
               onClick={() => {
                 if (tier.id === node.videoTier) return;
                 const loss = tierSwitchLoss(node.id, tier.id);
-                if (loss.length) setAsk({ nodeId: node.id, id: tier.id, label: tier.label, loss });
+                // 卡上的档名：换到同一颗芯片的另一家时带上是哪一家（「换到「草稿 · MiniMax」档」—— 两家同名，只写「草稿」看不出换了什么）
+                const via = sameChipProvider(tier, tierOf(node.videoTier));
+                if (loss.length) setAsk({ nodeId: node.id, id: tier.id, label: via ? `${tier.label} · ${via}` : tier.label, loss });
                 else apply(tier.id);
               }}
               disabled={!!block}
-              title={block ?? t`${desc}（${model}）`}
+              title={block ?? (model ? t`${desc}（${model}）` : desc)}
               className={`rounded-lg px-2.5 py-1.5 text-[11px] disabled:opacity-40 ${
                 node.videoTier === tier.id ? "bg-brand text-ink" : "bg-panel text-slate-300"
               }`}
             >
               {/* ★ 与主按钮同一把尺（nodeCost，只把档位换成这一档）：光报 segTokens 会漏掉
                   "这一档还得补画几张设定帧"，而用户正是在**比价**的这一步被少报 */}
-              {r2vBlock ? tier.label : <>{tier.label} · {fmtTokens(nodeCost(nodes, index, mode, tier.id))}</>}
+              {r2vBlock ? chipLabelIn(tier, shown) : <>{chipLabelIn(tier, shown)} · {fmtTokens(nodeCost(nodes, index, mode, tier.id))}</>}
             </button>
           );
         })}
@@ -174,22 +229,37 @@ export default function TierRow({
           这排按钮归本组件，理由跟着按钮走 —— 宿主再写一份就会两处都印（实测本段设置抽屉
           里出现过两遍）。宿主自己的别的理由（r2v 闸、真人卡）仍由宿主印，那是另一件事。
           「去升级」只治得了套餐门槛那一类原因，所以跟着 tierBlocks 一起出现。 */}
-      {curOff && <p className="text-[10px] leading-relaxed text-amber-300/80">{curOff}</p>}
+      {curOff && <Warn compact>{curOff}</Warn>}
+      {/* 文字模板段：灰掉的那几档为什么点不动（手机上没有 hover），只说一次、说清能在哪几档上跑 */}
+      {node.textTpl && (
+        <Warn tone="info" compact>
+          {(() => {
+            const title = node.textTpl.title;
+            const names = node.textTpl.tiers.filter((id) => tierOf(id).id === id).map((id) => tierOf(id).label).join(t({ message: "、", comment: "列举几个名字时的分隔符" }));
+            return t`文字模板「${title}」只在这几档上跑：${names}`;
+          })()}
+        </Warn>
+      )}
+      {regionLine && (
+        <Warn tone="info" compact>
+          {regionLine}
+        </Warn>
+      )}
       {memberLine && (
-        <p className="text-[10px] leading-relaxed text-amber-300/80">
+        <Warn compact>
           {memberLine}
           {/* 间隔用全角空格字面量——JSX 会把行间换行整个吃掉，靠折行留空隙留不住 */}
           {"　"}
           <UpgradeLink />
-        </p>
+        </Warn>
       )}
       {/* 换档的代价：**换之前**说，说的是这一段真的有的东西（tierSwitchLoss 一处判定） */}
       {ask && (
-        <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
-          <p className="text-[11px] font-semibold text-amber-200"><Trans>换到「{ask.label}」档会有这些变化：</Trans></p>
+        <div className="space-y-1.5 rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2">
+          <Warn><Trans>换到「{ask.label}」档会有这些变化：</Trans></Warn>
           <ul className="space-y-0.5">
             {ask.loss.map((l) => (
-              <li key={l.id} className="flex gap-1.5 text-[11px] leading-relaxed text-amber-100/90">
+              <li key={l.id} className="flex gap-1.5 text-[11px] leading-relaxed text-warn-100/90">
                 <span className="flex-none">·</span>
                 <span>{t(l)}</span>
               </li>
@@ -209,7 +279,7 @@ export default function TierRow({
                 }
                 apply(ask.id);
               }}
-              className="rounded-full bg-amber-500/90 px-2.5 py-1 text-[11px] font-bold text-ink"
+              className="rounded-full bg-warn-500/90 px-2.5 py-1 text-[11px] font-bold text-ink"
             >
               <Trans>知道了，换到「{ask.label}」</Trans>
             </button>

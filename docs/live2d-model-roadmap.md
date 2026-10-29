@@ -51,15 +51,16 @@
 | 图层 | 画师按绑定需求分 60～100 层（眉毛、上下睫毛、瞳孔、高光、衣服前后片、手指…） | 20 层（AI 拆分 + 手臂手工切三段） | 分层决定上限：眯眼只能靠整眼压扁（没有下睫毛层），没有手指分层就做不出手势 |
 | 变形 | 每层多级 Warp + 旋转，手工键 | 自动生成 + 少量手工 | 面部微表情（眉形、眼形）缺键 |
 | 物理 | physics3.json（头发/裙/胸 10+ 组摆锤） | 运行时弹簧 3 组 | 官方物理有链式摆锤（发梢比发根晚半拍），弹簧只有一级 |
-| 动作 | 10 段 motion3（含身体、手臂） | 9 段程序生成（make_motions2.py：idle/nod/shake/think/excited/wave/shy/surprised/bow，都带前臂/手腕曲线） | 官方的是动画师手 K，我们是正弦 + smoothstep 包络，节奏偏机械 |
+| 动作 | 10 段 motion3（含身体、手臂） | 12 段程序生成（make_motions2.py：idle/nod/shake/think/excited/wave/shy/surprised/bow；2026-10-25 补 explain/comfort/playful，都带前臂/手腕曲线） | 官方的是动画师手 K，我们是正弦 + smoothstep 包络，节奏偏机械 |
 
 ## 4. 开源工具评估
 
 | 工具 | 能做什么 | 结论 |
 |---|---|---|
 | [See-through](https://github.com/shitagaki-lab/see-through)（SIGGRAPH 2026） | 单图拆层 + 遮挡补全（已在用） | 拆层质量够，补全区域有残影 → 用 IOPaint 二次修补 |
-| [Bunraku](https://bunraku-live2d.github.io/)（arXiv 2607.27348） | 单图 → 分层 + 每层网格 + 逐顶点位移，声称 Live2D 兼容 | **仓库只有 readme，代码/权重未发布**（2026-07-31），持续关注 |
-| [StretchyStudio](https://github.com/MangoLion/stretchystudio) | 拆层 + DWPose 骨架 + 网格变形 | 输出是自家格式，不出 moc3；可借它的骨架估计给手臂/腿定枢轴 |
+| [Bunraku](https://bunraku-live2d.github.io/)（arXiv 2607.27348） | 单图 → 分层 + 每层网格 + 逐顶点位移，声称 Live2D 兼容 | **仓库只有 readme，代码/权重未发布**（2026-07-31；10-25 复查仍没有，三个问开源时间的 issue 都没回）；论文自己说因为 Cubism 二进制加密，输出的是自家资源包 + 自家渲染器，**不是 .moc3** |
+| [StretchyStudio](https://github.com/MangoLion/stretchystudio) | 拆层 + DWPose 骨架 + 网格变形 | 2026-04 起能导出 .moc3 / .cmo3 并自动绑定，但 moc3 写入器自述来自逆向 —— **不能接**（同 image2live2d）；可借它的骨架估计给手臂/腿定枢轴 |
+| Seedream 5.0 pro / flash 图层拆分（`layer_decomposition`） | 一张图 → 1 张底图 + 最多 16 层透明 PNG，可点名部件、可圈选 | 2026-10-25 调研（B 站「Krene 一键图片分层」）：每层 0.15 元起，能给小梦补下睫毛 / 手指这类细分层，没小验过；拆出来仍要在 Cubism 里手工挂网格、重键参数。见 [`support-ai-video-research-2026-10-25.md`](support-ai-video-research-2026-10-25.md) 四之 12、五 |
 | [Inochi2D / Inochi Creator](https://github.com/Inochi2D/inochi-creator) | 开源的 Live2D 替代（编辑器 + 运行时） | 无成熟 Web 运行时，App/官网都是 pixi-live2d-display，不换 |
 | [IOPaint](https://github.com/Sanster/IOPaint) | LaMa 修补 | §2 的关键工具 |
 | Cubism Editor 自带 | 自动网格、自动脸部动作、自动摆动生成、物理设置、动画 | 本轮全部用的是这些；物理设置对话框（Modeling ▸ Parameter ▸ Physics Settings）还没用，下一步用它替代运行时弹簧 |
@@ -91,6 +92,18 @@
 5. ~~**动作库**~~ 已完成（程序生成，`live2d-lab/make_motions2.py`）：idle 加了前臂/手腕微晃；wave（右前臂抬起手腕摆 4 下）、
    shy（双手收胸前、头低偏、眼神躲）、surprised（头扬、双臂微张、眉飞）、think（左手到胸前、眉挑、眼看上）、excited（双臂抬、两手交替甩）、
    bow（低头前倾、双手收身前）、nod/shake 带手部跟随。ACTION_MOTIONS：wave→wave、shy→shy、surprised→surprised。
+   **2026-10-25 补三段**（原来 explain、comfort 借 nod，playful 借 excited，三种意思在身上一模一样）：
+   - explain 1.8s：ArmR +5、ForearmR -6（一侧手臂往外打开）、HandR -8（手腕外翻成摊掌），AngleX +3、AngleY 一下 -4 的轻点头。
+     ★ 这套立绘的前臂只在画面平面里转，+ 是收向**腰前**、抬不到胸前，"摊手讲解"能做的就是往外打开 + 手腕外翻；
+     HandR 的符号是在浏览器里逐帧比出来的（-8 指尖朝外上翘，+8 手腕往下耷）。幅度比 nod（头 -12）小：explain 几乎句句都有。
+   - comfort 2.0s：ForearmL/R +6（左手先一拍）、HandL/R +3、AngleY -5、AngleZ +5、BodyAngleY -2 —— 双手慢慢收到身前、
+     微微低头、头轻歪、上身稍往前倾，脸一直朝着人（shy 是头扭开 + 眼神躲）。**没用 bow**：头低到 -24、半闭眼，读起来是鞠躬道歉；
+     它还写了 ParamEyeL/ROpen，会盖掉每帧的眨眼与 crying 的闭眼，配笑眼补片会穿帮。bow 仍在包里、没有语义动作指向它。
+   - playful 2.0s：AngleZ -7 歪头 + BodyAngleX ±4 / AngleX ±4 左右轻晃两下（1 秒一来回），前臂 ±1、手腕 ±2.5 随身体荡，手不抬
+     （excited 是双前臂抬到 8、两手 3Hz 甩）。**没做单眼眨眼**：眼睛参数一写进动作就盖掉眨眼调度，配 laughing 的笑眼补片
+     （摸腿的那句就是 laughing + playful）会两块眼睛叠在一起。
+   三段的生成脚本没进仓库（与 make_motions2.py 同一套 motion()/hold()），曲线以上面为准；交付前从 Segments 重数过
+   Meta 的 CurveCount / TotalSegmentCount / TotalPointCount。
    Cubism Animator 手 K 的版本仍然会更自然，留给以后。
 6. 重绘一版分层更细的立绘（画师或 Bunraku 发布后），才是"官方示例级"的根本解。
 8. ~~嘴形~~ 已完成（2026-09-05，mascot16）：原嘴只有 43×17px 的一条线，ParamMouthForm 的 warp 键只动 5px 看不出笑。

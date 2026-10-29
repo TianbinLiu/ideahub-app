@@ -10,7 +10,7 @@
 import { useEffect, useState } from "react";
 import PageHeader from "../components/PageHeader";
 import { Link, useNavigate } from "react-router";
-import Icon from "../components/Icon";
+import Icon, { type IconName } from "../components/Icon";
 import ConfirmDialog from "../components/ConfirmDialog";
 import InfoDialog from "../components/InfoDialog";
 import { AGREEMENTS, TERMS_UPDATED, type AgreementId } from "../data/agreements";
@@ -60,24 +60,24 @@ export default function SettingsPage() {
 
       {/* ── 个性化 ────────────────────────────────────────────── */}
       <Group title={t`个性化`}>
-        <NavRow to="/settings/profile" emoji="🪪" title={t`编辑资料`} sub={t`头像 · 昵称 · 简介`} />
+        <NavRow to="/settings/profile" icon="id-card" title={t`编辑资料`} sub={t`头像 · 昵称 · 简介`} />
         {/* 行上报「当前用的是哪把」：这一节的信息价值九成在它（拆页前收起态就这么画） */}
-        <NavRow to="/settings/voice" emoji="🎙️" title={t`铸卡师的声音`} sub={currentVoice().name} />
-        <NavRow to="/settings/quality" emoji="🎨" title={t`画面质量`} sub={t`${qualityLabel(getQuality()).name} · 只影响 3D 工坊`} />
+        <NavRow to="/settings/voice" icon="mic" title={t`铸卡师的声音`} sub={currentVoice().name} />
+        <NavRow to="/settings/quality" icon="palette" title={t`画面质量`} sub={t`${qualityLabel(getQuality()).name} · 只影响 3D 工坊`} />
         <LangRow />
       </Group>
 
       {/* ── 账号 · 安全 ────────────────────────────────────────
           ★ 拉黑是**账号级**的（跟着人走、换设备还在），所以不放在下面「本机」那一组里 */}
       <Group title={t`账号`}>
-        <NavRow to="/settings/blocked" emoji="🚫" title={t`已拉黑的人`} sub={t`看名单 · 随时解除`} />
+        <NavRow to="/settings/blocked" icon="ban" title={t`已拉黑的人`} sub={t`看名单 · 随时解除`} />
       </Group>
 
       {/* ── 本机 ─────────────────────────────────────────────── */}
       <Group title={t`这台设备`}>
         <NavRow
           to="/settings/storage"
-          emoji="🧹"
+          icon="hard-drive"
           title={isRemoteMode() ? t`本机缓存` : t`存储`}
           sub={t`查看用量 · 清理中间文件`}
         />
@@ -87,29 +87,29 @@ export default function SettingsPage() {
 
       {/* ── 帮助 ─────────────────────────────────────────────── */}
       <Group title={t`帮助与 AI 伙伴`}>
-        <NavRow to="/support" emoji="🎧" title={t`AI 客服 · 帮助与反馈`} sub={t`问小梦，解决不了转人工`} />
+        <NavRow to="/support" icon="headset" title={t`AI 客服 · 帮助与反馈`} sub={t`问小梦，解决不了转人工`} />
         {/* 数字人的形象 / 人格：主入口在客服页顶栏那一列小键，这里再给一条找得到的路（设置存服务端，官网同步） */}
-        <NavRow to="/support/models" emoji="👗" title={t`数字人形象`} sub={t`给小梦换一套 Live2D 形象`} />
-        <NavRow to="/support/personas" emoji="🎭" title={t`数字人人格`} sub={t`换一种说话风格，官网同步`} />
+        <NavRow to="/support/models" icon="shirt" title={t`数字人形象`} sub={t`给小梦换一套 Live2D 形象`} />
+        <NavRow to="/support/personas" icon="drama" title={t`数字人人格`} sub={t`换一种说话风格，官网同步`} />
         {/* 创作中心（2026-09-07）：客服页那一列小键的第四颗是主入口，这里是第二条路 ——
             那一列在对话很热闹时可能被底部输入区盖住（SupportPage 那段量法），唯一入口不能只有一条 */}
-        <NavRow to="/support/create" emoji="✨" title={t`创作中心`} sub={t`自己做模型 · 音频 · 人格，可发布到市场`} />
+        <NavRow to="/support/create" icon="sparkle" title={t`创作中心`} sub={t`自己做模型 · 音频 · 人格，可发布到市场`} />
         {/* 启梦老师（M3 是外链；2026-09-29 M4 起 App 内能上课了，tutor 仓 docs/06 §6）：进 App 内的 /tutor。
             ?from=app-settings 只用来记引流（服务端只记不奖励，落地即抹掉）；PDF / PPTX 建课那条路仍在网页端，/tutor 页里有链接 */}
-        <NavRow to="/tutor?from=app-settings" emoji="🎓" title={t`AI 老师`} sub={t`用自己的教材铸一位老师，在 App 里上课`} />
+        <NavRow to="/tutor?from=app-settings" icon="graduation-cap" title={t`AI 老师`} sub={t`用自己的教材铸一位老师，在 App 里上课`} />
       </Group>
 
       {/* ── 协议与须知 ────────────────────────────────────────────
           应用商店与监管都要求协议在应用内可随时找到；文本只有 data/agreements 一份 */}
       <Group title={t`协议与须知`}>
-        <DocRow id="terms" emoji="📜" sub={t`使用本应用的约定`} />
-        <DocRow id="privacy" emoji="🔒" sub={t`收集什么、怎么用、找谁行使权利`} />
-        <DocRow id="aigc" emoji="🏷️" sub={t`标识、素材授权与违规处理`} />
+        <DocRow id="terms" icon="file" sub={t`使用本应用的约定`} />
+        <DocRow id="privacy" icon="lock" sub={t`收集什么、怎么用、找谁行使权利`} />
+        <DocRow id="aigc" icon="flag" sub={t`标识、素材授权与违规处理`} />
         {/* ★ 儿童安全标准（CSAE）在官网上，不在 data/agreements 里 —— 理由见
             utils/shareLink 的 childSafetyUrl：那是要给 Google Play 核的网页资源，
             正文只该有一份。这一行的存在本身也算数：政策要求"用户在应用内找得到"。 */}
         <ExtDocRow
-          emoji="🧒"
+          icon="user"
           title={t`儿童安全标准`}
           sub={t`我们对涉及未成年人内容的立场与处理方式（在官网打开）`}
           url={childSafetyUrl()}
@@ -126,7 +126,7 @@ export default function SettingsPage() {
             不说的话他会把"这一步免费"当成产品事实（各处报价旁边也有同一句，见 TokenCost）。 */}
       {isAdmin() && (
         <Group title={t`管理`}>
-          <NavRow to="/admin" emoji="🛡️" title={t`管理后台`} sub={t`处理举报（下架 / 驳回 / 删除）· 平台数据`} />
+          <NavRow to="/admin" icon="settings" title={t`管理后台`} sub={t`处理举报（下架 / 驳回 / 删除）· 平台数据`} />
           <p className="px-4 pb-3 text-[11px] leading-relaxed text-slate-500">
             <Trans>你的账号是管理员：AI 生成走的是免扣费通道，消耗不从钱包里扣。</Trans>
           </p>
@@ -140,7 +140,7 @@ export default function SettingsPage() {
           if (why) setSignOutWhy(why);
           else setSignOutOpen(true);
         }}
-        className="w-full rounded-xl border border-rose-500/40 py-3 text-sm text-rose-400"
+        className="mt-8 w-full rounded-xl border border-danger-500/40 py-2.5 text-sm text-danger-300"
       >
         <Trans>退出登录</Trans>
       </button>
@@ -193,8 +193,8 @@ export default function SettingsPage() {
 function Group({ title, children }: { title?: string; children: React.ReactNode }) {
   return (
     <div className="mb-4">
-      {title && <div className="mb-1.5 px-1 text-xs font-semibold text-slate-500">{title}</div>}
-      <div className="divide-y divide-slate-800 overflow-hidden rounded-xl border border-slate-700/70 bg-panel">{children}</div>
+      {title && <div className="mb-1.5 px-1 text-xs font-semibold text-slate-400">{title}</div>}
+      <div className="divide-y divide-slate-700/60 overflow-hidden rounded-xl border border-slate-700/70 bg-panel">{children}</div>
     </div>
   );
 }
@@ -237,7 +237,7 @@ function LangRow() {
   return (
     <>
       <button onClick={() => setOpen(true)} className="flex w-full items-center gap-3 px-4 py-3.5 text-left active:bg-slate-800/40">
-        <span className="text-lg">🌐</span>
+        <Icon name="globe" size={20} className="flex-none text-slate-400" />
         <span className="min-w-0 flex-1">
           <span className="block text-sm text-slate-100">{LANG_TITLE}</span>
           <span className="block truncate text-[11px] text-slate-500">{sub}</span>
@@ -250,7 +250,7 @@ function LangRow() {
             <h3 className="text-sm font-bold text-slate-100">{LANG_TITLE}</h3>
             <CloseButton chip="sm" size={13} align="end" onClick={() => setOpen(false)} />
           </div>
-          <div className="divide-y divide-slate-800 overflow-hidden rounded-xl border border-slate-700/70 bg-panel">
+          <div className="divide-y divide-slate-700/60 overflow-hidden rounded-xl border border-slate-700/70 bg-panel">
             {options.map((o) => (
               <button
                 key={o.key}
@@ -263,7 +263,7 @@ function LangRow() {
               </button>
             ))}
           </div>
-          {err && <p className="mt-2 text-xs text-rose-300">{err}</p>}
+          {err && <p className="mt-2 text-xs text-danger-300">{err}</p>}
           <p className="mt-3 text-[11px] leading-relaxed text-slate-500">
             <Trans>桌面图标上的名字跟随手机系统语言，这里切换不会改它；多语言手机上两者可能不一致。</Trans>
           </p>
@@ -273,11 +273,12 @@ function LangRow() {
   );
 }
 
-/** 入口行：emoji + 名字 + 当前值/去向，右侧箭头。整行都是热区 */
-function NavRow({ to, emoji, title, sub }: { to: string; emoji: string; title: string; sub: string }) {
+/** 入口行：图标 + 名字 + 当前值/去向，右侧箭头。整行都是热区。
+ *  ★ 图标走 Icon 不走 emoji（2026-10-23）：emoji 三台手机三个样，彩色位图还抢过旁边的字；Icon 退一档灰（slate-400）让名字当主角 */
+function NavRow({ to, icon, title, sub }: { to: string; icon: IconName; title: string; sub: string }) {
   return (
     <Link to={to} className="flex w-full items-center gap-3 px-4 py-3.5 text-left active:bg-slate-800/40">
-      <span className="text-lg">{emoji}</span>
+      <Icon name={icon} size={20} className="flex-none text-slate-400" />
       <span className="min-w-0 flex-1">
         <span className="block text-sm text-slate-100">{title}</span>
         <span className="block truncate text-[11px] text-slate-500">{sub}</span>
@@ -288,7 +289,7 @@ function NavRow({ to, emoji, title, sub }: { to: string; emoji: string; title: s
 }
 
 /** 协议行：点开在小窗里读全文（正文在 data/agreements，这里只借） */
-function DocRow({ id, emoji, sub }: { id: AgreementId; emoji: string; sub: string }) {
+function DocRow({ id, icon, sub }: { id: AgreementId; icon: IconName; sub: string }) {
   const [open, setOpen] = useState(false);
   const doc = AGREEMENTS[id];
   return (
@@ -297,7 +298,7 @@ function DocRow({ id, emoji, sub }: { id: AgreementId; emoji: string; sub: strin
         onClick={() => setOpen(true)}
         className="flex w-full items-center gap-3 px-4 py-3.5 text-left active:bg-slate-800/40"
       >
-        <span className="text-lg">{emoji}</span>
+        <Icon name={icon} size={20} className="flex-none text-slate-400" />
         <span className="min-w-0 flex-1">
           <span className="block text-sm text-slate-100">
             {doc.title} <span className="text-[10px] text-slate-400">{TERMS_UPDATED}</span>
@@ -328,7 +329,7 @@ function DocRow({ id, emoji, sub }: { id: AgreementId; emoji: string; sub: strin
  * ★ 打不开要**说出来**（铁律八）：这一行通向的是一份对外承诺，静默失败等于
  *   政策要求的"应用内找得到"其实没做到，而屏幕上什么都不会显示。
  */
-function ExtDocRow({ emoji, title, sub, url }: { emoji: string; title: string; sub: string; url: string }) {
+function ExtDocRow({ icon, title, sub, url }: { icon: IconName; title: string; sub: string; url: string }) {
   const { t } = useLingui();
   const [err, setErr] = useState("");
   return (
@@ -344,14 +345,14 @@ function ExtDocRow({ emoji, title, sub, url }: { emoji: string; title: string; s
         }}
         className="flex w-full items-center gap-3 px-4 py-3.5 text-left active:bg-slate-800/40"
       >
-        <span className="text-lg">{emoji}</span>
+        <Icon name={icon} size={20} className="flex-none text-slate-400" />
         <span className="min-w-0 flex-1">
           <span className="block text-sm text-slate-100">{title}</span>
           <span className="block truncate text-[11px] text-slate-500">{sub}</span>
         </span>
         <Icon name="chevron" size={16} className="flex-none text-slate-600" />
       </button>
-      {err && <p className="px-4 pb-3 text-[11px] leading-relaxed text-rose-300">{err}</p>}
+      {err && <p className="px-4 pb-3 text-[11px] leading-relaxed text-danger-300">{err}</p>}
     </>
   );
 }
@@ -373,7 +374,7 @@ function GuideRow() {
         onClick={() => setOpen(true)}
         className="flex w-full items-center gap-3 px-4 py-3.5 text-left active:bg-slate-800/40"
       >
-        <span className="text-lg">💡</span>
+        <Icon name="lightbulb" size={20} className="flex-none text-slate-400" />
         <span className="min-w-0 flex-1">
           <span className="block text-sm text-slate-100"><Trans>新手引导</Trans></span>
           <span className="block truncate text-[11px] text-slate-500">
@@ -430,7 +431,7 @@ function VersionRow() {
 
   return (
     <div className="flex w-full items-center gap-3 px-4 py-3.5">
-      <span className="text-lg">📦</span>
+      <Icon name="info" size={20} className="flex-none text-slate-400" />
       <span className="min-w-0 flex-1">
         <span className="block text-sm text-slate-100">
           <Trans>

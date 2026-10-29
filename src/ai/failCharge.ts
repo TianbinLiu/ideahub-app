@@ -7,7 +7,8 @@
 //     ② 回包是 2xx 但结果用不上（ArkBadReply：JSON 坏了 / 回包里没有图 / 图出了却取不回来）—— **已经**扣了；
 //     ③ 逐格出图画到第 k 格才失败（ArkBatchPartial）—— 前 k-1 张各自按调用结算过了，与第 k 张成不成无关
 //        （那几张图调用方会收下、下一次只补剩下的，见 real.PortraitViewsPartial）；
-//     ④ 其余（服务端明说失败：400 敏感词 / 402 余额不足 / 403 套餐门禁 / 429 / 5xx 已退；或请求根本没到计费端点）—— 没扣；
+//     ④ 其余（服务端明说失败：400 敏感词 / 402 余额不足 / 403 套餐门禁 / 403 出片地区不给（ArkRegionDenied，照回包的 billed，平常是 false）/ 429 / 5xx 已退；
+//        或请求根本没到计费端点）—— 没扣；
 //     ⑤ 任务**受理之后**上游明说失败（ArkTaskFailed：方舟 failed / cancelled / expired、真人档 Fail）—— 受理那一刻扣过，
 //        2026-10-07 起服务端按原桶退回（主人「做生成失败返回 token」），退没退、退了多少只认服务端在回包上说的那一句
 //        （ArkTaskFailed.refund）：退了 / 正在退 / 没说（老服务端不退）三档各一句话。**App 从不自己把退款加进钱包镜像**，
@@ -29,7 +30,7 @@
 import { t } from "@lingui/core/macro";
 import { billingExempt, isRemoteMode, refreshRemoteWallet } from "../data/account";
 import { IMAGE_TOKENS, fmtTokens } from "../data/economy";
-import { ArkBadReply, ArkBatchPartial, ArkNoReply, ArkTaskFailed, SegmentGenFailed } from "./arkClient";
+import { ArkBadReply, ArkBatchPartial, ArkNoReply, ArkRegionDenied, ArkTaskFailed, SegmentGenFailed } from "./arkClient";
 
 /** chargeOnFail 的结论。调用方只拿它挑话 / 交给 chargeNote，别再自己 instanceof 一遍 */
 export interface FailCharge {
@@ -37,7 +38,7 @@ export interface FailCharge {
    * 失败的形状：只看错误类型，与联网 / 离线无关。
    * 钱不经服务端结算时 tier 恒为 none，想按「没等到 / 读不出」换说法的看它（CustomCardPage.recognize 的离线那两句）。
    */
-  shape: "noReply" | "badReply" | "taskFailed" | "other";
+  shape: "noReply" | "badReply" | "taskFailed" | "region" | "other";
   /**
    * 失败的**这一发**钱扣没扣：maybe = 可能已经扣了（只能说「可能」）；charged = 已计费（含受理之后失败、服务端没说退的那种）；
    * none = 没扣；refunded = 受理之后上游明说失败、服务端已经退回；refunding = 服务端说会退、还没到账。
@@ -84,8 +85,17 @@ export function chargeOnFail(e: unknown): FailCharge {
   const settled = e instanceof ArkBatchPartial ? e.settledBefore : e instanceof SegmentGenFailed ? e.framesSettled : 0;
   // 出片之前的某一张画面失败（failedCall: "image"）不算视频：话按出图的价说「已经画好的 N 张 + 失败的这一张」（chargeNote 的非视频那一半）
   const video = (frames && e.failedCall === "video") || failure instanceof ArkTaskFailed;
+  // region = 服务端按出片地区拒了（403 REGION_UNAVAILABLE）：没扣的那一句由 chargeNote 说（regionNoCharge），不靠 ArkRegionDenied 的 message
   const shape: FailCharge["shape"] =
-    failure instanceof ArkNoReply ? "noReply" : failure instanceof ArkBadReply ? "badReply" : failure instanceof ArkTaskFailed ? "taskFailed" : "other";
+    failure instanceof ArkNoReply
+      ? "noReply"
+      : failure instanceof ArkBadReply
+        ? "badReply"
+        : failure instanceof ArkTaskFailed
+          ? "taskFailed"
+          : failure instanceof ArkRegionDenied
+            ? "region"
+            : "other";
   // 离线：失败的这一发没扣；之前那几发只算调用方收下、并按张记进本机账本的那几张（见 paidBefore 的 ★）——
   // 逐格出图是画好的全部（settledBefore），一段出片是随错误带出来、genNode 真记上账的那几张（keptCharged —— 不是 kept 的张数：记没记上还要看
   // 演示构建、换没换账号、本机余额够不够，屏幕上说的只能是真扣了的）
@@ -105,12 +115,30 @@ export function chargeOnFail(e: unknown): FailCharge {
     //   往吓人的方向说错是可以接受的那一边：钱真退了的话，余额与站内通知会说话；把没退说成退了才是不可接受的
     return { shape, tier: "charged", paidBefore: settled, video, refunded: 0 };
   }
+  // ★ 出片地区（403 REGION_UNAVAILABLE，2026-10-26）：照服务端回包的 billed 说 —— 出片与真人档这两条路被拦恒为没扣（门禁在扣钱之前），
+  //   所以它平常与下面「服务端明说失败 = 没扣」那一档结论相同；单列出来是为了不靠「所有 403 都没扣」这个巧合：哪天哪条路回了 billed:true，这里照实说已计费
+  if (failure instanceof ArkRegionDenied) {
+    return { shape, tier: failure.billed ? "charged" : "none", paidBefore: settled, video, refunded: 0 };
+  }
   return {
     shape,
     tier: shape === "noReply" ? "maybe" : shape === "badReply" ? "charged" : "none",
     paidBefore: settled,
     video,
     refunded: 0,
+  };
+}
+
+/**
+ * 服务端按出片地区拒了、一分没扣、之前也没画过帧时那一句（2026-10-26 终审）。
+ * ★★ 为什么在这里说、不在 ArkRegionDenied 的 message 里：原来接在 message 末尾，调用方截原因（剪辑页 110 字、genNode 240 字）时
+ *   英文的长国名会把它整个截掉，而这一档 chargeNote 原来回 null —— 屏幕上一个字都不说钱。钱上的话全仓只在这个文件里。
+ * ★ 离线 / 演示构建走不到（没有服务端那一层就没有地区门禁）；管理员照样被地区拦（门禁不豁免），也是一分没扣，同一句。
+ */
+function regionNoCharge(): ChargeNote {
+  return {
+    line: t({ message: "这一发没有受理，也没有扣费。", comment: "一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格" }),
+    brief: t({ message: "没有受理、没扣钱", context: "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）" }),
   };
 }
 
@@ -152,6 +180,7 @@ export function chargeNote(c: FailCharge, unitTokens: number): ChargeNote | null
         brief: t({ message: "已计费", context: "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）" }),
       };
     }
+    if (c.shape === "region") return regionNoCharge();
     return null;
   }
   // 确定已经结算的张数：之前画好的 + （这一张拿到过 2xx、只是结果用不上）
@@ -260,8 +289,8 @@ function videoChargeNote(c: FailCharge, videoTokens: number): ChargeNote | null 
       brief: t({ message: "画面与视频都已计费", context: "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）" }),
     };
   }
-  // none：视频那一发没扣（服务端明说拒了 / 根本没受理）
-  if (count === 0) return null;
+  // none：视频那一发没扣（服务端明说拒了 / 根本没受理）。按地区拒的那一种说出来（regionNoCharge 的 ★★），别的照旧由调用方说它原来那句
+  if (count === 0) return c.shape === "region" ? regionNoCharge() : null;
   return {
     line: t({ message: `出片前画好的 ${count} 张画面已按张计费（共 ${paid} token），视频那一发没扣钱。`, comment: "一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格" }),
     brief: t({ message: `画面 ${count} 张已计费，视频没扣钱`, context: "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）" }),

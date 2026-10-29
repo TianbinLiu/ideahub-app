@@ -9,11 +9,12 @@
 // ★ 三个机位画完各让 AI 看一遍（studio/panelCheck，与九宫格同一把尺）：有问题的那张标 ⚠、点开说原因，要不要重画由人定，不拦第④步。
 // ★ 只出第一段：「炼出本段才开下一段」照旧（flowStore 的顺序门禁）—— 第一句的人物或声音不对，后面几句不用花钱。
 import type { MessageDescriptor } from "@lingui/core";
+import Warn from "../Warn";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { AI_REAL } from "../../ai";
-import { myCards, realFaceIssue, tierGo } from "../../data/account";
+import { myCards, noTierLine, realFaceIssue, tierGo } from "../../data/account";
 import { subscribeVoices, voiceOf, voicesVersion } from "../../data/cardVoice";
 import {
   DIALOGUE_LEAD_MAX,
@@ -54,6 +55,7 @@ import { setLead, useLeadDraft } from "../../studio/leadDraftStore";
 import { panelFlagged } from "../../studio/panelCheck";
 import { VIDEO_ASPECTS, type Card, type VideoAspect } from "../../types";
 import Spinner from "../Spinner";
+import StepDots from "../StepDots";
 import TokenCost from "../TokenCost";
 import CastPicker from "./CastPicker";
 import { panelIssuesLine } from "./panelIssueText";
@@ -183,18 +185,12 @@ export default function DialogueWizard({
 
   return (
     <div className="space-y-3">
-      {/* 步骤条：与铸段窗「1 选式 › 2 内容 › 3 规格」同一个样子 */}
-      <div className="flex flex-wrap items-center gap-1 text-[10px] text-slate-500">
-        <span className="mr-1 text-xs font-bold text-slate-100">
-          <Trans>💬 对话正反打</Trans>
-        </span>
-        {DIALOGUE_STEPS.map((s, i) => (
-          <span key={s} className={i === stepIdx ? "font-bold text-brand" : ""}>
-            {i > 0 && <span aria-hidden className="pr-1 text-slate-600">›</span>}
-            {i + 1} {t(STEP_LABEL[s])}
-          </span>
-        ))}
-      </div>
+      <p className="text-xs font-bold text-slate-100">
+        <Trans>💬 对话正反打</Trans>
+      </p>
+      {/* ★ 步骤条只有 components/StepDots 一份实现（CLAUDE.md 铁律六）：原来这里手写「1 两个人 › 2 对白 › …」的面包屑，
+          2026-10-22 换成圆点。不给 onPick：机位画过钱、落过段的步骤能不能回去由向导自己的脚管 */}
+      <StepDots steps={DIALOGUE_STEPS.map((s) => ({ label: t(STEP_LABEL[s]) }))} current={stepIdx} />
 
       {d.step === "cast" && (
         <>
@@ -203,14 +199,14 @@ export default function DialogueWizard({
           </p>
           <CastPicker leadBadge={false}>
             {cast.length > 2 && (
-              <p className="text-[10px] leading-relaxed text-amber-200">
+              <Warn compact>
                 <Trans>对话只要两个人 —— 取消几个，留下两个再往下。</Trans>
-              </p>
+              </Warn>
             )}
             {sameName && (
-              <p className="text-[10px] leading-relaxed text-amber-200">
+              <Warn compact>
                 <Trans>两个人的名字一样，台词分不清是谁说的 —— 给其中一张卡改个名。</Trans>
-              </p>
+              </Warn>
             )}
             {two && noVoice && (
               <p className="text-[10px] leading-relaxed text-slate-500">
@@ -218,7 +214,7 @@ export default function DialogueWizard({
               </p>
             )}
             {faceNote && (
-              <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">{faceNote}</p>
+              <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200">{faceNote}</p>
             )}
           </CastPicker>
           <div>
@@ -283,7 +279,7 @@ export default function DialogueWizard({
           {!lineN ? (
             <div className="space-y-2">
               <button
-                onClick={() => void writeLines({ names, place: place?.name ?? "" })}
+                onClick={() => void writeLines({ names, place: place?.name ?? "", tierId })}
                 disabled={d.writing || d.situation.trim().length < SITUATION_MIN}
                 className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-brand/90 py-2.5 text-sm font-bold text-ink disabled:opacity-40"
               >
@@ -313,7 +309,7 @@ export default function DialogueWizard({
                 </p>
               )}
               {d.linesAi && d.linesSituation !== d.situation && (
-                <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">
+                <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200">
                   <Trans>情境改过了，下面的对白还是按原来那句写的 —— 点「重新写」按新的写，或者直接在下面改。</Trans>
                 </p>
               )}
@@ -388,7 +384,7 @@ export default function DialogueWizard({
                   <Trans>＋ 加一句</Trans>
                 </button>
                 <button
-                  onClick={() => void writeLines({ names, place: place?.name ?? "" })}
+                  onClick={() => void writeLines({ names, place: place?.name ?? "", tierId })}
                   disabled={d.writing || d.situation.trim().length < SITUATION_MIN}
                   className="flex items-center gap-1.5 rounded-full bg-slate-700/60 px-3 py-1 text-[11px] text-slate-200 disabled:opacity-40"
                 >
@@ -398,11 +394,11 @@ export default function DialogueWizard({
               </div>
             </>
           )}
-          {d.writeErr && <p className="text-[11px] leading-relaxed text-rose-300">{d.writeErr}</p>}
+          {d.writeErr && <p className="text-[11px] leading-relaxed text-danger-300">{d.writeErr}</p>}
           {blankLines > 0 && (
-            <p className="text-[10px] leading-relaxed text-amber-200">
+            <Warn compact>
               <Trans>有 {blankLines} 句还没写台词 —— 写上，或者删掉。</Trans>
-            </p>
+            </Warn>
           )}
           <div className="flex gap-2">
             {backBtn("cast")}
@@ -464,7 +460,7 @@ export default function DialogueWizard({
                     ) : (
                       <div className="flex h-full w-full flex-col items-center justify-center gap-1 p-1.5 text-center">
                         {p?.busy ? <Spinner size="xs" /> : null}
-                        <span className={`line-clamp-4 text-[9px] leading-snug ${p?.err ? "text-rose-300" : "text-slate-500"}`}>{p?.err ?? t`还没画`}</span>
+                        <span className={`line-clamp-4 text-[9px] leading-snug ${p?.err ? "text-danger-300" : "text-slate-500"}`}>{p?.err ?? t`还没画`}</span>
                       </div>
                     )}
                     {p?.busy && p.image && (
@@ -473,13 +469,13 @@ export default function DialogueWizard({
                       </span>
                     )}
                     {staleOf(a) && (
-                      <span className="absolute bottom-1 left-1 rounded-full bg-amber-500/90 px-1.5 py-0.5 text-[9px] font-bold text-ink">
+                      <span className="absolute bottom-1 left-1 rounded-full bg-warn-500/90 px-1.5 py-0.5 text-[9px] font-bold text-ink">
                         <Trans>过期了</Trans>
                       </span>
                     )}
                     {/* AI 看了一遍、看出问题（多画了一个人 / 同一个人两次 / 拼图）：点开这一张看原因，要不要重画由人定 */}
                     {flagged.includes(a) && (
-                      <span className="absolute right-1 top-1 rounded-full bg-amber-500/90 px-1.5 py-0.5 text-[9px] font-bold text-ink" aria-label={t`这一张可能有问题`}>
+                      <span className="absolute right-1 top-1 rounded-full bg-warn-500/90 px-1.5 py-0.5 text-[9px] font-bold text-ink" aria-label={t`这一张可能有问题`}>
                         ⚠
                       </span>
                     )}
@@ -499,22 +495,22 @@ export default function DialogueWizard({
             <div className="space-y-2 rounded-xl border border-slate-700/70 bg-panel p-3">
               <div className="text-xs font-semibold text-slate-300">{angleLabel(focus)}</div>
               {staleOf(focus) && (
-                <p className="text-[10px] leading-relaxed text-amber-200">
+                <Warn compact>
                   {focus === "two" ? (
                     <Trans>人或整体交代在画好之后改过：这一张还是按原来那版画的，重画一下才对得上。</Trans>
                   ) : (
                     <Trans>这一张是照着之前那张双人镜头画的（或者人、整体交代改过）：重画一下，地方和光线才与现在的双人镜头对得上。</Trans>
                   )}
-                </p>
+                </Warn>
               )}
-              {d.panels[focus]?.err && <p className="text-[11px] leading-relaxed text-rose-300">{d.panels[focus]?.err}</p>}
+              {d.panels[focus]?.err && <p className="text-[11px] leading-relaxed text-danger-300">{d.panels[focus]?.err}</p>}
               {/* 看一遍的结论（dialogueDraftStore.checkAngle）：有问题逐条说；没核对上就说一声（钱上的那句跟着） */}
               {(() => {
                 const fp = d.panels[focus];
                 const c = fp?.image && !fp.busy ? fp.check : undefined;
                 if (c?.state === "done" && c.issues.length)
                   return (
-                    <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-200">
+                    <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-warn-200">
                       {panelIssuesLine(c.issues, "shot")}
                     </p>
                   );
@@ -536,7 +532,7 @@ export default function DialogueWizard({
                 className="w-full rounded-lg border border-slate-700 bg-black/30 px-2.5 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand disabled:opacity-40"
               />
               <button
-                onClick={() => void redrawAngle(focus, { cast, place, ask })}
+                onClick={() => void redrawAngle(focus, { cast, place, ask, tierId })}
                 disabled={!!d.drawing || !!d.panels[focus]?.busy || (focus !== "two" && !d.panels.two?.image)}
                 className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-brand/90 py-2.5 text-sm font-bold text-ink disabled:opacity-40"
               >
@@ -559,10 +555,10 @@ export default function DialogueWizard({
               <span>{d.drawing}</span>
             </p>
           )}
-          {d.drawErr && <p className="text-[11px] leading-relaxed text-rose-300">{d.drawErr}</p>}
+          {d.drawErr && <p className="text-[11px] leading-relaxed text-danger-300">{d.drawErr}</p>}
           {d.drawNote && !d.drawing && <p className="text-[10px] leading-relaxed text-slate-400">{d.drawNote}</p>}
           <button
-            onClick={() => void drawAngles({ cast, place })}
+            onClick={() => void drawAngles({ cast, place, tierId })}
             disabled={!!d.drawing || d.writing}
             className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
           >
@@ -577,7 +573,7 @@ export default function DialogueWizard({
             (flagged.length > 0 && !d.drawing ? (
               // 2026-10-19 起三张画完各让 AI 看一遍（10-15 那次拍板「先不加」被付费验证推翻：过肩多画一个人 14/30，看图抓到 14/14、误报 0/19，
               // docs/canvas-platforms-ecosystem-research.md 第九节）。看出问题时把那几张点出来；不拦第④步
-              <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">
+              <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200">
                 <Trans>
                   AI 看了一遍：「{flaggedText}」里的人可能不对（每张应该只有这两个人，点那一张看原因）。要重画就点那一张、补一句要求再单独重画；不重画也能接着往下走。
                 </Trans>
@@ -652,12 +648,18 @@ export default function DialogueWizard({
           </div>
           {!tier.audio &&
             (() => {
-              // 出声的档按能力现算、先说这个人用得了的（account.tierGo；原来写死「高清或电影级」，免费用户能用的「草稿」没提）
-              const go = tierGo((x) => x.audio && x.refImg);
-              const names = go.names;
+              // 出声的档按能力现算、先说这个人用得了的（account.tierGo；原来写死「高清或电影级」，免费用户能用的「草稿」没提）。
+              // ★ 与这一句的闸（上面的 !tier.audio、下面那颗键的 disabled）同一位 audio（2026-10-26 审核）：按 refAudio 数的话，
+              //   出声却不收声音样本的档（MiniMax H3）在这里能落段，提示却不提它；声音样本带不带得上由 voiceRefsFor 另说
+              const go = tierGo((x) => x.audio);
+              // 摆得出来的档里一档都出不了声（门禁开着的海外只剩「真人」档）：不说「换到「」」，说地区 / 这台服务器的事实（account.noTierLine）
+              const none = go ? "" : noTierLine("audio");
+              const names = go?.names ?? "";
               return (
-                <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">
-                  {go.member ? (
+                <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200">
+                  {!go ? (
+                    <Trans>这一档出片不出声，台词说不出来 —— {none}。</Trans>
+                  ) : go.member ? (
                     <Trans>这一档出片不出声，台词说不出来 —— 出声的「{names}」是会员档。</Trans>
                   ) : (
                     <Trans>这一档出片不出声，台词说不出来 —— 换到「{names}」。</Trans>
@@ -671,17 +673,17 @@ export default function DialogueWizard({
             </p>
           )}
           {faceNote && (
-            <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">{faceNote}</p>
+            <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200">{faceNote}</p>
           )}
           {missing.length > 0 && (
-            <p className="text-[11px] leading-relaxed text-amber-200">
+            <Warn>
               <Trans>「{missingText}」还没画好 —— 回上一步画出来，或者把用到它的句子换个机位。</Trans>
-            </p>
+            </Warn>
           )}
           {stale.length > 0 && (
-            <p className="text-[11px] leading-relaxed text-amber-200">
+            <Warn>
               <Trans>「{staleText}」过期了（人、整体交代或双人镜头改过）—— 回上一步重画一下。</Trans>
-            </p>
+            </Warn>
           )}
           <TokenCost tokens={costs[0] ?? 0} />
           {segN > 1 && (
@@ -691,7 +693,7 @@ export default function DialogueWizard({
               </Trans>
             </p>
           )}
-          {err && <p className="text-[11px] leading-relaxed text-rose-300">{err}</p>}
+          {err && <p className="text-[11px] leading-relaxed text-danger-300">{err}</p>}
           {/* ★ 别说「可以先铺成」：只铺成也要过 flowStore.appendIssue，它拒的正是同一个 busy（同一时刻只炼一段），所以下面那颗也灰掉 */}
           {busy && (
             <p className="text-[10px] leading-relaxed text-slate-500">
@@ -721,9 +723,9 @@ export default function DialogueWizard({
       {/* 第①步之后人被取消掉了（卡片库里删了卡 / 回第①步改成了别的人数）：说清楚，别摆一块空白 */}
       {d.step !== "cast" && !castOk && (
         <div className="space-y-2">
-          <p className="text-[11px] leading-relaxed text-amber-200">
+          <Warn>
             <Trans>现在选的不是两个人（或两个人同名）—— 回第一步重新选。</Trans>
-          </p>
+          </Warn>
           {backBtn("cast")}
         </div>
       )}

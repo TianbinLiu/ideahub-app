@@ -13,6 +13,7 @@
 //   `retireWorkDraft()` 三件一起做 —— 替换没成功还调它，等于"既没换成、合成稿也没了"，
 //   而那份合成稿里躺着真花过钱的卡组与成片。
 import { badgeNote } from "../data/aigcLabel";
+import Warn from "../components/Warn";
 import { useEffect, useMemo, useRef, useState } from "react";
 import PageHeader from "../components/PageHeader";
 import { useLocation, useNavigate } from "react-router";
@@ -28,6 +29,7 @@ import VisibilityPicker from "../components/VisibilityPicker";
 import SegmentPlayer from "../components/SegmentPlayer";
 import TagInput from "../components/TagInput";
 import { isArkAssetUrl } from "../ai/arkClient";
+import { isMinimaxV2VideoUrl } from "../data/upstreamVideo";
 import { addCards, createDeck, deckSynced } from "../data/account";
 import { getVideo, publishVideo, reviseVideo, type ReviseResult } from "../data/videos";
 import { useVideosVersion } from "../hooks/useVideos";
@@ -409,12 +411,12 @@ export default function PublishPage() {
           写进 store 的 err 活不过 reset() 与换路由）。可关掉：它是提醒不是错误。 */}
       {mergeWarn ? (
         <div className="mx-auto max-w-6xl px-4">
-          <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
-            <p className="flex-1 whitespace-pre-line text-xs leading-relaxed text-amber-100">{mergeWarn}</p>
+          <div className="flex items-start gap-2 rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2">
+            <Warn className="flex-1 whitespace-pre-line">{mergeWarn}</Warn>
             <button
               onClick={() => setMergeWarn("")}
               aria-label={t`知道了`}
-              className="flex-none rounded-full px-2 py-0.5 text-[11px] font-semibold text-amber-200 active:opacity-60"
+              className="flex-none rounded-full px-3 py-1.5 text-[11px] font-semibold text-warn-200 active:opacity-60"
             >
               <Trans>知道了</Trans>
             </button>
@@ -425,7 +427,7 @@ export default function PublishPage() {
       <main className="mx-auto grid max-w-6xl gap-6 px-4 py-5 lg:grid-cols-[1.2fr_1fr]">
         {/* 成片预览 */}
         <div>
-          <SegmentPlayer segments={draft.segments} cover={cover || draft.cover} />
+          <SegmentPlayer segments={draft.segments} cover={cover || draft.cover} frame="card" rate={1} overlay={null} onFull={null} />
           <div className="mt-2 text-center text-xs text-slate-500"><Trans>成片预览（各段按时间线依次播放）</Trans></div>
           {/* 看完成片还想动片段 / 配乐：回到合并之前接着剪（合并时源段留了底才有这条路，见 canReopenCut） */}
           {canReopenCut && (
@@ -449,16 +451,19 @@ export default function PublishPage() {
               <div key={i} className="flex items-center gap-2 rounded-lg bg-panel/60 px-3 py-1.5 text-xs">
                 <span className="flex-none text-slate-500"><Trans>第 {i + 1} 段</Trans></span>
                 <span className="min-w-0 flex-1 truncate text-slate-300">{sg.title}</span>
+                {/* 「✓ 真实影像」只在有别的段回退了时才标（Refactoring UI §2.4 弱化次要）：每一行都打绿勾，那一个 ⚠ 反而被淹掉 */}
                 {sg.videoUrl ? (
-                  <span className="flex-none rounded-full bg-emerald-500/15 px-2 py-0.5 text-emerald-300">
-                    <Trans>✓ 真实影像</Trans>
-                  </span>
+                  draft.segments.every((s) => s.videoUrl) ? null : (
+                    <span className="flex-none rounded-full bg-ok-500/15 px-2 py-0.5 text-ok-300">
+                      <Trans>✓ 真实影像</Trans>
+                    </span>
+                  )
                 ) : (
                   <span
-                    className="flex-none rounded-full bg-amber-500/15 px-2 py-0.5 text-amber-300"
+                    className="flex-none rounded-full bg-warn-500/15 px-2 py-0.5 text-warn-300"
                     title={t`该段视频生成失败或处于演示模式，播放时用首尾帧渐变代替`}
                   >
-                    <Trans>⚠ 渐变回退</Trans>
+                    <Trans>⚠ 没出成片 · 画面过渡代替</Trans>
                   </span>
                 )}
               </div>
@@ -466,9 +471,15 @@ export default function PublishPage() {
           </div>
           {/* 2026-08-20 起成片出片即转存永久地址，这句只对"转存失败退回方舟直链"的少数段成立 ——
               无条件挂着就是对多数用户撒谎（他们的链接根本不会过期） */}
+          {/* ★ 24 小时是方舟 TOS 链接的事实；MiniMax H3 的成片链接（isArkAssetUrl 也认它）有时效、但上游没说多久 —— 有 H3 链接的就不写小时数
+              （2026-10-26 P2b 审核：与 data/videoJobs「MiniMax 不许出现编出来的小时数」同一条；两种混着时也不写，H3 那几段可能更早过期） */}
           {draft.segments.some((sg) => isArkAssetUrl(sg.videoUrl)) && (
             <div className="mt-2 text-center text-[11px] leading-relaxed text-slate-500">
-              <Trans>有片段还挂在临时链接上（约 24 小时有效）——尽快发布，服务端会转存为长期地址</Trans>
+              {draft.segments.some((sg) => isMinimaxV2VideoUrl(sg.videoUrl)) ? (
+                <Trans>有片段还挂在临时链接上（有时效）——尽快发布，发布后会换成长期地址</Trans>
+              ) : (
+                <Trans>有片段还挂在临时链接上（约 24 小时有效）——尽快发布，发布后会换成长期地址</Trans>
+              )}
             </div>
           )}
         </div>
@@ -636,26 +647,24 @@ export default function PublishPage() {
               ⇒ 要恢复它，先做服务端那一侧：解锁端点（扣费 + 落购买记录 + 给作者入账）、
                 按购买态决定发不发 `segments[].videoUrl`、客户端购买态从服务端读。
               ★ 这个 `data-guide` 锚点留着：引导里那一步（tours 的「谁能看」）指着它。 */}
-          <div data-guide="publish-pricing">
-            <div className="mb-1.5 text-sm font-semibold text-slate-300"><Trans>收费方式</Trans></div>
-            <div className="rounded-xl border border-slate-700/70 bg-panel px-3.5 py-2.5 text-xs leading-relaxed text-slate-400">
-              <Trans>目前所有作品都是<b className="font-semibold text-slate-200">免费观看</b>。付费解锁还没开放——等收款和分账真的通了再放出来，免得你以为在收钱、其实一分也到不了账。</Trans>
-            </div>
-          </div>
+          {/* 没有可选项的东西不配一整节标题 + 卡片（Refactoring UI §2.5 标签只在必要时）：一句话说清现状就够 */}
+          <p data-guide="publish-pricing" className="text-xs leading-relaxed text-slate-400">
+            <Trans>目前所有作品都是<b className="font-semibold text-slate-200">免费观看</b>。付费解锁还没开放——等收款和分账真的通了再放出来，免得你以为在收钱、其实一分也到不了账。</Trans>
+          </p>
 
           {/* ★ 错误行挂在**发布键这一侧**（2026-08-30 移）：用户按的是这颗键，而原来它
               画在最上面那个标题输入框底下 —— 定价那条整句拒绝报在两屏之外，
               在手机上等于没报（铁律八：报错要落在动作发生的地方）。 */}
           {err && (
-            <div className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs leading-relaxed text-rose-200">
+            <div className="rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-xs leading-relaxed text-danger-200">
               {err}
             </div>
           )}
 
           {/* 作品发出去了、卡组没存上：如实说 + 再试一次 + 一条离开的路（铁律八） */}
           {deckIssue && (
-            <div className="rounded-xl border border-amber-500/40 bg-amber-400/10 px-3 py-2.5 text-xs leading-relaxed text-amber-100">
-              <Trans><span className="font-bold">作品已经发布成功了</span>，但本片卡组没能存进你的工坊：{deckIssue.why}。<span className="text-amber-200/80">卡还在这台设备上，重试一次多半就好。</span></Trans>
+            <div className="rounded-xl border border-warn-500/40 bg-warn-500/10 px-3 py-2.5 text-xs leading-relaxed text-warn-100">
+              <Trans><span className="font-bold">作品已经发布成功了</span>，但本片卡组没能存进你的工坊：{deckIssue.why}。<span className="text-warn-200/80">卡还在这台设备上，重试一次多半就好。</span></Trans>
               <div className="mt-2 flex gap-2">
                 <button
                   onClick={() => {
@@ -667,13 +676,13 @@ export default function PublishPage() {
                     });
                   }}
                   disabled={!!busy}
-                  className="rounded-full bg-amber-400/90 px-3 py-1.5 text-[11px] font-bold text-ink disabled:opacity-40"
+                  className="rounded-full bg-warn-400/90 px-3 py-1.5 text-[11px] font-bold text-ink disabled:opacity-40"
                 >
                   {busy ? t`重试中…` : t`再试一次`}
                 </button>
                 <button
                   onClick={() => finishAndGo(deckIssue.videoId)}
-                  className="rounded-full border border-amber-500/40 px-3 py-1.5 text-[11px] text-amber-100"
+                  className="rounded-full border border-warn-500/40 px-3 py-1.5 text-[11px] text-warn-100"
                 >
                   <Trans>先去看作品</Trans>
                 </button>
@@ -687,8 +696,8 @@ export default function PublishPage() {
             <div
               className={`rounded-xl border px-3 py-2.5 text-xs leading-relaxed ${
                 reviseFail.kind === "conflict"
-                  ? "border-amber-500/40 bg-amber-400/10 text-amber-100"
-                  : "border-rose-500/40 bg-rose-500/10 text-rose-200"
+                  ? "border-warn-500/40 bg-warn-500/10 text-warn-100"
+                  : "border-danger-500/40 bg-danger-500/10 text-danger-200"
               }`}
             >
               {reviseFail.why}
@@ -706,7 +715,7 @@ export default function PublishPage() {
                       //   作品**逐字共享**同一批资产 —— 删掉任一条，另一条当场黑屏且零报错。
                       navigate(`/edit/${reviseOf?.videoId ?? ""}`);
                     }}
-                    className="rounded-full bg-amber-400/90 px-3 py-1.5 text-[11px] font-bold text-ink"
+                    className="rounded-full bg-warn-400/90 px-3 py-1.5 text-[11px] font-bold text-ink"
                   >
                     <Trans>取回最新工程重来</Trans>
                   </button>
@@ -721,7 +730,7 @@ export default function PublishPage() {
                   <button
                     onClick={() => void submitRevise()}
                     disabled={!!busy}
-                    className="rounded-full bg-rose-400/90 px-3 py-1.5 text-[11px] font-bold text-ink disabled:opacity-40"
+                    className="rounded-full bg-danger-400/90 px-3 py-1.5 text-[11px] font-bold text-ink disabled:opacity-40"
                   >
                     <Trans>重试</Trans>
                   </button>
@@ -738,29 +747,15 @@ export default function PublishPage() {
 
           {/* 主按钮上方那一行：回炉态说清"这一下会动谁"；全新发布态说清"发完还能回炉" */}
           {reviseOf ? (
-            <p className="text-xs leading-relaxed text-amber-300">
+            <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-xs leading-relaxed text-warn-200">
               <Trans>会替换《{originTitle}》的内容，链接不变。</Trans>
             </p>
           ) : (
             <p className="text-xs leading-relaxed text-slate-500"><Trans>发布后会留存这条片的工坊工程，之后可回炉重做。</Trans></p>
           )}
 
-          <div data-guide="publish-actions" className="flex items-center gap-3 pt-2">
-            <button
-              onClick={() => primary()}
-              disabled={!!busy || !!deckIssue}
-              className="rounded-xl bg-brand px-6 py-2.5 text-sm font-bold text-ink hover:brightness-110 disabled:opacity-40"
-            >
-              {busy || (reviseOf ? t`替换原作品` : t`发布`)}
-            </button>
-            <button
-              onClick={() => setDiscardOpen(true)}
-              disabled={!!busy || !!deckIssue}
-              className="rounded-xl bg-panel px-4 py-2.5 text-sm text-slate-400 hover:text-slate-200 disabled:opacity-40"
-            >
-              <Trans>放弃本次合成</Trans>
-            </button>
-          </div>
+          {/* ★ 声明摆在主键**上面**（2026-10-23，《Refactoring UI》走查 §3.6 / §2.8）：人先读到自己要声明什么、再按发布；
+              原来它在按钮下面，读起来像按完之后才告诉你的脚注。 */}
           {/* ★★ 内容声明。**恒开、不可关**，而且是**主动声明**不是默示同意（2026-08-30 改）。
               《人工智能生成合成内容标识办法》第十条要求用户"主动声明并使用服务提供者提供的
               标识功能进行标识"—— 原来这里是一句"发布即视为同意《AIGC 内容须知》"的脚注，
@@ -784,6 +779,22 @@ export default function PublishPage() {
                   在 2026-09-07 把盖法改成"起始画面 ≥2 秒"之后就成了假话（铁律八） */}
               <Trans>发布后会做三件事：{note}并按<button onClick={() => setAigcOpen(true)} className="text-brand">《AIGC 内容须知》</button>承担发布者责任。<span className="text-slate-500">这项声明不可关闭。</span></Trans>
             </p>
+          </div>
+          <div data-guide="publish-actions" className="flex items-center gap-3 pt-2">
+            <button
+              onClick={() => primary()}
+              disabled={!!busy || !!deckIssue}
+              className="min-w-0 flex-1 rounded-xl bg-brand px-6 py-2.5 text-sm font-bold text-ink hover:brightness-110 disabled:opacity-40"
+            >
+              {busy || (reviseOf ? t`替换原作品` : t`发布`)}
+            </button>
+            <button
+              onClick={() => setDiscardOpen(true)}
+              disabled={!!busy || !!deckIssue}
+              className="flex-none rounded-xl bg-panel px-4 py-2.5 text-sm text-slate-400 hover:text-slate-200 disabled:opacity-40"
+            >
+              <Trans>放弃本次合成</Trans>
+            </button>
           </div>
         </div>
       </main>
@@ -884,7 +895,7 @@ export default function PublishPage() {
             // ★ 没标题就禁用，而不是"点了之后关掉弹层再在两屏之外报错"——
             //   那种失败方式用户读不出因果（发布键那条整句拒也是同一个理由挪的位置）
             disabled={!!busy || !title.trim()}
-            className="mt-3 w-full rounded-xl border border-amber-400/50 bg-amber-400/10 px-3 py-2 text-left text-[11px] leading-relaxed text-amber-100 disabled:opacity-40"
+            className="mt-3 w-full rounded-xl border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-left text-[11px] leading-relaxed text-warn-100 disabled:opacity-40"
           >
             <span className="font-bold"><Trans>还是先按「仅自己可见」发出去吧</Trans></span>
             <br />

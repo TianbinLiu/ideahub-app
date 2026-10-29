@@ -18,7 +18,14 @@ import { blockUser } from "../api/blocking";
 import { purgeAuthorVideos, refreshFeed } from "../data/videos";
 import { isRemoteMode } from "../data/account";
 import { useAuthState } from "../hooks/useAccount";
+import { useBackLayer } from "../hooks/useBackLayer";
 import AuthPending from "./AuthPending";
+import Icon from "./Icon";
+
+/** 这颗拉黑键摆不摆得出来 —— 与下面组件里那道闸同一个判据（离线没有「别人」、自己不能拉黑自己、没有 id 没法拉黑） */
+export function canBlock(o: { mine: boolean; userId: string }): boolean {
+  return !o.mine && isRemoteMode() && !!o.userId;
+}
 
 export default function BlockButton({
   userId,
@@ -26,11 +33,14 @@ export default function BlockButton({
   /** 这个人是不是自己。自己不能拉黑自己，传 true 就整块不渲染 */
   mine = false,
   className = "",
+  row = false,
 }: {
   userId: string;
   userName?: string;
   mine?: boolean;
   className?: string;
+  /** 整行样式（详情页「更多操作」抽屉里那一行：图标 + 「拉黑」，与举报那一行同一种） */
+  row?: boolean;
 }) {
   const { t } = useLingui();
   const auth = useAuthState();
@@ -41,9 +51,11 @@ export default function BlockButton({
   const [err, setErr] = useState("");
   /** 这次会话里已经拉黑了。★ 只是"别让他反复点"，真相在服务端 */
   const [done, setDone] = useState(false);
+  // 手机返回键先关这一层（hooks/useBackLayer），与「再想想」/ 点遮罩同一个关法；排在下面那道早退之前（hook 顺序）
+  useBackLayer(open, () => setOpen(false), "block");
 
   // ★ 与 ReportButton 同一道闸：离线模式没有"别人"，自己的内容也不该出现这颗键
-  if (mine || !isRemoteMode() || !userId) return null;
+  if (!canBlock({ mine, userId })) return null;
 
   async function submit() {
     if (busy) return;
@@ -73,8 +85,13 @@ export default function BlockButton({
         setOpen(true);
       }}
       disabled={done}
-      className={`text-[11px] text-slate-500 active:opacity-60 disabled:opacity-40 ${className}`}
+      className={
+        row
+          ? `flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm text-slate-200 active:bg-white/5 disabled:opacity-40 ${className}`
+          : `text-[11px] text-slate-500 active:opacity-60 disabled:opacity-40 ${className}`
+      }
     >
+      {row && <Icon name="ban" size={18} className="text-slate-400" />}
       {done ? <Trans>已拉黑</Trans> : <Trans>拉黑</Trans>}
     </button>
   );
@@ -110,7 +127,7 @@ export default function BlockButton({
                 </button>
               </>
             ) : done ? (
-              <p className="py-2 text-center text-xs leading-relaxed text-emerald-300">
+              <p className="py-2 text-center text-xs leading-relaxed text-ok-300">
                 <Trans>已拉黑「{who}」——你们不会再看见彼此的内容。</Trans>
               </p>
             ) : (
@@ -128,7 +145,7 @@ export default function BlockButton({
                 <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
                   <Trans>随时可以解除：「我的 → 设置 → 已拉黑的人」。</Trans>
                 </p>
-                {err && <p className="mt-2 text-[11px] leading-relaxed text-rose-300">{err}</p>}
+                {err && <p className="mt-2 text-[11px] leading-relaxed text-danger-300">{err}</p>}
                 <div className="mt-3 flex gap-2">
                   <button
                     onClick={() => setOpen(false)}
@@ -139,7 +156,7 @@ export default function BlockButton({
                   <button
                     onClick={() => void submit()}
                     disabled={busy}
-                    className="flex-1 rounded-xl bg-rose-500/90 py-2.5 text-sm font-bold text-white disabled:opacity-40"
+                    className="flex-1 rounded-xl bg-danger-500/90 py-2.5 text-sm font-bold text-white disabled:opacity-40"
                   >
                     {busy ? <Trans>处理中…</Trans> : <Trans>拉黑</Trans>}
                   </button>

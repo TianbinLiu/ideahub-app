@@ -135,7 +135,7 @@ export default function SkillPanel({ draft, onPick }: { draft: string; onPick: (
                 <div className="flex items-center gap-1.5">
                   <span className="min-w-0 truncate text-xs font-semibold text-slate-100">{s.title}</span>
                   {s.published && (
-                    <span className="flex-none rounded bg-emerald-500/20 px-1.5 py-0.5 text-[9px] text-emerald-300"><Trans>已发布</Trans></span>
+                    <span className="flex-none rounded bg-ok-500/20 px-1.5 py-0.5 text-[9px] text-ok-300"><Trans>已发布</Trans></span>
                   )}
                 </div>
                 <div className="mt-0.5 truncate text-[10px] text-slate-500">{s.intro || s.text}</div>
@@ -152,7 +152,7 @@ export default function SkillPanel({ draft, onPick }: { draft: string; onPick: (
               <button
                 onClick={() => doDel(s)}
                 className={`flex-none rounded-full px-2 py-1 text-[10px] ${
-                  delId === s.id ? "bg-rose-500/20 text-rose-300" : "border border-slate-600 text-slate-400"
+                  delId === s.id ? "bg-danger-500/20 text-danger-300" : "border border-slate-600 text-slate-400"
                 }`}
               >
                 {delId === s.id ? <Trans>真删？</Trans> : <Trans>删</Trans>}
@@ -202,7 +202,7 @@ export default function SkillPanel({ draft, onPick }: { draft: string; onPick: (
           })}
         </div>
       )}
-      {(err || marketErr) && <p className="mt-1.5 text-[10px] leading-relaxed text-rose-300">{err || marketErr}</p>}
+      {(err || marketErr) && <p className="mt-1.5 text-[10px] leading-relaxed text-danger-300">{err || marketErr}</p>}
     </div>
   );
 }

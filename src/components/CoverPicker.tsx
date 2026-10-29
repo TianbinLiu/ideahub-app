@@ -251,7 +251,7 @@ export function FrameCaptureDialog({
         {seg?.title}
         {seg?.videoUrl ? t` · 真实影像` : t` · 首尾帧渐变（无视频文件，按播放画面合成）`}
       </div>
-      {err && <div className="mt-2 text-xs text-red-400">{err}</div>}
+      {err && <div className="mt-2 text-xs text-danger-300">{err}</div>}
       <div className="mt-3 flex gap-2">
         <button onClick={onCancel} className="rounded-xl bg-slate-700/70 px-4 py-2.5 text-sm text-slate-200">
           <Trans>取消</Trans>
@@ -387,7 +387,7 @@ export function CoverSection({
           }}
         />
       </div>
-      {coverErr && <div className="mb-2 text-xs text-red-400">{coverErr}</div>}
+      {coverErr && <div className="mb-2 text-xs text-danger-300">{coverErr}</div>}
       {/* 候选一张都没有时整块不摆（白模段没有设定帧、也还没合并出 poster）——
           摆一行空框比不摆更像坏了 */}
       {frameChoices.length > 0 && (
@@ -493,7 +493,7 @@ export function AiCoverDialog({
         </div>
         <div className="min-w-0 flex-1">
           <div className="mb-1 text-[10px] text-slate-500">
-            {AI_REAL ? <Trans>Seedream 真实生成，约 20-30 秒</Trans> : <Trans>演示模式：产物为本地占位图</Trans>}
+            {AI_REAL ? <Trans>AI 真实生成，约 20-30 秒</Trans> : <Trans>演示模式：产物为本地占位图</Trans>}
           </div>
           <TokenCost tokens={ONE_IMAGE} note={t`每生成一版都会扣一次`} className="mb-1.5" />
           <textarea
@@ -513,7 +513,7 @@ export function AiCoverDialog({
           <img src={result} alt={t`AI 生成封面`} style={box} className="w-full rounded-xl object-cover" />
         </div>
       )}
-      {err && <div className="mt-2 text-xs text-red-400"><Trans>生成失败：{err.slice(0, 140)}</Trans></div>}
+      {err && <div className="mt-2 text-xs text-danger-300"><Trans>生成失败：{err.slice(0, 140)}</Trans></div>}
 
       <div className="mt-3 flex flex-wrap gap-2">
         <button onClick={onCancel} className="rounded-xl bg-slate-700/70 px-4 py-2.5 text-sm text-slate-200">

@@ -78,7 +78,7 @@ export default function SettingsProfilePage() {
             <Icon name="plus" size={15} strokeWidth={2.5} />
           </span>
         </button>
-        {avatarErr && <p className="mt-2 text-center text-[11px] text-rose-300">{avatarErr}</p>}
+        {avatarErr && <p className="mt-2 text-center text-[11px] text-danger-300">{avatarErr}</p>}
 
         {/* 不想上传照片的用户仍可用 emoji（新账号的默认值也是 emoji） */}
         <details className="mt-3 w-full">
@@ -119,7 +119,7 @@ export default function SettingsProfilePage() {
         />
         {/* ★ 失败那句话摆在**按钮这一侧**：用户按的是这颗键，报在别处等于没报（铁律八） */}
         {profileErr && (
-          <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs leading-relaxed text-rose-200">
+          <p className="rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-xs leading-relaxed text-danger-200">
             {profileErr}
           </p>
         )}

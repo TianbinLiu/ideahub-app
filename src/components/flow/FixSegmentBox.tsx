@@ -14,10 +14,12 @@
 //   ② 写「只改第 2-3 秒换红手套」，红手套从手第 1 秒一入画就换上了、一直到第 3 秒 —— 同一个连续的动作模型会整段一起改，
 //      不会在第 2 秒处硬切；开头的礼盒与结尾的特写没动。所以文案说「主要改」「尽量照原样」，不许诺只动那几秒。
 import { Trans, useLingui } from "@lingui/react/macro";
+import { priceTag } from "../../data/economy";
+import Warn from "../Warn";
 import { useState } from "react";
 import { AI_REAL } from "../../ai";
-import { tierBlockReason, tierGo, tierOffered } from "../../data/account";
-import { durationChoices, fmtTokens, materialRefSecs, minUsageNote, r2vPriceIssue, r2vTokens, tierOf } from "../../data/economy";
+import { noTierLine, r2vSameChipOpen, r2vTierIssue, tierBlockReason, tierGo, tierPlanBlocked } from "../../data/account";
+import { durationChoices, materialRefSecs, minUsageNote, r2vTokens, tierOf } from "../../data/economy";
 import { useAccountVersion } from "../../hooks/useAccount";
 import UpgradeLink from "../UpgradeLink";
 import {
@@ -71,34 +73,45 @@ export default function FixSegmentBox({
   /**
    * 这一段的档这个人现在用不了（会员档 / 已停用 / 服务端不支持；判据只在 account.tierBlockReason）：重拍与延长都是真出片，
    * genNode / appendNode 门口会整句拒 —— 在这里就说，别让人写完改法、看着价钱点下去才第一次听说（2026-10-07 免费档限制：
-   * 10-07 之前免费用户在「高清」上出过的片，现在点「修这一段」就是这种情形）。挡住他的是套餐（档还摆得出来）时给「去升级」。
+   * 10-07 之前免费用户在「高清」上出过的片，现在点「修这一段」就是这种情形）。挡住他的是套餐（account.tierPlanBlocked）时给「去升级」。
+   * ★ 重拍与延长各问一句（2026-10-26 P1 审核）：用不用得了是同一个答案，但地区挡住时「换成哪一档」的出路要按这件事要的能力挑
+   *   （重拍要能按参考视频出片、延长要能延长），别把人指去一档做不了这件事的档。
    */
-  const planIssue = tierBlockReason(tier);
-  const planUpgradeable = !!planIssue && tierOffered(tier);
+  const reviseIssue = tierBlockReason(tier, (x) => x.refVid && x.r2vMult !== null);
+  const extendPlanIssue = tierBlockReason(tier, (x) => x.extendOk);
+  const planIssue = reviseIssue ?? extendPlanIssue;
+  const planUpgradeable = tierPlanBlocked(tier);
   /** 能按参考视频出片的档（重拍 / 示例视频那一类）：这个人一档都用不了时，r2v 那句话后面说清它们是会员档 */
   const refGo = tierGo((x) => x.refVid && x.r2vMult !== null);
-  const refNames = refGo.names;
-  const planNote = planIssue ? (
-    <p className="text-[11px] leading-relaxed text-amber-200">
-      {planIssue}
-      {planUpgradeable && (
-        <>
-          {"　"}
-          <UpgradeLink />
-        </>
-      )}
-    </p>
-  ) : null;
+  const refNames = refGo?.names ?? "";
+  /** 摆得出来的档里一档都做不了按参考视频出片（门禁开着的海外只剩「真人」档）：r2v 那句话后面补一句地区 / 这台服务器的事实（account.noTierLine），不说会员档 */
+  const refNone = refGo ? "" : noTierLine("refVid");
+  const planNote = (issue: string | null) =>
+    issue ? (
+      <Warn>
+        {issue}
+        {planUpgradeable && (
+          <>
+            {"　"}
+            <UpgradeLink />
+          </>
+        )}
+      </Warn>
+    ) : null;
 
   // ── 片段重拍 ──
-  const priceIssue = r2vPriceIssue(node.videoTier);
+  // ★ 走 account.r2vTierIssue（判据仍在 economy.r2vPriceIssue）：H3 的「高清」与 Seedance 的「高清」同名，economy 那一句会说
+  //   「「高清」做不了…只有「高清」「电影级」做得到」—— 那一种由 account 按地区把两边是哪一家、去哪一档说全（2026-10-26 P2b 审核），
+  //   下面「会员档 / 这里没有」那半句也已经在里面了（r2vSameChipOpen），不再补
+  const priceIssue = r2vTierIssue(tier, "refVideo");
+  const sameChip = r2vSameChipOpen(tier, "refVideo");
   const sec = reviseSecOf(prop);
   const reviseCost = r2vTokens(sec, node.videoTier);
   const a = Math.max(0, Math.min(from, sec - 1));
   const b = Math.max(a + 1, Math.min(to, sec));
   const range = ranged ? { from: a, to: b } : null;
   const canRevise = !planIssue && !priceIssue && reviseCost !== null && text.trim().length > 0 && !disabled;
-  const revisePrice = AI_REAL && reviseCost !== null ? fmtTokens(reviseCost) : t`演示`;
+  const revisePrice = AI_REAL && reviseCost !== null ? priceTag(reviseCost) : t`演示`;
 
   // ── 往后延长 ──
   const extIssue = isLast ? extendIssue(nodes, index) : null;
@@ -106,7 +119,7 @@ export default function FixSegmentBox({
   const outSec = extSec ?? (choices.includes(EXTEND_DEFAULT_SEC) ? EXTEND_DEFAULT_SEC : (choices[0] ?? EXTEND_DEFAULT_SEC));
   const spec = isLast && !extIssue ? extendSpec(nodes, index, { text: extText || " ", durationSec: outSec }) : null;
   const extCost = spec ? appendQuote(nodes, mode, spec) : 0;
-  const extPrice = AI_REAL ? fmtTokens(extCost) : t`演示`;
+  const extPrice = AI_REAL ? priceTag(extCost) : t`演示`;
   /**
    * 计价那几个秒数（economy.materialRefSecs —— 报价 appendQuote → nodeCost → materialRefCost 读的同一份）：输入取 extendSpec 记下的
    * 被延长那一段的时长（落段之后 nodeCost / genNode 经 extendSourceOf 读到的也是它），再按方舟最低用量折算；
@@ -127,13 +140,13 @@ export default function FixSegmentBox({
   );
 
   return (
-    <div className="space-y-1.5 rounded-lg border border-slate-700/70 bg-black/25 px-2.5 py-2">
+    <div className="space-y-1.5 rounded-lg bg-black/25 px-2.5 py-2">
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="mr-1 text-xs font-semibold text-slate-300">
           <Trans>修这一段</Trans>
         </span>
-        {chip("revise", t`✎ 片段重拍`)}
-        {isLast && chip("extend", t`⏩ 往后延长`)}
+        {chip("revise", t`片段重拍`)}
+        {isLast && chip("extend", t`往后延长`)}
         {prop.prevVideoUrl && (
           <button
             onClick={() => useFlow.getState().restoreProposalVideo(node.id)}
@@ -146,11 +159,11 @@ export default function FixSegmentBox({
       </div>
 
       {open === "revise" &&
-        (planNote ??
+        (planNote(reviseIssue) ??
         (priceIssue ? (
-          <p className="text-[11px] leading-relaxed text-amber-200">
+          <Warn>
             {priceIssue}
-            {refGo.member && refNames && (
+            {!sameChip && refGo?.member && refNames && (
               <>
                 {"　"}
                 {t`能按参考视频出片的「${refNames}」是会员档——开通会员套餐（或充值过任意一笔）后可用`}
@@ -158,7 +171,20 @@ export default function FixSegmentBox({
                 <UpgradeLink />
               </>
             )}
-          </p>
+            {/* 同一颗芯片那一种：r2vTierIssue 已经说了「是会员档」，这里只补那颗「去升级」 */}
+            {sameChip && refGo?.member && (
+              <>
+                {"　"}
+                <UpgradeLink />
+              </>
+            )}
+            {!sameChip && refNone && (
+              <>
+                {"　"}
+                {t`${refNone}。`}
+              </>
+            )}
+          </Warn>
         ) : (
           <>
             <textarea
@@ -213,15 +239,15 @@ export default function FixSegmentBox({
               disabled={!canRevise}
               className="w-full rounded-full bg-brand px-3 py-1.5 text-[11px] font-bold text-ink disabled:opacity-40"
             >
-              <Trans>✎ 重拍这一段（{revisePrice}）</Trans>
+              <Trans>♻ 重拍这一段（{revisePrice}）</Trans>
             </button>
           </>
         )))}
 
       {open === "extend" && isLast &&
-        (planNote ??
+        (planNote(extendPlanIssue) ??
         (extIssue ? (
-          <p className="text-[11px] leading-relaxed text-amber-200">{extIssue}</p>
+          <Warn>{extIssue}</Warn>
         ) : (
           <>
             <textarea
@@ -256,7 +282,7 @@ export default function FixSegmentBox({
               disabled={!canExtend}
               className="w-full rounded-full bg-brand px-3 py-1.5 text-[11px] font-bold text-ink disabled:opacity-40"
             >
-              <Trans>⏩ 往后延长 {outSec} 秒（{extPrice}）</Trans>
+              <Trans>往后延长 {outSec} 秒（{extPrice}）</Trans>
             </button>
           </>
         )))}

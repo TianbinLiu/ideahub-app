@@ -21,6 +21,7 @@
 //     （老编号方案下的形态是"他身上没有编号"）。默认按时长自动取帧；人数会变的素材由作者自己标 ——
 //     交互在 `VisionFramePicker`，帧数同时是报价的一半，所以两者必须读同一个来源。
 import { Trans, useLingui } from "@lingui/react/macro";
+import Warn from "../Warn";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import CropOverlay from "./CropOverlay";
 import TrimBar from "./TrimBar";
@@ -44,9 +45,10 @@ import {
   blockoutizeCost,
   blockoutizeIssue,
   fmtTokens,
-  tierModelLabel,
   r2vTokens,
 } from "../../data/economy";
+import { tierShownModel } from "../../data/account";
+import { useAccountVersion } from "../../hooks/useAccount";
 import { autoVisionFrames, visionFrameCount } from "../../data/templates";
 import { serverSupports } from "../../data/serverCaps";
 
@@ -177,6 +179,8 @@ export default function BlockoutTrimmer({
 }: BlockoutTrimmerProps) {
   /** 本机 `<video>` 解出来的元数据。有登记值时只用来**比对**，没有时它就是唯一的依据 */
   const { t } = useLingui();
+  // 报价那句里的模型名按地区写（account.tierShownModel）：地区是异步问到的，订阅账号的版本号，到了就重画
+  useAccountVersion();
   const [probe, setProbe] = useState<VideoNatural | null>(null);
   /** 选段与裁剪框。★ 「看哪几帧」**不存在这里**：它按绝对秒存在 marks 里（见下） */
   const [sel, setSel] = useState<BlockoutSelection | null>(null);
@@ -286,6 +290,9 @@ export default function BlockoutTrimmer({
   //   服务端按 3 帧扣"。
   const priceIssue = blockoutizeIssue();
   const tier = blockoutTier();
+  /** 白模那一发交给哪个模型：只在地区问到了、这一档又摆得出来时写模型名（account.tierShownModel，一处出口），否则写档位名 */
+  const tierModel = tier ? tierShownModel(tier) : null;
+  const tierLabel = tier?.label ?? "";
   const durSec = outSel?.durSec ?? 0;
   const autoFrames = autoVisionFrames(durSec);
   const frameCount = outSel ? visionFrameCount(durSec, outSel.frameTimes) : 0;
@@ -352,18 +359,18 @@ export default function BlockoutTrimmer({
       <p className="text-[11px] leading-relaxed text-slate-400">
         <Trans>
           拖四个角调整<b className="text-slate-200">裁剪框</b>，拖框身整体挪位。
-          <b className="text-amber-300">台标 / 水印必须框到框外</b> —— AI 出片是逐帧复刻画面，
+          <b className="text-warn-300">台标 / 水印必须框到框外</b> —— AI 出片是逐帧复刻画面，
           提示词去不掉它（实测），裁掉是唯一的办法；而模板会被反复套用，留一个水印就是永久的。
         </Trans>
       </p>
 
       {sizeMismatch && (
-        <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-200">
+        <p className="rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-[11px] leading-relaxed text-danger-200">
           ✗ {sizeMismatch}
         </p>
       )}
       {durMismatch && (
-        <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-200">
+        <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-[11px] leading-relaxed text-warn-200">
           ⚠ {durMismatch}
         </p>
       )}
@@ -424,13 +431,13 @@ export default function BlockoutTrimmer({
           <Trans>正在读取这段视频的画面尺寸与时长…（应用切到后台时系统会暂停解码，这一步会一直等着）</Trans>
         </p>
       ) : issue && !sizeMismatch ? (
-        <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-200">
+        <p className="rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-[11px] leading-relaxed text-danger-200">
           ✗ {issue}
         </p>
       ) : (
         !sizeMismatch &&
         verdict && (
-          <p className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-[11px] leading-relaxed text-emerald-200">
+          <p className="rounded-lg border border-ok-500/40 bg-ok-500/10 px-3 py-2 text-[11px] leading-relaxed text-ok-200">
             ✓ {verdict.ok}
           </p>
         )
@@ -452,7 +459,7 @@ export default function BlockoutTrimmer({
       {pricing ?? (
       <div className="rounded-lg border border-slate-700/70 bg-panel/60 px-3 py-2">
         {priceIssue ? (
-          <p className="text-[11px] leading-relaxed text-amber-200">⚠ {priceIssue}</p>
+          <Warn>{priceIssue}</Warn>
         ) : (
           <>
             {/* ★ 帧数与它那半笔钱都是**当下这一份选择**算出来的（自动随时长变、自己挑时
@@ -470,7 +477,11 @@ export default function BlockoutTrimmer({
               {videoTokens !== null && tier && (
                 <>
                   {" "}
-                  <Trans>+ 把这 {durSec} 秒整段换成白模人偶（{tierModelLabel(tier)} · {fmtTokens(videoTokens)}）</Trans>
+                  {tierModel ? (
+                    <Trans>+ 把这 {durSec} 秒整段换成白模人偶（{tierModel} · {fmtTokens(videoTokens)}）</Trans>
+                  ) : (
+                    <Trans>+ 把这 {durSec} 秒整段换成白模人偶（「{tierLabel}」档 · {fmtTokens(videoTokens)}）</Trans>
+                  )}
                 </>
               )}
               {t({ message: "。", comment: "句末句号，收住上面那一两句报价说明" })}
@@ -489,7 +500,7 @@ export default function BlockoutTrimmer({
           ★ 钱怎么说看服务端会不会退（能力位 failRefund，2026-10-07）：会退的只退**出片那一笔**（方舟明说失败的那种），
           「AI 看帧」那一次对话照收 —— 只说「会退」就把退款说大了；没探到 / 老服务端照旧说不退 */}
       {!pricing && (
-      <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-200">
+      <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-[11px] leading-relaxed text-warn-200">
         {serverSupports("failRefund") === true ? (
           <Trans>
             ⚠ 视频里有<b>真人面孔</b>时，AI 可能在<b>受理之后</b>才拒绝这一发 —— 那时<b>出片那一笔会自动退回</b>，
@@ -509,7 +520,7 @@ export default function BlockoutTrimmer({
       {extra}
 
       {error && (
-        <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-200">
+        <p className="rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-[11px] leading-relaxed text-danger-200">
           {error}
         </p>
       )}
@@ -518,7 +529,7 @@ export default function BlockoutTrimmer({
           blockoutizeCost 返回 null 时 blockoutizeIssue 必然有话说）。宁可多一行也不能让
           按钮"灰着且不说话"：那时用户唯一能做的就是反复点它。 */}
       {blocked && !sizeMismatch && !loading && !issue && !priceIssue && (
-        <p className="text-[11px] leading-relaxed text-rose-300">{blocked}</p>
+        <p className="text-[11px] leading-relaxed text-danger-300">{blocked}</p>
       )}
 
       <div className="flex gap-2">

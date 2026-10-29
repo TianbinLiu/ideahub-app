@@ -15,8 +15,10 @@
 import { i18n } from "@lingui/core";
 import { t } from "@lingui/core/macro";
 import { API_BASE, API_ON, getToken, withAppVersion } from "../api/client";
-import { frozenLine, planRequiredLine, syncRemoteWallet } from "../data/account";
+import { frozenLine, planRequiredLine, regionDeniedLine, syncRemoteWallet } from "../data/account";
 import { probeServerCaps } from "../data/serverCaps";
+import { noteRegionDenied } from "../data/videoZone";
+import { isMinimaxV2VideoUrl } from "../data/upstreamVideo";
 import type { TierResolution } from "../data/videoTierTable";
 import { DEFAULT_IMAGE_TIER, durationWindowOfModel, imageGroupOk, imageTierOf, modelLabel, videoAudioOn } from "../data/economy";
 import type { GenMode } from "../types";
@@ -109,10 +111,14 @@ export async function fetchArkAsset(url: string, timeoutMs: number): Promise<Res
   return res;
 }
 
-/** 方舟产物域名（volces/volccdn/TOS）。服务端 videoAsset.service 的域名表是权威，这里是
- *  客户端镜像 —— 只用来判「这条要不要转存/自救」，判错的代价只是多打或少打一次转存请求 */
+/** 上游给的**临时**成片 / 产物地址：方舟产物域名（volces/volccdn/TOS）**与 MiniMax H3（V2）的成片 CDN**（2026-10-26 出片地区 P2b）。
+ *  服务端 videoAsset.isUpstreamTempVideoUrl 与产物代理 /api/ark/asset 的域名表是权威（两家都认），这里是客户端镜像 ——
+ *  用来判「这条要不要转存 / 自救」「截帧要不要走产物代理」，判错的代价只是多打或少打一次转存请求。
+ *  ★ 名字没改（调用点十几处，问的都是「这是不是上游的临时链接」）：H3 那一半的判据只在 data/upstreamVideo.isMinimaxV2VideoUrl，别在这里再抄一份域名。
+ *    不认 H3 的话：H3 成片出片之后不转存、取回卡 / 剪辑页 / 回炉工程都把一条会过期的链接当永久地址，过期之后是死链，零报错。 */
 export function isArkAssetUrl(url: string | undefined): boolean {
   if (!url || !/^https?:\/\//i.test(url)) return false;
+  if (isMinimaxV2VideoUrl(url)) return true;
   try {
     const host = new URL(url).hostname;
     return /(^|\.)(volces|volccdn|byteimg|bytedance|ivolces)\.com$/i.test(host) || /tos-[a-z0-9-]+\./i.test(host);
@@ -256,6 +262,28 @@ export class ArkHttpError extends Error {
   ) {
     super(message);
     this.name = "ArkHttpError";
+  }
+}
+
+/**
+ * 服务端按**出片地区**拒了这一发（403 `REGION_UNAVAILABLE`，2026-10-26 出片地区；契约 docs/api-contract.md「出片地区」）。
+ * ★ 仍是 ArkHttpError（status 403、code 原样）：只读 status / code 的调用方照常；要说地区的认这个类。
+ * ★ 钱：`billed` 照服务端回包（缺省 false，只有明说 true 才算扣过）—— ai/failCharge 认它，别在调用点自己判。
+ *   message 里**不说钱**（2026-10-26 终审）：「没有受理，也没有扣费」那一句由 chargeNote 给，调用方截原因时截不掉它。
+ *   message 是长度有界的整句（account.regionDeniedLine），调用方展示原因时**不截**它（同 ArkTaskFailed.reason）。
+ *   出片（/api/ark）与真人档（/api/minimax）这两条路被拦恒为 false（门禁在扣钱之前）；视频之前已经结算过的画面另由 SegmentGenFailed 说。
+ * @param reason 短的那半句（briefArkReason 拿它塞进别人的整句里）；message 是能单独显示的整句
+ */
+export class ArkRegionDenied extends ArkHttpError {
+  constructor(
+    message: string,
+    status: number,
+    code: string,
+    readonly billed: boolean,
+    readonly reason: string,
+  ) {
+    super(message, status, code);
+    this.name = "ArkRegionDenied";
   }
 }
 
@@ -465,6 +493,15 @@ export function arkFailReason(o: { status: string; code?: string; detail?: strin
 }
 
 /**
+ * 一句原因要接在「：」后面、再由调用方补句号的时候，先摘掉它自己的句末标点（2026-10-26 出片地区 P1 审核）。
+ * ★ 地区那一句（ArkRegionDenied 的 message）是两整句、自带句号：genNode 拼「第 N 段生成失败：${why}。${钱}」时屏幕上成了「…也没有扣费。。」，
+ *   英文是「charged.. 」。服务端白模化那一支为同一个「。。」也摘了一次。只摘句末那一串，句中的句号不动。
+ */
+export function reasonClause(why: string): string {
+  return why.replace(/[。.!！]+$/u, "");
+}
+
+/**
  * 一句**能给用户看**的失败原因 —— 唯一实现（出片轮询与取回都用它）。
  *
  * ★ 存在的理由是那一坨方舟原文：`Ark /contents/generations/tasks/cgt-… 404: {"error":
@@ -481,8 +518,12 @@ export function briefArkReason(e: unknown, max = 40): string {
   if (e instanceof ArkBatchPartial || e instanceof SegmentGenFailed) return briefArkReason(e.failure, max);
   // 上游明说失败：原因已经按错误码说成人话了（arkFailReason）
   if (e instanceof ArkTaskFailed) return e.reason.slice(0, Math.max(max, 80));
+  // 地区不给：说地区，别退成「服务器返回 403」（那句会被读成套餐 / 冻结）
+  if (e instanceof ArkRegionDenied) return e.reason.slice(0, Math.max(max, 60));
   // 出图被拒：原因已经按码说成人话了（imageRefusalError）—— 尤其「模型停用、请更新 App」那句不能退成「服务器返回 400」
   if (e instanceof ArkImageRefused) return e.reason.slice(0, Math.max(max, 60));
+  // 出片提交被同步拒：同上（videoRefusalError 已按码分清文字 / 图片 / 图没拉到）
+  if (e instanceof ArkVideoRefused) return e.reason.slice(0, Math.max(max, 60));
   if (e instanceof ArkHttpError) {
     const status = e.status;
     return t`服务器返回 ${status}`;
@@ -522,6 +563,22 @@ export function billingDenialError(status: number, body: string): Error | null {
   if (status === 403 || status === 429) {
     const serverMsg = /"message"\s*:\s*"([^"]+)"/.exec(body)?.[1] ?? "";
     const code = /"code"\s*:\s*"([^"]+)"/.exec(body)?.[1] ?? "";
+    // ★ 出片地区（2026-10-26）：认 code 说本端的整句，两种界面语言都是（服务端那句是「英文 / 中文」并排的一整行，给认不得这个码的老 App 兜底用）。
+    //   回包里的地区先记进 data/videoZone（档位那一排当场藏掉被拦的档）并重问一次补国家；话按记下的那份说「这个地区能用哪几档」。
+    //   ★★ 钱上的话**不进** message（2026-10-26 终审）：原来 message 末尾接一句「这一发没有受理，也没有扣费。」，调用方截原因的时候
+    //   （剪辑页 110 字、genNode 240 字）英文的长国名会把这半句整个截掉 —— 而 chargeNote 在「一分没扣、前面也没画过帧」时回 null，
+    //   屏幕上就一个字都不说钱。现在钱只走 ai/failCharge（认 ArkRegionDenied、照 billed 说；没扣的那一句也在那里），message 只说地区
+    if (status === 403 && code === "REGION_UNAVAILABLE") {
+      let parsed: unknown = null;
+      try {
+        parsed = JSON.parse(body);
+      } catch {
+        /* 读不出 JSON：地区照旧，只重问一次 */
+      }
+      noteRegionDenied(parsed);
+      const billed = !!parsed && typeof parsed === "object" && (parsed as { billed?: unknown }).billed === true;
+      return new ArkRegionDenied(regionDeniedLine(), status, code, billed, t`所在地区不提供这一档的出片模型`);
+    }
     // ★ D7 a（多语言）：中文界面照旧原样说服务端那句整话；英文界面认 **code** 说本端的整句 ——
     //   判码不判文案。认不得的码仍只能原样带出服务端那句（多半是中文），总比按字猜强。
     // ★★ 2026-09-25 评审补上 WALLET_FROZEN 与 DAILY_LIMIT：服务端这两句 message 是
@@ -632,16 +689,95 @@ export function modelGoneCode(code: string, message = ""): boolean {
   return /^model not allowed$/i.test(message.trim());
 }
 
-/** 非 2xx 回包里的几样：我们服务端的顶层 `code` / `message`，方舟原样透传的 `error.code` / `error.message` */
-function errorBodyOf(body: string): { code: string; message: string; upstreamCode: string } {
+/**
+ * 非 2xx 回包里的几样：我们服务端的顶层 `code` / `message`，方舟原样透传的 `error.code` / `error.message` / `error.param`
+ * （upstreamMessage / upstreamParam 只给 videoRefusalError 认「参考图没拉到」那一种用，见那里的 ⚠）
+ */
+function errorBodyOf(body: string): { code: string; message: string; upstreamCode: string; upstreamMessage: string; upstreamParam: string } {
   const str = (v: unknown) => (typeof v === "string" ? v : "");
+  const none = { code: "", message: "", upstreamCode: "", upstreamMessage: "", upstreamParam: "" };
   try {
     const j = JSON.parse(body) as Record<string, unknown> | null;
-    if (!j || typeof j !== "object") return { code: "", message: "", upstreamCode: "" };
+    if (!j || typeof j !== "object") return none;
     const err = j.error && typeof j.error === "object" ? (j.error as Record<string, unknown>) : {};
-    return { code: str(j.code), message: str(j.message), upstreamCode: str(err.code) };
+    return { code: str(j.code), message: str(j.message), upstreamCode: str(err.code), upstreamMessage: str(err.message), upstreamParam: str(err.param) };
   } catch {
-    return { code: "", message: "", upstreamCode: "" };
+    return none;
+  }
+}
+
+/**
+ * 出片任务**提交时**被方舟同步拒了（400）—— 带一句给人看的原因（2026-10-26，文字模板 P1）。
+ * @param input 被拒的是哪一样（话由它挑，调用方也可以按它补一句）：text = 提示词没过审；image = 某张参考图没过审（常见是真人照片）；
+ *   either = 方舟只说「输入」没过审、没说是文字还是图；fetch = 方舟没拉到某张参考图（图床上那张图还没就绪）
+ * ★ 仍是 ArkHttpError（status / code 原样）：钱上的判定只认类型（ai/failCharge：服务端明说失败 = 没受理、没扣），一个字不变。
+ * ★ message 里不说钱（同 ArkRegionDenied 的理由：调用方截原因时会截掉那半句，钱只走 ai/failCharge）。
+ */
+export class ArkVideoRefused extends ArkHttpError {
+  constructor(
+    message: string,
+    status: number,
+    code: string,
+    readonly upstreamCode: string,
+    readonly reason: string,
+    readonly input: "text" | "image" | "either" | "fetch",
+  ) {
+    super(message, status, code);
+    this.name = "ArkVideoRefused";
+  }
+}
+
+/**
+ * 出片任务提交那一发的 400 → 一句人话（ArkVideoRefused）—— **唯一实现**（generateVideo 的 arkFetch 把它当 describeRefusal 传进去）。
+ * 回 null = 不归它说：不是 400、或者回包带着我们服务端自己的顶层码（MODEL_RETIRED / VIDEO_PARAMS_NOT_ALLOWED … 归 requestRefusalError；
+ * 402 / 403 / 429 归 billingDenialError），或者认不出（照旧走 arkFetch 最后那一支）。
+ * ★ 原来这一发的 400 一律落进 arkFetch 最后那一支：屏幕上是一截 `Ark /contents/generations/tasks 400: {"error":{…}}`，
+ *   文字被拒、图被拒、图没拉到三种出路完全不同的事长得一模一样（审核抓到；文字模板段的正文是别人写的，使用者改不了图之外的东西，
+ *   分不清是哪一样就不知道该换图还是该改字）。
+ * ★ 内容审核按方舟的码认（错误码表 code_error-codes：InputText… / InputImage… SensitiveContentDetected、PrivacyInformation）。
+ * ⚠ 「参考图没拉到」那一种方舟给的是**通用码** `InvalidParameter`（2026-10-26 付费小验两次撞上：`content[3]` / `content[2]`，
+ *   message「invalid image format (detected format); received: ""」—— 图刚传到我们图床的几秒里方舟去拉、拉回空的；不扣钱，几分钟后重发即过）。
+ *   码说明不了是哪一种，只能认方舟回包里那句**机器原话**（不是我们的界面文案、不随界面语言变）：参数是 `content[N]` + 「invalid image format」+ 收到的是空串。
+ *   认不出就落回原来那一支（说「服务器返回 400」），不往「再试一次」上靠 —— 把参数真错了的请求说成「再试一次」，人会一直重试一发必然被拒的请求。
+ */
+export function videoRefusalError(status: number, body: string): ArkVideoRefused | null {
+  if (status !== 400) return null;
+  const p = errorBodyOf(body);
+  // 我们服务端自己的码（顶层 code）归 requestRefusalError 说（它们的话更准），这里让开
+  if (p.code) return null;
+  const up = p.upstreamCode;
+  const make = (line: string, input: ArkVideoRefused["input"]) => new ArkVideoRefused(line, status, p.code, up, line, input);
+  if (/^InputText\w*SensitiveContentDetected/i.test(up)) return make(t`提示词没过方舟的内容审核——改掉里面可能被拦的说法再试`, "text");
+  if (/^InputImage\w*SensitiveContentDetected/i.test(up) || /PrivacyInformation/i.test(up))
+    return make(t`有一张参考图没过方舟的审核（常见是真人照片）——换掉那张图再试`, "image");
+  if (/^(Input\w*)?SensitiveContentDetected/i.test(up)) return make(t`输入的文字或图片没过方舟的内容审核`, "either");
+  if (/^InvalidParameter$/i.test(up) && /^content\[\d+\]$/.test(p.upstreamParam) && /invalid image format/i.test(p.upstreamMessage) && /received:\s*""/.test(p.upstreamMessage))
+    return make(t`有一张参考图方舟没拉到（多半是图刚传上去还没就绪）——过一会儿再点一次生成`, "fetch");
+  return null;
+}
+
+/**
+ * 「参考图没拉到」之后自动重交一次前等多久。
+ * ★ 2026-10-26 付费小验两次撞上：一次重发即过、一次几分钟后重发即过（都是图刚传上我们图床的那几秒里方舟去拉、拉回空的）。
+ *   20 秒是折中：出片本来就要等几分钟，多等 20 秒不显眼；再长就像卡住了。第二次还拉不到才把那句「过一会儿再点一次」交给人。
+ */
+export const REF_FETCH_RETRY_MS = 20_000;
+
+/**
+ * 出片任务提交：被方舟以「参考图没拉到」同步拒时（ArkVideoRefused，input === "fetch"），等 REF_FETCH_RETRY_MS 自动再交**一次**。
+ * ★ 为什么能自动重交：同步 400 = 没受理、没扣钱（ai/failCharge 认的就是这一条），重交不会多花一分钱；
+ *   而这一种失败人能做的也只有「过一会儿再点」—— 原来要人自己点第二次（两次付费小验都是手动重发才过）。
+ * ★ 只重交这一种、只一次：文字 / 图没过审重交一万次也是拒；参数真错了的请求被认成「没拉到」的可能已经由 videoRefusalError 的认法挡住
+ *   （content[N] + invalid image format + 收到空串，三样都要对上）。第二次还拒就原样抛出（话还是「过一会儿再点一次」）。
+ * ★ 不往进度里写一行：等的这 20 秒里界面照旧是「提交中」；要说的话得给 ArkProgress 加一种事件、再接进步骤日志，这一版先不加。
+ */
+export async function submitWithFetchRetry<T>(submit: () => Promise<T>, waitMs = REF_FETCH_RETRY_MS): Promise<T> {
+  try {
+    return await submit();
+  } catch (e) {
+    if (!(e instanceof ArkVideoRefused) || e.input !== "fetch") throw e;
+    await new Promise((r) => setTimeout(r, waitMs));
+    return submit();
   }
 }
 
@@ -1367,12 +1503,15 @@ export class ArkTaskUnknown extends Error {
  * · poll：一次轮询的状态（方舟的 queued / running / …；MiniMax 侧已换算成同一套词）+ 已等秒数
  * · pollRetry：单次查询失败、还在重试（真人档那条会报；方舟侧静默重试）
  * · transfer / transferFailed：出片一成就换永久地址那一步（失败不挡出片，但要说出来）
+ * · transferPending：服务端还在后台搬、这一拍没等它（real.permanentVideoUrl 的受理式转存到了上限）—— 先用临时链接，flowStore.settleNodeMedia 接着盯。
+ *   与 transferFailed 分开：「还在搬」说成「转存没成」是往吓人的方向说错（2026-10-26 P2b 审核）
  */
 export type ArkProgress =
   | { kind: "poll"; status: string; sec: number }
   | { kind: "pollRetry"; fails: number; max: number; sec: number }
   | { kind: "transfer" }
-  | { kind: "transferFailed"; reason: string };
+  | { kind: "transferFailed"; reason: string }
+  | { kind: "transferPending" };
 
 /**
  * 一段出片全过程的事件（real.composeSegments 报给步骤日志的那条通道）：轮询事件带上档位 id，
@@ -1386,6 +1525,11 @@ export type GenEvent =
       kind: "contract";
       mode: GenMode;
       tier: string;
+      /**
+       * 真正发出去的模型 id（2026-10-26 出片地区 P2b 起写：同一颗芯片两家同名，只看档位分不出交给了谁）。
+       * 可选：之前存下的步骤日志没有它（判否定：没有 = 只写档位名）。给人看的名字由 studio/genLog 按地区写（account.recordedModelName）
+       */
+      model?: string;
       ratio: string;
       durationSec: number;
       /** 参考视频的源片时长（edit 模式：输出时长跟随它） */
@@ -1463,6 +1607,8 @@ export function describeArkProgress(tierLabel: string, ev: ArkProgress): string 
     const reason = ev.reason;
     return t`${tierLabel}档 · 成片转存没成（${reason}）——先用方舟临时链接，预览帧稍后自动补上`;
   }
+  // 今天只有 real.permanentVideoUrl（MiniMax H3 的成片）报它，走的是步骤日志（studio/genLog）；这里接住是为了不落进下面读秒那一支
+  if (ev.kind === "transferPending") return t`${tierLabel}档 · 成片还在转存（服务器后台在搬）——先用临时链接，搬好之后自动换上`;
   const sec = ev.sec;
   if (ev.kind === "pollRetry") {
     const fails = ev.fails;
@@ -1639,7 +1785,7 @@ export async function generateVideo(
   }
   // 实测（2026-08-06，本账号）：720p/6s 首尾帧任务创建 1.5s、生成约 35-60s；
   // base64 dataURL 与 https URL 两种帧输入均被受理。
-  const created = await arkFetch<{ id: string }>(
+  const submit = () => arkFetch<{ id: string }>(
     "/contents/generations/tasks",
     {
       method: "POST",
@@ -1719,7 +1865,11 @@ export async function generateVideo(
     },
     // 创建请求体带 2-3MB base64 首尾帧，慢网下 30s 会掐死在上传半途（2026-08-07 实测连超两次）
     120_000,
+    // 提交时被方舟同步拒（文字 / 图没过审、参考图没拉到）：说成人话、分清是哪一样（videoRefusalError 的 ★）
+    videoRefusalError,
   );
+  // 参考图没拉到（图刚传上图床、方舟拉回空的）：等一会儿自动再交一次（submitWithFetchRetry 的 ★）
+  const created = await submitWithFetchRetry(submit);
   const id = created.id;
   // ★ 受理即交号（理由钉在 onTask 上）：从这一行往后，这一发的钱已经花掉了
   opts?.onTask?.(id);

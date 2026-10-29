@@ -52,7 +52,7 @@ export function useVideoJobs(): number {
  * ★★ 文案的重点**不是"重试"，是"别重复付费"**：用户看不出「取回」和「重新生成」的区别，
  *   而这两者差的是一次真金白银。整句由 `videoJobNote` 一处生成（列表、失败回话共用）。
  * ★ 剩余时间要**真的在走**（每分钟重算）：一条永远停在"还剩 3 小时"的提示比不显示更坏。
- *   24 小时不是我们定的时限，是方舟产物的物理寿命。
+ *   24 小时不是我们定的时限，是方舟产物的物理寿命；MiniMax H3 的任务上游 7 天内都查得到（过期判据按接口版本分开，data/videoJobs.ttlOf）。
  * ★ 过期的那条**不给取回键**（摆一颗点了必然失败的按钮 = 让用户以为还有救），
  *   改给一颗"知道了"——否则这条提醒永远关不掉，久了连还能救的那几发一起被当成噪音。
  * ★ 取回失败**绝不自动重试、也绝不补一句"再试试"**：这条路上"再试"和"再下一单"
@@ -195,10 +195,10 @@ export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean
   return (
     <div
       className={`rounded-lg border px-2.5 py-2 ${
-        closed ? "border-slate-600/60 bg-black/25" : "border-amber-500/50 bg-amber-500/10"
+        closed ? "border-slate-600/60 bg-black/25" : "border-warn-500/40 bg-warn-500/10"
       }`}
     >
-      <div className="text-[11px] font-bold text-amber-200">
+      <div className="text-[11px] font-bold text-warn-200">
         {/* seg=0 = 服务端登记表补来的（本机没认领过它属于哪一段）。退了钱的那种不说「还没取回」：没有成片可取了（钱上那句在下面的 note 里） */}
         {expired
           ? job.seg > 0
@@ -213,7 +213,7 @@ export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean
               : t`服务器上有一发你付过钱的成片还没取回`}
       </div>
       <div className="mt-0.5 truncate text-[10px] text-slate-400">{job.label}</div>
-      <p className={`mt-1 text-[10px] leading-relaxed ${closed ? "text-slate-400" : "text-amber-200/90"}`}>
+      <p className={`mt-1 text-[10px] leading-relaxed ${closed ? "text-slate-400" : "text-warn-200/90"}`}>
         {videoJobNote(job)}
       </p>
       {/* ★ 「这一发不是这条工作流的」要说出来，而且**不给按钮**：凭据跨草稿存活，
@@ -227,7 +227,7 @@ export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean
           <Trans>当初炼它的那一段不在这条流水线里（重启后没打开原草稿，或那一段从没存过草稿）：取回来会作为新的一段落在流水线里，之后照常剪辑、发布。凭据还在，没有浪费。</Trans>
         </p>
       )}
-      {issue && <p className="mt-1 text-[10px] leading-relaxed text-rose-300">{issue}</p>}
+      {issue && <p className="mt-1 text-[10px] leading-relaxed text-danger-300">{issue}</p>}
       {/* 过期的卡把任务号摆出来（可长按复制）：那几句话里说的「把下面的任务号发给客服」要真的在下面 ——
           服务端问不出结局（lost）、真人档不再跟进的那几种，找客服核对这笔钱只能靠它 */}
       {expired && (
@@ -256,7 +256,7 @@ export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean
         <button
           onClick={() => void take()}
           disabled={!!working || busy}
-          className="mt-1.5 w-full rounded-full bg-amber-500/90 py-1.5 text-[11px] font-bold text-ink disabled:opacity-40"
+          className="mt-1.5 w-full rounded-full bg-warn-500/90 py-1.5 text-[11px] font-bold text-ink disabled:opacity-40"
         >
           {working ? (
             <Trans>取回中…</Trans>

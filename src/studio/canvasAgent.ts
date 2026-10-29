@@ -11,6 +11,7 @@
 //   （studio/agentGrammar.parseLocal，中英两套句式并联）——能办多少办多少，并说清自己是哪一档（铁律八：不静默）。
 import { AI_REAL, VIDEO_PROMPT_MAX, canvasAgentChat } from "../ai";
 import { canAfford, myCards, spendTokens, walletFrozen } from "../data/account";
+import { refreshVideoZone } from "../data/videoZone";
 import { CHAT_TURN_TOKENS, fmtTokens } from "../data/economy";
 import { BLOCKOUT_MAX_ROLES, browseTemplates, markSpecOf, myTemplates } from "../data/templates";
 import type { Card, VideoTemplate } from "../types";
@@ -255,7 +256,7 @@ function localSay(r: LocalParse): string {
   const segs = (list: number[]) => [...new Set(list)].map((s) => t`第 ${s} 段`).join(sep);
   const quoted = (list: string[]) => list.map((u) => t`「${u}」`).join(sep);
   const attrSay = r.attrSegs.length
-    ? t`${segs(r.attrSegs)}说的是这一段的设置：点开那一段的编辑窗，时长/画幅/画质在标题行右上角的 ⚙ 里，删段在编辑窗最底下。`
+    ? t`${segs(r.attrSegs)}说的是这一段的设置：点开那一段的编辑窗，时长/画幅/画质（和出片模型来自哪一家）在标题行右上角的 ⚙ 里，删段在编辑窗最底下。`
     : "";
   const paidSay = r.paid.length
     ? t`${segs(r.paid.map((p) => p.seg))}的推演、生成、挂卡本地档不代办（要花钱，或会重写点名句）——在那一段的编辑窗里点。`
@@ -673,6 +674,11 @@ export async function runCanvasAgent(text: string): Promise<AgentOutcome> {
  * 后续进度由本段编辑窗的 GenTrace 与全局出片胶囊接手（它们本来就是干这个的）。
  */
 export async function executeAgentProposal(p: AgentProposal): Promise<{ ok: boolean; note: string }> {
+  // ★★ 出片地区：推演 / 出片先现问一次地区，再走下面的闸（2026-10-26 P1 审核）。下面点完火 700 毫秒探一下状态就报回执，
+  //   而 genNode / deriveProposals 自己那一次现问排在打上 generating 之后 —— 问得慢一点（离上次已过 5 秒、移动网络慢），探到的还是
+  //   generating，就给一发随后被地区拒掉的报了 ✓（回执芯片存在的理由正是防这个）。先问，它们的同步门禁就拿到新地区、在打上 generating 之前整句拒。
+  //   放在最前面：等的这几秒里流水线可能被改过，下面每一道闸都按问完之后的样子判。问不到就沿用上一次的结论（服务端照样拦，视频那一发不扣钱）
+  if (p.kind === "derive" || p.kind === "generate") await refreshVideoZone();
   const st = () => useFlow.getState();
   const seg = p.seg;
   const node = st().nodes[p.seg - 1];

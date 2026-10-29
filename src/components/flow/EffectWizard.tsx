@@ -7,6 +7,7 @@
 //   工坊走 studioStore.layWizardNodes + genNodeVideo，画布走 flowStore.appendSpecs + genNode —— 与九宫格分镜同一对入口，不另写一份。
 // ★ 报价由宿主给（quote = flowStore.appendSpecsQuote，照着「真会落下的那一段」算，与 genNode 真扣同一把尺）；关键帧那一张按张，价钱在 effectDraftStore 一处。
 import type { MessageDescriptor } from "@lingui/core";
+import Warn from "../Warn";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useRef, useState } from "react";
@@ -34,6 +35,7 @@ import { setLead, useLeadDraft } from "../../studio/leadDraftStore";
 import { VIDEO_ASPECTS, type Card, type VideoAspect } from "../../types";
 import { blobToDataUrl, fileToRefImage } from "../../utils/image";
 import Spinner from "../Spinner";
+import StepDots from "../StepDots";
 import TokenCost from "../TokenCost";
 import CastPicker from "./CastPicker";
 
@@ -100,8 +102,9 @@ export default function EffectWizard({
   }, []);
 
   const tier = tierOf(tierId);
-  const real = !!tier.flatCost;
-  const presets = effectsOn({ flat: real });
+  /** 只认一张起拍画面的档（VideoTier.startOnly，真人档）：照片起拍、不画关键帧 */
+  const real = tier.startOnly;
+  const presets = effectsOn({ startOnly: real });
   // ★ 上次挑的预设要按**这一档**重新筛：草稿关了不清（付过钱的关键帧要留着），而选法屏换个档位再进来，向导会停在上次那一步。
   //   不筛的话，在高清上挑的「游戏英雄登场」能在真人档上落成一段 —— 照片在原地动、竞技场根本不会出现，这一发照收钱（effectsOn 要挡的正是它）。
   //   这一档用不了就退回第①步重挑；只改这里看到的，不清 store：换回原来那一档，那张关键帧还在。
@@ -146,18 +149,12 @@ export default function EffectWizard({
 
   return (
     <div className="space-y-3">
-      {/* 步骤条：与铸段窗「1 选式 › 2 内容 › 3 规格」同一个样子 */}
-      <div className="flex flex-wrap items-center gap-1 text-[10px] text-slate-500">
-        <span className="mr-1 text-xs font-bold text-slate-100">
-          <Trans>✨ 特效同款</Trans>
-        </span>
-        {EFFECT_STEPS.map((s, i) => (
-          <span key={s} className={i === stepIdx ? "font-bold text-brand" : ""}>
-            {i > 0 && <span aria-hidden className="pr-1 text-slate-600">›</span>}
-            {i + 1} {t(STEP_LABEL[s])}
-          </span>
-        ))}
-      </div>
+      <p className="text-xs font-bold text-slate-100">
+        <Trans>✨ 特效同款</Trans>
+      </p>
+      {/* ★ 步骤条只有 components/StepDots 一份实现（CLAUDE.md 铁律六）：原来这里手写「1 挑特效 › 2 挑主角 › 3 出片」的面包屑，
+          2026-10-22 换成圆点。current 读的是上面按这一档筛过的 step（预设在这一档用不了时退回第①步），与正文画的是同一步 */}
+      <StepDots steps={EFFECT_STEPS.map((s) => ({ label: t(STEP_LABEL[s]) }))} current={stepIdx} />
 
       {step === "pick" && (
         <>
@@ -169,7 +166,7 @@ export default function EffectWizard({
             )}
           </p>
           {unavailable && (
-            <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">
+            <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200">
               {/* 只在关键帧真的在手时才许诺「还留着」：还在画的那一张可能画不成（画的时候由下面那一行说） */}
               {d.keyframe ? (
                 <Trans>
@@ -295,12 +292,12 @@ export default function EffectWizard({
           ) : (
             <CastPicker leadBadge={false}>
               {cast.length > need && (
-                <p className="text-[10px] leading-relaxed text-amber-200">
+                <Warn compact>
                   <Trans>现在选了 {castN} 个人（{castNames}），这个特效只要 {need} 个 —— 取消几个再往下。</Trans>
-                </p>
+                </Warn>
               )}
               {faceNote && (
-                <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">{faceNote}</p>
+                <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200">{faceNote}</p>
               )}
             </CastPicker>
           )}
@@ -323,7 +320,7 @@ export default function EffectWizard({
               </div>
             </div>
           )}
-          {d.drawErr && step === "cast" && <p className="text-[11px] leading-relaxed text-rose-300">{d.drawErr}</p>}
+          {d.drawErr && step === "cast" && <p className="text-[11px] leading-relaxed text-danger-300">{d.drawErr}</p>}
           <div className="flex gap-2">
             {backBtn("pick")}
             <button
@@ -353,7 +350,7 @@ export default function EffectWizard({
                   </span>
                 )}
                 {stale && (
-                  <span className="absolute left-1 top-1 rounded-full bg-amber-500/90 px-1.5 py-0.5 text-[9px] font-bold text-ink">
+                  <span className="absolute left-1 top-1 rounded-full bg-warn-500/90 px-1.5 py-0.5 text-[9px] font-bold text-ink">
                     {/* 产品预设的过期只看产品与画幅（effectKeyOf 不算人），话也照实说 */}
                     {preset.subject === "product" ? <Trans>产品或画幅改过了</Trans> : <Trans>主角或画幅改过了</Trans>}
                   </span>
@@ -364,9 +361,9 @@ export default function EffectWizard({
                   <Trans>正在画关键帧，约 20~30 秒（可以先离开，画好的图会留在这里）</Trans>
                 </p>
               )}
-              {d.drawErr && <p className="text-[11px] leading-relaxed text-rose-300">{d.drawErr}</p>}
+              {d.drawErr && <p className="text-[11px] leading-relaxed text-danger-300">{d.drawErr}</p>}
               <button
-                onClick={() => void drawKeyframe({ cast, productCard })}
+                onClick={() => void drawKeyframe({ cast, productCard, tierId })}
                 disabled={d.drawing || !castOk}
                 className="w-full rounded-full bg-panel py-1.5 text-[11px] text-slate-200 disabled:opacity-40"
               >
@@ -402,10 +399,10 @@ export default function EffectWizard({
             )}
           </p>
           {faceNote && (
-            <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">{faceNote}</p>
+            <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200">{faceNote}</p>
           )}
           {spec && <TokenCost tokens={costs[0] ?? 0} />}
-          {err && <p className="text-[11px] leading-relaxed text-rose-300">{err}</p>}
+          {err && <p className="text-[11px] leading-relaxed text-danger-300">{err}</p>}
           {/* ★ 别说「可以先铺成」：只铺成也要过 flowStore.appendIssue，它拒的正是同一个 busy（同一时刻只炼一段），所以下面那颗也灰掉 */}
           {busy && (
             <p className="text-[10px] leading-relaxed text-slate-500">

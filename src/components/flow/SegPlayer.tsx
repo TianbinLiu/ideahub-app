@@ -10,6 +10,7 @@ import Icon from "../Icon";
 import FrameAnnotator from "../FrameAnnotator";
 import { appendIssue, chosenOf, nodeDone, realVideoOfNode, reshotWithSound, tplOfNode, useFlow } from "../../studio/flowStore";
 import { useMediaUrl } from "../../utils/mediaUrl";
+import { useBackLayer } from "../../hooks/useBackLayer";
 import { grabVideoFrame } from "../videoFrames";
 import { uniqueRefName, usableExtraRefs } from "../../data/refMentions";
 import { showToast } from "../../data/toast";
@@ -122,6 +123,10 @@ export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: st
   useEffect(() => {
     if (!node) onClose(); // 这一段被删了：别留一个放不出东西的黑框
   }, [node, onClose]);
+  // 手机返回键先关这一层（hooks/useBackLayer）：整个回看层与 ✕ / 点遮罩同一个 onClose；
+  // 「这一帧用到哪儿」那张抽屉叠在上面、各认各的那一格，返回键先只关它（与它的 ✕ 同一个 setShot(null)）
+  useBackLayer(true, onClose, "seg-player");
+  useBackLayer(!!shot && shot !== "loading", () => setShot(null), "seg-shot");
   if (!node) return null;
   /**
    * 这一帧能放进去的段：别的、还没出片、没在炼、不是白模段的（白模段的画面与参考整个来自模板视频）、不是延长段的
@@ -153,7 +158,7 @@ export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: st
   }
   return createPortal(
     <div className="fixed inset-0 z-50 flex flex-col bg-black/90" onClick={onClose}>
-      <div className="safe-top flex h-[58px] flex-none items-center gap-2 px-4" onClick={(e) => e.stopPropagation()}>
+      <div className="safe-top-bar flex flex-none items-center gap-2 px-4" onClick={(e) => e.stopPropagation()}>
         <span className="text-sm font-bold text-slate-100"><Trans>第 {idx + 1} 段 · 成片</Trans></span>
         <span className="min-w-0 flex-1 truncate text-[11px] text-slate-500">{chosenOf(node).durationSec}s</span>
         {/* ⭕ 圈选改画面：在成片上圈出要改的地方，写一句要求 —— 下次重炼这一段时
@@ -200,7 +205,7 @@ export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: st
           同为 z-50 的 PlanSheet / TemplatePicker 早就各自画了一份，就漏了这个自己写 err 的。 */}
       {err && (
         <div
-          className="mx-3 mt-1 flex flex-none items-start gap-2 rounded-lg border border-rose-500/40 bg-rose-500/95 px-2.5 py-1.5"
+          className="mx-3 mt-1 flex flex-none items-start gap-2 rounded-lg border border-danger-500/40 bg-danger-500/95 px-2.5 py-1.5"
           onClick={(e) => e.stopPropagation()}
         >
           <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-white">{err}</p>
@@ -333,10 +338,10 @@ export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: st
             {(chosenOf(node).poster || chosenOf(node).firstFrame) && (
               <img src={chosenOf(node).poster || chosenOf(node).firstFrame} alt="" className="max-h-[50%] max-w-full rounded-lg opacity-70" />
             )}
-            <p className="max-w-xs text-center text-xs leading-relaxed text-rose-300">
+            <p className="max-w-xs text-center text-xs leading-relaxed text-danger-300">
               <Trans>这一段的视频拉不下来</Trans>
               <br />
-              <span className="text-[11px] text-rose-300"><Trans>网络不好，或者这条链接已经过期（隔天打开的草稿常见）</Trans></span>
+              <span className="text-[11px] text-danger-300"><Trans>网络不好，或者这条链接已经过期（隔天打开的草稿常见）</Trans></span>
             </p>
             <button onClick={() => setRetry((k) => k + 1)} className="rounded-full bg-panel px-4 py-1.5 text-[11px] text-slate-200">
               <Trans>重试</Trans>

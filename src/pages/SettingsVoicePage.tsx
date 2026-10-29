@@ -81,7 +81,7 @@ export default function SettingsVoicePage() {
           return;
         }
         if (e instanceof ApiError) {
-          setErr(t`云端语音没出声（${e.status}）：稍后再试，或到火山控制台看额度`);
+          setErr(t`云端语音暂时出不了声，稍后再试`);
           return;
         }
         if (e instanceof DOMException && (e.name === "TimeoutError" || e.name === "AbortError")) {
@@ -134,7 +134,7 @@ export default function SettingsVoicePage() {
           </button>
         ))}
       </div>
-      {err && <p className="mt-2 text-[11px] text-rose-300">{err}</p>}
+      {err && <p className="mt-2 text-[11px] text-danger-300">{err}</p>}
 
       {/* 语速与语调：挑完音色之后的两个旋钮，紧挨着列表才能"改完点任意音色即刻试听" */}
       <div data-guide="setvoice-tune">

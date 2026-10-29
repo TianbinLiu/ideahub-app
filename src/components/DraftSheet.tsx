@@ -6,6 +6,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { Trans, useLingui } from "@lingui/react/macro";
+import Icon from "./Icon";
 import Sheet from "./Sheet";
 import { useApplyTemplate } from "./flow/useApplyTemplate";
 import { deleteDraft, loadDraft, renameDraft, trashDraft, type DraftMode, type WorkDraftMeta } from "../data/drafts";
@@ -111,7 +112,7 @@ export default function DraftSheet({ meta, onClose }: { meta: WorkDraftMeta; onC
         </div>
       ) : (
         <div className="flex items-center gap-2">
-          <h3 className="min-w-0 flex-1 truncate text-base font-bold text-slate-100">{meta.title}</h3>
+          <h3 className="min-w-0 flex-1 truncate text-sm font-bold text-slate-100">{meta.title}</h3>
           <button onClick={() => setRenaming(true)} className="flex-none text-xs text-slate-400">
             <Trans>重命名</Trans>
           </button>
@@ -125,9 +126,9 @@ export default function DraftSheet({ meta, onClose }: { meta: WorkDraftMeta; onC
         <button
           onClick={() => void open("studio")}
           disabled={!!busy}
-          className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-left disabled:opacity-40"
+          className="rounded-xl border border-warn-500/40 bg-warn-500/10 p-3 text-left disabled:opacity-40"
         >
-          <div className="text-sm font-bold text-amber-200"><Trans>🎴 工坊模式</Trans></div>
+          <div className="inline-flex items-center gap-1.5 text-sm font-bold text-warn-200"><Icon name="workshop" size={15} /><Trans>工坊模式</Trans></div>
           <div className="mt-0.5 text-[10px] leading-relaxed text-slate-400">
             <Trans>3D 桌面摆卡、推演走向</Trans>
             {meta.lastMode === "studio" && t` · 上次`}
@@ -138,7 +139,7 @@ export default function DraftSheet({ meta, onClose }: { meta: WorkDraftMeta; onC
           disabled={!!busy}
           className="rounded-xl border border-cyan-400/40 bg-cyan-500/10 p-3 text-left disabled:opacity-40"
         >
-          <div className="text-sm font-bold text-cyan-200"><Trans>🧩 工作流模式</Trans></div>
+          <div className="inline-flex items-center gap-1.5 text-sm font-bold text-cyan-200"><Icon name="branch" size={15} /><Trans>工作流模式</Trans></div>
           <div className="mt-0.5 text-[10px] leading-relaxed text-slate-400">
             <Trans>一屏一段、逐段生成</Trans>
             {meta.lastMode === "flow" && t` · 上次`}
@@ -148,11 +149,11 @@ export default function DraftSheet({ meta, onClose }: { meta: WorkDraftMeta; onC
       {busy && <div className="mt-2 text-center text-xs text-slate-400">{busy}</div>}
 
       {confirmDel ? (
-        <div className="mt-3 rounded-xl border border-rose-500/40 bg-rose-500/10 p-3">
+        <div className="mt-3 rounded-xl border border-danger-500/40 bg-danger-500/10 p-3">
           {/* ★ 后果只按**已知事实**说（本仓「别往吓人的方向说错」那条）：doneCount 是这条草稿里确实已经出片的段数。
               这张确认卡只在 doneCount > 0 时摆（没花钱的直接删 + 6 秒撤销，下面那颗键），所以这里只有一句 ——
               原来那句「分镜找不回来」的分支走不到，而且与撤销说的相反（2026-10-15 发版前复核删掉） */}
-          <p className="text-[11px] leading-relaxed text-rose-300">
+          <p className="text-[11px] leading-relaxed text-danger-300">
             <Trans>
               删掉「{meta.title}」？里面有 <b className="font-bold">{meta.doneCount} 段已经花钱炼出来的成片</b>，
               这条草稿是它们唯一的备份 —— 删了要重新花一次钱才有。
@@ -167,7 +168,7 @@ export default function DraftSheet({ meta, onClose }: { meta: WorkDraftMeta; onC
             </button>
             <button
               onClick={() => void trash()}
-              className="rounded-xl bg-rose-500/90 px-4 py-2.5 text-sm font-bold text-ink"
+              className="rounded-xl bg-danger-500/90 px-4 py-2.5 text-sm font-bold text-ink"
             >
               <Trans>确认删除</Trans>
             </button>
@@ -180,7 +181,7 @@ export default function DraftSheet({ meta, onClose }: { meta: WorkDraftMeta; onC
           </button>
           <button
             onClick={() => (meta.doneCount > 0 ? setConfirmDel(true) : void trash())}
-            className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-2.5 text-sm text-rose-300"
+            className="rounded-xl border border-danger-500/40 bg-danger-500/10 px-4 py-2.5 text-sm text-danger-300"
           >
             <Trans>删除</Trans>
           </button>

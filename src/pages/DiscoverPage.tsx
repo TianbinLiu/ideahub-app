@@ -12,21 +12,21 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import EmptyState from "../components/EmptyState";
 import AigcBadge, { isAigcWork } from "../components/AigcBadge";
-import SeedBadge from "../components/SeedBadge";
 import Icon from "../components/Icon";
+import SearchField from "../components/SearchField";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
 import { tourById } from "../components/guide/tours";
 import { activeGuide, guideSeen, subscribeGuide } from "../data/guide";
 import SpriteToggle, { type SpriteSheet } from "../components/SpriteToggle";
 import UserRow from "../components/UserRow";
-import Avatar from "../components/Avatar";
+import VideoTile from "../components/VideoTile";
 import { Link, useLocation, useNavigate } from "react-router";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { authorAvatarOf, authorDisplayName, isSeedWork, listVideos, profileHref, remoteOn, searchVideos } from "../data/videos";
+import { listVideos, profileHref, remoteOn, searchVideos } from "../data/videos";
 import { clearSearchHistory, rememberSearch, searchHistory } from "../data/searchHistory";
 import { searchUsers, userDisplayName, type ApiUserLite } from "../api/users";
-import { VIDEO_CATEGORIES, VideoItem, formatDuration, formatPlays, segsTotal, videoCategoryLabel } from "../types";
+import { VIDEO_CATEGORIES, VideoItem, formatPlays, videoCategoryLabel } from "../types";
 
 /**
  * 每个分区的看板娘贴图与托盘配色。
@@ -36,9 +36,9 @@ import { VIDEO_CATEGORIES, VideoItem, formatDuration, formatPlays, segsTotal, vi
  * 只会把角色拉扁，而这种失真很难一眼看出来。
  */
 const CAT_ART: Record<string, { key: string; sheet: SpriteSheet; from: string; ring: string }> = {
-  剧情: { key: "drama", sheet: { w: 180, h: 210, frames: 8 }, from: "from-rose-500/35", ring: "ring-rose-400/70" },
+  剧情: { key: "drama", sheet: { w: 180, h: 210, frames: 8 }, from: "from-danger-500/35", ring: "ring-danger-400/70" },
   科幻: { key: "scifi", sheet: { w: 180, h: 192, frames: 8 }, from: "from-cyan-500/35", ring: "ring-cyan-400/70" },
-  古风: { key: "ancient", sheet: { w: 180, h: 174, frames: 8 }, from: "from-amber-500/35", ring: "ring-amber-400/70" },
+  古风: { key: "ancient", sheet: { w: 180, h: 174, frames: 8 }, from: "from-warn-500/35", ring: "ring-warn-400/70" },
   搞笑: { key: "comedy", sheet: { w: 180, h: 209, frames: 8 }, from: "from-lime-500/35", ring: "ring-lime-400/70" },
   动画: { key: "anime", sheet: { w: 180, h: 196, frames: 8 }, from: "from-fuchsia-500/35", ring: "ring-fuchsia-400/70" },
   其他: { key: "other", sheet: { w: 180, h: 195, frames: 8 }, from: "from-slate-500/35", ring: "ring-slate-300/70" },
@@ -219,49 +219,32 @@ export default function DiscoverPage() {
           -mx-4 px-4 让底色铺满整宽；bg-ink 不透明 —— 不加 backdrop-blur（它会给 position:fixed 的后代造包含块，CLAUDE.md 那格坑）。
           与第一块内容之间 12px（mb-3，PageHeader 那条规矩） */}
       <div className="sticky top-0 z-20 -mx-4 mb-3 bg-ink px-4">
-        <div className="safe-top flex h-[58px] items-center gap-2">
-          <div data-guide="discover-search" className="flex min-w-0 flex-1 items-center gap-2 rounded-full border border-slate-700/70 bg-panel px-4 py-2.5 focus-within:border-brand">
-            <Icon name="search" size={16} className="text-slate-500" />
-            <input
-              ref={inputRef}
-              type="search"
-              enterKeyHint="search"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              onFocus={() => {
-                setFocused(true);
-                setHistory(searchHistory());
-              }}
-              onBlur={() => {
-                setFocused(false);
-                if (key) commit(key);
-              }}
-              onKeyDown={(e) => {
-                // 回车 = 「就搜这个」：记进历史、收起键盘（结果早已随打字出来了，这一下只是收尾）
-                if (e.key === "Enter") e.currentTarget.blur();
-              }}
-              // ★ 照实写能搜到什么（2026-10-21）：远端只匹配标题 / 简介 / 话题标签（docs/api-contract.md），原来写「分区」是许诺做不到的事
-              placeholder={t`搜索作品、话题标签或用户`}
-              aria-label={t`搜索作品、话题标签或用户`}
-              className="min-w-0 flex-1 bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-500 [&::-webkit-search-cancel-button]:hidden"
-            />
-            {q && (
-              <button
-                // onPointerDown 里先挡住失焦：点 ✕ 不该把搜索面板收起来再打开一次。
-                // 清空之后把光标放回框里：清掉一个词多半是要换一个词（抖音 / B 站的 ✕ 都是这样），
-                // 框没焦点时清完只剩整页列表，历史那一排还得再点一下框才出来
-                onPointerDown={(e) => e.preventDefault()}
-                onClick={() => {
-                  setQ("");
-                  inputRef.current?.focus();
-                }}
-                aria-label={t`清空搜索`}
-                className="relative text-slate-400 after:absolute after:-inset-3 after:content-['']"
-              >
-                <Icon name="close" size={16} />
-              </button>
-            )}
-          </div>
+        <div className="safe-top-bar flex items-center gap-2">
+          {/* 搜索框是共用的 SearchField（2026-10-23）。clearKeepsFocus：点 ✕ 不让面板收起来再打开一次，清完光标留在框里 ——
+              清掉一个词多半是要换一个词（抖音 / B 站的 ✕ 都是这样），框没焦点时清完只剩整页列表，历史那一排还得再点一下框才出来 */}
+          <SearchField
+            shape="pill"
+            guide="discover-search"
+            className="flex-1"
+            inputRef={inputRef}
+            value={q}
+            onChange={setQ}
+            clearKeepsFocus
+            onFocus={() => {
+              setFocused(true);
+              setHistory(searchHistory());
+            }}
+            onBlur={() => {
+              setFocused(false);
+              if (key) commit(key);
+            }}
+            onKeyDown={(e) => {
+              // 回车 = 「就搜这个」：记进历史、收起键盘（结果早已随打字出来了，这一下只是收尾）
+              if (e.key === "Enter") e.currentTarget.blur();
+            }}
+            // ★ 照实写能搜到什么（2026-10-21）：远端只匹配标题 / 简介 / 话题标签（docs/api-contract.md），原来写「分区」是许诺做不到的事
+            placeholder={t`搜索作品、话题标签或用户`}
+          />
           {focused ? (
             // 搜索态的出口（抖音式「取消」）：只收起键盘与面板，框里的词留着
             <button onClick={() => inputRef.current?.blur()} className="flex-none px-1 text-sm text-slate-300 active:opacity-60">
@@ -362,12 +345,12 @@ export default function DiscoverPage() {
               <Trans>搜人需要连上服务器 · 当前是离线模式（视频和分区照常能搜）</Trans>
             </p>
           ) : userErr ? (
-            <p className="rounded-xl bg-panel/60 px-3 py-2.5 text-xs leading-relaxed text-rose-300">
+            <p className="rounded-xl bg-panel/60 px-3 py-2.5 text-xs leading-relaxed text-danger-300">
               <Trans>搜人失败：{userErr}</Trans>
             </p>
           ) : !userSupported ? (
             <p className="rounded-xl bg-panel/60 px-3 py-2.5 text-xs leading-relaxed text-slate-400">
-              <Trans>这台服务器还没有搜人功能 · 服务端升级后即可使用，App 不用重装</Trans>
+              <Trans>搜人功能还没上线 · 之后会有，App 不用重装</Trans>
             </p>
           ) : userBusy ? (
             <p className="px-1 py-2 text-xs text-slate-500"><Trans>正在找人…</Trans></p>
@@ -533,48 +516,7 @@ export default function DiscoverPage() {
           「AI 生成」挪到右上角（合规标识必须在，判据只有 isAigcWork）；封面下面两行标题 + 一行「头像 · 作者 · ♥ 点赞」。 */}
       <div className="grid grid-cols-2 gap-3 pb-4">
         {results.map((v) => (
-          <Link key={v.id} to={`/video/${v.id}`} className="group">
-            <div className="relative overflow-hidden rounded-xl">
-              <img src={v.cover} alt={v.title} loading="lazy" decoding="async" className="aspect-[3/4] w-full object-cover" />
-              {/* 底部渐变托住两行小字：封面多半是亮的 AI 图，白字直接压上去读不清 */}
-              <span aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black/70 to-transparent" />
-              <span className="absolute bottom-1.5 left-1.5 flex items-center gap-0.5 text-[10px] font-medium text-white [text-shadow:0_1px_2px_rgba(0,0,0,.6)]">
-                <Icon name="play" size={10} filled />
-                {formatPlays(v.plays)}
-              </span>
-              <span className="absolute bottom-1.5 right-1.5 text-[10px] tabular-nums text-white/90 [text-shadow:0_1px_2px_rgba(0,0,0,.6)]">
-                {formatDuration(segsTotal(v.segments))}
-              </span>
-              {/* 「AI 生成」标识：这一格是"发布内容周边"的第四个面，而封面默认就是
-                  segments[0].firstFrame —— 一张**没过 drawAigcBadge** 的 AI 图，
-                  所以这里不是可有可无（见 components/AigcBadge 的 ★★）。2026-10-21 起放右上（左下给了播放量）。 */}
-              {isAigcWork(v) && (
-                <span className="absolute right-1.5 top-1.5">
-                  <AigcBadge tone="overlay" />
-                </span>
-              )}
-              {/* 左上角这一排：「示例 · 离线」「互动」并排，**flex-wrap** 兜住 —— 英文下这几枚比中文宽不少。右边留出 AI 标识的位置（right-14）。
-                  ★ 想过在这里加「N 人做了同款」（B 站式推荐理由），但列表端点不带 remixCount（契约：只有详情端点算，videos.recipeBits 头上），
-                  这里的作品全是列表那一跳来的 —— 摆上去永远不会出现。要做得先让服务端在列表里聚合（docs/ui-benchmark-2026-10.md 第三节「没做的」） */}
-              <span className="absolute left-1.5 right-14 top-1.5 flex flex-wrap items-start gap-1">
-                {isSeedWork(v) && <SeedBadge tone="overlay" />}
-                {v.branchTree && (
-                  <span className="rounded bg-brand/85 px-1.5 py-0.5 text-[9px] font-semibold text-ink">
-                    <Trans>互动</Trans>
-                  </span>
-                )}
-              </span>
-            </div>
-            <div className="mt-1.5 line-clamp-2 text-xs font-medium text-slate-200">{v.title}</div>
-            <div className="mt-1 flex items-center gap-1.5 text-[10px] text-slate-400">
-              <Avatar name={v.author} label={authorDisplayName(v.author, v.authorId)} src={authorAvatarOf(v)} size={16} />
-              <span className="min-w-0 flex-1 truncate">{authorDisplayName(v.author, v.authorId)}</span>
-              <span className="flex flex-none items-center gap-0.5">
-                <Icon name="heart" size={10} />
-                {formatPlays(v.likes)}
-              </span>
-            </div>
-          </Link>
+          <VideoTile key={v.id} video={v} />
         ))}
       </div>
       </>

@@ -15,7 +15,9 @@ import { noteScriptSheet, resetScriptSkill, runScriptSkill, setScriptSkill, useS
 import { SCRIPT_MAX, SCRIPT_MIN, SCRIPT_TO_SHOTS, shotPlanNodes } from "../../studio/structuredSkills";
 import { DEFAULT_ASPECT, aspectOf, shotLineDisplay } from "../../types";
 import { CloseButton } from "../IconTapButton";
+import StepDots from "../StepDots";
 import { useApplyTemplate } from "./useApplyTemplate";
+import { useBackLayer } from "../../hooks/useBackLayer";
 
 export default function ScriptSkillSheet({ onClose, onApplied }: { onClose: () => void; onApplied: () => void }) {
   const { t } = useLingui();
@@ -44,6 +46,8 @@ export default function ScriptSkillSheet({ onClose, onApplied }: { onClose: () =
     if (busy) showToast(t`还在拆：收起不会丢，好了顶上会提示；从「/」面板再打开就接得回来`, 3200);
     onClose();
   }
+  // 手机返回键先关这一层（hooks/useBackLayer），与遮罩 / ✕ 同一个 close()（在跑时也只是收起）
+  useBackLayer(true, close, "script-skill");
 
   function apply() {
     if (!plan) return;
@@ -84,27 +88,13 @@ export default function ScriptSkillSheet({ onClose, onApplied }: { onClose: () =
           <CloseButton chip="sm" size={13} align="end" label={t`关闭`} onClick={close} />
         </div>
 
-        {/* 步骤栏：这条技能的形状本身（steps / confirmAt 都在 structuredSkills 里定，这里只画） */}
-        <div className="no-scrollbar mb-3 flex gap-1.5 overflow-x-auto py-1">
-          {SCRIPT_TO_SHOTS.steps.map((s, i) => {
-            const done = i < stepIdx;
-            const cur = i === stepIdx;
-            return (
-              <div
-                key={s.kind}
-                title={t(s.hint)}
-                className={`flex-none rounded-full px-2.5 py-1 text-[11px] ${cur ? "bg-brand font-semibold text-ink" : done ? "bg-panel text-slate-300" : "bg-panel text-slate-500"}`}
-              >
-                {done ? "✓ " : `${i + 1} `}
-                {t(s.title)}
-                {SCRIPT_TO_SHOTS.confirmAt.includes(s.kind as (typeof SCRIPT_TO_SHOTS.confirmAt)[number]) ? " ✋" : ""}
-              </div>
-            );
-          })}
-        </div>
+        {/* 步骤栏：这条技能的形状本身（steps 在 structuredSkills 里定，这里只画）。
+            ★ 进度条只有 components/StepDots 一份实现（CLAUDE.md 铁律六）：2026-10-22 把手写的芯片行（✓ / 序号 / ✋）换成圆点，
+              做完 / 当前由圆点自己说，要人点头的那一步由下面那行 hint 说 */}
+        <StepDots className="mb-3" steps={SCRIPT_TO_SHOTS.steps.map((s) => ({ label: t(s.title) }))} current={stepIdx} />
         <div className="mb-2 text-[10px] leading-relaxed text-slate-500">{t(SCRIPT_TO_SHOTS.steps[Math.max(0, stepIdx)].hint)}</div>
 
-        {err && <div className="mb-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-rose-300">{err}</div>}
+        {err && <div className="mb-2 rounded-lg border border-danger-500/40 bg-danger-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-danger-300">{err}</div>}
 
         {/* ① 剧本 */}
         {!plan && (

@@ -28,8 +28,8 @@ export default function SeedBadge({
       //   一圆一方比"不合圆角刻度"更扎眼。颜色换成琥珀 —— 它是提醒，不是标识。
       className={`inline-flex flex-none items-center rounded-[4px] px-1.5 py-px text-[10px] font-semibold leading-[1.35] ${
         tone === "overlay"
-          ? "bg-black/55 text-amber-200 ring-1 ring-amber-300/40 backdrop-blur-[2px]"
-          : "bg-amber-500/15 text-amber-200 ring-1 ring-amber-500/40"
+          ? "bg-black/55 text-warn-200 ring-1 ring-warn-300/40 backdrop-blur-[2px]"
+          : "bg-warn-500/15 text-warn-200 ring-1 ring-warn-500/40"
       } ${className}`}
     >
       <Trans>示例 · 离线</Trans>

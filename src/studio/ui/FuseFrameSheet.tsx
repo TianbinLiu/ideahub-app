@@ -16,6 +16,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import EmptyState from "../../components/EmptyState";
 import { createPortal } from "react-dom";
 import { CloseButton } from "../../components/IconTapButton";
+import { useBackLayer } from "../../hooks/useBackLayer";
 import { AI_REAL, fuseFrame } from "../../ai";
 import { canAfford, frozenNote, spendTokens } from "../../data/account";
 import { ONE_IMAGE, fmtTokens } from "../../data/economy";
@@ -109,6 +110,8 @@ export default function FuseFrameSheet({
   const [instruction, setInstruction] = useState("");
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
+  // 手机返回键先关这一层（hooks/useBackLayer），与 ✕ / 点遮罩同一个 onClose
+  useBackLayer(true, onClose, "fuse-frame");
   const price = ONE_IMAGE;
   const { t } = useLingui();
   /** 嵌进句子里的帧名（「这张开头帧」「融成结尾帧」）。带 context：卡角上单独出现的「开头帧」在英文里要大写开头 */
@@ -223,7 +226,7 @@ export default function FuseFrameSheet({
           placeholder={t`这张${label}要什么画面？例："他站在门口回头，半身，暖光"`}
           className="mb-2 h-16 w-full resize-none rounded-lg border border-slate-700 bg-panel px-2.5 py-2 text-xs text-slate-100 placeholder:text-slate-500 disabled:opacity-40"
         />
-        {err && <p className="mb-2 text-[11px] leading-relaxed text-rose-300">{err}</p>}
+        {err && <p className="mb-2 text-[11px] leading-relaxed text-danger-300">{err}</p>}
         <button
           onClick={() => void run()}
           disabled={!!busy}

@@ -53,6 +53,8 @@ export default function VisibilityPicker({
               <div className={`flex items-center gap-1.5 text-sm font-bold ${on ? "text-brand" : "text-slate-300"}`}>
                 <Icon name={o.icon} size={13} filled={o.value === "public"} />
                 {t(o.label)}
+                {/* 选中态不只靠颜色（Refactoring UI「别只靠颜色」）：多一枚对勾 */}
+                {on && <Icon name="check" size={13} strokeWidth={2.5} className="ml-auto" />}
               </div>
               <div className="mt-0.5 text-[10px] leading-relaxed text-slate-400">{t(o.hint)}</div>
             </button>

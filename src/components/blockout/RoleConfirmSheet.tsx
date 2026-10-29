@@ -53,6 +53,7 @@
 //   （confirmTemplateRoles / setTemplatePublished / remoteStateOf）不算"认 store"：
 //   那几个函数本身就是"一处实现"。
 import { useState, useSyncExternalStore } from "react";
+import Warn from "../Warn";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { CloseButton } from "../IconTapButton";
 import { createPortal } from "react-dom";
@@ -71,6 +72,7 @@ import {
   setTemplatePublished,
   subscribeTemplates,
   templatesVersion,
+  markExprOfLabel,
 } from "../../data/templates";
 import { uid, VideoTemplate } from "../../types";
 
@@ -80,6 +82,12 @@ interface Row {
   key: string;
   label: string;
   desc: string;
+  /**
+   * 这个人在示例视频里的神态（只读，打开面板那一刻按原来的位置取 —— markExprOfLabel）。
+   * ★ 跟着「人」走、不跟着位置走：作者把这一行改成别的位置时，服务端 PATCH /roles 按 desc 认人把神态搬过去；
+   *   所以这里存打开时取到的那一句，不按改过的 label 现取（现取会把别人的神态显示在这一行上）。新加的行没有神态。
+   */
+  expr: string;
   doomed: boolean;
 }
 
@@ -96,7 +104,7 @@ export default function RoleConfirmSheet({ t: tpl, onClose }: { t: VideoTemplate
   //   第一次打开时强制放一遍，看过一次不再自动弹；标题栏那颗 ? 随时能重看。
   useAutoGuide("roleconfirm");
   const [rows, setRows] = useState<Row[]>(() =>
-    (tpl.roles ?? []).map((r) => ({ key: uid("role"), label: r.label, desc: r.desc, doomed: false })),
+    (tpl.roles ?? []).map((r) => ({ key: uid("role"), label: r.label, desc: r.desc, expr: markExprOfLabel(tpl, r.label), doomed: false })),
   );
   const [busy, setBusy] = useState(false);
   const [issue, setIssue] = useState("");
@@ -199,7 +207,7 @@ export default function RoleConfirmSheet({ t: tpl, onClose }: { t: VideoTemplate
   //   `position: fixed` 的后代造包含块，inset-0 于是只铺满那个盒子（CLAUDE.md 的坑）
   return createPortal(
     <div className="fixed inset-0 z-[70] flex flex-col bg-black/85 backdrop-blur-sm">
-      <div className="safe-top flex h-[58px] items-center gap-2 px-4">
+      <div className="safe-top-bar flex items-center gap-2 px-4">
         <CloseButton chip="md" size={16} onClick={onClose} />
         <h2 className="text-sm font-bold text-slate-100">{ordinal ? <Trans>核对角色位位置</Trans> : <Trans>核对角色位编号</Trans>}</h2>
         <HelpButton tour="roleconfirm" className="ml-auto" />
@@ -210,8 +218,8 @@ export default function RoleConfirmSheet({ t: tpl, onClose }: { t: VideoTemplate
             而是给一颗真能点的「先下架」。绝不摆一个点了必然失败的按钮，也绝不让作者
             对着一句 400 干瞪眼（铁律八：失败要响 + 要有下一步） */}
         {rs?.status === "published" && (
-          <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
-            <p className="text-[11px] leading-relaxed text-amber-200">
+          <div className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2">
+            <Warn>
               {ordinal ? (
                 <Trans>
                   这个模板<b className="font-bold">已经发布在市场上</b>，服务端不许直接改它的位置（包括删掉画面上
@@ -225,18 +233,18 @@ export default function RoleConfirmSheet({ t: tpl, onClose }: { t: VideoTemplate
                   不会有任何提示。先下架，改完再发布一次。
                 </Trans>
               )}
-            </p>
+            </Warn>
             <button
               onClick={() => void unpublish()}
               disabled={pubBusy}
-              className="mt-2 rounded-full bg-amber-500/90 px-3 py-1 text-[11px] font-bold text-ink disabled:opacity-40"
+              className="mt-2 rounded-full bg-warn-500/90 px-3 py-1 text-[11px] font-bold text-ink disabled:opacity-40"
             >
               {pubBusy ? t`下架中…` : ordinal ? t`先下架，再改位置` : t`先下架，再改编号`}
             </button>
           </div>
         )}
         {rs?.status === "blocked" && (
-          <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-300">
+          <p className="rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-[11px] leading-relaxed text-danger-300">
             {ordinal ? (
               <Trans>这个模板已被平台下架，状态由平台管理 —— 位置改不了，你自己也下架不了它。</Trans>
             ) : (
@@ -264,7 +272,7 @@ export default function RoleConfirmSheet({ t: tpl, onClose }: { t: VideoTemplate
             服务端的重号闸还在，撞上闸的作者必须读得懂那句话并知道下一步。
             ★ 这里**不出现任何百分比**：钱已经花完了，讲概率没有用，只讲"你现在看到的是
             哪一种错、下一步做什么"。命中率那句话在花钱**之前**的两屏说（提取器/看帧那屏）。 */}
-        <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-200/90">
+        <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-[11px] leading-relaxed text-warn-200/90">
           {ordinal ? (
             <Trans>
               下面这份「从左往右第几个是谁」是生成时<b className="font-bold">按 AI 量的位置排的猜测</b>，
@@ -363,7 +371,7 @@ export default function RoleConfirmSheet({ t: tpl, onClose }: { t: VideoTemplate
             // 待删态：整行降透明度 + 整句后果 + 一颗撤销。★ 此刻**不从 rows 里移除**
             <div
               key={r.key}
-              className="rounded-lg border border-dashed border-rose-500/40 bg-rose-500/10 p-2.5 opacity-80"
+              className="rounded-lg border border-dashed border-danger-500/40 bg-danger-500/10 p-2.5 opacity-80"
             >
               <div className="flex items-center gap-2">
                 <MarkBadge spec={spec} label={r.label || blankLabel} tone="doomed" />
@@ -376,7 +384,7 @@ export default function RoleConfirmSheet({ t: tpl, onClose }: { t: VideoTemplate
                   <Trans>撤销</Trans>
                 </button>
               </div>
-              <p className="mt-1.5 text-[11px] leading-relaxed text-rose-300">
+              <p className="mt-1.5 text-[11px] leading-relaxed text-danger-300">
                 {ordinal ? (
                   <>
                     <Trans>
@@ -458,6 +466,12 @@ export default function RoleConfirmSheet({ t: tpl, onClose }: { t: VideoTemplate
                     placeholder={descGoesToPrompt ? t`例：白色、弯腰前倾、在最左那盏路灯下` : t`例：白发、黑袍的少年`}
                     className="w-full rounded-lg bg-black/40 px-2 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-500"
                   />
+                  {/* 神态（方案 D）：只读 —— 白模化时看帧记下的，套用时按卡名写进「神态：…」那一句（≤ 3 个角色位的模板才写） */}
+                  {r.expr && (
+                    <div className="mt-1 text-[10px] leading-relaxed text-slate-400">
+                      <Trans>神态：{r.expr}</Trans>
+                    </div>
+                  )}
                 </div>
                 {/* ★ 最后一条不给删：**不摆点不动的按钮**（本仓老坑），整句解释与出口画在列表下方。
                     判据问的是 data 层的 roleFloorIssue，这里不写 rows.length <= 1。
@@ -492,7 +506,7 @@ export default function RoleConfirmSheet({ t: tpl, onClose }: { t: VideoTemplate
             onClick={() =>
               setRows((rs0) => [
                 ...rs0,
-                { key: uid("role"), label: ordinal ? (freeSlots[0] ?? "") : "", desc: "", doomed: false },
+                { key: uid("role"), label: ordinal ? (freeSlots[0] ?? "") : "", desc: "", expr: "", doomed: false },
               ])
             }
             className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-slate-600 py-2.5 text-[11px] text-slate-400"
@@ -524,7 +538,7 @@ export default function RoleConfirmSheet({ t: tpl, onClose }: { t: VideoTemplate
           </p>
         )}
 
-        {issue && <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-300">{issue}</p>}
+        {issue && <p className="rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-[11px] leading-relaxed text-danger-300">{issue}</p>}
       </div>
 
       <div className="safe-bottom absolute inset-x-0 bottom-0 border-t border-slate-700/60 bg-black/80 px-4 py-3">
@@ -532,8 +546,8 @@ export default function RoleConfirmSheet({ t: tpl, onClose }: { t: VideoTemplate
             删"和"客户端状态丢了一条"。把这次会少哪几条摆在最终按钮上方，是这个风险在
             App 侧唯一的对冲 —— 点下去之前它是看得见的。 */}
         {doomed.length > 0 && (
-          <div className="mb-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2">
-            <p className="text-[11px] leading-relaxed text-rose-300">
+          <div className="mb-2 rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2">
+            <p className="text-[11px] leading-relaxed text-danger-300">
               {ordinal ? (
                 doomed.length > 1 ? (
                   <Trans>
@@ -561,7 +575,7 @@ export default function RoleConfirmSheet({ t: tpl, onClose }: { t: VideoTemplate
             {/* ★ 「随时能再加回来」这句在序数方案下**靠 markSlots 才成立**（它存着白模化那一刻
                 算出来的整份位置清单，删过位之后仍然查得到）——所以这一位当初才没做成一个
                 只回答"是不是序数方案"的枚举 */}
-            <p className="mt-1 text-[10px] leading-relaxed text-rose-300">
+            <p className="mt-1 text-[10px] leading-relaxed text-danger-300">
               {ordinal ? (
                 <Trans>提交后这几条的描述文字找不回来（这几个位置随时能再加回来，描述要自己重写）。</Trans>
               ) : (
@@ -571,7 +585,7 @@ export default function RoleConfirmSheet({ t: tpl, onClose }: { t: VideoTemplate
             {/* ★★ 序数独有：删掉一个位子会让它右边那些位子的序数变。提交前**再说一次** ——
                 待删行里说过一次，但那时作者在逐行看；这里是他按下最终按钮之前的最后一眼 */}
             {ordinal && (
-              <p className="mt-1 text-[10px] leading-relaxed text-rose-300">
+              <p className="mt-1 text-[10px] leading-relaxed text-danger-300">
                 <Trans>
                   ⚠ 如果删它是因为画面上根本没有那个人偶，记得把它<b className="font-bold">右边</b>那些位子
                   各往左挪一位再提交（按位置指认独有的一条，编号版没有）。
@@ -657,7 +671,7 @@ export function RoleConfirmEntry({ t: tpl, compact }: { t: VideoTemplate; compac
           }
           className={`rounded-full px-2.5 py-1 text-[11px] font-semibold disabled:opacity-40 ${
             pending
-              ? "border border-amber-500/50 bg-amber-500/15 text-amber-200"
+              ? "border border-warn-500/50 bg-warn-500/15 text-warn-200"
               : "border border-slate-600 text-slate-300"
           }`}
         >
@@ -691,7 +705,7 @@ export function RoleConfirmEntry({ t: tpl, compact }: { t: VideoTemplate; compac
         <button
           onClick={() => void openSheet()}
           disabled={opening}
-          className="flex w-full items-center gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-left text-[11px] leading-relaxed text-amber-200/90 disabled:opacity-40"
+          className="flex w-full items-center gap-2 rounded-xl border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-left text-[11px] leading-relaxed text-warn-200/90 disabled:opacity-40"
         >
           <Icon name="pen" size={13} className="flex-none" />
           {/* ★ 这是**拦路条**，不是科普位：命中率那句话（"7 发里 4 发全对"）说在花钱之前的

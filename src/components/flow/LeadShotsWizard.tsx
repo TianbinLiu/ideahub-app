@@ -15,7 +15,7 @@ import { useEffect, useSyncExternalStore } from "react";
 import { AI_REAL } from "../../ai";
 import { myCards, realFaceIssue } from "../../data/account";
 import { subscribeVoices, voiceOf, voicesVersion } from "../../data/cardVoice";
-import { CHAT_TURN_TOKENS, clampDuration, durationChoices, fmtTokens, promptMaxOf, tierOf } from "../../data/economy";
+import { CHAT_TURN_TOKENS, clampDuration, durationChoices, fmtTokens, promptMaxOf, shotsOkOf, tierOf } from "../../data/economy";
 import { LEAD_CAST_MAX, LEAD_DEFAULT_SEC, SCENE_MAX, SCENE_MIN, type SceneNote } from "../../data/sceneShots";
 import { LINE_QUOTE, SHOT_MAX, packShots, parseShots } from "../../data/shotScript";
 import { useAccountVersion } from "../../hooks/useAccount";
@@ -23,6 +23,7 @@ import type { LeadSpec } from "../../studio/leadCast";
 import { LEAD_STEPS, makeLead, setLead, splitScene, useLeadDraft, type LeadStep } from "../../studio/leadDraftStore";
 import { VIDEO_ASPECTS, type Card, type VideoAspect } from "../../types";
 import Spinner from "../Spinner";
+import StepDots from "../StepDots";
 import TokenCost from "../TokenCost";
 import CastPicker from "./CastPicker";
 import ShotListEditor from "./ShotListEditor";
@@ -78,9 +79,10 @@ export default function LeadShotsWizard({
   const cast = d.castIds.map((id) => chars.find((c) => c.id === id)).filter((c): c is Card => !!c);
   const full = cast.length >= LEAD_CAST_MAX;
   const dur = clampDuration(d.durationSec ?? LEAD_DEFAULT_SEC, tierId);
-  const promptMax = promptMaxOf(tierId);
-  /** 分镜 / 台词只开在出声又收参考图的两档（与画布那颗「＋ 镜头」同一个判据） */
-  const shotsOk = !!tier.refImg && tier.audio === true;
+  // 主角定妆落的是直出段，不是文字模板段（长提示词只开给文字模板段，economy.promptMaxOf 的 long）
+  const promptMax = promptMaxOf(tierId, { long: false });
+  /** 分镜 / 台词只开在带得了声音样本的档（与画布那颗「＋ 镜头」同一个判据 economy.shotsOkOf） */
+  const shotsOk = shotsOkOf(tierId);
   const faceNote = realFaceIssue(cast, tierId, { framed: chained });
   /** 按钮上印的价（演示构建写「演示」，与画布那颗「⚡ 生成本段」同一个写法）：先取成值再进句子 */
   const price = (n: number | null) => (n === null ? "—" : AI_REAL ? fmtTokens(n) : t`演示`);
@@ -122,18 +124,12 @@ export default function LeadShotsWizard({
 
   return (
     <div className="space-y-3">
-      {/* 步骤条：与铸段窗「1 选式 › 2 内容 › 3 规格」同一个样子 */}
-      <div className="flex items-center gap-1 text-[10px] text-slate-500">
-        <span className="mr-1 text-xs font-bold text-slate-100">
-          <Trans>🎭 主角定妆 · 多镜头</Trans>
-        </span>
-        {LEAD_STEPS.map((s, i) => (
-          <span key={s} className={i === stepIdx ? "font-bold text-brand" : ""}>
-            {i > 0 && <span aria-hidden className="pr-1 text-slate-600">›</span>}
-            {i + 1} {t(STEP_LABEL[s])}
-          </span>
-        ))}
-      </div>
+      <p className="text-xs font-bold text-slate-100">
+        <Trans>🎭 主角定妆 · 多镜头</Trans>
+      </p>
+      {/* ★ 步骤条只有 components/StepDots 一份实现（CLAUDE.md 铁律六）：原来这里手写「1 主角 › 2 这场戏 › …」的面包屑，
+          2026-10-22 换成圆点。不给 onPick：哪几步能点回去各向导有自己的规矩（有的花过钱），退路仍是脚上的「‹ 上一步」 */}
+      <StepDots steps={LEAD_STEPS.map((s) => ({ label: t(STEP_LABEL[s]) }))} current={stepIdx} />
 
       {d.step === "cast" && (
         <>
@@ -170,7 +166,7 @@ export default function LeadShotsWizard({
               </p>
             )}
             {faceNote && (
-              <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">{faceNote}</p>
+              <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200">{faceNote}</p>
             )}
           </CastPicker>
 
@@ -262,7 +258,7 @@ export default function LeadShotsWizard({
                 </p>
               )}
               {d.scriptAi && d.scriptScene !== d.scene && (
-                <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">
+                <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200">
                   <Trans>这场戏改过了，下面的分镜还是按原来那句拆的 —— 点「重新拆」按新的拆，或者直接在下面改。</Trans>
                 </p>
               )}
@@ -293,7 +289,7 @@ export default function LeadShotsWizard({
               </button>
             </>
           )}
-          {d.splitErr && <p className="text-[11px] leading-relaxed text-rose-300">{d.splitErr}</p>}
+          {d.splitErr && <p className="text-[11px] leading-relaxed text-danger-300">{d.splitErr}</p>}
           <div className="flex gap-2">
             {backBtn(() => go("scene"))}
             <button
@@ -354,10 +350,10 @@ export default function LeadShotsWizard({
             </p>
           )}
           {faceNote && (
-            <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">{faceNote}</p>
+            <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200">{faceNote}</p>
           )}
           <TokenCost tokens={genTokens} />
-          {err && <p className="text-[11px] leading-relaxed text-rose-300">{err}</p>}
+          {err && <p className="text-[11px] leading-relaxed text-danger-300">{err}</p>}
           {/* ★ 别说「可以先铺成」：只铺成也要过 flowStore.appendIssue，它拒的正是同一个 busy（同一时刻只炼一段），所以下面那颗也灰掉 */}
           {busy && (
             <p className="text-[10px] leading-relaxed text-slate-500">

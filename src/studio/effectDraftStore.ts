@@ -8,9 +8,9 @@
 import { t } from "@lingui/core/macro";
 import { create } from "zustand";
 import { AI_REAL, chargeNote, chargeOnFail, generateFrame, shotGroupRefs } from "../ai";
-import { canAfford, frozenNote, spendTokens } from "../data/account";
+import { canAfford, frozenNote, spendTokens, tierRegionGate } from "../data/account";
 import { onOwnerSwitch, workOwner } from "../data/deviceOwner";
-import { IMAGE_TOKENS, fmtTokens } from "../data/economy";
+import { IMAGE_TOKENS, fmtTokens, tierOf } from "../data/economy";
 import { currentRoute, startJob } from "../data/jobs";
 import { PRODUCT_PHOTO_BIND, effectById, effectKeyframe, effectMotion, productRefLine, type EffectPreset } from "../data/effectPresets";
 import { panelRefLine } from "../data/gridShots";
@@ -132,22 +132,32 @@ export const KEYFRAME_TOKENS = IMAGE_TOKENS;
  * 道具卡同样走它、点名句换成产品那一句；传的照片直接当图1。
  * ★ 出图成功才扣（与「重画这一套」「单格重画」同口径）；失败时钱扣没扣只问 ai/failCharge。
  * ★ 领一张后台任务票（data/jobs）：一张图二三十秒，人可能先关了抽屉 —— 画好 / 没画成由胶囊说，人就在向导里时不弹。
+ * ★★ 出片地区（2026-10-26 终审，钱）：花这一张图的钱之前现问一次地区、再按问到的那份判向导挑的这一档（account.tierRegionGate）——
+ *   选法屏只在挑的那一拍判过一次，之后地区变了（前台关 VPN 不发 visibilitychange），图钱照样付掉，落段才被地区拦下。o.tierId = 向导挑的档。
  */
-export async function drawKeyframe(o: { cast: Card[]; productCard: Card | null }): Promise<void> {
-  const s = useEffectDraft.getState();
-  const preset = effectById(s.presetId);
-  if (!preset || s.drawing || !s.aspect) return;
+export async function drawKeyframe(o: { cast: Card[]; productCard: Card | null; tierId: string }): Promise<void> {
+  const s0 = useEffectDraft.getState();
+  if (!effectById(s0.presetId) || s0.drawing || !s0.aspect) return;
   if (AI_REAL && !canAfford(KEYFRAME_TOKENS)) {
     const price = fmtTokens(KEYFRAME_TOKENS);
     useEffectDraft.setState({ drawErr: frozenNote() ?? t`画关键帧要 ${price} token，余额不够——去「我的」页充值` });
     return;
   }
   const who = ownerOfDraft();
+  // 先占上 drawing（等的这几秒里点不出第二张），问完按问到的那份判；拒了原样退回，一分钱没花
+  writeFor(who, { drawing: true, drawErr: "" });
+  const region = await tierRegionGate(tierOf(o.tierId));
+  // 问的那几秒里换了账号 / 换了特效：按这一刻的那份重判（不画，人再点一次）
+  const s = useEffectDraft.getState();
+  const preset = effectById(s.presetId);
+  if (region || ownerOfDraft() !== who || !preset || !s.aspect) {
+    writeFor(who, { drawing: false, ...(region ? { drawErr: region } : {}) });
+    return;
+  }
   const key = effectKeyOf(s, o.cast);
   const aspect = s.aspect;
   const page = currentRoute();
   const job = startJob({ kind: "effect-keyframe", title: t`特效同款 · 画关键帧`, page, route: page, progress: t`正在画…` });
-  writeFor(who, { drawing: true, drawErr: "" });
   try {
     const names = { a: o.cast[0]?.name, b: o.cast[1]?.name, product: o.productCard?.name };
     let refs: string[] = [];

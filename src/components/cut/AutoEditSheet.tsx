@@ -6,8 +6,10 @@
 //   人在这里改过的字就是最后的字 —— 模型的原话只是底稿。
 // ★ 点头之前一个字都不落进剪辑工程：关掉面板 = 什么都没发生（花掉的那一次对话除外，面板上如实写着）。
 import { useMemo, useState } from "react";
+import Warn from "../Warn";
 import { createPortal } from "react-dom";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { useBackLayer } from "../../hooks/useBackLayer";
 import { AI_REAL } from "../../ai";
 import { briefArkReason } from "../../ai/arkClient";
 import { chargeNote, chargeOnFail } from "../../ai/failCharge";
@@ -25,6 +27,7 @@ import { AUTO_EDIT, runAutoEdit, type AutoEditRun } from "../../studio/cutAutoEd
 import type { SkillStepKind } from "../../studio/structuredSkills";
 import { CloseButton } from "../IconTapButton";
 import Spinner from "../Spinner";
+import StepDots from "../StepDots";
 
 interface Props {
   project: CutProject;
@@ -57,6 +60,8 @@ export default function AutoEditSheet({ project, segs, lens, canVoice, voiceFree
   const [fades, setFades] = useState(true);
   const [endFade, setEndFade] = useState(true);
   const [voice, setVoice] = useState(canVoice);
+  // 手机返回键先关这一层（hooks/useBackLayer），照点遮罩那条：问模型的那一发在途时不关
+  useBackLayer(true, () => (busy ? false : onClose()), "auto-edit");
   const stepIdx = AUTO_EDIT.steps.findIndex((s) => s.kind === step);
   const price = AI_REAL ? fmtTokens(AUTO_EDIT.cost) : t`演示`;
 
@@ -136,28 +141,14 @@ export default function AutoEditSheet({ project, segs, lens, canVoice, voiceFree
           <CloseButton chip="sm" size={13} align="end" label={t`关闭`} onClick={onClose} />
         </div>
 
-        {/* 步骤栏：这条技能的形状本身（studio/cutAutoEdit 里定，这里只画） */}
-        <div className="no-scrollbar mb-2 flex gap-1.5 overflow-x-auto py-1">
-          {AUTO_EDIT.steps.map((s, i) => {
-            const done = i < stepIdx;
-            const cur = i === stepIdx;
-            return (
-              <div
-                key={s.kind}
-                title={t(s.hint)}
-                className={`flex-none rounded-full px-2.5 py-1 text-[11px] ${cur ? "bg-brand font-semibold text-ink" : done ? "bg-panel text-slate-300" : "bg-panel text-slate-500"}`}
-              >
-                {done ? "✓ " : `${i + 1} `}
-                {t(s.title)}
-                {AUTO_EDIT.confirmAt.includes(s.kind as (typeof AUTO_EDIT.confirmAt)[number]) ? " ✋" : ""}
-              </div>
-            );
-          })}
-        </div>
+        {/* 步骤栏：这条技能的形状本身（studio/cutAutoEdit 里定，这里只画）。
+            ★ 进度条只有 components/StepDots 一份实现（CLAUDE.md 铁律六）：2026-10-22 把手写的芯片行（✓ / 序号 / ✋）换成圆点，
+              做完 / 当前由圆点自己说，要人点头的那一步由下面那行 hint 说 */}
+        <StepDots className="mb-2" steps={AUTO_EDIT.steps.map((s) => ({ label: t(s.title) }))} current={stepIdx} />
         <div className="mb-2 text-[10px] leading-relaxed text-slate-500">{t(AUTO_EDIT.steps[Math.max(0, stepIdx)].hint)}</div>
 
         {err && (
-          <div className="mb-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-rose-300">{err}</div>
+          <div className="mb-2 rounded-lg border border-danger-500/40 bg-danger-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-danger-300">{err}</div>
         )}
 
         {/* ① 还没跑：说清它会干什么、要多少钱 */}
@@ -218,7 +209,7 @@ export default function AutoEditSheet({ project, segs, lens, canVoice, voiceFree
                         {run.plan.fades.includes(b.clipId) && fades ? " · ◐" : ""}
                         {b.title ? ` · ${b.title}` : ""}
                       </span>
-                      <span className={`flex-none tabular-nums ${over ? "text-amber-300" : ""}`}>
+                      <span className={`flex-none tabular-nums ${over ? "text-warn-300" : ""}`}>
                         {units}/{b.cap}
                       </span>
                     </div>
@@ -231,9 +222,9 @@ export default function AutoEditSheet({ project, segs, lens, canVoice, voiceFree
                       className="w-full resize-none rounded-lg border border-slate-700 bg-black/30 px-2.5 py-1.5 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
                     />
                     {over && (
-                      <p className="mt-1 text-[11px] leading-relaxed text-amber-200">
+                      <Warn className="mt-1">
                         <Trans>这一句在这一段里念不完——改短一点，不然配不了音（字幕照样会出）。</Trans>
-                      </p>
+                      </Warn>
                     )}
                   </div>
                 );
@@ -281,14 +272,14 @@ export default function AutoEditSheet({ project, segs, lens, canVoice, voiceFree
               </p>
             )}
             {replaced > 0 && (
-              <p className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-100">
+              <p className="mt-2 rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-warn-100">
                 <Trans>会换掉你现在的 {replaced} 句字幕；改了字的那几句，原来的配音要重配。不放心的话，用完之后可以一步撤销回来。</Trans>
               </p>
             )}
             {tooLong > 0 && voice && canVoice && (
-              <p className="mt-2 text-[11px] leading-relaxed text-amber-200">
+              <Warn className="mt-2">
                 <Trans>有 {tooLong} 句太长、配不了音——用了之后这几句只有字幕，改短再配。</Trans>
-              </p>
+              </Warn>
             )}
 
             <div className="mt-3 flex gap-2">

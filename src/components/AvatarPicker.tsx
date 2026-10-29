@@ -15,6 +15,7 @@ import { createPortal } from "react-dom";
 import { MASCOT_AVATARS } from "../data/mascotAvatars";
 import { setAvatarImage } from "../data/account";
 import { cropSquareImage, decodeImageFile, urlToSquareImage } from "../utils/image";
+import { useBackLayer } from "../hooks/useBackLayer";
 import Avatar from "./Avatar";
 import Icon from "./Icon";
 
@@ -52,6 +53,8 @@ export default function AvatarPicker({
     },
     [cropping],
   );
+  // 手机返回键先关这一层（hooks/useBackLayer）：与遮罩同一个 onClose；挂在这里而不是 Shell 上 —— 裁切态与选图态各渲染一个 Shell，挂在 Shell 上换屏就多压一格
+  useBackLayer(true, onClose, "avatar");
 
   async function apply(run: () => Promise<{ dataUrl: string; blob: Blob }>, label: string) {
     setBusy(label);
@@ -86,7 +89,7 @@ export default function AvatarPicker({
   return (
     <Shell onClose={onClose}>
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-base font-bold text-slate-100"><Trans>选个头像</Trans></h3>
+        <h3 className="text-sm font-bold text-slate-100"><Trans>选个头像</Trans></h3>
         <CloseButton size={20} align="end" tone="text-slate-400" onClick={onClose} />
       </div>
 
@@ -251,7 +254,7 @@ function CropStage({
         <button onClick={onCancel} className="text-sm text-slate-400">
           <Trans>返回</Trans>
         </button>
-        <h3 className="text-base font-bold text-slate-100"><Trans>调整头像</Trans></h3>
+        <h3 className="text-sm font-bold text-slate-100"><Trans>调整头像</Trans></h3>
         <button
           onClick={() => onDone(crop())}
           disabled={!!busy}

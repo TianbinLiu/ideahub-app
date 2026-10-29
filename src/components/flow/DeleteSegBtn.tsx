@@ -81,7 +81,7 @@ export default function DeleteSegBtn({
       }}
       onBlur={() => setArmed(false)}
       disabled={disabled}
-      className={`${className} ${armed ? "bg-rose-500 font-bold text-white" : ""}`}
+      className={`${className} ${armed ? "bg-danger-500 font-bold text-white" : ""}`}
     >
       {armed ? (
         done ? (
@@ -90,7 +90,7 @@ export default function DeleteSegBtn({
           <Trans>真的删？推演出的方案会没（花过的 token 不退）</Trans>
         )
       ) : (
-        <Trans>🗑 删除本段</Trans>
+        <Trans>删除本段</Trans>
       )}
     </button>
   );

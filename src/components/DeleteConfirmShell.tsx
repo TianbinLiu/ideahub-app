@@ -56,7 +56,7 @@ export default function DeleteConfirmShell({
         <h3 id={titleId} className="text-sm font-bold text-slate-100">{title}</h3>
         <div id={descId} className="mt-2 space-y-1.5 text-[11px] leading-relaxed text-slate-400">{children}</div>
         {err && (
-          <p className="mt-3 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-200">
+          <p className="mt-3 rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-[11px] leading-relaxed text-danger-200">
             {err}
           </p>
         )}
@@ -79,7 +79,7 @@ export default function DeleteConfirmShell({
                 .finally(() => setBusy(false));
             }}
             disabled={busy}
-            className="flex-1 rounded-xl bg-rose-500/90 py-2.5 text-xs font-bold text-white disabled:opacity-40"
+            className="flex-1 rounded-xl bg-danger-500/90 py-2.5 text-xs font-bold text-white disabled:opacity-40"
           >
             {busy ? <Trans>删除中…</Trans> : err ? <Trans>再试一次</Trans> : danger}
           </button>

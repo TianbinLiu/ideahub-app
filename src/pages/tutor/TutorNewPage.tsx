@@ -9,9 +9,11 @@
  * ★ 离线模式进门整句说「需要联网」；登录墙由路由的 RequireAuth 管。
  */
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import Warn from "../../components/Warn";
 import { useNavigate, useSearchParams } from "react-router";
 import { Trans, useLingui } from "@lingui/react/macro";
 import PageHeader from "../../components/PageHeader";
+import StepDots from "../../components/StepDots";
 import EmptyState from "../../components/EmptyState";
 import Spinner from "../../components/Spinner";
 import { useBackOr } from "../../hooks/useBackOr";
@@ -163,12 +165,15 @@ export default function TutorNewPage() {
   const phaseText = (u: { phase: UploadPhase; frac: number }) => (u.phase === "check" ? t`核对中…` : u.phase === "sign" ? t`领上传票…` : u.phase === "put" ? t`上传 ${Math.round(u.frac * 100)}%` : u.phase === "confirm" ? t`服务端验收…` : t`完成`);
   const running = gen && (gen.status === "pending" || gen.status === "running");
 
-  if (!API_ON) return <div className="min-h-full px-4 pb-10"><PageHeader sticky inset onBack={back} title={t`新建课程`} /><EmptyState full emoji="📡" text={t`建课需要联网`} hint={t`教材与老师都在服务端，这台设备当前是离线模式。`} /></div>;
+  if (!API_ON) return <div className="min-h-full px-4 pb-10"><PageHeader sticky inset onBack={back} title={t`新建课程`} /><EmptyState emoji="📡" text={t`建课需要联网`} hint={t`教材与老师都在服务端，这台设备当前是离线模式。`} /></div>;
 
   return (
     <div className="min-h-full px-4 pb-10">
-      <PageHeader sticky inset onBack={back} title={t`新建课程`} subtitle={t`第 ${step} / 4 步 · ${step === 1 ? t`课程` : step === 2 ? t`教材` : step === 3 ? t`老师` : t`生成`}`} />
-      {err && <p className="mb-3 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">{err}</p>}
+      <PageHeader sticky inset onBack={back} title={t`新建课程`} />
+      {/* ★ 进度只画这一份（components/StepDots，CLAUDE.md 铁律六）：2026-10-22 替掉副标题那句「第 n / 4 步 · 名字」——
+          四步的名字就在圆点下面，副标题不再重复。纯展示：从课程列表「继续建课」进来直接站在第 2 / 3 步，回退走各步自己的键 */}
+      <StepDots className="mb-4" current={step - 1} steps={[{ label: t`课程` }, { label: t`教材` }, { label: t`老师` }, { label: t`生成` }]} />
+      {err &&<p className="mb-3 rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-xs text-danger-300">{err}</p>}
 
       {step === 1 && (
         <section className="space-y-3">
@@ -290,15 +295,15 @@ export default function TutorNewPage() {
                 <p className="mt-1 text-[11px] leading-relaxed text-slate-500"><Trans>受理那一刻按整份报价扣；生成要几十秒到几分钟，可以退出这一页，铸好了会通知你。</Trans></p>
               </>
             ) : quote && quote.stages === 0 ? (
-              <p className="text-xs text-amber-200"><Trans>这门课还没有可用的教材文本，回上一步传一份。</Trans></p>
+              <Warn><Trans>这门课还没有可用的教材文本，回上一步传一份。</Trans></Warn>
             ) : (
               <div className="flex items-center gap-2 text-xs text-slate-500"><Spinner size="xs" />{t`算报价…`}</div>
             )}
           </div>
           {gen && (
-            <div className={`rounded-lg border px-3 py-2 text-xs leading-relaxed ${gen.status === "failed" ? "border-rose-500/40 bg-rose-500/10 text-rose-200" : "border-sky-500/40 bg-sky-500/10 text-sky-200"}`}>
+            <div className={`rounded-lg border px-3 py-2 text-xs leading-relaxed ${gen.status === "failed" ? "border-danger-500/40 bg-danger-500/10 text-danger-200" : "border-sky-500/40 bg-sky-500/10 text-sky-200"}`}>
               {gen.status === "failed" ? (
-                <>{t`老师没铸成：${gen.error || "?"}`}{gen.failures.length > 0 && <div className="mt-1 text-[11px] text-rose-300">{gen.failures.join("；")}</div>}</>
+                <>{t`老师没铸成：${gen.error || "?"}`}{gen.failures.length > 0 && <div className="mt-1 text-[11px] text-danger-300">{gen.failures.join("；")}</div>}</>
               ) : gen.status === "succeeded" ? (
                 t`铸好了，正在进教室…`
               ) : (

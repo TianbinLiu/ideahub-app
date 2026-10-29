@@ -7,7 +7,7 @@
 //      换到正式包时必然发生，只能先卸载）。
 //
 // ★★ 强制更新（清单的 minVersionCode，判据只在 data/appUpdate.isMandatory，2026-10-10）：这张弹层就是这一版唯一的出口 ——
-//   · 关不掉：没有「以后再说」、没有「关闭」，点遮罩不关；安卓返回键（全 app 没人监听 backButton，默认是 WebView 后退）
+//   · 关不掉：没有「以后再说」、没有「关闭」，点遮罩不关；安卓返回键（强制更新这一层不登记进 utils/backButton 的层栈，按返回照原样后退，默认是 WebView 后退）
 //     只退得动底下那一页，这张弹层挂在路由之外（App.tsx 的 UpdateGate），退不掉它。**强制的那一版只在那里画**：
 //     设置页查到的也交过去（data/appUpdate.raiseForcedUpdate）—— 画在设置页里的话返回键连页带弹层一起退掉（2026-10-10 评审抓到）。
 //   · 但**永远有路可走**：下不动 / 校验不过 / 装不上都留着「重试」，另给两条在浏览器里下的路，管的是两类不同的坏法：
@@ -19,6 +19,7 @@
 //     打不开浏览器就把那个地址写出来。
 //   · 层级压在引导层（GUIDE_Z = 90）之上：引导会在各屏自己弹出来，盖住这张卡的话人只看得见引导、点不到更新。
 import { Trans, useLingui } from "@lingui/react/macro";
+import Warn from "./Warn";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -34,6 +35,7 @@ import {
   type UpdateInfo,
 } from "../data/appUpdate";
 import { openExternal } from "../utils/openExternal";
+import { useBackLayer } from "../hooks/useBackLayer";
 import Icon from "./Icon";
 
 export default function UpdateSheet({ info, onClose }: { info: UpdateInfo; onClose: () => void }) {
@@ -44,6 +46,9 @@ export default function UpdateSheet({ info, onClose }: { info: UpdateInfo; onClo
   const [err, setErr] = useState("");
   /** 强制更新：这一版关不掉（见文件头 ★★） */
   const forced = isMandatory(info);
+  // 手机返回键先关这一层（hooks/useBackLayer），与点遮罩 / 「关闭」同一个 onClose（不记「跳过这一版」）；
+  // 强制的那一版不接（active = false，关不掉），下载中与遮罩同样不许关
+  useBackLayer(!forced, () => (busy ? false : onClose()), "update");
   /** 打不开浏览器（被拦 / 没有浏览器）时打不开的那个地址：写出来，让人自己去。空串 = 没有失败 */
   const [linkFailed, setLinkFailed] = useState("");
   const versionName = info.versionName;
@@ -110,7 +115,7 @@ export default function UpdateSheet({ info, onClose }: { info: UpdateInfo; onClo
         </div>
 
         {forced && (
-          <div className="mb-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-100">
+          <div className="mb-3 rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-[11px] leading-relaxed text-warn-100">
             {/* ★ 不许诺「数据不会丢」：签名对不上时只能卸载重装（底下那行），那条路上本机的草稿是会没的 */}
             <Trans>你手上这一版已经停止支持了，更新之后才能接着用。</Trans>
           </div>
@@ -123,17 +128,17 @@ export default function UpdateSheet({ info, onClose }: { info: UpdateInfo; onClo
         )}
 
         {allowed === false && (
-          <div className="mb-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
-            <p className="text-[11px] leading-relaxed text-amber-100">
+          <div className="mb-3 rounded-xl border border-warn-500/40 bg-warn-500/10 p-3">
+            <Warn>
               <Trans>这个 App 不是从应用商店装的，系统需要你先允许它安装应用，才能自己完成更新。</Trans>
-            </p>
+            </Warn>
             <button
               onClick={() => {
                 // 打不开授权页（原生 NO_SETTINGS）原来是一个没人接的拒绝 = 点了没反应；现在说出来、让人自己去系统设置
                 setErr("");
                 openInstallPermission().catch((e: unknown) => setErr(updateFailText(e, "download")));
               }}
-              className="mt-2 w-full rounded-xl bg-amber-400/90 py-2.5 text-xs font-bold text-ink"
+              className="mt-2 w-full rounded-xl bg-warn-400/90 py-2.5 text-xs font-bold text-ink"
             >
               <Trans>去开启「允许安装未知应用」</Trans>
             </button>
@@ -156,7 +161,7 @@ export default function UpdateSheet({ info, onClose }: { info: UpdateInfo; onClo
         )}
 
         {err && (
-          <div className="mb-3 rounded-xl border border-rose-500/40 bg-rose-500/10 p-3 text-[11px] leading-relaxed text-rose-200">
+          <div className="mb-3 rounded-xl border border-danger-500/40 bg-danger-500/10 p-3 text-[11px] leading-relaxed text-danger-200">
             {err}
           </div>
         )}
@@ -203,7 +208,7 @@ export default function UpdateSheet({ info, onClose }: { info: UpdateInfo; onClo
               </button>
             )}
             {linkFailed && (
-              <p className="select-all break-all text-[11px] leading-relaxed text-rose-300">
+              <p className="select-all break-all text-[11px] leading-relaxed text-danger-300">
                 <Trans>没能打开浏览器。可以手动访问：{linkFailed}</Trans>
               </p>
             )}

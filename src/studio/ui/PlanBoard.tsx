@@ -16,9 +16,10 @@
 //   已选定 —— 那一行放大居中、其余缩小压暗；只有选定的那一行可以改帧、改剧情、重画。
 //             不给未选定的行开编辑口，是因为编辑必然要花钱重画，而用户还没决定用哪套。
 import { ReactNode, useEffect, useRef, useState } from "react";
+import Warn from "../../components/Warn";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { shotLineDisplay, DURATIONS, Proposal, type VideoAspect } from "../../types";
-import { fmtTokens } from "../../data/economy";
+import { fmtTokens, priceTag } from "../../data/economy";
 import { fileToFrameDataUrl } from "../../utils/image";
 import FrameCard, { CardFace, useFrameCycle } from "./FrameCard";
 import FuseFrameSheet, { type FuseSource } from "./FuseFrameSheet";
@@ -192,7 +193,7 @@ export default function PlanBoard({
         )}
       </div>
 
-      {err && <div className="flex-none px-3 pb-1 text-[10px] text-rose-300">{err}</div>}
+      {err && <div className="flex-none px-3 pb-1 text-[10px] text-danger-300">{err}</div>}
       {reading && <div className="flex-none px-3 pb-1 text-[10px] text-slate-400"><Trans>读取图片…</Trans></div>}
 
       <div ref={scroller} className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-3">
@@ -267,12 +268,12 @@ export default function PlanBoard({
                         而一段成片没留下只能重新出片、**再花一次钱** —— 把后者说成前者，
                         等于告诉用户"点一下就好了"，而他点完会被扣一次钱。 */}
                     {!!p.lost?.video && (
-                      <div className="text-center text-[9px] leading-3 text-amber-300/90">
+                      <div className="text-center text-[9px] leading-3 text-warn-300/90">
                         <Trans>这一段的成片没有留存，要重新出片（会再花一次钱）</Trans>
                       </div>
                     )}
                     {!!p.lost && !p.lost.video && (
-                      <div className="text-center text-[9px] leading-3 text-amber-300/90"><Trans>这一格的预览图没有留存</Trans></div>
+                      <div className="text-center text-[9px] leading-3 text-warn-300/90"><Trans>这一格的预览图没有留存</Trans></div>
                     )}
                     {/* 「融图」：把几张参考图合成一张边界帧。★ 只在宿主给了候选图时出现，
                         融出来的帧仍旧走 onFrame 落地（换帧只有那一个缝） */}
@@ -283,7 +284,7 @@ export default function PlanBoard({
                             key={w}
                             onClick={() => setFusing({ id: p.id, which: w })}
                             disabled={busy || regenId === p.id}
-                            className="flex-1 rounded-full border border-slate-700 py-1 text-[9px] text-slate-300 disabled:opacity-40"
+                            className="flex-1 rounded-full border border-slate-700 py-1.5 text-[10px] text-slate-300 disabled:opacity-40"
                           >
                             {w === "first" ? <Trans>🧬 融首帧</Trans> : <Trans>🧬 融尾帧</Trans>}
                           </button>
@@ -304,13 +305,13 @@ export default function PlanBoard({
                       />
                       <span className="flex-none rounded-full px-2 py-0.5 bg-gold/20 text-[10px] text-gold"><Trans>✓ 已选定</Trans></span>
                       {done && (
-                        <span className="flex-none rounded-full px-2 py-0.5 bg-emerald-500/20 text-[10px] text-emerald-300">
+                        <span className="flex-none rounded-full px-2 py-0.5 bg-ok-500/20 text-[10px] text-ok-300">
                           <Trans>已出片</Trans>
                         </span>
                       )}
                     </div>
                     {p.degraded && (
-                      <div className="rounded bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-300">
+                      <div className="rounded bg-warn-500/10 px-2 py-0.5 text-[10px] text-warn-300">
                         <Trans>⚠ 这一套有帧当时没画出来：出片前会先补画要用到的帧（按张计费，已算进出片报价）</Trans>
                       </div>
                     )}
@@ -351,7 +352,7 @@ export default function PlanBoard({
                             disabled={busy || tooShort}
                             title={tooShort ? t`这一档最短 ${minSec} 秒` : undefined}
                             // 高亮跟实际会拍的时长走（同 SegSettings：吸附后的结算值），别让禁掉的 3s 还亮着
-                            className={`rounded px-1.5 py-0.5 text-[10px] disabled:opacity-40 ${
+                            className={`rounded-full px-2.5 py-1 text-[11px] disabled:opacity-40 ${
                               Math.min(Math.max(...durations), Math.max(minSec ?? 0, p.durationSec)) === d ? "bg-gold/80 text-ink" : "bg-panel text-slate-300"
                             }`}
                           >
@@ -370,7 +371,7 @@ export default function PlanBoard({
                       {regenId === p.id
                         ? t`重画中…`
                         : cost
-                          ? t`✨ 重新生成这一套的画面（${fmtTokens(cost)}）`
+                          ? t`♻ 重新生成这一套的画面（${priceTag(cost)}）`
                           : t`✨ 重新生成这一套的画面`}
                     </button>
                     )}
@@ -402,14 +403,14 @@ export default function PlanBoard({
                         {p.durationSec}s
                       </span>
                       {done && (
-                        <span className="flex-none rounded-full px-2 py-0.5 bg-emerald-500/20 text-[10px] text-emerald-300">
+                        <span className="flex-none rounded-full px-2 py-0.5 bg-ok-500/20 text-[10px] text-ok-300">
                           <Trans>已出片</Trans>
                         </span>
                       )}
                     </div>
                     <p className="novel-text mt-1 line-clamp-3 text-[11px] leading-relaxed text-slate-300">{p.plot}</p>
                     {shotLineDisplay(p.shot) && <p className="mt-0.5 text-[10px] text-slate-500">{shotLineDisplay(p.shot)}</p>}
-                    {warn && <p className="mt-1 text-[10px] text-amber-300">{warn}</p>}
+                    {warn && <Warn compact className="mt-1">{warn}</Warn>}
                   </div>
                 </button>
               )}
@@ -468,7 +469,7 @@ function PreviewCard({
         <div
           style={{ aspectRatio: aspect }}
           className={`flex w-full items-center justify-center rounded-lg border border-dashed bg-slate-800/40 px-1 text-center text-[9px] leading-tight ${
-            lost ? "border-amber-500/60 text-amber-300/90" : "border-slate-600 text-slate-500"
+            lost ? "border-warn-500/60 text-warn-300/90" : "border-slate-600 text-slate-500"
           }`}
         >
           {/* "本来就没画过"与"画过但没留存下来"是两件事，说法必须分开：

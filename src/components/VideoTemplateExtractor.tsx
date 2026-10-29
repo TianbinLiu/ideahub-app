@@ -54,8 +54,10 @@ import {
   uploadTemplateVideo,
   type TemplateVideoReceipt,
 } from "../api/uploads";
-import { balanceNote, canAfford, frozenNote, spendTokens } from "../data/account";
-import { TEMPLATE_MAX_CARDS, fmtTokens, ownRefTemplateCost, templateCost } from "../data/economy";
+import { balanceNote, canAfford, frozenNote, spendTokens, tierRegionIssue } from "../data/account";
+import { TEMPLATE_MAX_CARDS, blockoutTier, fmtTokens, ownRefTemplateCost, templateCost } from "../data/economy";
+import { useAccountVersion } from "../hooks/useAccount";
+import { useBackLayer } from "../hooks/useBackLayer";
 import {
   ARK_EDIT_RULES,
   BLOCKOUT_INPUT_RULES,
@@ -86,6 +88,7 @@ import {
 } from "./blockout/arkVideoRules";
 import Icon from "./Icon";
 import { CloseButton } from "./IconTapButton";
+import StepDots from "./StepDots";
 import TokenCost from "./TokenCost";
 import { sampleFrames } from "./videoFrames";
 
@@ -223,6 +226,19 @@ const WM_CORNERS = [
     hint: msg`右下角疑似有水印或台标：白模出片会把它逐帧复刻进每一条成片，建议用裁剪框把这块框到画面外。（只是提醒，看错了直接忽略——照样可以继续。）`,
   },
 ] as const;
+
+/**
+ * 顶上那条圆点进度条的步名（2026-10-22，components/StepDots 一份实现）。模块顶层只放 msg 描述符，画时再 t()。
+ * ★ 四个字以内：四列并排时每格只有 ~90px。「挑分析帧」「标切段刀」照着 ownRef 第 1 步那颗「下一步：…」键的措辞取，
+ *   人在键上读到的与圆点下写的是同一个词。
+ */
+const EXTRACT_STEP = {
+  route: msg`选做法`,
+  file: msg`选文件`,
+  trim: msg`框选段`,
+  frames: msg`挑分析帧`,
+  splits: msg`标切段刀`,
+} as const;
 
 /** dataURL → HTMLImageElement。★ 必带超时：与 probeVideoMeta 同一个理由（后台页解码会被挂起）。 */
 function loadFrameImage(src: string): Promise<HTMLImageElement> {
@@ -389,6 +405,7 @@ export default function VideoTemplateExtractor({
   onClose,
   onDone,
   defaultBlockout = false,
+  onPickText,
 }: {
   onClose: () => void;
   onDone?: (t: VideoTemplate) => void;
@@ -396,12 +413,20 @@ export default function VideoTemplateExtractor({
    *  仍受能力探测门控：探测不过开关整个不渲染，这个初值也就不生效——入口方与
    *  提取器问的是同一个 remoteTemplatesCapable，不会出现"入口亮着、开关没了"的半边天 */
   defaultBlockout?: boolean;
+  /**
+   * 第一屏第三张卡「只用文字 + 封面」（文字模板 P1，2026-10-26）：给了才画，点了交还宿主去开 TextTemplateSheet。
+   * ★ 不并进这个组件：这里整条流程围着视频回执转（route / receipt / dropReceipt），文字模板一样都用不上。
+   * ★ 只有模板货架（TemplateShelf）给它；工作流页那份提取窗是「把这条片做成模板」，没有文字这条路。
+   */
+  onPickText?: () => void;
 }) {
   // ★ 浮层也要自己声明引导（不是路由，按 pathname 集中判的话这一屏永远轮不到）。
   //   第一次打开时强制放一遍，看过一次不再自动弹；标题栏那颗 ? 随时能重看
   //   （到了 AI 白模化的框选屏，那颗 ? 换讲「选段与裁剪」那份，它的首次自动弹在 TrimAutoGuide —— 见 aiTrimScreen）。
   useAutoGuide("extractor");
   const { t } = useLingui();
+  // 套餐镜像 / 出片地区都是异步到的（blockoutizeBlockReason 与下面 blockoutRegion 在 render 里现算）：订阅账号的版本号，到了就重画
+  useAccountVersion();
   const [file, setFile] = useState<File | null>(null);
   const [frameN, setFrameN] = useState(6);
   const [frames, setFrames] = useState<string[]>([]);
@@ -415,12 +440,17 @@ export default function VideoTemplateExtractor({
   const [got, setGot] = useState<VideoTemplate | null>(null);
   /** 窗还开着没有：后台任务的结局分叉（在 → 窗里画；不在 → 胶囊通知，模板本身已在库里） */
   const mountedRef = useRef(true);
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    // ★ 挂载时要置回 true（2026-09-18 补，同一个坑 #291 先在 VideoCardAnnotator 修过）：StrictMode 在 dev 里把 effect
+    //   走一遍「挂载→卸载→挂载」，原来只在 cleanup 里置 false，于是 dev 里它从第一拍起就恒为 false —— 窗开着，
+    //   上传传完也照样留一张「提取窗已经关了——回模板页重新打开、再选一次」的票，登记 / 白模化 / 分析做完也都
+    //   多弹一条「去「我的模板」看看」（浏览器里实测过：窗里画着「已提取模板」，胶囊同时收到那条通知）。
+    //   正式包没有这次模拟卸载所以一直没人看见，但它会让浏览器里验这几条后台任务结局的人得出假结论
+    mountedRef.current = true;
+    return () => {
       mountedRef.current = false;
-    },
-    [],
-  );
+    };
+  }, []);
   /**
    * 这一屏的**第一层岔路**，三选一 —— 全组件唯一的"走哪条路"状态。
    *
@@ -594,6 +624,15 @@ export default function VideoTemplateExtractor({
   }
 
   function close() {
+    leave(onClose);
+  }
+
+  /**
+   * 离开这一屏的**唯一**一道闸：关掉（close）与改走「只用文字 + 封面」（宿主的 onPickText 也是先关掉这一屏）都走它。
+   * ★ 门禁红字里那颗「改用只用文字 + 封面」在第 2 步也画得出来，那时手里可能已经有一份传上去的回执 ——
+   *   直接调 onPickText 会绕过下面的在跑闸与 dropReceipt：传上去的视频成了没人认的孤儿，或者在服务端切段时被删掉。
+   */
+  function leave(next: () => void) {
     // ★★ **在跑就别关**（2026-08-21 cherry-pick 评审）：这一屏的「取消」早就 disabled={busy}
     //   了（BlockoutTrimmer 那颗），但外层遮罩与标题栏的 ✕ 是无条件 close —— 同一屏两套纪律。
     //   分段登记那一发是服务端**串行逐段转码**、分钟级，这期间 receipt.spent 还是 false，
@@ -621,11 +660,13 @@ export default function VideoTemplateExtractor({
           ? t`${busy}——这一步在跑，跑完再关：现在关掉会把已经传上去的那段素材删掉，而服务器正拿它切段。`
           : t`正在登记——这一步在跑，跑完再关：现在关掉会把已经传上去的那段素材删掉，而服务器正拿它切段。`,
       );
-      return;
+      return false;
     }
     dropReceipt();
-    onClose();
+    next();
   }
+  // 手机返回键先关这一层（hooks/useBackLayer），走同一个 close()：登记在途被拦下时回 false，这一下返回只是被拦住
+  useBackLayer(true, close, "template-extract");
 
   useEffect(() => {
     let alive = true;
@@ -678,6 +719,15 @@ export default function VideoTemplateExtractor({
    *   存下来就会停在"还不知道"那一拍上，而那一拍恰恰是**放行**的（乐观口径）。
    */
   const blockoutBlock = blockout ? blockoutizeBlockReason() : null;
+  /**
+   * 白模那一档在你所在的地区用不了（出片地区，判据 account.tierRegionIssue —— blockoutizeBlockReason 里那句话也是它给的）。
+   * ★ 为什么连两条路的选项都收起来（2026-10-26 设计审核）：两条白模路都只走那一档；选项摆着的话人会去选、去传一段几十 MB 的视频，
+   *   而这件事在这个地区怎么都做不成 —— 原因摆在上面，选项不摆。地区不知道时为 null，照老样子摆（服务端在看帧之前预检，不扣钱）。
+   * ★ 出路只指同样做得了白模的档（need = blockoutOk；白模钉死一档 = 没有可换的），所以这句话不会再叫人「换成」做不了白模的档；
+   *   门禁没开时（服务器没接上方舟）它说的是「这台服务器出片只接了 …」，不说成地区（2026-10-26 P1 审核）。
+   */
+  const bTier = blockoutTier();
+  const blockoutRegion = bTier ? tierRegionIssue(bTier, (x) => x.blockoutOk) : null;
 
   /**
    * 「AI 白模化的框选屏」在不在屏上：与下面 JSX 渲染 BlockoutTrimmer 的那一支同一组条件，再加 route === "aiBlockout"。
@@ -704,11 +754,11 @@ export default function VideoTemplateExtractor({
    * ★ 秒数一律取 `BLOCKOUT_INPUT_RULES.maxSec`，别手写 30 —— 那个数在下面的页脚里也出现，
    *   两处各写各的就会在改窗口时分家（本仓「上限自己抄一份」那条）。
    * ★ 字段叫 `title` 不叫 `t`（接 Lingui 时改的）：`t` 这个名字现在归 useLingui，写成 t: t`…` 读着像笔误。
-   * ★ 「经典配方」这个叫法被门禁那两句（改选「经典配方」）与新手引导（guide/tours 的 extractor）引用，
-   *   改名要几处一起改，英文也一样（Classic recipe）。
+   * ★ 「经典配方」这条车道 2026-10-02 收了（见下面那行注释）。门禁那两句原来都指人去改选它，2026-10-10 / 2026-10-21 先后删掉；
+   *   界面上还提到它的（新手引导 guide/tours、templates 的一句报错）说的都是本机存量的经典模板，不是这条车道。
    */
   const routeOpts = [
-    ...(blockoutReady
+    ...(blockoutReady && !blockoutRegion
       ? ([
           {
             v: "aiBlockout" as const,
@@ -730,6 +780,24 @@ export default function VideoTemplateExtractor({
   //   表为空（服务端不支持 / 离线）时 routeNow 为 undefined，用到它的那张卡只在选了文件之后才画，而那时表必然非空
   const routeNow = routeOpts.find((o) => o.v === route) ?? routeOpts[0];
 
+  /**
+   * 门禁红字里的那条出路（2026-10-29 主人点名）：白模两条都开不了时，「只用文字 + 封面」照样做得了 —— 不传视频、不走白模那一档，
+   * 套餐 / 地区 / 服务端那几道门一道都不碰，与第 1 步那张卡是同一个宿主回调。宿主没给 onPickText 就不画（这里没有那条路）。
+   * ★ 是一颗按钮而不是「点上面…」：红字两步都出现，方位词在其中一步必然是错的（见红字那段 ★★）。
+   * ★ 话只说「做模板」这一步（不用会员、不花 token）；套用出片时用哪一档、花多少，是文字模板那一屏与套用之后的事。
+   */
+  const textRouteLink = (label: string) =>
+    onPickText ? (
+      <button
+        type="button"
+        onClick={() => leave(onPickText)}
+        disabled={!!busy}
+        className="mt-1.5 block text-left font-semibold text-brand underline underline-offset-2 disabled:opacity-40"
+      >
+        {label}
+      </button>
+    ) : null;
+
   // ── ownRef 路：单段 / 分段两种形态（2026-08-20 接上长视频分段登记）────────────
   /**
    * 「选段拖过 30 秒」= 换到**整条分段登记**形态 —— 这一处是形态的唯一判据：
@@ -738,6 +806,25 @@ export default function VideoTemplateExtractor({
    *   （derive 裁剪，可裁画面），>30 走 splits（整条、整幅，v1 限制由判词整句说）。
    */
   const segLong = route === "ownRef" && !!trimSel && trimSel.durSec > BLOCKOUT_INPUT_RULES.maxSec;
+  /**
+   * 顶上那条进度条（★ 只有 components/StepDots 一份实现，CLAUDE.md 铁律六）按**当前高亮的那条路**画步数：
+   *   AI 白模化 = 选做法 → 选文件 → 框选段（看帧 / 标题 / 开炼都在框选那一屏，见 ownRefStep 的 ★「aiBlockout 路不拆」）；
+   *   自带白模片 = 多一步「挑分析帧」（选段拖过 30 秒就是「标切段刀」，与第 1 步那颗「下一步：…」键的措辞同步换）。
+   * ★ 第 1 步上 route 已经有值（初值 / 上次选的），所以那一屏画的是高亮卡那条路的步数，点另一张卡时圆点跟着换；
+   *   两条路只差最后一步，不用「只画两颗」那种回避。
+   * ★ 只展示、不给 onPick：回退的规矩各屏自己说（「‹ 换一种做法」只在传完之前、「← 改选段」只在 ownRef 第 2 步），
+   *   圆点可点会多出一条绕过这些闸的路 —— 传完之后回第 1 步会把框选器整个卸掉（见「‹ 换一种做法」那段 ★★）。
+   * ★ 结果页（got）与「探完了、服务端一条路都不支持」时不画：前者没有下一步，后者一条路都走不了。
+   *   还没探完（probed 为假、表暂时是空的）照画：route 有初值、步数算得出来，不画的话窗一开圆点要等探活回来才冒出来，
+   *   标题下面先空一行再跳一下（2026-10-22 发版前复核抓到）。
+   */
+  const extractSteps = [
+    EXTRACT_STEP.route,
+    EXTRACT_STEP.file,
+    EXTRACT_STEP.trim,
+    ...(route === "ownRef" ? [segLong ? EXTRACT_STEP.splits : EXTRACT_STEP.frames] : []),
+  ];
+  const extractStepIdx = step === "route" ? 0 : !receipt ? 1 : route === "ownRef" && ownRefStep === "frames" ? 3 : 2;
   /**
    * 分段规划：**真实时长**（服务端登记值，带小数）+ 用户标的刀 → 合法分段。
    * ★ 必须用 receipt.data.durationSec 而不是时间轴那份 floor 过的整数：末段窗口按真实
@@ -1232,12 +1319,16 @@ export default function VideoTemplateExtractor({
           )}
           <CloseButton chip="sm" size={13} align="end" onClick={close} />
         </div>
+        {/* 进度条：标题行正下方、正文之上（StepDots 头上的「位置」那条）。步数与当前步见 extractSteps 的 ★ */}
+        {!got && (!probed || routeOpts.length > 0) && (
+          <StepDots className="mb-3" steps={extractSteps.map((s) => ({ label: t(s) }))} current={extractStepIdx} />
+        )}
         {aiTrimScreen && <TrimAutoGuide ready={!busy} />}
 
         {got ? (
           <div className="space-y-3">
-            <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3">
-              <div className="text-sm font-bold text-emerald-300"><Trans>已提取模板「{gotTitle}」</Trans></div>
+            <div className="rounded-xl border border-ok-500/40 bg-ok-500/10 p-3">
+              <div className="text-sm font-bold text-ok-300"><Trans>已提取模板「{gotTitle}」</Trans></div>
               <p className="mt-1 text-xs leading-relaxed text-slate-300">{got.intro}</p>
               <p className="mt-2 text-[11px] text-slate-400">
                 <Trans>{beats} 段分镜 · {cardCount} 张素材卡 · 已存进「我的模板」（尚未发布）</Trans>
@@ -1297,7 +1388,7 @@ export default function VideoTemplateExtractor({
                 if (!missing.length) return null;
                 const missingCount = missing.length;
                 return (
-                  <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-200">
+                  <div className="rounded-xl border border-warn-500/40 bg-warn-500/10 p-3 text-xs leading-relaxed text-warn-200">
                     <p>
                       <Trans>
                         有 {missingCount} 段还没认出角色位。这几段现在也能随整组套用出片，只是那一段不能逐人挂卡
@@ -1323,7 +1414,7 @@ export default function VideoTemplateExtractor({
               })()}
             {/* 逐段认人的结果（哪段成了、哪段要重试）——分段路的 note 是多行的，整句保留 */}
             {warn && (
-              <p className="whitespace-pre-line rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-200">
+              <p className="whitespace-pre-line rounded-xl border border-warn-500/40 bg-warn-500/10 p-3 text-xs leading-relaxed text-warn-200">
                 ⚠ {warn}
               </p>
             )}
@@ -1349,14 +1440,26 @@ export default function VideoTemplateExtractor({
                 "在第 2 步上被挡住、却没有任何一行字"的空窗。
               ★★ 措辞里不许出现「上面 / 下面」的方位词：这句话现在会在两步里出现，
                 方位在其中一步必然是错的。 */}
-            {blockout && blockoutBlock && (
-              <p className="mb-3 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-300">
-                {blockoutBlock}
+            {/* 出片地区不给白模那一档：先说为什么（tierRegionIssue，出路按白模的能力挑 = 没有可换的），再说这一屏的事实 */}
+            {blockoutRegion ? (
+              <p className="mb-3 rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-[11px] leading-relaxed text-danger-300">
+                {blockoutRegion}
                 <br />
-                {/* 「经典配方」那条路已经收掉（routeOpts 只剩白模两条），原来这句还指着它（2026-10-10 文案复核抓到）；
-                    分享做法的路是发布作品时公开「制作过程」（与下面那条琥珀提示同一句） */}
-                <Trans>白模那两条路都只走这一档，所以现在还开不了 —— 开通会员套餐（或充值过任意一笔）就能用；想把一条片的做法分享给别人，发布作品时公开「制作过程」就行。</Trans>
+                <Trans>白模模板的两条路都只走这一档，这里做不了白模模板。想把一条片的做法分享给别人，发布作品时公开「制作过程」就行。</Trans>
+                {textRouteLink(t`不传视频也能做模板：改用「只用文字 + 封面」，做模板不花 token`)}
               </p>
+            ) : (
+              blockout &&
+              blockoutBlock && (
+                <p className="mb-3 rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-[11px] leading-relaxed text-danger-300">
+                  {blockoutBlock}
+                  <br />
+                  {/* 「经典配方」那条路已经收掉（routeOpts 只剩白模两条），原来这句还指着它（2026-10-10 文案复核抓到）；
+                      分享做法的路是发布作品时公开「制作过程」（与下面那条琥珀提示同一句） */}
+                  <Trans>白模那两条路都只走这一档，所以现在还开不了 —— 开通会员套餐（或充值过任意一笔）就能用；想把一条片的做法分享给别人，发布作品时公开「制作过程」就行。</Trans>
+                  {textRouteLink(t`不传视频也能做模板：改用「只用文字 + 封面」，不用会员，做模板也不花 token`)}
+                </p>
+              )
             )}
 
             {/* ══ 第 1 步：这段视频要做成什么（三选一）══════════════════
@@ -1374,9 +1477,10 @@ export default function VideoTemplateExtractor({
               <div data-guide="extractor-routes" className="space-y-2">
                 <div className="mb-1 text-sm font-semibold text-slate-200"><Trans>这段视频要做成什么？</Trans></div>
                 {/* 路线表为空的两种情形分开说（没探完 ≠ 不支持）：白模模板的两条路都在服务端，经典配方那条本机路 2026-10-02 收掉了 */}
-                {!probed && routeOpts.length === 0 && <p className="text-xs text-slate-500"><Trans>正在确认服务器支持哪几种模板…</Trans></p>}
-                {probed && routeOpts.length === 0 && (
-                  <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs leading-relaxed text-amber-300/90">
+                {/* 地区不给那一档时路线表是空的，原因已经在上面那条红字里，这两句都不说（不是「正在确认」也不是「服务器不支持」） */}
+                {!blockoutRegion && !probed && routeOpts.length === 0 && <p className="text-xs text-slate-500"><Trans>正在确认服务器支持哪几种模板…</Trans></p>}
+                {!blockoutRegion && probed && routeOpts.length === 0 && (
+                  <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-xs leading-relaxed text-warn-300/90">
                     <Trans>白模模板要连上服务器才能做（这台服务器不支持，或现在没联网）。想把一条片的做法分享给别人，发布作品时公开「制作过程」就行。</Trans>
                   </p>
                 )}
@@ -1430,6 +1534,31 @@ export default function VideoTemplateExtractor({
                     <span className="flex-none text-slate-500">›</span>
                   </button>
                 ))}
+                {/* 第三条：没有视频也能做（文字模板 P1）。不受白模的套餐 / 地区 / 服务端门禁管 —— 那几句红字说的是白模两条路，这条一样都不碰 */}
+                {onPickText && (
+                  <>
+                    <div className="pt-1 text-[11px] text-slate-500">
+                      <Trans>没有视频？</Trans>
+                    </div>
+                    <button
+                      data-guide="extractor-text"
+                      onClick={() => leave(onPickText)}
+                      disabled={!!busy}
+                      className="flex w-full items-center gap-2 rounded-xl bg-black/25 px-3 py-3 text-left disabled:opacity-40"
+                    >
+                      <span className="flex-none text-[11px] text-slate-500">○</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-semibold text-slate-100">
+                          <Trans>只用文字 + 封面</Trans>
+                        </span>
+                        <span className="block text-[11px] text-slate-400">
+                          <Trans>写一段提示词、选一张封面图；不传视频，做模板不花 token</Trans>
+                        </span>
+                      </span>
+                      <span className="flex-none text-slate-500">›</span>
+                    </button>
+                  </>
+                )}
               </div>
             )}
 
@@ -1459,7 +1588,7 @@ export default function VideoTemplateExtractor({
                     再摆着只是把真正在用的那块工作面积挤小（水印那句更是指着"下一步"，
                     人已经站在下一步里了）。 */}
                 {!receipt && (
-                  <div className="mb-3 rounded-xl border border-slate-700 bg-black/25 px-3 py-2">
+                  <div className="mb-3 rounded-xl bg-black/25 px-3 py-2">
                     <div className="text-sm font-semibold text-slate-100">{routeNow?.title}</div>
                     <p className="mt-1 text-[11px] leading-relaxed text-slate-400">{routeNow?.long}</p>
                   </div>
@@ -1475,7 +1604,7 @@ export default function VideoTemplateExtractor({
                     ★ 这一段**没有搬进新手引导**：引导看过一次就不再自动弹，而这句话紧挨着
                       一次真实付费的决策点，必须每次都在。 */}
                 {route === "aiBlockout" && !receipt && (
-                  <p className="mb-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-200/90">
+                  <p className="mb-3 rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-[11px] leading-relaxed text-warn-200/90">
                     {/* ★ 压字数时**这两处不许再削**（2026-08-23 削过一轮又加回来）：
                         · 「会有人根本没被换成人偶」是**具体的失败长相** —— 只说"不是每次都全对"
                           等于没说，用户不知道该拿什么去核对；
@@ -1498,14 +1627,14 @@ export default function VideoTemplateExtractor({
                       （素材进公网、且会被别人的成片引用），藏进一个看过一次就不再出现的地方，
                       等于让老用户在零提示下把视频传上公网。 */}
                 {blockout && !receipt && (
-                  <p className="mb-3 text-[11px] leading-relaxed text-amber-400/90">
+                  <p className="mb-3 text-[11px] leading-relaxed text-warn-400/90">
                     <Trans>
                       mp4 / mov · {maxMinutes} 分钟以内 · {maxMb}MB 以内 · 会
-                      <b className="text-amber-300">公开托管</b>（套用者出片时引用它）。
+                      <b className="text-warn-300">公开托管</b>（套用者出片时引用它）。
                     </Trans>
                     <br />
                     <Trans>
-                      画面里的水印、台标、字幕会被<b className="text-amber-300">复刻进每一次出片</b>，
+                      画面里的水印、台标、字幕会被<b className="text-warn-300">复刻进每一次出片</b>，
                       下一步用裁剪框把它框到画面外。
                     </Trans>
                   </p>
@@ -1525,7 +1654,7 @@ export default function VideoTemplateExtractor({
               <div className="space-y-3">
                 {/* 这一步也要画 warn（2026-09-18 发版复核抓到）：close() 拦下 ✕ 时把原因写进 warn，这一屏原来不画它 ——
                     ✕ 看起来就是坏的。其余几屏都在各自位置画了同一行 */}
-                {warn && <p className="text-xs leading-relaxed text-amber-400">⚠ {warn}</p>}
+                {warn && <p className="text-xs leading-relaxed text-warn-400">⚠ {warn}</p>}
                 <div className="flex items-start gap-2 rounded-lg border border-slate-700/70 bg-panel/60 px-3 py-2">
                   <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-slate-300">
                     <Trans>
@@ -1558,7 +1687,7 @@ export default function VideoTemplateExtractor({
                     {/* ★★ 被丢弃的刀必须整句点名（planSplits 只丢不响，响的责任在这儿）：
                         不说的话，用户标了 3 刀、绿字却说"切成 3 段"，他只会以为标丢了 */}
                     {splitPlan && splitPlan.dropped.length > 0 && (
-                      <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-rose-200">
+                      <p className="rounded-lg border border-danger-500/40 bg-danger-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-danger-200">
                         <Trans>
                           有 {droppedCount} 刀落不下去，已被忽略：第 {droppedSecs} 秒——离片头、片尾或相邻的刀不足 {partMinSec} 秒，切出来会有短于 {partMinSec} 秒的段（AI 引擎收不下）。把这几刀删掉，或挪远一点再标。
                         </Trans>
@@ -1589,11 +1718,11 @@ export default function VideoTemplateExtractor({
                     红字就灰掉提交，绿字把段清单画出来 —— 与第 1 步同一份判词 */}
                 {segLong && frameStepVerdict && (
                   frameStepVerdict.issue ? (
-                    <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-200">
+                    <p className="rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-[11px] leading-relaxed text-danger-200">
                       ✗ {frameStepVerdict.issue}
                     </p>
                   ) : (
-                    <p className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-[11px] leading-relaxed text-emerald-200">
+                    <p className="rounded-lg border border-ok-500/40 bg-ok-500/10 px-3 py-2 text-[11px] leading-relaxed text-ok-200">
                       ✓ {frameStepVerdict.ok}
                     </p>
                   )
@@ -1601,7 +1730,7 @@ export default function VideoTemplateExtractor({
 
                 {/* 失败原因一律整句显示（第 1 步那份由 Trimmer 画，这一步 Trimmer 不在，自己画） */}
                 {err && (
-                  <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-200">
+                  <p className="rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-[11px] leading-relaxed text-danger-200">
                     {err}
                   </p>
                 )}
@@ -1634,7 +1763,7 @@ export default function VideoTemplateExtractor({
               //   唯一由宿主说的是那句黄字水印提示：它是**抽本机帧**看出来的，
               //   组件手上只有服务端登记的宽高时长，看不到画面内容。
               <>
-                {warn && <p className="mb-2 text-xs leading-relaxed text-amber-400">⚠ {warn}</p>}
+                {warn && <p className="mb-2 text-xs leading-relaxed text-warn-400">⚠ {warn}</p>}
                 <BlockoutTrimmer
                 src={receipt.src}
                 // ★ 只喂**服务端登记值**（上传回执）：服务端拼变换 URL、复核裁后元数据、
@@ -1712,7 +1841,7 @@ export default function VideoTemplateExtractor({
                       !segLong &&
                       Math.floor(receipt.data.durationSec) > autoMaxSec &&
                       Math.floor(receipt.data.durationSec) <= splitCap && (
-                        <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200/90">
+                        <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200/90">
                           <Trans>
                             这条素材有 {srcSec} 秒：把选段<b className="font-bold">拉满整条</b>
                             之后还要<b className="font-bold">自己标切段刀</b>（把 {cutsMax} 刀尽量摆匀）——
@@ -1729,7 +1858,7 @@ export default function VideoTemplateExtractor({
                       receipt &&
                       !segLong &&
                       Math.floor(receipt.data.durationSec) > splitCap && (
-                        <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200/90">
+                        <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200/90">
                           <Trans>
                             这条素材有 {srcSec} 秒，
                             <b className="font-bold">整条登记做不了</b>（一次最多 {SPLIT_MAX_PARTS} 段 × {maxSec} 秒 = {splitCap} 秒），所以上面的选段拉到 {maxSec} 秒就拉不动了。要么框其中 {maxSec} 秒以内做一段，要么先把素材剪短到 {splitCap} 秒以内再传。
@@ -1846,26 +1975,27 @@ export default function VideoTemplateExtractor({
 
                 {/* 黄 = 文件收下了但有事说（不拦人），红 = 这一步失败了。两条会同时出现，
                     这是对的：比如"右上角疑似有水印"＋"上传超时"，两件事都得说 */}
-                {warn && <p className="mb-2 text-xs leading-relaxed text-amber-400">⚠ {warn}</p>}
-                {err && <p className="mb-2 text-xs leading-relaxed text-rose-300">{err}</p>}
+                {warn && <p className="mb-2 text-xs leading-relaxed text-warn-400">⚠ {warn}</p>}
+                {err && <p className="mb-2 text-xs leading-relaxed text-danger-300">{err}</p>}
 
                 {blockout ? (
-                  <p className="text-[10px] leading-relaxed text-slate-500">
-                    {/* ★ 被门禁挡住时不许照旧写"选好视频先传上去" —— 那是一句用户执行不了的
-                        指示（按钮已经点不动了）。换成一条**真的走得通**的出路：经典配方那条路
-                        不钉会员档，谁都能用。
-                        ★ 出路要点名那颗键「‹ 换一种做法」：这一步上面没有路线卡，只说「上面改选」等于
-                        指着一个不存在的东西。这句只在第 2 步（传文件之前）出现，那颗键此时一定在上面，方位词是对的
-                        （门禁红字那句两步都出现，才不许写方位）。那颗键改名时这里一起改，英文也一样。 */}
-                    {busy ||
-                      (blockoutBlock
-                        ? t`白模那两条路现在开不了（原因见上）。点上面「‹ 换一种做法」改选「经典配方」仍然可以做模板——它不需要付费套餐，只是不做白模人偶。`
-                        : // ★★ 只说**这一屏别处没说过的**：上传不花钱、选段窗口、报价在开炼之前。
-                          //   「拖裁剪框把水印框到画面外」与「报价」上面那两段各说过一次了 ——
-                          //   同一屏说两遍不是强调，是让人以为那是两件事（这一屏本来就是靠删重复
-                          //   才腾出地方的，2026-08-23 拆两步时一并收）。
-                          t`传上去不花钱 · 下一步框出 ${minSec}~${maxSec} 秒 · 报价确认后才开炼`)}
-                  </p>
+                  // ★ 被门禁挡住时这一行**整行不画**（在跑时照旧显示 busy）：不许照旧写"选好视频先传上去" ——
+                  //   那是一句用户执行不了的指示（按钮已经点不动了），而为什么、怎么办，顶上那条门禁红字已经整句说了，
+                  //   那是唯一一份说明。
+                  // ★★ 2026-10-21 删掉的那句原来在这里指「点「‹ 换一种做法」改选「经典配方」」—— 那条车道 2026-10-02 就收了
+                  //   （见 route 的 ★），回到第 1 步找不到它，白模两条点哪条都被同一道门拦回来：一条走不通的出路。
+                  //   那句当时照样显示得出来：套餐镜像晚到时，人先进了第 2 步、镜像才说他没付过钱。别再在这里补一条"出路"：
+                  //   第 1 步 2026-10-26 起另有「只用文字 + 封面」（onPickText，不受这道门管），指人去那儿的那颗键在门禁红字里（textRouteLink），不写在这一行。
+                  (busy || !blockoutBlock) && (
+                    <p className="text-[10px] leading-relaxed text-slate-500">
+                      {busy ||
+                        // ★★ 只说**这一屏别处没说过的**：上传不花钱、选段窗口、报价在开炼之前。
+                        //   「拖裁剪框把水印框到画面外」与「报价」上面那两段各说过一次了 ——
+                        //   同一屏说两遍不是强调，是让人以为那是两件事（这一屏本来就是靠删重复
+                        //   才腾出地方的，2026-08-23 拆两步时一并收）。
+                        t`传上去不花钱 · 下一步框出 ${minSec}~${maxSec} 秒 · 报价确认后才开炼`}
+                    </p>
+                  )
                 ) : (
                   <>
                     <button

@@ -10,12 +10,10 @@
 // ★★ ② portal 之后 DOM 上虽已脱离页面，**React 合成事件仍沿组件树冒泡**。
 //   首页上的遮罩若不写 onPointerDown/onPointerUp/onClick 三个 stopPropagation，
 //   点遮罩会同时触发 FeedItem 的暂停/解静音/双击点赞（CommentSheet 就是为这个写的）。
-// ★★ ③ **安卓物理返回键这一批有意不接管**。全 app 现在没有任何地方监听 backButton，
-//   默认行为是 WebView goBack（HashRouter 下退回上一路由）。所以引导开着时按返回，
-//   会**直接离开当前页**而不是关掉引导 —— 这是已知行为，不是漏做：要修得挂一个全局
-//   backButton 监听，而那一下会同时接管全 app 的返回语义（每页都要补自己的返回行为），
-//   属于独立一批的事。`GuideGate` 里"换路由就关引导"那一条兜住了后果（不会留下一个
-//   飘在新页面上、关不掉的遮罩）。
+// ★★ ③ **安卓物理返回键 = 关掉引导、留在这一页**（2026-10-29 起，登记在 utils/backButton 的层栈上）。
+//   原来没人接管返回键，引导开着时按返回会**直接离开当前页**（`GuideGate` 里"换路由就关引导"兜住了遮罩不残留）——
+//   人想出去的结果一样（引导没了），只是不该连页面一起丢掉。不改成「上一步」：返回键在全 app 的意思都是「关上面那层」。
+//   这与下面「没有跳过」不矛盾：自动弹的那一路开的时候就记成看过了（data/guide.openGuide），关掉不会再拦第二次。
 //
 // ── 为什么没有「跳过」───────────────────────────────────────────────
 // 产品要求就是**强制走完**（"用户这时只能点下一步直到步骤走完"）。代价是：一旦用户
@@ -25,6 +23,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { activeGuide, closeGuide, stepGuide } from "../../data/guide";
+import { useBackLayer } from "../../hooks/useBackLayer";
 import { useGuide } from "../../hooks/useGuide";
 import { tourById } from "./tours";
 
@@ -94,8 +93,8 @@ function rectOf(anchor: string): Rect | null {
   //   而 `getBoundingClientRect` 对屏外元素照样返回非零宽高，老写法的"找不到就退成居中卡片"
   //   那道兜底**根本不会触发**。后果不是少个圈：下面按空隙算位置时 `rect.top` 会超过 `vh`，
   //   `bottom: vh - rect.top + …` 直接变负数，**说明卡跟着圈一起沉出屏幕，而最先被切掉的
-  //   正是卡片底部那颗「下一步」** —— 而这一层锁死整屏、没有跳过键、也不接管安卓返回键，
-  //   用户唯一的出路是按返回键**离开这一页**。
+  //   正是卡片底部那颗「下一步」** —— 而这一层锁死整屏、没有跳过键，
+  //   当时也不接管安卓返回键，用户唯一的出路是按返回键**离开这一页**（2026-10-29 起返回键改成关掉引导，见文件头 ③）。
   //   ⇒ 判"有没有和视口相交"，不相交就退成居中卡片（那一档本来就是设计好的兜底）。
   //   ★ 用相交而不是"整个在视口内"：贴着边露出一半的锚点仍然圈得住、也指得准。
   const vw = window.innerWidth;
@@ -117,6 +116,8 @@ export default function GuideOverlay() {
   const raf = useRef(0);
 
   const anchor = step?.anchor ?? "";
+  // 返回键关掉引导（见文件头 ③）。排在早退之前：引导关着时这一层不在栈上
+  useBackLayer(!!(tour && act && step), closeGuide, "guide");
 
   /** 量一次锚点位置。量不到就每帧重试，最多 FIND_TRIES 帧，之后退成居中卡片 */
   const measure = useCallback(() => {
@@ -252,9 +253,9 @@ export default function GuideOverlay() {
       )}
 
       {/* 说明卡。★ 用 absolute 定位而不是 flex 居中：有锚点时要贴着圈放 */}
-      <div className="absolute inset-x-4 flex flex-col rounded-2xl border border-slate-600 bg-panel p-4 shadow-2xl" style={cardStyle}>
+      <div className="absolute inset-x-4 flex flex-col rounded-2xl bg-raised p-4 shadow-2xl ring-1 ring-white/10" style={cardStyle}>
         <div className="mb-1.5 flex flex-none items-center gap-2">
-          <span className="rounded-full px-2 py-0.5 bg-brand/20 text-[10px] font-bold text-brand">
+          <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-slate-400">
             {act.step + 1}/{tour.steps.length}
           </span>
           <h2 className="min-w-0 flex-1 truncate text-sm font-bold text-slate-100">{stepTitle}</h2>

@@ -19,11 +19,12 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "reac
 import { Trans, useLingui } from "@lingui/react/macro";
 import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
+import StepDots from "../components/StepDots";
 import { useNavigate } from "react-router";
 import SegSettings from "../components/flow/SegSettings";
 import { chosenOf, nodeCost, nodeDone, nodeEmptyFrames, tplOfNode, useFlow } from "../studio/flowStore";
-import { fmtTokens, tierOf } from "../data/economy";
-import { tierBlockReason } from "../data/account";
+import { fmtTokens, priceTag, tierOf } from "../data/economy";
+import { textOnlyFramesLine, tierBlockReason, tierTextOnly } from "../data/account";
 import {
   browseTemplates,
   groupRows,
@@ -105,28 +106,26 @@ export default function SimpleModePage() {
   const prop = chosenOf(node);
   const tpl = tplOfNode(node);
   const cost = nodeCost(nodes, 0, mode);
-  const stepNo = step === "start" ? 1 : step === "fill" ? 2 : 3;
+  const stepIdx = step === "start" ? 0 : step === "fill" ? 1 : 2;
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-md flex-col px-4 pb-6">
-      {/* 顶栏：只有返回 + 第几步。简约不需要存草稿/完成视频那一排。
+      {/* 顶栏：只有返回。简约不需要存草稿/完成视频那一排。
           ★ 走 PageHeader（2026-09-05 主人截图：这一页此前没留状态栏的位置，返回键压在时间上、
             「第 1/3 步」压在电量图标上 —— 全 app 唯一一页顶栏没 safe-top 的） */}
       <PageHeader sticky inset
         onBack={() => (step === "start" ? navigate("/create") : setStep(step === "go" ? "fill" : "start"))}
         title={t`写一句话出片`}
-        right={
-          <span className="flex-none text-[11px] text-slate-500">
-            <Trans>第 {stepNo} / 3 步</Trans>
-          </span>
-        }
       />
+      {/* ★ 进度只画这一份（components/StepDots，CLAUDE.md 铁律六）：2026-10-22 替掉右上角那句「第 n / 3 步」；
+          三步的名字照文件头那三件事（挑起点 → 说清拍什么 → 出片）。纯展示：回上一步仍只走返回键 */}
+      <StepDots className="mb-4" current={stepIdx} steps={[{ label: t`选起点` }, { label: t`说清楚` }, { label: t`出片` }]} />
 
       {/* store 的整句拒绝（换模板被拒、生成被拒…）—— 不画一份就是"点了没反应"（铁律八）。
           ★ 第 3 步的拒绝画在「出片」那颗键的正上方（StepGo 收 err），不画在这儿：键在屏幕底、这行在顶，人盯着键看不到这句
           （2026-10-14 UX 课走查：反馈要落在动作旁边） */}
       {err && step !== "go" && (
-        <p className="mb-3 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-300">{err}</p>
+        <p className="mb-3 rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-[11px] leading-relaxed text-danger-300">{err}</p>
       )}
 
       {step === "start" && (
@@ -448,6 +447,7 @@ function StepGo({
                 canEdit={!busy}
                 fates={nodeEmptyFrames(nodes, Math.max(0, nodes.findIndex((n) => n.id === nodeId)), mode)}
                 drawNote={t`空 = AI 按上面那句话补画（计费）`}
+                textOnlyNote={tierTextOnly(tierOf(node.videoTier)) ? textOnlyFramesLine() : null}
                 onFrame={(which, url) => setFrame(nodeId, which, url)}
                 onFuse={setFuse}
                 onError={(msg) => useFlow.setState({ err: msg })}
@@ -478,7 +478,7 @@ function StepGo({
       <span className="flex-1" />
       {/* 拒绝画在键的正上方（页面顶上那份对第 3 步不画，见 SimpleModePage 的 err） */}
       {err && (
-        <p className="mt-3 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-300">{err}</p>
+        <p className="mt-3 rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-[11px] leading-relaxed text-danger-300">{err}</p>
       )}
       {/* 出片是几分钟的事：说清楚可以走开（离开之后进度与结果由顶上的胶囊接着报，GenerationPill） */}
       {progress && (
@@ -510,7 +510,7 @@ function StepGo({
           className="mt-3 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:bg-slate-700 disabled:text-slate-500"
         >
           {/* 价签带单位（2026-10-14 UX 课的「信息要清楚」）：光一个「1.2k」分不出是钱还是别的什么、点下去扣不扣 */}
-          {busy ? t`生成中…` : t`⚡ 出片（${fmtTokens(cost)} token）`}
+          {busy ? t`生成中…` : t`出片（${priceTag(cost)}）`}
         </button>
       )}
     </div>

@@ -11,7 +11,11 @@
  *   一挂看板娘就整个不出现。Core 本地副本失败时回退官方地址。
  *   版本号写进文件名，升级时换文件 + 改这里的常量，避免浏览器缓存串版。
  * ★ 三段脚本有顺序依赖（Core → pixi → 插件），必须串行；并发调用共享同一个 Promise，避免重复插 <script>。
+ * ★ 加载 moc3 之前的版本 + 一致性检查也装在这里（installMocGuard，2026-10-26）：运行时一加载完就包好，
+ *   所有模型地址都经过它。别往 `Live2DModel.from` 的选项里传 checkMocConsistency —— 在这份运行时上不生效，见那个函数的 ★★。
  */
+
+import { checkMoc, type CubismCoreLike } from "./mocCheck";
 
 const CUBISM_CORE_URL = "/live2d/runtime/live2dcubismcore.min.js";
 const CUBISM_CORE_FALLBACK_URL = "https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js";
@@ -94,7 +98,17 @@ export type PixiRuntime = {
   live2d: {
     Live2DModel: { from(url: string, options?: Record<string, unknown>): Promise<Live2DModelInstance> };
     MotionPriority: { NONE: number; IDLE: number; NORMAL: number; FORCE: number };
+    /** 运行时注册表（静态数组，按 version 降序）；加载 moc3 那一步从这里取 runtime 调它的 createCoreModel。见 installMocGuard */
+    Live2DFactory?: { runtimes?: Live2DRuntimeEntry[] };
   };
+};
+
+/** Live2DFactory.runtimes 里的一项（我们只碰 version 与 createCoreModel） */
+type Live2DRuntimeEntry = {
+  version: number;
+  createCoreModel?: (mocBytes: ArrayBuffer, options?: unknown) => unknown;
+  /** installMocGuard 装过的记号（同一个运行时对象只包一层） */
+  __mocGuard?: boolean;
 };
 
 type Live2DWindow = Window & { PIXI?: PixiRuntime; Live2DCubismCore?: unknown };
@@ -151,10 +165,60 @@ export function loadLive2DRuntime(): Promise<PixiRuntime> {
     await loadScript(LIVE2D_DISPLAY_URL);
     const pixi = (window as Live2DWindow).PIXI;
     if (!pixi || !pixi.live2d) throw new Error("PIXI.live2d is not available after loading runtime scripts");
+    installMocGuard(pixi);
     return pixi;
   })().catch((error) => {
     runtimePromise = null;
     throw error;
   });
   return runtimePromise;
+}
+
+/** 已加载的 Cubism Core（全局 Live2DCubismCore）；还没加载 / 形状不对回 null */
+function loadedCubismCore(): CubismCoreLike | null {
+  const core = (window as Live2DWindow).Live2DCubismCore as Partial<CubismCoreLike> | undefined;
+  return core && typeof core.Version?.csmGetLatestMocVersion === "function" && typeof core.Moc?.prototype?.hasMocConsistency === "function"
+    ? (core as CubismCoreLike)
+    : null;
+}
+
+/**
+ * 给 Cubism 4 运行时加载 moc3 的那一步包一层：先过 `mocCheck.checkMoc`（版本 + 一致性），不过就抛 `MocCheckFailed`，
+ * 一路原样传到 `Live2DModel.from` 的调用方（中间件执行器对错误是原样 reject，不包装）。
+ *
+ * ★★ 为什么不往 `Live2DModel.from(url, { checkMocConsistency: true })` 里传选项：在随包的这份运行时上那是**空操作**，
+ *   而且零报错。运行时自己的 `createCoreModel(moc, options)` 确实认 `options.checkMocConsistency`，可加载 moc 的那个中间件
+ *   调它时写的是 `createCoreModel(r)` —— 只传字节，`from()` 的 options 只交给了 `createInternalModel`
+ *   （pixi-live2d-display-cubism4-0.5.0-ls-8.min.js 里 `createCoreModel(` 一共出现两次：一次定义、一次这个单参调用）。
+ * ★ 包在这里（运行时加载完那一拍）而不是 companionModel 里自己 fetch 一遍 moc3 预检：这一层 http 地址、上传向导的
+ *   `zip://blob:` 地址、随包的官方形象三条路都要经过；自己 fetch 的话 zip:// 那条拿不到字节，向导预览会漏掉。
+ * ★ 运行时取 runtime 是每次加载时现查 `Live2DFactory.findRuntime`（遍历的就是这个数组里的同一批对象），所以改对象上的方法就生效。
+ * ★ 找不到 runtime / Core（将来换了运行时）只 console.warn、不拦加载：检查没装上 = 回到原来的行为，不该让看板娘因此出不来。
+ */
+function installMocGuard(pixi: PixiRuntime): void {
+  const rt = pixi.live2d.Live2DFactory?.runtimes?.find((r) => r.version === 4);
+  const original = rt?.createCoreModel;
+  if (!rt || typeof original !== "function") {
+    console.warn("[live2d] Cubism 4 runtime not found in Live2DFactory.runtimes; moc3 consistency check is NOT installed");
+    return;
+  }
+  if (rt.__mocGuard) return;
+  rt.createCoreModel = (mocBytes: ArrayBuffer, options?: unknown) => {
+    const core = loadedCubismCore();
+    if (core) checkMoc(mocBytes, core);
+    else console.warn("[live2d] Live2DCubismCore not found; skipped moc3 consistency check");
+    return original.call(rt, mocBytes, options);
+  };
+  rt.__mocGuard = true;
+}
+
+/**
+ * 对一份 moc3 字节跑同一道加载前检查（上传向导第 ① 步本地核对用：作者在预览之前就知道这份 moc3 读不了）。
+ * 不过抛 `MocCheckFailed`；运行时 / Core 没加载出来抛别的错误 —— 调用方要分开（那不是包的问题，第 ② 步加载时还会再查一次）。
+ */
+export async function checkMocBytes(mocBytes: ArrayBuffer | Uint8Array): Promise<void> {
+  await loadLive2DRuntime();
+  const core = loadedCubismCore();
+  if (!core) throw new Error("Live2DCubismCore is not available after loading runtime scripts");
+  checkMoc(mocBytes, core);
 }

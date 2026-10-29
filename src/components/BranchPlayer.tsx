@@ -3,7 +3,9 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Icon from "./Icon";
-import { BranchTree, aspectCss, formatDuration } from "../types";
+import PlayerControls from "./PlayerControls";
+import { frameLook, type PlayerFrame, type PlayerOverlay } from "./playerFrame";
+import { BranchTree } from "../types";
 
 /**
  * ★ `onPathChange` 是**必填**、不是可选（铁律 5b 名单第一条：可选回调漏传零症状）。
@@ -15,10 +17,20 @@ export default function BranchPlayer({
   tree,
   cover,
   onPathChange,
+  frame,
+  rate,
+  overlay,
+  onFull,
 }: {
   tree: BranchTree;
   cover: string;
   onPathChange: (path: string[]) => void;
+  /** 外框 / 倍速 / 挂点 / 全屏 —— 四个都必填，理由同 SegmentPlayer（漏传零症状） */
+  frame: PlayerFrame;
+  rate: number;
+  /** 挂点：time = 当前这一段的秒数，onRoot = 正在放开场那一段（弹幕只挂在开场段上） */
+  overlay: PlayerOverlay;
+  onFull: (() => void) | null;
 }) {
   const { t } = useLingui();
   const [nodeId, setNodeId] = useState(tree.rootId);
@@ -26,8 +38,6 @@ export default function BranchPlayer({
   const [time, setTime] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [started, setStarted] = useState(false);
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const barRef = useRef<HTMLDivElement>(null);
   const [ctrl, setCtrl] = useState(true);
 
   // 播放中 3 秒自动收起控制条；暂停时常显
@@ -55,7 +65,8 @@ export default function BranchPlayer({
     let raf = 0;
     let last = performance.now();
     const tick = (now: number) => {
-      const dt = (now - last) / 1000;
+      // 倍速：墙钟走 1 秒，片子走 rate 秒（<video>.playbackRate 下面那个 effect 设同一个数）
+      const dt = ((now - last) / 1000) * rate;
       last = now;
       setTime((t) => {
         const nt = t + dt;
@@ -69,7 +80,7 @@ export default function BranchPlayer({
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [playing, dur, nodeId]);
+  }, [playing, dur, nodeId, rate]);
 
   // 单选项：段尾自动续播（无感串联）
   useEffect(() => {
@@ -104,10 +115,12 @@ export default function BranchPlayer({
       });
     } else v.pause();
   }, [playing, seg.videoUrl]);
-  // ★ muted 是 property：换段重建 <video> 之后要再钉一次
+  // ★ muted 是 property：换段重建 <video> 之后要再钉一次（倍速同理，新元素会退回 1 倍）
   useEffect(() => {
     const v = videoRef.current;
-    if (v) v.muted = muted;
+    if (!v) return;
+    v.muted = muted;
+    v.playbackRate = rate;
   });
   useEffect(() => {
     const v = videoRef.current;
@@ -159,23 +172,16 @@ export default function BranchPlayer({
   // 走过的分支点数（用于路径徽标）
   const forkCount = useMemo(() => path.filter((id) => (tree.nodes[id]?.choices.length ?? 0) > 1).length, [path, tree]);
 
-  function seek(clientX: number) {
-    const bar = barRef.current;
-    if (!bar) return;
-    const rect = bar.getBoundingClientRect();
-    const r = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
-    setTime(r * dur);
+  /** 跳到这一段的第几秒（PlayerControls 已经夹进 [0, dur]） */
+  function seekTo(sec: number) {
+    setTime(sec);
     setStarted(true);
   }
 
+  // 外框（卡片 / 满宽 / 全屏）一处定：components/playerFrame.frameLook；跟着当前段的画幅，竖屏作品才不会被裁掉上下
+  const look = frameLook(frame, seg.aspect);
   return (
-    <div
-      ref={wrapRef}
-      /* 与 SegmentPlayer 同理：播放框跟着当前段的画幅，竖屏作品才不会被裁掉上下 */
-      style={{ aspectRatio: aspectCss(seg.aspect), maxHeight: "72vh" }}
-      className="relative mx-auto w-full max-w-full select-none overflow-hidden rounded-xl bg-black"
-      onClick={() => setCtrl((v) => !v)}
-    >
+    <div style={look.style} className={look.className} onClick={() => setCtrl((v) => !v)}>
       {!started ? (
         <>
           <img src={cover} alt={t`封面`} className="h-full w-full object-cover" />
@@ -209,8 +215,8 @@ export default function BranchPlayer({
               }}
               className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/35"
             >
-              <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white/90 pl-1 text-3xl text-ink shadow-xl">
-                ▶
+              <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white/90 pl-1 text-ink shadow-xl">
+                <Icon name="play" size={30} filled />
               </span>
               <span className="rounded-full bg-brand/90 px-3 py-1 text-xs font-medium text-white">
                 <Trans>互动视频</Trans>
@@ -251,6 +257,9 @@ export default function BranchPlayer({
             )}
           </div>
 
+          {/* 挂点（详情页的弹幕）：画面之上、分支选择层与控制条之下。弹幕只挂在开场那一段上（onRoot） */}
+          {overlay?.({ time, paused: !playing, onRoot: nodeId === tree.rootId })}
+
           {/* 分支选择层 */}
           {needChoice && (
             <div className="absolute inset-0 flex flex-col items-center justify-end gap-3 bg-gradient-to-t from-black/85 via-black/40 to-transparent px-6 pb-8">
@@ -284,47 +293,27 @@ export default function BranchPlayer({
             </div>
           )}
 
-          {/* 控制条：点画面唤起/收起，播放中 3 秒自动淡出。
-              原来是 group-hover —— 触屏没有 hover，真机上进度条和播放键完全够不着。 */}
-          <div
-            className={`absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-3 pb-2 pt-8 transition-opacity duration-200 ${
-              ctrl ? "opacity-100" : "pointer-events-none opacity-0"
-            }`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="-my-2 py-2" onClick={(e) => seek(e.clientX)}>
-              <div ref={barRef} className="relative h-1.5 w-full cursor-pointer rounded-full bg-white/25">
-                <div className="absolute inset-y-0 left-0 rounded-full bg-brand" style={{ width: `${frac * 100}%` }} />
-              </div>
-            </div>
-            <div className="mt-1.5 flex items-center gap-3 text-sm text-slate-100">
-              <button
-                onClick={() => {
-                  // 原来是 setPlaying((p) => !p && time < dur)：time >= dur 时恒 false，按了没反应
-                  if (time >= dur) {
-                    setTime(0);
-                    setPlaying(true);
-                  } else {
-                    setPlaying((p) => !p);
-                  }
-                }}
-                className="-m-2 p-2"
-                aria-label={playing ? t`暂停` : t`播放`}
-              >
-                <Icon name={time >= dur ? "replay" : playing ? "pause" : "play"} size={20} filled={time < dur} />
-              </button>
-              <span className="text-xs tabular-nums text-slate-300">
-                {formatDuration(time)} / {formatDuration(dur)}
-              </span>
-              <button
-                onClick={() => setMuted((m) => !m)}
-                className="ml-auto flex-none rounded-full bg-white/15 px-2.5 py-1 text-[11px] text-slate-100"
-                aria-label={muted ? t`取消静音` : t`静音`}
-              >
-                {muted ? <Trans>🔇 已静音</Trans> : <Trans>🔊 有声</Trans>}
-              </button>
-            </div>
-          </div>
+          {/* 控制条（只有 PlayerControls 一份，与 SegmentPlayer 共用）：点画面唤起/收起，播放中 3 秒自动淡出 */}
+          <PlayerControls
+            time={time}
+            total={dur}
+            playing={playing}
+            visible={ctrl}
+            marks={[]}
+            muted={muted}
+            rate={rate}
+            onToggle={() => {
+              // 原来是 setPlaying((p) => !p && time < dur)：time >= dur 时恒 false，按了没反应
+              if (time >= dur) {
+                setTime(0);
+                setPlaying(true);
+              } else setPlaying((p) => !p);
+            }}
+            onSeek={seekTo}
+            onMute={() => setMuted((m) => !m)}
+            onShow={() => setCtrl(true)}
+            onFull={onFull}
+          />
         </>
       )}
     </div>

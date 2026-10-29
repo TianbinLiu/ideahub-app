@@ -9,23 +9,25 @@
 // ★ 上传走 utils/image.fileToRefImage（卡片形象图同一条路：长边压到 1024、比例越界居中裁并说出来）——
 //   这些图要当参考图发给视频 / 出图模型，越界的图会把整发请求 400 掉。
 import type { MessageDescriptor } from "@lingui/core";
+import Warn from "../Warn";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useRef, useState } from "react";
 import InfoTip from "../InfoTip";
 import Spinner from "../Spinner";
 import { showToast } from "../../data/toast";
-import { tierNamesFor } from "../../data/account";
+import { noTierLine, textOnlyRefsLine, tierNamesFor } from "../../data/account";
 import { useLang } from "../../i18n/useLang";
 import { VIDEO_REF_WINDOW, fileToRefImage } from "../../utils/image";
-import type { RefPlan, RefPlanItem } from "../../studio/segmentGen";
+import { extrasCapLine, type RefPlan, type RefPlanItem } from "../../studio/segmentGen";
 import {
-  EXTRA_REF_MAX,
   EXTRA_REF_NAME_MAX,
   EXTRA_REF_ROLES,
   FRAME_ALIASES,
   compileMentions,
+  isSlotName,
   mentionTargets,
+  slotGaps,
   type ExtraRef,
   type ExtraRefRole,
 } from "../../data/refMentions";
@@ -62,6 +64,9 @@ export default function RefStrip({
   onUpdate,
   onRemove,
   onError,
+  slots,
+  onFillSlot,
+  onReplace,
 }: {
   /** 排队编号（flowStore.nodeRefPlan）。null = 这一段不在了 */
   plan: RefPlan | null;
@@ -83,11 +88,22 @@ export default function RefStrip({
   onUpdate: (id: string, patch: { name?: string; role?: ExtraRefRole }) => boolean;
   onRemove: (id: string) => void;
   onError: (msg: string) => void;
+  /**
+   * 文字模板段的图位（FlowNode.textTpl.slots）：缺哪几张由 refMentions.slotGaps 一处判（与出片前的缺图闸同一个认法），
+   * 缺的画成虚线格「@名字 · 补图」，点了选图、按图位名加进来（onFillSlot）。不给 = 不是文字模板段。
+   */
+  slots?: { name: string; hint: string }[];
+  /** 按图位名加一张（宿主接 flowStore.addExtraRef，名字就是图位名）。回新图 id；被拒回 null */
+  onFillSlot?: (name: string, dataUrl: string) => string | null;
+  /** 只换一张的图、id 与名字不动（宿主接 flowStore.replaceExtraRefUrl）：图位的图换图只能走它 —— 先删再加会把正文里的 @名字 退成普通文字 */
+  onReplace?: (id: string, dataUrl: string) => boolean;
 }) {
   const { t } = useLingui();
   const { active: lang } = useLang();
   const fileRef = useRef<HTMLInputElement>(null);
   const [reading, setReading] = useState(false);
+  /** 这一次选图是给谁的：补哪个图位（name）/ 换哪一张的图（id）/ 都不是 = 加一张普通的临时参考图 */
+  const [target, setTarget] = useState<{ fill: string } | { replace: string } | null>(null);
   /** 正在编辑哪一张临时参考图（存 id：删掉 / 换段后自然对不上，面板就收起） */
   const [sel, setSel] = useState<string | null>(null);
   /** 名字输入框的草稿（失焦 / 回车才提交：边打边查重会把半截名字判成重名） */
@@ -102,13 +118,17 @@ export default function RefStrip({
   // 「换哪一档就有」按能力现算、按这个人用不用得了分两种说法（account.tierNamesFor；2026-10-07 起原来写死的「高清」「电影级」对免费用户是死路）
   const vidNames = tierNamesFor((x) => x.refVid);
   const imgNames = tierNamesFor((x) => x.refImg);
-  const audioNames = tierNamesFor((x) => x.audio && x.refImg);
-  const vidUsable = vidNames.usable;
-  const vidMember = vidNames.member;
-  const imgUsable = imgNames.usable;
-  const imgMember = imgNames.member;
-  const audioUsable = audioNames.usable;
-  const audioMember = audioNames.member;
+  // 「要配音换哪一档」= 带得了声音样本的那几档（VideoTier.refAudio）
+  const audioNames = tierNamesFor((x) => x.refAudio);
+  // null = 摆得出来的档里一档都没有这种能力（门禁开着的海外只剩「真人」档）：说地区 / 这台服务器的事实（account.noTierLine），不说「换到「」」、不说会员档
+  const vidUsable = vidNames?.usable ?? "";
+  const vidMember = vidNames?.member ?? "";
+  const vidNone = vidNames ? "" : noTierLine("refVid");
+  const imgUsable = imgNames?.usable ?? "";
+  const imgMember = imgNames?.member ?? "";
+  const audioUsable = audioNames?.usable ?? "";
+  const audioMember = audioNames?.member ?? "";
+  const audioNone = audioNames ? "" : noTierLine("refAudio");
   const items = plan.items;
   const numOf = (id: string) => items.find((it) => it.kind === "extra" && it.extra?.id === id)?.n ?? null;
   const firstN = items.find((it) => it.kind === "first")?.n;
@@ -140,6 +160,13 @@ export default function RefStrip({
   const labelOf = (it: RefPlanItem): string =>
     it.kind === "first" ? (it.carried ? t`首帧·承接` : t`首帧`) : it.kind === "last" ? t`尾帧` : it.kind === "mid" ? t`中间帧` : (nameOf(it) ?? "");
   const openEditor = (x: ExtraRef) => setSel(x.id);
+  const slotNames = (slots ?? []).map((x) => x.name);
+  const gaps = slotGaps(slotNames, extras);
+  const selIsSlot = !!selected && isSlotName(slotNames, selected.name);
+  const pickFor = (next: { fill: string } | { replace: string } | null) => {
+    setTarget(next);
+    fileRef.current?.click();
+  };
   const tap = (it: RefPlanItem) => {
     if (it.kind === "extra" && it.extra) {
       // 临时参考图：点开编辑条（改名 / 用途 / 删除 / 写进句子都在那儿）
@@ -155,7 +182,9 @@ export default function RefStrip({
     if (nameDraft === selected.name) return;
     if (!onUpdate(selected.id, { name: nameDraft })) setNameDraft(selected.name);
   };
-  const full = extras.length >= EXTRA_REF_MAX;
+  // 这一段最多几张由计划带来（segmentGen.refPlanOf → refMentions.extraRefMaxOf：文字模板段 4、其余 3），与加图那道闸、出片截的同一个数
+  const extraMax = plan.extraMax;
+  const full = extras.length >= extraMax;
   /** 没发出去的临时参考图（这一档不收 / 模板段）也要摆出来：人得找得到它、删得掉它 */
   const orphanExtras = extras.filter((x) => numOf(x.id) === null);
   const textOnlyNames = plan.textOnly.map((c) => c.name).join(t({ message: "、", comment: "列举几个名字时的分隔符" }));
@@ -164,7 +193,11 @@ export default function RefStrip({
   const overNames = (plan.voiceOver?.cards ?? []).map((c) => c.name).join(t({ message: "、", comment: "列举几个名字时的分隔符" }));
   const overCap = plan.voiceOver?.capSec ?? 0;
   const quietNames = (plan.voiceQuiet ?? []).map((c) => c.name).join(t({ message: "、", comment: "列举几个名字时的分隔符" }));
-  const looseNames = loose.map((x) => `@${x}`).join(" ");
+  // 还没补图的图位不算「没对上」：上面那排虚线格已经说了缺哪几张，再说一遍「检查名字」是指错了方向
+  const looseNames = loose
+    .filter((x) => !isSlotName(gaps, x))
+    .map((x) => `@${x}`)
+    .join(" ");
   const chip = (it: RefPlanItem) => {
     const k = keyOf(it);
     const on = !!k && used.has(k);
@@ -213,9 +246,9 @@ export default function RefStrip({
         <span className="min-w-0 flex-1" />
         <button
           type="button"
-          onClick={() => fileRef.current?.click()}
+          onClick={() => pickFor(null)}
           disabled={!canEdit || reading || full}
-          title={full ? t`一段最多 ${EXTRA_REF_MAX} 张临时参考图` : undefined}
+          title={full ? t`一段最多 ${extraMax} 张临时参考图` : undefined}
           className="flex-none rounded-full bg-slate-700 px-2.5 py-1 text-[11px] font-semibold text-slate-100 disabled:opacity-40"
         >
           {reading ? <Spinner size="xs" /> : <Trans>＋ 参考图</Trans>}
@@ -234,18 +267,54 @@ export default function RefStrip({
         <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
           {plan.why === "real" ? (
             <Trans>真人档只认一张起拍画面，不收参考图：卡片与临时参考图只按文字参与。</Trans>
+          ) : plan.why === "textOnly" ? (
+            // 免费版在 MiniMax H3 上只能纯文字出片（account.tierTextOnly；出片进度里摘图那一句是同一句）
+            textOnlyRefsLine()
           ) : plan.why === "refvid" ? (
-            vidUsable ? (
+            vidNone ? (
+              <Trans>「{tierLabel}」档带不了示例视频——{vidNone}。</Trans>
+            ) : vidUsable ? (
               <Trans>「{tierLabel}」档带不了示例视频——换成「{vidUsable}」之后这里才排得出清单。</Trans>
             ) : (
               <Trans>「{tierLabel}」档带不了示例视频；带得了的「{vidMember}」是会员档（开通会员套餐或充值过任意一笔后可用）。</Trans>
             )
           ) : imgUsable ? (
             <Trans>「{tierLabel}」档协议上不收参考图：卡片形象只用来画首尾帧，出片时模型看到的只有首尾帧。想让模型直接看到卡片形象与临时参考图，换「{imgUsable}」。</Trans>
+          ) : !imgNames ? (
+            <Trans>「{tierLabel}」档协议上不收参考图：卡片形象只用来画首尾帧，出片时模型看到的只有首尾帧。</Trans>
           ) : (
             <Trans>「{tierLabel}」档协议上不收参考图：卡片形象只用来画首尾帧，出片时模型看到的只有首尾帧。让模型直接看到卡片形象与临时参考图要「{imgMember}」（会员档）。</Trans>
           )}
         </p>
+      )}
+
+      {/* 文字模板的图位还缺哪几张：虚线格，点了按图位名补一张（缺图时出片前的门禁会整句拒，这里先把要补什么摆出来） */}
+      {gaps.length > 0 && (
+        <div className="mt-2 space-y-1">
+          <div className="text-[10px] text-warn-200">
+            <Trans>模板的图位还缺 {gaps.length} 张，补齐才能出片：</Trans>
+          </div>
+          <div className="no-scrollbar flex gap-1.5 overflow-x-auto pb-0.5">
+            {gaps.map((name) => {
+              const hint = slots?.find((x) => x.name.toLowerCase() === name.toLowerCase())?.hint ?? "";
+              return (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => pickFor({ fill: name })}
+                  disabled={!canEdit || reading || full || !onFillSlot}
+                  title={hint || undefined}
+                  className="flex w-16 flex-none flex-col items-center gap-0.5 disabled:opacity-40"
+                >
+                  <span className="flex h-14 w-16 items-center justify-center rounded-md border border-dashed border-warn-400/70 bg-ink/60 px-0.5 text-center text-[9px] leading-tight text-warn-200">
+                    {hint || <Trans>补图</Trans>}
+                  </span>
+                  <span className="w-16 truncate text-center text-[9px] text-sky-200">@{name}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
       )}
 
       {/* 没发出去的临时参考图也摆出来（找得到、删得掉） */}
@@ -267,11 +336,17 @@ export default function RefStrip({
           ))}
         </div>
       )}
-      {plan.extrasDropped && (
-        <p className="mt-1 text-[10px] leading-relaxed text-amber-300/90">
+      {/* 两种「带不出去」分开说（RefPlan.extrasCap 的 ★）：图位不够只带得上前几张（MiniMax H3 一段 5 张图）说「最多带 N 张」，与出片进度同一句；
+          档位 / 请求形状本来就发不出临时参考图的才说「这一档发不出去」 */}
+      {plan.extrasCap ? (
+        <Warn compact className="mt-1">
+          {extrasCapLine(plan.extrasCap)}
+        </Warn>
+      ) : plan.extrasDropped ? (
+        <Warn compact className="mt-1">
           <Trans>临时参考图在这一档发不出去（上面那几张变淡的）。</Trans>
-        </p>
-      )}
+        </Warn>
+      ) : null}
 
       {/* 编辑条：改名 / 用途 / 写进句子 / 删除 */}
       {selected && (
@@ -285,7 +360,8 @@ export default function RefStrip({
                 if (e.key === "Enter") (e.target as HTMLInputElement).blur();
               }}
               maxLength={EXTRA_REF_NAME_MAX}
-              disabled={!canEdit}
+              // 图位的名字跟着模板走（正文里写的就是 @它）：改不了，store 那边同样整句拒（flowStore.updateExtraRef）
+              disabled={!canEdit || selIsSlot}
               placeholder={t`名字`}
               className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-black/30 px-2.5 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand disabled:opacity-40"
             />
@@ -297,6 +373,16 @@ export default function RefStrip({
                 className="flex-none rounded-full bg-brand px-2.5 py-1 text-[11px] font-semibold text-ink disabled:opacity-40"
               >
                 <Trans>@ 写进句子</Trans>
+              </button>
+            )}
+            {selIsSlot && onReplace && (
+              <button
+                type="button"
+                onClick={() => pickFor({ replace: selected.id })}
+                disabled={!canEdit || reading}
+                className="flex-none rounded-full border border-slate-600 px-2.5 py-1 text-[11px] text-slate-300 disabled:opacity-40"
+              >
+                <Trans>换图</Trans>
               </button>
             )}
             <button
@@ -354,7 +440,9 @@ export default function RefStrip({
           {plan.voiceIdle.why === "quote" ? (
             <Trans>🔇 {idleNames} 带着声音样本，但句子里没有台词——把台词写进引号（「」或 “”）里，才会按这张卡的声音配音。</Trans>
           ) : plan.voiceIdle.why === "tier" ? (
-            audioUsable ? (
+            audioNone ? (
+              <Trans>🔇 {idleNames} 带着声音样本，但「{tierLabel}」档出片无声——{audioNone}。</Trans>
+            ) : audioUsable ? (
               <Trans>🔇 {idleNames} 带着声音样本，但「{tierLabel}」档出片无声——要配音换「{audioUsable}」。</Trans>
             ) : (
               <Trans>🔇 {idleNames} 带着声音样本，但「{tierLabel}」档出片无声——配音要「{audioMember}」（会员档）。</Trans>
@@ -372,14 +460,14 @@ export default function RefStrip({
       )}
       {/* 声音样本合计太长、这几位没带上（N2）：出片之前就说，别等出片那一行进度 */}
       {plan.voiceOver && (
-        <p className="mt-1 text-[10px] leading-relaxed text-amber-300/90">
+        <Warn compact className="mt-1">
           <Trans>🔇 {overNames} 的声音样本这次带不上：这一档的参考音频合计最长 {overCap} 秒。把样本剪短些，或少挂一张带声音的卡。</Trans>
-        </p>
+        </Warn>
       )}
-      {loose.length > 0 && (
-        <p className="mt-1 text-[10px] leading-relaxed text-amber-300/90">
+      {looseNames && (
+        <Warn compact className="mt-1">
           <Trans>{looseNames} 没对上这一段的任何参考——检查名字，或点上面的图重新写进句子（发出去时它只是普通文字）。</Trans>
-        </p>
+        </Warn>
       )}
       {onMention && plan.sends && items.length > 0 && canEdit && (
         <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
@@ -395,12 +483,19 @@ export default function RefStrip({
         onChange={(e) => {
           const f = e.target.files?.[0];
           e.target.value = ""; // 同一张图连选两次也要能触发
+          // 这一次是给谁的：取完就清（下一次点「＋ 参考图」不该还落到上一个图位上）
+          const goal = target;
+          setTarget(null);
           if (!f) return;
           setReading(true);
           // 这些图直接发给视频模型：按它的窗口裁 / 放大（比卡片图那一套更窄，见 VIDEO_REF_WINDOW）
           void fileToRefImage(f, 1024, 0.85, VIDEO_REF_WINDOW)
             .then(async (img) => {
-              const id = onAdd(await blobToDataUrl(img.blob));
+              const url = await blobToDataUrl(img.blob);
+              let id: string | null;
+              if (goal && "replace" in goal) id = onReplace?.(goal.replace, url) ? goal.replace : null;
+              else if (goal && "fill" in goal) id = onFillSlot?.(goal.fill, url) ?? null;
+              else id = onAdd(url);
               if (!id) return;
               // 比例越界被裁过要说出来（不能默默改人家的图）
               if (img.cropped) showToast(t`这张图太长 / 太宽，已居中裁过`, 2600);

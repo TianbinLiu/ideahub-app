@@ -20,6 +20,7 @@ import { useMemo, useRef, useState, type PointerEvent as RPointerEvent } from "r
 import { CloseButton } from "./IconTapButton";
 import { createPortal } from "react-dom";
 import Icon from "./Icon";
+import SearchField from "./SearchField";
 import MascotStage from "./MascotStage";
 import TarotCard from "./TarotCard";
 import DeckCard from "./DeckCard";
@@ -207,8 +208,8 @@ export default function MaterialSheet({
             <button
               key={k}
               onClick={() => setTab(k)}
-              className={`flex-1 rounded-lg py-1.5 text-xs font-semibold transition ${
-                tab === k ? "bg-panel text-slate-100 shadow" : "text-slate-500"
+              className={`flex-1 rounded-lg py-1.5 text-xs transition ${
+                tab === k ? "bg-brand font-semibold text-ink" : "text-slate-400"
               }`}
             >
               {label}
@@ -217,26 +218,13 @@ export default function MaterialSheet({
           ))}
         </div>
 
-        <div className="mb-2 flex items-center gap-2 rounded-lg border border-slate-700 bg-black/25 px-2.5 py-1.5">
-          <Icon name="search" size={16} className="flex-none text-slate-500" />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder={tab === "cards" ? t`搜卡名 / 简介 / 类型` : t`搜卡组名，或组里的卡名`}
-            className="min-w-0 flex-1 bg-transparent text-xs text-slate-100 outline-none placeholder:text-slate-500"
-          />
-          {q && (
-            <button onClick={() => setQ("")} aria-label={t`清空搜索`} className="flex-none text-slate-500">
-              <Icon name="close" size={13} />
-            </button>
-          )}
-        </div>
+        <SearchField shape="compact" className="mb-2" value={q} onChange={setQ} placeholder={tab === "cards" ? t`搜卡名 / 简介 / 类型` : t`搜卡组名，或组里的卡名`} />
 
         {tab === "decks" ? (
           allDecks.length === 0 ? (
             empty(t`还没有卡组`, t`去创意工坊建一组`, "/workshop/mine?tab=decks")
           ) : decks.length === 0 ? (
-            <p className="py-7 text-center text-xs text-slate-400"><Trans>没有匹配的卡组</Trans></p>
+            <EmptyState compact mascot="wonder" text={t`没有匹配的卡组`} cta={{ label: t`清空搜索`, onClick: () => setQ("") }} />
           ) : (
             <>
               <div className="mb-1.5 text-[11px] text-slate-500"><Trans>拖一整组 = 组里的卡全加进来</Trans></div>
@@ -261,7 +249,7 @@ export default function MaterialSheet({
         ) : allCards.length === 0 ? (
           empty(t`还没有素材卡`, t`去创意工坊铸几张`, "/workshop/mine")
         ) : cards.length === 0 ? (
-          <p className="py-7 text-center text-xs text-slate-400"><Trans>没有匹配的卡片</Trans></p>
+          <EmptyState compact mascot="wonder" text={t`没有匹配的卡片`} cta={{ label: t`清空搜索`, onClick: () => setQ("") }} />
         ) : (
           <div className={`${rail(cards.length)} no-scrollbar`} style={{ touchAction: "pan-x" }}>
             {cards.map((c) => (
@@ -276,7 +264,7 @@ export default function MaterialSheet({
                     「人物卡」三个字会把名字截成「赛…」。类型由左上角那枚宝石徽记交代 */}
                 <TarotCard cover={c.cover || null} title={c.name} type={c.type} />
                 {have.has(c.id) && (
-                  <span className="absolute inset-x-0 top-1/2 -translate-y-1/2 text-center text-[10px] font-bold text-emerald-300">
+                  <span className="absolute inset-x-0 top-1/2 -translate-y-1/2 text-center text-[10px] font-bold text-ok-300">
                     <Trans>已加入</Trans>
                   </span>
                 )}
@@ -413,7 +401,7 @@ export function MaterialStrip({ materials, onRemove }: { materials: Card[]; onRe
                 onClick={() => onRemove(c.id)}
                 aria-label={t`移除 ${c.name}`}
                 /* 热区给到 24px：卡只有 70px 宽，×号再小就点不中了 */
-                className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full border border-slate-600 bg-ink text-[11px] text-slate-300 shadow"
+                className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full border border-slate-600 bg-ink text-[11px] text-slate-300 shadow after:absolute after:-inset-2 after:content-['']"
               >
                 ✕
               </button>

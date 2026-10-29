@@ -2,6 +2,7 @@
 // （铸卡时的完整提示词，具体到可复刻卡面）+ 3D 建模全息预览（有 modelUrl 的角色卡）。
 // 创意工坊/我的/卡组详情点卡进来。
 import { useEffect, useRef, useMemo, useState, useSyncExternalStore } from "react";
+import Warn from "../components/Warn";
 import { showToast } from "../data/toast";
 import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
@@ -18,8 +19,7 @@ import TarotCard from "../components/TarotCard";
 import SocialPanel, { useCountView, useSocialVersion } from "../components/SocialPanel";
 import WorkshopShareBar, { shareBlockReason } from "../components/WorkshopShareBar";
 import CardHologram, { CARD_MODELS, useHologramModel } from "../studio/ui/CardHologram";
-import { acquireCard, bindCardAsset, cardsReady, fetchSharedCard, isRemoteMode, myCards, myDecks, removeCard, shareCard, unbindCardAsset, updateCardMeta } from "../data/account";
-import { refImgTierList, voiceTierNames } from "../data/economy";
+import { acquireCard, bindCardAsset, cardsReady, fetchSharedCard, isRemoteMode, myCards, myDecks, refImgModelsNames, removeCard, shareCard, unbindCardAsset, updateCardMeta, voiceModelsNames } from "../data/account";
 import {
   addCardView,
   addPreparedCardView,
@@ -161,10 +161,17 @@ function pipelineNoteFor(type: CardType, views: CardView[]): string {
     // ★ 两条路分开说（2026-10-10 文案复核改）：3 张那句只管**出片前补画设定帧那一步**与收不到参考图的档位；
     //   收参考图的档（草稿 / 高清 / 电影级，segmentGen.refSlotsOf 一律直通分配）与白模挂卡，参考图直接进视频模型、上限按档位协议走。
     //   原来写成「出片时…最多 3 张」再在末尾括号里补一句例外，读起来像所有档都只带 3 张 —— 11-24 之后方舟档没有一档再是那样
-    const tiers = refImgTierList();
-    return i18n._(
-      msg`出片时这类卡先保证第 1 张（${first}）喂给 AI。出片前补画设定帧那一步（以及收不到参考图的档位）：同一段里参考图总共最多 ${MAX_REF_IMAGES} 张，预算还有余才一轮一轮地轮到第 2、第 3 张 —— 同段挂的卡越少，它越可能真的进模型；预算不够时先被丢的是各卡靠后的那几张，卡再多下去整张卡都会带不上（生成步骤里会逐张点名）。收参考图的档位（${tiers}）与白模挂卡：参考图直接进视频模型，各卡一张一张轮着带，上限按所选档位的协议走。`,
-    );
+    // ★ 2026-10-26（出片地区 · 主人第 2 件审核）：括号里写这个人此刻摆得出来、收参考图的那几个模型（account.refImgModelsNames：地区问到了写模型名、
+    //   不知道时写档名；与同一页「按模型适配」那一格同一个口径）。原来按目录列「草稿 / 高清 / 电影级」—— 海外门禁开着时那几档一档都摆不出来，
+    //   同一页上下自相矛盾。一个都没有时那半句整个不说
+    const names = refImgModelsNames();
+    return names
+      ? i18n._(
+          msg`出片时这类卡先保证第 1 张（${first}）喂给 AI。出片前补画设定帧那一步（以及收不到参考图的档位）：同一段里参考图总共最多 ${MAX_REF_IMAGES} 张，预算还有余才一轮一轮地轮到第 2、第 3 张 —— 同段挂的卡越少，它越可能真的进模型；预算不够时先被丢的是各卡靠后的那几张，卡再多下去整张卡都会带不上（生成步骤里会逐张点名）。收参考图的出片模型（${names}）与白模挂卡：参考图直接进视频模型，各卡一张一张轮着带，上限按所选模型的协议走。`,
+        )
+      : i18n._(
+          msg`出片时这类卡先保证第 1 张（${first}）喂给 AI。出片前补画设定帧那一步（以及收不到参考图的档位）：同一段里参考图总共最多 ${MAX_REF_IMAGES} 张，预算还有余才一轮一轮地轮到第 2、第 3 张 —— 同段挂的卡越少，它越可能真的进模型；预算不够时先被丢的是各卡靠后的那几张，卡再多下去整张卡都会带不上（生成步骤里会逐张点名）。`,
+        );
   }
   const face = slotLabel("character", "face");
   const body = slotLabel("character", "body");
@@ -175,9 +182,15 @@ function pipelineNoteFor(type: CardType, views: CardView[]): string {
   //   · 出片前补画设定帧那一步（以及收不到参考图的档）：出图模型只吃第一个人物的图 —— 「只有第一张人物卡」那半句只管这里。
   //   原来整段按经典路写、把直通路塞在末尾括号里，还说「一张图里画多个角色会被方舟整条拒掉」—— 那条约束本仓已撤回
   //   （docs/multi-character-consistency-research.md：被拒的是精灵图写法）。用户按旧那句自我设限，以为挂第 2 张人物卡没用。
-  const tiers = refImgTierList();
+  // 括号里的名字同上（account.refImgModelsNames）；一个都没有时开头那一句整个不说
+  const names = refImgModelsNames();
+  if (!names) {
+    return i18n._(
+      msg`出片前补画设定帧那一步（以及收不到参考图的档位）：一段里只有「第一张人物卡」能带形象参考图——先取 ${MAX_CHAR_REFS} 张（优先${face} + ${body}），标成「出片用」的第 3 张要等同段每张卡都拿到第 1 张之后，预算还有余才补得上；其余人物卡在那一步只按文字设定参与（画帧的出图模型只吃第一个人物的图）。所以上面的「出片用 / 仅展示」是按补画设定帧那一步、按"这张卡就是那第一张人物卡"标的：它排在别的人物卡后面时，标着出片用的那几张在那一步同样进不了模型（生成步骤里会点名说明）。${detail}这一格铸卡不会自动出图，只能自己传。`,
+    );
+  }
   return i18n._(
-    msg`收参考图的档位（${tiers}）与白模模板挂卡：每张人物卡都各带自己的形象图（先每卡 1 张，预算有余再补第 2 张；一段最多几张按所选档位的协议走）。出片前补画设定帧那一步（以及收不到参考图的档位）：一段里只有「第一张人物卡」能带形象参考图——先取 ${MAX_CHAR_REFS} 张（优先${face} + ${body}），标成「出片用」的第 3 张要等同段每张卡都拿到第 1 张之后，预算还有余才补得上；其余人物卡在那一步只按文字设定参与（画帧的出图模型只吃第一个人物的图）。所以上面的「出片用 / 仅展示」是按补画设定帧那一步、按"这张卡就是那第一张人物卡"标的：它排在别的人物卡后面时，标着出片用的那几张在那一步同样进不了模型（生成步骤里会点名说明）。${detail}这一格铸卡不会自动出图，只能自己传。`,
+    msg`收参考图的出片模型（${names}）与白模模板挂卡：每张人物卡都各带自己的形象图（先每卡 1 张，预算有余再补第 2 张；一段最多几张按所选模型的协议走）。出片前补画设定帧那一步（以及收不到参考图的档位）：一段里只有「第一张人物卡」能带形象参考图——先取 ${MAX_CHAR_REFS} 张（优先${face} + ${body}），标成「出片用」的第 3 张要等同段每张卡都拿到第 1 张之后，预算还有余才补得上；其余人物卡在那一步只按文字设定参与（画帧的出图模型只吃第一个人物的图）。所以上面的「出片用 / 仅展示」是按补画设定帧那一步、按"这张卡就是那第一张人物卡"标的：它排在别的人物卡后面时，标着出片用的那几张在那一步同样进不了模型（生成步骤里会点名说明）。${detail}这一格铸卡不会自动出图，只能自己传。`,
   );
 }
 
@@ -203,8 +216,9 @@ function CardAssetSection({ card, owned }: { card: Card; owned: boolean }) {
   // 绑定属于账号（server BranchCard.portrait）：没上行 = 换台设备暂时看不到，下次登录会自动补传
   const issue = bound && assetPersisted(card.id) ? assetSyncIssue(card.id) : null;
   const notStored = t`没存住（本机存储写入失败）——再点一次；一直不行就重启 App 再试。`;
+  // empty:hidden：勾选框不摆时（account.volcEntryState，判据在 VolcCompatToggle 里）这一格整个是空的，别留一截空白
   return (
-    <div className="mb-4">
+    <div className="mb-4 empty:hidden">
       <VolcCompatToggle
         boundId={bound}
         onBound={(assetId, note) => {
@@ -230,11 +244,11 @@ function CardAssetSection({ card, owned }: { card: Card; owned: boolean }) {
         }}
       />
       {issue && (
-        <p className="mt-1.5 text-[10px] leading-relaxed text-amber-200/90">
+        <Warn compact className="mt-1.5">
           <Trans>还没同步到服务端（{issue}）——换台设备暂时看不到，下次登录会自动补传。</Trans>
-        </p>
+        </Warn>
       )}
-      {saveErr && <p className="mt-1.5 text-[10px] leading-relaxed text-rose-300">{saveErr}</p>}
+      {saveErr && <p className="mt-1.5 text-[10px] leading-relaxed text-danger-300">{saveErr}</p>}
     </div>
   );
 }
@@ -249,6 +263,11 @@ function CardVoiceSection({ card, owned }: { card: Card; owned: boolean }) {
   const [confirmRm, setConfirmRm] = useState(false);
   const v = voiceOf(card.id);
   if (card.type !== "character") return null;
+  /**
+   * 出片会参考声音样本的那几个模型（account.voiceModelsNames：此刻摆得出来的、地区问到了写模型名）。原来是目录口径的档名（economy.voiceTierNames）——
+   * 同一页「按模型适配」那一格已经按地区只列给得出的，这里还说「草稿」「高清」「电影级」，海外门禁开着时上下自相矛盾（2026-10-26 审核）。空串 = 一个都不参考
+   */
+  const voiceNames = voiceModelsNames();
   if (!v) {
     // 只对自己的卡提示"怎么补"：别人的卡看不到侧库，说什么都是猜
     if (!owned) return null;
@@ -256,7 +275,11 @@ function CardVoiceSection({ card, owned }: { card: Card; owned: boolean }) {
       <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
         <span className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>🔊 人物声音</Trans></span>
         <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
-          <Trans>这张卡还没有声音样本。在创意工坊「我的仓库」里从视频提取、圈选人物时可以顺手取一段（2~15 秒）——出片走「{voiceTierNames()}」档且台词写在引号里时，AI 会参考这段声音的音色。</Trans>
+          {voiceNames ? (
+            <Trans>这张卡还没有声音样本。在创意工坊「我的仓库」里从视频提取、圈选人物时可以顺手取一段（2~15 秒）——用 {voiceNames} 出片、台词写在引号里时，AI 会参考这段声音的音色。</Trans>
+          ) : (
+            <Trans>这张卡还没有声音样本。在创意工坊「我的仓库」里从视频提取、圈选人物时可以顺手取一段（2~15 秒）。你现在能用的出片模型都不参考声音样本——样本属于这张卡，换了能用的模型还用得上。</Trans>
+          )}
         </p>
       </div>
     );
@@ -273,7 +296,7 @@ function CardVoiceSection({ card, owned }: { card: Card; owned: boolean }) {
                   removeVoice(card.id);
                   setConfirmRm(false);
                 }}
-                className="rounded-full bg-rose-500/90 px-2.5 py-1 text-[11px] font-bold text-white"
+                className="rounded-full bg-danger-500/90 px-2.5 py-1 text-[11px] font-bold text-white"
               >
                 <Trans>确认移除</Trans>
               </button>
@@ -291,7 +314,11 @@ function CardVoiceSection({ card, owned }: { card: Card; owned: boolean }) {
       <audio controls src={v.dataUrl} className="h-9 w-full" />
       <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
         {v.note ? `${v.note} · ` : ""}
-        <Trans>出片走「{voiceTierNames()}」档、台词写在引号里时，AI 会参考这段声音的音色（尽力而为，不是复刻）。样本只存在这台设备上，分享卡片不带它。</Trans>
+        {voiceNames ? (
+          <Trans>用 {voiceNames} 出片、台词写在引号里时，AI 会参考这段声音的音色（尽力而为，不是复刻）。样本只存在这台设备上，分享卡片不带它。</Trans>
+        ) : (
+          <Trans>你现在能用的出片模型都不参考声音样本（样本先留着，换了能用的模型还用得上）。样本只存在这台设备上，分享卡片不带它。</Trans>
+        )}
       </p>
     </div>
   );
@@ -553,11 +580,12 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
       )}
       {owned && full && (
         <p className="mt-1 text-[10px] text-slate-500">
-          <Trans>已到 {MAX_CARD_VIEWS} 张上限 —— 方舟建议不要堆满，素材太多模型反而判断不出该优先保哪些特征。</Trans>
+          {/* 不写供应商名（2026-10-26 出片地区终审）：地区还不知道 / 门禁开着时这一页不该出现「方舟」字样，这句话的意思不靠它 */}
+          <Trans>已到 {MAX_CARD_VIEWS} 张上限 —— 建议不要堆满，素材太多模型反而判断不出该优先保哪些特征。</Trans>
         </p>
       )}
-      {note && <p className="mt-1 text-[11px] text-amber-400">{note}</p>}
-      {err && <p className="mt-1 text-[11px] text-rose-300">{err}</p>}
+      {note && <p className="mt-1 text-[11px] text-warn-400">{note}</p>}
+      {err && <p className="mt-1 text-[11px] text-danger-300">{err}</p>}
       {busy && <p className="mt-1 text-[11px] text-slate-400"><Trans>处理中…</Trans></p>}
 
       <input
@@ -640,7 +668,7 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
                 </p>
               )
             )}
-            {views[zoom].note && <div className="max-w-xs text-center text-[11px] text-amber-400">{views[zoom].note}</div>}
+            {views[zoom].note && <div className="max-w-xs text-center text-[11px] text-warn-400">{views[zoom].note}</div>}
             {trimmable && (
               <button
                 disabled={busy}
@@ -660,7 +688,7 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
                   e.stopPropagation();
                   void onRemove(zoom);
                 }}
-                className="rounded-full bg-rose-500/90 px-4 py-1.5 text-xs font-bold text-white disabled:opacity-40"
+                className="rounded-full bg-danger-500/90 px-4 py-1.5 text-xs font-bold text-white disabled:opacity-40"
               >
                 <Trans>删掉这张</Trans>
               </button>
@@ -870,7 +898,7 @@ export default function CardDetailPage() {
       {/* 方舟可信素材：真人卡做完肖像授权后填 asset ID，出片改走 asset:// */}
       <CardAssetSection card={card} owned={owned} />
 
-      {/* 按模型适配：「标准/极速适用」（文字版形象描述）与「真人档适用」（起拍画面），见 components/CardModelFit */}
+      {/* 按模型适配：「文字版形象描述（… 用）」与「起拍画面（… 用）」（括号里写读它的模型，2026-10-26 起按具体模型写），见 components/CardModelFit */}
       <CardModelFit card={card} owned={owned} />
 
       {/* 固定身份句（Card.idLine）：出片提示词里代表这张卡的那一句（铸卡时压好、逐段复用）。
@@ -890,11 +918,11 @@ export default function CardDetailPage() {
            那个角色的长相由模型自己编，而钱照花。这件事此前在产品里既看不见、也补不了。
            ⚠ 只对自己的卡显示：别人的卡这里什么都不摆（改不了的东西不该占一块屏）。 */
         owned && (
-          <div className="mb-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
+          <div className="mb-4 rounded-xl border border-warn-500/40 bg-warn-500/10 p-3">
             <div className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>🎯 出片身份句</Trans></div>
-            <p className="text-[11px] leading-relaxed text-amber-100">
+            <Warn>
               <Trans>这张卡还没写出片句 —— 出片时提示词里只有卡名，长相由 AI 自己编（每一段都可能不一样）。</Trans>
-            </p>
+            </Warn>
             <button
               onClick={() => {
                 setEditName(card.name);
@@ -1008,7 +1036,7 @@ export default function CardDetailPage() {
           >
             {getting ? t`添加中…` : getErr ? t`再同步一次` : t`＋ 添加到我的卡片`}
           </button>
-          {getErr && <p className="mt-1 text-[11px] leading-relaxed text-rose-300">{getErr}</p>}
+          {getErr && <p className="mt-1 text-[11px] leading-relaxed text-danger-300">{getErr}</p>}
         </div>
       )}
 
@@ -1074,7 +1102,7 @@ export default function CardDetailPage() {
               <Trans>改的是你库里这一份。已经随作品发布、或被别人装走的那些是当时的副本，不会跟着变。</Trans>
             </p>
             {editErr && (
-              <p className="mt-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-200">
+              <p className="mt-2 rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-[11px] leading-relaxed text-danger-200">
                 {editErr}
               </p>
             )}
@@ -1103,7 +1131,7 @@ export default function CardDetailPage() {
                     .finally(() => setEditBusy(false));
                 }}
                 disabled={editBusy}
-                className="flex-1 rounded-xl bg-brand py-2.5 text-xs font-bold text-ink disabled:opacity-40"
+                className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
               >
                 {editBusy ? t`保存中…` : editErr ? t`再试一次` : t`保存`}
               </button>

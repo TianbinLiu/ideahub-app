@@ -36,9 +36,9 @@ import {
   type ImageGroupState,
 } from "../ai";
 import { ArkHttpError, fetchImageGroup, modelGoneCode } from "../ai/arkClient";
-import { canAfford, frozenNote, spendTokens } from "../data/account";
+import { canAfford, frozenNote, spendTokens, tierRegionGate } from "../data/account";
 import { onOwnerSwitch, workOwner } from "../data/deviceOwner";
-import { CHAT_TURN_TOKENS, CHECKED_PANEL_TOKENS, IMAGE_TOKENS, fmtTokens } from "../data/economy";
+import { CHAT_TURN_TOKENS, CHECKED_PANEL_TOKENS, IMAGE_TOKENS, fmtTokens, tierOf } from "../data/economy";
 import {
   GRID_SHOTS_MAX,
   castGaps,
@@ -368,7 +368,12 @@ export function panelsBusy(s: { panels: (GridPanel | null)[] }): boolean {
   return s.panels.some((p) => !!p?.busy);
 }
 
-export async function writeShots(o: { cast: string[]; place: string }): Promise<void> {
+/**
+ * AI 写分镜（一次对话）。
+ * ★★ 出片地区（2026-10-26 终审，钱）：花这一次对话的钱之前现问一次地区、再按问到的那份判向导挑的这一档（account.tierRegionGate）—— 选法屏只在挑的那一拍判过一次，
+ *   之后地区变了（前台关 VPN 不发 visibilitychange），这一组分镜、画面的钱照样付掉，落段才被地区拦下。`o.tierId` = 向导挑的档。
+ */
+export async function writeShots(o: { cast: string[]; place: string; tierId: string }): Promise<void> {
   const s = useGridDraft.getState();
   if (s.writing || s.drawing) return;
   if (panelsBusy(s)) {
@@ -379,6 +384,12 @@ export async function writeShots(o: { cast: string[]; place: string }): Promise<
   const scene = s.scene;
   useGridDraft.setState({ writing: true, writeErr: "" });
   try {
+    // writing 已占上（等的这几秒里点不出第二次）；拒了 finally 复位，一分钱没花
+    const region = await tierRegionGate(tierOf(o.tierId));
+    if (region) {
+      writeFor(who, { writeErr: region });
+      return;
+    }
     const r = await runSceneToGrid({ scene, cast: o.cast, place: o.place });
     writeFor(who, {
       shots: r.plan.shots,
@@ -588,9 +599,11 @@ function closeJob(who: string, job: ReturnType<typeof startJob>): void {
  * ★★ 还有一组受理过、没取回来（落盘记录在）就**不开新的一组**，先接着等它（resumeGroup）：那一组按张付过钱，开新的一组要再付一次，
  *   还会把记录盖掉、那几张就再也取不回来。向导那颗键此时写的是「接着等上一组」（旁边另有「放弃上一组」），这里是同一条规矩的兜底。
  *   这一进程里有一次「没收到回包、服务端当时说没有」（lostAttempts）时，开画之前先再对一次（reclaimLost）。
- * @param o.cast 出场人物（卡），o.place 场景卡；画幅在 draft.aspect（画之前定）
+ * ★★ 出片地区（2026-10-26 终审，钱）：开新的一组之前现问一次地区、再按问到的那份判向导挑的这一档（account.tierRegionGate，理由见 writeShots）。
+ *   接着等上一组（resumeGroup）不问：那一组已经付过钱。
+ * @param o.cast 出场人物（卡），o.place 场景卡，o.tierId 向导挑的档；画幅在 draft.aspect（画之前定）
  */
-export async function drawGroup(o: { cast: Card[]; place: Card | null }): Promise<void> {
+export async function drawGroup(o: { cast: Card[]; place: Card | null; tierId: string }): Promise<void> {
   const s0 = useGridDraft.getState();
   if (s0.drawing || s0.writing || !s0.shots.length || !s0.aspect) return;
   // 有一格正在单独画就不开一组（2.62 发版评审第四轮）：整组重出会先把格子清空，单画那张回来落在清空后的格子上，
@@ -605,6 +618,13 @@ export async function drawGroup(o: { cast: Card[]; place: Card | null }): Promis
     return;
   }
   if (await reclaimLost(who)) return;
+  {
+    const region = await tierRegionGate(tierOf(o.tierId));
+    if (region) {
+      writeFor(who, { drawErr: region });
+      return;
+    }
+  }
   // 问的那几秒里向导被别处动过（换了账号 / 又在画了）就不画：下面全按这一刻的那份
   const s = useGridDraft.getState();
   if (panelsBusy(s) && ownerOfDraft() === who) {
@@ -1219,9 +1239,9 @@ async function drawPanelAt(
 
 /**
  * 单格重画（一张图）：人点开那一格、（可选）补一句要求、点「重画这一格」。画法与组图之后的单画同一个函数（drawPanelAt）。
- * ★ 闸都在这里：这一格还没写画面 / 这一格里的人没选上（gridCastIssue）/ 余额不够 —— 都在花钱之前拦下。
+ * ★ 闸都在这里：这一格还没写画面 / 这一格里的人没选上（gridCastIssue）/ 余额不够 / 这一档在地区上给不出（tierRegionGate，出片地区（2026-10-26 终审，钱））—— 都在花钱之前拦下。
  */
-export async function redrawPanel(i: number, o: { cast: Card[]; place: Card | null; ask: string }): Promise<void> {
+export async function redrawPanel(i: number, o: { cast: Card[]; place: Card | null; ask: string; tierId: string }): Promise<void> {
   const s = useGridDraft.getState();
   const shot = s.shots[i];
   if (!shot || s.drawing || !s.aspect || s.panels[i]?.busy) return;
@@ -1240,7 +1260,16 @@ export async function redrawPanel(i: number, o: { cast: Card[]; place: Card | nu
     patchPanel(ownerOfDraft(), i, (p) => ({ image: p?.image ?? "", key: p?.key ?? "", err: frozenNote() ?? t`重画一格要 ${price} token，余额不够——去「我的」页充值` }));
     return;
   }
-  await drawPanelAt(ownerOfDraft(), i, shot, { cast: o.cast, place: o.place, ask: o.ask, aspect: s.aspect, lead: s.lead });
+  const who = ownerOfDraft();
+  const region = await tierRegionGate(tierOf(o.tierId));
+  if (region) {
+    patchPanel(who, i, (p) => (p ? { ...p, err: region } : { image: "", key: "", err: region }));
+    return;
+  }
+  // 问的那几秒里向导被别处动过（换了账号 / 又在画 / 这一格的分镜换了）就不画：按这一刻的那份，人再点一次
+  const s2 = useGridDraft.getState();
+  if (ownerOfDraft() !== who || s2.drawing || !s2.aspect || s2.panels[i]?.busy || s2.shots[i] !== shot) return;
+  await drawPanelAt(who, i, shot, { cast: o.cast, place: o.place, ask: o.ask, aspect: s2.aspect, lead: s2.lead });
 }
 
 /**

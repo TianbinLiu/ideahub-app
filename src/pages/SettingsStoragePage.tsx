@@ -9,6 +9,7 @@
 // ★ "存的东西在本机还是服务器"那两句是**模式条件**下的事实，留在页面上
 //   （藏进看一遍就不弹的引导 = 静默失败，tours.tsx 文件头 ❌ 那条）。
 import { useEffect, useState } from "react";
+import Warn from "../components/Warn";
 import { Trans, useLingui } from "@lingui/react/macro";
 import PageHeader from "../components/PageHeader";
 import { useBackOr } from "../hooks/useBackOr";
@@ -152,7 +153,7 @@ function SavedVideos() {
           </button>
         </>
       )}
-      {note && <p className="mt-1.5 text-[11px] leading-relaxed text-amber-300">{note}</p>}
+      {note && <Warn className="mt-1.5">{note}</Warn>}
       {confirming && (
         <ConfirmDialog
           title={t`清空已保存的视频（${fmtBytes(bytes)}）`}
@@ -192,9 +193,9 @@ function CacheSweeper({ onDone }: { onDone: () => void }) {
     //   引用数不全，这时说"没有"是假话；而且指一条真出路 —— 去那边读出来再回来
     if (plan.blocked) {
       return (
-        <p className="mt-2 text-[11px] leading-relaxed text-amber-300">
+        <Warn className="mt-2">
           <Trans>草稿箱或剪到一半的成片这会儿没读出来，先不清理 —— 不然会把它们还在用的文件当成没人要的删掉。去草稿箱点「重试」读出来之后再来。</Trans>
-        </p>
+        </Warn>
       );
     }
     return <p className="mt-2 text-[11px] text-slate-400">{note || t`没有可清理的中间文件`}</p>;

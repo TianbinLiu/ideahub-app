@@ -24,6 +24,7 @@ import {
   listFollowingVideos,
   listVideos,
   refreshFeed,
+  feedLoading,
   refreshFollowingFeed,
   profileHref,
   setLike,
@@ -33,7 +34,8 @@ import { danmakuNeedsLogin, danmakuOn, danmakuSessionPending, subscribeDanmaku }
 import { hasPurchased, isCollected, isFollowing, toggleCollect, toggleFollow } from "../data/account";
 import { fmtTokens } from "../data/economy";
 import { useAuthState, useCurrentUser } from "../hooks/useAccount";
-import { requestLandscape } from "../hooks/useOrientationLock";
+import { useImmersive } from "../hooks/useImmersive";
+import { useRemake } from "../hooks/useRemake";
 import { useVideosVersion } from "../hooks/useVideos";
 import Avatar from "../components/Avatar";
 import CommentSheet from "../components/CommentSheet";
@@ -45,9 +47,6 @@ import AigcBadge, { isAigcWork } from "../components/AigcBadge";
 import SeedBadge from "../components/SeedBadge";
 import Icon, { type IconName } from "../components/Icon";
 import CharacterPerch, { usePerchBurst, type PerchPose } from "../components/CharacterPerch";
-import { remakeNodesOf, remakeableOf, useFlow } from "../studio/flowStore";
-import { showToast } from "../data/toast";
-import { useApplyTemplate } from "../components/flow/useApplyTemplate";
 import { VideoAspect, VideoItem, aspectFromSize, aspectOf, formatDuration, formatPlays, segsTotal, videoCategoryLabel } from "../types";
 import { useMediaUrl } from "../utils/mediaUrl";
 import FeedActionSheet, { type FeedSpeed } from "../components/FeedActionSheet";
@@ -134,7 +133,7 @@ function LikeBurst({ b }: { b: Burst }) {
       )}
       {/* 心本身照旧是通用红心（调研第五节：别把点赞画成星 / 灯泡）；倾角挂在外层，里层的 heart-burst 关键帧自己动 transform */}
       <span className="absolute left-0 top-0" style={{ transform: `rotate(${b.rot}deg)` }}>
-        <Icon name="heart" size={96} filled className="heart-burst absolute left-0 top-0 text-rose-500" />
+        <Icon name="heart" size={96} filled className="heart-burst absolute left-0 top-0 text-danger-500" />
       </span>
     </span>
   );
@@ -255,7 +254,7 @@ function RailBtn({
         )}
       </span>
       {label !== undefined && (
-        <span className="text-[11px] tabular-nums text-white/90 [text-shadow:0_1px_2px_rgba(0,0,0,.6)]">{label}</span>
+        <span className="text-[11px] tabular-nums text-white/90 [text-shadow:0_0_3px_rgba(0,0,0,.6)]">{label}</span>
       )}
     </button>
   );
@@ -652,38 +651,9 @@ function FeedItem({
     onPointerUp: (e: React.PointerEvent) => e.stopPropagation(),
   };
 
-  // 做同款（第八条整表覆盖入口，守卫与套模板同一份实现）。付费未解锁的不给：
-  // 配方（分段剧本）是付费内容的一部分，锁着的只出封面
-  const canRemake = !locked && remakeableOf(video.segments);
-  const { guard: remakeGuard, dialog: remakeDialog } = useApplyTemplate();
-  /** 做同款被就地拒时那句话（flowStore.err 只画在工作流页，这里不接就没人看得见）。
-   *  几秒后自清：feed 上没有常驻错误位，这行是临时的 */
-  const [remakeErr, setRemakeErr] = useState("");
-  function remake() {
-    remakeGuard(
-      () => {
-        const built = remakeNodesOf(video.segments, video.deck?.cards ?? []);
-        const ok = useFlow.getState().seed(built.nodes, {
-          mode: "workflow",
-          origin: "solo",
-          // 同款署名（2026-10-02）：发布时随稿子上行，原作页据它记一次「N 人做了同款」
-          remixOf: { videoId: video.id, title: video.title, author: video.author },
-        });
-        // 换了档（原作用的是会员档 / 已停用的档）要说出来（remakeNodesOf 的 ★）
-        if (ok && built.notes.length) showToast(built.notes.join(t({ message: "；", comment: "几条「第 N 段换了档」的说明连成一行时的分隔符" })), 6000);
-        if (ok) navigate("/flow");
-        else {
-          setRemakeErr(useFlow.getState().err || t`现在铺不了（可能有一段正在生成中），稍后再试`);
-          window.setTimeout(() => setRemakeErr(""), 5000);
-        }
-        return ok;
-      },
-      {
-        label: t`做同款（丢弃上面那条流水线）`,
-        noun: t({ message: "做同款", context: "丢弃确认卡里「…再回来X」的那个动作（英文用小写动词短语）" }),
-      },
-    );
-  }
+  // 做同款（第八条整表覆盖入口，守卫与套模板同一份实现）。付费未解锁的不给：配方（分段剧本）是付费内容的一部分，锁着的只出封面。
+  //   实现只有 hooks/useRemake 一份（与作品详情页共用）；被就地拒的那句话几秒后自清（feed 上没有常驻错误位）
+  const { canRemake, remake, err: remakeErr, dialog: remakeDialog } = useRemake(video, video.segments, locked);
 
   /** 开分享面板（QQ / 微信占位 / 复制预览链接）。
    *  ★ 此前这里直接 navigator.share 一个 `${location.origin}/#/video/…`——
@@ -801,6 +771,7 @@ function FeedItem({
           time={durBefore + prog.t}
           paused={paused}
           top={`calc(env(safe-area-inset-top, 0px) + ${immersive ? 20 : 62}px)`}
+          lanes={4}
         />
       )}
 
@@ -821,9 +792,9 @@ function FeedItem({
           <div className="mb-0.5 flex justify-end gap-1.5 pr-3">
             {/* 选了倍速时在同一行写一句（行内，不加高度 —— 底缘几何是联动量过的）：不写的话人会以为视频本身就这么快 */}
             {speed !== 1 && (
-              <span className="text-[10px] font-semibold tabular-nums text-brand [text-shadow:0_1px_2px_rgba(0,0,0,.6)]">{speed}×</span>
+              <span className="text-[10px] font-semibold tabular-nums text-brand [text-shadow:0_0_3px_rgba(0,0,0,.6)]">{speed}×</span>
             )}
-            <span className="text-[10px] tabular-nums text-white/70 [text-shadow:0_1px_2px_rgba(0,0,0,.6)]">
+            <span className="text-[10px] tabular-nums text-white/70 [text-shadow:0_0_3px_rgba(0,0,0,.6)]">
               {formatDuration(scrub != null ? scrub * durTotal : durBefore + prog.t)} / {formatDuration(durTotal)}
             </span>
           </div>
@@ -955,7 +926,7 @@ function FeedItem({
           {/* 登录态还没结论时的回执。挂在栏内而不是屏幕中央：用户的视线就在这几个键上，
               而且首页任何居中浮层都会盖住画面。max-w 收窄避免把视频压掉半屏。 */}
           {authTip && (
-            <span className="mb-1 max-w-[7.5rem] rounded-full px-2.5 py-1 bg-black/75 text-center text-[11px] leading-tight text-white">
+            <span className="mb-1 max-w-[7.5rem] rounded-lg bg-black/75 px-2.5 py-1 text-center text-[11px] leading-relaxed text-white">
               {authTip}
             </span>
           )}
@@ -990,7 +961,7 @@ function FeedItem({
                 }}
                 aria-label={t({ message: "关注", context: "作者头像下那颗关注按钮（动作：关注这个人）" })}
                 // 画着 20px、命中区放到 44px（after 伪元素外扩 12px）：它贴着头像键，点偏一点就进了主页（2026-10-14 UX 课走查）
-                className="absolute -bottom-2 left-1/2 flex h-5 w-5 -translate-x-1/2 items-center justify-center rounded-full bg-rose-500 text-white transition after:absolute after:-inset-3 after:content-[''] active:scale-90"
+                className="absolute -bottom-2 left-1/2 flex h-5 w-5 -translate-x-1/2 items-center justify-center rounded-full bg-danger-500 text-white transition after:absolute after:-inset-3 after:content-[''] active:scale-90"
               >
                 <Icon name="plus" size={12} strokeWidth={3} />
               </button>
@@ -1023,7 +994,7 @@ function FeedItem({
             }}
           />
           {/* 计数一律折「万」（types.formatPlays 一处）：12345 原样写会把 56px 宽的栏撑宽、也读不出量级 */}
-          <RailBtn icon="heart" filled={liked} pressed={liked} tint="text-rose-500" label={formatPlays(likes)} name={t`点赞`} perch="like" onClick={toggleLike} />
+          <RailBtn icon="heart" filled={liked} pressed={liked} tint="text-danger-500" label={formatPlays(likes)} name={t`点赞`} perch="like" onClick={toggleLike} />
           {/* 评论就地滑出抽屉（对标短视频 App），不跳详情页打断刷视频的节奏 */}
           {/* ★ 走 commentCountOf，不读 comments.length：列表接口不返回 comments，
               直接读长度的话，没点进去过的作品评论数永远是 0（真机上抓到的） */}
@@ -1074,7 +1045,7 @@ function FeedItem({
         />
       </div>
 
-      {cmtOpen && <CommentSheet video={video} onClose={() => setCmtOpen(false)} />}
+      {cmtOpen && <CommentSheet video={video} onClose={() => setCmtOpen(false)} autoFocus={false} />}
       {/* ★ saveLocal={null} = 「保存到本地」这个入口**在首页不存在**：这颗键只拿到 video，
           没有"当前第几集"的上下文（多 P 作品要存哪一集问不出来）；下载又是低频动作，
           走一次点击进详情页就有全套面板 —— 与举报键放详情页的取舍同类。 */}
@@ -1094,6 +1065,10 @@ function FeedItem({
           landscape={shownAspect === "landscape"}
           onClearScreen={onEnterFull}
           onClose={() => setMenuOpen(false)}
+          // 首页这一格：「保存到本地」是去详情页里选（能不能存、存哪几集只在 videoDownload.planDownload 一处判，详情页那颗键就是它的画法）
+          host="feed"
+          onSaveLocal={() => navigate(`/video/${video.id}`)}
+          block={null}
         />
       )}
       {/* 发弹幕时视频**不暂停**：弹幕的意思就是"此刻"，停下来发就名不副实了。
@@ -1123,7 +1098,7 @@ function FeedItem({
         <button
           {...stopTap}
           onClick={() => navigate(authorHref)}
-          className="pointer-events-auto mb-1.5 block max-w-full truncate text-left text-sm font-semibold text-white [text-shadow:0_1px_2px_rgba(0,0,0,.6)] active:opacity-60"
+          className="pointer-events-auto mb-1.5 block max-w-full truncate text-left text-sm font-medium text-white/90 [text-shadow:0_0_3px_rgba(0,0,0,.6)] active:opacity-60"
         >
           {/* ★ 这里**不带 `@` 前缀**：`video.author` 是**显示名**，而本 app 的 @ 句柄是
               不可改的 username（见 utils/mention 与 MentionInput）。给显示名前面加个 @
@@ -1138,14 +1113,14 @@ function FeedItem({
           {...stopTap}
           {...(active ? { "data-guide": "feed-title" } : {})}
           onClick={() => navigate(`/video/${video.id}`)}
-          className="pointer-events-auto mb-1 block max-w-full text-left text-base font-bold text-white [text-shadow:0_1px_3px_rgba(0,0,0,.7)] active:opacity-60"
+          className="pointer-events-auto mb-1 block max-w-full text-left text-base font-bold text-white [text-shadow:0_0_4px_rgba(0,0,0,.7)] active:opacity-60"
         >
           <span className="line-clamp-2">
             {video.title}
             <Icon name="chevron" size={14} className="ml-0.5 inline-block align-[-2px] text-white/60" />
           </span>
         </button>
-        <p className="line-clamp-2 text-xs leading-relaxed text-white/85 [text-shadow:0_1px_2px_rgba(0,0,0,.6)]">
+        <p className="line-clamp-2 text-xs leading-relaxed text-white/85 [text-shadow:0_0_3px_rgba(0,0,0,.6)]">
           {/* ★ 「AI 生成」标识挂在描述**行内**，不另起一行：底缘那 100px 里的四样东西
               （进度条 / 时长 / 右侧栏 / 底栏挂件）位置是联动算出来的，纵向多堆一行就得
               把那几个数重算一遍（CLAUDE.md 那格坑）。行内 chip 高度变化为 0。
@@ -1162,7 +1137,7 @@ function FeedItem({
               <button
                 {...stopTap}
                 onClick={() => navigate(`/video/${video.id}`)}
-                className="pointer-events-auto inline-flex min-h-[28px] items-center gap-1 rounded-full bg-gold/90 px-3 text-[11px] font-semibold text-ink active:scale-95"
+                className="pointer-events-auto relative inline-flex min-h-[28px] items-center gap-1 rounded-full bg-gold/90 px-3 text-[11px] font-semibold text-ink after:absolute after:-inset-2 after:content-[''] active:scale-95"
               >
                 <Icon name="branch" size={13} strokeWidth={2.25} />
                 <Trans>互动 · 你来选</Trans>
@@ -1177,7 +1152,7 @@ function FeedItem({
                 // 新手引导锚点：只挂在当前这一支上（同 feed-title），这一支没有这颗时那一步退成居中卡片
                 {...(active ? { "data-guide": "feed-remake" } : {})}
                 onClick={remake}
-                className="pointer-events-auto inline-flex min-h-[28px] items-center gap-1 rounded-full bg-white/20 px-3 text-[11px] font-semibold text-white backdrop-blur-sm active:scale-95"
+                className="pointer-events-auto relative inline-flex min-h-[28px] items-center gap-1 rounded-full bg-white/20 px-3 text-[11px] font-semibold text-white backdrop-blur-sm after:absolute after:-inset-2 after:content-[''] active:scale-95"
               >
                 {/* 启梦的招牌字形（两张叠着的塔罗卡 + 四角星，Icon「remix」）代替原来的 ⚡ emoji：
                     ⚡ 在全 app 是「token / 要花钱」的意思，而做同款这一下是铺流水线、不花钱 */}
@@ -1188,7 +1163,7 @@ function FeedItem({
           </div>
         )}
         {remakeErr && (
-          <p className="mt-1.5 rounded-lg bg-black/60 px-2.5 py-1 text-[11px] leading-relaxed text-amber-300">
+          <p className="mt-1.5 rounded-lg bg-black/60 px-2.5 py-1 text-[11px] leading-relaxed text-danger-300">
             {remakeErr}
           </p>
         )}
@@ -1257,68 +1232,23 @@ export default function FeedPage() {
   }, []);
   const wrapRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
-  const firstRun = useRef(true);
   // 沉浸/全屏态。放在页面这层而不是单条视频里：关注/推荐页签、底部 TabBar、退出键
   // 都不归 FeedItem 管，而它们必须一起消失
-  const [immersive, setImmersive] = useState(false);
   const [activeAspect, setActiveAspect] = useState<VideoAspect>("portrait");
+  // 沉浸 / 全屏态（真全屏优先、横屏片转屏、退出全屏时一起收、底栏隐身、卸载时撤掉）—— 与作品详情页共用 hooks/useImmersive 一份
+  const { immersive, enter: enterFull, exit: exitFull } = useImmersive(rootRef, activeAspect);
 
-  const enterFull = async () => {
-    // 真·全屏优先：它才能一并遮住系统/浏览器界面，也是安卓返回键能退出的那一层。
-    // 不支持或被拒都不致命——下面的沉浸态照样把边角元素收起来
-    try {
-      await rootRef.current?.requestFullscreen?.();
-    } catch {
-      /* WebView 版本老 / 被策略拒绝：降级成"只收边角元素"，仍比什么都不做强 */
-    }
-    setImmersive(true);
-  };
-  const exitFull = () => {
-    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
-    setImmersive(false);
-  };
-
-  // 转屏只对横屏片做，且必须在进入全屏之后——两个平台都只允许全屏态下锁方向。
-  // 跟着 activeAspect 走：全屏里划到一条竖屏片，屏幕转回来，不然竖片横躺着看。
-  // ★ 只表达意图，不自己去锁：真正下手的是 useOrientationLock（App 级的全局竖屏锁）。
-  //   它每次切路由都会 lock(portrait)，这里再各自锁一次必然打架——真机上就是
-  //   "点了转屏没反应"。方向只能有一个主人。
+  // 切流后回到顶部并重置当前屏（首次挂载不算切流）。
+  // ★ 认「上一次处理过的是哪条流」，不认「是不是第一次跑」（2026-09-18 改）：原来是一个 `firstRun` ref，
+  //   而 StrictMode 在 dev 里把 effect 走一遍「挂载→卸载→挂载」—— 第一遍把它翻成 false，重放那一遍就把首次挂载
+  //   当成了切流（浏览器里实测：一进首页就对滚动容器 scrollTo({top:0}) 一次，正式包没有这一下）。今天它恰好是空转
+  //   （刚挂上的容器本来就在顶上、activeIdx 本来就是 0），可谁往后给首页加「回到上次看的那条」，在 dev 里验就会看着
+  //   它被这一下抹掉、以为自己没写对。比较值经得起重放：同一个 feed 跑几遍结论都一样。与 VideoTemplateExtractor
+  //   的 mountedRef 同一族（生命周期 ref 被 StrictMode 的模拟卸载骗过）
+  const shownFeed = useRef(feed);
   useEffect(() => {
-    requestLandscape(immersive && activeAspect === "landscape");
-  }, [immersive, activeAspect]);
-
-  // 用安卓返回键 / Esc / 系统手势退出全屏时把沉浸态一起收掉，
-  // 否则页面停在"什么按钮都没有"的样子，只剩那一枚退出键能脱身
-  useEffect(() => {
-    const onChange = () => {
-      if (!document.fullscreenElement) setImmersive(false);
-    };
-    document.addEventListener("fullscreenchange", onChange);
-    return () => document.removeEventListener("fullscreenchange", onChange);
-  }, []);
-
-  // 底栏在 TabLayout 里、不归本页渲染——用 body 上的标记让它一起隐身（见 index.css）。
-  // 离开首页/卸载必须清掉，否则底栏在别的页面也跟着消失
-  useEffect(() => {
-    if (immersive) document.body.dataset.immersive = "1";
-    else delete document.body.dataset.immersive;
-  }, [immersive]);
-  useEffect(
-    () => () => {
-      delete document.body.dataset.immersive;
-      // 横屏请求也必须撤：不撤的话离开首页后整个 App 还锁在横屏里
-      requestLandscape(false);
-      if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
-    },
-    [],
-  );
-
-  // 切流后回到顶部并重置当前屏（首次挂载不算切流，否则会覆盖掉恢复的位置）
-  useEffect(() => {
-    if (firstRun.current) {
-      firstRun.current = false;
-      return;
-    }
+    if (shownFeed.current === feed) return;
+    shownFeed.current = feed;
     wrapRef.current?.scrollTo({ top: 0 });
     setActiveIdx(0);
   }, [feed]);
@@ -1381,7 +1311,7 @@ export default function FeedPage() {
             onClick={() => setFeed(f)}
             className={`relative min-h-[36px] px-1 text-base transition ${
               feed === f ? "font-semibold text-white" : "text-white/65"
-            } [text-shadow:0_1px_3px_rgba(0,0,0,.6)]`}
+            } [text-shadow:0_0_4px_rgba(0,0,0,.6)]`}
           >
             {f === "following" ? t({ message: "关注", context: "首页顶部的关注流页签（名词：我关注的人发的作品）" }) : t`推荐`}
             {feed === f && (
@@ -1406,6 +1336,10 @@ export default function FeedPage() {
     return (
       <div className="fixed inset-0 bg-black">
         {tabs}
+        {feed === "recommend" && feedLoading() ? (
+          // 整份还在拉：画加载态，别先闪一下「还没有作品」（2.68 真机 LTE 上量到约 6 秒）
+          <EmptyState className="h-full justify-center" loading text={t`正在取作品…`} />
+        ) : (
         <EmptyState
           className="h-full justify-center"
           icon={feed === "following" ? "user" : "play"}
@@ -1424,9 +1358,10 @@ export default function FeedPage() {
                 // ★ 判 auth === "out" 不判 !user（2026-10-15 发版前复核抓到）：冷启动会话还没认领上的那段窗口 user 也是空的，
                 //   那时把登录着的人送去登录页就是 CLAUDE.md「拿 !currentUser() 当没登录」那格坑
                 : { label: t`登录`, to: "/login?next=%2F", primary: true }
-              : { label: t`去卡片工坊创作`, to: "/studio", primary: true }
+              : { label: t`去创作`, to: "/create", primary: true }
           }
         />
+        )}
       </div>
     );
   }
@@ -1439,12 +1374,14 @@ export default function FeedPage() {
 
       {/* 退出键：沉浸态下唯一留在画面上的控件，必须常驻——真全屏没申请成功时
           既没有 Esc 也没有系统返回可用，没有它用户就困在这一屏里了。
-          压到半透明，不抢画面 */}
+          压到半透明，不抢画面
+          ★ 用 top 让开状态栏，不挂 .safe-top（2026-10-26）：44px 的圆钮再加 inset + 10px 的上内边距，真机 inset 41px 时
+            内边距比整颗钮还高，钮被撑成竖胶囊、图标掉到下半截（index.css .safe-top-bar 那段讲的是同一个坑） */}
       {immersive && (
         <button
           onClick={exitFull}
           aria-label={t`退出全屏`}
-          className="safe-top absolute right-3 top-0 z-30 mt-3 flex h-11 w-11 items-center justify-center rounded-full bg-black/35 text-white/80 backdrop-blur-sm transition active:scale-90"
+          className="absolute right-3 top-[calc(env(safe-area-inset-top,0px)+12px)] z-30 flex h-11 w-11 items-center justify-center rounded-full bg-black/35 text-white/80 backdrop-blur-sm transition active:scale-90"
         >
           <Icon name="shrink" size={22} />
         </button>
