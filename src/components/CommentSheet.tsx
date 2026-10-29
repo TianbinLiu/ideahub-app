@@ -37,6 +37,7 @@ import MentionInput from "./MentionInput";
 import MentionText from "./MentionText";
 import BlockButton from "./BlockButton";
 import Spinner from "./Spinner";
+import { useBackLayer } from "../hooks/useBackLayer";
 
 /** 顶层评论 + 挂在它下面的回复。渲染前分一次组，不在 JSX 里现算 */
 interface Thread {
@@ -82,6 +83,13 @@ function buildThreads(list: VideoComment[]): Thread[] {
  */
 export default function CommentSheet({ video, onClose, autoFocus }: { video: VideoItem; onClose: () => void; autoFocus: boolean }) {
   const { t } = useLingui();
+  // 手机返回键先关抽屉（hooks/useBackLayer）：原来收起键盘之后再按一次返回，直接离开了整个页面（2026-10-29 真机 2.72）。
+  // 点 ✕ / 点遮罩关时顺手弹掉那一格历史；点评论里的 @ 去别人主页那条不弹（新路由已经压在上面）
+  const dismiss = useBackLayer(true, onClose, "comments");
+  const close = () => {
+    dismiss();
+    onClose();
+  };
   // video.comments 由 addReply 原地换新数组，本地 state 拿快照驱动渲染
   const [list, setList] = useState<VideoComment[]>(video.comments);
   /**
@@ -283,14 +291,14 @@ export default function CommentSheet({ video, onClose, autoFocus }: { video: Vid
       onClick={(e) => e.stopPropagation()}
     >
       {/* 上半留给视频（点击关闭抽屉），下半是评论面板 */}
-      <div className="absolute inset-x-0 top-0 h-[38%]" onClick={onClose} />
+      <div className="absolute inset-x-0 top-0 h-[38%]" onClick={close} />
       <div className="absolute inset-x-0 bottom-0 flex h-[62%] flex-col rounded-t-2xl border-t border-slate-700 bg-ink">
         <div className="flex h-12 items-center justify-between border-b border-slate-700/60 px-4">
           {/* ★ 与首页那一栏同一个口径（commentCountOf）：服务端的总数优先。
               读 list.length 的话，详情还没补回来时标题会先写「0 条评论」——
               而下面可能马上就渲染出好几条，自相矛盾。 */}
           <span className="text-sm font-bold text-slate-100"><Trans>{commentCountOf(video)} 条评论</Trans></span>
-          <CloseButton chip="sm" size={13} align="end" label={t`关闭评论`} onClick={onClose} />
+          <CloseButton chip="sm" size={13} align="end" label={t`关闭评论`} onClick={close} />
         </div>
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-3">
           {threads.map((th) => (
