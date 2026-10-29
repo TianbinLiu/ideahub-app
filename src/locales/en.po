@@ -6340,8 +6340,8 @@ msgid "产物已过期：AI 出片的产物只在服务器上留 24 小时，现
 msgstr "The output has expired: AI video output is kept on the server for only 24 hours, so it can no longer be recovered. If the AI actually failed, the video charge is refunded automatically (you'll get a notification when it lands); if it succeeded but wasn't recovered in time, the money for this job can't be recovered (starting a new job costs again)."
 
 #: src/components/flow/DialogueWizard.tsx
-msgid "人、整体交代或画幅在画好之后改过：这一张还是按原来那版画的，重画一下才对得上。"
-msgstr "The people, the setting or the aspect changed after this was drawn: it still shows the old version — redraw it to match."
+#~ msgid "人、整体交代或画幅在画好之后改过：这一张还是按原来那版画的，重画一下才对得上。"
+#~ msgstr "The people, the setting or the aspect changed after this was drawn: it still shows the old version — redraw it to match."
 
 #. placeholder {0}: stage.figures.length
 #: src/studio/stage/StageOverlay.tsx
@@ -6351,6 +6351,10 @@ msgstr "Mannequins: {0}"
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "人偶编号"
 msgstr "Mannequin number"
+
+#: src/components/flow/DialogueWizard.tsx
+msgid "人或整体交代在画好之后改过：这一张还是按原来那版画的，重画一下才对得上。"
+msgstr "The people or the setting changed after this was drawn: it still shows the old version — redraw it to match."
 
 #: src/components/guide/tours.tsx
 msgid "人排在作品前面，点一行进他主页 —— 有些作品这里搜不到，去他主页能看全。 名字底下那串 <0>@ 开头的</0>，就是 @ 他时要打的那串。"
@@ -9101,12 +9105,12 @@ msgid "别人做的出图配方。装进来之后就是你自己的一套，可�
 msgstr "Image recipes made by others. Once installed, it's your own copy to change however you like."
 
 #: src/pages/PublishPage.tsx
-msgid "别人只看得到成片，看不到你用了哪几张卡，也不能「做同款」。"
-msgstr "Others only see the finished video — not which cards you used — and can't Remix it."
+#~ msgid "别人只看得到成片，看不到你用了哪几张卡，也不能「做同款」。"
+#~ msgstr "Others only see the finished video — not which cards you used — and can't Remix it."
 
 #: src/pages/PublishPage.tsx
-msgid "别人只看得到成片，看不到你用了哪几张卡，也不能「做同款」。原作品上那套卡组也会一并撤下。"
-msgstr "Others only see the finished video — not which cards you used — and can't Remix it. The deck on the original video will be removed too."
+#~ msgid "别人只看得到成片，看不到你用了哪几张卡，也不能「做同款」。原作品上那套卡组也会一并撤下。"
+#~ msgstr "Others only see the finished video — not which cards you used — and can't Remix it. The deck on the original video will be removed too."
 
 #: src/pages/PublishPage.tsx
 msgid "别人只看得到成片，看不到它是怎么一段段做出来的。"
@@ -9123,6 +9127,14 @@ msgstr "The name others see in the market"
 #: src/pages/EditPage.tsx
 msgid "别人的首页和你的主页上都不再出现，成片和评论都留着，随时能改回来。"
 msgstr "It won't appear in anyone's home feed or on your profile. The video and comments stay, and you can change it back anytime."
+
+#: src/pages/PublishPage.tsx
+msgid "别人看不到你用了哪几张卡，也拿不到这几张卡；「做同款」照样能用，只是照着分段剧本做、不带你的卡。"
+msgstr "Others won't see which cards you used or get them. They can still Remix it — from the segment scripts, without your cards."
+
+#: src/pages/PublishPage.tsx
+msgid "别人看不到你用了哪几张卡，也拿不到这几张卡；「做同款」照样能用，只是照着分段剧本做、不带你的卡。原作品上那套卡组也会一并撤下。"
+msgstr "Others won't see which cards you used or get them. They can still Remix it — from the segment scripts, without your cards. The deck on the original video will be removed too."
 
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "别人能在人格市场里搜到、装上用；署你的名。"
@@ -17650,8 +17662,12 @@ msgid "机位 · 空处拖动环绕，两指拉远拉近"
 msgstr "Camera · drag empty space to orbit, pinch to zoom"
 
 #: src/components/flow/DialogueWizard.tsx
-msgid "机位已经按这个画幅画了（每一张都是几段的开头画面）；要换画幅得三个一起重画。"
-msgstr "The angles were drawn in this aspect (each one starts several segments); changing it means redrawing all three."
+#~ msgid "机位已经按这个画幅画了（每一张都是几段的开头画面）；要换画幅得三个一起重画。"
+#~ msgstr "The angles were drawn in this aspect (each one starts several segments); changing it means redrawing all three."
+
+#: src/components/flow/DialogueWizard.tsx
+msgid "机位已经按这个画幅画了（每一张都是几段的开头画面）。画好之后画幅就定了，「三个一起重画」也还是这个画幅。"
+msgstr "The angles were drawn in this aspect (each one starts several segments). Once drawn, the aspect is locked — “Redraw all three” keeps it too."
 
 #: src/types.ts
 msgid "材质、颗粒与光影的近距离质感"
