@@ -84,7 +84,7 @@ function buildThreads(list: VideoComment[]): Thread[] {
 export default function CommentSheet({ video, onClose, autoFocus }: { video: VideoItem; onClose: () => void; autoFocus: boolean }) {
   const { t } = useLingui();
   // 手机返回键先关抽屉（hooks/useBackLayer）：原来收起键盘之后再按一次返回，直接离开了整个页面（2026-10-29 真机 2.72）。
-  // 点 ✕ / 点遮罩关时顺手弹掉那一格历史；点评论里的 @ 去别人主页那条不弹（新路由已经压在上面）
+  // 关法照旧（✕ / 遮罩 / 点评论里的 @ 去别人主页），抽屉一关就从返回键的层栈上撤下
   const dismiss = useBackLayer(true, onClose, "comments");
   const close = () => {
     dismiss();

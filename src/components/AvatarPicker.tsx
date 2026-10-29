@@ -15,6 +15,7 @@ import { createPortal } from "react-dom";
 import { MASCOT_AVATARS } from "../data/mascotAvatars";
 import { setAvatarImage } from "../data/account";
 import { cropSquareImage, decodeImageFile, urlToSquareImage } from "../utils/image";
+import { useBackLayer } from "../hooks/useBackLayer";
 import Avatar from "./Avatar";
 import Icon from "./Icon";
 
@@ -52,6 +53,8 @@ export default function AvatarPicker({
     },
     [cropping],
   );
+  // 手机返回键先关这一层（hooks/useBackLayer）：与遮罩同一个 onClose；挂在这里而不是 Shell 上 —— 裁切态与选图态各渲染一个 Shell，挂在 Shell 上换屏就多压一格
+  useBackLayer(true, onClose, "avatar");
 
   async function apply(run: () => Promise<{ dataUrl: string; blob: Blob }>, label: string) {
     setBusy(label);

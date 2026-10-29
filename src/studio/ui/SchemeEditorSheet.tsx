@@ -15,6 +15,7 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { CloseButton } from "../../components/IconTapButton";
+import { useBackLayer } from "../../hooks/useBackLayer";
 import { MAX_CARD_VIEWS, ROLE_LABELS, VIEW_TAG_MAX, type CardRole } from "../../types";
 import {
   SCHEME_INTRO_MAX,
@@ -50,6 +51,8 @@ export default function SchemeEditorSheet({
   /** 内置只能"另存为"，用户自己那份才是真的改 */
   const { t } = useLingui();
   const copying = !source || !!source.builtin;
+  // 手机返回键先关这一层（hooks/useBackLayer），与 ✕ / 点遮罩同一个 onClose
+  useBackLayer(true, onClose, "scheme-editor");
   const [title, setTitle] = useState(source ? (source.builtin ? t`${source.title} 副本` : source.title) : "");
   const [intro, setIntro] = useState(source?.intro ?? "");
   const [faceless, setFaceless] = useState(!!source?.faceless);

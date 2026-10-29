@@ -37,6 +37,7 @@ import {
   type PromptScheme,
 } from "../data/promptSchemes";
 import { shrinkDataUrl } from "../utils/image";
+import { useBackLayer } from "../hooks/useBackLayer";
 import SchemeEditorSheet from "../studio/ui/SchemeEditorSheet";
 import SchemeMarketSheet from "../studio/ui/SchemeMarketSheet";
 // 市场那半边单独成模块（promptSchemes 保持叶子，避免 videos↔account 那条环）
@@ -135,6 +136,8 @@ const PARKED_TTL_MS = 24 * 3600_000;
 export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: boolean; onClose: () => void }) {
   const { t } = useLingui();
   const sep = t({ message: "、", comment: "列举几个名字时的分隔符" });
+  // 手机返回键先关这一层（hooks/useBackLayer），与 ✕ / 点遮罩同一个 onClose；叠在上面的方案市场 / 编辑抽屉各认各的那一格
+  useBackLayer(true, onClose, "card-extract");
   const [url, setUrl] = useState<string | null>(null);
   const [dur, setDur] = useState(0);
   /** 播放头（秒）。原来叫 t，与 useLingui 的 t 撞名，改叫 cur */

@@ -1,48 +1,22 @@
-// 「按手机返回键先关掉这一层」—— 全屏 / 沉浸态、评论抽屉这类盖在页面上的一层共用（2026-10-29 真机 2.71 / 2.72 抓到）。
-// ★ 为什么要压一格历史：安卓返回键在 Capacitor 里是 webView.goBack()（全 app 没有人监听 backButton），
-//   这一层不在历史里的话，返回键直接退出整个页面（详情页全屏时按返回落回首页；评论抽屉开着按返回，收起键盘之后再按一次就离开了这一页）。
-//   层打开时压一格**同一个地址**的历史（state 上带记号，保留 react-router 的 idx / key —— useBackOr 读的就是 idx），
-//   返回键只弹掉这一格 → popstate → 关掉这一层。
-// ★ 用户点 ✕ / 点遮罩关掉时要调 dismiss() 把那一格也弹掉，否则还要多按一次返回才离开这一页。
-//   因为点了别的链接而离开（层跟着页面卸载）时**不要**调：那时新路由已经压在上面，弹一格就是把人拽回来。
+// 「按手机返回键先关掉这一层」—— 全屏 / 沉浸态、所有底部抽屉与对话框共用（2026-10-29 真机 2.71 / 2.72 抓到）。
+// ★ 机制在 utils/backButton（全 app 唯一的 backButton 监听 + 一个层栈）：层开着时在栈上占一格，返回键先交给最上面那层；
+//   没有开着的层时照原样后退。不碰浏览器历史 —— 2.73 第一版压历史的写法被发版前复核推翻（层开着时页面自己 navigate 会被那格历史搅乱），理由写在那个文件头上。
 import { useEffect, useRef } from "react";
-
-const MARK = "__backLayer";
-
-function topLayer(): string | undefined {
-  return (window.history.state as Record<string, unknown> | null)?.[MARK] as string | undefined;
-}
+import { pushBackLayer } from "../utils/backButton";
 
 /**
- * @param active 这一层现在开着没有
- * @param onBack 返回键把这一层关掉时调（只管关，历史已经弹过了）
- * @param key 这一层的名字（同一时刻一层一个名字；记号相同才认是自己）
- * @returns dismiss：用户自己关掉这一层时调，把压的那一格历史弹掉（只弹自己的、只弹一次）
+ * @param active 这一层现在开着没有（只在开着时挂载的组件传 true）
+ * @param onBack 返回键关掉这一层时调。回 false = 这会儿不许关（删除在途），这一下返回什么都不做。
+ *   永远不许关的层（强制更新）别接这个 hook
+ * @param _name 这一层叫什么（只为读代码时认得出是哪一层）
+ * @returns dismiss —— 留着与调用方的写法兼容（压历史那一版要它弹掉自己那一格）；现在是空操作，层关掉时自动从栈上撤下
  */
-export function useBackLayer(active: boolean, onBack: () => void, key: string): () => void {
+export function useBackLayer(active: boolean, onBack: () => void | boolean, _name: string): () => void {
   const onBackRef = useRef(onBack);
   onBackRef.current = onBack;
-  /** 已经叫过 history.back()、还没等到 popstate：别再弹第二次（✕ 与 fullscreenchange 这类可能前后脚都来叫，弹两次就离开这一页了） */
-  const popping = useRef(false);
-
   useEffect(() => {
     if (!active) return;
-    // 上一次 dismiss 叫的 back() 的 popstate 多半是在监听撤掉之后才到的：重新打开时清掉这个记号，不然这一层再也弹不掉自己的那一格
-    popping.current = false;
-    // StrictMode 下 effect 会跑两遍：已经是自己压的那一格就不再压
-    if (topLayer() !== key) window.history.pushState({ ...((window.history.state as object | null) ?? {}), [MARK]: key }, "");
-    const onPop = () => {
-      popping.current = false;
-      if (topLayer() === key) return;
-      onBackRef.current();
-    };
-    window.addEventListener("popstate", onPop);
-    return () => window.removeEventListener("popstate", onPop);
-  }, [active, key]);
-
-  return () => {
-    if (popping.current || topLayer() !== key) return;
-    popping.current = true;
-    window.history.back();
-  };
+    return pushBackLayer(() => onBackRef.current());
+  }, [active]);
+  return () => {};
 }

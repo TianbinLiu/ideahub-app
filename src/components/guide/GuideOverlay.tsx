@@ -10,7 +10,7 @@
 // ★★ ② portal 之后 DOM 上虽已脱离页面，**React 合成事件仍沿组件树冒泡**。
 //   首页上的遮罩若不写 onPointerDown/onPointerUp/onClick 三个 stopPropagation，
 //   点遮罩会同时触发 FeedItem 的暂停/解静音/双击点赞（CommentSheet 就是为这个写的）。
-// ★★ ③ **安卓物理返回键这一批有意不接管**。全 app 现在没有任何地方监听 backButton，
+// ★★ ③ **安卓物理返回键这一批有意不接管**（2026-10-29 起 utils/backButton 接管了返回键，但引导没登记成一层，按返回的效果与下面说的一样）。原来全 app 没有任何地方监听 backButton，
 //   默认行为是 WebView goBack（HashRouter 下退回上一路由）。所以引导开着时按返回，
 //   会**直接离开当前页**而不是关掉引导 —— 这是已知行为，不是漏做：要修得挂一个全局
 //   backButton 监听，而那一下会同时接管全 app 的返回语义（每页都要补自己的返回行为），

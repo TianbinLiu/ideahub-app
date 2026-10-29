@@ -7,6 +7,7 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { useBackLayer } from "../../hooks/useBackLayer";
 import { AI_REAL } from "../../ai";
 import { CHAT_TURN_TOKENS, fmtTokens } from "../../data/economy";
 import { CUT_SAY_MAX, type CutAgentOutcome } from "../../studio/cutAgent";
@@ -29,6 +30,8 @@ export default function CutAgentSheet({ onRun, onClose }: Props) {
   const [last, setLast] = useState<{ said: string; out: CutAgentOutcome } | null>(null);
   /** 这一句连回执都没拿到（落地那一步自己出了错）：原因摆出来，别让"点了没反应"（铁律八） */
   const [fail, setFail] = useState("");
+  // 手机返回键先关这一层（hooks/useBackLayer），与 ✕ 同一个 onClose（这块面板没有遮罩，✕ 在途时也不拦）
+  useBackLayer(true, onClose, "cut-agent");
   const phrases = CUT_PHRASES[lang];
   const price = fmtTokens(CHAT_TURN_TOKENS);
   // 回执里的两个数（先取成有名字的变量：目录里的占位符是 {undone} / {redone}，不是 {0}）

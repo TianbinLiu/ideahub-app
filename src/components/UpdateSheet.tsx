@@ -7,7 +7,7 @@
 //      换到正式包时必然发生，只能先卸载）。
 //
 // ★★ 强制更新（清单的 minVersionCode，判据只在 data/appUpdate.isMandatory，2026-10-10）：这张弹层就是这一版唯一的出口 ——
-//   · 关不掉：没有「以后再说」、没有「关闭」，点遮罩不关；安卓返回键（全 app 没人监听 backButton，默认是 WebView 后退）
+//   · 关不掉：没有「以后再说」、没有「关闭」，点遮罩不关；安卓返回键（强制更新这一层不登记进 utils/backButton 的层栈，按返回照原样后退，默认是 WebView 后退）
 //     只退得动底下那一页，这张弹层挂在路由之外（App.tsx 的 UpdateGate），退不掉它。**强制的那一版只在那里画**：
 //     设置页查到的也交过去（data/appUpdate.raiseForcedUpdate）—— 画在设置页里的话返回键连页带弹层一起退掉（2026-10-10 评审抓到）。
 //   · 但**永远有路可走**：下不动 / 校验不过 / 装不上都留着「重试」，另给两条在浏览器里下的路，管的是两类不同的坏法：
@@ -35,6 +35,7 @@ import {
   type UpdateInfo,
 } from "../data/appUpdate";
 import { openExternal } from "../utils/openExternal";
+import { useBackLayer } from "../hooks/useBackLayer";
 import Icon from "./Icon";
 
 export default function UpdateSheet({ info, onClose }: { info: UpdateInfo; onClose: () => void }) {
@@ -45,6 +46,9 @@ export default function UpdateSheet({ info, onClose }: { info: UpdateInfo; onClo
   const [err, setErr] = useState("");
   /** 强制更新：这一版关不掉（见文件头 ★★） */
   const forced = isMandatory(info);
+  // 手机返回键先关这一层（hooks/useBackLayer），与点遮罩 / 「关闭」同一个 onClose（不记「跳过这一版」）；
+  // 强制的那一版不接（active = false，关不掉），下载中与遮罩同样不许关
+  useBackLayer(!forced, () => (busy ? false : onClose()), "update");
   /** 打不开浏览器（被拦 / 没有浏览器）时打不开的那个地址：写出来，让人自己去。空串 = 没有失败 */
   const [linkFailed, setLinkFailed] = useState("");
   const versionName = info.versionName;
