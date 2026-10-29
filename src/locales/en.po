@@ -5800,6 +5800,14 @@ msgstr "No thanks"
 msgid "不会公开：你的原话（每段的要求）、没选中的方案、圈选标注、导演台、上传的参考视频、出片日志、卡上的 3D 建模与生成提示词；声明过真实人物的卡与从别人那儿装来的卡只留一个空位。成片本身另按作品的可见范围走。"
 msgstr "Not shared: your own wording (per-segment requirements), unchosen proposals, markups, the director stage, uploaded reference videos, generation logs, and cards' 3D models and prompts; cards declared as real people and cards installed from others only leave an open slot. The video itself follows the work's visibility."
 
+#: src/components/VideoTemplateExtractor.tsx
+msgid "不传视频也能做模板：改用「只用文字 + 封面」，不用会员，做模板也不花 token"
+msgstr "No video needed: switch to “Text + cover only” — no subscription required, and making the template costs no tokens"
+
+#: src/components/VideoTemplateExtractor.tsx
+msgid "不传视频也能做模板：改用「只用文字 + 封面」，做模板不花 token"
+msgstr "No video needed: switch to “Text + cover only” — making the template costs no tokens"
+
 #: src/pages/tutor/TutorNewPage.tsx
 msgid "不先给结论，只问下一个能回答的小问题，让你自己说出来。"
 msgstr "Never gives the conclusion first; asks the next small question you can answer, so you say it yourself."
@@ -21640,8 +21648,8 @@ msgid "白模那两条怎么走"
 msgstr "How the blockout routes work"
 
 #: src/components/VideoTemplateExtractor.tsx
-msgid "白模那两条路现在开不了（原因见上）。点上面「‹ 换一种做法」改选「经典配方」仍然可以做模板——它不需要付费套餐，只是不做白模人偶。"
-msgstr "The two blockout routes aren't available right now (see the reason above). You can still make a template: tap “‹ Pick a different route” above and switch to “Classic recipe” — it doesn't need a paid plan; it just doesn't make blockout mannequins."
+#~ msgid "白模那两条路现在开不了（原因见上）。点上面「‹ 换一种做法」改选「经典配方」仍然可以做模板——它不需要付费套餐，只是不做白模人偶。"
+#~ msgstr "The two blockout routes aren't available right now (see the reason above). You can still make a template: tap “‹ Pick a different route” above and switch to “Classic recipe” — it doesn't need a paid plan; it just doesn't make blockout mannequins."
 
 #: src/components/VideoTemplateExtractor.tsx
 msgid "白模那两条路都只走这一档，所以现在还开不了 —— 开通会员套餐（或充值过任意一笔）就能用；想把一条片的做法分享给别人，发布作品时公开「制作过程」就行。"

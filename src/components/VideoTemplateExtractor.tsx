@@ -624,6 +624,15 @@ export default function VideoTemplateExtractor({
   }
 
   function close() {
+    leave(onClose);
+  }
+
+  /**
+   * 离开这一屏的**唯一**一道闸：关掉（close）与改走「只用文字 + 封面」（宿主的 onPickText 也是先关掉这一屏）都走它。
+   * ★ 门禁红字里那颗「改用只用文字 + 封面」在第 2 步也画得出来，那时手里可能已经有一份传上去的回执 ——
+   *   直接调 onPickText 会绕过下面的在跑闸与 dropReceipt：传上去的视频成了没人认的孤儿，或者在服务端切段时被删掉。
+   */
+  function leave(next: () => void) {
     // ★★ **在跑就别关**（2026-08-21 cherry-pick 评审）：这一屏的「取消」早就 disabled={busy}
     //   了（BlockoutTrimmer 那颗），但外层遮罩与标题栏的 ✕ 是无条件 close —— 同一屏两套纪律。
     //   分段登记那一发是服务端**串行逐段转码**、分钟级，这期间 receipt.spent 还是 false，
@@ -654,7 +663,7 @@ export default function VideoTemplateExtractor({
       return false;
     }
     dropReceipt();
-    onClose();
+    next();
   }
   // 手机返回键先关这一层（hooks/useBackLayer），走同一个 close()：登记在途被拦下时回 false，这一下返回只是被拦住
   useBackLayer(true, close, "template-extract");
@@ -745,8 +754,8 @@ export default function VideoTemplateExtractor({
    * ★ 秒数一律取 `BLOCKOUT_INPUT_RULES.maxSec`，别手写 30 —— 那个数在下面的页脚里也出现，
    *   两处各写各的就会在改窗口时分家（本仓「上限自己抄一份」那条）。
    * ★ 字段叫 `title` 不叫 `t`（接 Lingui 时改的）：`t` 这个名字现在归 useLingui，写成 t: t`…` 读着像笔误。
-   * ★ 「经典配方」这个叫法被门禁那两句（改选「经典配方」）与新手引导（guide/tours 的 extractor）引用，
-   *   改名要几处一起改，英文也一样（Classic recipe）。
+   * ★ 「经典配方」这条车道 2026-10-02 收了（见下面那行注释）。门禁那两句原来都指人去改选它，2026-10-10 / 2026-10-21 先后删掉；
+   *   界面上还提到它的（新手引导 guide/tours、templates 的一句报错）说的都是本机存量的经典模板，不是这条车道。
    */
   const routeOpts = [
     ...(blockoutReady && !blockoutRegion
@@ -770,6 +779,24 @@ export default function VideoTemplateExtractor({
   // ★ 兜底取第一条：blockoutReady 是异步到货的，到货前后这张表会变长，而 route 可能停在一条已经不在表里的路上。
   //   表为空（服务端不支持 / 离线）时 routeNow 为 undefined，用到它的那张卡只在选了文件之后才画，而那时表必然非空
   const routeNow = routeOpts.find((o) => o.v === route) ?? routeOpts[0];
+
+  /**
+   * 门禁红字里的那条出路（2026-10-29 主人点名）：白模两条都开不了时，「只用文字 + 封面」照样做得了 —— 不传视频、不走白模那一档，
+   * 套餐 / 地区 / 服务端那几道门一道都不碰，与第 1 步那张卡是同一个宿主回调。宿主没给 onPickText 就不画（这里没有那条路）。
+   * ★ 是一颗按钮而不是「点上面…」：红字两步都出现，方位词在其中一步必然是错的（见红字那段 ★★）。
+   * ★ 话只说「做模板」这一步（不用会员、不花 token）；套用出片时用哪一档、花多少，是文字模板那一屏与套用之后的事。
+   */
+  const textRouteLink = (label: string) =>
+    onPickText ? (
+      <button
+        type="button"
+        onClick={() => leave(onPickText)}
+        disabled={!!busy}
+        className="mt-1.5 block text-left font-semibold text-brand underline underline-offset-2 disabled:opacity-40"
+      >
+        {label}
+      </button>
+    ) : null;
 
   // ── ownRef 路：单段 / 分段两种形态（2026-08-20 接上长视频分段登记）────────────
   /**
@@ -1419,6 +1446,7 @@ export default function VideoTemplateExtractor({
                 {blockoutRegion}
                 <br />
                 <Trans>白模模板的两条路都只走这一档，这里做不了白模模板。想把一条片的做法分享给别人，发布作品时公开「制作过程」就行。</Trans>
+                {textRouteLink(t`不传视频也能做模板：改用「只用文字 + 封面」，做模板不花 token`)}
               </p>
             ) : (
               blockout &&
@@ -1429,6 +1457,7 @@ export default function VideoTemplateExtractor({
                   {/* 「经典配方」那条路已经收掉（routeOpts 只剩白模两条），原来这句还指着它（2026-10-10 文案复核抓到）；
                       分享做法的路是发布作品时公开「制作过程」（与下面那条琥珀提示同一句） */}
                   <Trans>白模那两条路都只走这一档，所以现在还开不了 —— 开通会员套餐（或充值过任意一笔）就能用；想把一条片的做法分享给别人，发布作品时公开「制作过程」就行。</Trans>
+                  {textRouteLink(t`不传视频也能做模板：改用「只用文字 + 封面」，不用会员，做模板也不花 token`)}
                 </p>
               )
             )}
@@ -1513,7 +1542,7 @@ export default function VideoTemplateExtractor({
                     </div>
                     <button
                       data-guide="extractor-text"
-                      onClick={onPickText}
+                      onClick={() => leave(onPickText)}
                       disabled={!!busy}
                       className="flex w-full items-center gap-2 rounded-xl bg-black/25 px-3 py-3 text-left disabled:opacity-40"
                     >
@@ -1950,22 +1979,23 @@ export default function VideoTemplateExtractor({
                 {err && <p className="mb-2 text-xs leading-relaxed text-danger-300">{err}</p>}
 
                 {blockout ? (
-                  <p className="text-[10px] leading-relaxed text-slate-500">
-                    {/* ★ 被门禁挡住时不许照旧写"选好视频先传上去" —— 那是一句用户执行不了的
-                        指示（按钮已经点不动了）。换成一条**真的走得通**的出路：经典配方那条路
-                        不钉会员档，谁都能用。
-                        ★ 出路要点名那颗键「‹ 换一种做法」：这一步上面没有路线卡，只说「上面改选」等于
-                        指着一个不存在的东西。这句只在第 2 步（传文件之前）出现，那颗键此时一定在上面，方位词是对的
-                        （门禁红字那句两步都出现，才不许写方位）。那颗键改名时这里一起改，英文也一样。 */}
-                    {busy ||
-                      (blockoutBlock
-                        ? t`白模那两条路现在开不了（原因见上）。点上面「‹ 换一种做法」改选「经典配方」仍然可以做模板——它不需要付费套餐，只是不做白模人偶。`
-                        : // ★★ 只说**这一屏别处没说过的**：上传不花钱、选段窗口、报价在开炼之前。
-                          //   「拖裁剪框把水印框到画面外」与「报价」上面那两段各说过一次了 ——
-                          //   同一屏说两遍不是强调，是让人以为那是两件事（这一屏本来就是靠删重复
-                          //   才腾出地方的，2026-08-23 拆两步时一并收）。
-                          t`传上去不花钱 · 下一步框出 ${minSec}~${maxSec} 秒 · 报价确认后才开炼`)}
-                  </p>
+                  // ★ 被门禁挡住时这一行**整行不画**（在跑时照旧显示 busy）：不许照旧写"选好视频先传上去" ——
+                  //   那是一句用户执行不了的指示（按钮已经点不动了），而为什么、怎么办，顶上那条门禁红字已经整句说了，
+                  //   那是唯一一份说明。
+                  // ★★ 2026-10-21 删掉的那句原来在这里指「点「‹ 换一种做法」改选「经典配方」」—— 那条车道 2026-10-02 就收了
+                  //   （见 route 的 ★），回到第 1 步找不到它，白模两条点哪条都被同一道门拦回来：一条走不通的出路。
+                  //   那句当时照样显示得出来：套餐镜像晚到时，人先进了第 2 步、镜像才说他没付过钱。别再在这里补一条"出路"：
+                  //   第 1 步 2026-10-26 起另有「只用文字 + 封面」（onPickText，不受这道门管），指人去那儿的那颗键在门禁红字里（textRouteLink），不写在这一行。
+                  (busy || !blockoutBlock) && (
+                    <p className="text-[10px] leading-relaxed text-slate-500">
+                      {busy ||
+                        // ★★ 只说**这一屏别处没说过的**：上传不花钱、选段窗口、报价在开炼之前。
+                        //   「拖裁剪框把水印框到画面外」与「报价」上面那两段各说过一次了 ——
+                        //   同一屏说两遍不是强调，是让人以为那是两件事（这一屏本来就是靠删重复
+                        //   才腾出地方的，2026-08-23 拆两步时一并收）。
+                        t`传上去不花钱 · 下一步框出 ${minSec}~${maxSec} 秒 · 报价确认后才开炼`}
+                    </p>
+                  )
                 ) : (
                   <>
                     <button
