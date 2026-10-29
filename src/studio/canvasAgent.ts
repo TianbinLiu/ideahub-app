@@ -256,7 +256,7 @@ function localSay(r: LocalParse): string {
   const segs = (list: number[]) => [...new Set(list)].map((s) => t`第 ${s} 段`).join(sep);
   const quoted = (list: string[]) => list.map((u) => t`「${u}」`).join(sep);
   const attrSay = r.attrSegs.length
-    ? t`${segs(r.attrSegs)}说的是这一段的设置：点开那一段的编辑窗，时长/画幅/画质在标题行右上角的 ⚙ 里，删段在编辑窗最底下。`
+    ? t`${segs(r.attrSegs)}说的是这一段的设置：点开那一段的编辑窗，时长/画幅/画质（和出片模型来自哪一家）在标题行右上角的 ⚙ 里，删段在编辑窗最底下。`
     : "";
   const paidSay = r.paid.length
     ? t`${segs(r.paid.map((p) => p.seg))}的推演、生成、挂卡本地档不代办（要花钱，或会重写点名句）——在那一段的编辑窗里点。`

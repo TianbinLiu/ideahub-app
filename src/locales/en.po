@@ -1120,8 +1120,13 @@ msgstr "{0}: local mode won't re-plan, generate or cast for you (it costs tokens
 
 #. placeholder {0}: segs(r.attrSegs)
 #: src/studio/canvasAgent.ts
-msgid "{0}说的是这一段的设置：点开那一段的编辑窗，时长/画幅/画质在标题行右上角的 ⚙ 里，删段在编辑窗最底下。"
-msgstr "{0}: that's a segment setting. Open that segment's editor — duration, aspect ratio and quality are under ⚙ at the top right; delete is at the very bottom. "
+msgid "{0}说的是这一段的设置：点开那一段的编辑窗，时长/画幅/画质（和出片模型来自哪一家）在标题行右上角的 ⚙ 里，删段在编辑窗最底下。"
+msgstr "{0}: that's a segment setting. Open that segment's editor — duration, aspect ratio and quality (and which company's video model) are under ⚙ at the top right; delete is at the very bottom. "
+
+#. placeholder {0}: segs(r.attrSegs)
+#: src/studio/canvasAgent.ts
+#~ msgid "{0}说的是这一段的设置：点开那一段的编辑窗，时长/画幅/画质在标题行右上角的 ⚙ 里，删段在编辑窗最底下。"
+#~ msgstr "{0}: that's a segment setting. Open that segment's editor — duration, aspect ratio and quality are under ⚙ at the top right; delete is at the very bottom. "
 
 #. placeholder {0}: relativeTime(video.revisedAt)
 #: src/pages/VideoPage.tsx

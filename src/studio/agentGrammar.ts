@@ -113,18 +113,20 @@ function enInt(raw: string): number {
 //   语气词全部剥掉，剩不下什么才算设置 —— 描述画面的句子剥完一定还剩主体（「镜头**横屏**移动」剩「镜头移动」）。
 // ★ 两套词表**合并**剥：中英混输（「第2段 make it vertical」）也要认得出这是设置。
 // ★ 必须是**正则字面量**：字符串里的 `\d` 运行时退化成字母 d，那一档就整个死了且零症状（CLAUDE.md 那格坑）。
+// ★ 出片模型的名字（Seedance / MiniMax / 海螺）也算设置（2026-10-29）：原来「第2段换成MiniMax」被本地档当成要求，
+//   把这一段写好的要求整段换成「换成MiniMax」。换哪一家只在档位那一排的 ProviderSwitch 上点，这里只指路。不收「海螺」：画面里的海螺（吹海螺）会被剥成设置
 const ZH_ATTR =
-  /(时长|画幅|画质|清晰度|分辨率|竖屏|横屏|极速|标准|高清|超清|标清|原画|电影级|1080p|720p|2k|4k|删掉|删除|删了|去掉|短一?点|长一?点|\d+\s*(?:秒|s)|[一二两三四五六七八九十]+\s*秒)/gi;
+  /(时长|画幅|画质|清晰度|分辨率|竖屏|横屏|极速|标准|高清|超清|标清|原画|电影级|1080p|720p|2k|4k|seedance|minimax|hailuo|出片模型|删掉|删除|删了|去掉|短一?点|长一?点|\d+\s*(?:秒|s)|[一二两三四五六七八九十]+\s*秒)/gi;
 /** 改动动词与语气词。★ 只收**功能词**：「画面」「视频」这种内容词一旦收进来，「删掉画面里的路人」会被剥成「里路人」而误判成设置 */
 const ZH_VERBS =
-  /(改成|换成|变成|设成|调成|设置成|设置为|设为|改为|换为|调到|加到|减到|弄成|调整成|改|换|设|调|弄|把|成|的|吧|了|呗|啊|嘛|请|麻烦|谢谢|帮我|给我|要|想|需要|稍微|大概|左右|再|一下)/gi;
+  /(改成|换成|变成|设成|调成|设置成|设置为|设为|改为|换为|调到|加到|减到|弄成|调整成|改用|出片|改|换|设|调|弄|用|把|成|的|吧|了|呗|啊|嘛|请|麻烦|谢谢|帮我|给我|要|想|需要|稍微|大概|左右|再|一下)/gi;
 /** 强属性词：出现就是在说设置（剥完剩 ≤1 个英文词、≤3 个汉字才算）。delete / remove 按宾语判：后面只跟 it / this / the segment 才算删段 */
 const EN_ATTR_STRONG =
-  /\b(?:duration|length|aspect\s+ratio|aspect|orientation|resolution|quality|definition|widescreen|u?hd|fhd|full\s+hd|shorter|longer|(?:fast|standard|hd|ultra|cinematic)\s+(?:tier|quality|mode)|(?:vertical|horizontal|portrait|landscape)\s+(?:video|format|mode|orientation|screen)|(?:1080|720|480|2160)p|[248]k|(?:9|16|1|4|3)\s*:\s*(?:16|9|1|3|4)|\d+(?:\.\d+)?\s*(?:s|secs?|seconds?)|(?:one|two|three|four|five|six|seven|eight|nine|ten|twelve|fifteen|twenty)[\s-]+(?:secs?|seconds?)|(?:delete|remove|drop)(?=\s*(?:it|this(?:\s+(?:one|segment))?|the\s+segment)?\s*$))\b/gi;
+  /\b(?:duration|length|aspect\s+ratio|aspect|orientation|resolution|quality|definition|widescreen|u?hd|fhd|full\s+hd|shorter|longer|(?:fast|standard|hd|ultra|cinematic)\s+(?:tier|quality|mode)|(?:vertical|horizontal|portrait|landscape)\s+(?:video|format|mode|orientation|screen)|(?:1080|720|480|2160)p|[248]k|(?:9|16|1|4|3)\s*:\s*(?:16|9|1|3|4)|\d+(?:\.\d+)?\s*(?:s|secs?|seconds?)|(?:one|two|three|four|five|six|seven|eight|nine|ten|twelve|fifteen|twenty)[\s-]+(?:secs?|seconds?)|seedance|minimax|hailuo|(?:delete|remove|drop)(?=\s*(?:it|this(?:\s+(?:one|segment))?|the\s+segment)?\s*$))\b/gi;
 /** 弱属性词：画面里也常出现（vertical pan / portrait lighting / square dance），剥完必须一个词不剩才算 */
 const EN_ATTR_WEAK = /\b(?:vertical(?:ly)?|horizontal(?:ly)?|portrait|landscape|square)\b/gi;
 const EN_FUNC =
-  /\b(?:please|pls|plz|could|can|would|will|you|kindly|just|make|set|change|switch|turn|adjust|update|put|it|its|this|that|the|a|an|to|into|as|in|at|of|for|be|is|should|i|want|like|need|let's|let|me|my|one|bit|little|slightly|more|less|mode|format|thanks|thank|ok|okay|about|around|roughly|and|so|then|now|again|with)\b/gi;
+  /\b(?:please|pls|plz|could|can|would|will|you|kindly|just|make|set|change|switch|turn|adjust|update|put|use|using|it|its|this|that|the|a|an|to|into|as|in|at|of|for|be|is|should|i|want|like|need|let's|let|me|my|one|bit|little|slightly|more|less|mode|format|thanks|thank|ok|okay|about|around|roughly|and|so|then|now|again|with)\b/gi;
 // 「有没有命中」从上面**派生**（带 g 的正则 test 会推进 lastIndex，不能直接复用；抄一份又是同一条规则的第二处实现）
 const HIT_ZH = new RegExp(ZH_ATTR.source, "i");
 const HIT_STRONG = new RegExp(EN_ATTR_STRONG.source, "i");
