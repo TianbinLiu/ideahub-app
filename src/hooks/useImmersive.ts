@@ -15,7 +15,7 @@ export function useImmersive(
   aspect: VideoAspect,
 ): { immersive: boolean; enter: () => Promise<void>; exit: () => void } {
   const [immersive, setImmersive] = useState(false);
-  // ★ 返回键先退出沉浸态（hooks/useBackLayer 压一格历史）：这个 WebView 的 requestFullscreen 实际不生效，
+  // ★ 返回键先退出沉浸态（hooks/useBackLayer → utils/backButton 的层栈）：这个 WebView 的 requestFullscreen 实际不生效，
   //   安卓返回键 = history back，不压这一格的话按返回直接退出了作品详情页（2026-10-29 真机 2.71）
   const dismiss = useBackLayer(immersive, () => {
     if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
