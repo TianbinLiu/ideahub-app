@@ -19,6 +19,7 @@
 //     打不开浏览器就把那个地址写出来。
 //   · 层级压在引导层（GUIDE_Z = 90）之上：引导会在各屏自己弹出来，盖住这张卡的话人只看得见引导、点不到更新。
 import { Trans, useLingui } from "@lingui/react/macro";
+import Warn from "./Warn";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -110,7 +111,7 @@ export default function UpdateSheet({ info, onClose }: { info: UpdateInfo; onClo
         </div>
 
         {forced && (
-          <div className="mb-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-100">
+          <div className="mb-3 rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-[11px] leading-relaxed text-warn-100">
             {/* ★ 不许诺「数据不会丢」：签名对不上时只能卸载重装（底下那行），那条路上本机的草稿是会没的 */}
             <Trans>你手上这一版已经停止支持了，更新之后才能接着用。</Trans>
           </div>
@@ -123,17 +124,17 @@ export default function UpdateSheet({ info, onClose }: { info: UpdateInfo; onClo
         )}
 
         {allowed === false && (
-          <div className="mb-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
-            <p className="text-[11px] leading-relaxed text-amber-100">
+          <div className="mb-3 rounded-xl border border-warn-500/40 bg-warn-500/10 p-3">
+            <Warn>
               <Trans>这个 App 不是从应用商店装的，系统需要你先允许它安装应用，才能自己完成更新。</Trans>
-            </p>
+            </Warn>
             <button
               onClick={() => {
                 // 打不开授权页（原生 NO_SETTINGS）原来是一个没人接的拒绝 = 点了没反应；现在说出来、让人自己去系统设置
                 setErr("");
                 openInstallPermission().catch((e: unknown) => setErr(updateFailText(e, "download")));
               }}
-              className="mt-2 w-full rounded-xl bg-amber-400/90 py-2.5 text-xs font-bold text-ink"
+              className="mt-2 w-full rounded-xl bg-warn-400/90 py-2.5 text-xs font-bold text-ink"
             >
               <Trans>去开启「允许安装未知应用」</Trans>
             </button>
@@ -156,7 +157,7 @@ export default function UpdateSheet({ info, onClose }: { info: UpdateInfo; onClo
         )}
 
         {err && (
-          <div className="mb-3 rounded-xl border border-rose-500/40 bg-rose-500/10 p-3 text-[11px] leading-relaxed text-rose-200">
+          <div className="mb-3 rounded-xl border border-danger-500/40 bg-danger-500/10 p-3 text-[11px] leading-relaxed text-danger-200">
             {err}
           </div>
         )}
@@ -203,7 +204,7 @@ export default function UpdateSheet({ info, onClose }: { info: UpdateInfo; onClo
               </button>
             )}
             {linkFailed && (
-              <p className="select-all break-all text-[11px] leading-relaxed text-rose-300">
+              <p className="select-all break-all text-[11px] leading-relaxed text-danger-300">
                 <Trans>没能打开浏览器。可以手动访问：{linkFailed}</Trans>
               </p>
             )}

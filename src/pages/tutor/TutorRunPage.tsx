@@ -69,6 +69,8 @@ export default function TutorRunPage() {
   const [input, setInput] = useState("");
   const [modelUrl, setModelUrl] = useState("");
   const [stageSettled, setStageSettled] = useState(false);
+  /** 舞台两套形象都没出来（SupportStage 的 onStatus）：这时不画字幕条，它会盖住舞台上的「重试」（SupportStage 的 FAIL_BLOCK_AT 量法） */
+  const [stageFailed, setStageFailed] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const progressTimer = useRef(0);
@@ -297,7 +299,7 @@ export default function TutorRunPage() {
     }
   };
 
-  if (!API_ON) return <div className="min-h-full px-4 pb-10"><PageHeader sticky inset onBack={back} title={t`上课`} /><EmptyState full emoji="📡" text={t`上课需要联网`} hint={t`老师、进度和对话都在服务端，这台设备当前是离线模式。`} /></div>;
+  if (!API_ON) return <div className="min-h-full px-4 pb-10"><PageHeader sticky inset onBack={back} title={t`上课`} /><EmptyState emoji="📡" text={t`上课需要联网`} hint={t`老师、进度和对话都在服务端，这台设备当前是离线模式。`} /></div>;
   if (loadError) return <div className="min-h-full px-4 pb-10"><PageHeader sticky inset onBack={back} title={t`上课`} /><EmptyState error text={t`这门课没打开：${loadError}`} cta={{ label: t`重试`, onClick: () => void load() }} /></div>;
   if (!bundle || !doc) return <div className="min-h-full px-4 pb-10"><PageHeader sticky inset onBack={back} title={t`上课`} /><EmptyState loading text={t`正在请老师…`} /></div>;
 
@@ -332,7 +334,7 @@ export default function TutorRunPage() {
           const st = progress[s.stage_id]?.status ?? "pending";
           const on = s.stage_id === stageId;
           return (
-            <button key={s.stage_id} onClick={() => selectStage(s.stage_id)} className={`flex-none rounded-full px-3 py-1 text-[11px] ${on ? "bg-brand font-semibold text-ink" : st === "passed" ? "bg-emerald-500/15 text-emerald-300" : st === "taught" ? "bg-panel text-slate-200" : "bg-panel text-slate-400"}`}>
+            <button key={s.stage_id} onClick={() => selectStage(s.stage_id)} className={`flex-none rounded-full px-3 py-1 text-[11px] ${on ? "bg-brand font-semibold text-ink" : st === "passed" ? "bg-ok-500/15 text-ok-300" : st === "taught" ? "bg-panel text-slate-200" : "bg-panel text-slate-400"}`}>
               {st === "passed" ? "✓ " : ""}
               {i + 1}. {s.title}
             </button>
@@ -341,7 +343,7 @@ export default function TutorRunPage() {
       </div>
 
       {status === "done" && (
-        <div className="mb-3 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
+        <div className="mb-3 rounded-lg border border-ok-500/40 bg-ok-500/10 px-3 py-2 text-xs text-ok-200">
           <Trans>这门课全部通过了。复习卡与到期回访在官网的学习页；App 里可以回看任何一个阶段、继续问老师。</Trans>
         </div>
       )}
@@ -349,8 +351,18 @@ export default function TutorRunPage() {
       {/* 舞台：只有会说话的老师才挂（容器比可见区高，只露头肩；看板娘按容器高度摆位） */}
       {speaks && (
         <div className="relative mb-3 h-52 overflow-hidden rounded-xl border border-slate-700/70 bg-panel">
-          <SupportStage className="absolute inset-x-0 top-0 h-[420px]" topPx={8} heightFraction={1} modelUrl={modelUrl} waiting={!stageSettled} />
-          {speech.subtitle && speech.speaking && (
+          <SupportStage
+            className="absolute inset-x-0 top-0 h-[420px]"
+            topPx={8}
+            heightFraction={1}
+            modelUrl={modelUrl}
+            waiting={!stageSettled}
+            name={bundle.companion?.name || t`老师`}
+            failNote={t`上课照常。`}
+            onStatus={(st) => setStageFailed(st === "failed")}
+          />
+          {/* 舞台没出来时不画：字幕条从底下往上长，三行就盖住「重试」；老师照样在说，说的字下面文字卡里都有 */}
+          {speech.subtitle && speech.speaking && !stageFailed && (
             <div className="absolute inset-x-2 bottom-2 rounded-lg border border-white/10 bg-slate-950/60 px-3 py-1.5 text-xs leading-relaxed text-slate-100 backdrop-blur-sm">{speech.subtitle}</div>
           )}
           {!speech.tts && speech.voiceOn && <div className="absolute right-2 top-2 rounded-full bg-slate-950/60 px-2 py-0.5 text-[10px] text-slate-300">{t`这台服务器没配语音，只动口型`}</div>}
@@ -407,13 +419,13 @@ export default function TutorRunPage() {
           )}
           {turns.map((m) => (
             <div key={m.seq} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-              <div className={`max-w-[88%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${m.role === "user" ? "bg-brand text-ink" : m.kind === "error" ? "border border-rose-500/40 bg-rose-500/10 text-rose-200" : m.kind === "quizResult" ? "border border-emerald-500/40 bg-emerald-500/10 text-emerald-200" : "bg-ink text-slate-100"}`}>
-                {m.flags?.policyBlocked && <div className="mb-1 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-200">{t`按课程的 AI 政策，这个问题只讲原理、不给答案`}</div>}
+              <div className={`max-w-[88%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${m.role === "user" ? "bg-brand text-ink" : m.kind === "error" ? "border border-danger-500/40 bg-danger-500/10 text-danger-200" : m.kind === "quizResult" ? "border border-ok-500/40 bg-ok-500/10 text-ok-200" : "bg-ink text-slate-100"}`}>
+                {m.flags?.policyBlocked && <div className="mb-1 rounded bg-warn-500/15 px-1.5 py-0.5 text-[10px] text-warn-200">{t`按课程的 AI 政策，这个问题只讲原理、不给答案`}</div>}
                 <div className="whitespace-pre-wrap">{m.text}</div>
                 {m.role === "assistant" && m.seq > 0 && m.kind !== "quizResult" && (
                   <div className="mt-1 flex items-center gap-2 text-slate-500">
                     <button aria-label={t`有帮助`} onClick={() => feedback(m.seq, m.feedback === 1 ? null : 1)} className={`rounded px-1 text-xs ${m.feedback === 1 ? "text-brand" : ""}`}>👍</button>
-                    <button aria-label={t`没帮助`} onClick={() => feedback(m.seq, m.feedback === -1 ? null : -1)} className={`rounded px-1 text-xs ${m.feedback === -1 ? "text-rose-300" : ""}`}>👎</button>
+                    <button aria-label={t`没帮助`} onClick={() => feedback(m.seq, m.feedback === -1 ? null : -1)} className={`rounded px-1 text-xs ${m.feedback === -1 ? "text-danger-300" : ""}`}>👎</button>
                   </div>
                 )}
               </div>
@@ -425,7 +437,7 @@ export default function TutorRunPage() {
             </div>
           )}
         </div>
-        {notice && <div className="border-t border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-200">{notice}</div>}
+        {notice && <div className="border-t border-warn-500/40 bg-warn-500/10 px-3 py-1.5 text-xs text-warn-200">{notice}</div>}
         <div className="flex items-end gap-2 border-t border-slate-700/60 px-3 py-2">
           <textarea
             ref={inputRef}
@@ -480,7 +492,7 @@ function QuizSheet({ stageTitle, checks, onSubmit, onSkip, onClose }: { stageTit
         <CloseButton chip="sm" size={13} align="end" onClick={onClose} />
       </div>
       <p className="mb-3 text-[11px] text-slate-500"><Trans>答对三分之二才进下一阶段；答案由老师按你的教材判，不看字面。</Trans></p>
-      {checks.length === 0 && <p className="mb-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200"><Trans>这一阶段没有自检题，可以直接跳过。</Trans></p>}
+      {checks.length === 0 && <p className="mb-3 rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-xs text-warn-200"><Trans>这一阶段没有自检题，可以直接跳过。</Trans></p>}
       <ol className="space-y-3">
         {checks.map((c, i) => (
           <li key={i} className="rounded-xl border border-slate-700/70 bg-panel p-3">
@@ -489,16 +501,16 @@ function QuizSheet({ stageTitle, checks, onSubmit, onSkip, onClose }: { stageTit
               <textarea value={answers[i]} onChange={(e) => setAnswers((a) => a.map((x, j) => (j === i ? e.target.value : x)))} rows={2} placeholder={t`写下你的答案…`} className="mt-2 w-full resize-none rounded-lg border border-slate-700 bg-ink px-2.5 py-1.5 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand" />
             ) : (
               <div className="mt-2 text-xs leading-relaxed">
-                <div className={reply.results[i]?.correct ? "text-emerald-300" : "text-rose-300"}>{reply.results[i]?.correct ? "✓" : "✗"} {reply.results[i]?.why}</div>
+                <div className={reply.results[i]?.correct ? "text-ok-300" : "text-danger-300"}>{reply.results[i]?.correct ? "✓" : "✗"} {reply.results[i]?.why}</div>
                 <div className="text-slate-500">{t`参考答案`}：{c.a}</div>
               </div>
             )}
           </li>
         ))}
       </ol>
-      {error && <p className="mt-2 text-xs text-rose-300">{error}</p>}
+      {error && <p className="mt-2 text-xs text-danger-300">{error}</p>}
       {reply && (
-        <div className={`mt-3 rounded-lg border px-3 py-2 text-sm font-medium ${reply.passed ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200" : "border-amber-500/40 bg-amber-500/10 text-amber-200"}`}>
+        <div className={`mt-3 rounded-lg border px-3 py-2 text-sm font-medium ${reply.passed ? "border-ok-500/40 bg-ok-500/10 text-ok-200" : "border-warn-500/40 bg-warn-500/10 text-warn-200"}`}>
           {reply.passed ? t`${reply.correct}/${reply.asked} · 通过了` : t`${reply.correct}/${reply.asked} · 还差一点`}
         </div>
       )}

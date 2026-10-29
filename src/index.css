@@ -45,6 +45,15 @@ canvas {
 .safe-top {
   padding-top: calc(env(safe-area-inset-top, 0px) + 10px);
 }
+/* 自带安全区的那一行表头（覆盖层表头、分区页的搜索行）：上内边距同 .safe-top，高度 = 状态栏 + 10px 呼吸 + 48px 一行。
+   ★ 2026-10-26 主人真机：分区页滑到顶，搜索栏挡住「浏览分区」上半截。这些行原来写的是 `safe-top h-[58px]`（58 = 10 + 48），
+     这个数只在状态栏 inset 为 0 时对（浏览器里量的都是 0）；真机 inset 41px（上面那段注释量过），border-box 下内容区被压到
+     58 − 51 = 7px，36~44px 的搜索框 / 圆钮从行底溢出去，盖住下面第一块内容。高度必须把 inset 算进去 —— 一处实现，
+     别再手写 h-[58px]（构建里 scripts/check-top-bar.mjs 拦着）。PageHeader 那种「外层 safe-top + 里层 h-12」也对，两种写法同高。 */
+.safe-top-bar {
+  padding-top: calc(env(safe-area-inset-top, 0px) + 10px);
+  height: calc(env(safe-area-inset-top, 0px) + 58px);
+}
 .safe-bottom {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
@@ -435,4 +444,13 @@ canvas {
    WebView 不支持」的降级路径兜底的——那时底栏还实实在在压在画面上。 */
 body[data-immersive="1"] [data-tabbar] {
   display: none;
+}
+
+/* 键盘 / 遥控焦点环（2026-10-23，Refactoring UI 走查的「书外延伸」那条）：全仓 126 处 outline-none、只有 1 处 focus-visible。
+   触屏上 :focus-visible 不会点亮（点按不算键盘焦点），所以这条只在外接键盘 / 电视遥控 / 无障碍切换访问时出现。
+   用 :where() 让它零特异性 —— 自己写了 focus:border-brand 的输入框照旧用自己的那套 */
+:where(a, button, [role="button"], [role="slider"], [role="checkbox"], summary):focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
+  border-radius: 0.375rem;
 }

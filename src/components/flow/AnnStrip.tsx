@@ -46,7 +46,7 @@ export default function AnnStrip({
       </div>
       {note && (
         <p
-          className={`mt-1 text-[10px] leading-relaxed ${note.tone === "warn" ? "text-amber-300/90" : "text-slate-500"}`}
+          className={`mt-1 text-[10px] leading-relaxed ${note.tone === "warn" ? "text-warn-300/90" : "text-slate-500"}`}
         >
           {note.text}
         </p>

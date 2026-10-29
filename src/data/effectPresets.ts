@@ -11,7 +11,7 @@
 // ★ 动作那一句**只写一个镜头**、不写「镜头1：」：写成分镜表的格式会被当成多镜头（shotScript.isMultiShot），多镜头的段不用 AI 画的结束画面、
 //   出片规则就变了；一条特效本来就是一镜到底。
 // ★ 占位符：{A} / {B} = 人物卡的名字（按点选的先后），{P} = 这件产品。替换只在 effectKeyframe / effectMotion 一处。
-// ★ 真人档（按发计价、起拍画面就是真人卡的照片）**不画关键帧**：照片原本的背景不是预设场景，所以只有「不靠换场景也成立」的那几条
+// ★ 真人档（只认一张起拍画面 = economy.VideoTier.startOnly，起拍画面就是真人卡的照片）**不画关键帧**：照片原本的背景不是预设场景，所以只有「不靠换场景也成立」的那几条
 //   （环绕、时间冻结、拉远）标 realOk —— 别的摆出来，片子是照片在原地动、预设的那个场景根本不会出现。
 
 /** 主角是谁：一个人 / 两个人 / 一件产品（产品走道具卡或传一张照片） */
@@ -156,8 +156,8 @@ export function castCountOf(p: Pick<EffectPreset, "subject">): number {
  * 这一档上能用的预设（按清单顺序）。真人档只留 realOk 的人物预设（见文件头 ★ 真人档那条）；别的档全都能用 ——
  * 1.0 两档拿关键帧当首帧起拍（标准档照旧补画结束帧，报价里有），2.x 两档帧当参考图发。
  */
-export function effectsOn(tier: { flat: boolean }): EffectPreset[] {
-  return EFFECT_PRESETS.filter((p) => !tier.flat || (p.realOk && p.subject !== "product"));
+export function effectsOn(tier: { startOnly: boolean }): EffectPreset[] {
+  return EFFECT_PRESETS.filter((p) => !tier.startOnly || (p.realOk && p.subject !== "product"));
 }
 
 export function effectById(id: string | null | undefined): EffectPreset | null {

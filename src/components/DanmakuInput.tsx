@@ -9,6 +9,7 @@
 // ★ 附在哪一秒是**按下发送的那一刻**取的，不是打开输入条的那一刻。
 //   打字要好几秒，按开条的时间点存，弹幕会飘在一段你根本没在看的画面上。
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import Warn from "./Warn";
 import { createPortal } from "react-dom";
 import { Trans, useLingui } from "@lingui/react/macro";
 import {
@@ -74,13 +75,13 @@ function MyDanmakuRow({ videoId, item }: { videoId: string; item: DanmakuItem })
       <span className="min-w-0 flex-1 truncate text-xs" style={{ color: item.color || DANMAKU_COLORS[0] }}>
         {item.text}
       </span>
-      {err && <span className="order-last w-full text-[10px] leading-relaxed text-rose-300">{err}</span>}
+      {err && <span className="order-last w-full text-[10px] leading-relaxed text-danger-300">{err}</span>}
       {confirming ? (
         <>
           <button
             onClick={() => void del()}
             disabled={busy}
-            className="flex-none text-[11px] font-semibold text-rose-400 active:opacity-60 disabled:opacity-40"
+            className="flex-none text-[11px] font-semibold text-danger-400 active:opacity-60 disabled:opacity-40"
           >
             {busy ? <Trans>删除中…</Trans> : <Trans>确认删除</Trans>}
           </button>
@@ -341,16 +342,16 @@ export default function DanmakuInput({
         </div>
 
         {/* 失败就地说清楚，并且**不关窗**——用户打的字还在框里，改一下就能再发 */}
-        {err && <p className="px-4 pb-1.5 text-[11px] text-rose-300">{err}</p>}
+        {err && <p className="px-4 pb-1.5 text-[11px] text-danger-300">{err}</p>}
 
         {/* 离线模式（没配服务端或服务端没起）要如实说：这条弹幕别人看不到。
             接上服务端时这句话就不该出现了，否则又成了另一种骗人（铁律八）。
             ★ 本机那份弹幕开机时没读出来（data/danmaku 的 loadIssue）时这次发的不落盘，
               「只存在这台设备上」就成了假话，换成实话 */}
         {danmakuLoadIssue() ? (
-          <p className="px-4 pb-1 text-[10px] text-amber-300">
+          <Warn compact className="px-4 pb-1">
             <Trans>这台设备上存的弹幕这会儿没读出来，这次发的弹幕关掉 App 就没了</Trans>
-          </p>
+          </Warn>
         ) : (
           !danmakuIsShared() && (
             <p className="px-4 pb-1 text-[10px] text-slate-400">

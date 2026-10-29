@@ -3,65 +3,111 @@
 import { useState } from "react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import EmptyState from "../components/EmptyState";
+import Icon from "../components/Icon";
 import PageHeader from "../components/PageHeader";
 import { Link, useParams } from "react-router";
 import TarotCard from "../components/TarotCard";
 import SocialPanel, { useCountView, useSocialVersion } from "../components/SocialPanel";
 import WorkshopShareBar, { shareBlockReason } from "../components/WorkshopShareBar";
-import { deckCoverOf, isRemoteMode, myCards, myDecks, shareDeck, updateDeck } from "../data/account";
-import { deckFitOf } from "../data/cardFit";
-import { noRefImgTierList, refImgTierList } from "../data/economy";
+import {
+  deckCoverOf,
+  isRemoteMode,
+  myCards,
+  myDecks,
+  offeredVideoModels,
+  providerGroupName,
+  regionTiersLine,
+  shareDeck,
+  updateDeck,
+  videoModelsLead,
+  videoModelsNames,
+} from "../data/account";
+import { cardInputOf, deckRowStates, fitRowsForDeck, type FitState } from "../data/cardFit";
+import { assetOf } from "../data/cardAsset";
+import { ModelFitTitle } from "../components/CardModelFit";
 import { formatHeat, heatOf } from "../data/social";
 import { useAccountVersion } from "../hooks/useAccount";
 import { useBackOr } from "../hooks/useBackOr";
-import { CARD_TYPE_LABELS, SHARE_NOTE_MAX, type Card } from "../types";
+import { CARD_TYPE_LABELS, SHARE_NOTE_MAX, startFramesAllowed, type Card } from "../types";
 
 /**
  * 卡组的「按模型适配」摘要（2026-10-02 主人点名：出片涉及的各个组件对出片模型的口径要统一 —— 卡片有「按模型适配」，
  * 模板有「出片模型」，卡组夹在中间也该说一句）。
  *
- * ★ 一条判据都没新写：每张卡的状态出自 data/cardFit.cardFitOf（卡片页那一格读的是同一份），这里只数张数。
+ * ★ 一条判据都没新写：每张卡在每个模型上的状态出自 data/cardFit（卡片页那一格读的是同一份），这里只数张数；
+ *   对每张卡结论都相同的几个模型并成一行（fitRowsForDeck）。
+ * ★ 2026-10-26（出片地区 · 主人第 2 件）：行首写具体模型名、按家分组，只列这个人此刻摆得出来的模型；地区还不知道时只写档位名
+ *   （account.offeredVideoModels 的 ★★，组头、行首与卡片页同一批译文）。
  * ★ 只数不改：哪张卡缺什么，点进那张卡的「按模型适配」里补 —— 这里不摆第二套勾选框（那会是同一个开关的第二处入口）。
- * ★ 背景卡不计（它在所有档位都只以文字参与）；全是背景卡 / 空卡组时整块不画。
- * ★ 三行的行首与卡片页那一格用同一组占位名（line2x / line10 / lineReal），目录里是同一条译文。
+ * ★ 背景卡不计（它在所有模型上都只以文字参与）；全是背景卡 / 空卡组时整块不画。
  */
 function DeckModelFit({ cards }: { cards: Card[] }) {
   const { t } = useLingui();
-  const fit = deckFitOf(cards);
-  if (fit.total === 0) return null;
-  const join = (parts: (string | false)[]) => parts.filter(Boolean).join(" · ");
-  const n2 = fit.ref;
-  const n1 = fit.frames;
-  const nr = fit.start;
-  const line2x = join([
-    n2.image > 0 && t`${n2.image} 张的形象图直接进模型`,
-    n2.asset > 0 && t`${n2.asset} 张真人卡以火山引擎认证素材进模型`,
-    n2.needAsset > 0 && t`${n2.needAsset} 张真人卡要先勾「火山引擎适用」`,
-  ]);
-  const line10 = join([
-    n1.text > 0 && t`${n1.text} 张有文字版形象描述`,
-    n1.frameOnly > 0 && t`${n1.frameOnly} 张只经由设定帧起作用`,
-    n1.noRealFace > 0 && t`${n1.noRealFace} 张真人卡用不上（这几档不收真人照片）`,
-  ]);
-  /** 收不到形象图的方舟档（今天是「标准 / 极速」）：停用后是空串，整行不画（与卡片页那一格同一个来源） */
-  const noRefNames = noRefImgTierList();
-  const lineReal = join([
-    nr.photo > 0 && t`${nr.photo} 张真人卡以照片起拍`,
-    nr.startFrames > 0 && t`${nr.startFrames} 张有专门画好的起拍画面`,
-    nr.ownImage > 0 && t`${nr.ownImage} 张人物卡用卡上的图起拍`,
-    nr.onlyAsStart > 0 && t`${nr.onlyAsStart} 张只有当起拍画面时才用得上形象图`,
-    nr.textOnly > 0 && t`${nr.textOnly} 张只用文字`,
-  ]);
+  const { named, models } = offeredVideoModels();
+  const { total, groups } = fitRowsForDeck(cards, models, (c) => ({ hasAsset: !!assetOf(c.id), startOk: startFramesAllowed(c) }), named);
+  if (total === 0) return null;
+  const regionLine = regionTiersLine();
+  /** 一种状态有 n 张时那半句（与改之前同一批译文；真人卡用不上那句不再说「这几档」，地区问到之后行首写的是模型） */
+  const countOf = (s: FitState, n: number): string => {
+    switch (s) {
+      case "image":
+        return t`${n} 张的形象图直接进模型`;
+      case "asset":
+        return t`${n} 张真人卡以火山引擎认证素材进模型`;
+      case "needAsset":
+        return t`${n} 张真人卡要先勾「火山引擎适用」`;
+      case "realPhoto":
+        return t`${n} 张真人卡的照片直接进模型`;
+      case "noRealFace":
+        return t`${n} 张真人卡用不上（不收真人照片）`;
+      case "text":
+        return t`${n} 张有文字版形象描述`;
+      case "frameOnly":
+        return t`${n} 张只经由设定帧起作用`;
+      case "photo":
+        return t`${n} 张真人卡以照片起拍`;
+      case "startFrames":
+        return t`${n} 张有专门画好的起拍画面`;
+      case "ownImage":
+        return t`${n} 张人物卡用卡上的图起拍`;
+      case "onlyAsStart":
+        return t`${n} 张只有当起拍画面时才用得上形象图`;
+      case "textOnly":
+        return t`${n} 张只用文字`;
+    }
+  };
+  /** 只认一张起拍画面的模型（脚注那句点它们的名；一个都不剩时换一句不点名的） */
+  const startNames = videoModelsNames(models.filter((m) => cardInputOf(m.tiers[0]) === "start"), named);
   return (
     <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
-      <div className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>🎛 按模型适配</Trans></div>
-      <ul className="space-y-0.5 text-[10px] leading-relaxed text-slate-400">
-        <li><Trans>{refImgTierList()}：{line2x}</Trans></li>
-        {noRefNames && <li><Trans>{noRefNames}：{line10}</Trans></li>}
-        <li><Trans>真人档：{lineReal}</Trans></li>
-      </ul>
+      <ModelFitTitle />
+      {groups.length === 0 ? (
+        <p className="text-[10px] leading-relaxed text-slate-400">{regionLine ?? t`现在没有摆得出来的出片模型。`}</p>
+      ) : (
+        <div className="space-y-1">
+          {groups.map((g) => (
+            <div key={g.provider ?? "all"}>
+              {g.provider && <div className="text-[11px] font-semibold text-slate-300">{providerGroupName(g.provider)}</div>}
+              <ul className="space-y-0.5 text-[10px] leading-relaxed text-slate-400">
+                {g.rows.map((r, i) => {
+                  const lead = videoModelsLead(r.models, named);
+                  const reason = deckRowStates(r.counts)
+                    .map((x) => countOf(x.state, x.n))
+                    .join(" · ");
+                  return <li key={i}>{t`${lead}：${reason}`}</li>;
+                })}
+              </ul>
+            </div>
+          ))}
+          {named && regionLine && <p className="text-[10px] leading-relaxed text-slate-400">{regionLine}</p>}
+        </div>
+      )}
       <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
-        <Trans>真人档一段只用一张起拍画面。哪张没适配，点进那张卡的「按模型适配」里补。</Trans>
+        {startNames ? (
+          <Trans>{startNames}一段只用一张起拍画面。哪张没适配，点进那张卡的「按模型适配」里补。</Trans>
+        ) : (
+          <Trans>哪张没适配，点进那张卡的「按模型适配」里补。</Trans>
+        )}
       </p>
     </div>
   );
@@ -99,7 +145,7 @@ export default function DeckDetailPage() {
             onClick={() => setEditing((v) => !v)}
             className={`flex-none rounded-full px-3.5 py-1.5 text-xs font-semibold ${editing ? "bg-brand text-ink" : "bg-panel text-slate-200"}`}
           >
-            {editing ? t`完成` : t`✏️ 编辑`}
+            {editing ? t`完成` : <span className="inline-flex items-center gap-1"><Icon name="pen" size={13} />{t`编辑`}</span>}
           </button>
         }
       />
@@ -210,7 +256,7 @@ export default function DeckDetailPage() {
           ))}
         </div>
       ) : (
-        <EmptyState emoji="🃏" text={t`空卡组`} hint={t`点右上角「编辑」挑几张卡进来`} />
+        <EmptyState emoji="🃏" text={t`空卡组`} cta={{ label: t`挑几张卡进来`, onClick: () => setEditing(true), primary: true }} />
       )}
 
       <SocialPanel kind="deck" id={deck.id} />

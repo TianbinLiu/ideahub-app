@@ -10,6 +10,7 @@
 //   拿三次白屏事故换来的）。
 // ★ 自带一份 err 行（"z 层盖住谁就自带一份"）。
 import { i18n } from "@lingui/core";
+import Warn from "./Warn";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -120,7 +121,7 @@ export default function DownloadSheet({
 
       {!plan ? (
         // 走到这一步说明调用点没先问 planDownload（正常路径下入口会被挡住），照样把话说全
-        <p className="mt-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-2 text-[11px] leading-relaxed text-amber-200">
+        <p className="mt-3 rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-2 text-[11px] leading-relaxed text-warn-200">
           {res.ok ? "" : res.blocked}
         </p>
       ) : (
@@ -161,7 +162,7 @@ export default function DownloadSheet({
           {/* ★★ webm 那条必须说在前面：线上相当一部分成片是剪辑页 MediaRecorder 导出的
               vp9 webm，安卓相册/播放器对它支持很差 —— 用户存完打不开只会以为"下载坏了"。 */}
           {plan.hasWebm && (
-            <p className="mt-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-200">
+            <p className="mt-1.5 rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-warn-200">
               <Trans>这条是 webm 格式，部分相册应用打不开；保存时选文件管理器更稳。</Trans>
             </p>
           )}
@@ -183,7 +184,7 @@ export default function DownloadSheet({
                     </span>
                   </div>
                   <p className="mt-0.5 break-all text-[10px] text-slate-400">{t.fileName}</p>
-                  {row?.err && <p className="mt-1 text-[11px] leading-relaxed text-rose-300">{row.err}</p>}
+                  {row?.err && <p className="mt-1 text-[11px] leading-relaxed text-danger-300">{row.err}</p>}
                   {row?.raw && <p className="mt-0.5 break-all text-[10px] text-slate-500">{row.raw}</p>}
                   {row?.unverified && (
                     <p className="mt-0.5 text-[10px] text-slate-500"><Trans>大小未知，没法校验这一份是不是完整的。</Trans></p>
@@ -197,7 +198,7 @@ export default function DownloadSheet({
                         <Trans>分享 / 另存为</Trans>
                       </button>
                       {row.share && (
-                        <span className={`text-[11px] ${row.share.ok ? "text-emerald-300" : "text-amber-300"}`}>
+                        <span className={`text-[11px] ${row.share.ok ? "text-ok-300" : "text-warn-300"}`}>
                           {row.share.msg}
                         </span>
                       )}
@@ -214,8 +215,8 @@ export default function DownloadSheet({
             <p
               className={`mt-3 rounded-lg border px-2.5 py-2 text-[11px] leading-relaxed ${
                 dl.outcomeOk
-                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
-                  : "border-amber-500/40 bg-amber-500/10 text-amber-200"
+                  ? "border-ok-500/40 bg-ok-500/10 text-ok-200"
+                  : "border-warn-500/40 bg-warn-500/10 text-warn-200"
               }`}
             >
               {dl.outcome}
@@ -269,12 +270,12 @@ export default function DownloadSheet({
       )}
 
       {someoneElseRunning && (
-        <p className="mt-3 text-[11px] leading-relaxed text-amber-300">
+        <Warn className="mt-3">
           <Trans>正在保存另一条作品，等它完成或点停止再来。</Trans>
-        </p>
+        </Warn>
       )}
       {note && <p className="mt-2 text-[11px] leading-relaxed text-slate-400">{note}</p>}
-      {err && <p className="mt-2 text-[11px] leading-relaxed text-rose-300">{err}</p>}
+      {err && <p className="mt-2 text-[11px] leading-relaxed text-danger-300">{err}</p>}
 
       <p className="mt-3 text-[11px] leading-relaxed text-slate-500">
         <Trans>这些文件在 App 的缓存目录里，系统可能会清掉。设置 → 存储里能看到它们占了多少，也能清空。</Trans>

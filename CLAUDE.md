@@ -67,7 +67,9 @@ src/
                `tutorUpload.ts` = md / txt 建课：本机抽文本 + 切块 + 块 hash（走 `tutor/shared`）→ 直传票 → 复用 `putDirect` 分块 → confirm
   companion/   AI 客服/看板娘的演出协议（表情/动作标签、SSE 解析、语音包络、舞台总线）——与官网 client 同源拷贝
   live2d/      Live2D 运行时加载与模型驱动（pixi + Cubism Core，全部自托管在 public/live2d/）；
-               `prefetch.ts` = 换市场形象前把 model3.json 引用的文件各拉一遍，热 WebView 缓存（每个文件 120 秒上限、只拉与 model3.json 同源的引用，2026-10-15）
+               `prefetch.ts` = 换市场形象前把 model3.json 引用的文件各拉一遍，热 WebView 缓存（每个文件 120 秒上限、只拉与 model3.json 同源的引用，2026-10-15）；
+               `mocCheck.ts` = 加载 .moc3 之前那道版本 + Cubism 一致性检查的**唯一实现**（零依赖、Core 由调用方传入；`loader.installMocGuard` 装在运行时上，
+               上传向导第 ① 步本地核对也走它；被拦下的按 `MocCheckFailed.kind` 认、不认 message）。构建里没有检查脚本：要真 Core 才跑得起来，node vm 里的复现做法写在文件头
   components/  通用组件；`flow/` = 工作流画布：`FlowCanvas.tsx`（画布壳 + 就地编辑窗 +
                agent 输入条 + 四个 portal 弹层：方案台/成片回看/选卡/选模板）、
                `DeleteSegBtn.tsx`（删段确认，与 FlowPage 那份共用一处实现）、
@@ -77,7 +79,10 @@ src/
                `support/` = AI 客服页专用：`SupportStage`（Live2D 舞台，按 modelUrl 换装）、`HoldToTalk`、
                `VoiceSheet`（声音面板，三页：单音色 / 混音 / 声音市场；存服务端，官网同步）、
                `VoiceMixer`（混音调配 + 发布成模板）、`VoiceMarket`（声音市场列表：试听 / 设为我的声音 / 点赞 / 删自己的）、
-               `voicePreview.ts`（三页试听共用的合成 + 播放 + 喂口型，同一时刻只响一段）；
+               `voicePreview.ts`（三页试听共用的合成 + 播放 + 喂口型，同一时刻只响一段）、
+               `SafetyCard`（危机求助卡：客服声明 `caps: ["safety","notice"]` 之后收到 `safety` 事件时画它，不念、不进字幕，
+               文字一律用服务端给的；舞台上与「记录」里共用这一份）、
+               `touchLines.ts`（摸看板娘那一句的**唯一实现**：按界面语言挑、市场形象不念官方外貌那两句、同一句同一套声音只合成一次）；
                `TemplateCreateCard`（模板货架顶上「创建属于你的视频模板」：没模板大卡、有模板小条，市场与我的模板两个页签都摆）、
                `FeedActionSheet`（首页长按中间的「更多操作」抽屉）、`MagicBand`（「我的」页头像后的品牌带，纯装饰）——
                三样的来由在 docs/ui-benchmark-2026-10.md
@@ -106,10 +111,16 @@ src/
                `refMentions.ts` = 参考清单的「@ 点名」与临时参考图的规则（认法 / 编译 / 名字 / 系统兜底句），纯函数零依赖，
                构建里 `scripts/check-ref-mentions.mjs` 实跑；
                `shotScript.ts` = 分镜表的读写规则（「镜头1：…」怎么认、怎么写回、出片前收空镜头、台词骨架、台词是谁说的、画帧取哪个瞬间），同样零依赖，
-               构建里 `scripts/check-shot-script.mjs` 实跑
+               构建里 `scripts/check-shot-script.mjs` 实跑；
+               `live2dMotionCheck.ts` = Live2D 上传向导第 ⑤ 步试跑那一列 ✓ / ⚠ / 没量到的判定，**唯一实现**（零依赖、只 `import type`；
+               采样在 `live2d/companionModel.probeParams`），构建里 `scripts/check-live2d-motion-check.mjs` 实跑
   hooks/
   mock/        无后端时的假数据
-  pages/       路由页面（hash 路由）；`WorkshopPage` = 创意工坊第一层 = 市场（/workshop：一个搜索框 + 卡片 / 卡组 / 模板 / 工作流四类，搜索词与筛选都在地址里，
+  pages/       路由页面（hash 路由）；`VideoPage` = 作品详情页（/video/:id，2026-10-26 重排，路由经 `VideoRoute` 按 id 重挂）：满宽播放器（`frame="bleed"`，
+               控制条 `components/PlayerControls` 两个播放器共用、外框规矩在 `components/playerFrame`、全屏 `hooks/useImmersive`）→ 弹幕条 → 标题 → 作者条 → 动作条 →
+               评论预览卡（点开 = 首页同一个 `CommentSheet`，「到了没有」问 `videos.commentsStatus`）→ `components/video/RemakeCard`（做你自己的版本，卡里无实心键）
+               → `components/video/RelatedWorks`（进视口才问）→ 吸底栏 `components/video/VideoDock`（全页唯一实心主键「做同款」，`hooks/useRemake` 与首页共用）；
+               来由与量出来的数在 docs/video-detail-redesign-2026-10.md；`WorkshopPage` = 创意工坊第一层 = 市场（/workshop：一个搜索框 + 卡片 / 卡组 / 模板 / 工作流四类，搜索词与筛选都在地址里，
                不登录也能逛），`WorkshopMinePage` = 第二层「我的仓库」（/workshop/mine：自己的卡片 / 卡组 / 模板 + 三个造卡入口；
                2026-10-20 主人点名「第一层以市场搜索为主」改的版，两层共用一张卡 `components/workshop/CardTile`）；`RecipePage` = 制作过程（/video/:id/recipe：四档结局 + 分镜 + 选角一屏 + 按配方做同款，
                共用视图在 `components/recipe/RecipeView`，发布页 / 编辑页的「别人会看到这些」预览也画它）；`SupportPage` = AI 客服，`SupportModelsPage` / `SupportPersonasPage` =
@@ -185,12 +196,30 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   读的都是这一份。**不给「解除固定」的出口**：换到别的模型不是效果差一点，是出不了片 —— 用户该做的是按自己能用的模型挑模板。
   套餐用不了那一档时在**选模板那一步**就说（`templatePlanIssue` = `templateTiers` + `account.tierBlockReason`；货架「用它出片」领去详情页、
   详情页出片键灰掉并给「去升级」），别等人挂完卡点了生成才第一次听说。卡这一侧的同一条口径在 `data/cardFit`（卡片页「按模型适配」那一格
-  与卡组页的摘要读同一份状态，页面只负责说成句子）。
+  与卡组页的摘要读同一份状态，页面只负责说成句子；2026-10-26 起**按具体模型**算、只读档位表能力位 startOnly / refImg / assetRef / realFace，
+  零依赖，构建里 `check-card-fit.mjs` 拿真表实跑；写哪几个模型、写不写名字见下面「出片地区」⑥）。
+- **境内同一档两家可选（Seedance / MiniMax H3）**（2026-10-26 出片地区 P2b）：芯片按 family 并成一颗，两家都给得出时只摆这个人选的那一家 ——
+  摆不摆只问 `account.tierListed`（`tierOffered` 之上收一道，**只管摆不摆、不管能不能用**：节点上挂着的另一家照样能出片，门禁仍问 `tierBlockReason`），
+  换家只问 `account.tierOfPreferred`，偏好只在 `data/videoProvider`（按账号、本机、默认 Seedance），选择器只有 `components/flow/ProviderSwitch` 一份
+  （境内第一次选 MiniMax 先确认：照片和提示词交给境外服务器处理）。新写一排档位芯片时用 `tierListed` 筛、挂 ProviderSwitch，别再写 `filter(tierOffered)`。
+- **白模模板的神态句**（2026-10-26 方案 D，付费读数 docs/blockout-expression-2026-10-26.md）：服务端（#133）在白模化看帧时顺带记下每个人的神态 `markExprs`（与 markSlots 对齐），
+  套用时在 ≤ 3 个角色位的模板上按卡名写一句「神态：A先…；B先…。」。规则只在零依赖的 `data/blockoutExpr`（`check-blockout-expr.mjs` 实跑，写法逐字照付费验过的那一句）；
+  取值只有 `templates.markExprOfLabel`、`BlockoutCastSlot.expr` 必填；括号描述先定、神态句后定（放不下整句不写），排在作者那句话之后、「不要出现字幕」之前；
+  字段四处一起搬，重新认人时跟着清（与 markDescs 方向相反：留着旧的就是把 A 的神态安在 B 身上）。**没有 markExprs 时套用提示词逐字节不变。**
+- **文字模板（只用文字 + 封面做模板）**（2026-10-26 主人点名，P1 = App 本机版，设计正本与付费读数 docs/text-template-design-2026-10-26.md）。四条规矩：
+  ① **「是哪一种模板」只问 `data/templates.templateKindOf`**（blockout / text / classic）：文字模板也没有 refVideo，按老写法 `!t.refVideo` 当经典会铺成简约模式、档位标「不限」、发布只翻本机布尔；
+  ② 规则全在零依赖的 `data/textTemplate`（体检 / 一键改 / 时间轴改镜头 / 内容规则 / 这一档跑不跑得了 `textTplTierMiss`）与 `refMentions`（图位怎么认、改写成 `@名字`、缺哪几张 `slotGaps`），构建里 `check-text-template.mjs` 实跑；
+  作者那一屏 `components/TextTemplateSheet` 一条规则都不判；③ 套用落成一段参考图直出段（`flowStore.textTplAppendSpec`，报价 `textTplQuote` = 真扣），出片前差什么只问 `textTplIssue`（`TextTplBanner` 摆的是同一句），
+  做法锁 `textTplLaneLocked`、摘出处只走 `detachTextTpl`，图位的图名字锁住、换图只走 `replaceExtraRefUrl`（先删再加会把正文里的 @名字 退成普通文字）；
+  ④ 正文**不随作品外流**（`VideoSegment.fromTextTpl` 只在本机，发布前 `videos.stripLocalOnly` 拿掉）；P1 只存本机、不登记，没登录不许存（本机模板库按人分开）。上市场是 P2（服务端 + 人工预审，等「合」）。
 - **免费档限制 / 「草稿」档 / 电影级「样片」/ 失败退回 token**（2026-10-07 主人拍板，契约见 docs/api-contract.md「视频档位」「纯任务的参数钉子、样片两步、停用」
   「受理之后失败的退款」）。六条规矩：
   ① **档位的能力 / 价目 / 分辨率只在 `data/videoTierTable`**（零依赖，构建里 `check-video-tiers.mjs` 核对，服务端 `config/tokens.js` 逐条相等）。
   「草稿」与「高清」是**同一个模型**（2.0 mini），只差分辨率（480p / 720p）与谁能用 —— 一律按 **(模型, 分辨率)** 认（`economy.tierIdOf` / `tierModelLabel`），
   480p / 1080p 的价按官方像素表 × 画幅（`perSecTokens`，画幅缺省按最贵一格），720p 照旧 21,600。
+  界面上说「出片模型叫什么」**只走 account 那一组**（`tierShownModel` / `tierShownModelId` / `videoModelsLead` / `videoModelsNames` / `voiceModelsNames` / `refImgModelsNames`，配方里记着的模型走 `recordedModelName`）——
+  它们按地区写（地区不知道时只写档位名、这个地区给不出的那一家不写），见下面「出片地区」⑥；`economy.tierModelLabel` / `tierModelId` / `modelLabel` 只在 `check-tier-semantics` 的 `[model-name]` 白名单里调。
+  名字的**推导**只在 `videoTierTable.modelLabel`（2026-10-26 起认得 MiniMax 的 id —— 原来「真人」档把 `MiniMax-Hailuo-2.3-Fast` 原样印在屏上），`check-video-tiers.mjs` 核对档位表里每个模型都认得出。
   ② **谁能用哪一档只问 `account.tierBlockReason`**：免费档白名单（`account.tierFreeOk`：健康端点报了 `freeVideo` / `freeVideoGate` 就照服务端，
   没报按档位表的 `freeOk` —— 运维关掉 `FREE_VIDEO_GATE` 时新 App 跟着放开）+ 付过钱（套餐价 > 0 **或** 钱包回包顶层的 `paid`）+ 停用（极速 / 标准 2026-11-24 13:00）
   + 服务端能力位（`data/serverCaps` 一处探测、`capsOf` 一处解析）；默认档 `account.defaultTierId`；抄别人的档换不了就换**能力最接近**的（`usableTierId`：高清 → 草稿）。
@@ -210,6 +239,52 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   只在能力位为真时，**按供应商分开问**（方舟 `failRefund`，真人档 `failRefundMinimax` = 健康端点的 `minimaxFailRefund`）。站内通知 `GEN_TASK_REFUND` 点进去开钱包。
   ⑥ **样片第一步只走参考图那一种请求**：帧转参考图失败时普通出片退回首尾帧，而 2.5 的首尾帧任务只收 `ratio: "adaptive"`，服务端按 480p 那一行最贵的一格结算 ——
   样片那一发在花钱之前整句拒（`segmentGen` 的样片闸，`arkClient` 另有一道协议断言），报价才等于实扣；拒之前补画好的帧照 ④ 留在方案上，再点一次只重传、不重画。契约核对那句在远端模式说「以服务器结算为准」（钱不按本机报价扣）。
+- **出片地区：App 只照服务端下发的 `providers` 摆档，不自己按国家判**（2026-10-26 出片地区 P1，主人「海外由于政策原因只能用 MiniMax」；契约见 docs/api-contract.md「出片地区」，服务端 server#131）。六条规矩：
+  ① 「这台设备此刻能用哪几家出片」只有 `data/videoZone` 一处（`GET /api/video/zone`，健康端点报了 `videoZone` 能力位才问、no-store）；判「这一家给不给」只走 `zoneDenies`。
+  规则（回包怎么读、403 怎么记、「不知道」不拦、措辞挑哪种）在零依赖的 `data/videoZoneRules`，构建里 `check-video-zone.mjs` 实跑；「有没有服务端那一层」只问 `serverCaps.noServerLayer`。
+  **不拿 `gate` 决定藏不藏、不认国家名单**：服务端 observe 时 providers 照样带着方舟，App 照样摆；切 `off` 急停下一次问到就全摆回来 —— App 另判一遍就是两把尺。
+  `gate` 只挑措辞（`zoneIsRegional`）：off / observe 时 providers 是「这台服务器接上了哪几家」，缺的那一家说成「这台服务器没接上」，不说成地区（P1 审核）。
+  ② **地区不知道 = 照今天的样子摆**（老服务端 / dev 直连 / 离线 / 还没问到）：不藏档、不改写节点上的档位、句子里不写供应商名；「问不到」绝不当「境内」也不当「海外」。
+  问到之后再问不到沿用这一场会话上一次的结论，**不跨会话落盘**（冷启动拿旧缓存藏档 / 改写节点，与「问慢半拍当海外」是同一个事故形状）。
+  ③ 这个地区不给的档进 `account.tierOffIssue` 的地区那一支（`tierRegionIssue`，排在停用之后、服务端不支持之前）：不摆、灰着说为什么、抄来的档换掉，
+  默认档链落不下时退到这个地区摆得出来的第一档（`defaultTierId`）；档位那一排下面那句只有 `regionTiersLine`。凡是按「摆不出来」分原因说话的地方
+  （`flowStore.tierSwapNote`、剪辑页重拍）都要先问地区这一种，不然会说成「服务器还不支持」。话里只写这个地区**给得出的**供应商名。
+  **出路只指做得了这件事的档**（P1 审核）：要特定能力的调用方传 `tierBlockReason(tier, need)`（白模模板 blockoutOk、重拍 refVid、延长 extendOk、样片 draftOk、定稿 `() => false`），
+  缺省也**不往只认一张起拍画面的档（startOnly，真人档）上指**；抄来的档同理（`usableTierId` 找不到近邻时留着原档、由 `flowStore.tierCopyNote` 说一句，不落到「真人」）。
+  **「去升级」只在 `account.tierPlanBlocked`（摆得出来、只是套餐挡着）时画**：付钱治不了地区（模板用 `templatePlanUpgradeable`、样片用 `draftModeUpgradeable`）。
+  **「换到哪一档就有」有三种结局**（终审，规则 `videoZoneRules.tierGoOf`，`check-video-zone` 拿真表 + providers `["minimax"]` 实跑）：`account.tierGo` / `tierNamesFor` 回 **null** =
+  摆得出来的档里一档都做不了这件事（门禁开着的海外只剩「真人」档时，收参考图 / 出声 / 延长 / 参考视频 / 声音样本 / 认证素材全是这样）——
+  说 `account.noTierLine(能力)`（地区 / 这台服务器两种措辞），不写「换到「」」、不写「会员档」、不给「去升级」；原来回两串空名字，句子里印一对空引号还把地区说成套餐。
+  ④ 服务端 403 `REGION_UNAVAILABLE` 认 `code` 不认 message（那句是英中并排、给老 App 兜底的）：`arkClient.ArkRegionDenied`（带 `billed`）、话在 `account.regionDeniedLine`，
+  钱只走 `ai/failCharge`（照回包 `billed`；没扣的那一句「这一发没有受理，也没有扣费」也在那里 —— 终审从 message 里挪出去：剪辑页按 110 字、genNode 按 240 字截原因时，
+  英文的长国名会把它整个截掉）。`ArkRegionDenied.message` 是长度有界的整句，展示原因时**不截**（同 `ArkTaskFailed.reason`）；白模化在 `api/branch.blockoutPost` 按 `billed` 两句各说。收到就把回包里的地区记下并重问（`noteRegionDenied`）。
+  ⑤ 门禁只拦视频那一发，出片前补画的帧 / 推演各自先结算：**花第一笔钱之前现问一次地区再重判**（`refreshVideoZone`：genNode / deriveProposals / 工坊 generateNode / 剪辑页按圈选重做，
+  排在「打上 generating」之后、第一笔钱之前 —— 工坊受理即收窗、画布 agent 的回执都认「genNode 第一个 await 之前就打上 generating」；拒了就原样退回状态、原因写 err）。
+  **同步看状态的宿主自己先问**再调（工坊 `genNodeVideo`、画布 agent 执行推演 / 出片之前）：它们 await 完再调，genNode 的同步门禁就拿到新地区、在打上 generating 之前拒；
+  `genStarted`（画布「提交即收窗」）排在地区那一道之后。**反方向**（旧结论说被拦、其实已经能用了）：同步门禁拿地区拒之前先 `account.tierRegionRecheck`，
+  结论变了从头再判一遍（genNode / deriveProposals / generateNode 三处；其余花钱的门禁顺手 `void` 一次，下一次点就用上新结论）。
+  其余「先付图钱 / 对话钱、视频最后才出」的入口走 `account.tierRegionGate(档, need)`（现问 + 按问到的那份判，两个方向一次管住；终审补）：
+  改帧 `editFrame`、重画（`flowStore.regenProposal` / 工坊 `regenProposal`）、合成预览、导演台融图，以及三个跟着做向导的每一笔
+  （九宫格写分镜 / 出一组画面 / 单格重画、对话正反打写对白 / 画机位 / 单张重画、特效同款画关键帧、主角定妆拆镜头 —— 向导把挑的 `tierId` 传进 store 函数）。
+  「现做一个主角」不问：画出来的是收进卡片库的卡，与自建卡同一个口径。接着等上一组组图不问（那一组付过钱）。
+  向导落段 `appendSpecs(specs, { tierGate: false })`（同 appendNode 的先例）：落的是付过钱的画面，不拿档位门禁拒，出片那一拍 genNode 照样拦并说清楚。
+  新加一条「先花钱、后出视频」的入口也要接这一步。地区那句（`ArkRegionDenied`）自带句号，接在「：」后面再补「。」的地方先过 `arkClient.reasonClause`。
+  ⑥ **说「哪个出片模型」只走 `account.offeredVideoModels` 那一组**（2026-10-26 主人第 2 件：卡片信息写具体模型名，「卡片信息」包括模板卡）：卡片页「按模型适配」、
+  卡组页摘要、模板货架（卡面角标 / 「出片模型」筛选 / 筛空了那句）、模板详情「出片模型」那一行、画布 / 工坊的选模板抽屉；同一天审核之后创作界面也收进来了 ——
+  选法屏「这一段交给 … 生成」、本段设置「本段模型」、工坊铸段窗「模型：」、白模化报价、档位按钮的 title（`tierShownModelId`），以及卡片页的声音说明
+  （`voiceModelsNames`）、形象参考的取舍规则（`refImgModelsNames`）。地区问到了 → 按家分组（`providerGroupName`）、行首写具体模型名
+  （`videoModelsLead` / `videoModelsNames`、单档 `tierShownModel`），只列 `offeredTiers` 给得出的（地区已在 tierOffIssue 里筛过，这里**不另读地区**）；
+  **地区不知道时只写档位名、不写 Seedance / MiniMax 字样**（美国的机器第一次打开不先看到 Seedance；创作界面上写不出模型名的那一行整行不摆）。
+  构建里 `check-tier-semantics` 的 `[model-name]` 钉着：`economy.tierModelLabel` / `tierModelId` 与 `modelLabel` 只在白名单里的函数调用
+  （取名函数本身、出图模型、今天走不到的「报不出价」那一支；放行标记 `model-name-ok: 理由`）。配方里记着的作者当时用的模型（制作过程页「当时的模型」）
+  也按地区写：`account.recordedModelName`（哪一家只问 `videoTierTable.providerOfModel`；地区不知道 / 这个地区给不出时写「当时用的是另一个出片模型」，终审补）。
+  卡片页其余点名供应商的句子也收了（终审）：自建卡「照片里有人」那句走 `refImgModelsNames`（一个都没有时不说）、形象图上限那句不再写「方舟建议」。
+  卡片页那两个勾选框随之改名：「文字版形象描述（… 用）」「起拍画面（… 用）」（后者 2026-10-26 之前叫「真人档适用」），括号里写读它的模型
+  （按 cardInput：只经由帧 / 只认起拍画面），一个都不剩时换一句不点名的。「火山引擎适用」摆不摆只问 `account.volcEntryState`（判据在 VolcCompatToggle 里，
+  三个宿主不各加闸）：现在能用的模型一个都不收认证素材时，没认证过的卡不摆、**认证过的照样摆着好取消**（撤回授权不能被地区挡住）。
+  白模模板在这个地区跑不了时卡面角标换成「你所在的地区用不了」（门禁没开时说「这台服务器用不了」），不写它要的那个模型。
+  ⚠ 还没收进来的：`realFaceIssue` 里「这一档收认证素材、卡还没勾」那一支（tier.assetRef 为真）指向「火山引擎适用」—— 海外门禁开着时只在段停在这个地区给不出的档上才会出现，
+  那时会指向一个不摆的勾选框（地区那一句由 tierBlockReason 先说）；P2b 接 MiniMax H3 时要跟着改。最后一支「换收认证素材的档」在一档都没有时已经不说（终审）。
 - **方舟第十批下线（2026-11-24 14:00）的 App 这一半**（2026-10-10 主人拍板，2.63；契约见 docs/api-contract.md「出图模型下线与改发」「请求头 X-App-Version」，
   强制更新见 docs/app-distribution.md「强制更新」）。五条规矩：
   ① **出图型号只认价目表里那两个**（`economy.IMAGE_TOKENS_BY_MODEL`：速写 = `doubao-seedream-4-0-20260415`（4.0 的继任，13,333，沿用 4.0 的价、待账单核）、
@@ -478,6 +553,7 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   **读 `extraRefs` 一律过 `usableExtraRefs`**。改名 / 删除只走 flowStore 的三个 action（顺手收拾这一段句子里的 `@名字`）；
   不进公开配方（记号复用 `mid-frames`，句子里的点名退成文字）。
   同一批顺手改的：`segmentGen.hasDialogue` 认中文弯引号（原来 “你来了” 会被配音却带不上卡的声音样本），清单里提前说「声音样本为什么带不上」。
+- **示例视频默认去水印**（2026-10-24 主人点名）：挂了示例视频的自定义段出片时，提示词多一句「参考视频与参考图里的水印、台标、账号名和字幕都不要出现在画面里」（句子只在 `segmentGen.NO_REF_MARK_LINE` 一处，32 字从正文额度扣，与时序点名句一样截断优先保它）；关掉 = `customRef.keepWatermark: true`（判否定：老草稿缺这一位 = 开），写只走 `flowStore.setCustomRefKeepMark` / 铸段窗那一面 `studioStore.setEditorRefKeepMark`，开关只有 `components/flow/RefMarkToggle` 一份、两面都挂。**只在素材参考（reference 子任务）那条路上说**：白模 edit 是逐帧复刻、F7 实测提示词去不掉台标，那边的解是裁剪框，别把这句加过去。**同日付费对照过**（docs/ref-video-watermark-probe-2026-10-24.md，¥24.29）：高清档（2.0 mini）不加那句会把参考帧上的台标 / 账号名整张搬进成片、六帧都在，加了就一帧都没有；电影级（2.5）本来就不复刻示例画面、加不加都干净。仍是软引导（一对样本、一种位置），文案写「高清档验过压得住，但不是硬保证」。
 - **关键画面在出片之前就能改、成片里任意一帧能截出来用**（N3，2026-10-03；与已有「圈图改图」的对比在 docs/node-modes-libtv-alignment.md §六）。四条规矩：
   ① **「按要求改这一帧」只有 `flowStore.editFrame` 一处实现**（一句话改 = 带卡片形象图锁脸 + 句子里 `@名字` 点到的临时参考图；圈着改 = 底图是画着红圈的标注图、
   不带别的图）。画布自定义车道、画布方案台、工坊方案台画的是同一个 `FrameEditBox`；工坊的 `studioStore.refineProposalFrame` 只是转发（它本地那道 `frameRefining` 闸还要打）。
@@ -598,7 +674,7 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   拼接后 20.08s），所以它就是流水线上**新的一段**（`FlowNode.extendFrom`）：只延长最后一段（接在中间会打断后面的接缝）、成片已转存成永久地址、档位能延长
   （`economy.VideoTier.extendOk`，今天只有电影级）—— 判据只在 `flowStore.extendIssue`，落什么只在 `extendSpec`（报价 `appendQuote` 照着它算），落段 `extendNode`，「接的是哪一段成片」只问
   `extendSourceOf`（那一段返修过就接新那一版）。出片走契约的新模式 `extend`（`arkClient` 的 omni extend + adaptive + 窗口内整数时长，报价与素材参考同一个式子
-  (计价输入 + 输出) × 系数，服务端结算 `tokens.materialRefTokens`；计价输入 = max(输入, ⌈2 × 输出 / 3⌉) 是方舟「含输入视频的最低用量」（2026-10-19 付费实测，规则只在 `videoTierTable.materialRefInputSec`）。⚠ 这一步 **App 先上、服务端后上**（server PR #123 等 2.64 发出约一周再合）：过渡期 App 报价高于服务端实扣是**故意的**（安全方向），别「修」成两边相等 —— 服务端先上就是老包报价低于实扣）。服务端那一半是 TianbinLiu/ideahub-server#107（参考视频认「本人自己的成片」），2026-10-05 已上线。
+  (计价输入 + 输出) × 系数，服务端结算 `tokens.materialRefTokens`；计价输入 = max(输入, ⌈2 × 输出 / 3⌉) 是方舟「含输入视频的最低用量」（2026-10-19 付费实测，规则只在 `videoTierTable.materialRefInputSec`）。这一步 **App 先上（2.64，10-21）、服务端后上（server #123，2026-10-22 主人「合 #123」部署）**：那一天的过渡期 App 报价高于服务端实扣是**故意的**（安全方向）；#123 上线后两边逐条相等，还在 2.63 的老包报价会低于实扣（他们更新到 2.64+ 就对上）。服务端那一半是 TianbinLiu/ideahub-server#107（参考视频认「本人自己的成片」），2026-10-05 已上线。
   ★ 2026-10-05 付费探测（`design/video-input-probe.mjs`，结果在 docs/canvas-platforms-ecosystem-research.md 第九节）：电影级延长两轮都接得上、高清那一发接缝会跳
   ⇒ 「能不能延长」是档位自己的一位 `extendOk`，**别拿 refVid 代替**（高清以后开视频参考也不顺带开延长）；按时间段重拍时同一个连续动作会整段一起改、
   声音是照着原片重做的 —— 文案只说到这一步（`FixSegmentBox` 头上记着）。2026-10-06 在 App 的真实请求路径上端到端付费验过一遍（¥45.42：G 两条、I 三句、
@@ -750,13 +826,37 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   收了）；整块可选的"砖"（简约模式的两块、自建卡的照片位、草稿箱的封面卡）仍是 `rounded-2xl`，那是另一种控件。
   小字段落的行高只有 `leading-relaxed`（`leading-4` / `leading-5` 与它只差半个像素，却让同一页两行不一样）。空态文案不再手拼 `rounded-2xl bg-slate-900/60` 的段落，走 `EmptyState`。
 - **徽标（`rounded-full` 小字非交互）按字号定内边距**：9px `px-1.5 py-0.5`、10px `px-2 py-0.5`、11px `px-2.5 py-1`。
-- **全屏覆盖层的表头**（画布 / 成片回看 / 调首尾帧 / 核对角色位 / 客服页，第五轮收口）：`safe-top flex h-[58px] flex-none
+- **全屏覆盖层的表头**（画布 / 成片回看 / 调首尾帧 / 核对角色位 / 客服页，第五轮收口）：`safe-top-bar flex flex-none
   items-center gap-2 px-4`，关闭 / 返回键走 `CloseButton` / `BackButton`（覆盖层上用 `chip="md" size={16}`，
   客服页那种透明顶栏用裸图标 `size={20}`），标题 `text-sm font-bold text-slate-100`。不再手写 `h-8 w-8 rounded-full bg-panel`
-  的圆钮 —— 那是 chip md 的手抄版，命中区只有 32px。⚠ `h-[58px]` 是**含 safe-top 那 10px** 的（58 = 10 + 48），
-  只准写在自己带 `safe-top` 的那一行上；safe-top 已经在外层时里面那行是 `h-12`（客服页第十四轮量出来差 5px）。
+  的圆钮 —— 那是 chip md 的手抄版，命中区只有 32px。⚠ 自带安全区的那一行一律 `.safe-top-bar`（index.css：上内边距 = 状态栏 inset + 10px，高度 = inset + 58px）；
+  safe-top 已经在外层时里面那行是 `h-12`（客服页第十四轮量出来差 5px）。**别再写 `safe-top h-[58px]`**（2026-10-26 主人真机：分区页搜索栏挡住「浏览分区」）——
+  58 = 10 + 48 只在 inset 为 0 时对，浏览器里量的全是 0；真机 inset 41px，内容区只剩 7px，搜索框 / 圆钮从行底溢出盖住下面。
+  `safe-top` 与固定高度写在同一个元素上，构建里 `scripts/check-top-bar.mjs` 会拦；浏览器量不出这类问题，验它要在模拟器或真机上。
   验法：在浏览器里逐路由量返回键中心的 y，都该是 34。
 - **加载圈只有一份 `components/Spinner`**（xs / sm / lg），别再手写 `animate-spin rounded-full border-2 …`。
+- **挂在控件旁的一两句提醒只有一份 `components/Warn`**（2026-10-23，《Refactoring UI》走查）：左侧 2px 色条 + 图标 + 文字，tone = warn / danger / info / ok，紧凑面板传 `compact`。
+  与「提示条一律带同色 /40 边框」那种整块 tip bar 分工：整块给独立成段、要人停下来读的话；`<Warn>` 给原来那些裸琥珀 `<p className="text-amber-200">` 的位置。
+  文案里别再手打「⚠ 」前缀（图标顶替）。构建里 `scripts/check-warn.mjs` 是棘轮：裸琥珀 `<p>` 直接红（整块 tip bar、`<span>` 行内强调、卡片里的琥珀标题不算）。
+- **搜索框只有一份 `components/SearchField`**（同日）：`field`（页面级表单字段那档，工坊 / 管理页）/ `pill`（顶栏与列表头，分区 / 市场）/ `compact`（抽屉与小面板）三档，
+  清空键 44px 热区；搜索态页面传 `clearKeepsFocus`（点 ✕ 不失焦、清完光标留在框里）。别再手拼 `<Icon search> + <input> + ✕`。
+- **表面三级：`ink` → `panel` → `raised`**（同日加 `raised`）：`raised` 只给**浮在页面之上**的东西（新手引导卡、生成胶囊、画布浮条、剪辑页 / 工作流页底部停靠栏、工坊弹层、说明弹窗），
+  配 `ring-1 ring-white/10`、不描 slate 边；页面里的卡片仍是 `panel` + `border-slate-700/70`。别再写 `bg-[#141821]` 这类十六进制底色。
+- **语义色只写别名 `danger / warn / ok / info`**（2026-10-23，= Tailwind 的 rose / amber / emerald / sky 同一张表，`tailwind.config.js`）：组件里不再出现 `rose-` / `amber-` / `emerald-`
+  （`check-warn.mjs` 第二条规则钉着；下面约定里写的 `text-rose-300`、`border-amber-500/40`、`emerald-300` 读作 `text-danger-300`、`border-warn-500/40`、`ok-300`）。
+  `brand` / `gold` 是整条阶梯（借 sky / amber，DEFAULT 钉原值）：淡色优先用 `brand-200` 这类阶梯色，`bg-brand/15` 那种透明度拼法是存量。
+  **页面卡片的边框留着是量过的决定**（同日）：ink 对 panel 只有 1.10:1，深色界面靠底色分层要把 panel 整体调亮；GitHub / shadcn 的深色卡片也都带边框。只有卡里套的内层盒子不描边（底色那一级差够了）。
+- **价钱一律 `economy.priceTag(n)`**（`⚡12k`），按钮上写「生成本段（⚡12k）」；⚡ 只表示「要花钱」，不花钱的动作（做同款）用招牌字形。重做类动作前缀 ♻，别再用 ✨ / 🎲 / 📼。
+- **头像两档**：列表行 36（消息 / 关注 / 管理页）、评论 32（楼中楼 24）；个人页头图 92、首页右栏 44 是另两种控件。
+- **评论行只常显「回复」**，删除 / 举报 / 拉黑收在「⋯」后面原地展开（作品页的评论就是首页那个评论抽屉 `CommentSheet`，2026-10-26 起页内不再另画一份评论列表）。
+- **`.claude/skills/refactoring-ui/` 是装进仓库的《Refactoring UI》审查 skill**（非官方、MIT，SKILL.md 头上那段写了本仓优先级：CLAUDE.md 约定赢、令牌只有五个、不跑它的调色板工作流）。
+  说「设计评审 / 这页看着不对 / 配色 / 空状态」时它会触发；走查记录正本 docs/ui-refactoring-ui-pass-2026-10-23.md。
+- **多步功能的步骤进度只有一份 `components/StepDots`**（2026-10-22 主人点名）：横线上一排圆点，做完实心、没到空心、当前那颗外圈放大，每颗下面两三个字；
+  摆在标题行 / `PageHeader` **正下方**（不进 `right` 插槽），一屏只画一条（铸段窗在向导车道上让位给向导自己那条）。
+  动画只动 transform / opacity（放大是独立的一枚环 scale、实心是内芯 opacity、进度线 scaleX），减少动态效果时不过渡。
+  缺省纯展示；能点回哪一步由调用方 `onPick` / `canPick` 决定（人格向导沿用原来「够得着就能跳」的规则）。
+  2026-10-22 接进去的 14 屏：四个跟着做向导、铸段窗、铸卡窗、三张 AI 流程面板、提取模板窗、简约 / 自建卡 / Live2D 上传 / 人格 / 建课五个页面；
+  新加向导别再手拼「第 n / N 步」「1 选式 › 2 内容」那种字。
 - **内联链接**：`underline underline-offset-2`；能点出动作的 `text-brand`，说明性的灰链接一律 `text-slate-500`，
   不写 `decoration-*`。
 - **分隔线一律 `border-slate-700/60`**（`border-t` / `border-b`）；抽屉壳与顶部下拉窗的那条边线仍是 `border-slate-700`。
@@ -1038,8 +1138,21 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 - [`docs/api-contract.md`](docs/api-contract.md) — 与 server 的接口契约（三仓共享）
 - [`docs/play-store-checklist.md`](docs/play-store-checklist.md) — 上架检查单
 - [`docs/dependency-security-2026-10.md`](docs/dependency-security-2026-10.md) — 2026-10-21 处理 Dependabot 32 条（2 critical / 22 high / 8 moderate）：改了哪 8 个包、两处钉死的理由（Capacitor 8.5.1、postcss-selector-parser 7.1.7）、没修也修不了的 `braces`、怎么验的；修复要等下一次发版才到用户手里
+- [`docs/support-ai-video-research-2026-10-25.md`](docs/support-ai-video-research-2026-10-25.md) — AI 客服 × 四支 B 站视频（一键图片分层 / 角色和桌面互动 / AI 全自动 Live2D / 0.8B 实时动作）调研与改动（2026-10-25）：
+  这次在 App 里做了八项（字幕跟着念到的那句、安全底线 caps + 求助卡、摸看板娘台词按语言且只合成一次、演出跟着声音走、三段新动作、moc3 加载前检查 + 失败重试、上传向导试跑说实话、人格举报）；
+  第四节 14 件等主人定（第 1 件涉及第三方许可，正本在私有笔记）；第五节外部事实（Seedream 图层拆分、See-through / Bunraku / StretchyStudio / HAST-SEC 的许可与现状）
+- [`docs/blockout-expression-2026-10-26.md`](docs/blockout-expression-2026-10-26.md) — 白模模板保留神态（2026-10-26）：付费小验 ¥63.93（雕塑脸方案 A 失败、神态句方案 D 在二次元素材上补回惊讶 / 大笑、半写实素材上不增不减），App 与服务端各做了什么
+- [`docs/text-template-design-2026-10-26.md`](docs/text-template-design-2026-10-26.md) — 文字模板（只用文字 + 封面做模板，2026-10-26）：付费小验读数（方舟没有提示词硬上限、电影级照着 936 字时间轴全做、草稿用「镜头N」、只挂临时参考图四张都用对）、拍板、规则住在哪、P1 做了什么、P2（服务端 + 市场）还差什么
+- [`docs/ui-refactoring-ui-pass-2026-10-23.md`](docs/ui-refactoring-ui-pass-2026-10-23.md) — 按《Refactoring UI》二十条走查 App（2026-10-23，主人给的 B 站视频 + 评论区）：
+  四路审计约 160 条 → 这次改了按钮层级（出片后下一步才是主键、市场卡片的实心键改淡、⚡ 只留给花钱）、字重 / 灰阶 / 提示条 / 命中区 / 空态 / 开发用语上屏约 50 处；
+  等主人定的 12 件在第四节（第三级表面色、`<Warn>` 提示条、价签格式器、emoji → Icon…）；第五节「给规矩配样板」回应评论区那条「给 AI 例子而不是立规矩」；
+  第六节 = 同日第二批：按 `edisonmbli/refactoring-ui-skill`（MIT，未装进本仓）的 Audit 工作流再扫一遍（全仓量出来的通过项 / 四条 Systemic），
+  并做掉了不用拍板的五件（emoji → `Icon` 补 14 枚 Lucide 字形、空架子不摆筛选、模板卡角标排行、发布页收费方式收成一句、消息未读按字色分档）+ 全局键盘焦点环；
+  第七～九节 = 第三～五批（skill 装进 `.claude/skills/refactoring-ui/`、`raised` / `<Warn>` / `priceTag` / `SearchField`、语义色别名 + 品牌色阶梯、卡片边框量过不拆）；
+  第十节 = 真机验证 + 第六批：画布那一面（FlowCanvas）漏掉的主键 / 价签 / emoji，首页冷启动「还没有作品」其实是在取 —— 走查按「面」列清单，不按页面
 - [`docs/ui-benchmark-2026-10.md`](docs/ui-benchmark-2026-10.md) — 对标抖音 / TikTok / 快手 / B 站 / 剪映 / CapCut 等：模板创建入口、首页、分区、「我的」、小组件五节（2026-10-21）：
   做了插画模板入口卡、首页长按层（两侧 2× / 中间更多操作）与双击粒子、分区搜索历史与近期热播、「我的」品牌带与草稿改笔、三枚招牌字形；没做的与等主人定的五件事在第七节
+- [`docs/video-detail-redesign-2026-10.md`](docs/video-detail-redesign-2026-10.md) — 作品详情页重做（2026-10-26）：改之前的四个问题、从上到下每一块怎么做、我替主人定的几条（评论用预览卡 + 抽屉、举报在动作条第 5 格、不加收藏数）、竖屏播放器 44vh 怎么量出来的、两份对抗审核的修正、没做的（服务端计数、同款列表、模拟器验全屏 / 转屏）
 - [`docs/ux-review-csci187-2026-10-14.md`](docs/ux-review-csci187-2026-10-14.md) — 按 CSCI 187 六个 UX 框架 + 惯例 + Goodwin「好产品礼仪」走查 App：改了 20 来处（删草稿改撤销、方勾选框、页签名字、设置分组、反馈落在键旁…），没改的 21 条按框架排好等主人定（发布页主键在三屏外、点赞失败静默回滚、工坊两个意思、token 五个名字…）
 - [`docs/node-modes-libtv-alignment.md`](docs/node-modes-libtv-alignment.md) — 工作流节点「自选卡片 / 自定义」对齐 LibTV 节点：调研、方案、主人拍板与落地记录（N1 参考清单 + @ 点名、N3 关键画面可改可截、N2 分镜表都已落地；含与已有「圈图改图」的对比、官方文档查到的几条协议事实、等主人定的两件事）
 - [`docs/guided-modes-design.md`](docs/guided-modes-design.md) — 工作流的「跟着做」模式（参考图直出 / 主角定妆·多镜头 / 九宫格分镜 / 推演三套 / 套模板 / 自定义）：每个模式固定步骤（2026-10-04 方案，主人「开工」五条全认；第一期 A、第二期 B、第三期 C 已落地，A、B 各付费验过一次；C 的服务端组图任务 server#106 2026-10-06 已合并上线，C 同日付费验过（¥4.50；App 重开后向导里选的人会丢 —— 10-07 已修））

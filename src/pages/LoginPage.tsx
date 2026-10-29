@@ -19,6 +19,7 @@ import { i18n } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { BackButton } from "../components/IconTapButton";
+import EmptyState from "../components/EmptyState";
 import LangChip from "../components/LangChip";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { useBackOr } from "../hooks/useBackOr";
@@ -363,7 +364,7 @@ export default function LoginPage() {
             />
           </>
         ) : capsLoading ? (
-          <div className="py-8 text-center text-xs text-slate-500"><Trans>正在确认可用的登录方式…</Trans></div>
+          <EmptyState compact loading text={t`正在确认可用的登录方式…`} />
         ) : (
           <>
             <div className="mb-1 flex rounded-xl bg-panel p-1">
@@ -407,7 +408,7 @@ export default function LoginPage() {
                       pick("email");
                       setEmailFlow("register");
                     }}
-                    className="py-1 text-brand underline underline-offset-2 active:opacity-60"
+                    className="py-2.5 text-brand underline underline-offset-2 active:opacity-60"
                   >
                     <Trans>没有账号？用邮箱注册</Trans>
                   </button>
@@ -416,7 +417,7 @@ export default function LoginPage() {
                       pick("email");
                       setEmailFlow("reset");
                     }}
-                    className="py-1 text-slate-500 underline underline-offset-2 active:opacity-60"
+                    className="py-2.5 text-slate-500 underline underline-offset-2 active:opacity-60"
                   >
                     <Trans>忘记密码？</Trans>
                   </button>
@@ -517,20 +518,20 @@ export default function LoginPage() {
           </>
         )}
 
-        {err && <div className="text-xs leading-relaxed text-rose-300">{err}</div>}
-        {note && !err && <div className="text-xs text-emerald-300">{note}</div>}
+        {err && <div className="text-xs leading-relaxed text-danger-300">{err}</div>}
+        {note && !err && <div className="text-xs text-ok-300">{note}</div>}
 
         {/* 协议勾选行。链接是嵌在文字里的两颗小按钮——不能把整行做成一颗大按钮
             再往里嵌按钮（button 套 button 是非法嵌套，React 也会告警）。
             ★ 2026-10-14（CSCI 187 UX 课的惯例）：勾选框画成**方的** —— 圆的是「单选」的记号，方的才是「勾 / 不勾」；
               原来 16px 的圆点手指几乎点不中，现在框本身 18px、按钮命中区 36px，整行文字（链接除外）也能点着勾。 */}
-        <div className="flex items-start gap-1.5 pt-1">
+        <div className="flex items-start gap-1.5 pt-3">
           <button
             onClick={toggleAgree}
             aria-label={agreed ? t`取消同意协议` : t`同意协议`}
             role="checkbox"
             aria-checked={agreed}
-            className="-my-2 -ml-2 flex h-9 w-9 flex-none items-center justify-center active:opacity-60"
+            className="-my-3 -ml-3 flex h-11 w-11 flex-none items-center justify-center active:opacity-60"
           >
             <span
               className={`flex h-[18px] w-[18px] items-center justify-center rounded border transition ${

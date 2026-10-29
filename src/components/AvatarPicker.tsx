@@ -86,7 +86,7 @@ export default function AvatarPicker({
   return (
     <Shell onClose={onClose}>
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-base font-bold text-slate-100"><Trans>选个头像</Trans></h3>
+        <h3 className="text-sm font-bold text-slate-100"><Trans>选个头像</Trans></h3>
         <CloseButton size={20} align="end" tone="text-slate-400" onClick={onClose} />
       </div>
 
@@ -251,7 +251,7 @@ function CropStage({
         <button onClick={onCancel} className="text-sm text-slate-400">
           <Trans>返回</Trans>
         </button>
-        <h3 className="text-base font-bold text-slate-100"><Trans>调整头像</Trans></h3>
+        <h3 className="text-sm font-bold text-slate-100"><Trans>调整头像</Trans></h3>
         <button
           onClick={() => onDone(crop())}
           disabled={!!busy}

@@ -12,11 +12,11 @@
 //   免得人忘了自己调过、以为视频「播快了」。
 // ★ 必须截住 pointer 事件：Sheet portal 到了 body，可 React 合成事件仍沿**组件树**冒泡回 FeedItem 的
 //   onPointerDown/Up（暂停 / 双击点赞），点一下倍速就会顺手把视频暂停了（CommentSheet 同一条）。
-import { useNavigate } from "react-router";
 import { Trans, useLingui } from "@lingui/react/macro";
 import Sheet from "./Sheet";
 import Icon from "./Icon";
 import ReportButton from "./ReportButton";
+import BlockButton from "./BlockButton";
 import { CloseButton } from "./IconTapButton";
 import { downloadSupport } from "../data/videoDownload";
 import type { VideoItem } from "../types";
@@ -34,6 +34,9 @@ export default function FeedActionSheet({
   landscape,
   onClearScreen,
   onClose,
+  host,
+  onSaveLocal,
+  block,
 }: {
   video: VideoItem;
   /** 自己的作品：不摆举报 */
@@ -47,10 +50,18 @@ export default function FeedActionSheet({
   /** 进清屏（沉浸态，与右侧栏那颗全屏键同一个动作） */
   onClearScreen: () => void;
   onClose: () => void;
+  /**
+   * 谁打开的（2026-10-26 视频详情页 P0-4 起两种宿主共用这一份）：话按宿主说 ——
+   * 首页那一行「清屏观看」是收起按钮和文字，详情页是全屏；首页的「保存到本地」是去详情页里选，详情页就是当场开面板。必填：漏传就说错话。
+   */
+  host: "feed" | "detail";
+  /** 「保存到本地」那一行点下去做什么；null = 不摆（原生壳之外、或宿主不给）。首页传「去详情页」，详情页传「开下载面板 / 说为什么存不了」 */
+  onSaveLocal: (() => void) | null;
+  /** 拉黑作者那一行（详情页传，首页传 null —— 首页的拉黑在作者主页）。BlockButton 自己判摆不摆 */
+  block: { userId: string; userName: string } | null;
 }) {
   const { t } = useLingui();
-  const nav = useNavigate();
-  const canSave = downloadSupport().ok;
+  const canSave = downloadSupport().ok && !!onSaveLocal;
   const stop = {
     onPointerDown: (e: React.PointerEvent) => e.stopPropagation(),
     onPointerUp: (e: React.PointerEvent) => e.stopPropagation(),
@@ -95,9 +106,11 @@ export default function FeedActionSheet({
               className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm text-slate-200 active:bg-white/5"
             >
               <Icon name="expand" size={18} className="text-slate-400" />
-              <span className="min-w-0 flex-1">{landscape ? <Trans>转屏观看</Trans> : <Trans>清屏观看</Trans>}</span>
+              <span className="min-w-0 flex-1">
+                {landscape ? <Trans>转屏观看</Trans> : host === "feed" ? <Trans>清屏观看</Trans> : <Trans>全屏观看</Trans>}
+              </span>
               <span className="text-[11px] text-slate-400">
-                {landscape ? <Trans>横过来占满屏幕</Trans> : <Trans>收起按钮和文字</Trans>}
+                {landscape ? <Trans>横过来占满屏幕</Trans> : host === "feed" ? <Trans>收起按钮和文字</Trans> : <Trans>铺满屏幕</Trans>}
               </span>
             </button>
           )}
@@ -105,7 +118,7 @@ export default function FeedActionSheet({
             <button
               onClick={() => {
                 onClose();
-                nav(`/video/${video.id}`);
+                onSaveLocal?.();
               }}
               className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm text-slate-200 active:bg-white/5"
             >
@@ -113,13 +126,16 @@ export default function FeedActionSheet({
               <span className="min-w-0 flex-1">
                 <Trans>保存到本地</Trans>
               </span>
-              <span className="flex items-center text-[11px] text-slate-400">
-                <Trans>在详情页里选</Trans>
-                <Icon name="chevron" size={12} />
-              </span>
+              {host === "feed" && (
+                <span className="flex items-center text-[11px] text-slate-400">
+                  <Trans>在详情页里选</Trans>
+                  <Icon name="chevron" size={12} />
+                </span>
+              )}
             </button>
           )}
           <ReportButton row targetType="video" targetId={video.id} mine={mine} />
+          {block && <BlockButton row userId={block.userId} userName={block.userName} mine={mine} />}
         </div>
       </Sheet>
     </div>

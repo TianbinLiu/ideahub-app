@@ -219,7 +219,7 @@ export default function NotificationsPage() {
           //   说死了会让一个只是断网的人以为要换个包。
           <Empty text={t`通知需要连上服务器 · 当前是离线模式`} hint={t`联网后重新打开这一页就能看到`} />
         ) : !state.supported ? (
-          <Empty text={t`这台服务器还没有通知功能`} hint={t`服务端升级后即可使用，App 不用重装`} />
+          <Empty text={t`通知功能还没上线`} hint={t`服务端升级后即可使用，App 不用重装`} />
         ) : state.error ? (
           <EmptyState error text={t`通知没拉到：${state.error}`} cta={{ label: t`重试`, onClick: () => void refreshNotifications() }} />
         ) : state.items.length === 0 ? (
@@ -236,24 +236,25 @@ export default function NotificationsPage() {
                     // ★ 平台口吻：**不显示是哪个管理员发的**（数据里 actor 是那位管理员，
                     //   但把审核员透给被通知的用户等于把他摆到被骚扰的位置 ——
                     //   与举报下架不带 by 是同一条取舍）。头像位画一只铃铛顶替。
-                    <span className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-brand/15 text-brand">
+                    <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-brand/15 text-brand">
                       <Icon name="bell" size={20} />
                     </span>
                   ) : n.refund ? (
                     // 生成失败退款：平台口径，没有 actor（同 ADMIN_NOTICE 的铃铛：不拿「有人」两个字去画字母头像）
-                    <span className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-emerald-500/15 text-xl" aria-hidden>
+                    <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-ok-500/15 text-lg" aria-hidden>
                       ↩️
                     </span>
                   ) : n.reward?.anonymous ? (
                     // 同款奖励、服务端没带是谁（两人之间有拉黑 / 那条同款已经不公开）：不拿「有人」两个字去画字母头像
-                    <span className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-emerald-500/15 text-xl" aria-hidden>
+                    <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-ok-500/15 text-lg" aria-hidden>
                       🎁
                     </span>
                   ) : (
-                    <Avatar name={n.actorName} src={n.actorAvatar} size={40} />
+                    <Avatar name={n.actorName} src={n.actorAvatar} size={36} />
                   )}
                   <div className="min-w-0 flex-1">
-                    <div className="text-sm text-slate-200">
+                    {/* 未读不只靠右边那颗红点（Refactoring UI §5.7 别只靠颜色）：没读的一行亮一档，读过的退一档 */}
+                    <div className={`text-sm ${n.read ? "text-slate-400" : "text-slate-100"}`}>
                       {n.type === "ADMIN_NOTICE" ? (
                         <span className="font-semibold"><Trans>平台通知</Trans></span>
                       ) : n.refund ? (
@@ -278,7 +279,7 @@ export default function NotificationsPage() {
                         </div>
                       ) : (
                         // 服务端没把正文放进 payload.commentText —— 契约问题，说出来（铁律八）
-                        <div className="mt-0.5 text-xs text-rose-300"><Trans>（通知内容缺失）</Trans></div>
+                        <div className="mt-0.5 text-xs text-danger-300"><Trans>（通知内容缺失）</Trans></div>
                       )
                     ) : n.type === "BRANCH_REVISED" ? null : ( // ★ 见下面 ★★
                       n.commentText && (
@@ -296,7 +297,7 @@ export default function NotificationsPage() {
                         下面那行通用的作品名对这一类不画 —— 它是**那条同款**的名字，摆在「原作」下面读起来像同一件东西 */}
                     {n.reward && (
                       <>
-                        <div className="mt-0.5 text-xs font-semibold text-emerald-300">
+                        <div className="mt-0.5 text-xs font-semibold text-ok-300">
                           {n.reward.tokens > 0 ? t`🎁 平台奖励你 ${fmtTokens(n.reward.tokens)} token` : t`🎁 平台给你发了同款奖励`}
                         </div>
                         {n.reward.originalTitle && (
@@ -306,7 +307,7 @@ export default function NotificationsPage() {
                     )}
                     {/* 生成失败退款：金额一行（服务端的数，不在这里另写）。★ 说「已退回」不说「已到账」以外的承诺：钱是服务端退的，这里只是告诉你 */}
                     {n.refund && (
-                      <div className="mt-0.5 text-xs font-semibold text-emerald-300">
+                      <div className="mt-0.5 text-xs font-semibold text-ok-300">
                         {n.refund.tokens > 0 ? t`扣的 ${fmtTokens(n.refund.tokens)} token 已经退回` : t`扣的 token 已经退回`}
                       </div>
                     )}
@@ -319,7 +320,7 @@ export default function NotificationsPage() {
                     <div className="mt-1 text-[11px] text-slate-500">{relativeTime(n.at)}</div>
                   </div>
                   {/* 未读点：靠右，与头像同一条基线 */}
-                  {!n.read && <span className="mt-2 h-2 w-2 flex-none rounded-full bg-rose-500" />}
+                  {!n.read && <span className="mt-2 h-2 w-2 flex-none rounded-full bg-danger-500" />}
                 </button>
               </li>
             ))}

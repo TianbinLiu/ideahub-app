@@ -8,7 +8,7 @@
 // ★ 依赖方向：data 层，不引任何 store。
 import { t } from "@lingui/core/macro";
 import * as api from "../api/recipes";
-import { ApiError } from "../api/client";
+import { API_ON, ApiError } from "../api/client";
 import { projectRecipe, type RecipeIssue, type WorkflowRecipe } from "./recipe";
 import type { ApiRecipe, ApiRecipeMeta, ApiWorkflowTemplate } from "../api/recipes";
 import { onViewerChange } from "./deviceOwner";
@@ -86,6 +86,8 @@ export type RecipeFetch =
   /** 没有（没公开 / 没留存）：服务端 404 带 code */
   | { state: "none"; code: string }
   | { state: "unsupported" }
+  /** 离线模式（没配服务器地址）：配方只在服务端，页面说「需要联网」，别当成一次失败去重试 */
+  | { state: "offline" }
   | { state: "failed"; why: string };
 
 /** 本次会话里读过的（作品页 → 制作过程页 → 返回再进，不必再打一次）。null = 读过但要重取 */
@@ -98,6 +100,7 @@ onViewerChange(() => {
 });
 
 export async function fetchRecipe(videoId: string, opts?: { fresh?: boolean }): Promise<RecipeFetch> {
+  if (!API_ON) return { state: "offline" };
   if (!opts?.fresh) {
     const hit = cache.get(videoId);
     if (hit) return { state: "ok", data: hit };

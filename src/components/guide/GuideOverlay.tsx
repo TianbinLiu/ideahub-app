@@ -252,9 +252,9 @@ export default function GuideOverlay() {
       )}
 
       {/* 说明卡。★ 用 absolute 定位而不是 flex 居中：有锚点时要贴着圈放 */}
-      <div className="absolute inset-x-4 flex flex-col rounded-2xl border border-slate-600 bg-panel p-4 shadow-2xl" style={cardStyle}>
+      <div className="absolute inset-x-4 flex flex-col rounded-2xl bg-raised p-4 shadow-2xl ring-1 ring-white/10" style={cardStyle}>
         <div className="mb-1.5 flex flex-none items-center gap-2">
-          <span className="rounded-full px-2 py-0.5 bg-brand/20 text-[10px] font-bold text-brand">
+          <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-slate-400">
             {act.step + 1}/{tour.steps.length}
           </span>
           <h2 className="min-w-0 flex-1 truncate text-sm font-bold text-slate-100">{stepTitle}</h2>

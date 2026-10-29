@@ -168,10 +168,10 @@ export default function VoiceMixer({ name, catalog, catalogErr, rows, onRows, ra
       <p className="mb-2 rounded-lg border border-sky-500/40 bg-sky-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-sky-200">
         <Trans>混音只支持 1.0 音色，语调指令对混音无效。最多 {maxMix} 味：滑杆是相对权重，右侧是归一后的占比。</Trans>
       </p>
-      {catalogErr && <p className="mb-2 text-[11px] leading-relaxed text-rose-300"><Trans>读不到混音目录：{catalogErr}</Trans></p>}
+      {catalogErr && <p className="mb-2 text-[11px] leading-relaxed text-danger-300"><Trans>读不到混音目录：{catalogErr}</Trans></p>}
       {!catalog && !catalogErr && <p className="mb-2 text-[11px] text-slate-500"><Trans>读取音色目录…</Trans></p>}
       {catalog && mixable.length === 0 && (
-        <p className="mb-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-300">
+        <p className="mb-2 rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-warn-300">
           <Trans>这台服务器还没有可混音的 1.0 音色目录（服务端需要更新），先用「单音色」。</Trans>
         </p>
       )}
@@ -293,7 +293,7 @@ export default function VoiceMixer({ name, catalog, catalogErr, rows, onRows, ra
           </div>
         </div>
       )}
-      {err && <p className="mt-2 text-[11px] leading-relaxed text-rose-300">{err}</p>}
+      {err && <p className="mt-2 text-[11px] leading-relaxed text-danger-300">{err}</p>}
     </div>
   );
 }

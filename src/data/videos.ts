@@ -367,6 +367,9 @@ if (typeof window !== "undefined") {
     feedRefreshing = null;
     followingRefreshing = null;
     detailed.clear();
+    // 评论到没到 / 翻到哪一页：跟着「详情取过了」的记号一起作废（commentsStatus 的 ★）
+    commentsState.clear();
+    commentCursor.clear();
     // ★ 旁路表同样是**隐私边界**（与 cache 同一条理由）：它装的是按 id 单取回来的
     //   作品，其中可能有上一个账号自己的私密作品——服务端只对作者本人返回它。
     byId.clear();
@@ -664,7 +667,10 @@ export function getVideo(id: string): VideoItem | null {
   const hit = find(id);
   // 远端模式：列表接口不带 comments，进详情页时后台补一次（原地改同一个对象引用，
   // 页面下一次渲染即可见）。
-  if (remoteOn() && hit) void loadDetail(hit);
+  // ★ 上一跳失败（commentsState = failed）就不在这里自动再问（2026-10-29 发版前复核抓到）：失败分支会 emitVideos，
+  //   页面的 useMemo(getVideo, [id, version]) 跟着重算 ⇒ 又发一发 ⇒ 又失败 ⇒ 死循环（离线时是热循环、服务器出事时每个详情页都在刷它）。
+  //   再问只走「没取到评论」那颗重试（retryComments）、打开评论抽屉（ensureComments）与进详情页那一拍（VideoPage 挂载时问一次）。
+  if (remoteOn() && hit && commentsState.get(realId(hit.id)) !== "failed") void loadDetail(hit);
   return hit;
 }
 
@@ -1038,7 +1044,7 @@ export function publishVideo(draft: DraftVideo, opts?: { shareRecipe?: boolean; 
   // ★ 段上的 poster（成片第一帧，dataURL、百 KB 级）只给剪辑/画布看，**不进发布体**：
   //   服务端不存它（zod strip），带着走只会把请求体和待发队列（localStorage，几 MB 上限）
   //   各撑大 N × 百 KB —— 待发队列写失败是吞掉的，那正是"作品唯一备份"所在（2026-09-05）。
-  draft = stripPosters(draft);
+  draft = stripLocalOnly(draft);
   const item: VideoItem = {
     id: uid("v"),
     // ★ 把幂等键带到列表这一条上：删除时要靠它把队列里的那份一起清掉
@@ -1583,6 +1589,17 @@ const idAlias = new Map<string, string>();
 /** 已经补过详情（评论）的视频，避免每次 getVideo 都打一次 */
 const detailed = new Set<string>();
 /**
+ * 评论到了没有（远端模式；key = 服务端 id）：ready = 详情那一跳回来了（评论就是 item.comments）、failed = 没问到（给重试）、
+ * 没有记录 = 还在问。判据只有 commentsStatus 一处（2026-10-26 视频详情页 P0-3：抽屉原来详情没回来时就说「还没有评论，抢个沙发」）。
+ * ★ 不另开一套「详情到了」的集合与 detailed 平行（审核抓到三条路会坏：刚发布的作品永远到不了、整份重拉后两份记号不同步、失败一直转圈）——
+ *   写它的地方与 detailed 同生同灭：loadDetail 成功 / 失败 / 没回作品、fetchVideoById 落地、发布落地；forgetDetails 与换人时一起清。
+ */
+const commentsState = new Map<string, "ready" | "failed">();
+/** 评论翻页的游标：没有记录 = 还没翻过（手上只有详情那一跳带来的前 50 条）；null = 翻到底了；字符串 = 下一页从这儿起 */
+const commentCursor = new Map<string, string | null>();
+/** 正在翻的那一页（同一条作品同时只翻一页） */
+const commentPaging = new Map<string, Promise<string | null>>();
+/**
  * 这几条被换成了**新的列表级对象**（没有评论）：它们「详情取过了」的记号作废，下一次 loadDetail 才会重取。
  * ★ 记号跟着的是**对象**不是 id —— 整份重拉（refreshFeed / refreshFollowingFeed）换掉对象而不清记号，
  *   正是「首页回来之后评论区空了」那一条（见 refreshFeed 的 ★）。
@@ -1591,7 +1608,83 @@ function forgetDetails(items: VideoItem[]): void {
   for (const v of items) {
     detailed.delete(v.id);
     detailed.delete(realId(v.id));
+    // 换成了新的列表级对象（没有评论）：评论到没到、翻到哪儿也一起作废，不然 ready 为真、comments 为空 —— 又说「还没有评论」
+    commentsState.delete(realId(v.id));
+    commentCursor.delete(realId(v.id));
   }
+}
+
+/**
+ * 这条作品的评论到了没有 —— **唯一判据**（评论抽屉、详情页的评论预览卡都问它）。
+ * · 离线模式恒 ready（评论就在本地库里）；还没落地的临时 id（v_*）恒 ready（刚发布，本来就没有评论）；
+ * · failed = 详情那一跳没问到：说「没取到评论」并给重试（retryComments）。
+ */
+export function commentsStatus(id: string): "pending" | "ready" | "failed" {
+  if (!remoteOn()) return "ready";
+  const rid = realId(id);
+  if (rid.startsWith("v_")) return "ready";
+  return commentsState.get(rid) ?? "pending";
+}
+
+/** 「没取到评论」那颗重试：清掉失败记号，再问一次详情 */
+export function retryComments(id: string): void {
+  commentsState.delete(realId(id));
+  emitVideos();
+  ensureComments(id);
+}
+
+/**
+ * 还有没有更多评论可翻（详情页 / 抽屉列表底下那颗「加载更多」摆不摆）。
+ * ★ 终点只认服务端的 nextCursor === null，不拿计数比（commentCount 是全量，列表滤掉了被拉黑的人 —— 拉黑过人的账号上那颗键会永远不消失）；
+ *   还没翻过的时候没有游标，才看一眼计数：多于手上的条数就摆（第一次翻回来没有新东西、游标为 null，键就收起来）。
+ */
+export function commentsMore(v: VideoItem): boolean {
+  if (commentsStatus(v.id) !== "ready" || !remoteOn()) return false;
+  const rid = realId(v.id);
+  if (rid.startsWith("v_")) return false;
+  const c = commentCursor.get(rid);
+  if (c === undefined) return commentCountOf(v) > (v.comments?.length ?? 0);
+  return c !== null;
+}
+
+/**
+ * 再翻一页评论，并进 item.comments（按 id 归并，与 loadDetail 同一个归并）。回 null = 成了；字符串 = 没成的原因（摆在那颗键旁边）。
+ * ★ 起点：详情那一跳内联了最新 50 条却不给游标 —— 第一次翻**不带游标、要 100 条**（服务端上限），从回包里拿游标；
+ *   这样前 50 条会重一遍（归并去掉），换来的是不用在客户端拼服务端的游标格式（那不是契约）。之后照游标往下翻。
+ */
+export function loadMoreComments(id: string): Promise<string | null> {
+  const rid = realId(id);
+  const running = commentPaging.get(rid);
+  if (running) return running;
+  const p = (async (): Promise<string | null> => {
+    const item = find(id);
+    if (!item) return t`这条作品不在了`;
+    const cursor = commentCursor.get(rid);
+    try {
+      const res = cursor ? await branch.listComments(rid, { cursor }) : await branch.listComments(rid, { limit: 100 });
+      mergeRemoteComments(item, res.items.map(toComment));
+      commentCursor.set(rid, res.nextCursor);
+      emitVideos();
+      return null;
+    } catch (e) {
+      return e instanceof Error && e.message ? e.message : t`网络不通`;
+    } finally {
+      commentPaging.delete(rid);
+    }
+  })();
+  commentPaging.set(rid, p);
+  return p;
+}
+
+/**
+ * 服务端那一批评论并进本地（**按 id 归并，不整段替换**，2026-08-31 修，与 danmaku.merge 同一条规则）——
+ * loadDetail 与 loadMoreComments 共用。远端那份权威（同一条 id 以它为准），本地有而远端没有的保留，**降序**（新的在前）。
+ * 理由写在 loadDetail 原来那两段 ★★ 上：整段替换会吃掉在途期间刚发出去的那条；升序会让详情页评论区整个倒过来。
+ */
+function mergeRemoteComments(item: VideoItem, remote: VideoComment[]): void {
+  const byIdMap = new Map(remote.map((c) => [c.id, c]));
+  for (const c of item.comments ?? []) if (!byIdMap.has(c.id)) byIdMap.set(c.id, c);
+  item.comments = [...byIdMap.values()].sort((a, b) => b.at - a.at);
 }
 /** 列表分页游标；留给后续「上拉加载更多」用 */
 let nextCursor: string | null = null;
@@ -1761,6 +1854,11 @@ export function listFollowingVideos(): VideoItem[] | null {
  *   会把它们补回来，这里没有那一步）。
  * ★ 在途去重：并发两次只打一发。换人期间 cache 被清成 null，回包作废。
  */
+/** 推荐流正在整份重拉（首页空着时画加载态而不是「还没有作品」；2.68 真机验证：LTE 上冷启动那几秒空态先闪了一下） */
+export function feedLoading(): boolean {
+  return feedRefreshing !== null;
+}
+
 export async function refreshFeed(opts: { minAgeMs?: number } = {}): Promise<boolean> {
   if (!remoteOn() || !cache) return false;
   const minAge = opts.minAgeMs ?? 0;
@@ -1791,6 +1889,7 @@ export async function refreshFeed(opts: { minAgeMs?: number } = {}): Promise<boo
       return false;
     } finally {
       feedRefreshing = null;
+      emitVideos(); // 失败也通知一次：首页按 feedLoading() 画加载态，不通知就停在「正在取」上
     }
   })();
   return feedRefreshing;
@@ -1920,6 +2019,8 @@ export function fetchVideoById(id: string): Promise<VideoLookup> {
       // ★ 存进旁路表，**不进 cache** —— 理由见 byId 的说明（进了就是往首页推荐流里掺东西）
       byId.set(item.id, item);
       detailed.add(v._id);
+      // 单取那一跳带着评论（详情接口）：评论到了
+      commentsState.set(v._id, "ready");
       emitVideos();
       return { status: "ok", video: item };
     } catch (e) {
@@ -2015,7 +2116,12 @@ async function loadDetail(item: VideoItem): Promise<void> {
   detailed.add(id);
   try {
     const v = await branch.getVideo(id);
-    if (!v) return;
+    // 没回作品那个形状：评论这一跳问完了（没有可等的），别让抽屉一直转圈
+    if (!v) {
+      commentsState.set(id, "ready");
+      emitVideos();
+      return;
+    }
     // 原地更新：页面持有的是同一个对象引用
     item.plays = v.plays ?? item.plays;
     item.likes = v.likes ?? item.likes;
@@ -2052,25 +2158,26 @@ async function loadDetail(item: VideoItem): Promise<void> {
     //   「不做乐观插入」要消灭的那种观感，只是这次是从另一头造成的。
     // ★ 远端那份权威（同一条 id 以它为准），本地有而远端没有的**保留**。
     if (Array.isArray(v.comments)) {
-      const remote = v.comments.map(toComment);
-      const byId = new Map(remote.map((c) => [c.id, c]));
-      for (const c of item.comments ?? []) if (!byId.has(c.id)) byId.set(c.id, c);
+      mergeRemoteComments(item, v.comments.map(toComment));
       // ★★ **降序**（新的在前）—— 与服务端 `sort({ createdAt: -1 })` 和 `addReply` 的
       //   插入端（`[cmt, ...v.comments]`）同一口径。这一行第一版写成了升序，后果是
       //   **详情页评论区整个倒过来**、用户刚发的那条沉到列表最底 —— 观感正是这次修复
       //   要消灭的"刚发的评论不见了"，只是从"消失"换成"跑到看不见的地方"。
       //   ⚠ 评论抽屉那一面自带排序（CommentSheet 的 buildThreads），所以只测抽屉
       //   **看不出来**；出问题的是 `VideoPage` —— 它平铺渲染、全页一个 sort 都没有。
-      item.comments = [...byId.values()].sort((a, b) => b.at - a.at);
     }
     // ★ 条数同样不许倒退：服务端那个数是发送之前的快照，本地已经多出一条
     if (typeof v.commentCount === "number") {
       item.commentCount = Math.max(v.commentCount, item.comments?.length ?? 0);
     }
     if (v.liked) likedIds.add(id);
+    commentsState.set(id, "ready");
     emitVideos();
   } catch (e) {
     detailed.delete(id); // 失败允许下次重试
+    // 没问到：评论那一格说「没取到」并给重试（原来只 emitApiError —— 没人监听，抽屉一直转圈）
+    commentsState.set(id, "failed");
+    emitVideos();
     emitApiError("getVideo", e);
   }
 }
@@ -2130,6 +2237,8 @@ async function pushPublish(item: VideoItem, draft: DraftVideo): Promise<void> {
     item.authorAvatar = branch.authorAvatar(v.author) ?? item.authorAvatar;
     item.createdAt = toMs(v.createdAt);
     detailed.add(v._id);
+    // 刚发布：评论本来就是空的，到了
+    commentsState.set(v._id, "ready");
     // ★ 真传上去了才出队（见上面"先入队"的 ★★）
     if (draft.clientId) inflightPublish.delete(draft.clientId);
     await dropPending(draft.clientId);
@@ -2218,7 +2327,7 @@ export async function reviseVideo(id: string, draft: DraftVideo, baseRevision: n
   //   服务端的 segmentBody 里没有这个键、zod 会 strip，带着走只是把请求体白撑大 N × 百 KB。
   //   ⚠ 剥完那份也是下面 `retainAfterRevise` 的 `before` —— 与 publishVideo 那条路一致，
   //     配对表里本来就不会有 poster 这一项（它永远没有云端孪生）。
-  const posterless = stripPosters(draft);
+  const posterless = stripLocalOnly(draft);
   // ★ 再把本机资产（dataURL 帧 / `idb:` 成片）传成永久 URL，然后才发那个 JSON。
   //   少这一步的话，`idb:merged:xxx` 会被服务端 `kept` 原样落库 —— 200、revision 照涨、
   //   客户端判通过，而观众端全黑屏（publishAssets 文件头那次事故的同型）。
@@ -2787,18 +2896,46 @@ if (import.meta.env.DEV && typeof window !== "undefined") {
 }
 
 /**
- * 发布体里剥掉各段的 `poster`（成片第一帧 dataURL，只管显示）。branchTree 各节点的段一并剥。
- * ★ 只在 publishVideo 入口调一次：pushPublish / queuePending / 本机缓存条目拿到的都是剥过的那份。
+ * 发布体里的作品简介去掉文字模板段的正文（组稿那一拍把各段 plot 拼成了预填的简介；人在发布页没改过的话正文会照原样公开）。
+ * 按原文逐字去掉（人自己写的话一个字不动），再收拾多出来的空行。
  */
-function stripPosters(d: DraftVideo): DraftVideo {
+function textTplDescriptionOf(d: DraftVideo): string {
+  // 要去掉的正文：文字模板段自己的 plot + 合成出来的成片记下的来源正文（localPlots）；分支树各节点的段一并算
+  const segs = [...d.segments, ...Object.values(d.branchTree?.nodes ?? {}).map((n) => n.segment)];
+  const secret = segs.flatMap((s) => [...(s.fromTextTpl && s.plot ? [s.plot] : []), ...(s.localPlots ?? [])]).filter(Boolean);
+  // ★ 没有要去掉的就原样返回：原来一律收拾空行 + trim，每一条普通作品的简介都丢了空行（2026-10-29 发版前复核）
+  if (!secret.length) return d.description;
+  let desc = d.description ?? "";
+  for (const p of secret) desc = desc.split(p).join("");
+  return desc.replace(/\n{2,}/g, "\n").trim();
+}
+
+/**
+ * 发布体里剥掉只在本机流转的东西 —— 各段的 `poster`（成片第一帧 dataURL，只管显示）与文字模板段的正文（`fromTextTpl`，2026-10-26）。
+ * branchTree 各节点的段一并剥。
+ * ★ 发布（publishVideo 入口）与回炉替换各调一次：pushPublish / queuePending / 本机缓存条目拿到的都是剥过的那份。
+ */
+function stripLocalOnly(d: DraftVideo): DraftVideo {
   type Seg = DraftVideo["segments"][number];
   const strip = (s: Seg): Seg => {
-    if (!s.poster) return s;
+    if (!s.poster && !s.fromTextTpl && !s.localPlots) return s;
     const rest = { ...s };
     delete rest.poster;
+    delete rest.localPlots;
+    // 文字模板段的正文不随作品外流（types.VideoSegment.fromTextTpl 的 ★）：发布体里 plot 置空、标记去掉。
+    // ★ 在这一处（发布与回炉替换都经它）做，不在组稿那一拍做：剪辑页的一键成片要读全文
+    if (rest.fromTextTpl) {
+      rest.plot = "";
+      delete rest.fromTextTpl;
+    }
     return rest;
   };
-  const out: DraftVideo = { ...d, segments: d.segments.map(strip) };
+  const out: DraftVideo = {
+    ...d,
+    segments: d.segments.map(strip),
+    // 作品简介原来是各段 plot 拼起来的（组稿那一拍预填），文字模板段的正文在那儿也要拿掉 —— 发布页上人没改过的话就会照原样公开
+    description: textTplDescriptionOf(d),
+  };
   if (d.branchTree) {
     const nodes: NonNullable<DraftVideo["branchTree"]>["nodes"] = {};
     for (const [k, n] of Object.entries(d.branchTree.nodes)) nodes[k] = { ...n, segment: strip(n.segment) };

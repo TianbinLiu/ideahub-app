@@ -3,16 +3,35 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useRef, useState } from "react";
 import Icon from "./Icon";
-import { VideoSegment, aspectCss, formatDuration, segLen, segsTotal } from "../types";
+import PlayerControls from "./PlayerControls";
+import { frameLook, type PlayerFrame, type PlayerOverlay } from "./playerFrame";
+import { VideoSegment, segLen, segsTotal } from "../types";
 import { useMediaUrl } from "../utils/mediaUrl";
 
-export default function SegmentPlayer({ segments, cover }: { segments: VideoSegment[]; cover: string }) {
+/**
+ * ★ frame / rate / overlay / onFull 四个都是**必填**（2026-10-26 视频详情页 P0-2）：漏传零症状 —— 详情页悄悄退成卡片样子、
+ *   倍速只改了画面没改进度条、弹幕没挂上、全屏键不出来。真不要就显式传 "card" / 1 / null / null（发布页）。
+ */
+export default function SegmentPlayer({
+  segments,
+  cover,
+  frame,
+  rate,
+  overlay,
+  onFull,
+}: {
+  segments: VideoSegment[];
+  cover: string;
+  frame: PlayerFrame;
+  /** 倍速：rAF 墙钟的 dt 与 <video>.playbackRate 一起乘 —— 只改一边的话进度条和弹幕会跟画面越跑越远 */
+  rate: number;
+  overlay: PlayerOverlay;
+  onFull: (() => void) | null;
+}) {
   const { t } = useLingui();
   const [playing, setPlaying] = useState(false);
   const [started, setStarted] = useState(false);
   const [time, setTime] = useState(0);
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const barRef = useRef<HTMLDivElement>(null);
   const [ctrl, setCtrl] = useState(true);
   /**
    * 出声还是静音。**缺省出声**（2026-09-07 主人真机：合出来的片子"没声音"）。
@@ -44,7 +63,8 @@ export default function SegmentPlayer({ segments, cover }: { segments: VideoSegm
     let raf = 0;
     let last = performance.now();
     const tick = (now: number) => {
-      const dt = (now - last) / 1000;
+      // 倍速：墙钟走 1 秒，片子走 rate 秒（<video>.playbackRate 下面那个 effect 设同一个数）
+      const dt = ((now - last) / 1000) * rate;
       last = now;
       setTime((t) => {
         const nt = t + dt;
@@ -58,7 +78,7 @@ export default function SegmentPlayer({ segments, cover }: { segments: VideoSegm
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [playing, total]);
+  }, [playing, total, rate]);
 
   // 定位当前段
   let acc = 0;
@@ -99,9 +119,12 @@ export default function SegmentPlayer({ segments, cover }: { segments: VideoSegm
   }, [playing, seg?.videoUrl]);
   // ★ 静音开关直接落到 DOM：`muted` 是 property 不是普通 attribute，
   //   换段（换 key 重建 <video>）之后也要再钉一次，否则新元素会退回默认值
+  //   倍速同理：换段重建的 <video> 会退回 1 倍，每次渲染钉一遍
   useEffect(() => {
     const v = videoRef.current;
-    if (v) v.muted = muted;
+    if (!v) return;
+    v.muted = muted;
+    v.playbackRate = rate;
   });
 
   useEffect(() => {
@@ -117,13 +140,6 @@ export default function SegmentPlayer({ segments, cover }: { segments: VideoSegm
     setTime(Math.min(total, Math.max(0, sec)));
     setStarted(true);
   }
-  function seek(clientX: number) {
-    const bar = barRef.current;
-    if (!bar) return;
-    const rect = bar.getBoundingClientRect();
-    const r = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
-    seekTo(r * total);
-  }
 
   // 段落分界刻度位置
   const marks: number[] = [];
@@ -133,15 +149,10 @@ export default function SegmentPlayer({ segments, cover }: { segments: VideoSegm
     marks.push(m / total);
   }
 
+  // 外框（卡片 / 满宽 / 全屏）一处定：components/playerFrame.frameLook
+  const look = frameLook(frame, segments[0]?.aspect);
   return (
-    <div
-      ref={wrapRef}
-      /* 播放框跟着作品画幅：写死 aspect-video 的话，竖屏作品在详情页会被
-         object-cover 裁掉上下大半。竖屏框很高，限一下高度免得把整页顶开 */
-      style={{ aspectRatio: aspectCss(segments[0]?.aspect), maxHeight: "72vh" }}
-      className="relative mx-auto w-full max-w-full select-none overflow-hidden rounded-xl bg-black"
-      onClick={() => setCtrl((v) => !v)}
-    >
+    <div style={look.style} className={look.className} onClick={() => setCtrl((v) => !v)}>
       {!started ? (
         <>
           {/* ★ 封面还没选时退到**成片第一帧**（poster || firstFrame，全 app 同一条兜底）：
@@ -199,6 +210,8 @@ export default function SegmentPlayer({ segments, cover }: { segments: VideoSegm
               {seg.title}
             </div>
           )}
+          {/* 挂点（详情页的弹幕）：画面之上、重播层与控制条之下。全片秒数；分段播放器没有分支，恒在「开场」那条时间轴上 */}
+          {overlay?.({ time, paused: !playing, onRoot: true })}
           {ended && (
             <button
               onClick={() => {
@@ -211,77 +224,27 @@ export default function SegmentPlayer({ segments, cover }: { segments: VideoSegm
               <span className="text-sm"><Trans>重新播放</Trans></span>
             </button>
           )}
-          {/* 控制条：点画面唤起/收起，播放中 3 秒自动淡出。
-              原来是 group-hover —— 触屏设备没有 hover 事件，进度条和播放键在真机上完全够不着。 */}
-          <div
-            className={`absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-3 pb-2 pt-8 transition-opacity duration-200 ${
-              ctrl ? "opacity-100" : "pointer-events-none opacity-0"
-            }`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* 进度条是自绘的 div，ARIA 与键盘都要手补（2026-10-15 教材人格评审，WCAG 2.2 · 4.1.2 / 2.1.1 / 2.5.8）：
-                role=slider + 当前值，valuetext 读成 mm:ss 而不是百分比；← → ↑ ↓ 一下 1 秒 —— 读数 formatDuration 就是整秒，
-                再小听不出差别、再大会跳过下面 marks 画出来的段落分界；Home / End 到头。不换成 <input type=range>：分界刻度没处画。
-                触控盒 -my-3 py-3（原 -my-2 py-2）：条本身 6px，上下各 12px 内边距、负外边距抵回去，版面一个像素不动。
-                有效命中高度 = 上 12 + 条 6 + 下 6 = 24px，恰好到 2.5.8 的 24px 下限 —— 下面只算 6px（按钮行的 mt-1.5 间距），
-                再往下那 6px 内边距落在按钮行的盒子里：它是后来的兄弟节点、画在这一层上面，点在那儿落到的是它不是这里。
-                焦点落上来顺手把控制条唤出来：控制条淡出后仍在 Tab 顺序里，焦点停在一个看不见的东西上就是 2.4.7 说的那种。 */}
-            <div
-              role="slider"
-              tabIndex={0}
-              aria-label={t`播放进度`}
-              aria-valuemin={0}
-              aria-valuemax={Math.round(total)}
-              aria-valuenow={Math.min(Math.round(total), Math.round(time))}
-              aria-valuetext={formatDuration(time)}
-              className="-my-3 py-3"
-              onClick={(e) => seek(e.clientX)}
-              onFocus={() => setCtrl(true)}
-              onKeyDown={(e) => {
-                const step =
-                  e.key === "ArrowRight" || e.key === "ArrowUp" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowDown" ? -1 : 0;
-                const to = step ? time + step : e.key === "Home" ? 0 : e.key === "End" ? total : null;
-                if (to === null) return;
-                e.preventDefault();
-                seekTo(to);
-              }}
-            >
-            <div ref={barRef} className="relative h-1.5 w-full cursor-pointer rounded-full bg-white/25">
-              <div className="absolute inset-y-0 left-0 rounded-full bg-brand" style={{ width: `${(time / total) * 100}%` }} />
-              {marks.map((mk, i) => (
-                <div key={i} className="absolute top-1/2 h-2.5 w-0.5 -translate-y-1/2 bg-white/70" style={{ left: `${mk * 100}%` }} />
-              ))}
-            </div>
-            </div>
-            <div className="mt-1.5 flex items-center gap-3 text-sm text-slate-100">
-              <button
-                onClick={() => {
-                  // 播完之后再按应该重播。原来是 setPlaying((p) => !p && time < total)，
-                  // time >= total 时整个表达式恒为 false —— 按下去毫无反应。
-                  if (time >= total) {
-                    setTime(0);
-                    setPlaying(true);
-                  } else {
-                    setPlaying((p) => !p);
-                  }
-                }}
-                className="-m-2 p-2"
-                aria-label={playing ? t`暂停` : t`播放`}
-              >
-                <Icon name={time >= total ? "replay" : playing ? "pause" : "play"} size={20} filled={time < total} />
-              </button>
-              <span className="text-xs tabular-nums text-slate-300">
-                {formatDuration(time)} / {formatDuration(total)}
-              </span>
-              <button
-                onClick={() => setMuted((m) => !m)}
-                className="ml-auto flex-none rounded-full bg-white/15 px-2.5 py-1 text-[11px] text-slate-100"
-                aria-label={muted ? t`取消静音` : t`静音`}
-              >
-                {muted ? <Trans>🔇 已静音</Trans> : <Trans>🔊 有声</Trans>}
-              </button>
-            </div>
-          </div>
+          {/* 控制条：点画面唤起/收起，播放中 3 秒自动淡出（原来是 group-hover —— 触屏没有 hover，真机上完全够不着）。只有 PlayerControls 一份 */}
+          <PlayerControls
+            time={time}
+            total={total}
+            playing={playing}
+            visible={ctrl}
+            marks={marks}
+            muted={muted}
+            rate={rate}
+            onToggle={() => {
+              // 播完之后再按应该重播（原来 setPlaying((p) => !p && time < total) 在 time >= total 时恒 false，按下去毫无反应）
+              if (time >= total) {
+                setTime(0);
+                setPlaying(true);
+              } else setPlaying((p) => !p);
+            }}
+            onSeek={seekTo}
+            onMute={() => setMuted((m) => !m)}
+            onShow={() => setCtrl(true)}
+            onFull={onFull}
+          />
         </>
       )}
     </div>

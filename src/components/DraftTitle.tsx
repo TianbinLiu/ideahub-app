@@ -90,11 +90,11 @@ export default function DraftTitle({
         aria-label={t`工程名`}
         className={`relative flex h-9 w-9 flex-none items-center justify-center rounded-full ${className}`}
       >
-        <Icon name="pen" size={15} className={msg ? "text-rose-300" : title ? "text-slate-200" : "text-slate-400"} />
+        <Icon name="pen" size={15} className={msg ? "text-danger-300" : title ? "text-slate-200" : "text-slate-400"} />
         {/* ★ 收起态也要有失败的出口（铁律八）：这一枚只有 36px，装不下整句话，
             所以失败时把话挂在按钮下方的浮层里（几秒后自己消失，与展开态同一条 msg） */}
         {msg && (
-          <span className="absolute left-1/2 top-full z-10 mt-1 w-44 -translate-x-1/2 rounded-lg bg-rose-500/95 px-2 py-1 text-[10px] leading-relaxed text-white">
+          <span className="absolute left-1/2 top-full z-10 mt-1 w-44 -translate-x-1/2 rounded-lg bg-danger-500/95 px-2 py-1 text-[10px] leading-relaxed text-white">
             {msg}
           </span>
         )}

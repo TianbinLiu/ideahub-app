@@ -503,7 +503,9 @@ export const TOURS: GuideTour[] = [
     // ★ 2026-08-17 从 1 升到 2：这一屏的第一层从「一个白模开关」改成了**三选一**，
     //   老引导教的是一个已经不存在的开关。这正是"引导指着不存在的东西说话"那种错，
     //   所以要让**所有人重看一遍** —— 版本号平时不许动，这次是它存在的理由本身。
-    version: 2,
+    // ★ 2026-10-26 从 2 升到 3：模板货架打开的这一屏多了第三条「只用文字 + 封面」（文字模板 P1），
+    //   第一步原来说「拿一段参考视频」—— 对不传视频的那条是错的。
+    version: 3,
     steps: [
       {
         // ★ 2026-09-17 订正（多语言 T3 对着实现核出来的；未升 version —— 主人 09-11 定：订正不重弹）：
@@ -515,7 +517,7 @@ export const TOURS: GuideTour[] = [
         anchor: "extractor-routes",
         body: (
           <Trans>
-            拿一段参考视频，让 AI 把它变成能反复套用的<b className="font-bold text-slate-100">模板</b>。第一步就是在这里
+            把一段参考视频（或者一段提示词）变成能反复套用的<b className="font-bold text-slate-100">模板</b>。第一步就是在这里
             <b className="font-bold text-slate-100">选做法</b>：选哪条决定后面几步长什么样，也决定花不花钱、花多少。
             <b className="font-bold text-slate-100">上传之前</b>随时能点「‹ 换一种做法」回来换。
             传完就定死了——要换只能取消整个重来。
@@ -545,6 +547,17 @@ export const TOURS: GuideTour[] = [
             第二条：这段<b className="font-bold text-slate-100">已经是白模 / 人偶片</b>（你自己做好的预演片）。
             不出片、不换人，只认出画面里有谁、量出他们在哪，<b className="font-bold text-slate-100">便宜两个量级</b>。
             这两条我们分不出来，只能你自己选：该出片的没出，模板里全是真人；不该出片的出了，白花一次钱、画质还被二次白模化。
+          </Trans>
+        ),
+      },
+      {
+        // ★ 不带锚点：这一条只在模板货架打开时才有（工作流页那份提取窗不摆），带着 anchor 在那边就是「指着一个不存在的东西」
+        title: msg`没有视频也能做`,
+        body: (
+          <Trans>
+            从模板货架打开时，最下面还有一条<b className="font-bold text-slate-100">「只用文字 + 封面」</b>：贴一段提示词、
+            给写到「图1 / 图2」的地方起名、选一张封面就存好了，<b className="font-bold text-slate-100">做模板不花 token</b>。
+            别人套用时按名字补上自己的图，出一段的价在选档那一步报。
           </Trans>
         ),
       },
@@ -746,7 +759,7 @@ export const TOURS: GuideTour[] = [
         anchor: "trim-crop",
         body: (
           <Trans>
-            拖四个角调裁剪框。水印<b className="font-bold text-amber-300">必须框到框外</b>：
+            拖四个角调裁剪框。水印<b className="font-bold text-warn-300">必须框到框外</b>：
             出片是逐帧复刻画面，提示词去不掉它（实测），而模板会被反复套用——
             留一个水印就是永久的。
           </Trans>

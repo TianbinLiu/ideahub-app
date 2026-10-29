@@ -6,6 +6,7 @@
 import type { BranchTree, Card, CardRole, CardType, DraftVideo, TemplateRecipe, VideoDeck, VideoPart, VideoSegment } from "../types";
 import { API_BASE, ApiError, apiDelete, apiGet, apiPatch, apiPost, getToken, withAppVersion } from "./client";
 import { t } from "@lingui/core/macro";
+import { noteRegionDenied } from "../data/videoZone";
 
 // ── DTO ──────────────────────────────────────────────────
 
@@ -500,9 +501,19 @@ export async function setLike(id: string, on: boolean): Promise<LikeResult> {
 }
 
 /** GET /api/branch/videos/:id/comments（optionalAuth） */
-export async function listComments(id: string): Promise<ApiComment[]> {
-  const res = await apiGet<Record<string, unknown>>(`/api/branch/videos/${encodeURIComponent(id)}/comments`);
-  return pickList<ApiComment>(res, ["comments", "items", "data"]);
+/**
+ * GET /api/branch/videos/:id/comments —— 评论翻页（2026-10-26 视频详情页 P0-3 才有调用方）。
+ * 服务端按 createdAt 倒序、游标是它自己编的（不透明：原样带回去，别在客户端拼），limit 1~100（缺省 50）。
+ * @returns nextCursor = null 就是翻到底了（判「还有没有」只认它：commentCount 是全量计数，列表却滤掉了被拉黑的人）
+ */
+export async function listComments(id: string, o: { cursor?: string; limit?: number } = {}): Promise<{ items: ApiComment[]; nextCursor: string | null }> {
+  const q = new URLSearchParams();
+  if (o.cursor) q.set("cursor", o.cursor);
+  if (o.limit) q.set("limit", String(o.limit));
+  const qs = q.toString();
+  const res = await apiGet<Record<string, unknown>>(`/api/branch/videos/${encodeURIComponent(id)}/comments${qs ? `?${qs}` : ""}`);
+  const next = res && typeof res.nextCursor === "string" && res.nextCursor ? res.nextCursor : null;
+  return { items: pickList<ApiComment>(res, ["comments", "items", "data"]), nextCursor: next };
 }
 
 /**
@@ -762,7 +773,7 @@ export async function updateCardMeta(
     tags?: string[];
     idLine?: string;
     textDesc?: string;
-    /** null = 取消「真人档适用」（服务端 $unset） */
+    /** null = 取消「起拍画面」那一勾（2026-10-26 之前叫「真人档适用」；服务端 $unset） */
     startFrames?: Card["startFrames"] | null;
   },
 ): Promise<ApiCard | null> {
@@ -1005,6 +1016,11 @@ export interface ApiBranchTemplate {
    * ★ 只有「自己传白模视频」那条路（detect-roles）产出它；白模化 V2 与所有老模板都没有。
    */
   markDescs?: string[];
+  /**
+   * 与 markSlots 按下标对齐的神态（2026-10-26，服务端 #133 起）。长度不等于 markSlots 或全是空串时服务端不发；
+   * 客户端解析在 data/templates.markExprsOf，含义见 types.VideoTemplate.markExprs。
+   */
+  markExprs?: string[];
   /**
    * 长视频分段登记的归组（2026-08-20）。**只在真有的时候出现**（存在性判断，同 roles）：
    * 整段登记/存量模板整个字段缺失。`sourceUrl` 是原片地址 —— 合并成片时拿它解原片音轨。
@@ -1289,6 +1305,23 @@ async function blockoutPost(
   }
   if (data.ok !== true) {
     const status = res.status;
+    // ★ 出片地区（403 REGION_UNAVAILABLE，2026-10-26）：认 code 说本端的整句（服务端那句是「英文 / 中文」并排一行，给老 App 兜底）。
+    //   白模化要用电影级那一个模型；它在看帧之前就预检，平常一发都不出网、billed:false；只有两次请求之间门禁被拨到 on 的那个窄窗口
+    //   是看帧之后才拦、billed:true（契约「出片地区 → 被拦的回包」最后一条）—— 钱上两句各说各的，别把扣过的说成没扣。
+    //   回包里的地区当场记下并重问一次（data/videoZone），提取窗的白模入口跟着收起来。
+    if (data.code === "REGION_UNAVAILABLE") {
+      noteRegionDenied(data);
+      const billed = data.billed === true;
+      throw new BlockoutizeError(
+        billed
+          ? t`你所在的地区用不了白模化要用的出片模型——看帧那一笔已经花了、不退；出片那一发没有受理。`
+          : t`你所在的地区用不了白模化要用的出片模型——这一次没有受理，也没有扣费。`,
+        status,
+        data.code,
+        billed,
+        phase,
+      );
+    }
     throw new BlockoutizeError(
       typeof data.message === "string" && data.message
         ? data.message

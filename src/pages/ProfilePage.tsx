@@ -26,8 +26,10 @@
 // 图标页签 → 3 列贴边栅格。旧版是左对齐的资料卡 + 文字页签，与首页的
 // 短视频形态完全不搭，而且首页压根没有入口能走到"别人"的主页。
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import Warn from "../components/Warn";
 import { showToast } from "../data/toast";
 import EmptyState, { type EmptyMascot } from "../components/EmptyState";
+import { CloseButton } from "../components/IconTapButton";
 import MagicBand from "../components/MagicBand";
 import BlockButton from "../components/BlockButton";
 import LangChip from "../components/LangChip";
@@ -594,7 +596,7 @@ export default function ProfilePage() {
                 {unread > 0 && (
                   // 只画一个点不写数字：未读上到两位数时数字会把 44px 热区撑破，
                   // 而"有几条"进了页面第一眼就看得到
-                  <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-ink" />
+                  <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-danger-500 ring-2 ring-ink" />
                 )}
               </Link>
               <Link
@@ -649,7 +651,7 @@ export default function ProfilePage() {
                 <button
                   onClick={onFollow}
                   aria-label={t({ message: "关注", context: "作者头像下那颗关注按钮（动作：关注这个人）" })}
-                  className="absolute -bottom-2 left-1/2 flex h-7 w-7 -translate-x-1/2 items-center justify-center rounded-full border-2 border-ink bg-rose-500 text-white transition active:scale-90"
+                  className="absolute -bottom-2 left-1/2 flex h-7 w-7 -translate-x-1/2 items-center justify-center rounded-full border-2 border-ink bg-danger-500 text-white transition active:scale-90"
                 >
                   <Icon name="plus" size={14} strokeWidth={3} />
                 </button>
@@ -741,7 +743,7 @@ export default function ProfilePage() {
             <>
               <button
                 onClick={onFollow}
-                className={`flex h-10 flex-[1.4] items-center justify-center gap-1 rounded-full text-sm font-bold transition active:scale-[.98] ${
+                className={`flex h-10 flex-[1.4] items-center justify-center gap-1 rounded-xl text-sm font-bold transition active:scale-[.98] ${
                   following ? "bg-panel text-slate-300 ring-1 ring-slate-700" : "bg-brand text-ink"
                 }`}
               >
@@ -796,7 +798,7 @@ export default function ProfilePage() {
           <button
             data-guide="profile-wallet"
             onClick={() => setWalletOpen(true)}
-            className="mt-4 flex w-full items-center gap-3 rounded-xl border border-slate-700/60 bg-panel px-3.5 py-2.5 text-left"
+            className="mt-4 flex w-full items-center gap-3 rounded-xl border border-slate-700/70 bg-panel px-3.5 py-2.5 text-left"
           >
             <span className="text-xl">⚡</span>
             <div className="min-w-0 flex-1">
@@ -915,7 +917,7 @@ export default function ProfilePage() {
                 key={k}
                 onClick={() => setVisFilter(k)}
                 className={`rounded-full px-3 py-1 text-[11px] ${
-                  visFilter === k ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-400"
+                  visFilter === k ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-300"
                 }`}
               >
                 {label}
@@ -1005,7 +1007,7 @@ export default function ProfilePage() {
                 <Link
                   key={c.id}
                   to={`/card/${c.id}`}
-                  className="relative block overflow-hidden rounded-lg border border-slate-700/60"
+                  className="relative block overflow-hidden rounded-xl border border-slate-700/70"
                 >
                   {c.cover ? (
                     <img src={c.cover} alt={c.name} className="aspect-[3/4] w-full object-cover" loading="lazy" />
@@ -1060,7 +1062,7 @@ export default function ProfilePage() {
           ))}
 
         {activeTab === "collects" && collectGone > 0 && (
-          <p className="mx-3 mb-2 rounded-xl border border-slate-700 bg-panel px-3 py-2 text-[11px] leading-relaxed text-slate-400">
+          <p className="mx-3 mb-2 rounded-xl border border-slate-700/70 bg-panel px-3 py-2 text-[11px] leading-relaxed text-slate-400">
             <Trans>有 {collectGone} 条收藏打不开了：作者可能把它删了，或者改成了仅自己可见。</Trans>
           </p>
         )}
@@ -1068,11 +1070,11 @@ export default function ProfilePage() {
             依赖里没有任何值会因为网络恢复而变（collectIds 是原地 mutate 的同一个数组），
             不给这颗按钮就只能离开页面再进来 */}
         {activeTab === "collects" && collectUnknown > 0 && (
-          <p className="mx-3 mb-2 flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-100">
+          <p className="mx-3 mb-2 flex items-center gap-2 rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-[11px] leading-relaxed text-warn-100">
             <span className="flex-1"><Trans>有 {collectUnknown} 条这会儿没取回来（网络没通）——它们还在，不是被删了。</Trans></span>
             <button
               onClick={() => setCollectTry((n) => n + 1)}
-              className="flex-none rounded-full bg-amber-400/20 px-2.5 py-1 font-semibold text-amber-100"
+              className="flex-none rounded-full bg-warn-400/20 px-2.5 py-1 font-semibold text-warn-100"
             >
               <Trans>重试</Trans>
             </button>
@@ -1160,8 +1162,8 @@ function CutSessionBanner() {
   const when = relativeTime(cut.at || Date.now());
 
   return (
-    <div className="mx-3 mt-3 rounded-xl border border-cyan-400/40 bg-cyan-500/10 p-3">
-      <div className="text-xs font-semibold text-cyan-100"><Trans>有一条剪到一半的成片</Trans></div>
+    <div className="mx-3 mt-3 rounded-xl border border-slate-700/70 border-l-2 border-l-cyan-400/80 bg-panel p-3">
+      <div className="text-xs font-semibold text-slate-100"><Trans>有一条剪到一半的成片</Trans></div>
       <p className="mt-1 text-[11px] leading-relaxed text-slate-300">
         {deckCount > 0 ? <Trans>{segCount} 段 · 卡组 {deckCount} 张已经铸好 · {when}</Trans> : <Trans>{segCount} 段 · {when}</Trans>}
         {/* ★ 这句要说清"为什么值得回去"：里面是**已经花过钱**的东西 */}
@@ -1196,7 +1198,7 @@ function CutSessionBanner() {
           <>
             <button
               onClick={() => void dropCutSession()}
-              className="rounded-xl bg-rose-500/90 px-3 py-2.5 text-xs font-bold text-white"
+              className="rounded-xl bg-danger-500/90 px-3 py-2.5 text-xs font-bold text-white"
             >
               <Trans>确认丢掉</Trans>
             </button>
@@ -1233,8 +1235,8 @@ function PendingBanner() {
   // 正在传：只显示进度，别把失败原因和进度混在一起说
   if (up) {
     return (
-      <div className="mx-3 mt-3 rounded-xl border border-cyan-400/40 bg-cyan-500/10 p-3">
-        <div className="text-xs font-semibold text-cyan-200">
+      <div className="mx-3 mt-3 rounded-xl border border-slate-700/70 border-l-2 border-l-cyan-400/80 bg-panel p-3">
+        <div className="text-xs font-semibold text-slate-100">
           <Trans>正在上传「{up.title}」 {up.done}/{up.total}</Trans>
         </div>
         <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/25">
@@ -1252,14 +1254,14 @@ function PendingBanner() {
   const title = first.draft.title;
   const why = pendingErrorText(first);
   return (
-    <div className="mx-3 mt-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
+    <div className="mx-3 mt-3 rounded-xl border border-slate-700/70 border-l-2 border-l-warn-500/80 bg-panel p-3">
       <div className="flex items-center gap-2">
-        <span className="flex-none text-sm">⚠️</span>
-        <span className="min-w-0 flex-1 text-xs font-semibold text-amber-200">
+        <Icon name="alert" size={14} className="flex-none text-warn-300" />
+        <span className="min-w-0 flex-1 text-xs font-semibold text-warn-200">
           <Trans>{list.length} 条作品还没传到服务器</Trans>
         </span>
       </div>
-      <p className="mt-1 text-[11px] leading-relaxed text-amber-100/80">
+      <Warn className="mt-1">
         {/* ★ 原因为空（原话本身是空的、老条目没存原因）时整句换成只有标题那句：英文是「“标题”: 原因」，
             拿空串去拼会在句末剩一个孤零零的冒号。中文两句画出来与原来逐字相同 */}
         {why ? (
@@ -1267,7 +1269,7 @@ function PendingBanner() {
         ) : (
           <Trans comment="个人页「还没传到服务器」横幅：只有作品标题（这一条没记下没传上去的原因）">「{title}」</Trans>
         )}
-      </p>
+      </Warn>
       <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
         <Trans>内容还在这台设备上，没有丢。修好网络或服务器后点重试即可。</Trans>
       </p>
@@ -1281,7 +1283,7 @@ function PendingBanner() {
               .finally(() => setBusy(false));
           }}
           disabled={busy}
-          className="flex-1 rounded-xl bg-amber-400/90 py-2.5 text-sm font-bold text-ink disabled:opacity-40"
+          className="flex-1 rounded-xl bg-warn-400/90 py-2.5 text-sm font-bold text-ink disabled:opacity-40"
         >
           {busy ? t`重试中…` : t`立即重试`}
         </button>
@@ -1292,7 +1294,7 @@ function PendingBanner() {
           <Trans>不要了</Trans>
         </button>
       </div>
-      {note && <div className="mt-1.5 text-center text-[11px] text-amber-200">{note}</div>}
+      {note && <div className="mt-1.5 text-center text-[11px] text-warn-200">{note}</div>}
     </div>
   );
 }
@@ -1349,9 +1351,9 @@ function StrangerWorks({
   const note = worksKnown
     ? ""
     : stranger.unsupported
-      ? t`这台服务器还没有用户主页接口 · 服务端升级后即可看到完整资料`
+      ? t`完整资料还看不到 · 服务更新之后就有，App 不用重装`
       : stranger.works?.status === "partial"
-        ? t`这台服务器还不支持按作者取作品 · 下面只是本次刷到的那些，不是全部`
+        ? t`暂时只能看到本次刷到的这几条，不是 TA 的全部作品`
         : stranger.works?.status === "offline"
           ? t`TA 的作品需要连上服务器 · 当前是离线模式`
           : !hasId
@@ -1379,7 +1381,7 @@ function WorkGrid({ items }: { items: VideoItem[] }) {
             <img src={v.cover} alt={v.title} className="aspect-[3/4] w-full object-cover" loading="lazy" />
             {/* 底缘压暗：浅色封面上白字播放量本来读不出来 */}
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black/70 to-transparent" />
-            <span className="absolute bottom-1 left-1.5 flex items-center gap-1 text-[11px] font-medium tabular-nums text-white [text-shadow:0_1px_2px_rgba(0,0,0,.7)]">
+            <span className="absolute bottom-1 left-1.5 flex items-center gap-1 text-[11px] font-medium tabular-nums text-white [text-shadow:0_0_3px_rgba(0,0,0,.7)]">
               <Icon name="play" size={12} filled />
               {formatPlays(v.plays)}
             </span>
@@ -1421,7 +1423,7 @@ function WorkGrid({ items }: { items: VideoItem[] }) {
                   这一栏只有作者自己看得到（别人的接口回包里根本没有这条作品）。 */}
               {v.takedown ? (
                 <span
-                  className="flex items-center gap-0.5 rounded bg-rose-600/90 px-1 py-0.5 text-[9px] font-semibold text-white"
+                  className="flex items-center gap-0.5 rounded bg-danger-600/90 px-1 py-0.5 text-[9px] font-semibold text-white"
                   title={v.takedown.reason ? t`下架原因：${takedownReasonText(v.takedown.reason)}` : undefined}
                 >
                   <Trans>已下架</Trans>
@@ -1482,12 +1484,10 @@ function FollowingSheet({
   return (
     <Sheet onClose={onClose}>
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-base font-bold text-slate-100"><Trans>关注 {names.length}</Trans></h3>
-        <button onClick={onClose} className="text-slate-400" aria-label={t`关闭`}>
-          <Icon name="close" size={20} />
-        </button>
+        <h3 className="text-sm font-bold text-slate-100"><Trans>关注 {names.length}</Trans></h3>
+        <CloseButton chip="sm" size={13} align="end" onClick={onClose} />
       </div>
-      {names.length === 0 && <p className="py-10 text-center text-sm text-slate-500"><Trans>还没有关注任何创作者</Trans></p>}
+      {names.length === 0 && <EmptyState compact mascot="nap" text={t`还没有关注任何创作者`} cta={{ label: t`去首页逛逛`, to: "/" }} />}
       <div className="space-y-1">
         {names.map((a) => (
           <div key={a} className="flex items-center gap-3 rounded-xl p-2">
@@ -1498,7 +1498,7 @@ function FollowingSheet({
               onClick={onClose}
               className="flex min-w-0 flex-1 items-center gap-3"
             >
-              <Avatar name={a} size={40} />
+              <Avatar name={a} size={36} />
               <span className="min-w-0">
                 <span className="block truncate text-sm font-medium text-slate-100">{a}</span>
                 <span className="block text-[11px] text-slate-500">
@@ -1719,6 +1719,9 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
   }
 
   const wallet = walletOf();
+  /** ★ 推荐档只有一档（2026-10-23）：比当前套餐贵一级的那一档（当前是免费 → 最便宜的付费档）；只给它一颗主键，其余价签退成次级键 */
+  const currentPlanPrice = PLANS.find((p) => p.id === wallet?.planId)?.price ?? 0;
+  const recommendedPlanId = PLANS.filter((p) => p.price > currentPlanPrice).sort((a, b) => a.price - b.price)[0]?.id;
   // 远端模式下镜像可能还在路上。★ 不能 return null —— 那会表现成"点了钱包没反应"，
   // 而用户完全没法区分"在加载"和"坏了"
   if (!wallet)
@@ -1730,10 +1733,8 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
   return (
     <Sheet onClose={onClose}>
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-base font-bold text-slate-100"><Trans>⚡ Token 钱包</Trans></h3>
-        <button onClick={onClose} className="text-slate-400" aria-label={t`关闭`}>
-          <Icon name="close" size={20} />
-        </button>
+        <h3 className="text-sm font-bold text-slate-100"><Trans>⚡ Token 钱包</Trans></h3>
+        <CloseButton chip="sm" size={13} align="end" onClick={onClose} />
       </div>
 
       {/* ★ 管理员在「我的」页看到的是 ∞，这里却是镜像里的真实数字 —— 不把两边的关系
@@ -1749,7 +1750,7 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
           不在这里说清楚「欠多少、怎么解冻」，用户会反复去点生成、反复吃同一个错误，
           而错误码本身完全解释不了发生了什么。 */}
       {(wallet.debt ?? 0) > 0 && (
-        <div className="mb-3 rounded-xl border border-rose-500/50 bg-rose-500/10 px-3 py-2.5 text-[11px] leading-relaxed text-rose-200">
+        <div className="mb-3 rounded-xl border border-danger-500/40 bg-danger-500/10 px-3 py-2.5 text-[11px] leading-relaxed text-danger-200">
           <Trans>
             因一笔退款，已收回相应 token，尚欠 {fmtTokens(wallet.debt ?? 0)}。下次充值会自动抵扣，抵完即可继续生成；在那之前生成功能暂时不可用。
           </Trans>
@@ -1763,7 +1764,7 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
         </div>
         <div className="rounded-xl border border-slate-700/70 bg-panel p-3">
           <div className="text-lg font-bold tabular-nums text-gold">{fmtTokens(wallet.addon)}</div>
-          <div className="text-[11px] text-slate-500"><Trans>add-on token · 直充 / 新人额度 / 创作收益，不过期</Trans></div>
+          <div className="text-[11px] text-slate-500"><Trans>加购 token · 直充 / 新人额度 / 创作收益，不过期</Trans></div>
         </div>
       </div>
 
@@ -1774,12 +1775,18 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
         const q = freeQuota();
         const daily = fmtTokens(q.dailyTokens);
         const cap = fmtTokens(q.dailyCapTokens);
-        const names = tierNamesFor(tierFreeOk).usable;
+        // 摆得出来的档里一档免费档都没有（门禁开着的海外只剩「真人」这一档会员档，2026-10-26 终审）：不印「能用「」档出片」
+        const names = tierNamesFor(tierFreeOk)?.usable ?? "";
         return (
           <div className="mb-4 rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-[11px] leading-relaxed text-sky-100">
-            <Trans>
-              免费版：每天自动补 {daily} 套餐 token（最多攒到 {cap}），能用「{names}」档出片。开通会员套餐或充值任意一笔，全部档位都能用。
-            </Trans>
+            {names ? (
+              <Trans>
+                免费版：每天自动补 {daily} 套餐 token（最多攒到 {cap}），能用「{names}」档出片。开通会员套餐或充值任意一笔，全部档位都能用。
+              </Trans>
+            ) : (
+              // ★ 这一支 = 摆得出来的档里没有免费档（门禁开着的海外只剩「真人」）：付钱能开的只有那几档，别说成「全部档位」（2026-10-29 发版前复核）
+              <Trans>免费版：每天自动补 {daily} 套餐 token（最多攒到 {cap}）。现在能用的出片档位都要开通会员套餐或充值任意一笔之后才能用。</Trans>
+            )}
           </div>
         );
       })()}
@@ -1792,10 +1799,10 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
         <div
           className={`mb-3 rounded-xl border px-3 py-2.5 text-[11px] leading-relaxed ${
             order.tone === "warn"
-              ? "border-amber-500/40 bg-amber-500/10 text-amber-200"
+              ? "border-warn-500/40 bg-warn-500/10 text-warn-200"
               : order.tone === "bad"
-                ? "border-rose-500/40 bg-rose-500/10 text-rose-200"
-                : "border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
+                ? "border-danger-500/40 bg-danger-500/10 text-danger-200"
+                : "border-ok-500/40 bg-ok-500/10 text-ok-200"
           }`}
         >
           {order.text}
@@ -1805,18 +1812,23 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
 
       <div className="mb-1.5 text-sm font-semibold text-slate-300"><Trans>订阅套餐</Trans></div>
       <div className="mb-4 space-y-2">
+        {/* 推荐哪一档只算一次（见下面 recommended 的 ★） */}
         {/* ★★ play 渠道只显示免费档：付费套餐在 Play Console 里还没有对应商品，
             而在 Play 的包里用微信/支付宝卖数字商品是**违反 Play 政策**的。
             免费档的「领取」不是付款，留着。 */}
         {PLANS.filter((p) => !playItems || p.price === 0).map((p) => {
           const current = wallet.planId === p.id;
-          const freeTierNames = p.price === 0 ? tierNamesFor(tierFreeOk).usable : "";
+          const freeTierNames = p.price === 0 ? (tierNamesFor(tierFreeOk)?.usable ?? "") : "";
+          // ★ 一张抽屉只有一颗主键（《Refactoring UI》§2.8，2026-10-23）：「推荐」= 比现在这一档贵一级的那档（没有就是最便宜的付费档）；
+          //   其余价签退成次级键。原来三行各一颗 bg-brand，看不出该点哪个
+          const recommended = p.id === recommendedPlanId;
           return (
             <div key={p.id} className="flex items-center gap-3 rounded-xl border border-slate-700/70 bg-panel p-3">
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-semibold text-slate-100">
                   {p.name}
                   {current && <span className="ml-1.5 rounded bg-brand/20 px-1.5 py-0.5 text-[9px] text-brand"><Trans>当前</Trans></span>}
+                  {recommended && <span className="ml-1.5 rounded bg-gold/20 px-1.5 py-0.5 text-[9px] text-gold"><Trans>推荐</Trans></span>}
                 </div>
                 <div className="text-[11px] text-slate-500">
                   {/* 免费版不按月发（monthlyTokens 0）：它的额度规则整句写在 desc 里，别印出一个「0 token/月」。
@@ -1833,7 +1845,9 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
               <button
                 onClick={() => void submit(() => buyPlan(p.id))}
                 disabled={busy || (p.price === 0 && current)}
-                className="rounded-full bg-brand px-3 py-1.5 text-xs font-bold text-ink disabled:bg-slate-700 disabled:text-slate-400"
+                className={`rounded-full px-3 py-1.5 text-xs font-bold disabled:bg-slate-700 disabled:text-slate-400 ${
+                  recommended ? "bg-brand text-ink" : "bg-panel text-slate-100 ring-1 ring-slate-700"
+                }`}
               >
                 {p.price === 0 ? (current ? t`已领取` : t`领取`) : t`¥${p.price}/月`}
               </button>
@@ -1852,9 +1866,11 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
                 key={it.sku}
                 onClick={() => void buyPlay(it.sku)}
                 disabled={busy}
-                className="rounded-xl border border-slate-700/60 bg-panel p-3 text-center disabled:opacity-40"
+                className="rounded-xl border border-slate-700/70 bg-panel p-3 text-center disabled:opacity-40"
               >
-                <div className="text-sm font-bold tabular-nums text-slate-100">{fmtTokens(it.tokens)}</div>
+                <div className="text-sm font-bold tabular-nums text-slate-100">
+                  {fmtTokens(it.tokens)} <span className="text-[10px] font-normal text-slate-500">token</span>
+                </div>
                 <div className="mt-0.5 text-[11px] text-gold">{it.price}</div>
               </button>
             ))
@@ -1863,9 +1879,11 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
                 key={pk.tokens}
                 onClick={() => void submit(() => rechargeAddon(pk.tokens))}
                 disabled={busy}
-                className="rounded-xl border border-slate-700/60 bg-panel p-3 text-center disabled:opacity-40"
+                className="rounded-xl border border-slate-700/70 bg-panel p-3 text-center disabled:opacity-40"
               >
-                <div className="text-sm font-bold tabular-nums text-slate-100">{fmtTokens(pk.tokens)}</div>
+                <div className="text-sm font-bold tabular-nums text-slate-100">
+                  {fmtTokens(pk.tokens)} <span className="text-[10px] font-normal text-slate-500">token</span>
+                </div>
                 <div className="mt-0.5 text-[11px] text-gold">¥{pk.price}</div>
               </button>
             ))}

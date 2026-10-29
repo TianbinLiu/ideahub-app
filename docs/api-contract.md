@@ -599,11 +599,18 @@ App「我的 → AI 客服」（`/support`）的服务端。数字人是官网�
 
 ⚠ **接了守卫的链路不再发 `token` 事件**（未经检查的原始增量，发出去等于绕过守卫；两端 UI 都没用它）。
 下面 `/api/support/chat` 那一行里的 `token {t}` 从这一版起**不会再出现**。
-⚠ App 的**人格向导试聊**与**客服**都在协议内，而 App 现在不发 `caps`，命中时收到的是
-**退化形式**：一条普通 `sentence`（文案 = 求助卡的纯文本，带正常 tts 参数），后面直接 `done`。
-界面不会坏，但客服那条会被 TTS 念出来 —— App 接 `caps: ["safety"]` 那一版要把它改成卡片、并且不念。
+⚠ App 的**人格向导试聊**与**客服**都在协议内。**客服从 2.70 之后的版本（2.71 起）发 `caps: ["safety","notice"]`**（2.70 及更早不发，收到的是退化成 sentence 的那一种）
+（`api/support.SUPPORT_CAPS`）：收到 `safety` 就 `stopAll()`、不调 `/api/tts`、不进字幕、不算数字人说的话，
+在字幕框上方画一张求助卡（`components/support/SafetyCard`，文字一律用服务端给的；`policyUrl` 是相对路径，
+App 拼成官网地址再打开 —— `utils/shareLink.aiChatSafetyUrl`）；卡的纯文本（与服务端 `crisisPlainText` 同形）
+仍作为一条 `assistant` 消息留在下一轮的 `messages[]` 里，免得历史里出现连着两条 `user`。
+`notice` 在字幕框上方与「记录」里各显示一行小字，不念、不扣钱（客服路由今天不发它，声明了只是收不到）。
+更早的 App 不发 `caps`，命中时收到的是**退化形式**：一条普通 `sentence`（文案 = 求助卡的纯文本，带正常 tts 参数），
+后面直接 `done` —— 界面不会坏，但会被 TTS 念出来、按字扣费。
+**人格向导试聊仍不发 `caps`**（`api/companion.streamPersonaPreviewChat` 是另一份事件分发）：命中时收到退化的 `sentence`，
+只显示文字、不合成语音。
 ⚠ **`notice`（AI 身份告知）没有退化形式**：不带 caps 就**收不到**，而服务端会照常记成「已告知」。
-App 接 caps 之前，那条告知在 App 侧等于不存在 —— 这是已知缺口，不是降级显示。
+客服声明了 caps 之后这一条在 App 侧有了落点；人格试聊那条（服务端不看 caps、每轮都发）App 不认识这个事件名，照旧不显示 —— 已知缺口。
 加州 SB 243 管的是「companion chatbot」，纯客服有豁免余地 —— 但我们的客服顶着同一位看板娘、同一套人格，
 这个豁免站不站得住还没拍板（见私密文档《AI 对话合规调研》），所以 App 这边要按「迟早要接」来准备：
 
@@ -624,7 +631,7 @@ App 接 caps 之前，那条告知在 App 侧等于不存在 —— 这是已知
 | 方法 | 路径 | 鉴权 | 说明 |
 |---|---|---|---|
 | GET | `/api/support/config` | optional | `{ ok, name, enabled, tts, asr, voice, loginRequired: true, quickQuestions[], categories[] }`。`asr=false`（或老服务端没这个字段）时不画麦克风。`enabled=false`（服务端没配 AI）时输入框禁用，只剩「转人工」。**2026-09-04 起登录时另带** `voiceSettings: VoiceSettings`（三层合并结果，见下）、`persona: PersonaSummary\|null`、`personaSource: "user"\|"model"\|""`、`model: Live2dModel\|null`（null = 官方内置）；老字段 `voice` = `voiceSettings.voiceId`。老服务端没有这四项 → App 按旧写法只传 `voice` |
-| POST | `/api/support/chat` | required | SSE。body `{ messages: [{role: user\|assistant, content ≤1000}] ≤20, lang? }`（`lang`：App 2.63 之后的版本按当前生效的界面语言发 `"zh"` / `"en"`（`i18n/switch.activeLang`），2.63 及更早写死 `"zh"` —— 服务端别只认它判「这一问是不是英文」）。事件：`sentence {index, text, emotion, face, action, tts:{emotion, instruct}}`、`token {t}`、**`handoff {category, reason}`**（模型判定该转人工，一次对话最多一条）、`done {text, handoff, category}`、`error {message}`。限流 **20/分钟按账号**。★ Content-Type 不是 `text/event-stream` 就当服务端没有这个功能（SPA 回退给的是 200 + HTML） |
+| POST | `/api/support/chat` | required | SSE。body `{ messages: [{role: user\|assistant, content ≤1000}] ≤20, lang?, caps?: ("safety"\|"notice")[] }`（`lang`：App 2.63 之后的版本按当前生效的界面语言发 `"zh"` / `"en"`（`i18n/switch.activeLang`），2.63 及更早写死 `"zh"` —— 服务端别只认它判「这一问是不是英文」）。事件：`sentence {index, text, emotion, face, action, tts:{emotion, instruct}}`、`token {t}`、**`handoff {category, reason}`**（模型判定该转人工，一次对话最多一条）、`done {text, handoff, category, safety?}`、`error {message}`；声明了 `caps` 才会有的 `safety {kind: "crisis", …}`（求助卡）与 `notice {kind: "ai_disclosure", text}`（形状与 App 怎么接见上面 ★ 自伤危机协议；App 2.70 之后的版本（2.71 起）发 `caps: ["safety","notice"]`，2.70 及更早不发）。限流 **20/分钟按账号**。★ Content-Type 不是 `text/event-stream` 就当服务端没有这个功能（SPA 回退给的是 200 + HTML） |
 | POST | `/api/support/tickets` | required | 转人工建单。body `{ transcript: [{role, content ≤2000}] ≤30, note? ≤500, contactEmail?, category? }`；`transcript` 与 `note` 至少一个。**201** `{ ok, ticket, reused: false }`；同一用户 10 分钟内已有未结工单 → **200** `{ ok, ticket, reused: true }`（不重复建）。服务端用 AI 归纳 `subject/summary/category`（失败退回用户原话），然后给所有管理员发 `SUPPORT_TICKET` 通知 + 邮件（`SUPPORT_NOTIFY_EMAIL` 或有真实邮箱的管理员）。限流 5/分钟 |
 | GET | `/api/support/tickets/mine` | required | `{ ok, items: Ticket[] }` 最近 20 张（不含 `contactEmail`） |
 | POST | `/api/support/tickets/:id/messages` | required | 在自己的工单里追加 `{ content ≤2000 }`；已结的单会重新 `open`；再通知管理员（10 分钟去重）。别人的工单 404 |
@@ -911,8 +918,10 @@ B 站式弹幕：一句话 + 它该在**视频第几秒**飘过去。与评论�
 
 ## 举报
 
-能举报**三种对象**：作品（`video`）、评论（`comment`）、弹幕（`danmaku`）。
-三者共用一张 `Report` 表与同一条处理流程（待处理 → 下架 / 删除 / 驳回）——
+能举报**四种对象**：作品（`video`）、评论（`comment`）、弹幕（`danmaku`）、人格（`persona`，服务端 2026-09-28 加、
+App 的入口 2.70 之后的版本（2.71 起）才有：人格市场每张别人的卡上，2.70 及更早没有）。AI 客服的回答、Live2D 形象、声音模板**还不在里面** ——
+要先在 server `Report.TARGET_TYPES` 加类型（服务端先上），App 再接 `ReportButton`。
+它们共用一张 `Report` 表与同一条处理流程（待处理 → 下架 / 删除 / 驳回）——
 管理端要的是"一个按时间排的待处理队列"，拆三张表那个队列就得三查一合再排序。
 
 ### 端点
@@ -1054,6 +1063,9 @@ pending ─────────┼─ action=delete   ─▶ deleted      �
   收了的话客户端就能把一条举报标成"已下架"而没有任何内容被下架。
 - `takedown` 与 `delete` 是**两件事**，状态必须分得开：事后追责时"下架了"和"删没了"
   完全不同。两者调**同一个**服务，差别只有一个 `hard` 标志（见下）。
+- **不是每一类都三样处置都有**（server `services/takedown.service.js` 的 `HANDLERS`，缺的那一格整句 400）：作品三样都有；
+  评论 / 弹幕没有下架（那两张表没有隐藏字段）；人格没有删除（只下架 = `shared:false` + `takenDown:true`，要删由作者自己删）。
+  App 后台按钮的镜像只有 `src/api/admin.ts` 的 `reportActionsFor` 一份。
 
 ★★ **`status` 是跨仓字符串，新增取值必须两仓同步**（铁律九：server 的
 `models/Report.js` 的 `ACTION_STATUS` + app 的渲染分支 + 本节）。
@@ -1113,6 +1125,7 @@ pending ─────────┼─ action=delete   ─▶ deleted      �
 | `video` | `{ exists, videoId, title, cover, visibility, takedown, author, createdAt }` |
 | `comment` | `{ exists, videoId, text, author, createdAt }` |
 | `danmaku` | `{ exists, videoId, text, at, author, createdAt }` |
+| `persona` | `{ exists, personaId, name, kind, shared, takenDown, takenDownReason, author, createdAt }` —— 名字在 `name`（不是 `title`），下架状态是人格表自己的布尔 `takenDown` |
 
 - 查不到一律给 `{ exists: false }`。★ 用**必给的布尔** `exists`，不用"缺省即正常"的
   `missing?`：后者一旦服务端漏给这一项，客户端读到 `undefined` → falsy → 显示成
@@ -1473,6 +1486,13 @@ body：`{ publicId }`。响应与老路**逐字相同**（有测试比对字段�
   //  · **不计费**：这一发约 400 token，我们自己吃掉。理由是要守住白模化那条更要紧的承诺 ——
   //    「钱全在阶段一花掉，取回结果（finish）一分不加」（finish 是一条可以重来的路，
   //    一旦它会花钱，"重试取件"就成了用户不敢做的事）。⇒ 报价里没有它、账单上也没有它。
+  markExprs?: ["先平静，后惊讶张嘴，再大笑", ""], // ★ 与 markSlots **按下标对齐**的神态（2026-10-26 方案 D，server #133 起）。
+  //  · 白模化阶段一那次看帧对话顺带记下（认人表多一列「神态」，零额外费用）；只有序数模板、长度等于 markSlots、且至少一个非空时才发。
+  //  · 单个元素可以是空串（看不清）；作者在核对面板改角色位（PATCH /roles）时服务端按 desc 认人把神态搬过去，认不准就清空那一格；
+  //    重新认人（detect-roles）一律清掉。客户端从不上报（三条 body 的 zod strip 它）。
+  //  · App 套用时在 ≤ 3 个角色位的模板上按卡名写一句「神态：A先…；B先…。」（排在作者那句话之后、「不要出现字幕」之前；
+  //    放不下就整句不写，绝不挤掉括号描述）。老服务端不发 = 老模板 = 套用提示词与今天逐字节相同。
+  //    付费读数见 docs/blockout-expression-2026-10-26.md。
   status: "pending" | "published" | "blocked",
   provenAt: Date | null,          // 试炼闸：作者本人用它真实出过一次片才非空
   provenModels: string[],         // 作者在哪些出片模型上真实跑通过（模型 id，2026-10-02 加）。没证明过 = []；
@@ -2179,7 +2199,7 @@ body 发 `{ text, voice, rate?, purpose: "cut-narration" }`（`voice` 取自 `/a
 
 | 方法 | 路径 | 鉴权 | 限流 | 说明 |
 |---|---|---|---|---|
-| GET | `/api/ark/health` | 无 | — | `{ ok, ark, imageGroups, res480, draftMode, failRefund, freeVideo: [{label, model, resolution}], freeVideoGate, minimaxFailRefund, clientEvents }`：配没配 key + 能力位（老服务端没有的位 = 没有这个能力，App 据此藏起对应的东西 —— `app/src/data/serverCaps` 一处探测、一处解析 `capsOf`；判能力只看能力位，不看状态码）。`failRefund` 只说**方舟**任务；最后两位是运维开关的现状（没有 = 当成开着）：`freeVideoGate: false` = 服务端退回改版前只挡电影级的口径（App 的 `account.tierFreeOk` 跟着放开，`freeVideo` 那张清单不看开关、只在开着时作数）；`minimaxFailRefund: false` = 真人档受理之后的失败不退（App 的取回卡据此不许诺「会自动退回」，`serverCaps.failRefundMinimax`）；`clientEvents: true` = 收客户端失败上报 `POST /api/client-events`（2026-10-15，见下「客户端失败上报」，`serverCaps.clientEvents`） |
+| GET | `/api/ark/health` | 无 | — | `{ ok, ark, imageGroups, res480, draftMode, failRefund, freeVideo: [{label, model, resolution}], freeVideoGate, minimaxFailRefund, clientEvents, videoZone }`：配没配 key + 能力位（老服务端没有的位 = 没有这个能力，App 据此藏起对应的东西 —— `app/src/data/serverCaps` 一处探测、一处解析 `capsOf`；判能力只看能力位，不看状态码）。`failRefund` 只说**方舟**任务；最后两位是运维开关的现状（没有 = 当成开着）：`freeVideoGate: false` = 服务端退回改版前只挡电影级的口径（App 的 `account.tierFreeOk` 跟着放开，`freeVideo` 那张清单不看开关、只在开着时作数）；`minimaxFailRefund: false` = 真人档受理之后的失败不退（App 的取回卡据此不许诺「会自动退回」，`serverCaps.failRefundMinimax`）；`clientEvents: true` = 收客户端失败上报 `POST /api/client-events`（2026-10-15，见下「客户端失败上报」，`serverCaps.clientEvents`）；`videoZone: true`（2026-10-26）= 有 `GET /api/video/zone`，只说有没有这条路、不带地区本身（见下「出片地区」，`serverCaps.videoZone`） |
 | GET | `/api/ark/task-charges/:taskId` | required | 同轮询 | **本人的**这一发生成退没退钱（2026-10-07，不计费）：`{ state, tokens }`，见下「受理之后失败的退款」。不是本人的 / 没有这笔账 → 非 2xx（App 一律当「问不到」，照旧说原来那句，`arkClient.fetchTaskCharge`） |
 | POST | `/api/ark/images/generations` | required | 30/min | Seedream 出图（卡面 / 首尾帧） |
 | POST | `/api/ark/contents/generations/tasks` | required | 30/min | Seedance 出视频 / Seed3D 建模（同一个异步任务端点） |
@@ -2716,6 +2736,67 @@ App `src/data/economy.ts` 是**报价**口径。不一致的后果是"报价 216
 - **单张出图那条路从此只出一张**（`POST /api/ark/images/generations`）：`sequential_image_generation` 不是 `disabled`、`layer_decomposition`
   不是 false、`stream` 不是 false、`n` 不是 1、`tools` 非空 —— 一律 400 `IMAGE_PARAMS_NOT_ALLOWED`，不扣钱。此前请求体原样转发、按一张收，
   带上组图开关就能用一张的钱换十五张，零症状。App 从来只发 model / prompt / image / size / response_format / watermark，不受影响。
+
+## 出片地区（`GET /api/video/zone` + 出片地区门禁，2026-10-26）
+
+服务端那一半（地区怎么判、门禁三档、被拦的回包、切 `on` 之前要做的事、等主人拍板的几件）以 **server 仓同名一节**为准（server#131 起）；
+这里记 App 侧怎么读、怎么说。主人原话：美国境内不能用 Seedance、只能用 MiniMax 国际版；中国境内 IP 可以选；海外由于政策原因只能用 MiniMax。
+⚠ 「政策原因」的出处还没落进文档：在那之前这是**按主人要求的产品限制**，界面、客服知识库、商店材料里都别写成「法规要求」。
+
+**端点**：`GET /api/video/zone`，免登录（带了 token 只用来按账号分限流桶），每种回包都带 `Cache-Control: no-store`，限流约 60 次/分钟。
+
+```
+{ ok: true, v: 1,
+  zone: "cn" | "intl" | "blocked",
+  country: "US",                      // 判不出 / Tor 是 ""
+  providers: ["ark", "minimax"],      // 或 ["minimax"]、[]
+  gate: "off" | "observe" | "on" }
+```
+
+- `providers` = 此刻对这个请求**放行**哪几家（`ark` = 方舟 Seedance，`minimax` = MiniMax），**跟着门禁走**：`on` = 这个地区准用的 ∩ 服务器接着的；
+  `off` / `observe`（缺省）= 服务器接着的全部几家、不看地区。
+- **能力位**：`GET /api/ark/health` 的 `videoZone: true`。App 先看到这一位再来问（真机上不存在的路径回 200 + index.html）；health 里不放地区本身。
+
+**被拦的回包**（`/api/ark` 出视频、`/api/minimax/video` 真人档、白模化三处逐字相同）：
+`403 { ok: false, code: "REGION_UNAVAILABLE", reason: "region", zone, providers, message, billed: false }`。
+`message` 是英文在前、中文在后的一整行（给认不得这个码的老 App 兜底）。白模化在看帧之后才被拦的那个窄窗口是 `billed: true` + `visionFrames`。
+⚠ 「没有扣费」只说**这一发视频**：出片之前补画的设定帧、推演的方案不归门禁管，各自已经结算过。
+
+### App 侧（2026-10-26 出片地区 P1）
+
+- **唯一判定在 `app/src/data/videoZone`**：三种状态 —— 不知道（`null`）/ 问到了（`zone` + `country` + `providers`）。
+  **App 只照 `providers` 摆档**，不自己按国家另判一遍、也不拿 `gate` 决定藏不藏：observe 期间 providers 照样带着 `ark`，新 App 照样摆 Seedance；
+  运维切 `off` 急停，下一次问到就全摆回来。判「这一家给不给」只有 `videoZone.zoneDenies` 一处（规则在零依赖的 `data/videoZoneRules`，构建里 `check-video-zone.mjs` 实跑：
+  只认 `v: 1`、认不出的供应商名丢掉、国家码只认两位大写、地区不知道时一家都不拦）。
+  `gate` **只挑措辞**（`videoZone.zoneIsRegional`）：`off` / `observe` 时 providers 是「这台服务器接上了哪几家」（没配 key 的那家永远不报），
+  缺的那一家说「这台服务器出片只接了 …」，不说成「你所在的地区只提供 …」；只有 `on` 时才说地区。403 回包能拦人 = 门禁开着，按 `on` 记。
+- **地区不知道 = 照今天的样子摆**（全部档位、不拦、句子里不写供应商名）：老服务端（health 没有 `videoZone`）、dev 直连 / 离线演示包、这一场会话还没问到过。
+  「问不到」绝不当「境内」，也不当「海外」—— 冷启动问慢半拍就把节点上的档位持久改写掉，比多摆一会儿更坏；服务端照样拦，视频那一发不扣钱。
+  问到之后再问不到，沿用这一场会话上一次问到的结论；**不跨会话落盘**（开关 VPN / 换网络都会改地区，旧缓存在冷启动那一刻拿来藏档是同一个事故形状）。
+- **什么时候问**：开机（`account.readyAccount` 顺手发起）、回到前台（visibilitychange）、恢复联网（online）、App 开着且页面可见时每 10 分钟、
+  收到一次 `REGION_UNAVAILABLE` 之后（回包里的 zone / providers 当场记下，再问一次补国家）、**花第一笔钱之前**（`flowStore.genNode` / `deriveProposals`、
+  工坊 `studioStore.generateNode`、剪辑页按圈选重做：现问一次再按问到的那份重判这一档 —— 门禁只拦视频，会话中途开关过 VPN 的人不现问就会先付图钱 / 推演费，再被 403；
+  改帧、重画、合成预览、导演台融图与三个跟着做向导里的每一笔图钱 / 对话钱同样先问，走 `account.tierRegionGate`；向导落段不拿档位门禁拒付过钱的画面，出片那一拍再拦）。
+  同步看状态的宿主（工坊 `genNodeVideo` 受理即收窗、画布 agent 700 毫秒后报回执）**调之前自己先问**，genNode 的同步门禁就在打上 generating 之前拒。
+  **反方向**也问：同步门禁拿地区拒之前先现问一次（`account.tierRegionRecheck`），结论变了从头再判 —— 不然人在前台关了 VPN（不发 visibilitychange），
+  最多 10 分钟里每一次点都被拒。两次顺手重问之间至少隔 10 秒（花钱之前那一次 5 秒）；花钱之前那一次**连同能力位还没探到时要先补的那一发健康探测**整体最多等 6 秒（`refreshVideoZone` 自己掐；问不到就放行，服务端照样拦，没等完的那一发照常在后台记下结论）。
+- **摆档**：这个地区不给的档进 `account.tierOffIssue`（地区那一支 `tierRegionIssue`，排在「已停用」之后、「服务端不支持」之前）——
+  于是 `offeredTiers` 不摆它，`tierBlockReason` 说它，`usableTierId` 换掉它（抄来的档；找不到做得了同样事的近邻时**留着原档**、说一句，不落到「真人」档）。
+  档位那一排（TierRow / 选法屏 ModePicker / 工坊铸段窗）下面印一句 `account.regionTiersLine`（「你所在的地区（美国）出片只提供 MiniMax」）。
+  句子里只写这个地区**给得出的**供应商名，不写被拦的那一家。「换成哪一档」只指做得了这件事的档（`tierBlockReason(tier, need)`：白模模板、样片定稿、重拍、延长各传各的能力；
+  缺省不往只认一张起拍画面的「真人」档上指）。地区原因旁边不摆「去升级」（`account.tierPlanBlocked`：付钱治不了地区）。
+- **默认档**：默认档链（std→hd / fast→draft）全是方舟的。地区不给方舟时链上落不下，`account.defaultTierId` 退到这个地区摆得出来的第一档（P1 只有「真人」）。
+- **被拦时说什么**：`arkClient.billingDenialError` 认 `code`，抛 `ArkRegionDenied`（ArkHttpError 的子类，带 `billed`），话由 `account.regionDeniedLine` 说
+  （不点档名、只说这个地区能用哪几档；回包里读不出地区时不列供应商、不列档名；message 里不说钱）。钱只认 `ai/failCharge`：照回包的 `billed`，没扣的那一句「这一发没有受理，也没有扣费」也在那里（终审从 message 里挪出去：调用方截原因时英文长国名会把它截掉）；展示原因时这句不截（长度有界）。
+  白模化（`api/branch.blockoutPost`）按 `billed` 两句各说各的；提取窗在地区不给白模那一档时收起两条白模路的选项、只留原因。
+- **P2b（App 这一半，2026-10-26）**：档位表加 MiniMax H3 三行（`draft-mm` / `hd-mm` / `ultra-mm`，family 与同档 Seedance 那一行相同、api `minimax-v2`、按秒报价 = 服务端
+  `MINIMAX_SEC_COST`），走服务端 `/api/minimax/v2`（server #132）；摆不摆 = 健康端点的 `minimaxV2` **且** 地区问到了、providers 里有 minimax。
+  免费版只能在 H3-Lite 上纯文字出片（服务端 `MINIMAX_V2_FREE_TEXT_ONLY`）。同一颗芯片两家都给得出时（境内）只摆这个人选的那一家：选择器只有
+  `components/flow/ProviderSwitch` 一份（TierRow / 选法屏 / 工坊铸段窗），偏好在 `data/videoProvider`（按账号、本机，默认 Seedance），
+  摆不摆只问 `account.tierListed`、换家只问 `account.tierOfPreferred`、新段默认 `account.defaultTierId` 跟着偏好走；境内第一次选 MiniMax 先确认一次（数据出境）。
+  还没做：对画布说话认「换成 MiniMax」（agentGrammar）。
+  （「卡片与模板写具体模型名」已在 P1 这一批做了：卡片页「按模型适配」、卡组摘要、模板货架与详情、选模板抽屉、创作界面都按地区写模型名，地区不知道时只写档位名 —— `account.offeredVideoModels` 那一组。）
+  在那之前门禁一直是 `observe`（主人定：带 P2b 的 App 发版那天再切 `on`），App 这一侧的藏档逻辑在线上不会生效。
 
 ## 真人肖像授权（方舟可信素材）
 

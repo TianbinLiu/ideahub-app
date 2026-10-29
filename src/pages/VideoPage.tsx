@@ -1,26 +1,44 @@
-// 视频详情页：播放器（多 P 可切换）+ 信息 + 分段剧情 + 评论区
-import { useEffect, useMemo, useRef, useState } from "react";
+// 视频详情页（2026-10-26 视频详情页 P0 重排，对标 B 站 / 抖音的作品页；设计与量数在 docs/video-detail-redesign-2026-10.md）：
+// 顶栏（分享 · ⋯）→ 满宽播放器（倍速 / 弹幕 / 全屏）→ 弹幕条 → 横幅 → 标题统计徽标 → 作者条（关注 / 编辑）→ 动作条（赞 · 评 · 藏 · 分享 · 举报）
+// → 选集 / 互动结构 → 评论预览卡 → 做你自己的版本（components/video/RemakeCard）→ 相关区（RelatedWorks）；吸底栏（VideoDock）是全页唯一的实心主键「做同款」。
+// ★ 评论只有 CommentSheet 一份（原来页内还平铺了一份评论区和输入框，与抽屉各写一套）；做同款只有 hooks/useRemake 一份；全屏只有 hooks/useImmersive 一份。
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { Link, useLocation, useNavigate, useParams } from "react-router";
+import { Trans, useLingui } from "@lingui/react/macro";
+import Warn from "../components/Warn";
 import Spinner from "../components/Spinner";
 import PageHeader from "../components/PageHeader";
 import { takedownReasonText } from "../api/admin";
+import { getUser } from "../api/users";
 import AigcBadge, { isAigcWork } from "../components/AigcBadge";
 import SeedBadge from "../components/SeedBadge";
 import Icon from "../components/Icon";
-import { Link, useLocation, useNavigate, useParams } from "react-router";
-import { useBackOr } from "../hooks/useBackOr";
-import { Trans, useLingui } from "@lingui/react/macro";
+import { CloseButton, IconTapButton } from "../components/IconTapButton";
 import BranchPlayer from "../components/BranchPlayer";
 import SegmentPlayer from "../components/SegmentPlayer";
+import { PORTRAIT_MAX_VH, type PlayerOverlay } from "../components/playerFrame";
 import Avatar from "../components/Avatar";
-import { addCards, hasPurchased, myCards, purchasePart, walletOf } from "../data/account";
-import { useAccountVersion } from "../hooks/useAccount";
-import { fmtTokens } from "../data/economy";
+import MentionText from "../components/MentionText";
+import ShareSheet from "../components/ShareSheet";
+import DownloadSheet from "../components/DownloadSheet";
+import ReportButton, { canReport } from "../components/ReportButton";
+import FeedActionSheet, { type FeedSpeed } from "../components/FeedActionSheet";
+import CommentSheet from "../components/CommentSheet";
+import DanmakuLayer from "../components/DanmakuLayer";
+import DanmakuInput from "../components/DanmakuInput";
+import DanmakuGlyph from "../components/DanmakuGlyph";
+import RemakeCard from "../components/video/RemakeCard";
+import RelatedWorks from "../components/video/RelatedWorks";
+import VideoDock from "../components/video/VideoDock";
+import { hasPurchased, isCollected, isFollowing, purchasePart, setCollect, setFollow, walletOf } from "../data/account";
+import { fmtTokens, priceTag } from "../data/economy";
 import {
-  addComment,
   addPlay,
   authorAvatarOf,
   authorDisplayName,
   commentAvatarOf,
+  commentCountOf,
+  commentsStatus,
   fetchVideoById,
   getVideo,
   isLiked,
@@ -28,135 +46,39 @@ import {
   isSeedWork,
   partsOf,
   profileHref,
+  remoteOn,
+  retryComments,
   setLike,
   type VideoLookup,
 } from "../data/videos";
+import {
+  danmakuFetched,
+  danmakuNeedsLogin,
+  danmakuOf,
+  danmakuOn,
+  danmakuSessionPending,
+  danmakuVersion,
+  isTruncated,
+  setDanmakuOn,
+  subscribeDanmaku,
+} from "../data/danmaku";
 import { markNotificationRead } from "../data/notifications";
-import type { MentionPick } from "../utils/mention";
-import CommentDelete from "../components/CommentDelete";
-import ShareSheet from "../components/ShareSheet";
-import DownloadSheet from "../components/DownloadSheet";
-import { downloadSupport, planDownload } from "../data/videoDownload";
-import ReportButton from "../components/ReportButton";
-import MentionInput from "../components/MentionInput";
-import MentionText from "../components/MentionText";
-import { useAuthState, useCurrentUser } from "../hooks/useAccount";
-import type { AuthState } from "../data/account";
-import { useVideosVersion } from "../hooks/useVideos";
-import { useStudio } from "../studio/studioStore";
-import { remakeNodesOf, remakeableOf, useFlow } from "../studio/flowStore";
 import { showToast } from "../data/toast";
-import { useApplyTemplate } from "../components/flow/useApplyTemplate";
-import TarotCard from "../components/TarotCard";
-import { CARD_TYPE_LABELS, VideoComment, formatPlays, relativeTime, revisionLabel, videoCategoryLabel } from "../types";
-import BlockButton from "../components/BlockButton";
+import { downloadSupport, planDownload } from "../data/videoDownload";
+import { useAccountVersion, useAuthState, useCurrentUser } from "../hooks/useAccount";
+import { useVideosVersion } from "../hooks/useVideos";
+import { useBackOr } from "../hooks/useBackOr";
+import { useRemake } from "../hooks/useRemake";
+import { useImmersive } from "../hooks/useImmersive";
+import { aspectCss, formatPlays, relativeTime, revisionLabel, videoCategoryLabel, type VideoAspect } from "../types";
 
-/** 本片卡组：卡片横滑条 + 收入/去创作。收入 = 卡片拷进观众账号；
- *  去创作 = 顺手并进工坊桌面卡组并跳工坊（工坊卡组是会话态，必须显式合并） */
-function VideoDeckSection({
-  video,
-  auth,
-  onGo,
-}: {
-  video: NonNullable<ReturnType<typeof getVideo>>;
-  /** 三态。★ 不收 `loggedIn: boolean` —— 水合期那一档会被写成"没登录"（见 useAuthState） */
-  auth: AuthState;
-  onGo: () => void;
-}) {
-  const { t } = useLingui();
-  const loggedIn = auth === "in";
-  const deck = video.deck!;
-  const [got, setGot] = useState(() => {
-    const mine = new Set(myCards().map((c) => c.id));
-    return deck.cards.every((c) => mine.has(c.id));
-  });
-  const [adding, setAdding] = useState(false);
-  const [addErr, setAddErr] = useState<string | null>(null);
-
-  /**
-   * 把本片卡组收进自己的库。
-   *
-   * ★★ **要等结果**（2026-08-30 修）：原来是 `addCards(...)` 调完立刻 `setGot(true)`。
-   *   `addCards` 的远端失败是它自己在返回值里说的（`synced:false`），扔掉返回值 =
-   *   按钮当场变成「✓ 已在我的卡组」，而下次冷启动 `loadRemoteAssets` 拿服务端那份
-   *   整体覆盖 —— 卡一张不剩，全程零报错。
-   * ★ 失败时把按钮**退回可点**并把原因写在旁边：卡在本机其实是有的（persist 已经写了），
-   *   所以话要说准 —— 是"没同步到服务器"，不是"没收进来"。
-   */
-  async function collect(): Promise<boolean> {
-    if (!loggedIn || adding) return false;
-    setAdding(true);
-    setAddErr(null);
-    try {
-      const r = await addCards(deck.cards);
-      if (!r.synced) {
-        const why = r.reason || t`这组卡没能同步到服务器`;
-        setAddErr(t`${why}——卡在这台设备上有，但换台设备或重启后可能就没了，联网后再点一次。`);
-        return false;
-      }
-      setGot(true);
-      return true;
-    } finally {
-      setAdding(false);
-    }
-  }
-
-  return (
-    <section className="mt-6">
-      <h2 className="mb-2 text-sm font-semibold text-slate-300">
-        <Trans>本片卡组</Trans>
-        <span className="ml-2 text-xs font-normal text-slate-500">
-          {deck.name || t`${deck.cards.length} 张`}
-        </span>
-      </h2>
-      <div className="flex gap-2.5 no-scrollbar overflow-x-auto pb-1">
-        {deck.cards.map((c) => (
-          // 点卡看详情：不在观众账号库里的卡经路由 state 带过去（详情页优先查账号库）
-          <Link key={c.id} to={`/card/${c.id}`} state={{ card: c }} className="w-24 flex-none">
-            <TarotCard cover={c.cover || null} title={c.name} sub={CARD_TYPE_LABELS[c.type]} type={c.type} />
-          </Link>
-        ))}
-      </div>
-      {/* ★ 真人卡的形象图被扣下时要说清楚为什么，不然用户只会觉得"这张卡坏了"（铁律八）。
-          这句话面向**观众**，所以说的是"你拿不到"，不是"作者做错了什么"。 */}
-      {deck.cards.some((c) => c.portraitWithheld) && (
-        <p className="mt-2 rounded-xl border border-slate-600/60 bg-black/25 px-3 py-2 text-[11px] leading-relaxed text-slate-400">
-          <Trans>这套卡里有声明过「真实人物」的卡，它的形象参考图只留给作者本人 —— 照片里的人授权的是作者用，不是所有人用。你仍然收得下这张卡的设定（名字、简介、身份句），但出片时得自己给形象。</Trans>
-        </p>
-      )}
-      {addErr && (
-        <p className="mt-2 rounded-lg border border-amber-500/40 bg-amber-400/10 px-3 py-2 text-[11px] leading-relaxed text-amber-100">
-          {addErr}
-        </p>
-      )}
-      <div className="mt-2.5 flex gap-2">
-        <button
-          onClick={() => void collect()}
-          disabled={got || adding}
-          className="rounded-xl bg-panel px-4 py-2.5 text-sm text-slate-200 ring-1 ring-slate-700 disabled:opacity-40"
-          title={loggedIn ? "" : auth === "pending" ? t`正在确认登录状态…` : t`登录后可收入卡组`}
-        >
-          {got ? t`✓ 已在我的卡组` : adding ? t`收取中…` : addErr ? t`再试一次` : t`收入我的卡组`}
-        </button>
-        <button
-          onClick={() => {
-            // 未登录时静默跳过（/studio 的登录墙会接手，登录后卡组仍在会话里）
-            // ★ 这条路**不等**收卡结果：用户要的是"去创作"，而桌面那份是内存里的副本，
-            //   同步与否不挡他开工；真没同步成功时上面那行提示会留在这一页上。
-            void collect();
-            // 并进工坊桌面（去重），进门就能直接拖卡铸节点
-            useStudio.setState((s) => ({
-              deck: [...s.deck, ...deck.cards.filter((c) => !s.deck.some((d) => d.id === c.id))],
-            }));
-            onGo();
-          }}
-          className="flex-1 rounded-xl bg-brand/90 px-4 py-2.5 text-sm font-bold text-ink"
-        >
-          <Trans>🎴 用这套卡去创作</Trans>
-        </button>
-      </div>
-    </section>
-  );
+/**
+ * 路由那一层按 id 重挂（2026-10-26 视频详情页 P0-4，审核）：从 /video/A 点进 /video/B（相关区、同款署名）时还是同一个组件实例 ——
+ * 点赞 / 播放数会取两条里较大的那个、选集 / 横幅 / 分支走向原样带过去、两边都是第 1 集时播放器接着 A 的进度往下播。按 id 重挂就一样都不带。
+ */
+export function VideoRoute() {
+  const { id } = useParams<{ id: string }>();
+  return <VideoPage key={id ?? ""} />;
 }
 
 export default function VideoPage() {
@@ -173,29 +95,12 @@ export default function VideoPage() {
   // 回填是原地改同一个对象，不订阅就永远渲染不出来。
   const version = useVideosVersion();
   const video = useMemo(() => (id ? getVideo(id) : null), [id, version]);
-  // ★★ 「我赞没赞过」的唯一真相是 `videos.isLiked`（2026-08-31 修）。恒从 false 起的
-  //   后果不是"图标画错了"：进已赞过的作品显示「🤍 11」（数字里含着自己那票），点一下
-  //   撞上 `videos.setLike` 里的幂等短路 —— 不发请求、数字纹丝不动，只有图标变红，
-  //   用户读到的是"点了没生效"；再点一下这一次 on=false 走通，**把自己的赞取消了**。
-  //   想取消赞的人则必须点两下。全程零报错。
-  // ⚠ 不能照抄 FeedPage 的 lazy 初值：这条路上挂载时 `video` 还是 null、远端模式下
-  //   `likedIds` 也要等 `loadDetail` 回包才填 —— 真正的同步点在下面那个回填 effect。
+  // ★★ 「我赞没赞过」的唯一真相是 `videos.isLiked`（2026-08-31 修）。恒从 false 起的后果：进已赞过的作品显示空心（数字里含着自己那票），
+  //   点一下撞上 `videos.setLike` 里的幂等短路 —— 不发请求、数字纹丝不动，只有图标变红；再点一下**把自己的赞取消了**。全程零报错。
+  // ⚠ 不能照抄 FeedPage 的 lazy 初值：这条路上挂载时 `video` 还是 null、远端模式下 `likedIds` 也要等 `loadDetail` 回包才填 —— 真正的同步点在下面那个回填 effect。
   const [liked, setLiked] = useState(() => (id ? isLiked(id) : false));
   const [likes, setLikes] = useState(video?.likes ?? 0);
   const [plays, setPlays] = useState(video?.plays ?? 0);
-  const [comments, setComments] = useState<VideoComment[]>(video?.comments ?? []);
-  const [draft, setDraft] = useState("");
-  /** 从补全面板挑过的人。★ 只攒不算位置——理由与 CommentSheet 同一条（见那里） */
-  const [picks, setPicks] = useState<MentionPick[]>([]);
-  const [busyComment, setBusyComment] = useState(false);
-  const [commentErr, setCommentErr] = useState("");
-  /** 评论发出去了、但有几个 @ 服务端没认下来。黄字：评论本身是成功的 */
-  const [mentionWarn, setMentionWarn] = useState("");
-  /** 做同款被就地拒时那句话（seed 被 canReplaceNodes 整句拒 —— flowStore.err 只画在
-   *  工作流页，用户此刻站在详情页，不接住就是没人看得见） */
-  const [remakeErr, setRemakeErr] = useState("");
-  // 做同款 = 第八条整表覆盖入口，守卫与套模板同一份实现（先问脏/成了再断草稿）
-  const { guard: remakeGuard, dialog: remakeDialog } = useApplyTemplate();
   // 多 P：老作品 partsOf 归一成单 P，pi 越界（编辑删 P 后）自动夹回
   const parts = useMemo(() => (video ? partsOf(video) : []), [video, version]);
   const [pi, setPi] = useState(0);
@@ -204,29 +109,62 @@ export default function VideoPage() {
   // 付费墙：本 P 定价 > 0 且 观众≠作者 且 未购 → 用封面顶住播放器，解锁后放行
   useAccountVersion(); // 购买/余额变化即时反映
   const partPrice = video?.pricing?.mode === "paid" ? (video.pricing.partPrices[piSafe] ?? 0) : 0;
-  // ★★ 按 **userId** 判本人（isMyVideo），不是按展示名（isMyAuthor）：展示名允许重名、
-  //   也能随手改成作者的昵称，而这一格是**付费墙** —— 判错的方向是白看付费内容。
-  //   同一条闸还传导给「保存到本地」（videoDownload.planDownload 的 ① 明写靠这里）。
+  // ★★ 按 **userId** 判本人（isMyVideo），不是按展示名（isMyAuthor）：展示名允许重名、也能随手改成作者的昵称，而这一格是**付费墙** ——
+  //   判错的方向是白看付费内容。同一条闸还传导给「保存到本地」（videoDownload.planDownload 的 ① 明写靠这里）。
   const locked = !!video && partPrice > 0 && !isMyVideo(video) && !hasPurchased(video.id, piSafe);
+  // 做同款 = 第八条整表覆盖入口：照**当前这一 P** 的分段剧本铺（hooks/useRemake，与首页同一份；守卫、付费没解锁不给、被拒那句话自清都在里面）
+  const { canRemake, remake, err: remakeErr, dialog: remakeDialog } = useRemake(video, part?.segments ?? video?.segments ?? [], locked);
+  // 做同款的键在吸底栏上，而那句被拒的话画在页中间的 RemakeCard 里（多半不在屏上）：另用轻提示说一遍（2026-10-29 发版前复核）
+  useEffect(() => {
+    if (remakeErr) showToast(remakeErr);
+  }, [remakeErr]);
   const [payErr, setPayErr] = useState("");
   /** 分享面板（与首页右侧栏那颗共用 ShareSheet 一份实现） */
   const [shareOpen, setShareOpen] = useState(false);
   /** 「保存到本地」面板。★ 关掉它**不停**下载（队列在 data/videoDownload 里，胶囊接管） */
   const [dlOpen, setDlOpen] = useState(false);
-  /** 被 planDownload 就地拒时那句整句话（画在下架横幅同一带，amber 底） */
+  /** 被 planDownload 就地拒时那句整句话（画在横幅那一带） */
   const [dlBlocked, setDlBlocked] = useState("");
-  /** 观众刚看的那条走向（互动作品）。BranchPlayer 报上来，「只存刚看的走向」按它取段。
-   *  ★ 线性作品恒空数组 —— 那一档在面板里根本不出现 */
+  /** 观众刚看的那条走向（互动作品）。BranchPlayer 报上来，「只存刚看的走向」按它取段，弹幕挂不挂也看它在不在开场段上。
+   *  ★ 线性作品恒空数组 */
   const [branchPath, setBranchPath] = useState<string[]>([]);
+  /** 顶栏 ⋯ 打开的「更多操作」（倍速 / 全屏 / 保存 / 举报 / 拉黑，与首页长按那一份共用 FeedActionSheet） */
+  const [menuOpen, setMenuOpen] = useState(false);
+  /** 倍速：这一页自己持有，不落盘（与首页同一个口径：下次打开回到 1×，免得人忘了自己调过） */
+  const [speed, setSpeed] = useState<FeedSpeed>(1);
+  /** 评论抽屉：null = 关着；autoFocus = 从吸底栏「说点什么…」点进来（要写），从动作条 / 评论卡点进来（先看）为 false */
+  const [cmt, setCmt] = useState<{ autoFocus: boolean } | null>(null);
+  /** 弹幕输入条 */
+  const [dmOpen, setDmOpen] = useState(false);
+  // 弹幕开关与条数：订阅弹幕库（远端到货 / 开关一拨都要重画）
+  useSyncExternalStore(subscribeDanmaku, danmakuVersion, () => 0);
+  const dmOn = danmakuOn();
+  /** 播放器报上来的全片秒数（弹幕输入条按它落点；取值函数读 ref，别被闭包定在打开那一瞬间） */
+  const timeRef = useRef(0);
+  /** 标题区展开了没有（两行折叠 → 全文 + 话题） */
+  const [expanded, setExpanded] = useState(false);
+  /** 正文那个标题滚出视口之后，顶栏才写标题 */
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const [titleOff, setTitleOff] = useState(false);
+  /** 作者粉丝数（lazy 取；没回来 / 老服务端不画，不编数） */
+  const [fans, setFans] = useState<number | null>(null);
+  const [followErr, setFollowErr] = useState("");
+  const [followBusy, setFollowBusy] = useState(false);
+  const [saved, setSaved] = useState(() => (id ? isCollected(id) : false));
+  const [saveErr, setSaveErr] = useState("");
+  /** 播放器外框（沉浸 / 全屏态挂在它身上）。画幅取这一 P 第一段（互动作品取开场段） */
+  const playerRef = useRef<HTMLDivElement>(null);
+  const aspect: VideoAspect = (part?.branchTree ? part.branchTree.nodes[part.branchTree.rootId]?.segment.aspect : part?.segments[0]?.aspect) ?? "landscape";
+  const { immersive, enter: enterFull, exit: exitFull } = useImmersive(playerRef, aspect);
 
-  // 详情回填晚于首帧渲染：把服务端那份同步进来。
-  // 本地已有的乐观值（刚点的赞、刚发的评论）取较大/较长的一边，别被回包覆盖掉。
+  // 详情回填晚于首帧渲染：把服务端那份同步进来。本地已有的乐观值（刚点的赞）取较大的一边，别被回包覆盖掉。
+  // ★ 只在同一条作品之内取较大值：路由层按 id 重挂（VideoRoute），换作品不会把上一条的数带过来
   useEffect(() => {
     if (!video) return;
     setLiked(isLiked(video.id)); // 回填晚于首帧：远端模式下 liked 由详情回包填进 likedIds
     setLikes((v) => Math.max(v, video.likes));
     setPlays((v) => Math.max(v, video.plays));
-    setComments((cs) => (video.comments.length > cs.length ? video.comments : cs));
+    setSaved(isCollected(video.id));
   }, [video, version]);
 
   // per-id 去重：StrictMode 双跑 effect 也只 +1，并把新计数渲染出来
@@ -238,14 +176,16 @@ export default function VideoPage() {
     }
   }, [id, video]);
 
+  // 新进一条作品回到页顶（路由层按 id 重挂；从相关区点进来时滚动位置还停在页底）
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    rootRef.current?.scrollIntoView({ block: "start" });
+  }, []);
+
   /**
    * 内存里没有这一条时**去问服务端**。
-   *
-   * ★★ 这是本页最要紧的一段：内存 cache 只有推荐流的前 30 条，而进到这一页的路
-   *   （通知里的 @、别人主页的作品墙、分享出去的链接）指向的作品**基本都不在里面**。
-   *   原来这里直接画「视频不存在或已删除」—— 服务端从来没被问过，那句话是编的。
-   * ★ 结果分四档（见 data/videos.VideoLookup）：查证之前一律显示"正在打开"，
-   *   只有服务端真的说了"没有"才敢说不存在；超时/断网说的是"没打开"，不是"已删除"。
+   * ★★ 内存 cache 只有推荐流的前 30 条，而进到这一页的路（通知里的 @、别人主页的作品墙、分享出去的链接）指向的作品**基本都不在里面**。
+   * ★ 结果分四档（见 data/videos.VideoLookup）：查证之前一律显示"正在打开"，只有服务端真的说了"没有"才敢说不存在；超时/断网说的是"没打开"。
    */
   const [lookup, setLookup] = useState<VideoLookup | null>(null);
   const [retry, setRetry] = useState(0);
@@ -262,24 +202,46 @@ export default function VideoPage() {
   }, [id, retry]);
 
   /**
-   * 从通知点进来的那一条：**打开成功了才标已读**。
-   *
-   * ★★ 原来是在消息页点下去的那一瞬间就标已读的。可这一跳很可能落在
-   *   「视频不存在」上（就是上面在修的那个 bug），于是用户既没看到内容、
-   *   红点也没了 —— 唯一的入口就这么消失了。已读的含义是"这条我处理过了"，
-   *   在真的把人送到目标之前不该先把它划掉。
-   * ★ 反过来也要**保证会标**：这里跑到了就说明内容真的展示出来了。
+   * 从通知点进来的那一条：**打开成功了才标已读**（这一跳可能落在「不存在」上：用户既没看到内容、红点也没了，唯一的入口就这么消失了）。
    */
   const readMarked = useRef<string | null>(null);
   const fromNotification = (loc.state as { fromNotification?: string } | null)?.fromNotification;
-  /** 从别的页带过来的一句成功话（现在只有"回炉替换成功"用它）。★ 进本页那一拍取一次就够，
-   *  之后归本页自己管 —— 用 lazy 初值而不是每次渲染读 loc.state：那样关不掉（关了又被读回来） */
+  /** 从别的页带过来的一句成功话（现在只有"回炉替换成功"用它）。进本页那一拍取一次就够（lazy 初值：每次渲染读 loc.state 的话关不掉） */
   const [navBanner, setNavBanner] = useState<string>(() => (loc.state as { banner?: string } | null)?.banner ?? "");
   useEffect(() => {
     if (!video || !fromNotification || readMarked.current === fromNotification) return;
     readMarked.current = fromNotification;
     void markNotificationRead(fromNotification);
   }, [video, fromNotification]);
+
+  // 顶栏标题：正文那个标题滚出视口才写（首屏已经有一个大标题，顶栏再写一遍是重复）
+  const hasVideo = !!video;
+  useEffect(() => {
+    const el = titleRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver((es) => setTitleOff(es.every((e) => !e.isIntersecting)), { rootMargin: "-60px 0px 0px 0px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [hasVideo]);
+
+  // 作者粉丝数：远端模式、知道作者 id 时问一次；老服务端 / 没回来就不画（不编数）
+  const remoteLive = remoteOn();
+  const authorId = video?.authorId ?? "";
+  useEffect(() => {
+    if (!remoteLive || !authorId) return;
+    let alive = true;
+    void getUser(authorId).then((r) => {
+      if (alive && r.status === "ok" && typeof r.user.followerCount === "number") setFans(r.user.followerCount);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [remoteLive, authorId]);
+
+  // 上一次进来详情没问到（commentsState = failed）：getVideo 不再自己重问（那会在失败时死循环），进页那一拍问一次
+  useEffect(() => {
+    if (remoteLive && hasVideo && id && commentsStatus(id) === "failed") retryComments(id);
+  }, [remoteLive, hasVideo, id]);
 
   if (!video) {
     // ★ 还没问出结果：不下任何结论。转圈比一句错的结论好
@@ -300,7 +262,7 @@ export default function VideoPage() {
           : t`没能打开这条作品：${failErr}`;
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 px-8 text-center text-slate-400">
-        <div className={lookup.status === "failed" ? "text-sm text-rose-300" : "text-sm"}>{text}</div>
+        <div className={lookup.status === "failed" ? "text-sm text-danger-300" : "text-sm"}>{text}</div>
         {lookup.status === "failed" && (
           <>
             {/* 失败可以，但要能自己重试 —— 而且这一条**没被标已读**，消息页那个红点还在 */}
@@ -315,13 +277,9 @@ export default function VideoPage() {
             </p>
           </>
         )}
-        {/* ★ 这一屏没有顶栏，所以「回去」必须自己给一个：从消息页点进来的人
-            最想做的就是退回去再点一次，而不是被扔回首页从头找。 */}
+        {/* ★ 这一屏没有顶栏，所以「回去」必须自己给一个 */}
         <div className="flex items-center gap-4">
-          <button
-            onClick={back}
-            className="text-slate-300"
-          >
+          <button onClick={back} className="text-slate-300">
             <Trans>返回</Trans>
           </button>
           <Link to="/" className="text-brand">
@@ -332,16 +290,49 @@ export default function VideoPage() {
     );
   }
 
-  // 「能不能保存到本地」的判据只有 `data/videoDownload.planDownload` 一处 —— 这里只是把
-  // 它的答案画出来（键灰不灰、拒了写哪句话）。★ 不在这一页复制任何一条规则。
+  // 「能不能保存到本地」的判据只有 `data/videoDownload.planDownload` 一处 —— 这里只是把它的答案画出来。
   const dlSupported = downloadSupport().ok;
-  // ★ 门禁问的是「这条作品能不能存」，与"观众刚看到哪儿"无关，所以用 `scope: "all"` 问。
-  //   用 `"path"` 问会有一拍是错的：BranchPlayer 的 onPathChange 在 effect 里，首帧渲染时
-  //   `branchPath` 还是 []，那一拍互动作品会被判成"没有可下载的成片" —— 一个错的原因
-  //   比没有原因更坏。选哪一档是面板里的事。
+  // ★ 门禁问的是「这条作品能不能存」，与"观众刚看到哪儿"无关，所以用 `scope: "all"` 问（用 "path" 问首帧那一拍 branchPath 还是 []，互动作品会被判成没有成片）
   const dlCheck = planDownload(video, piSafe, { scope: "all", branchPath });
   const dlBlockedNow = dlCheck.ok ? null : dlCheck.blocked;
-  const branchPoints = part?.branchTree ? Object.values(part.branchTree.nodes).filter((n) => n.choices.length > 1).length : 0;
+  const openSave = () => {
+    setDlBlocked("");
+    if (dlBlockedNow) setDlBlocked(dlBlockedNow);
+    else setDlOpen(true);
+  };
+  const tree = part?.branchTree ?? null;
+  const branchPoints = tree ? Object.values(tree.nodes).filter((n) => n.choices.length > 1).length : 0;
+  const endings = tree ? Object.values(tree.nodes).filter((n) => n.choices.length === 0).length : 0;
+  const mine = isMyVideo(video);
+  /** 现在正放开场那一段（弹幕只挂在开场段上，与首页同一个时间轴）。线性作品恒为真 */
+  const onRoot = !tree || branchPath.length === 0 || branchPath[branchPath.length - 1] === tree.rootId;
+  /** 弹幕摆不摆：解锁了、多 P 老作品只在第 1 集（弹幕是挂在作品上的全片秒，不分集） */
+  const dmHere = !locked && piSafe === 0;
+  const dmFetched = danmakuFetched(video.id);
+  const dmCount = danmakuOf(video.id).length;
+  const dmTrunc = isTruncated(video.id);
+  const lanes = aspect === "landscape" ? 3 : 4;
+  const overlay: PlayerOverlay =
+    dmHere && dmOn
+      ? (c) => {
+          timeRef.current = c.time;
+          return c.onRoot ? <DanmakuLayer videoId={video.id} time={c.time} paused={c.paused} top="8px" lanes={lanes} /> : null;
+        }
+      : dmHere
+        ? (c) => {
+            timeRef.current = c.time;
+            return null;
+          }
+        : null;
+  const frame = immersive ? "full" : "bleed";
+  const onFull = locked ? null : () => void enterFull();
+  /** 评论卡上那一条：第一条顶层评论（服务端按 createdAt 倒序） */
+  const firstComment = video.comments.find((c) => !c.parentId) ?? null;
+  const cStatus = commentsStatus(video.id);
+  const cCount = commentCountOf(video);
+  /** 动作条第五格：能举报就是举报（canReport 与 ReportButton 那道闸同一个判据），否则原生壳里放「保存」，都不行就四格 */
+  const reportCell = canReport({ mine, targetId: video.id });
+  const saveCell = !reportCell && dlSupported;
 
   function toggleLike() {
     if (!video) return;
@@ -350,428 +341,441 @@ export default function VideoPage() {
     setLikes(setLike(video.id, on));
   }
 
-  /**
-   * ★ 真等回包再清空输入框，口径与 CommentSheet / DanmakuInput 一致：
-   *   评论会失败（限流 / 登录过期 / 作品还没同步上去），而全 app 没有任何地方监听
-   *   emitApiError —— 清空了输入框又不说原因，用户打的字就凭空没了（铁律八）。
-   */
-  async function submitComment() {
-    if (!video || busyComment || !draft.trim()) return;
-    setBusyComment(true);
-    setCommentErr("");
-    setMentionWarn("");
-    try {
-      const posted = await addComment(video.id, draft.trim(), picks);
-      if (posted) setComments((cs) => [posted.comment, ...cs]);
-      setDraft("");
-      setPicks([]);
-      // ★★ 与 CommentSheet 同一条口径：@ 没落地必须说出来，否则就是"@ 了、对方永远
-      //   收不到"的静默失败（老服务端会把 mentions 整个 strip 掉，且不报错）。
-      if (posted && posted.droppedMentions > 0) {
-        const dropped = posted.droppedMentions;
-        setMentionWarn(t`有 ${dropped} 个 @ 没能送达（对方不会收到通知）`);
-      }
-    } catch (e) {
-      setCommentErr(e instanceof Error ? e.message : t`评论没发出去，请重试`);
-    } finally {
-      setBusyComment(false);
+  async function follow() {
+    if (!video || followBusy) return;
+    if (auth === "pending") return;
+    if (auth === "out") {
+      navigate(`/login?next=/video/${video.id}`);
+      return;
+    }
+    setFollowErr("");
+    setFollowBusy(true);
+    const on = !isFollowing(video.author);
+    const why = await setFollow(video.author, on);
+    setFollowBusy(false);
+    if (why) setFollowErr(on ? t`关注没成功：${why}` : t`取消关注没成功：${why}`);
+    // 粉丝数是进页时问的那一份：成了就跟着 ±1（不再问一次服务器）
+    else setFans((n) => (n === null ? n : Math.max(0, n + (on ? 1 : -1))));
+  }
+
+  async function collect() {
+    if (!video) return;
+    // 收藏要认人：未登录先去登录；但"还不知道"不算未登录 —— 那一段先等着，别把登录着的人弹去登录页
+    if (auth === "pending") return;
+    if (auth === "out") {
+      navigate(`/login?next=/video/${video.id}`);
+      return;
+    }
+    setSaveErr("");
+    const on = !saved;
+    setSaved(on);
+    const why = await setCollect(video.id, on);
+    if (why) {
+      setSaved(!on);
+      setSaveErr(on ? t`收藏没成功：${why}` : t`取消收藏没成功：${why}`);
     }
   }
 
+  function openDanmaku() {
+    if (!video) return;
+    // 与首页同一个口径：还不知道登没登录先等着；没登录（远端模式要账号）去登录
+    if (danmakuSessionPending()) return;
+    if (danmakuNeedsLogin()) {
+      navigate(`/login?next=/video/${video.id}`);
+      return;
+    }
+    setDmOpen(true);
+  }
+
+  const following = isFollowing(video.author);
+  const authorName = authorDisplayName(video.author, video.authorId);
+  const cell = "flex min-h-[52px] flex-col items-center justify-center gap-0.5 active:opacity-60";
+
   return (
-    <div className="min-h-full">
-      {/* ★ safe-top 挂在 header 自己身上、不挂页面根：header 是 sticky top-0，
-          安全区留白必须【在它内部】，否则它会滑到状态栏底下（ProfilePage 那条注释同理）。
-          原来这三页压根没挂，顶栏文案直接压在状态栏上。 */}
+    <div ref={rootRef} className="min-h-full pb-28">
+      {/* ★ safe-top 挂在 header 自己身上（PageHeader 里）：header 是 sticky top-0，安全区留白必须在它内部 */}
       <PageHeader
         sticky
         onBack={back}
-        title={video.title}
+        title={titleOff ? video.title : ""}
         titleClassName="text-sm font-normal text-slate-300"
         right={
           <>
-          {/* ★★ 分享入口（2026-08-30 补）。此前它**只长在首页右侧栏上** —— 而发布成功之后
-              是 `navigate("/video/:id", {replace:true})` 落到这一页，也就是说"刚发完片的人
-              没有任何办法把它给别人看"（App 里也没有地址栏）。QQ/微信那条链路 2026-08-29
-              就通了，缺的只是这一个门。面板复用 ShareSheet 一份（它自己会说清私密作品的
-              链接别人打不开）。 */}
-          <button
-            onClick={() => setShareOpen(true)}
-            aria-label={t`分享或保存这条作品`}
-            className="flex-none rounded-full bg-panel px-2.5 py-1.5 text-slate-300 ring-1 ring-slate-700"
-          >
-            <Icon name="share" size={16} />
-          </button>
-          {/* ★ 这里原来对「合并发布的成片」（video.merged）单独走一条"不可修改"的分支，
-              把作者挡在编辑页外面 —— 连改个标题、把作品设成仅自己可见都做不到。
-              一视同仁给编辑入口即可，这个特例没有存在意义。
-              ⚠ 后半句原来写的是「现在**所有**作品的成片都不可修改（发布即定稿）」——
-                2026-09-07 起不再成立：编辑页那颗「🛠 回炉重做」能换掉成片内容（同一个链接、
-                同一批互动数据）。能不能回炉由**编辑页**按六条判据说，这里不预判、不分叉。 */}
-          {isMyVideo(video) ? (
-            <Link
-              to={`/edit/${video.id}`}
-              className="flex-none rounded-full bg-amber-500/15 px-3 py-1.5 text-xs text-amber-300"
-            >
-              <Trans>✏️ 编辑</Trans>
-            </Link>
-          ) : (
-            <Link to="/studio" className="flex-none rounded-full bg-brand/15 px-3 py-1.5 text-xs text-brand">
-              <Trans>🎴 我也要创作</Trans>
-            </Link>
-          )}
+            {/* ★★ 分享入口：发布成功之后落到的就是这一页，App 里也没有地址栏 —— 刚发完片的人只有这一个门把它给别人看 */}
+            <IconTapButton icon="share" label={t`分享或保存这条作品`} size={20} onClick={() => setShareOpen(true)} />
+            <IconTapButton icon="ellipsis" label={t`更多操作`} size={20} align="end" onClick={() => setMenuOpen(true)} />
           </>
         }
       />
 
-      <main className="mx-auto max-w-5xl px-4 py-4">
-        {/* 多 P 选集：单 P 不显示（绝大多数作品），有分集才占这一行 */}
-        {parts.length > 1 && (
-          <div className="mb-2.5 flex gap-2 no-scrollbar overflow-x-auto pb-0.5">
-            {parts.map((p, i) => (
-              <button
-                key={i}
-                onClick={() => setPi(i)}
-                className={`flex-none rounded-full px-3.5 py-1.5 text-xs ${
-                  i === Math.min(pi, parts.length - 1)
-                    ? "bg-brand font-semibold text-ink"
-                    : "bg-panel text-slate-300 hover:bg-slate-700"
-                }`}
-              >
-                {p.name || `P${i + 1}`}
-              </button>
+      <main className="mx-auto max-w-5xl">
+        {/* ── 播放器：满宽、不圆角（详情页的外框 bleed）；沉浸 / 全屏态铺满（full）──
+            ★ 沉浸态里也要有「AI 生成」标识（生成侧那一顶帽子：起始画面 + 播放周边，data/aigcLabel；全屏里播放周边只剩画面本身） */}
+        <div
+          ref={playerRef}
+          className={immersive ? "fixed inset-0 z-[80] flex items-center justify-center bg-black" : "relative"}
+        >
+          {part &&
+            (locked ? (
+              // 付费墙：封面 + 解锁按钮（满宽、不圆角，按作品画幅占位 —— 解锁前后高度不跳）
+              <div className="relative overflow-hidden bg-black" style={{ aspectRatio: aspectCss(aspect), maxHeight: aspect === "portrait" ? `${PORTRAIT_MAX_VH}vh` : undefined }}>
+                <img src={video.cover} alt={video.title} className="h-full w-full object-cover blur-[2px] brightness-50" />
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5">
+                  <Icon name="lock" size={24} className="text-slate-200" />
+                  <div className="text-sm font-semibold text-slate-100">
+                    <Trans>本 P 为付费内容 · <span className="tabular-nums text-gold">{fmtTokens(partPrice)} token</span></Trans>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setPayErr("");
+                      // ★ 会话还没结论时别把人弹去登录页：这一步是**花钱**的，"我明明登录着却被要求重新登录"最像被骗
+                      if (auth === "pending") {
+                        setPayErr(t`正在确认登录状态，稍等一下再点。`);
+                        return;
+                      }
+                      if (!user) {
+                        navigate(`/login?next=/video/${video.id}`);
+                        return;
+                      }
+                      if (!purchasePart(video.id, piSafe, partPrice, video.author)) {
+                        const w = walletOf();
+                        const have = fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0));
+                        setPayErr(t`余额不足（现有 ${have}）——去「我的」页充值`);
+                      }
+                    }}
+                    className="rounded-full bg-gold px-5 py-2 text-sm font-bold text-ink active:scale-95"
+                  >
+                    {priceTag(partPrice)} <Trans>解锁观看</Trans>
+                  </button>
+                  {payErr && (
+                    <Link to="/me" className="text-xs text-danger-300 underline underline-offset-2">
+                      {payErr}
+                    </Link>
+                  )}
+                  <span className="text-[10px] text-slate-400"><Trans>解锁后永久可看</Trans></span>
+                </div>
+              </div>
+            ) : tree ? (
+              <BranchPlayer key={`b${pi}`} tree={tree} cover={video.cover} onPathChange={setBranchPath} frame={frame} rate={speed} overlay={overlay} onFull={immersive ? null : onFull} />
+            ) : (
+              <SegmentPlayer key={`s${pi}`} segments={part.segments} cover={video.cover} frame={frame} rate={speed} overlay={overlay} onFull={immersive ? null : onFull} />
             ))}
+          {immersive && (
+            <>
+              <div className="safe-top absolute left-2 top-2 z-10">
+                <CloseButton chip="md" size={16} label={t`退出全屏`} onClick={exitFull} />
+              </div>
+              {isAigcWork(video) && (
+                <span className="safe-top absolute right-3 top-3 z-10">
+                  <AigcBadge tone="overlay" />
+                </span>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* ── 弹幕条：只在解锁了的第 1 集上 ── */}
+        {dmHere && (
+          <div className="flex h-10 items-center gap-2 border-b border-slate-700/60 px-4">
+            {/* 条数在服务端那一份回来之前不写（「弹幕 0」是一句可能是错的话，danmakuFetched 一处判）；被服务端截断过写「n+」 */}
+            <span className="min-w-0 flex-1 text-xs tabular-nums text-slate-400">
+              {!dmFetched ? <Trans>弹幕</Trans> : dmTrunc ? <Trans>弹幕 {dmCount}+</Trans> : <Trans>弹幕 {dmCount}</Trans>}
+            </span>
+            <button
+              onClick={() => setDanmakuOn(!dmOn)}
+              aria-pressed={dmOn}
+              aria-label={t`显示弹幕`}
+              className={`flex-none p-1 ${dmOn ? "text-slate-200" : "text-slate-500"}`}
+            >
+              <DanmakuGlyph size={20} pen={false} off={!dmOn} />
+            </button>
+            {onRoot ? (
+              <button onClick={openDanmaku} className="flex-none rounded-full bg-panel px-3 py-1 text-[11px] text-slate-400">
+                <Trans>发条弹幕…</Trans>
+              </button>
+            ) : (
+              // 互动作品进了分支：弹幕只挂在开场那一段上（与首页只播开场段同一个时间轴），不摆点不动的键
+              <span className="flex-none text-[11px] text-slate-400">
+                <Trans>弹幕只挂在开场那一段上</Trans>
+              </span>
+            )}
           </div>
         )}
-        {part &&
-          (locked ? (
-            // 付费墙：封面 + 解锁按钮。解锁扣观众 token（先套餐后 add-on），创作者分成进 add-on
-            <div className="relative overflow-hidden rounded-xl">
-              <img src={video.cover} alt={video.title} className="aspect-video w-full object-cover blur-[2px] brightness-50" />
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5">
-                <span className="text-2xl">🔒</span>
-                <div className="text-sm font-semibold text-slate-100">
-                  <Trans>本 P 为付费内容 · <span className="tabular-nums text-gold">{fmtTokens(partPrice)} token</span></Trans>
-                </div>
-                <button
-                  onClick={() => {
-                    setPayErr("");
-                    // ★ 会话还没结论时别把人弹去登录页（见 hooks/useAccount 的 useAuthState）：
-                    //   这一步是**花钱**的，"我明明登录着却被要求重新登录"最像被骗
-                    if (auth === "pending") {
-                      setPayErr(t`正在确认登录状态，稍等一下再点。`);
-                      return;
-                    }
-                    if (!user) {
-                      navigate(`/login?next=/video/${video.id}`);
-                      return;
-                    }
-                    if (!purchasePart(video.id, piSafe, partPrice, video.author)) {
-                      const w = walletOf();
-                      const have = fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0));
-                      setPayErr(t`余额不足（现有 ${have}）——去「我的」页充值`);
-                    }
-                  }}
-                  className="rounded-full bg-gold px-5 py-2 text-sm font-bold text-ink active:scale-95"
-                >
-                  <Trans>⚡ 解锁观看</Trans>
+
+        {/* ── 横幅带（下架 / 回炉成功 / 保存被拒）── */}
+        <div className="space-y-3 px-4 empty:hidden [&:not(:empty)]:pt-3">
+          {/* ★★ 被平台下架的横幅。**只有作者自己会走到这里** —— 别人的接口回包里根本没有这条作品。不给他一个字的解释，他最可能的下一步就是原样重发 */}
+          {video.takedown && (
+            <div className="rounded-xl border border-danger-500/40 bg-danger-500/10 p-3">
+              <p className="text-sm font-semibold text-danger-200"><Trans>这条作品已被平台下架</Trans></p>
+              <p className="mt-1 text-xs leading-relaxed text-danger-100/80">
+                {takedownReasonText(video.takedown.reason) || t`（管理员没有填写原因）`}
+              </p>
+              <p className="mt-1.5 text-[11px] text-slate-400">
+                <Trans>只有你自己看得到它。把可见性改回公开也没用 —— 这是平台的开关，不是你的那一个。</Trans>
+              </p>
+            </div>
+          )}
+          {/* 回炉替换成功之后从发布页带过来的那句话。★ 可关：它是**事件**不是常驻状态 */}
+          {navBanner && (
+            <div className="flex items-start gap-2 rounded-xl border border-ok-500/40 bg-ok-500/10 px-3 py-2">
+              <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-ok-200">{navBanner}</p>
+              <CloseButton chip="sm" size={13} align="end" label={t`知道了`} onClick={() => setNavBanner("")} />
+            </div>
+          )}
+          {dlBlocked && (
+            <div className="rounded-xl border border-warn-500/40 bg-warn-500/10 px-3 py-2">
+              <Warn>{dlBlocked}</Warn>
+            </div>
+          )}
+        </div>
+
+        {/* ── 标题区 ── */}
+        <div className="px-4 pt-3">
+          <div className="flex items-start gap-2">
+            <h1 ref={titleRef} className={`min-w-0 flex-1 text-base font-bold text-slate-100 ${expanded ? "" : "line-clamp-2"}`}>
+              {video.title}
+            </h1>
+            <button
+              onClick={() => setExpanded((v) => !v)}
+              aria-expanded={expanded}
+              aria-label={expanded ? t`收起简介` : t`展开简介`}
+              className="-m-2 flex-none p-2 text-slate-400"
+            >
+              <Icon name="chevron" size={18} className={`transition-transform ${expanded ? "-rotate-90" : "rotate-90"}`} />
+            </button>
+          </div>
+          {/* 统计行：播放 · 发布时间（· 重新剪辑过）。中文整句用占位符，别在 relativeTime 后面拼中文（CLAUDE.md 那条） */}
+          <p className="mt-1 text-xs tabular-nums text-slate-400">
+            <span className="inline-flex items-center gap-0.5 align-middle">
+              <Icon name="play" size={11} filled />
+              {formatPlays(plays)}
+            </span>
+            {" · "}
+            {relativeTime(video.createdAt)}
+            {!!video.revisedAt &&
+              (revisionLabel(video.revision) ? (
+                <>
+                  {" · "}
+                  <Trans>{relativeTime(video.revisedAt)}重新剪辑过 · {revisionLabel(video.revision)}</Trans>
+                </>
+              ) : (
+                <>
+                  {" · "}
+                  <Trans>{relativeTime(video.revisedAt)}重新剪辑过</Trans>
+                </>
+              ))}
+          </p>
+          {/* 徽标行：永远不折 —— 「AI 生成」是法定的「播放周边」标识，必须在首屏（components/AigcBadge 的 ★★） */}
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            {isAigcWork(video) && <AigcBadge />}
+            {/* 「示例 · 离线」：没连上服务器时铺的演示作品（见 components/SeedBadge） */}
+            {isSeedWork(video) && <SeedBadge />}
+            {video.category && (
+              <span className="rounded-full bg-panel px-2.5 py-1 text-[11px] text-slate-300">{videoCategoryLabel(video.category)}</span>
+            )}
+            {tree && (
+              <span className="rounded-full bg-brand/15 px-2 py-0.5 text-[10px] text-brand">
+                <Trans>互动 · {branchPoints} 个分支点</Trans>
+              </span>
+            )}
+          </div>
+          {/* 简介只在展开后出现（照 B 站作品页）：折叠时也摆两行的话，竖屏作品在真机上（状态栏 41px、手势条）把动作条挤到吸底栏底下 ——
+              量数在 components/playerFrame.PORTRAIT_MAX_VH 上 */}
+          {expanded && video.description && <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-300">{video.description}</p>}
+          {/* 话题标签（展开后）。★ 可点：点了带着词去 /discover（那一页与服务端的搜索都已经把 tags 算进去了） */}
+          {expanded && (video.tags ?? []).length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {(video.tags ?? []).map((tag) => (
+                <button key={tag} onClick={() => navigate("/discover", { state: { q: tag } })} className="rounded-full bg-brand/15 px-2.5 py-1 text-xs text-brand">
+                  #{tag}
                 </button>
-                {payErr && (
-                  <Link to="/me" className="text-xs text-rose-300 underline underline-offset-2">
-                    {payErr}
-                  </Link>
-                )}
-                <span className="text-[10px] text-slate-400"><Trans>解锁后永久可看</Trans></span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ── 作者条 ── */}
+        <div className="flex items-center gap-3 px-4 py-2.5">
+          <Link to={profileHref({ id: video.authorId, name: video.author })} className="flex min-w-0 flex-1 items-center gap-3 active:opacity-60">
+            {/* 名字只翻 app 自己填的那几个（判据见 videos.authorDisplayName）；跳转、Avatar 的 name（取色）认的仍是 video.author 原值 */}
+            <Avatar name={video.author} label={authorName} src={authorAvatarOf(video)} size={36} />
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-semibold text-slate-100">{authorName}</span>
+              {fans !== null && (
+                <span className="block text-[11px] tabular-nums text-slate-400">
+                  <Trans>{formatPlays(fans)} 粉丝</Trans>
+                </span>
+              )}
+            </span>
+          </Link>
+          {mine ? (
+            // ★ 这里原来对「合并发布的成片」单独走一条"不可修改"的分支 —— 一视同仁给编辑入口；能不能回炉由编辑页按六条判据说，这里不预判
+            <Link to={`/edit/${video.id}`} className="inline-flex flex-none items-center gap-1 rounded-full bg-panel px-3.5 py-1.5 text-xs text-slate-200 ring-1 ring-slate-700">
+              <Icon name="pen" size={13} />
+              <Trans>编辑</Trans>
+            </Link>
+          ) : auth !== "pending" ? (
+            <button
+              onClick={() => void follow()}
+              disabled={followBusy}
+              aria-pressed={following}
+              className={`flex-none rounded-full px-3.5 py-1.5 text-xs disabled:opacity-40 ${
+                following ? "bg-panel text-slate-400" : "bg-brand/15 font-semibold text-brand"
+              }`}
+            >
+              {following ? <Trans>已关注</Trans> : <Trans>+ 关注</Trans>}
+            </button>
+          ) : null}
+        </div>
+        {followErr && <p className="-mt-1 px-4 pb-1 text-right text-[11px] text-danger-300">{followErr}</p>}
+
+        {/* ── 动作条：点赞 · 评论 · 收藏 · 分享 · 举报（自己的作品 / 离线时第五格换成「保存」，都不行就四格）──
+            ★ 类名写成字面量分支：Tailwind 扫不到拼出来的字符串 */}
+        <div className={`grid border-y border-slate-700/60 py-1.5 ${reportCell || saveCell ? "grid-cols-5" : "grid-cols-4"}`}>
+          {/* 切换键的两件事读屏才听得见（WCAG 2.2 · 4.1.2）：aria-pressed 说点过没有，名字只说这是哪颗键、**不随状态变**；数字留在名字里 */}
+          <button onClick={toggleLike} aria-pressed={liked} aria-label={t`点赞 · ${likes}`} className={cell}>
+            <Icon name="heart" size={22} filled={liked} className={liked ? "text-danger-500" : "text-slate-300"} />
+            <span className="text-[11px] tabular-nums text-slate-300">{formatPlays(likes)}</span>
+          </button>
+          <button onClick={() => setCmt({ autoFocus: false })} aria-label={t`评论 · ${cCount}`} className={cell}>
+            <Icon name="comment" size={22} className="text-slate-300" />
+            <span className="text-[11px] tabular-nums text-slate-300">{formatPlays(cCount)}</span>
+          </button>
+          {/* ★★ 收藏**不显示数字**（服务端 BranchCollect 2026-08-31 写明不做计数：零成本动作是最便宜的刷量燃料，显示骗人的数比不显示更糟） */}
+          <button onClick={() => void collect()} aria-pressed={saved} className={cell}>
+            <Icon name="bookmark" size={22} filled={saved} className={saved ? "text-gold" : "text-slate-300"} />
+            <span className="text-[11px] text-slate-300">
+              <Trans>收藏</Trans>
+            </span>
+          </button>
+          <button onClick={() => setShareOpen(true)} className={cell}>
+            <Icon name="share" size={22} className="text-slate-300" />
+            <span className="text-[11px] text-slate-300">
+              <Trans>分享</Trans>
+            </span>
+          </button>
+          {reportCell ? (
+            // ★ 传整条作品的 id（还没落库的乐观条目 v_* 没有 authorId，只能靠 mine 认出是本人的）
+            <ReportButton cell targetType="video" targetId={video.id} videoId={video.id} mine={mine} />
+          ) : saveCell ? (
+            <button onClick={openSave} className={cell}>
+              <Icon name="download" size={22} className="text-slate-300" />
+              <span className="text-[11px] text-slate-300">
+                <Trans>保存</Trans>
+              </span>
+            </button>
+          ) : null}
+        </div>
+        {saveErr && <p className="px-4 pt-1 text-right text-[11px] text-danger-300">{saveErr}</p>}
+
+        {/* ── 选集卡（多 P 老作品才有）── */}
+        {parts.length > 1 && (
+          <section className="mx-4 mt-4 rounded-xl border border-slate-700/70 bg-panel p-3">
+            <h2 className="mb-1.5 text-xs font-semibold text-slate-300">
+              <Trans>选集（{parts.length}）</Trans>
+            </h2>
+            <div className="flex gap-2 no-scrollbar overflow-x-auto">
+              {parts.map((p, i) => {
+                const price = video.pricing?.mode === "paid" ? (video.pricing.partPrices[i] ?? 0) : 0;
+                const lockedHere = price > 0 && !mine && !hasPurchased(video.id, i);
+                return (
+                  <button
+                    key={i}
+                    onClick={() => setPi(i)}
+                    className={`inline-flex flex-none items-center gap-1 rounded-full px-3.5 py-1.5 text-xs ${
+                      i === piSafe ? "bg-brand font-semibold text-ink" : "bg-ink text-slate-300"
+                    }`}
+                  >
+                    {lockedHere && <Icon name="lock" size={12} />}
+                    {p.name || `P${i + 1}`}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* ── 互动结构卡 ── */}
+        {tree && (
+          <section className="mx-4 mt-4 rounded-xl border border-slate-700/70 bg-panel p-3 text-xs text-slate-300">
+            <Trans>互动视频 · {branchPoints} 个分支点 · {endings} 个结局</Trans>
+          </section>
+        )}
+
+        {/* ── 评论预览卡（整卡一颗键，点了开评论抽屉）—— 页内那份平铺评论区与输入框收掉了：评论只有 CommentSheet 一份 ── */}
+        <button onClick={() => setCmt({ autoFocus: false })} className="mx-4 mt-4 block w-[calc(100%-2rem)] rounded-xl border border-slate-700/70 bg-panel p-3 text-left">
+          <div className="flex items-center gap-2">
+            <span className="min-w-0 flex-1 text-sm font-semibold text-slate-300">
+              <Trans>评论 {cCount}</Trans>
+            </span>
+            <Icon name="chevron" size={16} className="text-slate-400" />
+          </div>
+          {firstComment ? (
+            <div className="mt-2 flex gap-2">
+              <Avatar name={firstComment.author} label={authorDisplayName(firstComment.author, firstComment.authorId)} src={commentAvatarOf(firstComment)} size={24} />
+              <div className="min-w-0 flex-1">
+                <span className="text-xs font-medium text-slate-300">{authorDisplayName(firstComment.author, firstComment.authorId)}</span>
+                <div className="line-clamp-2 text-sm text-slate-200">
+                  <MentionText text={firstComment.text} mentions={firstComment.mentions} />
+                </div>
               </div>
             </div>
-          ) : part.branchTree ? (
-            <BranchPlayer key={`b${pi}`} tree={part.branchTree} cover={video.cover} onPathChange={setBranchPath} />
+          ) : cStatus === "pending" && cCount > 0 ? (
+            <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-400">
+              <Spinner size="xs" />
+              <Trans>正在取评论…</Trans>
+            </div>
+          ) : cStatus === "failed" ? (
+            <p className="mt-2 text-xs text-danger-300">
+              <Trans>没取到评论，点开重试</Trans>
+            </p>
           ) : (
-            <SegmentPlayer key={`s${pi}`} segments={part.segments} cover={video.cover} />
-          ))}
-
-        {/* ★★ 被平台下架的横幅。**只有作者自己会走到这里** —— 别人的接口回包里根本没有
-            这条作品，服务端刻意只对作者放行并带上原因。
-            为什么必须有这一块：作者手里的这条作品一切照旧（封面在、点得开、能播），
-            只是播放量再也不涨、别人打开是 404。不给他一个字的解释，他最可能的下一步
-            就是原样重发一遍 —— 正是下架想避免的那个结果。
-            原因写在这里而不是只挂 title：手机没有 hover（CLAUDE.md 点名过的坑）。 */}
-        {video.takedown && (
-          <div className="mt-4 rounded-xl border border-rose-500/40 bg-rose-500/10 p-3">
-            <p className="text-sm font-semibold text-rose-200"><Trans>这条作品已被平台下架</Trans></p>
-            <p className="mt-1 text-xs leading-relaxed text-rose-100/80">
-              {takedownReasonText(video.takedown.reason) || t`（管理员没有填写原因）`}
+            <p className="mt-2 text-xs text-slate-400">
+              <Trans>还没有评论，抢个沙发</Trans>
             </p>
-            <p className="mt-1.5 text-[11px] text-slate-400">
-              <Trans>只有你自己看得到它。把可见性改回公开也没用 —— 这是平台的开关，不是你的那一个。</Trans>
-            </p>
-          </div>
-        )}
-
-        {/* 回炉替换成功之后从发布页带过来的那句话（页内横幅，本 app 没有 toast）。
-            ★ 可关：它是**事件**不是常驻状态，看过就该走 */}
-        {navBanner && (
-          <div className="mt-4 flex items-start gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2">
-            <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-emerald-200">{navBanner}</p>
-            <button onClick={() => setNavBanner("")} aria-label={t`知道了`} className="flex-none text-[11px] text-emerald-300/80">
-              ✕
-            </button>
-          </div>
-        )}
-
-        {/* 「保存到本地」被就地拒时那句整句话。与下架横幅同一带：那是用户此刻正在看的地方 */}
-        {dlBlocked && (
-          <div className="mt-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2">
-            <p className="text-[11px] leading-relaxed text-amber-200">{dlBlocked}</p>
-          </div>
-        )}
-
-        <h1 className="mt-4 text-xl font-bold text-slate-100">{video.title}</h1>
-        {/* ★★ 「这条片被重新剪辑过」必须让**观众**看得见（2026-08-10 删掉回炉的理由①正是
-            "内容变了而观众没有任何提示"）。判据是 `revisedAt` **有没有值** —— 没回炉过的
-            作品、老服务端、老数据都不该凭空长出一行。日期口径走 types.relativeTime 那一份，
-            版次口径走 types.revisionLabel 那一份（个人页角标与回炉成功那句横幅共用同一把尺，
-            null = 老数据报不出版次，这里就只说"重新剪辑过"，不补一个编出来的数）。 */}
-        {!!video.revisedAt && (
-          <p className="mt-1 text-xs text-slate-500">
-            <Trans>{relativeTime(video.revisedAt)}重新剪辑过</Trans>{revisionLabel(video.revision) ? ` · ${revisionLabel(video.revision)}` : ""}
-          </p>
-        )}
-        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-400">
-          {/* 作者可点：从详情页也要能走到创作者主页，否则「看看 TA 还发过什么」
-              只有首页头像一条路 */}
-          <Link
-            // 有 authorId 就按 id 跳（名字会变、会重名，见 profileHref）
-            to={profileHref({ id: video.authorId, name: video.author })}
-            className="flex items-center gap-2 active:opacity-60"
-          >
-            {/* 名字只翻 app 自己填的那几个（「我」/「匿名」两个哨兵 + 三条离线演示作品的作者，判据见 videos.authorDisplayName）；跳转、Avatar 的 name（取色）认的仍是 video.author 原值 */}
-            <Avatar name={video.author} label={authorDisplayName(video.author, video.authorId)} src={authorAvatarOf(video)} size={32} />
-            <span className="text-slate-200">{authorDisplayName(video.author, video.authorId)}</span>
-          </Link>
-          <span><Trans>{formatPlays(plays)}播放</Trans></span>
-          <span>{relativeTime(video.createdAt)}</span>
-          <span className="rounded-full bg-panel px-2.5 py-0.5 text-xs">{videoCategoryLabel(video.category)}</span>
-          {part?.branchTree && (
-            <span className="rounded-full bg-purple-500/15 px-2.5 py-0.5 text-xs text-purple-300">
-              <Trans>互动视频 · {branchPoints} 个分支点</Trans>
-            </span>
           )}
-          <button
-            onClick={toggleLike}
-            // 切换键的两件事读屏才听得见（2026-10-15 教材人格评审，WCAG 2.2 · 4.1.2，照 CommentSheet 那颗心）：aria-pressed 说
-            // 「已点过没有」，名字只说这是哪颗键。★ 名字**不随状态变**（同日第五节「另议」拍板，照 APG 切换键的写法）：
-            //   「取消点赞 · 12，已按下」会把"点过了"念两遍，而且名字一变读屏就把这颗键从头播报一遍。数字留在名字里 ——
-            //   可见内容是「❤ 12」，aria-label 一盖，读屏就再听不到这个数
-            aria-pressed={liked}
-            aria-label={t`点赞 · ${likes}`}
-            className={`ml-auto rounded-full px-3.5 py-1.5 text-sm ${
-              liked ? "bg-pink-500/20 text-pink-300" : "bg-panel text-slate-300 hover:bg-slate-700"
-            }`}
-          >
-            {liked ? "❤" : "🤍"} {likes}
-          </button>
-        </div>
+        </button>
 
-        {/* 同款署名（2026-10-02 公开配方）：按谁的流程做的（只在原作对这个人可见时服务端才发）、几个人照这条做了同款。
-            两行都**判有值**：老服务端 / 列表缓存没有这两位时一个字不出。计数来自详情端点，不含作者自己。 */}
-        {(video.remixOf || (video.remixCount ?? 0) > 0) && (
-          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
-            {video.remixOf && (
-              <Link to={`/video/${video.remixOf.id}`} className="underline underline-offset-2 active:opacity-60">
-                {/* 有标题 / 没标题两句各写一份：书名号是中文标点，拼在占位符里英文读出来就是「process：《…》」 */}
-                {video.remixOf.title ? (
-                  <Trans>按 @{authorDisplayName(video.remixOf.author, video.remixOf.authorId)} 的流程做的同款：《{video.remixOf.title}》</Trans>
-                ) : (
-                  <Trans>按 @{authorDisplayName(video.remixOf.author, video.remixOf.authorId)} 的流程做的同款</Trans>
-                )}
-              </Link>
-            )}
-            {(video.remixCount ?? 0) > 0 && <span><Trans>{video.remixCount} 人按这条的流程做了同款</Trans></span>}
-          </div>
-        )}
-
-        {video.description && (
-          <p className="mt-3 whitespace-pre-wrap rounded-xl bg-panel/60 p-3 text-sm leading-relaxed text-slate-300">
-            {video.description}
-          </p>
-        )}
-
-        {/* 话题标签。★ 是**可点的**——不可点的标签只是装饰，而作者填它的理由就是"让人搜得到"。
-            点了带着词去 /discover（那一页与服务端的搜索都已经把 tags 算进去了，
-            不接那一步的话点下去是"没有结果"，比没有芯片更糟）。 */}
-        {/* 「AI 生成」标识：合规要求"发布内容周边"有显著提示（见 components/AigcBadge 的 ★★）。
-            与话题标签同一排 —— 它本身也是"关于这条内容是什么"的说明。 */}
-        <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          {isAigcWork(video) && <AigcBadge />}
-          {/* 「示例 · 离线」：这三条是没连上服务器时铺的演示作品，与真人作品长得一模一样（见 components/SeedBadge） */}
-          {isSeedWork(video) && <SeedBadge />}
-          {(video.tags ?? []).map((tag) => (
-            <button
-              key={tag}
-              onClick={() => navigate("/discover", { state: { q: tag } })}
-              className="rounded-full bg-brand/15 px-2.5 py-1 text-xs text-brand hover:bg-brand/25"
-            >
-              #{tag}
-            </button>
-          ))}
-        </div>
-
-        {/* 举报这个作品。
-            ★★ 为什么放在详情页而不是首页右侧那一栏：那一栏是 bottom 定位的 flex-col，
-              每加一个键整栏就往上长 64px，640 高的小屏上最上面的头像会被 section 的
-              overflow-hidden 裁掉（CLAUDE.md 那条坑已经量到只剩 24px 余量）。
-              首页 → 详情页是一次点击（标题/描述区就能进来），举报又是低频动作，
-              为它去动那几个咬着算的数值不划算。
-            ★ 自己的作品不显示（mine）：自己的东西该编辑该删，不该举报。 */}
-        <div className="mt-2 flex justify-end">
-          {/* ★ 传整条 video（2026-09-18 发版复核抓到）：还没落库的乐观条目（v_*）没有 authorId，只能靠 id 认出是本人的 */}
-          <ReportButton targetType="video" targetId={video.id} videoId={video.id} mine={isMyVideo(video)} />
-          {/* ★ 拉黑与举报并排、不合并成菜单：两件事、政策也分别要求，
-              合并会让举报变难点到，而举报是我们唯一的内容治理输入（见 BlockButton 顶注） */}
-          <BlockButton userId={video.authorId ?? ""} userName={video.author} mine={isMyVideo(video)} />
-        </div>
-
-        {/* 「保存到本地」整宽次级键（不与金色 CTA 抢，放在「⚡ 做同款」之上）。
-            ★ `isNative()` 为假（浏览器 / npm run dev）时**整颗键不画**，不画成灰的：
-              那条路上 @capacitor/filesystem 的 web 实现会把文件写进 IndexedDB、
-              share 走 navigator.share —— "保存到手机"是假的。界面上摆一个永远点不动
-              （或者点了假装成功）的选项，比没有这个选项更坏。 */}
-        {dlSupported && (
-          <button
-            onClick={() => {
-              setDlBlocked("");
-              if (dlBlockedNow) {
-                setDlBlocked(dlBlockedNow);
-                return;
-              }
-              setDlOpen(true);
-            }}
-            className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-700 py-2.5 text-sm text-slate-200 active:scale-[0.99]"
-          >
-            <Icon name="download" size={16} />
-            {parts.length > 1 ? t`保存这一集到本地` : t`保存到本地`}
-          </button>
-        )}
-
-        {/* 做同款（backlog 2.8-②，可灵/即梦式闭环）：把**当前这一 P**的分段剧本+时长+
-            档位+画幅+随片卡组整份铺成观众自己的工作流。帧不带（那是作者花钱炼的成片，
-            抄的是配方）；铺开不花钱，一段一结账。守卫三件套见 useApplyTemplate。 */}
-        {/* 查看制作过程（公开配方，2026-10-02）：作者公开了才亮；付费未解锁的不给（与做同款同一条理由：配方是付费内容的一部分）。
-            制作过程页自带「按这个流程做同款」——它比下面那颗做同款多了卡 / 空位 / 段模板，所以两颗并存：
-            下面那颗是"抄分段剧本"，这一颗是"照整条流水线做"。 */}
-        {video.recipePublic && !locked && (
-          <Link
-            to={`/video/${video.id}/recipe`}
-            className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl border border-brand/40 bg-brand/5 py-2.5 text-sm font-bold text-brand active:scale-[0.99]"
-          >
-            <Icon name="branch" size={16} />
-            <Trans>查看制作过程</Trans>
-          </Link>
-        )}
-
-        {remakeableOf(part?.segments ?? video.segments) && (
-          <button
-            onClick={() =>
-              remakeGuard(() => {
-                const segs = part?.segments ?? video.segments;
-                const built = remakeNodesOf(segs, video.deck?.cards ?? []);
-                const ok = useFlow.getState().seed(built.nodes, {
-                  mode: "workflow",
-                  origin: "solo",
-                  // 同款署名（2026-10-02）：发布时随稿子上行，原作页据它记一次「N 人做了同款」
-                  remixOf: { videoId: video.id, title: video.title, author: video.author },
-                });
-                // 换了档（原作用的是会员档 / 已停用的档）要说出来（remakeNodesOf 的 ★）
-                if (ok && built.notes.length) showToast(built.notes.join(t({ message: "；", comment: "几条「第 N 段换了档」的说明连成一行时的分隔符" })), 6000);
-                if (ok) navigate("/flow");
-                else setRemakeErr(useFlow.getState().err || t`现在铺不了（可能有一段正在生成中），稍后再试`);
-                return ok;
-              }, {
-                label: t`做同款（丢弃上面那条流水线）`,
-                noun: t({ message: "做同款", context: "丢弃确认卡里「…再回来X」的那个动作（英文用小写动词短语）" }),
-              })
-            }
-            className="mt-6 w-full rounded-xl bg-gold/90 px-4 py-2.5 text-sm font-bold text-ink active:scale-[0.99]"
-          >
-            {video.deck?.cards.length ? (
-              <Trans>⚡ 做同款：同一份分段剧本和卡组，生成你自己的版本</Trans>
-            ) : (
-              <Trans>⚡ 做同款：同一份分段剧本，生成你自己的版本</Trans>
-            )}
-          </button>
-        )}
-        {remakeErr && (
-          <p className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-300/90">
-            {remakeErr}
-          </p>
+        {/* ── 做你自己的版本（参数 / 同款署名 / 卡组 / 制作过程）── */}
+        {(canRemake || (video.deck?.cards.length ?? 0) > 0 || (video.recipePublic && !locked) || !!video.remixOf) && (
+          <RemakeCard
+            video={video}
+            segments={part?.segments ?? video.segments}
+            locked={locked}
+            auth={auth}
+            remakeErr={remakeErr}
+            onGoStudio={() => navigate("/studio")}
+          />
         )}
         {remakeDialog}
 
-        {/* 本片卡组：作者生成本片所用素材卡的快照。观众收入后用同一套素材
-            进工坊，就能生成相似走向的视频——创作的可复刻性是卡片生态的闭环 */}
-        {video.deck && video.deck.cards.length > 0 && <VideoDeckSection video={video} auth={auth} onGo={() => navigate("/studio")} />}
-
-        {/* 这里原来有一段「分段剧情 · N 个节点」：逐段列首尾帧 + 小说体剧情。
-            移除的理由是它把成片又用图文复述了一遍——观众已经看完视频了，
-            而首尾帧属于创作侧的中间产物（要看去工坊/剪辑页）。 */}
-
-        {/* 评论区 */}
-        <section className="mt-6 pb-16">
-          <h2 className="mb-3 text-base font-bold text-slate-200"><Trans>评论 {comments.length}</Trans></h2>
-          <div className="flex gap-2">
-            {/* @提及补全与首页评论抽屉是**同一份实现**（铁律六）：分叉了就会出现
-                "抽屉里能 @ 出来、这里 @ 不出来"这种只有用户才发现得了的差异 */}
-            <MentionInput
-              value={draft}
-              onChange={setDraft}
-              onPick={(p) => setPicks((ps) => [...ps, p])}
-              onEnter={() => void submitComment()}
-              placeholder={t`说点什么，@ 可以叫上别人`}
-              className="rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
-            />
-            <button
-              onClick={() => void submitComment()}
-              disabled={!draft.trim() || busyComment}
-              className="rounded-full bg-brand px-4 py-2 text-sm font-semibold text-ink disabled:opacity-40"
-            >
-              {busyComment
-                ? t({ message: "发布中…", context: "评论输入框旁那颗键：正在把这条评论发出去（不是发布作品）" })
-                : t({ message: "发布", context: "评论输入框旁那颗键：把这条评论发出去（不是发布作品）" })}
-            </button>
-          </div>
-          {/* 失败就地说清楚，并且**不清空输入框**——用户打的字还在，改一下就能再发 */}
-          {commentErr && <p className="mt-1.5 text-[11px] leading-relaxed text-rose-300">{commentErr}</p>}
-          {mentionWarn && <p className="mt-1.5 text-[11px] leading-relaxed text-amber-300/90">{mentionWarn}</p>}
-          <div className="mt-4 space-y-4">
-            {comments.map((c) => (
-              <div key={c.id} className="flex gap-3">
-                {/* 真头像，没有才退首字母底（规则只在 videos.commentAvatarOf 一处，与评论抽屉共用） */}
-                <Avatar name={c.author} label={authorDisplayName(c.author, c.authorId)} src={commentAvatarOf(c)} size={36} />
-                <div className="min-w-0">
-                  <div className="text-xs text-slate-500">
-                    {authorDisplayName(c.author, c.authorId)} · {relativeTime(c.at)}
-                  </div>
-                  {/* 解析到人的 @ 才是链接，打错的留成普通文字（见 MentionText 顶部） */}
-                  <div className="mt-0.5 text-sm text-slate-200">
-                    <MentionText text={c.text} mentions={c.mentions} />
-                  </div>
-                  {/* 删除入口与首页评论抽屉共用同一份实现（铁律六）。
-                      ★ 本页的 comments 是 video.comments 的**快照**，data 层删完要把
-                        快照换掉，否则那条评论还留在屏幕上（下次 version 变了才消失）。 */}
-                  <div className="flex flex-wrap items-center gap-3">
-                    <CommentDelete videoId={video.id} comment={c} onDeleted={() => setComments([...video.comments])} />
-                    {/* 举报入口与首页评论抽屉共用同一份实现（铁律六） */}
-                    <ReportButton targetType="comment" targetId={c.id} videoId={video.id} mine={isMyVideo({ author: c.author, authorId: c.authorId })} />
-                    <BlockButton userId={c.authorId ?? ""} userName={c.author} mine={isMyVideo({ author: c.author, authorId: c.authorId })} />
-                  </div>
-                </div>
-              </div>
-            ))}
-            {comments.length === 0 && <div className="py-8 text-center text-sm text-slate-500"><Trans>还没有评论，抢个沙发</Trans></div>}
-          </div>
-        </section>
+        {/* ── 相关区：TA 的更多作品 + 同分区（进视口才问）── */}
+        <RelatedWorks video={video} />
       </main>
+
+      {!immersive && <VideoDock onComment={() => setCmt({ autoFocus: true })} onRemake={canRemake ? remake : null} />}
+
+      {menuOpen && (
+        <FeedActionSheet
+          video={video}
+          mine={mine}
+          speed={speed}
+          onSpeed={(s) => {
+            setSpeed(s);
+            setMenuOpen(false);
+          }}
+          immersive={immersive || locked}
+          landscape={aspect === "landscape"}
+          onClearScreen={() => void enterFull()}
+          onClose={() => setMenuOpen(false)}
+          host="detail"
+          onSaveLocal={dlSupported ? openSave : null}
+          block={video.authorId ? { userId: video.authorId, userName: video.author } : null}
+        />
+      )}
+      {cmt && <CommentSheet video={video} onClose={() => setCmt(null)} autoFocus={cmt.autoFocus} />}
+      {dmOpen && <DanmakuInput videoId={video.id} getTime={() => timeRef.current} onClose={() => setDmOpen(false)} />}
       {shareOpen && (
         <ShareSheet
           video={video}
@@ -791,9 +795,7 @@ export default function VideoPage() {
           }
         />
       )}
-      {dlOpen && (
-        <DownloadSheet video={video} partIndex={piSafe} branchPath={branchPath} onClose={() => setDlOpen(false)} />
-      )}
+      {dlOpen && <DownloadSheet video={video} partIndex={piSafe} branchPath={branchPath} onClose={() => setDlOpen(false)} />}
     </div>
   );
 }

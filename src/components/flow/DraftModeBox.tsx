@@ -12,11 +12,11 @@
 //   模拟器 WebView 上放起来只有声音、一帧画面都解不出（canPlayType 对 Main 10 回空）⇒ 服务端转存进图床时转成 8 bit H.264
 //   （server videoAsset.uploadVideoBuffer）。转存之前那几分钟放的还是方舟直链 —— 按钮旁边把这一段说出来（铁律八）。
 import { Trans, useLingui } from "@lingui/react/macro";
+import Warn from "../Warn";
 import { useEffect, useState } from "react";
 import { AI_REAL } from "../../ai";
-import { draftModeIssue, draftModeOffered } from "../../data/account";
-import { serverSupports } from "../../data/serverCaps";
-import { draftFinalTokens, draftStepTokens, fmtTokens, tierOf } from "../../data/economy";
+import { draftModeIssue, draftModeOffered, draftModeUpgradeable } from "../../data/account";
+import { draftFinalTokens, draftStepTokens, draftTierId, fmtTokens, tierOf } from "../../data/economy";
 import { aspectOf } from "../../types";
 import {
   chosenOf,
@@ -56,8 +56,13 @@ export default function DraftModeBox({
   // 「先出样片」开关（三种样子都摆：样片 / 成片在屏幕上时，它管的是下一次「重新生成」出不出样片）
   const ratio = aspectOf(node.aspect).ratio;
   const blocked = draftModeIssue(tier);
-  /** 挡住他的是套餐（「去升级」走得通），不是服务端还不会（那种升级也没用 —— 别指一条走不通的路） */
-  const upgradeable = serverSupports("draftMode") !== false;
+  /**
+   * 挡住他的是套餐（「去升级」走得通），不是服务端还不会、也不是地区不给（那几种升级也没用 —— 别指一条走不通的路）。判据在 account.draftModeUpgradeable。
+   * ★ 定稿那一栏问的是**出样片那一档**（draftFinalIssue 问的就是它，定稿只认样片任务号）：原来只看服务端能力位，
+   *   地区一来，海外用户在已付过钱的样片下面会看到「你所在的地区用不了」紧挨着一颗「去升级」（2026-10-26 P1 审核）
+   */
+  const upgradeable = draftModeUpgradeable(tier);
+  const finalUpgradeable = draftModeUpgradeable(tierOf(draftTierId()));
   const toggle = offered ? (
     <>
       <label className="flex items-center gap-1.5 text-[11px] text-slate-200">
@@ -71,9 +76,9 @@ export default function DraftModeBox({
         {stage ? <Trans>📼 重新生成时也先出样片</Trans> : <Trans>📼 先出样片（480p 预览，满意再定稿成 1080p）</Trans>}
       </label>
       {blocked && (
-        <p className="text-[10px] leading-relaxed text-amber-200">
+        <Warn compact>
           {blocked} {upgradeable && <UpgradeLink />}
-        </p>
+        </Warn>
       )}
     </>
   ) : null;
@@ -81,8 +86,8 @@ export default function DraftModeBox({
   // ③ 已定稿
   if (stage === "final") {
     return (
-      <div className="space-y-1 rounded-lg border border-slate-700/70 bg-black/25 px-2.5 py-2">
-        <p className="text-[11px] leading-relaxed text-emerald-300">
+      <div className="space-y-1 rounded-lg bg-black/25 px-2.5 py-2">
+        <p className="text-[11px] leading-relaxed text-ok-300">
           {/* 「上一版在还原上一版里」只在它真的在那儿时说：取回来新开一段安放的定稿（placeRescuedSegment）没有上一版可还原 */}
           {prop.prevVideoUrl && prop.prevVideoUrl === prop.draftUrl ? (
             <Trans>✓ 已定稿成 1080p。上一版（480p 样片）在「修这一段」的「还原上一版」里。</Trans>
@@ -121,14 +126,14 @@ export default function DraftModeBox({
         </p>
         {/* 还原上一版之后又回到了样片：这条样片定稿过，成片就在「还原上一版」里 —— 别让人再花一次定稿的钱去换一条差不多的 */}
         {prop.finalUrl && prop.prevVideoUrl === prop.finalUrl && (
-          <p className="text-[11px] leading-relaxed text-emerald-300">
+          <p className="text-[11px] leading-relaxed text-ok-300">
             <Trans>这条样片已经定稿过一次：1080p 成片在「修这一段」的「还原上一版」里，点它就回去了，不用再花钱。</Trans>
           </p>
         )}
         {issue && left > 0 && (
-          <p className="text-[11px] leading-relaxed text-amber-200">
-            {issue} {upgradeable && <UpgradeLink />}
-          </p>
+          <Warn>
+            {issue} {finalUpgradeable && <UpgradeLink />}
+          </Warn>
         )}
         {left > 0 && (
           <button
@@ -151,7 +156,7 @@ export default function DraftModeBox({
   const step1 = AI_REAL ? fmtTokens(draftStepTokens(prop.durationSec, ratio)) : t`演示`;
   const step2 = AI_REAL ? fmtTokens(draftFinalTokens(prop.durationSec, ratio)) : t`演示`;
   return (
-    <div className="space-y-1 rounded-lg border border-slate-700/70 bg-black/25 px-2.5 py-2">
+    <div className="space-y-1 rounded-lg bg-black/25 px-2.5 py-2">
       {toggle}
       {!blocked && (
         <p className="text-[10px] leading-relaxed text-slate-500">

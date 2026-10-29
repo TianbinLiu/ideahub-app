@@ -18,7 +18,7 @@ import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { Trans, useLingui } from "@lingui/react/macro";
 import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
-import Icon from "../components/Icon";
+import SearchField from "../components/SearchField";
 import AuthPending from "../components/AuthPending";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
@@ -265,30 +265,7 @@ export default function WorkshopPage() {
       />
 
       {/* 搜索框：一直展开（不缩成放大镜），搜的是下面选中的那一类。页面级表单字段那一档规格 */}
-      <div
-        data-guide="workshop-search"
-        className="mb-3 flex items-center gap-2 rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 focus-within:border-brand"
-      >
-        <Icon name="search" size={16} className="flex-none text-slate-500" />
-        <input
-          type="search"
-          enterKeyHint="search"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder={placeholder}
-          aria-label={placeholder}
-          className="min-w-0 flex-1 bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-500 [&::-webkit-search-cancel-button]:hidden"
-        />
-        {text && (
-          <button
-            onClick={() => setText("")}
-            aria-label={t`清空搜索`}
-            className="relative flex-none text-slate-400 after:absolute after:-inset-3 after:content-[''] active:scale-95"
-          >
-            <Icon name="close" size={16} />
-          </button>
-        )}
-      </div>
+      <SearchField shape="field" guide="workshop-search" className="mb-3" value={text} onChange={setText} placeholder={placeholder} />
 
       {/* 种类：卡片 / 卡组 / 模板 / 工作流（整宽分段控件）。换种类不清搜索词 —— 同一个词换一类再搜一遍是常见动作 */}
       <div data-guide="workshop-kinds" className="mb-3 grid grid-cols-4 gap-1 rounded-xl bg-panel p-1" role="tablist">
@@ -308,8 +285,9 @@ export default function WorkshopPage() {
       {kind === "cards" && (
         <>
           {/* 卡种芯片（整行、横滑）。卡种在拿到的这一批里滤（服务端没有类型筛选）。
-              ★ 排序不和芯片挤一行：375 宽的英文界面下芯片只露出两个半（2026-10-20 浏览器里量过）。没连上服务器时整行不画：没有东西可筛 */}
-          {remote && (
+              ★ 排序不和芯片挤一行：375 宽的英文界面下芯片只露出两个半（2026-10-20 浏览器里量过）。没连上服务器 / 没拉到 / 广场是空的时整行不画：没有东西可筛
+              （items 是整批、不是按卡种滤过的那份 —— 某个卡种筛空了芯片还在，否则换不回「全部」） */}
+          {remote && !cardPlaza.error && cardPlaza.items.length > 0 && (
           <div className="-my-0.5 mb-2 flex gap-1.5 no-scrollbar overflow-x-auto py-0.5">
             {TYPE_FILTERS.map((tp) => {
               const n = tp ? typeCounts.get(tp) ?? 0 : cardPlaza.items.length;
@@ -318,7 +296,7 @@ export default function WorkshopPage() {
                   key={tp || "all"}
                   onClick={() => setCtype(tp)}
                   aria-pressed={ctype === tp}
-                  className={`flex-none rounded-full px-3 py-1 text-[11px] ${ctype === tp ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-400"}`}
+                  className={`flex-none rounded-full px-3 py-1 text-[11px] ${ctype === tp ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-300"}`}
                 >
                   {tp ? CARD_TYPE_LABELS[tp] : t`全部`}
                   {n > 0 && <span className="ml-1 tabular-nums opacity-70">{n}</span>}
@@ -378,7 +356,7 @@ export default function WorkshopPage() {
                       </Link>
                       {/* 作者写的一句话推荐（api 收 description → 服务端存并发回 → toLocalCard 解析成 shareNote） */}
                       {local.shareNote && (
-                        <p className="mt-0.5 line-clamp-2 text-[10px] leading-tight text-slate-400" title={local.shareNote}>
+                        <p className="mt-0.5 line-clamp-2 text-[10px] leading-relaxed text-slate-400" title={local.shareNote}>
                           {local.shareNote}
                         </p>
                       )}
@@ -397,7 +375,7 @@ export default function WorkshopPage() {
                           }
                         }}
                         disabled={owned || busyCard === c.cardId}
-                        className="mt-1.5 w-full rounded-full bg-brand py-1.5 text-center text-[11px] font-semibold text-ink active:opacity-60 disabled:bg-panel disabled:text-slate-500"
+                        className="mt-1.5 w-full rounded-full bg-brand/15 py-1.5 text-center text-[11px] font-semibold text-brand active:opacity-60 disabled:bg-panel disabled:text-slate-500"
                       >
                         {c.isOwner ? t`我发的` : owned ? t`已拥有` : busyCard === c.cardId ? t`添加中…` : t`＋ 添加`}
                       </button>
@@ -405,7 +383,7 @@ export default function WorkshopPage() {
                   );
                 })}
               </div>
-              {cardErr && <div className="mb-3 text-xs text-rose-300">{cardErr}</div>}
+              {cardErr && <div className="mb-3 text-xs text-danger-300">{cardErr}</div>}
             </>
           )}
         </>
@@ -476,7 +454,7 @@ export default function WorkshopPage() {
               ))}
             </div>
           )}
-          {deckErr && <div className="pb-4 text-xs text-rose-300">{deckErr}</div>}
+          {deckErr && <div className="pb-4 text-xs text-danger-300">{deckErr}</div>}
         </>
       )}
 

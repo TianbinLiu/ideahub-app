@@ -14,6 +14,7 @@
 //   工作流模式 → seedSolo("workflow")，方案台是主路径
 //   简约模式 → seedSolo("simple")，单节点单走向、不推演方案、**不存草稿**，UI 收到最简
 import { useEffect, useMemo, useRef, useState } from "react";
+import Warn from "../components/Warn";
 import PageHeader from "../components/PageHeader";
 import ReviseBar from "../components/ReviseBar";
 import { Link, useLocation, useNavigate } from "react-router";
@@ -38,13 +39,13 @@ import VideoTemplateExtractor from "../components/VideoTemplateExtractor";
 // ★ VIDEO_PROMPT_MAX 取自 ai 层（提示词硬顶的唯一出处）：白模 V2 的输入框里装的是
 //   真正发出去的那段话，在这里另抄一个 400 出来，改上限时这里就开始说假话
 import { AI_REAL, VIDEO_PROMPT_MAX } from "../ai";
-import { balanceNote, tierBlockReason, tierGo } from "../data/account";
+import { balanceNote, textOnlyFramesLine, tierBlockReason, tierGo, tierTextOnly } from "../data/account";
 import { markSpecOf, myTemplates, splitCastRoles, templateGroupOf } from "../data/templates";
 // ★ 取回那一整块 2026-08-31 搬去 components/flow/SegmentRecoverCards（三个宿主共用，
 //   理由见那边的 ★★：它原来只长在这一页的 simple 闸里，画布与工坊一个像素都看不到）
 import { SegmentRecoverList } from "../components/flow/SegmentRecoverCards";
-import { clampDuration, fmtTokens, tierOf } from "../data/economy";
-import { annSkipNote, chosenOf, deriveCostOf, flowCost, FlowNode, frontierOf, nodeCost, nodeDerived, nodeDone, nodeEmptyFrames, nodeRefOn, planOf, realVideoOfNode, redrawCost, requirementOf, tplOfNode, useFlow } from "../studio/flowStore";
+import { clampDuration, fmtTokens, priceTag, tierOf } from "../data/economy";
+import { annSkipNote, chosenOf, deriveCostOf, flowCost, FlowNode, frontierOf, nodeCost, nodeDerived, nodeDone, nodeEmptyFrames, nodeRefOn, nodeRefPlan, planOf, realVideoOfNode, redrawCost, requirementOf, tplOfNode, useFlow } from "../studio/flowStore";
 import PlanBoard from "../studio/ui/PlanBoard";
 import FuseFrameSheet, { fuseSourcesOf } from "../studio/ui/FuseFrameSheet";
 import CustomFrameSlots from "../components/flow/CustomFrameSlots";
@@ -214,12 +215,12 @@ function BlockoutCastBox({ node, onCast }: { node: FlowNode; onCast: () => void 
           （blockoutPrompt 的 ★，铁律八）。骨架是确定性的那一份（第五章模板逐字实现），
           填进去照样可以改 */}
       {castErr && castOfThisNode && (
-        <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
-          <p className="text-[11px] leading-relaxed text-amber-200">{castErr}</p>
+        <div className="space-y-1.5 rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2">
+          <p className="text-[11px] leading-relaxed text-danger-300">{castErr}</p>
           {castFallback && (
             <button
               onClick={fillCastFallback}
-              className="rounded-full bg-amber-500/90 px-2.5 py-1 text-[11px] font-bold text-ink"
+              className="rounded-full bg-warn-500/90 px-2.5 py-1 text-[11px] font-bold text-ink"
             >
               <Trans>填入默认写法（填完还能改）</Trans>
             </button>
@@ -395,6 +396,12 @@ function NodeScreen({
    *   "直接用卡片形象、不画设定帧"，实际却在承接上一段真实尾帧并按文字补画结束帧。
    */
   const refOn = useFlow((s) => nodeRefOn(s.nodes, index, s.mode));
+  /**
+   * 走参考生视频时**真有几张卡片形象图**发出去（参考清单 nodeRefPlan → RefPlan.cardImages，与出片同一个分配）。
+   * ★ refOn 为真不等于卡的图进了模型（2026-10-26 审核抓到）：只挂临时参考图、挂的卡没有形象图时也走参考生视频，
+   *   那时说「把素材卡的形象参考图交给某档出片」就是假话 —— 真发出去的只有临时参考图，卡只按文字参与。
+   */
+  const refCardImages = useFlow((s) => nodeRefPlan(s.nodes, index, s.mode)?.cardImages ?? 0);
   /** 本段走白模复刻（r2v）。判定与报价（nodeCost）同源：模板快照带 refVideo（存在性） */
   const blockout = !!tpl?.refVideo;
   /** 本段走白模**点名**路（V2：模板登记了角色位）。判据是存在性（`roles?.length`，
@@ -426,17 +433,17 @@ function NodeScreen({
   const mainLabel = generating
     ? node.progress || t`生成中…`
     : stage === "rederive"
-      ? t`♻ 重新生成方案（${fmtTokens(propCost)}）`
+      ? t`♻ 重新生成方案（${priceTag(propCost)}）`
       : stage === "derive"
-        ? t`⚡ 生成本段（${fmtTokens(propCost)}）`
+        ? t`生成本段（${priceTag(propCost)}）`
         : pending
           ? // ★ 「没接到结果」这一拍上主按钮**必须把"再花一次"写在脸上**：它和上面那颗
             // 「取回」长得一样近，而用户默认把没出片理解成"重试一下"。这一下不是重试，
             // 是重新下一单 —— 这正是 2026-08-18 那 ¥27 会被再花一次的入口。
             t`♻ 重新生成（再花 ${fmtTokens(cost)}）`
           : done
-            ? t`♻ 重新生成（${fmtTokens(cost)}）`
-            : t`⚡ 生成本段（${fmtTokens(cost)}）`;
+            ? t`♻ 重新生成（${priceTag(cost)}）`
+            : t`生成本段（${priceTag(cost)}）`;
 
   async function onMain() {
     if (busy) return;
@@ -559,7 +566,7 @@ function NodeScreen({
           onClick={() => shiftCursor(-1)}
           disabled={index === 0 || busy}
           aria-label={t`上一段`}
-          className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-panel text-slate-200 disabled:opacity-40"
+          className="relative flex h-7 w-7 flex-none items-center justify-center rounded-full bg-panel text-slate-200 after:absolute after:-inset-2 after:content-[''] disabled:opacity-40"
         >
           <Icon name="back" size={15} />
         </button>
@@ -567,7 +574,7 @@ function NodeScreen({
           <span className="flex-none text-[11px] text-slate-300">
             {total > 1 ? t`第 ${index + 1}/${total} 段` : t`本段`}
           </span>
-          {done && <span className="flex-none rounded-full px-2 py-0.5 bg-emerald-500/85 text-[10px] text-ink"><Trans>✓ 已出片</Trans></span>}
+          {done && <span className="flex-none rounded-full px-2 py-0.5 bg-ok-500/85 text-[10px] text-ink"><Trans>✓ 已出片</Trans></span>}
           {picking && <span className="flex-none rounded-full px-2 py-0.5 bg-gold/20 text-[10px] text-gold"><Trans>待挑方案</Trans></span>}
           {generating && (
             <span className="min-w-0 flex-1 animate-pulse truncate rounded-full bg-brand px-1.5 text-[10px] font-semibold text-ink">
@@ -578,12 +585,12 @@ function NodeScreen({
               而它其实多半还在方舟那边跑、钱也已经花了。颜色在这里不是装饰，
               它决定用户下一步去点「取回」还是点「重新生成」（后者再花一次钱） */}
           {pending && (
-            <span className="min-w-0 flex-1 truncate rounded-full bg-amber-500/90 px-1.5 text-[10px] font-semibold text-ink">
+            <span className="min-w-0 flex-1 truncate rounded-full bg-warn-500/90 px-1.5 text-[10px] font-semibold text-ink">
               ⏳ {node.error}
             </span>
           )}
           {node.status === "failed" && (
-            <span className="min-w-0 flex-1 truncate rounded-full bg-rose-500/85 px-1.5 text-[10px] text-white">
+            <span className="min-w-0 flex-1 truncate rounded-full bg-danger-500/85 px-1.5 text-[10px] text-white">
               ✗ {node.error}
             </span>
           )}
@@ -602,7 +609,7 @@ function NodeScreen({
           disabled={index >= total - 1 || !done || busy}
           title={index >= total - 1 ? t`没有下一段了` : done ? t`下一段` : t`先把这一段炼出来`}
           aria-label={done ? t`下一段` : t`下一段（本段还没出片）`}
-          className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-panel text-slate-200 disabled:opacity-40"
+          className="relative flex h-7 w-7 flex-none items-center justify-center rounded-full bg-panel text-slate-200 after:absolute after:-inset-2 after:content-[''] disabled:opacity-40"
         >
           <Icon name={done || index >= total - 1 ? "chevron" : "lock"} size={done || index >= total - 1 ? 15 : 13} />
         </button>
@@ -610,7 +617,7 @@ function NodeScreen({
 
       {/* ── 大屏幕：方案台 / 成片 / 起拍画面（手势区）── */}
       <div
-        className={`relative min-h-0 flex-1 ${boardOn ? "bg-[#0b0f18]" : "flex items-center justify-center bg-black"}`}
+        className={`relative min-h-0 flex-1 ${boardOn ? "bg-ink" : "flex items-center justify-center bg-black"}`}
         data-guide="flow-stage"
         {...swipe}
       >
@@ -651,7 +658,7 @@ function NodeScreen({
             {(prop.poster || prop.firstFrame) && (
               <img src={prop.poster || prop.firstFrame} alt="" className="max-h-40 max-w-full rounded-lg opacity-70" />
             )}
-            <p className="text-center text-xs leading-relaxed text-rose-300">
+            <p className="text-center text-xs leading-relaxed text-danger-300">
               <Trans>这一段的视频拉不下来</Trans>
               <br />
               <span className="text-[11px]"><Trans>网络不好，或者这条链接已经过期（隔天打开的草稿常见）</Trans></span>
@@ -715,12 +722,12 @@ function NodeScreen({
                 V1 与经典模板一个字没变，还是这个「一句话」框 */}
             {named ? <BlockoutCastBox node={node} onCast={requestCast} /> : <TemplateSubjectBox />}
             {castAsk && (
-              <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
-                <p className="text-[11px] leading-relaxed text-amber-200">
+              <div className="space-y-1.5 rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2">
+                <Warn>
                   <Trans>改完挂卡会按新的映射<b>重新合成</b>下面那段要求，你改过的字会被替换掉 —— 因为旧的那段话里写的还是旧的挂卡，留着它 AI 就会照旧的换人。</Trans>
-                </p>
+                </Warn>
                 <div className="flex gap-2">
-                  <button onClick={openCast} className="rounded-full bg-amber-500/90 px-2.5 py-1 text-[11px] font-bold text-ink">
+                  <button onClick={openCast} className="rounded-full bg-warn-500/90 px-2.5 py-1 text-[11px] font-bold text-ink">
                     <Trans>继续去挂卡</Trans>
                   </button>
                   <button onClick={() => setCastAsk(false)} className="rounded-full px-2.5 py-1 text-[11px] text-slate-300">
@@ -767,12 +774,16 @@ function NodeScreen({
             {matCount > 0 && (
               <p className="text-[10px] leading-relaxed text-slate-500">
                 {refOn
-                  ? t`直接把素材卡的形象参考图交给「${tierLabel}」档出片，不再画设定帧（更快也更省）`
+                  ? refCardImages > 0
+                    ? t`直接把素材卡的形象参考图交给「${tierLabel}」档出片，不再画设定帧（更快也更省）`
+                    : t`素材卡上还没有形象参考图：这次只把临时参考图交给「${tierLabel}」档直接出片（不画设定帧），卡只按文字参与——想让卡的样子进画面，去卡片详情页给卡加几张形象图`
                   : tierOf(node.videoTier).refImg
                     ? t`素材卡上还没有形象参考图（去卡片详情页加几张），这次只能先按描述画一张设定帧再出片`
                     : (() => {
                         // 收参考图的档按能力现算、先说这个人用得了的（account.tierGo）
                         const go = tierGo((x) => x.refImg);
+                        // 摆得出来的档里一档都不收参考图（门禁开着的海外只剩「真人」档）：只说这一段会怎样，不指一档不存在的档（account.tierGo 回 null）
+                        if (!go) return t`「${tierLabel}」档不支持参考图：会先按描述画一张设定帧再出片`;
                         const names = go.names;
                         return go.member
                           ? t`「${tierLabel}」档不支持参考图：会先按描述画一张设定帧再出片。直接用卡片形象要「${names}」（会员档）`
@@ -807,6 +818,7 @@ function NodeScreen({
                   aspectCssValue={aspectCss(node.aspect)}
                   canEdit={!generating && !busy}
                   fates={nodeEmptyFrames(allNodes, index, mode)}
+                  textOnlyNote={tierTextOnly(tierOf(node.videoTier)) ? textOnlyFramesLine() : null}
                   onFrame={(which, url) => setFrame(node.id, which, url)}
                   onFuse={setCustomFuse}
                   onError={(msg) => useFlow.setState({ err: msg })}
@@ -882,7 +894,7 @@ function NodeScreen({
             title={AI_REAL ? t`预计消耗 ${fmtTokens(mainCost)} token` : undefined}
             data-guide="flow-main-btn"
             className={`min-w-0 flex-1 rounded-xl py-2.5 text-xs font-bold disabled:opacity-40 ${
-              stage === "rederive" ? "bg-gold/90 text-ink" : "bg-brand text-ink"
+              stage === "rederive" ? "bg-gold/90 text-ink" : done ? "bg-panel text-slate-100 ring-1 ring-slate-700" : "bg-brand text-ink"
             }`}
           >
             {mainLabel}
@@ -911,14 +923,14 @@ function NodeScreen({
           >
             <MaterialButtonArt open={matOpen} size={42} />
             {matCount > 0 && (
-              <span className="absolute -right-1 -top-1 z-10 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold tabular-nums text-white ring-2 ring-ink">
+              <span className="absolute -right-1 -top-1 z-10 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-slate-100 px-1 text-[10px] font-bold tabular-nums text-ink ring-2 ring-ink">
                 {matCount}
               </span>
             )}
           </button>
         </div>
         {/* 圈选没截到这一秒时的那句话，就摆在入口旁（铁律八）；下一次截成功就清掉 */}
-        {annIssue && <p className="text-[11px] leading-relaxed text-rose-300">{annIssue}</p>}
+        {annIssue && <p className="text-[11px] leading-relaxed text-danger-300">{annIssue}</p>}
 
         {/* 出片之后才给"往下走"。最后一段没有下一段可去，改成就地追加一段——
             底部节点条上的 ＋ 现在也要等出片才亮，这里是同一条规则的另一个入口 */}
@@ -927,7 +939,7 @@ function NodeScreen({
             <button
               onClick={() => shiftCursor(1)}
               disabled={busy}
-              className="w-full rounded-xl border border-emerald-500/40 bg-emerald-500/10 py-2.5 text-xs font-bold text-emerald-200 disabled:opacity-40"
+              className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
             >
               <Trans>✓ 这段满意，去下一段</Trans>
             </button>
@@ -935,7 +947,7 @@ function NodeScreen({
             <button
               onClick={() => addNode()}
               disabled={busy}
-              className="w-full rounded-xl border border-emerald-500/40 bg-emerald-500/10 py-2.5 text-xs font-bold text-emerald-200 disabled:opacity-40"
+              className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
             >
               <Trans>✓ 这段满意，再加一段</Trans>
             </button>
@@ -1244,7 +1256,7 @@ export default function FlowPage() {
                   专注态里是 hidden 的。推演失败（敏感词 400、余额不足、上游超时）本来就常发生在
                   这个状态下——收起来就等于"点了没反应"，铁律八。generating 时不显示旧错误。 */}
               {node.status !== "generating" && node.error && (
-                <span className="min-w-0 flex-1 truncate rounded-full bg-rose-500/90 px-2.5 py-1.5 text-[11px] font-semibold text-white">
+                <span className="min-w-0 flex-1 truncate rounded-full bg-danger-500/90 px-2.5 py-1.5 text-[11px] font-semibold text-white">
                   ✗ {node.error}
                 </span>
               )}
@@ -1425,7 +1437,7 @@ export default function FlowPage() {
           {/* ★ 报错条**不跟着专注态收起**（其余都收）：推演/重画失败、余额不足都从这里说话，
               藏起来就是静默失败（铁律八）。它是 flex-none，出现时把方案台顶下去一点点而已 */}
           {err && (
-            <div className="mx-4 mb-1.5 flex flex-none items-start gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
+            <div className="mx-4 mb-1.5 flex flex-none items-start gap-2 rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-xs text-danger-300">
               <span className="min-w-0 flex-1">{err}</span>
               <button onClick={() => useFlow.setState({ err: "" })} className="flex-none">
                 <Icon name="close" size={14} />
@@ -1455,7 +1467,7 @@ export default function FlowPage() {
               此时还占着位置的节点条只是噪音（而且那会儿他也不该跳段）。 */}
           {(!simple || matWindow) && !planFocus && (
             <div
-              className="flex-none border-t border-slate-700/60 bg-[#141821] px-3 pt-2.5"
+              className="flex-none border-t border-slate-700/60 bg-raised px-3 pt-2.5"
               /* ★ 不能写 `safe-bottom pb-3`：.safe-bottom 在 index.css 里排在 @tailwind utilities
                  之后，两条都是 padding-bottom，后写的赢 —— 于是没有安全区的设备（桌面、
                  大多数安卓）padding-bottom 直接变成 0，素材卡整排贴死在屏幕最底边。
@@ -1493,7 +1505,7 @@ export default function FlowPage() {
                             </span>
                           )}
                           {nodeDone(n) ? (
-                            <span className="absolute right-0.5 top-0.5 rounded-full bg-emerald-500/90 px-1 text-[8px] text-ink">
+                            <span className="absolute right-0.5 top-0.5 rounded-full bg-ok-500/90 px-1 text-[8px] text-ink">
                               ✓
                             </span>
                           ) : (
@@ -1532,7 +1544,7 @@ export default function FlowPage() {
                       disabled={busy || nodes.length <= 1}
                       /* 删 + 「撤销」轻提示只有 removeNodeWithUndo 一份；这一面删完不用关什么，回值不管 */
                       onConfirm={() => void removeNodeWithUndo(node.id)}
-                      className="rounded bg-rose-500/15 px-2 py-1 text-rose-300 disabled:opacity-40"
+                      className="rounded bg-danger-500/15 px-2 py-1 text-danger-300 disabled:opacity-40"
                     />
                     <span className="min-w-0 flex-1 truncate text-right text-slate-500">
                       <Trans>总时长 {formatDuration(nodes.reduce((s, n) => s + chosenOf(n).durationSec, 0))}</Trans>

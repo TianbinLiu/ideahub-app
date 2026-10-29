@@ -46,8 +46,11 @@ const ZERO_DEP = [
   "src/data/dialogueShots.ts",
   "src/data/effectPresets.ts",
   "src/data/videoTierTable.ts",
+  "src/data/videoZoneRules.ts",
+  "src/data/cardFit.ts",
   "src/data/guidedModes.ts",
   "src/data/oauthState.ts",
+  "src/data/live2dMotionCheck.ts",
 ];
 /** ③′ 零 store 依赖（纯函数、不认识 store，但可以用同层的 data 模块） */
 const NO_STORE = ["src/data/recipe.ts"];

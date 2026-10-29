@@ -353,7 +353,7 @@ function VideoStageImpl(
 
         {err && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/80 px-5 text-center">
-            <p className="text-xs leading-relaxed text-rose-300">{err}</p>
+            <p className="text-xs leading-relaxed text-danger-300">{err}</p>
             <button
               onClick={() => setReload((k) => k + 1)}
               className="rounded-full border border-slate-500 px-3 py-1 text-[11px] text-slate-200"

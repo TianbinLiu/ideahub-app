@@ -11,6 +11,7 @@
 //   运行时那一份在 studio/cutStore）：离开这一页再回来原样还在、随剪辑稿落盘、每一步都能撤销，
 //   合并之后源段留底、可以「回去改」。这一页只管把它画出来、把手势翻成 cutProject 里的改法。
 import { useEffect, useMemo, useRef, useState } from "react";
+import Warn from "../components/Warn";
 import Spinner from "../components/Spinner";
 import { startJob } from "../data/jobs";
 import { MAX_DIRECT_MEDIA_BYTES } from "../api/uploads";
@@ -24,15 +25,17 @@ import FrameAnnotator, { drawCover } from "../components/FrameAnnotator";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
 import Icon from "../components/Icon";
-import { AI_REAL, ArkTaskFailed, ArkTaskUnknown, SegmentGenFailed, chargeNote, chargeOnFail, refineFrame, regenSegment, unwrapFailure } from "../ai";
+import { AI_REAL, ArkRegionDenied, ArkTaskFailed, ArkTaskUnknown, SegmentGenFailed, chargeNote, chargeOnFail, refineFrame, regenSegment, unwrapFailure } from "../ai";
 import { ANN_CLAUSE } from "../studio/segmentGen";
-import { isArkAssetUrl, requestArkTransfer, transferStatus } from "../ai/arkClient";
-import { canAfford, frozenNote, isRemoteMode, spendTokens, tierBlockReason, tierOffered, walletOf } from "../data/account";
+import { isArkAssetUrl, reasonClause, requestArkTransfer, transferStatus } from "../ai/arkClient";
+import { isMinimaxV2VideoUrl } from "../data/upstreamVideo";
+import { refreshVideoZone, zoneIsRegional } from "../data/videoZone";
+import { canAfford, frozenNote, isRemoteMode, spendTokens, tierBlockReason, tierOffered, tierRegionIssue, walletOf } from "../data/account";
 import UpgradeLink from "../components/UpgradeLink";
 import { idbSet } from "../data/db";
 import { dropVideoJob } from "../data/videoJobs";
 import { ownerEpoch } from "../data/deviceOwner";
-import { annRedrawCost, fmtTokens, providerOf, segTokens, tierOf, tierRetireDay, tierRetired } from "../data/economy";
+import { annRedrawCost, fmtTokens, priceTag, providerOf, segTokens, tierOf, tierRetireDay, tierRetired } from "../data/economy";
 import { publishedExit, useStudio } from "../studio/studioStore";
 import { useCut } from "../studio/cutStore";
 import {
@@ -284,6 +287,8 @@ export default function CutPage() {
   const [busy, setBusy] = useState("");
   /** 合并的防重入闸。★ 用 ref 不用 busy：setBusy 异步生效，挡不住同一帧内的第二次点击 */
   const mergingRef = useRef(false);
+  /** 按圈选重做开头那一次现问地区的防重入闸（理由同 mergingRef：那几秒里 busy 还没生效，第二次点击照样进得来） */
+  const regenZoneRef = useRef(false);
   /**
    * 合并进度（秒）。★★ 原来只显示「合并中 · 片段 i/N」——那会儿合并还是实时录屏：
    *   成片多长就录多长，一条 30 秒的片子要等 30 秒，屏幕上那个 i/N 十几秒才跳一次，
@@ -1259,7 +1264,18 @@ export default function CutPage() {
   /** ✨ 按全部圈选标注重新生成：逐段合并该段所有要求，改首/尾帧 + 重拍 */
   async function regenerateAll() {
     // ★ 与报价同一份输入（liveAnns）：删掉的段上那些圈选不计价、也不重拍
-    if (busy || liveAnns.length === 0) return;
+    if (busy || liveAnns.length === 0 || regenZoneRef.current) return;
+    // ★★ 出片地区：逐段门禁之前先现问一次地区（2026-10-26 P1 审核）。这一页是「先花钱、后出视频」：先按张结算改图（refineFrame），
+    //   再发 Seedance 重拍（regenSegment）—— 而服务端的地区门禁只拦视频那一发。会话中途换过网络的人只拿上一次的结论判档，
+    //   就是先付改图钱、视频那一发再吃 403。问完两个方向都对上了（旧结论说被拦、其实能用了，也一样）。问不到沿用上一次的结论（服务端照样拦）。
+    regenZoneRef.current = true;
+    setBusy(t`准备中…`);
+    try {
+      await refreshVideoZone();
+    } finally {
+      regenZoneRef.current = false;
+      setBusy("");
+    }
     // 同一份分组（按钮上的报价读的就是它）：别在这里再按 liveAnns 聚一遍
     const bySeg = annBySeg;
     // ★ 档位门禁（2026-10-07 免费档限制）：重拍是真出片，而这几段的档这个人现在用不了（会员档 / 已停用）的话，
@@ -1270,6 +1286,7 @@ export default function CutPage() {
       //   不像 composeSegments 那样按供应商分流），而真人档是另一家供应商 —— 走进去是先付费改图、视频那一发才被拒。
       //   工作流那边的同一道门在 segmentGen 的 minimax 分支（真人档不收圈选）。「哪家供应商」只问 economy.providerOf，
       //   别按 flatCost 判（那一位说的是计价模型，碰巧今天与供应商重合）。排在套餐门之前：这是这一页做不了的事，与套餐无关
+      // tier-semantics-ok: 这一页的重拍只认方舟这一家（海外 MiniMax H3 也是 provider minimax，同样拦下）
       if (tier && providerOf(segs[segIndex].videoTier) === "minimax") {
         const segNo = segIndex + 1;
         const label = tier.label;
@@ -1285,8 +1302,13 @@ export default function CutPage() {
         if (tierRetired(tier)) {
           const day = tierRetireDay(tier);
           setErr(t`第 ${segNo} 段是「${label}」档，模型已于 ${day}停用，这里重拍不了——回「我的 → 草稿」打开草稿，把这一段换一档重新出片（会重新计费）`);
+        } else if (tierRegionIssue(tier) && zoneIsRegional()) {
+          // ★ 出片地区（2026-10-26）：排在「还没上线」之前 —— 摆不出来的原来只有服务端不支持一种，地区一来那句话就把原因说错了（设计审核）。
+          //   不接 tierRegionIssue 的「换成哪一档」：这一页换不了档（同上一支的理由）。
+          //   门禁没开时（zoneIsRegional 为假）藏掉那一家的是这台服务器没接上它，落到下一支（P1 审核：别说成地区）
+          setErr(t`第 ${segNo} 段是「${label}」档，你所在的地区用不了这一档，这里重拍不了——回「我的 → 草稿」打开草稿，把这一段换一档重新出片（会重新计费）`);
         } else if (!tierOffered(tier)) {
-          setErr(t`第 ${segNo} 段是「${label}」档，这台服务器还不支持它（服务端需要更新），这里重拍不了`);
+          setErr(t`第 ${segNo} 段是「${label}」档，这个档位的重拍还没上线，这里重拍不了`);
         } else {
           const line = t`第 ${segNo} 段重拍不了：${blocked}`;
           setErr(line);
@@ -1419,7 +1441,11 @@ export default function CutPage() {
       //   （老服务端那种钱没退的也结案：失败那句话就在这里说给人听了，取回卡只会对着它再说一遍）
       if (inner instanceof ArkTaskFailed) dropVideoJob(inner.taskId);
       // ★ 说清"前面几段已经保住了"：不说的话用户以为整轮白花，会再点一次（再收一遍）
-      const why = (inner instanceof ArkTaskFailed ? inner.reason : e instanceof Error ? e.message : String(e)).slice(0, 110);
+      // 摘掉句末标点再接「。」（arkClient.reasonClause：地区那一句自带句号，原来成了「…也没有扣费。。」）
+      // ★ 地区那一句（ArkRegionDenied）不截（2026-10-26 终审）：它是长度有界的整句，英文 170~240 字，按 110 截会断在词中间；钱上的那半句在 chargeNote 里
+      const why = reasonClause(
+        inner instanceof ArkTaskFailed ? inner.reason : inner instanceof ArkRegionDenied ? inner.message : (e instanceof Error ? e.message : String(e)).slice(0, 110),
+      );
       // ★ 钱上那句话（2026-10-07）：只认类型、只走 ai/failCharge —— 受理之后上游明说失败的那一发现在会退回，
       //   这一段刚改好的画面另说（它们各自结算过）。视频那一发之前的失败（改图本身失败）按一张图的价说
       const fc = chargeOnFail(e);
@@ -1510,6 +1536,11 @@ export default function CutPage() {
      *   用户读不出"哪一段""为什么""接下来怎么办"。
      */
     const stillArk: number[] = [];
+    /**
+     * stillArk 里挂的是 MiniMax H3 成片链接的那几段（isArkAssetUrl 也认 H3 的主机，data/upstreamVideo）。
+     * ★ 失败那句话按它分开说（2026-10-26 P2b 审核）：「24 小时」只是方舟 TOS 链接的事实，H3 的链接有时效、上游没说多久 —— 不许编一个小时数。
+     */
+    const stillH3: number[] = [];
     try {
       // ★ 老草稿自救：还是方舟直链的段先转存成永久地址（服务端拉，全球 CDN）。
       //   出片那一刻的转存 2026-08-20 才上线，在那之前炼的段揣的还是 TOS 直链 ——
@@ -1558,8 +1589,11 @@ export default function CutPage() {
           } catch {
             /* 见上：失败照旧 */
           }
-          // 转存没换成永久地址 ⇒ 这一段接下来会拿临时链接去拉，过了 24 小时就是 403
-          if (isArkAssetUrl(next[i].videoUrl)) stillArk.push(i + 1);
+          // 转存没换成永久地址 ⇒ 这一段接下来会拿临时链接去拉，过期了就是 403（方舟 24 小时；H3 有时效、上游没说多久）
+          if (isArkAssetUrl(next[i].videoUrl)) {
+            stillArk.push(i + 1);
+            if (isMinimaxV2VideoUrl(next[i].videoUrl)) stillH3.push(i + 1);
+          }
         }
         if (cancelRef.current) {
           setBusy("");
@@ -1772,7 +1806,10 @@ export default function CutPage() {
       } catch (e) {
         console.warn("[cut] 成片首帧没截到:", e);
       }
-      const orderedPlots = [...new Set(order.map((i) => segs[i].plot))];
+      // ★ 文字模板段的正文不进成片的 plot（发布时 stripLocalOnly 只认 fromTextTpl 段，成片不是那种段）；
+      //   正文记进 localPlots，发布前拿它把简介里的那几句去掉（2026-10-29 发版前复核：原来合成后整段正文随作品公开）
+      const localPlots = [...new Set(order.flatMap((i) => (segs[i].fromTextTpl && segs[i].plot ? [segs[i].plot] : segs[i].localPlots ?? [])))];
+      const orderedPlots = [...new Set(order.filter((i) => !segs[i].fromTextTpl).map((i) => segs[i].plot))];
       const first = segs[order[0]];
       const last = segs[order[order.length - 1]];
       /**
@@ -1788,6 +1825,7 @@ export default function CutPage() {
       const mergedSeg: VideoSegment = {
         title: t`成片`,
         plot: orderedPlots.join("\n"),
+        ...(localPlots.length ? { localPlots } : {}),
         firstFrame: first.firstFrame,
         lastFrame: last.lastFrame,
         // 成片第一帧：白模段没有设定帧，全靠它（发布页封面候选、剪辑页缩略图都读 poster || firstFrame）。
@@ -1920,9 +1958,14 @@ export default function CutPage() {
         //   可能来自别的地址，硬套一个原因就是换了一种骗人。
         const http = /Response code:\s*(\d{3})/.exec(raw)?.[1];
         const segList = stillArk.join(t({ message: "、", comment: "列举几个段号时的分隔符（第 1、3 段）" }));
+        // ★ 有 H3 链接的那一种不写小时数（stillH3 的 ★；两家混着时也不写 —— H3 那几段可能更早过期）。出口先说「删掉再合」：
+        //   H3 的任务上游 7 天内还查得到、再查会给新地址，可剪辑稿里的段不记任务号（取回凭据在出片成功那一拍就结案了），App 里没有一条路拿它重查 ——
+        //   要留下这几段只剩重新出片，这一条照实说、并说清会再花一次钱（不说的话人只会对着一条合不了的片子干等）
         const failMsg =
           (http === "403" || http === "404") && stillArk.length
-            ? t`合成失败：第 ${segList} 段的视频取不到了（HTTP ${http}）。这几段揣的还是方舟的临时链接、当初没能转存成永久地址，而那种链接只活 24 小时——过期之后合成器也拉不到。这条片子现在合不了：回「我的 → 草稿」打开草稿把这几段重新出片（会再花一次钱），或者删掉它们再合。`
+            ? stillH3.length
+              ? t`合成失败：第 ${segList} 段的视频取不到了。这几段的视频还挂在临时链接上（当初没能转存成长期地址），这种链接有时效，现在已经取不到了。这条片子现在合不了：删掉这几段再合；要留下它们，只能回「我的 → 草稿」打开草稿把这几段重新出片（会再花一次钱）。`
+              : t`合成失败：第 ${segList} 段的视频取不到了。这几段的视频还挂在临时链接上（当初没能转存成长期地址），临时链接只有 24 小时——过期之后就取不到了。这条片子现在合不了：回「我的 → 草稿」打开草稿把这几段重新出片（会再花一次钱），或者删掉它们再合。`
             : t`合成失败：${raw}`;
         if (aliveRef.current) {
           setErr(failMsg);
@@ -2115,14 +2158,14 @@ export default function CutPage() {
         </div>
         {/* 取流/播放失败一律说在预览正下方（用户正盯着的那块），并给一条真能走的路 */}
         {activeSeg?.videoUrl && (playErr || srcErr[active!.segIndex]) && (
-          <div className="mx-3 mb-1 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-rose-200">
+          <div className="mx-3 mb-1 rounded-lg border border-danger-500/40 bg-danger-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-danger-200">
             {playErr && <p>{playErr}</p>}
             {srcErr[active!.segIndex] && (
               <p>
                 <Trans>圈选与合成要用的截帧流没取到：{srcErr[active!.segIndex]}</Trans>
                 <button
                   onClick={() => loadCaptureSrc(active!.segIndex, activeSeg.videoUrl!)}
-                  className="ml-2 rounded bg-rose-500/30 px-2 py-0.5 font-semibold text-rose-100"
+                  className="ml-2 rounded-full bg-danger-500/30 px-2.5 py-1 font-semibold text-danger-100"
                 >
                   <Trans>重试</Trans>
                 </button>
@@ -2139,7 +2182,7 @@ export default function CutPage() {
           </span>
           <button
             onClick={togglePlay}
-            className="absolute left-1/2 -translate-x-1/2 text-white"
+            className="absolute left-1/2 flex h-11 w-11 -translate-x-1/2 items-center justify-center text-white"
             aria-label={playing ? t`暂停` : t`播放`}
           >
             <Icon name={playing ? "pause" : "play"} size={26} filled />
@@ -2153,7 +2196,8 @@ export default function CutPage() {
               disabled={!!busy}
               className="ml-auto flex flex-none items-center gap-1 rounded-full bg-slate-700/70 px-3 py-1.5 text-[11px] text-slate-100 disabled:opacity-40"
             >
-              <Trans>💬 说一句</Trans>
+              <Icon name="comment" size={13} />
+              <Trans>说一句</Trans>
             </button>
           )}
         </div>
@@ -2196,7 +2240,7 @@ export default function CutPage() {
                       区别在于**中断会明确报错**，不会像录屏那样悄悄给你一条坏片。
                       ⚠⚠ 主人 2026-09-07 真机反馈"提示还是实时录屏"并据此以为录屏没撤 —— 文案与实现不一致
                       本身就是一次事故（铁律八）：改实现时**必须同一拍改掉描述它的话**。 */}
-                  <p className={`text-center text-[10px] leading-relaxed ${hiddenWarn ? "text-amber-300" : "text-slate-500"}`}>
+                  <p className={`text-center text-[10px] leading-relaxed ${hiddenWarn ? "text-warn-300" : "text-slate-500"}`}>
                     {hiddenWarn
                       ? t`刚才切到后台了——合成不会因此录坏画面，但可能被系统拖慢；真断了会明确告诉你`
                       : t`合成走系统硬件编解码，不再录屏——可以切走，只是系统可能把它拖慢`}
@@ -2225,8 +2269,8 @@ export default function CutPage() {
           点完就看不见了。在最后一步给一个会误导的选项、又把唯一的说明藏起来，
           等于让用户为一个更大的文件多等一倍时间还以为画质更好了。 */}
       {res.id !== "720" && (
-        <div className="flex-none bg-amber-500/10 px-4 py-1 text-center text-[10px] leading-relaxed text-amber-200/90">
-          <Trans>{res.label} 是由 720P 素材放大的 —— 文件更大、合成更久，但<b className="text-amber-100">不会</b>更清晰</Trans>
+        <div className="flex-none bg-warn-500/10 px-4 py-1 text-center text-[10px] leading-relaxed text-warn-200/90">
+          <Trans>{res.label} 是由 720P 素材放大的 —— 文件更大、合成更久，但<b className="text-warn-100">不会</b>更清晰</Trans>
         </div>
       )}
 
@@ -2242,7 +2286,7 @@ export default function CutPage() {
           ⚠ 只禁这一块，**顶栏不禁**：离开这一页现在是安全的（合成领了票、跑完不会把人拽走），
           用户想走就该走得掉。 */}
       <div
-        className={`safe-bottom flex flex-none flex-col border-t border-slate-700/60 bg-[#141821] ${
+        className={`safe-bottom flex flex-none flex-col border-t border-slate-700/60 bg-raised ${
           tab === "mark" ? "max-h-[38%]" : "max-h-[52%]"
         } ${busy ? "pointer-events-none opacity-40" : ""}`}
         aria-disabled={!!busy}
@@ -2254,13 +2298,13 @@ export default function CutPage() {
         ) : null}
         {/* 见 presetAudioDrift 的 ★★：合并之前说，此刻改还来得及 */}
         {!busy && presetAudioDrift ? (
-          <div className="mx-4 mt-2 flex-none rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-100">
+          <div className="mx-4 mt-2 flex-none rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-warn-100">
             <Trans>你动过片段（裁剪 / 删段 / 换序），而配乐是自动预置的原片音轨——它按原片从头混，合出来会和画面对不上。想对齐就在「音频」里换一条自己的，或把片段改回原样。</Trans>
           </div>
         ) : null}
         {/* 剪辑改动没存住（见 saveWarn 那个 effect 的 ★）：说清楚后果是什么 —— 不是钱没了，是离开这一页会丢 */}
         {!busy && saveWarn ? (
-          <div className="mx-4 mt-2 flex-none rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-100">
+          <div className="mx-4 mt-2 flex-none rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-warn-100">
             <Trans>刚才的剪辑改动这一页上还在，但{saveWarn}——离开剪辑页之前先处理一下，否则这些改动会丢。</Trans>
           </div>
         ) : null}
@@ -2268,7 +2312,7 @@ export default function CutPage() {
           // ── 已经合好的稿子：这一步不再合成，只剩两条路 —— 去发布，或者回到合并之前接着改 ──
           <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-3">
             {err && (
-              <div className="mb-2.5 flex items-start gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
+              <div className="mb-2.5 flex items-start gap-2 rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-xs text-danger-300">
                 <span className="min-w-0 flex-1">{err}</span>
                 <button onClick={() => setErr("")} className="flex-none">
                   <Icon name="close" size={14} />
@@ -2287,7 +2331,7 @@ export default function CutPage() {
               {canReopen && (
                 <button
                   onClick={reopen}
-                  className="mt-2.5 w-full rounded-xl bg-slate-700/70 py-2.5 text-sm font-bold text-slate-100"
+                  className="mt-2.5 w-full rounded-xl bg-panel py-2.5 text-sm font-bold text-slate-100 ring-1 ring-slate-700"
                 >
                   <Trans>↩ 回去改</Trans>
                 </button>
@@ -2307,7 +2351,7 @@ export default function CutPage() {
             >
               {tb.label}
               {tb.badge != null && (
-                <span className="absolute -right-3.5 -top-0.5 rounded-full bg-rose-500 px-1 text-[9px] font-bold text-white">
+                <span className="absolute -right-3.5 -top-0.5 rounded-full bg-danger-500 px-1 text-[9px] font-bold text-white">
                   {tb.badge}
                 </span>
               )}
@@ -2317,7 +2361,7 @@ export default function CutPage() {
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-3">
           {err && (
-            <div className="mb-2.5 flex items-start gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
+            <div className="mb-2.5 flex items-start gap-2 rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-xs text-danger-300">
               <span className="min-w-0 flex-1">
                 {err}
                 {err === errUpgrade && (
@@ -2399,6 +2443,12 @@ export default function CutPage() {
                       ) : (
                         <div className="h-14 w-full bg-ink/60" />
                       )}
+                      {/* 「正在播」不只靠边框换一种蓝（§5.7）：右上角一枚 ▶ */}
+                      {isActive && (
+                        <span className="absolute right-1 top-1 rounded-full bg-black/65 p-0.5 text-cyan-300">
+                          <Icon name="play" size={9} filled />
+                        </span>
+                      )}
                       <span className="absolute left-1 top-0.5 flex items-center gap-1 rounded bg-black/65 pr-1 text-[9px] text-slate-200">
                         {/* ★ 一个片段两个数，长得不一样：亮底的是**从左数的位置**（「对剪辑台说话」认的「片段 2」就是它），
                             后面的「段 N」是它出自稿子的第几段。换过序 / 切过 / 删过之后两个数对不上 —— 只标「段 N」的话，
@@ -2420,7 +2470,7 @@ export default function CutPage() {
                         </span>
                       )}
                       {nAnn > 0 && (
-                        <span className="absolute right-1 top-0.5 rounded-full bg-rose-500/90 px-1 text-[9px] font-bold text-white">
+                        <span className="absolute right-1 top-0.5 rounded-full bg-danger-500/90 px-1 text-[9px] font-bold text-white">
                           ⭕{nAnn}
                         </span>
                       )}
@@ -2447,41 +2497,45 @@ export default function CutPage() {
                   </div>
                 ) : null;
               })()}
-              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              <div className="mt-3 flex flex-wrap items-center gap-1.5">
                 <button
                   onClick={splitAtPlayhead}
                   disabled={!sel}
-                  className="rounded-full bg-slate-700/70 px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-40"
+                  className="inline-flex items-center gap-1 rounded-full bg-slate-700/70 px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-40"
                 >
-                  <Trans>✂️ 播放头处分割</Trans>
+                  <Icon name="scissors" size={13} />
+                  <Trans>播放头处分割</Trans>
                 </button>
                 <button
                   onClick={() => sel && moveClip(sel, -1)}
                   disabled={!sel}
-                  className="rounded-full bg-slate-700/70 px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-40"
+                  className="inline-flex items-center gap-0.5 rounded-full bg-slate-700/70 px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-40"
                 >
-                  <Trans>◀ 前移</Trans>
+                  <Icon name="chevron" size={13} className="rotate-180" />
+                  <Trans>前移</Trans>
                 </button>
                 <button
                   onClick={() => sel && moveClip(sel, 1)}
                   disabled={!sel}
-                  className="rounded-full bg-slate-700/70 px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-40"
+                  className="inline-flex items-center gap-0.5 rounded-full bg-slate-700/70 px-2.5 py-1.5 text-[11px] text-slate-200 disabled:opacity-40"
                 >
-                  <Trans>后移 ▶</Trans>
+                  <Trans>后移</Trans>
+                  <Icon name="chevron" size={13} />
                 </button>
                 <button
                   onClick={() => sel && removeClip(sel)}
                   disabled={!sel || view.length <= 1}
-                  className="rounded-full bg-rose-500/15 px-2.5 py-1.5 text-[11px] text-rose-300 disabled:opacity-40"
+                  className="ml-auto inline-flex items-center gap-1 rounded-full bg-danger-500/15 px-2.5 py-1.5 text-[11px] text-danger-300 disabled:opacity-40"
                 >
-                  <Trans>🗑 删除片段</Trans>
+                  <Icon name="trash" size={13} />
+                  <Trans>删除片段</Trans>
                 </button>
               </div>
               {/* 裁头裁尾。★★ 补它是因为 `Clip.start/end` 一直支持裁剪、UI 上却只有分割，
                   而删除在只剩一个片段时是灰的 ⇒ 简约模式出来的**单段作品根本裁不了**。
                   ★ 单独一排：上面那排是"这一段与别的段的关系"（切开/换位/删掉），
                     这一排是"这一段自己留哪一截"，混在一起点错的代价不一样。 */}
-              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              <div className="mt-3 flex flex-wrap items-center gap-1.5">
                 <button
                   onClick={() => trimTo("start")}
                   disabled={!sel}
@@ -2599,14 +2653,14 @@ export default function CutPage() {
                         </p>
                       )}
                       {sc?.fade && seam === true ? (
-                        <p className="mt-1.5 text-[11px] leading-relaxed text-amber-200">
+                        <Warn className="mt-1.5">
                           <Trans>这一段是接着上一段拍的（同一个镜头在延续）——在这儿加转场会把接缝撕开。想要换场的感觉，加在别的接缝上更合适。</Trans>
-                        </p>
+                        </Warn>
                       ) : null}
                       {fadeUnsure ? (
-                        <p className="mt-1.5 text-[11px] leading-relaxed text-amber-200">
+                        <Warn className="mt-1.5">
                           <Trans>有一段的真实时长还没量到，转场的位置定不准，预览里先不显示——把每一段各播一下就量到了。</Trans>
-                        </p>
+                        </Warn>
                       ) : null}
                     </div>
                   );
@@ -2628,7 +2682,7 @@ export default function CutPage() {
                     <Trans>片头标题、每段一句旁白、换场的转场，一次写好——你看过、改过再用</Trans>
                   </span>
                 </span>
-                <span className="flex-none text-[11px] text-slate-300">{AI_REAL ? fmtTokens(AUTO_EDIT.cost) : t`演示`}</span>
+                <span className="flex-none text-[11px] text-slate-300">{AI_REAL ? priceTag(AUTO_EDIT.cost) : t`演示`}</span>
               </button>
               <input
                 value={project.title ?? ""}
@@ -2681,12 +2735,12 @@ export default function CutPage() {
                 </p>
               )}
               {narratorErr ? (
-                <p className="mt-1 text-[10px] leading-relaxed text-amber-200">
+                <Warn compact className="mt-1">
                   <Trans>音色目录没取到（{narratorErr}）——先用现在这个音色。</Trans>
-                </p>
+                </Warn>
               ) : null}
               {plan && plan.timed && !plan.exact ? (
-                <p className="mt-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-100">
+                <p className="mt-1.5 rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-warn-100">
                   <Trans>有一段的真实时长还没量到，字幕和配音的时间可能排得不准——把每一段各播一下就量到了（合成前也会再量一次）。</Trans>
                 </p>
               ) : null}
@@ -2728,7 +2782,7 @@ export default function CutPage() {
                             <Trans>段{c.segIndex + 1} · {durOf(c).toFixed(1)}s</Trans>
                           </span>
                         </button>
-                        <span className={`flex-none text-[10px] tabular-nums ${chars > cap ? "text-amber-300" : "text-slate-500"}`}>
+                        <span className={`flex-none text-[10px] tabular-nums ${chars > cap ? "text-warn-300" : "text-slate-500"}`}>
                           {chars}/{cap}
                         </span>
                       </div>
@@ -2756,7 +2810,7 @@ export default function CutPage() {
                               <button
                                 onClick={() => void runVoices([c.id])}
                                 disabled={!canVoice || voicing.size > 0 || chars > cap}
-                                className={`${stale ? "rounded-full bg-amber-400/90 px-2.5 py-1.5 text-[11px] font-semibold text-ink" : chip(false)} disabled:opacity-40`}
+                                className={`${stale ? "rounded-full bg-warn-400/90 px-2.5 py-1.5 text-[11px] font-semibold text-ink" : chip(false)} disabled:opacity-40`}
                               >
                                 <Trans>↻ 重新配音</Trans>
                               </button>
@@ -2765,7 +2819,7 @@ export default function CutPage() {
                                   const cur = useCut.getState().project;
                                   if (cur) commit(setClipVoice(cur, c.id, null));
                                 }}
-                                className="rounded-full bg-rose-500/15 px-2.5 py-1.5 text-[11px] text-rose-300"
+                                className="rounded-full bg-danger-500/15 px-2.5 py-1.5 text-[11px] text-danger-300"
                               >
                                 <Trans>去掉配音</Trans>
                               </button>
@@ -2782,23 +2836,23 @@ export default function CutPage() {
                         </div>
                       ) : null}
                       {chars > cap ? (
-                        <p className="mt-1 text-[11px] leading-relaxed text-amber-200">
+                        <Warn className="mt-1">
                           <Trans>这一句比这一段放得下的字数多了（{chars}/{cap}），配不了音——改短一点，或者把这一段留长 / 放慢。</Trans>
-                        </p>
+                        </Warn>
                       ) : null}
                       {stale ? (
-                        <p className="mt-1 text-[11px] leading-relaxed text-amber-200">
+                        <Warn className="mt-1">
                           <Trans>字（或音色）改过了，这句配音还是之前配的那一版——重新配一次，否则成片里念的和字幕对不上。</Trans>
-                        </p>
+                        </Warn>
                       ) : null}
                       {pv && cutShort > 0.05 ? (
-                        <p className="mt-1 text-[11px] leading-relaxed text-amber-200">
+                        <Warn className="mt-1">
                           <Trans>这一句念不完：到片尾还差 {cutShort.toFixed(1)} 秒，成片里会在片尾被掐掉。改短一点，或者把这一段留长。</Trans>
-                        </p>
+                        </Warn>
                       ) : pv && pv.overSec > 0.05 ? (
-                        <p className="mt-1 text-[11px] leading-relaxed text-amber-200">
+                        <Warn className="mt-1">
                           <Trans>这一句要念 {pv.durSec.toFixed(1)} 秒，比这一段长 {pv.overSec.toFixed(1)} 秒——会念到下一段里（后面的配音跟着往后顺）。改短一点，或者把这一段放慢 / 留长。</Trans>
-                        </p>
+                        </Warn>
                       ) : null}
                       {pv && pv.lateSec > 0.05 ? (
                         <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
@@ -2806,7 +2860,7 @@ export default function CutPage() {
                         </p>
                       ) : null}
                       {dropped ? (
-                        <p className="mt-1 text-[11px] leading-relaxed text-rose-300">
+                        <p className="mt-1 text-[11px] leading-relaxed text-danger-300">
                           <Trans>这一句排不上：片段太短，或者被上一句配音挤到了片尾之外——成片里不会有它。</Trans>
                         </p>
                       ) : null}
@@ -2829,7 +2883,7 @@ export default function CutPage() {
                   <button
                     onClick={() => void runVoices(voiceTodo.map((c) => c.id))}
                     disabled={voiceTodo.length === 0 || voicing.size > 0}
-                    className="mt-2.5 w-full rounded-xl bg-cyan-500/85 py-2.5 text-sm font-bold text-ink disabled:opacity-40"
+                    className="mt-2.5 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
                   >
                     {voicing.size > 0
                       ? t`正在配音…`
@@ -2841,7 +2895,7 @@ export default function CutPage() {
                   </button>
                 )
               ) : (
-                <p className="mt-2.5 rounded-lg border border-slate-700 bg-black/30 px-2.5 py-1.5 text-[11px] leading-relaxed text-slate-400">
+                <p className="mt-2.5 rounded-lg bg-black/30 px-2.5 py-1.5 text-[11px] leading-relaxed text-slate-400">
                   <Trans>配音要连上服务器才能做（离线 / 演示模式下用不了）。字幕照常能写、能烧进画面。</Trans>
                 </p>
               )}
@@ -2909,9 +2963,9 @@ export default function CutPage() {
                   <button
                     onClick={() => void regenerateAll()}
                     disabled={!!busy || liveAnns.length === 0}
-                    className="mt-2 w-full rounded-xl bg-cyan-500/85 py-2.5 text-sm font-bold text-ink disabled:opacity-40"
+                    className="mt-2 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
                   >
-                    <Trans>✨ 按 {liveAnns.length} 处圈选重新生成（{annBySeg.size} 段 · {fmtTokens(annCost)}）</Trans>
+                    <Trans>♻ 按 {liveAnns.length} 处圈选重新生成（{annBySeg.size} 段 · {priceTag(annCost)}）</Trans>
                   </button>
                   {liveAnns.length < anns.length && (
                     <p className="mt-1 text-center text-[10px] text-slate-500">
@@ -2960,14 +3014,14 @@ export default function CutPage() {
                     if (cur) applyAudio(setAudioOp(cur, null));
                   }}
                   aria-label={t`去掉这条配乐`}
-                  className="flex-none text-rose-300"
+                  className="flex-none text-danger-300"
                 >
                   <Icon name="close" size={15} />
                 </button>
               </div>
               {/* 工程里记着这条配乐，可它的文件读不出来：说出来、给出路 —— 不说的话这一行亮着，人会以为它能进成片 */}
               {!audio && audioSpec.kind === "local" && localAudio?.failed ? (
-                <p className="mt-1.5 text-[11px] leading-relaxed text-rose-300">
+                <p className="mt-1.5 text-[11px] leading-relaxed text-danger-300">
                   <Trans>这条音频的文件读不出来了（可能被清理过）——去掉它重新挑一条，否则合成时不会有配乐。</Trans>
                 </p>
               ) : null}

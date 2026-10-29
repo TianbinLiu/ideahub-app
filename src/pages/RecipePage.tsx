@@ -163,7 +163,9 @@ export default function RecipePage() {
       {res === null ? (
         <EmptyState loading text={t`正在取制作过程…`} />
       ) : res.state === "unsupported" ? (
-        <EmptyState emoji="🔌" text={t`这台服务器还不支持公开制作过程`} hint={t`等服务器更新后再来`} />
+        <EmptyState emoji="🔌" text={t`制作过程功能还没上线`} hint={t`之后会有，App 不用重装`} />
+      ) : res.state === "offline" ? (
+        <EmptyState emoji="📡" text={t`查看制作过程需要联网`} hint={t`制作过程存在服务端，这台设备当前是离线模式；接上服务器再来这一页。`} />
       ) : res.state === "failed" ? (
         <EmptyState
           error
@@ -174,7 +176,7 @@ export default function RecipePage() {
         />
       ) : res.state === "none" ? (
         res.code === "NOT_FOUND" ? (
-          <EmptyState emoji="🫥" text={t`作品不存在或已删除`} />
+          <EmptyState emoji="🫥" text={t`作品不存在或已删除`} cta={{ label: t`回首页`, to: "/", replace: true }} />
         ) : res.code === "RECIPE_NOT_PUBLIC" ? (
           <EmptyState emoji="🔒" text={t`作者没有公开这条作品的制作过程`} hint={t`作品页仍然可以「做同款」：那是抄分段剧本，不含卡与段模板`} />
         ) : (
@@ -245,15 +247,16 @@ export default function RecipePage() {
               setBuildErr("");
               setCastOpen(true);
             }}
-            className="w-full rounded-xl bg-gold/90 py-2.5 text-sm font-bold text-ink active:scale-[0.99]"
+            className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-gold/90 py-2.5 text-sm font-bold text-ink active:scale-[0.99]"
           >
-            <Trans>⚡ 按这个流程做同款</Trans>
+            <Icon name="remix" size={16} />
+            <Trans>按这个流程做同款</Trans>
           </button>
           <p className="text-[11px] leading-relaxed text-slate-500">
             <Trans>会把这 {res.data.recipe.nodes.length} 段铺成你自己的工作流（不带原作的画面与成片），之后一段一结账，铺开不花钱。</Trans>
           </p>
           {buildErr && (
-            <div className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs leading-relaxed text-rose-200">{buildErr}</div>
+            <div className="rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-xs leading-relaxed text-danger-200">{buildErr}</div>
           )}
         </div>
       )}
@@ -325,7 +328,7 @@ export default function RecipePage() {
             />
           </div>
           {buildErr && (
-            <div className="mt-3 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs leading-relaxed text-rose-200">{buildErr}</div>
+            <div className="mt-3 rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-xs leading-relaxed text-danger-200">{buildErr}</div>
           )}
           <div className="mt-4 flex gap-2">
             <button onClick={() => setCastOpen(false)} className="flex-1 rounded-xl bg-panel py-2.5 text-sm font-bold text-slate-200 ring-1 ring-slate-700">

@@ -29,7 +29,7 @@ export default function TokenCost({
   // 用户以为自己在测真实生成，得让他知道这一炉是假的
   if (!AI_REAL) {
     return (
-      <p className={`text-[11px] text-amber-300/80 ${className}`}><Trans>○ 演示模式：本地模拟，不消耗 token</Trans></p>
+      <p className={`text-[11px] text-warn-300/80 ${className}`}><Trans>○ 演示模式：本地模拟，不消耗 token</Trans></p>
     );
   }
   // ★★ 管理员免扣费**必须说出来**。服务端对 admin 放行（wallet.debit 不扣），
@@ -56,7 +56,7 @@ export default function TokenCost({
   if (frozen) {
     const owed = fmtTokens(frozen.debt);
     return (
-      <p className={`text-[11px] text-rose-300 ${className}`}>
+      <p className={`text-[11px] text-danger-300 ${className}`}>
         <Trans>
           账户有 {owed} token 欠额，充值抵扣后即可继续生成 ·{" "}
           <Link to="/me" className="underline underline-offset-2">
@@ -70,7 +70,7 @@ export default function TokenCost({
   const bal = (w?.plan ?? 0) + (w?.addon ?? 0);
   const ok = canAfford(tokens);
   return (
-    <p className={`text-[11px] ${ok ? "text-slate-500" : "text-rose-300"} ${className}`}>
+    <p className={`text-[11px] ${ok ? "text-slate-500" : "text-danger-300"} ${className}`}>
       {upper ? <Trans>最多消耗 {amount} token</Trans> : <Trans>预计消耗 {amount} token</Trans>}
       {note ? ` · ${note}` : ""}
       {!ok && (

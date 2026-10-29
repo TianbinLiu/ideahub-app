@@ -37,7 +37,7 @@ export default function DraftsPage() {
         title={t`草稿箱`}
         right={
           // 读不出来时不摆「0/20」：那个数说的是"你一条都没有"
-          load.issue ? undefined : (
+          load.issue || drafts.length === 0 ? undefined : (
             <span className="flex-none text-[11px] text-slate-500">
               {drafts.length}/{MAX_DRAFTS}
             </span>

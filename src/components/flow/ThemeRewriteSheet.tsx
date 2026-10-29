@@ -14,6 +14,7 @@ import { useFlow } from "../../studio/flowStore";
 import { noteThemeSheet, resetThemeSkill, runThemeSkill, setThemeSkill, useThemeSkill } from "../../studio/skillSheetStore";
 import { THEME_MAX, THEME_MIN, THEME_REWRITE, applyRewrite, rewritableSegs, rewriteCalls } from "../../studio/structuredSkills";
 import { CloseButton } from "../IconTapButton";
+import StepDots from "../StepDots";
 
 export default function ThemeRewriteSheet({ initialTheme = "", onClose, onApplied }: { initialTheme?: string; onClose: () => void; onApplied: () => void }) {
   const { t } = useLingui();
@@ -80,26 +81,12 @@ export default function ThemeRewriteSheet({ initialTheme = "", onClose, onApplie
           <CloseButton chip="sm" size={13} align="end" label={t`关闭`} onClick={close} />
         </div>
 
-        <div className="no-scrollbar mb-3 flex gap-1.5 overflow-x-auto py-1">
-          {THEME_REWRITE.steps.map((s, i) => {
-            const done = i < stepIdx;
-            const cur = i === stepIdx;
-            return (
-              <div
-                key={s.kind}
-                title={t(s.hint)}
-                className={`flex-none rounded-full px-2.5 py-1 text-[11px] ${cur ? "bg-brand font-semibold text-ink" : done ? "bg-panel text-slate-300" : "bg-panel text-slate-500"}`}
-              >
-                {done ? "✓ " : `${i + 1} `}
-                {t(s.title)}
-                {THEME_REWRITE.confirmAt.includes(s.kind as (typeof THEME_REWRITE.confirmAt)[number]) ? " ✋" : ""}
-              </div>
-            );
-          })}
-        </div>
+        {/* ★ 进度条只有 components/StepDots 一份实现（CLAUDE.md 铁律六）：2026-10-22 把手写的芯片行（✓ / 序号 / ✋）换成圆点，
+            做完 / 当前由圆点自己说，要人点头的那一步由下面那行 hint 说 */}
+        <StepDots className="mb-3" steps={THEME_REWRITE.steps.map((s) => ({ label: t(s.title) }))} current={stepIdx} />
         <div className="mb-2 text-[10px] leading-relaxed text-slate-500">{t(THEME_REWRITE.steps[Math.max(0, stepIdx)].hint)}</div>
 
-        {err && <div className="mb-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-rose-300">{err}</div>}
+        {err && <div className="mb-2 rounded-lg border border-danger-500/40 bg-danger-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-danger-300">{err}</div>}
 
         {/* ① 主题 */}
         {!plan && (

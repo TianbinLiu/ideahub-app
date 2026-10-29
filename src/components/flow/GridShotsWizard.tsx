@@ -9,6 +9,7 @@
 //   与 genNode 真扣同一把尺。画面那一笔（组图 / 单格重画）按张，价钱在 gridDraftStore 一处。
 // ★ 只出第一段：每段都有自己的开头画面，但「炼出本段才开下一段」照旧（flowStore 的顺序门禁）—— 第一段人物就不对的话，后面几段不用花钱。
 import type { MessageDescriptor } from "@lingui/core";
+import Warn from "../Warn";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useRef, useState } from "react";
@@ -51,6 +52,7 @@ import { setLead, useLeadDraft } from "../../studio/leadDraftStore";
 import { VIDEO_ASPECTS, type Card, type VideoAspect } from "../../types";
 import ConfirmDialog from "../ConfirmDialog";
 import Spinner from "../Spinner";
+import StepDots from "../StepDots";
 import TokenCost from "../TokenCost";
 import CastPicker from "./CastPicker";
 import { panelIssuesLine } from "./panelIssueText";
@@ -239,22 +241,16 @@ export default function GridShotsWizard({
 
   return (
     <div className="space-y-3">
-      {/* 步骤条：与铸段窗「1 选式 › 2 内容 › 3 规格」同一个样子 */}
-      <div className="flex flex-wrap items-center gap-1 text-[10px] text-slate-500">
-        <span className="mr-1 text-xs font-bold text-slate-100">
-          <Trans>🎞 九宫格分镜</Trans>
-        </span>
-        {GRID_STEPS.map((s, i) => (
-          <span key={s} className={i === stepIdx ? "font-bold text-brand" : ""}>
-            {i > 0 && <span aria-hidden className="pr-1 text-slate-600">›</span>}
-            {i + 1} {t(STEP_LABEL[s])}
-          </span>
-        ))}
-      </div>
+      <p className="text-xs font-bold text-slate-100">
+        <Trans>🎞 九宫格分镜</Trans>
+      </p>
+      {/* ★ 步骤条只有 components/StepDots 一份实现（CLAUDE.md 铁律六）：原来这里手写「1 人物 › 2 分镜 › …」的面包屑，
+          2026-10-22 换成圆点。不给 onPick：组图付过钱、落过段的步骤能不能回去由向导自己的脚管 */}
+      <StepDots steps={GRID_STEPS.map((s) => ({ label: t(STEP_LABEL[s]) }))} current={stepIdx} />
 
       {/* 这台服务器出不了组图（服务端明说没有这一位）：第①步就说，别让人写完分镜才在第③步撞上一颗灰键。没问到（null）不在这里说 */}
       {canDraw === false && d.step !== "draw" && (
-        <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">
+        <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200">
           <Trans>这台服务器还不能一次出一组画面（服务端更新之后就有）。</Trans>
         </p>
       )}
@@ -271,7 +267,7 @@ export default function GridShotsWizard({
               </p>
             )}
             {faceNote && (
-              <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">{faceNote}</p>
+              <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200">{faceNote}</p>
             )}
           </CastPicker>
           <div>
@@ -336,7 +332,7 @@ export default function GridShotsWizard({
           {!shotN ? (
             <div className="space-y-2">
               <button
-                onClick={() => void writeShots({ cast: cast.map((c) => c.name), place: place?.name ?? "" })}
+                onClick={() => void writeShots({ cast: cast.map((c) => c.name), place: place?.name ?? "", tierId })}
                 disabled={d.writing || d.scene.trim().length < SCENE_MIN}
                 className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-brand/90 py-2.5 text-sm font-bold text-ink disabled:opacity-40"
               >
@@ -370,7 +366,7 @@ export default function GridShotsWizard({
                 </p>
               )}
               {d.shotsAi && d.shotsScene !== d.scene && (
-                <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">
+                <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200">
                   <Trans>这场戏改过了，下面的分镜还是按原来那句写的 —— 点「重新写」按新的写，或者直接在下面改。</Trans>
                 </p>
               )}
@@ -453,11 +449,11 @@ export default function GridShotsWizard({
                         )}
                       </div>
                       {outside && (
-                        <p className="text-[10px] leading-relaxed text-amber-200">
+                        <Warn compact>
                           <Trans>
                             画面里写到了「{outside}」，上面却没选：画的时候多半会把他们画进去、还带不上卡图 —— 要他们入镜就点上，不要就把名字改成「画外的人」。
                           </Trans>
-                        </p>
+                        </Warn>
                       )}
                     </div>
                   );
@@ -472,7 +468,7 @@ export default function GridShotsWizard({
                   <Trans>＋ 加一格</Trans>
                 </button>
                 <button
-                  onClick={() => void writeShots({ cast: cast.map((c) => c.name), place: place?.name ?? "" })}
+                  onClick={() => void writeShots({ cast: cast.map((c) => c.name), place: place?.name ?? "", tierId })}
                   disabled={d.writing || !!d.drawing || panelBusy || d.scene.trim().length < SCENE_MIN}
                   className="flex items-center gap-1.5 rounded-full bg-slate-700/60 px-3 py-1 text-[11px] text-slate-200 disabled:opacity-40"
                 >
@@ -488,7 +484,7 @@ export default function GridShotsWizard({
               </div>
             </>
           )}
-          {d.writeErr && <p className="text-[11px] leading-relaxed text-rose-300">{d.writeErr}</p>}
+          {d.writeErr && <p className="text-[11px] leading-relaxed text-danger-300">{d.writeErr}</p>}
           <div className="flex gap-2">
             {backBtn(() => go("cast"))}
             <button
@@ -529,7 +525,7 @@ export default function GridShotsWizard({
 
           {/* 分镜里写到的人没选上（App 重开前画的那一组没记下人 / 卡被删了 / 第 1 步取下了谁）：整组重出与那几格的重画都灰着，这里说为什么 */}
           {drawCastIssue && (
-            <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">{drawCastIssue}</p>
+            <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200">{drawCastIssue}</p>
           )}
           {placeLost && (
             <p className="text-[10px] leading-relaxed text-slate-500">
@@ -556,7 +552,7 @@ export default function GridShotsWizard({
                   ) : (
                     <div className="flex h-full w-full flex-col items-center justify-center gap-1 p-1.5 text-center">
                       {p?.busy || (d.drawing && !p?.err) ? <Spinner size="xs" /> : null}
-                      <span className={`line-clamp-4 text-[9px] leading-snug ${p?.err ? "text-rose-300" : "text-slate-500"}`}>{p?.err ?? s.picture}</span>
+                      <span className={`line-clamp-4 text-[9px] leading-snug ${p?.err ? "text-danger-300" : "text-slate-500"}`}>{p?.err ?? s.picture}</span>
                     </div>
                   )}
                   {p?.busy === "redraw" && p.image && (
@@ -566,13 +562,13 @@ export default function GridShotsWizard({
                   )}
                   <span className="absolute left-1 top-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[9px] font-bold text-slate-100">{n}</span>
                   {stale && (
-                    <span className="absolute bottom-1 left-1 rounded-full bg-amber-500/90 px-1.5 py-0.5 text-[9px] font-bold text-ink">
+                    <span className="absolute bottom-1 left-1 rounded-full bg-warn-500/90 px-1.5 py-0.5 text-[9px] font-bold text-ink">
                       <Trans>分镜改过</Trans>
                     </span>
                   )}
                   {/* 看一遍发现了问题（人数不对 / 同一个人两次 / 拼图）：点开这一格看原因，要不要重画由人定 */}
                   {!!p?.image && p.check?.state === "done" && p.check.issues.length > 0 && (
-                    <span className="absolute right-1 top-1 rounded-full bg-amber-500/90 px-1.5 py-0.5 text-[9px] font-bold text-ink" aria-label={t`这一格可能有问题`}>
+                    <span className="absolute right-1 top-1 rounded-full bg-warn-500/90 px-1.5 py-0.5 text-[9px] font-bold text-ink" aria-label={t`这一格可能有问题`}>
                       ⚠
                     </span>
                   )}
@@ -588,7 +584,7 @@ export default function GridShotsWizard({
 
           {/* 看完一遍的汇总：有问题的格子编号（每格的原因点开看） */}
           {flagged.length > 0 && !d.drawing && (
-            <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">
+            <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200">
               <Trans>AI 看了一遍画面：第 {flaggedList} 格可能和分镜不一样（点开那一格看原因）。要重画就点开、补一句要求再重画；不重画也能接着往下走。</Trans>
             </p>
           )}
@@ -603,17 +599,17 @@ export default function GridShotsWizard({
                 {d.shots[focus].picture}
               </p>
               {panelStale(d.panels[focus], d.shots[focus]) && (
-                <p className="text-[10px] leading-relaxed text-amber-200">
+                <Warn compact>
                   <Trans>这一格的分镜在画好之后改过：画面还是按原来那版画的，重画一下才对得上。</Trans>
-                </p>
+                </Warn>
               )}
-              {d.panels[focus]?.err && <p className="text-[11px] leading-relaxed text-rose-300">{d.panels[focus]?.err}</p>}
+              {d.panels[focus]?.err && <p className="text-[11px] leading-relaxed text-danger-300">{d.panels[focus]?.err}</p>}
               {/* 看一遍的结论（gridDraftStore.checkPanel）：有问题逐条说；没核对上就说一声（钱上的那句跟着） */}
               {(() => {
                 const c = d.panels[focus]?.image ? d.panels[focus]?.check : undefined;
                 if (c?.state === "done" && c.issues.length)
                   return (
-                    <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-200">
+                    <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-warn-200">
                       {panelIssuesLine(c.issues, "cell")}
                     </p>
                   );
@@ -651,14 +647,14 @@ export default function GridShotsWizard({
                     className="w-full rounded-lg border border-slate-700 bg-black/30 px-2.5 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand disabled:opacity-40"
                   />
                   {focusInParked && (
-                    <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">
+                    <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200">
                       <Trans>
                         这一格在上一组里（那一组按画出来的张数结算）：先点下面「接着等上一组」把它取回来，不满意再重画。现在单独画的话，上一组里这一格的图就用不上了。
                       </Trans>
                     </p>
                   )}
                   <button
-                    onClick={() => void redrawPanel(focus, { cast, place, ask })}
+                    onClick={() => void redrawPanel(focus, { cast, place, ask, tierId })}
                     // ★ 不看 canDraw：单画一格走单张出图（drawGridPanel），与服务端能不能出组图无关
                     disabled={!!d.drawing || !!d.panels[focus]?.busy || !!focusCastIssue}
                     className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-brand/90 py-2.5 text-sm font-bold text-ink disabled:opacity-40"
@@ -677,7 +673,7 @@ export default function GridShotsWizard({
           )}
 
           {canDraw === false && !parked && (
-            <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">
+            <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200">
               <Trans>这台服务器还不能一次出一组画面（服务端更新之后就有）。</Trans>
             </p>
           )}
@@ -693,7 +689,7 @@ export default function GridShotsWizard({
               <span>{d.drawing}</span>
             </p>
           )}
-          {d.drawErr && <p className="text-[11px] leading-relaxed text-rose-300">{d.drawErr}</p>}
+          {d.drawErr && <p className="text-[11px] leading-relaxed text-danger-300">{d.drawErr}</p>}
           {d.drawNote && !d.drawing && <p className="text-[10px] leading-relaxed text-slate-400">{d.drawNote}</p>}
           {parked ? (
             <>
@@ -757,7 +753,7 @@ export default function GridShotsWizard({
             </>
           ) : (
             <button
-              onClick={() => void drawGroup({ cast, place })}
+              onClick={() => void drawGroup({ cast, place, tierId })}
               disabled={!!d.drawing || d.writing || panelBusy || !shotN || canDraw === false || canDraw === "asking" || !!drawCastIssue}
               className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
             >
@@ -770,9 +766,9 @@ export default function GridShotsWizard({
           )}
           {/* 那颗键在有一格单独画的时候灰着（gridDraftStore.drawGroup 同一道闸）：灰着就得说为什么 */}
           {!parked && panelBusy && (
-            <p className="text-[10px] leading-relaxed text-amber-200">
+            <Warn compact>
               <Trans>有一格正在单独画——等它画完再整组重出（这一下还没花钱）</Trans>
-            </p>
+            </Warn>
           )}
           <p className="text-[10px] leading-relaxed text-slate-500">
             <Trans>
@@ -825,7 +821,7 @@ export default function GridShotsWizard({
                     </span>
                   )}
                   {stale && (
-                    <span className="absolute bottom-1 left-1 rounded-full bg-amber-500/90 px-1.5 py-0.5 text-[9px] font-bold text-ink">
+                    <span className="absolute bottom-1 left-1 rounded-full bg-warn-500/90 px-1.5 py-0.5 text-[9px] font-bold text-ink">
                       <Trans>分镜改过</Trans>
                     </span>
                   )}
@@ -878,7 +874,7 @@ export default function GridShotsWizard({
           </div>
           {/* 挑中的格子里有人没选上 / 画面过期：gridAppendSpecs 一段都不落（出片键因此灰着），这里说为什么 */}
           {layIssue ? (
-            <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">{layIssue}</p>
+            <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200">{layIssue}</p>
           ) : (
             <p className="text-[11px] leading-relaxed text-slate-400">
               {tier.refImg ? (
@@ -894,7 +890,7 @@ export default function GridShotsWizard({
             </p>
           )}
           {faceNote && (
-            <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">{faceNote}</p>
+            <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200">{faceNote}</p>
           )}
           {canLay && <TokenCost tokens={costs[0] ?? 0} />}
           {canLay && segN > 1 && (
@@ -906,7 +902,7 @@ export default function GridShotsWizard({
           )}
           {/* 还有一组没取回来：铺成之后就撤掉它（gridDraftStore.resetGridScene），先当面说 —— 那一组的钱照样按画出来的张数结算 */}
           {parkedAtLay && (
-            <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-amber-200">
+            <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-warn-200">
               {parkedAtLay.id ? (
                 <Trans>上一组画面还没取回来（服务端按画出来的张数结算）：铺成之后就不再取回了。想要那几张，先回第 3 步点「接着等上一组」。</Trans>
               ) : (
@@ -916,7 +912,7 @@ export default function GridShotsWizard({
               )}
             </p>
           )}
-          {err && <p className="text-[11px] leading-relaxed text-rose-300">{err}</p>}
+          {err && <p className="text-[11px] leading-relaxed text-danger-300">{err}</p>}
           {/* ★ 别说「可以先铺成」：只铺成也要过 flowStore.appendIssue，它拒的正是同一个 busy（同一时刻只炼一段），所以下面那颗也灰掉（2.62 发版评审抓到） */}
           {busy && (
             <p className="text-[10px] leading-relaxed text-slate-500">

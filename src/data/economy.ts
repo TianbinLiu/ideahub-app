@@ -34,7 +34,8 @@ import {
   type CardSlot,
   type CardType,
 } from "../types";
-import { drawCount } from "./drawPlan";
+import { drawCount, textTplDraw } from "./drawPlan";
+import { TEXT_TPL_PROMPT_MAX } from "./textTemplate";
 import {
   DRAFT_FINAL_MULT,
   PAID_DEFAULT_CHAIN,
@@ -45,13 +46,18 @@ import {
   VIDEO_TIER_SPECS,
   firstLiveTierId,
   materialRefInputSec,
+  modelLabel,
   perSecTokens,
   tierRetiredAt,
+  upstreamResOf,
+  type TierFamily,
   type VideoTierSpec,
 } from "./videoTierTable";
 
 /** 样片任务号还能定稿多久（7 天差 1 小时，与服务端同一个数）—— 唯一出处在 videoTierTable，这里只是转出（界面与 store 从 economy 引） */
 export { DRAFT_VALID_MS } from "./videoTierTable";
+/** 按请求形状（VideoTier.api）分流的唯一写法 —— 实现与理由在 videoTierTable.apiCase，这里只是转出；「只给尾帧收不收」同在那里（lastFrameOnlyOk） */
+export { apiCase, lastFrameOnlyOk } from "./videoTierTable";
 
 /** 观看付费的平台抽成比例（其余进创作者 add-on 余额） */
 export const PLATFORM_CUT = 0.3;
@@ -168,9 +174,12 @@ export const RECHARGE_PACKS = [
 //   ✅ 刊例已核（火山方舟价目页 2026-10-19：2.0 mini 无视频输入 ¥23/M、有视频输入 ¥14/M；2.5 有视频输入 ¥42/M、无 ¥70/M），
 //   10-19 付费验证任务号逐个记在 videoTierTable 各系数头上；账单行待主人在费用中心核。含输入视频时的最低用量见 materialRefSecs。
 
-/** Seedance 档位：id 持久化在 VideoSegment.videoTier / EditorState.videoTier */
+/** 出片档位（Seedance 几档 + MiniMax H3 三档 + 真人档）：id 持久化在 VideoSegment.videoTier / EditorState.videoTier */
 export interface VideoTier extends VideoTierSpec {
-  /** 界面名。★ VIDEO_TIERS 里是 getter，读到时按界面语言现翻 —— 判据一律认 id，别拿它比较（desc 同理） */
+  /**
+   * 界面名（按芯片 family 取：同一颗芯片的两家同名）。★ VIDEO_TIERS 里是 getter，读到时按界面语言现翻 —— 判据一律认 id，别拿它比较（desc 同理）；
+   * 同名 ⇒ 别拿它去重档位（那会把 Seedance 草稿与 MiniMax 草稿当成一档），去重的只有拼进句子的那串名字（joinTierNames）。
+   */
   label: string;
   desc: string;
 }
@@ -188,63 +197,71 @@ function ultraVsHd(): string {
   return (perSecTokensOf(ultra) * ultra.mult / (perSecTokensOf(hd) * hd.mult)).toFixed(1);
 }
 
-// ★ label / desc 是界面文案，读到时现翻（同 PLANS 那条 ★）；按 id 接到 videoTierTable 的那一行上。
+// ★ label / desc 是界面文案，读到时现翻（同 PLANS 那条 ★）。档名按芯片（family）取、说明按 id 取（2026-10-26 出片地区 P2b 拆开）：
+//   同一颗芯片的两家（Seedance / MiniMax H3）同名 —— 「草稿」还是「草稿」，换的只是这一段交给哪个模型；两行能力不同，说明各写各的。
+//   ⚠ 同名的后果：几个档名接成一串时会重复 —— joinTierNames 去重（一处）。「哪个模型」不写在档名、也不写在说明里（只走 account.tierShownModel 那一组，按地区写）。
 //   英文档名与画布指挥认的档位词对齐（studio/agentGrammar：fast / standard / hd / cinematic + tier）。
 //   ⚠「草稿」带 context：同一个字在草稿箱（Drafts）与模板状态（Draft）里各有一条，这里是一档的名字（英文叫 Lite，别与电影级的「样片」撞名）。
 //   ⚠ 别把「草稿」加进 agentGrammar 的档位词：「存草稿」会被认成改档位。
 //   ★ desc 里**不写**「免费可用 / 会员档」（2026-10-07 评审抓到）：谁能用哪一档跟着服务端走（account.tierFreeOk 读健康端点的
 //   freeVideoGate / freeVideo），而这里是纯目录、不认识当前用户与服务端开关 —— 运维关掉免费档限制时，写死的「会员档」就和点得动的按钮打架。
 //   这一档这个人用不了时按钮的 title 换成 tierBlockReason 那句，会员档那几档另由选择器下面那一句（memberTiersLine）说。
-const TIER_TEXT: Record<string, { label: () => string; desc: () => string }> = {
-  fast: {
-    label: () => i18n._(msg`极速`),
-    desc: () => {
-      const day = tierRetireDay(tierOf("fast"));
-      return i18n._(msg`省 token · 首帧起拍，不锁尾帧 · 模型 ${day}起停用`);
-    },
+//   ★ desc 里也**不写供应商与模型名**（Seedance 那几行原来就没写）：说「哪个模型」只走 account 那一组（地区不知道时不写供应商，
+//   scripts/check-tier-semantics.mjs 的 [model-name]）。构建里 check-video-tiers 核对档位表的每一行在这里都有说明。
+const FAMILY_LABEL: Record<TierFamily, () => string> = {
+  fast: () => i18n._(msg`极速`),
+  draft: () => i18n._(msg({ message: "草稿", context: "画质档位名：Seedance 2.0 mini 480p 的省钱档（不是草稿箱的草稿，也不是电影级的样片）" })),
+  std: () => i18n._(msg`标准`),
+  hd: () => i18n._(msg`高清`),
+  ultra: () => i18n._(msg`电影级`),
+  // ★ 带 context：「真人」在别处是真人卡 / 真人照片里的形容词，这里是一档的名字，英文不是同一个词
+  real: () => i18n._(msg({ message: "真人", context: "画质档位名：唯一收真人照片的那一档（不是「真人卡」「真人照片」里的形容词）" })),
+};
+
+const TIER_DESC: Record<string, () => string> = {
+  fast: () => {
+    const day = tierRetireDay(tierOf("fast"));
+    return i18n._(msg`省 token · 首帧起拍，不锁尾帧 · 模型 ${day}起停用`);
   },
-  draft: {
-    label: () => i18n._(msg({ message: "草稿", context: "画质档位名：Seedance 2.0 mini 480p 的省钱档（不是草稿箱的草稿，也不是电影级的样片）" })),
-    desc: () => {
-      const hd = tierOf("hd").label;
-      return i18n._(msg`480p 省钱档 · 与「${hd}」同一个模型、画面小一号；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音`);
-    },
+  draft: () => {
+    const hd = tierOf("hd").label;
+    return i18n._(msg`480p 省钱档 · 与「${hd}」同一个模型、画面小一号；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音`);
   },
-  std: {
-    label: () => i18n._(msg`标准`),
-    desc: () => {
-      const day = tierRetireDay(tierOf("std"));
-      return i18n._(msg`首尾帧可控 · 模型 ${day}起停用`);
-    },
+  std: () => {
+    const day = tierRetireDay(tierOf("std"));
+    return i18n._(msg`首尾帧可控 · 模型 ${day}起停用`);
   },
   // ★ desc 是给**用户**看的，不是给运维看的（原来写过「需在方舟控制台开通 2.0 系列」—— 那是部署方的事）
-  hd: {
-    label: () => i18n._(msg`高清`),
-    desc: () => i18n._(msg`新一代模型 · 画面更稳、细节更多；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音`),
+  hd: () => i18n._(msg`新一代模型 · 画面更稳、细节更多；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音`),
+  ultra: () => {
+    const x = ultraVsHd();
+    const hd = tierOf("hd").label;
+    return i18n._(msg`最新一代 · 画面与运镜最好，出片带 AI 生成的环境音，每秒消耗约「${hd}」档的 ${x} 倍`);
   },
-  ultra: {
-    label: () => i18n._(msg`电影级`),
-    desc: () => {
-      const x = ultraVsHd();
-      const hd = tierOf("hd").label;
-      return i18n._(msg`最新一代 · 画面与运镜最好，出片带 AI 生成的环境音，每秒消耗约「${hd}」档的 ${x} 倍`);
-    },
+  real: () => i18n._(msg`唯一收真人照片的档 · 供应商按发计价（6 秒或 10 秒整档）· 用真人卡出片选它`),
+  // MiniMax H3 三行（videoTierTable 那三行的注释）：出声关不掉、不收声音样本、一段最多 5 张图 —— 与 Seedance 那几档不一样的地方写出来
+  "draft-mm": () => {
+    const max = tierOf("draft-mm").refImagesMax ?? 0;
+    return i18n._(msg`480p 省钱档 · 可直接用素材卡的形象参考图出片（一段最多 ${max} 张图）· 出片一定带 AI 生成的环境音，不参考卡上的声音样本`);
   },
-  real: {
-    // ★ 带 context：「真人」在别处是真人卡 / 真人照片里的形容词，这里是一档的名字，英文不是同一个词
-    label: () => i18n._(msg({ message: "真人", context: "画质档位名：唯一收真人照片的那一档（不是「真人卡」「真人照片」里的形容词）" })),
-    desc: () => i18n._(msg`唯一收真人照片的档 · 供应商按发计价（6 秒或 10 秒整档）· 用真人卡出片选它`),
+  "hd-mm": () => {
+    const max = tierOf("hd-mm").refImagesMax ?? 0;
+    return i18n._(msg`768p · 可直接用素材卡的形象参考图出片（一段最多 ${max} 张图）· 出片一定带 AI 生成的环境音，不参考卡上的声音样本`);
+  },
+  "ultra-mm": () => {
+    const max = tierOf("ultra-mm").refImagesMax ?? 0;
+    return i18n._(msg`768p · 可直接用素材卡的形象参考图出片（一段最多 ${max} 张图）· 出片一定带 AI 生成的环境音，不参考卡上的声音样本；没有往后延长、样片和白模模板`);
   },
 };
 
 /** 档位表（能力 + 界面文案）。★ label / desc 是 getter：别展开（{...tier}）或 JSON 化了再拿去显示 */
 export const VIDEO_TIERS: VideoTier[] = VIDEO_TIER_SPECS.map((spec) => {
-  const text = TIER_TEXT[spec.id];
+  const desc = TIER_DESC[spec.id];
   return Object.defineProperties(
     { ...spec },
     {
-      label: { get: () => (text ? text.label() : spec.id), enumerable: true },
-      desc: { get: () => (text ? text.desc() : ""), enumerable: true },
+      label: { get: () => FAMILY_LABEL[spec.family](), enumerable: true },
+      desc: { get: () => (desc ? desc() : ""), enumerable: true },
     },
   ) as VideoTier;
 });
@@ -268,7 +285,11 @@ export function perSecTokensOf(tier: Pick<VideoTierSpec, "model" | "resolution">
   return perSecTokens(tier.model, tier.resolution, ratio);
 }
 
-/** 这一档走哪个供应商 —— 判否定的唯一出口（缺省 = 方舟）。别在别处 `?? "ark"` */
+/**
+ * 这一档走哪个供应商 —— 判否定的唯一出口（缺省 = 方舟）。别在别处 `?? "ark"`。
+ * ★ **只回答「哪家」**（取回凭据记谁家、「任务还在哪家那边跑」那句话、剪辑页重拍只认方舟）：请求形状读 VideoTier.api，
+ *   「只认一张起拍画面」读 startOnly，「带不带声音样本」读 refAudio（2026-10-26 拆开，scripts/check-tier-semantics.mjs 钉着）。
+ */
 export function providerOf(tierId: string | undefined): "ark" | "minimax" {
   return tierOf(tierId).provider ?? "ark";
 }
@@ -276,12 +297,12 @@ export function providerOf(tierId: string | undefined): "ark" | "minimax" {
 /**
  * 这一档能不能走「推演三套方案」—— 唯一实现（flowStore.deriveProposals、
  * 工坊 studioStore.generateNode、工坊档位按钮三处共用，别各写一遍）。
- * 按发计价档（flatCost，真人档）没有方案台：它不画设定帧（首帧就是卡片照片），
+ * 只认一张起拍画面的档（startOnly，真人档）没有方案台：它不画设定帧（首帧就是卡片照片），
  * 推演产出的三套首尾帧一张都用不上 —— 收了推演的钱再全扔掉，就是白扣一笔。
  */
 export function deriveIssue(tierId: string | undefined): string | null {
   const tier = tierOf(tierId);
-  if (!tier.flatCost) return null;
+  if (!tier.startOnly) return null;
   const label = tier.label;
   // ★ 整句、自带句号（2026-09-11 多语言）：调用方不许再往后补「。」接下一句 ——
   //   工坊 NPC 那句（studioStore.generateNode）是「这一整句 + 另一整句」，英文得自己断句
@@ -316,26 +337,10 @@ export function videoAudioOn(model: string): boolean {
 }
 
 /**
- * 模型 id → 给人看的名字（`doubao-seedance-2-0-mini-260615` → `Seedance 2.0 mini`）。
- *
- * ★ **从 id 推导，不另外维护一张对照表**。手写一张 `{id: 名字}` 的表，加档位时忘了补
- *   就是"界面上写着标准档、实际跑的是另一个模型"——而这种错没有任何症状，只会让人
- *   在对不上账时怀疑是自己记错了。推导出来的名字永远跟着真正发出去的那个 id 走。
- * ★ 认不出来就**原样返回 id**，不返回"未知模型"：id 本身就是最准确的信息，
- *   宁可显示得难看一点，也不能把它藏起来。
- * ★ 尾巴上那串日期（`-260615`）是方舟的版本戳，对用户没有意义，去掉；
- *   要查证的人看档位说明里的完整 id（title）。
+ * 模型 id → 给人看的名字：规则只在 videoTierTable.modelLabel（零依赖，构建里 check-video-tiers.mjs 拿正反例实跑），这里原样转出。
+ * ★ 说「出片模型」一律走下面的 tierModelLabel（有档位就用它：「草稿」「高清」同一个模型、只差分辨率）；只有 id 时才直接用它。
  */
-export function modelLabel(modelId: string): string {
-  const s = String(modelId || "")
-    .replace(/^doubao-/, "")
-    .replace(/-\d{6,8}$/, "");
-  const m = /^([a-z0-9]+)-(\d+)-(\d+)(?:-(.+))?$/.exec(s);
-  if (!m) return modelId;
-  const family = m[1].charAt(0).toUpperCase() + m[1].slice(1);
-  const variant = m[4] ? ` ${m[4].replace(/-/g, " ")}` : "";
-  return `${family} ${m[2]}.${m[3]}${variant}`;
-}
+export { modelLabel };
 
 /**
  * 真正会发给方舟的时长（秒）。上下限都跟着档位走（VideoTier.minSec / maxSec —— 2.5 不收 3 秒；
@@ -344,12 +349,18 @@ export function modelLabel(modelId: string): string {
  *   拿到的是 4 秒的片，差 33% 且无从察觉。
  */
 /**
- * 这一档的出片提示词上限（字符）—— **唯一判定**（输入框的 maxLength、点图 / 运镜芯片的长度闸、segmentGen 给正文留位、
- * ai/real 最后那一刀都问它）。收参考图的两档（2.x：高清 / 电影级）= 官方建议值 500，其余 = 400（理由见 types.VIDEO_PROMPT_MAX_V2）。
+ * 这一档的出片提示词上限（字符）—— **唯一判定**（输入框的 maxLength、点图 / 运镜芯片的长度闸都问它；出片那一侧经 segmentGen.promptCapOf 问它，
+ * 写进契约 GenSpec.promptCap，ai/real 最后那一刀与 validateGenSpec 读那一格）。收参考图的两档（2.x：高清 / 电影级）= 官方建议值 500，其余 = 400（理由见 types.VIDEO_PROMPT_MAX_V2）。
  * ★ 按**能力**判（refImg）不按档位 id 判：新加一档 2.x 模型时不用回来改这里。
+ * ★ 文字模板段（2026-10-26）在收长提示词的档（VideoTier.longPromptOk，今天只有电影级）上是 data/textTemplate.TEXT_TPL_PROMPT_MAX（1000）；
+ *   别的档照旧 500 / 400。`long` **必填**：可选的话新调用点漏传就把文字模板段按 500 拦 / 按 500 算预算 —— 作者那一屏说放得下、出片那一拍却整句拒
+ *   （或反过来），零报错。不是文字模板段的调用方显式传 `{ long: false }`（那是一个看得见的决定）。
+ * @param o.long 这一段是文字模板段（flowStore.nodePromptMax 按节点判，出片那一侧按 SegmentGenInput.textTpl 判）
  */
-export function promptMaxOf(tierId: string | undefined): number {
-  return tierOf(tierId).refImg ? VIDEO_PROMPT_MAX_V2 : VIDEO_PROMPT_MAX;
+export function promptMaxOf(tierId: string | undefined, o: { long: boolean }): number {
+  const tier = tierOf(tierId);
+  if (o.long && tier.longPromptOk) return TEXT_TPL_PROMPT_MAX;
+  return tier.refImg ? VIDEO_PROMPT_MAX_V2 : VIDEO_PROMPT_MAX;
 }
 
 /**
@@ -358,11 +369,37 @@ export function promptMaxOf(tierId: string | undefined): number {
  *   Seedance 2.5 单段 2~30 秒、最多 10 段、合计不超过 30 秒。此前只按「最多 3 张带声音的卡」数，没看合计 ——
  *   三张卡各录 8 秒就是 24 秒，高清档整发 400（不花钱，但出不了片，而那句英文报错里看不出是声音样本的事）。
  * ★ 2.5 的张数上限我们仍按 3 张用（音色点名句只实测到 3 个人），这里只管合计秒数。
+ * ★ 带不带得了声音样本只问 VideoTier.refAudio（2026-10-26 起；原来写 `!audio || !refImg`，海外 MiniMax H3 出声、收参考图却不收参考音频）。
  */
 export function refAudioSecOf(tierId: string | undefined): number | null {
   const t = tierOf(tierId);
-  if (!t.audio || !t.refImg) return null;
+  if (!t.refAudio) return null;
   return (t.refImagesMax ?? 0) > 9 ? 30 : 15;
+}
+
+/**
+ * 这一档能不能写**分镜表**（一段多镜头 + 台词）—— 唯一判定（画布自定义车道、画布 / 工坊两面方案台、主角定妆向导四处原来各写一遍
+ * `refImg && audio === true`，2026-10-26 收到这里）。
+ * 今天 = refAudio（出声又收参考图的 2.x 档：台词按卡的声音配，多镜头也只在这几档上验过）。
+ * ★ 读 refAudio、不自己拼 audio && refImg：MiniMax H3（出片地区 P2b）出声、收参考图，却不收声音样本、多镜头也没验过 ——
+ *   往「不开」的方向错。那一期真要给 H3 开分镜表，先付费验过多镜头，再在这里单独写一条。
+ */
+export function shotsOkOf(tierId: string | undefined): boolean {
+  return tierOf(tierId).refAudio;
+}
+
+/**
+ * 按发计价的档能选的那几个**整档时长**（秒，升序）；null = 这一档按秒连续计价，[minSec, maxSec] 里都能选。
+ * 本段设置的时长按钮（不在价表上的整档灰掉）与 clampDuration 的吸附都读它。
+ * ★ 价目表（flatCost）只在这里与 segTokens 里读（scripts/check-tier-semantics.mjs 钉着）：拿「有没有按发价表」判「是不是真人档」的写法
+ *   2026-10-26 全部改读 startOnly —— 计价模型与出片方式是两件事。
+ */
+export function durationStepsOf(tierId: string | undefined): number[] | null {
+  const t = tierOf(tierId);
+  if (!t.flatCost) return null;
+  return Object.keys(t.flatCost)
+    .map(Number)
+    .sort((a, b) => a - b);
 }
 
 export function clampDuration(durationSec: number, tierId?: string): number {
@@ -371,10 +408,9 @@ export function clampDuration(durationSec: number, tierId?: string): number {
   // 报价与下单都得吸附到档上，否则"按 8 秒报价、按 10 秒扣费"这种缝隙就开了——
   // 吸附方向取**不小于所选时长的最小档**（用户要 8 秒就给 10 秒档并按 10 秒收，
   // 往少给的方向吸是暗降级）。超过最大档就顶格。
-  if (t.flatCost) {
-    const steps = Object.keys(t.flatCost).map(Number).sort((a, b) => a - b);
-    return steps.find((s) => s >= durationSec) ?? steps[steps.length - 1];
-  }
+  const steps = durationStepsOf(tierId);
+  if (steps) return steps.find((s) => s >= durationSec) ?? steps[steps.length - 1];
+  // ★ 窗口内的**整数**：MiniMax H3（按秒计价）的 duration 只收 4~15 的整数（服务端 5.5 / "5" 都拒、不取整），Seedance 那几档本来也按整数秒发
   return Math.max(t.minSec, Math.min(t.maxSec, Math.round(durationSec)));
 }
 
@@ -407,10 +443,14 @@ export function durationWindowOfModel(model: string): [number, number] {
  *  吸附到价表档位上，这里直接取数。**报价与实扣共用本函数**（铁律六），
  *  server 结算侧的对应表必须逐条相等（服务端 segTokens(秒, 模型, 分辨率, 画幅)，同一个乘法顺序：秒 × 每秒 × 系数）。
  *  ★ ratio = 送进请求体的那个画幅（"9:16" / "16:9"）：480p 的每秒数按画幅不同；缺省按那一行最大的一格报（宁可多报）。
- *    720p 不看画幅（一律 21,600）。 */
+ *    720p 不看画幅（一律 21,600）。
+ *  ★ 按秒计价的档（secCost，MiniMax H3 三档，2026-10-26）：窗口内的整数秒 × 每秒价 —— 不分画幅、不分有没有图（一段至多 5 张图，都在官方免费张数内）。
+ *    与服务端 tokens.minimaxV2Tokens 同一个式子（server arkProxy.spec「跨仓 MiniMax H3 价目」逐秒钉着：clampDuration × secCost）。
+ *    secCost 只在这里读（scripts/check-tier-semantics.mjs 钉着），与 flatCost 同一个理由：价目只该有一处读法。 */
 export function segTokens(durationSec: number, tierId?: string, ratio?: string): number {
   const t = tierOf(tierId);
   const sec = clampDuration(durationSec, tierId);
+  if (t.secCost !== undefined) return sec * t.secCost;
   if (t.flatCost) return t.flatCost[sec] ?? Math.max(...Object.values(t.flatCost));
   return Math.round(sec * perSecTokensOf(t, ratio) * t.mult);
 }
@@ -444,26 +484,35 @@ export function draftTierId(): string {
  * 档位 → 给人看的模型名（「Seedance 2.0 mini · 480p」）。**界面上显示「这一段交给哪个模型」一律走它**，别直接 modelLabel(tier.model)：
  * 「草稿」与「高清」是同一个模型，只差分辨率 —— 只印模型名的话两档看起来一模一样，用户不知道自己付的是哪一种。
  * 720p 是改之前的样子（不写），别的分辨率接在后面。
+ * ★ 分辨率按**发给上游的那一格**写（videoTierTable.upstreamResOf，2026-10-26 P2b 审核）：MiniMax H3 那三行的 resolution 只是为「每行都写」占的位
+ *   （480p / 720p），真发的是 upstreamResolution（480P / 768P）—— 读占位那一格的话「高清」「电影级」的 H3 写成不带分辨率（看不出是 768P）、
+ *   「草稿」写成小写 480p，与上游、服务端登记表都对不上。
  */
-export function tierModelLabel(tier: Pick<VideoTierSpec, "model" | "resolution">): string {
+export function tierModelLabel(tier: Pick<VideoTierSpec, "model" | "resolution" | "upstreamResolution">): string {
   const name = modelLabel(tier.model);
-  return tier.resolution === "720p" ? name : `${name} · ${tier.resolution}`;
+  const res = upstreamResOf(tier);
+  return res === "720p" ? name : `${name} · ${res}`;
 }
 
 /**
  * 服务端登记表里的一发（只有模型与分辨率，没有档位 id）→ 是哪一档。认不出 = undefined（调用方别写 videoTier，交给 tierOf 兜底）。
  * ★ 必须连分辨率一起认：「草稿」与「高清」是同一个模型 —— 只按模型认的话，取回来的 480p 成片会被当成「高清」，之后的重拍 / 延长按错的档报价。
  *   分辨率缺省（老服务端不登记这一格）= 720p（2026-10-07 之前只有 720p）。
+ * ★ 分辨率按**发给上游的那一格**比（videoTierTable.upstreamResOf —— 上游分辨率的唯一读法，2026-10-26 P2b 审核）：服务端登记 MiniMax H3 的那一发
+ *   记的是上游原样的大写 480P / 768P（server recordMinimaxV2Task），拿档位行里只为「每行都写」占位的小写 resolution 比，每一发 H3 都认不出 ——
+ *   取回安放的那一段落到 tierOf 的兜底档（Seedance）上，之后的重拍 / 报价按错的档算。方舟那几行 upstreamResOf 就是 resolution，行为不变。
+ *   (模型, 上游分辨率) 在档位表里一行一对（scripts/check-video-tiers.mjs 钉着），所以这里取第一个不会挑错。
  */
 export function tierIdOf(model: string | undefined, resolution: string | undefined): string | undefined {
   if (!model) return undefined;
   const res = resolution || "720p";
-  return VIDEO_TIERS.find((t) => t.model === model && t.resolution === res)?.id;
+  return VIDEO_TIERS.find((t) => t.model === model && upstreamResOf(t) === res)?.id;
 }
 
-/** 同上，但用完整的模型 id（档位按钮的 title：要查证的人看的那一份）。同一个模型的两档靠分辨率分开 */
-export function tierModelId(tier: Pick<VideoTierSpec, "model" | "resolution">): string {
-  return tier.resolution === "720p" ? tier.model : `${tier.model} · ${tier.resolution}`;
+/** 同上，但用完整的模型 id（档位按钮的 title：要查证的人看的那一份）。同一个模型的两档靠分辨率分开；分辨率同 tierModelLabel 按上游那一格写 */
+export function tierModelId(tier: Pick<VideoTierSpec, "model" | "resolution" | "upstreamResolution">): string {
+  const res = upstreamResOf(tier);
+  return res === "720p" ? tier.model : `${tier.model} · ${res}`;
 }
 
 /**
@@ -602,7 +651,7 @@ export function r2vTokens(inputSec: number, tierId?: string): number | null {
 export function r2vPriceIssue(tierId?: string): string | null {
   const tier = tierOf(tierId);
   const block = r2vBlockOfTier(tier);
-  return block ? r2vBlockText(block, [tier.label], "refVideo") : null;
+  return block ? r2vBlockText(block, [tier], "refVideo") : null;
 }
 
 /**
@@ -613,7 +662,12 @@ export function r2vPriceIssue(tierId?: string): string | null {
 export function blockoutPriceIssue(tierId?: string): string | null {
   const tier = tierOf(tierId);
   const block = blockoutBlockOfTier(tier);
-  return block ? r2vBlockText(block, [tier.label], "blockout") : null;
+  return block ? r2vBlockText(block, [tier], "blockout") : null;
+}
+
+/** 白模模板那件事的原因本身（不带档位名，null = 跑得了）—— r2vBlockOf 的白模版（account.r2vTierIssue 用它判「哪几档跑得了」） */
+export function blockoutBlockOf(tierId?: string): R2vBlock | null {
+  return blockoutBlockOfTier(tierOf(tierId));
 }
 
 /** 走不了白模（r2v）的两种原因：闸门没开（closed），或闸开了但价签没钉（unpriced，model 是括号里点名的模型显示名） */
@@ -635,23 +689,27 @@ export function r2vBlockOf(tierId?: string): R2vBlock | null {
  *  按 id 再查一次表的话，传进来的对象与表里那份一旦不是同一个（或 id 不在表里、tierOf 静默退回标准档），两者就对不上 */
 function r2vBlockOfTier(tier: VideoTier): R2vBlock | null {
   if (!tier.refVid) return { kind: "closed" };
-  if (tier.r2vMult === null) return { kind: "unpriced", model: modelLabel(tier.model) };
+  if (tier.r2vMult === null) return { kind: "unpriced", model: tierModelLabel(tier) };
   return null;
 }
 
 /** 白模模板的判据本体（与 r2vBlockOfTier 同形，闸门换成 blockoutOk）。收档位对象的理由同上 */
 function blockoutBlockOfTier(tier: VideoTier): R2vBlock | null {
   if (!tier.blockoutOk) return { kind: "closed" };
-  if (tier.r2vMult === null) return { kind: "unpriced", model: modelLabel(tier.model) };
+  if (tier.r2vMult === null) return { kind: "unpriced", model: tierModelLabel(tier) };
   return null;
 }
 
 /** 这句话说的是哪件事：带参考视频出片（返修 / 示例视频），还是跑白模模板 */
-type R2vScope = "refVideo" | "blockout";
+export type R2vScope = "refVideo" | "blockout";
 
-/** 几个档位名接成一串：整串外面那对引号由整句自己带（中文「极速」「标准」，英文 “Fast”, “Standard”） */
+/**
+ * 几个档位名接成一串：整串外面那对引号由整句自己带（中文「极速」「标准」，英文 “Fast”, “Standard”）。
+ * ★ 先去重（2026-10-26 出片地区 P2b）：档名按芯片取，同一颗芯片的两家（Seedance / MiniMax H3）同名 —— 全仓四十来处
+ *   「换到哪一档就有」「「草稿」「高清」是会员档」都从这里接，不去重就说成「「草稿」「草稿」」。去重只在这一处，调用方别各去一遍。
+ */
 export function joinTierNames(labels: string[]): string {
-  return labels.join(
+  return [...new Set(labels)].join(
     t({
       message: "」「",
       comment: "几个档位名接成一串时的分隔符。整串外面那对引号写在句子里，所以中文是前一个名字的右引号接上后一个的左引号（「极速」「标准」）；英文写成 ”, “ 就是 “Fast”, “Standard”",
@@ -668,35 +726,9 @@ export function tierNamesWhere(pred: (t: VideoTier) => boolean): string {
   return joinTierNames(VIDEO_TIERS.filter((x) => pred(x) && !tierRetired(x)).map((x) => x.label));
 }
 
-/**
- * 出片会参考卡上声音样本的那几档（出声 + 收参考媒体：2.x 的「草稿」「高清」「电影级」）。卡片页 / 录音 / 圈选取声音几处说明共用，
- * 原来各写「高清/电影级」—— 加了「草稿」之后那几句都少说一档。目录口径（说的是「哪几档会用它」，不看套餐）。
- */
-export function voiceTierNames(): string {
-  return tierNamesWhere((x) => x.audio && x.refImg);
-}
-
-/**
- * 「按模型适配」那一格的行首（卡片页 / 卡组页）：**收参考图的方舟档**有哪几档（2.x：草稿 / 高清 / 电影级）。
- * 用「 / 」并列（这是分类的名字，不是指路的句子，不加引号）。目录口径、不看套餐：说的是「卡在这几档上怎么起作用」。
- */
-export function refImgTierList(): string {
-  return VIDEO_TIERS.filter((x) => x.refImg && !x.flatCost && !tierRetired(x))
-    .map((x) => x.label)
-    .join(" / ");
-}
-
-/**
- * 同一格的另一行：**收不到形象图的方舟档**（今天是 1.0 的「标准 / 极速」：卡只经由设定帧或文字版形象描述起作用）。
- * 空串 = 一档都不剩（2026-11-24 13:00 那两档停用之后）—— 调用方整行不画、勾选框不再点名。
- * ★ 原来卡片页 / 卡组页 / segmentGen 三处写死「标准 / 极速」（2026-10-10 文案复核抓到）：停用之后档位选择器里早没有它们了，
- *   这几句却还在说一整行、还在让人去勾「标准/极速适用」。按能力现算就跟着表走，与上面 refImgTierList 同一把尺。
- */
-export function noRefImgTierList(): string {
-  return VIDEO_TIERS.filter((x) => !x.refImg && !x.flatCost && !tierRetired(x))
-    .map((x) => x.label)
-    .join(" / ");
-}
+// ★ 原来这里还有 voiceTierNames（会参考声音样本的那几档）与 refImgTierList（收参考图的那几档）：目录口径的档名，卡片页声音区 / 录音 /
+//   形象参考取舍那几句读它们。2026-10-26（出片地区 · 主人第 2 件审核）改成按「此刻摆得出来的模型」说，搬去 account
+//   （voiceModelsNames / refImgModelsNames：economy 不认识地区，account 才认识；account 已经 import economy，反过来成环）—— 这两个没有调用方了，删掉。
 
 /**
  * 同一个原因、一档或几档合成一整句（labels 是档位的界面名）。单档（r2vPriceIssue）与合并（r2vBlockLines）读同一份措辞。
@@ -710,18 +742,26 @@ export function noRefImgTierList(): string {
  *   「blockout」= 白模段的档位那一排（r2vBlockLines）与白模出片闸；「refVideo」= 返修（FixSegmentBox 的片段重拍）与示例视频。
  *   原来一句话包两件事（「白模模板复刻、返修都属于这一类——只有电影级做得到」），高清开了之后那句话一半是错的。
  */
-function r2vBlockText(block: R2vBlock, labels: string[], scope: R2vScope): string {
-  const names = joinTierNames(labels);
+function r2vBlockText(block: R2vBlock, tiers: VideoTier[], scope: R2vScope): string {
+  const names = joinTierNames(tiers.map((x) => x.label));
+  // ★ 被挡的档所在的芯片（2026-10-26 P2b 审核）：同一颗芯片的两家同名（Seedance / MiniMax H3），「做得到的那几档」里要去掉同一颗芯片的行 ——
+  //   不然 MiniMax 的「高清」说「「高清」做不了…只有「高清」「电影级」做得到」，MiniMax 的「电影级」说「「电影级」跑不了白模模板——只有「电影级」跑得了」。
+  //   同一颗芯片的另一家做得到时这里**只说这一家的模型做不了**、不说去哪儿：economy 不认地区，写不出供应商（海外那一家还摆不出来）——
+  //   去哪一家由 account.r2vTierIssue 按地区补上（片段重拍、白模段的档位那一排、出片闸都问它）
+  const families = new Set(tiers.map((x) => x.family));
   if (block.kind === "closed") {
     if (scope === "blockout") {
       const open = blockoutTier();
       if (!open) return t`「${names}」这一档暂未开放白模模板出片，等开放后再来`;
+      if (families.has(open.family)) return t`「${names}」档眼下用的这个出片模型跑不了白模模板（模板对出片模型是硬要求）`;
       const openLabel = open.label;
-      const openModel = modelLabel(open.model);
-      return t`「${names}」跑不了白模模板（模板对出片模型是硬要求）——白模模板只有「${openLabel}」（${openModel}）跑得了`;
+      // ★ 不写那一档的模型名（2026-10-26 出片地区 · 主人第 2 件审核）：economy 是目录、不知道地区，写了就是地区不知道时也点名 Seedance、
+      //   海外门禁开着时给被拦的那一家点名。说「哪个模型」只走 account.tierShownModel（白模段档位那一排的芯片上已经写着档位名）
+      return t`「${names}」跑不了白模模板（模板对出片模型是硬要求）——白模模板只有「${openLabel}」跑得了`;
     }
     const open = VIDEO_TIERS.filter((x) => !r2vBlockOfTier(x));
     if (!open.length) return t`「${names}」这一档暂未开放按参考视频出片，等开放后再来`;
+    if (open.some((x) => families.has(x.family))) return t`「${names}」档眼下用的这个出片模型做不了按参考视频出片（片段重拍、自定义的示例视频都属于这一类）`;
     const openNames = joinTierNames(open.map((x) => x.label));
     return t`「${names}」做不了按参考视频出片（片段重拍、自定义的示例视频都属于这一类）——这类出片只有「${openNames}」做得到`;
   }
@@ -740,17 +780,21 @@ function r2vBlockText(block: R2vBlock, labels: string[], scope: R2vScope): strin
  * ★ 两个调用方（本段设置抽屉、工坊 TierBlockNote）都只在白模段上问它，所以按白模判据（blockoutOk），不是 refVid。
  */
 export function r2vBlockLines(): string[] {
-  const groups = new Map<string, { block: R2vBlock; labels: string[] }>();
+  const groups = new Map<string, { block: R2vBlock; tiers: VideoTier[] }>();
+  // ★ 同一颗芯片里有一行跑得了白模的（「电影级」的 Seedance 那一行），那颗芯片就不算在「跑不了」里（2026-10-26 P2b）：
+  //   MiniMax H3 那一行也叫「电影级」、跑不了白模，不剔掉的话这句话会说「「电影级」跑不了白模模板——白模模板只有「电影级」跑得了」。
+  //   地区不给 Seedance 时那颗芯片整个用不了白模，那是出片地区的话（account.tierRegionIssue / 模板那几句），不在这里说。
+  const open = new Set(VIDEO_TIERS.filter((x) => !blockoutBlockOfTier(x)).map((x) => x.family));
   for (const tier of VIDEO_TIERS) {
     const block = blockoutBlockOfTier(tier);
-    if (!block) continue;
+    if (!block || open.has(tier.family)) continue;
     // 报不出价的按模型分开说（括号里点名的是各自的模型），暂未开放的并成一句
     const key = block.kind === "unpriced" ? `unpriced:${block.model}` : block.kind;
     const hit = groups.get(key);
-    if (hit) hit.labels.push(tier.label);
-    else groups.set(key, { block, labels: [tier.label] });
+    if (hit) hit.tiers.push(tier);
+    else groups.set(key, { block, tiers: [tier] });
   }
-  return [...groups.values()].map((g) => r2vBlockText(g.block, g.labels, "blockout"));
+  return [...groups.values()].map((g) => r2vBlockText(g.block, g.tiers, "blockout"));
 }
 
 /**
@@ -1426,6 +1470,16 @@ export function segmentCost(o: {
   noDraw: boolean;
   /** 这一段的剧情分了两个以上镜头（data/drawPlan 的规矩 ②：不画结束画面）。必填，理由同上 */
   multiShot: boolean;
+  /**
+   * 这个人在这一档上只能纯文字出片（data/drawPlan 的规矩 ③：免费版在 MiniMax H3 上，一张帧都不画）。**必填**：economy 不认套餐，
+   * 由调用方问 account.tierTextOnly（与出片 segmentGen 同一个判据）—— 漏传就把出片时根本不会画的图钱算进报价
+   */
+  textOnly: boolean;
+  /**
+   * 这一段是文字模板段时模板有几个图位（data/drawPlan 的规矩 ③：有图位一张帧都不画、零图位只补画开头一张）；null = 不是文字模板段。
+   * 必填，理由同上。★ 按**模板的图位数**算，不按此刻手上有几张图 —— 补图之前（货架 / 详情页）与补图之后（生成键）报的是同一个数
+   */
+  textTplSlots: number | null;
   /** 这一段送进请求体的画幅（"9:16" / "16:9"）：480p 的每秒数按画幅不同（segTokens 的 ★）。缺省按最贵的一格报 */
   ratio?: string;
   /**
@@ -1455,15 +1509,16 @@ export function segmentCost(o: {
   }
   const tier = tierOf(o.tierId);
   // ★ 补画几张只问 data/drawPlan 一处（出片 segmentGen 与参考清单读的是同一个函数）：
-  //   按发计价档（真人档）一张不画（首帧就是真人卡的照片本身）、参考生视频一张不画、不补画的段缺的那张不补、
-  //   多镜头的段不画结束画面 —— 把不会发生的图钱算进去，就是报价 ≠ 实扣的方向错。
+  //   只认一张起拍画面的档（startOnly，真人档）一张不画（首帧就是真人卡的照片本身）、参考生视频一张不画、不补画的段缺的那张不补、
+  //   多镜头的段不画结束画面、只能纯文字出片的一张不画 —— 把不会发生的图钱算进去，就是报价 ≠ 实扣的方向错。
   const draws = drawCount({
-    tier: { flf: tier.flf, flat: !!tier.flatCost },
+    tier: { flf: tier.flf, startOnly: tier.startOnly, textOnly: o.textOnly },
     hasFirstFrame: o.hasFirstFrame,
     hasLastFrame: o.hasLastFrame,
     refMode: o.refMode,
     noDraw: o.noDraw,
     multiShot: o.multiShot,
+    ...textTplDraw(o.textTplSlots),
   });
   return (o.draft ? draftStepTokens(o.durationSec, o.ratio) : segTokens(o.durationSec, o.tierId, o.ratio)) + draws * IMAGE_TOKENS;
 }
@@ -1570,6 +1625,15 @@ export function deckCardsCost(cap: CardMintCap = DECK_MAX_CARDS): number {
 /** 派生角色卡顺带铸 3D 建模的上限报价。★ 与实际结算（按 minted 张数）同一个单价。 */
 export function deckModel3dCost(count = DECK_MAX_3D): number {
   return count * MODEL3D_TOKENS;
+}
+
+/**
+ * 价签：按钮 / 卡片上的那个价钱怎么写 —— `⚡12k`。
+ * ★ 2026-10-23 收口（《Refactoring UI》走查 §2.5「标签只在必要时」）：原来 17 处写成「（12k）」，没有单位，而 ⚡ 在全 app 早就是「token / 要花钱」
+ *   的意思（TokenCost、首页做同款那颗 10-21 为此换掉 ⚡）。价钱一律从这里取，别在调用点拼 fmtTokens + 「token」。
+ */
+export function priceTag(n: number): string {
+  return `⚡${fmtTokens(n)}`;
 }
 
 export function fmtTokens(n: number): string {

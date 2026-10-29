@@ -113,12 +113,39 @@ export interface Live2dUploadDraft {
   /** 用户动过映射没有：没动就**不发** mapping 字段，让服务端用它自己的自动映射（一处实现在服务端） */
   mappingTouched: boolean;
 
+  /**
+   * 第 ⑤ 步那份「这几样不会演」清单里点了「去对」的那一行（`a-wave` / `t-Head`，= 第 ④ 步 MapRow 的锚点）；
+   * 第 ④ 步滚到它、聚焦它的下拉框之后清空。只活在内存里（这份 store 本来就不落盘）。
+   */
+  mapFocus: string;
+
   // ── ⑤ 试跑 ──
-  /** 已经跑过的项（键见页面里的 VERIFY_STEPS）；退出再进来还在 */
+  /** 已经跑过的项（键见页面里的 verifyItems）；退出再进来还在。★ 改了映射就清（见 patchMapping） */
   verifyDone: string[];
+  /** 跑过、但自动量出来「看不出变化」的项（⚠，只提醒、不拦发布；判定在 data/live2dMotionCheck） */
+  verifyWarn: string[];
+  /**
+   * 跑过、但没量到的项：不说 ✓ 也不说 ⚠。原因三种（data/live2dMotionCheck）：多半是页面在后台、帧没采够；
+   * 也可能是这一窗里待机没钉住（运行时钉不住，见 verifyPinFail）；或者演之前那段基线没量成（见 verifyNoBase）。
+   */
+  verifyUnknown: string[];
+  /**
+   * 这一轮演之前那段待机基线没量成（verifyUnknown 里的动作 / 表情项是因为它才没量到，不是它们自己没采到画面）：
+   * 界面上两种原因说的话不一样（data/live2dMotionCheck 的 noBase）。
+   */
+  verifyNoBase: boolean;
+  /**
+   * 这一轮里待机钉不住（companionModel.pinIdleForProbe 回 false：这份运行时找不到 startRandomMotion / startMotion）。
+   * 待机组不止一段时每一窗都量成「没量到」，而且**再跑一遍也一样** —— 界面上单独说一句「盯着上面看」，别叫人回前台重跑
+   * （2026-10-26 最终审核：原来一律说「页面当时在后台」）。
+   */
+  verifyPinFail: boolean;
   /** 正在跑第几项的整句；空 = 没在跑 */
   verifyNow: string;
-  /** 用户点过「没问题，继续」 */
+  /**
+   * 整张清单完整跑完了一遍（中途没停、没丢台）。★ 只有 runVerify 跑到最后一项才置真 ——
+   * 原来「没问题，继续」一点就置真，一项没跑第 ⑥ 步也写着「试跑过了（0 项）」。改了映射就清。
+   */
   verifyOk: boolean;
 
   // ── ⑥ 发布信息 ──
@@ -171,7 +198,12 @@ export function initialLive2dDraft(): Live2dUploadDraft {
     inspectErr: "",
     mapping: null,
     mappingTouched: false,
+    mapFocus: "",
     verifyDone: [],
+    verifyWarn: [],
+    verifyUnknown: [],
+    verifyNoBase: false,
+    verifyPinFail: false,
     verifyNow: "",
     verifyOk: false,
     name: "",
@@ -358,7 +390,7 @@ export async function buildPreview(entry: string): Promise<void> {
   //   服务端按新入口校验，映射里那些动作组它根本没有 ⇒ 400；运气不好都对得上的话就是静默发错。
   const switched = !!s.entry && s.entry !== entry;
   const wipe = switched
-    ? { inspect: null, inspectErr: "", mapping: null, mappingTouched: false, verifyDone: [], verifyNow: "", verifyOk: false }
+    ? { inspect: null, inspectErr: "", mapping: null, mappingTouched: false, mapFocus: "", ...VERIFY_WIPE, verifyNow: "" }
     : {};
   const detail = s.check.detail.get(entry);
   if (detail?.issues.length) {
@@ -419,13 +451,14 @@ export function reloadPreview(): void {
  *   于是"去客服页看一眼再回来"必然拿到一个死地址 —— 那不是包坏了。`reloadPreview()` 从 `check.file`
  *   现造一个新地址（不重解包，几十毫秒），只有**再失败一次**才把红字留下。
  */
-export function markPreviewLoaded(ok: boolean, reason = ""): void {
+export function markPreviewLoaded(ok: boolean, reason = "", final = false): void {
   if (ok) {
     set({ previewState: "ok", previewErr: "" });
     return;
   }
   const s = get();
-  if (!s.previewHealed && s.preview) {
+  // ★ final = 加载前的 moc3 检查拦下的（live2d/mocCheck，字节读到了、是文件本身的问题）：换一个新地址重加载结果一样，不自愈、直接判死
+  if (!final && !s.previewHealed && s.preview) {
     rebuildPreviewUrl(true);
     return;
   }
@@ -543,25 +576,59 @@ export async function startBundleInspect(): Promise<void> {
 
 // ── ④ 对映射 ─────────────────────────────────────────────────────────
 
-/** 改一条映射：store 那份换新对象（重渲染），交给运行时的那份原地改（预览立刻生效） */
+/**
+ * 试跑记录整份作废（换入口 / 改映射 / 恢复自动都走它）。
+ * ★ 改了映射必须作废（2026-10-26）：试跑记录按槽位记键（`a:wave`），不带当时指的是哪个组 —— 不清的话，
+ *   把挥手从 Wave 换成 Flick 之后，旧的 ✓ 还挂在新组上，第 ⑥ 步照样写「试跑过了」，而新组一次都没演过。
+ */
+const VERIFY_WIPE = { verifyDone: [] as string[], verifyWarn: [] as string[], verifyUnknown: [] as string[], verifyNoBase: false, verifyPinFail: false, verifyOk: false };
+
+/** 改一条映射：store 那份换新对象（重渲染），交给运行时的那份原地改（预览立刻生效）；旧的试跑记录作废（见 VERIFY_WIPE） */
 export function patchMapping(next: CompanionMappingWire): void {
-  set({ mapping: next, mappingTouched: true });
+  set({ mapping: next, mappingTouched: true, ...VERIFY_WIPE });
   publishPreviewMapping(get().previewUrl, next);
 }
 
-/** 退回服务端的自动映射（第 ④ 步那颗「恢复自动」） */
+/** 退回服务端的自动映射（第 ④ 步那颗「恢复自动」）；同样作废旧的试跑记录 */
 export function resetMapping(): void {
   const auto = get().inspect?.mapping ?? null;
-  set({ mapping: auto, mappingTouched: false });
+  set({ mapping: auto, mappingTouched: false, ...VERIFY_WIPE });
   publishPreviewMapping(get().previewUrl, auto);
 }
 
 // ── ⑤ 试跑 ──────────────────────────────────────────────────────────
 
-export function markVerified(key: string): void {
-  const done = get().verifyDone;
-  if (done.includes(key)) return;
-  set({ verifyDone: [...done, key] });
+/**
+ * 一项试跑的结局：量到动了 / 量出来看不出变化（⚠）/ 没量到（这一项没采到足够的画面，或这一窗里待机没钉住）/ 没量到（演之前那段基线没量成）。
+ * 没东西可量的项（只说话的触摸区）记 ok。noBase 在列表上与 unknown 画法一样，只是说的原因不同（见 verifyNoBase）
+ */
+export type VerifyResult = "ok" | "still" | "unknown" | "noBase";
+
+/** 记下一项跑完了，连同它的结局（同一项再跑一遍时以这一次为准） */
+export function markVerified(key: string, result: VerifyResult = "ok"): void {
+  const s = get();
+  const without = (list: string[]) => list.filter((k) => k !== key);
+  set({
+    verifyDone: s.verifyDone.includes(key) ? s.verifyDone : [...s.verifyDone, key],
+    verifyWarn: result === "still" ? [...without(s.verifyWarn), key] : without(s.verifyWarn),
+    verifyUnknown: result === "unknown" || result === "noBase" ? [...without(s.verifyUnknown), key] : without(s.verifyUnknown),
+    verifyNoBase: s.verifyNoBase || result === "noBase",
+  });
+}
+
+/** 这一轮里有一次待机没钉上（见 verifyPinFail） */
+export function markPinFail(): void {
+  if (!get().verifyPinFail) set({ verifyPinFail: true });
+}
+
+/** 开始新的一轮试跑：上一轮的记录全部清掉（一份新旧混着的 ✓ 列表比没有更坏） */
+export function startVerifyRun(): void {
+  set({ ...VERIFY_WIPE });
+}
+
+/** 这一轮完整跑完了（中途没停、没丢台）—— verifyOk 只有这一处会置真 */
+export function finishVerifyRun(): void {
+  set({ verifyOk: true });
 }
 
 // ── ⑥ 发布 ──────────────────────────────────────────────────────────

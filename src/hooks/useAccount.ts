@@ -2,6 +2,7 @@
 // 快照用版本号而非用户对象——updateProfile 原地改对象，引用不变 React 不会重渲染。
 import { useSyncExternalStore } from "react";
 import { accountVersion, authState, currentUser, subscribeAccount, type AuthState, type User } from "../data/account";
+import { providerPrefVersion, subscribeProviderPref } from "../data/videoProvider";
 
 export function useCurrentUser(): User | null {
   useSyncExternalStore(subscribeAccount, accountVersion, () => 0);
@@ -19,6 +20,11 @@ export function useCurrentUser(): User | null {
 export function useAuthState(): AuthState {
   useSyncExternalStore(subscribeAccount, accountVersion, () => 0);
   return authState();
+}
+
+/** 「两家都给得出时选哪一家」的偏好（data/videoProvider）：选完那一拍各处摆哪颗芯片要跟着换（account.tierListed 读它） */
+export function useProviderPref(): number {
+  return useSyncExternalStore(subscribeProviderPref, providerPrefVersion, () => 0);
 }
 
 /** 账号库变更计数：需要在账号数据变化时重算列表的页面订阅它 */

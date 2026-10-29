@@ -1,3 +1,76 @@
+启梦 2.71
+
+· 作品详情页重做：播放器铺满宽度，可以调倍速、开关弹幕、全屏 / 转屏看；标题下面一排点赞、评论、收藏、分享、举报；评论先露第一条，点开就是首页那个评论框（能回复、点赞、往下翻）；底部一直有「做同款」；往下是「做你自己的版本」（几段、多长、什么模型）、这位作者的更多作品和同分区的作品。
+· 模板货架「再做一个视频模板」多了一种做法：只用文字 + 一张本地封面做模板（先存在这台手机上，要登录）。
+· 白模模板：服务器更新之后新登记的模板会记下示例视频里每个人的神态，套用时照着演（惊讶、大笑这类在二次元素材上验过）。
+· 卡片、卡组、模板与选模型的地方改写具体的出片模型名（按你所在的地区写；还没确认地区时只写档位名）。草稿 / 高清 / 电影级多了 MiniMax（海螺 H3）这一家，档位那一排上面可以选 Seedance 或 MiniMax（境内第一次选 MiniMax 会先说明照片和提示词会交给境外服务器处理）。
+· 出片提交时遇到「参考图没拉到」，自动等 20 秒再交一次（那一发没受理、没扣钱），不用自己再点。
+· AI 客服：字幕跟着正在念的那一句走；遇到危机话题会弹出求助卡；英文界面点看板娘念英文，同一句在这次打开客服页期间只合成、只扣一次；多了三段动作；人格市场里别人的人格可以举报；上传 Live2D 形象时第 ⑤ 步试跑会照实说哪些动作动了、哪些没动。
+· 分区页滑到顶时搜索栏不再挡住「浏览分区」，几个全屏页面的顶栏在刘海屏上也不再往下溢出。
+
+QiMeng 2.71
+
+· The video detail page is redesigned: a full-width player with playback speed, bullet comments on / off and full-screen / rotate; a row of like, comment, save, share and report under the title; the first comment is shown and tapping it opens the same comment sheet as the home feed (reply, like, load more); “Remix” stays pinned at the bottom; further down are “Make your own version” (segments, length, model), more from this creator and more from the same category.
+· “Make another video template” in the template shelf now has a text option: a template made from text plus a local cover image (saved on this phone for now; sign-in required).
+· Blockout templates: once the server is updated, newly registered templates remember each person's expression in the example video and keep it when applied (surprise and laughter were verified on anime footage).
+· Cards, decks, templates and model pickers now name the actual video model (by your region; before the region is known they show only the tier name). Draft / HD / Cinematic now also come from MiniMax (Hailuo H3): a switch above the tier row picks Seedance or MiniMax (in mainland China, the first time you pick MiniMax it explains that photos and prompts are processed on servers outside mainland China).
+· When a submission fails because a reference image couldn't be fetched, the app waits 20 seconds and resubmits once by itself (that attempt was not accepted or charged).
+· AI support: subtitles follow the sentence being spoken; a help card appears for crisis topics; tapping the mascot in the English UI speaks English, and the same line is synthesized and charged only once per visit to the support page; three new motions; other people's personas in the persona market can be reported; the Live2D upload trial in step ⑤ now reports honestly which motions moved and which didn't.
+· On the Discover page the search bar no longer covers “Browse categories” when scrolled to the top, and several full-screen headers no longer overflow on notched phones.
+启梦 2.70
+
+· 自定义一段时挂了示例视频，出片默认会要求模型不复刻示例视频里的水印、台标、账号名与字幕（示例视频块里有「去掉示例视频里的水印 / 台标」开关，可关）。高清档对照验过：不加这句，角标和账号名会原样搬进成片；加了就没有。电影级本来就不照搬示例画面。仍不是硬保证，台标固定在角上时传之前裁掉最稳。
+
+QiMeng 2.70
+
+· When a custom segment carries an example video, generation now asks the model by default not to reproduce the example video's watermarks, logos, account names or subtitles (a “Remove watermarks / logos” switch in the example-video block can turn it off). Verified on the HD tier: without the line the corner badge and account name were copied into the output; with it, they were gone. The cinematic tier does not copy the example footage anyway. Still not a hard guarantee — crop a fixed corner logo before uploading to be safe.
+启梦 2.69
+
+· 工作流画布上也按 2.68 那套改了：一段出好片之后「重新生成」退成次级键、价钱用 ⚡ 价签；套模板 / 自选卡片 / 自定义 / 直出四个页签、「加一段」里每种做法、存草稿 / 工坊 / 设置等十几处 emoji 换成线性图标，与工坊那一面一致。
+· 首页冷启动在网慢的时候先显示「正在取作品…」，不再先闪一下「还没有作品」。
+
+QiMeng 2.69
+
+· The workflow canvas now matches the 2.68 pass: after a segment is done, “Regenerate” becomes a secondary button with the ⚡ price tag; the four lane tabs, every method in “Add a segment”, and a dozen emoji (save draft, workshop, settings…) are line icons, consistent with the workshop view.
+· On a slow connection the home feed shows “Loading works…” on cold start instead of briefly flashing “No works yet”.
+启梦 2.68
+
+· 界面按《Refactoring UI》二十条走查了一遍：按钮主次更清楚（一段出好片之后「去下一段」才是主键、市场卡片的实心键改淡、做同款用招牌字形而不是 ⚡）；评论与首页的作者名有了字重；报错一律玫瑰色、提示一律左侧色条加图标；首页芯片、登录页链接、剪辑页播放键等的点击热区放大。
+· 设置页、客服页、创作中心、剪辑工具条、静音键上的 emoji 全部换成线性图标，三台手机不再三个样。
+· 搜索框、空状态、头像尺寸、价签（⚡12k）统一；套餐里只有「推荐」那一档是主键；评论的删除 / 举报 / 拉黑收进「⋯」；发布页的内容声明挪到发布键上面。
+· 几处把服务器内部说法写上屏的文案改成人话（「这台服务器还没有 … 接口」→「… 功能还没上线」）；制作过程页离线时说「需要联网」，不再露出配置项的名字。
+· 浮层与底部停靠栏有了自己的底色；外接键盘 / 遥控时有焦点环。
+
+QiMeng 2.68
+
+· A UI pass against the twenty Refactoring UI rules: clearer button priority (after a segment is done, “next segment” is the primary action; market card buttons are tinted; remix uses its own glyph instead of ⚡); author names carry weight in comments and on the feed; errors are consistently rose and hints get a side bar plus icon; bigger tap areas on feed chips, login links and the cut-page play button.
+· Every emoji icon in settings, support, the creator center, the cut toolbar and the mute button is now a line icon, so it looks the same on every phone.
+· Search fields, empty states, avatar sizes and price tags (⚡12k) are unified; only the recommended plan is a primary button; delete / report / block on comments sit behind “⋯”; the AI declaration on the publish page moved above the publish button.
+· Several messages that leaked server wording now speak plainly (“this server has no … endpoint” → “… isn't available yet”); the making-of page says it needs a connection when offline instead of showing a config variable name.
+· Floating panels and bottom docks have their own surface colour; a focus ring shows for external keyboards and remotes.
+启梦 2.67
+
+· 提取模板窗一打开就显示圆点进度条，不再等确认服务器支持之后才出现。
+
+QiMeng 2.67
+
+· The template extractor now shows its dot progress bar as soon as it opens, instead of waiting for the server capability check.
+启梦 2.66
+
+· 圆点进度条的三处细节：上传 Live2D 模型发布成功后一排圆点全部实心；制作人格时点当前那一步的圆点也能回到页首；自己传图做卡片在选卡种那一屏不再提前显示「真人」这一步。
+
+QiMeng 2.66
+
+· Three details on the dot progress bar: after a Live2D model is published all dots are filled; in persona creation, tapping the current step's dot scrolls to the top too; when making a card from your own image, the "Real person" step no longer shows while you are still choosing the card type.
+启梦 2.65
+
+· 涉及多个步骤的功能（跟着做的几个向导、铸段窗、铸卡窗、自己传图做卡片、上传 Live2D 模型、制作人格、建课、提取模板，以及剧本 → 分镜 / 按主题改写 / 一键成片三张面板）屏幕上方统一加了圆点进度条：做完的实心、当前这一步的圆圈放大，每颗下面写着这一步是什么；切步时平滑过渡。
+· 首页与提取模板窗在开发构建里的两处生命周期判断修正，正式包行为不变。
+
+QiMeng 2.65
+
+· Multi-step features (the guided wizards, the segment and card forges, Upload-your-own-image cards, Live2D model upload, persona creation, course creation, template extraction, and the Script → Shots / Theme rewrite / Auto-edit panels) now show a dot progress bar at the top: finished steps are filled, the current one is enlarged, and each dot is labelled with its step; switching steps animates smoothly.
+· Two lifecycle checks on Home and in the template extractor were corrected for development builds; release builds are unchanged.
 启梦 2.64
 
 · 安全更新：修复 App 内置网页组件（Capacitor）的一个高危漏洞，请尽快更新。

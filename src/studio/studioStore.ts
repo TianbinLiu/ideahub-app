@@ -5,7 +5,8 @@ import { AI_REAL, MaterialFile, chargeNote, chargeOnFail, deriveCharacterModels,
 import { frameMoment, momentCards } from "../data/shotScript";
 import { DECK_CAM, MARKET, NPC_CAM } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
-import { acquireCard, addCards as saveCardsToAccount, canAfford, frozenNote, myCards, myDecks, plazaCards, realFaceIssue, spendTokens, tierBlockReason, usableTierId, walletOf, type AddCardsResult } from "../data/account";
+import { acquireCard, addCards as saveCardsToAccount, canAfford, frozenNote, myCards, myDecks, plazaCards, realFaceIssue, spendTokens, tierBlockReason, tierRegionGate, tierRegionIssue, tierRegionRecheck, usableTierId, walletOf, type AddCardsResult } from "../data/account";
+import { refreshVideoZone } from "../data/videoZone";
 import { CHAT_TURN_TOKENS, DECK_MAX_3D, deriveIssue, DECK_MAX_CARDS, fallbackTierId, MODEL3D_TOKENS, deckCardsCost, deckModel3dCost, fmtTokens, proposalsCost, styleWants3d, tierOf, videoAudioOn } from "../data/economy";
 // 单向依赖：工坊把活动路径喂给工作流。flowStore 不认识 studioStore（见其文件头）
 import { drawExtraRefs, plainMentions } from "../data/refMentions";
@@ -73,7 +74,7 @@ export interface EditorState {
   endFrame: string | null;
   /** 自定义车道第①页挂的示例视频（2026-08-30 翻页版）。落地时随 layCustomNode 一起
    *  写进节点（setNodeCustom + setCustomRefVideo + mids）；localUrl 只给截帧用不落库 */
-  refVideo: { url: string; publicId: string; durationSec: number; localUrl?: string; mids: string[] } | null;
+  refVideo: { url: string; publicId: string; durationSec: number; localUrl?: string; mids: string[]; keepWatermark?: boolean } | null;
   generating: boolean;
   /** 生成期间的实时阶段播报（真实 AI 全程约 1-1.5 分钟，没进度=卡死体感） */
   progress: string;
@@ -326,6 +327,8 @@ function buildBranchTree(
       segment: {
         title: proposal.title,
         plot: proposal.plot,
+        // 文字模板段的正文在发布之前剥掉（同 segments 那一份，data/videos.stripLocalOnly）
+        ...(node.textTpl ? { fromTextTpl: true } : {}),
         firstFrame: proposal.firstFrame,
         lastFrame: proposal.lastFrame,
         durationSec: proposal.durationSec,
@@ -679,6 +682,8 @@ interface StudioState {
   setEndFrame: (dataUrl: string | null) => void;
   /** 向导第①页：挂/摘示例视频（editor 期暂存，layCustomNode 落地进节点） */
   setEditorRefVideo: (ref: { url: string; publicId: string; durationSec: number; localUrl?: string } | null) => void;
+  /** 示例视频「去水印」开关（铸段窗那一面；落段时经 flowStore.setCustomRefVideo 带过去） */
+  setEditorRefKeepMark: (keep: boolean) => void;
   addEditorMid: (dataUrl: string) => void;
   removeEditorMid: (idx: number) => void;
   /** 自定义直出：不推演，把编辑器里的帧+要求铺成一张**已选定单方案**的节点卡。
@@ -1638,6 +1643,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
       // 档位门禁（与 flowStore.regenProposal 同一句，判据 account.tierBlockReason）：重画真花钱，画出来的帧在用不了的档上出不了片
       const blocked = tierBlockReason(tierOf(node.videoTier));
       if (blocked) {
+        // 原因是出片地区时顺手现问一次（反方向：旧结论说被拦、其实已经能用了，account.tierRegionRecheck）—— 下一次点就用上新结论
+        void tierRegionRecheck(tierOf(node.videoTier));
         set({ notice: { text: blocked, at: Date.now() } });
         return false;
       }
@@ -1673,6 +1680,15 @@ export const useStudio = create<StudioState>()((set, get) => ({
     }
     set({ proposalRegen: proposalId });
     try {
+      // ★★ 出片地区（2026-10-26 终审，钱）：花重画的图钱之前现问一次地区再判（account.tierRegionGate；与 flowStore.regenProposal 同一处判据）。
+      //   proposalRegen 已占上，等的这几秒里点不出第二炉；拒了 finally 复位，话走 notice（投影窗开着时 NpcDialog 不画）
+      {
+        const region = await tierRegionGate(tierOf(node.videoTier));
+        if (region) {
+          set({ notice: { at: Date.now(), text: region } });
+          return false;
+        }
+      }
       // ★ 必须把本段画幅递下去：Seedream 的画布比例得与视频画幅一致，缺了它重画出来的帧
       //   是横的，喂给竖屏 Seedance 任务会被静默裁一刀（人物常被裁掉半个头）。
       //   见 CLAUDE.md「改了画幅却发现出片还是横的」那一条
@@ -1804,6 +1820,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
   setAspect: (a) => set((s) => (s.editor ? { editor: { ...s.editor, aspect: a } } : {})),
   setStartFrame: (dataUrl) => set((s) => (s.editor ? { editor: { ...s.editor, startFrame: dataUrl } } : {})),
   setEndFrame: (dataUrl) => set((s) => (s.editor ? { editor: { ...s.editor, endFrame: dataUrl } } : {})),
+  setEditorRefKeepMark: (keep) =>
+    set((s) => (s.editor?.refVideo ? { editor: { ...s.editor, refVideo: { ...s.editor.refVideo, keepWatermark: keep || undefined } } } : {})),
   setEditorRefVideo: (ref) =>
     set((s) => (s.editor ? { editor: { ...s.editor, refVideo: ref ? { ...ref, mids: s.editor.refVideo?.mids ?? [] } : null } } : {})),
   addEditorMid: (dataUrl) =>
@@ -1889,6 +1907,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
         url: editor.refVideo.url,
         publicId: editor.refVideo.publicId,
         durationSec: editor.refVideo.durationSec,
+        keepWatermark: editor.refVideo.keepWatermark,
       });
       for (const m of editor.refVideo.mids) flow.addCustomMid(newId, m);
     }
@@ -1949,7 +1968,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
   layWizardNodes: (specs, say) => {
     const { editor } = get();
     if (!editor || editor.generating) return { ok: false, why: t`铸段窗正忙，稍后再试` };
-    const ids = useFlow.getState().appendSpecs(specs);
+    // 三个跟着做向导落的都是付过钱的画面：不拿档位门禁拒（flowStore.appendSpecs 的 tierGate 那一段 ★★），出片那一拍 genNode 照样拦并说清楚
+    const ids = useFlow.getState().appendSpecs(specs, { tierGate: false });
     if (!ids?.length) return { ok: false, why: useFlow.getState().err || t`现在铺不了这几段，稍后再试。` };
     set({ spreadOpen: false, focus: { nodeId: ids[0] }, projection: "proposals", editor: null });
     get().npcSay(say);
@@ -2043,6 +2063,9 @@ export const useStudio = create<StudioState>()((set, get) => ({
       //   钱花在三套出不了片的方案上。判据只在 account.tierBlockReason（flowStore.deriveProposals 问的是同一句）
       const blocked = tierBlockReason(tierOf(editor.videoTier));
       if (blocked) {
+        // ★ 拒的原因是出片地区时先现问一次（2026-10-26 P1 审核，反方向：旧结论说被拦、其实已经能用了 —— account.tierRegionRecheck 的 ★）；
+        //   结论变了就从头再走一遍（等的这几秒里表单、余额、别的面忙不忙都可能变）
+        if (await tierRegionRecheck(tierOf(editor.videoTier))) return get().generateNode();
         set({ notice: { text: blocked, at: Date.now() } });
         return;
       }
@@ -2123,6 +2146,15 @@ export const useStudio = create<StudioState>()((set, get) => ({
     /** 帧一张都没画成、因为出图模型用不了了（real.generateProposals 的 onFramesGone）：剧情照收，原因说在下面 */
     let framesGone = "";
     try {
+      // ★★ 出片地区：花推演费之前现问一次地区再判这一档（与 flowStore.deriveProposals / genNode 同一个理由：地区门禁只拦视频，
+      //   会话中途开关过 VPN 的人会先付推演费、出片那一发才被 403）。排在 generating 之后：await 期间铸段窗那颗键已经灰着，点不出第二炉。
+      //   拒了走 finally 复位表单；话走 notice（铸段窗开着时 NpcDialog 不画，见 notice 的 ★）
+      await refreshVideoZone();
+      const region = tierRegionIssue(tierOf(editor.videoTier));
+      if (region) {
+        set({ notice: { text: region, at: Date.now() } });
+        return;
+      }
       if (AI_REAL) spendTokens(propCost); // 推演真跑起来才扣
       const proposals = await generateProposals(
         {
@@ -2343,6 +2375,11 @@ export const useStudio = create<StudioState>()((set, get) => ({
     //   进度画在节点自己身上（node.steps/progress），方案台直接读它。
     set({ nodeGen: { proposalId, steps: [] } });
     try {
+      // ★★ 出片地区：先现问一次地区再调 genNode（2026-10-26 P1 审核）。下面「受理即收窗」是**同步**看状态的 —— genNode 自己的现问排在打上
+      //   generating 之后，要是在那里才拒，这边已经收了窗、吐了「已开始生成，出片后会提醒你」，随后什么都不出，那句话就是假的。
+      //   在这里先问，genNode 的同步门禁就拿到新地区、在打上 generating 之前整句拒；它里面那一发落在 5 秒间隔里，当场返回。
+      //   nodeGen 已经占上，等的这几秒里点不出第二炉。问不到就沿用上一次的结论（服务端照样拦，视频那一发不扣钱）
+      await refreshVideoZone();
       const run = useFlow.getState().genNode(nodeId, opts);
       // ★ 受理即收窗（2026-09-06 主人点名）：genNode 的门禁与「打上 generating」都在它第一个 await 之前，
       //   这一拍状态已经是 generating = 真的开始炼了 —— 投影窗收掉、说一句"可以离开这一页"，用户才知道
@@ -2446,6 +2483,8 @@ export const useStudio = create<StudioState>()((set, get) => ({
       return {
         title: p.title,
         plot: shotLine ? `${shotLine}。${p.plot}` : p.plot,
+        // 文字模板段：本机照写全文（剪辑页一键成片要读），发布 / 回炉替换之前由 data/videos.stripLocalOnly 置空（types.VideoSegment.fromTextTpl 的 ★）
+        ...(n.textTpl ? { fromTextTpl: true } : {}),
         firstFrame: p.firstFrame,
         lastFrame: p.lastFrame,
         poster: p.poster,

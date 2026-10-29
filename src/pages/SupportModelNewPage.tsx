@@ -24,8 +24,10 @@ import EmptyState from "../components/EmptyState";
 import Icon from "../components/Icon";
 import PageHeader from "../components/PageHeader";
 import Spinner from "../components/Spinner";
+import StepDots from "../components/StepDots";
 import TagInput from "../components/TagInput";
-import SupportStage from "../components/support/SupportStage";
+import Warn from "../components/Warn";
+import SupportStage, { type StageFallback } from "../components/support/SupportStage";
 import { useBackOr } from "../hooks/useBackOr";
 import { companionBus } from "../companion/bus";
 import {
@@ -38,6 +40,8 @@ import {
   type TouchArea,
 } from "../companion/protocol";
 import { STANDARD_PARAMS, type ParamSlot } from "../live2d/mapping";
+import type { ParamProbe } from "../live2d/companionModel";
+import { judgeMotion, judgeOwn, mergeProbes } from "../data/live2dMotionCheck";
 import { MAX_LIVE2D_BUNDLE_BYTES } from "../api/uploads";
 import {
   companionErrorText,
@@ -55,8 +59,10 @@ import {
   LIVE2D_STEP_LABEL,
   buildPreview,
   cancelBundleInspect,
+  finishVerifyRun,
   live2dDraftBusy,
   live2dDraftDirty,
+  markPinFail,
   markPreviewLoaded,
   markVerified,
   patchMapping,
@@ -67,10 +73,12 @@ import {
   resetMapping,
   pickBundle,
   startBundleInspect,
+  startVerifyRun,
   submitLive2dModel,
   uploadCover,
   useLive2dUpload,
   useUploadField,
+  type VerifyResult,
 } from "../studio/live2dUploadStore";
 
 // ── 槽位的中文名（界面文案，不是规则：枚举本身一律从 protocol.ts / mapping.ts 取，别在这儿抄第二份） ──
@@ -169,6 +177,51 @@ const TAG_MAX = 8;
 const PICKER_LIMIT = 40;
 /** 预览多久还没画出来就当它失败（模型在手机上解包 + 传贴图，实测几秒；45 秒是给最慢的那台留的余量） */
 const PREVIEW_TIMEOUT_MS = 45_000;
+/**
+ * 试跑每一项之前「归位」：嘴闭上、表情当场回平静（连同被叠到量程边上的表情参数一起写回默认值，companionModel.resetFaceForProbe）、
+ * 视线回正、**停掉动作**（stopMotions）—— 框架下一帧从头起待机动作，而试跑期间待机钉在同一段（companionModel.pinIdleForProbe）。
+ * 等待机淡入完了才演这一项、开始量。
+ * ★★ 每一项都这样归位，包括说话 / 眨眼 / 表情（2026-10-26 审核指出，原来只有动作项之后才停动作）：
+ *   judgeMotion 比的是「这一窗的起伏」与「基线的起伏」，两份必须落在**同一段待机、同一个相位**上才可比。框架的待机是随机挑段的，
+ *   包里待机组有好几段、幅度不同（Cubism 官方样例 Hiyori 9 段）时，基线落在安静的那段、哑动作的窗口落在活跃的那段，就被量成「动了」；
+ *   表情项不停动作的话，窗口落在待机循环的任意相位上。钉住同一段 + 每一项都从「停掉动作」那一刻起算之后，每个窗口都是
+ *   「这一段待机的第 settle 秒起、往后 waitMs 秒」，而基线量的是这一段从头起的一整截（见页面里的 baselineMsFor），窗口落在它里面。
+ * ★ 等多久：至少 VERIFY_SETTLE_MS，并且不短于钉住那段待机的淡入（probeIdleFadeInMs，Hiyori 0.5 秒、没写的按框架缺省 2 秒）——
+ *   淡入没完时参数还是「停下那一刻的姿势」与待机曲线的混合，那一截与上一项演了什么有关，不确定。
+ *   2.2 秒是 2026-10-26 拿官方看板娘量的（先试 0.8 秒，淡入那一截落进下一项的窗口，哑动作 6 次里 3 次被量成「动了」）；
+ *   exp3 表情缺省淡出 1 秒（运行时解析 exp3 时 FadeOutTime 缺省 1）也在这里面。
+ */
+const VERIFY_SETTLE_MS = 2200;
+/** 淡入之外再多等的余量（帧与 setTimeout 对不齐） */
+const VERIFY_SETTLE_PAD_MS = 200;
+/** 这一次归位要等多久（见 VERIFY_SETTLE_MS）—— 试跑真等的（runVerify）与顶上那句「整轮大约几秒」（verifyEtaSecs）都问它 */
+function verifySettleMs(): number {
+  const fade = companionBus.model?.probeIdleFadeInMs() ?? 0;
+  return Math.max(VERIFY_SETTLE_MS, fade + VERIFY_SETTLE_PAD_MS);
+}
+/**
+ * 基线比最长那一项的窗口再多量多久。基线从「停掉动作」那一刻起量，一直量到「归位时间 + 最长那一项的窗口 + 这一截」，
+ * 于是任何一项的窗口（归位之后的 waitMs）都落在基线量过的那一段待机里。
+ * ★ 从停下那一刻量起、不是从归位之后量起：一个比窗口短的哑动作（1.2 秒那种）播完，框架会在窗口中间把钉住的那段待机**从头**再起一遍，
+ *   那一截（这一段待机的开头）也得在基线里量到过，不然它比基线多出来的那点起伏就会被当成「动了」。
+ */
+const VERIFY_BASELINE_PAD_MS = 400;
+/**
+ * 基线量几遍（合起来用，data/live2dMotionCheck.mergeProbes）。待机钉住之后每一遍走的是同一条轨迹，多量一遍等于把采样加密一倍。
+ * ★ 为什么要加密（2026-10-26 在 Hiyori 上量的）：起伏是逐帧取的 max − min，帧率低的那一份会漏掉快速的峰（眉毛一挑只有一两帧）。
+ *   基线那几秒帧率掉到 20 帧上下、某一项的窗口里是 60 多帧时，同一条待机轨迹量出来的起伏能差出 30%（哑触摸动作 ParamBrowLX 1.30 倍），
+ *   离 MOVE_K 的 1.5 只剩一点；量两遍之后同一项是 1.19~1.20 倍（两轮）。按 66 帧密采时基线与它都是 0.226 —— 差的全是漏采的峰。
+ */
+const VERIFY_BASELINE_ROUNDS = 2;
+/**
+ * 每次归位给待机钉多久（pinIdleForProbe 的到期时间）：盖住一次归位 + 最长的基线还有余量。页面意外没松开时，过了这么久框架自己恢复随机挑段。
+ */
+const VERIFY_IDLE_PIN_MS = 20_000;
+
+/**
+ * 第 ⑤ 步一项试跑：怎么演、演多久、量什么（motion = 比待机基线；mouth / eye = 只看嘴 / 眼那一个参数；null = 没东西可量）
+ */
+type VerifyItem = { key: string; label: string; run: () => void; waitMs: number; measure: "motion" | "mouth" | "eye" | null };
 
 const inputCls =
   "w-full rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand";
@@ -180,11 +233,11 @@ const selectCls =
 function Banner({ tone, children }: { tone: "ok" | "warn" | "bad" | "info"; children: React.ReactNode }) {
   const cls =
     tone === "ok"
-      ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
+      ? "border-ok-500/40 bg-ok-500/10 text-ok-200"
       : tone === "warn"
-        ? "border-amber-500/40 bg-amber-500/10 text-amber-300"
+        ? "border-warn-500/40 bg-warn-500/10 text-warn-300"
         : tone === "bad"
-          ? "border-rose-500/40 bg-rose-500/10 text-rose-300"
+          ? "border-danger-500/40 bg-danger-500/10 text-danger-300"
           : "border-sky-500/40 bg-sky-500/10 text-sky-200";
   return <p className={`rounded-lg border px-3 py-2 text-xs leading-relaxed ${cls}`}>{children}</p>;
 }
@@ -210,6 +263,8 @@ function MapRow({
   hint,
   disabled,
   onPlay,
+  anchor,
+  highlight,
   children,
 }: {
   label: string;
@@ -217,6 +272,10 @@ function MapRow({
   disabled?: boolean;
   /** 返回 false = 这一项在包里找不到 */
   onPlay?: () => boolean | void;
+  /** 第 ⑤ 步「去对」跳回来时认的锚点（`a-wave` / `t-Head`）；元素 id = `map-<anchor>` */
+  anchor?: string;
+  /** 刚从第 ⑤ 步「去对」跳过来：边框亮一下，告诉人是哪一行 */
+  highlight?: boolean;
   children: React.ReactNode;
 }) {
   // ★ 演不出来有**两个**原因，说法不一样（别压成一档）：包里真没有这个组 / 表情，
@@ -229,7 +288,10 @@ function MapRow({
     return () => clearTimeout(timer);
   }, [flash]);
   return (
-    <div className="rounded-xl border border-slate-700/70 bg-panel px-3 py-2">
+    <div
+      id={anchor ? `map-${anchor}` : undefined}
+      className={`rounded-xl border bg-panel px-3 py-2 ${highlight ? "border-warn-500/60" : "border-slate-700/70"}`}
+    >
       <div className="flex items-center gap-2">
         <button
           type="button"
@@ -246,7 +308,7 @@ function MapRow({
       {(hint || flash) && (
         <p
           className={`mt-1 pl-10 text-[10px] leading-relaxed ${
-            flash === "missing" ? "text-rose-300" : flash === "offstage" ? "text-amber-300" : "text-slate-500"
+            flash === "missing" ? "text-danger-300" : flash === "offstage" ? "text-warn-300" : "text-slate-500"
           }`}
         >
           {flash === "missing"
@@ -417,7 +479,7 @@ function RecommendPickers() {
           )}
         </div>
       )}
-      {!!err && <p className="mt-1.5 text-xs leading-relaxed text-rose-300">{err}</p>}
+      {!!err && <p className="mt-1.5 text-xs leading-relaxed text-danger-300">{err}</p>}
     </div>
   );
 }
@@ -436,7 +498,25 @@ export default function SupportModelNewPage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const coverRef = useRef<HTMLInputElement>(null);
   const verifyRunning = useRef(false);
+  /**
+   * 第几轮试跑。★ 「■ 停下」之后紧接着点「▶ 再跑一遍」：上一轮还睡在某个 await 里，醒来只看 verifyRunning 的话
+   *   会以为是自己还在跑，两轮交错着往同一张清单上打勾。每一轮只认自己的号，停下 / 卸载都把号往前拧一格。
+   */
+  const verifySeq = useRef(0);
   const [restartAsk, setRestartAsk] = useState(false);
+  /** 刚从第 ⑤ 步「去对」跳过来、要亮一下的那一行锚点（第 ④ 步） */
+  const [hlRow, setHlRow] = useState("");
+  /**
+   * 舞台报回来的失败原因，按向导的口径说（对作者说怎么修）。
+   * ★ 加载前的 moc3 检查拦下的两类按类型认（live2d/mocCheck）：版本太新不是"文件坏了"，单独一句；别的照旧用加载那一步的原话。
+   *   第 ① 步本地核对已经跑过同一道检查（bundlePreview），这里是那一步没跑成（运行时没加载出来）时的兜底。
+   */
+  const previewFailText = (f: StageFallback) =>
+    f.kind === "inconsistent"
+      ? t`模型文件没通过 Cubism 的一致性检查（结构不完整或被改过）。用 Cubism Editor 重新导出 moc3 再试。`
+      : f.kind === "tooNew"
+        ? t`这个模型是用较新版本的 Cubism 导出的，App 里的运行时还读不了。导出时选一个旧一些的 moc3 版本再试。`
+        : f.reason;
   /** 刚才在预览里点到了我们的哪个触摸区（第 ④ 步验证命中区映射用；空 = 还没点过） */
   const [lastHit, setLastHit] = useState<string[]>([]);
 
@@ -450,7 +530,10 @@ export default function SupportModelNewPage() {
     useLive2dUpload.setState({ mounted: true });
     return () => {
       useLive2dUpload.setState({ mounted: false, verifyNow: "" });
+      // 试跑跑到一半离开这一页：待机放开（到期也会自己放开，见 VERIFY_IDLE_PIN_MS）
+      if (verifyRunning.current) companionBus.model?.pinIdleForProbe(0);
       verifyRunning.current = false;
+      verifySeq.current++;
     };
   }, []);
 
@@ -502,11 +585,17 @@ export default function SupportModelNewPage() {
   const texList =
     detail?.textures.map((tex) => (tex.width ? `${tex.width}×${tex.height}` : t`尺寸没量出来`)).join(listSep) ?? "";
 
-  /** 验收脚本：一项一项演，演完自动打勾。人点了停就停在当前这一项（不清已经打过的勾） */
+  /**
+   * 验收脚本：一项一项演，每一项边演边量（data/live2dMotionCheck 判 ✓ / ⚠ / 没量到）。人点了停就停在当前这一项（不清已经打过的勾）。
+   * ★ 表情槽为 null **也要试**（2026-10-26）：null 不是「不演」，是退到我们那套通用参数（companionModel.setFace）——
+   *   原来这里把它们跳过，于是这批表情一次都没被试过；包里没有 ParamBrowLY 这一套时，正好由「看不出变化」抓出来。
+   * ★ 触摸那几项只试播它对上的动作，命中区对没对上量不到（要人在预览里摸一下，列表下面那句照实说）。
+   */
   const verifyItems = useMemo(() => {
-    const items: { key: string; label: string; run: () => void; waitMs: number }[] = [
-      { key: "speak", label: t`说一句话，看嘴动没动`, run: () => companionBus.speakSynthetic(2200), waitMs: 2600 },
-      { key: "blink", label: t`眨眼（她自己会眨，盯 3 秒）`, run: () => undefined, waitMs: 3000 },
+    const items: VerifyItem[] = [
+      { key: "speak", label: t`说一句话，看嘴动没动`, run: () => companionBus.speakSynthetic(2200), waitMs: 2600, measure: "mouth" },
+      // 不等她自己眨（随机隔 2.4~6 秒，3 秒的窗口一半时候等不到）：叫她现在就眨一次
+      { key: "blink", label: t`眨一下眼，看眼睛闭没闭上`, run: () => companionBus.model?.blinkNow(), waitMs: 1500, measure: "eye" },
     ];
     for (const a of ACTIONS) {
       if (a === "none") continue;
@@ -518,19 +607,20 @@ export default function SupportModelNewPage() {
         label: t`动作「${actName}」→ ${g}`,
         run: () => companionBus.action(a),
         waitMs: TIMING.actionSuppressMs + 300,
+        measure: "motion",
       });
     }
     for (const f of FACES) {
       if (f === "normal") continue;
-      const m = mapping?.faces?.[f];
-      if (!m) continue;
+      const m = mapping?.faces?.[f] ?? null;
       const faceName = t(FACE_LABEL[f]);
-      const expr = m.expression || t`参数版`;
+      const expr = m ? m.expression || t`参数版` : t`通用参数`;
       items.push({
         key: `f:${f}`,
         label: t`表情「${faceName}」→ ${expr}`,
         run: () => companionBus.face(f),
         waitMs: 1800,
+        measure: "motion",
       });
     }
     for (const area of TOUCH_AREAS) {
@@ -543,10 +633,37 @@ export default function SupportModelNewPage() {
         label: t`摸「${areaName}」→ ${target}`,
         run: () => (m.motion ? previewMotionGroup(m.motion) : undefined),
         waitMs: m.motion ? TIMING.actionSuppressMs + 300 : 600,
+        // 只说话的那种没有动作可量：跑过就算（它本来就不该动）
+        measure: m.motion ? "motion" : null,
       });
     }
     return items;
   }, [mapping, t]);
+
+  /** 这份清单里还没跑过的项数（第 ⑤ 步按钮上方那句话） */
+  const unrun = verifyItems.filter((it) => !s.verifyDone.includes(it.key)).length;
+  /**
+   * 标了 ⚠ 的项按「量的是什么」分两类，原因各说各的：说话 / 眨眼只看嘴 / 眼那一个参数（judgeOwn），⚠ 是参数没对上或被动作盖住；
+   * 其余比待机基线（judgeMotion），⚠ 是那段动作 / 表情本身没让模型动起来。分类认 verifyItems 的 measure，不另抄一份键名
+   */
+  const warnSplit = (() => {
+    const own = new Set(verifyItems.filter((it) => it.measure === "mouth" || it.measure === "eye").map((it) => it.key));
+    const ownCount = s.verifyWarn.filter((k) => own.has(k)).length;
+    return { own: ownCount, motion: s.verifyWarn.length - ownCount };
+  })();
+  /** 清单里最长那一项要量多久（基线要把它盖住，见 VERIFY_BASELINE_PAD_MS） */
+  const longestWaitMs = verifyItems.reduce((m, it) => Math.max(m, it.waitMs), 0);
+  /** 基线从「停掉动作」那一刻量到哪儿（runVerify 真量的与下面那句「先量 N 秒」都问它） */
+  const baselineMsFor = (settleMs: number) => settleMs + longestWaitMs + VERIFY_BASELINE_PAD_MS;
+  const baselineSecs = Math.round((VERIFY_BASELINE_ROUNDS * baselineMsFor(VERIFY_SETTLE_MS)) / 1000);
+  /** 整轮大约多少秒（第 ⑤ 步顶上那句话；比原来「等够就打勾」慢一倍上下，先说出来，别让人以为卡住了）。顺序与 runVerify 一致：先归位、量基线，再逐项归位 + 演 */
+  const verifyEtaSecs = (() => {
+    let ms = VERIFY_SETTLE_MS + VERIFY_BASELINE_ROUNDS * baselineMsFor(VERIFY_SETTLE_MS);
+    for (const it of verifyItems) ms += VERIFY_SETTLE_MS + it.waitMs;
+    return Math.ceil(ms / 10_000) * 10;
+  })();
+  /** 量基线那几秒列表上方那一行（verifyNow 等于它时画） */
+  const baselineLabel = t`先量 ${baselineSecs} 秒她待着不动的样子，拿来对比…`;
 
   async function runVerify() {
     if (verifyRunning.current) return;
@@ -557,31 +674,175 @@ export default function SupportModelNewPage() {
       return;
     }
     verifyRunning.current = true;
-    useLive2dUpload.setState({ verifyDone: [], verifyOk: false });
+    const my = ++verifySeq.current;
+    const alive = () => verifySeq.current === my;
+    const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+    // 归位（每一项都一样，理由与等多久见 VERIFY_SETTLE_MS 那条）：嘴闭上、表情当场回平静、视线回正、
+    // 待机钉住同一段、停掉动作 —— 框架下一帧从头起钉住的那一段。先钉再停：停下那一拍框架就要挑下一段待机了
+    const reset = () => {
+      const model = companionBus.model;
+      model?.stopSpeaking();
+      model?.resetFaceForProbe();
+      model?.lookForward();
+      // 钉不住（这份运行时没有那两个方法）要记下来：待机组不止一段时每一窗都量不了，界面要说「再跑也一样」（verifyPinFail）
+      if (model && !model.pinIdleForProbe(VERIFY_IDLE_PIN_MS)) markPinFail();
+      model?.stopMotions();
+    };
+    const settle = async () => {
+      reset();
+      await sleep(verifySettleMs());
+    };
+    startVerifyRun();
     let lost = false;
+    let reached = 0;
+
+    // 待机基线。先归位一次：把台上原来在播的（第 ④ 步 ▶ 试过的动作、随机挑的那段待机）停掉，等钉住的那段淡入完；
+    // 再停一次、从这一刻起量 —— 量的就是钉住那段待机从头起的一整截，每一项的窗口都落在里面（见 VERIFY_BASELINE_PAD_MS 的 ★）。
+    // 同样的一截量 VERIFY_BASELINE_ROUNDS 遍、合起来（采样加密，见那条的 ★）；哪一遍没量成，整份基线就算没量成
+    useLive2dUpload.setState({ verifyNow: baselineLabel });
+    await settle();
+    let base: ParamProbe | null = null;
+    for (let round = 0; round < VERIFY_BASELINE_ROUNDS && alive() && previewOnStage(); round++) {
+      reset();
+      const p = (await companionBus.model?.probeParams(baselineMsFor(verifySettleMs()))) ?? null;
+      base = round === 0 ? p : mergeProbes(base, p);
+    }
+    if (alive() && !previewOnStage()) lost = true;
+
     for (const it of verifyItems) {
-      if (!verifyRunning.current) break;
+      if (lost || !alive()) break;
       useLive2dUpload.setState({ verifyNow: it.label });
-      it.run();
-      await new Promise((r) => setTimeout(r, it.waitMs));
-      if (!verifyRunning.current) break;
-      // ★ 中途也要问一次：跑到一半预览可能掉了（运行时会在模型 destroy 时撤掉我们的 blob 地址，
+      await settle();
+      if (!alive()) break;
+      // ★ 中途每一项都要问：跑到一半预览可能掉了（运行时会在模型 destroy 时撤掉我们的 blob 地址，
       //   见 live2dUploadStore 文件头 ⚠⚠）。一份**没跑完**的 ✓ 列表比没有更坏，整列作废。
       if (!previewOnStage()) {
         lost = true;
         break;
       }
-      markVerified(it.key);
+      // ★ 先挂上采样、再演：动作 / 表情的头几帧（淡入）也要量进去。开演同一拍忘掉归位那两秒里的点击：
+      //   不然这一项的动作会改播那个触摸区的动作，量的就是另一段了（companionModel.stopMotions 的 ★）
+      const model = companionBus.model;
+      const probe = it.measure ? (model?.probeParams(it.waitMs) ?? null) : null;
+      model?.forgetTouch();
+      it.run();
+      let sample: ParamProbe | null = null;
+      if (probe) sample = await probe;
+      else await sleep(it.waitMs);
+      if (!alive()) break;
+      if (!previewOnStage()) {
+        lost = true;
+        break;
+      }
+      const verdict = it.measure === "motion" ? judgeMotion(base, sample) : it.measure ? judgeOwn(sample, it.measure) : "moved";
+      const result: VerifyResult = verdict === "moved" ? "ok" : verdict;
+      markVerified(it.key, result);
+      reached++;
     }
+    // 被「■ 停下」或卸载打断的那一轮：停下那一刻已经收过尾，这里什么都别动（下一轮可能已经开始了）
+    if (!alive()) return;
     companionBus.stopSpeaking();
-    companionBus.face("normal");
+    // 收尾也写回表情参数：最后一项是通用参数表情的话，不写回眉毛 / 嘴形会一直停在量程边上（见 resetFaceForProbe 的 ★★）
+    companionBus.model?.resetFaceForProbe();
+    // 待机放开、照常随机挑段（钉着的那段播完这一遍就换）
+    companionBus.model?.pinIdleForProbe(0);
     verifyRunning.current = false;
-    useLive2dUpload.setState(
-      lost
-        ? { verifyNow: "", verifyDone: [], verifyOk: false, previewState: "failed", previewErr: t`试跑跑到一半，上面那块换成了别的模型 —— 这一轮不作数。点「重新加载预览」再跑一遍。` }
-        : { verifyNow: "" },
-    );
+    if (lost) {
+      startVerifyRun();
+      useLive2dUpload.setState({
+        verifyNow: "",
+        previewState: "failed",
+        previewErr: t`试跑跑到一半，上面那块换成了别的模型 —— 这一轮不作数。点「重新加载预览」再跑一遍。`,
+      });
+      return;
+    }
+    useLive2dUpload.setState({ verifyNow: "" });
+    if (reached === verifyItems.length) finishVerifyRun();
   }
+
+  /** 「■ 停下」：作废这一轮的号（见 verifySeq），收尾 —— 已经打过的勾留着 */
+  function stopVerify() {
+    verifySeq.current++;
+    verifyRunning.current = false;
+    companionBus.stopSpeaking();
+    companionBus.model?.resetFaceForProbe();
+    companionBus.model?.pinIdleForProbe(0);
+    useLive2dUpload.setState({ verifyNow: "" });
+  }
+
+  /**
+   * 「这几样装上之后不会演」清单（第 ⑤ 步顶上；按**当前这份**映射现算，改了就跟着变）。
+   * ★ 只把「能改的」一行一行列、每行一颗「去对」：包里有动作组、可这个动作槽空着；包里有没被任何槽用上的命中区、可这个触摸区空着。
+   *   包里本来就没有的（一个动作组都没有 / 没有多余的命中区）只汇总成一句 —— 9 个触摸区全按空列出来，真正能改的那几行反而被淹掉。
+   * ★ 不算进来的：表情槽为 null（= 用通用参数演，照样会演，见 verifyItems 的 ★）；有命中区、没挂动作的触摸区（= 只说话，是有意的）。
+   * ★ 参数槽 App 里改不了，只说一句、不给「去对」；待机动作也没有对应的一行可改（包里的组叫 Idle 就会自动用上）。
+   * ★ 参数槽单独计数（params），不算进 count：count 是「这几个槽装上之后整个不演」，参数没对上是「用到它的那部分演出不动」，
+   *   两句话分开说。整块提示条按「有没有要说的」（show）画，别按 count —— 只有参数没对上时 count 是 0，那句话原来就整块被吞掉了。
+   */
+  const gapView = (() => {
+    const rows: { slot: string; anchor: string; what: string }[] = [];
+    const notes: string[] = [];
+    let count = 0;
+    if (!mapping) return { rows, notes, count, params: 0, show: false };
+    const actionsNull = ACTIONS.filter((a) => a !== "none" && !mapping.actions?.[a]);
+    // 运行时待机组 = mapping.idle || "Idle"（companionModel.acquire），所以包里有叫 Idle 的组时 null 也有待机动作
+    const idleNull = !mapping.idle && !groups.includes("Idle");
+    if (groups.length === 0) {
+      if (actionsNull.length || idleNull) {
+        notes.push(t`这个包里没有动作组：待机和各个动作都不会演。`);
+        count += actionsNull.length + (idleNull ? 1 : 0);
+      }
+    } else {
+      if (idleNull) {
+        rows.push({ slot: "idle", anchor: "", what: t`不说话的时候她不做待机动作（App 里还改不了：把包里的待机动作组命名成 Idle 再导出就会用上）` });
+        count++;
+      }
+      for (const a of actionsNull) {
+        rows.push({ slot: `action:${a}`, anchor: `a-${a}`, what: t`该做这个动作的时候她不动` });
+        count++;
+      }
+    }
+    const used = new Set(TOUCH_AREAS.flatMap((a) => mapping.touch?.[a]?.hitAreas ?? []));
+    const spare = hitAreas.some((h) => !used.has(h));
+    const touchNull = TOUCH_AREAS.filter((a) => !mapping.touch?.[a]);
+    if (spare) {
+      for (const a of touchNull) {
+        rows.push({ slot: `touch:${a}`, anchor: `t-${a}`, what: t`摸这里没有反应` });
+        count++;
+      }
+    } else if (touchNull.length) {
+      const n = touchNull.length;
+      notes.push(hitAreas.length ? t`另有 ${n} 个触摸区在这个模型上没有对应的命中区，摸那些地方没有反应。` : t`这个模型没有命中区，摸哪里都没有反应。`);
+      count += n;
+    }
+    // 参数槽：只有服务端明写了 null 的才是「没对上」（没写这一格 = 按标准参数名读，见 mapping.resolveParamIds）
+    const paramsNull = (Object.keys(STANDARD_PARAMS) as ParamSlot[]).filter(
+      (slot) => !!mapping.params && Object.prototype.hasOwnProperty.call(mapping.params, slot) && !mapping.params[slot],
+    );
+    if (paramsNull.length) {
+      const names = paramsNull.map((slot) => t(PARAM_LABEL[slot])).join(listSep);
+      notes.push(t`这几个参数没对上：${names}。用到它们的那部分演出不会动；参数这一栏 App 里还改不了，要改得回 Cubism 把参数 id 改成标准名再导出。`);
+    }
+    return { rows, notes, count, params: paramsNull.length, show: rows.length > 0 || notes.length > 0 };
+  })();
+
+  // 第 ⑤ 步点了「去对」→ 到了第 ④ 步：滚到那一行、聚焦它的下拉框、边框亮一下（亮多久见下一个 effect）
+  useEffect(() => {
+    if (s.step !== "mapping" || !s.mapFocus) return;
+    const anchor = s.mapFocus;
+    useLive2dUpload.setState({ mapFocus: "" });
+    const el = document.getElementById(`map-${anchor}`);
+    if (!el) return;
+    // 不用 smooth：页面不可见时平滑滚动一下都不动（CLAUDE.md「在看不见的窗口里测」）
+    el.scrollIntoView({ block: "center" });
+    el.querySelector("select")?.focus({ preventScroll: true });
+    setHlRow(anchor);
+  }, [s.step, s.mapFocus]);
+  useEffect(() => {
+    if (!hlRow) return;
+    const timer = setTimeout(() => setHlRow(""), 1600);
+    return () => clearTimeout(timer);
+  }, [hlRow]);
 
   async function grabCover() {
     useLive2dUpload.setState({ coverBusy: t`正在截图…`, coverErr: "" });
@@ -626,27 +887,30 @@ export default function SupportModelNewPage() {
         }
       />
 
-      {/* 步骤条：横向滚动一行（安卓 WebView 上不加 no-scrollbar 会在行下方闪一条滚动条） */}
-      {s.step !== "done" && (
-        <div className="no-scrollbar mb-3 flex gap-1.5 overflow-x-auto">
-          {LIVE2D_STEPS.map((k, i) => (
-            <span
-              key={k}
-              className={`shrink-0 rounded-full px-3 py-1 text-[11px] ${
-                k === s.step ? "bg-brand font-semibold text-ink" : i < stepIndex ? "bg-panel text-slate-300" : "bg-panel text-slate-500"
-              }`}
-            >
-              {i + 1}. {t(LIVE2D_STEP_LABEL[k])}
-            </span>
-          ))}
-        </div>
-      )}
+      {/* ★ 进度只画这一份（components/StepDots，CLAUDE.md 铁律六）：2026-10-22 替掉原来那行横向滚动的编号芯片。
+          发布成功（done）不在 LIVE2D_STEPS 里，画成「全部做完」（全实心、线满），不再把最后一颗当「当前」—— 那一屏正说着发布成功；
+          步骤不能点着跳（上传 / 识别是按顺序的），所以不给 onPick */}
+      <StepDots
+        className="mb-4"
+        complete={s.step === "done"}
+        current={s.step === "done" ? LIVE2D_STEPS.length - 1 : stepIndex}
+        steps={LIVE2D_STEPS.map((k) => ({ label: t(LIVE2D_STEP_LABEL[k]) }))}
+      />
 
       {/* 舞台：② ③ ④ ⑤ 共用同一块（换步骤不重挂，重挂一次就是把模型销毁重建一次） */}
       {stageOn && (
         <section className="mb-3">
           <div className="relative h-[280px] overflow-hidden rounded-xl border border-slate-700/70 bg-slate-950">
-            <SupportStage className="absolute inset-0" modelUrl={s.previewUrl} topPx={0} heightFraction={0.9} onFallback={(r) => markPreviewLoaded(false, r)} />
+            {/* failNote={null}：两套都没出来时舞台不另画一块，下面的失败横幅 + 「重新加载预览」就是这一页的说法 */}
+            <SupportStage
+              className="absolute inset-0"
+              modelUrl={s.previewUrl}
+              topPx={0}
+              heightFraction={0.9}
+              name={t`你的模型`}
+              failNote={null}
+              onFallback={(f) => markPreviewLoaded(false, previewFailText(f), f.kind !== null)}
+            />
             {s.previewState === "loading" && (
               <div className="pointer-events-none absolute inset-x-0 bottom-2 flex justify-center">
                 <span className="rounded-full bg-black/60 px-2.5 py-1 text-[11px] text-slate-200"><Trans>正在加载这个包…</Trans></span>
@@ -747,7 +1011,7 @@ export default function SupportModelNewPage() {
                       >
                         <Icon name="file" size={14} className="shrink-0 text-slate-500" />
                         <span className="min-w-0 flex-1 truncate text-xs text-slate-200">{p}</span>
-                        {(s.check?.detail.get(p)?.issues.length ?? 0) > 0 && <span className="shrink-0 text-[10px] text-rose-300"><Trans>有问题</Trans></span>}
+                        {(s.check?.detail.get(p)?.issues.length ?? 0) > 0 && <span className="shrink-0 text-[10px] text-danger-300"><Trans>有问题</Trans></span>}
                       </button>
                     ))}
                   </div>
@@ -804,7 +1068,7 @@ export default function SupportModelNewPage() {
                 </div>
                 <div>
                   {detail.params === null ? (
-                    <span className="text-amber-300"><Trans>包里没有 cdi3.json，读不到参数表 —— 下一步交给服务器再看一次。</Trans></span>
+                    <span className="text-warn-300"><Trans>包里没有 cdi3.json，读不到参数表 —— 下一步交给服务器再看一次。</Trans></span>
                   ) : (
                     <>
                       <Trans>参数 {detail.params.length} 个</Trans>
@@ -910,9 +1174,9 @@ export default function SupportModelNewPage() {
                       <Icon
                         name={r.ok === true ? "check" : r.ok === false ? "close" : "info"}
                         size={13}
-                        className={r.ok === true ? "text-emerald-300" : r.ok === false ? "text-rose-300" : "text-slate-500"}
+                        className={r.ok === true ? "text-ok-300" : r.ok === false ? "text-danger-300" : "text-slate-500"}
                       />
-                      <span className={r.ok === true ? "text-slate-300" : r.ok === false ? "text-rose-300" : "text-slate-500"}>
+                      <span className={r.ok === true ? "text-slate-300" : r.ok === false ? "text-danger-300" : "text-slate-500"}>
                         <Trans>必须 · {slotLabel(r.slot)}</Trans>
                         {r.ok === null && t`（包里没有参数表，看不出来）`}
                       </span>
@@ -962,7 +1226,7 @@ export default function SupportModelNewPage() {
             )}
           </div>
           {!!s.inspect && missingRequired(s.inspect.completeness.required).length > 0 && (
-            <p className="text-center text-[11px] text-rose-300"><Trans>上面标红的必须项缺了，补齐再重新导出一次包。</Trans></p>
+            <p className="text-center text-[11px] text-danger-300"><Trans>上面标红的必须项缺了，补齐再重新导出一次包。</Trans></p>
           )}
           {!!s.inspect && !s.inspect.capabilities.paramsKnown && missingRequired(s.inspect.completeness.required).length === 0 && (
             <p className="text-center text-[11px] leading-relaxed text-slate-500">
@@ -992,6 +1256,8 @@ export default function SupportModelNewPage() {
                       <MapRow
                         key={a}
                         label={actName}
+                        anchor={`a-${a}`}
+                        highlight={hlRow === `a-${a}`}
                         disabled={!value}
                         // ★ 与触摸那一行同一个入口（`previewMotionGroup`，判据含"台上是不是我们的包"）——
                         //   此前这里直接调 `companionBus.motionGroup`，预览退回官方看板娘时会对着小梦说
@@ -1084,6 +1350,8 @@ export default function SupportModelNewPage() {
                       <MapRow
                         key={slot}
                         label={areaName}
+                        anchor={`t-${slot}`}
+                        highlight={hlRow === `t-${slot}`}
                         disabled={!motion}
                         onPlay={() => (motion ? previewMotionGroup(motion) : false)}
                         hint={
@@ -1171,36 +1439,132 @@ export default function SupportModelNewPage() {
       {/* ⑤ 验收试跑 */}
       {s.step === "verify" && (
         <section className="space-y-3">
-          <Banner tone="info"><Trans>按顺序演一遍：说话对口型、眨眼、每个对上的动作 / 表情 / 触摸区各来一次。盯着上面那块看。</Trans></Banner>
+          <Banner tone="info"><Trans>按顺序演一遍：说话对口型、眨眼、每个对上的动作 / 表情 / 触摸区各来一次，边演边自动量她动没动（整轮大约 {verifyEtaSecs} 秒）。也盯着上面那块看。</Trans></Banner>
+
+          {/* 这几样装上之后不会演（按当前映射现算，见 gapView 的 ★）。整块提示条：带「去对」的多行清单不是 <Warn> 那种一两句 */}
+          {gapView.show && (
+            <div className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-xs leading-relaxed text-warn-300">
+              <div className="font-semibold text-warn-200"><Trans>这几样装上之后不会演，别人用的时候也一样：</Trans></div>
+              {gapView.rows.length > 0 && (
+                <ul className="mt-1.5 space-y-1">
+                  {gapView.rows.map((g) => (
+                    <li key={g.slot} className="flex items-center gap-2">
+                      <span className="min-w-0 flex-1">
+                        <b className="font-semibold text-slate-100">{slotLabel(g.slot)}</b> · {g.what}
+                      </span>
+                      {!!g.anchor && (
+                        <button
+                          type="button"
+                          onClick={() => useLive2dUpload.setState({ mapFocus: g.anchor, step: "mapping" })}
+                          disabled={!!s.verifyNow}
+                          className="shrink-0 rounded-full border border-warn-500/40 px-2.5 py-1 text-[11px] font-semibold text-warn-200 disabled:opacity-40"
+                        >
+                          <Trans>去对</Trans>
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {gapView.notes.map((note) => (
+                <div key={note} className="mt-1.5">
+                  {note}
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="rounded-xl border border-slate-700/70 bg-panel p-3">
             <div className="space-y-1">
+              {s.verifyNow === baselineLabel && (
+                <div className="flex items-center gap-2 text-xs">
+                  <Spinner size="xs" />
+                  <span className="text-brand">{baselineLabel}</span>
+                </div>
+              )}
               {verifyItems.map((it) => {
                 const done = s.verifyDone.includes(it.key);
+                const still = s.verifyWarn.includes(it.key);
+                const unknown = s.verifyUnknown.includes(it.key);
                 const now = s.verifyNow === it.label;
                 return (
                   <div key={it.key} className="flex items-center gap-2 text-xs">
                     {now ? (
                       <Spinner size="xs" />
+                    ) : still ? (
+                      <Icon name="alert" size={13} className="shrink-0 text-warn-300" />
+                    ) : unknown ? (
+                      <Icon name="info" size={13} className="shrink-0 text-slate-400" />
                     ) : (
-                      <Icon name="check" size={13} className={done ? "text-emerald-300" : "text-slate-700"} />
+                      <Icon name="check" size={13} className={`shrink-0 ${done ? "text-ok-300" : "text-slate-700"}`} />
                     )}
-                    <span className={now ? "text-brand" : done ? "text-slate-300" : "text-slate-500"}>{it.label}</span>
+                    <span className={`min-w-0 flex-1 ${now ? "text-brand" : done ? "text-slate-300" : "text-slate-500"}`}>{it.label}</span>
+                    {still && !now && <span className="shrink-0 text-[11px] text-warn-300"><Trans>看不出变化</Trans></span>}
+                    {unknown && !now && <span className="shrink-0 text-[11px] text-slate-400"><Trans>没量到</Trans></span>}
                   </div>
                 );
               })}
             </div>
+            {/* ★ 试跑进行中不摆这句：照着它去摸，那一下会让接下来两秒里开演的动作项改播触摸区的动作（companionModel.stopMotions 的 ★） */}
+            {!s.verifyNow && verifyItems.some((it) => it.key.startsWith("t:") && it.measure) && (
+              <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
+                <Trans>触摸那几项只试播了它对上的动作；命中区对没对上量不到 —— 试跑跑完之后，自己在上面的预览里摸一下（会写「刚点到：…」）。</Trans>
+              </p>
+            )}
+            {/* ⚠ 的原因按是哪一类分开说：动作 / 表情是包里那段动作 / 表情的事，说话 / 眨眼是嘴 / 眼参数的事（见 warnSplit） */}
+            {warnSplit.motion > 0 && (
+              <Warn className="mt-2">
+                <Trans>动作 / 表情标「看不出变化」是自动量出来的（可能误判）：演的时候模型几乎没动。多半是这个动作组 / 表情写给了模型里没有的参数；标着「通用参数」的表情，也可能是被模型自己的待机动作每一帧盖住了；也可能它本来就动得很轻 —— 回去换一个，或者盯着上面再看一眼。不拦发布。</Trans>
+              </Warn>
+            )}
+            {warnSplit.own > 0 && (
+              <Warn className="mt-2">
+                <Trans>「说一句话」「眨一下眼」标「看不出变化」，是这个模型的嘴 / 眼睛参数没对上，或者被它自己的动作每一帧盖住了 —— 跟动作组无关，App 里也改不了，得回 Cubism 改参数名、或者把动作里的嘴 / 眼曲线去掉。不拦发布。</Trans>
+              </Warn>
+            )}
+            {s.verifyUnknown.length > 0 && (
+              <Warn tone="info" className="mt-2">
+                {s.verifyPinFail ? (
+                  <Trans>这个模型的待机动作固定不住（试跑要拿同一段待机来比），动作 / 表情标了「没量到」—— 再跑一遍也一样，盯着上面那块看她动没动就行。</Trans>
+                ) : s.verifyNoBase ? (
+                  <Trans>演之前那段对比没采到足够的画面，动作 / 表情那几项没法比，标了「没量到」：页面当时多半在后台。回到前台再跑一遍。</Trans>
+                ) : (
+                  <Trans>标「没量到」的那几项没采到足够的画面：页面当时多半在后台。回到前台再跑一遍。</Trans>
+                )}
+              </Warn>
+            )}
           </div>
+
+          {/* 继续之前把还没解决的照实说一句（不拦，由人决定）—— 一条一行，三种情况各自成句 */}
+          {(gapView.count > 0 || gapView.params > 0 || s.verifyWarn.length > 0 || (!s.verifyOk && (unrun > 0 || !s.verifyDone.length))) && (
+            <Warn>
+              {gapView.count > 0 && (
+                <span className="block">
+                  <Trans>{gapView.count} 项装上之后不会演。</Trans>
+                </span>
+              )}
+              {gapView.params > 0 && (
+                <span className="block">
+                  <Trans>{gapView.params} 个参数没对上，用到它们的那部分演出不会动。</Trans>
+                </span>
+              )}
+              {s.verifyWarn.length > 0 && (
+                <span className="block">
+                  <Trans>{s.verifyWarn.length} 项看不出变化。</Trans>
+                </span>
+              )}
+              {!s.verifyOk && (unrun > 0 || !s.verifyDone.length) && (
+                <span className="block">{s.verifyDone.length > 0 ? t`还有 ${unrun} 项没试。` : t`还没试跑。`}</span>
+              )}
+            </Warn>
+          )}
 
           <div className="flex gap-2">
             <button
               type="button"
               onClick={() => {
-                if (s.verifyNow) {
-                  verifyRunning.current = false;
-                  useLive2dUpload.setState({ verifyNow: "" });
-                } else {
-                  void runVerify();
-                }
+                if (s.verifyNow) stopVerify();
+                else void runVerify();
               }}
               // ★ 与第 ② 步同一道闸：预览没画出来时试跑只会在官方看板娘身上演一遍并打满 ✓
               disabled={!s.verifyNow && s.previewState !== "ok"}
@@ -1208,16 +1572,21 @@ export default function SupportModelNewPage() {
             >
               {s.verifyNow ? t`■ 停下` : s.verifyDone.length ? t`▶ 再跑一遍` : t`▶ 开始试跑`}
             </button>
+            {/* ★ 只换步骤，不再写 verifyOk（2026-10-26）：原来这里一点就置真，一项没跑第 ⑥ 步也写「试跑过了（0 项）」。
+                verifyOk 只由 runVerify 完整跑完一遍置真；键上的字照实说现在是哪种情况 */}
             <button
               type="button"
-              onClick={() => {
-                useLive2dUpload.setState({ verifyOk: true });
-                setStep("publish");
-              }}
+              onClick={() => setStep("publish")}
               disabled={!!s.verifyNow}
               className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
             >
-              <Trans>没问题，继续</Trans>
+              {s.verifyOk
+                ? s.verifyWarn.length || s.verifyUnknown.length
+                  ? t`知道了，继续`
+                  : t`没问题，继续`
+                : s.verifyDone.length
+                  ? t`没跑完，先继续`
+                  : t`跳过试跑，继续`}
             </button>
           </div>
           {s.previewState !== "ok" && !s.verifyNow && (
@@ -1234,8 +1603,17 @@ export default function SupportModelNewPage() {
       {/* ⑥ 发布信息 */}
       {s.step === "publish" && (
         <section className="space-y-3">
-          {s.verifyOk ? (
+          {/* 四档照实说（2026-10-26）：完整跑完没问题 / 跑完了但有看不出变化或没量到的 / 只跑了一部分 / 一项没跑 */}
+          {s.verifyOk && !s.verifyWarn.length && !s.verifyUnknown.length ? (
             <Banner tone="ok"><Trans>试跑过了（{s.verifyDone.length} 项）。</Trans></Banner>
+          ) : s.verifyOk && s.verifyWarn.length ? (
+            <Banner tone="warn"><Trans>试跑过了，但有 {s.verifyWarn.length} 项看不出变化，装上之后可能不会演。</Trans></Banner>
+          ) : s.verifyOk && s.verifyPinFail ? (
+            <Banner tone="warn"><Trans>试跑过了，但有 {s.verifyUnknown.length} 项没量到（待机动作固定不住，没法自动量，要靠眼睛看）。</Trans></Banner>
+          ) : s.verifyOk ? (
+            <Banner tone="warn"><Trans>试跑过了，但有 {s.verifyUnknown.length} 项没量到（页面当时多半在后台）。</Trans></Banner>
+          ) : s.verifyDone.length ? (
+            <Banner tone="warn"><Trans>只试了 {s.verifyDone.length}/{verifyItems.length} 项。发之前建议回上一步跑完，看看动作和表情是不是真的都能演。</Trans></Banner>
           ) : (
             <Banner tone="warn"><Trans>还没试跑过。发之前建议回上一步跑一遍，看看动作和表情是不是真的都能演。</Trans></Banner>
           )}
@@ -1273,7 +1651,7 @@ export default function SupportModelNewPage() {
               </button>
             </div>
             {!!s.coverBusy && <p className="mt-1 text-xs text-slate-500">{s.coverBusy}</p>}
-            {!!s.coverErr && <p className="mt-1 text-xs leading-relaxed text-rose-300">{s.coverErr}</p>}
+            {!!s.coverErr && <p className="mt-1 text-xs leading-relaxed text-danger-300">{s.coverErr}</p>}
           </div>
 
           <div>

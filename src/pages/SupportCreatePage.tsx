@@ -22,15 +22,14 @@ type Count = number | null;
 
 function CreateCard({
   icon,
-  emoji,
   title,
   desc,
   count,
   cta,
   onGo,
 }: {
+  /** 左侧那块砖里的图标（原来是 emoji，2026-10-23 改走 Icon） */
   icon: IconName;
-  emoji: string;
   title: string;
   desc: string;
   count: Count;
@@ -40,12 +39,14 @@ function CreateCard({
   return (
     <section className="rounded-xl border border-slate-700/70 bg-panel p-3">
       <div className="flex items-center gap-3">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-xl">{emoji}</div>
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-slate-300">
+          <Icon name={icon} size={22} />
+        </div>
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-semibold text-slate-100">{title}</div>
           <p className="mt-0.5 text-xs leading-relaxed text-slate-400">{desc}</p>
         </div>
-        <Icon name={icon} size={18} className="shrink-0 text-slate-600" />
+        <Icon name="chevron" size={16} className="shrink-0 text-slate-600" aria-hidden />
       </div>
       {count !== null && <div className="mt-2 text-[11px] text-slate-500"><Trans>我的作品 {count}</Trans></div>}
       <button onClick={onGo} className="mt-2 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40">
@@ -90,8 +91,7 @@ export default function SupportCreatePage() {
 
       <div className="space-y-3">
         <CreateCard
-          icon="upload"
-          emoji="🧍"
+          icon="user"
           title={t`人物模型`}
           desc={t`上传自己的 Live2D 包（zip），对好动作、表情和触摸区，就能给数字人换上。`}
           count={models}
@@ -99,18 +99,16 @@ export default function SupportCreatePage() {
           onGo={() => navigate("/support/models/new")}
         />
         <CreateCard
-          icon="settings"
-          emoji="🎙️"
+          icon="mic"
           title={t`人物音频`}
-          desc={t`把 1～3 味豆包音色按比例调成自己的嗓子，可以发布成声音模板。`}
+          desc={t`把 1～3 种音色按比例调成自己的嗓子，可以发布成声音模板。`}
           count={voices}
           cta={t`去制作`}
           // 混音器长在客服页的「声音」面板里（一处实现），带上 ?sheet=voice 让那一页直接掀开它
           onGo={() => navigate("/support?sheet=voice")}
         />
         <CreateCard
-          icon="sparkle"
-          emoji="🎭"
+          icon="drama"
           title={t`人物人格`}
           desc={t`喂一段聊天记录或者答几道题，AI 帮你写出说话风格，试聊满意了再发布。`}
           count={personas}
@@ -120,8 +118,7 @@ export default function SupportCreatePage() {
         {/* 第四扇门「人物 → 老师」（M3 是外链；2026-09-29 M4 起进 App 内的 /tutor：md / txt 建课、上课都在 App 里，PDF / PPTX 仍去网页端）。
             没有「我的作品 n」那一行：老师的数不在上面三条 scope=mine 里，问不到就不摆（不显示成 0）。?from=app-create 只用来记引流 */}
         <CreateCard
-          icon="compass"
-          emoji="🎓"
+          icon="graduation-cap"
           title={t`人物 → 老师`}
           desc={t`把自己的课件交给 AI，铸一位按你的材料讲课的老师，在 App 里上课；勾了「同时发布为启梦人格」的老师还会开口说话。`}
           count={null}

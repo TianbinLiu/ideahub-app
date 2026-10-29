@@ -79,14 +79,14 @@ export default function GenTrace({
                     isRun
                       ? "bg-brand shadow-[0_0_6px_rgba(34,211,238,0.9)] animate-pulse"
                       : isErr
-                        ? "bg-rose-500"
+                        ? "bg-danger-500"
                         : "bg-slate-600"
                   }`}
                 />
                 <div className="min-w-0 flex-1">
                   <div
                     className={`text-[11.5px] leading-relaxed ${
-                      isRun ? "text-slate-200" : isErr ? "text-rose-300" : "text-slate-500"
+                      isRun ? "text-slate-200" : isErr ? "text-danger-300" : "text-slate-500"
                     }`}
                   >
                     {title}

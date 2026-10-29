@@ -1,4 +1,4 @@
-// 举报入口。**作品 / 评论 / 弹幕三处共用这一份**（铁律六）：
+// 举报入口。**作品 / 评论 / 弹幕 / 人格市场四处共用这一份**（铁律六；人格 2026-10-26 接上，Play 的 AI 生成内容与 UGC 政策都要应用内举报）：
 // "谁能举报 / 有哪些理由 / 重复举报怎么说 / 失败怎么说" 这四条一旦分叉，就会出现
 // "评论举报得了、弹幕举报不了"或者"一边说重复了、一边只说 HTTP 409"这种
 // 只有用户才发现得了的差异。
@@ -46,6 +46,14 @@ import Icon from "./Icon";
  */
 const DETAIL_MAX = 500;
 
+/**
+ * 这颗举报键摆不摆得出来 —— 与下面组件里那道闸**同一个判据**（离线没有「别人」、自己的东西该删不该举报、没有 id 没法举报）。
+ * 详情页动作条按它决定第五格放举报还是放「保存」（2026-10-26 视频详情页 P0-4：组件自己回 null，父组件按五格排就留一个空洞）。
+ */
+export function canReport(o: { mine: boolean; targetId: string }): boolean {
+  return !o.mine && isRemoteMode() && !!o.targetId;
+}
+
 export default function ReportButton({
   targetType,
   targetId,
@@ -54,15 +62,18 @@ export default function ReportButton({
   mine = false,
   className = "",
   row = false,
+  cell = false,
 }: {
   targetType: ReportTargetType;
   targetId: string;
-  /** 评论 / 弹幕必须带上所属作品 id：管理员靠它跳到现场看上下文 */
+  /** 评论 / 弹幕必须带上所属作品 id：管理员靠它跳到现场看上下文（人格不传：它不挂在作品下） */
   videoId?: string;
   mine?: boolean;
   className?: string;
   /** 整行样式（2026-10-21 首页长按菜单那一行：图标 + 「举报」）。默认是内容旁那颗 11px 小字键 */
   row?: boolean;
+  /** 动作条的一格（2026-10-26 视频详情页：图标 22 在上、11px 字在下）。弹层、理由表、失败红字与另两种一样 */
+  cell?: boolean;
 }) {
   const user = useCurrentUser();
   const auth = useAuthState();
@@ -77,10 +88,17 @@ export default function ReportButton({
   /** 这次会话里已经举报过了。★ 只是"别让他反复点"，服务端那边还有一道按人去重的 409 */
   const [done, setDone] = useState(false);
 
-  if (mine || !isRemoteMode() || !targetId) return null;
+  if (!canReport({ mine, targetId })) return null;
 
-  // ★ 三类各写整句，不拿类别名往「举报这条…」里拼
-  const title = targetType === "video" ? t`举报这条作品` : targetType === "comment" ? t`举报这条评论` : t`举报这条弹幕`;
+  // ★ 每类各写整句，不拿类别名往「举报这条…」里拼（量词也不一样：人格是「这个」）
+  const title =
+    targetType === "video"
+      ? t`举报这条作品`
+      : targetType === "comment"
+        ? t`举报这条评论`
+        : targetType === "persona"
+          ? t`举报这个人格`
+          : t`举报这条弹幕`;
 
   async function submit() {
     if (busy || !reason) return;
@@ -107,13 +125,18 @@ export default function ReportButton({
       }}
       disabled={done}
       className={
-        row
-          ? `flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm text-slate-200 active:bg-white/5 disabled:opacity-40 ${className}`
-          : `text-[11px] text-slate-500 active:opacity-60 disabled:opacity-40 ${className}`
+        cell
+          ? `flex min-h-[52px] flex-col items-center justify-center gap-0.5 active:opacity-60 disabled:opacity-40 ${className}`
+          : row
+            ? `flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm text-slate-200 active:bg-white/5 disabled:opacity-40 ${className}`
+            : `text-[11px] text-slate-500 active:opacity-60 disabled:opacity-40 ${className}`
       }
     >
+      {cell && <Icon name="flag" size={22} className="text-slate-300" />}
       {row && <Icon name="flag" size={18} className="text-slate-400" />}
-      {done ? t`已举报` : t({ message: "举报", context: "内容旁那颗小键：举报这一条（动作，不是管理后台的举报列表）" })}
+      <span className={cell ? "text-[11px] text-slate-300" : undefined}>
+        {done ? t`已举报` : t({ message: "举报", context: "内容旁那颗小键：举报这一条（动作，不是管理后台的举报列表）" })}
+      </span>
     </button>
   );
 
@@ -157,7 +180,7 @@ export default function ReportButton({
                 </button>
               </div>
             ) : done ? (
-              <p className="pb-6 text-sm text-emerald-300"><Trans>已收到，管理员会尽快处理。</Trans></p>
+              <p className="pb-6 text-sm text-ok-300"><Trans>已收到，管理员会尽快处理。</Trans></p>
             ) : (
               <>
                 <div className="flex flex-wrap gap-2">
@@ -166,7 +189,7 @@ export default function ReportButton({
                       key={r.id}
                       onClick={() => setReason(r.id)}
                       className={`rounded-full border px-3.5 py-1.5 text-xs ${
-                        reason === r.id ? "border-brand bg-brand/15 text-brand" : "border-slate-700 bg-black/20 text-slate-300"
+                        reason === r.id ? "border-brand bg-brand font-semibold text-ink" : "border-slate-700 bg-black/20 text-slate-300"
                       }`}
                     >
                       {t(r.label)}
@@ -178,7 +201,7 @@ export default function ReportButton({
                     有 48 小时法定时限（TAKE IT DOWN Act §3）。少这一句，最需要那条通道的人
                     就只会在这里提交一条普通举报，然后以为已经走完了流程。 */}
                 {reason === "ncii" && (
-                  <p className="mt-2.5 rounded-xl border border-amber-700/60 bg-amber-950/40 px-3 py-2 text-[11px] leading-relaxed text-amber-100">
+                  <p className="mt-2.5 rounded-xl border border-warn-700/60 bg-warn-950/40 px-3 py-2 text-[11px] leading-relaxed text-warn-100">
                     <Trans>如果影像里的人是你自己：另有一条更直接的通道 —— {SITE_BASE}/takedown，不用登录，我们会在 48 小时内处理并查找站内的相同副本。</Trans>
                   </p>
                 )}
@@ -191,7 +214,7 @@ export default function ReportButton({
                   className="mt-3 w-full resize-none rounded-xl border border-slate-700 bg-black/30 px-3 py-2 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
                 />
                 {/* 失败就地说清楚（"你已经举报过了"也在这儿），并且不关窗 */}
-                {err && <p className="mt-1.5 text-[11px] leading-relaxed text-rose-300">{err}</p>}
+                {err && <p className="mt-1.5 text-[11px] leading-relaxed text-danger-300">{err}</p>}
                 <button
                   onClick={() => void submit()}
                   disabled={!reason || busy}

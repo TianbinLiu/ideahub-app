@@ -18,6 +18,7 @@
 // ★ 离线模式不出补全面板：那时这台机器上只有你一个人，面板永远是空的，
 //   摆一个永远查不到人的搜索框比不摆更糟（CLAUDE.md「界面上摆一个永远点不动的选项」）。
 import { useLingui } from "@lingui/react/macro";
+import Warn from "./Warn";
 import { useCallback, useEffect, useRef, useState } from "react";
 import UserRow from "./UserRow";
 import { searchUsers, type ApiUserLite } from "../api/users";
@@ -149,7 +150,7 @@ export default function MentionInput({
           setHi(0);
           // 老服务端 / SPA 回退：说清楚是"这台服务器没有这个能力"，
           // 不要伪装成"查无此人"——后者会让用户以为对方注销了
-          setNote(r.supported ? "" : t`这台服务器还不支持搜人，@ 可能收不到`);
+          setNote(r.supported ? "" : t`搜人功能还没上线，@ 可能收不到`);
         })
         .catch((e) => {
           if (seq.current !== mine) return;
@@ -237,7 +238,7 @@ export default function MentionInput({
         // 只是 absolute（不是 fixed）——祖先里有 backdrop-blur/transform 时 fixed 会
         // 认错包含块（CLAUDE.md 里那条坑），而这里本来也只需要贴着输入框。
         <div className="absolute bottom-full left-0 right-0 z-10 mb-2 overflow-hidden rounded-xl border border-slate-700/70 bg-panel shadow-[0_8px_30px_rgba(0,0,0,.5)]">
-          {note && <p className="px-3 py-2 text-[11px] leading-relaxed text-amber-300/90">{note}</p>}
+          {note && <Warn className="px-3 py-2">{note}</Warn>}
           {users.length > 0 && (
             <ul className="max-h-52 overflow-y-auto">
               {users.map((u, i) => (

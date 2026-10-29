@@ -11,6 +11,7 @@
  *   换一句话、重生成、清空重来这三处）。
  */
 import { useEffect, useMemo, useRef, useState } from "react";
+import Warn from "../components/Warn";
 import type { ReactNode } from "react";
 import { useNavigate } from "react-router";
 import type { MessageDescriptor } from "@lingui/core";
@@ -20,6 +21,7 @@ import ConfirmDialog from "../components/ConfirmDialog";
 import EmptyState from "../components/EmptyState";
 import Icon from "../components/Icon";
 import PageHeader from "../components/PageHeader";
+import StepDots from "../components/StepDots";
 import Spinner from "../components/Spinner";
 import TagInput from "../components/TagInput";
 import { useBackOr } from "../hooks/useBackOr";
@@ -83,9 +85,9 @@ const CARD_LABEL = "mb-1.5 text-xs font-semibold text-slate-300";
 
 /** 三色横幅：底色只有 /10 一档，边线一律同色 /40（CLAUDE.md「提示条」那条） */
 const BANNER_CLS: Record<WizardBanner["kind"], string> = {
-  ok: "border-emerald-500/40 bg-emerald-500/10 text-emerald-200",
-  warn: "border-amber-500/40 bg-amber-500/10 text-amber-300",
-  bad: "border-rose-500/40 bg-rose-500/10 text-rose-300",
+  ok: "border-ok-500/40 bg-ok-500/10 text-ok-200",
+  warn: "border-warn-500/40 bg-warn-500/10 text-warn-300",
+  bad: "border-danger-500/40 bg-danger-500/10 text-danger-300",
 };
 
 const DRAFT_FIELD_LABEL: Record<PersonaDraftField, MessageDescriptor> = {
@@ -110,7 +112,7 @@ function Banner({ banner }: { banner: WizardBanner | null }) {
 /** 控件下面那一行报错小字（就地整句，铁律八） */
 function ErrLine({ text }: { text: string }) {
   if (!text) return null;
-  return <p className="mt-1.5 text-xs leading-relaxed text-rose-300">{text}</p>;
+  return <p className="mt-1.5 text-xs leading-relaxed text-danger-300">{text}</p>;
 }
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
@@ -146,7 +148,7 @@ function LimitedInput({
         <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className={INPUT} />
       )}
       <div className="mt-1 flex items-center justify-between gap-2">
-        <span className={`text-[11px] ${over ? "text-rose-300" : "text-slate-500"}`}>{over || `${value.length} / ${max}`}</span>
+        <span className={`text-[11px] ${over ? "text-danger-300" : "text-slate-500"}`}>{over || `${value.length} / ${max}`}</span>
       </div>
     </div>
   );
@@ -281,7 +283,7 @@ function StepMaterials() {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs leading-relaxed text-emerald-200">
+      <div className="rounded-lg border border-ok-500/40 bg-ok-500/10 px-3 py-2 text-xs leading-relaxed text-ok-200">
         <Trans>素材只用来生成这一次的人格，不入库、不公开，也不会出现在发布出去的人格卡里。</Trans>
       </div>
 
@@ -358,7 +360,7 @@ function StepMaterials() {
             ))}
           </div>
           {over > 0 && (
-            <div className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs leading-relaxed text-amber-300">
+            <div className="mt-2 rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-xs leading-relaxed text-warn-300">
               <Trans>超出上限 {over} 字。送去分析时会从最前面截掉这一段，保留最近的 {MATERIAL_TOTAL_MAX} 字（越靠后越像现在的 TA）。</Trans>
             </div>
           )}
@@ -975,9 +977,9 @@ function ExampleList({
       ))}
       {over && <ErrLine text={t`有一句超过 ${PERSONA_LIMITS.example} 字了，发布会被服务端拒掉。`} />}
       {blanks.length > 0 && (
-        <p className="text-xs leading-relaxed text-amber-300">
+        <Warn>
           <Trans>第 {blanks.join(" / ")} 组还没填完 —— 试聊和发布时这几组会被丢掉（一问一答缺一边的示例喂不了模型）。</Trans>
-        </p>
+        </Warn>
       )}
       <button
         type="button"
@@ -1009,7 +1011,7 @@ function StepPublish() {
   if (published) {
     return (
       <div className="space-y-3">
-        <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs leading-relaxed text-emerald-200">
+        <div className="rounded-lg border border-ok-500/40 bg-ok-500/10 px-3 py-2 text-xs leading-relaxed text-ok-200">
           {shared ? (
             <Trans>「{published.name}」做好了。已经公开到人格市场。</Trans>
           ) : (
@@ -1153,7 +1155,7 @@ export default function SupportPersonaNewPage() {
         inset
         onBack={back}
         title={t`制作人格`}
-        subtitle={t`第 ${idx + 1} / ${PERSONA_STEPS.length} 步 · ${stepLabel}`}
+        subtitle={stepLabel}
         right={
           dirty && !published ? (
             <button type="button" disabled={busy} onClick={() => setAskReset(true)} className={`${MINI} shrink-0`}>
@@ -1163,24 +1165,19 @@ export default function SupportPersonaNewPage() {
         }
       />
 
-      {/* 步条：横向滚动一律 no-scrollbar（安卓 WebView 上不加会闪一条滚动条） */}
-      <div className="no-scrollbar -mx-4 mb-3 flex gap-2 overflow-x-auto px-4">
-        {PERSONA_STEPS.map((s, i) => {
-          const on = s.key === step;
-          const ok = reachable(s.key);
-          return (
-            <button
-              key={s.key}
-              type="button"
-              disabled={!ok}
-              onClick={() => go(s.key)}
-              className={`${CHIP} shrink-0 disabled:opacity-40 ${on ? CHIP_ON : CHIP_OFF}`}
-            >
-              {i + 1}. {t(s.label)}
-            </button>
-          );
-        })}
-      </div>
+      {/* ★ 进度只画这一份（components/StepDots，CLAUDE.md 铁律六）：2026-10-22 替掉原来那行可点的编号芯片。
+          能点到哪一步照旧只问 reachable（后三步要先有草稿，往前跳也行，当前这一步点一下也回顶部 —— 与原芯片一样），所以传 canPick 盖掉「只能点做完的」那条默认。
+          七颗挤在 360px 宽上每格只有五十来像素，「基本设定」四个字在这里缩成「设定」；全名仍在副标题上。
+          「问卷」的英文是 Questionnaire（十三个字母，比一格还宽、挤到旁边那颗上），圆点下面这一份另给 context、英文用 Quiz */}
+      <StepDots
+        className="mb-4"
+        current={idx}
+        steps={PERSONA_STEPS.map((s) => ({
+          label: s.key === "basics" ? t`设定` : s.key === "quiz" ? t({ message: "问卷", context: "step dot" }) : t(s.label),
+        }))}
+        canPick={(i) => reachable(PERSONA_STEPS[i].key)}
+        onPick={(i) => go(PERSONA_STEPS[i].key)}
+      />
       {!hasDraft && (step === "basics" || step === "materials" || step === "quiz") && (
         <p className="mb-3 text-[11px] leading-relaxed text-slate-500"><Trans>试聊、微调、发布三步要先生成出草稿才能进。</Trans></p>
       )}

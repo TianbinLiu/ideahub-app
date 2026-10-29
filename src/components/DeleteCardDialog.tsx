@@ -60,11 +60,11 @@ export default function DeleteCardDialog({
           <p>
             {card.genPrompt ? (
               <Trans>
-                <span className="text-rose-300">删了就找不回来</span>：卡面、形象参考图、铸造提示词、声音样本与肖像授权都会一起清掉。
+                <span className="text-danger-300">删了就找不回来</span>：卡面、形象参考图、铸造提示词、声音样本与肖像授权都会一起清掉。
               </Trans>
             ) : (
               <Trans>
-                <span className="text-rose-300">删了就找不回来</span>：卡面、形象参考图、声音样本与肖像授权都会一起清掉。
+                <span className="text-danger-300">删了就找不回来</span>：卡面、形象参考图、声音样本与肖像授权都会一起清掉。
               </Trans>
             )}
           </p>

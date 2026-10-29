@@ -70,15 +70,15 @@ function StudioLoader() {
   if (phase === "gone") return null;
   return (
     <div
-      className={`absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#05070f] transition-opacity duration-500 ${
+      className={`absolute inset-0 z-50 flex flex-col items-center justify-center bg-ink transition-opacity duration-500 ${
         phase === "fading" ? "pointer-events-none opacity-0" : "opacity-100"
       }`}
     >
       {/* 法阵旋转环 */}
       <div className="relative mb-6 h-20 w-20">
         <div className="absolute inset-0 animate-spin rounded-full border-2 border-transparent border-t-cyan-300/80 border-r-cyan-300/30" style={{ animationDuration: "1.6s" }} />
-        <div className="absolute inset-2 animate-spin rounded-full border border-transparent border-b-amber-300/70" style={{ animationDuration: "2.4s", animationDirection: "reverse" }} />
-        <div className="absolute inset-0 flex items-center justify-center text-2xl">🎴</div>
+        <div className="absolute inset-2 animate-spin rounded-full border border-transparent border-b-warn-300/70" style={{ animationDuration: "2.4s", animationDirection: "reverse" }} />
+        <div className="absolute inset-0 flex items-center justify-center text-brand"><Icon name="workshop" size={28} /></div>
       </div>
       <div className="mb-3 text-sm font-semibold tracking-widest text-slate-200"><Trans>正在点亮魔法书房…</Trans></div>
       <div className="h-1 w-40 overflow-hidden rounded-full bg-slate-700/60">
@@ -351,9 +351,9 @@ export default function StudioPage() {
             aria-disabled={!hasWork}
             title={hasWork ? t`工作流画布：同一条流水线的另一面` : t`桌面还空着——先点虚线卡位铸一段`}
             aria-label={t`工作流画布`}
-            className={`flex h-9 w-9 items-center justify-center rounded-full bg-panel/85 text-base backdrop-blur ${hasWork ? "" : "opacity-40"}`}
+            className={`flex h-9 w-9 items-center justify-center rounded-full bg-panel/85 text-slate-100 backdrop-blur ${hasWork ? "" : "opacity-40"}`}
           >
-            🧩
+            <Icon name="branch" size={18} />
           </button>
           {/* ★ 摆在浮动顶栏右侧这一组里，而不是画面角落硬定位：这一屏是 3D 画布，
               任何 absolute 的小控件都可能压住法阵/卡位（都是量出来的位置） */}
@@ -384,9 +384,9 @@ export default function StudioPage() {
               aria-label={t`存草稿`}
               className={`flex h-9 w-9 items-center justify-center rounded-full bg-panel/85 text-sm backdrop-blur disabled:opacity-40 ${hasWork ? "" : "opacity-40"} ${
                 flowActions.saveState === "failed"
-                  ? "text-rose-300"
+                  ? "text-danger-300"
                   : flowActions.saveState === "saved"
-                    ? "text-emerald-300"
+                    ? "text-ok-300"
                     : "text-slate-200"
               }`}
             >
@@ -396,7 +396,7 @@ export default function StudioPage() {
                   ? "✓"
                   : flowActions.saveState === "failed"
                     ? "!"
-                    : "💾"}
+                    : <Icon name="save" size={16} />}
             </button>
           }
           {/* 只在演示模式亮牌。「● 真实 AI」是常态，天天挂在那儿只是噪音；
@@ -404,7 +404,7 @@ export default function StudioPage() {
               这一条必须留着。标题栏的「🎴 卡片工坊」也去掉了：画面本身就是工坊 */}
           {!AI_REAL && (
             <div
-              className="rounded-full bg-panel/80 px-3 py-1.5 text-xs text-amber-300 backdrop-blur"
+              className="rounded-full bg-panel/80 px-3 py-1.5 text-xs text-warn-300 backdrop-blur"
               title={t`未配置 ARK_API_KEY：产物为本地模拟，仅演示流程`}
             >
               <Trans>○ 演示模式</Trans>

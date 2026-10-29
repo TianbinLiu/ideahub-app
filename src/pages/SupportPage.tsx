@@ -7,8 +7,9 @@
  *
  * 一句话的旅程：
  *   POST /api/support/chat（SSE）每来一条 sentence → 立刻发起该句的 /api/tts（不等上一句播完）
- *   → 按顺序排进演出队列：切表情 + 触发动作 + 舞台字幕 + 播放（口型跟包络）
+ *   → 按顺序排进演出队列：舞台字幕 + 播放（口型跟包络），**开始出声那一刻**才切表情 + 触发动作，表情保持到这一句念完（见 perform 的 cueAt）
  *   → 没音频（语音关 / TTS 失败 / 未配置）就按字数合成口型撑时长。
+ *   等第一句开口的那一两秒里，过了 1 秒还没开口就做一次 think（见 THINK_CUE_DELAY_MS）。
  *   服务端判定该转人工时发 `handoff` 事件 → 输入区上方出现「转人工」卡；用户也随时可以自己点「转人工」。
  *   回答完整后字幕下方出 👍👎，连问题与回答原文交给服务端（差评是改知识库的线索）；👎 顺手给转人工入口。
  *   输入条左侧「按住说话」→ /api/asr 识别 → 识别出的文字直接当作一句提问发出（语音助手的惯例）。
@@ -28,23 +29,31 @@
  * ★ 创作中心（2026-09-07，P3）：那一列小键多第四颗「✨ 创作」→ /support/create（三扇门：模型 / 音频 / 人格）。
  *   其中「人物音频」那扇门跳回**本页**并带 `?sheet=voice` —— 混音器只有 VoiceSheet 这一处实现，
  *   为它另开一页就是第二份。本页读到这个 query 就把面板掀开，然后**当场把 query 抹掉**（见下面那个 effect 的 ★）。
+ * ★ 求助卡（2026-10-25；契约 docs/api-contract.md「客服」★ 自伤危机协议）：请求里声明 `caps: ["safety","notice"]`。
+ *   没声明时服务端把危机求助卡退化成一句普通 sentence —— 被当台词合成语音，热线号码念出来、还按字扣钱。
+ *   声明了之后收到 `safety` 事件：stopAll()、不调 /api/tts、不进字幕、不算她说的话，在字幕框上方画一张 SafetyCard（可关、不自动消失；下一轮开始后缩成一行、挪到最上面，见底部浮层里画它那段 ★★）。
+ *   卡的纯文本仍作为**一条 assistant 消息**留在 messages 里（api/support.safetyPlainText 的 ★★：否则下一轮是连着两条 user）。
+ *   `notice`（AI 身份告知）在字幕框上方与记录里各一行小字，不念、不扣钱；客服路由今天不发它。老服务端两样都不发 = 一切照旧。
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import Warn from "../components/Warn";
 import { useNavigate, useSearchParams } from "react-router";
 import { useBackOr } from "../hooks/useBackOr";
 import { i18n } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import Icon from "../components/Icon";
+import Icon, { type IconName } from "../components/Icon";
 import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
 import { BackButton, CloseButton } from "../components/IconTapButton";
 import SupportStage from "../components/support/SupportStage";
 import HoldToTalk from "../components/support/HoldToTalk";
 import VoiceSheet from "../components/support/VoiceSheet";
+import SafetyCard from "../components/support/SafetyCard";
 import { companionBus } from "../companion/bus";
 import { SpeechPlayer } from "../companion/speech";
-import { estimateSpeechMs, normalizeAction, normalizeFace, type CompanionSentence, pickTouchReaction } from "../companion/protocol";
+import { estimateSpeechMs, normalizeAction, normalizeFace, type CompanionSentence } from "../companion/protocol";
+import { pickStageTouch, TouchVoiceCache } from "../components/support/touchLines";
 import { setVoiceEnabled, voiceEnabled } from "../studio/speech";
 import { activeLang } from "../i18n/switch";
 import { ApiError } from "../api/client";
@@ -56,24 +65,75 @@ import {
   getSupportConfig,
   listMySupportTickets,
   rateSupportAnswer,
+  safetyPlainText,
   streamSupportChat,
+  SUPPORT_CAPS,
   synthesizeSpeech,
   ticketStatusLabel,
   ttsBodyFor,
   type SupportCategory,
   type SupportConfig,
+  type SupportSafetyCard,
   type SupportTicket,
 } from "../api/support";
 import { relativeTime } from "../types";
 
 type Role = "user" | "assistant";
 type Rating = "up" | "down";
-type ChatMessage = { id: string; role: Role; text: string; streaming?: boolean; system?: boolean; rating?: Rating };
+/**
+ * ★ text 是整段原文（记录抽屉、转人工的 transcript、👍👎 交出去的都是它），sentences 是同一段按到达顺序切开的句子 ——
+ *   只给字幕框「念到哪一句亮哪一句」用（2026-10-25）。两份在 onSentence 的同一个 updater 里一起写，拼法只有 appendSentence 一处。
+ * ★ streamDone = 文字流已经收完（服务端不会再来新句子），与 streaming 是两回事：streaming 要等演出队列**念完**才置 false，
+ *   拿它判「总共几句」的话，念的全程分母都是「…」，念完高亮也一起没了。系统消息与老消息两个字段都没有 = 照旧整段显示。
+ * ★ safety = 这一条是求助卡（见文件头 ★ 求助卡）：text = 卡之前她已经说出来的句子 + 卡的纯文本（回传给服务端、交给转人工），
+ *   sentences 只有卡之前那几句（字幕框只显示这几句，卡的字不进字幕）。
+ * ★ notice = AI 身份告知那一行：同时标 system（不进回传的历史、不算条数），lastAssistant 也跳过它（不然字幕框会显示成她的回答）。
+ */
+type ChatMessage = {
+  id: string;
+  role: Role;
+  text: string;
+  streaming?: boolean;
+  system?: boolean;
+  rating?: Rating;
+  sentences?: string[];
+  streamDone?: boolean;
+  safety?: SupportSafetyCard;
+  notice?: boolean;
+};
 type Phase = "idle" | "thinking" | "speaking";
+
+/** 一句接到整段后面：句间一个空格（字幕框逐句渲染时的间隔与这里一致） */
+const appendSentence = (text: string, sentence: string) => (text ? `${text} ${sentence}` : sentence);
+
+/** 求助卡那一条里，卡之前她已经说出来的那几句（输入侧命中时一句都没有 = 空串） */
+const spokenBeforeCard = (m: ChatMessage) => (m.sentences ?? []).reduce(appendSentence, "");
 
 const MAX_HISTORY = 12;
 const MAX_INPUT_CHARS = 1000;
 const TRANSCRIPT_MAX = 30;
+/** 转人工 transcript 每条的上限（服务端 support.routes ticketBodySchema 的 max(2000)） */
+const TICKET_MSG_MAX = 2000;
+/**
+ * /api/support/chat 的 messages[] 每条的上限（服务端 support.routes 的 MAX_MESSAGE_CHARS = 1000，先 trim 再量）。
+ * ★★ 超了是**整发 400**、不是截断（2026-10-26 最终审核）：原来回传的历史照转人工那份切到 2000，一条长回答
+ *   （或输出侧命中时「已经说出来的句子 + 卡的纯文本」，中文卡约 120 字、英文 OTHER 地区约 280 字）超过 1000，
+ *   之后每一发都被拒，直到它滑出 12 条的窗口 —— 正好是危机里的人想接着说话的时候。所以两份分开切。
+ */
+const CHAT_MSG_MAX = 1000;
+
+/** 舞台上求助卡正文那一块的高度上限（量法见底部浮层里画它那段 ★★） */
+const SAFETY_BODY_MAX = "max-h-[22dvh]";
+
+/** 会回传 / 交出去的那几条：不是系统行、有字 */
+const chatRows = (list: ChatMessage[]) => list.filter((m) => !m.system && m.text.trim());
+
+/**
+ * 一条消息回传给 /api/support/chat 时的正文（≤ CHAT_MSG_MAX）。
+ * ★ 求助卡那一条留**结尾**：卡的纯文本拼在最后（onSafety），超长时该留下来的是它 —— 下一轮模型要知道上一轮给过求助卡。
+ *   别的留开头（与转人工那份同一个方向）。
+ */
+const chatContent = (m: ChatMessage) => (m.safety ? m.text.slice(-CHAT_MSG_MAX) : m.text.slice(0, CHAT_MSG_MAX));
 /** 顶栏高度：模型的头顶从它下面开始 */
 const TOP_BAR_PX = 58; // = safe-top 的 10px 呼吸 + 48px 一行（与 PageHeader 同高）
 /** 看板娘身高占整页高度的比例 */
@@ -110,12 +170,22 @@ function errorText(e: unknown, fallback: string): string {
 const GLASS = "border border-white/10 bg-slate-950/55 backdrop-blur-md";
 /** 设置这么久还没回来就先按官方形象起舞台（之后设置到了再换）：别让一个卡住的请求把人也拖没了 */
 const STAGE_WAIT_MS = 1500;
+/**
+ * 发出问题之后多久还没开口，就让她做一次 think（2026-10-25）。
+ * ★ 1 秒 = Nielsen 响应时间三档里「思路不被打断」的那一档上限：过了这一秒人就会意识到自己在等，得给一点「她在想」的表示；
+ *   一秒之内就开口的回答不垫 —— think 刚起手就被第一句的动作盖掉，看着是一抽。
+ *   对照仓里量过的数（docs/support-ai-evaluation.md，2026-09-04 本机 + 豆包 mini）：首句到达 P50 1.6 s / P95 2.9 s，
+ *   开着声音再等一次 TTS（约 1 s）才开口 —— 大多数回答都会垫上这一下。线上换了 DeepSeek 还没复测，复测后再看要不要挪。
+ * ★ think 本身 2.6 秒（public/live2d/mascot/think.motion3.json 的 Meta.Duration），走垫场动作（companionBus.cue）：
+ *   不占 2.3 秒的语义动作压制，第一句的动作来了直接盖过去；第一句没有动作就让它自己做完。只做一次，不循环。
+ */
+const THINK_CUE_DELAY_MS = 1000;
 
 /** 顶栏右下那一列小键（形象 / 人格 / 声音）：图标 + 两个字，和顶栏其它键同一套玻璃材质 */
-function RailButton({ emoji, label, onClick }: { emoji: string; label: string; onClick: () => void }) {
+function RailButton({ icon, label, onClick }: { icon: IconName; label: string; onClick: () => void }) {
   return (
     <button onClick={onClick} aria-label={label} className={`${GLASS} flex h-12 w-12 flex-col items-center justify-center rounded-2xl text-slate-100 active:bg-slate-800/70`}>
-      <span className="text-base leading-none">{emoji}</span>
+      <Icon name={icon} size={18} />
       <span className="mt-1 text-[10px] leading-none">{label}</span>
     </button>
   );
@@ -134,7 +204,15 @@ export default function SupportPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
-  const [subtitle, setSubtitle] = useState("");
+  /**
+   * 正在念的是这一轮回答的第几句（从 0 数；-1 = 没在念某一句：思考中、触摸反应、停了）。
+   * ★ 序号是 send() 里每轮从 0 起的客户端计数，不是服务端的 sentence.index：触摸反应写死 index 0、
+   *   求助卡也占一个 index（App 没声明 caps 时它退化成一条普通句子），拿它对 sentences 的下标迟早对不上。
+   * ★ 「逐句画不画」在渲染时问 phase === "speaking"（见 liveSentences），亮哪一句再看 speakingAt，所以队列念空不必另外清它。
+   */
+  const [speakingAt, setSpeakingAt] = useState(-1);
+  /** 整段念完那一拍交给读屏的全文（sr-only 的 aria-live 区）；逐句播报会把读屏一句句打断，所以只在念完时给一次 */
+  const [announce, setAnnounce] = useState("");
   /** 触摸反应正在说 / 刚说完的那句（不进 messages，所以单独记一份给字幕气泡） */
   const [reaction, setReaction] = useState("");
   const [voiceOn, setVoiceOn] = useState(voiceEnabled);
@@ -150,6 +228,23 @@ export default function SupportPage() {
   const [chatErr, setChatErr] = useState("");
   const [micErr, setMicErr] = useState("");
   const [handoffHint, setHandoffHint] = useState<{ category: SupportCategory } | null>(null);
+  /**
+   * 舞台上那张求助卡（最近一次 safety 事件）。★ 与 messages 分开记：人点 ✕ 关掉的只是这一张，记录里那一条还在；
+   * 新开一轮 send 也不清它（人可能正需要盯着号码，接着问一句就把卡收走是替他做了决定）—— 只缩成一行（safetyPast），号码照样一点就拨。
+   */
+  const [safetyCard, setSafetyCard] = useState<SupportSafetyCard | null>(null);
+  /**
+   * 舞台上那张卡来自上一轮（或更早）：缩成一行、摆到最上面（画它那段 ★）。send() 开新一轮时置真，新的 safety 事件置假。
+   * ★ 显式记，不拿「lastAssistant.safety 是不是这张」现推：转人工建单会往 messages 里追加一条 system 的回执，那样一推，
+   *   人还没说下一句卡就缩了。
+   */
+  const [safetyPast, setSafetyPast] = useState(false);
+  /** 缩成一行的那张被点了「展开」；下一轮开始时再缩回去 */
+  const [safetyOpen, setSafetyOpen] = useState(false);
+  /** 输入框：求助卡来的那一拍收起软键盘（onSafety 的 ★） */
+  const inputRef = useRef<HTMLInputElement>(null);
+  /** AI 身份告知（notice 事件）那一行；与官网陪聊同一种做法：来了就一直挂在字幕框上方，服务端按自己的节奏再发 */
+  const [aiNotice, setAiNotice] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [note, setNote] = useState("");
@@ -173,7 +268,13 @@ export default function SupportPage() {
   const runRef = useRef(0);
   const queueRef = useRef<Promise<void>>(Promise.resolve());
   const abortRef = useRef<AbortController | null>(null);
+  /** 等第一句时那一下 think 的计时器（见 THINK_CUE_DELAY_MS）；0 = 没排着 */
+  const thinkTimerRef = useRef(0);
   const captionRef = useRef<HTMLDivElement>(null);
+  /** 字幕框里正在念的那一句（只在逐句渲染时挂上）：滚动 effect 靠它把框停在这一句上 */
+  const speakingSpanRef = useRef<HTMLSpanElement>(null);
+  /** 滚动 effect 上一次摆框时的 captionAnchor：没变就不再摆（见那个 effect 的 ★） */
+  const captionAnchorRef = useRef<string | null>(null);
 
   const name = config?.name || t`小梦`;
   const enabled = config ? config.enabled : true;
@@ -248,6 +349,7 @@ export default function SupportPage() {
     () => () => {
       runRef.current += 1;
       abortRef.current?.abort();
+      window.clearTimeout(thinkTimerRef.current);
       playerRef.current?.stop();
       companionBus.stopSpeaking();
     },
@@ -255,16 +357,54 @@ export default function SupportPage() {
   );
 
   const lastUser = useMemo(() => [...messages].reverse().find((m) => m.role === "user") || null, [messages]);
-  const lastAssistant = useMemo(() => [...messages].reverse().find((m) => m.role === "assistant") || null, [messages]);
+  // 告知那一行不是她的回答（见 ChatMessage 的 ★ notice）
+  const lastAssistant = useMemo(() => [...messages].reverse().find((m) => m.role === "assistant" && !m.notice) || null, [messages]);
 
-  // 字幕随流式文字增长时保持滚到底
-  useEffect(() => {
+  // 字幕框逐句渲染的那一份：只在念这段回答的时候才有。触摸反应、系统消息、没有逐句结构的消息、空闲时一律 null ——
+  // 照旧整段同一种颜色（念完之后别留着念过 / 没念的两档灰，整段看着发灰）。
+  // ★ 不要求 speakingAt >= 0（2026-10-25 审核抓到）：声音默认开着，perform 先置 speaking、等到第一句的声音（合成要一两秒）
+  //   才置 speakingAt —— 那一两秒里要是退回整段，框先是一色白、按「不在念」滚到底，声音一到又变三档、跳回第 1 句；
+  //   长回答每一次都是先看见结尾再跳回开头。所以那段时间照样逐句画，一句都不亮（全按「还没念到」），框停在顶上。
+  const liveSentences =
+    phase === "speaking" && !reaction && lastAssistant && !lastAssistant.system && !lastAssistant.safety && lastAssistant.sentences?.length
+      ? lastAssistant.sentences
+      : null;
+  // 逐句时框该停在哪一句：换了一句、换了一段回答、刚进逐句时才变；整段显示时为 null
+  const captionAnchor = liveSentences && lastAssistant ? `${lastAssistant.id}:${speakingAt}` : null;
+
+  // 字幕框的滚动：正在逐句念时停在念到的那一句上（后面已经到了的句子留在下面，想先看可以往下翻）；不在念时照旧滚到底
+  // ★ 不用 scrollIntoView：它会连祖先一起滚，包括根上那个 h-dvh overflow-hidden 的容器（程序照样滚得动它）——
+  //   弹键盘、视口缩小时可能把舞台整个挪走，而且自己回不来。只改字幕框自己的 scrollTop，差值拿两个 rect 现量。
+  //   只在那一句越出框时才动（-4 = 上沿留一点呼吸），没越出就不动，免得每换一句框都跳一下。
+  // ★ 逐句时只在 captionAnchor 变了的那一拍摆一次（2026-10-25 审核抓到）：新句子到达也会让这个 effect 重跑，
+  //   原来每到一句都重新对一次 —— 人往下翻着先看、往上翻回去重读，下一句一到就被拽回当前句，而句子到得比念得快得多，
+  //   等于根本翻不动。整段显示（anchor 为 null）照旧每次滚到底。
+  //   还没念到第一句（anchor 以 :-1 结尾，哪一句都没挂 ref）时停在顶上：第一句就在最上面。
+  // useLayoutEffect：在画出来之前摆好。useEffect 排在绘制之后，换句那一拍会先画出一帧「新句子亮了、框还停在原处」再跳
+  //   （浏览器里每 50ms 采样就采到过一次）。
+  useLayoutEffect(() => {
     const el = captionRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [lastAssistant?.text]);
+    if (!el) return;
+    const prev = captionAnchorRef.current;
+    captionAnchorRef.current = captionAnchor;
+    if (captionAnchor === null) {
+      el.scrollTop = el.scrollHeight;
+      return;
+    }
+    if (captionAnchor === prev) return;
+    const cur = speakingSpanRef.current;
+    if (!cur) {
+      el.scrollTop = 0;
+      return;
+    }
+    const r = cur.getBoundingClientRect();
+    const c = el.getBoundingClientRect();
+    if (r.top < c.top || r.bottom > c.bottom) el.scrollTop += r.top - c.top - 4;
+  }, [captionAnchor, lastAssistant?.text, phase, reaction]);
 
+  /** 转人工交出去的对话记录（POST /tickets 的 transcript：每条 ≤2000 字，服务端 ticketBodySchema） */
   const transcript = useMemo(
-    () => messages.filter((m) => !m.system && m.text.trim()).slice(-TRANSCRIPT_MAX).map((m) => ({ role: m.role, content: m.text.slice(0, 2000) })),
+    () => chatRows(messages).slice(-TRANSCRIPT_MAX).map((m) => ({ role: m.role, content: m.text.slice(0, TICKET_MSG_MAX) })),
     [messages],
   );
 
@@ -286,13 +426,23 @@ export default function SupportPage() {
       .catch(() => undefined);
   }
 
+  function cancelThinkCue() {
+    window.clearTimeout(thinkTimerRef.current);
+    thinkTimerRef.current = 0;
+  }
+
   function stopAll() {
     runRef.current += 1;
     abortRef.current?.abort();
     abortRef.current = null;
     playerRef.current?.stop();
     companionBus.stopSpeaking();
+    // 演出跟着声音走的那三样一起停（perform 的 cueAt）：没放的表情放掉、没轮到的待播动作作废、还没垫的 think 不垫了
+    companionBus.releaseFace();
+    companionBus.clearPendingAction();
+    cancelThinkCue();
     setPhase("idle");
+    setSpeakingAt(-1);
     setMessages((prev) => prev.map((m) => (m.streaming ? { ...m, streaming: false } : m)));
   }
 
@@ -306,41 +456,97 @@ export default function SupportPage() {
     return queueRef.current;
   }
 
-  async function perform(run: number, sentence: CompanionSentence, audio: Promise<Blob | null>, signal: AbortSignal) {
+  /**
+   * at = 这一句在本轮回答里的序号（send() 的客户端计数）；不属于某段回答的（触摸反应）传 -1。
+   * cueAt = 表情 / 动作什么时候上（2026-10-25）：
+   *   "voice"（回答句）：这一句**开始出声**那一刻才上 —— 有声音时是 SpeechPlayer 第一次回调口型包络（play() 起播后约 20ms 那一拍），
+   *     没声音（语音关 / TTS 失败 / 被 🔇）时是合成口型开始那一刻。原来一到就做，第一句的动作比声音早一次 TTS 往返（约 1 秒），
+   *     常常动作做完了才开口。表情保持到这一句念完（holdFace / releaseFace），不再按固定的 3.2~4.6 秒到点收回。
+   *     ★ 不改 companion/speech.ts（与官网同源拷贝）：「开始出声」就拿 onLevel 的第一次回调代替。TTS 音频开头有 0.18~0.46 秒静音
+   *       （CLAUDE.md 剪辑页配音那条量过），所以动作会比真正开口早这么一点 —— 手势略早于重音是人说话的常态，不去追它。
+   *       play() 失败收尾时也会回调一次 onLevel(0)：那时紧接着就落到合成口型，也是「开口」那一刻，不另判。
+   *   "arrival"（触摸反应）：一到就上，照旧。产品要的是「一碰就有反应」，而且触摸区映射的动作（Tap@Head）只认
+   *     hitTest 之后 1.5 秒内的 playAction（companionModel 的 TOUCH_MOTION_WINDOW_MS），等一次 TTS 往返会超时、悄悄退回通用动作。
+   * ★ 老师页（tutor/useTeacherSpeech）的演出恒为 normal / none，不经这条规则；它哪天带上真表情 / 动作，要改成照这里的 "voice" 走。
+   */
+  async function perform(run: number, sentence: CompanionSentence, audio: Promise<Blob | null>, signal: AbortSignal, at: number, cueAt: "voice" | "arrival") {
     if (runRef.current !== run) return;
-    setSubtitle(sentence.text);
     setPhase("speaking");
-    companionBus.face(normalizeFace(sentence.face));
-    companionBus.action(normalizeAction(sentence.action));
-    const blob = await audio;
-    if (runRef.current !== run || signal.aborted) return;
-    const mute = muteRef.current.signal;
-    // ★ 现问「现在还开着声音吗」（2026-09-18 发版复核抓到）：只看 mute 的话，🔇 那一下换了一个新的中止器，
-    //   而后面几句的声音早就合成好了（文字流比念快得多）—— 第 1 句停住，第 2 句照样大声念出来
-    if (blob && voiceOnRef.current && !mute.aborted) {
-      try {
-        // 🔇 中止的只是这一句的声音：play 收尾后落到下面的口型模拟，字幕与队列照常往下走（不会像停不掉的中止器那样卡死队列）
-        await getPlayer().play(blob, (level) => companionBus.mouth(level), { signal: eitherSignal(signal, mute) });
-        return;
-      } catch {
-        if (signal.aborted) return;
+    const face = normalizeFace(sentence.face);
+    const action = normalizeAction(sentence.action);
+    /** 这一句的表情 / 动作上过没有：只上一次（onLevel 每 20ms 回调一次） */
+    let cued = false;
+    const cue = () => {
+      if (cued || runRef.current !== run) return;
+      cued = true;
+      // 开口了：等第一句时排着的那一下 think 不用再垫（已经在做的由这一句的动作盖过去）
+      cancelThinkCue();
+      if (cueAt === "voice") companionBus.holdFace(face);
+      else companionBus.face(face);
+      companionBus.action(action);
+    };
+    if (cueAt === "arrival") cue();
+    try {
+      const blob = await audio;
+      if (runRef.current !== run || signal.aborted) return;
+      // ★ 高亮排在等到声音之后：第一句的语音还在合成的那一两秒里不先亮，亮起来就是开口那一刻。
+      //   关着声音时 audio 是现成的 null，这里没有延迟 —— 高亮照样按合成口型的时长一句句往下走
+      setSpeakingAt(at);
+      const mute = muteRef.current.signal;
+      // ★ 现问「现在还开着声音吗」（2026-09-18 发版复核抓到）：只看 mute 的话，🔇 那一下换了一个新的中止器，
+      //   而后面几句的声音早就合成好了（文字流比念快得多）—— 第 1 句停住，第 2 句照样大声念出来
+      if (blob && voiceOnRef.current && !mute.aborted) {
+        try {
+          // 🔇 中止的只是这一句的声音：play 收尾后落到下面的口型模拟，字幕与队列照常往下走（不会像停不掉的中止器那样卡死队列）
+          await getPlayer().play(
+            blob,
+            (level) => {
+              cue();
+              companionBus.mouth(level);
+            },
+            { signal: eitherSignal(signal, mute) },
+          );
+          return;
+        } catch {
+          if (signal.aborted) return;
+        }
+      }
+      const ms = estimateSpeechMs(sentence.text);
+      cue();
+      companionBus.speakSynthetic(ms);
+      await sleep(ms, signal);
+    } finally {
+      // 这一句念完（或被停）：表情再留一小拍就回 normal；还没轮到的待播动作属于这一句，作废 ——
+      // 留着的话会在下一句里补播（下一句没有动作时尤其如此），嘴上说的和动作对不上，正是这次要治的毛病
+      if (cued && cueAt === "voice") {
+        companionBus.releaseFace();
+        companionBus.clearPendingAction();
       }
     }
-    const ms = estimateSpeechMs(sentence.text);
-    companionBus.speakSynthetic(ms);
-    await sleep(ms, signal);
   }
 
   // 触摸反应：舞台报上来的命中区 → 演一句预置台词（不进 LLM、不进聊天记录，只是"碰一下有反应"）；说话/思考中不打断，1.8s 内只理一次
+  // ★ 挑哪句、念出来的声音缓存都在 components/support/touchLines（2026-10-25）：按界面语言取、不是官方形象时不念官方外貌那几句、
+  //   同一句同一套声音只合成一次（每次合成都按字扣钱）
   const phaseRef = useRef<Phase>("idle");
   phaseRef.current = phase;
   const lastTouchRef = useRef(0);
+  /**
+   * 舞台上**确定**是官方看板娘吗（下面 marketModelUrl 算出来那一拍写进来）。onHit 那个 effect 只跟着 config / voiceOn 重挂，
+   * 闭包里直接读 marketModelUrl 会是挂上那一拍的旧值，所以走 ref（同 phaseRef）。
+   * ★ 判错的方向要安全：设置还没回来时不知道最后用哪一套 → 当市场形象（少念两句官方外貌而已）；
+   *   市场形象加载失败、舞台退回官方（onFallback）时也照市场形象算 —— 多滤两句无害，反过来在别人的形象上念「薄荷色」才是问题。
+   */
+  const officialStageRef = useRef(false);
+  /** 触摸台词的声音缓存（见 TouchVoiceCache 的 ★）：跟着这一页的实例走，离开客服页就没了 */
+  const touchVoiceRef = useRef<TouchVoiceCache | null>(null);
   useEffect(
     () =>
       companionBus.onHit((areas) => {
         const nowMs = Date.now();
         if (phaseRef.current !== "idle" || nowMs - lastTouchRef.current < 1800) return;
-        const pick = pickTouchReaction(areas, "zh");
+        // ★ 语言在碰的那一刻现读（2026-10-25；原来写死 "zh"，英文界面也念中文）：与 send() 发给客服的 lang 同一个读法
+        const pick = pickStageTouch(areas, activeLang(), officialStageRef.current);
         if (!pick) return;
         lastTouchRef.current = nowMs;
         stopAll();
@@ -353,9 +559,14 @@ export default function SupportPage() {
         //   （companion/speech.ts 与官网同源拷贝，这里不单改它的 stop()）
         abortRef.current = controller;
         const sentence: CompanionSentence = { index: 0, text: pick.text, emotion: pick.emotion, face: pick.face, action: pick.action, tts: { emotion: pick.emotion, instruct: "" } };
+        // 同一句、同一套声音记过就不再合成（每合成一次都按字扣钱）；客服的回答不走这个缓存。
+        // ★ controller.signal 只管「这一次还等不等」：中止了 audio 当场落成 null、perform 立刻收尾不卡队列，
+        //   合成那一发照样跑完记下（服务端不会因为断开就不扣，见 TouchVoiceCache 的 ★★）
+        const voiceCache = (touchVoiceRef.current ??= new TouchVoiceCache());
         const audio: Promise<Blob | null> =
-          voiceOn && Boolean(config?.tts) ? synthesizeSpeech(ttsBodyFor(config, sentence), controller.signal).catch(() => null) : Promise.resolve(null);
-        void enqueue(run, () => perform(run, sentence, audio, controller.signal)).then(() => {
+          voiceOn && Boolean(config?.tts) ? voiceCache.speak(config, ttsBodyFor(config, sentence), controller.signal).catch(() => null) : Promise.resolve(null);
+        // "arrival"：触摸反应一碰就动，不等声音（见 perform 的 cueAt）
+        void enqueue(run, () => perform(run, sentence, audio, controller.signal, -1, "arrival")).then(() => {
           if (runRef.current === run) setPhase("idle");
         });
       }),
@@ -394,15 +605,33 @@ export default function SupportPage() {
 
     const userMsg: ChatMessage = { id: nextId(), role: "user", text };
     const assistantId = nextId();
-    const history = [...transcript.slice(-(MAX_HISTORY - 1)), { role: "user" as Role, content: text }];
+    // 回传的历史按 chat 的上限切（chatContent 的 ★），不复用转人工那份 transcript（那份按 2000 切）
+    const history = [...chatRows(messages).slice(-(MAX_HISTORY - 1)).map((m) => ({ role: m.role, content: chatContent(m) })), { role: "user" as Role, content: text }];
+    // 上一轮的求助卡缩成一行、挪到最上面（不清：号码还在，见 safetyCard 的 ★）
+    setSafetyPast(true);
+    setSafetyOpen(false);
     setMessages((prev) => [...prev, userMsg, { id: assistantId, role: "assistant", text: "", streaming: true }]);
     setInput("");
     setPhase("thinking");
-    setSubtitle("");
+    setSpeakingAt(-1);
+    setAnnounce("");
+    // 过了 THINK_CUE_DELAY_MS 还没开口就做一次 think。第一句开口（perform 的 cue）、stopAll、这一轮收尾都会把它撤掉；
+    // 第一句已经到了、还在等它的语音合成时照样垫 —— 那一两秒里她也是不出声的
+    cancelThinkCue();
+    thinkTimerRef.current = window.setTimeout(() => {
+      thinkTimerRef.current = 0;
+      if (runRef.current === run) companionBus.cue("think");
+    }, THINK_CUE_DELAY_MS);
 
     // 每一句合成语音之前**现问**开没开声音（voiceOnRef 的 ★）：说到一半点了 🔇，后面的句子就不再去合成
     const wantVoice = () => voiceOnRef.current && Boolean(config?.tts);
     let handoff: SupportCategory | null = null;
+    /** 本轮第几句（见 speakingAt 的 ★：不用服务端的 sentence.index） */
+    let pos = 0;
+    /** 本轮已经到了的整段原文，与 messages 里那一份同一个拼法；念完交给读屏 */
+    let said = "";
+    /** 这一轮来过求助卡：之后再到的句子一概不上屏、不念（服务端发完卡就停了，这里防同一块数据里排在卡后面的残句） */
+    let crisis = false;
     try {
       await streamSupportChat(
         // ★ lang 按当前生效的界面语言传（2026-10-19；原来写死 "zh"）：服务端靠它定回复语言那一行
@@ -410,15 +639,53 @@ export default function SupportPage() {
         //   写死 zh 时英文界面那一套（默认用英文回、英文求助卡）一样都用不上，服务端（server#120）只能按每一轮的原话兜底认英文。
         //   判据只读 i18n/switch.activeLang（「当前生效的语言」的唯一读法，
         //   i18n/locale 的 pickLang 是开机时的偏好、应用内切过语言之后就不是它了）
-        { messages: history, lang: activeLang() },
+        // ★ caps 见文件头 ★ 求助卡：不声明的话求助卡会退化成一句台词被念出来
+        { messages: history, lang: activeLang(), caps: SUPPORT_CAPS },
         {
+          onSafety: (card) => {
+            if (runRef.current !== run) return;
+            crisis = true;
+            // ★ 直接 stopAll()（契约原话）：它把演出队列作废（run 换号）、掐掉文字流与还在合成的语音、停掉正在放的那一句、回到 idle。
+            //   掐掉文字流不丢东西：输入侧命中时服务端发完卡只剩一个 done；输出侧命中时服务端也是发完卡就 abort 上游，
+            //   扣不扣钱按它那边已经说出来的字判、与我们断不断开无关。代价是这一轮 done 里的 handoff 收不到 ——
+            //   危机这一轮不摆「转人工」卡是有意的：卡上那几个号码才是此刻要看的，「转人工」在页脚一直都在。
+            //   send() 的 catch 见 controller 被掐会直接 return，所以收尾（streaming / streamDone）在这里一起写。
+            stopAll();
+            setSafetyCard(card);
+            setSafetyPast(false);
+            setSafetyOpen(false);
+            // ★ 收起软键盘（2026-10-26 最终审核）：发完那一句焦点还在输入框里，键盘开着时 h-dvh 只剩 360~400px，
+            //   底部浮层（问题气泡 + 卡 + 输出侧命中时她已经说的那几句）比可见区还高 —— 卡的标题与 ✕ 被裁掉，
+            //   问题气泡还会盖住顶栏的返回键。这一刻该看的是卡上的号码，不是接着打字；想说话点一下输入框就回来
+            inputRef.current?.blur();
+            const plain = safetyPlainText(card);
+            setMessages((prev) =>
+              prev.map((m) => (m.id === assistantId ? { ...m, text: appendSentence(m.text, plain), safety: card, streaming: false, streamDone: true } : m)),
+            );
+          },
+          onNotice: (n) => {
+            if (runRef.current !== run) return;
+            setAiNotice(n.text);
+            // 记录里排在这一轮回答的前面（服务端在第一句之前发它）；system = 不进回传的历史、不算条数
+            const line: ChatMessage = { id: nextId(), role: "assistant", text: n.text, system: true, notice: true };
+            setMessages((prev) => {
+              const i = prev.findIndex((m) => m.id === assistantId);
+              return i < 0 ? [...prev, line] : [...prev.slice(0, i), line, ...prev.slice(i)];
+            });
+          },
           onSentence: (sentence) => {
-            // 文字先上屏（市面客服都是文字即时、语音随后），语音按句排队
-            setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, text: m.text ? `${m.text} ${sentence.text}` : sentence.text } : m)));
+            if (crisis) return;
+            // 文字先上屏（市面客服都是文字即时、语音随后），语音按句排队。
+            // 字幕框照旧整段都显示，只是念到的那一句亮、后面已经到了的浅一档（见字幕框那段 ★）
+            const at = pos++;
+            said = appendSentence(said, sentence.text);
+            setMessages((prev) =>
+              prev.map((m) => (m.id === assistantId ? { ...m, text: appendSentence(m.text, sentence.text), sentences: [...(m.sentences ?? []), sentence.text] } : m)),
+            );
             const audio: Promise<Blob | null> = wantVoice()
               ? synthesizeSpeech(ttsBodyFor(config, sentence), controller.signal).catch(() => null)
               : Promise.resolve(null);
-            void enqueue(run, () => perform(run, sentence, audio, controller.signal));
+            void enqueue(run, () => perform(run, sentence, audio, controller.signal, at, "voice"));
           },
           onHandoff: (info) => {
             handoff = info.category;
@@ -429,21 +696,31 @@ export default function SupportPage() {
         },
         controller.signal,
       );
+      // 文字流收完：句数定下来了，字幕框的「2/…」从这一拍起写成「2/4」（念还没念完）
+      setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, streamDone: true } : m)));
       await enqueue(run, async () => undefined);
       if (runRef.current !== run) return;
+      // 一句都没念就收尾了（空回答）：别在回到 idle 之后再冒出一下 think
+      cancelThinkCue();
       setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, streaming: false } : m)));
       if (handoff) setHandoffHint({ category: handoff });
       setPhase("idle");
+      setAnnounce(said);
     } catch (e) {
       if (controller.signal.aborted) return;
+      // 断了：一句都没到的话这一下 think 就不该再垫了（要出来的是报错）；到过句子的照常念，开口时自己会撤掉它
+      if (pos === 0) cancelThinkCue();
       // ★ 中途断了（2026-09-18 发版复核抓到）：已经上屏的半截留着，但不再算「正在说」—— 原来 streaming 一直为真，
       //   ■ 一直在、麦克风灰着、没有 👍👎。已经排队的那几句照常念完，**念完才回到 idle**：这里不先置 idle ——
       //   先置的话 ■ 消失、麦克风亮起（会把她自己的声音录进去），下一句又把状态改回「说话中」。队列是空的话，
-      //   下面这一发在一个微任务里就结了
-      setMessages((prev) => prev.filter((m) => m.id !== assistantId || m.text).map((m) => (m.id === assistantId ? { ...m, streaming: false } : m)));
+      //   下面这一发在一个微任务里就结了。
+      //   断了也不会再来新句子，所以 streamDone 同一拍置上（句数按已经到了的算）
+      setMessages((prev) => prev.filter((m) => m.id !== assistantId || m.text).map((m) => (m.id === assistantId ? { ...m, streaming: false, streamDone: true } : m)));
       setChatErr(errorText(e, t`${name}走神了，再发一次试试。`));
       void enqueue(run, async () => undefined).then(() => {
-        if (runRef.current === run) setPhase("idle");
+        if (runRef.current !== run) return;
+        setPhase("idle");
+        if (said) setAnnounce(said);
       });
     }
   }
@@ -517,11 +794,23 @@ export default function SupportPage() {
   const persona = config?.persona ?? settings?.persona ?? null;
   const marketModel = settings?.model ?? config?.model ?? null;
   const marketModelUrl = marketModel ? resolveModelJsonUrl(marketModel.modelJsonUrl) : "";
+  // 舞台按 marketModelUrl 起模型（空 = 官方）；设置没回来之前拿不准（见 officialStageRef 的 ★）
+  officialStageRef.current = settingsSettled && !marketModelUrl;
   const quick = config?.quickQuestions ?? [];
   const statusLabel = phase === "thinking" ? t`思考中` : phase === "speaking" ? t`说话中` : enabled ? t`在线` : t`对话未开通`;
   const greeting = t`你好，我是${name}，启梦的 AI 客服。账号、扣费、出片取回、安装更新都可以问我；我解决不了的会帮你转给人工。`;
   const voiceLabel = voiceOn ? t`语音播报：开` : t`语音播报：关`;
-  const canRate = Boolean(lastAssistant && !lastAssistant.system && !lastAssistant.streaming && lastAssistant.text && phase === "idle");
+  // 求助卡那一条不给 👍👎：那不是她的回答（卡上的字是服务端的固定文案）
+  const canRate = Boolean(lastAssistant && !lastAssistant.system && !lastAssistant.safety && !lastAssistant.streaming && lastAssistant.text && phase === "idle");
+  // 字幕框显示什么：求助卡那一条只显示卡之前她说过的句子（卡的字不进字幕）；一句都没有又没在演触摸反应时，整个字幕框不画 ——
+  // 留着的话框里会退回开场白（「你好，我是…」），正好压在求助卡下面
+  const captionText = lastAssistant?.safety ? spokenBeforeCard(lastAssistant) : lastAssistant?.text;
+  const captionHidden = Boolean(lastAssistant?.safety) && !captionText && !reaction && phase === "idle";
+  // liveSentences 在滚动 effect 上面定义（两处读同一份）；还没念到第一句时不写「第几句」
+  const showSentenceNo = Boolean(liveSentences) && speakingAt >= 0;
+  const sentenceNo = speakingAt + 1;
+  const sentenceTotal = liveSentences?.length ?? 0;
+  const totalKnown = Boolean(lastAssistant?.streamDone);
 
   return (
     <div className="relative h-dvh overflow-hidden bg-ink text-slate-100">
@@ -532,9 +821,20 @@ export default function SupportPage() {
         heightFraction={MODEL_HEIGHT_FRACTION}
         modelUrl={marketModelUrl}
         waiting={!settingsSettled && !stageSlow}
-        onFallback={(reason) => {
-          const why = reason.slice(0, 80);
-          setStageNotice(t`这套形象加载失败（${why}），先换回官方形象；可以去「形象」里重新下载或换一套。`);
+        name={name}
+        failNote={t`对话照常能用。`}
+        onFallback={(fail) => {
+          // ★ 官方形象也没出来：舞台自己会说「没能出场」+ 重试，这里不说「先换回官方形象」（那是假话）
+          if (!fail.official) return;
+          // 加载前的 moc3 检查拦下的两类按类型说（live2d/mocCheck）；原话是英文的控制台级句子，不往句子里嵌
+          if (fail.kind === "inconsistent") {
+            setStageNotice(t`这套形象的模型文件没通过 Cubism 的一致性检查（结构不完整或被改过），先换回官方形象；可以换一套，或请作者重新导出。`);
+          } else if (fail.kind === "tooNew") {
+            setStageNotice(t`这套形象是用较新版本的 Cubism 导出的，App 里的运行时还读不了，先换回官方形象；可以换一套，或请作者导出成旧一些的版本。`);
+          } else {
+            const why = fail.reason.slice(0, 80);
+            setStageNotice(t`这套形象加载失败（${why}），先换回官方形象；可以去「形象」里重新下载或换一套。`);
+          }
         }}
       />
 
@@ -549,7 +849,7 @@ export default function SupportPage() {
             <div className="flex items-center gap-2">
               <span className="truncate text-base font-bold text-slate-100">{name}</span>
               <span className="flex items-center gap-1 rounded-full px-2 py-0.5 bg-white/10 text-[10px] text-slate-200">
-                <span className={`h-1.5 w-1.5 rounded-full ${phase === "idle" ? (enabled ? "bg-emerald-400" : "bg-slate-500") : "bg-brand animate-pulse"}`} />
+                <span className={`h-1.5 w-1.5 rounded-full ${phase === "idle" ? (enabled ? "bg-ok-400" : "bg-slate-500") : "bg-brand animate-pulse"}`} />
                 {statusLabel}
               </span>
             </div>
@@ -569,7 +869,7 @@ export default function SupportPage() {
             title={voiceLabel}
             className={`${GLASS} flex h-9 w-9 items-center justify-center rounded-full text-base ${voiceOn ? "text-brand" : "text-slate-500"}`}
           >
-            {voiceOn ? "🔊" : "🔇"}
+            <Icon name={voiceOn ? "volume" : "volume-x"} size={18} />
           </button>
           <button onClick={() => setHistoryOpen(true)} className={`${GLASS} rounded-full px-3 py-1.5 text-xs text-slate-100 active:bg-slate-800/70`}>
             <Trans>记录</Trans>{messages.length > 0 ? ` ${Math.ceil(messages.filter((m) => !m.system).length / 2)}` : ""}
@@ -592,29 +892,71 @@ export default function SupportPage() {
               · 结论：四颗键的底缘 316 距内容上缘 396 还有 **80px**，放得下，不用改布局。
           ⚠ 已知的边界：吵起来之后（转人工卡 + 两三行提示 + 长回答）底部那一坨能长到 370px 上下，那时最下面这颗
             会被盖住 —— 两边同为 z-10、它在 DOM 里排在后面。所以**新加的这颗排在最后**：形象/人格/声音是天天用的三颗，
-            而「创作」在设置页里另有一条找得到的路（CLAUDE.md：别让唯一入口有被盖住的可能）。 */}
+            而「创作」在设置页里另有一条找得到的路（CLAUDE.md：别让唯一入口有被盖住的可能）。
+          ⚠ 求助卡出来的那一轮也会盖住下面一两颗（量法见底部浮层里画求助卡那段 ★★），下一轮缩成一行就让开了。 */}
       <div className="absolute right-2 z-10 flex flex-col gap-2" style={{ top: `calc(env(safe-area-inset-top, 0px) + ${TOP_BAR_PX + 14}px)` }}>
-        <RailButton emoji="👗" label={t`形象`} onClick={() => navigate("/support/models")} />
-        <RailButton emoji="🎭" label={t`人格`} onClick={() => navigate("/support/personas")} />
+        <RailButton icon="shirt" label={t`形象`} onClick={() => navigate("/support/models")} />
+        <RailButton icon="drama" label={t`人格`} onClick={() => navigate("/support/personas")} />
         {/* 在用混音（自己调的或声音市场的模板）时写「混音」：让人知道这颗键后面的东西变了 */}
-        <RailButton emoji="🎙️" label={config?.voiceSettings?.mix?.length ? t`混音` : t`声音`} onClick={() => setVoiceSheetOpen(true)} />
-        <RailButton emoji="✨" label={t`创作`} onClick={() => navigate("/support/create")} />
+        <RailButton icon="mic" label={config?.voiceSettings?.mix?.length ? t`混音` : t`声音`} onClick={() => setVoiceSheetOpen(true)} />
+        <RailButton icon="sparkle" label={t`创作`} onClick={() => navigate("/support/create")} />
       </div>
 
       {/* 底部浮层：最近一问一答 + 转人工卡 + 快捷问题 + 输入区 */}
       {/* 同上：底部渐变的 pt-20 会盖住裙摆/腿，容器不吃事件，里面每一块（字幕、快捷问、输入框）再打开 */}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex flex-col justify-end bg-gradient-to-t from-ink via-ink/80 to-transparent px-3 pb-[max(env(safe-area-inset-bottom),12px)] pt-20 [&>*]:pointer-events-auto">
+        {/* 求助卡（见文件头 ★ 求助卡）。★★ 高度（2026-10-26 最终审核；量法同上面那列小键的 ★★，360×640、safe-area-inset-top 28px）：
+              · 整张不设上限时：标题 + 两三行正文 + 2~3 条渠道（标签一折行、一条就是两行）+ 安全说明 ≈ 190~280px，
+                再加问题气泡与静息时那 244px，内容上缘落到 100~170px —— 盖住右边那一列小键（100~316px）、挡掉它们的点按。
+              · 所以正文那一块封顶 SAFETY_BODY_MAX（22dvh = 640 高时 141px，够放下正文 + 第一条渠道），标题行与 ✕ 不滚，整张 ≈ 175px。
+                输入侧命中（她一句没说、字幕框不画）：86（输入条 + 小字 + 底边距）+ 46（问题气泡）+ 175 + 8 = 315 ⇒ 上缘 325，在 316 之下。
+                输出侧命中还压着她已经说的那一两句（字幕框 70~94px）⇒ 上缘 230~255，会盖住「声音」「创作」那两颗 ——
+                只在出卡的这一轮（与上面那段「吵起来之后」同一个已知边界）；软键盘在出卡那一拍收起（onSafety 的 ★），不会再顶到顶栏。
+              · 下一轮一开始就缩成一行（≈ 46px，第一条渠道的第一个动作照样一点就拨）、挪到问题气泡**上面** —— 它是上一轮的东西，
+                留在原地就夹在新问题与新回答之间。点「展开」看整张（同样封顶）。 */}
+        {safetyCard && safetyPast && (
+          <SafetyCard
+            card={safetyCard}
+            announce={false}
+            compact={!safetyOpen}
+            onExpand={() => setSafetyOpen(true)}
+            onClose={() => setSafetyCard(null)}
+            bodyMaxClass={SAFETY_BODY_MAX}
+            className="mb-2 backdrop-blur-md"
+          />
+        )}
         {lastUser && (
           <div className="mb-2 flex justify-end">
             <div className="max-w-[78%] truncate rounded-2xl rounded-br-sm bg-brand/90 px-3 py-1.5 text-sm text-ink">{lastUser.text}</div>
           </div>
         )}
 
-        {/* 字幕气泡：数字人正在说 / 刚说完的整段；点正文看完整记录；说完后出 👍👎 */}
-        <div className={`${GLASS} mb-2 w-full rounded-2xl rounded-bl-sm px-3.5 py-2.5 shadow-lg`}>
+        {/* 字幕气泡：数字人正在说 / 刚说完的整段；点正文看完整记录；说完后出 👍👎
+            ★ 跟着念到的那一句走（2026-10-25）：文字先上屏、语音排队念，框里常常已经到第 4 句了她还在念第 1 句。
+              所以念的时候逐句画：念过的 slate-300、正在念的 slate-50 + 一层淡底、还没念到的 slate-400（照常显示，想先看也能看），
+              名字旁写「第几句 / 共几句」（文字流没收完时分母是「…」）。第一句的声音还在合成时照样逐句画，只是一句都不亮、不写第几句。
+              只换颜色、不换字重也不加左竖线：字重一变字宽就变，英文界面每换一句折行都会跳；行内 span 的竖线折行后只画在第一行。
+              淡底用 box-decoration-clone，一句折成两三行时每一行都有底。 */}
+        {/* 求助卡与 AI 身份告知（见文件头 ★ 求助卡）：都压在字幕框上方，都不是她说的话。
+            backdrop-blur 与下面「转人工」卡同一个理由：舞台上的人与光会透过来，字读不清 */}
+        {safetyCard && !safetyPast && <SafetyCard card={safetyCard} onClose={() => setSafetyCard(null)} bodyMaxClass={SAFETY_BODY_MAX} className="mb-2 backdrop-blur-md" />}
+        {aiNotice && (
+          <Warn tone="info" className="mb-1.5 px-1">
+            {aiNotice}
+          </Warn>
+        )}
+        {/* captionHidden 用 hidden 而不是不挂：字幕框的 ref 与读屏的 aria-live 区都长在里面，卸了再挂会丢掉那一拍的播报 */}
+        <div className={`${GLASS} mb-2 w-full rounded-2xl rounded-bl-sm px-3.5 py-2.5 shadow-lg ${captionHidden ? "hidden" : ""}`}>
           <div className="mb-0.5 flex items-center gap-2 text-[11px] text-brand">
             <span className="font-semibold">{name}</span>
-            {phase === "speaking" && subtitle && <span className="text-slate-400"><Trans>正在说这句 →</Trans></span>}
+            {showSentenceNo && (
+              <span className="tabular-nums text-slate-400">
+                <span aria-hidden="true">
+                  {sentenceNo}/{totalKnown ? sentenceTotal : "…"}
+                </span>
+                <span className="sr-only">{totalKnown ? t`第 ${sentenceNo} 句，共 ${sentenceTotal} 句` : t`第 ${sentenceNo} 句`}</span>
+              </span>
+            )}
             {phase === "thinking" && <span className="text-slate-400"><Trans>在想…</Trans></span>}
           </div>
           <div
@@ -624,11 +966,28 @@ export default function SupportPage() {
             onClick={() => setHistoryOpen(true)}
             onKeyDown={(e) => e.key === "Enter" && setHistoryOpen(true)}
             aria-label={t`查看完整对话记录`}
-            className={`max-h-[26vh] overflow-y-auto text-sm leading-6 ${lastAssistant?.system ? "text-emerald-100" : "text-slate-100"}`}
+            className={`max-h-[26vh] overflow-y-auto text-sm leading-6 ${lastAssistant?.system ? "text-ok-100" : "text-slate-100"}`}
           >
-            {reaction || lastAssistant?.text || (phase === "thinking" ? "…" : greeting)}
-            {configErr && !messages.length && <p className="mt-1 text-xs text-amber-300">{configErr}</p>}
-            {!enabled && !configErr && !messages.length && <p className="mt-1 text-xs text-amber-300"><Trans>服务端还没开通 AI 对话，你可以直接转人工。</Trans></p>}
+            {liveSentences
+              ? liveSentences.map((s, i) => (
+                  <Fragment key={i}>
+                    {i > 0 && " "}
+                    <span
+                      ref={i === speakingAt ? speakingSpanRef : undefined}
+                      className={i < speakingAt ? "text-slate-300" : i === speakingAt ? "rounded-sm bg-brand-500/15 text-slate-50 box-decoration-clone" : "text-slate-400"}
+                    >
+                      {s}
+                    </span>
+                  </Fragment>
+                ))
+              : reaction || captionText || (phase === "thinking" ? "…" : greeting)}
+            {configErr && !messages.length && <Warn className="mt-1">{configErr}</Warn>}
+            {!enabled && !configErr && !messages.length && <Warn className="mt-1"><Trans>服务端还没开通 AI 对话，你可以直接转人工。</Trans></Warn>}
+          </div>
+          {/* 读屏：上面那块是 role=button + aria-label，读屏不读正文，所以整段念完时在这里给一次全文。
+              ★ 只在念完那一拍填（不是逐句）：逐句播报会把读屏一句句打断，开着声音时还会和她的声音叠着念 */}
+          <div className="sr-only" aria-live="polite" aria-atomic="true">
+            {announce}
           </div>
           {canRate && lastAssistant && (
             <div className="mt-2 flex items-center gap-2 border-t border-white/10 pt-2 text-[11px] text-slate-400">
@@ -636,7 +995,7 @@ export default function SupportPage() {
                 {lastAssistant.rating === "up" ? t`谢谢反馈` : lastAssistant.rating === "down" ? t`抱歉没帮上，要不要转人工？` : t`这个回答有帮助吗？`}
               </span>
               {lastAssistant.rating === "down" && (
-                <button onClick={openSheet} className="rounded-full bg-amber-400 px-2.5 py-1 text-[11px] font-semibold text-ink active:opacity-60">
+                <button onClick={openSheet} className="rounded-full bg-warn-400 px-2.5 py-1 text-[11px] font-semibold text-ink active:opacity-60">
                   <Trans>转人工</Trans>
                 </button>
               )}
@@ -644,7 +1003,7 @@ export default function SupportPage() {
                 onClick={() => rate(lastAssistant, "up")}
                 aria-label={t`有帮助`}
                 aria-pressed={lastAssistant.rating === "up"}
-                className={`flex h-8 w-8 items-center justify-center rounded-full text-base ${lastAssistant.rating === "up" ? "bg-emerald-500/25" : "active:bg-white/10"}`}
+                className={`flex h-8 w-8 items-center justify-center rounded-full text-base ${lastAssistant.rating === "up" ? "bg-ok-500/25" : "active:bg-white/10"}`}
               >
                 👍
               </button>
@@ -652,7 +1011,7 @@ export default function SupportPage() {
                 onClick={() => rate(lastAssistant, "down")}
                 aria-label={t`没帮上`}
                 aria-pressed={lastAssistant.rating === "down"}
-                className={`flex h-8 w-8 items-center justify-center rounded-full text-base ${lastAssistant.rating === "down" ? "bg-rose-500/25" : "active:bg-white/10"}`}
+                className={`flex h-8 w-8 items-center justify-center rounded-full text-base ${lastAssistant.rating === "down" ? "bg-danger-500/25" : "active:bg-white/10"}`}
               >
                 👎
               </button>
@@ -661,10 +1020,10 @@ export default function SupportPage() {
         </div>
 
         {handoffHint && phase === "idle" && (
-          <div className="mb-2 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-50 backdrop-blur-md">
+          <div className="mb-2 rounded-xl border border-warn-500/40 bg-warn-500/10 p-3 text-xs leading-relaxed text-warn-50 backdrop-blur-md">
             <Trans>这个问题需要人工处理（{categoryLabel(handoffHint.category)}）。转人工会把这段对话一起交给客服，你不用再讲一遍。</Trans>
             <div className="mt-2 flex gap-2">
-              <button onClick={openSheet} className="rounded-full bg-amber-400 px-3.5 py-1.5 text-xs font-semibold text-ink active:opacity-60">
+              <button onClick={openSheet} className="rounded-full bg-warn-400 px-3.5 py-1.5 text-xs font-semibold text-ink active:opacity-60">
                 <Trans>转人工</Trans>
               </button>
               <button onClick={() => setHandoffHint(null)} className="rounded-full border border-white/20 px-3.5 py-1.5 text-xs text-slate-200 active:bg-slate-800/60">
@@ -673,9 +1032,9 @@ export default function SupportPage() {
             </div>
           </div>
         )}
-        {chatErr && <p className="mb-2 px-1 text-xs leading-relaxed text-rose-300">{chatErr}</p>}
-        {micErr && <p className="mb-2 px-1 text-xs leading-relaxed text-amber-300">{micErr}</p>}
-        {stageNotice && <p className="mb-2 px-1 text-xs leading-relaxed text-amber-300">{stageNotice}</p>}
+        {chatErr && <p className="mb-2 px-1 text-xs leading-relaxed text-danger-300">{chatErr}</p>}
+        {micErr && <Warn className="mb-2 px-1">{micErr}</Warn>}
+        {stageNotice && <Warn className="mb-2 px-1">{stageNotice}</Warn>}
 
         {messages.length === 0 && phase === "idle" && quick.length > 0 && (
           <div className="mb-2 flex gap-2 no-scrollbar overflow-x-auto pb-1">
@@ -705,6 +1064,7 @@ export default function SupportPage() {
             />
           )}
           <input
+            ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             maxLength={MAX_INPUT_CHARS}
@@ -714,7 +1074,7 @@ export default function SupportPage() {
             className="h-10 min-w-0 flex-1 bg-transparent px-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 disabled:opacity-40"
           />
           {phase !== "idle" ? (
-            <button type="button" onClick={stopAll} aria-label={t`停止`} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-500/25 text-rose-200">
+            <button type="button" onClick={stopAll} aria-label={t`停止`} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-danger-500/25 text-danger-200">
               <span className="block h-3.5 w-3.5 rounded-sm bg-current" />
             </button>
           ) : (
@@ -781,7 +1141,7 @@ export default function SupportPage() {
               placeholder={t`联系邮箱（选填，用手机号/QQ 登录的建议留一个）`}
               className="mt-2 h-10 w-full rounded-full border border-slate-700 bg-slate-950 px-4 text-xs text-slate-100 outline-none placeholder:text-slate-500"
             />
-            {sheetErr && <p className="mt-2 text-xs leading-relaxed text-rose-300">{sheetErr}</p>}
+            {sheetErr && <p className="mt-2 text-xs leading-relaxed text-danger-300">{sheetErr}</p>}
             <div className="mt-3 flex gap-2">
               <button onClick={() => void submitTicket()} disabled={submitting} className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-semibold text-ink disabled:opacity-40">
                 {submitting ? t`提交中…` : t`提交给人工客服`}
@@ -816,23 +1176,43 @@ function HistorySheet({ name, messages, onClose }: { name: string; messages: Cha
         </div>
         <div ref={listRef} className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-[max(env(safe-area-inset-bottom),16px)]">
           {messages.length === 0 && <p className="py-6 text-center text-xs text-slate-500"><Trans>还没有对话。</Trans></p>}
-          {messages.map((m) => (
-            <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-              <div
-                className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm leading-6 ${
-                  m.role === "user"
-                    ? "rounded-br-sm bg-brand text-ink"
-                    : m.system
-                      ? "border border-emerald-500/30 bg-emerald-500/10 text-emerald-100"
-                      : "rounded-bl-sm bg-slate-800 text-slate-100"
-                }`}
-              >
-                {m.role === "assistant" && !m.system && <span className="mr-1.5 text-[11px] text-brand">{name}</span>}
-                {m.text || (m.streaming ? "…" : "")}
-                {m.rating && <span className="ml-1.5 text-[11px]">{m.rating === "up" ? "👍" : "👎"}</span>}
+          {messages.map((m) =>
+            // AI 身份告知：一行小字，不是气泡（不是她说的话）
+            m.notice ? (
+              <Warn key={m.id} tone="info" className="px-1">
+                {m.text}
+              </Warn>
+            ) : m.safety ? (
+              // 求助卡：卡之前她说过的句子照常是她的气泡，卡本身画成卡（不带她的名字、这里不给关）
+              <Fragment key={m.id}>
+                {spokenBeforeCard(m) && (
+                  <div className="flex justify-start">
+                    <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-bl-sm bg-slate-800 px-3 py-2 text-sm leading-6 text-slate-100">
+                      <span className="mr-1.5 text-[11px] text-brand">{name}</span>
+                      {spokenBeforeCard(m)}
+                    </div>
+                  </div>
+                )}
+                <SafetyCard card={m.safety} announce={false} />
+              </Fragment>
+            ) : (
+              <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                <div
+                  className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm leading-6 ${
+                    m.role === "user"
+                      ? "rounded-br-sm bg-brand text-ink"
+                      : m.system
+                        ? "border border-ok-500/30 bg-ok-500/10 text-ok-100"
+                        : "rounded-bl-sm bg-slate-800 text-slate-100"
+                  }`}
+                >
+                  {m.role === "assistant" && !m.system && <span className="mr-1.5 text-[11px] text-brand">{name}</span>}
+                  {m.text || (m.streaming ? "…" : "")}
+                  {m.rating && <span className="ml-1.5 text-[11px]">{m.rating === "up" ? "👍" : "👎"}</span>}
+                </div>
               </div>
-            </div>
-          ))}
+            ),
+          )}
         </div>
       </div>
     </div>
@@ -872,8 +1252,8 @@ function TicketsPanel({
     }
   }
 
-  if (err) return <p className="m-3 rounded-xl border border-rose-500/40 bg-rose-500/10 p-3 text-xs leading-relaxed text-rose-300">{err}</p>;
-  if (!tickets) return <p className="m-3 text-xs text-slate-500"><Trans>读取中…</Trans></p>;
+  if (err) return <p className="m-3 rounded-xl border border-danger-500/40 bg-danger-500/10 p-3 text-xs leading-relaxed text-danger-300">{err}</p>;
+  if (!tickets) return <EmptyState compact loading text={t`读取中…`} />;
   if (!tickets.length) return <EmptyState emoji="🎫" text={t`还没有工单`} hint={t`和 AI 客服聊不明白的问题，点「转人工」就会出现在这里`} />;
 
   return (
@@ -890,7 +1270,7 @@ function TicketsPanel({
           {tk.replies.length > 0 && (
             <div className="mt-2 space-y-1.5">
               {tk.replies.map((r) => (
-                <div key={r.id} className={`rounded-xl px-3 py-2 text-sm leading-5 ${r.by === "admin" ? "bg-emerald-500/10 text-emerald-100" : "bg-slate-800 text-slate-200"}`}>
+                <div key={r.id} className={`rounded-xl px-3 py-2 text-sm leading-5 ${r.by === "admin" ? "bg-ok-500/10 text-ok-100" : "bg-slate-800 text-slate-200"}`}>
                   <span className="mr-1.5 text-[11px] text-slate-400">{r.by === "admin" ? t`客服` : t({ message: "我", context: "工单回复前的署名：这条是我自己补充的" })} · {relativeTime(Date.parse(r.at))}</span>
                   {r.content}
                 </div>
@@ -913,7 +1293,7 @@ function TicketsPanel({
               {busy === tk.id ? "…" : t`发送`}
             </button>
           </div>
-          {rowErr[tk.id] && <p className="mt-1 text-xs text-rose-300">{rowErr[tk.id]}</p>}
+          {rowErr[tk.id] && <p className="mt-1 text-xs text-danger-300">{rowErr[tk.id]}</p>}
         </section>
       ))}
     </div>

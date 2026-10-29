@@ -28,6 +28,7 @@ import {
 import { Card, CARD_TYPES, CARD_TYPE_COVERS, CARD_TYPE_LABELS, CardType } from "../../types";
 import TarotCard from "../../components/TarotCard";
 import TokenCost from "../../components/TokenCost";
+import StepDots from "../../components/StepDots";
 import { NPC_SCREEN } from "../scene/cameraOrbit";
 import { setVoiceEnabled, voiceEnabled, voiceStatus, voiceSupported } from "../speech";
 import { useBackGuard } from "../backGuards";
@@ -95,7 +96,7 @@ export default function NpcDialog() {
       >
         <div className="pointer-events-auto rounded-2xl border border-slate-600/70 bg-panel/95 px-3.5 py-2.5 shadow-[0_6px_24px_rgba(0,0,0,0.5)] backdrop-blur">
           <div className="mb-0.5 flex items-center gap-1.5">
-            <span className={`h-2 w-2 rounded-full ${busy ? "animate-pulse bg-amber-400" : "bg-emerald-400"}`} />
+            <span className={`h-2 w-2 rounded-full ${busy ? "animate-pulse bg-warn-400" : "bg-ok-400"}`} />
             <span className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>铸卡师</Trans></span>
             {/* ★ 合规：《AI 生成合成内容标识办法》第 4 条的**显式标识**。
                 火山原生的做法（aigc_watermark）是在每句话末尾加一串"滴滴"提示音，
@@ -218,7 +219,7 @@ function MarketTopBar() {
   }
   return (
     <div className="safe-top absolute inset-x-0 top-12 z-10 px-3">
-      <div className="mx-auto flex max-w-md items-center gap-2 rounded-2xl border border-slate-600/70 bg-panel/95 px-3 py-2 shadow-lg backdrop-blur">
+      <div className="mx-auto flex max-w-md items-center gap-2 rounded-2xl bg-raised/95 px-3 py-2 shadow-lg ring-1 ring-white/10 backdrop-blur">
         <span className="flex-none text-xs font-semibold text-slate-200"><Trans>🛒 市场</Trans></span>
         <input
           value={q}
@@ -294,7 +295,7 @@ function HistorySheet({ onClose, onOpenForge }: { onClose: () => void; onOpenFor
   return (
     <div className="absolute inset-0 z-30" onClick={onClose}>
       <div
-        className="safe-top absolute inset-x-3 top-12 bottom-[30%] mx-auto flex max-w-md flex-col overflow-hidden rounded-2xl border border-slate-600/70 bg-panel/95 shadow-2xl backdrop-blur"
+        className="safe-top absolute inset-x-3 top-12 bottom-[30%] mx-auto flex max-w-md flex-col overflow-hidden rounded-2xl bg-raised/95 shadow-2xl ring-1 ring-white/10 backdrop-blur"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 border-b border-slate-700/60 px-3.5 py-2.5">
@@ -311,7 +312,7 @@ function HistorySheet({ onClose, onOpenForge }: { onClose: () => void; onOpenFor
           {messages.map((m) =>
             // sys = 居中细线服务条，不是气泡：明确"这不是角色在说话"
             m.kind === "sys" ? (
-              <div key={m.id} className="px-4 py-1 text-center text-[11px] leading-relaxed text-amber-200/80">
+              <div key={m.id} className="px-4 py-1 text-center text-[11px] leading-relaxed text-warn-200/80">
                 {m.text}
               </div>
             ) : (
@@ -321,7 +322,7 @@ function HistorySheet({ onClose, onOpenForge }: { onClose: () => void; onOpenFor
                     m.from === "me"
                       ? "bg-brand/20 text-sky-100"
                       : m.kind === "act"
-                        ? "border-l-2 border-amber-400/50 bg-slate-700/40 text-slate-300"
+                        ? "border-l-2 border-warn-400/50 bg-slate-700/40 text-slate-300"
                         : "bg-slate-700/60 text-slate-200"
                   }`}
                 >
@@ -344,7 +345,7 @@ function HistorySheet({ onClose, onOpenForge }: { onClose: () => void; onOpenFor
             </div>
           )}
           {busy && (
-            <div className="pl-1 text-xs text-amber-300/90 pulse-soft">{forgeProgress || t`炉火正旺，卡片成形中…`}</div>
+            <div className="pl-1 text-xs text-warn-300/90 pulse-soft">{forgeProgress || t`炉火正旺，卡片成形中…`}</div>
           )}
         </div>
 
@@ -404,6 +405,13 @@ function HistorySheet({ onClose, onOpenForge }: { onClose: () => void; onOpenFor
 //   3 过目：不满意可以回去改素材、也可以原样重炼，点「收下」才落账入组
 // 预览态刻意封掉背景点击和 ✕：这批卡是花了 token 炼出来的，别让手滑抹掉。
 type ForgeStep = "type" | "input" | "preview";
+const FORGE_STEPS: readonly ForgeStep[] = ["type", "input", "preview"];
+/** 圆点下面那两个字（标题行另说整句：「想炼一张什么卡」「递上素材」「出炉了」） */
+const FORGE_STEP_LABEL: Record<ForgeStep, MessageDescriptor> = {
+  type: msg`卡种`,
+  input: msg`素材`,
+  preview: msg`出炉`,
+};
 
 const TYPE_HINT: Record<CardType, MessageDescriptor> = {
   character: msg`谁在故事里——长相与衣着（手里拿的、所在的地方另做道具卡、场景卡）`,
@@ -566,7 +574,7 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
       onClick={locked ? undefined : onClose}
     >
       <div
-        className="flex max-h-[88%] w-full max-w-sm flex-col overflow-hidden rounded-2xl border border-slate-600/70 bg-panel/95 shadow-2xl backdrop-blur"
+        className="flex max-h-[88%] w-full max-w-sm flex-col overflow-hidden rounded-2xl bg-raised/95 shadow-2xl ring-1 ring-white/10 backdrop-blur"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 px-4 pb-2 pt-3.5">
@@ -588,14 +596,16 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
                   : t`📎 自动判断 · 递上素材`
                 : t`🔥 出炉了，过个目`}
           </h3>
-          <span className="ml-auto text-[10px] text-slate-500">
-            {step === "type" ? "1/3" : step === "input" ? "2/3" : "3/3"}
-          </span>
           {!locked && (
-            <button onClick={onClose} className="-mr-1 p-1 text-slate-400 hover:text-white">
+            <button onClick={onClose} className="-mr-1 ml-auto p-1 text-slate-400 hover:text-white">
               ✕
             </button>
           )}
+        </div>
+        {/* ★ 步骤条只有 components/StepDots 一份实现（CLAUDE.md 铁律六）：原来标题右边是一个「1/3」计数，
+            2026-10-22 换成圆点、摆在标题行正下方。不给 onPick：预览态封掉了回退（卡是花 token 炼的），退路只有左上那枚 ‹ */}
+        <div className="px-4 pb-2">
+          <StepDots steps={FORGE_STEPS.map((s) => ({ label: t(FORGE_STEP_LABEL[s]) }))} current={FORGE_STEPS.indexOf(step)} />
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-1">
@@ -608,7 +618,7 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
               {CARD_TYPES.map((ct) => (
                 <button key={ct} onClick={() => { setType(ct); setStep("input"); }} className="group text-left">
                   <TarotCard cover={CARD_TYPE_COVERS[ct]} title={CARD_TYPE_LABELS[ct]} type={ct} active={type === ct} />
-                  <p className="mt-1 line-clamp-2 text-[10px] leading-tight text-slate-500 group-hover:text-slate-300">
+                  <p className="mt-1 line-clamp-2 text-[10px] leading-relaxed text-slate-500 group-hover:text-slate-300">
                     {t(TYPE_HINT[ct])}
                   </p>
                 </button>
@@ -619,7 +629,7 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
                   <span className="text-xl">🎲</span>
                   <span className="text-[10px] leading-tight text-slate-400 group-hover:text-brand"><Trans>让铸卡师<br />看着办</Trans></span>
                 </div>
-                <p className="mt-1 line-clamp-2 text-[10px] leading-tight text-slate-500"><Trans>按素材自动判断类型</Trans></p>
+                <p className="mt-1 line-clamp-2 text-[10px] leading-relaxed text-slate-500"><Trans>按素材自动判断类型</Trans></p>
               </button>
             </div>
           )}
@@ -721,7 +731,7 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
                       取图那步超时的照扣（见 economy.forgeSettle 的 ⚠⚠）。所以这里
                       只说"按真正调用了几次出图算"——它两种模式下都是实话（铁律五）。 */}
                   {cost === null ? (
-                    <p className="text-[11px] text-rose-300">{priceIssue ?? t`这一档暂时报不出价，换个档位再试`}</p>
+                    <p className="text-[11px] text-danger-300">{priceIssue ?? t`这一档暂时报不出价，换个档位再试`}</p>
                   ) : (
                     <TokenCost
                       tokens={cost}
@@ -757,14 +767,14 @@ function ForgeForm({ onClose, initialDesc = "" }: { onClose: () => void; initial
                 {preview.map((c) => (
                   <div key={c.id}>
                     <TarotCard cover={c.cover || null} title={c.name} sub={CARD_TYPE_LABELS[c.type]} type={c.type} />
-                    <p className="mt-1 line-clamp-3 text-[10px] leading-tight text-slate-500">{c.summary}</p>
+                    <p className="mt-1 line-clamp-3 text-[10px] leading-relaxed text-slate-500">{c.summary}</p>
                   </div>
                 ))}
               </div>
             </>
           )}
 
-          {err && <p className="mt-2 text-[11px] text-rose-300">{err}</p>}
+          {err && <p className="mt-2 text-[11px] text-danger-300">{err}</p>}
         </div>
 
         {step === "input" && (
