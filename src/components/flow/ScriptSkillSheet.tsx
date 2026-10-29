@@ -17,6 +17,7 @@ import { DEFAULT_ASPECT, aspectOf, shotLineDisplay } from "../../types";
 import { CloseButton } from "../IconTapButton";
 import StepDots from "../StepDots";
 import { useApplyTemplate } from "./useApplyTemplate";
+import { useBackLayer } from "../../hooks/useBackLayer";
 
 export default function ScriptSkillSheet({ onClose, onApplied }: { onClose: () => void; onApplied: () => void }) {
   const { t } = useLingui();
@@ -45,6 +46,8 @@ export default function ScriptSkillSheet({ onClose, onApplied }: { onClose: () =
     if (busy) showToast(t`还在拆：收起不会丢，好了顶上会提示；从「/」面板再打开就接得回来`, 3200);
     onClose();
   }
+  // 手机返回键先关这一层（hooks/useBackLayer），与遮罩 / ✕ 同一个 close()（在跑时也只是收起）
+  useBackLayer(true, close, "script-skill");
 
   function apply() {
     if (!plan) return;

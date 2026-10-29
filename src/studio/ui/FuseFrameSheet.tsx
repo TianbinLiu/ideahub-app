@@ -16,6 +16,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import EmptyState from "../../components/EmptyState";
 import { createPortal } from "react-dom";
 import { CloseButton } from "../../components/IconTapButton";
+import { useBackLayer } from "../../hooks/useBackLayer";
 import { AI_REAL, fuseFrame } from "../../ai";
 import { canAfford, frozenNote, spendTokens } from "../../data/account";
 import { ONE_IMAGE, fmtTokens } from "../../data/economy";
@@ -109,6 +110,8 @@ export default function FuseFrameSheet({
   const [instruction, setInstruction] = useState("");
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
+  // 手机返回键先关这一层（hooks/useBackLayer），与 ✕ / 点遮罩同一个 onClose
+  useBackLayer(true, onClose, "fuse-frame");
   const price = ONE_IMAGE;
   const { t } = useLingui();
   /** 嵌进句子里的帧名（「这张开头帧」「融成结尾帧」）。带 context：卡角上单独出现的「开头帧」在英文里要大写开头 */

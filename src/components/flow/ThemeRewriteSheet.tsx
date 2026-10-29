@@ -15,6 +15,7 @@ import { noteThemeSheet, resetThemeSkill, runThemeSkill, setThemeSkill, useTheme
 import { THEME_MAX, THEME_MIN, THEME_REWRITE, applyRewrite, rewritableSegs, rewriteCalls } from "../../studio/structuredSkills";
 import { CloseButton } from "../IconTapButton";
 import StepDots from "../StepDots";
+import { useBackLayer } from "../../hooks/useBackLayer";
 
 export default function ThemeRewriteSheet({ initialTheme = "", onClose, onApplied }: { initialTheme?: string; onClose: () => void; onApplied: () => void }) {
   const { t } = useLingui();
@@ -47,6 +48,8 @@ export default function ThemeRewriteSheet({ initialTheme = "", onClose, onApplie
     if (busy) showToast(t`还在改写：收起不会丢，好了顶上会提示；从「/」面板再打开就接得回来`, 3200);
     onClose();
   }
+  // 手机返回键先关这一层（hooks/useBackLayer），与遮罩 / ✕ 同一个 close()（在跑时也只是收起）
+  useBackLayer(true, close, "theme-rewrite");
 
   function togglePick(nodeId: string) {
     const next = new Set(useThemeSkill.getState().picked);

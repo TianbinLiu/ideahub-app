@@ -10,6 +10,7 @@ import Icon from "../Icon";
 import FrameAnnotator from "../FrameAnnotator";
 import { appendIssue, chosenOf, nodeDone, realVideoOfNode, reshotWithSound, tplOfNode, useFlow } from "../../studio/flowStore";
 import { useMediaUrl } from "../../utils/mediaUrl";
+import { useBackLayer } from "../../hooks/useBackLayer";
 import { grabVideoFrame } from "../videoFrames";
 import { uniqueRefName, usableExtraRefs } from "../../data/refMentions";
 import { showToast } from "../../data/toast";
@@ -122,6 +123,10 @@ export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: st
   useEffect(() => {
     if (!node) onClose(); // 这一段被删了：别留一个放不出东西的黑框
   }, [node, onClose]);
+  // 手机返回键先关这一层（hooks/useBackLayer）：整个回看层与 ✕ / 点遮罩同一个 onClose；
+  // 「这一帧用到哪儿」那张抽屉叠在上面、各认各的那一格，返回键先只关它（与它的 ✕ 同一个 setShot(null)）
+  useBackLayer(true, onClose, "seg-player");
+  useBackLayer(!!shot && shot !== "loading", () => setShot(null), "seg-shot");
   if (!node) return null;
   /**
    * 这一帧能放进去的段：别的、还没出片、没在炼、不是白模段的（白模段的画面与参考整个来自模板视频）、不是延长段的

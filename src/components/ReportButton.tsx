@@ -30,6 +30,7 @@ import { isRemoteMode } from "../data/account";
 import { SUPPORT_EMAIL } from "../data/agreements";
 import { SITE_BASE } from "../utils/shareLink";
 import { useAuthState, useCurrentUser } from "../hooks/useAccount";
+import { useBackLayer } from "../hooks/useBackLayer";
 import AuthPending from "./AuthPending";
 import { CloseButton } from "./IconTapButton";
 import Icon from "./Icon";
@@ -87,6 +88,8 @@ export default function ReportButton({
   const [err, setErr] = useState("");
   /** 这次会话里已经举报过了。★ 只是"别让他反复点"，服务端那边还有一道按人去重的 409 */
   const [done, setDone] = useState(false);
+  // 手机返回键先关这一层（hooks/useBackLayer），与 ✕ / 点遮罩同一个关法；排在下面那道早退之前（hook 顺序）
+  useBackLayer(open, () => setOpen(false), "report");
 
   if (!canReport({ mine, targetId })) return null;
 

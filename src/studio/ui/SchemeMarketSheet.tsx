@@ -13,6 +13,7 @@ import EmptyState from "../../components/EmptyState";
 import { createPortal } from "react-dom";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { CloseButton } from "../../components/IconTapButton";
+import { useBackLayer } from "../../hooks/useBackLayer";
 import { schemeOf, schemesVersion, subscribeSchemes, type PromptScheme } from "../../data/promptSchemes";
 import {
   installSharedScheme,
@@ -38,6 +39,8 @@ export default function SchemeMarketSheet({
   const list = sharedSchemes();
   const err = schemeMarketErr();
   const busy = schemeMarketBusy();
+  // 手机返回键先关这一层（hooks/useBackLayer），与 ✕ / 点遮罩同一个 onClose
+  useBackLayer(true, onClose, "scheme-market");
 
   // 打开就拉一次（缓存是空的时候）——不给"先点刷新"这一步
   useEffect(() => {

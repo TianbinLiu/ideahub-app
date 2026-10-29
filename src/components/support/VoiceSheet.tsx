@@ -28,6 +28,7 @@ import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useMemo, useState } from "react";
 import { CloseButton } from "../IconTapButton";
+import { useBackLayer } from "../../hooks/useBackLayer";
 import {
   companionErrorText,
   getTtsVoices,
@@ -124,6 +125,8 @@ export default function VoiceSheet({ name, settings, merged, onClose, onSaved }:
   const expressive = override?.expressive ?? true;
   const pitch = override?.pitch ?? null;
   const saving = busy === "save" || busy === "reset";
+  // 手机返回键先关这一层（hooks/useBackLayer），与 ✕ / 点遮罩同一个 onClose；保存 / 恢复在途时它们都灰着，返回键也只被拦住
+  useBackLayer(true, () => (saving ? false : onClose()), "voice");
   // 标题那一行：现在真正在用的嗓子（合并结果；老服务端没有合并结果就看覆盖层）
   const effective = merged ?? override;
   const effectiveText = !effective

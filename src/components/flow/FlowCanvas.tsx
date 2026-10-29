@@ -101,6 +101,7 @@ import {
 import { myCards, noTierLine, textOnlyFramesLine, textOnlyModesLine, tierBlockReason, tierNamesFor, tierPlanBlocked, tierShownModel, tierTextOnly, usableTierId } from "../../data/account";
 import UpgradeLink from "../UpgradeLink";
 import { useAccountVersion } from "../../hooks/useAccount";
+import { useBackLayer } from "../../hooks/useBackLayer";
 import {
   browseTemplates,
   groupRows,
@@ -2250,6 +2251,8 @@ function PlanSheet({ nodeId, onClose }: { nodeId: string; onClose: () => void })
   useEffect(() => {
     if (!node) onClose(); // 这一段被删了/流水线被换掉：别留一个空壳弹层
   }, [node, onClose]);
+  // 手机返回键先关这一层（hooks/useBackLayer），与 ✕ / 点遮罩同一个 onClose
+  useBackLayer(true, onClose, "plan-sheet");
   if (!node) return null;
   const picking = planOf(node) === "picking";
   const generating = node.status === "generating";
@@ -2393,6 +2396,8 @@ function RecaptureButton({ nodeId }: { nodeId: string }) {
 }
 
 function SegSettingsSheet({ nodeId, onClose }: { nodeId: string; onClose: () => void }) {
+  // 手机返回键先关这一层（hooks/useBackLayer），与 ✕ / 点遮罩同一个 onClose
+  useBackLayer(true, onClose, "seg-settings");
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60" onClick={onClose}>
       <div
@@ -2600,6 +2605,8 @@ function AgentPalette({ draft, onClose, onPick }: { draft: string; onClose: () =
   /** 官方技能二「按主题改写全片剧本」（P3a） */
   const [themeSkill, setThemeSkill] = useState(false);
   const rewritable = useFlow((s) => s.nodes).length > 0;
+  // 手机返回键先关这一层（hooks/useBackLayer），与 ✕ / 点遮罩同一个 onClose；叠在上面的两张技能面板各认各的那一格
+  useBackLayer(true, onClose, "agent-palette");
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end bg-black/60" onClick={onClose}>
       <div
@@ -2744,6 +2751,8 @@ export function CardPicker({ node, onClose }: { node: FlowNode; onClose: () => v
   const all = myCards();
   const cards = voicedOnly ? all.filter((c) => voiceOf(c.id)) : all;
   const chosen = new Set((node.materials ?? []).map((c) => c.id));
+  // 手机返回键先关这一层（hooks/useBackLayer），与 ✕ / 点遮罩同一个 onClose
+  useBackLayer(true, onClose, "card-picker");
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60" onClick={onClose}>
       <div className="flex max-h-[70%] w-full max-w-md flex-col rounded-t-2xl border-t border-slate-700 bg-ink p-4" onClick={(e) => e.stopPropagation()}>
@@ -2894,6 +2903,10 @@ export function TemplatePicker({
   /** 正在预览、等用户确认的那一段。★ 选段**先看再定**：套用即真花钱，
    *  而同一条素材切出来的几段封面常常长得差不多，光看缩略图分不出是哪一段。 */
   const [previewing, setPreviewing] = useState<VideoTemplate | null>(null);
+  // 手机返回键先关这一层（hooks/useBackLayer）：选模板抽屉与 ✕ / 点遮罩同一个 onClose；
+  // 叠在上面的预览卡另认一格，返回键先只关它（与「返回挑选」同一个 setPreviewing(null)）
+  useBackLayer(true, onClose, "template-picker");
+  useBackLayer(!!previewing, () => setPreviewing(null), "template-preview");
   // ★ 选了白模模板，这一段的出片模型就固定了（2026-10-02 主人拍板：模板对出片模型是硬要求，不给「解除固定」）。
   //   「走哪一档」只问 economy.blockoutTier（setNodeTemplate 钉档位读的是同一个）；套餐用不了那一档时把
   //   account.tierBlockReason 的整句接在后面 —— 照样能选来看，生成那一步会拦，但这句话要说在挑之前。

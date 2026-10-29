@@ -18,6 +18,7 @@ import { blockUser } from "../api/blocking";
 import { purgeAuthorVideos, refreshFeed } from "../data/videos";
 import { isRemoteMode } from "../data/account";
 import { useAuthState } from "../hooks/useAccount";
+import { useBackLayer } from "../hooks/useBackLayer";
 import AuthPending from "./AuthPending";
 import Icon from "./Icon";
 
@@ -50,6 +51,8 @@ export default function BlockButton({
   const [err, setErr] = useState("");
   /** 这次会话里已经拉黑了。★ 只是"别让他反复点"，真相在服务端 */
   const [done, setDone] = useState(false);
+  // 手机返回键先关这一层（hooks/useBackLayer），与「再想想」/ 点遮罩同一个关法；排在下面那道早退之前（hook 顺序）
+  useBackLayer(open, () => setOpen(false), "block");
 
   // ★ 与 ReportButton 同一道闸：离线模式没有"别人"，自己的内容也不该出现这颗键
   if (!canBlock({ mine, userId })) return null;

@@ -39,6 +39,7 @@ import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 
 import Warn from "../components/Warn";
 import { useNavigate, useSearchParams } from "react-router";
 import { useBackOr } from "../hooks/useBackOr";
+import { useBackLayer } from "../hooks/useBackLayer";
 import { i18n } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -251,6 +252,8 @@ export default function SupportPage() {
   const [contactEmail, setContactEmail] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [sheetErr, setSheetErr] = useState("");
+  // 手机返回键先关「转人工」抽屉（hooks/useBackLayer），与点遮罩 / 「取消」同一个关法；提交在途时它们都不关，返回键也只被拦住
+  useBackLayer(sheetOpen, () => (submitting ? false : setSheetOpen(false)), "support-ticket");
   const [tickets, setTickets] = useState<SupportTicket[] | null>(null);
   const [ticketsErr, setTicketsErr] = useState("");
   /** 数字人三项选择（人格 / 形象 / 声音覆盖）；null = 还没读到 / 老服务端 */
@@ -1161,6 +1164,8 @@ export default function SupportPage() {
 function HistorySheet({ name, messages, onClose }: { name: string; messages: ChatMessage[]; onClose: () => void }) {
   const listRef = useRef<HTMLDivElement>(null);
   const msgCount = messages.filter((m) => !m.system).length;
+  // 手机返回键先关这一层（hooks/useBackLayer），与 ✕ / 点遮罩同一个 onClose
+  useBackLayer(true, onClose, "support-history");
   useEffect(() => {
     const el = listRef.current;
     if (el) el.scrollTop = el.scrollHeight;

@@ -35,6 +35,7 @@ import {
   type UpdateInfo,
 } from "../data/appUpdate";
 import { openExternal } from "../utils/openExternal";
+import { useBackLayer } from "../hooks/useBackLayer";
 import Icon from "./Icon";
 
 export default function UpdateSheet({ info, onClose }: { info: UpdateInfo; onClose: () => void }) {
@@ -45,6 +46,9 @@ export default function UpdateSheet({ info, onClose }: { info: UpdateInfo; onClo
   const [err, setErr] = useState("");
   /** 强制更新：这一版关不掉（见文件头 ★★） */
   const forced = isMandatory(info);
+  // 手机返回键先关这一层（hooks/useBackLayer），与点遮罩 / 「关闭」同一个 onClose（不记「跳过这一版」）；
+  // 强制的那一版不接（active = false，关不掉），下载中与遮罩同样不许关
+  useBackLayer(!forced, () => (busy ? false : onClose()), "update");
   /** 打不开浏览器（被拦 / 没有浏览器）时打不开的那个地址：写出来，让人自己去。空串 = 没有失败 */
   const [linkFailed, setLinkFailed] = useState("");
   const versionName = info.versionName;

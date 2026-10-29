@@ -1,3 +1,11 @@
+启梦 2.73
+
+· 手机返回键先关掉开着的那一层：评论框、底部弹出的各种面板、确认框、全屏都是按一下返回就关掉、留在原来的页面上（原来评论框开着时，收起键盘之后再按一次返回就直接离开了这一页）。正在提交、删除的那一会儿按返回不会关。
+
+QiMeng 2.73
+
+· The phone's back key now closes whatever is open on top first — the comment sheet, bottom panels, confirmation dialogs and full screen — and keeps you on the same page (with the comment sheet open, pressing back again after the keyboard closed used to leave the page). While something is being submitted or deleted, back won't close it.
+
 启梦 2.72
 
 · 作品详情页：全屏 / 转屏看的时候按手机的返回键只退出全屏，不再直接退出这一页（2.71 真机核对时发现）。
