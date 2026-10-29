@@ -6,6 +6,7 @@
 //   钱包抽屉之前就压在底栏下面（"取消/删除"那一行要滑一下才够得着）。
 import { useCallback, useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { useBackLayer } from "../hooks/useBackLayer";
 
 /**
  * 对话框壳共用的焦点与键盘规矩 —— Sheet / ConfirmDialog / InfoDialog / DeleteConfirmShell 四个壳都挂它，别各抄一份
@@ -26,6 +27,17 @@ export function useDialogShell(onEscape: (() => void) | undefined) {
   useEffect(() => {
     escRef.current = onEscape;
   });
+  // ④ 手机返回键 = Escape（hooks/useBackLayer，2026-10-29 真机）：原来返回键直接退出了整个页面、抽屉 / 确认卡还开着。
+  //    这会儿不许关（onEscape 为 undefined，删除在途）时返回键只被拦住，不关
+  useBackLayer(
+    true,
+    () => {
+      const close = escRef.current;
+      if (!close) return false;
+      close();
+    },
+    "dialog",
+  );
   useEffect(() => {
     const panel = panelRef.current;
     const active0 = document.activeElement;

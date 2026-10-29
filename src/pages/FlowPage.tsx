@@ -54,6 +54,7 @@ import { VideoTemplate, aspectCss, aspectOf, formatDuration } from "../types";
 import { useMediaUrl } from "../utils/mediaUrl";
 import { type CastEditorState } from "./VideoEditorPage";
 import { useBackOr } from "../hooks/useBackOr";
+import { useBackLayer } from "../hooks/useBackLayer";
 import { useCastReturn } from "../hooks/useCastReturn";
 import { useFlowActions } from "../hooks/useFlowActions";
 
@@ -344,6 +345,8 @@ function NodeScreen({
   /** 上一次点圈选没截到这一秒的画面时，在入口旁说的那一句（铁律八：此前只 console.warn） */
   const [annIssue, setAnnIssue] = useState("");
   const [sheet, setSheet] = useState(false); // 底部「本段设置」抽屉
+  // 手机返回键先关「本段设置」抽屉（hooks/useBackLayer），与 ✕ / 点遮罩同一个 setSheet(false)
+  useBackLayer(sheet, () => setSheet(false), "seg-settings");
   /** 简约面的「自定义首尾帧」折叠条 + 它的融图开在哪一帧上 */
   const [customOpen, setCustomOpen] = useState(false);
   const [customFuse, setCustomFuse] = useState<"first" | "last" | null>(null);

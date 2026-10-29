@@ -57,6 +57,7 @@ import {
 import { balanceNote, canAfford, frozenNote, spendTokens, tierRegionIssue } from "../data/account";
 import { TEMPLATE_MAX_CARDS, blockoutTier, fmtTokens, ownRefTemplateCost, templateCost } from "../data/economy";
 import { useAccountVersion } from "../hooks/useAccount";
+import { useBackLayer } from "../hooks/useBackLayer";
 import {
   ARK_EDIT_RULES,
   BLOCKOUT_INPUT_RULES,
@@ -659,11 +660,13 @@ export default function VideoTemplateExtractor({
           ? t`${busy}——这一步在跑，跑完再关：现在关掉会把已经传上去的那段素材删掉，而服务器正拿它切段。`
           : t`正在登记——这一步在跑，跑完再关：现在关掉会把已经传上去的那段素材删掉，而服务器正拿它切段。`,
       );
-      return;
+      return false;
     }
     dropReceipt();
     next();
   }
+  // 手机返回键先关这一层（hooks/useBackLayer），走同一个 close()：登记在途被拦下时回 false，这一下返回只是被拦住
+  useBackLayer(true, close, "template-extract");
 
   useEffect(() => {
     let alive = true;

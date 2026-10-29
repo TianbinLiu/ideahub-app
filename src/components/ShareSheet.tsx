@@ -21,6 +21,7 @@ import { useState } from "react";
 import { showToast } from "../data/toast";
 import { takedownReasonText } from "../api/admin";
 import { createPortal } from "react-dom";
+import { useBackLayer } from "../hooks/useBackLayer";
 import { type VideoItem, visibilityOf } from "../types";
 import Icon from "./Icon";
 import BrandIcon, { BRAND_CHIP } from "./BrandIcon";
@@ -72,6 +73,8 @@ export default function ShareSheet({
   const [err, setErr] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  // 手机返回键先关这一层（hooks/useBackLayer），与点遮罩 / 「取消」同一个 onClose
+  useBackLayer(true, onClose, "share");
   const url = previewUrlOf(video.id);
   /** 还没传上服务器：这时候的 id 是本机 id，发出去是一条永远打不开的死链（见 videos.isShareable 的 ★★） */
   const notUploaded = !isShareable(video);

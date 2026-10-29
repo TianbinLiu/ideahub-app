@@ -795,6 +795,11 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   查法：`rg 'rounded-t-' --glob '*.tsx' | rg -v 'border-t border-slate-700 bg-ink'` 只该剩
   `studio/ui/modals.tsx`（那是 3D 桌面里的就地卡片弹层，不是抽屉）。⚠ 别把 `backdrop-blur` 加回壳上：
   它会给 `position: fixed` 后代造包含块（已知的坑那一格）。
+- **安卓返回键先关开着的那一层**（2026-10-29，2.73）：全 app 唯一的 `backButton` 监听在 `utils/backButton`（一个层栈：后开的在上面；
+  没有开着的层时照原样 `history.back()`、退到底 `exitApp`）。抽屉 / 对话框 / 全屏这类能关的层用 `hooks/useBackLayer(open, close, 名字)` 登记，
+  `onBack` 回 false = 在途时拦住不关；`useDialogShell`（Sheet / ConfirmDialog / InfoDialog / DeleteConfirmShell）已经接上，**手写的抽屉要自己接**，
+  强制更新不接。⚠ 别改回「开一层压一格历史」：页面在层开着时自己 navigate（打开草稿、删卡后 `navigate(-1)`、退出登录 replace）会被那格历史搅乱
+  （2.73 第一版这么写过，发版前复核推翻）。圈选画板 `FrameAnnotator`、客服页「我的工单」（回到对话）、新手引导（关掉引导、留在这一页，理由在 `GuideOverlay` 头上）同日补上；只有强制更新不接。
 - **提示条（amber / rose / sky / emerald 底）一律带同色 `/40` 边框**：`rounded-lg border border-<色>-500/40
   bg-<色>-500/10`，紧凑（`py-1.5`）配 `px-2.5`、常规（`py-2`）配 `px-3`；整块的卡式提示（`p-3` 及以上）
   才用 `rounded-xl`。收之前 120 条里 35 条没边框、圆角与内边距十几种组合，同一页上下两条就不一样。

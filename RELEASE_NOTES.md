@@ -1,3 +1,19 @@
+启梦 2.74
+
+· 手机返回键在剩下几处也是先关上面那一层：新手引导开着时按返回关掉引导、留在这一页（原来直接离开这一页）；「圈出要改的地方」那块画板开着时按返回先关画板；AI 客服「我的工单」里按返回回到对话。
+
+QiMeng 2.74
+
+· The back key now closes the top layer in the last few places too: with a new-user guide showing, back closes the guide and keeps you on the page (it used to leave the page); the "circle what to change" board closes first; in AI support's "My tickets", back returns to the chat.
+
+启梦 2.73
+
+· 手机返回键先关掉开着的那一层：评论框、底部弹出的各种面板、确认框、全屏都是按一下返回就关掉、留在原来的页面上（原来评论框开着时，收起键盘之后再按一次返回就直接离开了这一页）。正在提交、删除的那一会儿按返回不会关。
+
+QiMeng 2.73
+
+· The phone's back key now closes whatever is open on top first — the comment sheet, bottom panels, confirmation dialogs and full screen — and keeps you on the same page (with the comment sheet open, pressing back again after the keyboard closed used to leave the page). While something is being submitted or deleted, back won't close it.
+
 启梦 2.72
 
 · 作品详情页：全屏 / 转屏看的时候按手机的返回键只退出全屏，不再直接退出这一页（2.71 真机核对时发现）。

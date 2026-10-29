@@ -4,7 +4,8 @@
 // ★ 方向只有一个主人（hooks/useOrientationLock）：这里只用 requestLandscape 表达意图，不自己去锁 —— 各自锁一次必然打架，
 //   真机上就是「点了转屏没反应」。
 // ★ body 上的 data-immersive 标记（index.css 据它把底栏藏起来）也归这里：卸载必须清掉，否则底栏在别的页面也跟着消失。
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useState, type RefObject } from "react";
+import { useBackLayer } from "./useBackLayer";
 import type { VideoAspect } from "../types";
 import { requestLandscape } from "./useOrientationLock";
 
@@ -14,13 +15,12 @@ export function useImmersive(
   aspect: VideoAspect,
 ): { immersive: boolean; enter: () => Promise<void>; exit: () => void } {
   const [immersive, setImmersive] = useState(false);
-  /** 已经叫过 history.back()、还没等到 popstate：别再弹第二次（✕ 与 fullscreenchange 可能前后脚都来叫，弹两次就离开这一页了） */
-  const popping = useRef(false);
-  const dropMarker = () => {
-    if (popping.current || !(window.history.state as { immersive?: boolean } | null)?.immersive) return;
-    popping.current = true;
-    window.history.back();
-  };
+  // ★ 返回键先退出沉浸态（hooks/useBackLayer → utils/backButton 的层栈）：这个 WebView 的 requestFullscreen 实际不生效，
+  //   安卓返回键 = history back，不压这一格的话按返回直接退出了作品详情页（2026-10-29 真机 2.71）
+  const dismiss = useBackLayer(immersive, () => {
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+    setImmersive(false);
+  }, "immersive");
 
   const enter = async () => {
     try {
@@ -28,32 +28,14 @@ export function useImmersive(
     } catch {
       /* WebView 版本老 / 被策略拒绝：降级成"只收边角元素"，仍比什么都不做强 */
     }
-    // ★ 进沉浸态时压一格历史（同一个地址，带 immersive 记号）：安卓返回键在 Capacitor 里是 webView.goBack()，
-    //   而这个 WebView 的 requestFullscreen 实际不生效（2026-10-29 真机：状态栏还在、按返回直接退出了作品详情页、落回首页）。
-    //   有了这一格，返回键只弹掉它 → popstate → 收起沉浸态。保留原来的 state（react-router 的 idx / key、useBackOr 读的 idx）
-    if (!(window.history.state as { immersive?: boolean } | null)?.immersive) {
-      window.history.pushState({ ...(window.history.state ?? {}), immersive: true }, "");
-    }
     setImmersive(true);
   };
   const exit = () => {
     if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
     setImmersive(false);
     // 点 ✕ 退出：把进来时压的那一格也弹掉，否则还要多按一次返回才离开这一页
-    dropMarker();
+    dismiss();
   };
-
-  // 返回键弹掉了那一格历史：收起沉浸态（真全屏也一起退）
-  useEffect(() => {
-    const onPop = () => {
-      popping.current = false;
-      if ((window.history.state as { immersive?: boolean } | null)?.immersive) return;
-      if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
-      setImmersive(false);
-    };
-    window.addEventListener("popstate", onPop);
-    return () => window.removeEventListener("popstate", onPop);
-  }, []);
 
   // 转屏只对横屏片做，且必须在进入全屏之后——两个平台都只允许全屏态下锁方向
   useEffect(() => {
@@ -65,7 +47,7 @@ export function useImmersive(
     const onChange = () => {
       if (document.fullscreenElement) return;
       setImmersive(false);
-      dropMarker();
+      dismiss();
     };
     document.addEventListener("fullscreenchange", onChange);
     return () => document.removeEventListener("fullscreenchange", onChange);

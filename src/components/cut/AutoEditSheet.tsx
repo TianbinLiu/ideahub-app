@@ -9,6 +9,7 @@ import { useMemo, useState } from "react";
 import Warn from "../Warn";
 import { createPortal } from "react-dom";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { useBackLayer } from "../../hooks/useBackLayer";
 import { AI_REAL } from "../../ai";
 import { briefArkReason } from "../../ai/arkClient";
 import { chargeNote, chargeOnFail } from "../../ai/failCharge";
@@ -59,6 +60,8 @@ export default function AutoEditSheet({ project, segs, lens, canVoice, voiceFree
   const [fades, setFades] = useState(true);
   const [endFade, setEndFade] = useState(true);
   const [voice, setVoice] = useState(canVoice);
+  // 手机返回键先关这一层（hooks/useBackLayer），照点遮罩那条：问模型的那一发在途时不关
+  useBackLayer(true, () => (busy ? false : onClose()), "auto-edit");
   const stepIdx = AUTO_EDIT.steps.findIndex((s) => s.kind === step);
   const price = AI_REAL ? fmtTokens(AUTO_EDIT.cost) : t`演示`;
 
