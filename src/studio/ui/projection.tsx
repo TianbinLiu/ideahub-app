@@ -7,7 +7,7 @@ import { useMemo, useRef, useState } from "react";
 import Warn from "../../components/Warn";
 import { useNavigate } from "react-router";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { deckCoverOf, memberTiersLine, myCards, myDecks, noTierLine, realFaceIssue, regionTiersLine, textOnlyFramesLine, textOnlyModesLine, providerShown, tierBlockReason, tierListed, tierNamesFor, tierOfPreferred, tierOffered, tierShownModel, tierShownModelId, tierTextOnly } from "../../data/account";
+import { chipLabelIn, deckCoverOf, memberTiersLine, myCards, myDecks, noTierLine, realFaceIssue, regionTiersLine, textOnlyFramesLine, textOnlyModesLine, providerShown, tierBlockReason, tierListed, tierNamesFor, tierOfPreferred, tierOffered, tierShownModel, tierShownModelId, tierTextOnly } from "../../data/account";
 import { ONE_IMAGE, VIDEO_TIERS, deriveIssue, durationChoices, fmtTokens, priceTag, promptMaxOf, r2vBlockLines, segTokens, shotsOkOf, tierOf } from "../../data/economy";
 import { useAccountVersion, useProviderPref } from "../../hooks/useAccount";
 import ProviderSwitch from "../../components/flow/ProviderSwitch";
@@ -788,7 +788,10 @@ function EditorPanel() {
               current={providerShown(tierOf(editor.videoTier))}
               onPick={(p) => {
                 const twin = tierOfPreferred(tierOf(editor.videoTier), p);
-                if (twin.id !== editor.videoTier && !tierBlockReason(twin)) useStudio.getState().setVideoTier(twin.id);
+                if (twin.id === editor.videoTier) return null;
+                const why = tierBlockReason(twin);
+                if (!why) useStudio.getState().setVideoTier(twin.id);
+                return why;
               }}
             />
             {/* ★ 三列网格（2026-10-07 加了「草稿」之后最多六档）：一行 flex-1 挤六个，375 宽的屏上每颗只剩五十来像素、价钱折成两行 */}
@@ -821,7 +824,7 @@ function EditorPanel() {
                         : "border-slate-600 text-slate-400 hover:border-slate-400"
                     }`}
                   >
-                    <div className="text-[11px] font-semibold">{tier.label}</div>
+                    <div className="text-[11px] font-semibold">{chipLabelIn(tier, shownTiers)}</div>
                     <div className="tabular-nums text-[9px] opacity-80">
                       {editor.durationMode === "manual" ? <Trans>{fmtTokens(est)} token</Trans> : <Trans>约 {fmtTokens(est)} token</Trans>}
                     </div>

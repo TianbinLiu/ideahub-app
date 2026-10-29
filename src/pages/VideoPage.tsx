@@ -47,6 +47,7 @@ import {
   partsOf,
   profileHref,
   remoteOn,
+  retryComments,
   setLike,
   type VideoLookup,
 } from "../data/videos";
@@ -62,6 +63,7 @@ import {
   subscribeDanmaku,
 } from "../data/danmaku";
 import { markNotificationRead } from "../data/notifications";
+import { showToast } from "../data/toast";
 import { downloadSupport, planDownload } from "../data/videoDownload";
 import { useAccountVersion, useAuthState, useCurrentUser } from "../hooks/useAccount";
 import { useVideosVersion } from "../hooks/useVideos";
@@ -112,6 +114,10 @@ export default function VideoPage() {
   const locked = !!video && partPrice > 0 && !isMyVideo(video) && !hasPurchased(video.id, piSafe);
   // 做同款 = 第八条整表覆盖入口：照**当前这一 P** 的分段剧本铺（hooks/useRemake，与首页同一份；守卫、付费没解锁不给、被拒那句话自清都在里面）
   const { canRemake, remake, err: remakeErr, dialog: remakeDialog } = useRemake(video, part?.segments ?? video?.segments ?? [], locked);
+  // 做同款的键在吸底栏上，而那句被拒的话画在页中间的 RemakeCard 里（多半不在屏上）：另用轻提示说一遍（2026-10-29 发版前复核）
+  useEffect(() => {
+    if (remakeErr) showToast(remakeErr);
+  }, [remakeErr]);
   const [payErr, setPayErr] = useState("");
   /** 分享面板（与首页右侧栏那颗共用 ShareSheet 一份实现） */
   const [shareOpen, setShareOpen] = useState(false);
@@ -232,6 +238,11 @@ export default function VideoPage() {
     };
   }, [remoteLive, authorId]);
 
+  // 上一次进来详情没问到（commentsState = failed）：getVideo 不再自己重问（那会在失败时死循环），进页那一拍问一次
+  useEffect(() => {
+    if (remoteLive && hasVideo && id && commentsStatus(id) === "failed") retryComments(id);
+  }, [remoteLive, hasVideo, id]);
+
   if (!video) {
     // ★ 还没问出结果：不下任何结论。转圈比一句错的结论好
     if (!lookup) {
@@ -343,6 +354,8 @@ export default function VideoPage() {
     const why = await setFollow(video.author, on);
     setFollowBusy(false);
     if (why) setFollowErr(on ? t`关注没成功：${why}` : t`取消关注没成功：${why}`);
+    // 粉丝数是进页时问的那一份：成了就跟着 ±1（不再问一次服务器）
+    else setFans((n) => (n === null ? n : Math.max(0, n + (on ? 1 : -1))));
   }
 
   async function collect() {

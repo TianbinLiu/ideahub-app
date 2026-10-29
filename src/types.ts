@@ -1163,6 +1163,12 @@ export interface VideoSegment {
    */
   fromTextTpl?: boolean;
   /**
+   * 剪辑页合成出来的那一段（成片）身上：来源里文字模板段的正文（2026-10-29 发版前复核补）。成片自己的 plot 不含它们，
+   * 而作品简介是组稿那一拍拼的各段 plot —— 合成之后 fromTextTpl 那几段已经不在 segments 里了，stripLocalOnly 只能靠这一格
+   * 认出简介里哪几句是模板正文。同样**只在本机流转**，发布前去掉。
+   */
+  localPlots?: string[];
+  /**
    * 该段出片时的画幅；缺省=横屏（老数据）。
    * ★ 播放端只把它当**提示**用（首帧还没解码出来时先按它排版），真正的判据是
    *   `<video>` 的 videoWidth/videoHeight——用户上传/换过的段、以及服务端可能

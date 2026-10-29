@@ -7670,8 +7670,12 @@ msgid "免费版：每天自动补 {daily} 套餐 token（最多攒到 {cap}）�
 msgstr "Free plan: {daily} plan tokens are added every day (saving up to {cap}), and you can generate on “{names}”. Subscribe to a plan or make any top-up once to unlock every tier."
 
 #: src/pages/ProfilePage.tsx
-msgid "免费版：每天自动补 {daily} 套餐 token（最多攒到 {cap}）。开通会员套餐或充值任意一笔，全部档位都能用。"
-msgstr "Free plan: {daily} plan tokens are added every day (saving up to {cap}). Subscribe to a plan or make any top-up once to unlock every tier."
+#~ msgid "免费版：每天自动补 {daily} 套餐 token（最多攒到 {cap}）。开通会员套餐或充值任意一笔，全部档位都能用。"
+#~ msgstr "Free plan: {daily} plan tokens are added every day (saving up to {cap}). Subscribe to a plan or make any top-up once to unlock every tier."
+
+#: src/pages/ProfilePage.tsx
+msgid "免费版：每天自动补 {daily} 套餐 token（最多攒到 {cap}）。现在能用的出片档位都要开通会员套餐或充值任意一笔之后才能用。"
+msgstr "Free plan: {daily} plan tokens are added every day (up to {cap}). The video tiers available to you right now all need a membership plan or any top-up first."
 
 #: src/data/account.ts
 msgid "免费版在这一档上只能用文字出片：首帧 / 尾帧（含承接上一段的结尾）、卡片形象图与临时参考图都不发给视频模型，卡片只按文字参与（开通会员套餐或充值过任意一笔后可以带图）"

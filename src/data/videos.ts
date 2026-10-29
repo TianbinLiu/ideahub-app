@@ -667,7 +667,10 @@ export function getVideo(id: string): VideoItem | null {
   const hit = find(id);
   // 远端模式：列表接口不带 comments，进详情页时后台补一次（原地改同一个对象引用，
   // 页面下一次渲染即可见）。
-  if (remoteOn() && hit) void loadDetail(hit);
+  // ★ 上一跳失败（commentsState = failed）就不在这里自动再问（2026-10-29 发版前复核抓到）：失败分支会 emitVideos，
+  //   页面的 useMemo(getVideo, [id, version]) 跟着重算 ⇒ 又发一发 ⇒ 又失败 ⇒ 死循环（离线时是热循环、服务器出事时每个详情页都在刷它）。
+  //   再问只走「没取到评论」那颗重试（retryComments）、打开评论抽屉（ensureComments）与进详情页那一拍（VideoPage 挂载时问一次）。
+  if (remoteOn() && hit && commentsState.get(realId(hit.id)) !== "failed") void loadDetail(hit);
   return hit;
 }
 
@@ -2897,8 +2900,13 @@ if (import.meta.env.DEV && typeof window !== "undefined") {
  * 按原文逐字去掉（人自己写的话一个字不动），再收拾多出来的空行。
  */
 function textTplDescriptionOf(d: DraftVideo): string {
+  // 要去掉的正文：文字模板段自己的 plot + 合成出来的成片记下的来源正文（localPlots）；分支树各节点的段一并算
+  const segs = [...d.segments, ...Object.values(d.branchTree?.nodes ?? {}).map((n) => n.segment)];
+  const secret = segs.flatMap((s) => [...(s.fromTextTpl && s.plot ? [s.plot] : []), ...(s.localPlots ?? [])]).filter(Boolean);
+  // ★ 没有要去掉的就原样返回：原来一律收拾空行 + trim，每一条普通作品的简介都丢了空行（2026-10-29 发版前复核）
+  if (!secret.length) return d.description;
   let desc = d.description ?? "";
-  for (const s of d.segments) if (s.fromTextTpl && s.plot) desc = desc.split(s.plot).join("");
+  for (const p of secret) desc = desc.split(p).join("");
   return desc.replace(/\n{2,}/g, "\n").trim();
 }
 
@@ -2910,9 +2918,10 @@ function textTplDescriptionOf(d: DraftVideo): string {
 function stripLocalOnly(d: DraftVideo): DraftVideo {
   type Seg = DraftVideo["segments"][number];
   const strip = (s: Seg): Seg => {
-    if (!s.poster && !s.fromTextTpl) return s;
+    if (!s.poster && !s.fromTextTpl && !s.localPlots) return s;
     const rest = { ...s };
     delete rest.poster;
+    delete rest.localPlots;
     // 文字模板段的正文不随作品外流（types.VideoSegment.fromTextTpl 的 ★）：发布体里 plot 置空、标记去掉。
     // ★ 在这一处（发布与回炉替换都经它）做，不在组稿那一拍做：剪辑页的一键成片要读全文
     if (rest.fromTextTpl) {

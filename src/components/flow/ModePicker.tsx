@@ -11,7 +11,7 @@ import Icon, { type IconName } from "../Icon";
 import Warn from "../Warn";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { memberTiersLine, noTierLine, regionTiersLine, textOnlyModesLine, providerShown, tierBlockReason, tierListed, tierNamesFor, tierOfPreferred, tierShownModel, tierShownModelId, tierTextOnly } from "../../data/account";
+import { chipLabelIn, memberTiersLine, noTierLine, regionTiersLine, textOnlyModesLine, providerShown, tierBlockReason, tierListed, tierNamesFor, tierOfPreferred, tierShownModel, tierShownModelId, tierTextOnly } from "../../data/account";
 import { CHAT_TURN_TOKENS, CHECKED_PANEL_TOKENS, clampDuration, fmtTokens, IMAGE_TOKENS, segTokens, tierOf, VIDEO_TIERS, type VideoTier } from "../../data/economy";
 import ProviderSwitch from "./ProviderSwitch";
 import { useAccountVersion, useProviderPref } from "../../hooks/useAccount";
@@ -150,7 +150,10 @@ export default function ModePicker({
           current={providerShown(tier)}
           onPick={(p) => {
             const twin = tierOfPreferred(tier, p);
-            if (twin.id !== tier.id && !tierBlockReason(twin)) onTier(twin.id);
+            if (twin.id === tier.id) return null;
+            const why = tierBlockReason(twin);
+            if (!why) onTier(twin.id);
+            return why;
           }}
         />
         {/* ★ 换行排，不横向滚（2026-10-26，与 TierRow 同一种排法）：原来是一行 no-scrollbar overflow-x-auto，六档摆不下时后面几颗
@@ -174,7 +177,7 @@ export default function ModePicker({
                   x.id === tier.id ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-300"
                 }`}
               >
-                {x.label}
+                {chipLabelIn(x, shown)}
               </button>
             );
           })}

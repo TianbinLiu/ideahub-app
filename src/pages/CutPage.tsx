@@ -1806,7 +1806,10 @@ export default function CutPage() {
       } catch (e) {
         console.warn("[cut] 成片首帧没截到:", e);
       }
-      const orderedPlots = [...new Set(order.map((i) => segs[i].plot))];
+      // ★ 文字模板段的正文不进成片的 plot（发布时 stripLocalOnly 只认 fromTextTpl 段，成片不是那种段）；
+      //   正文记进 localPlots，发布前拿它把简介里的那几句去掉（2026-10-29 发版前复核：原来合成后整段正文随作品公开）
+      const localPlots = [...new Set(order.flatMap((i) => (segs[i].fromTextTpl && segs[i].plot ? [segs[i].plot] : segs[i].localPlots ?? [])))];
+      const orderedPlots = [...new Set(order.filter((i) => !segs[i].fromTextTpl).map((i) => segs[i].plot))];
       const first = segs[order[0]];
       const last = segs[order[order.length - 1]];
       /**
@@ -1822,6 +1825,7 @@ export default function CutPage() {
       const mergedSeg: VideoSegment = {
         title: t`成片`,
         plot: orderedPlots.join("\n"),
+        ...(localPlots.length ? { localPlots } : {}),
         firstFrame: first.firstFrame,
         lastFrame: last.lastFrame,
         // 成片第一帧：白模段没有设定帧，全靠它（发布页封面候选、剪辑页缩略图都读 poster || firstFrame）。

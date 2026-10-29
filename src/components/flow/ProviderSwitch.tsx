@@ -20,8 +20,8 @@ export default function ProviderSwitch({
 }: {
   /** 现在选着的这一档是哪一家（亮哪一颗） */
   current: VideoProvider;
-  /** 换到这一家（偏好已经记下了）。宿主决定这一段要不要跟着换档 */
-  onPick: (p: VideoProvider) => void;
+  /** 换到这一家。宿主决定这一段要不要跟着换档：回一句话 = 换不了（原因摆在这颗开关下面、偏好**不记**），回 null = 换了 / 照这一家记 */
+  onPick: (p: VideoProvider) => string | null;
   disabled?: boolean;
   className?: string;
 }) {
@@ -29,13 +29,20 @@ export default function ProviderSwitch({
   useAccountVersion();
   useProviderPref();
   const [ask, setAsk] = useState(false);
+  const [refused, setRefused] = useState("");
   if (!providerChoosable()) return null;
+  // ★ 偏好在宿主点头之后才记（2026-10-29 发版前复核）：原来先记再问宿主，宿主拒了（那一行这一段用不了）偏好却已经换了，
+  //   芯片按偏好摆另一家，人回不到原来那颗芯片
+  const commit = (p: VideoProvider) => {
+    const why = onPick(p);
+    setRefused(why ?? "");
+    if (!why) setProviderPref(p, { consent: true });
+  };
   const pick = (p: VideoProvider) => {
     if (p === current) return;
     // 境内第一次选 MiniMax：先问（数据出境）。海外 / 门禁观察期里两家都给的情形不问 —— 那里本来就只有境外服务器可选
     if (p === "minimax" && videoZone()?.zone === "cn" && !minimaxConsented()) return setAsk(true);
-    setProviderPref(p, { consent: true });
-    onPick(p);
+    commit(p);
   };
   const seg = (on: boolean) =>
     `rounded-full px-3 py-1 text-[11px] disabled:opacity-40 ${on ? "bg-brand font-semibold text-ink" : "text-slate-300"}`;
@@ -54,6 +61,7 @@ export default function ProviderSwitch({
           </button>
         </div>
       </div>
+      {refused && <p className="text-[11px] text-danger-300">{refused}</p>}
       {ask && (
         <ConfirmDialog
           title={t`改用 MiniMax 出片？`}
@@ -61,8 +69,7 @@ export default function ProviderSwitch({
           onClose={() => setAsk(false)}
           onConfirm={() => {
             setAsk(false);
-            setProviderPref("minimax", { consent: true });
-            onPick("minimax");
+            commit("minimax");
           }}
         >
           <Trans>

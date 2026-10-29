@@ -1523,6 +1523,14 @@ export async function confirmTemplateRoles(
   const back = rolesOf(api);
   if (back.length) {
     tpl.roles = back;
+    // 神态跟着服务端那一份走（2026-10-29 发版前复核）：作者换了标签，服务端把神态跟着人挪了（markExprsAfterRolesEdit）并在回包里给回来；
+    //   本机留着旧的那一份，同一场会话里接着套用就是把 A 的神态安在 B 身上。回包里没有就清掉（方向同 refreshRemoteTemplate：少一句话无害）
+    const slotN = (tpl.markSlots ?? []).length;
+    if (slotN) {
+      const ex = markExprsOf(api, slotN);
+      if (ex.length) tpl.markExprs = ex;
+      else delete tpl.markExprs;
+    }
     if (local) persist(); // shared 条目只活在内存缓存里，没有本机库要写
   }
   emit();
