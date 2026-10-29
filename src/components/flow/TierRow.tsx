@@ -15,8 +15,8 @@ import Warn from "../Warn";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
-import { memberTiersLine, r2vTierIssue, realFaceIssue, regionTiersLine, providerShown, sameChipProvider, tierBlockReason, tierListed, tierOfPreferred, tierOffered, tierShownModelId } from "../../data/account";
-import { clampDuration, deriveIssue, fmtTokens, tierOf, VIDEO_TIERS } from "../../data/economy";
+import { chipLabelIn, memberTiersLine, r2vTierIssue, realFaceIssue, regionTiersLine, providerShown, sameChipProvider, tierBlockReason, tierListed, tierOfPreferred, tierOffered, tierShownModelId } from "../../data/account";
+import { clampDuration, deriveIssue, fmtTokens, tierOf, VIDEO_TIERS, type VideoTier } from "../../data/economy";
 import type { VideoProvider } from "../../data/videoZoneRules";
 import ProviderSwitch from "./ProviderSwitch";
 import { useAccountVersion, useProviderPref } from "../../hooks/useAccount";
@@ -153,14 +153,37 @@ export default function TierRow({
     onDone?.();
   }
 
-  /** 换家：换成同一颗芯片的另一家那一行，走与点芯片同一条路（换档代价先说完）。另一家那一行这个人用不了就不换，芯片上照样灰着说原因 */
-  function switchProvider(p: VideoProvider) {
+  /** 这一档在这一段上能不能选（芯片灰不灰、换家换不换，同一句 —— 2026-10-29 发版前复核：原来换家只问套餐，白模段被换到跑不了白模的那一家） */
+  function blockOf(tier: VideoTier): string | null {
+    // ★ 白模节点上，跑不了白模模板的档位也要禁掉（判断在 economy.blockoutPriceIssue 一处；2026-10-05 起不再问 r2vPriceIssue ——
+    //   高清能带参考视频、但跑不了白模模板，问错那一句高清就会在白模段上变成可选）：
+    //   切过去出片必被门禁整句拒，让人选一个必失败的档不如当场说不能选
+    //   话走 account.r2vTierIssue（判据仍是 blockoutPriceIssue）：MiniMax 的「电影级」与 Seedance 的「电影级」同名，按地区点名是哪一家（2026-10-26 P2b 审核）
+    const r2vBlock = blockout ? r2vTierIssue(tier, "blockout") : null;
+    // ★ 按发计价档（真人）走不了推演（判定在 economy.deriveIssue 一处）——工坊这一面
+    //   的主路正是推演，切过去之后「重新推演三套」必被拒。宿主是画布时那条路还在
+    //   （画布可以直出），所以这一条只在**需要推演**的宿主上拦：由 prop 决定。
+    // ★★ 这一段挂着的真人卡在这一档过不过得去（2026-09-30 主人拍板：过不去的档**直接灰掉**，
+    //   不是选了再报错）。判据只有 account.realFaceIssue 一处，与出片闸（flowStore.genNode /
+    //   deriveProposals）问的是同一句 —— 界面说能选、闸却拒，就是两面打架。
+    //   没勾「火山引擎适用」的真人卡：只收认证素材的档（高清 / 电影级）灰；1.0 两档本来就不收真人照片，也灰。
+    //   勾了的也只在不带帧时放行（framed，2026-09-30 付费实测：帧里的真人脸会被整发拒）。
+    const faceBlock = realFaceIssue(node!.materials, tier.id, { blockout, framed });
+    // 文字模板段只在模板说好的那几档上跑（flowStore.textTplTierIssue，出片前的门禁问的是同一个）：目录侧的拒绝排在套餐前面 —— 别把人领去付钱
+    return textTplTierIssue(node!, tier.id) ?? tierBlockReason(tier) ?? r2vBlock ?? faceBlock ?? (needsDerive ? deriveIssue(tier.id) : null);
+  }
+
+  /** 换家：换成同一颗芯片的另一家那一行，走与点芯片同一条路（同一个 blockOf、换档代价先说完）。那一行这一段用不了就不换，把原因交回开关 */
+  function switchProvider(p: VideoProvider): string | null {
     const twin = tierOfPreferred(tierOf(node!.videoTier), p);
-    if (twin.id === node!.videoTier || tierBlockReason(twin)) return;
+    if (twin.id === node!.videoTier) return null;
+    const why = blockOf(twin);
+    if (why) return why;
     const loss = tierSwitchLoss(node!.id, twin.id);
     const via = sameChipProvider(twin, tierOf(node!.videoTier));
     if (loss.length) setAsk({ nodeId: node!.id, id: twin.id, label: via ? `${twin.label} · ${via}` : twin.label, loss });
     else apply(twin.id);
+    return null;
   }
 
   return (
@@ -171,22 +194,10 @@ export default function TierRow({
         <span className="w-10 flex-none text-[11px] text-slate-400"><Trans>画质</Trans></span>
         {/* ★ 回调参数叫 tier 不叫 t：t 是 useLingui 给的翻译函数，同名会把它遮住 */}
         {shown.map((tier) => {
-          // ★ 白模节点上，跑不了白模模板的档位也要禁掉（判断在 economy.blockoutPriceIssue 一处；2026-10-05 起不再问 r2vPriceIssue ——
-          //   高清能带参考视频、但跑不了白模模板，问错那一句高清就会在白模段上变成可选）：
-          //   切过去出片必被门禁整句拒，让人选一个必失败的档不如当场说不能选
-          //   话走 account.r2vTierIssue（判据仍是 blockoutPriceIssue）：MiniMax 的「电影级」与 Seedance 的「电影级」同名，按地区点名是哪一家（2026-10-26 P2b 审核）
+          // 能不能选只问 blockOf（换家那颗开关问的是同一个）
+          const block = blockOf(tier);
+          // 跑不了白模的档不报价（点不动，价钱没有意义）
           const r2vBlock = blockout ? r2vTierIssue(tier, "blockout") : null;
-          // ★ 按发计价档（真人）走不了推演（判定在 economy.deriveIssue 一处）——工坊这一面
-          //   的主路正是推演，切过去之后「重新推演三套」必被拒。宿主是画布时那条路还在
-          //   （画布可以直出），所以这一条只在**需要推演**的宿主上拦：由 prop 决定。
-          // ★★ 这一段挂着的真人卡在这一档过不过得去（2026-09-30 主人拍板：过不去的档**直接灰掉**，
-          //   不是选了再报错）。判据只有 account.realFaceIssue 一处，与出片闸（flowStore.genNode /
-          //   deriveProposals）问的是同一句 —— 界面说能选、闸却拒，就是两面打架。
-          //   没勾「火山引擎适用」的真人卡：只收认证素材的档（高清 / 电影级）灰；1.0 两档本来就不收真人照片，也灰。
-          //   勾了的也只在不带帧时放行（framed，2026-09-30 付费实测：帧里的真人脸会被整发拒）。
-          const faceBlock = realFaceIssue(node.materials, tier.id, { blockout, framed });
-          // 文字模板段只在模板说好的那几档上跑（flowStore.textTplTierIssue，出片前的门禁问的是同一个）：目录侧的拒绝排在套餐前面 —— 别把人领去付钱
-          const block = textTplTierIssue(node, tier.id) ?? tierBlockReason(tier) ?? r2vBlock ?? faceBlock ?? (needsDerive ? deriveIssue(tier.id) : null);
           const desc = tier.desc;
           // title 里的完整模型 id 只在地区问到了、这一档又摆得出来时写（account.tierShownModelId，与「本段模型」那一行同一个口径）
           const model = tierShownModelId(tier);
@@ -209,7 +220,7 @@ export default function TierRow({
             >
               {/* ★ 与主按钮同一把尺（nodeCost，只把档位换成这一档）：光报 segTokens 会漏掉
                   "这一档还得补画几张设定帧"，而用户正是在**比价**的这一步被少报 */}
-              {r2vBlock ? tier.label : <>{tier.label} · {fmtTokens(nodeCost(nodes, index, mode, tier.id))}</>}
+              {r2vBlock ? chipLabelIn(tier, shown) : <>{chipLabelIn(tier, shown)} · {fmtTokens(nodeCost(nodes, index, mode, tier.id))}</>}
             </button>
           );
         })}
@@ -224,7 +235,7 @@ export default function TierRow({
         <Warn tone="info" compact>
           {(() => {
             const title = node.textTpl.title;
-            const names = node.textTpl.tiers.map((id) => tierOf(id).label).join(t({ message: "、", comment: "列举几个名字时的分隔符" }));
+            const names = node.textTpl.tiers.filter((id) => tierOf(id).id === id).map((id) => tierOf(id).label).join(t({ message: "、", comment: "列举几个名字时的分隔符" }));
             return t`文字模板「${title}」只在这几档上跑：${names}`;
           })()}
         </Warn>

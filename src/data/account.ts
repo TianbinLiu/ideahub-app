@@ -1038,6 +1038,18 @@ export function sameChipProvider(tier: VideoTier, other: VideoTier): string | nu
 }
 
 /**
+ * 一排芯片里这一档写什么字：同一排里还摆着它的另一家（同名，比如两颗「高清」）时带上是哪一家（「高清 · MiniMax」）。
+ * 2026-10-29 发版前复核：偏好与这一段挂着的那一家不同时，一排里会出现两颗同名芯片，只靠高亮分不出哪颗是哪家。
+ */
+export function chipLabelIn(tier: VideoTier, shown: readonly VideoTier[]): string {
+  for (const x of shown) {
+    const via = sameChipProvider(tier, x);
+    if (via) return `${tier.label} · ${via}`;
+  }
+  return tier.label;
+}
+
+/**
  * 调用方这一件事要哪种能力的档（白模模板 blockoutOk、重拍 refVid、延长 extendOk、样片 draftOk…）—— 只用来挑「换成哪一档」那条出路：
  * 被地区挡住时只往**做得了这件事**的档上指（2026-10-26 P1 审核）。不传 = 普通出片 / 推演。定稿这类换不了档的事传 `() => false`（没有可换的）。
  */

@@ -13,7 +13,7 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { useLocation, useNavigate } from "react-router";
 import { useAuthState } from "../hooks/useAccount";
-import { tierBlockReason, tierOffered } from "../data/account";
+import { chipLabelIn, tierBlockReason, tierOffered } from "../data/account";
 import { deviceOwner } from "../data/deviceOwner";
 import { priceTag, promptMaxOf, tierOf, VIDEO_TIERS } from "../data/economy";
 import { EXTRA_REF_NAME_MAX, refNameIssue, rewriteSlotMentions, templateSlotRefs } from "../data/refMentions";
@@ -294,7 +294,7 @@ export default function TextTemplateSheet({ onClose, onUse }: { onClose: () => v
                       const ok = rawLen <= max;
                       return (
                         <span key={tier.id} className={`rounded-full px-2 py-0.5 ${ok ? "bg-panel text-slate-300" : "bg-warn-500/15 text-warn-200"}`}>
-                          {tier.label} ≤ {max}
+                          {chipLabelIn(tier, shown)} ≤ {max}
                           {ok ? " ✓" : " ✗"}
                         </span>
                       );
@@ -535,7 +535,7 @@ export default function TextTemplateSheet({ onClose, onUse }: { onClose: () => v
                           }`}
                         >
                           <span className="min-w-0 flex-1">
-                            <span className="block text-xs font-semibold text-slate-100">{tier.label}</span>
+                            <span className="block text-xs font-semibold text-slate-100">{chipLabelIn(tier, shown)}</span>
                             <span className="block text-[10px] text-slate-400">{why ? textTplTierWhyText(why) : plan ?? tier.desc}</span>
                           </span>
                           {q && <span className="flex-none text-[11px] tabular-nums text-slate-300">{priceTag(q.tokens)}</span>}

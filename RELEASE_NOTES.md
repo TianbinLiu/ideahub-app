@@ -1,3 +1,22 @@
+启梦 2.71
+
+· 作品详情页重做：播放器铺满宽度，可以调倍速、开关弹幕、全屏 / 转屏看；标题下面一排点赞、评论、收藏、分享、举报；评论先露第一条，点开就是首页那个评论框（能回复、点赞、往下翻）；底部一直有「做同款」；往下是「做你自己的版本」（几段、多长、什么模型）、这位作者的更多作品和同分区的作品。
+· 模板货架「再做一个视频模板」多了一种做法：只用文字 + 一张本地封面做模板（先存在这台手机上，要登录）。
+· 白模模板：服务器更新之后新登记的模板会记下示例视频里每个人的神态，套用时照着演（惊讶、大笑这类在二次元素材上验过）。
+· 卡片、卡组、模板与选模型的地方改写具体的出片模型名（按你所在的地区写；还没确认地区时只写档位名）。服务器开通之后，境内同一档可以在 Seedance 和 MiniMax 之间选（第一次选 MiniMax 会先说明照片和提示词会交给境外服务器处理）。
+· 出片提交时遇到「参考图没拉到」，自动等 20 秒再交一次（那一发没受理、没扣钱），不用自己再点。
+· AI 客服：字幕跟着正在念的那一句走；遇到危机话题会弹出求助卡；英文界面点看板娘念英文，同一句在这次打开客服页期间只合成、只扣一次；多了三段动作；人格市场里别人的人格可以举报；上传 Live2D 形象时第 ⑤ 步试跑会照实说哪些动作动了、哪些没动。
+· 分区页滑到顶时搜索栏不再挡住「浏览分区」，几个全屏页面的顶栏在刘海屏上也不再往下溢出。
+
+QiMeng 2.71
+
+· The video detail page is redesigned: a full-width player with playback speed, bullet comments on / off and full-screen / rotate; a row of like, comment, save, share and report under the title; the first comment is shown and tapping it opens the same comment sheet as the home feed (reply, like, load more); “Remix” stays pinned at the bottom; further down are “Make your own version” (segments, length, model), more from this creator and more from the same category.
+· “Make another video template” in the template shelf now has a text option: a template made from text plus a local cover image (saved on this phone for now; sign-in required).
+· Blockout templates: once the server is updated, newly registered templates remember each person's expression in the example video and keep it when applied (surprise and laughter were verified on anime footage).
+· Cards, decks, templates and model pickers now name the actual video model (by your region; before the region is known they show only the tier name). Once enabled on the server, users in mainland China can pick Seedance or MiniMax for the same tier (the first time you pick MiniMax it explains that photos and prompts are processed on servers outside mainland China).
+· When a submission fails because a reference image couldn't be fetched, the app waits 20 seconds and resubmits once by itself (that attempt was not accepted or charged).
+· AI support: subtitles follow the sentence being spoken; a help card appears for crisis topics; tapping the mascot in the English UI speaks English, and the same line is synthesized and charged only once per visit to the support page; three new motions; other people's personas in the persona market can be reported; the Live2D upload trial in step ⑤ now reports honestly which motions moved and which didn't.
+· On the Discover page the search bar no longer covers “Browse categories” when scrolled to the top, and several full-screen headers no longer overflow on notched phones.
 启梦 2.70
 
 · 自定义一段时挂了示例视频，出片默认会要求模型不复刻示例视频里的水印、台标、账号名与字幕（示例视频块里有「去掉示例视频里的水印 / 台标」开关，可关）。高清档对照验过：不加这句，角标和账号名会原样搬进成片；加了就没有。电影级本来就不照搬示例画面。仍不是硬保证，台标固定在角上时传之前裁掉最稳。
