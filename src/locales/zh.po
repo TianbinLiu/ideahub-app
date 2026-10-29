@@ -20280,6 +20280,10 @@ msgstr "照着现在这张双人镜头画：只沿用地方、光线与两人的
 #~ msgid "照着现在这张双人镜头画：地方、光线、两人的衣服都照它。"
 #~ msgstr "照着现在这张双人镜头画：地方、光线、两人的衣服都照它。"
 
+#: src/components/video/RelatedWorks.tsx
+msgid "照这条做的同款 · {remixCount}"
+msgstr "照这条做的同款 · {remixCount}"
+
 #: src/components/cut/AutoEditSheet.tsx
 #: src/pages/CutPage.tsx
 msgid "片头标题"

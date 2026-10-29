@@ -1,3 +1,15 @@
+启梦 2.72
+
+· 作品详情页：全屏 / 转屏看的时候按手机的返回键只退出全屏，不再直接退出这一页（2.71 真机核对时发现）。
+· 作品详情页写上弹幕一共多少条（原来条数多时只能写「N+」）；有人照这条做了同款时，下面多一块「照这条做的同款」，点进去就是那几条作品。
+· 对工作流画布说「第2段换成 MiniMax」这类话时，不再被当成这一段的要求、把写好的要求整段换掉；会告诉你去本段设置里换。
+
+QiMeng 2.72
+
+· Video page: in full-screen or rotated view, the phone's back key now only leaves full screen instead of leaving the page (found while checking 2.71 on a real phone).
+· The video page now shows the total number of bullet comments (it used to say “N+” when there were many); when other people have remixed the video, a “Remixes of this video” block lists them.
+· Telling the workflow canvas something like “switch segment 2 to MiniMax” no longer replaces that segment's written prompt; it points you to the segment settings instead.
+
 启梦 2.71
 
 · 作品详情页重做：播放器铺满宽度，可以调倍速、开关弹幕、全屏 / 转屏看；标题下面一排点赞、评论、收藏、分享、举报；评论先露第一条，点开就是首页那个评论框（能回复、点赞、往下翻）；底部一直有「做同款」；往下是「做你自己的版本」（几段、多长、什么模型）、这位作者的更多作品和同分区的作品。

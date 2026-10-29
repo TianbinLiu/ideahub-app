@@ -20272,6 +20272,10 @@ msgstr "Drawn from the current two-shot: only the place, light and both outfits 
 #~ msgid "照着现在这张双人镜头画：地方、光线、两人的衣服都照它。"
 #~ msgstr "Drawn from the current two-shot: the place, light and both outfits follow it."
 
+#: src/components/video/RelatedWorks.tsx
+msgid "照这条做的同款 · {remixCount}"
+msgstr "Remixes of this video · {remixCount}"
+
 #: src/components/cut/AutoEditSheet.tsx
 #: src/pages/CutPage.tsx
 msgid "片头标题"
