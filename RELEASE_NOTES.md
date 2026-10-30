@@ -1,3 +1,18 @@
+启梦 2.76
+
+· 更新弹窗只写这一版改了什么、只显示你的界面语言；跳过的几版折起来；设置页多了「更新记录」。
+· 首页：收藏改成金色五角星；右侧那列最下面换成转着的「做同款」碟片，全屏 / 转屏挪进长按菜单；长按菜单多了「不感兴趣」（点了这条不再出现，6 秒内可撤销）；点赞没记上会提示并能重试。
+· 个人主页多一行「IP 属地」（境内到省、境外到国家 / 地区）。
+· AI 客服：写明每问多少 token；装了人格用它的开场白；小梦能给「带我去」键和选项芯片；👎 之后能举报。
+· 发布页「发布」键吸在底部、表单在前；画布的「完成视频」钉在底部不再被平移走；放大的形象图删前先确认；灰掉的时长 / 画幅写明原因；新手引导每步压短；按钮上的「炼 / 铸」改成「生成 / 做」，报错里不再出现服务商的名字。
+
+QiMeng 2.76
+
+· Update prompt: only this version, in your language; skipped versions fold away; “Update history” added in Settings.
+· Home: collect is a gold star; a spinning Remix disc replaces the full-screen key (now in the long-press menu, with a new “Not interested”); failed likes say so.
+· Profiles show an IP location line. AI support: price per question, persona greetings, “Take me to” button, option chips, 👎 reporting.
+· Publish button pinned at the bottom; shorter onboarding; plainer buttons; no vendor names in errors.
+
 启梦 2.75
 
 · 做视频模板时，免费版被「白模」那两条路挡住，红字下面多了一行能点的「改用「只用文字 + 封面」」，点了直接去做文字模板（不用会员，做模板也不花 token）；那一屏底下原来指人去选「经典配方」的那句删了（那条路早就没有了）。
