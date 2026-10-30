@@ -2243,8 +2243,10 @@ async function loadDetail(item: VideoItem): Promise<void> {
  * ★ 回 undefined 而不是 []：发布体只在**有**模板时多这一格（服务端「有 id 才落 pending」，空数组白占一格）。
  */
 async function templateIdsForPublish(match: { clientId?: string; reviseOf?: string }): Promise<string[] | undefined> {
+  // ★ 只在服务端**明说**没有这个能力时才不带（发版前复核抓到）：探活没问到（弱网 / 冷启动 30 秒退避窗里的 flushPending）回 null，
+  //   原来也当成不带 —— 而 POST 一旦成功这些 id 就再也补不上了（只有回炉那条 PATCH 能带）。老服务端收到会 strip、无害，所以 null 按带处理
   const caps = await probeServerCaps();
-  if (!caps?.templateReward) return undefined;
+  if (caps && caps.templateReward === false) return undefined;
   const ids = await projects.pendingTemplateIdsFor(match);
   return ids.length > 0 ? ids : undefined;
 }

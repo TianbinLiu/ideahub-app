@@ -424,9 +424,10 @@ export async function pendingTemplateIdsFor(match: { clientId?: string; reviseOf
   try {
     const p = await readPending();
     if (!p) return [];
-    const hit = match.reviseOf
-      ? p.reviseOf?.videoId === match.reviseOf
-      : (!!match.clientId && p.clientId === match.clientId) || (!p.clientId && !p.videoId && !p.reviseOf);
+    // ★ 新发布**只认盖过章的 clientId**，不接受还没盖章的那一份（发版前复核抓到）：待办是单键，A 还在上传时用户回去组了 B，
+    //   `captureCanvas` 会用 B 的画布把槽位顶掉（没 clientId）—— 认没盖章的那份就是把 B 的模板 id 发在 A 的作品上，
+    //   B 的模板作者按 A 的作品拿钱、A 的模板作者一分没有。对不上宁可发空（安全方向）
+    const hit = match.reviseOf ? p.reviseOf?.videoId === match.reviseOf : !!match.clientId && p.clientId === match.clientId;
     return hit ? templateIdsOf(p.canvas) : [];
   } catch (e) {
     console.warn("[projects] 读待办画布的模板 id 失败", e);

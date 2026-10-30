@@ -20,7 +20,7 @@
 |---|---|---|
 | POST | `/api/branch/videos` | 发布体多一格 **`templateIds?: string[]`**（≤ 20、去重、每个是 BranchTemplate 的 ObjectId）。zod 要声明（不声明会被 strip，零报错）。服务端只收**存在的**模板 id、丢掉不存在的，落 `BranchVideo.templateIds` + `templateReward.pending: true`（有 id 才落） |
 | PATCH | `/api/branch/videos/:id` | 回炉换内容时同样可带 `templateIds`（覆盖）；已经判过的 (作品, 模板) 不再判 |
-| GET | `/api/branch/template-reward` | 规则下发 `{ enabled, tokens, perAuthorPerDay, perTemplate, perUserPerDay, holdMs }` —— App 的那一句话只读它（与 `GET /api/branch/remix-reward` 同形，`data/remixReward` 的镜像） |
+| GET | `/api/branch/template-reward` | 规则下发 `{ ok, reward: { enabled, tokens, perAuthorPerDay, perTemplate, perUserPerDay, holdMs }, mine? }`（外壳与 `GET /api/branch/remix-reward` 逐字同形：App 判「有没有 `reward` 对象」不判状态码；server#145 实现时多给了 `mine`，App 第一版不读）—— App 的那一句话只读它（`data/templateReward`） |
 | 通知 | `BRANCH_TEMPLATE_REWARD` | `payload: { tokens, templateId, templateTitle, videoId }`；点进去落到自己的模板详情页 |
 | 健康端点 | `templateReward: true` | App 见不到就不说那一句、不发 `templateIds`（老服务端会 strip，发了也无害） |
 
@@ -40,7 +40,7 @@
 
 1. **发布时带 `templateIds`**：组稿那一拍抓下的画布（`data/projects.captureCanvas` / `PendingCanvas`）里每段的 `tpl` 经 `recipe.ts` 同一个 `tplResolver`（本机 id → 服务端 id）得到 id 列表，去重后进发布体；
    `videos.pushPublish` / `flushPending` 两条路都要带（与 `shareRecipe` 盖进 `PendingCanvas` 同一条理由：发布可能离线排队）。服务端 `templateReward` 能力位为假时不带。
-2. **那一句话**：`components/recipe/RemixRewardNote` 旁边加同形的 `TemplateRewardNote`，数全读 `data/templateReward`（服务端下发），没到就不说；摆在模板详情页「发布到模板市场」附近与发布页卡组那一行下面。
+2. **那一句话**：`components/recipe/RemixRewardNote` 旁边加同形的 `TemplateRewardNote`，数全读 `data/templateReward`（服务端下发），没到就不说；摆在模板详情页（只给模板作者看，在「发布到模板市场」那一行下面）与模板货架「我的模板」页签顶上 —— **不摆发布页**：发片的人不是拿奖励的那一方（app#453 落地时定）。
 3. **通知页**认 `BRANCH_TEMPLATE_REWARD`（礼物头像，点进自己的模板页）。
 4. 知识库：§3.9 / §4.4 各一句；禁止承诺 31b 改口（现在写的是「不说套用模板有奖励」）。
 
