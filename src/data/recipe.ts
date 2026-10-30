@@ -255,6 +255,40 @@ export function projectRecipe(canvas: unknown, opts: ProjectRecipeOpts = {}): Wo
   return { v: 1, mode: flow.mode === "simple" ? "simple" : "workflow", nodes: out, deck, cast };
 }
 
+/** 发布体 `templateIds` 的上限（契约「模板作者奖励」：≤ 20、去重；服务端超了是整发 400 不是截断，所以这里先截） */
+export const PUBLISH_TEMPLATE_IDS_MAX = 20;
+
+/**
+ * 这份画布套用过哪几个**服务端登记过的**模板（发布体的 `templateIds`，模板作者奖励 2026-10-30）。**唯一实现**：
+ * 发布 / 补发 / 回炉三条路（data/projects.pendingTemplateIdsFor）读的都是它。
+ *
+ * ★ 「这一段用哪个模板」与 projectRecipe 同一条读法（`n.tpl` 三态：undefined 退回 `flow.template`、null = 明确没有），
+ *   本机 id → 服务端 id 也走同一个解析器（`tplRefOf`）；认不出服务端 id 的（文字模板 P1 只存本机、没登记上的白模模板）不带 ——
+ *   服务端只认存在的 BranchTemplate，带了也是丢掉。
+ * ★ 与 projectRecipe 的差别：那边只给白模段回指模板（配方要靠它铺段），这里**凡是能解析出服务端 id 的都算**——
+ *   奖励问的是「套用过谁的模板」，不是「这一段怎么复制」。
+ * ★ 去重、按出现顺序、最多 PUBLISH_TEMPLATE_IDS_MAX 个。空画布 / 读不出来回 []（不抛：发布那一拍不该被这一格拦住）。
+ *
+ * @param resolveTpl 本机模板 id → 服务端 id。不给（undefined）= 用 registerTemplateResolver 登记的那份；显式 null = 只认快照自带的
+ */
+export function templateIdsOf(canvas: unknown, resolveTpl?: ((localId: string) => string | null) | null): string[] {
+  const flow = rec(rec(canvas)?.flow);
+  if (!flow) return [];
+  const resolve = resolveTpl === undefined ? tplResolver : resolveTpl;
+  const out: string[] = [];
+  for (const raw of arr(flow.nodes)) {
+    const n = rec(raw);
+    if (!n) continue;
+    const tpl = rec(n.tpl !== undefined ? n.tpl : flow.template);
+    if (!tpl) continue;
+    const ref = tplRefOf(tpl, resolve);
+    if (!ref || out.includes(ref.id)) continue;
+    out.push(ref.id);
+    if (out.length >= PUBLISH_TEMPLATE_IDS_MAX) break;
+  }
+  return out;
+}
+
 function shotOf(raw: unknown): ShotSpec | null {
   const s = rec(raw);
   if (!s) return null;

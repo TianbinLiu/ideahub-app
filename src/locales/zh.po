@@ -3889,11 +3889,16 @@ msgstr "🃏 挂卡换人"
 #~ msgid "🃏 自选卡片"
 #~ msgstr "🃏 自选卡片"
 
+#: src/components/recipe/TemplateRewardNote.tsx
+msgid "🎁 别人套用你的模板出片、公开发布满 {hours} 小时，平台会奖励你 {tokens} token（每天最多 {perDay} 次，每个模板最多 {perTemplate} 次）。"
+msgstr "🎁 别人套用你的模板出片、公开发布满 {hours} 小时，平台会奖励你 {tokens} token（每天最多 {perDay} 次，每个模板最多 {perTemplate} 次）。"
+
 #: src/components/recipe/RemixRewardNote.tsx
 msgid "🎁 别人照着这条作品做了同款、公开发布满 {hours} 小时，平台会奖励你 {tokens} token（每天最多 {perDay} 次，每条作品最多 {perVideo} 次）。"
 msgstr "🎁 别人照着这条作品做了同款、公开发布满 {hours} 小时，平台会奖励你 {tokens} token（每天最多 {perDay} 次，每条作品最多 {perVideo} 次）。"
 
 #. placeholder {0}: fmtTokens(n.reward.tokens)
+#. placeholder {0}: fmtTokens(n.templateReward.tokens)
 #: src/pages/NotificationsPage.tsx
 msgid "🎁 平台奖励你 {0} token"
 msgstr "🎁 平台奖励你 {0} token"
@@ -3901,6 +3906,10 @@ msgstr "🎁 平台奖励你 {0} token"
 #: src/pages/NotificationsPage.tsx
 msgid "🎁 平台给你发了同款奖励"
 msgstr "🎁 平台给你发了同款奖励"
+
+#: src/pages/NotificationsPage.tsx
+msgid "🎁 平台给你发了模板奖励"
+msgstr "🎁 平台给你发了模板奖励"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "🎙 录这一段"
@@ -12436,6 +12445,10 @@ msgstr "套用一次约 <0>{0}</0> token（按模板视频时长计）"
 msgid "套用之后在参考清单里按名字补上 {textSlots} 张图（{0}），补齐才能出片。"
 msgstr "套用之后在参考清单里按名字补上 {textSlots} 张图（{0}），补齐才能出片。"
 
+#: src/pages/NotificationsPage.tsx
+msgid "套用了你的模板出片"
+msgstr "套用了你的模板出片"
+
 #: src/pages/TemplateDetailPage.tsx
 msgid "套用后只能在这几档之间换"
 msgstr "套用后只能在这几档之间换"
@@ -17848,6 +17861,15 @@ msgstr "有两张不同的卡都叫「{cardName}」（编号 {slotLabel} 挂的�
 #: src/data/notifications.ts
 msgid "有人"
 msgstr "有人"
+
+#. placeholder {0}: n.templateReward.templateTitle
+#: src/pages/NotificationsPage.tsx
+msgid "有人套用了你的模板《{0}》出片"
+msgstr "有人套用了你的模板《{0}》出片"
+
+#: src/pages/NotificationsPage.tsx
+msgid "有人套用了你的模板出片"
+msgstr "有人套用了你的模板出片"
 
 #: src/components/flow/GridShotsWizard.tsx
 msgid "有几格的画面写到了「{names}」，已把他们算进那几格画面里的人（不想让他们入镜，就改掉画面里的名字）"

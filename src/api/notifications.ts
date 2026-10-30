@@ -44,6 +44,15 @@ export const BRANCH_NOTIFICATION_TYPES = [
    */
   "BRANCH_REMIX_REWARD",
   /**
+   * **模板作者奖励到账**（2026-10-30，docs/template-author-reward-design.md；server 写入只在 services/templateReward.service）：
+   * 别人套用我的模板出了片、公开发布满 24 小时，平台印了一笔 token 给我。payload { tokens, templateId, templateTitle, videoId }。
+   *   · 平台口径：头像位画礼物（不透出是谁套的 —— 契约没带 actor，也不该带：套用者与模板作者之间本来没有关系链）；
+   *   · 深链目标是 `templateId` → 我自己的模板详情页（/template/:id），不是那条作品。
+   * ★ 金额是 `payload.tokens`（数），句子由这边按界面语言说（服务端不拼中文句子）。
+   * ★★ 老 App（≤ 2.76）**收不到这一类**（请求层白名单，同上面 BRANCH_REVISED 那条 ★★）：币照到，只是没有这条通知。
+   */
+  "BRANCH_TEMPLATE_REWARD",
+  /**
    * **生成失败、token 已退回**（2026-10-07 主人「做生成失败返回 token」；server 写入只在 services/taskRefund.service 的 followUp）：
    * 受理之后上游明说这一发失败了，服务端按原桶退了钱，而退款**不是**在本人自己那次轮询里发生的（清扫器替他退的 / App 被杀了 /
    * 别的设备在问）—— 那时没有任何一个回包能把这句话带给他，只能发一条通知。payload { tokens, kind, taskId, provider }。
@@ -125,6 +134,9 @@ export interface ApiNotification {
     provider?: string;
     originalId?: string;
     originalTitle?: string;
+    /** 模板作者奖励（BRANCH_TEMPLATE_REWARD）：是我的哪个模板被套用了 */
+    templateId?: string;
+    templateTitle?: string;
   } | null;
   /** null = 未读 */
   readAt?: string | number | null;

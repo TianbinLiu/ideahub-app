@@ -28,6 +28,7 @@ import { i18n } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import SocialPanel, { useCountView, useSocialVersion } from "../components/SocialPanel";
+import TemplateRewardNote from "../components/recipe/TemplateRewardNote";
 import { useTemplatesVersion } from "./TemplateMarketPage";
 // ★ 「进挂卡编辑页要带什么、回哪儿」只有一处实现（FlowPage 导出的 castEditorState）：
 //   收结果的是工作流页，入参形状与回程键写错一个字母的表现是"回来了但什么都没发生"，
@@ -540,6 +541,10 @@ function OwnerBar({
           {armed ? t`真的删掉？（连云端视频一起）` : t`删除`}
         </button>
       </div>
+      {/* 模板作者奖励那一句（2026-10-30）：摆在「发布到模板市场」那一行正下面 —— 作者决定发不发时该看到它。
+          只对登记过服务端的模板摆（白模路）：文字模板 P1 只存本机、没有服务端 id，套用它出片服务端不认，这句话对它是假话。
+          rule 没到（老服务端 / 离线 / 关着）组件自己不画 */}
+      {blockout && tpl.remoteId && <TemplateRewardNote className="mt-2" />}
       {/* ★★ 核对角色位的入口（白模 V2，两档常驻）：作者是从**这一页**点的发布，而发布闸的
           两道门之一就是它 —— 撞了 400 之后这里必须有下一步，不能只把整句印在下面
           （改造之前正是那样：opErr 里躺着一句"还没核对"，页面上却没有任何地方能去核对，

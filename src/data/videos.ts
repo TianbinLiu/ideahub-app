@@ -18,6 +18,7 @@ import { idbGet, idbRead, idbSet } from "./db";
 import { materializeDraft, type MaterializeError } from "./publishAssets";
 import * as projects from "./projects";
 import { onRecipeStateChange } from "./recipes";
+import { probeServerCaps } from "./serverCaps";
 // ⚠ 与 data/danmaku 是**互相 import**（那边要本文件的 realId/remoteOn）：两边都只在函数体里
 //   用对方，所以这个环在运行时无害。加新引用之前先确认自己不是在模块顶层用它。
 import { dropLocalDanmaku } from "./danmaku";
@@ -2232,6 +2233,25 @@ async function loadDetail(item: VideoItem): Promise<void> {
 }
 
 /**
+ * 发布体 / 回炉体上那一格 `templateIds`（模板作者奖励，2026-10-30，docs/template-author-reward-design.md 第四节 1）。
+ * **唯一实现**：现在传（pushPublish）/ 冷启动补发（flushPending）/ 回炉（reviseVideo）三条路都拼它 —— 漏一条的症状是
+ * 那条路发出去的作品永远不给模板作者记账，零报错。
+ *
+ * ★ 先问服务端能力位（`templateReward`）：没有这一位（老服务端）就不拼 —— 它的 zod 会 strip，发了也无害，但「发了什么」要说得清。
+ *   用 probeServerCaps 而不是同步的 serverSupports：这一拍本来就是 async，等探测回来比拿「还不知道」当「没有」准；探测失败（null）= 不拼。
+ * ★ id 从哪儿来：组稿那一拍抓下的画布待办（projects.pendingTemplateIdsFor，算法在 recipe.templateIdsOf）。待办对不上 / 读不出 = []。
+ * ★ 回 undefined 而不是 []：发布体只在**有**模板时多这一格（服务端「有 id 才落 pending」，空数组白占一格）。
+ */
+async function templateIdsForPublish(match: { clientId?: string; reviseOf?: string }): Promise<string[] | undefined> {
+  // ★ 只在服务端**明说**没有这个能力时才不带（发版前复核抓到）：探活没问到（弱网 / 冷启动 30 秒退避窗里的 flushPending）回 null，
+  //   原来也当成不带 —— 而 POST 一旦成功这些 id 就再也补不上了（只有回炉那条 PATCH 能带）。老服务端收到会 strip、无害，所以 null 按带处理
+  const caps = await probeServerCaps();
+  if (caps && caps.templateReward === false) return undefined;
+  const ids = await projects.pendingTemplateIdsFor(match);
+  return ids.length > 0 ? ids : undefined;
+}
+
+/**
  * 发布：同步返回的是乐观条目（本地临时 id），真正的落库在这里。
  * 服务端会把 dataURL 首尾帧和方舟临时 videoUrl 转存到 Cloudinary，
  * 所以回包里的 cover/segments 必须回填——否则 24h 后视频链接就失效了。
@@ -2269,7 +2289,9 @@ async function pushPublish(item: VideoItem, draft: DraftVideo): Promise<void> {
     //   同一个事故形状，那边防的是冷启动补发，这里防的是正在传的这一发）。抛出去落进 catch：条目留在待发队列、主人仍是 A
     //   （queuePending 保留第一次入队时记的主人），A 再登录时照常补发。
     if (deviceOwner() !== ownerAtStart) throw ownerMovedError();
-    const v = await branch.createVideo(sending);
+    // 套用过的模板 id 跟着发布体走（模板作者奖励）；对不上 / 老服务端 = 不带这一格
+    const templateIds = await templateIdsForPublish({ clientId: draft.clientId });
+    const v = await branch.createVideo(templateIds ? { ...sending, templateIds } : sending);
     // ★★ **`null` 是失败，不是成功**（2026-08-21 第十轮扫描）：`createVideo` 对
     //   「200 + 形状不对」的回包返回 null（`request()` 不抛错：JSON.parse 失败就把
     //   body 当字符串原样返回，`res.ok` 恒真）—— 而这正是「.env.production 指错主机」
@@ -2410,9 +2432,12 @@ export async function reviseVideo(id: string, draft: DraftVideo, baseRevision: n
     };
   }
   uploadStatus = null;
+  // 回炉这一版套用过的模板（模板作者奖励，契约 PATCH 可带 `templateIds` 覆盖）：待办按 reviseOf 对号；对不上 / 老服务端 = 不带
+  const templateIds = await templateIdsForPublish({ reviseOf: id });
   let v: branch.ApiVideo | null;
   try {
     v = await branch.reviseVideo(realId(id), {
+      ...(templateIds ? { templateIds } : {}),
       title: sending.title,
       category: sending.category,
       description: sending.description,
@@ -2857,7 +2882,9 @@ async function flushPending(): Promise<void> {
       });
       uploadStatus = null;
       if (deviceOwner() !== flushOwner) throw ownerMovedError();
-      const v = await branch.createVideo(sending);
+      // ★ 与 pushPublish 同一条：套用过的模板 id 跟着发布体走（待办画布在 IndexedDB 里、跨得过冷启动，put 成功才清）
+      const templateIds = await templateIdsForPublish({ clientId: p.draft.clientId });
+      const v = await branch.createVideo(templateIds ? { ...sending, templateIds } : sending);
       // ★★ 与 pushPublish 同一条：`null` 是失败。原来 `if (v && cache)` 把 null 当成功，
       //   于是那条队列项**不会进 left**，`writePending(left)` 之后就永久删掉了 ——
       //   用户点一次「立即重试」，队列里那条作品就没了，提示还写着「全部上传成功」。

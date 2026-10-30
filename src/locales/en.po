@@ -3889,11 +3889,16 @@ msgstr "🃏 Cast cards"
 #~ msgid "🃏 自选卡片"
 #~ msgstr "🃏 Pick cards"
 
+#: src/components/recipe/TemplateRewardNote.tsx
+msgid "🎁 别人套用你的模板出片、公开发布满 {hours} 小时，平台会奖励你 {tokens} token（每天最多 {perDay} 次，每个模板最多 {perTemplate} 次）。"
+msgstr "🎁 When someone else makes a video with your template and it stays public for {hours, plural, one {# hour} other {# hours}}, the platform rewards you {tokens} tokens (up to {perDay} times a day and {perTemplate} times per template)."
+
 #: src/components/recipe/RemixRewardNote.tsx
 msgid "🎁 别人照着这条作品做了同款、公开发布满 {hours} 小时，平台会奖励你 {tokens} token（每天最多 {perDay} 次，每条作品最多 {perVideo} 次）。"
 msgstr "🎁 When someone else remixes this video and their remix stays public for {hours, plural, one {# hour} other {# hours}}, the platform rewards you {tokens} tokens (up to {perDay} times a day and {perVideo} times per video)."
 
 #. placeholder {0}: fmtTokens(n.reward.tokens)
+#. placeholder {0}: fmtTokens(n.templateReward.tokens)
 #: src/pages/NotificationsPage.tsx
 msgid "🎁 平台奖励你 {0} token"
 msgstr "🎁 The platform rewarded you {0} tokens"
@@ -3901,6 +3906,10 @@ msgstr "🎁 The platform rewarded you {0} tokens"
 #: src/pages/NotificationsPage.tsx
 msgid "🎁 平台给你发了同款奖励"
 msgstr "🎁 The platform sent you a remix reward"
+
+#: src/pages/NotificationsPage.tsx
+msgid "🎁 平台给你发了模板奖励"
+msgstr "🎁 The platform sent you a template reward"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "🎙 录这一段"
@@ -12428,6 +12437,10 @@ msgstr "Each use costs about <0>{0}</0> tokens (based on the template video's le
 msgid "套用之后在参考清单里按名字补上 {textSlots} 张图（{0}），补齐才能出片。"
 msgstr "After applying, add {textSlots, plural, one {# image} other {# images}} by name in the reference list ({0}); generation needs all of them."
 
+#: src/pages/NotificationsPage.tsx
+msgid "套用了你的模板出片"
+msgstr "made a video with your template"
+
 #: src/pages/TemplateDetailPage.tsx
 msgid "套用后只能在这几档之间换"
 msgstr "After applying, you can only switch among these tiers"
@@ -17840,6 +17853,15 @@ msgstr "Two different cards are both named “{cardName}” (number {slotLabel} 
 #: src/data/notifications.ts
 msgid "有人"
 msgstr "Someone"
+
+#. placeholder {0}: n.templateReward.templateTitle
+#: src/pages/NotificationsPage.tsx
+msgid "有人套用了你的模板《{0}》出片"
+msgstr "Someone made a video with your template “{0}”"
+
+#: src/pages/NotificationsPage.tsx
+msgid "有人套用了你的模板出片"
+msgstr "Someone made a video with your template"
 
 #: src/components/flow/GridShotsWizard.tsx
 msgid "有几格的画面写到了「{names}」，已把他们算进那几格画面里的人（不想让他们入镜，就改掉画面里的名字）"

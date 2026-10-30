@@ -24,6 +24,7 @@ import Sheet from "./Sheet";
 // （播放/点赞数 2026-08-29 随卡片减法收进详情页，本文件不再读 social）
 import VideoTemplateExtractor from "./VideoTemplateExtractor";
 import TemplateCreateCard from "./TemplateCreateCard";
+import TemplateRewardNote from "./recipe/TemplateRewardNote";
 import TextTemplateSheet from "./TextTemplateSheet";
 import WorkflowShelf from "./WorkflowShelf";
 import {
@@ -751,6 +752,9 @@ export default function TemplateShelf({
       {tab === "mine" && tplIssue && (
         <LocalStoreBanner store="templates" retrying={tplRetry.retrying} onRetry={tplRetry.retry} />
       )}
+      {/* 模板作者奖励那一句（2026-10-30）：只在「我的模板」页签头上说一次（规则没到组件自己不画）。
+          市场页签不摆 —— 逛别人模板的人不是这句话的对象 */}
+      {tab === "mine" && <TemplateRewardNote className="mb-3" />}
 
       {/* ★★ 「还没取回结果」摆在**两个 tab 都看得见**的位置，而不是只在「我的模板」里：
           这一块关系到已经花掉的钱，用户从任何一条路进这一页都该第一眼看见它

@@ -39,6 +39,12 @@ export interface NotificationItem {
    */
   reward: { tokens: number; originalId: string | null; originalTitle: string; anonymous: boolean } | null;
   /**
+   * 模板作者奖励到账（BRANCH_TEMPLATE_REWARD，2026-10-30）；其它类型为 null。
+   * 平台口径、没有 actor：头像位画礼物，点进去落到 templateId（我自己的模板详情页）。
+   * `tokens` 为 0 = 服务端没给出金额（契约问题）：那一行不说数，别编一个
+   */
+  templateReward: { tokens: number; templateId: string | null; templateTitle: string } | null;
+  /**
    * 生成失败、token 已退回（GEN_TASK_REFUND，2026-10-07）；其它类型为 null。
    * `kind` 原样（video / draft / draftFinal / 3d / blockout / minimax；认不出的照样留着，界面按「一次生成」说）。
    * `tokens` 为 0 = 服务端没给出金额：那一行不说数，别编一个
@@ -172,6 +178,15 @@ function toItem(n: api.ApiNotification): NotificationItem | null {
             originalId: typeof payload.originalId === "string" && payload.originalId ? payload.originalId : null,
             originalTitle: payload.originalTitle || "",
             anonymous: !actorObj,
+          }
+        : null,
+    // 模板作者奖励：金额与是哪个模板都在 payload 里（server templateReward.service 的 notify）。判否定：别的类型一律 null
+    templateReward:
+      n.type === "BRANCH_TEMPLATE_REWARD"
+        ? {
+            tokens: typeof payload.tokens === "number" && payload.tokens > 0 ? payload.tokens : 0,
+            templateId: typeof payload.templateId === "string" && payload.templateId ? payload.templateId : null,
+            templateTitle: payload.templateTitle || "",
           }
         : null,
     // 生成失败退款：金额与是哪一种生成都在 payload 里（server taskRefund.service 的 followUp）。判否定：别的类型一律 null
