@@ -572,6 +572,30 @@ App 上那句「每次 N token、每天最多 M 次…」读的是这里（`data
 **删号 / 删作品**：`RemixReward` 里「他是原作者」的行随删号一起删；「他是同款作者」的行**留着**（那是别的原作者的上限计数，
 跟着删的话刷子号做完同款就注销、上限被悄悄清零）。删作品不动这张表。
 
+### 模板作者奖励（`template_reward`，2026-10-30，设计正本 app `docs/template-author-reward-design.md`）
+
+别人套用你的模板出了片、**公开发布满 24 小时还公开着** → **平台**印一笔 token 给**模板作者**。与同款奖励同一副骨架
+（server `services/templateReward.service.js` 复制自 remixReward.service），只换触发源与几个数；钱的红线同上（平台印、不许用户之间流转）。
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| POST | `/api/branch/videos` | 发布体多一格 **`templateIds?: string[]`**（≤ 20、去重、每个是 BranchTemplate 的 ObjectId）。服务端 zod **要声明**（不声明会被 strip，零报错）；只收**存在的**模板 id、丢掉不存在的，落 `BranchVideo.templateIds` + `templateReward.pending: true`（有 id 才落） |
+| PATCH | `/api/branch/videos/:id` | 回炉换内容时同样可带 `templateIds`（**覆盖**）；已经判过的 (作品, 模板) 不再判 |
+| GET | `/api/branch/template-reward` | 规则下发 `{ ok, reward: { enabled, tokens, perAuthorPerDay, perTemplate, perUserPerDay, holdMs } }`（optionalAuth；与 `GET /remix-reward` 同形，但没有 `mine`）。App 那一句话只读它（`data/templateReward` → `components/recipe/TemplateRewardNote`），**不在 App 里另抄一份数**；规则没到 / 数不成形 / `enabled:false` 就整句不说。老服务端没有这条路 —— App 判回包形状（有没有 `reward` 对象），404 / 非 JSON 一律当「没有」 |
+| 通知 | `BRANCH_TEMPLATE_REWARD` | `payload: { tokens, templateId, templateTitle, videoId }`；平台口径、不带 actor（礼物头像、不显示是谁）；点进去落到**自己的模板详情页**（App `/template/:templateId`）。⚠ 老 App（≤ 2.76）**收不到**这一类（请求层白名单，同 BRANCH_REVISED 那条）：币照到 |
+| 健康端点 | `templateReward: true` | App 见不到就不发 `templateIds`（老服务端会 strip，发了也无害）、也不说那一句 |
+
+App 侧 `templateIds` 从哪儿来：组稿那一拍抓下的画布待办（`data/projects.pendingTemplateIdsFor`，算法只在 `data/recipe.templateIdsOf`）——
+每段的 `tpl`（三态，undefined 退回 `flow.template`）经 `recipe.ts` 同一个 `tplResolver` 本机 id → 服务端 id，去重、截到 20；
+现在传（`videos.pushPublish`）/ 冷启动补发（`flushPending`）/ 回炉（`reviseVideo`，按 `reviseOf` 对号）三条路都带。文字模板（P1 只存本机、没有服务端 id）带不上，上市场（P2）之后自然进来。
+
+数（server `config/templateReward.js`，产品口径、规则端点下发）：每次 **10,000** token；每位模板作者 24 小时最多 **20** 次；每个模板一共最多 **200** 次；
+每个使用者 24 小时最多给别人带来 **3** 次（防互刷，不上屏）；全站保险丝每 24 小时 **200** 次（`TEMPLATE_REWARD_GLOBAL_PER_DAY`，断了发信）；总开关 `TEMPLATE_REWARD_ENABLED`。
+**一条作品 × 一个模板 = 最多一次**（`TemplateReward` 唯一索引 `{ video, template }`）；自己套自己的模板不发；上限不顺延、判定只做一次、不追回（R2 / R3 原文照搬）。
+账本类别 `template_reward`（不在 REPAY / SPEND 名单里，同 `remix_reward`）；memo 逐字 `模板奖励 video:<作品 id> tpl:<模板 id>`。
+
+先后：服务端先上（老 App 不发 `templateIds`，什么都不会发生）→ App 发版带字段 → 第一笔要等有人用新版发布并满 24 小时。
+
 ## 热度（`heat`）
 
 **只有一个公式**，实现在 server 的 `src/utils/hotScore.js`：

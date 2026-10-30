@@ -68,6 +68,9 @@ function actionText(n: NotificationItem): MessageDescriptor | null {
     case "BRANCH_REMIX_REWARD":
       // 同款奖励到账（P3b）。金额与原作在下面单独两行（见渲染那段）；没带是谁的那种走礼物头像 + 「有人做了你的同款」
       return msg`做了你的同款`;
+    case "BRANCH_TEMPLATE_REWARD":
+      // 模板作者奖励到账（2026-10-30）。平台口径、没有 actor，主句在渲染那段（「有人套用了你的模板《X》出片」），这里只是类型上兜全
+      return msg`套用了你的模板出片`;
     case "GEN_TASK_REFUND":
       // 平台口吻的那一行不走这个句式（见渲染那段：主语是「这一次生成」，金额单独一行），这里只是类型上兜全
       return msg`生成失败，token 已退回`;
@@ -160,6 +163,13 @@ export default function NotificationsPage() {
       navigate(n.type === "SUPPORT_TICKET" ? "/admin?view=support" : `/support?tab=tickets&ticket=${encodeURIComponent(n.ticketId)}`);
       return;
     }
+    // 模板作者奖励：落到**我自己的模板详情页**（契约「点进去落到自己的模板详情页」），不是那条套用出来的作品 ——
+    // 所以排在 videoId 那一跳**之前**（payload 里带着 videoId，服务端也可能 populate 它）。模板页打开即算看过，就地标已读（它自己不认识通知）
+    if (n.templateReward) {
+      void markNotificationRead(n.id);
+      navigate(n.templateReward.templateId ? `/template/${encodeURIComponent(n.templateReward.templateId)}` : "/templates?shelf=mine");
+      return;
+    }
     if (n.videoId) {
       navigate(`/video/${n.videoId}`, { state: { fromNotification: n.id } });
       return;
@@ -244,8 +254,9 @@ export default function NotificationsPage() {
                     <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-ok-500/15 text-lg" aria-hidden>
                       ↩️
                     </span>
-                  ) : n.reward?.anonymous ? (
-                    // 同款奖励、服务端没带是谁（两人之间有拉黑 / 那条同款已经不公开）：不拿「有人」两个字去画字母头像
+                  ) : n.reward?.anonymous || n.templateReward ? (
+                    // 同款奖励、服务端没带是谁（两人之间有拉黑 / 那条同款已经不公开），以及模板作者奖励（平台口径、从不带是谁）：
+                    // 不拿「有人」两个字去画字母头像
                     <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-ok-500/15 text-lg" aria-hidden>
                       🎁
                     </span>
@@ -260,6 +271,11 @@ export default function NotificationsPage() {
                       ) : n.refund ? (
                         // 主语是那一次生成（不是「有人」）：哪一种生成没出成，金额在下一行
                         <span className="font-semibold">{t(refundKindText(n.refund.kind))}</span>
+                      ) : n.templateReward ? (
+                        // 模板作者奖励：平台口径、不透出是谁（主语是「有人」+ 我的哪个模板），金额在下一行
+                        <span className="font-semibold">
+                          {n.templateReward.templateTitle ? t`有人套用了你的模板《${n.templateReward.templateTitle}》出片` : t`有人套用了你的模板出片`}
+                        </span>
                       ) : n.type === "TUTOR_REVIEW_DUE" ? (
                         // 回访到期是系统发的（没有 actor）：主语是那门课，不是「有人」
                         <span className="font-semibold">{n.tutor?.count ? t`「${n.tutor.personaName}」有 ${n.tutor.count} 个阶段该回访了` : t`「${n.tutor?.personaName ?? ""}」有阶段该回访了`}</span>
@@ -305,13 +321,20 @@ export default function NotificationsPage() {
                         )}
                       </>
                     )}
+                    {/* 模板作者奖励：金额一行（数是服务端发的那个，不在这里另写）。★ 说「平台奖励」：钱不是套用的人出的（token 不许在用户之间流转）。
+                        下面那行通用的作品名对这一类不画 —— 它是**那条套用出来的作品**的名字，摆在模板名下面读起来像同一件东西 */}
+                    {n.templateReward && (
+                      <div className="mt-0.5 text-xs font-semibold text-ok-300">
+                        {n.templateReward.tokens > 0 ? t`🎁 平台奖励你 ${fmtTokens(n.templateReward.tokens)} token` : t`🎁 平台给你发了模板奖励`}
+                      </div>
+                    )}
                     {/* 生成失败退款：金额一行（服务端的数，不在这里另写）。★ 说「已退回」不说「已到账」以外的承诺：钱是服务端退的，这里只是告诉你 */}
                     {n.refund && (
                       <div className="mt-0.5 text-xs font-semibold text-ok-300">
                         {n.refund.tokens > 0 ? t`扣的 ${fmtTokens(n.refund.tokens)} token 已经退回` : t`扣的 token 已经退回`}
                       </div>
                     )}
-                    {n.videoTitle && !n.reward && (
+                    {n.videoTitle && !n.reward && !n.templateReward && (
                       <div className="mt-0.5 truncate text-xs text-slate-500">{n.videoTitle}</div>
                     )}
                     {n.tutor && n.type !== "TUTOR_REVIEW_DUE" && (

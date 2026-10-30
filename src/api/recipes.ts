@@ -125,6 +125,42 @@ export async function getRemixReward(): Promise<ApiRemixReward | null> {
   };
 }
 
+/**
+ * 模板作者奖励的规则（GET /api/branch/template-reward，2026-10-30，docs/template-author-reward-design.md 契约）。
+ * 与同款奖励同形、只换触发源与几个数：别人套用你的模板出片、公开发布满 holdMs 还公开着 → 平台印 tokens 给模板作者。
+ * ★ 五个数**全由服务端给**（server 的 config/templateReward.js），App 不抄（理由同 ApiRemixReward）。
+ *   服务端下发的是 `holdMs`（毫秒），这里原样带回，换算成小时在 data/templateReward 一处做。
+ */
+export interface ApiTemplateReward {
+  rule: { enabled: boolean; tokens: number; perAuthorPerDay: number; perTemplate: number; perUserPerDay: number; holdMs: number };
+}
+
+/**
+ * 回包里没有 `reward` 对象 = 这台服务器没有模板奖励（老服务端 / SPA 回退），回 null —— 判形状不判状态码。
+ * ★ 老服务端上 apiGet 可能**抛**（404 落成 ApiError）：这里接住一律当 null —— 这句话说不说不拦任何操作，没有一种失败需要用户去做什么。
+ */
+export async function getTemplateReward(): Promise<ApiTemplateReward | null> {
+  let res: unknown;
+  try {
+    res = await apiGet<unknown>("/api/branch/template-reward");
+  } catch {
+    return null;
+  }
+  if (!isRecord(res) || !isRecord(res.reward)) return null;
+  const r = res.reward;
+  const pos = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v > 0 ? v : 0);
+  return {
+    rule: {
+      enabled: r.enabled === true,
+      tokens: pos(r.tokens),
+      perAuthorPerDay: pos(r.perAuthorPerDay),
+      perTemplate: pos(r.perTemplate),
+      perUserPerDay: pos(r.perUserPerDay),
+      holdMs: pos(r.holdMs),
+    },
+  };
+}
+
 const path = (videoId: string) => `/api/branch/videos/${encodeURIComponent(videoId)}/recipe`;
 
 /**

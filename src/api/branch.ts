@@ -410,10 +410,18 @@ export async function getVideo(id: string): Promise<ApiVideo | null> {
  * 因此返回的 video 里 cover/segments 已经是永久 URL —— 调用方要拿返回值回填 cache。
  * 首尾帧是 1MB 级 base64，超时给到 3 分钟。
  */
-export async function createVideo(draft: DraftVideo): Promise<ApiVideo | null> {
+export async function createVideo(draft: PublishBody): Promise<ApiVideo | null> {
   const res = await apiPost<Record<string, unknown>>("/api/branch/videos", draft, { timeoutMs: 180_000 });
   return pick<ApiVideo>(res, ["video", "item", "data"]);
 }
+
+/**
+ * 发布体 = 整份草稿 + 可选的 `templateIds`（模板作者奖励，2026-10-30，契约见 docs/api-contract.md「模板作者奖励」）。
+ * ★ `templateIds` 是**发布体**的事、不是草稿的事（DraftVideo 里没有它）：它是从组稿那一拍抓下的画布算出来的
+ *   （data/projects.pendingTemplateIdsFor），发那一刻才拼上；≤ 20、去重、每个是 BranchTemplate 的 ObjectId。
+ *   老服务端的 zod 会 strip 它（无害）；服务端 `templateReward` 能力位为假时 data/videos 根本不拼。
+ */
+export type PublishBody = DraftVideo & { templateIds?: string[] };
 
 /** DELETE /api/branch/videos/:id（requireAuth，仅作者） */
 export async function deleteVideo(id: string): Promise<void> {
@@ -464,6 +472,8 @@ export interface ReviseBody extends VideoMetaPatch {
   /** ★ 空卡组（`{ name: "", cards: [] }`）= 这一版不带卡组，服务端 `$unset deck`；
    *  不带这个键 = 保留原作品那套。发布页那颗「随片带上这套卡」关掉时发的就是空卡组。 */
   deck?: VideoDeck;
+  /** 回炉这一版套用过的模板（模板作者奖励，覆盖原来那份；已经判过的 (作品, 模板) 服务端不再判）。形状同 PublishBody.templateIds */
+  templateIds?: string[];
   baseRevision: number;
 }
 

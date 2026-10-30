@@ -50,6 +50,11 @@ export interface ServerCaps {
   /** 用户资料带 ipRegion（IP 属地，2026-10-30）。见不到就不画那一行 */
   ipRegion: boolean;
   /**
+   * 模板作者奖励（2026-10-30，docs/template-author-reward-design.md）：发布体收 `templateIds`、有 `GET /api/branch/template-reward`。
+   * 见不到就不发 `templateIds`（老服务端的 zod 会 strip，发了也无害，但没必要）、也不说那一句（那一句本来只读规则端点，老服务端上问不到）。
+   */
+  templateReward: boolean;
+  /**
    * 这台服务端开着 MiniMax H3（V2）出片（`POST /api/minimax/v2/video`，健康端点的 `minimaxV2`，2026-10-26 出片地区 P2b）。
    * 服务端只在 MiniMax 走国际站时为真（没有单独的开关）；为假时那条路回 501 MINIMAX_V2_OFF。老服务端没有这一位 = 没有。
    * ★ H3 三档摆不摆 = 这一位为真 **且** 地区问到了、providers 里有 minimax（契约「H3 三档摆不摆」）—— 两样合起来只在 videoZone.minimaxV2Offered 一处判。
@@ -75,6 +80,7 @@ export type BoolCap =
   | "videoZone"
   | "videoHide"
   | "ipRegion"
+  | "templateReward"
   | "minimaxV2"
   | "minimaxV2FreeTextOnly";
 
@@ -97,6 +103,7 @@ function capsOf(j: Record<string, unknown>): ServerCaps {
     videoZone: j.videoZone === true,
     videoHide: j.videoHide === true,
     ipRegion: j.ipRegion === true,
+    templateReward: j.templateReward === true,
     minimaxV2: j.minimaxV2 === true,
     minimaxV2FreeTextOnly: j.minimaxV2FreeTextOnly !== false,
   };
@@ -118,6 +125,7 @@ const NONE: ServerCaps = {
   videoZone: false,
   videoHide: false,
   ipRegion: false,
+  templateReward: false,
   minimaxV2: false,
   minimaxV2FreeTextOnly: true,
 };
@@ -139,6 +147,8 @@ const ALL: ServerCaps = {
   videoZone: false,
   videoHide: false,
   ipRegion: false,
+  // 模板奖励同理：规则端点与发布体那一格都在服务端，dev 直连 / 离线包没有收它的地方
+  templateReward: false,
   minimaxV2: false,
   minimaxV2FreeTextOnly: true,
 };

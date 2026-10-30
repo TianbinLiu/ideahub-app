@@ -28,6 +28,7 @@ import { isPermanentUrl, pairAssetUrls, type PairTarget } from "./publishAssets"
 import { MINIMAX_V2_TEMP_RE } from "./upstreamVideo";
 import * as api from "../api/projects";
 import { shareFromCanvas, type ShareOutcome } from "./recipes";
+import { templateIdsOf } from "./recipe";
 import { ApiError } from "../api/client";
 import type { DraftVideo } from "../types";
 import { deviceOwner, mayClaimLegacy, onViewerChange, workOwner } from "./deviceOwner";
@@ -407,6 +408,30 @@ export async function pendingCanvasFor(reviseOf: { videoId: string } | null | un
   if (!p) return null;
   if (reviseOf) return p.reviseOf?.videoId === reviseOf.videoId ? p.canvas : null;
   return !p.clientId && !p.videoId && !p.reviseOf ? p.canvas : null;
+}
+
+/**
+ * 这次发布 / 回炉套用过哪几个服务端模板（发布体的 `templateIds`，模板作者奖励 2026-10-30）—— 读组稿那一拍抓下的待办画布，
+ * id 的算法只在 `recipe.templateIdsOf`。
+ *
+ * ★ 怎么对号：新发布认 `clientId`（publishVideo 拿到幂等键那一拍盖的章）；章还没盖上时（stampPendingCanvas 是 void 调的，
+ *   pushPublish 里 materialize 几乎不用传东西的那一发可能先到）认「还没盖章、也没归属任何作品 / 回炉」的那一格 ——
+ *   与 pendingCanvasFor(null) 给发布页画预览用的是同一条判据，发布页上「别人会看到这些」画的就是它。
+ *   回炉认 `reviseOf.videoId`。对不上一律回 []：待办是另一摊活的，拿它的模板 id 给这条作品记账就是把别人的奖励记到错的作品上。
+ * ★ 回 [] 不抛：这一格是顺带的，发布那一拍不该被它拦住；跨进程补发（flushPending）时待办还在 IndexedDB 里（put 成功才清），照样读得到。
+ */
+export async function pendingTemplateIdsFor(match: { clientId?: string; reviseOf?: string }): Promise<string[]> {
+  try {
+    const p = await readPending();
+    if (!p) return [];
+    const hit = match.reviseOf
+      ? p.reviseOf?.videoId === match.reviseOf
+      : (!!match.clientId && p.clientId === match.clientId) || (!p.clientId && !p.videoId && !p.reviseOf);
+    return hit ? templateIdsOf(p.canvas) : [];
+  } catch (e) {
+    console.warn("[projects] 读待办画布的模板 id 失败", e);
+    return [];
+  }
 }
 
 /**
