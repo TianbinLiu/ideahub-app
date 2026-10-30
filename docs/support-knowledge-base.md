@@ -396,7 +396,7 @@
 - 直充包（进 addon，永不过期）：¥6 / 200k、¥25 / 1M、¥98 / 5M（目前没接真实支付渠道，下单付不了款，见 §11.2） — `app\src\data\economy.ts`（RECHARGE_PACKS）
 - 「付过钱」= 有付费套餐**或**有过一笔真付款（充值包、套餐、Google Play 购买都算）；付过的钱全被退款 / 拒付收回之后，就不再算付过钱。Play 的测试购买不算 — `server\src\services\tokenWallet.service.js`（hasLivePayment / refreshPaidEver）
 - 钱包入口在「我的」页 → 「充值 / 套餐」抽屉 — `app\src\pages\ProfilePage.tsx:741`, `:803`, `:1422`
-- **平台印给你的奖励**（都进 addon、永不过期，账本上分别是 `remix_reward` / `template_reward`）：同款奖励（§3.9、§9.3 的 v2.61）与**模板作者奖励**（2.77 起；服务端 2026-10-30 已上线：别人套用你的视频模板出片并公开发布满一段时间，平台奖励模板作者；每次多少、上限几次、要挂多久由服务器下发，**以 App 里那一句为准**，见 §3.9）。两样都是平台印的钱、不是对方付的，不许在用户之间流转、不能提现 — `app\src\data\remixReward.ts`；`app\src\data\templateReward.ts`
+- **平台印给你的奖励**（都进 addon、永不过期，账本上分别是 `remix_reward` / `template_reward`）：同款奖励（§3.9、§9.3 的 v2.61）与**模板作者奖励**（2.77 起：别人套用你的视频模板出片并公开满期，平台奖励模板作者；数由服务器下发、**以 App 里那一句为准**，见 §3.9）。两样都是平台印的钱、不是对方付的，不许在用户之间流转、不能提现 — `app\src\data\remixReward.ts`；`app\src\data\templateReward.ts`
 - 没付过钱的人在抽屉里会看到：「免费版：每天自动补 2k 套餐 token（最多攒到 14k），能用「极速」「草稿」档出片。开通会员套餐或充值任意一笔，全部档位都能用。」；免费版那一格写「新人一次 170k + 每天 2k（最多攒 7 天）」。
   数字与档名都按服务端下发的规则现拼（11-24 极速停用后自己少一档） — `app\src\pages\ProfilePage.tsx`（WalletSheet）；`app\src\data\economy.ts`（PLANS）
 - **免费版只能用「极速」「草稿」出片**，其余档位看得见但点不动、写出原因（「「…」是会员档——开通会员套餐（或充值过任意一笔）就能用」+「去升级」）；充值过任意一次或开通任意付费套餐就能用（见 §4.2） — `app\src\data\account.ts`（tierBlockReason / memberTiersLine）
