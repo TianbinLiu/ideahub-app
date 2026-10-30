@@ -23,3 +23,24 @@ export function previewUrlOf(videoId: string): string {
  * ★ 设置页那一行走它。别在调用点自己拼 SITE_BASE。
  */
 export const childSafetyUrl = () => `${SITE_BASE}/child-safety`;
+
+/**
+ * 启梦老师（官网 /tutor，tutor 仓 docs/06 §5.1，2026-09-29）：用自己的教材铸一位 AI 老师、在网页里上课。
+ * 与儿童安全页同一个理由：它是**网页功能**（阅读面 + 导学漫游都在官网），App 里只放外链、不抄一份。
+ * from = 引流位的名字（服务端白名单：app-settings / app-create），只用来记一行、不奖励 —— 别拿它传别的东西。
+ * ⚠ 落到官网用的是那个浏览器里的登录态，不是 App 的（不做跨站登录）；没登录过会先去登录再回到 /tutor。
+ */
+export const tutorUrl = (from: "app-settings" | "app-create") => `${SITE_BASE}/tutor?from=${from}`;
+
+/**
+ * AI 对话安全说明页（自伤危机协议的公开说明，SB 243 §22602(b)(2) 要求公开；契约 docs/api-contract.md「客服」那一节）。
+ * ★ 求助卡（`safety` 事件）里的 policyUrl 是服务端按官网写的**相对路径**（"/safety/ai-chat"）：App 里直接当 href，
+ *   Capacitor 会把它当成本地路径、落进 SPA 回退页（200 + index.html），点了等于回到首页 —— 所以一律经这里拼成官网地址。
+ *   服务端给了完整的 https 地址就原样用；别的（空、协议相对的 "//x"、javascript: 之类）退回契约写明的那一页。
+ */
+export function aiChatSafetyUrl(policyUrl?: string): string {
+  const p = String(policyUrl ?? "").trim();
+  if (p.startsWith("/") && !p.startsWith("//")) return `${SITE_BASE}${p}`;
+  if (/^https:\/\/[^\s]+$/i.test(p)) return p;
+  return `${SITE_BASE}/safety/ai-chat`;
+}

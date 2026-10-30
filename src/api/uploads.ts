@@ -13,7 +13,7 @@
 // ★ 服务端这两个端点早就在线、Cloudinary 也早就配好了（2026-08-10 实测：
 //   传一张 1x1 png 回的是 res.cloudinary.com 的永久 URL）。缺的一直只是 App 去用它。
 import { t } from "@lingui/core/macro";
-import { API_BASE, ApiError, apiPost, getToken } from "./client";
+import { API_BASE, ApiError, apiPost, getToken, withAppVersion } from "./client";
 
 /** 与服务端 middleware/upload.js 的上限一致。超了就别发出去，省一次必然失败的往返 */
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -121,11 +121,12 @@ async function postFormData(
   }
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}${path}`, {
+    const url = `${API_BASE}${path}`;
+    res = await fetch(url, {
       method: "POST",
       // ★ 不要手写 Content-Type：multipart 的 boundary 由浏览器生成，
       //   自己填一个会让服务端解析不出文件（multer 直接判定没有 file）。
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      headers: withAppVersion(url, token ? { Authorization: `Bearer ${token}` } : {}),
       body: fd,
       signal: ctrl.signal,
     });
@@ -414,7 +415,7 @@ export async function deriveTemplateVideo(
  * ★ `params` 里有什么由服务端说了算（签名与要发的字段是同一个对象）：客户端自己拼、
  *   自己增删任何一项，Cloudinary 都只回一句 Invalid Signature，而那是最难查的一类错。
  */
-interface DirectTicket {
+export interface DirectTicket {
   uploadUrl: string;
   publicId: string;
   params: Record<string, string | number | boolean>;
@@ -597,8 +598,9 @@ async function withChunkRetry<T>(signal: AbortSignal | undefined, run: () => Pro
   throw last;
 }
 
-/** 直传：串行推完每一块。★ 串行不并发 —— 官方 SDK 也是串行，乱序/并发官方没有承诺过。 */
-async function putDirect(
+/** 直传：串行推完每一块。★ 串行不并发 —— 官方 SDK 也是串行，乱序/并发官方没有承诺过。
+ *  导出给 api/tutorUpload（教材 md / txt）用：票的字段名不同，换个壳就是同一条路（2026-09-29 M4） */
+export async function putDirect(
   ticket: DirectTicket,
   file: File,
   onProgress?: (frac: number) => void,
@@ -872,12 +874,13 @@ export async function deleteTemplateVideo(publicId: string): Promise<void> {
   }, 20_000);
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}/api/uploads/template-video`, {
+    const url = `${API_BASE}/api/uploads/template-video`;
+    res = await fetch(url, {
       method: "DELETE",
-      headers: {
+      headers: withAppVersion(url, {
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
+      }),
       body: JSON.stringify({ publicId }),
       signal: ctrl.signal,
     });
@@ -906,9 +909,10 @@ export async function deleteTemplateVideo(publicId: string): Promise<void> {
  */
 export async function registerMaterialVideo(publicId: string): Promise<{ url: string; durationSec: number }> {
   const token = getToken();
-  const res = await fetch(`${API_BASE}/api/uploads/material-video/register`, {
+  const url = `${API_BASE}/api/uploads/material-video/register`;
+  const res = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    headers: withAppVersion(url, { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }),
     body: JSON.stringify({ publicId }),
     signal: AbortSignal.timeout(30_000),
   });

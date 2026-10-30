@@ -12,7 +12,8 @@
 //     只按真汉字判（纯全角标点不算）。基线 { file: { hash(空白与换行归一后的文本): 次数 } }，与行号、缩进、CRLF / LF 都无关。
 //     排除：console.* 的参数、new RegExp() 的参数、类型位置的字面量、Lingui 宏内部、zhPrompt`…` 标签模板、
 //     带 `/* i18n-frozen: 理由 */` 的声明、`// i18n-ignore-next-line: 理由`（理由必填）、src/mock/ai.ts、src/data/agreements.tsx、
-//     冻结文件（FROZEN_FILES：画布指挥句式 src/studio/agentGrammar.ts —— 被解析的输入，不是界面文案）。
+//     冻结文件（FROZEN_FILES：画布指挥句式 src/studio/agentGrammar.ts、剪辑台指挥句式 src/studio/cutGrammar.ts
+//     —— 被解析的输入，不是界面文案）。
 //   B 宏用法：模块顶层出现会立刻翻译的调用（t`` / t() / plural / select / i18n._( / i18n.t(）→ 失败（只准 msg / defineMessage）；
 //     .tsx 从 @lingui/core/macro 引 t → 失败（组件里用 useLingui 的 t，否则切语言不重渲）；zhPrompt 模板里出现宏 → 失败；
 //     src/ai/prompts/** 与冻结文件 import @lingui → 失败；useMemo / useCallback 里用了宏而依赖里没有 locale / i18n / t → 只提醒。
@@ -56,7 +57,7 @@ const EXEMPT = new Set(["src/mock/ai.ts", "src/data/agreements.tsx"]);
  * ★ 画布指挥句式（D10 第 2 步）：「第2段套宗主模板」是本地档要认的**句子**，翻成英文就认不出了（英文句式在同一个文件里并联）。
  *   它还得零运行时依赖（scripts/check-agent-grammar.mjs 用 Node 直接 import 跑正反例），引 Lingui 会把整个运行时拖进来。
  */
-const FROZEN_FILES = new Set(["src/studio/agentGrammar.ts"]);
+const FROZEN_FILES = new Set(["src/studio/agentGrammar.ts", "src/studio/cutGrammar.ts"]);
 /** 宏（出现在这些里面的中文是「已经进目录的」，不算漏） */
 const MACRO_FNS = new Set(["t", "msg", "defineMessage", "plural", "select", "selectOrdinal"]);
 /** 其中**调用那一刻就翻译**的：模块顶层禁用（会冻结在开机语言） */

@@ -80,6 +80,14 @@ export async function fileToFrameDataUrl(file: File, maxW = 1600, quality = 0.87
  */
 export const REF_MIN_SIDE = 14;
 export const REF_MAX_RATIO = 3;
+/**
+ * 直接发给 **Seedance**（视频模型）当参考图的窗口：宽高比 [0.4, 2.5]、边长 [300, 6000]px。
+ * ★ 出处（2026-10-03 查，官方「创建视频生成任务」文档图片一节）；比上面 Seedream 那一套（1/3~3、14px 起）更窄。
+ *   越界同样是整发 400。临时参考图（N1）走这个窗口。
+ * ⚠ 卡片形象图上传时仍按上面那一套裁（改它要连卡片页的文案与存量图一起动，另议）：比例落在 2.5~3 之间的卡图
+ *   直接发给视频模型时有被拒的可能 —— 2026-10-03 记下，还没修。
+ */
+export const VIDEO_REF_WINDOW = { maxRatio: 2.5, minSide: 300 } as const;
 
 export interface RefImage {
   blob: Blob;
@@ -98,17 +106,29 @@ export interface RefImage {
  * ★ 比例越界就**居中裁**并把 cropped 报上去，而不是静默裁或直接拒：手机全景/长截图
  *   正好越界，直接拒等于这个功能对相册里一半的图不存在；静默裁则是当面改用户的图。
  */
-export async function fileToRefImage(file: File, maxLong = 1024, quality = 0.85): Promise<RefImage> {
+export async function fileToRefImage(
+  file: File,
+  maxLong = 1024,
+  quality = 0.85,
+  /**
+   * 更严的发送窗口（缺省 = 卡片形象图沿用至今的那一套：比例 3:1、不放大）。
+   * 直接发给**视频模型**当参考图的图（临时参考图，N1）要传 VIDEO_REF_WINDOW —— 见它的 ★。
+   */
+  win: { maxRatio?: number; minSide?: number } = {},
+): Promise<RefImage> {
+  const maxRatio = win.maxRatio ?? REF_MAX_RATIO;
   const bitmap = await decodeImageFile(file);
   try {
     const { width: w, height: h } = bitmap;
     if (w < REF_MIN_SIDE || h < REF_MIN_SIDE) throw new Error(t`这张图太小了，AI 认不出里面的东西`);
     const r = w / h;
     // 越界时按"能容下的最大居中矩形"裁：宽的裁宽、长的裁高
-    const cw = r > REF_MAX_RATIO ? Math.round(h * REF_MAX_RATIO) : w;
-    const ch = r < 1 / REF_MAX_RATIO ? Math.round(w * REF_MAX_RATIO) : h;
+    const cw = r > maxRatio ? Math.round(h * maxRatio) : w;
+    const ch = r < 1 / maxRatio ? Math.round(w * maxRatio) : h;
     const cropped = cw !== w || ch !== h;
-    const k = Math.min(1, maxLong / Math.max(cw, ch));
+    // 短边不够窗口下限时放大到下限（小图标这类）：不放大的话整发请求会被拒，而那句报错里看不出是这张图的事
+    const up = win.minSide ? win.minSide / Math.min(cw, ch) : 0;
+    const k = up > 1 ? up : Math.min(1, maxLong / Math.max(cw, ch));
     const canvas = document.createElement("canvas");
     canvas.width = Math.max(1, Math.round(cw * k));
     canvas.height = Math.max(1, Math.round(ch * k));

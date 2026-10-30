@@ -23,6 +23,14 @@
 //     这里的 saveAsset / removeAsset 是它的本机那一半，别在页面里直接调。
 //
 // ★ 读是同步的（渲染层每拍都问），全部数据靠模块加载时 hydrate 一次（同 cardVoice）。
+//
+// ★★ 按**「主人 + 卡 id」**存（2026-09-18 主人真机点名同一台手机换账号后数据串号）：原来只按卡 id 存、不认主人 ——
+//   A 的卡一旦流到 B 手里（流水线、草稿、剪辑稿、模板里夹带的卡），B 出片会把 **A 授权的那个真实的人**当参考图发出去；
+//   B 从广场装来的同 id 副本登录同步时，还会把 A 本机独有的授权补传到 **B 的卡**上（服务端一条永久绑定）。
+//   授权给的是账号，这里就按账号分：assetOf 只查得到现在这个人的那一条。
+// ★ 升级前的老绑定键就是裸卡 id（没有主人）：只在登录对账时认领，而且只认领给「这张卡是这个人**原创**的」那一种
+//   （claimLegacyAssets）—— 装来的副本不认领，那条多半是原作者的授权。认领之前谁都用不了它。
+// ★ 本文件是叶子（account → 本文件），不能 import data/deviceOwner（会绕成环）：「现在是谁」由 deviceOwner 注入（bindAssetOwner）。
 import { idbGet, idbSet } from "./db";
 
 /**
@@ -35,6 +43,8 @@ export type AssetScope = "private" | "public";
 export interface CardAsset {
   /** 纯 id（**不带** `asset://` 前缀）—— 前缀在拼 URI 那一处加，见 assetUri */
   assetId: string;
+  /** 这条授权绑在谁名下（user.id）。本机落盘时由 saveAsset / 对账写上，调用方不必传 */
+  owner?: string;
   /** 授权范围。当前只可能是 private（public 那条还没开） */
   scope: AssetScope;
   /** 来源备注（"2026-08-27 由本人扫码授权"），详情页展示 */
@@ -91,8 +101,9 @@ export function assetsVersion(): number {
 
 /** 这张卡的可信素材（同步读）。没有 = 这张卡还没做过授权 */
 export function assetOf(cardId: string | undefined): CardAsset | null {
-  if (!cardId) return null;
-  return map[cardId] ?? null;
+  const me = ownerSrc.viewer();
+  if (!cardId || !me) return null;
+  return map[slotKey(me, cardId)] ?? null;
 }
 
 /** 这张卡有没有可用的可信素材 —— 出片闸问的就是这一句 */
@@ -142,12 +153,15 @@ export function assetSyncIssue(cardId: string | undefined): string | null {
 
 /** 这张卡的授权绑定**真的存住了吗**（false = 只在内存里，重启就没）。没绑过也回 false */
 export function assetPersisted(cardId: string | undefined): boolean {
-  if (!cardId || !map[cardId]) return false;
+  if (!cardId || !assetOf(cardId)) return false;
   return !unpersisted.has(cardId);
 }
 
 export async function saveAsset(cardId: string, a: CardAsset): Promise<boolean> {
-  map = { ...map, [cardId]: a };
+  // 绑在「内存里这摊活的主人」名下；这一进程里没人登录过就不绑（绑成无主的谁都用不了）
+  const owner = ownerSrc.work();
+  if (!owner) return false;
+  map = { ...map, [slotKey(owner, cardId)]: { ...a, owner } };
   unpersisted.add(cardId); // 先当成没存住，落盘成了再摘掉 —— 中间那一拍窄条不该消失
   emit();
   const ok = await idbSet(KEY, map);
@@ -158,9 +172,11 @@ export async function saveAsset(cardId: string, a: CardAsset): Promise<boolean> 
 
 /** 撤掉绑定。@returns `false` = 内存里撤了但没落盘（重启会"复活"）——同 saveAsset 的 ★★ */
 export async function removeAsset(cardId: string): Promise<boolean> {
-  if (!map[cardId]) return true;
+  // 只撤**自己**那一条：别人对同一个卡 id 的授权（他原创、我装来的副本）不许因为我删卡而没了
+  const key = slotKey(ownerSrc.work(), cardId);
+  if (!map[key]) return true;
   const next = { ...map };
-  delete next[cardId];
+  delete next[key];
   map = next;
   unpersisted.delete(cardId);
   emit();
@@ -191,18 +207,74 @@ const hydrated: Promise<void> = (async () => {
  * ★ 不在我名下的卡（别人的、已删的）原样留着不动：侧库只按 id 记，不认主人。
  * ★ 等 hydrate 回来再算，否则"本机独有"会把盘上那些也算进去、白白补传一遍。
  */
-export async function adoptRemoteAssets(remote: Record<string, CardAsset>, ownedIds: Iterable<string>): Promise<string[]> {
+export async function adoptRemoteAssets(
+  remote: Record<string, CardAsset>,
+  ownedIds: Iterable<string>,
+  /** 我名下**原创**的卡 id（不含从广场装来的副本）—— 只有这些的老绑定归我（见文件头 ★★） */
+  originalIds: Iterable<string>,
+): Promise<string[]> {
   await hydrated;
-  const owned = new Set(ownedIds);
-  const localOnly = Object.keys(map).filter((id) => owned.has(id) && !remote[id]);
-  const changed = Object.keys(remote).some(
-    (id) => map[id]?.assetId !== remote[id].assetId || (map[id]?.note ?? "") !== (remote[id].note ?? ""),
-  );
+  const me = ownerSrc.viewer();
+  if (!me) return [];
+  await claimLegacyAssets(originalIds);
+  let next = map;
+  let changed = false;
+  for (const [id, r] of Object.entries(remote)) {
+    const key = slotKey(me, id);
+    if (next[key]?.assetId === r.assetId && (next[key]?.note ?? "") === (r.note ?? "")) continue;
+    next = { ...next, [key]: { ...r, owner: me } };
+    unpersisted.delete(id);
+    changed = true;
+  }
   if (changed) {
-    map = { ...map, ...remote };
-    for (const id of Object.keys(remote)) unpersisted.delete(id);
+    map = next;
     emit();
     await idbSet(KEY, map);
   }
-  return localOnly;
+  const owned = new Set(ownedIds);
+  return [...owned].filter((id) => !!map[slotKey(me, id)] && !remote[id]);
+}
+
+/**
+ * 升级前那些只按卡 id 存的老绑定，归给现在登录的这个人 —— **只限他原创的卡**（见文件头 ★★）。
+ * 远端模式由 adoptRemoteAssets 顺手调；离线模式由 account 在登录 / 冷启动时调。
+ */
+export async function claimLegacyAssets(originalIds: Iterable<string>): Promise<void> {
+  await hydrated;
+  const me = ownerSrc.viewer();
+  if (!me) return;
+  let next = map;
+  let changed = false;
+  for (const id of originalIds) {
+    if (!next[id] || next[slotKey(me, id)]) continue;
+    const { [id]: legacy, ...rest } = next;
+    next = { ...rest, [slotKey(me, id)]: { ...legacy, owner: me } };
+    changed = true;
+  }
+  if (!changed) return;
+  map = next;
+  emit();
+  await idbSet(KEY, map);
+}
+
+// ── 主人（见文件头 ★★）──────────────────────────────────────────
+interface AssetOwnerSource {
+  /** 现在给谁看 / 出片时查谁的授权 */
+  viewer: () => string;
+  /** 内存里这摊活是谁的（新绑的记在谁名下） */
+  work: () => string;
+}
+/** 注入之前（极早期）一律当作没人登录：查不到、不写 */
+let ownerSrc: AssetOwnerSource = { viewer: () => "", work: () => "" };
+
+/** data/deviceOwner 装载时调一次（本文件是叶子，不能反过来 import 它） */
+export function bindAssetOwner(src: AssetOwnerSource, onViewerChange: (fn: () => void) => void): void {
+  ownerSrc = src;
+  onViewerChange(() => emit());
+  emit();
+}
+
+/** 落盘键：新绑定是「主人｜卡 id」，升级前的老绑定是裸卡 id（还没被认领） */
+function slotKey(owner: string, cardId: string): string {
+  return owner + "|" + cardId;
 }

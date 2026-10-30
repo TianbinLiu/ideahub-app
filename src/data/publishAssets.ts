@@ -16,13 +16,14 @@
 // ★ 失败就抛，不吞。调用方（pushPublish）会把原始草稿放进待发队列并把原因显示出来 ——
 //   悄悄发一份缺图的作品比发不出去更糟（铁律八）。
 import { idbGet } from "./db";
+import { isMinimaxV2VideoUrl } from "./upstreamVideo";
 import { uploadImage, uploadMedia, MAX_IMAGE_BYTES } from "../api/uploads";
 import { slotLabel, type Card, type CardView, type DraftVideo } from "../types";
 import { t } from "@lingui/core/macro";
 
-/** 已经是永久地址、不用动的：http(s) 且不是方舟临时域 */
+/** 已经是永久地址、不用动的：http(s) 且不是上游的临时成片（方舟临时域、MiniMax H3 的成片 CDN —— 后者判据在 data/upstreamVideo，2026-10-26） */
 function isPermanentUrl(u: string | undefined): boolean {
-  return !!u && /^https?:\/\//.test(u) && !/\.(volces|volccdn)\.com\//.test(u);
+  return !!u && /^https?:\/\//.test(u) && !/\.(volces|volccdn)\.com\//.test(u) && !isMinimaxV2VideoUrl(u);
 }
 
 function dataUrlToBlob(dataUrl: string): Blob {
@@ -241,7 +242,7 @@ export { isPermanentUrl };
  *     `branchTree.nodes[key] ↔ branchTree.nodes[key]`（**按 key，不按位置** ——
  *       `buildBranchTree` 的 id 是 `b${counter++}` 的 DFS 计数器，位置对不上）；
  *     `deck.cards[i] ↔ deck.cards[i]`，`views[j] ↔ views[j]`。
- * ★ `poster` 不参与配对：它在 `publishVideo` 里就被 `stripPosters` 摘掉了，服务端
+ * ★ `poster` 不参与配对：它在 `publishVideo` 里就被 `stripLocalOnly` 摘掉了，服务端
  *   压根不存（`types.Proposal.poster` 的 ★）—— 回包里永远没有它的孪生。
  *
  * ★★ **按值建表、先写先赢**（这条是显式不变量，配一条用例钉着）：`materializeDraft`

@@ -12,9 +12,16 @@
 //        圈选提卡勾了「这是真人」），画风句换成**无条件**的照片锁定（`slotPrompt` 的
 //        `realPhoto`），不再让模型自己判"这是不是照片" —— 主人真机实测：同一张授权自拍，
 //        「面部特写」出的是照片、「全身立绘」出的是厚涂二次元。机理与实测数见 PHOTO_LOCK_CLAUSE。
-//   ② **合成规格图一律 `role:"display"`**：方舟提示词指南原文「多视图素材包含同一人物的
-//      不同角度，模型易将其识别为多个不同主体，反而加剧 ID 漂移」。三视图/分栏设定稿
-//      对人极有用、对模型有害 —— 让它进管线是**主动把画面变差**，还要为它收出片的钱。
+//   ② **合成规格图（三视图 / 分栏设定稿）的默认 role**：2026-09-23 起是 `aux`（进管线，排最后），
+//      此前是 `display`（永不进模型）。改的依据是**我们自己付费实测的**那一次 A/B
+//      （8 发 hd 出片 ¥20.84，同素材同剧情，A=面部+全身、B=A+规格稿、C=A+三视图）：方舟指南那句
+//      「多视图素材……模型易将其识别为多个不同主体，反而加剧 ID 漂移」在本仓的送法下**一次都没复现**
+//      —— 没出现多个人、没画出分栏/网格/文字标注/人台头，近景的身份贴合与只送两张时同水平。
+//      ⚠ 测的是**带着那句说明**送（绑定句里的 CHAR_AUX_CLAUSE：「同一个人的不同角度排版，不是多个人」），
+//        删了那句结论就不算数了。
+//      ⚠ 实测到的真效应是**另一件事**：多送的那张一旦与主图不一致，模型听多送的那张
+//        （C 组转身那发照着三视图画了深色短裤，而主图是白衬衫裙）。所以这一格的取舍要交给作者 ——
+//        卡片页上每张图都能改「出片用 / 仅展示」（data/cardViews.setCardViewRole）。
 //   ③ **图位数 ≤ MAX_CARD_VIEWS**：那个 3 是跨仓的（server 的 zod 也钉着），
 //      多出来的存不下，存不下就是"方案说出 5 张、卡上只有 3 张"，零报错。
 //
@@ -27,6 +34,7 @@ import {
   CardRole,
   CardType,
   MAX_CARD_VIEWS,
+  isSheetView,
   VIEW_TAG_MAX,
   builtinSlotLabel,
   builtinSlotZh,
@@ -35,6 +43,7 @@ import {
 } from "../types";
 import { i18n, type MessageDescriptor } from "@lingui/core";
 import { msg, t } from "@lingui/core/macro";
+import { splitByOwner } from "./ownerSplit";
 
 /** 这一格的参考图从哪张裁剪来 */
 export type SchemeRef = "body" | "face";
@@ -55,11 +64,12 @@ export interface SchemeSlot {
    * ★ ≤24 字：server 的 CARD_VIEW_TAG_MAX 跨仓镜像（内置图位的英文名也守这条：另存为后它原样成为用户方案的图位名）
    */
   tag: string;
-  /** 出片管线里干什么（进 CardView.role）。合成规格图必须 display，见文件头 ★★★② */
+  /** 出片管线里干什么（进 CardView.role）。合成规格图默认 aux（2026-09-23 放开，见文件头 ★★★②）；作者可在卡片页逐张改 */
   role: CardRole;
   /**
    * 这一格的提示词**正文**。风格那句由 `slotPrompt` 统一拼，作者写不了也删不掉（★★★①）。
-   * 支持 `{{主体}}` 占位符 —— 用户在命名屏填的那个 tag/描述会插进来。
+   * 支持 `{{主体}}` 占位符 —— 自传图做卡片那页插的是用户填的那句描述，圈选提取那边插的是卡名
+   * （2026-09-18 起不再插简介：简介常带着动作、手里的东西、地点，见 ai/cardScope）。
    */
   prompt: string;
   /** 拿哪张裁剪当 i2i 参考。缺省 body（人物主裁剪） */
@@ -75,6 +85,11 @@ export interface SchemeSlot {
 
 export interface PromptScheme {
   id: string;
+  /**
+   * 这套自定义方案是**谁的**（user.id）。2026-09-18 起本机方案库按账号分开（见下面「本机方案库」那段）。
+   * ★ 内置方案没有它；升级前存的自定义方案也没有，由升级后第一个登录的人认领。
+   */
+  owner?: string;
   title: string;
   /** 一句话说清它产出什么、适合谁 */
   intro: string;
@@ -154,6 +169,25 @@ const SUBJECT_TOKEN = /\{\{\s*主体\s*\}\}/g;
 export function slotPrompt(slot: SchemeSlot, subject: string | undefined, o: { realPhoto: boolean }): string {
   const body = slot.prompt.replace(SUBJECT_TOKEN, (subject || "").trim());
   return `${body}；${o.realPhoto ? PHOTO_LOCK_CLAUSE : STYLE_CLAUSE}`;
+}
+
+/** 产出**多视图设定稿**的两个内置图位（键取自 types.BUILTIN_SLOT_ZH） */
+const SHEET_SLOT_IDS: readonly string[] = ["mannequinTurnaround", "specSheet"];
+
+/**
+ * 这一格产出的是不是**多视图设定稿**（三视图 / 规格稿）。
+ *
+ * ★★ 它只决定这一格**照着哪张图画**（ai/real.portraitViews：设定稿照本套已画好的主图画，见那里的 ★★），
+ *   **不决定谁进模型** —— 那一票只看 `role`（作者在卡片页标的「出片用 / 仅展示」，见 types.CardView.role 的 ★★）。
+ * ★ 内置方案按 `id` 认；用户方案（含「另存为」出来的副本）退回按**冻结原名**认（types.isSheetView）——
+ *   副本把内置图位的名字原样带走了，所以对它仍然成立。两种都认不出就退回老行为（照用户素材画），不报错。
+ * ⚠ 为什么不给 `SchemeSlot.ref` 加一个取值（那才是"照哪张画"的正牌字段）：`ref` 是**跨仓**的
+ *   （server `promptScheme.schemas.js` 的 `z.enum(["body","face"])`），加取值 = 老服务端对「另存为」上来的
+ *   副本整发 400。等服务端也放开再收口成 `ref`，在那之前这条规则活在这里。
+ */
+export function isSheetSlot(scheme: Pick<PromptScheme, "builtin">, slot: SchemeSlot): boolean {
+  if (scheme.builtin && slot.id) return SHEET_SLOT_IDS.includes(slot.id);
+  return isSheetView({ tag: slot.tag });
 }
 
 /** 这一格要不要调模型（= 要不要收钱）。唯一判据，economy 与生成侧共用 */
@@ -355,19 +389,20 @@ export const BUILTIN_SCHEMES: readonly PromptScheme[] = [
       faceless: true,
       examples: ["/schemes/faceless.webp"],
       slots: [
-        // ★★ 这一格是**唯一**能进管线的：它锁的是服装与体型，而画面里没有脸 ——
-        //   既是这套方案的卖点，也正好避开"多视图当人物参考"那条（它本来就不锁身份）。
+        // ★★ 这一格是主图（进管线的还有下面那格服装细节 —— 2026-09-18 订正，原来这里写的是「唯一能进管线的」）：
+        //   它锁的是服装与体型，而画面里没有脸 —— 既是这套方案的卖点，也正好避开"多视图当人物参考"那条（它本来就不锁身份）。
         builtinSlot("mannequinBody", { role: "primary", prompt: MANNEQUIN_BODY_PROMPT }),
         builtinSlot("outfitDetail", { role: "aux", prompt: OUTFIT_DETAIL_PROMPT }),
-        // 三视图是给人看的规格图 —— 必须 display（文件头 ★★★②）
-        builtinSlot("mannequinTurnaround", { role: "display", prompt: TURNAROUND_PROMPT }),
+        // ★ 三视图 2026-09-23 起默认进管线（aux，排在上面两格之后；实测依据见文件头 ★★★②）。
+        //   不想让它进模型的作者在卡片页把它改成「仅展示」即可。
+        builtinSlot("mannequinTurnaround", { role: "aux", prompt: TURNAROUND_PROMPT }),
       ],
     },
   ),
   builtinScheme(
     msg({ message: "角色设定规格图", comment: "内置提示词方案的名字：≤34 个字符（另存为会接上「 copy」，服务端方案名上限 40）" }),
     msg({
-      message: "一张分栏设定稿（素描线稿 + 色板 + 服装细节），外加一张能出片的面部特写。规格稿只作展示。",
+      message: "一张分栏设定稿（素描线稿 + 色板 + 服装细节），外加面部特写与全身立绘。规格稿默认也进出片，可在卡片页改回只展示。",
       comment: "内置方案的一句话简介：≤120 个字符（服务端上限，另存为后原样带进用户方案）",
     }),
     {
@@ -377,7 +412,8 @@ export const BUILTIN_SCHEMES: readonly PromptScheme[] = [
       slots: [
         builtinSlot("faceCloseup", { role: "face", ref: "face", prompt: FACE_PROMPT }),
         builtinSlot("fullBody", { role: "primary", prompt: FULL_BODY_PROMPT }),
-        builtinSlot("specSheet", { role: "display", prompt: SPEC_SHEET_PROMPT }),
+        // ★ 规格稿同三视图：2026-09-23 起默认 aux（文件头 ★★★②），作者可在卡片页改回「仅展示」
+        builtinSlot("specSheet", { role: "aux", prompt: SPEC_SHEET_PROMPT }),
       ],
     },
   ),
@@ -390,9 +426,52 @@ export const BUILTIN_SCHEMES: readonly PromptScheme[] = [
 
 const LS_KEY = "ideahub.promptSchemes";
 
-let mine: PromptScheme[] = load();
+// ★★ 按账号分开（2026-09-18 主人真机点名同一台手机换账号后数据串号）：原来整台设备一份，B 能改、能删 A 的方案，
+//   能把 A 的方案（连示例图）以 **B 的名义**发到市场。现在 `mine` 只装现在这个人的，别人的躺在 `others` 里
+//   （从不显示，落盘时并回去），分区只经 ownerSplit.splitByOwner。
+// ★★ 「现在是谁」**注入**进来（bindSchemesOwner，由 data/deviceOwner 装载时调）：本文件必须保持叶子
+//   （见下面「给市场模块用的内部口子」那段 ★★：account → mock/ai → 本文件），import deviceOwner 就绕成了环。
+//   注入之前（极早期）一律当作没人登录：mine 为空、新写的记成无主。
+interface SchemesOwnerSource {
+  /** 现在给谁看 */
+  viewer: () => string;
+  /** 内存里这摊活是谁的（新写的记在谁名下） */
+  work: () => string;
+  /** 现在这个人能不能认领升级前的无主存量（deviceOwner.mayClaimLegacy） */
+  claim: () => boolean;
+}
+let ownerSrc: SchemesOwnerSource = { viewer: () => "", work: () => "", claim: () => false };
+
+let mine: PromptScheme[] = [];
+let others: PromptScheme[] = [];
 const listeners = new Set<() => void>();
 let version = 0;
+partition(load());
+
+function partition(all: PromptScheme[]): void {
+  const split = splitByOwner(all, ownerSrc.viewer(), ownerSrc.claim());
+  mine = split.mine;
+  others = split.others;
+  if (split.claimed) persist();
+}
+
+/** data/deviceOwner 装载时调一次：接上「现在是谁」与换人通知（理由见上面 ★★） */
+export function bindSchemesOwner(src: SchemesOwnerSource, onViewerChange: (fn: () => void) => void): void {
+  ownerSrc = src;
+  partition([...mine, ...others]);
+  onViewerChange(() => {
+    partition([...mine, ...others]);
+    emit();
+  });
+}
+
+/** 新写进来的一套记在「内存里这摊活的主人」名下；不是现在这个人的就进暗格 */
+function place(s: PromptScheme): void {
+  const owner = s.owner || ownerSrc.work() || undefined;
+  const item = owner === s.owner ? s : { ...s, owner };
+  if (owner && owner !== ownerSrc.viewer()) others = [item, ...others.filter((x) => x.id !== item.id)];
+  else mine = [item, ...mine.filter((x) => x.id !== item.id)];
+}
 
 function load(): PromptScheme[] {
   try {
@@ -424,7 +503,8 @@ function isUsable(s: unknown): s is PromptScheme {
 
 function persist() {
   try {
-    localStorage.setItem(LS_KEY, JSON.stringify(mine));
+    // ★ 别人的那几套一起写回：只写 mine 就是一次存方案把别的账号的方案整批抹掉
+    localStorage.setItem(LS_KEY, JSON.stringify([...mine, ...others]));
   } catch {
     /* 配额满：方案库不是关键路径，丢了下次重建即可 */
   }
@@ -530,7 +610,7 @@ export function saveScheme(s: Omit<PromptScheme, "id" | "builtin"> & { id?: stri
     createdAt: Date.now(),
     slots: s.slots.slice(0, MAX_CARD_VIEWS),
   };
-  mine = [next, ...mine.filter((x) => x.id !== next.id)];
+  place(next);
   persist();
   emit();
   return next;
@@ -600,7 +680,7 @@ export function mineSchemes(): PromptScheme[] {
 
 /** 落一份方案进本机库（装回来的、或推送后回写的）。★ 同 id 覆盖，不重复堆 */
 export function upsertMine(s: PromptScheme): void {
-  mine = [s, ...mine.filter((x) => x.id !== s.id)];
+  place(s);
   persist();
   emit();
 }

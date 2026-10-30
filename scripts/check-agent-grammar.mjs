@@ -11,6 +11,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import url from "node:url";
+import { regexStringIssues } from "./lib/regex-shape.mjs";
 
 const root = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), "..");
 const modArg = process.argv.find((a) => a.startsWith("--module="))?.slice("--module=".length);
@@ -27,6 +28,9 @@ src.split(/\r?\n/).forEach((ln, i) => {
   if (/@lingui/.test(ln) && !/^\s*(\/\/|\*)/.test(ln)) fail(`agentGrammar.ts:${i + 1}  不许引 @lingui：句式是被解析的输入，不是界面文案`);
   if (/^\s*(export\s+)?(const\s+)?enum\s+\w|^\s*(export\s+)?namespace\s+\w/.test(ln)) fail(`agentGrammar.ts:${i + 1}  不许用 enum / namespace（Node 只剥类型，跑不了它们）`);
 });
+// 句式是 new RegExp(String.raw`…`) 拼的（:160 / :164 / :168 / :199）：把 String.raw 写丢，\s 就静默退成 s（CLAUDE.md 坑表那格，
+// canvasAgent 的词表上真栽过）。形状闸与另外四道脚本共用（scripts/lib/regex-shape.mjs，2026-10-15 教材人格评审）
+regexStringIssues(src, "agentGrammar.ts").forEach(fail);
 
 // ── parseLocal 正反例 ──
 const req = (seg, text) => ({ op: "require", seg, text });
@@ -81,6 +85,14 @@ const cases = [
   ["第2段挂卡：最左边=凛，最右边=阿岚", paid(2, "cast")],
   ["第2段把1挂成凛", paid(2, "cast")],
   ["删掉第2段", attr(2)],
+  // 换出片模型是设置（2026-10-29：原来整句被写成这一段的要求、把写好的要求整段覆盖）
+  ["第2段换成MiniMax", attr(2)],
+  ["第2段用 MiniMax 出片", attr(2)],
+  ["第1段改用 Seedance", attr(1)],
+  ["segment 2 use MiniMax", attr(2)],
+  ["switch segment 1 to minimax", attr(1)],
+  ["第2段女孩捡起海螺", want([req(2, "女孩捡起海螺")])],
+  ["第2段吹海螺", want([req(2, "吹海螺")])],
   ["第2段拍", unclear("第2段拍")],
   ["第2段", unclear("第2段")],
   // 续句（规格 §2.2 的反例）

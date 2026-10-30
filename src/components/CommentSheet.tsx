@@ -7,6 +7,7 @@
 //   结果就是输入框和「发送」整行都被底栏盖住——实测点下去命中的是底栏的「创作」，
 //   直接跳去 /create，评论在手机上根本发不出来（只有回车能提交）。
 import { Trans, useLingui } from "@lingui/react/macro";
+import Warn from "./Warn";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -15,9 +16,13 @@ import {
   authorSentinelOf,
   commentAvatarOf,
   commentCountOf,
+  commentsMore,
+  commentsStatus,
+  loadMoreComments,
+  retryComments,
   commentPending,
   ensureComments,
-  isMyAuthor,
+  isMyVideo,
   setCommentLike,
 } from "../data/videos";
 import { VideoComment, VideoItem, relativeTime } from "../types";
@@ -31,6 +36,8 @@ import ReportButton from "./ReportButton";
 import MentionInput from "./MentionInput";
 import MentionText from "./MentionText";
 import BlockButton from "./BlockButton";
+import Spinner from "./Spinner";
+import { useBackLayer } from "../hooks/useBackLayer";
 
 /** 顶层评论 + 挂在它下面的回复。渲染前分一次组，不在 JSX 里现算 */
 interface Thread {
@@ -70,8 +77,19 @@ function buildThreads(list: VideoComment[]): Thread[] {
   return tops;
 }
 
-export default function CommentSheet({ video, onClose }: { video: VideoItem; onClose: () => void }) {
+/**
+ * @param autoFocus 打开就聚焦输入框（详情页吸底栏那颗「说点什么…」点进来 = 要写；首页右栏 / 详情页评论卡点进来 = 先看）。
+ *   必填：漏传零症状（要写的人还得再点一下输入框）。
+ */
+export default function CommentSheet({ video, onClose, autoFocus }: { video: VideoItem; onClose: () => void; autoFocus: boolean }) {
   const { t } = useLingui();
+  // 手机返回键先关抽屉（hooks/useBackLayer）：原来收起键盘之后再按一次返回，直接离开了整个页面（2026-10-29 真机 2.72）。
+  // 关法照旧（✕ / 遮罩 / 点评论里的 @ 去别人主页），抽屉一关就从返回键的层栈上撤下
+  const dismiss = useBackLayer(true, onClose, "comments");
+  const close = () => {
+    dismiss();
+    onClose();
+  };
   // video.comments 由 addReply 原地换新数组，本地 state 拿快照驱动渲染
   const [list, setList] = useState<VideoComment[]>(video.comments);
   /**
@@ -104,7 +122,27 @@ export default function CommentSheet({ video, onClose }: { video: VideoItem; onC
   const [err, setErr] = useState("");
   /** 评论发出去了、但有几个 @ 服务端没认下来（老服务端 / 核对没过）。黄字，不是红字 */
   const [warn, setWarn] = useState("");
+  /** 哪一条评论展开了「⋯」后面的三颗键（删除 / 举报 / 拉黑）。常用的只有「回复」，四颗同权重并排会把它淹掉（2026-10-23） */
+  const [moreFor, setMoreFor] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  // 要写就把光标放进去：等一帧（抽屉的面板这一拍还在挂载，useDialogShell 也在这一拍把焦点给面板）
+  useEffect(() => {
+    if (!autoFocus) return;
+    const raf = requestAnimationFrame(() => requestAnimationFrame(() => inputRef.current?.focus()));
+    return () => cancelAnimationFrame(raf);
+  }, [autoFocus]);
+  /** 评论到了没有（videos.commentsStatus 一处判）：没到之前别说「还没有评论」 */
+  const status = commentsStatus(video.id);
+  const [moreBusy, setMoreBusy] = useState(false);
+  const [moreErr, setMoreErr] = useState("");
+  async function more() {
+    if (moreBusy) return;
+    setMoreBusy(true);
+    setMoreErr("");
+    const why = await loadMoreComments(video.id);
+    setMoreBusy(false);
+    if (why) setMoreErr(t`没取到更多评论：${why}`);
+  }
   useEffect(() => {
     setList(video.comments);
     setReplyTo(null);
@@ -178,7 +216,7 @@ export default function CommentSheet({ video, onClose }: { video: VideoItem; onC
         <Avatar name={c.author} label={shownName} src={commentAvatarOf(c)} size={indented ? 24 : 32} />
         <div className="min-w-0 flex-1">
           <div className="text-xs text-slate-500">
-            {shownName} · {relativeTime(c.at)}
+            <span className="font-medium text-slate-300">{shownName}</span> · {relativeTime(c.at)}
           </div>
           {/* ★ 只有服务端确认解析到人的那几个 @ 会变成链接，打错的原样留成白字 ——
               用户据此看得出自己那一 @ 到底有没有落地（见 MentionText 顶部）。
@@ -186,20 +224,33 @@ export default function CommentSheet({ video, onClose }: { video: VideoItem; onC
           <div className="mt-0.5 text-sm leading-relaxed text-slate-200">
             <MentionText text={c.text} mentions={c.mentions} onNavigate={onClose} />
           </div>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="mt-1 flex flex-wrap items-center gap-3">
             <button
               onClick={() => startReply(c)}
               disabled={pending}
-              className="mt-1 text-[11px] text-slate-500 active:opacity-60 disabled:opacity-40"
+              className="-my-1.5 py-1.5 text-[11px] text-slate-500 active:opacity-60 disabled:opacity-40"
             >
               {pending ? <Trans>发送中…</Trans> : <Trans>回复</Trans>}
             </button>
-            {/* 删除入口与详情页共用同一份实现（能不能删、二次确认、失败红字都在里面） */}
-            <CommentDelete videoId={video.id} comment={c} onDeleted={() => setList([...video.comments])} />
-            {/* 举报入口同样是共用的那一份（理由表、重复举报的说法、失败红字都在里面）。
-                mine 传 isMyAuthor：自己的评论该删不该举报，传了就整块不渲染 */}
-            <ReportButton targetType="comment" targetId={c.id} videoId={video.id} mine={isMyAuthor(c.author)} />
-            <BlockButton userId={c.authorId ?? ""} userName={c.author} mine={isMyAuthor(c.author)} />
+            {moreFor === c.id ? (
+              <>
+                {/* 删除入口与详情页共用同一份实现（能不能删、二次确认、失败红字都在里面） */}
+                <CommentDelete videoId={video.id} comment={c} onDeleted={() => setList([...video.comments])} />
+                {/* 举报入口同样是共用的那一份（理由表、重复举报的说法、失败红字都在里面）。
+                    mine 按 **userId** 判（isMyVideo）：自己的评论该删不该举报，传了就整块不渲染。
+                    ★ 别按展示名判（isMyAuthor）：昵称和我一样的陌生人会被当成「我」，举报 / 拉黑两颗键一起藏掉（2026-09-18 发版复核抓到） */}
+                <ReportButton targetType="comment" targetId={c.id} videoId={video.id} mine={isMyVideo({ author: c.author, authorId: c.authorId })} />
+                <BlockButton userId={c.authorId ?? ""} userName={c.author} mine={isMyVideo({ author: c.author, authorId: c.authorId })} />
+              </>
+            ) : (
+              <button
+                onClick={() => setMoreFor(c.id)}
+                aria-label={t`更多操作`}
+                className="-my-1.5 px-1 py-1.5 text-[11px] leading-none tracking-widest text-slate-500 active:opacity-60"
+              >
+                ⋯
+              </button>
+            )}
           </div>
         </div>
         {/* 心 + 数字。热区给到 32px 宽——评论行密，小了会点到隔壁那条 */}
@@ -208,7 +259,7 @@ export default function CommentSheet({ video, onClose }: { video: VideoItem; onC
           aria-label={c.liked ? t`取消点赞` : t`点赞`}
           aria-pressed={c.liked === true}
           className={`-my-1 flex w-8 flex-none flex-col items-center justify-start gap-0.5 py-1 ${
-            c.liked ? "text-rose-500" : "text-slate-500"
+            c.liked ? "text-danger-500" : "text-slate-500"
           } active:opacity-60`}
         >
           <Icon name="heart" size={16} filled={c.liked === true} />
@@ -240,14 +291,14 @@ export default function CommentSheet({ video, onClose }: { video: VideoItem; onC
       onClick={(e) => e.stopPropagation()}
     >
       {/* 上半留给视频（点击关闭抽屉），下半是评论面板 */}
-      <div className="absolute inset-x-0 top-0 h-[38%]" onClick={onClose} />
+      <div className="absolute inset-x-0 top-0 h-[38%]" onClick={close} />
       <div className="absolute inset-x-0 bottom-0 flex h-[62%] flex-col rounded-t-2xl border-t border-slate-700 bg-ink">
         <div className="flex h-12 items-center justify-between border-b border-slate-700/60 px-4">
           {/* ★ 与首页那一栏同一个口径（commentCountOf）：服务端的总数优先。
               读 list.length 的话，详情还没补回来时标题会先写「0 条评论」——
               而下面可能马上就渲染出好几条，自相矛盾。 */}
           <span className="text-sm font-bold text-slate-100"><Trans>{commentCountOf(video)} 条评论</Trans></span>
-          <CloseButton chip="sm" size={13} align="end" label={t`关闭评论`} onClick={onClose} />
+          <CloseButton chip="sm" size={13} align="end" label={t`关闭评论`} onClick={close} />
         </div>
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-3">
           {threads.map((th) => (
@@ -256,7 +307,35 @@ export default function CommentSheet({ video, onClose }: { video: VideoItem; onC
               {th.replies.map((r) => row(r, true))}
             </div>
           ))}
-          {list.length === 0 && <div className="py-10 text-center text-sm text-slate-500"><Trans>还没有评论，抢个沙发</Trans></div>}
+          {/* 空的时候先问评论到了没有（2026-10-26 视频详情页 P0-3）：详情那一跳没回来时说「还没有评论」是假话（docs/ux-review-csci187-2026-10-14.md 那一条） */}
+          {list.length === 0 &&
+            (status === "pending" ? (
+              <div className="flex items-center justify-center gap-2 py-10 text-sm text-slate-400">
+                <Spinner size="sm" />
+                <Trans>正在取评论…</Trans>
+              </div>
+            ) : status === "failed" ? (
+              <div className="flex flex-col items-center gap-2 py-10 text-sm text-danger-300">
+                <Trans>没取到评论</Trans>
+                <button onClick={() => retryComments(video.id)} className="rounded-full bg-panel px-3.5 py-1.5 text-xs text-slate-200 ring-1 ring-slate-700">
+                  <Trans>重试</Trans>
+                </button>
+              </div>
+            ) : (
+              <div className="py-10 text-center text-sm text-slate-400">
+                <Trans>还没有评论，抢个沙发</Trans>
+              </div>
+            ))}
+          {/* 翻页：还有没有只认服务端的游标（videos.commentsMore 的 ★），失败的话就摆在这颗键旁边 */}
+          {list.length > 0 && commentsMore(video) && (
+            <div className="flex flex-col items-center gap-1 pb-2">
+              <button onClick={() => void more()} disabled={moreBusy} className="flex items-center gap-1.5 text-xs text-brand disabled:opacity-40">
+                {moreBusy && <Spinner size="xs" />}
+                <Trans>加载更多</Trans>
+              </button>
+              {moreErr && <p className="text-[11px] text-danger-300">{moreErr}</p>}
+            </div>
+          )}
         </div>
         <div
           className="border-t border-slate-700/60 px-4 py-3"
@@ -267,14 +346,12 @@ export default function CommentSheet({ video, onClose }: { video: VideoItem; onC
             // 发出去才发现缩进到了别人楼里
             <div className="mb-2 flex items-center gap-2 text-xs text-slate-400">
               <span className="min-w-0 truncate">{replyLabel}</span>
-              <button onClick={() => setReplyTo(null)} className="-m-1 p-1 text-slate-500" aria-label={t`取消回复`}>
-                <Icon name="close" size={14} />
-              </button>
+              <CloseButton chip="sm" size={13} align="end" tone="text-slate-500" label={t`取消回复`} onClick={() => setReplyTo(null)} />
             </div>
           )}
           {/* 失败就地说清楚，并且**不清空输入框**——用户打的字还在，改一下就能再发 */}
-          {err && <p className="mb-1.5 text-[11px] leading-relaxed text-rose-300">{err}</p>}
-          {warn && <p className="mb-1.5 text-[11px] leading-relaxed text-amber-300/90">{warn}</p>}
+          {err && <p className="mb-1.5 text-[11px] leading-relaxed text-danger-300">{err}</p>}
+          {warn && <Warn className="mb-1.5">{warn}</Warn>}
           <div className="flex gap-2">
             {/* isComposing / 回车提交这些细节都在 MentionInput 里（两个评论口共用一份，
                 铁律六）。placeholder 里那个「回复 @昵称」是**说明文字**，不是提及令牌 ——

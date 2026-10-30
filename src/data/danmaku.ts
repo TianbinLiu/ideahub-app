@@ -22,6 +22,7 @@ import { i18n, type MessageDescriptor } from "@lingui/core";
 import { msg, t } from "@lingui/core/macro";
 import { idbRead, idbSet } from "./db";
 import { authState } from "./account";
+import { onViewerChange } from "./deviceOwner";
 import { readyVideos, realId, remoteOn } from "./videos";
 import * as branch from "../api/branch";
 import { uid } from "../types";
@@ -78,6 +79,21 @@ const REFETCH_MS = 30_000;
 const truncatedIds = new Set<string>();
 /** 这条作品的弹幕**真的问回来过**（回包到手）。与 fetchedAt 分开的理由见 danmakuFetched 的 ★ */
 const landed = new Set<string>();
+/** 服务端说的总条数（2026-10-29 起列表回包带 total；老服务端没有 = 不在表里）。作品详情页「弹幕 N」读它，截断时不再只能写「N+」 */
+const totals = new Map<string, number>();
+
+// ★★ 换了看的人（2026-09-18，见 data/deviceOwner）：远端那份镜像里每条弹幕的「是不是我发的」是按**问的那个人**
+//   算的 —— 不清的话 B 登录后最多 30 秒里（REFETCH_MS）看到 A 的弹幕标着「我的」、能点删除。整份作废让它按新的人重拉。
+//   离线模式那份就是本机弹幕库本身（落盘的），不在这里清。
+onViewerChange(() => {
+  if (!remoteOn()) return;
+  store = {};
+  fetchedAt.clear();
+  truncatedIds.clear();
+  landed.clear();
+  totals.clear();
+  emit();
+});
 
 function emit(): void {
   version++;
@@ -308,6 +324,7 @@ export function dropLocalDanmaku(videoId: string): void {
   store = next;
   fetchedAt.delete(rid);
   truncatedIds.delete(rid);
+  totals.delete(rid);
   // ★★★ `landed` 必须一起清（2026-09-08 评审抓到）。它是 `danmakuFetched()` 的唯一依据，
   //   而全文件只有 loadRemote 成功那一处 `landed.add`、此前**没有任何地方 delete**。
   //   于是回炉清空一次之后：store 空了、landed 还在 ⇒ `danmakuFetched()` 恒真而条数恒 0。
@@ -327,6 +344,11 @@ export function danmakuFetched(videoId: string): boolean {
   return landed.has(realId(videoId));
 }
 
+/** 服务端说这条作品一共多少条弹幕（老服务端 / 还没问到 / 离线 = null，调用方退回手上的条数） */
+export function danmakuTotal(videoId: string): number | null {
+  return totals.get(realId(videoId)) ?? null;
+}
+
 /** 服务端截断过这条作品的弹幕吗（UI 要如实说明） */
 export function isTruncated(videoId: string): boolean {
   return truncatedIds.has(realId(videoId));
@@ -342,6 +364,7 @@ async function loadRemote(rid: string): Promise<void> {
     const page = await branch.listDanmaku(rid);
     store = { ...store, [rid]: merge(store[rid], page.items.map(fromApi)) };
     if (page.truncated) truncatedIds.add(rid);
+    if (page.total !== undefined) totals.set(rid, page.total);
     // ★ 「问过了」与「正在问」是两回事：fetchedAt 在**发请求之前**就写了（它是防重入的
     //   节流位），拿它当"问到了"用会让回炉确认卡在回包到达之前就报出「0 条弹幕」——
     //   一个骗人的数。所以另记一格，只在真拿到回包时置位。
@@ -425,6 +448,9 @@ export async function sendDanmaku(
 
   const list = [...(store[rid] ?? []), item].sort((a, b) => a.at - b.at);
   store = { ...store, [rid]: list };
+  // 总数跟着自己刚发的这一条走（不再问一次服务器）
+  const tot = totals.get(rid);
+  if (tot !== undefined) totals.set(rid, tot + 1);
   persistLocal();
   emit();
   return item;
@@ -469,6 +495,8 @@ export async function removeDanmaku(videoId: string, danmakuId: string): Promise
   //   这正是 merge() 那段注释里"整段替换"的坑，sendDanmaku 也是在 await 之后才读的。
   const fresh = store[rid] ?? [];
   store = { ...store, [rid]: fresh.filter((d) => d.id !== danmakuId) };
+  const tot = totals.get(rid);
+  if (tot !== undefined) totals.set(rid, Math.max(0, tot - 1));
   persistLocal();
   emit();
 }

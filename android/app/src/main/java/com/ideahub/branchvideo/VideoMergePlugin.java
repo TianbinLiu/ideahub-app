@@ -21,10 +21,13 @@ import androidx.media3.common.MimeTypes;
 import androidx.media3.common.C;
 import androidx.media3.common.audio.AudioProcessor;
 import androidx.media3.common.audio.BaseAudioProcessor;
+import androidx.media3.common.audio.SpeedProvider;
 import androidx.media3.common.util.UnstableApi;
+import androidx.media3.effect.CanvasOverlay;
 import androidx.media3.effect.OverlayEffect;
 import androidx.media3.common.OverlaySettings;
 import androidx.media3.effect.Presentation;
+import androidx.media3.effect.RgbMatrix;
 import androidx.media3.effect.StaticOverlaySettings;
 import androidx.media3.effect.TextOverlay;
 import androidx.media3.transformer.Composition;
@@ -44,6 +47,7 @@ import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -88,6 +92,8 @@ public class VideoMergePlugin extends Plugin {
     private PluginCall runningCall;
     private File runningOut;
     private final Handler main = new Handler(Looper.getMainLooper());
+    /** 暂存文件的序号（见 stageFile 起名那一行的 ★） */
+    private int stagedSeq = 0;
 
     /** 这台设备到底支不支持（浏览器里没有这个插件，Web 侧靠 Capacitor.isNativePlatform 判） */
     @PluginMethod
@@ -136,7 +142,10 @@ public class VideoMergePlugin extends Plugin {
                 }
                 f = cand;
             } else {
-                f = new File(dir, "staged-" + System.currentTimeMillis() + "." + ext.replaceAll("[^A-Za-z0-9]", ""));
+                // ★ 文件名带一个递增的序号：一次合成现在会连着落十几个文件（每句配音一个 + 配乐），只按毫秒起名的话
+                //   两个落在同一毫秒里的会重名 —— 后一个把前一个盖掉，成片里某一句就念成了另一句，零报错
+                f = new File(dir, "staged-" + System.currentTimeMillis() + "-" + (stagedSeq++) + "."
+                        + ext.replaceAll("[^A-Za-z0-9]", ""));
             }
             byte[] bytes = android.util.Base64.decode(b64, android.util.Base64.DEFAULT);
             try (java.io.FileOutputStream os = new java.io.FileOutputStream(f, appending)) {
@@ -177,12 +186,35 @@ public class VideoMergePlugin extends Plugin {
         });
     }
 
+    /** 一个片段的参数（Web 侧 data/cutProject.compileTimeline 算好的那张表里的一行） */
+    private static final class ClipSpec {
+        MediaItem item;
+        float speed = 1f;
+        float volume = 1f;
+        long outStartUs;
+        long outDurUs;
+        long fadeInUs;
+        long fadeOutUs;
+    }
+
     /**
-     * clips: [{ url, startSec?, endSec? }]（1~24 段）
+     * clips: [{ url, startSec?, endSec?, speed?, volume?, outStartSec?, outDurSec?, fadeInSec?, fadeOutSec? }]（1~24 段）
+     *        speed = 变速（画面与声音一起变）；volume = 这一段原声的音量（0 = 静音）；
+     *        outStartSec / outDurSec = 这一段在**成片**里的起点与时长（变速之后的），fadeInSec / fadeOutSec = 段头从黑淡入 /
+     *        段尾淡出到黑 —— 淡入淡出按成片时间轴算，所以要靠前两个数定位
      * width / height: 输出画幅（会取偶）
      * bitrate: 可选，缺省按边长估
      * audio: { url, volume } 可选 —— BGM，短于成片时循环补齐
      * badge: { text, mode: "none"|"head"|"always", headSec? } 可选 —— 显式标识
+     * captions: { items: [{ startSec, endSec, lines: string[], kind?: "caption"|"title" }],
+     *             sizeRatio?, bottomRatio?, maxWidthRatio?, titleScale?, titleTopRatio? } 可选 ——
+     *        烧进画面的字幕；时间是成片时间轴上的绝对秒，**换行由 Web 侧算好**（预览那一面画的是同一批行），
+     *        版式那几个比例也由 Web 侧给（cutProject.captionLayout）
+     * voices: [{ url, atSec, durSec, volume? }] 可选 —— 配音，按成片时间轴上的起点摆
+     * tailFadeSec + totalSec: 可选 —— 成片最后这么多秒整体声音淡出
+     *
+     * ★ 这些全是**机制**：哪一段变速、字幕写什么、配音摆在第几秒，都由 Web 侧的剪辑工程定（data/cutProject），
+     *   原生不替它做任何决定。新参数全部可选 —— 一个都不带时，行为与加它们之前逐字相同。
      */
     @PluginMethod
     public void merge(PluginCall call) {
@@ -199,7 +231,7 @@ public class VideoMergePlugin extends Plugin {
         int w = even(call.getInt("width", 720));
         int h = even(call.getInt("height", 1280));
 
-        final List<EditedMediaItem> items = new ArrayList<>();
+        final List<ClipSpec> specs = new ArrayList<>();
         try {
             JSONArray raw = clipsArr;
             for (int i = 0; i < raw.length(); i++) {
@@ -218,11 +250,19 @@ public class VideoMergePlugin extends Plugin {
                 if (endSec > 0 && Math.round(endSec * 1000) > startMs) {
                     clip.setEndPositionMs(Math.round(endSec * 1000));
                 }
-                MediaItem mi = new MediaItem.Builder()
+                ClipSpec cs = new ClipSpec();
+                cs.item = new MediaItem.Builder()
                         .setUri(Uri.parse(url))
                         .setClippingConfiguration(clip.build())
                         .build();
-                items.add(new EditedMediaItem.Builder(mi).build());
+                // ★ 变速收在 0.25~4：再往外声音处理器（Sonic）出来的东西已经没法听，而这个数是从 Web 侧来的不可信输入
+                cs.speed = (float) Math.max(0.25, Math.min(4.0, c.optDouble("speed", 1.0)));
+                cs.volume = (float) Math.max(0.0, Math.min(1.0, c.optDouble("volume", 1.0)));
+                cs.outStartUs = Math.round(Math.max(0, c.optDouble("outStartSec", 0)) * 1_000_000d);
+                cs.outDurUs = Math.round(Math.max(0, c.optDouble("outDurSec", 0)) * 1_000_000d);
+                cs.fadeInUs = Math.round(Math.max(0, c.optDouble("fadeInSec", 0)) * 1_000_000d);
+                cs.fadeOutUs = Math.round(Math.max(0, c.optDouble("fadeOutSec", 0)) * 1_000_000d);
+                specs.add(cs);
             }
         } catch (Exception e) {
             call.reject("片段清单读不出来：" + brief(e), "BAD_INPUT");
@@ -240,10 +280,12 @@ public class VideoMergePlugin extends Plugin {
         final boolean bgmFinal;
         final String bgmSkippedFinal;
         try {
-        // 画幅归一：拼接要求各段尺寸一致，横竖混排靠它按短边裁到同一个框
-        List<androidx.media3.common.Effect> videoEffects = new ArrayList<>();
-        videoEffects.add(Presentation.createForWidthAndHeight(w, h, Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP));
-
+        // ── 叠在画面上的东西（显式标识 + 字幕）：一份清单，每一段的效果链末尾各挂一次 ──
+        // ★ 效果器拿到的时间戳是**成片时间轴**上的（不是每段各自从 0 起，裁过头的片段也一样 ——
+        //   2026-09-30 在模拟器上打日志量过：三段、首段从第 1 秒起裁，时间戳一路 0 → 10 秒单调走完）。
+        //   所以「只在开头 2.5 秒露标识」「第 7 秒出这句字幕」都直接按成片的绝对时间写。
+        final List<androidx.media3.effect.TextureOverlay> overlays = new ArrayList<>();
+        int minSide = Math.min(w, h);
         JSObject badge = call.getObject("badge");
         if (badge != null) {
             String mode = badge.getString("mode", "none");
@@ -254,17 +296,43 @@ public class VideoMergePlugin extends Plugin {
                 long untilUs = "head".equals(mode) ? Math.round(headSec * 1_000_000d) : -1;
                 // ★ 字高按**画面最短边**算，不是高：GB 45438-2025 要求 ≥ 最短边 5%（见 data/aigcLabel 的 ②）。
                 //   按高算的话竖屏会偏大、横屏会偏小 —— 横屏那头就直接不合规了。
-                int minSide = Math.min(w, h);
-                videoEffects.add(new OverlayEffect(
-                        ImmutableList.of(new BadgeOverlay(text, untilUs, minSide, ratio))));
+                overlays.add(new BadgeOverlay(text, untilUs, minSide, ratio));
+            }
+        }
+        JSObject captions = call.getObject("captions");
+        if (captions != null) {
+            JSONArray capItems = captions.optJSONArray("items");
+            if (capItems != null && capItems.length() > 0) {
+                overlays.add(new CaptionOverlay(
+                        capItems, w, h,
+                        (float) captions.optDouble("sizeRatio", 0.05),
+                        (float) captions.optDouble("bottomRatio", 0.28),
+                        (float) captions.optDouble("maxWidthRatio", 0.58),
+                        (float) captions.optDouble("titleScale", 1.5),
+                        (float) captions.optDouble("titleTopRatio", 0.2)));
             }
         }
 
-        Effects effects = new Effects(ImmutableList.of(), ImmutableList.copyOf(videoEffects));
-        // 逐段套同一组效果：Presentation 必须每段都有，否则尺寸不一致会被整发拒
+        // ── 逐段的效果链：画幅归一 →（闪黑）→ 叠加物；声音那一侧是这一段原声的音量 ──
+        // ★ Presentation 必须每段都有，否则尺寸不一致会被整发拒（横竖混排靠它按短边裁到同一个框）
+        // ★ 闪黑排在叠加物**前面**：变暗的只是画面本身，显式标识不跟着暗下去 ——
+        //   第一段带淡入时，「起始画面要有标识」那一条照样成立（合规口径见 data/aigcLabel）
         List<EditedMediaItem> withEffects = new ArrayList<>();
-        for (EditedMediaItem it : items) {
-            withEffects.add(it.buildUpon().setEffects(effects).build());
+        for (ClipSpec cs : specs) {
+            List<androidx.media3.common.Effect> ve = new ArrayList<>();
+            ve.add(Presentation.createForWidthAndHeight(w, h, Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP));
+            if ((cs.fadeInUs > 0 || cs.fadeOutUs > 0) && cs.outDurUs > 0) {
+                ve.add(new FadeRgb(cs.outStartUs, cs.outDurUs, cs.fadeInUs, cs.fadeOutUs));
+            }
+            if (!overlays.isEmpty()) ve.add(new OverlayEffect(ImmutableList.copyOf(overlays)));
+            // 音量正好是 1 时一个处理器都不挂（与 BGM 那边同一条：少一环就少一处可能出事的地方）
+            ImmutableList<AudioProcessor> ap = Math.abs(cs.volume - 1f) < 0.001f
+                    ? ImmutableList.of()
+                    : ImmutableList.of(new GainAudioProcessor(cs.volume));
+            EditedMediaItem.Builder ib = new EditedMediaItem.Builder(cs.item)
+                    .setEffects(new Effects(ap, ImmutableList.copyOf(ve)));
+            if (Math.abs(cs.speed - 1f) > 0.001f) ib.setSpeed(new ConstSpeed(cs.speed));
+            withEffects.add(ib.build());
         }
 
         // ★★★ 异构音轨：**多段时必须开 forceAudioTrack，否则整条合并当场抛**（2026-09-07 反编译
@@ -338,12 +406,73 @@ public class VideoMergePlugin extends Plugin {
                         .setRemoveVideo(true)
                         .build();
                 // ★ BGM 短于成片时循环补齐；isLooping 的序列不决定成片长度（由视频那条定）
+                // ⚠ 带循环配乐的合成收尾时，logcat 里会有一条吓人的
+                //   `E ExoPlayerImplInternal: Playback error … IllegalStateException at AudioGraphInput.getInputBuffer`
+                //   （2026-09-30 模拟器上看到，反编译对过：那一行是 checkState(!isReleased)）。它是循环那条序列的取样线程
+                //   在混音总线释放之后又来要了一次缓冲 —— media3 自己的收尾先后，那一刻成片已经写完，onCompleted 照常回来，
+                //   产物逐项量过是对的。真机复盘时别顺着这条日志去查。
                 sequences.add(new EditedMediaItemSequence.Builder(bgm).setIsLooping(true).build());
             }
         }
 
-        composition = new Composition.Builder(sequences).build();
-        bgmFinal = bgmSupplied;
+        // ── 配音：一条**只出声音**的序列，各句按成片时间轴上的起点摆，句与句之间用空档垫到位 ──
+        // ★ 这条序列用「声明轨型」的那个构造器（Set<轨型>）：只有它允许序列以空档开头 ——
+        //   第一句配音几乎从来不在第 0 秒。
+        // ★ 成片多长由画面那条序列定，配音不许把它撑长：起点落在片尾之后的整句不要，
+        //   念到片尾还没完的在片尾掐掉（Web 侧排的时候本来就会拦，这里只是不信任输入）。
+        double totalSec = call.getDouble("totalSec", 0.0);
+        long totalUs = Math.round(Math.max(0, totalSec) * 1_000_000d);
+        boolean voiceSupplied = false;
+        JSArray voices = call.getArray("voices");
+        if (voices != null && voices.length() > 0) {
+            EditedMediaItemSequence.Builder vb =
+                    new EditedMediaItemSequence.Builder(ImmutableSet.of(C.TRACK_TYPE_AUDIO));
+            long cursorUs = 0;
+            for (int i = 0; i < voices.length(); i++) {
+                JSONObject v = voices.getJSONObject(i);
+                String vUrl = v.optString("url", "");
+                long atUs = Math.round(Math.max(0, v.optDouble("atSec", 0)) * 1_000_000d);
+                long durUs = Math.round(Math.max(0, v.optDouble("durSec", 0)) * 1_000_000d);
+                if (vUrl.isEmpty() || durUs <= 0) continue;
+                // 与上一句重叠的往后顺（同一条序列里两句不可能叠着念）
+                if (atUs < cursorUs) atUs = cursorUs;
+                if (totalUs > 0 && atUs >= totalUs) break;
+                if (atUs > cursorUs) vb.addGap(atUs - cursorUs);
+                MediaItem.Builder mb = new MediaItem.Builder().setUri(Uri.parse(vUrl));
+                long playUs = durUs;
+                if (totalUs > 0 && atUs + durUs > totalUs) {
+                    playUs = totalUs - atUs;
+                    mb.setClippingConfiguration(new MediaItem.ClippingConfiguration.Builder()
+                            .setEndPositionMs(Math.max(1, playUs / 1000)).build());
+                }
+                float vol = (float) Math.max(0.0, Math.min(1.0, v.optDouble("volume", 1.0)));
+                ImmutableList<AudioProcessor> vps = Math.abs(vol - 1f) < 0.001f
+                        ? ImmutableList.of()
+                        : ImmutableList.of(new GainAudioProcessor(vol));
+                vb.addItem(new EditedMediaItem.Builder(mb.build())
+                        .setEffects(new Effects(vps, ImmutableList.of()))
+                        .setRemoveVideo(true)
+                        .build());
+                cursorUs = atUs + playUs;
+                voiceSupplied = true;
+            }
+            if (voiceSupplied) sequences.add(vb.build());
+        }
+
+        Composition.Builder cb = new Composition.Builder(sequences);
+        // ── 片尾整体淡出：挂在**混好之后**的那条总线上（成片最后 tailFadeSec 秒，所有声音一起收）──
+        // ★ 为什么不挂在 BGM 自己身上：BGM 那条序列是循环的，挂在它上面的处理器看到的时间每一圈都从头来，
+        //   「最后一秒」无从说起；总线上的时间就是成片的时间。
+        double tailFadeSec = call.getDouble("tailFadeSec", 0.0);
+        if (tailFadeSec > 0.01 && totalUs > 0) {
+            long fadeUs = Math.min(Math.round(tailFadeSec * 1_000_000d), totalUs);
+            cb.setEffects(new Effects(
+                    ImmutableList.of(new TailFadeAudioProcessor(totalUs - fadeUs, fadeUs)),
+                    ImmutableList.of()));
+        }
+        composition = cb.build();
+        // 配音与 BGM 一样算「我们自己送进去的声音」：有它成片就一定有声
+        bgmFinal = bgmSupplied || voiceSupplied;
         bgmSkippedFinal = bgmSkipped;
         } catch (Throwable t) {
             // 见上面那段 ★★：不接住就是进程死 + JS 那边的 Promise 永不 settle
@@ -541,6 +670,241 @@ public class VideoMergePlugin extends Plugin {
             }
             in.position(in.limit());
             out.flip();
+        }
+    }
+
+    /** 恒定变速。media3 的变速接口收的是"随时间变的速度表"，我们只要一个不变的数 */
+    private static final class ConstSpeed implements SpeedProvider {
+        private final float speed;
+
+        ConstSpeed(float speed) {
+            this.speed = speed;
+        }
+
+        @Override
+        public float getSpeed(long timeUs) {
+            return speed;
+        }
+
+        @Override
+        public long getNextSpeedChangeTimeUs(long timeUs) {
+            return C.TIME_UNSET; // 之后不再变
+        }
+    }
+
+    /**
+     * 闪黑：这一段开头从黑里淡入、结尾淡出到黑（只动画面的亮度，不动透明度）。
+     *
+     * ★ 时间按**成片时间轴**算（见 merge 里叠加物那段 ★ 的实测）：所以构造时要知道这一段在成片里的起点与时长。
+     * ★ 为什么是"乘亮度"而不是真的交叉溶解：media3 的序列里一段接一段，同一时刻只有一段在画面上，
+     *   两段叠着溶要走双序列合成（实验性接口）。先黑一下再亮起来只需要一段自己的亮度随时间变 ——
+     *   `RgbMatrix.getMatrix` 每帧都会来问一次。
+     */
+    private static final class FadeRgb implements RgbMatrix {
+        /** 离算好的区间多远就不再信它（见 getMatrix 的 ★）。四分之一秒：比一次淡入淡出短，比时间戳的毛刺长 */
+        private static final long SLACK_US = 250_000L;
+        private final long startUs;
+        private final long endUs;
+        private final long fadeInUs;
+        private final long fadeOutUs;
+
+        FadeRgb(long outStartUs, long outDurUs, long fadeInUs, long fadeOutUs) {
+            this.startUs = outStartUs;
+            this.endUs = outStartUs + outDurUs;
+            // 淡入 + 淡出不许比这一段还长：各自最多占一半
+            this.fadeInUs = Math.min(fadeInUs, outDurUs / 2);
+            this.fadeOutUs = Math.min(fadeOutUs, outDurUs / 2);
+        }
+
+        @Override
+        public float[] getMatrix(long presentationTimeUs, boolean useHdr) {
+            float k = 1f;
+            // ★ 兜底（SLACK_US）：这一段在成片里的起止是 Web 侧**算**出来的。真要是算岔了（这一段实际比算的长得多 /
+            //   开始得早得多），照公式走会把超出去的那一截画成全黑 —— 黑下去就再也亮不回来。离算好的区间太远的帧
+            //   一律原样出：最坏是少一次淡入淡出，不是黑掉半条片子。
+            if (presentationTimeUs < startUs - SLACK_US || presentationTimeUs > endUs + SLACK_US) {
+                float[] id = new float[16];
+                android.opengl.Matrix.setIdentityM(id, 0);
+                return id;
+            }
+            if (fadeInUs > 0 && presentationTimeUs < startUs + fadeInUs) {
+                k = Math.min(k, (presentationTimeUs - startUs) / (float) fadeInUs);
+            }
+            if (fadeOutUs > 0 && presentationTimeUs > endUs - fadeOutUs) {
+                k = Math.min(k, (endUs - presentationTimeUs) / (float) fadeOutUs);
+            }
+            k = Math.max(0f, Math.min(1f, k));
+            float[] m = new float[16];
+            android.opengl.Matrix.setIdentityM(m, 0);
+            android.opengl.Matrix.scaleM(m, 0, k, k, k);
+            return m;
+        }
+    }
+
+    /**
+     * 片尾整体淡出：从 fadeStartUs 起，在 fadeUs 里把音量从 1 线性收到 0（挂在混好之后的总线上）。
+     * ★ 同 GainAudioProcessor：只接 16-bit PCM，别的编码不参与（`onConfigure` 回 NOT_SET ⇒ media3 跳过这一环，
+     *   声音照常出、只是片尾不淡出）—— 宁可少一个效果，不要因为它整发合不出来。
+     */
+    private static final class TailFadeAudioProcessor extends BaseAudioProcessor {
+        private final long fadeStartUs;
+        private final long fadeUs;
+        private long framesSeen;
+        private int sampleRate = 44100;
+        private int channels = 2;
+
+        TailFadeAudioProcessor(long fadeStartUs, long fadeUs) {
+            this.fadeStartUs = Math.max(0, fadeStartUs);
+            this.fadeUs = Math.max(1, fadeUs);
+        }
+
+        @Override
+        protected AudioProcessor.AudioFormat onConfigure(AudioProcessor.AudioFormat in) {
+            if (in.encoding != C.ENCODING_PCM_16BIT) return AudioProcessor.AudioFormat.NOT_SET;
+            sampleRate = in.sampleRate;
+            channels = Math.max(1, in.channelCount);
+            return in;
+        }
+
+        @Override
+        protected void onFlush(AudioProcessor.StreamMetadata streamMetadata) {
+            // 冲洗之后从哪个位置接着算：media3 把流里的起点告诉我们（正常导出就是 0）
+            framesSeen = Math.max(0, streamMetadata.positionOffsetUs) * sampleRate / 1_000_000L;
+        }
+
+        @Override
+        public void queueInput(ByteBuffer in) {
+            ByteBuffer out = replaceOutputBuffer(in.remaining());
+            long fadeStartFrame = fadeStartUs * sampleRate / 1_000_000L;
+            long fadeFrames = Math.max(1, fadeUs * sampleRate / 1_000_000L);
+            while (in.remaining() >= 2 * channels) {
+                float k = 1f;
+                if (framesSeen >= fadeStartFrame) {
+                    k = Math.max(0f, 1f - (framesSeen - fadeStartFrame) / (float) fadeFrames);
+                }
+                for (int ch = 0; ch < channels; ch++) out.putShort((short) Math.round(in.getShort() * k));
+                framesSeen++;
+            }
+            in.position(in.limit());
+            out.flip();
+        }
+    }
+
+    /**
+     * 烧进画面的字幕（与片头标题）。
+     *
+     * ★ **换行不在这里算**：每条字幕带着 Web 侧已经断好的行（data/cutProject 的 paginateCaption），这里逐行居中画。
+     *   预览那一面（剪辑页的 DOM 叠层）画的是同一批行 —— 两边各断各的，预览里两行的字幕合出来可能是三行。
+     *   万一某一行在这台机器的字体下比安全宽度还宽，就把这一行的字号缩到放得下（只缩不断）。
+     * ★ **只在"现在该显示哪几条"变了的时候重画**：CanvasOverlay 每一帧都会来调 onDraw，而画布一被画过，
+     *   media3 就会把整张位图重新传一次纹理（BitmapOverlay.getTextureId 按位图的 generationId 判）。
+     *   一条字幕通常挂几秒，这几秒里一笔都不画，纹理也就不重传。
+     * ★ 字号按画面**最短边**的比例给（与显式标识同一把尺）；位置用高度的比例（bottomRatio = 最后一行的基线离底边多远，
+     *   titleTopRatio = 标题第一行的基线离顶边多远），一行最宽用宽度的比例（maxWidthRatio）。
+     *   这几个数是 Web 侧量出来的政策（要让开首页底缘那一摞界面、右侧操作栏与右下角的标识，见 cutProject.captionLayout），
+     *   原生只照着画。
+     */
+    private static final class CaptionOverlay extends CanvasOverlay {
+        private final long[] startUs;
+        private final long[] endUs;
+        private final String[][] lines;
+        private final boolean[] isTitle;
+        private final int w;
+        private final int h;
+        private final float textPx;
+        private final float bottomRatio;
+        private final float maxLinePx;
+        private final float titleScale;
+        private final float titleTopRatio;
+        private final android.graphics.Paint fill = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        private final android.graphics.Paint stroke = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        /** 上一次画的是哪几条（按位记；-1 = 还没画过 / 画布换过，下一帧必须重画） */
+        private long lastKey = -1;
+        private android.graphics.Canvas lastCanvas;
+
+        CaptionOverlay(JSONArray items, int w, int h, float sizeRatio, float bottomRatio, float maxWidthRatio,
+                       float titleScale, float titleTopRatio) throws org.json.JSONException {
+            super(false);
+            this.w = w;
+            this.h = h;
+            // 给 6% 的宽裕：Web 侧断行是按字宽**估**的，差一点点不必缩字；差得多才缩
+            this.maxLinePx = w * Math.max(0.2f, Math.min(0.96f, maxWidthRatio)) * 1.06f;
+            this.titleScale = Math.max(1f, Math.min(3f, titleScale));
+            this.titleTopRatio = Math.max(0.05f, Math.min(0.8f, titleTopRatio));
+            // 一次最多认 60 条（一位一条）：我们的片子是个位数段、一段一句，60 条绰绰有余；
+            // 这个数也是 lastKey 那个 long 能记下的位数
+            int n = Math.min(60, items.length());
+            startUs = new long[n];
+            endUs = new long[n];
+            lines = new String[n][];
+            isTitle = new boolean[n];
+            for (int i = 0; i < n; i++) {
+                JSONObject o = items.getJSONObject(i);
+                startUs[i] = Math.round(o.optDouble("startSec", 0) * 1_000_000d);
+                endUs[i] = Math.round(o.optDouble("endSec", 0) * 1_000_000d);
+                JSONArray ls = o.optJSONArray("lines");
+                int ln = ls == null ? 0 : Math.min(4, ls.length());
+                lines[i] = new String[ln];
+                for (int j = 0; j < ln; j++) lines[i][j] = ls.optString(j, "");
+                isTitle[i] = "title".equals(o.optString("kind", "caption"));
+            }
+            int minSide = Math.min(w, h);
+            this.textPx = Math.max(14f, minSide * Math.max(0.02f, Math.min(0.12f, sizeRatio)));
+            this.bottomRatio = Math.max(0.03f, Math.min(0.9f, bottomRatio));
+            fill.setColor(Color.WHITE);
+            fill.setTypeface(Typeface.DEFAULT_BOLD);
+            fill.setTextAlign(android.graphics.Paint.Align.CENTER);
+            stroke.setColor(Color.argb(230, 0, 0, 0));
+            stroke.setTypeface(Typeface.DEFAULT_BOLD);
+            stroke.setTextAlign(android.graphics.Paint.Align.CENTER);
+            stroke.setStyle(android.graphics.Paint.Style.STROKE);
+            stroke.setStrokeJoin(android.graphics.Paint.Join.ROUND);
+            setCanvasSize(w, h);
+        }
+
+        @Override
+        public void onDraw(android.graphics.Canvas canvas, long presentationTimeUs) {
+            long key = 0;
+            for (int i = 0; i < startUs.length; i++) {
+                if (presentationTimeUs >= startUs[i] && presentationTimeUs < endUs[i]) key |= (1L << i);
+            }
+            if (key == lastKey && canvas == lastCanvas) return;
+            lastKey = key;
+            lastCanvas = canvas;
+            canvas.drawColor(Color.TRANSPARENT, android.graphics.PorterDuff.Mode.CLEAR);
+            for (int i = 0; i < startUs.length; i++) {
+                if ((key & (1L << i)) == 0) continue;
+                // 标题比字幕大、从上方的安全线往下排；字幕贴着下方的安全线往上叠
+                float size = isTitle[i] ? textPx * titleScale : textPx;
+                float lineH = size * 1.3f;
+                String[] ls = lines[i];
+                float lastBaseline = isTitle[i]
+                        ? h * titleTopRatio + (ls.length - 1) * lineH
+                        : h * (1f - bottomRatio);
+                for (int j = 0; j < ls.length; j++) {
+                    String s = ls[j];
+                    if (s == null || s.isEmpty()) continue;
+                    float px = size;
+                    fill.setTextSize(px);
+                    float width = fill.measureText(s);
+                    float maxW = maxLinePx;
+                    if (width > maxW && width > 0) px = px * maxW / width;
+                    fill.setTextSize(px);
+                    stroke.setTextSize(px);
+                    stroke.setStrokeWidth(Math.max(2f, px * 0.16f));
+                    float y = lastBaseline - (ls.length - 1 - j) * lineH;
+                    canvas.drawText(s, w / 2f, y, stroke);
+                    canvas.drawText(s, w / 2f, y, fill);
+                }
+            }
+        }
+
+        @Override
+        public void release() throws androidx.media3.common.VideoFrameProcessingException {
+            super.release();
+            // 每一段的效果链各用各放（这份叠加物是所有段共用的）：下一段接手时必须重画一次
+            lastKey = -1;
+            lastCanvas = null;
         }
     }
 

@@ -128,8 +128,15 @@ function mapError(e: unknown): CaptureResult {
 
 /** 回到前台之后等多久还没结果就当「没接到」 */
 const RESUME_WATCHDOG_MS = 20_000;
-/** 模块级在途锁：LegacyCameraFlow 只有一个 imageFileSavePath 字段，两次叠着拍，前一张的路径会被后一张覆盖 */
-let busy = false;
+/**
+ * 模块级在途锁：LegacyCameraFlow 只有一个 imageFileSavePath 字段，两次叠着拍，前一张的路径会被后一张覆盖。
+ * ★★ 锁记的是**哪一次拍摄**拿着它（编号），不是一个布尔（2026-09-18，2.46 发版复核抓到）：原来看门狗判「没接到」时
+ *   不放锁（锁只在 takeOne 收尾时放，而没接到的那一次多半永远不收尾），于是这一会话里之后每一次拍照都回
+ *   「上一张还没拍完」—— 页面却在说「再拍一次」，相机那条路直到重启 App 都是死的。现在判「没接到」就放锁；
+ *   那一张万一迟到回来，它收尾时只放**自己**那把锁（编号对不上就不动），不会把后来那一次的锁一起放掉。
+ */
+let holder: number | null = null;
+let seq = 0;
 
 async function takeOne(): Promise<CaptureResult> {
   const photo = await Camera.getPhoto({
@@ -159,8 +166,12 @@ async function takeOne(): Promise<CaptureResult> {
  */
 export function capturePhoto(onLate?: (r: CaptureResult) => void): Promise<CaptureResult> {
   if (!nativeCameraSupported()) return Promise.resolve({ kind: "unsupported" });
-  if (busy) return Promise.resolve({ kind: "failed", reason: t`上一张还没拍完` });
-  busy = true;
+  if (holder !== null) return Promise.resolve({ kind: "failed", reason: t`上一张还没拍完` });
+  const mine = ++seq;
+  holder = mine;
+  const release = () => {
+    if (holder === mine) holder = null;
+  };
   return new Promise<CaptureResult>((resolve) => {
     let settled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -176,6 +187,7 @@ export function capturePhoto(onLate?: (r: CaptureResult) => void): Promise<Captu
         if (settled) return;
         settled = true;
         stopWatch();
+        release(); // 页面会说「再拍一次」：锁得放掉，不然那一句是空话（见 holder 的 ★★）
         resolve({ kind: "lost" });
       }, RESUME_WATCHDOG_MS);
     }).then((h) => {
@@ -183,12 +195,14 @@ export function capturePhoto(onLate?: (r: CaptureResult) => void): Promise<Captu
       else removeListener = () => void h.remove();
     });
     const finish = (r: CaptureResult) => {
-      busy = false;
+      release();
       if (!settled) {
         settled = true;
         stopWatch();
         resolve(r);
-      } else if (r.kind === "photo") {
+      } else if (r.kind === "photo" && holder === null) {
+        // ★ 只在**没有下一张在拍**时才交出去（2026-09-18 发版复核抓到）：人已经按「再拍一次」、相机还开着的时候
+        //   这张迟到的落了格，会被自动识别一次（花钱），紧接着第二张又把它换掉、再识别一次 —— 卡上的字说的是第一张
         onLate?.(r);
       }
     };

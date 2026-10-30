@@ -7,8 +7,10 @@
 //   backdrop-filter/transform 上栽过两次（CLAUDE.md「fixed inset-0 却只铺满一小块」），
 //   统一走 portal 是唯一不用逐页核对祖先样式的写法。
 import { Trans } from "@lingui/react/macro";
+import { useId } from "react";
 import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
+import { useDialogShell } from "./Sheet";
 
 export default function ConfirmDialog({
   title,
@@ -29,14 +31,22 @@ export default function ConfirmDialog({
   onConfirm: () => void;
   onClose: () => void;
 }) {
+  // 对话框语义与焦点（2026-10-15 教材人格评审，规矩见 useDialogShell）：标题当名字、正文当描述 —— 开窗那一拍读屏把
+  // 「点了会发生什么」整句念出来，这张卡存在的理由就是那句话
+  const titleId = useId();
+  const descId = useId();
+  const { panelProps } = useDialogShell(onClose);
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6" onClick={onClose}>
       <div
-        className="w-full max-w-xs rounded-2xl border border-slate-700 bg-ink p-4"
+        {...panelProps}
+        aria-labelledby={titleId}
+        aria-describedby={descId}
+        className="w-full max-w-xs rounded-2xl border border-slate-700 bg-ink p-4 outline-none"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="text-sm font-bold text-slate-100">{title}</h3>
-        <div className="mt-2 text-xs leading-relaxed text-slate-400">{children}</div>
+        <h3 id={titleId} className="text-sm font-bold text-slate-100">{title}</h3>
+        <div id={descId} className="mt-2 text-xs leading-relaxed text-slate-400">{children}</div>
         <div className="mt-4 flex gap-2">
           <button
             onClick={onClose}
@@ -48,7 +58,7 @@ export default function ConfirmDialog({
             onClick={onConfirm}
             disabled={busy}
             className={`flex-1 rounded-xl py-2.5 text-xs font-bold disabled:opacity-40 ${
-              danger ? "bg-rose-500 text-white" : "bg-brand text-ink"
+              danger ? "bg-danger-500 text-white" : "bg-brand text-ink"
             }`}
           >
             {busy ? "…" : confirmLabel}

@@ -46,9 +46,10 @@
 //   在 9 个角色位下光骨架就 300 字，加上出片时挂在尾巴上的绑定句直接溢出 ——
 //   而溢出是**从正文这头切**的（segmentGen 的 room），切掉的正是用户自己写的那几句。
 //   紧凑不等于天书：`编号1=张三` 一眼能懂、能手改，这是硬要求（这段话是给用户读的）。
-import { AI_REAL, VIDEO_PROMPT_MAX } from "../ai";
+import { AI_REAL, SHEET_CLAUSE, VIDEO_PROMPT_MAX, mayAddSheetClause } from "../ai";
 import { chat } from "../ai/arkClient";
 import { markColorOf, type MarkSpec } from "../data/templates";
+import { exprLineOf, fitsExpr } from "../data/blockoutExpr";
 import type { Card, MarkScheme } from "../types";
 import { t } from "@lingui/core/macro";
 
@@ -141,6 +142,13 @@ export interface BlockoutCastSlot {
    *     进管线 —— 那正是现在由逐卡门禁在花钱前守住的东西。
    */
   mark: string;
+  /**
+   * 这个位子的人在**示例视频里**是什么神态（「先平静，后惊讶张嘴，再大笑」）—— 取值只有 `data/templates.markExprOfLabel` 一处
+   * （`markExprs[markSlots.indexOf(label)]`）。`""` = 没有（老模板、编号方案、自己传白模片那条路）→ 提示词一个字不变。
+   * ★ **必填**：漏传是零症状的（神态句悄悄不写，D 那一发补回来的惊讶 / 大笑又没了），调用方真没有就显式传 ""。
+   * ★ 它只进「神态：…」那一句（data/blockoutExpr.exprLineOf，按卡名说），不进括号 —— 括号是指认人偶用的（mark），神态是让换上去的人演什么。
+   */
+  expr: string;
   /** 挂上的人物卡；null = 没挂（这个人偶保持白模原样） */
   card: Card | null;
 }
@@ -153,11 +161,31 @@ export interface BlockoutCastSlot {
  *   外加头尾那句「参考图：…只用来锁这个角色的长相、发色与服装，不要照抄其构图与背景。」≈ 40 字。
  * ★ 宁可**估大**：估小了 segmentGen 会从正文尾巴切一刀，切掉的是「不要出现字幕」这类
  *   收尾要求，或者用户自己补的那句话 —— 而那一刀虽然会当场报出来，用户也只能回来重写。
+ * ★★ 2026-09-23 加的第二档（`sheets`）：挂上的卡里有**多视图设定稿**（三视图 / 规格稿）时，
+ *   尾巴会多出两截 —— 每张卡可能多一个 `@图片N`（+4），以及末尾那句 `SHEET_CLAUSE`。
+ *   ⚠ 分两档而不是一律按大的留：设定稿只在**挂的卡少**时才排得进预算，而这个留位是按卡数算的 ——
+ *   一律按大的留会让 6 个角色位的白模稿**整批丢掉括号描述**（下面 withDescs 那条），
+ *   而那些描述（尤其"位置关系"）是实测里唯一扛得住换人的一维（见 APPLY_DESC_MAX 的 ★★★）。
+ *   为一句说明把它们挤掉是赔本的。
  * ⚠ 这是**镜像**，不是那条规则本身：绑定句的真正形态在 `ai/real` 的 `bind()`。
  *   改那边的措辞就要回来重量一次（两边一起漂时没有任何症状，只表现为正文被多切几个字）。
+ *   ★ 所以那句说明的长度直接读 `SHEET_CLAUSE.length`，不在这里手抄一个数。
  */
 const BIND_RESERVE_FIXED = 40;
 const BIND_RESERVE_PER_CARD = 13;
+/** 设定稿也在场时，每张卡多留一个 `@图片N` 的位置 */
+const BIND_RESERVE_PER_CARD_SHEET = 17;
+/**
+ * 挂到几张卡为止，设定稿还**排得进**参考图预算 —— 超过这个数就按没有设定稿留位。
+ *
+ * ★ 3 是算出来的：第一轮每张人物卡 `MAX_CHAR_REFS`(2) 张，设定稿是第 3 张，
+ *   所以要 3×卡数 ≤ 这一发的参考图预算。这里按**最紧的那档协议上限**算（2.0 系 hd = 9 张）⇒ 3 张卡。
+ * ⚠ 2.5 档（30 张）下挂更多卡时设定稿照样排得进，那时这里是**估小**的：后果是正文被
+ *   segmentGen 切一刀、并在进度里当场报出来（那句 ⚠ 会说清切了多少字）。
+ *   这是**有意选的那一侧** —— 反过来一律按大的留，6 个角色位的稿子会整批丢掉括号描述
+ *   （下面的 withDescs），而那些描述（尤其"位置关系"）才是实测里真正扛住换人的一维。
+ */
+const SHEET_FITS_MAX_CARDS = 3;
 
 /**
  * 合成结果的字数上限：把尾巴的位置先留出来，剩下的**全给用户**。
@@ -166,9 +194,16 @@ const BIND_RESERVE_PER_CARD = 13;
  *   而截断是从正文这头切的。挂 9 张卡时尾巴约 40+9×13 = 157 字，这里就只准写到 243 字。
  * ★ 下限 80：卡再多也得给正文留一口气 —— 真到那一步，溢出会被 segmentGen 整句报出来
  *   （那才是唯一可靠的一环），而不是悄悄少发几句。
+ * @param sheets 挂上的卡里有没有多视图设定稿（`ai.mayAddSheetClause`）——有就按大的那一档留位（见上面 ★★）。
+ *   ★ **必填**（不是 `= false`）：漏传零症状 —— 悄悄按小的那一档留位，而多出来的那几十字是从**用户正文**
+ *   那头切掉的（segmentGen 的 room）。调用方手上就有那几张卡，回答这个问题不费事。
  */
-export function blockoutPromptBudget(cardCount: number): number {
-  return Math.max(80, VIDEO_PROMPT_MAX - BIND_RESERVE_FIXED - Math.max(0, cardCount) * BIND_RESERVE_PER_CARD);
+export function blockoutPromptBudget(cardCount: number, sheets: boolean): number {
+  // ★ 卡多到设定稿根本排不进预算时，按没有设定稿留位（理由见 SHEET_FITS_MAX_CARDS）
+  const fits = sheets && cardCount <= SHEET_FITS_MAX_CARDS;
+  const perCard = fits ? BIND_RESERVE_PER_CARD_SHEET : BIND_RESERVE_PER_CARD;
+  const fixed = BIND_RESERVE_FIXED + (fits ? SHEET_CLAUSE.length : 0);
+  return Math.max(80, VIDEO_PROMPT_MAX - fixed - Math.max(0, cardCount) * perCard);
 }
 
 /**
@@ -362,6 +397,8 @@ function buildSkeleton(
   usedDesc: Map<string, string>;
   usedKey: Map<string, string>;
   usedGroups: { color: string; labels: string[]; names: string[] }[];
+  /** 这一次写进去的神态句（"" = 没写：没有神态 / 角色位太多 / 放不下）。composeBlockoutPrompt 据此核对、丢了补回去 */
+  usedExprLine: string;
 } {
   // ★★★ 这一行是承重的（见 orderSlots 的 ★★★）：序数方案下**书写顺序就是语义**
   const slots = orderSlots(cast, spec);
@@ -421,7 +458,9 @@ function buildSkeleton(
   const free = slots.filter((s) => !s.card);
   // 括号描述只在**序数方案**下拼：编号方案的 desc 是「原视频里是谁」（穿黑袍的白发少年），
   // 说的是被替换掉的那个人，写进"换成谁"那句话里只会打架。存量 6 个模板全在编号那一档。
-  const build = (withDescs: boolean, line: string = userLine): string => {
+  // 神态句（data/blockoutExpr）：只在序数方案（服务端只给序数模板带 markExprs）、挂了卡的位子上按卡名写；顺序 = 排好的 slots（画面从左到右）
+  const exprLine = ordinal ? exprLineOf(slots.map((s) => ({ card: s.card ? { id: s.card.id, name: s.card.name } : null, expr: s.expr })), slots.length) : "";
+  const build = (withDescs: boolean, line: string = userLine, expr = ""): string => {
     const paren = (s: { desc: string | null }) => (withDescs && ordinal && s.desc ? `（${s.desc}）` : "");
     const bind = (s: { key: string; name: string; desc: string | null }) => `${s.key}${paren(s)}=${s.name}`;
     // ★ 引导语那半句只在**真有括号**时才说（2026-08-17 核对时抓到）：一个括号都没有还写着
@@ -465,7 +504,7 @@ function buildSkeleton(
             `把带编号的白色人偶替换为对应角色：${taken.map((s) => `编号${s.label}=${s.name}`).join("、")}。`,
       );
     }
-    return buildRest(parts, free, ordinal, line);
+    return buildRest(parts, free, ordinal, line, expr);
   };
   // ★★ 塞不下就**整批**不要，不是挑几个留（2026-08-17）：留一半的话，正文里会出现
   //   "有的位子带描述、有的不带"，而模型对**不对称的清单**最爱自己补齐 —— 它会给没带的
@@ -480,9 +519,14 @@ function buildSkeleton(
   //   所以别把「6」写进任何判断里 —— 判据只有上面这一行长度比较。写死一个 6 的话，
   //   描述短的时候 7 个也塞得下却被拦掉，描述长的时候 6 个塞不下却放行（后者会把尾巴挤掉）。
   // ★ 卡数按**全部挂了卡的位子**算（组员已从 taken 里摘走，但它们的参考图照样占预算）
-  const cards = new Set(slots.flatMap((s) => (s.card ? [s.card.id] : []))).size;
+  const attached = slots.flatMap((s) => (s.card ? [s.card] : []));
+  const cards = new Set(attached.map((c) => c.id)).size;
   const full = build(true);
-  const withDescs = full.length <= blockoutPromptBudget(cards);
+  const budget = blockoutPromptBudget(cards, mayAddSheetClause(attached));
+  // ★ 括号描述先定、神态句后定：括号是指认人偶的（实测唯一扛得住换人的一维），神态句放不下就整句不写，**绝不**反过来挤掉括号
+  const withDescs = full.length <= budget;
+  const withExpr = !!exprLine && fitsExpr(build(withDescs, userLine, exprLine), budget);
+  const usedExprLine = withExpr ? exprLine : "";
   const usedDesc = new Map<string, string>();
   if (withDescs && ordinal) for (const slot of taken) if (slot.desc) usedDesc.set(slot.label, slot.desc);
   // ★ 哪些位子改按颜色点名了，也要**告诉**校验侧（与 usedDesc 同一条理由）：
@@ -490,17 +534,18 @@ function buildSkeleton(
   const usedKey = new Map<string, string>();
   for (const slot of taken) if (slot.key !== slot.label) usedKey.set(slot.label, slot.key);
   return {
-    text: withDescs ? full : build(false),
-    // ★ 与 text 用**同一个** withDescs（见 textNoUserLine 的 ★）
-    textNoUserLine: build(withDescs, ""),
+    text: build(withDescs, userLine, usedExprLine),
+    // ★ 与 text 用**同一个** withDescs / 神态句（见 textNoUserLine 的 ★）
+    textNoUserLine: build(withDescs, "", usedExprLine),
     usedDesc,
     usedKey,
     usedGroups: groups,
+    usedExprLine,
   };
 }
 
 /** 骨架里"挂卡那句"之后的部分 —— 两个分支（带描述/不带）共用，避免整段被抄成两份 */
-function buildRest(parts: string[], free: BlockoutCastSlot[], ordinal: boolean, userLine: string): string {
+function buildRest(parts: string[], free: BlockoutCastSlot[], ordinal: boolean, userLine: string, exprLine: string): string {
   if (free.length > 0) {
     // ★ 没挂卡的**也要点名说"保持原样"**，不能只靠"没提到就是不动"：模型对没提到的
     //   主体会自己发挥（实测白模化那一发正是"泛指会漏掉主角"的同一个机理，F4）。
@@ -554,6 +599,9 @@ function buildRest(parts: string[], free: BlockoutCastSlot[], ordinal: boolean, 
   // i18n-ignore-next-line: 同上
   if (!ordinal) parts.push("把人偶头上和身上的编号（数字、号码牌）全部去掉，成片里不许出现任何编号或数字。");
   if (line) parts.push(line.endsWith("。") ? line : `${line}。`);
+  // ★ 神态句排在用户那句话**之后**、「不要出现字幕」之前（付费小验 D 那一发的位置）：截断从尾巴下刀，
+  //   它比用户自己的话次要、比「不要出现字幕」要紧。"" = 不写（老模板到这里逐字节不变）
+  if (exprLine) parts.push(exprLine);
   // ★ 「不要出现字幕」留在最末：它是这段话里**最不要紧**的一句（丢了顶多多一行字幕，
   //   不是毁片），而最末就是最先被切掉的位置 —— 排序即优先级。
   // i18n-ignore-next-line: 同上
@@ -699,7 +747,8 @@ const COMPOSE_SYSTEM: Record<MarkScheme, string> = {
     "3. **必须保持这些绑定在句子里的先后顺序，一律不许调换**——它们是按人物在画面上从左到右排好的，",
     "   顺序一乱，AI 就会把角色换到别人身上；",
     "4. 不许增加原文没有的画面要求，也不许删掉原文任何一条要求；",
-    "5. 直接输出成品正文，不要解释、不要加引号、不要用 Markdown、不要分点。",
+    "5. 「神态：…」那一句（若有）必须整句逐字原样保留，不许改写、拆开或挪进别的句子；",
+    "6. 直接输出成品正文，不要解释、不要加引号、不要用 Markdown、不要分点。",
   ].join("\n"),
 };
 
@@ -726,7 +775,7 @@ export async function composeBlockoutPrompt(
 ): Promise<string> {
   // ★ 骨架与「这一次给哪几个位子拼了括号」一并取回 —— 下面三道校验都要拿它逐字核对括号内容。
   //   在校验侧重算一遍预算就是同一条规则的第二处实现（详见 buildSkeleton 的 ★★★）。
-  const { text: skeleton, textNoUserLine, usedDesc, usedKey, usedGroups } = buildSkeleton(cast, userLine, spec);
+  const { text: skeleton, textNoUserLine, usedDesc, usedKey, usedGroups, usedExprLine } = buildSkeleton(cast, userLine, spec);
   // ★★ 下面每一处都用**排好序的**那一份，不是原始 `cast`：给豆包的上下文若按另一个顺序
   //   列，等于在骨架已经排好升序之后又递给它一个反例（而顺序就是语义，见 orderSlots）。
   const slots = orderSlots(cast, spec);
@@ -739,8 +788,9 @@ export async function composeBlockoutPrompt(
   // ★ 预算按**这一次真的挂了几张卡**算（同一张卡挂两个位子只占一份图位，与
   //   flowStore 落 materials 时的去重同口径）——按角色位数量算会白白多留位，
   //   而多留的那部分本来是用户的。
-  const cards = new Set(slots.flatMap((s) => (s.card ? [s.card.id] : [])));
-  const budget = Math.max(blockoutPromptBudget(cards.size), skeleton.length);
+  const attached = slots.flatMap((s) => (s.card ? [s.card] : []));
+  const cards = new Set(attached.map((c) => c.id));
+  const budget = Math.max(blockoutPromptBudget(cards.size, mayAddSheetClause(attached)), skeleton.length);
   const context = slots
     // i18n-ignore-next-line: 角色位对照，只进发给豆包的上下文
     .flatMap((s) => (s.card ? [`${labelText(s.label, spec)}（原视频里是${s.desc || "某个人物"}）→ ${s.card.name}`] : []))
@@ -919,7 +969,21 @@ export async function composeBlockoutPrompt(
     .map((i) => lineFlat.slice(i, i + 4))
     .filter((w) => w.length >= 2);
   const kept = windows.length === 0 || windows.some((w) => flat.includes(w));
-  if (kept) return text;
+  if (kept) return keepExprLine(text, usedExprLine);
   const tail = line.endsWith("。") ? line : `${line}。`;
-  return text.endsWith("。") ? text + tail : `${text}。${tail}`;
+  return keepExprLine(text.endsWith("。") ? text + tail : `${text}。${tail}`, usedExprLine);
+}
+
+/**
+ * 神态句（骨架里写了的话）在合成结果里还在不在 —— 不在就**补回去**（只补、不拒，同上面补作者那句话）：
+ * 模型丢掉它是静默的，丢了的后果是 D 补回来的惊讶 / 大笑又没了（付费小验 A0 那一发的样子），而它不涉及换人，不值得整段拒。
+ * ★ 认「整句原样在」：系统提示词要它逐字保留；被改写过也当丢了、补一份原句（原句是付费验过的写法）。
+ *   补在「不要出现字幕」之前（与骨架同一个位置），找不到那句就接在末尾。
+ */
+function keepExprLine(text: string, exprLine: string): string {
+  if (!exprLine || text.includes(exprLine)) return text;
+  // i18n-ignore-next-line: 骨架里收尾那句的原文（冻结中文），只用来定位
+  const at = text.lastIndexOf("不要出现字幕");
+  if (at >= 0) return text.slice(0, at) + exprLine + text.slice(at);
+  return text.endsWith("。") ? text + exprLine : `${text}。${exprLine}`;
 }

@@ -19,10 +19,12 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "reac
 import { Trans, useLingui } from "@lingui/react/macro";
 import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
+import StepDots from "../components/StepDots";
 import { useNavigate } from "react-router";
 import SegSettings from "../components/flow/SegSettings";
-import { chosenOf, nodeCost, nodeDone, tplOfNode, useFlow } from "../studio/flowStore";
-import { fmtTokens } from "../data/economy";
+import { chosenOf, nodeCost, nodeDone, nodeEmptyFrames, tplOfNode, useFlow } from "../studio/flowStore";
+import { fmtTokens, priceTag, tierOf } from "../data/economy";
+import { textOnlyFramesLine, tierBlockReason, tierTextOnly } from "../data/account";
 import {
   browseTemplates,
   groupRows,
@@ -47,7 +49,13 @@ export default function SimpleModePage() {
   const err = useFlow((s) => s.err);
   const busy = useFlow((s) => s.busy);
   const { seedSolo, setNodeTemplate, updateProposal, genNode } = useFlow();
-  const [step, setStep] = useState<Step>("start");
+  // ★ 从生成中途退出来再回来（出片胶囊「回去看看」只回这一页）直接站到第③步（2026-10-15 发版前复核抓到）：10-14 起胶囊在开炉的那一面
+  //   不画，而这一页原来一律从第①步起 —— 段正在炼、屏幕上却是「想怎么开始？」，没有一个字说正在生成；炼完的也一样回第③步看结果
+  const [step, setStep] = useState<Step>(() => {
+    const st = useFlow.getState();
+    const n = st.mode === "simple" && st.nodes.length === 1 ? st.nodes[0] : undefined;
+    return n && (n.status === "generating" || nodeDone(n)) ? "go" : "start";
+  });
   /** 走哪条路。null = 还没选（第 1 屏） */
   const [route, setRoute] = useState<"template" | "custom" | null>(null);
 
@@ -98,25 +106,27 @@ export default function SimpleModePage() {
   const prop = chosenOf(node);
   const tpl = tplOfNode(node);
   const cost = nodeCost(nodes, 0, mode);
-  const stepNo = step === "start" ? 1 : step === "fill" ? 2 : 3;
+  const stepIdx = step === "start" ? 0 : step === "fill" ? 1 : 2;
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-md flex-col px-4 pb-6">
-      {/* 顶栏：只有返回 + 第几步。简约不需要存草稿/完成视频那一排。
+      {/* 顶栏：只有返回。简约不需要存草稿/完成视频那一排。
           ★ 走 PageHeader（2026-09-05 主人截图：这一页此前没留状态栏的位置，返回键压在时间上、
             「第 1/3 步」压在电量图标上 —— 全 app 唯一一页顶栏没 safe-top 的） */}
       <PageHeader sticky inset
         onBack={() => (step === "start" ? navigate("/create") : setStep(step === "go" ? "fill" : "start"))}
         title={t`写一句话出片`}
-        right={
-          <span className="flex-none text-[11px] text-slate-500">
-            <Trans>第 {stepNo} / 3 步</Trans>
-          </span>
-        }
       />
+      {/* ★ 进度只画这一份（components/StepDots，CLAUDE.md 铁律六）：2026-10-22 替掉右上角那句「第 n / 3 步」；
+          三步的名字照文件头那三件事（挑起点 → 说清拍什么 → 出片）。纯展示：回上一步仍只走返回键 */}
+      <StepDots className="mb-4" current={stepIdx} steps={[{ label: t`选起点` }, { label: t`说清楚` }, { label: t`出片` }]} />
 
-      {/* store 的整句拒绝（换模板被拒、生成被拒…）—— 不画一份就是"点了没反应"（铁律八） */}
-      {err && <p className="mb-3 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-300">{err}</p>}
+      {/* store 的整句拒绝（换模板被拒、生成被拒…）—— 不画一份就是"点了没反应"（铁律八）。
+          ★ 第 3 步的拒绝画在「出片」那颗键的正上方（StepGo 收 err），不画在这儿：键在屏幕底、这行在顶，人盯着键看不到这句
+          （2026-10-14 UX 课走查：反馈要落在动作旁边） */}
+      {err && step !== "go" && (
+        <p className="mb-3 rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-[11px] leading-relaxed text-danger-300">{err}</p>
+      )}
 
       {step === "start" && (
         <StepStart
@@ -160,31 +170,45 @@ export default function SimpleModePage() {
           cost={cost}
           busy={busy || generating}
           progress={generating ? node.progress || t`生成中…` : ""}
+          err={err}
+          done={done}
           onGo={() => void genNode(node.id)}
+          onCut={() => {
+            // 出片之后组稿被拦下过（上面那个 effect 只触发一次）：人处理完那条剪到一半的成片回来，从这里再组一次 —— 不是重新出片
+            cutFired.current = true;
+            toCutRef.current();
+          }}
         />
       )}
     </div>
   );
 }
 
-/** 第 1 步：**整屏只有两个选项**。用户点名——第一步别摆别的东西。 */
+/** 第 1 步：**整屏只有两个选项**。用户点名——第一步别摆别的东西。
+ *  两块砖右端带 ›、按下有反馈（2026-10-14 UX 课的惯例：会跳走的砖要有「去哪儿」的记号；铸段窗的选法屏早就这么画） */
 function StepStart({ onPick }: { onPick: (r: "template" | "custom") => void }) {
   return (
     <div className="flex flex-1 flex-col justify-center gap-3">
       <p className="mb-1 text-center text-sm text-slate-400"><Trans>想怎么开始？</Trans></p>
       <button
         onClick={() => onPick("template")}
-        className="rounded-2xl border border-brand/50 bg-brand/10 px-4 py-6 text-left"
+        className="flex items-center gap-3 rounded-2xl border border-brand/50 bg-brand/10 px-4 py-6 text-left transition active:opacity-60"
       >
-        <div className="text-base font-bold text-slate-100"><Trans>🧪 套一个模板</Trans></div>
-        <div className="mt-1 text-xs leading-relaxed text-slate-400"><Trans>挑一条现成的片子，复刻它的画面与运镜</Trans></div>
+        <span className="min-w-0 flex-1">
+          <span className="block text-base font-bold text-slate-100"><Trans>🧪 套一个模板</Trans></span>
+          <span className="mt-1 block text-xs leading-relaxed text-slate-400"><Trans>挑一条现成的片子，复刻它的画面与运镜</Trans></span>
+        </span>
+        <span className="flex-none text-lg text-slate-500">›</span>
       </button>
       <button
         onClick={() => onPick("custom")}
-        className="rounded-2xl border border-slate-700 bg-panel px-4 py-6 text-left"
+        className="flex items-center gap-3 rounded-2xl border border-slate-700 bg-panel px-4 py-6 text-left transition active:opacity-60"
       >
-        <div className="text-base font-bold text-slate-100"><Trans>✍️ 自己写一句</Trans></div>
-        <div className="mt-1 text-xs leading-relaxed text-slate-400"><Trans>说一句想拍什么，AI 直接出一条短片</Trans></div>
+        <span className="min-w-0 flex-1">
+          <span className="block text-base font-bold text-slate-100"><Trans>✍️ 自己写一句</Trans></span>
+          <span className="mt-1 block text-xs leading-relaxed text-slate-400"><Trans>说一句想拍什么，AI 直接出一条短片</Trans></span>
+        </span>
+        <span className="flex-none text-lg text-slate-500">›</span>
       </button>
     </div>
   );
@@ -345,7 +369,10 @@ function StepGo({
   cost,
   busy,
   progress,
+  err,
+  done,
   onGo,
+  onCut,
 }: {
   nodeId: string;
   tplTitle?: string;
@@ -354,13 +381,21 @@ function StepGo({
   cost: number;
   busy: boolean;
   progress: string;
+  /** store 的整句拒绝（空串 = 没有）：画在「出片」键正上方，页面顶上那份对这一步不画 */
+  err: string;
+  /** 这一段已经出过片（flowStore.nodeDone）：主键换成「去剪辑」，出片退成次级的「重新生成」 */
+  done: boolean;
   onGo: () => void;
+  onCut: () => void;
 }) {
   // ── 自定义首尾帧（选填，主人点名的第三条路·简约面）──
   // 帧就写在这一段的方案上（flowStore.setFrame 唯一实现），给了就走首尾帧直出、
   // 报价当场跟着变（nodeCost 读的就是方案上的帧）。融图 = 既有 FuseFrameSheet。
   const { t } = useLingui();
   const node = useFlow((s) => s.nodes.find((n) => n.id === nodeId));
+  // 帧位空着会怎样（补不补画 / 直出）问 flowStore.nodeEmptyFrames：先取 nodes 与 mode 再算（新对象不能进选择器）
+  const nodes = useFlow((s) => s.nodes);
+  const mode = useFlow((s) => s.mode);
   const setFrame = useFlow((s) => s.setFrame);
   const [customOpen, setCustomOpen] = useState(false);
   const [fuse, setFuse] = useState<"first" | "last" | null>(null);
@@ -410,7 +445,9 @@ function StepGo({
                 last={prop.lastFrame}
                 aspectCssValue={aspectCss(node.aspect)}
                 canEdit={!busy}
-                firstEmptyNote={t`空 = AI 按上面那句话补画（计费）`}
+                fates={nodeEmptyFrames(nodes, Math.max(0, nodes.findIndex((n) => n.id === nodeId)), mode)}
+                drawNote={t`空 = AI 按上面那句话补画（计费）`}
+                textOnlyNote={tierTextOnly(tierOf(node.videoTier)) ? textOnlyFramesLine() : null}
                 onFrame={(which, url) => setFrame(nodeId, which, url)}
                 onFuse={setFuse}
                 onError={(msg) => useFlow.setState({ err: msg })}
@@ -429,6 +466,7 @@ function StepGo({
             lastFrame: prop.lastFrame,
           })}
           aspect={node.aspect}
+          tierIssue={tierBlockReason(tierOf(node.videoTier))}
           onDone={(url) => {
             setFrame(nodeId, fuse, url);
             setFuse(null);
@@ -438,14 +476,43 @@ function StepGo({
       )}
       <SegSettings nodeId={nodeId} />
       <span className="flex-1" />
-      {progress && <p className="mt-3 text-center text-[11px] leading-relaxed text-slate-400">{progress}</p>}
-      <button
-        onClick={onGo}
-        disabled={busy || (!tplTitle && !plot.trim())}
-        className="mt-3 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:bg-slate-700 disabled:text-slate-500"
-      >
-        {busy ? t`生成中…` : t`⚡ 出片（${fmtTokens(cost)}）`}
-      </button>
+      {/* 拒绝画在键的正上方（页面顶上那份对第 3 步不画，见 SimpleModePage 的 err） */}
+      {err && (
+        <p className="mt-3 rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-[11px] leading-relaxed text-danger-300">{err}</p>
+      )}
+      {/* 出片是几分钟的事：说清楚可以走开（离开之后进度与结果由顶上的胶囊接着报，GenerationPill） */}
+      {progress && (
+        <p className="mt-3 text-center text-[11px] leading-relaxed text-slate-400">
+          {progress}
+          <span className="block text-slate-500"><Trans>可以离开这一页，出片好了会在顶上提醒你</Trans></span>
+        </p>
+      )}
+      {/* ★★ 出片之后这一屏还会留着（2026-10-10 浏览器走查抓到）：组稿被「还有一条剪到一半的成片」拦下时，人要去「我的」
+          处理完再回来 —— 原来回来看到的唯一一颗键还是「⚡ 出片（…）」= 重新下一单、再花一次钱，而刚出的那一段好好地在。
+          已出片就把主键换成「去剪辑」（只组稿，不出片），出片退成次级的「重新生成」并照旧标价 */}
+      {done && !busy ? (
+        <>
+          <button onClick={onCut} className="mt-3 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink">
+            <Trans>🎬 去剪辑 ›</Trans>
+          </button>
+          <button
+            onClick={onGo}
+            disabled={!tplTitle && !plot.trim()}
+            className="mt-2 w-full rounded-xl bg-panel py-2.5 text-sm font-bold text-slate-200 ring-1 ring-slate-700 disabled:opacity-40"
+          >
+            {t`♻ 重新生成（再花 ${fmtTokens(cost)} token）`}
+          </button>
+        </>
+      ) : (
+        <button
+          onClick={onGo}
+          disabled={busy || (!tplTitle && !plot.trim())}
+          className="mt-3 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:bg-slate-700 disabled:text-slate-500"
+        >
+          {/* 价签带单位（2026-10-14 UX 课的「信息要清楚」）：光一个「1.2k」分不出是钱还是别的什么、点下去扣不扣 */}
+          {busy ? t`生成中…` : t`出片（${priceTag(cost)}）`}
+        </button>
+      )}
     </div>
   );
 }

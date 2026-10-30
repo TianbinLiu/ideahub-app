@@ -11,7 +11,7 @@
  * ★ `error` 事件与非 2xx 都 reject；正常读完 resolve。abort 由调用方给 signal，原样抛 AbortError。
  */
 import { t } from "@lingui/core/macro";
-import { API_BASE, ApiError, getToken } from "./client";
+import { API_BASE, ApiError, getToken, withAppVersion } from "./client";
 import { createSseParser, type SseEvent } from "../companion/sse";
 
 /** 有 token 就带上（游客只拿服务端默认）。与 client.ts 同一个 token 来源 */
@@ -20,18 +20,25 @@ export function authHeaders(extra: Record<string, string> = {}): Record<string, 
   return token ? { ...extra, Authorization: `Bearer ${token}` } : extra;
 }
 
-/** 非 2xx → ApiError，尽量用服务端那句中文 message（服务端约定 4xx 的 message 就是给人看的整句话） */
+/**
+ * 非 2xx → ApiError，尽量用服务端那句中文 message（服务端约定 4xx 的 message 就是给人看的整句话）。
+ * ★ 回包里的 `details` 原样挂到 ApiError.details 上（与 client.ts 的 request 同一个约定）：有的报错要靠它说清楚情况 ——
+ *   配音免费额度的 429 带 `details: { limit, used, need }`，「今天用完了」和「这一句放不下、短一点的还配得上」是同一个 code，
+ *   只有这几个数分得开。原来这里把 details 丢了，调用方只拿得到 message / code。
+ */
 export async function throwHttp(res: Response): Promise<never> {
   let message = `HTTP ${res.status}`;
   let code = "";
+  let details: unknown;
   try {
-    const j = (await res.json()) as { message?: string; code?: string };
+    const j = (await res.json()) as { message?: string; code?: string; details?: unknown };
+    details = j.details;
     if (j.message) message = j.message;
     if (j.code) code = j.code;
   } catch {
     /* 非 JSON 就用状态码 */
   }
-  throw new ApiError(message, res.status, code || undefined);
+  throw new ApiError(message, res.status, code || undefined, details);
 }
 
 /**
@@ -96,9 +103,10 @@ export async function streamSseRequest(
   try {
     let res: Response;
     try {
-      res = await fetch(`${API_BASE}${path}`, {
+      const url = `${API_BASE}${path}`;
+      res = await fetch(url, {
         method: "POST",
-        headers: authHeaders({ "Content-Type": "application/json", Accept: "text/event-stream" }),
+        headers: withAppVersion(url, authHeaders({ "Content-Type": "application/json", Accept: "text/event-stream" })),
         body: JSON.stringify(body),
         signal: ctrl.signal,
       });

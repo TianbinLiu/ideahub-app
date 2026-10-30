@@ -3,23 +3,30 @@
 // 工作流的 genNode 和工坊节点卡的「生成本段视频」跑的是同一条规则：
 //   ① 有圈选标注 → 先按标注改设定帧（落在前半段改首帧、后半段改尾帧）
 //   ② 承接上一段的**真实**尾帧起拍（不是设定尾帧——设定帧只是画出来的示意）
-//   ③ 走参考生视频（简约模式 + 支持参考图的档位 + 卡上有形象图）就整步跳过；
-//      否则缺哪张设定帧就补画哪张；白模模板（refVideoUrl）另走 r2v 复刻——
-//      设定帧一张不画，走不成**整句拒绝不降级**（见 blockoutIssue）
+//   ③ 走参考生视频（简约模式或不补画帧的段 + 支持参考图的档位 + 卡上有形象图）就整步跳过；
+//      否则缺哪张设定帧就补画哪张 —— 补不补、补几张只问 data/drawPlan（不补画帧的段缺的不补、多镜头的段不画结束画面）；
+//      白模模板（refVideoUrl）另走 r2v 复刻——设定帧一张不画，走不成**整句拒绝不降级**（见 blockoutIssue）
 //   ④ 交给 Seedance 出片，回捞真实尾帧顶替设定尾帧
 // 这四步以前只长在 flowStore.genNode 里。工坊要能单独出片时，与其抄一份，
 // 不如提出来共用——抄一份的必然结局是两边分叉（铁律六）。
 //
 // 计费与 store 写入**不在这里**：两边的账本与状态形状不同（flowStore 写 videoByProposal，
 // 工坊写 proposal.videoUrl），这里只负责"把一段炼出来"，纯函数式地把结果交回去。
-import { ARK_REF_IMAGES_MAX, ArkTaskUnknown, VIDEO_PROMPT_MAX, composeSegments, generateCover, notesInParens, prepareMaterialRefs, refineFrame } from "../ai";
+import { AI_REAL, ARK_REF_IMAGES_MAX, ArkTaskUnknown, ArkVideoRefused, SegmentGenFailed, VIDEO_PROMPT_MAX, composeSegments, generateFrame, notesInParens, planCardRefs, planMaterialRefs, prepareMaterialRefs, refCardIds, refineFrame, type KeptFrames } from "../ai";
+import { compileMentions, drawExtraRefs, extraRefLines, extraRefMaxOf, mentionTargets, plainMentions, slotGaps, usableExtraRefs, type CompiledMentions, type ExtraRef } from "../data/refMentions";
 import { uploadImage } from "../api/uploads";
-import { IMAGE_TOKENS, fmtTokens, r2vPriceIssue, tierOf, providerOf, clampDuration, videoTokensOfSpec, type VideoTier } from "../data/economy";
+import { IMAGE_TOKENS, apiCase, blockoutTier, fmtTokens, lastFrameOnlyOk, tierOf, clampDuration, videoTokensOfSpec, promptMaxOf, refAudioSecOf, materialRefSecs, minUsageNote, type VideoTier } from "../data/economy";
+// 设定帧那一步最多喂几张参考图（经典路的预算）：那句提示里的数字从它取，不写死（2026-10-10 文案复核抓到写死的「3 张」）
+import { MAX_REF_IMAGES } from "../ai/real";
+import { frameMoment, isMultiShot, lineSpeakers, momentCards, packShots } from "../data/shotScript";
+import { frameSlotsOf, framesToDraw, hasSendableRefs, textTplDraw, type DrawInput } from "../data/drawPlan";
 // ★ 「模板视频自己合不合方舟窗口」的判据在 data（不在组件）：store 层这一处与
 //   flowStore.applyTemplate、详情页问的必须是同一个函数（铁律六）。
 import { refVideoIssue } from "../data/templates";
-import { ShotSpec, shotLineOf, CardType, ID_LINE_MAX, CARD_TYPE_PROMPT, idLineOf, viewsOf, type Card, type GenMode, type VideoAspect, type VideoTemplate } from "../types";
+import { ShotSpec, shotLineOf, CardType, ID_LINE_MAX, CARD_TYPE_PROMPT, idLineOf, viewsOf, feedsModel, TEXT_DESC_MAX, aspectOf, startFramesAllowed, type Card, type GenMode, type VideoAspect, type VideoTemplate } from "../types";
 import { voiceOf } from "../data/cardVoice";
+import { isRemoteMode, noTierLine, r2vTierIssue, textOnlyRefsLine, tierGo, tierTextOnly } from "../data/account";
+import { ratioFor } from "../ai/arkClient";
 import { t } from "@lingui/core/macro";
 
 export interface SegmentAnn {
@@ -59,11 +66,16 @@ export interface SegmentGenInput {
   materials?: Card[];
   /**
    * 允许这一段走**参考生视频**（卡片形象图 + 一句话直出，不画设定帧）。
-   * 只有简约模式传 true：那条路按产品定义就是"没有方案推演、没有首尾帧"。
-   * 工坊/工作流不传 —— 它们的整个流程建立在首尾帧上（方案台预览、段间承接），
-   * 而首尾帧与参考图在方舟是互斥场景。
+   * 简约模式传 true（那条路按产品定义就是"没有方案推演、没有首尾帧"）；2026-10-04 起**不补画帧的段**也传 true
+   * （noDraw，见下）—— 判定只在 flowStore.refAllowedOf 一处，报价、参考清单、出片问的都是它。
    */
   refAllowed?: boolean;
+  /**
+   * 这一段**不补画帧**（2026-10-04「跟着做」模式：参考图直出 / 主角定妆·多镜头 / 九宫格分镜的段，以及收参考图两档上的「自定义」段）：
+   * 有承接帧 / 自己给的帧就当参考图发、缺的那张不补；一张帧都没有就走参考生视频。补不补只问 data/drawPlan，
+   * 这一位由 flowStore.nodeNoDraw 定。**必填**：可选的话新调用点漏传就悄悄退回补画（而报价按不补画报），零症状。
+   */
+  noDraw: boolean;
   /**
    * 白模模板的参考视频（`template.refVideo.url`，服务端登记的公网地址——方舟 r2v 的
    * video_url 只收 URL，自己去取）。非空 = 这一段走**白模 r2v**：把模板视频逐镜头复刻、
@@ -85,11 +97,27 @@ export interface SegmentGenInput {
    * **素材参考**（自定义 = 多图 + 参考视频，主人点名的形态）：用户自传的参考视频
    * （服务端 /uploads/material-video/register 登记过的地址）+ 首/中/尾帧参考图，
    * 时序靠**默认提示词点名**（customRefPrompt 唯一实现——「图片1是第一帧画面…」）。
-   * 走 reference 子任务：输出时长用户选（3~10s），计价 (输入+输出)×系数
-   * （economy.materialRefCost ↔ server tokens.materialRefTokens，跨仓逐字相等）。
+   * 走 reference 子任务：输出时长用户选（这一档的时长窗口内），计价 (计价输入+输出)×系数，计价输入含方舟最低用量
+   * （economy.materialRefCost ↔ server tokens.materialRefTokens：夹取跨仓逐字相等；最低用量那一步 App 先上、服务端后上，
+   *  过渡期 App 报价高于实扣，见 videoTierTable.materialRefInputSec）。
    * ★ 与 refVideoUrl（白模 edit 复刻）互斥使用：调用方不该两个都给。
    */
-  materialRef?: { url: string; durationSec: number; mids?: string[] };
+  materialRef?: { url: string; durationSec: number; mids?: string[]; keepWatermark?: boolean };
+  /**
+   * **延长**（2026-10-05「修这一段 · 延长」）：被延长那一段的成片（永久地址）与它的时长（计价输入，整数秒）。
+   * 有它 = 这一段走 extend 子任务：那段成片当参考视频（视频1），接着它的最后一帧往后拍 durationSec 秒，**产物只有新的一截**
+   * （官方 2.5 提示词指南的示例量过：15.05s 输入 → 5.00s 产物，另附「拼接后的视频」20.08s）。
+   * 一张帧都不带（参考视频与首尾帧互斥）；挂的人物卡照样发形象图（官方「向后延长 + 主体参考」），声音样本照常带。
+   * ★ 与 refVideoUrl（白模 / 返修）、materialRef（素材参考）互斥：调用方只给一样（flowStore.genNode 按节点事实分流）。
+   */
+  extendRef?: { url: string; durationSec: number };
+  /**
+   * **临时参考图**（N1，2026-10-03）：不是卡的一次性图（站位草图、道具照片…），只在这一段生效。
+   * 只在「参考」类请求上发得出去（高清 / 电影级的帧当参考图那条、参考卡片直出、自定义 + 示例视频）；排在帧之后、
+   * 卡片形象图之前，预算在准备卡片图那一步就扣掉（refSlotsOf）。句子里用 `@名字` 点到的换成「图片N」，
+   * 没点到的由系统按用途补一句（data/refMentions）。白模 / 返修不带（genNode 不传）。
+   */
+  extraRefs?: ExtraRef[];
   /**
    * 白模模板的**角色位**（`template.roles` 的镜像，见 types.VideoTemplate.roles）。
    *
@@ -104,6 +132,53 @@ export interface SegmentGenInput {
    *   就成了同一条规则的第二处实现（而且与用户改过的那份必然分叉）。
    */
   roles?: { label: string; desc: string }[];
+  /**
+   * 电影级「样片」（2026-10-07 主人拍板；判定在 flowStore.nodeDraftOn / draftFinalIssue，这里只照着发）：
+   *   "draft"  = 第一步：槽位照普通出片摆（帧 / 参考图 / 补画都一样），只是按 480p + draft:true 发、按 economy.draftStepTokens 计价；
+   *   finalOf  = 第二步：把这条样片升成 1080p —— 请求只带样片任务号（画面 / 动作 / 声音都照样片，方舟规定重传就报错），
+   *              上面那些输入一律不看；durationSec / ratio 是样片当初那两样（报价对账用）；
+   *   null     = 普通出片。
+   * **必填**：可选的话漏传就悄悄按 720p 出片、按样片的价报（契约核对会说出来，但钱已经按另一把尺扣了）。
+   * ★ 只有普通出片那条路能走样片：白模 / 返修 / 延长 / 示例视频都带视频输入（方舟：样片不收视频输入），真人档是另一家 —— 下面开头整句拒。
+   */
+  draftMode: null | "draft" | { finalOf: { taskId: string; durationSec: number; ratio?: string } };
+  /**
+   * 这一段是**文字模板段**（2026-10-26，文字模板 P1；FlowNode.textTpl 经 flowStore.textTplGenOf 一处给）：null = 不是。
+   * 有它，出片这一侧换六条规矩（各自的判据在一处）：提示词上限放到 1000（economy.promptMaxOf 的 long，只在收长提示词的档上）、
+   * 有图位一张帧都不画 / 零图位只补开头一张（data/drawPlan.textTplDraw）、能带 4 张临时参考图（refMentions.extraRefMaxOf）、
+   * 正文放不下**在视频那一发之前整句拒、不截**（promptRoomOf 同一套拼法）、图位没补齐不发（refMentions.slotGaps）、
+   * 图位的图传不上去就不发（不退成普通文字照样出片；只对有图位的段，零图位的段上人自己加的图与普通段同样处理）。
+   * **必填**：可选的话漏传就悄悄按普通段截字、补画，而报价是按文字模板段报的 —— 零症状。
+   * ★ 返修 / 延长 / 定稿不带（genNode 传 null）：那几条路发的不是模板正文。
+   */
+  textTpl: TextTplGen | null;
+}
+
+/** 出片这一侧要知道的文字模板段的事（FlowNode.textTpl 的投影，flowStore.textTplGenOf 一处给） */
+export interface TextTplGen {
+  /**
+   * 模板的图位名（按模板定，不随此刻手上有几张图变 —— 报价按它的**个数**算，补图前后同一个数）。
+   * 个数与名字是同一份（别另存一个 slots 数：两格一漂就是「按 3 个图位报价、按 4 个名字拦缺图」）。
+   * 名字给出片那一拍的缺图位闸（refMentions.slotGaps）：只要有一个图位找不到同名的图，就在花钱之前整句拒。
+   */
+  slotNames: readonly string[];
+}
+
+/**
+ * 这一段这一发**真带哪几张**临时参考图 —— 唯一实现（出片 generateSegment、参考清单 refPlanOf、报价那一侧的参考生视频判定 flowStore.nodeRefOn 都读它）。
+ * 白模 / 返修 / 延长不带（那几条路的参考是模板视频与成片本身）；张数上限问 refMentions.extraRefMaxOf（文字模板段 4、其余 3）。
+ */
+export function segmentExtras(o: Pick<SegmentGenInput, "extraRefs" | "refVideoUrl" | "extendRef" | "textTpl">): ExtraRef[] {
+  if (o.refVideoUrl || o.extendRef) return [];
+  return usableExtraRefs(o.extraRefs).slice(0, extraRefMaxOf({ textTpl: !!o.textTpl }));
+}
+
+/**
+ * 这一发提示词的上限（GenSpec.promptCap.max）—— 唯一判定（出片的五条支路与出片前的预算 promptRoomOf 都读它）。
+ * 白模复刻段与返修（edit）仍按 400：它们的预算是按 400 反推的（studio/blockoutPrompt）；其余问 economy.promptMaxOf（文字模板段在收长提示词的档上 1000）。
+ */
+export function promptCapOf(o: { videoTier: string; edit: boolean; textTpl: TextTplGen | null }): number {
+  return o.edit ? VIDEO_PROMPT_MAX : promptMaxOf(o.videoTier, { long: !!o.textTpl });
 }
 
 /**
@@ -115,13 +190,15 @@ export interface SegmentGenInput {
  *  ① 调用方允许（简约模式）；
  *  ② 档位真支持参考图（**硬白名单**，见 VideoTier.refImg —— 1.0 系列收到 reference_image
  *     是 400 还是静默忽略没人验证过，静默忽略就是"加了图、多付了钱、画面没变、零报错"）；
- *  ③ 真挂了素材卡，且卡上真有形象参考图（没有图的卡只能走文字，那就还得画设定帧）；
+ *  ③ 有可发的参考图：卡上真有形象参考图，或这一段挂着带得出去的临时参考图（2026-10-26 起也算，见 drawPlan.hasSendableRefs；
+ *     都没有就只剩文字，那还得画设定帧）；
  *  ④ 没有起拍帧、也不承接上一段的真实尾帧 —— 首尾帧与参考图**互斥**，段间承接优先，
  *     这条门禁不动（不然整片的衔接就断了）；
  *  ⑤ 没有圈选标注 —— 圈选改的就是设定帧，没有帧可改。
  */
 /**
- * 这一段的台词能不能带上人物卡的**声音样本**（音色参考）—— 唯一实现。
+ * 这一段的台词能不能带上人物卡的**声音样本**（音色参考）。
+ * 本函数判 ① 与合计时长；② ③ 由 voiceRefsFor（出片）与 refPlanOf（参考清单）按同一组条件判，出片前 real.validateGenSpec 再核一次 ③。
  *
  * 三个条件（少一个都不发）：
  *  ① 剧情里真有台词（「」/ "" 引号内文字 —— 与 Seedance 的配音语义同一判据：
@@ -129,39 +206,216 @@ export interface SegmentGenInput {
  *  ② 走的是参考生视频模式（refVideoOn 为真）：方舟实测首尾帧任务混参考媒体直接 400，
  *     所以**工作流的首尾帧承接段带不了音色参考** —— 那不是漏做，是协议互斥。
  *     （hd/ultra 的首帧段台词照样被配音，只是音色随机 —— 那种情况由出片处如实说。）
- *  ③ 档位真出声（VideoTier.audio；1.x 收下 generate_audio 静默忽略，样本发了也是哑的）。
+ *  ③ 档位带得了声音样本（VideoTier.refAudio；今天 = audio && refImg：1.x 收下 generate_audio 静默忽略，样本发了也是哑的。
+ *     海外 MiniMax H3 出声却没有 refAudio —— 所以**别回去读 audio**，那正是 2026-10-26 拆掉的代用判据；
+ *     scripts/check-tier-semantics.mjs 不许拼 audio && refImg，单读 audio 它抓不到，只能靠这一句）。
  * 计费：阶段 0 直连实测**零加价**（usage 逐位相同），所以报价侧一项都不用加。
  */
-export function voicedCardsOf(o: { plot: string; materials?: Card[] }): Card[] {
+export function voicedCardsOf(o: { plot: string; materials?: Card[]; capSec?: number | null }): Card[] {
   if (!hasDialogue(o.plot)) return [];
-  return (o.materials ?? []).filter((c) => c.type === "character" && voiceOf(c.id)).slice(0, 3);
+  return fitVoices(speakingVoiced(o.plot, o.materials), o.capSec).fit;
 }
 
-/** 「剧情里有没有台词」——与配音语义同一判据（引号内文字会被合成对白） */
+/**
+ * 带声音样本、**而且这一段有他的台词**的人物卡（还没按合计时长筛）—— voicedCardsOf、出片时「装不下」那句点名、参考清单三处共用。
+ * ★ 2026-10-03 主人「改」：N2 付费验证的 B 段只有小枫说话，夜川的样本也带上了。谁说的由 data/shotScript.lineSpeakers 认；
+ *   **认不准（回 null）就不筛**，照旧带上所有带声音的卡 —— 多带一份样本不影响结果，认错了却会让说话的人拿不到自己的样本。
+ */
+function speakingVoiced(plot: string, materials?: Card[]): Card[] {
+  const mats = materials ?? [];
+  const speakers = lineSpeakers(
+    plot,
+    mats.filter((c) => c.type === "character").map((c) => c.name),
+  );
+  return cardsWithVoice(speakers ? mats.filter((c) => speakers.has(c.name)) : mats);
+}
+
+/** 带声音样本、但这一段**没有他的台词**的人物卡（谁说的认不准时为空：那时一张都不筛掉）—— 参考清单那一行「这次不带」用 */
+function quietVoiced(plot: string, materials?: Card[]): Card[] {
+  if (!hasDialogue(plot)) return [];
+  const speaking = new Set(speakingVoiced(plot, materials).map((c) => c.id));
+  return cardsWithVoice(materials).filter((c) => !speaking.has(c.id));
+}
+
+/**
+ * 有台词、这一发又出声时接在提示词尾巴上的那句：只配音、别把台词烧成画面字幕。
+ * ★ 2026-10-03 N2 付费验证：3 句引号台词里有 1 句被模型烧成了约 1.5 秒的硬字幕（「—这本书还在吗」）——剪辑页自己会加字幕，
+ *   成片里再有一份就重了。主人「改」。官方提示词指南里「字幕」要用【】特意写出来，所以这里只说别出字幕，不碰别的画面文字（招牌之类）。
+ * ★ 只在**出声**的请求上加（档位出声且不是白模 / 返修）：不出声的档台词只能靠画面呈现，再叫它别出字幕就等于把这句话丢了。
+ * ⚠ 这是软引导，管不管用要靠付费再验一次（还没验）。
+ */
+/* i18n-frozen: 发给视频模型的指令 */
+export const NO_SUBTITLE_LINE = "。台词只用声音说出来，画面上不要出现字幕";
+/**
+ * 示例视频**默认去水印**（2026-10-24 主人点名）：挂了示例视频的段出片时，提示词里多这一句（32 字，从正文额度里扣，与时序点名句同一条纪律）。
+ * ★ 只在素材参考那条路（reference 子任务）上说：白模 edit 是逐帧复刻，2026-08-15（F7）实测提示词去不掉台标 —— 那边的解是裁剪框，别把这句加过去。
+ * ★ 关掉 = `customRef.keepWatermark: true`（判否定：老草稿缺这一位 = 开），开关只有 components/flow/RefMarkToggle 一份、两面共用。
+ * ★ 2026-10-24 付费对照（docs/ref-video-watermark-probe-2026-10-24.md）：高清档不加这句 → 参考帧上的台标整张搬进成片（六帧都在）、加了 → 一帧都没有；
+ *   电影级本来就不复刻示例画面。仍是软引导（一对样本），文案写「验过压得住，但不是硬保证」。
+ */
+// i18n-ignore-next-line: 发给视频模型的提示词
+export const NO_REF_MARK_LINE = "。参考视频与参考图里的水印、台标、账号名和字幕都不要出现在画面里";
+export function refMarkLine(o: { keepWatermark?: boolean }): string {
+  return o.keepWatermark ? "" : NO_REF_MARK_LINE;
+}
+export function noSubtitleLine(o: { plot: string; tier: VideoTier; blockout: boolean }): string {
+  return !o.blockout && o.tier.audio === true && hasDialogue(o.plot) ? NO_SUBTITLE_LINE : "";
+}
+
+/**
+ * 声音样本**合计时长**的预算（economy.refAudioSecOf：高清档 15 秒、电影级 30 秒）—— 按挂卡顺序装，装不下的那几张不带。
+ * capSec 不给 / null = 不按时长筛（不知道是哪一档的调用方照旧只按张数）。
+ * ★ 2026-10-03 之前没有这一道：三张卡各录 8 秒 = 24 秒，高清档整发被方舟拒（合计上限 15 秒）。
+ */
+export function fitVoices(cards: Card[], capSec?: number | null): { fit: Card[]; dropped: Card[] } {
+  if (capSec === undefined || capSec === null) return { fit: cards, dropped: [] };
+  const fit: Card[] = [];
+  const dropped: Card[] = [];
+  let total = 0;
+  for (const c of cards) {
+    const sec = voiceOf(c.id)?.durationSec ?? 0;
+    if (total + sec <= capSec + 0.05) {
+      fit.push(c);
+      total += sec;
+    } else dropped.push(c);
+  }
+  return { fit, dropped };
+}
+
+/**
+ * 圈选改图时接在要求后面的那句 —— **全仓一处**（出片前按圈选改帧、剪辑页圈选重拍、出片之前就地圈着改帧三条路共用；
+ * 2026-10-03 之前前两处各写着一份逐字相同的）。底图是画着红圈的那张标注图。
+ */
+/* i18n-frozen: 圈选改图的指令，发给出图模型 */
+export const ANN_CLAUSE = "。参考图中红色圈线标注了目标物体：只对该物体做上述处理，并彻底去掉红色圈线本身";
+
+/**
+ * 「剧情里有没有台词」——与配音语义同一判据（引号内文字会被合成对白）。
+ * ★ 2026-10-03 补上中文弯引号 “” 与『』：中文输入法打出来的双引号就是弯的，而原来只认「」与直引号 ——
+ *   写成 “你来了” 的台词照样会被模型配音，人物卡的声音样本却一份都没带上（音色随机，零提示）。
+ * ⚠ 形状别改（一行 return + 正则字面量）：scripts/check-camera-vocab.mjs 是从这里把正则抠出去用的。
+ */
 export function hasDialogue(plot: string): boolean {
-  return /[「"].{1,}?[」"]/.test(plot);
+  return /[「『“"].{1,}?[」』”"]/.test(plot);
+}
+
+/** 这一段挂的卡里**带声音样本**的人物卡（不管这一发带不带得上；上限与 voicedCardsOf 同一个 3） */
+export function cardsWithVoice(materials?: Card[]): Card[] {
+  return (materials ?? []).filter((c) => c.type === "character" && voiceOf(c.id)).slice(0, 3);
+}
+
+/**
+ * 这一段出片**一张画面帧都不带**吗（允许参考图直出 = 简约模式或不补画帧的段，且没有首帧、没有尾帧、没有承接帧、没有圈选）——
+ * refVideoOn 去掉「档位收不收参考图」「卡有没有图」两条之后剩下的**帧那一半**，唯一实现。
+ * ★ 抽出来给真人卡门禁用（2026-09-30 付费实测）：已认证真人卡在高清/电影级上只有不带帧的请求过得去 ——
+ *   帧里的写实人脸会被方舟整发拒（见 account.realFaceIssue 的 framed）。门禁与出片问的必须是同一句：
+ *   界面说能选、出片却走了带帧那条，就是两面打架。
+ * ★ 尾帧也算（2026-10-04）：参考生视频那一发**一张帧都发不出去**（与首尾帧是方舟互斥的两种场景）。此前只看首帧，
+ *   只给了尾帧的段会被判成直出、那张尾帧悄悄不发 —— 简约页那句「给了自己的帧就走首尾帧模式，清掉两帧才回到那条路」
+ *   说的本来就是两帧；「自定义」段在收参考图的两档上改成不补画之后，这个洞会落到更多人身上，所以一起补上。
+ */
+export function frameFree(o: {
+  firstFrame?: string;
+  /** **必填**（值可以是空）：漏传 = 只给了尾帧的段被判成直出、尾帧悄悄不发，零报错 */
+  lastFrame: string | undefined;
+  carryFrame?: string | null;
+  anns?: unknown[];
+  refAllowed?: boolean;
+}): boolean {
+  if (!o.refAllowed) return false;
+  if (o.firstFrame || o.lastFrame || o.carryFrame) return false;
+  if (o.anns?.length) return false;
+  return true;
+}
+
+/**
+ * 真人档的起拍画面**从哪张卡来** —— 唯一实现（出片那一支与本段设置里那句提示共用）。
+ * 顺序：真人卡 > 其它人物卡 > 场景卡 > 道具卡 > 风格卡 > 背景卡（真人优先是这一档存在的理由，再按"画面主体"排）；
+ * 第一张拿得出图的卡说了算：它勾了「起拍画面」（2026-10-26 之前叫「真人档适用」）就用这一画幅的起拍画面，否则用它第一张「出片用」的图
+ * （作者标「仅展示」的不取，types.feedsModel 一处判据）。
+ * ★ 真人卡永远以照片起拍（types.startFramesAllowed）：哪怕带着起拍画面的老数据也不取。
+ */
+export function startSourceOf(
+  materials: Card[] | undefined,
+  aspect: VideoAspect | undefined,
+): { card: Card; url: string; fromStartFrame: boolean } | null {
+  const a = aspectOf(aspect).id;
+  const rank = (c: Card) =>
+    c.type === "character" ? (c.realPerson === true ? 0 : 1) : c.type === "scene" ? 2 : c.type === "prop" ? 3 : c.type === "style" ? 4 : 5;
+  const ordered = [...(materials ?? [])].sort((x, y) => rank(x) - rank(y));
+  for (const c of ordered) {
+    const sf = startFramesAllowed(c) ? c.startFrames?.[a] : undefined;
+    if (sf) return { card: c, url: sf, fromStartFrame: true };
+    const v = viewsOf(c).find(feedsModel);
+    if (v) return { card: c, url: v.url, fromStartFrame: false };
+  }
+  return null;
+}
+
+/**
+ * 「这一段挂的卡在这一档上有哪些没适配」—— 本段设置 / 工坊方案台在档位下面印的那一句（按模型适配，2026-09-30）。
+ * null = 没什么要说的。只说**能就地补**的事（勾哪个选项），不复述档位能力。
+ * · 标准 / 极速：设定帧只画得进分到图的那几张卡（经典路分配：一段只有第一张人物卡、共 3 张图），其余又没写文字版形象描述的点名；
+ * · 真人档：起拍画面来自一张没勾「起拍画面」的卡时提一句（ownFrame = 这一段已经有首帧 / 承接帧，就不提）。
+ */
+export function cardFitNote(
+  materials: Card[] | undefined,
+  tierId: string,
+  o: { aspect?: VideoAspect; ownFrame?: boolean },
+): string | null {
+  if (!materials?.length) return null;
+  const tier = tierOf(tierId);
+  if (tier.startOnly) {
+    if (o.ownFrame) return null;
+    const src = startSourceOf(materials, o.aspect);
+    if (!src || src.fromStartFrame) return null;
+    // 起拍来源卡不能有起拍画面（风格 / 背景卡，或真人卡 —— 真人卡以照片起拍正是这一档的本意）就没什么可勾的
+    if (!startFramesAllowed(src.card)) return null;
+    const name = src.card.name;
+    return t`这一段以「${name}」卡上的图起拍——去卡片页勾「起拍画面」可以换成专门画好的起拍画面`;
+  }
+  if (tier.refImg) return null;
+  const drawn = refCardIds(materials, false);
+  const lack = materials.filter((c) => c.type !== "background" && !drawn.has(c.id) && !(c.textDesc || "").trim() && c.realPerson !== true);
+  if (!lack.length) return null;
+  // 卡名加引号与列举分隔符走既有的两条（中文「」、英文弯引号）——与 economy.quotedNames 同一对 msgid
+  const names = lack
+    .map((c) => {
+      const name = c.name;
+      return t({ message: `「${name}」`, comment: "给一个名字（卡名）加引号：中文「」，英文用弯引号" });
+    })
+    .join(t({ message: "、", comment: "列举几个名字时的分隔符" }));
+  // 勾选框的名字与卡片页那一格（CardModelFit）同一句：它现在叫「文字版形象描述」，不再点名「标准/极速」（那两档 11-24 停用）
+  return t`${names}在这一档收不到形象图（设定帧只画得进第一张人物卡、一共 ${MAX_REF_IMAGES} 张图），只按出片句参与——去卡片页勾「文字版形象描述」补一段`;
 }
 
 export function refVideoOn(o: {
   videoTier: string;
   materials?: Card[];
   firstFrame?: string;
+  /** 尾帧（有就不走直出：参考生视频那一发带不出任何帧，见 frameFree 的 ★）。**必填**：漏传就把那张尾帧悄悄丢掉 */
+  lastFrame: string;
   carryFrame?: string | null;
   anns?: unknown[];
   refAllowed?: boolean;
   /** 白模参考视频地址：存在 = 这一段是白模段，本判定整个让位（见 blockoutOn） */
   refVideoUrl?: string;
+  /**
+   * 这一发带得出去的临时参考图张数（segmentExtras）。**必填**（2026-10-26）：只挂临时参考图、不挂卡的段也走参考生视频 ——
+   * 漏传就退回「卡上没有图 → 补画两张」，报价按补画报、出片却不画（或反过来），图位的图还悄悄不发。
+   */
+  extras: number;
 }): boolean {
   // ★ 白模段（refVideoUrl 非空）不算「参考生视频」：它也发形象图，但那是白模路自己
   //   混发的（视频给画面与运镜，形象图说"换成谁"）。这里不让位的话，界面那句
   //   「省掉设定帧直接出片」的说明、报价的 refMode 位都会按参考生视频亮——说的是
   //   另一件商品。白模自己的判定在 blockoutIssue/blockoutOn。
   if (o.refVideoUrl) return false;
-  if (!o.refAllowed) return false;
+  // 帧那一半（简约模式、无首帧、无承接、无圈选）只在 frameFree 一处判 —— 真人卡门禁问的是同一句
+  if (!frameFree(o)) return false;
   if (!tierOf(o.videoTier).refImg) return false;
-  if (o.firstFrame || o.carryFrame) return false;
-  if (o.anns?.length) return false;
-  return !!o.materials?.some((c) => viewsOf(c).length > 0);
+  // 条件③「有可发的参考图」只问 drawPlan.hasSendableRefs（出片那一拍的降级读的是同一个）：卡上的形象图，或临时参考图
+  return hasSendableRefs({ cardImages: (o.materials ?? []).filter((c) => viewsOf(c).length > 0).length, extras: o.extras });
 }
 
 /**
@@ -187,12 +441,35 @@ const BLOCKOUT_SWAP =
   "。将视频中的红色小人替换为下列角色，严格保留视频中的背景、道具与运镜，画面中不要出现任何水印、台标、字幕或角标";
 /**
  * 返修的尾句（与 BLOCKOUT_SWAP 同一位置、同一条 edit 路）：参考视频是本段自己的成片，正文是作者的改法。
- * ★ 同样是尽力而为（edit 的立身之本是"保住主体、复刻其余"，改法是软引导）；产物无声（arkClient 的 BLOCKOUT_TASK
- *   钉着 generate_audio:false），UI 上必须说。
+ * ★ 同样是尽力而为（edit 的立身之本是"保住主体、复刻其余"，改法是软引导）。
+ * ★ 2026-10-05 起返修**出声**（arkClient.REVISE_TASK）：原来跟白模共用 BLOCKOUT_TASK 的 generate_audio:false，返修完的片子是哑的。
  */
 /* i18n-frozen: 返修提示词的尾句，发给视频模型 */
 const REVISE_TAIL =
   "。以上是要改的地方：在参考视频的基础上只做这些修改，其余画面、人物形象、动作、运镜与时长保持不变，画面中不要出现任何水印、台标、字幕或角标";
+
+/**
+ * 返修的正文（「修这一段 · 片段重拍」，2026-10-05）：作者的改法 +（可选）时间段。时间段的写法照官方 2.5 提示词指南的编辑示例
+ * （「把视频 1 中 4-6 秒……改为……，其余内容不要变化」）：整秒、从 0 起；不给时间段 = 整段都按这句改。
+ * ★ 编辑任务的触发词（编辑视频 / 增加 / 删除 / 修改 / 替换 / 改成）由 REVISE_TAIL 带着（「修改」），这里不再加。
+ * ★ 只给出片用（flowStore.genNode 拼好当 plot 传进来）；取回凭据上那一行仍记作者的原话。
+ */
+/* i18n-frozen: 返修正文里的时间段写法，发给视频模型 */
+export const revisePlotOf = (instruction: string, range?: { from: number; to: number } | null): string => {
+  const text = instruction.trim();
+  if (!range) return text;
+  const a = Math.max(0, Math.floor(range.from));
+  const b = Math.max(a + 1, Math.ceil(range.to));
+  return `只改视频1中第${a}-${b}秒：${text.replace(/[。.！!？?…]+$/, "")}。这几秒以外的内容不要变化`;
+};
+
+/**
+ * 延长那一发的开头（「修这一段 · 延长」，2026-10-05）：官方 2.5 的触发词「向前 / 向后延长、延续、续写」要有其一
+ * （显式 extend 时缺了它提交就 400），示例写法是「在 @视频 1 的基础上续写 5 秒的视频，讲……」。参考视频在提示词里叫「视频1」
+ * （它不占图片编号，见 arkClient 拼 content 那段 ★）。「画面与声音无缝衔接」照官方能力表的说法（可要求画面 / 音频无缝衔接）。
+ */
+/* i18n-frozen: 延长的开头句，发给视频模型 */
+const EXTEND_HEAD = "向后延长视频1：从视频1的最后一帧接着往下拍，画面、人物与声音无缝衔接。接下来：";
 
 /**
  * 白模（blockout r2v）这一段**为什么走不成** —— 条件的唯一实现（铁律六）。
@@ -220,7 +497,9 @@ export function blockoutIssue(o: {
   /** 返修：不要求挂人物卡（改的是画面，不是换人） */
   revise?: boolean;
 }): string | null {
-  const price = r2vPriceIssue(o.videoTier);
+  // 返修（本段成片当参考视频）问「能不能带参考视频」，白模模板问「能不能跑白模模板」—— 2026-10-05 起是两件事（高清能前者、不能后者）。
+  // 判据在 economy（r2vPriceIssue / blockoutPriceIssue），话走 account.r2vTierIssue：同一颗芯片的两家同名，按地区说清是哪一家（2026-10-26 P2b 审核）
+  const price = r2vTierIssue(tierOf(o.videoTier), o.revise ? "refVideo" : "blockout");
   if (price) return price;
   // ★ 排在价目之后、其它条件之前：这一条是"这个模板根本用不了"，与用户挂没挂卡无关 ——
   //   先让他去换模板，而不是先催他挂卡、挂完再告诉他这个模板本来就废了。
@@ -256,7 +535,363 @@ export function blockoutOn(o: Parameters<typeof blockoutIssue>[0] & { refVideoUr
  */
 export function carryIsHard(tierId: string | undefined): boolean {
   const t = tierOf(tierId);
-  return !!t.flatCost || !t.refImg;
+  // ★ 只认一张起拍画面的档（startOnly）读能力位，不读按发计价表（2026-10-26：计价模型与出片方式是两件事）
+  return t.startOnly || !t.refImg;
+}
+
+/**
+ * 这一发的参考图**怎么分** —— 出片（generateSegment）与参考清单预览（refPlanOf）共用的**唯一判定**（N1，2026-10-03）。
+ *
+ * ★★ 为什么抽出来：界面上那排「模型会收到什么」要在出片**之前**就把编号说对，而「是不是参考类请求、帧占几位、
+ *   卡片图按哪套分」原来散在 generateSegment 中段的五六个局部变量里。预览另抄一遍的话，两份一漂就是
+ *   「界面写着图片4是他、发出去图片4是另一张」—— 零报错。所以判定只留这一份，出片读它、预览也读它。
+ * ★ 判据本身一个字没改（逐条从 generateSegment 搬过来的，注释留在原处），只多了一项：**临时参考图占的图位**。
+ *   它们与帧一样要在**准备卡片图那一步**就从预算里扣（理由见 generateSegment 里那段 ★★：发之前再截，
+ *   绑定句会点到没发出去的编号上）。
+ * @param first 起拍帧（已顶替过承接帧 / 圈选改过的那一份）
+ * @param extras 这一段挂的临时参考图张数；真带得出去几张由返回值的 extrasOn 说
+ */
+export function refSlotsOf(o: {
+  videoTier: string;
+  materials?: Card[];
+  first: string;
+  last: string;
+  anns?: unknown[];
+  refAllowed?: boolean;
+  refVideoUrl?: string;
+  revise?: boolean;
+  /** 这一段带得出去的临时参考图张数（segmentExtras —— 已按这一段的上限截过） */
+  extras: number;
+  /** 不补画帧（SegmentGenInput.noDraw） */
+  noDraw: boolean;
+  /** 剧情分了两个以上镜头（shotScript.isMultiShot）：不画结束画面 */
+  multiShot: boolean;
+  /** 文字模板段（SegmentGenInput.textTpl）：补画规矩 ③ 由它定（drawPlan.textTplDraw） */
+  textTpl: TextTplGen | null;
+}): {
+  refMode: boolean;
+  framesAsRefs: boolean;
+  needDraw: boolean;
+  /** 出片前要补画哪几张（data/drawPlan 的答案，出片那一侧照它画） */
+  draw: { first: boolean; last: boolean };
+  frameSlots: number;
+  extrasOn: number;
+  /** 要不要去准备卡片形象图（两帧齐全、又不是参考类请求时白做） */
+  prepare: boolean;
+  /** 卡片形象图按哪套分：prepareMaterialRefs / planCardRefs 的 direct 参数 */
+  direct: boolean | { cap: number; strict: boolean };
+} {
+  const tier = tierOf(o.videoTier);
+  const blockout = !!o.refVideoUrl;
+  // ★ 只能纯文字出片（免费版在 MiniMax H3 上；判据只在 account.tierTextOnly，2026-10-26 出片地区 P2b）：视频那一发带任何一张图服务端都拒
+  //   （403 PLAN_REQUIRED + freeTextOnly，扣视频费之前 —— 但出片前补画的帧那时已经结算过了）。所以这里一张都不排：不画帧（data/drawPlan 的规矩 ③）、
+  //   帧 / 临时参考图 / 卡片形象图都不发、不去准备卡片图。报价（flowStore.nodeCost）、参考清单（refPlanOf）、出片（generateSegment）读的都是这一份
+  if (tierTextOnly(tier)) {
+    return { refMode: false, framesAsRefs: false, needDraw: false, draw: { first: false, last: false }, frameSlots: 0, extrasOn: 0, prepare: false, direct: false };
+  }
+  // ★ 判定用的是**顶替过承接帧之后**的 first：段间承接一旦成立就必须走首尾帧 / 帧当参考图
+  //   （方舟三种场景互斥），这一步的顺序不能反（refVideoOn 的条件④）
+  const refMode = refVideoOn({
+    videoTier: o.videoTier,
+    materials: o.materials,
+    firstFrame: o.first,
+    lastFrame: o.last,
+    anns: o.anns,
+    refAllowed: o.refAllowed,
+    refVideoUrl: o.refVideoUrl,
+    extras: o.extras,
+  });
+  // ★ 判据走 carryIsHard 一处（文案那几屏读的是同一个函数，见它的 ★）
+  const framesAsRefs = !blockout && !refMode && !carryIsHard(o.videoTier);
+  // ★ 补画哪几张只问 data/drawPlan（报价 economy.segmentCost 读的是同一个函数）；白模一张设定帧都不画：画面整个来自模板视频
+  const drawIn: DrawInput = {
+    // 只能纯文字出片的档上面已经整个让位了，走到这里的都是能带图的（textOnly 恒假）
+    tier: { flf: tier.flf, startOnly: tier.startOnly, textOnly: false },
+    hasFirstFrame: !!o.first,
+    hasLastFrame: !!o.last,
+    refMode,
+    noDraw: o.noDraw,
+    multiShot: o.multiShot,
+    ...textTplDraw(o.textTpl ? o.textTpl.slotNames.length : null),
+  };
+  const draw = blockout ? { first: false, last: false } : framesToDraw(drawIn);
+  const needDraw = draw.first || draw.last;
+  /** 帧当参考图发时它们要占掉的图位数（已有的 + 要补画的；不补画结束画面的段只占一位） */
+  const frameSlots = framesAsRefs ? frameSlotsOf(drawIn) : 0;
+  const cap = tier.refImagesMax ?? ARK_REF_IMAGES_MAX;
+  /**
+   * 临时参考图这一发带得出去几张：参考类请求（不是白模）才带，而且**帧 + 临时参考图 + 至少一张卡片形象图**不超过这一档的协议上限
+   * （2026-10-26 出片地区 P2b：MiniMax H3 一段只有 5 张图的位，两张帧 + 三张临时参考图就把位占满，原来卡片图还要硬挤一张进去 —— 第 6 张服务端整发拒）。
+   * 卡片形象图那一位只在真挂着能进模型的图时留（feedsModel：「仅展示」的不进）。超出的那几张这一发不带（排在后面的先让），由参考清单与出片进度说出来。
+   * ★ 方舟那几档（9 / 30 张）上这一条一张都截不到（临时参考图最多 4 张）—— 行为与改之前逐字节相同。
+   */
+  const cardRoom = o.materials?.some((c) => viewsOf(c).some(feedsModel)) ? 1 : 0;
+  const extrasOn = !blockout && (refMode || framesAsRefs) ? Math.max(0, Math.min(o.extras, cap - frameSlots - cardRoom)) : 0;
+  const direct = blockout
+    ? o.revise
+      ? // 返修：有卡就发（锁住形象），没卡也能走——改的是画面不是换人
+        { cap, strict: false }
+      : true
+    : // ★★ 帧当参考图发的段，**不管帧是现成的还是出片前现画**，卡片图都走直通分配（2026-10-03 主人「改」）：
+      //   此前「要画设定帧」时沿用出图模型那套「只喂第一个人物的图」，而那份分配被原样用在了视频请求上 ——
+      //   N2 付费验证两段都只发了小枫的图，夜川只靠文字与画好的帧（09-18 那批的 X4 比的就是这件事）。
+      //   画帧那一侧另有一份（generateSegment 的 drawRefs，target "image"），仍按出图模型的规矩来，不受这里影响。
+      refMode || framesAsRefs
+      ? // ★★ 帧与临时参考图要占掉前几个图位，所以**准备时就把预算扣掉**，而不是发之前截 ——
+        //   bindCompact 是按 refs 全量编号的（`张三=@图片5`），发之前截掉两张就会
+        //   点名到根本没发出去的编号上：模型按"图片5"去找一张不存在的图，
+        //   那个角色的形象于是由它自己编，而全程零报错。
+        { cap: Math.max(1, cap - frameSlots - extrasOn), strict: false }
+      : false;
+  return { refMode, framesAsRefs, needDraw, draw, frameSlots, extrasOn, prepare: blockout || refMode || needDraw || framesAsRefs, direct };
+}
+
+/** 参考清单里的一项（按真实发送顺序编号） */
+export interface RefPlanItem {
+  /** 图片编号，从 1 起 —— 就是出片提示词里的「图片N」 */
+  n: number;
+  kind: "first" | "mid" | "last" | "extra" | "card";
+  /** 缩略图地址；帧还没有（出片前由 AI 补画）时为空串 */
+  src: string;
+  /** 首帧来自上一段的真实尾帧（承接） */
+  carried?: boolean;
+  extra?: ExtraRef;
+  card?: Card;
+  /** 这张图在 viewsOf(card) 里的下标 */
+  viewIndex?: number;
+}
+
+/** 「这一段出片时视频模型会收到什么」 */
+export interface RefPlan {
+  /** 这一发是不是「参考」类请求（下面这些图会真的发给视频模型） */
+  sends: boolean;
+  /**
+   * 为什么不是：tier = 这一档协议上不收参考图；real = 真人档只认一张起拍画面；refvid = 这一档带不了示例视频；
+   * textOnly = 这个人在这一档上只能纯文字出片（免费版在 MiniMax H3 上，account.tierTextOnly：帧、卡片形象图、临时参考图一张都不发）
+   */
+  why: "tier" | "real" | "refvid" | "textOnly" | null;
+  items: RefPlanItem[];
+  /** 挂了、但这一发没把图送进视频模型的卡（只按文字参与）；背景卡本来就只走文字，不在这里 */
+  textOnly: Card[];
+  /** 挂着临时参考图、而这一发带不出去（一张都带不上，或者只带得上前几张 —— 后一种看 extrasCap） */
+  extrasDropped: boolean;
+  /**
+   * 带不出去的原因是**图位不够**（2026-10-26 P2b 审核）：这一档一段最多 max 张图（VideoTier.refImagesMax；MiniMax H3 是 5），帧 + 一张卡片图占掉之后，
+   * 临时参考图这一发只带得上前 sent 张（可以是 0）。null = 不是这个原因（档位 / 请求形状本来就发不出临时参考图，那时 extrasDropped 说的是「一张都不发」）。
+   * ★ 为什么要单列：原来参考清单一律说「临时参考图在这一档发不出去」—— H3 上两张帧 + 一张卡 + 三张临时参考图时实际带出去两张，
+   *   清单里亮着那两张、底下却说这一档发不出临时参考图，自相矛盾。话只有一份 extrasCapLine（出片进度里那句同源）
+   */
+  extrasCap: { max: number; sent: number } | null;
+  /** 带着示例视频（它不占图片编号） */
+  refVideo: boolean;
+  /** 台词会带上声音样本的人物卡（顺序 = 参考音频编号） */
+  voices: Card[];
+  /**
+   * 有声音样本、这一发却带不上的人物卡，以及为什么（界面在出片**之前**就说，别等出片那一行进度才第一次听说）：
+   * quote = 句子里没有写在引号里的台词；tier = 这一档出片无声；mode = 这一发不是参考类请求（参考音频发不出去）。
+   */
+  voiceIdle: { cards: Card[]; why: "quote" | "tier" | "mode" } | null;
+  /**
+   * 声音样本**合计时长**装不下、这一发没带上的人物卡（N2）：别人的带上了，这几位的台词音色由模型定。
+   * capSec = 这一档的合计上限（economy.refAudioSecOf）。没有这种情况 = null。
+   */
+  voiceOver: { cards: Card[]; capSec: number } | null;
+  /** 带着声音样本、但这一段**没有他的台词**的卡 —— 这次不带（2026-10-03；谁说的认不准时为 null，一张都不筛掉） */
+  voiceQuiet: Card[] | null;
+  /** 这一发走参考生视频（一张帧都不带，卡片形象图 / 临时参考图直接喂视频模型）—— 帧位空着时那句说明用（emptyFrameFates） */
+  refMode: boolean;
+  /**
+   * 这一发计划发出去几张**卡片形象图**（planCardRefs 分到的张数；这一发不是参考类请求 / 带示例视频时恒 0）。
+   * ★ 为什么要单列（2026-10-26 审核抓到）：refMode 从「卡上有形象图」放宽成「卡图或临时参考图」之后，只挂临时参考图（或挂的卡没有图）的段
+   *   refMode 也为真 —— 帧位上写「卡片形象图直接给视频模型」、简约页写「把素材卡的形象参考图交给某档出片」就成了假话：真发出去的只有临时参考图，卡只按文字参与。
+   *   说「卡片形象图」之前一律先问它（emptyFrameFates、FlowPage 简约页那句）。
+   */
+  cardImages: number;
+  /** 出片前要补画哪几张（data/drawPlan 的答案，与出片、报价同源）—— 帧位空着时那句说明用 */
+  draws: { first: boolean; last: boolean };
+  /**
+   * 这一段最多能挂几张临时参考图（refMentions.extraRefMaxOf：文字模板段 4、其余 3）—— 参考清单那颗「＋ 参考图」灰不灰、提示里的数读它，
+   * 与出片 segmentExtras 截的、加图那道闸（flowStore.addExtraRef）拦的是同一个数。别在组件里写死 EXTRA_REF_MAX（2026-10-26 审核抓到）。
+   */
+  extraMax: number;
+}
+
+/** 帧位空着时那一格出片时会怎样（「自定义」与简约那两格帧位上的说明，2026-10-04） */
+export interface EmptyFrameFate {
+  /**
+   * carry = 承接上一段真实尾帧；draw = 出片前 AI 补画（计费）；cards = 不画，卡片形象图直接给视频模型；
+   * refs = 不画，参考图（临时参考图 / 图位的图）直接给视频模型、这一发没有卡片形象图；photo = 用真人卡的照片起拍；none = 不带
+   */
+  first: "carry" | "draw" | "cards" | "refs" | "photo" | "none";
+  /** draw = 出片前 AI 补画（计费）；multiShot = 分了镜头，不用结束画面；none = 不画，视频按提示词往下拍 */
+  last: "draw" | "multiShot" | "none";
+}
+
+/**
+ * 帧位空着时那一格会怎样 —— 判据全在 refPlanOf 里（补不补画问 data/drawPlan、直出问 refVideoOn，与出片、报价同源），这里只归类。
+ * ★ 为什么要有它（2026-10-04）：「自定义」段在收参考图的两档上不再补画，而帧位上原来写死着「空 = AI 按提示词补画（计费）」——
+ *   照旧摆着就是一句假话，人会为了省那张图的钱去自己传一张。
+ * @param carried 这一段承接上一段（不是第一段且开着承接）：开头那一格出片时由上一段的真实尾帧顶上
+ */
+export function emptyFrameFates(plan: RefPlan | null, o: { carried: boolean; multiShot: boolean }): EmptyFrameFate {
+  if (!plan) return { first: o.carried ? "carry" : "draw", last: "draw" };
+  // 只能纯文字出片：一张帧都不发，承接上一段的结尾也不发（refSlotsOf 那一条 ★）—— 两格都是「不带」
+  if (plan.why === "textOnly") return { first: "none", last: "none" };
+  return {
+    // 走参考生视频时分两句：真有卡片形象图要发才说「卡片形象图」，只发临时参考图（或挂的卡没有图）说「参考图」
+    first: o.carried ? "carry" : plan.draws.first ? "draw" : plan.refMode ? (plan.cardImages > 0 ? "cards" : "refs") : plan.why === "real" ? "photo" : "none",
+    last: plan.draws.last ? "draw" : o.multiShot ? "multiShot" : "none",
+  };
+}
+
+/**
+ * 图位不够、临时参考图只带得上前几张（或一张都带不上）那一句 —— **唯一一份**：参考清单（RefStrip，按 RefPlan.extrasCap，出片之前）与
+ * 出片进度（generateSegment 的 notes，出片那一刻）说的是同一件事、同一句话（2026-10-26 P2b 审核）。max 取这一档的图位上限（VideoTier.refImagesMax）。
+ */
+export function extrasCapLine(c: { max: number; sent: number }): string {
+  const max = c.max;
+  const sent = c.sent;
+  return sent > 0
+    ? t`这一档一段最多带 ${max} 张图：临时参考图这次只带了前 ${sent} 张（其余的变淡显示在参考清单里）`
+    : t`这一档一段最多带 ${max} 张图：帧和卡片形象图已经把位占满，临时参考图这次一张都带不上（变淡显示在参考清单里）`;
+}
+
+/**
+ * 参考清单 —— **出片之前**就把「模型会收到哪些图、各是第几张」算出来（N1，2026-10-03）。
+ *
+ * ★ 判定全走 refSlotsOf / planCardRefs / voicedCardsOf（与 generateSegment 同一批函数），这里只负责**排队编号**：
+ *   帧（首 → 中 → 尾）→ 临时参考图 → 卡片形象图，与 generateSegment 发出去的数组同一个顺序。改那边的顺序必须同步改这里
+ *   （那边出片前会拿这份计划对一次张数，对不上写一句「参考清单核对」进步骤日志）。
+ * ⚠ 这是计划：帧标着「还没有」的那几格出片前才画；个别卡片图真取的时候读不出来会被跳过（那一拍会逐张点名）。
+ * @param o.framesComing 界面专用：这一段**还没推演**（自选卡片车道，下一步是推演三套方案），首尾帧到出片那一拍一定已经有了。
+ *   不传的话，没帧的段会按「出片时现画帧」排帧那几格（缩略图标「还没有」）。卡片图的分法两种情况现在是同一套直通分配
+ *   （2026-10-03 起：现画帧也不再只带第一张人物卡，见 refSlotsOf 的 direct），这个参数只管帧那几格怎么标。
+ *   出片那一侧（generateSegment 的核对）从不传它：那时帧在不在是事实。
+ */
+/** 出片之前的预览（refPlanOf / promptRoomOf）要的输入：与 genNode 交给 generateSegment 的那一份逐项同源（flowStore.nodeRefPlan） */
+export type SegmentPlanInput = Pick<
+  SegmentGenInput,
+  "plot" | "videoTier" | "materials" | "firstFrame" | "lastFrame" | "carryFrame" | "anns" | "refAllowed" | "refVideoUrl" | "materialRef" | "extendRef" | "extraRefs" | "revise" | "durationSec" | "noDraw" | "textTpl"
+> & { framesComing?: boolean };
+
+/**
+ * 主路（方舟：参考图直出 / 帧当参考图 / 首尾帧 / 白模）在出片之前的计划：帧那两格在不在（含「出片前会画」「圈选会改出一张」）、
+ * 参考图怎么分（refSlotsOf）、带哪几张临时参考图（segmentExtras）—— 参考清单 refPlanOf 与提示词预算 promptRoomOf 共用，别各推一遍。
+ */
+function planMain(o: SegmentPlanInput) {
+  const tier = tierOf(o.videoTier);
+  const extras = segmentExtras(o);
+  /** 首帧的缩略图（没有 = 还没画） */
+  const firstSrc = o.carryFrame || o.firstFrame || "";
+  const first = firstSrc || (o.framesComing ? "coming" : "");
+  // 圈在后半段的标注会改出一张尾帧（generateSegment 的步骤①）：尾帧在不在按改完之后算
+  const half = o.durationSec / 2;
+  const last =
+    o.lastFrame ||
+    (redrawnAnns(o.anns ?? [], o.durationSec, !!o.carryFrame).some((a) => a.atSec >= half) ? "ann" : "") ||
+    (o.framesComing && tier.flf ? "coming" : "");
+  const slots = refSlotsOf({
+    videoTier: o.videoTier,
+    materials: o.materials ?? [],
+    first,
+    last,
+    anns: o.anns,
+    refAllowed: o.refAllowed,
+    refVideoUrl: o.refVideoUrl,
+    revise: o.revise,
+    extras: extras.length,
+    noDraw: o.noDraw,
+    multiShot: isMultiShot(o.plot),
+    textTpl: o.textTpl,
+  });
+  return { firstSrc, first, last, slots, extras };
+}
+
+export function refPlanOf(o: SegmentPlanInput): RefPlan {
+  const tier = tierOf(o.videoTier);
+  const mats = o.materials ?? [];
+  const extras = segmentExtras(o);
+  /** 这一段最多挂几张临时参考图（与 segmentExtras 截的同一个判定） */
+  const extraMax = extraRefMaxOf({ textTpl: !!o.textTpl });
+  const items: RefPlanItem[] = [];
+  const push = (it: Omit<RefPlanItem, "n">) => items.push({ ...it, n: items.length + 1 });
+  /** 没把图送进视频模型的卡（背景卡只走文字，不算） */
+  const textOnlyOf = (sent: ReadonlySet<string>) => mats.filter((c) => c.type !== "background" && !sent.has(c.id));
+  const voiced = voicedCardsOf({ plot: o.plot, materials: mats, capSec: refAudioSecOf(o.videoTier) });
+  const withVoice = cardsWithVoice(mats);
+  /** 带声音、这一段有台词（认不准时 = 全部带声音的）—— 按合计时长装的就是这一批 */
+  const speaking = speakingVoiced(o.plot, mats);
+  /** 带声音、这一段却没有他的台词 —— 这次不带 */
+  const quiet = quietVoiced(o.plot, mats);
+  /** 声音样本带得上 / 带不上（判据与 voiceRefsFor 同一组：有台词 + 参考类请求 + 档位收声音样本 VideoTier.refAudio） */
+  const voiceBits = (referenceMode: boolean): Pick<RefPlan, "voices" | "voiceIdle" | "voiceOver" | "voiceQuiet"> => {
+    const ok = referenceMode && tier.refAudio && voiced.length > 0;
+    const voiceQuiet = quiet.length ? quiet : null;
+    if (ok) {
+      // 合计时长装不下的那几张（与 voiceRefsFor 出片时点名的是同一批：都问 fitVoices，装的都是「说台词的」那一批）
+      const capSec = refAudioSecOf(o.videoTier);
+      const over = capSec === null ? [] : fitVoices(speaking, capSec).dropped;
+      return { voices: voiced, voiceIdle: null, voiceOver: over.length && capSec !== null ? { cards: over, capSec } : null, voiceQuiet };
+    }
+    // 有台词、请求也收声音样本，只是带声音的那几位都没台词：只说「这次不带」，别说成「句子里没有台词」
+    if (referenceMode && tier.refAudio && voiceQuiet && !speaking.length)
+      return { voices: [], voiceIdle: null, voiceOver: null, voiceQuiet };
+    if (!withVoice.length) return { voices: [], voiceIdle: null, voiceOver: null, voiceQuiet: null };
+    // ★ 出声却不收声音样本的档（refAudio 假、audio 真；今天没有这样的档，海外 MiniMax H3 是）归到「出片方式带不了参考音频」那句：
+    //   台词照样配音、音色由模型定 —— 别落进「quote」，那句说的是「句子里没有台词」，是假话
+    const why = !tier.audio ? "tier" : !referenceMode || !tier.refAudio ? "mode" : "quote";
+    return { voices: [], voiceIdle: { cards: withVoice, why }, voiceOver: null, voiceQuiet: null };
+  };
+  // 自定义 + 示例视频：帧当参考图，卡片的图一张都不发
+  if (o.materialRef) {
+    if (!tier.refVid)
+      return { sends: false, why: "refvid", items: [], textOnly: textOnlyOf(new Set()), extrasDropped: extras.length > 0, extrasCap: null, refVideo: true, ...voiceBits(false), refMode: false, draws: { first: false, last: false }, extraMax, cardImages: 0 };
+    const firstRef = o.carryFrame || o.firstFrame || "";
+    if (firstRef) push({ kind: "first", src: firstRef, carried: !!o.carryFrame });
+    for (const m of o.materialRef.mids ?? []) if (m) push({ kind: "mid", src: m });
+    if (o.lastFrame) push({ kind: "last", src: o.lastFrame });
+    for (const x of extras) push({ kind: "extra", src: x.url, extra: x });
+    // 素材参考这条路不补画（帧来自示例视频或你自己给的）
+    return { sends: true, why: null, items, textOnly: textOnlyOf(new Set()), extrasDropped: false, extrasCap: null, refVideo: true, ...voiceBits(true), refMode: false, draws: { first: false, last: false }, extraMax, cardImages: 0 };
+  }
+  // ★ 判据与 generateSegment 的真人档那一支同一个（请求形状 VideoTier.api，apiCase：加一种 api 时 tsc 逼着在这里表态）：清单预览的就是那一发会怎么拼
+  //   MiniMax H3（V2）不是这一支：它收首尾帧与参考图，清单照下面普通那几种排（图位预算按它的 refImagesMax = 5）
+  if (apiCase(tier.api, { ark: false, "minimax-v1": true, "minimax-v2": false }))
+    // 真人档一张设定帧都不画：首帧就是真人卡的照片
+    return { sends: false, why: "real", items: [], textOnly: textOnlyOf(new Set()), extrasDropped: extras.length > 0, extrasCap: null, refVideo: false, ...voiceBits(false), refMode: false, draws: { first: false, last: false }, extraMax, cardImages: 0 };
+  // 只能纯文字出片（免费版在 MiniMax H3 上，account.tierTextOnly —— refSlotsOf 与出片读的同一个）：一张图都不发、一张帧都不画
+  if (tierTextOnly(tier))
+    return { sends: false, why: "textOnly", items: [], textOnly: textOnlyOf(new Set()), extrasDropped: extras.length > 0, extrasCap: null, refVideo: false, ...voiceBits(false), refMode: false, draws: { first: false, last: false }, extraMax, cardImages: 0 };
+  const { firstSrc, first, last, slots } = planMain(o);
+  const blockout = !!o.refVideoUrl;
+  if (!blockout && !slots.refMode && !slots.framesAsRefs)
+    return { sends: false, why: "tier", items: [], textOnly: textOnlyOf(new Set()), extrasDropped: extras.length > 0, extrasCap: null, refVideo: false, ...voiceBits(false), refMode: false, draws: slots.draw, extraMax, cardImages: 0 };
+  if (slots.framesAsRefs) {
+    // 两格各自：已经有、或出片前会补画（data/drawPlan：不补画帧的段缺的不补、多镜头的段不画结束画面）—— 与出片发出去的张数同一个答案。
+    // 不补画的段可以只有一张尾帧（只给了结束帧），那时开头那一格不摆
+    if (first || slots.draw.first) push({ kind: "first", src: firstSrc, carried: !!o.carryFrame });
+    if (last || slots.draw.last) push({ kind: "last", src: o.lastFrame || "" });
+  }
+  // 带得出去的那几张（refSlotsOf.extrasOn：图位不够时排在后面的先让，出片那一侧发的是同一批）
+  for (const x of extras.slice(0, slots.extrasOn)) push({ kind: "extra", src: x.url, extra: x });
+  const picks = planCardRefs(mats, slots.direct);
+  for (const p of picks) push({ kind: "card", src: p.url, card: p.card, viewIndex: p.index });
+  return {
+    sends: true,
+    why: null,
+    items,
+    textOnly: textOnlyOf(new Set(picks.map((p) => p.card.id))),
+    extrasDropped: extras.length > slots.extrasOn,
+    // 图位不够、只带得上前几张（refSlotsOf.extrasOn 按这一档的图位上限算的同一个数）：参考清单底下那句说「最多带 N 张图」，不说「这一档发不出去」
+    extrasCap: extras.length > slots.extrasOn ? { max: tier.refImagesMax ?? ARK_REF_IMAGES_MAX, sent: slots.extrasOn } : null,
+    refVideo: blockout,
+    // 白模段不带声音样本（voiceRefsFor 的 blockout 分支：它自己就是 r2v，音轨在组稿时回填原片）
+    ...voiceBits(!blockout),
+    refMode: slots.refMode,
+    draws: slots.draw,
+    extraMax,
+    cardImages: picks.length,
+  };
 }
 
 /**
@@ -296,7 +931,7 @@ export function redrawnAnns<T extends { atSec: number }>(
  *      定义为角色「XX」」）—— 方舟提示词指南的正规用法。有了这句，多张图的语义从
  *      "在这张图上改"变成"这几张图分别定义了谁"，正是我们要的形象一致。
  *   所以现在是「文字 + 参考图 + 绑定句」三件一起给，文字这一半仍旧保留 ——
- *   没有 views 的卡、以及被规则一让位的第二张人物卡，全靠它。
+ *   没有 views 的卡、以及被规则一让位的第二张人物卡，全靠它（文字 = 出片句；没写出片句的只剩名字，简介 2026-09-18 起不进出片）。
  */
 /** 镜头字段的提示词前缀（唯一实现）：有字段才拼，句号收尾；三条出片路都从这里拿 */
 function shotPrefix(shot?: ShotSpec): string {
@@ -304,7 +939,22 @@ function shotPrefix(shot?: ShotSpec): string {
   return line ? `${line}。` : "";
 }
 
-function materialText(materials?: Card[]): string {
+/** 这一批卡的 id（全都没把图送进模型时用） */
+function idsOf(materials?: Card[]): Set<string> {
+  return new Set((materials ?? []).map((c) => c.id));
+}
+
+/** 这一批卡里**不在** `sent` 里的那几张（= 这一发没把图送进模型的卡） */
+function idsWithout(materials: Card[] | undefined, sent: ReadonlySet<string>): Set<string> {
+  return new Set((materials ?? []).filter((c) => !sent.has(c.id)).map((c) => c.id));
+}
+
+/**
+ * @param imageless 按模型适配（2026-09-30）：这一发里**没把图送进模型**的那几张卡。它们有文字版形象描述
+ *   （Card.textDesc，勾了「标准/极速适用」）就用那一段替代出片句 —— 收不到图时，文字是这张卡唯一的样子。
+ *   ★ 谁收没收到图由调用方按**这一发的真实发送**给（参考图分配 / 起拍画面那张卡），这里不猜。
+ */
+function materialText(materials?: Card[], imageless?: ReadonlySet<string>): string {
   if (!materials?.length) return "";
   // ★ V3（2026-09-06）：按"离了它画面最先走样"排序——人物 > 风格 > 场景 > 道具；上游是从**尾巴**截到
   //   VIDEO_PROMPT_MAX 的（plot + 本串再 slice），排在后面的先被截。背景卡不在这串里，单独一句挂在最后。
@@ -314,12 +964,17 @@ function materialText(materials?: Card[]): string {
     .sort((a, b) => ORDER[a.type] - ORDER[b.type])
     .filter((c) => c.type !== "background")
     .map((c) => {
-      //   逐段逐字复用——同一措辞本身就是一致性手段；老卡兜底"名字+简介40字"=老行为）。
-      if (c.type === "character") return `${CARD_TYPE_PROMPT[c.type]}「${c.name}」＝${idLineOf(c)}`;
-      // ★ V3：非人物卡有出片句（idLine：场景的空间结构、风格的画风+镜头语言）就整句进；
-      //   老卡没有 idLine 的仍是简介前 24 字（存量卡的提示词一个字不变）
-      const line = (c.idLine || "").trim().slice(0, ID_LINE_MAX);
-      return `${CARD_TYPE_PROMPT[c.type]}「${c.name}」${line ? `＝${line}` : c.summary ? `（${c.summary.slice(0, 24)}）` : ""}`;
+      //   逐段逐字复用——同一措辞本身就是一致性手段；没写出片句的卡只报卡名，简介不进出片，2026-09-18）。
+      const desc = imageless?.has(c.id) ? (c.textDesc || "").trim().slice(0, TEXT_DESC_MAX) : "";
+      if (c.type === "character") {
+        // 没写出片句时 idLineOf 只回卡名：别拼成「人物卡「小夏」＝小夏」
+        const line = desc || idLineOf(c);
+        return `${CARD_TYPE_PROMPT[c.type]}「${c.name}」${line !== c.name ? `＝${line}` : ""}`;
+      }
+      // ★ V3：非人物卡有出片句（idLine：场景的空间结构、风格的画风+镜头语言）就整句进；没有的只报卡名 ——
+      //   简介不进出片（2026-09-18，原来退回简介前 24 字：简介是给人看的，常串着别的卡种的东西，见 ai/cardScope）
+      const line = desc || (c.idLine || "").trim().slice(0, ID_LINE_MAX);
+      return `${CARD_TYPE_PROMPT[c.type]}「${c.name}」${line ? `＝${line}` : ""}`;
     })
     .join("；");
   // ★ V3：背景卡 = 故事背景，纯文字、不发图（allocateRefs 不分配它），也不套"不得改动其外形"那句——
@@ -363,7 +1018,7 @@ export function customRefPrompt(o: {
   hasVideo?: boolean;
   /**
    * 首帧是**上一镜的最后一帧**（段间承接）吗。
-   * ★★ 为什么要分这一档（2026-09-XX，backlog §2.11.3④）：「从这一帧开始」与「接着这一帧
+   * ★★ 为什么要分这一档（2026-09-03，backlog §2.11.3④）：「从这一帧开始」与「接着这一帧
    *   往下演」对模型是两件事。参考模式下首帧只是软引导（协议级 first_frame 与参考媒体
    *   互斥，见本函数的 ⚠），承接的连续性**全靠这句话**——而它此前一个字都没说。
    *   对照：剧情那一步反而说过（real.ts 喂给豆包的「本段开头画面已经确定（上一段的收尾
@@ -398,8 +1053,10 @@ export function customRefPrompt(o: {
   // i18n-ignore-next-line: 同上
   const head = o.hasVideo ? "。参考视频提供整体画面、运镜与节奏" : "";
   if (parts.length === 0) return head ? `${head}。` : "";
+  // 「按图片编号顺序推进」只在帧有两张以上时说（2026-10-04）：只有一张帧时（不补画的段只给了开头 / 结尾、多镜头的段不带结束画面）
+  // 后面紧跟着的是卡片形象图，这句话会让模型把那几张人物图也当成要依次经过的画面
   // i18n-ignore-next-line: 同上
-  return `${head}${head ? "；" : "。"}${parts.join("；")}。画面按图片编号顺序推进，衔接自然。`;
+  return `${head}${head ? "；" : "。"}${parts.join("；")}。${parts.length >= 2 ? "画面按图片编号顺序推进，衔接自然。" : ""}`;
 }
 
 /**
@@ -431,31 +1088,317 @@ export type SegmentTaskAccepted = (taskId: string) => void;
  * 对不上**不拦**（钱在服务端按调用结算，这里拦只会把已经画好的帧作废），但要说出来并进控制台。
  * 视频那半按 economy.videoTokensOfSpec（与报价同一张价目表），出图那半按"这一发真画了几张"。
  */
-function contractLine(o: { quoted: number | null; mode: GenMode; durationSec: number; tierId: string; refVideoSec?: number; images: number }): string {
+function contractLine(o: {
+  quoted: number | null;
+  mode: GenMode;
+  durationSec: number;
+  tierId: string;
+  refVideoSec?: number;
+  images: number;
+  /** 这一发的画幅（480p 的每秒数按画幅不同，报价 nodeCost 也按它算） */
+  ratio?: string;
+}): string {
   if (o.quoted === null) return "";
-  const video = videoTokensOfSpec({ mode: o.mode, durationSec: o.durationSec, tierId: o.tierId, refVideoSec: o.refVideoSec });
+  const video = videoTokensOfSpec({ mode: o.mode, durationSec: o.durationSec, tierId: o.tierId, refVideoSec: o.refVideoSec, ratio: o.ratio });
   if (video === null) return "";
   const implied = video + o.images * IMAGE_TOKENS;
   if (implied === o.quoted) return "";
   const quotedLabel = fmtTokens(o.quoted);
   const impliedLabel = fmtTokens(implied);
   const videoLabel = fmtTokens(video);
-  const line = t`⚠ 契约核对：界面报价 ${quotedLabel}，按契约应为 ${impliedLabel}（视频 ${videoLabel} + 出图 ${o.images} 张）——本次仍按报价扣，请把这句话反馈给我们`;
+  // ★ 「按什么扣」分两种说（2026-10-07 评审抓到）：远端模式（正式包）钱在服务端按**它自己算的**价结算，App 的报价管不着 ——
+  //   原来一律说「本次仍按报价扣」，在正式包上是假话。离线 / 演示构建的账本在本机，genNode 成片到手时按报价记，那句才成立。
+  const line = isRemoteMode()
+    ? t`⚠ 契约核对：界面报价 ${quotedLabel}，按契约应为 ${impliedLabel}（视频 ${videoLabel} + 出图 ${o.images} 张）——实际扣多少以服务器结算为准（看「我的」页的 token 余额），请把这句话反馈给我们`
+    : t`⚠ 契约核对：界面报价 ${quotedLabel}，按契约应为 ${impliedLabel}（视频 ${videoLabel} + 出图 ${o.images} 张）——本次仍按报价扣，请把这句话反馈给我们`;
   console.warn("[segmentGen] " + line);
   return line;
 }
 
-function settleSegment(res: { error?: string; pendingTaskId?: string } | undefined): void {
+/** 接在一句以「。」收尾的话后面时，去掉自己开头那个「。」（帧的时序点名句已经自带句号，别拼出「。。」） */
+function afterStop(prev: string, s: string): string {
+  // i18n-ignore-next-line: 提示词里的句号，发给模型
+  return prev.endsWith("。") && s.startsWith("。") ? s.slice(1) : s;
+}
+
+/** 主路一发提示词拼好之后的样子与预算（mainPrompt 的结果） */
+interface MainPrompt {
+  /** 拼好的提示词（点名句 + 正文 + 尾巴；音色点名句与「别出字幕」那两句另由 withLineTails 接） */
+  plot: string;
+  /** 正文（镜头前缀 + 编译过点名的句子 + 圈选要求）：截的、拦的都是它 */
+  story: string;
+  said: CompiledMentions;
+  /** 临时参考图在这一发里的编号（n 为 null = 没发出去） */
+  extraNums: { id: string; name: string; role: ExtraRef["role"]; n: number | null }[];
+  /** 帧那几张之后紧跟着的卡片形象图发不发（帧当参考图时） */
+  cardRefsSent: boolean;
+  cap: number;
+  /** 正文之外先占掉的字（点名句、时序句、素材设定…） */
+  reserved: number;
+  /** 正文能发出去多少字 */
+  room: number;
+  /** 正文超出多少字（≤ 0 = 放得下） */
+  over: number;
+}
+
+/**
+ * 主路（方舟：参考图直出 / 帧当参考图 / 首尾帧 / 白模 / 返修）一发提示词的**唯一拼法** —— 出片（generateSegment，拿真准备成的图与真画好的帧）
+ * 与出片之前的预算（promptRoomOf，拿计划）共用（2026-10-26，文字模板 P1）。原来这一段只长在 generateSegment 中段，
+ * 界面上要说「这一档最多 N 字、还要删 M 字」就只能另抄一遍 —— 两份一漂就是作者那一屏说放得下、出片那一拍放不下（文字模板段整句拒）或反过来。
+ * 输入全是**这一发的事实**（或计划），这里一个都不推：参考图怎么分在 refSlotsOf，帧画没画在 drawPlan，卡图分到谁在 prepareMaterialRefs / planMaterialRefs。
+ */
+function mainPrompt(o: {
+  plot: string;
+  shot?: ShotSpec;
+  anns: readonly { req: string }[];
+  materials?: Card[];
+  blockout: boolean;
+  /** V2 白模（有角色位）：正文里已经是点名映射，不再拼泛指的换人句 */
+  named: boolean;
+  revise: boolean;
+  /** 走参考生视频（一张帧都不带） */
+  refMode: boolean;
+  /** 帧当参考图真发出去了几张（0 = 帧不是参考图：走首尾帧协议参数 / 根本没有帧） */
+  frameRefs: number;
+  hasFirst: boolean;
+  hasLast: boolean;
+  carried: boolean;
+  /** 这一段的临时参考图（segmentExtras） */
+  extras: readonly ExtraRef[];
+  /**
+   * 临时参考图这一发真发出去了几张（参考类请求 + 传上去了；图位不够时只带得上前几张，refSlotsOf.extrasOn）。0 = 一张都没发。
+   * ★ 张数不是布尔（2026-10-26 出片地区 P2b 合 main）：MiniMax H3 一段只有 5 张图的位，带不上的那几张点名要退成名字、不许拿到编号 ——
+   *   给它们编了号，就是点名到没发出去的图上（与「帧一律当参考图发」那条 ② 同一个坑）。
+   */
+  extrasSent: number;
+  /** 卡片形象图（真准备成的 / 计划的）：紧凑式绑定句、真分到图的卡、张数；没准备 = null */
+  cards: { bindCompact: (offset?: number) => string; cards: ReadonlySet<string>; count: number } | null;
+  cap: number;
+}): MainPrompt {
+  const cardTargets = (o.materials ?? []).map((c) => ({ id: c.id, name: c.name }));
+  const sendFrameRefs = o.frameRefs > 0;
+  /** 临时参考图排在帧之后、卡片形象图之前：它们的编号从这里起 */
+  const extraBase = sendFrameRefs ? o.frameRefs : 0;
+  const extrasSentCount = Math.max(0, Math.min(o.extrasSent, o.extras.length));
+  // 真发出去的那几张才有编号（排在前面的先发）；没带上的点名退成名字
+  const extraNums = o.extras.map((x, i) => ({ id: x.id, name: x.name, role: x.role, n: i < extrasSentCount ? extraBase + i + 1 : null }));
+  // 句子里的 @点名 → 这一发的真实编号；卡只换成卡名（身份绑定仍由下面的紧凑式点名句管）
+  const said = compileMentions(
+    o.plot,
+    mentionTargets({
+      cards: cardTargets,
+      extras: extraNums,
+      // 帧按 [首, 尾] 排、缺的不占位（不补画的段可以只有一张尾帧）：尾帧的编号就是帧的张数
+      frames: {
+        first: o.hasFirst ? (sendFrameRefs ? 1 : null) : undefined,
+        last: o.hasLast ? (sendFrameRefs ? o.frameRefs : null) : undefined,
+      },
+    }),
+  );
+  /** 没被点名、又真发出去了的临时参考图：系统按用途补一句（接在帧的时序点名句后面） */
+  const extraLines = extraRefLines(
+    extraNums.filter((x): x is typeof x & { n: number } => x.n !== null && !said.used.has(`extra:${x.id}`)),
+  );
+  /** 帧当参考图时的时序点名句：图片1=第一帧、图片N=最后一帧（软引导，见 customRefPrompt 的 ⚠） */
+  const frameRoles = sendFrameRefs ? customRefPrompt({ hasFirst: o.hasFirst, midCount: 0, hasLast: o.hasLast, carried: o.carried }) : "";
+  // 卡片形象图接在帧后面（编号顺延），绑定句按这个 offset 说话 —— 差一位就是"张三的脸给了李四"
+  const cardRefsSent = sendFrameRefs && !!o.cards && o.cards.count > 0;
+  // ④ 出片。圈选要求并进提示词——只改设定帧不够，Seedance 得知道这一段要拍成什么样
+  const reqs = o.anns.map((a) => a.req).join("；");
+  // 参考生视频没有设定帧兜底，"谁是谁"全靠点名句（2026-08-29 起是前置的紧凑式
+  // 「凛=@图片1@图片2」，见下面 bindHead），所以它必须进**视频**提示词；
+  // 首尾帧模式下长句 bind 已经写进 Seedream 的提示词里了，
+  // 视频提示词再塞一遍只会让 Seedance 去找并不存在的 <图片1>
+  // 白模的尾巴 = （V1 才有的）统一替换句 + 素材文字 + 绑定句：替换句说"干什么"（换主体、
+  // 严格保留背景道具运镜——BLOCKOUT_SWAP，一处实现），素材文字与绑定句说"换成谁"
+  // （<图片1> 的面部特征 = 角色 XX）。参考视频不占 <图片N> 编号（见 arkClient 的 content
+  // 拼装注释），所以 bind(0) 依旧成立。白模路的卡片图走直通分配，它的 bind 就是紧凑式（prepareMaterialRefs 的 multiChar）。
+  //
+  // ★★ 白模有两条**互斥**的路，判据是这个模板有没有角色位（**存在性**，`roles?.length`
+  //   ——后加字段，老模板天然缺它、天然走老路，零迁移；等值判会把存量整批算进某一类
+  //   且一个错都不报，见 types.VideoTemplate.roles 的 ★）：
+  //   · **V2（有 roles，named）**：`plot` 里那段话已经是编辑页合成好的点名映射
+  //     （「编号4=张三」，studio/blockoutPrompt 一处实现，用户过目并可改）。
+  //     这条路**不再拼 BLOCKOUT_SWAP** —— 它说的「将视频中的红色小人替换为下列角色」
+  //     是**泛指**，与逐个点名摆在同一段话里就是自相矛盾（而"泛指盖过点名"正是白模化
+  //     那一步实测踩过的坑：泛指只换配角、主角不动，F4），还要白白吃掉
+  //     VIDEO_PROMPT_MAX 里 60 字的正文额度。
+  //   · **V1（没有 roles，老模板）**：人偶身上根本没有编号，除了泛指没有别的说法 ——
+  //     照旧拼 BLOCKOUT_SWAP。降级但诚实。
+  //   · **绑定句（bind）两条路都要拼**：图片编号 ↔ 角色是 prepareMaterialRefs 在出片
+  //     这一刻现分配的（谁被挤掉、同卡的图怎么连号），用户在输入框里改不出来、也没法
+  //     提前知道 —— 合成句里说的是角色**名**，全靠这一句把名字接到图上
+  //     （白模路是紧凑式 `张三=@图片1@图片2`，理由见 ai/real 的 bind）。
+  // ★ refMode 的点名句 2026-08-29 起换**紧凑式 @槽位并前置**（backlog 2.8-⑥，付费 A/B 采纳：design/ab-bind-syntax.mjs）；
+  //   Seedream 画帧那半（generateSegment 的 drawRefs）**未做 A/B，仍是长句**，别顺手统一。
+  // ★ offset 把临时参考图也数进去（N1）：它们排在卡片图前面，少数这几位就是张冠李戴
+  const bindHead = o.refMode && o.cards ? o.cards.bindCompact(extrasSentCount).replace(/^。/, "") : "";
+  /** 帧当参考图那条的绑定句：卡片图排在帧与临时参考图之后，offset = 前面那几张的张数（错一位就是张冠李戴） */
+  const frameBind = cardRefsSent && o.cards ? o.cards.bindCompact(o.frameRefs + extrasSentCount).replace(/^。/, "") : "";
+  const bind = o.cards ? o.cards.bindCompact(0) : "";
+  // 按模型适配：**视频模型**这一发真收到了哪几张卡的图 —— 其余的卡有文字版形象描述就用它替代出片句
+  const sentCards: ReadonlySet<string> = o.refMode || o.blockout || sendFrameRefs ? (o.cards?.cards ?? new Set()) : new Set();
+  const mats = materialText(o.materials, idsWithout(o.materials, sentCards));
+  const extraTail = afterStop(frameRoles, extraLines);
+  // ★★ V2（点名）那条路**不拼素材设定文字**（`mats`），只留绑定句。这不是省字的洁癖，是算出来的：
+  //   `mats` 每张卡 ≈ 50 字（卡种 + 名字 + 30~40 字设定），角色位上限放到 9 之后光它一项就
+  //   400 字打底 —— 而提示词硬顶就是 400，截断又是**从正文这头切**的（见下面的 room），
+  //   于是用户在输入框里亲眼过目、亲手改过的那段点名映射会被整段切没，画面照出、钱照收。
+  //   舍它而不是舍别的，是因为这条路上它最接近纯冗余：每个角色的名字在**点名句**里已经出现
+  //   （编号N=张三），形象由**参考图 + 紧凑绑定句**（张三=@图片1@图片2）锁定，而设定文字（出片句，没写就只是名字）
+  //   对"把白模换成这个人"几乎不添信息。
+  //   ⚠ 例外：某张卡的形象图全都读不出来时，它就只剩名字了 —— 那种情况由 prepareMaterialRefs
+  //   的 onNote 逐张点名（"第 N 张参考图未采用…"），一张都没成还会整句 throw，不是静默。
+  // refMode 的绑定句已前置（bindHead），尾巴只剩素材设定文字
+  const tail = o.blockout
+    ? o.named
+      ? bind
+      : `${o.revise ? REVISE_TAIL : BLOCKOUT_SWAP}${mats}${bind}`
+    : // 逐截去掉重复的句号（同 materialRef 那条路：没有临时参考图时素材设定直接接在时序句后面）
+      `${frameRoles}${extraTail}${afterStop(`${frameRoles}${extraTail}`, mats)}`;
+  // ★ 镜头字段放正文最前（景别 / 运镜 / 情绪节拍），模型先读到"怎么拍"再读"拍什么"
+  // ★ 正文用**编译过点名**的那一份（said.text；没有 `@` 的句子与原文逐字节相同）
+  // i18n-ignore-next-line: 出片提示词正文，发给视频模型
+  const story = `${shotPrefix(o.shot)}${reqs ? `${said.text}。修改要求（必须满足）：${reqs}` : said.text}`;
+  // ★ 提示词有上限（cap），而截的是**正文** —— 头（点名句）与尾（素材设定/
+  //   白模绑定句）都要先留位。直接拼起来交上去的话：简约模式的输入框本身就允许 400 字，
+  //   用户写满（或套个字数多一点的模板再挂张卡）就把绑定句整句切没了，而参考图照样发出去
+  //   —— 模型于是只把它们当风格图用：卡挂了、片出了、人物一点都不像，且**零报错**。
+  //   截正文是唯一诚实的刀口（少几个字用户看得出来，也不改变"谁是谁"）。
+  //   ★ 文字模板段连正文也不截（over > 0 时调用方在视频那一发之前整句拒）：正文是那个模板的商品本身。
+  const reserved = tail.length + bindHead.length + frameBind.length;
+  const room = Math.max(0, o.cap - reserved);
+  // 正文自带句末标点、尾巴又以「。」起头时去掉那个「。」（不去的话每一发都是「抬起头。。本段固定素材设定」）
+  const body = story.slice(0, room);
+  // i18n-ignore-next-line: 提示词里的句号，发给模型
+  const plot = `${bindHead}${frameBind}${body}${/[。！？!?.…]$/.test(body) && tail.startsWith("。") ? tail.slice(1) : tail}`;
+  return { plot, story, said, extraNums, cardRefsSent, cap: o.cap, reserved, room, over: story.length - room };
+}
+
+/** 出片之前算出来的提示词预算（promptRoomOf） */
+export interface PromptRoom {
+  /** 这一档这一段的上限（promptCapOf；文字模板段在电影级上 1000） */
+  cap: number;
+  /** 正文之外先占掉的字（素材设定、形象点名句、时序句…） */
+  reserved: number;
+  /** 正文能发出去多少字 */
+  room: number;
+  /** 正文（编译过点名之后）一共多少字 */
+  story: number;
+  /** 超出多少字（≤ 0 = 放得下）—— 界面上「还要删 N 字」的 N */
+  over: number;
+}
+
+/**
+ * 这一段这一发**正文放不放得下** —— 提示词预算的**唯一函数**（2026-10-26，文字模板 P1）：作者那一屏的逐档表、套用之后生成键旁那句
+ * 「还要删 N 字」、出片前那道闸（文字模板段放不下在花钱之前整句拒）都问它；出片那一拍 generateSegment 用的是同一个拼法（mainPrompt），
+ * 只是喂的是真准备成的图。
+ * ★ 按**编译之后**的长度算（`@名字` 会编成「名字（图片N）」，每处多出四五个字）：作者看到的字数与模型收到的不是一个数，这里说的是后者。
+ * ⚠ 按计划算（卡片图按分配计划，planMaterialRefs），**不是**上界：真取图那一拍某张卡的图读不出来时，那张卡从「发了图的卡」里掉出去 ——
+ *   绑定句短了，materialText 却改给它拼文字版形象描述（最多 TEXT_DESC_MAX 字），真拼出来可能比这里算的长（2026-10-26 审核纠正：原来这里写「偏保守」）。
+ *   所以出片那一拍在卡图真准备好之后、任何补画之前再按真的那批量一次（generateSegment 的 promptWith），文字模板段放不下仍在花钱之前整句拒。
+ * 回 null = 这一段不走主路（带示例视频 / 延长 / 真人档那几条路各有拼法，文字模板段不会落在那里）。
+ * ★ 输入与 genNode 交给 generateSegment 的那一份逐项同源（界面那一侧只经 flowStore.nodePromptRoom 拼，别在组件里自己凑）。
+ */
+export function promptRoomOf(o: SegmentPlanInput & { shot?: ShotSpec; roles?: SegmentGenInput["roles"] }): PromptRoom | null {
+  const tier = tierOf(o.videoTier);
+  // MiniMax H3（V2）走主路（帧与参考图照普通那条路备），按主路量
+  if (o.materialRef || o.extendRef || apiCase(tier.api, { ark: false, "minimax-v1": true, "minimax-v2": false })) return null;
+  // 出片前 generateSegment 先 packShots 一遍：按发出去的那个样子量
+  const plot = packShots(o.plot);
+  const plan = planMain({ ...o, plot });
+  const blockout = !!o.refVideoUrl;
+  const { slots } = plan;
+  const hasFirst = !!plan.first || slots.draw.first;
+  const hasLast = !!plan.last || slots.draw.last;
+  const mp = mainPrompt({
+    plot,
+    shot: o.shot,
+    anns: o.anns ?? [],
+    materials: o.materials,
+    blockout,
+    named: blockout && !!o.roles?.length,
+    revise: !!o.revise,
+    refMode: slots.refMode,
+    // 帧当参考图时要占掉的张数（已有的 + 出片前要补画的；drawPlan.frameSlotsOf 的答案）
+    frameRefs: slots.frameSlots,
+    hasFirst,
+    hasLast,
+    carried: !!o.carryFrame,
+    extras: plan.extras,
+    extrasSent: slots.extrasOn,
+    cards: slots.prepare && slots.direct ? planMaterialRefs(o.materials, slots.direct) : null,
+    cap: promptCapOf({ videoTier: o.videoTier, edit: blockout, textTpl: o.textTpl }),
+  });
+  return { cap: mp.cap, reserved: mp.reserved, room: mp.room, story: mp.story.length, over: mp.over };
+}
+
+/**
+ * 文字模板段这一发放不下 / 图位的图发不出去时的那一句（花钱之前整句拒，绝不截字、不退成普通文字）。
+ * ★ 钱上的话不在这里说：genNode 的 catch 只走 ai/failCharge（随 SegmentGenFailed 带出去的画面张数由它说）。
+ * ★ 出片前的门禁（flowStore.textTplIssue）说的也是这一句（导出给它用）：门禁与出片那一拍措辞同一处。
+ */
+export function textTplTooLong(r: { cap: number; reserved: number; over: number }): Error {
+  const { cap, reserved, over } = r;
+  return new Error(
+    t`这一段的正文放不下：这一档最多发 ${cap} 字，其中素材设定与点名句要占 ${reserved} 字，正文还要删 ${over} 字——文字模板段不会替你截掉后面的字，视频这一发没有发出去`,
+  );
+}
+
+/**
+ * 文字模板段的图位没补齐时的那一句（花钱之前整句拒：缺图的图位不退成普通文字照样出片）。名字带 @，与正文里的写法一致，人一眼对得上。
+ * ★ 钱上的话同样不在这里说（genNode 的 catch 只走 ai/failCharge；这一拍什么都还没花）。出片前的门禁（flowStore.textTplIssue）说的也是这一句。
+ */
+export function textTplGapsError(gaps: readonly string[]): Error {
+  const names = gaps.map((n) => `@${n}`).join(t({ message: "、", comment: "列举几个名字时的分隔符" }));
+  const n = gaps.length;
+  return new Error(
+    t`文字模板的图位还没补齐：${names} 还没有同名的参考图（缺 ${n} 张），视频这一发没有发出去——在参考清单里给每个图位各加一张图、名字与图位一致，再点生成`,
+  );
+}
+
+/**
+ * 文字模板段的提示词在提交时被方舟拒了（arkClient.ArkVideoRefused，input === "text"）：换一句话 —— 正文是模板作者写的、使用者手上能换的只有图，
+ * 原话「改掉里面可能被拦的说法」要说清改的是模板的正文（2026-10-26 审核：文字被拒与图被拒出路完全不同）。
+ * ★ 类型、状态码、上游码原样保留（钱上的判定只认类型，ai/failCharge：提交时被拒 = 没受理、没扣）；图被拒 / 没拉到的那几句本来就指着图，不动。
+ */
+function textTplRefusal<R extends { failure?: unknown; error?: string }>(res: R | undefined, on: boolean): R | undefined {
+  const f = res?.failure;
+  if (!on || !res || !(f instanceof ArkVideoRefused) || f.input !== "text") return res;
+  const line = t`提示词没过方舟的内容审核——这一段的正文来自文字模板，换图没用：改掉正文里可能被拦的说法再试`;
+  return { ...res, failure: new ArkVideoRefused(line, f.status, f.code, f.upstreamCode, line, f.input), error: line };
+}
+
+function settleSegment(
+  res: { error?: string; pendingTaskId?: string; failure?: unknown } | undefined,
+  /**
+   * 这一段在视频那一发之前**已经结算**的出图次数（补画设定帧 + 圈选改帧）。**必填**：可选的话新支路漏传就是 0，
+   * 钱上那句话会把画好的那几张说成「没扣」（与 onTask 那条「漏传零症状」同一个教训）。没画的支路显式传 0。
+   */
+  framesSettled: number,
+  /**
+   * 这一次新补画好的设定帧（arkClient.KeptFrames）：视频那一发失败时随错误交给 genNode 留在方案上，重试不再重画、不再收一次图钱。
+   * **必填**（理由同上）：没补画的支路显式传 null。
+   */
+  kept: KeptFrames | null,
+): void {
   // 「没接到结果」要**原样保持它的类型**往上抛：调用方据此决定凭据留不留
-  // （留 = 亮取回入口，销毁 = 只剩「重新生成」= 再花一次钱）。
+  // （留 = 亮取回入口，销毁 = 只剩「重新生成」= 再花一次钱）。★ 它永远不包壳（genNode 靠 instanceof 认它）
+  if (res?.failure instanceof ArkTaskUnknown) throw res.failure;
   if (res?.pendingTaskId) throw new ArkTaskUnknown(res.error ?? t`没接到这一段的出片结果`, res.pendingTaskId);
-  if (res?.error) throw new Error(res.error);
+  // ★★ 其余失败也**原样**往上抛（2026-10-07）：原来这里拿 res.error 新造一个裸 Error，类型就此丢掉 ——
+  //   「受理之后方舟明说失败（现在会退钱）」「没等到回包（可能扣了）」「服务端明说拒了（没扣）」三种在 genNode 那里长得一模一样，
+  //   钱上那句话只能一个字都不说。外面包一层 SegmentGenFailed：说明失败的是**视频那一发**，并带上出片前已经结算的画面张数
+  //   （钱上的话要把那几张单独说，ai/failCharge）；0 张也包（理由见那个类的 ★）。
+  if (res?.failure !== undefined) throw new SegmentGenFailed(res.failure, framesSettled, "video", kept);
+  // 只有字符串没有错误对象（演示构建）：同样包一层，补画的帧照样留下
+  if (res?.error) throw new SegmentGenFailed(new Error(res.error), framesSettled, "video", kept);
 }
 
 /**
  * 这一段能不能带上人物卡的**音色样本**、带不上时该说哪句话 —— **唯一实现**（铁律六）。
  *
- * ★★ 为什么抽出来（2026-09-XX，backlog §2.11.2②）：这套判断原来只长在经典路上，而
+ * ★★ 为什么抽出来（2026-09-03，backlog §2.11.2②）：这套判断原来只长在经典路上，而
  *   **自定义参考视频那条支路（最贵的一档）在它之前就 return 了** —— 于是那条路 `refAudios`
  *   一次都没发过，连「为什么没带上」那几句说明也一并跳过：用户挂了带 🔊 的卡、写了「」台词，
  *   拿回随机音色，屏幕上一个字都没有。与 `settleSegment` 那次「第二条支路抄漏两行」同形。
@@ -470,19 +1413,40 @@ function voiceRefsFor(o: {
   referenceMode: boolean;
   blockout: boolean;
 }): { refAudios?: string[]; voiceLine: string; notes: string[] } {
-  const voiced = voicedCardsOf({ plot: o.plot, materials: o.materials });
-  const ok = o.referenceMode && o.tier.audio === true && voiced.length > 0;
+  const capSec = refAudioSecOf(o.tier.id);
+  const voiced = voicedCardsOf({ plot: o.plot, materials: o.materials, capSec });
+  // ★ 档位收不收声音样本只问 VideoTier.refAudio（2026-10-26 起；原来读 audio，靠「参考类请求」顺带排掉不收参考图的档）
+  const ok = o.referenceMode && o.tier.refAudio && voiced.length > 0;
   const notes: string[] = [];
+  // 合计时长装不下的那几张要点名（否则那个人的台词音色随机，而卡上明明有声音样本）
+  if (o.referenceMode && o.tier.refAudio && capSec !== null && hasDialogue(o.plot)) {
+    const dropped = fitVoices(speakingVoiced(o.plot, o.materials), capSec).dropped;
+    if (dropped.length) {
+      const names = dropped.map((c) => c.name).join(t({ message: "、", comment: "列举几个名字时的分隔符" }));
+      notes.push(t`「${names}」的声音样本这次没带上（这一档的参考音频合计最长 ${capSec} 秒）——这几位的台词音色由模型定；把样本剪短些就能都带上`);
+    }
+  }
   // 带了声音的卡 + 有台词，却走不了音色参考 —— 一律说清为什么（铁律八：静默降级没人看）
   if (!ok && voiced.length > 0) {
     if (!o.tier.audio)
       notes.push(
-        o.tier.flatCost
+        o.tier.startOnly
           ? t`「${o.tier.label}」档暂无配音，台词只以画面呈现`
-          : t`「${o.tier.label}」档出片无声，台词不会被配音（要声音选「高清」或「电影级」）`,
+          : (() => {
+              // 带得了声音样本的档按能力现算、先说这个人用得了的（account.tierGo；原来写死「高清」「电影级」）
+              const go = tierGo((x) => x.refAudio);
+              // 摆得出来的档里一档都带不了声音样本（门禁开着的海外只剩「真人」档）：只说台词不会被配音，不指一档不存在的档
+              if (!go) return t`「${o.tier.label}」档出片无声，台词不会被配音`;
+              const names = go.names;
+              return go.member
+                ? t`「${o.tier.label}」档出片无声，台词不会被配音（要声音得用「${names}」，会员档）`
+                : t`「${o.tier.label}」档出片无声，台词不会被配音（要声音选「${names}」）`;
+            })(),
       );
-    else if (!o.referenceMode)
-      // ★ 能走到这里的只有白模段（它自己就是 r2v，且 tier.audio 为真的两档都收参考图）——
+    // ★ 出声却不收声音样本的档（refAudio 假；今天没有，海外 MiniMax H3 是）也落进这一句：「本档的出片方式与参考音频互斥」对它成立，
+    //   不落进来的话 ok 为假、两个分支都不进 —— 声音样本悄悄没带上，一个字都不说（铁律八）
+    else if (!o.referenceMode || !o.tier.refAudio)
+      // ★ 不是参考类请求还能走到这里的只有白模段（它自己就是 r2v，且 tier.audio 为真的两档都收参考图）——
       //   所以话要按白模说。原话「本档只能走首尾帧」在这唯一的场合是假的（白模根本没有首尾帧）
       notes.push(
         o.blockout
@@ -511,10 +1475,25 @@ function voiceRefsFor(o: {
  *   仍然不让它跟正文抢配额，只是把"丢了"这件事从静默改成说出来；顺带避免发出半句
  *   （截一半的「…使用参考音」比不发更糟）。
  */
-function withVoiceLine(plot: string, voiceLine: string): { plot: string; dropped: boolean } {
-  if (!voiceLine) return { plot, dropped: false };
-  if (plot.length + voiceLine.length <= VIDEO_PROMPT_MAX) return { plot: plot + voiceLine, dropped: false };
-  return { plot, dropped: true };
+function withLineTails(
+  plot: string,
+  voiceLine: string,
+  subLine: string,
+  cap: number,
+): { plot: string; voiceDropped: boolean; subDropped: boolean } {
+  // 音色点名句先接（它丢了是音色随机），「别出字幕」那句后接（它丢了只是可能多一行字幕）；各自接得下才接
+  let out = plot;
+  let voiceDropped = false;
+  let subDropped = false;
+  if (voiceLine) {
+    if (out.length + voiceLine.length <= cap) out += voiceLine;
+    else voiceDropped = true;
+  }
+  if (subLine) {
+    if (out.length + subLine.length <= cap) out += subLine;
+    else subDropped = true;
+  }
+  return { plot: out, voiceDropped, subDropped };
 }
 
 export async function generateSegment(
@@ -522,7 +1501,39 @@ export async function generateSegment(
   onProgress?: SegmentProgress,
   onTask?: SegmentTaskAccepted,
 ): Promise<SegmentGenResult> {
+  // 分镜表（N2）：空镜头拿掉、编号重排之后再往下走（没分镜的句子逐字节原样，data/shotScript.packShots）
+  input = { ...input, plot: packShots(input.plot) };
   const prog = (s: string) => onProgress?.(s);
+
+  // ── 电影级「样片」第二步：把样片升成 1080p（2026-10-07）──────────────────────
+  // 请求只带样片任务号（arkClient 拼最小形状）；上面那些输入一律不看 —— 画面、动作、声音都照样片，方舟规定重传一个就报错。
+  // 放在最前面：后面每一条支路都会去准备帧 / 参考图 / 声音，有的还要花钱（补画），定稿一样都用不上。
+  const dm = input.draftMode;
+  if (dm && typeof dm === "object") {
+    const fin = dm.finalOf;
+    if (!fin.taskId) throw new Error(t`这一段没有样片的任务号，定不了稿——重新出一次样片再定稿`);
+    const finSec = fin.durationSec;
+    prog(t`把样片升成 1080p 成片（${finSec} 秒，画面、动作、声音都照样片）…`);
+    {
+      const cl = contractLine({ quoted: input.quotedTokens, mode: "draftFinal", durationSec: finSec, tierId: input.videoTier, images: 0, ratio: fin.ratio });
+      if (cl) prog(cl);
+    }
+    const [res] = await composeSegments(
+      // 定稿不带提示词（样片沿用），上限只是契约上的一格
+      [{ mode: "draftFinal", plot: "", promptCap: { max: promptCapOf({ videoTier: input.videoTier, edit: false, textTpl: null }), strict: false }, firstFrame: "", lastFrame: "", durationSec: finSec, videoTier: input.videoTier, aspect: input.aspect, draftTaskId: fin.taskId }],
+      (_d, _t, status) => prog(status),
+      // ★ 受理回调**必须给**（同另外几条支路）：没有凭据，「没接到结果」这一支就等于不存在
+      (taskId) => onTask?.(taskId),
+    );
+    settleSegment(res, 0, null); // 定稿一张画面都不画
+    return { url: res?.url, firstFrame: "", lastFrame: res?.lastFrame || "", poster: res?.poster, realDurationSec: res?.durationSec };
+  }
+  // 样片第一步只走普通出片那条路（理由见 draftMode 的 ★）。界面那几道闸（nodeDraftEligible）已经按同一个口径拦过，这里是最后一道
+  // 「这套请求有没有样片」与 flowStore.nodeDraftEligible 同一个答案（样片只在方舟协议里）；apiCase 让新协议在这里也得表态
+  //   MiniMax H3（V2）也没有样片两步（draftOk 为假，界面那几道闸本来就摆不出来）
+  if (dm === "draft" && (input.refVideoUrl || input.extendRef || input.materialRef || apiCase(tierOf(input.videoTier).api, { ark: false, "minimax-v1": true, "minimax-v2": true }))) {
+    throw new Error(t`这一段的做法走不了样片（样片不收参考视频，也不走真人档）——关掉「先出样片」再生成`);
+  }
   let first = input.firstFrame;
   let last = input.lastFrame;
   /** 这一段一路攒下的「顺带说一句」。**声明必须在最顶上**：素材参考那条支路在中途就 return，
@@ -531,6 +1542,26 @@ export async function generateSegment(
   /** 进度行的尾巴。★ 不能单独 prog：同一个同步块里的下一行 prog 会立刻把它盖掉
    *  （连法与括号走共用的 ai.notesInParens：铸卡 / 重画 / 改图那几处是同一份，别再各写一遍） */
   const noteTail = () => notesInParens(notes);
+  /**
+   * 文字模板段（SegmentGenInput.textTpl）。白模 / 返修那一支发的不是模板正文（返修的正文是作者的改法），按普通段算 ——
+   * genNode 在返修 / 延长 / 定稿上本来就传 null，这里再兜一次：「文字模板段不截字」那条闸不该拦在一发返修上。
+   */
+  const textTpl = input.refVideoUrl ? null : input.textTpl;
+  /**
+   * 这一段的临时参考图里有**图位的图**（有图位的文字模板段）。「图位的图发不出去就不出片」那两道闸只认它，不认 textTpl 本身：
+   * 零图位的文字模板段上，人自己加的临时参考图与普通段一样只是锦上添花，发不出去就说一句、照常出片（2026-10-26 审核抓到：
+   * 原来只判 textTpl，零图位的段传不上去被说成「图位的图没能传上去」，不走参考类请求时被整句拒、原因还说成「带不上图位的图」）。
+   */
+  const tplSlotsOn = !!textTpl && textTpl.slotNames.length > 0;
+  /** 这一段挂的临时参考图（N1）：带哪几张、最多几张只问 segmentExtras（参考清单与报价读的是同一个） */
+  const extrasIn = segmentExtras(input);
+  const cardTargets = (input.materials ?? []).map((c) => ({ id: c.id, name: c.name }));
+  /** 写了 `@` 却没对上的要说出来：发出去时它们只是普通文字，不说的话人以为点上了 */
+  const noteLoose = (loose: string[]) => {
+    if (!loose.length) return;
+    const names = [...new Set(loose)].map((x) => `@${x}`).join(" ");
+    notes.push(t`${names} 没对上这一段的任何参考，按普通文字发出`);
+  };
 
   // ★ 白模门禁放在最前（步骤①之前）：圈选改帧那一步要花真钱出图，走进去再拒就白烧了。
   //   走不成一律 throw 整句原因（绝不降级——理由钉在 blockoutIssue 的 ★ 上），
@@ -542,13 +1573,114 @@ export async function generateSegment(
     if (issue) throw new Error(issue);
   }
 
+  // ── 延长（「修这一段 · 延长」，extend 子任务）────────────────────────────
+  // 被延长那一段的成片当参考视频（视频1），挂的人物卡照样发形象图锁长相（直通分配，与参考图直出同一套规矩）；一张帧都不带（互斥）。
+  // 产物只有新的一截，所以它就是流水线上新的一段：剪辑页按顺序拼起来就接上了。
+  if (input.extendRef) {
+    const refTier = tierOf(input.videoTier);
+    if (!refTier.refVid || refTier.r2vMult === null || !refTier.extendOk) {
+      const tierLabel = refTier.label;
+      // 能延长的档按能力现算（extendOk），这个人一档都用不了时说那是会员档（account.tierGo）
+      const go = tierGo((x) => x.extendOk);
+      const names = go?.names ?? "";
+      const none = go ? "" : noTierLine("extend");
+      throw new Error(
+        !go
+          ? t`「${tierLabel}」档还不能延长——${none}`
+          : go.member
+          ? t`「${tierLabel}」档还不能延长——能延长的「${names}」是会员档（开通会员套餐或充值过任意一笔后可用）`
+          : t`「${tierLabel}」档还不能延长——去 ⚙ 本段设置换成「${names}」档`,
+      );
+    }
+    if (input.anns.length) throw new Error(t`延长段没有设定帧可圈选——先清掉圈选标注，想改画面就改那句话`);
+    const refs = await prepareMaterialRefs(input.materials, "video", (n) => notes.push(n), { cap: refTier.refImagesMax, strict: false });
+    // 绑定句前置（与参考图直出同一个紧凑式）；参考视频不占图片编号（arkClient 拼 content 那段 ★），所以 offset 是 0
+    const bindHead = refs.bindCompact(0).replace(/^。/, "");
+    const said = compileMentions(input.plot, mentionTargets({ cards: cardTargets, extras: [], frames: {} }));
+    noteLoose(said.loose);
+    const mats = materialText(input.materials, idsWithout(input.materials, refs.cards));
+    const voice = voiceRefsFor({ plot: input.plot, materials: input.materials, tier: refTier, referenceMode: true, blockout: false });
+    notes.push(...voice.notes);
+    /** 这一档的提示词上限（延长只在电影级上，500）：开头句与绑定句先留位，截的是正文（与别的路同一条纪律）。延长段不是文字模板段 */
+    const cap = promptCapOf({ videoTier: input.videoTier, edit: false, textTpl: null });
+    const head = `${bindHead}${EXTEND_HEAD}`;
+    const body = `${shotPrefix(input.shot)}${said.text}`;
+    const room = Math.max(0, cap - head.length - mats.length);
+    const over = body.length - room;
+    const headLen = head.length;
+    const cut = over > 0 ? t`（⚠ 要求太长，末尾 ${over} 字没能发出去——开头的延长句与形象点名句要占 ${headLen} 字）` : "";
+    const kept = body.slice(0, room);
+    const fitted = withLineTails(
+      `${head}${kept}${/[。！？!?.…]$/.test(kept) && mats.startsWith("。") ? mats.slice(1) : mats}`,
+      voice.voiceLine,
+      noSubtitleLine({ plot: input.plot, tier: refTier, blockout: false }),
+      cap,
+    );
+    if (fitted.voiceDropped) notes.push(t`音色点名句没能发出去（提示词已经写满）——台词仍会被配音，但音色随机；把要求写短些就能带上`);
+    if (fitted.subDropped) notes.push(t`「台词别显示成字幕」那句没能发出去（提示词已经写满）——成片里可能出现台词字幕；把要求写短些就能带上`);
+    // 「输入 N 秒」印的是**计价**的那个数（含方舟最低用量，economy.materialRefSecs —— 与报价同一处），抬高了就把原因记进 notes
+    const ms = materialRefSecs(input.extendRef.durationSec, input.durationSec, input.videoTier);
+    const minNote = minUsageNote(ms);
+    if (minNote) notes.push(minNote);
+    // ★ 两个秒数分开：inSec 是**计价**的输入秒数（含最低用量，只印在这句话里，占位符名不动 = msgid 不变）；
+    //   srcSec 是源片真实时长，contractLine / GenSpec.refVideoSec 都要它（报价在 materialRefCost 里自己套最低用量；refVideoSec
+    //   只定轮询死线）—— 10-19 复核抓到原来把计价秒数一并当成源片时长传下去，与素材参考那一支不一致
+    const inSec = ms.billedInSec;
+    const srcSec = input.extendRef.durationSec;
+    const outSec = clampDuration(input.durationSec, input.videoTier);
+    prog(t`接着上一段往后拍 ${outSec} 秒（输入 ${inSec}s + 输出 ${outSec}s 计价）…` + cut + noteTail());
+    {
+      const cl = contractLine({ quoted: input.quotedTokens, mode: "extend", durationSec: input.durationSec, tierId: input.videoTier, refVideoSec: srcSec, images: 0 });
+      if (cl) prog(cl);
+    }
+    const [res] = await composeSegments(
+      [
+        {
+          mode: "extend",
+          plot: fitted.plot,
+          promptCap: { max: cap, strict: false },
+          firstFrame: "",
+          lastFrame: "",
+          durationSec: input.durationSec,
+          videoTier: input.videoTier,
+          aspect: input.aspect,
+          refImages: refs.refs.length ? refs.refs : undefined,
+          refAudios: voice.refAudios,
+          refVideoUrl: input.extendRef.url,
+          refTask: "extend",
+          refVideoSec: srcSec,
+        },
+      ],
+      (_d, _t, status) => prog(status),
+      // ★ 受理回调**必须给**：不给就没有凭据，「没接到结果」这一支等于不存在
+      (taskId) => onTask?.(taskId),
+    );
+    settleSegment(res, 0, null); // 延长段一张画面都不画
+    return {
+      url: res?.url,
+      firstFrame: res?.firstFrame || "",
+      lastFrame: res?.lastFrame || "",
+      poster: res?.poster,
+      realDurationSec: res?.durationSec,
+    };
+  }
+
   // ── 素材参考（自定义 = 多图 + 参考视频，reference 子任务）──────────────
   // 首/中/尾帧作为 reference_image 发出去，时序由默认提示词点名（customRefPrompt）。
   // 与白模复刻是两种商品：这条输出时长用户选、画幅照传、计价 (输入+输出)×系数。
   if (input.materialRef) {
     const refTier = tierOf(input.videoTier);
     if (!refTier.refVid) {
-      throw new Error(t`「${refTier.label}」档不支持带参考视频出片——去 ⚙ 本段设置换成「电影级」档，或移除参考视频`);
+      const go = tierGo((x) => x.refVid);
+      const names = go?.names ?? "";
+      const none = go ? "" : noTierLine("refVid");
+      throw new Error(
+        !go
+          ? t`「${refTier.label}」档不支持带参考视频出片——${none}：移除参考视频再出片`
+          : go.member
+          ? t`「${refTier.label}」档不支持带参考视频出片——带得了的「${names}」是会员档；移除参考视频，或开通会员套餐（或充值过任意一笔）`
+          : t`「${refTier.label}」档不支持带参考视频出片——去 ⚙ 本段设置换成「${names}」档，或移除参考视频`,
+      );
     }
     if (input.anns.length) {
       throw new Error(t`带参考视频的自定义段暂不支持圈选改画面——清掉圈选标注再出片`);
@@ -557,19 +1689,34 @@ export async function generateSegment(
     const firstRef = input.carryFrame || input.firstFrame || "";
     const mids = input.materialRef.mids ?? [];
     const ordered = [firstRef, ...mids, input.lastFrame || ""].filter(Boolean);
+    // 临时参考图接在帧后面（编号顺延，时序点名句只数帧）；与帧同一个循环转存
+    const toSend = [...ordered, ...extrasIn.map((x) => x.url)];
     // ★ reference_image 只实测过 https（cardViews 那条 ★），用户帧是 dataURL ——
     //   逐张转存成公网地址再发。转存失败整句 throw（这一步不花钱，别带着坏图去花钱）。
     const refUrls: string[] = [];
-    for (let i = 0; i < ordered.length; i++) {
-      const u = ordered[i];
+    for (let i = 0; i < toSend.length; i++) {
+      const u = toSend[i];
       if (/^https?:\/\//i.test(u)) {
         refUrls.push(u);
         continue;
       }
-      prog(t`上传参考帧 ${i + 1}/${ordered.length}…`);
+      prog(t`上传参考帧 ${i + 1}/${toSend.length}…`);
       const blob = await (await fetch(u)).blob();
       refUrls.push(await uploadImage(blob, `custom-ref-${i + 1}.jpg`));
     }
+    // 句子里的 @点名 → 这一发的真实编号（帧 1..N，临时参考图接着数）；卡只换成卡名（这条路不发卡片的图）
+    const extraNums = extrasIn.map((x, i) => ({ id: x.id, name: x.name, role: x.role, n: ordered.length + i + 1 }));
+    const said = compileMentions(
+      input.plot,
+      mentionTargets({
+        cards: cardTargets,
+        extras: extraNums,
+        frames: { first: firstRef ? 1 : undefined, last: input.lastFrame ? ordered.length : undefined },
+      }),
+    );
+    noteLoose(said.loose);
+    // 没被点名的临时参考图由系统按用途补一句
+    const extraLines = extraRefLines(extraNums.filter((x) => !said.used.has(`extra:${x.id}`)));
     const roles = customRefPrompt({
       hasVideo: true,
       hasFirst: !!firstRef,
@@ -578,10 +1725,18 @@ export async function generateSegment(
       carried: !!input.carryFrame, // firstRef 就是 carryFrame || firstFrame（见上面那行）
     });
     // 点名句是这条路的**功能本体**，截断优先保它（与白模 tail 同一条纪律）
-    const mats = materialText(input.materials);
-    const tail = `${roles}${mats}`;
-    const room = Math.max(0, VIDEO_PROMPT_MAX - tail.length);
-    const plotOver = input.plot.length - room;
+    // 这条路发的是帧与参考视频，卡片的图一张都不发 ⇒ 每张卡都算"没收到图"（按模型适配：有文字版描述就用它）
+    const mats = materialText(input.materials, idsOf(input.materials));
+    // 三截各自以「。」开头、时序句又以「。」收尾：逐截去掉重复的那个句号（没有临时参考图时，素材设定直接接在时序句后面，原来会拼出「。。」）
+    // 去水印那句紧跟时序句（默认开，segmentGen.refMarkLine 一处判定；它与时序句一样是这条路的功能本体，截断优先保它）
+    const markLine = afterStop(roles, refMarkLine(input.materialRef));
+    const extraTail = afterStop(`${roles}${markLine}`, extraLines);
+    const tail = `${roles}${markLine}${extraTail}${afterStop(`${roles}${markLine}${extraTail}`, mats)}`;
+    if (markLine) notes.push(t`已要求不复刻示例视频里的水印 / 台标（提示词引导，不保证）`);
+    /** 这一档的提示词上限（promptCapOf：带得了示例视频的是高清 / 电影级，2.x 两档都是 500）。带示例视频的是「自定义」段，不是文字模板段 */
+    const cap = promptCapOf({ videoTier: input.videoTier, edit: false, textTpl: null });
+    const room = Math.max(0, cap - tail.length);
+    const plotOver = said.text.length - room;
     const cut = plotOver > 0 ? t`（⚠ 要求太长，末尾 ${plotOver} 字没能发出去——时序点名句要占 ${tail.length} 字）` : "";
     // ★★ 音色样本这条路**以前整条漏了**（§2.11.2②）：判断只长在经典路上，而这条支路在它
     //   之前就 return —— 用户挂了带 🔊 的卡、写了「」台词，拿回随机音色，屏幕上一个字没有。
@@ -595,11 +1750,25 @@ export async function generateSegment(
       blockout: false,
     });
     notes.push(...voice.notes);
-    const fitted = withVoiceLine(`${`${shotPrefix(input.shot)}${input.plot}`.slice(0, room)}${tail}`, voice.voiceLine);
-    if (fitted.dropped) notes.push(t`音色点名句没能发出去（提示词已经写满）——台词仍会被配音，但音色随机；把要求写短些就能带上`);
-    const inSec = input.materialRef.durationSec;
+    const fitted = withLineTails(
+      `${`${shotPrefix(input.shot)}${said.text}`.slice(0, room)}${tail}`,
+      voice.voiceLine,
+      noSubtitleLine({ plot: input.plot, tier: refTier, blockout: false }),
+      cap,
+    );
+    if (fitted.voiceDropped) notes.push(t`音色点名句没能发出去（提示词已经写满）——台词仍会被配音，但音色随机；把要求写短些就能带上`);
+    if (fitted.subDropped) notes.push(t`「台词别显示成字幕」那句没能发出去（提示词已经写满）——成片里可能出现台词字幕；把要求写短些就能带上`);
+    if (extrasIn.length) {
+      const extraCount = extrasIn.length;
+      notes.push(t`另带 ${extraCount} 张临时参考图`);
+    }
+    // 同延长那一支：印计价的输入秒数（含方舟最低用量），抬高了说原因
+    const ms = materialRefSecs(input.materialRef.durationSec, input.durationSec, input.videoTier);
+    const minNote = minUsageNote(ms);
+    if (minNote) notes.push(minNote);
+    const inSec = ms.billedInSec;
     const outSec = clampDuration(input.durationSec, input.videoTier);
-    prog(t`按参考视频 + ${refUrls.length} 张关键帧出片（输入 ${inSec}s + 输出 ${outSec}s 计价）…` + cut + noteTail());
+    prog(t`按参考视频 + ${ordered.length} 张关键帧出片（输入 ${inSec}s + 输出 ${outSec}s 计价）…` + cut + noteTail());
     {
       const cl = contractLine({ quoted: input.quotedTokens, mode: "reference", durationSec: input.durationSec, tierId: input.videoTier, refVideoSec: input.materialRef.durationSec, images: 0 });
       if (cl) prog(cl);
@@ -609,6 +1778,7 @@ export async function generateSegment(
         {
           mode: "reference",
           plot: fitted.plot,
+          promptCap: { max: cap, strict: false },
           firstFrame: "",
           lastFrame: "",
           durationSec: input.durationSec,
@@ -625,7 +1795,7 @@ export async function generateSegment(
       // ★ 受理回调**必须给**：不给就没有凭据，"没接到结果"这一支等于不存在
       (taskId) => onTask?.(taskId),
     );
-    settleSegment(res);
+    settleSegment(res, 0, null); // 素材参考：帧是用户给的，不画（上传不计费）
     return {
       url: res?.url,
       firstFrame: res?.firstFrame || firstRef || input.firstFrame,
@@ -635,28 +1805,53 @@ export async function generateSegment(
     };
   }
 
-  // ── 真人档（MiniMax，flatCost 计价）：帧来源整个不同，在这里备好再交 composeSegments ──
-  // 这条路**一张 Seedream 设定帧都不画**（报价侧 segmentCost 的 draws 同口径 = 0）：
+  // ── 真人档（MiniMax V1 海螺，只认一张起拍画面）：帧来源整个不同，在这里备好再交 composeSegments ──
+  // 这条路**一张 Seedream 设定帧都不画**（报价侧 segmentCost 的 draws 同口径 = 0，那边读 startOnly —— 与 api 一一对应，构建检查钉着）：
   // 首帧就是真人卡的照片（或用户设定帧/承接帧），提示词驱动它动起来 —— 三发探针
   // 验证过的 i2v 形态。出片调用的分流在 composeSegments（尾帧捕获/承接共用那条产线）。
-  if (providerOf(input.videoTier) === "minimax") {
-    if (blockout) throw new Error(t`白模模板出片只在方舟档（真人档没有 r2v 能力）——这一段换回「电影级」档，或换掉模板`);
+  // ★ 按请求形状（VideoTier.api）分流，不按供应商：海外 MiniMax H3（P2b，V2 接口）也是 MiniMax，却收参考图、走另一套请求。
+  //   apiCase 不写等号：加一种 api 时这里在 tsc 就红（等号比较会让它悄悄落进下面方舟那条路，按方舟补画设定帧、拼请求）
+  //   MiniMax H3（V2）不走这一支：帧与参考图照普通那条路备（补画规矩同 drawPlan；帧照样当参考图发，图位按它的 refImagesMax = 5 排），
+  //   请求按 V2 的 content[] 拼在 composeSegments 按 api 分；免费版在 H3 上只发文字（下面 textOnly 那一段）
+  if (apiCase(tierOf(input.videoTier).api, { ark: false, "minimax-v1": true, "minimax-v2": false })) {
+    if (blockout) {
+      // 跑得了白模模板的那一档只问 economy.blockoutTier（唯一实现），别写死「电影级」
+      const bt = blockoutTier()?.label ?? "";
+      throw new Error(t`白模模板出片只在方舟档（真人档没有 r2v 能力）——这一段换回「${bt}」档，或换掉模板`);
+    }
     if (input.anns.length) throw new Error(t`真人档暂不支持圈选改画面（改图引擎会拒收真人脸）——清掉圈选标注再出片`);
-    const firstSrc =
-      input.carryFrame ||
-      input.firstFrame ||
-      // 优先取声明过真人的卡（这一档存在的理由），再退任意有图的卡
-      (input.materials ?? [])
-        .filter((c) => c.realPerson === true)
-        .concat(input.materials ?? [])
-        .flatMap((c) => viewsOf(c))
-        .map((v) => v.url)
-        .find(Boolean);
+    // 文字模板段的图位靠参考图发、正文可能比 400 长：这一档两样都接不住。这里是出片那一拍的最后一道（一分没花）——
+    // 「按模板的档位名单先拦」的那道门禁（flowStore.textTplIssue，genNode 起手问）挡在更前面：模板的档位名单里没有真人档。
+    // 话对零图位的模板也得成立：别说成「图位的图要当参考图发」（零图位的模板没有图位）
+    if (textTpl) throw new Error(t`真人档跑不了文字模板段（这一档只认一张起拍画面、不收参考图）——换成模板能跑的那一档再出片`);
+    // 优先取声明过真人的卡（这一档存在的理由），再退任意有图的卡
+    const byReal = (input.materials ?? []).filter((c) => c.realPerson === true).concat(input.materials ?? []);
+    // 起拍画面从哪张卡来（唯一实现 startSourceOf：与本段设置里那句提示同一套判据）
+    const src = input.carryFrame || input.firstFrame ? null : startSourceOf(input.materials, input.aspect);
+    const firstSrc = input.carryFrame || input.firstFrame || src?.url || "";
     if (!firstSrc) {
+      // 有图、只是全被标成了「仅展示」：点名那张卡、指到能改的地方（别说成"没有照片"）
+      const shy = byReal.find((c) => viewsOf(c).length > 0);
+      if (shy) {
+        const name = shy.name;
+        throw new Error(t`「${name}」的图都标成了「仅展示」，真人档不会拿它们起拍——到卡片详情页把一张改成「出片用」，或自己传一张开头帧`);
+      }
       throw new Error(t`真人档需要一张起拍画面：挂一张带照片的真人卡，或自己传一张开头帧`);
     }
     const flatSec = clampDuration(input.durationSec, input.videoTier);
-    prog(t`真人档按发计价（${flatSec} 秒整档）· 以卡片照片起拍…`);
+    /** 真人档的提示词上限（promptCapOf：这一档不收参考图，400）。走到这里的一定不是文字模板段（上面那一行整句拒了） */
+    const mmCap = promptCapOf({ videoTier: input.videoTier, edit: false, textTpl: null });
+    // 这一档只认一张第一帧：临时参考图发不出去（说出来），句子里的 @点名退成名字
+    if (extrasIn.length) notes.push(t`真人档只认一张起拍画面，临时参考图这次没发出去`);
+    const said = compileMentions(
+      input.plot,
+      mentionTargets({ cards: cardTargets, extras: extrasIn.map((x) => ({ id: x.id, name: x.name, n: null })), frames: { first: null } }),
+    );
+    noteLoose(said.loose);
+    if (src?.fromStartFrame) {
+      const srcName = src.card.name;
+      prog(t`真人档按发计价（${flatSec} 秒整档）· 以「${srcName}」的起拍画面起拍…` + noteTail());
+    } else prog(t`真人档按发计价（${flatSec} 秒整档）· 以卡片照片起拍…` + noteTail());
     {
       const cl = contractLine({ quoted: input.quotedTokens, mode: "minimax", durationSec: input.durationSec, tierId: input.videoTier, images: 0 });
       if (cl) prog(cl);
@@ -665,7 +1860,9 @@ export async function generateSegment(
       [
         {
           mode: "minimax",
-          plot: `${shotPrefix(input.shot)}${input.plot}${materialText(input.materials)}`.slice(0, VIDEO_PROMPT_MAX),
+          // 海螺只认一张第一帧：除了起拍画面那张卡，别的卡都收不到图（按模型适配：有文字版描述就用它）
+          plot: `${shotPrefix(input.shot)}${said.text}${materialText(input.materials, idsWithout(input.materials, new Set(src ? [src.card.id] : [])))}`.slice(0, mmCap),
+          promptCap: { max: mmCap, strict: false },
           firstFrame: firstSrc,
           lastFrame: "",
           durationSec: input.durationSec,
@@ -683,8 +1880,22 @@ export async function generateSegment(
     //   节点打成 pending、屏幕上写「用下面的「取回」领回来」，而 rememberVideoJob 一次都没跑、
     //   取回卡一张不画，连能发给客服的任务号都看不到（比不改更坏）。零报错、类型也过 ——
     //   因为 composeSegments 的第三参当时是可选的。**现在它是必填的**，同样的漏法编译期就红。
-    settleSegment(res);
+    settleSegment(res, 0, null); // 真人档一张设定帧都不画
     return { url: res?.url, firstFrame: firstSrc, lastFrame: res?.lastFrame || firstSrc, poster: res?.poster, realDurationSec: res?.durationSec };
+  }
+
+  // ── 文字模板段：两道闸都排在花任何一分钱之前（圈选改帧、补画都要花钱）──
+  if (textTpl) {
+    // ① 图位补齐了没有（refMentions.slotGaps，2026-10-26 审核抓到）：缺一个都不发。不拦的话 —— 一张都没挂时 hasSendableRefs 为假、
+    //   有图位的段又一张帧都不画（drawPlan 规矩 ③），这一发就按 t2v 发出纯文字请求，正文里的 @名字 退成普通文字，视频钱照扣；
+    //   只补了 3/4 张时第 4 个图位同样静默落空。这里是出片那一拍的最后一道防线；出片前的门禁（flowStore.textTplIssue，genNode 起手）问的是同一个 slotGaps。
+    const gaps = slotGaps(textTpl.slotNames, extrasIn);
+    if (gaps.length) throw new SegmentGenFailed(textTplGapsError(gaps), 0, "video", null);
+    // ② 正文放不放得下，先按计划量一次：用的是 promptRoomOf（作者那一屏的逐档表、生成键旁「还要删 N 字」问的同一个函数）。
+    //   放不下就整句拒：正文是这个模板的商品本身，从尾巴截掉一截就是另一件商品（普通段的老做法是截了说一句、照收钱）。
+    //   卡图真准备好之后（补画之前）还会按真的那批再量一次 —— 卡图读不出来时那张卡改拼文字描述，可能比计划长（见 promptRoomOf 的 ⚠）。
+    const room = promptRoomOf(input);
+    if (room && room.over > 0) throw new SegmentGenFailed(textTplTooLong(room), 0, "video", null);
   }
 
   // ① 圈选 → 改设定帧。同一帧的多条标注串行叠加（上一次的产物当下一次的底图），
@@ -693,10 +1904,22 @@ export async function generateSegment(
   //   再塞两张卡面进去，模型首先要猜红线画在哪张图上。而形象一致这件事这里本来就有
   //   保障——被改的这张帧当初就是带着卡的参考图画出来的，改图只动圈里那一处。
   //   （方案卡上那个"按要求改这一帧"没有红线，所以那条路是带参考图的，见 studioStore）
+  // ── 只能纯文字出片（免费版在 MiniMax H3 上；判据只在 account.tierTextOnly —— refSlotsOf、报价 flowStore.nodeCost 读的同一个）──
+  // 视频那一发带任何一张图服务端都拒（403 PLAN_REQUIRED + freeTextOnly，扣视频费之前），而出片前圈选改 / 补画的帧那时已经各自结算过 ——
+  // 所以在**花钱之前**把图摘干净：不改帧、不补画、不承接上一段的结尾、不带卡片形象图与临时参考图（refSlotsOf 一张都不排），只发文字
+  // （卡片按出片句参与，圈选的要求照样写进提示词）。摘掉了东西就说一句（account.textOnlyRefsLine，参考清单在出片之前说的是同一句）。
+  const textOnly = tierTextOnly(tierOf(input.videoTier));
+  if (textOnly) {
+    const hadImages =
+      !!(first || last || input.carryFrame || input.anns.length || extrasIn.length) || !!input.materials?.some((c) => viewsOf(c).some(feedsModel));
+    if (hadImages) notes.push(textOnlyRefsLine());
+    first = "";
+    last = "";
+  }
   const half = input.durationSec / 2;
-  /** 真会重画的那几条（承接段的前半段圈选不重画——判据与报价同一处，见 redrawnAnns 的 ★★）*/
-  const redrawn = redrawnAnns(input.anns, input.durationSec, !!input.carryFrame);
-  const skippedAnns = input.anns.length - redrawn.length;
+  /** 真会重画的那几条（承接段的前半段圈选不重画——判据与报价同一处，见 redrawnAnns 的 ★★；只能纯文字出片的一条都不重画，报价同样不算） */
+  const redrawn = textOnly ? [] : redrawnAnns(input.anns, input.durationSec, !!input.carryFrame);
+  const skippedAnns = textOnly ? 0 : input.anns.length - redrawn.length;
   if (skippedAnns > 0) {
     // ★ 少收了钱也要说：用户圈了却看不到画面变化，不说的话他只会以为"圈选坏了"。
     //   文字要求仍然随 reqs 发出去，所以这句话要把"没白圈"讲清楚（铁律八）。
@@ -704,28 +1927,56 @@ export async function generateSegment(
       t`本段承接上一段的结尾画面，开头画面不重画——你圈在前半段的 ${skippedAnns} 处只作为文字要求写进出片提示词（这几处不计费）`,
     );
   }
+  /** 视频那一发之前**已经结算**的出图张数（画成了才 +1：失败的那一张钱扣没扣由 ai/failCharge 按类型说） */
+  let imagesSettled = 0;
+  /** 这一次新补画好的设定帧（arkClient.KeptFrames）：后面任何一步失败都随错误交给 genNode 留在方案上 */
+  const kept: KeptFrames = {};
+  const keptOrNull = (): KeptFrames | null => (kept.first || kept.last ? { ...kept } : null);
+  /**
+   * 出片之前的一次出图（圈选改帧 / 补画设定帧）。失败时包成 SegmentGenFailed（failedCall: "image"）带上已经结算的张数与已经画好的帧
+   * （2026-10-07 评审抓到：原来这几发的失败原样往上抛，钱上那句话只说「这一张」—— 同一次里已经画好、已经结算的几张一个字不提，
+   * 画好的帧也跟着丢了，重试再画一遍、再收一遍）
+   */
+  async function imageStep(run: () => Promise<string>): Promise<string> {
+    try {
+      const url = await run();
+      imagesSettled++;
+      return url;
+    } catch (e) {
+      throw new SegmentGenFailed(e, imagesSettled, "image", keptOrNull());
+    }
+  }
   for (let k = 0; k < redrawn.length; k++) {
     const a = redrawn[k];
     prog(t`按圈选改画面 ${k + 1}/${redrawn.length}…`);
-    const edited = await refineFrame(
-      // i18n-ignore-next-line: 圈选改图的指令，发给出图模型
-      `${a.req}。参考图中红色圈线标注了目标物体：只对该物体做上述处理，并彻底去掉红色圈线本身`,
-      a.frame,
-      input.aspect,
-    );
+    const edited = await imageStep(() => refineFrame(`${a.req}${ANN_CLAUSE}`, a.frame, input.aspect));
     if (a.atSec < half) first = edited;
     else last = edited;
   }
 
-  // ② 承接上一段真实结尾
-  if (input.carryFrame) first = input.carryFrame;
+  // ② 承接上一段真实结尾（只能纯文字出片时不承接：那张帧发不出去，见上）
+  if (input.carryFrame && !textOnly) first = input.carryFrame;
 
   // ③ 参考生视频，或补画缺失的设定帧
   const tier = tierOf(input.videoTier);
-  const mats = materialText(input.materials);
   // ★ 判定用的是**顶替过承接帧之后**的 first：段间承接一旦成立就必须走首尾帧
   //   （方舟三种场景互斥），这一步的顺序不能反（refVideoOn 的条件④）
-  let refMode = refVideoOn({ ...input, firstFrame: first });
+  // ★ 判定只有 refSlotsOf 一处（参考清单预览读的是同一份）：下面几个局部量都从它拿
+  const slots = refSlotsOf({
+    videoTier: input.videoTier,
+    materials: input.materials,
+    first,
+    last,
+    anns: input.anns,
+    refAllowed: input.refAllowed,
+    refVideoUrl: input.refVideoUrl,
+    revise: input.revise,
+    extras: extrasIn.length,
+    noDraw: input.noDraw,
+    multiShot: isMultiShot(input.plot),
+    textTpl,
+  });
+  let refMode = slots.refMode;
   /**
    * **帧不再走 first_frame/last_frame 参数，改当 reference_image 发 + 提示词点名**
    * （2026-08-30 主人点名：“app 里不要有单纯的首尾帧生成视频”）。
@@ -741,18 +1992,26 @@ export async function generateSegment(
    *   它们仍然只能走首尾帧 —— 要真的全 app 没有首尾帧出片，得把那两档下线。
    */
   // ★ 判据走 carryIsHard 一处（文案那几屏读的是同一个函数，见它的 ★）
-  const framesAsRefs = !blockout && !refMode && !carryIsHard(input.videoTier);
+  const framesAsRefs = slots.framesAsRefs;
   /** 用户的意图是"直接拿卡片形象出片"（refAllowed + 挂了卡 + 没有帧可用）。
    *  白模段除外：它的意图是"复刻模板"，对它播"改画设定帧"那句就是宣布降级——
    *  而白模走不成早在门口 throw 了，能到这里的白模段不该收到这句话 */
   const wantRef = !blockout && !!input.refAllowed && !!input.materials?.length && !first && !input.anns.length;
   // 想走却走不成，**一律说出原因**：悄悄退回"按文字画一张设定帧"的代价是用户以为
   // 卡片形象被直接采用了，实际拿到的是一张重画的图，还多花一张出图的钱（铁律八）
-  if (wantRef && !refMode) {
+  // （只能纯文字出片时这句不说：那一段一张帧都不画，摘图那一句上面已经说过了）
+  if (wantRef && !refMode && !textOnly) {
     prog(
       tier.refImg
         ? t`素材卡上没有可用的形象参考图，改为先按描述画一张设定帧再出片（多花约一张出图的钱）`
-        : t`「${tier.label}」档不支持参考图，改为先按描述画一张设定帧再出片（想直接用卡片形象请选「高清」或「电影级」）`,
+        : (() => {
+            const go = tierGo((x) => x.refImg);
+            if (!go) return t`「${tier.label}」档不支持参考图，改为先按描述画一张设定帧再出片`;
+            const names = go.names;
+            return go.member
+              ? t`「${tier.label}」档不支持参考图，改为先按描述画一张设定帧再出片（直接用卡片形象要「${names}」，会员档）`
+              : t`「${tier.label}」档不支持参考图，改为先按描述画一张设定帧再出片（想直接用卡片形象请选「${names}」）`;
+          })(),
     );
   }
   // 素材卡的形象参考图，两种用法**互斥**（方舟文档：图生视频-首帧、图生视频-首尾帧、
@@ -765,9 +2024,7 @@ export async function generateSegment(
   //   React 连画都没画过它 —— 等于这句话没说过。挂在开画那一行后面才看得见（铁律八）。
   // ★ 白模一张设定帧都不画：画面整个来自模板视频（报价侧 economy.segmentCost 的
   //   refVideo 位同一口径——报了"不画帧"的价就真不能画）
-  const needDraw = !blockout && (!first || (!last && tier.flf));
-  /** 帧当参考图发时它们要占掉的图位数（首帧恒有；尾帧只有支持首尾帧的档才画） */
-  const frameSlots = framesAsRefs ? (tier.flf ? 2 : 1) : 0;
+  //   （要不要画帧 = slots.needDraw：它只决定下面准备卡片图时按哪套分配，判定在 refSlotsOf 里）
   // 白模也要形象图（混发：视频给画面与运镜，形象图说"换成谁"），所以 blockout 也准备
   // ★ 白模路传 true（直通 + 严格闸）：它一张设定帧都不画，参考图直接进 Seedance r2v，
   //   而 r2v 带多张人物参考图是实测成立的（2026-08-15 G0：3 张卡各自换到对应编号的
@@ -785,28 +2042,11 @@ export async function generateSegment(
   //   本来就是空的，画帧那侧拿不到多主体图，两头都不冲突。
   // ★ framesAsRefs 也要备图：帧改当参考图发之后，卡片形象**可以与帧同发**了 ——
   //   此前“帧齐了就不准备”是因为那条路发不出去（互斥），现在不成立了。
-  //   分配口径：要画设定帧时继续用 Seedream 那套启发式（一张图只画一个角色）；
-  //   帧已在手时走直通分配（按档位协议上限，与 refMode 同口径）。
-  const refs =
-    blockout || refMode || needDraw || framesAsRefs
-      ? await prepareMaterialRefs(
-          input.materials,
-          "video",
-          (n) => notes.push(n),
-          blockout
-            ? input.revise
-              ? // 返修：有卡就发（锁住形象），没卡也能走——改的是画面不是换人
-                { cap: tier.refImagesMax ?? ARK_REF_IMAGES_MAX, strict: false }
-              : true
-            : refMode || (framesAsRefs && !needDraw)
-              ? // ★★ 帧要占掉前几个图位，所以**准备时就把预算扣掉**，而不是发之前截 ——
-                //   bindCompact 是按 refs 全量编号的（`张三=@图片5`），发之前截掉两张就会
-                //   点名到根本没发出去的编号上：模型按"图片5"去找一张不存在的图，
-                //   那个角色的形象于是由它自己编，而全程零报错。
-                { cap: Math.max(1, (tier.refImagesMax ?? ARK_REF_IMAGES_MAX) - frameSlots), strict: false }
-              : false,
-        )
-      : null;
+  //   分配口径：帧当参考图发的段一律走直通分配（按档位协议上限，与 refMode 同口径）——不管帧是现成的还是出片前现画
+  //   （2026-10-03 改：此前现画帧时沿用 Seedream 那套「只喂第一个人物」，视频请求也就只带了一个人的图）。
+  //   画帧要的那一份另备（下面的 drawRefs），仍按出图模型的规矩来。
+  // ★ 帧与临时参考图占掉的图位在这一步就从预算里扣（refSlotsOf 的 direct；理由见它那段 ★★）
+  const refs = slots.prepare ? await prepareMaterialRefs(input.materials, "video", (n) => notes.push(n), slots.direct) : null;
   // ── 台词音色（卡片系统 V2 阶段 2）────────────────────────────
   // 样本只在 reference 类请求上发（点名句单独 append、不与正文抢配额——见 withVoiceLine 的 ★）。
   // ★ 判断走**唯一实现** voiceRefsFor：素材参考那条支路调的是同一个
@@ -821,8 +2061,6 @@ export async function generateSegment(
   });
   const refAudios = voice.refAudios;
   notes.push(...voice.notes);
-  // 没有承接帧/底图时素材卡的图就是 <图片1> 起，offset = 0
-  const bind = refs ? refs.bind(0) : "";
   const refUrls = refs?.refs.length ? refs.refs : undefined;
   /**
    * **画帧**要的是另一份参考图（2026-09-01 复核抓到）。
@@ -837,20 +2075,24 @@ export async function generateSegment(
    *   各自 bind —— 这也是为什么 `prepareMaterialRefs` 的 target 是必填的。
    * ★ 懒准备：只有真要画帧那条路（!blockout && !refMode）才多跑这一趟；白模/参考生视频
    *   一步都不多走。notes 去重，免得同一条提示在进度里出现两遍。
+   * ★ 按**这一刻里有谁**备（momentCards，2026-10-04）：开头画面与结束画面点到的人可能不同，按挂的卡的组合各备一份。
    */
-  let drawRefsCache: Awaited<ReturnType<typeof prepareMaterialRefs>> | null = null;
-  const drawRefs = async () => {
-    if (!drawRefsCache) {
-      drawRefsCache = await prepareMaterialRefs(input.materials, "image", (nt) => {
+  const drawRefsCache = new Map<string, Awaited<ReturnType<typeof prepareMaterialRefs>>>();
+  const drawRefs = async (mats: Card[] | undefined) => {
+    const key = (mats ?? []).map((c) => c.id).join("|");
+    let r = drawRefsCache.get(key);
+    if (!r) {
+      r = await prepareMaterialRefs(mats, "image", (nt) => {
         if (!notes.includes(nt)) notes.push(nt);
       });
+      drawRefsCache.set(key, r);
     }
-    return drawRefsCache;
+    return r;
   };
   // ★ 白模：形象图一张都没准备成（图裂了/跨域读不出来）→ **整句失败，不降级**。
   //   refImg 那条能退回首尾帧（拍的还是这段剧情），白模退无可退：没有形象图的 r2v
-  //   任务要么被方舟拒、要么受理后拍出一段没换主体的复刻片——受理后失败不退费，
-  //   替用户把这笔钱按住的唯一办法就是在这里响亮地停下（铁律八）。
+  //   任务要么被方舟拒、要么受理后拍出一段没换主体的复刻片——后者是**出成了**的片子（方舟照收钱，
+  //   失败退款管不到它），替用户把这笔钱按住的唯一办法就是在这里响亮地停下（铁律八）。
   // ★ 返修不在此列（2026-09-18，2.46 发版前复核抓到）：它改的是画面不是换人 —— blockoutIssue 与上面
   //   prepareMaterialRefs 的 strict:false 都已经给它开了「没卡也能走」的口子，唯独这道闸漏了，
   //   于是没挂卡的段（电影级经典段 / 自定义段）点返修必被这句拒，而返修框上的键是亮的。
@@ -859,8 +2101,11 @@ export async function generateSegment(
   }
   // ★ 走到这一步才发现一张参考图都没准备成（图裂了/跨域读不出来）：**退回首尾帧模式**
   //   而不是发一个没有参考图的"参考生视频"任务——那个任务方舟会拒，或者更糟：受理了
-  //   然后拍出一段与卡片毫无关系的片子，钱照扣（受理后失败不退）。
-  if (refMode && !refUrls) {
+  //   然后拍出一段与卡片毫无关系的片子 —— 那是出成了的片，钱照扣（失败退款只管上游明说失败的那种）。
+  // ★ 「一张都没准备成」问的是 drawPlan.hasSendableRefs（报价那一侧 refVideoOn 读的同一个）：临时参考图也算可发的图（2026-10-26 审核抓到）——
+  //   原来只看卡图，只挂临时参考图、不挂卡的段（文字模板段的常态）在这里被翻成「补画两张」，临时参考图也跟着不发了，
+  //   而报价是按「不画帧」报的。卡图读不出来、临时图还在时照样走参考生视频（只发临时图）。
+  if (refMode && !hasSendableRefs({ cardImages: refUrls?.length ?? 0, extras: extrasIn.length })) {
     refMode = false;
     prog(t`素材卡的形象参考图一张都没能用上，改为先按描述画一张设定帧再出片（多花约一张出图的钱）`);
   }
@@ -868,28 +2113,95 @@ export async function generateSegment(
   // 但空≠要补——它的画面在模板视频里
   /** 这一发真画了几张设定帧（对账用：报价那边按 hasFirst / hasLast 数的就是这个） */
   let drawn = 0;
-  if (!blockout && !refMode && !first) {
-    const dr = await drawRefs();
-    drawn++;
-    prog(t`绘制起拍画面…` + noteTail());
-    first = await generateCover(
-      `${input.framePrompt || input.plot.slice(0, 200)}${mats}${dr.bind(0)}`,
-      undefined,
-      input.aspect,
-      dr.refs.length ? dr.refs : undefined,
-    );
+  /** 画帧用的句子与要带的临时参考图：规则在 data/refMentions（plainMentions / drawExtraRefs），所有画帧的路共用 */
+  const drawPlot = plainMentions(input.plot, cardTargets, extrasIn);
+  const drawExtras = (which: "first" | "last", offset: number) => drawExtraRefs(extrasIn, which, offset);
+  // ★ 补画哪几张只问 data/drawPlan（报价 economy.segmentCost 与参考清单读的是同一个函数）：不补画帧的段缺的不补、
+  //   多镜头的段不画结束画面。用的是**降级之后**的 refMode（上面那句「卡片图一张都没能用上」会把它翻成 false）——
+  //   那时一张帧都没有、也没有可当参考的图，drawPlan 会照常补画，与那句话说的一致。
+  const draw = blockout
+    ? { first: false, last: false }
+    : framesToDraw({
+        tier: { flf: tier.flf, startOnly: tier.startOnly, textOnly },
+        hasFirstFrame: !!first,
+        hasLastFrame: !!last,
+        refMode,
+        noDraw: input.noDraw,
+        multiShot: isMultiShot(input.plot),
+        // 文字模板段：有图位一张帧都不画、零图位只补开头一张（drawPlan.textTplDraw；refSlotsOf 与报价展开的同一个）
+        ...textTplDraw(textTpl ? textTpl.slotNames.length : null),
+      });
+  // ── 拼提示词的共用那半（唯一拼法在 mainPrompt）：下面「补画之前先量一次」与真拼那一次喂的是同一份，只差帧与临时参考图这一发真发出去了几张 ──
+  /** 白模有两条**互斥**的路，判据是这个模板有没有角色位（**存在性**，见 SegmentGenInput.roles 的 ★★）：有 = V2，正文里已经是点名映射 */
+  const named = blockout && !!input.roles?.length;
+  /** 这一发的提示词上限（promptCapOf：2.x 两档 500、其余 400；文字模板段在收长提示词的档上 1000；白模复刻段与返修仍按 400） */
+  const cap = promptCapOf({ videoTier: input.videoTier, edit: blockout, textTpl });
+  const promptWith = (sent: { frameRefs: number; hasFirst: boolean; hasLast: boolean; extrasSent: number }) =>
+    mainPrompt({
+      plot: input.plot,
+      shot: input.shot,
+      anns: input.anns,
+      materials: input.materials,
+      blockout,
+      named,
+      revise: !!input.revise,
+      refMode,
+      ...sent,
+      // 承接成立时 first 已被上一段真实尾帧顶替（见上面那行 ②）
+      carried: !!input.carryFrame,
+      extras: extrasIn,
+      // 没有承接帧 / 底图时素材卡的图就是 <图片1> 起；offset 由 mainPrompt 按帧与临时参考图现数
+      cards: refs ? { bindCompact: refs.bindCompact, cards: refs.cards, count: refs.refs.length } : null,
+      cap,
+    });
+  // ★ 文字模板段：卡图真准备好了（refs 是真读出来的那批），**补画之前**按它再量一次（2026-10-26 审核抓到）——
+  //   开头那道按计划量的闸（promptRoomOf）不是「偏保守」：某张卡的图真读不出来时，那张卡从「发了图的卡」里掉出去，
+  //   materialText 改给它拼文字版形象描述（最多 TEXT_DESC_MAX 字），绑定句短了、素材设定却可能更长。原来第二次量排在补画、上传帧之后，
+  //   零图位的段挂了卡、其中一张图坏掉时，开头那张帧先按张收了钱才整句拒。现在这一次排在任何补画之前（这时还一分没花在补画上）。
+  //   帧按「手上有的 + 马上要补画的」算（framesAsRefs 时它们会当参考图发），临时参考图按「这一发是参考类请求就发」算 —— 与下面真拼时的成功路径同一个样子。
+  if (textTpl) {
+    const willFirst = !!first || draw.first;
+    const willLast = !!last || draw.last;
+    const willFrameRefs = framesAsRefs ? Number(willFirst) + Number(willLast) : 0;
+    const pre = promptWith({ frameRefs: willFrameRefs, hasFirst: willFirst, hasLast: willLast, extrasSent: refMode || willFrameRefs > 0 ? Math.min(extrasIn.length, slots.extrasOn) : 0 });
+    if (pre.over > 0) throw new SegmentGenFailed(textTplTooLong(pre), imagesSettled, "video", keptOrNull());
   }
-  if (!blockout && !refMode && !last && tier.flf) {
-    const dr = await drawRefs();
-    drawn++;
-    prog(t`绘制结束画面…` + noteTail());
-    last = await generateCover(
-      // i18n-ignore-next-line: 画结束画面的出图提示词，发给模型
-      `${input.plot.slice(0, 180)} 的结束瞬间${mats}${dr.bind(0)}`,
-      undefined,
-      input.aspect,
-      dr.refs.length ? dr.refs : undefined,
-    );
+  // ★ 一张帧只画一个瞬间（shotScript.frameMoment）：分了镜的段，开头画面取第一个镜头、结束画面取最后一个，引号里的台词摘掉。
+  //   外壳走 generateFrame 不走封面那层（2026-10-03 第二次付费验证：结束画面被画成三格分镜图、格子里写着台词）
+  // ★ 这一刻里有谁就只带谁的卡（momentCards，2026-10-04）：结束画面「特写，夜川…」只带夜川，
+  //   不再把排在第一位的小枫连图带文字一起塞进去（第三次付费验证：她被拉进了夜川的特写）
+  // 准备参考图（drawRefs）也包在 imageStep 里：它失败时前面画好的那一张照样要留下（它自己不花钱，所以不计张数）
+  if (draw.first) {
+    first = await imageStep(async () => {
+      const moment = input.framePrompt || frameMoment(drawPlot, "first");
+      const mats = momentCards(input.materials, moment);
+      const dr = await drawRefs(mats);
+      const ex = drawExtras("first", dr.refs.length);
+      drawn++;
+      prog(t`绘制起拍画面…` + noteTail());
+      return generateFrame(
+        // 画帧只画得进分到图的那几张卡（经典路分配）；其余的有文字版形象描述就用它（按模型适配）
+        `${input.framePrompt || moment.slice(0, 200)}${materialText(mats, idsWithout(mats, dr.cards))}${dr.bind(0)}${ex.line}`,
+        { aspect: input.aspect, refs: dr.refs.length + ex.urls.length ? [...dr.refs, ...ex.urls] : undefined },
+      );
+    });
+    kept.first = first;
+  }
+  if (draw.last) {
+    last = await imageStep(async () => {
+      const moment = frameMoment(drawPlot, "last");
+      const mats = momentCards(input.materials, moment);
+      const dr = await drawRefs(mats);
+      const ex = drawExtras("last", dr.refs.length);
+      drawn++;
+      prog(t`绘制结束画面…` + noteTail());
+      return generateFrame(
+        // i18n-ignore-next-line: 画结束画面的出图提示词，发给模型
+        `${moment.slice(0, 180)} 的结束瞬间${materialText(mats, idsWithout(mats, dr.cards))}${dr.bind(0)}${ex.line}`,
+        { aspect: input.aspect, refs: dr.refs.length + ex.urls.length ? [...dr.refs, ...ex.urls] : undefined },
+      );
+    });
+    kept.last = last;
   }
 
   // ── 帧 → 参考图（framesAsRefs 的落地）────────────────────────────
@@ -919,115 +2231,147 @@ export async function generateSegment(
     }
   }
   const sendFrameRefs = frameRefs.length > 0;
-  /** 帧当参考图时的时序点名句：图片1=第一帧、图片N=最后一帧（软引导，见 customRefPrompt 的 ⚠） */
-  const frameRoles = sendFrameRefs
-    ? customRefPrompt({
-        hasFirst: !!first,
-        midCount: 0,
-        hasLast: !!last && frameRefs.length > 1,
-        carried: !!input.carryFrame, // 承接成立时 first 已被上一段真实尾帧顶替（见上面那行 ②）
-      })
-    : "";
+  // ── 临时参考图 → 公网地址（N1）────────────────────────────────
+  // 只在「参考」类请求上发得出去（参考卡片直出 / 帧当参考图）；转存失败只丢它们自己，不连累帧与卡。
+  let extraUrls: string[] = [];
+  /**
+   * 这一发带得出去的那几张（refSlotsOf.extrasOn：帧 + 临时参考图 + 一张卡片图不超过这一档的图位上限，排在后面的先让 —— 参考清单排的是同一批）。
+   * 方舟那几档上它就是全部；MiniMax H3（一段 5 张图）上帧占满两位时可能少带一两张，说出来。
+   */
+  const extrasSent = extrasIn.slice(0, slots.extrasOn);
+  if (extrasSent.length && (refMode || sendFrameRefs)) {
+    try {
+      for (let i = 0; i < extrasSent.length; i++) {
+        const u = extrasSent[i].url;
+        if (/^https?:\/\//i.test(u)) {
+          extraUrls.push(u);
+          continue;
+        }
+        prog(t`上传临时参考图 ${i + 1}/${extrasSent.length}…`);
+        extraUrls.push(await uploadImage(await (await fetch(u)).blob(), `seg-extra-${i + 1}.jpg`));
+      }
+    } catch {
+      extraUrls = [];
+      // ★ 两种段传不上去就不能照样出片（2026-10-26）：在视频那一发之前整句拒（视频一分没扣；出片前画好的画面随错误带出去，钱上的话交给 ai/failCharge）
+      //   · 有图位的文字模板段（tplSlotsOn）：图位的图就是这个模板的商品本身，退成「不带图」照样出片 = 拍一段与模板说好的不一样的片、照收钱；
+      //   · 只靠临时参考图走参考生视频的段（没挂卡、或卡图一张都没读出来；零图位的文字模板段也落在这里）：没了它们这一发一张参考图都没有，
+      //     契约核对会整句拒、话还说不清。
+      //   零图位的文字模板段在别的情况下与普通段一样：人自己加的临时参考图传不上去就说一句、不带它们出片。
+      if (tplSlotsOn || (refMode && !refUrls)) {
+        throw new SegmentGenFailed(
+          new Error(
+            tplSlotsOn
+              ? t`图位的图没能传上去（这个文字模板靠它们锁定画面），视频这一发没有发出去——过一会儿再点一次生成`
+              : t`临时参考图没能传上去（这一段只靠它们出片），视频这一发没有发出去——过一会儿再点一次生成`,
+          ),
+          imagesSettled,
+          "video",
+          keptOrNull(),
+        );
+      }
+      notes.push(t`临时参考图没能传上去，这一段不带它们出片`);
+    }
+    if (extraUrls.length && extrasSent.length < extrasIn.length) {
+      notes.push(extrasCapLine({ max: tier.refImagesMax ?? ARK_REF_IMAGES_MAX, sent: extrasSent.length }));
+    }
+  } else if (extrasIn.length && (refMode || sendFrameRefs) && !tplSlotsOn) {
+    // 是参考类请求、只是图位已经被帧和卡片图占满（refSlotsOf.extrasOn = 0）：说「最多带 N 张」—— 落进下面那支就成了「没走参考图出片」，是假话。
+    // 今天的档位碰不上（MiniMax H3 一段 5 张图，帧 + 卡片最多占 3 位），图位更紧的档进来时这一句就是对的
+    notes.push(extrasCapLine({ max: tier.refImagesMax ?? ARK_REF_IMAGES_MAX, sent: 0 }));
+  } else if (extrasIn.length && tplSlotsOn) {
+    // 有图位的文字模板段这一发不是参考类请求（档位不收参考图 / 帧没能转成参考图退回了首尾帧）：图位的图发不出去，不退成不带图照样出片（理由同上）。
+    // 零图位的段落到下面那一支（与普通段同一句「临时参考图这次没发出去」）
+    throw new SegmentGenFailed(
+      new Error(t`这一发带不上图位的图（不是参考图那一种请求），视频这一发没有发出去——换成模板能跑的那一档，或过一会儿再点一次生成`),
+      imagesSettled,
+      "video",
+      keptOrNull(),
+    );
+  } else if (extrasIn.length && !textOnly) {
+    // （只能纯文字出片时不在这里说：摘图那一句已经把临时参考图说进去了）
+    // 不是参考类请求：说清是哪一种（档位协议上不收 / 这一发退回了首尾帧）
+    notes.push(
+      tier.refImg
+        ? t`这一段没走参考图出片，临时参考图这次没发出去`
+        : (() => {
+            const go = tierGo((x) => x.refImg);
+            if (!go) return t`「${tier.label}」档协议上不收参考图，临时参考图这次没发出去`;
+            const names = go.names;
+            return go.member
+              ? t`「${tier.label}」档协议上不收参考图，临时参考图这次没发出去（用它们要「${names}」，会员档）`
+              : t`「${tier.label}」档协议上不收参考图，临时参考图这次没发出去（想用它们换「${names}」）`;
+          })(),
+    );
+  }
+  // ── 拼提示词：唯一拼法在 mainPrompt（出片之前的预算 promptRoomOf 用的是同一个，喂的是计划；这里喂真准备成的图与真画好、真传上去的帧）──
+  //   各截的取舍（参考生视频的紧凑式点名句前置、白模 V1 / V2 两条互斥的路、截的是正文、为什么不拼素材设定…）都写在 mainPrompt 里。
+  const mp = promptWith({ frameRefs: sendFrameRefs ? frameRefs.length : 0, hasFirst: !!first, hasLast: !!last, extrasSent: extraUrls.length });
+  noteLoose(mp.said.loose);
   // 卡片形象图接在帧后面（编号顺延），绑定句按这个 offset 说话 —— 差一位就是"张三的脸给了李四"
   // ★ **不截**：图位预算在 prepareMaterialRefs 那一步就按 frameSlots 扣过了（见那段 ★★），
   //   这里再截会让绑定句（按 refs 全量编号）点到没发出去的编号上
-  const cardRefs = sendFrameRefs && refUrls ? refUrls : [];
-
-  // ④ 出片。圈选要求并进提示词——只改设定帧不够，Seedance 得知道这一段要拍成什么样
-  const reqs = input.anns.map((a) => a.req).join("；");
-  // 参考生视频没有设定帧兜底，"谁是谁"全靠点名句（2026-08-29 起是前置的紧凑式
-  // 「凛=@图片1@图片2」，见下面 bindHead），所以它必须进**视频**提示词；
-  // 首尾帧模式下长句 bind 已经写进 Seedream 的提示词里了，
-  // 视频提示词再塞一遍只会让 Seedance 去找并不存在的 <图片1>
-  // 白模的尾巴 = （V1 才有的）统一替换句 + 素材文字 + 绑定句：替换句说"干什么"（换主体、
-  // 严格保留背景道具运镜——BLOCKOUT_SWAP，一处实现），素材文字与绑定句说"换成谁"
-  // （<图片1> 的面部特征 = 角色 XX）。参考视频不占 <图片N> 编号（见 arkClient 的 content
-  // 拼装注释），所以 bind(0) 依旧成立。
-  //
-  // ★★ 白模有两条**互斥**的路，判据是这个模板有没有角色位（**存在性**，`roles?.length`
-  //   ——后加字段，老模板天然缺它、天然走老路，零迁移；等值判会把存量整批算进某一类
-  //   且一个错都不报，见 types.VideoTemplate.roles 的 ★）：
-  //   · **V2（有 roles）**：`plot` 里那段话已经是编辑页合成好的点名映射
-  //     （「编号4=张三」，studio/blockoutPrompt 一处实现，用户过目并可改）。
-  //     这条路**不再拼 BLOCKOUT_SWAP** —— 它说的「将视频中的红色小人替换为下列角色」
-  //     是**泛指**，与逐个点名摆在同一段话里就是自相矛盾（而"泛指盖过点名"正是白模化
-  //     那一步实测踩过的坑：泛指只换配角、主角不动，F4），还要白白吃掉
-  //     VIDEO_PROMPT_MAX 里 60 字的正文额度。
-  //   · **V1（没有 roles，老模板）**：人偶身上根本没有编号，除了泛指没有别的说法 ——
-  //     照旧拼 BLOCKOUT_SWAP。降级但诚实。
-  //   · **绑定句（bind）两条路都要拼**：图片编号 ↔ 角色是 prepareMaterialRefs 在出片
-  //     这一刻现分配的（谁被挤掉、同卡的图怎么连号），用户在输入框里改不出来、也没法
-  //     提前知道 —— 合成句里说的是角色**名**，全靠这一句把名字接到图上
-  //     （白模路是紧凑式 `张三=@图片1@图片2`，理由见 ai/real 的 bind）。
-  const named = blockout && !!input.roles?.length;
-  // ★ refMode 的点名句 2026-08-29 起换**紧凑式 @槽位并前置**（backlog 2.8-⑥，付费 A/B
-  //   采纳：design/ab-bind-syntax.mjs 两发同素材同档，身份贴合与遵词同水平、省约 90 字
-  //   正文额度、语法与白模路统一、契合方舟官方「重要素材前置」）。
-  //   构造器与白模 bind() 同一个（prepareMaterialRefs.bindCompact）；砍掉开头那个
-  //   接续用的句号——它是给尾置拼接设计的，站句首是个病句。
-  //   Seedream 画帧那半（上面 needDraw 用的 bind）**未做 A/B，仍是长句**，别顺手统一。
-  const bindHead = refMode && refs ? refs.bindCompact(0).replace(/^。/, "") : "";
-  /** 帧当参考图那条的绑定句：卡片图排在帧之后，offset = 帧的张数（错一位就是张冠李戴） */
-  const frameBind = sendFrameRefs && refs && cardRefs.length ? refs.bindCompact(frameRefs.length).replace(/^。/, "") : "";
-  // ★★ V2（点名）那条路**不拼素材设定文字**（`mats`），只留绑定句。这不是省字的洁癖，是算出来的：
-  //   `mats` 每张卡 ≈ 50 字（卡种 + 名字 + 30~40 字设定），角色位上限放到 9 之后光它一项就
-  //   400 字打底 —— 而提示词硬顶就是 400，截断又是**从正文这头切**的（见下面的 room），
-  //   于是用户在输入框里亲眼过目、亲手改过的那段点名映射会被整段切没，画面照出、钱照收。
-  //   舍它而不是舍别的，是因为这条路上它最接近纯冗余：每个角色的名字在**点名句**里已经出现
-  //   （编号N=张三），形象由**参考图 + 紧凑绑定句**（张三=@图片1@图片2）锁定，而设定文字那 30 字
-  //   是豆包写的卡面简介，对"把白模换成这个人"几乎不添信息。
-  //   ⚠ 例外：某张卡的形象图全都读不出来时，它就只剩名字了 —— 那种情况由 prepareMaterialRefs
-  //   的 onNote 逐张点名（"第 N 张参考图未采用…"），一张都没成还会整句 throw，不是静默。
-  // refMode 的绑定句已前置（bindHead），尾巴只剩素材设定文字
-  const tail = blockout ? (named ? bind : `${input.revise ? REVISE_TAIL : BLOCKOUT_SWAP}${mats}${bind}`) : `${frameRoles}${mats}`;
-  // ★ 镜头字段放正文最前（景别 / 运镜 / 情绪节拍），模型先读到"怎么拍"再读"拍什么"
-  // i18n-ignore-next-line: 出片提示词正文，发给视频模型
-  const story = `${shotPrefix(input.shot)}${reqs ? `${input.plot}。修改要求（必须满足）：${reqs}` : input.plot}`;
-  // ★ 提示词有 VIDEO_PROMPT_MAX 的硬顶，而截的是**正文** —— 头（点名句）与尾（素材设定/
-  //   白模绑定句）都要先留位。直接拼起来交上去的话：简约模式的输入框本身就允许 400 字，
-  //   用户写满（或套个字数多一点的模板再挂张卡）就把绑定句整句切没了，而参考图照样发出去
-  //   —— 模型于是只把它们当风格图用：卡挂了、片出了、人物一点都不像，且**零报错**。
-  //   截正文是唯一诚实的刀口（少几个字用户看得出来，也不改变"谁是谁"）。
-  const room = Math.max(0, VIDEO_PROMPT_MAX - tail.length - bindHead.length - frameBind.length);
-  const plot = `${bindHead}${frameBind}${story.slice(0, room)}${tail}`;
+  const cardRefs = mp.cardRefsSent && refUrls ? refUrls : [];
+  // ★ 文字模板段：真拼出来还是放不下 —— 视频之前整句拒，绝不截。补画之前那一次已经按真读出来的卡图量过，走到这里只剩一种：
+  //   帧没能转成参考图、退回了首尾帧（卡片形象图这一发发不出去，有文字版形象描述的卡改拼文字，可能更长）。那时开头帧已经画了、按张收过钱 ——
+  //   随错误留在方案上（keptOrNull），重试不再重画；钱上的话照旧交给 ai/failCharge。
+  if (textTpl && mp.over > 0) throw new SegmentGenFailed(textTplTooLong(mp), imagesSettled, "video", keptOrNull());
+  const plot = mp.plot;
   // ★ 但"截了要说"（铁律八）。V2 白模路把这条从"理论风险"变成了"每天都可能发生"：
   //   正文那段点名合成句本身就有一两百字，挂满三张卡时尾巴也有两百字上下 ——
   //   悄悄切掉正文末尾，用户看到的是"我写的最后几条要求模型完全没照做"，零报错。
   // ★ 不能单独 prog：下面那两行 prog 在同一个同步块里，会立刻把它盖掉（React 连画都
   //   没画过它，等于这句话没说过）—— 与 noteTail 同一个理由，所以并进同一行说。
-  const storyOver = story.length - room;
-  const reserved = tail.length + bindHead.length + frameBind.length;
+  const storyOver = mp.over;
+  const reserved = mp.reserved;
   const cut =
     storyOver > 0
-      ? t`（⚠ 这一段的要求太长，末尾 ${storyOver} 字没能发出去：提示词上限 ${VIDEO_PROMPT_MAX} 字，其中素材设定与形象点名句占了 ${reserved} 字——把要求写短些，或少挂一张卡）`
+      ? t`（⚠ 这一段的要求太长，末尾 ${storyOver} 字没能发出去：提示词上限 ${cap} 字，其中素材设定与形象点名句占了 ${reserved} 字——把要求写短些，或少挂一张卡）`
       : "";
   // ★★ 音色点名句接在硬顶之内接得下才接（§2.11.2③）：原来是无条件 `${plot}${voiceLine}`，
   //   而 real.ts 那一刀从**尾巴**下刀 ⇒ 正文写满时它必然被切掉，参考音频却照发 ⇒ 音色随机，
   //   而 `cut` 那句警告一个字不数它。**必须排在下面那几行 prog 之前**：noteTail 只把
   //   此刻已经在 notes 里的话带出去，晚一行就等于这句话没说过。
-  const fitted = withVoiceLine(plot, voice.voiceLine);
-  if (fitted.dropped)
+  const fitted = withLineTails(plot, voice.voiceLine, noSubtitleLine({ plot: input.plot, tier, blockout }), cap);
+  if (fitted.voiceDropped)
     notes.push(
       t`音色点名句没能发出去（提示词已经写满）——台词仍会被配音，但音色随机；把要求写短些就能带上`,
     );
+  if (fitted.subDropped)
+    notes.push(t`「台词别显示成字幕」那句没能发出去（提示词已经写满）——成片里可能出现台词字幕；把要求写短些就能带上`);
   const refSec = input.refVideo?.durationSec;
   if (blockout && input.revise)
     prog(
-      (refSec ? t`按你的改法返修这一段（时长跟随成片 ${refSec} 秒，产物无声）…` : t`按你的改法返修这一段（时长跟随成片，产物无声）…`) +
+      (refSec ? t`按你的改法返修这一段（时长跟随成片 ${refSec} 秒，出声）…` : t`按你的改法返修这一段（时长跟随成片，出声）…`) +
         noteTail() +
         cut,
     );
   else if (blockout)
     prog((refSec ? t`按模板视频逐镜头复刻出片（时长跟随模板 ${refSec} 秒）…` : t`按模板视频逐镜头复刻出片（时长跟随模板）…`) + noteTail() + cut);
-  else if (refMode) prog(t`参考卡片形象直接出片（省掉设定帧）…` + noteTail() + cut);
+  // 只发临时参考图（卡没挂 / 卡图一张都没读出来）时别说「参考卡片形象」：真发出去的只有临时参考图（2026-10-26 审核抓到）
+  else if (refMode) prog((refUrls ? t`参考卡片形象直接出片（省掉设定帧）…` : t`按临时参考图直接出片（省掉设定帧）…`) + noteTail() + cut);
   // ★ 这一支以前是 `else if (cut)` —— 没有截断就一个字不说，于是“帧当参考图发”这条路上
   //   的提示（含上传失败退回首尾帧）没有任何出口。改成无条件说一句，把 notes 带上。
   else {
-    const refCount = frameRefs.length + cardRefs.length;
+    const refCount = frameRefs.length + extraUrls.length + cardRefs.length;
     prog((sendFrameRefs ? t`按 ${refCount} 张参考图出片（帧与卡片形象同发）…` : t`出片中…`) + noteTail() + cut);
   }
-  /** 这一发的生成模式（契约的声明；槽位与它是否一致由 real.validateGenSpec 在花钱之前核对） */
-  const mode: GenMode = blockout
+  /** 这一发真发出去的参考图：帧 → 临时参考图 → 卡片形象图（参考清单预览 refPlanOf 排的是同一个顺序） */
+  const sentRefImages = refMode ? [...extraUrls, ...(refUrls ?? [])] : blockout ? refUrls : sendFrameRefs ? [...frameRefs, ...extraUrls, ...cardRefs] : undefined;
+  // ★ 参考清单核对（N1）：界面在出片之前就把「图片N 是谁」告诉了用户，这里拿同一份输入再排一次，
+  //   张数对不上就说出来。个别图读不出来被跳过（prepareMaterialRefs 已逐张点名）也会走到这句 —— 那正是要说的事：
+  //   编号前移了，界面上标的第几张不再是发出去的第几张。只在真带了参考图时比（演示构建不准备图）。
+  if (AI_REAL && !blockout && sentRefImages?.length) {
+    // ★ 拿**原始输入**排（界面在出片之前看到的就是它）：帧画没画出来不影响张数，卡片图按哪套分也与当时同一个判定
+    const planned = refPlanOf(input).items.length;
+    if (planned !== sentRefImages.length) {
+      const sentCount = sentRefImages.length;
+      const line = t`参考清单核对：预计发 ${planned} 张参考图，这一发实际发出 ${sentCount} 张（有图没带上，图片编号以实际为准）`;
+      console.warn("[segmentGen] " + line);
+      prog(line);
+    }
+  }
+  /** 这一发按什么形状拼请求（槽位推出来的；样片第一步也照它拼，real.slotModeOf 同一个判法） */
+  const slotMode: GenMode = blockout
     ? "edit"
     : refMode || sendFrameRefs
       ? "ref-images"
@@ -1035,7 +2379,45 @@ export async function generateSegment(
         ? last && tier.flf
           ? "flf"
           : "i2v"
-        : "t2v";
+        : // 只给了尾帧：收它的协议（MiniMax H3，economy.lastFrameOnlyOk）按首尾帧那一种发、只带尾帧；方舟那几档照旧文生（与 real.slotModeOf 同一句）
+          last && tier.flf && lastFrameOnlyOk(tier)
+          ? "flf"
+          : "t2v";
+  /** 这一发的生成模式（契约的声明；槽位与它是否一致由 real.validateGenSpec 在花钱之前核对）。先出样片 = "draft"（按 480p 的价、480p 发） */
+  const mode: GenMode = input.draftMode === "draft" ? "draft" : slotMode;
+  /** 真正送进请求体的画幅（arkClient.ratioFor：2.5 走首帧 / 首尾帧时只收 adaptive）—— 对账与下面那道样片闸读同一个值 */
+  const wantRatio = aspectOf(input.aspect).ratio;
+  const sentRatio = ratioFor(tier.model, slotMode === "edit" || slotMode === "ref-images" ? "reference" : "frames", wantRatio);
+  // ★★ 样片第一步**不许**退回首尾帧（2026-10-07 评审抓到）：帧转参考图失败时 2.5 这一发会退成首帧 / 首尾帧任务，
+  //   而那种任务只收 ratio:"adaptive" —— 480p 的每秒数按画幅不同，服务端对 adaptive 按那一行**最贵**的一格结算
+  //   （竖屏 5 秒报价 225,776、实扣 236,034），按钮上那个数就成了少报。报价按不了「发出去才知道的画幅」，所以在这里拦：
+  //   视频那一发还没发出去 = 一分没扣；之前补画 / 圈选改过的那几张已经各自结算过，交给 SegmentGenFailed 带上去由 ai/failCharge 说清。
+  //   普通出片照旧退回首尾帧（它在 720p 上，720p 一律按 1280×720 结算，画幅不影响价钱）。
+  // ★ 这一次补画好的帧随错误交出去（kept），genNode 把它们留在方案上：再点一次只重传、不重画（2026-10-07 评审抓到：
+  //   原来每拒一次就丢掉刚画好的两张，下一次照 framesToDraw 再画、再收两张图的钱 —— 比这道闸防的那点差价还多）
+  if (mode === "draft" && sentRatio !== wantRatio) {
+    const keptNow = keptOrNull();
+    // ★ 两种来路两句话（2.62 发版评审抓到）：一种是帧转参考图**真的传失败了**；另一种是这一段本来要直接拿卡片形象出片（refMode），
+    //   卡片形象图却一张都没读出来、退回了先画设定帧 —— 这一发里帧**根本没去传**（framesAsRefs 是按降级之前的 refMode 定的），
+    //   说「设定帧没能传上去」就是指错了原因，人会去查网络。下一次点生成时帧已经留在方案上，refSlotsOf 见帧就不再走卡片直出、
+    //   改把帧当参考图发，所以「再点一次」这句对两种来路都成立。
+    const refFellBack = slots.refMode && !refMode;
+    throw new SegmentGenFailed(
+      new Error(
+        refFellBack
+          ? keptNow
+            ? t`卡片形象图一张都没能用上，改画了设定帧；样片这一发没有发出去（这一次帧没法当参考图发，退回首尾帧的话画幅只能按「自适应」结算，会比报价贵）——刚画好的设定帧已经留在这一段上，再点一次生成会把它们当参考图发出去，不会重画`
+            : t`卡片形象图一张都没能用上，样片这一发没有发出去（退回首尾帧的话画幅只能按「自适应」结算，会比报价贵）——给卡换一张形象图，或过一会儿再点一次生成`
+          : keptNow
+            ? t`设定帧没能传上去，样片这一发没有发出去（退回首尾帧的话画幅只能按「自适应」结算，会比报价贵）——刚画好的设定帧已经留在这一段上，过一会儿再点一次生成，不会重画`
+            : t`设定帧没能传上去，样片这一发没有发出去（退回首尾帧的话画幅只能按「自适应」结算，会比报价贵）——过一会儿再点一次生成`,
+      ),
+      imagesSettled,
+      "video",
+      keptNow,
+    );
+  }
+  if (mode === "draft") prog(t`这一发先出 480p 样片：看着满意，再把同一份样片升成 1080p 成片（另计一笔）；不满意就改了重出样片`);
   {
     const cl = contractLine({
       quoted: input.quotedTokens,
@@ -1044,6 +2426,8 @@ export async function generateSegment(
       tierId: input.videoTier,
       refVideoSec: input.refVideo?.durationSec,
       images: drawn + redrawn.length,
+      // ★ 按**真正送进请求体**的画幅对账：480p 的每秒数按画幅不同，adaptive 按那一行最贵的一格结算（样片那一种上面已经拦了）
+      ratio: sentRatio,
     });
     if (cl) prog(cl);
   }
@@ -1053,12 +2437,14 @@ export async function generateSegment(
   //   （ref-images，首帧本来就空）于是带着一张尾帧去找 validateGenSpec，被整句拒「参考图 / 参考视频与首尾帧
   //   不能混发」：已经出过片的白模段从此重炼不了（不花钱，但只能删段重套模板）。2.45 的 composeSegments 是
   //   在这两种模式下**静默忽略** lastFrame 的；契约校验加上之后，这一侧得真的不带。
-  const refSend = mode === "edit" || mode === "ref-images";
+  const refSend = slotMode === "edit" || slotMode === "ref-images";
   const [res] = await composeSegments(
     [
       {
         mode,
         plot: fitted.plot,
+        // 上限与上面拼的时候同一个数；文字模板段超了在 validateGenSpec 整句拒、不截（strict）
+        promptCap: { max: cap, strict: !!textTpl },
         firstFrame: refSend ? "" : first,
         lastFrame: refSend ? "" : last,
         durationSec: input.durationSec,
@@ -1066,7 +2452,7 @@ export async function generateSegment(
         aspect: input.aspect,
         // 白模也发形象图（混发：视频给画面与运镜，形象图说"换成谁"）；refUrls 非空由
         // 上面那道 throw 保证
-        refImages: refMode || blockout ? refUrls : sendFrameRefs ? [...frameRefs, ...cardRefs] : undefined,
+        refImages: sentRefImages?.length ? sentRefImages : undefined,
         // ★★ 退回首尾帧那一支必须**同时撤掉参考音频**（2026-08-30 复核抓到）：
         //   arkClient 对「非 reference 模式 + 参考音频」是当场 throw（方舟侧 400），
         //   于是帧转参考图失败之后这一段不是降级出片，而是直接失败。
@@ -1077,16 +2463,22 @@ export async function generateSegment(
         // 模板时长只喂给轮询死线定尺寸（arkClient 按输出秒数放弃，不再一刀切 10 分钟），
         // 不是下单参数 —— duration 在白模路上由 BLOCKOUT_TASK 的 -1 接管
         refVideoSec: input.refVideo?.durationSec,
+        // 返修走出声的那一份 edit 参数（arkClient.REVISE_TASK）；白模照旧 BLOCKOUT_TASK（不出声，版权拦截换来的）
+        ...(input.revise ? { refTask: "revise" as const } : {}),
+        // 样片第一步：同一副槽位，按 480p + draft:true 发（arkClient 钉）
+        ...(mode === "draft" ? { draft: true } : {}),
       },
     ],
     (_d, _t, status) => prog(status),
     (taskId) => onTask?.(taskId),
   );
-  settleSegment(res); // 与另外两条支路同一处实现（见 settleSegment 的 ★★）
+  // 文字模板段的提示词被方舟拒了：话改成「是模板正文的问题、换图没用」（textTplRefusal）
+  settleSegment(textTplRefusal(res, !!textTpl), imagesSettled, keptOrNull()); // 与另外几条支路同一处实现（见 settleSegment 的 ★★）
   return {
     url: res?.url,
-    firstFrame: res?.firstFrame || first,
-    lastFrame: res?.lastFrame || last,
+    // 只能纯文字出片时帧只是没发出去、不是作废：交回方案上原来那两张（genNode 拿它写回方案 —— 交空串就把你自己放的帧抹掉了，付费之后想带图出片还得重放）
+    firstFrame: res?.firstFrame || (textOnly ? input.firstFrame : first),
+    lastFrame: res?.lastFrame || (textOnly ? input.lastFrame : last),
     poster: res?.poster,
     realDurationSec: res?.durationSec,
   };

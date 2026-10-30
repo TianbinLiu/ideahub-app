@@ -17,6 +17,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { clone as skeletonClone } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { AI_REAL } from "../../ai";
+import ErrorBoundary from "../../components/ErrorBoundary";
 import { CloseButton } from "../../components/IconTapButton";
 import { ONE_IMAGE, fmtTokens } from "../../data/economy";
 import { aspectOf, uid } from "../../types";
@@ -325,7 +326,7 @@ export default function StageOverlay({ nodeId, onClose }: { nodeId: string; onCl
   const price = AI_REAL ? fmtTokens(ONE_IMAGE) : t`演示`;
   return createPortal(
     <div className="fixed inset-0 z-[70] flex flex-col bg-ink">
-      <div className="safe-top flex h-[58px] flex-none items-center gap-2 px-4">
+      <div className="safe-top-bar flex flex-none items-center gap-2 px-4">
         <CloseButton chip="md" size={16} tone="text-slate-200" label={t`关闭导演台`} onClick={onClose} />
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-bold text-slate-100"><Trans>🎬 导演台</Trans></div>
@@ -345,6 +346,9 @@ export default function StageOverlay({ nodeId, onClose }: { nodeId: string; onCl
           onPointerUp={onWrapPointerUp}
           onPointerCancel={onWrapPointerUp}
         >
+          {/* ★ 渲染边界只包 Canvas（2026-10-15 教材人格评审）：人偶模型解不开 / 子树渲染抛错时只换掉舞台这一块，整张导演台与
+              下面的人偶 / 机位面板、关闭键都还在；useFrame（CamRig）里抛的不经 React 树、接不到。 */}
+          <ErrorBoundary label={t`导演台`}>
           <Canvas dpr={1} gl={{ preserveDrawingBuffer: true, antialias: true }} camera={{ fov: 42, near: 0.1, far: 100, position: camPosition(stage.cam) }}>
             <color attach="background" args={[STAGE_BG]} />
             <ambientLight intensity={0.9} />
@@ -384,12 +388,13 @@ export default function StageOverlay({ nodeId, onClose }: { nodeId: string; onCl
               ))}
             </Suspense>
           </Canvas>
+          </ErrorBoundary>
         </div>
       </div>
 
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-4 pb-6 pt-3">
         {err && (
-          <div className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-rose-300">{err}</div>
+          <div className="rounded-lg border border-danger-500/40 bg-danger-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-danger-300">{err}</div>
         )}
         {/* 人偶 */}
         <div className="rounded-lg border border-slate-700/70 bg-panel p-3">
@@ -413,7 +418,7 @@ export default function StageOverlay({ nodeId, onClose }: { nodeId: string; onCl
                 setSelected(rest[0]?.id ?? null);
               }}
               disabled={!sel || stage.figures.length <= 1}
-              className="flex-none rounded-full bg-rose-500/15 px-2.5 py-1 text-[11px] text-rose-300 disabled:opacity-40"
+              className="flex-none rounded-full bg-danger-500/15 px-2.5 py-1 text-[11px] text-danger-300 disabled:opacity-40"
             >
               <Trans>删除</Trans>
             </button>

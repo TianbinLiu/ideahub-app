@@ -35,6 +35,25 @@ export const BRANCH_NOTIFICATION_TYPES = [
    */
   "BRANCH_REVISED",
   /**
+   * **同款奖励到账**（模板体系 P3b，2026-10-02；server 写入只在 services/remixReward.service）：别人照着我的作品做了同款、
+   * 公开发布满 24 小时，平台印了一笔 token 给我。payload { tokens, originalId, originalTitle, videoId?, videoTitle? }。
+   *   · `actorId` = 同款作者、`videoId` = 那条同款（深链到 /video/:id，看别人照着做出来的片子）；
+   *   · 两人之间有拉黑、或那条同款已经不公开时**两样都不带**（画成「有人做了你的同款」，点进去落到我自己的原作）。
+   * ★ 金额是 `payload.tokens`（数），句子由这边按界面语言说 —— 服务端不拼中文句子进 commentText。
+   * ★★ 老 App（≤ 2.60）**收不到这一类**（请求层白名单，同上面 BRANCH_REVISED 那条 ★★）：币照到，只是没有这条通知。
+   */
+  "BRANCH_REMIX_REWARD",
+  /**
+   * **生成失败、token 已退回**（2026-10-07 主人「做生成失败返回 token」；server 写入只在 services/taskRefund.service 的 followUp）：
+   * 受理之后上游明说这一发失败了，服务端按原桶退了钱，而退款**不是**在本人自己那次轮询里发生的（清扫器替他退的 / App 被杀了 /
+   * 别的设备在问）—— 那时没有任何一个回包能把这句话带给他，只能发一条通知。payload { tokens, kind, taskId, provider }。
+   *   · kind = video / draft（样片第一步）/ draftFinal（样片定稿）/ 3d / blockout（白模化）/ minimax（真人档）；
+   *   · 平台口径，没有 actor（头像位画一枚退款图标，与 ADMIN_NOTICE 的铃铛同一个理由）；没有深链目标 —— 点进去打开钱包看余额。
+   * ★ 金额是 `payload.tokens`（数），句子由这边按界面语言说（与同款奖励同一条：服务端不拼中文句子）。
+   * ★★ 老 App（≤ 2.61）**收不到这一类**（请求层白名单，同上面 BRANCH_REVISED 那条 ★★）：钱照退，只是没有这条通知。
+   */
+  "GEN_TASK_REFUND",
+  /**
    * 平台通知：管理员从后台发给单个用户的自由文本（api/admin.notifyUser 那条路）。
    * ★ 正文走 `payload.commentText` —— 刻意复用评论正文那条既有通道，而不是新开一个
    *   `payload.text`：data/notifications.ts 的 toItem 只搬运它认识的字段，新开字段
@@ -51,6 +70,19 @@ export const BRANCH_NOTIFICATION_TYPES = [
    */
   "SUPPORT_TICKET",
   "SUPPORT_REPLY",
+  /**
+   * 老师人格四类（tutor 仓 docs/02 9.6 / 5.9 / 4.9；server 写入只在 tutorNotify.service，2026-09-29 M4 接进 App）：
+   *   TUTOR_RATING：有人给我发布的老师打了分，payload { personaId, personaName, stars, text }
+   *   TUTOR_COMMENT：有人评论了我发布的老师，payload { personaId, personaName, text? }
+   *   TUTOR_REVIEW_DUE：我在学的课有阶段到期该回访了（平台口径、无 actor），payload { courseId, personaName, count, stages, stageId }
+   *   TUTOR_DOC_UPDATED：我在学的老师出了新版，payload { personaId, personaName, version, courseId, note }
+   * 深链目标：有 courseId 的落 App 内 /tutor/run/:courseId；评分 / 评论落 /tutor（市场页只在官网）。
+   * ★★ 老 App（≤ 2.48）**收不到这四类**（请求层白名单，见上面 BRANCH_REVISED 那条 ★★），契约已写明。
+   */
+  "TUTOR_RATING",
+  "TUTOR_COMMENT",
+  "TUTOR_REVIEW_DUE",
+  "TUTOR_DOC_UPDATED",
 ] as const;
 
 export type BranchNotificationType = (typeof BRANCH_NOTIFICATION_TYPES)[number];
@@ -76,6 +108,23 @@ export interface ApiNotification {
     commentId?: string;
     parentCommentId?: string;
     commentText?: string;
+    /** 老师人格四类（见 BRANCH_NOTIFICATION_TYPES 的注释）；平台通知 / 工单也各自往这里放 text / preview / ticketId */
+    text?: string;
+    personaId?: string;
+    personaName?: string;
+    courseId?: string;
+    stars?: number;
+    count?: number;
+    version?: number;
+    note?: string;
+    /** 同款奖励（BRANCH_REMIX_REWARD）：发了多少 token、照的是我的哪一条；生成失败退款（GEN_TASK_REFUND）：退了多少 */
+    tokens?: number;
+    /** 生成失败退款（GEN_TASK_REFUND）：哪一种生成、上游任务号、哪一家 */
+    kind?: string;
+    taskId?: string;
+    provider?: string;
+    originalId?: string;
+    originalTitle?: string;
   } | null;
   /** null = 未读 */
   readAt?: string | number | null;

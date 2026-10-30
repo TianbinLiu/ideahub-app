@@ -47,10 +47,12 @@ const MODES: Mode[] = [
     title: msg`工坊模式`,
     tag: msg`完整作品`,
     desc: msg`在 3D 铸卡桌面上摆素材卡，AI 每段推演三套走向，挑一套炼一段，逐段往下铺；顶栏「🧩 工作流画布」把同一条流水线换成画布那一面。`,
-    bullets: [msg`用素材卡定人物场景，全片一致`, msg`每段三选一，可回头改`, msg`3D 桌面与工作流画布是同一条流水线的两个面`],
+    // 第三条原来写的是「3D 桌面与工作流画布是同一条流水线的两个面」—— 那是实现，不是用户能得到的东西（2026-10-14 UX 课收口）
+    bullets: [msg`用素材卡定人物场景，全片一致`, msg`每段三选一，可回头改`, msg`每出一段自动存草稿，随时接着做`],
     cover: "/create/studio.jpg",
-    skin: "border-amber-400/45",
-    cta: msg`进铸卡桌面`,
+    skin: "border-warn-400/45",
+    // 键上写「做什么」不写「去哪儿」（2026-10-14 UX 课：按钮文案要说结果；「铸卡桌面」是进去之后才学到的词）
+    cta: msg`开始做完整作品`,
     go: (nav) => nav("/studio"),
   },
   {
@@ -226,6 +228,7 @@ export default function CreatePage() {
                     {m.bullets.map((b) => (
                       <li
                         key={b.id}
+                        // contrast-ok: 亮底封面（m.light）上 slate-600 是深字，对比度够；暗底那支走 slate-400（check-contrast）
                         className={`flex gap-2 text-xs leading-relaxed ${m.light ? "text-slate-600" : "text-slate-400"}`}
                       >
                         <span className="flex-none">·</span>
@@ -245,7 +248,7 @@ export default function CreatePage() {
                       if (m.resets && flowDirty(flowNodes)) setPending(m);
                       else m.go(navigate);
                     }}
-                    className={`mt-4 w-full rounded-2xl py-3 text-sm font-bold transition active:scale-[.98] ${
+                    className={`mt-4 w-full rounded-xl py-2.5 text-sm font-bold transition active:scale-[.98] ${
                       m.light ? "bg-ink text-white" : "bg-white/90 text-ink"
                     }`}
                   >
@@ -275,7 +278,7 @@ export default function CreatePage() {
           `canReplaceNodes` 整句拒（有段在生成中），而这一页此前从头到尾不读 err ——
           点下去没有跳转、没有弹层、一个字都没有，与"按钮坏了"完全一样（铁律八）。 */}
       {flowErr && (
-        <div className="absolute inset-x-3 top-14 z-40 flex items-start gap-2 rounded-lg border border-rose-500/40 bg-rose-500/95 px-2.5 py-2">
+        <div className="absolute inset-x-3 top-14 z-40 flex items-start gap-2 rounded-lg border border-danger-500/40 bg-danger-500/95 px-2.5 py-2">
           <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-white">{flowErr}</p>
           <button onClick={() => useFlow.setState({ err: "" })} className="flex-none text-white/90">
             <Icon name="close" size={12} />

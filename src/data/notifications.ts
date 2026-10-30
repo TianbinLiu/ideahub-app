@@ -11,7 +11,8 @@
 //   否则弱网冷启动会出现"视频退了本地库、通知还在打远端"这种半边天。
 import * as api from "../api/notifications";
 import { remoteOn } from "./videos";
-import { currentUser } from "./account";
+import { currentUser, refreshRemoteWallet } from "./account";
+import { onViewerChange } from "./deviceOwner";
 import { t } from "@lingui/core/macro";
 
 export type { BranchNotificationType } from "../api/notifications";
@@ -29,6 +30,20 @@ export interface NotificationItem {
   commentText: string;
   /** 客服工单通知的深链目标（SUPPORT_TICKET / SUPPORT_REPLY）；其它类型为 null */
   ticketId: string | null;
+  /** 老师人格四类（TUTOR_*）的落点与显示（M4）：courseId 有值 → App 内 /tutor/run/:courseId；其它类型为 null */
+  tutor: { personaId: string | null; personaName: string; courseId: string | null; stars: number | null; count: number | null } | null;
+  /**
+   * 同款奖励到账（BRANCH_REMIX_REWARD，P3b）；其它类型为 null。
+   * `anonymous` = 服务端没带是谁（两人之间有拉黑 / 那条同款已经不公开）：头像位画礼物、不显示名字，点进去落到 originalId（我自己的原作）。
+   * `tokens` 为 0 = 服务端没给出金额（契约问题）：那一行不说数，别编一个
+   */
+  reward: { tokens: number; originalId: string | null; originalTitle: string; anonymous: boolean } | null;
+  /**
+   * 生成失败、token 已退回（GEN_TASK_REFUND，2026-10-07）；其它类型为 null。
+   * `kind` 原样（video / draft / draftFinal / 3d / blockout / minimax；认不出的照样留着，界面按「一次生成」说）。
+   * `tokens` 为 0 = 服务端没给出金额：那一行不说数，别编一个
+   */
+  refund: { tokens: number; kind: string } | null;
   at: number;
   read: boolean;
 }
@@ -145,6 +160,25 @@ function toItem(n: api.ApiNotification): NotificationItem | null {
       (payload as { subject?: string }).subject ||
       "",
     ticketId: typeof (payload as { ticketId?: unknown }).ticketId === "string" ? ((payload as { ticketId: string }).ticketId) : null,
+    // 老师人格四类：id 都在 payload 里、不是顶层字段（server tutorNotify.service）。判否定：不是 TUTOR_ 开头的一律 null
+    tutor: String(n.type).startsWith("TUTOR_")
+      ? { personaId: typeof payload.personaId === "string" ? payload.personaId : null, personaName: payload.personaName || "", courseId: typeof payload.courseId === "string" ? payload.courseId : null, stars: typeof payload.stars === "number" ? payload.stars : null, count: typeof payload.count === "number" ? payload.count : null }
+      : null,
+    // 同款奖励：金额与原作都在 payload 里（server remixReward.service 的 notify）。判否定：别的类型一律 null
+    reward:
+      n.type === "BRANCH_REMIX_REWARD"
+        ? {
+            tokens: typeof payload.tokens === "number" && payload.tokens > 0 ? payload.tokens : 0,
+            originalId: typeof payload.originalId === "string" && payload.originalId ? payload.originalId : null,
+            originalTitle: payload.originalTitle || "",
+            anonymous: !actorObj,
+          }
+        : null,
+    // 生成失败退款：金额与是哪一种生成都在 payload 里（server taskRefund.service 的 followUp）。判否定：别的类型一律 null
+    refund:
+      n.type === "GEN_TASK_REFUND"
+        ? { tokens: typeof payload.tokens === "number" && payload.tokens > 0 ? payload.tokens : 0, kind: typeof payload.kind === "string" ? payload.kind : "" }
+        : null,
     at: toMs(n.createdAt),
     // ★ 判**未读**用「readAt 有没有值」，不是和某个哨兵值比：服务端未读写的是 null，
     //   而更老的记录里这一项可能压根不存在（undefined）。两种都必须算未读。
@@ -154,6 +188,18 @@ function toItem(n: api.ApiNotification): NotificationItem | null {
 
 /** 同一时刻只允许一次在途请求：页面聚焦 + 应用恢复可能在同一拍触发 */
 let inflight: Promise<void> | null = null;
+
+/** 换人的代数（见下面 onViewerChange）：拉取回包时先比一下，发请求时还是上一个人就不许落进这个人的界面 */
+let viewerGen = 0;
+
+// ★★ 换了看的人（2026-09-18，见 data/deviceOwner）：列表与红点都是**上一个人**的（谁关注了他、谁赞了他的作品）。
+//   原来要等下一次刷新才换 —— B 一登录，个人页红点就是 A 的未读数，点进消息页先看到 A 的通知。清回初值等着按新的人重拉；
+//   在途的那一次作废（viewerGen），inflight 置空让新的人马上能问。
+onViewerChange(() => {
+  viewerGen++;
+  inflight = null;
+  set({ items: [], unread: 0, loading: true, error: "", supported: true });
+});
 
 /**
  * 拉一次通知列表。
@@ -170,9 +216,11 @@ export async function refreshNotifications(): Promise<void> {
   }
   if (inflight) return inflight;
   set({ loading: state.items.length === 0, error: "", online: true });
+  const gen = viewerGen;
   inflight = (async () => {
     try {
       const page = await api.listNotifications({ limit: PAGE_SIZE, type: TYPE_FILTER });
+      if (gen !== viewerGen) return; // 换过人了：这是上一个人的通知
       if (!page.supported) {
         // 老服务端（或 Capacitor 的 SPA 回退把 index.html 当成了响应）：
         // 说清楚是"这台服务器还没有这个功能"，不要伪装成"一条通知都没有"
@@ -187,11 +235,15 @@ export async function refreshNotifications(): Promise<void> {
         supported: true,
         error: "",
       });
+      // 有没看过的同款奖励 / 失败退款 = 余额在我们不知道的时候变过（那笔币是服务端的清扫器发的，没有哪一发请求的响应头会带回新余额）。
+      // 顺手刷一次钱包镜像：不然通知说「奖励你 30k」「退回 200k」，回到「我的」页那个数还是老的
+      if (items.some((x) => (x.reward || x.refund) && !x.read)) void refreshRemoteWallet();
     } catch (e) {
+      if (gen !== viewerGen) return;
       set({ loading: false, error: e instanceof Error ? e.message : String(e) });
     }
   })().finally(() => {
-    inflight = null;
+    if (gen === viewerGen) inflight = null;
   });
   return inflight;
 }
@@ -206,8 +258,10 @@ export async function refreshUnreadCount(): Promise<void> {
     set({ unread: 0, online: false });
     return;
   }
+  const gen = viewerGen;
   try {
-    set({ unread: await api.unreadBranchCount(), online: true });
+    const unread = await api.unreadBranchCount();
+    if (gen === viewerGen) set({ unread, online: true });
   } catch {
     // 红点拉不到就维持上一次的值：这里报错没有任何可操作性（用户又不能"重试红点"），
     // 真正的错误会在通知页那次 refreshNotifications 里显示出来

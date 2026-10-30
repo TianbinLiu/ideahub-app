@@ -13,13 +13,15 @@
 // ── 这一屏必须说清的四件事（少一件就是把成本或风险藏起来）─────────────
 //  ① **差在哪**：不满足方舟输入窗口时，当场一句话说明差多少、该往哪拖（不是灰按钮）；
 //  ② **要花多少**：白模化是**真实付费出片**（看帧 + r2v edit 两笔），开炼前整句报出；
-//  ③ **可能白花**：F11 —— 含真人面孔的视频**受理之后**才失败，那时算力已经消耗，
-//     费用不退。这句必须在按钮**上方**常驻，不能藏进"了解更多"；
+//  ③ **可能白等**：F11 —— 含真人面孔的视频**受理之后**才失败。2026-10-07 起出片那一笔会被服务端退回，
+//     但「AI 看帧」那一笔（一次对话）不退、人也白等了几分钟；老服务端两笔都不退。这句必须在按钮**上方**常驻，
+//     不能藏进"了解更多"；说哪一版按服务端能力位 failRefund 定（没探到按老的说，别许兑现不了的退款）；
 //  ④ **AI 看哪几帧**（2026-08-15 加）：看漏了人，画面上照样会站着一个白人偶，但清单里
 //     没有他的位置 —— 谁的卡都挂不上去，而且他还会把别人的「从左数第几个」挤歪一位
 //     （老编号方案下的形态是"他身上没有编号"）。默认按时长自动取帧；人数会变的素材由作者自己标 ——
 //     交互在 `VisionFramePicker`，帧数同时是报价的一半，所以两者必须读同一个来源。
 import { Trans, useLingui } from "@lingui/react/macro";
+import Warn from "../Warn";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import CropOverlay from "./CropOverlay";
 import TrimBar from "./TrimBar";
@@ -43,10 +45,12 @@ import {
   blockoutizeCost,
   blockoutizeIssue,
   fmtTokens,
-  modelLabel,
   r2vTokens,
 } from "../../data/economy";
+import { tierShownModel } from "../../data/account";
+import { useAccountVersion } from "../../hooks/useAccount";
 import { autoVisionFrames, visionFrameCount } from "../../data/templates";
+import { serverSupports } from "../../data/serverCaps";
 
 /** 本机解出来的时长与登记值差多少算"对不上"（秒）。
  *  ★ 登记值是 Cloudinary 回执里**取整**过的秒数，本机是浮点 —— 正常就能差 0.5。
@@ -97,10 +101,10 @@ export interface BlockoutTrimmerProps {
    */
   judge?: (sel: BlockoutSelection, natural: VideoNatural) => { issue: string | null; ok: string };
   /**
-   * 报价区的替换渲染 —— 不给就出白模化那两笔（blockoutizeCost）+「受理后失败不退费」。
+   * 报价区的替换渲染 —— 不给就出白模化那两笔（blockoutizeCost）+「受理后才失败」那句风险提示（F11）。
    *
-   * ★★ 给了就**连 F11 那句一起换掉**：那句说的是 r2v「受理之后才拒绝、算力已耗、费用
-   *   不退」，是白模化那条路独有的风险档 ——「自带参考视频」不出片，挂着它就是拿别条路
+   * ★★ 给了就**连 F11 那句一起换掉**：那句说的是 r2v「受理之后才拒绝」（出片那笔退回、看帧那笔不退、白等一场），
+   *   是白模化那条路独有的风险档 ——「自带参考视频」不出片，挂着它就是拿别条路
    *   的风险话术吓自己的用户。宿主给的 pricing 节点要自己负责说清这条路的钱与风险。
    * ★ 同时跳过 blockoutizeIssue/blockoutizeCost 那两道门（它们是白模化价目的就绪检查，
    *   报价都不归这里了，还拿它们拦提交就是"别条路的价目没就绪、这条路也不让走"）。
@@ -175,6 +179,8 @@ export default function BlockoutTrimmer({
 }: BlockoutTrimmerProps) {
   /** 本机 `<video>` 解出来的元数据。有登记值时只用来**比对**，没有时它就是唯一的依据 */
   const { t } = useLingui();
+  // 报价那句里的模型名按地区写（account.tierShownModel）：地区是异步问到的，订阅账号的版本号，到了就重画
+  useAccountVersion();
   const [probe, setProbe] = useState<VideoNatural | null>(null);
   /** 选段与裁剪框。★ 「看哪几帧」**不存在这里**：它按绝对秒存在 marks 里（见下） */
   const [sel, setSel] = useState<BlockoutSelection | null>(null);
@@ -235,8 +241,8 @@ export default function BlockoutTrimmer({
    *
    * ★ 为什么停：裁剪框的坐标按登记值画、服务端也按登记值裁。两边尺寸对不上时，用户框住的
    *   那块与真正裁到的那块**很可能不是同一块**，而屏幕上完全看不出来 —— 框还是那个框，
-   *   水印还在那儿，要等付费出片回来才发现。而这条链路上钱是可能退不了的（F11：受理后失败
-   *   不退）。所以按"宁可让他重来"处理。
+   *   水印还在那儿，要等付费出片回来才发现。而裁错了的片子是**出成了**的（方舟照收钱，退款只管上游明说失败的那种），
+   *   钱退不回来。所以按"宁可让他重来"处理。
    * ⚠ **未实测**：最常见的怀疑对象是手机竖拍视频的旋转标记（`<video>` 显示 1080×1920，
    *   而云端登记 1920×1080），但"Cloudinary 的 c_crop 到底在旋转前还是旋转后的坐标系上裁"
    *   没有人验证过。所以这里的判词只说"对不上、有风险"，**不许**写成"一定会裁错"。
@@ -284,6 +290,9 @@ export default function BlockoutTrimmer({
   //   服务端按 3 帧扣"。
   const priceIssue = blockoutizeIssue();
   const tier = blockoutTier();
+  /** 白模那一发交给哪个模型：只在地区问到了、这一档又摆得出来时写模型名（account.tierShownModel，一处出口），否则写档位名 */
+  const tierModel = tier ? tierShownModel(tier) : null;
+  const tierLabel = tier?.label ?? "";
   const durSec = outSel?.durSec ?? 0;
   const autoFrames = autoVisionFrames(durSec);
   const frameCount = outSel ? visionFrameCount(durSec, outSel.frameTimes) : 0;
@@ -350,18 +359,18 @@ export default function BlockoutTrimmer({
       <p className="text-[11px] leading-relaxed text-slate-400">
         <Trans>
           拖四个角调整<b className="text-slate-200">裁剪框</b>，拖框身整体挪位。
-          <b className="text-amber-300">台标 / 水印必须框到框外</b> —— AI 出片是逐帧复刻画面，
+          <b className="text-warn-300">台标 / 水印必须框到框外</b> —— AI 出片是逐帧复刻画面，
           提示词去不掉它（实测），裁掉是唯一的办法；而模板会被反复套用，留一个水印就是永久的。
         </Trans>
       </p>
 
       {sizeMismatch && (
-        <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-200">
+        <p className="rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-[11px] leading-relaxed text-danger-200">
           ✗ {sizeMismatch}
         </p>
       )}
       {durMismatch && (
-        <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-200">
+        <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-[11px] leading-relaxed text-warn-200">
           ⚠ {durMismatch}
         </p>
       )}
@@ -422,13 +431,13 @@ export default function BlockoutTrimmer({
           <Trans>正在读取这段视频的画面尺寸与时长…（应用切到后台时系统会暂停解码，这一步会一直等着）</Trans>
         </p>
       ) : issue && !sizeMismatch ? (
-        <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-200">
+        <p className="rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-[11px] leading-relaxed text-danger-200">
           ✗ {issue}
         </p>
       ) : (
         !sizeMismatch &&
         verdict && (
-          <p className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-[11px] leading-relaxed text-emerald-200">
+          <p className="rounded-lg border border-ok-500/40 bg-ok-500/10 px-3 py-2 text-[11px] leading-relaxed text-ok-200">
             ✓ {verdict.ok}
           </p>
         )
@@ -450,7 +459,7 @@ export default function BlockoutTrimmer({
       {pricing ?? (
       <div className="rounded-lg border border-slate-700/70 bg-panel/60 px-3 py-2">
         {priceIssue ? (
-          <p className="text-[11px] leading-relaxed text-amber-200">⚠ {priceIssue}</p>
+          <Warn>{priceIssue}</Warn>
         ) : (
           <>
             {/* ★ 帧数与它那半笔钱都是**当下这一份选择**算出来的（自动随时长变、自己挑时
@@ -468,7 +477,11 @@ export default function BlockoutTrimmer({
               {videoTokens !== null && tier && (
                 <>
                   {" "}
-                  <Trans>+ 把这 {durSec} 秒整段换成白模人偶（{modelLabel(tier.model)} · {fmtTokens(videoTokens)}）</Trans>
+                  {tierModel ? (
+                    <Trans>+ 把这 {durSec} 秒整段换成白模人偶（{tierModel} · {fmtTokens(videoTokens)}）</Trans>
+                  ) : (
+                    <Trans>+ 把这 {durSec} 秒整段换成白模人偶（「{tierLabel}」档 · {fmtTokens(videoTokens)}）</Trans>
+                  )}
                 </>
               )}
               {t({ message: "。", comment: "句末句号，收住上面那一两句报价说明" })}
@@ -482,22 +495,32 @@ export default function BlockoutTrimmer({
       </div>
       )}
 
-      {/* F11：受理后失败不退费。常驻，不折叠。★ 报价被宿主接管时一起换掉（见 pricing 的 ★★）：
-          这句说的是 r2v 那条路的风险档，不出片的路挂着它是在吓错人 */}
+      {/* F11：受理后才失败。常驻，不折叠。★ 报价被宿主接管时一起换掉（见 pricing 的 ★★）：
+          这句说的是 r2v 那条路的风险档，不出片的路挂着它是在吓错人。
+          ★ 钱怎么说看服务端会不会退（能力位 failRefund，2026-10-07）：会退的只退**出片那一笔**（方舟明说失败的那种），
+          「AI 看帧」那一次对话照收 —— 只说「会退」就把退款说大了；没探到 / 老服务端照旧说不退 */}
       {!pricing && (
-      <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-200">
-        <Trans>
-          ⚠ 视频里有<b>真人面孔</b>时，AI 可能在<b>受理之后</b>才拒绝这一发 —— 那时算力已经开始消耗，
-          <b>这笔费用不退</b>（实测：创建时不拒，只能中途失败）。真人素材请自己掂量；动画、游戏画面、
-          自己拍的白模预演不受影响。
-        </Trans>
+      <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-[11px] leading-relaxed text-warn-200">
+        {serverSupports("failRefund") === true ? (
+          <Trans>
+            ⚠ 视频里有<b>真人面孔</b>时，AI 可能在<b>受理之后</b>才拒绝这一发 —— 那时<b>出片那一笔会自动退回</b>，
+            但「AI 看帧」那一笔不退，几分钟也白等了（实测：创建时不拒，只能中途失败）。真人素材请自己掂量；
+            动画、游戏画面、自己拍的白模预演不受影响。
+          </Trans>
+        ) : (
+          <Trans>
+            ⚠ 视频里有<b>真人面孔</b>时，AI 可能在<b>受理之后</b>才拒绝这一发 —— 那时算力已经开始消耗，
+            <b>这笔费用不退</b>（实测：创建时不拒，只能中途失败）。真人素材请自己掂量；动画、游戏画面、
+            自己拍的白模预演不受影响。
+          </Trans>
+        )}
       </p>
       )}
 
       {extra}
 
       {error && (
-        <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-200">
+        <p className="rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-[11px] leading-relaxed text-danger-200">
           {error}
         </p>
       )}
@@ -506,7 +529,7 @@ export default function BlockoutTrimmer({
           blockoutizeCost 返回 null 时 blockoutizeIssue 必然有话说）。宁可多一行也不能让
           按钮"灰着且不说话"：那时用户唯一能做的就是反复点它。 */}
       {blocked && !sizeMismatch && !loading && !issue && !priceIssue && (
-        <p className="text-[11px] leading-relaxed text-rose-300">{blocked}</p>
+        <p className="text-[11px] leading-relaxed text-danger-300">{blocked}</p>
       )}
 
       <div className="flex gap-2">

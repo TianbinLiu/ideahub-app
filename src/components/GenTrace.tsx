@@ -57,9 +57,9 @@ export default function GenTrace({
         >
           <span className={`inline-block transition-transform ${open ? "rotate-90" : ""}`}>▸</span>
           <Trans>生成过程</Trans>
-          <span className="text-slate-600">
-            {running ? t`· ${doneCount}/${total} 步` : t`· 共 ${total} 步`}
-          </span>
+          {/* 步数不另上色、跟着这颗键的 slate-500 走（2026-10-19 定）：10-19 上午改成 slate-400 之后它比自己的标签「生成过程」还亮，
+              层级倒过来了；也不退回 slate-600（小字 2.50:1，check-contrast 规则 B）。slate-500 那一档按主人口径不动 */}
+          <span>{running ? t`· ${doneCount}/${total} 步` : t`· 共 ${total} 步`}</span>
         </button>
       )}
 
@@ -79,18 +79,21 @@ export default function GenTrace({
                     isRun
                       ? "bg-brand shadow-[0_0_6px_rgba(34,211,238,0.9)] animate-pulse"
                       : isErr
-                        ? "bg-rose-500"
+                        ? "bg-danger-500"
                         : "bg-slate-600"
                   }`}
                 />
                 <div className="min-w-0 flex-1">
                   <div
                     className={`text-[11.5px] leading-relaxed ${
-                      isRun ? "text-slate-200" : isErr ? "text-rose-300" : "text-slate-500"
+                      isRun ? "text-slate-200" : isErr ? "text-danger-300" : "text-slate-500"
                     }`}
                   >
                     {title}
-                    {s.ms != null && <span className="ml-1.5 text-[10px] text-slate-600">· {fmtMs(s.ms)}</span>}
+                    {/* 耗时不另上色、跟着这一行的标题色走（2026-10-19，与表头那颗键的步数同一个口径）：
+                        原来写死 slate-400，已完成那一步的标题是 slate-500 ⇒ 耗时比标题还亮，层级倒过来了；
+                        跟着走之后跑着的那步是 slate-200、失败那步是 rose-300，都不倒挂 */}
+                    {s.ms != null && <span className="ml-1.5 text-[10px]">· {fmtMs(s.ms)}</span>}
                   </div>
                   {(isRun || s.keep) && detail && (
                     <div className="text-[10.5px] leading-relaxed text-slate-500">{detail}</div>

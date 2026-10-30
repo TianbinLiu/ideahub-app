@@ -18,6 +18,7 @@
 // ⚠ 失败页**不给「清理缓存」**：它删的是没人引用的 merged: / model3d: blob，碰不到让开机失败的任何东西；
 //   而它判"没人引用"读的正是草稿索引、剪辑稿、作品库 —— 它们没读出来时去扫会误删（cacheSweep 按 loadIssue 整轮不删）。
 import { readyAccount } from "./account";
+import { reportClientEvent } from "./clientEvents";
 import { readyCutSession } from "./cutSession";
 import { readyDanmaku } from "./danmaku";
 import { IdbError } from "./db";
@@ -71,6 +72,11 @@ export function bootData(): Promise<BootFailure[]> {
   running ??= Promise.allSettled(TASKS.map((task) => task.run()))
     .then(collect)
     .catch((e: unknown) => [failureOf("videos", e)])
+    // 失败上报（humble-delivery-4，data/clientEvents）：整页拦住的那一屏此前只有这台手机上的人看得见；只带「哪种原因:哪几样」，不带 detail（错误原文）
+    .then((failures) => {
+      if (failures.length) reportClientEvent("boot-blocked", { where: failures.map((f) => `${f.kind}:${f.cores.join(".")}`).join("/") });
+      return failures;
+    })
     .finally(() => {
       running = null;
     });

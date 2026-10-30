@@ -737,6 +737,11 @@ export interface TtsVoiceCatalog {
   defaultVoiceId: string;
   /** 一次混音最多几味（豆包上限 3）；老服务端没有 */
   maxMixVoices?: number;
+  /**
+   * 剪辑页旁白免费：每个账号每天几个字（2026-10-08，服务端 config/tokens.NARRATION_FREE_DAILY_CHARS）。
+   * ★ 老服务端没有这一位 ⇒ 那里旁白照样按字扣钱，剪辑页就不许说「免费」（studio/cutNarration.loadNarration）。
+   */
+  narrationFree?: { dailyChars: number };
 }
 
 /** 豆包音色目录（公开）。单音色允许目录之外的 id；混音的每一味必须在 mixable 里 */

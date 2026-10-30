@@ -45,6 +45,15 @@ canvas {
 .safe-top {
   padding-top: calc(env(safe-area-inset-top, 0px) + 10px);
 }
+/* 自带安全区的那一行表头（覆盖层表头、分区页的搜索行）：上内边距同 .safe-top，高度 = 状态栏 + 10px 呼吸 + 48px 一行。
+   ★ 2026-10-26 主人真机：分区页滑到顶，搜索栏挡住「浏览分区」上半截。这些行原来写的是 `safe-top h-[58px]`（58 = 10 + 48），
+     这个数只在状态栏 inset 为 0 时对（浏览器里量的都是 0）；真机 inset 41px（上面那段注释量过），border-box 下内容区被压到
+     58 − 51 = 7px，36~44px 的搜索框 / 圆钮从行底溢出去，盖住下面第一块内容。高度必须把 inset 算进去 —— 一处实现，
+     别再手写 h-[58px]（构建里 scripts/check-top-bar.mjs 拦着）。PageHeader 那种「外层 safe-top + 里层 h-12」也对，两种写法同高。 */
+.safe-top-bar {
+  padding-top: calc(env(safe-area-inset-top, 0px) + 10px);
+  height: calc(env(safe-area-inset-top, 0px) + 58px);
+}
 .safe-bottom {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
@@ -123,16 +132,37 @@ canvas {
   animation: heart-burst 620ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
-/* 首页视频缓冲提示（对标抖音/TikTok）：底缘细线从中心拉宽并淡出，循环 */
+/* 双击点赞的品牌粒子（2026-10-21，docs/ui-benchmark-2026-10.md 第五节）：心形照旧是通用的红心（换成星 / 灯泡会和收藏抢含义），
+   启梦的那一笔落在「一闪而过的反馈」上 —— 外圈金色四角星（取看板娘的星形发夹）与品牌青光点向外飞散。
+   ★ 只动 transform / opacity；落点由 --dx / --dy 给（FeedPage 的 LikeBurst 按角度算好写进 style）。
+   ★ 起点同样先 translate(-50%,-50%)：粒子的定位点是爆心，不这样写会整体往右下偏半个粒子。 */
+@keyframes burst-fly {
+  0% { transform: translate(-50%, -50%) scale(0.3); opacity: 0; }
+  20% { opacity: 1; }
+  100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1); opacity: 0; }
+}
+.burst-fly {
+  animation: burst-fly 560ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* 首页视频缓冲提示（对标抖音/TikTok）：底缘细线从中心拉宽并淡出，循环。
+   ★ 只动 transform / opacity（2026-10-15 教材人格评审，McConnell 性能那条；与下面弹幕那条同一个理由）：
+     原来关键帧动 width（16% → 90%），缓冲期间每帧一次 Layout + Paint，正压在等首帧的视频上；
+     现在线固定 90% 宽，从中心 scaleX(0.18 → 1)，0.18 = 16 / 90，起止与原来一样宽。
+   ★ 代价：scaleX 会把 1.5px 的圆角两端也压扁（起点处约 0.27px），肉眼看不出 —— 要是哪天线加粗到看得出，
+     改法是动 clip-path / 两端各画一个圆，别改回 width。 */
 @keyframes feed-buffer {
-  0% { width: 16%; opacity: 0; }
+  0% { transform: scaleX(0.18); opacity: 0; }
   35% { opacity: 0.85; }
-  100% { width: 90%; opacity: 0; }
+  100% { transform: scaleX(1); opacity: 0; }
 }
 .feed-buffer-line {
+  width: 90%;
   height: 3px;
   border-radius: 9999px;
   background: rgba(255, 255, 255, 0.8);
+  transform-origin: center;
+  will-change: transform, opacity;
   animation: feed-buffer 0.9s ease-out infinite;
 }
 
@@ -380,6 +410,8 @@ canvas {
   .mat-shake,
   .drop-ring { animation: none !important; }
   .perch-pop { opacity: 1; transform: translateX(-50%); }
+  /* 点赞粒子：减少动效时只留那颗心，不飞星星 */
+  .burst-fly { display: none !important; }
 
   /* 弹幕改成"字幕"：不横飘，在左上角原地淡入淡出。
      ★ 不能写 animation: none —— 那样它既不动、也**永远不会触发 animationend**，
@@ -412,4 +444,13 @@ canvas {
    WebView 不支持」的降级路径兜底的——那时底栏还实实在在压在画面上。 */
 body[data-immersive="1"] [data-tabbar] {
   display: none;
+}
+
+/* 键盘 / 遥控焦点环（2026-10-23，Refactoring UI 走查的「书外延伸」那条）：全仓 126 处 outline-none、只有 1 处 focus-visible。
+   触屏上 :focus-visible 不会点亮（点按不算键盘焦点），所以这条只在外接键盘 / 电视遥控 / 无障碍切换访问时出现。
+   用 :where() 让它零特异性 —— 自己写了 focus:border-brand 的输入框照旧用自己的那套 */
+:where(a, button, [role="button"], [role="slider"], [role="checkbox"], summary):focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
+  border-radius: 0.375rem;
 }

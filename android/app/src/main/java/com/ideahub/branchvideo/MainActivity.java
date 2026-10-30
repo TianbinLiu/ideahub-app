@@ -15,6 +15,9 @@ public class MainActivity extends BridgeActivity {
         // ★ AppUpdaterPlugin 有两份实现，按渠道二选一（见 build.gradle 的 productFlavors）：
         //   sideload = 真的下载安装，play = 会 reject 的空壳。这里两边共用同一行。
         registerPlugin(AppUpdaterPlugin.class);
+        // ★ PlayBillingPlugin 同样有两份实现，按渠道二选一：play = 真的 Google Play 结算，
+        //   sideload = isAvailable() 回 false 的空壳（界面据此照旧走微信 / 支付宝）。
+        registerPlugin(PlayBillingPlugin.class);
         registerPlugin(QQLoginPlugin.class);
         registerPlugin(WeChatPlugin.class);
         // 剪辑页的成片合并：走系统硬件编解码器（Media3 Transformer），见 VideoMergePlugin 头部的 ★★

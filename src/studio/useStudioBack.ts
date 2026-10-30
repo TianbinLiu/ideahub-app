@@ -6,7 +6,8 @@
 // 关于安卓物理返回键：**这一层还没接**，但它并不是"没反应"——
 // ⚠ 2026-08-14 更正：@capacitor/app **已经装了**（package.json 8.1.1，为第三方登录的
 //   appUrlOpen 深链装的）。它的 AppPlugin 在 OnBackPressedDispatcher 上挂了回调：
-//   全 app 只要**没有人**监听 "backButton"（现在确实没有，grep src/ 零命中），
+//   ⚠ 2026-10-29 起 utils/backButton 挂了全 app 唯一的 backButton 监听（层栈：抽屉 / 对话框 / 全屏先关）；没有开着的层时它照原样 history.back()，下面说的默认行为不变。
+//   原来全 app **没有人**监听 "backButton"，
 //   默认行为就是 `bridge.getWebView().goBack()` —— 也就是 WebView 的历史后退。
 //   HashRouter 下每个 navigate(push) 都是一格历史，所以真机上按返回 = 退回上一个路由。
 //   （这条老注释原来写着"插件没装、按返回直接 finish Activity"，两句都不对。它不是

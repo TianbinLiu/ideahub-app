@@ -20,6 +20,7 @@
   takedown?: { by: ObjectId(User), at: Date, reason: String },   // 见下「平台下架」
   revision: Number,                               // 回炉次数。**恒发**（老数据归一成 0）；见下「回炉重做」
   revisedAt?: Date,                               // 最近一次回炉的时间；**只在有值时出现**
+  recipePublic?: true,                            // 公开配方且不过期时才发（判有值）；recipeState / remixOf / remixCount 见「公开配方」
   author: ObjectId(User), plays, likes, commentCount,
   createdAt, updatedAt
 }
@@ -159,9 +160,11 @@ z.object 默认 strip，塞进去会被丢掉。★ 这条靠的是 strip 语义
 
 #### `card.imageTier` —— 铸卡用的出图档位（**目前是纯客户端字段**）
 
-值是 `app/src/data/economy.ts` `IMAGE_TIERS` 的 id：`"sketch" | "studio" | "master"`
-（速写 / 定妆 / 精绘，分别对应 Seedream 4.0 / 4.5 / 5.0-pro，见下面「出图档位与计价」）。
+值是 `app/src/data/economy.ts` `IMAGE_TIERS` 的 id：`"sketch" | "master"`
+（速写 / 精绘，分别对应 Seedream 4.0（2.63 起是继任型号 `4-0-20260415`）/ 5.0-pro，见下面「出图档位与计价」）。
 它记的是"这张卡当初是用哪一档炼的"。
+★ 2.63 之前铸的卡还可能是 `"studio"`（「定妆」，Seedream 4.5 —— 2026-10-10 随方舟第十批下线撤掉的那一档）：原样留着、照常显示；
+读的话 `imageTierOf("studio")` 落到默认档（速写），App 没有任何一处按它重画、报价或换模型。
 
 ⚠ **截至 2026-08-11，服务端不存这个字段。** `schemas/branchAsset.schemas.js` 的 `cardItem`
 里没有声明它，而 `z.object` 是 **strip** 语义 —— 客户端发上来会被**悄悄丢掉**：请求 201、
@@ -283,6 +286,10 @@ BranchAssetView  { kind, key, viewer, expiresAt }                        唯一 
 | GET | `/api/branch/projects/by-video/:videoId` | required | 取回工程（仅作者）。→ `{ ok, project: { video, title, canvas, videoRevision, stale, lostCount, updatedAt } }`；没有 → 404 `PROJECT_NOT_FOUND`「这条作品没有留存工坊工程。」。★★ 客户端**必须**拿 `videoRevision` 与作品当下的 `revision` 比，对不上就**不许铺进工坊**（`data/projects.loadProject` 一处）—— 一份描述上一版的画布配上现读的 `baseRevision` 会被服务端正常接受，把线上内容**静默退回**。`stale` 是同一件事的提示位（判否定：老服务端不发 = 不过期） |
 | DELETE | `/api/branch/projects/by-video/:videoId` | required | 作者主动放弃留存 → `{ ok: true }`。**作品本身不受影响** |
 | GET | `/api/branch/projects` | required | 我留存过的工程列表（最多 200 条，按 updatedAt 降序）→ `{ ok, items: [{ video, title, bytes, videoRevision, stale, lostCount, updatedAt }] }`。⛔ **不含 canvas** |
+| PUT | `/api/branch/videos/:id/recipe` | required | 公开配方（制作过程）：留存一份白名单形状的流水线描述，见下「公开配方」。body `{ recipe, videoRevision, public? }`，`videoRevision` 对不上作品当下的 `revision` 400 `RECIPE_REVISION_MISMATCH`。限流 12/分钟 |
+| PATCH | `/api/branch/videos/:id/recipe` | required | 开 / 关公开 `{ public }`（仅作者） |
+| GET | `/api/branch/videos/:id/recipe` | optional | 读配方：作者本人任何状态都读得到；别人只在公开且不过期时读得到，否则 404 `RECIPE_NOT_PUBLIC` |
+| DELETE | `/api/branch/videos/:id/recipe` | required | 作者删掉留存的配方 → `{ ok: true }`，作品不受影响 |
 | DELETE | `/api/branch/videos/:id` | required | 仅作者可删 |
 | POST | `/api/branch/videos/:id/play` | optional | 播放计数 +1，返回 `{ ok, plays }` |
 | POST | `/api/branch/videos/:id/like` | required | 点赞，返回 `{ ok, likes, liked: true }` |
@@ -441,6 +448,130 @@ PUT 的四种 400（`message` 同样原样显示）：缺少画布正文 / 画�
 （服务端 `BranchVideo` 无此字段，**读**路径照旧，老作品的分集照常播）。
 
 
+### 公开配方（制作过程，`/videos/:id/recipe` 四条 + `remixOf`）
+
+**一句话**（2026-10-02，模板体系 P1，方案 app 仓 docs/template-workflow-research.md §三 C）：作者可以把一条作品
+**怎么一段段做出来的**公开给别人看（作品页「查看制作过程」），别人按它把同一条流水线铺到自己的草稿里接着做。
+公开的**不是**回炉用的那份画布：客户端从画布投出一份**白名单形状**（app `data/recipe.projectRecipe`），服务端用
+**同一形状的严格 schema** 再验一遍（`schemas/branchRecipe.schemas.js`，`z.object` 默认 strip，白名单之外的键进不来）。
+加字段要三处一起动：app 的类型 + 投影、server 的 schema。
+
+```
+WorkflowRecipe {
+  v: 1,
+  mode: "workflow" | "simple",
+  nodes: RecipeNode[1..24],            // 逐段：title / plot / shot? / durationSec / tier / model? / aspect / chain / kind / cards[] / slots[] / tpl? / flags[] / preview?
+  deck:  RecipeCard[0..60],            // 随配方带走的卡（cardId / type / name / summary / cover / tags / idLine / textDesc / startFrames? / views），**没有** modelUrl / genPrompt
+  cast:  RecipeSlot[0..30],            // 要使用者自己填的空位：{ type, why: "real" | "foreign" | "private", name }（real 恒空名）
+}
+```
+
+- **红线**（客户端投影 + 服务端按作者卡库复核，两道）：声明过真实人物的卡 → `cast` 里一个 `real` 空位、**不带名字**；
+  从别人那儿装来的卡（`BranchCard.sourceOwner` 有值）→ `foreign` 空位带名字；卡太多带不完 → `private`。
+  服务端在 `deck` 里撞见真人卡 400 `RECIPE_REAL_PERSON`、装来的卡 400 `RECIPE_FOREIGN_CARD`。
+- 段模板**只回指服务端 id**（`tpl: { id, title, part? }`，24 位十六进制），不带快照：出片只认已登记的模板视频，
+  复制时客户端现取（`GET /templates/:id`），取不到那一段退成普通段并说明。
+- 白模段的 `plot` 恒空（点名句里是原作挂的卡名）；`flags` 记原作这一段还用过但没带走的东西
+  （`ref-video` / `mid-frames` / `stage` / `anns` / `revised`），故事板据此说一句。
+- `preview.first / last` 只许 http(s) 且不是方舟临时链接（与工程那条不变量同一判据）；整份 ≤ 512KB，
+  本机地址（`data:` / `idb:`）出现即 400。
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|---|---|---|---|
+| PUT | `/api/branch/videos/:id/recipe` | required，仅作者 | body `{ recipe, videoRevision, public? (默认 true) }`。★ `videoRevision` **必须等于作品当下的 `revision`**，对不上 400 `RECIPE_REVISION_MISMATCH`（带 `details.currentRevision`）。幂等 upsert（一条作品一份）。限流 12/分钟（scope `branch:recipe`）。→ `{ ok, recipe: meta }` |
+| PATCH | `/api/branch/videos/:id/recipe` | required，仅作者 | body `{ public: boolean }` 只开 / 关。限流 30/分钟（scope `branch:recipe:toggle`）。没有配方 404 `RECIPE_NOT_FOUND` |
+| GET | `/api/branch/videos/:id/recipe` | optional | 作品本身要对这个人可读（与作品同一套 `readableBy`）。**作者本人任何状态都读得到**；别人只在 `public && !stale` 时读得到，否则 404 `RECIPE_NOT_PUBLIC`「这条作品没有公开制作过程。」（作品不存在 / 不可读是 404 `NOT_FOUND`，与作品端点同句）。→ `{ ok, recipe, meta: { video, videoRevision, public, stale, listed, bytes, nodeCount, updatedAt, title, cover, author: { _id, username, displayName, avatarUrl }, isOwner } }` |
+| DELETE | `/api/branch/videos/:id/recipe` | required，仅作者 | → `{ ok: true }`。作品不受影响 |
+
+**`stale`**：配方描述的不是作品当下这一版 —— 回炉成功那一拍服务端只在 `BranchVideo.recipe` 上留 `{ public, revision }`
+（revision 是配方描述的版次），`stale = revision !== video.revision`。回炉之后旧配方**自动对外隐藏**，客户端留存工程那一拍
+随新画布重新 PUT 一份（`videoRevision` = 回炉回包的新版次）；作者关着公开的话不发。判否定：不发 `stale` = 不过期。
+
+**作品上随之多出的四位**（`toVideoPayload`）：
+- `recipePublic: true` —— **只在**公开且不过期时发（判有值）。列表与详情都发。
+- `recipeState: { public, stale }` —— 只发给作者本人（编辑页那颗开关的初值）。
+- `remixOf: { id, title, author }` —— 这条是按谁的流程做的。**只有详情端点算**；原作对**这个读者**不可读
+  （私密 / 下架 / 删了）时不发。发布体 `POST /videos` 收可选的 `remixOf: string`（原作 id），服务端只认「发布者读得到的原作」，
+  认不下来当没带、**不挡发布**。回炉体不收它（归属不变）。
+- `remixCount: number` —— 有几条作品按它做了同款（不含作者自己的）。**只有详情端点算**。
+
+**级联**：删作品连带删它的配方；永久删号连带删此人全部配方（`purgeUserCascade` 的清单里）。被引用的原作删掉后，
+同款作品上的 `remixOf` 存着不动、只是不再发（读者读不到原作）。
+
+#### 工作流模板（上架的公开配方，模板体系 P2，2026-10-02）
+
+主人拍板「工作流模板必须挂在一条已发布作品上」（示例视频 = 那条作品），所以**工作流模板就是上了架的公开配方**，
+不另开一张表：`BranchRecipe.listed`（+ `listedAt`）一位布尔。
+
+- 上架的前提是**公开 + 不过期**：`PUT` 可带 `listed: true`（没勾公开时不上架、不报错 —— 从属开关）；不带 `listed` 的 PUT
+  **不动**原来的上架位（回炉重投新一版不会悄悄下架）。`PATCH { listed: true }` 对没公开 / 过期的 400 `RECIPE_NOT_LISTABLE`
+  （整句拒，不静默）；`PATCH { public: false }` 顺手下架。`PATCH` 至少要给 `public` / `listed` 一样。
+- `GET /api/branch/templates/workflows`（optionalAuth）：货架。只列「上架 + 公开 + 不过期 + 作品对这个人可读」的，
+  可读性按**凭链接可见也算**的口径（作者不想进首页流就把作品设成凭链接可见，仍能上货架）；私密、下架的不列。
+  query `limit`（默认 30，上限 60）、`before`（上一页最后一条的 `listedAt`）。→ `{ ok, items: [{ video, title, cover,
+  author, summary: { segs, totalSec, tiers, templated, cards, slots }, remixCount, listedAt, updatedAt }] }`，**不带正文**。
+  ★ 这条路由挂在 branchTemplate.routes **之前**（app.js）：不然 `/templates/:id` 会把 `workflows` 当 id 吞掉。
+- 模板页 = 作品的制作过程页（`GET /videos/:id/recipe`，meta 多一位 `listed`）；作者的作品回包 `recipeState` 多一位 `listed`。
+
+**被公开配方引用着的段模板只能「退役」**（主人拍板：只能下架，素材保留到没人引用）：`BranchTemplate.status` 多一档 `retired`。
+- 引用数现算：`BranchRecipe.refsOfTemplate(id)` = 公开配方里 `nodes[].tpl.id` 指向它的份数（关了公开的不算）。
+- `DELETE /templates/:id` 在引用数 > 0 时**不删**：status 改成 `retired`（blocked 的不动），回 `{ ok, retired: true, refs }`，
+  素材一个都不回收；引用数归零之后再删一次才真删。`PATCH /templates/:id/unpublish` 同理：有引用 → `retired`（回包带
+  `retired: true, refs`），没引用 → `pending`。
+- `retired` 对**所有人**可读（`GET /templates/:id`）、可用（ark 的 `resolveR2v` 放行）：按配方复制的人要靠它铺白模段、出片；
+  不进 `/templates/shared` 货架。与 `pending`（只有作者）/ `blocked`（谁都不能用）是三件事。
+
+⚠ 客户端判「这台服务器有没有这个端点」看**回包形状**（`meta.video` 是否存在），不看状态码：Capacitor 对未命中路径
+回 200 + index.html。老服务端上这四条路都不存在 ⇒ App 把它说成「这台服务器还不支持公开制作过程」，不是「没有公开」。
+
+### 同款奖励（`remix_reward`，模板体系 P3b，2026-10-02）
+
+别人按你的流程做了同款、**公开发布满 24 小时还公开着** → **平台**印一笔 token 给原作者（主人 10-02 拍板四个数）。
+
+★★ **这是平台印钱，不是同款作者付给原作者**：token 只能购买、只能站内消耗，不许在用户之间流转。账本上只有原作者
+那一条 `remix_reward` 入账，同款作者的钱包不动。
+
+| 数 | 值 | 在哪儿 |
+|---|---|---|
+| 每次 | 30,000 token（≈ 0.45 元） | server `config/remixReward.js` 的 `TOKENS` |
+| 每位原作者 24 小时内 | 最多 10 次，**不顺延** | `PER_AUTHOR_PER_DAY` |
+| 每条原作一共 | 最多 50 次 | `PER_VIDEO` |
+| 要挂多久 | 24 小时 | `HOLD_MS` |
+| 开关 | 缺省开；`REMIX_REWARD_ENABLED=false` 关 | `enabled()` |
+| 防刷一：每个**同款作者** 24 小时内 | 最多带来 3 次，不顺延 | `PER_REMIXER_PER_DAY` |
+| 防刷二：**全站** 24 小时内（保险丝） | 最多 100 次（≈ 45 元 / 天），可用 `REMIX_REWARD_GLOBAL_PER_DAY` 调，不用发版 | `globalPerDay()` |
+
+上面前四个数是**产品口径**（规则端点下发、App 上屏）；两道防刷（2026-10-03 加，ideahub-server#104）是内部规则，**不进规则端点、不上屏**：
+注册不要验证码，"小号互相做同款"刷得动 —— 防刷一把互刷的日产量从 10 次 / 号压到 3 次 / 号，防刷二给全站一天的总支出封顶。
+保险丝断了之后到期的同款记成 `budget` 不发、也不补；这个窗口里第一次断的时候给管理员发一封信（收件人同 NCII 那条：
+`TAKEDOWN_NOTIFY_EMAIL` / `SUPPORT_NOTIFY_EMAIL` / 管理员账号的邮箱），信里列着最近 24 小时收得最多 / 带来最多的各五个号。
+
+**规则端点**：`GET /api/branch/remix-reward`（optionalAuth）
+→ `{ ok, reward: { enabled, tokens, perDay, perVideo, holdHours }, mine?: { count, tokens, last24h } }`。
+App 上那句「每次 N token、每天最多 M 次…」读的是这里（`data/remixReward` → `components/recipe/RemixRewardNote`），
+**不在 App 里另抄一份数**；规则没到（老服务端 / 离线 / 开关关着 / 数不成形）就整句不说。`mine` 只在带登录态时有
+（作为原作者累计发了几次 / 多少 token、最近 24 小时用掉了几次上限）。老服务端没有这条路 —— App 判回包形状（有没有 `reward` 对象）。
+
+**一条同款的一生**（唯一实现 server `services/remixReward.service.js`）：
+1. 发布（`POST /videos` 认下了 `remixOf`）→ 作品上落 `remixOf.pending: true`。自己按自己的流程做的不落。
+   上线之前发布的同款没有这一位 = 不欠，不回头补发。
+2. 满 24 小时后，清扫器（`index.js`，只在 0 号实例，每 10 分钟一轮）判**一次**，写一行 `RemixReward`（每条同款恰好一行）：
+   - 不发的原因（`reason`）：`disabled` 开关关着 / `remix_not_public` 同款那一刻是私密、凭链接可见或被下架 /
+     `original_not_public` 原作没了、私密或被下架（**凭链接可见的原作算公开**：工作流模板可以挂在那种作品上）/
+     `author_inactive`、`remixer_inactive` 账号注销或被封 / `repeat` 同一个人对同一条原作已经算过 /
+     `remixer_cap` 这位同款作者 24 小时内带来的次数到了上限 / `video_cap`、`day_cap` 到了上限 /
+     `budget` 全站保险丝断了（排在最后判：记成它的都是"别的都合格、只是全站额度用完了"）。
+   - **判一次就定案**：到期那一刻不满足的，之后再变公开也不补；发了的，之后同款被删 / 设私密 / 下架也不追回。
+3. 发：先占位（`status: claimed`，`remix` 唯一索引）→ `wallet.credit(原作者, 30000, "remix_reward", "同款奖励 remix:<id>")`
+   （进 **addon**，不过期）→ `paid` → 一条 `BRANCH_REMIX_REWARD` 通知。崩在中间的由下一轮按**账本**续办
+   （memo 逐字是证据：有那一条 = 发过了，只补状态）。
+
+**账本**：`TokenLedger.reason` 多一档 `remix_reward`。它**不抵欠额**（不在 `REPAY_REASONS`：印的钱不是付的钱），
+也**不冲当日用量**（不在 `SPEND_REASONS`）。
+
+**删号 / 删作品**：`RemixReward` 里「他是原作者」的行随删号一起删；「他是同款作者」的行**留着**（那是别的原作者的上限计数，
+跟着删的话刷子号做完同款就注销、上限被悄悄清零）。删作品不动这张表。
+
 ## 热度（`heat`）
 
 **只有一个公式**，实现在 server 的 `src/utils/hotScore.js`：
@@ -461,10 +592,46 @@ likes×6 + comments×4 + bookmarks×3 + min(views, 5000)×0.04
 App「我的 → AI 客服」（`/support`）的服务端。数字人是官网首页那位看板娘（Live2D，随 APK 打包在 `public/live2d/`），
 对话协议与官网 `/api/companion/chat` 相同（逐句 `sentence` 事件带 `[情绪][face][action]` 演出标签 + TTS 参数），多一个 `handoff`。
 
+★ **自伤危机协议（2026-09-24；2026-09-25 评审后扩到客服）现在覆盖三条链路**：
+`/api/companion/chat`（两种请求体）、`/api/personas/preview-chat`、**以及 `/api/support/chat`**。
+客服原来没接 —— 而它是 Play 上唯一的通用对话入口（同一位看板娘、同一套人格），
+「纯客服豁免」还没拍板，代码却已经按豁免在跑。现在口径与陪聊逐字相同。
+
+⚠ **接了守卫的链路不再发 `token` 事件**（未经检查的原始增量，发出去等于绕过守卫；两端 UI 都没用它）。
+下面 `/api/support/chat` 那一行里的 `token {t}` 从这一版起**不会再出现**。
+⚠ App 的**人格向导试聊**与**客服**都在协议内。**客服从 2.70 之后的版本（2.71 起）发 `caps: ["safety","notice"]`**（2.70 及更早不发，收到的是退化成 sentence 的那一种）
+（`api/support.SUPPORT_CAPS`）：收到 `safety` 就 `stopAll()`、不调 `/api/tts`、不进字幕、不算数字人说的话，
+在字幕框上方画一张求助卡（`components/support/SafetyCard`，文字一律用服务端给的；`policyUrl` 是相对路径，
+App 拼成官网地址再打开 —— `utils/shareLink.aiChatSafetyUrl`）；卡的纯文本（与服务端 `crisisPlainText` 同形）
+仍作为一条 `assistant` 消息留在下一轮的 `messages[]` 里，免得历史里出现连着两条 `user`。
+`notice` 在字幕框上方与「记录」里各显示一行小字，不念、不扣钱（客服路由今天不发它，声明了只是收不到）。
+更早的 App 不发 `caps`，命中时收到的是**退化形式**：一条普通 `sentence`（文案 = 求助卡的纯文本，带正常 tts 参数），
+后面直接 `done` —— 界面不会坏，但会被 TTS 念出来、按字扣费。
+**人格向导试聊仍不发 `caps`**（`api/companion.streamPersonaPreviewChat` 是另一份事件分发）：命中时收到退化的 `sentence`，
+只显示文字、不合成语音。
+⚠ **`notice`（AI 身份告知）没有退化形式**：不带 caps 就**收不到**，而服务端会照常记成「已告知」。
+客服声明了 caps 之后这一条在 App 侧有了落点；人格试聊那条（服务端不看 caps、每轮都发）App 不认识这个事件名，照旧不显示 —— 已知缺口。
+加州 SB 243 管的是「companion chatbot」，纯客服有豁免余地 —— 但我们的客服顶着同一位看板娘、同一套人格，
+这个豁免站不站得住还没拍板（见私密文档《AI 对话合规调研》），所以 App 这边要按「迟早要接」来准备：
+
+- 服务端会多两种事件，**不认识就不会发给你**：请求里带 `caps: ["safety","notice"]` 才发
+  `safety`（危机求助卡）与 `notice`（「我是 AI」告知）；不带 `caps` 的老客户端退化成一句普通 `sentence`，
+  界面不会坏，但求助卡会被当成台词念出来 —— 所以 App 接的那一版必须同时做到：收到 `safety` 就 `stopAll()`、
+  **不调 `/api/tts`**、不进字幕、不算数字人说的话。
+- `safety` 的形状：`{ kind: "crisis", trigger: "input"|"output", region: "US"|"CN"|"OTHER", title, body,
+  resources: [{ label, tel?, sms?, url? }], policyUrl, version }`；`notice` 的形状：`{ kind: "ai_disclosure", text }`。
+  热线按**访问者所在地区**给（服务端读 `CF-IPCountry`），不按界面语言 —— 界面英文但人在大陆时给 12356 才有用。
+  `done` 在输入命中那条链路上多带 `safety: true`（那一轮没调模型，也就没有 usage）。
+- 官网那侧还有 `PUT /api/companion/consent`（首次告知同意，空 body → `{ ok, consent: { version, at }, consented: true }`）
+  与 `GET /api/companion/config` 的 `safety` 块（`{ version, consentVersion, policyUrl, consentRequired, consented,
+  region, resources }`，**不登录也给**，只是 `consented` 恒为 false）；服务端开 `COMPANION_REQUIRE_CONSENT=1` 时，
+  没同意过的账号调陪聊会拿到 **428** `CONSENT_REQUIRED`。**这个开关只挡 `/api/companion/chat`，不挡客服**。
+- 协议细节公开在 https://ideahubs.org/safety/ai-chat （SB 243 §22602(b)(2) 要求公开），App 里要放链接时指这里。
+
 | 方法 | 路径 | 鉴权 | 说明 |
 |---|---|---|---|
 | GET | `/api/support/config` | optional | `{ ok, name, enabled, tts, asr, voice, loginRequired: true, quickQuestions[], categories[] }`。`asr=false`（或老服务端没这个字段）时不画麦克风。`enabled=false`（服务端没配 AI）时输入框禁用，只剩「转人工」。**2026-09-04 起登录时另带** `voiceSettings: VoiceSettings`（三层合并结果，见下）、`persona: PersonaSummary\|null`、`personaSource: "user"\|"model"\|""`、`model: Live2dModel\|null`（null = 官方内置）；老字段 `voice` = `voiceSettings.voiceId`。老服务端没有这四项 → App 按旧写法只传 `voice` |
-| POST | `/api/support/chat` | required | SSE。body `{ messages: [{role: user\|assistant, content ≤1000}] ≤20, lang? }`。事件：`sentence {index, text, emotion, face, action, tts:{emotion, instruct}}`、`token {t}`、**`handoff {category, reason}`**（模型判定该转人工，一次对话最多一条）、`done {text, handoff, category}`、`error {message}`。限流 **20/分钟按账号**。★ Content-Type 不是 `text/event-stream` 就当服务端没有这个功能（SPA 回退给的是 200 + HTML） |
+| POST | `/api/support/chat` | required | SSE。body `{ messages: [{role: user\|assistant, content ≤1000}] ≤20, lang?, caps?: ("safety"\|"notice")[] }`（`lang`：App 2.63 之后的版本按当前生效的界面语言发 `"zh"` / `"en"`（`i18n/switch.activeLang`），2.63 及更早写死 `"zh"` —— 服务端别只认它判「这一问是不是英文」）。事件：`sentence {index, text, emotion, face, action, tts:{emotion, instruct}}`、`token {t}`、**`handoff {category, reason}`**（模型判定该转人工，一次对话最多一条）、`done {text, handoff, category, safety?}`、`error {message}`；声明了 `caps` 才会有的 `safety {kind: "crisis", …}`（求助卡）与 `notice {kind: "ai_disclosure", text}`（形状与 App 怎么接见上面 ★ 自伤危机协议；App 2.70 之后的版本（2.71 起）发 `caps: ["safety","notice"]`，2.70 及更早不发）。限流 **20/分钟按账号**。★ Content-Type 不是 `text/event-stream` 就当服务端没有这个功能（SPA 回退给的是 200 + HTML） |
 | POST | `/api/support/tickets` | required | 转人工建单。body `{ transcript: [{role, content ≤2000}] ≤30, note? ≤500, contactEmail?, category? }`；`transcript` 与 `note` 至少一个。**201** `{ ok, ticket, reused: false }`；同一用户 10 分钟内已有未结工单 → **200** `{ ok, ticket, reused: true }`（不重复建）。服务端用 AI 归纳 `subject/summary/category`（失败退回用户原话），然后给所有管理员发 `SUPPORT_TICKET` 通知 + 邮件（`SUPPORT_NOTIFY_EMAIL` 或有真实邮箱的管理员）。限流 5/分钟 |
 | GET | `/api/support/tickets/mine` | required | `{ ok, items: Ticket[] }` 最近 20 张（不含 `contactEmail`） |
 | POST | `/api/support/tickets/:id/messages` | required | 在自己的工单里追加 `{ content ≤2000 }`；已结的单会重新 `open`；再通知管理员（10 分钟去重）。别人的工单 404 |
@@ -487,8 +654,8 @@ App「我的 → AI 客服」（`/support`）的服务端。数字人是官网�
 | POST | `/api/personas/analyze` | required | **人格向导第 2 步**：`{ materials: [{ kind: "chat"\|"posts"\|"notes", text }] (≤10 条、合计 ≤60k 字), speaker? }` → `{ ok, analysis: { catchphrases[], habits: {sentenceLength, punctuation, emoji, particles, tone}, stances[], topics[], avoids[], samples[] }, model, sampledChars }`；素材不落库；5 次/分钟 |
 | POST | `/api/personas/generate` | required | **第 4 步**（扩参，向后兼容）：`{ chatText?(≥20 字), hint?, basics?: {name, role, relation, intro, addressUser}, questionnaire?: {extroversion, rationality, formality, humor, talkative, politeness, emotional, catchphrase, addressUser, language, emoji, taboos…}（≤30 项、键 ≤40 字；值 string(≤200) \| number \| boolean \| string[](≤12 条 × ≤60 字)）, analysis?, only?: string[], draft? }`（chatText / analysis / basics 至少一个；`only` 必须带 `draft`，取值只能是 `name`/`description`/`tags`/`summary`/`catchphrases`/`stanceHint`/`tone`/`addressUser`/`greeting`/`examples`/`boundaries`）→ `{ ok, draft: { name, description, coverEmoji, tags, style: { summary, catchphrases, stats, stanceHint, tone, addressUser, greeting, examples: [{user, reply}], boundaries } }, model }`；5 次/分钟。⚠ **七根滑杆的方向由服务端 `personaAi.service.QUESTIONNAIRE_LABELS` 定义，客户端必须逐条对齐**：`extroversion` 0 外向 100 内向、`rationality` 0 理性 100 感性、`formality` 0 正式 100 随意、`talkative` 0 话多 100 话少（**这四根是双极轴，两端说的是「哪一极」而不是「某项的程度」**）；`humor` / `politeness` / `emotional` 才是「这一项的程度 0～100」。反了是**零报错**的：页面、请求、回包全都正常，只是生成出来的人格与用户拉的滑杆相反（2026-09-07 App 侧抓到过一次，四根全反）。`basics` 各字段上限：`name` ≤120、`role` ≤60、`relation` ≤120、`intro` ≤300、`addressUser` ≤60 |
 | POST | `/api/personas/preview-chat` | required | **第 5 步 试聊**：`{ draft: { name, description?, coverEmoji?, tags?, style? }, messages: [{role, content}] (≤20 条，最后一条须 user；单条 `content` 1～2000 字), lang? }` → SSE，事件与 `/api/companion/chat` 相同（`sentence` / `token` / `done` / `error`）；草稿不落库；20 次/分钟 |
-| POST / PUT | `/api/personas` `/api/personas/:id` | required | 字段上限（`persona.schemas.js`，2026-09-07 逐条登记）：`name` 1～120、`description` ≤1000、`coverEmoji` ≤8、`coverImageUrl` ≤2000、`tags` 数组或逗号串（草稿那侧 ≤12 条 × ≤30 字）、`price` 0～100000 整数；`style` = `summary`(≤2000) / `catchphrases`(≤50 条 × ≤120) / `stats`(≤30) / `stanceHint`(≤500)，外加 `tone`(≤300) / `addressUser`(≤60) / `greeting`(≤300) / `examples`(≤12 组，各 ≤300) / `boundaries`(≤12 条 × ≤120)。⚠ **客户端别把这几个数再往小里收**：其中大半是 AI 生成之后填进表单的，收小了屏幕上就红着一句「超了 N 字」，而它其实发得出去（假警报比没警报更坏）——App 侧一处实现在 `companion/personaWizard.PERSONA_LIMITS`。**`PUT` 的 `style` 是 PATCH 语义**（2026-09-18 起）：只改请求里真的带了的键，没带的保持库里的值；显式发 `""` / `[]` 照常算清空；整个不带 `style` = 一个字不动。原来是「zod 给没带的键补空值 → 整份替换」，官网编辑器只认 summary / catchphrases / stats / stanceHint 四个键，于是 App 向导做出来的人格拿到官网上改一次价格，tone / addressUser / greeting / examples / boundaries 就被清空（200、零提示）。⚠ 以后 style 再加字段，**老客户端不必回传它不认识的键**；也别依赖「少发一个键 = 清掉它」。`POST` 不变（没带的键补缺省值）。`remixable` 与 `license` **服务端还没有**（治理 P5），z.object 默认 strip，发了是静默丢掉，界面上也不许说「已留痕」；回包 `style` 同样带这些字段，`styleDescriptor` 拼进语气 / 称呼 / 边界；Persona 多 `takenDown`。列表 `GET /api/personas` 现在在数据库里搜索 / 排序 / 分页，`q` 大小写不敏感匹配 name / description / tags |
-| GET | `/api/tts/voices` | 无 | 豆包音色目录 `{ ok, voices: [{ id, name, why, expressive?, rate?, generation: "2.0", mixable: false }], mixable: [{ id, name, gender: "female"\|"male", generation: "1.0", mixable: true }], defaultVoiceId, maxMixVoices: 3 }`。`voices` = 19 个 2.0 单音色（目录之外的 id 也允许；App 的「单音色」页列的是 `studio/voices.ts` 那份清单）；`mixable` = 23 个逐个验证过的 1.0 音色，**混音配方只能从这里选**（2026-09-04 起；老服务端没有 `mixable` / `maxMixVoices`，App 的「混音」页据此提示服务端要更新） |
+| POST / PUT | `/api/personas` `/api/personas/:id` | required | 字段上限（`persona.schemas.js`，2026-09-07 逐条登记）：`name` 1～120、`description` ≤1000、`coverEmoji` ≤8、`coverImageUrl` ≤2000、`tags` 数组或逗号串（草稿那侧 ≤12 条 × ≤30 字）、`price` 0～100000 整数；`style` = `summary`(≤2000) / `catchphrases`(≤50 条 × ≤120) / `stats`(≤30) / `stanceHint`(≤500)，外加 `tone`(≤300) / `addressUser`(≤60) / `greeting`(≤300) / `examples`(≤12 组，各 ≤300) / `boundaries`(≤12 条 × ≤120)。⚠ **客户端别把这几个数再往小里收**：其中大半是 AI 生成之后填进表单的，收小了屏幕上就红着一句「超了 N 字」，而它其实发得出去（假警报比没警报更坏）——App 侧一处实现在 `companion/personaWizard.PERSONA_LIMITS`。**`PUT` 的 `style` 是 PATCH 语义**（2026-10-30 上线，server#71；官网配套 client#45 先一步上线）：只改请求里真的带了的键，没带的保持库里的值；显式发 `""` / `[]` 照常算清空；整个不带 `style` = 一个字不动。原来是「zod 给没带的键补空值 → 整份替换」，官网编辑器只认 summary / catchphrases / stats / stanceHint 四个键，于是 App 向导做出来的人格拿到官网上改一次价格，tone / addressUser / greeting / examples / boundaries 就被清空（200、零提示）。⚠ 以后 style 再加字段，**老客户端不必回传它不认识的键**；也别依赖「少发一个键 = 清掉它」。`POST` 不变（没带的键补缺省值）。`remixable` 与 `license` **服务端还没有**（治理 P5），z.object 默认 strip，发了是静默丢掉，界面上也不许说「已留痕」；回包 `style` 同样带这些字段，`styleDescriptor` 拼进语气 / 称呼 / 边界；Persona 多 `takenDown`。列表 `GET /api/personas` 现在在数据库里搜索 / 排序 / 分页，`q` 大小写不敏感匹配 name / description / tags |
+| GET | `/api/tts/voices` | 无 | 豆包音色目录 `{ ok, voices: [{ id, name, why, expressive?, rate?, generation: "2.0", mixable: false }], mixable: [{ id, name, gender: "female"\|"male", generation: "1.0", mixable: true }], defaultVoiceId, maxMixVoices: 3 }`。`voices` = 19 个 2.0 单音色（目录之外的 id 也允许；App 的「单音色」页列的是 `studio/voices.ts` 那份清单）；`mixable` = 23 个逐个验证过的 1.0 音色，**混音配方只能从这里选**（2026-09-04 起；老服务端没有 `mixable` / `maxMixVoices`，App 的「混音」页据此提示服务端要更新）。另带能力位 `narrationFree: { dailyChars }`（2026-10-08：剪辑页旁白免费、每个账号每天几个字；老服务端没有 = 旁白照样按字扣钱，剪辑页不说「免费」） |
 | GET | `/api/voice-templates` | optional | **声音市场**（混音模板）列表：`?page&limit(≤40)&sort=new\|hot&q(≤80)&scope=all\|mine` → `{ ok, templates: VoiceTemplate[], total, page, limit, totalPages }`。`all` 只有公开的；`mine` 未登录 401 |
 | GET | `/api/voice-templates/:id` | optional | `{ ok, template }`；私有且非作者 403 |
 | POST | `/api/voice-templates` | required | `{ name(1..60), description?(≤300), recipe: VoiceMixEntry[](1..3 味，每味都得在 `mixable` 目录里), rate?, pitch?, instruct?(≤200), expressive?, shared?(默认 false) }` → **201** `{ ok, template }`。2.0 id / 超 3 味 → 400，`message` 是中文人话（App 直接展示）。限流 10/分钟 |
@@ -526,6 +693,19 @@ VoiceTemplate 形状：`{ _id, author: { _id, username }|string, name, descripti
   对不认识的类型显示成通用的「系统通知」行（标题给类型名或"通知"，正文尽力取
   `payload.text`）。老包收到新类型是常态 —— 白名单过滤器只该决定**归到哪个 tab**，
   不该决定**存不存在**；把未知类型直接 filter 掉的话，用户的红点数与列表条数永远对不上。
+- `Notification.type` 另增 **`BRANCH_REMIX_REWARD`**（2026-10-02，模板体系 P3b）：**同款奖励到账**。收件人 = 原作者。
+  `payload = { tokens, originalId, originalTitle, videoId?, videoTitle? }`；`actorId` = 同款作者、`videoId` = 那条同款
+  （deeplink 到 `/video/:id`，看别人照着做出来的片子）。金额是 `payload.tokens`（数），**不拼成句子**——句子由 App 按界面语言说。
+  ★ 两人之间有拉黑、或那条同款已经不公开时**不带** `actorId` / `videoId`（App 画成「有人做了你的同款」、点进去落到 `originalId`）：
+  币已经进账，不能不说（App 没有流水页）；但也不能把被拉黑的人摆到眼前。
+  ⚠ 老 App（≤ 2.60）**收不到**这一类（请求层白名单，同 `BRANCH_REVISED`）：币照到，只是没有那条通知。
+- `Notification.type` 另增 **`GEN_TASK_REFUND`**（2026-10-07）：**生成失败、token 已退回**。收件人 = 那一发的付款人；平台口径，**没有 `actorId`**、
+  没有作品 deeplink（App 点进去打开钱包看余额）。`payload = { tokens, kind, taskId, provider }`，`kind` ∈
+  `video` / `draft`（样片第一步）/ `draftFinal`（样片定稿）/ `3d` / `blockout` / `minimax`（认不出的 App 按「一段视频」说）。
+  只在钱**不是**在本人自己那次轮询里退的时候发（清扫器替他退的、App 被杀了）—— 轮询回包上已经带了 `refund` 的那一次不重复通知。
+  **例外：3D 建模（`kind: "3d"`）本人轮询退的也发**（2026-10-07 评审补，server `taskRefund.followUp`）—— 建模那条路随组稿出模型、不把 `refund` 摆给人；
+  App 那边对退了 / 会退的 3D 失败**不再**另弹轻提示（`studioStore` 调 `deriveCharacterModels` 那一处），同一笔钱只走这一条通知。
+  金额是数、句子由 App 说。⚠ 老 App（≤ 2.61）**收不到**这一类（请求层白名单，同 `BRANCH_REVISED`）：钱照退，只是没有这条通知。
 - `Notification.type` 另增 **`BRANCH_REVISED`**（2026-09-07，「回炉重做」）：作者换掉了成片内容，
   发给**该作品的收藏者**（`BranchCollect`，上限 500，超了只发前 500 并 `console.warn` 留痕）。
   `actorId` = 作者（`createNotification` 自己跳过"给自己发"），`videoId` = 作品 id（deeplink `/video/:videoId`），
@@ -738,8 +918,10 @@ B 站式弹幕：一句话 + 它该在**视频第几秒**飘过去。与评论�
 
 ## 举报
 
-能举报**三种对象**：作品（`video`）、评论（`comment`）、弹幕（`danmaku`）。
-三者共用一张 `Report` 表与同一条处理流程（待处理 → 下架 / 删除 / 驳回）——
+能举报**四种对象**：作品（`video`）、评论（`comment`）、弹幕（`danmaku`）、人格（`persona`，服务端 2026-09-28 加、
+App 的入口 2.70 之后的版本（2.71 起）才有：人格市场每张别人的卡上，2.70 及更早没有）。AI 客服的回答、Live2D 形象、声音模板**还不在里面** ——
+要先在 server `Report.TARGET_TYPES` 加类型（服务端先上），App 再接 `ReportButton`。
+它们共用一张 `Report` 表与同一条处理流程（待处理 → 下架 / 删除 / 驳回）——
 管理端要的是"一个按时间排的待处理队列"，拆三张表那个队列就得三查一合再排序。
 
 ### 端点
@@ -881,6 +1063,9 @@ pending ─────────┼─ action=delete   ─▶ deleted      �
   收了的话客户端就能把一条举报标成"已下架"而没有任何内容被下架。
 - `takedown` 与 `delete` 是**两件事**，状态必须分得开：事后追责时"下架了"和"删没了"
   完全不同。两者调**同一个**服务，差别只有一个 `hard` 标志（见下）。
+- **不是每一类都三样处置都有**（server `services/takedown.service.js` 的 `HANDLERS`，缺的那一格整句 400）：作品三样都有；
+  评论 / 弹幕没有下架（那两张表没有隐藏字段）；人格没有删除（只下架 = `shared:false` + `takenDown:true`，要删由作者自己删）。
+  App 后台按钮的镜像只有 `src/api/admin.ts` 的 `reportActionsFor` 一份。
 
 ★★ **`status` 是跨仓字符串，新增取值必须两仓同步**（铁律九：server 的
 `models/Report.js` 的 `ACTION_STATUS` + app 的渲染分支 + 本节）。
@@ -940,6 +1125,7 @@ pending ─────────┼─ action=delete   ─▶ deleted      �
 | `video` | `{ exists, videoId, title, cover, visibility, takedown, author, createdAt }` |
 | `comment` | `{ exists, videoId, text, author, createdAt }` |
 | `danmaku` | `{ exists, videoId, text, at, author, createdAt }` |
+| `persona` | `{ exists, personaId, name, kind, shared, takenDown, takenDownReason, author, createdAt }` —— 名字在 `name`（不是 `title`），下架状态是人格表自己的布尔 `takenDown` |
 
 - 查不到一律给 `{ exists: false }`。★ 用**必给的布尔** `exists`，不用"缺省即正常"的
   `missing?`：后者一旦服务端漏给这一项，客户端读到 `undefined` → falsy → 显示成
@@ -1300,8 +1486,17 @@ body：`{ publicId }`。响应与老路**逐字相同**（有测试比对字段�
   //  · **不计费**：这一发约 400 token，我们自己吃掉。理由是要守住白模化那条更要紧的承诺 ——
   //    「钱全在阶段一花掉，取回结果（finish）一分不加」（finish 是一条可以重来的路，
   //    一旦它会花钱，"重试取件"就成了用户不敢做的事）。⇒ 报价里没有它、账单上也没有它。
+  markExprs?: ["先平静，后惊讶张嘴，再大笑", ""], // ★ 与 markSlots **按下标对齐**的神态（2026-10-26 方案 D，server #133 起）。
+  //  · 白模化阶段一那次看帧对话顺带记下（认人表多一列「神态」，零额外费用）；只有序数模板、长度等于 markSlots、且至少一个非空时才发。
+  //  · 单个元素可以是空串（看不清）；作者在核对面板改角色位（PATCH /roles）时服务端按 desc 认人把神态搬过去，认不准就清空那一格；
+  //    重新认人（detect-roles）一律清掉。客户端从不上报（三条 body 的 zod strip 它）。
+  //  · App 套用时在 ≤ 3 个角色位的模板上按卡名写一句「神态：A先…；B先…。」（排在作者那句话之后、「不要出现字幕」之前；
+  //    放不下就整句不写，绝不挤掉括号描述）。老服务端不发 = 老模板 = 套用提示词与今天逐字节相同。
+  //    付费读数见 docs/blockout-expression-2026-10-26.md。
   status: "pending" | "published" | "blocked",
   provenAt: Date | null,          // 试炼闸：作者本人用它真实出过一次片才非空
+  provenModels: string[],         // 作者在哪些出片模型上真实跑通过（模型 id，2026-10-02 加）。没证明过 = []；
+                                  // 存量（有 provenAt、没记过）按当时唯一开着 r2v 的模型出，见下面「试炼闸」一段
   isOwner: boolean,               // 服务端按 ownerId 对当前 JWT 算；客户端绝不拿 authorName 比身份
   createdAt, updatedAt }
 ```
@@ -1461,8 +1656,19 @@ body：`{ publicId }`。响应与老路**逐字相同**（有测试比对字段�
 **试炼闸（provenAt）的写入**完全在服务端：r2v 任务被受理时代理落一条
 `{ taskId, templateId, userId }` 追踪（TTL 48h）；轮询响应 `status=succeeded` 且发起人
 就是模板作者时置 `provenAt`。客户端一句"我跑通了"不作数。为什么要有这道门：方舟任务
-**受理后**失败（真人人脸、内容审核）不退费 —— 没这道门，一个坏模板让每个套用者各赔一次；
-有这道门，坏在作者自己那一次。
+**受理后**失败（真人人脸、内容审核）—— 2026-10-07 之前不退费，之后 r2v 那一笔退回，但出不了片、白等一场；
+没这道门，一个坏模板让每个套用者各白等一次（老服务端上是各赔一次）；有这道门，坏在作者自己那一次。
+
+**`provenModels`（2026-10-02 加）与 `provenAt` 是同一条证据链**：受理时追踪里多记一格 `model`（请求体里的出片模型，
+此时已过在册白名单与 r2v 价目表两道闸），轮询到 `succeeded` 且发起人就是作者时 `$addToSet` 进模板。
+`provenAt` 只置一次；`provenModels` 每次作者跑通都会记（幂等）—— 作者之后在另一个模型上再跑通，那个模型也算数。
+- **为什么要记**：模板对出片模型是硬要求（App 侧「模板 × 出片模型」统一口径，app 仓 docs/template-workflow-research.md）。
+  今天只有一个模型做得了白模复刻，这一格看似废话；但开第二个模型的那一天，"存量模板只在旧模型上证明过"如果没有底账就只能靠猜。
+- **存量**：上线之前置上 `provenAt` 的模板没有这一格。出口（`BranchTemplate.provenModelsOf`，唯一实现）对它们回
+  `["doubao-seedance-2-5-260628"]` —— 那段时间 r2v 价目表只有这一行，别的模型发 r2v 是 400、根本受理不了，所以这条推论推得死。
+  这个 id 是**写死的历史事实**，不跟着 `SEEDANCE_2_5` 常量走。兜底只在读这一侧做，不回写库。
+- **客户端写不进来**：建模板 / 改角色位的 schema 都不收它（zod strip），与 `provenAt` 同待遇。
+- **App 今天不读它**（2.57 之后的版本只按"协议上哪一档做得了白模复刻"判）；老客户端收到多出来的这个键会忽略。
 ★ 注意分支二（未登记素材，见下）**没有** templateId，那一路不落试炼追踪 —— 白模化那一发
 本来也不该被算作"用这个模板出过片"（那时模板还不存在）。
 
@@ -1474,7 +1680,7 @@ body：`{ publicId }`。响应与老路**逐字相同**（有测试比对字段�
 
 ```
 阶段一 POST /templates/blockoutize          ①~⑥（到「r2v 被方舟受理」为止）→ 落一条凭据 BlockoutJob
-       ↓ 钱在这一刻花掉（看帧 + r2v 受理；受理后失败不退，F11）
+       ↓ 钱在这一刻扣掉（看帧 + r2v 受理；方舟受理后明说失败的话 r2v 那一笔退回、看帧那一笔不退，F11）
 客户端 GET /api/ark/contents/generations/tasks/:id   轮询出片（**既有端点**：不计费、
        ↓                                            90/分独立限流桶。不新造轮询端点）
 阶段二 POST /templates/blockoutize/finish    ⑦~⑨（核实 → 转存产物 → 建模板 pending）
@@ -1496,8 +1702,9 @@ body：`{ publicId }`。响应与老路**逐字相同**（有测试比对字段�
    两个 tab 都看得见）。没有这个入口，两阶段就白拆了。
 4. **时限是 24 小时，不是 48**：方舟产物是 TOS 签名地址、**24h 过期**（F12）。凭据 TTL 与
    `expiresAt` 都按 24h；pending 列表显示**剩余时间**（每分钟重算），过期的那条
-   **不给按钮**并整句说明「产物已过期、这一发的费用无法挽回」——不是超时重来。
-5. **`billed` 的语义分阶段**：阶段一一旦 r2v 被受理就是 `billed:true`（受理后失败不退）；
+   **不给按钮**并整句说明「产物已过期」——不是超时重来。钱分两种情况说（2026-10-07 起）：AI 那边其实失败了的，
+   出片那一笔会被自动退回（退的时候凭据会被改成 `failed` 并换上退款那句话）；出成了却没取回的，费用无法挽回。
+5. **`billed` 的语义分阶段**：阶段一一旦 r2v 被受理就是 `billed:true`（受理后方舟明说失败的话，r2v 那一笔在阶段二退回，见「受理之后失败的退款」）；
    阶段二本身不扣钱，它的失败是**"取结果失败"**不是"又花了一笔"，两句话不许互换
    （App 侧的判据是 `BlockoutizeError.phase`）。
 6. **归属**：finish 与 pending 都只认凭据的 `ownerId` —— 别人拿到 jobId 也取不走。
@@ -1555,7 +1762,7 @@ body：`{ publicId }`。响应与老路**逐字相同**（有测试比对字段�
 | `billed` | 含义 | 典型场景 |
 |---|---|---|
 | `false` | **这一次调用**一分钱没动，或已经原路退回 | 【阶段一】归属/四组数没过、预热失败、套餐不够格（403 `PLAN_REQUIRED`）、余额不足（402）、方舟**受理前** 400（敏感词/输入不合格，W2 已退）；【阶段二】**全部**（它本来就不扣钱） |
-| `true` | 已经产生费用且**退不回来** | 【阶段一】看帧那一步花完之后的任何失败：`roles` 为空、r2v 受理后才发现的问题 |
+| `true` | 已经产生费用（看帧那一笔退不回来；r2v 那一笔受理后方舟明说失败会自动退回，见下） | 【阶段一】看帧那一步花完之后的任何失败：`roles` 为空、r2v 受理后才发现的问题 |
 
 ★ 客户端缺省按 `false`（非 JSON 回包 = 请求根本没落到这个端点上）。**别把两类混成一句话** ——
 要么把没扣的说成扣了（吓人），要么把扣了的说成没扣（在钱上撒谎）。
@@ -1563,10 +1770,12 @@ body：`{ publicId }`。响应与老路**逐字相同**（有测试比对字段�
 阶段一的 `false` = 这一发一分钱没动，重来即可；阶段二的 `false` = **这一步**没花钱，
 但钱在阶段一已经花了 —— 该说的是"结果还能再取一次（24 小时内）"，**不是**"没扣钱，重开一发吧"
 （那句话会让他再花一次）。同理，方舟**受理后 failed**（F11 真人脸）现在由**阶段二**报出来：
-它是"这一发废了、钱不退"，`billed` 在那一次调用上是 `false`（这次调用没花钱），
-所以 **message 必须把"钱不退"写进整句里**，不能靠 `billed` 那一位表达。
+它是"这一发废了"，`billed` 在那一次调用上是 `false`（这次调用没花钱），
+所以 **message 必须把钱怎么样了写进整句里**（2026-10-07 起：r2v 那一笔已退回、看帧那一笔不退；老服务端：都不退），
+不能靠 `billed` 那一位表达。
 ★ **不做真人脸门禁**（浏览器 FaceDetector 覆盖率极低，漏报比不检查更坏）：改为在编辑页
-开炼前就整句告知"视频里有真人面孔时 AI 可能中途拒绝，这种情况费用不退"，用户自负。
+开炼前就整句告知"视频里有真人面孔时 AI 可能中途拒绝"（会退钱的服务端上说「出片那一笔会自动退回、看帧那一笔不退」，
+判据是能力位 `failRefund`；老服务端照旧说「费用不退」），用户自负。
 
 ### 看哪几帧（`frameTimes` / `frames`，2026-08-15）
 
@@ -1826,7 +2035,7 @@ body `{ roles: [{ label, desc }] }`（**1~9 条**，见上面 `roles` 的铁则 
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/auth/oauth/:provider?next=<目标>` | `provider` ∈ 服务端 `providers`（google / github）。授权完成后 302 带 token 回 `next` |
+| GET | `/api/auth/oauth/:provider?next=<目标>&state=<一次性 state，可选>` | `provider` ∈ 服务端 `providers`（google / github）。授权完成后 302 带 token 回 `next`；带了 `state` 的，成功 / 失败两种回跳都原样回带（2026-10-15，见下「第三方登录深链的 state 绑定」） |
 
 `next` 只接受两类值，其余一律被 `safeNextPath()` 打回 `/`：
 
@@ -1847,6 +2056,52 @@ server 的 `APP_OAUTH_SCHEME`、app 的 `src/utils/oauth.ts` `APP_SCHEME`、
 ★ Google Cloud Console 里登记的授权回调**只有服务端那一个**
 （`<SERVER_BASE_URL>/api/auth/oauth/google/callback`）。自定义 scheme 不需要、也不能
 登记到 Google —— 它是服务端拿到 token **之后**自己发起的第二跳。
+
+### 第三方登录深链的 state 绑定（2026-10-15）
+
+（教材人格评审 owasp-security-1：此前任何 App / 网页投一条 `ideahub://oauth?token=…` 就能把用户换成**别人的**登录态，
+垃圾 token 还会先盖掉本机 JWT 再被 401 清掉 = 静默登出。下面是两边各自实现的同一份规格：服务端那一半是 server#116，2026-10-16 部署
+（生产提交 58b934c）；「失败也回到 App」是之后的 server#119（分支 `claude/oauth-fail-back-to-app`，2026-10-19 发版后验证 oauth-4b 抓到的；2026-10-20 部署，生产提交 3677e38，部署后在生产上实测过取消 / provider 报错回到 App 带 state、篡改 / 网页发起 / 不带 state 的照旧落官网），
+两版的差别见下表「服务端」那一行。）
+
+| 谁 | 做什么 |
+|---|---|
+| App 起跳（`utils/oauth.startOauth`） | 每次用 `crypto.getRandomValues` 生成 16 字节随机数、hex 成 32 位当 **`state`**，连同 `Date.now()` 记在本机 `localStorage`（`ideahub-app.oauth.state.v1`），拼进起跳地址 `…?next=<目标>&state=<state>`（`api/auth.oauthStartUrl`）。web 与原生两条起跳路都带 |
+| 服务端 `GET /api/auth/oauth/:provider` | `state` 只收 **`/^[A-Za-z0-9_-]{8,128}$/`**（不合形状当没带），放进**自己签名的** link-state 里一起带去提供商；回调时取出来，**成功 / 失败两种回跳都原样回带 `state=`**，web 与 App 两种目标都是：web `CLIENT_BASE_URL/oauth/callback?token=…&next=…&state=…` / `…/oauth/callback?error=…&state=…`，App `ideahub://oauth?token=…&state=…` / `ideahub://oauth?error=…&state=…`。**失败分两段说**：在处理函数里才失败的（没拿到资料、邮箱被占用、账号被封…）从 #116 起就照上面回带。而**取消授权（`error=access_denied`）/ provider 报了别的错（`server_error` 等）/ 换 token 失败 / 我们签的 state 过期**这几种 —— ① **58b934c 及之前**：一律落到官网 `CLIENT_BASE_URL/oauth/callback?next=/&error=oauth_failed…`、不回带（passport 的 `failureRedirect` 是写死的 `/oauth/fail?provider=…`；过期 state 走 `next=/`），原生 App 的用户停在系统浏览器里、App 什么都收不到；`access_denied` 以外的 provider 错误还会回一段 JSON 的 5xx（2026-10-19 生产实测）。② **部署了 `claude/oauth-fail-back-to-app` 之后**：都从一个出口（`failBack`）走 —— 我们签的 state **签名对**（**过期的也算**：签名证明是我们签的，过期只决定不能登录、不决定送回哪儿）且签进去的 `next` 再过一遍 `safeNextPath` 之后正是 App 深链 ⇒ `ideahub://oauth?error=oauth_failed&message=<固定文案，如 google login failed / Invalid or expired OAuth state>&state=<原串>`（签进去的 app 不合上面那条正则就不带 `state=`）；签名不对 / 不是我们的 state ⇒ 不回带、照原样落官网；网页发起的（`next` 是站内路径）照原样两跳经 `/oauth/fail` 落官网、**不回带**。provider 的 `error_description` 不进回跳地址。`/oauth/fail` 那一跳本身永远不回带（它的查询串里没有签过名的东西） |
+| App 收回程（`utils/oauth.acceptOauthReturn`，**深链与 web 回跳唯一的闸**） | 取出本机记的那条（**一次性**：取即删，一条 state 只判一条回程 —— 判过的留着就能拿来放行后面投进来的任何一条），按下表判；拒了就 `console.warn` 一行（只记结论，不记 token / state 的值）+ 轻提示「忽略了一条不是本机发起的登录链接」，然后**什么都不做**：不交付、不跳转、不碰 token，`?error=` 的文字也不上屏（那段文字同样可以由别人投进来） |
+
+App 的判定表（`data/oauthState.decideOauthReturn`，零依赖，构建里 `scripts/check-oauth-state.mjs` 实跑）：
+
+| 本机记着的 state | 回程带的 `state` | 结论 |
+|---|---|---|
+| 没有 | 任意 | **拒**（unsolicited：这台设备近期没发起过登录 —— 链接是别人投进来的，或上一条已经用掉） |
+| 有，但距 startOauth 超过 **15 分钟**（`STATE_TTL_MS`；正好 15 分钟还算数） | 任意 | **拒**（stale） |
+| 有、没过期 | 带、与本机的不等 | **拒**（mismatch） |
+| 有、没过期 | 带、相等 | 收 |
+| 有、没过期 | **没带**（#116 之前的老服务端；或网页发起、经 `/oauth/fail` 落到 web 回跳的那种失败 —— 只有 App 的 web 构建（dev）才可能碰到） | **收**（暂且放行，见下） |
+
+（原来这一格写「老服务端、或 `/oauth/fail` 那条」：58b934c 上 `/oauth/fail` 那条落在官网、根本到不了原生 App；部署了失败回到 App 那一版之后，
+App 发起的失败都带 state 回来，走的是上面「带、相等」那一行 —— App 的判定表因此不用改：本机这条 state 对上了，就认作本机发起、显示失败。）
+
+- **TTL 15 分钟**是整个系统浏览器往返（挑账号、敲密码、两步验证，期间 App 进程随时被回收 —— 所以记在 localStorage 而不是只记内存）。
+  服务端自己那份签名 link-state 的 **10 分钟**是另一件事：那是它在「送去提供商」到「提供商回调它」之间的绑定，过期由服务端判。
+  部署了失败回到 App 那一版之后，过期以**带 state 的**失败回跳回到 App，而这条失败回跳也要本机还记着 state 才能上屏 —— 所以 App 的 TTL 只能比它长。
+  ⚠ 58b934c 及之前：过期那条落在官网、到不了 App（2026-10-19 实测），这条理由要等那一版部署之后才真的用得上。
+- **老服务端（还没发这一版）忽略 `state`、回跳不回带**：App 只在**本机 TTL 之内确实调过 startOauth** 时才收它 —— 这一道就是「本机近期发起过登录」的闸，
+  今天就挡住了「别人投一条深链换登录态」（他投进来时本机没记 state → unsolicited）。两边都向后兼容：老 App 不带 state，服务端不回带。
+- **后一版 App 把「没带」也改成拒**（`decideOauthReturn` 里标着 ⚠ 的那一支）：服务端这一版普及之后再收紧，否则收紧那天所有人登不上第三方账号。
+  前提两件：#116（成功与处理函数里的失败回带，10-16 已部署）；失败回到 App 那一版（取消授权 / provider 报错 / state 过期也带 state 回到 App ——
+  不部署它，收紧之后这几种失败照旧停在官网的错误页，App 一声不吭）。⚠ App 的 web 构建（只在 dev）上，网页发起的失败仍经 `/oauth/fail`、不回带：
+  收紧之后它会被当成 mismatch 丢掉、一句失败都不说 —— 收紧前要么让 web 构建也认这一条，要么服务端给网页那条也回带（今天特意没动：网页流程保持原样）。
+- **收下的失败回程说什么**（App 2026-10-19 起）：`message=` 不再原样上屏。`data/oauthState.classifyOauthFailure`（零依赖，`check-oauth-state.mjs` 实跑）
+  认 `error=` 码（`oauth_failed` / `oauth_conflict`）与服务端**写死**的几句英文（整句锚定：`<provider> login failed`、`Invalid or expired OAuth state`、
+  `<Provider> email is already linked to another IdeaHub login method…`、`<Provider> email not available`、`Missing <provider> profile`、`<Provider> callback error`），
+  `utils/oauth.oauthFailText` 按界面语言说；**认不出的原样显示**（服务端 catch 里回的 `e.message`、绑定流那几句）。
+  ⚠ 服务端改这几句措辞时 App 会退回原样显示（不会说错，只是又冒英文）—— 改之前同步改 classifyOauthFailure 与它的正反例。
+- 同一条深链只收一次（`utils/oauth.onDeepLink`）：launch URL 在进程活着的期间一直是那一条，WebView 重载 / 系统改语言重建 Activity 之后
+  `getLaunchUrl` 会把登过的那条再给一次 —— 收过的记下来（localStorage 只记 SHA-256 摘要：深链里带 token，原文不落盘），再来不算第二条回程，
+  也就不会对着一次成功的登录说「不是本机发起的」。
+- 部署顺序：服务端 #116（10-16 已部署）；App 2.63（10-15 已发，带 state、暂且放行没带的）；服务端失败回到 App 那一版；再后一版 App 才要求回带。
 
 ### QQ 登录（原生 SDK，**不走上面那条回跳**）
 
@@ -1892,7 +2147,7 @@ openid 由服务端拿 AppKey 向 `graph.qq.com` 换取，客户端没有机会�
 | 方法 | 路径 | 鉴权 | 说明 |
 |---|---|---|---|
 | GET | `/api/tts/health` | 无 | `{ ok, tts: boolean }` —— 这台服务器配没配 `TTS_API_KEY`。不回密钥本身 |
-| POST | `/api/tts` | **必须** | 合成一句台词，回 `audio/mpeg`。按用户限流 30 次/分钟 |
+| POST | `/api/tts` | **必须** | 合成一句台词，回 `audio/mpeg`。按用户限流 30 次/分钟。**按字计费**（2026-09-25 起），剪辑页旁白（`purpose:"cut-narration"`）除外，见下「第三个调用方」 |
 
 请求体（除 `text` 外都可省）：
 
@@ -1904,7 +2159,8 @@ openid 由服务端拿 AppKey 向 `graph.qq.com` 换取，客户端没有机会�
   "emotion": "happy", "instruct": "用更冷静的语气",
   "rate": 0,        // [-50,100]，0 = 1.0 倍
   "pitch": -1,      // [-12,12]
-  "expressive": true // 2.0 ICL 音色专属；<cot> 标签生效的前提
+  "expressive": true, // 2.0 ICL 音色专属；<cot> 标签生效的前提
+  "purpose": "cut-narration" // 可省。只认这一个值（剪辑页旁白，走免费额度；只收「只念字」—— 带混音 / 表现力 / 语调指令 / 情绪整句 400 NARRATION_SHAPE）；别的值 400 TTS_PURPOSE
 }
 ```
 
@@ -1913,6 +2169,22 @@ openid 由服务端拿 AppKey 向 `graph.qq.com` 换取，客户端没有机会�
 - `501` 服务端没配密钥、`404` 没挂路由、`401/403` 掉登录 → **本会话永久关掉云端合成**，退回浏览器内置合成器
 - `502/504` 上游偶发失败 → 只是这一句没出声，不关云端（下一句照常重试）
 - `400` 空文本
+
+★ **第三个调用方：剪辑页的配音**（2026-09-30，App `studio/cutNarration.synthLine`）：
+body 发 `{ text, voice, rate?, purpose: "cut-narration" }`（`voice` 取自 `/api/tts/voices` 的目录，2.0 单音色与 1.0 可混音那批都当单音色用；
+`rate` 只在一句话在片段里念不完时才带，最大 30）。它**不向用户收 token**（主人 09-30 定「免费 + 限量」），限量靠四样：
+一个片段一句、长度按片段时长封顶（App 在请求之前把关）、这里原有的 30 次/分钟、**每个账号每个 UTC 日几个字**
+（服务端 `config/tokens.NARRATION_FREE_DAILY_CHARS`，App 从 `GET /voices` 的 `narrationFree.dailyChars` 读，界面只有看见它才说「免费」）。
+一句念不完时 App 会提语速**重合成一次**（那一遍也占额度；它没成就留着第一遍），所以一句话最多 2 次调用。
+★★ 免费只认 `purpose` 这个标记：`/api/tts` 从 2026-09-25 起按字扣钱，**2.58 ~ 2.62 的剪辑页没带标记、却写着「现在免费」**，
+2026-10-08 才补上（服务端认标记 + App 发标记）。这些老版本在新服务端上**照旧按字扣**，要更新才免费。
+状态码在这条路上的含义（认 `code` 不认文案）：`429 NARRATION_DAILY_LIMIT` 说今天的免费额度放不下这一句 —— 回包的 `details: { limit, used, need }`
+（server #113 起；App 的 `throwHttp` 只搬 `details`）分三种：一个字都不剩（一批里撞上就停）、还剩一些只是这一句比剩下的长（只跳过这一句，后面短的照配；
+批里之后比服务端报的余量还长的句子当天不再发请求）、按回包的数其实放得下（同时在配的别的句子先占着，服务端几次都没占上：当这一句没成、请人再配一次，不停）；
+没有 `details` 的老服务端一律按「用完了」说、
+其余 `429` 说"等一分钟"、`401/403` 让人重新登录、`501` 说服务器没开通、其余当这一句没成；`402` / `WALLET_FROZEN` / `PLAN_REQUIRED` / `DAILY_LIMIT`
+只会在没认标记的老服务端上出现（那里按字扣钱），照实说钱包的事。回包 `Content-Type` 不是 `audio/` 一律当服务端没有这个功能。
+⚠ 哪天要给配音定价：服务端在这个端点上结算、App 在 `data/economy` 报价，两边逐条相等（两仓价目表那条）。
 
 ★ **这个端点必须在服务端，不能只留在 app 仓 `vite.config.ts` 的 dev 中间件里**：
 打成 APK 后 vite 不存在，`/api/tts` 无人应答，工坊 NPC 全程哑巴（安卓 WebView 的
@@ -1927,7 +2199,8 @@ openid 由服务端拿 AppKey 向 `graph.qq.com` 换取，客户端没有机会�
 
 | 方法 | 路径 | 鉴权 | 限流 | 说明 |
 |---|---|---|---|---|
-| GET | `/api/ark/health` | 无 | — | `{ ok, ark: boolean }`，只说配没配 key |
+| GET | `/api/ark/health` | 无 | — | `{ ok, ark, imageGroups, res480, draftMode, failRefund, freeVideo: [{label, model, resolution}], freeVideoGate, minimaxFailRefund, clientEvents, videoZone }`：配没配 key + 能力位（老服务端没有的位 = 没有这个能力，App 据此藏起对应的东西 —— `app/src/data/serverCaps` 一处探测、一处解析 `capsOf`；判能力只看能力位，不看状态码）。`failRefund` 只说**方舟**任务；最后两位是运维开关的现状（没有 = 当成开着）：`freeVideoGate: false` = 服务端退回改版前只挡电影级的口径（App 的 `account.tierFreeOk` 跟着放开，`freeVideo` 那张清单不看开关、只在开着时作数）；`minimaxFailRefund: false` = 真人档受理之后的失败不退（App 的取回卡据此不许诺「会自动退回」，`serverCaps.failRefundMinimax`）；`clientEvents: true` = 收客户端失败上报 `POST /api/client-events`（2026-10-15，见下「客户端失败上报」，`serverCaps.clientEvents`）；`videoZone: true`（2026-10-26）= 有 `GET /api/video/zone`，只说有没有这条路、不带地区本身（见下「出片地区」，`serverCaps.videoZone`） |
+| GET | `/api/ark/task-charges/:taskId` | required | 同轮询 | **本人的**这一发生成退没退钱（2026-10-07，不计费）：`{ state, tokens }`，见下「受理之后失败的退款」。不是本人的 / 没有这笔账 → 非 2xx（App 一律当「问不到」，照旧说原来那句，`arkClient.fetchTaskCharge`） |
 | POST | `/api/ark/images/generations` | required | 30/min | Seedream 出图（卡面 / 首尾帧） |
 | POST | `/api/ark/contents/generations/tasks` | required | 30/min | Seedance 出视频 / Seed3D 建模（同一个异步任务端点） |
 | GET | `/api/ark/contents/generations/tasks/:id` | required | 90/min | 轮询任务状态（每 5s 一次，一段视频最多 120 次，所以单独一个桶） |
@@ -1948,14 +2221,72 @@ openid 由服务端拿 AppKey 向 `graph.qq.com` 换取，客户端没有机会�
 在册了没定价 = 落到兜底按最贵档收（用户被多扣）；定价了没在册 = 这一档永远 400
 （用户只会觉得"这档坏了"）。回归测试见 `server/tests/arkProxy.spec.js`。
 
+### 请求头 `X-App-Version`（2026-10-10，App 2.63 起）
+
+App 打到自家服务器 **`/api/` 下**的每一个请求都带 `X-App-Version: <versionName>+<versionCode>`（如 `2.63+75`，debug 包 `2.63-debug+75`）。
+
+- **报的是装在手机上的那一包**：开机时问原生（`@capacitor/app` 的 `App.getInfo`，读 PackageManager —— debug 包的 versionName 带着
+  build.gradle 的 `versionNameSuffix "-debug"`），在加载 App 之前、与激活语言并排等它（`app/src/api/appVersion.ts`，最多等几百毫秒）。
+  问不到时（浏览器 `npm run dev`、原生没回话）用构建期烤进前端包的那一个：`android/app/build.gradle` defaultConfig 的
+  `versionName` / `versionCode`（`vite.config.ts` 的 `__APP_VERSION__`）—— 它**不带** `-debug`，前端包比 build.gradle 旧时它也是旧号
+  （发版脚本只比 APK 与 build.gradle，不看前端包里这个数），所以只当兜底。
+- **只给 `${API_BASE}/api/…`**（判定只在 `app/src/api/client.ts` 的 `withAppVersion`）。第三方一个都不带：Cloudinary 直传、
+  dev 下 vite 代理直连的方舟、CDN、GitHub；自家服务器的 `/uploads/…` 静态目录也不带 —— 那一层的 CORS 只放行 `Content-Type`，
+  多一个自定义头预检就被拒、整张图取不回来。
+- **缺失 = 2.62 及以前的老包**（它们一个都不发）。服务端（`middleware/appVersion`）把它解析成 `req.appVersion`，**只进日志**
+  （例：哪些版本还在发方舟下线了的出图 id —— 决定接班表与老价目什么时候能删），**不拿它做任何放行 / 计价 / 门禁判断**：
+  头是客户端写的、谁都能伪造。下线型号的改发与老包的结算认的是**请求体里的模型 id**（见「出图模型下线与改发」），与这个头无关。
+  不能拿「没有这个头」当错误拒掉 —— 那会把所有还没更新的人一起关在门外。
+- **要拦老包，走更新清单的 `minVersionCode`**（侧载包自己拦，见 `docs/app-distribution.md`「强制更新」），不靠这个头。
+  2.62 及以前的包认不得 `minVersionCode`、也不发这个头 —— 服务端没有任何办法把它们挡在门外，它们靠的是服务端在出口改发型号。
+- ⚠ **部署顺序：服务端的 CORS 先放行这个头，再发 2.63。** WebView 的源是 `https://localhost`，打 `api.ideahubs.org` 是跨域：
+  带自定义头的请求先发预检，预检回包的 `Access-Control-Allow-Headers` 里没有它 = 浏览器直接拦下、**这一包的每一个请求都失败**。
+  今天 `app.js` 的 `cors()` 没设 `allowedHeaders`（按预检请求的头原样放行），所以已经放行；哪天改成显式清单，**这一项必须在里面**。
+  另：原来不带 `Authorization` 的 GET（探活、未登录逛首页）加了这个头之后也要先预检一次 —— `cors()` 配上 `maxAge` 就只多这一次往返。
+  自检：`curl -si -X OPTIONS https://api.ideahubs.org/api/health -H "Origin: https://localhost" -H "Access-Control-Request-Method: GET" -H "Access-Control-Request-Headers: x-app-version"`
+  的回包里 `Access-Control-Allow-Headers` 要含 `x-app-version`。
+
+### 客户端失败上报 `POST /api/client-events`（2026-10-15）
+
+（教材人格评审 humble-delivery-4：此前客户端唯一进服务端的信号是上面那个请求头 —— 2.51–2.55 五版一进工坊就白屏、发出去 5 天，
+服务端日志里没有一行能看出来，全靠主人真机撞上。服务端 PR 待发，下面是两边各自实现的同一份规格。）
+
+| 方法 | 路径 | 鉴权 | 限流 | 说明 |
+|---|---|---|---|---|
+| POST | `/api/client-events` | **无** | 按 IP 10/分钟 → 429 | body `{ kind, version, where?, name? }` → **204**；形状不对 400。服务端**只写一行日志** `[client-event] kind=… version=… where=… name=… ip=…`：不进库、不认账号、不做任何判断 —— 与 `X-App-Version` 同一个口径（也同样是客户端写的、能伪造，所以只能当线索） |
+
+body（服务端 zod 与 App 的 `data/clientEvents` 逐条相等）：
+
+| 字段 | 形状 | 说明 |
+|---|---|---|
+| `kind` | `"render-error" \| "unhandled-rejection" \| "update-failed" \| "idb-dataloss" \| "boot-blocked"` | 渲染边界接住的抛错（含 window 的 `error`）/ 没人接手的 Promise 拒绝 / 应用内更新失败 / 本机 IndexedDB 被系统判损坏、清空重建 / 开机被整页拦住。加一种两仓一起加 |
+| `version` | string 1..40 | 就是请求头 `X-App-Version` 的值（`<versionName>+<versionCode>`，装着的那一包） |
+| `where` | string 1..64，`/^[A-Za-z0-9/_.:-]+$/` | 路由或步骤名：`/studio:3D`、`manifest-sha`、`download-install`、`storage:videos.account` |
+| `name` | string 1..40，`/^[A-Za-z0-9_.-]+$/` | 错误**类型名**（`Error.name`、原生插件的 code 如 `NEED_PERMISSION`） |
+
+- **永远不带错误 message**（里面常有文件名、地址、用户输入）、不带账号（无鉴权是故意的：登录态坏掉那一刻也要报得出去）。
+- 能力位：`GET /api/ark/health` 回 **`clientEvents: true`**。App 只认这一位（`data/serverCaps`），老服务端没有 = 不发 ——
+  真机上不存在的路径回 200 + index.html，状态码试不出来。
+- App 侧（`data/clientEvents.reportClientEvent`，**唯一发送处**）：离线 / dev 直连不发；一场会话同一件事（kind + where + name）只报一次、合计最多 8 条
+  （渲染错多半是确定性的，人点一次「重载这一块」就再抛一次）；上报本身失败一律吞掉 —— 它正是在别的东西坏掉时被调的，再抛一个没人接手的拒绝
+  就被 `unhandledrejection` 那只手接住再报一次；探不到能力位（断网、5xx）的那一条就丢，不排队、不重试。
+  五处挂钩：`components/ErrorBoundary`（render-error，where = 路由:标签）、App 根的 window `error` / `unhandledrejection`（只带 name）、
+  `data/appUpdate`（update-failed，where = `manifest-sha` / `download-install`）、`components/DataLossNotice`（idb-dataloss）、
+  `data/boot`（boot-blocked，where = 原因:哪几样）。
+
 ### 视频档位与模型能力（写死在两边的表里，不靠运行时探测）
 
-| 档位 id | label | 模型 | 系数 mult | 首尾帧 | 参考图 | 最短时长 | 套餐门槛 |
-|---|---|---|---|---|---|---|---|
-| `fast` | 极速 | `doubao-seedance-1-0-pro-fast-251015` | 0.3 | ✗ | ✗ | 3s | — |
-| `std` | 标准 | `doubao-seedance-1-0-pro-250528` | 1 | ✓ | ✗ | 3s | — |
-| `hd` | 高清 | `doubao-seedance-2-0-mini-260615` | 1.6 | ✓ | ✓ | 3s | — |
-| `ultra` | 电影级 | `doubao-seedance-2-5-260628` | 4.7 | ✓ | ✓ | **4s** | **仅付费套餐** |
+| 档位 id | label | 模型 | 分辨率 | 系数 mult | 首尾帧 | 参考图 | 时长窗口 | 谁能用 | 停用 |
+|---|---|---|---|---|---|---|---|---|---|
+| `fast` | 极速 | `doubao-seedance-1-0-pro-fast-251015` | 720p | 4.2/15 | ✗ | ✗ | 3~10s | **免费版可用** | 2026-11-24 13:00（北京时间） |
+| `draft` | 草稿 | `doubao-seedance-2-0-mini-260615` | **480p** | 23/15 | ✓ | ✓ | 4~15s | **免费版可用** | — |
+| `std` | 标准 | `doubao-seedance-1-0-pro-250528` | 720p | 1 | ✓ | ✗ | 3~10s | 付过钱 | 2026-11-24 13:00（北京时间） |
+| `hd` | 高清 | `doubao-seedance-2-0-mini-260615` | 720p | 23/15 | ✓ | ✓ | 4~15s | 付过钱 | — |
+| `ultra` | 电影级 | `doubao-seedance-2-5-260628` | 720p（样片 480p → 1080p） | 4.7（样片第二步 77/15） | ✓ | ✓ | 4~30s | 付过钱 | — |
+
+★ **「草稿」与「高清」是同一个模型**，只差分辨率 —— 两仓的免费档清单、分辨率清单、跨仓测试都按 **(模型, 分辨率)** 认
+（App：`src/data/videoTierTable.ts`，构建里 `scripts/check-video-tiers.mjs` 核对；server：`config/tokens.js`）。
+只按模型认就会把高清一起放给免费版（或者把草稿一起挡掉），取回来的 480p 成片也会被当成「高清」按错的档报价（`economy.tierIdOf`）。
 
 - **参考图（全模态参考生视频）只有 2.5 与 2.0 系列有**；1.0/1.5 完全不支持。没人验证过
   1.0 收到 `reference_image` 是 400 还是**静默忽略** —— 若是忽略，用户就"加了图、多付了钱、
@@ -1966,14 +2297,23 @@ openid 由服务端拿 AppKey 向 `graph.qq.com` 换取，客户端没有机会�
 - **2.5 在首帧/首尾帧任务上只接受 `ratio: "adaptive"`**（2.0 系列没有这条限制）；参考生
   视频任务上才能给具体宽高比。规则收在 `app/src/ai/arkClient.ts` 的 `ratioFor()` 一处。
 - **2.5 的参考任务必须显式传 `omni_reference_task_type: "reference"`**：不传就是 `auto`，
-  而 auto 判错是**异步失败** —— 任务已受理、钱已经扣了，几十秒后才 failed（受理后失败不退，
-  见下）。显式传则在提交时同步 400，一分钱不花。
+  而 auto 判错是**异步失败** —— 任务已受理、钱已经扣了，几十秒后才 failed（2026-10-07 起会自动退回，
+  见下「受理之后失败的退款」，但人白等一场、还得重来）。显式传则在提交时同步 400，一分钱不花。
 - **2.5 的时长区间是 [4,30]**，给 3 秒同步 400。App 的时长下限写在 `VideoTier.minSec`，
   报价（`segTokens`）与出片（`composeSegments`）用同一个 `clampDuration`。
-- **`ultra` 仅付费套餐可用**：App 侧免费版**看得见但点不动，并写出原因**（藏起来用户
-  不知道有这回事），判断只有 `app/src/data/account.ts` 的 `tierBlockReason` 一处。
-  ⚠ 客户端禁用只是提示，**不是安全边界** —— 服务端必须按当前用户的套餐再挡一次，
-  免费版调 2.5 直接拒并给出可读原因。
+- **免费版（没付过钱）只能用「极速」「草稿」出普通片**（2026-10-07 主人拍板）：标准 / 高清 / 电影级（含样片两步）/
+  真人档（MiniMax、Runway）/ 一切带参考视频的出片（白模、返修、延长、素材参考）都要**付过钱** ——
+  有付费套餐（月费 > 0）**或者**付过钱（钱包上的 `paidEver`，`GET /api/me/wallet` 下发 `paid`）。「付过钱」按**还作数的订单**算
+  （server `tokenWallet.hasLivePayment`：`paid` / `settled`、没被回收、不是 Play 测试购买；Play 部分退款还剩没退的份也算），
+  退款 / 拒付回收之后按订单重算（唯一一笔被退了就不再算）—— 见「钱包」一节的「付过钱」。
+  判据服务端只有 `config/tokens.videoPlanDenial` 一处；它只管出视频，出图 / 对话 / 语音 / Seed3D 照常开放。
+  拒绝回 **403** `{ code: "PLAN_REQUIRED", message, planId, allowed: ["极速","草稿"] }`：`message` 是能直接显示的整句中文，
+  `allowed` 是此刻免费版能用的档名（英文界面不显示服务端的中文句子，App 按 code 说自己的整句 `account.planRequiredLine`）。
+  停用时刻一过，`allowed` 只剩「草稿」。App 侧免费版**看得见但点不动，并写出原因 + 「去升级」**（`account.tierBlockReason` 一处；
+  会员档在选择器里并成一句 `memberTiersLine`），默认档按 `account.defaultTierId`（免费或不知道 → 极速，停用后草稿）。
+  ⚠ 客户端禁用只是提示，**不是安全边界**。运维总开关 `FREE_VIDEO_GATE=off`（缺省开）关掉之后**服务端**退回改版前的口径：只挡电影级；
+  `/api/ark/health` 的 `freeVideoGate` 随之为 false，**新版 App 读这一位跟着放开置灰**（`account.tierFreeOk`：只剩电影级是会员档）。
+  老 App（≤ 2.61）本来就只挡电影级。⚠ 本仓 2026-10-07 第一版草稿（评审之前）只看本机 `freeOk`、不读这一位 —— 那一版没发出去。
 - **白模（r2v）能不能卖看 `VideoTier.refVid`**（App 档位表，四档全显式写值）：
   2026-08-14 起 **ultra=true 已开闸**（前置 A2 保真度 / A3 计费公式 / A4 门槛探底
   三发实测全过），其余三档 `false`（hd 的开闸前置见 r2vMult 注释：A6 + 画质实拍 +
@@ -1981,7 +2321,67 @@ openid 由服务端拿 AppKey 向 `graph.qq.com` 换取，客户端没有机会�
   **绝不静默退回首尾帧**（那是偷换商品）。服务端侧对应的白名单是
   `VIDEO_MULT_R2V`（模型不在表里 → r2v 任务 400 拒单）。
 
-### r2v（白模出片）的服务端规则 —— `reference_video` 只有两条合法来源
+### 纯任务的参数钉子、样片两步、停用（2026-10-07）
+
+**纯任务**（没有参考视频：文生 / 图生 / 参考图生视频 / 样片第一步）过 `pinPlainVideoTask`（server `ark.routes.js`），
+不符 → 400 `VIDEO_PARAMS_NOT_ALLOWED`（整句中文，「没有扣费」）：
+
+- **缺省补齐，不再放行**：不传 `duration` 补成 **5**、不传 `resolution` 补成 **720p**（方舟的缺省是 2.5 `-1`、1.0 `1080p`，两个少收的口子）。
+- `duration` 是这个模型窗口内的整数；不收 `frames`。**分辨率按模型放**：1.0 两档只有 720p；2.0 mini 480p / 720p；2.5 只有 720p。
+- **720p 的画幅按模型放**（服务端 `tokens.VIDEO_720P_RATIOS`，2026-10-07 第二轮评审补）：720p 一刀切按 1280×720 收，官方像素表里比它大的几格不放 ——
+  1.0 两档只收 `16:9` / `9:16` / `1:1`（21:9 是 1504×640、贵 4.4%；adaptive 会落到那一格；不写画幅的**图生视频**方舟缺省 adaptive，也拒，
+  文生视频缺省 16:9 照放）；2.0 mini / 2.5 收 `16:9` / `9:16` / `1:1` / `adaptive`（2.5 的首帧 / 首尾帧任务只收 adaptive；
+  adaptive 落到 4:3 那一格时少收 ≤0.63%，接受）。480p / 1080p 按表逐格收，不受这一条管。App 只发 16:9 / 9:16（`arkClient.ratioFor`：2.5 首帧任务发 adaptive），
+  而且**每一发都写画幅**（缺省 16:9），撞不上「图生视频没写画幅」那一档。
+  App 按档位表的 `resolution` 发（`arkClient.generateVideo` 的 `resolution` 参数；带参考视频的几条路钉 720p）。
+- **`draft: true`（电影级样片第一步）**：只给 2.5，且必须**显式** `resolution: "480p"` 与整数 `duration`；带参考视频的出片不收 `draft`。
+- `content[]` 只认 `text` / `image_url` / `audio_url`（`video_url` 由 r2v 那道闸接走，`draft_task` 由样片第二步那道闸接走）。
+- **提示词里不许写参数**（2026-10-07 评审补）：方舟允许把 `resolution` / `ratio` / `duration` / `frames` / `seed` / `camera_fixed` / `watermark`
+  用「弱校验」写法追加在提示词后面（`--rs 720p --rt 16:9 --dur 5 --seed 11 --cf false --wm true`，长写法 `--resolution` 等同理），
+  而且没说与请求体冲突时听谁的。门禁与计价都按请求体判，所以文字条目里出现这些（外加旧文档的 `--fps` / `--framespersecond`）一律
+  400 `VIDEO_PARAMS_NOT_ALLOWED`（没有扣费），句子以「提示词里不能用 …」开头。**粘在前一个词上也算**（`cat--rs 720p`、`720p--dur 15`；
+  方舟怎么切词没说，宁可多拦）；参数名后面紧跟字母的不算（`--seedling`）。**带参考视频的任务（r2v）同样过这一道**；Seed3D 不归它管
+  （它就是用 `--subdivisionlevel` 这种写法传参的）。App 从来不拼这种写法；撞上的多半是用户自己在提示词里打了这几个字 ——
+  App 把这一码说成整句（`arkClient.requestRefusalError`：中文界面原样说服务端那句，英文界面说本端的），`MODEL_RETIRED` / `DRAFT_FINAL_NOT_ALLOWED` 同。
+- **停用**：`doubao-seedance-1-0-pro-250528` 与 `doubao-seedance-1-0-pro-fast-251015` 自 **2026-11-24 13:00（北京时间）**起
+  新任务一律 400 `{ code: "MODEL_RETIRED" }`（方舟 14:00 停服，我们提前一小时）。App 同一刻把这两档藏起来、默认档往后退（`economy.tierRetired`）。
+
+**每一发 Seedance 任务**转发前由服务端钉死 `execution_expires_after: 86400`（排队 / 运行超过 24 小时方舟标 `expired` —— 失败退款按它退），
+剥掉 `callback_url`（拿我们的 key 往任意地址 POST）、`service_tier`（flex 半价但排队以天计，我们按在线价收）、`tools`（2.x 的联网搜索，
+按搜索次数另外计费、我们没定价；2026-10-07 评审补）与 `priority`（0~9，同一个接入点上插到所有低优先级任务前面 —— 所有人的任务挂在同一把 key 下；同上）。
+这几个字段在 Seed3D 任务上也剥；Seed3D 不套 `execution_expires_after`。唯一实现 server `arkGateway.withServerTaskFields`。
+
+**电影级「样片」两步**（App：段上的「先出样片」开关 `FlowNode.draftFirst` + `components/flow/DraftModeBox`；判定 `flowStore.nodeDraftOn` /
+`draftFinalIssue`，两步各走一次 `genNode`，契约 mode `draft` / `draftFinal`）：
+- **第一步**：普通出片的请求体 + `draft: true` + `resolution: "480p"`。价 = `round(时长 × 2.5 的 480p 每秒 × 4.7)`（`economy.draftStepTokens`）。
+  受理后 App 在方案上记下样片任务号 / 受理时刻 / 整数时长 / 画幅（`Proposal.draftTaskId / draftAt / draftDur / draftRatio / draftUrl`）。
+  ★ 第一步**只走参考图那一种请求**（2026-10-07 评审抓到）：段上的帧要转成参考图发，转存失败时普通出片会退回首帧 / 首尾帧，
+  而 2.5 的首尾帧任务只收 `ratio: "adaptive"` —— 服务端对 adaptive 按 480p 那一行**最大**一格结算（竖屏 5 秒报 225,776、扣 236,034）。
+  报价按不了「发出去才知道的画幅」，所以样片那一发 App 在花钱之前整句拒（`segmentGen` 的样片闸 + `arkClient` 的协议断言），
+  `draftRatio` 因此恒等于真正发出去的画幅。拒之前这一次补画好的设定帧留在方案上（`SegmentGenFailed.kept`，`genNode` 写回、不上锁），再点一次只重传、不重画。
+- **第二步**（480p 样片 → 1080p 成片）：请求体只许
+
+```json
+{ "model": "doubao-seedance-2-5-260628", "content": [{ "type": "draft_task", "draft_task": { "id": "<样片任务 id>" } }], "resolution": "1080p", "watermark": false }
+```
+
+  时长、画幅、提示词、图、视频、音频、种子、音频开关、任务类型**一个都不许带**（方舟规定沿用样片、重传即报错）→ 400 `DRAFT_FINAL_NOT_ALLOWED`。
+  服务端（`resolveDraftFinal`）只认**本人、经我们这里出的样片**；有效期 **7 天差 1 小时**（方舟 7 天）；向方舟 GET 一次确认 `succeeded`；
+  **计价** = `round(样片时长 × 2.5 的 1080p 每秒 × 77/15)`（`economy.draftFinalTokens`）—— 时长看**样片登记的** `durationSec` 与**方舟回的** `duration`（不信请求体）：两份都认得出时**必须相等**，对不上 → 400
+  `DRAFT_FINAL_NOT_ALLOWED` 不转、不扣费（2026-10-07 评审改：原来只信登记，而第一步提示词里夹一句 `--dur 30`、方舟又听了的话，样片其实是 30 秒）；
+  只认得出一份就用那一份；方舟只回 `frames` 不回 `duration`（按帧数定长的样片）→ 400。画幅取方舟回的实际画幅（认不出按 1080p 最大一格）。
+  App 把成片换上、样片留成「上一版」（可还原）；「现在放的是样片还是成片」按地址现算（`flowStore.draftStageOf`），不存状态。
+- **1080p 是 10 bit 的 H.265**（方舟官方；2026-10-07 付费实测 1080×1920 `yuv420p10le`）：App 的 WebView 在模拟器上只有声音、解不出画面 ⇒
+  **服务端转存进图床时转成 8 bit H.264**（`videoAsset.uploadVideoBuffer`，转码失败按原样存）。转存之前那几分钟放的是方舟直链（仍是 H.265），
+  App 在定稿按钮旁照实说。另：方舟按实际帧数计用量（4 秒 97 帧，比按秒算多约 1%，在系数余量里）。
+- 两步都落取回凭据（`VideoJob.draftStep / draftDur / draftRatio / draftOf`）；`GET /api/ark/video-tasks` 的每一条多带 `draft` / `draftOf` / `costTokens`，
+  App 补凭据时据此把样片的那几格原样落回。
+
+### r2v（参考视频出片）的服务端规则 —— `reference_video` 只有四条合法来源（2026-10-15 照 server#107 / #108 重写）
+
+> 2026-10-15 之前这一节只写了前两条来源、「首发只有 2.5」、「omni_reference_task_type 必须是 edit」—— 2026-08-28 的素材参考、
+> 2026-10-05 的本人成片（返修 / 片段重拍 / 延长，server#107）与高清开 r2v（server#108）都没写进来，契约失去了验收依据的资格
+>（教材人格评审 sommerville-requirements-2）。下面逐条对照 `ark.routes.js` 的 `resolveR2v` 与 `config/tokens.js` 抄。
 
 任务体 `content[]` 里带 **`video_url` 形状条目**（`type:"video_url"` 或带 `video_url`
 键——按**形状**判不按 `role` 判：`role` 是客户端可控字符串，只认 `role` 会被"去掉
@@ -1991,50 +2391,57 @@ role 的 video_url"绕过、按纯任务价放行）的请求，代理在计费�
 先过三条共同的门：
 
 1. 条目必须带规范的 `role:"reference_video"`（有 `video_url` 却没有 → 400），且只许一条。
-2. `model` 必须在 `VIDEO_MULT_R2V` 价目表里（首发只有 Seedance 2.5 = 2.8），不在 →
-   400。**绝不静默按纯任务系数（4.7）结算** —— 那是不含视频输入的价，
-   等于输入时长一分不收、账目全瞎。
-3. **生成参数钉死在计价假设上**：`omni_reference_task_type` 必须是 `"edit"`、
-   `duration` 只能缺省或 `-1`、`resolution` 只能缺省或 `"720p"`、`ratio` 只能缺省或
-   `"adaptive"`，越出任一条 → 400。计费是 (输入时长×2)×720p×24fps，而代理原样转发
-   请求体——不钉的话改一行客户端就能按 4s 模板的价买 30s/1080p 的产出（reference
-   子任务 duration 自由、-1 上探 30s，A7 实测），差额全进我们的方舟账单且零症状。
-   `generate_audio` 钉的是「**与该模型的支持情况一致**」（`config/tokens.VIDEO_AUDIO`
-   与 App `VideoTier.audio` 逐条相等）：支持的档允许 `true`，不支持的档只许 `false`/缺省
-   —— 1.x 收下参数却静默忽略，传了会让两边都以为"这一发有声"。⚠ 开音频**零额外成本**
-   （2026-08-15 费用中心逐行核对：同素材有声/无声两发用量与单价逐位相同），
-   所以它**不进任何计价公式**。
+2. `model` 必须在 `VIDEO_MULT_R2V` 价目表里，不在 → 400。**绝不静默按纯任务系数结算** ——
+   那是不含视频输入的价，等于输入时长一分不收、账目全瞎。今天两行：
+   | 模型 | 系数 | 出处 |
+   |---|---|---|
+   | Seedance 2.5（电影级） | 2.8 | 2026-08-16 账单实证（¥0.042/千token ⇒ 42/15）；刊例 2026-10-19 再核（价目页「输入包含视频」¥42/M） |
+   | Seedance 2.0 mini（高清） | 14/15 | 2026-10-05 主人「合」开高清的片段重拍 + 参考视频出片。**刊例已核**（火山方舟价目页 2026-10-19：2.0 mini「输入包含视频」¥14/M、「输入不含视频」¥23/M）；10-19 付费验证 `cgt-20261020073613-4gq5v`（片段重拍）/ `cgt-20261020074617-sxmps`（示例视频出片）服务端实扣 = App 报价。**账单行待主人在费用中心核**（App `videoTierTable.HD_R2V_MULT` 同一个数，核出来不是 14 就两仓一起改 —— 涨价方向，App 先发） |
+3. `generate_audio` 钉的是「**与该模型的支持情况一致**」（`config/tokens.VIDEO_AUDIO` 与 App `VideoTier.audio`
+   逐条相等）：支持的档允许 `true`，不支持的档只许 `false`/缺省。⚠ 开音频**零额外成本**
+   （2026-08-15 费用中心逐行核对），所以它**不进任何计价公式**。
 
-**分支一：已登记的白模模板**（套用出片 / 作者试炼）
+然后按 `video_url.url` 的来源分四条分支，**各自的子任务、钉子与计价公式不同** —— 别把 edit 的钉子套在 reference / extend 头上
+（`duration:-1` 在那两种子任务上会推到 30s 上界，A7 实测，那正是"按小价买大产出"的口子）：
 
-按 `video_url.url` **等值反查** `BranchTemplate.refVideo.url`（唯一索引，存的是
-Cloudinary `secure_url` 规范形态——塞一段 transformation 也绕不开）。
-`blocked` 的模板不能用；**未发布**的模板只有作者本人能用（那正是发布前的试炼一步，
-别人拿到 URL 也蹭不了）。计价输入时长**只从服务端登记的 `refVideo.durationSec` 读**，
-请求体里客户端说什么都不作数；流水 memo 追加 ` r2v tpl:<id>`；任务受理后落试炼追踪。
+| 分支 | 来源怎么认 | 子任务 | 计价 | 钉子（越出任一条 → 400，不扣费） |
+|---|---|---|---|---|
+| 一 · 已登记的白模模板（套用出片 / 作者试炼） | `url` 等值反查 `BranchTemplate.refVideo.url`（唯一索引、Cloudinary 规范形态）；`blocked` 不能用；未发布只有作者能用 | `edit` | `r2vTokens`：(登记的 `refVideo.durationSec` × 2) × 720p 锚 × 系数 | `omni_reference_task_type:"edit"`、`duration` 缺省或 `-1`、`resolution` 缺省或 `"720p"`、`ratio` 缺省或 `"adaptive"` |
+| 二 · 本账号刚传、尚未登记的托管素材（白模化那一发的输入） | `parseOwnClipUrl`：服务端自己拼的裁剪变换地址（`so_`/`du_`/`c_crop`、`publicId` 归本账号）；没有 `du_` 不认；已登记过的素材不许走 | `edit` | `r2vTokens`，输入时长 = URL 里的 `du_` | 同分支一；另有 `6 次/分` 限流（每发都打一次 Cloudinary Admin API） |
+| 三 · 已登记的用户素材参考视频（工作流「自定义 = 多图 + 参考视频」） | `MaterialRefVideo.findOne({ url })`，**私有**：登记者本人才能用 | `reference` | `materialRefTokens`：(登记的输入时长 + 用户选的输出时长) × 720p 锚 × 系数（输入按方舟最低用量折算，见下面「含输入视频的最低用量」：App 先上、服务端后上） | `duration` 必须是 `videoSecWindow(model)` 里的**整数**（不收 -1）、`resolution` 缺省或 `"720p"`、`ratio` 缺省或 `16:9` / `9:16` / `adaptive` |
+| 四 · 本人自己出的成片（App「修这一段」：返修 / 片段重拍 / 延长，2026-10-05） | `parseOwnBranchVideoUrl`：出片即转存的 `ideahub/branch-videos/<userId>-<毫秒>-seg`，目录 + 文件名以本人 id 开头（与服务端合并认段落的同一个判据）；时长由服务端向 Cloudinary 查（`ownSegmentMeta`，缓存一天），客户端报的数不信 | `edit` → `ownEdit`；`extend` → `ownExtend`；`reference` 这一期不开 | `ownEdit` 同分支一（输入 × 2）；`ownExtend` 同分支三（输入 + 输出，同样受最低用量管） | `ownEdit` 同分支一的钉子；`ownExtend`：`duration` 为窗口内整数、`resolution` 缺省或 `"720p"`、`ratio` 缺省或 `"adaptive"`（延长跟随原片画幅） |
 
-**分支二：本账号刚传、尚未登记的托管素材**（**白模化那一发的输入**，V2 新增）
+四条都不中 → **400 `R2V_NOT_ALLOWED` 整句拒**，方舟不会被调用、不扣费。流水 memo：分支一追加 ` r2v tpl:<模板id>`，其余三条 ` r2v src:<publicId>`（`arkGateway.service` 一处拼）；
+分支一落试炼追踪，二 / 三 / 四的 `templateId` 为 `null`、不落试炼。
+公式只有 `config/tokens.r2vTokens` 与 `materialRefTokens` 两处（**不加新公式**）；结算时 `kind` 由 `resolveR2v` 定（`material` / `ownExtend` 走
+(输入 + 输出)，其余走输入 × 2）。
 
-白模化的输入是"用户刚传的素材裁出来的那一段"，此时世上还没有任何模板，分支一必然落空。
-⚠ **绝不能**为了过闸门先把用户原视频登记成一个"模板"：那会污染模板库、撞 `refVideo.url`
-唯一索引，还让试炼闸对着中间物计数。所以开第二条分支：
+#### 含输入视频的最低用量（2026-10-19 定：**App 先发、服务端后上**）
 
-- URL 必须是**服务端自己拼的那种裁剪变换地址**（`utils/templateVideoAsset.parseOwnClipUrl`
-  解得出 `publicId` + `so_`/`du_` + `c_crop` 四组数，且 `publicId` 归属本账号）。
-  **没有 `du_` 的地址一律不认** —— 那等于把整条原片（最长 600s）喂进去却只按纯任务价收。
-- 已经被登记过的素材不许走这条（否则"加一段裁剪变换"就绕开了 blocked / 未发布两道门禁）。
-- 裁后那一段要过 **② 号窗口**；再现查一次 Cloudinary 资源详情，确认 `public_id` 真的存在、
-  裁剪框没超出原片（`c_crop` 超界时 Cloudinary 自己裁到边界而不是报错）。
-- **计价输入时长 = URL 里的 `du_` 那个数**，理由是它**自洽**：Cloudinary 照这条变换投递，
-  方舟拿到的就是这么长的一段 —— 同一个字符串同时决定了"上游收到多长"和"我们收多少钱"，
-  客户端拼不出"少付多得"。公式仍只有 `config/tokens.r2vTokens` 一处（**不加新公式**）。
-- 这一路 `templateId` 为 `null`：**不落试炼追踪**（模板还不存在）。流水 memo 追加
-  ` r2v src:<publicId>`（对账时分得出白模化那一发）。
-- 额外限流：`6 次/分`（`ark-r2v-source` 桶，**串在** genLimit 后面）—— 每一发都要打一次
-  Cloudinary Admin API，而免费档 Admin API 是**全局** 500 次/小时，不限的话一个账号能把
-  全 App 的建模板能力一起刷停摆。
+方舟官方规则（价目页 <https://docs.volcengine.com/docs/ark/model-pricing>，2026-10-19 读）：「对于 Seedance 2.0 系列、Seedance 2.5 模型，当输入包含视频时，
+存在最低 token 用量限制」「如果估算 token 用量 ＜ 最低 token 用量，则按最低 token 用量计算视频价格」。价目页链到的最低用量表折出来就是
+「输入 + 输出」至少 ⌈5 × 输出 / 3⌉ 秒，即**计价输入 = max(输入, ⌈2 × 输出 / 3⌉)**（2.5 720p 输出 4 / 7 / 15 / 23 秒 → 151,200 / 259,200 / 540,000 / 842,400；
+2.0 480p 输出 4 / 7 / 15 → 70,308 / 120,528 / 251,100）。10-19 付费验证两发都按它收：`cgt-20261020074220-c7l9g`（2.5 延长，输入 4 秒、输出 7 秒）用量
+259,200 = 12 × 21,600（按 (输入 + 输出) 是 237,600）；`cgt-20261020074617-sxmps`（2.0 mini 示例视频出片，输入 4 秒、输出 7 秒）用量 260,100 =
+(5 + 169/24) × 21,600。不改的话「输出 > 1.5 × 输入」的延长 / 示例视频出片每发少收（电影级 4 → 30 秒约 ¥14.5）。
 
-两条都不中 → **400 `R2V_NOT_ALLOWED` 整句拒**，方舟不会被调用、不扣费。
+**新式子**（`material` / `ownExtend` 两支；`edit` 那条输入 × 2 不动 —— 输出 ≈ 输入，输入 ≤ 30 秒时 ⌈2 × 输入 / 3⌉ ≤ 输入，永远够得上）：
+输入夹 [4,30]、输出夹到这一档的 [minSec, maxSec]（同今天），再取 `iEff = max(i, ⌈2 × o / 3⌉)`，扣 `round((iEff + o) × 21,600 × 系数)`。
+例：电影级延长 4 → 7 秒 725,760（原 665,280）、4 → 30 秒 3,024,000（原 2,056,320）；高清示例视频 4 → 7 秒 241,920（原 221,760）；输出 ≤ 1.5 × 输入的不变。
+App 侧：规则只在 `data/videoTierTable.materialRefInputSec`，秒数只从 `economy.materialRefSecs` 来（报价 `materialRefCost`、「修这一段 · 延长」那句、
+示例视频那一格、出片进度三处都读它；抬高了由 `economy.minUsageNote` 说一句为什么），构建里 `check-video-tiers.mjs` 拿官方最低用量表实跑。
+
+**先后顺序**：这是**涨价**，与「改价目服务端先发」那条相反 —— App 的报价只在本机算、不问服务端（余额门按报价放行，`segmentGen` 的「契约核对」
+比的也是 App 自己的两个数），服务端先上的话没升级的 App 报少扣多（余额不够时在 App 说可以之后收到 402）；App 先发时过渡期报价 ≥ 实扣。
+所以 App（2.63 之后那一版，暂称 2.64）带新式子先发；服务端 `tokens.materialRefTokens`（分支 `claude/ark-min-usage`，`arkProxy.spec` 的
+`materialRefTokens(10,30,2.5)` 改 3,024,000、`(5.04,8,2.5)` 改 846,720，其余不变）在 2.64 发出约一周后再合，同一天客服知识库加一句：
+「2.63 及更早的 App 在电影级往后延长、带示例视频出片，且要的时长超过输入视频 1.5 倍时，界面上的价会比实扣少，以『我的』页 token 余额为准；
+升级到最新版就对上了。」⚠ 过渡期 App 报价**高于**服务端实扣是有意的，别当成两仓对不上去「修」。2.62 及更早的包不认强制更新门槛，
+不为这一条单独拧 `--min-version-code`（这几条路最近几乎没人用：保留到 09-23 的 pm2 日志里一发都没有）。
+
+App 侧对应：档位表 `data/videoTierTable` 上「能带参考视频」（`refVid`）、「能延长」（`extendOk`）、「能跑白模模板」（`blockoutOk`）是**三位**
+（高清只有第一位），四种子任务的请求形状在 `ai/arkClient.refTask`；报价读 `economy.r2vMult` / `HD_R2V_MULT`，与这里的 `VIDEO_MULT_R2V`
+逐条相等（钉在 `arkProxy.spec.js`）。
 
 为什么要收窄到这两条：r2v 的输入视频时长计进 token，「输入多长」只能有可信来源
 （服务端登记值 / 服务端自己拼的 `du_`）。代价是封死了"拿任意视频二创"这类非模板 r2v ——
@@ -2052,11 +2459,14 @@ V2 这条链路**花两次真钱**，报价页必须**两笔都写明**，不许
 
 ### 出图档位与计价（**按 `model` 查表，不是一口价**）
 
-| 档位 id | label | 模型 | 单价 | token/张 | 图位数 K |
-|---|---|---|---|---|---|
-| `sketch` | 速写 | `doubao-seedream-4-0-250828` | 0.20 元/张 | **13,333** | 1 |
-| `studio` | 定妆 | `doubao-seedream-4-5-251128` | 0.25 元/张 | **16,667** | 2 |
-| `master` | 精绘 | `doubao-seedream-5-0-pro-260628` | 0.60 元/张 | **40,000** | 3 |
+| 档位 id | label | 模型 | 单价 | token/张 | 图位数 K | 组图 |
+|---|---|---|---|---|---|---|
+| `sketch` | 速写 | `doubao-seedream-4-0-20260415`（2.63 起；之前是 `4-0-250828`） | 0.20 元/张（沿用 4.0 的价，**待账单核**） | **13,333** | 1 | ✓ |
+| `master` | 精绘 | `doubao-seedream-5-0-pro-260628` | 0.60 元/张 | **40,000** | 2 | ✗ |
+
+★ 2.63 起只剩这两档：「定妆」（`studio`，`doubao-seedream-4-5-251128`，16,667）随方舟第十批下线撤掉了，不再给人选；
+跟着做 B「现做一个主角」原来用它，改用精绘（两张：全身 + 特写）。老 App 仍会发 4.0 / 4.5，见下「出图模型下线与改发」。
+两仓逐条相等的那张出图价目表（下面「跨仓价目」）2.63 起就是上面这两行；老型号的价只在服务端认（老包报多少按多少），不在跨仓表里。
 
 折算口径与视频同一把尺子：**元/张 ÷ 15 元/百万 token**（15 = Seedance 1.0-pro 标准档）。
 实际张数 = `min(K, 该卡种的图位数)`，见上面「`views[].kind`」——非人物卡只有 2 格，
@@ -2083,12 +2493,15 @@ V2 这条链路**花两次真钱**，报价页必须**两笔都写明**，不许
 这次改价对他们是**零影响**。若 5.0 实际更贵，差价我们自己吃：多收才是骗人，少收只是
 我们亏钱，而且这批调用会随老版本淘汰而归零。
 ★ 这条兼容项的寿命 = 老版本的寿命；确认线上没有旧包在发它之后，连同白名单一起删。
+★ 2026-11-24 起方舟那边也没有它了：服务端在转发那一刻改发成 `4-0-20260415`（下面「出图模型下线与改发」），
+在册名单与计价照旧认它 —— 改发只发生在出口。
 
 各模型的像素区间是 2026-08-11 拿真 key 探出来的（发必然 400 的尺寸、读报错文案，零成本）：
 
 | 模型 | 最小像素 | 最大像素 |
 |---|---|---|
-| `doubao-seedream-4-0-250828` | 921,600 | 16,777,216 |
+| `doubao-seedream-4-0-20260415` | 921,600 | 16,777,216 |
+| `doubao-seedream-4-0-250828` ⚠11-24 下线 | 921,600 | 16,777,216 |
 | `doubao-seedream-4-5-251128` | 3,686,400 | 16,777,216 |
 | `doubao-seedream-5-0-260128` ⚠仅老客户端 | 3,686,400 | —（未探） |
 | `doubao-seedream-5-0-pro-260628` | 921,600 | 4,624,220 |
@@ -2103,6 +2516,30 @@ V2 这条链路**花两次真钱**，报价页必须**两笔都写明**，不许
 
 ⚠ 以上单价取自方舟公开价目（2026-08-11 核对），**尚未与控制台账单对过**。
 **真实结算一律以控制台账单为准**；发现偏差改两仓的价目表（下面那条测试会红）。
+
+### 出图模型下线与改发（方舟第十批，2026-11-24 14:00 北京时间）
+
+方舟这一批停服的出图型号：`doubao-seedream-4-0-250828`（速写）、`doubao-seedream-4-5-251128`（定妆）、`doubao-seedream-5-0-260128`（5.0 lite，只有很老的包还在发）。
+视频那两个（Seedance 1.0 pro / pro fast，极速 / 标准档）另有处理：服务端 13:00 起整句拒 `MODEL_RETIRED`，2.62 起 App 藏掉那两档 —— 不在这一节。
+
+**服务端只在转发给方舟的那一刻改型号**（2026-10-10 主人拍板）。白名单、计价、免费档门禁、流水**照旧认请求里那个 id** ——
+老包报多少就收多少，「报价 = 实收」对它们逐分不变：
+
+| 请求里的 `model` | 改发成 | 从什么时候起 | 组图（`/image-groups`）改发成 |
+|---|---|---|---|
+| `doubao-seedream-4-0-250828` | `doubao-seedream-4-0-20260415` | 部署即生效（10-10 付费验过：写实人脸的图生图照收，卡面 1728×2304、竖屏帧 1440×2560 都出得来，像素窗口 921,600~16,777,216） | `doubao-seedream-4-0-20260415` |
+| `doubao-seedream-4-5-251128` | `doubao-seedream-5-0-pro-260628` | 2026-11-24 13:00（+08:00）；之前照发 4.5 | `doubao-seedream-4-0-20260415`（5.0 pro 出不了组图） |
+| `doubao-seedream-5-0-260128` | `doubao-seedream-4-0-20260415` | 2026-11-24 13:00（+08:00） | （不收组图） |
+
+- **回滚开关**：服务端环境变量 `ARK_IMAGE_ALIAS=off` = 一个都不改发（原样转发请求里的 id）。
+- **2.63 起的 App 自己就发新型号**（速写 = `4-0-20260415`，精绘 = 5.0 pro，组图 = `4-0-20260415`），改发对它是空操作。
+  ⚠ 所以**服务端先部署**（白名单里要先有 `4-0-20260415`），再发 2.63 —— 反过来的话，2.63 在老服务端上出图整条 400 `model not allowed`
+  （App 会说「出图模型用不了了，请更新 App」，而那时它已经是最新的）。
+- App 侧的人话：出图被拒（`/images/generations` 与组图受理）不再是一截 `Ark /images/generations 400: {…}`，而是按码说的一句话
+  （`arkClient.imageRefusalError`）；「这个模型用不了」（我们服务端白名单那句 `{ ok:false, message:"model not allowed" }` —— **不带 code**，
+  这是现行形态、不是老服务端的遗留；`MODEL_RETIRED` 今天只有视频那条路回；方舟的 `InvalidEndpointOrModel.*` / `ModelNotOpen` …，
+  判据只在 `arkClient.modelGoneCode`）一律说「请把 App 更新到最新版」。⚠ 服务端没有 `MODEL_NOT_ALLOWED` 这个码，别照着它把判据收拾成只认码。
+  错误**类型**不变（仍是 `ArkHttpError`），钱上的判定（`ai/failCharge`：服务端明说失败 = 没扣）不变。
 
 状态码约定（客户端据此决策，见 `app/src/ai/arkClient.ts`）：
 
@@ -2127,21 +2564,99 @@ V2 这条链路**花两次真钱**，报价页必须**两笔都写明**，不许
 
 | 端点 | 计费 |
 |---|---|
-| `POST /images/generations` | **按 `body.model` 查表**：13,333 / 16,667 / 40,000（见上「出图档位与计价」）。认不出的按最贵档 |
+| `POST /images/generations` | **按 `body.model` 查表**：13,333 / 16,667 / 40,000（见上「出图档位与计价」）。认不出的按最贵档。**只出一张**：组图 / 图层拆分 / 流式 / `n≠1` / `tools` 一律 400（见下「组图」） |
+| `POST /image-groups`（组图） | 受理时预扣 `单价 × max_images`，结束按**拿到手的张数**结算、多退（见下「组图」） |
+| `GET /image-groups[/:id]` | **0** |
 | `POST /chat/completions` | 400（一次豆包往返） |
-| `POST /contents/generations/tasks`（Seedance） | `时长×1280×720×24/1024 × 档位系数`（极速 0.3 / 标准 1 / 高清 1.6 / 电影级 4.7） |
+| `POST /contents/generations/tasks`（Seedance） | `round(时长 × 每秒 raw token × 档位系数)`：每秒 raw token = 宽×高×24/1024 —— **720p 一刀切 21,600**（所有模型、所有放行的画幅，见「纯视频任务的参数钉子」）；480p / 1080p 按官方像素表逐格查（画幅缺省 / `adaptive` / 认不出按那一行最大一格）。系数：极速 4.2/15 / 标准 1 / 高清与草稿 23/15 / 电影级（含样片第一步）4.7。例：草稿 4 秒 9:16 = 61,603、5 秒 = 77,004；样片第一步 4 秒 9:16 = 180,621。时长按模型的窗口夹（下面「纯视频任务的参数钉子」） |
+| `POST /contents/generations/tasks`（**样片第二步**，`draft_task`） | `round(样片时长 × 2.5 的 1080p 每秒 × 77/15)`。例：4 秒 9:16 = 997,920、5 秒 = 1,247,400（见上「样片两步」） |
 | `POST /contents/generations/tasks`（**r2v 白模出片**，带 `reference_video`） | `输入时长 × 2 × 21,600 × r2v 系数`（2.5 = **2.8** = 42 元/M ÷ 15）。输入时长有且只有两个可信来源：**模板登记的 `refVideo.durationSec`**（分支一）或**服务端拼的变换 URL 里那个 `du_`**（分支二，白模化）。见上「r2v 的服务端规则」 |
 | `POST /contents/generations/tasks`（Seed3D） | 160,000 |
 | `GET /contents/generations/tasks/:id` | **0**（轮询高频，按次收会把一段片的价格翻几倍） |
 | `GET /asset` | **0** |
 
 - 余额不足 → **402** `{ code: "INSUFFICIENT_TOKENS", need, balance }`，**方舟根本不会被调用**
-- 上游非 2xx（400 敏感词 / 429 限流 / 5xx / 501 没配 key）→ 扣掉的原路退回 **addon**
-  （不退回 plan：plan 跨月作废，月末退回去几小时后就蒸发了）
-- ⚠ 任务**被受理之后**才失败（Seedance 排队跑完报 failed）**不退**——那时算力已经消耗、
-  方舟也已经向我们计费。刻意为之，不是遗漏。
+- 上游非 2xx（400 敏感词 / 429 限流 / 5xx / 501 没配 key）→ 扣掉的**按原桶退回**（`refundSplit`：从 plan 扣的回 plan、从 addon 扣的回 addon；
+  2026-10-07 之前是一律退进 addon —— 那等于把当月 plan 洗成永不过期的余额）
+- ★ 任务**被受理之后**上游**明说**失败（方舟 `failed` / `cancelled` / `expired`、真人档 `Fail`）—— **2026-10-07 起退回**
+  （主人「做生成失败返回 token」；在这之前是「刻意不退」）。见下「受理之后失败的退款」。
+  ⚠ 老 App（≤ 2.61）还会说「费用不退」（往吓人的方向错）：钱照退，余额随响应头 / 下一次拉钱包更新。
 - 每个响应都带 `X-Wallet-Plan` / `X-Wallet-Addon`（CORS `exposedHeaders` 已放行），
   App 的钱包镜像据此同步，省掉一次 `GET /api/me/wallet`
+
+### 受理之后失败的退款（2026-10-07）
+
+**退什么**：受理之后上游**明说**这一发失败了 —— 方舟 `failed` / `cancelled` / `expired`，真人档（MiniMax）`Fail` —— 就把**这一发扣的钱**
+按扣的那两桶（plan / addon）原样退回，**恰好一次**（服务端 `services/taskRefund.service`，账本 `GenTaskCharge`，流水类别 `provider_failed`）。
+覆盖：Seedance 出片（含样片两步、r2v / 返修 / 延长 / 素材参考）、Seed3D、白模化里 r2v 那一笔、真人档（开关 `MINIMAX_FAIL_REFUND`，缺省开；
+现状由 `/api/ark/health` 的 `minimaxFailRefund` 报给 App）。
+
+**不退什么**（App 的话里必须分开说，`ai/failCharge`）：
+- 出片之前画好的画面（补画设定帧 / 圈选改帧）—— 那是各自结算的出图调用；
+- 白模化的「AI 看帧」那一笔（一次对话）；
+- 「出成了却用不上」（方舟 `succeeded` 但产物有问题 / 没地址 / 裁错了）—— 方舟照收，我们照收；
+- 我们自己的超时、方舟的 404 / 504、还在排队 / 运行 —— **那不是失败**（钱可能正在变成一段好好的视频，退了就是白送）；
+- 管理员免单的任务（本来就没扣）、上线之前受理的任务（没有那一笔账）。
+
+**App 怎么知道**（判据是类型与服务端的结论，不是文案）：
+- 轮询 `GET /api/ark/contents/generations/tasks/:id` 看见失败的那一拍，服务端就地结账，并在**同一个回包**上带
+  `refund: { state, tokens }`（只给任务的主人；余额头 `X-Wallet-*` 同一个回包带回）。`state`：
+  `refunded`（已退，`tokens` = 退了多少）/ `refunding`（正在办，清扫器会续办）/ `pending`（服务端还没结论）/ `settled`（出成了，照收）/
+  `skipped`（本来就没扣）/ `lost`（问不出结局，交给人工）。真人档的 `GET /api/minimax/video/:taskId` 同一个形状。
+- `GET /api/ark/task-charges/:taskId`（本人、不计费）回同一个 `{ state, tokens }` —— App 在说「钱无法挽回」之前先问它
+  （过期的取回卡 `videoJobs.videoJobNote`、取回时方舟 404 `real.takeVideoTask`）：清扫器可能早就替他退过了。
+  **404 `{ code: "NOT_FOUND" }` = 没有这一笔账**（自动退款上线之前提交的、或不是你的）：这一发**不会**自动退 —— App 的 `fetchTaskCharge` 把它与
+  「问不出来」（网络 / 老服务端）分开（`"none"` vs `null`），前者说「无法挽回」那句，后者两种情况都说。
+  `lost`（问不出结局、交人工）与 `skipped`（本来就没扣）同样不许说成「会自动退回」：过期的取回卡对 `lost` 说「把任务号发给客服」（卡上摆着任务号）。
+- 没人再来问的那些（App 被杀 / 卸载）：0 号实例每 5 分钟问一次上游并结账；钱不是在本人那次轮询里退的 → 站内通知
+  **`GEN_TASK_REFUND`**（见「通知」）。`GET /api/ark/video-tasks` 不再列出已退款的任务（没有成片可取了）。
+- 白模化：阶段二（finish）看见方舟失败时结账，取件单改成 `failed` 并换上退款那句话（`BlockoutJob.failMessage`）。
+
+**App 侧**（`app/src/ai/arkClient.ArkTaskFailed` + `ai/failCharge` 的 `taskFailed` 形状）：退了 / 会退 / 服务端没说（老服务端，按「没有退回」说）三档各一句；
+出片前画好的画面按张单说；**从不**自己往钱包镜像上加钱（只刷一次 `GET /api/me/wallet`）。退了钱的取回凭据当场结案（`flowStore.takeJob`），
+那句话用轻提示说（卡当场就卸载了），原来那一段的「pending · 用下面的取回」同一拍改成「没出成（钱上那个短语）」。服务端能力位为真时取回卡与白模化风险提示才许诺「万一没出成会自动退回」——
+**按供应商分开问**：方舟看 `failRefund`，真人档看 `failRefund && minimaxFailRefund !== false`（`serverCaps.failRefundMinimax`）。
+Seed3D 建模失败退的钱：服务端**本人轮询退的也发**站内通知 `GEN_TASK_REFUND`（`kind: "3d"`，见「通知」），退款只走这一个渠道 ——
+App 在组稿那一拍（`studioStore` 调 `deriveCharacterModels` 那一处）只对**没退**的那几种（没等到回包 / 2xx 却用不上）按 `ai/failCharge` 说一句轻提示，
+退了 / 会退的不再另说（原来两边各说一次，是同一笔钱的两条消息）。
+
+### 旧版 App（≤ 2.61）在这一版服务端上会怎样（2026-10-07 的门禁 / 额度 / 停用）
+
+（照抄 server `docs/api-contract.md` 同名一节，以那一节为准；改的话两份一起改。）请求里**没有版本号**，服务端分不出新旧包；下面这些是旧包里写死的东西与新服务端碰在一起的结果（2026-10-07 评审逐条核过 app `origin/main`）：
+
+1. **免费版用户每一段都从「标准」开始**（旧包 `DEFAULT_TIER = "std"`、档位表只把电影级标成付费），标准 / 高清 / 真人都点得动。
+   推演（对话 + 出图）与出片前补画设定帧**不归门禁管**（`videoPlanDenial` 只管出视频）—— 这几笔照扣，到出视频那一发才 403 `PLAN_REQUIRED`。
+   旧包（中文界面）把服务端的整句原样显示（`billingDenialError`；英文界面说它自己的「这一档不对当前套餐开放」），句子里说了只能用「极速」「草稿」、看不到草稿就先更新 App；
+   但在他换到「极速」之前，**每试一次都会白花推演与画帧的钱**。
+2. **额度的说法是旧的**：旧包「我的」页照自己的 `PLANS` 说免费版「300.0k token/月 · 每月刷新」、标准 2,000,000 / 专业 8,000,000；
+   服务端实际是新人一次 170,000 + 每天 2,000（最多 14,000）、标准 1,660,000、专业 5,800,000。余额数字本身来自服务端（余额头），是对的。
+   旧包电影级置灰那句还写着「免费版整月额度（300.0k）」。
+3. **旧包没有「草稿」**。2026-11-24 13:00 之后极速 / 标准 400 `MODEL_RETIRED`，旧包把 400 原样显示成 `Ark /contents/generations/tasks 400: {…}`
+   （句子在 JSON 里，说了请换档、看不到草稿就更新 App）—— 那之后**免费版用户在旧包里一档都用不了**，付过钱的还有高清 / 电影级。
+4. 受理之后的失败照退（见上「受理之后失败的退款」），但旧包会说「受理之后的失败不退款」，也不认 `GEN_TASK_REFUND` 通知。
+
+⚠ **缓解要主人定**（服务端只在拒绝那两句话里补了「看不到草稿就先更新 App」）：① 新版 App 与这一版服务端**同一天上线**，发版说明里请大家更新；
+② 给更新清单加「强制更新 / 最低版本」（App 侧与发版流程的事）；③ 或者在旧包普及新版之前先把 `FREE_VIDEO_GATE=off`
+（旧包本来就只挡电影级，关闸对它们是真的恢复原样；新版 App 读到 `freeVideoGate: false` 也跟着放开，见上「免费版」那条 ——
+关闸就是把免费档限制整个撤掉，代价是这段时间里免费版又能用标准 / 高清）。
+
+### 纯视频任务的时长窗口与参数钉子（2026-10-03）
+
+一段视频能选的时长按**模型**走（server `config/tokens.VIDEO_SEC_WINDOW` ↔ app `economy.VideoTier.minSec / maxSec`，**逐条相等**，
+server `tests/arkProxy.spec.js`「跨仓时长窗口一致性」抄了一份钉住）：
+
+| 档位（模型） | 时长窗口（秒，整数） |
+|---|---|
+| 极速 / 标准（Seedance 1.0） | 3~10 |
+| 高清（Seedance 2.0-mini） | 4~15 |
+| 电影级（Seedance 2.5） | 4~30（含「自定义 + 示例视频」那条素材参考的输出时长） |
+| 认不出的模型 | 3~10 |
+
+没有参考视频的 Seedance 任务（文生 / 图生 / 参考图生视频）在扣费之前过一道钉子（`ark.routes` 的 `pinPlainVideoTask`），
+下列任一项 → **400 `VIDEO_PARAMS_NOT_ALLOWED`** 整句拒（中文整句，说明没扣费），方舟不会被调用：
+窗口外或非整数的 `duration`（含 `-1` 智能时长、字符串）、带 `frames`、`resolution` 不在这个模型的分辨率清单里。
+（2026-10-07 起不传 `duration` / `resolution` 不再放行而是补齐成 5 秒 / 720p，见上「纯任务的参数钉子、样片两步、停用」。）理由：结算按请求里的时长 × 720p 算、代理原样转发，
+不钉的话改一行客户端就能按短时长 / 720p 的价买长时长 / 1080p 的产出。带参考视频的任务由 r2v 那套钉子管（上面），不重复钉。
 
 ★ **定价表两边都有，必须一起改**：服务端 `src/config/tokens.js` 是**结算**口径，
 App `src/data/economy.ts` 是**报价**口径。不一致的后果是"报价 216k、余额掉了 243k"，
@@ -2150,12 +2665,16 @@ App `src/data/economy.ts` 是**报价**口径。不一致的后果是"报价 216
 
 | 内容 | app（报价） | server（结算） | 钉住它的测试 |
 |---|---|---|---|
-| 视频档位系数 | `VIDEO_TIERS[].mult` | `VIDEO_MULT` | `arkProxy.spec.js`「跨仓档位系数一致性」 |
+| 视频档位系数 | `VIDEO_TIERS[].mult` | `VIDEO_MULT` | `arkProxy.spec.js`「跨仓档位表一致性」（按 **(模型, 分辨率)** 认，草稿与高清不许塌成一行） |
+| 每档分辨率 | `videoTierTable` 的 `resolution` | `VIDEO_RESOLUTIONS` | 同上 |
+| 免费档 | `videoTierTable` 的 `freeOk` | `FREE_VIDEO_ALLOW` | 同上 |
+| 停用时刻 | `videoTierTable` 的 `retireAt`（`RETIRE_1_0_AT`） | `RETIRED_MODELS_AT` | 同上 |
+| 像素表（480p / 1080p）与样片两步系数 | `videoTierTable.perSecTokens` / `ULTRA_MULT` / `DRAFT_FINAL_MULT` | `VIDEO_PIXELS` / `draftFinalTokens` | `arkProxy.spec.js`「跨仓像素表与 480p / 1080p 价目」 |
 | **r2v 档位系数** | `VIDEO_TIERS[].r2vMult`（非 null 的那些档） | `VIDEO_MULT_R2V` | `arkProxy.spec.js`（r2vMult ↔ VIDEO_MULT_R2V 双向相等） |
 | 出图单价 | `IMAGE_TOKENS_BY_MODEL` | `IMAGE_TOKENS_BY_MODEL` | `arkProxy.spec.js`「跨仓出图价目一致性」 |
 | 套餐 / 直充包 | `PLANS` / `RECHARGE_PACKS` | `PLANS` / `order.service.RECHARGE_PACKS` | `payOrder.spec.js`「跨仓价目一致性」 |
 
-出图那组除了逐条比数，还额外钉了三件事：**三个价互不相同**（证明"真的读了 `model`"，
+出图那组除了逐条比数，还额外钉了三件事：**几个价互不相同**（证明"真的读了 `model`"，
 而不是碰巧等于某一档的常量）、**档位越高越贵**（顺序倒挂 = 用户为更好的图付更少）、
 **兜底不静默**（认不出的模型必须打日志）。
 
@@ -2182,6 +2701,102 @@ App `src/data/economy.ts` 是**报价**口径。不一致的后果是"报价 216
 - 2.0-mini 含视频输入档刊例 14 元/M（⇒ 备选系数 0.93）**未入表**：A6（mini 对
   `omni_reference_task_type` 的行为）与账单都没核过，没核过的价不进表；促销价（4 折）
   一律不写，价目只记刊例。
+
+### 组图（`POST /api/ark/image-groups`，2026-10-05）
+
+一次请求让 Seedream 出一组内容关联的图（方舟 `sequential_image_generation: "auto"`）。App 的「跟着做 C · 九宫格分镜」用它一次画出 4~9 个镜头的开头画面。
+
+- **为什么不走单张出图那条路**：① 方舟按**实际画出的张数**计费（官方：「仅对成功生成图片按张数进行计费」），那条路按调用收一张；
+  ② 一组 6 张实测 249 秒、9 张约 6 分钟，同步等必撞 Cloudflare 的 125 秒读超时；③ 非流式要等全部画完才回响应头，Node 自带 fetch 300 秒等不到就断。
+  所以：受理 → 服务端后台对方舟走流式（SSE）→ 客户端短轮询，画好一张就多一张。
+- **受理** `POST /api/ark/image-groups`（requireAuth + 生成限流桶）请求体 `{ model, prompt, image?, size?, max_images }`：
+  `model` 只收能出组图的型号：`doubao-seedream-4-0-20260415`（2.63 起 App 发的就是它）与老包会发的 `doubao-seedream-4-0-250828` / `doubao-seedream-4-5-251128`
+  （这两个在出口改发成 `4-0-20260415`，见上「出图模型下线与改发」；5.0 pro 不支持组图；5.0 lite 不收）。App 发出去之前也问一次（`economy.imageGroupOk`，档位表的 `groupOk`）；
+  `image` 是 https 地址或图片 dataURL（单个或数组，≤14 张）；`max_images` 是 1~15 的整数（真数字，`"6"` 也拒），**参考图 + 张数 ≤ 15**（官方上限）；
+  `size` 是 `WxH` 或 `1K/2K/4K`，缺省 `2K`。发给方舟的请求体由服务端按白名单重拼（`watermark:false`、`response_format:"url"`、`stream:true`），
+  客户端多带的键一个都不出去。参数不对 → 400 `IMAGE_GROUP_PARAMS`；同一个人已经有一组在画 → 409 `IMAGE_GROUP_BUSY`（带那一组的 `id`）；
+  余额 / 套餐 / 冻结 / 每日上限 → 与出图同一套 402 / 403 / 429；没配 key → 501。都不扣钱。
+  成功 → **202** `{ ok, id, maxImages, unitCost, prepaid }`（`prepaid = unitCost × maxImages`，管理员免单为 0），带余额头。
+- **查询** `GET /api/ark/image-groups/:id`（轮询限流桶，不计费，只给本人，别人的 / 乱写的 id 一律 404）→ `{ ok, group }`，
+  `group = { id, status: "running"|"done"|"failed", model, maxImages, unitCost, prepaid, charged, generated, images: [{ index, url, size }],
+  failures: [{ index, code, message }], interrupted, code, message, createdAt, finishedAt }`。
+  `images[].index` = 方舟的 `image_index`（从 0 起）= 提示词里第几个镜头；**被审核拦下的那一张不在 images 里、序号会跳**（它在 failures 里，
+  `code` 是方舟原样，审核不过是 `OutputImageSensitiveContentDetected`）。`url` 是方舟临时链接（**24 小时有效**），客户端拿到就转存。
+  `running` 时 images 是已经画好的那几张；结束（done = 至少一张 / failed = 一张没有）后带余额头。
+  `GET /api/ark/image-groups` 回这个人最近 24 小时的 5 组（新的在前），App 丢了任务号时据此接回来。
+- **钱**：受理时预扣 `unitCost × maxImages`；结束时按**拿到手的张数**结算（不按方舟 `usage.generated_images`，两者不等时只记日志对账 ——
+  流中途断开时方舟可能还画了几张，那几张用户拿不到，差价我们吃）。一张没拿到 → 预扣**按扣的那两桶原样全退**（`took` 记在这一组上；字段上线之前的老组退进 addon）；
+  拿到 k 张 → 多扣的 `(maxImages − k) × unitCost` **冲正回 plan**（`settleOverCharge`；不进 addon —— 否则「要 15 张、只画 1 张」
+  就是把当月额度洗成永久余额的路）。`charged` 是最终实收。
+- **中途断开 / 进程没了**：流断了（超时 15 分钟 / 连接重置）→ 画到哪张算哪张，`interrupted: true`、`code: "INTERRUPTED"`。
+  画到一半服务重启（部署）的那一组会挂在 running：这个人下次查询 / 开新的一组时，超过 20 分钟还在 running 的按已经写进库的张数结掉（懒回收）。
+  先原子地把这一组改成终态、改成功的才结钱 —— 后台那一路与懒回收撞上也只结一次。
+- **能力位**：`GET /api/ark/health` 回 `imageGroups: true`。老服务端没有这一位 —— App 判能力只看它（Capacitor 的 SPA 回退会把
+  不存在的路径答成 200 + HTML，状态码不可信）。
+- **单张出图那条路从此只出一张**（`POST /api/ark/images/generations`）：`sequential_image_generation` 不是 `disabled`、`layer_decomposition`
+  不是 false、`stream` 不是 false、`n` 不是 1、`tools` 非空 —— 一律 400 `IMAGE_PARAMS_NOT_ALLOWED`，不扣钱。此前请求体原样转发、按一张收，
+  带上组图开关就能用一张的钱换十五张，零症状。App 从来只发 model / prompt / image / size / response_format / watermark，不受影响。
+
+## 出片地区（`GET /api/video/zone` + 出片地区门禁，2026-10-26）
+
+服务端那一半（地区怎么判、门禁三档、被拦的回包、切 `on` 之前要做的事、等主人拍板的几件）以 **server 仓同名一节**为准（server#131 起）；
+这里记 App 侧怎么读、怎么说。主人原话：美国境内不能用 Seedance、只能用 MiniMax 国际版；中国境内 IP 可以选；海外由于政策原因只能用 MiniMax。
+⚠ 「政策原因」的出处还没落进文档：在那之前这是**按主人要求的产品限制**，界面、客服知识库、商店材料里都别写成「法规要求」。
+
+**端点**：`GET /api/video/zone`，免登录（带了 token 只用来按账号分限流桶），每种回包都带 `Cache-Control: no-store`，限流约 60 次/分钟。
+
+```
+{ ok: true, v: 1,
+  zone: "cn" | "intl" | "blocked",
+  country: "US",                      // 判不出 / Tor 是 ""
+  providers: ["ark", "minimax"],      // 或 ["minimax"]、[]
+  gate: "off" | "observe" | "on" }
+```
+
+- `providers` = 此刻对这个请求**放行**哪几家（`ark` = 方舟 Seedance，`minimax` = MiniMax），**跟着门禁走**：`on` = 这个地区准用的 ∩ 服务器接着的；
+  `off` / `observe`（缺省）= 服务器接着的全部几家、不看地区。
+- **能力位**：`GET /api/ark/health` 的 `videoZone: true`。App 先看到这一位再来问（真机上不存在的路径回 200 + index.html）；health 里不放地区本身。
+
+**被拦的回包**（`/api/ark` 出视频、`/api/minimax/video` 真人档、白模化三处逐字相同）：
+`403 { ok: false, code: "REGION_UNAVAILABLE", reason: "region", zone, providers, message, billed: false }`。
+`message` 是英文在前、中文在后的一整行（给认不得这个码的老 App 兜底）。白模化在看帧之后才被拦的那个窄窗口是 `billed: true` + `visionFrames`。
+⚠ 「没有扣费」只说**这一发视频**：出片之前补画的设定帧、推演的方案不归门禁管，各自已经结算过。
+
+### App 侧（2026-10-26 出片地区 P1）
+
+- **唯一判定在 `app/src/data/videoZone`**：三种状态 —— 不知道（`null`）/ 问到了（`zone` + `country` + `providers`）。
+  **App 只照 `providers` 摆档**，不自己按国家另判一遍、也不拿 `gate` 决定藏不藏：observe 期间 providers 照样带着 `ark`，新 App 照样摆 Seedance；
+  运维切 `off` 急停，下一次问到就全摆回来。判「这一家给不给」只有 `videoZone.zoneDenies` 一处（规则在零依赖的 `data/videoZoneRules`，构建里 `check-video-zone.mjs` 实跑：
+  只认 `v: 1`、认不出的供应商名丢掉、国家码只认两位大写、地区不知道时一家都不拦）。
+  `gate` **只挑措辞**（`videoZone.zoneIsRegional`）：`off` / `observe` 时 providers 是「这台服务器接上了哪几家」（没配 key 的那家永远不报），
+  缺的那一家说「这台服务器出片只接了 …」，不说成「你所在的地区只提供 …」；只有 `on` 时才说地区。403 回包能拦人 = 门禁开着，按 `on` 记。
+- **地区不知道 = 照今天的样子摆**（全部档位、不拦、句子里不写供应商名）：老服务端（health 没有 `videoZone`）、dev 直连 / 离线演示包、这一场会话还没问到过。
+  「问不到」绝不当「境内」，也不当「海外」—— 冷启动问慢半拍就把节点上的档位持久改写掉，比多摆一会儿更坏；服务端照样拦，视频那一发不扣钱。
+  问到之后再问不到，沿用这一场会话上一次问到的结论；**不跨会话落盘**（开关 VPN / 换网络都会改地区，旧缓存在冷启动那一刻拿来藏档是同一个事故形状）。
+- **什么时候问**：开机（`account.readyAccount` 顺手发起）、回到前台（visibilitychange）、恢复联网（online）、App 开着且页面可见时每 10 分钟、
+  收到一次 `REGION_UNAVAILABLE` 之后（回包里的 zone / providers 当场记下，再问一次补国家）、**花第一笔钱之前**（`flowStore.genNode` / `deriveProposals`、
+  工坊 `studioStore.generateNode`、剪辑页按圈选重做：现问一次再按问到的那份重判这一档 —— 门禁只拦视频，会话中途开关过 VPN 的人不现问就会先付图钱 / 推演费，再被 403；
+  改帧、重画、合成预览、导演台融图与三个跟着做向导里的每一笔图钱 / 对话钱同样先问，走 `account.tierRegionGate`；向导落段不拿档位门禁拒付过钱的画面，出片那一拍再拦）。
+  同步看状态的宿主（工坊 `genNodeVideo` 受理即收窗、画布 agent 700 毫秒后报回执）**调之前自己先问**，genNode 的同步门禁就在打上 generating 之前拒。
+  **反方向**也问：同步门禁拿地区拒之前先现问一次（`account.tierRegionRecheck`），结论变了从头再判 —— 不然人在前台关了 VPN（不发 visibilitychange），
+  最多 10 分钟里每一次点都被拒。两次顺手重问之间至少隔 10 秒（花钱之前那一次 5 秒）；花钱之前那一次**连同能力位还没探到时要先补的那一发健康探测**整体最多等 6 秒（`refreshVideoZone` 自己掐；问不到就放行，服务端照样拦，没等完的那一发照常在后台记下结论）。
+- **摆档**：这个地区不给的档进 `account.tierOffIssue`（地区那一支 `tierRegionIssue`，排在「已停用」之后、「服务端不支持」之前）——
+  于是 `offeredTiers` 不摆它，`tierBlockReason` 说它，`usableTierId` 换掉它（抄来的档；找不到做得了同样事的近邻时**留着原档**、说一句，不落到「真人」档）。
+  档位那一排（TierRow / 选法屏 ModePicker / 工坊铸段窗）下面印一句 `account.regionTiersLine`（「你所在的地区（美国）出片只提供 MiniMax」）。
+  句子里只写这个地区**给得出的**供应商名，不写被拦的那一家。「换成哪一档」只指做得了这件事的档（`tierBlockReason(tier, need)`：白模模板、样片定稿、重拍、延长各传各的能力；
+  缺省不往只认一张起拍画面的「真人」档上指）。地区原因旁边不摆「去升级」（`account.tierPlanBlocked`：付钱治不了地区）。
+- **默认档**：默认档链（std→hd / fast→draft）全是方舟的。地区不给方舟时链上落不下，`account.defaultTierId` 退到这个地区摆得出来的第一档（P1 只有「真人」）。
+- **被拦时说什么**：`arkClient.billingDenialError` 认 `code`，抛 `ArkRegionDenied`（ArkHttpError 的子类，带 `billed`），话由 `account.regionDeniedLine` 说
+  （不点档名、只说这个地区能用哪几档；回包里读不出地区时不列供应商、不列档名；message 里不说钱）。钱只认 `ai/failCharge`：照回包的 `billed`，没扣的那一句「这一发没有受理，也没有扣费」也在那里（终审从 message 里挪出去：调用方截原因时英文长国名会把它截掉）；展示原因时这句不截（长度有界）。
+  白模化（`api/branch.blockoutPost`）按 `billed` 两句各说各的；提取窗在地区不给白模那一档时收起两条白模路的选项、只留原因。
+- **P2b（App 这一半，2026-10-26）**：档位表加 MiniMax H3 三行（`draft-mm` / `hd-mm` / `ultra-mm`，family 与同档 Seedance 那一行相同、api `minimax-v2`、按秒报价 = 服务端
+  `MINIMAX_SEC_COST`），走服务端 `/api/minimax/v2`（server #132）；摆不摆 = 健康端点的 `minimaxV2` **且** 地区问到了、providers 里有 minimax。
+  免费版只能在 H3-Lite 上纯文字出片（服务端 `MINIMAX_V2_FREE_TEXT_ONLY`）。同一颗芯片两家都给得出时（境内）只摆这个人选的那一家：选择器只有
+  `components/flow/ProviderSwitch` 一份（TierRow / 选法屏 / 工坊铸段窗），偏好在 `data/videoProvider`（按账号、本机，默认 Seedance），
+  摆不摆只问 `account.tierListed`、换家只问 `account.tierOfPreferred`、新段默认 `account.defaultTierId` 跟着偏好走；境内第一次选 MiniMax 先确认一次（数据出境）。
+  还没做：对画布说话认「换成 MiniMax」（agentGrammar）。
+  （「卡片与模板写具体模型名」已在 P1 这一批做了：卡片页「按模型适配」、卡组摘要、模板货架与详情、选模板抽屉、创作界面都按地区写模型名，地区不知道时只写档位名 —— `account.offeredVideoModels` 那一组。）
+  在那之前门禁一直是 `observe`（主人定：带 P2b 的 App 发版那天再切 `on`），App 这一侧的藏档逻辑在线上不会生效。
 
 ## 真人肖像授权（方舟可信素材）
 
@@ -2223,12 +2838,25 @@ AK/SK 只在服务端（`VOLC_AK`/`VOLC_SK`），**永不进 app 包**。
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/me/wallet` | `{ wallet: { plan, addon, planId }, plans }`。顺带完成初始化与跨月刷新 |
+| GET | `/api/me/wallet` | `{ wallet: { plan, addon, planId, cycle, day, debt, debtSince, frozen, paidEver }, plans, paid, free: { welcomeTokens, dailyTokens, dailyCapTokens } }`。顺带完成初始化、跨月刷新与免费版的每日补给。顶层 `paid`（2026-10-07）= 算不算付费用户（套餐价 > 0 **或**付过钱 —— 按还作数的订单算，见下「付过钱」；服务端 `isPaidUser` 唯一判据）—— 免费档门禁的判据；`wallet.paidEver` 是「付过钱」那一半的原始记号（退款之后会被置回）；`free` = 免费额度的三条规则（App 的「我的」页照它说，不抄数）。App 认顶层 `paid`（兜底读 `wallet.paid`，`api/wallet.ts`） |
 | GET | `/api/me/wallet/ledger?limit=` | token 流水（"我的钱花哪儿了"） |
 | POST | `/api/me/wallet/recharge` | **已改为下单**（见下「充值」）。`{ tokens }` → **202** + 订单，余额不变 |
 | POST | `/api/me/wallet/plan` | **已改为下单**。`{ planId }` → **202** + 订单，余额不变 |
 
-- `plan` = 当月套餐额度，**跨月刷新、未用完作废**；`addon` = 直充与退款，**永不过期**。扣减先 plan 后 addon
+- `plan` = 付费套餐的当月额度（**跨月刷新、未用完作废**）/ 免费版的每日额度（见下，不按月刷新）；`addon` = 直充、新人额度、奖励，**永不过期**。
+  扣减先 plan 后 addon；退款（没受理 / 受理之后失败）**从哪一桶扣的退回哪一桶**。付费套餐的月份**只往前刷**（服务端 `tokenWallet.cycle` 落后于当前月才归位 ——
+  清扫器在月初那几分钟里拿着上个月的时刻退款，也不会把钱包刷回上个月）
+- **套餐与免费额度**（2026-10-07 主人拍板）：标准 ¥30/月 → **1,660,000**；专业 ¥98/月 → **5,800,000**；充值包不变。
+  免费版：**新人一次 170,000**（进 addon）+ **每天补 2,000**（进 plan，按 UTC 日，最多攒到 **14,000** = 7 天；
+  不会把比这更多的余额往下拉）—— 取代原来的 30 万/月。老账号不补新人额度。两仓 `PLANS` 逐条相等（`payOrder.spec.js` 钉着）
+- **失败退款**按扣的那两桶原样退（`refundSplit`）—— 不全退进 addon：退进 addon 等于把当月 plan 洗成永不过期的余额
+- **付过钱**：`tokenWallet.paidEver`，充值（`recharge`）与买套餐（`plan_buy`）在同一次原子更新里置真。事实来源是**订单**（`tokenWallet.hasLivePayment`）：
+  有一张 `paid` / `settled`、没被回收（`revokedAt` 为空）、不是 Play 测试购买（`isTest`）的订单；Play 部分退款还剩没退的份也算。
+  - **退款 / 拒付回收之后按订单重算**（`refreshPaidEver`，Play `revokeByToken` 调）：唯一一笔被退了 → 不再算付费用户（2026-10-07 评审补：
+    原来「从不置回」，买一包、找 Google 退款，付费档与付费档日上限就永远对他开着）。
+  - **Play 测试购买**（许可测试员，一分钱没付）照常发币，但**不算**付过钱。
+  - 老钱包第一次被读到时按订单回填一次（原来按账本 `recharge` / `plan_buy` 流水 —— 账本记不了退款，下单系统之前的模拟充值也留过 `recharge`）。
+  日上限也按「付费用户」分档（付过钱的免费版用户吃付费档的上限）。
 - 用户文档**刻意没有 `tokenWallet` 的 schema default**：有没有这个字段就是"要不要初始化"的
   判据本身（`{$exists:false}` 条件原子更新抢占初始化并补一条 `grant` 流水）。给了 default，
   老账号读出来就凭空有余额、却没有对应流水，账本和余额从第一天起就对不上
@@ -2246,7 +2874,7 @@ AK/SK 只在服务端（`VOLC_AK`/`VOLC_SK`），**永不进 app 包**。
 
 | 方法 | 路径 | 鉴权 | 说明 |
 |---|---|---|---|
-| GET | `/api/pay/config` | 无 | `{ channels, payable, mock, packs, plans }`。`payable=false` = 现在收不了钱，UI 必须说出来 |
+| GET | `/api/pay/config` | 无 | `{ channels, payable, mock, packs, plans, play }`。`payable=false` = 这套下单收不了钱，UI 必须说出来；`play` 见下面「Google Play 结算」|
 | POST | `/api/pay/orders` | required | `{ kind: "recharge", tokens } \| { kind: "plan", planId }` → 201 `{ order, payParams, payable }` |
 | GET | `/api/pay/orders/:orderNo` | required | 查单（仅本人）。客户端付款后轮询它等 `status: "settled"` |
 | GET | `/api/pay/orders?limit=` | required | 我的订单列表 |
@@ -2292,6 +2920,53 @@ app 那份是【报价】（按下按钮前给用户看的），server 这份是
 **显示余额**与**按下按钮之前提前拦一道**，被绕过不会造成任何损失（服务端不认它）。
 25 处调用点因此保持同步签名不变；权威值随 `/api/ark` 的响应头覆盖回来，最多短暂偏差且自愈。
 离线模式（没配 `VITE_API_BASE`）下它仍然是唯一账本——那种包本来就不出网。
+
+### Google Play 结算（play 渠道，2026-09-26 接）
+
+Play 这条**与上面那套下单完全不同**：Play 那边先收钱，我们拿 `purchaseToken` 去服务端兑。
+没有"订单待支付"中间态，也不用轮询 —— 兑那一发回来就已经发币了。
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|---|---|---|---|
+| GET | `/api/pay/config` | 无 | 多一个 `play: { enabled, products: [{ sku, kind, tokens, label }] }`。`enabled=false` = 服务端没配齐（包名 + 服务账号缺一就整条关着） |
+| GET | `/api/pay/play/account` | required | `{ obfuscatedAccountId }`。发起购买时设进 Billing 的 `setObfuscatedAccountId` |
+| POST | `/api/pay/play/redeem` | required | `{ purchaseToken }` → `{ ok, code, granted, wallet }`。**幂等** |
+| POST | `/api/pay/play/rtdn?key=` | **无** | Google Pub/Sub 推送（退款通知）。密钥没配时一律 404 |
+
+App 侧：`utils/playBilling.ts`（原生插件封装）+ `data/account.ts` 的
+`buyWithPlay` / `sweepPlayPurchases`；原生实现 `android/app/src/play/java/.../PlayBillingPlugin.java`
+（sideload 渠道是同名空壳，`isAvailable()` 回 false）。
+
+#### 五件错了都不报错的事
+
+1. **商品 id 三处必须逐字相同**：Play Console 的商品 id、server `config/play.js` 的 `sku`、
+   App 传给 Billing 的那个。对不上的表现是用户付了钱、服务端查出来的 productId 不在表里 ⇒
+   **不发币**（服务端会 `console.error`，端上报 502）。App 里的 sku **只从 `/api/pay/config`
+   拿**，不另写一份；Play 里查不到的 sku 直接不显示按钮。
+2. **客户端绝不 consume**。`consume` 蕴含 `acknowledge`，端上先消耗掉，服务端再查就是
+   "查不到 / 已消耗" ⇒ 钱收了、币没发。consume 只在服务端 `redeem` 末尾做一次（铁律六）。
+3. **兑不上 ≠ 支付失败**。这一档是"钱已经收了、币还没发"，文案不能说成失败（用户会去申请退款，
+   而正确的动作是等重试）。可重试的只有 502/503/504 与断网；400/409/429/501 立刻如实报错。
+4. **必须有补偿扫描**。兑那一发断网 / 进程被杀之后端上没有任何东西会自己重来；
+   Play 的消耗型商品在服务端 consume 之前一直查得到，所以启动后 3 秒扫一次
+   （`components/PlayPurchaseSweep.tsx`）、每次打开钱包抽屉再扫一次。
+   ⚠ 许可测试员的购买 **3 分钟**不被 acknowledge 会被 Google 自动退款，而 acknowledge
+   发生在服务端 redeem 的末尾 —— 这条扫描不是"锦上添花"。
+5. **`obfuscatedAccountId` 拿不到就不许买**。服务端对"没带"只 warn 一句就放行，
+   端上要是允许不带，"别人的购买兑不到我账上"这道闸等于不存在。
+
+#### 两条渠道互斥（Play 政策）
+
+play 渠道的包里，应用内数字商品**只能**走 Play Billing。所以钱包抽屉在 Play 可用时
+把 ¥ 直充包与**付费套餐**都藏掉（免费档的「领取」不是付款，留着），并说明
+"套餐订阅暂未在这个渠道开放" —— Play Console 里还没有套餐对应的商品。
+侧载包一行结算代码都不带（`playImplementation` 只给 play 渠道）。
+
+#### PENDING 不是错误
+
+用户选了现金等异步付款方式时 Play 回 `PENDING`：钱还没到，**不能拿去兑**
+（服务端会回 `NOT_PURCHASED`）。界面要说"还在等这笔付款完成"，到账后那笔会变成
+`PURCHASED`，被上面第 4 条的扫描捞到。
 
 ## 客户端接入约定
 

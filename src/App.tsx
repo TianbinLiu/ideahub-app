@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import Spinner from "./components/Spinner";
 import { createPortal } from "react-dom";
 import { Navigate, Outlet, Route, Routes, useLocation, useNavigate } from "react-router";
@@ -6,11 +6,15 @@ import GuideGate from "./components/guide/GuideGate";
 import InfoDialog from "./components/InfoDialog";
 import { AGREEMENTS, recordTermsAccepted, termsAccepted, type AgreementId } from "./data/agreements";
 import GenerationPill from "./components/GenerationPill";
+import ErrorBoundary from "./components/ErrorBoundary";
 import Toast from "./components/Toast";
+import { showToast } from "./data/toast";
+import { signOutBlocker } from "./studio/signOutGuard";
 import AuthPending from "./components/AuthPending";
 import FeedPage from "./pages/FeedPage";
 import DiscoverPage from "./pages/DiscoverPage";
 import WorkshopPage from "./pages/WorkshopPage";
+import WorkshopMinePage from "./pages/WorkshopMinePage";
 import ProfilePage from "./pages/ProfilePage";
 import SettingsPage from "./pages/SettingsPage";
 import SettingsProfilePage from "./pages/SettingsProfilePage";
@@ -23,7 +27,8 @@ import AdminPage from "./pages/AdminPage";
 import NotificationsPage from "./pages/NotificationsPage";
 import LoginPage from "./pages/LoginPage";
 import OauthCallbackPage from "./pages/OauthCallbackPage";
-import VideoPage from "./pages/VideoPage";
+import { VideoRoute } from "./pages/VideoPage";
+import RecipePage from "./pages/RecipePage";
 import PublishPage from "./pages/PublishPage";
 import EditPage from "./pages/EditPage";
 import CardDetailPage from "./pages/CardDetailPage";
@@ -43,20 +48,33 @@ import SupportPersonasPage from "./pages/SupportPersonasPage";
 import SupportCreatePage from "./pages/SupportCreatePage";
 import SupportModelNewPage from "./pages/SupportModelNewPage";
 import SupportPersonaNewPage from "./pages/SupportPersonaNewPage";
+import TutorHomePage from "./pages/tutor/TutorHomePage";
+import TutorNewPage from "./pages/tutor/TutorNewPage";
+import TutorRunPage from "./pages/tutor/TutorRunPage";
 import StudioPage from "./studio/StudioPage";
 import TabBar from "./components/TabBar";
 import { bootData, type BootFailure } from "./data/boot";
+import { installGlobalFailureHooks } from "./data/clientEvents";
 import BootFailed from "./components/BootFailed";
 import DataLossNotice from "./components/DataLossNotice";
-import { checkUpdateForPrompt, type UpdateInfo } from "./data/appUpdate";
+import {
+  checkUpdateForPrompt,
+  forcedUpdate,
+  isMandatory,
+  raiseForcedUpdate,
+  subscribeForcedUpdate,
+  type UpdateInfo,
+} from "./data/appUpdate";
 import UpdateSheet from "./components/UpdateSheet";
 import { useAuthState, useCurrentUser } from "./hooks/useAccount";
 import { useLingui } from "@lingui/react";
 // ★ 宏包这里只引 Trans：上一行的 useLingui 来自运行时包，根组件调它只为订阅语言变化（整棵树跟着重渲，见 App() 里那段 ★）；再从宏包引同名的会撞标识符
 import { Trans } from "@lingui/react/macro";
 import useOrientationLock from "./hooks/useOrientationLock";
+import PlayPurchaseSweep from "./components/PlayPurchaseSweep";
 import { signInWithOauthToken, signOut } from "./data/account";
 import { initOauthDeepLink, onOauthResult } from "./utils/oauth";
+import { loginFailPath, loginNextOf } from "./data/oauthState";
 
 /**
  * 第三方登录的深链回程收口（只在原生壳里有事做）。
@@ -71,12 +89,14 @@ function OauthDeepLinkBridge() {
   useEffect(() => {
     void initOauthDeepLink();
     return onOauthResult((r) => {
+      // 起跳时登录页上的 next 接着带（data/oauthState.loginNextOf：原来失败把它换没、成功一律回首页）
+      const next = loginNextOf(window.location.hash);
       if (r.token) {
         void signInWithOauthToken(r.token)
-          .then(() => navigate("/", { replace: true }))
-          .catch((e) => navigate(`/login?err=${encodeURIComponent(e instanceof Error ? e.message : String(e))}`, { replace: true }));
+          .then(() => navigate(next ?? "/", { replace: true }))
+          .catch((e) => navigate(loginFailPath(e instanceof Error ? e.message : String(e), next), { replace: true }));
       } else if (r.error) {
-        navigate(`/login?err=${encodeURIComponent(r.error)}`, { replace: true });
+        navigate(loginFailPath(r.error, next), { replace: true });
       }
     });
   }, [navigate]);
@@ -106,16 +126,28 @@ function OrientationGuard() {
  *   这时候插一发下载清单只会让首屏更慢；而"有新版"这件事晚三秒说完全不影响。
  * ★ 查不到一律安静收场（没网、清单还没发都会走到这儿）。手动检查那条路
  *   （设置页）才会把失败原因显示出来 —— 两种场景对"安静"的容忍度不一样。
+ * ★ 强制更新（清单的 minVersionCode，2026-10-10）**只**从这里弹：那一版不认「以后再说」的记录、弹层关不掉（onClose 不会被调到，
+ *   见 components/UpdateSheet 文件头 ★★）。它挂在 <Routes> 外面，安卓返回键退的是底下那一页，退不掉它。
+ *   设置页「检查更新」查到强制的那一版也交到这里来画（data/appUpdate.raiseForcedUpdate 的 ★）—— 画在设置页里的话，返回键连页带弹层一起退掉。
+ *   ⚠ 自动检查只在冷启动查一次（延后 3 秒那一发）：App 一直开着时清单上调了 minVersionCode，要等下一次冷启动（或人去设置页点「检查更新」）才弹 ——
+ *   服务端**不会**替这里拦：请求头 X-App-Version 只进服务端日志、不做任何放行判断（头是客户端写的，谁都能伪造；
+ *   2.62 及以前的包也不发它），见 docs/api-contract.md「请求头 X-App-Version」。拦老包的只有这一张弹层自己。
  */
 function UpdateGate() {
   const [info, setInfo] = useState<UpdateInfo | null>(null);
   const [closed, setClosed] = useState(false);
+  const forced = useSyncExternalStore(subscribeForcedUpdate, forcedUpdate);
   useEffect(() => {
     const t = setTimeout(() => {
-      void checkUpdateForPrompt().then(setInfo);
+      void checkUpdateForPrompt().then((r) => {
+        if (r && isMandatory(r)) raiseForcedUpdate(r);
+        else setInfo(r);
+      });
     }, 3000);
     return () => clearTimeout(t);
   }, []);
+  // 强制的那一版压过普通提示；它的 onClose 永远不会被调到（UpdateSheet 里强制时没有任何关的出口）
+  if (forced) return <UpdateSheet info={forced} onClose={() => {}} />;
   if (!info || closed) return null;
   return <UpdateSheet info={info} onClose={() => setClosed(true)} />;
 }
@@ -135,7 +167,7 @@ function TermsGate() {
   // 同意/退出都不改本组件的 props，靠这个空 bump 让 termsAccepted() 重新求值
   const [, bump] = useState(0);
   const [viewDoc, setViewDoc] = useState<AgreementId | null>(null);
-  if (!user || termsAccepted()) return null;
+  if (!user || termsAccepted(user.id)) return null;
   return (
     <>
       {createPortal(
@@ -160,15 +192,21 @@ function TermsGate() {
             </div>
             <button
               onClick={() => {
-                recordTermsAccepted();
+                recordTermsAccepted(user.id);
                 bump((n) => n + 1);
               }}
-              className="mt-4 w-full rounded-xl bg-brand py-2.5 text-xs font-bold text-ink"
+              className="mt-4 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink"
             >
               <Trans>同意并继续</Trans>
             </button>
             <button
               onClick={() => {
+                // 还有花钱的活在跑就先不退（见 studio/signOutGuard）；门还摆着，等跑完再来表态
+                const why = signOutBlocker();
+                if (why) {
+                  showToast(why, 4500); // 整句说清要等什么，默认那 1.8 秒读不完
+                  return;
+                }
                 signOut();
                 bump((n) => n + 1);
               }}
@@ -206,7 +244,9 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   const auth = useAuthState();
   const loc = useLocation();
   if (auth === "pending") return <AuthPending />;
-  if (auth === "out") return <Navigate to={`/login?next=${encodeURIComponent(loc.pathname)}`} replace />;
+  // ★ 回跳地址连 query 一起带：/support?tab=tickets&ticket=…、/me?wallet=1、/tutor/new?course=… 登录一圈回来要落在同一屏上
+  //   （LoginPage 的 next 经 useSearchParams 解码后原样 navigate，带 ? 的地址走得通；个人页的关注键是同一写法）
+  if (auth === "out") return <Navigate to={`/login?next=${encodeURIComponent(`${loc.pathname}${loc.search}`)}`} replace />;
   return <>{children}</>;
 }
 
@@ -215,6 +255,8 @@ export default function App() {
   //   （不重挂：状态与在途 Promise 都保留）。不订阅的话，只有自己调了 useLingui / <Trans> 的组件跟着换，
   //   渲染时调 .ts 助手（errText、relativeTime、显示字典）的组件停在旧语言，界面半中半英且零报错（方案 §5.4）。
   useLingui();
+  // 路由级渲染边界按 pathname 复位（components/ErrorBoundary）：hook 排在早退之前（CLAUDE.md 坑表「hook 写在早退之后」）
+  const loc = useLocation();
   // 数据层是 IndexedDB（异步）：装载完成前不渲染路由，避免各页读到空库。
   // null = 还在装；[] = 可以进（局部没读出来的库各自在用到它的那一屏说）；非空 = 核心库没打开，整页拦。
   // ★ 拦哪几样、为什么，只在 data/boot 一处（铁律六），别在别处再写一道开机闸
@@ -225,6 +267,8 @@ export default function App() {
     void bootData().then(setBoot);
   }, []);
   useEffect(load, [load]);
+  // 失败上报（humble-delivery-4）：window 的 error / unhandledrejection 只在 App 根挂一次（幂等），只带错误类型名 —— 实现与「发不发」都在 data/clientEvents
+  useEffect(installGlobalFailureHooks, []);
 
   if (!boot) {
     return (
@@ -246,6 +290,7 @@ export default function App() {
       <OauthDeepLinkBridge />
       <OrientationGuard />
       <UpdateGate />
+      <PlayPurchaseSweep />
       <TermsGate />
       {/* 本机数据库被系统判为损坏、清空重建过：开机如实说一次（data/db 的 noteDataLoss ★★） */}
       <DataLossNotice />
@@ -257,6 +302,9 @@ export default function App() {
           与 GuideGate 同一条理由挂在 Routes 外面（要盖住任何一页，不随路由卸载） */}
       <GenerationPill />
       <Toast />
+      {/* 路由级渲染边界（2026-10-15）：一页抛错只换掉那一页，顶上的胶囊 / 轻提示 / 引导与各 store 都还在；
+          换路由自动复位。3D 桌面、导演台、工作流画布各自再包一层，坏了只重挂那一块（理由见 ErrorBoundary 文件头） */}
+      <ErrorBoundary full resetKey={loc.pathname}>
       <Routes>
       <Route element={<TabLayout />}>
         <Route path="/" element={<FeedPage />} />
@@ -264,6 +312,7 @@ export default function App() {
         {/* 一级 Tab 不做硬登录墙：未登录时页面自己显示软提示（与 /me 一致）。
             硬弹到登录页会让底栏的一个入口变成「点进去就出不来」。 */}
         <Route path="/workshop" element={<WorkshopPage />} />
+        <Route path="/workshop/mine" element={<WorkshopMinePage />} />
         <Route path="/me" element={<ProfilePage />} />
         {/* 创作者主页（首页点头像进的就是它）。放在 TabLayout 里而不是全屏页：
             短视频 App 的个人页都留着底栏，逛完一个作者能直接切回首页继续刷。
@@ -319,7 +368,9 @@ export default function App() {
           </RequireAuth>
         }
       />
-      <Route path="/video/:id" element={<VideoPage />} />
+      <Route path="/video/:id" element={<VideoRoute />} />
+      {/* 制作过程（公开配方，2026-10-02）：作者公开了才有内容；不套 RequireAuth —— 看是公开的，「做同款」跳 /flow 时那边的 RequireAuth 自然接住 */}
+      <Route path="/video/:id/recipe" element={<RecipePage />} />
       <Route path="/card/:id" element={<CardDetailPage />} />
       {/* 自己传图做卡片（入口在创意工坊）。★ 路径刻意**不**挂在 /card/ 下面：
           `/card/new` 与 `/card/:id` 只靠路由排序分胜负，哪天有人真铸出一张 id 为
@@ -465,8 +516,15 @@ export default function App() {
           </RequireAuth>
         }
       />
+      {/* 启梦老师（2026-09-29 M4，tutor 仓 docs/06 §6）：课程列表 / 在 App 里上课 / 用 md·txt 建课。三条都套 RequireAuth
+          （服务端 /api/tutor 全线 requireAuth；判据是 RequireAuth 里的 authState 三态，不是 !user —— CLAUDE.md 坑表）。
+          离线模式（API_BASE 为空）里页面进门就整句说「需要联网」，教学记录是服务端真相、不进 IndexedDB */}
+      <Route path="/tutor" element={<RequireAuth><TutorHomePage /></RequireAuth>} />
+      <Route path="/tutor/new" element={<RequireAuth><TutorNewPage /></RequireAuth>} />
+      <Route path="/tutor/run/:id" element={<RequireAuth><TutorRunPage /></RequireAuth>} />
       <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </ErrorBoundary>
     </>
   );
 }

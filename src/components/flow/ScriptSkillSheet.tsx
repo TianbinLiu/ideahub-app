@@ -1,57 +1,53 @@
 // 「剧本 → 分镜字段」结构化技能的面板（2026-09-06 §四 7）：步骤栏 + 剧本框 + 拆好的段 + 确认铺。
 // 形状与算数都在 studio/structuredSkills（本文件只画、只转手）；铺是整表覆盖，守卫走 useApplyTemplate（与做同款同一份）。
 // 抽屉壳按 CLAUDE.md；从 AgentPalette（z-50）里开所以 z-[60]，portal 到 body（画布 transform 会给 fixed 造包含块）。
-import { useState } from "react";
+// ★ 状态（剧本 / 第几步 / 结果 / 在跑 / 报错）全在 studio/skillSheetStore，这里只订阅（2026-10-15 教材人格评审）：
+//   等回话的那几十秒里点到抽屉外面只是**收起**，回包落进 store、重开接回；人不在面板上时由胶囊（data/jobs）说。
+import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { AI_REAL } from "../../ai";
-import { DEFAULT_TIER, fmtTokens, tierOf } from "../../data/economy";
+import { usableTierId } from "../../data/account";
+import { fmtTokens, tierOf } from "../../data/economy";
 import { showToast } from "../../data/toast";
 import { useFlow } from "../../studio/flowStore";
-import {
-  SCRIPT_MAX,
-  SCRIPT_MIN,
-  SCRIPT_TO_SHOTS,
-  runScriptToShots,
-  shotPlanNodes,
-  type ShotPlan,
-  type SkillStepKind,
-} from "../../studio/structuredSkills";
+import { noteScriptSheet, resetScriptSkill, runScriptSkill, setScriptSkill, useScriptSkill } from "../../studio/skillSheetStore";
+import { SCRIPT_MAX, SCRIPT_MIN, SCRIPT_TO_SHOTS, shotPlanNodes } from "../../studio/structuredSkills";
 import { DEFAULT_ASPECT, aspectOf, shotLineDisplay } from "../../types";
 import { CloseButton } from "../IconTapButton";
+import StepDots from "../StepDots";
 import { useApplyTemplate } from "./useApplyTemplate";
+import { useBackLayer } from "../../hooks/useBackLayer";
 
 export default function ScriptSkillSheet({ onClose, onApplied }: { onClose: () => void; onApplied: () => void }) {
   const { t } = useLingui();
   // 档位 / 画幅 / 挂的卡都跟着当前流水线的第一段走：铺出来的段与它同一套设置，用户不用再逐段调
   const first = useFlow((s) => s.nodes[0]);
-  const tierId = first?.videoTier ?? DEFAULT_TIER;
+  // ★ 第一段的档这个人现在用不了（会员档 / 已停用）就落到他能用的默认档（account.usableTierId）：铺出来一整排点不动的段没有意义
+  const tierId = usableTierId(first?.videoTier);
   const aspect = first?.aspect ?? DEFAULT_ASPECT;
-  const [script, setScript] = useState("");
-  const [step, setStep] = useState<SkillStepKind>("input");
-  const [plan, setPlan] = useState<ShotPlan | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState("");
+  const script = useScriptSkill((s) => s.script);
+  const step = useScriptSkill((s) => s.step);
+  const plan = useScriptSkill((s) => s.plan);
+  const busy = useScriptSkill((s) => s.busy);
+  const err = useScriptSkill((s) => s.err);
   const { guard, dialog } = useApplyTemplate();
   const stepIdx = SCRIPT_TO_SHOTS.steps.findIndex((s) => s.kind === step);
   const price = AI_REAL ? fmtTokens(SCRIPT_TO_SHOTS.cost) : t`演示`;
+  // 挂着 = 结果由这里画、胶囊不画；收起 = 胶囊接手（哪怕路由没变）。StrictMode 的 挂→卸→挂 最后落在「挂着」，不会像
+  // 只在 cleanup 里置 false 那样一开始就错（VideoCardAnnotator 栽过）
+  useEffect(() => {
+    noteScriptSheet(true);
+    return () => noteScriptSheet(false);
+  }, []);
 
-  async function run() {
-    if (busy) return;
-    setErr("");
-    setBusy(true);
-    setPlan(null);
-    try {
-      const p = await runScriptToShots(script, tierId, (k) => setStep(k));
-      setPlan(p);
-      setStep("confirm");
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
-      setStep("input");
-    } finally {
-      setBusy(false);
-    }
+  /** 遮罩与 ✕ 共用：在跑时只是收起，不丢 —— 要说一句，否则人以为关掉就作废了、再点一次再扣一次 */
+  function close() {
+    if (busy) showToast(t`还在拆：收起不会丢，好了顶上会提示；从「/」面板再打开就接得回来`, 3200);
+    onClose();
   }
+  // 手机返回键先关这一层（hooks/useBackLayer），与遮罩 / ✕ 同一个 close()（在跑时也只是收起）
+  useBackLayer(true, close, "script-skill");
 
   function apply() {
     if (!plan) return;
@@ -60,12 +56,13 @@ export default function ScriptSkillSheet({ onClose, onApplied }: { onClose: () =
       () => {
         const ok = useFlow.getState().seed(nodes, { mode: "workflow", origin: "solo" });
         if (ok) {
-          setStep("apply");
           showToast(t`已铺 ${nodes.length} 段，从第 1 段开始炼`);
+          // 铺成了这份就用完了：不清的话下次打开还是这份旧分镜的确认屏，再点「铺成」会把刚铺的流水线整表换掉
+          resetScriptSkill();
           onApplied();
         } else {
           // seed 的整句拒绝（在途出片 / 被闸）要画在这里：AgentPalette 盖在画布壳那条错误条之上
-          setErr(useFlow.getState().err || t`现在铺不了（可能有一段正在生成中），稍后再试`);
+          setScriptSkill({ err: useFlow.getState().err || t`现在铺不了（可能有一段正在生成中），稍后再试` });
         }
         return ok;
       },
@@ -77,7 +74,7 @@ export default function ScriptSkillSheet({ onClose, onApplied }: { onClose: () =
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-[60] flex items-end bg-black/60" onClick={onClose}>
+    <div className="fixed inset-0 z-[60] flex items-end bg-black/60" onClick={close}>
       <div
         className="max-h-[85vh] w-full overflow-y-auto rounded-t-2xl border-t border-slate-700 bg-ink p-4"
         style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))" }}
@@ -88,37 +85,23 @@ export default function ScriptSkillSheet({ onClose, onApplied }: { onClose: () =
             <div className="text-sm font-bold text-slate-100">📑 {t(SCRIPT_TO_SHOTS.title)}</div>
             <div className="text-[10px] leading-relaxed text-slate-500">{t(SCRIPT_TO_SHOTS.intro)}</div>
           </div>
-          <CloseButton chip="sm" size={13} align="end" label={t`关闭`} onClick={onClose} />
+          <CloseButton chip="sm" size={13} align="end" label={t`关闭`} onClick={close} />
         </div>
 
-        {/* 步骤栏：这条技能的形状本身（steps / confirmAt 都在 structuredSkills 里定，这里只画） */}
-        <div className="no-scrollbar mb-3 flex gap-1.5 overflow-x-auto py-1">
-          {SCRIPT_TO_SHOTS.steps.map((s, i) => {
-            const done = i < stepIdx;
-            const cur = i === stepIdx;
-            return (
-              <div
-                key={s.kind}
-                title={t(s.hint)}
-                className={`flex-none rounded-full px-2.5 py-1 text-[11px] ${cur ? "bg-brand font-semibold text-ink" : done ? "bg-panel text-slate-300" : "bg-panel text-slate-500"}`}
-              >
-                {done ? "✓ " : `${i + 1} `}
-                {t(s.title)}
-                {SCRIPT_TO_SHOTS.confirmAt.includes(s.kind as (typeof SCRIPT_TO_SHOTS.confirmAt)[number]) ? " ✋" : ""}
-              </div>
-            );
-          })}
-        </div>
+        {/* 步骤栏：这条技能的形状本身（steps 在 structuredSkills 里定，这里只画）。
+            ★ 进度条只有 components/StepDots 一份实现（CLAUDE.md 铁律六）：2026-10-22 把手写的芯片行（✓ / 序号 / ✋）换成圆点，
+              做完 / 当前由圆点自己说，要人点头的那一步由下面那行 hint 说 */}
+        <StepDots className="mb-3" steps={SCRIPT_TO_SHOTS.steps.map((s) => ({ label: t(s.title) }))} current={stepIdx} />
         <div className="mb-2 text-[10px] leading-relaxed text-slate-500">{t(SCRIPT_TO_SHOTS.steps[Math.max(0, stepIdx)].hint)}</div>
 
-        {err && <div className="mb-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-rose-300">{err}</div>}
+        {err && <div className="mb-2 rounded-lg border border-danger-500/40 bg-danger-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-danger-300">{err}</div>}
 
         {/* ① 剧本 */}
         {!plan && (
           <>
             <textarea
               value={script}
-              onChange={(e) => setScript(e.target.value)}
+              onChange={(e) => setScriptSkill({ script: e.target.value })}
               maxLength={SCRIPT_MAX}
               disabled={busy}
               placeholder={t`把整篇剧本贴进来：谁在哪儿做什么、接着发生什么……（故事梗概或分场脚本都行）`}
@@ -133,7 +116,7 @@ export default function ScriptSkillSheet({ onClose, onApplied }: { onClose: () =
               </span>
             </div>
             <button
-              onClick={() => void run()}
+              onClick={() => void runScriptSkill(tierId)}
               disabled={busy || script.trim().length < SCRIPT_MIN}
               className="mt-3 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
             >
@@ -162,10 +145,7 @@ export default function ScriptSkillSheet({ onClose, onApplied }: { onClose: () =
             </div>
             <div className="mt-3 flex gap-2">
               <button
-                onClick={() => {
-                  setPlan(null);
-                  setStep("input");
-                }}
+                onClick={() => setScriptSkill({ plan: null, step: "input" })}
                 className="flex-1 rounded-xl border border-slate-700 bg-panel py-2.5 text-sm font-bold text-slate-100"
               >
                 <Trans>改剧本重拆</Trans>

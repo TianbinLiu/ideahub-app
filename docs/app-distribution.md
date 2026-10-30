@@ -44,9 +44,24 @@ npm run aab                # 上架版（play 渠道，无自更新）
 # 4. 先干跑一遍（只检查，不发布）
 npm run release -- --dry
 # 5. ★ 发版前复核：只看**这一版新增的 diff**（见下）—— 绿了再走第 6 步
-# 6. 发布 + 自检
+# 6. 发布 + 自检（镜像先落好，再建 Release，最后经 Cloudflare 整包下一遍核对）
 npm run release
+#    这一版起要**强制更新**（比某个 versionCode 老的包一打开就只能更新）的话，显式带上门槛，见下面「强制更新」：
+npm run release -- --min-version-code=75
 ```
+
+⚠ 参数前面的 `--` 不能少：`npm run release --dry` 会被 npm 吞成它自己的 `--dry-run`，`npm run release --min-version-code=75`
+也会被吞掉 —— 脚本从 npm 的环境变量里把这两个捡回来、并当面提醒；别的认不出的参数（含 `--min-version-code 75` 少了 `--` 时漏进来的那个 `75`）
+一律当场停（`scripts/release.mjs` 的 `parseArgs`）。原来认不出就悄悄忽略：强制更新没写进清单，发版却一路全绿。
+脚本只认三样：`--dry`、`--min-version-code=N`（或 `--min-version-code N`）、`--withdraw <tag>`（发错了止血，见下面「发错了」；单独用）。
+
+⚠ **发版前要站在 main 的那个提交上、工作区干净**（第 0 步，2026-10-15 起）：tag 由 `gh` 建在远端 main 的 HEAD 上（脚本现在显式 `--target` 到它），
+包是本地 HEAD 出的 —— 两边的树不同就是「tag 指着一份源码、用户装的是另一份」，脚本当场停（`--dry` 只警告，因为那时改动多半还没提交）。
+顺序就是：`npm run land` → 在 main 的那个提交上出包 → `npm run release`。「干净」按内容判（`scripts/worktree-changes.mjs`），
+刚构建完 `.po` 只差行尾的那种假 M 不算。
+
+⚠ 在 Git Bash 里跑、又要改 `APK_MIRROR_DIR` 的话，前面必须加 `MSYS_NO_PATHCONV=1`
+（不改就别设它，默认值在脚本里，不会被改写）。理由与脚本怎么拦的见下面「镜像安装包」一节。
 
 ### ★★ 第 5 步不是可选的：发版前只复核**这一版的 diff**
 
@@ -90,23 +105,66 @@ npm run release
 `max-age=1y, immutable` 缓存住了（2026-08-31 修好缓存那天起），边缘那份一年不变：
 已经取到过旧包的用户会永远 sha 校验失败、永远更新不了这一版，而客户端给的理由是
 「可能没下完或被中间人改过」，指向一个不存在的原因。脚本第 5b 步会当场拒（已发过的
-tag + 内容不同）。**出路是涨一档版本号重出包**，不是去清缓存。
+tag + 内容不同），第 5c 步对镜像上那个同名文件做同样的事。**出路是涨一档版本号重出包**，不是去清缓存。
 
 `npm run release`（[`scripts/release.mjs`](../scripts/release.mjs)）**不只是上传**，
 它把"这次更新到底能不能到老用户手里"逐条查一遍，任何一条不过就当场停下：
 
 | 查什么 | 不查会怎样 |
 |---|---|
+| 出包的源码树 == `origin/main` 的树（重跑 / tag 已在远端时 == 那个 tag 的树），工作区按内容判干净（第 0 步） | tag 指着一份源码、用户装的是另一份；之后按 tag 回溯 bug 看的是错的代码 |
 | APK 里的版本号 == 源码里的 | 改了 build.gradle 但忘了重新出包 → **发了个旧包** |
+| 开包看：APK / AAB 里的入口 `assets/index-*.js` == 本次 `dist/index.html` 引的那个（只首次发布核）；`assets/public/models/protected/` **恰好**是 `scripts/lib/protected-models.mjs` 的白名单（第 2b 步） | 版本号对、内容旧（直接跑 gradle 跳过了 cap sync）不报错；第三方版权模型随包发出去不报错 |
+| 权限整表 == 渠道允许表（第 2c 步：APK 问 aapt2，AAB 看合并清单；表在 `release.mjs` 的 `SIDELOAD_PERMISSIONS` / `PLAY_PERMISSIONS`，期望表照抄在 `play-store-checklist.md`） | 插件偷带的 `CAMERA` / `READ_MEDIA_*` 与 media3 那种意料之中的漂移混在一起，没人分得清 |
+| `android/app/libs/*.jar` 每个都在同目录 README 的表里、sha256 对得上（第 2d 步） | 处理登录的那段代码来路不明、被换过也没人知道 |
+| 编进包的原生模块（`capacitor.settings.gradle` 里那几个 + `@capacitor/core`）装着的版本与 package-lock.json 一致（第 2e 步，2026-10-21） | gradle 编的是 node_modules 里此刻装着的那份：没 `npm ci` 就出包，锁文件里升过的安全修复（2.64 的 Capacitor 8.5.1）根本没进包，而版本号、签名、清单一路全绿 |
 | 签名证书指纹 == 历史版本 | 换过 keystore → 老用户点更新，装到最后只说「应用未安装」 |
-| versionCode > 线上那一版 | 不涨 → 所有人的更新检查都判不出有新版，**等于没发** |
+| versionCode > 线上那一版，**也** > 每一个撤回过的版本（第 4c 步，pre-release 那几个） | 不涨 → 所有人的更新检查都判不出有新版，**等于没发**；没压过撤回的那版 → 装了坏版的人收不到修好的 |
+| `minVersionCode`：不带参数就沿用上一版的；只能往上拧、不能超过这一版的 versionCode（第 4b 步） | 顺手发一版就把门槛丢了 = 悄悄取消了强制更新；门槛比这一版还高 = 所有人锁在关不掉的弹层前面、无版可装 |
+| 镜像上的安装包在**建 Release 之前**就完整落位（`.part` → 远端 sha256 → 改名） | 先发清单再传包：传到一半被人下走的半截包，被 Cloudflare 按 immutable 存一年 |
+| 镜像上同名文件内容不同就拒（第 5c 步，`--dry` 也查） | 上一次没跑完留下的另一份包被当成这一版发出去 |
 | 发布**之后**再从公网拉一遍 `latest.json` | Release 被标成 draft/pre-release，或漏传 `latest.json` → 固定地址 404，客户端安静地什么都不做 |
-| 清单里的 `apkUrl` 真能下、大小与 sha256 对得上 | 下完校验不过被丢弃，用户看到「更新失败」 |
+| GitHub Release 上那份 APK 的 size == 清单、digest == `sha256:` + 清单的 sha256（第 7b 步；老 Release 没 digest 时退回比大小） | 强制更新弹层上「GitHub 上的同一个包」那条备用路是半截包 / 被人换过的包，而那正是镜像也下不动时唯一的出路 |
+| 清单里的 `apkUrl` 正是这个镜像，经 Cloudflare **整包下一遍** sha256 对得上 | 下完校验不过被丢弃，用户看到「更新失败」 |
 
-★ 这五件事**互相独立、错了都不报错**，而且漏了之后**你不会知道** —— 你手上的 App 是好的，
+★ 这几件事**互相独立、错了都不报错**，而且漏了之后**你不会知道** —— 你手上的 App 是好的，
 坏的是所有已经装了旧版的人。所以它必须是脚本查，不是人记。
 
 跑完会打印实际生效的清单地址与安装包地址，照着点一下就能确认。
+
+### ★★ 镜像安装包：先落好、再发清单（2026-10-08 发 2.62 时定位）
+
+用户下的不是 GitHub 上那份，是自家服务器上的镜像 `GET /api/app/file/qimeng-<版本>.apk`
+（经 Cloudflare）。这条路对**任何存在的** `.apk` 都回 `Cache-Control: max-age=31536000, immutable`，
+并且去掉了 `Vary` —— Cloudflare 照单缓存一年（见下面「下载慢」那一节，那是有意的）。
+所以这个文件名**一出现就必须是完整的那份**。2.62 之前的脚本做反了两件事：
+
+1. **先建 Release，再传包**。Release 一建，`/releases/latest/download/latest.json` 当场翻到新版，
+   服务端那份 60 秒内跟上，App 与官网下载页随即开始去拿镜像上的包 —— 而包还没传。
+2. **scp 直接写正名**。写到一半有人来下，源站按"此刻的大小"把半截发出去，边缘把这半截存一年；
+   从那个节点下的每个人都 sha256 校验失败，客户端报「可能没下完或被中间人改过」，
+   唯一出路是涨版本号重发。
+
+现在 `npm run release` 的顺序是：
+
+| 步 | 做什么 | 为什么 |
+|---|---|---|
+| 5c | ssh 上去看镜像上有没有 `qimeng-<版本>.apk`、sha256 是多少（**`--dry` 也查**，只读） | 同一份 → 不再传；不同 → 当场拒（理由同第 5b 步）；连不上 → `--dry` 只警告，正式跑停下 |
+| 6 | 没有就 `scp` 成 `qimeng-<版本>.apk.part` → 远端 `sha256sum` 对上清单 → `ln` 成正名再删 `.part` | `.part` 服务端根本不给（路由只认 `^[\w.-]+\.apk$`）；`ln` 遇到已存在的正名直接失败，不像 `mv` 会静默覆盖一份可能已被缓存的文件 |
+| 7 | 这时才 `gh release create` | 清单指过去的那一刻，镜像上已经是校验过的完整包 |
+| 8 | 清单验完之后，经 Cloudflare 把 `https://api.ideahubs.org/api/app/file/qimeng-<版本>.apk` **整个下一遍**比 sha256 | 以前只发一个 HEAD，看得到大小看不到内容。下全了而对不上就当场停，并提示去 Cloudflare 按 URL 清缓存 |
+
+★ 第 8 步**不加**防缓存的随机串：要验的正是边缘缓存里那一份（用户拿到的就是它），顺带也把完整的包
+预热进了离你最近的边缘。⚠ 它只验得到**离你最近的那个**边缘节点 —— 别的节点上那份靠的是第 6、7 步的
+顺序（正名出现之前内容已完整、清单在那之后才指过去），不是靠这次下载。
+
+★ 重跑（tag 已存在，上次跑到一半）照样安全：镜像上已有同一份就跳过，缺了就照样原子地补上，然后验证。
+脚本失败时会按 Release 在不在说清楚线上现在是什么状态，别凭印象判断。
+
+⚠ **Git Bash 会改写以 `/` 开头的环境变量**：`APK_MIRROR_DIR=/var/www/… npm run release` 传到 node
+手上已经是 `C:/Program Files/Git/var/www/…`（MSYS 路径转换）。2.62 那次因此在 deploy 的家目录里建出
+`C:/Program`、`Files/Git/…` 两串空目录、scp 失败。脚本现在见到带冒号 / `Program Files` 的值就当场停下，
+提示加 `MSYS_NO_PATHCONV=1`。2.62 时手工绕过用的 `.staging` 目录与手动 `.part → mv` **不再需要**。
 
 ### ⛔ 改过 `versionCode` ≠ 发过版
 
@@ -129,8 +187,38 @@ CI 是绿的、仓库看着也正常，只有所有已安装用户的「检查�
 2. `versionCode` 比自己大就弹「有新版本」，显示版本、大小、更新说明；
 3. 点「立即更新」→ 原生下载（带进度）→ 校验 sha256 → 拉起系统安装器；
 4. 用户点「以后再说」的话，**这一个版本**不再打扰，出了更新的才再提。
+5. **强制更新**：清单里写了 `minVersionCode`、而手上这一版比它老 —— 弹层上没有「以后再说」、没有「关闭」，点遮罩、按返回键都关不掉
+   （它挂在路由之外；设置页「检查更新」查到强制的那一版也交给同一张弹层画，不在设置页里画 —— 画在里面的话返回键连页带弹层一起退掉）；
+   下不动 / 装不上时留着「重试」，另给两条在浏览器里下的路：「官网下载页」（<https://ideahubs.org/download>）与「GitHub 上的同一个包」。见下一节。
 
 设置页底部还有一个手动的「检查更新」。
+
+### 强制更新（`minVersionCode`，2026-10-10 起，App 2.63+）
+
+清单（`latest.json`）多一个**可选**的整数 `minVersionCode` = 「versionCode 比它小的包，必须先更新才能接着用」。
+
+| 谁 | 怎么做 |
+|---|---|
+| 原生（`android/app/src/sideload/…/AppUpdaterPlugin.java` 的 `check`） | 读 `minVersionCode`（没有 / 读不出数 = 0，负数夹到 0；发版脚本只写整数），回 `minVersionCode` 与 `mandatory = 有更新可装 && 当前版本 < minVersionCode` |
+| Web（`src/data/appUpdate.ts` 的 `isMandatory`，唯一判据） | 强制的那一版**不认**「以后再说」的记录；`components/UpdateSheet` 关不掉、压在引导层之上，永远留着「重试」+「官网下载页」+「GitHub 上的同一个包」；只由 App 根上的 `UpdateGate` 画（`raiseForcedUpdate`，设置页查到的也交过去） |
+| 原生的 debug 包（包名 `.debug`） | **永远不强制**：「立即更新」装的是正式包（另一个包名，并排装上），debug 包自己的 versionCode 一辈子到不了门槛 —— 强制的话每次冷启动都被一张关不掉的弹层挡住。普通的「有新版」提示照旧 |
+| 发版脚本（`scripts/release.mjs` 第 4b 步） | **只在显式要求时写新值**（`--min-version-code=N` / `--min-version-code N` 或环境变量 `RELEASE_MIN_VERSION_CODE=N`；认不出的参数当场停），不带就**沿用上一版清单里的值**；N 比上一版的小 → 当场停（门槛只能往上拧）；N 比这一版的 versionCode 大 → 当场停（连刚发的这一版也会被判成必须更新、无版可装）；拉不到上一版清单又没显式给 → 正式跑当场停（写不写都可能错）；重跑已发过的 tag 时不能改它。发完会核对 GitHub 那份与 App 实际读的那份（服务端转的）里的 `minVersionCode` 都对 |
+
+几条要知道的：
+
+- **只对 2.63 及以后的包有效**。2.62 及以前的原生代码只读自己认识的那几格，多出来的 `minVersionCode` 被直接忽略 —— 它们照旧看到一个能「以后再说」的普通提示。
+  **那批老包拦不住**：服务端不会替这里拦 —— 请求头 `X-App-Version` 只进服务端日志、不做任何放行判断（头是客户端写的，谁都能伪造；
+  2.62 及以前的包也根本不发它，见 `docs/api-contract.md`「请求头 X-App-Version」）。它们照常能用，方舟下线了的出图型号由服务端在出口改发
+  （认的是请求体里的模型 id，见「出图模型下线与改发」）。
+- 两条浏览器下载的路各管一种坏法：**官网下载页**拉的是**同一个镜像文件**（`/api/app/download` 302 到镜像，同一个 Cloudflare 边缘），
+  只在坏的是这台手机上的应用内那一条（本 App 没有「安装未知应用」的授权、原生下载器出毛病）时有用；镜像本身坏了（文件缺了、边缘缓存了 404 或坏副本）
+  靠的是 **GitHub Release 上的同一个包**（`appUpdate.githubApkUrl`，按发版脚本的 tag / 资产名拼）—— 国内网络常打不开 GitHub，界面上照实说是备用。
+- 下完、校验过的包留在缓存里：安装器弹出来后人点了取消 / 被系统安全扫描打断，再点「立即更新」时摘要对得上就直接拿去装，不再从 0 重下。
+- **Play 渠道不受影响**（`selfUpdate: false`，整套更新 UI 都不出现；商店版靠商店更新）。
+- 自动检查只在**冷启动**那一次（启动后 3 秒，静默，没网就什么都不说）：App 一直开着时上调了门槛，要等下一次冷启动，或人去设置页点「检查更新」。
+- 门槛 N 的意思是「versionCode < N 的都必须更新」：比如想让 2.63（75）及以前的都必须更新，就写 76（这一版的 versionCode 得 ≥ 76）。
+  写成这一版自己的 versionCode = 所有更老的包都必须更新。
+- 服务端那一跳（`appRelease.routes.js`）是 `{ ...body, apkUrl }` 原样透传，`minVersionCode` 跟着走；哪天改成逐字段重建，发版脚本最后那步核对会红。
 
 ### 用户那边会卡住的地方
 
@@ -175,10 +263,22 @@ WebView 的 origin 是 `https://localhost`，在 Web 层 `fetch` GitHub 上的�
 | ② 客户端整包拉 | `curl -w "%{speed_download}"` | 136 KB/s |
 | ③ 同一条链路上的小片段 | 加 `-r 0-3145727` | **1.95 MB/s** |
 | ④ 绕开 CDN 直连源站 | `ssh` 拉一段（22 端口不经 CF） | 52 KB/s |
+| ⑤ 源站公网**出口**本身（2026-10-19 补） | 在 ECS 上往 3 ms 外的 CF 香港节点**上传** 2.5MB（`speed.cloudflare.com/__up`），同时每秒读 `/proc/net/dev` 的 TX；再反过来下载 25MB 对照入口 | **出：第一秒突发约 640 KB，之后稳态有效约 120~130 KB/s ≈ 1 Mbps**（curl 整段平均 148 KB/s 是连突发一起算的；网卡 TX 稳在约 173 KB/s，多出的是重传）；4 条并发合计仍 147.5 KB/s，TCP 重传 512 / 1263；**入 22,968 KB/s** |
 
 **②③ 差一个数量级 = 边缘缓存没命中**。当时的根因是：全局 CORS 中间件给每个响应加
-`Vary: Origin`，而**带 `Vary` 的响应 Cloudflare 不缓存** —— 每一次下载都在回源拉 60MB，
-而源站在香港、海外用户 RTT 173ms，单条 TCP 流在长肥管道上就是一百多 KB/s。
+`Vary: Origin`，而**带 `Vary` 的响应 Cloudflare 不缓存** —— 每一次下载都在回源拉 60MB。
+⚠ 当时写的「源站在香港、海外用户 RTT 173ms，单条 TCP 流在长肥管道上就是一百多 KB/s」**是错的**
+（2026-10-19 量第 ⑤ 项更正）：回源慢不是跨洋链路，是 **ECS 公网出口的固定带宽限速**（阿里云按买实例时选的固定带宽在虚机外面整形）：
+第一秒放过约 640 KB 突发，之后稳态有效约 **120~130 KB/s ≈ 1.0 Mbps**（10-19 冷缓存整包 72MB 单流实测 129 KB/s、约 9 分钟），
+丢包重传四成；换 3 ms 外的目的地、换 4 条连接都一样，而虚机里 `tc` 是 fq_codel、overlimits / dropped 都是 0 —— 限速不在机器里。
+控制台上看到的「公网带宽」多半就是 1 Mbps。
+实例元数据里的 `max-netbw-egress = 204800` 是**实例规格的内网带宽**（阿里云「实例元数据」文档原文：
+「实例规格的出方向内网最大带宽。单位：Kbit/s」），不是公网出口 —— 2026-08-31 backlog 2.10.2 拿它判「机器带宽不是瓶颈」是读错了。
+这条出口管的是**所有经 ECS 往外发的大块数据**，不只安装包：`/api/ark/asset`（每一张出图取回）、成片转存 Cloudinary、TTS、
+老师课程包，以及 CF 每个机房冷缓存时的回源，所有人共用这约 1 Mbps。
+量法：ssh 上去用 curl 往 `https://speed.cloudflare.com/__up` 传 2.5MB 随机字节（只读、不写文件，出口按固定带宽不另收钱），
+同时每秒读一次 `/proc/net/dev`；⚠ 测一次就把全体用户共用的出口占满十几秒，挑低峰、量减到 1MB 左右。
+出口怎么改（改按使用流量 + CF Smart Tiered Cache，要主人在控制台操作）、多少钱见 [`backlog.md`](backlog.md) 2.10.2（2026-10-19 更正）。
 
 两处修复缺一不可：
 
@@ -204,7 +304,9 @@ App（构建期常量 VITE_UPDATE_MANIFEST）        官网下载页 /download
    https://api.ideahubs.org/api/app/latest.json   /api/app/download  ← 自己的服务器，国内秒回
        └→ 转一手 + 缓存 60 秒（两个端点共用同一份缓存）
             └→ https://github.com/…/releases/latest/download/latest.json   ← 权威那份
-                 apkUrl → GitHub Release 上的 95MB APK
+                 apkUrl 由 APP_APK_BASE 改写成
+                 https://api.ideahubs.org/api/app/file/qimeng-<版本>.apk   ← 本机镜像，经 CF 缓存一年
+                 （GitHub Release 上那份 APK 只作归档）
 ```
 
 **为什么清单要经服务端转一手**（`ideahub-server` 的 `src/routes/appRelease.routes.js`）：
@@ -219,8 +321,10 @@ App（构建期常量 VITE_UPDATE_MANIFEST）        官网下载页 /download
 服务端**不重算任何东西**（版本号、sha256 的唯一出处仍是发版脚本生成的那份），
 上游挂了就发一天以内的旧清单而不是 5xx —— 回 502 等于让所有人再也收不到更新。
 
-★ APK 本身仍在 GitHub。95MB 走自己的 ECS 要花出网带宽（100 人各更新一次 ≈ 9.6GB），
-值不值得看用户量；要搬的时候按上面那个开关来，App 侧一行都不用动。
+★ 安装包自 2026-08-30 起走本机镜像（国内用户连不上 GitHub 那次事故之后）：发版脚本把包传到
+ECS 的 `APP_APK_DIR`，服务端用 `APP_APK_BASE` 改写清单里的下载地址，正是上面第 2 条那个开关 ——
+App 侧一行没动。出网带宽由 Cloudflare 的边缘缓存挡住（见「下载慢」那一节）；也正因为缓存一年，
+镜像上的文件**必须先完整、清单后指过去**（见「镜像安装包」那一节）。
 
 ## 这套**盖不到**什么
 
@@ -231,20 +335,48 @@ App（构建期常量 VITE_UPDATE_MANIFEST）        官网下载页 /download
 JS/CSS/图，不换原生）。当时评估过，没做 —— 它盖不了原生改动，等于要同时维护两套
 更新通道，而现在这套已经够用。真要做再说。
 
-## 出包前必验两条（都要验**包本身**，不是验 dist）
+## 出包前必验两条（都要验**包本身**，不是验 dist）—— 2026-10-15 起由 `npm run release` 第 2b 步开包核
 
-2026-08-16 差点发出一个「版本号是 2.8、内容是 2.7」的包，所以单列。
+2026-08-16 差点发出一个「版本号是 2.8、内容是 2.7」的包，所以单列。原来这两条是人工 `unzip -l`，现在脚本用 jszip 打开
+APK 与 AAB 各看一遍（`scripts/lib/app-package.mjs`），任何一条不过当场停；`--dry` 也跑。人工命令留着当对照。
 
-1. **只有自有模型**：`unzip -l <apk> | grep protected/` 应当只出现 `milltina-opt.glbx`。
+1. **只有自有模型**：`unzip -l <apk> | grep protected/` 应当只出现白名单里的那几个 —— 白名单**只有一处**
+   `scripts/lib/protected-models.mjs`（今天是 `milltina-opt.glbx`），出包闸 `prune-app-assets.mjs` 与发版脚本读的是同一份；
+   加自有模型只改那里，第三方素材加进 `prune-app-assets.mjs` 的裁剪表。
    ⚠ `dist/models/protected/` 里有 rin/gratia **是正常的** —— `vite build` 把 `public/`
-   原样拷过去，裁剪发生在之后的 `prune-app-assets`（它会打印"包体减少 350MB"）。
+   原样拷过去，裁剪发生在之后的 `prune-app-assets`（它会打印"包体减少 350MB"，末尾再断言剩下的恰好是白名单）。
    所以拿 dist 判断"包干不干净"本身就是错的方法。
 2. **内容是本次构建的**：包里的入口 js 文件名要等于本次 `dist/assets/index-*.js`。
-   版本号对而内容旧，是**不会报错**的。
+   版本号对而内容旧，是**不会报错**的。脚本只在**首次发布**核这一条：重跑（失败后不重新出包、直接重跑）时
+   worktree 里的 dist 可能已经是别的构建，照核会把恢复路堵死。
 
 ★★ 以及：**永远不要为了绕开 `gradlew` 找不到而直接调 gradle**。
 `npm run apk:release` 是 `tsc && vite build && prune-app-assets && npx cap sync android`
 然后才 gradle —— 直接调 gradle 会把前面四步一起跳过，`cap sync` 不跑，
 android 的 assets 还是上一次同步进去的。这台机器上 `gradlew` 找不到是
 `NoDefaultCurrentDirectoryInExePath=1` 导致的，正确做法是**先跑 `npm run build:app`**、
-再进 `android/` 用 `./gradlew.bat`。
+再进 `android/` 用 `./gradlew.bat`。（真这么干了，第 2b 步那条「入口 js 与本次 dist 不一致」会拦住。）
+
+## 发错了：先止血
+
+2.51–2.55（2026-09-25 → 09-30）连发五版都是坏包（worktree 里没有受保护模型、一进工坊整页白屏），每一版照常进 `/latest`、
+照常推给老用户 —— 当时「撤回」只在失败清单里作为一种故障出现（上面那张表的「draft/pre-release」那一行），没有一个地方写
+发错了先做什么。现在三步，第一步是一条命令：
+
+1. **止血**（一分钟内生效）：
+   ```bash
+   npm run release -- --withdraw v2.63
+   ```
+   = `gh release edit v2.63 --prerelease`：GitHub 的 `/releases/latest` 跳过 pre-release，固定地址当场退回上一版；
+   服务端那份缓存 60 秒跟上。脚本会等两份清单都退回去再说完成，并把下面两条当面打印出来。
+   新装 / 还没点「立即更新」的人从此拿到的是上一版。
+2. **已经更新到坏版的人退不回去**：Android 不装 versionCode 更低的包。只能修好之后**涨版本号重发**（roll-forward）——
+   而且新版的 versionCode 要比坏版的**还大**，不是比退回后的 `/latest` 大就行（`npm run release` 第 4 步按退回后的 live 比，
+   第 4c 步另外要求压过每一个 pre-release 的版本）。坏版若带了新的 `minVersionCode`，门槛也跟着退回上一版清单里的值；
+   想保住强制更新，重发的那一版再带一次 `--min-version-code`。
+3. **修好之后坏版保持 pre-release 当归档**，别删：镜像上的 `qimeng-<坏版>.apk` 与 GitHub 上的资产也都不删 ——
+   Cloudflare 那份是 immutable 缓存一年，删了源站边缘也还在；清单不再指向它就够了，而 Release 页上留着它，
+   下次有人问「2.63 到底发没发过」能查到。
+
+★ 本仓的 pre-release 只有这一个含义（撤回过的坏版），没有 beta 轨道 —— 所以第 4c 步把每一个 pre-release 都当成
+「要压过的 versionCode」。

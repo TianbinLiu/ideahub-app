@@ -49,20 +49,22 @@ export default function DeleteCardDialog({
   const segList = usedSegs.join(sep);
 
   return (
+    // ★ 与入口键（卡片页「删除这张卡」）、外壳忙态（「删除中…」）同一个词（2026-10-15 教材人格评审）：
+    //   键说「删除」、确认卡说「删掉」，人会多想一拍「这是同一件事吗」。英文本来就是 Delete，不动
     <DeleteConfirmShell
-      title={t`删掉「${card.name}」？`}
-      danger={t`删掉这张卡`}
+      title={t`删除「${card.name}」？`}
+      danger={t`删除这张卡`}
       onConfirm={onConfirm}
       onCancel={onCancel}
     >
           <p>
             {card.genPrompt ? (
               <Trans>
-                <span className="text-rose-300">删了就找不回来</span>：卡面、形象参考图、铸造提示词、声音样本与肖像授权都会一起清掉。
+                <span className="text-danger-300">删了就找不回来</span>：卡面、形象参考图、铸造提示词、声音样本与肖像授权都会一起清掉。
               </Trans>
             ) : (
               <Trans>
-                <span className="text-rose-300">删了就找不回来</span>：卡面、形象参考图、声音样本与肖像授权都会一起清掉。
+                <span className="text-danger-300">删了就找不回来</span>：卡面、形象参考图、声音样本与肖像授权都会一起清掉。
               </Trans>
             )}
           </p>

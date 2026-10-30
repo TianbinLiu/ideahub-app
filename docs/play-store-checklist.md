@@ -2,25 +2,46 @@
 
 > 状态标记：✅ 已就绪 ｜ 🔧 需要动手 ｜ 💰 需要花钱
 > 出包命令：`npm run aab`（**上架用**，play 渠道）/ `npm run apk:release`（直装版，sideload 渠道）
-> 当前产物：直装版 APK **94MB** / 上架 AAB **93MB**（61MB 的模型压缩后约 38MB）
-> ⚠️ **这两个数已经过期，发版前必须当场重出一次再填**。2026-09-07「保存到本地」装进了
-> `@capacitor/filesystem` + `@capacitor/share`，这是本仓**第一次把 Kotlin 工具链拉进纯 Java 构建**
-> （根 `android/build.gradle` 原来只有 AGP + google-services）——**npm 包大小不能当 dex 增量用**。
+> 当前产物（v2.63 / versionCode 75，2026-10-15 发版，取 GitHub Release 上的资产大小）：直装版 APK **68.8MB**（72,138,171 字节）/
+> 上架 AAB **67.8MB**（71,047,684 字节）。
+> ⚠️ 这两个数**每发一版就会变**：上架前照那一版 GitHub Release 的资产大小（或当场重出一次）再填，别照抄这里。
+> 装新的原生插件时尤其要量：2026-09-07「保存到本地」装进 `@capacitor/filesystem` + `@capacitor/share`，是本仓**第一次把 Kotlin 工具链
+> 拉进纯 Java 构建**（根 `android/build.gradle` 原来只有 AGP + google-services）——**npm 包大小不能当 dex 增量用**。
 > 做法：装插件前后各出一次 `npm run apk:release` 与 `npm run aab`，逐字节记差值；
 > play AAB 增量 > 8MB 就停下来报告（`app-distribution.md` 记着"83MB 的包国内基本下不动"）。
-> （其中 61MB 是「极致」档玩家形象的 4K 贴图模型 —— 2026-08-11 起随包发布，见
-> `scripts/prune-app-assets.mjs`。裁剪仍然剔除零引用的烘焙遗留模型与不可分发的购入素材。）
+> （「极致」档玩家形象的 4K 贴图模型 2026-08-11 起随包发布，见 `scripts/prune-app-assets.mjs`；当时两个形象合计 61MB，
+> 2026-08-29 重制之后各约 4MB（`player-f-think.glb` 3.9MB / `player-m-think.glb` 3.8MB）。裁剪仍然剔除零引用的烘焙遗留模型与不可分发的购入素材。）
+> （本节的 MB 都按 1024×1024 字节算，与 App 更新弹窗上显示的一致。）
 >
 > ⚠️ **两个渠道不是一回事**：直装版带「应用内自更新」（下载 APK 并拉起安装器），
 > 而 Google Play **禁止**这种行为。隔离靠 product flavor 做在构建里，不靠人记得删，
 > 细节见 [`app-distribution.md`](app-distribution.md)。上传 Play 前确认 AAB 里
-> 没有 `REQUEST_INSTALL_PACKAGES`：
-> `aapt2 dump permissions <aab 解出来的 base.apk>` —— **把整表与上一版逐条比对**，
+> 没有 `REQUEST_INSTALL_PACKAGES`，而且**整表**与下面这张期望表逐条相等 ——
 > 不要只 `grep INSTALL`。理由：装第三方插件时权限是**插件的 manifest 合并进来的**，
-> 你不会提前知道它想加哪一条（2026-09-07 装 `@capacitor/filesystem` + `@capacitor/share`
-> 时逐个解包核过，两者的 `AndroidManifest.xml` 都是空 `<manifest></manifest>`，
-> 所以这一版整表应当仍然只有 `INTERNET` / `RECORD_AUDIO` / `MODIFY_AUDIO_SETTINGS` 三条）。
+> 你不会提前知道它想加哪一条（2026-09-07 换 media3 硬件合成器时 `WAKE_LOCK` 与
+> `ACCESS_NETWORK_STATE` 就这么漂进来了，而这里原来写着「应当仍然只有三条」——
+> 按旧表比的人分不出「意料之中的漂移」与「某个插件偷带的 `CAMERA` / `READ_MEDIA_*`」）。
 > `grep INSTALL` 只查得出你已经想到的那一条。
+>
+> **期望表（2026-10-15 教材人格评审按 playRelease / sideloadRelease 的合并清单核过；唯一真相是 `scripts/release.mjs` 的
+> `PLAY_PERMISSIONS` / `SIDELOAD_PERMISSIONS`，这里照抄、改一起改）**：
+>
+> | 权限 | 谁要的 | play | sideload | Play 要申报吗 |
+> |---|---|---|---|---|
+> | `android.permission.INTERNET` | 我们自己（`src/main/AndroidManifest.xml`） | ✅ | ✅ | 不需 |
+> | `android.permission.RECORD_AUDIO` | 我们自己（按住说话） | ✅ | ✅ | 需（危险权限，Data safety 的「音频」那一行） |
+> | `android.permission.MODIFY_AUDIO_SETTINGS` | 我们自己（录音路由） | ✅ | ✅ | 不需 |
+> | `android.permission.ACCESS_NETWORK_STATE` | `androidx.media3:media3-exoplayer`（2026-09-07 换硬件合成器带进来） | ✅ | ✅ | 不需（normal 级） |
+> | `android.permission.WAKE_LOCK` | 同上，media3 | ✅ | ✅ | 不需（normal 级） |
+> | `com.android.vending.BILLING` | Play Billing，有意为之（只在 play 渠道） | ✅ | ❌ | 不需申报权限（Billing 走商品配置） |
+> | `com.ideahub.branchvideo.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` | `androidx.core` 自动生成的签名级权限（本应用自己声明、自己用） | ✅ | ✅ | 不需 |
+> | `android.permission.REQUEST_INSTALL_PACKAGES` | 自更新，只在 `src/sideload/`；`src/play/` 用 `tools:node="remove"` 摘掉 | ❌ | ✅ | **Play 版绝不能有** |
+>
+> **谁来核**：`npm run release` 第 2c 步 —— 直装 APK 问 `aapt2 dump permissions`（看的是包本身）；AAB 是 protobuf 清单、aapt2 读不了，
+> 看同一次 gradle 跑出来的合并清单 `android/app/build/intermediates/merged_manifests/playRelease/processPlayReleaseManifest/AndroidManifest.xml`。
+> 两张表与允许表不相等（多一条、少一条）就停发。aapt2 或合并清单不在时脚本只提醒 —— 那时按老法子手工比：
+> `aapt2 dump permissions <aab 解出来的 base.apk>`（`bundletool build-apks` 解）。
+> 多出来的权限先去 `android/app/build/outputs/logs/` 的 manifest-merger 报告里看是谁带的，再决定是加进表还是去掉来源。
 
 ## 一、账号与资质
 
@@ -111,14 +132,17 @@ Play 对 **Social / Dating / 匿名随机聊天** 类应用强制这一项。我
 1. **公开标准网页**：`https://ideahubs.org/child-safety`。审核核三条 —— 打得开、内容确实在讲
    CSAE/儿童安全、**出现商店条目上的应用名**（我们是「启梦」，页面正文里写了）。
 2. **应用内报告入口** ✅：举报理由里有「涉及未成年人」（`REPORT_REASONS` 的第一项），
-   作品 / 评论 / 弹幕三处都能点，不需要离开应用。服务端把这一类顶到待处理队列最前。
+   作品 / 评论 / 弹幕 / 人格市场四处都能点，不需要离开应用。服务端把这一类顶到待处理队列最前。
 3. **儿童安全联系人**：Console 里要填姓名 + 联系方式。填 **刘天彬 / support@ideahubs.org**，
    与 /child-safety 页面上写的那个**必须一致**。
 4. **遵守儿童安全法律**：勾选即可，页面上也写明了。
 
 ### 6c. UGC 政策要的两个功能 ✅（2026-09-03 已上线，缺一不可）
 
-- **举报**：`ReportButton`，作品 / 评论 / 弹幕三处，七类理由，后台人工复核（下架 / 删除 / 驳回）。
+- **举报**：`ReportButton`，作品 / 评论 / 弹幕 / 人格市场（`/support/personas` 每张别人的人格卡上，2026-10-26 接上）四处，八类理由（`src/api/admin.ts` 的 `REPORT_REASONS`，第一项「涉及未成年人」），后台人工复核（下架 / 删除 / 驳回；人格只有下架 / 驳回，见 `reportActionsFor`）。
+  ⚠ **还缺三处**（Play 的 AI 生成内容政策要求「应用内、不离开应用就能举报或标记」AI 生成的内容）：AI 客服的回答、Live2D 形象市场、声音模板市场。
+  服务端 `Report.TARGET_TYPES` 里还没有这三类（只有 video / comment / danmaku / persona），得**服务端先加类型**、App 再接 `ReportButton`；
+  反过来先接 App 的话用户点了必然 400。上架前要补齐。
 - **拉黑**：`BlockButton` 挂在举报旁边，「我的 → 设置 → 已拉黑的人」可解除。
   ⚠ 两者**不能合并成一个菜单里的两项**：政策分别要求，而且合并会让举报变难点到。
 
@@ -181,7 +205,7 @@ read -s -p "password: " P; REVIEWER_EMAIL=play-review@ideahubs.org REVIEWER_PASS
 Console 的 App access 里除了账号密码，还要写清怎么走到那几屏，建议逐字填：
 
 > 登录后：底栏 ➕ 进入创作 → 选「工坊」→ 在 3D 桌面上点虚线卡位铸一段 → 写一句要求 →
-> 「推演三套方案」→ 挑一套 →「炼这一段」出片 →「完成视频」→ 发布。
+> 「推演三套方案」→ 挑一套 →「炼这一段」出片 →「完成视频」→ 剪辑页右上角「合成并去发布」→ 发布。
 > 账号已预存 token，全部付费功能都能试。
 > 举报与拉黑：在首页视频流上**点作品标题（带 › 箭头）进详情页**，右上角就是「举报」与「拉黑」；
 > 评论与弹幕则在各自那一行上。举报理由的**第一项**就是「涉及未成年人」。
@@ -201,12 +225,13 @@ Console 的 App access 里除了账号密码，还要写清怎么走到那几屏
 出包机器上必须存在这两样（都被 gitignore，**换机器/重装系统前务必备份**）：
 - `.env.local`（含 `VITE_ASSET_KEY`，构建时注入解密密钥）——**丢失后已加密的 .glbx 全部无法解开**，
   和 keystore 同等级重要，一起备份。
-- `public/models/protected/*.glbx`（milltina-opt / rin-opt 加密模型本体）。
-缺任何一个时 `npm run build:app` 产物里模型加载会失败——出包后先装真机看一眼工坊 NPC 是否正常。
+- `public/models/protected/*.glbx`（milltina-opt 加密模型本体；rin / gratia 那几个只给本机 DEV 试穿，**绝不进包**）。
+缺任何一个时 `npm run build:app` 的出包闸（`scripts/prune-app-assets.mjs` 末尾）当场 exit 1；`npm run release` 第 2b 步再开包核一遍
+`assets/public/models/protected/` 恰好是 `scripts/lib/protected-models.mjs` 的白名单（APK 与 AAB 都核）。装真机看一眼工坊 NPC 仍然值得做，但不再是唯一的闸。
 
 ### 9. 版本号递增
-- 每次上传新包必须递增 `android/app/build.gradle` 里的 `versionCode`（当前 5），
-  `versionName` 是给用户看的展示版本（当前 "1.4"），按需更新。
+- 每次上传新包必须递增 `android/app/build.gradle` 里的 `versionCode`（当前 75，2026-10-15 发的 2.63），
+  `versionName` 是给用户看的展示版本（当前 "2.63"），按需更新。`versionCode` 只在 main 上涨（见 `CLAUDE.md`「分支纪律」）。
 - ⚠️ 直装版和上架版**共用同一个 versionCode**。直装版的自更新就是靠它判新旧，
   所以别为了上架单独调它（详见 `app-distribution.md`）。
 

@@ -26,8 +26,12 @@
 // 图标页签 → 3 列贴边栅格。旧版是左对齐的资料卡 + 文字页签，与首页的
 // 短视频形态完全不搭，而且首页压根没有入口能走到"别人"的主页。
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import Warn from "../components/Warn";
 import { showToast } from "../data/toast";
-import EmptyState from "../components/EmptyState";
+import EmptyState, { type EmptyMascot } from "../components/EmptyState";
+import { CloseButton } from "../components/IconTapButton";
+import MagicBand from "../components/MagicBand";
+import BlockButton from "../components/BlockButton";
 import LangChip from "../components/LangChip";
 import PageHeader from "../components/PageHeader";
 import { takedownReasonText } from "../api/admin";
@@ -73,16 +77,23 @@ import { cardsLoadIssue,
   billingExempt,
   buyPlan,
   deckCoverOf,
+  freeQuota,
   isFollowing,
   myCards,
+  payingNow,
+  tierFreeOk,
+  tierNamesFor,
   myDecks,
+  buyWithPlay,
+  sweepPlayPurchases,
   rechargeAddon,
   refreshRemoteWallet,
   toggleFollow,
   walletOf,
   type RechargeResult,
 } from "../data/account";
-import { fetchOrder, fetchPayConfig } from "../api/wallet";
+import { fetchOrder, fetchPayConfig, type PlayCatalogItem } from "../api/wallet";
+import { PlayBilling, playBillingAvailable, type PlayProduct } from "../utils/playBilling";
 import { API_ON } from "../api/client";
 import { PLANS, RECHARGE_PACKS, fmtTokens } from "../data/economy";
 import { notificationsState, refreshUnreadCount, subscribeNotifications } from "../data/notifications";
@@ -92,11 +103,17 @@ import { useVideosVersion } from "../hooks/useVideos";
 import { CARD_TYPE_COLORS, CARD_TYPE_LABELS, VideoItem, type Visibility, formatPlays, relativeTime, revisionLabel, videoCategoryLabel, visibilityOf } from "../types";
 import { cutSession, cutSessionLoadIssue, dropCutSession, readyCutSession, subscribeCutSession } from "../data/cutSession";
 import { useStudio } from "../studio/studioStore";
+import { useCut } from "../studio/cutStore";
 
 type TabKey = "works" | "drafts" | "cards" | "decks" | "collects";
 
-/** 顶栏内容高度。页签要 sticky 到它下面，两处必须用同一个数，所以提成常量 */
-const HEADER_H = "2.75rem"; // h-11 = 44px，移动端热区下限
+/**
+ * sticky 顶栏（PageHeader sticky）在安全区之下占多高。页签要 sticky 到它下面，所以提成常量。
+ * ★ 2026-10-21 改：原来写 2.75rem（44px，「h-11」那个年代的顶栏），而 PageHeader 2026-09-05 收口后是
+ *   safe-top 的 10px + h-12 的 48px + border-b 的 1px = 59px —— 滚动时页签那一行有 15px（图标的上半截）钻到半透明顶栏底下。
+ *   改 PageHeader 的高度要同时改这里。
+ */
+const HEADER_H = "calc(10px + 3rem + 1px)";
 
 /** 陌生人主页的远端状态。★ 四件事分开记，页面才画得出四种不同的样子 */
 interface Stranger {
@@ -161,7 +178,7 @@ function useStranger(userId: string | null, reloadKey: number): Stranger {
 
 export default function ProfilePage() {
   const { author: routeAuthor, userId: routeUserId } = useParams<{ author?: string; userId?: string }>();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const loc = useLocation();
   const navigate = useNavigate();
   const backOrHome = useBackOr("/");
@@ -181,6 +198,15 @@ export default function ProfilePage() {
   const [pickDraft, setPickDraft] = useState<WorkDraftMeta | null>(null);
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [walletOpen, setWalletOpen] = useState(false);
+  // 「去升级」（components/UpgradeLink）落到 `/me?wallet=1`：直接打开钱包抽屉（套餐与充值都在里面），再把这一格从地址栏抹掉 ——
+  // 留着的话关了抽屉一刷新又弹出来。只对「我的」生效（别人的主页没有钱包）
+  useEffect(() => {
+    if (searchParams.get("wallet") !== "1") return;
+    if (!routeAuthor && !routeUserId) setWalletOpen(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete("wallet");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams, routeAuthor, routeUserId]);
   const [followListOpen, setFollowListOpen] = useState(false);
 
   // /u/<我自己>、/user/<我自己的 id> 也走「我的」那套：同一个人不该因为从哪个入口
@@ -479,7 +505,9 @@ export default function ProfilePage() {
 
   const TAB_META: Record<TabKey, { icon: IconName; label: string; n: number }> = {
     works: { icon: "grid", label: t`作品`, n: works.length },
-    drafts: { icon: "lock", label: t({ message: "草稿", context: "主页页签：我存下的那些草稿（名词，整个页签的名字；不是某一条的「草稿」状态角标）" }), n: drafts.length },
+    // ★ 草稿用笔，不用锁（2026-10-21，调研第四节）：各家都把锁留给「只有你看得见」，草稿画成锁会让人以为是私密作品；
+    //   锁仍是作品墙上「仅自己可见」那枚角标的图形
+    drafts: { icon: "pen", label: t({ message: "草稿", context: "主页页签：我存下的那些草稿（名词，整个页签的名字；不是某一条的「草稿」状态角标）" }), n: drafts.length },
     cards: { icon: "card", label: t`卡片`, n: cards.length },
     decks: { icon: "cards", label: t`卡组`, n: self ? decks.length : workDecks.length },
     collects: { icon: "bookmark", label: t({ message: "收藏", context: "主页页签：我收藏的作品（名词，不是收藏键）" }), n: collects.length },
@@ -568,7 +596,7 @@ export default function ProfilePage() {
                 {unread > 0 && (
                   // 只画一个点不写数字：未读上到两位数时数字会把 44px 热区撑破，
                   // 而"有几条"进了页面第一眼就看得到
-                  <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-ink" />
+                  <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-danger-500 ring-2 ring-ink" />
                 )}
               </Link>
               <Link
@@ -594,7 +622,9 @@ export default function ProfilePage() {
       />
 
       {/* ── 资料区（居中竖排，TikTok 同构）────────────────────────────── */}
-      <div className="flex flex-col items-center px-5 pt-1">
+      {/* relative isolate：给 MagicBand 一个自己的层叠上下文，让它沉在头像与文字后面（它用 -z-10） */}
+      <div className="relative isolate flex flex-col items-center px-5 pt-1">
+        <MagicBand />
         <div className="relative">
           {self ? (
             // 点头像直接换：不用先钻进设置页。开的是选择器（官方看板娘 + 自定义），
@@ -621,7 +651,7 @@ export default function ProfilePage() {
                 <button
                   onClick={onFollow}
                   aria-label={t({ message: "关注", context: "作者头像下那颗关注按钮（动作：关注这个人）" })}
-                  className="absolute -bottom-2 left-1/2 flex h-7 w-7 -translate-x-1/2 items-center justify-center rounded-full border-2 border-ink bg-rose-500 text-white transition active:scale-90"
+                  className="absolute -bottom-2 left-1/2 flex h-7 w-7 -translate-x-1/2 items-center justify-center rounded-full border-2 border-ink bg-danger-500 text-white transition active:scale-90"
                 >
                   <Icon name="plus" size={14} strokeWidth={3} />
                 </button>
@@ -655,10 +685,11 @@ export default function ProfilePage() {
         {uidNum != null && (
           <button
             onClick={copyUid}
-            className="mt-1 flex items-center gap-1.5 text-[11px] tabular-nums text-slate-600 active:opacity-60"
+            className="mt-1 flex items-center gap-1.5 text-[11px] tabular-nums text-slate-400 active:opacity-60"
           >
             <span>UID {uidNum}</span>
-            <span className="text-slate-700"><Trans>点按复制</Trans></span>
+            {/* slate-400：11px 的小字（原来是 slate-700，对 ink 底约 1.6:1，比禁用的 slate-600 还暗；check-contrast 只查 600 所以漏了） */}
+            <span className="text-slate-400"><Trans>点按复制</Trans></span>
           </button>
         )}
 
@@ -712,7 +743,7 @@ export default function ProfilePage() {
             <>
               <button
                 onClick={onFollow}
-                className={`flex h-10 flex-[1.4] items-center justify-center gap-1 rounded-full text-sm font-bold transition active:scale-[.98] ${
+                className={`flex h-10 flex-[1.4] items-center justify-center gap-1 rounded-xl text-sm font-bold transition active:scale-[.98] ${
                   following ? "bg-panel text-slate-300 ring-1 ring-slate-700" : "bg-brand text-ink"
                 }`}
               >
@@ -728,13 +759,21 @@ export default function ProfilePage() {
             </>
           )}
         </div>
+        {/* 别人的主页上能拉黑（2026-10-21）：原来拉黑只在作品详情页与评论里，从搜索点进一个人的主页反而找不到；
+            上架 Google Play 也要求拉黑 / 举报在用户页上够得着。组件自己判登录与「是不是自己」，离线时也自己说清楚 */}
+        {!self && strangerId && (
+          <div className="mt-2 flex justify-center">
+            <BlockButton userId={strangerId} userName={display} />
+          </div>
+        )}
 
         {/* 简介。★ 别人的 bio 现在**真的问得到**了（GET /api/users/:id 就带着它），
             不用再拿"从作品里算得出来的东西"去填那片空白。问不到（老服务端 / 没设过）
             时才退回那句从作品算出来的概览 —— 它是真的，只是没那么有用。 */}
         {self ? (
           <p className="mt-3.5 whitespace-pre-wrap text-center text-sm leading-relaxed text-slate-300">
-            {user!.bio || <span className="text-slate-600"><Trans>还没有简介——去设置里写一句吧</Trans></span>}
+            {/* 占位句是小字正文、不是装饰：slate-400（slate-600 对 ink 只有 2.50:1，2.63 发版后验证在 #/me 上量到；check-contrast 规则 B） */}
+            {user!.bio || <span className="text-slate-400"><Trans>还没有简介——去设置里写一句吧</Trans></span>}
           </p>
         ) : stranger.profile?.bio ? (
           <p className="mt-3.5 whitespace-pre-wrap text-center text-sm leading-relaxed text-slate-300">
@@ -748,7 +787,7 @@ export default function ProfilePage() {
           )
         )}
 
-        {/* token 钱包：生成视频/解锁付费内容的通货。套餐额度优先扣，add-on 直充/创作收益不过期。
+        {/* token 钱包：生成视频/解锁付费内容的通货。套餐额度优先扣，add-on（直充 / 新人额度 / 创作收益）不过期。
             ★ 入口按 `self` 显示而**不是** `wallet &&`：远端模式下 walletOf() 在
               /api/me/wallet 那一发请求失败时就一直是 null（refreshRemoteWallet 把错误吞进
               无人监听的 emitApiError），于是弱网下冷启动一次失败 = 整个会话看不到余额、
@@ -759,7 +798,7 @@ export default function ProfilePage() {
           <button
             data-guide="profile-wallet"
             onClick={() => setWalletOpen(true)}
-            className="mt-4 flex w-full items-center gap-3 rounded-xl border border-slate-700/60 bg-panel px-3.5 py-2.5 text-left"
+            className="mt-4 flex w-full items-center gap-3 rounded-xl border border-slate-700/70 bg-panel px-3.5 py-2.5 text-left"
           >
             <span className="text-xl">⚡</span>
             <div className="min-w-0 flex-1">
@@ -814,7 +853,9 @@ export default function ProfilePage() {
         )}
       </div>
 
-      {/* ── 页签：只有图标 + 计数（TikTok 同款），sticky 在顶栏正下方 ────── */}
+      {/* ── 页签：图标 + 计数，图标下面一行 10px 的名字，sticky 在顶栏正下方 ──────
+          ★ 2026-10-14（CSCI 187 UX 课的「可扫视」）：原来只有图标（TikTok 同款），但五枚里草稿是把锁、卡片与卡组两枚长得几乎一样，
+            新用户认不出哪格是哪格；名字写出来之后 aria-label 照留（读屏念的还是它） */}
       <div
         data-guide="profile-tabs"
         className="sticky z-10 mt-4 flex border-b border-slate-700/60 bg-ink"
@@ -832,12 +873,15 @@ export default function ProfilePage() {
               onClick={() => setTab(k)}
               aria-label={m.label}
               title={m.label}
-              className={`relative flex min-h-[44px] flex-1 items-center justify-center gap-1 transition ${
+              className={`relative flex min-h-[48px] flex-1 flex-col items-center justify-center gap-0.5 py-1 transition ${
                 on ? "text-slate-100" : "text-slate-500"
               }`}
             >
-              <Icon name={m.icon} size={20} filled={on && k === "collects"} />
-              {m.n > 0 && <span className="text-[11px] tabular-nums">{m.n}</span>}
+              <span className="flex items-center gap-1">
+                <Icon name={m.icon} size={20} filled={on && k === "collects"} />
+                {m.n > 0 && <span className="text-[11px] tabular-nums">{m.n}</span>}
+              </span>
+              <span className="text-[10px] leading-none">{m.label}</span>
               {on && <span className="absolute inset-x-[28%] bottom-0 h-0.5 rounded-full bg-slate-100" />}
             </button>
           );
@@ -858,7 +902,8 @@ export default function ProfilePage() {
             ★ 只在**自己**的主页出现：别人的墙上本来就看不到 private 的作品。
             ★ 一条 private 都没有时**不画**这一排：没有可筛的东西时，筛选器只是噪声。 */}
         {activeTab === "works" && self && works.some((v) => visibilityOf(v) !== "public") && (
-          <div className="mb-2.5 flex flex-wrap gap-1.5">
+          // px-3：页面根没有左右内边距（作品墙要贴边），这一排不补就贴着屏幕边缘（横幅那几条用的是 mx-3，同一个数）
+          <div className="mb-2.5 flex flex-wrap gap-1.5 px-3">
             {([
               ["all", t`全部 ${works.length}`],
               ["public", t`公开 ${works.filter((v) => visibilityOf(v) === "public").length}`],
@@ -872,7 +917,7 @@ export default function ProfilePage() {
                 key={k}
                 onClick={() => setVisFilter(k)}
                 className={`rounded-full px-3 py-1 text-[11px] ${
-                  visFilter === k ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-400"
+                  visFilter === k ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-300"
                 }`}
               >
                 {label}
@@ -885,13 +930,16 @@ export default function ProfilePage() {
             shownWorks.length ? (
               <WorkGrid items={shownWorks} />
             ) : visFilter === "private" ? (
-              <Empty text={t`没有仅自己可见的作品`} />
+              <Empty text={t`没有仅自己可见的作品`} mascot="wonder" />
             ) : worksKnown ? (
-              <Empty text={t`还没有发布作品`} cta={t`去创作`} to="/create" />
+              <Empty text={t`还没有发布作品`} cta={t`去创作`} to="/create" mascot="nap" />
             ) : (
               // ★ 没问到就**不许**说"还没有发布作品"（铁律八）：那句话会让人以为作品没了，
               //   而"仅自己可见"的那些在 app 里没有第二个入口
-              <Empty text={myWorks?.status === "failed" ? t`没能取到你的作品：${myWorks.error}` : t`正在取你的作品…`} />
+              <Empty
+                loading={myWorks?.status !== "failed"}
+                text={myWorks?.status === "failed" ? t`没能取到你的作品：${myWorks.error}` : t`正在取你的作品…`}
+              />
             )
           ) : (
             <StrangerWorks
@@ -937,16 +985,17 @@ export default function ProfilePage() {
                   </div>
                   {/* ★ 这里原来写的是「仅自己可见」——和已发布作品的可见性设置**是同一个词**，
                       于是用户以为自己有一条设成私密的作品，跑去找哪儿能改（真事，2026-08-10）。
-                      草稿的"没人看得到"是它还没发布，不是一个可切换的选项，用词必须分开。 */}
+                      草稿的"没人看得到"是它还没发布，不是一个可切换的选项，用词必须分开。
+                      图形同理（2026-10-21）：这里也用笔、不用锁 —— 锁只留给作品墙上「仅自己可见」那枚角标，与页签那支笔一致 */}
                   <span className="absolute left-1 top-1 flex items-center gap-0.5 rounded bg-black/65 px-1 py-0.5 text-[9px] text-white">
-                    <Icon name="lock" size={9} strokeWidth={2.5} />
+                    <Icon name="pen" size={9} strokeWidth={2.5} />
                     <Trans>未发布</Trans>
                   </span>
                 </button>
               ))}
             </div>
           ) : (
-            <Empty text={t`还没有草稿——工坊和工作流里都能存`} cta={t`去创作`} to="/create" />
+            <Empty text={t`还没有草稿——工坊和工作流里都能存`} cta={t`去创作`} to="/create" mascot="nap" />
           ))}
 
         {/* 卡片 / 卡组不贴边也不去圆角：它们本身是有边框的实体卡，
@@ -958,7 +1007,7 @@ export default function ProfilePage() {
                 <Link
                   key={c.id}
                   to={`/card/${c.id}`}
-                  className="relative block overflow-hidden rounded-lg border border-slate-700/60"
+                  className="relative block overflow-hidden rounded-xl border border-slate-700/70"
                 >
                   {c.cover ? (
                     <img src={c.cover} alt={c.name} className="aspect-[3/4] w-full object-cover" loading="lazy" />
@@ -967,7 +1016,7 @@ export default function ProfilePage() {
                   )}
                   <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent p-1.5">
                     <div className="truncate text-[10px] text-slate-100">{c.name}</div>
-                    <span className="text-[8px]" style={{ color: CARD_TYPE_COLORS[c.type] }}>
+                    <span className="text-[9px]" style={{ color: CARD_TYPE_COLORS[c.type] }}>
                       {CARD_TYPE_LABELS[c.type]}
                     </span>
                   </div>
@@ -978,7 +1027,7 @@ export default function ProfilePage() {
             <Empty
               // ★ 同 WorkshopPage：分「没问到」与「问过是空的」两句话
               text={cardsLoadIssue() ? t`这会儿没能取到你的卡片——它们还在，联网后重开一次` : t`还没有卡片`}
-              {...(cardsLoadIssue() ? {} : { cta: t`去创意工坊`, to: "/workshop" })}
+              {...(cardsLoadIssue() ? {} : { cta: t`去创意工坊`, to: "/workshop/mine", mascot: "nap" as const })}
             />
           ))}
 
@@ -995,7 +1044,7 @@ export default function ProfilePage() {
                 ))}
               </div>
             ) : (
-              <Empty text={t`还没有卡组`} cta={t`去创意工坊`} to="/workshop" />
+              <Empty text={t`还没有卡组`} cta={t`去创意工坊`} to="/workshop/mine?tab=decks" mascot="nap" />
             )
           ) : (
             // 别人的卡组随作品走：点开去那支作品，收卡的按钮在详情页
@@ -1013,7 +1062,7 @@ export default function ProfilePage() {
           ))}
 
         {activeTab === "collects" && collectGone > 0 && (
-          <p className="mb-2 rounded-xl border border-slate-700 bg-panel px-3 py-2 text-[11px] leading-relaxed text-slate-400">
+          <p className="mx-3 mb-2 rounded-xl border border-slate-700/70 bg-panel px-3 py-2 text-[11px] leading-relaxed text-slate-400">
             <Trans>有 {collectGone} 条收藏打不开了：作者可能把它删了，或者改成了仅自己可见。</Trans>
           </p>
         )}
@@ -1021,11 +1070,11 @@ export default function ProfilePage() {
             依赖里没有任何值会因为网络恢复而变（collectIds 是原地 mutate 的同一个数组），
             不给这颗按钮就只能离开页面再进来 */}
         {activeTab === "collects" && collectUnknown > 0 && (
-          <p className="mb-2 flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-400/10 px-3 py-2 text-[11px] leading-relaxed text-amber-100">
+          <p className="mx-3 mb-2 flex items-center gap-2 rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-[11px] leading-relaxed text-warn-100">
             <span className="flex-1"><Trans>有 {collectUnknown} 条这会儿没取回来（网络没通）——它们还在，不是被删了。</Trans></span>
             <button
               onClick={() => setCollectTry((n) => n + 1)}
-              className="flex-none rounded-full bg-amber-400/20 px-2.5 py-1 font-semibold text-amber-100"
+              className="flex-none rounded-full bg-warn-400/20 px-2.5 py-1 font-semibold text-warn-100"
             >
               <Trans>重试</Trans>
             </button>
@@ -1041,6 +1090,7 @@ export default function ProfilePage() {
             //   "正在取"，而这一趟其实已经取完、effect 不会再跑，那句话**永远停在那儿**。
             //   在一次专门消灭"编出来的空状态"的改动里，从另一头又造了一个。
             <Empty
+              loading={collectUnknown === 0 && collectGone === 0}
               text={
                 collectUnknown > 0
                   ? t`这会儿没取回来，网络通了再试一次`
@@ -1051,7 +1101,7 @@ export default function ProfilePage() {
               {...(collectUnknown === 0 && collectGone > 0 ? { cta: t`去首页逛逛`, to: "/" } : {})}
             />
           ) : (
-            <Empty text={t`还没有收藏——首页右侧的书签键收进来`} cta={t`去首页逛逛`} to="/" />
+            <Empty text={t`还没有收藏——首页右侧的书签键收进来`} cta={t`去首页逛逛`} to="/" mascot="nap" />
           ))}
       </div>
 
@@ -1112,8 +1162,8 @@ function CutSessionBanner() {
   const when = relativeTime(cut.at || Date.now());
 
   return (
-    <div className="mx-3 mt-3 rounded-xl border border-cyan-400/40 bg-cyan-500/10 p-3">
-      <div className="text-xs font-semibold text-cyan-100"><Trans>有一条剪到一半的成片</Trans></div>
+    <div className="mx-3 mt-3 rounded-xl border border-slate-700/70 border-l-2 border-l-cyan-400/80 bg-panel p-3">
+      <div className="text-xs font-semibold text-slate-100"><Trans>有一条剪到一半的成片</Trans></div>
       <p className="mt-1 text-[11px] leading-relaxed text-slate-300">
         {deckCount > 0 ? <Trans>{segCount} 段 · 卡组 {deckCount} 张已经铸好 · {when}</Trans> : <Trans>{segCount} 段 · {when}</Trans>}
         {/* ★ 这句要说清"为什么值得回去"：里面是**已经花过钱**的东西 */}
@@ -1130,6 +1180,9 @@ function CutSessionBanner() {
             //   白模复刻段的成片文件本身无声，声音全靠这条预置在合并时混进去；而
             //   `draftAudioHint` 只在组稿那一拍算、只活在内存里 —— 这条路恰恰是
             //   **App 重启之后**才走的，不还原的话音频页签是空的，合出来整条没声音且零提示。
+            // ★ 剪辑工程同一拍还原（时间轴 / 圈选 / 配乐 / 合并留底，见 cutSession.CutSession.project）。
+            //   老稿子没有这一格 = null，剪辑页进页时按稿子现开一份（cutStore.ensure）
+            useCut.getState().load(cut.project ?? null);
             useStudio.setState({
               draft: cut.draft,
               segEdit: null,
@@ -1145,7 +1198,7 @@ function CutSessionBanner() {
           <>
             <button
               onClick={() => void dropCutSession()}
-              className="rounded-xl bg-rose-500/90 px-3 py-2.5 text-xs font-bold text-white"
+              className="rounded-xl bg-danger-500/90 px-3 py-2.5 text-xs font-bold text-white"
             >
               <Trans>确认丢掉</Trans>
             </button>
@@ -1182,8 +1235,8 @@ function PendingBanner() {
   // 正在传：只显示进度，别把失败原因和进度混在一起说
   if (up) {
     return (
-      <div className="mx-3 mt-3 rounded-xl border border-cyan-400/40 bg-cyan-500/10 p-3">
-        <div className="text-xs font-semibold text-cyan-200">
+      <div className="mx-3 mt-3 rounded-xl border border-slate-700/70 border-l-2 border-l-cyan-400/80 bg-panel p-3">
+        <div className="text-xs font-semibold text-slate-100">
           <Trans>正在上传「{up.title}」 {up.done}/{up.total}</Trans>
         </div>
         <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/25">
@@ -1201,14 +1254,14 @@ function PendingBanner() {
   const title = first.draft.title;
   const why = pendingErrorText(first);
   return (
-    <div className="mx-3 mt-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
+    <div className="mx-3 mt-3 rounded-xl border border-slate-700/70 border-l-2 border-l-warn-500/80 bg-panel p-3">
       <div className="flex items-center gap-2">
-        <span className="flex-none text-sm">⚠️</span>
-        <span className="min-w-0 flex-1 text-xs font-semibold text-amber-200">
+        <Icon name="alert" size={14} className="flex-none text-warn-300" />
+        <span className="min-w-0 flex-1 text-xs font-semibold text-warn-200">
           <Trans>{list.length} 条作品还没传到服务器</Trans>
         </span>
       </div>
-      <p className="mt-1 text-[11px] leading-relaxed text-amber-100/80">
+      <Warn className="mt-1">
         {/* ★ 原因为空（原话本身是空的、老条目没存原因）时整句换成只有标题那句：英文是「“标题”: 原因」，
             拿空串去拼会在句末剩一个孤零零的冒号。中文两句画出来与原来逐字相同 */}
         {why ? (
@@ -1216,7 +1269,7 @@ function PendingBanner() {
         ) : (
           <Trans comment="个人页「还没传到服务器」横幅：只有作品标题（这一条没记下没传上去的原因）">「{title}」</Trans>
         )}
-      </p>
+      </Warn>
       <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
         <Trans>内容还在这台设备上，没有丢。修好网络或服务器后点重试即可。</Trans>
       </p>
@@ -1230,7 +1283,7 @@ function PendingBanner() {
               .finally(() => setBusy(false));
           }}
           disabled={busy}
-          className="flex-1 rounded-xl bg-amber-400/90 py-2.5 text-sm font-bold text-ink disabled:opacity-40"
+          className="flex-1 rounded-xl bg-warn-400/90 py-2.5 text-sm font-bold text-ink disabled:opacity-40"
         >
           {busy ? t`重试中…` : t`立即重试`}
         </button>
@@ -1241,7 +1294,7 @@ function PendingBanner() {
           <Trans>不要了</Trans>
         </button>
       </div>
-      {note && <div className="mt-1.5 text-center text-[11px] text-amber-200">{note}</div>}
+      {note && <div className="mt-1.5 text-center text-[11px] text-warn-200">{note}</div>}
     </div>
   );
 }
@@ -1298,16 +1351,16 @@ function StrangerWorks({
   const note = worksKnown
     ? ""
     : stranger.unsupported
-      ? t`这台服务器还没有用户主页接口 · 服务端升级后即可看到完整资料`
+      ? t`完整资料还看不到 · 服务更新之后就有，App 不用重装`
       : stranger.works?.status === "partial"
-        ? t`这台服务器还不支持按作者取作品 · 下面只是本次刷到的那些，不是全部`
+        ? t`暂时只能看到本次刷到的这几条，不是 TA 的全部作品`
         : stranger.works?.status === "offline"
           ? t`TA 的作品需要连上服务器 · 当前是离线模式`
           : !hasId
             ? t`这个链接里只有名字，没法向服务器确认是谁 · 下面只是本次刷到的那些`
             : "";
   if (works.length === 0) {
-    return <Empty text={worksKnown ? t`TA 还没有发布作品` : note || t`没能取到 TA 的作品`} />;
+    return <Empty text={worksKnown ? t`TA 还没有发布作品` : note || t`没能取到 TA 的作品`} mascot={worksKnown ? "nap" : undefined} />;
   }
   return (
     <>
@@ -1328,7 +1381,7 @@ function WorkGrid({ items }: { items: VideoItem[] }) {
             <img src={v.cover} alt={v.title} className="aspect-[3/4] w-full object-cover" loading="lazy" />
             {/* 底缘压暗：浅色封面上白字播放量本来读不出来 */}
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black/70 to-transparent" />
-            <span className="absolute bottom-1 left-1.5 flex items-center gap-1 text-[11px] font-medium tabular-nums text-white [text-shadow:0_1px_2px_rgba(0,0,0,.7)]">
+            <span className="absolute bottom-1 left-1.5 flex items-center gap-1 text-[11px] font-medium tabular-nums text-white [text-shadow:0_0_3px_rgba(0,0,0,.7)]">
               <Icon name="play" size={12} filled />
               {formatPlays(v.plays)}
             </span>
@@ -1340,11 +1393,21 @@ function WorkGrid({ items }: { items: VideoItem[] }) {
                 ★ 报不出版次（老数据只有 revisedAt、没有 revision）时退成「回炉过」——
                   原来那份会印出「第 1 版」，那是把一条明明回炉过的作品标成"没改过"，
                   而且同一份数据在详情页上什么版次都不印，两处对不上。 */}
-            {!!v.revisedAt && (
-              <span className="absolute bottom-1 right-1.5 rounded bg-black/60 px-1 py-0.5 text-[9px] tabular-nums text-slate-200">
-                {revisionLabel(v.revision) ?? t`回炉过`}
-              </span>
-            )}
+            {/* 右下角：「第 N 版」在上、「AI 生成」在下，竖着排在同一格里（2026-10-21 修：原来两枚都绝对定位在右下，
+                回炉过的作品上 AI 标识把版次整个盖住了 —— 下面 AI 标识那段注释写的时候忘了这一枚） */}
+            <span className="absolute bottom-1 right-1 flex flex-col items-end gap-0.5">
+              {!!v.revisedAt && (
+                <span className="rounded bg-black/60 px-1 py-0.5 text-[9px] tabular-nums text-slate-200">
+                  {revisionLabel(v.revision) ?? t`回炉过`}
+                </span>
+              )}
+              {/* 「AI 生成」标识（合规要求"内容周边"，见 components/AigcBadge 的 ★★）。
+                  ★ 挂**右下**：左上那格已被 已下架/仅自己可见/互动 那条 if 链占满、右上是付费，
+                    左下是播放量。⚠ 不许挤进那条 if —— 它是"三选一"，而 AI 标识是**恒有**的，
+                    混进去会变成"是互动片就不标 AI"。
+                  ★ 这是同一枚组件的第 3 次**渲染**，不是第 3 份**判据**（判据仍只有 isAigcWork）。 */}
+              {isAigcWork(v) && <AigcBadge tone="overlay" />}
+            </span>
             {/* 左上角这一排：「示例 · 离线」与「已下架 / 仅自己可见 / 凭链接 / 互动」那一枚并排，
                 **flex-wrap** 兜住 —— 三列网格一格只有 ~118px（360 宽的屏），英文下两枚一行放不下，
                 两个绝对定位各写各的必然叠在一起。
@@ -1360,7 +1423,7 @@ function WorkGrid({ items }: { items: VideoItem[] }) {
                   这一栏只有作者自己看得到（别人的接口回包里根本没有这条作品）。 */}
               {v.takedown ? (
                 <span
-                  className="flex items-center gap-0.5 rounded bg-rose-600/90 px-1 py-0.5 text-[9px] font-semibold text-white"
+                  className="flex items-center gap-0.5 rounded bg-danger-600/90 px-1 py-0.5 text-[9px] font-semibold text-white"
                   title={v.takedown.reason ? t`下架原因：${takedownReasonText(v.takedown.reason)}` : undefined}
                 >
                   <Trans>已下架</Trans>
@@ -1386,16 +1449,6 @@ function WorkGrid({ items }: { items: VideoItem[] }) {
             {paid && (
               <span className="absolute right-1 top-1 rounded bg-gold/90 px-1 py-0.5 text-[9px] font-bold text-ink">
                 <Trans>付费</Trans>
-              </span>
-            )}
-            {/* 「AI 生成」标识（合规要求"内容周边"，见 components/AigcBadge 的 ★★）。
-                ★ 挂**右下**：左上那格已被 已下架/仅自己可见/互动 那条 if 链占满、右上是付费，
-                  左下是播放量。⚠ 不许挤进那条 if —— 它是"三选一"，而 AI 标识是**恒有**的，
-                  混进去会变成"是互动片就不标 AI"。
-                ★ 这是同一枚组件的第 3 次**渲染**，不是第 3 份**判据**（判据仍只有 isAigcWork）。 */}
-            {isAigcWork(v) && (
-              <span className="absolute bottom-1 right-1">
-                <AigcBadge tone="overlay" />
               </span>
             )}
           </Link>
@@ -1431,12 +1484,10 @@ function FollowingSheet({
   return (
     <Sheet onClose={onClose}>
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-base font-bold text-slate-100"><Trans>关注 {names.length}</Trans></h3>
-        <button onClick={onClose} className="text-slate-400" aria-label={t`关闭`}>
-          <Icon name="close" size={20} />
-        </button>
+        <h3 className="text-sm font-bold text-slate-100"><Trans>关注 {names.length}</Trans></h3>
+        <CloseButton chip="sm" size={13} align="end" onClick={onClose} />
       </div>
-      {names.length === 0 && <p className="py-10 text-center text-sm text-slate-500"><Trans>还没有关注任何创作者</Trans></p>}
+      {names.length === 0 && <EmptyState compact mascot="nap" text={t`还没有关注任何创作者`} cta={{ label: t`去首页逛逛`, to: "/" }} />}
       <div className="space-y-1">
         {names.map((a) => (
           <div key={a} className="flex items-center gap-3 rounded-xl p-2">
@@ -1447,7 +1498,7 @@ function FollowingSheet({
               onClick={onClose}
               className="flex min-w-0 flex-1 items-center gap-3"
             >
-              <Avatar name={a} size={40} />
+              <Avatar name={a} size={36} />
               <span className="min-w-0">
                 <span className="block truncate text-sm font-medium text-slate-100">{a}</span>
                 <span className="block text-[11px] text-slate-500">
@@ -1493,14 +1544,46 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
   const [payable, setPayable] = useState<boolean | null>(null);
   /** 正在盯的订单号（下完单就开始轮询，结算/失败/超时都会停） */
   const [watching, setWatching] = useState<string | null>(null);
+  /**
+   * Google Play 结算可用时，这里是**合并好的商品表**：服务端的 sku/token 数 + Play 给的本地价格。
+   * null = 不是 play 渠道、或服务端没配 Play、或商品表还没拿到 —— 三种都按「没有 Play」画界面。
+   * ★ 价格只能来自 Play（按国家定价），token 数只能来自服务端（发币的依据），两边**按 sku 对齐**。
+   */
+  const [playItems, setPlayItems] = useState<Array<PlayCatalogItem & { price: string }> | null>(null);
   const { t } = useLingui();
 
   useEffect(() => {
     void refreshRemoteWallet();
     if (!API_ON) return;
     void fetchPayConfig()
-      .then((c) => setPayable(c.payable))
+      .then(async (c) => {
+        setPayable(c.payable);
+        // ★ 三个条件缺一不可：服务端配了 Play、这个包是 play 渠道、Play 商店本身可用。
+        //   任何一条不成立就照旧显示微信/支付宝那套（侧载包永远走这条）。
+        if (!c.play?.enabled || !c.play.products.length) return;
+        if (!(await playBillingAvailable())) return;
+        const skus = c.play.products.filter((x) => x.kind === "recharge").map((x) => x.sku);
+        if (!skus.length) return;
+        try {
+          const { products } = await PlayBilling.queryProducts({ skus });
+          const bySku = new Map<string, PlayProduct>(products.map((x) => [x.sku, x]));
+          // ★ Play 里查不到的 sku **直接不显示**：那说明 Console 里没建 / 打错了 id，
+          //   摆出来只会得到一个点下去报"商品不存在"的按钮（服务端 config/play.js 的 ★★）。
+          const merged = c.play.products
+            .filter((x) => x.kind === "recharge" && bySku.has(x.sku))
+            .map((x) => ({ ...x, price: bySku.get(x.sku)!.formattedPrice }));
+          setPlayItems(merged.length ? merged : null);
+        } catch {
+          setPlayItems(null); // Play 连不上：别把充值入口整块弄没，下面还会说清"暂时不能买"
+        }
+      })
       .catch(() => setPayable(null)); // 问不到就不下结论，别误报成"不能买"
+    // ★★ 开钱包就扫一遍 Play 那边还挂着的购买（兑那一发断网/进程被杀时唯一的出路）。
+    //   静默失败可以，成功必须说出来 —— 用户正是因为"钱付了没到账"才打开这一页的。
+    void sweepPlayPurchases().then((r) => {
+      if (r.tokens > 0) setOrder({ text: t`已把上一笔购买取回，到账 ${fmtTokens(r.tokens)} token`, tone: "ok" });
+      else if (r.stuck > 0) setOrder({ text: t`有一笔已付款的购买还没能取回，稍后会自动重试；若长时间没到账请联系客服`, tone: "bad" });
+    });
   }, []);
 
   /**
@@ -1596,7 +1679,49 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
     }
   }
 
+  /** 用 Play 买一包。★ 与 submit() 分开：这条链路没有"待支付"中间态，也不需要轮询订单 */
+  async function buyPlay(sku: string) {
+    setBusy(true);
+    setOrder(null);
+    try {
+      const r = await buyWithPlay(sku);
+      if (r.kind === "granted") {
+        setOrder({
+          text: r.recovered
+            ? t`已到账 ${fmtTokens(r.tokens)} token（含之前未取回的那一笔）`
+            : t`已到账 ${fmtTokens(r.tokens)} token`,
+          tone: "ok",
+        });
+      } else if (r.kind === "pending") {
+        setOrder({ text: t`Google Play 还在等这笔付款完成，到账后余额会自动更新`, tone: "warn" });
+      } else if (r.kind === "canceled") {
+        setOrder({ text: t`已取消付款`, tone: "warn" });
+      } else if (r.kind === "unavailable") {
+        setOrder({ text: t`这台设备暂时不能用 Google Play 付款`, tone: "bad" });
+      } else if (r.kind === "login") {
+        setOrder({ text: t`请先登录`, tone: "bad" });
+      } else if (r.kind === "redeem-failed") {
+        // ★★ 这一档是**钱已经收了、币还没发**，不能说成"支付失败"。
+        //   能重试的就说会自动重试（下次开钱包/启动都会扫），不能重试的要给出路。
+        setOrder({
+          text: r.retryable
+            ? t`付款成功了，但额度还没能发到账上——重新打开这一页会自动再试一次`
+            : t`付款成功了，但这笔额度发不出来：${r.detail ?? ""}。请把这句话发给客服`,
+          tone: "bad",
+        });
+      } else {
+        setOrder({ text: r.detail ?? t`付款没有完成`, tone: "bad" });
+      }
+      await refreshRemoteWallet();
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const wallet = walletOf();
+  /** ★ 推荐档只有一档（2026-10-23）：比当前套餐贵一级的那一档（当前是免费 → 最便宜的付费档）；只给它一颗主键，其余价签退成次级键 */
+  const currentPlanPrice = PLANS.find((p) => p.id === wallet?.planId)?.price ?? 0;
+  const recommendedPlanId = PLANS.filter((p) => p.price > currentPlanPrice).sort((a, b) => a.price - b.price)[0]?.id;
   // 远端模式下镜像可能还在路上。★ 不能 return null —— 那会表现成"点了钱包没反应"，
   // 而用户完全没法区分"在加载"和"坏了"
   if (!wallet)
@@ -1608,10 +1733,8 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
   return (
     <Sheet onClose={onClose}>
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-base font-bold text-slate-100"><Trans>⚡ Token 钱包</Trans></h3>
-        <button onClick={onClose} className="text-slate-400" aria-label={t`关闭`}>
-          <Icon name="close" size={20} />
-        </button>
+        <h3 className="text-sm font-bold text-slate-100"><Trans>⚡ Token 钱包</Trans></h3>
+        <CloseButton chip="sm" size={13} align="end" onClick={onClose} />
       </div>
 
       {/* ★ 管理员在「我的」页看到的是 ∞，这里却是镜像里的真实数字 —— 不把两边的关系
@@ -1623,6 +1746,17 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
         </div>
       )}
 
+      {/* ★★ 退款欠额横幅（方案 §15.4.4）：欠额一天不清，生成就一直被 403 挡着。
+          不在这里说清楚「欠多少、怎么解冻」，用户会反复去点生成、反复吃同一个错误，
+          而错误码本身完全解释不了发生了什么。 */}
+      {(wallet.debt ?? 0) > 0 && (
+        <div className="mb-3 rounded-xl border border-danger-500/40 bg-danger-500/10 px-3 py-2.5 text-[11px] leading-relaxed text-danger-200">
+          <Trans>
+            因一笔退款，已收回相应 token，尚欠 {fmtTokens(wallet.debt ?? 0)}。下次充值会自动抵扣，抵完即可继续生成；在那之前生成功能暂时不可用。
+          </Trans>
+        </div>
+      )}
+
       <div className="mb-4 grid grid-cols-2 gap-3">
         <div className="rounded-xl border border-slate-700/70 bg-panel p-3">
           <div className="text-lg font-bold tabular-nums text-slate-100">{fmtTokens(wallet.plan)}</div>
@@ -1630,9 +1764,32 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
         </div>
         <div className="rounded-xl border border-slate-700/70 bg-panel p-3">
           <div className="text-lg font-bold tabular-nums text-gold">{fmtTokens(wallet.addon)}</div>
-          <div className="text-[11px] text-slate-500"><Trans>add-on token · 直充/创作收益</Trans></div>
+          <div className="text-[11px] text-slate-500"><Trans>加购 token · 直充 / 新人额度 / 创作收益，不过期</Trans></div>
         </div>
       </div>
+
+      {/* ★ 免费额度怎么来、能用哪几档（2026-10-07 主人拍板：新人一次 + 每天补，免费用户只能用免费档出片）。
+          数字读服务端下发的规则（account.freeQuota），档名按能力现算（account.tierFreeOk 且还没停用的）——不写死「极速」「草稿」，11-24 极速停用后这句话自己少一档。
+          只对「确定没付过钱」的人说（payingNow() === false）：还不知道的时候说了就可能是错的 */}
+      {payingNow() === false && (() => {
+        const q = freeQuota();
+        const daily = fmtTokens(q.dailyTokens);
+        const cap = fmtTokens(q.dailyCapTokens);
+        // 摆得出来的档里一档免费档都没有（门禁开着的海外只剩「真人」这一档会员档，2026-10-26 终审）：不印「能用「」档出片」
+        const names = tierNamesFor(tierFreeOk)?.usable ?? "";
+        return (
+          <div className="mb-4 rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-[11px] leading-relaxed text-sky-100">
+            {names ? (
+              <Trans>
+                免费版：每天自动补 {daily} 套餐 token（最多攒到 {cap}），能用「{names}」档出片。开通会员套餐或充值任意一笔，全部档位都能用。
+              </Trans>
+            ) : (
+              // ★ 这一支 = 摆得出来的档里没有免费档（门禁开着的海外只剩「真人」）：付钱能开的只有那几档，别说成「全部档位」（2026-10-29 发版前复核）
+              <Trans>免费版：每天自动补 {daily} 套餐 token（最多攒到 {cap}）。现在能用的出片档位都要开通会员套餐或充值任意一笔之后才能用。</Trans>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ★ 下单结果必须如实显示。远端模式下点这些按钮**只是下单**，钱一分没付、
           余额一分没变；而且现在服务端一个支付渠道都没接，这单根本付不了。
@@ -1642,10 +1799,10 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
         <div
           className={`mb-3 rounded-xl border px-3 py-2.5 text-[11px] leading-relaxed ${
             order.tone === "warn"
-              ? "border-amber-500/40 bg-amber-500/10 text-amber-200"
+              ? "border-warn-500/40 bg-warn-500/10 text-warn-200"
               : order.tone === "bad"
-                ? "border-rose-500/40 bg-rose-500/10 text-rose-200"
-                : "border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
+                ? "border-danger-500/40 bg-danger-500/10 text-danger-200"
+                : "border-ok-500/40 bg-ok-500/10 text-ok-200"
           }`}
         >
           {order.text}
@@ -1655,23 +1812,42 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
 
       <div className="mb-1.5 text-sm font-semibold text-slate-300"><Trans>订阅套餐</Trans></div>
       <div className="mb-4 space-y-2">
-        {PLANS.map((p) => {
+        {/* 推荐哪一档只算一次（见下面 recommended 的 ★） */}
+        {/* ★★ play 渠道只显示免费档：付费套餐在 Play Console 里还没有对应商品，
+            而在 Play 的包里用微信/支付宝卖数字商品是**违反 Play 政策**的。
+            免费档的「领取」不是付款，留着。 */}
+        {PLANS.filter((p) => !playItems || p.price === 0).map((p) => {
           const current = wallet.planId === p.id;
+          const freeTierNames = p.price === 0 ? (tierNamesFor(tierFreeOk)?.usable ?? "") : "";
+          // ★ 一张抽屉只有一颗主键（《Refactoring UI》§2.8，2026-10-23）：「推荐」= 比现在这一档贵一级的那档（没有就是最便宜的付费档）；
+          //   其余价签退成次级键。原来三行各一颗 bg-brand，看不出该点哪个
+          const recommended = p.id === recommendedPlanId;
           return (
             <div key={p.id} className="flex items-center gap-3 rounded-xl border border-slate-700/70 bg-panel p-3">
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-semibold text-slate-100">
                   {p.name}
                   {current && <span className="ml-1.5 rounded bg-brand/20 px-1.5 py-0.5 text-[9px] text-brand"><Trans>当前</Trans></span>}
+                  {recommended && <span className="ml-1.5 rounded bg-gold/20 px-1.5 py-0.5 text-[9px] text-gold"><Trans>推荐</Trans></span>}
                 </div>
                 <div className="text-[11px] text-slate-500">
-                  <Trans>{fmtTokens(p.monthlyTokens)} token/月 · {p.desc}</Trans>
+                  {/* 免费版不按月发（monthlyTokens 0）：它的额度规则整句写在 desc 里，别印出一个「0 token/月」。
+                      免费版能用哪几档在这里按 account.tierFreeOk 现拼（跟着服务端开关走，与上面那条免费版提示同一个判据）——economy 不认识服务端 */}
+                  {p.monthlyTokens > 0 ? (
+                    <Trans>{fmtTokens(p.monthlyTokens)} token/月 · {p.desc}</Trans>
+                  ) : freeTierNames ? (
+                    <Trans>{p.desc} · 能用「{freeTierNames}」档出片</Trans>
+                  ) : (
+                    p.desc
+                  )}
                 </div>
               </div>
               <button
                 onClick={() => void submit(() => buyPlan(p.id))}
                 disabled={busy || (p.price === 0 && current)}
-                className="rounded-full bg-brand px-3 py-1.5 text-xs font-bold text-ink disabled:bg-slate-700 disabled:text-slate-400"
+                className={`rounded-full px-3 py-1.5 text-xs font-bold disabled:bg-slate-700 disabled:text-slate-400 ${
+                  recommended ? "bg-brand text-ink" : "bg-panel text-slate-100 ring-1 ring-slate-700"
+                }`}
               >
                 {p.price === 0 ? (current ? t`已领取` : t`领取`) : t`¥${p.price}/月`}
               </button>
@@ -1682,27 +1858,51 @@ function WalletSheet({ onClose }: { onClose: () => void }) {
 
       <div className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>直充 add-on（永不过期，套餐扣完才用它）</Trans></div>
       <div className="grid grid-cols-3 gap-2">
-        {RECHARGE_PACKS.map((pk) => (
-          <button
-            key={pk.tokens}
-            onClick={() => void submit(() => rechargeAddon(pk.tokens))}
-            disabled={busy}
-            className="rounded-xl border border-slate-700/60 bg-panel p-3 text-center disabled:opacity-40"
-          >
-            <div className="text-sm font-bold tabular-nums text-slate-100">{fmtTokens(pk.tokens)}</div>
-            <div className="mt-0.5 text-[11px] text-gold">¥{pk.price}</div>
-          </button>
-        ))}
+        {/* ★ 两条路**互斥**：play 渠道走 Google Play（价格由 Play 按国家给，原样显示它给的串），
+            其余渠道走服务端下单。同时摆出来就是 Play 政策里的违规项。 */}
+        {playItems
+          ? playItems.map((it) => (
+              <button
+                key={it.sku}
+                onClick={() => void buyPlay(it.sku)}
+                disabled={busy}
+                className="rounded-xl border border-slate-700/70 bg-panel p-3 text-center disabled:opacity-40"
+              >
+                <div className="text-sm font-bold tabular-nums text-slate-100">
+                  {fmtTokens(it.tokens)} <span className="text-[10px] font-normal text-slate-500">token</span>
+                </div>
+                <div className="mt-0.5 text-[11px] text-gold">{it.price}</div>
+              </button>
+            ))
+          : RECHARGE_PACKS.map((pk) => (
+              <button
+                key={pk.tokens}
+                onClick={() => void submit(() => rechargeAddon(pk.tokens))}
+                disabled={busy}
+                className="rounded-xl border border-slate-700/70 bg-panel p-3 text-center disabled:opacity-40"
+              >
+                <div className="text-sm font-bold tabular-nums text-slate-100">
+                  {fmtTokens(pk.tokens)} <span className="text-[10px] font-normal text-slate-500">token</span>
+                </div>
+                <div className="mt-0.5 text-[11px] text-gold">¥{pk.price}</div>
+              </button>
+            ))}
       </div>
-      <p className="mt-3 text-center text-[10px] leading-relaxed text-slate-600">
-        {payable === false
-          ? t`本服务尚未接入支付渠道，下单后无法完成付款`
-          : t`付款成功后额度自动到账；若长时间未到账请在订单里核对`}
+      <p className="mt-3 text-center text-[10px] leading-relaxed text-slate-400">
+        {playItems
+          ? t`通过 Google Play 付款，额度付完即到账；套餐订阅暂未在这个渠道开放`
+          : payable === false
+            ? t`本服务尚未接入支付渠道，下单后无法完成付款`
+            : t`付款成功后额度自动到账；若长时间未到账请在订单里核对`}
       </p>
     </Sheet>
   );
 }
 
-function Empty({ text, cta, to }: { text: string; cta?: string; to?: string }) {
-  return <EmptyState text={text} cta={cta && to ? { label: cta, to } : undefined} />;
+/** `loading`：「正在取…」那几句要配加载圈 —— 没有圈的一行字分不出"在取"和"卡住了"（2026-10-14 UX 课走查） */
+function Empty({ text, cta, to, loading, mascot }: { text: string; cta?: string; to?: string; loading?: boolean; mascot?: EmptyMascot }) {
+  // ★ 看板娘由调用处给，只给「问过了、确实是空的」那几句（nap = 还没有东西、wonder = 筛空了）。
+  //   没问到 / 取失败 / 用户注销了那几句**不给**：打盹的「这里还没有东西」配在「没能取到你的卡片」旁边，读出来就是「我花钱铸的卡没了」
+  //   （铁律八「没问到 ≠ 没有」）；注销是 EmptyState 头上写明的禁区（2026-10-21 评审抓到：原来这里无条件给 nap）
+  return <EmptyState text={text} loading={loading} mascot={mascot} cta={cta && to ? { label: cta, to } : undefined} />;
 }

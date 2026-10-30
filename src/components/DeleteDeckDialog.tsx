@@ -24,9 +24,10 @@ export default function DeleteDeckDialog({
 }) {
   const { t } = useLingui();
   return (
+    // ★ 与入口键、外壳忙态（「删除中…」）同一个词（2026-10-15 教材人格评审，同 DeleteCardDialog）；英文本来就是 Delete，不动
     <DeleteConfirmShell
-      title={t`删掉卡组「${deck.name}」？`}
-      danger={t`删掉这个卡组`}
+      title={t`删除卡组「${deck.name}」？`}
+      danger={t`删除这个卡组`}
       onConfirm={onConfirm}
       onCancel={onCancel}
     >
@@ -44,7 +45,7 @@ export default function DeleteDeckDialog({
               </Trans>
             </p>
           )}
-          <p className="text-rose-300"><Trans>卡组本身删了就找不回来。</Trans></p>
+          <p className="text-danger-300"><Trans>卡组本身删了就找不回来。</Trans></p>
     </DeleteConfirmShell>
   );
 }

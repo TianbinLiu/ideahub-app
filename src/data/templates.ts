@@ -13,17 +13,36 @@ import * as uploadsApi from "../api/uploads";
 //   mock），而白模化整条链路本来就只在"真的有服务端"时才存在（remoteOn + 能力探测
 //   两道门）。轮询一个真实存在的方舟任务没有 mock 版本可言，走开关只会平添一层空实现。
 import { fetchArkTask } from "../ai/arkClient";
-import { canAfford, currentUser, refreshRemoteWallet, tierBlockReason } from "./account";
-import { blockoutTier, blockoutizeCost, blockoutizeIssue, fmtTokens } from "./economy";
+import { serverSupports } from "./serverCaps";
+import { canAfford, currentUser, frozenNote, refreshRemoteWallet, tierBlockReason, tierPlanBlocked } from "./account";
+import { blockoutTier, blockoutizeCost, blockoutizeIssue, fmtTokens, promptMaxOf, tierOf, type VideoTier } from "./economy";
 import { toPermanentUrl } from "./publishAssets";
 import { remoteOn } from "./videos";
 import { i18n, type MessageDescriptor } from "@lingui/core";
 import { msg, t } from "@lingui/core/macro";
-import { V3_CARD_WIPE_MS, Card, MarkBox, VideoAspect, VideoTemplate, uid } from "../types";
+import { V3_CARD_WIPE_MS, Card, MarkBox, VideoAspect, VideoTemplate, uid, type TemplateRecipe, type TextTplSlot, type TextTplSpec } from "../types";
+import { canonTextTplPrompt, maxTimecodeSec, TEXT_TPL_PROMPT_MAX, textTplCompiledLen, textTplTierMiss, timecodeBeats, type TextTplTierMiss } from "./textTemplate";
+import { packShots } from "./shotScript";
+import { cleanRefName, refNameIssue, TEXT_TPL_EXTRA_MAX } from "./refMentions";
+import { deviceOwner, mayClaimLegacy, onViewerChange, workOwner } from "./deviceOwner";
+import { splitByOwner } from "./ownerSplit";
+import { exprIn } from "./blockoutExpr";
+import { registerTemplateResolver } from "./recipe";
 
 const KEY = "templates.v1";
 
+/**
+ * 本机模板库里**现在登录的这个人**的那几条（全文件读写的都是它）。
+ * ★★ 按账号分区（2026-09-18 主人真机点名同一台手机换账号后数据串号）：原来整台设备一张表，B 在「我的模板」里
+ *   看得到 A 的模板（封面、提示词、A 的人物卡、参考视频地址），拿到归属按钮 —— 能改名、能上下架本机市场、能**永久删掉**
+ *   A 只存在这台设备上的经典配方模板，还能套用它们、拿 A 的人物卡出片。现在：`mine` 只装现在这个人的，
+ *   别人的原样躺在 `othersMine` 里（从不显示），落盘时两份并回去（persist）。分区只在一处（partition），
+ *   换人时重分；无主的存量归现在登录的这个人（见 data/deviceOwner 文件头「存量」那条）。
+ * ⚠ 别为了"查得全"去 `othersMine` 里找：那就是把这次的串号原样放回来。
+ */
 let mine: VideoTemplate[] = [];
+/** 这台设备上**别的账号**的本机模板（与 mine 互补、从不显示，落盘时并回去） */
+let othersMine: VideoTemplate[] = [];
 let version = 0;
 const subs = new Set<() => void>();
 
@@ -48,8 +67,45 @@ export function templatesLoadIssue(): string {
 
 function persist() {
   if (loadIssue) return;
-  void idbSet(KEY, mine);
+  // ★ 别人的那几条一起写回：只写 mine 的话，一次存模板就把别的账号的本机模板整批抹掉
+  void idbSet(KEY, [...mine, ...othersMine]);
 }
+
+/**
+ * 按「现在给谁看」把整张表分成 mine / othersMine。没人登录时 mine 为空（看不到任何人的）。
+ * 无主的存量归现在登录的这个人；认领了就落一次盘。
+ */
+function partition(all: VideoTemplate[]): void {
+  const split = splitByOwner(all, deviceOwner(), mayClaimLegacy());
+  mine = split.mine;
+  othersMine = split.others;
+  if (split.claimed) persist();
+}
+
+/**
+ * 换人的代数：换一次 +1。拉服务端列表那几条（我的模板 / 待取回的白模化）拿到回包时先比一下 ——
+ * 请求发出去的时候还是上一个人，回来已经换人了，那份就不许落进这个人的界面。
+ */
+let viewerGen = 0;
+
+// ★★ 换了看的人：本机表重分区，服务端那几份「我的 …」缓存全部作废重拉 —— 它们都是上一个人的：
+//   我在服务端的模板（mineRemote）、每条模板的归属状态（remoteStates.isOwner）、待取回的白模化（pendingJobs）。
+//   不清的话 B 在重启之前一直看得到 A 的未发布模板和 A 付过钱还没取回的那几发（agent 审计 2026-09-18）。
+onViewerChange(() => {
+  viewerGen++;
+  partition([...mine, ...othersMine]);
+  mineRemote = [];
+  mineRemoteFresh = false;
+  mineRemoteLoading = false;
+  mineRemoteRetryAt = 0;
+  remoteStates.clear();
+  sharedFresh = false;
+  pendingJobs = [];
+  pendingFresh = false;
+  pendingIssue = "";
+  pendingRetryAt = 0;
+  emit();
+});
 
 export function subscribeTemplates(fn: () => void): () => void {
   subs.add(fn);
@@ -92,14 +148,16 @@ export async function readyTemplates(): Promise<void> {
   }
   // ★ 重试读出来时：读不出来那段时间里只活在内存里的（这段时间新做的模板）并回去再落盘，
   //   别让磁盘上的旧表把它们盖掉 —— 那些模板多半已经登记上服务端，但本机那份云端句柄只存在这里
-  const unsaved = loadIssue ? mine.filter((u) => !saved?.some((s) => s.id === u.id)) : [];
+  const inMemory = [...mine, ...othersMine];
+  const unsaved = loadIssue ? inMemory.filter((u) => !saved?.some((s) => s.id === u.id)) : [];
   loadIssue = "";
   loaded = true;
-  if (saved) mine = [...unsaved, ...saved];
+  // ★ 先并成整张表、再按现在这个人分区（partition 顺手认领无主的存量）
+  if (saved) partition([...unsaved, ...saved]);
   // ★ V3（2026-09-06）：截线之前建的模板身上的非人物卡整批下场（与 account.ts 的 V3 清库同一条截线，
   //   主人拍板"不用顾及老卡"）；截线之后从原片铸的 V3 素材卡原样保留
   let wiped = false;
-  for (const t of mine) {
+  for (const t of [...mine, ...othersMine]) {
     if (t.createdAt < V3_CARD_WIPE_MS && t.cards.some((c) => c.type !== "character")) {
       t.cards = t.cards.filter((c) => c.type === "character");
       wiped = true;
@@ -121,18 +179,24 @@ export async function readyTemplates(): Promise<void> {
 function ensureMineRemote(): void {
   if (mineRemoteFresh || mineRemoteLoading || Date.now() < mineRemoteRetryAt) return;
   mineRemoteLoading = true;
+  const gen = viewerGen;
   void (async () => {
     try {
       const items = await branch.listMyTemplates(50);
+      // 换过人了：这是上一个人的「我的模板」，丢掉（见 viewerGen）
+      if (gen !== viewerGen) return;
       mineRemote = items.map(apiToTemplate).filter((x): x is VideoTemplate => x !== null);
       mineRemoteFresh = true;
       emit();
     } catch {
+      // 换过人了：上一个人这一发失败，冷却不该落到这个人头上（2026-09-18 复核抓到）
+      if (gen !== viewerGen) return;
       // ★ 不设 error 文案：这一屏本来就有本机那份可显示，一条红字只会让作者以为模板出事了。
       //   冷却 15s 之后自然重试（切 tab / 重渲染都会再问一次）。
       mineRemoteRetryAt = Date.now() + 15_000;
     } finally {
-      mineRemoteLoading = false;
+      // 换过人的话，loading 在换人那一拍已经复位、现在可能是这个人自己那一发在途 —— 不归上一个人的回包清
+      if (gen === viewerGen) mineRemoteLoading = false;
     }
   })();
 }
@@ -181,6 +245,10 @@ export function getTemplate(id: string): VideoTemplate | null {
     null
   );
 }
+
+// 公开配方（data/recipe）投影画布时要把**本机**模板 id 换成服务端 id：老快照不带 remoteId（flowStore.snapTpl 2026-10-02 才带），
+// 这里按本机库现查一次。登记在模块初始化上 —— recipe.ts 不引本文件（它引的东西少，本文件引的多，反过来容易绕成环）
+registerTemplateResolver((localId) => getTemplate(localId)?.remoteId ?? null);
 
 /**
  * 模板市场：本机已发布 + **远端 shared**（白模模板；到货前先出本机那份）。
@@ -256,7 +324,8 @@ export function remoteTemplatesCapable(): Promise<boolean> {
  *  isOwner）塞进去，草稿里就会存下一份必然过时的复印件 */
 export interface RemoteTemplateState {
   remoteId: string;
-  status: "pending" | "published" | "blocked";
+  /** retired（2026-10-02）：被公开的制作过程引用着、作者下了架 —— 不在市场，但所有人仍能用它出片（素材留到没人引用） */
+  status: "pending" | "published" | "blocked" | "retired";
   /** 试炼闸：非空 = 作者本人用它真实出过一次片（发布的前置） */
   provenAt: number | null;
   /** 服务端按 ownerId 对当前 JWT 算的 —— 白模路的身份判定只认它，不比显示名 */
@@ -301,6 +370,8 @@ let shared: VideoTemplate[] = [];
 let sharedFresh = false;
 let sharedLoading = false;
 let sharedError = "";
+/** 远端没有这个能力（老服务端 / 离线）：有了这个结论就不再画加载态（见 sharedListLoading） */
+let sharedUnsupported = false;
 /** 失败后的冷却（15s）：browseTemplates 每次渲染都会来问，不冷却就是失败风暴 */
 let sharedRetryAt = 0;
 
@@ -316,7 +387,7 @@ function recordState(api: branch.ApiBranchTemplate): RemoteTemplateState | null 
   const st: RemoteTemplateState = {
     remoteId: rid,
     // 判定写存在性/白名单而不是信任任意串：认不出的 status 当 pending（最保守的一档）
-    status: api.status === "published" || api.status === "blocked" ? api.status : "pending",
+    status: api.status === "published" || api.status === "blocked" || api.status === "retired" ? api.status : "pending",
     provenAt: toMs(api.provenAt ?? null),
     isOwner: api.isOwner === true,
     // ★ 逐条 `!== true`：只有服务端**明说**核对过才算数。老服务端不回这一位（undefined）
@@ -416,6 +487,16 @@ function markDescsOf(api: { markDescs?: unknown }, slotCount: number): string[] 
 }
 
 /**
+ * 服务端那份 `markExprs` → 本机那一份（2026-10-26，方案 D）。纪律与 `markDescsOf` 逐字同源：长度必须等于 markSlots、
+ * 空串原样留着（长度承重）、全空 = 没有。值先过 `blockoutExpr.exprIn`（服务端洗过一遍，这里再收一道：它要进付费提示词）。
+ */
+function markExprsOf(api: { markExprs?: unknown }, slotCount: number): string[] {
+  if (!Array.isArray(api.markExprs) || slotCount <= 0 || api.markExprs.length !== slotCount) return [];
+  const out = api.markExprs.map((e) => exprIn(e));
+  return out.some((e) => e) ? out : [];
+}
+
+/**
  * 服务端那份 `realDurationSec` → 本机 refVideo 上的**可选键**（有才出，没有就一个键都不加）。
  * ★ 唯一实现：apiToTemplate 与 registerTemplate 的回写都走它 —— 两处各写一遍 `|| 0`
  *   的话，一处漏了就是"这台设备上的这个模板永远判不出坏"，而且不报错。
@@ -435,6 +516,7 @@ function apiToTemplate(api: branch.ApiBranchTemplate): VideoTemplate | null {
   const markSlots = markSlotsOf(api);
   const markBoxes = markBoxesOf(api, markSlots.length);
   const markDescs = markDescsOf(api, markSlots.length);
+  const markExprs = markExprsOf(api, markSlots.length);
   const boxAtSec = Number(api.markBoxAtSec);
   return {
     id: rid,
@@ -482,6 +564,8 @@ function apiToTemplate(api: branch.ApiBranchTemplate): VideoTemplate | null {
     // 人偶描述：同一条存在性语义。★ 它与 markBoxes **各自独立**（框没量出来 ≠ 描述没验过），
     // 所以两者不共用同一个 if —— 合并的话"框失败"会把描述一起带走，白丢一次已经付过的钱
     ...(markDescs.length > 0 ? { markDescs } : {}),
+    // 神态：同一条存在性语义，与描述各自独立（描述没验过 ≠ 神态没记下）
+    ...(markExprs.length > 0 ? { markExprs } : {}),
     // 分段组归属：同一条存在性语义（老模板整个字段缺失）。key/count 缺一不可 ——
     // 只有 key 没有 count 的"半个组"没法折卡也没法整组套用，宁可当独立模板
     ...(api.group?.key && Number(api.group.count) > 1
@@ -583,6 +667,15 @@ export function sharedLoadIssue(): string {
   return sharedError;
 }
 
+/**
+ * 市场远端区还在**第一次**取：货架据此画加载圈，而不是把「还没到货」画成「市场上还没有公开的模板」
+ * （2026-10-14 UX 课走查：第一次进市场那一两秒屏幕上写的是"没有"，人读到的是"这产品没内容"）。
+ * 真拉挂了 / 老服务端 / 离线都不算"在取"：前者由 sharedLoadIssue 说，后两者得出结论就收掉（sharedUnsupported）。
+ */
+export function sharedListLoading(): boolean {
+  return sharedLoading && !sharedFresh && !sharedUnsupported;
+}
+
 /** 懒加载远端 shared（到货 emit）。能力探测走 remoteTemplatesCapable 唯一实现 */
 function ensureShared(): void {
   if (sharedFresh || sharedLoading || Date.now() < sharedRetryAt) return;
@@ -596,8 +689,13 @@ function ensureShared(): void {
           sharedError = t`远端模板加载失败：网络不稳，稍后自动重试`;
           sharedRetryAt = Date.now() + 15_000;
           emit();
+        } else if (!sharedUnsupported) {
+          // 真·老服务端 / 离线：安静保持本机市场。★ 只在第一次得出结论时 emit 一次，让货架把加载圈收掉 ——
+          //   每次都 emit 的话：渲染 → browseTemplates → ensureShared → emit → 渲染……是个死循环
+          sharedUnsupported = true;
+          emit();
         }
-        return; // 真·老服务端：安静保持本机市场
+        return;
       }
       const items = await branch.listSharedTemplates(50);
       shared = items.map(apiToTemplate).filter((t): t is VideoTemplate => t !== null);
@@ -971,6 +1069,10 @@ export async function detectTemplateRoles(id: string, atSecs?: number[]): Promis
     const backDescs = markDescsOf(api, (backSlots.length ? backSlots : tpl.markSlots ?? []).length);
     if (backDescs.length) tpl.markDescs = backDescs;
     else if (back.length) delete tpl.markDescs;
+    // 神态：重新认人时服务端一律清掉（人数相同时 markSlots 一模一样，长度核对拦不住错位）—— 本机跟着清，同上面描述那条理由
+    const backExprs = markExprsOf(api, (backSlots.length ? backSlots : tpl.markSlots ?? []).length);
+    if (backExprs.length) tpl.markExprs = backExprs;
+    else if (back.length) delete tpl.markExprs;
     recordState(api);
     persist();
   }
@@ -1012,7 +1114,10 @@ async function registerTemplateOnce(id: string): Promise<void> {
   // mineRemote 条目天生带 remoteId，下面会走"已登记 → 刷新"那条路（同 setTemplatePublished 的 ★★）
   const tpl = mine.find((x) => x.id === id) ?? mineRemote.find((x) => x.id === id);
   if (!tpl) throw new Error(t`这个模板不在本机库里`);
-  if (!tpl.refVideo) throw new Error(t`经典配方模板首发只存本机，不需要登记到服务器`);
+  // 种类只问 templateKindOf：文字模板也没有 refVideo，按老写法 `!tpl.refVideo` 它会听到一句「经典配方模板…」
+  const kind = templateKindOf(tpl);
+  if (kind === "text") throw new Error(t`文字模板这一版只存在这台设备上，还不能登记到服务器（上市场要等下一版）`);
+  if (kind === "classic" || !tpl.refVideo) throw new Error(t`经典配方模板首发只存本机，不需要登记到服务器`);
   if (tpl.remoteId) {
     await refreshRemoteTemplate(id);
     return;
@@ -1087,6 +1192,9 @@ async function registerTemplateOnce(id: string): Promise<void> {
     // 而"没有括号"与"这段素材本来就没什么可描述的"在界面上完全一样（零报错）
     const backDescs = markDescsOf(api, (backSlots.length ? backSlots : tpl.markSlots ?? []).length);
     if (backDescs.length) tpl.markDescs = backDescs;
+    // 神态：第六位，同批搬（漏了它 = 神态句永远不写，与「这段素材没认出神态」长得一样）
+    const backExprs = markExprsOf(api, (backSlots.length ? backSlots : tpl.markSlots ?? []).length);
+    if (backExprs.length) tpl.markExprs = backExprs;
     recordState(api);
     registerErrors.delete(id);
     persist();
@@ -1186,6 +1294,17 @@ export async function refreshRemoteTemplate(id: string): Promise<void> {
         local.markDescs = backDescs;
         dirty = true;
       }
+      // 神态：跟着服务端走，**而且服务端回了名单却没带神态时要清掉本机那份**（与上面描述那条方向相反，有意的）：
+      //   神态没有了只是少一句话；留着旧的，在另一台设备上重新认过人之后就是把 A 的神态安在 B 身上（服务端那边重新认人时一律清掉）。
+      //   老服务端从来不发这一位，本机也就从来没有它 —— 这一支对老服务端是空操作。
+      if (backSlots.length) {
+        const backExprs = markExprsOf(api, backSlots.length);
+        if (JSON.stringify(backExprs) !== JSON.stringify(local.markExprs ?? [])) {
+          if (backExprs.length) local.markExprs = backExprs;
+          else delete local.markExprs;
+          dirty = true;
+        }
+      }
       // ★★ `realDurationSec` 也必须跟着服务端走，理由与上面 roles 那条**完全同构**，
       //   但少了它的后果更刁钻：这一位是 2026-08-16 才新增的（服务端回填脚本补进老文档），
       //   而本机 `mine` 里那份是**建模板时写下的**、永远不会自己长出这一位。
@@ -1240,6 +1359,12 @@ export async function refreshRemoteTemplate(id: string): Promise<void> {
       //   只搬 mine 的话别人（换设备、市场来的）看不见。两边各管一半的路径。
       const backDescs = markDescsOf(api, (backSlots.length ? backSlots : cached?.markSlots ?? []).length);
       if (cached && backDescs.length) cached.markDescs = backDescs;
+      // 神态：mine 与 shared 两份都要搬（同上）；服务端回了名单却没带神态时清掉（理由见 mine 那一份）
+      if (cached && backSlots.length) {
+        const backExprs = markExprsOf(api, backSlots.length);
+        if (backExprs.length) cached.markExprs = backExprs;
+        else delete cached.markExprs;
+      }
     }
     emit();
   } catch (e) {
@@ -1252,7 +1377,8 @@ export async function refreshRemoteTemplate(id: string): Promise<void> {
  * 经典配方照旧只翻本机布尔；白模走服务端（试炼闸在那边，400 的整句原样抛给界面）。
  * @throws message 可直接显示
  */
-export async function setTemplatePublished(id: string, on: boolean): Promise<void> {
+/** @returns 下架时服务端把它退役了的话回引用数（调用方把 retiredNote 说出来）；否则 null */
+export async function setTemplatePublished(id: string, on: boolean): Promise<number | null> {
   const local = mine.find((x) => x.id === id);
   // ★ 本机没有 ≠ 不是我的：换设备/重装后本机库是空的，但服务端按 ownerId 算的
   //   isOwner 还在——此时作者必须仍能下架自己的模板（服务端端点本来就支持，
@@ -1263,16 +1389,23 @@ export async function setTemplatePublished(id: string, on: boolean): Promise<voi
   //   647 行的注释早写了这个坑的形状，这里当时还是漏了。三份列表一个都不能少。
   const tpl = local ?? mineRemote.find((x) => x.id === id) ?? shared.find((x) => x.id === id);
   if (!tpl) throw new Error(t`这个模板不在本机库里`);
-  if (!tpl.refVideo) {
+  const kind = templateKindOf(tpl);
+  // ★ 文字模板（P1）只存在本机：不登记、不上市场。按老写法它会落进经典那条「只翻本机布尔」—— 等于只在作者自己的货架上「上了市场」，
+  //   别人一个都看不见，而详情页会说已发布（2026-10-26 审核：上市场要走服务端那套预审，下一版）
+  if (kind === "text") throw new Error(t`文字模板这一版只存在这台设备上、还不能上市场（要等下一版）`);
+  if (kind === "classic") {
     updateTemplate(id, { published: on }); // 经典路：存量行为原样保留
-    return;
+    return null;
   }
   if (!remoteOn()) throw new Error(t`现在连不上服务器——白模模板的市场在服务端，联网后再试`);
   if (!tpl.remoteId) {
     const reg = registerErrors.get(id);
     throw new Error(reg ? t`模板还没登记到服务器（${reg}）` : t`模板还在登记中，稍等几秒再试`);
   }
-  const api = on ? await branch.publishTemplate(tpl.remoteId) : await branch.unpublishTemplate(tpl.remoteId);
+  let api: branch.ApiBranchTemplate | null;
+  let retiredRefs: number | null = null;
+  if (on) api = await branch.publishTemplate(tpl.remoteId);
+  else ({ template: api, retiredRefs } = await branch.unpublishTemplate(tpl.remoteId));
   if (!api) throw new Error(t`这台服务器不支持模板发布（回包形状不对，可能需要升级服务端）`);
   const st = recordState(api);
   tpl.published = st?.status === "published";
@@ -1280,6 +1413,12 @@ export async function setTemplatePublished(id: string, on: boolean): Promise<voi
   // 自己刚上/下架，市场缓存作废重取（别让作者切到市场 tab 还看见旧列表）
   sharedFresh = false;
   emit();
+  return retiredRefs;
+}
+
+/** 「退役」那一档的整句（下架 / 删除时服务端回了 refs）—— 一处措辞，详情页与核对面板共用 */
+export function retiredNote(refs: number): string {
+  return t`有 ${refs} 份公开的制作过程在用这个模板：已从市场下架，但素材保留着、那几条流程仍能用它出片，等没人引用了再删。`;
 }
 
 /**
@@ -1384,6 +1523,14 @@ export async function confirmTemplateRoles(
   const back = rolesOf(api);
   if (back.length) {
     tpl.roles = back;
+    // 神态跟着服务端那一份走（2026-10-29 发版前复核）：作者换了标签，服务端把神态跟着人挪了（markExprsAfterRolesEdit）并在回包里给回来；
+    //   本机留着旧的那一份，同一场会话里接着套用就是把 A 的神态安在 B 身上。回包里没有就清掉（方向同 refreshRemoteTemplate：少一句话无害）
+    const slotN = (tpl.markSlots ?? []).length;
+    if (slotN) {
+      const ex = markExprsOf(api, slotN);
+      if (ex.length) tpl.markExprs = ex;
+      else delete tpl.markExprs;
+    }
     if (local) persist(); // shared 条目只活在内存缓存里，没有本机库要写
   }
   emit();
@@ -1398,7 +1545,7 @@ export async function confirmTemplateRoles(
  *   之后那段托管视频两端都没了句柄（2026-08-14 对抗审查抓到的泄漏路径）。
  * @throws message 可直接显示；抛出时本机记录**原样保留**（可重试）
  */
-export async function deleteTemplateEverywhere(id: string): Promise<void> {
+export async function deleteTemplateEverywhere(id: string): Promise<number | null> {
   const tpl = mine.find((x) => x.id === id);
   if (!tpl) {
     // 本机没有但远端缓存里有 = 换设备的作者在删自己的远端模板（身份由服务端把关，
@@ -1407,24 +1554,43 @@ export async function deleteTemplateEverywhere(id: string): Promise<void> {
     //   只找 shared 的话，换设备的作者在「我的模板」里点删除会得到一句"这个模板不在本机库里"
     //   —— 而那正是这条分支存在的唯一场景。
     const remote = mineRemote.find((x) => x.id === id) ?? shared.find((x) => x.id === id);
-    if (!remote?.remoteId) return;
+    if (!remote?.remoteId) return null;
     if (!remoteOn()) throw new Error(t`现在连不上服务器——联网后再删`);
     const landed = await branch.deleteRemoteTemplate(remote.remoteId);
     if (!landed) throw new Error(t`这台服务器不支持删除模板（回包形状不对，可能需要升级服务端）`);
+    if (landed.retiredRefs !== null) {
+      // 退役而不是删：条目留着（状态改成 retired），市场缓存作废
+      markRetired(remote.remoteId);
+      return landed.retiredRefs;
+    }
     remoteStates.delete(remote.remoteId);
     shared = shared.filter((x) => x.id !== id);
     mineRemote = mineRemote.filter((x) => x.id !== id);
     sharedFresh = false;
     mineRemoteFresh = false;
     emit();
-    return;
+    return null;
   }
-  if (tpl.refVideo && tpl.remoteId) {
+  const kind = templateKindOf(tpl);
+  // ★ 文字模板（P1）只存在本机，删本机那一条就是全部。万一它带着 remoteId（下一版登记过、又回到这一版的 App）：
+  //   这一版不认识服务端那一份怎么删，只删本机的话远端那条会经 mineRemote 被补回「我的模板」、还挂在市场上 —— 整句拒、本机原样保留
+  if (kind === "text" && tpl.remoteId) {
+    throw new Error(t`这个文字模板在服务器上也有一份，这一版 App 还删不了它——更新到新版再删`);
+  }
+  if (kind === "blockout" && tpl.remoteId) {
     if (!remoteOn()) {
       throw new Error(t`现在连不上服务器——这个模板在服务端还有登记（含托管的视频），联网后再删`);
     }
     const landed = await branch.deleteRemoteTemplate(tpl.remoteId);
     if (!landed) throw new Error(t`这台服务器不支持删除模板（回包形状不对，可能需要升级服务端）`);
+    if (landed.retiredRefs !== null) {
+      // ★ 退役而不是删（被公开的制作过程引用着）：本机这条**留着**（作者还要能在「我的模板」里看见它、等没人引用了再删），
+      //   只把发布位关掉、状态记成 retired
+      markRetired(tpl.remoteId);
+      tpl.published = false;
+      persist();
+      return landed.retiredRefs;
+    }
     remoteStates.delete(tpl.remoteId);
     // ★ 远端缓存里同一条也要摘掉：不摘的话本机那条一删，`myTemplates()` 立刻把远端那份
     //   补进来 —— 用户看到的是"删了它又回来了"（其实服务端已经删掉了，只是缓存没刷）
@@ -1440,6 +1606,17 @@ export async function deleteTemplateEverywhere(id: string): Promise<void> {
     registerErrors.delete(id);
   }
   deleteTemplate(id);
+  return null;
+}
+
+/** 服务端把它退役了：状态快照改成 retired、发布位关掉、市场缓存作废（条目本身留着） */
+function markRetired(remoteId: string): void {
+  const st = remoteStates.get(remoteId);
+  if (st) remoteStates.set(remoteId, { ...st, status: "retired" });
+  for (const list of [mineRemote, shared]) for (const x of list) if (x.remoteId === remoteId) x.published = false;
+  sharedFresh = false;
+  mineRemoteFresh = false;
+  emit();
 }
 
 export interface NewTemplate {
@@ -1458,6 +1635,14 @@ export interface NewTemplate {
    * 没有公网 URL 的"白模模板"连作者自己都用不了（方舟 r2v 只收 URL），存半成品是骗人。
    */
   refVideo?: VideoTemplate["refVideo"];
+  /**
+   * **文字模板**那一份（2026-10-26 文字模板 P1，形状见 types.TextTplSpec）。
+   * ★ 类型里必须有名字（CLAUDE.md「服务端加字段、本机库那几跳必须一起搬」那条坑的原话）：saveTemplate 是 `{...input}` 展开，
+   *   哪天改成逐字段搬、又漏了它，文字模板落进 mine 就成了一条 beats 为空的「经典配方模板」—— 套用被兜底整句拒，作者只看到「用不了」。
+   * ★ 与 refVideo 互斥（文字模板永远不带参考视频，saveTemplate 两样都带时整句拒）。recipe 会被 textTplRecipe(text) 覆盖（传什么都行，惯例传它）。
+   * ★ 只落本机、**不自动登记**（P1 不碰服务端；registerTemplate / setTemplatePublished 对它整句拒）。
+   */
+  text?: VideoTemplate["text"];
   /** 白模人偶的角色位（服务端登记值的镜像）。只有白模化那条路（V2）会带 */
   roles?: VideoTemplate["roles"];
   /**
@@ -1483,6 +1668,8 @@ export interface NewTemplate {
    *  `adoptBlockoutTemplate` 漏传它时 TS 连一声都不吭（CLAUDE.md 那条坑的原话）。
    *  ⚠ 它**不是** `roles[].desc`，理由写在 types.ts 的 markDescs 上 */
   markDescs?: VideoTemplate["markDescs"];
+  /** 神态（与 markSlots 对齐）。★ 类型里必须有名字 —— adoptBlockoutTemplate 漏传时 TS 才提示得了（CLAUDE.md 那条坑的原话） */
+  markExprs?: VideoTemplate["markExprs"];
   /** 那些框量自第几秒 */
   markBoxAtSec?: VideoTemplate["markBoxAtSec"];
   /**
@@ -1502,10 +1689,22 @@ export interface NewTemplate {
   remoteId?: string;
 }
 
+/**
+ * 落一条模板进本机库。
+ * @throws 文字模板那一份不合格（normTextTplSpec 的整句：作者那一屏先拦，这里是最后一道）、或与参考视频同时带着 —— 一个字都没存
+ */
 export function saveTemplate(input: NewTemplate): VideoTemplate {
+  // ★ 记在「内存里这摊活是谁的」名下（workOwner）：白模化 / 登记是几分钟的活，落库那一拍会话可能刚好失效
+  const owner = workOwner() || undefined;
+  const { text: rawText, ...rest } = input;
+  // 文字模板：先过不变量（定型正文、收拾图位与档位），recipe 由它派生 —— 同一份数据只有一处真身（textTplRecipe 的 ★）
+  if (rawText && input.refVideo) throw new Error(t`文字模板不带参考视频——这条模板的数据不对，没有存`);
+  const text = rawText ? normTextTplSpec(rawText) : undefined;
   const tpl: VideoTemplate = {
     id: uid("tpl"),
-    ...input,
+    ...rest,
+    ...(text ? { text, recipe: textTplRecipe(text) } : {}),
+    owner,
     // i18n-ignore-next-line: 落库的作者名兜底，经典配方模板在详情页按名字比对归属（身份值，不翻）
     author: currentUser()?.name ?? "我",
     createdAt: Date.now(),
@@ -1513,7 +1712,9 @@ export function saveTemplate(input: NewTemplate): VideoTemplate {
     // 那是后续「分享侧」的流程，这里只落本机
     published: false,
   };
-  mine = [tpl, ...mine];
+  // 不是现在这个人的（会话失效期间落库的那一条）：先放进暗格，等它的主人登录时分区到他那边
+  if (owner && owner !== deviceOwner()) othersMine = [tpl, ...othersMine];
+  else mine = [tpl, ...mine];
   persist();
   emit();
   // ★ 白模模板存完立刻登记到服务端（异步旁路，不挡提取器的成功画面）：
@@ -1521,7 +1722,8 @@ export function saveTemplate(input: NewTemplate): VideoTemplate {
   //   作者连自己的试炼片都出不了。失败不静默——registerTemplate 会把原因记进
   //   registerErrors 并 emit，详情页显示原因 + 「重新登记」；这里 catch 掉的只是
   //   "重复上报"（错误本体已经落在 registerErrors 里了），不是把错误吞掉。
-  if (tpl.refVideo && !tpl.remoteId) {
+  // ★ 只有白模模板登记（种类只问 templateKindOf）：文字模板 P1 只存本机、经典配方从来不登记
+  if (templateKindOf(tpl) === "blockout" && !tpl.remoteId) {
     void registerTemplate(tpl.id).catch(() => {});
   }
   return tpl;
@@ -1746,6 +1948,237 @@ export function refVideoOwnerNote(ref: VideoTemplate["refVideo"]): string | null
     return t`这个模板的白模视频只有约 ${shown} 秒，不满足 AI 出片引擎要求的 ${min}~${max} 秒，所以它没法用来出片，也不能发布。这是我们当时的校验漏掉了，不是你操作错了——你之前那几次试炼失败都没有扣费。请重新做一个模板：框选时至少选 ${floor} 秒（AI 换白模时会把成片截短零点几秒，得留出这个余量）。`;
   }
   return t`这个模板的白模视频不满足 AI 出片引擎要求的 ${min}~${max} 秒，所以它没法用来出片，也不能发布。这是我们当时的校验漏掉了，不是你操作错了——你之前那几次试炼失败都没有扣费。请重新做一个模板：框选时至少选 ${floor} 秒（AI 换白模时会把成片截短零点几秒，得留出这个余量）。`;
+}
+
+// ── 模板是哪一种：白模 / 文字 / 经典配方 ──────────────────────────────
+
+/** 模板的种类（templateKindOf 的答案） */
+export type TemplateKind = "blockout" | "text" | "classic";
+
+/**
+ * 「这个模板是哪一种」—— **唯一判据**（2026-10-26 文字模板 P1）。
+ *   · 有参考视频（refVideo）= 白模模板（r2v 逐镜头复刻，只换主体）；
+ *   · 有文字模板那一份（text）= 文字模板（一段正文 + 几个图位，套用铺一段参考图直出段）；
+ *   · 都没有 = 经典配方模板（一句话换主题，本机老数据）。
+ * ★★ 为什么必须收成一处：原来全仓按 `!t.refVideo` 当经典判，而文字模板也没有 refVideo —— 漏改一处，
+ *   它就在那一处被当成经典配方：铺成简约模式（0 段还回 true）、货架标「模型不限」、发布只翻本机布尔、档位不受限，全程零报错。
+ *   新写一个按种类分叉的地方一律问它，别再写 `tpl.refVideo ?` / `tpl.text ?`。
+ * ★ refVideo 排在前面：文字模板**永远不带** refVideo（types.TextTplSpec 的红线）；两样都有的坏数据按白模认 —— 与老 App、服务端认它的方式一致
+ *   （往文字那一侧认的话，同一条模板在老 App 上按 r2v 收钱、在这里按文字出片，两把尺）。
+ * ★ 判否定：两个字段都是后加的、缺省 = 老路，零迁移。
+ */
+export function templateKindOf(tpl: Pick<VideoTemplate, "refVideo" | "text">): TemplateKind {
+  if (tpl.refVideo) return "blockout";
+  if (tpl.text) return "text";
+  return "classic";
+}
+
+/**
+ * 文字模板那一份**能不能用**（形状对不对）—— 读文字模板的正文 / 图位 / 档位一律经它（套用、报价、货架卡面、档位标注）。
+ * null = 不是文字模板，或者形状坏了（老版本写坏的、手改过的本机库）：调用方按「这个模板用不了」处理，别拿 undefined 去 `.slots.map`。
+ */
+export function textTplSpecOf(tpl: Pick<VideoTemplate, "refVideo" | "text">): TextTplSpec | null {
+  if (templateKindOf(tpl) !== "text") return null;
+  const s = tpl.text;
+  if (!s || s.v !== 1 || typeof s.prompt !== "string" || !s.prompt.trim() || !Array.isArray(s.slots) || !Array.isArray(s.tiers)) return null;
+  if (!Number.isFinite(s.durationSec) || s.durationSec <= 0) return null;
+  // 元素也要核（审核：只核数组的话，本机库里一个 null 图位就让 textTplAppendSpec 的 .map 抛 TypeError —— 货架报价在渲染路径上调它，整块崩）。
+  // v 不认识的（将来的 v2 形状）一律当用不了，别当 v1 读
+  if (!s.slots.every((x) => !!x && typeof x === "object" && typeof x.name === "string" && !!x.name.trim())) return null;
+  if (!s.tiers.every((id) => typeof id === "string")) return null;
+  return s;
+}
+
+/**
+ * 文字模板的 recipe（VideoTemplate.recipe 在类型上必填）—— **从 text 派生的惰性一格**，套用一个字都不读它。
+ * ★ 红线：正文**不镜像**进 beats / framePrompt（types.TextTplSpec 的 ★）：哪条路漏判了种类、落进经典分支，空 beats 会被整句拒
+ *   （applyTemplate 的兜底），而不是拿正文铺成一条简约流水线。
+ * ★ saveTemplate 存文字模板时一律用它覆盖调用方给的 recipe（同一份数据只有一处真身）。
+ */
+export function textTplRecipe(spec: Pick<TextTplSpec, "durationSec" | "aspect" | "tiers">): TemplateRecipe {
+  return { styleHint: "", beats: [], durationSec: spec.durationSec, videoTier: spec.tiers[0] ?? "", aspect: spec.aspect, framePrompt: "" };
+}
+
+/**
+ * 存进本机之前把文字模板那一份收拾成不变量成立的样子 —— saveTemplate 的唯一入口，不合格整句抛（作者那一屏先拦，这里是最后一道）。
+ * 正文定型（canonTextTplPrompt：存的就是会发的样子）、图位名过 cleanRefName 并去重（大小写不分，认法同 refMentions.slotGaps）、
+ * 档位只留认得出的 id 并去重（顺序保留：第一个 = 默认档）、时长取整、画幅只认竖 / 横。
+ */
+function normTextTplSpec(raw: TextTplSpec): TextTplSpec {
+  const prompt = canonTextTplPrompt(raw.prompt, packShots);
+  if (!prompt) throw new Error(t`文字模板的正文是空的，没法存`);
+  const durationSec = Math.round(Number(raw.durationSec));
+  if (!Number.isFinite(durationSec) || durationSec <= 0) throw new Error(t`文字模板的时长不对，回规格那一步重选`);
+  // 时间轴写到的秒数比模板时长还长：后面那几秒哪一档都拍不到（审核：原来只在套用后出片前才说）
+  const need = maxTimecodeSec(prompt);
+  if (need !== null && need > durationSec) {
+    const m = Math.ceil(need);
+    throw new Error(t`正文的时间轴写到第 ${m} 秒，模板时长只有 ${durationSec} 秒——回规格那一步把时长调到 ${m} 秒以上，或者把时间轴改短`);
+  }
+  const slots: TextTplSlot[] = [];
+  for (const s of Array.isArray(raw.slots) ? raw.slots : []) {
+    const name = cleanRefName(s?.name ?? "");
+    // ★ 图位名就是使用者要补的那张临时参考图的名字（flowStore.addExtraRef 过 refNameIssue）：空的 / 保留名（图1、参考图2…）/ 重名的存进来，
+    //   套用的人一张图都补不进那个位 —— 模板从出生起就用不了，所以整句拒，不替作者改名
+    const issue = refNameIssue(name, slots.map((x) => x.name));
+    if (issue) {
+      const shown = s?.name ?? "";
+      throw new Error(t`图位「${shown}」的名字用不了（空的、与别的图位重名，或者是「图1 / 参考图2」这类编号写法）——回参考图那一步改个名字`);
+    }
+    slots.push({ name, hint: typeof s.hint === "string" ? s.hint.trim() : "" });
+  }
+  if (slots.length > TEXT_TPL_EXTRA_MAX) {
+    const max = TEXT_TPL_EXTRA_MAX;
+    throw new Error(t`文字模板最多 ${max} 个图位`);
+  }
+  // 每个图位都要在正文里被 @ 点到：没被点到的图位，使用者补了图也不知道这张图是干什么的（模型只拿到系统兜底的一句用途）
+  const unnamed = slots.find((s) => !prompt.includes(`@${s.name}`));
+  if (unnamed) {
+    const name = unnamed.name;
+    throw new Error(t`图位「${name}」在正文里没被点到——在正文里写一处「@${name}」，或者删掉这个图位`);
+  }
+  if (textTplCompiledLen(prompt, slots.map((s) => s.name)) > TEXT_TPL_PROMPT_MAX) {
+    const max = TEXT_TPL_PROMPT_MAX;
+    throw new Error(t`正文太长了：文字模板最多 ${max} 字（只有电影级收这么长；其余档 500 字）——回第一步删短一些`);
+  }
+  // 时间轴写不写秒数按正文认（不信调用方给的那一位）：带秒数的正文只有认秒数的档跑得了
+  const timecode = timecodeBeats(prompt).length > 0;
+  const shape = { prompt, slots, timecode, durationSec };
+  // 档位只留认得出、而且这条正文 + 这几个图位 + 这个时长**真跑得了**的（textTemplate.textTplTierMiss 一处判；原来只核 id，审核抓到）。
+  // 顺序保留：第一个 = 默认档（作者那一屏保证它跑得了）
+  const tiers = [...new Set((Array.isArray(raw.tiers) ? raw.tiers : []).filter((id) => typeof id === "string" && !textTplTierMissOf(shape, id)))];
+  if (!tiers.length) throw new Error(t`这条正文在选的档上都跑不了（正文长度、时间轴写法、图位数或时长对不上）——回规格那一步换一档`);
+  const aspect: VideoAspect = raw.aspect === "portrait" ? "portrait" : "landscape";
+  return { v: 1, prompt, slots, ...(timecode ? { timecode: true } : {}), durationSec, aspect, tiers };
+}
+
+/** 一档跑不了某个文字模板的原因（textTemplate.TextTplTierMiss 之外加「档位认不出」） */
+export type TextTplTierWhy = TextTplTierMiss | "unknown";
+
+/**
+ * 这个文字模板在 `tierId` 这一档上跑不跑得了 —— null = 跑得了。规则只在 data/textTemplate.textTplTierMiss，这里只把档位能力与上限喂进去：
+ * 上限按文字模板段问 economy.promptMaxOf(id, { long: true })，正文按编译之后的估计长度（textTplCompiledLen）。
+ * 作者那一屏算「能在哪几档上跑」、saveTemplate 过滤、套用后档位那一排（flowStore.textTplTierIssue）读的都是它。
+ */
+export function textTplTierMissOf(
+  spec: Pick<TextTplSpec, "prompt" | "slots" | "timecode" | "durationSec">,
+  tierId: string,
+): TextTplTierWhy | null {
+  const tier = tierOf(tierId);
+  if (tier.id !== tierId) return "unknown";
+  const slots = Array.isArray(spec.slots) ? spec.slots : [];
+  const names = slots.map((s) => s?.name ?? "");
+  return textTplTierMiss(
+    { promptLen: textTplCompiledLen(spec.prompt, names), slots: slots.length, timecode: !!spec.timecode, durationSec: spec.durationSec },
+    tier,
+    promptMaxOf(tierId, { long: true }),
+  );
+}
+
+/** 一档跑不了这个文字模板时那半句原因（作者那一屏与档位那一排共用） */
+export function textTplTierWhyText(why: TextTplTierWhy): string {
+  switch (why) {
+    case "startOnly":
+      return t`这一档只认一张起拍照片，没有参考图`;
+    case "refImg":
+      return t`这一档不收参考图，图位的图发不出去`;
+    case "slots":
+      return t`这一档一次收的参考图比图位少`;
+    case "long":
+      return t`正文比这一档放得下的长`;
+    case "timecode":
+      return t`这一档不认按秒写的时间轴`;
+    case "duration":
+      return t`模板时长在这一档的时长范围之外`;
+    default:
+      return t`这一档已经下线`;
+  }
+}
+
+/**
+ * 套用文字模板时这一段落在哪一档 —— **模板的默认档**（tiers 的第一个），这个人用不了（会员档 / 停用 / 地区）就换成 tiers 里第一个用得了的；
+ * 一个都用不了仍落默认档（出片前的门禁 account.tierBlockReason 会说清为什么、怎么办）。null = 模板里一档都认不出（数据坏了）。
+ * ★ 只在 tiers 里挑：档位那一排上别的档由 flowStore.textTplIssue 挡（模板说好在哪几档上跑，就只在那几档上跑）。
+ * ★ 与 account.usableTierId 不同：那个会换到「能力最接近」的任何一档，这里出了 tiers 就不算这个模板了。
+ */
+export function textTplStartTier(spec: Pick<TextTplSpec, "tiers">): string | null {
+  const known = spec.tiers.filter((id) => tierOf(id).id === id);
+  if (!known.length) return null;
+  return known.find((id) => !tierBlockReason(tierOf(id))) ?? known[0];
+}
+
+// ── 这个模板能在哪几个出片模型上跑 ────────────────────────────────
+
+/**
+ * 「这个模板能在哪几个出片模型上跑」—— **唯一实现**（2026-10-02，主人拍板：模板对出片模型是**硬要求**）。
+ * 货架的「出片模型」筛选、卡面与详情页的标注、按段选模板时那句说明，问的都是这一句；
+ * 「套上之后档位钉在哪」（flowStore 的三个套用入口）读的是同一个 economy.blockoutTier。
+ *
+ *   · 白模（示例视频）模板 ⇒ **恰好一档**：它的商品是"按参考视频逐镜头复刻、只换主体"，只有开着 blockoutOk 的那一档做得到
+ *     （economy.blockoutTier，今天是电影级 / Seedance 2.5）。闸门全关 ⇒ 空数组 = 现在哪一档都跑不了。
+ *     ⚠ 别拿 refVid 判：它只说明这一档能带参考视频（高清 2026-10-05 起也开着），而白模化那一发由服务端钉在 2.5，
+ *       高清跑不了白模模板 —— 两位在档位表上是分开的（videoTierTable 的 blockoutOk 那条 ★）。
+ *   · 文字模板（2026-10-26）⇒ **作者存模板时按档位能力算好的那几档**（TextTplSpec.tiers：收不收参考图、收不收长提示词 / 时间码、时长窗口）。
+ *     那是这条正文 + 这几个图位真跑得了的档，不是猜的：套用时档位只在里面挑（textTplStartTier），出片前不在里面的整句拒（flowStore.textTplIssue）。
+ *   · 经典配方模板（一句话换主题）⇒ **null = 不限**。
+ *     ⚠ 它存着的 `recipe.videoTier` **不是事实**：那是提取器写死的默认值（VideoTemplateExtractor 里的 "hd"，
+ *       apiToTemplate 的兜底也是 "hd"），没有任何一次出片为它作证 —— 拿它当"适用档位"就是替作者编了一个承诺。
+ *       套用时它只是开场值，档位那一排照常可以换。
+ *
+ * ★ 不给「解除固定」的出口（主人 2026-10-02 明确否掉）：换到别的模型不是"效果差一点"，是那个模型根本没有
+ *   这项生成能力、出片直接失败。用户该做的是**按自己能用的模型去挑模板**（货架那颗筛选），不是在模板上换模型。
+ * ★ 返回档位**对象**（不是 id）：调用方要印名字与模型名，再按 id 回表里查一次就是第二次判断。
+ * ★ 哪天"不止一档"了（开了第二档 blockoutOk，或者工作流模板进市场）：那时"哪几档"要改成**由事实定** ——
+ *   服务端试炼闸记下的 provenModels、作品逐段记的 videoTier —— 而不是在这里猜。见 docs/template-workflow-research.md §三 B。
+ */
+export function templateTiers(tpl: Pick<VideoTemplate, "refVideo" | "text">): VideoTier[] | null {
+  const kind = templateKindOf(tpl);
+  if (kind === "classic") return null;
+  if (kind === "text") {
+    // 文字模板 ⇒ 作者存模板时按档位能力算好的那几档（textTplSpecOf；认不出的 id 不算）。形状坏了 = [] = 哪一档都跑不了（与闸门全关同一种标注）
+    const spec = textTplSpecOf(tpl);
+    return spec ? spec.tiers.filter((id) => tierOf(id).id === id).map((id) => tierOf(id)) : [];
+  }
+  const tier = blockoutTier();
+  return tier ? [tier] : [];
+}
+
+/** 这个模板在 `tierId` 这一档上能不能出片（货架筛选用）。不限档位的模板对每一档都算能 */
+export function templateRunsOn(tpl: Pick<VideoTemplate, "refVideo" | "text">, tierId: string): boolean {
+  const tiers = templateTiers(tpl);
+  return tiers === null || tiers.some((x) => x.id === tierId);
+}
+
+/**
+ * 「**这个账号**的套餐用不用得了这个模板要求的出片模型」—— null = 用得了，或者还不知道套餐
+ * （同 account.tierBlockReason 的乐观口径：镜像慢半拍时宁可放行，由服务端说了算）。
+ *
+ * ★ 判据一条没新写：哪一档由 templateTiers 说，套餐由 account.tierBlockReason 说，这里只把两者接起来
+ *   （形状同下面的 blockoutizeBlockReason —— 那是"能不能**做**模板"，这是"能不能**用**模板"）。
+ * ★ 为什么要有它：模板要求的那一档（电影级）是会员档。此前免费用户套上模板、挂完卡、写完点名句，
+ *   点「生成」才第一次听说用不了。这句话要在**选模板那一步**就说出口（2026-10-07 起开通套餐或充值任意一笔都能用）。
+ * ★ 要求的档里有一档用得了就算用得了（今天恰好一档；写成 every 是给"不止一档"那天留的）。
+ * ★ 只是提示，不是安全边界：真正的拦截在服务端（免费套餐调 2.5 是 403）。
+ * ★ 原因也可能是出片地区（2026-10-26 P1）：那时「换成哪一档」的出路只指同样跑得了这个模板的档（account.tierRegionIssue 的 need）——
+ *   白模模板钉死一档，等于没有可换的；原来会指去「真人」档（选白模模板的抽屉上一行刚说「不能换别的画质档」）。
+ *   旁边画不画「去升级」只问 templatePlanUpgradeable（付钱治不了地区）。
+ */
+export function templatePlanIssue(tpl: Pick<VideoTemplate, "refVideo" | "text">): string | null {
+  const tiers = templateTiers(tpl);
+  if (!tiers?.length) return null;
+  const runs = (x: VideoTier) => tiers.some((y) => y.id === x.id);
+  const reasons = tiers.map((x) => tierBlockReason(x, runs));
+  return reasons.every((r) => r !== null) ? reasons[0] : null;
+}
+
+/**
+ * templatePlanIssue 那句话后面能不能给「去升级」：挡住他的是套餐（account.tierPlanBlocked），不是地区 / 停用 / 服务端不支持
+ * （2026-10-26 P1 审核：模板详情页原来无条件画，地区一来就挨着「你所在的地区用不了」摆一颗「去升级」，那是把人骗去付钱）。
+ * 判的是那句话说的那一档（reasons[0] 对应 tiers[0]）。
+ */
+export function templatePlanUpgradeable(tpl: Pick<VideoTemplate, "refVideo" | "text">): boolean {
+  const tiers = templateTiers(tpl);
+  return !!tiers?.length && !!templatePlanIssue(tpl) && tierPlanBlocked(tiers[0]);
 }
 
 // ── 一个模板最多有几个「能挂卡」的角色位 ────────────────────────────
@@ -2097,6 +2530,15 @@ export function boxOfLabel(
  *   它来自原片（「白发黑袍的少年」）—— 兜底进提示词就是让模型照着白模化**之前**那个人画，
  *   而参考视频里站着的是一个白人偶。缺了就是缺了，退回"只有序数"的老形状。
  */
+/**
+ * 这个角色位的人在示例视频里是什么神态（`markExprs[markSlots.indexOf(label)]`，"" = 没有）—— **唯一取值处**（flowStore 建 BlockoutCastSlot 时调它）。
+ * 连接键与 markDescOfLabel 同一个（markSlots.indexOf(label)）：作者在核对面板把某一行改成别的位置，神态由服务端跟着人搬，这里照下标取。
+ */
+export function markExprOfLabel(t: Pick<VideoTemplate, "markSlots" | "markExprs"> | null | undefined, label: string): string {
+  const i = t?.markSlots?.indexOf(label) ?? -1;
+  return (i >= 0 ? t?.markExprs?.[i] : "") || "";
+}
+
 export function markDescOfLabel(
   t: Pick<VideoTemplate, "markSlots" | "markDescs"> | null | undefined,
   label: string,
@@ -2112,8 +2554,8 @@ export function markDescOfLabel(
  * ★★ 为什么不能只问 `economy.blockoutizeIssue()`：那一个只回答**目录侧**的一半
  *   （闸门开没开、这一档有没有 r2v 价），它认不出"当前用户的套餐" —— economy 是纯目录，
  *   account 已经 import 它，反过来 import 会成环（Vite 下会拿到半初始化的模块）。
- *   而白模化**钉死走 SEEDANCE_2_5**，那正是 `paidOnly` 的那一档：免费套餐在服务端是
- *   403 PLAN_REQUIRED，而且**充值解决不了**（得换套餐）。
+ *   而白模化**钉死走 SEEDANCE_2_5**，那是会员档（freeOk 为假）：没付过钱的用户在服务端是
+ *   403 PLAN_REQUIRED（2026-10-07 起付过任何一笔就算付费用户，充值也能过这道门）。
  * ★★ 2026-08-15 对抗审查抓到的形状就是这里：整条白模化路一次都没调过
  *   `account.tierBlockReason`（全仓唯一实现，另外四个出片入口都调了），于是免费用户
  *   传完一段最大 100MB 的视频、框完选段、读完报价，**点下去才在服务端吃 403** ——
@@ -2132,14 +2574,15 @@ export function blockoutizeBlockReason(): string | null {
   const tier = blockoutTier();
   // catalog 为 null ⇒ tier 必然非空（blockoutizeIssue 的第一句就在拦 null）。
   // 这一行只为让类型闭合；真走到这里说明那两个函数分了叉
-  return tier ? tierBlockReason(tier) : null;
+  // 地区挡住时出路只指同样做得了白模的档（白模钉死一档，等于没有可换的；account.tierRegionIssue 的 need）
+  return tier ? tierBlockReason(tier, (x) => x.blockoutOk) : null;
 }
 
 // ── 两阶段与「掉线可恢复」────────────────────────────────────────
 //
 // ★★ 白模化 2026-08-15 起是**两阶段**的（此前是一条同步等到底的长请求）：
 //     ① `startBlockoutize`   服务端做完归属校验/拼变换 URL/预热/看帧/发 r2v，落一条**凭据**；
-//        —— 钱在这一刻花掉（看帧 + r2v 受理，受理后失败不退）
+//        —— 钱在这一刻扣掉（看帧 + r2v 受理；2026-10-07 起 r2v 那一笔在方舟明说失败时由服务端退回，看帧那一笔不退）
 //     ② 客户端**轮询**既有的 `GET /api/ark/contents/generations/tasks/:id`（不计费、
 //        已有独立限流桶）等出片；**不新造轮询端点**
 //     ③ `finishBlockoutize`  服务端自己向方舟核实 → 转存产物 → 建模板
@@ -2228,6 +2671,11 @@ export function blockoutJobNote(job: BlockoutJob): string {
   if (at <= 0) return t`这一发已经付过费，但服务器没说结果能留到什么时候——建议尽快取回。`;
   const left = at - Date.now();
   if (left <= 0) {
+    // ★ 会退钱的服务端上（能力位 failRefund，2026-10-07）两种情况都说：AI 那边要是失败了，出片那一笔会被自动退回
+    //   （服务端退的时候会把这张单改成 failed、换上退款那句话 —— 走到这里说明还没看到）；出成了却没取回才是真的无法挽回。
+    //   与服务端 BlockoutJob 过期那句同一个口径。老服务端照旧那一句
+    if (serverSupports("failRefund") === true)
+      return t`产物已过期：AI 出片的产物只在服务器上留 24 小时，现在已经取不回来了。如果 AI 那边其实是失败了，出片那一笔会自动退回（到账时会通知你）；如果是出成了却没来得及取回，这一发的费用无法挽回（重开一发是再花一次钱）。`;
     return t`产物已过期：AI 出片的产物只在服务器上留 24 小时，现在已经取不回来了，这一发已经付过的费用无法挽回（不是超时重来——重开一发是再花一次钱）。`;
   }
   const h = Math.floor(left / 3600_000);
@@ -2342,9 +2790,21 @@ export function pendingBlockoutIssue(): string {
 
 /** 真正去拉那一次（同一时刻只有一发在途；**唯一实现**，懒加载与强制刷新都走它） */
 function loadPendingJobs(): Promise<void> {
+  /**
+   * 这一发回来时已经换了人（2026-09-18 复核抓到）：回包丢掉之外还要在收尾时叫一次重画 ——
+   * 换人那一拍这一发还在途，新的人来问时撞上 `pendingInflight` 就没发自己那一发；回包被丢掉又不 emit 的话，
+   * 他的待取回名单要等到别的事让页面重画才会去拉。
+   */
+  let stale = false;
   pendingInflight ??= (async () => {
+    const gen = viewerGen;
     try {
       if (!(await remoteTemplatesCapable())) {
+        // 上一个人这一发的探测结论不落到这个人头上（冷却、那行提示都不给他）
+        if (gen !== viewerGen) {
+          stale = true;
+          return;
+        }
         // 瞬时网络失败（探测没缓存结论）≠ 老服务端：前者要说出来（这一屏关系到钱），
         // 后者安静 —— 老服务端连白模化入口都不渲染，说"待取回列表拉不到"只是噪音
         if (remoteOn() && capProbe === null) {
@@ -2355,6 +2815,11 @@ function loadPendingJobs(): Promise<void> {
         return;
       }
       const list = await branch.listBlockoutJobs();
+      // 换过人了：这是上一个人的待取回名单（他付过钱的那几发），不许落进这个人的界面（见 viewerGen）
+      if (gen !== viewerGen) {
+        stale = true;
+        return;
+      }
       if (list === null) {
         // 这台服务器有模板能力、但没有两阶段的 pending 端点（上一版服务端）。
         // 它那条白模化是同步跑完的（startBlockoutize 的 legacy 分支），本来就没有
@@ -2370,6 +2835,11 @@ function loadPendingJobs(): Promise<void> {
       pendingIssue = "";
       emit();
     } catch (e) {
+      // 上一个人的失败同样不落到这个人头上（冷却、那行红字都不给他）
+      if (gen !== viewerGen) {
+        stale = true;
+        return;
+      }
       const why = e instanceof Error ? e.message : String(e);
       pendingIssue = t`还没取回的白模化结果拉取失败：${why}`;
       pendingRetryAt = Date.now() + 15_000;
@@ -2377,6 +2847,7 @@ function loadPendingJobs(): Promise<void> {
     }
   })().finally(() => {
     pendingInflight = null;
+    if (stale) emit();
   });
   return pendingInflight;
 }
@@ -2423,8 +2894,8 @@ const BLOCKOUT_POLL_TOLERATE = 5;
 
 type TaskOutcome =
   | { kind: "succeeded" }
-  /** 方舟明说这一发失败/取消了。★ 仍然要去 finish：由服务端向方舟核实并结案，
-   *  「到底扣没扣钱」那句话只能由服务端说（客户端报的数不作数） */
+  /** 方舟明说这一发失败 / 取消 / 过期了。★ 仍然要去 finish：由服务端向方舟核实并结案（2026-10-07 起出片那一笔在这一步退回），
+   *  「到底退没退钱」那句话只能由服务端说（客户端报的数不作数） */
   | { kind: "failed" }
   /** 轮不动 / 等到点了 —— **不许当成失败**（结果可能好好的，只是我们没看到） */
   | { kind: "unknown"; note: string };
@@ -2478,7 +2949,8 @@ async function waitBlockoutTask(taskId: string, prog: (s: string) => void): Prom
           : t`AI 正在把画面里的人换成一模一样的纯白色人偶：${status} ${sec}s（可以退出，24 小时内都能回「我的模板」取回结果）`,
     );
     if (st.status === "succeeded") return { kind: "succeeded" };
-    if (st.status === "failed" || st.status === "cancelled") return { kind: "failed" };
+    // expired（超过 execution_expires_after 被方舟终止）也是终态：原来不认它，这里会一直等到 12 分钟再说「没接到」
+    if (st.status === "failed" || st.status === "cancelled" || st.status === "expired") return { kind: "failed" };
   }
   return { kind: "unknown", note: t`等了 12 分钟还没出片（任务还在方舟那边跑，不是失败）。` };
 }
@@ -2523,6 +2995,8 @@ function adoptRemoteTemplate(api: branch.ApiBranchTemplate, missingRefMsg: strin
     ...(mapped.markBoxes?.length ? { markBoxes: mapped.markBoxes } : {}),
     // 人偶描述：与框各自独立（框没量出来 ≠ 描述没验过），所以单独一个存在性判断
     ...(mapped.markDescs?.length ? { markDescs: mapped.markDescs } : {}),
+    // 神态：同批搬（这条路产出的记录会被直接塞进 applyTemplate，等不到下一次刷新补回来）
+    ...(mapped.markExprs?.length ? { markExprs: mapped.markExprs } : {}),
     ...(mapped.markBoxAtSec !== undefined ? { markBoxAtSec: mapped.markBoxAtSec } : {}),
     // 分段组归属：存在性搬运（白模化那条路没有它，分段登记的每一段都有）。
     // ★ 漏了它 = 组在 mine 里散架（见 NewTemplate.group 的 ★），且 mineRemote 那份带着组、
@@ -2537,6 +3011,21 @@ function adoptBlockoutTemplate(api: branch.ApiBranchTemplate): VideoTemplate {
     api,
     t`结果取回来了，但服务器返回的模板缺少参考视频地址——钱在开炼那一步已经付过，请去「我的模板」确认后再决定要不要重来。`,
   );
+}
+
+/**
+ * 取回结果（finish）那一发；**失败时顺手刷一次钱包**。
+ * ★ 2026-10-07 起方舟明说失败的那一发，服务端在 finish 这一步把出片那一笔退回（BlockoutJob 的结局那句话会说「已退回」），
+ *   而这条回包不带钱包响应头 —— 不刷的话通知 / 那句话说「退了」，「我的」页那个数还是扣之后的。钱包镜像只认服务端的数，
+ *   App 从不自己往上加（account.syncRemoteWallet 那条 ★）。只读、不花钱，失败的每一种都刷（判不准哪一种退了钱，多刷一次永远安全）。
+ */
+async function finishAndSync(jobId: string): ReturnType<typeof branch.finishBlockoutize> {
+  try {
+    return await branch.finishBlockoutize(jobId);
+  } catch (e) {
+    void refreshRemoteWallet();
+    throw e;
+  }
 }
 
 /**
@@ -2563,7 +3052,7 @@ async function takeBlockoutResult(job: BlockoutJob, prog: (s: string) => void): 
     }
   }
   prog(t`正在取回结果：服务端会自己向方舟核实，再把产物转存下来（这一步不额外花钱）…`);
-  const res = await branch.finishBlockoutize(job.jobId);
+  const res = await finishAndSync(job.jobId);
   dropPendingJob(job.jobId);
   prog(t`白模模板已生成`);
   return adoptBlockoutTemplate(res.template);
@@ -2589,7 +3078,7 @@ export async function resumeBlockoutize(
     // 缓存里没有（列表还没到货 / 换了设备）也不该拦着：jobId 在手就能取，
     // 归属由服务端按 ownerId 把关。这时没有 taskId，直接去 finish 让服务端核实。
     prog(t`正在取回结果…`);
-    const res = await branch.finishBlockoutize(jobId);
+    const res = await finishAndSync(jobId);
     dropPendingJob(jobId);
     return adoptBlockoutTemplate(res.template);
   }
@@ -2665,7 +3154,7 @@ export interface BlockoutizeInput {
  *     两份一起漂时没有任何症状。而且窗口不满足是 **400 且 billed:false** ——
  *     不涉及钱，不需要客户端多设一道闸。
  * ★ 不做真人脸门禁：浏览器 FaceDetector 覆盖率极低，漏报比不检查更坏。开炼前那句
- *   「含真人面孔时 AI 可能受理后才拒绝、费用不退」由 BlockoutTrimmer 常驻告知（方案 §三），
+ *   「含真人面孔时 AI 可能受理后才拒绝」（出片那笔退回、看帧那笔不退；老服务端都不退）由 BlockoutTrimmer 常驻告知（方案 §三），
  *   这里只负责把服务端回的 `billed` 原样带给调用方（branch.BlockoutizeError）。
  * @throws message 可直接显示；`branch.BlockoutizeError` 还带一位 `billed`
  */
@@ -2722,7 +3211,7 @@ export async function blockoutizeTemplate(o: BlockoutizeInput): Promise<VideoTem
   if (!canAfford(cost)) {
     const price = fmtTokens(cost);
     throw new Error(
-      t`这一发白模化预估要 ${price} token（看帧认人 + 一次真实付费出片），余额不够——去「我的」页充值后再回来，框选不会丢。`,
+      frozenNote() ?? t`这一发白模化预估要 ${price} token（看帧认人 + 一次真实付费出片），余额不够——去「我的」页充值后再回来，框选不会丢。`,
     );
   }
 
@@ -2819,7 +3308,7 @@ export async function blockoutizeTemplate(o: BlockoutizeInput): Promise<VideoTem
     expiresAt: toMs(started.job.expiresAt) ?? 0,
     createdAt: Date.now(),
   };
-  // ★★ 到这一行为止，钱**已经花掉了**（看帧 + r2v 受理，受理后失败不退）。所以这一行
+  // ★★ 到这一行为止，钱**已经扣了**（看帧 + r2v 受理；之后方舟明说失败的话 r2v 那一笔由服务端退回）。所以这一行
   //   要做的第一件事不是"接着等"，而是把这一发**记成一条待取回的凭据**：从现在起
   //   无论轮询挂掉、用户切后台、还是进程被系统回收，「我的模板」那个恢复入口都在。
   //   （本机这份只是让入口**当场**就亮起来；真正保命的是服务端那份 —— 进程被回收时

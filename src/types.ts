@@ -138,10 +138,13 @@ export interface AspectSpec {
   desc: string;
 }
 
-/** 一段视频可选的时长（秒）。★ 唯一一份：方案台与「本段设置」都从这里取 ——
- *  在此之前 FlowPage 与 PlanBoard 各写了一份同样的数组。
+/** 一段视频可选的时长（秒）—— 所有档位都摆的那几档。★ 按钮上摆哪几个只问 `economy.durationChoices`
+ *  （它把下面的长段几档按档位的 maxSec 接上去）；本段设置、方案台、画布自定义车道三处都读它 ——
+ *  在此之前 FlowPage 与 PlanBoard 各写了一份同样的数组，画布自定义车道还另写了一份 [3, 5, 8, 10]。
  *  ⚠ 各档位还有自己的下限（VideoTier.minSec），能不能选那一档由那边判，别在这里筛。 */
 export const DURATIONS = [3, 5, 6, 8, 10];
+/** 长段（2026-10-03 主人拍板「段时长放开」）：只有 maxSec 够得着的档位摆出来（高清到 15、电影级到 30），见 economy.durationChoices */
+export const LONG_DURATIONS = [12, 15, 20, 30];
 
 // ★ label / desc 是界面文案，用 getter 读到时现翻（理由见 liveLabels）；promptHint 进 Seedream 提示词，冻结中文
 export const VIDEO_ASPECTS: AspectSpec[] = [
@@ -154,8 +157,16 @@ export const VIDEO_ASPECTS: AspectSpec[] = [
     frameSize: "1440x2560",
     w: 720,
     h: 1280,
+    /**
+     * ★★ 2026-09-24 实测：这句话里原来有「**手机**全屏画面」四个字，而 Seedream 4.0 把它当**内容**画了 ——
+     *   同一批参考图、同一段剧情出的 3 张设定帧，**3/3 都在画面外圈画了一部手机**（圆角边框 + 刘海），
+     *   人物被塞进"屏幕"里；只把「手机」二字去掉、其余逐字不变的那一发（对照 1/1）干干净净。
+     *   ⚠ 后果不止"设定帧里多了个手机"：帧会当参考图 / 首帧发给 Seedance（segmentGen 的 framesAsRefs），
+     *   那圈边框会被一起拍进成片，全程零报错。
+     * ⚠ 这句话是**构图暗示**，size 参数只决定画布 —— 所以不能整句删掉（删了竖屏画布上会出横构图）。
+     */
     // i18n-ignore-next-line: 进 Seedream 提示词的构图暗示，冻结中文（规格 §2.5）
-    promptHint: "竖版 9:16 手机全屏画面，主体居中偏上，上下留出呼吸空间",
+    promptHint: "竖版 9:16 全屏画面，主体居中偏上，上下留出呼吸空间",
     get desc() {
       return i18n._(msg`首页全屏铺满（短视频默认）`);
     },
@@ -215,9 +226,12 @@ export function aspectFromSize(w: number, h: number): VideoAspect {
  *   （唯一入口 data/cardViews.ts）。
  * ★ `kind` 不是装饰。方舟提示词指南原文：「人物参考使用大头照 + 全身照即可，
  *   **不建议使用人物多视图**。多视图素材包含同一人物的不同角度，模型易将其识别为
- *   多个不同主体，反而加剧 ID 漂移问题。」所以人物卡的推荐组合是 face + body 两张，
- *   UI 文案和取图顺序都按这条走 —— **不要**把用户往"三视图/多角度"上引导。
- *   道具/场景卡没有这个问题（它们不承担"主体身份"），多角度反而有帮助。
+ *   多个不同主体，反而加剧 ID 漂移问题。」所以人物卡的推荐组合仍是 face + body 两张，
+ *   **取图顺序**按这条走（ai/real 的 ROLE_ORDER）。
+ *   ⚠ 但"不许出现多视图"这半句 2026-09-23 起**不再成立**：那一次我们自己付费实测（8 发 hd），
+ *   多送一张三视图 / 规格稿没有复现指南说的"识别成多个主体"，于是改成**作者逐张决定**
+ *   （卡片页的「出片用 / 仅展示」→ `role`）。UI 文案因此也别再反过来说"多视图一定会坏事"。
+ *   道具/场景卡本来就没有这个问题（它们不承担"主体身份"），多角度反而有帮助。
  */
 export interface CardView {
   /** http(s) 永久地址。★ 不接受 dataURL，理由见上 */
@@ -237,11 +251,15 @@ export interface CardView {
    * ★★ 与 `tag` 分家是本设计的地基：`tag` 一旦是自由文本，管线就没法再回答
    *   "这张图该不该喂给模型"。合成一位的下场是同一个词在两档方案里管线行为相反 ——
    *   而那正是**静默扣错钱**的形状（详情页标着"出片用"、模型根本没收到）。
-   * ★ `display` 是**新增**的那一态，也是"提示词方案"能灵活的关键：方案产出的
-   *   **合成规格图**（左右分栏的设定稿、三视图、多肖像拼版）对人极有用，但方舟指南
-   *   原文说多视图素材「模型易将其识别为多个不同主体，反而加剧 ID 漂移」——
-   *   拿它当人物参考图是**主动把画面变差**。所以这类图一律 `display`：只展示、
-   *   永不进模型、也**不按"出片用"收费**。
+   * ★★ `display` = **作者说了这张只展示**（2026-09-23 起）。它原来的含义是"合成规格图
+   *   （分栏设定稿 / 三视图 / 多肖像拼版）一律不准进模型"，依据是方舟指南那句「多视图素材……
+   *   模型易将其识别为多个不同主体，反而加剧 ID 漂移」—— 而我们自己付费实测了一次（8 发 hd，
+   *   同素材同剧情：面部+全身 / 再加规格稿 / 再加三视图），**没复现**；真复现出来的是另一件事：
+   *   多送的那张与主图不一致时，模型听多送的那张。所以这一票交给作者（卡片页上每张图都能改
+   *   「出片用 / 仅展示」→ data/cardViews.setCardViewRole），内置方案只给默认值
+   *   （三视图 / 规格稿默认 aux，原片截图仍是 display）。实测细节见 data/promptSchemes 文件头 ★★★②。
+   * ★ 改这一票**两个方向都不花钱**：出片价 = 时长 × 档位（data/economy.segmentCost），
+   *   与这一段带几张参考图无关。所以界面上不必、也不许把它说成"会多收费"。
    */
   role?: CardRole;
   /**
@@ -357,8 +375,8 @@ export const CARD_SUMMARY_MAX = 2000;
 export const ROLE_LABELS: Record<CardRole, { label: string; hint: string }> = {
   face: liveText(msg`锁脸`, msg`面部特征与发型发色，出片时优先喂给 AI`),
   primary: liveText(msg`锁主体`, msg`服装、体型与整体造型；也是这张卡的卡面`),
-  aux: liveText(msg`补充参考`, msg`参考图预算还有余时才轮到它`),
-  display: liveText(msg`只展示`, msg`永不进模型（三视图/规格稿这类多视图会让 AI 认错人）`),
+  aux: liveText(msg`补充参考`, msg`三视图/规格稿/细节特写这类：预算还有余时才轮到它`),
+  display: liveText(msg`只展示`, msg`只在卡片页看，出片时不发给 AI（作者随时能改回「出片用」）`),
 };
 
 /**
@@ -374,6 +392,16 @@ export function roleOf(view: Pick<CardView, "kind" | "role">): CardRole {
   const r = view.role;
   if (r === "face" || r === "primary" || r === "aux" || r === "display") return r;
   return view.kind === "face" ? "face" : view.kind === "body" ? "primary" : "aux";
+}
+
+/**
+ * 这张图出片时**能不能交给模型** —— 唯一判据：作者在卡片页标成「仅展示」（role = display）的不能。
+ * 参考图分配（ai/real.allocatable）与真人档的起拍画面（studio/segmentGen 的 minimax 分支）共用。
+ * ★ 2026-09-30 抽出：真人档那一支原来直接拿 `viewsOf(card)` 的第一张起拍，作者标的「仅展示」在那条路上
+ *   不作数（ROLE_LABELS.display 明写着"出片时不发给 AI"）—— 同一条规则只在一条路上兑现。
+ */
+export function feedsModel(view: Pick<CardView, "kind" | "role">): boolean {
+  return roleOf(view) !== "display";
 }
 
 /**
@@ -488,7 +516,8 @@ export const CARD_SLOTS: Record<CardType, readonly CardSlot[]> = {
   character: [
     liveSlot("body", msg`全身立绘`, msg`服装、体型与整体配色`),
     liveSlot("face", msg`面部特写`, msg`面部特征与发型发色`),
-    liveSlot("detail", msg`标志性细节`, msg`随身物、纹样或疤痕`),
+    // ★ 锁「身上佩戴的」不锁「随身物」（2026-09-18）：手里拿的东西是道具卡的事（ai/cardScope），锁进人物卡就每一段都拿着它
+    liveSlot("detail", msg`标志性细节`, msg`身上佩戴的饰物、纹样或疤痕`),
   ],
   scene: [
     liveSlot("body", msg`全景主视图`, msg`空间结构、地貌与建筑轮廓及整体色调`),
@@ -522,19 +551,56 @@ export const CARD_SLOTS: Record<CardType, readonly CardSlot[]> = {
  */
 export const VIDEO_PROMPT_MAX = 400;
 
+/**
+ * 2.x 两档（高清 / 电影级）的提示词上限。哪一档用哪个数只问 `economy.promptMaxOf`。
+ *
+ * ★ 出处（2026-10-03 查，官方「创建视频生成任务」文档 content.text 一节）：「中文提示词不超过 500 字，英文提示词不超过 1000 词。
+ *   字数过多易导致信息分散，模型可能忽略细节」—— 是**建议值**不是协议硬顶，所以我们顶到建议值为止、不再往上放。
+ *   上面那个 400 是 1.x 两档时期定的（2.x 没另量过）；分镜表（一段几个镜头 + 台词）在 400 里放不下：
+ *   系统自己的点名句、时序句、素材设定就要占掉两三百字。
+ * ★ 白模复刻段仍按 400 算（它的预算在 studio/blockoutPrompt 里按 400 反推过，没必要跟着动）。
+ */
+export const VIDEO_PROMPT_MAX_V2 = 500;
+
 /** 身份句上限。60 是按提示词预算反推的：8 张卡 × 60 字 = 480 已超 VIDEO_PROMPT_MAX，
  *  所以出片侧只给**人物卡**用整句，其余卡种仍是短句（见 segmentGen.materialText） */
 export const ID_LINE_MAX = 60;
 
 /**
- * 这张卡在**视频提示词**里的那一句 —— 唯一实现（铁律六：兜底只写这一处）。
- * 有 idLine 用 idLine；老卡/自传图卡退回「名字：简介前 40 字」（正是 2026-08-28 之前
- * 的老行为，所以存量卡的出片提示词一个字不变）。
+ * 文字版形象描述（Card.textDesc，按模型适配）的上限。比出片句长：它要在**没有图**时独自撑起这张卡的样子；
+ * 又不能太长：它进的是同一个 VIDEO_PROMPT_MAX 预算，挤掉的是用户写的正文（segmentGen 的 room 从正文下刀）。
+ * ★ 跨仓：server 那边上限放到 200 兜住长文，本端写入一律按这个数截。
+ */
+export const TEXT_DESC_MAX = 100;
+
+/**
+ * 这张卡能不能有「起拍画面」（Card.startFrames；卡片页那个勾选框 2026-10-26 之前叫「真人档适用」）—— **唯一判据**：卡片页那个勾选框、画起拍画面那一步、
+ * 出片时取起拍画面（segmentGen.startSourceOf）、本段设置里那句提示（cardFitNote）都只问它。
+ * · 只有"画面主体"画得出一个开场镜头：人物 / 场景 / 道具（风格卡是一种画法，背景卡只以文字参与）；
+ * · ★ 真人卡不给（2.57 发版复核抓到）：真人档本来就拿卡上的**照片**起拍 —— 那正是这一档存在的理由；
+ *   而画起拍画面要把那张照片当参考图交给方舟 Seedream，方舟拒收真人照片（见 account.realFaceIssue 那几句实测），
+ *   勾了只会失败。更糟的是 cardFitNote 原来会在每一段「真人卡 + 真人档」上提示去勾它 —— 把这一档的主用法往死路上引。
+ */
+export function startFramesAllowed(
+  c: Pick<Card, "type" | "realPerson">,
+): c is Pick<Card, "type" | "realPerson"> & { type: "character" | "scene" | "prop" } {
+  if (c.type === "character") return c.realPerson !== true;
+  return c.type === "scene" || c.type === "prop";
+}
+
+/**
+ * 这张卡在**出片提示词**里的那一句 —— 唯一实现（铁律六：兜底只写这一处）。
+ * 有 idLine 用 idLine；没有的（老卡、没写出片句的自传图卡）**只报卡名** —— 背景卡除外：它的简介就是故事本身。
+ * ★★ 2026-09-18 改（主人真机）：原来兜底「名字：简介前 40 字」。简介是给人看的一句话，AI 按照片写的时候会把照片里的
+ *   别的东西一起写进来 ——「窝在房间里握着手柄惬意玩乐」—— 而这一句进的是视频提示词里「必须严格遵守」的素材设定
+ *   与设定帧的角色绑定句，于是每一段都被逼着画出手柄和房间。人物的长相靠形象图（与出片句）锁，不靠简介；
+ *   各卡种该写什么见 ai/cardScope。
  */
 export function idLineOf(c: Card): string {
   const line = (c.idLine || "").trim();
   if (line) return line.slice(0, ID_LINE_MAX);
-  return `${c.name}${c.summary ? `：${c.summary.slice(0, 40)}` : ""}`;
+  if (c.type === "background") return `${c.name}${c.summary ? `：${c.summary.slice(0, 40)}` : ""}`;
+  return c.name;
 }
 
 /**
@@ -575,7 +641,7 @@ export const CARD_SLOT_PROMPT: Record<CardType, readonly CardSlot[]> = {
   character: [
     { kind: "body", label: "全身立绘", locks: "服装、体型与整体配色" },
     { kind: "face", label: "面部特写", locks: "面部特征与发型发色" },
-    { kind: "detail", label: "标志性细节", locks: "随身物、纹样或疤痕" },
+    { kind: "detail", label: "标志性细节", locks: "身上佩戴的饰物、纹样或疤痕" },
   ],
   scene: [
     { kind: "body", label: "全景主视图", locks: "空间结构、地貌与建筑轮廓及整体色调" },
@@ -661,6 +727,25 @@ const BUILTIN_SLOT_LABEL: Record<BuiltinSlotId, MessageDescriptor> = {
   specSheet: msg({ message: "设定规格稿", comment: "内置方案的图位名：≤24 个字符（另存为后原样成为用户方案的图位名，服务端上限 24）" }),
 };
 
+/** 产出**多视图设定稿**的那两个内置图位（一张图里画同一个人的好几个角度 / 好几栏） */
+const SHEET_SLOT_IDS = ["mannequinTurnaround", "specSheet"] as const;
+
+/**
+ * 这张图是不是**多视图设定稿**（内置图位「白模三视图」「设定规格稿」的产物）。
+ *
+ * ★★ 它只决定**措辞**：绑定句里要不要多说一句「这几个角度是同一个人，不是多个人；别把分栏网格画进画面」
+ *   （ai/real 的 SHEET_CLAUSE）。**绝不决定"谁进模型"** —— 那一票只看 `role`（见 CardView.role 的 ★★）。
+ *   ⚠ 这条区别是本函数能存在的全部理由：`tag` 是自由文本、还会随界面语言变，拿它当分配判据是明令禁止的
+ *   （CardView.tag 的 ★）；拿它挑一句话的措辞则可以 —— 认错了的后果只是多一句或少一句没有害处的说明。
+ * ★ 两种写法都认：冻结原名（内置方案铸出来的卡存的就是它）与当前界面语言的显示名
+ *   （英文界面下「另存为」的副本把显示名原样当成了图位名，见 BUILTIN_SLOT_ZH ②）。
+ */
+export function isSheetView(view: Pick<CardView, "tag">): boolean {
+  const tag = (view.tag ?? "").trim();
+  if (!tag) return false;
+  return SHEET_SLOT_IDS.some((id) => tag === BUILTIN_SLOT_ZH[id] || tag === builtinSlotLabel(id));
+}
+
 /** 按图位 id 取内置图位的界面显示名；不是内置图位回 undefined（只认自有属性，理由同 builtinSlotZh） */
 export function builtinSlotLabel(id: string): string | undefined {
   return Object.prototype.hasOwnProperty.call(BUILTIN_SLOT_LABEL, id) ? i18n._(BUILTIN_SLOT_LABEL[id as BuiltinSlotId]) : undefined;
@@ -730,6 +815,12 @@ export interface Card {
    * 给市场卡当个"不至于全是 0"的门面，展示时必须说清它是种子值。
    */
   hot?: number;
+  /**
+   * 这张卡的关键词（进提示词）。
+   * ★ 与 `VideoItem.tags` 同名不同物：那是**作品**的话题标签（发布页填、给人找内容用），这是一张卡的关键词。
+   *   两个层级同名的字段 `rg tags` 会一起命中 —— 2026-08-30 的审计就把这一份误认成"作品的 tags 早就有了"
+   *   （CLAUDE.md「两个层级上有同名字段」那格），所以两边互相点名（那边的 ★ 也指回这里；2026-10-15 教材人格评审补）。
+   */
   tags?: string[];
   /** 3D 建模文件（glb/glbx）：有值则卡详情显示全息实体预览（3D 风格视频的角色卡） */
   modelUrl?: string;
@@ -738,7 +829,7 @@ export interface Card {
   genPrompt?: string;
   /**
    * 固定身份句（≤60 字）：出片提示词里代表这张卡的那一句。铸卡时由豆包随文案一并产出
-   * （名字 + 2~3 个不变的视觉特征 + 标志物，**不写性格词**）。
+   * （2~3 个不变的外形特征，只写这张卡本身、**不写性格词** —— 各卡种写什么见 ai/cardScope；2026-09-18 起不再带名字与「标志物」）。
    *
    * ★★ 为什么不直接把 genPrompt 塞进视频提示词（2026-08-28 调研钉死，来源见
    *   docs/backlog.md 2.9）：方舟官方明说"主体用 2~3 个稳定静态特征描述、勿贴长文，
@@ -746,14 +837,30 @@ export interface Card {
    *   长设定归图（genPrompt→Seedream），短身份句归片（idLine→Seedance）。
    * ★ 铸卡时一次性压好而不是出片时现压：零新增调用/延迟，且每段拿到**同一句**
    *   （逐镜复用同一措辞本身就是一致性手段——Sora/CHAR 都这么讲）。
-   * ★ 缺省 = 老卡/自传图卡：读侧一律走 idLineOf()（兜底"名字+简介"，老行为），
+   * ★ 缺省 = 老卡/没写出片句的自传图卡：读侧一律走 idLineOf()（2026-09-18 起兜底只报卡名，简介不进出片），
    *   绝不在调用点各写一份兜底。
    */
   idLine?: string;
   /**
+   * 按模型适配（2026-09-30，主人点名）：**文字版形象描述** —— 收不到这张卡的形象图的出片
+   * （标准 / 极速 = Seedance 1.0 协议上没有参考图；真人档里不当起拍画面的卡；参考图预算挤掉的卡）
+   * 用这一段替代图片。卡片页勾「标准/极速适用」时由 AI 看卡上的图写好（≤TEXT_DESC_MAX 字，可改）。
+   * 缺省 = 没勾。★ 用不用它只在 segmentGen.materialText 一处判（按"这一发谁的图没进模型"）。
+   */
+  textDesc?: string;
+  /**
+   * 按模型适配：真人档（海螺只认一张起拍画面）的**起拍画面**，按画幅各一张。卡片页勾「起拍画面（… 用）」时（2026-10-26 之前叫「真人档适用」；括号里是读它的模型，判据是档位表的 startOnly，不按档位名）
+   * 由 AI 按卡上的图画好。缺省 = 没勾（真人档照旧拿卡上的图起拍）。远端模式只会是 http(s)，离线模式可以是 dataURL。
+   * ★ 真人卡没有这一格（startFramesAllowed）：真人档直接以照片起拍。服务端把作品快照下发给别人时仍与 views 一起扣
+   *   （真人卡就算带着老数据，也不会把同一张脸发出去）。
+   */
+  startFrames?: Partial<Record<VideoAspect, string>>;
+  /**
    * 铸这张卡时用的出图档位（data/economy.IMAGE_TIERS 的 id）。
    * ★ 缺省 = 老卡，一律当默认档读（imageTierOf 的兜底）；**不要**拿它和某个值等值判，
    *   存量卡这一项全是 undefined，等值判会把它们整批算成"另一档"且一点不报。
+   * ★ 2.63 之前铸的卡可能存着 "studio"（「定妆」，2026-10-10 撤掉的那一档）：原样留着、照常显示，
+   *   读的话同样落到默认档（理由见 economy.IMAGE_TIERS 的 ★★）。别为它写迁移、也别把它改写成别的 id —— 它只是一条历史记录。
    */
   imageTier?: string;
   /**
@@ -833,7 +940,12 @@ export type GenMode =
   | "ref-images" // 参考图生视频（reference_image：卡片形象图 / 设定帧当参考图）
   | "reference" // 参考视频 + 参考图（素材参考，reference 子任务）
   | "edit" // 参考视频逐镜复刻（白模 / 返修，edit 子任务）
-  | "minimax"; // 真人档首帧图生视频（MiniMax）
+  | "extend" // 参考视频向后延长（extend 子任务；产物只有新的一截，2026-10-05「修这一段 · 延长」）
+  | "minimax" // 真人档首帧图生视频（MiniMax）
+  // 电影级「样片」两步（2026-10-07）：draft = 第一步（槽位照普通出片摆，480p + draft:true，价钱按 economy.draftStepTokens）；
+  // draftFinal = 第二步（只带样片任务号，升成 1080p，价钱按 economy.draftFinalTokens）。判定仍只在 real.genModeOf
+  | "draft"
+  | "draftFinal";
 
 /**
  * 一套方案的**结构化镜头字段**（2026-09-06，对标 updream 分镜 Skill 输出的六个字段里我们缺的三个）。
@@ -893,7 +1005,12 @@ export interface Proposal {
   firstFrame: string;
   lastFrame: string;
   durationSec: number;
-  /** 真实 AI 构建下 Seedream 没出图、帧是本地占位图（合成前会先重画真帧） */
+  /**
+   * 推演时 Seedream 没把帧画出来。**只管渲染**（方案台写一句「出片前会补画」），一个出片判据都不参与。
+   * ★ 现状（2026-10-15 教材人格评审改掉过期说法；原来写「帧是本地占位图（合成前会先重画真帧）」—— 那条重画分支 2026-09-10 已删）：
+   *   新推演里没画出来的那张帧是**空串**（ai/real 推演那一段的 ★★）；只有老草稿 / 回炉工程里「为真且两张帧都不空」= 占位图还躺在字段里，
+   *   怎么认只在 flowStore.placeholderFrames 一处（usableFrames 与 genNode 失败写回补画帧那一拍都读它）。
+   */
   degraded?: boolean;
   /** 用户亲手换过的帧（在方案卡上传的本地图）。
    *  ★ AI「按修改重新生成本方案」时**不许动**被锁的那一帧——用户上传的图意思是
@@ -902,8 +1019,46 @@ export interface Proposal {
   pinned?: { first?: boolean; last?: boolean };
   /** 结构化镜头字段（景别 / 运镜 / 情绪节拍），见 ShotSpec */
   shot?: ShotSpec;
-  /** 返修（flowStore.genNode 的 opts.revise）之前那一版成片地址：返修一次覆盖一次，只留最近一版可还原（restoreProposalVideo） */
+  /** 返修（flowStore.genNode 的 opts.revise）之前那一版成片地址：返修一次覆盖一次，只留最近一版可还原（restoreProposalVideo）。
+   *  样片定稿也走这一格：定稿之后上一版就是那条 480p 样片 */
   prevVideoUrl?: string;
+  /**
+   * 电影级「样片」（2026-10-07 主人拍板）：先出一段 480p 样片（方舟 2.5 的 draft 模式）看效果，满意再按**同一个任务号**升成 1080p 成片。
+   * 这几格是第一步出片那一拍写下的（flowStore.genNode / 取回时 draftPatchOfJob）：
+   *   draftTaskId 样片的方舟任务号 —— 定稿只认它（方舟规定样片 7 天有效，我们放到差 1 小时，economy.DRAFT_VALID_MS）；
+   *   draftAt     受理时刻（ms），倒计时按它算（服务端另按自己的登记与方舟的 created_at 取早的那个，客户端只是提示）；
+   *   draftDur / draftRatio 第一步送进请求体的整数时长与画幅 —— 定稿报价（economy.draftFinalTokens）按它们算，服务端按同样两样结算；
+   *   draftUrl    样片那一条成片现在的地址；finalUrl 定稿出来的那一条（1080p）。
+   * ★★ 「这一段现在放的是样片 / 成片」**不存一个状态字段**，按「现在放的是哪一条」现算（flowStore.draftStageOf）：
+   *   「还原上一版」会把 videoUrl 与 prevVideoUrl 对调、返修会换成第三条 —— 存一个 stage 的话三条路各要记得改它，漏一条就是
+   *   对着一段返修过的 720p 片子摆「定稿」键（付费升的是另一条样片）。两个地址跟着转存一起换（flowStore.adoptPermanentUrl）。
+   */
+  draftTaskId?: string;
+  draftAt?: number;
+  draftDur?: number;
+  draftRatio?: string;
+  draftUrl?: string;
+  finalUrl?: string;
+  /**
+   * 由**返修**出的、文件本身**无声**的那几条成片的地址。2026-10-05 之前返修走白模同一条 edit 任务、钉着 generate_audio:false，
+   * 每一条返修都无声、都记在这里；之后返修走 arkClient.REVISE_TASK、档位能出声就出声，只有出不了声的那一档才记
+   * （flowStore.genNode，判据 economy.videoAudioOn）。老草稿里已有的条目照旧认 —— 它们确实无声。
+   * ★ 为什么记地址不记一个布尔（2026-09-18，2.46 发版复核抓到「返修段的『没有声音』提示不准」）：「还原上一版」会把
+   *   videoUrl 与 prevVideoUrl 对调，布尔跟不上这一对调；记地址的话「现在放的这条是不是返修出的」只要问它在不在这里。
+   * ★ 只给组稿那一拍算 VideoSegment.hasAudio 用（studioStore.finalizeInner）；最多留几条，够覆盖「返修 → 再返修 → 还原」。
+   */
+  silentVideos?: string[];
+  /**
+   * 由**返修**出的、文件本身**有声**的那几条成片的地址 —— 与 silentVideos 是一对：2026-10-05 起返修走 arkClient.REVISE_TASK，
+   * flowStore.genNode 按 economy.videoAudioOn 二选一记进其中一份；转存换地址时两份一起换（flowStore.adoptPermanentUrl）。
+   * ★ 为什么要单记（2.62 发版评审抓到）：**白模段**（以及取回安放的白模段）「有没有声」原来全按模板判 —— 白模成片走
+   *   BLOCKOUT_TASK 的 generate_audio:false、恒无声，所以组稿报 hasAudio=false（剪辑页藏掉它的原声滑杆）、回看叠模板原声、
+   *   合并预置模板原声。返修过之后现在放的这条自带 AI 重做的声音，照老规矩办就是两层声，而这一段自己的声音还调不了。
+   *   普通段本来就按档位判，记不记都一样（记着也对）。
+   * ★ 「现在放的这条是不是出声的返修」只问 flowStore.reshotWithSound（组稿 hasAudio / 回看叠不叠模板原声 / 合并预置三处共用）；
+   *   记地址不记布尔，理由同 silentVideos（「还原上一版」会把两条地址对调）。
+   */
+  voicedVideos?: string[];
   /**
    * 成片的**第一帧**（出片时从视频里截的，与 lastFrame 同一次解码），**只管显示**。
    *
@@ -991,6 +1146,28 @@ export interface VideoSegment {
    * ★ 服务端 zod 会把它 strip 掉 —— 无所谓，它只在发布**之前**用。
    */
   hasAudio?: boolean;
+  /**
+   * 这一段是不是**接着上一段拍的**（组稿那一拍算好的，判据在 flowStore.nodeContinues）：承接上一段的真实尾帧起拍，
+   * 或者与上一段同属一个分段模板组、是原片里紧挨着的下一截。
+   * 为真 = 这条接缝是同一个镜头在延续 —— 剪辑页在这儿加转场会把它撕开（给一句提示；一键成片不往这儿加）。
+   * ★ 老剪辑稿没有这一位（`undefined` = 不知道）。用它的地方一律按「不知道就不自动加转场」走：
+   *   漏加一次闪黑没有损失，往连续的接缝上加一次是破坏。
+   * ★ 服务端 zod 会把它 strip 掉 —— 无所谓，它只在发布**之前**用（同 hasAudio）。
+   */
+  carried?: boolean;
+  /**
+   * 这一段出自文字模板（FlowNode.textTpl，组稿那一拍记；判否定，老数据缺它 = 不是）。**只在本机流转**：
+   * 发布与回炉替换之前 data/videos.stripLocalOnly 把这种段的 plot 置空、这一位去掉 —— 模板正文是作者的东西，
+   * 不随别人的作品外流（与公开配方不带正文同一条，主人 10-26 授权我定的「正文公开但不随作品 / 配方外流」）。
+   * 剪辑页「一键成片」读的是本机这份，照常拿得到全文。
+   */
+  fromTextTpl?: boolean;
+  /**
+   * 剪辑页合成出来的那一段（成片）身上：来源里文字模板段的正文（2026-10-29 发版前复核补）。成片自己的 plot 不含它们，
+   * 而作品简介是组稿那一拍拼的各段 plot —— 合成之后 fromTextTpl 那几段已经不在 segments 里了，stripLocalOnly 只能靠这一格
+   * 认出简介里哪几句是模板正文。同样**只在本机流转**，发布前去掉。
+   */
+  localPlots?: string[];
   /**
    * 该段出片时的画幅；缺省=横屏（老数据）。
    * ★ 播放端只把它当**提示**用（首帧还没解码出来时先按它排版），真正的判据是
@@ -1188,6 +1365,17 @@ export interface VideoItem {
    *  按**有没有值**决定出不出现，不跟哨兵值比。 */
   revisedAt?: number;
   /**
+   * 作者公开了制作过程（公开配方，2026-10-02）：作品页那颗「查看制作过程」按它亮。
+   * ★ 服务端只在「公开 + 描述的正是当下这一版」时发这个键 —— 判有值，老服务端 / 没公开的一律没有。
+   */
+  recipePublic?: boolean;
+  /** 作者自己才看得到的开关现状（编辑页那颗开关的初值）：留存过配方时才有。listed = 上架到了模板市场（判否定） */
+  recipeState?: { public: boolean; stale: boolean; listed: boolean };
+  /** 这条是按谁的流程做的（只在原作公开可见时带）；详情端点才算 */
+  remixOf?: { id: string; title: string; author: string; authorId?: string };
+  /** 有几个人按这条的流程做了同款（不含作者自己）；详情端点才算，列表没有 */
+  remixCount?: number;
+  /**
    * 话题标签（发布页那一行，作者自己打）。缺省 = 老作品没打过标签，**判否定**。
    *
    * ★ 与 `Card.tags` 同名不同物：那是一张卡的关键词（进提示词），这是**作品**的话题
@@ -1329,10 +1517,71 @@ export function tplCategoryLabel(id: string | undefined): string | null {
   return TPL_CATEGORIES.find((c) => c.id === id)?.label ?? null;
 }
 
+/**
+ * 文字模板（纯文字 + 本机封面图的视频模板，2026-10-26）的一个**图位**：正文里的 `@名字`，使用者套用时按名字补一张临时参考图
+ * （data/refMentions：名字的规矩、正文里「图N」怎么改写成 @名字）。hint = 作者写给使用者的一句「这里该放什么图」。
+ */
+export interface TextTplSlot {
+  name: string;
+  hint: string;
+}
+
+/**
+ * 一段是从哪个文字模板套来的（`FlowNode.textTpl`）—— 出处快照，只在套用那一拍写（flowStore 套用文字模板那一支）。
+ * ★ 有它 = **文字模板段**：出片那一侧据它换几条规矩，判据各在一处 ——
+ *   长提示词（economy.promptMaxOf 的 long，经 flowStore.nodePromptMax / segmentGen 的 SegmentGenInput.textTpl）、
+ *   补画几张（data/drawPlan.textTplDraw：有图位一张帧都不画、零图位只补开头一张）、能带几张临时参考图（refMentions.extraRefMaxOf）、
+ *   放不下就在花钱之前整句拒而不是截（segmentGen.promptRoomOf）、图位的图传不上去就不发（segmentGen）。
+ * ★ 判否定（缺省 = 普通段）：老草稿天然缺它。节点上 `tpl` 恒 null（白模 / 经典那套模板快照与它无关：tplOfNode 为真会让直出车道整句拒）。
+ * @property slots 模板的图位（按模板定，不随使用者手上有没有图变 —— 报价按它算，补图前后同一个数）
+ * @property tiers 这个模板能跑的档（作者存模板时按档位能力算好的；不在里面的档不让选）
+ * @property sig 作者存的那份正文的指纹（data/textTemplate.textTplSig）—— 正文被改过就对不上
+ */
+export interface TextTplOrigin {
+  id: string;
+  remoteId?: string;
+  title: string;
+  slots: TextTplSlot[];
+  tiers: string[];
+  sig: string;
+  ownerId?: string;
+}
+
+/**
+ * 文字模板的**商品本身**（`VideoTemplate.text`，2026-10-26 文字模板 P1）：一段作者写好的正文 + 几个图位 + 规格。
+ * ★ 判否定（缺省 = 不是文字模板）：老模板天然缺它。「一个模板是哪一种」只问 data/templates.templateKindOf（白模 / 文字 / 经典），
+ *   别在调用点写 `t.text ?` / `!t.refVideo` —— 文字模板也没有 refVideo，按老二分会被当成经典配方（铺成简约模式、一句话框拼「画面要求」）。
+ * ★ 红线：文字模板**永远不带 refVideo**、正文也不镜像进 recipe.beats（老 App 会把带 refVideo 的条目当白模、按 r2v 扣钱；
+ *   recipe 只是类型上必填的那一格，由 data/templates.textTplRecipe 从这一份派生，套用一个字都不读它）。
+ * @property v 形状版本（今天恒 1；改形状时加一档，读的那一侧按版本判）
+ * @property prompt 正文 —— 存进来之前已经定型（data/textTemplate.canonTextTplPrompt：存的就是会发的样子，saveTemplate 再过一遍兜底）
+ * @property slots 图位（正文里的 `@名字`；使用者套用时按名字各补一张临时参考图）
+ * @property timecode 正文保留了按秒写的时间轴（「0-2s…」，只有收时间码的档认，videoTierTable 的 timecodeOk）。
+ *   缺省 = 没有（时间轴已改写成「镜头N：」或本来就没有）。只用来如实展示；能跑哪几档已经算进 tiers
+ * @property durationSec 作者定的时长（秒）—— 套用时按档位夹一下（economy.clampDuration）就是这一段的时长
+ * @property aspect 画幅
+ * @property tiers 能跑的档（作者存模板时按档位能力算好的）。**第一个 = 作者选的默认档**；不在里面的档不让选（flowStore.textTplIssue）
+ */
+export interface TextTplSpec {
+  v: 1;
+  prompt: string;
+  slots: TextTplSlot[];
+  timecode?: boolean;
+  durationSec: number;
+  aspect: VideoAspect;
+  tiers: string[];
+}
+
 export interface VideoTemplate {
   id: string;
   title: string;
   intro: string;
+  /**
+   * 本机模板库（data/templates 的 mine）里这一条是**谁的**（user.id，见 data/deviceOwner）。
+   * ★ 只有本机库那几条有它；服务端来的（mineRemote / shared）与套进流水线的快照都不看它。
+   * ★ 可选：升级前存的模板没有它，由升级后第一个登录的人认领。与 `author`（显示名，会变、会重名）不是一回事。
+   */
+  owner?: string;
   /** 封面（dataURL 或站内路径） */
   cover: string;
   /** 市场人话分类（TPL_CATEGORIES 的 id）。缺省 = 未分类（存量模板全是，判否定） */
@@ -1346,11 +1595,12 @@ export interface VideoTemplate {
   source?: string;
   /**
    * 白模参考视频。**存在 = 白模模板**（出片走 r2v：把参考视频逐镜头复刻、只换主体）；
-   * 缺省 = 经典配方模板。
+   * 缺省 = 经典配方模板，**或者文字模板**（下面的 `text`，2026-10-26）。
    *
-   * ★ 判定一律写**存在性/否定式**（`!t.refVideo` → 经典路）：这是后加字段，老数据
-   *   天然缺它、天然走经典路 —— 不需要迁移，也**绝不许**拿它和某个值等值比
-   *   （`visibility` 那条坑的同族，见 docs/api-contract.md「可见性」）。
+   * ★ 判定一律写**存在性/否定式**：这是后加字段，老数据天然缺它、天然走经典路 —— 不需要迁移，
+   *   也**绝不许**拿它和某个值等值比（`visibility` 那条坑的同族，见 docs/api-contract.md「可见性」）。
+   * ★★ 「是哪一种模板」只问 data/templates.templateKindOf（2026-10-26 起）：`!t.refVideo` 不再等于经典 ——
+   *   文字模板也没有 refVideo，按老二分判它会铺成简约模式、档位标「模型不限」、发布只翻本机布尔。
    * ★ 四个数值是**服务端登记值的镜像**（服务端从 Cloudinary 上传回执写入，不信客户端
    *   报的任何数）。报价的输入时长只从 `durationSec` 读，别拿 `<video>` 在本机现探 ——
    *   报价（App）与结算（server 按 url 反查同一份登记值）必须算同一个数。
@@ -1388,6 +1638,12 @@ export interface VideoTemplate {
      */
     publicId?: string;
   };
+  /**
+   * **文字模板**（纯文字 + 本机封面图，2026-10-26 文字模板 P1）：有它 = 文字模板。形状与红线见 TextTplSpec。
+   * ★ 判否定（缺省 = 不是），后加字段：老数据天然缺它。种类只问 data/templates.templateKindOf。
+   * ★ P1 只存在本机库（mine），不登记服务端、不上市场（data/templates 的登记 / 发布那两处对它整句拒）。
+   */
+  text?: TextTplSpec;
   /**
    * 白模人偶的**角色位**：标记 ↔ 这个标记在原视频里替换掉的是谁。
    * **有内容 = 可以逐个角色位挂人物卡**（V2 白模模板）；缺省 = 没有角色位
@@ -1487,6 +1743,15 @@ export interface VideoTemplate {
    */
   markDescs?: string[];
   /**
+   * 与 `markSlots` **按下标对齐**的神态（长度必须相等）——「示例视频里第 i 个位置上那个人是什么神态」，如「先平静，后惊讶张嘴，再大笑」
+   * （2026-10-26 方案 D，付费读数见 docs/blockout-expression-2026-10-26.md）。服务端在白模化那次看帧对话里顺带记下（零额外费用），
+   * 套用时按卡名写一句「神态：…」（data/blockoutExpr.exprLineOf）。
+   * ★ 单个元素可以是空串（这个人看不清 / 没认出神态）；全是空串或长度不等于 markSlots 时整份丢（同 markDescs）。
+   * ★ 缺省 = 没有（所有老模板、编号方案、自己传白模片那条路）→ 套用提示词与今天逐字节相同。判存在性。
+   * ★ 只读：客户端从不上报（服务端三条 body 的 zod 都会 strip 它）；作者在核对面板改角色位时由服务端按人搬（PATCH /roles），重新认人时服务端清掉。
+   */
+  markExprs?: string[];
+  /**
    * 长视频分段登记的归组（2026-08-20）。**存在 = 这条是某个分段组的一段**（存在性判断，
    * 老模板/整段登记整个字段缺失）：列表把整组折成一张卡、套用时整组一起铺
    * （flowStore.applyTemplateGroup）。`sourceUrl` 是原片地址 —— 合并成片时拿它解原片音轨。
@@ -1541,6 +1806,13 @@ export interface DraftVideo {
    * 没有这个键就会出现同一部作品在库里两份（server 侧 {author, clientId} 唯一索引）。
    */
   clientId?: string;
+  /**
+   * 「按谁的流程做的同款」：原作品的 id（2026-10-02，公开配方）。做同款 / 按配方复制那一拍记进 flowStore.remixOf，
+   * 组稿时折进稿子，随发布体发上去（服务端只认"这个人读得到"的原作，认不下来当没带、不挡发布）。
+   * ★ 发布体是整份 `draft` 发的（api/branch.createVideo），所以这一格不用另拼；回炉体（reviseVideo）逐字段拼、不带它 ——
+   *   回炉换的是内容，归属不变。
+   */
+  remixOf?: string;
 }
 
 /**

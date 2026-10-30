@@ -11,10 +11,49 @@
 //   失败**不落地、不扣第二次钱**（钱在请求成功那一拍扣过一次，与 canvasAgent 同口径）。
 // ★ 依赖方向：data → store → 组件。本模块认 flowStore（newFlowNode），组件（ScriptSkillSheet）认它；反过来绝不。
 import { AI_REAL, VIDEO_PROMPT_MAX, skillChat } from "../ai";
-import { canAfford, spendTokens } from "../data/account";
-import { CHAT_TURN_TOKENS, clampDuration, fmtTokens } from "../data/economy";
-import { cleanShot, uid, type Card, type Proposal, type ShotSpec, type VideoAspect } from "../types";
-import { newFlowNode, type FlowNode } from "./flowStore";
+import { canAfford, frozenNote, spendTokens } from "../data/account";
+import { CHAT_TURN_TOKENS, clampDuration, fmtTokens, promptMaxOf } from "../data/economy";
+import {
+  SCENE_MAX,
+  SCENE_MIN,
+  SCENE_SHOTS_SYS,
+  SceneShotsError,
+  leadOf,
+  parseSceneShots,
+  sceneLang,
+  sceneShotsBrief,
+  shotBodyOf,
+  type SceneNote,
+  type SceneShotsErrorCode,
+} from "../data/sceneShots";
+import { SHOT_MAX, joinShots } from "../data/shotScript";
+import {
+  GRID_SHOTS_MAX,
+  GRID_SHOTS_SYS,
+  GridShotsError,
+  gridShotsBrief,
+  parseGridShots,
+  type GridLang,
+  type GridPlan,
+  type GridShotsErrorCode,
+} from "../data/gridShots";
+import {
+  DIALOGUE_LINES_MAX,
+  DIALOGUE_SYS,
+  DialogueError,
+  SITUATION_MAX,
+  SITUATION_MIN,
+  defaultAngle,
+  dialogueBrief,
+  parseDialogue,
+  type DialogueErrorCode,
+  type DialogueLang,
+  type DialogueLine,
+  type DialoguePlan,
+} from "../data/dialogueShots";
+import { cleanShot, shotLineOf, uid, type Card, type Proposal, type ShotSpec, type VideoAspect } from "../types";
+import { newFlowNode, nodeDone, tplOfNode, type FlowNode } from "./flowStore";
+import { zhPrompt } from "../ai/prompts/zhPrompt";
 import type { MessageDescriptor } from "@lingui/core";
 import { msg, t } from "@lingui/core/macro";
 
@@ -158,7 +197,7 @@ export async function runScriptToShots(script: string, tierId: string, onStep: (
   if (s.length < SCRIPT_MIN) throw new Error(t`剧本太短（至少 ${SCRIPT_MIN} 字）`);
   if (AI_REAL && !canAfford(CHAT_TURN_TOKENS)) {
     const price = fmtTokens(CHAT_TURN_TOKENS);
-    throw new Error(t`拆分镜要 ${price} token，余额不够——去「我的」页充值`);
+    throw new Error(frozenNote() ?? t`拆分镜要 ${price} token，余额不够——去「我的」页充值`);
   }
   onStep("model");
   if (!AI_REAL) {
@@ -175,6 +214,237 @@ export async function runScriptToShots(script: string, tierId: string, onStep: (
     throw new Error(t`模型写到一半被截断了（输出超过 ${limit} token 的上限），这一次已经计费——把剧本删短一些或分两次拆再试`);
   }
   return parseShotPlan(raw, tierId);
+}
+
+// ── 官方技能二：「按主题改写全片剧本」（2026-10-02，模板体系 P3a，docs/template-workflow-research.md §七 A）──
+//
+// 按别人的流程做同款铺过来的每一段剧情还是原作的故事；经典配方模板当年靠 `{{主题}}` 一句话换主题解决这件事，
+// 工作流模板没有它 —— 这条技能补上：一句主题 → 模型把每一段的剧情换成你的故事，**段数 / 顺序 / 镜头字段 / 时长 / 卡位不动**，
+// 原 / 新逐段对照、点头才写回。只改**还没出片**的普通段与自定义段（白模段的 plot 是点名句、画面来自模板，跳过）。
+// ★ 与「剧本 → 分镜」同一副骨架（步骤 / 形状检查 / 确认点 / 价签），同一条钱的规矩：请求成功那一拍扣一次，截断 / 形状检查失败不退也不再扣。
+// ★ 落地只改 proposal 的 title / plot（updateProposal），requirement（用户原话）不动，出片 / 报价 / 承接一行不碰。
+
+export const THEME_MIN = 2;
+export const THEME_MAX = 200;
+/** 一发最多改几段：段数再多输出就逼近上限、段与段之间开始互相串，多的分几发（每发各计一次 chat，面板先说清） */
+export const REWRITE_SEGMENTS_PER_CALL = 12;
+/**
+ * 改写那一发的输出上限（token）。每段标题 + 剧情按最长写法（12 + 120 字）约 160 token，12 段 ≈ 1,900，取 2400 与「剧本 → 分镜」同一个数
+ * （那一个是量过的：每段 93~116 token）。★ 真模型跑过之后再按实测收口（memory 里 ark 的三个脾气：重复键 / 不跟语言 / 输出长度）。
+ */
+const REWRITE_MAX_TOKENS = 2400;
+
+export const THEME_REWRITE = {
+  id: "official.theme-rewrite",
+  title: msg`按主题改写全片剧本`,
+  intro: msg`写一句你的主题，模型把每一段的剧情换成你的故事；段数、镜头字段、时长、卡位都不动，逐段对照再写回`,
+  steps: [
+    { kind: "input", title: msg`写主题`, hint: msg`一句话（${THEME_MIN}~${THEME_MAX} 字）：讲谁、讲什么、什么调子。已出片的段与白模段不会改` },
+    { kind: "model", title: msg`改写`, hint: msg`模型逐段重写剧情与标题，段数与顺序不变，人物按挂着的卡来` },
+    { kind: "check", title: msg`形状检查`, hint: msg`段数对不上就整发作废，不写回` },
+    { kind: "confirm", title: msg`你来点头`, hint: msg`原 / 新逐段对照，不想改的段勾掉；点了才写回` },
+    { kind: "apply", title: msg`写回各段`, hint: msg`只改剧情与标题；你的原话、镜头字段、时长、帧都不动` },
+  ] satisfies readonly SkillStep[],
+  confirmAt: ["confirm"] satisfies readonly SkillStepKind[],
+  /** 一发的价签 = 一次 chat 定额；段数超过 REWRITE_SEGMENTS_PER_CALL 要几发就几份（rewriteCalls） */
+  cost: CHAT_TURN_TOKENS,
+} as const;
+
+/** 送去改写的一段（从流水线上摘下来的那几格，不带帧） */
+export interface RewriteSeg {
+  nodeId: string;
+  proposalId: string;
+  /** 在流水线里的位置（从 0 起，给界面编号） */
+  index: number;
+  title: string;
+  plot: string;
+  shot?: ShotSpec;
+  durationSec: number;
+  /** 挂着的卡名（模型按它们写人物） */
+  cards: string[];
+}
+
+export interface RewriteItem {
+  nodeId: string;
+  proposalId: string;
+  index: number;
+  title: string;
+  plot: string;
+}
+
+export interface RewritePlan {
+  items: RewriteItem[];
+}
+
+/** 当前流水线里能改的段：没出片、没在炼、不是白模段（白模段的 plot 是点名句，画面来自模板） */
+export function rewritableSegs(nodes: FlowNode[]): RewriteSeg[] {
+  const out: RewriteSeg[] = [];
+  nodes.forEach((n, index) => {
+    if (nodeDone(n) || n.status === "generating" || tplOfNode(n)?.refVideo) return;
+    const p = n.proposals.find((x) => x.id === n.chosenId) ?? n.proposals[0];
+    if (!p) return;
+    out.push({
+      nodeId: n.id,
+      proposalId: p.id,
+      index,
+      title: p.title,
+      plot: p.plot,
+      ...(p.shot ? { shot: p.shot } : {}),
+      durationSec: p.durationSec,
+      cards: (n.materials ?? []).map((c) => c.name).filter(Boolean),
+    });
+  });
+  return out;
+}
+
+/** 要几发（= 价签要乘几）*/
+export function rewriteCalls(count: number): number {
+  return Math.max(1, Math.ceil(count / REWRITE_SEGMENTS_PER_CALL));
+}
+
+/* i18n-frozen: 编剧模型的系统提示词（规定输出的 JSON 形状），冻结中文 */
+const REWRITE_SYS =
+  `你是编剧。用户给出一个新主题和一条已经分好段的视频流水线（每段的编号、标题、时长、镜头、出场的卡、原剧情）。` +
+  `把每一段的剧情改写成新主题下的故事：段数、顺序与编号不变；每段保留原来镜头字段与时长对应的节奏（远景就写环境，特写就写表情）；` +
+  `人物一律用给出的卡名，没有卡名就按主题起人物；每段剧情 60~120 字，小说式、画面感强、写清人物在做什么，不写镜头术语；标题 12 字内。` +
+  `输出 JSON：{"segments":[{"index":编号,"title":"标题","plot":"剧情"}]}，段数必须与输入相同、编号一一对应。只输出 JSON，不要解释。`;
+
+/** 发给模型的流水线清单（与系统提示词同一份冻结中文，zhPrompt 标签 = 不进目录、不翻） */
+function rewriteBrief(theme: string, segs: RewriteSeg[]): string {
+  const lines = segs.map((s, i) => {
+    const shot = shotLineOf(s.shot);
+    const title = s.title || zhPrompt`（无）`;
+    const plot = s.plot || zhPrompt`（空）`;
+    return (
+      zhPrompt`${i + 1}. 标题：${title} 时长：${Math.round(s.durationSec)}秒` +
+      (shot ? zhPrompt` 镜头：${shot}` : "") +
+      (s.cards.length ? zhPrompt` 卡：${s.cards.join("、")}` : "") +
+      zhPrompt`\n原剧情：${plot}`
+    );
+  });
+  return zhPrompt`新主题：${theme}\n\n流水线（共 ${segs.length} 段）：\n${lines.join("\n")}`;
+}
+
+/**
+ * 模型输出 → 形状检查（不可信输入）。段数必须等于送进去的段数：少一段整发作废（不落地，钱已扣）；
+ * 每段 plot 非空、按 VIDEO_PROMPT_MAX 截。
+ * ★ 方舟 chat 偶尔把数组写成一个对象里重复的键（少了 `},{`，JSON.parse 只留最后一对，memory ark-api-facts）——
+ *   解析出来段数不够时按原文把 `"title"…"plot"` 成对捞回（与 cutProject.linePairs 同一招）。
+ */
+export function parseRewritePlan(raw: string, segs: RewriteSeg[]): RewritePlan {
+  const text = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "").trim();
+  let list: { title: string; plot: string }[] = [];
+  let data: unknown = null;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    const m = text.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
+    if (m) {
+      try {
+        data = JSON.parse(m[0]);
+      } catch {
+        data = null;
+      }
+    }
+  }
+  const arr = Array.isArray(data) ? data : data && typeof data === "object" ? (data as { segments?: unknown }).segments : null;
+  if (Array.isArray(arr)) {
+    list = arr.map((o) => {
+      const r = o && typeof o === "object" ? (o as Record<string, unknown>) : {};
+      return { title: typeof r.title === "string" ? r.title : "", plot: typeof r.plot === "string" ? r.plot : "" };
+    });
+  }
+  if (list.length !== segs.length) {
+    // 重复键那一档：按原文成对捞
+    const pairs: { title: string; plot: string }[] = [];
+    const re = /"title"\s*:\s*"((?:[^"\\]|\\.)*)"\s*,\s*"plot"\s*:\s*"((?:[^"\\]|\\.)*)"/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(text))) pairs.push({ title: unescapeJson(m[1]), plot: unescapeJson(m[2]) });
+    if (pairs.length === segs.length) list = pairs;
+  }
+  if (list.length !== segs.length) {
+    throw new Error(t`模型回的段数对不上（要 ${segs.length} 段，回了 ${list.length} 段），这一次没有写回——再试一次，或把主题写具体些`);
+  }
+  const items: RewriteItem[] = segs.map((s, i) => {
+    const plot = list[i].plot.trim().slice(0, VIDEO_PROMPT_MAX);
+    if (!plot) throw new Error(t`第 ${s.index + 1} 段改写出来是空的，这一次没有写回——再试一次`);
+    const title = list[i].title.trim().slice(0, 40) || s.title;
+    return { nodeId: s.nodeId, proposalId: s.proposalId, index: s.index, title, plot };
+  });
+  return { items };
+}
+
+function unescapeJson(s: string): string {
+  try {
+    return JSON.parse(`"${s}"`) as string;
+  } catch {
+    return s;
+  }
+}
+
+/** 演示构建（没配 ARK_API_KEY）的本地降级：把主题标在每段开头，只为让流程能走通看形状，**不冒充模型**（面板标「演示」） */
+function localRewrite(theme: string, segs: RewriteSeg[]): RewritePlan {
+  return {
+    items: segs.map((s) => ({
+      nodeId: s.nodeId,
+      proposalId: s.proposalId,
+      index: s.index,
+      title: s.title,
+      plot: `【${theme}】${s.plot}`.slice(0, VIDEO_PROMPT_MAX),
+    })),
+  };
+}
+
+/**
+ * 跑「按主题改写」到确认之前：门禁（长度 / 余额）→ 模型（段多分几发）→ 每发成功扣一次钱 → 形状检查。
+ * onStep 报每一步的开始。失败整句 throw（铁律八）；几发里前面成功的那几发照样计费，话里要说清。
+ */
+export async function runThemeRewrite(theme: string, segs: RewriteSeg[], onStep: (kind: SkillStepKind) => void): Promise<RewritePlan> {
+  const th = theme.trim().slice(0, THEME_MAX);
+  if (th.length < THEME_MIN) throw new Error(t`主题太短（至少 ${THEME_MIN} 字）`);
+  if (!segs.length) throw new Error(t`没有可改的段：已出片的段与白模段不会改`);
+  const calls = rewriteCalls(segs.length);
+  const price = CHAT_TURN_TOKENS * calls;
+  if (AI_REAL && !canAfford(price)) {
+    const p = fmtTokens(price);
+    throw new Error(frozenNote() ?? t`改写要 ${p} token，余额不够——去「我的」页充值`);
+  }
+  onStep("model");
+  if (!AI_REAL) {
+    onStep("check");
+    return localRewrite(th, segs);
+  }
+  const items: RewriteItem[] = [];
+  for (let c = 0; c < calls; c += 1) {
+    const chunk = segs.slice(c * REWRITE_SEGMENTS_PER_CALL, (c + 1) * REWRITE_SEGMENTS_PER_CALL);
+    const { text: raw, truncated } = await skillChat(REWRITE_SYS, rewriteBrief(th, chunk), { maxTokens: REWRITE_MAX_TOKENS, timeoutMs: SCRIPT_SHOTS_TIMEOUT_MS });
+    spendTokens(CHAT_TURN_TOKENS); // 这一发请求成功才扣；截断 / 形状检查失败不退也不再扣
+    if (truncated) {
+      const done = c;
+      throw new Error(
+        done > 0
+          ? t`第 ${done + 1} 发写到一半被截断了（前 ${done} 发已经计费、这一发也计费了），这一次没有写回——把主题写短些再试`
+          : t`模型写到一半被截断了，这一次已经计费、没有写回——把主题写短些再试`,
+      );
+    }
+    onStep("check");
+    items.push(...parseRewritePlan(raw, chunk).items);
+  }
+  return { items };
+}
+
+/** 确认之后：把勾选的段写回（只改 title / plot，认 node.id 与 proposal.id）。返回真写回的段数（世界会变：已出片 / 不在了的跳过） */
+export function applyRewrite(plan: RewritePlan, picked: Set<string>, nodes: FlowNode[], update: (nodeId: string, patch: Partial<Proposal>, proposalId: string) => void): number {
+  let n = 0;
+  for (const it of plan.items) {
+    if (!picked.has(it.nodeId)) continue;
+    const node = nodes.find((x) => x.id === it.nodeId);
+    if (!node || nodeDone(node) || node.status === "generating") continue;
+    if (!node.proposals.some((p) => p.id === it.proposalId)) continue;
+    update(it.nodeId, { title: it.title, plot: it.plot }, it.proposalId);
+    n += 1;
+  }
+  return n;
 }
 
 /** 确认之后：把分镜铺成节点（与 flowStore.remakeNodesOf 同一形状：单方案、已挑定、requirement = 剧情）。seed 由调用方经守卫做 */
@@ -199,4 +469,315 @@ export function shotPlanNodes(plan: ShotPlan, o: { tierId: string; aspect: Video
       ...(o.materials?.length ? { materials: o.materials } : {}),
     });
   });
+}
+
+// ── 官方技能三：「一场戏 → 多镜头」（2026-10-04，跟着做 B「主角定妆 · 多镜头」第③步，方案 docs/guided-modes-design.md §二 B）──
+//
+// 一两句话的一场戏 → **一段**视频里的 2~4 个镜头（景别 / 运镜 / 画面 / 台词挂说话人），落进分镜表逐格可改，点了才出片。
+// 与「剧本 → 分镜」的分别：那条拆成好几**段**（各出各的片），这条是一段之内的几个镜头（一条出，updream 的做法）。
+// ★ 与前两条同一副骨架（步骤 / 形状检查 / 确认点 / 价签），同一条钱的规矩：请求成功那一拍扣一次，截断 / 形状检查失败不退也不再扣。
+// ★ 输入输出的规则在 data/sceneShots（纯函数，构建里 check-scene-shots.mjs 实跑）；几个镜头拼成一段话只走 shotScript.joinShots。
+
+export const SCENE_TO_SHOTS = {
+  id: "official.scene-to-shots",
+  title: msg`一场戏 → 多镜头`,
+  intro: msg`一两句话写一场戏，拆成一段视频里的 2~4 个镜头（景别 / 运镜 / 画面 / 台词），逐格可改再出片`,
+  steps: [
+    { kind: "input", title: msg`写这场戏`, hint: msg`一两句话（${SCENE_MIN}~${SCENE_MAX} 字）：在哪、谁做了什么、谁说了什么` },
+    { kind: "model", title: msg`拆镜头`, hint: msg`模型按镜头写：景别 / 运镜 / 画面 / 台词（挂说话人）` },
+    { kind: "check", title: msg`形状检查`, hint: msg`形状不对整发不认；多出来的镜头不收` },
+    { kind: "confirm", title: msg`你来点头`, hint: msg`落进分镜表逐格可改，点了才出片` },
+    { kind: "apply", title: msg`出片`, hint: msg`人物图直接给视频模型、不画帧，一条出` },
+  ] satisfies readonly SkillStep[],
+  confirmAt: ["confirm"] satisfies readonly SkillStepKind[],
+  /** 一次 chat 的定额（服务端按调用收） */
+  cost: CHAT_TURN_TOKENS,
+} as const;
+
+/**
+ * 拆镜头那一发的输出上限（token）。按形状估：4 个镜头 ×（画面 60 字 + 两句台词各 20 字 + 景别运镜）+ 交代 40 字 ≈ 450 字，
+ *   包上 JSON 约 600~800 token；取 1500 封顶。上限只是封顶，没写满的部分谁都不花钱（服务端按调用定额收）。
+ * ★ 2026-10-05 B 付费验证实测一发：两个人、3 个镜头、2 句台词 → 输出 158 token（输入 336），远在上限之内。
+ *   只量了一发，上限先不收：截断的代价是整发作废、钱已花，而上限高一点不多花一分钱。
+ *   以后量够几发（照 SCRIPT_SHOTS_MAX_TOKENS 的量法，含 4 个镜头 + 英文）再收口；截断时如实说「被截断、已计费」，不去解析半截 JSON。
+ */
+const SCENE_SHOTS_MAX_TOKENS = 1500;
+
+export interface SceneShotsResult {
+  /** 落进分镜表的那一段话（整体交代 + 「镜头N：…」，shotScript.joinShots 拼的） */
+  text: string;
+  /** 收的时候处理掉的事（多出来的镜头、空画面、陌生说话人），界面说成句子 */
+  notes: SceneNote[];
+  /** 演示构建：本地按句号切的，不是模型写的（面板标「演示」） */
+  demo: boolean;
+}
+
+/** 形状不对的那几种（data/sceneShots 抛 code）→ 人话。这一次都已经计费（请求成功那一拍扣过） */
+function sceneShotsErrorText(code: SceneShotsErrorCode): string {
+  switch (code) {
+    case "noJson":
+      return t`模型没有按格式回分镜，这一次已经计费——再拆一次，或把这场戏写具体些`;
+    case "badJson":
+      return t`模型回的分镜读不出来，这一次已经计费——再拆一次`;
+    case "noShots":
+      return t`拆出来的镜头一个都没写画面，这一次已经计费——把这场戏写具体些再拆`;
+    case "dupKeys":
+      return t`模型回的格式有问题（几个镜头或几句台词挤进了同一格），这一次已经计费——再拆一次`;
+  }
+}
+
+/** 演示构建（没配 ARK_API_KEY）的本地降级：按句号切成最多两个镜头，只为让流程走通看形状，**不冒充模型**（面板标「演示」） */
+function localScene(scene: string): string {
+  const parts = scene
+    .split(/(?<=[。！？!?.\n])/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (parts.length < 2) return scene;
+  const half = Math.ceil(parts.length / 2);
+  return joinShots({ lead: "", shots: [parts.slice(0, half).join(" "), parts.slice(half).join(" ")] });
+}
+
+/**
+ * 跑「一场戏 → 多镜头」到确认之前：门禁（长度 / 余额）→ 模型 → 扣一次钱 → 形状检查 → 拼成一段话 → 核提示词上限。
+ * 失败整句 throw（铁律八）；网络那一档的错原样抛，钱上的话由调用方经 ai/failCharge 说。
+ * @param cast 出场人物的卡名（模型只用这几个名字写人物与说话人）
+ */
+export async function runSceneToShots(o: { scene: string; cast: readonly string[]; tierId: string; durationSec: number }): Promise<SceneShotsResult> {
+  const scene = o.scene.trim().slice(0, SCENE_MAX);
+  if (scene.length < SCENE_MIN) throw new Error(t`这场戏写得太短（至少 ${SCENE_MIN} 个字）——写清在哪、谁做了什么、谁说了什么`);
+  if (AI_REAL && !canAfford(CHAT_TURN_TOKENS)) {
+    const price = fmtTokens(CHAT_TURN_TOKENS);
+    throw new Error(frozenNote() ?? t`拆镜头要 ${price} token，余额不够——去「我的」页充值`);
+  }
+  if (!AI_REAL) return { text: localScene(scene), notes: [], demo: true };
+  const lang = sceneLang(scene);
+  const { text: raw, truncated } = await skillChat(SCENE_SHOTS_SYS, sceneShotsBrief({ scene, cast: o.cast, durationSec: o.durationSec, lang }), {
+    maxTokens: SCENE_SHOTS_MAX_TOKENS,
+    timeoutMs: SCRIPT_SHOTS_TIMEOUT_MS,
+  });
+  spendTokens(CHAT_TURN_TOKENS); // 请求成功才扣（与另两条技能同口径）；截断 / 形状检查失败都不退也不再扣
+  if (truncated) {
+    const limit = SCENE_SHOTS_MAX_TOKENS;
+    throw new Error(t`模型写到一半被截断了（输出超过 ${limit} token 的上限），这一次已经计费——把这场戏写短些再拆`);
+  }
+  let plan;
+  try {
+    plan = parseSceneShots(raw, o.cast, SHOT_MAX);
+  } catch (e) {
+    if (e instanceof SceneShotsError) throw new Error(sceneShotsErrorText(e.code));
+    throw e;
+  }
+  const text = joinShots({ lead: leadOf(plan, lang), shots: plan.shots.map((s) => shotBodyOf(s, lang)) });
+  // 拼出来的整段要放得进这一档的出片提示词（economy.promptMaxOf，与分镜表输入框同一个上限）：超了就别落进去 ——
+  // 落进去之后输入框打不了字、出片时从正文那头被截掉一截（CLAUDE.md「输入框忘了 maxLength」那一格）
+  // 拆出来的是普通段，不是文字模板段（长提示词只开给文字模板段）
+  const max = promptMaxOf(o.tierId, { long: false });
+  if (text.length > max) {
+    const len = text.length;
+    throw new Error(t`拆出来的分镜有 ${len} 字，超过这一档出片提示词的上限 ${max} 字，这一次已经计费——把这场戏写短些再拆`);
+  }
+  return { text, notes: plan.notes, demo: false };
+}
+
+// ── 官方技能四：「一场戏 → 九宫格分镜」（2026-10-05，跟着做 C「九宫格分镜」第②步，方案 docs/guided-modes-design.md §二 C）──
+//
+// 一两句话的一场戏 → 4~9 格的分镜清单（每格：景别 / 画面 / 动作 / 画面里有谁），逐格可改；之后一次画成一组画面（组图）、挑格子、一格一段。
+// 与「一场戏 → 多镜头」的分别：那条是一段之内的几个镜头（一条出）；这条每一格之后都单独画一张、各出一段（LibTV 的九宫格）。
+// ★ 与前三条同一副骨架（步骤 / 形状检查 / 确认点 / 价签），同一条钱的规矩：请求成功那一拍扣一次，截断 / 形状检查失败不退也不再扣。
+// ★ 输入输出的规则在 data/gridShots（纯函数，构建里 check-grid-shots.mjs 实跑）；用哪种语言写由 data/sceneShots.sceneLang 判（与 B 同一个判据）。
+
+export const SCENE_TO_GRID = {
+  id: "official.scene-to-grid",
+  title: msg`一场戏 → 九宫格分镜`,
+  intro: msg`一两句话写一场戏，写成 4~9 格分镜（景别 / 画面 / 动作 / 画面里有谁），逐格可改，再一次画出整组画面`,
+  steps: [
+    { kind: "input", title: msg`写这场戏`, hint: msg`一两句话（${SCENE_MIN}~${SCENE_MAX} 字）：在哪、谁做了什么` },
+    { kind: "model", title: msg`写分镜`, hint: msg`模型按格写：景别 / 画面（一个瞬间）/ 动作（接下来几秒）/ 画面里有谁` },
+    { kind: "check", title: msg`形状检查`, hint: msg`形状不对整发不认；多出来的格子不收；不认识的人不进画面` },
+    { kind: "confirm", title: msg`你来点头`, hint: msg`逐格可改、可删，点了才出画面` },
+    { kind: "apply", title: msg`出画面`, hint: msg`一次画出整组画面，挑几格、每格一段` },
+  ] satisfies readonly SkillStep[],
+  confirmAt: ["confirm"] satisfies readonly SkillStepKind[],
+  /** 一次 chat 的定额（服务端按调用收） */
+  cost: CHAT_TURN_TOKENS,
+} as const;
+
+/**
+ * 写分镜那一发的输出上限（token）。按形状估：9 格 ×（画面 40 字 + 动作 25 字 + 景别 + 人名）+ 交代 40 字 ≈ 700 字，包上 JSON 约 1000~1300 token；
+ *   取 2400 封顶（与「剧本 → 分镜」同一个数：那一条 8 段实测输出 741~925）。上限只是封顶，没写满的部分谁都不花钱（服务端按调用定额收）。
+ * ★ 还没量过真模型：付费验证时量几发（含 9 格 + 英文）再收口；截断时如实说「被截断、已计费」，不去解析半截 JSON。
+ */
+const GRID_SHOTS_MAX_TOKENS = 2400;
+
+export interface GridShotsResult {
+  plan: GridPlan;
+  /** 这场戏是哪种语言写的（一格一段的视频提示词按它拼） */
+  lang: GridLang;
+  /** 演示构建：本地按句号切的，不是模型写的（面板标「演示」） */
+  demo: boolean;
+}
+
+/** 形状不对的那几种（data/gridShots 抛 code）→ 人话。这一次都已经计费（请求成功那一拍扣过） */
+function gridShotsErrorText(code: GridShotsErrorCode): string {
+  switch (code) {
+    case "noJson":
+      return t`模型没有按格式回分镜，这一次已经计费——再写一次，或把这场戏写具体些`;
+    case "badJson":
+      return t`模型回的分镜读不出来，这一次已经计费——再写一次`;
+    case "noShots":
+      return t`写出来的格子一个都没写画面，这一次已经计费——把这场戏写具体些再写`;
+    case "dupKeys":
+      return t`模型回的格式有问题（几格挤进了同一格），这一次已经计费——再写一次`;
+  }
+}
+
+/** 演示构建（没配 ARK_API_KEY）的本地降级：按句号切，最多切到上限，只为让流程走通看形状，**不冒充模型**（面板标「演示」） */
+function localGrid(scene: string, cast: readonly string[]): GridPlan {
+  /* i18n-frozen: 演示构建本地切出来的景别（与模型写的同一种值，进出图提示词） */
+  const SIZES = ["远景", "中景", "近景", "特写"];
+  const parts = scene
+    .split(/(?<=[。！？!?.\n；;])/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .slice(0, GRID_SHOTS_MAX);
+  return {
+    lead: "",
+    shots: (parts.length ? parts : [scene]).map((p, i) => ({
+      size: SIZES[i % SIZES.length],
+      picture: p,
+      action: "",
+      who: cast.filter((n) => n && p.includes(n)),
+    })),
+    notes: [],
+  };
+}
+
+/**
+ * 跑「一场戏 → 九宫格分镜」到确认之前：门禁（长度 / 余额）→ 模型 → 扣一次钱 → 形状检查。
+ * 失败整句 throw（铁律八）；网络那一档的错原样抛，钱上的话由调用方经 ai/failCharge 说。
+ * @param cast 出场人物的卡名（模型只用这几个名字写人物与「画面里有谁」）
+ * @param place 场景卡的名字（没挂场景卡 = ""）
+ */
+export async function runSceneToGrid(o: { scene: string; cast: readonly string[]; place: string }): Promise<GridShotsResult> {
+  const scene = o.scene.trim().slice(0, SCENE_MAX);
+  if (scene.length < SCENE_MIN) throw new Error(t`这场戏写得太短（至少 ${SCENE_MIN} 个字）——写清在哪、谁做了什么`);
+  if (AI_REAL && !canAfford(CHAT_TURN_TOKENS)) {
+    const price = fmtTokens(CHAT_TURN_TOKENS);
+    throw new Error(frozenNote() ?? t`写分镜要 ${price} token，余额不够——去「我的」页充值`);
+  }
+  const lang = sceneLang(scene);
+  if (!AI_REAL) return { plan: localGrid(scene, o.cast), lang, demo: true };
+  const { text: raw, truncated } = await skillChat(GRID_SHOTS_SYS, gridShotsBrief({ scene, cast: o.cast, place: o.place, lang }), {
+    maxTokens: GRID_SHOTS_MAX_TOKENS,
+    timeoutMs: SCRIPT_SHOTS_TIMEOUT_MS,
+  });
+  spendTokens(CHAT_TURN_TOKENS); // 请求成功才扣（与另三条技能同口径）；截断 / 形状检查失败都不退也不再扣
+  if (truncated) {
+    const limit = GRID_SHOTS_MAX_TOKENS;
+    throw new Error(t`模型写到一半被截断了（输出超过 ${limit} token 的上限），这一次已经计费——把这场戏写短些再写`);
+  }
+  try {
+    return { plan: parseGridShots(raw, o.cast, GRID_SHOTS_MAX), lang, demo: false };
+  } catch (e) {
+    if (e instanceof GridShotsError) throw new Error(gridShotsErrorText(e.code));
+    throw e;
+  }
+}
+
+// ── 官方技能五：「一个情境 → 对白」（2026-10-05，跟着做 I「对话正反打」第②步，方案 docs/canvas-platforms-ecosystem-research.md §五）──
+//
+// 一个情境 + 两个人 → 2~6 句对白（每句：谁说 / 说什么 / 说的时候在做什么），逐句可改；之后一句拍成一段（三个机位轮着用）。
+// ★ 与前四条同一副骨架（步骤 / 形状检查 / 确认点 / 价签），同一条钱的规矩：请求成功那一拍扣一次，截断 / 形状检查失败不退也不再扣。
+// ★ 输入输出的规则在 data/dialogueShots（纯函数，构建里 check-dialogue-shots.mjs 实跑）；用哪种语言写由 data/sceneShots.sceneLang 判（与 B / C 同一个判据）。
+
+export const SITUATION_TO_DIALOGUE = {
+  id: "official.situation-to-dialogue",
+  title: msg`一个情境 → 对白`,
+  intro: msg`写一个情境，两个人你一句我一句写成 2~6 句对白（谁说 / 说什么 / 说的时候在做什么），逐句可改，一句拍成一段`,
+  steps: [
+    { kind: "input", title: msg`写情境`, hint: msg`一两句话（${SITUATION_MIN}~${SITUATION_MAX} 字）：两个人在哪、为什么说这番话` },
+    { kind: "model", title: msg`写对白`, hint: msg`模型按句写：谁说 / 台词 / 说的时候的动作或表情` },
+    { kind: "check", title: msg`形状检查`, hint: msg`形状不对整发不认；多出来的句子不收；说话人不是这两个人的那一句不收` },
+    { kind: "confirm", title: msg`你来点头`, hint: msg`逐句可改、可删，点了才画机位` },
+    { kind: "apply", title: msg`出片`, hint: msg`三个机位轮着用，一句一段，按卡上的声音说出来` },
+  ] satisfies readonly SkillStep[],
+  confirmAt: ["confirm"] satisfies readonly SkillStepKind[],
+  /** 一次 chat 的定额（服务端按调用收） */
+  cost: CHAT_TURN_TOKENS,
+} as const;
+
+/**
+ * 写对白那一发的输出上限（token）。按形状估：6 句 ×（台词 20 字 + 动作 12 字 + 人名）+ 交代 40 字 ≈ 300 字，包上 JSON 约 400~600 token；
+ *   取 1500 封顶（与「一场戏 → 多镜头」同一个数）。上限只是封顶，没写满的部分谁都不花钱（服务端按调用定额收）。
+ * ★ 还没量过真模型：付费验证时量几发（含 6 句 + 英文）再收口；截断时如实说「被截断、已计费」，不去解析半截 JSON。
+ */
+const DIALOGUE_MAX_TOKENS = 1500;
+
+export interface DialogueResult {
+  plan: DialoguePlan;
+  /** 情境是哪种语言写的（一句一段的视频提示词按它拼） */
+  lang: DialogueLang;
+  /** 演示构建：本地按句号切的，不是模型写的（面板标「演示」） */
+  demo: boolean;
+}
+
+/** 形状不对的那几种（data/dialogueShots 抛 code）→ 人话。这一次都已经计费（请求成功那一拍扣过） */
+function dialogueErrorText(code: DialogueErrorCode): string {
+  switch (code) {
+    case "noJson":
+      return t`模型没有按格式回对白，这一次已经计费——再写一次，或把情境写具体些`;
+    case "badJson":
+      return t`模型回的对白读不出来，这一次已经计费——再写一次`;
+    case "noLines":
+      return t`写出来的对白一句都用不上（没有台词，或说话人不是这两个人），这一次已经计费——再写一次`;
+    case "dupKeys":
+      return t`模型回的格式有问题（几句挤进了同一格），这一次已经计费——再写一次`;
+  }
+}
+
+/** 演示构建（没配 ARK_API_KEY）的本地降级：情境按句号切，两人轮流各说一截，只为让流程走通看形状，**不冒充模型**（面板标「演示」） */
+function localDialogue(situation: string): DialoguePlan {
+  const parts = situation
+    .split(/(?<=[。！？!?.\n；;])/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .slice(0, DIALOGUE_LINES_MAX);
+  const texts = parts.length >= 2 ? parts : [situation, situation];
+  const lines: DialogueLine[] = texts.map((text, i) => {
+    const who = (i % 2) as 0 | 1;
+    return { who, text: text.slice(0, 40), act: "", angle: defaultAngle(i, who) };
+  });
+  return { lead: "", lines, notes: [] };
+}
+
+/**
+ * 跑「一个情境 → 对白」到确认之前：门禁（长度 / 余额）→ 模型 → 扣一次钱 → 形状检查。
+ * 失败整句 throw（铁律八）；网络那一档的错原样抛，钱上的话由调用方经 ai/failCharge 说。
+ * @param names 两个人的卡名（按点的先后）：模型只用这两个名字写说话人
+ * @param place 场景卡的名字（没挂场景卡 = ""）
+ */
+export async function runDialogue(o: { situation: string; names: readonly [string, string]; place: string }): Promise<DialogueResult> {
+  const situation = o.situation.trim().slice(0, SITUATION_MAX);
+  if (situation.length < SITUATION_MIN) throw new Error(t`情境写得太短（至少 ${SITUATION_MIN} 个字）——写清两个人在哪、为什么说这番话`);
+  if (AI_REAL && !canAfford(CHAT_TURN_TOKENS)) {
+    const price = fmtTokens(CHAT_TURN_TOKENS);
+    throw new Error(frozenNote() ?? t`写对白要 ${price} token，余额不够——去「我的」页充值`);
+  }
+  const lang = sceneLang(situation);
+  if (!AI_REAL) return { plan: localDialogue(situation), lang, demo: true };
+  const { text: raw, truncated } = await skillChat(DIALOGUE_SYS, dialogueBrief({ situation, names: o.names, place: o.place, lang }), {
+    maxTokens: DIALOGUE_MAX_TOKENS,
+    timeoutMs: SCRIPT_SHOTS_TIMEOUT_MS,
+  });
+  spendTokens(CHAT_TURN_TOKENS); // 请求成功才扣（与另四条技能同口径）；截断 / 形状检查失败都不退也不再扣
+  if (truncated) {
+    const limit = DIALOGUE_MAX_TOKENS;
+    throw new Error(t`模型写到一半被截断了（输出超过 ${limit} token 的上限），这一次已经计费——把情境写短些再写`);
+  }
+  try {
+    return { plan: parseDialogue(raw, o.names, DIALOGUE_LINES_MAX), lang, demo: false };
+  } catch (e) {
+    if (e instanceof DialogueError) throw new Error(dialogueErrorText(e.code));
+    throw e;
+  }
 }

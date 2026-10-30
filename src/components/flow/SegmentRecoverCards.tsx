@@ -12,20 +12,26 @@
 //   判「这一发是不是这条流水线的」由 `mine` 传进来（真闸在 `flowStore.takeJob`，
 //   这里只是把"为什么按钮是灰的"画出来，别在这儿另写一遍判断）。
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { showToast } from "../../data/toast";
 import { useSyncExternalStore } from "react";
 import {
+  checkVideoJobCharge,
   dismissVideoJob,
   importServerVideoJobs,
   recoverableVideoJobs,
   subscribeVideoJobs,
   videoJobExpired,
   videoJobFromServer,
+  videoJobKnown,
   videoJobNote,
+  videoJobRefunded,
+  videoJobRefundFailure,
   videoJobsVersion,
   type VideoJob,
 } from "../../data/videoJobs";
-import { useFlow } from "../../studio/flowStore";
+import { ArkTaskFailed, ArkTaskUnknown, briefArkReason, chargeNote, chargeOnFail, unwrapFailure } from "../../ai";
+import { jobLandsInPlace, settleRefundedPending, useFlow } from "../../studio/flowStore";
 import { useStudio } from "../../studio/studioStore";
 import { draftsLoadIssue, draftsUnavailableText } from "../../data/drafts";
 
@@ -37,7 +43,7 @@ export function useVideoJobs(): number {
 /**
  * ★★ **「取回这一段」—— 这一整块是当初那次改造的目的本身。**
  *
- * 出片是先扣钱后等的（受理即计费，受理之后失败不退，见 docs/api-contract.md「扣费」），
+ * 出片是先扣钱后等的（受理即计费，见 docs/api-contract.md「扣费」；2026-10-07 起受理之后上游明说失败的那一发由服务端退回），
  * 而等待窗口最长 25.5 分钟。在这块 UI 之前，客户端没接到结果 = 节点被打成
  * `failed` = 屏幕上唯一可点的是「♻ 重新生成（N token）」，也就是**再花一次钱**——
  * 而那一发的成片往往在方舟那边好好地存在着（2026-08-18 实测：15s 模板方舟约 13 分钟
@@ -46,7 +52,7 @@ export function useVideoJobs(): number {
  * ★★ 文案的重点**不是"重试"，是"别重复付费"**：用户看不出「取回」和「重新生成」的区别，
  *   而这两者差的是一次真金白银。整句由 `videoJobNote` 一处生成（列表、失败回话共用）。
  * ★ 剩余时间要**真的在走**（每分钟重算）：一条永远停在"还剩 3 小时"的提示比不显示更坏。
- *   24 小时不是我们定的时限，是方舟产物的物理寿命。
+ *   24 小时不是我们定的时限，是方舟产物的物理寿命；MiniMax H3 的任务上游 7 天内都查得到（过期判据按接口版本分开，data/videoJobs.ttlOf）。
  * ★ 过期的那条**不给取回键**（摆一颗点了必然失败的按钮 = 让用户以为还有救），
  *   改给一颗"知道了"——否则这条提醒永远关不掉，久了连还能救的那几发一起被当成噪音。
  * ★ 取回失败**绝不自动重试、也绝不补一句"再试试"**：这条路上"再试"和"再下一单"
@@ -58,6 +64,16 @@ export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean
   const busy = useFlow((s) => s.busy);
   const [working, setWorking] = useState("");
   const [issue, setIssue] = useState("");
+  // 这张卡还挂着吗：取回成功那一拍凭据结案、列表重画，这张卡**当场就卸载了**（见 take 里的 ★★）
+  const alive = useRef(true);
+  useEffect(() => {
+    // ★ 挂载时置回 true（2026-09-18 发版复核抓到）：StrictMode 下 effect 会 mount → unmount → mount，
+    //   只在 cleanup 里置 false 的话 dev 里它从第一拍起就恒为 false（同 #291 / #295 那一格）
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
   // videoJobNote 是纯函数，重渲即刷新剩余时间
   const [, tick] = useState(0);
   useEffect(() => {
@@ -65,49 +81,139 @@ export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean
     return () => clearInterval(id);
   }, []);
   const expired = videoJobExpired(job);
+  // 说钱之前先问服务端这一发的账（data/videoJobs.checkVideoJobCharge；到了 emit，这张卡重画）：过期的卡要知道退没退，
+  // 没过期的卡要知道该不该许诺「万一没出成会自动退回」（上线之前受理的没有这一笔账、管理员免单的根本没扣）
+  useEffect(() => {
+    void checkVideoJobCharge(job);
+  }, [job]);
+  /**
+   * 没过期、但服务端已经说「没出成、钱退了 / 正在退」（data/videoJobs.videoJobRefunded，与 videoJobNote 读同一份账）：
+   * 没有成片可取了 —— 标题、按钮都跟着那句话走，摆「知道了」不摆「📥 取回」（2.62 发版评审抓到：话说「点知道了」，下面却只有一颗「取回」）。
+   * ★ 这颗「知道了」走的仍是 take() → flowStore.takeJob，**不**直接 dismissVideoJob：takeJob 会当场再向上游核对一次（不花钱），
+   *   确认没出成才结案，并把那一段挂着的「用下面的「取回」领回来，别重新生成」改成「没出成」—— 直接消掉的话，那句话会一直指着一颗
+   *   已经不存在的「取回」（dismissVideoJob 的 ★）。
+   * ★ 服务端登记表补来的那种（videoJobFromServer）例外，「知道了」直接在本机消掉（2.62 发版评审第三轮抓到）：它没有挂在哪一段上，
+   *   上面那两条理由都不成立 —— 没有段上那句话要改；服务端只在上游明说没出成时才退钱，退了 / 正在退都翻不回「出成了」。
+   *   而走 takeJob 要向上游跑一趟：查不动、或回包没带退款结论时卡就收不起来，原来一点就能消掉的卡变成要挂满 24 小时。
+   *   （不给它摆「这一发我已经拿到了」那颗：退了钱的那一发根本没有成片，那句话是假的。）
+   */
+  const refunded = !expired && videoJobRefunded(job);
+  /** 退了钱、又是服务端登记表补来的：「知道了」不核对、本机直接消（见上面的 ★） */
+  const localClose = refunded && videoJobFromServer(job);
+  /**
+   * 第一次认出「退了钱」的那一拍：把那一段挂着的 genNode「没接到 · 用下面的「取回」领回来，别重新生成」
+   * 当场改成「没出成」+ 钱上那个短语（flowStore.settleRefundedPending —— 与 takeJob 结案那一拍同一处实现，只动还挂着 pending 的那一段），
+   * 页顶那句「点下面那颗「取回」」一并撤掉。
+   * ★ 不看 mine（10-09 复核）：段删了 / 那一套方案没了（重新推演过）时 mine 为假，可页顶那句照样挂着、指着一张已经说「钱退了」的卡。
+   *   段那一半由 settleRefundedPending 自己判（找不到段 / 不在 pending / 这一段还有别的、能取的凭据就不动）。
+   * ★ 原来要等人点「知道了」才换（2.62 发版复核留下的一条，10-08 补）：这张卡一挂上就说「没出成、钱退了」，段上那句却还叫人别重新生成、
+   *   去点一颗这张卡上根本没有的「取回」，草稿里存的也是那句旧的。
+   * ★ 只认这张卡挂上时问来的那份账（videoJobRefundFailure），不另跑一趟上游：改的只是段上那句话，凭据照旧等「知道了」核对过再结案（dismissVideoJob 的 ★）。
+   */
+  useEffect(() => {
+    if (!refunded) return;
+    const failure = videoJobRefundFailure(job);
+    if (failure) settleRefundedPending(job, failure);
+  }, [refunded, job]);
+  /** 这张卡已经没有成片可取了（过期 / 退了钱）：灰底、不摆取回、不摆「不是这条流水线的」那句 */
+  const closed = expired || refunded;
 
-  async function take() {
+  /**
+   * 取回失败那一句话。上游明说没出成（ArkTaskFailed）的那种要带上钱：退了 / 会退 / 没退各一句（只走 ai/failCharge），
+   * 再接一句「重新生成会重新计费」—— 原来这里说的是写死的「费用不退」。其余失败（还在跑、查不动）原样说 data / ai 层给的整句。
+   */
+  function failLine(e: unknown): string {
+    const inner = unwrapFailure(e);
+    if (!(inner instanceof ArkTaskFailed)) return e instanceof Error ? e.message : String(e);
+    const why = briefArkReason(inner, 80);
+    const money = chargeNote(chargeOnFail(e), job.cost);
+    const moneyLine = money?.line ?? "";
+    return job.seg > 0
+      ? t`第 ${job.seg} 段那一发没出成（${why}）。${moneyLine}要这一段的话重新生成（会重新计费）。`
+      : t`服务器登记的那一发没出成（${why}）。${moneyLine}要这一段的话重新生成（会重新计费）。`;
+  }
+
+  /** @param closing 退了钱的那张卡点「知道了」：同一条 takeJob，只是话按「收起这一条」说（见上面 refunded 的 ★） */
+  async function take(closing = false) {
     setIssue("");
-    setWorking(t`正在取回…`);
+    setWorking(closing ? t`正在核对…` : t`正在取回…`);
     try {
-      await takeJob(job, (st) => setWorking(st));
-      // ★★ 取回成功**当场存草稿**（2026-09-06 主人真机）：取回那一拍凭据已销毁、成片只落在内存里的流水线上，
-      //   这时 App 再被重启一次（系统回收 / 出包装机）这一发就谁都找不回来了。创作入口这个宿主没挂
-      //   useFlowActions（那条"又炼出一段就自动存盘"只长在工作流 / 工坊页上），所以这里自己存。
-      setWorking(t`成片已落回流水线，正在存草稿…`);
-      const meta = await useStudio.getState().saveWorkDraft({ from: "flow" }).catch(() => null);
-      if (!meta)
-        // ★ 草稿箱没读出来时"去工坊点一次存草稿"只会原样再失败：换一句指对出路的（drafts.draftsUnavailableText）
-        setIssue(
-          draftsLoadIssue()
-            ? draftsUnavailableText()
-            : t`成片已经落回流水线，但自动存草稿没成（存储空间不足或隐私模式）——先别关 App，去工坊点一次「存草稿」`,
-        );
+      await takeJob(job, (st) => {
+        if (alive.current) setWorking(st);
+      });
     } catch (e) {
-      setIssue(e instanceof Error ? e.message : String(e));
-    } finally {
-      setWorking("");
+      // ★★ 凭据被结案了（上游明说没出成、服务端已经退了钱 —— flowStore.takeJob 的 ★★）：这张卡在下一次重画时就卸载了，
+      //   写进 setIssue 的话**没人看得见**（此刻 alive 多半还是 true，卸载在下一拍）。所以这一种一律用轻提示说，不看 alive。
+      // ★ 「知道了」没能收起、而且是**没核对到结局**（ArkTaskUnknown：断网、查不动、上游还没给终态 —— 方舟与真人档两家都抛这个类型）：
+      //   不复述取回那几句（里面说的是「再点一次『取回』」，这张卡上没有那颗键），也不另说钱 —— 钱上那句卡上已经照服务端的账说过了。
+      // ★ 只这一种（2.62 发版评审第二轮抓到）：其余没收起的照原因说 —— 上游明说没出成、只是这次回包没带退款结论（ArkTaskFailed，
+      //   failLine 照 ai/failCharge 说钱）、取回期间换了账号、正忙着别的，都是 failLine 给的那句真话；一律说成「没核对到」是把原因说错了
+      // ★ 上游这一次明说没出成、可回包里**没带退款结论**（ArkTaskFailed，refund 为空或不是「退了 / 正在退 / 本来没扣」—— 是那三种的话 takeJob
+      //   早就结案了，走不到「凭据还在」这一支），而这张卡挂上时问到的账说的是退了钱（videoJobRefunded）：照 failLine 说就是「这一发扣的 token 没有退回」，
+      //   紧贴在卡上那句「已经退回」底下（2.62 发版复核留下的一条，10-08 补）。这一趟只是没拿到退款结论，不是钱没退 —— 换成「暂时收不起来」那一种说法。
+      //   卡上的账没说退（老服务端 / 真没退）时照旧 failLine：那时「没有退回」就是真话。
+      const inner = unwrapFailure(e);
+      const known = closing && videoJobKnown(job.taskId);
+      const why =
+        known && inner instanceof ArkTaskUnknown
+          ? t`这一条暂时收不起来：没能向上游核对到这一发的结局——过一会儿再点一次「知道了」（核对不花钱）。`
+          : known && inner instanceof ArkTaskFailed && videoJobRefunded(job)
+            ? t`这一条暂时收不起来：上游确认这一发没出成，但这次没带回退款的结论——过一会儿再点一次「知道了」（核对不花钱）。`
+            : failLine(e);
+      if (!videoJobKnown(job.taskId)) {
+        showToast(why, 8000);
+        return;
+      }
+      if (alive.current) {
+        setIssue(why);
+        setWorking("");
+      } else showToast(why, 6000);
+      return;
     }
+    // ★★ 取回成功**当场存草稿**（2026-09-06 主人真机）：取回那一拍凭据已销毁、成片只落在内存里的流水线上，
+    //   这时 App 再被重启一次（系统回收 / 出包装机）这一发就谁都找不回来了。创作入口这个宿主没挂
+    //   useFlowActions（那条"又炼出一段就自动存盘"只长在工作流 / 工坊页上），所以这里自己存。
+    // ★★ 结果用**轻提示**说（2026-09-18，2.46 发版复核抓到）：取回成功那一拍凭据结案、列表重画，这张卡已经卸载了 ——
+    //   原来写进 setIssue 的「存草稿没成」从来没人看得见，而那恰恰是「先别关 App」的那一句。
+    // ★ 简约流水线（原节点本来就在简约模式里）不进草稿库：不去存，也不说成「存储空间不足」，照实说它只活在内存里。
+    if (useFlow.getState().mode === "simple") {
+      showToast(t`成片已经取回。简约模式不存草稿——趁现在把它剪完发出去，App 被关掉的话这一段就找不回来了`, 7000);
+      return;
+    }
+    const meta = await useStudio.getState().saveWorkDraft({ from: "flow" }).catch(() => null);
+    if (meta) showToast(t`成片已经取回，放进了流水线，也存进了草稿`, 3500);
+    else
+      // ★ 草稿箱没读出来时"去工坊点一次存草稿"只会原样再失败：换一句指对出路的（drafts.draftsUnavailableText）
+      showToast(
+        draftsLoadIssue()
+          ? draftsUnavailableText()
+          : t`成片已经落回流水线，但自动存草稿没成（存储空间不足或隐私模式）——先别关 App，去工坊点一次「存草稿」`,
+        7000,
+      );
   }
 
   return (
     <div
       className={`rounded-lg border px-2.5 py-2 ${
-        expired ? "border-slate-600/60 bg-black/25" : "border-amber-500/50 bg-amber-500/10"
+        closed ? "border-slate-600/60 bg-black/25" : "border-warn-500/40 bg-warn-500/10"
       }`}
     >
-      <div className="text-[11px] font-bold text-amber-200">
-        {/* seg=0 = 服务端登记表补来的（本机没认领过它属于哪一段） */}
+      <div className="text-[11px] font-bold text-warn-200">
+        {/* seg=0 = 服务端登记表补来的（本机没认领过它属于哪一段）。退了钱的那种不说「还没取回」：没有成片可取了（钱上那句在下面的 note 里） */}
         {expired
           ? job.seg > 0
             ? t`第 ${job.seg} 段那一发已经取不回来了`
             : t`有一发成片已经取不回来了`
-          : job.seg > 0
-            ? t`第 ${job.seg} 段有一发成片还没取回`
-            : t`服务器上有一发你付过钱的成片还没取回`}
+          : refunded
+            ? job.seg > 0
+              ? t`第 ${job.seg} 段那一发没出成`
+              : t`服务器上有一发成片没出成`
+            : job.seg > 0
+              ? t`第 ${job.seg} 段有一发成片还没取回`
+              : t`服务器上有一发你付过钱的成片还没取回`}
       </div>
       <div className="mt-0.5 truncate text-[10px] text-slate-400">{job.label}</div>
-      <p className={`mt-1 text-[10px] leading-relaxed ${expired ? "text-slate-400" : "text-amber-200/90"}`}>
+      <p className={`mt-1 text-[10px] leading-relaxed ${closed ? "text-slate-400" : "text-warn-200/90"}`}>
         {videoJobNote(job)}
       </p>
       {/* ★ 「这一发不是这条工作流的」要说出来，而且**不给按钮**：凭据跨草稿存活，
@@ -116,12 +222,19 @@ export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean
       {/* ★ 不是这条流水线炼的（原节点没了：重启后没打开草稿、或那一段从没存过草稿）——**照样能取**，
           取回来会新开一段安放（flowStore.placeRescuedSegment）。以前这里把键灰掉并指路"去打开那条草稿"，
           而最常见的情形正是根本没有那条草稿（2026-09-05 主人真机） */}
-      {!expired && !mine && (
+      {!closed && !mine && (
         <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
           <Trans>当初炼它的那一段不在这条流水线里（重启后没打开原草稿，或那一段从没存过草稿）：取回来会作为新的一段落在流水线里，之后照常剪辑、发布。凭据还在，没有浪费。</Trans>
         </p>
       )}
-      {issue && <p className="mt-1 text-[10px] leading-relaxed text-rose-300">{issue}</p>}
+      {issue && <p className="mt-1 text-[10px] leading-relaxed text-danger-300">{issue}</p>}
+      {/* 过期的卡把任务号摆出来（可长按复制）：那几句话里说的「把下面的任务号发给客服」要真的在下面 ——
+          服务端问不出结局（lost）、真人档不再跟进的那几种，找客服核对这笔钱只能靠它 */}
+      {expired && (
+        <p className="mt-1 select-all break-all text-[10px] text-slate-500">
+          <Trans>任务号：{job.taskId}</Trans>
+        </p>
+      )}
       {expired ? (
         <button
           onClick={() => dismissVideoJob(job)}
@@ -129,11 +242,21 @@ export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean
         >
           <Trans>知道了，不用再提醒我这一发</Trans>
         </button>
+      ) : refunded ? (
+        // 同一句「知道了」，走的是 take(true)（理由见上面 refunded 的 ★）；与取回键同一道 busy 闸：takeJob 在忙的时候整句拒。
+        // 服务端补来的那种本机直接消（localClose），不看 busy；取回还在路上（working）时照旧灰着 —— 别和那一趟抢着结案
+        <button
+          onClick={() => (localClose ? dismissVideoJob(job) : void take(true))}
+          disabled={!!working || (!localClose && busy)}
+          className="mt-1.5 w-full rounded-full border border-slate-600 py-1.5 text-[11px] text-slate-300 disabled:opacity-40"
+        >
+          {working ? <Trans>核对中…</Trans> : <Trans>知道了，不用再提醒我这一发</Trans>}
+        </button>
       ) : (
         <button
           onClick={() => void take()}
           disabled={!!working || busy}
-          className="mt-1.5 w-full rounded-full bg-amber-500/90 py-1.5 text-[11px] font-bold text-ink disabled:opacity-40"
+          className="mt-1.5 w-full rounded-full bg-warn-500/90 py-1.5 text-[11px] font-bold text-ink disabled:opacity-40"
         >
           {working ? (
             <Trans>取回中…</Trans>
@@ -147,7 +270,7 @@ export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean
       {/* ★ 服务端登记表补来的那种没过期也能消掉（data/videoJobs.videoJobFromServer 的 ★，2026-09-18）：
           登记表不知道谁取回了哪一发，这一发很可能在别的设备 / 官网上早就拿到了 —— 只给「取回」一颗键，
           等于逼他把一段已经有了的片子再落一遍流水线。本机自己交的那种照旧只在过期后给「知道了」。 */}
-      {!expired && videoJobFromServer(job) && !working && (
+      {!closed && videoJobFromServer(job) && !working && (
         <button
           onClick={() => dismissVideoJob(job)}
           className="mt-1 w-full rounded-full py-1 text-[10px] text-slate-400 underline underline-offset-2"
@@ -180,13 +303,10 @@ export function SegmentRecoverList({ className = "" }: { className?: string }) {
   //   "每次生成视频出片之前都弹『还没取回』"——凭据受理即落盘，等的时候它就在名单里）
   const jobs = recoverableVideoJobs();
   if (jobs.length === 0) return null;
-  /** 这一发落得回来吗：它当初炼的那一段那一套走向，还在**这条**工作流里。
-   *  ★ 这只是**显示**的门（决定按钮亮不亮），判据必须与 `flowStore.takeJob` 里那道
-   *    真拦截**逐字一致** —— 那边问的就是 `s.nodes` 上有没有这个 node+proposal。
-   *    在这儿放宽（比如把 alts 里归档的旧走向也算上）会让按钮亮起来、点下去被拒，
-   *    而用户读到的是"这个功能坏了"。 */
-  const mine = (j: VideoJob) =>
-    nodes.some((n) => n.id === j.nodeId && n.proposals.some((pp) => pp.id === j.proposalId));
+  /** 这一发落得回来吗：它当初炼的那一段那一套走向，还在**这条**工作流里（样片定稿那一发还要那一套挂的还是那条样片）。
+   *  ★ 这只是**显示**的门（按钮上说「取回这一段」还是「新开一段」），判据与 `flowStore.takeJob` 真落的那一处是**同一个函数**
+   *    （`jobLandsInPlace`）—— 两处各写一遍的话，按钮说落回原位、点下去却新开一段（或反过来），用户读到的是"这个功能坏了"。 */
+  const mine = (j: VideoJob) => jobLandsInPlace(nodes, j);
   return (
     <div className={`space-y-1.5 ${className}`}>
       {jobs.map((j) => (

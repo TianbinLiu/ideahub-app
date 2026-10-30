@@ -12,11 +12,17 @@
 //   把 store 变成一面复读机。
 // ★ `mounted` 给结局分叉用：页在 → 直接画在页上（跳转/就地显示）；页不在 → 走胶囊通知。
 //   `resetCardDraft` 不动它（铸成跳走前要 reset，而那一刻页还在）。
-// ★ 依赖方向：data → store → 组件。这里只认 types 与 data/promptSchemes。
-import { useCallback } from "react";
+// ★ 依赖方向：data → store → 组件。这里只认 types、data/promptSchemes 与 data/deviceOwner。
+// ★★ 表单是**谁的**（2026-09-18 主人真机点名同一台手机换账号后数据串号）：里面有 A 的照片、真人声明与授权
+//   （pendingAsset —— 铸卡时会绑到**新卡**上，绑的是 A 授权的那个真实的人）、声音样本、付过钱的 AI 图位。
+//   原来换号不清，B 进这一页看到的就是 A 的表单，点「铸卡」会把 A 的授权绑到 B 的卡上。现在换号那一拍把 A 的表单
+//   收进暗格（parkedDrafts，只在这一进程里）、给 B 一份空的；A 再登录回来原样还给他。A 还在跑的 AI 出图回包
+//   经 useDraftField 的 setter 落回 A 的暗格，不落进 B 的表单（见那里的 bornOwner）。
+import { useCallback, useRef } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { create } from "zustand";
 import { defaultScheme } from "../data/promptSchemes";
+import { onOwnerSwitch, workOwner } from "../data/deviceOwner";
 import type { CardType, CardView } from "../types";
 
 /** 一个图位上已经准备好的那张图 */
@@ -116,6 +122,11 @@ export interface CustomCardDraft {
   subjectPick: SubjectPick | null;
   /** 出片句（Card.idLine）：出片时整句拼进视频提示词，≤ types.ID_LINE_MAX */
   idLine: string;
+  /**
+   * AI 车道上一次写进出片句的那一句（空 = 没写过）。重跑 AI 时：出片句还是这一句（用户没改过）就换成新的；
+   * 用户改过就不动 —— 不然换了主素材图再跑一遍，留着的是上一张照片的出片句，成了与形象图矛盾的硬约束（2026-09-18 复核抓到）
+   */
+  aiIdLine: string;
   /** 一键识别（场景卡 / 道具卡）正在跑的那一步（空 = 没在跑） */
   recogBusy: string;
   /** 识别的结局那句话：钱扣没扣分三档说（见 CustomCardPage.recognize） */
@@ -133,7 +144,14 @@ export interface CustomCardDraft {
   realPerson: boolean;
   consentOk: boolean;
   pendingAsset: { assetId: string; note: string } | null;
+  /** 随火山引擎授权**取回来**的那张照片（它的存在理由就是那份绑定，撤授权就连它一起撤） */
   authShot: Shot | null;
+  /**
+   * 在真人素材页**亲手上传**的那张真人照片（2026-09-30 起真人素材页以上传为主）。
+   * ★ 与 authShot 分开存：撤火山授权时只撤随授权取回的那张，用户自己传的照片不动 ——
+   *   两张合成一个字段的话，取消「火山引擎适用」就会把用户自己传的图一起删掉。
+   */
+  realShot: Shot | null;
   unbindNote: string;
   pendingVoice: { dataUrl: string; durationSec: number; note: string } | null;
   /** 正在处理哪一格：非人物卡的 kind，或人物卡的图位键（同 schemeShots） */
@@ -143,6 +161,12 @@ export interface CustomCardDraft {
   err: string;
   dropped: string;
   minting: boolean;
+  /**
+   * 铸卡在跑时铸卡键下那一行（空 = 用页面原来那句）。由后台票的心跳写（data/jobs.heartbeatJob，2026-10-15 教材人格评审
+   * norman-interaction-8）：远端模式要串行传几张图、弱网几十秒，页内那行与胶囊上那张票写的是**同一个串**，「已等 N 秒」一个数。
+   * 放 store 不放组件：退出这一页再回来，那一行还接着跳。
+   */
+  mintNote: string;
   partial: { id: string; kind: "unsynced" | "views" | "asset"; lost: string[]; reason?: string } | null;
   /** 页面此刻挂着没有（见文件头 ★） */
   mounted: boolean;
@@ -170,6 +194,7 @@ export function initialDraft(): CustomCardDraft {
     annot: null,
     subjectPick: null,
     idLine: "",
+    aiIdLine: "",
     recogBusy: "",
     recogMsg: null,
     schemePick: false,
@@ -182,6 +207,7 @@ export function initialDraft(): CustomCardDraft {
     consentOk: false,
     pendingAsset: null,
     authShot: null,
+    realShot: null,
     unbindNote: "",
     pendingVoice: null,
     busySlot: null,
@@ -189,12 +215,32 @@ export function initialDraft(): CustomCardDraft {
     err: "",
     dropped: "",
     minting: false,
+    mintNote: "",
     partial: null,
     mounted: false,
   };
 }
 
 export const useCardDraft = create<CustomCardDraft>()(() => initialDraft());
+
+/** store 里现在这份表单是谁的（第一次问时取「内存里这摊活的主人」） */
+let draftOwner = "";
+function ownerOfDraft(): string {
+  if (!draftOwner) draftOwner = workOwner();
+  return draftOwner;
+}
+/** 别的账号做到一半的表单（只在这一进程里，不落盘 —— 这一页本来就不落盘） */
+const parkedDrafts = new Map<string, CustomCardDraft>();
+
+onOwnerSwitch((prev, next) => {
+  const cur = useCardDraft.getState();
+  // 上一个人做到一半的收进暗格；空表单不必收
+  if (draftDirty(cur) || draftBusy(cur)) parkedDrafts.set(prev, { ...cur, mounted: false });
+  const back = parkedDrafts.get(next);
+  parkedDrafts.delete(next);
+  useCardDraft.setState({ ...(back ?? initialDraft()), mounted: cur.mounted }, true);
+  draftOwner = next;
+});
 
 /** 清空重来（铸成跳走、或用户点「重新开始」）。`mounted` 原样保留 */
 export function resetCardDraft(): void {
@@ -210,6 +256,7 @@ export function draftDirty(s: CustomCardDraft): boolean {
     Object.keys(s.shots).length > 0 ||
     Object.keys(s.schemeShots).length > 0 ||
     !!s.aiBody ||
+    !!s.realShot ||
     !!s.subjectPick ||
     !!s.idLine
   );
@@ -228,16 +275,23 @@ export function useDraftField<K extends keyof CustomCardDraft>(
   key: K,
 ): [CustomCardDraft[K], Dispatch<SetStateAction<CustomCardDraft[K]>>] {
   const value = useCardDraft((s) => s[key]);
+  // 这个字段是**替谁写的**：挂载那一拍的主人。换过账号之后，上一个人还在跑的活（AI 出图回包）调到这个 setter，
+  // 写回的是他自己暗格里的那份表单，不落进新账号的表单（见文件头 ★★）
+  const bornOwner = useRef(ownerOfDraft()).current;
   const set = useCallback<Dispatch<SetStateAction<CustomCardDraft[K]>>>(
     (v) => {
-      useCardDraft.setState(
-        (s) =>
-          ({
-            [key]: typeof v === "function" ? (v as (prev: CustomCardDraft[K]) => CustomCardDraft[K])(s[key]) : v,
-          }) as Partial<CustomCardDraft>,
-      );
+      const patch = (s: CustomCardDraft) =>
+        ({
+          [key]: typeof v === "function" ? (v as (prev: CustomCardDraft[K]) => CustomCardDraft[K])(s[key]) : v,
+        }) as Partial<CustomCardDraft>;
+      if (!bornOwner || bornOwner === ownerOfDraft()) {
+        useCardDraft.setState(patch);
+        return;
+      }
+      const parked = parkedDrafts.get(bornOwner);
+      if (parked) parkedDrafts.set(bornOwner, { ...parked, ...patch(parked) });
     },
-    [key],
+    [key, bornOwner],
   );
   return [value, set];
 }

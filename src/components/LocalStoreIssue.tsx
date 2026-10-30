@@ -33,7 +33,7 @@ export function LocalStoreBanner({
   onRetry: () => void;
 }) {
   return (
-    <div className="mb-2 flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-300">
+    <div className="mb-2 flex items-start gap-2 rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-warn-300">
       <span className="min-w-0 flex-1">
         {store === "templates" ? (
           <Trans>这台设备上存的模板这会儿没读出来，下面可能缺几条；读出来之前新做或改动的模板不会存在这台设备上。</Trans>
@@ -45,7 +45,7 @@ export function LocalStoreBanner({
         type="button"
         onClick={onRetry}
         disabled={retrying}
-        className="flex-none rounded-full bg-amber-500/20 px-2.5 py-1 font-semibold text-amber-200 disabled:opacity-40"
+        className="flex-none rounded-full bg-warn-500/20 px-2.5 py-1 font-semibold text-warn-200 disabled:opacity-40"
       >
         {retrying ? <Trans>读取中…</Trans> : <Trans>重试</Trans>}
       </button>

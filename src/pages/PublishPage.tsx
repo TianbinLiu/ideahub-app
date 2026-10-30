@@ -13,6 +13,7 @@
 //   `retireWorkDraft()` 三件一起做 —— 替换没成功还调它，等于"既没换成、合成稿也没了"，
 //   而那份合成稿里躺着真花过钱的卡组与成片。
 import { badgeNote } from "../data/aigcLabel";
+import Warn from "../components/Warn";
 import { useEffect, useMemo, useRef, useState } from "react";
 import PageHeader from "../components/PageHeader";
 import { useLocation, useNavigate } from "react-router";
@@ -28,11 +29,20 @@ import VisibilityPicker from "../components/VisibilityPicker";
 import SegmentPlayer from "../components/SegmentPlayer";
 import TagInput from "../components/TagInput";
 import { isArkAssetUrl } from "../ai/arkClient";
+import { isMinimaxV2VideoUrl } from "../data/upstreamVideo";
 import { addCards, createDeck, deckSynced } from "../data/account";
 import { getVideo, publishVideo, reviseVideo, type ReviseResult } from "../data/videos";
 import { useVideosVersion } from "../hooks/useVideos";
 import { showToast } from "../data/toast";
 import { publishedExit, useStudio } from "../studio/studioStore";
+import { useCut } from "../studio/cutStore";
+import Sheet from "../components/Sheet";
+import { CloseButton } from "../components/IconTapButton";
+import { RecipeCast, RecipeExcludedNote, RecipeStoryboard, RecipeSummaryRow } from "../components/recipe/RecipeView";
+import { markShareRecipe, pendingCanvasFor } from "../data/projects";
+import { previewRecipe } from "../data/recipes";
+import RemixRewardNote from "../components/recipe/RemixRewardNote";
+import type { WorkflowRecipe } from "../data/recipe";
 import { DEFAULT_VIDEO_CATEGORY, VIDEO_CATEGORIES, VIDEO_TAG_LEN, VIDEO_TAG_MAX, type Visibility, formatDuration, parseTags, revisionLabel, visibilityOf, visibilityWire } from "../types";
 
 export default function PublishPage() {
@@ -47,11 +57,18 @@ export default function PublishPage() {
   });
   const draft = useStudio((s) => s.draft);
   const clearDraft = useStudio((s) => s.clearDraft);
-  const [title, setTitle] = useState("");
+  /**
+   * 这条合好的成片还能不能回到合并之前接着剪（剪辑工程里留着源段才行，见 studioStore.reopenCut）。
+   * 2026-09-30 之前合的老稿没有留底，那时这颗键不摆 —— 摆一颗按下去必被拒的键比不摆更糟。
+   */
+  const canReopenCut = useCut((s) => !!s.project?.merged?.sources.length) && !!draft?.merged;
+  // ★ 标题 / 标签的初值读稿子（新稿子上它们是空的，行为与从前一样）：从这一页「回剪辑页改一改」时
+  //   填好的几格会先写回稿子（见 backToCut），合完再回来才不用重新敲一遍
+  const [title, setTitle] = useState(draft?.title ?? "");
   const [category, setCategory] = useState<string>(draft?.category ?? DEFAULT_VIDEO_CATEGORY);
   const [description, setDescription] = useState(draft?.description ?? "");
   const [cover, setCover] = useState(draft?.cover ?? "");
-  const [tags, setTags] = useState<string[]>([]);
+  const [tags, setTags] = useState<string[]>(draft?.tags ?? []);
   // 可见性默认公开：发布这个动作本身的意思就是"给人看"。
   // 想先自己留着的人可以在这里改，发完在作品编辑页也随时能改回来。
   const [visibility, setVisibility] = useState<Visibility>("public");
@@ -98,6 +115,29 @@ export default function PublishPage() {
    */
   const [reviseFail, setReviseFail] = useState<Extract<ReviseResult, { ok: false }> | null>(null);
 
+  // ── 公开制作过程（2026-10-02，主人拍板：默认开、公开前先过一屏预览）──
+  // recipe：组稿那一拍抓下的画布（data/projects 的待办）投出来的配方。null = 这条稿子没有可公开的制作过程
+  //   （简约模式 / 捕获失败 / 换过设备 / 画布投不出来），那时这颗开关**根本不摆**；undefined = 还没读到（IndexedDB 异步）。
+  // ★ 预览画的是瘦身**之前**的画布（帧还是本机地址，previewRecipe 允许），真公开的那份在留存工程那一拍从瘦身好的画布再投一次
+  //   （projects.submit）—— 两份只差"画面地址"，段 / 卡 / 空位逐一相同（同一个 projectRecipe）。
+  const [recipe, setRecipe] = useState<WorkflowRecipe | null | undefined>(undefined);
+  const [shareRecipe, setShareRecipe] = useState(true);
+  /** 「同时上架到模板市场」（工作流模板 = 上了架的公开配方，P2）：从属于 shareRecipe，缺省不勾（上货架是作者的主动选择） */
+  const [listRecipe, setListRecipe] = useState(false);
+  /** 预览抽屉开着；`gate` = 是「发布」键顶出来的（确认之后要接着发），不是链接点开看看 */
+  const [recipeOpen, setRecipeOpen] = useState<{ gate: boolean } | null>(null);
+  /** 预览看过了没有：第一次点「发布」先摆预览，之后再点直接发（看过一遍就够了，别每次都拦） */
+  const recipeSeen = useRef(false);
+  useEffect(() => {
+    let on = true;
+    void pendingCanvasFor(reviseOf).then((c) => {
+      if (on) setRecipe(c ? previewRecipe(c) : null);
+    });
+    return () => {
+      on = false;
+    };
+  }, [reviseOf?.videoId]);
+
   // 壳字段初值：回炉态一律**预填原作品的值**（不是新草稿的自动标题）——用户回炉是来换内容的，
   // 让他把标题简介再敲一遍是把"改内容"伪装成"发新片"。
   // ★ 只在"表单还是空白"时回填，避免覆盖用户已经输入的内容（同 EditPage 那条）。
@@ -114,7 +154,25 @@ export default function PublishPage() {
     if (!origin) return;
     setVisibility(visibilityOf(origin));
     setTags(origin.tags ?? []);
+    // 回炉：开关跟着原作品现在的状态走（作者关过就别替他重新打开）；没留存过配方的老作品按默认开
+    setShareRecipe(origin.recipeState ? origin.recipeState.public : true);
+    setListRecipe(origin.recipeState?.listed === true);
   }, [origin?.id]);
+
+  /** 这一发要不要公开制作过程：开关 × 有东西可公开（`over` 给预览抽屉里那两颗键用，state 还来不及变） */
+  const wantShare = (over?: { shareRecipe?: boolean }) => (over?.shareRecipe ?? shareRecipe) && !!recipe;
+  /**
+   * 主按钮：公开着而且还没看过预览 → 先摆预览（主人点名"公开前先过一屏"），确认之后接着发。
+   * `over` 是预览抽屉里那两颗键传下来的（「这次不公开」要带着 shareRecipe:false 直接发，别让人再点一次）。
+   */
+  function primary(over?: { shareRecipe?: boolean }) {
+    if (wantShare(over) && !recipeSeen.current) {
+      setRecipeOpen({ gate: true });
+      return;
+    }
+    if (reviseOf) void submitRevise(over);
+    else void publish(over);
+  }
 
   /**
    * 本页刚刚发布过（publish() 已经把去处发出去了）。
@@ -164,7 +222,7 @@ export default function PublishPage() {
    * ★ `publishedRef` 只在**真成了**之后才置位：置早了失败时那颗键就永久禁着，
    *   而用户此刻最需要的就是再点一次。
    */
-  async function submitRevise() {
+  async function submitRevise(over?: { shareRecipe?: boolean }) {
     if (!draft || !reviseOf || publishedRef.current || busy) return;
     if (!title.trim()) {
       setErr(t`先给视频起个标题`);
@@ -173,6 +231,8 @@ export default function PublishPage() {
     setErr("");
     setReviseFail(null);
     setBusy(t`正在替换…`);
+    // 「公开制作过程」的选择先记进待办（要 await：与 retain 那边是对同一格的读改写），留存工程那一拍照它办
+    await markShareRecipe(reviseOf.videoId, wantShare(over), listRecipe);
     // ★ 记下提交的是**哪一份**合成稿（2026-09-18，2.46 发版前复核抓到）：这一发要传好几分钟，人完全可能先回去
     //   打开了另一条草稿 / 另一份合成稿。回包之后 finishPublish 清的是**那一刻**的 draft、剪辑稿存档与 workDraftId ——
     //   不核对的话，删掉的是他后来打开的那一份。
@@ -239,8 +299,8 @@ export default function PublishPage() {
     });
   }
 
-  /** @param over 立刻要生效、还来不及经过 state 的字段（放弃确认卡里那条"先私密发出去"用） */
-  async function publish(over?: { visibility?: Visibility }) {
+  /** @param over 立刻要生效、还来不及经过 state 的字段（放弃确认卡里那条"先私密发出去"、预览抽屉里「这次不公开」用） */
+  async function publish(over?: { visibility?: Visibility; shareRecipe?: boolean }) {
     if (!draft || publishedRef.current) return;
     if (!title.trim()) {
       setErr(t`先给视频起个标题`);
@@ -251,19 +311,25 @@ export default function PublishPage() {
       shareDeck && draft.deck?.cards.length
         ? { name: t`《${title.trim()}》卡组`, cards: draft.deck.cards }
         : undefined;
-    const item = publishVideo({
-      title: title.trim(),
-      category,
-      description: description.trim(),
-      ...(tags.length > 0 ? { tags } : {}),
-      cover,
-      segments: draft.segments,
-      branchTree: draft.branchTree,
-      deck,
-      merged: draft.merged,
-      // 三档 → 两个字段，映射只有 types.visibilityWire 一处
-      ...visibilityWire(over?.visibility ?? visibility),
-    });
+    const item = publishVideo(
+      {
+        title: title.trim(),
+        category,
+        description: description.trim(),
+        ...(tags.length > 0 ? { tags } : {}),
+        cover,
+        segments: draft.segments,
+        branchTree: draft.branchTree,
+        deck,
+        merged: draft.merged,
+        // 三档 → 两个字段，映射只有 types.visibilityWire 一处
+        ...visibilityWire(over?.visibility ?? visibility),
+        // 「按谁的流程做的同款」（组稿时从 flowStore.remixOf 折进稿子的）：这里是逐字段拼的发布体，不带就丢了
+        ...(draft.remixOf ? { remixOf: draft.remixOf } : {}),
+      },
+      // 公开制作过程：不进发布体，盖进画布待办，留存工程那一拍顺手投成配方 PUT 上去（data/projects.submit）
+      { shareRecipe: wantShare(over), listRecipe },
+    );
     // ★ 作品已经落库了，从这一刻起不许再发第二条（下面要 await，窗口比原来长）
     publishedRef.current = true;
 
@@ -306,6 +372,26 @@ export default function PublishPage() {
     navigate(`/video/${videoId}`, { replace: true });
   }
 
+  /**
+   * 「回剪辑页改一改」：在这一页看完成片，发现片段 / 配乐还想动 —— 回到合并之前接着剪，改完重新合一次。
+   *
+   * ★ 这一页填好的几格先写回稿子：表单只活在这个组件里，走开再回来就归零了，而人只是想去换一条配乐。
+   * ★ 用 replace：这一格此刻对着的是一条**没合**的稿子，留在返回栈里的话，按返回会落到一个
+   *   "发布一条还没合的片子"的页面上。
+   */
+  function backToCut() {
+    if (!draft || publishedRef.current || busy) return;
+    useStudio.setState({
+      draft: { ...draft, title: title.trim(), category, description, cover, ...(tags.length > 0 ? { tags } : {}) },
+    });
+    if (!useStudio.getState().reopenCut()) {
+      // 「回工作流」这条路不存在（组稿已清空流水线）：能回的是「我的 → 草稿」里自动存下的那条，简约模式不进草稿库（同 CutPage 那几句）
+      setErr(t`这条成片回不到合成之前了：它没有留下合成前的片段。可以直接发布，或回「我的 → 草稿」打开草稿重做一条（简约模式没有草稿，只能重新创作）。`);
+      return;
+    }
+    navigate("/cut", { replace: true });
+  }
+
   return (
     <div className="min-h-full">
       {/* ★ safe-top 挂在 header 自己身上、不挂页面根：header 是 sticky top-0，
@@ -325,12 +411,12 @@ export default function PublishPage() {
           写进 store 的 err 活不过 reset() 与换路由）。可关掉：它是提醒不是错误。 */}
       {mergeWarn ? (
         <div className="mx-auto max-w-6xl px-4">
-          <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
-            <p className="flex-1 whitespace-pre-line text-xs leading-relaxed text-amber-100">{mergeWarn}</p>
+          <div className="flex items-start gap-2 rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2">
+            <Warn className="flex-1 whitespace-pre-line">{mergeWarn}</Warn>
             <button
               onClick={() => setMergeWarn("")}
               aria-label={t`知道了`}
-              className="flex-none rounded-full px-2 py-0.5 text-[11px] font-semibold text-amber-200 active:opacity-60"
+              className="flex-none rounded-full px-3 py-1.5 text-[11px] font-semibold text-warn-200 active:opacity-60"
             >
               <Trans>知道了</Trans>
             </button>
@@ -341,8 +427,23 @@ export default function PublishPage() {
       <main className="mx-auto grid max-w-6xl gap-6 px-4 py-5 lg:grid-cols-[1.2fr_1fr]">
         {/* 成片预览 */}
         <div>
-          <SegmentPlayer segments={draft.segments} cover={cover || draft.cover} />
+          <SegmentPlayer segments={draft.segments} cover={cover || draft.cover} frame="card" rate={1} overlay={null} onFull={null} />
           <div className="mt-2 text-center text-xs text-slate-500"><Trans>成片预览（各段按时间线依次播放）</Trans></div>
+          {/* 看完成片还想动片段 / 配乐：回到合并之前接着剪（合并时源段留了底才有这条路，见 canReopenCut） */}
+          {canReopenCut && (
+            <div className="mt-2 text-center">
+              <button
+                onClick={backToCut}
+                disabled={!!busy}
+                className="rounded-full bg-panel px-3.5 py-1.5 text-xs text-slate-200 ring-1 ring-slate-700 disabled:opacity-40"
+              >
+                <Trans>↩ 回剪辑页改一改</Trans>
+              </button>
+              <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
+                <Trans>片段、配乐还想调就回去接着剪，改完重新合一次（合成不花钱）。这一页填好的标题、简介和封面会留着。</Trans>
+              </p>
+            </div>
+          )}
           {/* 每段的来历必须可见：真实 Seedance 影像还是首尾帧渐变回退。
               此前两者在预览里长得都"会动"，用户分不清哪些是真生成的 */}
           <div data-guide="publish-segments" className="mt-3 space-y-1.5">
@@ -350,16 +451,19 @@ export default function PublishPage() {
               <div key={i} className="flex items-center gap-2 rounded-lg bg-panel/60 px-3 py-1.5 text-xs">
                 <span className="flex-none text-slate-500"><Trans>第 {i + 1} 段</Trans></span>
                 <span className="min-w-0 flex-1 truncate text-slate-300">{sg.title}</span>
+                {/* 「✓ 真实影像」只在有别的段回退了时才标（Refactoring UI §2.4 弱化次要）：每一行都打绿勾，那一个 ⚠ 反而被淹掉 */}
                 {sg.videoUrl ? (
-                  <span className="flex-none rounded-full bg-emerald-500/15 px-2 py-0.5 text-emerald-300">
-                    <Trans>✓ 真实影像</Trans>
-                  </span>
+                  draft.segments.every((s) => s.videoUrl) ? null : (
+                    <span className="flex-none rounded-full bg-ok-500/15 px-2 py-0.5 text-ok-300">
+                      <Trans>✓ 真实影像</Trans>
+                    </span>
+                  )
                 ) : (
                   <span
-                    className="flex-none rounded-full bg-amber-500/15 px-2 py-0.5 text-amber-300"
+                    className="flex-none rounded-full bg-warn-500/15 px-2 py-0.5 text-warn-300"
                     title={t`该段视频生成失败或处于演示模式，播放时用首尾帧渐变代替`}
                   >
-                    <Trans>⚠ 渐变回退</Trans>
+                    <Trans>⚠ 没出成片 · 画面过渡代替</Trans>
                   </span>
                 )}
               </div>
@@ -367,9 +471,15 @@ export default function PublishPage() {
           </div>
           {/* 2026-08-20 起成片出片即转存永久地址，这句只对"转存失败退回方舟直链"的少数段成立 ——
               无条件挂着就是对多数用户撒谎（他们的链接根本不会过期） */}
+          {/* ★ 24 小时是方舟 TOS 链接的事实；MiniMax H3 的成片链接（isArkAssetUrl 也认它）有时效、但上游没说多久 —— 有 H3 链接的就不写小时数
+              （2026-10-26 P2b 审核：与 data/videoJobs「MiniMax 不许出现编出来的小时数」同一条；两种混着时也不写，H3 那几段可能更早过期） */}
           {draft.segments.some((sg) => isArkAssetUrl(sg.videoUrl)) && (
             <div className="mt-2 text-center text-[11px] leading-relaxed text-slate-500">
-              <Trans>有片段还挂在临时链接上（约 24 小时有效）——尽快发布，服务端会转存为长期地址</Trans>
+              {draft.segments.some((sg) => isMinimaxV2VideoUrl(sg.videoUrl)) ? (
+                <Trans>有片段还挂在临时链接上（有时效）——尽快发布，发布后会换成长期地址</Trans>
+              ) : (
+                <Trans>有片段还挂在临时链接上（约 24 小时有效）——尽快发布，发布后会换成长期地址</Trans>
+              )}
             </div>
           )}
         </div>
@@ -435,6 +545,63 @@ export default function PublishPage() {
 
           <VisibilityPicker value={visibility} onChange={setVisibility} />
 
+          {/* 公开制作过程（2026-10-02 主人拍板：默认开、公开前先过一屏预览）。只在这条稿子真有可公开的画布时才摆 ——
+              简约模式 / 捕获失败 / 换过设备的稿子没有可公开的东西，摆一颗恒灰的开关是噪声（与下面卡组那颗同一条理由） */}
+          {recipe && (
+            <div data-guide="publish-recipe">
+              <div className="mb-1.5 text-sm font-semibold text-slate-300"><Trans>制作过程</Trans></div>
+              <button
+                onClick={() => setShareRecipe((v) => !v)}
+                className={`flex w-full items-start gap-2.5 rounded-xl border px-3.5 py-2.5 text-left ${
+                  shareRecipe ? "border-brand/40 bg-brand/5" : "border-slate-700 bg-panel"
+                }`}
+              >
+                <span className={`mt-0.5 flex-none text-base ${shareRecipe ? "text-brand" : "text-slate-500"}`}>
+                  {shareRecipe ? "☑" : "☐"}
+                </span>
+                <span className="text-xs leading-relaxed text-slate-300">
+                  <Trans>公开制作过程</Trans>
+                  <span className="mt-0.5 block text-[11px] text-slate-500">
+                    {shareRecipe
+                      ? t`看到这条片子的人能点「查看制作过程」看每一段的剧情、档位、时长与卡组，并按这条流程做同款。你的原话、没选中的方案、圈选与导演台都不会给出去。`
+                      : reviseOf && origin?.recipeState?.public
+                        // ★ 回炉态要多说一句：关掉它，原作品上那份公开着的制作过程也会一并下线（服务端按版次判：旧配方配不上新一版）
+                        ? t`别人只看得到成片，看不到它是怎么一段段做出来的。原作品上公开着的制作过程也会一并下线。`
+                        : t`别人只看得到成片，看不到它是怎么一段段做出来的。`}
+                  </span>
+                </span>
+              </button>
+              {shareRecipe && (
+                <button type="button" onClick={() => setRecipeOpen({ gate: false })} className="mt-1.5 text-xs text-brand underline underline-offset-2">
+                  <Trans>看看别人会看到什么</Trans>
+                </button>
+              )}
+              {/* 上架到模板市场（工作流模板，P2）：从属于上面那颗；只有公开着才摆（关了公开上架也无从谈起） */}
+              {shareRecipe && (
+                <button
+                  onClick={() => setListRecipe((v) => !v)}
+                  className={`mt-2 flex w-full items-start gap-2.5 rounded-xl border px-3.5 py-2.5 text-left ${
+                    listRecipe ? "border-brand/40 bg-brand/5" : "border-slate-700 bg-panel"
+                  }`}
+                >
+                  <span className={`mt-0.5 flex-none text-base ${listRecipe ? "text-brand" : "text-slate-500"}`}>{listRecipe ? "☑" : "☐"}</span>
+                  <span className="text-xs leading-relaxed text-slate-300">
+                    <Trans>同时上架到模板市场（工作流模板）</Trans>
+                    <span className="mt-0.5 block text-[11px] text-slate-500">
+                      {listRecipe
+                        ? t`模板市场的「工作流」货架上会多一张卡，这条作品就是它的示例视频；别人从那儿点进来按这条流程做同款。随时能在编辑页下架。`
+                        : t`不上货架：只有看到这条作品的人才会发现它的制作过程。`}
+                    </span>
+                  </span>
+                </button>
+              )}
+              {visibility !== "private" && <RemixRewardNote className="mt-2" />}
+            </div>
+          )}
+          {/* 同款奖励（P3b）：别人照着这条做同款不需要它公开制作过程（首页 / 详情页那颗「做同款」照着分段剧本就能做），
+              所以没有制作过程可公开的稿子也说这一句。仅自己可见的没人看得到，不说。规则没到时这个组件什么都不画 */}
+          {!recipe && visibility !== "private" && <RemixRewardNote />}
+
           {/* 随片带卡组：只在这条片子真的有卡组时才摆（没有卡组时摆一颗恒灰的开关是噪声） */}
           {!!draft.deck?.cards.length && (
             <div>
@@ -451,13 +618,15 @@ export default function PublishPage() {
                 <span className="text-xs leading-relaxed text-slate-300">
                   <Trans>随片带上这 {draft.deck.cards.length} 张卡</Trans>
                   <span className="mt-0.5 block text-[11px] text-slate-500">
+                    {/* ★ 不带卡组也照样能「做同款」：flowStore.remakeNodesOf 照着分段剧本铺，卡组有才带（上面同款奖励那段注释同一个事实）。
+                        2026-10-21 之前这里写着「也不能做同款」，说反了 —— 会让想被人复刻的作者为了这个去开卡组 */}
                     {shareDeck
                       ? t`看到这条片子的人能看到卡面与设定，也能「收入卡组」接着创作——这是别人找到你的主要方式。声明过真实人物的卡，形象图不会给出去。`
                       : reviseOf
                         // ★ 回炉态要多说一句：关掉它**会把原作品上那套卡组一起撤下来**
                         //   （服务端收到空卡组会 $unset deck）。不说的话用户以为只是"这一版不带"
-                        ? t`别人只看得到成片，看不到你用了哪几张卡，也不能「做同款」。原作品上那套卡组也会一并撤下。`
-                        : t`别人只看得到成片，看不到你用了哪几张卡，也不能「做同款」。`}
+                        ? t`别人看不到你用了哪几张卡，也拿不到这几张卡；「做同款」照样能用，只是照着分段剧本做、不带你的卡。原作品上那套卡组也会一并撤下。`
+                        : t`别人看不到你用了哪几张卡，也拿不到这几张卡；「做同款」照样能用，只是照着分段剧本做、不带你的卡。`}
                   </span>
                 </span>
               </button>
@@ -478,26 +647,24 @@ export default function PublishPage() {
               ⇒ 要恢复它，先做服务端那一侧：解锁端点（扣费 + 落购买记录 + 给作者入账）、
                 按购买态决定发不发 `segments[].videoUrl`、客户端购买态从服务端读。
               ★ 这个 `data-guide` 锚点留着：引导里那一步（tours 的「谁能看」）指着它。 */}
-          <div data-guide="publish-pricing">
-            <div className="mb-1.5 text-sm font-semibold text-slate-300"><Trans>收费方式</Trans></div>
-            <div className="rounded-xl border border-slate-700/70 bg-panel px-3.5 py-2.5 text-xs leading-relaxed text-slate-400">
-              <Trans>目前所有作品都是<b className="font-semibold text-slate-200">免费观看</b>。付费解锁还没开放——等收款和分账真的通了再放出来，免得你以为在收钱、其实一分也到不了账。</Trans>
-            </div>
-          </div>
+          {/* 没有可选项的东西不配一整节标题 + 卡片（Refactoring UI §2.5 标签只在必要时）：一句话说清现状就够 */}
+          <p data-guide="publish-pricing" className="text-xs leading-relaxed text-slate-400">
+            <Trans>目前所有作品都是<b className="font-semibold text-slate-200">免费观看</b>。付费解锁还没开放——等收款和分账真的通了再放出来，免得你以为在收钱、其实一分也到不了账。</Trans>
+          </p>
 
           {/* ★ 错误行挂在**发布键这一侧**（2026-08-30 移）：用户按的是这颗键，而原来它
               画在最上面那个标题输入框底下 —— 定价那条整句拒绝报在两屏之外，
               在手机上等于没报（铁律八：报错要落在动作发生的地方）。 */}
           {err && (
-            <div className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs leading-relaxed text-rose-200">
+            <div className="rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-xs leading-relaxed text-danger-200">
               {err}
             </div>
           )}
 
           {/* 作品发出去了、卡组没存上：如实说 + 再试一次 + 一条离开的路（铁律八） */}
           {deckIssue && (
-            <div className="rounded-xl border border-amber-500/40 bg-amber-400/10 px-3 py-2.5 text-xs leading-relaxed text-amber-100">
-              <Trans><span className="font-bold">作品已经发布成功了</span>，但本片卡组没能存进你的工坊：{deckIssue.why}。<span className="text-amber-200/80">卡还在这台设备上，重试一次多半就好。</span></Trans>
+            <div className="rounded-xl border border-warn-500/40 bg-warn-500/10 px-3 py-2.5 text-xs leading-relaxed text-warn-100">
+              <Trans><span className="font-bold">作品已经发布成功了</span>，但本片卡组没能存进你的工坊：{deckIssue.why}。<span className="text-warn-200/80">卡还在这台设备上，重试一次多半就好。</span></Trans>
               <div className="mt-2 flex gap-2">
                 <button
                   onClick={() => {
@@ -509,13 +676,13 @@ export default function PublishPage() {
                     });
                   }}
                   disabled={!!busy}
-                  className="rounded-full bg-amber-400/90 px-3 py-1.5 text-[11px] font-bold text-ink disabled:opacity-40"
+                  className="rounded-full bg-warn-400/90 px-3 py-1.5 text-[11px] font-bold text-ink disabled:opacity-40"
                 >
                   {busy ? t`重试中…` : t`再试一次`}
                 </button>
                 <button
                   onClick={() => finishAndGo(deckIssue.videoId)}
-                  className="rounded-full border border-amber-500/40 px-3 py-1.5 text-[11px] text-amber-100"
+                  className="rounded-full border border-warn-500/40 px-3 py-1.5 text-[11px] text-warn-100"
                 >
                   <Trans>先去看作品</Trans>
                 </button>
@@ -529,8 +696,8 @@ export default function PublishPage() {
             <div
               className={`rounded-xl border px-3 py-2.5 text-xs leading-relaxed ${
                 reviseFail.kind === "conflict"
-                  ? "border-amber-500/40 bg-amber-400/10 text-amber-100"
-                  : "border-rose-500/40 bg-rose-500/10 text-rose-200"
+                  ? "border-warn-500/40 bg-warn-500/10 text-warn-100"
+                  : "border-danger-500/40 bg-danger-500/10 text-danger-200"
               }`}
             >
               {reviseFail.why}
@@ -548,7 +715,7 @@ export default function PublishPage() {
                       //   作品**逐字共享**同一批资产 —— 删掉任一条，另一条当场黑屏且零报错。
                       navigate(`/edit/${reviseOf?.videoId ?? ""}`);
                     }}
-                    className="rounded-full bg-amber-400/90 px-3 py-1.5 text-[11px] font-bold text-ink"
+                    className="rounded-full bg-warn-400/90 px-3 py-1.5 text-[11px] font-bold text-ink"
                   >
                     <Trans>取回最新工程重来</Trans>
                   </button>
@@ -563,7 +730,7 @@ export default function PublishPage() {
                   <button
                     onClick={() => void submitRevise()}
                     disabled={!!busy}
-                    className="rounded-full bg-rose-400/90 px-3 py-1.5 text-[11px] font-bold text-ink disabled:opacity-40"
+                    className="rounded-full bg-danger-400/90 px-3 py-1.5 text-[11px] font-bold text-ink disabled:opacity-40"
                   >
                     <Trans>重试</Trans>
                   </button>
@@ -580,29 +747,15 @@ export default function PublishPage() {
 
           {/* 主按钮上方那一行：回炉态说清"这一下会动谁"；全新发布态说清"发完还能回炉" */}
           {reviseOf ? (
-            <p className="text-xs leading-relaxed text-amber-300">
+            <p className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-xs leading-relaxed text-warn-200">
               <Trans>会替换《{originTitle}》的内容，链接不变。</Trans>
             </p>
           ) : (
             <p className="text-xs leading-relaxed text-slate-500"><Trans>发布后会留存这条片的工坊工程，之后可回炉重做。</Trans></p>
           )}
 
-          <div data-guide="publish-actions" className="flex items-center gap-3 pt-2">
-            <button
-              onClick={() => (reviseOf ? void submitRevise() : void publish())}
-              disabled={!!busy || !!deckIssue}
-              className="rounded-xl bg-brand px-6 py-2.5 text-sm font-bold text-ink hover:brightness-110 disabled:opacity-40"
-            >
-              {busy || (reviseOf ? t`替换原作品` : t`发布`)}
-            </button>
-            <button
-              onClick={() => setDiscardOpen(true)}
-              disabled={!!busy || !!deckIssue}
-              className="rounded-xl bg-panel px-4 py-2.5 text-sm text-slate-400 hover:text-slate-200 disabled:opacity-40"
-            >
-              <Trans>放弃本次合成</Trans>
-            </button>
-          </div>
+          {/* ★ 声明摆在主键**上面**（2026-10-23，《Refactoring UI》走查 §3.6 / §2.8）：人先读到自己要声明什么、再按发布；
+              原来它在按钮下面，读起来像按完之后才告诉你的脚注。 */}
           {/* ★★ 内容声明。**恒开、不可关**，而且是**主动声明**不是默示同意（2026-08-30 改）。
               《人工智能生成合成内容标识办法》第十条要求用户"主动声明并使用服务提供者提供的
               标识功能进行标识"—— 原来这里是一句"发布即视为同意《AIGC 内容须知》"的脚注，
@@ -627,6 +780,22 @@ export default function PublishPage() {
               <Trans>发布后会做三件事：{note}并按<button onClick={() => setAigcOpen(true)} className="text-brand">《AIGC 内容须知》</button>承担发布者责任。<span className="text-slate-500">这项声明不可关闭。</span></Trans>
             </p>
           </div>
+          <div data-guide="publish-actions" className="flex items-center gap-3 pt-2">
+            <button
+              onClick={() => primary()}
+              disabled={!!busy || !!deckIssue}
+              className="min-w-0 flex-1 rounded-xl bg-brand px-6 py-2.5 text-sm font-bold text-ink hover:brightness-110 disabled:opacity-40"
+            >
+              {busy || (reviseOf ? t`替换原作品` : t`发布`)}
+            </button>
+            <button
+              onClick={() => setDiscardOpen(true)}
+              disabled={!!busy || !!deckIssue}
+              className="flex-none rounded-xl bg-panel px-4 py-2.5 text-sm text-slate-400 hover:text-slate-200 disabled:opacity-40"
+            >
+              <Trans>放弃本次合成</Trans>
+            </button>
+          </div>
         </div>
       </main>
 
@@ -634,6 +803,50 @@ export default function PublishPage() {
         <InfoDialog title={AGREEMENTS.aigc.title} onClose={() => setAigcOpen(false)}>
           {AGREEMENTS.aigc.body}
         </InfoDialog>
+      )}
+
+      {/* 「别人会看到这些」：公开制作过程的预览（三处共用的 RecipeView）。gate 为真时是发布键顶出来的，两颗键都接着发 */}
+      {recipeOpen && recipe && (
+        <Sheet onClose={() => setRecipeOpen(null)}>
+          <div className="mb-3 flex items-center justify-between">
+            <div className="text-sm font-bold text-slate-100"><Trans>别人会看到这些</Trans></div>
+            <CloseButton chip="sm" size={13} align="end" onClick={() => setRecipeOpen(null)} />
+          </div>
+          <RecipeSummaryRow recipe={recipe} />
+          <div className="mt-3">
+            <RecipeStoryboard recipe={recipe} />
+          </div>
+          <div className="mt-3">
+            <RecipeCast recipe={recipe} />
+          </div>
+          <div className="mt-3">
+            <RecipeExcludedNote />
+          </div>
+          <div className="mt-4 flex gap-2">
+            <button
+              onClick={() => {
+                const gate = recipeOpen.gate;
+                setShareRecipe(false);
+                setRecipeOpen(null);
+                if (gate) primary({ shareRecipe: false });
+              }}
+              className="flex-1 rounded-xl bg-panel py-2.5 text-sm font-bold text-slate-200 ring-1 ring-slate-700"
+            >
+              {recipeOpen.gate ? t`这次不公开，直接发` : t`这次不公开`}
+            </button>
+            <button
+              onClick={() => {
+                const gate = recipeOpen.gate;
+                recipeSeen.current = true;
+                setRecipeOpen(null);
+                if (gate) primary();
+              }}
+              className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink"
+            >
+              {recipeOpen.gate ? (reviseOf ? t`就这样公开，替换原作品` : t`就这样公开，发布`) : t`好`}
+            </button>
+          </div>
+        </Sheet>
       )}
 
       {discardOpen && (
@@ -682,7 +895,7 @@ export default function PublishPage() {
             // ★ 没标题就禁用，而不是"点了之后关掉弹层再在两屏之外报错"——
             //   那种失败方式用户读不出因果（发布键那条整句拒也是同一个理由挪的位置）
             disabled={!!busy || !title.trim()}
-            className="mt-3 w-full rounded-xl border border-amber-400/50 bg-amber-400/10 px-3 py-2 text-left text-[11px] leading-relaxed text-amber-100 disabled:opacity-40"
+            className="mt-3 w-full rounded-xl border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-left text-[11px] leading-relaxed text-warn-100 disabled:opacity-40"
           >
             <span className="font-bold"><Trans>还是先按「仅自己可见」发出去吧</Trans></span>
             <br />

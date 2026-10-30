@@ -2,20 +2,40 @@
 //
 // ★ 三种会卡住的情况都必须**当场说清楚**，不能只是按钮点了没动静：
 //   ① 没给「安装未知应用」授权 —— 这是侧载最常见的一道坎，直接给一颗按钮跳到那一页；
-//   ② 下载失败 / 校验不过 —— 原因原样显示，并且留着重试；
+//   ② 下载失败 / 校验不过 —— 原因按界面语言说出来（原生只回码，话在 data/appUpdate.updateFailText），并且留着重试；
 //   ③ 签名对不上 —— 系统安装器自己会报，这里提前把话说在前面（从早期的 debug 包
 //      换到正式包时必然发生，只能先卸载）。
+//
+// ★★ 强制更新（清单的 minVersionCode，判据只在 data/appUpdate.isMandatory，2026-10-10）：这张弹层就是这一版唯一的出口 ——
+//   · 关不掉：没有「以后再说」、没有「关闭」，点遮罩不关；安卓返回键（强制更新这一层不登记进 utils/backButton 的层栈，按返回照原样后退，默认是 WebView 后退）
+//     只退得动底下那一页，这张弹层挂在路由之外（App.tsx 的 UpdateGate），退不掉它。**强制的那一版只在那里画**：
+//     设置页查到的也交过去（data/appUpdate.raiseForcedUpdate）—— 画在设置页里的话返回键连页带弹层一起退掉（2026-10-10 评审抓到）。
+//   · 但**永远有路可走**：下不动 / 校验不过 / 装不上都留着「重试」，另给两条在浏览器里下的路，管的是两类不同的坏法：
+//     ① 官网下载页（DOWNLOAD_PAGE_URL）—— 坏在**这台手机上的应用内那一条**时用：本 App 没拿到「安装未知应用」的授权、
+//       原生下载器在这台机器上出毛病。⚠ 它**不是**第二个下载源：官网那颗键 302 到的是同一个镜像文件、同一个 Cloudflare 边缘
+//       （docs/app-distribution.md「更新源现在长什么样」）。原来这里写着「镜像挂了也能从官网装」，是错的（2026-10-10 评审抓到）。
+//     ② GitHub Release 上的同一个包（githubApkUrl）—— 坏在**镜像**时用：镜像上没有这个文件（404 → 原生那句「去官网重下」）、
+//       Cloudflare 缓存了一份 404 或坏的副本。那是另一套机器，发版脚本传上去的权威那份；国内网络常打不开它，所以照实说是备用。
+//     打不开浏览器就把那个地址写出来。
+//   · 层级压在引导层（GUIDE_Z = 90）之上：引导会在各屏自己弹出来，盖住这张卡的话人只看得见引导、点不到更新。
 import { Trans, useLingui } from "@lingui/react/macro";
+import Warn from "./Warn";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import {
+  DOWNLOAD_PAGE_URL,
   canInstall,
   downloadAndInstall,
   fmtSize,
+  githubApkUrl,
+  isMandatory,
   openInstallPermission,
   skipVersion,
+  updateFailText,
   type UpdateInfo,
 } from "../data/appUpdate";
+import { openExternal } from "../utils/openExternal";
+import { useBackLayer } from "../hooks/useBackLayer";
 import Icon from "./Icon";
 
 export default function UpdateSheet({ info, onClose }: { info: UpdateInfo; onClose: () => void }) {
@@ -24,6 +44,25 @@ export default function UpdateSheet({ info, onClose }: { info: UpdateInfo; onClo
   const [busy, setBusy] = useState(false);
   const [pct, setPct] = useState(0);
   const [err, setErr] = useState("");
+  /** 强制更新：这一版关不掉（见文件头 ★★） */
+  const forced = isMandatory(info);
+  // 手机返回键先关这一层（hooks/useBackLayer），与点遮罩 / 「关闭」同一个 onClose（不记「跳过这一版」）；
+  // 强制的那一版不接（active = false，关不掉），下载中与遮罩同样不许关
+  useBackLayer(!forced, () => (busy ? false : onClose()), "update");
+  /** 打不开浏览器（被拦 / 没有浏览器）时打不开的那个地址：写出来，让人自己去。空串 = 没有失败 */
+  const [linkFailed, setLinkFailed] = useState("");
+  const versionName = info.versionName;
+  /** 镜像也坏了时的备用源（文件头 ★★ 的 ②）；版本号拼不进地址时没有这一条 */
+  const githubUrl = githubApkUrl(info);
+
+  async function openLink(url: string) {
+    setLinkFailed("");
+    try {
+      await openExternal(url);
+    } catch {
+      setLinkFailed(url);
+    }
+  }
 
   useEffect(() => {
     void canInstall().then(setAllowed);
@@ -50,26 +89,37 @@ export default function UpdateSheet({ info, onClose }: { info: UpdateInfo; onClo
       // 安装器已经拉起来了。这里**不关弹层**：装不装是用户在系统弹窗里决定的，
       // 他可能点取消回来 —— 那时候还留着"立即更新"才有得再点
     } catch (e) {
-      setErr(e instanceof Error ? e.message : t`更新失败，请稍后再试`);
+      // 原生只回码 + 已下好的字节数，话按界面语言在 updateFailText 里说（2026-10-19；原来是原生原话，开头一个英文原词）
+      setErr(updateFailText(e, "download"));
     } finally {
       setBusy(false);
     }
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-[60] flex items-end bg-black/60" onClick={busy ? undefined : onClose}>
+    <div
+      className={`fixed inset-0 flex items-end bg-black/60 ${forced ? "z-[95]" : "z-[60]"}`}
+      onClick={busy || forced ? undefined : onClose}
+    >
       <div
         className="w-full rounded-t-2xl border-t border-slate-700 bg-ink p-4"
         style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))" }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-1 flex items-center gap-2">
-          <span className="text-lg">🎉</span>
+          <span className="text-lg">{forced ? "⬆️" : "🎉"}</span>
           <h3 className="text-sm font-bold text-slate-100">
-            <Trans>有新版本 {info.versionName}</Trans>
+            {forced ? <Trans>需要更新到 {versionName}</Trans> : <Trans>有新版本 {info.versionName}</Trans>}
           </h3>
           {info.sizeBytes > 0 && <span className="text-[11px] text-slate-500">{fmtSize(info.sizeBytes)}</span>}
         </div>
+
+        {forced && (
+          <div className="mb-3 rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-[11px] leading-relaxed text-warn-100">
+            {/* ★ 不许诺「数据不会丢」：签名对不上时只能卸载重装（底下那行），那条路上本机的草稿是会没的 */}
+            <Trans>你手上这一版已经停止支持了，更新之后才能接着用。</Trans>
+          </div>
+        )}
 
         {info.notes && (
           <p className="mb-3 max-h-40 overflow-y-auto whitespace-pre-wrap text-xs leading-relaxed text-slate-400">
@@ -78,13 +128,17 @@ export default function UpdateSheet({ info, onClose }: { info: UpdateInfo; onClo
         )}
 
         {allowed === false && (
-          <div className="mb-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
-            <p className="text-[11px] leading-relaxed text-amber-100">
+          <div className="mb-3 rounded-xl border border-warn-500/40 bg-warn-500/10 p-3">
+            <Warn>
               <Trans>这个 App 不是从应用商店装的，系统需要你先允许它安装应用，才能自己完成更新。</Trans>
-            </p>
+            </Warn>
             <button
-              onClick={() => void openInstallPermission()}
-              className="mt-2 w-full rounded-xl bg-amber-400/90 py-2.5 text-xs font-bold text-ink"
+              onClick={() => {
+                // 打不开授权页（原生 NO_SETTINGS）原来是一个没人接的拒绝 = 点了没反应；现在说出来、让人自己去系统设置
+                setErr("");
+                openInstallPermission().catch((e: unknown) => setErr(updateFailText(e, "download")));
+              }}
+              className="mt-2 w-full rounded-xl bg-warn-400/90 py-2.5 text-xs font-bold text-ink"
             >
               <Trans>去开启「允许安装未知应用」</Trans>
             </button>
@@ -107,22 +161,25 @@ export default function UpdateSheet({ info, onClose }: { info: UpdateInfo; onClo
         )}
 
         {err && (
-          <div className="mb-3 rounded-xl border border-rose-500/40 bg-rose-500/10 p-3 text-[11px] leading-relaxed text-rose-200">
+          <div className="mb-3 rounded-xl border border-danger-500/40 bg-danger-500/10 p-3 text-[11px] leading-relaxed text-danger-200">
             {err}
           </div>
         )}
 
         <div className="flex gap-2">
-          <button
-            onClick={() => {
-              skipVersion(info.versionCode);
-              onClose();
-            }}
-            disabled={busy}
-            className="flex-1 rounded-xl bg-slate-700/70 py-2.5 text-sm text-slate-200 disabled:opacity-40"
-          >
-            <Trans>以后再说</Trans>
-          </button>
+          {/* 强制的那一版没有「以后再说」（见文件头 ★★） */}
+          {!forced && (
+            <button
+              onClick={() => {
+                skipVersion(info.versionCode);
+                onClose();
+              }}
+              disabled={busy}
+              className="flex-1 rounded-xl bg-slate-700/70 py-2.5 text-sm text-slate-200 disabled:opacity-40"
+            >
+              <Trans>以后再说</Trans>
+            </button>
+          )}
           <button
             onClick={() => void start()}
             disabled={busy || allowed === false}
@@ -132,15 +189,43 @@ export default function UpdateSheet({ info, onClose }: { info: UpdateInfo; onClo
           </button>
         </div>
 
+        {/* 另外两条路（只给强制的那一版：它关不掉，应用内那条整个走不通时人还得有路可走；
+            普通更新照旧一字不变 —— 关掉弹层、过两天再点就是它的出路）。两条各管什么见文件头 ★★ */}
+        {forced && (
+          <div className="mt-2 flex flex-col items-center gap-1.5 text-center">
+            <button
+              onClick={() => void openLink(DOWNLOAD_PAGE_URL)}
+              className="text-[11px] text-brand underline underline-offset-2"
+            >
+              <Trans>下不动、装不上？在浏览器里打开官网下载页</Trans>
+            </button>
+            {githubUrl && (
+              <button
+                onClick={() => void openLink(githubUrl)}
+                className="text-[11px] text-brand underline underline-offset-2"
+              >
+                <Trans>官网也下不动？从 GitHub 下载这一版（备用，国内网络可能打不开）</Trans>
+              </button>
+            )}
+            {linkFailed && (
+              <p className="select-all break-all text-[11px] leading-relaxed text-danger-300">
+                <Trans>没能打开浏览器。可以手动访问：{linkFailed}</Trans>
+              </p>
+            )}
+          </div>
+        )}
+
         {/* ★ 签名不一致的情况提前说：早期发出去的测试包如果是 debug 签名，
             换成正式签名的包时系统会直接拒绝安装，而它给的提示（"应用未安装"）
             完全看不出原因 */}
-        <p className="mt-3 text-center text-[10px] leading-relaxed text-slate-600">
+        <p className="mt-3 text-center text-[10px] leading-relaxed text-slate-400">
           <Trans>若安装时提示「应用未安装」，多半是早期测试包的签名不同，先卸载旧版再装即可</Trans>
-          <button onClick={onClose} className="ml-1 inline-flex items-center text-slate-500 underline underline-offset-2">
-            <Trans>关闭</Trans>
-            <Icon name="close" size={10} className="ml-0.5" />
-          </button>
+          {!forced && (
+            <button onClick={onClose} className="ml-1 inline-flex items-center text-slate-500 underline underline-offset-2">
+              <Trans>关闭</Trans>
+              <Icon name="close" size={10} className="ml-0.5" />
+            </button>
+          )}
         </p>
       </div>
     </div>,

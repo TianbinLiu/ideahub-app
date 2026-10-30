@@ -9,7 +9,7 @@
 //      手机号登录走的是另一套 /api/auth/otp（authOtp.routes），本文件暂不封装。
 //   ——以上若 server 端后续加了别名字段，改这一处即可，data/account.ts 不用动。
 import { t } from "@lingui/core/macro";
-import { API_BASE, apiGet, apiPost, apiPut, getToken, setToken } from "./client";
+import { API_BASE, apiGet, apiPost, apiPut, getToken, setToken, withAppVersion } from "./client";
 
 /** server 的 serializeAuthUser 输出；displayName/bio 只有 /api/me/profile 那条返回带 */
 export interface ApiUser {
@@ -74,16 +74,6 @@ export interface RegisterInput {
   password: string;
 }
 
-/** POST /api/auth/register（server 要求 password ≥ 6 位；用户名/邮箱冲突返回 409） */
-export async function register(input: RegisterInput): Promise<AuthResult> {
-  const res = await apiPost<{ token?: string; user?: ApiUser }>("/api/auth/register", input, {
-    auth: false,
-  });
-  const out = readAuth(res);
-  setToken(out.token);
-  return out;
-}
-
 /**
  * GET /api/me/profile（requireAuth）
  * /api/auth/me 只返回登录态需要的字段，昵称/简介/头像要从这条拿。
@@ -95,14 +85,28 @@ export async function register(input: RegisterInput): Promise<AuthResult> {
  * 走裸 fetch 而不是 apiPost —— multipart 的 Content-Type 必须由浏览器带 boundary 生成，
  * 手动设成 application/json 会让 multer 解析不出文件。
  */
+/**
+ * 头像上传等多久。图在调用方已压成 256px 见方的几十 KB（utils/image.encodeSquare），CLAUDE.md 量过的真机 5G 上行
+ * 30~40KB/s 也就一两秒；服务端那头同步等 Cloudinary 转存，几十 KB 是秒级 —— 与 uploads.uploadImage 给 5MB 图的 60s 同一个数，
+ * 宽裕有余。2026-10-15 教材人格评审：原来这一发是裸 fetch、没有上限，半开连接时「保存中…」一直转
+ */
+const AVATAR_UPLOAD_MS = 60_000;
+
 export async function uploadAvatar(blob: Blob, filename = "avatar.webp"): Promise<string | null> {
   const fd = new FormData();
   fd.append("avatar", blob, filename);
   const token = getToken();
-  const res = await fetch(`${API_BASE}/api/me/avatar`, {
+  const url = `${API_BASE}/api/me/avatar`;
+  const res = await fetch(url, {
     method: "POST",
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    headers: withAppVersion(url, token ? { Authorization: `Bearer ${token}` } : {}),
     body: fd,
+    signal: AbortSignal.timeout(AVATAR_UPLOAD_MS),
+  }).catch((e) => {
+    // 没收到回包（断网 / 到点）：整句人话 —— setAvatarImage 把它原样抛给页面画，DOMException 的英文不该上屏
+    const timedOut = e instanceof DOMException && (e.name === "TimeoutError" || e.name === "AbortError");
+    const secs = Math.round(AVATAR_UPLOAD_MS / 1000);
+    throw new Error(timedOut ? t`头像上传超时（${secs} 秒内没传完），换个网络再试` : t`头像上传失败（网络不可用）`);
   });
   const data = (await res.json().catch(() => ({}))) as { avatarUrl?: string; message?: string; error?: string };
   if (!res.ok) throw new Error(data.message || data.error || t`头像上传失败（HTTP ${res.status}）`);
@@ -247,10 +251,14 @@ export async function phoneLoginVerify(phone: string, code: string): Promise<Aut
  * ★ 这个地址【不能】在应用内 WebView 里打开：Google 对嵌入式 WebView 的 OAuth 请求
  *   直接返 disallowed_useragent（是策略，不是 bug）。必须交给系统浏览器，
  *   登完由服务端深链回 App —— 见 utils/oauth.ts。
+ * @param state 本机生成的一次性 state（utils/oauth.startOauth；判定表 data/oauthState）：服务端把它放进自己签名的 state、
+ *   成功 / 失败两种回跳都原样回带 `state=`，App 据此只认本机发起的那一条回程。老服务端忽略这个参数（回跳不回带）。
+ *   契约 docs/api-contract.md「第三方登录深链的 state 绑定」
  */
-export function oauthStartUrl(provider: string, redirect: string): string {
+export function oauthStartUrl(provider: string, redirect: string, state?: string): string {
   const u = new URL(`${API_BASE}/api/auth/oauth/${encodeURIComponent(provider)}`);
   u.searchParams.set("next", redirect);
+  if (state) u.searchParams.set("state", state);
   return u.toString();
 }
 

@@ -10,19 +10,27 @@
 import { useEffect, useState } from "react";
 import PageHeader from "../components/PageHeader";
 import { Link, useNavigate } from "react-router";
-import { Browser } from "@capacitor/browser";
-import Icon from "../components/Icon";
+import Icon, { type IconName } from "../components/Icon";
 import ConfirmDialog from "../components/ConfirmDialog";
 import InfoDialog from "../components/InfoDialog";
 import { AGREEMENTS, TERMS_UPDATED, type AgreementId } from "../data/agreements";
 import { signOut, isAdmin, isRemoteMode } from "../data/account";
+import { signOutBlocker } from "../studio/signOutGuard";
 import { useCurrentUser } from "../hooks/useAccount";
+import { useBackOr } from "../hooks/useBackOr";
 import { resetGuidesSeen } from "../data/guide";
 import { childSafetyUrl } from "../utils/shareLink";
-import { isNative } from "../data/appUpdate";
+import { openExternal } from "../utils/openExternal";
 import { getQuality, qualityLabel } from "../studio/quality";
 import { currentVoice } from "../studio/voices";
-import { checkUpdate, currentVersion, selfUpdateSupported, type UpdateInfo } from "../data/appUpdate";
+import {
+  checkUpdate,
+  currentVersion,
+  isMandatory,
+  raiseForcedUpdate,
+  selfUpdateSupported,
+  type UpdateInfo,
+} from "../data/appUpdate";
 import UpdateSheet from "../components/UpdateSheet";
 import Sheet from "../components/Sheet";
 import { CloseButton } from "../components/IconTapButton";
@@ -34,7 +42,11 @@ import { useLang } from "../i18n/useLang";
 export default function SettingsPage() {
   const user = useCurrentUser();
   const navigate = useNavigate();
+  // 返回键只走 useBackOr：深链冷启动没有上一页时退回「我的」（设置的入口在那一页），别退出 App
+  const back = useBackOr("/me");
   const [signOutOpen, setSignOutOpen] = useState(false);
+  /** 退出被拦下的原因（还有花钱的活在跑，见 studio/signOutGuard）。空串 = 没拦 */
+  const [signOutWhy, setSignOutWhy] = useState("");
   const { t } = useLingui();
 
   // 路由已套 RequireAuth，未登录进不来；这里只为 TS 收窄。
@@ -44,28 +56,28 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-full px-4 pb-10">
-      <PageHeader sticky inset onBack={() => navigate(-1)} title={t`设置`} />
+      <PageHeader sticky inset onBack={back} title={t`设置`} />
 
       {/* ── 个性化 ────────────────────────────────────────────── */}
-      <Group>
-        <NavRow to="/settings/profile" emoji="🪪" title={t`编辑资料`} sub={t`头像 · 昵称 · 简介`} />
+      <Group title={t`个性化`}>
+        <NavRow to="/settings/profile" icon="id-card" title={t`编辑资料`} sub={t`头像 · 昵称 · 简介`} />
         {/* 行上报「当前用的是哪把」：这一节的信息价值九成在它（拆页前收起态就这么画） */}
-        <NavRow to="/settings/voice" emoji="🎙️" title={t`铸卡师的声音`} sub={currentVoice().name} />
-        <NavRow to="/settings/quality" emoji="🎨" title={t`画面质量`} sub={t`${qualityLabel(getQuality()).name} · 只影响 3D 工坊`} />
+        <NavRow to="/settings/voice" icon="mic" title={t`铸卡师的声音`} sub={currentVoice().name} />
+        <NavRow to="/settings/quality" icon="palette" title={t`画面质量`} sub={t`${qualityLabel(getQuality()).name} · 只影响 3D 工坊`} />
         <LangRow />
       </Group>
 
       {/* ── 账号 · 安全 ────────────────────────────────────────
           ★ 拉黑是**账号级**的（跟着人走、换设备还在），所以不放在下面「本机」那一组里 */}
-      <Group>
-        <NavRow to="/settings/blocked" emoji="🚫" title={t`已拉黑的人`} sub={t`看名单 · 随时解除`} />
+      <Group title={t`账号`}>
+        <NavRow to="/settings/blocked" icon="ban" title={t`已拉黑的人`} sub={t`看名单 · 随时解除`} />
       </Group>
 
       {/* ── 本机 ─────────────────────────────────────────────── */}
-      <Group>
+      <Group title={t`这台设备`}>
         <NavRow
           to="/settings/storage"
-          emoji="🧹"
+          icon="hard-drive"
           title={isRemoteMode() ? t`本机缓存` : t`存储`}
           sub={t`查看用量 · 清理中间文件`}
         />
@@ -74,27 +86,30 @@ export default function SettingsPage() {
       </Group>
 
       {/* ── 帮助 ─────────────────────────────────────────────── */}
-      <Group>
-        <NavRow to="/support" emoji="🎧" title={t`AI 客服 · 帮助与反馈`} sub={t`问小梦，解决不了转人工`} />
+      <Group title={t`帮助与 AI 伙伴`}>
+        <NavRow to="/support" icon="headset" title={t`AI 客服 · 帮助与反馈`} sub={t`问小梦，解决不了转人工`} />
         {/* 数字人的形象 / 人格：主入口在客服页顶栏那一列小键，这里再给一条找得到的路（设置存服务端，官网同步） */}
-        <NavRow to="/support/models" emoji="👗" title={t`数字人形象`} sub={t`给小梦换一套 Live2D 形象`} />
-        <NavRow to="/support/personas" emoji="🎭" title={t`数字人人格`} sub={t`换一种说话风格，官网同步`} />
+        <NavRow to="/support/models" icon="shirt" title={t`数字人形象`} sub={t`给小梦换一套 Live2D 形象`} />
+        <NavRow to="/support/personas" icon="drama" title={t`数字人人格`} sub={t`换一种说话风格，官网同步`} />
         {/* 创作中心（2026-09-07）：客服页那一列小键的第四颗是主入口，这里是第二条路 ——
             那一列在对话很热闹时可能被底部输入区盖住（SupportPage 那段量法），唯一入口不能只有一条 */}
-        <NavRow to="/support/create" emoji="✨" title={t`创作中心`} sub={t`自己做模型 · 音频 · 人格，可发布到市场`} />
+        <NavRow to="/support/create" icon="sparkle" title={t`创作中心`} sub={t`自己做模型 · 音频 · 人格，可发布到市场`} />
+        {/* 启梦老师（M3 是外链；2026-09-29 M4 起 App 内能上课了，tutor 仓 docs/06 §6）：进 App 内的 /tutor。
+            ?from=app-settings 只用来记引流（服务端只记不奖励，落地即抹掉）；PDF / PPTX 建课那条路仍在网页端，/tutor 页里有链接 */}
+        <NavRow to="/tutor?from=app-settings" icon="graduation-cap" title={t`AI 老师`} sub={t`用自己的教材铸一位老师，在 App 里上课`} />
       </Group>
 
       {/* ── 协议与须知 ────────────────────────────────────────────
           应用商店与监管都要求协议在应用内可随时找到；文本只有 data/agreements 一份 */}
-      <Group>
-        <DocRow id="terms" emoji="📜" sub={t`使用本应用的约定`} />
-        <DocRow id="privacy" emoji="🔒" sub={t`收集什么、怎么用、找谁行使权利`} />
-        <DocRow id="aigc" emoji="🏷️" sub={t`标识、素材授权与违规处理`} />
+      <Group title={t`协议与须知`}>
+        <DocRow id="terms" icon="file" sub={t`使用本应用的约定`} />
+        <DocRow id="privacy" icon="lock" sub={t`收集什么、怎么用、找谁行使权利`} />
+        <DocRow id="aigc" icon="flag" sub={t`标识、素材授权与违规处理`} />
         {/* ★ 儿童安全标准（CSAE）在官网上，不在 data/agreements 里 —— 理由见
             utils/shareLink 的 childSafetyUrl：那是要给 Google Play 核的网页资源，
             正文只该有一份。这一行的存在本身也算数：政策要求"用户在应用内找得到"。 */}
         <ExtDocRow
-          emoji="🧒"
+          icon="user"
           title={t`儿童安全标准`}
           sub={t`我们对涉及未成年人内容的立场与处理方式（在官网打开）`}
           url={childSafetyUrl()}
@@ -110,8 +125,8 @@ export default function SettingsPage() {
           ★ 「免扣费」是管理员才成立的条件事实，留在行上说（不进引导弹窗）：
             不说的话他会把"这一步免费"当成产品事实（各处报价旁边也有同一句，见 TokenCost）。 */}
       {isAdmin() && (
-        <Group>
-          <NavRow to="/admin" emoji="🛡️" title={t`管理后台`} sub={t`处理举报（下架 / 驳回 / 删除）· 平台数据`} />
+        <Group title={t`管理`}>
+          <NavRow to="/admin" icon="settings" title={t`管理后台`} sub={t`处理举报（下架 / 驳回 / 删除）· 平台数据`} />
           <p className="px-4 pb-3 text-[11px] leading-relaxed text-slate-500">
             <Trans>你的账号是管理员：AI 生成走的是免扣费通道，消耗不从钱包里扣。</Trans>
           </p>
@@ -119,8 +134,13 @@ export default function SettingsPage() {
       )}
 
       <button
-        onClick={() => setSignOutOpen(true)}
-        className="w-full rounded-xl border border-rose-500/40 py-3 text-sm text-rose-400"
+        onClick={() => {
+          // ★ 还有花钱的活在跑就先说清楚、不退（理由见 studio/signOutGuard 文件头）
+          const why = signOutBlocker();
+          if (why) setSignOutWhy(why);
+          else setSignOutOpen(true);
+        }}
+        className="mt-8 w-full rounded-xl border border-danger-500/40 py-2.5 text-sm text-danger-300"
       >
         <Trans>退出登录</Trans>
       </button>
@@ -134,12 +154,24 @@ export default function SettingsPage() {
         </Link>
       )}
 
+      {signOutWhy && (
+        <InfoDialog title={t`先别退出登录`} onClose={() => setSignOutWhy("")}>
+          {signOutWhy}
+        </InfoDialog>
+      )}
       {signOutOpen && (
         <ConfirmDialog
           title={t`退出登录？`}
           confirmLabel={t`退出`}
           danger
           onConfirm={() => {
+            // 确认卡摆着的这段时间里世界会变（比如刚点了一次出片）：真退之前拿同一把尺再问一次
+            const why = signOutBlocker();
+            if (why) {
+              setSignOutOpen(false);
+              setSignOutWhy(why);
+              return;
+            }
             signOut();
             navigate("/", { replace: true });
           }}
@@ -155,11 +187,14 @@ export default function SettingsPage() {
   );
 }
 
-/** 一组入口行：一个圆角框，行间细分隔线（比每行各自一张卡安静得多） */
-function Group({ children }: { children: React.ReactNode }) {
+/** 一组入口行：一个圆角框，行间细分隔线（比每行各自一张卡安静得多）。
+ *  `title` 画在框上方（2026-10-14 CSCI 187 UX 课的「布局要可扫视」）：五个框原来只靠空隙分组，分组名只写在源码注释里，
+ *  读的人得逐行看才知道这一框是什么 —— 名字摆出来，扫一眼就能跳到要找的那一组 */
+function Group({ title, children }: { title?: string; children: React.ReactNode }) {
   return (
-    <div className="mb-4 divide-y divide-slate-800 overflow-hidden rounded-xl border border-slate-700/70 bg-panel">
-      {children}
+    <div className="mb-4">
+      {title && <div className="mb-1.5 px-1 text-xs font-semibold text-slate-400">{title}</div>}
+      <div className="divide-y divide-slate-700/60 overflow-hidden rounded-xl border border-slate-700/70 bg-panel">{children}</div>
     </div>
   );
 }
@@ -202,7 +237,7 @@ function LangRow() {
   return (
     <>
       <button onClick={() => setOpen(true)} className="flex w-full items-center gap-3 px-4 py-3.5 text-left active:bg-slate-800/40">
-        <span className="text-lg">🌐</span>
+        <Icon name="globe" size={20} className="flex-none text-slate-400" />
         <span className="min-w-0 flex-1">
           <span className="block text-sm text-slate-100">{LANG_TITLE}</span>
           <span className="block truncate text-[11px] text-slate-500">{sub}</span>
@@ -215,7 +250,7 @@ function LangRow() {
             <h3 className="text-sm font-bold text-slate-100">{LANG_TITLE}</h3>
             <CloseButton chip="sm" size={13} align="end" onClick={() => setOpen(false)} />
           </div>
-          <div className="divide-y divide-slate-800 overflow-hidden rounded-xl border border-slate-700/70 bg-panel">
+          <div className="divide-y divide-slate-700/60 overflow-hidden rounded-xl border border-slate-700/70 bg-panel">
             {options.map((o) => (
               <button
                 key={o.key}
@@ -228,7 +263,7 @@ function LangRow() {
               </button>
             ))}
           </div>
-          {err && <p className="mt-2 text-xs text-rose-300">{err}</p>}
+          {err && <p className="mt-2 text-xs text-danger-300">{err}</p>}
           <p className="mt-3 text-[11px] leading-relaxed text-slate-500">
             <Trans>桌面图标上的名字跟随手机系统语言，这里切换不会改它；多语言手机上两者可能不一致。</Trans>
           </p>
@@ -238,11 +273,12 @@ function LangRow() {
   );
 }
 
-/** 入口行：emoji + 名字 + 当前值/去向，右侧箭头。整行都是热区 */
-function NavRow({ to, emoji, title, sub }: { to: string; emoji: string; title: string; sub: string }) {
+/** 入口行：图标 + 名字 + 当前值/去向，右侧箭头。整行都是热区。
+ *  ★ 图标走 Icon 不走 emoji（2026-10-23）：emoji 三台手机三个样，彩色位图还抢过旁边的字；Icon 退一档灰（slate-400）让名字当主角 */
+function NavRow({ to, icon, title, sub }: { to: string; icon: IconName; title: string; sub: string }) {
   return (
     <Link to={to} className="flex w-full items-center gap-3 px-4 py-3.5 text-left active:bg-slate-800/40">
-      <span className="text-lg">{emoji}</span>
+      <Icon name={icon} size={20} className="flex-none text-slate-400" />
       <span className="min-w-0 flex-1">
         <span className="block text-sm text-slate-100">{title}</span>
         <span className="block truncate text-[11px] text-slate-500">{sub}</span>
@@ -253,7 +289,7 @@ function NavRow({ to, emoji, title, sub }: { to: string; emoji: string; title: s
 }
 
 /** 协议行：点开在小窗里读全文（正文在 data/agreements，这里只借） */
-function DocRow({ id, emoji, sub }: { id: AgreementId; emoji: string; sub: string }) {
+function DocRow({ id, icon, sub }: { id: AgreementId; icon: IconName; sub: string }) {
   const [open, setOpen] = useState(false);
   const doc = AGREEMENTS[id];
   return (
@@ -262,10 +298,10 @@ function DocRow({ id, emoji, sub }: { id: AgreementId; emoji: string; sub: strin
         onClick={() => setOpen(true)}
         className="flex w-full items-center gap-3 px-4 py-3.5 text-left active:bg-slate-800/40"
       >
-        <span className="text-lg">{emoji}</span>
+        <Icon name={icon} size={20} className="flex-none text-slate-400" />
         <span className="min-w-0 flex-1">
           <span className="block text-sm text-slate-100">
-            {doc.title} <span className="text-[10px] text-slate-600">{TERMS_UPDATED}</span>
+            {doc.title} <span className="text-[10px] text-slate-400">{TERMS_UPDATED}</span>
           </span>
           <span className="block truncate text-[11px] text-slate-500">{sub}</span>
         </span>
@@ -293,7 +329,7 @@ function DocRow({ id, emoji, sub }: { id: AgreementId; emoji: string; sub: strin
  * ★ 打不开要**说出来**（铁律八）：这一行通向的是一份对外承诺，静默失败等于
  *   政策要求的"应用内找得到"其实没做到，而屏幕上什么都不会显示。
  */
-function ExtDocRow({ emoji, title, sub, url }: { emoji: string; title: string; sub: string; url: string }) {
+function ExtDocRow({ icon, title, sub, url }: { icon: IconName; title: string; sub: string; url: string }) {
   const { t } = useLingui();
   const [err, setErr] = useState("");
   return (
@@ -302,26 +338,21 @@ function ExtDocRow({ emoji, title, sub, url }: { emoji: string; title: string; s
         onClick={async () => {
           setErr("");
           try {
-            if (isNative()) {
-              await Browser.open({ url });
-            } else if (!window.open(url, "_blank", "noopener")) {
-              // 拦截弹窗时 window.open 回 null（不抛错）—— 这才是网页下真正的失败形状
-              throw new Error("popup blocked");
-            }
+            await openExternal(url); // 原生 Browser.open / 网页 window.open（被拦截时 throw）：唯一实现在 utils/openExternal
           } catch {
             setErr(t`没能打开浏览器（可能被拦截了）。你可以直接访问 ${url}`);
           }
         }}
         className="flex w-full items-center gap-3 px-4 py-3.5 text-left active:bg-slate-800/40"
       >
-        <span className="text-lg">{emoji}</span>
+        <Icon name={icon} size={20} className="flex-none text-slate-400" />
         <span className="min-w-0 flex-1">
           <span className="block text-sm text-slate-100">{title}</span>
           <span className="block truncate text-[11px] text-slate-500">{sub}</span>
         </span>
         <Icon name="chevron" size={16} className="flex-none text-slate-600" />
       </button>
-      {err && <p className="px-4 pb-3 text-[11px] leading-relaxed text-rose-300">{err}</p>}
+      {err && <p className="px-4 pb-3 text-[11px] leading-relaxed text-danger-300">{err}</p>}
     </>
   );
 }
@@ -343,7 +374,7 @@ function GuideRow() {
         onClick={() => setOpen(true)}
         className="flex w-full items-center gap-3 px-4 py-3.5 text-left active:bg-slate-800/40"
       >
-        <span className="text-lg">💡</span>
+        <Icon name="lightbulb" size={20} className="flex-none text-slate-400" />
         <span className="min-w-0 flex-1">
           <span className="block text-sm text-slate-100"><Trans>新手引导</Trans></span>
           <span className="block truncate text-[11px] text-slate-500">
@@ -381,6 +412,8 @@ function GuideRow() {
 // ★ 手动检查失败要把原因说出来——和启动时那次静默检查不同：用户主动点了，
 //   "已是最新"和"根本没查成"必须分得开（铁律八）。
 // ★ 浏览器里跑没有版本号可显示，整行不出现。
+// ★ 查到的是**强制**的那一版时不在这里画（2026-10-10 评审抓到）：交给 App 根上的 UpdateGate（raiseForcedUpdate）。
+//   画在这一页里的话，安卓返回键（WebView 后退）把设置页连同那张「关不掉」的弹层一起卸掉 —— 见 data/appUpdate 那一对的 ★。
 function VersionRow() {
   const { t } = useLingui();
   const [ver, setVer] = useState<{ versionCode: number; versionName: string } | null>(null);
@@ -398,14 +431,16 @@ function VersionRow() {
 
   return (
     <div className="flex w-full items-center gap-3 px-4 py-3.5">
-      <span className="text-lg">📦</span>
+      <Icon name="info" size={20} className="flex-none text-slate-400" />
       <span className="min-w-0 flex-1">
         <span className="block text-sm text-slate-100">
           <Trans>
             版本 {ver.versionName} <span className="text-[11px] text-slate-500">（{ver.versionCode}）</span>
           </Trans>
         </span>
-        <span className="block truncate text-[11px] text-slate-500">
+        {/* ★ 有 note（检查的结果 / 失败原因）时允许折行（2026-10-19 复核抓到）：失败那句英文将近 90 个字符，单行 truncate
+            正好把「为什么没查成」那半截截掉；缺省那句短，照旧单行 */}
+        <span className={`block text-[11px] text-slate-500 ${note ? "leading-relaxed" : "truncate"}`}>
           {note || (supported ? t`可以检查有没有新版本` : t`由应用商店负责更新`)}
         </span>
       </span>
@@ -416,7 +451,8 @@ function VersionRow() {
             setNote("");
             void checkUpdate(false)
               .then((r) => {
-                if (r) setInfo(r);
+                if (r && isMandatory(r)) raiseForcedUpdate(r);
+                else if (r) setInfo(r);
                 else setNote(t`已经是最新版本`);
               })
               .catch((e) => setNote(e instanceof Error ? e.message : t`检查失败`))

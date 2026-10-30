@@ -1,7 +1,7 @@
 // AI 管线统一出口：.env.local 配了 ARK_API_KEY（真实 AI）走火山方舟，
 // 否则走 mock——store/UI 只 import 这里，实现可整体切换。
 import { t } from "@lingui/core/macro";
-import { AI_REAL } from "./arkClient";
+import { AI_REAL, imageGroupsAvailable, type ImageGroupState } from "./arkClient";
 import { DECK_MAX_CARDS } from "../data/economy";
 import * as mock from "../mock/ai";
 import { makeFrame } from "../mock/frames";
@@ -29,6 +29,13 @@ export const fuseStageFrame: typeof real.fuseStageFrame = AI_REAL ? real.fuseSta
 /** 圈选提取的「按提示词方案炼形象图」（图位由方案决定，风格跟随原图） */
 /** 参考图协议上限的兜底值（档位表没写 refImagesMax 时用它）——与 real.ts 同一个常量 */
 export { ARK_REF_IMAGES_MAX } from "./real";
+/**
+ * 多视图设定稿（三视图 / 规格稿）进参考图时补的那句说明，与"这一段有没有可能用上它"。
+ * ★ 出口开在这里只为一个调用方：studio/blockoutPrompt 要按它的长度留出提示词尾巴的位置
+ *   （那份留位是**镜像**，见那边的 ⚠）。措辞与判据都在 ai/real，一处实现。
+ * ★ 两档实现（mock / real）不分叉：这两样是纯文本与纯判断，mock 构建下同样成立。
+ */
+export { SHEET_CLAUSE, mayAddSheetClause } from "./real";
 export const portraitViews: typeof real.portraitViews = AI_REAL ? real.portraitViews : mock.portraitViews;
 export type { PortraitView } from "../mock/ai";
 /** 逐格出图画到半途失败：已经画好（已计费）的那几张挂在它的 `drawn` 上，调用方收下、下一次只补剩下的（mock 从不抛它） */
@@ -52,6 +59,63 @@ export const generateCover: typeof real.generateCover = AI_REAL
       const head = req.slice(0, 10) || t`封面`;
       return makeFrame(`cover:${req}:${Math.random()}`, t`${head} · 演示`, undefined, aspect);
     };
+/**
+ * 跟着做 C · 九宫格分镜：一次画出一组分镜画面（组图，见 real.drawShotGroup）。
+ * mock 构建一格一格画本地占位帧（看得到「画好一张多一张」的样子，卡面上写着「演示」，不装作是模型画的）；接着等一组（resumeId）没有可接的，当画坏了说。
+ */
+export const drawShotGroup: typeof real.drawShotGroup = AI_REAL
+  ? real.drawShotGroup
+  : async (o) => {
+      const s: ImageGroupState = {
+        id: `demo-${Date.now().toString(36)}`,
+        status: "running",
+        maxImages: o.shots.length,
+        images: [],
+        failures: [],
+        prepaid: 0,
+        charged: 0,
+        interrupted: false,
+        code: "",
+        message: "",
+        createdAt: Date.now(),
+      };
+      if (o.resumeId) return { ...s, status: "failed", code: "INTERRUPTED" };
+      o.onUpdate({ ...s, images: [] });
+      for (const [i, shot] of o.shots.entries()) {
+        await new Promise((r) => setTimeout(r, 300));
+        const n = i + 1;
+        const head = shot.picture.slice(0, 8);
+        s.images.push({ index: i, url: makeFrame(`grid:${shot.picture}:${i}`, t`${n}. ${head} · 演示`, undefined, o.aspect) });
+        o.onUpdate({ ...s, images: [...s.images] });
+      }
+      return { ...s, status: "done", images: [...s.images] };
+    };
+/** C 的参考图与「图几是谁」（整组与单格重画共用）；mock 构建没有参考图这回事（出图是本地占位帧） */
+export const shotGroupRefs: typeof real.shotGroupRefs = AI_REAL ? real.shotGroupRefs : async () => ({ refs: [], bind: "", labeled: "" });
+/** C 单画一格（组图之后的空镜 / 特写、单格重画；提示词由 data/gridShots.panelPrompt 拼）；mock 构建出本地占位帧 */
+export const drawGridPanel: typeof real.drawGridPanel = AI_REAL
+  ? real.drawGridPanel
+  : async (prompt, o) => {
+      return makeFrame(`panel:${prompt}:${Math.random()}`, t`单画一格 · 演示`, undefined, o.aspect);
+    };
+/** C 画完一格让对话模型看一遍（回原话）；mock 构建不看（回空串 = 没核对，界面什么都不标） */
+export const checkGridPanel: typeof real.checkGridPanel = AI_REAL ? real.checkGridPanel : async () => "";
+/** 组图的那几张：方舟临时链接 → 本机 dataURL（mock 构建本来就是 dataURL） */
+export const imageUrlToDataUrl: typeof real.imageUrlToDataUrl = AI_REAL ? real.imageUrlToDataUrl : async (u) => u;
+/**
+ * 这台机器出得了组图吗：true / false / null = 这一刻没问到（真实构建问 arkClient：打包看服务端的能力位；mock 构建恒能：画本地占位帧）。
+ * ★ null 不是 false：别说成「服务器还没更新」，过一会儿再问（arkClient.imageGroupsAvailable 的 ★★）
+ */
+export const groupsAvailable: () => Promise<boolean | null> = AI_REAL ? imageGroupsAvailable : async () => true;
+export { ImageGroupBusy, listImageGroups } from "./arkClient";
+export type { ImageGroupState } from "./arkClient";
+/** 画一张视频帧（出片前补画 / 重画这一套；与封面分开的理由见 real.generateFrame）；mock 构建出本地占位帧 */
+export const generateFrame: typeof real.generateFrame = AI_REAL
+  ? real.generateFrame
+  : async (req, o) => {
+      const head = req.slice(0, 10) || t`画面`;
+      return makeFrame(`frame:${req}:${Math.random()}`, t`${head} · 演示`, undefined, o.aspect);
+    };
 
 /** 本片卡组提炼：真实构建 AI 对照已有素材卡，只补剧情里缺卡的实体（每类可多张）；
  *  mock 构建退化为按段派生场景卡（首帧当卡面），同名已有卡跳过 */
@@ -67,7 +131,8 @@ export const deriveDeckCards: typeof real.deriveDeckCards = AI_REAL
           id: `card_drv_${Date.now().toString(36)}_${i}`,
           type: "scene" as const,
           name: sg.title.replace(/^第\d+段 · /, "").slice(0, 8) || t`场景${i + 1}`,
-          summary: sg.plot.slice(0, 60),
+          // 简介别抄剧情：剧情里全是人物和动作，而这是一张场景卡（与 studioStore 兜底卡同一条 msgid，见那边的 ★）
+          summary: t`按第 ${i + 1} 段的画面整理的场景`,
           cover: sg.firstFrame,
         }))
         .filter((c) => !have.has(c.name));
@@ -112,7 +177,7 @@ export const extractTemplateFromVideo: typeof real.extractTemplateFromVideo = AI
 /** 3D 风格视频角色卡自动建模（Seed3D，约 2.4 元/张）；mock 构建为空操作 */
 export const deriveCharacterModels: typeof real.deriveCharacterModels = AI_REAL
   ? real.deriveCharacterModels
-  : async () => {};
+  : async () => ({ failed: [] });
 /**
  * 素材卡 → Seedream 参考图 + 绑定句（多图参考）。
  *
@@ -121,7 +186,7 @@ export const deriveCharacterModels: typeof real.deriveCharacterModels = AI_REAL
  */
 export const prepareMaterialRefs: typeof real.prepareMaterialRefs = AI_REAL
   ? real.prepareMaterialRefs
-  : async () => ({ refs: [], bind: () => "", bindCompact: () => "" });
+  : async () => ({ refs: [], bind: () => "", bindCompact: () => "", cards: new Set<string>(), owners: [], views: [] });
 export type { MaterialRefs } from "./real";
 /** 几条提示（prepareMaterialRefs 的 onNote、铸卡的 notes…）怎么连成一串 / 括成进度行的尾巴：分隔符与括号都进目录，
  *  全仓一处（real.ts），真假两种构建同一份 —— 调用方别再自己写 `notes.join("；")` */
@@ -149,6 +214,12 @@ export const takeVideoTask: typeof real.takeVideoTask = AI_REAL
     };
 /** 「没接到结果 ≠ 这一发废了」的那个错误类型 —— 调用方据它决定凭据留不留（见 arkClient） */
 export { ArkBadReply, ArkNoReply, ArkTaskUnknown } from "./arkClient";
+/**
+ * 「上游明说这一发失败了」（带服务端的退款结论）与「出片之前已经画好了几张画面」两种失败的类型（2026-10-07）。
+ * 钱上的话只问 chargeOnFail；要按类型分叉（结案凭据、换句话说）的地方先过 unwrapFailure 拆壳。
+ */
+export { ArkRegionDenied, ArkTaskFailed, ArkVideoRefused, SegmentGenFailed, keptFrameCount, unwrapFailure, fetchTaskCharge } from "./arkClient";
+export type { KeptFrames, TaskRefund, TaskRefundState } from "./arkClient";
 /** 「这次失败钱花没花」的唯一判定 + 钱上的那几句话。catch 里要提钱就走它，别自己对着 ArkNoReply / ArkBadReply 分档 */
 export { chargeNote, chargeOnFail } from "./failCharge";
 export type { ChargeNote, FailCharge } from "./failCharge";
@@ -160,6 +231,24 @@ export { VIDEO_PROMPT_MAX } from "./real";
 export { recaptureSegment } from "./real";
 export { transferStatus } from "./arkClient";
 export { AI_REAL };
+
+/**
+ * 按模型适配（2026-09-30）：文字版形象描述 / 真人档起拍画面（components/CardModelFit）。
+ * 演示构建不调模型：描述给一句带「（演示）」的出片句，起拍画面给本地占位帧（不花钱、不联网）。
+ */
+export const describeCardForText: typeof real.describeCardForText = AI_REAL
+  ? real.describeCardForText
+  : async (card) => {
+      const base = card.idLine || card.name;
+      return t`（演示）${base}`;
+    };
+export const drawStartFrames: typeof real.drawStartFrames = AI_REAL
+  ? real.drawStartFrames
+  : async (card) => ({
+      portrait: makeFrame(card.id, card.name, card.id, "portrait"),
+      landscape: makeFrame(card.id, card.name, card.id, "landscape"),
+    });
+export { refCardIds, planCardRefs, planMaterialRefs } from "./real";
 
 export type { NpcChatContext } from "../mock/ai";
 /** ★ 必须标 typeof：既有导出全这么写，为的就是强制真假两侧同签名。

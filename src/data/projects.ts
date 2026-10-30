@@ -25,11 +25,22 @@ import { idbDel, idbGet, idbSet } from "./db";
 import { startJob } from "./jobs";
 import { t } from "@lingui/core/macro";
 import { isPermanentUrl, pairAssetUrls, type PairTarget } from "./publishAssets";
+import { MINIMAX_V2_TEMP_RE } from "./upstreamVideo";
 import * as api from "../api/projects";
+import { shareFromCanvas, type ShareOutcome } from "./recipes";
 import { ApiError } from "../api/client";
 import type { DraftVideo } from "../types";
+import { deviceOwner, mayClaimLegacy, onViewerChange, workOwner } from "./deviceOwner";
 
-/** 待提交的画布快照（组稿那一拍抓的，还没瘦身）。**单键**：同一时刻只可能有一摊活 */
+/**
+ * 待提交的画布快照（组稿那一拍抓的，还没瘦身）。**每个账号一格**：同一个人同一时刻只可能有一摊活。
+ * ★★ 按账号分格（2026-09-18 主人真机点名同一台手机换账号后数据串号）：原来整台设备一格、不记主人 ——
+ *   B 发布 A 那条剪到一半的片子时，`stampPendingCanvas` 会把 **A 的整份画布**盖上 B 的章，`retain`
+ *   再把它当成 B 那条作品的工坊工程传上去（服务端只查作品是不是 B 的）；B 下一次组稿还会把 A 那份
+ *   等着「重试留存」的画布顶掉，A 那条作品从此回炉不了。主人是谁只问 data/deviceOwner：
+ *   编辑页那颗「重试留存」读现在这个人的（deviceOwner），抓 / 盖章 / 提交 / 清读写内存里这摊活的主人（workOwner）。
+ * ★ 键名没改：新旧两种形状存同一个键（见 readSlots），升级前那一格由升级后第一个登录的人认领。
+ */
 const PENDING_KEY = "ideahub-app.project.pending.v1";
 /** 本地取回缓存的键名前缀 + 那张 LRU 名单 */
 const cacheKey = (videoId: string) => `ideahub-app.project.${videoId}`;
@@ -96,6 +107,14 @@ interface PendingCanvas {
   ready?: true;
   /** ready 时随之定下的缺失数（重试要原样报上去，重算一遍必然得到 0——那时已经没有 before 了） */
   lostCount?: number;
+  /**
+   * 发布页上那颗「公开制作过程」的选择（2026-10-02，主人拍板默认开）：留存工程那一拍顺手把瘦身好的画布投成公开配方
+   * PUT 上去（data/recipes.shareFromCanvas）。★ 跟着待办落盘：发布可能是离线排队、冷启动由 flushPending 补发的，
+   *   那时发布页早就不在了 —— 这个选择只能存在这里。判否定：没有这一位（老待办 / 没经过发布页）= 不公开。
+   */
+  shareRecipe?: boolean;
+  /** 发布页「同时上架到模板市场」（工作流模板）：从属于 shareRecipe，同一拍随配方 PUT 上去。判否定 */
+  listRecipe?: boolean;
 }
 
 // ── 订阅（模块级单例 + 版本号）────────────────────────────
@@ -104,7 +123,9 @@ let metas: api.ApiProjectMeta[] = [];
  *  ★ 三态是必须的：「还没问」「不支持」「支持但这条没有」在编辑页是三句**不同的话** */
 /** 三档之外还有第四档，见 `ProjectsSupport` */
 let supported: ProjectsSupport = null;
-let pending: PendingCanvas | null = null;
+/** 各账号的那一格（落盘形状 `{ v: 2, byOwner, legacy? }`）。legacy = 升级前那格、还没被认领 */
+let slots: Record<string, PendingCanvas> = {};
+let legacySlot: PendingCanvas | null = null;
 let pendingLoaded = false;
 let version = 0;
 const subs = new Set<() => void>();
@@ -119,11 +140,37 @@ export function subscribeProjects(fn: () => void): () => void {
   return () => subs.delete(fn);
 }
 
+// ★★ 换了看的人：工程列表（metas）与「支不支持」都是**上一个人**问出来的 —— 不清的话 B 的「🛠 回炉重做」
+//   是按 A 的工程列表判的（B 自己的作品全被判成「没有留存工程」），直到重启。readyOnce 置回 null 让编辑页重问。
+//   升级前那一格顺手认领给新登录的这个人。
+onViewerChange(() => {
+  viewerGen++;
+  metas = [];
+  supported = null;
+  readyOnce = null;
+  claimLegacySlot();
+  emit();
+});
+
+/** 升级前那一格（没有主人）归现在登录的这个人（见 data/deviceOwner 文件头「存量」那条）。即发即忘落盘，不 emit */
+function claimLegacySlot(): void {
+  const me = deviceOwner();
+  if (!me || !legacySlot || slots[me] || !mayClaimLegacy()) return;
+  slots = { ...slots, [me]: legacySlot };
+  legacySlot = null;
+  void idbSet(PENDING_KEY, { v: 2, byOwner: slots });
+}
+
 export function projectsVersion(): number {
   return version;
 }
 
 let readyOnce: Promise<void> | null = null;
+/**
+ * 换人的代数（onViewerChange +1）。拉工程列表的回包先比一下：请求发出去时还是上一个人，回来已经换人了，
+ * 那份就不许落进这个人的缓存（2026-09-18 复核抓到：B 的「🛠 回炉重做」会按 A 的工程列表判）。
+ */
+let viewerGen = 0;
 
 /**
  * 拉一次工程列表填 meta 缓存（首次调用才真跑，之后共用同一个 Promise）。
@@ -144,11 +191,14 @@ let readyOnce: Promise<void> | null = null;
  */
 export function readyProjects(): Promise<void> {
   readyOnce ??= (async () => {
+    const gen = viewerGen;
     // 遗留键搭这次往返一起清（见 LEGACY_KEY 的 ★）。失败忽略：它只是占地方
     void idbDel(LEGACY_KEY).catch(() => {});
     await readPending();
     try {
       const items = await api.listProjects();
+      // 换过人了：这是上一个人的列表。readyOnce 在换人那一拍已经置回 null，编辑页下次问的时候会替现在这个人重拉
+      if (gen !== viewerGen) return;
       if (items === null) {
         // 回包形状认不出来 = 这台服务器没有这个端点（**不能**看状态码，见 api/projects 的 ★）
         supported = false;
@@ -157,6 +207,7 @@ export function readyProjects(): Promise<void> {
         metas = items;
       }
     } catch (e) {
+      if (gen !== viewerGen) return; // 同上：上一个人的失败不改这个人的「支不支持」，也不动他那份 readyOnce
       // 404 / 501 = 这台服务器真的没有这条路由；其余一律是"没问出来"，不是"不支持"
       const status = e instanceof ApiError ? e.status : 0;
       if (status === 404 || status === 501) {
@@ -186,7 +237,7 @@ export function readyProjects(): Promise<void> {
  *   用户此刻该做的是去把回炉提交完，而屏幕上这两句都在把他往别处推。⇒ 那一档整颗键不画。
  */
 export function pendingRetainable(videoId: string, clientId?: string): boolean {
-  return pendingFor(videoId, clientId) && !!pending?.ready;
+  return pendingFor(videoId, clientId) && !!viewerSlot()?.ready;
 }
 
 /** 「这台服务器支不支持工坊工程」的四档答案。★ 四档各有各的话要说（见 readyProjects 的 ★★）：
@@ -224,17 +275,52 @@ function upsertMeta(m: api.ApiProjectMeta): void {
 
 // ── 待办（组稿那一拍抓的画布）──────────────────────────────
 
+/** 两种形状都认：老格式（整个值就是一格 PendingCanvas，没有主人）→ legacy；新格式 → 各账号一格 */
+function readSlots(raw: unknown): void {
+  slots = {};
+  legacySlot = null;
+  if (!raw || typeof raw !== "object") return;
+  if ((raw as { v?: unknown }).v === 2) {
+    const o = raw as { byOwner?: Record<string, PendingCanvas>; legacy?: PendingCanvas };
+    if (o.byOwner && typeof o.byOwner === "object") {
+      for (const [owner, p] of Object.entries(o.byOwner)) if (owner && p && typeof p === "object" && p.canvas) slots[owner] = p;
+    }
+    if (o.legacy && typeof o.legacy === "object" && o.legacy.canvas) legacySlot = o.legacy;
+    return;
+  }
+  if ((raw as PendingCanvas).canvas) legacySlot = raw as PendingCanvas;
+}
+
+/** 现在登录的这个人那一格（编辑页「重试留存」那几个同步判据读它） */
+function viewerSlot(): PendingCanvas | null {
+  const me = deviceOwner();
+  if (!me) return null;
+  claimLegacySlot();
+  return slots[me] ?? null;
+}
+
+/** 内存里这摊活的主人那一格（抓 / 盖章 / 提交读写它）。没装载就先装载 */
 async function readPending(): Promise<PendingCanvas | null> {
-  if (pendingLoaded) return pending;
-  pending = (await idbGet<PendingCanvas>(PENDING_KEY)) ?? null;
-  pendingLoaded = true;
-  return pending;
+  if (!pendingLoaded) {
+    readSlots(await idbGet<unknown>(PENDING_KEY));
+    pendingLoaded = true;
+    claimLegacySlot();
+  }
+  const owner = workOwner();
+  return owner ? (slots[owner] ?? null) : null;
 }
 
 async function writePending(p: PendingCanvas | null): Promise<boolean> {
-  pending = p;
-  pendingLoaded = true;
-  const ok = p ? await idbSet(PENDING_KEY, p) : (await idbDel(PENDING_KEY), true);
+  // ★ 先装载：没装载过就写的话，会拿只有这一格的表盖掉磁盘上别的账号的那几格
+  if (!pendingLoaded) await readPending();
+  const owner = workOwner();
+  // 说不出这摊活是谁的（这一进程里没人登录过）：不写 —— 写成无主的谁都认领不到
+  if (!owner) return false;
+  const next = { ...slots };
+  if (p) next[owner] = p;
+  else delete next[owner];
+  slots = next;
+  const ok = await idbSet(PENDING_KEY, { v: 2, byOwner: slots, ...(legacySlot ? { legacy: legacySlot } : {}) });
   emit();
   return ok;
 }
@@ -290,7 +376,7 @@ export async function captureCanvas(input: {
  *     就**不盖**。此时这一条作品确实没有本机画布，`retain` 会走"待办缺失"那句实话，
  *     而上一条那份待办仍留着供它自己的「重试留存」用 —— 两边都不说谎。
  */
-export async function stampPendingCanvas(clientId: string | undefined): Promise<void> {
+export async function stampPendingCanvas(clientId: string | undefined, shareRecipe = false, listRecipe = false): Promise<void> {
   if (!clientId) return;
   const p = await readPending();
   if (!p || p.clientId === clientId) return;
@@ -298,7 +384,29 @@ export async function stampPendingCanvas(clientId: string | undefined): Promise<
     console.warn("[projects] 待办已属于另一摊活，不盖章", { has: p.clientId ?? "revise", want: clientId });
     return;
   }
-  await writePending({ ...p, clientId });
+  // ★ 「公开制作过程」的选择与幂等键**同一次写**：两次读改写同一格会互相盖掉（stampPendingCanvas 是 void 调的）
+  await writePending({ ...p, clientId, shareRecipe, listRecipe: shareRecipe && listRecipe });
+}
+
+/**
+ * 回炉那条路给待办记下「公开制作过程」的选择（回炉的待办不盖幂等键，认的是 reviseOf）。
+ * ★ 要 await：它与 stampPendingCanvas 一样是对同一格的读改写，发布页在提交之前等它写完。
+ */
+export async function markShareRecipe(videoId: string, shareRecipe: boolean, listRecipe = false): Promise<void> {
+  const p = await readPending();
+  if (!p || p.reviseOf?.videoId !== videoId) return;
+  await writePending({ ...p, shareRecipe, listRecipe: shareRecipe && listRecipe });
+}
+
+/**
+ * 发布页预览「别人会看到这些」要的那份画布：组稿那一拍抓下的、还没盖章（新发布）或对得上回炉目标（回炉）的待办。
+ * null = 本机没有这条稿子的画布（简约模式 / 捕获失败 / 换过设备）—— 那时发布页不摆「公开制作过程」那颗开关。
+ */
+export async function pendingCanvasFor(reviseOf: { videoId: string } | null | undefined): Promise<CanvasSnapshot | null> {
+  const p = await readPending();
+  if (!p) return null;
+  if (reviseOf) return p.reviseOf?.videoId === reviseOf.videoId ? p.canvas : null;
+  return !p.clientId && !p.videoId && !p.reviseOf ? p.canvas : null;
 }
 
 /**
@@ -310,6 +418,7 @@ export async function stampPendingCanvas(clientId: string | undefined): Promise<
  *   判据由调用方补上（编辑页比对 `clientId`）。
  */
 export function pendingFor(videoId: string, clientId?: string): boolean {
+  const pending = viewerSlot();
   if (!pending) return false;
   if (pending.reviseOf) return pending.reviseOf.videoId === videoId;
   // ★ 盖过作品 id 就只认它（见 PendingCanvas.videoId 的 ★★★）：这一格跨得过冷启动，
@@ -320,10 +429,15 @@ export function pendingFor(videoId: string, clientId?: string): boolean {
 
 // ── 瘦身：把画布里的本机地址换成永久 URL ─────────────────────
 
-/** 与服务端 zod 那条**逐字同源**的不变量正则。
+/** 与服务端 zod 那条**逐字同源**的不变量正则（server schemas/branchProject.schemas 的 NO_LOCAL）。
  *  ★ `data:` 那一段**带 mime 前缀**：canvas 里有 requirement / plot / genPrompt 这些自由
- *    文本，裸 `"data:` 会误伤。 */
-const LOCAL_RE = /"(?:data:[a-z]+\/|idb:)|https?:\/\/[^"]*\.(?:volces|volccdn)\.com\//i;
+ *    文本，裸 `"data:` 会误伤。
+ *  ★ MiniMax H3 的成片（2026-10-26 出片地区 P2b）也是上游的临时链接：服务端那道门认它，这边不认的话画布带着它照样往上送、整份被 400。
+ *    那一段从 data/upstreamVideo 取（`.source` 拼，别在这里再抄一份域名）。 */
+const LOCAL_RE = new RegExp(
+  [/"(?:data:[a-z]+\/|idb:)/.source, /https?:\/\/[^"]*\.(?:volces|volccdn)\.com\//.source, MINIMAX_V2_TEMP_RE.source].join("|"),
+  "i",
+);
 
 /** 这个值是不是一个「只在本机 / 马上要过期」的资产地址（整段判，不扫自由文本内部） */
 function isLocalAsset(v: string): boolean {
@@ -335,7 +449,8 @@ function isLocalAsset(v: string): boolean {
 
 /** 这几格的「没有」值是 `undefined`（类型上就是可选的），其余一律空串 —— 塞对象是禁止的
  *  （见 types.Proposal.lost 的 ★★：会打坏承接判定 / refVideoOn / blockoutIssue 三条规则） */
-const OPTIONAL_URL_KEYS = new Set(["videoUrl", "prevVideoUrl", "modelUrl", "poster", "sourceUrl", "castPreview"]);
+// ★ draftUrl / finalUrl（样片两步，2026-10-07）同属可选：缺了只是「定稿」那颗键不摆，不是一格空图
+const OPTIONAL_URL_KEYS = new Set(["videoUrl", "prevVideoUrl", "modelUrl", "poster", "sourceUrl", "castPreview", "draftUrl", "finalUrl"]);
 
 /**
  * 就地重写：命中映射表的换成永久 URL，没命中的资产地址一律**墓碑化**（置成该字段本来
@@ -552,25 +667,40 @@ async function retain(
     return;
   }
   const job = startJob({ kind: "project-retain", title: t`留存工坊工程`, progress: t`提交中` });
+  /** 「公开制作过程」那一半的结局（null = 这条没勾公开）。两件事分开说：工程是回炉用的，配方是给别人看的 */
+  let shared: ShareOutcome | null = null;
   try {
-    const { lost, videos } = await submit(videoId, before, after, revision, pend);
+    const r = await submit(videoId, before, after, revision, pend);
+    shared = r.shared;
+    const { lost, videos } = r;
     const previews = lost - videos;
-    job.done({
-      // ★★ 分两句说（见 submit 的 ★★）：把"要再花一次钱"和"重截一下就有"混成一句
-      //   「N 处素材」，往哪个方向说错都不高尚 —— 前者会让人以为不要紧，后者会把人吓住。
-      msg: videos
-        ? previews > 0
-          ? t`工程已留存，但有 ${videos} 段成片没能留下——回炉时那几段要重新出片（会再花一次钱）；另外 ${previews} 处只是预览图。回炉页会逐格标出来`
-          : t`工程已留存，但有 ${videos} 段成片没能留下——回炉时那几段要重新出片（会再花一次钱）。回炉页会逐格标出来`
-        : lost
-          ? t`工程已留存（有 ${lost} 处预览图没能留下，回炉时重新截一下就有，不花钱）`
-          : t`工程已留存，之后可在编辑页回炉重做`,
-      route: `/video/${videoId}`,
-    });
+    const base = videos
+      ? previews > 0
+        ? t`工程已留存，但有 ${videos} 段成片没能留下——回炉时那几段要重新出片（会再花一次钱）；另外 ${previews} 处只是预览图。回炉页会逐格标出来`
+        : t`工程已留存，但有 ${videos} 段成片没能留下——回炉时那几段要重新出片（会再花一次钱）。回炉页会逐格标出来`
+      : lost
+        ? t`工程已留存（有 ${lost} 处预览图没能留下，回炉时重新截一下就有，不花钱）`
+        : t`工程已留存，之后可在编辑页回炉重做`;
+    if (shared && !shared.ok) {
+      // ★ 工程留住了、制作过程没公开成：**必须说**（用户在发布页勾了公开，不说他会以为别人看得到），并指一条真能走的路
+      //   （编辑页那颗开关会从服务端留存的工程重新投一份）。老服务端那一档不说：那台服务器上根本没有这颗开关
+      const why = shared.why;
+      if (shared.kind !== "unsupported") job.fail(t`${base}。但制作过程没能公开（${why}）——到编辑页的「制作过程」再开一次`, `/edit/${videoId}`);
+      else job.done({ msg: base, route: `/video/${videoId}` });
+    } else {
+      job.done({
+        // ★★ 分两句说（见 submit 的 ★★）：把"要再花一次钱"和"重截一下就有"混成一句
+        //   「N 处素材」，往哪个方向说错都不高尚 —— 前者会让人以为不要紧，后者会把人吓住。
+        msg: shared?.ok ? t`${base}；制作过程已公开，别人能在作品页看到并照着做` : base,
+        route: `/video/${videoId}`,
+      });
+    }
   } catch (e) {
     const why = msg(e);
     console.warn("[projects] 留存失败", { videoId, why });
-    job.fail(t`工程没能留存（${why}）——作品已经发出去了，只是这条暂时不能回炉；可在编辑页点「重试留存」`, `/edit/${videoId}`);
+    // 配方那一半成没成要一起说（它在工程 PUT 之前就发过了，成与败都不随这里的 throw 变）
+    const tail = shared && !shared.ok && shared.kind !== "unsupported" ? t`；制作过程也没能公开（${shared.why}）` : "";
+    job.fail(t`工程没能留存（${why}）——作品已经发出去了，只是这条暂时不能回炉；可在编辑页点「重试留存」${tail}`, `/edit/${videoId}`);
   }
 }
 
@@ -621,7 +751,7 @@ async function submit(
   after: PairTarget & { title?: string },
   revision: number,
   pend: PendingCanvas,
-): Promise<{ lost: number; videos: number }> {
+): Promise<{ lost: number; videos: number; shared: ShareOutcome | null }> {
   let canvas = pend.canvas;
   let lost = pend.lostCount ?? 0;
   if (!pend.ready) {
@@ -636,10 +766,17 @@ async function submit(
     //   不显式带的话会把 retain 刚盖的作品 id 抹掉（见 PendingCanvas.videoId 的 ★★★）
     await writePending({ ...pend, videoId, canvas, ready: true, lostCount: lost });
   }
+  // ★ 「公开制作过程」排在工程 PUT **之前**：它只要这份瘦身好的画布，与工程的配额 / 版次闸无关；
+  //   工程那一发撞了配额（下面 put 会 throw）也不该把制作过程一起拖下水。它自己从不 throw（回结局对象）。
+  //   ⚠ 只做一次：`put` 成功会清待办，`shareRecipe` 这一位随之消失，「重试留存」那条路不会再发一遍 ——
+  //     工程 PUT 失败而重试时，配方早在第一次就送过了（成败都在当时的票上说过）。
+  //   上架位只在发布页明确勾了时才传 true；没勾不传（回炉重投新一版时不动作者原来的上架位）
+  const shared =
+    pend.shareRecipe === true ? await shareFromCanvas(videoId, revision, canvas, true, pend.listRecipe === true ? true : undefined) : null;
   await put(videoId, after.title || pend.title, revision, canvas, lost);
   // ★ 从**改写之后**那份画布上数（`markLost` 把 flags 写进去的正是它）——
   //   这样"重试留存"那条路（pend.ready 已经是改写过的）也数得出来，不用另存一位
-  return { lost, videos: lostVideoCount(canvas) };
+  return { lost, videos: lostVideoCount(canvas), shared };
 }
 
 /**

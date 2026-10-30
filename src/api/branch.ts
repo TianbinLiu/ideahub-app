@@ -4,8 +4,9 @@
 // 服务端字段用 `_id` / ISO 时间字符串，客户端领域模型用 `id` / 毫秒时间戳，
 // 转换统一放在 data/*.ts（因为只有它知道要往哪个 cache 里塞）。
 import type { BranchTree, Card, CardRole, CardType, DraftVideo, TemplateRecipe, VideoDeck, VideoPart, VideoSegment } from "../types";
-import { API_BASE, ApiError, apiDelete, apiGet, apiPatch, apiPost, getToken } from "./client";
+import { API_BASE, ApiError, apiDelete, apiGet, apiPatch, apiPost, getToken, withAppVersion } from "./client";
 import { t } from "@lingui/core/macro";
+import { noteRegionDenied } from "../data/videoZone";
 
 // ── DTO ──────────────────────────────────────────────────
 
@@ -126,6 +127,14 @@ export interface ApiVideo {
   revision?: number;
   /** 最近一次回炉的时间；**只在有值时出现**（没回炉过的作品不该凭空长出一个日期） */
   revisedAt?: string | number;
+  /** 公开配方（制作过程）已公开且描述的正是当下这一版：服务端只在为真时发（2026-10-02） */
+  recipePublic?: boolean;
+  /** 作者本人才有：留存过配方时的开关现状（listed = 上架到了模板市场，老服务端不发） */
+  recipeState?: { public?: boolean; stale?: boolean; listed?: boolean };
+  /** 按谁的流程做的（详情端点才有；原作公开可见时才发） */
+  remixOf?: { id: string; title?: string; author?: ApiAuthor | string };
+  /** 有几个人按它做了同款（详情端点才有） */
+  remixCount?: number;
 }
 
 /**
@@ -194,6 +203,10 @@ export interface ApiCard {
   genPrompt?: string;
   /** 固定身份句（出片提示词用，见 types.Card.idLine；服务端五处 2026-08-28 已加） */
   idLine?: string;
+  /** 按模型适配：文字版形象描述（types.Card.textDesc；服务端 2026-09-30 才收得下） */
+  textDesc?: string;
+  /** 按模型适配：真人档起拍画面，按画幅各一张（types.Card.startFrames；只可能是 http(s)） */
+  startFrames?: { portrait?: string; landscape?: string };
   /** 真人声明（缺省 = 老卡 = 非真人，读侧判否定，见 types.Card.realPerson） */
   realPerson?: boolean;
   /** 已分享到创意工坊 */
@@ -273,6 +286,8 @@ export interface ListVideosParams {
    *   根本不是他发的作品，而且一个错都不报。
    */
   author?: string;
+  /** 只要照这条作品做的同款（作品 id，2026-10-29 服务端加）。同 author：老服务端会 strip 掉照常回推荐流，认回显的 remixOf */
+  remixOf?: string;
 }
 
 export interface ListVideosResult {
@@ -286,6 +301,8 @@ export interface ListVideosResult {
    *   判这个键在不在（形状），不判状态码 —— Capacitor 那边状态码恒 200。
    */
   author?: string;
+  /** 服务端真正生效了的 remixOf 过滤（能力探针，理由同 author） */
+  remixOf?: string;
 }
 
 // ── 作者名 ↔ userId 登记处 ────────────────────────────────
@@ -370,12 +387,14 @@ export async function listVideos(params: ListVideosParams = {}): Promise<ListVid
       cursor: params.cursor,
       limit: params.limit,
       author: params.author,
+      remixOf: params.remixOf,
     },
   });
   return {
     items: pickList<ApiVideo>(res, ["items", "videos", "data"]),
     nextCursor: pick<string>(res, ["nextCursor"]) ?? null,
     author: pick<string>(res, ["author"]) ?? undefined,
+    remixOf: pick<string>(res, ["remixOf"]) ?? undefined,
   };
 }
 
@@ -488,9 +507,19 @@ export async function setLike(id: string, on: boolean): Promise<LikeResult> {
 }
 
 /** GET /api/branch/videos/:id/comments（optionalAuth） */
-export async function listComments(id: string): Promise<ApiComment[]> {
-  const res = await apiGet<Record<string, unknown>>(`/api/branch/videos/${encodeURIComponent(id)}/comments`);
-  return pickList<ApiComment>(res, ["comments", "items", "data"]);
+/**
+ * GET /api/branch/videos/:id/comments —— 评论翻页（2026-10-26 视频详情页 P0-3 才有调用方）。
+ * 服务端按 createdAt 倒序、游标是它自己编的（不透明：原样带回去，别在客户端拼），limit 1~100（缺省 50）。
+ * @returns nextCursor = null 就是翻到底了（判「还有没有」只认它：commentCount 是全量计数，列表却滤掉了被拉黑的人）
+ */
+export async function listComments(id: string, o: { cursor?: string; limit?: number } = {}): Promise<{ items: ApiComment[]; nextCursor: string | null }> {
+  const q = new URLSearchParams();
+  if (o.cursor) q.set("cursor", o.cursor);
+  if (o.limit) q.set("limit", String(o.limit));
+  const qs = q.toString();
+  const res = await apiGet<Record<string, unknown>>(`/api/branch/videos/${encodeURIComponent(id)}/comments${qs ? `?${qs}` : ""}`);
+  const next = res && typeof res.nextCursor === "string" && res.nextCursor ? res.nextCursor : null;
+  return { items: pickList<ApiComment>(res, ["comments", "items", "data"]), nextCursor: next };
 }
 
 /**
@@ -585,6 +614,8 @@ export interface DanmakuPage {
   items: ApiDanmaku[];
   /** 服务端截断了没有。截断了要让用户知道，别假装"这条作品就这么多弹幕" */
   truncated: boolean;
+  /** 这条作品一共多少条（拉黑的人不算；2026-10-29 服务端加，老服务端没有 = undefined） */
+  total?: number;
 }
 
 /** GET /api/branch/videos/:id/danmaku（optionalAuth）。返回已按 at 升序 */
@@ -592,7 +623,12 @@ export async function listDanmaku(id: string, limit?: number): Promise<DanmakuPa
   const res = await apiGet<Record<string, unknown>>(`/api/branch/videos/${encodeURIComponent(id)}/danmaku`, {
     query: { limit },
   });
-  return { items: pickList<ApiDanmaku>(res, ["items", "danmaku", "data"]), truncated: pick<boolean>(res, ["truncated"]) === true };
+  const total = pick<number>(res, ["total"]);
+  return {
+    items: pickList<ApiDanmaku>(res, ["items", "danmaku", "data"]),
+    truncated: pick<boolean>(res, ["truncated"]) === true,
+    ...(typeof total === "number" && Number.isFinite(total) && total >= 0 ? { total } : {}),
+  };
 }
 
 /** POST /api/branch/videos/:id/danmaku（requireAuth） */
@@ -649,6 +685,17 @@ export async function listMyCollects(): Promise<{ ids: string[]; truncated?: boo
   return { ids: Array.isArray(res?.ids) ? res.ids : [], ...(res?.truncated ? { truncated: true } : {}) };
 }
 
+/** 能发给服务端的起拍画面：只留 http(s)（同 httpViews 的不变量；dataURL 发上去服务端整发 400）。新增卡与改卡共用 */
+function httpStartFrames(sf: Card["startFrames"]): ApiCard["startFrames"] {
+  if (!sf) return undefined;
+  const out: NonNullable<ApiCard["startFrames"]> = {};
+  for (const k of ["portrait", "landscape"] as const) {
+    const u = sf[k];
+    if (u && /^https?:\/\//i.test(u)) out[k] = u;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
 export async function addCards(cards: Card[]): Promise<ApiCard[]> {
   const payload: ApiCard[] = cards.map((c) => ({
     cardId: c.id,
@@ -665,6 +712,9 @@ export async function addCards(cards: Card[]): Promise<ApiCard[]> {
     modelUrl: c.modelUrl,
     genPrompt: c.genPrompt,
     idLine: c.idLine, // 与 genPrompt 同一批搬运点（漏了 = 换台设备登录身份句无声消失）
+    // 按模型适配的两份专用内容（同一批搬运点；起拍画面只发 http(s)）
+    textDesc: c.textDesc,
+    startFrames: httpStartFrames(c.startFrames),
     // ★ 真人声明与卡同生同灭：POST 是 $setOnInsert，漏在这里的话服务端那份永远是
     //   "非真人"，换台设备登录声明就无声消失、出片档位分流静默失效（modelUrl/genPrompt
     //   2026-08-11 就是这么丢的）。undefined 会被 JSON 序列化丢掉，等价于"没声明"。
@@ -730,9 +780,18 @@ export async function updateCardViews(cardId: string, views: Card["views"]): Pro
  */
 export async function updateCardMeta(
   cardId: string,
-  patch: { name?: string; summary?: string; tags?: string[] },
+  patch: {
+    name?: string;
+    summary?: string;
+    tags?: string[];
+    idLine?: string;
+    textDesc?: string;
+    /** null = 取消「起拍画面」那一勾（2026-10-26 之前叫「真人档适用」；服务端 $unset） */
+    startFrames?: Card["startFrames"] | null;
+  },
 ): Promise<ApiCard | null> {
-  const res = await apiPatch<Record<string, unknown>>(`/api/branch/cards/${encodeURIComponent(cardId)}`, patch);
+  const body = patch.startFrames ? { ...patch, startFrames: httpStartFrames(patch.startFrames) ?? null } : patch;
+  const res = await apiPatch<Record<string, unknown>>(`/api/branch/cards/${encodeURIComponent(cardId)}`, body);
   return pick<ApiCard>(res, ["card", "item", "data"]);
 }
 
@@ -971,6 +1030,11 @@ export interface ApiBranchTemplate {
    */
   markDescs?: string[];
   /**
+   * 与 markSlots 按下标对齐的神态（2026-10-26，服务端 #133 起）。长度不等于 markSlots 或全是空串时服务端不发；
+   * 客户端解析在 data/templates.markExprsOf，含义见 types.VideoTemplate.markExprs。
+   */
+  markExprs?: string[];
+  /**
    * 长视频分段登记的归组（2026-08-20）。**只在真有的时候出现**（存在性判断，同 roles）：
    * 整段登记/存量模板整个字段缺失。`sourceUrl` 是原片地址 —— 合并成片时拿它解原片音轨。
    */
@@ -1073,7 +1137,8 @@ export type BlockoutPhase = "start" | "finish";
  * 与 `phase`（失败在哪一阶段）。
  *
  * ★★ 为什么非要有 `billed`：方舟对含真人人脸的视频是**受理后**才失败（F11 实测），
- *   而受理即计费 —— 这一类失败**扣钱不退**。把它和"归属校验没过""余额不足"这种
+ *   而受理即计费 —— 这一类失败**扣过钱**（2026-10-07 起服务端会把方舟明说失败的那一发出片费退回，但「AI 看帧」那一次对话照收，
+ *   退没退由服务端的结局那句话说）。把它和"归属校验没过""余额不足"这种
  *   一分钱没动的失败混成同一个 Error，界面就只能对所有失败说同一句话：
  *   要么把没扣钱的说成扣了（吓人），要么把扣了的说成没扣（在钱上撒谎）。
  * ★★ 为什么两阶段之后还要 `phase`：`billed:false` 在两个阶段的含义**不一样**。
@@ -1218,13 +1283,14 @@ async function blockoutPost(
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}${path}`, {
+    const url = `${API_BASE}${path}`;
+    res = await fetch(url, {
       method: "POST",
-      headers: {
+      headers: withAppVersion(url, {
         "Content-Type": "application/json",
         Accept: "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
+      }),
       body: JSON.stringify(body),
       signal: ctrl.signal,
     });
@@ -1252,6 +1318,23 @@ async function blockoutPost(
   }
   if (data.ok !== true) {
     const status = res.status;
+    // ★ 出片地区（403 REGION_UNAVAILABLE，2026-10-26）：认 code 说本端的整句（服务端那句是「英文 / 中文」并排一行，给老 App 兜底）。
+    //   白模化要用电影级那一个模型；它在看帧之前就预检，平常一发都不出网、billed:false；只有两次请求之间门禁被拨到 on 的那个窄窗口
+    //   是看帧之后才拦、billed:true（契约「出片地区 → 被拦的回包」最后一条）—— 钱上两句各说各的，别把扣过的说成没扣。
+    //   回包里的地区当场记下并重问一次（data/videoZone），提取窗的白模入口跟着收起来。
+    if (data.code === "REGION_UNAVAILABLE") {
+      noteRegionDenied(data);
+      const billed = data.billed === true;
+      throw new BlockoutizeError(
+        billed
+          ? t`你所在的地区用不了白模化要用的出片模型——看帧那一笔已经花了、不退；出片那一发没有受理。`
+          : t`你所在的地区用不了白模化要用的出片模型——这一次没有受理，也没有扣费。`,
+        status,
+        data.code,
+        billed,
+        phase,
+      );
+    }
     throw new BlockoutizeError(
       typeof data.message === "string" && data.message
         ? data.message
@@ -1540,9 +1623,21 @@ export async function detectTemplateRoles(
   };
 }
 
-export async function unpublishTemplate(id: string): Promise<ApiBranchTemplate | null> {
+/**
+ * 「被公开的制作过程引用着」的那一档回包（2026-10-02 模板体系 P2）：作者下架 / 删除时服务端不回收素材，
+ * 把模板**退役**（status=retired，不进市场、所有人仍能按 id 读到并用它出片），回 `retired: true, refs: N`。
+ * 判有值：老服务端不发 = 照老行为走。
+ */
+export function retiredRefs(res: unknown): number | null {
+  if (typeof res !== "object" || res === null) return null;
+  const r = res as Record<string, unknown>;
+  if (r.retired !== true) return null;
+  return Math.max(1, Number(r.refs) || 1);
+}
+
+export async function unpublishTemplate(id: string): Promise<{ template: ApiBranchTemplate | null; retiredRefs: number | null }> {
   const res = await apiPatch<Record<string, unknown>>(`/api/branch/templates/${encodeURIComponent(id)}/unpublish`);
-  return pick<ApiBranchTemplate>(res, ["template", "item", "data"]);
+  return { template: pick<ApiBranchTemplate>(res, ["template", "item", "data"]), retiredRefs: retiredRefs(res) };
 }
 
 /**
@@ -1551,10 +1646,10 @@ export async function unpublishTemplate(id: string): Promise<ApiBranchTemplate |
  * @returns false = 这台服务器没有这个端点（回包形状不对，判据同 removeComment 的
  *   deleteLanded——Capacitor SPA 回退恒 200，状态码不可信），调用方必须说出来
  */
-export async function deleteRemoteTemplate(id: string): Promise<boolean> {
+export async function deleteRemoteTemplate(id: string): Promise<false | { retiredRefs: number | null }> {
   try {
     const res = await apiDelete<unknown>(`/api/branch/templates/${encodeURIComponent(id)}`);
-    return deleteLanded(res);
+    return deleteLanded(res) ? { retiredRefs: retiredRefs(res) } : false;
   } catch (e) {
     // ★★★ 404 = **它已经不在了**，而"删除"要的就是这个结果 —— 按成功算（幂等）。
     //   不这么写的话：另一台设备（或上一次点击）已经把它删掉了，这一次 apiDelete
@@ -1570,7 +1665,7 @@ export async function deleteRemoteTemplate(id: string): Promise<boolean> {
     //   两者的 `code` 一模一样（都是 NOT_FOUND，见 server 的 utils/http.notFound 与
     //   middleware/error.notFound），唯一的区别是②由我们自己的中间件生成、message
     //   固定以 `Route not found:` 开头。判这个前缀不是猜 —— 那是本仓自己的产物。
-    if (e instanceof ApiError && e.status === 404 && !/^Route not found:/i.test(e.message)) return true;
+    if (e instanceof ApiError && e.status === 404 && !/^Route not found:/i.test(e.message)) return { retiredRefs: null };
     throw e;
   }
 }

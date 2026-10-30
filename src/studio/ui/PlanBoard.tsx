@@ -16,16 +16,37 @@
 //   已选定 —— 那一行放大居中、其余缩小压暗；只有选定的那一行可以改帧、改剧情、重画。
 //             不给未选定的行开编辑口，是因为编辑必然要花钱重画，而用户还没决定用哪套。
 import { ReactNode, useEffect, useRef, useState } from "react";
+import Warn from "../../components/Warn";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { shotLineDisplay, DURATIONS, Proposal, type VideoAspect } from "../../types";
-import { fmtTokens } from "../../data/economy";
+import { fmtTokens, priceTag } from "../../data/economy";
 import { fileToFrameDataUrl } from "../../utils/image";
 import FrameCard, { CardFace, useFrameCycle } from "./FrameCard";
 import FuseFrameSheet, { type FuseSource } from "./FuseFrameSheet";
+import ShotListEditor, { type ShotSpeaker } from "../../components/flow/ShotListEditor";
+import { isMultiShot } from "../../data/shotScript";
+import { endFrameUsed } from "../../data/drawPlan";
 
+/**
+ * 卡上摆哪张结束帧：出片用不上的那张不摆（分了镜头的方案不用 AI 画的结束画面，规矩只在 data/drawPlan.endFrameUsed，
+ * 出片与报价走的 flowStore.usableFrames 问的是同一处）—— 摆着一张发不出去的图，人只会以为视频会停在那一幕上。
+ */
+function shownLast(p: Proposal): string {
+  return endFrameUsed({ multiShot: isMultiShot(p.plot), pinned: !!p.pinned?.last }) ? p.lastFrame : "";
+}
 
 export interface PlanBoardProps {
   proposals: Proposal[];
+  /**
+   * 本段档位的最短时长（economy.VideoTier.minSec）。短于它的时长按钮禁掉：出片与报价都会被
+   * clampDuration 吸附上去，按钮还亮着就是「写 3 秒、拍 4 秒、按 4 秒收」。缺省 = 不限。
+   */
+  minSec?: number;
+  /**
+   * 时长按钮摆哪几个（宿主传 economy.durationChoices(本段档位)：高清多 12 / 15、电影级多到 30）。
+   * ★ 判**存在性**：不传 = 老样子（types.DURATIONS），老调用方零改动。高亮按 [minSec, 这里的最大值] 夹过的值走。
+   */
+  durations?: number[];
   /** null = 三套摊开等挑（没有哪一行被放大） */
   pickedId: string | null;
   /** 这一套出片了吗（工坊读 proposal.videoUrl，工作流读 videoByProposal——形状不同，
@@ -72,10 +93,32 @@ export interface PlanBoardProps {
   fuseSources?: FuseSource[];
   /** 本段画幅：融出来的帧要跟它同比例，否则会被方舟静默裁掉一截 */
   fuseAspect?: VideoAspect;
+  /**
+   * 这一段出不了片的原因（宿主拿本段的档问 account.tierBlockReason；null = 出得了）—— 原样交给 FuseFrameSheet，非空就不融（那张图的钱会白花）。
+   * **必填**（2026-10-07 评审补）：本组件不认识 store，漏传就是零症状地绕过门禁。
+   */
+  fuseTierIssue: string | null;
+  /**
+   * 分镜表（N2，2026-10-03）：给了就把选定那一套的剧情框换成分镜表 —— 一个镜头时与原来的输入框一样，
+   * 「＋ 镜头 / ＋ 台词」能把这一段写成几个镜头、给台词点明谁说的（规则在 data/shotScript，文字仍是唯一真身）。
+   * max = 这一档的提示词上限（economy.promptMaxOf），canAdd = 这一档能不能分镜配台词（高清 / 电影级）。
+   * ★ 判**存在性**：不传 = 照旧是普通输入框（上限 400），老调用方零改动。
+   */
+  shotEdit?: { speakers: ShotSpeaker[]; max: number; canAdd: boolean };
+  /**
+   * 这一段是「参考图直出」段（FlowNode.direct，2026-10-04）—— 两种情况，卡上说的实话不一样：
+   * · `"noDraw"`：真的不画帧，人物图直接给视频模型（收参考图的档；真人档照片起拍也算）；
+   * · `"draws"`：直出段落在收不了参考图的档上（极速 / 标准），出片前会按提示词补画帧、计费（flowStore.nodeNoDraw 判否）。
+   * 两种都**不摆**「重新生成这一套的画面」（与画布一致：直出段没有推演这一拍；承接上一段的段，开头那张出片时会被
+   * 承接帧整张顶掉，重画它就是白收图钱 —— 2.62 发版评审抓到）。卡上那几句「AI 自拟开头帧 / 待推演」换成实话。
+   */
+  direct?: "noDraw" | "draws";
 }
 
 export default function PlanBoard({
   proposals,
+  minSec,
+  durations = DURATIONS,
   pickedId,
   isDone,
   busy,
@@ -94,6 +137,9 @@ export default function PlanBoard({
   dense,
   fuseSources,
   fuseAspect,
+  fuseTierIssue,
+  shotEdit,
+  direct,
 }: PlanBoardProps) {
   const scroller = useRef<HTMLDivElement>(null);
   const pickedRow = useRef<HTMLDivElement>(null);
@@ -147,7 +193,7 @@ export default function PlanBoard({
         )}
       </div>
 
-      {err && <div className="flex-none px-3 pb-1 text-[10px] text-rose-300">{err}</div>}
+      {err && <div className="flex-none px-3 pb-1 text-[10px] text-danger-300">{err}</div>}
       {reading && <div className="flex-none px-3 pb-1 text-[10px] text-slate-400"><Trans>读取图片…</Trans></div>}
 
       <div ref={scroller} className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-3">
@@ -176,14 +222,30 @@ export default function PlanBoard({
                   <div className="flex-none space-y-1" style={{ width: cardW }}>
                     <FrameCard
                       firstFrame={p.firstFrame || null}
-                      lastFrame={p.lastFrame || null}
-                      emptyNote={p.degraded ? t`没画出来` : undefined}
+                      lastFrame={shownLast(p) || null}
+                      emptyNote={p.degraded ? t`没画出来` : direct === "noDraw" ? t`不画帧` : direct === "draws" ? t`出片前补画` : undefined}
+                      emptyHint={
+                        p.degraded
+                          ? undefined
+                          : direct === "noDraw"
+                            ? // 承接上一段时开头就是那张真实结尾；极速 / 标准不收参考图，人物图根本发不出去 —— 别说「人物图直接给视频模型」（评审第五轮）
+                              carriedFrom
+                              ? t`不画帧——开头接着上一段的真实结尾`
+                              : t`不画帧，人物图直接给视频模型`
+                            : direct === "draws"
+                              ? t`出片前按提示词补画（计费）`
+                              : undefined
+                      }
                       originNote={
                         p.pinned?.first
                           ? t`已用你上传的图`
                           : carriedFrom
                             ? t`承接上一段真实结尾`
-                            : t`AI 自拟开头帧`
+                            : direct === "noDraw"
+                              ? t`不画帧，人物图直接给视频模型`
+                              : direct === "draws"
+                                ? t`出片前按提示词补画（计费）`
+                                : t`AI 自拟开头帧`
                       }
                       canEdit={!busy && regenId !== p.id}
                       uploaded={false}
@@ -196,18 +258,22 @@ export default function PlanBoard({
                       aspectRatio={frameAspect}
                     />
                     <div className="text-center text-[9px] leading-3 text-slate-500"><Trans>点开卡片换图</Trans></div>
+                    {/* 分了镜头的方案不用 AI 画的结束画面（卡上也不摆它）：说一句，免得人以为结束画面丢了 */}
+                    {isMultiShot(p.plot) && !p.pinned?.last && (
+                      <div className="text-center text-[9px] leading-3 text-slate-500"><Trans>分了镜头：不用结束画面</Trans></div>
+                    )}
                     {/* 留存工程时丢掉的东西：如实说一句 + 给一条出路。
                         不说的话用户只会看到一张空框，以为方案台坏了。
                         ★★ **成片与预览图分开说**（2026-09-07 评审改）：预览图重新推演就能补回来，
                         而一段成片没留下只能重新出片、**再花一次钱** —— 把后者说成前者，
                         等于告诉用户"点一下就好了"，而他点完会被扣一次钱。 */}
                     {!!p.lost?.video && (
-                      <div className="text-center text-[9px] leading-3 text-amber-300/90">
+                      <div className="text-center text-[9px] leading-3 text-warn-300/90">
                         <Trans>这一段的成片没有留存，要重新出片（会再花一次钱）</Trans>
                       </div>
                     )}
                     {!!p.lost && !p.lost.video && (
-                      <div className="text-center text-[9px] leading-3 text-amber-300/90"><Trans>这一格的预览图没有留存</Trans></div>
+                      <div className="text-center text-[9px] leading-3 text-warn-300/90"><Trans>这一格的预览图没有留存</Trans></div>
                     )}
                     {/* 「融图」：把几张参考图合成一张边界帧。★ 只在宿主给了候选图时出现，
                         融出来的帧仍旧走 onFrame 落地（换帧只有那一个缝） */}
@@ -218,7 +284,7 @@ export default function PlanBoard({
                             key={w}
                             onClick={() => setFusing({ id: p.id, which: w })}
                             disabled={busy || regenId === p.id}
-                            className="flex-1 rounded-full border border-slate-700 py-1 text-[9px] text-slate-300 disabled:opacity-40"
+                            className="flex-1 rounded-full border border-slate-700 py-1.5 text-[10px] text-slate-300 disabled:opacity-40"
                           >
                             {w === "first" ? <Trans>🧬 融首帧</Trans> : <Trans>🧬 融尾帧</Trans>}
                           </button>
@@ -239,42 +305,64 @@ export default function PlanBoard({
                       />
                       <span className="flex-none rounded-full px-2 py-0.5 bg-gold/20 text-[10px] text-gold"><Trans>✓ 已选定</Trans></span>
                       {done && (
-                        <span className="flex-none rounded-full px-2 py-0.5 bg-emerald-500/20 text-[10px] text-emerald-300">
+                        <span className="flex-none rounded-full px-2 py-0.5 bg-ok-500/20 text-[10px] text-ok-300">
                           <Trans>已出片</Trans>
                         </span>
                       )}
                     </div>
                     {p.degraded && (
-                      <div className="rounded bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-300">
+                      <div className="rounded bg-warn-500/10 px-2 py-0.5 text-[10px] text-warn-300">
                         <Trans>⚠ 这一套有帧当时没画出来：出片前会先补画要用到的帧（按张计费，已算进出片报价）</Trans>
                       </div>
                     )}
-                    <textarea
-                      value={p.plot}
-                      onChange={(e) => onPatch(p.id, { plot: e.target.value })}
-                      rows={dense ? 4 : 5}
-                      maxLength={400}
-                      disabled={busy}
-                      placeholder={t`这一段的画面与剧情（会直接作为生成提示词）`}
-                      className="novel-text w-full resize-none rounded-lg border border-slate-700 bg-black/25 px-2 py-1.5 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-gold/70"
-                    />
+                    {shotEdit ? (
+                      <ShotListEditor
+                        text={p.plot}
+                        onChange={(next) => onPatch(p.id, { plot: next })}
+                        max={shotEdit.max}
+                        disabled={busy}
+                        placeholder={t`这一段的画面与剧情（会直接作为生成提示词）`}
+                        speakers={shotEdit.speakers}
+                        canAdd={shotEdit.canAdd}
+                        rows={dense ? 4 : 5}
+                        // 这一栏在手机上只有 185px 宽：「镜头 N」与 ✕ 叠到输入框上面，框才有一行 13 个字的宽度（量法见 ShotListEditor 的 stacked）
+                        stacked
+                        inputClassName="novel-text w-full resize-none rounded-lg border border-slate-700 bg-black/25 px-2 py-1.5 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-gold/70 disabled:opacity-40"
+                      />
+                    ) : (
+                      <textarea
+                        value={p.plot}
+                        onChange={(e) => onPatch(p.id, { plot: e.target.value })}
+                        rows={dense ? 4 : 5}
+                        maxLength={400}
+                        disabled={busy}
+                        placeholder={t`这一段的画面与剧情（会直接作为生成提示词）`}
+                        className="novel-text w-full resize-none rounded-lg border border-slate-700 bg-black/25 px-2 py-1.5 text-xs leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-gold/70"
+                      />
+                    )}
                     {shotLineDisplay(p.shot) && <p className="text-[10px] text-slate-500">{shotLineDisplay(p.shot)}</p>}
                     <div className="flex flex-wrap items-center gap-1">
                       <span className="flex-none text-[10px] text-slate-500"><Trans>时长</Trans></span>
-                      {DURATIONS.map((d) => (
-                        <button
-                          key={d}
-                          onClick={() => onPatch(p.id, { durationSec: d })}
-                          disabled={busy}
-                          className={`rounded px-1.5 py-0.5 text-[10px] disabled:opacity-40 ${
-                            p.durationSec === d ? "bg-gold/80 text-ink" : "bg-panel text-slate-300"
-                          }`}
-                        >
-                          {d}s
-                        </button>
-                      ))}
+                      {durations.map((d) => {
+                        const tooShort = minSec !== undefined && d < minSec;
+                        return (
+                          <button
+                            key={d}
+                            onClick={() => onPatch(p.id, { durationSec: d })}
+                            disabled={busy || tooShort}
+                            title={tooShort ? t`这一档最短 ${minSec} 秒` : undefined}
+                            // 高亮跟实际会拍的时长走（同 SegSettings：吸附后的结算值），别让禁掉的 3s 还亮着
+                            className={`rounded-full px-2.5 py-1 text-[11px] disabled:opacity-40 ${
+                              Math.min(Math.max(...durations), Math.max(minSec ?? 0, p.durationSec)) === d ? "bg-gold/80 text-ink" : "bg-panel text-slate-300"
+                            }`}
+                          >
+                            {d}s
+                          </button>
+                        );
+                      })}
                     </div>
-                    {/* 「按修改重画」只重画画面，不重写剧情——剧情是用户刚敲的字 */}
+                    {/* 「按修改重画」只重画画面，不重写剧情——剧情是用户刚敲的字。参考图直出段不画帧，这颗键不摆 */}
+                    {!direct && (
                     <button
                       onClick={() => onRegen(p.id)}
                       disabled={busy || !p.plot.trim()}
@@ -283,9 +371,10 @@ export default function PlanBoard({
                       {regenId === p.id
                         ? t`重画中…`
                         : cost
-                          ? t`✨ 重新生成这一套的画面（${fmtTokens(cost)}）`
+                          ? t`♻ 重新生成这一套的画面（${priceTag(cost)}）`
                           : t`✨ 重新生成这一套的画面`}
                     </button>
+                    )}
                     {actions?.(p)}
                   </div>
                 </div>
@@ -300,7 +389,7 @@ export default function PlanBoard({
                       它的话在上面那一行（成片丢了跟这张预览图没关系） */}
                   <PreviewCard
                     first={p.firstFrame}
-                    last={p.lastFrame}
+                    last={shownLast(p)}
                     lost={!!(p.lost?.first || p.lost?.last || p.lost?.poster)}
                     width={cardW}
                     aspect={frameAspect}
@@ -314,14 +403,14 @@ export default function PlanBoard({
                         {p.durationSec}s
                       </span>
                       {done && (
-                        <span className="flex-none rounded-full px-2 py-0.5 bg-emerald-500/20 text-[10px] text-emerald-300">
+                        <span className="flex-none rounded-full px-2 py-0.5 bg-ok-500/20 text-[10px] text-ok-300">
                           <Trans>已出片</Trans>
                         </span>
                       )}
                     </div>
                     <p className="novel-text mt-1 line-clamp-3 text-[11px] leading-relaxed text-slate-300">{p.plot}</p>
                     {shotLineDisplay(p.shot) && <p className="mt-0.5 text-[10px] text-slate-500">{shotLineDisplay(p.shot)}</p>}
-                    {warn && <p className="mt-1 text-[10px] text-amber-300">{warn}</p>}
+                    {warn && <Warn compact className="mt-1">{warn}</Warn>}
                   </div>
                 </button>
               )}
@@ -337,6 +426,7 @@ export default function PlanBoard({
           which={fusing.which}
           sources={fuseSources ?? []}
           aspect={fuseAspect ?? "portrait"}
+          tierIssue={fuseTierIssue}
           onDone={(url) => onFrame(fusing.id, fusing.which, url)}
           onClose={() => setFusing(null)}
         />
@@ -379,7 +469,7 @@ function PreviewCard({
         <div
           style={{ aspectRatio: aspect }}
           className={`flex w-full items-center justify-center rounded-lg border border-dashed bg-slate-800/40 px-1 text-center text-[9px] leading-tight ${
-            lost ? "border-amber-500/60 text-amber-300/90" : "border-slate-600 text-slate-500"
+            lost ? "border-warn-500/60 text-warn-300/90" : "border-slate-600 text-slate-500"
           }`}
         >
           {/* "本来就没画过"与"画过但没留存下来"是两件事，说法必须分开：

@@ -7,9 +7,13 @@ import { useEffect, useRef, useState } from "react";
 import { CloseButton } from "../IconTapButton";
 import { createPortal } from "react-dom";
 import Icon from "../Icon";
-import FrameAnnotator, { drawCover } from "../FrameAnnotator";
-import { chosenOf, realVideoOfNode, tplOfNode, useFlow } from "../../studio/flowStore";
-import { resolveMediaUrl, useMediaUrl } from "../../utils/mediaUrl";
+import FrameAnnotator from "../FrameAnnotator";
+import { appendIssue, chosenOf, nodeDone, realVideoOfNode, reshotWithSound, tplOfNode, useFlow } from "../../studio/flowStore";
+import { useMediaUrl } from "../../utils/mediaUrl";
+import { useBackLayer } from "../../hooks/useBackLayer";
+import { grabVideoFrame } from "../videoFrames";
+import { uniqueRefName, usableExtraRefs } from "../../data/refMentions";
+import { showToast } from "../../data/toast";
 
 /**
  * 回看某一段成片的播放层。
@@ -29,15 +33,17 @@ export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: st
   const src = useMediaUrl(url);
   /**
    * ★★ 白模出片本身无声（ai/arkClient.BLOCKOUT_TASK 钉着 generate_audio:false —— edit 会连参考视频的歌一起复刻，
-   *   带歌模板会被方舟在输出端整发拒掉、钱不退），于是拿「有声音的模板」出的片在这里放出来是哑的、播放器上的
+   *   带歌模板会被方舟在输出端整发拒掉、片子出不来），于是拿「有声音的模板」出的片在这里放出来是哑的、播放器上的
    *   声音键灰着（2026-09-06 主人真机）。回看时把模板那一段的**原片音轨**叠上去：refVideo.url 正是与这一段
    *   对齐的那段裁剪（分段组的每一段各自一份），从 0 秒起跟着视频走；合并成片时 CutPage 回填的也是同一条
    *   （studioStore.draftAudioHint）。
    * ★ 只对白模段叠（有 refVideo 的段）：别的档位成片自带 AI 环境音，叠上去是两层声。
+   * ★ 白模段**返修过**、现在放的是出声的那一条时也不叠（flowStore.reshotWithSound，2.62 发版评审抓到）：2026-10-05 起返修走
+   *   REVISE_TASK、自带重做的声音，叠上模板原声就是两层声，那句「白模成片本身无声」也成了假话。
    */
   // ★ `node.audioHint` 是兜底：取回安放的段 tpl 恒为 null（flowStore.placeRescuedSegment 的 ★），
   //   它的模板原声只存在凭据带回来的那一位里 —— 不兜的话回看里这一段是彻底哑的
-  const tplAudioUrl = node ? tplOfNode(node)?.refVideo?.url || node.audioHint : undefined;
+  const tplAudioUrl = node && !reshotWithSound(node) ? tplOfNode(node)?.refVideo?.url || node.audioHint : undefined;
   const audioSrc = useMediaUrl(tplAudioUrl);
   const aref = useRef<HTMLAudioElement>(null);
   const [audioOn, setAudioOn] = useState(true);
@@ -64,97 +70,95 @@ export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: st
   const busy = useFlow((s) => s.busy);
   // 本层盖住了画布壳上那条唯一的错误条，所以自带一份（见下面 err 那块的 ★★）
   const err = useFlow((s) => s.err);
-  /** 圈选：null=没开；"loading"=正在取一份能截帧的流 */
-  const [ann, setAnn] = useState<{ frame: string; atSec: number } | "loading" | null>(null);
+  /** 圈选：null=没开；"loading"=正在取一份能截帧的流；fallback=这一秒没截到、底图退成了这一套的开头帧（画板上要说出来） */
+  const [ann, setAnn] = useState<{ frame: string; atSec: number; fallback?: boolean } | "loading" | null>(null);
+  /** 「截这一帧」（N3）：截下来之后选它的去处（当哪一段的首帧 / 尾帧 / 参考图）。null=没开 */
+  const [shot, setShot] = useState<{ frame: string; atSec: number } | "loading" | null>(null);
+  /** 去处选的是哪一段（存 id；那一段没了 / 不再合格就退回第一个合格的） */
+  const [shotTarget, setShotTarget] = useState<string | null>(null);
 
   /**
-   * 从**当前这一帧**截图去圈选。
+   * 截下**当前这一帧**（圈选与「截这一帧」共用；按原比例截整帧）。
    * ★★ 不能直接从上面那个 <video> 截：它是**直连**跨域地址的（回看走直连更快，
    *   见上面的 ★），画布一旦被跨域视频污染，toDataURL 就抛 SecurityError。
    *   所以圈选这一下**单独**取一份代理流（forCapture，utils/mediaUrl 的唯一实现），
    *   只在用户真点圈选时才走代理 —— 别为了这个功能让每一次回看都绕服务端。
-   * ★ 取不到就退回这一套的开头帧（线性视图那份 openAnnotator 同款退法），
-   *   两条都没有就整句说清，别开一个空白画板。
+   *   等就绪 / 钳位 seek（播到 ended 时 currentTime 恰好等于 duration 的那个坑）/ 验像素 / atSec 记真正截到的那一刻，
+   *   实现只有 components/videoFrames.grabVideoFrame 一份（2026-10-15 教材人格评审从这里抽出去：简约页的圈选也要它，别抄第二份）。
+   * ★ 取不到就退回这一套的开头帧（openAnn），两条都没有就整句说清，别开一个空白画板。
    */
-  async function openAnn() {
-    const live = vref.current;
-    const at = live?.currentTime ?? 0;
+  async function grab(): Promise<{ frame: string; atSec: number }> {
     const url = node ? realVideoOfNode(node) : undefined;
+    if (!url) throw new Error(t`取不到可截帧的地址`);
+    return grabVideoFrame(url, vref.current?.currentTime ?? 0);
+  }
+  async function openAnn() {
     setAnn("loading");
     try {
-      const proxied = url ? await resolveMediaUrl(url, { forCapture: true }) : null;
-      if (!proxied) throw new Error(t`取不到可截帧的地址`);
-      const v = document.createElement("video");
-      v.crossOrigin = "anonymous";
-      v.muted = true;
-      v.playsInline = true;
-      v.preload = "auto";
-      v.src = proxied;
-      // ★★ 等的是**尺寸已知 + 有可画的一帧**，不是"事件来了就算好"：
-      //   loadeddata 先到、videoWidth 仍可能是 0，而 drawCover 在 sw/sh 为 0 时
-      //   **静默什么都不画** —— 于是标注器上是一整块黑，用户对着黑框圈完还要付钱重炼。
-      //   （2026-08-21 实测就是这个症状。）媒体事件一律带超时：窗口不可见时它们永不到达。
-      await new Promise<void>((res, rej) => {
-        const ok = () => {
-          if (v.videoWidth > 0 && v.readyState >= 2) res();
-        };
-        v.onloadedmetadata = ok;
-        v.onloadeddata = ok;
-        v.oncanplay = ok;
-        v.onerror = () => rej(new Error(t`视频读不出来`));
-        window.setTimeout(() => rej(new Error(t`取流超时（窗口在后台时浏览器不解码视频）`)), 20_000);
-      });
-      // 定位到用户正在看的那一秒。
-      // ★★ 钳位，别拿 duration 当**门槛**（2026-08-21 对抗评审用真实复现抓到的 high）：
-      //   播放层是 autoPlay 且不循环，几秒后就 ended —— 那时 currentTime **恰好等于**
-      //   duration，`at < duration` 为假，整个 seek 被跳过，截到的是**开头那一帧**；
-      //   而 atSec 仍记成 duration，segmentGen 按 `atSec < half` 判成**尾帧**标注 ——
-      //   于是改过的开头帧被塞进结束帧，成片首尾几乎同一张画面，钱照扣、零报错。
-      //   duration 为 NaN（代理没给时长）时同样恒假，落进同一个坑。
-      const target = Math.max(0, Math.min(at, (v.duration || at) - 0.05));
-      if (target > 0) {
-        await new Promise<void>((res) => {
-          v.onseeked = () => res();
-          v.currentTime = target;
-          window.setTimeout(() => res(), 8_000); // 窗口不可见时 seeked 永远不到
-        });
-      }
-      const c = document.createElement("canvas");
-      c.width = 1280;
-      c.height = 720;
-      const cx = c.getContext("2d")!;
-      drawCover(cx, v, 1280, 720);
-      // ★★ 画完要**验一眼真有像素**：drawCover 的早退是静默的，而"全黑的标注底图"
-      //   与"这一帧本来就很暗"在界面上长得一模一样 —— 分不出来就会让用户在黑框上圈选。
-      //   取一条横带看极差，全 0 = 什么都没画上去，当失败处理（走下面的退路）。
-      const band = cx.getImageData(0, Math.floor(720 / 2), 1280, 2).data;
-      let lo = 255;
-      let hi = 0;
-      for (let i = 0; i < band.length; i += 4) {
-        if (band[i] < lo) lo = band[i];
-        if (band[i] > hi) hi = band[i];
-      }
-      if (hi - lo === 0 && hi === 0) throw new Error(t`截出来是一片空白`);
-      // ★ atSec 记**真正截到的那一刻**，不是播放器上那个 at：seek 失败/超时退回 0 秒时
-      //   位置也跟着是 0，segmentGen 判成首帧标注 —— 图与位置永远一致
-      setAnn({ frame: c.toDataURL("image/jpeg", 0.9), atSec: v.currentTime || 0 });
+      setAnn(await grab());
     } catch (e) {
-      console.warn("[canvas] 圈选取帧失败:", e);
+      // 退回开头帧时**要说出来**（2026-10-15 教材人格评审，铁律八：此前只 console.warn，用户对着一张不是自己停在的那一秒的图
+      // 只会以为截帧坏了）：画板上的提示句换成退路那一句（ann.fallback），没有退路才写 err（本层自带的错误条画它）
+      const why = e instanceof Error ? e.message : String(e);
       const fb = node ? chosenOf(node).firstFrame : "";
-      if (fb) setAnn({ frame: fb, atSec: 0 });
+      if (fb) setAnn({ frame: fb, atSec: 0, fallback: true });
       else {
         setAnn(null);
-        useFlow.setState({ err: t`取不到这一段的画面，圈选打不开——网络不好或链接已过期，稍后再试` });
+        useFlow.setState({ err: t`取不到这一段的画面，圈选打不开：${why}` });
       }
+    }
+  }
+  /** 📸 截这一帧：截不下来就整句说清（没有退路可言 —— 要的就是这一秒的画面） */
+  async function openShot() {
+    vref.current?.pause();
+    setShot("loading");
+    try {
+      setShot(await grab());
+    } catch (e) {
+      console.warn("[canvas] 截帧失败:", e);
+      setShot(null);
+      useFlow.setState({ err: t`这一帧没截下来——网络不好或链接已过期，稍后再试` });
     }
   }
   useEffect(() => {
     if (!node) onClose(); // 这一段被删了：别留一个放不出东西的黑框
   }, [node, onClose]);
+  // 手机返回键先关这一层（hooks/useBackLayer）：整个回看层与 ✕ / 点遮罩同一个 onClose；
+  // 「这一帧用到哪儿」那张抽屉叠在上面、各认各的那一格，返回键先只关它（与它的 ✕ 同一个 setShot(null)）
+  useBackLayer(true, onClose, "seg-player");
+  useBackLayer(!!shot && shot !== "loading", () => setShot(null), "seg-shot");
   if (!node) return null;
+  /**
+   * 这一帧能放进去的段：别的、还没出片、没在炼、不是白模段的（白模段的画面与参考整个来自模板视频）、不是延长段的
+   * （延长段接的是上一段成片本身，出片一张帧、一张临时参考图都不带 —— genNode 的 ext 分支；它的面板上也没有帧位与参考清单，
+   *  放进去了看不见、删不掉，而轻提示还说「已放进」。2.62 发版评审抓到：延长段落下后那一发被拒 / 失败，它就成了默认目标）
+   */
+  const shotTargets = nodes
+    .map((n, i) => ({ n, i }))
+    .filter(({ n, i }) => i !== idx && !nodeDone(n) && n.status !== "generating" && !tplOfNode(n)?.refVideo && !n.extendFrom);
+  const shotTo = shotTargets.find((x) => x.n.id === shotTarget) ?? shotTargets.find((x) => x.i > idx) ?? shotTargets[0] ?? null;
+  /** 没有能放的段时：能不能当场新开一段（判据 flowStore.appendIssue 一处，与画布「＋ 加一段」同一个） */
+  const appendWhyNot = appendIssue(useFlow.getState());
+  function placeShot(as: "first" | "last" | "ref") {
+    if (!shot || shot === "loading" || !shotTo) return;
+    const st = useFlow.getState();
+    const seg = shotTo.i + 1;
+    if (as === "ref") {
+      const target = st.nodes.find((n) => n.id === shotTo.n.id);
+      const taken = [...usableExtraRefs(target?.extraRefs).map((x) => x.name), ...(target?.materials ?? []).map((c) => c.name)];
+      // 成片里的一帧多半是拿来保住场景的：用途先给「场景」，去参考清单里能改
+      const id = st.addExtraRef(shotTo.n.id, { url: shot.frame, name: uniqueRefName(t`截图`, taken), role: "scene" });
+      if (!id) return; // 被拒（满 3 张…）：原因在 err 上，本层那条错误条会画出来
+      showToast(t`已加进第 ${seg} 段的参考图`, 2400);
+    } else {
+      st.setFrame(shotTo.n.id, as, shot.frame);
+      showToast(as === "first" ? t`已放进第 ${seg} 段的首帧` : t`已放进第 ${seg} 段的尾帧`, 2400);
+    }
+    setShot(null);
+  }
   return createPortal(
     <div className="fixed inset-0 z-50 flex flex-col bg-black/90" onClick={onClose}>
-      <div className="safe-top flex h-[58px] flex-none items-center gap-2 px-4" onClick={(e) => e.stopPropagation()}>
+      <div className="safe-top-bar flex flex-none items-center gap-2 px-4" onClick={(e) => e.stopPropagation()}>
         <span className="text-sm font-bold text-slate-100"><Trans>第 {idx + 1} 段 · 成片</Trans></span>
         <span className="min-w-0 flex-1 truncate text-[11px] text-slate-500">{chosenOf(node).durationSec}s</span>
         {/* ⭕ 圈选改画面：在成片上圈出要改的地方，写一句要求 —— 下次重炼这一段时
@@ -173,10 +177,20 @@ export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: st
             {ann === "loading" ? <Trans>取帧中…</Trans> : <Trans>⭕ 圈选改画面</Trans>}
           </button>
         )}
+        {/* 📸 截这一帧（N3）：成片里任意一刻的画面，拿去当别的段的首帧 / 尾帧 / 参考图。此前成片只自动取首尾两帧 */}
+        {src && !failed && (
+          <button
+            onClick={() => void openShot()}
+            disabled={shot === "loading"}
+            className="flex-none rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-200 disabled:opacity-40"
+          >
+            {shot === "loading" ? <Trans>取帧中…</Trans> : <Trans>📸 截这一帧</Trans>}
+          </button>
+        )}
         {audioSrc && src && !failed && (
           <button
             onClick={() => setAudioOn((v) => !v)}
-            title={t`白模成片本身无声，这里配的是模板原片的音轨；合并成片时也会带上`}
+            title={t`白模成片本身无声，这里配的是模板原片的音轨；合成成片时也会带上`}
             className="flex-none rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-200"
           >
             {audioOn ? <Trans>🔊 模板原声</Trans> : <Trans>🔇 已静音</Trans>}
@@ -191,7 +205,7 @@ export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: st
           同为 z-50 的 PlanSheet / TemplatePicker 早就各自画了一份，就漏了这个自己写 err 的。 */}
       {err && (
         <div
-          className="mx-3 mt-1 flex flex-none items-start gap-2 rounded-lg border border-rose-500/40 bg-rose-500/95 px-2.5 py-1.5"
+          className="mx-3 mt-1 flex flex-none items-start gap-2 rounded-lg border border-danger-500/40 bg-danger-500/95 px-2.5 py-1.5"
           onClick={(e) => e.stopPropagation()}
         >
           <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-white">{err}</p>
@@ -207,7 +221,11 @@ export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: st
         <div onClick={(e) => e.stopPropagation()}>
         <FrameAnnotator
           frame={ann.frame}
-          hint={t`标注会先改这一段的设定画面，再重新生成本段视频`}
+          hint={
+            ann.fallback
+              ? t`没截到你停在的那一秒，这是这一段的开头帧；标注会先改设定画面，再重新生成本段视频`
+              : t`标注会先改这一段的设定画面，再重新生成本段视频`
+          }
           onClose={() => setAnn(null)}
           onSave={(frame, req) => {
             addAnn(node.id, { frame, req, atSec: ann.atSec });
@@ -218,6 +236,86 @@ export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: st
             onClose();
           }}
         />
+        </div>
+      )}
+      {shot && shot !== "loading" && (
+        /* 去处选择：抽屉壳与全 app 同一种（遮罩 /60、rounded-t-2xl border-t bg-ink）。点遮罩只关它自己，不连成片一起关 */
+        <div
+          className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60"
+          onClick={(e) => {
+            e.stopPropagation();
+            setShot(null);
+          }}
+        >
+          <div
+            className="w-full max-w-lg rounded-t-2xl border-t border-slate-700 bg-ink p-4"
+            style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-2 flex items-center gap-2">
+              <span className="text-sm font-bold text-slate-100">
+                <Trans>这一帧用到哪儿</Trans>
+              </span>
+              <span className="min-w-0 flex-1" />
+              <CloseButton chip="sm" size={13} align="end" onClick={() => setShot(null)} />
+            </div>
+            <div className="flex gap-3">
+              <img src={shot.frame} alt="" className="h-32 w-auto max-w-[40%] flex-none rounded-lg border border-slate-700 object-contain" />
+              <div className="min-w-0 flex-1 space-y-2">
+                {shotTargets.length > 0 ? (
+                  <>
+                    <div className="no-scrollbar flex gap-1.5 overflow-x-auto">
+                      {shotTargets.map(({ n, i }) => (
+                        <button
+                          key={n.id}
+                          onClick={() => setShotTarget(n.id)}
+                          className={`flex-none rounded-full px-3 py-1 text-[11px] ${
+                            shotTo?.n.id === n.id ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-300"
+                          }`}
+                        >
+                          <Trans>第 {i + 1} 段</Trans>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      <button onClick={() => placeShot("first")} className="rounded-full bg-brand px-3 py-1.5 text-[11px] font-semibold text-ink">
+                        <Trans>当首帧</Trans>
+                      </button>
+                      <button onClick={() => placeShot("last")} className="rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-200">
+                        <Trans>当尾帧</Trans>
+                      </button>
+                      <button onClick={() => placeShot("ref")} className="rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-200">
+                        <Trans>当参考图</Trans>
+                      </button>
+                    </div>
+                    <p className="text-[10px] leading-relaxed text-slate-500">
+                      <Trans>当首帧 = 那一段从这一帧起拍（不再承接上一段的结尾）；当参考图 = 进它的参考清单，出片时一并发给模型。</Trans>
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-xs leading-relaxed text-slate-400">
+                      <Trans>还没有能用它的段（已出片的段、套模板的段、延长段放不进去）。</Trans>
+                    </p>
+                    {appendWhyNot ? (
+                      <p className="text-[10px] leading-relaxed text-slate-500">{appendWhyNot}</p>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          useFlow.getState().addNode();
+                          const ns = useFlow.getState().nodes;
+                          setShotTarget(ns[ns.length - 1]?.id ?? null);
+                        }}
+                        className="rounded-full bg-brand px-3 py-1.5 text-[11px] font-semibold text-ink"
+                      >
+                        <Trans>＋ 新开一段</Trans>
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       )}
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-3 pb-4" onClick={(e) => e.stopPropagation()}>
@@ -240,10 +338,10 @@ export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: st
             {(chosenOf(node).poster || chosenOf(node).firstFrame) && (
               <img src={chosenOf(node).poster || chosenOf(node).firstFrame} alt="" className="max-h-[50%] max-w-full rounded-lg opacity-70" />
             )}
-            <p className="max-w-xs text-center text-xs leading-relaxed text-rose-300">
+            <p className="max-w-xs text-center text-xs leading-relaxed text-danger-300">
               <Trans>这一段的视频拉不下来</Trans>
               <br />
-              <span className="text-[11px] text-rose-300"><Trans>网络不好，或者这条链接已经过期（隔天打开的草稿常见）</Trans></span>
+              <span className="text-[11px] text-danger-300"><Trans>网络不好，或者这条链接已经过期（隔天打开的草稿常见）</Trans></span>
             </p>
             <button onClick={() => setRetry((k) => k + 1)} className="rounded-full bg-panel px-4 py-1.5 text-[11px] text-slate-200">
               <Trans>重试</Trans>
@@ -271,7 +369,7 @@ export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: st
               <>
                 <audio ref={aref} src={audioSrc} preload="auto" muted={!audioOn} />
                 <p className="max-w-xs text-center text-[11px] leading-relaxed text-slate-500">
-                  <Trans>白模成片本身无声，回看配的是模板原片的音轨，合并成片时也会带上</Trans>
+                  <Trans>白模成片本身无声，回看配的是模板原片的音轨，合成成片时也会带上</Trans>
                 </p>
               </>
             )}

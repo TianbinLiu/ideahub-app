@@ -12,6 +12,7 @@
 //   点掉即走，不常驻。
 // ★ 只动 transform/opacity 做进出场（合成层，首页视频流滚动时不触发重排）。
 // ★ 同时只画一条：进行中优先（最新发起的那条），其次是最早的一条结局；关掉一条下一条顶上来。
+import { useEffect } from "react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useLocation, useNavigate } from "react-router";
 import Spinner from "./Spinner";
@@ -30,18 +31,30 @@ export default function GenerationPill() {
   const nodes = useFlow((s) => s.nodes);
   const notice = useFlow((s) => s.genNotice);
   const clearNotice = useFlow((s) => s.clearGenNotice);
+  const genFrom = useFlow((s) => s.genFrom);
   const jobs = useJobs();
   const nav = useNavigate();
   const loc = useLocation();
   const here = loc.pathname;
+  // ★ 人就在开炉的那一面时，结果通知当场清掉（2026-10-15 发版前复核抓到）：那一面自己画了结果（工坊的 npcSay、简约页第③步），而胶囊
+  //   在那儿不画 —— 不清的话它会跟着人跑到下一页（首页上冒出「✓ 第 1 段出片了 · 回去看看」，早就看过了）。/flow 那一面由 FlowPage 自己的
+  //   effect 清（那边还要管「在这一页上看着炼完」的那一条），这里管另两个宿主
+  useEffect(() => {
+    if (notice && here === genFrom && here !== "/flow") clearNotice();
+  }, [notice, here, genFrom, clearNotice]);
 
   const items: Item[] = [];
-  // 出片：人就在工作流页上时页面自己有完整的进度/结果 UI，胶囊只会挡视线
-  if (here !== "/flow") {
+  // 出片：人就在工作流页上时页面自己有完整的进度/结果 UI，胶囊只会挡视线。
+  // ★ 开炉的那一面（genFrom：3D 工坊 / 简约页）同理 —— 它们各自画着这一段的进度，胶囊在那儿只会压住顶栏那排键
+  //   （2026-10-14 UX 课走查：简约页「第 1/3 步」、工坊 🧩 💾 都被它盖过）
+  if (here !== "/flow" && here !== genFrom) {
+    // ★ 回哪一面看这一炉是从哪一面开的（flowStore.genFrom）：3D 工坊 / 简约页 / 工作流页是同一条流水线的几个宿主，
+    //   原来写死 /flow，在工坊炼的段点「回去看看」会被送进 FlowPage、3D 场景整个卸掉。老会话没记过的（null）照旧回 /flow
+    const flowRoute = genFrom ?? "/flow";
     // 生成中：从正在生成的节点上取当前步骤（与页内进度同源 —— node.progress）
     const gen = busy ? nodes.find((n) => n.status === "generating") : undefined;
-    if (gen) items.push({ kind: "busy", text: gen.progress || t`本段生成中…`, route: "/flow" });
-    else if (notice) items.push({ kind: "done", ok: notice.ok, msg: notice.msg, route: "/flow", dismiss: clearNotice });
+    if (gen) items.push({ kind: "busy", text: gen.progress || t`本段生成中…`, route: flowRoute });
+    else if (notice) items.push({ kind: "done", ok: notice.ok, msg: notice.msg, route: flowRoute, dismiss: clearNotice });
   }
   for (const j of jobs) {
     if (j.status === "running") {
@@ -72,7 +85,7 @@ export default function GenerationPill() {
       {show.kind === "busy" ? (
         <button
           onClick={() => go(show.route)}
-          className="pointer-events-auto flex max-w-full items-center gap-2 rounded-full border border-slate-600/70 bg-ink/95 py-1.5 pl-3 pr-4 text-[11px] text-slate-100 shadow-lg shadow-black/40"
+          className="pointer-events-auto flex max-w-full items-center gap-2 rounded-full bg-raised/95 py-1.5 pl-3 pr-4 text-[11px] text-slate-100 shadow-lg shadow-black/40 ring-1 ring-white/10"
         >
           <Spinner size="xs" />
           <span className="min-w-0 truncate">{show.text}</span>
@@ -81,7 +94,7 @@ export default function GenerationPill() {
       ) : (
         <div
           className={`pointer-events-auto flex max-w-full items-center gap-1 rounded-full border py-1 pl-3 pr-1 text-[11px] shadow-lg shadow-black/40 ${
-            show.ok ? "border-emerald-500/50 bg-emerald-950/95 text-emerald-100" : "border-rose-500/50 bg-rose-950/95 text-rose-100"
+            show.ok ? "border-ok-500/50 bg-ok-950/95 text-ok-100" : "border-danger-500/50 bg-danger-950/95 text-danger-100"
           }`}
         >
           <button
@@ -94,14 +107,15 @@ export default function GenerationPill() {
             <span className="flex-none font-bold">{show.ok ? "✓" : "✗"}</span>
             <span className="min-w-0 truncate">{show.msg}</span>
             {show.route && (
-              <span className={`flex-none font-bold ${show.ok ? "text-emerald-300" : "text-rose-300"}`}>
+              <span className={`flex-none font-bold ${show.ok ? "text-ok-300" : "text-danger-300"}`}>
                 {show.ok ? <Trans>回去看看 ›</Trans> : <Trans>回去看原因 ›</Trans>}
               </span>
             )}
           </button>
-          {/* 不想回去也得能把它关掉：一条关不掉的通知横在每一页顶上，比没有更坏 */}
-          <button onClick={show.dismiss} className="flex-none rounded-full p-1.5 text-slate-400" aria-label={t`关闭`}>
-            <Icon name="close" size={12} />
+          {/* 不想回去也得能把它关掉：一条关不掉的通知横在每一页顶上，比没有更坏。
+              命中区 36px（原来 24px 紧贴着「回去看看」，点偏一点就被带走了） */}
+          <button onClick={show.dismiss} className="-my-1 flex-none rounded-full p-2.5 text-slate-400 active:scale-95" aria-label={t`关闭`}>
+            <Icon name="close" size={14} />
           </button>
         </div>
       )}

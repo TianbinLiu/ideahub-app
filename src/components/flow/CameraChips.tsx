@@ -53,11 +53,17 @@ export default function CameraChips({
   text,
   onChange,
   disabled,
+  max = VIDEO_PROMPT_MAX,
 }: {
-  /** 当前要求/剧情全文（chips 的亮灭从它反推） */
+  /** 当前要求/剧情全文（chips 的亮灭从它反推）。分镜表下是**正在写的那个镜头**的字 */
   text: string;
   onChange: (next: string) => void;
   disabled?: boolean;
+  /**
+   * 这一栏还放得下多少字（插了会超就不许插）。缺省 = 整段的老上限；宿主按档位（economy.promptMaxOf）与
+   * 别的镜头已经占掉的字数算好传进来（N2）。
+   */
+  max?: number;
 }): ReactNode {
   const { t } = useLingui();
   const { active: lang } = useLang();
@@ -67,11 +73,11 @@ export default function CameraChips({
   const rows = CAMERA_MOVES.map((m) => {
     const on = active.includes(m.id);
     const next = on ? removeMove(text, m.id) : insertMove(text, m.id, lang);
-    const tooLong = !on && next.length > VIDEO_PROMPT_MAX;
+    const tooLong = !on && next.length > max;
     return { m, on, next, tooLong, dead: !!disabled || (!on && (full || tooLong)) };
   });
   const fullMsg = t`最多叠 ${CAMERA_MAX_STACK} 个运镜（再多模型顾不过来），先取消一个`;
-  const longMsg = t`灰着的运镜插进去会超过 ${VIDEO_PROMPT_MAX} 字的上限，想用就先删几个字`;
+  const longMsg = t`灰着的运镜插进去会超过字数上限，想用就先删几个字`;
   const hint = disabled ? "" : full ? fullMsg : rows.some((r) => r.tooLong) ? longMsg : "";
   return (
     <div className="flex flex-wrap items-center gap-1">
@@ -84,14 +90,18 @@ export default function CameraChips({
           disabled={dead}
           title={!on && full ? fullMsg : tooLong ? longMsg : movePhrase(m.id, lang)}
           onClick={() => onChange(next)}
-          className={`rounded-full px-2 py-0.5 text-[10px] transition-colors ${
+          aria-pressed={on}
+          // 多选：选中的带 ✓、实底（2026-10-14 UX 课的惯例 —— 多选要有勾，淡底 + 细框那种选中态全 app 已收掉）；py-1 让芯片够得着
+          // contrast-ok: 下面 dead 那一支的 slate-600 是禁用态（dead 时这颗键 disabled），WCAG 1.4.3 对不可操作的控件不要求对比度；为什么点不动由 title 说
+          className={`rounded-full px-2 py-1 text-[10px] transition-colors active:opacity-60 ${
             on
-              ? "bg-brand/25 text-brand ring-1 ring-brand/50"
+              ? "bg-brand font-semibold text-ink"
               : dead
                 ? "bg-slate-800/60 text-slate-600"
                 : "bg-slate-700/60 text-slate-300"
           }`}
         >
+          {on ? "✓ " : ""}
           {t(CAMERA_LABELS[m.id])}
         </button>
       ))}

@@ -8,17 +8,23 @@
 //   抄第二份的话，这些规则会一条一条地在另一面走样，而走样了不报错。
 // ★ 组件自己认 node.id 从 store 读（与 PlanSheet / CardPicker 同款）：宿主只给一个 id，
 //   不必把 index/nodes/mode 一路传下来，也就不会出现"传的是上一段"那类错。
-import { clampDuration, modelLabel, r2vBlockLines, realFaceIssue, tierOf } from "../../data/economy";
-import { chosenOf, nodeDone, tplOfNode, useFlow } from "../../studio/flowStore";
-import { DURATIONS, VIDEO_ASPECTS } from "../../types";
+import { clampDuration, durationChoices, durationStepsOf, r2vBlockLines, tierOf } from "../../data/economy";
+import Warn from "../Warn";
+import { realFaceIssue, tierShownModel, tierShownModelId } from "../../data/account";
+import { useAccountVersion } from "../../hooks/useAccount";
+import { chosenOf, nodeDone, nodeFramed, nodeOwnFirstFrame, tplOfNode, useFlow } from "../../studio/flowStore";
+import { VIDEO_ASPECTS } from "../../types";
 import { Trans, useLingui } from "@lingui/react/macro";
 import TierRow from "./TierRow";
-import { carryIsHard } from "../../studio/segmentGen";
+import { cardFitNote, carryIsHard } from "../../studio/segmentGen";
 
 export default function SegSettings({ nodeId }: { nodeId: string }) {
   const { t } = useLingui();
   const nodes = useFlow((s) => s.nodes);
+  const mode = useFlow((s) => s.mode);
   const { updateProposal, updateNode } = useFlow();
+  // 「本段模型」那一行按地区写（account.tierShownModel）：地区是异步问到的，订阅账号的版本号，到了就重画（hook 排在早退之前）
+  useAccountVersion();
   const index = nodes.findIndex((n) => n.id === nodeId);
   const node = index >= 0 ? nodes[index] : undefined;
   if (!node) return null;
@@ -38,7 +44,7 @@ export default function SegSettings({ nodeId }: { nodeId: string }) {
    */
   const r2vBlocks = blockout ? r2vBlockLines() : [];
   /**
-   * 真人卡 × 档位的门禁原因（判断在 economy.realFaceIssue 一处，铁律六）——生成闸
+   * 真人卡 × 档位的门禁原因（判断在 account.realFaceIssue 一处，铁律六）——生成闸
    * （flowStore.genNode / deriveProposals）拒的就是这一句，这里提前印出来，
    * 免得用户写完一大段要求、点了生成才第一次听说真人卡过不去。
    * 按当前档位问一次就够：今天四档 realFace 全 false，逐档问只会把同一句糊四遍
@@ -46,7 +52,11 @@ export default function SegSettings({ nodeId }: { nodeId: string }) {
    * blockout 位跟着本段事实：白模节点上「真人」档整个按不动（上面 r2vBlocks 正印着
    * 原因），默认那句「换成真人档就能出」在这儿是死路 —— 两行并排自相矛盾。
    */
-  const realFaceBlock = realFaceIssue(node.materials, node.videoTier, { blockout });
+  // framed 与生成闸同源（flowStore.nodeFramed）：已认证真人卡在高清/电影级上只有不带帧的请求过得去
+  const realFaceBlock = realFaceIssue(node.materials, node.videoTier, { blockout, framed: nodeFramed(nodes, index, mode) });
+  /** 按模型适配：这一段的卡在这一档上有哪些没适配（就地能补的那句，studio/segmentGen.cardFitNote 一处实现）。白模段不提 */
+  const shownModel = tierShownModel(tierOf(node.videoTier));
+  const fitNote = blockout ? null : cardFitNote(node.materials, node.videoTier, { aspect: node.aspect, ownFrame: nodeOwnFirstFrame(nodes, index) });
 
   return (
     <div className="space-y-3">
@@ -66,14 +76,16 @@ export default function SegSettings({ nodeId }: { nodeId: string }) {
       ) : (
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="w-10 flex-none text-[11px] text-slate-400"><Trans>时长</Trans></span>
-          {DURATIONS.map((d) => {
+          {/* 摆哪几个只问 economy.durationChoices（高清多 12 / 15 秒、电影级多到 30 秒，2026-10-03「段时长放开」） */}
+          {durationChoices(node.videoTier).map((d) => {
             // ★ 短于本档下限的时长直接禁掉并说明：Seedance 2.5 的合法区间是 [4,30]，
             //   3 秒发过去是同步 400，用户只会觉得"这一档坏了"（见 VideoTier.minSec）
             const tooShort = d < tierOf(node.videoTier).minSec;
             // ★ 按发计价档（真人档）只有价表里那几个整档：8 秒会被 clampDuration 吸附到
-            //   10 档并按 10 收——让它可点就是"按钮写 8、账按 10"，比灰掉更糟
-            const flat = tierOf(node.videoTier).flatCost;
-            const offStep = !!flat && !(d in flat);
+            //   10 档并按 10 收——让它可点就是"按钮写 8、账按 10"，比灰掉更糟。
+            //   哪几个整档只问 economy.durationStepsOf（clampDuration 吸附读的同一个），别在这里翻价目表
+            const steps = durationStepsOf(node.videoTier);
+            const offStep = !!steps && !steps.includes(d);
             return (
               <button
                 key={d}
@@ -81,7 +93,7 @@ export default function SegSettings({ nodeId }: { nodeId: string }) {
                 disabled={tooShort || offStep}
                 title={
                   offStep
-                    ? t`「${tierOf(node.videoTier).label}」按发计价，只有 ${Object.keys(flat!).join("/")} 秒两档`
+                    ? t`「${tierOf(node.videoTier).label}」按发计价，只有 ${steps!.join("/")} 秒两档`
                     : tooShort
                       ? t`「${tierOf(node.videoTier).label}」最短 ${tierOf(node.videoTier).minSec} 秒`
                       : undefined
@@ -141,10 +153,11 @@ export default function SegSettings({ nodeId }: { nodeId: string }) {
           这里只剩**本页自己的**理由：r2v 闸没开、真人卡与本段不搭。两份都印过一阵子，
           结果是同一句话在抽屉里出现两遍 */}
       {(r2vBlocks.length > 0 || realFaceBlock) && (
-        <p className="text-[10px] leading-relaxed text-amber-300/80">
+        <Warn compact>
           {[...r2vBlocks, ...(realFaceBlock ? [realFaceBlock] : [])].join(t({ message: "；", comment: "把几条「这一档为什么点不动」的原因连成一行时的分隔符" }))}
-        </p>
+        </Warn>
       )}
+      {fitNote && !realFaceBlock && <p className="text-[10px] leading-relaxed text-slate-400">{fitNote}</p>}
       {/* ★ 把**真正会被调用的那个模型**写出来。「极速/标准/高清」只说了画质档次，
           没说这一段到底交给谁去生成 —— 而不同世代的模型（1.0 / 2.0）观感差别很大，
           用户对不上账时无从判断。这里显示的是 tierOf(...).model 推导出来的名字，
@@ -155,10 +168,13 @@ export default function SegSettings({ nodeId }: { nodeId: string }) {
           BLOCKOUT_TASK 写死 generate_audio:false（带歌的参考视频会被方舟版权拦下，
           见 arkClient 那段 ★）。用户在最贵一档上照那句话付了钱，拿回的每段都是哑的。
           改印白模自己的实话：声音在合并那一步回填原片音轨。 */}
-      <div className="text-[10px] text-slate-500" title={tierOf(node.videoTier).model}>
-        <Trans>本段模型：{modelLabel(tierOf(node.videoTier).model)}</Trans>
-        <span className="ml-1 opacity-70">
-          · {blockout ? t`白模复刻：只换人不生成声音，音轨在「完成视频」那一步回填原片` : tierOf(node.videoTier).desc}
+      {/* ★ 2026-10-26（出片地区 · 主人第 2 件审核）：模型名只在地区问到了、这一档又摆得出来时写（account.tierShownModel，一处出口）——
+          地区不知道时不写供应商，这个地区给不出的那一家更不写；写不出来时只印档位说明 */}
+      <div className="text-[10px] text-slate-500" title={tierShownModelId(tierOf(node.videoTier))}>
+        {shownModel && <Trans>本段模型：{shownModel}</Trans>}
+        <span className={shownModel ? "ml-1 opacity-70" : ""}>
+          {shownModel ? "· " : ""}
+          {blockout ? t`白模复刻：只换人不生成声音，音轨在「完成视频」那一步回填原片` : tierOf(node.videoTier).desc}
         </span>
       </div>
 

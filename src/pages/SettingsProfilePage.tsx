@@ -8,7 +8,7 @@
 import { useRef, useState } from "react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import PageHeader from "../components/PageHeader";
-import { useNavigate } from "react-router";
+import { useBackOr } from "../hooks/useBackOr";
 import Icon from "../components/Icon";
 import Avatar from "../components/Avatar";
 import AvatarPicker from "../components/AvatarPicker";
@@ -26,7 +26,7 @@ const BIO_MAX = 120;
 
 export default function SettingsProfilePage() {
   const user = useCurrentUser();
-  const navigate = useNavigate();
+  const back = useBackOr("/settings");
   const [name, setName] = useState(user?.name ?? "");
   const [bio, setBio] = useState(user?.bio ?? "");
   const [saved, setSaved] = useState(false);
@@ -64,7 +64,7 @@ export default function SettingsProfilePage() {
 
   return (
     <div className="min-h-full px-4 pb-10">
-      <PageHeader sticky inset onBack={() => navigate(-1)} title={t`编辑资料`} right={<HelpButton tour="setprofile" />} />
+      <PageHeader sticky inset onBack={back} title={t`编辑资料`} right={<HelpButton tour="setprofile" />} />
 
       {/* ── 头像 ──────────────────────────────────────────────── */}
       <section data-guide="setprofile-avatar" className="mb-7 flex flex-col items-center">
@@ -78,7 +78,7 @@ export default function SettingsProfilePage() {
             <Icon name="plus" size={15} strokeWidth={2.5} />
           </span>
         </button>
-        {avatarErr && <p className="mt-2 text-center text-[11px] text-rose-300">{avatarErr}</p>}
+        {avatarErr && <p className="mt-2 text-center text-[11px] text-danger-300">{avatarErr}</p>}
 
         {/* 不想上传照片的用户仍可用 emoji（新账号的默认值也是 emoji） */}
         <details className="mt-3 w-full">
@@ -119,7 +119,7 @@ export default function SettingsProfilePage() {
         />
         {/* ★ 失败那句话摆在**按钮这一侧**：用户按的是这颗键，报在别处等于没报（铁律八） */}
         {profileErr && (
-          <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs leading-relaxed text-rose-200">
+          <p className="rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-xs leading-relaxed text-danger-200">
             {profileErr}
           </p>
         )}

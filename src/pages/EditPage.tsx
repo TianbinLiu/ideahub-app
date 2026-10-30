@@ -24,6 +24,12 @@ import VisibilityPicker from "../components/VisibilityPicker";
 import { deleteVideoItem, getVideo, isMyVideo, isUploading, partsOf, updateVideoMeta } from "../data/videos";
 import { coverToPermanentUrl } from "../data/publishAssets";
 import * as projects from "../data/projects";
+import { fetchRecipe, previewRecipe, removeRecipe, setRecipeListed, setRecipePublic, shareFromCanvas, type RecipeFetch } from "../data/recipes";
+import type { WorkflowRecipe } from "../data/recipe";
+import Sheet from "../components/Sheet";
+import { CloseButton } from "../components/IconTapButton";
+import { RecipeCast, RecipeExcludedNote, RecipeStoryboard, RecipeSummaryRow } from "../components/recipe/RecipeView";
+import RemixRewardNote from "../components/recipe/RemixRewardNote";
 import { danmakuFetched, danmakuOf, danmakuVersion, isTruncated, subscribeDanmaku } from "../data/danmaku";
 import { useStudio } from "../studio/studioStore";
 import { useApplyTemplate } from "../components/flow/useApplyTemplate";
@@ -77,6 +83,27 @@ export default function EditPage() {
   const [retainMsg, setRetainMsg] = useState("");
   const [dropAsk, setDropAsk] = useState(false);
   const [dropping, setDropping] = useState(false);
+  // ── 制作过程（公开配方，2026-10-02）────────────────────────
+  // 状态以**服务端**为准（fetchRecipe：作者本人不公开也读得到），不拿列表缓存里那两位当真相 ——
+  // 缓存可能来自老服务端 / 没刷新的 feed。四档结局原样摆（ok / none / unsupported / failed），别压成两档。
+  const [recipeFetch, setRecipeFetch] = useState<RecipeFetch | null>(null);
+  const [recipeBusy, setRecipeBusy] = useState("");
+  const [recipeMsg, setRecipeMsg] = useState<{ text: string; kind: "ok" | "err" } | null>(null);
+  /** 公开前的预览（别人会看到这些）：从服务端留存的工程投出来的那份 + 投影时拿的画布版次 */
+  const [recipePreview, setRecipePreview] = useState<{ recipe: WorkflowRecipe; canvas: unknown; revision: number } | null>(null);
+  const [recipeDropAsk, setRecipeDropAsk] = useState(false);
+  const videoId = video?.id ?? "";
+  useEffect(() => {
+    if (!videoId) return;
+    let on = true;
+    setRecipeFetch(null);
+    void fetchRecipe(videoId, { fresh: true }).then((r) => {
+      if (on) setRecipeFetch(r);
+    });
+    return () => {
+      on = false;
+    };
+  }, [videoId]);
   // 回炉是**第九条整表覆盖入口**：守卫与套模板/打开草稿同一份实现（先问脏、成了再断草稿）。
   // ★ claim: false —— 工程不是草稿，套上之后要断开与旧草稿的关联，此后自动存盘会**另存**
   //   一条普通在途草稿（这正是我们要的：回炉途中新炼的付费段有本地备份）
@@ -233,7 +260,7 @@ export default function EditPage() {
     //   （见 data/projects.readyProjects 的 ★★）。把一次网络抖动说成"服务器不支持"，
     //   用户会去等一个根本不会到来的服务器更新 —— 说一句错的原因比不给原因更坏。
     if (supported === "error") return t`暂时问不到服务器，没能确认这条作品有没有留存工坊工程。`;
-    if (supported === false) return t`这台服务器还不支持回炉重做。等服务器更新后再试。`;
+    if (supported === false) return t`回炉重做功能还没上线，之后会有。`;
     if (isUploading(video)) return t`这条作品还在上传，传完再回炉。`;
     if (video.pricing?.mode === "paid") return t`这条作品设为按分集收费，不能换内容。`;
     if (video.takedown) return t`这条作品已被平台下架，下架期间不能改内容。`;
@@ -251,6 +278,102 @@ export default function EditPage() {
     }
     return null;
   })();
+
+  /** 服务端回的配方状态（作者本人：公开 / 关闭 / 过期），没有时 null */
+  const recipeMeta = recipeFetch?.state === "ok" ? recipeFetch.data.meta : null;
+  const recipeLive = !!recipeMeta && recipeMeta.public && !recipeMeta.stale;
+  /** 「用这一版公开」走得通的前提：留存的工程就是当下这一版（与回炉同一道判据） */
+  const recipeShareWhy: string | null = (() => {
+    if (supported === null) return t`正在确认这条作品有没有留存工坊工程…`;
+    if (supported === "error") return t`暂时问不到服务器，没能确认这条作品有没有留存工坊工程。`;
+    if (supported === false) return t`公开制作过程功能还没上线。`;
+    if (!hasProject) return t`这条作品没有留存工坊工程，没有可公开的制作过程。`;
+    // 与 reforgeWhy 那一档同一个分叉：本机还留着这一版的画布待办才指「重新留存这一版」那颗键，否则那颗键根本不在屏幕上
+    if (projectStale) {
+      return projects.pendingRetainable(video.id, video.clientId)
+        ? t`留存的工坊工程还是上一版的，这一版没有留存上来 —— 先在上面「重新留存这一版」，再来公开。`
+        : t`留存的工坊工程还是上一版的，这一版没有留存上来 —— 这一版的制作过程公开不了。`;
+    }
+    return null;
+  })();
+
+  /** 从服务端留存的工程投一份出来，摆「别人会看到这些」的预览（确认之后才 PUT） */
+  async function beginShareRecipe() {
+    if (!video || recipeBusy) return;
+    setRecipeMsg(null);
+    setRecipeBusy(t`正在取回工程…`);
+    try {
+      const p = await projects.loadProject(video.id, Number(video.revision ?? 0));
+      const r = previewRecipe(p.canvas);
+      if (!r) {
+        setRecipeMsg({ text: t`留存的工程投不出可公开的制作过程（画布是空的或段数超过上限）`, kind: "err" });
+        return;
+      }
+      setRecipePreview({ recipe: r, canvas: p.canvas, revision: p.videoRevision });
+    } catch (e) {
+      setRecipeMsg({ text: e instanceof Error ? e.message : String(e), kind: "err" });
+    } finally {
+      setRecipeBusy("");
+    }
+  }
+
+  async function confirmShareRecipe() {
+    if (!video || !recipePreview || recipeBusy) return;
+    const { canvas, revision } = recipePreview;
+    setRecipePreview(null);
+    setRecipeBusy(t`正在公开…`);
+    const out = await shareFromCanvas(video.id, revision, canvas, true);
+    setRecipeBusy("");
+    if (out.ok) {
+      setRecipeFetch(await fetchRecipe(video.id, { fresh: true }));
+      setRecipeMsg({ text: t`已公开：看到这条作品的人能点「查看制作过程」照着做`, kind: "ok" });
+    } else {
+      setRecipeMsg({ text: t`没能公开（${out.why}）`, kind: "err" });
+    }
+  }
+
+  async function toggleRecipePublic(on: boolean) {
+    if (!video || recipeBusy) return;
+    setRecipeMsg(null);
+    setRecipeBusy(on ? t`正在公开…` : t`正在取消…`);
+    const why = await setRecipePublic(video.id, on);
+    setRecipeBusy("");
+    if (why) {
+      setRecipeMsg({ text: why, kind: "err" });
+      return;
+    }
+    setRecipeFetch(await fetchRecipe(video.id, { fresh: true }));
+    setRecipeMsg({ text: on ? t`已公开` : t`已取消公开：别人看不到制作过程了`, kind: "ok" });
+  }
+
+  /** 上 / 下架模板市场（工作流模板）。没公开 / 过期时服务端整句拒，原话摆在键旁 */
+  async function toggleRecipeListed(on: boolean) {
+    if (!video || recipeBusy) return;
+    setRecipeMsg(null);
+    setRecipeBusy(on ? t`正在上架…` : t`正在下架…`);
+    const why = await setRecipeListed(video.id, on);
+    setRecipeBusy("");
+    if (why) {
+      setRecipeMsg({ text: why, kind: "err" });
+      return;
+    }
+    setRecipeFetch(await fetchRecipe(video.id, { fresh: true }));
+    setRecipeMsg({ text: on ? t`已上架到模板市场的「工作流」货架` : t`已从模板市场下架（制作过程照样公开着）`, kind: "ok" });
+  }
+
+  async function dropRecipe() {
+    if (!video || recipeBusy) return;
+    setRecipeDropAsk(false);
+    setRecipeBusy(t`正在删除…`);
+    const why = await removeRecipe(video.id);
+    setRecipeBusy("");
+    if (why) {
+      setRecipeMsg({ text: why, kind: "err" });
+      return;
+    }
+    setRecipeFetch({ state: "none", code: "RECIPE_NOT_FOUND" });
+    setRecipeMsg({ text: t`已删除留存的制作过程`, kind: "ok" });
+  }
 
   /** 确认卡上那几个数：**取不到就整段不出现**，绝不拼一个骗人的数（本仓那条纪律） */
   const danmakuCount = danmakuOf(video.id).length;
@@ -365,7 +488,7 @@ export default function EditPage() {
           </div>
           {/* ★ 这一段原来写的是「🔒 成片内容已定稿，发布后不能再改」—— 2026-09-07 起不再成立
               （下面那颗 🛠 就是改内容的路）。措辞按**事实**写：能改，但改的是同一个链接下的内容。 */}
-          <p className="mt-3 rounded-xl border border-slate-700/60 bg-panel/40 px-3.5 py-2.5 text-[11px] leading-relaxed text-slate-400">
+          <p className="mt-3 rounded-xl border border-slate-700/70 bg-panel/40 px-3.5 py-2.5 text-[11px] leading-relaxed text-slate-400">
             <Trans>想换成片内容，用下面的「🛠 回炉重做」把这条片的工坊工程取回工坊接着改 —— 链接、播放量、评论都留着。想做一条全新的，<Link to="/studio" className="text-brand">去工坊再创作</Link>。</Trans>
           </p>
 
@@ -426,12 +549,12 @@ export default function EditPage() {
             )}
             {/* 取回失败 / 工坊在途被拒：整句原话，落在按下的那颗键旁边（铁律八） */}
             {fetchErr && (
-              <div className="mt-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2">
+              <div className="mt-2 rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2">
                 {/* ★ 原话原样显示（data 层与服务端写的都是整句中文）。
                     ⚠ 「换个网络再试一次」与那颗重试键只给**真的可能是网络问题**的那几档：
                       版次对不上那一档再试一万次也是同一句话，摆一颗永远不会成的重试键
                       比不摆更坏（本仓那条：说一句错的原因比不给原因更坏）。 */}
-                <p className="text-[11px] leading-relaxed text-rose-200">
+                <p className="text-[11px] leading-relaxed text-danger-200">
                   {fetchStale ? (
                     <Trans>没能取回这条作品的工坊工程（{fetchErr}）。本机还留着那一版的画布的话，先点上面的「重新留存这一版」；否则只能重新发一条。</Trans>
                   ) : (
@@ -455,6 +578,165 @@ export default function EditPage() {
             )}
           </div>
           {reforgeDialog}
+
+          {/* ── 制作过程（公开配方）────────────────────────────
+              摆在回炉下面：它公开的正是那份留存的工程（投影成白名单形状）。四档结局各说各的话。 */}
+          <div className="mt-5">
+            <div className="mb-1.5 text-sm font-semibold text-slate-300"><Trans>制作过程</Trans></div>
+            <div className="rounded-xl border border-slate-700/70 bg-panel p-3">
+              {recipeFetch === null ? (
+                <p className="text-xs text-slate-500"><Trans>正在确认有没有公开…</Trans></p>
+              ) : recipeFetch.state === "unsupported" ? (
+                <p className="text-xs leading-relaxed text-slate-500"><Trans>公开制作过程功能还没上线。</Trans></p>
+              ) : recipeFetch.state === "offline" ? (
+                <p className="text-xs leading-relaxed text-slate-400"><Trans>公开制作过程需要联网；这台设备当前是离线模式。</Trans></p>
+              ) : recipeFetch.state === "failed" ? (
+                <div>
+                  <p className="text-xs leading-relaxed text-danger-300"><Trans>暂时问不到服务器（{recipeFetch.why}）</Trans></p>
+                  <button
+                    onClick={() => {
+                      setRecipeFetch(null);
+                      void fetchRecipe(video.id, { fresh: true }).then(setRecipeFetch);
+                    }}
+                    className="mt-2 rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-200 ring-1 ring-slate-700"
+                  >
+                    <Trans>重新问一次</Trans>
+                  </button>
+                </div>
+              ) : recipeFetch.state === "none" ? (
+                <div>
+                  <p className="text-xs leading-relaxed text-slate-400">
+                    <Trans>没有公开。公开之后，看到这条作品的人能点「查看制作过程」看每一段的剧情、档位、时长与卡组，并按这条流程做同款。</Trans>
+                  </p>
+                  <button
+                    onClick={() => void beginShareRecipe()}
+                    disabled={!!recipeShareWhy || !!recipeBusy}
+                    className="mt-2 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink active:scale-[0.99] disabled:opacity-40"
+                  >
+                    {recipeBusy || t`公开制作过程`}
+                  </button>
+                  {recipeShareWhy && <p className="mt-1.5 text-[11px] leading-relaxed text-slate-500">{recipeShareWhy}</p>}
+                </div>
+              ) : (
+                <div>
+                  <p className="text-xs leading-relaxed text-slate-400">
+                    {recipeLive && recipeMeta!.listed ? (
+                      <Trans>已公开，并上架在模板市场的「工作流」货架上：这条作品就是它的示例视频。</Trans>
+                    ) : recipeLive ? (
+                      <Trans>已公开：看到这条作品的人能点「查看制作过程」照着做。</Trans>
+                    ) : recipeMeta!.stale ? (
+                      recipeMeta!.public ? (
+                        <Trans>公开着的还是上一版的制作过程（这一版回炉后还没更新），别人现在看不到。</Trans>
+                      ) : (
+                        <Trans>留存过制作过程（上一版的），现在没有公开。</Trans>
+                      )
+                    ) : (
+                      <Trans>留存过制作过程，现在没有公开。</Trans>
+                    )}
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {recipeLive && (
+                      <Link to={`/video/${video.id}/recipe`} className="rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-200 ring-1 ring-slate-700">
+                        <Trans>看看别人看到的</Trans>
+                      </Link>
+                    )}
+                    {/* 上 / 下架模板市场（工作流模板）：只在公开着且不过期时摆 —— 其余状态服务端必拒，摆一颗按下必败的键更糟 */}
+                    {recipeLive && (
+                      <button
+                        onClick={() => void toggleRecipeListed(!recipeMeta!.listed)}
+                        disabled={!!recipeBusy}
+                        className={`rounded-full px-3 py-1.5 text-[11px] disabled:opacity-40 ${
+                          recipeMeta!.listed ? "bg-panel text-slate-200 ring-1 ring-slate-700" : "bg-brand font-bold text-ink"
+                        }`}
+                      >
+                        {recipeBusy || (recipeMeta!.listed ? t`从模板市场下架` : t`上架到模板市场`)}
+                      </button>
+                    )}
+                    {recipeMeta!.stale ? (
+                      <button
+                        onClick={() => void beginShareRecipe()}
+                        disabled={!!recipeShareWhy || !!recipeBusy}
+                        className="rounded-full bg-brand px-3 py-1.5 text-[11px] font-bold text-ink disabled:opacity-40"
+                      >
+                        {recipeBusy || t`用这一版重新公开`}
+                      </button>
+                    ) : recipeMeta!.public ? (
+                      <button
+                        onClick={() => void toggleRecipePublic(false)}
+                        disabled={!!recipeBusy}
+                        className="rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-200 ring-1 ring-slate-700 disabled:opacity-40"
+                      >
+                        {recipeBusy || t`取消公开`}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => void toggleRecipePublic(true)}
+                        disabled={!!recipeBusy}
+                        className="rounded-full bg-brand px-3 py-1.5 text-[11px] font-bold text-ink disabled:opacity-40"
+                      >
+                        {recipeBusy || t`重新公开`}
+                      </button>
+                    )}
+                    {recipeMeta!.stale && recipeMeta!.public && (
+                      <button
+                        onClick={() => void toggleRecipePublic(false)}
+                        disabled={!!recipeBusy}
+                        className="rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-200 ring-1 ring-slate-700 disabled:opacity-40"
+                      >
+                        <Trans>取消公开</Trans>
+                      </button>
+                    )}
+                  </div>
+                  {recipeMeta!.stale && recipeShareWhy && <p className="mt-1.5 text-[11px] leading-relaxed text-slate-500">{recipeShareWhy}</p>}
+                  <button onClick={() => setRecipeDropAsk(true)} className="mt-2 text-[11px] text-slate-500 underline underline-offset-2">
+                    <Trans>删除留存的制作过程</Trans>
+                  </button>
+                </div>
+              )}
+              {recipeMsg && (
+                <p className={`mt-2 text-[11px] leading-relaxed ${recipeMsg.kind === "ok" ? "text-ok-300" : "text-danger-300"}`}>{recipeMsg.text}</p>
+              )}
+            </div>
+            {/* 同款奖励（P3b）：与公不公开制作过程无关（照着分段剧本也能做同款），所以摆在这张卡外面；规则没到时什么都不画 */}
+            <RemixRewardNote className="mt-2" />
+          </div>
+          {recipePreview && (
+            <Sheet onClose={() => setRecipePreview(null)}>
+              <div className="mb-3 flex items-center justify-between">
+                <div className="text-sm font-bold text-slate-100"><Trans>别人会看到这些</Trans></div>
+                <CloseButton chip="sm" size={13} align="end" onClick={() => setRecipePreview(null)} />
+              </div>
+              <RecipeSummaryRow recipe={recipePreview.recipe} />
+              <div className="mt-3">
+                <RecipeStoryboard recipe={recipePreview.recipe} />
+              </div>
+              <div className="mt-3">
+                <RecipeCast recipe={recipePreview.recipe} />
+              </div>
+              <div className="mt-3">
+                <RecipeExcludedNote />
+              </div>
+              <div className="mt-4 flex gap-2">
+                <button onClick={() => setRecipePreview(null)} className="flex-1 rounded-xl bg-panel py-2.5 text-sm font-bold text-slate-200 ring-1 ring-slate-700">
+                  <Trans>先不公开</Trans>
+                </button>
+                <button onClick={() => void confirmShareRecipe()} className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink">
+                  <Trans>就这样公开</Trans>
+                </button>
+              </div>
+            </Sheet>
+          )}
+          {recipeDropAsk && (
+            <ConfirmDialog
+              title={t`删除留存的制作过程？`}
+              confirmLabel={t`删除`}
+              danger
+              onClose={() => setRecipeDropAsk(false)}
+              onConfirm={() => void dropRecipe()}
+            >
+              <Trans>作品本身不受影响。删掉之后别人看不到制作过程；想再公开要从留存的工坊工程重新投一份。</Trans>
+            </ConfirmDialog>
+          )}
         </div>
 
         {/* 右：元信息 + 封面 + 可见性 */}
@@ -522,7 +804,7 @@ export default function EditPage() {
               {saving ? t`保存中…` : t`保存修改`}
             </button>
             {busy && <span className="text-sm text-slate-400">{busy}</span>}
-            {saved && <span className="text-sm text-emerald-300"><Trans>✓ 已保存</Trans></span>}
+            {saved && <span className="text-sm text-ok-300"><Trans>✓ 已保存</Trans></span>}
           </div>
 
           {/* 删除放最后、要二次确认：这是本页唯一不可撤销的动作。
@@ -530,13 +812,13 @@ export default function EditPage() {
               样式与整个 app 割裂，而且在部分机型上会被当成"网页弹窗"直接拦掉。 */}
           <div className="mt-2 border-t border-slate-700/60 pt-4">
             {confirmDel ? (
-              <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 p-3.5">
-                <div className="text-sm font-bold text-rose-200"><Trans>删除《{video.title}》？</Trans></div>
+              <div className="rounded-xl border border-danger-500/40 bg-danger-500/10 p-3.5">
+                <div className="text-sm font-bold text-danger-200"><Trans>删除《{video.title}》？</Trans></div>
                 {/* ★ 这句以前只说"成片、评论和点赞会一起消失" —— 而当时服务端一次
                     `uploader.destroy` 都没有：作品从库里没了，成片与封面那几个地址
                     仍然人人可访问。2026-08-30 服务端补上了回收，这句话才配得上"删除"两个字，
                     所以把它写全（铁律五：文案只按已实现的事实写）。 */}
-                <p className="mt-1 text-[11px] leading-relaxed text-rose-300">
+                <p className="mt-1 text-[11px] leading-relaxed text-danger-300">
                   <Trans>成片、评论和点赞会一起消失，云端存的视频与封面也会一并删除。不能撤销。</Trans>
                 </p>
                 {/* ★★ 软替代：**这条只对还公开着的作品有意义**（2026-08-30 修）。
@@ -567,7 +849,7 @@ export default function EditPage() {
                       });
                     }}
                     disabled={saving}
-                    className="mt-2.5 w-full rounded-xl border border-amber-400/50 bg-amber-400/10 px-3 py-2 text-left text-[11px] leading-relaxed text-amber-100 disabled:opacity-40"
+                    className="mt-2.5 w-full rounded-xl border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-left text-[11px] leading-relaxed text-warn-100 disabled:opacity-40"
                   >
                     <span className="font-bold"><Trans>改成「仅自己可见」就好</Trans></span>
                     <br />
@@ -575,7 +857,7 @@ export default function EditPage() {
                   </button>
                 )}
                 {delErr && (
-                  <p className="mt-2.5 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-100">
+                  <p className="mt-2.5 rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-[11px] leading-relaxed text-danger-100">
                     {delErr.why}
                   </p>
                 )}
@@ -593,7 +875,7 @@ export default function EditPage() {
                   <button
                     onClick={() => void remove()}
                     disabled={deleting}
-                    className="rounded-xl bg-rose-500 px-4 py-2.5 text-sm font-bold text-white hover:brightness-110 disabled:opacity-40"
+                    className="rounded-xl bg-danger-500 px-4 py-2.5 text-sm font-bold text-white hover:brightness-110 disabled:opacity-40"
                   >
                     {deleting ? t`删除中…` : delErr?.kind === "delete" ? t`再试一次` : t`确认删除`}
                   </button>
@@ -602,7 +884,7 @@ export default function EditPage() {
             ) : (
               <button
                 onClick={() => setConfirmDel(true)}
-                className="text-sm text-rose-400 hover:text-rose-300"
+                className="text-sm text-danger-400 hover:text-danger-300"
               >
                 <Trans>删除这部作品</Trans>
               </button>

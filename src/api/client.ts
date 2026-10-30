@@ -10,6 +10,7 @@
 // 因此下面解析错误消息时对几种形状都做了兜底。
 
 import { t } from "@lingui/core/macro";
+import { appVersion } from "./appVersion";
 
 /** 服务端基址，末尾斜杠已剥掉；空串 = 离线模式 */
 export const API_BASE: string = String(import.meta.env.VITE_API_BASE ?? "")
@@ -18,6 +19,30 @@ export const API_BASE: string = String(import.meta.env.VITE_API_BASE ?? "")
 
 /** true = 远端模式。data 层用它决定走 API 还是 IndexedDB */
 export const API_ON: boolean = API_BASE.length > 0;
+
+/**
+ * 给**自家服务器 /api/ 下**的请求加上 `X-App-Version` 头 —— 全仓唯一的判定（2026-10-10，方舟 11-24 下线那一批）。
+ * 值从哪来（装着的那一包优先、构建期常量兜底）见 api/appVersion。
+ *
+ * ★ 为什么要报版本：**只为服务端的日志**——例如哪些版本还在发方舟下线了的出图 id，决定接班表与老价目什么时候能删。
+ *   服务端**不拿它做任何判断**（放行 / 计价 / 门禁都不认它）：头是客户端写的、谁都能伪造，2.62 及以前的包一个都不带。
+ *   下线型号的改发与老包的结算认的是请求体里的**模型 id**，不是这个头；要拦老包走更新清单的 minVersionCode（data/appUpdate）。
+ *   （2026-10-10 评审改：这里原来写着「改发、强制更新、按老包口径结算都靠它」，与服务端的实现和它那份契约正好相反。）
+ * ★★ 只发给 `${API_BASE}/api/…`，别的地址一个都不带（调用方不用自己判，传 URL 进来就行）：
+ *   · 第三方（Cloudinary 直传、dev 下 vite 代理直连的方舟、CDN、GitHub）—— 版本号与他们无关，也不该外泄；
+ *   · 自家服务器的 `/uploads/…` 静态目录 —— 那一层的 CORS 只放行 `Content-Type`（server app.js），多一个自定义头
+ *     预检就被拒，整张图取不回来。`/api/…` 走全局的 cors()（不设 allowedHeaders = 按预检请求的头原样放行）。
+ * ★ 加了这个头之后，原来不带 Authorization 的 GET（探活、未登录逛首页）也会先发一次 CORS 预检 ——
+ *   服务端 cors() 配上 maxAge 就只多这一次往返（见 docs/api-contract.md「X-App-Version」）。
+ */
+export const APP_VERSION_HEADER = "X-App-Version";
+
+export function withAppVersion(url: string, headers: Record<string, string> = {}): Record<string, string> {
+  // 每一发现读（不是模块顶层抄一份）：原生那一问回来之后值会从构建期那一个换成装着的那一包（api/appVersion 的 ★★）
+  const v = appVersion();
+  if (!v || !API_ON || !url.startsWith(`${API_BASE}/api/`)) return headers;
+  return { ...headers, [APP_VERSION_HEADER]: v };
+}
 
 /** JWT 存放的 localStorage 键 */
 export const TOKEN_KEY = "ideahub-app.token";
@@ -138,8 +163,9 @@ async function request<T>(
   opts: RequestOptions = {}
 ): Promise<T> {
   if (!API_ON) {
-    // 走到这里说明 data 层的分流写漏了：离线模式不该有任何请求。
-    throw new ApiError(t`离线模式：未配置 VITE_API_BASE`, 0, "OFFLINE");
+    // 走到这里说明 data 层的分流写漏了：离线模式（VITE_API_BASE 为空）不该有任何请求。
+    // ★ 这句会原样上屏（2026-10-23 在制作过程页量到过），所以说人话、不带环境变量名；排查认 code "OFFLINE"。
+    throw new ApiError(t`离线模式：这台设备没有连服务器`, 0, "OFFLINE");
   }
 
   const headers: Record<string, string> = { Accept: "application/json" };
@@ -153,24 +179,42 @@ async function request<T>(
   const timer = setTimeout(() => ctrl.abort(), opts.timeoutMs ?? DEFAULT_TIMEOUT_MS);
   const onExternalAbort = () => ctrl.abort();
   opts.signal?.addEventListener("abort", onExternalAbort);
+  // 断在传输层（没拿到响应头 / 正文没读完）的两种结局各一句、各一个码：调用方只认码（PendingErrorCode / uploadFailOf），
+  // 外部 signal 取消的也按「超时」报（改之前就是这么归的，别顺手改掉：待发队列按码落盘）
+  const transportError = (e: unknown): ApiError => {
+    const aborted = e instanceof DOMException && e.name === "AbortError";
+    return new ApiError(aborted ? t`请求超时` : t`网络不可用`, 0, aborted ? "TIMEOUT" : "NETWORK");
+  };
 
   let res: Response;
+  let text: string;
+  const url = buildUrl(path, opts.query);
   try {
-    res = await fetch(buildUrl(path, opts.query), {
-      method,
-      headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
-      signal: ctrl.signal,
-    });
-  } catch (e) {
-    const aborted = e instanceof DOMException && e.name === "AbortError";
-    throw new ApiError(aborted ? t`请求超时` : t`网络不可用`, 0, aborted ? "TIMEOUT" : "NETWORK");
+    try {
+      res = await fetch(url, {
+        method,
+        headers: withAppVersion(url, headers),
+        body: body === undefined ? undefined : JSON.stringify(body),
+        signal: ctrl.signal,
+      });
+    } catch (e) {
+      throw transportError(e);
+    }
+    // ★ 正文也在同一个预算、同一个 signal 里读（2026-10-15 教材人格评审）：原来 clearTimeout 在拿到**响应头**那一拍就跑了，
+    //   `res.text()` 之后再无任何上限 —— 源站发完头就卡住（pm2 重启中、处理函数里同步等 Cloudinary）或弱网半开连接时，
+    //   「保存中… / 发布中…」一动不动，直到 Cloudflare 两分钟后掐断；而且正文读失败抛的是裸 TypeError，
+    //   `e instanceof ApiError` 与按码分档的那几处一个都认不出它。JSON 端点 Express 是头和体一起写的，
+    //   正常情况下头到了体也到了，所以这一步几乎不会多花时间；timeoutMs 的含义照旧是「这一发整体等多久」。
+    try {
+      text = await res.text();
+    } catch (e) {
+      throw transportError(e);
+    }
   } finally {
     clearTimeout(timer);
     opts.signal?.removeEventListener("abort", onExternalAbort);
   }
 
-  const text = await res.text();
   let data: unknown = null;
   if (text) {
     try {

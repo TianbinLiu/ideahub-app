@@ -9,7 +9,7 @@
 import { Trans } from "@lingui/react/macro";
 import { Link } from "react-router";
 import { AI_REAL } from "../ai";
-import { billingExempt, canAfford, walletOf } from "../data/account";
+import { billingExempt, canAfford, walletFrozen, walletOf } from "../data/account";
 import { fmtTokens } from "../data/economy";
 
 export default function TokenCost({
@@ -29,7 +29,7 @@ export default function TokenCost({
   // 用户以为自己在测真实生成，得让他知道这一炉是假的
   if (!AI_REAL) {
     return (
-      <p className={`text-[11px] text-amber-300/80 ${className}`}><Trans>○ 演示模式：本地模拟，不消耗 token</Trans></p>
+      <p className={`text-[11px] text-warn-300/80 ${className}`}><Trans>○ 演示模式：本地模拟，不消耗 token</Trans></p>
     );
   }
   // ★★ 管理员免扣费**必须说出来**。服务端对 admin 放行（wallet.debit 不扣），
@@ -49,11 +49,28 @@ export default function TokenCost({
       </p>
     );
   }
+  // ★★ 退款欠额冻结（方案 §15.4.4）：**不能靠 canAfford 表达**——它在镜像没到位时
+  //   一律放行，于是被冻结的用户会看到一句正常报价、点下去才吃 403。
+  //   冻结是「充多少都先抵债」，与「钱不够」是两件事，文案也必须是两句。
+  const frozen = walletFrozen();
+  if (frozen) {
+    const owed = fmtTokens(frozen.debt);
+    return (
+      <p className={`text-[11px] text-danger-300 ${className}`}>
+        <Trans>
+          账户有 {owed} token 欠额，充值抵扣后即可继续生成 ·{" "}
+          <Link to="/me" className="underline underline-offset-2">
+            去充值
+          </Link>
+        </Trans>
+      </p>
+    );
+  }
   const w = walletOf();
   const bal = (w?.plan ?? 0) + (w?.addon ?? 0);
   const ok = canAfford(tokens);
   return (
-    <p className={`text-[11px] ${ok ? "text-slate-500" : "text-rose-300"} ${className}`}>
+    <p className={`text-[11px] ${ok ? "text-slate-500" : "text-danger-300"} ${className}`}>
       {upper ? <Trans>最多消耗 {amount} token</Trans> : <Trans>预计消耗 {amount} token</Trans>}
       {note ? ` · ${note}` : ""}
       {!ok && (

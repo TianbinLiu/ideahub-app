@@ -10,6 +10,7 @@ import {
   Proposal,
   VideoAspect,
   aspectOf,
+  feedsModel,
   roleOf,
   slotPromptOf,
   uid,
@@ -17,8 +18,11 @@ import {
   viewsOf,
   CARD_SIZE,
   ID_LINE_MAX,
-  VIDEO_PROMPT_MAX,
+  TEXT_DESC_MAX,
+  startFramesAllowed,
+  MAX_CARD_VIEWS,
   idLineOf,
+  isSheetView,
   type CardRole,
   type CardSlot,
   type CardView,
@@ -35,29 +39,44 @@ import {
   DEFAULT_IMAGE_TIER,
   IMAGE_TOKENS,
   TEMPLATE_MAX_CARDS,
+  apiCase,
   clampDuration,
+  lastFrameOnlyOk,
   imageTierOf,
-  providerOf,
   slotsFor,
+  tierNamesWhere,
   tierOf,
   type CardMintCap,
   type ImageTier,
 } from "../data/economy";
 import { idbSet } from "../data/db";
+import { noteBlobOwner } from "../data/blobOwners";
+import { API_ON } from "../api/client";
+import { serverSupports } from "../data/serverCaps";
 // 方案的提示词拼装与"这一格要不要调模型"都在 data/promptSchemes 一处实现（铁律六）：
 // 风格那句由 slotPrompt 统一拼，方案作者改不掉；isGenerated 与 economy.schemeCost 同源。
 // ★ 别名 schemeSlotPrompt：本文件下面已经有一个**铸卡**用的 slotPrompt(type,name,...)，
 //   两者管的是完全不同的两件事（那个拼铸卡提示词，这个拼方案图位提示词）。
-import { isGenerated, slotCardTag, slotKey, slotPrompt as schemeSlotPrompt, slotSize, type PromptScheme } from "../data/promptSchemes";
-import { minimaxVideo, takeMinimaxTask } from "./minimaxVideo";
+import { isGenerated, isSheetSlot, slotCardTag, slotKey, slotPrompt as schemeSlotPrompt, slotSize, type PromptScheme } from "../data/promptSchemes";
+import { minimaxV2Video, minimaxVideo, takeMinimaxTask, takeMinimaxV2Task, type MinimaxV2Role } from "./minimaxVideo";
+import { uploadImage } from "../api/uploads";
 import { refableViews } from "../data/cardViews";
+import { drawExtraRefs, plainMentions } from "../data/refMentions";
+import { frameMoment, momentCards } from "../data/shotScript";
+import { PANEL_CHECK_ASK, PANEL_CHECK_SYS, gridFraming, groupBindLine, groupPrompt, groupRefsCap, labeledBindLine, type GridShot, type GroupRef } from "../data/gridShots";
+import { shrinkDataUrl } from "../utils/image";
 // 已授权的可信素材：整张卡改发 asset:// URI（判据与拼法各只有一处，见 data/cardAsset）
 import { assetOf, assetUri } from "../data/cardAsset";
 import {
   ArkBadReply,
   ArkBatchPartial,
   ArkHttpError,
+  ArkImageModelGone,
+  ArkImageRefused,
+  ArkTaskFailed,
   ArkTaskUnknown,
+  arkTaskFailedOf,
+  fetchTaskCharge,
   briefArkReason,
   type ArkTaskState,
   type GenEvent,
@@ -74,12 +93,19 @@ import {
   generateImage,
   generateVideo,
   isArkAssetUrl,
+  MODELS,
+  requestArkTransfer,
+  runImageGroup,
+  transferStatus,
+  type ArkProgress,
+  type ImageGroupState,
 } from "./arkClient";
 // 界面文案（铸卡 / 推演 / 提卡 / 出片产线的进度、报错、逐张点名的提示、契约核对）走宏；发给模型的指令仍冻结中文——本文件的宏只用于界面文案
 import { t } from "@lingui/core/macro";
 // 发给模型的中文提示词：函数体里现拼的模板套 zhPrompt 标签（恒等，原样回串），模块级的提示词表用 i18n-frozen 声明 —— 都不翻译、不进目录。
 // ★ D13 b（产出跟界面语言）/ D11 b（英文敏感词表）以后要加的输出语言子句 / 英文词表另起一处拼，不改这些原文
 import { zhPrompt } from "./prompts/zhPrompt";
+import { CARD_SCOPE, CARD_SCOPE_ALL, ID_LINE_SPEC, ID_LINE_SPEC_OF } from "./cardScope";
 
 /** 方舟返回的图片 URL 有时效（约 24h），落地成 dataURL 再入库（草稿存 localStorage） */
 async function toDataUrl(url: string): Promise<string> {
@@ -151,6 +177,15 @@ export async function portraitViews(o: {
   scheme: PromptScheme;
   bodyCrop: string;
   faceCrop?: string | null;
+  /**
+   * 这一套**已经画好的主图**（role 为 primary 的那一格），没有就传 `null`。
+   *
+   * ★★ 必填（不是 `?:`）：漏传零症状 —— 设定稿又退回"自己从用户素材编一份"，
+   *   与主图不一致的那个老毛病悄悄回来，而屏幕上什么都不会变。
+   * ★ 只有**补画**时才用得上它（上一次画好留着的那几格不在这一发的 slots 里）；
+   *   整套一起画时本函数画出主图后自己接上（见循环里的 ★★）。
+   */
+  primaryShot: string | null;
   /** 用户写的那句描述，插进方案的 {{主体}} 占位符 */
   subject?: string;
   /** 调用方已知参考图是真人照片（用户走了真人路 / 勾了「这是真人」）。传 `realPerson` 状态 */
@@ -159,6 +194,24 @@ export async function portraitViews(o: {
 }): Promise<PortraitView[]> {
   const out: PortraitView[] = [];
   const slots = o.scheme.slots;
+  /**
+   * 这一套的主图：补画时是调用方给的那张，整套画时由下面画出来的那一格接上。
+   *
+   * ★★ 2026-09-24 付费实测（¥1.20，6 张）定的这条：设定稿（三视图 / 规格稿）原来与别的图位一样
+   *   **各自独立**从用户那张素材画 —— 素材没拍到的部位（背面、侧面、腿）每一格各编一个，于是
+   *   三视图编出深色短裤、全身立绘编出白衬衫裙，两张图上的同一个人穿着不同的衣服。
+   *   这不是"模型认错人"，是**两次独立创作**：谁也没看过谁。
+   *   （后果不只是难看：设定稿 2026-09-23 起会当参考图发给视频模型，而实测里多送的那张一旦
+   *   与主图不一致，模型听多送的那张 —— 上一次 ¥20.84 的 A/B 里 C 组转身那一发照着三视图
+   *   画了深色短裤。）
+   *   改成"照着主图画"之后实测一致（B1：同样的白衬衫裙、同样的黑皮鞋、同样的发型）。
+   * ★ 方向是**主图在前、设定稿在后**，不是反过来（主人提过"先出设定稿再按它出主图"）：
+   *   反过来实测也一致（B2/B3），但那样一来身份就由设定稿说了算 —— 而设定稿本身是编出来的，
+   *   它与用户素材之间又多了一道；无面部三视图那条更狠：派生出的主图上那张脸是模型凭空补的。
+   *   现在这个方向让主图始终离用户的素材只有一步。
+   * ★ 退路：这一套没有主图（用户方案全是设定稿、或补画时调用方给不出）就退回 bodyCrop，行为与从前一致。
+   */
+  let primary = o.primaryShot;
   /** 已经画好（= 已经各自结算）的那几格。只收生成型的，别拿 out 顶：里面混着不计费的 fromCrop */
   const drawn: PortraitView[] = [];
   for (let i = 0; i < slots.length; i++) {
@@ -177,7 +230,12 @@ export async function portraitViews(o: {
     const n = i + 1;
     const total = slots.length;
     o.onProgress?.(t`绘制${name}…（${n}/${total}）`);
-    const ref = slot.ref === "face" ? o.faceCrop || o.bodyCrop : o.bodyCrop;
+    // ★★ 设定稿照**主图**画（见 primary 的 ★★）；其余图位照用户那张素材画，与从前一致
+    const ref = isSheetSlot(o.scheme, slot)
+      ? primary || o.bodyCrop
+      : slot.ref === "face"
+        ? o.faceCrop || o.bodyCrop
+        : o.bodyCrop;
     let dataUrl: string;
     try {
       dataUrl = await genImageAsDataUrl(schemeSlotPrompt(slot, o.subject, { realPhoto: o.realPhoto }), {
@@ -189,6 +247,8 @@ export async function portraitViews(o: {
     }
     out.push({ slotKey: slotKey(o.scheme, slot), role: slot.role, tag: slotCardTag(o.scheme, slot), dataUrl });
     drawn.push(out[out.length - 1]);
+    // ★ 这一格就是主图：后面的设定稿照它画（方案的图位顺序里主图排在设定稿之前，两套内置方案都是）
+    if (slot.role === "primary") primary = dataUrl;
   }
   return out;
 }
@@ -241,17 +301,25 @@ export interface RecognizedCard {
 
 /** 识别提示词：**照片口径**，两种卡各一份（字段形状相同，便于一处解析） */
 /* i18n-frozen: 发给看图模型的识别提示词（回包按这几个 JSON 字段解析），不翻译 */
+// ★ 2026-09-18：简介原来要「有故事感」—— 故事感就是把人、事、别处的东西招进来（「主人公握着它推开了门」），
+//   而那一句会被当成这张卡的描述。四个字段都照 ai/cardScope 的卡种分工写（唯一口径）
 const RECOGNIZE_SPEC: Record<"prop" | "scene", string> = {
   prop:
     "这是一张实物照片，照片里只留下了要做成道具卡的那一件东西（背景已经换成浅灰纯色）。只看这件东西本身，写：" +
-    '{"name":"卡名，不超过8字","summary":"一句有故事感的简介，不超过60字",' +
-    '"idLine":"30~60字：这件物件一眼就能画出来的外形——造型、材质、配色、标志性细节；不写用途和故事",' +
-    '"tags":["不超过6个关键词"],"hasPeople":false}',
+    '{"name":"卡名，不超过8字","summary":"一句简介，不超过60字",' +
+    '"idLine":"30~60字：这件物件一眼就能画出来的外形——造型、材质、配色、标志性细节",' +
+    '"tags":["不超过6个关键词"],"hasPeople":false}。' +
+    "name、summary、idLine、tags 都" +
+    CARD_SCOPE.prop +
+    "。",
   scene:
     "这是一张实拍的地点照片。看它，写：" +
-    '{"name":"卡名，不超过8字","summary":"一句有故事感的简介，不超过60字",' +
-    '"idLine":"30~60字：这个地点的空间结构、地貌与建筑轮廓、主要陈设与光线氛围；不写人物",' +
-    '"tags":["不超过6个关键词"],"hasPeople":true 或 false（照片里有没有人，含路人、背影、局部身体）}',
+    '{"name":"卡名，不超过8字","summary":"一句简介，不超过60字",' +
+    '"idLine":"30~60字：这个地点的空间结构、地貌与建筑轮廓、主要陈设、光源与时段",' +
+    '"tags":["不超过6个关键词"],"hasPeople":true 或 false（照片里有没有人，含路人、背影、局部身体）}。' +
+    "name、summary、idLine、tags 都" +
+    CARD_SCOPE.scene +
+    "（hasPeople 照实填，不受这一条影响）。",
 };
 
 /**
@@ -259,9 +327,9 @@ const RECOGNIZE_SPEC: Record<"prop" | "scene", string> = {
  *
  * ★ 照片口径的提示词，别复用提卡那套 CARD_RULES：那是**视频**口径（「scene＝视频里的地点」「读者手上没有
  *   这段视频」），原样照搬会把模型引去描述一段不存在的视频。
- * ★ 道具卡喂的必须是**抠好主体、铺好底**的那一张：写出来的 name / summary / idLine 会以「必须严格遵守，
- *   不得改动其外形与身份」硬拼进出片提示词（studio/segmentGen 的 materialText），喂整张原图的话，
- *   桌上别的东西会被写进这句硬约束。
+ * ★ 道具卡喂的必须是**抠好主体、铺好底**的那一张：写出来的 name / idLine 会以「必须严格遵守，
+ *   不得改动其外形与身份」硬拼进出片提示词（studio/segmentGen 的 materialText；summary 2026-09-18 起不进出片），
+ *   喂整张原图的话，桌上别的东西会被写进这句硬约束。
  * ★ 回包过同一道措辞闸 dropRefClauses（三条提卡路共用的那一份，别在页面里另写）。
  * ★ 计费在服务端：一次 chat 定额 CHAT_TURN_TOKENS（server config/tokens.js 的 priceOf，与带几张图无关），
  *   先扣后转发。失败分档靠 arkClient 的错误类型：ArkNoReply = 可能已扣、ArkBadReply = 已扣、其余 = 没受理没扣
@@ -292,6 +360,105 @@ export async function recognizeCardSubject(o: { type: "prop" | "scene"; image: s
         .slice(0, 6)
     : [];
   return { name, summary, idLine, tags, hasPeople: j.hasPeople === true };
+}
+
+// ── 按模型适配（2026-09-30，主人点名）─────────────────────────────
+// 卡片为收不到它的图的模型各存一份专用内容（types.Card.textDesc / startFrames；界面在 components/CardModelFit）。
+// 两份都**看卡上会进模型的那几张图**来做 —— 取哪几张与出片同一套分配（prepareMaterialRefs 的画帧口径），
+// 作者标「仅展示」的不取。
+
+/* i18n-frozen: 文字版形象描述要描述的对象（拼进发给看图模型的提示词），不翻译 */
+const TEXT_DESC_SUBJECT: Record<CardType, string> = {
+  character: "人",
+  scene: "地点",
+  prop: "东西",
+  style: "画面风格",
+  background: "故事设定",
+};
+
+/** 跟看图模型要的描述字数（比 TEXT_DESC_MAX 短两成留余量，理由见 describeCardForText） */
+const TEXT_DESC_ASK = Math.round(TEXT_DESC_MAX * 0.8);
+
+/**
+ * 卡片的**文字版形象描述**（Card.textDesc）：收不到这张卡的图时替代图片（标准 / 极速、真人档里不当起拍画面的卡）。
+ * ★ 按 CARD_SCOPE 的卡种分工写（唯一口径），回包过同一道措辞闸 dropRefClauses，按分句截到 TEXT_DESC_MAX。
+ * ★ 跟模型要的是 TEXT_DESC_ASK（比上限短两成）：「不超过 N 字」模型常超出一两成（2026-10-01 真机：要 100 给了一百多，
+ *   原来硬截在第 100 字，结尾断在「…右上角悬着浅黄」）。留了余量，大多数时候根本不用截；超了也截在分句上（clipSentences）。
+ * ★ 计费同识别：一次 chat 定额 CHAT_TURN_TOKENS（服务端 priceOf，与带几张图无关）；失败分档走 ai/failCharge。
+ * ★ 卡上一张能进模型的图都没有就整句拒（不花钱）：凭名字编一段外形，等于替这张卡另造一个样子。
+ */
+export async function describeCardForText(card: Card): Promise<string> {
+  const refs = await prepareMaterialRefs([card], "image");
+  if (!refs.refs.length) {
+    throw new Error(t`这张卡没有能进模型的形象图（都标成了「仅展示」或读不出来）——先在上面挂一张「出片用」的图`);
+  }
+  const line = (card.idLine || "").trim();
+  const subject = TEXT_DESC_SUBJECT[card.type];
+  const raw = await chatVision(
+    zhPrompt`你是卡牌文案师。只输出描述本身，不要输出任何其他文字。`,
+    zhPrompt`看图，为${CARD_TYPE_PROMPT[card.type]}「${card.name}」写一段文字版形象描述，给收不到图片的视频模型用：` +
+      zhPrompt`不超过${TEXT_DESC_ASK}字，具体到不看图也能画出同一个${subject}。${CARD_SCOPE[card.type]}。` +
+      (line ? zhPrompt`已有的出片句：${line}（在它的基础上展开，别和它矛盾）。` : "") +
+      zhPrompt`不要写名字，不要加引号、编号和标题。`,
+    refs.refs,
+  );
+  const text = clipSentences(
+    dropRefClauses(raw.replace(/^[「"“'\s]+|[」"”'\s]+$/g, "").replace(/\s+/g, " ").trim()),
+    TEXT_DESC_MAX,
+    { clause: true },
+  );
+  // i18n-ignore-next-line: 不上屏：调用方（CardModelFit）按 ArkBadReply 类型换成自己的整句并说清钱
+  if (!text) throw new ArkBadReply("描述是空的");
+  return text;
+}
+
+/* i18n-frozen: 起拍画面的构图要求，发给出图模型，不翻译 */
+const START_FRAME_BRIEF: Record<"character" | "scene" | "prop", string> = {
+  character:
+    "人物站在一个与其气质相称的简洁日常场景里，七分身到全身，面向镜头略侧，表情自然放松，人物位于画面中央、四周留出动作空间；人物的长相、发型发色、体型与服装必须与参考图完全一致",
+  scene: "这个地点的开场全景镜头，画面里没有任何人物（含路人、背影、局部身体）；空间结构、地貌建筑、陈设与光线必须与参考图一致",
+  prop: "这件东西放在一个与它相称的环境里，物体完整清晰、位于画面视觉中心，画面里没有人和手；外形、材质、配色与细节必须与参考图完全一致",
+};
+
+/**
+ * 真人档的**起拍画面**（Card.startFrames）：海螺只认一张第一帧，卡上的白底立绘当第一帧，开场就是一片白底。
+ * 竖、横两个画幅各画一张（尺寸 = 该画幅的设定帧尺寸，与视频画幅一致：比例不对会被裁一刀）。
+ * ★ 画风跟随参考图（frameStyle 一处实现：真人卡照片级写实，插画同风格插画）。
+ * ★ 返回 dataURL，落地 / 上传由调用方做。两张串行画：第二张失败抛 ArkBatchPartial（第一张已计费，ai/failCharge 认得）。
+ */
+export async function drawStartFrames(
+  card: Card,
+  onProgress?: (done: number, total: number) => void,
+): Promise<Record<VideoAspect, string>> {
+  // 判据只在 types.startFramesAllowed（真人卡也在这里挡：方舟拒收真人照片当参考图，而真人档本来就以照片起拍）
+  if (!startFramesAllowed(card)) {
+    throw new Error(
+      card.realPerson === true
+        ? t`真人卡不用另画起拍画面：真人档直接以卡上的照片起拍`
+        : t`这种卡没有起拍画面（只有人物、场景、道具卡画得出一个开场镜头）`,
+    );
+  }
+  const refs = await prepareMaterialRefs([card], "image");
+  if (!refs.refs.length) {
+    throw new Error(t`这张卡没有能进模型的形象图（都标成了「仅展示」或读不出来）——先在上面挂一张「出片用」的图`);
+  }
+  const line = (card.idLine || "").trim();
+  const aspects: VideoAspect[] = ["portrait", "landscape"];
+  const out: Partial<Record<VideoAspect, string>> = {};
+  for (let i = 0; i < aspects.length; i++) {
+    const a = aspects[i];
+    onProgress?.(i, aspects.length);
+    try {
+      out[a] = await genImageAsDataUrl(
+        zhPrompt`视频的第一帧画面：「${card.name}」${line ? `（${line}）` : ""}。${START_FRAME_BRIEF[card.type]}。${frameStyle(a, [card])}`,
+        { imageRefs: refs.refs, size: aspectOf(a).frameSize },
+      );
+    } catch (e) {
+      if (i === 0) throw e;
+      throw new ArkBatchPartial(e, i);
+    }
+  }
+  return out as Record<VideoAspect, string>;
 }
 
 /**
@@ -333,6 +500,9 @@ export async function fuseFrame(o: {
  *   把导演台里的人偶当成了"人物"——雨夜霓虹街画得很好，站着的却是一黄一白两个塑料人偶；画幅提示里的「手机全屏画面」
  *   也被当真，整张图被画进了一只手机的屏幕里。所以这里：① 开头就点破图片1 是 3D 人偶摆的草图、只取构图；② 人偶必须换成
  *   真人 / 角色，列出不许出现的东西（人偶 / 3D 质感 / 灰白金黄塑料人形 / 网格地面）；③ 画幅只说"竖版 / 横版构图"，不提手机。
+ * ★ 2026-09-24 补记：那两个字**在源头**（types.VIDEO_ASPECTS 的 promptHint）已经去掉了 —— 当时只在这一处绕开，
+ *   于是设定帧与段间融图那两条路又各自踩了一年（实测 3/3 画出手机边框，见那边的 ★★）。这里的 ③ 保留：
+ *   它与"不提手机"是两件事（这一条还要说清楚人偶不是人物）。
  * ★ 截图那侧配合：截图时所有人偶一律灰白（选中的金色只在屏幕上有，StageOverlay 的 Capturer 会换回去）。
  */
 export async function fuseStageFrame(o: {
@@ -417,6 +587,15 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T, i: number
 /* i18n-frozen: 出图提示词的收尾句，发给模型，不翻译 */
 const NO_TEXT = "无文字无水印。";
 
+/**
+ * 画视频帧时的约束词（推演三套与 generateFrame 共用）。
+ * ★ 2026-10-03 第二次付费验证：多镜头段的结束画面被画成了一张三格分镜图、格子里写着台词，视频最后 2 秒溶进了它 ——
+ *   根因是提示词里整段分镜连台词都在（已由 shotScript.frameMoment 收住），这句是第二道：官方提示词指南说约束词能压住不想要的元素。
+ *   「对话框或字幕」也点名：台词虽然摘掉了，画面里还留着「小枫说」这种话，出图模型会顺手画个对话框。
+ */
+/* i18n-frozen: 出图提示词里的约束词，发给模型，不翻译 */
+const ONE_FRAME = "单一完整画面，不要分格、拼贴、对话框或字幕，";
+
 // （厚涂画风词 ART_STYLE 2026-08-28 整个退役：帧管线交给 frameArtStyle 按挂的卡定，
 //   卡面这侧交给"参考图跟随句"——主人同日两次拍板"画风的主人是卡与素材，不是常量"）
 
@@ -473,7 +652,9 @@ const CARD_SAFE_AREA =
  */
 /* i18n-frozen: 各卡种卡面出图提示词的构图与禁忌，发给模型，不翻译 */
 const CARD_COMPOSITION: Record<CardType, string> = {
-  character: CARD_SAFE_AREA,
+  // ★ 2026-09-18：人物卡的卡面随后就是出片的形象参考图 —— 画进去的房间、手里的东西会被当成「这个人」的一部分带进每一段
+  //   （卡种分工见 ai/cardScope）。人物站在干净背景前、手里不拿东西
+  character: `人物站在干净的纯色背景前，手里不拿任何东西，不画场景与道具。${CARD_SAFE_AREA}`,
   scene: `这是一张定场图：完整交代这个地点的空间结构、规模与光线关系，一眼能认出是哪里，不要拍成局部特写。画面中不要出现任何人物或角色。${CARD_SAFE_AREA}`,
   // ★ V3：背景卡 = 故事背景，这张图只用于展示（永不进模型），画的是"这个故事长什么样"的示意画面
   background: `这是一张故事背景的示意画面：按故事的时代、地点与氛围画一张有叙事感的场景或象征画面，不要出现具体人物的脸，画面中不出现文字。${CARD_SAFE_AREA}`,
@@ -512,14 +693,8 @@ export const TYPE_LABEL: Record<CardType, string> = {
   style: "风格样张卡面",
 };
 
-/**
- * 身份句（Card.idLine）的 JSON 字段说明 —— 几处铸卡提示词共用一句（工坊铸卡师文案，以及经 CARD_RULES 进
- * 派生卡组、模板提卡；「视频提卡」那一处已随 extractCardsFromVideo 删除），改配方只改这里。
- * 配方出处（2026-08-28 调研，backlog 2.9）：方舟官方"主体= 2~3 个稳定静态特征"；
- * 火宝短剧"最有辨识度的特征放前面、性格转神态不出现性格词"。
- */
-/* i18n-frozen: 身份句的 JSON 字段说明，几处铸卡提示词共用，发给模型，不翻译 */
-const ID_LINE_SPEC = "30~60字的固定身份句：名字+2~3个不会变的视觉特征+标志物，如「凛：银发红瞳的义体侦探，左眼全息扫描仪，黑色风衣」；性格转成神态措辞，不出现性格词";
+// 身份句（Card.idLine）的字段说明 ID_LINE_SPEC 搬到了 ai/cardScope（2026-09-18）：与「每种卡只写自己负责的内容」那张分工表同处，
+// 几条铸卡提示词与自传图做卡片的 AI 车道都从那里拿（改配方只改那里）。
 
 // 卡面画布（CARD_SIZE）搬到了 types.ts —— 报价那侧（economy.IMAGE_TIERS）要按输出像素
 // 分档算钱，两边必须是同一个数。派生卡也用同一尺寸：素材卡和派生卡摆在同一副卡组里，
@@ -633,18 +808,27 @@ async function prepRefImage(src: string): Promise<string | null> {
 // 【规则二】总共最多 MAX_REF_IMAGES 张，**分两轮发**：
 //   · 第一轮：主角取前 MAX_CHAR_REFS 张；其余**每张**非人物卡各取 1 张
 //     —— 雨露均沾，不让排在前面的那张卡把预算一口吃光。
-//   · 第二轮：预算还有余，就按图位顺序给非人物卡补第 2 张，直到 MAX_REF_IMAGES 用完。
+//   · 第二轮起：预算还有余，就一轮一轮地给**每张已经排上号的卡**按图位顺序补下一张，
+//     直到预算用完（经典路 MAX_REF_IMAGES，直通路是档位协议上限）。
 //   ★★ 第二轮不是"能塞就塞"的凑数，是**在补一个真花了钱的窟窿**：老代码非人物卡一律
 //     只取 viewsOf()[0]，于是一段里只挂一两张卡时预算大量闲置，而用户为第 2 张图付的钱
 //     **永远进不了模型**（定妆档一张场景卡 33.7k token 里有 16.7k 是白花），全程零提示。
-//   ★★ 人物卡**不参与第二轮**。MAX_CHAR_REFS = 2 是方舟指南的硬结论（见规则三），
-//     预算有余就给主角补第 3 张不是"把钱花在刀刃上"，而是**主动把画面变差**：
-//     同一人物的多视图会被识别成多个主体，ID 漂移反而更重。宁可让那一格空着。
+//   ★★ 人物卡**2026-09-23 起也参与第二轮**（主人点名「直接放开三视图 / 规格稿」）：
+//     此前它被硬挡在第二轮之外，依据是方舟指南那句"多视图加剧 ID 漂移"——而那句话
+//     我们自己付费实测过一次（8 发 hd，A=面部+全身 / B=A+规格稿 / C=A+三视图），**没复现**：
+//     没出现多个人、没画出分栏网格文字与人台头，近景身份贴合同水平（实测细节记在
+//     data/promptSchemes 文件头 ★★★②，那里也写了唯一真复现出来的效应）。
+//     ⚠ 它仍然排在**别的卡的第 1 张之后**：一段里另一张卡连形象都没带上，却先去补主角的
+//       第 3 张，是把预算花在边际收益最低的地方。
+//     ⚠ 第 3 张进不进模型由**作者**决定（卡片页上的「出片用 / 仅展示」→ CardView.role）。
+//       所以这里不需要再判一次"它是不是规格图"：allocatable() 读的就是作者那一票。
 //
 // 【规则三】人物卡取图顺序 face → body → detail，**不是**多角度。方舟指南原文：
 //   「人物参考使用大头照 + 全身照即可，不建议使用人物多视图。多视图素材包含同一人物的
 //   不同角度，模型易将其识别为多个不同主体，反而加剧 ID 漂移问题。」
-//   道具/场景卡不受这条约束（它们不承担"主体身份"），所以第二轮只轮到它们。
+//   ⚠ 这条**只决定顺序**（face 优先、合成规格图排最后），不再决定"准不准进"——
+//     准不准由作者在卡片页上那一票说了算（见 allocatable 的 ★★）。
+//   道具/场景卡不受这条约束（它们不承担"主体身份"）。
 
 /**
  * **经典路**一段生成里最多带几张素材卡参考图（承接帧另算，见 prepareMaterialRefs 的 offset）。
@@ -670,7 +854,14 @@ export const MAX_REF_IMAGES = 3;
  *   给 Seedream 塞 30 张图去画一张设定帧，画面糊成一团。
  */
 export const ARK_REF_IMAGES_MAX = 30;
-/** 一张人物卡最多占几张（方舟指南：大头照 + 全身照，**多视图**反而加剧 ID 漂移） */
+/**
+ * 一张人物卡**第一轮**最多占几张（方舟指南：大头照 + 全身照，顺序 face → body）。
+ *
+ * ★★ 2026-09-23 起这个 2 只是**第一轮的配额**，不再是"一张人物卡的硬顶"：作者在卡片页上
+ *   标成「出片用」的第 3 张会在第二轮补进来（规则二的 ★★）。硬顶是 `MAX_CARD_VIEWS`——
+ *   一张卡最多就挂那么多张图，再想多也没有了。
+ * ★ 第一轮仍只发两张：预算紧时先保证"每个角色都有脸和全身"，这是方舟指南里真正有用的那半句。
+ */
 export const MAX_CHAR_REFS = 2;
 
 /**
@@ -679,20 +870,53 @@ export const MAX_CHAR_REFS = 2;
  *
  * ★ 逐位对齐老的 `KIND_ORDER`（face:0 / body:1 / detail:2）：`roleOf` 把老卡的
  *   face→face、body→primary、detail→aux，所以**存量卡的分配结果一字节不变**。
- * ★★ `display` 给 `Infinity` 只是"排最后"，**真正挡住它的是下面的 allocatable()**：
- *   合成规格图（三视图/分栏设定稿）当人物参考图会加剧 ID 漂移（方舟指南原文），
- *   排在最后仍可能在预算宽裕时被取上 —— 那正是"钱花了、画面更差了"。所以要硬排除。
+ * ★★ `display` 给 `Infinity` 是"排最后"，而**真正挡住它的是下面的 allocatable()**。
+ *   ⚠ 它今天的含义是**作者在卡片页上把这张标成了「仅展示」**（2026-09-23 起），不再是
+ *   "合成规格图这类图一律不准进模型"——后者已经放开（依据见 allocatable 的 ★★）。
  */
 const ROLE_ORDER: Record<CardRole, number> = { face: 0, primary: 1, aux: 2, display: Infinity };
 
 /**
  * 这张卡**可以进模型**的那些图（带原下标，`refUsedFlags` 要靠下标对齐）。
  * ★ `display` 在这里就被滤掉 —— 全仓只有这一处决定"哪些图有资格参与分配"。
+ *
+ * ★★ 2026-09-23 起 `display` 的唯一来源是**作者自己的选择**（卡片页每张图上的
+ *   「出片用 / 仅展示」→ data/cardViews.setCardViewRole → CardView.role），内置方案不再把
+ *   三视图 / 规格稿钉死成 display。改的依据是一次付费 A/B（方舟指南那句"多视图加剧 ID 漂移"
+ *   在本仓送法下没复现；细节与唯一真复现出来的效应写在 data/promptSchemes 文件头 ★★★②）。
+ * ⚠ 所以这里**不许**再按"这张图看起来像不像规格稿"做判断（tag 是自由文本、还会随界面语言变，
+ *   见 types.CardView.tag 的 ★）：作者那一票就是判据，界面上标的与模型收到的因此永远一致。
  */
 function allocatable(card: Card): { view: CardView; index: number }[] {
   return viewsOf(card)
     .map((view, index) => ({ view, index }))
-    .filter((x) => roleOf(x.view) !== "display");
+    .filter((x) => feedsModel(x.view));
+}
+
+/**
+ * 这一批卡里**哪几张分得到图**（参考图分配的结论，不取图、不联网）—— 按模型适配用：分不到图的那几张，
+ * 出片提示词里用它们的文字版形象描述（Card.textDesc）替代图片。判据就是 allocateRefs 本身（唯一实现）：
+ * `direct` 为假 = 经典路（Seedream 画设定帧：一段只画得进第一张人物卡、总共 MAX_REF_IMAGES 张）；
+ * 为对象 = 直通路（参考图直接进 Seedance，上限 = 档位协议 cap）。
+ */
+export function refCardIds(materials: Card[] | undefined, direct: false | { cap?: number }): Set<string> {
+  if (!materials?.length) return new Set();
+  return new Set(allocateRefs(materials, undefined, !!direct, direct ? direct.cap : undefined).map((p) => p.card.id));
+}
+
+/**
+ * 参考图分配的**结论带图位**（不取图、不联网）—— 参考清单预览用（N1，2026-10-03）：界面上那排
+ * 「模型会收到什么」读的就是它。判据仍是 allocateRefs 本身；`direct` 的三种取值与 prepareMaterialRefs 的
+ * 同名参数逐一对应（true = 白模严格闸 + 2.5 上限；对象 = 直通路 + 档位上限；false = 经典路）。
+ * ⚠ 这是**计划**：真正取图那一拍个别图可能读不出来被跳过（prepareMaterialRefs 会逐张点名），编号随之前移。
+ */
+export function planCardRefs(
+  materials: Card[] | undefined,
+  direct: boolean | { cap?: number; strict?: boolean },
+): { card: Card; index: number; url: string }[] {
+  if (!materials?.length) return [];
+  const d = direct === true ? { cap: undefined as number | undefined } : direct || null;
+  return allocateRefs(materials, undefined, !!d, d?.cap).map((p) => ({ card: p.card, index: p.index, url: p.view.url }));
 }
 
 /** 一张真会被喂给模型的图。`index` = 它在 `viewsOf(card)` 里的下标 —— refUsedFlags 靠它对齐 */
@@ -745,10 +969,11 @@ function allocateRefs(materials: Card[], onNote?: (note: string) => void, multiC
   // ★★ **分两轮**（与经典路第二轮同一个用意：雨露均沾）：第一轮每张卡各 1 张（face 优先），
   //   预算还有余再回头给每张卡补第 2 张（body）。一张卡一次吃满 2 张的话，预算紧时
   //   排在后面的角色会**整个没有形象图**，而"每个人都认得出"正是白模模板的全部卖点。
-  // ★ 每张卡最多 `MAX_CHAR_REFS`（2）张、顺序 face→body，与经典路规则三同一条依据：
+  // ★ 这一轮每张卡最多 `MAX_CHAR_REFS`（2）张、顺序 face→body，与经典路规则三同一条依据：
   //   方舟指南「人物参考使用大头照 + 全身照即可，不建议使用人物多视图 —— 多视图素材包含
-  //   同一人物的不同角度，模型易将其识别为多个不同主体，反而加剧 ID 漂移」。预算从 3 涨到
-  //   30 之后**仍然不给第 3 张**：放开的是"能带几个人"，不是"一个人能带几个角度"。
+  //   同一人物的不同角度，模型易将其识别为多个不同主体，反而加剧 ID 漂移」。
+  //   ⚠ 第 3 张不是不给，是**排到下面那个"第二轮起"的队列里**（2026-09-23）：作者点亮的第 3 张
+  //     要等每张卡都拿到第 1 张之后才补。两条路共用同一个队列，别在这里另开一轮。
   // ★★ 同理，「把同一张卡的多张图**拼成一张**、只占一个 @图片N」这个省额度的招**本轮不做**：
   //   拼接出来的正是一张多视图素材，按上面那句指南就是在主动加剧 ID 漂移。留作备选，
   //   要用得先实测（本轮一次都没验过，而验证成本是一次真实付费出片）。
@@ -793,7 +1018,7 @@ function allocateRefs(materials: Card[], onNote?: (note: string) => void, multiC
     const charCount = chars.length;
     const heroName = hero.name;
     onNote(
-      t`挂了 ${charCount} 张人物卡，只把「${heroName}」的形象参考图喂给绘图（一张图里画多个角色会被方舟整条拒掉），其余按文字设定`,
+      t`挂了 ${charCount} 张人物卡，只把「${heroName}」的形象参考图喂给绘图（一张图里画多个角色会被方舟整条拒掉），其余只按出片句参与（没写出片句的只报名字）`,
     );
   }
 
@@ -825,8 +1050,8 @@ function allocateRefs(materials: Card[], onNote?: (note: string) => void, multiC
         const name = card.name;
         onNote(
           multiChar
-            ? t`「${name}」的参考图这次没带上（一次最多 ${budget} 张，方舟的协议上限），它只按文字设定参与`
-            : t`「${name}」的参考图这次没带上（一次最多 ${budget} 张，堆满了模型反而判断不出该优先保哪些特征），它只按文字设定参与`,
+            ? t`「${name}」的参考图这次没带上（一次最多 ${budget} 张，方舟的协议上限），它只按出片句参与（没写出片句就只报名字）`
+            : t`「${name}」的参考图这次没带上（一次最多 ${budget} 张，堆满了模型反而判断不出该优先保哪些特征），它只按出片句参与（没写出片句就只报名字）`,
         );
       }
       continue;
@@ -837,28 +1062,46 @@ function allocateRefs(materials: Card[], onNote?: (note: string) => void, multiC
     picks.push({ card, index: it0.index, view });
   }
 
-  // ── 第二轮：预算还有余，非人物卡各补第 2 张 ──
-  // ★ 只补到第 2 张就打住：非人物卡的图位表本来就只有两格（types.CARD_SLOTS），
-  //   第 3 张在这条管线里没有对应的图位可指。
+  // ── 第二轮起：预算还有余，每张排上号的卡按图位顺序各补下一张 ──
+  //
+  // ★★ 2026-09-23 起**人物卡也在这个队列里**（此前只有非人物卡，理由与推翻它的实测见规则二的 ★★）：
+  //   作者在卡片页把第 3 张标成「出片用」之后，它必须真的有机会走到模型 —— 否则那颗开关是摆设，
+  //   而"界面上摆一个永远不生效的选项"是本仓明令禁止的。
+  // ★ 一轮一轮地发（不是一张卡一次吃满）：与第一轮"雨露均沾"同一个用意 —— 谁的第 2 张都比
+  //   别人的第 3 张要紧。
   const dropped: string[] = [];
-  for (const card of others) {
-    // 同上：走 allocatable 的第 2 张，下标也从它身上取
-    const it1 = allocatable(card)[1];
-    const view = it1?.view;
-    // 第一轮就没排上号的不给第 2 张：越过一张"连第 1 张都没带上"的卡去补别人的第 2 张，
-    // 是把预算花在边际收益最低的地方
-    if (!view || !picks.some((p) => p.card === card)) continue;
-    if (picks.length >= budget) {
-      dropped.push(card.name);
-      continue;
+  /** 每张卡"第一轮之后还剩下的可用图"，各自保持取图顺序 */
+  const rest = new Map<Card, { view: CardView; index: number }[]>();
+  for (const card of [...chars, ...others]) {
+    const taken = picks.filter((p) => p.card === card).length;
+    // 第一轮就没排上号的不补：越过一张"连第 1 张都没带上"的卡去补别人的下一张，
+    // 是把预算花在边际收益最低的地方。★ 经典路的非主角人物卡（规则一）正好也从这里被排除。
+    if (taken === 0) continue;
+    const ordered =
+      card.type === "character"
+        ? allocatable(card).sort((a, b) => ROLE_ORDER[roleOf(a.view)] - ROLE_ORDER[roleOf(b.view)])
+        : allocatable(card);
+    const left = ordered.slice(taken);
+    if (left.length > 0) rest.set(card, left);
+  }
+  // ★ 轮数上限就是一张卡最多能挂几张（MAX_CARD_VIEWS）——写成 while(true) 的话，
+  //   将来谁把 rest 的算法改出一个死循环，表现是出片这一步整个卡住而不是报错。
+  for (let round = 0; round < MAX_CARD_VIEWS; round++) {
+    for (const [card, left] of rest) {
+      const it = left[round];
+      if (!it) continue;
+      if (picks.length >= budget) {
+        if (!dropped.includes(card.name)) dropped.push(card.name);
+        continue;
+      }
+      picks.push({ card, index: it.index, view: it.view });
     }
-    picks.push({ card, index: it1.index, view });
   }
   if (onNote && dropped.length > 0) {
-    // 这一条同样要点名：用户为这张图付过钱，而它这次没进模型 —— 只是原因是"预算被更
-    // 要紧的图位占了"，不是"它没用"。挂少一张卡就能让它进去，所以这是句可行动的话。
+    // 这一条同样要点名：用户为这张图付过钱、还可能亲手把它标成了「出片用」，而它这次没进模型 ——
+    // 只是原因是"预算被更要紧的图位占了"，不是"它没用"。挂少一张卡就能让它进去，所以这是句可行动的话。
     const names = quotedNameList(dropped);
-    onNote(t`${names}的第 2 张参考图这次没带上（预算 ${budget} 张已被更要紧的图位占满），它们按第 1 张参与`);
+    onNote(t`${names}还有参考图没带上（预算 ${budget} 张已被更要紧的图位占满），它们按已经带上的那几张参与`);
   }
   // ★ 最后按卡归拢，让同一张卡的图在 `<图片N>` 里**连号**。两轮分配天然排出的是
   //   [场景①, 道具①, 场景②] 这种交错，绑定句于是长成"<图片1>、<图片3>是场景卡…；
@@ -913,6 +1156,48 @@ function slotLocks(type: CardType, kind: unknown): string {
 }
 
 /**
+ * **多视图设定稿**（白模三视图 / 设定规格稿）真进了参考图时补的那一句。
+ *
+ * ★★ 为什么必须有它：2026-09-23 放开这两格的依据是一次付费 A/B（8 发 hd 出片），
+ *   而那 8 发**全都带着这句话**送 —— 方舟指南警告的"识别成多个不同主体"一次都没复现，
+ *   是在有这句话的前提下得到的结论。删了它等于把结论的前提抽掉（实测细节见 data/promptSchemes 文件头 ★★★②）。
+ * ★★ 只在**真有一张设定稿进了模型**时才拼（`isSheetView`，认图位名 —— 它只管措辞，不管谁进模型，
+ *   理由写在 types.isSheetView 的 ★★）。按"任何 aux"拼是错的：白模那条路上每张人物卡的第 2 张
+ *   本来就常是「服装细节」（aux），照那样写等于给**今天每一发**白模出片都无条件加上 50 多字，
+ *   而提示词硬顶 VIDEO_PROMPT_MAX 是 400 字、截断从正文那头下刀 —— 用户亲手写的那段会被多切几十字。
+ * ⚠ 它的长度被 studio/blockoutPrompt 的"尾巴留位"镜像着（那边直接读 `.length`，别把它改成模板函数）。
+ */
+/* i18n-frozen: 多视图设定稿（三视图 / 规格稿）的说明句，发给模型，不翻译 */
+export const SHEET_CLAUSE =
+  "三视图 / 规格稿里的多个角度都是同一个人，不是多个人；只据它核对服装的侧面与背面版型与配色，" +
+  "不要画出分栏、网格、色板、文字标注与无面部人台头。";
+
+/* i18n-frozen: 设定稿在长句绑定里代表的特征（替掉图位表那句「身上佩戴的饰物…」），发给模型，不翻译 */
+const SHEET_FEAT = "服装侧面与背面的版型与配色";
+
+/** 这批图里有没有设定稿（人物卡的）——有就要补 SHEET_CLAUSE 那一句 */
+function hasSheet(picks: readonly { card: Card; view: CardView }[]): boolean {
+  return picks.some((p) => p.card.type === "character" && isSheetView(p.view));
+}
+
+/**
+ * 这一段挂的卡里，**有没有可能**让 SHEET_CLAUSE 出现（= 某张人物卡有一张没被标成「仅展示」的设定稿）。
+ * ★ 给 studio/blockoutPrompt 估"尾巴要留多少字"用 —— 它问的是可能性（估大那一侧），
+ *   真正决定拼不拼的是上面的 `hasSheet`（按这一次真发出去的图算）。
+ */
+export function mayAddSheetClause(materials: readonly Card[]): boolean {
+  return materials.some((c) => c.type === "character" && allocatable(c).some((x) => isSheetView(x.view)));
+}
+
+/**
+ * 这张图在**长句**绑定里代表哪部分特征。
+ * ★ 设定稿不按图位表念（那句是「身上佩戴的饰物、纹样或疤痕」，对着一张三视图说就是指着 A 说 B）。
+ */
+function featOf(type: CardType, view: CardView): string {
+  return type === "character" && isSheetView(view) ? SHEET_FEAT : slotLocks(type, view.kind);
+}
+
+/**
  * 非主角那张卡的绑定句该怎么说 —— **按卡种分叉**。
  *
  * ★★ 老代码对所有非主角卡写死一句「是{类型}「{名}」的**实物参考**，画面中出现它时
@@ -959,6 +1244,19 @@ export interface MaterialRefs {
    * ⚠ Seedream 画帧那半（needDraw / 方案台）**未做 A/B，仍用长句 bind()**——别顺手统一。
    */
   bindCompact: (offset?: number) => string;
+  /**
+   * 这一批里**真分到图**的卡（id）。按模型适配用：没分到的那几张，出片提示词里用它们的
+   * 文字版形象描述（Card.textDesc）替代图片（studio/segmentGen.materialText）。
+   */
+  cards: ReadonlySet<string>;
+  /**
+   * 每一张参考图是**哪张卡**的（与 `refs` 逐张对齐）。组图（drawShotGroup）用它自己拼「图几是谁」那一句 ——
+   * ★ 必须按**真正发出去的**这批图对出来：取图那一拍个别图会读不出来被跳过（编号随之前移），拿分配的计划（planCardRefs）
+   *   去拼的话，绑定句就点名到没发出去的编号上（CLAUDE.md「帧一律当参考图发」那条的坑 ②）。
+   */
+  owners: readonly Card[];
+  /** 每一张参考图是那张卡的**哪一张图**（与 `refs` 逐张对齐）。九宫格拿它给参考图标用途（「图1是林夏的脸，图2是林夏的服装和身形」） */
+  views: readonly CardView[];
 }
 
 /**
@@ -988,13 +1286,69 @@ export interface MaterialRefs {
  */
 export type RefTarget = "image" | "video";
 
+/**
+ * 紧凑式绑定句（`张三=@图片1@图片2`）的**构造器本身** —— prepareMaterialRefs 的 bindCompact / 白模 bind（拿真准备成的那批图）
+ * 与 planMaterialRefs（拿分配的计划，出片前算预算用）共用这一个。措辞与取舍见 prepareMaterialRefs 里 compact 那段 ★★。
+ * @param offset 这批图前面已经有几张参考图（帧 / 临时参考图）：编号从 offset+1 起
+ */
+function compactBind(good: readonly { card: Card; view: CardView }[], offset: number): string {
+  const at = (p: (typeof good)[number]) => zhPrompt`@图片${offset + good.indexOf(p) + 1}`;
+  const chars = new Set<Card>();
+  const charParts: string[] = [];
+  for (const p of good) {
+    if (p.card.type !== "character" || chars.has(p.card)) continue;
+    chars.add(p.card);
+    charParts.push(zhPrompt`${p.card.name}=${good.filter((g) => g.card === p.card).map(at).join("")}`);
+  }
+  // 非人物卡照旧按卡种说人话：一句"只锁形象"套在场景卡/画风卡上是胡话（见 BIND_HINT），
+  // 而白模路上它们本来就少（挂卡面板默认只给人物卡）
+  const otherSaid = new Set<Card>();
+  const otherParts: string[] = [];
+  for (const p of good) {
+    if (p.card.type === "character" || otherSaid.has(p.card)) continue;
+    otherSaid.add(p.card);
+    const mine = good.filter((g) => g.card === p.card);
+    otherParts.push(zhPrompt`${mine.map(at).join("")}是${CARD_TYPE_PROMPT[p.card.type]}「${p.card.name}」${BIND_HINT[p.card.type]}`);
+  }
+  if (charParts.length === 0 && otherParts.length === 0) return "";
+  // ★ 收尾那句摆在**最后**，别夹在两组中间：夹在中间时「只锁形象」会读起来像在说
+  //   后面那张场景卡（"不要照抄其构图与背景"对场景卡恰恰是反的），一句放错位置的
+  //   限制比没有更坏
+  const body = [charParts.join("；"), otherParts.join("；")].filter(Boolean).join("；");
+  const foot =
+    charParts.length > 0
+      ? zhPrompt`。等号右边的图只用来锁这个角色的长相、发色与服装，不要照抄其构图与背景。`
+      : zhPrompt`。参考图只用于锁定形象，不要照抄它们的构图、背景、边框与文字。`;
+  // ★ 设定稿那句接在最后（同 foot 的理由：限制句夹在中间会被读成在说后面那张卡）
+  const auxTail = hasSheet(good) ? SHEET_CLAUSE : "";
+  return softenForImage(zhPrompt`。参考图：${body}${foot}${auxTail}`);
+}
+
+/**
+ * 卡片形象图的**分配计划**连同那一句紧凑式绑定句（不取图、不联网）—— segmentGen.promptRoomOf 按它在出片之前算「正文还剩多少字」。
+ * ★ 与 prepareMaterialRefs 同一个分配（allocateRefs）、同一个构造器（compactBind）；`direct` 的取值与那边同名参数逐一对应
+ *   （只用于直通路：true = 白模严格闸 + 2.5 上限；对象 = 直通路 + 档位上限）。
+ * ⚠ 这是计划，**不是**上界：真取图那一拍个别图读不出来会被跳过（编号前移、绑定句变短），可那张卡随即改拼文字版形象描述
+ *   （segmentGen.materialText，最多 TEXT_DESC_MAX 字）—— 真拼出来可能比按计划算的长。所以 segmentGen 在卡图真准备好之后、
+ *   任何补画之前再按真的那批量一次（2026-10-26 审核纠正：原来这里写「预算按计划算偏保守」）。
+ */
+export function planMaterialRefs(
+  materials: Card[] | undefined,
+  direct: true | { cap?: number; strict?: boolean },
+): { count: number; cards: ReadonlySet<string>; bindCompact: (offset?: number) => string } {
+  if (!materials?.length) return { count: 0, cards: new Set(), bindCompact: () => "" };
+  const d = direct === true ? { cap: undefined as number | undefined } : direct;
+  const picks = allocateRefs(materials, undefined, true, d.cap);
+  return { count: picks.length, cards: new Set(picks.map((p) => p.card.id)), bindCompact: (offset = 0) => compactBind(picks, offset) };
+}
+
 export async function prepareMaterialRefs(
   materials: Card[] | undefined,
   target: RefTarget,
   onNote?: (note: string) => void,
   direct: boolean | { cap?: number; strict: boolean } = false,
 ): Promise<MaterialRefs> {
-  const empty: MaterialRefs = { refs: [], bind: () => "", bindCompact: () => "" };
+  const empty: MaterialRefs = { refs: [], bind: () => "", bindCompact: () => "", cards: new Set(), owners: [], views: [] };
   if (!materials?.length) return empty;
   // 布尔 true = 白模的老调用形态（严格闸 + 2.5 上限）；对象 = 带档位协议上限的直通路
   const d = direct === true ? { cap: undefined as number | undefined, strict: true } : direct || null;
@@ -1102,39 +1456,15 @@ export async function prepareMaterialRefs(
    * ★★ 这也正是 2026-08-16「编号 → 颜色」那次改造**一个字都不用动这里**的原因：
    *   这个构造器从头到尾不认识 label，两种标记方案对它完全透明。
    */
-  const compact = (offset = 0): string => {
-    const at = (p: (typeof good)[number]) => zhPrompt`@图片${offset + good.indexOf(p) + 1}`;
-    const chars = new Set<Card>();
-    const charParts: string[] = [];
-    for (const p of good) {
-      if (p.card.type !== "character" || chars.has(p.card)) continue;
-      chars.add(p.card);
-      charParts.push(zhPrompt`${p.card.name}=${good.filter((g) => g.card === p.card).map(at).join("")}`);
-    }
-    // 非人物卡照旧按卡种说人话：一句"只锁形象"套在场景卡/画风卡上是胡话（见 BIND_HINT），
-    // 而白模路上它们本来就少（挂卡面板默认只给人物卡）
-    const otherSaid = new Set<Card>();
-    const otherParts: string[] = [];
-    for (const p of good) {
-      if (p.card.type === "character" || otherSaid.has(p.card)) continue;
-      otherSaid.add(p.card);
-      const mine = good.filter((g) => g.card === p.card);
-      otherParts.push(zhPrompt`${mine.map(at).join("")}是${CARD_TYPE_PROMPT[p.card.type]}「${p.card.name}」${BIND_HINT[p.card.type]}`);
-    }
-    if (charParts.length === 0 && otherParts.length === 0) return "";
-    // ★ 收尾那句摆在**最后**，别夹在两组中间：夹在中间时「只锁形象」会读起来像在说
-    //   后面那张场景卡（"不要照抄其构图与背景"对场景卡恰恰是反的），一句放错位置的
-    //   限制比没有更坏
-    const body = [charParts.join("；"), otherParts.join("；")].filter(Boolean).join("；");
-    const foot =
-      charParts.length > 0
-        ? zhPrompt`。等号右边的图只用来锁这个角色的长相、发色与服装，不要照抄其构图与背景。`
-        : zhPrompt`。参考图只用于锁定形象，不要照抄它们的构图、背景、边框与文字。`;
-    return softenForImage(zhPrompt`。参考图：${body}${foot}`);
-  };
+  // ★ 构造器本身在 compactBind（模块级）：出片前的预算（planMaterialRefs → segmentGen.promptRoomOf）拿**计划**的那批图拼同一句，
+  //   这里拿**真准备成**的那批（good）拼 —— 一个构造器两种输入，别在预算那一侧另抄一份（抄了就是作者那一屏说放得下、出片那一拍放不下）
+  const compact = (offset = 0): string => compactBind(good, offset);
 
   return {
     refs: good.map((p) => p.url),
+    cards: new Set(good.map((p) => p.card.id)),
+    owners: good.map((p) => p.card),
+    views: good.map((p) => p.view),
     bindCompact: compact,
     bind: (offset = 0) => {
       if (multiChar) return compact(offset);
@@ -1142,11 +1472,12 @@ export async function prepareMaterialRefs(
       const numOf = (p: (typeof good)[number]) => zhPrompt`<图片${offset + good.indexOf(p) + 1}>`;
       const heroPicks = good.filter((p) => p.card === hero);
       if (heroPicks.length > 0 && hero) {
-        const feats = heroPicks.map((p) => zhPrompt`${numOf(p)}的${slotLocks(hero.type, p.view.kind)}`).join("、");
-        // 设定括号用**身份句**（idLineOf）：它就是为"锁形象"压出来的那句视觉描述；
-        // 老卡兜底"名字：简介40字"，与旧措辞等效
+        const feats = heroPicks.map((p) => zhPrompt`${numOf(p)}的${featOf(hero.type, p.view)}`).join("、");
+        // 设定括号用**身份句**（idLineOf）：它就是为"锁形象"压出来的那句视觉描述。
+        // 没写出片句时 idLineOf 只回卡名（简介不进出片，2026-09-18）：那时括号整个省掉，别写成「（设定：小夏）」
+        const heroLine = idLineOf(hero);
         parts.push(
-          zhPrompt`将${feats}定义为角色「${hero.name}」（设定：${idLineOf(hero)}），本段画面中该角色的长相、发色与服装必须与之完全一致`,
+          zhPrompt`将${feats}定义为角色「${hero.name}」${heroLine !== hero.name ? `（设定：${heroLine}）` : ""}，本段画面中该角色的长相、发色与服装必须与之完全一致`,
         );
       }
       // ★ 同一张卡的多张图必须**并进一句**说，不能一张图一句：两句"「会说谎的罗盘」的
@@ -1163,10 +1494,12 @@ export async function prepareMaterialRefs(
         );
       }
       if (parts.length === 0) return "";
-      // ★ 必须过 softenForImage：绑定句里带着卡的 name/summary，而那两样是豆包写的，
+      // ★ 必须过 softenForImage：绑定句里带着卡的 name/idLine，而那两样是豆包写的，
       //   极爱用「少女」这类词 —— 敏感词在方舟是整条请求 400，不是降级（见上面 SOFTEN 表）
+      // ★ 与紧凑式同一句（一处文案两条路共用）：真有设定稿进了模型才拼
+      const auxTail = hasSheet(good) ? zhPrompt`。${SHEET_CLAUSE}` : "";
       return softenForImage(
-        zhPrompt`。参考图说明：${parts.join("；")}。参考图只用于锁定形象，不要照抄它们的构图、背景、边框与文字`,
+        zhPrompt`。参考图说明：${parts.join("；")}。参考图只用于锁定形象，不要照抄它们的构图、背景、边框与文字${auxTail}`,
       );
     },
   };
@@ -1187,10 +1520,23 @@ export async function prepareMaterialRefs(
  *
  * 兜底顺序：出图 > 用户原图 > mock 占位图。原图至少是"用户认得的东西"。
  */
+/**
+ * 铸卡师那一栏「用户的额外要求」进出图提示词的那一句。
+ * ★ 人物卡要说清楚「手里拿的东西、所在地点不画」（2026-09-18 复核抓到）：CARD_COMPOSITION.character 说「手里不拿任何东西、
+ *   不画场景」，而用户写的「手持长剑，站在竹林里」又标着「必须满足」—— 两句打架，模型要么照画（剑与竹林进了形象参考图，
+ *   正是这次要治的），要么悄悄丢掉一条「必须满足」。说清楚哪一条赢：外形上的要求照办，道具与地点归道具卡、场景卡（ai/cardScope）。
+ */
+function noteLine(type: CardType, note: string): string {
+  return type === "character"
+    ? zhPrompt`用户的额外要求（外形上的必须满足；其中手里拿的东西、所在地点不画——那归道具卡、场景卡）：${note.slice(0, 200)}`
+    : zhPrompt`用户的额外要求（必须满足）：${note.slice(0, 200)}`;
+}
+
 async function forgePrimary(
   type: CardType,
   name: string,
-  summary: string,
+  /** 这张卡长什么样的那一句：出片句优先、没有才是简介（见 generateCards 的 look） */
+  look: string,
   note: string,
   slot: CardSlot,
   f: MaterialFile | undefined,
@@ -1201,14 +1547,14 @@ async function forgePrimary(
   const ref = raw ? [raw] : undefined;
   const prompt = softenForImage(
     [
-      zhPrompt`${TYPE_LABEL[type]}：${name}。${summary}`,
+      zhPrompt`${TYPE_LABEL[type]}：${name}。${look}`,
       // ★ 主图也要说清它是**哪个图位**（图位表的第 0 格）：人物卡的第 0 格是「全身立绘」
       //   而不是大头照 —— 不写这一句，模型十有八九给一张半身像，而后面几张都以它为参考，
       //   "这张卡没有全身参考"就一路传下去了（顺序为什么是 body 打头见 types.CARD_SLOTS）
       zhPrompt`画面取景：${slotPromptOf(type, slot.kind).label}，要锁住${slotPromptOf(type, slot.kind).locks}。`,
       // ★ 用户原话单独成段、不揉进 summary：summary 被豆包压到 30 字，用户写的
       //   硬约束（"左手有旧伤疤""一定要戴红围巾"）会被压没，出图就丢细节
-      note ? zhPrompt`用户的额外要求（必须满足）：${note.slice(0, 200)}` : "",
+      note ? noteLine(type, note) : "",
       ref ? REF_HINT[type] : "",
       ref ? zhPrompt`不要直接复制参考图，也不要保留它的背景杂物、相框、界面元素与文字。` : "",
       // 画风跟着用户的素材走（2026-08-28）：照片素材出写实卡面、插画出同风格。
@@ -1234,17 +1580,17 @@ async function forgePrimary(
  * 第 i(>0) 个图位的提示词。**恒定以卡面（`<图片1>`）为唯一参考图**，理由见 forgeSlots。
  * ★ 不拼 CARD_SAFE_AREA：这几张不进卡框，是详情页里的形象参考图。
  */
-function slotPrompt(type: CardType, name: string, summary: string, note: string, slot: CardSlot): string {
+function slotPrompt(type: CardType, name: string, look: string, note: string, slot: CardSlot): string {
   return softenForImage(
     [
       // ★ 这里用 CARD_TYPE_PROMPT（"人物卡"）而不是 TYPE_LABEL（"人物立绘卡面"）：
       //   这几张不是卡面，说成"卡面的面部特写"会让模型去画一张画着卡的图
-      zhPrompt`${CARD_TYPE_PROMPT[type]}「${name}」的${slotPromptOf(type, slot.kind).label}。${summary}`,
+      zhPrompt`${CARD_TYPE_PROMPT[type]}「${name}」的${slotPromptOf(type, slot.kind).label}。${look}`,
       zhPrompt`<图片1>是这张卡已经定稿的主图。画的必须是<图片1>里的同一${SUBJECT_WORD[type]}：${slotPromptOf(type, slot.kind).locks}要与<图片1>完全一致，只改变取景与景别，不要另画一${SUBJECT_WORD[type]}。`,
       // 画风也锁在主图上（2026-08-28 厚涂词退役后这句就是唯一的画风指令）：
       // 三张图随后要一起当形象参考，画风分裂与形象分裂一样致命
       zhPrompt`画风与<图片1>完全一致。`,
-      note ? zhPrompt`用户的额外要求（必须满足）：${note.slice(0, 200)}` : "",
+      note ? noteLine(type, note) : "",
       type === "scene" || type === "background" ? zhPrompt`画面中不要出现任何人物或角色。` : "",
       // i18n-ignore-next-line: 同 forgePrimary 那一处：frameWord 字面量参数，原样进出图提示词
       cardStyleSuffix(type, "画面"),
@@ -1290,7 +1636,7 @@ interface ForgeReport {
 async function forgeSlots(
   type: CardType,
   name: string,
-  summary: string,
+  look: string,
   note: string,
   slots: readonly CardSlot[],
   primary: string,
@@ -1317,7 +1663,7 @@ async function forgeSlots(
     const label = slot.label;
     rp.say(t`铸「${name}」第 ${n}/${total} 张：${label}…`);
     try {
-      const url = await genImageAsDataUrl(slotPrompt(type, name, summary, note, slot), {
+      const url = await genImageAsDataUrl(slotPrompt(type, name, look, note, slot), {
         imageRefs: [ref],
         size: tier.size,
         model: tier.model,
@@ -1390,9 +1736,11 @@ export async function generateCards(
       // 文案精炼：名称 + 一句话简介 + 类型校正 + 固定身份句（idLine：与文案同一次调用
       // 顺带产出、零新增成本——铸卡期一次压好，出片逐段复用同一句，见 types.Card.idLine）
       const meta = await chat(
+        // ★ 2026-09-18：简介原来要「有故事感」、出片句不分卡种一律按人物身份句写 —— 故事感把动作、地点、手里的东西招进来，
+        //   一张场景卡也被要求写「名字 + 视觉特征 + 标志物」。现在都按 ai/cardScope 的卡种分工写
         forcedType
-          ? zhPrompt`你是卡牌游戏的铸卡师。用户已指定这是一张【${TYPE_LABEL[forcedType]}】，不要改类型。输出 JSON：{"name":"不超过8字的卡名","summary":"一句30字内有故事感的简介","idLine":"${ID_LINE_SPEC}","type":"${forcedType}"}。只输出 JSON。`
-          : zhPrompt`你是卡牌游戏的铸卡师。根据素材信息输出 JSON：{"name":"不超过8字的卡名","summary":"一句30字内有故事感的简介","idLine":"${ID_LINE_SPEC}","type":"character|scene|background|prop|style"}。只输出 JSON。`,
+          ? zhPrompt`你是卡牌游戏的铸卡师。用户已指定这是一张【${TYPE_LABEL[forcedType]}】，不要改类型。输出 JSON：{"name":"不超过8字的卡名","summary":"一句30字内的简介","idLine":"${ID_LINE_SPEC_OF[forcedType]}","type":"${forcedType}"}。name、summary、idLine 都${CARD_SCOPE[forcedType]}。只输出 JSON。`
+          : zhPrompt`你是卡牌游戏的铸卡师。根据素材信息输出 JSON：{"name":"不超过8字的卡名","summary":"一句30字内的简介","idLine":"出片句，按 type 写，见下","type":"character|scene|background|prop|style"}。出片句的写法：character 写${ID_LINE_SPEC_OF.character}；scene 写${ID_LINE_SPEC_OF.scene}；prop 写${ID_LINE_SPEC_OF.prop}；style 写${ID_LINE_SPEC_OF.style}；background 写${ID_LINE_SPEC_OF.background}。${CARD_SCOPE_ALL}；name、summary、idLine 都照这条分工写。只输出 JSON。`,
         zhPrompt`文件名: ${f?.name ?? "无"}\n文本内容: ${(f?.text ?? "").slice(0, 300) || "无"}\n用户补充: ${note || "无"}\n是否图片素材: ${f?.dataUrl ? "是" : "否"}`,
       );
       const parsed = JSON.parse(meta.replace(/```json|```/g, "").trim()) as {
@@ -1415,13 +1763,17 @@ export async function generateCards(
     // ★ 这一档、这一类要画哪几张 —— **唯一来源**是 economy.slotsFor。
     //   别在这里另算张数（`imageTier.views` 是名义上限，非人物卡只有 2 格），
     //   报价、出图、结算读的必须是同一次 slice 的结果，否则就是"页面报 3 张、实际画 2 张"。
+    // 画卡面 / 形象图时拿哪一句描述它：只拿出片句（按卡种分工写的外形，2026-09-18）—— 原来拿的是简介：
+    //   它是给人看的一句话，带着故事就会把房间、手柄画进卡面，而卡面随后就是出片的形象参考图。
+    //   文案那一步失败时出片句是空的：那时的简介是 mock 的占位话，更不该进出图提示词 —— 空着就只按卡名 + 用户要求 + 参考图画
+    const look = idLine;
     const slots = slotsFor(type, opts?.tierId);
     // 与 forgeSlots 里后几张那句是同一条 msgid（第 n/total 张）
     const n = 1;
     const total = slots.length;
     const label = slots[0].label;
     rp.say(t`铸「${name}」第 ${n}/${total} 张：${label}…`);
-    const primary = await forgePrimary(type, name, summary, note, slots[0], f, card.cover, tier);
+    const primary = await forgePrimary(type, name, look, note, slots[0], f, card.cover, tier);
     if (!primary.genPrompt) {
       // 主图都没画成：后面几张没有参考图可依，画了也只会是另一个人 —— 直接收手。
       // ★ 说出来，并且说清楚顶上去的是什么。用户看到一张陌生的占位图却以为"AI 就画成这样"，
@@ -1443,7 +1795,7 @@ export async function generateCards(
       );
       return { card: { ...card, name, summary, type, cover: primary.cover, imageTier: tier.id }, minted: 0 };
     }
-    const views = await forgeSlots(type, name, summary, note, slots, primary.cover, tier, rp);
+    const views = await forgeSlots(type, name, look, note, slots, primary.cover, tier, rp);
     return {
       card: {
         ...card,
@@ -1499,8 +1851,9 @@ export async function generateCards(
 function frameArtStyle(materials?: Card[], refsOn = true): string {
   const styleCard = materials?.find((c) => c.type === "style");
   if (styleCard) {
-    // ★ V3：风格卡的出片句（idLine：画风 + 材质 + 色调光影 + 镜头语言）整句进来；老卡没有 idLine 退回简介前 24 字
-    const line = (styleCard.idLine || "").trim().slice(0, ID_LINE_MAX) || styleCard.summary.slice(0, 24);
+    // ★ V3：风格卡的出片句（idLine：画风 + 材质 + 色调光影 + 镜头语言）整句进来；没有 idLine 只报风格名 ——
+    //   简介不进出片（2026-09-18，原来退回简介前 24 字：简介里写的人物、地点会被当成画风要求，见 ai/cardScope）
+    const line = (styleCard.idLine || "").trim().slice(0, ID_LINE_MAX);
     return zhPrompt`整体画风与镜头语言严格跟随风格卡「${styleCard.name}」${line ? `（${line}）` : ""}，全片统一，高细节，`;
   }
   if (materials?.some((c) => c.realPerson === true)) return zhPrompt`照片级写实画面，高细节，电影感构图，氛围光，`;
@@ -1529,27 +1882,40 @@ function framePrompts(
   refsOn = true,
 ): { first: string; last: string } {
   const style = frameStyle(aspect, materials, refsOn);
+  // 一张帧只画一个瞬间：分了镜的剧情开头取第一个镜头、结尾取最后一个，台词摘掉（规则只在 shotScript.frameMoment）
   return {
-    first: zhPrompt`电影分镜首帧：${plot.slice(0, 100)}。${withRef ? "延续<图片1>的色调与光线氛围。" : ""}${style}`,
-    last: zhPrompt`电影分镜尾帧（这段剧情的收束瞬间）：${plot.slice(-100)}。${style}`,
+    first: zhPrompt`电影分镜首帧：${frameMoment(plot, "first").slice(0, 100)}。${withRef ? "延续<图片1>的色调与光线氛围。" : ""}${ONE_FRAME}${style}`,
+    last: zhPrompt`电影分镜尾帧（这段剧情的收束瞬间）：${frameMoment(plot, "last").slice(-100)}。${ONE_FRAME}${style}`,
   };
 }
 
 /** 三方案推演：豆包写三种走向的剧情 → Seedream 出首尾帧（首帧带上一段尾帧参考承接）。
- *  onProgress 逐阶段播报——整个过程实测约 1-1.5 分钟，没有进度就是"卡死"体感。 */
+ *  onProgress 逐阶段播报——整个过程实测约 1-1.5 分钟，没有进度就是"卡死"体感。
+ *  @param onFramesGone 帧**一张都没画成**、而且是因为出图模型用不了了（ArkImageModelGone）时调一次 —— 剧情照样交回去，
+ *    调用方拿它把真正的原因（「请更新 App」）说在推演结果旁边（见函数末尾那段 ★★）。画成了一部分 / 别的原因失败时不调。 */
 export async function generateProposals(
   ctx: ProposalContext,
   onProgress?: (status: string) => void,
+  onFramesGone?: (e: ArkImageModelGone) => void,
 ): Promise<Proposal[]> {
   const fallback = await mock.generateProposals(ctx);
   let plots: Array<{ title: string; plot: string; durationSec: number; shot?: unknown }>;
   onProgress?.(t`剧情推演中…`);
   try {
-    const mats = ctx.materials.map((m) => zhPrompt`${m.type}:${m.name}(${m.summary?.slice(0, 40) ?? ""})`).join("；");
+    // ★ 报出片句不报简介（2026-09-18 主人真机）：简介是给人看的一句话，常带着别的卡种的东西（「窝在房间里握着手柄」），
+    //   写进推演 = 三套剧情都围着手柄和房间转。idLineOf 没写出片句时只回卡名（背景卡回故事本身）
+    const mats = ctx.materials
+      .map((m) => {
+        // 背景卡直接拿故事（出片句或简介），别经 idLineOf 的「名字：简介」再截 40 字 —— 名字占掉的那几个字就是故事被吃掉的那几个字
+        const line = m.type === "background" ? ((m.idLine || "").trim() || m.summary || "") : idLineOf(m);
+        return zhPrompt`${m.type}:${m.name}${line && line !== m.name ? `(${line.slice(0, 40)})` : ""}`;
+      })
+      .join("；");
     const raw = await chat(
       // ★ 2026-09-06：加结构化镜头字段（对标 updream 分镜 Skill）——景别 / 运镜 / 情绪节拍各是短语，出片提示词按字段读
       zhPrompt`你是互动视频编剧兼分镜师。基于素材与要求，为同一段视频写 3 个不同走向（顺势推进/风云突变/柳暗花明），输出 JSON 数组：[{"title":"12字内标题","plot":"80-120字剧情，画面感强，小说式","durationSec":4到9的整数,"shot":{"size":"景别（远景/全景/中景/近景/特写）","camera":"运镜（固定/推/拉/摇/移/跟/环绕/手持，可带方向，6字内）","beat":"情绪节拍，6字内，如 压抑→爆发"}}]。只输出 JSON。`,
-      zhPrompt`这是第${ctx.index + 1}段。素材：${mats}\n要求：${ctx.requirement || "无"}\n已定前情：${ctx.pathPlots.join(" / ") || "无"}${
+      // 要求里的 `@点名` 退成名字（data/refMentions.plainMentions；没有 @ 的句子逐字节原样）
+      zhPrompt`这是第${ctx.index + 1}段。素材：${mats}\n要求：${plainMentions(ctx.requirement, ctx.materials, ctx.extraRefs) || "无"}\n已定前情：${ctx.pathPlots.join(" / ") || "无"}${
         ctx.startFrame
           ? "\n注意：本段开头画面已经确定（上一段的收尾画面），剧情必须从那一瞬间直接继续——人物、场景、天气、光线都要连贯，不要另起炉灶。"
           : ""
@@ -1593,11 +1959,28 @@ export async function generateProposals(
   //   等于这句话根本没说过（铁律八：失败要"响"，写进一个没人看得见的地方不算响）。
   //   攒到开画前最后一发，它会一直挂到第一张图回来（实测 20s+），用户才真读得到。
   const matNotes: string[] = [];
-  const mat = await prepareMaterialRefs(ctx.materials, "image", (n) => matNotes.push(n));
   // 顺序固定为 [方案0首帧, 方案0尾帧, 方案1首帧, …]，与最终 results[pi*2] 取值对应
   const jobs = three.flatMap((p) =>
     (startFrame ? (["last"] as const) : (["first", "last"] as const)).map((which) => ({ p, which })),
   );
+  // 句子里的 `@点名` 退成名字（每套方案一份）
+  const plainOf = new Map(three.map((p) => [p.id, plainMentions(p.plot, ctx.materials, ctx.extraRefs)]));
+  // ★ 这一刻里有谁就只带谁的卡（shotScript.momentCards，2026-10-04 —— 与出片前补画、两面的「重画这一套」同一条规则）：
+  //   按卡的组合各备一份，**开画前一次备齐** —— 哪张没采用、为什么只锁了一个角色，要在开画前说出来（理由见上）
+  const matsOf = (p: (typeof three)[number], which: "first" | "last") =>
+    momentCards(ctx.materials, frameMoment(plainOf.get(p.id) ?? p.plot, which)) ?? [];
+  const keyOf = (cards: Card[]) => cards.map((c) => c.id).join("|");
+  const matByKey = new Map<string, Awaited<ReturnType<typeof prepareMaterialRefs>>>();
+  for (const { p, which } of jobs) {
+    const cards = matsOf(p, which);
+    if (!matByKey.has(keyOf(cards)))
+      matByKey.set(
+        keyOf(cards),
+        await prepareMaterialRefs(cards, "image", (n) => {
+          if (!matNotes.includes(n)) matNotes.push(n);
+        }),
+      );
+  }
   let doneCount = 0;
   // 设定帧的画布必须跟本段画幅走：横版帧喂竖屏视频任务会被 Seedance 裁一刀
   const frameSize = aspectOf(ctx.aspect).frameSize;
@@ -1606,29 +1989,51 @@ export async function generateProposals(
   // 参考图的实情放在开画前最后一发（理由见上）：哪张没采用、为什么只锁了一个角色，
   // 都要在这几十秒里看得见 —— 这两件事一旦没说，用户只会觉得"AI 画得不像"
   if (matNotes.length) onProgress?.(joinNotes(matNotes));
+  /** 出图模型用不了了（ArkImageModelGone）—— 记下第一发，全部没画成时交给 onFramesGone（见下面 ★★） */
+  // `as`：它在回调里赋值，TS 不跟踪 —— 不这么写的话下面那句判断会被收窄成恒为 null
+  let modelGone = null as ArkImageModelGone | null;
   const results = await mapLimit(jobs, 3, async ({ p, which }) => {
+    const mat = matByKey.get(keyOf(matsOf(p, which)))!;
     // 有确定开头帧时尾帧也带它当参考（人物/画风连贯）；否则仅首帧带上一段色调参考
     const withFrameRef = (which === "first" || !!startFrame) && frameRefs.length > 0;
-    const useRefs = [...(withFrameRef ? frameRefs : []), ...mat.refs];
+    const baseRefs = [...(withFrameRef ? frameRefs : []), ...mat.refs];
+    // 临时参考图排在最后（承接帧与卡片图的编号不动），每张由系统说一句它是什么；站位构图只给首帧（N3，规则在 drawExtraRefs）
+    const ex = drawExtraRefs(ctx.extraRefs ?? [], which, baseRefs.length);
+    const useRefs = [...baseRefs, ...ex.urls];
     // refsOn 传**这一发实际带不带图**：卡都挂了但一张图都没准备成（mat.refs 空）时，
     // "跟随参考图"那句必须跟着消失——图没发还这么说，模型只能瞎猜（铁律五的措辞版）
-    const prompts = framePrompts(p.plot, withFrameRef, ctx.aspect, ctx.materials, useRefs.length > 0);
+    const plain = plainOf.get(p.id) ?? p.plot;
+    const prompts = framePrompts(plain, withFrameRef, ctx.aspect, ctx.materials, useRefs.length > 0);
     // 绑定句里的 <图片N> 要跳过承接帧占的那一位，否则模型会去看错的那张图
-    const prompt = (which === "first" ? prompts.first : prompts.last) + mat.bind(withFrameRef ? frameRefs.length : 0);
+    const prompt = (which === "first" ? prompts.first : prompts.last) + mat.bind(withFrameRef ? frameRefs.length : 0) + ex.line;
     let frame: string | null = null;
     try {
       frame = await genImageAsDataUrl(prompt, {
         imageRefs: useRefs.length > 0 ? useRefs : undefined,
         size: frameSize,
       });
-    } catch {
+    } catch (e) {
+      // ★★ 出图模型用不了了（2026-10-10，方舟 11-24 下线那一批）：去掉参考图再画也是同一个模型、必然再错一次 —— 不重试，
+      //   话也不再说成「参考图未被受理」（原来不管什么原因一律这么说：模型下线、审核不过、上游连不上都成了「参考图的事」）
+      if (e instanceof ArkImageModelGone) {
+        modelGone ??= e;
+        doneCount++;
+        onProgress?.(e.message);
+        return null;
+      }
       try {
         // 带参考图失败可能是参考图本身不被受理——去掉参考图再试一次。
         // ★ 说出来：退成纯文生图意味着这一帧**没有**用上你挂的卡，闷声重试等于骗人
-        if (useRefs.length > 0) onProgress?.(t`参考图未被受理，该帧改用纯文字重画`);
+        // ★ 原因照实说（2026-10-10）：只有方舟明说是**输入的图**不过（InputImage… / 参考图里有真人）才说「参考图未被受理」；
+        //   别的失败（上游连不上、审核的是文字…）说它自己的原因（ArkImageRefused.reason / briefArkReason），重试照旧
+        if (useRefs.length > 0) {
+          const refsToBlame = e instanceof ArkImageRefused && /^InputImage|PrivacyInformation/i.test(e.upstreamCode);
+          const why = briefArkReason(e);
+          onProgress?.(refsToBlame ? t`参考图未被受理，该帧改用纯文字重画` : t`这一帧没画成（${why}），改用纯文字再画一次`);
+        }
         // 纯文字重试：refsOn=false——图都不发了，"跟随参考图"那句必须跟着消失；
-        // 风格卡/真人卡两档按名字点名不涉图，照常生效
-        frame = await genImageAsDataUrl(framePrompts(p.plot, false, ctx.aspect, ctx.materials, false)[which], {
+        // 风格卡/真人卡两档按名字点名不涉图，照常生效。句子与第一发同一份（`@点名` 已退成名字；原来这里传的是没退过的原文）
+        frame = await genImageAsDataUrl(framePrompts(plain, false, ctx.aspect, ctx.materials, false)[which], {
           size: frameSize,
         });
       } catch (e2) {
@@ -1639,6 +2044,14 @@ export async function generateProposals(
     onProgress?.(t`绘制画面 ${doneCount}/${total}…`);
     return frame;
   });
+  // ★★ 一张都没画成、而且是因为出图模型用不了了：剧情**照样交回去**，原因交给 onFramesGone，由调用方说在推演结果旁边。
+  //   · 不能只交回三套没有帧的方案就完：屏幕上只会说「有 3 个方案的首尾帧没画出来，出片前会先补画」—— 而补画是同一个模型，
+  //     人要到点了出片才第一次听见真正的原因（「请更新 App」）。
+  //   · 也不能整句抛（2.63 第一版就是抛的，2026-10-10 评审抓到）：抛在**推演那一发对话已经计费之后**（远端模式服务端按调用结算，
+  //     离线账本在开跑前就扣了），三套付过钱的剧情一起丢掉，两个调用方都只说「推演失败」、一个字不提钱，工坊那句还叫人「再点一次」——
+  //     每点一次再付一次对话的钱。出图那几发是服务端明说拒了的（failCharge：没扣），钱上没有别的话要说。
+  //   画成了一部分（模型还在，只是个别失败）照旧交回去、不调它。
+  if (modelGone && results.every((f) => !f)) onFramesGone?.(modelGone);
 
   const per = startFrame ? 1 : 2;
   return three.map((p, pi) => {
@@ -1700,12 +2113,14 @@ function mintSpec(cap: CardMintCap, head: string, tail: string): MintSpec {
  */
 /* i18n-frozen: 三条提卡路共用的卡种定义与措辞纪律，发给模型，不翻译；禁用词与 REF_WORD_RE / BLOCKOUT_SKELETON_RE 是同一套中文 */
 const CARD_RULES =
-  "卡种定义：character＝主要角色；scene＝视频里的地点/空间/舞台，idLine 写空间结构、地面、背景、光源与时间；prop＝画面里被使用或显眼的物件；style＝这条视频的画面风格与镜头语言（画风、材质质感、色调光影、运镜、剪辑节奏），name 就是风格名（如「暗调赛博」「胶片日系」）；**不出 background 卡**（背景卡是作者写的故事背景，不能从画面推断）。每张卡的 idLine 是出片时用的一句（不超过 60 字）：人物卡按身份句写（" +
+  "卡种定义：character＝主要角色；scene＝视频里的地点/空间/舞台，idLine 写空间结构、地面、背景、光源与时间；prop＝画面里显眼、会反复出现的物件；style＝这条视频的画面风格与镜头语言（画风、材质质感、色调光影、运镜、剪辑节奏），name 就是风格名（如「暗调赛博」「胶片日系」）；**不出 background 卡**（背景卡是作者写的故事背景，不能从画面推断）。每张卡的 idLine 是出片时用的一句（不超过 60 字）：人物卡按身份句写（" +
   ID_LINE_SPEC +
-  "），其它卡种只写画面里能看到的事实；措辞必须**独立成立**——读者手上没有这段视频，禁止出现「参考视频」「原视频」「复刻」「还原」「参考」「一致」这类字眼。";
+  "），其它卡种只写画面里能看到的、属于这张卡本身的事实。" +
+  CARD_SCOPE_ALL +
+  "（summary、idLine、imagePrompt 都照这条分工写）。措辞必须**独立成立**——读者手上没有这段视频，禁止出现「参考视频」「原视频」「复刻」「还原」「参考」「一致」这类字眼。";
 /* i18n-frozen: 提卡回包的 JSON 形状说明，发给模型，不翻译（TEMPLATE_MINT 按字面 replace 其中的卡种枚举） */
 const CARD_JSON =
-  '：[{"type":"character|scene|prop|style","name":"不超过8字","summary":"30字内有故事感的简介","idLine":"出片句，见规则","imagePrompt":"该卡卡面的文生图描述，60字内，含主体与氛围","frameIndex":最能代表它的那一帧（从1起；没给抽帧时省略）,"box":[x1,y1,x2,y2]（道具卡在该帧里的位置，0~1 相对坐标，左上到右下；没给抽帧时省略）}]。';
+  '：[{"type":"character|scene|prop|style","name":"不超过8字","summary":"30字内的简介","idLine":"出片句，见规则","imagePrompt":"该卡卡面的文生图描述，60字内，只画这张卡本身（人物站在干净背景前、手里不拿东西；场景里没有人；道具单独摆放）","frameIndex":最能代表它的那一帧（从1起；没给抽帧时省略）,"box":[x1,y1,x2,y2]（道具卡在该帧里的位置，0~1 相对坐标，左上到右下；没给抽帧时省略）}]。';
 
 /** 成片剧情 → 本片卡组。上限与报价（economy.deckCardsCost）同一个常量。
  *  ★ 2026-08-28 主人拍板改成**卡种级**规则（原来是实体级"补缺的角色"）：
@@ -1730,7 +2145,7 @@ export async function deriveDeckCards(
   /** V3：带上成片地址与时长，能抽帧就看片提炼（deckFrameUrls）；没有就退回只读剧情文字 */
   segments: Array<{ title: string; plot: string; firstFrame: string; videoUrl?: string; durationSec?: number }>,
   styleHint: string,
-  existing: Array<Pick<Card, "type" | "name" | "summary">> = [],
+  existing: Array<Pick<Card, "type" | "name" | "summary" | "idLine">> = [],
   onProgress?: (status: string) => void,
 ): Promise<{ cards: Card[]; tokens: number }> {
   const frames = deckFrameUrls(segments, DECK_VISION_FRAMES);
@@ -1743,7 +2158,14 @@ export async function deriveDeckCards(
   if (missing.length === 0) return { cards: [], tokens: 0 }; // 五种都挂全了：素材卡并集就是完整卡组，一张不铸
   const existingDesc =
     existing.length > 0
-      ? existing.map((c) => zhPrompt`${TYPE_LABEL[c.type]}「${c.name}」(${(c.summary ?? "").slice(0, 24)})`).join("、")
+      ? existing
+          .map((c) => {
+            // ★ 报出片句不报简介（2026-09-18 复核抓到）：人物卡的简介若写着「窝在房间里握着手柄」，模型会顺着它补出一张
+            //   「游戏手柄」道具卡、一张「房间」场景卡。背景卡的简介就是故事本身，照旧（卡种分工见 ai/cardScope）
+            const line = (c.type === "background" ? c.idLine || c.summary : c.idLine) ?? "";
+            return zhPrompt`${TYPE_LABEL[c.type]}「${c.name}」${line ? `(${line.slice(0, 24)})` : ""}`;
+          })
+          .join("、")
       : zhPrompt`（无）`;
   // （箭头参数叫 k 不叫 t：这个函数现在用了 t 宏，别读混）
   const userText = zhPrompt`缺失卡种（只出这些）：${missing.map((k) => `${k}（${CARD_TYPE_PROMPT[k]}）`).join("、")}\n用户已挂的卡（这些卡种关门）：${existingDesc}\n剧情（按段）：${segments.map((s) => stripBlockoutSkeleton(s.plot)).join(" / ").slice(0, 900)}\n整体画风：${styleHint || "未指明（从画面推断）"}`;
@@ -1832,14 +2254,16 @@ export function dropRefClauses(text: string | undefined): string {
  * 卡定义的措辞复核（三条提卡路共用，铸卡面之前跑）：
  * · background 一律丢（背景卡 = 作者写的故事背景，不从画面出）；
  * · 名字带禁用词整张丢（改名等于替模型编一张卡）；
- * · 简介 / 出片句 / 画面描述剥掉命中的子句，剥空了互相兜底，两样都空就丢。
+ * · 简介 / 出片句 / 画面描述剥掉命中的子句；简介剥空了拿出片句顶，两样都空就丢。
+ *   ★ 出片句**不再**拿简介顶（2026-09-18）：简介是给人看的，可能串着别的卡种的东西（ai/cardScope），
+ *     顶进出片句就成了每一段的硬约束。出片句空着，出片时只报卡名（types.idLineOf）。
  */
 function sanitizeCardDefs(defs: CardDef[]): CardDef[] {
   const out: CardDef[] = [];
   for (const d of defs) {
     if (!d.type || d.type === "background" || !d.name || REF_WORD_RE.test(d.name)) continue;
     const summary = dropRefClauses(d.summary);
-    const idLine = dropRefClauses(d.idLine) || summary;
+    const idLine = dropRefClauses(d.idLine);
     if (!summary && !idLine) continue;
     const imagePrompt = dropRefClauses(d.imagePrompt);
     out.push({ ...d, summary: summary || idLine, idLine, ...(imagePrompt ? { imagePrompt } : { imagePrompt: undefined }) });
@@ -1984,7 +2408,7 @@ async function mintCards(
   defs: CardDef[],
   spec: MintSpec,
   styleHint: string,
-  existing: Array<Pick<Card, "type" | "name" | "summary">>,
+  existing: Array<Pick<Card, "type" | "name" | "summary" | "idLine">>,
   onProgress?: (status: string) => void,
   styleRef?: string,
   /** V3：抽帧（与 CardDef.frameIndex 对齐）。给了就按卡种走"贴合原片"三档：场景去人留景、道具裁剪、风格整帧 */
@@ -2050,7 +2474,7 @@ async function mintCards(
         // 后续用它就能复刻出与卡面一致的画面/建模
         // ★ 跟随句只在参考帧**真备成了**才拼（铁律五的措辞版：图没发不许说"跟随参考图"）
         // ★ V3：带上卡种构图（CARD_COMPOSITION）——场景卡面"不要出现人物"这一条此前只有用户素材铸卡那条路有
-        genPrompt = zhPrompt`${TYPE_LABEL[type]}：${d.name}。${d.imagePrompt ?? d.summary ?? ""}。${styleHint ? `画风：${styleHint}。` : ""}${styleRefUrl ? STYLE_FOLLOW_MINT : ""}${CARD_COMPOSITION[type]}${cardStyleSuffix(type, "卡面")}`;
+        genPrompt = zhPrompt`${TYPE_LABEL[type]}：${d.name}。${(d.imagePrompt || d.idLine) ? `${d.imagePrompt || d.idLine}。` : ""}${styleHint ? `画风：${styleHint}。` : ""}${styleRefUrl ? STYLE_FOLLOW_MINT : ""}${CARD_COMPOSITION[type]}${cardStyleSuffix(type, "卡面")}`;
         // 画布与素材卡一致（CARD_SIZE）：两种卡摆在同一副卡组里，画幅不一致一眼就看得出
         cover = await genImageAsDataUrl(genPrompt, {
           size: CARD_SIZE,
@@ -2276,12 +2700,19 @@ async function glbFromArkZip(zipUrl: string): Promise<Blob> {
  * GLB 36MB 级——存 IndexedDB blob 仓（key=model3d:<cardId>），卡上只挂 `idb:` 指针
  * （塞 dataURL 会把嵌进作品的卡组 JSON 撑到几十 MB）。CardHologram 会解析该指针。
  * 上限 maxCount 张、单张失败不阻断其余（建模挂了卡本身还在）。
+ * ★ 失败的那几张**原样交回**（2026-10-07 评审抓到）：调用方（studioStore 组稿那一拍）只对**没退**的那几种（没等到回包 /
+ *   2xx 却用不上）按 ai/failCharge 说一句；受理之后 Seed3D 明说失败、服务端已退 / 会退的那几张**界面上不另说** ——
+ *   服务端对 kind "3d" 的退款**本人轮询退的也发**站内通知 GEN_TASK_REFUND（server taskRefund.followUp；api-contract
+ *   「受理之后失败的退款」），那是这笔钱唯一的一条消息。⚠ 别在这里或调用方再补一句「已退回」：同一笔钱就成了两条消息
+ *   （2.62 发版评审抓到这里原先写的是「服务端不另发通知」，与服务端的实际做法正相反）。
+ *   这一层不认识界面，错误对象原样不包，类型不丢（调用方按类型分档）。
  */
 export async function deriveCharacterModels(
   cards: Card[],
   maxCount = 2,
   onProgress?: (status: string) => void,
-): Promise<void> {
+): Promise<{ failed: { name: string; error: unknown }[] }> {
+  const failed: { name: string; error: unknown }[] = [];
   const targets = cards.filter((c) => c.type === "character" && !c.modelUrl).slice(0, maxCount);
   for (let i = 0; i < targets.length; i++) {
     const card = targets[i];
@@ -2301,11 +2732,15 @@ export async function deriveCharacterModels(
       const key = `model3d:${card.id}`;
       // i18n-ignore-next-line: 只进 console.warn（下面的 catch 吞掉、跳过这张卡）
       if (!(await idbSet(key, blob))) throw new Error("建模落库失败（存储配额？）");
+      // 记下这份建模是谁的：清理缓存只动登记在现在这个人名下的（别的账号的卡本机数不到，见 data/blobOwners）
+      noteBlobOwner(key);
       card.modelUrl = `idb:${key}`;
     } catch (e) {
       console.warn(`[ai] 角色卡「${card.name}」建模失败（跳过）:`, e);
+      failed.push({ name, error: e });
     }
   }
+  return { failed };
 }
 
 /**
@@ -2357,6 +2792,8 @@ export async function regenSegment(
     durationSec: clampDuration(seg.durationSec, seg.videoTier),
     lastFrameUrl: tier.flf ? await shrinkFrameFor720p(seg.lastFrame) : undefined,
     model: tier.model,
+    // ★ 分辨率跟着档位走（「草稿」= 480p）：剪辑页按 segTokens(…, 这一档) 报价扣钱，漏了这一行就是按 480p 收、按 720p 出（2026-10-07）
+    resolution: tier.resolution,
     // 重拍必须沿用原画幅：这里漏了它，圈选改一次画面就把竖屏段悄悄拍成横屏
     ratio: aspectOf(seg.aspect).ratio,
     // 剪辑页只有一行 busy 文案、没有步骤日志：事件在这里就写成句子（唯一实现 arkClient.describeArkProgress）
@@ -2400,6 +2837,137 @@ export async function generateCover(
   return await genImageAsDataUrl(prompt, { imageRefs: refs.length > 0 ? refs : undefined, size: spec.frameSize });
 }
 
+/**
+ * 画一张视频帧：出片前补画开头 / 结束画面（segmentGen）、两面的「重画这一套」（flowStore / studioStore）。
+ * ★ 与封面工坊的 generateCover 分开（2026-10-03 主人「改」）：这几条路原来借的是「视频封面图：…」那层外壳，
+ *   封面常带标题字、常是拼贴版式 —— 第二次付费验证里结束画面被画成了三格分镜图、格子里写着台词，视频最后 2 秒溶进了它。
+ *   画什么由调用方拼（那一刻的画面走 shotScript.frameMoment，后面接素材设定与绑定句）；这里只管外壳。
+ * ★ `base` = 这段视频的开头画面（画结束画面时当 <图片1>）：人物、服装、场景与画风沿用它，构图按这一刻来 ——
+ *   不再说「保持构图不变」（那是改封面的话）：多镜头段的最后一个镜头常常是另一个景别、另一个人。
+ *   绑定句的编号由调用方按 base 占不占 <图片1> 拼好（offset = base ? 1 : 0）。
+ */
+export async function generateFrame(
+  req: string,
+  o: {
+    /** 本段画幅 —— **必填**：漏了画出来是横的，喂给竖屏视频会被静默裁一刀（CLAUDE.md「改了画幅却发现出片还是横的」） */
+    aspect: VideoAspect | undefined;
+    /** 卡片形象图 + 临时参考图，排在 base 之后 */
+    refs?: string[];
+    base?: string;
+  },
+): Promise<string> {
+  const spec = aspectOf(o.aspect);
+  const prompt = o.base
+    ? zhPrompt`<图片1>是这段视频的开头画面。画出同一段戏里的这一刻：${req}。人物、服装、场景与画风沿用<图片1>。${ONE_FRAME}高细节，电影感构图，氛围光，${NO_TEXT}${spec.promptHint}。`
+    : zhPrompt`视频中的一个画面：${req}。${ONE_FRAME}高细节，电影感构图，氛围光，${NO_TEXT}${spec.promptHint}。`;
+  const refs = [...(o.base ? [o.base] : []), ...(o.refs ?? [])];
+  return await genImageAsDataUrl(prompt, { imageRefs: refs.length > 0 ? refs : undefined, size: spec.frameSize });
+}
+
+/**
+ * 跟着做 C · 九宫格分镜：一次画出一组分镜画面（组图，2026-10-05 第三期）。挑参考图、拼提示词在这里，出图走 arkClient.runImageGroup
+ * （打包 = 服务端任务 + 短轮询，dev = 直连方舟流式），画好一张就交一张给 onUpdate。
+ * ★ 参考图：人物卡 + 场景卡走**直通分配**（先每个人一张、场景一张，预算还有余才给每个人补第二张 —— allocateRefs 的分轮规则），
+ *   上限 = 15 − 张数（官方：参考图 + 出图 ≤ 15，data/gridShots.groupRefsCap）。
+ * ★★ 「图几是谁」那一句按**真正发出去的**参考图逐张对（MaterialRefs.owners），不按分配计划拼 —— 取图那一拍个别图读不出来会被跳过、
+ *   编号随之前移，按计划拼就点名到没发出去的编号上（「帧一律当参考图发」那条的坑 ②）。
+ * ★ 写法：九宫格用 labeled（「图1是林夏的脸，图2是林夏的服装和身形」，2026-10-07 付费验证），对话正反打 / 特效同款用 bind
+ *   （「图1、图2 是林夏（…）」，各自验过）；都不用视频那边的 `@图片N` 紧凑式（那是 Seedance 的 A/B，Seedream 没验过）。
+ * ★ 出图模型 = 画帧的默认档（MODELS.image，今天 Seedream 4.0）：单画一格（drawGridPanel）也是它，一组里单画 / 重画的那一格与别的格子同一个模型。
+ * @param o.resumeId 接着等的那一组（App 重开 / 受理那一发没收到回包后接回来的）：直接轮询，不再挑图、不再受理
+ */
+export async function shotGroupRefs(o: {
+  cast: Card[];
+  place: Card | null;
+  /** 这一发要画几张（整组 = 格数，单格重画 = 1）：参考图的上限 = 15 − 它 */
+  panels: number;
+  /**
+   * 调用方排在这批卡图**前面**的参考图有几张（对话正反打画过肩时，双人镜头放在图1）：「图几是谁」从它之后接着编号，
+   * 张数上限也让出这几张。缺省 0。★ 编号与发出去的顺序必须一致：调用方要把那几张放在 refs 的最前面
+   */
+  before?: number;
+  onNote?: (note: string) => void;
+}): Promise<{ refs: string[]; bind: string; labeled: string }> {
+  const cards = [...o.cast, ...(o.place ? [o.place] : [])];
+  const before = Math.max(0, o.before ?? 0);
+  const cap = groupRefsCap(o.panels + before, o.cast.length, o.place ? 1 : 0);
+  const mat = cap > 0 && cards.length ? await prepareMaterialRefs(cards, "image", o.onNote, { cap, strict: false }) : null;
+  // 同一张卡的图在 refs 里是连号的（allocateRefs 最后按卡归拢），按卡收拢成「图1、图2 是谁」；每张是哪一类图（脸 / 全身）跟着记下
+  const byCard = new Map<Card, { nums: number[]; kinds: string[] }>();
+  (mat?.owners ?? []).forEach((c, i) => {
+    const e = byCard.get(c) ?? { nums: [], kinds: [] };
+    e.nums.push(before + i + 1);
+    e.kinds.push(mat?.views[i]?.kind ?? "");
+    byCard.set(c, e);
+  });
+  const refs: GroupRef[] = [...byCard].map(([c, e]) => ({ name: c.name, type: c.type, nums: e.nums, kinds: e.kinds, idLine: idLineOf(c) }));
+  // bind = 对话正反打 / 特效同款用的老写法（各自付费验过，没跟着换）；labeled = 九宫格 2026-10-07 起的写法（标用途、不写外貌）
+  return { refs: mat?.refs ?? [], bind: groupBindLine(refs), labeled: labeledBindLine(refs) };
+}
+
+/** 跟着做 C：一次画出整组（见上面那段 ★）。参考图与「图几是谁」走 shotGroupRefs（单格重画也走它，一处实现） */
+export async function drawShotGroup(o: {
+  shots: readonly GridShot[];
+  lead: string;
+  cast: Card[];
+  place: Card | null;
+  aspect: VideoAspect | undefined;
+  resumeId?: string;
+  onUpdate: (s: ImageGroupState) => void;
+  onStarted?: (id: string, prepaid: number) => void;
+  onNote?: (note: string) => void;
+}): Promise<ImageGroupState> {
+  if (o.resumeId) return runImageGroup(null, { resumeId: o.resumeId, onUpdate: o.onUpdate });
+  const { refs, labeled } = await shotGroupRefs({ cast: o.cast, place: o.place, panels: o.shots.length, onNote: o.onNote });
+  const spec = aspectOf(o.aspect);
+  return runImageGroup(
+    {
+      model: MODELS.image,
+      prompt: groupPrompt({ lead: o.lead, shots: o.shots, bind: labeled, framing: gridFraming(spec.ratio) }),
+      image: refs,
+      size: spec.frameSize,
+      maxImages: o.shots.length,
+    },
+    { onUpdate: o.onUpdate, onStarted: o.onStarted },
+  );
+}
+
+/**
+ * 九宫格单画一格：组图之后单画的空镜 / 特写，以及单格重画（提示词整段由 data/gridShots.panelPrompt 拼好）。
+ * ★ 不走 generateFrame：那层外壳带「上下留出呼吸空间」与「不要分格、拼贴」，2026-10-07 付费验证里的新写法把画幅改成了正面写
+ *   （单格重画 6/6 干净，原写法 3 张里 1 张同一个人画了两次）。出图模型与组图同一个（MODELS.image）。
+ * @param o.refs 参考图，顺序与 panelPrompt 里「图几是什么」的编号一致（空镜那张定画风的图在最前）
+ */
+export async function drawGridPanel(prompt: string, o: { aspect: VideoAspect | undefined; refs?: string[] }): Promise<string> {
+  const spec = aspectOf(o.aspect);
+  return genImageAsDataUrl(prompt, { imageRefs: o.refs?.length ? o.refs : undefined, size: spec.frameSize });
+}
+
+/**
+ * 九宫格画完一格之后让对话模型看一遍（data/gridShots.PANEL_CHECK_SYS：分成几格、几个人、有没有两个一样的人），回原话；
+ * 判对错在调用方按这一格的分镜算（panelIssues）。
+ * ★ 图先缩到 720 宽再发：原图 1440×2560 一张四千多输入 token，缩完 1,500 上下（2026-10-07 付费验证 51 次的实测），数人、认拼图够用。
+ * ★ 一次对话只看一张：服务端对 chat 按调用次数定额收（CHAT_TURN_TOKENS），一次塞八张，方舟那边是八倍的输入、我们只收一次；
+ *   一张一张问也更准，判错只错一格。
+ */
+export async function checkGridPanel(image: string): Promise<string> {
+  const small = image.startsWith("data:") ? (await shrinkDataUrl(image, 720, 0.82)) || image : image;
+  return chatVision(PANEL_CHECK_SYS, PANEL_CHECK_ASK, [small]);
+}
+
+/**
+ * 方舟的图片临时链接 → 本机 dataURL（24 小时后链接就失效；帧在本机一律存 dataURL，出片那一拍才转存）。
+ * ★ 组图的那几张已经按张计过费，取不回来要抛 ArkBadReply（「已计费、结果用不上」那一档，与 genImageAsDataUrl 同一条）。
+ */
+export async function imageUrlToDataUrl(url: string): Promise<string> {
+  if (url.startsWith("data:")) return url;
+  try {
+    return await toDataUrl(url);
+  } catch (e) {
+    throw new ArkBadReply(e instanceof Error ? e.message : String(e));
+  }
+}
+
 /** 单段合成结果：url 缺席时 error 说明原因；firstFrame/lastFrame 带回"真实"帧
  *  （占位帧重画、尾帧续作的真实结尾）供草稿/节点同步 */
 export interface SegmentResult {
@@ -2420,6 +2988,14 @@ export interface SegmentResult {
    *   （那种判断改一次文案就静默失效，而判错的代价是让用户再付一次钱）。
    */
   pendingTaskId?: string;
+  /**
+   * 这一段失败时抛出来的**原样错误对象**（2026-10-07）。
+   * ★★ 为什么必须带着它：上面那个 `error` 是字符串，类型在这里一压就没了 —— 上层分不出「受理之后上游明说失败」
+   *   （ArkTaskFailed：钱扣过、现在会退回）、「没等到回包」（ArkNoReply：可能扣了）、「服务端明说拒了」（ArkHttpError 400/402/403：没扣）。
+   *   钱上那句话只认类型（ai/failCharge），所以 segmentGen.settleSegment 原样抛它，而不是拿 `error` 新造一个裸 Error。
+   * ★ 只在真失败时有；`pendingTaskId` 那种（没接到）同样带着（就是那个 ArkTaskUnknown 本身）。
+   */
+  failure?: unknown;
 }
 
 /**
@@ -2671,6 +3247,12 @@ export interface GenSpec {
   /** 声明的生成模式（segmentGen 铸契约时定，见 types.GenMode）。validateGenSpec 在花钱之前核对它与槽位一致 */
   mode: GenMode;
   plot: string;
+  /**
+   * 这一发的提示词上限（2026-10-26，文字模板 P1）—— **由 segmentGen 定**（promptCapOf，与出片前的预算 promptRoomOf 同一个数），这一层不再自己按档位推一遍。
+   * composeSegments 最后那一刀按 max 截；strict = 超了**整句拒、绝不截**（文字模板段：正文是这个模板的商品本身，validateGenSpec 在花钱之前核）。
+   * **必填**：原来这一层自己拿 promptMaxOf(档位) 截，文字模板段在电影级上放到 1000 字之后，漏传的那一处会按 500 把正文拦腰截掉，零报错。
+   */
+  promptCap: { max: number; strict: boolean };
   firstFrame: string;
   lastFrame: string;
   durationSec: number;
@@ -2686,8 +3268,21 @@ export interface GenSpec {
   refVideoSec?: number;
   /** 人物卡声音样本（台词音色参考）。只在参考生视频段有意义 */
   refAudios?: string[];
-  /** 参考视频的子任务（透传 arkClient）：缺省 edit（白模复刻 / 返修）；"reference" = 素材参考 */
-  refTask?: "edit" | "reference";
+  /**
+   * 参考视频的子任务（透传 arkClient）：缺省 edit（白模复刻）；"revise" = 返修（edit 子任务、出声）；"reference" = 素材参考；
+   * "extend" = 向后延长（产物只有新的一截）。判模式只问 genModeOf
+   */
+  refTask?: "edit" | "revise" | "reference" | "extend";
+  /**
+   * 电影级「样片」第一步（2026-10-07）：槽位照普通出片摆（帧 / 参考图），只是按 480p + draft:true 发、按 economy.draftStepTokens 计价。
+   * 有它 = 契约的 mode 是 "draft"（genModeOf 一处判）。
+   */
+  draft?: boolean;
+  /**
+   * 电影级「样片」第二步：要升成 1080p 的那条样片的任务号。有它 = mode "draftFinal"，**别的槽位一律空着**
+   * （方舟规定提示词 / 图 / 时长 / 画幅都由样片沿用、重传就报错）；durationSec 写样片的时长，只用来报价对账与轮询死线。
+   */
+  draftTaskId?: string;
 }
 
 // 生成模式的人话 GEN_MODE_LABEL 2026-09-16 搬去 ./arkClient（与契约事件 GenEvent 放一起：步骤日志渲染契约行也要读它），这里照旧引用
@@ -2698,17 +3293,36 @@ export interface GenSpec {
  * 顺序就是方舟的优先级：供应商 → 参考视频 → 参考图 → 帧；尾帧只有 VideoTier.flf 的档才真发（composeSegments 同口径）。
  */
 export function genModeOf(sg: Omit<GenSpec, "mode">): GenMode {
-  if (providerOf(sg.videoTier) === "minimax") return "minimax";
-  if (sg.refVideoUrl) return sg.refTask === "reference" ? "reference" : "edit";
+  // 样片两步先认：第二步只带任务号（槽位全空），第一步的槽位照普通出片摆、真正怎么拼由 slotModeOf 说
+  if (sg.draftTaskId) return "draftFinal";
+  if (sg.draft) return "draft";
+  return slotModeOf(sg);
+}
+
+/**
+ * 不看样片那一位、只看槽位：这一发**按什么形状拼请求**（首帧 / 首尾帧 / 参考图 / 参考视频 / 真人档）。
+ * genModeOf 的普通出片就是它；样片第一步（mode "draft"）的请求形状也问它 —— composeSegments 拼请求、validateGenSpec 查互斥都读这一份。
+ */
+export function slotModeOf(sg: Omit<GenSpec, "mode">): GenMode {
+  // ★ 按请求形状（VideoTier.api）认，不按供应商（2026-10-26）：mode "minimax" 就是 V1 那一发（海螺：只收一张首帧）；
+  //   海外 MiniMax H3（出片地区 P2b，V2 接口）也是 MiniMax，却收参考图：它的槽位与方舟那几种同形（文生 / 首帧 / 首尾帧 / 参考图），
+  //   回 null 照下面那几种认 mode；请求按哪套协议拼（V2 的 content[] 与 role）在 composeSegments 按 api 分。
+  //   走 apiCase 不写等号：加一种 api 时这里在 tsc 就红，逼着写它的 mode（等号比较会让它悄悄落进下面方舟那几种）
+  const tier = tierOf(sg.videoTier);
+  const byApi = apiCase<GenMode | null>(tier.api, { ark: null, "minimax-v1": "minimax", "minimax-v2": null });
+  if (byApi) return byApi;
+  if (sg.refVideoUrl) return sg.refTask === "reference" ? "reference" : sg.refTask === "extend" ? "extend" : "edit";
   if (sg.refImages?.length) return "ref-images";
-  if (sg.firstFrame) return sg.lastFrame && tierOf(sg.videoTier).flf ? "flf" : "i2v";
+  if (sg.firstFrame) return sg.lastFrame && tier.flf ? "flf" : "i2v";
+  // ★ 只给了尾帧：收它的协议（MiniMax H3，economy.lastFrameOnlyOk）按首尾帧那一种拼、只带 last_frame；方舟那几档照旧当文生（尾帧不发）
+  if (sg.lastFrame && tier.flf && lastFrameOnlyOk(tier)) return "flf";
   return "t2v";
 }
 
 /**
  * 花钱之前核对契约（composeSegments 每段开头调，在任何请求发出之前）：
  *   ① 声明的 mode 与槽位推出来的一致 —— 报价按 A 算、请求按 B 发，正是本仓头号事故形状；
- *   ② 档位真有这种能力（参考图 / 参考视频的硬白名单）；
+ *   ② 档位真有这种能力（参考图 / 参考视频 / 声音样本的硬白名单）；
  *   ③ 互斥：帧与参考媒体不混发（方舟 400）、参考音频只跟参考类模式（arkClient 当场 throw）、真人档只收首帧；
  *   ④ 提示词非空。
  * 违反任何一条**整句 throw**：这一步一分钱没花，此时停下最便宜。
@@ -2724,16 +3338,52 @@ export function validateGenSpec(sg: GenSpec): void {
       t`生成契约不一致：这一段声明按「${declared}」出片，而槽位里实际是「${actual}」（报价与请求会是两把尺）——没有花钱，请把这句话反馈给我们`,
     );
   }
+  // 样片两步：这一档要真有样片能力（economy.VideoTier.draftOk；方舟只给 2.5 开了 draft）
+  if ((sg.mode === "draft" || sg.mode === "draftFinal") && !tier.draftOk) {
+    const names = tierNamesWhere((x) => x.draftOk);
+    throw new Error(names ? t`「${tierLabel}」档没有样片模式（只有「${names}」有）` : t`「${tierLabel}」档没有样片模式`);
+  }
+  if (sg.mode === "draftFinal") {
+    // 第二步只带样片任务号：方舟规定提示词 / 图 / 声音都由样片沿用，**重传一个就报错**（哪怕值一样）
+    if (sg.firstFrame || sg.lastFrame || sg.refImages?.length || sg.refVideoUrl || sg.refAudios?.length)
+      throw new Error(t`生成契约不一致：样片定稿只带样片本身（提示词、画面、声音都由样片沿用，重传会被方舟拒）`);
+    return;
+  }
   if (!sg.plot.trim()) throw new Error(t`生成契约不完整：提示词是空的`);
-  const refMedia = sg.mode === "ref-images" || sg.mode === "reference" || sg.mode === "edit";
+  // 文字模板段的提示词超了上限：整句拒，不截（segmentGen 在拼的那一拍已经拦过一次，这是花钱之前的最后一道）
+  if (sg.promptCap.strict && sg.plot.length > sg.promptCap.max) {
+    const len = sg.plot.length;
+    const max = sg.promptCap.max;
+    throw new Error(t`生成契约不一致：这一发的提示词有 ${len} 字，超过这一档的上限 ${max} 字（文字模板段不截字）——视频这一发没有发出去，请把这句话反馈给我们`);
+  }
+  /** 请求按什么形状拼（样片第一步的槽位照普通出片摆，互斥规则与普通出片同一套） */
+  const shape = sg.mode === "draft" ? slotModeOf(sg) : sg.mode;
+  if (sg.mode === "draft" && (shape === "edit" || shape === "reference" || shape === "extend" || shape === "minimax"))
+    throw new Error(t`生成契约不一致：样片不收参考视频（方舟只对不带视频输入的出片开了样片）`);
+  const refMedia = shape === "ref-images" || shape === "reference" || shape === "edit" || shape === "extend";
   if (refMedia && (sg.firstFrame || sg.lastFrame)) throw new Error(t`生成契约不一致：参考图 / 参考视频与首尾帧不能混发（方舟三种场景互斥）`);
-  if (sg.mode === "ref-images" && !tier.refImg) throw new Error(t`「${tierLabel}」档协议上不收参考图，不能按参考图生视频出片`);
-  if ((sg.mode === "edit" || sg.mode === "reference") && !tier.refVid) throw new Error(t`「${tierLabel}」档不支持带参考视频出片`);
-  if (sg.mode === "reference" && !sg.refImages?.length) throw new Error(t`生成契约不完整：素材参考模式至少要一张参考图`);
+  if (shape === "ref-images" && !tier.refImg) throw new Error(t`「${tierLabel}」档协议上不收参考图，不能按参考图生视频出片`);
+  // 参考图张数的协议上限（VideoTier.refImagesMax：2.0 系列 9、2.5 是 30、MiniMax H3 5）—— 超了是整发 400（H3 第 6 张起服务端报不了价、扣费之前拒）。
+  // 图位预算在准备卡片图那一步就按它扣（segmentGen.refSlotsOf），这一条正常走不到；它管的是那道预算哪天算错（2026-10-26 出片地区 P2b：H3 只有 5 张的位）
+  const refCount = sg.refImages?.length ?? 0;
+  const refMax = tier.refImagesMax;
+  if (refMax !== undefined && refCount > refMax) throw new Error(t`生成契约不一致：「${tierLabel}」档一段最多带 ${refMax} 张参考图，这一发排了 ${refCount} 张——视频这一发没有发出去，请把这句话反馈给我们`);
+  if ((shape === "edit" || shape === "reference" || shape === "extend") && !tier.refVid) throw new Error(t`「${tierLabel}」档不支持带参考视频出片`);
+  // 2026-10-05 起「能带参考视频」≠「能延长」≠「能跑白模模板」（高清只有第一样）：三件分开核，判据各在档位表的一位上
+  if (shape === "extend" && !tier.extendOk) {
+    // 能延长的档按能力现算（extendOk；目录口径 —— 能走到这一步的人，界面那几道闸已经按套餐说过了）
+    const names = tierNamesWhere((x) => x.extendOk);
+    throw new Error(t`「${tierLabel}」档还不能延长——用「${names}」出的段才能延长`);
+  }
+  if (shape === "edit" && sg.refTask !== "revise" && !tier.blockoutOk) throw new Error(t`「${tierLabel}」档跑不了白模模板（模板对出片模型是硬要求）`);
+  if (shape === "reference" && !sg.refImages?.length) throw new Error(t`生成契约不完整：素材参考模式至少要一张参考图`);
   if (sg.refAudios?.length && !refMedia) throw new Error(t`生成契约不一致：参考音频只能随参考图 / 参考视频发（首尾帧任务混参考媒体是 400）`);
-  if (sg.mode === "minimax" && (sg.refImages?.length || sg.refVideoUrl || sg.refAudios?.length))
+  // 声音样本这一位与参考图 / 参考视频一样在花钱之前核一次（VideoTier.refAudio，2026-10-26 审核补）：出声、收参考图却不收参考音频的档（海外 MiniMax H3）
+  // 不该带着声音样本发出去。今天能走到参考类请求的档（草稿 / 高清 / 电影级）都收声音样本，这一条一次都触发不到 —— 它管的是将来哪一处又拿 audio 代替 refAudio
+  if (sg.refAudios?.length && !tier.refAudio) throw new Error(t`生成契约不一致：「${tierLabel}」档不收声音样本（参考音频）`);
+  if (shape === "minimax" && (sg.refImages?.length || sg.refVideoUrl || sg.refAudios?.length))
     throw new Error(t`生成契约不一致：真人档只收首帧，不收参考图 / 参考视频 / 参考音频`);
-  if (sg.mode === "minimax" && !sg.firstFrame) throw new Error(t`生成契约不完整：真人档需要一张起拍画面`);
+  if (shape === "minimax" && !sg.firstFrame) throw new Error(t`生成契约不完整：真人档需要一张起拍画面`);
 }
 
 /**
@@ -2742,10 +3392,14 @@ export function validateGenSpec(sg: GenSpec): void {
  * 只描述、不判断——判断在 validateGenSpec / segmentGen
  */
 export function describeGenSpec(sg: GenSpec, carried: boolean): Extract<GenEvent, { kind: "contract" }> {
+  const tier = tierOf(sg.videoTier);
   return {
     kind: "contract",
     mode: sg.mode,
-    tier: tierOf(sg.videoTier).id,
+    tier: tier.id,
+    // ★ 真正发出去的模型 id（2026-10-26 出片地区 P2b）：两家同一颗芯片同名（「草稿」= Seedance 2.0 mini 或 MiniMax H3 Lite），
+    //   只记档位的话回看日志分不出这一发交给了谁。怎么写成名字（地区不知道不写、这个地区给不出的那一家不写）在 studio/genLog
+    model: tier.model,
     ratio: aspectOf(sg.aspect).ratio,
     durationSec: sg.durationSec,
     ...(sg.refVideoSec ? { refSec: sg.refVideoSec } : {}),
@@ -2754,6 +3408,86 @@ export function describeGenSpec(sg: GenSpec, carried: boolean): Extract<GenEvent
     carried,
     chars: sg.plot.length,
   };
+}
+
+/**
+ * 上游给的**临时**成片（MiniMax H3 的成片 CDN；判据 arkClient.isArkAssetUrl，方舟 ∪ H3）→ 永久地址：服务端拉下来转存我们的图床
+ * （POST /api/ark/transfer-video，契约「MiniMax H3（V2）出片」→「成片地址与转存」：两家都认、不计费）。出片与取回共用这一份。
+ * ★ 方舟那条路不走这里：arkClient.generateVideo 在轮询那一拍顺手转存（`?transfer=1`），那是方舟的唯一收口；H3 的查询端点不替你转存，所以这里补这一步。
+ * ★ 失败**不挡出片**：退回临时链接、把原因说出来（transferFailed 事件进步骤日志）；flowStore.settleNodeMedia 之后接着盯服务端后台那一趟
+ *   （isArkAssetUrl 认 H3 的主机，mediaUnsettled 因此成立），拿到永久地址就换上。
+ * ★★ 走**受理式 + 有上限的短轮询**（requestArkTransfer `wait:false` + transferStatus），不走阻塞式 transferArkVideo（2026-10-26 P2b 审核）：
+ *   阻塞式要在一个请求里等服务端把成片搬完（客户端 180 秒、服务端预算 165 秒，中间隔着 Cloudflare 125 秒的读超时 —— CLAUDE.md 那格坑，
+ *   剪辑页「老草稿自救」2026-09-07 就是因此换掉的）。成片已经付过钱、拿到手了，composeSegments 却要再卡最多约 2 分钟才交回 genNode：
+ *   这期间 busy 一直亮着、节点也不落地，App 被切走或杀掉，结果就落不到节点上（只剩取回卡兜底）；搬得慢时还会退成一句服务端的中文进步骤日志。
+ *   现在最多等 TRANSFER_WAIT_MS：搬好了就换上；还在搬（pending）就先交临时链接（transferPending），由 settleNodeMedia 接着盯
+ *   （服务端那一趟是后台任务，与这个请求的生死无关，下次问就是现成的）。
+ */
+async function permanentVideoUrl(url: string, onEv: (ev: ArkProgress) => void): Promise<string> {
+  if (!isArkAssetUrl(url)) return url;
+  onEv({ kind: "transfer" });
+  try {
+    let got = await requestArkTransfer(url);
+    const until = Date.now() + TRANSFER_WAIT_MS;
+    while (got.state === "pending" && Date.now() < until) {
+      await new Promise((r) => setTimeout(r, TRANSFER_POLL_MS));
+      const hit = (await transferStatus([url]).catch(() => null))?.[url];
+      // `none` = 服务端没有这条的登记（不是一种进展）：别写回 got（同 CutPage 合并前那一段）
+      if (hit && hit.state !== "none") got = { state: hit.state, ...(hit.url ? { url: hit.url } : {}) };
+    }
+    if (got.state === "done" && got.url) return got.url;
+    // 服务端明说搬失败了：原因用我们自己的话（服务端那句是给运维看的中文，还可能带着另一家的名字）
+    if (got.state === "failed") onEv({ kind: "transferFailed", reason: t`服务器没能把它搬到长期地址` });
+    else onEv({ kind: "transferPending" });
+    return url;
+  } catch (e) {
+    onEv({ kind: "transferFailed", reason: e instanceof Error ? e.message : String(e) });
+    return url;
+  }
+}
+
+/**
+ * permanentVideoUrl 最多等多久、隔多久问一次。20 秒：服务端搬一条几 MB 到几十 MB 的成片通常十几秒（剪辑页合并前那一段的实测口径），
+ * 再长就是在拿已经到手的成片换一个 busy 一直亮着的窗口 —— 没搬完的交给 settleNodeMedia（每 30 秒问一次、最多 12 分钟）。
+ */
+const TRANSFER_WAIT_MS = 20_000;
+const TRANSFER_POLL_MS = 3_000;
+
+/**
+ * 我们图床上的图：MiniMax H3（V2）的请求只收 `https://res.cloudinary.com/<我们的 cloud>/image/upload/…`（服务端白名单：上游拿我们的 key 去拉这个地址，
+ * data: 内联图、别人的网址、方舟的临时链接一律拒）。客户端不知道 cloud 名 —— 按形状认，别人的 cloud 由服务端那一道拒（不扣钱）。
+ * ★ Cloudinary 的**视频**抽帧（`…/video/upload/so_…`，成片预览帧走的那条快路）不是 image/upload：照样要重新传一次。
+ */
+const OWN_IMAGE_RE = /^https:\/\/res\.cloudinary\.com\/[^/]+\/image\/upload\//i;
+
+/**
+ * 一段 H3 出片要带的图 → 我们图床上的地址（`OWN_IMAGE_RE`）。不是的（本机 dataURL、承接来的抽帧地址、卡片形象图的别处地址）逐张传一次图床（不计费）。
+ * ★ 传不上去就整句抛（**视频那一发还没发出去**：出片前补画的帧已经结算过，由 SegmentGenFailed 带着 kept 留在方案上、下一次不重画）——
+ *   带着服务端必拒的地址发出去也是被拒，只是多一趟。
+ * ★ 不是图片地址的（`asset://` 可信素材：那是 Seedance 的协议，H3 三档 assetRef 为假、按理走不到这里）整句拒，别静默丢掉一张（丢了编号就错位）。
+ */
+async function ownImageUrls(srcs: string[], say: (s: string) => void): Promise<string[]> {
+  const out: string[] = [];
+  for (let k = 0; k < srcs.length; k++) {
+    const src = srcs[k];
+    const n = k + 1;
+    const total = srcs.length;
+    if (OWN_IMAGE_RE.test(src)) {
+      out.push(src);
+      continue;
+    }
+    if (!/^(data:image\/|https?:\/\/)/i.test(src)) throw new Error(t`第 ${n} 张参考图不是图片地址（MiniMax 不收方舟的可信素材），视频这一发没有发出去——换一张卡或换一档再出片`);
+    say(t`上传参考图 ${n}/${total}…`);
+    try {
+      // 帧压到 720p 再传（与方舟那条同一个理由：2560 的 dataURL 白白撑大上传；非 dataURL 原样）
+      const shrunk = await shrinkFrameFor720p(src);
+      out.push(await uploadImage(await (await fetch(shrunk)).blob(), `mm-ref-${n}.jpg`));
+    } catch (e) {
+      const why = e instanceof Error ? e.message.slice(0, 60) : String(e);
+      throw new Error(t`第 ${n} 张参考图没能传到图床（${why}），视频这一发没有发出去——过一会儿再点一次生成`);
+    }
+  }
+  return out;
 }
 
 /**
@@ -2792,6 +3526,26 @@ export async function composeSegments(
     carryTail = null;
     // ★ 契约行：这一发到底发了什么（模式 / 档 / 画幅 / 时长 / 参考几张），进步骤日志给人看（2026-09-06）
     onProgress?.(i, segments.length, encodeGenEvent(describeGenSpec(sg, !!prevTail)));
+    /**
+     * 成片到手之后那一步 —— 每条出片支路共用这一份（2026-10-26 加 MiniMax H3 那一支时收成一个，原来三份逐字相同的拷贝）：
+     * 截真实首尾帧（回填节点 / 草稿的卡面，并作为下一段的起拍帧）、量真实时长。截不到不拖垮整段（下一段退回设定衔接），但原因要进步骤日志。
+     */
+    const captureInto = async (url: string): Promise<void> => {
+      try {
+        onProgress?.(i, segments.length, t`捕获本段真实尾帧…`);
+        const cap = await captureVideoHeadTail(url);
+        res.lastFrame = cap.tail;
+        res.poster = cap.head;
+        res.durationSec = cap.durationSec;
+        carryTail = cap.tail;
+      } catch (e2) {
+        // ⚠ 样片定稿的 1080p 成片在方舟直链上是 10 bit 的 H.265：有的手机 WebView 解不了，截帧会失败（服务端转存时转成 H.264，换上永久地址之后补截）
+        console.warn(`[ai] 第 ${i + 1} 段真实尾帧捕获失败（下一段沿用设定帧）:`, e2);
+        onProgress?.(i, segments.length, captureIssueLine(e2));
+      }
+    };
+    /** 这一档的轮询 / 转存事件 → 进度行（结构化事件，句子由 studio/genLog 按界面语言写） */
+    const progOf = (tierId: string) => (ev: ArkProgress) => onProgress?.(i, segments.length, encodeGenEvent({ ...ev, tier: tierId }));
     try {
       // 尾帧续作：本段设定首帧 = 上一段设定尾帧（承接关系）时，改用上一段视频的
       // 真实结尾起拍——设定尾帧只是分镜蓝图，视频（尤其极速档）不一定拍到那儿。
@@ -2805,6 +3559,21 @@ export async function composeSegments(
       validateGenSpec({ ...sg, firstFrame: first, lastFrame: last });
       onProgress?.(i, segments.length, t`任务创建中…`);
       const tier = tierOf(sg.videoTier);
+      // ── 样片第二步（升成 1080p）：请求只带样片任务号（arkClient 拼最小形状），尾帧捕获照走下面同一条兜底 ──
+      if (sg.mode === "draftFinal") {
+        const url3 = await generateVideo("", "", {
+          model: tier.model,
+          draftTaskId: sg.draftTaskId,
+          // 只拿来给轮询死线定尺寸（不进请求体：时长由样片沿用）
+          durationSec: sg.durationSec,
+          onTask: (taskId) => onTask?.(taskId, i),
+          onProgress: progOf(tier.id),
+        });
+        res.url = url3;
+        await captureInto(url3);
+        out.push(res);
+        continue;
+      }
       // ── 真人档（MiniMax）在这里分流 ────────────────────────────
       // 出片调用换供应商，但**尾帧捕获/段间承接/进度**都走下面同一条产线——
       // 分流点选在这里而不是 segmentGen，就是为了这三样不抄第二份（铁律六）。
@@ -2813,40 +3582,90 @@ export async function composeSegments(
       if (sg.mode === "minimax") {
         const url2 = await minimaxVideo({
           model: tier.model,
-          prompt: sg.plot.slice(0, VIDEO_PROMPT_MAX),
+          prompt: sg.plot.slice(0, sg.promptCap.max),
           firstFrame: await shrinkFrameFor720p(first),
-          // 与报价同一把尺：clampDuration 对 flatCost 档吸附到 6/10 整档
+          // 与报价同一把尺：clampDuration 对按发计价的档吸附到 6/10 整档（economy.durationStepsOf）
           durationSec: clampDuration(sg.durationSec, sg.videoTier),
-          onProgress: (ev) => onProgress?.(i, segments.length, encodeGenEvent({ ...ev, tier: tier.id })),
+          onProgress: progOf(tier.id),
           // ★ 受理回调必须给：不给就没有凭据，"没接到结果"那一支等于不存在
           //   （与方舟那条同一条约定，见 minimaxVideo 的 onTask）
           onTask: (taskId) => onTask?.(taskId, i),
         });
         res.url = url2;
-        try {
-          onProgress?.(i, segments.length, t`捕获本段真实尾帧…`);
-          const cap = await captureVideoHeadTail(url2);
-          res.lastFrame = cap.tail;
-          res.poster = cap.head;
-          res.durationSec = cap.durationSec;
-          carryTail = cap.tail;
-        } catch (e2) {
-          // 与方舟路同款兜底：捕获失败不拖垮整段，下一段退回设定衔接 —— 但原因要进步骤日志
-          onProgress?.(i, segments.length, captureIssueLine(e2));
-        }
+        await captureInto(url2);
         out.push(res);
         continue;
       }
-      // 参考媒体类模式：一句话直出，**首尾帧一张都不给**（三种场景互斥）。判据只读契约的 mode（validateGenSpec 刚核对过）
-      const refMode = sg.mode === "ref-images" || sg.mode === "reference" || sg.mode === "edit";
-      const url = await generateVideo(sg.plot.slice(0, VIDEO_PROMPT_MAX), refMode ? "" : await shrinkFrameFor720p(first), {
+      // ── MiniMax H3（V2）在这里分流（2026-10-26 出片地区 P2b；契约「MiniMax H3（V2）出片」）────────────
+      // 槽位与方舟那几种同形（文生 / 首帧 / 首尾帧 / 只给尾帧 / 参考图，slotModeOf 认），请求按 V2 的 content[] 拼：一条文字 + 至多 5 张图，
+      // 每张图带 role（first_frame / last_frame / reference_image）；首尾帧与参考图不混（validateGenSpec 已按 mode 核过）。
+      // 尾帧捕获 / 段间承接 / 进度与另外几条同一条产线（captureInto）。
+      // ★ apiCase 不写等号：加一种 api 时这里在 tsc 就红（等号比较会让新协议悄悄落进下面方舟那一支）
+      if (apiCase(tier.api, { ark: false, "minimax-v1": false, "minimax-v2": true })) {
+        /** 上游的大写分辨率（480P / 768P）：服务端价目表与免费档都按它认，档位表的 V2 行必写（check-video-tiers 钉着） */
+        const resolution = tier.upstreamResolution;
+        if (!resolution) {
+          const tierLabel = tier.label;
+          throw new Error(t`生成契约不完整：「${tierLabel}」档没写发给 MiniMax 的分辨率——视频这一发没有发出去，请把这句话反馈给我们`);
+        }
+        // 每张图是什么角色：按契约的 mode（与 validateGenSpec 核对过的同一个）。V2 没有样片、参考视频、真人档那几种 —— 走到这里的只会是下面四种
+        const plan: { src: string; role: MinimaxV2Role }[] | null =
+          sg.mode === "ref-images"
+            ? (sg.refImages ?? []).map((src) => ({ src, role: "reference_image" as const }))
+            : sg.mode === "i2v"
+              ? [{ src: first, role: "first_frame" as const }]
+              : sg.mode === "flf"
+                ? [
+                    // 只给尾帧（first 为空）也收（economy.lastFrameOnlyOk）：只带 last_frame
+                    ...(first ? [{ src: first, role: "first_frame" as const }] : []),
+                    ...(last ? [{ src: last, role: "last_frame" as const }] : []),
+                  ]
+                : sg.mode === "t2v"
+                  ? []
+                  : null;
+        if (!plan) {
+          const label = GEN_MODE_LABEL[sg.mode];
+          throw new Error(t`生成契约不一致：MiniMax H3 不支持「${label}」这种出片——视频这一发没有发出去，请把这句话反馈给我们`);
+        }
+        const urls = await ownImageUrls(
+          plan.map((p) => p.src),
+          (s) => onProgress?.(i, segments.length, s),
+        );
+        const images = plan.map((p, k) => ({ url: urls[k], role: p.role }));
+        const url4 = await minimaxV2Video({
+          model: tier.model,
+          resolution,
+          // 与报价同一把尺：clampDuration 对按秒计价的档取窗口内的整数（服务端只收整数，不替你取整）
+          durationSec: clampDuration(sg.durationSec, sg.videoTier),
+          // 带首帧 / 尾帧时不写画幅（成片跟着图的比例走，服务端补 adaptive）；参考图与纯文字必须写具体比例（H3-Lite 的参考图不收 adaptive）
+          ratio: images.some((im) => im.role !== "reference_image") ? undefined : aspectOf(sg.aspect).ratio,
+          // 最后一道硬顶与方舟那几档同一个数（GenSpec.promptCap，segmentGen 的 promptCapOf 定；服务端 V2 的上限是 2000，这里更紧）
+          prompt: sg.plot.slice(0, sg.promptCap.max),
+          images,
+          onProgress: progOf(tier.id),
+          // ★ 受理回调必须给（同上两支）：不给就没有凭据，"没接到结果"那一支等于不存在
+          onTask: (taskId) => onTask?.(taskId, i),
+        });
+        // ★ 拿到的是 MiniMax 的临时地址（有时效）：先换成永久地址，再截帧（截帧走 Cloudinary 抽帧那条快路）
+        res.url = await permanentVideoUrl(url4, progOf(tier.id));
+        await captureInto(res.url);
+        out.push(res);
+        continue;
+      }
+      // 参考媒体类模式：一句话直出，**首尾帧一张都不给**（三种场景互斥）。判据只读契约（validateGenSpec 刚核对过）：
+      // 样片第一步的请求形状照槽位来（slotModeOf），其余就是声明的 mode
+      const shape = sg.mode === "draft" ? slotModeOf(sg) : sg.mode;
+      const refMode = shape === "ref-images" || shape === "reference" || shape === "edit" || shape === "extend";
+      // 最后一道硬顶：上限由 segmentGen 定（GenSpec.promptCap，与出片前的预算同一个数）；文字模板段（strict）超了的
+      // validateGenSpec 刚整句拒过，走到这里一定放得下 —— 截只对普通段生效
+      const url = await generateVideo(sg.plot.slice(0, sg.promptCap.max), refMode ? "" : await shrinkFrameFor720p(first), {
         // ★ 时长按档位夹（2.5 不收 3 秒）。与 economy.segTokens 用的是同一个函数 ——
         //   只在这一侧夹的话，界面报 3 秒的价、方舟出 4 秒的片。
         //   （白模段不受影响：refVideoUrl 非空时 arkClient 走 BLOCKOUT_TASK 的 duration:-1，
         //   这里传的值根本不上桌 —— 时长跟模板走，报价侧 r2vTokens 同一个口径。）
         durationSec: clampDuration(sg.durationSec, sg.videoTier),
-        // 极速档（pro-fast）不支持首尾帧任务（实测 400 task_type flf2v）——只给首帧起拍；判据就是契约的 mode
-        lastFrameUrl: sg.mode === "flf" ? await shrinkFrameFor720p(last) : undefined,
+        // 极速档（pro-fast）不支持首尾帧任务（实测 400 task_type flf2v）——只给首帧起拍；判据就是契约的请求形状
+        lastFrameUrl: shape === "flf" ? await shrinkFrameFor720p(last) : undefined,
         refImages: sg.refImages,
         refAudios: sg.refAudios,
         // 白模参考视频：透传而已，判定与拼装都不在这层（见字段注释）
@@ -2854,27 +3673,23 @@ export async function composeSegments(
         refVideoSec: sg.refVideoSec,
         refTask: sg.refTask,
         model: tier.model,
+        // 分辨率跟着档位走（「草稿」= 480p，报价 segTokens 按同一格算）；带参考视频的几条路由 arkClient 钉回 720p；
+        // 样片第一步由 arkClient 钉 480p（draft 只收 480p）
+        resolution: tier.resolution,
+        draft: sg.mode === "draft",
         ratio: aspectOf(sg.aspect).ratio,
         onTask: (taskId) => onTask?.(taskId, i),
-        onProgress: (ev) => onProgress?.(i, segments.length, encodeGenEvent({ ...ev, tier: tier.id })),
+        onProgress: progOf(tier.id),
       });
       // 视频较大（数 MB），存 URL 而非 dataURL——localStorage 放不下 base64 视频；
       // 方舟 URL 24h 有效，超时后播放器自动回退首尾帧渐变
       res.url = url;
       // 捕获真实尾帧：回填节点/草稿（卡面显示真实结尾），并作为下一段的起拍帧
-      try {
-        onProgress?.(i, segments.length, t`捕获本段真实尾帧…`);
-        const cap = await captureVideoHeadTail(url);
-        res.lastFrame = cap.tail;
-        res.poster = cap.head;
-        res.durationSec = cap.durationSec;
-        carryTail = cap.tail;
-      } catch (e2) {
-        console.warn(`[ai] 第 ${i + 1} 段真实尾帧捕获失败（下一段沿用设定帧）:`, e2);
-        onProgress?.(i, segments.length, captureIssueLine(e2));
-      }
+      await captureInto(url);
     } catch (e) {
       res.error = e instanceof Error ? e.message : String(e);
+      // ★ 原样错误对象跟着走（见 SegmentResult.failure 的 ★★）：钱上那句话只认类型
+      res.failure = e;
       // ★ 「没接到结果」与「这一发废了」在这里就分岔（判据是**类型**，不是文案里的关键词）：
       //   前者把任务号带上去，调用方据此留住凭据、亮出取回入口；后者什么都不带，
       //   凭据当场销毁。混成一个 error 字符串的话，两种情况在上层就再也分不开了。
@@ -2898,23 +3713,46 @@ export async function composeSegments(
  *   还没有取消键，等于把刚刚那 25 分钟的等待再来一遍。没出完就如实说"还在出片中，
  *   过几分钟再点一次" —— 凭据还在，点几次都不花钱。
  * ★ 抛什么决定的是**这句话怎么说**（"一会儿再来" vs "多半没了"）：
- *   还在跑 / 网络不通 → `ArkTaskUnknown`；方舟明说 failed / 查无此任务 / 成功却没地址 →
- *   普通 Error。★★ 但**凭据一律不在这里销毁**，调用方也不该因为取回失败就摘掉它 ——
- *   失败恰恰是那条"这一发花过钱"的记录最该留在屏幕上的时候（templates 那边同一条：
- *   `dropPendingJob` 只在成功时调）。真正的销毁只有两处：取回成功，与过期后用户亲手消掉。
+ *   还在跑 / 网络不通 → `ArkTaskUnknown`；方舟明说 failed / cancelled / expired → `ArkTaskFailed`
+ *   （带服务端的退款结论）；查无此任务 → 先问服务端那一笔账（退过钱就同样是 ArkTaskFailed；会退钱的服务端上**没问到**
+ *   是 ArkTaskUnknown —— 不知道退没退，不说死），否则普通 Error；
+ *   成功却没地址 → `ArkBadReply`（已计费）。
+ * ★★ 凭据在这里一律不销毁 —— 留不留由调用方按类型定（flowStore.takeJob）：**退了钱**的失败结案（没有成片可取，
+ *   钱也回来了，留着只会是一张永远关不掉的「取回」卡）；其余失败照旧留在屏幕上（「这一发花过钱」的记录最该被看见）。
  */
 export async function takeVideoTask(
   taskId: string,
-  onProgress?: (status: string) => void,
-  provider?: "ark" | "minimax",
+  onProgress: ((status: string) => void) | undefined,
+  /**
+   * 这一发是哪家、哪一版接口建的（取回凭据上那两位，data/videoJobs.VideoJob 的 provider / api）—— **必填**（2026-10-26 P2b 审核）：
+   * 漏传是零症状的，而走错路的后果是一发好好活着的成片永远取不回（V2 的号去问 V1 / 方舟）。调用方直接把凭据递进来。
+   */
+  route: { provider?: "ark" | "minimax"; api?: "v2" },
 ): Promise<{ url: string; lastFrame?: string; poster?: string; durationSec?: number; width?: number; height?: number }> {
+  const provider = route.provider;
   // ★★ 按家分流（2026-08-31）。**分错家的后果不是"取不到"**：下面那条 404 分支会对着
   //   一发在上游好好活着的真人档成片说「已经花掉的钱无法挽回」—— 一句权威的死刑判决，
   //   而听到它的用户不会来报 bug，他会直接走。
   // ★ 判**有值**（`=== "minimax"`）而不是判否定：老凭据没有 provider 这一位，
   //   它们全是方舟的，缺省必须落回方舟那条路。
   if (provider === "minimax") {
-    const { url } = await takeMinimaxTask(taskId, onProgress);
+    // ★ MiniMax 两版接口两条查询（2026-10-26 P2b 审核）：H3（V2）的号拿去问 V1 的查询，服务端认得出是 H3 的号就回 404 —— 永远取不回。
+    //   判**有值**（=== "v2"）：老凭据没有 api 这一位，它们全是真人档（V1）的
+    // tier-semantics-ok: 这是取回凭据上记下的那一版接口（VideoJob.api 只有 "v2" 一个值），不是档位的 api —— 落凭据那一拍已经按 apiCase 定过
+    const got = route.api === "v2" ? await takeMinimaxV2Task(taskId, onProgress) : await takeMinimaxTask(taskId, onProgress);
+    // ★ H3 的成片地址有时效（MiniMax 的成片 CDN）：先换成永久地址再截帧 —— 与出片那一支同一份（permanentVideoUrl；真人档 V1 的地址它不认、原样返回）。
+    //   转存没成不挡取回：拿着临时链接往下走，flowStore.settleNodeMedia 接着盯服务端后台那一趟
+    // ★ 没成 / 还在搬也要说出来（2026-10-26 P2b 审核：原来只转了「转存中」那一个事件，没成的那一句被整个吞掉 —— 没人告诉人手上是一条有时效的链接）。
+    //   不写供应商名（地区不知道时不写，account.tierShownModel 那条口径）
+    const url = await permanentVideoUrl(got.url, (ev) => {
+      if (ev.kind === "transfer") onProgress?.(t`成片转存中（换成永久地址）`);
+      else if (ev.kind === "transferPending") onProgress?.(t`成片还在转存（服务器后台在搬）——先用临时链接，搬好之后自动换上`);
+      else if (ev.kind === "transferFailed") {
+        const reason = ev.reason;
+        // 「发布时再转存」是服务端契约（发布时段的地址还是上游临时链接的，服务端下载再转存）；settleNodeMedia 见服务端明说失败就不再盯，所以不说「会自动重试」
+        onProgress?.(t`成片转存没成（${reason}）——先用临时链接（有时效），发布时服务器会再转存一次`);
+      }
+    });
     let lastFrame: string | undefined;
     let poster: string | undefined;
     let meta: { durationSec?: number; width?: number; height?: number } | undefined;
@@ -2939,6 +3777,35 @@ export async function takeVideoTask(
     //   永远不会成功的按钮；说成"没了"又可能吓跑一发其实还在的。所以两句话分开说，
     //   而且都不下"绝对"的断语。
     if (e instanceof ArkHttpError && e.status === 404) {
+      // ★ 说「无法挽回」之前先问服务端那一笔账（2026-10-07）：这一发要是失败了，清扫器可能早就替他退过钱 ——
+      //   那时它就是一发「没出成、钱已退」的失败（ArkTaskFailed，调用方据此结案 + 说那句退款的话），不是「钱没了」
+      const charge = await fetchTaskCharge(taskId);
+      if (charge && charge !== "none" && (charge.state === "refunded" || charge.state === "refunding")) {
+        const reason = t`方舟那边已经查不到这一发了`;
+        throw new ArkTaskFailed(t`方舟没出成这一发（${reason}）`, taskId, "failed", "", charge, reason, "ark");
+      }
+      // ★ 另外两种结局也不许说成「无法挽回」（2026-10-07 评审抓到）：skipped = 本来就没扣（管理员免单）；
+      //   lost = 服务端一直问不出上游的结局、交给人工 —— 把任务号给客服还有机会（与过期取回卡那句同一个口径，videoJobs.videoJobNote）
+      if (charge && charge !== "none" && charge.state === "skipped") {
+        throw new Error(t`方舟那边查不到这一发了（任务号查无此物）——多半是产物已经过了 24 小时被清掉，这一段取不回来了。这一发本来就没有扣 token；重新生成是重新下一单。`);
+      }
+      if (charge && charge !== "none" && charge.state === "lost") {
+        throw new Error(
+          t`方舟那边查不到这一发了（任务号查无此物），我们也一直没能向上游确认它的结局，所以没有自动退回——把任务号 ${taskId} 发给客服，由人工核对这笔钱；重新生成是重新下一单、会再花一次钱`,
+        );
+      }
+      // ★ **没问到**那一笔账（null：断网、5xx、429）而这台服务端是会退钱的：不知道 ≠ 没退，不许落进下面那句「钱无法挽回」
+      //   （2.62 发版复核留下的一条，10-08 补）。原来照样说死 —— 一张已经说着「钱退回了」的卡，点「知道了」时恰好这一问没问到，
+      //   卡上就同时摆着「已经退回」与「无法挽回」。抛 ArkTaskUnknown：凭据留着（takeJob 只结案退了钱的），过一会儿再点一次（查询不花钱）。
+      // ★ 只在真有服务端那一层、而它会退方舟的钱时这么判：dev 直连方舟 / 离线构建没有那一笔账可问（fetchTaskCharge 恒为 null），
+      //   老服务端不退 —— 那几种照旧说下面那句，不然一发真没了的任务会一直被说成「过一会儿再来」。能力位还没探到（null）按会退算：
+      //   往「再问一次」那边错，代价只是多点一下
+      if (charge === null && API_ON && !import.meta.env.DEV && serverSupports("failRefund") !== false) {
+        throw new ArkTaskUnknown(
+          t`方舟那边查不到这一发了，这次也没能向服务器问到它退没退钱——过一会儿再点一次（查询不花钱），凭据还在`,
+          taskId,
+        );
+      }
       throw new Error(
         t`方舟那边查不到这一发了（任务号查无此物）——多半是产物已经过了 24 小时被清掉。真是这样的话这一段取不回来了，已经花掉的钱无法挽回；重新生成是重新下一单、会再花一次钱`,
       );
@@ -2951,15 +3818,10 @@ export async function takeVideoTask(
     throw new ArkTaskUnknown(t`这一发的状态暂时查不到（${why}）——联网后再点一次「取回」，凭据还在，也不花钱`, taskId);
   }
   const status = st.status;
-  if (status === "failed" || status === "cancelled") {
-    // 真失败。★ 必须把"钱不退"写进整句里（契约：受理之后才失败不退）——
-    //   不说的话用户只会理解成"再点一次就好了"，而那是再花一次钱
-    const detail = st.error?.message;
-    throw new Error(
-      detail
-        ? t`方舟报这一发没能出片（${status}：${detail}）。任务被受理之后才失败的，费用不退；要这一段的话只能重新生成（重新下一单、再花一次钱）`
-        : t`方舟报这一发没能出片（${status}）。任务被受理之后才失败的，费用不退；要这一段的话只能重新生成（重新下一单、再花一次钱）`,
-    );
+  if (status === "failed" || status === "cancelled" || status === "expired") {
+    // 真失败：抛类型（带服务端在同一个回包里说的退款结论）。钱退没退、「重新生成会再花一次」那半句由调用方按 ai/failCharge 说 ——
+    // ★ 原来这里写死「费用不退」：2026-10-07 起服务端会把受理之后失败的那一发退回，老服务端才不退，只有 failCharge 分得清
+    throw arkTaskFailedOf(taskId, st);
   }
   if (status !== "succeeded") {
     // 排队 / 出片中 / 其它状态各一句整话（原样报方舟的状态词），不拼「还在排队——」那样的半句
@@ -2974,9 +3836,9 @@ export async function takeVideoTask(
   }
   const url = st.content?.video_url;
   if (!url) {
-    // 成功却没有地址：再查一次也是同一个答复，所以话要说死（普通 Error），
-    // 别让用户对着一颗永远不会成功的「取回」反复点
-    throw new Error(t`方舟说这一发成功了，却没有给视频地址——这一段取不回来了（费用已经花过，重新生成是再花一次钱）`);
+    // 成功却没有地址：再查一次也是同一个答复，所以话要说死（不是 ArkTaskUnknown），
+    // 别让用户对着一颗永远不会成功的「取回」反复点。★ 方舟对成功的任务照收钱 —— 2xx 之后才坏的那一档（ArkBadReply）
+    throw new ArkBadReply(t`方舟说这一发成功了，却没有给视频地址——这一段取不回来了（费用已经花过，重新生成是再花一次钱）`);
   }
   let lastFrame: string | undefined;
   let poster: string | undefined;
@@ -3043,10 +3905,19 @@ export async function skillChat(
   return chatBounded(system, user, limits.maxTokens, limits.timeoutMs);
 }
 
-/** 按句号截断，宁可短不要断在半句。找不到句读就直接截并补省略号。 */
-function clipSentences(text: string, max: number): string {
+/**
+ * 按句读截断，宁可短不要断在半句。找不到句读就直接截并补省略号。
+ * · 缺省只认句末（。！？）—— 对话气泡要的是整句话；
+ * · `clause: true` 连分句（；，、）也认，截在分句处就把它换成句号。给**描述**用：文字版形象描述常常是
+ *   一整段逗号串起来的长句，只认句末的话，一截就掉一大半（2026-10-01 真机那段，只认句号会把远山整段丢掉）。
+ */
+function clipSentences(text: string, max: number, opts?: { clause?: boolean }): string {
   if (text.length <= max) return text;
   const cut = text.slice(0, max);
-  const i = Math.max(cut.lastIndexOf("。"), cut.lastIndexOf("！"), cut.lastIndexOf("？"));
-  return i > 20 ? cut.slice(0, i + 1) : cut + "…";
+  const marks = opts?.clause ? "。！？；，、" : "。！？";
+  let i = -1;
+  for (const m of marks) i = Math.max(i, cut.lastIndexOf(m));
+  // 描述有硬上限（TEXT_DESC_MAX），省略号也得算在里面；对话气泡照旧（缺省行为不动）
+  if (i <= 20) return opts?.clause ? cut.slice(0, max - 1) + "…" : cut + "…";
+  return cut.slice(0, i) + ("。！？".includes(cut[i]) ? cut[i] : "。");
 }

@@ -13,11 +13,38 @@ export interface WalletSnapshot {
   plan: number;
   addon: number;
   planId: string;
+  /**
+   * 退款欠额（正数 = 欠多少），>0 时服务端冻结一切消费（403 `WALLET_FROZEN`）。
+   * ★ 老服务端没有这两个字段 ⇒ undefined ⇒ 按「没欠、没冻」处理。
+   * ★★ `frozen` 是**服务端算好下发的**，客户端不要自己按 debt>0 再推一遍：
+   *    这两个判据将来一旦分叉（比如加个宽限期），两边会各说各的。
+   */
+  debt?: number;
+  frozen?: boolean;
+  /**
+   * 这个人**付过钱没有**（2026-10-07）：套餐价 > 0，或者有一张**还作数的**订单（server tokenWallet.hasLivePayment：已付 / 已结算、
+   * 没被退款或拒付收回、不是 Play 测试购买；部分退款还剩没退的份也算 —— 唯一一笔被退了就不再算，见 docs/api-contract.md「钱包」的「付过钱」）。
+   * 免费用户只能用「极速」「草稿」出片，付过钱的全部档位都能用 —— 判据是服务端的 isPaidUser，App 的 account.payingNow 照它镜像（套餐价 > 0 || paid）。
+   * ★ 老服务端没有这一位 ⇒ undefined ⇒ 只看套餐（服务端先发，所以这只是兜底）。
+   */
+  paid?: boolean;
+  /** 免费额度的规则（新人一次 / 每天补多少 / 补到多少为止）—— 服务端的权威值，「我的」页照它说。老服务端没有 ⇒ 用 economy.PLANS 免费版那一行 */
+  free?: FreeQuota;
+}
+
+/** 免费额度的三个数（服务端 config/tokens.js 的 PLANS 免费版那一行） */
+export interface FreeQuota {
+  welcomeTokens: number;
+  dailyTokens: number;
+  dailyCapTokens: number;
 }
 
 interface WalletResp {
   ok: boolean;
   wallet: WalletSnapshot;
+  /** ★ 服务端也可能把这两格放在回包顶层（与 wallet 平级）—— 两处都认，account.refreshRemoteWallet 合一下 */
+  paid?: boolean;
+  free?: FreeQuota;
 }
 
 export function fetchWallet(): Promise<WalletResp> {
@@ -52,6 +79,14 @@ export interface PayOrder {
   expiresInMin: number;
 }
 
+export interface PlayCatalogItem {
+  /** ★ 必须与 Play Console 里的商品 id 逐字相同（服务端 config/play.js 的 ★★） */
+  sku: string;
+  kind: "recharge" | "plan";
+  tokens: number;
+  label: string;
+}
+
 export interface PayConfig {
   /** 已接入的渠道名；空数组 = 现在收不了钱 */
   channels: string[];
@@ -59,6 +94,12 @@ export interface PayConfig {
   /** true = 当前服务端开着演示用假渠道（没有验签，仅供开发/演示） */
   mock: boolean;
   packs: { tokens: number; amountFen: number }[];
+  /**
+   * Google Play 结算。`enabled` = 服务端配齐了包名 + 服务账号（缺一就整条关着）。
+   * ★ 价格**不在这里**：Play 按国家定价，我们只显示 Play 给的 formattedPrice。
+   * ★ 老服务端没有这个字段 ⇒ undefined ⇒ 按「没有 Play」处理。
+   */
+  play?: { enabled: boolean; products: PlayCatalogItem[] };
 }
 
 export function fetchPayConfig(): Promise<PayConfig & { ok: boolean }> {
@@ -94,6 +135,36 @@ export function fetchOrder(orderNo: string): Promise<{ ok: boolean; order: PayOr
  */
 export function mockPayOrder(orderNo: string): Promise<{ ok: boolean; order: PayOrder }> {
   return apiPost<{ ok: boolean; order: PayOrder }>("/api/pay/mock/pay", { orderNo });
+}
+
+// ── Google Play 结算 ──────────────────────────────────────
+// ★ 只有 play 渠道的包会用到这两条。发币在服务端：客户端拿到 purchaseToken 就交上来，
+//   服务端查验（真的付了 / 属于这个账号 / 没退款）→ 发币 → 调 Play 的 consume。
+//   ⚠ 客户端**不要** consume（见 utils/playBilling 的 ★★）。
+
+/**
+ * 这个账号的**混淆 id**，发起 Play 购买时要设进 `obfuscatedAccountId`。
+ * ★★ 没有它，服务端「这笔购买属于谁」那道闸就是空的（它对「没带」只 warn 一句就放行）。
+ *   所以拿不到就**不许发起购买** —— 客户端算不出这个值（它是 HMAC(服务端密钥, userId)）。
+ * ★ 服务端没配 Play 时回 501。
+ */
+export function fetchPlayAccount(): Promise<{ ok: boolean; obfuscatedAccountId: string }> {
+  return apiGet<{ ok: boolean; obfuscatedAccountId: string }>("/api/pay/play/account");
+}
+
+/**
+ * 把 Play 的 purchaseToken 交给服务端兑币。
+ *
+ * ★ **幂等**：同一个 token 重复兑只发一次（服务端唯一索引兜底），所以失败可以放心重试 ——
+ *   而且**必须**重试：consume 在这条链路末尾，而许可测试员的购买 3 分钟不被
+ *   acknowledge 就会被 Google 自动退款（consume 蕴含 acknowledge）。
+ * ★ 状态码分档（服务端 pay.routes.js）：400 参数错、409 已退款 / 不是这个账号、
+ *   429 测试购买超限、501 服务端没配 Play、502 查验或其它上游问题（**这一档才值得重试**）。
+ */
+export function redeemPlayPurchase(
+  purchaseToken: string,
+): Promise<{ ok: boolean; code: string; granted: number; wallet: WalletSnapshot }> {
+  return apiPost<{ ok: boolean; code: string; granted: number; wallet: WalletSnapshot }>("/api/pay/play/redeem", { purchaseToken });
 }
 
 export interface LedgerRow {

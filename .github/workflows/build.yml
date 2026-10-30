@@ -29,8 +29,10 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          # 跟开发机对齐（本地 v24.15.0）。不写死小版本，拿 24.x 最新
-          node-version: "24"
+          # ★ 钉到 .nvmrc 里那个小版本（2026-10-15 教材人格评审，humble-delivery-8）：原来只钉大版本、拿 24.x 最新 ——
+          #   而 build 串里十几道 check-*.mjs 靠的是 Node 把 .ts 的类型剥掉直接 import 跑，小版本一变、剥类型的行为
+          #   可能变，CI 与开发机就不是同一台「机器」。版本只有 .nvmrc 一处（package.json 的 engines 跟着它）。
+          node-version-file: .nvmrc
           cache: npm
 
       # 用 ci 而不是 install：严格按 package-lock.json 装，锁文件与 package.json
@@ -60,3 +62,40 @@ jobs:
       #   阻断的话每个 PR 都红，人会立刻学会无视它——那这道闸门就白写了。
       - name: 这个版本号发布了没（只提醒，不阻断）
         run: node scripts/check-published-version.mjs
+
+  # 原生那一半的编译门禁（2026-10-15 教材人格评审，humble-delivery-3）。
+  # ★ 为什么加：2026-09-01 以来 19 条提交动了 android/**/java，而上面那个 job 只编译 web 一半 —— Java 编译错要到发版那天
+  #   `gradlew assembleSideloadRelease` 才第一次暴露。这个 job 先**不设为 required**（仓库 ruleset 不改）、跑两周看时长：
+  #   gradle 冷启动 5~10 分钟，设成必过会把 `npm run land` 等 CI 的时间从约 90 秒拉到十分钟，是工作流节奏的取舍，要主人定。
+  # ★ 只跑 `npx vite build`（不跑那 20 道 check，上面的 job 已经跑过）+ `cap sync` + 两个渠道的 debug 变体：debug 不要 keystore；
+  #   `build:app` 的出包闸要 .env.local 与受保护模型，CI 上没有、也不该有（见上面那条 ★）。编出来的包不发给任何人。
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          # ★ 21 不是 17：android/gradle.properties 把 org.gradle.java.home 钉在本机的 JDK 21 上（出包机就是它），CI 用同一个大版本，
+          #   编出来的字节码与发版那台机器才是同一回事
+          java-version: "21"
+          cache: gradle
+      - run: npm ci
+      - run: npx vite build
+      - run: npx cap sync android
+      # ★ -Dorg.gradle.java.home 盖掉 gradle.properties 里那条 Windows 路径（第一次跑就栽在这儿：Linux 上那个路径不存在，gradle 当场拒）；
+      #   命令行的 -D 系统属性优先级高于项目 gradle.properties，不用改那份文件
+      # ★ 两个渠道都编（2026-10-19 加 assemblePlayDebug，第九节「留着的」）：原来只编 sideload，src/play/ 下的 Java
+      #   （PlayBillingPlugin 真实现、AppUpdaterPlugin 空壳）与只进 play 的依赖（playImplementation 的 billing 库）在 CI 上
+      #   一次都没编过 —— 而那两份空壳 / 真实现要与 sideload 那一份**同名同方法**（MainActivity 在 main/ 里注册它们），
+      #   改了一边漏了另一边，要到 `npm run aab` 上架那天才炸。play 的 debug 同样不要 keystore（release 才要，build.gradle 的
+      #   任务图守卫只拦 release）；google-services.json 不入仓，build.gradle 末尾那段 try/catch 缺了它就跳过插件，不挡。
+      #   两个变体同一次 gradle 调用：库模块（capacitor-android 等）没有渠道维度、只编一遍，多出来的只是 app 模块 play 那一份
+      #   （本机 10-19 两个一起跑：增量 34 秒），job 的 30 分钟上限够用。
+      - run: chmod +x gradlew && ./gradlew assembleSideloadDebug assemblePlayDebug --no-daemon "-Dorg.gradle.java.home=$JAVA_HOME"
+        working-directory: android

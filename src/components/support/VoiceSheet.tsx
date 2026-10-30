@@ -28,6 +28,7 @@ import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useMemo, useState } from "react";
 import { CloseButton } from "../IconTapButton";
+import { useBackLayer } from "../../hooks/useBackLayer";
 import {
   companionErrorText,
   getTtsVoices,
@@ -124,6 +125,8 @@ export default function VoiceSheet({ name, settings, merged, onClose, onSaved }:
   const expressive = override?.expressive ?? true;
   const pitch = override?.pitch ?? null;
   const saving = busy === "save" || busy === "reset";
+  // 手机返回键先关这一层（hooks/useBackLayer），与 ✕ / 点遮罩同一个 onClose；保存 / 恢复在途时它们都灰着，返回键也只被拦住
+  useBackLayer(true, () => (saving ? false : onClose()), "voice");
   // 标题那一行：现在真正在用的嗓子（合并结果；老服务端没有合并结果就看覆盖层）
   const effective = merged ?? override;
   const effectiveText = !effective
@@ -222,7 +225,7 @@ export default function VoiceSheet({ name, settings, merged, onClose, onSaved }:
         disabled={saving}
         className="w-full accent-brand"
       />
-      <div className="mt-0.5 flex justify-between text-[10px] text-slate-600">
+      <div className="mt-0.5 flex justify-between text-[10px] text-slate-400">
         <span><Trans>0.70× 慢</Trans></span>
         <span>1.00×</span>
         <span><Trans>1.20× 快</Trans></span>
@@ -284,7 +287,7 @@ export default function VoiceSheet({ name, settings, merged, onClose, onSaved }:
                   </button>
                 ))}
               </div>
-              {err && <p className="mt-2 text-[11px] leading-relaxed text-rose-300">{err}</p>}
+              {err && <p className="mt-2 text-[11px] leading-relaxed text-danger-300">{err}</p>}
 
               {/* 语速与语调：挑完音色之后的两个旋钮，紧挨着列表才能"改完点任意音色即刻试听" */}
               {rateSlider}
@@ -292,7 +295,7 @@ export default function VoiceSheet({ name, settings, merged, onClose, onSaved }:
               <div className="mt-3">
                 <div className="mb-1 flex items-center justify-between">
                   <span className="text-xs font-semibold text-slate-400"><Trans>语调指令</Trans></span>
-                  <span className="text-[11px] text-slate-600">
+                  <span className="text-[11px] text-slate-400">
                     {instruct.length}/{INSTRUCT_MAX}
                   </span>
                 </div>
@@ -329,14 +332,14 @@ export default function VoiceSheet({ name, settings, merged, onClose, onSaved }:
               >
                 {rateSlider}
               </VoiceMixer>
-              {err && <p className="mt-2 text-[11px] leading-relaxed text-rose-300">{err}</p>}
+              {err && <p className="mt-2 text-[11px] leading-relaxed text-danger-300">{err}</p>}
             </>
           )}
 
           {tab === "market" && (
             <>
               {published && (
-                <p className="mb-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5 text-xs leading-relaxed text-emerald-200">
+                <p className="mb-2 rounded-lg border border-ok-500/40 bg-ok-500/10 px-2.5 py-1.5 text-xs leading-relaxed text-ok-200">
                   {published.shared ? (
                     <Trans>已发布「{published.name}」到声音市场，并设为你的声音。</Trans>
                   ) : (
@@ -357,7 +360,7 @@ export default function VoiceSheet({ name, settings, merged, onClose, onSaved }:
                 }}
                 onDeleted={onSaved}
               />
-              {err && <p className="mt-2 text-[11px] leading-relaxed text-rose-300">{err}</p>}
+              {err && <p className="mt-2 text-[11px] leading-relaxed text-danger-300">{err}</p>}
             </>
           )}
         </div>

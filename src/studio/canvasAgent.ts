@@ -10,11 +10,12 @@
 // · **降级不封口**：mock 构建 / 余额不足 / 回复解析不出来，都退到本地直白句式解析
 //   （studio/agentGrammar.parseLocal，中英两套句式并联）——能办多少办多少，并说清自己是哪一档（铁律八：不静默）。
 import { AI_REAL, VIDEO_PROMPT_MAX, canvasAgentChat } from "../ai";
-import { canAfford, myCards, spendTokens } from "../data/account";
-import { CHAT_TURN_TOKENS, fmtTokens, proposalsCost } from "../data/economy";
+import { canAfford, myCards, spendTokens, walletFrozen } from "../data/account";
+import { refreshVideoZone } from "../data/videoZone";
+import { CHAT_TURN_TOKENS, fmtTokens } from "../data/economy";
 import { BLOCKOUT_MAX_ROLES, browseTemplates, markSpecOf, myTemplates } from "../data/templates";
 import type { Card, VideoTemplate } from "../types";
-import { chosenOf, clampCursor, nodeCost, nodeDone, planOf, tplOfNode, useFlow, type FlowNode } from "./flowStore";
+import { chosenOf, clampCursor, deriveCostOf, nodeCost, nodeDone, planOf, tplOfNode, useFlow, type FlowNode } from "./flowStore";
 import { i18n, type MessageDescriptor } from "@lingui/core";
 import { msg, t } from "@lingui/core/macro";
 import { matchByName, normName } from "./nameMatch";
@@ -105,7 +106,8 @@ export const AGENT_PHRASES: ReadonlyArray<{ id: PhraseId; label: MessageDescript
   { id: "add", label: msg`＋ 加一段`, hint: msg`在末尾追加` },
   // ★ hint 要说真话（2026-09-10 对着 applyOps 的 remove_segment 核过）：未出片的段直接删、不摆确认卡；
   //   已出片的整句拒，指路去编辑窗底部那颗要点两下的「删除本段」。说的是 AI 指挥档 —— 本地档自己在回话里说它办不了
-  { id: "remove", label: msg`🗑 删掉某段`, hint: msg`未出片的段直接删，已出片的段不代删` },
+  // 2026-10-15 教材人格评审（Krug：同一条流程里同一个词）：上一行注释指路的那颗键叫「删除本段」，芯片原来写「删掉」
+  { id: "remove", label: msg`🗑 删除某段`, hint: msg`未出片的段直接删，已出片的段不代删` },
   { id: "derive", label: msg`🎲 重演方案`, hint: msg`花钱操作，会先摆确认卡` },
   { id: "generate", label: msg`⚡ 生成本段`, hint: msg`花钱操作，会先摆确认卡` },
 ];
@@ -254,7 +256,7 @@ function localSay(r: LocalParse): string {
   const segs = (list: number[]) => [...new Set(list)].map((s) => t`第 ${s} 段`).join(sep);
   const quoted = (list: string[]) => list.map((u) => t`「${u}」`).join(sep);
   const attrSay = r.attrSegs.length
-    ? t`${segs(r.attrSegs)}说的是这一段的设置：点开那一段的编辑窗，时长/画幅/画质在标题行右上角的 ⚙ 里，删段在编辑窗最底下。`
+    ? t`${segs(r.attrSegs)}说的是这一段的设置：点开那一段的编辑窗，时长/画幅/画质（和出片模型来自哪一家）在标题行右上角的 ⚙ 里，删段在编辑窗最底下。`
     : "";
   const paidSay = r.paid.length
     ? t`${segs(r.paid.map((p) => p.seg))}的推演、生成、挂卡本地档不代办（要花钱，或会重写点名句）——在那一段的编辑窗里点。`
@@ -532,16 +534,17 @@ function applyOps(ops: Op[]): { applied: string[]; refused: string[]; proposals:
           refused.push(t`第 ${seg} 段还没写拍摄要求——先说「第 ${seg} 段 拍什么」`);
           break;
         }
-        const prev = o.seg >= 2 ? chosenOf(useFlow.getState().nodes[o.seg - 2]) : null;
-        const carried = !!(node.chain && prev?.lastFrame);
+        // ★ 价签与 deriveProposals 真扣的钱同一处实现 flowStore.deriveCostOf（2026-10-15 教材人格评审：这里原来手抄了一份
+        //   proposalsCost(!!(node.chain && prev?.lastFrame)) —— 逐字相同时只是冗余，deriveCostOf 头上 ★★ 记着 2026-09-03 两个 prev 差出成倍价的事）
+        const cost = deriveCostOf(useFlow.getState().nodes, o.seg - 1);
         proposals.push({
           kind: "derive",
           seg: o.seg,
           display: planOf(node)
             ? t`第 ${seg} 段按要求推演三套方案（会替换现有那三套）`
             : t`第 ${seg} 段按要求推演三套方案`,
-          costLabel: AI_REAL ? fmtTokens(proposalsCost(carried)) : t`演示`,
-          cost: proposalsCost(carried),
+          costLabel: AI_REAL ? fmtTokens(cost) : t`演示`,
+          cost,
           nodeId: node.id,
         });
         break;
@@ -620,7 +623,10 @@ export async function runCanvasAgent(text: string): Promise<AgentOutcome> {
   if (!paid) {
     const local = parseLocal(input);
     const r = applyOps(local.ops);
-    const why = AI_REAL ? t`余额不够 AI 指挥（400/句）。` : "";
+    // 冻结与余额不足分开说（account.frozenNote 的 ★★）：冻结的人往往满额度，说"余额不够"是假话
+    // 单价从 economy 现取（CHAT_TURN_TOKENS）：原来写死 400，与上面 canAfford 那把尺是两份来源
+    const perTurn = fmtTokens(CHAT_TURN_TOKENS);
+    const why = !AI_REAL ? "" : walletFrozen() ? t`账户欠额冻结中，AI 指挥暂停（充值抵扣后恢复）。` : t`余额不够 AI 指挥（${perTurn}/句）。`;
     const out = { say: why + localSay(local), ...r, paid: false };
     rememberOutcome(input, out);
     return out;
@@ -668,6 +674,11 @@ export async function runCanvasAgent(text: string): Promise<AgentOutcome> {
  * 后续进度由本段编辑窗的 GenTrace 与全局出片胶囊接手（它们本来就是干这个的）。
  */
 export async function executeAgentProposal(p: AgentProposal): Promise<{ ok: boolean; note: string }> {
+  // ★★ 出片地区：推演 / 出片先现问一次地区，再走下面的闸（2026-10-26 P1 审核）。下面点完火 700 毫秒探一下状态就报回执，
+  //   而 genNode / deriveProposals 自己那一次现问排在打上 generating 之后 —— 问得慢一点（离上次已过 5 秒、移动网络慢），探到的还是
+  //   generating，就给一发随后被地区拒掉的报了 ✓（回执芯片存在的理由正是防这个）。先问，它们的同步门禁就拿到新地区、在打上 generating 之前整句拒。
+  //   放在最前面：等的这几秒里流水线可能被改过，下面每一道闸都按问完之后的样子判。问不到就沿用上一次的结论（服务端照样拦，视频那一发不扣钱）
+  if (p.kind === "derive" || p.kind === "generate") await refreshVideoZone();
   const st = () => useFlow.getState();
   const seg = p.seg;
   const node = st().nodes[p.seg - 1];
@@ -716,14 +727,14 @@ export async function executeAgentProposal(p: AgentProposal): Promise<{ ok: bool
   }
 
   // ★★ 价签复核：卡摆着的这段时间里，用户完全可能去方案台改了时长/首尾帧/选中的走向，
-  //   而那三样正是计价输入（nodeCost / proposalsCost 读的就是它们）。不复核的话，
+  //   而那三样正是计价输入（nodeCost / deriveCostOf 读的就是它们）。不复核的话，
   //   点下去扣的是新价、屏幕上写的是旧价 —— 报价 ≠ 实扣，且零报错。
-  //   复核用**同一把尺**（不是另写一份算法），对不上就整句拒并请用户重说一句。
+  //   复核与真扣**同一处实现**（deriveCostOf / nodeCost，不是另写一份算法），对不上就整句拒并请用户重说一句。
+  //   2026-10-15 教材人格评审：这段注释原来就写着「同一把尺」，代码却又抄了一遍 proposalsCost(!!(node.chain && prev?.lastFrame))。
   {
-    const prev = p.seg >= 2 ? chosenOf(useFlow.getState().nodes[p.seg - 2]) : null;
     const now =
       p.kind === "derive"
-        ? proposalsCost(!!(node.chain && prev?.lastFrame))
+        ? deriveCostOf(useFlow.getState().nodes, p.seg - 1)
         : p.kind === "generate"
           ? nodeCost(useFlow.getState().nodes, p.seg - 1, useFlow.getState().mode)
           : 0;

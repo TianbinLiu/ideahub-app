@@ -7,14 +7,19 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useRef, useState } from "react";
 import Spinner from "../Spinner";
+import Warn from "../Warn";
+import UpgradeLink from "../UpgradeLink";
 import { fileToFrameDataUrl } from "../../utils/image";
+import type { EmptyFrameFate } from "../../studio/segmentGen";
 
 export default function CustomFrameSlots({
   first,
   last,
   aspectCssValue,
   canEdit,
-  firstEmptyNote,
+  fates,
+  drawNote,
+  textOnlyNote,
   onFrame,
   onFuse,
   onError,
@@ -24,8 +29,21 @@ export default function CustomFrameSlots({
   /** CSS aspect-ratio 值（types.aspectCss 的产物）——帧格按本段画幅撑形状 */
   aspectCssValue: string;
   canEdit: boolean;
-  /** 首帧空着时那句说明（承接/AI 补画由宿主按 index/chain 定，这里不判） */
-  firstEmptyNote: string;
+  /**
+   * 两格空着时出片会怎样（宿主问 flowStore.nodeEmptyFrames —— 补不补画、是不是直出与出片、报价同源，这里不判）。
+   * ★ 2026-10-04 之前首帧那句由宿主手写、尾帧那句写死「空 = AI 按提示词补画（计费）」；「自定义」段在收参考图的两档上
+   *   不再补画之后，那两句就成了假话。
+   */
+  fates: EmptyFrameFate;
+  /** 「会补画」那句的另一种说法（简约页的提示词框在上面，说「按上面那句话」）。缺省 =「空 = AI 按提示词补画（计费）」 */
+  drawNote?: string;
+  /**
+   * 这个人在这一段的档上**只能纯文字出片**时那一句（宿主问 account.tierTextOnly，句子是 account.textOnlyFramesLine；null = 能带帧）。
+   * 非空时不让再放帧（传图、融图都关掉 —— 融图是一张图的钱），已经放上的照样能「清掉」，下面说清为什么、给「去升级」。
+   * ★ 必填（2026-10-26 出片地区 P2b 审核）：漏传是零症状的 —— 免费版在 MiniMax H3 上放了帧，视频那一发服务端回 403 PLAN_REQUIRED + freeTextOnly，
+   *   融图的钱那时已经花了。
+   */
+  textOnlyNote: string | null;
   /** 写帧（传 "" = 清掉）。宿主接 flowStore.setFrame */
   onFrame: (which: "first" | "last", dataUrl: string) => void;
   /** 打开融图（宿主自己挂 FuseFrameSheet） */
@@ -38,12 +56,31 @@ export default function CustomFrameSlots({
   const pickRef = useRef<"first" | "last">("first");
   /** 哪一格正在读图（解码 + 压制那一两秒要让人看见） */
   const [reading, setReading] = useState<"first" | "last" | null>(null);
+  /** 能不能往格子里**放**帧（清掉不受它管） */
+  const canAdd = canEdit && !textOnlyNote;
   return (
     <>
       <div className="flex gap-2">
         {(["first", "last"] as const).map((which) => {
           const url = which === "first" ? first : last;
-          const emptyNote = which === "first" ? firstEmptyNote : t`空 = AI 按提示词补画（计费）`;
+          const draw = drawNote ?? t`空 = AI 按提示词补画（计费）`;
+          const emptyNote = textOnlyNote
+            ? t`带不上`
+            : which === "first"
+              ? {
+                  carry: t`空 = 承接上一段真实尾帧`,
+                  draw,
+                  cards: t`空 = 不画，卡片形象图直接给视频模型`,
+                  // 只发临时参考图（或挂的卡没有形象图）：别说「卡片形象图」，真发出去的只有参考图（segmentGen.emptyFrameFates 按 RefPlan.cardImages 分）
+                  refs: t`空 = 不画，参考图直接给视频模型`,
+                  photo: t`空 = 用真人卡的照片起拍`,
+                  none: t`空 = 不带开头帧`,
+                }[fates.first]
+              : {
+                  draw,
+                  multiShot: t`空 = 分了镜头，不用结束画面`,
+                  none: t`空 = 不画，视频按提示词往下拍`,
+                }[fates.last];
           return (
             <div key={which} className="flex-1 rounded-lg border border-slate-700/70 bg-panel p-2">
               <div className="mb-1 flex items-center justify-between">
@@ -59,7 +96,7 @@ export default function CustomFrameSlots({
                   pickRef.current = which;
                   fileRef.current?.click();
                 }}
-                disabled={!canEdit || reading !== null}
+                disabled={!canAdd || reading !== null}
                 className="relative w-full overflow-hidden rounded-md border border-dashed border-slate-600 bg-ink/60 disabled:opacity-40"
                 style={{ aspectRatio: aspectCssValue }}
               >
@@ -79,7 +116,7 @@ export default function CustomFrameSlots({
               </button>
               <button
                 onClick={() => onFuse(which)}
-                disabled={!canEdit}
+                disabled={!canAdd}
                 className="mt-1 w-full rounded-full border border-slate-600 py-1 text-[10px] text-slate-300 disabled:opacity-40"
               >
                 <Trans>🎨 融图合成这一帧</Trans>
@@ -88,6 +125,13 @@ export default function CustomFrameSlots({
           );
         })}
       </div>
+      {textOnlyNote && (
+        <Warn compact className="mt-1">
+          {textOnlyNote}
+          {"　"}
+          <UpgradeLink />
+        </Warn>
+      )}
       <input
         ref={fileRef}
         type="file"

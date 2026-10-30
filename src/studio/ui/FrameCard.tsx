@@ -56,8 +56,14 @@ export function CardFace({
 }) {
   const { t } = useLingui();
   const both = !!first && !!last;
+  // ★ 定位由调用方给就用调用方的（FrameCard 传 `absolute inset-0` 铺满卡框），没给才用 relative 当两张图的定位上下文。
+  //   2026-10-05 之前两个写在同一串里：Tailwind 生成的 .relative 排在 .absolute 后面、总是它赢，于是这个盒子成了
+  //   relative + 0 高（里面只有绝对定位的图）——方案台「选定那一套」、铸段窗那一格、点开的放大态，帧都画不出来，零报错
+  //   （界面走查时量到 img 高 0 才发现；按 08-09 引入时的写法推，从那天起就是这样）。PlanBoard 里另一处用法给的是
+  //   w-full + aspect-ratio、不带定位，不受影响。
+  const positioned = /\b(absolute|fixed|sticky)\b/.test(className);
   return (
-    <div className={`relative overflow-hidden ${className}`} style={style}>
+    <div className={`${positioned ? "" : "relative "}overflow-hidden ${className}`} style={style}>
       {first && (
         <img
           src={first}
@@ -100,6 +106,7 @@ export default function FrameCard({
   framed,
   framedTitle,
   emptyNote,
+  emptyHint,
 }: {
   firstFrame: string | null;
   lastFrame: string | null;
@@ -125,6 +132,10 @@ export default function FrameCard({
   /** 两帧都没有时那句话。缺省按「还没推演」说；方案台上推演过、只是帧没画出来的那一套传「没画出来」——
    *  否则一张推演过的方案卡角上写着「待推演」，与旁边那条提示自相矛盾 */
   emptyNote?: string;
+  /** 放大之后两帧都没有时那一整句（缺省 =「{emptyNote}——出片前会先补画要用到的帧」）。
+   *  ★ 参考图直出段要自己给（2.62 发版评审抓到）：缺省那句接在「不画帧」后面就成了「不画帧——出片前会先补画要用到的帧」，
+   *    一句话里自相矛盾，还暗示有一笔不存在的图钱。 */
+  emptyHint?: string;
 }) {
   const [zoom, setZoom] = useState(false);
   const { t } = useLingui();
@@ -221,7 +232,7 @@ export default function FrameCard({
                 />
               ) : (
                 <div className="flex h-full w-full items-center justify-center text-xs text-slate-500">
-                  {emptyNote ? t`${emptyNote}——出片前会先补画要用到的帧` : t`还没有画面——AI 会在推演时自拟首尾帧`}
+                  {emptyHint ?? (emptyNote ? t`${emptyNote}——出片前会先补画要用到的帧` : t`还没有画面——AI 会在推演时自拟首尾帧`)}
                 </div>
               )}
               <span className="absolute left-2 top-2 rounded bg-black/65 px-2 py-0.5 text-[11px] text-cyan-200">

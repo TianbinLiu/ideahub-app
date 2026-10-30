@@ -12,8 +12,9 @@
 // ★ 删除在途时背景点击与「先不删」一并禁掉：这时候关掉弹层，那句还没到的失败原因
 //   就没有落点了。
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { createPortal } from "react-dom";
+import { useDialogShell } from "./Sheet";
 
 export default function DeleteConfirmShell({
   title,
@@ -34,17 +35,28 @@ export default function DeleteConfirmShell({
   const { t } = useLingui();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // 对话框语义与焦点（2026-10-15 教材人格评审，规矩见 useDialogShell）：Escape 与背景点击同一道闸 —— 删除在途时都不许关，
+  // 那句还没到的失败原因得有落点（文件头 ★）；标题当名字、children 里的事实当描述，开窗那一拍读屏整句念出来
+  const titleId = useId();
+  const descId = useId();
+  const { panelProps } = useDialogShell(busy ? undefined : onCancel);
 
   return createPortal(
     <div
       className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-6"
       onClick={busy ? undefined : onCancel}
     >
-      <div className="w-full max-w-xs rounded-2xl border border-slate-700 bg-ink p-4" onClick={(e) => e.stopPropagation()}>
-        <h3 className="text-sm font-bold text-slate-100">{title}</h3>
-        <div className="mt-2 space-y-1.5 text-[11px] leading-relaxed text-slate-400">{children}</div>
+      <div
+        {...panelProps}
+        aria-labelledby={titleId}
+        aria-describedby={descId}
+        className="w-full max-w-xs rounded-2xl border border-slate-700 bg-ink p-4 outline-none"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 id={titleId} className="text-sm font-bold text-slate-100">{title}</h3>
+        <div id={descId} className="mt-2 space-y-1.5 text-[11px] leading-relaxed text-slate-400">{children}</div>
         {err && (
-          <p className="mt-3 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-200">
+          <p className="mt-3 rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-[11px] leading-relaxed text-danger-200">
             {err}
           </p>
         )}
@@ -67,7 +79,7 @@ export default function DeleteConfirmShell({
                 .finally(() => setBusy(false));
             }}
             disabled={busy}
-            className="flex-1 rounded-xl bg-rose-500/90 py-2.5 text-xs font-bold text-white disabled:opacity-40"
+            className="flex-1 rounded-xl bg-danger-500/90 py-2.5 text-xs font-bold text-white disabled:opacity-40"
           >
             {busy ? <Trans>删除中…</Trans> : err ? <Trans>再试一次</Trans> : danger}
           </button>

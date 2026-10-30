@@ -1,6 +1,32 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import { lingui } from "@lingui/vite-plugin";
+import fs from "node:fs";
+import path from "node:path";
+
+/**
+ * 这一包的版本「<versionName>+<versionCode>」（如 2.63+75）—— 请求头 X-App-Version 的**兜底值**（src/api/appVersion.ts）。
+ *
+ * ★ 在手机上，头上报的是**装着的那一包**自己的版本（原生 App.getInfo，开机时问，见 src/api/appVersion 的 ★★）；
+ *   这里烤进前端包的这个数只在问不到原生时用：浏览器里（npm run dev）、原生没回话 / 回得太慢的那几发。
+ *   ⚠ 别把它当成「装着的那一包」：它是 `vite build` 那一刻 build.gradle **defaultConfig** 的值 ——
+ *   debug 包的 versionNameSuffix（"-debug"）不在里面（这时候还不知道 gradle 打哪个构建类型）；先出前端包、后涨 build.gradle
+ *   再直接跑 gradlew 的话它还是旧号。发版脚本（scripts/release.mjs 第 2 步）只比了 APK 与 build.gradle，**没有**核对它
+ *   （2026-10-10 评审改：这里原来说「发版脚本比对过，所以头上的就是装着的那一包」，那一道其实不看前端包）。
+ *   package.json 的 version 一直是 0.0.1，不是真版本号，别拿它。
+ * ★ 读不出来就**当场构建失败**，不退成一个空串 / 0：浏览器里没有原生可问，那时它就是唯一的值。
+ *   这个头服务端只记日志、不做判断（docs/api-contract.md「请求头 X-App-Version」），报错版本的后果是日志认错版本 ——
+ *   而那份日志正是用来定「方舟下线了的老型号什么时候能从接班表里删」的。
+ */
+function appVersionFromGradle(): string {
+  // 与 loadEnv 同一个根（npm 脚本都在仓库根目录跑）
+  const file = path.resolve(process.cwd(), "android/app/build.gradle");
+  const g = fs.readFileSync(file, "utf8");
+  const code = /versionCode\s+(\d+)/.exec(g)?.[1];
+  const name = /versionName\s+"([^"]+)"/.exec(g)?.[1];
+  if (!code || !name) throw new Error(`读不出 ${file} 里的 versionCode / versionName（X-App-Version 的唯一出处）`);
+  return `${name}+${code}`;
+}
 
 // 火山方舟代理：API Key 只存在于 .env.local 的 ARK_API_KEY（无 VITE_ 前缀=永不进客户端包），
 // 由 dev 服务器在转发时注入 Authorization——浏览器端与仓库都接触不到 Key。
@@ -216,9 +242,12 @@ const ttsPlugin = (apiKey: string) => ({
 // 各指令的由来：
 //   - script-src 'wasm-unsafe-eval'：MeshoptDecoder / ammojs 要实例化 WebAssembly；不含 'unsafe-eval'，内联与外域脚本一律禁止（XSS 主防线）。
 //   - style-src 'unsafe-inline'：React/r3f 大量 style 属性 + Tailwind 注入，样式内联不可避免。
-//   - img/media/connect-src 收窄到 https:（+data:/blob:）：AI 产物在 *.volces.com / *.volccdn.com，
-//     服务器域名按部署可变，故先禁明文 http 与任意 scheme；域名固定后可进一步收窄成白名单。
-//   - frame-ancestors/X-Frame-Options 无法用 <meta> 表达，Web 部署时由服务器响应头补（见 docs/security-checklist.md）。
+//   - img/media/connect-src 今天仍放行任意 https:（+data:/blob:）。收窄成白名单是 2026-10-15 教材人格评审拍板要做的
+//     （owasp-security-3，排在 2.63 之后、单独一个 PR）：先只收 connect-src，域名表以服务端 videoAsset.service 为准（Cloudinary、
+//     方舟临时链接 *.volces.com / *.volccdn.com、MiniMax、三家登录头像 CDN、GitHub 与镜像那两个更新源），装机把出片 / 直传 /
+//     市场换装 / 真人档各走一遍再合 —— 漏一个域名的症状是图片 / 视频静默不出，所以不搭发版一起上。
+//   - frame-ancestors/X-Frame-Options 无法用 <meta> 表达，Web 部署时由服务器响应头（nginx）补。
+//     ⚠ 原来这里引的 docs/security-checklist.md 从来没存在过（2026-10-15 核实），别再去找。
 const CSP = [
   "default-src 'self'",
   "base-uri 'self'",
@@ -243,6 +272,10 @@ const cspFor = (mode: string) =>
         // 市场 Live2D 模型的贴图是 <img> 载入的（pixi Texture.from），走 img-src：本机 server 的 /uploads 也要放行，
         // 否则真机上换装只会看到 "Texture loading error" 然后回落官方形象（2026-09-04 真机实测）
         .replace("img-src 'self' data: blob: https:", "img-src 'self' data: blob: https: http://localhost:* http://127.0.0.1:*")
+        // 剪辑页装机验合并（2026-09-30）：测试片段放在电脑上、经 adb reverse 当成 http://localhost:<端口> 给手机 ——
+        // 原生合成器拉它没问题（debug 变体的网络安全配置给 localhost 放行了明文），可预览用的 <video> 走的是 media-src，
+        // 不放行的话片段在剪辑页里一段都播不出来（分割 / 裁剪读的正是播放头），合并前的那几步就没法验
+        .replace("media-src 'self' data: blob: https:", "media-src 'self' data: blob: https: http://localhost:* http://127.0.0.1:*")
     : CSP;
 
 const cspPlugin = (mode: string) => ({
@@ -295,6 +328,8 @@ export default defineConfig(({ mode }) => {
       __AI_REAL__: JSON.stringify(arkKey.length > 0),
       // 同理：客户端只知道"有没有云端嗓子"，不知道凭据本身
       __TTS_REAL__: JSON.stringify(ttsKey.length > 0),
+      // 这一包的版本（X-App-Version 头），出处只有 build.gradle（见 appVersionFromGradle 的 ★）
+      __APP_VERSION__: JSON.stringify(appVersionFromGradle()),
     },
     build: {
       // 显式关闭 sourcemap：生产包不携带源码映射（默认虽同为 false，此处固化意图防误开）
@@ -304,7 +339,9 @@ export default defineConfig(({ mode }) => {
           // 3D 引擎与 React 各自成块：改业务代码不会让用户重新下载 3MB 的 three/ammo，
           // 首页（非 3D 页）也不用等 3D 块下完
           manualChunks(id: string) {
-            if (/node_modules[\\/](three|@pixiv|ammojs-typed|@react-three)[\\/]/.test(id)) return "vendor-3d";
+            // ★ ammojs-typed 不在这张表里（mcconnell-performance-1，2026-10-15 拍板）：全仓只有 studio/scene/rigidBones 动态 import 它，
+            //   不点名就由 Rollup 自己切成独立 chunk、第一次进 3D 工坊才拉；原来写进 vendor-3d 等于让每次冷启动都解析这份 wasm 胶水。
+            if (/node_modules[\\/](three|@pixiv|@react-three)[\\/]/.test(id)) return "vendor-3d";
             if (/node_modules[\\/](react|react-dom|react-router|react-router-dom|scheduler|zustand)[\\/]/.test(id)) return "vendor-react";
           },
         },

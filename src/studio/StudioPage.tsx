@@ -1,9 +1,10 @@
 // 卡片工坊页（竖屏优先）：3D 画布 + 投影窗 + NPC 底部抽屉 + 提示条
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import { Canvas } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useNavigate } from "react-router";
 import { Trans, useLingui } from "@lingui/react/macro";
+import ErrorBoundary from "../components/ErrorBoundary";
 import TableScene from "./scene/TableScene";
 import { AI_REAL } from "../ai";
 import { myCards } from "../data/account";
@@ -19,6 +20,7 @@ import { cancelPendingStop, stopSpeakingSoon } from "./speech";
 import { useStudioBack } from "./useStudioBack";
 import { useCastReturn } from "../hooks/useCastReturn";
 import { useFlowActions } from "../hooks/useFlowActions";
+import { showToast } from "../data/toast";
 // 工作流画布现在是工坊里的一层全屏浮层（2026-08-30 合并：创作入口不再有「工作流模式」）
 import FlowCanvas from "../components/flow/FlowCanvas";
 import { castEditorState } from "../pages/FlowPage";
@@ -68,15 +70,15 @@ function StudioLoader() {
   if (phase === "gone") return null;
   return (
     <div
-      className={`absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#05070f] transition-opacity duration-500 ${
+      className={`absolute inset-0 z-50 flex flex-col items-center justify-center bg-ink transition-opacity duration-500 ${
         phase === "fading" ? "pointer-events-none opacity-0" : "opacity-100"
       }`}
     >
       {/* 法阵旋转环 */}
       <div className="relative mb-6 h-20 w-20">
         <div className="absolute inset-0 animate-spin rounded-full border-2 border-transparent border-t-cyan-300/80 border-r-cyan-300/30" style={{ animationDuration: "1.6s" }} />
-        <div className="absolute inset-2 animate-spin rounded-full border border-transparent border-b-amber-300/70" style={{ animationDuration: "2.4s", animationDirection: "reverse" }} />
-        <div className="absolute inset-0 flex items-center justify-center text-2xl">🎴</div>
+        <div className="absolute inset-2 animate-spin rounded-full border border-transparent border-b-warn-300/70" style={{ animationDuration: "2.4s", animationDirection: "reverse" }} />
+        <div className="absolute inset-0 flex items-center justify-center text-brand"><Icon name="workshop" size={28} /></div>
       </div>
       <div className="mb-3 text-sm font-semibold tracking-widest text-slate-200"><Trans>正在点亮魔法书房…</Trans></div>
       <div className="h-1 w-40 overflow-hidden rounded-full bg-slate-700/60">
@@ -84,6 +86,31 @@ function StudioLoader() {
       </div>
     </div>
   );
+}
+
+/**
+ * 画布浮层盖着时 3D 桌面停帧（Canvas 的 frameloop 开关，见下面 Canvas 处的 ★），这个组件负责把场景时钟**暂停**而不是归零。
+ * ★★ 为什么要它：r3f 9.6.1 的 setFrameloop 每次切换都 clock.stop() + elapsedTime = 0 再 start()
+ *   （node_modules/@react-three/fiber/dist/events-*.esm.js:1087-1100，frameloop 从 prop 变过去就走这里）。场景里有按**绝对**
+ *   elapsedTime 记起点的活：TableScene.FlightCard 的 start.current（炼出的卡飞入卡组）与 cameraOrbit.clampRadiusByScene 的
+ *   collidersAt（1 秒一次的碰撞体重采）—— 时钟归零后前者要等 elapsedTime 重新爬到原来的值才飞（卡在桌边不见几分钟，
+ *   landFlight 也跟着晚）、后者在那之前一直拿旧碰撞体，两件都零报错。其余读 elapsedTime 的都是 sin(t) 呼吸 / 自转，跳一拍也无妨。
+ *   所以每帧记下 elapsedTime，恢复那一拍写回去：对场景而言浮层开着的那段时间不存在（暂停语义），飞卡接着飞、呼吸不跳。
+ * ★ useLayoutEffect 而不是 useEffect：要赶在恢复后的第一帧之前写回（r3f 在 set({ frameloop }) 的 store 订阅里就排了一帧 rAF）。
+ *   写回之后 THREE.Clock.getDelta 从这个值往上累加（它只 += diff），所以后面的 delta 仍是真实帧长，弹簧骨不会吃到一个大步长。
+ * ★ DEV 的 __r3fCapture（TableScene.CaptureHook）也切 never/always，这里一并接住，离屏捕帧照旧。
+ */
+function SceneClockKeeper() {
+  const clock = useThree((s) => s.clock);
+  const frameloop = useThree((s) => s.frameloop);
+  const last = useRef(0);
+  useFrame(({ clock: c }) => {
+    last.current = c.elapsedTime;
+  });
+  useLayoutEffect(() => {
+    if (frameloop !== "never") clock.elapsedTime = last.current;
+  }, [frameloop, clock]);
+  return null;
 }
 
 function useHint(): string {
@@ -106,7 +133,7 @@ function useHint(): string {
   //   起就硬写成 `async () => []`；分享出去的卡落在**服务端广场**（browseSharedCards），
   //   这张桌子根本不去取它 —— 照着做的人会分享一张、回来发现还是空的，然后怀疑分享没成功。
   //   把桌面市场接到广场是另一条工单；在那之前，这句话只说**真的能拿到卡**的那条路。
-  if (marketEmpty) return t`这张桌子上还没有卡——去「创意工坊」的卡片广场装几张，或用「从视频提取」现炼`;
+  if (marketEmpty) return t`这张桌子上还没有卡——去「创意工坊」的市场装几张，或在「我的仓库」用「从视频提取」现炼`;
   if (marketOpen) return t`点桌上的市场卡放大查看，喜欢就收进卡组`;
   if (spreadOpen) return t`拖卡片到虚线卡位铸段 · 单点看详情`;
   if (nodes.length === 0 && deckLen === 0) return t`先把素材交给铸卡师炼卡，或让 TA 摊开市场`;
@@ -242,16 +269,35 @@ export default function StudioPage() {
   // 存草稿走 useFlowActions（本页已经在用它给画布浮层供状态）——此前这里还自持一份，
   // 同一颗按钮在工坊顶栏与画布顶栏各走各的实现（铁律六）
   const hasWork = flowLen > 0; // 单一真相：桌面有没有活只看流水线
+  /**
+   * 画布浮层**真的盖着**没有：与下面挂 FlowCanvas 的判据是同一个值 —— canvasOpen 为真而流水线空着时浮层并不会挂上来，
+   * 桌面还看得见，那时停帧就是让人对着一张定格的桌子（2026-10-15 教材人格评审）。
+   */
+  const canvasCovered = canvasOpen && flowLen > 0;
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-ink">
-      <Canvas
-        dpr={[1, 2]}
-        gl={{ preserveDrawingBuffer: true }}
-        camera={{ fov: 50, position: DEFAULT_CAM.pos, near: 0.1, far: 80 }}
-      >
-        <TableScene />
-      </Canvas>
+      {/* ★ 渲染边界只包 Canvas 这一层（2026-10-15 教材人格评审，Nygard「崩溃边界」那条）：r3f 会把子树的渲染期抛错重抛到这里，
+          受保护模型解不开 / hook 排在早退之后 / chosenOf(n).plot 空指针都接得住（2.51–2.55 那种「一进工坊整页白屏」就落在这一层）；
+          useFrame 里抛的不经 React 树、接不到 —— 那一类仍只靠 camOk 式的先校验再用（CLAUDE.md「渲染循环里别信任外部状态的形状」）。
+          full：这一屏整个就是这块画布，fallback 居中摆、多给一颗回首页；顶栏是 absolute 的兄弟节点，照旧能按返回。 */}
+      <ErrorBoundary label={t`3D 桌面`} full>
+        <Canvas
+          dpr={[1, 2]}
+          /* ★ preserveDrawingBuffer 只在 DEV 开（2026-10-15 教材人格评审）：正式包里没有谁读这块画布的像素 —— 全仓 gl.domElement.toDataURL
+             只有 DEV 的 __r3fCapture（TableScene :1686 `import.meta.env.DEV && <CaptureHook/>`），导演台截图用的是它自己的 Canvas，
+             挂卡合成预览（flowStore.makeCastPreview）拼的是图床抽帧不是这块画布。开着就是让浏览器每帧多做一次整屏拷贝。 */
+          gl={{ preserveDrawingBuffer: import.meta.env.DEV }}
+          /* ★ 画布浮层盖着时停帧（2026-10-15 教材人格评审，McConnell 性能那条）：FlowCanvas 是 z-40 不透明整屏（bg-ink），
+             盖着的时候这里仍每帧画 NPC、弹簧骨、卡面轮播 —— 一帧都看不见、电却照烧。只关 frameloop、不卸场景（主人「画布是
+             工坊里的浮层」那条决定不动：卸了再装要重解模型、镜头归位）；时钟由 SceneClockKeeper 接住（r3f 切 frameloop 会归零）。 */
+          frameloop={canvasCovered ? "never" : "always"}
+          camera={{ fov: 50, position: DEFAULT_CAM.pos, near: 0.1, far: 80 }}
+        >
+          <SceneClockKeeper />
+          <TableScene />
+        </Canvas>
+      </ErrorBoundary>
 
       {/* 顶栏。返回按钮是**层层退出**的唯一入口：有浮层先关浮层、在对话里先退对话、
           在卡组视角先退卡组，都没有了才回首页（见 studioStore.backStepOf）。
@@ -284,37 +330,46 @@ export default function StudioPage() {
           {hasWork ? (
             <DraftTitle from="studio" collapsed className="bg-panel/85 backdrop-blur" />
           ) : (
-            <span
-              title={t`铸出第一段之后就能给这条工程起名`}
+            // 与旁边 🧩 💾 同一套（2026-10-10）：按下用轻提示说为什么 —— 手机上看不见 title
+            <button
+              aria-disabled
+              aria-label={t`给工程起名`}
+              onClick={() => showToast(t`铸出第一段之后就能给这条工程起名`)}
               className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-panel/50 opacity-45 backdrop-blur"
             >
               <Icon name="pen" size={15} className="text-slate-400" />
-            </span>
+            </button>
           )}
           {/* 「🧩 工作流」：同一条流水线换到画布那一面 —— 与画布顶栏「🎴 工坊」对称
               （2026-08-30 主人点名：此前只有画布→工坊单向有键，反向只剩法阵那条隐路）。
               只在流水线上真有段时亮：0 段时 /flow 会把人弹回创作入口，摆一颗必弹走的
               键就是"永远点不动的选项"的变体；0 段时铺流水线本来就是法阵的差事 */}
+          {/* ★ 点不动的理由要**说出来**而不是只写在 title 里（2026-10-10 浏览器走查抓到）：手机 WebView 没有悬停，title 一个字都看不见，
+              `disabled` 的键在手机上就是「点了没反应」。所以不设 disabled：空桌面时按下去用轻提示说一句为什么（画成灰的照旧） */}
           <button
-            onClick={() => setCanvasOpen(true)}
-            disabled={!hasWork}
+            onClick={() => (hasWork ? setCanvasOpen(true) : showToast(t`桌面还空着——先点虚线卡位铸一段`))}
+            aria-disabled={!hasWork}
             title={hasWork ? t`工作流画布：同一条流水线的另一面` : t`桌面还空着——先点虚线卡位铸一段`}
             aria-label={t`工作流画布`}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-panel/85 text-base backdrop-blur disabled:opacity-40"
+            className={`flex h-9 w-9 items-center justify-center rounded-full bg-panel/85 text-slate-100 backdrop-blur ${hasWork ? "" : "opacity-40"}`}
           >
-            🧩
+            <Icon name="branch" size={18} />
           </button>
           {/* ★ 摆在浮动顶栏右侧这一组里，而不是画面角落硬定位：这一屏是 3D 画布，
               任何 absolute 的小控件都可能压住法阵/卡位（都是量出来的位置） */}
-          <HelpButton tour="studio" className="bg-panel/85 backdrop-blur" />
+          {/* 圆的底色走 circleClassName：className 落在外层那个 44×44 命中区上（HelpButton 的 @param），
+              传给它的话「?」会被画成一块深色方块（2026-09-18 发版复核抓到，首页那颗早就改了） */}
+          <HelpButton tour="studio" circleClassName="bg-panel/85 backdrop-blur" />
           {/* 存草稿：桌面上有东西才亮。工坊侧此前完全没有落盘手段——摆了半天卡、
               推演了几炉，刷新一下全没（两个 store 都是纯内存单例） */}
           {
             /* 存草稿只留图标；**四种状态仍要看得出来**（保存中/成功/失败不能只靠一个静态图标
                ——那等于把"存住了没有"藏起来，铁律八）：图标换字符 + title 说全 */
             <button
-              onClick={flowActions.saveNow}
-              disabled={!hasWork || flowActions.saveState === "saving"}
+              // 空桌面时按下去说一句为什么（同上面 🧩 那颗的 ★：title 在手机上看不见）；保存中才是真的禁用
+              onClick={() => (hasWork ? flowActions.saveNow() : showToast(t`桌面还空着，没什么可存`))}
+              aria-disabled={!hasWork}
+              disabled={hasWork && flowActions.saveState === "saving"}
               title={
                 !hasWork
                   ? t`桌面还空着，没什么可存`
@@ -327,11 +382,11 @@ export default function StudioPage() {
                         : t`存草稿`
               }
               aria-label={t`存草稿`}
-              className={`flex h-9 w-9 items-center justify-center rounded-full bg-panel/85 text-sm backdrop-blur disabled:opacity-40 ${
+              className={`flex h-9 w-9 items-center justify-center rounded-full bg-panel/85 text-sm backdrop-blur disabled:opacity-40 ${hasWork ? "" : "opacity-40"} ${
                 flowActions.saveState === "failed"
-                  ? "text-rose-300"
+                  ? "text-danger-300"
                   : flowActions.saveState === "saved"
-                    ? "text-emerald-300"
+                    ? "text-ok-300"
                     : "text-slate-200"
               }`}
             >
@@ -341,7 +396,7 @@ export default function StudioPage() {
                   ? "✓"
                   : flowActions.saveState === "failed"
                     ? "!"
-                    : "💾"}
+                    : <Icon name="save" size={16} />}
             </button>
           }
           {/* 只在演示模式亮牌。「● 真实 AI」是常态，天天挂在那儿只是噪音；
@@ -349,7 +404,7 @@ export default function StudioPage() {
               这一条必须留着。标题栏的「🎴 卡片工坊」也去掉了：画面本身就是工坊 */}
           {!AI_REAL && (
             <div
-              className="rounded-full bg-panel/80 px-3 py-1.5 text-xs text-amber-300 backdrop-blur"
+              className="rounded-full bg-panel/80 px-3 py-1.5 text-xs text-warn-300 backdrop-blur"
               title={t`未配置 ARK_API_KEY：产物为本地模拟，仅演示流程`}
             >
               <Trans>○ 演示模式</Trans>
@@ -412,8 +467,9 @@ export default function StudioPage() {
           ★ 那三件页级活儿（存草稿 / 组稿 / 挂卡）实现只有一份：存草稿与组稿在
             hooks/useFlowActions，挂卡入参在 FlowPage.castEditorState（回程 useCastReturn
             两页共用）—— 画布照旧只借按钮与状态，工坊这一面不抄第二份（铁律六）。
-          ★ ✕ 与「🎴 工坊」都是关掉浮层回到桌面：合并之后它们不再是"去另一页"。 */}
-      {canvasOpen && flowLen > 0 && (
+          ★ ✕ 与「🎴 工坊」都是关掉浮层回到桌面：合并之后它们不再是"去另一页"。
+          ★ 判据 canvasCovered 与上面 Canvas 的 frameloop 是同一个值（盖上才停帧，见那边的 ★）。 */}
+      {canvasCovered && (
         <FlowCanvas
           onExit={() => setCanvasOpen(false)}
           onLinear={() => setCanvasOpen(false)}

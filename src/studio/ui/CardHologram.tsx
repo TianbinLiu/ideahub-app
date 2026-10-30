@@ -3,8 +3,10 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { Canvas, useFrame, useLoader } from "@react-three/fiber";
+import { useLingui } from "@lingui/react/macro";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
+import ErrorBoundary from "../../components/ErrorBoundary";
 import { idbGet } from "../../data/db";
 import { toonify } from "../scene/TripoNpc";
 import { loaderFor } from "../secureAssets";
@@ -119,7 +121,11 @@ function Model({ url }: { url: string }) {
 
 /** 全息展台。`url` 必须是**已经解析过**的地址（走 useHologramModel 拿） */
 export default function CardHologram({ url }: { url: string }) {
+  const { t } = useLingui();
   return (
+    /* ★ 渲染边界只包 Canvas（2026-10-15 教材人格评审）：建模解不开（受保护 .glbx 密钥不对、文件坏了）在 useLoader 里是渲染期
+       抛错，没有边界就是整张卡片详情页 / 弹层白掉；包住之后只换这一格，封面与文字照旧。useFrame（自转）里抛的接不到。 */
+    <ErrorBoundary label={t`卡牌全息`}>
     <Canvas dpr={[1, 2]} camera={{ fov: 30, position: [0, 0.3, 3.6] }} gl={{ alpha: true }}>
       <hemisphereLight args={["#e8f8ff", "#1a2436", 1.5]} />
       <directionalLight position={[2, 3, 2]} intensity={1.7} color="#fff2dd" />
@@ -137,5 +143,6 @@ export default function CardHologram({ url }: { url: string }) {
         <meshBasicMaterial color="#67e8f9" transparent opacity={0.08} />
       </mesh>
     </Canvas>
+    </ErrorBoundary>
   );
 }

@@ -1,9 +1,10 @@
 // 「一发**已经付过钱、还没取回成片**的出片任务」—— 本机凭据与那个 24 小时取回入口。
 //
 // ══ 为什么要有这一整个文件 ═══════════════════════════════════════════════
-// 出片是**先扣钱、再等**的：契约「先扣钱、再转发；上游没受理就原路退回」+「受理之后才
-// 失败不退」（docs/api-contract.md「扣费」）。也就是说任务一被方舟受理，这一发的钱就
-// 已经花掉了，而后面还要等最长 25.5 分钟（死线按输出秒数缩放，见 arkClient）。
+// 出片是**先扣钱、再等**的：契约「先扣钱、再转发；上游没受理就原路退回」（docs/api-contract.md「扣费」）。
+// 也就是说任务一被方舟受理，这一发的钱就已经扣了，而后面还要等最长 25.5 分钟（死线按输出秒数缩放，见 arkClient）。
+// （2026-10-07 起受理之后上游**明说失败**的那一发由服务端按原桶退回；但"没接到结果"不是失败 —— 成片多半好好的，
+//  钱也不会退，取回它才是不再花钱的那条路。）
 // 这段时间里手机切后台、弱网断线、**App 进程被系统回收**，任何一条都会让客户端接不到结果。
 //
 // 在这个文件之前，接不到结果 = `throw` → 节点被打成 `status:"failed"` → 界面上唯一
@@ -40,8 +41,36 @@
 import type { VideoAspect } from "../types";
 import { t } from "@lingui/core/macro";
 import { API_BASE, apiGet, getToken } from "../api/client";
+import { ArkTaskFailed, fetchTaskCharge, type TaskRefund } from "../ai/arkClient";
+import { deviceOwner, mayClaimLegacy, onViewerChange, workOwner } from "./deviceOwner";
+import { draftTierId, fmtTokens, tierIdOf } from "./economy";
+import { serverSupports, type BoolCap } from "./serverCaps";
 
 export const VIDEO_JOB_TTL_MS = 24 * 3600_000;
+
+/**
+ * **MiniMax H3（V2）** 的凭据有效期 —— 7 天差 1 小时（2026-10-26 出片地区 P2b 审核）。
+ * ★★ 为什么不跟上面那个 24 小时：那个数是方舟 TOS 的物理事实，H3 不是。契约（docs/api-contract.md「MiniMax H3（V2）出片」→「查询」「成片地址与转存」）：
+ *   H3 的任务在上游**受理之后 7 天内都查得到**（官方说法；服务端 GET /api/minimax/v2/video/:taskId 照账放行、不计费），成片地址有时效、
+ *   但再查一次就给一个新的。原来一律按 24 小时算，隔夜回来的人看到的是「第 N 段那一发已经取不回来了」、取回键被撤掉、
+ *   正文还说钱「无法挽回 / 退不了」—— 对一条还在、取回不花钱的成片，把人引去「重新生成」再付一次。
+ * ★ 差 1 小时：上游的 7 天从它受理那一刻算，我们的 createdAt 是受理回执到手那一拍记的（晚几秒到几十秒），而过期之后卡上要说「取不回来了」——
+ *   宁可早一点收手，别在第 7 天的最后几分钟摆一颗点了必然 404 的「取回」（economy.DRAFT_VALID_MS 样片 7 天是同一个余量）。
+ * ★ 只有 V2 这么算：真人档（V1，api 缺省）我们没量过留存，照旧按上面那个数提醒（videoJobNote 里那条「不许出现小时数」管它的话）。
+ * ⚠ 服务端改了 H3 的查询窗口（契约里那句「7 天」）要跟着改这里与 videoJobNote 里 V2 那几句话。
+ */
+export const MINIMAX_V2_JOB_TTL_MS = 7 * 24 * 3600_000 - 3600_000;
+
+/** 这条凭据是 MiniMax H3（V2 接口）建的吗（VideoJob.api；判**有值**：老凭据没有这一位，它们是方舟或真人档 V1） */
+function isV2Job(job: VideoJob): boolean {
+  // tier-semantics-ok: 取回凭据上记下的那一版接口（VideoJob.api 只有 "v2" 一个值），不是档位的 api —— 落凭据那一拍已经按 apiCase 定过
+  return job.api === "v2";
+}
+
+/** 这条凭据多久之后取不回来（按建它的那一版接口分开，见上面两个常量） */
+function ttlOf(job: VideoJob): number {
+  return isV2Job(job) ? MINIMAX_V2_JOB_TTL_MS : VIDEO_JOB_TTL_MS;
+}
 
 /**
  * 过期多久之后把记录**真删掉**（纯粹的存储卫生，不是关于钱的规则）。
@@ -65,6 +94,14 @@ export interface VideoJob {
    *   一句权威的死刑判决，而用户不会来报 bug，他会直接走。
    */
   provider?: "ark" | "minimax";
+  /**
+   * MiniMax 那一家是**哪一版接口**建的（2026-10-26 出片地区 P2b 审核）：`"v2"` = MiniMax H3（`/api/minimax/v2`）；**缺省 = 真人档 V1 或方舟**（判否定：老凭据没有它）。
+   * ★★ 为什么非有不可：两版的查询是两条路（V1 `GET /api/minimax/video/:id` + 取件，V2 `GET /api/minimax/v2/video/:id`），只记 provider 的话 H3 的任务
+   *   走 V1 的查询 —— 服务端认得出是 H3 的号就回 404，取回卡永远停在「暂时查不到」（real.takeVideoTask 按它分流）。
+   * ★ 退款能力位照旧按 provider 取（refundCapOf）：服务端 H3 的失败退款与真人档同一个开关（MINIMAX_FAIL_REFUND / 健康端点 minimaxFailRefund）。
+   * ★ 有效期也按它分开（ttlOf）：H3 的任务上游 7 天内都查得到，不是方舟的 24 小时（MINIMAX_V2_JOB_TTL_MS 的 ★★）。
+   */
+  api?: "v2";
   /** 任务号 —— 取回全靠它（两家的查询与取件都不计费） */
   taskId: string;
   /** 这一发是**哪条工作流的哪一段的哪一套方案**炼的：取回来的成片要落回同一个位置 */
@@ -115,7 +152,37 @@ export interface VideoJob {
    * ★ 只存地址不存整个模板：模板对象带 refVideo/roles/cards，塞 localStorage 会顶配额。
    */
   tplRefVideo?: string;
+  /**
+   * 电影级「样片」两步（2026-10-07）：这一发是哪一步。缺省 = 普通出片（老凭据天然没有 —— 判否定）。
+   * ★ 取回时要把样片的那几样（任务号 / 时刻 / 时长 / 画幅）原样落回方案上（flowStore.draftPatchOf）：
+   *   不落的话取回来的样片就只是一段 480p 的普通片，「定稿」那颗键再也找不到它的任务号 —— 7 天内本来还能升成 1080p。
+   *   "final" 那一步取回来要把样片留成「上一版」（与当场出片同一个写回）。
+   */
+  draftStep?: "draft" | "final";
+  /** 样片第一步：送进请求体的画幅与整数时长（定稿报价按它们算，服务端按同样两样结算） */
+  draftRatio?: string;
+  draftDur?: number;
+  /** 样片第二步：升的是哪条样片（服务端登记表的 draftOf） */
+  draftOf?: string;
+  /**
+   * 这一发是**返修**、出来的成片自己有没有声（2.62 发版复核留下的一条，10-08 补）。**有这一位 = 返修**；缺省 = 普通出片（老凭据天然没有 —— 判否定）。
+   * ★ 受理那一拍按出片的那一档定下来（flowStore.genNode 的 reviseAudio，判据 economy.videoAudioOn）：取回时那一档可能已经换过了，现问会问错。
+   * ★★ 为什么要存：取回落回原位的那条返修原来不记进 Proposal.voicedVideos / silentVideos —— 白模段上一条**有声**的返修被取回之后，
+   *   回看照样叠一层模板原声（两层声），组稿把 hasAudio 判成 false、剪辑页藏掉它自己的原声滑杆。判据只问 flowStore.reshotWithSound，它认的就是那份名单。
+   *   补那一格只有一处实现（flowStore.reviseAudioPatch，当场写回 / 落回原位 / 新开一段共用）。
+   */
+  reviseAudio?: "voiced" | "silent";
   createdAt: number;
+  /**
+   * 这一发是**谁付的钱**（user.id，见 data/deviceOwner）—— 取回卡只摆给他看、只有他取得回。
+   *
+   * ★★ 2026-09-18 补（主人真机点名同一台手机换账号后数据串号）。原来凭据整台设备一份、不记主人：
+   *   A 付过钱、还没取回的那一发，B 登录后照样摆在取回卡上，B 点「取回」就落进 **B 的**流水线、
+   *   跟着 B 的作品发出去 —— 而 A 再登录时凭据已经销毁，那笔钱在 App 里再也找不回来。
+   * ★ 受理那一拍写死（rememberVideoJob 里按 workOwner 记）：之后再问 currentUser() 可能已经是另一个人了。
+   * ★ 可选：升级前的凭据没有它，由升级后第一个登录的人认领（claimLegacy）。
+   */
+  owner?: string;
 }
 
 const KEY = "ideahub-app.videoJobs.v1";
@@ -163,6 +230,29 @@ function emit() {
   for (const fn of subs) fn();
 }
 
+// 换了看的人：认领存量，取回卡按新的人重画
+onViewerChange(() => {
+  claimLegacy();
+  emit();
+});
+
+/**
+ * 升级前那些无主的凭据，归**现在登录的这个人**（见 data/deviceOwner 文件头「存量」那条）。
+ * ★ 同步改内存、落盘、**不 emit**：它会在渲染里（取回卡的列表读）被调到。
+ */
+function claimLegacy(): void {
+  const me = deviceOwner();
+  if (!me || !jobs.some((j) => !j.owner) || !mayClaimLegacy()) return;
+  jobs = jobs.map((j) => (j.owner ? j : { ...j, owner: me }));
+  persist();
+}
+
+/** 这一发是**现在登录的这个人**付的吗（取回卡、节点角标只摆这些） */
+function viewerJob(j: VideoJob): boolean {
+  const me = deviceOwner();
+  return !!me && j.owner === me;
+}
+
 export function subscribeVideoJobs(fn: () => void): () => void {
   subs.add(fn);
   return () => subs.delete(fn);
@@ -207,14 +297,14 @@ function persist(): void {
 }
 
 function expiresAt(job: VideoJob): number {
-  return job.createdAt + VIDEO_JOB_TTL_MS;
+  return job.createdAt + ttlOf(job);
 }
 
 function prunable(job: VideoJob): boolean {
   return Date.now() >= expiresAt(job) + PRUNE_AFTER_EXPIRY_MS;
 }
 
-/** 过期了吗（过期 = 成片在方舟那边已经没了，取不回来）。**唯一实现**，界面别自己减时间戳 */
+/** 过期了吗（过期 = 成片在上游那边已经查不到了，取不回来；方舟 24 小时、MiniMax H3 7 天，见 ttlOf）。**唯一实现**，界面别自己减时间戳 */
 export function videoJobExpired(job: VideoJob): boolean {
   return Date.now() >= expiresAt(job);
 }
@@ -235,23 +325,196 @@ export function videoJobNote(job: VideoJob): string {
   //   过期判定（expiresAt）仍按同一个 TTL 走：它决定的是"我们还提不提醒你"，
   //   偏保守地早收手，比让一条永远关不掉的提醒钉在屏幕上强。
   const flat = job.provider === "minimax";
+  // 这台服务端会不会把受理之后明说失败的那一发退回（能力位，2026-10-07）。**按供应商分开问**：真人档那一家另有一个开关
+  // （服务端 MINIMAX_FAIL_REFUND，serverCaps.failRefundMinimax），关掉时这里还许诺「会自动退回」就是空话。
+  // 不知道（还没探到）按不会说 —— 许一个兑现不了的「会退回」比少说一句坏。⚠ dev 直连方舟时能力位恒真而其实没人退（serverCaps.direct）：
+  // 只影响开发机，与 ai/failCharge 文件头「dev 的一处不等价」同一条
+  const refunds = refundsOn(job);
   const left = expiresAt(job) - Date.now();
+  // ★★ 说钱之前先问服务端那一笔账（2026-10-07；过期与没过期的卡都问 —— 评审抓到没过期的那半只看能力位）：
+  //   这一发要是在方舟那边失败了，清扫器早就替他退过钱（对一笔已经退回来的钱说「无法挽回」是往吓人的方向说错）；
+  //   自动退款上线之前受理的任务没有那一笔账（404 NOT_FOUND = "none"），不会自动退；管理员免单的（skipped）根本没扣 ——
+  //   对这两种许诺「万一没出成会自动退回」/ 说「钱已经扣了」都是错话。问的结果缓存在 jobCharges（卡片挂上时 checkVideoJobCharge 去问）
+  const asked = refunds ? videoJobCharge(job.taskId) : null;
+  /** 服务端明说「没有这一笔账」（自动退款上线之前的任务）：不会自动退 */
+  const noRecord = asked === "none";
+  const charge = asked === "none" ? null : asked;
+  // 服务端已经给了退款结局的：与过不过期无关，照实说（没有成片可取了）
+  if (charge?.state === "refunded") {
+    const n = fmtTokens(charge.tokens);
+    return charge.tokens > 0
+      ? t`这一发没出成，扣的 ${n} token 已经退回——没有成片可取了，点「知道了」消掉这条就好。`
+      : t`这一发没出成，扣的 token 已经退回——没有成片可取了，点「知道了」消掉这条就好。`;
+  }
+  if (charge?.state === "refunding") return t`这一发没出成，扣的 token 会退回（到账以「我的」页的 token 余额为准）——没有成片可取了。`;
+  /**
+   * 许不许诺「万一没出成会自动退回」：服务端会退（能力位）、有这一笔账、而且还没有别的结局 —— 只给「还没结局（pending）/ 问不到（null）/
+   * 正在问（undefined）」。settled（出成了）、lost（交人工）、skipped（本来没扣）、没有这一笔账都不会自动退
+   */
+  const promise = refunds && !noRecord && (!charge || charge.state === "pending");
+  // MiniMax H3（V2）：上游 7 天内都查得到，另说一套（见 MINIMAX_V2_JOB_TTL_MS 的 ★★）
+  if (isV2Job(job)) return v2JobNote(job, left, charge, promise);
   if (left <= 0) {
     // ★ 登记表补来的那种不能断言"钱白花了"：它很可能在别的设备 / 官网上早就取到了（见 videoJobFromServer）
     if (videoJobFromServer(job))
       return t`服务器登记的这一发已经过了 24 小时，成片取不到了。如果你当时已经在别处拿到了它，忽略这条就好。`;
+    // 管理员免单（服务端本来就没扣）：没有钱可说「无法挽回」
+    if (charge?.state === "skipped") return t`这一发已经取不回来了，成片在服务器上过期了。这一发本来就没有扣 token，点「知道了」消掉这条就好。`;
+    // ★ lost = 服务端一直问不出上游的结局（超过 8 天），交给人工、**不会**自动退 —— 不许许诺「会自动退回」（2026-10-07 评审抓到）
+    if (charge?.state === "lost") {
+      return t`这一发已经取不回来了，我们也一直没能向上游确认它的结局，所以没有自动退回——把下面的任务号发给客服，由人工核对这笔钱；重新生成是再花一次钱。`;
+    }
+    if (promise) {
+      // 服务端还没给结局（或问不到）：两种情况都说，别替上游宣判（与服务端白模化取件单过期那句同一个口径）
+      return flat
+        ? t`这一发我们不再跟进了：任务号还在下面，如果一直没取回来，把它发给客服还有机会。如果上游那边其实是失败了，扣的 token 会自动退回（到账时会通知你）；如果是出成了却没取回，这笔钱就无法挽回了——重新生成是再花一次钱。`
+        : t`这一发已经取不回来了：方舟的成片只在服务器上留 24 小时，现在已经过期。如果方舟那边其实是失败了，扣的 token 会自动退回（到账时会通知你）；如果是出成了却没来得及取回，这笔钱就无法挽回了——重新生成是再花一次钱。`;
+    }
     return flat
       ? t`这一发我们不再跟进了：任务号还在下面，如果一直没取回来，把它发给客服还有机会。已经花掉的钱我们这边退不了——重新生成是再花一次钱。`
       : t`这一发已经取不回来了：方舟的成片只在服务器上留 24 小时，现在已经过期。已经花掉的钱无法挽回——这不是超时重来，重新生成是再花一次钱。`;
   }
   const h = Math.floor(left / 3600_000);
   const m = Math.floor((left % 3600_000) / 60_000);
+  // 管理员免单（skipped）：这一发没扣钱，不说「钱已经扣了」
+  if (charge?.state === "skipped") {
+    if (flat)
+      return t`这一发没有扣 token，任务多半还在上游跑 —— 点「取回」把它领回来；点「重新生成」是重新下一单。出片通常 1~2 分钟，隔一会儿再点一次。`;
+    return h > 0
+      ? t`还剩 ${h} 小时 ${m} 分钟可以取回——方舟的成片只留 24 小时，过期就没了。这一发没有扣 token，取回也不花钱；点「重新生成」是重新下一单。`
+      : t`还剩 ${m} 分钟可以取回——方舟的成片只留 24 小时，过期就没了。这一发没有扣 token，取回也不花钱；点「重新生成」是重新下一单。`;
+  }
+  // ★ 会退钱的服务端上多说半句「万一最后没出成会自动退回」：钱在提交那一刻是扣着的，但不是白扔 —— 不说的话人会以为
+  //   这一发要是废了钱就没了，于是不敢等、去点「重新生成」（那才是真的再花一次）。老服务端不退、没有这一笔账的任务不退，不许这么说
   if (flat) {
-    return t`这一发的钱在提交那一刻就已经花掉了，任务多半还在上游跑 —— 点「取回」不重新下单、不再花一分钱；点「重新生成」是重新下一单、会再花一次。出片通常 1~2 分钟，隔一会儿再点一次。`;
+    return promise
+      ? t`这一发的钱在提交那一刻就已经扣了，任务多半还在上游跑；万一最后没出成，会自动退回 —— 点「取回」不重新下单、不再花一分钱；点「重新生成」是重新下一单、会再花一次。出片通常 1~2 分钟，隔一会儿再点一次。`
+      : t`这一发的钱在提交那一刻就已经花掉了，任务多半还在上游跑 —— 点「取回」不重新下单、不再花一分钱；点「重新生成」是重新下一单、会再花一次。出片通常 1~2 分钟，隔一会儿再点一次。`;
+  }
+  if (promise) {
+    return h > 0
+      ? t`还剩 ${h} 小时 ${m} 分钟可以取回——方舟的成片只留 24 小时，过期就没了。这一发的钱在提交那一刻就已经扣了，万一最后没出成会自动退回；取回不再花一分钱，点「重新生成」是重新下一单、会再花一次。`
+      : t`还剩 ${m} 分钟可以取回——方舟的成片只留 24 小时，过期就没了。这一发的钱在提交那一刻就已经扣了，万一最后没出成会自动退回；取回不再花一分钱，点「重新生成」是重新下一单、会再花一次。`;
   }
   return h > 0
     ? t`还剩 ${h} 小时 ${m} 分钟可以取回——方舟的成片只留 24 小时，过期就没了。这一发的钱在提交那一刻就已经花掉了，取回不再花一分钱；点「重新生成」是重新下一单、会再花一次。`
     : t`还剩 ${m} 分钟可以取回——方舟的成片只留 24 小时，过期就没了。这一发的钱在提交那一刻就已经花掉了，取回不再花一分钱；点「重新生成」是重新下一单、会再花一次。`;
+}
+
+/**
+ * MiniMax H3（V2）那一发的那句话（videoJobNote 的一支；退了钱 / 正在退的两种在上面已经说过了）。
+ * ★★ 没过期的时候**不说「取不回来 / 无法挽回」**：上游受理之后 7 天内都查得到（契约「查询」），取回不花钱 —— 这时说钱没了，
+ *   人就去点「重新生成」再付一次（2026-10-26 P2b 审核）。7 天是官方写明的查询窗口（不是我们编的数，与真人档那条「不许出现小时数」不冲突）。
+ * ★ 不写供应商名（「上游」）：地区不知道时不写（account.tierShownModel 那条口径），这里不去问地区。
+ * ★ 过期之后（7 天外）上游明说查不到（404 TASK_NOT_FOUND），这时才说取不回来；钱上的几种结局与方舟那一支同一组判据（promise / skipped / lost）。
+ */
+function v2JobNote(job: VideoJob, left: number, charge: TaskRefund | null | undefined, promise: boolean): string {
+  if (left <= 0) {
+    if (videoJobFromServer(job))
+      return t`服务器登记的这一发已经过了 7 天，上游查不到它了。如果你当时已经在别处拿到了它，忽略这条就好。`;
+    if (charge?.state === "skipped")
+      return t`这一发已经取不回来了：这一档的成片任务只能在受理之后 7 天内查到，现在已经过了。这一发本来就没有扣 token，点「知道了」消掉这条就好。`;
+    if (charge?.state === "lost") {
+      return t`这一发已经取不回来了，我们也一直没能向上游确认它的结局，所以没有自动退回——把下面的任务号发给客服，由人工核对这笔钱；重新生成是再花一次钱。`;
+    }
+    return promise
+      ? t`这一发已经取不回来了：这一档的成片任务只能在受理之后 7 天内查到，现在已经过了。如果上游那边其实是失败了，扣的 token 会自动退回（到账时会通知你）；如果是出成了却没取回，这笔钱就无法挽回了——重新生成是再花一次钱。`
+      : t`这一发已经取不回来了：这一档的成片任务只能在受理之后 7 天内查到，现在已经过了。已经花掉的钱无法挽回——重新生成是再花一次钱。`;
+  }
+  const rest = leftText(left);
+  if (charge?.state === "skipped")
+    return t`这一发没有扣 token。成片在受理之后 7 天内都取得回来（还剩 ${rest}）——点「取回」把它领回来，不花钱；点「重新生成」是重新下一单。还在出片的话，隔一会儿再点一次。`;
+  return promise
+    ? t`这一发的钱在提交那一刻就已经扣了，万一最后没出成会自动退回。成片在受理之后 7 天内都取得回来（还剩 ${rest}）——点「取回」不重新下单、不再花一分钱；点「重新生成」是重新下一单、会再花一次。还在出片的话，隔一会儿再点一次。`
+    : t`这一发的钱在提交那一刻就已经花掉了。成片在受理之后 7 天内都取得回来（还剩 ${rest}）——点「取回」不重新下单、不再花一分钱；点「重新生成」是重新下一单、会再花一次。还在出片的话，隔一会儿再点一次。`;
+}
+
+/** 「还剩多久」那一截（v2JobNote 用）：一天以上写到小时，一天以内写到分钟 */
+function leftText(ms: number): string {
+  const d = Math.floor(ms / 86_400_000);
+  const h = Math.floor((ms % 86_400_000) / 3600_000);
+  const m = Math.floor((ms % 3600_000) / 60_000);
+  if (d > 0) return t({ message: `${d} 天 ${h} 小时`, comment: "剩余时间（几天几小时），嵌在「还剩 …」里；英文写成 6d 23h" });
+  if (h > 0) return t({ message: `${h} 小时 ${m} 分钟`, comment: "剩余时间（几小时几分钟），嵌在「还剩 …」里；英文写成 5h 12m" });
+  return t({ message: `${m} 分钟`, comment: "剩余时间（几分钟），嵌在「还剩 …」里；英文写成 12 min" });
+}
+
+// ── 「这一发退没退钱」（GET /api/ark/task-charges/:id）────────────────────
+// ★ 取回卡一挂上就问（videoJobNote 说钱之前；过期没过期都问），一个任务号一个会话只问一次；问不到（老服务端 / 断网）记 null，
+//   照旧说那句两种情况都说的话（服务端会退的话）或原来那句（服务端不退的话）。
+// ★ 不落盘：退款状态是服务端的真相，下次冷启动再问一次就是了（一次 GET，不计费）。
+const jobCharges = new Map<string, TaskRefund | "none" | null | "asking">();
+
+/** 问过的结果（undefined = 还没问 / 正在问；null = 问不到；"none" = 服务端明说没有这一笔账 —— 不会自动退） */
+export function videoJobCharge(taskId: string): TaskRefund | "none" | null | undefined {
+  const v = jobCharges.get(taskId);
+  return v === "asking" ? undefined : v;
+}
+
+/**
+ * 这一发归哪一个能力位管（按供应商分开：真人档那一家另有一个开关，见 videoJobNote 里那一段）—— **唯一实现**。
+ * ★ refundsOn（话与键）与 checkVideoJobCharge（去不去问那一笔账）都从这里取（2.62 发版评审抓到 checkVideoJobCharge 手抄了一份）：
+ *   只改一处的话（比如再接一家供应商），一边认「会退」、另一边压根不去问账 —— 账永远没问到，退了钱的卡就永远翻不成「知道了」，零报错
+ */
+function refundCapOf(job: VideoJob): BoolCap {
+  return job.provider === "minimax" ? "failRefundMinimax" : "failRefund";
+}
+
+/** 这台服务端会不会退这一家受理之后明说失败的那一发（能力位，按供应商分开问；理由见 videoJobNote 里那一段）。
+ *  videoJobNote 与 videoJobRefunded 共用这一道闸 —— 两处各判一遍的话，话说「已经退回」、键却还按没退画（或反过来） */
+function refundsOn(job: VideoJob): boolean {
+  return serverSupports(refundCapOf(job)) === true;
+}
+
+/**
+ * 服务端已经给了这一发「没出成、钱退了 / 正在退」的结局吗 —— 是的话**没有成片可取了**：取回卡（SegmentRecoverCard）
+ * 不再摆「📥 取回这一段的成片」、改摆「知道了」，标题也不再说「还没取回」。
+ * ★ 为什么要有它（2.62 发版评审抓到）：videoJobNote 对 refunded 说「没有成片可取了，点「知道了」消掉这条就好」，这句话**不看过不过期** ——
+ *   而卡片只在过期之后才摆「知道了」：没过期的那张卡同时说着「还没取回」「没有成片可取」「点知道了」，下面却只有一颗「取回」。
+ * ★ 读的是与 videoJobNote **同一份**问过的账、同一道能力位闸（refundsOn）：话与键必须一起翻。
+ * ★ skipped（管理员免单）不算：没过期的那种任务多半还在跑、成片还取得回来，话里说的也是「点取回」。
+ */
+export function videoJobRefunded(job: VideoJob): boolean {
+  return refundedChargeOf(job) !== null;
+}
+
+/** 问过的账里「没出成、退了 / 正在退」的那一笔（videoJobRefunded 与 videoJobRefundFailure 共用这一处判断） */
+function refundedChargeOf(job: VideoJob): TaskRefund | null {
+  const c = refundsOn(job) ? videoJobCharge(job.taskId) : null;
+  return !!c && c !== "none" && (c.state === "refunded" || c.state === "refunding") ? c : null;
+}
+
+/**
+ * 卡片挂上时问来的那一笔「退了钱」的账 → 一个 ArkTaskFailed（与取回时上游明说失败抛的是同一个类型，带同一份退款结论）。
+ * 没退 / 没问到 = null。
+ * ★ 为什么要造它（2.62 发版复核留下的一条，10-08 补）：取回卡第一次认出「退了钱」的那一拍，要把那一段挂着的 genNode「没接到 ·
+ *   用下面的「取回」领回来」改成「没出成」（flowStore.settleRefundedPending，与 takeJob 结案那一拍同一处实现）。钱上那个短语
+ *   只能走 ai/failCharge，而它只认错误类型 —— 所以这里给的是同一个类型，不是另拼一句「已退回」。
+ * ★ 原因写「这一发没出成」：账上只记着退了钱，上游的原因要点「知道了」核对那一趟才拿得到（拿到也不再改这一句，见 settleRefundedPending）。
+ */
+export function videoJobRefundFailure(job: VideoJob): ArkTaskFailed | null {
+  const c = refundedChargeOf(job);
+  if (!c) return null;
+  const reason = t`这一发没出成`;
+  return new ArkTaskFailed(reason, job.taskId, "failed", "", c, reason, job.provider === "minimax" ? "minimax" : "ark");
+}
+
+/** 去问一次这一发的账（取回卡挂上时调，过期没过期都问）。到了 emit，卡片重画 */
+export async function checkVideoJobCharge(job: VideoJob): Promise<void> {
+  if (jobCharges.has(job.taskId)) return;
+  if (!API_BASE || !getToken() || serverSupports(refundCapOf(job)) === false) {
+    jobCharges.set(job.taskId, null);
+    return;
+  }
+  jobCharges.set(job.taskId, "asking");
+  const r = await fetchTaskCharge(job.taskId);
+  jobCharges.set(job.taskId, r);
+  emit();
+}
+
+/** 这条凭据还在不在本机（取回失败之后卡片据此判断「凭据是不是刚被结案」—— 结案了卡就卸载了，那句话要改用轻提示说） */
+export function videoJobKnown(taskId: string): boolean {
+  return jobs.some((j) => j.taskId === taskId);
 }
 
 /**
@@ -261,7 +524,9 @@ export function videoJobNote(job: VideoJob): string {
  * ★ 同一个 taskId 重复记只留一条：受理只发生一次，重复调用只可能来自重挂载/重试。
  */
 export function rememberVideoJob(job: VideoJob): void {
-  jobs = [...jobs.filter((j) => j.taskId !== job.taskId && !prunable(j)), job];
+  // ★ 主人在受理这一拍写死（见 VideoJob.owner 的 ★）：这一发是「内存里这摊活的主人」付的钱
+  const owned: VideoJob = job.owner ? job : { ...job, owner: workOwner() || undefined };
+  jobs = [...jobs.filter((j) => j.taskId !== job.taskId && !prunable(j)), owned];
   persist();
   emit();
 }
@@ -287,6 +552,11 @@ export function dropVideoJob(taskId: string): void {
  *   把它藏起来正是这整个文件存在意义的反面（templates.dismissBlockoutJob 同一条门禁，
  *   那边写得更长，理由一模一样）。谁把这道门放宽，症状是用户再也看不到自己有一发能领，
  *   而且零报错。
+ * ★ 没过期、服务端说已经退了钱的那种（videoJobRefunded）**也不从这里消**（2.62 发版评审时定的）：卡上那颗「知道了」走的是
+ *   flowStore.takeJob —— 它当场再向上游核对一次（不花钱），确认没出成才结案，并把那一段挂着的「用下面的「取回」领回来」改成「没出成」。
+ *   从这里直接消的话凭的是卡片挂上时问来的一份旧答案，而且段上那句话会一直指着一颗已经不存在的「取回」。
+ *   服务端登记表补来的那种（videoJobFromServer）除外，退了钱的也从这里消：它不挂在哪一段上、没有那句话要改，
+ *   退了 / 正在退的账也翻不回「出成了」（SegmentRecoverCard 的 localClose）。
  */
 export function dismissVideoJob(job: VideoJob): void {
   if (!videoJobExpired(job) && !videoJobFromServer(job)) return;
@@ -327,14 +597,18 @@ export function videoJobWaiting(taskId: string): boolean {
   return waiting.has(taskId);
 }
 
-/** 本机所有待取回的出片（新的在前）。★ 过期的**照样返回** —— 那句"钱无法挽回"要给人看见 */
+/**
+ * **现在登录的这个人**所有待取回的出片（新的在前）。★ 过期的**照样返回** —— 那句"钱无法挽回"要给人看见。
+ * ★ 别的账号付的那几发不在这里（见 VideoJob.owner 的 ★★）：它们原样留在本机，等那个人登录时再摆出来。
+ */
 export function pendingVideoJobs(): VideoJob[] {
   const live = jobs.filter((j) => !prunable(j));
   if (live.length !== jobs.length) {
     jobs = live;
     persist();
   }
-  return [...live].sort((a, b) => b.createdAt - a.createdAt);
+  claimLegacy();
+  return jobs.filter(viewerJob).sort((a, b) => b.createdAt - a.createdAt);
 }
 
 /** 该**摆出来让人取回**的那几发 = 全部凭据里去掉这一会话正在等的（取回卡列表读这个） */
@@ -357,15 +631,24 @@ export function videoJobOf(nodeId: string, proposalId: string): VideoJob | null 
 // ★ 补来的凭据 nodeId / proposalId 为空：takeJob 见"原节点不在"就走 placeRescuedSegment 新开一段，正是要的。
 // ★ 一分钟内只问一次；离线模式（没配 API_BASE / 没登录）一个请求都不发。
 let lastImportAt = 0;
+/** 上一次是替谁问的：换了人就不受那一分钟的限制（B 刚登录时 A 一分钟前问过，不该让 B 干等） */
+let lastImportOwner = "";
 
 interface ServerVideoTask {
   taskId: string;
+  /** MiniMax 那张表（/api/minimax/video-tasks）才有：哪一版接口建的（今天只有 "v2" = H3；认不出的跳过 —— 真人档 V1 以后也会登记进来，取件是另一条路） */
+  api?: string;
   createdAt: string | number;
   model?: string;
+  /** 2026-10-07 起服务端登记（「草稿」与「高清」同一个模型，只差这一格）；老服务端没有 = 720p */
+  resolution?: string;
   durationSec?: number;
   ratio?: string;
   prompt?: string;
   r2v?: boolean;
+  /** 2026-10-07 起服务端登记：这一发是电影级样片的第一步 / 第二步升的是哪条样片（见 VideoJob.draftStep） */
+  draft?: boolean;
+  draftOf?: string;
 }
 
 function aspectOfRatio(ratio: string | undefined): VideoAspect | undefined {
@@ -402,19 +685,42 @@ function importBase(): number {
 /** 把服务端登记表里本机不认识、也没处理过的视频任务补成「待取回」凭据。回补了几条 */
 export async function importServerVideoJobs(): Promise<number> {
   if (!API_BASE || !getToken()) return 0;
-  if (Date.now() - lastImportAt < 60_000) return 0;
+  // ★ 登记表是**这个 token 的账号**的：说不出现在是谁（会话还没认领上）就先不补，补了也不知道记在谁名下
+  const owner = deviceOwner();
+  if (!owner) return 0;
+  if (owner === lastImportOwner && Date.now() - lastImportAt < 60_000) return 0;
   lastImportAt = Date.now();
-  let tasks: ServerVideoTask[] = [];
+  lastImportOwner = owner;
+  /** 两张表拉到的任务；minimax = 这一条来自 MiniMax 那张表（H3，V2） */
+  const tasks: { task: ServerVideoTask; minimax: boolean }[] = [];
+  let got = false;
   try {
     const data = await apiGet<{ tasks?: ServerVideoTask[] }>("/api/ark/video-tasks", { timeoutMs: 15_000 });
-    tasks = Array.isArray(data?.tasks) ? data.tasks : [];
+    for (const task of Array.isArray(data?.tasks) ? data.tasks : []) tasks.push({ task, minimax: false });
+    got = true;
   } catch {
-    return 0; // 老服务端（404）/ 弱网：下次再问，没有这张表也不影响本机凭据
+    /* 老服务端（404）/ 弱网：下次再问，没有这张表也不影响本机凭据 */
   }
+  // ★ MiniMax H3（V2）的任务另在 /api/minimax/video-tasks（2026-10-26 出片地区 P2b 审核）：服务端特意不把它们混进方舟那张表
+  //   （老 App 会拿 H3 的号去问方舟），只读方舟那张的话 App 被杀之后这一发再也补不回来。
+  //   只在健康端点说开着 V2 时才问（契约：minimaxV2 读不到或为假 → 不去问）；只收 api "v2" 的，认不出的跳过
+  if (serverSupports("minimaxV2") === true) {
+    try {
+      const data = await apiGet<{ tasks?: ServerVideoTask[] }>("/api/minimax/video-tasks", { timeoutMs: 15_000 });
+      // tier-semantics-ok: 服务端登记表上那一位（哪一版接口建的），不是档位的 api；只认 "v2"，别的跳过（契约「认不得的 api 要跳过」）
+      for (const task of Array.isArray(data?.tasks) ? data.tasks : []) if (task?.api === "v2") tasks.push({ task, minimax: true });
+      got = true;
+    } catch {
+      /* 同上：下次再问 */
+    }
+  }
+  if (!got) return 0;
   // ★ 拿到表之后才定线（见 importBase 的 ★★）：请求失败的那几次不算"第一次问过"
   const base = importBase();
+  // ★ 请求在路上的这十几秒里可能换了人：拿到表时已经不是发请求的那个人，就不补（下次由对的人再问）
+  if (deviceOwner() !== owner) return 0;
   let added = 0;
-  for (const task of tasks) {
+  for (const { task, minimax } of tasks) {
     if (!task?.taskId || typeof task.taskId !== "string") continue;
     if (taken[task.taskId] || jobs.some((j) => j.taskId === task.taskId)) continue;
     const createdAt = new Date(task.createdAt).getTime();
@@ -424,7 +730,9 @@ export async function importServerVideoJobs(): Promise<number> {
     const hh = String(when.getHours()).padStart(2, "0");
     const mm = String(when.getMinutes()).padStart(2, "0");
     const job: VideoJob = {
-      provider: "ark",
+      provider: minimax ? "minimax" : "ark",
+      // 取回走 V2 的查询（见 VideoJob.api 的 ★★）
+      ...(minimax ? { api: "v2" as const } : {}),
       taskId: task.taskId,
       nodeId: "",
       proposalId: "",
@@ -435,8 +743,26 @@ export async function importServerVideoJobs(): Promise<number> {
       cost: 0, // 服务端受理那一刻已经扣过，取回不再花钱；本机镜像也不必再扣一次
       ...(task.durationSec && Number.isFinite(task.durationSec) ? { durationSec: task.durationSec } : {}),
       ...(aspectOfRatio(task.ratio) ? { aspect: aspectOfRatio(task.ratio) } : {}),
+      // 是哪一档按（模型, 分辨率）认（economy.tierIdOf）：不写的话取回安放的那一段落在兜底档上，之后的重拍 / 延长按错的档报价。
+      // 样片两步（480p 样片 / 1080p 定稿）不在档位表的（模型, 分辨率）里：它们属于出样片的那一档（economy.draftTierId）
+      ...(task.draft || task.draftOf
+        ? { videoTier: draftTierId() }
+        : tierIdOf(task.model, task.resolution)
+          ? { videoTier: tierIdOf(task.model, task.resolution) }
+          : {}),
       ...(task.prompt ? { plot: task.prompt } : {}),
+      // 样片两步：取回来要把样片的那几样落回方案上（见 VideoJob.draftStep）。时长 / 画幅取登记值（服务端结算定稿时读的也是它们）
+      ...(task.draft
+        ? {
+            draftStep: "draft" as const,
+            ...(task.ratio ? { draftRatio: task.ratio } : {}),
+            ...(task.durationSec && Number.isFinite(task.durationSec) ? { draftDur: task.durationSec } : {}),
+          }
+        : task.draftOf
+          ? { draftStep: "final" as const, draftOf: task.draftOf }
+          : {}),
       createdAt,
+      owner,
     };
     if (prunable(job)) continue;
     jobs = [...jobs, job];

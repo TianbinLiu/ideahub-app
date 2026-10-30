@@ -16,8 +16,9 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import EmptyState from "../../components/EmptyState";
 import { createPortal } from "react-dom";
 import { CloseButton } from "../../components/IconTapButton";
+import { useBackLayer } from "../../hooks/useBackLayer";
 import { AI_REAL, fuseFrame } from "../../ai";
-import { canAfford, spendTokens } from "../../data/account";
+import { canAfford, frozenNote, spendTokens } from "../../data/account";
 import { ONE_IMAGE, fmtTokens } from "../../data/economy";
 import { frozenViewName, type CardType, type VideoAspect } from "../../types";
 
@@ -36,19 +37,22 @@ export const FUSE_MAX = 3;
  * ★ 各写一份的下场是三个面给出的候选图不一样，而用户完全看不出为什么这一面少一张。
  * ★ 顺序即优先级：承接帧 → 本段现有首尾帧 → 素材卡形象图。前两者是"接缝在哪"的
  *   直接依据，卡的形象图是"这个人长什么样"的依据 —— 融图最常见的用法正是把两者合起来。
- * ★ 只收 http(s)/dataURL 的**真图**：`mock:` 这类占位串混进去会让模型收到一个 404
- *   （或整发 400），而那一步是花钱的。
+ * ★ 只收非空的图地址。这里原来还多判一句 `!startsWith("mock:")`（2026-10-15 教材人格评审收掉）：那个占位串只写进
+ *   `Proposal.videoUrl` / `videoByProposal`（flowStore.MOCK_VIDEO_URL），帧与卡片形象图从不带它 —— 那半句是永远为假的死判据，
+ *   留着只会让人以为帧地址也有一种 mock 形态。
  */
 export function fuseSourcesOf(o: {
   materials?: { name: string; type: CardType; views?: { url: string; tag?: string }[]; cover?: string }[];
   carryFrame?: string | null;
   firstFrame?: string;
   lastFrame?: string;
+  /** 这一段的临时参考图（N3）：站位草图 / 道具照片也能融进这一帧 —— 帧就照着它画，出片时帧与参考图不打架 */
+  extras?: { url: string; name: string }[];
 }): FuseSource[] {
   const out: FuseSource[] = [];
   const push = (url: string | null | undefined, label: string) => {
     const u = (url || "").trim();
-    if (!u || u.startsWith("mock:") || out.some((x) => x.url === u)) return;
+    if (!u || out.some((x) => x.url === u)) return;
     out.push({ url: u, label });
   };
   // 模块级函数拿不到 useLingui：候选图的名字用 i18n._ 在调用那一刻（宿主渲染时）翻
@@ -77,6 +81,7 @@ export function fuseSourcesOf(o: {
       }
     else push(c.cover, c.name);
   }
+  for (const x of o.extras ?? []) push(x.url, x.name);
   return out;
 }
 
@@ -84,12 +89,19 @@ export default function FuseFrameSheet({
   which,
   sources,
   aspect,
+  tierIssue,
   onDone,
   onClose,
 }: {
   which: "first" | "last";
   sources: FuseSource[];
   aspect: VideoAspect;
+  /**
+   * 这一段出不了片的原因（档位门禁：宿主拿这一段的档问 account.tierBlockReason）；null = 出得了。
+   * 非空就不融、当场说这句话 —— 融好的帧落在一段出不了片的段上，那一张图的钱白花（2026-10-07 评审补，同 flowStore.editFrame 那道）。
+   * **必填**：本组件不认识 store，漏传就是零症状地绕过门禁。
+   */
+  tierIssue: string | null;
   /** 融好的那张（dataUrl）。宿主拿它调 onFrame 落地 */
   onDone: (dataUrl: string) => void;
   onClose: () => void;
@@ -98,6 +110,8 @@ export default function FuseFrameSheet({
   const [instruction, setInstruction] = useState("");
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
+  // 手机返回键先关这一层（hooks/useBackLayer），与 ✕ / 点遮罩同一个 onClose
+  useBackLayer(true, onClose, "fuse-frame");
   const price = ONE_IMAGE;
   const { t } = useLingui();
   /** 嵌进句子里的帧名（「这张开头帧」「融成结尾帧」）。带 context：卡角上单独出现的「开头帧」在英文里要大写开头 */
@@ -123,8 +137,12 @@ export default function FuseFrameSheet({
       setErr(t`写一句这张${label}要什么画面（例如"他站在门口回头，半身，暖光"）——不写的话模型只能自己编`);
       return;
     }
+    if (tierIssue) {
+      setErr(tierIssue);
+      return;
+    }
     if (AI_REAL && !canAfford(price)) {
-      setErr(t`融一张约需 ${fmtTokens(price)} token，余额不够——去「我的」页充值`);
+      setErr(frozenNote() ?? t`融一张约需 ${fmtTokens(price)} token，余额不够——去「我的」页充值`);
       return;
     }
     setErr("");
@@ -208,7 +226,7 @@ export default function FuseFrameSheet({
           placeholder={t`这张${label}要什么画面？例："他站在门口回头，半身，暖光"`}
           className="mb-2 h-16 w-full resize-none rounded-lg border border-slate-700 bg-panel px-2.5 py-2 text-xs text-slate-100 placeholder:text-slate-500 disabled:opacity-40"
         />
-        {err && <p className="mb-2 text-[11px] leading-relaxed text-rose-300">{err}</p>}
+        {err && <p className="mb-2 text-[11px] leading-relaxed text-danger-300">{err}</p>}
         <button
           onClick={() => void run()}
           disabled={!!busy}

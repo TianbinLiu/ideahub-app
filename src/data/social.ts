@@ -25,6 +25,7 @@
 import { idbRead, idbSet } from "./db";
 import { formatPlays } from "../types";
 import { currentUser, readyAccount, userIdOfName } from "./account";
+import { onViewerChange } from "./deviceOwner";
 // ★ "这次会话在不在远端上"只有一处判断（铁律六 + CLAUDE.md 的弹幕那三条）。
 //   各模块各探一次会出现"视频退了本地库、热度还在打远端"这种半边天。
 import { remoteOn } from "./videos";
@@ -338,6 +339,14 @@ const remoteStats = new Map<string, branch.ApiAssetStats>();
  * 一个会话问一次，问不到就老老实实退回本机计数并标 local。
  */
 const statsAsked = new Set<string>();
+
+// ★★ 换了看的人（2026-09-18，见 data/deviceOwner）：服务端热度回包里带着**问的那个人**「赞过 / 收藏过没有」，
+//   这份缓存原来整个会话不清 —— B 登录后看到的红心、书签是 A 的，点一下还是从 A 的状态起跳。清掉让它按新的人重问。
+onViewerChange(() => {
+  remoteStats.clear();
+  statsAsked.clear();
+  emit();
+});
 /**
  * 这台服务器压根没有这套端点（部署的是老版本）。
  * ★ 判据不是状态码 —— Capacitor 的本地静态服务器对未命中路径回的是 200 + index.html，

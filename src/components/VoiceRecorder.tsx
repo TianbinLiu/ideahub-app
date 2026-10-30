@@ -17,6 +17,7 @@ import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useRef, useState } from "react";
 import { VOICE_MAX_SEC, VOICE_MIN_SEC } from "../data/cardVoice";
+import { voiceModelsNames } from "../data/account";
 import { pcmToVoiceWav } from "../utils/wav";
 
 /**
@@ -182,9 +183,14 @@ export default function VoiceRecorder({
   }
 
   return (
-    <div className="rounded-lg border border-slate-700 bg-black/25 p-2.5">
+    <div className="rounded-lg bg-black/25 p-2.5">
       <p className="text-[10px] leading-relaxed text-slate-400">
-        <Trans>照着下面这句念（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）——出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段音色。</Trans>
+        {/* 会参考声音样本的模型按「此刻摆得出来的」说（account.voiceModelsNames，2026-10-26 审核）；一个都没有时照样能录（样本属于这张卡） */}
+        {voiceModelsNames() ? (
+          <Trans>照着下面这句念（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）——用 {voiceModelsNames()} 出片、台词写在引号里时，AI 会参考这段音色。</Trans>
+        ) : (
+          <Trans>照着下面这句念（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）——你现在能用的出片模型都不参考声音样本，录下来先存进这张卡，换了能用的模型还用得上。</Trans>
+        )}
       </p>
       <div className="mt-1.5 flex items-start gap-2">
         <p className="flex-1 rounded-lg bg-ink/60 px-2.5 py-2 text-xs leading-relaxed text-slate-200">
@@ -213,13 +219,13 @@ export default function VoiceRecorder({
         onContextMenu={(e) => e.preventDefault()}
         disabled={busy}
         className={`mt-2 w-full select-none rounded-xl py-2.5 text-xs font-bold ${
-          recording ? "bg-rose-500 text-white" : "bg-brand text-ink"
+          recording ? "bg-danger-500 text-white" : "bg-brand text-ink"
         } disabled:opacity-40`}
         style={{ touchAction: "none" }}
       >
         {busy ? <Trans>处理中…</Trans> : recording ? t`松手结束 · ${elapsed.toFixed(1)}s` : <Trans>🎙 按住跟读（长按录音）</Trans>}
       </button>
-      {err && <p className="mt-1.5 text-[10px] leading-relaxed text-rose-300">{err}</p>}
+      {err && <p className="mt-1.5 text-[10px] leading-relaxed text-danger-300">{err}</p>}
     </div>
   );
 }

@@ -164,7 +164,7 @@ export default function SupportModelsPage() {
           const r = await prefetchLive2dModel(url, {
             onProgress: (done, total) => setBusy({ id: m._id, step: t`准备文件 ${done}/${total}` }),
           });
-          if (r.failed) console.warn(`[support] prefetch: ${r.failed}/${r.total} files failed for ${m._id}`);
+          if (r.failed || r.dropped) console.warn(`[support] prefetch: ${r.failed}/${r.total} files failed, ${r.dropped} external refs dropped for ${m._id}`);
         } catch (e) {
           const why = e instanceof Error ? e.message : String(e);
           throw new Error(t`模型文件读不到（${why}），没有切换。`);
@@ -241,7 +241,7 @@ export default function SupportModelsPage() {
           <button
             key={tb}
             onClick={() => setTab(tb)}
-            className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold ${tab === tb ? "bg-brand text-ink" : "bg-panel text-slate-300"}`}
+            className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs ${tab === tb ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-300"}`}
           >
             {t(TAB_LABEL[tb])}
           </button>
@@ -249,12 +249,12 @@ export default function SupportModelsPage() {
       </div>
 
       {settingsErr && (
-        <p className="mb-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-300">
+        <p className="mb-2 rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-warn-300">
           <Trans>读不到当前设置：{settingsErr}这里不标「使用中」，选用时以服务端为准。</Trans>
         </p>
       )}
-      {notice && <p className="mb-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5 text-xs text-emerald-200">{notice}</p>}
-      {listErr && <p className="mb-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1.5 text-xs leading-relaxed text-rose-300">{listErr}</p>}
+      {notice && <p className="mb-2 rounded-lg border border-ok-500/40 bg-ok-500/10 px-2.5 py-1.5 text-xs text-ok-200">{notice}</p>}
+      {listErr && <p className="mb-2 rounded-lg border border-danger-500/40 bg-danger-500/10 px-2.5 py-1.5 text-xs leading-relaxed text-danger-300">{listErr}</p>}
 
       {loading ? (
         <EmptyState loading text={t`读取中…`} />
@@ -322,7 +322,7 @@ export default function SupportModelsPage() {
                       <Trans>取消收藏</Trans>
                     </button>
                   )}
-                  {cardErr?.id === m._id && <p className="mt-1.5 text-[11px] leading-relaxed text-rose-300">{cardErr.text}</p>}
+                  {cardErr?.id === m._id && <p className="mt-1.5 text-[11px] leading-relaxed text-danger-300">{cardErr.text}</p>}
                 </div>
               </section>
             );

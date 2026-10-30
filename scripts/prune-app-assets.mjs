@@ -19,10 +19,13 @@
 //   是工坊里默认的铸卡师，**必须随包发布**。别看它也在 protected/ 下就顺手裁掉：
 //   那个目录装的是"要加密的"，不是"不能发的"，两件事。裁错的后果是进工坊看不到人，
 //   而且不报任何错（2026-08-11 就这么发出去过一版）。
-//   出包后请确认：`ls dist/models/protected/` 里有 milltina-opt.glbx。
+//   出包时由本文件末尾的「出包闸」机器核对（不在包里 / 没钥匙 / 解不开 → exit 1），不再靠人记得去看。
+import { webcrypto } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import url from "node:url";
+import { loadEnv } from "vite";
+import { NPC_MODEL, OWN_PROTECTED_MODELS, PROTECTED_DIR } from "./lib/protected-models.mjs";
 
 const root = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), "..");
 const modelsDir = path.join(root, "dist", "models");
@@ -84,3 +87,65 @@ for (const f of PRUNE) {
   }
 }
 console.log(`App 包体减少 ${(saved / 1048576).toFixed(1)}MB`);
+
+// ── 出包闸 ①：protected/ 下剩下的必须**恰好**是自有模型白名单（2026-10-15 教材人格评审，humble-delivery-1）──
+//
+// ★★ 上面那张 PRUNE 表是黑名单：新丢进 public/models/protected/ 一个不在表上的 .glbx，默认随包发出去、零报错 ——
+//   而那个目录装的恰恰是第三方版权素材（授权不含分发，加密拦不住：钥匙就在包里）。白名单的方向相反：
+//   不在 scripts/lib/protected-models.mjs 上的一律不许进包。两条路各自说清：第三方素材 → 加进 PRUNE 表；
+//   新的自有模型 → 加进白名单。发版脚本第 2b 步会再开包核一遍同一份白名单（那一步看的是 APK / AAB 本身）。
+{
+  const dir = path.join(root, "dist", PROTECTED_DIR);
+  const have = fs.existsSync(dir) ? fs.readdirSync(dir).sort() : [];
+  const extra = have.filter((n) => !OWN_PROTECTED_MODELS.includes(n));
+  if (extra.length) {
+    console.error(
+      `\n✗ 出包闸没过：dist/${PROTECTED_DIR}/ 里有白名单之外的文件：${extra.join("、")}\n` +
+        `  那个目录装的是「要加密的」，不等于「能发的」—— 第三方版权素材（rin / gratia / tsumire 那一类）绝不许随包发。\n` +
+        `  是第三方素材：加进 scripts/prune-app-assets.mjs 的 PRUNE 表（dist 里就裁掉）；\n` +
+        `  是新的自有模型：加进 scripts/lib/protected-models.mjs 的 OWN_PROTECTED_MODELS（发版脚本开包核的也是它）。\n`,
+    );
+    process.exit(1);
+  }
+  console.log(`出包闸：dist/${PROTECTED_DIR}/ 只有白名单里的 ${OWN_PROTECTED_MODELS.join("、")} ✓`);
+}
+
+// ── 出包闸 ②：默认铸卡师必须在包里、而且解得开（2026-09-30 加） ──
+//
+// ★★ 2.51–2.55 就是这么坏的：那五版是在一个 git worktree 里出的包，而 `public/models/protected/`
+//   与 `.env.local` 都被 .gitignore 挡着 —— worktree 里根本没有它们。包里于是既没有
+//   milltina-opt.glbx、也没有 VITE_ASSET_KEY；TableScene 无条件加载这个模型、全 app 又没有
+//   ErrorBoundary，结果是**一进工坊 3D 桌面就整页白屏**。而构建、签名、清单、sha256 一路全绿。
+//   文件头原来那句「出包后请确认」是人工步骤，漏一次就是五版 —— 改成机器判，三条缺一不可：
+//   ① dist 里有 milltina-opt.glbx（确实拷进来了，也没被上面那张表裁掉）；
+//   ② 这次构建拿得到 VITE_ASSET_KEY（与 vite build 同一套解析：mode=production 的 loadEnv）；
+//   ③ 用这把钥匙真解得开、解出来是 glTF —— 钥匙和文件不是一对，白屏一模一样。
+// 不过就 exit 1：build:app 后面的 `cap sync` 不会跑。⚠ 别绕过它直接跑 gradle ——
+//   那样打进包的是**上一次** sync 留在 android 目录里的 web 资产，不是这一次的。
+// 文件名读共用白名单（scripts/lib/protected-models.mjs）：默认铸卡师换了名字，这里与发版脚本一起跟着变
+const NPC_REL = `protected/${NPC_MODEL}`;
+function gateFail(why) {
+  console.error(
+    `\n✗ 出包闸没过：${why}\n` +
+      "  这样出的包一进工坊 3D 桌面就整页白屏（2.51–2.55 的事故）。\n" +
+      "  修法：从主检出 ideahub/app/ 拷 public/models/protected/milltina-opt.glbx 与 .env.local 里\n" +
+      "  VITE_ASSET_KEY 那一行过来（两样都被 .gitignore 挡着，不会误提交），再重跑 npm run build:app。\n",
+  );
+  process.exit(1);
+}
+const npcPath = path.join(modelsDir, NPC_REL);
+if (!fs.existsSync(npcPath)) gateFail(`dist/models/${NPC_REL} 不在包里`);
+const keyB64 = loadEnv("production", root, "VITE_").VITE_ASSET_KEY ?? "";
+if (!keyB64) gateFail("这次构建没有 VITE_ASSET_KEY（.env.local 里没有这一行）");
+const glbx = fs.readFileSync(npcPath);
+if (glbx.subarray(0, 5).toString("latin1") !== "GLBX1") gateFail(`${NPC_REL} 不是 GLBX1 加密资产`);
+let plain = Buffer.alloc(0);
+try {
+  // 与 src/studio/secureAssets.ts 同一套：GLBX1(5B) + iv(12B) + AES-256-GCM 密文（尾部 16B tag）
+  const key = await webcrypto.subtle.importKey("raw", Buffer.from(keyB64, "base64"), "AES-GCM", false, ["decrypt"]);
+  plain = Buffer.from(await webcrypto.subtle.decrypt({ name: "AES-GCM", iv: glbx.subarray(5, 17) }, key, glbx.subarray(17)));
+} catch (e) {
+  gateFail(`VITE_ASSET_KEY 解不开 ${NPC_REL}（钥匙与文件不是一对：${e instanceof Error ? e.message : e}）`);
+}
+if (plain.subarray(0, 4).toString("latin1") !== "glTF") gateFail(`${NPC_REL} 解出来不是 glTF`);
+console.log(`出包闸：默认铸卡师 ${NPC_REL} 在包里，VITE_ASSET_KEY 解得开 ✓`);

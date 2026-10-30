@@ -72,13 +72,13 @@ export default function RefFrameSheet({
 
   return createPortal(
     <div className="fixed inset-0 z-[60] flex flex-col bg-black/90" onClick={onClose}>
-      <div className="safe-top flex h-[58px] flex-none items-center gap-2 px-4" onClick={(e) => e.stopPropagation()}>
+      <div className="safe-top-bar flex flex-none items-center gap-2 px-4" onClick={(e) => e.stopPropagation()}>
         <span className="min-w-0 flex-1 text-sm font-bold text-slate-100"><Trans>调节首尾帧</Trans></span>
-        {note && <span className="flex-none text-[11px] text-emerald-300">{note}</span>}
+        {note && <span className="flex-none text-[11px] text-ok-300">{note}</span>}
         <CloseButton chip="md" size={16} tone="text-slate-200" align="end" onClick={onClose} />
       </div>
       {err && (
-        <p className="mx-3 flex-none rounded-lg bg-rose-500/90 px-2.5 py-1.5 text-[11px] text-white" onClick={(e) => e.stopPropagation()}>
+        <p className="mx-3 flex-none rounded-lg bg-danger-500/90 px-2.5 py-1.5 text-[11px] text-white" onClick={(e) => e.stopPropagation()}>
           {err}
         </p>
       )}

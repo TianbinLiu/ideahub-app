@@ -24,6 +24,7 @@ import {
   listFollowingVideos,
   listVideos,
   refreshFeed,
+  feedLoading,
   refreshFollowingFeed,
   profileHref,
   setLike,
@@ -33,7 +34,8 @@ import { danmakuNeedsLogin, danmakuOn, danmakuSessionPending, subscribeDanmaku }
 import { hasPurchased, isCollected, isFollowing, toggleCollect, toggleFollow } from "../data/account";
 import { fmtTokens } from "../data/economy";
 import { useAuthState, useCurrentUser } from "../hooks/useAccount";
-import { requestLandscape } from "../hooks/useOrientationLock";
+import { useImmersive } from "../hooks/useImmersive";
+import { useRemake } from "../hooks/useRemake";
 import { useVideosVersion } from "../hooks/useVideos";
 import Avatar from "../components/Avatar";
 import CommentSheet from "../components/CommentSheet";
@@ -45,10 +47,97 @@ import AigcBadge, { isAigcWork } from "../components/AigcBadge";
 import SeedBadge from "../components/SeedBadge";
 import Icon, { type IconName } from "../components/Icon";
 import CharacterPerch, { usePerchBurst, type PerchPose } from "../components/CharacterPerch";
-import { remakeNodesOf, remakeableOf, useFlow } from "../studio/flowStore";
-import { useApplyTemplate } from "../components/flow/useApplyTemplate";
-import { VideoAspect, VideoItem, aspectFromSize, aspectOf, formatDuration, segsTotal, videoCategoryLabel } from "../types";
+import { VideoAspect, VideoItem, aspectFromSize, aspectOf, formatDuration, formatPlays, segsTotal, videoCategoryLabel } from "../types";
 import { useMediaUrl } from "../utils/mediaUrl";
+import FeedActionSheet, { type FeedSpeed } from "../components/FeedActionSheet";
+// 长按判定的几个数（多久算长按、两侧多宽、临时几倍速）在 data/feedGestures：新手引导也要插同一个数
+import { EDGE_ZONE, HOLD_SPEED, LONG_PRESS_MS } from "../data/feedGestures";
+
+/**
+ * 这一下是不是按在这一条作品**自己的画面**上（DOM 后代），而不是它名下某个 portal 出去的浮层上。
+ * ★ React 合成事件沿**组件树**冒泡，portal 到 body 的东西（评论抽屉、弹幕输入条、举报框、做同款那张
+ *   「丢弃流水线」确认卡）一样会冒到这个 section 上：不挡的话，在确认卡上按久一点就开出长按菜单 / 两侧快进，
+ *   在评论框里长按粘贴，系统那条「粘贴」也被这里的 onContextMenu 吞掉（2026-10-21 评审抓到）。
+ *   portal 出去的节点不是 DOM 后代，问一句 contains 就分得开，以后新加的浮层也自动算在外面。
+ */
+const onOwnPicture = (e: React.SyntheticEvent) => (e.currentTarget as Node).contains(e.target as Node);
+
+/**
+ * 长按开出菜单之后，抬手那一下 click 吞掉。
+ * ★ 菜单是**按着的时候**就开的（450ms，与抖音一样不用等抬手），抽屉当场画在手指底下。安卓 Chrome 只要在
+ *   它自己的长按判定（系统长按时长：安卓 12 起 400ms，开了无障碍「触摸并按住延迟」会到 1~1.5 秒）之前抬手，
+ *   就把这一按当成一次轻触，在抬手的位置补一个 click —— 落在抽屉的遮罩上就是「刚开出来就关了」，
+ *   落在某一行上就是替人点了那一行（2026-10-21 发版前复核抓到）。
+ * ★ 在 window 捕获阶段拦：比 React 挂在 body / #root 上的监听都早，抽屉的 onClick 一个都收不到。
+ *   抬手（或手势被取消）之后再等 400ms 就撤掉，不会吞掉人接下来真正的那一下。
+ */
+function swallowLiftClick() {
+  let timer: number | undefined;
+  const eat = (e: MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    stop();
+  };
+  const lifted = () => {
+    window.clearTimeout(timer);
+    timer = window.setTimeout(stop, 400);
+  };
+  function stop() {
+    window.clearTimeout(timer);
+    window.removeEventListener("click", eat, true);
+    window.removeEventListener("pointerup", lifted, true);
+    window.removeEventListener("pointercancel", lifted, true);
+  }
+  window.addEventListener("click", eat, true);
+  window.addEventListener("pointerup", lifted, true);
+  window.addEventListener("pointercancel", lifted, true);
+}
+
+/** 一次双击点赞的爆心：位置、随机倾角（±15°，抖音式，连击时几颗心不叠成同一个角度） */
+type Burst = { x: number; y: number; k: number; rot: number };
+
+/**
+ * 爆心外圈的品牌粒子：四颗金色四角星（看板娘的星形发夹）+ 四颗品牌青光点，交错排成一圈向外飞。
+ * ★ 角度与距离固定（不随机）：每次都一样才像「这个 App 的点赞」，随机的话就只是噪点。
+ */
+const BURST_PARTS = Array.from({ length: 8 }, (_, i) => {
+  const a = (i / 8) * Math.PI * 2 - Math.PI / 2;
+  const r = i % 2 === 0 ? 70 : 54;
+  return { dx: Math.round(Math.cos(a) * r), dy: Math.round(Math.sin(a) * r), star: i % 2 === 0 };
+});
+
+function LikeBurst({ b }: { b: Burst }) {
+  return (
+    <span className="pointer-events-none absolute z-10" style={{ left: b.x, top: b.y }}>
+      {BURST_PARTS.map((p, i) =>
+        p.star ? (
+          <svg
+            key={i}
+            viewBox="0 0 24 24"
+            width={16}
+            height={16}
+            aria-hidden
+            className="burst-fly absolute left-0 top-0 text-gold"
+            style={{ ["--dx" as string]: `${p.dx}px`, ["--dy" as string]: `${p.dy}px`, filter: "drop-shadow(0 0 4px rgba(251,191,36,.7))" }}
+          >
+            <path fill="currentColor" d="M12 2l2.4 6.2a2 2 0 0 0 1.4 1.4L22 12l-6.2 2.4a2 2 0 0 0-1.4 1.4L12 22l-2.4-6.2a2 2 0 0 0-1.4-1.4L2 12l6.2-2.4a2 2 0 0 0 1.4-1.4z" />
+          </svg>
+        ) : (
+          <span
+            key={i}
+            aria-hidden
+            className="burst-fly absolute left-0 top-0 h-1.5 w-1.5 rounded-full bg-brand"
+            style={{ ["--dx" as string]: `${p.dx}px`, ["--dy" as string]: `${p.dy}px`, boxShadow: "0 0 6px rgba(56,189,248,.9)" }}
+          />
+        ),
+      )}
+      {/* 心本身照旧是通用红心（调研第五节：别把点赞画成星 / 灯泡）；倾角挂在外层，里层的 heart-burst 关键帧自己动 transform */}
+      <span className="absolute left-0 top-0" style={{ transform: `rotate(${b.rot}deg)` }}>
+        <Icon name="heart" size={96} filled className="heart-burst absolute left-0 top-0 text-danger-500" />
+      </span>
+    </span>
+  );
+}
 
 /**
  * 带声音的自动播放被浏览器拒过一次吗。
@@ -90,6 +179,7 @@ function RailBtn({
   tint,
   label,
   name,
+  pressed,
   perch,
   className = "",
   guide,
@@ -104,6 +194,9 @@ function RailBtn({
   label?: string;
   /** 无障碍名。★ 点赞 / 评论那两颗的 label 是**数字**（计数），读屏读出来只是「3」——名字另给一个 */
   name?: string;
+  /** 切换键（点赞 / 收藏）的开关态 → aria-pressed：填色只有眼睛看得见，读屏要靠这一位才知道「已点过」
+   *  （2026-10-15 教材人格评审，WCAG 2.2 · 4.1.2）。只给真能切换的那两颗；评论 / 分享不传，免得读屏把它们也念成切换键 */
+  pressed?: boolean;
   /** 给了姿势名，【激活的那一下】角色跳上来演一段再缩回去。
    *  姿势同时决定贴图、翻页帧和进出场动画（见 CharacterPerch）。 */
   perch?: PerchPose;
@@ -122,6 +215,7 @@ function RailBtn({
       onClick={onClick}
       data-guide={guide}
       aria-label={name ?? label}
+      aria-pressed={pressed}
       /* ★ mt-8 挂在【有角色演出的键】自己身上，而不是整栏一个大 gap。
          激活态的角色会从图标顶沿向上探出约 45px，压住**上一个键的计数数字**
          （实测收藏后评论数「3」整个消失，计数是信息，装饰盖掉信息就是回退）。
@@ -160,7 +254,7 @@ function RailBtn({
         )}
       </span>
       {label !== undefined && (
-        <span className="text-[11px] tabular-nums text-white/90 [text-shadow:0_1px_2px_rgba(0,0,0,.6)]">{label}</span>
+        <span className="text-[11px] tabular-nums text-white/90 [text-shadow:0_0_3px_rgba(0,0,0,.6)]">{label}</span>
       )}
     </button>
   );
@@ -173,6 +267,8 @@ function FeedItem({
   immersive,
   onEnterFull,
   onAspect,
+  speed,
+  onSpeed,
 }: {
   video: VideoItem;
   active: boolean;
@@ -182,6 +278,9 @@ function FeedItem({
   onEnterFull: () => void;
   /** 把本屏的真实画幅报上去：转不转屏、全屏键写什么字都看它 */
   onAspect: (a: VideoAspect) => void;
+  /** 倍速（长按菜单里选的，这次会话里划到下一条照旧）。FeedPage 持有 */
+  speed: FeedSpeed;
+  onSpeed: (s: FeedSpeed) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   // 初值从库里取：划走再划回来时点赞态不该丢（isLiked 之前一直没人调用）
@@ -196,12 +295,22 @@ function FeedItem({
   const [cmtOpen, setCmtOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [dmOpen, setDmOpen] = useState(false);
+  /** 弹幕输入条 / 评论抽屉开着时右侧栏整列退场（量法与理由见右侧栏 className 上那段 ★★） */
+  const railAway = dmOpen || cmtOpen;
   // 弹幕总开关是**用户级**偏好，不跟作品走：在这一条上关掉，划到下一条也该是关的。
   // 订阅而不是 useState(danmakuOn())，否则同屏三个 FeedItem 的开关会各说各话
   const dmOn = useSyncExternalStore(subscribeDanmaku, danmakuOn, () => true);
   const [following, setFollowing] = useState(() => isFollowing(video.author));
   const [paused, setPaused] = useState(false);
-  const [burst, setBurst] = useState<{ x: number; y: number; k: number } | null>(null);
+  // 双击点赞的爆心可以叠好几颗（连点时一颗接一颗，原来只有一个状态位，后一颗把前一颗顶掉）
+  const [bursts, setBursts] = useState<Burst[]>([]);
+  /** 长按菜单开着没有 */
+  const [menuOpen, setMenuOpen] = useState(false);
+  /** 正按着两侧临时 2 倍速 */
+  const [fastHold, setFastHold] = useState(false);
+  const pressTimer = useRef<number | undefined>(undefined);
+  /** 这一按已经算长按了（抬手时别再当单击 / 双击处理） */
+  const longFired = useRef(false);
   // 默认有声。只有"这个浏览器已经拒过一次带声音的自动播放"时才先静音（见 autoplayBlocked）
   const [muted, setMuted] = useState(autoplayBlocked);
   // 缓冲提示（对标抖音底缘细线）：waiting 后延迟 200ms 才亮，
@@ -248,11 +357,9 @@ function FeedItem({
     e.stopPropagation();
     setScrub(ratioAt(e.clientX));
   }
-  function scrubEnd(e: React.PointerEvent) {
-    if (scrub == null) return;
-    e.stopPropagation();
-    // 全局进度 → 段 + 段内偏移；跨段时切段并挂起待 seek（新元素 loadedmetadata 后落位）
-    const target = scrub * durTotal;
+  /** 全局进度（0~1）→ 段 + 段内偏移：同一段直接 seek，跨段时切段并挂起待 seek（新元素 loadedmetadata 后落位）。拖动与键盘共用 */
+  function seekRatio(ratio: number) {
+    const target = ratio * durTotal;
     let acc = 0;
     let j = 0;
     let local = 0;
@@ -271,7 +378,30 @@ function FeedItem({
       pendingSeek.current = local;
       setSi(j);
     }
+  }
+  function scrubEnd(e: React.PointerEvent) {
+    if (scrub == null) return;
+    e.stopPropagation();
+    seekRatio(scrub);
     setScrub(null);
+  }
+  /**
+   * 键盘 / 读屏的替代（wcag-a11y-i18n-2 的一半，2026-10-15 拍板）：进度条是 role=slider，左右键 5 秒、Home / End 到头。
+   * ★ 触控盒的几何（h-5、底缘 50 / 86 / 104 三个联动量过的数）这一轮**不动**：那要在真机上一起重量再改，见 CLAUDE.md「动了首页底缘」那格。
+   */
+  function onBarKey(e: React.KeyboardEvent) {
+    if (durTotal <= 0) return;
+    const now = durBefore + prog.t;
+    const step = 5;
+    let next: number | null = null;
+    if (e.key === "ArrowRight" || e.key === "ArrowUp") next = Math.min(durTotal, now + step);
+    else if (e.key === "ArrowLeft" || e.key === "ArrowDown") next = Math.max(0, now - step);
+    else if (e.key === "Home") next = 0;
+    else if (e.key === "End") next = durTotal;
+    if (next == null) return;
+    e.preventDefault();
+    e.stopPropagation();
+    seekRatio(next / durTotal);
   }
   /**
    * 播放量：**真看够 PLAY_MIN_SEC 秒**才记，而且一次会话只记一次（去重在 videos.ts）。
@@ -287,7 +417,8 @@ function FeedItem({
    */
   const watchRef = useRef({ prev: 0, sum: 0 });
   const countedRef = useRef(false);
-  const tapRef = useRef<{ x: number; y: number; t: number; last: number }>({ x: 0, y: 0, t: 0, last: 0 });
+  /** toggled：上一次单击切过播放 / 暂停（双击的第二下要把它撤回来，见 onUp） */
+  const tapRef = useRef<{ x: number; y: number; t: number; last: number; toggled: boolean }>({ x: 0, y: 0, t: 0, last: 0, toggled: false });
   const user = useCurrentUser();
   // ★ 右侧栏那几个键要区分「没登录」和「还不知道」：冷启动后立刻点收藏/发弹幕的人
   //   多半是登录着的，只是会话还没认领上。判 `!user` 会把他弹去登录页（见 useAuthState）。
@@ -328,6 +459,15 @@ function FeedItem({
   // 媒体地址解析：idb: 合并视频 / TOS 远端经代理取 blob；解析完成前出封面
   const resolvedSrc = useMediaUrl(!locked && wantSrc ? seg?.videoUrl : undefined);
 
+  // 倍速：按住两侧时临时 2×，否则用这次会话里选的那一档。★ 换段 / 换作品会重建 <video>（playbackRate 回到 1），
+  //   所以依赖里带 si 与地址，onLoadedData 那一拍也再设一次。
+  // ★ 播放量照旧按 currentTime 的增量记（PLAY_MIN_SEC 是「内容看够 3 秒」，2 倍速下墙钟 1.5 秒就够 —— 记的是内容，不是墙钟）
+  const rate = fastHold ? HOLD_SPEED : speed;
+  useEffect(() => {
+    const v = videoRef.current;
+    if (v) v.playbackRate = rate;
+  }, [rate, si, resolvedSrc]);
+
   // 画幅：段上存的只是**排版提示**（画面还没解码时先按它铺），拿到真实宽高就改用真值。
   // 存的字段会缺（画幅可选之前的老作品）、会过时（改了设置没重新出片），也可能被
   // 服务端当未知字段丢掉——只有解码出来的像素不会骗人。
@@ -364,6 +504,9 @@ function FeedItem({
       bufferOff(); // 划走的屏不留缓冲灯
       setScrub(null);
       setSi(0); // 划走归零：回来从头看
+      // 长按到一半被划走（按着两侧又往上推 = 滚动）：临时快进与还没触发的长按一并撤掉
+      window.clearTimeout(pressTimer.current);
+      setFastHold(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, video.id]);
@@ -394,26 +537,91 @@ function FeedItem({
     }
   }
 
+  /** 收掉一次按压的长按状态：没触发的计时器撤掉，正在临时快进的恢复原速 */
+  function endPress() {
+    window.clearTimeout(pressTimer.current);
+    pressTimer.current = undefined;
+    setFastHold(false);
+  }
+  // 临时快进期间在 window 上（捕获阶段）等抬手：用鼠标按住右侧那一条、挪到右侧栏上松开时，栏截住了 pointerup、
+  // 指针又没离开 section（pointerleave 不来），section 自己永远收不到这一下 —— 视频就一直 2× 放下去。
+  // 触屏有隐式指针捕获，不会这样；捕获阶段是因为 React 在栏上 stopPropagation 之后，原生冒泡到根就停了
+  useEffect(() => {
+    if (!fastHold) return;
+    const up = () => {
+      window.clearTimeout(pressTimer.current);
+      pressTimer.current = undefined;
+      setFastHold(false);
+    };
+    window.addEventListener("pointerup", up, true);
+    window.addEventListener("pointercancel", up, true);
+    return () => {
+      window.removeEventListener("pointerup", up, true);
+      window.removeEventListener("pointercancel", up, true);
+    };
+  }, [fastHold]);
+
   // 用 pointer 事件而不是 onClick：onClick 会和 snap 滚动的惯性抢事件
   function onDown(e: React.PointerEvent) {
+    if (!onOwnPicture(e)) return; // 从 portal 出去的浮层冒上来的（见 onOwnPicture）：不是按在画面上
     tapRef.current = { ...tapRef.current, x: e.clientX, y: e.clientY, t: Date.now() };
+    longFired.current = false;
+    window.clearTimeout(pressTimer.current);
+    // 锁着的（付费未解锁）与不是当前这一条的不给长按：前者画面上只有封面，后者看不见
+    if (!active || locked || e.button !== 0) return;
+    const box = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const fx = box.width > 0 ? (e.clientX - box.left) / box.width : 0.5;
+    const edge = fx < EDGE_ZONE || fx > 1 - EDGE_ZONE;
+    pressTimer.current = window.setTimeout(() => {
+      pressTimer.current = undefined;
+      longFired.current = true;
+      navigator.vibrate?.(12);
+      // 两侧：按住临时 2 倍速（暂停着就先接着放，按住快进的意思就是"让它动起来"）；中间：长按菜单
+      if (edge) {
+        const v = videoRef.current;
+        if (v?.paused) {
+          void v.play().catch(() => {});
+          setPaused(false);
+        }
+        setFastHold(true);
+      } else {
+        swallowLiftClick();
+        setMenuOpen(true);
+      }
+    }, LONG_PRESS_MS);
+  }
+  function onMove(e: React.PointerEvent) {
+    if (pressTimer.current == null) return;
+    const r = tapRef.current;
+    // 手指挪动超过 10px 就是在滑（上下翻页），不再算长按
+    if (Math.hypot(e.clientX - r.x, e.clientY - r.y) > 10) endPress();
   }
   function onUp(e: React.PointerEvent) {
+    // 浮层上抬手不算画面上的单击 / 双击（原来在「丢弃流水线」确认卡上点一下，背后的视频会跟着暂停）
+    if (!onOwnPicture(e)) return;
+    const wasLong = longFired.current;
+    endPress();
+    if (wasLong) return; // 这一按是长按：抬手只负责收掉快进，不当单击 / 双击
     const r = tapRef.current;
     const dt = Date.now() - r.t;
     const moved = Math.hypot(e.clientX - r.x, e.clientY - r.y);
     if (dt > 250 || moved > 10) return; // 是滑动不是点击
     const now = Date.now();
     if (now - r.last < 260) {
-      // 双击点赞
+      // 双击点赞。★ 第一下已经当单击切过一次播放 / 暂停了：这里撤回去，双击点赞不该顺手把视频停住
+      //   （抖音 / TikTok 双击都是边放边点赞；原来点完赞画面停在那儿，2026-10-21 浏览器里实测）
       tapRef.current.last = 0;
+      if (r.toggled) togglePlay();
+      tapRef.current.toggled = false;
       likeOn();
       const box = (e.currentTarget as HTMLElement).getBoundingClientRect();
-      setBurst({ x: e.clientX - box.left, y: e.clientY - box.top, k: now });
-      setTimeout(() => setBurst((b) => (b && b.k === now ? null : b)), 620);
+      const b: Burst = { x: e.clientX - box.left, y: e.clientY - box.top, k: now, rot: Math.round(Math.random() * 30 - 15) };
+      setBursts((list) => [...list.slice(-3), b]);
+      setTimeout(() => setBursts((list) => list.filter((x) => x.k !== now)), 640);
       return;
     }
     tapRef.current.last = now;
+    tapRef.current.toggled = false;
     // ★ 只有"被浏览器拒过、正静着音"的时候，首次单击才拿去解除静音（正好满足
     //   浏览器"必须有用户手势"的解锁要求）。原生壳里 muted 一开始就是 false，
     //   这一段走不到 —— 点一下就是暂停，符合直觉。
@@ -423,6 +631,7 @@ function FeedItem({
       return;
     }
     togglePlay();
+    tapRef.current.toggled = true;
   }
 
   /** 作者主页：自己的作品进「我的」，别人的按 userId 进 /user/<id>（拿不到 id 才退回名字）。
@@ -442,32 +651,9 @@ function FeedItem({
     onPointerUp: (e: React.PointerEvent) => e.stopPropagation(),
   };
 
-  // 做同款（第八条整表覆盖入口，守卫与套模板同一份实现）。付费未解锁的不给：
-  // 配方（分段剧本）是付费内容的一部分，锁着的只出封面
-  const canRemake = !locked && remakeableOf(video.segments);
-  const { guard: remakeGuard, dialog: remakeDialog } = useApplyTemplate();
-  /** 做同款被就地拒时那句话（flowStore.err 只画在工作流页，这里不接就没人看得见）。
-   *  几秒后自清：feed 上没有常驻错误位，这行是临时的 */
-  const [remakeErr, setRemakeErr] = useState("");
-  function remake() {
-    remakeGuard(
-      () => {
-        const ok = useFlow
-          .getState()
-          .seed(remakeNodesOf(video.segments, video.deck?.cards ?? []), { mode: "workflow", origin: "solo" });
-        if (ok) navigate("/flow");
-        else {
-          setRemakeErr(useFlow.getState().err || t`现在铺不了（可能有一段正在生成中），稍后再试`);
-          window.setTimeout(() => setRemakeErr(""), 5000);
-        }
-        return ok;
-      },
-      {
-        label: t`做同款（丢弃上面那条流水线）`,
-        noun: t({ message: "做同款", context: "丢弃确认卡里「…再回来X」的那个动作（英文用小写动词短语）" }),
-      },
-    );
-  }
+  // 做同款（第八条整表覆盖入口，守卫与套模板同一份实现）。付费未解锁的不给：配方（分段剧本）是付费内容的一部分，锁着的只出封面。
+  //   实现只有 hooks/useRemake 一份（与作品详情页共用）；被就地拒的那句话几秒后自清（feed 上没有常驻错误位）
+  const { canRemake, remake, err: remakeErr, dialog: remakeDialog } = useRemake(video, video.segments, locked);
 
   /** 开分享面板（QQ / 微信占位 / 复制预览链接）。
    *  ★ 此前这里直接 navigator.share 一个 `${location.origin}/#/video/…`——
@@ -479,9 +665,18 @@ function FeedItem({
 
   return (
     <section
-      className="relative h-full w-full snap-start snap-always overflow-hidden bg-black"
+      // select-none + 关掉 touch-callout / contextmenu：长按画面时别让 WebView 弹出选字或「保存图片」那一套
+      className="relative h-full w-full snap-start snap-always overflow-hidden bg-black select-none [-webkit-touch-callout:none]"
       onPointerDown={onDown}
+      onPointerMove={onMove}
       onPointerUp={onUp}
+      // 滚动接管了手势（上下翻页）、或者系统把这一按拿走了：长按与临时快进一起撤
+      onPointerCancel={endPress}
+      onPointerLeave={endPress}
+      // 只关画面自己的系统菜单：评论框 / 弹幕框 / 举报框是 portal，它们的长按粘贴要留着（onOwnPicture）
+      onContextMenu={(e) => {
+        if (onOwnPicture(e)) e.preventDefault();
+      }}
     >
       {/* 画面：有真实视频用 video，否则封面兜底。远处的屏只放封面图，不挂视频源；
           付费未解锁只出封面 + 解锁引导 */}
@@ -492,7 +687,7 @@ function FeedItem({
             onClick={() => navigate(`/video/${video.id}`)}
             className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2"
           >
-            <span className="text-3xl">🔒</span>
+            <Icon name="lock" size={32} className="text-white/90" />
             <span className="rounded-full bg-gold px-4 py-1.5 text-sm font-bold text-ink">
               <Trans>⚡ {fmtTokens(lockPrice)} token 解锁</Trans>
             </span>
@@ -533,6 +728,8 @@ function FeedItem({
             setProg({ t: v.currentTime, d: v.duration || 0 });
           }}
           onLoadedData={(e) => {
+            // 新元素的 playbackRate 是 1：倍速在这一拍补上（见上面 rate 那段）
+            e.currentTarget.playbackRate = rate;
             // 段间切换的新元素要接着播（autoPlay 属性在解除静音后可能被拦，走显式 play）
             if (active && !paused) void e.currentTarget.play().catch(() => {});
           }}
@@ -574,6 +771,7 @@ function FeedItem({
           time={durBefore + prog.t}
           paused={paused}
           top={`calc(env(safe-area-inset-top, 0px) + ${immersive ? 20 : 62}px)`}
+          lanes={4}
         />
       )}
 
@@ -591,14 +789,27 @@ function FeedItem({
           可拖动跳转，拖动中变粗并在画面中央显示大字时间；缓冲时进度条位置改播脉冲线 */}
       {active && !immersive && seg?.videoUrl && wantSrc && prog.d > 0 && (
         <div data-guide="feed-progress" className="absolute inset-x-0 z-20" style={{ bottom: "calc(var(--tabbar-h) - 0.375rem)" }}>
-          <div className="mb-0.5 flex justify-end pr-3">
-            <span className="text-[10px] tabular-nums text-white/70 [text-shadow:0_1px_2px_rgba(0,0,0,.6)]">
+          <div className="mb-0.5 flex justify-end gap-1.5 pr-3">
+            {/* 选了倍速时在同一行写一句（行内，不加高度 —— 底缘几何是联动量过的）：不写的话人会以为视频本身就这么快 */}
+            {speed !== 1 && (
+              <span className="text-[10px] font-semibold tabular-nums text-brand [text-shadow:0_0_3px_rgba(0,0,0,.6)]">{speed}×</span>
+            )}
+            <span className="text-[10px] tabular-nums text-white/70 [text-shadow:0_0_3px_rgba(0,0,0,.6)]">
               {formatDuration(scrub != null ? scrub * durTotal : durBefore + prog.t)} / {formatDuration(durTotal)}
             </span>
           </div>
+          {/* 读屏 / 键盘上它是真滑杆（值与右上角的读数同源）；几何没动，见 onBarKey 的 ★ */}
           <div
             ref={barRef}
-            className="relative mx-2 h-5 touch-none"
+            role="slider"
+            tabIndex={0}
+            aria-label={t`播放进度`}
+            aria-valuemin={0}
+            aria-valuemax={Math.round(durTotal)}
+            aria-valuenow={Math.round(scrub != null ? scrub * durTotal : durBefore + prog.t)}
+            aria-valuetext={formatDuration(scrub != null ? scrub * durTotal : durBefore + prog.t)}
+            onKeyDown={onBarKey}
+            className="relative mx-2 h-5 touch-none outline-none focus-visible:ring-2 focus-visible:ring-white/60"
             onPointerDown={scrubStart}
             onPointerMove={scrubMove}
             onPointerUp={scrubEnd}
@@ -640,15 +851,23 @@ function FeedItem({
         </div>
       )}
 
-      {/* 双击点赞的心 */}
-      {burst && (
-        <Icon
-          name="heart"
-          size={96}
-          filled
-          className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-1/2 text-rose-500 heart-burst"
-          style={{ left: burst.x, top: burst.y }}
-        />
+      {/* 双击点赞的心 + 品牌粒子（可以叠几颗：连点时一颗接一颗） */}
+      {bursts.map((b) => (
+        <LikeBurst key={b.k} b={b} />
+      ))}
+
+      {/* 按住两侧临时快进的回执（抖音「2倍速播放中」/ Instagram 底部 2× 那一类）：放在页签下面一指，抬手就消失 */}
+      {fastHold && (
+        <div
+          className="pointer-events-none absolute inset-x-0 z-20 flex justify-center"
+          style={{ top: "calc(env(safe-area-inset-top, 0px) + 56px)" }}
+        >
+          <span className="flex items-center gap-1 rounded-full bg-black/60 px-3 py-1 text-xs font-semibold text-white">
+            <Icon name="play" size={12} filled />
+            <Icon name="play" size={12} filled className="-ml-1.5" />
+            <Trans>{HOLD_SPEED}× 快进中</Trans>
+          </span>
+        </div>
       )}
 
       {/* ★ 这里原来常驻一句「点击开启声音」。删掉了：原生壳里视频**本来就有声**
@@ -662,7 +881,24 @@ function FeedItem({
           播放量下沉：TikTok 不在视频上显示播放量，它属于作者后台而非观众决策信息。
           pointer 事件在这里截住：点操作键不该同时触发画面的暂停/解静音/双击点赞 */}
       <div
-        className={`absolute right-2 z-10 flex flex-col items-center ${immersive ? "hidden" : ""}`}
+        /* ★★ 弹幕输入条 / 评论抽屉开着的时候整列退场（railAway）。2026-10-21 Pixel 8 模拟器（API 36，412×840 CSS px）量的：
+             · 键盘一弹，**布局视口**本身缩到 528（innerHeight 与 visualViewport.height 都是 528 —— 是 adjustResize，
+               不只是视觉视口平移）。这一栏照旧 bottom 104、高 512，顶沿落到 −88：头像（−88…−44）与「+」整个出界，
+               弹那一颗卡在上沿（−32…24），「发弹幕」那行字压在状态栏底下。评论抽屉里点输入框是同一个数（抽屉顶 200.6）。
+             · **挪不下**：顶上页签行底在 50，输入条顶在 461.7，中间只有约 412px，而这一栏 512（去掉全屏键也要 432）。
+               贴着 visualViewport 重新定位只能再砍键或缩放 —— 而砍下来的那几颗本来也点不到（下一条）。
+             · **点不到**：两个浮层都是 fixed inset-0，露在屏幕里的每颗键，中心的 elementFromPoint 都落在浮层上
+               （上半截是浮层「点一下收起」那一条，下半截是输入条 / 抽屉本身）；adb 真触屏点露在外面的那颗心，
+               结果是输入条收起、赞数不变。这时右侧栏只是一列画，留着只剩被裁的那半截。
+             · **节拍**（两轮 rAF 逐帧采样）：打开时 dmOpen 在按下后 12~35ms 就翻真，视口要再过 300~480ms 才缩 ⇒ 退场一定
+               赶在挤压之前，所以退场是瞬时的（duration-0）。收起时反过来：dmOpen 先翻假，视口 22~30ms 后才长回 840 ⇒
+               立刻显示会闪一两帧被裁的整列，所以回来时先等 150ms 再淡入 200ms（余量约 5 倍，给比模拟器收键盘慢的机器留的；
+               改后实测：视口长回时这一列仍是 hidden / 0，163ms 起才开始淡入）。只动 opacity + visibility，不碰布局：
+               底缘那一串锁死的数改前改后实测同一个（进度条 50 / 时长文字顶沿 87 / 本栏底 104）。
+             · invisible 而不只是 opacity-0：退场期间这一列也不该被读屏读到、被焦点走到。 */
+        className={`absolute right-2 z-10 flex flex-col items-center transition-[opacity,visibility] ${immersive ? "hidden" : ""} ${
+          railAway ? "invisible opacity-0 duration-0" : "opacity-100 delay-150 duration-200"
+        }`}
         /* ★ 3rem 是量出来的，不是估的。底缘那一串东西的位置是死的：
              进度条容器 bottom = var(--tabbar-h) - 0.375rem（离屏幕底 50px），
              容器里自上而下是「时长文字 14px + 2px + 进度条 20px」——
@@ -690,7 +926,7 @@ function FeedItem({
           {/* 登录态还没结论时的回执。挂在栏内而不是屏幕中央：用户的视线就在这几个键上，
               而且首页任何居中浮层都会盖住画面。max-w 收窄避免把视频压掉半屏。 */}
           {authTip && (
-            <span className="mb-1 max-w-[7.5rem] rounded-full px-2.5 py-1 bg-black/75 text-center text-[11px] leading-tight text-white">
+            <span className="mb-1 max-w-[7.5rem] rounded-lg bg-black/75 px-2.5 py-1 text-center text-[11px] leading-relaxed text-white">
               {authTip}
             </span>
           )}
@@ -712,11 +948,20 @@ function FeedItem({
                 <Avatar name={video.author} label={display} src={authorAvatarOf(video)} size={44} />
               </span>
             </button>
-            {user && !mine && !following && (
+            {/* 没登录也摆（抖音同款）：点了先去登录。★ 判 auth === "out" 不判 !user —— 会话还没认领上的那段窗口里
+                user 也是空的，那时把登录着的人送去登录页是 CLAUDE.md「拿 !currentUser() 当没登录」那格坑；pending 时不摆 */}
+            {(user || auth === "out") && !mine && !following && (
               <button
-                onClick={() => setFollowing(toggleFollow(video.author))}
+                onClick={() => {
+                  if (!user) {
+                    navigate("/login?next=/");
+                    return;
+                  }
+                  setFollowing(toggleFollow(video.author));
+                }}
                 aria-label={t({ message: "关注", context: "作者头像下那颗关注按钮（动作：关注这个人）" })}
-                className="absolute -bottom-2 left-1/2 flex h-5 w-5 -translate-x-1/2 items-center justify-center rounded-full bg-rose-500 text-white transition active:scale-90"
+                // 画着 20px、命中区放到 44px（after 伪元素外扩 12px）：它贴着头像键，点偏一点就进了主页（2026-10-14 UX 课走查）
+                className="absolute -bottom-2 left-1/2 flex h-5 w-5 -translate-x-1/2 items-center justify-center rounded-full bg-danger-500 text-white transition after:absolute after:-inset-3 after:content-[''] active:scale-90"
               >
                 <Icon name="plus" size={12} strokeWidth={3} />
               </button>
@@ -748,11 +993,12 @@ function FeedItem({
               setDmOpen(true);
             }}
           />
-          <RailBtn icon="heart" filled={liked} tint="text-rose-500" label={String(likes)} name={t`点赞`} perch="like" onClick={toggleLike} />
+          {/* 计数一律折「万」（types.formatPlays 一处）：12345 原样写会把 56px 宽的栏撑宽、也读不出量级 */}
+          <RailBtn icon="heart" filled={liked} pressed={liked} tint="text-danger-500" label={formatPlays(likes)} name={t`点赞`} perch="like" onClick={toggleLike} />
           {/* 评论就地滑出抽屉（对标短视频 App），不跳详情页打断刷视频的节奏 */}
           {/* ★ 走 commentCountOf，不读 comments.length：列表接口不返回 comments，
               直接读长度的话，没点进去过的作品评论数永远是 0（真机上抓到的） */}
-          <RailBtn icon="comment" label={String(commentCountOf(video))} name={t`评论`} onClick={() => setCmtOpen(true)} />
+          <RailBtn icon="comment" label={formatPlays(commentCountOf(video))} name={t`评论`} onClick={() => setCmtOpen(true)} />
           {/* ★★ 收藏**不显示数字**（2026-08-30）：服务端根本没有收藏端点，`setSave` 只在
               这台设备的本地库里自增 —— 那个数既不是"多少人收藏了"，也不会跟着账号走
               （种子作品上更是 mock 里手打的 786/604/341）。**显示一个骗人的数比不显示更糟**：
@@ -762,6 +1008,7 @@ function FeedItem({
           <RailBtn
             icon="bookmark"
             filled={saved}
+            pressed={saved}
             tint="text-gold"
             label={t`收藏`}
             perch="save"
@@ -798,11 +1045,32 @@ function FeedItem({
         />
       </div>
 
-      {cmtOpen && <CommentSheet video={video} onClose={() => setCmtOpen(false)} />}
+      {cmtOpen && <CommentSheet video={video} onClose={() => setCmtOpen(false)} autoFocus={false} />}
       {/* ★ saveLocal={null} = 「保存到本地」这个入口**在首页不存在**：这颗键只拿到 video，
           没有"当前第几集"的上下文（多 P 作品要存哪一集问不出来）；下载又是低频动作，
           走一次点击进详情页就有全套面板 —— 与举报键放详情页的取舍同类。 */}
       {shareOpen && <ShareSheet video={video} onClose={() => setShareOpen(false)} saveLocal={null} />}
+      {/* 长按菜单（倍速 / 清屏 / 保存到本地 / 举报）。只在当前这一条上开得出来（onDown 判 active） */}
+      {menuOpen && (
+        <FeedActionSheet
+          video={video}
+          mine={mine}
+          speed={speed}
+          onSpeed={(s) => {
+            onSpeed(s);
+            setMenuOpen(false);
+            // 回执落在进度条那一行（选了非 1× 才有字），这里不另弹 toast：多一句话就多盖一次画面
+          }}
+          immersive={immersive}
+          landscape={shownAspect === "landscape"}
+          onClearScreen={onEnterFull}
+          onClose={() => setMenuOpen(false)}
+          // 首页这一格：「保存到本地」是去详情页里选（能不能存、存哪几集只在 videoDownload.planDownload 一处判，详情页那颗键就是它的画法）
+          host="feed"
+          onSaveLocal={() => navigate(`/video/${video.id}`)}
+          block={null}
+        />
+      )}
       {/* 发弹幕时视频**不暂停**：弹幕的意思就是"此刻"，停下来发就名不副实了。
           附在哪一秒由输入条按下发送时现取（getTime），不是打开时定死的 */}
       {dmOpen && (
@@ -830,7 +1098,7 @@ function FeedItem({
         <button
           {...stopTap}
           onClick={() => navigate(authorHref)}
-          className="pointer-events-auto mb-1.5 block max-w-full truncate text-left text-sm font-semibold text-white [text-shadow:0_1px_2px_rgba(0,0,0,.6)] active:opacity-60"
+          className="pointer-events-auto mb-1.5 block max-w-full truncate text-left text-sm font-medium text-white/90 [text-shadow:0_0_3px_rgba(0,0,0,.6)] active:opacity-60"
         >
           {/* ★ 这里**不带 `@` 前缀**：`video.author` 是**显示名**，而本 app 的 @ 句柄是
               不可改的 username（见 utils/mention 与 MentionInput）。给显示名前面加个 @
@@ -845,14 +1113,14 @@ function FeedItem({
           {...stopTap}
           {...(active ? { "data-guide": "feed-title" } : {})}
           onClick={() => navigate(`/video/${video.id}`)}
-          className="pointer-events-auto mb-1 block max-w-full text-left text-base font-bold text-white [text-shadow:0_1px_3px_rgba(0,0,0,.7)] active:opacity-60"
+          className="pointer-events-auto mb-1 block max-w-full text-left text-base font-bold text-white [text-shadow:0_0_4px_rgba(0,0,0,.7)] active:opacity-60"
         >
           <span className="line-clamp-2">
             {video.title}
             <Icon name="chevron" size={14} className="ml-0.5 inline-block align-[-2px] text-white/60" />
           </span>
         </button>
-        <p className="line-clamp-2 text-xs leading-relaxed text-white/85 [text-shadow:0_1px_2px_rgba(0,0,0,.6)]">
+        <p className="line-clamp-2 text-xs leading-relaxed text-white/85 [text-shadow:0_0_3px_rgba(0,0,0,.6)]">
           {/* ★ 「AI 生成」标识挂在描述**行内**，不另起一行：底缘那 100px 里的四样东西
               （进度条 / 时长 / 右侧栏 / 底栏挂件）位置是联动算出来的，纵向多堆一行就得
               把那几个数重算一遍（CLAUDE.md 那格坑）。行内 chip 高度变化为 0。
@@ -869,7 +1137,7 @@ function FeedItem({
               <button
                 {...stopTap}
                 onClick={() => navigate(`/video/${video.id}`)}
-                className="pointer-events-auto inline-flex min-h-[28px] items-center gap-1 rounded-full bg-gold/90 px-3 text-[11px] font-semibold text-ink active:scale-95"
+                className="pointer-events-auto relative inline-flex min-h-[28px] items-center gap-1 rounded-full bg-gold/90 px-3 text-[11px] font-semibold text-ink after:absolute after:-inset-2 after:content-[''] active:scale-95"
               >
                 <Icon name="branch" size={13} strokeWidth={2.25} />
                 <Trans>互动 · 你来选</Trans>
@@ -884,15 +1152,18 @@ function FeedItem({
                 // 新手引导锚点：只挂在当前这一支上（同 feed-title），这一支没有这颗时那一步退成居中卡片
                 {...(active ? { "data-guide": "feed-remake" } : {})}
                 onClick={remake}
-                className="pointer-events-auto inline-flex min-h-[28px] items-center gap-1 rounded-full bg-white/20 px-3 text-[11px] font-semibold text-white backdrop-blur-sm active:scale-95"
+                className="pointer-events-auto relative inline-flex min-h-[28px] items-center gap-1 rounded-full bg-white/20 px-3 text-[11px] font-semibold text-white backdrop-blur-sm after:absolute after:-inset-2 after:content-[''] active:scale-95"
               >
-                <Trans>⚡ 做同款</Trans>
+                {/* 启梦的招牌字形（两张叠着的塔罗卡 + 四角星，Icon「remix」）代替原来的 ⚡ emoji：
+                    ⚡ 在全 app 是「token / 要花钱」的意思，而做同款这一下是铺流水线、不花钱 */}
+                <Icon name="remix" size={14} />
+                <Trans>做同款</Trans>
               </button>
             )}
           </div>
         )}
         {remakeErr && (
-          <p className="mt-1.5 rounded-lg bg-black/60 px-2.5 py-1 text-[11px] leading-relaxed text-amber-300">
+          <p className="mt-1.5 rounded-lg bg-black/60 px-2.5 py-1 text-[11px] leading-relaxed text-danger-300">
             {remakeErr}
           </p>
         )}
@@ -911,9 +1182,13 @@ const FEED_STALE_MS = 60_000;
 
 export default function FeedPage() {
   const user = useCurrentUser();
+  const auth = useAuthState(); // 三态：只有 "out" 才能把人送去登录页（下面关注流那颗键）
   const version = useVideosVersion();
   const { t } = useLingui();
+  const navigate = useNavigate();
   const [feed, setFeed] = useState<"recommend" | "following">("recommend");
+  /** 倍速（长按菜单里选）。这一层持有：划到下一条照旧是这一档；不落盘，下次打开 App 回到 1×（见 FeedActionSheet 头上） */
+  const [speed, setSpeed] = useState<FeedSpeed>(1);
   const all = useMemo(() => listVideos(), [version]);
   const followingRemote = useMemo(() => listFollowingVideos(), [version]);
   const videos = useMemo(() => {
@@ -957,68 +1232,23 @@ export default function FeedPage() {
   }, []);
   const wrapRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
-  const firstRun = useRef(true);
   // 沉浸/全屏态。放在页面这层而不是单条视频里：关注/推荐页签、底部 TabBar、退出键
   // 都不归 FeedItem 管，而它们必须一起消失
-  const [immersive, setImmersive] = useState(false);
   const [activeAspect, setActiveAspect] = useState<VideoAspect>("portrait");
+  // 沉浸 / 全屏态（真全屏优先、横屏片转屏、退出全屏时一起收、底栏隐身、卸载时撤掉）—— 与作品详情页共用 hooks/useImmersive 一份
+  const { immersive, enter: enterFull, exit: exitFull } = useImmersive(rootRef, activeAspect);
 
-  const enterFull = async () => {
-    // 真·全屏优先：它才能一并遮住系统/浏览器界面，也是安卓返回键能退出的那一层。
-    // 不支持或被拒都不致命——下面的沉浸态照样把边角元素收起来
-    try {
-      await rootRef.current?.requestFullscreen?.();
-    } catch {
-      /* WebView 版本老 / 被策略拒绝：降级成"只收边角元素"，仍比什么都不做强 */
-    }
-    setImmersive(true);
-  };
-  const exitFull = () => {
-    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
-    setImmersive(false);
-  };
-
-  // 转屏只对横屏片做，且必须在进入全屏之后——两个平台都只允许全屏态下锁方向。
-  // 跟着 activeAspect 走：全屏里划到一条竖屏片，屏幕转回来，不然竖片横躺着看。
-  // ★ 只表达意图，不自己去锁：真正下手的是 useOrientationLock（App 级的全局竖屏锁）。
-  //   它每次切路由都会 lock(portrait)，这里再各自锁一次必然打架——真机上就是
-  //   "点了转屏没反应"。方向只能有一个主人。
+  // 切流后回到顶部并重置当前屏（首次挂载不算切流）。
+  // ★ 认「上一次处理过的是哪条流」，不认「是不是第一次跑」（2026-09-18 改）：原来是一个 `firstRun` ref，
+  //   而 StrictMode 在 dev 里把 effect 走一遍「挂载→卸载→挂载」—— 第一遍把它翻成 false，重放那一遍就把首次挂载
+  //   当成了切流（浏览器里实测：一进首页就对滚动容器 scrollTo({top:0}) 一次，正式包没有这一下）。今天它恰好是空转
+  //   （刚挂上的容器本来就在顶上、activeIdx 本来就是 0），可谁往后给首页加「回到上次看的那条」，在 dev 里验就会看着
+  //   它被这一下抹掉、以为自己没写对。比较值经得起重放：同一个 feed 跑几遍结论都一样。与 VideoTemplateExtractor
+  //   的 mountedRef 同一族（生命周期 ref 被 StrictMode 的模拟卸载骗过）
+  const shownFeed = useRef(feed);
   useEffect(() => {
-    requestLandscape(immersive && activeAspect === "landscape");
-  }, [immersive, activeAspect]);
-
-  // 用安卓返回键 / Esc / 系统手势退出全屏时把沉浸态一起收掉，
-  // 否则页面停在"什么按钮都没有"的样子，只剩那一枚退出键能脱身
-  useEffect(() => {
-    const onChange = () => {
-      if (!document.fullscreenElement) setImmersive(false);
-    };
-    document.addEventListener("fullscreenchange", onChange);
-    return () => document.removeEventListener("fullscreenchange", onChange);
-  }, []);
-
-  // 底栏在 TabLayout 里、不归本页渲染——用 body 上的标记让它一起隐身（见 index.css）。
-  // 离开首页/卸载必须清掉，否则底栏在别的页面也跟着消失
-  useEffect(() => {
-    if (immersive) document.body.dataset.immersive = "1";
-    else delete document.body.dataset.immersive;
-  }, [immersive]);
-  useEffect(
-    () => () => {
-      delete document.body.dataset.immersive;
-      // 横屏请求也必须撤：不撤的话离开首页后整个 App 还锁在横屏里
-      requestLandscape(false);
-      if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
-    },
-    [],
-  );
-
-  // 切流后回到顶部并重置当前屏（首次挂载不算切流，否则会覆盖掉恢复的位置）
-  useEffect(() => {
-    if (firstRun.current) {
-      firstRun.current = false;
-      return;
-    }
+    if (shownFeed.current === feed) return;
+    shownFeed.current = feed;
     wrapRef.current?.scrollTo({ top: 0 });
     setActiveIdx(0);
   }, [feed]);
@@ -1081,7 +1311,7 @@ export default function FeedPage() {
             onClick={() => setFeed(f)}
             className={`relative min-h-[36px] px-1 text-base transition ${
               feed === f ? "font-semibold text-white" : "text-white/65"
-            } [text-shadow:0_1px_3px_rgba(0,0,0,.6)]`}
+            } [text-shadow:0_0_4px_rgba(0,0,0,.6)]`}
           >
             {f === "following" ? t({ message: "关注", context: "首页顶部的关注流页签（名词：我关注的人发的作品）" }) : t`推荐`}
             {feed === f && (
@@ -1090,8 +1320,15 @@ export default function FeedPage() {
           </button>
         ))}
       </div>
-      {/* 与左边那颗 ? 同宽的占位：页签靠 mx-auto 居中，两侧不等宽就会偏 */}
-      <div className="w-7 flex-none" />
+      {/* 右上角搜索（抖音 / TikTok / YouTube Shorts 的通行位置，调研第二节）。★ 与左边那颗 ? 同宽（28px 圈、命中区 44px），
+          页签靠 mx-auto 居中、两侧必须等宽；原来这里就是一个同宽的空占位。去分区页并把焦点放进搜索框 */}
+      <button
+        onClick={() => navigate("/discover", { state: { focusSearch: true } })}
+        aria-label={t`搜索`}
+        className="pointer-events-auto relative flex h-7 w-7 flex-none items-center justify-center rounded-full border border-white/50 bg-black/35 text-white backdrop-blur after:absolute after:-inset-2 after:content-[''] active:scale-95"
+      >
+        <Icon name="search" size={15} strokeWidth={2.25} />
+      </button>
     </div>
   );
 
@@ -1099,22 +1336,32 @@ export default function FeedPage() {
     return (
       <div className="fixed inset-0 bg-black">
         {tabs}
+        {feed === "recommend" && feedLoading() ? (
+          // 整份还在拉：画加载态，别先闪一下「还没有作品」（2.68 真机 LTE 上量到约 6 秒）
+          <EmptyState className="h-full justify-center" loading text={t`正在取作品…`} />
+        ) : (
         <EmptyState
           className="h-full justify-center"
           icon={feed === "following" ? "user" : "play"}
           text={
             feed === "following"
-              ? user
+              ? auth !== "out"
                 ? t`关注的创作者还没有新作品`
                 : t`登录后可以关注喜欢的创作者`
               : t`还没有作品`
           }
           cta={
             feed === "following"
-              ? { label: t`去推荐流看看`, onClick: () => setFeed("recommend") }
-              : { label: t`去卡片工坊创作`, to: "/studio", primary: true }
+              ? auth !== "out"
+                ? { label: t`去推荐流看看`, onClick: () => setFeed("recommend") }
+                // 没登录时那句说的是「登录后…」，键就该是登录（原来给的是「去推荐流」，话和键对不上；2026-10-14 UX 课走查）。
+                // ★ 判 auth === "out" 不判 !user（2026-10-15 发版前复核抓到）：冷启动会话还没认领上的那段窗口 user 也是空的，
+                //   那时把登录着的人送去登录页就是 CLAUDE.md「拿 !currentUser() 当没登录」那格坑
+                : { label: t`登录`, to: "/login?next=%2F", primary: true }
+              : { label: t`去创作`, to: "/create", primary: true }
           }
         />
+        )}
       </div>
     );
   }
@@ -1127,12 +1374,14 @@ export default function FeedPage() {
 
       {/* 退出键：沉浸态下唯一留在画面上的控件，必须常驻——真全屏没申请成功时
           既没有 Esc 也没有系统返回可用，没有它用户就困在这一屏里了。
-          压到半透明，不抢画面 */}
+          压到半透明，不抢画面
+          ★ 用 top 让开状态栏，不挂 .safe-top（2026-10-26）：44px 的圆钮再加 inset + 10px 的上内边距，真机 inset 41px 时
+            内边距比整颗钮还高，钮被撑成竖胶囊、图标掉到下半截（index.css .safe-top-bar 那段讲的是同一个坑） */}
       {immersive && (
         <button
           onClick={exitFull}
           aria-label={t`退出全屏`}
-          className="safe-top absolute right-3 top-0 z-30 mt-3 flex h-11 w-11 items-center justify-center rounded-full bg-black/35 text-white/80 backdrop-blur-sm transition active:scale-90"
+          className="absolute right-3 top-[calc(env(safe-area-inset-top,0px)+12px)] z-30 flex h-11 w-11 items-center justify-center rounded-full bg-black/35 text-white/80 backdrop-blur-sm transition active:scale-90"
         >
           <Icon name="shrink" size={22} />
         </button>
@@ -1155,6 +1404,8 @@ export default function FeedPage() {
                   immersive={immersive}
                   onEnterFull={() => void enterFull()}
                   onAspect={setActiveAspect}
+                  speed={speed}
+                  onSpeed={setSpeed}
                 />
               ) : null}
             </div>

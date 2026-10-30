@@ -43,6 +43,7 @@ import { Trans } from "@lingui/react/macro";
 import { listSchemes } from "../../data/promptSchemes";
 // 「我的」那份要报草稿上限：数只能从这里取（数字一律插值，见 ★★）。★ drafts 只依赖 db / utils/image / types，从这里引它不成环
 import { MAX_DRAFTS } from "../../data/drafts";
+import { HOLD_SPEED } from "../../data/feedGestures";
 import { BLOCKOUT_INPUT_RULES } from "../../data/templates";
 import { BUILTIN_SLOT_ZH, CARD_TYPES, CARD_TYPE_LABELS, builtinSlotLabel } from "../../types";
 // 自制卡那份要报比例上限：方舟的硬约束，数只能从这里取（数字一律插值，见 ★★）
@@ -231,7 +232,8 @@ export const TOURS: GuideTour[] = [
         //     按文件头的规矩只给它命名、不承诺它一定在；锚点同理挂在当前那一支上（active），这一支没有这颗时自动退成居中卡片。
         //   事实出处：remakeNodesOf 抄的是每段的 plot（剧本）与作品卡组的卡（没有卡组就不带），seed 成 mode:"workflow" 后 navigate("/flow")；
         //   整表覆盖，守卫走 useApplyTemplate —— flowDirty() 时先弹 DiscardFlowDialog；seed 本身不花钱（钱在那边推演 / 生成时才扣）。
-        title: msg`⚡ 做同款`,
+        // ★ 2026-10-21：那颗 chip 上的 ⚡ emoji 换成了「做同款」招牌字形（⚡ 在全 app 是「token / 花钱」的意思），标题跟着去掉 ⚡
+        title: msg`做同款`,
         anchor: "feed-remake",
         body: (
           <Trans>
@@ -242,9 +244,22 @@ export const TOURS: GuideTour[] = [
       {
         title: msg`全屏与转屏`,
         anchor: "feed-fullscreen",
+        // （下一步「长按画面」是 2026-10-21 加的；没升 version —— 看过的人不重弹，新来的人能看到）
         body: (
           <Trans>
             那一列最下面单独一枚是全屏键，点了只留画面；<b className="font-bold text-slate-100">横屏的片子会连屏幕一起转过来</b>，所以它在横屏片上写的是「转屏」。退出点右上角那枚缩小键。
+          </Trans>
+        ),
+      },
+      {
+        // ★ 不挂锚点：长按的是整块画面，圈不出一个元素。事实出处 FeedPage 的 onDown（两侧 EDGE_ZONE 临时 HOLD_SPEED 倍、中间开 FeedActionSheet）；
+        //   倍数插值 data/feedGestures.HOLD_SPEED（文件头「数字一律插值」），别写回字面量 2
+        //   菜单里只列真能用的几样（FeedActionSheet 头上那段：「不感兴趣」服务端没端点不摆、保存到本地只在原生壳里、举报离线不摆），
+        //   所以这里只说「更多操作」、不逐项许诺
+        title: msg`长按画面`,
+        body: (
+          <Trans>
+            按住屏幕<b className="font-bold text-slate-100">两侧</b>是临时 {HOLD_SPEED} 倍速，松手就恢复；按住<b className="font-bold text-slate-100">中间</b>弹出更多操作：调倍速、清屏观看、举报等。
           </Trans>
         ),
       },
@@ -402,7 +417,7 @@ export const TOURS: GuideTour[] = [
     version: 1,
     steps: [
       {
-        // ★ 正文「工坊的卡片市场」里的「工坊」是底栏那一格（/workshop，英文 Workshop；写这句时它还叫「创意工坊」）的「从市场添加」，不是 3D 铸卡桌（Studio）
+        // ★ 正文「工坊的卡片市场」里的「工坊」是底栏那一格（/workshop，英文 Workshop；2026-10-20 改版后那一页本身就是市场），不是 3D 铸卡桌（Studio）
         title: msg`模板是成品配方`,
         body: (
           <Trans>
@@ -416,11 +431,13 @@ export const TOURS: GuideTour[] = [
         //   `cat` 是货架级 state、切页签不清，过滤按 `r.parts[0].category === cat` —— 没有分类的老模板在选了任何一类时都被滤掉，
         //   只在「全部」下出现。「看不到自己做的模板」多半就是这一拍，所以把出路写进来（与「分区」第 4 步「先看分区图标亮没亮」同一种写法）。
         //   锚点挂在芯片那一行（template-filters），两个页签都在。
+        // ★ 2026-10-02 补（未升 version，引导不重弹）：搜索框右边多了一颗「出片模型」筛选（TemplateShelf 的 tierPick）——
+        //   只在市场页签上、只滤市场页签；它与搜索词、分类叠在一起生效（rows = 分类滤过的行再按 templateRunsOn 滤一遍）。
         title: msg`搜索与分类`,
         anchor: "template-filters",
         body: (
           <Trans>
-            市场页签顶上能<b className="font-bold text-slate-100">按词搜</b>，下面那排芯片<b className="font-bold text-slate-100">按类筛</b>，两个叠在一起生效。选中的分类在「我的模板」里也管用，没分过类的老模板只在「全部」下出现——找不到自己做的，先点回「全部」。
+            市场页签顶上能<b className="font-bold text-slate-100">按词搜</b>，搜索框右边那颗<b className="font-bold text-slate-100">出片模型</b>只留你想用的那个模型出得了片的模板，下面那排芯片<b className="font-bold text-slate-100">按类筛</b>，三个叠在一起生效。选中的分类在「我的模板」里也管用，没分过类的老模板只在「全部」下出现——找不到自己做的，先点回「全部」。
           </Trans>
         ),
       },
@@ -428,11 +445,13 @@ export const TOURS: GuideTour[] = [
         // ★ 2026-09-17 订正（未升 version）：一张封面上的角标不止讲能力的这两枚 —— 七天内登记的还有一枚「新」、
         //   模板视频出不了片的还有一枚「暂时不可用」（都在 TemplateShelf 的 TemplateCard 里，同一张封面上最多四枚）。
         //   原稿「没角标的是经典配方模板」对一条刚发布的经典模板就不成立；改成「没有这两枚角标的」，只认能力位。
+        // ★ 2026-10-02 补（未升 version）：标题下面那行小字的头一枚是出片模型（TemplateCard 读 templateTiers）——
+        //   白模模板写「仅电影级」之类（固定，套用后不能换），经典配方写「模型不限」；套餐用不了那一档时带一把锁。
         title: msg`封面上的角标`,
         anchor: "template-card",
         body: (
           <Trans>
-            角标写着这个模板能干什么。<b className="font-bold text-slate-100">白模</b>：出片时整段复刻它的场景、道具与运镜，只把人换掉，旁边报的是这条模板视频有多长——成片长度和画幅都跟着它走；<b className="font-bold text-slate-100">几个角色位可换人</b>：画面里那几个白色人偶，各能挂一张你的角色卡。没有这两枚角标的是经典配方模板，按分镜骨架重新画，旁边报的是分几段。
+            角标写着这个模板能干什么。<b className="font-bold text-slate-100">白模</b>：出片时整段复刻它的场景、道具与运镜，只把人换掉，旁边报的是这条模板视频有多长——成片长度和画幅都跟着它走；<b className="font-bold text-slate-100">几个角色位可换人</b>：画面里那几个白色人偶，各能挂一张你的角色卡。没有这两枚角标的是经典配方模板，按分镜骨架重新画，旁边报的是分几段。标题下面那行小字的头一枚是<b className="font-bold text-slate-100">出片模型</b>：写着「仅」哪一档的，套用后出片模型固定、不能换；「模型不限」的可以自己选。
           </Trans>
         ),
       },
@@ -453,11 +472,14 @@ export const TOURS: GuideTour[] = [
         //   说「开炼」也不对。改成与路线无关的说法：都在按下那颗开始键之前报出来、确认了才扣。
         //   ★ 一个路数都不写：上一句刚说「第一屏挑」，而那一屏摆的是**三条**（routeOpts：让 AI 换白模 / 自带白模片 /
         //     经典配方），写「两条路」与屏幕上数得出来的对不上；而「先报价、确认了才扣」三条都成立 —— 去掉数字更准也更短。
+        // ★ 2026-10-21 入口换成货架顶上那张「创建属于你的视频模板」卡（TemplateCreateCard），市场与「我的模板」两格都有；锚点跟着换。
+        //   那张卡只在服务端支持白模模板时才画（blockoutCap），画不出来时这一步退成居中卡片 —— 正文不依赖圈的位置
+        //   ★ 两种尺寸的标题不一样（大卡 / 小条），圈住哪一种都要对得上 —— 所以两个标题都写出来，别只引大卡那一句
         title: msg`做自己的模板`,
-        anchor: "templates-tab-mine",
+        anchor: "template-create",
         body: (
           <Trans>
-            <b className="font-bold text-slate-100">我的模板</b>装的是你自己做的，新做一个也从那里进：传一段视频，让 AI 把画面里的人换成一模一样的白色人偶，或者直接拿你本来就做好的白模片用。走哪条路在提取器<b className="font-bold text-slate-100">打开后的第一屏</b>挑；要花多少钱都在按下开始那颗键之前整句报出来，确认了才扣。
+            要做自己的模板，点货架顶上那张<b className="font-bold text-slate-100">做模板的入口卡</b>（还没做过时是一张大卡「创建属于你的视频模板」，做过之后缩成一行「再做一个视频模板」）：传一段视频，让 AI 把画面里的人换成一模一样的白色人偶，或者直接拿你本来就做好的白模片用。走哪条路在提取器<b className="font-bold text-slate-100">打开后的第一屏</b>挑；要花多少钱都在按下开始那颗键之前整句报出来，确认了才扣。做好的模板在「我的模板」里。
           </Trans>
         ),
       },
@@ -481,7 +503,9 @@ export const TOURS: GuideTour[] = [
     // ★ 2026-08-17 从 1 升到 2：这一屏的第一层从「一个白模开关」改成了**三选一**，
     //   老引导教的是一个已经不存在的开关。这正是"引导指着不存在的东西说话"那种错，
     //   所以要让**所有人重看一遍** —— 版本号平时不许动，这次是它存在的理由本身。
-    version: 2,
+    // ★ 2026-10-26 从 2 升到 3：模板货架打开的这一屏多了第三条「只用文字 + 封面」（文字模板 P1），
+    //   第一步原来说「拿一段参考视频」—— 对不传视频的那条是错的。
+    version: 3,
     steps: [
       {
         // ★ 2026-09-17 订正（多语言 T3 对着实现核出来的；未升 version —— 主人 09-11 定：订正不重弹）：
@@ -493,9 +517,9 @@ export const TOURS: GuideTour[] = [
         anchor: "extractor-routes",
         body: (
           <Trans>
-            拿一段参考视频，让 AI 把它变成能反复套用的<b className="font-bold text-slate-100">模板</b>。第一步就是在这里
+            把一段参考视频（或者一段提示词）变成能反复套用的<b className="font-bold text-slate-100">模板</b>。第一步就是在这里
             <b className="font-bold text-slate-100">选做法</b>：选哪条决定后面几步长什么样，也决定花不花钱、花多少。
-            <b className="font-bold text-slate-100">上传之前</b>随时能点「‹ 换一种做法」回来换（在白模与经典之间换，已经选好的文件要重新选一次）。
+            <b className="font-bold text-slate-100">上传之前</b>随时能点「‹ 换一种做法」回来换。
             传完就定死了——要换只能取消整个重来。
           </Trans>
         ),
@@ -527,20 +551,18 @@ export const TOURS: GuideTour[] = [
         ),
       },
       {
-        // 与提取器第三条路线卡同一个叫法（VideoTemplateExtractor 的 routeOpts：「经典配方（不做白模）」，那边的注释也点了这里的名）：改名两处一起改，英文也一样（Classic recipe）
-        // ★ 2026-09-17 订正（未升 version）：原稿写「第三条，也是默认那条」。缺省选中哪条要看入口：从「我的模板」那颗上传键进来
-        //   带 defaultBlockout，探测过了就拨到第一条（VideoTemplateExtractor 挂载 effect 里的 setRoute("aiBlockout")，TemplateShelf 传的 defaultBlockout）；
-        //   只有简约出片页的「提取模板」才停在经典。引导一进这屏就弹，那时 ● 多半亮在第一条上 —— 「也是默认那条」删掉。
-        title: msg`经典配方`,
-        anchor: "extractor-routes",
+        // ★ 不带锚点：这一条只在模板货架打开时才有（工作流页那份提取窗不摆），带着 anchor 在那边就是「指着一个不存在的东西」
+        title: msg`没有视频也能做`,
         body: (
           <Trans>
-            第三条：AI 从整段视频里<b className="font-bold text-slate-100">均匀抽</b>几帧看（你只定抽几帧），
-            总结画风质感、运镜与分镜骨架，再提炼可复用的场景／道具卡。帧数越多认得越准，价钱不变。
-            它<b className="font-bold text-slate-100">不出片、不把你的视频传上公网，也是三条里唯一不需要付费套餐的</b>。
+            从模板货架打开时，最下面还有一条<b className="font-bold text-slate-100">「只用文字 + 封面」</b>：贴一段提示词、
+            给写到「图1 / 图2」的地方起名、选一张封面就存好了，<b className="font-bold text-slate-100">做模板不花 token</b>。
+            别人套用时按名字补上自己的图，出一段的价在选档那一步报。
           </Trans>
         ),
       },
+      // ★ 2026-10-02 删掉「经典配方」那一步（未升 version，订正不重弹）：那条车道从提取器收掉了（模板体系 P3a，
+      //   docs/template-workflow-research.md §七 F），它唯一的价值「一句话换主题」由工作流模板 + 「按主题改写全片剧本」接管。
       {
         title: msg`白模那两条怎么走`,
         // ★★ 这一步**故意不带锚点**（2026-08-23）：选文件那颗按钮已经搬到第 2 步，
@@ -716,8 +738,8 @@ export const TOURS: GuideTour[] = [
         body: (
           <Trans>
             框出哪一段、裁出哪一块，就是 AI 真正拿去白模化的全部内容；再加上下面
-            「AI 看哪几帧」，决定它认不认得全画面里的人。<b className="font-bold text-slate-100">这一发多少钱</b>只看时长（越长越贵，多看几帧不额外收费），
-            而钱一开始算就退不了。
+            「AI 看哪几帧」，决定它认不认得全画面里的人。<b className="font-bold text-slate-100">这一发多少钱</b>只看时长（越长越贵，多看几帧不额外收费）；
+            开炼那一刻就扣钱，「AI 看帧」那一笔不论成败都照收。
           </Trans>
         ),
       },
@@ -737,7 +759,7 @@ export const TOURS: GuideTour[] = [
         anchor: "trim-crop",
         body: (
           <Trans>
-            拖四个角调裁剪框。水印<b className="font-bold text-amber-300">必须框到框外</b>：
+            拖四个角调裁剪框。水印<b className="font-bold text-warn-300">必须框到框外</b>：
             出片是逐帧复刻画面，提示词去不掉它（实测），而模板会被反复套用——
             留一个水印就是永久的。
           </Trans>
@@ -780,38 +802,82 @@ export const TOURS: GuideTour[] = [
     // v3（2026-09-17，主人点名「涨 version」）：v2 第 1、2 步都说错了钱（「AI 白模化是唯一收费处」、
     //   圈选提取同时写进花钱与不花钱两边），#279 / #288 订正过；看过 v2 的人不升版就读不到。
     //   同一拍补了「＋ 新建卡组」与「分享到创意工坊」（第 5、6 步）。
-    version: 3,
+    // v4（2026-10-20 工坊改版，主人点名「第一层以市场搜索为主」）：这一页只剩市场（搜索 + 卡片 / 卡组 / 模板三类），
+    //   自己的东西与造卡的几条路搬进第二层「我的仓库」（/workshop/mine，那一份引导是 workshopMine）。
+    //   v3 讲的六步有五步说的是现在第二层的东西，整份换掉、升版本让看过的人重看。
+    version: 4,
     steps: [
       {
-        // ★ 这一屏（创意工坊，底栏那一格写的是「工坊」= Workshop）与标题里的「工坊」（3D 铸卡桌 = Studio）是两个地方，英文别译成同一个词：这一步讲的正是二者的分工。
-        //   ⚠ 光秃秃的「工坊」得看上下文：本文件里多数指 3D 铸卡桌，但「视频模板」第 1 步那句「工坊的卡片市场」指的是底栏这一格
-        // ★ 2026-09-17 订正（未升 version —— 主人 09-11 定：订正不重弹）：① 「唯一的例外」不成立 —— 这一页「从视频提取卡组 / 提取卡片」
+        // ★ 这一屏（创意工坊，底栏那一格写的是「工坊」= Workshop）与 3D 铸卡桌（Studio）是两个地方，英文别译成同一个词
+        title: msg`这一页是市场`,
+        anchor: "workshop-search",
+        body: (
+          <Trans>
+            这里逛的是<b className="font-bold text-slate-100">别人分享的卡片、卡组、模板和工作流</b>。
+            搜索框搜的是下面选中的那一类；换一类不用重打字。
+          </Trans>
+        ),
+      },
+      {
+        // ★ 有意不挂锚点：卡片网格与卡组列表在搜索框下面，取数没回来时它们还不存在，圈画不出来。
+        //   事实出处：卡片 / 卡组的「＋ 添加」走 data/account.installSharedCard / installSharedDeck（不扣 token）；
+        //   没登录时点「＋ 添加」先去登录页、登完回到这一页（WorkshopPage.loginFirst）—— 这一句不写进正文：引导只对登录了的人弹。
+        //   模板怎么套用归「视频模板」那份引导讲。
+        title: msg`市场里点哪儿才是拿`,
+        body: (
+          <Trans>
+            点卡面只是<b className="font-bold text-slate-100">看详情</b>，下面那颗「＋ 添加」才是收进自己的库；
+            卡组能整套装走。都<b className="font-bold text-slate-100">不花钱</b>。
+          </Trans>
+        ),
+      },
+      {
+        title: msg`自己的东西在「我的仓库」`,
+        anchor: "workshop-mine-entry",
+        body: (
+          <Trans>
+            你的卡片、卡组、模板，还有<b className="font-bold text-slate-100">从视频提取卡组 / 卡片、自己传图做卡片</b>，
+            都在右上角「我的仓库」里。
+          </Trans>
+        ),
+      },
+    ],
+  },
+  {
+    id: "workshopMine",
+    title: msg`我的仓库`,
+    // v1（2026-10-20 工坊改版）：原「创意工坊」引导 v3 的第 1、2、4、5、6 步搬过来（那几样现在都在这一层），
+    //   只改了页签名（「我的卡片 / 我的卡组 / 我的模板」→「卡片 / 卡组 / 模板」）与「从市场添加」那一栏的叫法。
+    //   v3 那几步头上的订正记录（钱怎么说、为什么一个数都不写）原样留着，改正文前先读。
+    version: 1,
+    steps: [
+      {
+        // ★ 这一屏（我的仓库，创意工坊的第二层）与标题里的「工坊」（3D 铸卡桌 = Studio）是两个地方，英文别译成同一个词：这一步讲的正是二者的分工。
+        // ★ 2026-09-17 订正（原在「创意工坊」引导第 1 步）：① 「唯一的例外」不成立 —— 这一页「从视频提取卡组 / 提取卡片」
         //   打开的提取窗里，人物卡那一步有一颗付费键「✨ 按这套方案炼形象图（N 张 · 约 X）」（VideoCardAnnotator.makePortraits），
         //   同一份引导第 2 步说的就是它，两步不该各说各的；② 「AI 换白模」不是屏幕上的字样（提取器那条路线卡写的是
         //   「让 AI 把里面的人换成白模人偶」），去掉引号、照那条路线卡转述。
-        //   ★★ 这里**一个数都不许写**：模板栏那颗「传一段视频做白模模板（自己做好的白模片也行）」开的提取器摆着三条路，
-        //     **条条要钱** —— 自带白模片那条的价就印在路线卡上（「只认人、不出片 · 约 …」，economy.ownRefTemplateCost），
-        //     经典配方那条在 run() 里真的 spendTokens（报价 templateCost(TEMPLATE_MAX_CARDS)，提交前还摆一行「预估消耗」）。
-        //     写「两处要花钱」= 当面告诉用户另外两条免费，正是本条订正要治的那种错（「唯一」不成立）。所以只说「有要花钱的地方」，
+        //   ★★ 这里**一个数都不许写**：「模板」页签里那张「创建属于你的视频模板」入口卡开的提取器摆着几条路，
+        //     **条条要钱** —— 自带白模片那条的价就印在路线卡上（「只认人、不出片 · 约 …」，economy.ownRefTemplateCost）。
+        //     写「两处要花钱」= 当面告诉用户另外的免费，正是本条订正要治的那种错（「唯一」不成立）。所以只说「有要花钱的地方」，
         //     第一项直接盖住整条做模板的路，将来再添一条路也不会把这句话变成假话。
         title: msg`这一页管素材，成片在工坊`,
         anchor: "workshop-studio-entry",
         body: (
           <Trans>
-            这里管<b className="font-bold text-slate-100">卡片、卡组和模板</b>这些素材。
+            这里管你自己的<b className="font-bold text-slate-100">卡片、卡组和模板</b>。
             要摆桌铸卡、把卡炼成视频，从这条路进 3D 工坊。
-            这一页自己也有<b className="font-bold text-slate-100">要花钱的地方</b>：模板栏里做模板那几条路都要钱（让 AI 把视频里的人换成白模人偶那条还会真出一次片），
+            这一页自己也有<b className="font-bold text-slate-100">要花钱的地方</b>：「模板」页签里做模板那几条路都要钱（让 AI 把视频里的人换成白模人偶那条还会真出一次片），
             以及提取窗里那颗「✨ 按这套方案炼形象图」。
           </Trans>
         ),
       },
       {
-        // ★ 2026-09-17 订正（未升 version —— 主人 09-11 定：订正不重弹）：T4 那次订正（句首由「只有 AI 出图」改成「只有交给 AI 的」）
-        //   把「从视频圈选提取」**同时**写进了要花钱的括号和不花钱的那一串，同一句里自相矛盾。
-        //   照实分两层说：路子本身只有工坊铸卡一定花（那一炉的报价在递素材那一屏摆出来），圈选提取与自己传图是**窗口里那几颗 AI 键**才花
+        // ★ 2026-09-17 订正（原在「创意工坊」引导第 2 步）：T4 那次订正把「从视频圈选提取」**同时**写进了要花钱的括号和不花钱的那一串，
+        //   同一句里自相矛盾。照实分两层说：路子本身只有工坊铸卡一定花（那一炉的报价在递素材那一屏摆出来），圈选提取与自己传图是**窗口里那几颗 AI 键**才花
         //   （VideoCardAnnotator 的「✨ 按这套方案炼形象图」、CustomCardPage 的「✨ 生成 N 张图位与人物信息」「⭕ 圈选改图」与场景卡 / 道具卡的识别），
-        //   价都印在键上；从市场拿不花。与第 1 步订正后的说法对齐。
-        //   ★ 标题「一条花钱」**不动**：它说的是「四条路里有一条本身要钱」，与订正后的正文第一句同义；而它的英文（Four ways to get cards, one paid）
+        //   价都印在键上；从市场拿不花（市场在上一层，创意工坊那一页）。
+        //   ★ 标题「一条花钱」**不动**：它说的是「四条路里有一条本身要钱」；而它的英文（Four ways to get cards, one paid）
         //   已经是本文件里最宽的一条标题（360 宽下量到 228.7 / 可用 253.6 px），换个说法必然撑过那一行。
         title: msg`造卡四条路，一条花钱`,
         anchor: "workshop-extract-card",
@@ -824,49 +890,35 @@ export const TOURS: GuideTour[] = [
         ),
       },
       {
-        // ★ 有意不挂锚点：它排在卡片网格下面，卡一多就掉出首屏，而引导期间页面滚不动。
-        //   （屏外锚点现在会退成居中卡片，不再把「下一步」沉出屏幕 —— 但退化了圈就没了，
-        //   不如一开始就写清位置。）
-        title: msg`市场里点哪儿才是拿`,
-        body: (
-          <Trans>
-            下面「从市场添加」那一栏：点卡面只是<b className="font-bold text-slate-100">看详情</b>，
-            卡片下面那行小字才是收进自己的库。那一栏还能切成卡组、整套装走，都不花钱。
-          </Trans>
-        ),
-      },
-      {
         title: msg`卡组是干什么的`,
         anchor: "workshop-tabs",
         body: (
           <Trans>
             把常用的几张归成一组；出片时<b className="font-bold text-slate-100">人物和场景由卡组锁住，全片保持一致</b>。
-            散着的卡在「我的卡片」页签，你自己做的模板在「我的模板」。
+            散着的卡在「卡片」页签，你自己做的模板在「模板」页签。
           </Trans>
         ),
       },
       {
-        // ★ 有意不挂锚点（2026-08-28 撤掉 workshop-deck-new）：那颗按钮只在「我的卡组」
-        //   页签下渲染，而引导在默认的「我的卡片」页签自动弹——那一刻它不存在，圈画不出来
-        // ★ 2026-09-17 补「＋ 新建卡组」（主人点名「补」）：原文只讲了怎么往卡组里加卡，没讲卡组从哪儿来（WorkshopPage 卡组页签顶上那颗）
+        // ★ 有意不挂锚点：「＋ 新建卡组」那颗只在「卡组」页签下渲染，而引导在默认的「卡片」页签自动弹 —— 那一刻它不存在，圈画不出来
         title: msg`组卡组：怎么加、怎么改`,
         body: (
           <Trans>
-            在「我的卡组」页签里：<b className="font-bold text-slate-100">「＋ 新建卡组」</b>开一组新的；先点「编辑」<b className="font-bold text-slate-100">再</b>点卡片，才是加进来或拿出去；卡角能定封面。
+            在「卡组」页签里：<b className="font-bold text-slate-100">「＋ 新建卡组」</b>开一组新的；先点「编辑」<b className="font-bold text-slate-100">再</b>点卡片，才是加进来或拿出去；卡角能定封面。
             组名点上去直接改。删掉整组<b className="font-bold text-slate-100">不会删卡</b>。
           </Trans>
         ),
       },
       {
-        // ★ 2026-09-17 补（主人点名「补」）：每个卡组下面的 WorkshopShareBar 原来一个字没提。锚点不挂，理由同上一步（只在「我的卡组」页签渲染）。
-        //   事实出处：分享后出现在「从市场添加」的卡组栏（WorkshopShareBar 那行说明）；装走不花钱（本页第 3 步）；
+        // ★ 锚点不挂，理由同上一步（只在「卡组」页签渲染）。
+        //   事实出处：分享后出现在创意工坊（第一层）市场的「卡组」那一类；装走不花钱；
         //   ★ 「别人已经装走的还在」是说给**分享之前**的人听的：server branchAsset.controller 的 installDeck 把快照里的卡 upsert 进装的人自己的卡库
         //   并另建一个卡组，unpublishDeck 只把 published 置假、清空快照 —— 已经装走的副本不跟着撤。
         //   分享被拒的那几种原因（离线、空卡组…）按文件头的规矩留在键旁边说（shareBlockReason），不进引导。
         title: msg`把卡组分享出去`,
         body: (
           <Trans>
-            每个卡组下面有一颗<b className="font-bold text-slate-100">「分享到创意工坊」</b>：分享后它会出现在「从市场添加」里，别人能整套装走，不花钱。
+            每个卡组下面有一颗<b className="font-bold text-slate-100">「分享到创意工坊」</b>：分享后它会出现在创意工坊的市场里，别人能整套装走，不花钱。
             同一颗键能取消分享，但<b className="font-bold text-slate-100">别人已经装走的那份还在他那儿</b>。
           </Trans>
         ),
@@ -889,6 +941,7 @@ export const TOURS: GuideTour[] = [
           <Trans>
             打字之后上面先出<b className="font-bold text-slate-100">人</b>、下面出作品。
             作品是拿标题、简介、话题标签一起对的，不只对标题；<b className="font-bold text-slate-100">按作者找人用上面那半</b>。
+            点进框里还没打字时，下面是你的搜索历史和最近播得多的几条。
           </Trans>
         ),
       },
@@ -903,12 +956,13 @@ export const TOURS: GuideTour[] = [
         ),
       },
       {
+        // ★ 2026-10-21 订正（未升 version —— 主人 09-11 定：订正不重弹）：那一排最前面加了「全部」，「再点同一个才取消、没有别的地方能关掉它」不再成立
         title: msg`分区图标就是开关`,
         anchor: "discover-cats",
         body: (
           <Trans>
             点一个就只看这一类，选中的那个会放大亮起来；
-            <b className="font-bold text-slate-100">再点同一个才取消</b> —— 没有别的地方能关掉它。
+            点最前面的<b className="font-bold text-slate-100">「全部」</b>（或者再点一次同一个）就回到全部作品。
           </Trans>
         ),
       },
@@ -936,7 +990,7 @@ export const TOURS: GuideTour[] = [
         body: (
           <Trans>
             出片、出图、铸卡、解锁付费作品，扣的都是它。点开看余额、买套餐或直充 ——
-            <b className="font-bold text-slate-100">套餐按月给且先扣，直充的不过期</b>。
+            <b className="font-bold text-slate-100">套餐额度先扣（付费套餐按月给，免费版每天补一点），直充和新人额度不过期</b>。
           </Trans>
         ),
       },
@@ -955,12 +1009,14 @@ export const TOURS: GuideTour[] = [
         //   按 updatedAt 保留最新的，被挤掉的正文直接删），原文没提。数插值 MAX_DRAFTS（文件头 ★★）。
         //   ⚠ 这不是把界面上的说明搬进引导：ProfilePage 草稿格顶上那行「共 N 条（上限 …，超了会从最旧的清起）」照旧留着，
         //     引导只是在人还没存满之前先说一声。
+        // ★ 2026-10-21 订正（未升 version）：这一格的图标从锁换成了笔（ProfilePage 那条 ★，docs/ui-benchmark-2026-10.md 第四节），
+        //   原文「那把锁是还没发布」指着一个已经不在的图形；锁现在只留给作品墙上「仅自己可见」的角标
         title: msg`没做完的半成品在这一格`,
         anchor: "profile-tab-drafts",
         body: (
           <Trans>
-            存着的半成品都在这儿。那把锁是「<b className="font-bold text-slate-100">还没发布</b>」，
-            不是私密。点一张要先挑用工坊还是工作流打开 —— 同一份内容，两边都进得去。
+            存着的半成品都在这儿，那支笔的意思是「<b className="font-bold text-slate-100">还没发布</b>」；
+            作品墙上带锁的才是只有自己看得见的。点一张要先挑用工坊还是工作流打开 —— 同一份内容，两边都进得去。
             草稿最多留 {MAX_DRAFTS} 条，<b className="font-bold text-slate-100">超了会从最旧的清起</b>。
           </Trans>
         ),
@@ -1164,11 +1220,13 @@ export const TOURS: GuideTour[] = [
         // ★ 2026-09-11 订正（未升 version）：不是所有画面都没声音 —— 高清 / 电影级档（economy.VIDEO_TIERS 的 audio:true）
         //   出片自带 AI 生成的环境音；极速 / 标准档（默认档）、真人档与白模复刻段（arkClient.BLOCKOUT_TASK 的 generate_audio:false）才是哑的。
         //   档名不写进这句：档位表会变，引导里抄一份档名就是又一个要维护的镜像（文件头 ★★ 同理）。
-        title: msg`三个页签各管一摊`,
+        // ★ 2026-09-30 再订正（未升 version，「引导不重弹」）：多了「字幕」页签（包装层，data/cutProject 的 P1）。
+        title: msg`四个页签各管一摊`,
         anchor: "cut-tabs",
         body: (
           <Trans>
             <b className="font-bold text-slate-100">剪辑</b>管顺序与取舍，
+            <b className="font-bold text-slate-100">字幕</b>管每一段的那句话和配音，
             <b className="font-bold text-slate-100">圈选</b>管改画面（要花钱的那种改），
             <b className="font-bold text-slate-100">音频</b>管配乐 —— 不是每一档出的画面都带声音（白模复刻段一律没有），
             想要声音、想加配乐，就在这儿配。
@@ -1176,13 +1234,44 @@ export const TOURS: GuideTour[] = [
         ),
       },
       {
+        // ★ 2026-09-30 补（未升 version，主人 09-11 定的「引导不重弹」）：时间轴收成剪辑工程之后多了两件用户该知道的事 ——
+        //   每一步能撤销、离开这一页再回来都还在（data/cutProject）。原文不动，只在末尾加一句。
         title: msg`剪辑：不花钱的整理`,
         anchor: "cut-timeline",
         body: (
           <Trans>
             点一个片段选中，就能在播放头处<b className="font-bold text-slate-100">✂️ 分割</b>、
             <b className="font-bold text-slate-100">🗑 删除</b>、拖拽或前移后移<b className="font-bold text-slate-100">换序</b>。
-            这些只改导出范围，<b className="font-bold text-slate-100">一个 token 都不花</b>。
+            这些只改导出范围，<b className="font-bold text-slate-100">一个 token 都不花</b>；每一步都能
+            <b className="font-bold text-slate-100">↶ 撤销</b>，离开这一页再回来也都还在。
+            选中一段之后，还能调它的<b className="font-bold text-slate-100">速度</b>、
+            <b className="font-bold text-slate-100">原声音量</b>，或者让它<b className="font-bold text-slate-100">从黑里淡入</b>。
+          </Trans>
+        ),
+      },
+      {
+        // 2026-09-30 包装层的那一步（未升 version：老用户不重弹，点「?」的人看得到）
+        title: msg`字幕：一段一句，还能配音`,
+        body: (
+          <Trans>
+            给每一段写一句话，它会<b className="font-bold text-slate-100">烧进画面</b>当字幕；点
+            <b className="font-bold text-slate-100">🔊 配音</b>，就用选好的音色把它念出来 —— 配音现在不收 token，
+            字数按这一段的时长封顶。有配音时，配乐和这一段的原声会自动压低。
+          </Trans>
+        ),
+      },
+      {
+        // 2026-10-01 一键成片与「说一句」（未升 version：老用户不重弹，点「?」的人看得到）。
+        // ★ 钱要在这里说清：说一句的直白句式不花钱（studio/cutGrammar 的本地档），一键成片是一次对话的钱；
+        //   价钱的数不写进来（economy.CHAT_TURN_TOKENS 会变，面板上印着真数）。
+        title: msg`懒得一格格点？说一句，或者一键`,
+        anchor: "cut-agent",
+        body: (
+          <Trans>
+            <b className="font-bold text-slate-100">💬 说一句</b>：用大白话指挥时间轴 ——「把片段2放慢」「片段3静音」「删掉片段2」，
+            直白的话当场就办、<b className="font-bold text-slate-100">不花钱</b>，说错了一句「撤销」就回去。
+            「字幕」页签里的<b className="font-bold text-slate-100">✨ 一键成片</b>让模型给每一段写旁白、起片头标题（收一次对话的钱），
+            写出来的每一句你都能改，点了头才写进去。
           </Trans>
         ),
       },
@@ -1198,12 +1287,16 @@ export const TOURS: GuideTour[] = [
       {
         // ★ 2026-09-11 订正（未升 version）：① 「发布后作品不可再修改」2026-09-07 起不成立（编辑页「🛠 回炉重做」能换成片内容，
         //   PublishPage / EditPage 那两处早已改口），这一页不必讲发布之后，删掉；② 已经合好的稿子这颗键写的是「去发布」（CutPage 的 alreadyMerged）。
+        // ★ 2026-09-30 再订正（未升 version）：合好之后不再是死路 —— 源段留了底，剪辑页与发布页都能「回去改」（studioStore.reopenCut）
+        // ★ 2026-10-19 再订正（未升 version）：这颗键 10-14 起叫「合成并去发布」（CutPage 主键），这里还写着「下一步」；
+        //   「合并」随 krug-copy-ia-1 一律改「合成」（用户可见的那件事只有一个名字）
         title: msg`右上角是终点`,
         anchor: "cut-next",
         body: (
           <Trans>
-            整条模式下「下一步」把时间轴按顺序导出成<b className="font-bold text-slate-100">一整条视频</b>、进发布页（已经合好的稿子它写的是「去发布」，直接进发布页）。
-            从工坊单段进来时它是「保存本段」，改完写回那一段、不合并不发片。
+            整条模式下「合成并去发布」把时间轴按顺序合成<b className="font-bold text-slate-100">一整条视频</b>、进发布页（已经合好的稿子它写的是「去发布」，直接进发布页；
+            合完还想改，点<b className="font-bold text-slate-100">↩ 回去改</b>就回到合成之前，改完再合一次、不花钱）。
+            从工坊单段进来时它是「保存本段」，改完写回那一段、不合成不发片。
           </Trans>
         ),
       },

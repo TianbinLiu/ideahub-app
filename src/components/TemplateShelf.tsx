@@ -6,17 +6,26 @@
 // ★ 分段模板组在列表里收成**一条**（用户点名：分段的模板要在同一模板下）：
 //   组头是第 1 段的卡，下面一条「共 N 段」的横条能展开其余段——每段的核对/识别/
 //   发布/删除操作原样住在各自的卡里，规则零复制。
+import { i18n } from "@lingui/core";
+import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import EmptyState from "./EmptyState";
 import { Link, useNavigate } from "react-router";
 import { useQueryTab } from "../hooks/useQueryTab";
+import { useAccountVersion } from "../hooks/useAccount";
 import { useVideosVersion } from "../hooks/useVideos";
 import Icon from "./Icon";
+import SearchField from "./SearchField";
+import { CloseButton } from "./IconTapButton";
+import Sheet from "./Sheet";
 // ★ 核对编号那一屏（含"删掉一个角色位"）在 components/blockout/RoleConfirmSheet：
 //   详情页 OwnerBar 要用同一个入口，一份实现两处用（两页各写一份必然分叉）
 // （播放/点赞数 2026-08-29 随卡片减法收进详情页，本文件不再读 social）
 import VideoTemplateExtractor from "./VideoTemplateExtractor";
+import TemplateCreateCard from "./TemplateCreateCard";
+import TextTemplateSheet from "./TextTemplateSheet";
+import WorkflowShelf from "./WorkflowShelf";
 import {
   groupRows,
   blockoutJobExpired,
@@ -32,6 +41,7 @@ import {
   refVideoPoster,
   refVideoRealSec,
   refreshPendingBlockoutJobs,
+  sharedListLoading,
   refreshRemoteTemplate,
   remoteStateOf,
   remoteTemplatesCapable,
@@ -39,10 +49,18 @@ import {
   readyTemplates,
   sharedLoadIssue,
   subscribeTemplates,
+  templateKindOf,
+  templatePlanIssue,
+  templateRunsOn,
+  templateTiers,
   templatesLoadIssue,
+  textTplSpecOf,
   templatesVersion,
   type BlockoutJob,
 } from "../data/templates";
+import { tierBlockReason, tierOffered, tierPlanBlocked, tierRegionIssue, tierShownModel } from "../data/account";
+import { zoneIsRegional } from "../data/videoZone";
+import { VIDEO_TIERS, blockoutTier, type VideoTier } from "../data/economy";
 import { remoteOn } from "../data/videos";
 import { useFlow } from "../studio/flowStore";
 import { useApplyTemplate } from "./flow/useApplyTemplate";
@@ -53,6 +71,9 @@ import { TPL_CATEGORIES, VideoTemplate, tplCategoryLabel } from "../types";
 export function useTemplatesVersion(): number {
   return useSyncExternalStore(subscribeTemplates, templatesVersion, () => 0);
 }
+
+/** 「出片模型」筛选的合法取值："" = 全部，其余是档位 id（地址栏里的值按这张白名单认，手改成别的退回全部） */
+const TIER_FILTER_IDS: readonly string[] = ["", ...VIDEO_TIERS.map((x) => x.id)];
 
 export function TemplateCard({
   t: tpl,
@@ -80,6 +101,12 @@ export function TemplateCard({
    *    **纯黑**的（`t.cover && <img>` 直接不渲染），看起来像模板坏了。 */
   const { t } = useLingui();
   const cover = tpl.cover || refVideoPoster(tpl.refVideo);
+  /** 哪一种模板（data/templates.templateKindOf 唯一判据）：卡面的视频预览、角标、时长那一格按它分 —— 文字模板也没有 refVideo，别按 `tpl.refVideo ?` 判成经典 */
+  const kind = templateKindOf(tpl);
+  /** 文字模板那一份（形状坏了 = null：卡面照样画，时长那一格不写） */
+  const textSpec = textTplSpecOf(tpl);
+  const textSec = textSpec?.durationSec ?? 0;
+  const textSlots = textSpec?.slots.length ?? 0;
   /**
    * 自动循环预览（2026-08-29，backlog 2.8-④ 对标 Higgsfield 的"名字+动图+一个键"）：
    * 白模模板的卡面就是它的参考视频在静音循环——替掉原来那颗「▶ 预览」开关。
@@ -103,11 +130,28 @@ export function TemplateCard({
     return () => io.disconnect();
   }, [tpl.refVideo?.url]);
   const catLabel = tplCategoryLabel(tpl.category);
+  /** 这个模板能在哪几个出片模型上跑（data/templates.templateTiers 唯一实现）：null = 不限，[] = 闸门全关（不标） */
+  const tiers = templateTiers(tpl);
+  /**
+   * 角标写具体模型名（2026-10-26 出片地区 · 主人第 2 件：「卡片信息」包括模板卡）—— 只在地区问到了、这一档又摆得出来时写
+   * （account.tierShownModel，一处出口）；地区不知道时照旧只写档位名，不写供应商。
+   */
+  const tierModels = tiers?.map(tierShownModel) ?? [];
+  const tierModelNames = tierModels.every((x) => !!x) ? tierModels.join(" / ") : "";
+  const tierNames = tiers?.map((x) => x.label).join(" / ") ?? "";
+  /**
+   * 你所在的地区（或这台服务器）给不出它要的那一档（account.tierRegionIssue 一处判据）：角标换成一枚「用不了」，
+   * 不写它要的那个模型 —— 这个地区给不出的那一家不写名字（批评意见：白模模板对海外用户标出来，别静默拿掉）。
+   * 措辞分地区 / 服务器（videoZone.zoneIsRegional，与档位那一排同一个分法）。
+   */
+  const regionOff = !!tiers?.length && tiers.every((x) => !!tierRegionIssue(x));
+  /** 这个账号的套餐用不了它要求的那一档（只是提示：套餐还不知道时不标，见 templatePlanIssue） */
+  const planLocked = !!templatePlanIssue(tpl);
   return (
     <div data-guide={guide} className="overflow-hidden rounded-xl border border-slate-700/70 bg-panel">
       <Link to={`/template/${tpl.id}`} className="block">
         <div className="relative aspect-[16/10] bg-black/40">
-          {tpl.refVideo ? (
+          {kind === "blockout" && tpl.refVideo ? (
             <video
               ref={vidRef}
               src={tpl.refVideo.url}
@@ -121,9 +165,17 @@ export function TemplateCard({
           ) : (
             cover && <img src={cover} alt="" className="h-full w-full object-cover" />
           )}
-          {tpl.refVideo && (
-            <span className="absolute left-2 top-2 rounded bg-sky-500/90 px-1.5 py-0.5 text-[9px] font-bold text-white">
+          {/* 左上角的能力角标排成一行（2026-10-23）：原来第二枚按固定偏移 left-[3.1rem] 摆，英文下「Blockout」比「白模」宽一截就叠上去 */}
+          <span className="absolute left-2 top-2 flex items-center gap-1">
+          {kind === "blockout" && (
+            <span className="rounded bg-black/60 px-1.5 py-0.5 text-[9px] font-bold text-white">
               <Trans>白模</Trans>
+            </span>
+          )}
+          {/* 文字模板（2026-10-26 P1）：一段写好的提示词 + 几个图位，与白模那种「按视频复刻」是两件商品，卡面要一眼分得开 */}
+          {kind === "text" && (
+            <span className="rounded bg-black/60 px-1.5 py-0.5 text-[9px] font-bold text-white">
+              <Trans>文字</Trans>
             </span>
           )}
           {/* ★ V2 标识：这个模板有**角色位**，套用时能逐个人偶换人（V1 只能整段换一个主体）。
@@ -131,16 +183,17 @@ export function TemplateCard({
               为什么要摆出来：两种模板在市场上长得一模一样，而能力差一个量级；
               不标的话用户只能靠"点进去试试"才知道这个模板能不能分角色换人。 */}
           {tpl.roles?.length ? (
-            <span className="absolute left-[3.1rem] top-2 rounded bg-emerald-500/90 px-1.5 py-0.5 text-[9px] font-bold text-white">
+            <span className="rounded bg-black/60 px-1.5 py-0.5 text-[9px] font-bold text-white">
               <Trans>{tpl.roles.length} 个角色位可换人</Trans>
             </span>
           ) : null}
+          </span>
           {/* 「新」角标（backlog 2.8-① 的 marker 位，PixVerse 式）：七天内登记的标出来。
               只做 new 不做 hot——模板互动计数首发是**本机**的（服务端 ASSET_KINDS 还没有
               template），拿本机数标「热」是在撒谎；等计数上服务端再补那半。
               右上角是 ▶预览 钮退役后空出来的位置 */}
           {Date.now() - tpl.createdAt < 7 * 24 * 3600 * 1000 && (
-            <span className="absolute right-2 top-2 rounded bg-amber-400/95 px-1.5 py-0.5 text-[9px] font-bold text-ink">
+            <span className="absolute right-2 top-2 rounded bg-warn-400/95 px-1.5 py-0.5 text-[9px] font-bold text-ink">
               <Trans>新</Trans>
             </span>
           )}
@@ -150,17 +203,43 @@ export function TemplateCard({
           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent px-3 pb-2 pt-8">
             <div className="truncate text-sm font-bold text-slate-50">{tpl.title}</div>
             <div className="mt-0.5 flex items-center gap-2 text-[10px] text-slate-300">
+              {/* ★ 出片模型（2026-10-02 主人点名：模板要像卡片那样注明适用哪个出片模型）：白模模板固定在做得到
+                  "按参考视频复刻"的那一档，经典配方不限。判据只有 templateTiers 一处，货架那颗筛选读的是同一份。
+                  套餐用不了那一档时加一把锁、换成琥珀色 —— 原因在详情页与筛选面板里整句说，卡面只负责一眼看得出。 */}
+              {tiers === null ? (
+                <span className="flex-none rounded-full px-1.5 py-0.5 bg-white/15 text-[9px]"><Trans>模型不限</Trans></span>
+              ) : regionOff ? (
+                <span className="flex flex-none items-center gap-0.5 rounded-full bg-warn-500/25 px-1.5 py-0.5 text-[9px] text-warn-100">
+                  <Icon name="ban" size={9} />
+                  {zoneIsRegional() ? <Trans>你所在的地区用不了</Trans> : <Trans>这台服务器用不了</Trans>}
+                </span>
+              ) : tiers.length > 0 ? (
+                <span
+                  className={`flex flex-none items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] ${
+                    planLocked ? "bg-warn-500/25 text-warn-100" : "bg-white/15"
+                  }`}
+                >
+                  {planLocked && <Icon name="lock" size={9} />}
+                  {tierModelNames ? <Trans>仅 {tierModelNames}</Trans> : <Trans>仅{tierNames}</Trans>}
+                </span>
+              ) : null}
               {catLabel && <span className="rounded-full px-1.5 py-0.5 bg-white/15 text-[9px]">{catLabel}</span>}
               {/* 白模只有一段（整段复刻），报"模板视频几秒"比"1 段"信息量大 */}
               <span>
-                {tpl.refVideo
+                {kind === "blockout" && tpl.refVideo
                   ? t`${(refVideoRealSec(tpl.refVideo) ?? tpl.refVideo.durationSec).toFixed(1)}s 复刻`
-                  : t`${tpl.recipe.beats.length} 段`}
+                  : kind === "text"
+                    ? textSpec
+                      ? textSlots
+                        ? t`${textSec}s · 要补 ${textSlots} 张图`
+                        : t`${textSec}s · 只用文字`
+                      : null
+                    : t`${tpl.recipe.beats.length} 段`}
               </span>
               {/* ★★ 模板视频本身出不了片时打角标，**但不从列表里拿掉**：东西静默消失，
                   用户只会以为是我们弄丢了（铁律八）。判据只有 refVideoIssue 一处 */}
               {refVideoIssue(tpl.refVideo) && (
-                <span className="rounded-full px-1.5 py-0.5 bg-rose-500/20 text-[9px] text-rose-200"><Trans>暂时不可用</Trans></span>
+                <span className="rounded-full bg-black/65 px-1.5 py-0.5 text-[9px] text-danger-200"><Trans>暂时不可用</Trans></span>
               )}
             </div>
           </div>
@@ -171,7 +250,7 @@ export function TemplateCard({
           <button
             data-guide={guidePick}
             onClick={onPick}
-            className="w-full rounded-xl bg-brand py-2.5 text-xs font-bold text-ink"
+            className="w-full rounded-xl bg-brand/15 py-2.5 text-sm font-bold text-brand"
           >
             <Trans>用它出片</Trans>
           </button>
@@ -225,10 +304,10 @@ function BlockoutResumeCard({ job, onTaken }: { job: BlockoutJob; onTaken: () =>
   return (
     <div
       className={`rounded-xl border px-3 py-2.5 ${
-        expired ? "border-slate-600/60 bg-black/25" : "border-amber-500/50 bg-amber-500/10"
+        expired ? "border-slate-600/60 bg-black/25" : "border-warn-500/40 bg-warn-500/10"
       }`}
     >
-      <div className="text-[11px] font-bold text-amber-200">
+      <div className="text-[11px] font-bold text-warn-200">
         {expired ? <Trans>这一发白模化已经取不回来了</Trans> : <Trans>有一发白模化还没取回结果</Trans>}
       </div>
       <div className="mt-0.5 truncate text-[11px] text-slate-300">
@@ -242,15 +321,15 @@ function BlockoutResumeCard({ job, onTaken }: { job: BlockoutJob; onTaken: () =>
             : t` · 认出 ${job.roles.length} 个角色位`
           : ""}
       </div>
-      <p className={`mt-1 text-[11px] leading-relaxed ${expired ? "text-slate-400" : "text-amber-200/90"}`}>
+      <p className={`mt-1 text-[11px] leading-relaxed ${expired ? "text-slate-400" : "text-warn-200/90"}`}>
         {blockoutJobNote(job)}
       </p>
-      {issue && <p className="mt-1.5 text-[11px] leading-relaxed text-rose-300">{issue}</p>}
+      {issue && <p className="mt-1.5 text-[11px] leading-relaxed text-danger-300">{issue}</p>}
       {!expired ? (
         <button
           onClick={() => void take()}
           disabled={!!busy}
-          className="mt-2 w-full rounded-xl bg-brand py-2.5 text-xs font-bold text-ink disabled:opacity-40"
+          className="mt-2 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
         >
           {busy ? <Trans>取回中…</Trans> : <Trans>取回这一发的结果（不额外花钱）</Trans>}
         </button>
@@ -286,9 +365,9 @@ function OwnerRow({ t: tpl }: { t: VideoTemplate }) {
   const published = st ? st.status === "published" : tpl.published;
   const blocked = st?.status === "blocked";
   const [label, cls] = blocked
-    ? [t`已下架`, "bg-rose-500/15 text-rose-300"]
+    ? [t`已下架`, "bg-danger-500/15 text-danger-300"]
     : published
-      ? [t`已发布`, "bg-emerald-500/15 text-emerald-300"]
+      ? [t`已发布`, "bg-ok-500/15 text-ok-300"]
       : [t`草稿`, "bg-slate-700 text-slate-300"];
   return (
     <span data-guide="template-owner-row" className={`flex-none rounded-full px-2.5 py-1 text-[11px] ${cls}`}>
@@ -350,27 +429,46 @@ function GroupRow({
   );
 }
 
-/** 货架本体。embedded = 摆在别的页里（创意工坊）：不带页头，其余一模一样 */
+type ShelfTab = "market" | "workflows" | "mine";
+const ALL_SHELF_TABS: readonly ShelfTab[] = ["market", "workflows", "mine"];
+
+/** 货架本体。摆在别的页里（创意工坊两层、/templates）：不带页头，其余一模一样 */
 export default function TemplateShelf({
   initialTab,
   queryKey,
+  tabs = ALL_SHELF_TABS,
+  searchQ,
 }: {
-  initialTab?: "market" | "mine";
+  initialTab?: ShelfTab;
   /**
-   * 给了就把「模板市场/我的模板」这一层页签写进地址栏 query（键名由宿主定，工坊与市场页都用
+   * 给了就把「模板市场/工作流/我的模板」这一层页签写进地址栏 query（键名由宿主定，工坊与市场页都用
    * `shelf`）：去详情再返回时页签还在。不给 = 只活在组件 state 里（简约模式的选模板浮层那种
    * 宿主，它自己的地址不该被这一层改动）。
    */
   queryKey?: string;
+  /**
+   * 这一处摆哪几个页签（2026-10-20 工坊改版）：创意工坊第一层（市场）只摆「模板市场 / 工作流」，第二层「我的仓库」只摆「我的模板」，
+   * /templates 三个都摆（缺省）。只剩一个时整行页签不画。★ 白名单同时喂给地址栏那一层（useQueryTab 的 allowed）：
+   * 手改成 `?shelf=mine` 也进不了市场层里的「我的模板」。
+   */
+  tabs?: readonly ShelfTab[];
+  /**
+   * 宿主自己画了搜索框（创意工坊第一层：一个搜索框搜当前那一类）时把词传进来：货架就不再画自己那一个，
+   * 「出片模型」筛选键挪到分类芯片那一行最前面。不给 = 照旧画自己的搜索框（/templates）。
+   */
+  searchQ?: string;
 }) {
   const { t } = useLingui();
   const ver = useTemplatesVersion();
   const nav = useNavigate();
-  const [q, setQ] = useState("");
+  const [ownQ, setQ] = useState("");
+  const q = searchQ ?? ownQ;
+  const fallbackTab: ShelfTab = initialTab && tabs.includes(initialTab) ? initialTab : tabs[0];
   // ★ 两条状态都无条件建（hook 顺序不能随 prop 变），用哪条由 queryKey 定
-  const [queryTab, setQueryTab] = useQueryTab(queryKey ?? "shelf", ["market", "mine"] as const, initialTab ?? "market");
-  const [localTab, setLocalTab] = useState<"market" | "mine">(initialTab ?? "market");
-  const tab = queryKey ? queryTab : localTab;
+  // 「工作流」（2026-10-02 P2）= 上了架的公开配方那条货架，列表与筛选都是另一套（components/WorkflowShelf）
+  const [queryTab, setQueryTab] = useQueryTab(queryKey ?? "shelf", tabs, fallbackTab);
+  const [localTab, setLocalTab] = useState<ShelfTab>(fallbackTab);
+  const tab = queryKey ? queryTab : tabs.includes(localTab) ? localTab : fallbackTab;
   const setTab = queryKey ? setQueryTab : setLocalTab;
   /**
    * 货架还挂着吗。★ 白模「取回」最长要等十来分钟、进度上还写着"可以离开"，而 queryKey 模式下切页签是
@@ -386,10 +484,30 @@ export default function TemplateShelf({
   }, []);
   /** 人话分类筛选（backlog 2.8-③，Vidu 式按情绪与用途分）。"" = 全部 */
   const [cat, setCat] = useState("");
+  /**
+   * 「出片模型」筛选（2026-10-02 主人点名：搜索栏旁边加一颗，让人按自己想用的出片模型挑模板）。"" = 全部。
+   * ★ 为什么是筛选而不是在模板上换模型：模板对出片模型是**硬要求**（白模模板要按参考视频逐镜头复刻，
+   *   只有一档做得到）—— 换了模型不是效果差一点，是出不了片。所以不给「解除固定」，给的是"按模型找模板"。
+   * ★ 与页签同一种存法：宿主给了 queryKey 就写进地址栏（去详情页再返回，筛选还在），否则只活在组件里。
+   *   两条状态都无条件建（hook 顺序不能随 prop 变）。
+   * ★ **只在市场页签生效**（tierOn）：那颗键只画在搜索栏旁边，而搜索栏只在市场页签上 —— 在看不见它的
+   *   「我的模板」里悄悄滤掉东西，用户只会以为自己做的模板丢了。
+   */
+  const [queryTier, setQueryTier] = useQueryTab("model", TIER_FILTER_IDS, "");
+  const [localTier, setLocalTier] = useState("");
+  const tierPick = queryKey ? queryTier : localTier;
+  const setTierPick = queryKey ? setQueryTier : setLocalTier;
+  const tierOn = tab === "market" ? tierPick : "";
+  const [tierSheet, setTierSheet] = useState(false);
+  // 套餐变了（升级 / 换账号）卡面上那把锁与筛选面板里的原因要跟着变：账号库是模块级单例，订阅它的版本号
+  useAccountVersion();
   // 白模上传入口按能力门控渲染（探测走 remoteTemplatesCapable 唯一实现）：
   // 老服务端 / 离线时不摆一个走到上传那步才失败的按钮（CLAUDE.md「永远点不动的选项」）
   const [blockoutCap, setBlockoutCap] = useState(false);
   const [extract, setExtract] = useState(false);
+  const [textSheet, setTextSheet] = useState(false);
+  /** 「做一个模板」：白模那两条路开着就去提取器第一屏（三条路摆在一起），开不了就直接开「只用文字 + 封面」那一屏 —— 不让人先看一屏「服务器不支持」 */
+  const startCreate = () => (blockoutCap ? setExtract(true) : setTextSheet(true));
   /** 套用被就地拒绝时那句话（分段组凑不齐）。★ 不走 flowStore.err：那条错误条只画在
    *  工作流页与画布上，而用户此刻站在模板列表里 —— 写进那里等于没人看得见 */
   const [pickErr, setPickErr] = useState("");
@@ -400,7 +518,7 @@ export default function TemplateShelf({
   //   **而且**服务端真的应答了"，而 remoteTemplatesCapable() 在它为假时不探、直接回 false。
   //   App 虽然等 readyVideos() 才挂路由，但账号层认领到人（与它并发）之后 videos.ts 会按
   //   新 owner 把库整个重装 —— 那段窗口里 remoteOn() 又是 false。此前这个 effect 只在挂载
-  //   跑一次：冷启动直接进「我的模板」时探测落在窗口里，那颗「传一段视频做白模模板」
+  //   跑一次：冷启动直接进「我的模板」时探测落在窗口里，那张「创建属于你的视频模板」入口卡
   //   **永远不出现**，切一次页签让货架重挂才有，零报错。订阅 useVideosVersion 是为了让
   //   重装完成那一拍（readyRemote 结尾的 emitVideos）引起一次重渲染，remoteLive 随之翻真、
   //   effect 重跑。⚠ 别改成直接依赖那个版本号：每一次点赞/补详情都会重探、重拉待取回名单。
@@ -432,10 +550,26 @@ export default function TemplateShelf({
   const allRows = useMemo(() => groupRows(list), [list]);
   /** 分类筛选按**行**过（组按组头的分类归类——组是一次登记出来的整体，别把组拆散）。
    *  ★ 过滤只影响陈列：pick 的整组校验读的是 templateGroupOf（三份完整列表），不受影响 */
-  const rows = useMemo(
+  const catRows = useMemo(
     () => (cat ? allRows.filter((r) => r.parts[0].category === cat) : allRows),
     [allRows, cat],
   );
+  /** 再按出片模型滤一遍（判据 data/templates.templateRunsOn）。★ 一行（一组）里**每一段**都得在那一档上跑得了才算：
+   *   「用它出片」是整组套用，少一段跑不了就是整组用不了 */
+  const rows = useMemo(
+    () => (tierOn ? catRows.filter((r) => r.parts.every((p) => templateRunsOn(p, tierOn))) : catRows),
+    [catRows, tierOn],
+  );
+  /** 筛选面板里每一档旁边的数：选了它会剩几行（与上面同一把尺，按当前的搜索词与分类算） */
+  const tierCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const tier of VIDEO_TIERS) m.set(tier.id, catRows.filter((r) => r.parts.every((p) => templateRunsOn(p, tier.id))).length);
+    return m;
+  }, [catRows]);
+  const tierPicked = VIDEO_TIERS.find((x) => x.id === tierOn) ?? null;
+  const tierPickedLabel = tierPicked?.label ?? "";
+  /** 被这颗筛选挡在外面的行数（> 0 时在列表上方说一句，别让人以为模板丢了） */
+  const tierHidden = tierOn ? catRows.length - rows.length : 0;
   const mineRows = useMemo(() => groupRows(myTemplates()).length, [ver, remoteLive]);
   // ★ 本机模板库没读出来（templates.loadIssue）：「我的模板」可能缺几条，要说出来并给重试；
   //   ver 订阅着 emit，重试读出来那一拍这里自己会重算
@@ -460,7 +594,7 @@ export default function TemplateShelf({
     }
   }, [tab, ver, remoteLive]);
 
-  /** 套用模板。applyTemplate 返回 false = 被整句拒绝（白模在 refVid 全关时，或**模板视频
+  /** 套用模板。applyTemplate 返回 false = 被整句拒绝（白模在 blockoutOk 全关时，或**模板视频
    *  本身不满足方舟窗口** —— 2026-08-16 起多了这一条），这时改跳详情页：那里印着拒绝的
    *  原因（r2vPriceIssue / refVideoIssue 各自的整句），留在市场干瞪眼不行。
    *  ★ 卡片上那个「暂时不可用」角标只是把这件事提前画出来，不是第二处判断 */
@@ -482,6 +616,14 @@ export default function TemplateShelf({
       return;
     }
     setPickErr("");
+    // ★ 这个账号的套餐用不了模板要求的出片模型（templatePlanIssue，唯一实现）：不套，领去详情页 ——
+    //   那一页把原因整句印在「用这个模板出片」旁边并给「去升级」。此前照套不误：挂完卡、写完点名句、
+    //   点了「生成」才第一次听说这一档用不了，而充值解决不了（得换套餐）。
+    //   分段组也走这条：组里每一段要的是同一档，头一段的详情页说的就是整组的事。
+    if (templatePlanIssue(tpl)) {
+      nav(`/template/${tpl.id}`);
+      return;
+    }
     // ★ 整表覆盖 nodes 之前先过守卫（唯一实现见 useApplyTemplate 的 ★★）：在途流水线
     //   连同已花钱的段会被这一下抹掉，而且不断开旧草稿的话，新流水线出片时的自动存盘
     //   会把那条草稿原地覆盖 —— 那是那些付费段唯一的备份
@@ -502,33 +644,53 @@ export default function TemplateShelf({
     });
   }
 
+  /* 「出片模型」筛选（见 tierPick 的注释）。选中时整颗换成品牌色并写上档位名 —— 筛选开着这件事必须一眼看得见，
+     否则"市场上少了模板"与"我筛掉了"分不开。货架自己画搜索框时它在搜索框旁边（items-stretch 与搜索框同高），
+     宿主画搜索框时（searchQ）它挪到分类芯片那一行最前面 —— 两处只画一颗。 */
+  const tierButton = (
+    <button
+      data-guide="template-model-filter"
+      onClick={() => setTierSheet(true)}
+      aria-haspopup="dialog"
+      // 摆进芯片行时就是一颗芯片（py-1 text-[11px]、未选 bg-panel 不带描边）：带描边会比旁边的芯片高 2px，
+      // 选上档位描边一没、整行又缩回去。摆在搜索框旁时照旧描边，靠 items-stretch 与搜索框同高
+      className={`flex flex-none items-center gap-1 rounded-full px-3 ${
+        searchQ !== undefined
+          ? `py-1 text-[11px] ${tierPicked ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-300"}`
+          : `text-xs ${tierPicked ? "bg-brand font-semibold text-ink" : "border border-slate-700 bg-black/30 text-slate-300"}`
+      }`}
+    >
+      <Icon name="filter" size={14} />
+      {tierPicked ? tierPicked.label : <Trans>出片模型</Trans>}
+    </button>
+  );
+
   return (
     <div>
       {discardDialog}
+      {tabs.length > 1 && (
       <div className="mb-3 flex gap-2">
-        {(["market", "mine"] as const).map((k) => (
+        {tabs.map((k) => (
           <button
             key={k}
             // 引导只圈「我的模板」那颗（market 那颗给 undefined = 不渲染这个属性，
             // 与改造前的 DOM 一模一样）
             data-guide={k === "mine" ? "templates-tab-mine" : undefined}
             onClick={() => setTab(k)}
-            className={`rounded-full px-3.5 py-1.5 text-xs font-semibold ${tab === k ? "bg-brand text-ink" : "bg-panel text-slate-300"}`}
+            className={`rounded-full px-3.5 py-1.5 text-xs ${tab === k ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-300"}`}
           >
-            {k === "market" ? <Trans>模板市场</Trans> : <Trans>我的模板 {mineRows || ""}</Trans>}
+            {k === "market" ? <Trans>模板市场</Trans> : k === "workflows" ? <Trans>工作流</Trans> : <Trans>我的模板 {mineRows || ""}</Trans>}
           </button>
         ))}
       </div>
+      )}
 
-      {tab === "market" && (
-        <div className="mb-3 flex items-center gap-2 rounded-full border border-slate-700 bg-black/30 px-3.5 py-2">
-          <Icon name="search" size={16} className="text-slate-500" />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder={t`搜模板：特摄、治愈、赛博…`}
-            className="min-w-0 flex-1 bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-500"
-          />
+      {tab === "workflows" && <WorkflowShelf q={searchQ} />}
+
+      {tab === "market" && searchQ === undefined && (
+        <div className="mb-3 flex items-stretch gap-2">
+          <SearchField shape="pill" className="flex-1" value={q} onChange={setQ} placeholder={t`搜模板：特摄、治愈、赛博…`} />
+          {tierButton}
         </div>
       )}
 
@@ -538,28 +700,52 @@ export default function TemplateShelf({
             `overflow-x-auto` 会把 overflow-y 一并算成 auto，选中那颗的 `ring-1`（画在盒子外
             1px 的 box-shadow）上下两条边就被裁掉了，首尾两颗的左右边同理 —— 看起来是
             "圆边框缺了一截"。负外边距让这 2px 不占版面，与改之前逐像素同位。 */}
+      {/* 「创建属于你的视频模板」入口（2026-10-21 起；原来是「我的模板」里一行虚线文字）。市场与「我的模板」两格都摆 ——
+          大多数人逛的是市场，只摆在「我的模板」里等于藏起来（调研：CapCut 的创作者 banner 就在模板栏里）。
+          还没做过模板的人给大卡，做过的给一行小条。
+          ★ 2026-10-26 起不再按 blockoutCap 整张藏：「只用文字 + 封面」那条不碰服务端，离线 / 老服务端上也做得了 ——
+            blockoutCap 只决定卡上说几条路、点了先去提取器第一屏（三条路）还是直接开文字那一屏（startCreate） */}
+      {(tab === "market" || tab === "mine") && (
+        <TemplateCreateCard variant={mineRows > 0 ? "slim" : "hero"} video={blockoutCap} onStart={startCreate} />
+      )}
+
+      {/* 空架子不摆筛选（Refactoring UI §8.4：空态里把没用的控件藏起来而不是灰掉）。
+          ★ 只在「本来就空」时藏：搜过词 / 选过出片模型时留着，否则人取消不了那个筛选 */}
+      {tab !== "workflows" && !(allRows.length === 0 && !q.trim() && !tierPicked) && (
       <div data-guide="template-filters" className="-mx-0.5 -my-0.5 mb-2.5 flex gap-1.5 no-scrollbar overflow-x-auto px-0.5 py-0.5">
+        {tab === "market" && searchQ !== undefined && tierButton}
         {[{ id: "", label: t`全部` }, ...TPL_CATEGORIES].map((c) => (
           <button
             key={c.id}
             onClick={() => setCat(c.id)}
             className={`flex-none rounded-full px-3 py-1 text-[11px] ${
-              cat === c.id ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-400"
+              cat === c.id ? "bg-brand font-semibold text-ink" : "bg-panel text-slate-300"
             }`}
           >
             {c.label}
           </button>
         ))}
       </div>
+      )}
+
+      {/* 筛选开着、又真挡掉了东西：说一句并给一条回去的路（rows 为空时由下面的空态说，不重复） */}
+      {tierPicked && tierHidden > 0 && rows.length > 0 && (
+        <p className="mb-2 text-[11px] leading-relaxed text-slate-500">
+          <Trans>只看能用「{tierPickedLabel}」出片的模板，另有 {tierHidden} 个用不了这个模型。</Trans>{" "}
+          <button onClick={() => setTierPick("")} className="text-brand underline underline-offset-2">
+            <Trans>看全部</Trans>
+          </button>
+        </p>
+      )}
 
       {pickErr && (
-        <p className="mb-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-300/90">{pickErr}</p>
+        <p className="mb-2 rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-warn-300/90">{pickErr}</p>
       )}
 
       {/* 远端市场拉挂了要明说：不说的话"远端加载失败"看起来和"市场就这么几个模板"
           一模一样（铁律八——失败要响；本机与种子照常显示，所以是"响且局部"） */}
       {tab === "market" && sharedLoadIssue() && (
-        <p className="mb-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] text-amber-300/90">{sharedLoadIssue()}</p>
+        <p className="mb-2 rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[11px] text-warn-300/90">{sharedLoadIssue()}</p>
       )}
       {/* ★ 本机模板库没读出来（templates.loadIssue）：「我的模板」可能缺几条，这段时间的改动也不落本机 —— 说出来，给重试 */}
       {tab === "mine" && tplIssue && (
@@ -579,7 +765,10 @@ export default function TemplateShelf({
                 // 取回成功 = 本机多了一个白模模板（还等着核对角色位）。切到「我的模板」，
                 // 下面那条「待核对」的提示就跟着出来了 —— 那是发布前的必经一步
                 // ★ 人已经走开了就不切（见 aliveRef）：模板照样落进「我的模板」，回来就看得到
-                if (aliveRef.current) setTab("mine");
+                // ★ 这一处没摆「我的模板」（创意工坊第一层只摆市场）：去第二层「我的仓库」的模板页签，同一个意思
+                if (!aliveRef.current) return;
+                if (tabs.includes("mine")) setTab("mine");
+                else nav("/workshop/mine?tab=templates");
               }}
             />
           ))}
@@ -588,27 +777,12 @@ export default function TemplateShelf({
       {/* 名单拉不到要说出来：不说的话"拉挂了"看起来和"你没有待取回的"一模一样，
           而后者是在钱上撒谎（铁律八） */}
       {pendingBlockoutIssue() && (
-        <p className="mb-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-300/90">
+        <p className="mb-2 rounded-lg border border-warn-500/40 bg-warn-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-warn-300/90">
           {pendingBlockoutIssue()}
         </p>
       )}
 
-      {/* 「我的模板」的白模上传入口：跳提取器并直接拨到白模开关。
-          只在能力探测过了才渲染（与提取器里开关的门控是同一个探测） */}
-      {tab === "mine" && blockoutCap && (
-        <button
-          onClick={() => setExtract(true)}
-          className="mb-3 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-sky-500/50 py-3 text-xs text-sky-300"
-        >
-          <Icon name="plus" size={14} />
-          {/* ★★ 2026-08-17 改文案：原来写「上传白模预演视频」，而它跳的是**任意视频 →
-              AI 付费白模化**那条路 —— 用户带着一段自己做好的白模片点进去，会被再白模化
-              一次、白花一次 r2v，而且画质更差。现在两条路都在框选那一屏里选，
-              所以这句话要把**两种都传得**说出来。 */}
-          <Trans>传一段视频做白模模板（自己做好的白模片也行）</Trans>
-        </button>
-      )}
-
+      {tab !== "workflows" && (
       <div className="space-y-3">
         {rows.map((row, i) =>
           row.parts.length > 1 ? (
@@ -643,16 +817,30 @@ export default function TemplateShelf({
               ③ 拉不到远端 —— 那是**故障**，由上面的 sharedLoadIssue 横幅负责说，
                  这里不重复、也不冒充成"市场是空的"。
             ⚠ 别退回一句放之四海的"暂无数据"：三种情形的下一步动作完全不同。 */}
-        {rows.length === 0 && (
+        {rows.length === 0 && tab !== "mine" && !q.trim() && !cat && !tierPicked && sharedListLoading() ? (
+          /* 第五种：远端还在第一次取（sharedListLoading）—— 画圈，别把"还没到货"画成"市场是空的"（2026-10-14 UX 课走查） */
+          <EmptyState loading text={t`正在取模板…`} />
+        ) : rows.length === 0 && (
           /* 第四种空态（2026-08-29 分类筛选带来的）：分类下没货 ≠ 市场空。
               allRows 非空说明货在别的分类（或还没分类），指路要指对 */
           <EmptyState
+            // 搜了 / 筛了没有 = wonder；真的空（市场还没有、我还没做过）= nap
+            // 「会员档——开通会员套餐…」那一句是钱上的话：不放看板娘（EmptyState 头上的禁区），退回灰图标
+            mascot={tierPicked && catRows.length > 0 && tierEmptyGated(tierPicked, catRows) ? undefined : q.trim() || cat || tierPicked ? "wonder" : "nap"}
             icon="search"
+            cta={
+              // 空态自己带出口（Refactoring UI「别忽视空状态」，2026-10-23）：说「做一个」就给做一个的键
+              !tierPicked && !cat && !q.trim()
+                ? { label: t`做一个模板`, onClick: startCreate, primary: tab === "mine" }
+                : undefined
+            }
             text={
-              cat && allRows.length > 0
+              tierPicked && catRows.length > 0
+                ? tierEmptyText(tierPicked, catRows)
+                : cat && allRows.length > 0
                 ? t`「${tplCategoryLabel(cat)}」分类下还没有模板——点「全部」看现有的，或做一个发布出来占坑`
                 : tab === "mine"
-                  ? t`还没有你自己的模板——上面那两个入口都能做一个`
+                  ? t`还没有你自己的模板——点上面那张卡做一个`
                   : q.trim()
                     ? t`没有匹配的模板，换个词试试`
                     : t`市场上还没有公开的模板。做一个自己的、发布出来，这里就有了。`
@@ -660,14 +848,164 @@ export default function TemplateShelf({
           />
         )}
       </div>
+      )}
 
       {extract && (
         <VideoTemplateExtractor
           defaultBlockout
           onClose={() => setExtract(false)}
           onDone={(tpl) => pick(tpl)}
+          onPickText={() => {
+            setExtract(false);
+            setTextSheet(true);
+          }}
         />
       )}
+      {/* 「只用文字 + 封面」（文字模板 P1）：存好之后「用这个模板出片」走同一个 pick（套用只有 applyTemplate 一个入口，守卫也在 pick 里） */}
+      {textSheet && <TextTemplateSheet onClose={() => setTextSheet(false)} onUse={(tpl) => pick(tpl)} />}
+
+      {tierSheet && (
+        <Sheet onClose={() => setTierSheet(false)}>
+          <div className="mb-1 flex items-center">
+            <span className="text-sm font-bold text-slate-100"><Trans>按出片模型筛选</Trans></span>
+            <span className="flex-1" />
+            <CloseButton chip="sm" size={13} align="end" onClick={() => setTierSheet(false)} />
+          </div>
+          <p className="mb-3 text-[11px] leading-relaxed text-slate-400">
+            <Trans>只看你想用的那个模型出得了片的模板。模板对出片模型是硬要求：白模模板要按参考视频逐镜头复刻，换一个模型不是效果差一点，是出不了片。</Trans>
+          </p>
+          <div className="space-y-1.5">
+            <TierOption
+              on={!tierPicked}
+              label={t`全部模型`}
+              sub={t`不按出片模型筛`}
+              count={catRows.length}
+              onPick={() => {
+                setTierPick("");
+                setTierSheet(false);
+              }}
+            />
+            {/* 停用的、这台服务端不支持的、这个地区给不出的档不摆（account.tierOffered）：拿它们筛只会得到一个永远空的货架。
+                档名下面那行模型名只在地区问到了、这一档又摆得出来时写（account.tierShownModel；地区不知道时不写供应商） */}
+            {VIDEO_TIERS.filter((tier) => tierOffered(tier) || tierPicked?.id === tier.id).map((tier) => (
+              <TierOption
+                key={tier.id}
+                on={tierPicked?.id === tier.id}
+                label={tier.label}
+                sub={tierShownModel(tier)}
+                count={tierCounts.get(tier.id) ?? 0}
+                // 这个账号的套餐用不了这一档（account.tierBlockReason，唯一实现）：照样能选来逛，只是把话说在前面
+                note={tierBlockReason(tier)}
+                onPick={() => {
+                  setTierPick(tier.id);
+                  setTierSheet(false);
+                }}
+              />
+            ))}
+          </div>
+        </Sheet>
+      )}
     </div>
+  );
+}
+
+/**
+ * 筛选之后一个都不剩时的那句话。★ 要说清**为什么**不剩：今天市场上的模板几乎全是白模模板，而它们只有一档跑得了 ——
+ *   只说"没有匹配的模板"的话，选了「高清」的人会以为市场是空的，或者筛选坏了。
+ * ★ 「它们要的是哪一档」只问 economy.blockoutTier（唯一实现）；选的正是那一档还一个不剩，就只说没有。
+ * ★ 模块级函数拿不到 useLingui：用 i18n._(msg) 在调用那一刻按当前语言翻（与 TemplateDetailPage.blockoutIssue 同一种写法）。
+ */
+/**
+ * 被筛掉的那几行是不是**全是白模模板**（templateKindOf 唯一判据）—— 「现有的 N 个都要按参考视频逐镜头复刻、只有某一档做得到」那几句只在这时说。
+ * ★ 2026-10-26 文字模板 P1：文字模板也会被这颗筛选挡住（它只在作者选的那几档上跑），原来那句话对它是假的 —— 它不复刻视频、也不只认一档。
+ */
+function hiddenAllBlockout(hidden: readonly { parts: VideoTemplate[] }[]): boolean {
+  return hidden.every((r) => r.parts.every((p) => templateKindOf(p) === "blockout"));
+}
+
+/** tierEmptyText 会不会说成「它是会员档——开通会员套餐…」那一句（判据只在这里：文案与「旁边放不放看板娘」读同一个答案） */
+function tierEmptyGated(picked: VideoTier, hidden: readonly { parts: VideoTemplate[] }[]): boolean {
+  if (!hiddenAllBlockout(hidden)) return false;
+  const need = blockoutTier();
+  // 「它是会员档」只在挡住他的确实是套餐时说（account.tierPlanBlocked）：原因是出片地区时付钱治不了（2026-10-26 P1 审核）
+  return !!need && need.id !== picked.id && tierPlanBlocked(need);
+}
+
+/**
+ * 句子里点一档：「「电影级」（Seedance 2.5）」—— 括号里的模型名只在地区问到了、这一档又摆得出来时写（account.tierShownModel），
+ * 否则只写档名（地区不知道时不写供应商；这个地区给不出的那一家更不写）。
+ */
+function tierRef(tier: VideoTier): string {
+  const label = tier.label;
+  const model = tierShownModel(tier);
+  return model
+    ? i18n._(msg({ message: `「${label}」（${model}）`, comment: "句子里点一档：档位名加引号，括号里是它的出片模型名" }))
+    : i18n._(msg({ message: `「${label}」`, comment: "句子里点一档：档位名加引号（中文「」，英文弯引号）" }));
+}
+
+function tierEmptyText(picked: VideoTier, hiddenRows: readonly { parts: VideoTemplate[] }[]): string {
+  const name = picked.label;
+  const nm = tierRef(picked);
+  const hidden = hiddenRows.length;
+  // 被挡住的不全是白模模板（有文字模板）：各要各的档，别说「都要按参考视频复刻、只有某一档做得到」
+  if (!hiddenAllBlockout(hiddenRows)) {
+    return i18n._(msg`没有能用${nm}出片的模板——现有的 ${hidden} 个要的出片模型里都没有它。点写着「${name}」的那颗筛选键换一个模型，或者选回「全部模型」。`);
+  }
+  const need = blockoutTier();
+  if (need && need.id !== picked.id) {
+    // 它们要的那一档这个人此刻摆不出来（这个地区给不出 / 这台服务端不支持）：别指一条走不通的路（「只有它做得到——换过去」）
+    if (!tierOffered(need)) {
+      return i18n._(
+        msg`没有能用${nm}出片的模板。现有的 ${hidden} 个都要按参考视频逐镜头复刻，你现在能用的出片模型都做不到——选回「全部模型」看看。`,
+      );
+    }
+    const needNm = tierRef(need);
+    // 那一档这个人用不了（会员档，2026-10-07 免费档限制）：照实说「它是会员档」，别只叫人换过去
+    return tierEmptyGated(picked, hiddenRows)
+      ? i18n._(
+          msg`没有能用${nm}出片的模板。现有的 ${hidden} 个都要按参考视频逐镜头复刻，只有${needNm}做得到，而它是会员档——开通会员套餐（或充值过任意一笔）后可用，或者选回「全部模型」看看。`,
+        )
+      : i18n._(
+          msg`没有能用${nm}出片的模板。现有的 ${hidden} 个都要按参考视频逐镜头复刻，只有${needNm}做得到——点写着「${name}」的那颗筛选键换一个模型，或者选回「全部模型」。`,
+        );
+  }
+  return i18n._(msg`没有能用${nm}出片的模板——点写着「${name}」的那颗筛选键换一个模型，或者选回「全部模型」。`);
+}
+
+/** 筛选面板里的一行：档位名 + 模型名 + 选了会剩几个；套餐用不了的那一档把原因写在下面（照样能选） */
+function TierOption({
+  on,
+  label,
+  sub,
+  count,
+  note,
+  onPick,
+}: {
+  on: boolean;
+  label: string;
+  /** 档名下面那行（模型名）；null = 不写（地区不知道 / 这一档这个地区给不出） */
+  sub: string | null;
+  count: number;
+  note?: string | null;
+  onPick: () => void;
+}) {
+  return (
+    <button
+      onClick={onPick}
+      aria-pressed={on}
+      className={`flex w-full items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left ${
+        on ? "border-brand bg-brand/10" : "border-slate-700"
+      }`}
+    >
+      <span className="min-w-0 flex-1">
+        <span className="block text-xs font-semibold text-slate-100">{label}</span>
+        {sub && <span className="block truncate text-[10px] text-slate-500">{sub}</span>}
+        {note && <span className="mt-0.5 block text-[10px] leading-relaxed text-warn-300/80">{note}</span>}
+      </span>
+      <span className="flex-none text-[11px] text-slate-400">
+        <Trans>{count} 个模板</Trans>
+      </span>
+      <span className="w-4 flex-none text-brand">{on && <Icon name="check" size={16} />}</span>
+    </button>
   );
 }

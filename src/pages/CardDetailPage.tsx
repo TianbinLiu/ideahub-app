@@ -2,12 +2,14 @@
 // （铸卡时的完整提示词，具体到可复刻卡面）+ 3D 建模全息预览（有 modelUrl 的角色卡）。
 // 创意工坊/我的/卡组详情点卡进来。
 import { useEffect, useRef, useMemo, useState, useSyncExternalStore } from "react";
+import Warn from "../components/Warn";
 import { showToast } from "../data/toast";
 import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
 import DeleteCardDialog from "../components/DeleteCardDialog";
 import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
+import { useBackOr } from "../hooks/useBackOr";
 // ★ 出片管线的规则一律**从管线本身取**，这一页不再抄一份（铁律六）。
 //   抄的那份漏过规则一（只有第一张人物卡进参考图），于是「出片用」这个标签会对着
 //   一张从来不进模型的图亮起来 —— 用户为它多付了钱，界面还告诉他钱花在了出片上。
@@ -17,21 +19,30 @@ import TarotCard from "../components/TarotCard";
 import SocialPanel, { useCountView, useSocialVersion } from "../components/SocialPanel";
 import WorkshopShareBar, { shareBlockReason } from "../components/WorkshopShareBar";
 import CardHologram, { CARD_MODELS, useHologramModel } from "../studio/ui/CardHologram";
-import { acquireCard, bindCardAsset, cardsReady, fetchSharedCard, isRemoteMode, myCards, myDecks, removeCard, shareCard, updateCardMeta } from "../data/account";
-import { addCardView, addPreparedCardView, removeCardView, replaceCardView, viewSourceBlob } from "../data/cardViews";
+import { acquireCard, bindCardAsset, cardsReady, fetchSharedCard, isRemoteMode, myCards, myDecks, refImgModelsNames, removeCard, shareCard, unbindCardAsset, updateCardMeta, voiceModelsNames } from "../data/account";
+import {
+  addCardView,
+  addPreparedCardView,
+  removeCardView,
+  replaceCardView,
+  setCardViewRole,
+  viewSourceBlob,
+} from "../data/cardViews";
 import PhotoSubjectPicker from "../components/PhotoSubjectPicker";
 import { freshSubjectPick, type SubjectPick } from "../studio/customCardStore";
 import { i18n } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { removeVoice, subscribeVoices, voiceOf, voicesVersion } from "../data/cardVoice";
-import { assetPersisted, assetSyncIssue, assetsVersion, subscribeAssets } from "../data/cardAsset";
-import PortraitAuthPanel from "../components/PortraitAuthPanel";
+import { assetOf, assetPersisted, assetSyncIssue, assetsVersion, subscribeAssets } from "../data/cardAsset";
+import VolcCompatToggle from "../components/VolcCompatToggle";
+import CardModelFit from "../components/CardModelFit";
 import { formatHeat, heatOf } from "../data/social";
 import {
   CARD_INFO_LABELS,
   CARD_NAME_MAX,
   CARD_SUMMARY_MAX,
+  ID_LINE_MAX,
   CARD_SLOTS,
   CARD_TYPE_COLORS,
   CARD_TYPE_LABELS,
@@ -42,11 +53,13 @@ import {
   SHARE_NOTE_MAX,
   primarySlotOf,
   publishableModelUrl,
+  roleOf,
   slotLabel,
   viewTag,
   viewsOf,
 } from "../types";
-import { useAccountVersion } from "../hooks/useAccount";
+import { useAccountVersion, useAuthState } from "../hooks/useAccount";
+import { clearStashedCard, peekStashedCard, stashCardForLogin } from "../data/cardHandoff";
 
 /**
  * 老卡/素材卡没存这段信息时（字段仍叫 genPrompt，跨仓字段不改名），
@@ -64,8 +77,10 @@ function cardInfoOf(card: Card): string {
   if (card.genPrompt) return card.genPrompt;
   // i18n-ignore-next-line: 这段是现补的铸卡提示词（与 ai/real.forgePrimary 同款格式），照原样交给模型才复刻得出卡面
   const tags = card.tags?.length ? `关键词：${card.tags.join("、")}。` : "";
+  // ★ 描述那一句与 real.forgePrimary 同源：只拿出片句（简介不进出图，2026-09-18）
+  const look = card.idLine ? `${card.idLine}。` : "";
   // i18n-ignore-next-line: 同上，提示词正文冻结中文（类型名与画风尾巴也取自 ai/real 的提示词表）
-  return `${TYPE_LABEL[card.type]}：${card.name}。${card.summary}${tags}${cardStyleSuffix(card.type, "卡面")}`;
+  return `${TYPE_LABEL[card.type]}：${card.name}。${look}${tags}${cardStyleSuffix(card.type, "卡面")}`;
 }
 
 /**
@@ -132,6 +147,9 @@ function hintFor(type: CardType): string {
  * ★ 非人物卡那句里的图位名按**这张卡真正的第 1 张**报，不按图位表的 [0] 报：
  *   管线取的是 viewsOf()[0]（存储顺序），老卡里排头的未必就是主视图 ——
  *   照表念一遍在那种卡上就是指着 A 说 B。
+ * ★ 2026-09-23：第 3 张（三视图 / 规格稿 / 细节特写）不再是"永远轮不到"——作者在放大层把它
+ *   标成「出片用」之后，它排在"每张卡的第 1 张"之后等预算（ai/real 规则二的 ★★）。这两句话要说清
+ *   **它排在哪**，不能只说"能用了"：用户按乐观口径理解、挂满三张卡再问为什么没生效，就是下一个坑。
  * ★★ 人物卡那句里"只有第一张人物卡"是**必须写出来的那半句**（这里原来写的是
  *   "每张人物卡最多取 2 张"，那是规则一的第二个、错的版本）：用户挂了两张人物卡、
  *   发现配角不像，读到旧那句会判断参考图已经生效、问题出在提示词，于是反复重炼、
@@ -140,73 +158,97 @@ function hintFor(type: CardType): string {
 function pipelineNoteFor(type: CardType, views: CardView[]): string {
   if (type !== "character") {
     const first = views[0] ? viewTag(type, views[0]) : CARD_SLOTS[type][0].label;
-    // ★ P2-a（2026-08-29）后直通路的预算跟档位协议走（9/30），3 张那句只描述经典路 —— 末尾括号里那句说的就是这件事
-    return i18n._(
-      msg`出片时这类卡先保证第 1 张（${first}）喂给 AI；同一段里参考图总共最多 ${MAX_REF_IMAGES} 张，预算还有余才轮得到第 2 张 —— 也就是同段挂的卡越少，它越可能真的进模型。预算不够时「先被丢的就是各卡的第 2 张」，卡再多下去整张卡都会带不上（两种情况生成步骤里都会逐张点名）。（白模挂卡与简约参考图直出那两条路更宽：参考图直接进视频模型，上限按所选档位的协议走。）`,
-    );
+    // ★ 两条路分开说（2026-10-10 文案复核改）：3 张那句只管**出片前补画设定帧那一步**与收不到参考图的档位；
+    //   收参考图的档（草稿 / 高清 / 电影级，segmentGen.refSlotsOf 一律直通分配）与白模挂卡，参考图直接进视频模型、上限按档位协议走。
+    //   原来写成「出片时…最多 3 张」再在末尾括号里补一句例外，读起来像所有档都只带 3 张 —— 11-24 之后方舟档没有一档再是那样
+    // ★ 2026-10-26（出片地区 · 主人第 2 件审核）：括号里写这个人此刻摆得出来、收参考图的那几个模型（account.refImgModelsNames：地区问到了写模型名、
+    //   不知道时写档名；与同一页「按模型适配」那一格同一个口径）。原来按目录列「草稿 / 高清 / 电影级」—— 海外门禁开着时那几档一档都摆不出来，
+    //   同一页上下自相矛盾。一个都没有时那半句整个不说
+    const names = refImgModelsNames();
+    return names
+      ? i18n._(
+          msg`出片时这类卡先保证第 1 张（${first}）喂给 AI。出片前补画设定帧那一步（以及收不到参考图的档位）：同一段里参考图总共最多 ${MAX_REF_IMAGES} 张，预算还有余才一轮一轮地轮到第 2、第 3 张 —— 同段挂的卡越少，它越可能真的进模型；预算不够时先被丢的是各卡靠后的那几张，卡再多下去整张卡都会带不上（生成步骤里会逐张点名）。收参考图的出片模型（${names}）与白模挂卡：参考图直接进视频模型，各卡一张一张轮着带，上限按所选模型的协议走。`,
+        )
+      : i18n._(
+          msg`出片时这类卡先保证第 1 张（${first}）喂给 AI。出片前补画设定帧那一步（以及收不到参考图的档位）：同一段里参考图总共最多 ${MAX_REF_IMAGES} 张，预算还有余才一轮一轮地轮到第 2、第 3 张 —— 同段挂的卡越少，它越可能真的进模型；预算不够时先被丢的是各卡靠后的那几张，卡再多下去整张卡都会带不上（生成步骤里会逐张点名）。`,
+        );
   }
   const face = slotLabel("character", "face");
   const body = slotLabel("character", "body");
   const detail = slotLabel("character", "detail");
-  // ★ 不画设定帧的两条路是**例外**，必须说（倒数第二个括号那句）：白模 r2v 与简约参考图直出（P2-a 放宽后）
-  //   的参考图直接进视频模型，"一张图里画多个角色被拒"根本不适用，每张人物卡各带各的
-  //   形象图。不说这一句，用户会照上面那半句自我设限：以为挂第 2 张人物卡没用。
+  // ★ 两条路分开说（2026-10-10 文案复核改）：
+  //   · 收参考图的档（草稿 / 高清 / 电影级）与白模挂卡：segmentGen.refSlotsOf 一律直通分配，**每张**人物卡各带自己的形象图
+  //     （先每卡 1 张、预算有余再补第 2 张，上限按档位协议：高清 / 草稿 9、电影级 30）；
+  //   · 出片前补画设定帧那一步（以及收不到参考图的档）：出图模型只吃第一个人物的图 —— 「只有第一张人物卡」那半句只管这里。
+  //   原来整段按经典路写、把直通路塞在末尾括号里，还说「一张图里画多个角色会被方舟整条拒掉」—— 那条约束本仓已撤回
+  //   （docs/multi-character-consistency-research.md：被拒的是精灵图写法）。用户按旧那句自我设限，以为挂第 2 张人物卡没用。
+  // 括号里的名字同上（account.refImgModelsNames）；一个都没有时开头那一句整个不说
+  const names = refImgModelsNames();
+  if (!names) {
+    return i18n._(
+      msg`出片前补画设定帧那一步（以及收不到参考图的档位）：一段里只有「第一张人物卡」能带形象参考图——先取 ${MAX_CHAR_REFS} 张（优先${face} + ${body}），标成「出片用」的第 3 张要等同段每张卡都拿到第 1 张之后，预算还有余才补得上；其余人物卡在那一步只按文字设定参与（画帧的出图模型只吃第一个人物的图）。所以上面的「出片用 / 仅展示」是按补画设定帧那一步、按"这张卡就是那第一张人物卡"标的：它排在别的人物卡后面时，标着出片用的那几张在那一步同样进不了模型（生成步骤里会点名说明）。${detail}这一格铸卡不会自动出图，只能自己传。`,
+    );
+  }
   return i18n._(
-    msg`出片时一段里只有「第一张人物卡」能带形象参考图：它最多取 ${MAX_CHAR_REFS} 张（优先${face} + ${body}）；同一段里的其余人物卡一张都不带，只按文字设定参与——一张图里画多个角色会被方舟整条拒掉。所以上面的「出片用」是按"这张卡就是那第一张人物卡"标的：它排在别的人物卡后面时，标着出片用的那几张同样进不了模型（生成步骤里会点名说明）。（两条不画设定帧的路是例外——白模模板挂卡、简约模式的参考图直出：每张人物卡都各带自己的形象图。）${detail}这一格铸卡不会自动出图（只能自己传），三张挂满时它也排在最后，出片轮不到它。`,
+    msg`收参考图的出片模型（${names}）与白模模板挂卡：每张人物卡都各带自己的形象图（先每卡 1 张，预算有余再补第 2 张；一段最多几张按所选模型的协议走）。出片前补画设定帧那一步（以及收不到参考图的档位）：一段里只有「第一张人物卡」能带形象参考图——先取 ${MAX_CHAR_REFS} 张（优先${face} + ${body}），标成「出片用」的第 3 张要等同段每张卡都拿到第 1 张之后，预算还有余才补得上；其余人物卡在那一步只按文字设定参与（画帧的出图模型只吃第一个人物的图）。所以上面的「出片用 / 仅展示」是按补画设定帧那一步、按"这张卡就是那第一张人物卡"标的：它排在别的人物卡后面时，标着出片用的那几张在那一步同样进不了模型（生成步骤里会点名说明）。${detail}这一格铸卡不会自动出图，只能自己传。`,
   );
 }
 
 /**
- * 「方舟可信素材」窄条 —— 只在**坏了**的时候出现：真人卡 + 还没绑上素材。
+ * 真人卡的「火山引擎适用」—— 详情页这一格（components/VolcCompatToggle，三个宿主共用一份）。
  *
- * ★★ 2026-08-28 仓库主人拍板：授权的主路挪进**造卡流程**（自己传图 / 从视频提取里
- *   勾「真人」当场做，共用 components/PortraitAuthPanel 一份实现），详情页不再常驻
- *   整块授权区 —— 绑上素材后这里**整块消失**。
- *   这条窄条存在的唯一理由是授权**异步**：本人可能隔天才扫码，照片还可能被内容审核
- *   拒掉（2026-08-28 第一发实测就被拒：InputImageSensitiveContentDetected）——
- *   造卡时没接上的真人卡总得有个就地修复的地方，不能逼人删卡重来。
+ * ★★ 2026-09-30 主人拍板改成勾选框：勾着 = 这张卡做过火山引擎认证，只收授权素材的档位
+ *   （高清 / 电影级）才对它开放；取消勾选 = 当场解绑。**不写**"哪一档需要认证"的说明——
+ *   能用哪几档由档位按钮本身可不可点表达（TierRow 读 account.realFaceIssue）。
+ *   （2026-08-28 那一版是"只在坏了时出现、绑上即消失"的窄条；勾选框要一直在，勾着本身就是状态。）
+ * ★ 认证是**异步**的：本人可能隔天才扫码、照片还可能被内容审核拒掉 —— 造卡时没接上的真人卡
+ *   总得有个就地补的地方，不能逼人删卡重来。
  * ★ 只对自己的卡出现（别人的卡看不到本机侧库）。
- * ★ 绑定后**没有解绑入口**是有意的（同一次拍板「绑上即消失」）：绑错只剩"手填填错"
- *   一种来路，而手填两处都过 normalizeAssetId。真要换绑，等出现真实需求再开口子，
- *   别为想象中的操作摆按钮。
+ * ★ 勾选状态读 `assetOf`（内存里有没有），与出片门禁 `hasAsset` 同一个答案；
+ *   落盘失败另用 saveErr 当场说出来（铁律八：静默失败的话用户以为绑好了，重启后才发现没了）。
  */
 function CardAssetSection({ card, owned }: { card: Card; owned: boolean }) {
   useSyncExternalStore(subscribeAssets, assetsVersion, () => 0);
   const [saveErr, setSaveErr] = useState("");
   const { t } = useLingui();
   if (card.type !== "character" || card.realPerson !== true || !owned) return null;
-  // ★★ 判**落盘了吗**，不是"内存里有吗"（2026-09-01 复核抓到）：saveAsset 写内存那一拍就
-  //   emit()，只问 assetOf 的话窄条在点下去那一瞬间就没了 —— 连同它下面那句错误提示，
-  //   而提示里还写着「再点一次」，那时已经无处可点。落盘失败时窄条留住，这条路才是真的。
-  if (assetPersisted(card.id)) {
-    // 绑上（且存住了）即窄条消失（见顶注）——只剩一句可能要说的话：服务端还没收下。
-    // 绑定属于账号（server BranchCard.portrait），没上行 = 换台设备暂时看不到；下次登录会自动补传
-    const issue = assetSyncIssue(card.id);
-    return issue ? (
-      <p className="mb-4 rounded-lg border border-amber-500/40 bg-amber-400/5 px-3 py-2 text-[11px] leading-relaxed text-amber-200/90">
-        <Trans>🪪 肖像授权已在本机接上，但还没同步到服务端（{issue}）——换台设备暂时看不到，下次登录会自动补传。</Trans>
-      </p>
-    ) : null;
-  }
+  const bound = assetOf(card.id)?.assetId ?? null;
+  // 绑定属于账号（server BranchCard.portrait）：没上行 = 换台设备暂时看不到，下次登录会自动补传
+  const issue = bound && assetPersisted(card.id) ? assetSyncIssue(card.id) : null;
+  const notStored = t`没存住（本机存储写入失败）——再点一次；一直不行就重启 App 再试。`;
+  // empty:hidden：勾选框不摆时（account.volcEntryState，判据在 VolcCompatToggle 里）这一格整个是空的，别留一截空白
   return (
-    <div className="mb-4 rounded-xl border border-amber-500/40 bg-amber-400/5 p-3">
-      <p className="mb-1.5 text-[11px] leading-relaxed text-amber-200/90">
-        <Trans>🪪 这张真人卡还<b className="text-amber-100">没接上已授权的肖像素材</b>——「高清」「电影级」档不收直接上传的真人照片，接上之前用它出片会被拒。</Trans>
-      </p>
-      <PortraitAuthPanel
+    <div className="mb-4 empty:hidden">
+      <VolcCompatToggle
+        boundId={bound}
         onBound={(assetId, note) => {
-          // 窄条是"卡已存在"的场景，当场落库。写失败要出声（铁律八）：
-          // 静默失败的话用户以为绑好了，出片那一刻才发现还是拒。
-          // ★ 判**返回值**不判 reject：saveAsset 底下的 idbSet 把异常吞了回 false，
-          //   原来那条 `.catch` 一次都跑不到（2026-09-01 修 cardAsset 契约时一并改）。
-          //   服务端那半（换台设备看得到）由 bindCardAsset 记进侧库，上面 assetPersisted 那支把话说出来
+          setSaveErr("");
+          // ★ 判**返回值**不判 reject：saveAsset 底下的 idbSet 把异常吞了回 false
           void bindCardAsset(card.id, { assetId, scope: "private", note }).then(
-            (b) => b.stored || setSaveErr(t`绑定没存住（本机存储写入失败）——再点一次；一直不行就重启 App 再试。`),
-            () => setSaveErr(t`绑定没存住（本机存储写入失败）——再点一次；一直不行就重启 App 再试。`),
+            (b) => b.stored || setSaveErr(notStored),
+            () => setSaveErr(notStored),
+          );
+        }}
+        onUnbind={() => {
+          setSaveErr("");
+          void unbindCardAsset(card.id).then(
+            (b) => {
+              // 服务端没收下"取消"：两边都没动（account.unbindCardAsset 先撤服务端的理由），勾选框照旧勾着 —— 说清楚、让人再点
+              if (b.synced === false) {
+                const why = b.reason ?? "";
+                setSaveErr(t`没取消成功——服务端没收到（${why}），勾选保持原样；网络好了再点一次。`);
+              } else if (!b.stored) setSaveErr(notStored);
+            },
+            () => setSaveErr(notStored),
           );
         }}
       />
-      {saveErr && <p className="mt-1.5 text-[10px] leading-relaxed text-rose-300">{saveErr}</p>}
+      {issue && (
+        <Warn compact className="mt-1.5">
+          <Trans>还没同步到服务端（{issue}）——换台设备暂时看不到，下次登录会自动补传。</Trans>
+        </Warn>
+      )}
+      {saveErr && <p className="mt-1.5 text-[10px] leading-relaxed text-danger-300">{saveErr}</p>}
     </div>
   );
 }
@@ -221,6 +263,11 @@ function CardVoiceSection({ card, owned }: { card: Card; owned: boolean }) {
   const [confirmRm, setConfirmRm] = useState(false);
   const v = voiceOf(card.id);
   if (card.type !== "character") return null;
+  /**
+   * 出片会参考声音样本的那几个模型（account.voiceModelsNames：此刻摆得出来的、地区问到了写模型名）。原来是目录口径的档名（economy.voiceTierNames）——
+   * 同一页「按模型适配」那一格已经按地区只列给得出的，这里还说「草稿」「高清」「电影级」，海外门禁开着时上下自相矛盾（2026-10-26 审核）。空串 = 一个都不参考
+   */
+  const voiceNames = voiceModelsNames();
   if (!v) {
     // 只对自己的卡提示"怎么补"：别人的卡看不到侧库，说什么都是猜
     if (!owned) return null;
@@ -228,7 +275,11 @@ function CardVoiceSection({ card, owned }: { card: Card; owned: boolean }) {
       <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
         <span className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>🔊 人物声音</Trans></span>
         <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
-          <Trans>这张卡还没有声音样本。在工坊「从视频提取」圈选人物时可以顺手取一段（2~15 秒）——出片走「高清/电影级」档且台词写在引号里时，AI 会参考这段声音的音色。</Trans>
+          {voiceNames ? (
+            <Trans>这张卡还没有声音样本。在创意工坊「我的仓库」里从视频提取、圈选人物时可以顺手取一段（2~15 秒）——用 {voiceNames} 出片、台词写在引号里时，AI 会参考这段声音的音色。</Trans>
+          ) : (
+            <Trans>这张卡还没有声音样本。在创意工坊「我的仓库」里从视频提取、圈选人物时可以顺手取一段（2~15 秒）。你现在能用的出片模型都不参考声音样本——样本属于这张卡，换了能用的模型还用得上。</Trans>
+          )}
         </p>
       </div>
     );
@@ -245,7 +296,7 @@ function CardVoiceSection({ card, owned }: { card: Card; owned: boolean }) {
                   removeVoice(card.id);
                   setConfirmRm(false);
                 }}
-                className="rounded-full bg-rose-500/90 px-2.5 py-1 text-[11px] font-bold text-white"
+                className="rounded-full bg-danger-500/90 px-2.5 py-1 text-[11px] font-bold text-white"
               >
                 <Trans>确认移除</Trans>
               </button>
@@ -263,7 +314,11 @@ function CardVoiceSection({ card, owned }: { card: Card; owned: boolean }) {
       <audio controls src={v.dataUrl} className="h-9 w-full" />
       <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
         {v.note ? `${v.note} · ` : ""}
-        <Trans>出片走「高清/电影级」档、台词写在引号里时，AI 会参考这段声音的音色（尽力而为，不是复刻）。样本只存在这台设备上，分享卡片不带它。</Trans>
+        {voiceNames ? (
+          <Trans>用 {voiceNames} 出片、台词写在引号里时，AI 会参考这段声音的音色（尽力而为，不是复刻）。样本只存在这台设备上，分享卡片不带它。</Trans>
+        ) : (
+          <Trans>你现在能用的出片模型都不参考声音样本（样本先留着，换了能用的模型还用得上）。样本只存在这台设备上，分享卡片不带它。</Trans>
+        )}
       </p>
     </div>
   );
@@ -309,6 +364,14 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
   //   那个出口只给自建卡第 1 格（拍板 4 b）；这里是事后补救，保留背景等于什么都没做。
   const trimmable = owned && isRemoteMode() && card.type === "prop";
   const primaryIndex = Math.max(0, views.findIndex((v) => v.kind === primarySlotOf(card.type)));
+  /**
+   * 这一票能不能改。
+   * ★ 背景卡排除：它的图永远不进模型（ai/real.allocateRefs 从不分配背景卡），改了也没有任何效果。
+   * ★ 离线模式**不排除**：改 role 只动 views 里的一个字段、不上传任何图（与「+ 图位」不同）。
+   */
+  const roleSwitchable = owned && card.type !== "background";
+  /** 放大层那张图：作者标的是不是「出片用」（types.roleOf 一处实现，别在这里按 kind 再推一遍） */
+  const zoomMarked = zoom !== null && !!views[zoom] && roleOf(views[zoom]) !== "display";
 
   const pick = (kind: CardView["kind"]) => {
     kindRef.current = kind;
@@ -365,13 +428,35 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
     setBusy(true);
     setErr("");
     setNote("");
+    // 先收放大层再取图（2026-09-18 发版复核抓到）：原来只在取成功后才收，取失败时那句报错被放大层整个盖住，
+    //   用户看到的是「点了没反应」
+    setZoom(null);
     try {
       const src = await viewSourceBlob(v.url);
-      setZoom(null);
       setSubject({
         pick: freshSubjectPick({ kind: v.kind, src, fileName: "view.jpg", allowKeepBg: false }),
         target: { replace: { index: i, url: v.url } },
       });
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /**
+   * 作者把第 i 张改成「出片用 / 仅展示」（data/cardViews.setCardViewRole 一处实现）。
+   * ★ 不关放大层：改完要能当场看见角标翻过来，否则用户会连点好几下。
+   * ★ 失败必须显示：远端模式下这一步要同步服务端，静默失败的表现是"改了、下次冷启动又变回去"。
+   */
+  const onRole = async (i: number, use: boolean) => {
+    const v = views[i];
+    if (!v || busy) return;
+    setBusy(true);
+    setErr("");
+    setNote("");
+    try {
+      await setCardViewRole(card.id, { index: i, url: v.url }, use);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -479,6 +564,10 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
           它按卡种动态拼（hintFor / pipelineNoteFor 原样保留），塞不进静态的引导步骤 */}
       <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
         <Trans>出片时<span className="text-slate-400">不是每张都会喂进模型</span>——「出片用」按单卡乐观口径标，同一段挂的卡多时可能让位。</Trans>
+        {/* ★ 这颗开关长在放大层里（点开任意一张），这里必须指路：不说的话它等于不存在。
+            ★ `{" "}` 不能省：JSX 会把两个表达式之间那段带换行的空白整段删掉，屏幕上两句话会连成
+            "…可能让位。点开任意一张…"（实测） */}
+        {roleSwitchable && <>{" "}<Trans>点开任意一张可以改「出片用 / 仅展示」。</Trans></>}
         <button onClick={() => setRulesOpen(true)} className="ml-1 text-brand underline underline-offset-2">
           <Trans>取舍规则 ›</Trans>
         </button>
@@ -491,11 +580,12 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
       )}
       {owned && full && (
         <p className="mt-1 text-[10px] text-slate-500">
-          <Trans>已到 {MAX_CARD_VIEWS} 张上限 —— 方舟建议不要堆满，素材太多模型反而判断不出该优先保哪些特征。</Trans>
+          {/* 不写供应商名（2026-10-26 出片地区终审）：地区还不知道 / 门禁开着时这一页不该出现「方舟」字样，这句话的意思不靠它 */}
+          <Trans>已到 {MAX_CARD_VIEWS} 张上限 —— 建议不要堆满，素材太多模型反而判断不出该优先保哪些特征。</Trans>
         </p>
       )}
-      {note && <p className="mt-1 text-[11px] text-amber-400">{note}</p>}
-      {err && <p className="mt-1 text-[11px] text-rose-300">{err}</p>}
+      {note && <p className="mt-1 text-[11px] text-warn-400">{note}</p>}
+      {err && <p className="mt-1 text-[11px] text-danger-300">{err}</p>}
       {busy && <p className="mt-1 text-[11px] text-slate-400"><Trans>处理中…</Trans></p>}
 
       <input
@@ -541,11 +631,44 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
                   "可能让位"这半句必须在这里也说一次，否则用户读到的就是一句无条件的
                   "会喂给 AI"（人物卡排在别人后面、或一段挂满 3 张时都不成立）。
                   这里不重判规则（used 仍来自 ai/real.refUsedFlags），只是把口径说全 */}
+              {/* ★ 仍然只有两档：单卡视角下"作者标了出片用"与"这次会带上它"今天**恒等** ——
+                  一张卡最多挂 MAX_CARD_VIEWS(3) 张，而经典路预算正好也是 MAX_REF_IMAGES(3)，
+                  所以自己一张卡永远塞得下（实测过）。多写一档"标了但没轮到"就是一句永远显示不出来的话。
+                  ⚠ 这两个 3 哪天不相等了（或者这里改成传 ctx 的多卡视角），那一档就要补回来：
+                  那时用户刚点完开关，读到的会是一句像在说"没生效"的话。 */}
               <span className={`ml-2 text-[11px] ${used[zoom] ? "text-brand" : "text-slate-500"}`}>
-                {used[zoom] ? t`· 出片时会喂给 AI（同一段挂的卡多时可能让位）` : t`· 只在这一页展示，出片用不到`}
+                {/* 「出片用 / 仅展示」是按补画设定帧那一步（经典路预算）标的；收参考图的档位直通分配、各卡按协议上限轮着带 —— 说清是哪一步（2026-10-10） */}
+                {used[zoom] ? t`· 补画设定帧那一步会喂给 AI（同一段挂的卡多时可能让位）` : t`· 补画设定帧那一步用不到；收参考图的档位按协议上限各卡轮着带`}
               </span>
             </div>
-            {views[zoom].note && <div className="max-w-xs text-center text-[11px] text-amber-400">{views[zoom].note}</div>}
+            {/* ★ 作者的那一票（CardView.role）。背景卡不摆：它的图永远不进模型（故事背景只以文字参与出片，
+                ai/real.allocateRefs 从不分配它），摆一颗点了不生效的开关是本仓明令禁止的 */}
+            {roleSwitchable ? (
+              <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                {[true, false].map((use) => (
+                  <button
+                    key={use ? "use" : "show"}
+                    disabled={busy}
+                    onClick={() => void onRole(zoom, use)}
+                    className={`rounded-full px-3 py-1 text-[11px] disabled:opacity-40 ${
+                      zoomMarked === use
+                        ? "bg-brand font-bold text-ink"
+                        : "bg-panel text-slate-300 ring-1 ring-slate-600"
+                    }`}
+                  >
+                    {use ? t`出片用` : t`仅展示`}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              owned &&
+              card.type === "background" && (
+                <p className="max-w-xs text-center text-[11px] text-slate-500">
+                  <Trans>故事背景卡只以文字参与出片，它的图不进模型。</Trans>
+                </p>
+              )
+            )}
+            {views[zoom].note && <div className="max-w-xs text-center text-[11px] text-warn-400">{views[zoom].note}</div>}
             {trimmable && (
               <button
                 disabled={busy}
@@ -565,7 +688,7 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
                   e.stopPropagation();
                   void onRemove(zoom);
                 }}
-                className="rounded-full bg-rose-500/90 px-4 py-1.5 text-xs font-bold text-white disabled:opacity-40"
+                className="rounded-full bg-danger-500/90 px-4 py-1.5 text-xs font-bold text-white disabled:opacity-40"
               >
                 <Trans>删掉这张</Trans>
               </button>
@@ -582,13 +705,22 @@ export default function CardDetailPage() {
   const accountV = useAccountVersion();
   useSocialVersion(); // 热度到货后重渲染（服务端计数是懒加载的）
   const { id } = useParams();
-  const nav = useNavigate();
+  // 返回：有上一页就回去（工坊 / 卡组 / 作品页），分享链接冷启动没有上一页时退回工坊；删卡之后退页也走它
+  const back = useBackOr("/workshop");
   const loc = useLocation();
+  const nav = useNavigate();
+  // ★ 2026-10-20 工坊改版后市场不登录也能逛、点卡面就进这一页：没登录时「＋ 添加」先去登录、登完回到这张卡
+  //   （原来直接调 acquireCard，回一句「还没登录，装不了。」、键还变成「再同步一次」，一条出路都没有）
+  const auth = useAuthState();
   const { t } = useLingui();
   useCountView("card", id);
   // 优先账号库；不在库里（比如看别人作品的卡组）用路由 state 里带来的卡
   // ★ 依赖里带上 accountV：账号库是原地改对象的单例，不把版本号写进依赖，
   //   "刚把这张卡加进库"之后这里还会拿着路由 state 里那份只读副本。
+  // 「先登录、再添加」那一趟回来时寄存着的那张卡（data/cardHandoff）：**按 id 认领一次**。
+  // ★ 别在下面那个 memo 里每一拍都去问：寄存半小时作废，页面开着超过半小时、账号库随便 emit 一下，
+  //   memo 重算就拿不到它了 —— 正看着的卡变成「这张卡不在你的收藏里」（2026-10-20 复核抓到）
+  const claimedCard = useMemo(() => peekStashedCard(id), [id]);
   const localCard = useMemo<Card | null>(() => {
     const mine = myCards().find((c) => c.id === id);
     if (mine) return mine;
@@ -597,17 +729,25 @@ export default function CardDetailPage() {
     //   不匹配时 else 分支返回的还是 `passed`。于是 URL 指着 B 卡、路由 state 里躺着 A 卡时
     //   （返回栈里翻回来、或从两个入口先后点进来），页面画的是 A，而同一个组件里的
     //   `useCountView("card", id)` 把这次浏览记在 **B** 头上 —— 两件事都零报错。
-    return passed && passed.id === id ? passed : null;
-  }, [id, loc.state, accountV]);
+    if (passed && passed.id === id) return passed;
+    // 「先登录、再添加」那一趟回来：路由 state 过不了登录页，快照卡又按 id 取不回来（data/cardHandoff 头上那段）
+    return claimedCard;
+  }, [id, loc.state, accountV, claimedCard]);
   // ★ 这一页也会渲染**别人的**卡（工坊市场点进来时卡是由路由 state 带过来的），
   //   所以分享条必须按"这张卡在不在我库里"开门，不能只看有没有登录。
   const owned = useMemo(() => myCards().some((c) => c.id === id), [id, accountV]);
+  // 进了库就撤掉「先登录、再添加」的寄存（库里那份优先，寄存那份再留着只会在下一次别的路上被误认）
+  useEffect(() => {
+    if (owned) clearStashedCard(id);
+  }, [owned, id]);
   /** 删卡确认开着没有 */
   const [ask, setAsk] = useState(false);
   /** 改名弹层（只对自己的卡）。★ 与删卡确认并排放在这里：都在所有早退之前 */
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState("");
   const [editSummary, setEditSummary] = useState("");
+  /** 出片句（Card.idLine）：出片时真正读的那一句，2026-09-24 起可以改（服务端那条 PATCH 同日放开） */
+  const [editIdLine, setEditIdLine] = useState("");
   const [editBusy, setEditBusy] = useState(false);
   const [editErr, setEditErr] = useState<string | null>(null);
   /** 「添加到我的卡片」的在途与失败原因（只对别人的卡出现） */
@@ -688,7 +828,7 @@ export default function CardDetailPage() {
 
   return (
     <div className="min-h-full px-4 pb-10">
-      <PageHeader sticky inset onBack={() => nav(-1)} title={t`卡片详情`} />
+      <PageHeader sticky inset onBack={back} title={t`卡片详情`} />
 
       {/* 大卡面 / 全息建模 双栏 */}
       <div className="mb-4 flex justify-center gap-3">
@@ -719,12 +859,13 @@ export default function CardDetailPage() {
             onClick={() => {
               setEditName(card.name);
               setEditSummary(card.summary);
+              setEditIdLine(card.idLine || "");
               setEditErr(null);
               setEditing(true);
             }}
             className="rounded-full border border-slate-600 px-2 py-0.5 text-[10px] text-slate-400"
           >
-            <Trans>改名</Trans>
+            <Trans>编辑</Trans>
           </button>
         )}
         <span className="rounded-full border px-2 py-0.5 text-xs" style={{ color, borderColor: color }}>
@@ -735,7 +876,7 @@ export default function CardDetailPage() {
             现在走 social.heatOf：远端模式是服务端算的全局值，离线/老服务端
             退回本机计数，并在旁边如实标出来。 */}
         <span className="text-xs text-gold">🔥 {formatHeat(heat.heat)}</span>
-        {heat.source === "local" && <span className="text-[10px] text-slate-600"><Trans>本机计数</Trans></span>}
+        {heat.source === "local" && <span className="text-[10px] text-slate-400"><Trans>本机计数</Trans></span>}
       </div>
       {card.tags && card.tags.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-1">
@@ -757,10 +898,13 @@ export default function CardDetailPage() {
       {/* 方舟可信素材：真人卡做完肖像授权后填 asset ID，出片改走 asset:// */}
       <CardAssetSection card={card} owned={owned} />
 
+      {/* 按模型适配：「文字版形象描述（… 用）」与「起拍画面（… 用）」（括号里写读它的模型，2026-10-26 起按具体模型写），见 components/CardModelFit */}
+      <CardModelFit card={card} owned={owned} />
+
       {/* 固定身份句（Card.idLine）：出片提示词里代表这张卡的那一句（铸卡时压好、逐段复用）。
           只在真有的时候显示——老卡/自传图卡走 idLineOf 的兜底，那不是"留下来的身份句"，
           摆出来说成是就违反铁律五 */}
-      {card.idLine && (
+      {card.idLine ? (
         <div className="mb-4 rounded-xl border border-slate-700/70 bg-panel p-3">
           <div className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>🎯 出片身份句</Trans></div>
           <p className="text-xs leading-relaxed text-slate-400">{card.idLine}</p>
@@ -768,6 +912,31 @@ export default function CardDetailPage() {
             <Trans>出片时提示词里代表这张卡的固定一句（逐段复用同一措辞，形象更稳）。长设定进画面靠上面的参考图与{CARD_INFO_LABELS[card.type]}，不直接塞进视频提示词。</Trans>
           </p>
         </div>
+      ) : (
+        /* ★★ 没有出片句的**自己的卡**要给一条补写的路（2026-09-24，服务端同日才收得下这一位）：
+           简介自 2026-09-18 起一个字都不进出片提示词，于是没写出片句的卡在出片时**只剩一个卡名** ——
+           那个角色的长相由模型自己编，而钱照花。这件事此前在产品里既看不见、也补不了。
+           ⚠ 只对自己的卡显示：别人的卡这里什么都不摆（改不了的东西不该占一块屏）。 */
+        owned && (
+          <div className="mb-4 rounded-xl border border-warn-500/40 bg-warn-500/10 p-3">
+            <div className="mb-1.5 text-xs font-semibold text-slate-300"><Trans>🎯 出片身份句</Trans></div>
+            <Warn>
+              <Trans>这张卡还没写出片句 —— 出片时提示词里只有卡名，长相由 AI 自己编（每一段都可能不一样）。</Trans>
+            </Warn>
+            <button
+              onClick={() => {
+                setEditName(card.name);
+                setEditSummary(card.summary);
+                setEditIdLine("");
+                setEditErr(null);
+                setEditing(true);
+              }}
+              className="mt-2 rounded-full bg-panel px-3 py-1 text-[11px] text-slate-200 ring-1 ring-slate-600"
+            >
+              <Trans>写一句</Trans>
+            </button>
+          </div>
+        )
       )}
 
       {/* 「<类型>信息」：铸卡时的完整提示词——照着它 AI 就能复刻出与卡面一致的画面/建模。
@@ -846,6 +1015,12 @@ export default function CardDetailPage() {
           <button
             onClick={() => {
               if (getting) return;
+              // 登完回来路由 state 就没了：广场卡这一页还能按 id 再取一次，作品 / 模板卡组里的快照卡取不回来（404），
+              // 所以走之前把这张卡寄存一下，回来由 localCard 认领（data/cardHandoff）
+              if (auth === "out") {
+                stashCardForLogin(card);
+                return nav(`/login?next=${encodeURIComponent(loc.pathname)}`);
+              }
               setGetting(true);
               setGetErr(null);
               void acquireCard(card)
@@ -861,7 +1036,7 @@ export default function CardDetailPage() {
           >
             {getting ? t`添加中…` : getErr ? t`再同步一次` : t`＋ 添加到我的卡片`}
           </button>
-          {getErr && <p className="mt-1 text-[11px] leading-relaxed text-rose-300">{getErr}</p>}
+          {getErr && <p className="mt-1 text-[11px] leading-relaxed text-danger-300">{getErr}</p>}
         </div>
       )}
 
@@ -889,7 +1064,7 @@ export default function CardDetailPage() {
       {editing && card && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-6" onClick={() => !editBusy && setEditing(false)}>
           <div className="w-full max-w-xs rounded-2xl border border-slate-700 bg-ink p-4" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-sm font-bold text-slate-100"><Trans>改这张卡的名字与简介</Trans></h3>
+            <h3 className="text-sm font-bold text-slate-100"><Trans>改这张卡的名字、简介与出片句</Trans></h3>
             <input
               value={editName}
               onChange={(e) => setEditName(e.target.value)}
@@ -905,13 +1080,29 @@ export default function CardDetailPage() {
               placeholder={t`一句话简介`}
               className="mt-2 w-full resize-none rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand leading-relaxed"
             />
+            {/* ★★ 出片句这一格是这扇窗存在的第二个理由（2026-09-24）：**出片时真正读的就是它**
+                （types.idLineOf），而简介一个字都不进提示词。2026-09-18 之前铸的卡这一位是空的，
+                在这之前产品里没有任何地方补得上 —— 服务端那条 PATCH 同日才收下它。
+                ⚠ 上限用 ID_LINE_MAX（60）硬拦：服务端是 200，我们的产品口径更紧（提示词预算反推），
+                两个数有意不等，别顺手统一。 */}
+            <textarea
+              value={editIdLine}
+              onChange={(e) => setEditIdLine(e.target.value)}
+              maxLength={ID_LINE_MAX}
+              rows={2}
+              placeholder={t`出片句（例：银发红瞳，左眼戴全息镜片，黑色长风衣）`}
+              className="mt-2 w-full resize-none rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand leading-relaxed"
+            />
+            <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
+              <Trans>出片句是 AI 出片时真正读的那一句（简介只给人看，不进提示词）：写 2~3 个不会变的外形特征，别写动作、手里的东西和地点。留空 = 出片时只报卡名。</Trans>
+            </p>
             {/* ★ 如实说清改的是哪一份：随作品/卡组发出去的是**快照**（逐字段复制的），
                 不会跟着改。不说的话用户以为"全网都改了"，回头发现别人那份还是旧名字。 */}
             <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
               <Trans>改的是你库里这一份。已经随作品发布、或被别人装走的那些是当时的副本，不会跟着变。</Trans>
             </p>
             {editErr && (
-              <p className="mt-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] leading-relaxed text-rose-200">
+              <p className="mt-2 rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-[11px] leading-relaxed text-danger-200">
                 {editErr}
               </p>
             )}
@@ -932,7 +1123,7 @@ export default function CardDetailPage() {
                   }
                   setEditBusy(true);
                   setEditErr(null);
-                  void updateCardMeta(card.id, { name, summary: editSummary.trim() })
+                  void updateCardMeta(card.id, { name, summary: editSummary.trim(), idLine: editIdLine.trim() })
                     .then((why) => {
                       if (why) setEditErr(why);
                       else setEditing(false);
@@ -940,7 +1131,7 @@ export default function CardDetailPage() {
                     .finally(() => setEditBusy(false));
                 }}
                 disabled={editBusy}
-                className="flex-1 rounded-xl bg-brand py-2.5 text-xs font-bold text-ink disabled:opacity-40"
+                className="flex-1 rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
               >
                 {editBusy ? t`保存中…` : editErr ? t`再试一次` : t`保存`}
               </button>
@@ -959,8 +1150,8 @@ export default function CardDetailPage() {
             const why = await removeCard(card.id);
             if (why) return why;
             setAsk(false);
-            // 卡没了，这一页就是死页 —— replace 回上一屏（多半是工坊/卡组），别留一格
-            nav(-1);
+            // 卡没了，这一页就是死页 —— 回上一屏（多半是工坊/卡组），别留一格；没有上一屏时退回工坊
+            back();
             return null;
           }}
         />

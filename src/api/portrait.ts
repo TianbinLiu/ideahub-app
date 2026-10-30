@@ -4,7 +4,8 @@
 //   被拍者扫）、轮询授权状态拿 asset id。密钥全在服务端，app 只见链接与状态。
 // ★ 未开通（服务端没配 AK/SK）时 server 回 503 —— 调用方据此退回"去方舟控制台手工创建
 //   资产组 + 手工粘贴 asset id"那条老路（cardAsset 那颗手填按钮一直在）。
-import { API_BASE, apiGet, apiPost, getToken } from "./client";
+import { t } from "@lingui/core/macro";
+import { API_BASE, apiGet, apiPost, getToken, withAppVersion } from "./client";
 
 /** 一条邀约：uuid + 可渲染成二维码的 H5 链接 + 授权有效期（秒级时间戳） */
 export interface PortraitInvite {
@@ -78,10 +79,25 @@ export async function fetchPortraitAssets(groupId?: string): Promise<{ totalCoun
  * 自动填进卡面/图位用。失败 throw 整句（调用方退回"从相册自己选"并把原因摆出来）。
  * ★ 不走 apiGet：那条只解 JSON，这里要的是字节。鉴权头与 client 同一来源（getToken）。
  */
+/**
+ * 取授权照片等多久（2026-10-15 教材人格评审：原来裸 fetch 没有上限，弱网半开连接时造卡流程停在「取授权照片」上没有出口）。
+ * 服务端先列一次素材再去方舟取图（它给自己 30s），然后把最多 30MB 的图整体回吐；手机相册的照片常见 3~8MB，
+ * 按 CLAUDE.md 量过的最慢一档 0.126MB/s 要 24~64 秒，合起来约 95 秒，取 120 秒。到点与断网走同一条路：
+ * 调用方退回「从相册自己选」并把原因摆出来。
+ */
+const PORTRAIT_IMAGE_MS = 120_000;
+
 export async function fetchPortraitAssetImage(assetId: string): Promise<Blob> {
   const token = getToken();
-  const res = await fetch(`${API_BASE}/api/ark/portrait/assets/${encodeURIComponent(assetId)}/image`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  const url = `${API_BASE}/api/ark/portrait/assets/${encodeURIComponent(assetId)}/image`;
+  const res = await fetch(url, {
+    headers: withAppVersion(url, token ? { Authorization: `Bearer ${token}` } : {}),
+    signal: AbortSignal.timeout(PORTRAIT_IMAGE_MS),
+  }).catch((e) => {
+    // 没收到回包：整句人话（调用方把 message 原样摆给人看，DOMException 的英文不该上屏）
+    const timedOut = e instanceof DOMException && (e.name === "TimeoutError" || e.name === "AbortError");
+    const secs = Math.round(PORTRAIT_IMAGE_MS / 1000);
+    throw new Error(timedOut ? t`取授权照片超时（${secs} 秒内没取完），换个网络再试` : t`取授权照片失败（网络不可用）`);
   });
   if (!res.ok) {
     let msg = `HTTP ${res.status}`;

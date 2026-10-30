@@ -22,6 +22,29 @@ import {
   type NotificationItem,
 } from "../data/notifications";
 import { relativeTime } from "../types";
+import { fmtTokens } from "../data/economy";
+import { UPGRADE_HREF } from "../components/UpgradeLink";
+
+/**
+ * 退款通知里「哪一种生成」的人话（payload.kind 原样，server taskRefund.service 的 kind）。
+ * 认不出的一律按「一次视频生成」说 —— 服务端以后加一种 kind，这边旧版本照样说得通，只是不够具体。
+ */
+function refundKindText(kind: string): MessageDescriptor {
+  switch (kind) {
+    case "draft":
+      return msg`一段样片（480p 预览）没出成`;
+    case "draftFinal":
+      return msg`一次样片定稿（1080p）没出成`;
+    case "3d":
+      return msg`一次 3D 建模没出成`;
+    case "blockout":
+      return msg`一次白模化没出成`;
+    case "minimax":
+      return msg`一段真人档视频没出成`;
+    default:
+      return msg`一段视频没出成`;
+  }
+}
 
 /** 一句话说清"谁做了什么"。作品名/评论正文在下一行单独展示，这里只给动作 */
 function actionText(n: NotificationItem): MessageDescriptor | null {
@@ -42,6 +65,12 @@ function actionText(n: NotificationItem): MessageDescriptor | null {
       // ★ 主语是**作品**不是人：收件人是收藏者，他关心的是"我收藏的那条变了"，
       //   而不是"某某做了件事"。NoticeRow 那一档同理。
       return msg`重新剪辑了你收藏的作品`;
+    case "BRANCH_REMIX_REWARD":
+      // 同款奖励到账（P3b）。金额与原作在下面单独两行（见渲染那段）；没带是谁的那种走礼物头像 + 「有人做了你的同款」
+      return msg`做了你的同款`;
+    case "GEN_TASK_REFUND":
+      // 平台口吻的那一行不走这个句式（见渲染那段：主语是「这一次生成」，金额单独一行），这里只是类型上兜全
+      return msg`生成失败，token 已退回`;
     case "ADMIN_NOTICE":
       // 平台口吻的那一行不走这个句式（见 NoticeRow），这里只是类型上兜全
       return msg`平台通知`;
@@ -49,6 +78,15 @@ function actionText(n: NotificationItem): MessageDescriptor | null {
       return msg`提交了客服工单`;
     case "SUPPORT_REPLY":
       return msg`客服回复了你的工单`;
+    // 老师人格四类（M4）：主语分别是评分 / 评论的人、平台（回访到期没有 actor，走 NoticeRow 那种铃铛行）、作者
+    case "TUTOR_RATING":
+      return msg`给你发布的老师打了分`;
+    case "TUTOR_COMMENT":
+      return msg`评论了你发布的老师`;
+    case "TUTOR_REVIEW_DUE":
+      return msg`该回访了`;
+    case "TUTOR_DOC_UPDATED":
+      return msg`更新了你在学的老师`;
     default:
       // ★★ 铁律七：**不认识的类型原样显示类型名**，不吞、不崩。这一支在类型上是
       //   never（白名单是闭合联合），但运行时形状由服务端决定 —— 哪天两边版本错开，
@@ -126,6 +164,24 @@ export default function NotificationsPage() {
       navigate(`/video/${n.videoId}`, { state: { fromNotification: n.id } });
       return;
     }
+    // 同款奖励、但没带那条同款（拉黑 / 已不公开）：落到我自己那条被照着做的原作。已读同样交给打开成功的那一页
+    if (n.reward?.originalId) {
+      navigate(`/video/${n.reward.originalId}`, { state: { fromNotification: n.id } });
+      return;
+    }
+    // 生成失败退款：没有作品可去 —— 打开钱包看余额（钱就退在那里）。钱包抽屉打开即算看过，就地标已读
+    if (n.refund) {
+      void markNotificationRead(n.id);
+      navigate(UPGRADE_HREF);
+      return;
+    }
+    // 老师人格（M4）：到期回访 / 新版 → 那门课的上课页；评分 / 评论 → 课程列表（市场详情只在官网，App 里没有那一页）。
+    // 上课页打开即算处理过，就地标已读（与工单同一条：它自己不认识通知）
+    if (n.tutor) {
+      void markNotificationRead(n.id);
+      navigate(n.tutor.courseId ? `/tutor/run/${encodeURIComponent(n.tutor.courseId)}` : "/tutor");
+      return;
+    }
     void markNotificationRead(n.id);
   }
 
@@ -163,7 +219,7 @@ export default function NotificationsPage() {
           //   说死了会让一个只是断网的人以为要换个包。
           <Empty text={t`通知需要连上服务器 · 当前是离线模式`} hint={t`联网后重新打开这一页就能看到`} />
         ) : !state.supported ? (
-          <Empty text={t`这台服务器还没有通知功能`} hint={t`服务端升级后即可使用，App 不用重装`} />
+          <Empty text={t`通知功能还没上线`} hint={t`服务端升级后即可使用，App 不用重装`} />
         ) : state.error ? (
           <EmptyState error text={t`通知没拉到：${state.error}`} cta={{ label: t`重试`, onClick: () => void refreshNotifications() }} />
         ) : state.items.length === 0 ? (
@@ -176,20 +232,37 @@ export default function NotificationsPage() {
                   onClick={() => open(n)}
                   className="flex w-full items-start gap-3 py-3.5 text-left active:opacity-60"
                 >
-                  {n.type === "ADMIN_NOTICE" ? (
+                  {n.type === "ADMIN_NOTICE" || n.type === "TUTOR_REVIEW_DUE" ? (
                     // ★ 平台口吻：**不显示是哪个管理员发的**（数据里 actor 是那位管理员，
                     //   但把审核员透给被通知的用户等于把他摆到被骚扰的位置 ——
                     //   与举报下架不带 by 是同一条取舍）。头像位画一只铃铛顶替。
-                    <span className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-brand/15 text-brand">
+                    <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-brand/15 text-brand">
                       <Icon name="bell" size={20} />
                     </span>
+                  ) : n.refund ? (
+                    // 生成失败退款：平台口径，没有 actor（同 ADMIN_NOTICE 的铃铛：不拿「有人」两个字去画字母头像）
+                    <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-ok-500/15 text-lg" aria-hidden>
+                      ↩️
+                    </span>
+                  ) : n.reward?.anonymous ? (
+                    // 同款奖励、服务端没带是谁（两人之间有拉黑 / 那条同款已经不公开）：不拿「有人」两个字去画字母头像
+                    <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-ok-500/15 text-lg" aria-hidden>
+                      🎁
+                    </span>
                   ) : (
-                    <Avatar name={n.actorName} src={n.actorAvatar} size={40} />
+                    <Avatar name={n.actorName} src={n.actorAvatar} size={36} />
                   )}
                   <div className="min-w-0 flex-1">
-                    <div className="text-sm text-slate-200">
+                    {/* 未读不只靠右边那颗红点（Refactoring UI §5.7 别只靠颜色）：没读的一行亮一档，读过的退一档 */}
+                    <div className={`text-sm ${n.read ? "text-slate-400" : "text-slate-100"}`}>
                       {n.type === "ADMIN_NOTICE" ? (
                         <span className="font-semibold"><Trans>平台通知</Trans></span>
+                      ) : n.refund ? (
+                        // 主语是那一次生成（不是「有人」）：哪一种生成没出成，金额在下一行
+                        <span className="font-semibold">{t(refundKindText(n.refund.kind))}</span>
+                      ) : n.type === "TUTOR_REVIEW_DUE" ? (
+                        // 回访到期是系统发的（没有 actor）：主语是那门课，不是「有人」
+                        <span className="font-semibold">{n.tutor?.count ? t`「${n.tutor.personaName}」有 ${n.tutor.count} 个阶段该回访了` : t`「${n.tutor?.personaName ?? ""}」有阶段该回访了`}</span>
                       ) : (
                         <>
                           <span className="font-semibold">{n.actorName}</span>
@@ -206,7 +279,7 @@ export default function NotificationsPage() {
                         </div>
                       ) : (
                         // 服务端没把正文放进 payload.commentText —— 契约问题，说出来（铁律八）
-                        <div className="mt-0.5 text-xs text-rose-300"><Trans>（通知内容缺失）</Trans></div>
+                        <div className="mt-0.5 text-xs text-danger-300"><Trans>（通知内容缺失）</Trans></div>
                       )
                     ) : n.type === "BRANCH_REVISED" ? null : ( // ★ 见下面 ★★
                       n.commentText && (
@@ -219,13 +292,35 @@ export default function NotificationsPage() {
                         （"这条作品重新剪辑过了"），复用的是同一个通道。画出来的结果是
                         标题行刚说完「重新剪辑了你收藏的作品」，下一行又用评论的样子把同一句
                         重说一遍，像是作者亲手写了条评论。⇒ 整行省掉：标题行已经说清了。 */}
-                    {n.videoTitle && (
+                    {/* 同款奖励：金额一行（数是服务端发的那个，不在这里另写）、照的是我的哪一条一行。
+                        ★ 说「平台奖励」：钱不是做同款的那个人出的（token 不许在用户之间流转）。
+                        下面那行通用的作品名对这一类不画 —— 它是**那条同款**的名字，摆在「原作」下面读起来像同一件东西 */}
+                    {n.reward && (
+                      <>
+                        <div className="mt-0.5 text-xs font-semibold text-ok-300">
+                          {n.reward.tokens > 0 ? t`🎁 平台奖励你 ${fmtTokens(n.reward.tokens)} token` : t`🎁 平台给你发了同款奖励`}
+                        </div>
+                        {n.reward.originalTitle && (
+                          <div className="mt-0.5 truncate text-xs text-slate-500"><Trans>照的是你的《{n.reward.originalTitle}》</Trans></div>
+                        )}
+                      </>
+                    )}
+                    {/* 生成失败退款：金额一行（服务端的数，不在这里另写）。★ 说「已退回」不说「已到账」以外的承诺：钱是服务端退的，这里只是告诉你 */}
+                    {n.refund && (
+                      <div className="mt-0.5 text-xs font-semibold text-ok-300">
+                        {n.refund.tokens > 0 ? t`扣的 ${fmtTokens(n.refund.tokens)} token 已经退回` : t`扣的 token 已经退回`}
+                      </div>
+                    )}
+                    {n.videoTitle && !n.reward && (
                       <div className="mt-0.5 truncate text-xs text-slate-500">{n.videoTitle}</div>
+                    )}
+                    {n.tutor && n.type !== "TUTOR_REVIEW_DUE" && (
+                      <div className="mt-0.5 truncate text-xs text-slate-500">🎓 {n.tutor.personaName}{n.tutor.stars ? ` · ${"★".repeat(n.tutor.stars)}` : ""}</div>
                     )}
                     <div className="mt-1 text-[11px] text-slate-500">{relativeTime(n.at)}</div>
                   </div>
                   {/* 未读点：靠右，与头像同一条基线 */}
-                  {!n.read && <span className="mt-2 h-2 w-2 flex-none rounded-full bg-rose-500" />}
+                  {!n.read && <span className="mt-2 h-2 w-2 flex-none rounded-full bg-danger-500" />}
                 </button>
               </li>
             ))}

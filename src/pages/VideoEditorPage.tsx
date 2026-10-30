@@ -30,6 +30,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
 import { useLocation, useNavigate } from "react-router";
+import { useBackOr } from "../hooks/useBackOr";
 import BlockoutTrimmer from "../components/blockout/BlockoutTrimmer";
 import RoleCastBoard from "../components/blockout/RoleCastBoard";
 import type { BlockoutSelection, TemplateRole, VideoNatural } from "../components/blockout/arkVideoRules";
@@ -195,6 +196,9 @@ function parseState(raw: unknown): VideoEditorState | null {
 export default function VideoEditorPage() {
   const nav = useNavigate();
   const loc = useLocation();
+  // ★ 返回 / 取消的兜底是创作入口：这一页只从挂卡 / 选段的入口进（都带 state.returnTo），
+  //   没有上一页 = 冷启动后 state 也一起丢了、returnTo 同样拿不到，/create 是最近的祖先
+  const back = useBackOr("/create");
   const { t } = useLingui();
   const state = useMemo(() => parseState(loc.state), [loc.state]);
   // ★★ 「选段与裁剪」那份引导（guide/tours 的 trim）**不在这一页声明**（2026-09-17 撤）：
@@ -241,7 +245,7 @@ export default function VideoEditorPage() {
     <div className="min-h-full bg-ink">
       <PageHeader
         sticky
-        onBack={() => nav(-1)}
+        onBack={back}
         title={state?.title || (state?.mode === "cast" ? t`挂上你的角色` : t`选段与裁剪`)}
         subtitle={
           <>
@@ -270,7 +274,7 @@ export default function VideoEditorPage() {
               src={playable}
               natural={state.natural}
               onSubmit={(selection) => finish({ mode: "blockoutize", selection, file: state.file })}
-              onCancel={() => nav(-1)}
+              onCancel={back}
             />
           ) : (
             <p className="py-10 text-center text-[11px] text-slate-400"><Trans>正在打开这段视频…</Trans></p>
@@ -288,7 +292,7 @@ export default function VideoEditorPage() {
             maxRefImages={ARK_REF_IMAGES_MAX}
             onDone={() => finish({ mode: "cast", templateId: state.templateId, cast })}
             doneLabel={t`完成挂卡`}
-            onCancel={() => nav(-1)}
+            onCancel={back}
           />
         )}
       </main>

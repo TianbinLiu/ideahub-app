@@ -17,11 +17,13 @@ import { makeFrame } from "../mock/frames";
 import { idbGet, idbRead, idbSet } from "./db";
 import { materializeDraft, type MaterializeError } from "./publishAssets";
 import * as projects from "./projects";
+import { onRecipeStateChange } from "./recipes";
 // ⚠ 与 data/danmaku 是**互相 import**（那边要本文件的 realId/remoteOn）：两边都只在函数体里
 //   用对方，所以这个环在运行时无害。加新引用之前先确认自己不是在模块顶层用它。
 import { dropLocalDanmaku } from "./danmaku";
 import { showToast } from "./toast";
 import { currentUser, readyAccount, subscribeAccount } from "./account";
+import { deviceOwner, mayClaimLegacy } from "./deviceOwner";
 import { API_ON, ApiError, emitApiError } from "../api/client";
 import * as branch from "../api/branch";
 import { resolveMentionSpans, type MentionPick } from "../utils/mention";
@@ -308,10 +310,11 @@ let cacheOwner: string | null = null;
 /** 上一次看到的当前用户显示名。用来发现"同一个人改了名"（见下） */
 let cacheOwnerName: string | null = null;
 
-function ownerKey(): string {
-  const u = currentUser();
-  return u ? `${u.id}` : "";
-}
+// 「现在给谁看」只问 data/deviceOwner 的 deviceOwner()（2026-10-15 教材人格评审收口）：这里原来自己留着一份
+// 私有的 `ownerKey() = currentUser()?.id`，与它逐字相同、只差 DEV 下 `__deviceOwner` 那个顶替位 —— 于是浏览器里验「换账号」
+// 那一批隔离时，点赞名单与待发队列的主人盖不到。同一条规则第二处实现，值今天相同，分叉零报错。
+// ⚠ DEV 的 `__deviceOwner(...)` 只触发 deviceOwner 自己的订阅，不经 account 的 emit —— 下面 subscribeAccount 里那段
+//   「换人了就清 cache」要等下一次账号事件才会看见顶替后的值；正式包里主人只从账号事件变，不受影响。
 
 /**
  * 改名之后，把内存里**我自己那些作品**的作者名改过来。
@@ -340,7 +343,7 @@ function renameMyVideos(newName: string): void {
 
 if (typeof window !== "undefined") {
   subscribeAccount(() => {
-    const now = ownerKey();
+    const now = deviceOwner();
     if (cacheOwner !== null && now === cacheOwner) {
       // 还是同一个人 —— 但他可能改了名字
       const name = currentUser()?.name ?? null;
@@ -360,7 +363,13 @@ if (typeof window !== "undefined") {
     followingCache = null;
     feedFetchedAt = 0;
     followingFetchedAt = 0;
+    // 在途的刷新是上一个人发的（回包会被 owner 校验作废）：标记清掉，新的人马上就能自己拉一次
+    feedRefreshing = null;
+    followingRefreshing = null;
     detailed.clear();
+    // 评论到没到 / 翻到哪一页：跟着「详情取过了」的记号一起作废（commentsStatus 的 ★）
+    commentsState.clear();
+    commentCursor.clear();
     // ★ 旁路表同样是**隐私边界**（与 cache 同一条理由）：它装的是按 id 单取回来的
     //   作品，其中可能有上一个账号自己的私密作品——服务端只对作者本人返回它。
     byId.clear();
@@ -400,7 +409,7 @@ export async function readyVideos(): Promise<void> {
     })()
       .then(
         () => {
-          cacheOwner = ownerKey(); // 记下这份 cache 是给谁装的，换人时才知道要清
+          cacheOwner = deviceOwner(); // 记下这份 cache 是给谁装的，换人时才知道要清
           cacheOwnerName = currentUser()?.name ?? null; // 改名时靠它发现"名字变了"
         },
         (e) => {
@@ -658,7 +667,10 @@ export function getVideo(id: string): VideoItem | null {
   const hit = find(id);
   // 远端模式：列表接口不带 comments，进详情页时后台补一次（原地改同一个对象引用，
   // 页面下一次渲染即可见）。
-  if (remoteOn() && hit) void loadDetail(hit);
+  // ★ 上一跳失败（commentsState = failed）就不在这里自动再问（2026-10-29 发版前复核抓到）：失败分支会 emitVideos，
+  //   页面的 useMemo(getVideo, [id, version]) 跟着重算 ⇒ 又发一发 ⇒ 又失败 ⇒ 死循环（离线时是热循环、服务器出事时每个详情页都在刷它）。
+  //   再问只走「没取到评论」那颗重试（retryComments）、打开评论抽屉（ensureComments）与进详情页那一拍（VideoPage 挂载时问一次）。
+  if (remoteOn() && hit && commentsState.get(realId(hit.id)) !== "failed") void loadDetail(hit);
   return hit;
 }
 
@@ -870,6 +882,27 @@ export function partsOf(v: VideoItem): VideoPart[] {
  *  ★ 发上去的**只有服务端认的那几个字段**（title/category/description/tags/visibility）。
  *    deck / pricing 会被服务端 strip；cover 走另一条路（EditPage 先把它传成永久 URL
  *    再随 patch 发，见下面的 remotePatch.cover）。 */
+/**
+ * 配方状态变了（发布后留存那一拍公开成功 / 编辑页开关 / 删掉，2026-10-02）：把本机缓存里这条作品的两位改成服务端刚回的
+ * 状态并 emit，作品页那颗「查看制作过程」不用重拉就能跟着亮 / 灭 —— 刚发布完落到作品页时，缓存里那条是发布回包（配方
+ * 那时还没 PUT），不接这一下的话作者要重进一次才看得见那颗键。只改内存（远端模式本机不落盘，这两位本来也是服务端的真相）。
+ * null = 配方删掉了。订阅在 data/recipes（它不能引本文件）。
+ */
+function noteRecipeState(id: string, state: { public: boolean; stale: boolean; listed: boolean } | null): void {
+  const v = find(id);
+  if (!v) return;
+  if (state) {
+    v.recipeState = { public: state.public, stale: state.stale, listed: state.listed };
+    if (state.public && !state.stale) v.recipePublic = true;
+    else delete v.recipePublic;
+  } else {
+    delete v.recipeState;
+    delete v.recipePublic;
+  }
+  emitVideos();
+}
+onRecipeStateChange(noteRecipeState);
+
 export async function updateVideoMeta(
   id: string,
   patch: Partial<
@@ -1000,14 +1033,18 @@ export async function deleteVideoItem(id: string): Promise<string | null> {
 //     两条老理由都不再成立。老设备上遗留的 "ideahub-app.projects.v1" 由
 //     projects.readyProjects() 顺手清掉（搭它本来就要做的那次往返，见那边的 ★）。
 
-export function publishVideo(draft: DraftVideo): VideoItem {
+/**
+ * @param opts.shareRecipe 发布页那颗「公开制作过程」的选择（2026-10-02，缺省不公开）。它不进发布体，
+ *   而是盖进组稿那一拍抓下的画布待办（data/projects），发布成功留存工程时顺手投成公开配方 PUT 上去。
+ */
+export function publishVideo(draft: DraftVideo, opts?: { shareRecipe?: boolean; listRecipe?: boolean }): VideoItem {
   // 幂等键跟着草稿走：pushPublish 超时后进待发队列，flushPending 重发的是同一个 draft，
   // 服务端认这个键返回首次那条，不会重复落库
   draft = { ...draft, clientId: draft.clientId ?? uid("cv") };
   // ★ 段上的 poster（成片第一帧，dataURL、百 KB 级）只给剪辑/画布看，**不进发布体**：
   //   服务端不存它（zod strip），带着走只会把请求体和待发队列（localStorage，几 MB 上限）
   //   各撑大 N × 百 KB —— 待发队列写失败是吞掉的，那正是"作品唯一备份"所在（2026-09-05）。
-  draft = stripPosters(draft);
+  draft = stripLocalOnly(draft);
   const item: VideoItem = {
     id: uid("v"),
     // ★ 把幂等键带到列表这一条上：删除时要靠它把队列里的那份一起清掉
@@ -1042,7 +1079,7 @@ export function publishVideo(draft: DraftVideo): VideoItem {
   //   任何一条上行路启动之前）：下面两条分支（现在传 / 进待发队列等 flushPending 补发）
   //   最终都靠这个键把回包与那份画布对上号。挂进 pushPublish 里就会漏掉离线那一条，
   //   而那条正是「作品发出去了、工程却永远留不上」最常见的形状。
-  void projects.stampPendingCanvas(draft.clientId);
+  void projects.stampPendingCanvas(draft.clientId, opts?.shareRecipe === true, opts?.listRecipe === true);
   if (remoteOn()) {
     void pushPublish(item, draft);
   } else if (API_ON) {
@@ -1523,13 +1560,13 @@ interface LikedStore {
 async function loadLiked(): Promise<void> {
   if (remoteOn()) return;
   // ★ 必须先等账号库装完。App 是 Promise.all([readyVideos(), readyAccount(), …])
-  //   并发起的，谁先完成不确定；账号还没装好时 ownerKey() 是空串，和存下来的 owner
+  //   并发起的，谁先完成不确定；账号还没装好时 deviceOwner() 是空串，和存下来的 owner
   //   对不上，这份点赞态就被**静默丢掉**了 —— 表现是冷启动后爱心全空、点赞又能刷，
   //   而且时灵时不灵（跟两个 IndexedDB 读的快慢有关），最难查的那一类。
   //   readyAccount() 自己是幂等的（内部复用同一个 Promise），重复 await 不多花一次读。
   await readyAccount();
   const saved = await idbGet<LikedStore>(LIKED_KEY);
-  if (!saved || !Array.isArray(saved.ids) || saved.owner !== ownerKey()) return;
+  if (!saved || !Array.isArray(saved.ids) || saved.owner !== deviceOwner()) return;
   for (const id of saved.ids) likedIds.add(id);
   // ★ 演示作品不落盘（见 save），likes 每次开机都从 0 造起；而"我赞过没有"是**落盘**的 ——
   //   不补这一下，冷启动后演示作品上会出现「红心亮着、赞数 0」这种自相矛盾的读数。
@@ -1540,7 +1577,7 @@ async function loadLiked(): Promise<void> {
 
 function saveLiked(): void {
   if (remoteOn()) return;
-  void idbSet(LIKED_KEY, { owner: ownerKey(), ids: [...likedIds] });
+  void idbSet(LIKED_KEY, { owner: deviceOwner(), ids: [...likedIds] });
 }
 
 // ── 远端模式实现 ─────────────────────────────────────────
@@ -1552,6 +1589,17 @@ const idAlias = new Map<string, string>();
 /** 已经补过详情（评论）的视频，避免每次 getVideo 都打一次 */
 const detailed = new Set<string>();
 /**
+ * 评论到了没有（远端模式；key = 服务端 id）：ready = 详情那一跳回来了（评论就是 item.comments）、failed = 没问到（给重试）、
+ * 没有记录 = 还在问。判据只有 commentsStatus 一处（2026-10-26 视频详情页 P0-3：抽屉原来详情没回来时就说「还没有评论，抢个沙发」）。
+ * ★ 不另开一套「详情到了」的集合与 detailed 平行（审核抓到三条路会坏：刚发布的作品永远到不了、整份重拉后两份记号不同步、失败一直转圈）——
+ *   写它的地方与 detailed 同生同灭：loadDetail 成功 / 失败 / 没回作品、fetchVideoById 落地、发布落地；forgetDetails 与换人时一起清。
+ */
+const commentsState = new Map<string, "ready" | "failed">();
+/** 评论翻页的游标：没有记录 = 还没翻过（手上只有详情那一跳带来的前 50 条）；null = 翻到底了；字符串 = 下一页从这儿起 */
+const commentCursor = new Map<string, string | null>();
+/** 正在翻的那一页（同一条作品同时只翻一页） */
+const commentPaging = new Map<string, Promise<string | null>>();
+/**
  * 这几条被换成了**新的列表级对象**（没有评论）：它们「详情取过了」的记号作废，下一次 loadDetail 才会重取。
  * ★ 记号跟着的是**对象**不是 id —— 整份重拉（refreshFeed / refreshFollowingFeed）换掉对象而不清记号，
  *   正是「首页回来之后评论区空了」那一条（见 refreshFeed 的 ★）。
@@ -1560,7 +1608,83 @@ function forgetDetails(items: VideoItem[]): void {
   for (const v of items) {
     detailed.delete(v.id);
     detailed.delete(realId(v.id));
+    // 换成了新的列表级对象（没有评论）：评论到没到、翻到哪儿也一起作废，不然 ready 为真、comments 为空 —— 又说「还没有评论」
+    commentsState.delete(realId(v.id));
+    commentCursor.delete(realId(v.id));
   }
+}
+
+/**
+ * 这条作品的评论到了没有 —— **唯一判据**（评论抽屉、详情页的评论预览卡都问它）。
+ * · 离线模式恒 ready（评论就在本地库里）；还没落地的临时 id（v_*）恒 ready（刚发布，本来就没有评论）；
+ * · failed = 详情那一跳没问到：说「没取到评论」并给重试（retryComments）。
+ */
+export function commentsStatus(id: string): "pending" | "ready" | "failed" {
+  if (!remoteOn()) return "ready";
+  const rid = realId(id);
+  if (rid.startsWith("v_")) return "ready";
+  return commentsState.get(rid) ?? "pending";
+}
+
+/** 「没取到评论」那颗重试：清掉失败记号，再问一次详情 */
+export function retryComments(id: string): void {
+  commentsState.delete(realId(id));
+  emitVideos();
+  ensureComments(id);
+}
+
+/**
+ * 还有没有更多评论可翻（详情页 / 抽屉列表底下那颗「加载更多」摆不摆）。
+ * ★ 终点只认服务端的 nextCursor === null，不拿计数比（commentCount 是全量，列表滤掉了被拉黑的人 —— 拉黑过人的账号上那颗键会永远不消失）；
+ *   还没翻过的时候没有游标，才看一眼计数：多于手上的条数就摆（第一次翻回来没有新东西、游标为 null，键就收起来）。
+ */
+export function commentsMore(v: VideoItem): boolean {
+  if (commentsStatus(v.id) !== "ready" || !remoteOn()) return false;
+  const rid = realId(v.id);
+  if (rid.startsWith("v_")) return false;
+  const c = commentCursor.get(rid);
+  if (c === undefined) return commentCountOf(v) > (v.comments?.length ?? 0);
+  return c !== null;
+}
+
+/**
+ * 再翻一页评论，并进 item.comments（按 id 归并，与 loadDetail 同一个归并）。回 null = 成了；字符串 = 没成的原因（摆在那颗键旁边）。
+ * ★ 起点：详情那一跳内联了最新 50 条却不给游标 —— 第一次翻**不带游标、要 100 条**（服务端上限），从回包里拿游标；
+ *   这样前 50 条会重一遍（归并去掉），换来的是不用在客户端拼服务端的游标格式（那不是契约）。之后照游标往下翻。
+ */
+export function loadMoreComments(id: string): Promise<string | null> {
+  const rid = realId(id);
+  const running = commentPaging.get(rid);
+  if (running) return running;
+  const p = (async (): Promise<string | null> => {
+    const item = find(id);
+    if (!item) return t`这条作品不在了`;
+    const cursor = commentCursor.get(rid);
+    try {
+      const res = cursor ? await branch.listComments(rid, { cursor }) : await branch.listComments(rid, { limit: 100 });
+      mergeRemoteComments(item, res.items.map(toComment));
+      commentCursor.set(rid, res.nextCursor);
+      emitVideos();
+      return null;
+    } catch (e) {
+      return e instanceof Error && e.message ? e.message : t`网络不通`;
+    } finally {
+      commentPaging.delete(rid);
+    }
+  })();
+  commentPaging.set(rid, p);
+  return p;
+}
+
+/**
+ * 服务端那一批评论并进本地（**按 id 归并，不整段替换**，2026-08-31 修，与 danmaku.merge 同一条规则）——
+ * loadDetail 与 loadMoreComments 共用。远端那份权威（同一条 id 以它为准），本地有而远端没有的保留，**降序**（新的在前）。
+ * 理由写在 loadDetail 原来那两段 ★★ 上：整段替换会吃掉在途期间刚发出去的那条；升序会让详情页评论区整个倒过来。
+ */
+function mergeRemoteComments(item: VideoItem, remote: VideoComment[]): void {
+  const byIdMap = new Map(remote.map((c) => [c.id, c]));
+  for (const c of item.comments ?? []) if (!byIdMap.has(c.id)) byIdMap.set(c.id, c);
+  item.comments = [...byIdMap.values()].sort((a, b) => b.at - a.at);
 }
 /** 列表分页游标；留给后续「上拉加载更多」用 */
 let nextCursor: string | null = null;
@@ -1659,7 +1783,32 @@ function toVideoItem(v: branch.ApiVideo): VideoItem {
     // ★ 都判**有值**，不给缺省：老服务端与从没回炉过的作品都不该凭空长出一个 0/日期。
     ...(typeof v.revision === "number" ? { revision: v.revision } : {}),
     ...(v.revisedAt ? { revisedAt: toMs(v.revisedAt) } : {}),
+    // ★ 制作过程与同款（2026-10-02）—— 同一条「服务端加了字段、这一跳必须一起搬」的纪律：
+    //   漏 recipePublic ⇒ 作品页那颗「查看制作过程」永远不亮；漏 remixOf ⇒ 「按 @谁 的流程制作」那行永远不出现。
+    //   列表与详情两跳共用 recipeBits 一处（详情回填是 loadDetail 的逐字段原地写，第一版就漏在那儿）
+    ...recipeBits(v),
     comments: Array.isArray(v.comments) ? v.comments.map(toComment) : [],
+  };
+}
+
+/** 作品上「制作过程 / 同款」那四位的映射（都判有值）。remixOf / remixCount **只有详情端点才算**，列表上没有 */
+function recipeBits(v: branch.ApiVideo): Pick<VideoItem, "recipePublic" | "recipeState" | "remixOf" | "remixCount"> {
+  return {
+    ...(v.recipePublic === true ? { recipePublic: true } : {}),
+    ...(v.recipeState && typeof v.recipeState === "object"
+      ? { recipeState: { public: v.recipeState.public === true, stale: v.recipeState.stale === true, listed: v.recipeState.listed === true } }
+      : {}),
+    ...(v.remixOf && typeof v.remixOf === "object" && typeof v.remixOf.id === "string"
+      ? {
+          remixOf: {
+            id: v.remixOf.id,
+            title: typeof v.remixOf.title === "string" ? v.remixOf.title : "",
+            author: branch.authorName(v.remixOf.author),
+            ...(branch.authorId(v.remixOf.author) ? { authorId: branch.authorId(v.remixOf.author)! } : {}),
+          },
+        }
+      : {}),
+    ...(typeof v.remixCount === "number" ? { remixCount: v.remixCount } : {}),
   };
 }
 
@@ -1705,15 +1854,23 @@ export function listFollowingVideos(): VideoItem[] | null {
  *   会把它们补回来，这里没有那一步）。
  * ★ 在途去重：并发两次只打一发。换人期间 cache 被清成 null，回包作废。
  */
+/** 推荐流正在整份重拉（首页空着时画加载态而不是「还没有作品」；2.68 真机验证：LTE 上冷启动那几秒空态先闪了一下） */
+export function feedLoading(): boolean {
+  return feedRefreshing !== null;
+}
+
 export async function refreshFeed(opts: { minAgeMs?: number } = {}): Promise<boolean> {
   if (!remoteOn() || !cache) return false;
   const minAge = opts.minAgeMs ?? 0;
   if (minAge > 0 && Date.now() - feedFetchedAt < minAge) return false;
   if (feedRefreshing) return feedRefreshing;
+  // 发请求时是谁：回包时已经换了人的话，这一份是**上一个人**的推荐流（里面有他自己的私密 / 仅链接可见作品），
+  // 不许并进新账号的首页（2026-09-18 发版复核抓到：原来只判 cache 还在不在，换号 + readyRemote 重装得比回包快就漏过去）
+  const owner = deviceOwner();
   feedRefreshing = (async () => {
     try {
       const res = await branch.listVideos({ feed: "recommend", limit: 30 });
-      if (!cache) return false;
+      if (!cache || deviceOwner() !== owner) return false;
       const fresh = res.items.map(toVideoItem);
       const freshIds = new Set(fresh.map((v) => v.id));
       const localOnly = cache.filter((v) => !onServer(v) && !freshIds.has(v.id));
@@ -1732,6 +1889,7 @@ export async function refreshFeed(opts: { minAgeMs?: number } = {}): Promise<boo
       return false;
     } finally {
       feedRefreshing = null;
+      emitVideos(); // 失败也通知一次：首页按 feedLoading() 画加载态，不通知就停在「正在取」上
     }
   })();
   return feedRefreshing;
@@ -1743,10 +1901,11 @@ export async function refreshFollowingFeed(opts: { minAgeMs?: number } = {}): Pr
   const minAge = opts.minAgeMs ?? 0;
   if (minAge > 0 && Date.now() - followingFetchedAt < minAge) return false;
   if (followingRefreshing) return followingRefreshing;
+  const owner = deviceOwner(); // 同 refreshFeed：回包时换过人就作废（关注流更是按人算的）
   followingRefreshing = (async () => {
     try {
       const res = await branch.listVideos({ feed: "following", limit: 30 });
-      if (!cache) return false;
+      if (!cache || deviceOwner() !== owner) return false;
       const feedNow = cache;
       followingCache = res.items.map((raw) => {
         const item = toVideoItem(raw);
@@ -1860,6 +2019,8 @@ export function fetchVideoById(id: string): Promise<VideoLookup> {
       // ★ 存进旁路表，**不进 cache** —— 理由见 byId 的说明（进了就是往首页推荐流里掺东西）
       byId.set(item.id, item);
       detailed.add(v._id);
+      // 单取那一跳带着评论（详情接口）：评论到了
+      commentsState.set(v._id, "ready");
       emitVideos();
       return { status: "ok", video: item };
     } catch (e) {
@@ -1933,6 +2094,24 @@ export async function fetchAuthorWorks(userId: string, limit = 30): Promise<Auth
 }
 
 /**
+ * 照这条作品做的同款（作品详情页「照这条做的同款」那一块，2026-10-29）。口径与详情的 remixCount 同一个（服务端一处）：
+ * 非私密、没下架、不算原作者自己的。
+ * ★ 认服务端**回显的 remixOf**（判形状）：老服务端不认这个参数，会 strip 掉照常回推荐流 —— 不回显就当「这台服务器没有这个列表」，
+ *   一条都不摆（与 fetchAuthorWorks 的 partial 不同：推荐流里筛不出同款，摆出来就是别人的作品）。
+ */
+export async function fetchRemixes(videoId: string, limit = 6): Promise<{ status: "ok"; items: VideoItem[] } | { status: "unsupported" } | { status: "failed"; error: string }> {
+  if (!remoteOn()) return { status: "unsupported" };
+  const rid = realId(videoId);
+  try {
+    const res = await branch.listVideos({ remixOf: rid, limit });
+    if (res.remixOf !== rid) return { status: "unsupported" };
+    return { status: "ok", items: res.items.map(toVideoItem) };
+  } catch (e) {
+    return { status: "failed", error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/**
  * 确保这条作品的评论已经拉下来（首页的评论抽屉用）。
  *
  * ★★ 这是在修一个真 bug：**列表接口不返回 comments**，只有详情接口返回。
@@ -1955,7 +2134,12 @@ async function loadDetail(item: VideoItem): Promise<void> {
   detailed.add(id);
   try {
     const v = await branch.getVideo(id);
-    if (!v) return;
+    // 没回作品那个形状：评论这一跳问完了（没有可等的），别让抽屉一直转圈
+    if (!v) {
+      commentsState.set(id, "ready");
+      emitVideos();
+      return;
+    }
     // 原地更新：页面持有的是同一个对象引用
     item.plays = v.plays ?? item.plays;
     item.likes = v.likes ?? item.likes;
@@ -1970,6 +2154,15 @@ async function loadDetail(item: VideoItem): Promise<void> {
     //   过期的 revision 会把「工程是上一版」误判成「对得上」。
     if (typeof v.revision === "number") item.revision = v.revision;
     if (v.revisedAt) item.revisedAt = toMs(v.revisedAt);
+    // ★ 制作过程 / 同款那四位也在这一跳搬（2026-10-02 浏览器实测抓到：服务端详情回了 remixCount，页面上一个字没有）：
+    //   remixOf / remixCount 只有详情端点才算，这里不搬就永远到不了作品页；recipePublic 作者关掉之后要在这里灭
+    const bits = recipeBits(v);
+    if (bits.recipePublic) item.recipePublic = true;
+    else delete item.recipePublic;
+    if (bits.recipeState) item.recipeState = bits.recipeState;
+    else delete item.recipeState;
+    if (bits.remixOf) item.remixOf = bits.remixOf;
+    if (bits.remixCount !== undefined) item.remixCount = bits.remixCount;
     // ★ 走同一处归一（见 toVideoDeck 的 ★★）：这一行原来直接赋 v.deck，
     //   于是详情回填会把 toVideoItem 归一好的那份**又换回没有 id 的原始快照**
     const deck = toVideoDeck(v.deck);
@@ -1983,25 +2176,26 @@ async function loadDetail(item: VideoItem): Promise<void> {
     //   「不做乐观插入」要消灭的那种观感，只是这次是从另一头造成的。
     // ★ 远端那份权威（同一条 id 以它为准），本地有而远端没有的**保留**。
     if (Array.isArray(v.comments)) {
-      const remote = v.comments.map(toComment);
-      const byId = new Map(remote.map((c) => [c.id, c]));
-      for (const c of item.comments ?? []) if (!byId.has(c.id)) byId.set(c.id, c);
+      mergeRemoteComments(item, v.comments.map(toComment));
       // ★★ **降序**（新的在前）—— 与服务端 `sort({ createdAt: -1 })` 和 `addReply` 的
       //   插入端（`[cmt, ...v.comments]`）同一口径。这一行第一版写成了升序，后果是
       //   **详情页评论区整个倒过来**、用户刚发的那条沉到列表最底 —— 观感正是这次修复
       //   要消灭的"刚发的评论不见了"，只是从"消失"换成"跑到看不见的地方"。
       //   ⚠ 评论抽屉那一面自带排序（CommentSheet 的 buildThreads），所以只测抽屉
       //   **看不出来**；出问题的是 `VideoPage` —— 它平铺渲染、全页一个 sort 都没有。
-      item.comments = [...byId.values()].sort((a, b) => b.at - a.at);
     }
     // ★ 条数同样不许倒退：服务端那个数是发送之前的快照，本地已经多出一条
     if (typeof v.commentCount === "number") {
       item.commentCount = Math.max(v.commentCount, item.comments?.length ?? 0);
     }
     if (v.liked) likedIds.add(id);
+    commentsState.set(id, "ready");
     emitVideos();
   } catch (e) {
     detailed.delete(id); // 失败允许下次重试
+    // 没问到：评论那一格说「没取到」并给重试（原来只 emitApiError —— 没人监听，抽屉一直转圈）
+    commentsState.set(id, "failed");
+    emitVideos();
     emitApiError("getVideo", e);
   }
 }
@@ -2013,6 +2207,8 @@ async function loadDetail(item: VideoItem): Promise<void> {
  */
 async function pushPublish(item: VideoItem, draft: DraftVideo): Promise<void> {
   let sending = draft;
+  // 这一条是谁发的：上传几十秒到几分钟，中途换了账号的话后面那几发请求带的就是**别人的** token（见下面 createVideo 前那一句）
+  const ownerAtStart = deviceOwner();
   try {
     // ★★ **先入队，成了再出队**（2026-08-21 第十轮扫描）：上传一条三段片要逐个传
     //   1MB 级的帧与 1.5MB 级的成片，慢网上一两分钟。原来只在 catch 里入队 ——
@@ -2031,6 +2227,11 @@ async function pushPublish(item: VideoItem, draft: DraftVideo): Promise<void> {
       emitVideos();
     });
     uploadStatus = null;
+    // ★★ 换过账号就不发（2026-09-18，见 data/deviceOwner）：每一发请求都现取 token，这时候 createVideo 带的是**新登录那个人**
+    //   的 token，而服务端 `author: req.user._id` 只认 token —— A 花钱炼的片子会挂到 B 名下进广场（与 PendingPublish.owner 的 ★★
+    //   同一个事故形状，那边防的是冷启动补发，这里防的是正在传的这一发）。抛出去落进 catch：条目留在待发队列、主人仍是 A
+    //   （queuePending 保留第一次入队时记的主人），A 再登录时照常补发。
+    if (deviceOwner() !== ownerAtStart) throw ownerMovedError();
     const v = await branch.createVideo(sending);
     // ★★ **`null` 是失败，不是成功**（2026-08-21 第十轮扫描）：`createVideo` 对
     //   「200 + 形状不对」的回包返回 null（`request()` 不抛错：JSON.parse 失败就把
@@ -2054,6 +2255,8 @@ async function pushPublish(item: VideoItem, draft: DraftVideo): Promise<void> {
     item.authorAvatar = branch.authorAvatar(v.author) ?? item.authorAvatar;
     item.createdAt = toMs(v.createdAt);
     detailed.add(v._id);
+    // 刚发布：评论本来就是空的，到了
+    commentsState.set(v._id, "ready");
     // ★ 真传上去了才出队（见上面"先入队"的 ★★）
     if (draft.clientId) inflightPublish.delete(draft.clientId);
     await dropPending(draft.clientId);
@@ -2081,7 +2284,8 @@ async function pushPublish(item: VideoItem, draft: DraftVideo): Promise<void> {
     // ★ 说给用户听要走 toast：这一刻他可能已经不在发布页上了，写进任何页面的 state 都白写
     //   （本仓那格坑：话要说在用户接下来会看的那一屏上）。
     if (!(await queuePending((e as MaterializeError).partial ?? sending, uploadFailOf(e)))) {
-      showToast(t`这条作品既没传上去、也没能存进待发队列——先别关 App，清点一下存储空间再发一次`);
+      // 一句 30 多个字，缺省 1.8 秒根本读不完（2026-10-14 UX 课走查）
+      showToast(t`这条作品既没传上去、也没能存进待发队列——先别关 App，清点一下存储空间再发一次`, 7000);
     }
   }
 }
@@ -2141,7 +2345,7 @@ export async function reviseVideo(id: string, draft: DraftVideo, baseRevision: n
   //   服务端的 segmentBody 里没有这个键、zod 会 strip，带着走只是把请求体白撑大 N × 百 KB。
   //   ⚠ 剥完那份也是下面 `retainAfterRevise` 的 `before` —— 与 publishVideo 那条路一致，
   //     配对表里本来就不会有 poster 这一项（它永远没有云端孪生）。
-  const posterless = stripPosters(draft);
+  const posterless = stripLocalOnly(draft);
   // ★ 再把本机资产（dataURL 帧 / `idb:` 成片）传成永久 URL，然后才发那个 JSON。
   //   少这一步的话，`idb:merged:xxx` 会被服务端 `kept` 原样落库 —— 200、revision 照涨、
   //   客户端判通过，而观众端全黑屏（publishAssets 文件头那次事故的同型）。
@@ -2299,9 +2503,13 @@ async function queuePending(draft: DraftVideo, why: PendingWhy, opts?: { insuran
   if (opts?.insurance && rest.length >= 5) return false; // 见上面的 ★★：满了就不上保险，别顶掉真失败的
   // ★ owner 必须在**入队**这一刻写死（见 PendingPublish.owner 的 ★★）：flush 那会儿
   //   登录的可能已经是另一个人了，那时候再问 currentUser() 正好问到错的那个。
+  // ★★ 同一条（clientId）**第一次**入队时记的主人要保留（2026-09-18）：发布是「先上保险、失败再入队一次」，
+  //   第二次入队发生在失败那一拍 —— 途中换了账号的话，那时的 deviceOwner() 是 B，按它重写就把 A 的待发作品记到 B 名下，
+  //   随后由 B 的 flushPending 带着 B 的 token 发出去。
+  const firstOwner = list.find((p) => p.draft.clientId === draft.clientId)?.owner;
   // 只留最近 5 条，别把配额吃光
   // ★ 存的是码 + 原话（只有 other 才有），不是翻好的一句（见 PendingErrorCode 的 ★★）
-  return await writePending([...rest, { draft, ...pendingFields(why), at: Date.now(), owner: ownerKey() }].slice(-5));
+  return await writePending([...rest, { draft, ...pendingFields(why), at: Date.now(), owner: firstOwner ?? deviceOwner() }].slice(-5));
 }
 
 /**
@@ -2328,7 +2536,7 @@ export interface PendingPublish {
   error?: string;
   at: number;
   /**
-   * 这条是**谁的**（`ownerKey()`，即 user.id）。
+   * 这条是**谁的**（`deviceOwner()`，即 user.id）。
    *
    * ★★ 2026-08-31 补。没有这一位的后果不是"少显示一个字段"，而是**换账号后 A 的
    *   付费成片被自动发布成 B 的作品**：队列存在设备级单键（PENDING_KEY）里，
@@ -2340,8 +2548,10 @@ export interface PendingPublish {
    *   并给一颗「立即重试」。
    * ★ 同文件的 `LikedStore` 早就是这条规则的正确实现（连 owner 一起存，对不上就当没有）
    *   —— 那只是个点赞态，而这里是会真发到广场上的付费成片。
-   * ★ 缺省（老队列里的存量）**当成"当前这个人的"**：那些是升级前留下的，
-   *   绝大多数就是本人的；判成"别人的"会让它们永远发不出去也删不掉。
+   * ★ 缺省（老队列里的存量）归**第一个来认领的人**（2026-09-18 与 data/deviceOwner 的「存量」那条对齐）：
+   *   那些是升级前留下的，绝大多数就是本人的；判成"别人的"会让它们永远发不出去也删不掉。
+   *   原来是「对谁都算自己的」—— 换一个人登录照样能看到、能替他发出去，正是这次要治的串号。
+   *   现在：认领之前对「可以认领的人」（mayClaimLegacy）可见，第一次补发时写上他的名字（发成了就出队、没发成带着名字留下）。
    */
   owner?: string;
 }
@@ -2359,10 +2569,11 @@ export function publishUploadStatus(): typeof uploadStatus {
 
 /**
  * 这条待发记录是不是**当前这个人**的 —— 唯一实现（flush 与横幅共用，铁律六）。
- * ★ 缺省判成"是"：老队列里的存量没有这一位（见 PendingPublish.owner 的 ★）。
+ * ★ 没有主人的老存量：现在这个人能认领就算他的（见 PendingPublish.owner 的 ★）；配了服务器却没连上时
+ *   登进来的是临时的本机账号，不许它认领（deviceOwner.mayClaimLegacy 的 ★★）。
  */
 function pendingMine(p: PendingPublish): boolean {
-  return !p.owner || p.owner === ownerKey();
+  return p.owner ? p.owner === deviceOwner() : mayClaimLegacy();
 }
 
 /** 老版本存的是裸 DraftVideo[]，读的时候归一 */
@@ -2409,6 +2620,11 @@ const inflightPublish = new Set<string>();
 export function isUploading(v: VideoItem): boolean {
   if (!v.clientId) return false;
   return inflightPublish.has(v.clientId) || pendingMirror.some((p) => p.draft.clientId === v.clientId);
+}
+
+/** 有作品**正在上传**吗（退出登录前那道闸问它，见 studio/signOutGuard） */
+export function publishInFlight(): boolean {
+  return inflightPublish.size > 0 || uploadStatus !== null;
 }
 
 /** 页面同步读：还有几条没传上去（在传的那几条不算，见 inflightPublish 的 ★） */
@@ -2472,12 +2688,16 @@ const PENDING_ERROR_MSG: Record<Exclude<PendingErrorCode, "other">, MessageDescr
     message: "上次没传上去",
     comment: "个人页「还没传到服务器」横幅：接在作品标题后面的原因（老版本存下的条目，没记具体原因）。句末不加句号",
   }),
+  // ★ 这两句只说**已知的事**（2026-10-15 教材人格评审）：原来括号里是「服务器的请求体上限」「网关把请求兜到了静态页」这类
+  //   给开发者看的诊断，断网也落到 network 这一句（uploadFailOf 把 Failed to fetch 也归进来），「请求体上限」对断网就是个错原因。
+  //   诊断留在 console（badShapeError 的英文 message、emitApiError 的 console.warn），屏幕上只说出了什么事；
+  //   出路（「立即重试」键与「作品还在本机」那句）横幅上已有，这里不重复
   "bad-shape": msg({
-    message: "服务器没有正常返回这条作品（多半是服务器地址配错了，或网关把请求兜到了静态页）",
+    message: "服务器没有收下这条作品（一直这样的话，把这句话发给客服）",
     comment: "个人页「还没传到服务器」横幅：接在作品标题后面的原因。一整句，句末不加句号",
   }),
   network: msg({
-    message: "上传被拒（作品体积较大，可能是服务器的请求体上限）",
+    message: "上传没成功（网络断了，或者作品太大、传到一半被掐断）",
     comment:
       "上传失败的原因，两处用：① 个人页「还没传到服务器」横幅上接在作品标题后面；② 回炉失败的回执里嵌进另一句（中文放在括号里）。一整句，句末不加句号",
   }),
@@ -2508,7 +2728,7 @@ const BAD_SHAPE_CODE = "BAD_SHAPE";
 /**
  * 发布回包「200 + 不是作品」（多半是服务器地址配错、或网关把请求兜到了静态页）时抛它。
  * ★ 认码不认话：message 只进 console / emitApiError（全 app 没人听），界面上的话由 pendingErrorText 按 bad-shape 说。
- *   ⚠ message 里别出现 network / timeout / Failed to fetch 这几个词 —— uploadFailOf 的兜底正则不分大小写。
+ *   ⚠ message 里别出现「Failed to fetch」—— uploadFailOf 拿它兜底认浏览器自己的断网。
  */
 function badShapeError(): Error {
   return Object.assign(new Error("createVideo: the response is not a video (wrong server address, or a gateway served the static page)"), {
@@ -2522,7 +2742,8 @@ function badShapeError(): Error {
  * ★ 按错误码分档，不在 message 里找中文关键词（2026-09-10 多语言第 1 步）。原来的「网络不可用」/「请求超时」
  *   四处来源都带着码：api/client 的 ApiError（NETWORK / TIMEOUT）、uploads 的整份上传与分块断线
  *   （chunkError 补了 NETWORK）；MaterializeError 是把 partial 挂在**原错误**上再抛，实例不变。
- *   `Failed to fetch` / `NetworkError` / `TimeoutError` 是浏览器自己的英文，不是我们的文案，留着兜底。
+ *   浏览器自己的英文「Failed to fetch」不是我们的文案，留着兜底（2026-09-18 起只剩它：原来还拿不分大小写的
+ *   /NETWORK|TIMEOUT/ 扫 message，把英文界面的「Switch networks…」认成断网）。
  * ⚠ 唯一的出入：老服务端（没有 /uploads/media/sign）那条整份上传的超时，原话「上传超时：这份 N MB…」
  *   以前没命中「请求超时」、原样截 120 字显示，现在按码归到 timeout 那句短话 —— 两句说的是同一件事。
  * ★ 2026-09-11 从 errText 改名、改成回码（多语言）：原来回一句中文，落进待发队列就冻结在写入时的语言上。
@@ -2535,14 +2756,29 @@ function uploadFailOf(e: unknown): PendingWhy {
   if (code === BAD_SHAPE_CODE) return { code: "bad-shape" };
   // "网络不可用" 在这条路上十有八九是包太大被网关掐了（body 里带着 MB 级的 base64 帧），
   // 直接说"网络不好"会让人一直重试同一件必然失败的事
-  if (code === "NETWORK" || /Failed to fetch|NETWORK/i.test(m)) return { code: "network" };
-  if (code === "TIMEOUT" || /TIMEOUT/i.test(m)) return { code: "timeout" };
+  // ★ 认码不认话（CLAUDE.md「按 message 里的关键词判」那条坑）：原来还拿 /NETWORK/i、/TIMEOUT/i 扫 message ——
+  //   不分大小写，英文界面下上传卡住的那句「Switch networks…」就被判成 network，说成「包太大被网关掐了」（2026-09-18 发版复核抓到）。
+  //   上传分块断线的 chunkError 自带同一个码；浏览器自己的英文「Failed to fetch」不是我们的文案，留作兜底。
+  if (code === "NETWORK" || /Failed to fetch/.test(m)) return { code: "network" };
+  if (code === "TIMEOUT") return { code: "timeout" };
   return { code: "other", detail: m.slice(0, 120) };
 }
 
 /** 当场说给人听（回炉失败的回执）：码现翻成当下界面语言，other 的原话照搬 */
 function uploadFailText(why: PendingWhy): string {
   return why.code === "other" ? why.detail : i18n._(PENDING_ERROR_MSG[why.code]);
+}
+
+/**
+ * 上传途中登录的人变了（pushPublish / flushPending 共用）：两种情形说两句话 —— 没人登录着 = 只是登录失效了
+ * （原来一律说「换了账号」，2026-09-18 复核抓到）
+ */
+function ownerMovedError(): Error {
+  return new Error(
+    deviceOwner()
+      ? t`上传途中换了登录的账号，这一条先不发——等原来那个账号再登录时会自动补发`
+      : t`上传途中登录失效了，这一条先不发——重新登录这个账号后会自动补发`,
+  );
 }
 
 /** 启动时重试待发队列（成功的移出队列，失败的留着并记下原因） */
@@ -2560,8 +2796,18 @@ async function flushPending(): Promise<void> {
   const list = all.filter(pendingMine);
   const others = all.filter((p) => !pendingMine(p));
   if (list.length === 0) return;
+  /**
+   * 这一轮是替谁补发的。★★ 补发一条要传几 MB，慢网上几分钟（2026-09-18 复核抓到）：这期间 A 登录失效、B 登进来的话，
+   * 下一发 createVideo 带的是 **B 的 token** —— A 花钱炼的片子挂到 B 名下进广场（pushPublish 那道同款闸）。
+   * 换过人就不再发，没发的原样留下、主人照旧记在 A 名下。
+   */
+  const flushOwner = deviceOwner();
   const left: PendingPublish[] = [];
   for (const p of list) {
+    if (deviceOwner() !== flushOwner) {
+      left.push({ ...p, owner: p.owner || flushOwner });
+      continue;
+    }
     let sending = p.draft;
     try {
       // 重试同样要先实体化：队列里存的可能还带着没传完的本机资产
@@ -2570,6 +2816,7 @@ async function flushPending(): Promise<void> {
         emitVideos();
       });
       uploadStatus = null;
+      if (deviceOwner() !== flushOwner) throw ownerMovedError();
       const v = await branch.createVideo(sending);
       // ★★ 与 pushPublish 同一条：`null` 是失败。原来 `if (v && cache)` 把 null 当成功，
       //   于是那条队列项**不会进 left**，`writePending(left)` 之后就永久删掉了 ——
@@ -2609,7 +2856,8 @@ async function flushPending(): Promise<void> {
       console.warn("[videos] 待发作品重试失败:", why.code, e);
       // ★ owner 原样带回去：重写队列时丢掉这一位，下一轮就又变成"谁登录发给谁"
       // ★ 落盘的是码 + 原话（只有 other 才有），不是翻好的一句（见 PendingErrorCode 的 ★★）
-      left.push({ draft: (e as MaterializeError).partial ?? sending, ...pendingFields(why), at: Date.now(), owner: p.owner });
+      // ★ 没有主人的老存量在这里认领（pendingMine 已经判过「他可以认领」）：带上名字留下，下一轮就不再是谁登录发给谁
+      left.push({ draft: (e as MaterializeError).partial ?? sending, ...pendingFields(why), at: Date.now(), owner: p.owner || flushOwner });
     }
   }
   // ★★ 把**别人那几条原样并回去**：它们这一轮压根没参与，但 writePending 是整表覆盖，
@@ -2666,18 +2914,46 @@ if (import.meta.env.DEV && typeof window !== "undefined") {
 }
 
 /**
- * 发布体里剥掉各段的 `poster`（成片第一帧 dataURL，只管显示）。branchTree 各节点的段一并剥。
- * ★ 只在 publishVideo 入口调一次：pushPublish / queuePending / 本机缓存条目拿到的都是剥过的那份。
+ * 发布体里的作品简介去掉文字模板段的正文（组稿那一拍把各段 plot 拼成了预填的简介；人在发布页没改过的话正文会照原样公开）。
+ * 按原文逐字去掉（人自己写的话一个字不动），再收拾多出来的空行。
  */
-function stripPosters(d: DraftVideo): DraftVideo {
+function textTplDescriptionOf(d: DraftVideo): string {
+  // 要去掉的正文：文字模板段自己的 plot + 合成出来的成片记下的来源正文（localPlots）；分支树各节点的段一并算
+  const segs = [...d.segments, ...Object.values(d.branchTree?.nodes ?? {}).map((n) => n.segment)];
+  const secret = segs.flatMap((s) => [...(s.fromTextTpl && s.plot ? [s.plot] : []), ...(s.localPlots ?? [])]).filter(Boolean);
+  // ★ 没有要去掉的就原样返回：原来一律收拾空行 + trim，每一条普通作品的简介都丢了空行（2026-10-29 发版前复核）
+  if (!secret.length) return d.description;
+  let desc = d.description ?? "";
+  for (const p of secret) desc = desc.split(p).join("");
+  return desc.replace(/\n{2,}/g, "\n").trim();
+}
+
+/**
+ * 发布体里剥掉只在本机流转的东西 —— 各段的 `poster`（成片第一帧 dataURL，只管显示）与文字模板段的正文（`fromTextTpl`，2026-10-26）。
+ * branchTree 各节点的段一并剥。
+ * ★ 发布（publishVideo 入口）与回炉替换各调一次：pushPublish / queuePending / 本机缓存条目拿到的都是剥过的那份。
+ */
+function stripLocalOnly(d: DraftVideo): DraftVideo {
   type Seg = DraftVideo["segments"][number];
   const strip = (s: Seg): Seg => {
-    if (!s.poster) return s;
+    if (!s.poster && !s.fromTextTpl && !s.localPlots) return s;
     const rest = { ...s };
     delete rest.poster;
+    delete rest.localPlots;
+    // 文字模板段的正文不随作品外流（types.VideoSegment.fromTextTpl 的 ★）：发布体里 plot 置空、标记去掉。
+    // ★ 在这一处（发布与回炉替换都经它）做，不在组稿那一拍做：剪辑页的一键成片要读全文
+    if (rest.fromTextTpl) {
+      rest.plot = "";
+      delete rest.fromTextTpl;
+    }
     return rest;
   };
-  const out: DraftVideo = { ...d, segments: d.segments.map(strip) };
+  const out: DraftVideo = {
+    ...d,
+    segments: d.segments.map(strip),
+    // 作品简介原来是各段 plot 拼起来的（组稿那一拍预填），文字模板段的正文在那儿也要拿掉 —— 发布页上人没改过的话就会照原样公开
+    description: textTplDescriptionOf(d),
+  };
   if (d.branchTree) {
     const nodes: NonNullable<DraftVideo["branchTree"]>["nodes"] = {};
     for (const [k, n] of Object.entries(d.branchTree.nodes)) nodes[k] = { ...n, segment: strip(n.segment) };

@@ -19,12 +19,14 @@ import { i18n } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { BackButton } from "../components/IconTapButton";
+import EmptyState from "../components/EmptyState";
 import LangChip from "../components/LangChip";
-import { Link, useNavigate, useSearchParams } from "react-router";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
+import { useBackOr } from "../hooks/useBackOr";
 import ConfirmDialog from "../components/ConfirmDialog";
 import InfoDialog from "../components/InfoDialog";
 import Icon from "../components/Icon";
-import { AGREEMENTS, recordTermsAccepted, termsAccepted, type AgreementId } from "../data/agreements";
+import { AGREEMENTS, clearPendingTerms, recordTermsAccepted, termsPendingAccepted, type AgreementId } from "../data/agreements";
 import {
   consumeAuthNotice,
   isRemoteMode,
@@ -65,6 +67,9 @@ function deadReason(k: BrandName): string {
 export default function LoginPage() {
   const remote = isRemoteMode();
   const navigate = useNavigate();
+  // ★ 返回键的兜底是首页：被 RequireAuth 弹到这里的人、或从分享链接冷启动的人历史里没有上一页，
+  //   裸 navigate(-1) 在 WebView 里就是退出到白屏；首页游客照常能逛
+  const back = useBackOr("/");
   const { t } = useLingui();
   const [params] = useSearchParams();
   const next = params.get("next") || "/";
@@ -80,11 +85,23 @@ export default function LoginPage() {
   const [err, setErr] = useState(() => params.get("err") || consumeAuthNotice());
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  // ★ ?err= 要跟着地址走，不能只在挂载时读一次（2026-10-19 发版后验证在模拟器上复现）：人就站在登录页点 GitHub、
+  //   在浏览器里失败或取消，深链回来时 OauthDeepLinkBridge 在**同一路由**上 replace 到 /login?err=… —— 登录页不会重新挂载、
+  //   ErrorBoundary 按 pathname 复位也不动它，useState 的初始值早用掉了：屏幕上一个字都没有；连续失败两次，显示的还是上一次那句。
+  //   按 location.key 认「来了一次新的回程」：每次 navigate（含 replace 到一模一样的地址）都会换一个 key，所以同一句话第二次回来也照样上屏。
+  //   只在地址里**有** err 时才写 —— 没有的时候不动，别把挂载时 consumeAuthNotice 那条来路（读一次即清）冲掉。
+  const loc = useLocation();
+  useEffect(() => {
+    const e = params.get("err");
+    if (e) setErr(e);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 只认「换了一次地址」：params 跟着 loc 一起变，放进来也不会多一次有意义的触发
+  }, [loc.key]);
 
   // ── 用户协议勾选门（2026-08-28）────────────────────────────────
-  // 文本只有 data/agreements 一份（铁律六）。这台设备上同意过当前版本就默认勾上，
-  // 正文更新（TERMS_UPDATED 变了）后记录失效、重新要求勾选。
-  const [agreed, setAgreed] = useState(() => termsAccepted());
+  // 文本只有 data/agreements 一份（铁律六）。
+  // ★ 默认**不勾**（2026-09-18）：原来「这台设备上有人同意过」就默认勾上 —— 换一个人来登录，他没点过任何东西
+  //   就「同意」了。现在只有这一次登录页上勾过、还没登录成的那一下还在时才默认勾上（见 agreements 那段 ★★）。
+  const [agreed, setAgreed] = useState(() => termsPendingAccepted());
   /** 看哪份全文（登录页只放协议与隐私两份；AIGC 须知在发布页与设置页） */
   const [viewDoc, setViewDoc] = useState<AgreementId | null>(null);
   /**
@@ -95,10 +112,15 @@ export default function LoginPage() {
 
   /** 所有登录入口共用的一道门（密码/验证码/QQ/Google/GitHub 都从这儿过） */
   function requireAgree(run: () => void) {
-    if (agreed) {
+    // ★ 勾选框上那一下还得**没过期**（agreements 的 PENDING_TTL_MS）：页面一直开着的话框还勾着，而勾它的可能是
+    //   早就走开的上一个人（2026-09-18 复核抓到）—— 过期了就撤掉勾、当面再问一次
+    if (agreed && termsPendingAccepted()) {
+      // 从真正点登录这一拍重新算期限：跳去第三方授权再回来（冷启动认领也算）不会在登录成功之前过期
+      recordTermsAccepted();
       run();
       return;
     }
+    if (agreed) setAgreed(false);
     setPendingAuth(() => run);
   }
 
@@ -112,6 +134,8 @@ export default function LoginPage() {
   const [code, setCode] = useState("");
   /** 验证码已发出 → 表单进入"填码"阶段 */
   const [sent, setSent] = useState(false);
+  /** 验证码正在发（只管那颗键的字；busy 管整页） */
+  const [sending, setSending] = useState(false);
   /** 邮箱这一栏在做"注册"还是"忘了密码" */
   const [emailFlow, setEmailFlow] = useState<"register" | "reset">("register");
   const [cooldown, setCooldown] = useState(0);
@@ -215,11 +239,26 @@ export default function LoginPage() {
     }
   }
 
+  /** 勾 / 取消勾选协议（勾选框与那行文字都走它）：勾上 = 待认领的同意（登录成功那一拍归给这个人）；取消 = 作废 */
+  function toggleAgree() {
+    const v = !agreed;
+    setAgreed(v);
+    if (v) recordTermsAccepted();
+    else clearPendingTerms();
+  }
+
   /** 只负责把人送去系统浏览器；回程由 App 顶层的 OauthDeepLinkBridge 统一接
    *  （冷启动时本页可能早就不在了，见 utils/oauth 文件头） */
   async function thirdParty(provider: string) {
     setErr("");
-    await startOauth(provider, (msg) => setErr(msg));
+    // ★ 跳系统浏览器的那几秒置 busy（2026-10-15 发版前复核抓到）：下面那排键按 busy 灰掉，而这条路原来从不置 busy —— 连点两下开两个
+    //   自定义标签页，而 2.63 起本机只记最后一次的 state，先开的那页登完回来会被当成「不是本机发起」丢掉。Browser.open 在标签页拉起后就回来
+    setBusy(true);
+    try {
+      await startOauth(provider, (msg) => setErr(msg));
+    } finally {
+      setBusy(false);
+    }
   }
 
   /**
@@ -280,7 +319,7 @@ export default function LoginPage() {
       {/* ★ 位置与 PageHeader 同一条线（状态栏 + 10px 呼吸，48px 行内居中）：此前 `absolute top-3`
           是相对容器顶边算的，容器的 safe-top 留白被它跳过，真机上箭头压在状态栏里 */}
       <div className="absolute left-4 flex h-12 items-center" style={{ top: "calc(env(safe-area-inset-top, 0px) + 10px)" }}>
-        <BackButton size={22} tone="text-slate-400" onClick={() => navigate(-1)} />
+        <BackButton size={22} tone="text-slate-400" onClick={back} />
       </div>
       {/* 右上角：没登录也能换界面语言（设置页在 RequireAuth 后面，进不去）。与返回键同一条线 */}
       <div className="absolute right-4 flex h-12 items-center" style={{ top: "calc(env(safe-area-inset-top, 0px) + 10px)" }}>
@@ -325,7 +364,7 @@ export default function LoginPage() {
             />
           </>
         ) : capsLoading ? (
-          <div className="py-8 text-center text-xs text-slate-500"><Trans>正在确认可用的登录方式…</Trans></div>
+          <EmptyState compact loading text={t`正在确认可用的登录方式…`} />
         ) : (
           <>
             <div className="mb-1 flex rounded-xl bg-panel p-1">
@@ -361,21 +400,35 @@ export default function LoginPage() {
                   autoComplete="current-password"
                   className={INPUT}
                 />
-                <button
-                  onClick={() => {
-                    pick("email");
-                    setEmailFlow("reset");
-                  }}
-                  className="block w-full text-right text-[11px] text-slate-500"
-                >
-                  <Trans>忘记密码？</Trans>
-                </button>
+                {/* 两条路都摆在密码框下面（2026-10-14 UX 课走查）：原来「注册」藏在「邮箱验证码」页签里的一枚小芯片后面，
+                    第一次装 App 的人在登录页上找不到一个写着「注册」的字 */}
+                <div className="flex items-center justify-between text-[11px]">
+                  <button
+                    onClick={() => {
+                      pick("email");
+                      setEmailFlow("register");
+                    }}
+                    className="py-2.5 text-brand underline underline-offset-2 active:opacity-60"
+                  >
+                    <Trans>没有账号？用邮箱注册</Trans>
+                  </button>
+                  <button
+                    onClick={() => {
+                      pick("email");
+                      setEmailFlow("reset");
+                    }}
+                    className="py-2.5 text-slate-500 underline underline-offset-2 active:opacity-60"
+                  >
+                    <Trans>忘记密码？</Trans>
+                  </button>
+                </div>
               </>
             )}
 
             {method === "email" && (
               <>
-                <div className="flex gap-1.5 text-[11px]">
+                {/* 分段控件（紧凑档）：选中态与全 app 一致用 bg-brand —— 原来的 bg-slate-700 淡得看不出哪个选着 */}
+                <div className="flex gap-1 self-start rounded-full bg-panel p-0.5 text-[11px]">
                   {(["register", "reset"] as const).map((f) => (
                     <button
                       key={f}
@@ -385,8 +438,9 @@ export default function LoginPage() {
                         setCode("");
                         setErr("");
                       }}
-                      className={`rounded-full px-2.5 py-1 ${
-                        emailFlow === f ? "bg-slate-700 text-slate-100" : "text-slate-500"
+                      aria-pressed={emailFlow === f}
+                      className={`rounded-full px-3 py-1 transition ${
+                        emailFlow === f ? "bg-brand font-semibold text-ink" : "text-slate-400"
                       }`}
                     >
                       {f === "register" ? t`注册新账号` : t`重置密码`}
@@ -449,46 +503,59 @@ export default function LoginPage() {
                   className={`${INPUT} flex-1`}
                 />
                 <button
-                  onClick={() => void sendCode()}
+                  onClick={() => {
+                    // 这颗键自己说「发送中…」：原来发码时它的字不变，忙的只有底下主键（写着「处理中…」），人不知道是哪件事在跑
+                    setSending(true);
+                    void sendCode().finally(() => setSending(false));
+                  }}
                   disabled={busy || cooldown > 0}
-                  className="flex-none rounded-xl bg-panel px-3.5 text-xs text-slate-200 ring-1 ring-slate-700 disabled:opacity-40"
+                  className="flex-none rounded-xl bg-panel px-3.5 text-xs text-slate-200 ring-1 ring-slate-700 active:opacity-60 disabled:opacity-40"
                 >
-                  {cooldown > 0 ? `${cooldown}s` : sent ? t`重发` : t`发送验证码`}
+                  {sending ? t`发送中…` : cooldown > 0 ? `${cooldown}s` : sent ? t`重发` : t`发送验证码`}
                 </button>
               </div>
             )}
           </>
         )}
 
-        {err && <div className="text-xs leading-relaxed text-rose-300">{err}</div>}
-        {note && !err && <div className="text-xs text-emerald-300">{note}</div>}
+        {err && <div className="text-xs leading-relaxed text-danger-300">{err}</div>}
+        {note && !err && <div className="text-xs text-ok-300">{note}</div>}
 
         {/* 协议勾选行。链接是嵌在文字里的两颗小按钮——不能把整行做成一颗大按钮
-            再往里嵌按钮（button 套 button 是非法嵌套，React 也会告警） */}
-        <div className="flex items-start gap-2 pt-1">
+            再往里嵌按钮（button 套 button 是非法嵌套，React 也会告警）。
+            ★ 2026-10-14（CSCI 187 UX 课的惯例）：勾选框画成**方的** —— 圆的是「单选」的记号，方的才是「勾 / 不勾」；
+              原来 16px 的圆点手指几乎点不中，现在框本身 18px、按钮命中区 36px，整行文字（链接除外）也能点着勾。 */}
+        <div className="flex items-start gap-1.5 pt-3">
           <button
-            onClick={() => {
-              const v = !agreed;
-              setAgreed(v);
-              if (v) recordTermsAccepted();
-            }}
+            onClick={toggleAgree}
             aria-label={agreed ? t`取消同意协议` : t`同意协议`}
             role="checkbox"
             aria-checked={agreed}
-            className={`mt-0.5 flex h-4 w-4 flex-none items-center justify-center rounded-full border transition ${
-              agreed ? "border-brand bg-brand text-ink" : "border-slate-600"
-            }`}
+            className="-my-3 -ml-3 flex h-11 w-11 flex-none items-center justify-center active:opacity-60"
           >
-            {agreed && <Icon name="check" size={11} strokeWidth={3} />}
+            <span
+              className={`flex h-[18px] w-[18px] items-center justify-center rounded border transition ${
+                agreed ? "border-brand bg-brand text-ink" : "border-slate-500"
+              }`}
+            >
+              {agreed && <Icon name="check" size={12} strokeWidth={3} />}
+            </span>
           </button>
-          <span className="text-[11px] leading-relaxed text-slate-500">
+          <span
+            className="cursor-pointer select-none text-[11px] leading-relaxed text-slate-500"
+            onClick={(e) => {
+              // 点到的是「《用户协议》」那两颗链接键时不勾：它们各自开文档
+              if ((e.target as HTMLElement).closest("button")) return;
+              toggleAgree();
+            }}
+          >
             <Trans>
               已阅读并同意
-              <button onClick={() => setViewDoc("terms")} className="text-brand">
+              <button onClick={() => setViewDoc("terms")} className="text-brand underline underline-offset-2">
                 《用户协议》
               </button>
               与
-              <button onClick={() => setViewDoc("privacy")} className="text-brand">
+              <button onClick={() => setViewDoc("privacy")} className="text-brand underline underline-offset-2">
                 《隐私政策》
               </button>
             </Trans>
@@ -498,7 +565,7 @@ export default function LoginPage() {
         <button
           onClick={() => requireAgree(() => void submit())}
           disabled={busy || capsLoading}
-          className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink transition hover:brightness-110 disabled:opacity-40"
+          className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink transition hover:brightness-110 active:opacity-60 disabled:opacity-40"
         >
           {busy
             ? t`处理中…`
@@ -518,7 +585,7 @@ export default function LoginPage() {
             QQ 已接入，但只在 App 壳里能用——浏览器里同样给出真实原因（见 deadReason）。 */}
         {remote && !capsLoading && (
           <>
-            <div className="flex items-center gap-3 pt-1 text-[11px] text-slate-600">
+            <div className="flex items-center gap-3 pt-1 text-[11px] text-slate-400">
               <span className="h-px flex-1 bg-slate-800" />
               <Trans>其他方式</Trans>
               <span className="h-px flex-1 bg-slate-800" />
@@ -547,8 +614,10 @@ export default function LoginPage() {
                         ? requireAgree(() => void (p.k === "qq" ? qqSignIn() : p.k === "wechat" ? wechatSignIn() : thirdParty(p.k)))
                         : setErr(deadReason(p.k))
                     }
+                    // busy 时一并灰掉：第三方登录在跳系统浏览器 / 拉起 QQ 那几秒里连点两下会起两次授权
+                    disabled={busy}
                     style={{ background: chip.bg }}
-                    className={`flex h-11 w-11 items-center justify-center rounded-full shadow-sm transition active:scale-95 ${
+                    className={`flex h-11 w-11 items-center justify-center rounded-full shadow-sm transition active:scale-95 disabled:opacity-40 ${
                       p.live ? "" : "opacity-45"
                     }`}
                     aria-label={p.live ? t`用${name}登录` : t`${name}登录（暂未接入）`}
@@ -564,7 +633,7 @@ export default function LoginPage() {
             </div>
             {!caps?.oauthEnabled && (
               // 说清楚少的是哪两个，别让用户以为整栏都坏了（微信/QQ 明明还在）
-              <p className="text-center text-[11px] leading-relaxed text-slate-600">
+              <p className="text-center text-[11px] leading-relaxed text-slate-400">
                 <Trans>当前网络环境（{regionName}）下 Google / GitHub 不可用，已自动隐藏</Trans>
               </p>
             )}

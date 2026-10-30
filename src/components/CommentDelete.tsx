@@ -67,7 +67,7 @@ export default function CommentDelete({
       <button
         onClick={() => void del()}
         disabled={busy}
-        className="text-[11px] font-semibold text-rose-400 active:opacity-60 disabled:opacity-40"
+        className="text-[11px] font-semibold text-danger-400 active:opacity-60 disabled:opacity-40"
       >
         {busy ? <Trans>删除中…</Trans> : <Trans>确认删除</Trans>}
       </button>
@@ -81,8 +81,8 @@ export default function CommentDelete({
         <Trans>取消</Trans>
       </button>
       {/* 连回复一起删：说在前面，别让用户删完才发现楼里少了几层 */}
-      <span className="text-[10px] text-slate-600"><Trans>（它下面的回复会一起删掉）</Trans></span>
-      {err && <span className="w-full text-[11px] leading-relaxed text-rose-300">{err}</span>}
+      <span className="text-[10px] text-slate-400"><Trans>（它下面的回复会一起删掉）</Trans></span>
+      {err && <span className="w-full text-[11px] leading-relaxed text-danger-300">{err}</span>}
     </span>
   );
 }

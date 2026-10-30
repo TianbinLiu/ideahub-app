@@ -10,8 +10,10 @@
 // AudioContext + AnalyserNode 得到**真实的响度包络**，SPEECH.level 直接用 RMS——
 // 那才是真口型。下面这套是在"只有文本、没有音频流"的前提下能做到的最好近似。
 import type { Viseme } from "./scene/faceExpr";
-import { currentInstruct, currentRate, currentVoice, emotionFor } from "./voices";
-import { API_BASE, getToken } from "../api/client";
+import { currentInstruct, currentRate, currentVoice, emotionFor, type PresetVoice } from "./voices";
+import { API_BASE, ApiError } from "../api/client";
+import { synthesizeSpeech } from "../api/support";
+import type { VoiceMixEntry } from "../api/companion";
 // ★ 界面语言只从 i18n/switch 的 activeLang 读（「当前生效的语言」的唯一读法，不是偏好）。
 //   依赖方向没破：i18n 是叶子模块，不会反过来认识本文件
 import type { Lang } from "../i18n/locale";
@@ -233,7 +235,29 @@ export function cancelPendingStop() {
 declare const __TTS_REAL__: boolean;
 /** 构建期就知道的那部分：dev 中间件配没配密钥 */
 const TTS_DEV = typeof __TTS_REAL__ !== "undefined" && __TTS_REAL__;
-const TTS_URL = `${API_BASE}/api/tts`;
+// ★ /api/tts 的地址、鉴权头、版本头与「回的是不是音频」那道 Content-Type 守卫都在 api/support.synthesizeSpeech 一处
+//   （2026-10-15 教材人格评审收口：此前这里与设置页试听各手拼一份 fetch、各抄一套状态码，都没有那道守卫 ——
+//   上面那段 ★★ 讲的 200 + index.html 正是守卫要拦的东西）。这个文件不再知道 URL 长什么样。
+
+/** 一句台词的云端合成等多久：工坊看板娘与设置页试听共用。20s —— 一句几十 KB 的音频，慢过它基本就是网络断了 */
+export const TTS_SENTENCE_MS = 20_000;
+
+/**
+ * 「这台服务器根本没有云端嗓子」的**唯一判据**（2026-10-15 教材人格评审收口：原来设置页试听与 speakCloud 各抄一份状态码）：
+ *   404 = 没挂路由；501 = 没配密钥，**或回的不是音频**（synthesizeSpeech 的 Content-Type 守卫也抛 501 ——
+ *   Capacitor 的 SPA 回退 200 + index.html 落在这一档，见上面那段 ★★）；401 / 403 = 登录态掉了。
+ *   502 / 504 是上游偶发失败，**不算**：关掉会让人整场都听不到好嗓子，重试下一句即可。超时 / 断网也不算（不是 ApiError）。
+ * 只认类型与状态码，不看 message 里的字（CLAUDE.md「按错误 message 里的中文关键词判」那一格）。
+ */
+const NO_CLOUD_VOICE_STATUS = [404, 501, 401, 403];
+export function noCloudVoice(e: unknown): boolean {
+  return e instanceof ApiError && NO_CLOUD_VOICE_STATUS.includes(e.status);
+}
+
+/** 预置音色的混音配方 → /api/tts 请求体的 mix 形状（服务端 { id, w } 与 { voiceId, weight } 两种都认；统一成 TtsRequest 那一种，别让两份类型各走各的） */
+export function presetMix(v: PresetVoice): VoiceMixEntry[] | undefined {
+  return v.mix?.map((m) => ({ voiceId: m.id, weight: m.w }));
+}
 
 /**
  * 现在还能不能走云端嗓子。
@@ -266,33 +290,22 @@ function ctx(): AudioContext {
 async function speakCloud(text: string, sy: Syl[], me: number): Promise<boolean> {
   const voice = currentVoice();
   try {
-    // 服务端那条要带 token（端点是收费的，裸奔等于把账单挂到公网上）；
-    // dev 中间件不校验，多带一个头也无妨
-    const tk = getToken();
-    const res = await fetch(TTS_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...(tk ? { Authorization: `Bearer ${tk}` } : {}) },
-      body: JSON.stringify({
+    // 只经 api/support.synthesizeSpeech 这一个网关（token、版本头、非 2xx → ApiError、「回的是不是音频」守卫都在那一份）
+    const blob = await synthesizeSpeech(
+      {
         text,
         voice: ENV_VOICE || voice.id,
-        mix: voice.mix,
+        mix: presetMix(voice),
         // 用户在设置页手调过就以用户为准，没调过跟随音色自带的默认
         rate: currentRate() ?? voice.rate,
         pitch: voice.pitch,
         expressive: voice.expressive,
         emotion: emotionFor(voice, SPEAK_MOOD.v, SPEAK_MOOD.until > Date.now()),
         instruct: currentInstruct(),
-      }),
-      signal: AbortSignal.timeout(20_000),
-    });
-    if (!res.ok) {
-      // ★ 只有"这台服务器根本没这功能"才永久关掉：404（没挂路由）/501（没配密钥）/
-      //   401·403（没登录，工坊本来就要登录，走到这儿说明 token 掉了）。
-      //   502/504 是上游偶发失败，关掉会让人整场都听不到好嗓子——重试下一句即可。
-      if (res.status === 404 || res.status === 501 || res.status === 401 || res.status === 403) cloudOn = false;
-      return false; // 一律退回本地合成
-    }
-    const buf = await ctx().decodeAudioData(await res.arrayBuffer());
+      },
+      AbortSignal.timeout(TTS_SENTENCE_MS),
+    );
+    const buf = await ctx().decodeAudioData(await blob.arrayBuffer());
     if (session !== me) return true; // 期间被打断：别再播了，但也别退回去重播一遍
 
     const src = ctx().createBufferSource();
@@ -350,6 +363,9 @@ async function speakCloud(text: string, sy: Syl[], me: number): Promise<boolean>
     raf = requestAnimationFrame(tick);
     return true;
   } catch (e) {
+    // ★ 只有"这台服务器根本没这功能"才永久关掉（判据 noCloudVoice 一处）；其余（上游偶发 502 / 504、超时、解码失败）
+    //   只退回这一句，下一句照旧先试云端
+    if (noCloudVoice(e)) cloudOn = false;
     console.warn("[tts] 云端合成失败，退回浏览器合成器:", e);
     return false;
   }

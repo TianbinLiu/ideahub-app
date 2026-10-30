@@ -23,10 +23,10 @@ cp .env.example .env.local     # 必须，否则 AI 全走 mock
 npm run dev                    # http://localhost:5173
 ```
 
-`npm run build` = `tsc && vite build`，**提交前必须通过**。
+`npm run build` = `tsc && vite build`，**提交前必须通过**。单独跑全部构建期检查用 `npm run check:all`（2026-10-15 起；同日新加的 `scripts/check-import-direction.mjs` 实跑依赖方向：data 不引 studio / pages / components / hooks、flowStore 不引 studioStore、零依赖规则模块只 `import type`）。CI 另有一个**不设 required** 的 `android` job（2026-10-15）编一遍 debug 变体：Java 改动合进 main 不再只靠发版那天的 gradle 第一次暴露；两周后看时长再定要不要进 ruleset。
 
 出安装包：`npm run apk`（debug，自己测）/ `npm run apk:release`（**发给别人的只发这个**）/ `npm run aab`（上架）。
-发版走 `npm run release` —— 它会**自检"这次更新能不能到老用户手里"**（签名、版本号、
+发版走 `npm run release`（2026-10-15 起第 0 步先拦「HEAD 不是 origin/main 的树 / 工作区按内容不干净」—— 先 land 再出包；发错了 → `npm run release -- --withdraw v<坏版>`，见 docs/app-distribution.md「发错了」；第 2 步会开包核入口 js、受保护模型白名单、权限表、jar 来源，并核编进包的原生模块是锁文件那一版 —— 带 keystore 的 worktree 先 `npm ci` 再出包）—— 它会**自检"这次更新能不能到老用户手里"**（签名、版本号、
 清单可达性），任何一条不过就当场停下。完整流程见 [`docs/app-distribution.md`](docs/app-distribution.md)。
 签名 keystore 不在仓库里（`android/keystore/` 被 gitignore 排除），换机 / 新 worktree
 怎么恢复见 [`docs/signing-keystore.md`](docs/signing-keystore.md)。**缺了它 release 构建会直接失败**，
@@ -61,31 +61,82 @@ npm run land -- --dry # 只检查不动手
 src/
   ai/          方舟（Seedream 生图 / Seedance 生视频 / 豆包对话）客户端与真假实现切换；`failCharge.ts` = 「这次 AI 调用失败，钱花没花」的**唯一**判定与钱上的那几句话（catch 里要提钱只走它）
   api/         与 server 的 HTTP 调用；`companion.ts` = 数字人的人格/形象/声音设置（/api/companion/settings）
-               与两个市场（Live2D 形象 / 人格）的请求层 + 共用报错文案
+               与两个市场（Live2D 形象 / 人格）的请求层 + 共用报错文案；
+               `tutor.ts` = 启梦老师（/api/tutor：课程 / 上课 bundle / 一轮 SSE / 自检 / 整理 / 直传票 / 生成作业；
+               `shape()` 把「回的不是 JSON 对象」认成「这台服务器没有老师」，别信状态码——SPA 回退是 200 + HTML），
+               `tutorUpload.ts` = md / txt 建课：本机抽文本 + 切块 + 块 hash（走 `tutor/shared`）→ 直传票 → 复用 `putDirect` 分块 → confirm
   companion/   AI 客服/看板娘的演出协议（表情/动作标签、SSE 解析、语音包络、舞台总线）——与官网 client 同源拷贝
   live2d/      Live2D 运行时加载与模型驱动（pixi + Cubism Core，全部自托管在 public/live2d/）；
-               `prefetch.ts` = 换市场形象前把 model3.json 引用的文件各拉一遍，热 WebView 缓存
+               `prefetch.ts` = 换市场形象前把 model3.json 引用的文件各拉一遍，热 WebView 缓存（每个文件 120 秒上限、只拉与 model3.json 同源的引用，2026-10-15）；
+               `mocCheck.ts` = 加载 .moc3 之前那道版本 + Cubism 一致性检查的**唯一实现**（零依赖、Core 由调用方传入；`loader.installMocGuard` 装在运行时上，
+               上传向导第 ① 步本地核对也走它；被拦下的按 `MocCheckFailed.kind` 认、不认 message）。构建里没有检查脚本：要真 Core 才跑得起来，node vm 里的复现做法写在文件头
   components/  通用组件；`flow/` = 工作流画布：`FlowCanvas.tsx`（画布壳 + 就地编辑窗 +
                agent 输入条 + 四个 portal 弹层：方案台/成片回看/选卡/选模板）、
-               `DeleteSegBtn.tsx`（删段确认，与 FlowPage 那份共用一处实现）；
+               `DeleteSegBtn.tsx`（删段确认，与 FlowPage 那份共用一处实现）、
+               `RefStrip.tsx`（参考清单：出片时模型会收到哪些图、各是第几张 + 临时参考图 + 点图写进句子，画布与工坊方案台共用）、
+               `FrameEditBox.tsx`（改这一帧：一句话改 / 圈着改，画布自定义车道、画布方案台、工坊方案台三处共用）、
+               `ShotListEditor.tsx`（分镜表：一段写几个镜头 + 台词，画布自定义车道与两面方案台共用）；
                `support/` = AI 客服页专用：`SupportStage`（Live2D 舞台，按 modelUrl 换装）、`HoldToTalk`、
                `VoiceSheet`（声音面板，三页：单音色 / 混音 / 声音市场；存服务端，官网同步）、
                `VoiceMixer`（混音调配 + 发布成模板）、`VoiceMarket`（声音市场列表：试听 / 设为我的声音 / 点赞 / 删自己的）、
-               `voicePreview.ts`（三页试听共用的合成 + 播放 + 喂口型，同一时刻只响一段）
+               `voicePreview.ts`（三页试听共用的合成 + 播放 + 喂口型，同一时刻只响一段）、
+               `SafetyCard`（危机求助卡：客服声明 `caps: ["safety","notice"]` 之后收到 `safety` 事件时画它，不念、不进字幕，
+               文字一律用服务端给的；舞台上与「记录」里共用这一份）、
+               `touchLines.ts`（摸看板娘那一句的**唯一实现**：按界面语言挑、市场形象不念官方外貌那两句、同一句同一套声音只合成一次）；
+               `TemplateCreateCard`（模板货架顶上「创建属于你的视频模板」：没模板大卡、有模板小条，市场与我的模板两个页签都摆）、
+               `FeedActionSheet`（首页长按中间的「更多操作」抽屉）、`MagicBand`（「我的」页头像后的品牌带，纯装饰）——
+               三样的来由在 docs/ui-benchmark-2026-10.md
   data/        本地库（IndexedDB）与账号库，含种子数据与迁移；
                `boot.ts` = 开机装载的**唯一**一道闸（哪几样读不出来整页拦、哪几样在用到的那一屏降级，调研与出处见 docs/local-storage-failure.md）；
                `videoDownload.ts` = 保存到本地（能不能存 / 存哪几个 / 叫什么名字 / 下载队列 /
                交给系统分享，**唯一实现**；落点是原生 Cache 目录，不进 IndexedDB）；
                `projects.ts` = 已发布作品的「工坊工程」（供编辑页「🛠 回炉重做」取回来接着改）。
-               **服务端为真相**，本机只有 5 条 LRU 缓存；存的是一份只含永久 URL 的瘦身画布
+               **服务端为真相**，本机只有 5 条 LRU 缓存；存的是一份只含永久 URL 的瘦身画布；
+               `recipe.ts` = **公开配方**（制作过程）的形状与画布 → 配方的**白名单投影**（纯函数，零 store 依赖；服务端
+               `schemas/branchRecipe.schemas.js` 同一形状再验一遍，加字段三处一起动），`recipes.ts` = 上行 / 读回 / 开关
+               （四档结局不压档；状态变化经 `onRecipeStateChange` 广播给 videos 的缓存），HTTP 在 `api/recipes.ts`；
+               `remixReward.ts` = **同款奖励**的规则缓存（每次多少 / 两道上限 / 要挂多久，全由服务端 `GET /api/branch/remix-reward` 给，
+               App 不抄数；发不发在服务端判，这里只供 `components/recipe/RemixRewardNote` 说那一句话）；
+               `cutProject.ts` = **剪辑工程**：剪辑页时间轴（片段 / 圈选 / 配乐 / 导出档 / 合并留底）与包装层
+               （片段上的字幕 / 配音 / 变速 / 原声 / 闪黑，工程上的片头标题 / 片尾淡出）的数据形状与全部改法，外加
+               **渲染计划**（`timelinePlan`：预览与原生导出照的同一份）与字幕分行分页（`paginateCaption`）；
+               纯函数、零运行时依赖（构建里 `scripts/check-cut-project.mjs` 直接 import 它跑）；运行时那一份（带撤销栈）
+               在 `studio/cutStore.ts`，随 `cutSession.ts` 落盘；配音的合成 / 量时长 / 存本地库在 `studio/cutNarration.ts`，
+               预览那一层（字幕 / 闪黑 / 配音跟着播放头走）在 `components/cut/CutPreviewLayer.tsx`。
+               **指挥层**也落在这个文件里的纯函数上：「✨ 一键成片」= `autoBrief / parseAutoPlan / applyAutoPlan`
+               （调模型在 `studio/cutAutoEdit.ts`，确认卡 `components/cut/AutoEditSheet.tsx`）；「💬 说一句」= `applyCutOps`
+               （句式与模型回话的白名单检查在 `studio/cutGrammar.ts`，构建里 `scripts/check-cut-grammar.mjs` 实跑；
+               调模型 / 算钱 / 说人话在 `studio/cutAgent.ts`，面板 `components/cut/CutAgentSheet.tsx`）；
+               改法被拒时的那句话只有一份 `studio/cutIssues.ts`；
+               `refMentions.ts` = 参考清单的「@ 点名」与临时参考图的规则（认法 / 编译 / 名字 / 系统兜底句），纯函数零依赖，
+               构建里 `scripts/check-ref-mentions.mjs` 实跑；
+               `shotScript.ts` = 分镜表的读写规则（「镜头1：…」怎么认、怎么写回、出片前收空镜头、台词骨架、台词是谁说的、画帧取哪个瞬间），同样零依赖，
+               构建里 `scripts/check-shot-script.mjs` 实跑；
+               `live2dMotionCheck.ts` = Live2D 上传向导第 ⑤ 步试跑那一列 ✓ / ⚠ / 没量到的判定，**唯一实现**（零依赖、只 `import type`；
+               采样在 `live2d/companionModel.probeParams`），构建里 `scripts/check-live2d-motion-check.mjs` 实跑
   hooks/
   mock/        无后端时的假数据
-  pages/       路由页面（hash 路由）；`SupportPage` = AI 客服，`SupportModelsPage` / `SupportPersonasPage` =
+  pages/       路由页面（hash 路由）；`VideoPage` = 作品详情页（/video/:id，2026-10-26 重排，路由经 `VideoRoute` 按 id 重挂）：满宽播放器（`frame="bleed"`，
+               控制条 `components/PlayerControls` 两个播放器共用、外框规矩在 `components/playerFrame`、全屏 `hooks/useImmersive`）→ 弹幕条 → 标题 → 作者条 → 动作条 →
+               评论预览卡（点开 = 首页同一个 `CommentSheet`，「到了没有」问 `videos.commentsStatus`）→ `components/video/RemakeCard`（做你自己的版本，卡里无实心键）
+               → `components/video/RelatedWorks`（进视口才问）→ 吸底栏 `components/video/VideoDock`（全页唯一实心主键「做同款」，`hooks/useRemake` 与首页共用）；
+               来由与量出来的数在 docs/video-detail-redesign-2026-10.md；`WorkshopPage` = 创意工坊第一层 = 市场（/workshop：一个搜索框 + 卡片 / 卡组 / 模板 / 工作流四类，搜索词与筛选都在地址里，
+               不登录也能逛），`WorkshopMinePage` = 第二层「我的仓库」（/workshop/mine：自己的卡片 / 卡组 / 模板 + 三个造卡入口；
+               2026-10-20 主人点名「第一层以市场搜索为主」改的版，两层共用一张卡 `components/workshop/CardTile`）；`RecipePage` = 制作过程（/video/:id/recipe：四档结局 + 分镜 + 选角一屏 + 按配方做同款，
+               共用视图在 `components/recipe/RecipeView`，发布页 / 编辑页的「别人会看到这些」预览也画它）；`SupportPage` = AI 客服，`SupportModelsPage` / `SupportPersonasPage` =
                数字人形象 / 人格市场（/support/models、/support/personas，入口在客服页顶栏那一列小键与设置页）；
                `SupportCreatePage` = 创作中心三扇门（/support/create，那一列小键的第四颗 ✨），
                `SupportModelNewPage` / `SupportPersonaNewPage` = Live2D 上传向导 / 人格制作向导
-               （/support/models/new、/support/personas/new，设计正本 docs/digital-human-creator-center.md §3.5 与 §4.3）
+               （/support/models/new、/support/personas/new，设计正本 docs/digital-human-creator-center.md §3.5 与 §4.3）；
+               `tutor/` = 启梦老师（M4，tutor 仓 docs/06 §6）：`TutorHomePage` 课程列表 + 成人声明（/tutor）、
+               `TutorNewPage` 四步建课向导（/tutor/new，只收 md / txt，PDF / PPTX / DOCX 引导去官网）、
+               `TutorRunPage` 上课（/tutor/run/:id：文字卡按锚点 hash → 引文 → 整页兜底、一轮 SSE、👍👎、自检抽屉、「整理一下」领票）；
+               `useTeacherSpeech` = 老师开口（逐句 TTS + Live2D 舞台，**只对 bundle.companion.enabled 的老师**，判定在服务端 personaAccess 一处，App 只画）、
+               `tutorJobs` = 生成作业的模块级轮询 + data/jobs 领票（向导页只订阅）、`referral` = 落地记一次 ?from= 再抹掉。
+               三页在 `API_ON` 为假时整页「需要联网」，一个 IndexedDB 键都不碰（教学记录是服务端真相）
   studio/      创作/工坊相关
+  tutor/shared/ 与 tutor 仓 / server / 官网**同一份**的切块 + 块 hash 纯函数（verbatim 拷贝，改规则只改 tutor 仓再原样复制；
+               `.d.ts` 每条带 `declare`——构建里的 lingui extract 用 Babel 扫 .d.ts，裸声明会当语法错；README 在目录里）
   utils/
 public/
   create/      创作入口三张封面（角色设定的唯一出处）
@@ -105,10 +156,10 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 
 - **注释写"为什么"**，尤其是踩过的坑、量出来的数值、被推翻过的做法。既有代码用
   `★` 标记关键取舍，请延续。
-- **依赖方向单向**：`data → store → 组件`。工坊与工作流之间也是单向的：
+- **依赖方向单向**（构建里 `scripts/check-import-direction.mjs` 实跑，2026-10-15）：`data → store → 组件`。工坊与工作流之间也是单向的：
   `studioStore` 认识 `flowStore`，反过来**绝不**——两个 store 互相 import，Vite 下会
   拿到半初始化的模块。需要同时读写两边的逻辑（存草稿、法阵铺流水线）一律放 `studioStore`
-  或页面组件里。
+  或页面组件里。规则④（2026-10-15 同日装进脚本）：pages / components 不直接 import `@capacitor/*`，原生能力从 utils / data 借（`utils/nativeMerge.nativeFileSrc`、`utils/openExternal.onBrowserFinished` 就是为此抽的）。
 - **流水线只有一份**（2026-08-30 主人点名"两个模式的节点数据是同一份"）：节点数据的
   唯一真相是 `flowStore.nodes`，工坊桌面/投影窗与工作流画布是它的两个**面**——工坊侧
   不再自持 NodeSlot 树（该类型只活在存量草稿正文里，openWorkDraft 经 `flowFromRoot`
@@ -133,6 +184,128 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   `frames` 只在经典那条路上被 set，白模路上恒空，出卡的分支与它那行报价永远为假。`real.extractTemplateCards` 与
   `economy.blockoutCardsCost` 已随之删掉（全仓零调用方）。真要给白模模板配素材卡是**新功能**（得先给模板存一个原片指针），不是把这段改回来。
   全文见 docs/card-roles-v3-design.md。
+  **每种卡的文字只写自己负责的那一部分**（2026-09-18 主人点名，口径只在 `ai/cardScope`）：所有写卡片文字的提示词（自传图做卡片的 AI 车道、
+  拍照识别、铸卡师、组稿提卡、模板提卡）都拼这份分工表 —— 人物卡只写这个人本身（长相、发型、体型、服装与佩戴的饰物），不写动作、
+  手里的东西、地点背景、画风；场景卡不写人；道具卡不写谁拿着、在哪；风格卡不写具体内容。**简介（summary）不进任何出片 / 推演 /
+  画卡面 / 提卡组提示词**（背景卡除外：它的简介就是故事），没写出片句的卡只报卡名（`types.idLineOf`），出片句也不再带名字—— 原来兜底「名字：简介前 40 字」，
+  AI 照着照片写的「窝在房间里握着手柄」就成了每一段都要画出手柄和房间的硬约束。
+- **模板对出片模型是硬要求，口径只有一处**（2026-10-02 主人拍板，全文 docs/template-workflow-research.md §三 B 与「P0 落地记录」）：
+  「这个模板能在哪几个出片模型上跑」只问 `data/templates.templateTiers` —— 白模模板恰好一档（`economy.blockoutTier`，今天是电影级 /
+  Seedance 2.5；判据是档位表的 `blockoutOk`，2026-10-05 与 `refVid` 拆开 —— 高清能带参考视频、跑不了白模模板），经典配方 = 不限（它存的 `recipe.videoTier` 是提取器写死的默认值、**不是事实**，别拿它固定档位）。货架那颗「出片模型」
+  筛选（`templateRunsOn`，只在市场页签生效、写进地址栏 `?model=`）、卡面与详情页的标注、套用时把档位钉在哪（flowStore 三个套用入口）
+  读的都是这一份。**不给「解除固定」的出口**：换到别的模型不是效果差一点，是出不了片 —— 用户该做的是按自己能用的模型挑模板。
+  套餐用不了那一档时在**选模板那一步**就说（`templatePlanIssue` = `templateTiers` + `account.tierBlockReason`；货架「用它出片」领去详情页、
+  详情页出片键灰掉并给「去升级」），别等人挂完卡点了生成才第一次听说。卡这一侧的同一条口径在 `data/cardFit`（卡片页「按模型适配」那一格
+  与卡组页的摘要读同一份状态，页面只负责说成句子；2026-10-26 起**按具体模型**算、只读档位表能力位 startOnly / refImg / assetRef / realFace，
+  零依赖，构建里 `check-card-fit.mjs` 拿真表实跑；写哪几个模型、写不写名字见下面「出片地区」⑥）。
+- **境内同一档两家可选（Seedance / MiniMax H3）**（2026-10-26 出片地区 P2b）：芯片按 family 并成一颗，两家都给得出时只摆这个人选的那一家 ——
+  摆不摆只问 `account.tierListed`（`tierOffered` 之上收一道，**只管摆不摆、不管能不能用**：节点上挂着的另一家照样能出片，门禁仍问 `tierBlockReason`），
+  换家只问 `account.tierOfPreferred`，偏好只在 `data/videoProvider`（按账号、本机、默认 Seedance），选择器只有 `components/flow/ProviderSwitch` 一份
+  （境内第一次选 MiniMax 先确认：照片和提示词交给境外服务器处理）。新写一排档位芯片时用 `tierListed` 筛、挂 ProviderSwitch，别再写 `filter(tierOffered)`。
+- **白模模板的神态句**（2026-10-26 方案 D，付费读数 docs/blockout-expression-2026-10-26.md）：服务端（#133）在白模化看帧时顺带记下每个人的神态 `markExprs`（与 markSlots 对齐），
+  套用时在 ≤ 3 个角色位的模板上按卡名写一句「神态：A先…；B先…。」。规则只在零依赖的 `data/blockoutExpr`（`check-blockout-expr.mjs` 实跑，写法逐字照付费验过的那一句）；
+  取值只有 `templates.markExprOfLabel`、`BlockoutCastSlot.expr` 必填；括号描述先定、神态句后定（放不下整句不写），排在作者那句话之后、「不要出现字幕」之前；
+  字段四处一起搬，重新认人时跟着清（与 markDescs 方向相反：留着旧的就是把 A 的神态安在 B 身上）。**没有 markExprs 时套用提示词逐字节不变。**
+- **文字模板（只用文字 + 封面做模板）**（2026-10-26 主人点名，P1 = App 本机版，设计正本与付费读数 docs/text-template-design-2026-10-26.md）。四条规矩：
+  ① **「是哪一种模板」只问 `data/templates.templateKindOf`**（blockout / text / classic）：文字模板也没有 refVideo，按老写法 `!t.refVideo` 当经典会铺成简约模式、档位标「不限」、发布只翻本机布尔；
+  ② 规则全在零依赖的 `data/textTemplate`（体检 / 一键改 / 时间轴改镜头 / 内容规则 / 这一档跑不跑得了 `textTplTierMiss`）与 `refMentions`（图位怎么认、改写成 `@名字`、缺哪几张 `slotGaps`），构建里 `check-text-template.mjs` 实跑；
+  作者那一屏 `components/TextTemplateSheet` 一条规则都不判；③ 套用落成一段参考图直出段（`flowStore.textTplAppendSpec`，报价 `textTplQuote` = 真扣），出片前差什么只问 `textTplIssue`（`TextTplBanner` 摆的是同一句），
+  做法锁 `textTplLaneLocked`、摘出处只走 `detachTextTpl`，图位的图名字锁住、换图只走 `replaceExtraRefUrl`（先删再加会把正文里的 @名字 退成普通文字）；
+  ④ 正文**不随作品外流**（`VideoSegment.fromTextTpl` 只在本机，发布前 `videos.stripLocalOnly` 拿掉）；P1 只存本机、不登记，没登录不许存（本机模板库按人分开）。上市场是 P2（服务端 + 人工预审，等「合」）。
+- **免费档限制 / 「草稿」档 / 电影级「样片」/ 失败退回 token**（2026-10-07 主人拍板，契约见 docs/api-contract.md「视频档位」「纯任务的参数钉子、样片两步、停用」
+  「受理之后失败的退款」）。六条规矩：
+  ① **档位的能力 / 价目 / 分辨率只在 `data/videoTierTable`**（零依赖，构建里 `check-video-tiers.mjs` 核对，服务端 `config/tokens.js` 逐条相等）。
+  「草稿」与「高清」是**同一个模型**（2.0 mini），只差分辨率（480p / 720p）与谁能用 —— 一律按 **(模型, 分辨率)** 认（`economy.tierIdOf` / `tierModelLabel`），
+  480p / 1080p 的价按官方像素表 × 画幅（`perSecTokens`，画幅缺省按最贵一格），720p 照旧 21,600。
+  界面上说「出片模型叫什么」**只走 account 那一组**（`tierShownModel` / `tierShownModelId` / `videoModelsLead` / `videoModelsNames` / `voiceModelsNames` / `refImgModelsNames`，配方里记着的模型走 `recordedModelName`）——
+  它们按地区写（地区不知道时只写档位名、这个地区给不出的那一家不写），见下面「出片地区」⑥；`economy.tierModelLabel` / `tierModelId` / `modelLabel` 只在 `check-tier-semantics` 的 `[model-name]` 白名单里调。
+  名字的**推导**只在 `videoTierTable.modelLabel`（2026-10-26 起认得 MiniMax 的 id —— 原来「真人」档把 `MiniMax-Hailuo-2.3-Fast` 原样印在屏上），`check-video-tiers.mjs` 核对档位表里每个模型都认得出。
+  ② **谁能用哪一档只问 `account.tierBlockReason`**：免费档白名单（`account.tierFreeOk`：健康端点报了 `freeVideo` / `freeVideoGate` 就照服务端，
+  没报按档位表的 `freeOk` —— 运维关掉 `FREE_VIDEO_GATE` 时新 App 跟着放开）+ 付过钱（套餐价 > 0 **或** 钱包回包顶层的 `paid`）+ 停用（极速 / 标准 2026-11-24 13:00）
+  + 服务端能力位（`data/serverCaps` 一处探测、`capsOf` 一处解析）；默认档 `account.defaultTierId`；抄别人的档换不了就换**能力最接近**的（`usableTierId`：高清 → 草稿）。
+  会员档并成一句 + 共用的「去升级」（`components/UpgradeLink`）。「换到哪一档就有」的句子一律从 `account.tierGo` / `tierNamesFor` 取（先说用得了的）——
+  真人卡那几句（`account.realFaceIssue`，2026-10-07 从 economy 搬过来）也是：economy 是纯目录、不认识套餐，原来把免费用户指去点不动的「真人」档。
+  ③ **样片两步**：段上一个开关（`FlowNode.draftFirst`，写只走 `setDraftFirst`）；真走不走只问 `flowStore.nodeDraftOn`（报价 nodeCost / segmentCost 的必填 `draft` 与 genNode 读同一个）；
+  定稿 = `genNode(id, { finalizeDraft })`，门禁 `draftFinalIssue`、报价 `draftFinalQuote`；契约 mode `draft` / `draftFinal`（genModeOf / validateGenSpec / videoTokensOfSpec 一处）。
+  「现在放的是样片 / 成片」按地址现算（`draftStageOf`），**别存一个 stage 字段**（还原上一版 / 返修都会换掉现在放的那一条）。界面只有一份 `components/flow/DraftModeBox`（两面都挂）。
+  1080p 是 10 bit H.265：模拟器 WebView 只有声音、解不出画面（10-07 付费实测），服务端转存时转成 8 bit H.264（server `videoAsset.uploadVideoBuffer`）；转好之前放的是方舟直链，按钮旁照实说。
+  ④ **受理之后上游明说失败（方舟 failed / cancelled / expired、真人档 Fail）的那一发由服务端退回** —— App 侧只认类型：`arkClient.ArkTaskFailed`（带服务端在回包上说的 `refund`），
+  composeSegments / settleSegment **原样**带着失败对象（外面包 `SegmentGenFailed` = 失败的是视频那一发 + 出片前已结算的画面张数；`ArkTaskUnknown` 永不包）。出片前某张画面（圈选改帧 / 补画设定帧）失败也包这一层、`failedCall: "image"`（钱上按出图说「已经画好的 N 张 + 失败的这一张」）；这一次补画好的设定帧随错误带出去（`kept`），genNode 写回方案（不上锁），重试不再重画、不再收图钱；离线账本按张记上它们（张数只从 `arkClient.keptFrameCount` 取，`failCharge` 离线时说的「已按张计费」数的是同一个）。
+  钱上那句话只走 `ai/failCharge`（`taskFailed`：退了 / 会退 / 服务端没说三档；出片前的画面按张单说）。**从不**自己往钱包镜像上加退款（只刷一次钱包）。
+  ⑤ 退了钱的取回凭据当场结案（`flowStore.takeJob`），取回卡那句话改用轻提示（卡当场就卸载了）；段上 genNode 留下的「没接到 · 用下面的取回」
+  在取回卡第一次认出「退了钱」时就改成「没出成」（`flowStore.settleRefundedPending`，与 takeJob 结案共用）；返修的取回照凭据上的 `reviseAudio`
+  记进有声 / 无声名单（`flowStore.reviseAudioPatch`，当场写回 / 落回原位 / 新开一段三处共用）；说「钱无法挽回」之前先问 `GET /api/ark/task-charges/:id`
+  （`videoJobs.checkVideoJobCharge`，清扫器可能早就退过了；404 `NOT_FOUND` = 没有这一笔账、不会退，`lost` = 交人工、不会自动退）；许诺「万一没出成会自动退回」
+  只在能力位为真时，**按供应商分开问**（方舟 `failRefund`，真人档 `failRefundMinimax` = 健康端点的 `minimaxFailRefund`）。站内通知 `GEN_TASK_REFUND` 点进去开钱包。
+  ⑥ **样片第一步只走参考图那一种请求**：帧转参考图失败时普通出片退回首尾帧，而 2.5 的首尾帧任务只收 `ratio: "adaptive"`，服务端按 480p 那一行最贵的一格结算 ——
+  样片那一发在花钱之前整句拒（`segmentGen` 的样片闸，`arkClient` 另有一道协议断言），报价才等于实扣；拒之前补画好的帧照 ④ 留在方案上，再点一次只重传、不重画。契约核对那句在远端模式说「以服务器结算为准」（钱不按本机报价扣）。
+- **出片地区：App 只照服务端下发的 `providers` 摆档，不自己按国家判**（2026-10-26 出片地区 P1，主人「海外由于政策原因只能用 MiniMax」；契约见 docs/api-contract.md「出片地区」，服务端 server#131）。六条规矩：
+  ① 「这台设备此刻能用哪几家出片」只有 `data/videoZone` 一处（`GET /api/video/zone`，健康端点报了 `videoZone` 能力位才问、no-store）；判「这一家给不给」只走 `zoneDenies`。
+  规则（回包怎么读、403 怎么记、「不知道」不拦、措辞挑哪种）在零依赖的 `data/videoZoneRules`，构建里 `check-video-zone.mjs` 实跑；「有没有服务端那一层」只问 `serverCaps.noServerLayer`。
+  **不拿 `gate` 决定藏不藏、不认国家名单**：服务端 observe 时 providers 照样带着方舟，App 照样摆；切 `off` 急停下一次问到就全摆回来 —— App 另判一遍就是两把尺。
+  `gate` 只挑措辞（`zoneIsRegional`）：off / observe 时 providers 是「这台服务器接上了哪几家」，缺的那一家说成「这台服务器没接上」，不说成地区（P1 审核）。
+  ② **地区不知道 = 照今天的样子摆**（老服务端 / dev 直连 / 离线 / 还没问到）：不藏档、不改写节点上的档位、句子里不写供应商名；「问不到」绝不当「境内」也不当「海外」。
+  问到之后再问不到沿用这一场会话上一次的结论，**不跨会话落盘**（冷启动拿旧缓存藏档 / 改写节点，与「问慢半拍当海外」是同一个事故形状）。
+  ③ 这个地区不给的档进 `account.tierOffIssue` 的地区那一支（`tierRegionIssue`，排在停用之后、服务端不支持之前）：不摆、灰着说为什么、抄来的档换掉，
+  默认档链落不下时退到这个地区摆得出来的第一档（`defaultTierId`）；档位那一排下面那句只有 `regionTiersLine`。凡是按「摆不出来」分原因说话的地方
+  （`flowStore.tierSwapNote`、剪辑页重拍）都要先问地区这一种，不然会说成「服务器还不支持」。话里只写这个地区**给得出的**供应商名。
+  **出路只指做得了这件事的档**（P1 审核）：要特定能力的调用方传 `tierBlockReason(tier, need)`（白模模板 blockoutOk、重拍 refVid、延长 extendOk、样片 draftOk、定稿 `() => false`），
+  缺省也**不往只认一张起拍画面的档（startOnly，真人档）上指**；抄来的档同理（`usableTierId` 找不到近邻时留着原档、由 `flowStore.tierCopyNote` 说一句，不落到「真人」）。
+  **「去升级」只在 `account.tierPlanBlocked`（摆得出来、只是套餐挡着）时画**：付钱治不了地区（模板用 `templatePlanUpgradeable`、样片用 `draftModeUpgradeable`）。
+  **「换到哪一档就有」有三种结局**（终审，规则 `videoZoneRules.tierGoOf`，`check-video-zone` 拿真表 + providers `["minimax"]` 实跑）：`account.tierGo` / `tierNamesFor` 回 **null** =
+  摆得出来的档里一档都做不了这件事（门禁开着的海外只剩「真人」档时，收参考图 / 出声 / 延长 / 参考视频 / 声音样本 / 认证素材全是这样）——
+  说 `account.noTierLine(能力)`（地区 / 这台服务器两种措辞），不写「换到「」」、不写「会员档」、不给「去升级」；原来回两串空名字，句子里印一对空引号还把地区说成套餐。
+  ④ 服务端 403 `REGION_UNAVAILABLE` 认 `code` 不认 message（那句是英中并排、给老 App 兜底的）：`arkClient.ArkRegionDenied`（带 `billed`）、话在 `account.regionDeniedLine`，
+  钱只走 `ai/failCharge`（照回包 `billed`；没扣的那一句「这一发没有受理，也没有扣费」也在那里 —— 终审从 message 里挪出去：剪辑页按 110 字、genNode 按 240 字截原因时，
+  英文的长国名会把它整个截掉）。`ArkRegionDenied.message` 是长度有界的整句，展示原因时**不截**（同 `ArkTaskFailed.reason`）；白模化在 `api/branch.blockoutPost` 按 `billed` 两句各说。收到就把回包里的地区记下并重问（`noteRegionDenied`）。
+  ⑤ 门禁只拦视频那一发，出片前补画的帧 / 推演各自先结算：**花第一笔钱之前现问一次地区再重判**（`refreshVideoZone`：genNode / deriveProposals / 工坊 generateNode / 剪辑页按圈选重做，
+  排在「打上 generating」之后、第一笔钱之前 —— 工坊受理即收窗、画布 agent 的回执都认「genNode 第一个 await 之前就打上 generating」；拒了就原样退回状态、原因写 err）。
+  **同步看状态的宿主自己先问**再调（工坊 `genNodeVideo`、画布 agent 执行推演 / 出片之前）：它们 await 完再调，genNode 的同步门禁就拿到新地区、在打上 generating 之前拒；
+  `genStarted`（画布「提交即收窗」）排在地区那一道之后。**反方向**（旧结论说被拦、其实已经能用了）：同步门禁拿地区拒之前先 `account.tierRegionRecheck`，
+  结论变了从头再判一遍（genNode / deriveProposals / generateNode 三处；其余花钱的门禁顺手 `void` 一次，下一次点就用上新结论）。
+  其余「先付图钱 / 对话钱、视频最后才出」的入口走 `account.tierRegionGate(档, need)`（现问 + 按问到的那份判，两个方向一次管住；终审补）：
+  改帧 `editFrame`、重画（`flowStore.regenProposal` / 工坊 `regenProposal`）、合成预览、导演台融图，以及三个跟着做向导的每一笔
+  （九宫格写分镜 / 出一组画面 / 单格重画、对话正反打写对白 / 画机位 / 单张重画、特效同款画关键帧、主角定妆拆镜头 —— 向导把挑的 `tierId` 传进 store 函数）。
+  「现做一个主角」不问：画出来的是收进卡片库的卡，与自建卡同一个口径。接着等上一组组图不问（那一组付过钱）。
+  向导落段 `appendSpecs(specs, { tierGate: false })`（同 appendNode 的先例）：落的是付过钱的画面，不拿档位门禁拒，出片那一拍 genNode 照样拦并说清楚。
+  新加一条「先花钱、后出视频」的入口也要接这一步。地区那句（`ArkRegionDenied`）自带句号，接在「：」后面再补「。」的地方先过 `arkClient.reasonClause`。
+  ⑥ **说「哪个出片模型」只走 `account.offeredVideoModels` 那一组**（2026-10-26 主人第 2 件：卡片信息写具体模型名，「卡片信息」包括模板卡）：卡片页「按模型适配」、
+  卡组页摘要、模板货架（卡面角标 / 「出片模型」筛选 / 筛空了那句）、模板详情「出片模型」那一行、画布 / 工坊的选模板抽屉；同一天审核之后创作界面也收进来了 ——
+  选法屏「这一段交给 … 生成」、本段设置「本段模型」、工坊铸段窗「模型：」、白模化报价、档位按钮的 title（`tierShownModelId`），以及卡片页的声音说明
+  （`voiceModelsNames`）、形象参考的取舍规则（`refImgModelsNames`）。地区问到了 → 按家分组（`providerGroupName`）、行首写具体模型名
+  （`videoModelsLead` / `videoModelsNames`、单档 `tierShownModel`），只列 `offeredTiers` 给得出的（地区已在 tierOffIssue 里筛过，这里**不另读地区**）；
+  **地区不知道时只写档位名、不写 Seedance / MiniMax 字样**（美国的机器第一次打开不先看到 Seedance；创作界面上写不出模型名的那一行整行不摆）。
+  构建里 `check-tier-semantics` 的 `[model-name]` 钉着：`economy.tierModelLabel` / `tierModelId` 与 `modelLabel` 只在白名单里的函数调用
+  （取名函数本身、出图模型、今天走不到的「报不出价」那一支；放行标记 `model-name-ok: 理由`）。配方里记着的作者当时用的模型（制作过程页「当时的模型」）
+  也按地区写：`account.recordedModelName`（哪一家只问 `videoTierTable.providerOfModel`；地区不知道 / 这个地区给不出时写「当时用的是另一个出片模型」，终审补）。
+  卡片页其余点名供应商的句子也收了（终审）：自建卡「照片里有人」那句走 `refImgModelsNames`（一个都没有时不说）、形象图上限那句不再写「方舟建议」。
+  卡片页那两个勾选框随之改名：「文字版形象描述（… 用）」「起拍画面（… 用）」（后者 2026-10-26 之前叫「真人档适用」），括号里写读它的模型
+  （按 cardInput：只经由帧 / 只认起拍画面），一个都不剩时换一句不点名的。「火山引擎适用」摆不摆只问 `account.volcEntryState`（判据在 VolcCompatToggle 里，
+  三个宿主不各加闸）：现在能用的模型一个都不收认证素材时，没认证过的卡不摆、**认证过的照样摆着好取消**（撤回授权不能被地区挡住）。
+  白模模板在这个地区跑不了时卡面角标换成「你所在的地区用不了」（门禁没开时说「这台服务器用不了」），不写它要的那个模型。
+  ⚠ 还没收进来的：`realFaceIssue` 里「这一档收认证素材、卡还没勾」那一支（tier.assetRef 为真）指向「火山引擎适用」—— 海外门禁开着时只在段停在这个地区给不出的档上才会出现，
+  那时会指向一个不摆的勾选框（地区那一句由 tierBlockReason 先说）；P2b 接 MiniMax H3 时要跟着改。最后一支「换收认证素材的档」在一档都没有时已经不说（终审）。
+- **方舟第十批下线（2026-11-24 14:00）的 App 这一半**（2026-10-10 主人拍板，2.63；契约见 docs/api-contract.md「出图模型下线与改发」「请求头 X-App-Version」，
+  强制更新见 docs/app-distribution.md「强制更新」）。五条规矩：
+  ① **出图型号只认价目表里那两个**（`economy.IMAGE_TOKENS_BY_MODEL`：速写 = `doubao-seedream-4-0-20260415`（4.0 的继任，13,333，沿用 4.0 的价、待账单核）、
+  精绘 = 5.0 pro）。非铸卡路径（帧 / 推演 / 九宫格组图 / 封面…）跟着默认档走（`arkClient.MODELS.image`）。构建里 `check-image-tiers.mjs` 钉着价目表、
+  档位都有价、默认档能出组图（`ImageTier.groupOk`，5.0 pro 出不了；`runImageGroup` 发之前问 `economy.imageGroupOk`），并扫 src 的代码里有没有停用的出图型号。
+  ② **「定妆」（`studio`，4.5）撤了**：老卡上的 `imageTier: "studio"` 原样留着，`imageTierOf` 落到默认档；B「现做一个主角」改用精绘（`leadCast.LEAD_IMAGE_TIER`，
+  报价 / 余额门 / 出图 / 结算都读它）。老 App 发来的老型号由**服务端在出口改发**，App 什么都不用做。
+  ③ **出图被拒说人话**：`/images/generations` 与组图受理的非 2xx 走 `arkClient.imageRefusalError`（`ArkImageRefused`，模型用不了是子类 `ArkImageModelGone`，
+  判据只在 `modelGoneCode`；服务端白名单那句 `model not allowed` **不带码**、是现行形态，别把判据收拾成只认码）—— 仍是 `ArkHttpError`，钱上的判定不变；
+  推演那一处只有方舟明说是**输入的图**不过才说「参考图未被受理」，模型用不了就不重试；一张都没画成时**剧情照交**（那一发对话付过钱），
+  原因经 `generateProposals` 的 `onFramesGone` 交给两个调用方说在推演结果旁边（别改回整句抛：抛在计费之后、丢掉付过钱的剧情）。
+  ④ **`X-App-Version: <versionName>+<versionCode>`** 只给 `${API_BASE}/api/…`（判定只在 `api/client.withAppVersion`）。值是**装着的那一包**：
+  开机时问原生（`api/appVersion`，main.tsx 在加载 App 之前并排等它，debug 包带 `-debug`），问不到才用 vite.config 烤进来的 `__APP_VERSION__`（build.gradle defaultConfig）。
+  服务端**只记日志**、不拿它做任何判断（客户端写的、能伪造；改发与结算认请求体里的模型 id）—— 别指望靠它拦老包。
+  新写一个打自家服务器的裸 fetch 要过它；第三方与 `/uploads/…`（那层 CORS 只放行 Content-Type）一律不带。服务端 CORS 先放行这个头，再发带它的包。
+  ⑤ **强制更新**只有 `appUpdate.isMandatory` 一个判据（原生 `check` 回的 `mandatory`；debug 包永远不强制 —— 它更新装的是另一个包名）；
+  弹层只由 App 根上的 `UpdateGate` 画（设置页查到的也经 `raiseForcedUpdate` 交过去，画在设置页里返回键能把它退掉），关不掉但永远留着
+  「重试」+「官网下载页」+「GitHub 上的同一个包」（官网那条拉的是同一个镜像，镜像坏了只有 GitHub 那条是另一个源）；
+  发版脚本只在显式 `--min-version-code` 时写新门槛、只能往上拧，认不出的参数当场停。
+  ⑥ **更新失败只回码，话在 Web 侧说**（2026-10-19）：原生 `AppUpdaterPlugin` 的每个失败分支只回 `UpdateError` 的码（TIMEOUT / OFFLINE / STORAGE / CHECKSUM / PACKAGE_GONE / INSTALLER …）+ `data.received`，
+  一句话都不拼（原来把异常原话「timeout」拼在中文前面直接上屏）；话只在 `data/appUpdate.updateFailText`，按界面语言说，认不出的码原样显示（老原生插件的退路）。
 - **方案有结构化镜头字段**（`types.ShotSpec`：景别 / 运镜 / 情绪节拍，2026-09-06 对标 updream 分镜 Skill）：推演按字段写、
   `segmentGen.shotPrefix` 把它拼在正文最前、方案台显示、发布时折进 `VideoSegment.plot`。**一段出片的生成契约**是
   `real.GenSpec`（composeSegments 的入参），提交前 `describeGenSpec` 写一行「生成契约 · 模式 · 档 · 画幅 · 时长 · 参考图 N」进步骤日志——
@@ -144,7 +317,8 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   （`FlowNode.castPreview`，`flowStore.makeCastPreview`，两面共用 `components/flow/CastPreviewCard`）：只是可审核的中间物，
   **绝不写进 firstFrame**（blockoutIssue 会整句拒），换模板 / 改挂法时作废。**返修**（`genNode(id, { revise })`）是同一条
   出片路的一个可选项：本段成片当参考视频走 edit、`REVISE_TAIL` 代替白模的换人句、不要求挂人物卡；门禁 / 计费 / 凭据 / 写回
-  与正常出片一份实现，只留最近一版（`Proposal.prevVideoUrl`）可还原。**导演台**（`studio/stage/`，2026-09-06 对标 LibTV）：
+  与正常出片一份实现，只留最近一版（`Proposal.prevVideoUrl`）可还原。2026-10-05 起返修**出声**（`arkClient.REVISE_TASK`，白模照旧 `BLOCKOUT_TASK` 不出声）、
+  可以只改其中几秒（`segmentGen.revisePlotOf`），界面在「修这一段」那一栏（见下面「跟着做」的 ⑪）。**导演台**（`studio/stage/`，2026-09-06 对标 LibTV）：
   投影窗 / 画布上「🎬 导演台」开一层自己的 `<Canvas>`（不碰 TableScene 那台演出用相机；`preserveDrawingBuffer` 不开截图是黑的），
   摆灰人偶、拧机位；截图**不直接**当出片输入（人偶会被原样画进去）—— `flowStore.applyStageShot` 拿它与人物卡 / 场景卡走
   `real.fuseStageFrame`（导演台专用提示词，**别借 fuseFrame 的外壳**：那句"与各参考图人物一致"会把人偶当人物，实测画出塑料人偶 +
@@ -173,6 +347,87 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   原生打不开）。成片时长**由合成器给**（`ExportResult`），不再自己解码去量。
   ⚠ 浏览器（`npm run dev`）里没有这个插件，合并会整句拒 —— 意味着**合并这条路只能装机验**，别指望浏览器。
   ⚠ 原生只做**机制**，标识盖不盖、盖多久是**政策**，在 `data/aigcLabel` 一处（下一条）。
+- **剪辑页用户可见的那件事叫「合成」**（2026-10-15 拍板，krug-copy-ia-1）：主键「合成并去发布」、「取消合成 / 合成失败 / 已取消合成 / 正在合成成片」；配音那几句不叫合成（正在配音 / 配音好了 / 没做成），CastPreviewCard 的「合成中…」是另一个 msgid；代码注释、本文件与 cutProject 里的「合并」是内部叫法，不改；英文一律 merge。
+- **剪辑页的时间轴是一份「剪辑工程」，不是页面的 useState**（2026-09-30，方案见 docs/cut-autoedit-research.md）：
+  片段（裁剪 / 分割 / 顺序）、圈选、配乐、导出档位都在 `data/cutProject` 的 `CutProject` 里，**改法只有那里的纯函数**
+  （手点的与之后「对剪辑台说话」办的走同一批，改不成回原因代码、话由剪辑页说），运行时在 `studio/cutStore`（带撤销 / 重做），
+  随剪辑稿落盘（`saveCutSession` 的第三参必填）。离开剪辑页再回来、App 重启后「接着剪」，时间轴都原样还在。四条规矩：
+  ① **生命周期照 `draftAudioHint`**：产出新稿子的每一处都要 `useCut.getState().load(…)`（组稿 / 单段编辑 / 个人页「接着剪」），
+  漏了由 `cutStore.ensure` 按源段指纹（`segSig`）兜底 —— 对不上就按眼前的稿子重开一份；
+  ② **合并是先留底、再换稿子**：`markMerged` 把源段存进工程，之后才把 `draft.segments` 换成单段成片；「回去改」只有
+  `studioStore.reopenCut` 一处（剪辑页横幅与发布页那颗键都调它）。源段任何时刻只在一处（没合 → `draft.segments`，合了 →
+  `project.merged.sources`）。顺序反过来的话，剪辑页那个「对一下工程」的 effect 会把工程当成别人的丢掉；
+  ③ **片段的出点缺省 = 片尾**（`CutClip.end?`），裁过的出点**不拿长度去截**：`lens` 在真实时长量出来之前是申报值，
+  收拾越界片段只认量出来的长度（`sanitizeClips(realLens)`，没量过的那一格一个都不动）；
+  ④ 撤销栈在**圈选重拍落地**时清空（栈里的快照还带着已经兑现的圈选，撤回去就能对着改好的画面再收一遍钱）；合并 / 回去改
+  不清 —— 导出档位与合并留底不归快照管（`cutStore.carryOver`），撤销一步裁剪不会顺手把留底撤没。撤销栈只活在内存里，
+  所以另有一条**不靠撤销**的路把删掉的段加回来（`missingSegs` / `restoreSeg`，时间轴下那排「＋ 段N」）：时间轴落盘之后删段是持久的，
+  而每一段都是花钱炼出来的，不能让它在界面上彻底够不着。
+  本地挑的配乐存进本地库（`cutbgm:` 键，`cacheSweep` 认它），工程里只记指针；`blob:` 地址活不过重启，读回来会被丢掉。
+- **包装层（字幕 / 配音 / 变速 / 原声音量 / 闪黑 / 片头标题 / 片尾淡出）：一份计划，两个渲染器**（2026-09-30，
+  docs/cut-autoedit-research.md 的 P1）。东西都**挂在片段上**（`CutClip.speed / volume / fade / line`，工程上只有
+  `title / capOff / voiceId / endFade`）—— 片段被裁、被挪、被删，它们跟着走。六条规矩：
+  ① **「哪一秒出什么」只在 `cutProject.timelinePlan` 一处算**：每个片段在成片里的起止、字幕的分页与断行
+  （`paginateCaption`）、每句配音从第几秒念、闪黑多长、配乐压到几成。剪辑页的预览（`CutPreviewLayer`：DOM 叠层 +
+  `playbackRate` + `<audio>`）与导出（`compileTimeline` → `utils/nativeMerge` → `VideoMergePlugin`）是两个渲染器，照的是
+  同一份 —— 在任何一边另算一遍，预览里对的东西合出来就是另一个样子。原生那边只收「已经断好的行 + 成片时间轴上的绝对秒 +
+  几个版式比例」，一个决定都不做（同显式标识那条：机制在原生、政策在 Web）；
+  ② **时间按成片时间轴给**：模拟器上量过，每段效果链拿到的时间戳是成片全局时间，裁过头、变速过的片段也一样。
+  所以片段的时长必须靠得住 —— `plan.exact`（每一段的长度都量过，或者出点是人裁的）为假时**不做闪黑与片尾收声**
+  （淡出落在片段中间，画面黑下去就亮不回来），合并那一拍会先把没量过的段量出来（`probeDuration`）；
+  「量过」要记下来，哪怕量到的数与申报值一样（`CutPage.learnRealDur`）；
+  ③ **字幕摆哪儿是量出来的**（`captionLayout` 头上记着量法）：竖屏片在首页是 cover（左右各裁 10%）、右侧操作栏与左下
+  信息块各占一块 ⇒ 竖屏基线离底 28%、一行最宽 58%；动了首页底缘 / 右侧栏的几何，这里要跟着重量；
+  ④ **配音**（`studio/cutNarration.synthLine`）：一段一句、长度按这一段念得完的量封顶（`lineUnits` / `lineCap`：
+  汉字一个算 1、字母一个算 0.4），**把关在合成那一发之前** —— 配音不向用户收 token（主人 09-30 定：免费 + 限量），
+  但按字符计费是平台的真成本。★★ **免费是服务端说了算**：`/api/tts` 从 2026-09-25 起按字扣钱，只有带 `purpose: "cut-narration"`
+  （`cutNarration.NARRATION_PURPOSE`）的一句走免费额度（每个账号每天几个字，服务端定，`/api/tts/voices` 的 `narrationFree.dailyChars`）。
+  2.58 ~ 2.62 没带这个标记、却写着「现在免费」—— 界面说不要钱、实际扣了，2026-10-08 才补上。所以界面上的「免费」
+  **只在看见那个能力位时才说**（`loadNarration().freeDaily`），老服务端上不提；额度用完是 429 `NARRATION_DAILY_LIMIT`，一批里撞上就停。合成回来的声音先**切掉首尾的静音**再量、再存（`tidy`，判据 `cutProject.voiceBounds`，
+  切过的存成 WAV）：2026-10-01 拿真的语音合成量过，每句头上有 0.18~0.46 秒、尾上有 0~0.54 秒是静的，不切的话声音比
+  字幕晚半秒、每句白占约 0.7 秒。语速的几个数也是那次量的（`TTS_CPS` / `TTS_SPEECH_CPS` / `LATIN_UNIT` 头上记着）。
+  排时间用**量出来的**时长（`TTS_CPS` 只用来封顶）；念不完先提语速、最多重合成一次，
+  还超就由计划把超出多少算出来（`PlanVoice.overSec / lateSec`）、界面标出来，不悄悄截断。字改了 / 音色换了，旧配音
+  **不删**、标成过期（`voiceStale`）；声音存本地库（`cutvoice:` 键，`cacheSweep` 认它）；
+  ⑤ **原声音量缺省是"自动"**（`clipVolume`）：有配音的那一段自动压到 `BED_GAIN`，配乐整条压到 `BGM_DUCK`；
+  人拖过滑杆之后才是一个明确的数。标着「起始值」的那几个常数（`cutProject` 文件头）是按听感调的旋钮，
+  **还没上真机听过**，改只改那一处；
+  ⑥ **改片段范围的地方一律走 `cutProject.ranged`**，别再手写 `{ id, segIndex, start }` —— 那种写法在片段上只有三格时
+  没问题，包装层挂上来之后就是"裁一刀，这一段的字幕和配音没了"，零报错（分割是例外：一句话与「从黑里进来」只留在前一半）。
+  单段编辑（`segEdit`）里不出现包装层：那条路不合成，挂在片段上的东西没有地方落。
+  转场只有「从黑里进来」一种、**默认不加**；接着上一段尾帧拍的接缝（`VideoSegment.carried`，组稿时由
+  `flowStore.nodeContinues` 记）上加会给一句提示 —— `seamContinuous` 是留给一键成片的判据（不知道时不自动加）。
+- **剪辑页的指挥层：「✨ 一键成片」与「💬 说一句」**（2026-10-01，docs/cut-autoedit-research.md 的 P2）。两样都把模型输出当
+  **不可信输入**，落地都只调 `cutProject` 那批改法（手点的、一键的、嘴说的是同一份实现）。八条规矩：
+  ① **三处分工**：听懂一句话在 `studio/cutGrammar`（本地句式中英并联 + 模型回话的白名单检查，零依赖）；落地在
+  `cutProject.applyCutOps`（纯函数，回结构化回执 `CutReceipt` / `CutRefusal`）；调模型、算钱、把回执说成人话在
+  `studio/cutAgent`；写回（一句话只记一步撤销）在 `CutPage.runAgent`。前两处在构建里拿正反例实跑
+  （`check-cut-grammar.mjs` / `check-cut-project.mjs`）—— 改一条正则就去补一句正例、一句反例。一键成片同形：
+  `cutProject.autoBrief / parseAutoPlan / applyAutoPlan` + `studio/cutAutoEdit` + `AutoEditSheet`（那张面板自己就是确认卡）；
+  ② **白名单里没有花钱的操作**：圈选重拍没有对应的操作（模型编不出来），重写旁白只会**打开**一键成片的面板。
+  「说一句」直白的句子本地就办、不花钱，有一截没听懂才问模型（一次对话）；钱花没花只问 `ai/failCharge`；
+  ③ **两种编号别混**：说话认的是**从左数的位置**（「片段 2」= 缩略图左上角亮底的数字）；缩略图上的「段 N」是它出自稿子的
+  第几段。换过序 / 切过 / 删过之后两个数对不上 —— 带"段"字的说法（「第 3 段」）只有两种读法落在同一个片段上才办
+  （`cutProject.segRefClip`），问模型之前也先核对（`cutGrammar.segRefsIn`：模型只认位置，会不声不响地按位置办）；
+  ④ **点名在说话那一刻解析成片段 id**（一句话里先删片段 2、再说片段 3，说的是删之前的第 3 个），回执里的编号也是那一刻的；
+  ⑤ **回执说的是落地的真相**，模型的原话另标「模型说：」。模型回的白名单之外的操作逐条丢、在回执里说出来；人的话里没有
+  "删"的意思而模型回了删片段 → 不办（`cutGrammar.mentionsRemove`）；回话读不出来 / 被截断 → 一件都不办并明说
+  （半截 JSON 里常带着一句"好的，已经……"，别原样摆给人）；
+  ⑥ **等模型回话的那几秒里人可以接着手剪**：落地用回话到的那一刻的工程（`runCutAgent(text, ctxOf)` 的 `ctxOf` 每次现读，
+  所以 CutPage 给它的都是 ref 不是闭包），片段增删 / 换序过就整句不办。撤销 / 重做不与别的改动混在一句里办；
+  ⑦ **按秒下刀的（裁 / 留 / 切）在长度没量出来的片段上不办**（`CutOpsCtx.realLens`：申报 5 秒、实际 20 秒的片子按申报值裁会
+  落在错的地方）；「只留 N 秒」不许把片段放长；秒数是成片里的秒（变速片段要乘速度）；没说倍数的「慢一点」是从现在的速度挪一档；
+  ⑧ **本地句式判错的方向要安全：认不准就不办**（剥词法 `leftover`：命令词之外还剩一截说不清的内容就交给模型档）。
+  否定句靠剩下的那个"不 / 别"挡住；没用引号的字幕 / 标题正文必须有引出它的词（改成 / 叫 / to）——「标题不要了」原来会被写成
+  标题；"去掉 X"两种语序都要认。
+  ★ **两处输出上限是量出来的**（2026-10-01 真模型 127 发，量法与逐项结果在 docs/cut-autoedit-research.md「P2 校准」）：
+  一键成片 3~9 个片段回 89~206 token、24 个片段 851 / 871 ⇒ `AUTO_EDIT_MAX_TOKENS` 2400；说一句常见 19~75、逐个列 12 条
+  操作 171 ⇒ `AGENT_MAX_TOKENS` 1000、`CUT_OPS_MAX` 48（24 个片段各办两件事）。改提示词之后要**重量**：这两份提示词是照着
+  实测里翻错的句子一条条补出来的（没点名时"开头"指谁、"之间加转场"给谁、倍数相对谁、能不能自己写标题），删掉哪一句
+  都会让对应的那类话重新翻错，而构建里的检查测不到模型。
+  ⚠ 模型那边三件事要由**代码**兜着，别指望提示词：① 用哪种语言写由清单第一行明说（`cutProject.briefLang`）——提示词是
+  中文的，画面描述是英文时它照样写中文；② 数组偶尔被写成**一个对象里重复的键**（合法 JSON、`JSON.parse` 只留最后一对）——
+  旁白按原文捞回（`linePairs`），操作整句不认；③ 它数不准"字母 × 0.4"，英文的上限给单词数（`capWords`）。
 - **AI 生成标识分两顶帽子，都要戴**（2026-09-07 逐条查证，出处见 `data/aigcLabel` 头部）：
   ① **生成侧**（《标识办法》第四条第一款第（四）项）：「在视频**起始画面**和视频**播放周边**的适当位置添加
   显著的提示标识，**可以**在视频末尾和中间适当位置添加」—— 应当的只有那两处，**视频这一项没有「每一帧 / 全程」的要求**。
@@ -215,7 +470,7 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   没有 AbortController、那一炉停不下来：换掉之后回包时 `spendTokens` 照扣、写回打在
   已不存在的节点上静默落空，而确认卡那会儿正说着「没有花掉的钱」。删段同理
   （agent 那条路绕过了 UI 的 disabled）。另外每炉领一个 `genRun` 令牌，**只有"还是我
-  这一炉"才有资格清 `busy`** —— 否则一个已经作废的回包会把「同时只炼一段」的闸打开。
+  这一炉"才有资格清 `busy`** —— 否则一个已经作废的回包会把「同时只炼一段」的闸打开。构建里 `scripts/check-gen-run.mjs`（2026-10-15）钉着「领了炉号（`const myRun = get().genRun + 1`）的函数里每处 `busy: false` 必须在 `genRun === myRun` 之后」，纯结构检查、宁可漏报；改拼法要同步改它的正则。
   ⚠ 这条一次性防住四种事故，而它们**都零报错**：段没了、草稿被覆盖、确认卡说的与事实相反、
   钱扣了而成片落空。
 - **工坊与工作流是同一件东西的两个面**（2026-08-30 主人点名合并）：创作入口只剩
@@ -256,8 +511,8 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   铸段窗那三步只管新段，老段此前在工坊换不了模式而画布一直能换；切到自定义的老段另有
   ~~`CustomRefRow`~~。**2026-08-30 改口**（主人实测点名）：**已存在的段不再摆三模式切换行**
   —— 切了之后 3D 桌面上的卡片不会实时变，换模式只该回铸段窗第①步重来，`SegModeRow` /
-  `CustomRefRow` 已撤。铸段窗第①步是**三张塔罗卡**（封面 `public/create/mode-*.jpg`，与创作
-  入口共用同一张定妆照，出图脚本 `design/gen-segmode-covers.mjs`）；自定义车道是**四步**
+  `CustomRefRow` 已撤。铸段窗第①步 2026-10-04 起是**选法屏**（`components/flow/ModePicker`，与画布「＋ 加一段」同一份：
+  先选出片模型、再挑做法，见下面「跟着做」那一节；原来那三张塔罗卡退役）；自定义车道是**四步**
   （选式→示例视频→内容→规格），内容页与画布共用同一份 `CustomFrameSlots`。
 - **帧一律当参考图发，不走 first_frame/last_frame**（2026-08-30 主人点名「app 里不要有
   单纯的首尾帧生成视频」）：方舟三种场景**互斥**（图生视频-首帧 / 首尾帧 / 全模态参考生视频），
@@ -277,6 +532,157 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   那个角色的形象由模型自己编且零报错；③ `noteTail` 必须**现算**（notes 在它之后还会
   被追加），写成定死的串那几条提示永远不会出现在任何一行进度里。
   ⚠ 圈选改帧也跟着从硬约束变软引导（anns 不再挡住这条路）——文案不许说成"一定按你圈的改"。
+- **参考清单、临时参考图与 `@` 点名**（N1，2026-10-03 对标 LibTV 节点里的内联引用；方案、拍板与落地记录在
+  docs/node-modes-libtv-alignment.md）。「自选卡片 / 自定义」两个车道在出片之前就把「视频模型会收到哪些图、各是第几张」摆出来，
+  可以加不是卡的一次性参考图（`FlowNode.extraRefs`，一段最多 3 张，各有名字与用途），句子里写 `@名字` 点它。六条规矩：
+  ① **「这一发的参考图怎么分」只有 `segmentGen.refSlotsOf` 一处判定**（是不是参考类请求、帧占几位、卡片图按哪套分、临时参考图带不带得出去）：
+  出片读它，界面那排清单（`refPlanOf`，经 `flowStore.nodeRefPlan`）也读它。发送顺序恒为 **帧 → 临时参考图 → 卡片形象图**，
+  改顺序要两处一起改；出片前会拿同一份输入再排一次，张数对不上写一句「参考清单核对」进步骤日志。
+  **帧当参考图发的段，卡片图一律走直通分配**（挂几个人发几个人的图，按档位协议上限）—— 不管帧是现成的还是出片前现画（2026-10-03 主人「改」：
+  此前现画帧时沿用了出图模型「只喂第一个人物」的分配，视频请求也就只带了一个人的图）。画帧那一份另备（`generateSegment` 的 `drawRefs`），仍按出图模型的规矩。
+  ② **帧与临时参考图占的图位在「准备卡片图」那一步就从预算里扣**（`refSlotsOf` 的 `direct.cap`），不是发之前截 ——
+  绑定句按全量编号说话，截了就点名到没发出去的编号上（与「帧一律当参考图发」那条的 ② 同一个坑）。
+  ③ **点名的规则只在 `data/refMentions`**（零依赖，构建里实跑）：临时参考图与帧编译成「名字（图片N）」，**素材卡只留卡名** ——
+  卡的身份绑定仍由 `prepareMaterialRefs.bindCompact` 管，别在这里把卡也内联成编号（同一条绑定规则的第二处实现）。
+  没有 `@` 的句子逐字节原样；认不出的 `@xxx` 只摘掉 `@`（留着它模型会当成一个不存在的引用），并在清单下与出片进度里说出来；
+  模型自己的写法（`@图片3`）原样不动。
+  ④ **没点名的临时参考图由系统按用途补一句**（`extraRefLines`），点过名的不重复；画帧（出片前 AI 补画设定帧）也带上它们，
+  站位构图那一类只给起拍画面（尾帧也照着站位画，一段就成了定格）。
+  ⑤ 临时参考图**只在参考类请求上发得出去**：极速 / 标准 / 真人档不发并说出来，点名退成名字；白模段与返修不带（`genNode` 不传）。
+  ⑥ 地址与帧同形（本机 dataURL，出片那一拍才转存；上传走 `fileToRefImage`，越界居中裁并提示）；回炉工程瘦身后地址为空的当没有 ——
+  **读 `extraRefs` 一律过 `usableExtraRefs`**。改名 / 删除只走 flowStore 的三个 action（顺手收拾这一段句子里的 `@名字`）；
+  不进公开配方（记号复用 `mid-frames`，句子里的点名退成文字）。
+  同一批顺手改的：`segmentGen.hasDialogue` 认中文弯引号（原来 “你来了” 会被配音却带不上卡的声音样本），清单里提前说「声音样本为什么带不上」。
+- **示例视频默认去水印**（2026-10-24 主人点名）：挂了示例视频的自定义段出片时，提示词多一句「参考视频与参考图里的水印、台标、账号名和字幕都不要出现在画面里」（句子只在 `segmentGen.NO_REF_MARK_LINE` 一处，32 字从正文额度扣，与时序点名句一样截断优先保它）；关掉 = `customRef.keepWatermark: true`（判否定：老草稿缺这一位 = 开），写只走 `flowStore.setCustomRefKeepMark` / 铸段窗那一面 `studioStore.setEditorRefKeepMark`，开关只有 `components/flow/RefMarkToggle` 一份、两面都挂。**只在素材参考（reference 子任务）那条路上说**：白模 edit 是逐帧复刻、F7 实测提示词去不掉台标，那边的解是裁剪框，别把这句加过去。**同日付费对照过**（docs/ref-video-watermark-probe-2026-10-24.md，¥24.29）：高清档（2.0 mini）不加那句会把参考帧上的台标 / 账号名整张搬进成片、六帧都在，加了就一帧都没有；电影级（2.5）本来就不复刻示例画面、加不加都干净。仍是软引导（一对样本、一种位置），文案写「高清档验过压得住，但不是硬保证」。
+- **关键画面在出片之前就能改、成片里任意一帧能截出来用**（N3，2026-10-03；与已有「圈图改图」的对比在 docs/node-modes-libtv-alignment.md §六）。四条规矩：
+  ① **「按要求改这一帧」只有 `flowStore.editFrame` 一处实现**（一句话改 = 带卡片形象图锁脸 + 句子里 `@名字` 点到的临时参考图；圈着改 = 底图是画着红圈的标注图、
+  不带别的图）。画布自定义车道、画布方案台、工坊方案台画的是同一个 `FrameEditBox`；工坊的 `studioStore.refineProposalFrame` 只是转发（它本地那道 `frameRefining` 闸还要打）。
+  能改哪两张只问 `flowStore.nodeEditFrames`：这一段承接着上一段的真实结尾时，改的是那张承接帧，改完走 `setFrame` 落地（上锁、不再承接）——
+  别写成 `updateProposal`：承接还开着的话，改好的首帧出片时会被承接帧整张顶掉，图钱白花（工坊原来那份就是这么写的）。
+  ② **圈选的画板与截帧一律按画面的原比例**：`FrameAnnotator` 的画布尺寸跟着图走，回看截帧用 `drawWhole`（整帧、不裁）。别再写死 1280×720 / `drawCover` ——
+  默认画幅是竖屏，那样截出来只有中间一条，标注图还是变形的，模型拿它当底图重画。
+  ③ 圈选改图接在要求后面的那句只有 `segmentGen.ANN_CLAUSE` 一份（出片前改帧、剪辑页圈选重拍、就地圈着改帧共用）。
+  ④ **凡是画设定帧的路都带临时参考图**（推演三套 `real.generateProposals`、两面的「重画这一套」、出片前补画）：带哪几张、怎么说只问 `refMentions.drawExtraRefs`，
+  句子先过 `plainMentions`。新加一条画帧的路时别漏 —— 漏了的症状是「帧照着另一个样子画，出片时帧与参考图打架」，零报错。
+  成片回看的「📸 截这一帧」（`SegPlayer`）写入只走 `setFrame` / `addExtraRef`，去处只给还没出片、没在炼、不是白模的段。
+- **分镜表（一段多镜头 + 台词）是那段文字的结构化编辑，不另存结构**（N2，2026-10-03；出处与取舍在 docs/node-modes-libtv-alignment.md §六）。七条规矩：
+  ① **文字是唯一真身**：读（`parseShots`）/ 写（`joinShots`）/ 出片前收空镜头（`packShots`）只在 `data/shotScript`，一个镜头时发出去的字与没用分镜表时逐字节相同。
+  别给 `Proposal` 加「镜头数组」之类的字段 —— 草稿、做同款、公开配方、对画布说话存的读的都是这段文字，加了就是第二份真相。
+  **编辑这条路上读写都原样、不 trim**（每一格的值是「写回整段 → 再读出这一格」绕一圈回来的，trim 会当场吃掉行尾刚敲的空格 / 回车）；
+  收首尾空白只在发出去之前的 `packShots`。敲字一律走 `typeInto`：敲出来的字会改掉格子的数目（手打完「镜头2：」的冒号 = 多一格），
+  它回「光标现在该在哪一格」，`ShotListEditor` 把焦点接过去。方案台那一栏窄，传 `stacked`（「镜头 N」与 ✕ 叠在输入框上面）。
+  ② **不让人填每个镜头的秒数**：官方提示词指南明说模型对精确时间的支持不稳定（LibTV 的作者会写，我们以官方为准）。
+  ③ **提示词上限按档位问 `economy.promptMaxOf`**（2.x 两档 500 = 官方建议值，其余与白模段 400）：输入框、点图 / 运镜的长度闸、`segmentGen` 给正文留位、
+  `ai/real` 最后那一刀读的都是它。别再直接拿 `VIDEO_PROMPT_MAX` 当「所有档的上限」（它现在只是 1.x 两档与白模的数）。
+  ④ **台词要按人物卡的声音配，靠的是已有的两样**：卡的声音样本（`data/cardVoice`，卡片页上传 / 录音）+ 出片时按卡名点名音色（`segmentGen.voiceRefsFor`）。
+  分镜表只负责把话写成 `凛说：“……”`（说话人名字 = 卡名，引号内才会被配音）。声音样本**合计时长**有协议上限（高清 15 秒、电影级 30 秒，
+  `economy.refAudioSecOf`）：装哪几张只问 `segmentGen.fitVoices`，装不下的在参考清单里提前点名 —— 以前只数张数，三张各 8 秒就整发被拒。
+  **只带说台词的人的样本**（2026-10-03）：谁说的由 `data/shotScript.lineSpeakers` 认（与 `hasDialogue` 同一个引号正则，构建里逐字比对），
+  有一句认不准就整段不筛、照旧全带 —— 多带一份不影响结果，认错了会让说话的人拿不到自己的样本；没台词的那几位在参考清单里说一句「这次不带」。
+  有台词、这一发又出声时，提示词尾巴接一句「台词只用声音说出来，画面上不要出现字幕」（`segmentGen.noSubtitleLine` 一处判定，白模 / 返修 / 无声档不加）：
+  付费验证里 3 句台词有 1 句被模型烧成了硬字幕。⚠ 软引导，**付费验过一次：没压住**（10-03 晚重跑，同一句照样烧了约 1.2 秒）——
+  官方提示词指南的常见问题里也写明「目前无法 100% 避免生成字幕」、竖屏比横屏更容易出（我们默认竖屏）。这句留着不亏，但文案上不许说成保证。
+  ⑤ 直接发给视频模型的图按 `utils/image.VIDEO_REF_WINDOW` 裁（比例 [0.4, 2.5]、短边 ≥300，比出图模型的窗口窄）；卡片形象图上传还没按它收紧（记在那个常量上）。
+  ⑥ **段时长按档位走**（2026-10-03 主人拍板「段时长放开」）：窗口只问 `economy.VideoTier.minSec / maxSec`（1.0 两档 3~10、高清 4~15、电影级 4~30 ——
+  后两个就是模型的协议上限），报价与出片走 `clampDuration`、协议层按 model 走 `durationWindowOfModel`，时长按钮摆哪几个只问 `durationChoices`
+  （本段设置、方案台、画布自定义车道三处，原来画布那排是手写的 `[3, 5, 8, 10]`）。与服务端 `config/tokens.VIDEO_SEC_WINDOW` **逐条相等**：
+  这边放宽那边没放宽 = 按钮能点、请求被服务端 `pinPlainVideoTask` 整句 400（窗口外 / -1 / frames / 非 720p 都拒）；反过来 = 报价与实扣对不上。
+  改窗口两仓一起改，server `arkProxy.spec`「跨仓时长窗口一致性」会红。推演三套与「剧本 → 分镜」技能让模型写的时长仍在 4~9 / 3~10，没跟着放大（一段越长越贵，让人自己点）。
+  ⑦ **一张帧只画一个瞬间**（2026-10-03 第二次付费验证后主人「改」）：画帧的四条路 —— 出片前补画（`segmentGen`）、两面的「重画这一套」
+  （`flowStore.regenProposal` / `studioStore.regenProposal`）、推演三套（`real.generateProposals`）—— 拿剧情画帧时只问 `shotScript.frameMoment`：
+  开头画面取「整体交代 + 第一个镜头」、结束画面取「整体交代 + 最后一个镜头」，引号里的台词摘掉（`stripLines`，留「谁在说」不留说的字）。
+  原来整段分镜连台词进了出图提示词，结束画面被画成三格分镜拼图、格子里写着台词，成片最后 2 秒溶进了它、下一段又从它接着演。
+  外壳走 `real.generateFrame`（「视频中的一个画面」+「单一完整画面，不要分格、拼贴、对话框或字幕」），**别再借封面工坊的 `generateCover`**
+  （「视频封面图：」，封面常带标题字、常是拼贴版式）；结束画面以开头画面当 <图片1> 时只沿用人物 / 服装 / 场景 / 画风，构图按这一刻来。
+  构建里 `check-shot-script.mjs` 从源文件核对这几条路都走它 —— 新加一条画帧的路时要过这一关。
+- **「跟着做」模式第一期的出片规矩：补不补画帧、每张帧带谁的卡**（2026-10-04 主人「开工」；方案、分期与验证记录在 docs/guided-modes-design.md）。五条规矩：
+  ① **出片前补画哪几张只问 `data/drawPlan.framesToDraw`**（零依赖，构建里 `check-draw-plan.mjs` 实跑）：报价（`economy.segmentCost`）、出片（`segmentGen.generateSegment`）、
+  图位预留（`refSlotsOf` 的 `frameSlots`）、参考清单那几格（`refPlanOf`）读的是同一个答案 —— 三处原来各写一份条件，漏改一处就是「报了图钱没画 / 画了图没报钱 / 多留一个图位」。
+  ② **不补画帧的段（`flowStore.nodeNoDraw`，规则本身在 `noDrawFor`）**：`FlowNode.direct`（参考图直出这类模式铺的段）与「自定义」段，**只在收参考图的两档上**成立
+  （1.0 两档与真人档收不了参考图，不补画就只剩纯文字，照旧补画）。有哪张帧发哪张（只给了结束帧也只发它，图片 1 点名成「最后一帧」）、缺的不补；
+  一张都没有就走参考生视频（`refAllowedOf` = 简约模式或不补画的段）；一张都没有、卡上又没图时照常补画。直出段没有「推演三套」那一拍（`derivesProposals` 判否）。
+  ③ **参考生视频那一发一张帧都带不出去**：`segmentGen.frameFree` 连尾帧一起看（`lastFrame` 必填）—— 原来只看首帧，只给了尾帧的段会被判成直出、那张尾帧悄悄不发。
+  ④ **多镜头的段不画、也不用 AI 画的结束画面**：判据 `shotScript.isMultiShot`；已有的那张用不用只问 `drawPlan.endFrameUsed`（你自己换上的 = 上锁的照用），
+  读它的是 `flowStore.usableFrames`（出片 / 报价 / 参考清单 / 改这一帧）与方案台的显示；「重画这一套」画哪几张只问 `flowStore.redrawFrames`
+  （两面的 regenProposal 与 `redrawCost` 共用，多镜头时清掉旧的 AI 结束画面、不重画）。帧当参考图只有一张时，时序句不说「按图片编号顺序推进」
+  （后面紧跟着的是人物图，`customRefPrompt`）。
+  ⑤ **一张帧只带这一刻出现的人**（`shotScript.momentCards`，认名字与 `lineSpeakers` 同一个认法）：点到名的人物卡按出现先后排最前（出图模型只吃第一个人物的图），
+  没点到的人物卡这一张帧不带（图与文字设定都不带），一个人都没点到照旧全带。画帧的四条路都问它（`check-shot-script.mjs` 从源文件核对）；
+  **视频那一发照旧带全部人物卡**（这一段里谁都可能出场）。
+  「自定义 / 简约」两格帧位空着时那句说明只问 `flowStore.nodeEmptyFrames`（归类在 `segmentGen.emptyFrameFates`，`CustomFrameSlots` 收 `fates` 不收字符串）——
+  原来写死的「空 = AI 按提示词补画（计费）」在不补画的段上是假话。
+  ⑥ **选法屏只有一份 `components/flow/ModePicker`**（工坊铸段窗第①步 + 画布「＋ 加一段」）：先选出片模型、再挑做法；
+  哪个做法在哪一档上能用**只问 `data/guidedModes.modeBlock`**（按档位能力判：收不收参考图、是不是真人档；构建里 `check-guided-modes.mjs` 实跑），
+  用不了的不摆、底下说清换到哪一档就有。还没做出来的做法不进清单 —— 不摆点不动的选项（B 第二期、C 第三期做出来才进的）。
+  参考图直出段的写入口只有 `flowStore.setNodeDirect`（闸与 `setNodeCustom` 同源，两条车道互斥），画布面板第四个页签「🖼 直出」、
+  工坊铸段窗的 `direct` 车道（`studioStore.layDirectNode`）都落在它 / `appendNode({ direct })` 上。
+  直出车道的两句提示（推荐挂场景卡、接在上一段后面时把地点 / 时间 / 光线再写一遍）只在 `components/flow/DirectTips` 一处，两面共用：
+  10-04 付费验过 A（¥5.01）人物与接缝都好，但第二段切镜之后场景漂了（提示词没写地点）；场景卡只锁空间、不锁时间光线，所以两句都要。
+  10-03 晚付费验过一次（¥5.39）：补画的两张都是单一完整画面，成片没再溶成拼图；但出图模型没照「特写」画结束画面，视频为了靠上它多拍了一小段（docs §六「第三次付费验证」）。
+  ⑦ **B 主角定妆 · 多镜头（第二期，2026-10-04）**：向导只有一份 `components/flow/LeadShotsWizard`（工坊铸段窗 lane `lead` 整块接管②③两步、画布「＋ 加一段」开抽屉，
+  **走完才落段**），状态在 `studio/leadDraftStore`（关了再开原样还在、换账号分开暂存、出完一段只清这场戏和分镜、留着主角）。
+  拆镜头是第三条官方结构化技能（`structuredSkills.runSceneToShots`，一次对话）：输入输出的规则只在 `data/sceneShots`（零依赖，构建里 `check-scene-shots.mjs` 实跑），
+  几个镜头拼成一段话只走 `shotScript.joinShots`（别在 sceneShots 里再抄一份「镜头N：」）。现做主角走铸卡师那条（`studio/leadCast.forgeLead`：精绘档两张（2.63 起；原来是定妆，4.5 下线撤了）、只收一句话、
+  交代「不要照片写实」—— 写实人脸会被高清 / 电影级整发拒，用照片做真人走「自己传图做卡片」），画成就入库并选上。
+  落成的就是一段参考图直出段（出片规则与 A 同一份，别另开一种段）：落什么只在 `leadCast.leadAppendSpec`，报价 `flowStore.appendQuote` 与 `appendNode` 落的是同一个
+  `appendedNode`，出片走两面原有的入口（工坊 `layLeadNode` + `genNodeVideo`、画布 `appendNode` + `genNode`）。
+  10-05 付费验过 B（¥6.49）：成片照分镜三个镜头切、三个镜头同一场景不漂（整体交代写了地点 / 时间 / 光线）、没有烧字幕；拆镜头那一发只输出了 158 token（docs 第七节）。
+  第①步的人物网格与「现做一个人物」在 `components/flow/CastPicker`（B 与 C 共用；人物在 `leadDraftStore`，两个向导是同一批人）。
+  ⑧ **C 九宫格分镜（第三期，2026-10-05，主人「用组图」）**：向导只有一份 `components/flow/GridShotsWizard`（工坊 lane `grid`、画布抽屉，走完才落段），
+  状态在 `studio/gridDraftStore`。五步：人物和场景 → 写分镜（第四条官方结构化技能 `structuredSkills.runSceneToGrid`）→ 一次画出整组 → 挑格子 → 一格一段。
+  规则只在 `data/gridShots`（零依赖，构建里 `check-grid-shots.mjs` 实跑）：每格写**画面**（一个瞬间，给出图）与**动作**（接下来几秒，给视频）——付费对比里只写画面的那一格
+  出片几乎不动；「画面里有谁」认模型明说的 `who`（空镜就一张人物图都不带，别改成在句子里找名字：找不到会退回全带）。
+  **出一组画面走组图**（`ai/arkClient.runImageGroup`）：打包 = 服务端任务（`POST /api/ark/image-groups` 按「单价 × 张数」预扣 → 短轮询 → 按拿到手的张数结算多退，
+  契约「组图」，要服务端 `imageGroups` 能力位）；dev = 直连方舟流式。能不能出只问 `ai.groupsAvailable()`（三态：`null` = 健康端点没问到 → 照常可点、过一会儿再问，只有明确的 `false` 才说「服务端更新之后就有」；2.62 发版评审）。受理那一拍任务号连同那一版分镜记进 localStorage
+  （按账号），App 重开后向导一打开就接着等 —— 那几张已经按张付过钱。**还有一组没取回来就不开新的一组**（`drawGroup` 先接着等它；那颗键写的是「接着等上一组」）：开新的一组要再付一次、还会把记录盖掉。轮询断了 / 等满 22 分钟不说「没出成」（服务端照样在画）；受理那一发没收到回包、又问不到服务端收没收到（`listImageGroups` 回 `null` ≠ 空表）时也不开新的一组，宁可让人过一会儿再点（2.62 发版评审，同一组付两次钱的几条路）。接回时已经看过的格子不再看一遍（看图结论随记录落盘），有一格在单独画时不许删格 / 重写分镜（单格写回按格号落）。⚠ 单张出图那条路（`/images/generations`）服务端只出一张：组图参数整句 400。
+  参考图与「图几是谁」只在 `ai/real.shotGroupRefs`（整组与单格重画共用）：直通分配、上限 15 − 张数，点名按**真正发出去的**那批图（`MaterialRefs.owners`）对，
+  单格重画也带这一格里的**所有**人（不走画帧那条「只带第一个人物」的老规矩）。
+  **画法 2026-10-07 换过**（主人「改」，付费验证在 docs/seedream-grid-fix-research.md 第七节）：① 普通格进组图，**空镜与特写组图之后单画**（`gridShots.gridDrawPlan`，
+  空镜排最后、拿画好的格子里最宽的那一格定画风 `styleRefIndex`、一张人物图都不带；特写只带这一格的人）——组图的参考图对整组生效，空镜在组图里会被画进人；
+  ② 单画与单格重画是同一个函数 `gridDraftStore.drawPanelAt`（提示词 `gridShots.panelPrompt`、出图 `real.drawGridPanel`，**不走 generateFrame 的外壳**：那层带「上下留出呼吸空间」和否定句）；
+  ③ 九宫格的参考图**标用途**（`shotGroupRefs` 的 `labeled`：「图1是林夏的脸，图2是林夏的服装和身形」，靠 `MaterialRefs.views`），对话正反打 / 特效同款仍用老写法 `bind`（各自付费验过）；
+  组图提示词压到 300 字上下（官方建议上限）；④ 写分镜补两条规矩（画外的人不写进画面、特写写明拍的是哪个局部），收回话时画面点到名、who 没有的人补进 who
+  （**只补本来就有人的格子**：空镜里的名字多半是「林夏的房间」这种所有格），人自己改分镜时向导提醒（`namedOutside`）；
+  ⑤ **画完每格让对话模型看一遍**（`checkPanel` → `real.checkGridPanel`，图缩到 720 宽、一次一张）：只判几格 / 几个人 / 有没有两个一样的人（`panelIssues`；景别与「有字」不判 —— 验证里只会误报），
+  标在那一格上、**由人决定重画**，价钱算进报价（`PANEL_CHECK_TOKENS` = 一次对话）。组图的落盘记录多存 `cells`（组图第 k 张是第几格），接着等时照它摆；接着等完不替人单画空镜 / 特写。落段只在 `gridDraftStore.gridAppendSpecs` → `flowStore.appendSpecs`
+  （门禁与 `appendNode` 同一处 `appendIssue`；报价 `appendSpecsQuote` 逐段、与真落的同一批 `appendedNode`）：每格一段**参考图直出段**、那一格当开头帧上锁（`pinned.first`）、
+  **不承接**（承接会拿上一段尾帧把这一格整张顶掉）、素材只挂这一格里的人 + 场景卡；只先出第一段（顺序门禁照旧）。
+  2026-10-06 走正式路径付费验过（¥4.50，docs 第三期那一节）。**接着等组图（App 重开）时人物还原**（2026-10-07 主人「改」）：
+  `leadDraftStore.castIds` 只在内存里，所以受理那一拍把人物卡 id 与场景卡跟着分镜一起记进 `gridGroup.v1`，`resumeGroup` 还原
+  （只在名单空着时，`leadDraftStore.restoreCast`）。**分镜里点到的人不在选上的人物里时，出一组 / 单格重画 / 落段一律先拦下**
+  （判据 `data/gridShots.castGaps`，人话 `gridDraftStore.gridCastIssue`；`gridAppendSpecs` 被拦时一段都不落）—— 老记录没记人、卡被删了、
+  第 1 步取下了谁都落在这一道上；不拦的话那个人一张卡图都带不上、画成陌生人，全程零报错。
+  ⑨ **G 特效同款（第一批，2026-10-05，主人「按你的建议做第一批」，方案 docs/canvas-platforms-ecosystem-research.md §五）**：向导只有一份 `components/flow/EffectWizard`
+  （工坊 lane `effect`、画布抽屉），状态在 `studio/effectDraftStore`。三步：挑特效 → 挑主角（人物卡；产品走道具卡或传一张照片）→ 画关键帧 · 出片。
+  预设只在 `data/effectPresets`（零依赖，构建里 `check-effect-presets.mjs` 实跑）：每条两句冻结中文 —— 关键帧（那一刻，给出图）与动作（接下来几秒，给视频，**一镜到底、
+  不写「镜头N：」**，否则被当成多镜头）；界面上的名字 / 一句话在向导的 `PRESET_TEXT`。哪一档能用哪几条只问 `effectsOn`：**真人档不画关键帧**（照片起拍），只摆不靠换场景
+  也成立的 `realOk` 那几条。落段 `effectAppendSpec`：参考图直出段、关键帧当开头帧上锁、不承接。
+  ⑩ **I 对话正反打（第一批）**：向导只有一份 `components/flow/DialogueWizard`（工坊 lane `dialogue`、画布抽屉），状态在 `studio/dialogueDraftStore`。
+  四步：两个人（点的先后 = 第一个、第二个人）+ 场景卡 → 写对白（第五条官方结构化技能 `structuredSkills.runDialogue`，或自己写）→ 画三个机位 → 一句一段。
+  规则只在 `data/dialogueShots`（零依赖，构建里 `check-dialogue-shots.mjs` 实跑，拿 `shotScript.lineSpeakers` 本尊核对每一句认得出说话人）。三条要守：
+  ① 三个机位**一张接一张画、不走组图**：先画双人镜头，再拿它当图1 画两个过肩（`ai/real.shotGroupRefs` 的 `before` 让卡图从图2 起编号）—— 过肩要与双人同地方同光线，
+  而且不依赖服务端 #106；② 一句的视频提示词里说话人**紧挨在引号前那一小句**（动作单写一句放前面；英文用分号隔开，`lineSpeakers` 不把英文句号当断点），
+  拍听的人时写「画外传来某某的声音」；③ 站位守 180 度线（双人镜头 A 左 B 右、过肩的前景肩膀在对侧），两个过肩接起来视线才对得上。
+  **过肩多画一个人**（2026-10-19 付费量过，canvas-platforms 第九节）：过肩的图1（双人镜头）**只沿用地方、光线与服装，明说不照搬构图和站位**、点名前景那个人只露肩膀和后脑一次
+  （`angleRefLine`；原写法「都照它」让模型照着双人镜头再站一遍，每人两张图的卡（g1 一组）12/15 → 1/10，单图卡（三组）14/30 → 2/12，过肩不带双人镜头更糟 8/10 —— 单图卡上仍会漏，所以下面的看图复核两样都要）；三个机位画完各让 AI 看一遍
+  （`dialogueDraftStore.checkAngle` → `studio/panelCheck.runPanelCheck`，与九宫格同一份看法 / 并发闸 / 价钱；只标 ⚠、不自动重画、不拦落段）。
+  一个机位的价 = 一张图 + 一次看图（`economy.CHECKED_PANEL_TOKENS`，九宫格每格、选法屏两行读同一个）；出图那一拍只扣图钱，看图那一笔在看图回了那一拍另记。
+  落段 `dialogueAppendSpecs`：一句一段、机位画面当开头帧上锁、不承接、挂两个人 + 场景卡；落完 `resetDialogueLines` **留着三个机位**（同一个地方接着往下说不用再画）。
+  三个跟着做向导（C / G / I）在工坊落段都走 `studioStore.layWizardNodes(specs, say)`（看板娘那句由调用方给）。
+  ⑪ **修这一段（第一批：片段重拍 + 往后延长）**：挂在已出片的段上（`components/flow/FixSegmentBox`，画布四个车道都摆、工坊在 PickedActions），**不进「加一段」的选法屏**。
+  片段重拍 = 返修升级（见上面「返修」）。**往后延长**：产物**只有新的一截**（2026-10-05 拿官方 2.5 提示词指南延长示例的三个文件量过：输入 15.05s、产物 5.00s、
+  拼接后 20.08s），所以它就是流水线上**新的一段**（`FlowNode.extendFrom`）：只延长最后一段（接在中间会打断后面的接缝）、成片已转存成永久地址、档位能延长
+  （`economy.VideoTier.extendOk`，今天只有电影级）—— 判据只在 `flowStore.extendIssue`，落什么只在 `extendSpec`（报价 `appendQuote` 照着它算），落段 `extendNode`，「接的是哪一段成片」只问
+  `extendSourceOf`（那一段返修过就接新那一版）。出片走契约的新模式 `extend`（`arkClient` 的 omni extend + adaptive + 窗口内整数时长，报价与素材参考同一个式子
+  (计价输入 + 输出) × 系数，服务端结算 `tokens.materialRefTokens`；计价输入 = max(输入, ⌈2 × 输出 / 3⌉) 是方舟「含输入视频的最低用量」（2026-10-19 付费实测，规则只在 `videoTierTable.materialRefInputSec`）。这一步 **App 先上（2.64，10-21）、服务端后上（server #123，2026-10-22 主人「合 #123」部署）**：那一天的过渡期 App 报价高于服务端实扣是**故意的**（安全方向）；#123 上线后两边逐条相等，还在 2.63 的老包报价会低于实扣（他们更新到 2.64+ 就对上）。服务端那一半是 TianbinLiu/ideahub-server#107（参考视频认「本人自己的成片」），2026-10-05 已上线。
+  ★ 2026-10-05 付费探测（`design/video-input-probe.mjs`，结果在 docs/canvas-platforms-ecosystem-research.md 第九节）：电影级延长两轮都接得上、高清那一发接缝会跳
+  ⇒ 「能不能延长」是档位自己的一位 `extendOk`，**别拿 refVid 代替**（高清以后开视频参考也不顺带开延长）；按时间段重拍时同一个连续动作会整段一起改、
+  声音是照着原片重做的 —— 文案只说到这一步（`FixSegmentBox` 头上记着）。2026-10-06 在 App 的真实请求路径上端到端付费验过一遍（¥45.42：G 两条、I 三句、
+  重拍、延长；延长接缝看不出来；开发构建直连方舟、没走到服务端那一层），结果同在第九节。延长段的做法是固定的：套模板 / 切自定义 / 切出直出三个入口整句拒
+  （`flowStore.extendLaneLocked`），画布不摆那排页签。**高清 2026-10-05 开了片段重拍与参考视频出片**（主人「合」；`economy.HD_R2V_MULT` 按刊例 14/15，
+  与服务端 `VIDEO_MULT_R2V` 逐条相等，账单还待逐行核对）：「能带参考视频」（`refVid`）、「能延长」（`extendOk`）、「能跑白模模板」（`blockoutOk`）
+  是档位表上**三位**，高清只有第一位 —— 判白模段的档位行 / 出片闸问 `blockoutPriceIssue`，返修与示例视频问 `r2vPriceIssue`，别混用
+  （混用的症状：高清在白模段上变成可选、真按高清复刻模板）。
 - **「这一段用哪个模板」是三态，且必须当场表态**（`FlowNode.tpl`）：`undefined` = 还没表态
   （退回 store 级 `template`，老草稿与单模板流靠它）、`null` = 明确没有、对象 = 这一段自己的
   快照。读**只准走 `tplOfNode`**。而 store 级那份会随 `setCursor` 换成**当前段**的快照 ——
@@ -322,11 +728,37 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   各探一次，否则弱网冷启动会出现"视频退了本地库、弹幕还在打远端"这种半边天。
   离线模式（没配 `VITE_API_BASE` 或服务端没起）退回 IndexedDB，此时输入条会明说
   "只存在这台设备上"——接上服务端时那句话必须消失，否则是另一种骗人。
+- **第三方登录回程只认本机发起的那一条**（2026-10-15 教材人格评审 owasp-security-1）：`startOauth` 生成一次性 state 记在本机，服务端成功 / 失败两种回跳原样回带（server #116，2026-10-16 已部署；取消授权 / provider 报错 / 服务端 state 过期这几种失败，server #119 于 2026-10-20 部署之后也带着 state 回到 App —— 在那之前它们落在官网错误页、到不了 App），深链与 web 回跳都只经 `utils/oauth.acceptOauthReturn` 这一道闸，判定表只在 `data/oauthState`（零依赖，`check-oauth-state.mjs` 实跑）；老服务端不回带的暂且放行、只在 15 分钟 TTL 之内，后一版 App 再把「没带」改成拒（前提「这几种失败也回带 state」已由 server #119 满足：没有它的话收紧之后这几种失败照旧停在官网、App 一声不吭）。契约见 docs/api-contract.md「第三方登录深链的 state 绑定」。收下的失败回程说什么（2026-10-19）：服务端回的 message 是固定英文，归类只在 `data/oauthState.classifyOauthFailure`（整句锚定，check-oauth-state 钉着），话在 `utils/oauth.oauthFailText`；服务端改了那几句措辞要两边一起改，认不出的原样显示。人站在登录页时失败回程靠 `LoginPage` 跟着 `location.key` 更新 err 才显示得出来。回程落在哪（2026-10-20）只问 `data/oauthState.loginNextOf` / `loginFailPath`：起跳时登录页上的 `next` 接着带（成功去 next、失败回 `/login?err=…&next=…`），只认站内路径 —— 原来失败把 next 换没、接着用密码登录就落到首页，#119 之后每次取消授权都走这一跳。
+- **客户端失败上报只有 `data/clientEvents.reportClientEvent` 一处发**（同日 humble-delivery-4）：`POST /api/client-events` 只带 kind / 版本 / ASCII 位置 / 错误类型名，永不带 message 与账号；按健康端点能力位 `clientEvents` 开（老服务端一发都不发），一场会话去重 + 最多 8 条，上报本身失败一律吞；五处挂钩：ErrorBoundary、App 根的 window error + unhandledrejection、appUpdate、DataLossNotice、boot。契约见「客户端失败上报」。
 - **简约模式不进草稿库**（`saveWorkDraft` 里挡掉）：它只有一段、写一句话就出片、直通发布，
   中间没有"回来接着做"的状态；而草稿一条带 1MB 级的帧，塞进去只会把真正需要草稿的
   工坊/工作流挤出 20 条上限。
 - **在途工程存 `data/drafts.ts`**：没做完的半成品，可以接着编辑（工坊/工作流两条路都能打开）。
-  草稿索引与正文分开存（正文带 1MB 级的帧，个人页列表只读索引）。
+  草稿索引与正文分开存（正文带 1MB 级的帧，个人页列表只读索引）。超过 `MAX_DRAFTS` 淘汰最旧那条时给一条轻提示说是哪一条（2026-10-15）。
+- **公开配方（制作过程）只公开白名单投影，不公开画布**（2026-10-02，模板体系 P1，方案 docs/template-workflow-research.md §三 C，
+  落地记录在 §四）：`data/recipe.projectRecipe` 是**唯一**的画布 → 配方实现（发布页预览、发布后上行、编辑页补公开三条路都走它），
+  真人卡 → 空位不带名、装来的卡 → 空位带名、白模段不带点名句、段模板只回指服务端 id、导演台 / 圈选 / 参考视频 / 原话一律不带
+  （只留记号让故事板说一句）。四条规矩：① 发布页那颗「公开制作过程」的选择**盖进画布待办**（`PendingCanvas.shareRecipe`）而不是
+  发布体 —— 发布可能离线排队、冷启动由 flushPending 补发，那时发布页早不在了；配方 PUT 在留存工程那一拍、排在工程 PUT **之前**
+  （`projects.submit`），成败各说各的；② 回炉之后旧配方由服务端按版次自动对外隐藏（`stale`），留存新画布时重投一份；
+  ③ 「按谁的流程做的同款」= `flowStore.remixOf`：做同款与按配方复制都经 `seed(…, { remixOf })` 写，跟 `clearTemplate()` 清、
+  **进草稿**（与 reviseOf 相反），组稿折进 `DraftVideo.remixOf`，发布体逐字段拼的要记得带；④ 作品上那四位（`recipePublic` /
+  `recipeState` / `remixOf` / `remixCount`）映射只在 `videos.recipeBits` 一处，**列表与详情回填（`loadDetail`）两跳都要搬** ——
+  remixOf / remixCount 只有详情端点才算，漏在详情那一跳的症状是服务端回了、屏幕上一个字没有（第一版就这么漏过）。
+  按配方复制的建料在 `flowStore.recipeNodesOf`（第九条整表换 nodes 的入口，守卫走 `useApplyTemplate`）：白模段的模板由页面
+  **先取**（本机库 → 服务端 id），取不到退普通段并记进 notes 铺完当面说。老服务端上判「不支持」看回包形状，不看状态码。
+  **P2（同日）**：工作流模板**就是**上了架的公开配方（`listed`，必须挂在已发布作品上），货架 `components/WorkflowShelf`、模板页 = 制作过程页；
+  上架只许「公开 + 不过期」（服务端整句拒）。**被公开流程引用的段模板只能下架**：服务端把它退役成 `status: "retired"`（不进市场、素材不回收、
+  所有人仍能读到并用它出片），App 把 `retiredRefs` 说成人话（`templates.retiredNote`）、条目留着不删 —— 别把 retired 当成 blocked 或 pending 处理。
+  **P3a（同日，主人「全认」）**：官方结构化技能二「按主题改写全片剧本」（`structuredSkills.THEME_REWRITE`，与「剧本 → 分镜」同一副骨架：段数不变 /
+  形状检查 / 原新对照 / 一次 chat；只改没出片的普通段，白模段不动；写回只动 title / plot，requirement 不动）；两条入口（画布「/」面板、做同款选角一屏
+  的「我的主题」—— 经导航 state 带到 `FlowPage` → `FlowCanvas.autoTheme`，读一次就清）。「接在现有流水线后面」走 `flowStore.appendNodes`（只接末尾、
+  不写 remixOf、段上留 `fromRecipe`）。提取器的「经典配方」车道已收（`VideoTemplateExtractor.routeOpts` 只剩白模两条，`"classic"` 分支留给本机存量）。
+  **P3b 同款奖励（同日）**：别人照着做了同款、公开发布满 24 小时，**平台**印 30k token 给原作者（不是同款作者付的 —— token 不许在用户之间流转）。
+  发不发全在服务端判（`services/remixReward.service`，判定表 `RemixReward`、账本类别 `remix_reward`），App 只做两件事：
+  ① 那一句话（`components/recipe/RemixRewardNote`，发布页 / 编辑页）—— **四个数全读 `data/remixReward` 的 rule（服务端下发），App 里不许出现写死的 30k / 10 / 50 / 24**，
+  规则没到整句不说；② 通知页认 `BRANCH_REMIX_REWARD`（金额是 `payload.tokens`，句子由 App 说；没带是谁的那种画礼物头像、点进去落到自己的原作）。
+  全文与落地时定下的七条口径在 docs/template-workflow-research.md「P3b 落地记录」。
 - **已发布作品的「回炉重做」存 `data/projects.ts`，不进草稿库**（2026-09-07）：发布（以及每一次
   回炉）成功后把当时那份工坊画布瘦身成**只含永久 URL** 的 JSON PUT 进服务端，编辑页那颗
   「🛠 回炉重做」取回来接着改，再走 `PATCH /videos/:id` 带 `segments` + `baseRevision` 换掉内容
@@ -363,6 +795,11 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   查法：`rg 'rounded-t-' --glob '*.tsx' | rg -v 'border-t border-slate-700 bg-ink'` 只该剩
   `studio/ui/modals.tsx`（那是 3D 桌面里的就地卡片弹层，不是抽屉）。⚠ 别把 `backdrop-blur` 加回壳上：
   它会给 `position: fixed` 后代造包含块（已知的坑那一格）。
+- **安卓返回键先关开着的那一层**（2026-10-29，2.73）：全 app 唯一的 `backButton` 监听在 `utils/backButton`（一个层栈：后开的在上面；
+  没有开着的层时照原样 `history.back()`、退到底 `exitApp`）。抽屉 / 对话框 / 全屏这类能关的层用 `hooks/useBackLayer(open, close, 名字)` 登记，
+  `onBack` 回 false = 在途时拦住不关；`useDialogShell`（Sheet / ConfirmDialog / InfoDialog / DeleteConfirmShell）已经接上，**手写的抽屉要自己接**，
+  强制更新不接。⚠ 别改回「开一层压一格历史」：页面在层开着时自己 navigate（打开草稿、删卡后 `navigate(-1)`、退出登录 replace）会被那格历史搅乱
+  （2.73 第一版这么写过，发版前复核推翻）。圈选画板 `FrameAnnotator`、客服页「我的工单」（回到对话）、新手引导（关掉引导、留在这一页，理由在 `GuideOverlay` 头上）同日补上；只有强制更新不接。
 - **提示条（amber / rose / sky / emerald 底）一律带同色 `/40` 边框**：`rounded-lg border border-<色>-500/40
   bg-<色>-500/10`，紧凑（`py-1.5`）配 `px-2.5`、常规（`py-2`）配 `px-3`；整块的卡式提示（`p-3` 及以上）
   才用 `rounded-xl`。收之前 120 条里 35 条没边框、圆角与内边距十几种组合，同一页上下两条就不一样。
@@ -388,18 +825,43 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   `text-[12px]` 与 `text-xs` 同一个像素但行高不同，`text-[13px]` / `text-[15px]` 根本不在刻度上 —— 第四轮把
   128 处像素写法归到刻度（12→xs、13→sm 或 xs、14→sm、15/16→base、17→lg、19→xl）。
   查法：`rg 'text-\[1[2-9]px\]' --glob '*.tsx'` 应为空。
+- **小字不许用 slate-600**（2026-10-15 教材人格评审 wcag-a11y-i18n-6）：ink 底上 slate-600 只有 2.50:1、slate-500 是 3.98:1，WCAG 2.2 正文要 4.5:1。≤ 14px 的说明 / 占位 / 副标题一律 `text-slate-400`（同日改了 40 处，含 EmptyState 的补充行），slate-600 只给装饰（图标、分隔符）；slate-500 那半按主人口径不动。构建里 `scripts/check-contrast.mjs` 是棘轮，两条规则：A 同一行里裸的 `text-slate-600` 撞上 text-xs / text-sm / text-[9~14px] 就红；B（2026-10-19 加）`text-slate-600` 写在哪个元素上、那个元素里有字就红，不管字号写在谁身上 —— 10-19 验证在 #/me 量到「父元素定字号、子元素定颜色」漏掉的一句 2.50:1 的空简介占位。装饰字符给那个元素自己加 `aria-hidden` 放行（`={false}` 不算），亮底上的深字、禁用态写 `contrast-ok: 理由`（命中行或开标签的上一行，或开标签里属性之间）；抓不到的写在脚本头上。
 - **卡片容器边线一律 `border-slate-700/70`**（`rounded-xl border border-slate-700/70 bg-panel p-3`）；输入框与按钮的
   描边仍是 `border-slate-700`。内容卡片圆角只有 `rounded-xl`（第十二轮把模板货架 / 工单卡 / 管理页行卡的 `2xl`
   收了）；整块可选的"砖"（简约模式的两块、自建卡的照片位、草稿箱的封面卡）仍是 `rounded-2xl`，那是另一种控件。
   小字段落的行高只有 `leading-relaxed`（`leading-4` / `leading-5` 与它只差半个像素，却让同一页两行不一样）。空态文案不再手拼 `rounded-2xl bg-slate-900/60` 的段落，走 `EmptyState`。
 - **徽标（`rounded-full` 小字非交互）按字号定内边距**：9px `px-1.5 py-0.5`、10px `px-2 py-0.5`、11px `px-2.5 py-1`。
-- **全屏覆盖层的表头**（画布 / 成片回看 / 调首尾帧 / 核对角色位 / 客服页，第五轮收口）：`safe-top flex h-[58px] flex-none
+- **全屏覆盖层的表头**（画布 / 成片回看 / 调首尾帧 / 核对角色位 / 客服页，第五轮收口）：`safe-top-bar flex flex-none
   items-center gap-2 px-4`，关闭 / 返回键走 `CloseButton` / `BackButton`（覆盖层上用 `chip="md" size={16}`，
   客服页那种透明顶栏用裸图标 `size={20}`），标题 `text-sm font-bold text-slate-100`。不再手写 `h-8 w-8 rounded-full bg-panel`
-  的圆钮 —— 那是 chip md 的手抄版，命中区只有 32px。⚠ `h-[58px]` 是**含 safe-top 那 10px** 的（58 = 10 + 48），
-  只准写在自己带 `safe-top` 的那一行上；safe-top 已经在外层时里面那行是 `h-12`（客服页第十四轮量出来差 5px）。
+  的圆钮 —— 那是 chip md 的手抄版，命中区只有 32px。⚠ 自带安全区的那一行一律 `.safe-top-bar`（index.css：上内边距 = 状态栏 inset + 10px，高度 = inset + 58px）；
+  safe-top 已经在外层时里面那行是 `h-12`（客服页第十四轮量出来差 5px）。**别再写 `safe-top h-[58px]`**（2026-10-26 主人真机：分区页搜索栏挡住「浏览分区」）——
+  58 = 10 + 48 只在 inset 为 0 时对，浏览器里量的全是 0；真机 inset 41px，内容区只剩 7px，搜索框 / 圆钮从行底溢出盖住下面。
+  `safe-top` 与固定高度写在同一个元素上，构建里 `scripts/check-top-bar.mjs` 会拦；浏览器量不出这类问题，验它要在模拟器或真机上。
   验法：在浏览器里逐路由量返回键中心的 y，都该是 34。
 - **加载圈只有一份 `components/Spinner`**（xs / sm / lg），别再手写 `animate-spin rounded-full border-2 …`。
+- **挂在控件旁的一两句提醒只有一份 `components/Warn`**（2026-10-23，《Refactoring UI》走查）：左侧 2px 色条 + 图标 + 文字，tone = warn / danger / info / ok，紧凑面板传 `compact`。
+  与「提示条一律带同色 /40 边框」那种整块 tip bar 分工：整块给独立成段、要人停下来读的话；`<Warn>` 给原来那些裸琥珀 `<p className="text-amber-200">` 的位置。
+  文案里别再手打「⚠ 」前缀（图标顶替）。构建里 `scripts/check-warn.mjs` 是棘轮：裸琥珀 `<p>` 直接红（整块 tip bar、`<span>` 行内强调、卡片里的琥珀标题不算）。
+- **搜索框只有一份 `components/SearchField`**（同日）：`field`（页面级表单字段那档，工坊 / 管理页）/ `pill`（顶栏与列表头，分区 / 市场）/ `compact`（抽屉与小面板）三档，
+  清空键 44px 热区；搜索态页面传 `clearKeepsFocus`（点 ✕ 不失焦、清完光标留在框里）。别再手拼 `<Icon search> + <input> + ✕`。
+- **表面三级：`ink` → `panel` → `raised`**（同日加 `raised`）：`raised` 只给**浮在页面之上**的东西（新手引导卡、生成胶囊、画布浮条、剪辑页 / 工作流页底部停靠栏、工坊弹层、说明弹窗），
+  配 `ring-1 ring-white/10`、不描 slate 边；页面里的卡片仍是 `panel` + `border-slate-700/70`。别再写 `bg-[#141821]` 这类十六进制底色。
+- **语义色只写别名 `danger / warn / ok / info`**（2026-10-23，= Tailwind 的 rose / amber / emerald / sky 同一张表，`tailwind.config.js`）：组件里不再出现 `rose-` / `amber-` / `emerald-`
+  （`check-warn.mjs` 第二条规则钉着；下面约定里写的 `text-rose-300`、`border-amber-500/40`、`emerald-300` 读作 `text-danger-300`、`border-warn-500/40`、`ok-300`）。
+  `brand` / `gold` 是整条阶梯（借 sky / amber，DEFAULT 钉原值）：淡色优先用 `brand-200` 这类阶梯色，`bg-brand/15` 那种透明度拼法是存量。
+  **页面卡片的边框留着是量过的决定**（同日）：ink 对 panel 只有 1.10:1，深色界面靠底色分层要把 panel 整体调亮；GitHub / shadcn 的深色卡片也都带边框。只有卡里套的内层盒子不描边（底色那一级差够了）。
+- **价钱一律 `economy.priceTag(n)`**（`⚡12k`），按钮上写「生成本段（⚡12k）」；⚡ 只表示「要花钱」，不花钱的动作（做同款）用招牌字形。重做类动作前缀 ♻，别再用 ✨ / 🎲 / 📼。
+- **头像两档**：列表行 36（消息 / 关注 / 管理页）、评论 32（楼中楼 24）；个人页头图 92、首页右栏 44 是另两种控件。
+- **评论行只常显「回复」**，删除 / 举报 / 拉黑收在「⋯」后面原地展开（作品页的评论就是首页那个评论抽屉 `CommentSheet`，2026-10-26 起页内不再另画一份评论列表）。
+- **`.claude/skills/refactoring-ui/` 是装进仓库的《Refactoring UI》审查 skill**（非官方、MIT，SKILL.md 头上那段写了本仓优先级：CLAUDE.md 约定赢、令牌只有五个、不跑它的调色板工作流）。
+  说「设计评审 / 这页看着不对 / 配色 / 空状态」时它会触发；走查记录正本 docs/ui-refactoring-ui-pass-2026-10-23.md。
+- **多步功能的步骤进度只有一份 `components/StepDots`**（2026-10-22 主人点名）：横线上一排圆点，做完实心、没到空心、当前那颗外圈放大，每颗下面两三个字；
+  摆在标题行 / `PageHeader` **正下方**（不进 `right` 插槽），一屏只画一条（铸段窗在向导车道上让位给向导自己那条）。
+  动画只动 transform / opacity（放大是独立的一枚环 scale、实心是内芯 opacity、进度线 scaleX），减少动态效果时不过渡。
+  缺省纯展示；能点回哪一步由调用方 `onPick` / `canPick` 决定（人格向导沿用原来「够得着就能跳」的规则）。
+  2026-10-22 接进去的 14 屏：四个跟着做向导、铸段窗、铸卡窗、三张 AI 流程面板、提取模板窗、简约 / 自建卡 / Live2D 上传 / 人格 / 建课五个页面；
+  新加向导别再手拼「第 n / N 步」「1 选式 › 2 内容」那种字。
 - **内联链接**：`underline underline-offset-2`；能点出动作的 `text-brand`，说明性的灰链接一律 `text-slate-500`，
   不写 `decoration-*`。
 - **分隔线一律 `border-slate-700/60`**（`border-t` / `border-b`）；抽屉壳与顶部下拉窗的那条边线仍是 `border-slate-700`。
@@ -421,7 +883,11 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   验法：逐路由量 `header` 的 bottom 到下一个兄弟元素 top 的差，都该是 12。
 - **轻提示只有一份 `data/toast.showToast()` + `components/Toast`**（挂在 App 根）。「已复制」这类回执一律走它，
   别再把按钮文字换成「已复制 ✓」或在抽屉里写一行 note。⚠ `window.confirm` / `alert` 一个都不许用：确认走
-  `ConfirmDialog`，回执走 toast。
+  `ConfirmDialog`，回执走 toast。**一拍就成、又能原样恢复的动作先做、再在提示上给「撤销」**（`showToast(msg, ms, { label, run })`，
+  2026-10-14 按 CSCI 187 UX 课的「提供撤销而不是要求确认」收口；样板 `DraftSheet` + `drafts.trashDraft`）：确认卡人人点「确定」，
+  拦不住手滑。花过钱的东西（带已出片段的草稿）仍先问一句 —— 撤销那几秒人未必看见。带键的提示至少给 6 秒。
+  这次走查的全部发现与没改的清单在 `docs/ux-review-csci187-2026-10-14.md`。
+  **删段也是「先删再撤销」**（2026-10-15 教材人格评审 norman-interaction-5）：`flowStore.removeNode` 把段停进只在内存里的 `segTrash`、`restoreNode` 放回（busy / 生成中 / 同 id 已在整句拒），带「撤销」的轻提示只有 `components/flow/DeleteSegBtn.removeNodeWithUndo` 一份、三个宿主都调它；`segTrash` 跟着 `clearTemplate()` 清；花过钱的段那 3 秒二次点按照旧。
 - **列表的加载态与空态也走 `EmptyState`**（`loading` / `emoji + text + hint`），别再手拼 `py-8 text-center text-xs`
   或 `border-dashed py-10` 的框（第八轮逐页目视后把最后 8 个虚线框与工坊广场那条行内报错都收了；弹层里用 `compact`）。
   查法：`rg 'border-dashed' --glob '*.tsx' | rg 'text-center'` 只该剩 `studio/ui/NpcDialog`（那是 3D 桌面的空卡位，不是空态）。
@@ -435,10 +901,28 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 - **上万折「x.x 万」只有一份 `types.formatPlays`**：热度 / 播放 / 卡片热度 / 3D 卡面小字都用它（此前四处各抄一份）。
   按界面语言分派：中文手写「x.x万」（Intl 的 zh compact 会写成「1万」「12万」），英文 Intl compact（12.3K）。
 - **空态 / 整页态只有一份实现 `components/EmptyState`**（2026-09-05 收口）：图标 40px slate-600（或 emoji）→ 正文
-  text-sm slate-400（出错 rose-300）→ 补充 text-xs slate-600 → 按钮（主 bg-brand / 次 bg-panel+ring，同上一条）。
+  text-sm slate-400（出错 rose-300）→ 补充 text-xs slate-400（2026-10-15 起；原来是 slate-600，小字 2.50:1 读不清，见下面「小字不许用 slate-600」）→ 按钮（主 bg-brand / 次 bg-panel+ring，同上一条）。
   列表里的空态 `py-16`，整页态（卡/卡组/模板不存在、未登录墙、取回中）传 `full`（min-h-[70vh] 居中 + safe-top）。
   收之前草稿箱 / 消息 / 个人页 / 模板市场 / 三个详情页各是一副面孔。**别再手拼 `flex flex-col items-center gap-3 py-16`**。
   评论区那种嵌在列表里的一行「还没有评论」不算，留着。
+  **看板娘只经 `mascot` 参数进空态**（2026-10-21，docs/ui-benchmark-2026-10.md 第五节）：nap = 还没有东西、wonder = 搜不到 / 筛空了、hi = 首次邀请、cheer / joy = 全部做完；
+  禁区写在组件头上 —— 正在播放的画面、价钱扣费退款、法务合规、举报拉黑、确认卡、32px 以下一律不放（加载中组件自己只画转圈，`loading` 优先于 `mascot`）。
+- **品牌只给启梦独有的概念，通用动作用通用图形**（2026-10-21 对标结论，同一份文档第五节）：招牌字形只有 `Icon` 的 `remix`（做同款）/ `workshop`（工坊）/
+  `discover`（分区），各有线性与实心两套；点赞、评论、分享、搜索、首页、返回照旧 Lucide 原形。品牌感放在反馈动效里（首页双击点赞的金星 + 青点粒子，
+  `index.css` 的 `.burst-fly`，减少动态效果时整个不出），不放在常驻图标的造型上。新画一枚招牌字形先问一句「这个动作别家有没有」。
+- **首页的次要动作在长按层，不往右栏加键**（2026-10-21）：按住两侧 22% = 临时 2 倍速，按住中间 450ms = `components/FeedActionSheet`
+  （倍速 / 清屏或转屏 / 保存到本地 / 举报）。那三个数只在 `data/feedGestures`（新手引导插同一个 `HOLD_SPEED`，别写回字面量）。倍速是 FeedPage 级的 state
+  （首页上各条共用，不落盘）。**FeedItem 的 section 只认按在自己画面上的事件**（`onOwnPicture` = DOM contains）：React 合成事件沿组件树冒泡，
+  portal 出去的评论抽屉 / 弹幕框 / 举报框 / 做同款确认卡都会冒到 section 上 —— 不挡的话评论框里长按粘贴被 onContextMenu 吞掉、确认卡上按久了开出长按菜单
+  （2026-10-21 评审抓到）。双击点赞会撤回第一下单击切过的播放 / 暂停（`tapRef.toggled`）。新加的次要动作进这个抽屉，
+  别再挤右栏（640 高的屏只剩 24px，见「已知的坑」右栏那一格）。「不感兴趣」等服务端有端点再加。
+- **搜索历史只在 `data/searchHistory`**（本机、按 `deviceOwner()` 分开、最多 10 条）；分区页搜索框获焦且没字时铺历史 + 近期热播。从首页放大镜进来（`state.focusSearch`）
+  要等分区引导讲完才聚焦（`useAutoGuide` 420ms 后才开，聚焦早了搜索面板会盖住分区行，引导第 3、4 步指着不在屏上的东西）。
+- **依赖里有两处钉死的版本，别「顺手」改回 ^**（2026-10-21 处理 Dependabot 32 条告警，全文 docs/dependency-security-2026-10.md）：
+  ① `@capacitor/android` / `core` / `cli` 钉 `8.5.1`（GHSA-rvm3-566m-v7fv 的修复版；8.5.2 重写了 `SystemBars`，会改掉安卓 12–14 状态栏 / 导航栏的颜色）——
+  升 8.5.2+ 是单独一件事，要在安卓 14 / 15 模拟器上浅色 / 深色、手势 / 三键导航各看一遍顶栏底栏；三个包一起动、版本一致。
+  ② `overrides` 里 `postcss-selector-parser` 钉 `7.1.7`（Tailwind 3 声明 ^6，修复只在 7.1.6+）：动它之前先做 Tailwind CSS 升级前后的逐字节比对（`cmp`）。
+  `braces` ≤ 3.0.3 的告警没有修好的版本可升，只在开发依赖里，接受；要去掉得迁 Tailwind 4。根目录与 `shihui/` 两份锁文件要一起改。
 - **长活登记进 `data/jobs`，胶囊只有一颗**（2026-09-05 主人点名"生成/上传时能退出页面不中断，并像出片那样有提示小窗"）：
   AI 出图 / 铸卡上传 / 圈选改图 / 模板上传·登记·白模化·分析都 `startJob()` 领一张票，进度 `update()`、结局
   `done()` / `fail()`（带 `route`，通知点下去要有地方落；人就在那一页上时 `silent`），`GenerationPill` 统一画
@@ -466,12 +950,13 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   `lingui extract`，改了目录没提交的话 land 与 CI 都会拦。构建里另跑 `scripts/check-i18n.mjs`（棘轮，基线 `scripts/i18n-baseline.json`）：
   **新增**的中文界面字面量、模块顶层的翻译调用、`.tsx` 从 `@lingui/core/macro` 引 `t`、冻结声明里的宏、en.po 缺译变多，都会让构建失败。
   迁掉一处就 `node scripts/check-i18n.mjs --update` 把基线收紧（只减不增）；确实不该翻的写 `// i18n-ignore-next-line: 理由`；
-  发给模型的指令用 `zhPrompt` 标签模板或 `/* i18n-frozen: 理由 */` 声明（整个文件冻结的只有 `studio/agentGrammar.ts`：句式是被解析的输入）。新加的是界面文案却想接受进基线（`--accept-new`），
+  发给模型的指令用 `zhPrompt` 标签模板或 `/* i18n-frozen: 理由 */` 声明（整个文件冻结的只有 `studio/agentGrammar.ts` 与 `studio/cutGrammar.ts`：句式是被解析的输入）。新加的是界面文案却想接受进基线（`--accept-new`），
   基线的 diff 会出现在 PR 里 —— 评审时要能说出为什么。界面语言的唯一判定在 `src/i18n/locale.ts`（跟随系统 = 遍历
   `navigator.languages` 按语言匹配，繁体归简体，兜底英文；侧载老用户同样按检测走）。
 - **数值不要拍脑袋**。涉及尺寸/间距/重叠的值先量再定，并在注释里写清量法与结论
   （例：`CharacterPerch` 的 `bottom` 系数调过四轮，注释里记了每一轮为什么不行）。
 - 动画只动 `transform` / `opacity`（合成层）。视频流滚动时本就吃紧，触发重排会掉帧。
+- **渲染抛错只换掉那一块**（2026-10-15 教材人格评审）：路由级 `components/ErrorBoundary`（按 pathname 复位）+ 3D 桌面 / 导演台 / 卡牌全息三个 `<Canvas>` 与工作流画布各一层。它接得住 render 里抛的错、接不住 `useFrame` 里的（那是下一条）；恢复只换 key 重挂那棵子树、store 原地不动，不 reload、不自动重试。
 - **渲染循环里别信任外部状态的形状**。`useFrame` 里抛一次错就是每帧抛一次：整页白屏，
   且**自己好不了**——循环挂了就没人再去改状态，用户只能刷新（工坊没有持久化时等于全丢）。
   从 store 取来的坐标之类先校验再用（例：`TableScene` 的 `camOk`），坏值退默认而不是崩。
@@ -493,8 +978,8 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 | 坑 | 症状 | 怎么办 |
 |---|---|---|
 | `.env.local` 没配 | AI 功能静默走 mock，不报错 | `cp .env.example .env.local` |
-| 新 worktree 缺 `.env.local` | 同上（gitignore 不会带过去） | 手动复制 |
-| 新 worktree 缺 `public/models/protected/` | **出包直接少东西且不报错**：工坊里铸卡师不见了（milltina 是加密分发的默认 NPC），凛卡的 3D 预览也没了。dev 下同样静默——只是模型 404，画面上就是"人没出来" | 同样手动从主仓复制。出包前用 `ls dist/models/protected/` 确认 `milltina-opt.glbx` 在（2026-08-11 就是这么发出去一个没有铸卡师的包的） |
+| 新 worktree 缺 `.env.local` | 同上（gitignore 不会带过去）。**出包时**还少了 `VITE_ASSET_KEY`：受保护模型解不了密，同下一行的白屏 | 手动复制（出包只需要 `VITE_ASSET_KEY` 那一行）；`build:app` 的出包闸缺了它会 exit 1 |
+| 新 worktree 缺 `public/models/protected/` | **一进工坊 3D 桌面整页白屏**（dev 与包里一样）：TableScene 无条件加载默认铸卡师 milltina（加密分发），加载失败在渲染里抛出、全 app 没有 ErrorBoundary，整棵 React 树卸掉。2.51–2.55 就是在 worktree 里这么出的包，构建、签名、清单一路全绿（更早的 2026-08-11 是被裁剪表误删，症状同源） | 手动从主仓复制 `milltina-opt.glbx`。**出包闸**（`scripts/prune-app-assets.mjs` 末尾，`build:app` 必经）会核对它在包里、且能用这次构建的 `VITE_ASSET_KEY` 解开，任何一条不过就 exit 1 —— 这时别绕过去直接跑 gradle（打进去的会是上一次 sync 的旧资产） |
 | Windows 上构建过之后 `git status` 报 `M`，`git diff` 却为空 | 构建里的 `lingui extract` 把 .po 一律写成 LF，而合并 / 检出按 `core.autocrlf` 写下的是 CRLF：内容一个字没变，可索引里缓存的文件大小对不上，git 见大小变了就直接当改过、不读内容（`git update-index --refresh` 也刷不掉）。2026-09-17 `npm run land` 因此被「extract 改了目录」误拦；在出过包的 main 里手工 `git pull` / `merge`，要改写这几个文件时同样会被「Your local changes … would be overwritten」整发拒 | 先 `git diff --name-only` 确认内容真没变，再 `git add` 那几个文件刷新索引（只更新缓存的 stat，暂存区里什么都不会多）。**别 stash、别 reset**（stash 栈是所有 worktree 共用的）。land 的三道「干净」闸已改成按内容判、只差 stat 的替你刷新（`scripts/worktree-changes.mjs`） |
 | `VITE_API_BASE` 指了远端 | 首页空白（本地库被跳过） | 本地开发注释掉它 |
 | 方舟提示词含敏感词 | 整个请求 400，不是降级 | 见 `AGENTS.md` 本仓小节 |
@@ -520,8 +1005,8 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 | 换了 `public/models/protected/*.glbx` 却没顶 `?v=` | 老用户的浏览器/WebView 拿的还是缓存里那份**旧模型**，全程零报错，本机清了缓存又一切正常 | 换模型必须同步顶版本号（NPC 在 `TableScene.tsx` 的 `?v=mNN`，玩家/预览档在 `quality.ts` 的 `NPC_VER`/`PLAYER_VER`）。出货全链见 `scripts/bl_milltina_convert.py` 头部 |
 | 自己调 `screen.orientation.lock` / `ScreenOrientation.lock` 转屏 | 浏览器里像是好了，**真机上点了没反应** | 方向只有一个主人：`hooks/useOrientationLock`。它每次切路由就 `lock(portrait)`，加上 manifest 的 `screenOrientation="portrait"`，native 那层早把 activity 钉死了，Web 的 `screen.orientation.lock` 盖不过去。要横屏调 `requestLandscape(true)` 表达意图，退出时**必须**传 `false`（首页全屏转屏就走这条路） |
 | 改了画幅却发现出片还是横的 | 竖屏设定帧被裁成横的，或视频照样 16:9 | 画幅要**三处同时改**才生效，缺一处就被方舟静默裁掉：Seedance 的 `ratio` 参数、Seedream 的画布尺寸（竖屏 `1440x2560`，比例不符会被裁）、提示词里的构图措辞（尺寸参数管不到构图）。三者收在 `types.VIDEO_ASPECTS` 一处，别在调用点各写各的。另：720p 竖屏方舟实际吐 **704×1248**（对齐到 16 的倍数），不是 720×1280 |
-| 动了首页底缘任何一个元素的位置 | 别的元素被**悄悄盖住**：右侧栏的全屏键压住时长文字、底栏的看板娘压住进度条 —— 两件都真发生过，而且都不报错，只是信息看不见了 | 底缘 100px 里叠着四样东西，位置是联动的：进度条容器 `bottom = var(--tabbar-h) - 0.375rem`（离底 50px）→ 时长文字顶沿在 86px → 右侧栏 `bottom = var(--tabbar-h) + 3rem`（104px）。底栏自己 56px 高，任何挂件都不许往上戳。改一个就把这几个数一起重算，别只看自己那一块 |
-| 右侧操作栏加了新按钮 | 小屏（640 高）上最上面的头像被 section 的 `overflow-hidden` **裁掉** | 整栏是 bottom 定位的 flex-col，加一个键就往上长 64px。现值 512px + 底 104px = 616px，640 屏还剩 24px。再加键就得先减间距（`RailBtn` 的 `mt-8` 只给有角色演出的键，基准 gap-2） |
+| 动了首页底缘任何一个元素的位置 | 别的元素被**悄悄盖住**：右侧栏的全屏键压住时长文字、底栏的看板娘压住进度条 —— 两件都真发生过，而且都不报错，只是信息看不见了 | 底缘 100px 里叠着四样东西，位置是联动的：进度条容器 `bottom = var(--tabbar-h) - 0.375rem`（离底 50px）→ 时长文字顶沿在 86px → 右侧栏 `bottom = var(--tabbar-h) + 3rem`（104px）。底栏自己 56px 高，任何挂件都不许往上戳。改一个就把这几个数一起重算，别只看自己那一块。进度条 2026-10-15 起是 role=slider（方向键 / Home / End 走 `seekRatio`），几何一个数都没动 —— 想把触控盒从 h-5 加高要先在真机上重量这三个数 |
+| 右侧操作栏加了新按钮 | 小屏（640 高）上最上面的头像被 section 的 `overflow-hidden` **裁掉** | 整栏是 bottom 定位的 flex-col，加一个键就往上长 64px。现值 512px + 底 104px = 616px，640 屏还剩 24px。再加键就得先减间距（`RailBtn` 的 `mt-8` 只给有角色演出的键，基准 gap-2）。⚠ 弹键盘时布局视口缩到 528（Pixel 8 实测），这一栏无论怎么挪都放不下 —— 所以带输入框的浮层（弹幕输入条、评论抽屉）开着时整栏退场（`FeedPage` 的 `railAway`），给首页新加这类浮层要把它并进去 |
 | 弹层/确认卡按「第几段」记 | 用户删掉前面一段，下标**整体前移** —— 之后的操作静默落到**另一段**上：换走向、清掉圈选、把已出片的段退回未出片并连锁上锁，最狠的是 `genNode` 打在用户没点头的那一段：扣真钱、覆盖它已经花过钱的成片，回执还写着「第 3 段开始生成了」，全程零报错 | 一律**认 `node.id` 不认下标**（`AgentProposal.nodeId` / `PlanSheet` / `SegPlayer` 三处都是这么修的）；执行前 `node.id !== p.nodeId` 就整句拒。面板类组件加 `key={node.id}`，顺带清掉跨段残留的本地开关 |
 | 确认卡上的价钱在卡摆着的时候不会变 | 卡不关，用户去方案台把时长 5s 点成 10s（那正是计价输入）→ 回来点「执行」：标价 507.6k、实扣 1.0M，屏幕上那个数从头到尾没动过 | `executeAgentProposal` 真跑之前用**同一把尺**重算（`nodeCost` / `proposalsCost`），对不上就整句拒并请用户重说一句。所以 `AgentProposal.cost` 存的是**数值**，不只是那句字符串 |
 | z-50 的弹层盖住 z-40 画布壳上那条错误条 | store 的整句拒绝（换模板被拒、挂卡被拒）正好落在被盖住的那条上 = 用户眼里的「点了没反应」 | 盖住谁就**自带一份**：`PlanSheet` 与 `TemplatePicker` 各画一份 `useFlow(s => s.err)`；能提前判死的干脆 disable 并在旁边写清为什么点不动 |
@@ -541,7 +1026,7 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 | 自动存盘写成 `void saveWorkDraft(...)` | 失败零提示，而这恰恰是钱刚花出去那一刻；一旦静默失败，上面那句"存住了"就**悄悄变成假的** | 自动存盘也要判返回值并写 `err`（铁律八）。手动那颗按钮早就判了，自动这条 2026-08-21 才补 |
 | 输入框忘了 `maxLength` | 提示词硬顶（`VIDEO_PROMPT_MAX`）是**从正文那头下刀**的，越顶的后果是发出去的点名映射被切掉一截、画面照出、钱照收，而那句 `cut` 警告只是一闪而过的进度行 | 每个能写进提示词的入口都硬拦，且用同一个常量。同一件事一度有三个数：人手输入无上限（画布）、模型 300（agent）、线性 400 |
 | 全局状态不记「属于哪一段」，界面按 `cursor` 反推 | `castErr` / `castFallback` / `castBusy` 是这么用的，而挂卡合成是一次十几秒的对话 —— 这期间用户点一下别的段光标就走了（点卡片、底部节点条都不判 busy）。于是**真正在被写的那一段解除了禁用**（这几秒打的字会被回包整段覆盖，而那把锁存在的全部理由就是防这个），失败提示与「填入默认写法」却落到**另一段**上，点下去把这一段的骨架写进别人的 plot | 状态自己记住主人：`flowStore.castNodeId`（`applyCast` 起手写），界面与 `fillCastFallback` 都认它、不认 `cursor`。⚠ 别用"只有锁着的段才会 sel≠cursor"这类不变式来省这一步——**上一段炼完那一刻它就破了**（frontier 前移、这一格就地解锁，而 `genNode` 根本不碰 cursor） |
-| 手势进行中被别的东西改了视图（程序化平移、滚轮） | 那一下会被下一个 `pointermove` **整个抹掉**，抬手时 `setView` 还把这个覆盖值提交下去 —— 表现成"跳过去又弹回来"，比纹丝不动更像坏了 | `pointermove` 是**整体重算**（`tx = 基准.tx + dx`）不是增量叠加，所以任何在手势中途改视图的地方都要连**基准**一起挪。唯一实现是 `FlowCanvas.reanchor`，四处共用：按下 / 少一根手指（两指→一指、三指抬掉最先按下那根都算）/ `panTo` / 滚轮。这条改了两版才对 |
+| 手势进行中被别的东西改了视图（程序化平移、滚轮） | 那一下会被下一个 `pointermove` **整个抹掉**，抬手时 `setView` 还把这个覆盖值提交下去 —— 表现成"跳过去又弹回来"，比纹丝不动更像坏了 | `pointermove` 是**整体重算**（`tx = 基准.tx + dx`）不是增量叠加，所以任何在手势中途改视图的地方都要连**基准**一起挪。唯一实现是 `FlowCanvas.reanchor`，四处共用：按下 / 少一根手指（两指→一指、三指抬掉最先按下那根都算）/ `panTo` / 滚轮。这条改了两版才对。缩放的程序化入口只有 `FlowCanvas.zoomTo(k, anchor)`（2026-10-15：滚轮锚指针、右上角三颗键锚容器中心，范围只在 `ZOOM_MIN/MAX`），落地一律 liveView → reanchor → setView；缩放键要 `onPointerDown` stopPropagation，否则按一下就是平移起手 |
 | 换段这件事自己 `set` 一个下标，不走 `setCursor` | 换段不只是挪下标：store 级的模板快照与**挂卡缓冲**都要换成那一段自己的。少走一条路的表现是"按别段的角色位渲染、挂法串段"，零报错。`shiftCursor` 与 `removeNode` 都栽过（各修一次） | 唯一实现是 `flowStore.setCursor`，任何改变"当前是第几段"的动作都走它。⚠ 它**不许**顺手清 `castErr`/`castNodeId` 之类的在途状态（清了就把归属抹掉，见上一行） |
 | 靠"首字白名单 + 字数阈值"判断一句话是什么意思 | 本地降级档拿它区分"改属性"和"写要求"，结果 `^(拍\|画\|讲\|演\|要)` 与「**画**质换成高清」「**要**删掉」正面撞车 —— 判成要求就**静默整段覆盖**用户写好的一大段，不可撤销 | 改用**剥词法**：把改动动词/属性名/属性值/语气词剥净，剩不下东西才算属性指令（属性句剥完必然为空，画面句剥完必然还剩主体）。判据写完要拿一批正反例**实跑**，而且测试直接从源文件抠正则，别在测试里重打一遍（重打一遍就是同一条规则的第二处实现） |
 | 把正则写成**字符串常量**再 `new RegExp` | `"\d"` 在 JS 里是转义序列，运行时退化成字母 `d` —— 那一档从此永远匹配不上，而且**零症状**（构建过、类型过、也不报错）。`blockoutPrompt` 里那条模板字符串的 `\s` 是同一个坑的另一面，这次在 `canvasAgent` 的词表上又栽一次 | 一律用**正则字面量**；需要同一份规则的另一种标志位（比如去掉 `g`）时用 `new RegExp(那条.source, "i")` **派生**，别另抄一份字符串。判据写完拿正反例实跑，而且测试直接从源文件抠正则 |
@@ -551,7 +1036,7 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 | 给某条路加门禁时只加在"最近的那一处" | `deriveIssue`（真人档走不了推演）在 flowStore.deriveProposals 与 studioStore.generateNode 都有，**唯独 regenNodeProposals 漏了** —— 真人档上点重推，spendTokens 照扣、炼出三套那一档一张都用不上的帧，还把用户亲笔的 plot 换成 AI 重写的 | 同一条规则的**所有**入口一起补。查法：`rg "deriveIssue\|r2vPriceIssue\|tierBlockReason"` 看它们出现的地方是不是覆盖了每一条会花钱的路 |
 | 组件里把 hook 写在早退（`if (!x) return null`）**之后** | 那一格状态从有变无的那一拍 hook 数对不上，React 抛「Rendered fewer/more hooks」——**整棵树当场崩**，而工坊/画布都没有 ErrorBoundary：屏幕上是一块空白，不是一条报错。表现会被描述成"某个功能不见了、之前的改动回退了" | hook 一律排在所有早退**之前**（2026-08-30 一天内 `projection.tsx` 两处各栽一次：ProposalsPanel 的 `playing`、EditorPanel 的 `tplPick`/`matsOpen`）。查法：函数体里第一个早退之后不允许再出现 `use*(`（回调体内的 return 不算） |
 | 在**看不见的**窗口里测（最小化/被挡住/标签页在后台） | 三类假故障：① `scrollTo({behavior:"smooth"})` 完全不动、scroll 事件一次都不触发（轮播翻页、首页上下滑看起来全坏）② `<video>` 不加载不解码，`loadedmetadata`/`seeked` 永不到达（出片卡在「捕获本段真实尾帧…」、剪辑页卡在「合并中」）③ rAF 被节流到 ~1 帧/500ms，Three.js 画布是黑的 | 先查 `document.visibilityState`，是 `hidden` 就别下结论。自动化测试必须让窗口真正可见（CDP 截图能骗过去，rAF 和媒体解码骗不过去）。代码侧的对策是**等媒体事件一律带超时**（见 `ai/real.ts` 的 `withTimeout`）——否则用户在几分钟的出片过程里切出去，回来就是永久卡死 |
-| 出片没接到结果就按「失败」处理 | 用户面前唯一可点的是「♻ 重新生成（N token）」= **重新下一单 = 再花一次钱**，而那一发的成片往往在方舟那边好好地存在着（2026-08-18 实测：15s 白模模板方舟约 13 分钟出片，App 10 分钟就放弃了，¥27 的成片是事后用任务号从方舟侧捞回来的）。计费在**受理那一刻**就发生（契约「先扣钱、再转发」+「受理之后失败不退」），所以「没接到」和「没花钱」毫无关系 | 「没接到」与「失败」是**两个**结局，判据是**类型**（`ai/arkClient.ArkTaskUnknown`）而不是错误文案里的关键词。三件一起做：① 任务**受理即落凭据**（`data/videoJobs`，用 localStorage —— 要扛得住进程被系统回收，那正是丢结果最常见的方式），落在开始等待**之前**而不是失败分支里；② 节点打 `status:"pending"` 而不是 `"failed"`；③ 段卡上给 24 小时取回入口（查询不计费，取回不再花钱）。同仓另有一份正确形态可对照：`data/templates.waitBlockoutTask`（白模化两阶段），改一处时对着看另一处 |
+| 出片没接到结果就按「失败」处理 | 用户面前唯一可点的是「♻ 重新生成（N token）」= **重新下一单 = 再花一次钱**，而那一发的成片往往在方舟那边好好地存在着（2026-08-18 实测：15s 白模模板方舟约 13 分钟出片，App 10 分钟就放弃了，¥27 的成片是事后用任务号从方舟侧捞回来的）。计费在**受理那一刻**就发生（契约「先扣钱、再转发」；2026-10-07 起只有上游**明说**失败的那一发才退），所以「没接到」和「没花钱」毫无关系 —— 没接到也不是失败，钱不会退 | 「没接到」与「失败」是**两个**结局，判据是**类型**（`ai/arkClient.ArkTaskUnknown`）而不是错误文案里的关键词。三件一起做：① 任务**受理即落凭据**（`data/videoJobs`，用 localStorage —— 要扛得住进程被系统回收，那正是丢结果最常见的方式），落在开始等待**之前**而不是失败分支里；② 节点打 `status:"pending"` 而不是 `"failed"`；③ 段卡上给 24 小时取回入口（查询不计费，取回不再花钱）。同仓另有一份正确形态可对照：`data/templates.waitBlockoutTask`（白模化两阶段），改一处时对着看另一处。真人档取件（文件号 → 下载地址）那一发没收到回包也是 ArkTaskUnknown（2026-10-15）：产物在上游好好存着，凭据留着再取一次不花钱；归 ArkNoReply 的话唯一能点的就是重新下一单 |
 | 照着一份"结论"动手，没自己核那几行代码 | 2026-08-30 实测：一份写得很详实的调研里，**六条有两条的证据指错了地方**——「服务端早就收作品 tags」（其实那条 `tags` 长在**卡组快照里每张卡**上，作品本体的 zod/model/回包三处都没有）、「`types.ts:417` 有 `VideoItem.tags`」（那是 `Card.tags`）。照着做的话，客户端会发一个被 z.object 静默 strip 的字段：发了、201 了、读回来是空的 | 二手结论只当**线索**，动手前把它引用的那几行**自己打开看一眼**（`sed -n` 就够）。尤其是"某某已经支持了"这种否定不了的说法——它一旦是错的，后果正好落在最难查的那一类：零报错的丢数据 |
 | 两个层级上有同名字段（作品的 `tags` / 卡组快照里那张卡的 `tags`） | `rg tags` 会把两者一起命中，读的人以为是同一条规则。上一格那次误判就是这么来的 | 加同名字段时在**两边的注释里互相点名**（"与 X 同名不同物：那是……这是……"）。本仓已有的同型：`VIEW_TAG_MAX`（图位花名）与话题标签、`Card.tags`（进提示词的关键词）与 `VideoItem.tags`（给人搜的话题） |
 | 把客户端上限与服务端 zod 的上限"对齐成一样" | 服务端那边超了是**整发 400 而不是截断** —— 一旦客户端调到与它相等再往上动一格，用户会在发布一条几十分钟的付费成片时吃 400，而那一发的 token 已经花掉了 | 两个数**有意不相等**：服务端是**安全上界**（防伪造客户端），客户端是**产品口径**（`types.VIDEO_TAG_MAX`=6/10 vs server 20/40）。只要客户端 ≤ 服务端就永远撞不到那个 400，而且放宽产品口径不用发服务端。理由写在两处注释与 `docs/api-contract.md` 里，防止后人"顺手统一" |
@@ -598,7 +1083,7 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 | 工坊投影窗里选定模板 / 挑定走向之后，第一段的 ‹ 灰着、删段被"只剩一段"挡住 | 「回铸段窗重选模式」只给空白段，白模段选完模板就没有退路，用户描述成"选择走向后返回键是灰色不可用"（2026-09-06 主人真机） | 判据放宽成 `flowStore.nodeRecastable`（还没出片、没在炼）：第一段的 ‹ 就是「回铸段窗」（`studioStore.recastNode`），推演过三套的段先弹确认卡（方案花过 token）；`removeNode` 的"只剩一段"闸也只挡已出片的。丢什么、花没花钱由投影窗那行小字如实说 |
 | 工坊里一张**空白占位段**（加了段还没推演）把人困住 | 点节点卡开的是方案台：顶栏那枚 ‹ 是"上一段"（第 1 段时灰着），铸段窗那枚"上一步"随窗一起没了，「删除本段」又被"只剩一段"挡住 —— 用户描述成"退出工坊再进来，返回按钮消失了，没法重选走向"（2026-09-05 主人真机） | 空白的判据只有 `flowStore.nodeBlank` 一处（没剧情、没帧、没出片、非自定义/白模）：方案台给「‹ 回铸段窗重选模式」（`studioStore.recastNode`，撤段 + 按原要求/档位/画幅/素材重开铸段窗，不花钱），`removeNode` 对空白段放开"只剩一段"那道闸。**2026-09-06 放宽**：判据换成上一行的 `nodeRecastable`（还没出片的段都行），空白段只是它的子集。⚠ 别按"只有一套方案"判空白：做同款/老草稿的段也只有一套，里面是真内容 |
 | 凭据**受理即落盘**，而取回卡读的是"本机全部凭据" | 每次出片，受理那一刻起黄色的「第 N 段有一发成片还没取回」就摆出来、取回键还灰着，直到成片回来才消失 —— 用户读到的是"刚下单就丢了一发"（2026-09-05 主人真机点名） | 落盘没错（进程被回收时它是唯一线索），错的是**显示门**：`data/videoJobs` 加一份只在内存里的 `waiting`（受理时 `setVideoJobWaiting(id,true)`，genNode 的 finally 里解除），取回卡读 `recoverableVideoJobs()`。冷启动回来 waiting 天然为空，凭据照常摆出来。⚠ 别把它做成落盘字段：落了盘"正在等"就永远为真 |
-| 白模段的成片在回看里是哑的、声音键灰着 | 用「有声音的白模模板」出的片放出来没声（2026-09-06 主人真机）。这不是取流的问题：`BLOCKOUT_TASK` 钉着 `generate_audio:false`（edit 会连参考视频的歌一起复刻，带歌模板会被方舟在输出端整发拒、钱不退），成片文件本来就没有音轨；而合并页的原片音轨预置只认分段组的 `group.sourceUrl`，普通白模模板一样哑 | 回看（`SegPlayer`）把模板那一段的原片音轨（`tpl.refVideo.url`，正是与这一段对齐的那段裁剪）用 `<audio>` 叠上去跟着视频走，给「🔊 模板原声」开关并说明一句；合并页预置也退到 `refVideo.url`（`studioStore.draftAudioHint`）。别去改 `generate_audio`：那是版权拦截换来的 |
+| 白模段的成片在回看里是哑的、声音键灰着 | 用「有声音的白模模板」出的片放出来没声（2026-09-06 主人真机）。这不是取流的问题：`BLOCKOUT_TASK` 钉着 `generate_audio:false`（edit 会连参考视频的歌一起复刻，带歌模板会被方舟在输出端整发拒、片子出不来），成片文件本来就没有音轨；而合并页的原片音轨预置只认分段组的 `group.sourceUrl`，普通白模模板一样哑 | 回看（`SegPlayer`）把模板那一段的原片音轨（`tpl.refVideo.url`，正是与这一段对齐的那段裁剪）用 `<audio>` 叠上去跟着视频走，给「🔊 模板原声」开关并说明一句；合并页预置也退到 `refVideo.url`（`studioStore.draftAudioHint`）。别去改 `generate_audio`：那是版权拦截换来的 |
 | 取回凭据只落在本机 localStorage，取回成功那一拍就销毁，而成片只落在内存里的流水线上 | 出片到一半 App 被重启（2026-09-06 是我们出包装机）：流水线没了、凭据还在 → 用户按「取回」成功、凭据销毁、成片落进内存里新开的一段 → App **又**被重启一次 → 这一发谁都找不回来：钱在受理那一刻已经扣了、方舟侧好好存着 24 小时、App 里一颗按钮都没有（主人真机，那一发事后从服务端日志里的任务号捞回并转存） | 两道都补：① 服务端受理即登记（server `ArkVideoTask`，`GET /api/ark/video-tasks`），App 进创作入口时 `videoJobs.importServerVideoJobs` 把本机不认识、也没处理过的任务补成凭据（本机「已处理」名单 `taken` 防重复出现）；② 取回成功**当场存草稿**（`SegmentRecoverCard.take`）—— 创作入口那个宿主没挂 useFlowActions 的自动存盘。⚠ 出包装机的纪律：App 在前台亮屏时**不装**（人可能正在等出片，屏幕不动 ≠ 没在用） |
 | 取回卡上的键**永远灰着**，旁边写"回到当初炼它的那条工作流" | 原节点不在这条流水线里就整句拒 —— 而"不在"最常见的原因是 App 被重启、那一段从没存过草稿（第一段炼成之前没有任何自动存盘）：根本没有那条草稿可回，一颗灰键守着一笔已经花掉的钱（2026-09-05 主人真机：被我重启 App 打断的那一发） | 原节点在 → 落回原位；不在 → `flowStore.placeRescuedSegment` **新开一段**安放（落在第一段没出片的段之前，chain:false、tpl:null、不写 firstFrame）。凭据从 2026-09-05 起多存时长 / 画幅 / 档位 / 剧情，老凭据按成片实测与缺省补。取回卡的键不再按 `mine` 灰掉，只换一句话 |
 | 剪辑页按**申报**时长（`durationSec`）铺片段出点 | 白模复刻 / 参考视频直出的成片长度跟着参考走（20 秒模板出 20 秒的片），申报值还是 5 ⇒ 进剪辑页只剩 5 秒、合并也只录 5 秒，而播放器明明能播 20 秒（2026-09-05 主人真机） | 出片截帧那一步顺手读 `duration` 一路带回 `Proposal/VideoSegment.realDurationSec`；剪辑页铺片段、还原整段、分割、✂ 标记一律 `realDurationSec ?? durationSec`（`segLen` / `lenOf`），没记上的从播放器 / 截帧流 / 合并前的 metadata 学（`learnRealDur`），没裁过的片段跟着真实时长走。报价仍按申报值 |
@@ -616,7 +1101,9 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 | 多序列合成里，第二条序列（BGM）喂的是一个**带画面的 mp4** | 白模模板的原片 `refVideo.url` 就是 mp4 —— 白模成片自己无声，声音正是从它来的。不 `setRemoveVideo(true)` 的话，合成器要多解一路视频，还要去猜两路画面谁盖谁 | BGM 那条 `EditedMediaItem` 一律 `.setRemoveVideo(true)`：只要声音。⚠ 这条路**至今没在真机上跑通过一次**（2026-09-07 的两次合并都没有 BGM）——验它要一条带模板原声的稿子走完整条 组稿 → 剪辑 → 合并 |
 | 播放器上写死 `muted`，理由写的是「静音自动播放才不被浏览器拦」，而这个播放器**根本不自动播放** | `SegmentPlayer:144` 与 `BranchPlayer:208` 都要用户先点那颗播放键才开始播 —— 手势早就有了，自动播放策略根本不适用。于是**发布页的成片预览与作品详情页永远是哑的，且全页没有任何解除入口**（首页 `FeedPage` 反而是对的：`muted={muted}` + 划走划来那套解锁）。后果不是"少了个功能"：用户刚合完一条片子，第一件事就是在发布页播一下 —— 听不见声音，得出的结论是**「合并把我的声音弄丢了」**，而片子里可能好好地有音轨。2026-09-07 主人报「又没声音了」时，这一层与"文件真的没音轨"那一层是同时成立的，光修一层看不出效果 | 缺省**出声**（`useState(false)`），控制条上给一颗 `🔊 有声 / 🔇 已静音`；`play()` 被拒了才退成静音重试一次 —— 别把"能不能播"赌在"能不能出声"上。⚠ `muted` 是 property 不是普通 attribute，换段会重建 `<video>`，要用一个无依赖的 effect 每次渲染都钉一遍。⚠ 首页那套静音是**解锁自动播放**用的，别一起改 |
 | media3 序列里**第一段没有音轨、后面的段有** | **整条合并当场抛**。反编译 media3 1.11.0 的 `SequenceAssetLoader` 定的案，那句报错在字节码里逐字存在：「The preceding MediaItem does not contain any audio track. …then `EditedMediaItemSequence.Builder.experimentalSetForceAudioTrack()` needs to be set to true.」机理是**轨道集合由第一段定死**（`sampleConsumersByTrackType`），后面的段冒出首段没有的轨型时 `checkNotNull` 拿到 null 就炸。而这条流水线在本 app 里再正常不过：白模复刻段天生无音轨（`BLOCKOUT_TASK` 的 `generate_audio:false`），hd/ultra 档的普通段真发 `generate_audio:true` ⇒ **「第 1 段白模 + 第 2 段普通段」必炸**。⚠ 反过来（有声在前、无声在后）不炸，media3 自己补静音 | 多段时开 `experimentalSetForceAudioTrack(true)`。⚠ **别一律开**：开了之后输出一定带一条音轨（没得混就是静音的），`ExportResult.audioMimeType` 恒非 null ⇒ 用来当面告诉用户「这条成片没有声音」的那一位就开始骗人。所以 `VideoMergePlugin` 只在 `size() > 1` 时开，并把 `hasAudio` 做成**三态**：送了 BGM = true、单段照实报、多段且没送 BGM **不报**（Web 侧 undefined = 什么都不说）。⚠ 顺带确认过一件不用担心的：角标的 `presentationTimeUs` 是**全局时间轴**（`SampleConsumerWrapper.registerVideoFrame` / `queueInputTexture` 都先做 `totalDurationUs + 本段时间戳`），所以多段片子只有整条成片开头那 2.5 秒有角标，不是每段都盖 |
-| 合并产物（`idb:merged:…`）又被送回剪辑页的合并入口 | 从个人页「接着剪」打开一条**已经合好**的稿子，点「下一步」会撞上 `mergeAndGo` 里那道 `^https?:` 闸，抛「第 N 段还不是永久地址，合成用不了——**回到工作流等它转存完再来**」。这条出路**根本不存在**：片子已经合好了没什么可等的，工作流也早被组稿那一拍 `reset()` 清空了 ⇒ **这条合好的成片再也发不出去**，而屏幕上还指着一个假出口（2026-09-07 核查抓到，主人当时正踩在上面） | 判据一处 `CutPage.alreadyMerged`（`draft.merged` 为主，单段 `idb:` 兜老稿子）：那颗键写「去发布」并直接 `navigate("/publish")`，`mergeAndGo` 起手也拦一道。⚠ 已经合好的片子**改不了**（不能再合一次），要改只能回工作流重做一条 —— 这句话要说出来，别让人对着一颗点不动的键猜 |
+| 合并产物（`idb:merged:…`）又被送回剪辑页的合并入口 | 从个人页「接着剪」打开一条**已经合好**的稿子，点「下一步」会撞上 `mergeAndGo` 里那道 `^https?:` 闸，抛「第 N 段还不是永久地址，合成用不了——**回到工作流等它转存完再来**」。这条出路**根本不存在**：片子已经合好了没什么可等的，工作流也早被组稿那一拍 `reset()` 清空了 ⇒ **这条合好的成片再也发不出去**，而屏幕上还指着一个假出口（2026-09-07 核查抓到，主人当时正踩在上面） | 判据一处 `CutPage.alreadyMerged`（`draft.merged` 为主，单段 `idb:` 兜老稿子）：那颗键写「去发布」并直接 `navigate("/publish")`，`mergeAndGo` 起手也拦一道。⚠ 2026-09-30 起合好的片子**可以「回去改」**（合并时源段留底在剪辑工程里，`studioStore.reopenCut`；剪辑页横幅与发布页各有一颗键），改完再合一次；只有**没留底**的老稿（那天之前合的）才是"要改只能回工作流重做一条"—— 这句话仍然要说出来，别让人对着一颗点不动的键猜 |
+| 拿「这一段有多长」去截 / 收拾时间轴上的片段，而那个数在真实时长量出来之前是**申报值** | 白模复刻 / 参考直出的片子申报 5 秒、实际 20 秒。从个人页「接着剪」回来、截帧流还没到的那几秒里，按申报值截出点 ⇒ 裁在第 15 秒的出点变成 5，这时点「下一步」合出来只有 5 秒；按申报值收拾"越界"片段更狠 ⇒ 裁在第 12 秒的入点被当成落到片尾之外，整个片段回到整段或被拿掉。全程零报错（2026-09-30 写剪辑工程时自己犯的，回头逐行复查才抓到；`check-cut-project.mjs` 里钉了一条） | 「按多长画 / 算」用 `lens`（实测优先、没实测过退回申报值）没问题；**凡是会改掉用户裁剪结果的判断**只认量出来的长度（`realLens`，没量过 = undefined = 不动）。`cutProject.clipEnd` 不截、`sanitizeClips` 只收 `realLens` |
+| 页面开着的时候，它依赖的那份 store 被别处清掉，而对上它的 effect 只在"进页 / 稿子换形状"时跑 | 剪辑页的时间轴一个片段都没有、每颗键都点不动，屏幕上一个字都不说（2026-09-30 浏览器里实测撞到：工程被 `load(null)` 而稿子形状没变） | 补开工程的 effect 把「现在有没有工程」也放进依赖（`CutPage` 的 `hasProject`）；稿子的身份用指纹（`draftSig`）而不是段数，段数相同的另一份稿子也能认出来 |
 | 把「模板原片」当音轨源送进合成器，却没问过它有没有声音 | 剪辑页会**自动**把白模模板的 `refVideo.url` 预置成「原视频音轨」，而**白模化生成的模板存的是方舟白模产物**（server `branchTemplate.routes.js:1099` 的 `blockout.transferToCloudinary(verdict.videoUrl)` → `:1292 refVideo.url`）—— 那份产物自己就是无声的（`BLOCKOUT_TASK` 的 `generate_audio:false`）。配上 2026-09-07 加的 `.setRemoveVideo(true)`，这条 `EditedMediaItem` 就成了**零轨道输入**：往 Composition 里塞一条什么都不出的序列，轻则白解一路、重则整发抛。⚠ 就算不抛也一样是错的 —— 那一栏写着「原视频音轨」而它根本发不出声，**文案在骗人**，而这条是 App 自己勾上的、用户从没选过 | 送之前探一次（`VideoMergePlugin.probeHasAudio`，`MediaMetadataRetriever` 的 `METADATA_KEY_HAS_AUDIO`）：确定没有就**跳过并如实说一句**（`bgmSkipped` 一路带到发布页）。⚠ 只探**这一条**、不探每个片段：一次网络读，还要带执行器 + 超时（`MediaMetadataRetriever` 对网络地址没有超时旋钮，卡住就是整条合并卡住）。⚠ 探不出来时**按"有"处理** —— 宁可按老样子走，也不要因为探测本身失败就把用户的配乐悄悄丢掉。⚠ 反过来「自带参考视频」那条路存的是原片裁剪（`templates.ts` 的 `url: cut.url`），那种是带声音的 —— 别一刀切当成都没声音。⚠ `MediaMetadataRetriever` 的**本地文件与网络地址是两个重载**：`setDataSource(String, Map)` 是网络那一版，喂 `file://` 直接 `RuntimeException: setDataSource failed: status = 0xFFFFFFEA`（2026-09-08 真机抓到）—— 而本地挑的 BGM 正是先落盘再以 `file://` 送进来的，于是那条路上的探测**永远失败**。兜底是「按有处理」所以没出错，但探测等于白跑、还每次刷一条警告，将来真正的失败会被这堆噪音盖住 |
 | 「这条成片是不是哑的」只问合成器 | 多段合并必须开 media3 的 forceAudioTrack（不开会整发抛），而它会给哑片也补一条静音轨 ⇒ `ExportResult.audioMimeType` 恒非 null、合成器**答不准**。而这恰恰是最该当面说的一句话：默认 std 档 `audio:false`、白模钉死 `generate_audio:false` ⇒ **多段全哑是常态不是边角**，于是一条没人告诉你它是哑的成片会一路发出去 | 判据挪到**输入侧**：组稿那一拍就算好 `VideoSegment.hasAudio`（`!tplOfNode(n)?.refVideo && videoAudioOn(tierOf(n.videoTier).model)`，零网络零 token），剪辑页拿**参与合并的那几段**（`view` 不是 `segs`）全为 false 来判。合成器那一位仍留着兜单段与老稿。⚠ 判否定：有一段是 `undefined`（老草稿）就当"不知道"，一个字都别说 |
 | 整条成片的画幅取 `segs[0]` | `segs[0]` 与**时间轴上的第一段**经常不是同一段 —— 用户把第 1 段删掉、或拖到后面去，成片仍按一个**根本不在片子里**的段的画幅归一；而归一走的是 `LAYOUT_SCALE_TO_FIT_WITH_CROP`，剩下那些段被硬裁掉两边，全程零报错。套白模模板会改写那一段的 aspect，所以混排是真会发生的 | 认 `segs[view[0]?.segIndex]`，`segs[0]` 只当兜底 |
@@ -629,16 +1116,63 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 | 取回安放的段写死 `tpl: null`，而白模的**声音全在模板上** | `flowStore.placeRescuedSegment` 的 `tpl: null` 本身是对的（恢复成 store 级那份会踩「tpl 三态兜底」那格坑），但它顺带把这一段的**模板原声**也一起丢了 —— 白模成片文件天生无声，声音全靠合并时从模板原片混进去。于是「App 重启后取回一发白模成片」这条路会让那一段在**回看里彻底哑**、合并时也拿不到音轨预置，全程零提示 | 别去动 `tpl`。单开一位 `FlowNode.audioHint`（只有取回段用得上），凭据里跟着存 `VideoJob.tplRefVideo`（**只存地址**——模板对象带 refVideo/roles/cards，塞 localStorage 会顶配额）。读的两处都把它排在 `tplOfNode` **之后**当兜底：`studioStore.draftAudioHint`（合并预置）与 `SegPlayer` 的 `tplAudioUrl`（回看叠音） |
 | 老草稿里那一段揣的还是**方舟临时链接**，而它只活 24 小时 | 合并时 media3 去拉它，拿回 **403** ⇒ 整发失败，而合成器给的原话是三行英文：`Asset loader error ← Source error ← Response code: 403`。用户读不出「哪一段」「为什么」「接下来怎么办」——2026-09-08 真机撞到：一条两天前的草稿，转存当初没成，方舟那份早就过期了。⚠ 这一档**救不回来**：源头没了，转存也拉不到，只能重新出片（再花一次钱）| 合并前那趟受理式转存之后，把**仍然是方舟链接**的段号记下来（`stillArk`）；失败时若错误里带 403/404 **且** `stillArk` 非空，就说准：哪几段、为什么（临时链接 24 小时）、怎么办（重新出片或删掉这几段）。⚠ 只在我们自己知道有段没转存成时才这么说 —— 同样的 403 也可能来自别的地址，硬套一个原因就是换了一种骗人 |
 | 按错误 message 里的**中文关键词**判「是哪一种失败」（`/网络失败/`、`/网络不可用/`、`/审核/`） | 两头都零报错：措辞一改、或多语言之后 message 变成英文，分流就悄悄全落兜底句；更要命的是被分错的那一档往往关系到钱 —— 「没收到回包」恰恰是**可能已经扣了**的那一档（服务端先扣钱再转发，而客户端 chat 超时 120 秒短于服务端转发上限 150 秒），在这里说「没扣钱」是往放心的方向说错 | 认**类型 / 状态码 / code**，不认 message：`arkClient` 的 `ArkNoReply`（没收到回包，只能说「可能已扣」）/ `ArkBadReply`（2xx 读不出来，已扣）/ `ArkHttpError.status`（服务端网关连不上方舟回的是 **504** + `ark upstream TimeoutError`）；`api/client` 的 `ApiError.code`（NETWORK / TIMEOUT），上传分块断线的 `chunkError` 也带同一个码。浏览器自己的英文（`Failed to fetch`）不是我们的文案，留作兜底可以。2026-09-10 多语言第 1 步把 `briefArkReason` / `chatFailLine` / `videos.errText` 三处收了（`videos.errText` 2026-09-11 改名 `uploadFailOf`、改回码：待发队列落盘存码不存话，见 `PendingErrorCode`） |
-| catch 里不分错误类型一律说「没扣钱」 | 远端模式（正式包）下**往放心的方向说错**，零报错：`spendTokens` 在远端是空操作，钱由服务端在 /api/ark 上**先扣、再转发**，只有上游非 2xx 才退（契约「扣费」一节，实现在 server `arkGateway.chargedArkCall`）。于是四种失败屏幕上都是「没画成」，钱却已经或可能已经扣了：① 没等到回包（`ArkNoReply`：断网、客户端先超时，服务端那一发照样跑完计费）② 2xx 但结果用不上（`ArkBadReply`）③ 图已出、取回失败（`real.genImageAsDataUrl` 的 `toDataUrl` 排在已结算的 `generateImage` 之后）④ `real.portraitViews` 逐格出图画到第 k 格才失败 —— 每格是一次独立的 /images/generations，前 k-1 张各自结算过了。2026-09-17 之前自传图做卡片的圈选改图 / AI 生成图位 / 人物信息、提取窗的炼形象图、导演台融图五处都这么说；唯一分了档的 `CustomCardPage.recognize` 又把人指去「我的」页的「钱包流水」——App 里**没有**那一页（`api/wallet.fetchWalletLedger` 零调用方，「我的」页与钱包抽屉只有余额） | catch 里要提钱只走 `ai/failCharge`：`chargeOnFail(e)` 是**唯一判定**（认错误**类型**、认 `isRemoteMode()` 与管理员免扣费 `billingExempt()`；判成「可能已扣」时顺手刷一次钱包，那一档恰恰没有回包、响应头带不回余额），`chargeNote(结论, 单价)` 给钱上的那句话（全仓只有这几句，当占位符嵌进各处自己的整句；回 null = 真的没扣，说原来那句，离线 / 演示构建因此一个字不变）。★ 规则的另一半在**抛错那一侧**：凡是「2xx 之后才坏」的失败都得抛 `ArkBadReply`（回包里没有图、图取不回来、模型回的不成 JSON），逐个计费的批量调用抛 `ArkBatchPartial` 带上已经结算的次数 —— 抛裸 Error 就静默落进「没扣钱」。★★ 批量里已经画好的那几张**不许跟着抛错一起丢**（2026-09-17）：逐格出图抛的是子类 `real.PortraitViewsPartial`，图挂在它的 `drawn` 上，调用方（`CustomCardPage.runAiForge` / `VideoCardAnnotator.makePortraits`）**收下 + 离线账本按张记上**两件一起做，下一次只补剩下的格子（报价 / 余额门 / 真画 / 离线实扣都读各自页里的那一份 plan）；`chargeOnFail` 离线时也照 `settledBefore` 说「已计费」—— 只做一半的话，离线要么白拿图、要么那句「已计费」是假话。⚠ 别对 `ArkBatchPartial` 直接 `instanceof ArkNoReply`（恒假），拆壳只在 `chargeOnFail` / `briefArkReason` 里。⚠ 指给用户「去哪儿核对」之前先确认那一页真的存在（现在指的是「我的」页的 token 余额）。⚠ 新接进来的调用点先核对「成功之后才 `spendTokens`」：先扣后调的话，离线模式那句「没扣钱」就不成立了 |
+| catch 里不分错误类型一律说「没扣钱」 | 远端模式（正式包）下**往放心的方向说错**，零报错：`spendTokens` 在远端是空操作，钱由服务端在 /api/ark 上**先扣、再转发**，只有上游非 2xx 才退（契约「扣费」一节，实现在 server `arkGateway.chargedArkCall`）。于是四种失败屏幕上都是「没画成」，钱却已经或可能已经扣了：① 没等到回包（`ArkNoReply`：断网、客户端先超时，服务端那一发照样跑完计费）② 2xx 但结果用不上（`ArkBadReply`）③ 图已出、取回失败（`real.genImageAsDataUrl` 的 `toDataUrl` 排在已结算的 `generateImage` 之后）④ `real.portraitViews` 逐格出图画到第 k 格才失败 —— 每格是一次独立的 /images/generations，前 k-1 张各自结算过了。2026-09-17 之前自传图做卡片的圈选改图 / AI 生成图位 / 人物信息、提取窗的炼形象图、导演台融图五处都这么说；唯一分了档的 `CustomCardPage.recognize` 又把人指去「我的」页的「钱包流水」——App 里**没有**那一页（`api/wallet.fetchWalletLedger` 零调用方，「我的」页与钱包抽屉只有余额） | catch 里要提钱只走 `ai/failCharge`：`chargeOnFail(e)` 是**唯一判定**（认错误**类型**、认 `isRemoteMode()` 与管理员免扣费 `billingExempt()`；判成「可能已扣」时顺手刷一次钱包，那一档恰恰没有回包、响应头带不回余额），`chargeNote(结论, 单价)` 给钱上的那句话（全仓只有这几句，当占位符嵌进各处自己的整句；回 null = 真的没扣，说原来那句，离线 / 演示构建因此一个字不变）。★ 规则的另一半在**抛错那一侧**：凡是「2xx 之后才坏」的失败都得抛 `ArkBadReply`（回包里没有图、图取不回来、模型回的不成 JSON），逐个计费的批量调用抛 `ArkBatchPartial` 带上已经结算的次数 —— 抛裸 Error 就静默落进「没扣钱」。★★ 批量里已经画好的那几张**不许跟着抛错一起丢**（2026-09-17）：逐格出图抛的是子类 `real.PortraitViewsPartial`，图挂在它的 `drawn` 上，调用方（`CustomCardPage.runAiForge` / `VideoCardAnnotator.makePortraits`）**收下 + 离线账本按张记上**两件一起做，下一次只补剩下的格子（报价 / 余额门 / 真画 / 离线实扣都读各自页里的那一份 plan）；`chargeOnFail` 离线时也照 `settledBefore` 说「已计费」—— 只做一半的话，离线要么白拿图、要么那句「已计费」是假话。⚠ 别对 `ArkBatchPartial` 直接 `instanceof ArkNoReply`（恒假），拆壳只在 `chargeOnFail` / `briefArkReason` 里。⚠ 指给用户「去哪儿核对」之前先确认那一页真的存在（现在指的是「我的」页的 token 余额）。⚠ 新接进来的调用点先核对「成功之后才 `spendTokens`」：先扣后调的话，离线模式那句「没扣钱」就不成立了。★ 2026-10-07 加两档：受理之后上游明说失败（`ArkTaskFailed`，服务端会退回，退没退看它带的 `refund`）与一段出片里视频之前已经画好的画面（`SegmentGenFailed`）—— 视频失败的话由 `chargeNote` 的视频那一套说（画面按出图单价单说） |
+| 把出片的失败压成一个字符串往上抛（`res.error` → `new Error(res.error)`） | 类型在 composeSegments 那一层就没了：「受理之后方舟明说失败（钱扣过、现在会退回）」「没等到回包（可能扣了）」「服务端明说拒了（没扣）」在 genNode 那里长得一模一样 —— 失败那句话对钱一个字都不说，取回卡还对着一笔已经退回来的钱说「费用不退」（2026-10-07 做失败退款时清点出来） | 失败对象原样跟着走：`SegmentResult.failure` → `segmentGen.settleSegment` 原样抛（外面包 `SegmentGenFailed`）；要按类型分叉的地方先 `unwrapFailure`，要钱上的话只问 `ai/failCharge`。抛错那一侧也要对：上游终态抛 `ArkTaskFailed`（`expired` 也是终态，原来没人认它，会一直等到死线），成功却没地址抛 `ArkBadReply` |
 | 拿一张**看起来像真图**的占位图顶住没画出来的帧（`mock/frames.makeFrame`） | 下游只问「帧在不在」：出片（segmentGen 出片前补画）与报价（`segmentCost` 数图）都认 `!firstFrame` ⇒ 占位图被当真帧发给 Seedance，整段的钱照收，拍出来的是一张烧着「第N段 · … · 首帧」「AI 预览帧」的渐变图在动；方案台还写着「出片前会自动重画」，而那条重画分支（`composeSegments` 的 `sg.degraded`）从来没有调用方传过 —— 死码，全程零报错（2026-09-10 做多语言清点时抓到） | 缺失一律用字段本来的"没有"值（空串），为什么没有记在旁挂标记里（`Proposal.degraded` 只管渲染）—— 与上面「塞对象当墓碑」同一条规矩。帧能不能拿去出片只问 `flowStore.usableFrames`（报价 / 出片 / 工坊改帧三处共用），它顺带把老草稿里「degraded 为真且两帧都不空」的占位图认成没有 |
 | 拍照绕开 `utils/nativeCamera`（页面自己 import 相机插件）/ 给清单加 `CAMERA` / 改 QQ 的回调转发 | 三种都**零报错**：① 声明了 `CAMERA` ⇒ 插件先弹运行时授权、拒绝即 reject，表现为「点了没反应」（没声明时 `checkPermissions()` 恒报已授予，不能拿它当门禁）；② `file_paths.xml` 少了 `external-files-path Pictures/` ⇒ 插件 `getUriForFile` 抛、拍照整条失败；③ `MainActivity.onActivityResult` 只在 `QQLoginPlugin.handleActivityResult` 回 false 时才调 super —— 让非 QQ 的 requestCode 也回 true，相机结果就被吞了。另外 release 包 logcat 里一行都不打 | 入口只有 `utils/nativeCamera`，**只调 `getPhoto(Camera)`**：它自 8.1.0 标了 deprecated，但只有它走 `startActivityForResult`、进程被杀后能经 `appRestoredResult` 回放；`takePhoto` 走 ioncamera，结果静默丢。清单一行 CAMERA 都别加；`ioncamera_paths.xml` 同名覆盖成只剩 cache-path（库原文暴露整个共享存储，与 09-07 删掉的那条同一个口子）。**带 EXIF 的原始字节不出 nativeCamera**（`stripExif` 按方向摆正、重编码，GPS 不留）。验收看「真的拉起了系统相机」，不看「拿到了一张图」 |
 | 开机装载（`data/boot` 里那一排 ready*）/ 本机数据库读不出来 | 原来 `void Promise.all(...).then(setReady)` 没有 catch：任何一个 reject 页面就永远停在「正在打开作品库…」。⚠ 更常见的反而**不 reject**：`db.idbGet` 把一切读失败答成 undefined、`open()` 失败一次整个会话都是 undefined、`indexedDB.open` 还会永远不回话 —— IndexedDB 出事时 App 照常开机，草稿箱空、离线账号被登出、作品只剩种子，下一次写入拿这份空表**整张盖掉**磁盘上的真数据 | 拦还是降级只在 `data/boot` 一处（调研与出处：`docs/local-storage-failure.md`）：**只有退回本机库时作品库 / 账号库读不出来才整页拦**；草稿箱 / 剪辑稿 / 本机模板 / 互动 / 弹幕各自 `xxxLoadIssue()` + **冻结会盖掉磁盘的写** + 在用到的那一屏说「没读出来 + 重试」（`hooks/useLocalRetry`，进屏先自动试一次）。装「存着用户东西的库」一律 `idbRead`（读失败抛）。⚠ 装载失败要撤掉半截状态（account 的 `db`、videos 的 `cache` / `cacheOwner`），否则 `if (db) return` 让重试拿到半截库。⚠ 读好之后别再读一遍（`readyDrafts` 等读好了直接返回）：会拿磁盘旧表盖掉内存里还没落盘的写。⚠ Chromium 发现损坏会**先删库**再让我们打开（`upgradeneeded` 上 `dataLoss:"total"`），冻结写防不住这一档 —— 只能如实告诉人（`DataLossNotice`）；要真扛住得有 IndexedDB 之外的副本 |
+| 给一个实体加了字段，而"重建这个对象"的地方手写着字面量（`{ id, segIndex, start }`） | 零报错地把新字段丢掉：剪辑工程的片段原来只有三格，裁尾回到片尾 / 还原整段 / 量到更短的长度之后收拾，这三条路都是手写三格重建 —— 包装层（字幕 / 配音 / 变速 / 闪黑）挂上片段之后，等于"裁一刀，这一段的字幕和配音就没了"。与「服务端给实体加了字段，本机库那几跳必须一起搬」是同一个形状，只是发生在同一个文件里 | 重建一律从原对象展开再改（`cutProject.ranged(c, start, end)`），别手写字段清单；`scripts/check-cut-project.mjs` 里有一组「改范围的几条路都不许把包装层丢掉」的用例，加字段时把新字段补进那一组 |
+| "量到的数与原来的差不多"就不记 | `CutPage.learnRealDur` 原来差不到 0.25 秒就不记 —— 为的是别白白重渲染，可「量过没有」本身是一条信息：闪黑与片尾收声只在每一段的长度都量过时才做（`timelinePlan` 的 `exact`），于是申报 5 秒、实际也是 5 秒的普通段永远算"没量过"，转场永远不出，而屏幕上那句提示还在叫人"把每一段各播一下" | 量到了就记（同一个数再量到一次才不重复写）。凡是「值」与「知不知道这个值」是两件事的地方，别拿"值没变"当"不用记"的理由 |
+| 给预览播放器写死 `muted`、只靠 `timeupdate` 判片段出点 | ① 原声的音量滑杆是盲调的（与发布页那格同型）；② `timeupdate` 一秒才来四次，2 倍速的片段在两次之间能多放出半秒素材 —— 裁过尾巴的片段把裁掉的那一截露出来，段尾的淡出也黑不到底 | 预览带声音（被拒了退成静音再试一次，`CutPage.playVideo`）；片段出点由预览那一层逐帧看（`CutPreviewLayer.onClipEnd`），`timeupdate` 那条留着兜底（页面不可见时 rAF 不跑）。两处都可能来叫，所以换片段的函数要写成幂等的 |
+| 配音 / 字幕的长度上限按**字符数**算 | 汉字一秒念四个，英文一秒能念十二三个字母：按字符数封顶，6 秒的片段只写得下四五个英文词；绝对上限 80 个字符还会在落盘读回时把一句英文拦腰截掉（模拟器上合出来少了最后一个词才发现，零报错） | 长度按"念出来多久"算（`cutProject.lineUnits`：汉字一个算 1、字母一个算 0.3、标点空格不算），绝对上限另给一个按字符的（`LINE_MAX_CHARS`，对着服务端 /api/tts 的 300）。凡是"字数"进了规则的地方，先问一句这条规则在英文界面下还成不成立 |
+| 字幕断行贪心填满 / 只求两行一样宽 | 贪心会排出「信使收到一封没 / 有地址的信」这种拦腰断词的行，最后一页还常常只剩一个字；只求等宽又会排出「…去找收信 / 人，不管…」—— 把词和它的逗号拆到下一行 | 分行规则只在 `cutProject.paginateCaption`：先定最少的页数、把字匀到各页，页内再匀到各行，两级的切点都偏向短语末尾；汉字按词（`Intl.Segmenter`）、英文按单词；行尾不画的逗号不占宽度。改它就去 `check-cut-project.mjs` 补一句正例 —— 断行这种东西只有摆出具体句子才看得出好坏，合出来抽帧看过再定 |
+| 从模拟器 / 真机里经 CDP 把大文件读成**一整条 base64** 拿回电脑 | 5MB 的成片编成 7MB 的字符串，`Runtime.evaluate` 的回包直接把 WebSocket 弄断，Node 那头只报 `unsettled top-level await`，看不出是太大 | 按片读（每片 768KB，逐片 `Runtime.evaluate`），见下面「验剪辑页的合并」第 5 步 |
+| 界面上给东西标的号，与对它**说话**时认的号不是同一个数 | 剪辑页缩略图原来只标「段 3」（出自稿子的第几段），「说一句」认的却是从左数的位置。没换过序时两个数一样，用例全过；换过序之后人照着缩略图说「第 3 段静音」，静音的是从左数第 3 个 —— **另一个片段**，回执还写着「✓ 片段 3：原声静音」，零报错（2026-10-01 模拟器实测才发现） | 让人照着说的那个数**摆在界面上**（缩略图左上角亮底的位置编号）；带"段"字的另一种说法只有两种读法落在同一个片段上才办（`cutProject.segRefClip`），问模型之前也先核对。新做"对它说话"的功能时先问一句：屏幕上给它标的号，是不是嘴上认的那个号 |
+| 「X 后面那一截就是正文」的句式规则，不要求有引出正文的词 | 「标题不要了」被读成把标题写成"不要了"，「片段2字幕去掉」被写成字幕"去掉"，「the title looks wrong」被写成标题 —— 都是真写进工程的，回执还是绿的 | 没用引号的正文必须有引出它的词（改成 / 叫 / to），「是 / is」不算（后面多半是评价）；"去掉 X"的两种语序都要有规则接住（倒装的那种不接住就会掉进写正文的规则）。句式写完拿一批**刁钻句子**探一遍（否定、评价、问话、倒装），探到的都钉进 `check-cut-grammar.mjs` |
+| 把模型回的那句话原样摆给人当结果 | 模型自己加的一条删片段被拦下，它的话里照样写着"删掉了拖沓的第二段"；回话被截断时，半截 JSON 里带着一句"好的，结尾收了一秒" —— 原样摆出来，人读到的是"办成了" | 办没办成只看落地那一步的回执（✓ / ✗）；模型的原话标「模型说：」并压一档颜色，读不出来 / 被截断时不摆原文、明说一件都没办（`cutAgent.runCutAgent`）。与「对画布说话」那条（模型嘴上说"已经加了一段"）是同一件事 |
+| 模拟器上取合成产物时按"第一个账号"取 | 同一台模拟器上测过离线账号和登录账号，`ideahub-app.cut.v1` 的 `byOwner` 里就有好几份剪辑稿；取第一份，拿到的是几天前另一个账号合的旧成片 —— 量出来"变速没生效、闪黑没了、字幕没了"，差点去改原生插件（2026-10-01） | 按 `at` 取最新的那一份。量出来"整套都没生效"时，先怀疑拿错了文件，再怀疑代码 |
+| 语音合成回来的文件当成"从头到尾都是话" | 实测（2026-10-01，7 个音色 22 句）每句开头有 0.18~0.46 秒、结尾有 0~0.54 秒是静的：声音比字幕晚半秒才出来；每句白占约 0.7 秒，5 秒的片段只剩 4 秒可念，慢一点的音色顶着字数上限写就念不完；提语速只缩有声的那一截，"按量到的比例再提一档"会算少。零报错，听着只是"配音有点拖" | 合成那一刻切掉首尾静音再量、再存（`cutNarration.tidy`，判据 `cutProject.voiceBounds`，存成 WAV）—— 切在入口，之后的排时间、预览、原生合成都不用知道这回事。凡是"按时长排东西"的地方，先问一句这个时长里有多少是真内容 |
+| 模型把数组写成**一个对象里重复的键**（`[{"clip":1,"text":"…","clip":2,"text":"…"}]`，少了一串 `},{`） | 它是合法的 JSON：`JSON.parse` 不报错，重复的键只留最后一对 —— 四句旁白悄悄只剩一句，形状检查也过（真模型 26 发里遇到 1 发，2026-10-01）。同形的操作列表会变成"几件事只办最后一件" | 解析之后拿**原文**对一下数：原文里成对的键比解析出来的条数多，就是这种写法。内容规整的（旁白）按原文捞回来（`cutProject.linePairs`），形状五花八门的（操作）整句不认（`cutGrammar.parseCutReply` 回 null）。别只测"读不出 JSON"那一种坏法 |
+| 让模型自己判断"该用哪种语言写" | 提示词是中文的，画面描述是英文时它 3 次里 3 次照样写中文旁白、还不带标点（提示词里写着"与画面描述的语言保持一致"也没用）；标题与上限同理 —— 按字符个数截的标题把英文拦腰截断，按"字母 × 0.3"给的上限它数不准 | 语言由代码判（`cutProject.briefLang`）、在给模型的内容**第一行明说**；英文的上限折成单词数（`capWords`）；标题的上限按念出来的长度算（`clipTitle`），别按字符个数 |
+| 受控输入框的值每次都从一段文字里**重新解析**出来，而解析 / 写回里带着 trim | 行尾刚敲的空格 / 回车当场被吃：分镜表分了镜之后打英文，「Rin walks」变成「Rinwalks」，零报错（2026-10-03，#350 合进去当天才抓到）。同一类还有两件：敲出来的字改掉了格子的数目（手打完「镜头2：」的冒号），原来那个框被卸掉、焦点没了，后面的字敲进空气里；只靠 `onSelect` / `onBlur` 记光标，不发按键事件的输入方式会留下过期的位置，下一次从按钮插字就插到句子中间。⚠ 用「一次写进一整串」的自动化输入（浏览器工具的 type、测试里的整串赋值）**三件都测不出来**，44 条用例与一轮浏览器验证都是绿的 | 编辑路径上的读写必须**逐字节往返**，收拾（trim / 去空项）只放在发出去之前那一步（`shotScript.packShots`）；结构会被输入改掉的编辑器，写入函数要回「光标该落在哪」（`shotScript.typeInto`）；光标在每次写入时就记。验这类输入框要**一个键一个键地敲**：至少「词 + 空格 + 词」「行尾回车」「手打一个会改结构的标记」各一遍，构建里的检查也要有逐键的用例（`check-shot-script.mjs` 的 (g)(h) 两组） |
+| 改地址参数时用 `setParams(prev => …)` 的 prev | 两次写地址挨得近（搜索框的防抖计时器刚写完 `q`、人紧接着点了一个页签），后写的那次拿到的是前一次之前的参数，把前一次整个盖回去：「清空搜索后点卡片，落地却回到模板」「搜索框空了、地址里还挂着那个词」，零报错（2026-10-20 创意工坊改版时在浏览器里撞到）。react-router 的函数式写法给的是回调所在那一拍渲染时的参数，而导航后的重渲染排在 transition 里 | 从地址栏此刻的样子出发：`hooks/useQueryTab.liveSearchParams()`（`useQueryTab` 自己的写也改用它了）。另一半：同一路由内换 query 不会重挂页面，**本地 state 镜像着地址参数的**（搜索框）要跟着地址走，自己写进去的那一次除外（`WorkshopPage` 的 `wroteQ`） |
 
 ## 相关文档
 
 - [`docs/ONBOARDING.md`](docs/ONBOARDING.md) — 从零到能跑
 - [`docs/api-contract.md`](docs/api-contract.md) — 与 server 的接口契约（三仓共享）
 - [`docs/play-store-checklist.md`](docs/play-store-checklist.md) — 上架检查单
+- [`docs/dependency-security-2026-10.md`](docs/dependency-security-2026-10.md) — 2026-10-21 处理 Dependabot 32 条（2 critical / 22 high / 8 moderate）：改了哪 8 个包、两处钉死的理由（Capacitor 8.5.1、postcss-selector-parser 7.1.7）、没修也修不了的 `braces`、怎么验的；修复要等下一次发版才到用户手里
+- [`docs/support-ai-video-research-2026-10-25.md`](docs/support-ai-video-research-2026-10-25.md) — AI 客服 × 四支 B 站视频（一键图片分层 / 角色和桌面互动 / AI 全自动 Live2D / 0.8B 实时动作）调研与改动（2026-10-25）：
+  这次在 App 里做了八项（字幕跟着念到的那句、安全底线 caps + 求助卡、摸看板娘台词按语言且只合成一次、演出跟着声音走、三段新动作、moc3 加载前检查 + 失败重试、上传向导试跑说实话、人格举报）；
+  第四节 14 件等主人定（第 1 件涉及第三方许可，正本在私有笔记）；第五节外部事实（Seedream 图层拆分、See-through / Bunraku / StretchyStudio / HAST-SEC 的许可与现状）
+- [`docs/blockout-expression-2026-10-26.md`](docs/blockout-expression-2026-10-26.md) — 白模模板保留神态（2026-10-26）：付费小验 ¥63.93（雕塑脸方案 A 失败、神态句方案 D 在二次元素材上补回惊讶 / 大笑、半写实素材上不增不减），App 与服务端各做了什么
+- [`docs/text-template-design-2026-10-26.md`](docs/text-template-design-2026-10-26.md) — 文字模板（只用文字 + 封面做模板，2026-10-26）：付费小验读数（方舟没有提示词硬上限、电影级照着 936 字时间轴全做、草稿用「镜头N」、只挂临时参考图四张都用对）、拍板、规则住在哪、P1 做了什么、P2（服务端 + 市场）还差什么
+- [`docs/ui-refactoring-ui-pass-2026-10-23.md`](docs/ui-refactoring-ui-pass-2026-10-23.md) — 按《Refactoring UI》二十条走查 App（2026-10-23，主人给的 B 站视频 + 评论区）：
+  四路审计约 160 条 → 这次改了按钮层级（出片后下一步才是主键、市场卡片的实心键改淡、⚡ 只留给花钱）、字重 / 灰阶 / 提示条 / 命中区 / 空态 / 开发用语上屏约 50 处；
+  等主人定的 12 件在第四节（第三级表面色、`<Warn>` 提示条、价签格式器、emoji → Icon…）；第五节「给规矩配样板」回应评论区那条「给 AI 例子而不是立规矩」；
+  第六节 = 同日第二批：按 `edisonmbli/refactoring-ui-skill`（MIT，未装进本仓）的 Audit 工作流再扫一遍（全仓量出来的通过项 / 四条 Systemic），
+  并做掉了不用拍板的五件（emoji → `Icon` 补 14 枚 Lucide 字形、空架子不摆筛选、模板卡角标排行、发布页收费方式收成一句、消息未读按字色分档）+ 全局键盘焦点环；
+  第七～九节 = 第三～五批（skill 装进 `.claude/skills/refactoring-ui/`、`raised` / `<Warn>` / `priceTag` / `SearchField`、语义色别名 + 品牌色阶梯、卡片边框量过不拆）；
+  第十节 = 真机验证 + 第六批：画布那一面（FlowCanvas）漏掉的主键 / 价签 / emoji，首页冷启动「还没有作品」其实是在取 —— 走查按「面」列清单，不按页面
+- [`docs/ui-benchmark-2026-10.md`](docs/ui-benchmark-2026-10.md) — 对标抖音 / TikTok / 快手 / B 站 / 剪映 / CapCut 等：模板创建入口、首页、分区、「我的」、小组件五节（2026-10-21）：
+  做了插画模板入口卡、首页长按层（两侧 2× / 中间更多操作）与双击粒子、分区搜索历史与近期热播、「我的」品牌带与草稿改笔、三枚招牌字形；没做的与等主人定的五件事在第七节
+- [`docs/video-detail-redesign-2026-10.md`](docs/video-detail-redesign-2026-10.md) — 作品详情页重做（2026-10-26）：改之前的四个问题、从上到下每一块怎么做、我替主人定的几条（评论用预览卡 + 抽屉、举报在动作条第 5 格、不加收藏数）、竖屏播放器 44vh 怎么量出来的、两份对抗审核的修正、没做的（服务端计数、同款列表、模拟器验全屏 / 转屏）
+- [`docs/ux-review-csci187-2026-10-14.md`](docs/ux-review-csci187-2026-10-14.md) — 按 CSCI 187 六个 UX 框架 + 惯例 + Goodwin「好产品礼仪」走查 App：改了 20 来处（删草稿改撤销、方勾选框、页签名字、设置分组、反馈落在键旁…），没改的 21 条按框架排好等主人定（发布页主键在三屏外、点赞失败静默回滚、工坊两个意思、token 五个名字…）
+- [`docs/node-modes-libtv-alignment.md`](docs/node-modes-libtv-alignment.md) — 工作流节点「自选卡片 / 自定义」对齐 LibTV 节点：调研、方案、主人拍板与落地记录（N1 参考清单 + @ 点名、N3 关键画面可改可截、N2 分镜表都已落地；含与已有「圈图改图」的对比、官方文档查到的几条协议事实、等主人定的两件事）
+- [`docs/guided-modes-design.md`](docs/guided-modes-design.md) — 工作流的「跟着做」模式（参考图直出 / 主角定妆·多镜头 / 九宫格分镜 / 推演三套 / 套模板 / 自定义）：每个模式固定步骤（2026-10-04 方案，主人「开工」五条全认；第一期 A、第二期 B、第三期 C 已落地，A、B 各付费验过一次；C 的服务端组图任务 server#106 2026-10-06 已合并上线，C 同日付费验过（¥4.50；App 重开后向导里选的人会丢 —— 10-07 已修））
+- [`docs/seedream-grid-fix-research.md`](docs/seedream-grid-fix-research.md) — 九宫格分镜两个出图问题（组图不照分镜、单格重画成拼图）的调研（2026-10-06，不花钱）：
+  官方说法（300 字上限、组图参考图对整组生效、官方示例拆单图）、别家做法、能试的办法；**第七节：10-07 付费验证结果**（约 ¥8.48：
+  新写法让空镜、同一个人画两次好了，「只有沈舟」那一格因为分镜文字点了林夏还是错、特写成了半身；看图核对 13 张不合格全抓到，景别那一条只会误报）；
+  **第六节：方舟第十批下线 11-24 停服，我们的默认出图 Seedream 4.0、4.5 与「极速」「标准」两档在名单上**（5.0 lite 也在 —— 10-06 写漏了，10-07 更正；
+  能出组图的三个型号全下线，4.0 的替换型号 `4-0-20260415` 能调、能出组图）。**10-10 主人已拍板**：速写换 `4-0-20260415`、撤「定妆」、服务端出口改发、2.63 加强制更新与版本头（见上面「方舟第十批下线的 App 这一半」）
+- [`docs/video-model-naming-research.md`](docs/video-model-naming-research.md) — 视频模型怎么命名、怎么让人选（2026-10-07，国内外两路公开资料）：主流是「模型名 + Fast/mini/Pro 后缀 +
+  一句卖点 + 价钱」，只给抽象档名不露模型名的只剩单模型产品；用不了的组合与下线换代各家怎么说；11-24 之后还能调的 Seedance 与 5 秒价钱、
+  三种改档走法（建议露模型名），等主人定
+- [`docs/canvas-platforms-ecosystem-research.md`](docs/canvas-platforms-ecosystem-research.md) — TapNow / RunningHub 调研（2026-10-05，不登录不花钱）：两家模板的十种套路、各出片模型的官方能力表（2.0 mini 官方支持参考视频 / 编辑 / 延长而我们没开）、
+  按模型新增的模式（四组，新增「修这一段」）、把模式做成可发布的「玩法」生态与奖励（只发平台 token），等主人定
+- [`docs/multi-character-consistency-research.md`](docs/multi-character-consistency-research.md) — 多人物多镜头的人像一致与台词字幕：LibTV / updream / 官方文档 / 网上的做法（2026-10-03 调研，建议等主人定）；
+  含「一张图里画多个角色一律被拒」那条老约束的真实出处（精灵图的文本敏感，不是场景里的两个人）
 - [`docs/app-distribution.md`](docs/app-distribution.md) — 发包给别人装、应用内更新怎么走
 - [`docs/signing-keystore.md`](docs/signing-keystore.md) — 签名 keystore 换机 / 新 worktree 怎么恢复
 - [`public/perch/README.md`](public/perch/README.md) — 角色动画资源怎么生成、踩过什么坑
@@ -654,3 +1188,43 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
 3. `adb reverse tcp:4000 tcp:4000`：手机上的 localhost:4000 就是电脑。e2e 模式的 CSP 除了 connect-src，**img-src 也放行了 localhost**——市场 Live2D 模型的贴图是 `<img>` 载入的，不放行的话真机换装只会看到 "Texture loading error" 然后回落官方形象。debug 变体的网络安全配置（`android/app/src/debug/res/xml/`）只给 localhost 放行明文；release 一个字没动。
 4. debug 包是 `com.ideahub.branchvideo.debug`，和正式包并排装，测完 `adb uninstall com.ideahub.branchvideo.debug`，不碰手机上正式版的草稿与登录态。
 5. QQ/微信登录在 debug 包里不能用（按正式包名 + 正式签名注册的），用密码登录测。
+
+### 验剪辑页的合并：模拟器就能跑，不必动主人的手机（2026-09-30 实测）
+
+「合并只能装机验」里的"机"可以是模拟器：AVD `Pixel_8_API_36` 上原生合成器（Media3 Transformer）照常能跑
+（软件编解码，三段 12 秒的片子约 11 秒合完），不用占主人的手机，也不用等它闲下来。
+
+1. 起模拟器（无窗口）：`emulator -avd Pixel_8_API_36 -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect`，
+   之后**每一条 adb 都带 `-s emulator-5554`** —— 主人的手机可能同时连着。
+2. 出包照上面第 2 步，但**不要** `.env.e2e.local`（没有 `VITE_API_BASE` = 离线模式，本机账号直接能登）。
+   ⚠ 2.56 起 `prune-app-assets.mjs` 多了一道出包闸：worktree 里没有 `.env.local`（`VITE_ASSET_KEY` 那一行）或
+   `public/models/protected/milltina-opt.glbx`，这一步直接报「出包闸没过」—— 两样都从主检出拷过来（都被 gitignore 挡着）。
+   拷来的 `.env.local` 里还有 `VITE_API_BASE`：e2e 模式下由 `.env.e2e.local` 盖掉，要离线就在那里写一行空的。
+3. 测试片段放在电脑上由 dev server 供（比如 `public/_cuttest/*.mp4`，ffmpeg 现生成，**别提交**），
+   `adb -s emulator-5554 reverse tcp:5178 tcp:5178` 之后地址写 `http://localhost:5178/_cuttest/a.mp4`：
+   原生合成器拉得到（debug 变体给 localhost 放行了明文），预览的 `<video>` 也播得出（e2e 模式的 CSP 给
+   **media-src** 也放行了 localhost —— 不放行的话片段在剪辑页里一段都播不出来，分割 / 裁剪读的正是播放头）。
+4. `--mode e2e` 的包**保留** `__studio` / `__flow` / `__cut` / `__deviceOwner` 这些调试缝（2026-10-15 起守卫是 `DEV || MODE === "e2e"`；正式包 mode=production 照旧剥掉），别的 mode 出的包没有它们：要一条多段稿子，就经 CDP 往 IndexedDB
+   的 `ideahub-app.cut.v1` 里写一条剪辑稿（`{ v: 2, byOwner: { [账号 id]: { draft, at } } }`），刷新后从
+   「我的 →接着剪」进剪辑页 —— 从那一步起走的全是 App 自己的代码。CDP 的接法见 memory 的 real-device-testing。
+5. 合出来的成片在 IndexedDB 的 `merged:` 键里，经 CDP 读成 base64 拿回电脑，`ffprobe` 量时长与轨道、
+   `ffmpeg` 抽帧看画面（竖屏成片在容器里是 1280×720 + rotation −90，那是 Media3 的写法，不是画幅错了）。
+   ⚠ **按片读**（每片 768KB 一次 `Runtime.evaluate`）：5MB 的成片一次读成一整条 base64，回包会把 WebSocket 弄断。
+6. 包装层怎么量（2026-09-30 都这么量过）：**闪黑** = 接缝前后各取几帧算平均亮度
+   （`ffmpeg -ss T -i x.mp4 -frames:v 1 -vf signalstats,metadata=print:key=lavfi.signalstats.YAVG:file=- -f null -`，
+   黑是 16）；**配音落点** = 把各段原声静音、不加配乐合一条，`silencedetect` 找出声的时刻，减去配音文件自己开头的静音；
+   **字幕** = 抽帧看；**变速** = 成片总长 + 测试片自带的时间码。验过的事实：每段效果链拿到的时间戳是成片全局时间
+   （变速、裁头的片段也是）；三句配音的落点误差约 12ms、不累积。
+7. **配音流程不花钱的验法**：真的语音合成按字符计费，别拿它测。起本地内存服务端（launch.json 的 `ideahub-api-mem`，
+   它的 cwd 是 app 仓 ⇒ 读不到 server 的 `.env` ⇒ `/api/tts/health` 回 `tts:false`，真接口根本没配），前面挡一个只拦
+   `POST /api/tts` 的小代理：回一段本地 mp3（按请求里的 `rate` 用 ffmpeg `atempo` 变速，编码照真接口：24kHz 单声道
+   64kbps），并把每一发请求（字、音色、语速）记进一个文件 —— 「念不完先提语速、最多重合成一次」这类逻辑就是对着这份
+   记录验的；别的请求原样转给内存服务端。`.env.e2e.local` 写 `VITE_API_BASE=http://localhost:<代理端口>`，
+   `adb reverse` 那个端口（**要在 App 启动之前**：启动那一拍探不到服务端，这次会话就落回离线模式），测试账号直接
+   `POST /api/auth/register` 建在内存库里、从登录页用密码登录。测完删 `.env.e2e.local`。
+8. **指挥层（一键成片 / 说一句）不花钱的验法**（2026-10-01）：同一个小代理再拦 `POST /api/ark/chat/completions`，按系统提示词的
+   开头分辨是谁在问（一键成片 / 剪辑台指挥），回一段**可以远程换**的假回话，并留几档失败（被截断 `finish_reason:"length"`、
+   不成 JSON、空、HTTP 500）和一个**延迟**（验"等回话的那几秒里手改时间轴"）；每一发请求记进文件，对着它核发给模型的那份现状。
+   几条踩过的：① 取成片 / 读剪辑稿时 `byOwner` 里可能有好几个账号的，**按 `at` 取最新的**；② App 的 CSP 不许页面里 `eval`，
+   想在一次求值的中途插一个动作，另开一条 CDP 连接去做（第一条在等 Promise，不碍事）；③ 面板盖着工具面板，
+   脚本里点被盖住的按钮用 `.click()` 照样生效，但截图里看不到 —— 目视检查要另截。
