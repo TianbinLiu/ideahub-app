@@ -9,9 +9,9 @@
 QiMeng 2.76
 
 · Update prompt: only this version, in your language; skipped versions fold away; “Update history” added in Settings.
-· Home: collect is a gold star; a spinning Remix disc replaces the full-screen key (now in the long-press menu, with a new “Not interested”); failed likes say so, with Retry.
+· Home: collect is a gold star; a spinning Remix disc replaces the full-screen key (now in the long-press menu, with a new “Not interested”); failed likes say so.
 · Profiles show an IP location line. AI support: price per question, persona greetings, “Take me to” button, option chips, 👎 reporting.
-· Publish button pinned at the bottom; shorter onboarding; plainer button verbs; no vendor names in errors.
+· Publish button pinned at the bottom; shorter onboarding; plainer buttons; no vendor names in errors.
 
 启梦 2.75
 
