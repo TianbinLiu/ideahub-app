@@ -1867,6 +1867,11 @@ export function feedLoading(): boolean {
   return feedRefreshing !== null;
 }
 
+/** 关注流正在拉（2026-10-30，UX 走查第 11 条）：页签空着时画加载态，别先说「关注的创作者还没有新作品」—— 那是问到之后才说得出的话 */
+export function followingLoading(): boolean {
+  return followingRefreshing !== null;
+}
+
 export async function refreshFeed(opts: { minAgeMs?: number } = {}): Promise<boolean> {
   if (!remoteOn() || !cache) return false;
   const minAge = opts.minAgeMs ?? 0;

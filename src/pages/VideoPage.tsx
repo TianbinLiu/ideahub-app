@@ -728,7 +728,9 @@ export default function VideoPage() {
                 </div>
               </div>
             </div>
-          ) : cStatus === "pending" && cCount > 0 ? (
+          ) : cStatus === "pending" ? (
+            /* 还没问到就说「正在取」，不看计数（2026-10-30，UX 走查第 11 条）：列表接口给的计数在没点进过的作品上是 0，
+               原来 0 + pending 落到「还没有评论」—— 第一屏写的是「没有」，到了才改口 */
             <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-400">
               <Spinner size="xs" />
               <Trans>正在取评论…</Trans>
