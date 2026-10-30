@@ -1,3 +1,13 @@
+启梦 2.77
+
+· 模板作者奖励：别人套用你登记在服务器上的视频模板出片、公开发布满 24 小时还公开着，平台奖励你 token（每次多少、每天几次以 App 里那一句为准）；到账会有通知。
+· AI 客服页底部的「转人工」在英文界面不再被挤成三行。
+
+QiMeng 2.77
+
+· Template author rewards: when someone makes a video with your server-registered template and keeps it public for 24 hours, the platform rewards you with tokens (amounts and daily limits are shown in the app); you get a notification when it lands.
+· The “Talk to a human” link on the AI support page no longer wraps in English.
+
 启梦 2.76
 
 · 更新弹窗只写这一版改了什么、只显示你的界面语言；跳过的几版折起来；设置页多了「更新记录」。
