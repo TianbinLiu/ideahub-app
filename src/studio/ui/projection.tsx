@@ -253,7 +253,7 @@ function DeckPickPanel() {
               </div>
             )}
           </div>
-          <div className="pb-2 text-center text-[10px] text-slate-500"><Trans>← 左右滑动选一套 → 它同时会成为铸段的素材池 · 窗外拖拽可转视角</Trans></div>
+          <div className="pb-2 text-center text-[10px] text-slate-500"><Trans>← 左右滑动选一套 → 它同时会成为这一段的素材池 · 窗外拖拽可转视角</Trans></div>
         </>
       ) : (
         <>
@@ -1032,7 +1032,7 @@ function EditorPanel() {
                 </div>
                 <div className="flex gap-1.5 no-scrollbar overflow-x-auto pb-0.5">
                   {deck.filter((c) => c.type === pickerType).length === 0 && (
-                    <div className="py-2 text-[10px] text-slate-500"><Trans>卡组暂无此类型——找铸卡师炼一张或去市场收</Trans></div>
+                    <div className="py-2 text-[10px] text-slate-500"><Trans>卡组暂无此类型——找铸卡师做一张或去市场收</Trans></div>
                   )}
                   {deck
                     .filter((c) => c.type === pickerType)
@@ -1389,7 +1389,7 @@ function ProposalsPanel() {
               这里只是把"为什么点不动"画出来，别在这儿另写一遍（铁律六）。
               收口之前工坊一个字都不画、主按钮照亮：点下去真扣钱真炼，而这一段拿不到
               上一段的真实尾帧承接。 */}
-          {locked && <span className="ml-1 text-[11px] font-normal text-warn-300/90"><Trans>· 🔒 前面的段炼完才解锁</Trans></span>}
+          {locked && <span className="ml-1 text-[11px] font-normal text-warn-300/90"><Trans>· 🔒 前面的段生成完才解锁</Trans></span>}
         </h3>
         <button
           onClick={() => go(1)}
@@ -1718,12 +1718,12 @@ function ProposalsPanel() {
         {blockout
           ? done
             ? t`本段已出片 · 白模复刻段只有一段——点亮法阵去组稿成片`
-            : t`画面与运镜整个来自模板视频——写好那句话（或挂完卡）就能开炼`
+            : t`画面与运镜整个来自模板视频——写好那句话（或挂完卡）就能生成`
           : !pickedId
-            ? t`挑一套 → 可换首尾帧/改剧情 → 炼出本段视频，桌面上才会亮出下一段的卡位`
+            ? t`挑一套 → 可换首尾帧/改剧情 → 生成本段视频，桌面上才会亮出下一段的卡位`
             : done
               ? t`本段已出片 · 桌面上下一段的虚线卡位已亮起`
-              : t`炼出本段视频才能开下一段（段与段靠上一段的真实尾帧承接起拍）`}
+              : t`生成本段视频才能开下一段（段与段靠上一段的真实尾帧承接起拍）`}
       </div>
     </>
   );
@@ -1800,7 +1800,7 @@ function TplSegBody({ node, proposal, onPlay }: { node: FlowNode; proposal: Prop
     const i = flow.nodes.findIndex((n) => n.id === node.id);
     flow.setCursor(i);
     if (useFlow.getState().cursor !== i) {
-      useFlow.setState({ err: t`第 ${i + 1} 段还没轮到（前面的段先炼完才解锁），挂不了卡` });
+      useFlow.setState({ err: t`第 ${i + 1} 段还没轮到（前面的段先生成完才解锁），挂不了卡` });
       return;
     }
     const st = castEditorState(tplOfNode(useFlow.getState().nodes[i])!, useFlow.getState().cast, "/studio");
@@ -2054,19 +2054,19 @@ function PickedActions({
         <button
           onClick={() => void useStudio.getState().genNodeVideo(node.id, proposal.id)}
           disabled={busy || locked || !proposal.plot.trim()}
-          title={locked ? t`前面还有没炼完的段——段与段靠上一段的真实结尾接着拍，得按顺序来` : undefined}
+          title={locked ? t`前面还有没生成完的段——段与段靠上一段的真实结尾接着拍，得按顺序来` : undefined}
           className="flex-1 rounded-xl bg-brand/90 py-2.5 text-xs font-bold text-ink disabled:opacity-40"
         >
           {mine
-            ? t`炼制中…`
+            ? t`生成中…`
             : draftOn
               ? done
                 ? t`♻ 重新出样片（${priceTag(cost)}）`
                 : t`先出样片（${priceTag(cost)}）`
               : done
                 ? annPlan.redrawn
-                  ? t`♻ 重炼本段（含 ${annPlan.redrawn} 处圈选改图 · ${fmtTokens(cost)}）`
-                  : t`♻ 重炼本段（${priceTag(cost)}）`
+                  ? t`♻ 重新生成本段（含 ${annPlan.redrawn} 处圈选改图 · ${fmtTokens(cost)}）`
+                  : t`♻ 重新生成本段（${priceTag(cost)}）`
                 : t`生成本段视频（${priceTag(cost)}）`}
         </button>
         )}

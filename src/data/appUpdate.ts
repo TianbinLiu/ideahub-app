@@ -23,6 +23,59 @@ import { t } from "@lingui/core/macro";
 import { SITE_BASE } from "../utils/shareLink";
 import { reportClientEvent } from "./clientEvents";
 
+/** 清单 history 里的一版：发版脚本从 RELEASE_NOTES.md + tag 上凑的；没打过 tag 的老版本 versionCode 是 0、date 是空串 */
+export interface ReleaseEntry {
+  versionName: string;
+  versionCode: number;
+  date: string;
+  zh: string;
+  en: string;
+}
+
+/**
+ * 更新弹窗 / 更新记录里按界面语言挑那一段话（2026-10-30：弹窗原来整份 14 版 19,700 字、每版中文在前）。
+ * 新清单只画这一种语言；英文那一节没写退回中文；老清单（没有 notesByLang）退回 notes 原样 —— 那时 notes 就是整份文件，照旧滚着看。
+ */
+export function notesFor(info: Pick<UpdateInfo, "notes" | "notesByLang">, lang: "zh" | "en"): string {
+  const by = info.notesByLang;
+  if (by) return (by[lang] || by.zh || "").trim() || info.notes;
+  return info.notes;
+}
+
+/** 一条 history 按语言取文字（英文没写退中文） */
+export function entryText(e: ReleaseEntry, lang: "zh" | "en"): string {
+  return (lang === "en" ? e.en || e.zh : e.zh).trim();
+}
+
+/**
+ * 装着的那一版与清单那一版之间**跳过的几版**（新的在前）：弹窗里折起来摆在当前版说明下面，点开才看。
+ * 判「跳过」用 versionCode；history 里没号的老版本（0）不算 —— 宁可少列，也不拿 0 去比出一串假的「你跳过了」。
+ */
+export function skippedReleases(info: UpdateInfo, lang: "zh" | "en"): { versionName: string; text: string }[] {
+  const hist = info.history;
+  if (!Array.isArray(hist) || !(info.currentVersionCode > 0)) return [];
+  return hist
+    .filter((e) => e && e.versionCode > info.currentVersionCode && e.versionCode < info.versionCode)
+    .sort((a, b) => b.versionCode - a.versionCode)
+    .map((e) => ({ versionName: e.versionName, text: entryText(e, lang) }))
+    .filter((e) => e.text);
+}
+
+/**
+ * 设置页「更新记录」：清单上最近几版的说明（新的在前，含还没装的那一版）。
+ * 回 null = 这个渠道没有清单（上架包）/ 没查到；不抛 —— 调用方画「没取到 + 重试」。
+ */
+export async function releaseHistory(): Promise<ReleaseEntry[] | null> {
+  if (!isNative() || !MANIFEST_URL) return null;
+  try {
+    const info = await AppUpdater.check({ manifestUrl: MANIFEST_URL });
+    if (!Array.isArray(info.history)) return null;
+    return info.history.filter((e) => e && typeof e.versionName === "string");
+  } catch {
+    return null;
+  }
+}
+
 export interface UpdateInfo {
   hasUpdate: boolean;
   currentVersionCode: number;
@@ -32,6 +85,9 @@ export interface UpdateInfo {
   sha256: string;
   sizeBytes: number;
   notes: string;
+  /** 2.76 起清单多的两格（发版脚本 releaseNotesFor）：当前版按语言分开的说明、最近几版。老清单 / 老原生插件没有 —— 读一律过 notesFor / skippedReleases */
+  notesByLang?: { zh?: string; en?: string };
+  history?: ReleaseEntry[];
   /** 清单上的最低可用版本（没写 = 0），原生回的原值 —— 只留作排查；判强制只看 mandatory（isMandatory） */
   minVersionCode?: number;
   /** 必须更新才能接着用（原生算好的：有更新可装 且 当前版本 < minVersionCode）。缺省 = 不强制 */

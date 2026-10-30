@@ -56,7 +56,7 @@ export default function ScriptSkillSheet({ onClose, onApplied }: { onClose: () =
       () => {
         const ok = useFlow.getState().seed(nodes, { mode: "workflow", origin: "solo" });
         if (ok) {
-          showToast(t`已铺 ${nodes.length} 段，从第 1 段开始炼`);
+          showToast(t`已铺 ${nodes.length} 段，从第 1 段开始生成`);
           // 铺成了这份就用完了：不清的话下次打开还是这份旧分镜的确认屏，再点「铺成」会把刚铺的流水线整表换掉
           resetScriptSkill();
           onApplied();
@@ -155,7 +155,7 @@ export default function ScriptSkillSheet({ onClose, onApplied }: { onClose: () =
               </button>
             </div>
             <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
-              <Trans>铺进去的每一段都是已挑定的一套方案（镜头字段会进方案台与出片提示词），从第 1 段开始逐段炼；想换走向就在那一段上重新推演。</Trans>
+              <Trans>铺进去的每一段都是已挑定的一套方案（镜头字段会进方案台与出片提示词），从第 1 段开始逐段生成；想换走向就在那一段上重新推演。</Trans>
             </p>
           </>
         )}

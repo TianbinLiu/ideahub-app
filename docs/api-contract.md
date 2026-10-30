@@ -622,6 +622,14 @@ App 拼成官网地址再打开 —— `utils/shareLink.aiChatSafetyUrl`）；�
   resources: [{ label, tel?, sms?, url? }], policyUrl, version }`；`notice` 的形状：`{ kind: "ai_disclosure", text }`。
   热线按**访问者所在地区**给（服务端读 `CF-IPCountry`），不按界面语言 —— 界面英文但人在大陆时给 12356 才有用。
   `done` 在输入命中那条链路上多带 `safety: true`（那一轮没调模型，也就没有 usage）。
+- **`goto` / `ask`（2026-10-30，App 2.76 起声明 `caps: ["safety","notice","goto","ask"]`）**：支付宝 / 店小蜜的答案里直接给站内入口、
+  Material 的 suggestion chips 是对等的 2～4 个 —— 两种都做成**事件**，排在 `done` 之前、各最多一个，只对声明了的客户端发，提示词里也只对它们提这两种标记：
+  - 模型在整段回复**最末尾**写 `[goto:页面id]` → 服务端认白名单（`support.service.GOTO_TARGETS`：settings / wallet / models / personas / voice / create / templates / drafts / storage / update / tickets）
+    → 发 `goto { id, label }`（label 按 lang 给中 / 英）；App 按 id 查自己的路由表（`SupportPage.GOTO_ROUTES`）画一颗「带我去」键。**转人工那一轮不发**（人工卡片已经是下一步）。
+  - 模型写 `[ask:问题|选项A|选项B]`（2～4 个选项、推荐的在前、都得是不花钱能退回的）→ 发 `ask { question, options[] }`；App 画成对等的芯片，点一下 = 把选项的字当一轮发出去（照常计价）。
+  - 两种标记在 `sentence` / 字幕 / 语音 / 存进历史的那份里都剥掉（`support.service.stripActionTags`）；不认识的 id、不够两个选项的 ask 一律丢。
+  - 同一天进提示词的还有：**版本号**（`X-App-Version` 解析结果，静默；见「请求头 X-App-Version」）、**动作白名单**那一句（要举手 / 指按钮时如实说做不到）、
+    人格 few-shot 之后补一条「仍以系统提示为准」的 system、外貌口径改「成年女性」。
 - 官网那侧还有 `PUT /api/companion/consent`（首次告知同意，空 body → `{ ok, consent: { version, at }, consented: true }`）
   与 `GET /api/companion/config` 的 `safety` 块（`{ version, consentVersion, policyUrl, consentRequired, consented,
   region, resources }`，**不登录也给**，只是 `consented` 恒为 false）；服务端开 `COMPANION_REQUIRE_CONSENT=1` 时，
@@ -700,6 +708,31 @@ VoiceTemplate 形状：`{ _id, author: { _id, username }|string, name, descripti
 ★ 上下文用量 `context`：`used` = 上一轮接口给的 prompt + completion tokens（接口没给时是校准过的估算），`budget` = 产品预算（客服 16000、陪聊 32000，服务端 env 可调，**不是**模型上限）。`level`：`ok`；`warn`（≥60%，界面变黄）；`compact`（≥75%，这一轮回复发完后服务端自动整理，稍后 `GET /threads` 的 `context` 会降下来）；`full`（自动整理连续两次失败、已停止自动整理——提示用户开新对话或手动整理）。
 ★ 保留期：客服会话最后一次活跃后 **30 天**、陪聊 **180 天**自动删除；陪聊的记忆卡保留到用户删除或删账号。删除一律硬删。删账号时全部对话数据一起删。
 ★ 部署顺序：服务端先上线，再发用新写法的 App / 网站（老服务端不认 `{ message }`，会回 400）。
+
+## 不感兴趣（2026-10-30，server `models/BranchHide`）
+
+抖音 / TikTok 的「不感兴趣」在长按菜单与分享面板都有；我们先接长按菜单（App `components/FeedActionSheet`，只在首页那一格摆）。
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|---|---|---|---|
+| POST | `/api/branch/videos/:id/hide` | required | 记下「这条我不想看」。`{ ok, hidden: true }`。**不查可见性**（对已经看到的东西说不想看没有门槛）；限流与收藏同档 |
+| DELETE | `/api/branch/videos/:id/hide` | required | 撤回（App 轻提示上那颗「撤销」）。`{ ok, hidden: false }` |
+
+- 效果只有一个：**本人的列表**（首页推荐 / 分区 / 搜索 / 关注流）从此不给这一条 —— 加在 `listVideos` 那个唯一的查询上（与拉黑同一处），
+  **作者主页不滤**（带 `author` 的查询）：人点进主页是主动要看他的全部。不进任何计数、不给作者看、不做推荐权重（今天没有权重）。
+- 能力位：`GET /api/ark/health` 的 **`videoHide: true`**。App 见不到就不摆那一行（点了什么都不会变的选项不摆）；离线、没登录、自己的作品也不摆。
+- App 侧（`data/videos.hideVideo`）：当场从缓存里抹掉 + 发 POST，6 秒「撤销」= 放回 + DELETE；POST 失败不把那一条放回去（人已经说了不想看，下次刷新再出现一次比「点了没反应」好）。
+
+## IP 属地（2026-10-30，《互联网用户账号信息管理规定》第十二条）
+
+条文只要求「账号信息页面展示合理范围内的 IP 地址归属地」、不设平台规模门槛；「境内到省、境外到国家 / 地区」是抖音 / 微博的行业做法，我们照它。
+
+- **服务端算、只存粒度**（`User.ipRegion = { country, region, at }`，不存 IP）：`GET /api/auth/me` 每 24 小时按 `utils/geo.regionOf` 刷一次
+  （国家只问 `countryOf` 那一把尺；省：Cloudflare 的 `cf-region-code` / `cf-region`（要在 CF 开「Add visitor location headers」那条托管转换）优先，没有再按 clientIp 查 geoip-lite）。
+  查不到国家时留着上一次的；从没算过的用户这一格是 `null`。
+- **回包**：`GET /api/auth/me` 的 `serializeAuthUser` 与 `GET /api/users/:id` 都多一格 `ipRegion: { country, region } | null`（`country` 两位国家码；`region` 境内省名、境外空）。
+- 能力位：`GET /api/ark/health` 的 **`ipRegion: true`**。App（`api/users.ipRegionLabel`）：境内写省名、港澳台与境外按国家码用 `Intl.DisplayNames` 写名字；字段为 null / 老服务端不带 = 整行不画，不编。
+  今天只画在个人主页（自己与别人），评论区暂不画。
 
 ## 通知（分支视频）
 
@@ -2220,7 +2253,7 @@ body 发 `{ text, voice, rate?, purpose: "cut-narration" }`（`voice` 取自 `/a
 
 | 方法 | 路径 | 鉴权 | 限流 | 说明 |
 |---|---|---|---|---|
-| GET | `/api/ark/health` | 无 | — | `{ ok, ark, imageGroups, res480, draftMode, failRefund, freeVideo: [{label, model, resolution}], freeVideoGate, minimaxFailRefund, clientEvents, videoZone }`：配没配 key + 能力位（老服务端没有的位 = 没有这个能力，App 据此藏起对应的东西 —— `app/src/data/serverCaps` 一处探测、一处解析 `capsOf`；判能力只看能力位，不看状态码）。`failRefund` 只说**方舟**任务；最后两位是运维开关的现状（没有 = 当成开着）：`freeVideoGate: false` = 服务端退回改版前只挡电影级的口径（App 的 `account.tierFreeOk` 跟着放开，`freeVideo` 那张清单不看开关、只在开着时作数）；`minimaxFailRefund: false` = 真人档受理之后的失败不退（App 的取回卡据此不许诺「会自动退回」，`serverCaps.failRefundMinimax`）；`clientEvents: true` = 收客户端失败上报 `POST /api/client-events`（2026-10-15，见下「客户端失败上报」，`serverCaps.clientEvents`）；`videoZone: true`（2026-10-26）= 有 `GET /api/video/zone`，只说有没有这条路、不带地区本身（见下「出片地区」，`serverCaps.videoZone`） |
+| GET | `/api/ark/health` | 无 | — | `{ ok, ark, imageGroups, res480, draftMode, failRefund, freeVideo: [{label, model, resolution}], freeVideoGate, minimaxFailRefund, clientEvents, videoZone }`：配没配 key + 能力位（老服务端没有的位 = 没有这个能力，App 据此藏起对应的东西 —— `app/src/data/serverCaps` 一处探测、一处解析 `capsOf`；判能力只看能力位，不看状态码）。`failRefund` 只说**方舟**任务；最后两位是运维开关的现状（没有 = 当成开着）：`freeVideoGate: false` = 服务端退回改版前只挡电影级的口径（App 的 `account.tierFreeOk` 跟着放开，`freeVideo` 那张清单不看开关、只在开着时作数）；`minimaxFailRefund: false` = 真人档受理之后的失败不退（App 的取回卡据此不许诺「会自动退回」，`serverCaps.failRefundMinimax`）；`clientEvents: true` = 收客户端失败上报 `POST /api/client-events`（2026-10-15，见下「客户端失败上报」，`serverCaps.clientEvents`）；`videoZone: true`（2026-10-26）= 有 `GET /api/video/zone`，只说有没有这条路、不带地区本身（见下「出片地区」，`serverCaps.videoZone`）；`videoHide: true`（2026-10-30）= 有「不感兴趣」那对端点（见下「不感兴趣」，`serverCaps.videoHide`）；`ipRegion: true`（2026-10-30）= 用户资料带 `ipRegion`（见下「IP 属地」，`serverCaps.ipRegion`） |
 | GET | `/api/ark/task-charges/:taskId` | required | 同轮询 | **本人的**这一发生成退没退钱（2026-10-07，不计费）：`{ state, tokens }`，见下「受理之后失败的退款」。不是本人的 / 没有这笔账 → 非 2xx（App 一律当「问不到」，照旧说原来那句，`arkClient.fetchTaskCharge`） |
 | POST | `/api/ark/images/generations` | required | 30/min | Seedream 出图（卡面 / 首尾帧） |
 | POST | `/api/ark/contents/generations/tasks` | required | 30/min | Seedance 出视频 / Seed3D 建模（同一个异步任务端点） |
@@ -2254,6 +2287,8 @@ App 打到自家服务器 **`/api/` 下**的每一个请求都带 `X-App-Version
 - **只给 `${API_BASE}/api/…`**（判定只在 `app/src/api/client.ts` 的 `withAppVersion`）。第三方一个都不带：Cloudinary 直传、
   dev 下 vite 代理直连的方舟、CDN、GitHub；自家服务器的 `/uploads/…` 静态目录也不带 —— 那一层的 CORS 只放行 `Content-Type`，
   多一个自定义头预检就被拒、整张图取不回来。
+- **2026-10-30 起多一个用处**：`POST /api/support/chat` 把解析出来的版本**静默**写进系统提示（「对方装的 App 是 2.75（87）」），
+  模型不再问「你用的哪一版」、按知识库里分版本说的话答。仍然**不拿它做任何判断**（客户端写的、能伪造），也不让模型把版本号念出来。
 - **缺失 = 2.62 及以前的老包**（它们一个都不发）。服务端（`middleware/appVersion`）把它解析成 `req.appVersion`，**只进日志**
   （例：哪些版本还在发方舟下线了的出图 id —— 决定接班表与老价目什么时候能删），**不拿它做任何放行 / 计价 / 门禁判断**：
   头是客户端写的、谁都能伪造。下线型号的改发与老包的结算认的是**请求体里的模型 id**（见「出图模型下线与改发」），与这个头无关。

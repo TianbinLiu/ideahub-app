@@ -120,7 +120,7 @@ export default function SupportCreatePage() {
         <CreateCard
           icon="graduation-cap"
           title={t`人物 → 老师`}
-          desc={t`把自己的课件交给 AI，铸一位按你的材料讲课的老师，在 App 里上课；勾了「同时发布为启梦人格」的老师还会开口说话。`}
+          desc={t`把自己的课件交给 AI，做一位按你的材料讲课的老师，在 App 里上课；勾了「同时发布为启梦人格」的老师还会开口说话。`}
           count={null}
           cta={t`去制作`}
           onGo={() => navigate("/tutor?from=app-create")}

@@ -47,7 +47,7 @@ export default function DraftsPage() {
       {/* 容量规则说在明处：超限清最旧不是 bug，是防配额吃满（drafts.MAX_DRAFTS 的 ★）。
           别等用户丢了草稿才在这行字里找答案 */}
       <p className="mb-3 text-[11px] leading-relaxed text-slate-500">
-        <Trans>草稿只存在这台设备上；超过 {MAX_DRAFTS} 条会从最旧的清起。每炼成一段都会自动存进当前草稿。</Trans>
+        <Trans>草稿只存在这台设备上；超过 {MAX_DRAFTS} 条会从最旧的清起。每生成一段都会自动存进当前草稿。</Trans>
       </p>
 
       {load.issue ? (

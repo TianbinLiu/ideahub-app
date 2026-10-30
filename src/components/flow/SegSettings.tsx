@@ -107,6 +107,18 @@ export default function SegSettings({ nodeId }: { nodeId: string }) {
               </button>
             );
           })}
+          {/* 「为什么灰着」写在行里，不只在 title 里：手机没有 hover（2026-10-30 UX 走查第 14 条）。两种原因只说一种、按发计价那种优先 */}
+          {(() => {
+            const steps = durationStepsOf(node.videoTier);
+            const choices = durationChoices(node.videoTier);
+            const minSec = tierOf(node.videoTier).minSec;
+            const label = tierOf(node.videoTier).label;
+            if (steps && choices.some((d) => !steps.includes(d)))
+              return <span className="basis-full text-[10px] leading-relaxed text-slate-500">{t`「${label}」按发计价，只有 ${steps.join("/")} 秒几档，其余点不了`}</span>;
+            if (choices.some((d) => d < minSec))
+              return <span className="basis-full text-[10px] leading-relaxed text-slate-500">{t`「${label}」最短 ${minSec} 秒，更短的点不了`}</span>;
+            return null;
+          })()}
         </div>
       )}
 
@@ -140,6 +152,11 @@ export default function SegSettings({ nodeId }: { nodeId: string }) {
             {a.label}
           </button>
         ))}
+        {(blockout || done) && (
+          <span className="basis-full text-[10px] leading-relaxed text-slate-500">
+            {blockout ? t`白模复刻的画幅跟着模板视频走，这里改不了` : t`这一段已出片：改画幅要重新生成才生效`}
+          </span>
+        )}
       </div>
 
       {/* 画质那一排（含逐档报价、r2v 禁用、换档代价确认）抽在 TierRow 一处，

@@ -18,6 +18,8 @@ export interface ApiUser {
   /** 公开数字 UID（9 位随机）。老服务端不返回——缺省别编 */
   uid?: number | null;
   email?: string;
+  /** IP 属地（2026-10-30，服务端 ipRegion 能力位）：country 两位国家码、region 境内省名；老服务端不带、没算过是 null */
+  ipRegion?: { country: string; region: string } | null;
   /**
    * 服务端角色（"user" / "admin" / …）。
    *

@@ -152,8 +152,8 @@ export default function VisionFramePicker({
           <b className="font-bold">这一步不是每次都全对。</b>
           实测每隔几发就会有 1~2 个人<b className="font-bold">根本没被换成人偶</b>（还是原来的样子）
           —— 最常出错的是<b className="font-bold">画面正中央、看起来最像主角的那一个</b>。
-          出片之后你要对着画面从左往右数一遍：对不上的位子删掉就行（不用重炼、不花钱），
-          要全对上只能重炼（<b className="font-bold">重炼要再花一次钱</b>）。
+          出片之后你要对着画面从左往右数一遍：对不上的位子删掉就行（不用重做、不花钱），
+          要全对上只能重做（<b className="font-bold">重做要再花一次钱</b>）。
           <b className="font-bold">画面里的人越少越准</b>，也可以在下面多标几帧让 AI 少看漏人。
         </Trans>
       </p>
@@ -231,7 +231,7 @@ export default function VisionFramePicker({
 
           {marks.length === 0 ? (
             <p className="text-[10px] leading-relaxed text-slate-500">
-              <Trans>还没标任何一帧。至少要标 1 帧才能开炼——拖上面的滑杆到有人的地方，点「标记这一帧」。</Trans>
+              <Trans>还没标任何一帧。至少要标 1 帧才能提交——拖上面的滑杆到有人的地方，点「标记这一帧」。</Trans>
             </p>
           ) : (
             <div className="flex gap-1.5 no-scrollbar overflow-x-auto pb-1">

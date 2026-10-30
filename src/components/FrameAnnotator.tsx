@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { AIGC_BADGE_TEXT } from "../data/aigcLabel";
 import { useBackLayer } from "../hooks/useBackLayer";
 import { CloseButton } from "./IconTapButton";
+import Warn from "./Warn";
 
 /** object-cover 语义地把图/视频画满画布（保持比例、居中裁切） */
 export function drawCover(ctx: CanvasRenderingContext2D, src: HTMLVideoElement | HTMLImageElement, w: number, h: number) {
@@ -104,10 +105,17 @@ export default function FrameAnnotator({
    *   —— 模型拿它当底图重画。默认画幅就是竖屏，所以这条每天都在发生（N3 对比现有「圈图改图」时查到）。
    */
   const [size, setSize] = useState<{ w: number; h: number }>({ w: 1280, h: 720 });
+  // ★ 底图没载进来要说出来、并且不许存（2026-10-30，UX 走查第 9 条）：原来只 console.warn，画布空着、「存入标注」照样能按 ——
+  //   存出去的是一张黑底图，下游拿它当底图付费重画。loadTry 只为「重试」重跑同一个 effect
+  const [loadErr, setLoadErr] = useState(false);
+  const [loadTry, setLoadTry] = useState(0);
 
   useEffect(() => {
+    let alive = true;
+    setLoadErr(false);
     void loadImg(frame)
       .then((img) => {
+        if (!alive) return;
         imgRef.current = img;
         const nw = img.naturalWidth || 1280;
         const nh = img.naturalHeight || 720;
@@ -115,8 +123,14 @@ export default function FrameAnnotator({
         setEllipse(null);
         setSize({ w: Math.max(2, Math.round(nw * k)), h: Math.max(2, Math.round(nh * k)) });
       })
-      .catch((e) => console.warn("[annot] 帧加载失败:", e));
-  }, [frame]);
+      .catch((e) => {
+        console.warn("[annot] 帧加载失败:", e);
+        if (alive) setLoadErr(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [frame, loadTry]);
   // 尺寸一变画布会被清空：等这一拍的尺寸写回 DOM 之后再画（图刚载完、尺寸没变的那种情况也走这里）
   useEffect(() => {
     redraw(null);
@@ -192,12 +206,20 @@ export default function FrameAnnotator({
           placeholder={t`例：删除圈中的路人 / 把圈中的伞换成红色油纸伞 / 圈中的招牌改成中文`}
           className="mt-2 w-full resize-none rounded-lg border border-slate-700 bg-panel px-2.5 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
         />
+        {loadErr && (
+          <Warn tone="danger" className="mt-2">
+            <Trans>这张画面没载进来，现在圈不了也存不了。</Trans>{" "}
+            <button type="button" onClick={() => setLoadTry((n) => n + 1)} className="underline underline-offset-2">
+              <Trans>重试</Trans>
+            </button>
+          </Warn>
+        )}
         <button
           onClick={() => {
-            if (!ellipse || !req.trim()) return;
+            if (!ellipse || !req.trim() || loadErr || !imgRef.current) return;
             onSave(canvasRef.current!.toDataURL("image/jpeg", 0.9), req.trim());
           }}
-          disabled={!ellipse || !req.trim()}
+          disabled={!ellipse || !req.trim() || loadErr || !imgRef.current}
           className="mt-2 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40"
         >
           <Trans>存入标注</Trans>

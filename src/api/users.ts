@@ -103,6 +103,8 @@ export interface ApiUserProfile extends ApiUserLite {
   followingCount?: number;
   /** 当前用户关注了他没有（未登录 / 看自己时服务端不给） */
   isFollowing?: boolean;
+  /** IP 属地（2026-10-30，服务端 ipRegion 能力位）：country 两位国家码、region 境内省名（境外为空）；老服务端 / 没算过 = undefined */
+  ipRegion?: { country: string; region: string };
 }
 
 /**
@@ -151,6 +153,33 @@ export async function getUser(id: string): Promise<UserProfileResult> {
       followerCount: typeof o.followerCount === "number" ? o.followerCount : undefined,
       followingCount: typeof o.followingCount === "number" ? o.followingCount : undefined,
       isFollowing: typeof o.isFollowing === "boolean" ? o.isFollowing : undefined,
+      ipRegion: ipRegionOf(o.ipRegion),
     },
   };
+}
+
+/**
+ * IP 属地怎么写（2026-10-30，行业做法：境内到省、境外到国家 / 地区；抖音 / 微博同口径）：
+ * 境内有省名写省名；港澳台与境外按国家码写名字（Intl.DisplayNames 按界面语言给「美国」/「United States」），
+ * Intl 认不出的退回国家码本身。region 空、country 又是 CN 时写「中国」
+ */
+export function ipRegionLabel(r: { country: string; region: string }, lang: "zh" | "en"): string {
+  if (r.country === "CN" && r.region) return r.region;
+  try {
+    const name = new Intl.DisplayNames([lang === "zh" ? "zh-Hans" : "en"], { type: "region" }).of(r.country);
+    if (name && name !== r.country) return name;
+  } catch {
+    /* 老 WebView 没有 DisplayNames：退回国家码 */
+  }
+  return r.country;
+}
+
+/** 服务端的 ipRegion 字段 → 本机形状；形状不对 / null 一律 undefined（不画） */
+export function ipRegionOf(v: unknown): { country: string; region: string } | undefined {
+  if (!v || typeof v !== "object") return undefined;
+  const o = v as Record<string, unknown>;
+  const country = typeof o.country === "string" ? o.country.trim().toUpperCase() : "";
+  const region = typeof o.region === "string" ? o.region.trim() : "";
+  if (!country) return undefined;
+  return { country, region };
 }

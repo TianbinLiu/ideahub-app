@@ -157,7 +157,7 @@ export default function SchemeEditorSheet({
           <span className="mb-1.5 text-xs font-semibold text-slate-300">
             <Trans>图位（{slots.length}/{MAX_CARD_VIEWS}）</Trans>
           </span>
-          <span className="text-[10px] text-slate-500">{AI_REAL ? t`炼一次约 ${fmtTokens(cost)}` : t`演示模式不计费`}</span>
+          <span className="text-[10px] text-slate-500">{AI_REAL ? t`生成一次约 ${fmtTokens(cost)}` : t`演示模式不计费`}</span>
         </div>
 
         <div className="space-y-2">
@@ -266,8 +266,8 @@ export default function SchemeEditorSheet({
         <button onClick={save} className="mt-2.5 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink">
           {AI_REAL && cost > 0
             ? copying
-              ? t`存成我的方案（用它炼一次约 ${fmtTokens(cost)}）`
-              : t`保存修改（用它炼一次约 ${fmtTokens(cost)}）`
+              ? t`存成我的方案（用它生成一次约 ${fmtTokens(cost)}）`
+              : t`保存修改（用它生成一次约 ${fmtTokens(cost)}）`
             : copying
               ? t`存成我的方案`
               : t`保存修改`}

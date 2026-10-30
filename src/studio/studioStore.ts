@@ -991,7 +991,7 @@ export function backLabelOf(s: StudioState): string {
   if (step === "canvas") return t`收起画布`;
   if (step === "projectionBusy") return t`推演中`;
   if (step === "projection")
-    return s.projection === "decks" ? t`退出卡组` : s.projection === "editor" ? t`取消铸段` : t`收起方案`;
+    return s.projection === "decks" ? t`退出卡组` : s.projection === "editor" ? t`退出铸段窗` : t`收起方案`;
   // ★ 表在函数体里现翻（StudioPage 用 useStudio(backLabelOf) 每次渲染都重算）：挪到模块顶层会冻结在开机语言
   const map: Record<Exclude<BackStep, "projection" | "projectionBusy" | "canvas">, string> = {
     avatar: t`返回`,
@@ -1234,7 +1234,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
           if (!switched()) set({ forgeProgress: status });
         },
       });
-      if (switched()) throw new Error(t`这一炉是上一个登录的账号开的，已作废。`);
+      if (switched()) throw new Error(t`这一次是上一个登录的账号开的，已作废。`);
       if (cards.length === 0) {
         get().npcSay(t`这些素材还差点意思，再补充点描述？`);
         get().setMood(-0.6, 2600);
@@ -1335,7 +1335,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
     if (!line) return;
     const s0 = get();
     if (s0.dialog.thinking) return set({ notice: { text: t`让我把上一句说完`, at: Date.now() } });
-    if (s0.dialog.busy) return set({ notice: { text: t`上一炉还在炼，等它出炉再说`, at: Date.now() } });
+    if (s0.dialog.busy) return set({ notice: { text: t`上一次还在生成，等它跑完再说`, at: Date.now() } });
     // ★ 闸门通过之后才掐上一句。放在闸门前，被拒绝的那一次也会把她正念着的话掐掉
     stopSpeaking();
     const seq = ++chatSeq;
@@ -1441,7 +1441,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
     // ★ 2026-09-18 又收回一截：只有**最后一段**、且删掉之后新段接得上的才退得回去（判据 flowStore.recastBlocked 一处，理由见它的 ★★）
     const blocked = recastBlocked(flow.nodes, nodeId);
     if (!node || blocked) {
-      set({ notice: { text: blocked ?? t`这一段已经出片了，退不回铸段窗——想换就删掉这一段再铸`, at: Date.now() } });
+      set({ notice: { text: blocked ?? t`这一段已经出片了，退不回铸段窗——想换就删掉这一段再重做`, at: Date.now() } });
       return false;
     }
     flow.removeNode(nodeId);
@@ -1624,7 +1624,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
     const { proposalRegen, frameRefining, nodeGen } = get();
     // ★ 早退也要说话（铁律八）：原来这里是静默 return false，用户读到的是"点了没反应"
     if (proposalRegen || frameRefining || nodeGen) {
-      set({ notice: { text: t`上一炉还在跑，等它出炉再说。`, at: Date.now() } });
+      set({ notice: { text: t`上一次还在跑，等它跑完再说。`, at: Date.now() } });
       return false;
     }
     {
@@ -1774,7 +1774,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
     //   投影窗开着的时候 —— 用 npcSay 等于没说（与 genNodeVideo 同一条纪律）。
     const { nodeGen, proposalRegen } = get();
     if (nodeGenInFlight || nodeGen || proposalRegen) {
-      set({ notice: { text: t`上一炉还在跑，等它出炉再说。`, at: Date.now() } });
+      set({ notice: { text: t`上一次还在跑，等它跑完再说。`, at: Date.now() } });
       return false;
     }
     const flow0 = useFlow.getState();
@@ -2037,7 +2037,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
     const { editor, deck } = get();
     if (!editor || editor.generating) return;
     if (nodeGenInFlight) {
-      set({ notice: { text: t`上一炉还在推演，等它出炉再开新的。`, at: Date.now() } });
+      set({ notice: { text: t`上一次推演还在跑，等它跑完再开新的。`, at: Date.now() } });
       return;
     }
     {
@@ -2190,7 +2190,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
         : path2.length === 0;
       if (!anchorOk) {
         // ★ 走 notice 不走 npcSay：铸段窗开着时 NpcDialog 整个 return null（见 notice 的 ★），那句话等于没说
-        set({ notice: { text: t`推演期间桌面已经变样，这一炉先作废——按现在的走向重新生成吧。`, at: Date.now() } });
+        set({ notice: { text: t`推演期间桌面已经变样，这一次先作废——按现在的走向重新生成吧。`, at: Date.now() } });
         get().setMood(-0.5, 2200);
         return;
       }
@@ -2356,7 +2356,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
     if (nodeGen) {
       // 同一时刻只炼一段：并发跑几段既烧钱又抢方舟并发额度。
       // ★ 早退要说一句（CLAUDE.md「store 的 action 撞上全局 busy 时静默 return false」那格）：原来一个字不说，点了就是没反应
-      set({ notice: { text: t`上一炉还在炼，等它出炉再炼下一段。`, at: Date.now() } });
+      set({ notice: { text: t`上一段还在生成，等它跑完再生成下一段。`, at: Date.now() } });
       return false;
     }
     const flow = useFlow.getState();
@@ -2390,7 +2390,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
       }
       const ok = await run;
       if (!ok) {
-        set({ notice: { text: useFlow.getState().err || t`这一段没炼成`, at: Date.now() } });
+        set({ notice: { text: useFlow.getState().err || t`这一段没生成成功`, at: Date.now() } });
         return false;
       }
       // ★ 2026-09-16 订正（多语言 S2 对着 projection.tsx 核出来的）：方案台那颗键印的是「✂ 编辑」，
@@ -2412,7 +2412,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
     // 单一真相后"法阵"不再铺表（没有第二份数据要同步），它只是去另一面的门。
     // 空流水线不导航：/flow 对 0 段会弹回创作入口，看着像法阵坏了——如实指路
     if (useFlow.getState().nodes.length === 0) {
-      get().npcSay(t`桌上还没有段——先点虚线卡位铸第一段，或去模板市场挑一个「用它出片」。`);
+      get().npcSay(t`桌上还没有段——先点虚线卡位做第一段，或去模板市场挑一个「用它出片」。`);
       return;
     }
     set({ goFlowAt: Date.now() });
@@ -2567,7 +2567,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
               say(t`3D 建模需 ${price} token，余额不足，跳过`);
             } else {
               if (moved()) throw new Error("owner-moved");
-              say(t`这是 3D 画风，顺便铸 ${want} 个建模（${price} token）…`);
+              say(t`这是 3D 画风，顺便生成 ${want} 个建模（${price} token）…`);
               const before = fresh.filter((c) => c.modelUrl).length;
               const built = await deriveCharacterModels(fresh, DECK_MAX_3D, say);
               const minted = fresh.filter((c) => c.modelUrl).length - before;
@@ -2850,7 +2850,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
 
   studioBusyReason: () => {
     const s = get();
-    if (s.nodeGen) return t`工坊里有一段正在炼视频（钱已经在花了）——换掉桌面不会把它停下，等它跑完再来`;
+    if (s.nodeGen) return t`工坊里有一段正在生成视频（钱已经在花了）——换掉桌面不会把它停下，等它跑完再来`;
     if (s.proposalRegen) return t`工坊里正在重推方案，等它跑完再换桌面`;
     if (s.frameRefining) return t`工坊里正在改一张图，等它跑完再换桌面`;
     return null;
@@ -3040,7 +3040,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
       case "projectionBusy":
         // 消费掉但不关：这一炉真烧 token，退出等于把用户丢给一个看不见进度的后台任务。
         // 与投影窗里 ✕/取消 的 disabled={editor.generating} 是同一条规则
-        set({ notice: { text: t`这一炉还在推演，等它出炉再退出`, at: Date.now() } });
+        set({ notice: { text: t`推演还在跑，等它跑完再退出`, at: Date.now() } });
         return true;
       case "canvas":
         set({ canvasOpen: false });

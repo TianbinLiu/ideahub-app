@@ -29,7 +29,11 @@ import {
   profileHref,
   setLike,
   setSave,
+  hideVideo,
+  remoteOn,
 } from "../data/videos";
+import { showToast } from "../data/toast";
+import { serverSupports } from "../data/serverCaps";
 import { danmakuNeedsLogin, danmakuOn, danmakuSessionPending, subscribeDanmaku } from "../data/danmaku";
 import { hasPurchased, isCollected, isFollowing, toggleCollect, toggleFollow } from "../data/account";
 import { fmtTokens } from "../data/economy";
@@ -286,6 +290,12 @@ function FeedItem({
   // 初值从库里取：划走再划回来时点赞态不该丢（isLiked 之前一直没人调用）
   const [liked, setLiked] = useState(() => isLiked(video.id));
   const [likes, setLikes] = useState(video.likes);
+  // ★ 点赞在服务端没记上时 data 层会回滚 likedIds 并 emitVideos（videos.setLike 的 catch）：这里跟着重读，心才会退回去
+  //   （2026-10-30，UX 走查第 8 条）。同一个值 setState 不重渲染，划视频时的 emit 不会多花什么
+  const videoV = useVideosVersion();
+  useEffect(() => {
+    setLiked(isLiked(video.id));
+  }, [videoV, video.id]);
   // 收藏态取自账号库。2026-08-31 起收藏**跟着账号走**（服务端有端点了），
   // 换设备、重装都还在；本机那份只做离线兜底与冷启动首帧。
   // ★ 计数那一半 2026-08-30 撤了（见下面 RailBtn 的 ★★）：服务端没有收藏端点，
@@ -1005,8 +1015,9 @@ function FeedItem({
               作者会拿它判断作品受不受欢迎，而它只反映他自己点了几下。
               图标本身仍然照常填充/取消 —— "我收没收藏"是本机真相，那一半是真的。
               ⇒ 等服务端补了 /saves 再把数字接回来（接法照 setLike 的 remoteOn() 分支）。 */}
+          {/* 五角星 = 收藏（2026-10-30 定，抖音 / B 站同形；点亮金色）。AI / 生成一律用四角星，别再混用 */}
           <RailBtn
-            icon="bookmark"
+            icon="star"
             filled={saved}
             pressed={saved}
             tint="text-gold"
@@ -1032,17 +1043,34 @@ function FeedItem({
           <RailBtn icon="share" label={t`分享`} onClick={share} />
         </div>
 
-        {/* 全屏键挂在整栏最下面：它不属于"对这条作品做点什么"那一组，
-            所以比组内间距再多留一截（mt-6 = 24px，是组内基准 8px 的三倍）把它分出去。
-            整栏是 bottom 定位的 flex-col，多出这一枚，上面几个自然被顶上去。
-            两种画幅点下去做的事不同，字也就不同：横屏转屏占满，竖屏收起边角元素。 */}
-        <RailBtn
-          icon="expand"
-          guide={active ? "feed-fullscreen" : undefined}
-          label={shownAspect === "landscape" ? t`转屏` : t`全屏`}
-          className="mt-6"
-          onClick={onEnterFull}
-        />
+        {/* 整栏最下面是转着的「做同款」碟片（2026-10-30 定）：抖音 / TikTok 的右栏都是 5 颗键 + 底下一张碟片，**全屏都不在右栏**；
+            全屏 / 转屏收进长按菜单（FeedActionSheet 里早就有清屏 / 转屏）。碟片比组内间距多留一截（mt-6）把它分出去，
+            整栏仍是 7 枚、高度与原来那颗全屏键一样（min-h-56px + w-14），右栏那套量过的几何一个数都不动。
+            左下角的「做同款」招牌芯片照旧（抖音的碟片与「拍同款」字样也是并存的）；门禁与那颗芯片同一份 useRemake。
+            播放时转、暂停 / 不在屏上不转；减少动态效果时不转（motion-safe） */}
+        <button
+          onClick={remake}
+          data-guide={active ? "feed-remix-disc" : undefined}
+          aria-label={t`做同款`}
+          className="mt-6 flex min-h-[56px] w-14 flex-col items-center justify-center gap-1 transition active:scale-90"
+        >
+          <span
+            className={`relative block h-11 w-11 overflow-hidden rounded-full bg-slate-900 ring-[3px] ring-white/80 ${
+              active && !paused ? "motion-safe:animate-[spin_8s_linear_infinite]" : ""
+            }`}
+          >
+            {video.cover ? (
+              <img src={video.cover} alt="" aria-hidden="true" className="h-full w-full object-cover" />
+            ) : (
+              <span className="flex h-full w-full items-center justify-center text-white/80">
+                <Icon name="remix" size={20} />
+              </span>
+            )}
+            {/* 碟心：盖住封面正中，一眼认出是碟片不是头像 */}
+            <span aria-hidden="true" className="absolute left-1/2 top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-ink ring-2 ring-white/70" />
+          </span>
+          <span className="text-[11px] text-white/90 [text-shadow:0_0_3px_rgba(0,0,0,.6)]">{t`做同款`}</span>
+        </button>
       </div>
 
       {cmtOpen && <CommentSheet video={video} onClose={() => setCmtOpen(false)} autoFocus={false} />}
@@ -1069,6 +1097,16 @@ function FeedItem({
           host="feed"
           onSaveLocal={() => navigate(`/video/${video.id}`)}
           block={null}
+          // 「不感兴趣」（2026-10-30）：只在远端模式、服务端有 videoHide 能力位、登录着、不是自己的作品时摆；
+          //   先抹掉再给 6 秒「撤销」（CLAUDE.md 轻提示那条：一拍就成、能原样恢复的动作先做再撤销）
+          onNotInterested={
+            remoteOn() && serverSupports("videoHide") === true && !!user && !mine
+              ? () => {
+                  const undo = hideVideo(video.id);
+                  showToast(t`好的，这条不再出现`, 6000, { label: t`撤销`, run: undo });
+                }
+              : null
+          }
         />
       )}
       {/* 发弹幕时视频**不暂停**：弹幕的意思就是"此刻"，停下来发就名不副实了。

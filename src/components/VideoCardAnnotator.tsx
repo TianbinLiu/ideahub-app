@@ -542,7 +542,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
     const { scheme, kept, todo, price } = plan;
     if (AI_REAL && !canAfford(price)) {
       const imgs = todo.filter(isGenerated).length;
-      setErr(frozenNote() ?? t`「${scheme.title}」要炼 ${imgs} 张图、约 ${fmtTokens(price)} token，余额不够——去「我的」页充值`);
+      setErr(frozenNote() ?? t`「${scheme.title}」要生成 ${imgs} 张图、约 ${fmtTokens(price)} token，余额不够——去「我的」页充值`);
       return;
     }
     setErr("");
@@ -767,7 +767,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
           scope: "private",
           note: pendingAsset.note,
         });
-        if (!bound.stored) setErr(t`卡铸好了，但「火山引擎适用」没存住（本机存储写入失败）——去卡片详情页再勾一次。`);
+        if (!bound.stored) setErr(t`卡做好了，但「火山引擎适用」没存住（本机存储写入失败）——去卡片详情页再勾一次。`);
       }
       setSaved((s) => [...s, card]);
       setCrops([]);
@@ -965,7 +965,7 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
               (rawCrops ? (
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between rounded-lg border border-ok-500/40 bg-ok-500/10 px-3 py-2">
-                    <span className="text-[11px] text-ok-300"><Trans>✨ 已按「{pickedTitle}」炼好形象图</Trans></span>
+                    <span className="text-[11px] text-ok-300"><Trans>✨ 已按「{pickedTitle}」生成形象图</Trans></span>
                     <button
                       onClick={() => {
                         setCrops(rawCrops);
@@ -1169,8 +1169,8 @@ export default function VideoCardAnnotator({ deckMode, onClose }: { deckMode: bo
                       (plan.keptSlots.length > 0
                         ? t`✨ 补齐剩下的 ${todoCount} 张形象图（约 ${fmtTokens(plan.price)}）`
                         : AI_REAL
-                          ? t`✨ 按这套方案炼形象图（${portraitCount} 张 · 约 ${fmtTokens(plan.price)}）`
-                          : t`✨ 按这套方案炼形象图（${portraitCount} 张 · 演示）`)}
+                          ? t`✨ 按这套方案生成形象图（${portraitCount} 张 · 约 ${fmtTokens(plan.price)}）`
+                          : t`✨ 按这套方案生成形象图（${portraitCount} 张 · 演示）`)}
                   </button>
                 </div>
               ))}

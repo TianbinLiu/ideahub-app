@@ -22,6 +22,7 @@ import { onRecipeStateChange } from "./recipes";
 //   用对方，所以这个环在运行时无害。加新引用之前先确认自己不是在模块顶层用它。
 import { dropLocalDanmaku } from "./danmaku";
 import { showToast } from "./toast";
+import { startJob, type JobHandle } from "./jobs";
 import { currentUser, readyAccount, subscribeAccount } from "./account";
 import { deviceOwner, mayClaimLegacy } from "./deviceOwner";
 import { API_ON, ApiError, emitApiError } from "../api/client";
@@ -1232,6 +1233,12 @@ export function setLike(id: string, on: boolean): number {
         else likedIds.add(rid);
         emitVideos();
         emitApiError("setLike", e);
+        // ★ 回滚要让人看见（2026-10-30，UX 走查第 8 条）：全 app 没人听 api:error，原来心是红的、数字 +1、服务端没记上，零提示。
+        //   同类 App 的做法是心退回去 + 一句短提示（「网络不给力」）+ 重试；首页 / 详情页的本地 liked 跟着 videosVersion 重读
+        showToast(on ? t`网络不给力，点赞没成功` : t`网络不给力，没能取消点赞`, 4000, {
+          label: t`重试`,
+          run: () => void setLike(id, on),
+        });
       });
   }
   return v.likes;
@@ -1936,6 +1943,30 @@ export async function refreshFollowingFeed(opts: { minAgeMs?: number } = {}): Pr
  * ★ 不等下一次重拉：拉黑是用户刚做的动作，屏幕上那条要当场消失才对得上「已拉黑」；
  *   顺手把"上次拉取时刻"清零，下一次 refreshFeed 不会因为"还不够旧"而跳过。
  */
+/**
+ * 「不感兴趣」（2026-10-30）：当场从首页 / 关注流的缓存里抹掉这一条，并告诉服务端以后别再给；回「撤销」函数（放回缓存 + DELETE）。
+ * ★ 只在远端模式有意义（服务端 videoHide 能力位为真时入口才摆）；请求失败也不把那一条放回去 —— 人已经说了不想看，
+ *   下一次刷新服务端没记上会再出现一次，比"点了没反应"好。
+ */
+export function hideVideo(id: string): () => void {
+  const rid = realId(id);
+  const gone = cache?.find((v) => v.id === id || realId(v.id) === rid) ?? null;
+  const goneIdx = cache ? cache.findIndex((v) => v.id === id || realId(v.id) === rid) : -1;
+  if (cache) cache = cache.filter((v) => v.id !== id && realId(v.id) !== rid);
+  if (followingCache) followingCache = followingCache.filter((v) => v.id !== id && realId(v.id) !== rid);
+  emitVideos();
+  if (remoteOn()) branch.setHidden(rid, true).catch((e) => emitApiError("hideVideo", e));
+  return () => {
+    if (gone && cache && !cache.some((v) => v.id === gone.id)) {
+      const next = [...cache];
+      next.splice(Math.min(Math.max(goneIdx, 0), next.length), 0, gone);
+      cache = next;
+      emitVideos();
+    }
+    if (remoteOn()) branch.setHidden(rid, false).catch((e) => emitApiError("unhideVideo", e));
+  };
+}
+
 export function purgeAuthorVideos(authorId: string): void {
   if (!authorId) return;
   if (cache) cache = cache.filter((v) => v.authorId !== authorId);
@@ -2209,6 +2240,7 @@ async function pushPublish(item: VideoItem, draft: DraftVideo): Promise<void> {
   let sending = draft;
   // 这一条是谁发的：上传几十秒到几分钟，中途换了账号的话后面那几发请求带的就是**别人的** token（见下面 createVideo 前那一句）
   const ownerAtStart = deviceOwner();
+  let job: JobHandle | null = null;
   try {
     // ★★ **先入队，成了再出队**（2026-08-21 第十轮扫描）：上传一条三段片要逐个传
     //   1MB 级的帧与 1.5MB 级的成片，慢网上一两分钟。原来只在 catch 里入队 ——
@@ -2219,11 +2251,16 @@ async function pushPublish(item: VideoItem, draft: DraftVideo): Promise<void> {
     //   彻底消失且零提示"的路。★ 幂等键是 clientId，重复入队只会覆盖同一条。
     if (draft.clientId) inflightPublish.add(draft.clientId);
     await queuePending(draft, { code: "uploading" }, { insurance: true });
+    // ★ 登记成一张票（2026-10-30，UX 走查第 10 条）：上传几 MB 的成片在慢网上要一两分钟，原来进度只在个人页横幅里 ——
+    //   人发完多半已经去别处了，胶囊什么都不说。票的结局与横幅各说各的（横幅读待发队列、票只报这一发）
+    job = startJob({ kind: "publish", title: t`发布《${draft.title}》`, route: "/me", progress: t`上传中…` });
     // ★ 先把本机资产（base64 帧/卡面、idb: 成片）传成永久 URL，再发那个几 KB 的 JSON。
     //   不做这一步的话：请求体 MB 级被网关掐断，而且**就算发出去别人也放不出来**
     //   ——服务端存下的 videoUrl 是一个指向"发布者手机上某处"的 idb: 键。
     sending = await materializeDraft(draft, (done, total, label) => {
       uploadStatus = { title: draft.title, done, total, label };
+      const what = label || t`上传中`;
+      job?.update(total > 0 ? `${what} ${Math.min(100, Math.round((done / total) * 100))}%` : what);
       emitVideos();
     });
     uploadStatus = null;
@@ -2267,11 +2304,14 @@ async function pushPublish(item: VideoItem, draft: DraftVideo): Promise<void> {
     //   于是整份画布被墓碑化 —— 回炉打开是一堆空框，而且零报错。
     void projects.retainAfterPublish(v._id, draft, v);
     emitVideos();
+    job?.done({ msg: t`《${draft.title}》发布好了`, route: `/video/${v._id}` });
   } catch (e) {
     uploadStatus = null;
     // ★ 失败了就不再算"在传"：那条队列项要立刻出现在横幅上（铁律八）
     if (draft.clientId) inflightPublish.delete(draft.clientId);
     emitApiError("publishVideo", e);
+    // 票只说「没传上去、进了待发队列」；为什么没传上去由个人页横幅按码说（uploadFailOf）
+    job?.fail(t`《${draft.title}》没传上去，已进待发队列，稍后会自动重试`, "/me");
     // PublishPage 发完就 clearDraft() 了，作品只剩内存里这一份——存进待发队列，
     // 下次启动重试，不让一次网络抖动吃掉用户几十分钟的生成。
     // ★ 连失败原因一起存：个人页要把它显示出来。只存不显示等于没存

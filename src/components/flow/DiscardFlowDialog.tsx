@@ -108,11 +108,11 @@ export default function DiscardFlowDialog({
             <Trans>开新的一条会把它丢掉——都还没出片，丢的是写好的要求与设定，没有花掉的钱。</Trans>
           ) : simple ? (
             <Trans>
-              ⚠ 这条是<span className="text-warn-300">简约模式</span>：它按设计不进草稿库（一次性直通发布），所以已经出片的 <span className="text-danger-300">{done} 段丢了就要重花 token 再炼一次</span>。想留住就先「回去接着炼」，把它<span className="text-ok-300">完成并发布</span>，再回来{noun}。
+              ⚠ 这条是<span className="text-warn-300">简约模式</span>：它按设计不进草稿库（一次性直通发布），所以已经出片的 <span className="text-danger-300">{done} 段丢了就要重花 token 再生成一次</span>。想留住就先「回去接着做」，把它<span className="text-ok-300">完成并发布</span>，再回来{noun}。
             </Trans>
           ) : unsaved === 0 ? (
             <Trans>
-              已出片的 <span className="text-ok-300">{done} 段在炼成那一刻就自动存进了草稿</span>（「我的 → 草稿」里能接着做），<span className="text-ok-300">不用重花 token</span>。这里丢掉的是那之后手改的东西：文字、圈选要求、还没炼的段。
+              已出片的 <span className="text-ok-300">{done} 段在生成那一刻就自动存进了草稿</span>（「我的 → 草稿」里能接着做），<span className="text-ok-300">不用重花 token</span>。这里丢掉的是那之后手改的东西：文字、圈选要求、还没生成的段。
             </Trans>
           ) : (
             <>
@@ -120,14 +120,14 @@ export default function DiscardFlowDialog({
                   之后 savedDoneCount 会归零，那时说"存储空间不足或隐私模式"就是句假话。
                   只说**事实**（还没进草稿），出路两种情况都成立。 */}
               <Trans>
-                ⚠ 其中 <span className="text-danger-300">{unsaved} 段出片后还没进草稿</span>，丢弃就要<span className="text-danger-300">重花 token 再炼一次</span>。建议先「回去接着炼」，在那一页点「存草稿」把它们留住。
+                ⚠ 其中 <span className="text-danger-300">{unsaved} 段出片后还没进草稿</span>，丢弃就要<span className="text-danger-300">重花 token 再生成一次</span>。建议先「回去接着做」，在那一页点「存草稿」把它们留住。
               </Trans>
             </>
           )}
         </p>
         <div className="mt-3.5 flex flex-col gap-2">
           <button onClick={onResume} className="rounded-xl bg-brand py-2.5 text-sm font-bold text-ink">
-            <Trans>回去接着炼</Trans>
+            <Trans>回去接着做</Trans>
           </button>
           {/* ★ 生成中就把它禁掉并说清为什么（真正的闸在 store 的 canReplaceNodes） */}
           <button
@@ -136,7 +136,7 @@ export default function DiscardFlowDialog({
             title={gening >= 0 ? t`有一段正在生成，等它跑完再说` : undefined}
             className="rounded-xl border border-danger-500/40 bg-danger-500/10 py-2.5 text-sm font-semibold text-danger-300 disabled:opacity-40"
           >
-            {gening >= 0 ? t`等这一段炼完才能丢` : discardLabel}
+            {gening >= 0 ? t`等这一段生成完才能丢` : discardLabel}
           </button>
           <button onClick={onCancel} className="rounded-xl bg-slate-700/70 py-2.5 text-sm text-slate-200">
             <Trans>取消</Trans>

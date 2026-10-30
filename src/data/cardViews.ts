@@ -126,7 +126,7 @@ function assertUploadable(): void {
 /** 先按现状算容量：老卡兑现出来的那张卡面也占一格（它确实会被喂给 Seedream） */
 function assertRoom(card: Card): void {
   if (viewsOf(card).length >= MAX_CARD_VIEWS) {
-    throw new Error(t`最多 ${MAX_CARD_VIEWS} 张：方舟建议不要堆满，素材太多模型反而判断不出该优先保哪些特征`);
+    throw new Error(t`最多 ${MAX_CARD_VIEWS} 张：不建议堆满，素材太多模型反而判断不出该优先保哪些特征`);
   }
 }
 

@@ -277,7 +277,7 @@ export default function BlockoutTrimmer({
     outSel && geo
       ? judge
         ? judge(outSel, geo)
-        : { issue: selectionIssue(outSel, geo), ok: t`这一段可以开炼：${selectionSummary(outSel, geo)}` }
+        : { issue: selectionIssue(outSel, geo), ok: t`这一段可以提交：${selectionSummary(outSel, geo)}` }
       : null;
   const issue = verdict?.issue ?? null;
 
@@ -310,7 +310,7 @@ export default function BlockoutTrimmer({
       ? null
       : priceIssue ??
         (cost === null
-          ? t`白模化现在报不出价，先不能开炼（价目或开关没就绪）——这种情况请把这句话反馈给我们。`
+          ? t`白模化现在报不出价，先不能提交（价目或开关没就绪）——这种情况请把这句话反馈给我们。`
           : null));
 
   return (

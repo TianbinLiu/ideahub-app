@@ -160,6 +160,10 @@ export default function VideoPage() {
 
   // 详情回填晚于首帧渲染：把服务端那份同步进来。本地已有的乐观值（刚点的赞）取较大的一边，别被回包覆盖掉。
   // ★ 只在同一条作品之内取较大值：路由层按 id 重挂（VideoRoute），换作品不会把上一条的数带过来
+  // 点赞没记上时 data 层回滚并 emit（videos.setLike）：跟着 version 重读，心退回去（2026-10-30）
+  useEffect(() => {
+    if (video) setLiked(isLiked(video.id));
+  }, [version, video?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!video) return;
     setLiked(isLiked(video.id)); // 回填晚于首帧：远端模式下 liked 由详情回包填进 likedIds
@@ -647,7 +651,7 @@ export default function VideoPage() {
           </button>
           {/* ★★ 收藏**不显示数字**（服务端 BranchCollect 2026-08-31 写明不做计数：零成本动作是最便宜的刷量燃料，显示骗人的数比不显示更糟） */}
           <button onClick={() => void collect()} aria-pressed={saved} className={cell}>
-            <Icon name="bookmark" size={22} filled={saved} className={saved ? "text-gold" : "text-slate-300"} />
+            <Icon name="star" size={22} filled={saved} className={saved ? "text-gold" : "text-slate-300"} />
             <span className="text-[11px] text-slate-300">
               <Trans>收藏</Trans>
             </span>
@@ -775,6 +779,8 @@ export default function VideoPage() {
           host="detail"
           onSaveLocal={dlSupported ? openSave : null}
           block={video.authorId ? { userId: video.authorId, userName: video.author } : null}
+          // 详情页不摆「不感兴趣」：人是点进来看的，藏掉正在看的这一条还得替他退出去；首页那一格才是它的位置（2026-10-30）
+          onNotInterested={null}
         />
       )}
       {cmt && <CommentSheet video={video} onClose={() => setCmt(null)} autoFocus={cmt.autoFocus} />}

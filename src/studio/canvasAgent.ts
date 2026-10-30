@@ -340,7 +340,7 @@ function applyOps(ops: Op[]): { applied: string[]; refused: string[]; proposals:
           break;
         }
         if (node.status === "generating") {
-          refused.push(t`第 ${seg} 段正在生成，等它跑完再改要求（现在改也来不及进这一炉）`);
+          refused.push(t`第 ${seg} 段正在生成，等它跑完再改要求（现在改也来不及进这一次生成）`);
           break;
         }
         // ★★ **本地档不许静默覆盖已经写好的要求**（第四轮验证的结论）：那一档的分档全靠
@@ -353,7 +353,7 @@ function applyOps(ops: Op[]): { applied: string[]; refused: string[]; proposals:
           const was = clipForLang(prevReq, 24);
           const next = clipForLang(o.text, 16);
           refused.push(
-            t`第 ${seg} 段已经写着「${was}${was !== prevReq ? "…" : ""}」——离线档不敢直接覆盖它。想换成「${next}…」的话，在这一段的编辑窗里改（那一段还锁着的话，得先把它前面的段炼出来），或者先把原来那段清空`,
+            t`第 ${seg} 段已经写着「${was}${was !== prevReq ? "…" : ""}」——离线档不敢直接覆盖它。想换成「${next}…」的话，在这一段的编辑窗里改（那一段还锁着的话，得先把它前面的段生成出来），或者先把原来那段清空`,
           );
           break;
         }
@@ -414,7 +414,7 @@ function applyOps(ops: Op[]): { applied: string[]; refused: string[]; proposals:
         //      不改素材就重炼，只会花钱得到同一段。
         //   所以照改，但绿勾要说清它什么时候才作数。
         if (node.status === "generating") {
-          refused.push(t`第 ${seg} 段正在生成，等它跑完再改素材（现在改也来不及进这一炉）`);
+          refused.push(t`第 ${seg} 段正在生成，等它跑完再改素材（现在改也来不及进这一次生成）`);
           break;
         }
         const doneNote = nodeDone(node) ? t`（这一段已经出片，新素材要点「♻ 重新生成」才会用上）` : "";
@@ -469,7 +469,7 @@ function applyOps(ops: Op[]): { applied: string[]; refused: string[]; proposals:
           break;
         }
         if (lockedAt(o.seg)) {
-          refused.push(t`第 ${seg} 段还没轮到（前面的段先炼完才解锁）`);
+          refused.push(t`第 ${seg} 段还没轮到（前面的段先生成完才解锁）`);
           break;
         }
         const labels = new Set(tpl.roles.map((r) => r.label));
@@ -523,7 +523,7 @@ function applyOps(ops: Op[]): { applied: string[]; refused: string[]; proposals:
           break;
         }
         if (lockedAt(o.seg)) {
-          refused.push(t`第 ${seg} 段还没轮到（前面的段先炼完才解锁）`);
+          refused.push(t`第 ${seg} 段还没轮到（前面的段先生成完才解锁）`);
           break;
         }
         if (node.status === "generating") {
@@ -551,7 +551,7 @@ function applyOps(ops: Op[]): { applied: string[]; refused: string[]; proposals:
       }
       case "generate": {
         if (lockedAt(o.seg)) {
-          refused.push(t`第 ${seg} 段还没轮到（前面的段先炼完才解锁）`);
+          refused.push(t`第 ${seg} 段还没轮到（前面的段先生成完才解锁）`);
           break;
         }
         if (node.status === "generating") {
@@ -697,7 +697,7 @@ export async function executeAgentProposal(p: AgentProposal): Promise<{ ok: bool
   if (p.kind === "cast") {
     // applyCast 作用于**光标段**（分段组各挂各的）：先把光标真挪过去，被夹住 = 还锁着
     st().setCursor(p.seg - 1);
-    if (st().cursor !== p.seg - 1) return fin(false, t`第 ${seg} 段还没轮到（前面的段先炼完），挂不了`);
+    if (st().cursor !== p.seg - 1) return fin(false, t`第 ${seg} 段还没轮到（前面的段先生成完），挂不了`);
     // 整表覆盖是 applyCast 的语义：与该段现挂的合并，提案里只带新改的那几位
     const merged = { ...st().cast, ...(p.map ?? {}) };
     const ok = await st().applyCast(merged);
@@ -723,7 +723,7 @@ export async function executeAgentProposal(p: AgentProposal): Promise<{ ok: bool
   //   炼出来的还接着用户刚刚弃掉的那套走向的尾帧。
   //   问的是**同一处实现**（clampCursor），不是另写一份 frontier。
   if (lockedAt(p.seg)) {
-    return fin(false, t`第 ${seg} 段又锁上了（前面的段被改回未出片）——先把前面那段炼出来，再说一次`);
+    return fin(false, t`第 ${seg} 段又锁上了（前面的段被改回未出片）——先把前面那段生成出来，再说一次`);
   }
 
   // ★★ 价签复核：卡摆着的这段时间里，用户完全可能去方案台改了时长/首尾帧/选中的走向，

@@ -115,7 +115,7 @@ export default function DraftModeBox({
         </p>
         <p className="text-[11px] leading-relaxed text-sky-200/90">
           {left <= 0 ? (
-            <Trans>样片已经过了定稿期限（方舟的样片只留 7 天，我们在到期前 1 小时停止定稿），不能再定稿了——要成片就重新生成（会重新计费）。</Trans>
+            <Trans>样片已经过了定稿期限（样片只留 7 天，我们在到期前 1 小时停止定稿），不能再定稿了——要成片就重新生成（会重新计费）。</Trans>
           ) : days > 0 ? (
             <Trans>看着满意就定稿：把这同一份样片升成 1080p 成片（画面、动作、声音都照样片，不重新抽卡）。还剩 {days} 天 {hours} 小时可以定稿。</Trans>
           ) : hours > 0 ? (

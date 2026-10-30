@@ -34,6 +34,7 @@
 // 首页那份指向了一个**已经删掉的功能**（"分段剧情"，VideoPage 里写着删除理由）、
 // 把发弹幕键说成"下面有计数"（它有意显示的是字不是数）、工坊那份漏了一种卡且改了卡种名。
 // ⇒ 改这里的任何一句之前，先去对应组件里对一遍实现。这些话是**会被用户当真**的。
+// ★ 2026-10-30 压缩：每步正文压到两句以内、≤60 字（硬上限 80；依据 HIG「brief」/ NN/g「提示框很快被关掉、不会细读」）—— 只删不加，一个新事实都没进来；各步注释里提到的个别句子可能已被压掉，注释照旧记着当时为什么那么写。
 import type { ReactNode } from "react";
 import type { MessageDescriptor } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
@@ -101,13 +102,8 @@ function BlockoutRoutesBody() {
   //   ★ 订正记在这里、不记在 TOURS 那一步上：正文在这个组件里，订正与正文同一处、整块取舍。
   return (
     <Trans>
-      选文件 → 上传（<b className="font-bold text-slate-100">不花钱</b>）→ 下一步拖时间轴框出 {minSec}~
-      {maxSec} 秒、拖裁剪框把台标水印框到画面外。让 AI 换白模那条就在这一屏读完报价、点「开始白模化」才开炼；
-      自带白模片那条这一屏不花钱，点「下一步：挑 AI 分析帧」去下一屏，在框出来的那一段上定 AI 分析哪几帧（自动或自己挑），
-      报价也在那一屏、点「做成模板（不出片）」之前整句报出
-      （把选段拖过上限，会自动变成<b className="font-bold text-slate-100">整条切段登记成一组</b>，那颗键换成「下一步：标切段刀」，按段计费）。
-      让 AI 换白模那条还要注意：换人偶<b className="font-bold text-slate-100">不是每次都全对</b>，最容易漏画面正中央那一个——
-      出片后对着画面从左往右核对，对不上的位子删掉就行（不用重炼、不花钱）。
+      选文件 → 上传（<b className="font-bold text-slate-100">不花钱</b>）→ 框出 {minSec}~{maxSec} 秒、把台标水印框到画面外。
+      两条路都在按下开始键之前整句报价、确认了才扣；选段拖过上限会变成<b className="font-bold text-slate-100">整条切段登记成一组</b>，按段计费。
     </Trans>
   );
 }
@@ -128,10 +124,9 @@ function SchemePickBody() {
   //   ★ 订正记在这里、不记在 TOURS 那一步上：正文在这个组件里，订正与正文同一处、整块取舍。
   return (
     <Trans>
-      第 1 屏只做一件事：<b className="font-bold text-slate-100">挑卡种</b>。点「人物卡」会弹一扇小窗，
-      <b className="font-bold text-slate-100">看图挑一套图位方案</b>（{schemeNames}），或者选<b className="font-bold text-slate-100">「真人素材扫脸认证」</b>——那条路先做
-      肖像授权（授权照片自动填进卡面）、跟读录音或上传本地音频。之后人物卡按四步走：
-      <b className="font-bold text-slate-100">选来源 → 图位预览 → 人物信息 → 定名完成</b>。
+      第 1 屏只<b className="font-bold text-slate-100">挑卡种</b>。点「人物卡」会弹小窗，
+      <b className="font-bold text-slate-100">看图挑一套图位方案</b>（{schemeNames}）或选<b className="font-bold text-slate-100">「真人素材扫脸认证」</b>，之后按
+      <b className="font-bold text-slate-100">选来源 → 图位预览 → 人物信息 → 定名完成</b>四步走。
     </Trans>
   );
 }
@@ -147,11 +142,9 @@ function SlotRulesBody() {
   //   没等到回包 / 回包读不出 / 图没取回来都算「没改成」、钱却可能已经扣了（arkClient 的 ArkNoReply 那段 ★★；同页 recognize() 为此分三档说话）—— 引导不许这个诺。
   return (
     <Trans>
-      人物卡的图位由<b className="font-bold text-slate-100">方案</b>决定（格数也随方案走）；其余卡种由卡种决定
-      （一把剑不该有「{fullBody}」）。<b className="font-bold text-slate-100">第一格既是卡面也是主形象参考</b>：
-      卡框是竖版 2:3，别的比例会居中显示，不裁你的图。人物卡已有图的格子可以
-      <b className="font-bold text-slate-100">⭕ 圈选改图</b>：圈出要改的地方写一句要求，AI 重画这一格
-      （单张图的价，价钱印在那颗键上）。
+      人物卡的图位由<b className="font-bold text-slate-100">方案</b>决定，其余卡种由卡种决定（一把剑不该有「{fullBody}」）。
+      <b className="font-bold text-slate-100">第一格既是卡面也是主形象参考</b>；人物卡的格子可以
+      <b className="font-bold text-slate-100">⭕ 圈选改图</b>，价印在那颗键上。
     </Trans>
   );
 }
@@ -165,10 +158,8 @@ function RefImageBody() {
   //   不走「越界居中裁」那条（utils/image 的 composeSubjectImage：抠出来的主体铺 3:4 浅灰底，保留背景时越界是补边）。补一句把道具卡单拎出来；怎么框怎么描由那一层自己讲。
   return (
     <Trans>
-      相册原图直接选：会自动压到 AI 认得出的尺寸，长宽比超过 {REF_MAX_RATIO}:1 的会被居中裁进
-      {REF_MAX_RATIO}:1（方舟不收更极端的参考图），裁过会在那一格里写明。道具卡多一步：选图后要先框出那件道具、沿边描一圈，只留主体。出片时
-      <b className="font-bold text-slate-100">不是每张都会喂进模型</b>：取几张要看这张卡在那一段里
-      排第几、同段还挂了几张卡 —— 详情页会逐张标「出片用 / 仅展示」，那里是唯一的判据。
+      相册原图直接选，会自动压到 AI 认得出的尺寸，长宽比超过 {REF_MAX_RATIO}:1 的会被居中裁进 {REF_MAX_RATIO}:1。
+      出片时<b className="font-bold text-slate-100">不是每张都会喂进模型</b>，详情页逐张标「出片用 / 仅展示」才是判据。
     </Trans>
   );
 }
@@ -187,7 +178,7 @@ export const TOURS: GuideTour[] = [
         title: msg`上下滑着看`,
         body: (
           <Trans>
-            整屏一支，上下滑换下一支——划到哪支哪支就自动播，<b className="font-bold text-slate-100">划走就停下、划回来从头播</b>。<b className="font-bold text-slate-100">单击暂停</b>，再点一下接着放；<b className="font-bold text-slate-100">双击点赞</b>，连点两下只会点亮、不会取消。顶上的「关注 / 推荐」切换看谁的作品。
+            上下滑换下一支，划到哪支就自动播。<b className="font-bold text-slate-100">单击暂停</b>、<b className="font-bold text-slate-100">双击点赞</b>（连点只会点亮、不会取消）。
           </Trans>
         ),
       },
@@ -203,7 +194,7 @@ export const TOURS: GuideTour[] = [
         anchor: "feed-rail",
         body: (
           <Trans>
-            最上面是<b className="font-bold text-slate-100">作者头像</b>（点进主页，下面那枚 + 号关注）。往下第一枚是发弹幕；再往下点赞、评论、收藏、分享，<b className="font-bold text-slate-100">点赞和评论下面是数字</b>（多少人点过赞、有多少条评论），收藏和分享下面写的是名字、不报数。评论就地滑出来，不用离开这一屏。
+            最上面是<b className="font-bold text-slate-100">作者头像</b>，往下是弹幕、点赞、评论、收藏、分享。<b className="font-bold text-slate-100">只有点赞和评论下面是数字</b>，收藏和分享不报数。
           </Trans>
         ),
       },
@@ -237,17 +228,18 @@ export const TOURS: GuideTour[] = [
         anchor: "feed-remake",
         body: (
           <Trans>
-            有的作品简介下面还有这一颗：把这条片的分段剧本（有卡组的连卡组）铺成<b className="font-bold text-slate-100">你自己的一条流水线</b>，落到工作流画布上接着改。它会<b className="font-bold text-slate-100">换掉你手上那条</b>（那条里有东西时先问你）；铺过去这一下不花钱。
+            有的作品简介下面有这一颗：把这条片的分段剧本铺成<b className="font-bold text-slate-100">你自己的一条流水线</b>接着改。它会<b className="font-bold text-slate-100">换掉你手上那条</b>（有东西时先问你）；铺过去不花钱。
           </Trans>
         ),
       },
       {
-        title: msg`全屏与转屏`,
-        anchor: "feed-fullscreen",
-        // （下一步「长按画面」是 2026-10-21 加的；没升 version —— 看过的人不重弹，新来的人能看到）
+        title: msg`转着的碟片`,
+        // 2026-10-30：右栏最下面由全屏键换成「做同款」碟片（抖音 / TikTok 的右栏都是这个位置放碟片、全屏不在右栏）；全屏 / 转屏收进长按菜单。
+        //   没升 version —— 看过的人不重弹，新来的人能看到
+        anchor: "feed-remix-disc",
         body: (
           <Trans>
-            那一列最下面单独一枚是全屏键，点了只留画面；<b className="font-bold text-slate-100">横屏的片子会连屏幕一起转过来</b>，所以它在横屏片上写的是「转屏」。退出点右上角那枚缩小键。
+            那一列最下面转着的碟片就是<b className="font-bold text-slate-100">「做同款」</b>；全屏 / 转屏收在长按菜单里（按住画面中间）。
           </Trans>
         ),
       },
@@ -280,7 +272,7 @@ export const TOURS: GuideTour[] = [
         anchor: "create-dots",
         body: (
           <Trans>
-            底栏的 ➕ 先落到这里。这是<b className="font-bold text-slate-100">一张卡的正反面</b>：正面工坊、背面简约，<b className="font-bold text-slate-100">左右滑卡片</b>或点右上角那枚按钮都能翻面（按钮上写着背面是谁）。两面<b className="font-bold text-slate-100">不是各走各的</b>，而是同一条流水线的两个入口，最后都汇到剪辑与发布。
+            这是<b className="font-bold text-slate-100">一张卡的正反面</b>：正面工坊、背面简约，<b className="font-bold text-slate-100">左右滑卡片</b>或点右上角按钮翻面。两面是同一条流水线的两个入口，最后都汇到剪辑与发布。
           </Trans>
         ),
       },
@@ -289,7 +281,7 @@ export const TOURS: GuideTour[] = [
         anchor: "create-cta",
         body: (
           <Trans>
-            挑定了就点卡片底部那枚按钮：工坊落到 3D 铸卡桌面（顶栏 🧩 随时把同一条流水线换成<b className="font-bold text-slate-100">工作流画布</b>那一面），简约落到一步一屏的向导。出片之后都汇到<b className="font-bold text-slate-100">同一个剪辑页</b>，再从那里发布。
+            点卡片底部那枚按钮进去：工坊落到 3D 铸卡桌面，简约落到一步一屏的向导。出片之后都汇到<b className="font-bold text-slate-100">同一个剪辑页</b>，再从那里发布。
           </Trans>
         ),
       },
@@ -310,9 +302,8 @@ export const TOURS: GuideTour[] = [
         anchor: "flow-simple-plot",
         body: (
           <Trans>
-            简约模式只有一段、<b className="font-bold text-slate-100">不推方案</b>：在这里写清想拍什么，
-            出片直接照它来。套了模板的话由配方管画风与分镜；
-            <b className="font-bold text-slate-100">带角色位的白模模板</b>，这一块换成挂卡入口——把你的角色卡挂到画面里的人偶上。
+            简约模式只有一段、<b className="font-bold text-slate-100">不推方案</b>：写清想拍什么，出片直接照它来。
+            套了<b className="font-bold text-slate-100">带角色位的白模模板</b>时，这一块换成挂卡入口。
           </Trans>
         ),
       },
@@ -321,8 +312,7 @@ export const TOURS: GuideTour[] = [
         anchor: "flow-main-btn",
         body: (
           <Trans>
-            点它才真花钱开炼，花多少就印在键上。旁边「⚙」改本段的<b className="font-bold text-slate-100">时长、画质与画幅</b>——价钱跟着变，点之前看一眼。
-            出片之后多一颗「⭕ 圈选」：圈出画面里要改的地方、写句要求，就地重画。
+            点它才真花钱开炼，花多少就印在键上。旁边「⚙」改<b className="font-bold text-slate-100">时长、画质与画幅</b>——价钱跟着变，点之前看一眼。
           </Trans>
         ),
       },
@@ -348,8 +338,7 @@ export const TOURS: GuideTour[] = [
         body: (
           <Trans>
             满意了点右上角「完成视频」，去剪辑页收尾、发布。
-            <b className="font-bold text-slate-100">简约不进草稿库</b>：中途退出这一段就不在了——
-            想细做、想留草稿，回创作入口换工坊（工作流画布是它的另一面）。
+            <b className="font-bold text-slate-100">简约不进草稿库</b>：中途退出这一段就不在了。
           </Trans>
         ),
       },
@@ -372,7 +361,7 @@ export const TOURS: GuideTour[] = [
         title: msg`卡从哪来`,
         body: (
           <Trans>
-            卡有两条来路，都在<b className="font-bold text-slate-100">点一下桌对面的铸卡师</b>之后：「📎 添加素材」先挑卡种，再把图片或文本交给她炼；「🛒 逛市场」把现成的卡摊到桌上，看中了收进卡组。递素材那一屏会先摆出这一炉要花多少 token；炼出来先过目，点「收下这批卡」才真的进你的卡组。
+            先<b className="font-bold text-slate-100">点桌对面的铸卡师</b>：「📎 添加素材」交图或文本给她炼，「🛒 逛市场」拿现成的卡。递素材时先报这一炉花多少 token，点「收下这批卡」才进卡组。
           </Trans>
         ),
       },
@@ -383,7 +372,7 @@ export const TOURS: GuideTour[] = [
         anchor: "studio-hint",
         body: (
           <Trans>
-            点你这一侧那排上的<b className="font-bold text-slate-100">虚线卡位</b>，先挑这一段怎么拍：「套模板」给白模视频里的人偶挂卡换人；「自选卡片」挑几张素材卡、写清这一段要发生什么，AI 推演出几套走向，每套都带首尾帧预览，挑定一套后还能换帧、改剧情、按修改重画；「自定义」全按你给的示例视频或首尾帧来。满意了再<b className="font-bold text-slate-100">炼出本段视频</b>。底下这条提示会跟着你当前这一步换措辞。
+            点你这一侧的<b className="font-bold text-slate-100">虚线卡位</b>，先挑这一段怎么拍：套模板给人偶挂卡换人、自选卡片让 AI 推演几套走向、自定义按你给的示例视频或首尾帧。挑定了再<b className="font-bold text-slate-100">炼出本段视频</b>。
           </Trans>
         ),
       },
@@ -393,7 +382,7 @@ export const TOURS: GuideTour[] = [
         title: msg`一段一段来`,
         body: (
           <Trans>
-            <b className="font-bold text-slate-100">炼出本段视频，下一段的卡位才会亮</b>：段与段靠上一段的真实尾帧承接起拍，攒着最后一起炼会接不上，第一段人物不对也要铺完才发现。每段都出片后，桌子右端的<b className="font-bold text-slate-100">法阵</b>会亮起，点它打开这条流水线的工作流画布，在那儿点「🎬 完成视频」去剪辑成片。
+            <b className="font-bold text-slate-100">炼出本段视频，下一段的卡位才会亮</b>：段与段靠上一段的真实尾帧承接。每段都出片后，桌子右端的<b className="font-bold text-slate-100">法阵</b>会亮起，点它去画布点「🎬 完成视频」剪辑成片。
           </Trans>
         ),
       },
@@ -405,7 +394,7 @@ export const TOURS: GuideTour[] = [
         anchor: "studio-back",
         body: (
           <Trans>
-            左上角这颗按钮是<b className="font-bold text-slate-100">唯一的出口</b>，一层一层往外退：先关浮层、再退市场或对话，最后才回首页。<b className="font-bold text-slate-100">卡片收下就入账</b>，刷新还在；但桌上的流水线只在内存里，要存成草稿才留得住——每炼出一段会自动存一次；改了别的、想过会儿接着做，就先点顶栏右侧那颗<b className="font-bold text-slate-100">💾 存草稿</b>（桌上铸出第一段之前它是灰的）。
+            左上角这颗是<b className="font-bold text-slate-100">唯一的出口</b>，一层一层往外退。<b className="font-bold text-slate-100">卡片收下就入账</b>；桌上的流水线每炼出一段自动存一次草稿，想过会儿接着做就点顶栏右侧<b className="font-bold text-slate-100">💾 存草稿</b>。
           </Trans>
         ),
       },
@@ -421,7 +410,7 @@ export const TOURS: GuideTour[] = [
         title: msg`模板是成品配方`,
         body: (
           <Trans>
-            这一屏摆的是调好的<b className="font-bold text-slate-100">成品配方</b>：画风、运镜、分镜骨架都定好了，挑一个套上去，写一句话或者给人偶挂上你的角色卡就能出片。它和工坊的卡片市场是两回事——卡片是素材，得自己组装剧情；模板是拿来就能出片的成品。
+            这一屏摆的是调好的<b className="font-bold text-slate-100">成品配方</b>：画风、运镜、分镜骨架都定好了，挑一个套上，写一句话或给人偶挂上你的角色卡就能出片。
           </Trans>
         ),
       },
@@ -437,7 +426,7 @@ export const TOURS: GuideTour[] = [
         anchor: "template-filters",
         body: (
           <Trans>
-            市场页签顶上能<b className="font-bold text-slate-100">按词搜</b>，搜索框右边那颗<b className="font-bold text-slate-100">出片模型</b>只留你想用的那个模型出得了片的模板，下面那排芯片<b className="font-bold text-slate-100">按类筛</b>，三个叠在一起生效。选中的分类在「我的模板」里也管用，没分过类的老模板只在「全部」下出现——找不到自己做的，先点回「全部」。
+            顶上能<b className="font-bold text-slate-100">按词搜</b>、按<b className="font-bold text-slate-100">出片模型</b>筛、按分类芯片筛，三个叠在一起生效。没分过类的老模板只在「全部」下出现——找不到自己做的，先点回「全部」。
           </Trans>
         ),
       },
@@ -451,7 +440,7 @@ export const TOURS: GuideTour[] = [
         anchor: "template-card",
         body: (
           <Trans>
-            角标写着这个模板能干什么。<b className="font-bold text-slate-100">白模</b>：出片时整段复刻它的场景、道具与运镜，只把人换掉，旁边报的是这条模板视频有多长——成片长度和画幅都跟着它走；<b className="font-bold text-slate-100">几个角色位可换人</b>：画面里那几个白色人偶，各能挂一张你的角色卡。没有这两枚角标的是经典配方模板，按分镜骨架重新画，旁边报的是分几段。标题下面那行小字的头一枚是<b className="font-bold text-slate-100">出片模型</b>：写着「仅」哪一档的，套用后出片模型固定、不能换；「模型不限」的可以自己选。
+            <b className="font-bold text-slate-100">白模</b>：出片整段复刻它的场景与运镜，只把人换掉；<b className="font-bold text-slate-100">几个角色位可换人</b>：各能挂一张你的角色卡。标题下小字头一枚是<b className="font-bold text-slate-100">出片模型</b>，写「仅」的套用后不能换。
           </Trans>
         ),
       },
@@ -461,7 +450,7 @@ export const TOURS: GuideTour[] = [
         anchor: "template-pick",
         body: (
           <Trans>
-            点<b className="font-bold text-slate-100">用它出片</b>就跳到出片那一屏，接下来怎么走按模板分两种：<b className="font-bold text-slate-100">带角色位</b>的那种，本段内容区是一颗挂卡的钮——点开把你的角色卡逐个挂到人偶身上，还能另加一句自己的要求；其余的（经典配方、没有角色位的老白模）是写一句话，配方会把它填进每一段剧情。每段要花多少写在「生成本段」那颗按钮上，点它之前不花钱。
+            点<b className="font-bold text-slate-100">用它出片</b>跳到出片那一屏：<b className="font-bold text-slate-100">带角色位</b>的先把角色卡逐个挂到人偶身上，其余的写一句话填进每段剧情。每段的价写在「生成本段」上，点它之前不花钱。
           </Trans>
         ),
       },
@@ -479,7 +468,7 @@ export const TOURS: GuideTour[] = [
         anchor: "template-create",
         body: (
           <Trans>
-            要做自己的模板，点货架顶上那张<b className="font-bold text-slate-100">做模板的入口卡</b>（还没做过时是一张大卡「创建属于你的视频模板」，做过之后缩成一行「再做一个视频模板」）：传一段视频，让 AI 把画面里的人换成一模一样的白色人偶，或者直接拿你本来就做好的白模片用。走哪条路在提取器<b className="font-bold text-slate-100">打开后的第一屏</b>挑；要花多少钱都在按下开始那颗键之前整句报出来，确认了才扣。做好的模板在「我的模板」里。
+            点货架顶上<b className="font-bold text-slate-100">做模板的入口卡</b>：传一段视频让 AI 把人换成白色人偶，或直接用你做好的白模片。要花多少钱都在按下开始键之前整句报出，确认了才扣。
           </Trans>
         ),
       },
@@ -489,7 +478,7 @@ export const TOURS: GuideTour[] = [
         title: msg`发布与下架`,
         body: (
           <Trans>
-            自己的模板，卡片上只标一个<b className="font-bold text-slate-100">状态</b>（草稿 / 已发布 / 已下架）。<b className="font-bold text-slate-100">识别角色位、核对、试炼、发布、删除</b>这些操作都收进了模板详情页——点开卡片进去，作者工作台就在那儿（先让 AI 识别画面里的人，再逐个核对）。
+            自己的模板卡片上只标一个<b className="font-bold text-slate-100">状态</b>（草稿 / 已发布 / 已下架）。<b className="font-bold text-slate-100">识别角色位、核对、试炼、发布、删除</b>都在模板详情页——点开卡片，作者工作台就在那儿。
           </Trans>
         ),
       },
@@ -517,10 +506,8 @@ export const TOURS: GuideTour[] = [
         anchor: "extractor-routes",
         body: (
           <Trans>
-            把一段参考视频（或者一段提示词）变成能反复套用的<b className="font-bold text-slate-100">模板</b>。第一步就是在这里
-            <b className="font-bold text-slate-100">选做法</b>：选哪条决定后面几步长什么样，也决定花不花钱、花多少。
+            把参考视频（或一段提示词）变成能反复套用的<b className="font-bold text-slate-100">模板</b>。先在这里<b className="font-bold text-slate-100">选做法</b>——它决定花不花钱、花多少；
             <b className="font-bold text-slate-100">上传之前</b>随时能点「‹ 换一种做法」回来换。
-            传完就定死了——要换只能取消整个重来。
           </Trans>
         ),
       },
@@ -533,9 +520,8 @@ export const TOURS: GuideTour[] = [
         anchor: "extractor-routes",
         body: (
           <Trans>
-            第一条：<b className="font-bold text-slate-100">任意视频都行</b>，AI 把画面里的人全换成一模一样的纯白人偶。
-            别人套用时整段复刻你这段的<b className="font-bold text-slate-100">场景与运镜</b>，再逐个人偶挂上自己的人物卡，
-            没挂卡的位子通常保持人偶原样。这条会真的出一次片，所以要花钱——具体多少在框选那一步整句报出来。
+            第一条：<b className="font-bold text-slate-100">任意视频都行</b>，AI 把画面里的人全换成纯白人偶，别人套用时复刻你的<b className="font-bold text-slate-100">场景与运镜</b>、给人偶挂自己的卡。
+            这条会真出一次片、要花钱——多少在框选那一步报。
           </Trans>
         ),
       },
@@ -544,9 +530,8 @@ export const TOURS: GuideTour[] = [
         anchor: "extractor-routes",
         body: (
           <Trans>
-            第二条：这段<b className="font-bold text-slate-100">已经是白模 / 人偶片</b>（你自己做好的预演片）。
-            不出片、不换人，只认出画面里有谁、量出他们在哪，<b className="font-bold text-slate-100">便宜两个量级</b>。
-            这两条我们分不出来，只能你自己选：该出片的没出，模板里全是真人；不该出片的出了，白花一次钱、画质还被二次白模化。
+            第二条：这段<b className="font-bold text-slate-100">已经是白模 / 人偶片</b>，只认人、不出片，<b className="font-bold text-slate-100">便宜两个量级</b>。
+            两条我们分不出来，只能你自己选：选错了要么白花一次钱、要么模板里全是真人。
           </Trans>
         ),
       },
@@ -555,9 +540,8 @@ export const TOURS: GuideTour[] = [
         title: msg`没有视频也能做`,
         body: (
           <Trans>
-            从模板货架打开时，最下面还有一条<b className="font-bold text-slate-100">「只用文字 + 封面」</b>：贴一段提示词、
-            给写到「图1 / 图2」的地方起名、选一张封面就存好了，<b className="font-bold text-slate-100">做模板不花 token</b>。
-            别人套用时按名字补上自己的图，出一段的价在选档那一步报。
+            从模板货架打开时最下面还有<b className="font-bold text-slate-100">「只用文字 + 封面」</b>：贴提示词、给「图1 / 图2」起名、选封面就存好，<b className="font-bold text-slate-100">做模板不花 token</b>。
+            别人套用时按名字补上自己的图。
           </Trans>
         ),
       },
@@ -589,7 +573,7 @@ export const TOURS: GuideTour[] = [
         anchor: "cast-stage",
         body: (
           <Trans>
-            这段视频是模板的<b className="font-bold text-slate-100">白模视频</b>：里面的人偶是占位的，还不是具体的人。给一个人偶挂上一张人物卡，出片时它就会被换成那张卡上的角色；没挂卡的位子通常保持人偶原样 —— 但素材切镜多时可能被 AI 拿已挂的卡换掉，要稳就挂满。
+            <b className="font-bold text-slate-100">白模视频</b>里的人偶是占位的：给人偶挂一张人物卡，出片时就换成那张卡的角色。没挂卡的位子通常保持人偶原样——素材切镜多时可能被 AI 换掉，要稳就挂满。
           </Trans>
         ),
       },
@@ -607,13 +591,8 @@ export const TOURS: GuideTour[] = [
         anchor: "cast-slot-strip",
         body: (
           <Trans>
-            画面正下方这一排格子，<b className="font-bold text-slate-100">一格就是这个模板的一个角色位</b>；
-            格子上的「人物1 / 人物2」只是它的名字，<b className="font-bold text-slate-100">不表示画面里从左到右的次序</b>。
-            挂卡分两下：<b className="font-bold text-slate-100">先点一格选中它，再点上面那排卡里的一张</b>；
-            也可以直接把上面那排卡<b className="font-bold text-slate-100">往下拖到格子上</b> —— 拖到格子上是直接落，不会再问一遍。
-            画面上画得出落点框的模板，点中一格时<b className="font-bold text-slate-100">画面上对应的那个框会亮起来</b>，
-            想知道这一格是画面里的哪一个就看它。挂卡这条路任何模板都有，与画面里有没有画框无关。
-            卡片只列人物卡：人偶要换成的是角色，场景卡、道具卡挂上去没有意义。
+            下方<b className="font-bold text-slate-100">一格就是一个角色位</b>，「人物1」只是名字、<b className="font-bold text-slate-100">不是画面里从左到右的次序</b>。
+            <b className="font-bold text-slate-100">先点一格，再点上面那排卡</b>（或把卡往下拖到格子上）；有框的模板点中时画面上那个框会亮。
           </Trans>
         ),
       },
@@ -625,10 +604,8 @@ export const TOURS: GuideTour[] = [
         anchor: "cast-card-rail",
         body: (
           <Trans>
-            <b className="font-bold text-slate-100">不是每个模板都有这条路</b>：画面上画出了落点框才有（没有框就用格子行挂，那条路任何模板都有）。
-            有框时也可以按住上面这排卡里的一张，<b className="font-bold text-slate-100">往下拖到画面里那个人偶身上</b>，人少的时候更直观。
-            框是照<b className="font-bold text-slate-100">某一帧</b>量出来的，所以这时画面只在那一帧附近播一小下就自动停回去；
-            播远了、人走动了，框会自己消失，画面下面会给一颗「回到标记帧」把它拨回去 —— 这是有意的，不是坏了。
+            <b className="font-bold text-slate-100">不是每个模板都有这条路</b>：画面上画出了落点框才有。
+            有框时把上面的卡<b className="font-bold text-slate-100">往下拖到画面里那个人偶身上</b>；画面只在标记帧附近播一小下就停回去，是有意的。
           </Trans>
         ),
       },
@@ -639,10 +616,8 @@ export const TOURS: GuideTour[] = [
         title: msg`拖到画面上会再问一次`,
         body: (
           <Trans>
-            <b className="font-bold text-slate-100">只有拖到画面上</b>那一条会先问一遍：上面那排卡的正下方会出现一条确认，写着要把哪张卡挂到哪个人物身上，同时把画面上那个人偶高亮起来 ——
-            因为那个落点是<b className="font-bold text-slate-100">推断</b>出来的（人偶会重叠、人会走动）。
-            请对着高亮的那个再看一眼，对了点「就是他」，不对点「点错了」：挂错人<b className="font-bold text-slate-100">不会报错</b>，要等成片炼出来才看得见，
-            那时已经花过一次出片的钱了。落到格子上不问 —— 落在哪一格是你眼睛看着放的，没有可推断错的余地。
+            <b className="font-bold text-slate-100">只有拖到画面上</b>会先问一遍，因为落点是<b className="font-bold text-slate-100">推断</b>出来的。
+            对着高亮的那个再看一眼：挂错人<b className="font-bold text-slate-100">不会报错</b>，要等成片炼出来才看得见，那时已经花过一次出片的钱。
           </Trans>
         ),
       },
@@ -653,8 +628,7 @@ export const TOURS: GuideTour[] = [
         title: msg`不挂满也能出片`,
         body: (
           <Trans>
-            不用挂满：挂几个换几个，剩下的通常照旧是人偶（切镜多的素材例外，第 1 步说过）。挂过的位子随时能换 —— <b className="font-bold text-slate-100">点中那一格，再点另一张卡</b>就换掉了；
-            那一格挂着卡时，上面卡片那一行的右端会出现<b className="font-bold text-slate-100">「取下」</b>。都弄好之后点底部的<b className="font-bold text-slate-100">「完成挂卡」</b>，就带着这份对应关系回到上一步去炼视频。
+            不用挂满：挂几个换几个，剩下的通常照旧是人偶。<b className="font-bold text-slate-100">点中那一格再点另一张卡</b>就换掉，右端有<b className="font-bold text-slate-100">「取下」</b>；都弄好点底部<b className="font-bold text-slate-100">「完成挂卡」</b>回去炼视频。
           </Trans>
         ),
       },
@@ -673,7 +647,7 @@ export const TOURS: GuideTour[] = [
         title: msg`这份清单是猜的`,
         body: (
           <Trans>
-            清单上每一行说的是「画面上那个人偶，原来是谁」。这份对应关系是生成时 AI 猜出来的，不保证跟成片对得上。猜错时，别人给这个位子挂的角色卡会<b className="font-bold text-slate-100">换到另一个人身上</b>，而且<b className="font-bold text-slate-100">不会有任何报错</b>——所以只有看着画面的你能确认它。
+            每一行说的是「画面上那个人偶，原来是谁」，是 AI 猜的，不保证对得上。猜错时别人挂的卡会<b className="font-bold text-slate-100">换到另一个人身上</b>，而且<b className="font-bold text-slate-100">不会有任何报错</b>——只有看着画面的你能确认。
           </Trans>
         ),
       },
@@ -682,7 +656,7 @@ export const TOURS: GuideTour[] = [
         anchor: "roleconfirm-video",
         body: (
           <Trans>
-            视频就摆在清单上面，进度条可以拖着停在你想看的那一帧。然后逐行核对这个人偶的标记跟画面对不对得上：给的是<b className="font-bold text-slate-100">位置</b>，就对着画面从左往右数一遍；给的是<b className="font-bold text-slate-100">编号</b>，就照人偶身上印的数字改。标记必须跟你眼睛看到的完全一致——你这个模板的标记具体怎么看清楚，视频上面那段说明会讲。
+            视频在清单上面，进度条可以拖着停。逐行核对标记：给的是<b className="font-bold text-slate-100">位置</b>就从左往右数，给的是<b className="font-bold text-slate-100">编号</b>就照人偶身上的数字改——必须跟你眼睛看到的一致。
           </Trans>
         ),
       },
@@ -691,7 +665,7 @@ export const TOURS: GuideTour[] = [
         anchor: "roleconfirm-desc",
         body: (
           <Trans>
-            每行那句描述给<b className="font-bold text-slate-100">套用你模板的人</b>看：他看不到你的原片，画面上又全是长得一样的人偶，只能靠<b className="font-bold text-slate-100">标记加这句话</b>决定把哪张卡挂上去。写什么看输入框上面那行小字：写着「会进出片提示词」时，描述的是<b className="font-bold text-slate-100">人偶现在的样子</b>（例：白色、弯腰前倾、在最左那盏路灯下）；否则写原片里这个人认得出来的外形（例：白发、黑袍的少年）。别写只有你自己看得懂的代号。
+            这句描述给<b className="font-bold text-slate-100">套用你模板的人</b>看，他只能靠<b className="font-bold text-slate-100">标记加这句话</b>决定挂哪张卡。写着「会进出片提示词」时描述<b className="font-bold text-slate-100">人偶现在的样子</b>，否则写原片里这个人的外形。
           </Trans>
         ),
       },
@@ -703,7 +677,7 @@ export const TOURS: GuideTour[] = [
         anchor: "roleconfirm-del",
         body: (
           <Trans>
-            对不上是可以就地改的：<b className="font-bold text-slate-100">标记写错了直接改成画面上那个</b>；清单里多出画面上找不到的位子就「删掉」；AI 漏认的人偶还能用清单下面那颗带加号的键<b className="font-bold text-slate-100">加回清单</b>。这些都<b className="font-bold text-slate-100">不会再花一次钱</b>。按位置指认的模板删掉一位后，记得把它右边各位往左挪一位——面板在待删行和提交前都会提醒。各种对不上的细节，展开视频<b className="font-bold text-slate-100">下面</b>那个「对不上怎么办？」看。
+            对不上就地改：改标记、「删掉」多出的位子、用清单下面带加号的键<b className="font-bold text-slate-100">加回</b>漏认的——都<b className="font-bold text-slate-100">不会再花一次钱</b>。按位置指认的模板删掉一位后，右边各位要往左挪一位。
           </Trans>
         ),
       },
@@ -712,7 +686,7 @@ export const TOURS: GuideTour[] = [
         anchor: "roleconfirm-submit",
         body: (
           <Trans>
-            点「删掉」只是先标成待删，提交之前随时能撤销。底部那颗按钮把<b className="font-bold text-slate-100">改好的标记和要删的位子一次提交完</b>，不会留下改了一半的状态。提交完这个核对入口<b className="font-bold text-slate-100">也不会消失</b>——以后发现哪个人偶对不上，还能回来接着改；模板<b className="font-bold text-slate-100">已经发布</b>时要先下架才能改，面板里有那颗按钮。
+            「删掉」只是先标成待删，提交前随时能撤销；底部那颗按钮把<b className="font-bold text-slate-100">改好的标记和要删的位子一次提交完</b>。提交后这个入口<b className="font-bold text-slate-100">不会消失</b>，模板<b className="font-bold text-slate-100">已经发布</b>时要先下架才能改。
           </Trans>
         ),
       },
@@ -737,9 +711,8 @@ export const TOURS: GuideTour[] = [
         title: msg`这一屏在决定三件事`,
         body: (
           <Trans>
-            框出哪一段、裁出哪一块，就是 AI 真正拿去白模化的全部内容；再加上下面
-            「AI 看哪几帧」，决定它认不认得全画面里的人。<b className="font-bold text-slate-100">这一发多少钱</b>只看时长（越长越贵，多看几帧不额外收费）；
-            开炼那一刻就扣钱，「AI 看帧」那一笔不论成败都照收。
+            框出哪一段、裁出哪一块就是 AI 拿去白模化的全部内容，「AI 看哪几帧」决定它认不认得全人。
+            <b className="font-bold text-slate-100">这一发多少钱</b>只看时长，开炼那一刻就扣，看帧那一笔不论成败都照收。
           </Trans>
         ),
       },
@@ -748,9 +721,7 @@ export const TOURS: GuideTour[] = [
         anchor: "trim-range",
         body: (
           <Trans>
-            拖两头的把手只取你要的那几秒。
-            挑<b className="font-bold text-slate-100">人最齐、镜头最稳</b>的一段——
-            切镜多的素材里，同一个人在不同镜头里的位置不一样，套用时容易换错人。
+            拖两头的把手只取你要的那几秒。挑<b className="font-bold text-slate-100">人最齐、镜头最稳</b>的一段——切镜多的素材套用时容易换错人。
           </Trans>
         ),
       },
@@ -759,9 +730,7 @@ export const TOURS: GuideTour[] = [
         anchor: "trim-crop",
         body: (
           <Trans>
-            拖四个角调裁剪框。水印<b className="font-bold text-warn-300">必须框到框外</b>：
-            出片是逐帧复刻画面，提示词去不掉它（实测），而模板会被反复套用——
-            留一个水印就是永久的。
+            拖四个角调裁剪框。水印<b className="font-bold text-warn-300">必须框到框外</b>：出片逐帧复刻画面、提示词去不掉它，模板又会被反复套用，留一个就是永久的。
           </Trans>
         ),
       },
@@ -774,10 +743,8 @@ export const TOURS: GuideTour[] = [
         title: msg`AI 看哪几帧`,
         body: (
           <Trans>
-            时间轴下面那一块：AI <b className="font-bold text-slate-100">只看这几帧</b>去认画面里有谁——
-            被看漏的人照样会变成白人偶，但清单里<b className="font-bold text-slate-100">没有他的位置，谁的卡都挂不上</b>，
-            还会把别人的位置挤歪。可以让它自动挑，也可以自己标人最全的几帧；
-            <b className="font-bold text-slate-100">帧数不进报价</b>：多看几帧更准，也不额外收费。
+            AI <b className="font-bold text-slate-100">只看这几帧</b>去认画面里有谁——被看漏的人清单里<b className="font-bold text-slate-100">没有位置，谁的卡都挂不上</b>。
+            可以自动挑，也可以自己标人最全的几帧；<b className="font-bold text-slate-100">帧数不进报价</b>。
           </Trans>
         ),
       },
@@ -865,10 +832,8 @@ export const TOURS: GuideTour[] = [
         anchor: "workshop-studio-entry",
         body: (
           <Trans>
-            这里管你自己的<b className="font-bold text-slate-100">卡片、卡组和模板</b>。
-            要摆桌铸卡、把卡炼成视频，从这条路进 3D 工坊。
-            这一页自己也有<b className="font-bold text-slate-100">要花钱的地方</b>：「模板」页签里做模板那几条路都要钱（让 AI 把视频里的人换成白模人偶那条还会真出一次片），
-            以及提取窗里那颗「✨ 按这套方案炼形象图」。
+            这里管你自己的<b className="font-bold text-slate-100">卡片、卡组和模板</b>；要把卡炼成视频，从这条路进 3D 工坊。
+            这一页也有<b className="font-bold text-slate-100">要花钱的地方</b>：做模板那几条路，和提取窗里「✨ 按这套方案炼形象图」。
           </Trans>
         ),
       },
@@ -883,9 +848,7 @@ export const TOURS: GuideTour[] = [
         anchor: "workshop-extract-card",
         body: (
           <Trans>
-            四条路里<b className="font-bold text-slate-100">只有工坊铸卡一定花 token</b>。从视频圈选提取、自己传图本身
-            <b className="font-bold text-slate-100">不花</b>，只有窗口里那几颗带 AI 的键要钱（价印在键上）；从市场拿也不花。
-            提取是拖到某一帧、亲手圈出要的人或物，圈出来的画面就是参考图。
+            四条路里<b className="font-bold text-slate-100">只有工坊铸卡一定花 token</b>；圈选提取、自己传图本身<b className="font-bold text-slate-100">不花</b>，只有窗口里那几颗带 AI 的键要钱（价印在键上），从市场拿也不花。
           </Trans>
         ),
       },
@@ -904,8 +867,7 @@ export const TOURS: GuideTour[] = [
         title: msg`组卡组：怎么加、怎么改`,
         body: (
           <Trans>
-            在「卡组」页签里：<b className="font-bold text-slate-100">「＋ 新建卡组」</b>开一组新的；先点「编辑」<b className="font-bold text-slate-100">再</b>点卡片，才是加进来或拿出去；卡角能定封面。
-            组名点上去直接改。删掉整组<b className="font-bold text-slate-100">不会删卡</b>。
+            「卡组」页签里<b className="font-bold text-slate-100">「＋ 新建卡组」</b>开新的；先点「编辑」<b className="font-bold text-slate-100">再</b>点卡片才是加进来或拿出去。删掉整组<b className="font-bold text-slate-100">不会删卡</b>。
           </Trans>
         ),
       },
@@ -918,8 +880,8 @@ export const TOURS: GuideTour[] = [
         title: msg`把卡组分享出去`,
         body: (
           <Trans>
-            每个卡组下面有一颗<b className="font-bold text-slate-100">「分享到创意工坊」</b>：分享后它会出现在创意工坊的市场里，别人能整套装走，不花钱。
-            同一颗键能取消分享，但<b className="font-bold text-slate-100">别人已经装走的那份还在他那儿</b>。
+            每个卡组下面有一颗<b className="font-bold text-slate-100">「分享到创意工坊」</b>，分享后别人能整套装走、不花钱。
+            同一颗键能取消分享，但<b className="font-bold text-slate-100">别人已经装走的那份还在</b>。
           </Trans>
         ),
       },
@@ -939,9 +901,8 @@ export const TOURS: GuideTour[] = [
         anchor: "discover-search",
         body: (
           <Trans>
-            打字之后上面先出<b className="font-bold text-slate-100">人</b>、下面出作品。
-            作品是拿标题、简介、话题标签一起对的，不只对标题；<b className="font-bold text-slate-100">按作者找人用上面那半</b>。
-            点进框里还没打字时，下面是你的搜索历史和最近播得多的几条。
+            打字之后上面先出<b className="font-bold text-slate-100">人</b>、下面出作品；作品是拿标题、简介、话题标签一起对的，<b className="font-bold text-slate-100">按作者找人用上面那半</b>。
+            还没打字时，下面是搜索历史和最近播得多的几条。
           </Trans>
         ),
       },
@@ -971,8 +932,8 @@ export const TOURS: GuideTour[] = [
         anchor: "discover-scope",
         body: (
           <Trans>
-            分区和搜索词是<b className="font-bold text-slate-100">叠加</b>的。这行小字报的是当前分区和筛出的条数；
-            觉得作品变少了，先看分区图标亮没亮、搜索框清没清。右边那两颗换排法：最火按播放多少排，最新按发布时间倒着排。
+            分区和搜索词是<b className="font-bold text-slate-100">叠加</b>的，这行小字报当前分区和筛出的条数——作品变少了先看分区亮没亮、搜索框清没清。
+            右边两颗换排法：最火按播放，最新按时间。
           </Trans>
         ),
       },
@@ -989,8 +950,8 @@ export const TOURS: GuideTour[] = [
         anchor: "profile-wallet",
         body: (
           <Trans>
-            出片、出图、铸卡、解锁付费作品，扣的都是它。点开看余额、买套餐或直充 ——
-            <b className="font-bold text-slate-100">套餐额度先扣（付费套餐按月给，免费版每天补一点），直充和新人额度不过期</b>。
+            出片、出图、铸卡、解锁付费作品，扣的都是它。
+            <b className="font-bold text-slate-100">套餐额度先扣（付费按月给，免费版每天补一点），直充和新人额度不过期</b>。
           </Trans>
         ),
       },
@@ -1015,8 +976,7 @@ export const TOURS: GuideTour[] = [
         anchor: "profile-tab-drafts",
         body: (
           <Trans>
-            存着的半成品都在这儿，那支笔的意思是「<b className="font-bold text-slate-100">还没发布</b>」；
-            作品墙上带锁的才是只有自己看得见的。点一张要先挑用工坊还是工作流打开 —— 同一份内容，两边都进得去。
+            存着的半成品都在这儿，那支笔的意思是「<b className="font-bold text-slate-100">还没发布</b>」；点一张先挑用工坊还是工作流打开。
             草稿最多留 {MAX_DRAFTS} 条，<b className="font-bold text-slate-100">超了会从最旧的清起</b>。
           </Trans>
         ),
@@ -1040,8 +1000,8 @@ export const TOURS: GuideTour[] = [
         anchor: "profile-settings",
         body: (
           <Trans>
-            齿轮是<b className="font-bold text-slate-100">设置</b>：资料、界面语言、画质、缓存都在里面，看过的引导也能从那儿全部恢复重看。
-            铃铛左边那副耳机是 <b className="font-bold text-slate-100">AI 客服</b> —— 不会用、遇到问题都能问它，解决不了还能转人工。
+            齿轮是<b className="font-bold text-slate-100">设置</b>：资料、语言、画质、缓存都在里面，看过的引导也能从那儿恢复重看。
+            旁边那副耳机是 <b className="font-bold text-slate-100">AI 客服</b>，解决不了还能转人工。
           </Trans>
         ),
       },
@@ -1103,7 +1063,7 @@ export const TOURS: GuideTour[] = [
         body: (
           <Trans>
             白模模板要先<b className="font-bold text-slate-100">逐个核对角色位</b>，再用它真出一段片，才让发布。
-            角色位是做模板时 AI 认的；认得不对，核对之前可以在这里让它重新识别（按次收费，价写在键上），核对过就不能再认了。
+            角色位认得不对，核对之前可以让它重新识别（按次收费，价写在键上）。
           </Trans>
         ),
       },
@@ -1133,8 +1093,7 @@ export const TOURS: GuideTour[] = [
         anchor: "canvas-card",
         body: (
           <Trans>
-            每一格是<b className="font-bold text-slate-100">一段</b>，从左往右就是这条片的顺序。
-            点一格<b className="font-bold text-slate-100">就地打开这一段的编辑窗</b>，再点一下收起，点别的格子就换过去。
+            每一格是<b className="font-bold text-slate-100">一段</b>，从左往右就是顺序；点一格<b className="font-bold text-slate-100">就地打开编辑窗</b>，再点一下收起。
             画布可以拖着平移、两指捏合缩放。
           </Trans>
         ),
@@ -1146,11 +1105,8 @@ export const TOURS: GuideTour[] = [
         anchor: "canvas-modes",
         body: (
           <Trans>
-            编辑窗顶部这三颗按钮切的是<b className="font-bold text-slate-100">这一段</b>怎么做：
-            「套模板」是拿一段白模视频复刻运镜与站位，你只需给里面的人偶挂上自己的角色卡；
-            「自选卡片」是自己挑素材卡、写一句要求，AI 推演几套走向让你挑；
-            「自定义」全按你给的来：传一段示例视频当整段参考，或者直接给自己的首尾帧。
-            三种<b className="font-bold text-slate-100">每段各选各的</b>，同一条片里可以混着来。
+            顶部三颗切的是<b className="font-bold text-slate-100">这一段</b>怎么做：「套模板」给白模人偶挂卡、「自选卡片」让 AI 推演几套走向、「自定义」按你给的示例视频或首尾帧来。
+            三种<b className="font-bold text-slate-100">每段各选各的</b>。
           </Trans>
         ),
       },
@@ -1159,15 +1115,12 @@ export const TOURS: GuideTour[] = [
         anchor: "canvas-agent",
         body: (
           <Trans>
-            一句话就能改流水线：给哪段套哪个模板、把谁挂到哪个位子、这段拍什么、加一段。
+            一句话就能改流水线：套模板、挂卡、改剧情、加一段。
             {/* ★ 这三件里**挂卡合成是免费的**（cost 恒 0，见 canvasAgent 的 AgentProposal）。
                 写成"会花钱的三件"是错的报价口径，而这个仓库里报价说错是最贵的一类错
                 （CLAUDE.md「两仓价目表各写各的」）。所以措辞按**要不要你点头**分，
                 确认卡上那行标的是价钱**或**后果。 */}
-            <b className="font-bold text-slate-100">它不替你按那三件</b> —— 推演、出片（真花钱），
-            以及挂卡合成（不花钱，但会把你改过的点名句整段重写）。它只摆一张确认卡，
-            上面写着这一下要花多少、或者会覆盖掉什么，你点了才真跑。办成了什么、被拒了什么，它逐条列给你看。
-            另外<b className="font-bold text-slate-100">对它说的每句话本身也按对话计一次费</b>——价印在输入框里。
+            <b className="font-bold text-slate-100">它不替你按</b>推演、出片（真花钱）和挂卡合成，只摆确认卡、你点了才跑；<b className="font-bold text-slate-100">说的每句话本身也按对话计一次费</b>。
           </Trans>
         ),
       },
@@ -1178,9 +1131,8 @@ export const TOURS: GuideTour[] = [
         title: msg`流水线的终点`,
         body: (
           <Trans>
-            一直往右拖到<b className="font-bold text-slate-100">末段后面</b>，跟着两格：一格<b className="font-bold text-slate-100">加下一段</b>，
-            一格<b className="font-bold text-slate-100">把各段合成整片</b>（每段都出片了才亮，还差几段它会说）。
-            已经出片的格子右上角有个 ▶，随时能回看那一段。
+            一直往右拖到<b className="font-bold text-slate-100">末段后面</b>有两格：一格<b className="font-bold text-slate-100">加下一段</b>，一格<b className="font-bold text-slate-100">把各段合成整片</b>（每段都出片了才亮）。
+            出片的格子右上角有个 ▶ 能回看。
           </Trans>
         ),
       },
@@ -1189,8 +1141,7 @@ export const TOURS: GuideTour[] = [
         anchor: "canvas-rotate",
         body: (
           <Trans>
-            竖屏时编辑窗从下面升起，横屏时它挪到右边、画布留给左边 —— 段多的时候横过来看更痛快。
-            旁边那颗 💾 随时把这条片存成草稿，回头接着做。
+            竖屏时编辑窗从下面升起，横屏时挪到右边、画布留给左边。旁边那颗 💾 随时把这条片存成草稿。
           </Trans>
         ),
       },
@@ -1199,9 +1150,7 @@ export const TOURS: GuideTour[] = [
         anchor: "canvas-linear",
         body: (
           <Trans>
-            点它把这条流水线带去 <b className="font-bold text-slate-100">3D 工坊</b>：画布是摊开的流水线，
-            工坊是摆在桌上的节点卡，<b className="font-bold text-slate-100">两边改的是同一份</b>，
-            换个面打开不用重炼、不重复收费。
+            点它把这条流水线带去 <b className="font-bold text-slate-100">3D 工坊</b>：<b className="font-bold text-slate-100">两边改的是同一份</b>，换个面打开不用重炼、不重复收费。
           </Trans>
         ),
       },
@@ -1225,11 +1174,8 @@ export const TOURS: GuideTour[] = [
         anchor: "cut-tabs",
         body: (
           <Trans>
-            <b className="font-bold text-slate-100">剪辑</b>管顺序与取舍，
-            <b className="font-bold text-slate-100">字幕</b>管每一段的那句话和配音，
-            <b className="font-bold text-slate-100">圈选</b>管改画面（要花钱的那种改），
-            <b className="font-bold text-slate-100">音频</b>管配乐 —— 不是每一档出的画面都带声音（白模复刻段一律没有），
-            想要声音、想加配乐，就在这儿配。
+            <b className="font-bold text-slate-100">剪辑</b>管顺序取舍，<b className="font-bold text-slate-100">字幕</b>管每段那句话和配音，<b className="font-bold text-slate-100">圈选</b>管改画面（要花钱），<b className="font-bold text-slate-100">音频</b>管配乐。
+            不是每一档画面都带声音（白模复刻段一律没有），要声音就在音频里配。
           </Trans>
         ),
       },
@@ -1240,12 +1186,8 @@ export const TOURS: GuideTour[] = [
         anchor: "cut-timeline",
         body: (
           <Trans>
-            点一个片段选中，就能在播放头处<b className="font-bold text-slate-100">✂️ 分割</b>、
-            <b className="font-bold text-slate-100">🗑 删除</b>、拖拽或前移后移<b className="font-bold text-slate-100">换序</b>。
-            这些只改导出范围，<b className="font-bold text-slate-100">一个 token 都不花</b>；每一步都能
-            <b className="font-bold text-slate-100">↶ 撤销</b>，离开这一页再回来也都还在。
-            选中一段之后，还能调它的<b className="font-bold text-slate-100">速度</b>、
-            <b className="font-bold text-slate-100">原声音量</b>，或者让它<b className="font-bold text-slate-100">从黑里淡入</b>。
+            选中一个片段就能<b className="font-bold text-slate-100">✂️ 分割</b>、<b className="font-bold text-slate-100">🗑 删除</b>、<b className="font-bold text-slate-100">换序</b>，调速度、原声音量或从黑里淡入——<b className="font-bold text-slate-100">一个 token 都不花</b>。
+            每一步都能<b className="font-bold text-slate-100">↶ 撤销</b>，离开再回来也都还在。
           </Trans>
         ),
       },
@@ -1254,9 +1196,7 @@ export const TOURS: GuideTour[] = [
         title: msg`字幕：一段一句，还能配音`,
         body: (
           <Trans>
-            给每一段写一句话，它会<b className="font-bold text-slate-100">烧进画面</b>当字幕；点
-            <b className="font-bold text-slate-100">🔊 配音</b>，就用选好的音色把它念出来 —— 配音现在不收 token，
-            字数按这一段的时长封顶。有配音时，配乐和这一段的原声会自动压低。
+            给每一段写一句话，它会<b className="font-bold text-slate-100">烧进画面</b>当字幕；点<b className="font-bold text-slate-100">🔊 配音</b>用选好的音色念出来——配音现在不收 token，字数按这一段的时长封顶。
           </Trans>
         ),
       },
@@ -1268,10 +1208,8 @@ export const TOURS: GuideTour[] = [
         anchor: "cut-agent",
         body: (
           <Trans>
-            <b className="font-bold text-slate-100">💬 说一句</b>：用大白话指挥时间轴 ——「把片段2放慢」「片段3静音」「删掉片段2」，
-            直白的话当场就办、<b className="font-bold text-slate-100">不花钱</b>，说错了一句「撤销」就回去。
-            「字幕」页签里的<b className="font-bold text-slate-100">✨ 一键成片</b>让模型给每一段写旁白、起片头标题（收一次对话的钱），
-            写出来的每一句你都能改，点了头才写进去。
+            <b className="font-bold text-slate-100">💬 说一句</b>：用大白话指挥时间轴，直白的话当场就办、<b className="font-bold text-slate-100">不花钱</b>，说错了「撤销」就回去。
+            <b className="font-bold text-slate-100">✨ 一键成片</b>让模型写旁白、起标题（收一次对话的钱），点了头才写进去。
           </Trans>
         ),
       },
@@ -1279,8 +1217,8 @@ export const TOURS: GuideTour[] = [
         title: msg`圈选：花钱的重生成`,
         body: (
           <Trans>
-            拖进度条停在要改的画面，⭕ 圈出物体、写一句要求；可以<b className="font-bold text-slate-100">跨帧跨段圈多处</b>，
-            攒齐了一次性重新生成 —— 按钮上会标出几段、多少钱，<b className="font-bold text-slate-100">点那一下才计费</b>。
+            拖进度条停在要改的画面，⭕ 圈出物体、写一句要求，可以<b className="font-bold text-slate-100">跨帧跨段圈多处</b>。
+            按钮上会标几段、多少钱，<b className="font-bold text-slate-100">点那一下才计费</b>。
           </Trans>
         ),
       },
@@ -1294,9 +1232,8 @@ export const TOURS: GuideTour[] = [
         anchor: "cut-next",
         body: (
           <Trans>
-            整条模式下「合成并去发布」把时间轴按顺序合成<b className="font-bold text-slate-100">一整条视频</b>、进发布页（已经合好的稿子它写的是「去发布」，直接进发布页；
-            合完还想改，点<b className="font-bold text-slate-100">↩ 回去改</b>就回到合成之前，改完再合一次、不花钱）。
-            从工坊单段进来时它是「保存本段」，改完写回那一段、不合成不发片。
+            「合成并去发布」把时间轴合成<b className="font-bold text-slate-100">一整条视频</b>、进发布页；合完想改，点<b className="font-bold text-slate-100">↩ 回去改</b>再合一次不花钱。
+            从工坊单段进来时它是「保存本段」，只写回那一段。
           </Trans>
         ),
       },
@@ -1327,9 +1264,8 @@ export const TOURS: GuideTour[] = [
         anchor: "publish-pricing",
         body: (
           <Trans>
-            可见性管<b className="font-bold text-slate-100">谁看得到</b>：公开、凭链接可见、仅自己可见。
-            发完在作品编辑页随时能改。收费这一栏现在<b className="font-bold text-slate-100">所有作品都是免费观看</b>
-            —— 付费解锁等收款和分账真的通了再放出来。
+            可见性管<b className="font-bold text-slate-100">谁看得到</b>：公开、凭链接可见、仅自己可见，发完随时能改。
+            收费这一栏现在<b className="font-bold text-slate-100">所有作品都是免费观看</b>。
           </Trans>
         ),
       },
@@ -1341,8 +1277,8 @@ export const TOURS: GuideTour[] = [
         anchor: "publish-actions",
         body: (
           <Trans>
-            发布后编辑页随时能改标题、封面这些壳；想换<b className="font-bold text-slate-100">成片内容</b>，去编辑页点「🛠 回炉重做」，
-            把这条片的工坊工程取回工坊接着改，链接不变。「放弃本次合成」会把这条成片丢掉 —— 点它会先问你一句。
+            发布后编辑页随时能改标题、封面；想换<b className="font-bold text-slate-100">成片内容</b>，去编辑页点「🛠 回炉重做」，链接不变。
+            「放弃本次合成」会把这条成片丢掉——点它会先问你一句。
           </Trans>
         ),
       },
@@ -1367,10 +1303,8 @@ export const TOURS: GuideTour[] = [
         title: msg`这是另一条路`,
         body: (
           <Trans>
-            默认铸卡是 <b className="font-bold text-slate-100">AI 全自动出图</b>（3D 工坊找铸卡师）。
-            这一页反过来：<b className="font-bold text-slate-100">用你自己的图，不耗 token</b>；
-            也可以只交一张素材，让 AI 按方案把图位都画出来。要花 token 的只有那几颗带 AI 的键（AI 生成图位、圈选改图、场景卡与道具卡的识别），价钱都当面标着，不点就不花。
-            铸出来的卡与 AI 铸的完全同一种东西 —— 能进卡组、当出片的形象参考、发布到创意工坊。
+            默认铸卡是 <b className="font-bold text-slate-100">AI 全自动出图</b>；这一页<b className="font-bold text-slate-100">用你自己的图，不耗 token</b>。
+            要花 token 的只有那几颗带 AI 的键，价钱当面标着，不点就不花。
           </Trans>
         ),
       },
@@ -1396,10 +1330,8 @@ export const TOURS: GuideTour[] = [
         anchor: "cc-info",
         body: (
           <Trans>
-            「人物信息」那一步的文字，之后 AI 复刻这张卡的画面 / 建模时会读，
-            <b className="font-bold text-slate-100">写得越具体越像</b>。不填也行 ——
-            详情页会按卡名与简介现补一份；选了 AI 生成图位的话，这段连同卡名、标签
-            都已按素材写好，随意改。
+            「人物信息」的文字之后 AI 复刻这张卡时会读，<b className="font-bold text-slate-100">写得越具体越像</b>。
+            不填也行——详情页会按卡名与简介现补；选了 AI 生成图位的话已按素材写好。
           </Trans>
         ),
       },
@@ -1419,9 +1351,8 @@ export const TOURS: GuideTour[] = [
         anchor: "setprofile-avatar",
         body: (
           <Trans>
-            点头像打开选择器：官方看板娘现成可选，最后一格从相册选自己的图，
-            <b className="font-bold text-slate-100">能拖动裁切、双指缩放</b>。不想用图，下面还能挑一个
-            emoji 顶着。
+            点头像打开选择器：官方看板娘现成可选，最后一格从相册选自己的图，<b className="font-bold text-slate-100">能拖动裁切、双指缩放</b>。
+            不想用图，还能挑一个 emoji 顶着。
           </Trans>
         ),
       },
@@ -1457,9 +1388,8 @@ export const TOURS: GuideTour[] = [
         anchor: "setvoice-tune",
         body: (
           <Trans>
-            语速管快慢；语调用一句话描述想要的语气，
-            <b className="font-bold text-slate-100">改完点上面任意音色即刻再听</b>。语调那一段不计费，
-            只对单音色生效 ——「调和」那几条用不了。
+            语速管快慢；语调用一句话描述想要的语气，<b className="font-bold text-slate-100">改完点任意音色即刻再听</b>。
+            语调不计费，只对单音色生效——「调和」那几条用不了。
           </Trans>
         ),
       },
@@ -1475,9 +1405,8 @@ export const TOURS: GuideTour[] = [
         anchor: "setquality-opts",
         body: (
           <Trans>
-            这三档管的是工坊里 3D 形象的贴图精细度，
-            <b className="font-bold text-slate-100">跟出片视频的清晰度无关</b>。第一次进工坊会按机型
-            自动选一档；之后想换，全 app 只有这里能改。换档会重新加载一次。
+            这三档管的是工坊里 3D 形象的贴图精细度，<b className="font-bold text-slate-100">跟出片视频的清晰度无关</b>。
+            第一次进工坊按机型自动选一档；之后想换，全 app 只有这里能改。
           </Trans>
         ),
       },
@@ -1496,9 +1425,7 @@ export const TOURS: GuideTour[] = [
         anchor: "setstorage-usage",
         body: (
           <Trans>
-            上面是这台设备已经占用的空间。「清理缓存」
-            <b className="font-bold text-slate-100">只删生成过程中留下、已经没人引用的中间文件</b> ——
-            未发布的草稿和还没传上去的作品一个不动。
+            上面是这台设备已占用的空间。「清理缓存」<b className="font-bold text-slate-100">只删生成过程中留下、已经没人引用的中间文件</b>——未发布的草稿和还没传上去的作品一个不动。
           </Trans>
         ),
       },

@@ -150,7 +150,8 @@ export interface SupportNotice {
  * ★ 两个都声明：safety 是这一版的正事；notice 客服路由今天不发（服务端只在陪聊 / 人格试聊发），声明了也只是收不到，
  *   而契约写的是「带 caps: ["safety","notice"] 才发」—— 服务端哪天给客服也加上告知，App 不用再发一版才看得见。
  */
-export const SUPPORT_CAPS = ["safety", "notice"] as const;
+// goto / ask（2026-10-30）：「带我去」键与「拿不准先问」的选项芯片，服务端只对声明了的客户端在提示词里提这两种标记（契约「客服」）
+export const SUPPORT_CAPS = ["safety", "notice", "goto", "ask"] as const;
 export type SupportCap = (typeof SUPPORT_CAPS)[number];
 
 const PHONE_RE = /^[0-9+-]{2,20}$/;
@@ -227,6 +228,10 @@ export interface SupportChatHandlers {
   onSafety?: (card: SupportSafetyCard) => void;
   /** AI 身份告知（只有声明了 caps: ["notice"] 才会来；今天的客服路由不发） */
   onNotice?: (notice: SupportNotice) => void;
+  /** 「带我去」（只有声明了 caps: ["goto"] 才会来，done 之前一次）：id 是服务端白名单里的页面 id，App 自己按 id 找路由 */
+  onGoto?: (g: { id: string; label: string }) => void;
+  /** 「拿不准先问」（只有声明了 caps: ["ask"] 才会来，done 之前一次）：2～4 个选项，点了等于把选项的字发出去 */
+  onAsk?: (a: { question: string; options: string[] }) => void;
   /** safety = 输入侧命中那一轮（服务端没调模型，text 为空） */
   onDone?: (result: { text: string; handoff: boolean; category: SupportCategory | ""; safety: boolean }) => void;
 }
@@ -261,6 +266,14 @@ export async function streamSupportChat(
       else if (event === "notice") {
         const n = noticeOf(payload);
         if (n) handlers.onNotice?.(n);
+      } else if (event === "goto") {
+        const id = str(payload.id, 24);
+        const label = str(payload.label, 40);
+        if (id) handlers.onGoto?.({ id, label });
+      } else if (event === "ask") {
+        const question = str(payload.question, 80);
+        const options = Array.isArray(payload.options) ? payload.options.map((o) => str(o, 24)).filter(Boolean).slice(0, 4) : [];
+        if (question && options.length >= 2) handlers.onAsk?.({ question, options });
       } else if (event === "done")
         handlers.onDone?.({
           text: String(payload.text ?? ""),

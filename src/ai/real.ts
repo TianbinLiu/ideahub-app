@@ -1006,7 +1006,7 @@ function allocateRefs(materials: Card[], onNote?: (note: string) => void, multiC
       //   说成"按文字参与"会让用户以为形象还有依据，其实模型是自己编的
       const names = quotedNameList(noRef);
       onNote(
-        t`${names}的形象参考图这次没带上（一次最多 ${budget} 张，方舟的协议上限）——提示词里只剩它们的名字，画面上那几个人会由 AI 自己编，想换成卡上的样子就少挂几张卡`,
+        t`${names}的形象参考图这次没带上（一次最多 ${budget} 张，模型的协议上限）——提示词里只剩它们的名字，画面上那几个人会由 AI 自己编，想换成卡上的样子就少挂几张卡`,
       );
     }
     if (onNote && oneRef.length > 0) {
@@ -1018,7 +1018,7 @@ function allocateRefs(materials: Card[], onNote?: (note: string) => void, multiC
     const charCount = chars.length;
     const heroName = hero.name;
     onNote(
-      t`挂了 ${charCount} 张人物卡，只把「${heroName}」的形象参考图喂给绘图（一张图里画多个角色会被方舟整条拒掉），其余只按出片句参与（没写出片句的只报名字）`,
+      t`挂了 ${charCount} 张人物卡，只把「${heroName}」的形象参考图喂给绘图（一张图里画多个角色会被图片服务整条拒掉），其余只按出片句参与（没写出片句的只报名字）`,
     );
   }
 
@@ -1050,7 +1050,7 @@ function allocateRefs(materials: Card[], onNote?: (note: string) => void, multiC
         const name = card.name;
         onNote(
           multiChar
-            ? t`「${name}」的参考图这次没带上（一次最多 ${budget} 张，方舟的协议上限），它只按出片句参与（没写出片句就只报名字）`
+            ? t`「${name}」的参考图这次没带上（一次最多 ${budget} 张，模型的协议上限），它只按出片句参与（没写出片句就只报名字）`
             : t`「${name}」的参考图这次没带上（一次最多 ${budget} 张，堆满了模型反而判断不出该优先保哪些特征），它只按出片句参与（没写出片句就只报名字）`,
         );
       }
@@ -1661,7 +1661,7 @@ async function forgeSlots(
     // 图位名读 slot.label（界面显示名，随界面语言现翻）；与 generateCards 里第 1 张那句是同一条 msgid
     const n = i + 1;
     const label = slot.label;
-    rp.say(t`铸「${name}」第 ${n}/${total} 张：${label}…`);
+    rp.say(t`画「${name}」第 ${n}/${total} 张：${label}…`);
     try {
       const url = await genImageAsDataUrl(slotPrompt(type, name, look, note, slot), {
         imageRefs: [ref],
@@ -1772,7 +1772,7 @@ export async function generateCards(
     const n = 1;
     const total = slots.length;
     const label = slots[0].label;
-    rp.say(t`铸「${name}」第 ${n}/${total} 张：${label}…`);
+    rp.say(t`画「${name}」第 ${n}/${total} 张：${label}…`);
     const primary = await forgePrimary(type, name, look, note, slots[0], f, card.cover, tier);
     if (!primary.genPrompt) {
       // 主图都没画成：后面几张没有参考图可依，画了也只会是另一个人 —— 直接收手。
@@ -2720,7 +2720,7 @@ export async function deriveCharacterModels(
     const n = i + 1;
     const total = targets.length;
     try {
-      onProgress?.(t`为「${name}」铸造 3D 建模 ${n}/${total}…`);
+      onProgress?.(t`为「${name}」生成 3D 建模 ${n}/${total}…`);
       const url = await generate3dModel(card.cover, (ev) => {
         // 建模轮询：读秒各一句整话；running 之外原样报方舟的状态词（与改之前一样）
         const sec = ev.sec;
@@ -3346,7 +3346,7 @@ export function validateGenSpec(sg: GenSpec): void {
   if (sg.mode === "draftFinal") {
     // 第二步只带样片任务号：方舟规定提示词 / 图 / 声音都由样片沿用，**重传一个就报错**（哪怕值一样）
     if (sg.firstFrame || sg.lastFrame || sg.refImages?.length || sg.refVideoUrl || sg.refAudios?.length)
-      throw new Error(t`生成契约不一致：样片定稿只带样片本身（提示词、画面、声音都由样片沿用，重传会被方舟拒）`);
+      throw new Error(t`生成契约不一致：样片定稿只带样片本身（提示词、画面、声音都由样片沿用，重传会被出片服务拒）`);
     return;
   }
   if (!sg.plot.trim()) throw new Error(t`生成契约不完整：提示词是空的`);
@@ -3359,9 +3359,9 @@ export function validateGenSpec(sg: GenSpec): void {
   /** 请求按什么形状拼（样片第一步的槽位照普通出片摆，互斥规则与普通出片同一套） */
   const shape = sg.mode === "draft" ? slotModeOf(sg) : sg.mode;
   if (sg.mode === "draft" && (shape === "edit" || shape === "reference" || shape === "extend" || shape === "minimax"))
-    throw new Error(t`生成契约不一致：样片不收参考视频（方舟只对不带视频输入的出片开了样片）`);
+    throw new Error(t`生成契约不一致：样片不收参考视频（样片只对不带视频输入的出片开放）`);
   const refMedia = shape === "ref-images" || shape === "reference" || shape === "edit" || shape === "extend";
-  if (refMedia && (sg.firstFrame || sg.lastFrame)) throw new Error(t`生成契约不一致：参考图 / 参考视频与首尾帧不能混发（方舟三种场景互斥）`);
+  if (refMedia && (sg.firstFrame || sg.lastFrame)) throw new Error(t`生成契约不一致：参考图 / 参考视频与首尾帧不能混发（出片服务的三种场景互斥）`);
   if (shape === "ref-images" && !tier.refImg) throw new Error(t`「${tierLabel}」档协议上不收参考图，不能按参考图生视频出片`);
   // 参考图张数的协议上限（VideoTier.refImagesMax：2.0 系列 9、2.5 是 30、MiniMax H3 5）—— 超了是整发 400（H3 第 6 张起服务端报不了价、扣费之前拒）。
   // 图位预算在准备卡片图那一步就按它扣（segmentGen.refSlotsOf），这一条正常走不到；它管的是那道预算哪天算错（2026-10-26 出片地区 P2b：H3 只有 5 张的位）
@@ -3476,7 +3476,7 @@ async function ownImageUrls(srcs: string[], say: (s: string) => void): Promise<s
       out.push(src);
       continue;
     }
-    if (!/^(data:image\/|https?:\/\/)/i.test(src)) throw new Error(t`第 ${n} 张参考图不是图片地址（MiniMax 不收方舟的可信素材），视频这一发没有发出去——换一张卡或换一档再出片`);
+    if (!/^(data:image\/|https?:\/\/)/i.test(src)) throw new Error(t`第 ${n} 张参考图不是图片地址（MiniMax 不收火山引擎认证素材），视频这一发没有发出去——换一张卡或换一档再出片`);
     say(t`上传参考图 ${n}/${total}…`);
     try {
       // 帧压到 720p 再传（与方舟那条同一个理由：2560 的 dataURL 白白撑大上传；非 dataURL 原样）
@@ -3767,7 +3767,7 @@ export async function takeVideoTask(
     }
     return { url, ...(lastFrame ? { lastFrame } : {}), ...(poster ? { poster } : {}), ...(meta ?? {}) };
   }
-  onProgress?.(t`正在向方舟核对这一发的状态…（查询不花钱）`);
+  onProgress?.(t`正在向出片服务核对这一发的状态…（查询不花钱）`);
   let st: ArkTaskState;
   try {
     st = await fetchArkTask(taskId, { transfer: true });
@@ -3781,17 +3781,17 @@ export async function takeVideoTask(
       //   那时它就是一发「没出成、钱已退」的失败（ArkTaskFailed，调用方据此结案 + 说那句退款的话），不是「钱没了」
       const charge = await fetchTaskCharge(taskId);
       if (charge && charge !== "none" && (charge.state === "refunded" || charge.state === "refunding")) {
-        const reason = t`方舟那边已经查不到这一发了`;
-        throw new ArkTaskFailed(t`方舟没出成这一发（${reason}）`, taskId, "failed", "", charge, reason, "ark");
+        const reason = t`出片服务那边已经查不到这一发了`;
+        throw new ArkTaskFailed(t`出片服务没出成这一发（${reason}）`, taskId, "failed", "", charge, reason, "ark");
       }
       // ★ 另外两种结局也不许说成「无法挽回」（2026-10-07 评审抓到）：skipped = 本来就没扣（管理员免单）；
       //   lost = 服务端一直问不出上游的结局、交给人工 —— 把任务号给客服还有机会（与过期取回卡那句同一个口径，videoJobs.videoJobNote）
       if (charge && charge !== "none" && charge.state === "skipped") {
-        throw new Error(t`方舟那边查不到这一发了（任务号查无此物）——多半是产物已经过了 24 小时被清掉，这一段取不回来了。这一发本来就没有扣 token；重新生成是重新下一单。`);
+        throw new Error(t`出片服务那边查不到这一发了（任务号查无此物）——多半是产物已经过了 24 小时被清掉，这一段取不回来了。这一发本来就没有扣 token；重新生成是重新下一单。`);
       }
       if (charge && charge !== "none" && charge.state === "lost") {
         throw new Error(
-          t`方舟那边查不到这一发了（任务号查无此物），我们也一直没能向上游确认它的结局，所以没有自动退回——把任务号 ${taskId} 发给客服，由人工核对这笔钱；重新生成是重新下一单、会再花一次钱`,
+          t`出片服务那边查不到这一发了（任务号查无此物），我们也一直没能向上游确认它的结局，所以没有自动退回——把任务号 ${taskId} 发给客服，由人工核对这笔钱；重新生成是重新下一单、会再花一次钱`,
         );
       }
       // ★ **没问到**那一笔账（null：断网、5xx、429）而这台服务端是会退钱的：不知道 ≠ 没退，不许落进下面那句「钱无法挽回」
@@ -3802,12 +3802,12 @@ export async function takeVideoTask(
       //   往「再问一次」那边错，代价只是多点一下
       if (charge === null && API_ON && !import.meta.env.DEV && serverSupports("failRefund") !== false) {
         throw new ArkTaskUnknown(
-          t`方舟那边查不到这一发了，这次也没能向服务器问到它退没退钱——过一会儿再点一次（查询不花钱），凭据还在`,
+          t`出片服务那边查不到这一发了，这次也没能向服务器问到它退没退钱——过一会儿再点一次（查询不花钱），凭据还在`,
           taskId,
         );
       }
       throw new Error(
-        t`方舟那边查不到这一发了（任务号查无此物）——多半是产物已经过了 24 小时被清掉。真是这样的话这一段取不回来了，已经花掉的钱无法挽回；重新生成是重新下一单、会再花一次钱`,
+        t`出片服务那边查不到这一发了（任务号查无此物）——多半是产物已经过了 24 小时被清掉。真是这样的话这一段取不回来了，已经花掉的钱无法挽回；重新生成是重新下一单、会再花一次钱`,
       );
     }
     // 查不动 ≠ 取不回：任务在方舟那边好好的，是我们这边的网络。凭据必须留着。
@@ -3838,7 +3838,7 @@ export async function takeVideoTask(
   if (!url) {
     // 成功却没有地址：再查一次也是同一个答复，所以话要说死（不是 ArkTaskUnknown），
     // 别让用户对着一颗永远不会成功的「取回」反复点。★ 方舟对成功的任务照收钱 —— 2xx 之后才坏的那一档（ArkBadReply）
-    throw new ArkBadReply(t`方舟说这一发成功了，却没有给视频地址——这一段取不回来了（费用已经花过，重新生成是再花一次钱）`);
+    throw new ArkBadReply(t`出片服务说这一发成功了，却没有给视频地址——这一段取不回来了（费用已经花过，重新生成是再花一次钱）`);
   }
   let lastFrame: string | undefined;
   let poster: string | undefined;

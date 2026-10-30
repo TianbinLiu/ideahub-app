@@ -496,6 +496,13 @@ export interface LikeResult {
 }
 
 /** POST / DELETE /api/branch/videos/:id/like（requireAuth）→ { likes, liked } */
+/** 「不感兴趣」（2026-10-30，契约「不感兴趣」）：POST 记下、DELETE 撤回；服务端的列表从此不给这一条（作者主页除外） */
+export async function setHidden(id: string, on: boolean): Promise<void> {
+  const path = `/api/branch/videos/${encodeURIComponent(id)}/hide`;
+  if (on) await apiPost<Record<string, unknown>>(path);
+  else await apiDelete<Record<string, unknown>>(path);
+}
+
 export async function setLike(id: string, on: boolean): Promise<LikeResult> {
   const path = `/api/branch/videos/${encodeURIComponent(id)}/like`;
   const res = on
@@ -1455,7 +1462,7 @@ export async function finishBlockoutize(jobId: string): Promise<BlockoutizeResul
     // 回包说 ok 却没给模板 = 这份回执当不了本机记录的锚点（既没有 remoteId 也没有
     // refVideo），静默放行就是"钱花了、模板不见了"。响亮拒绝，让用户去我的模板里找。
     throw new BlockoutizeError(
-      t`服务器说结果取回成功了，却没有返回模板信息（可能是旧版服务端）。这一步本身不花钱，钱在开炼那一步已经付过——去「我的模板」确认一下有没有新模板，没有的话请把这句话反馈给我们。`,
+      t`服务器说结果取回成功了，却没有返回模板信息（可能是旧版服务端）。这一步本身不花钱，钱在提交那一步已经付过——去「我的模板」确认一下有没有新模板，没有的话请把这句话反馈给我们。`,
       502,
       "SHAPE",
       false,

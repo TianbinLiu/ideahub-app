@@ -573,7 +573,7 @@ export function minUsageNote(s: MaterialRefSecs): string | null {
   if (s.billedInSec <= s.inSec) return null;
   const { inSec, outSec, billedInSec } = s;
   // 「输入视频」而不是「参考视频」：延长那一支的输入是被延长的那一段成片，不是人挂的参考视频（10-19 复核）
-  return t`输出 ${outSec} 秒超过输入视频（${inSec} 秒）的 1.5 倍：方舟对带视频输入的出片有最低用量，输入按 ${billedInSec} 秒计价`;
+  return t`输出 ${outSec} 秒超过输入视频（${inSec} 秒）的 1.5 倍：带视频输入的出片有最低用量，输入按 ${billedInSec} 秒计价`;
 }
 
 /**

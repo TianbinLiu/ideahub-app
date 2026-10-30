@@ -170,7 +170,7 @@ export default function ThemeRewriteSheet({ initialTheme = "", onClose, onApplie
               </button>
             </div>
             <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
-              <Trans>只改剧情与标题；每段的要求（你的原话）、镜头字段、时长、已画的帧都不动。写回之后照常逐段炼。</Trans>
+              <Trans>只改剧情与标题；每段的要求（你的原话）、镜头字段、时长、已画的帧都不动。写回之后照常逐段生成。</Trans>
             </p>
           </>
         )}

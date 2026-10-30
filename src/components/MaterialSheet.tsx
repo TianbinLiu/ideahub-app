@@ -247,7 +247,7 @@ export default function MaterialSheet({
             </>
           )
         ) : allCards.length === 0 ? (
-          empty(t`还没有素材卡`, t`去创意工坊铸几张`, "/workshop/mine")
+          empty(t`还没有素材卡`, t`去创意工坊做几张`, "/workshop/mine")
         ) : cards.length === 0 ? (
           <EmptyState compact mascot="wonder" text={t`没有匹配的卡片`} cta={{ label: t`清空搜索`, onClick: () => setQ("") }} />
         ) : (

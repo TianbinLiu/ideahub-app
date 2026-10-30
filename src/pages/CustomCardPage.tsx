@@ -1127,7 +1127,7 @@ export default function CustomCardPage() {
     // ★ 登记成后台任务（远端模式要串行传几张图，弱网几十秒）：退出这一页照传，胶囊接手；
     //   页不在时结局走通知（铸成 → 点通知直达卡片；没全成 → 回来看这一页上的说明）
     const head = remote ? t`存卡并把图传到服务器…` : t`存进本机卡片库…`;
-    const job = startJob({ kind: "card-mint", title: t`铸卡上传`, page: "/custom-card", progress: head });
+    const job = startJob({ kind: "card-mint", title: t`做卡上传`, page: "/custom-card", progress: head });
     const here = () => useCardDraft.getState().mounted;
     // ★ 心跳（2026-10-15 教材人格评审 norman-interaction-8）：addCards 是 POST → 逐张转存 → PATCH 一串，没有逐张回调，
     //   此前票上这句从 startJob 起一个字不动，与卡死分不开。铸卡键下那一行（mintNote）与票同一个串；逐张进度另立提案。
@@ -1233,12 +1233,12 @@ export default function CustomCardPage() {
         // ★ 把 lostViews 一并带上：两件事可能同时发生，而 partial 一次只画一块 ——
         //   不带的话"还有 N 张图没同步"就被这一档静默吞了（复核抓到）
         setPartial({ id, kind: "asset", lost: r.lostViews, reason: t`本机存储写入失败（配额满或隐私模式）` });
-        job.done({ msg: t`卡铸好了，但授权绑定没存住——回去看看`, route: "/custom-card", silent: here() });
+        job.done({ msg: t`卡做好了，但授权绑定没存住——回去看看`, route: "/custom-card", silent: here() });
         return;
       }
       if (r.lostViews.length > 0) {
         setPartial({ id, kind: "views", lost: r.lostViews, reason: r.reason });
-        job.done({ msg: t`卡铸好了，但有图没传上——回去看看`, route: "/custom-card", silent: here() });
+        job.done({ msg: t`卡做好了，但有图没传上——回去看看`, route: "/custom-card", silent: here() });
         return;
       }
       // 发布/加图/删图详情页都已经有了，这一页不再实现一遍（铁律六）
@@ -1249,12 +1249,12 @@ export default function CustomCardPage() {
       } else {
         // 人不在这一页（正在别处做别的事）：不替他跳转，发一条通知，点了直达这张卡
         resetCardDraft();
-        job.done({ msg: t`「${card.name}」铸好了`, route: `/card/${id}` });
+        job.done({ msg: t`「${card.name}」做好了`, route: `/card/${id}` });
       }
     } catch (e) {
       const detail = e instanceof Error ? e.message : String(e);
-      setErr(t`铸卡没成：${detail.slice(0, 120)}`);
-      job.fail(t`铸卡没成，回去看原因`, "/custom-card");
+      setErr(t`做卡没成：${detail.slice(0, 120)}`);
+      job.fail(t`做卡没成，回去看原因`, "/custom-card");
     } finally {
       stop();
       setMintNote("");
@@ -1618,7 +1618,7 @@ export default function CustomCardPage() {
               <div className="flex items-center justify-between gap-2 rounded-lg border border-ok-500/40 bg-ok-500/10 px-2.5 py-1.5">
                 <span className="min-w-0 flex-1">
                   <span className="block text-[10px] text-ok-300">
-                    <Trans>🔊 已录 {pendingVoice.durationSec.toFixed(1)}s（铸卡时存进这张卡）</Trans>
+                    <Trans>🔊 已录 {pendingVoice.durationSec.toFixed(1)}s（做卡时存进这张卡）</Trans>
                   </span>
                   <audio src={pendingVoice.dataUrl} controls className="mt-1 h-8 w-full" />
                 </span>
@@ -2208,7 +2208,7 @@ export default function CustomCardPage() {
             <div className="flex items-center justify-between gap-2 rounded-lg border border-ok-500/40 bg-ok-500/10 px-2.5 py-1.5">
               <span className="min-w-0 flex-1">
                 <span className="block text-[10px] text-ok-300">
-                  <Trans>🔊 已录 {pendingVoice.durationSec.toFixed(1)}s（铸卡时存进这张卡）</Trans>
+                  <Trans>🔊 已录 {pendingVoice.durationSec.toFixed(1)}s（做卡时存进这张卡）</Trans>
                 </span>
                 <audio src={pendingVoice.dataUrl} controls className="mt-1 h-8 w-full" />
               </span>
@@ -2306,7 +2306,7 @@ export default function CustomCardPage() {
             onClick={() => setStep("final")}
             className="mt-3 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink"
           >
-            <Trans>下一步：定名与铸卡 ›</Trans>
+            <Trans>下一步：定名与做卡 ›</Trans>
           </button>
         )}
       </section>
@@ -2365,11 +2365,11 @@ export default function CustomCardPage() {
           <Warn>
             {partial.lost.length > 0 ? (
               <Trans>
-                卡铸好了，但<span className="font-semibold">肖像授权的绑定没能存在这台设备上</span>（{partial.reason}）。这张卡挂着真人声明，没有绑定的话出片那一刻会被整发拒——去卡详情页把授权再做一次就好，卡本身不用重铸。另外还有 <span className="font-semibold">{partial.lost.length} 张图没能同步到服务器</span>，它们只留在这台设备上。
+                卡做好了，但<span className="font-semibold">肖像授权的绑定没能存在这台设备上</span>（{partial.reason}）。这张卡挂着真人声明，没有绑定的话出片那一刻会被整发拒——去卡详情页把授权再做一次就好，卡本身不用重做。另外还有 <span className="font-semibold">{partial.lost.length} 张图没能同步到服务器</span>，它们只留在这台设备上。
               </Trans>
             ) : (
               <Trans>
-                卡铸好了，但<span className="font-semibold">肖像授权的绑定没能存在这台设备上</span>（{partial.reason}）。这张卡挂着真人声明，没有绑定的话出片那一刻会被整发拒——去卡详情页把授权再做一次就好，卡本身不用重铸。
+                卡做好了，但<span className="font-semibold">肖像授权的绑定没能存在这台设备上</span>（{partial.reason}）。这张卡挂着真人声明，没有绑定的话出片那一刻会被整发拒——去卡详情页把授权再做一次就好，卡本身不用重做。
               </Trans>
             )}
           </Warn>
@@ -2419,7 +2419,7 @@ export default function CustomCardPage() {
         disabled={!ready || minting || busySlot !== null || !!partial}
         className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:bg-slate-700 disabled:text-slate-400"
       >
-        {minting ? t`铸造中…` : partial ? t`已铸成` : t`🎴 铸成卡片`}
+        {minting ? t`制作中…` : partial ? t`已做好` : t`🎴 做成卡片`}
       </button>
       {/* ★ 灰按钮必须**说出为什么**（CLAUDE.md「界面上摆一个永远点不动的选项」那条） */}
       {minting ? (
@@ -2430,11 +2430,11 @@ export default function CustomCardPage() {
         </p>
       ) : partial ? null : offlineButConfigured ? (
         // ★ 这一条排在 missing 之前：填不填得完整都不该让他填 —— 先说真正的拦路原因
-        <p className="mt-1.5 text-center text-[11px] text-danger-300"><Trans>连不上服务器，现在铸出来的卡会丢（见上）</Trans></p>
+        <p className="mt-1.5 text-center text-[11px] text-danger-300"><Trans>连不上服务器，现在做出来的卡会丢（见上）</Trans></p>
       ) : !ready ? (
         <p className="mt-1.5 text-center text-[11px] text-slate-400"><Trans>还缺：{missing.join(listSep)}</Trans></p>
       ) : (
-        <p className="mt-1.5 text-center text-[11px] text-slate-500"><Trans>铸卡本身不消耗 token · 铸好后直接进你的卡片库</Trans></p>
+        <p className="mt-1.5 text-center text-[11px] text-slate-500"><Trans>做卡本身不消耗 token · 做好后直接进你的卡片库</Trans></p>
       )}
       {!minting && !partial && Object.values(shots).some((s) => s?.keptBg) && (
         // 拍板 4 b 的第四处：铸卡键下再说一遍 —— 选择器里说过的话，按下铸卡那一刻人多半已经忘了

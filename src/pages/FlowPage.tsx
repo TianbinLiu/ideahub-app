@@ -610,7 +610,7 @@ function NodeScreen({
         <button
           onClick={() => shiftCursor(1)}
           disabled={index >= total - 1 || !done || busy}
-          title={index >= total - 1 ? t`没有下一段了` : done ? t`下一段` : t`先把这一段炼出来`}
+          title={index >= total - 1 ? t`没有下一段了` : done ? t`下一段` : t`先把这一段生成出来`}
           aria-label={done ? t`下一段` : t`下一段（本段还没出片）`}
           className="relative flex h-7 w-7 flex-none items-center justify-center rounded-full bg-panel text-slate-200 after:absolute after:-inset-2 after:content-[''] disabled:opacity-40"
         >
@@ -693,7 +693,7 @@ function NodeScreen({
                 ? blockout && named
                   ? t`还没有画面——先给人偶挂上角色卡`
                   : hasInput
-                    ? t`还没有画面——点「生成本段」开炼`
+                    ? t`还没有画面——点「生成本段」开始`
                     : t`还没有画面——先写这一段拍什么`
                 : /* ★ 写没写过要分开说（见上面 hasInput 的 ★）：都说"去写"的话，
                      写完的人会以为自己那行字没存上。空态一句话（文法①） */
@@ -854,7 +854,7 @@ function NodeScreen({
                 ? t`改完这句话可以「重新生成方案」；挑定一套之后按钮才变回「生成本段」`
                 : plan === "picked"
                   ? t`已挑定一套 · 在上面的方案台里换首尾帧、改剧情`
-                  : t`点「生成本段」先出三套方案（各带首尾帧预览），挑定后再炼视频`}
+                  : t`点「生成本段」先出三套方案（各带首尾帧预览），挑定后再生成视频`}
             </p>
           </div>
         )}
@@ -1530,7 +1530,7 @@ export default function FlowPage() {
                     <button
                       onClick={() => addNode()}
                       disabled={busy || !nodeDone(nodes[nodes.length - 1])}
-                      title={nodeDone(nodes[nodes.length - 1]) ? t`加一段` : t`先把当前这段炼出来`}
+                      title={nodeDone(nodes[nodes.length - 1]) ? t`加一段` : t`先把当前这段生成出来`}
                       className="h-11 w-11 flex-none rounded-lg border border-dashed border-slate-600 text-slate-400 disabled:opacity-40"
                       aria-label={t`加一段`}
                     >

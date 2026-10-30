@@ -26,13 +26,18 @@ import { currentVoice } from "../studio/voices";
 import {
   checkUpdate,
   currentVersion,
+  entryText,
   isMandatory,
   raiseForcedUpdate,
+  releaseHistory,
   selfUpdateSupported,
+  type ReleaseEntry,
   type UpdateInfo,
 } from "../data/appUpdate";
+import { pickLang } from "../i18n/locale";
 import UpdateSheet from "../components/UpdateSheet";
 import Sheet from "../components/Sheet";
+import EmptyState from "../components/EmptyState";
 import { CloseButton } from "../components/IconTapButton";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { systemLang, type Lang } from "../i18n/locale";
@@ -83,6 +88,7 @@ export default function SettingsPage() {
         />
         <GuideRow />
         <VersionRow />
+        <ReleaseHistoryRow />
       </Group>
 
       {/* ── 帮助 ─────────────────────────────────────────────── */}
@@ -96,7 +102,7 @@ export default function SettingsPage() {
         <NavRow to="/support/create" icon="sparkle" title={t`创作中心`} sub={t`自己做模型 · 音频 · 人格，可发布到市场`} />
         {/* 启梦老师（M3 是外链；2026-09-29 M4 起 App 内能上课了，tutor 仓 docs/06 §6）：进 App 内的 /tutor。
             ?from=app-settings 只用来记引流（服务端只记不奖励，落地即抹掉）；PDF / PPTX 建课那条路仍在网页端，/tutor 页里有链接 */}
-        <NavRow to="/tutor?from=app-settings" icon="graduation-cap" title={t`AI 老师`} sub={t`用自己的教材铸一位老师，在 App 里上课`} />
+        <NavRow to="/tutor?from=app-settings" icon="graduation-cap" title={t`AI 老师`} sub={t`用自己的教材做一位老师，在 App 里上课`} />
       </Group>
 
       {/* ── 协议与须知 ────────────────────────────────────────────
@@ -466,5 +472,82 @@ function VersionRow() {
       )}
       {info && <UpdateSheet info={info} onClose={() => setInfo(null)} />}
     </div>
+  );
+}
+
+// ★ 「更新记录」（2026-10-30）：更新弹窗从此只写当前这一版（同类 App 都这么做），NN/g 对 What's new 的另一半要求是「以后找得回」——
+//   找回的地方就是这里：清单上最近几版（含还没装的那一版），按界面语言画。只在侧载渠道出现（上架包没有清单）；
+//   老清单 / 老原生插件没有 history 时如实说「这个版本的清单里没有」+ 重试，不装一个空列表。
+function ReleaseHistoryRow() {
+  const { t } = useLingui();
+  const [supported, setSupported] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [state, setState] = useState<{ busy: boolean; list: ReleaseEntry[] | null; failed: boolean }>({ busy: false, list: null, failed: false });
+  const lang = pickLang();
+
+  useEffect(() => {
+    void selfUpdateSupported().then(setSupported);
+  }, []);
+
+  function load() {
+    setState({ busy: true, list: null, failed: false });
+    void releaseHistory().then((list) => setState({ busy: false, list, failed: !list }));
+  }
+
+  if (!supported) return null;
+
+  return (
+    <>
+      <button
+        onClick={() => {
+          setOpen(true);
+          load();
+        }}
+        className="flex w-full items-center gap-3 px-4 py-3.5 text-left active:bg-slate-800/40"
+      >
+        <Icon name="file" size={20} className="flex-none text-slate-400" />
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm text-slate-100">
+            <Trans>更新记录</Trans>
+          </span>
+          <span className="block truncate text-[11px] text-slate-500">
+            <Trans>最近几版各改了什么</Trans>
+          </span>
+        </span>
+        <Icon name="chevron" size={16} className="flex-none text-slate-600" />
+      </button>
+      {open && (
+        <Sheet onClose={() => setOpen(false)} label={t`更新记录`}>
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-sm font-bold text-slate-100">
+              <Trans>更新记录</Trans>
+            </h3>
+            <CloseButton chip="sm" size={13} align="end" onClick={() => setOpen(false)} />
+          </div>
+          {state.busy ? (
+            <EmptyState loading compact text={t`正在取更新记录…`} />
+          ) : state.failed || !state.list?.length ? (
+            <EmptyState
+              compact
+              text={t`没取到更新记录`}
+              hint={t`可能是网络没通，或者这个版本的清单里还没有这一项。`}
+              cta={{ label: t`重试`, onClick: load }}
+            />
+          ) : (
+            <div className="max-h-[60vh] space-y-3 overflow-y-auto">
+              {state.list.map((e) => (
+                <div key={e.versionName} className="rounded-xl border border-slate-700/70 bg-panel p-3">
+                  <div className="mb-1 flex items-baseline justify-between gap-2">
+                    <span className="text-sm font-semibold text-slate-100">{e.versionName}</span>
+                    {e.date && <span className="text-[11px] text-slate-500">{e.date}</span>}
+                  </div>
+                  <p className="whitespace-pre-wrap text-xs leading-relaxed text-slate-400">{entryText(e, lang)}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </Sheet>
+      )}
+    </>
   );
 }
