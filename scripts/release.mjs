@@ -327,7 +327,8 @@ function releaseNotesFor(text, versionName, versionCode) {
   for (const [name, s] of sections) {
     if (history.length >= HISTORY_MAX) break;
     let code = name === versionName ? versionCode : 0;
-    let date = name === versionName ? new Date().toISOString().slice(0, 10) : "";
+    // 本地日期（与老版本从 tag 读的 %cs 同一口径）：toISOString 是 UTC，中国晚上发版会写成前一天
+    let date = name === versionName ? new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10) : "";
     if (name !== versionName) {
       // 老版本的号与日期从 tag 上读；tag 不在（历史上漏打过的）就留空，App 那边按名字排、不拿 0 去比
       try {
@@ -730,6 +731,9 @@ async function main() {
   if (!/^[\w.-]+$/.test(versionName)) die(`versionName 里有文件名不该有的字符：${versionName}`);
   const tag = `v${versionName}`;
   console.log(`\n准备发布 ${tag}（versionCode ${versionCode}）\n`);
+  // 更新说明在第 0 步就读（2026-10-30 复核）：这一版那一节没写要在出包、上传之前就停，不是走到写清单那一步才停
+  const notesFile = path.join(root, "RELEASE_NOTES.md");
+  const notesPack = releaseNotesFor(fs.existsSync(notesFile) ? fs.readFileSync(notesFile, "utf8") : "", versionName, versionCode);
 
   // ── 0. 这个 tag 发过没有（好几步都按它分叉：重跑 = 把上次那一版验证完，不是发新版）──
   let exists = false;
@@ -899,12 +903,7 @@ async function main() {
 
   // ── 5. 写清单 ────────────────────────────────────────────
   const apkBuf = fs.readFileSync(APK);
-  const notesFile = path.join(root, "RELEASE_NOTES.md");
-  const { notes, notesByLang, history } = releaseNotesFor(
-    fs.existsSync(notesFile) ? fs.readFileSync(notesFile, "utf8") : "",
-    versionName,
-    versionCode,
-  );
+  const { notes, notesByLang, history } = notesPack;
   // ⚠ tag（v<versionName>）与这个资产名 App 里也照着拼了一份：强制更新时的 GitHub 备用下载（src/data/appUpdate.githubApkUrl）——
   //   清单经服务端转手时 apkUrl 被改写成镜像地址，App 拿不到下面这个原值。这里改名，那边一起改
   const apkAsset = `qimeng-${versionName}.apk`;

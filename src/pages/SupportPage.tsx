@@ -833,8 +833,8 @@ export default function SupportPage() {
       setSheetOpen(false);
       setNote("");
       setHandoffHint(null);
-    setGotoHint(null);
-    setAskHint(null);
+      setGotoHint(null);
+      setAskHint(null);
       setMessages((prev) => [
         ...prev,
         {

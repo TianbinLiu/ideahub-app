@@ -1055,7 +1055,8 @@ function FeedItem({
           className="mt-6 flex min-h-[56px] w-14 flex-col items-center justify-center gap-1 transition active:scale-90"
         >
           <span
-            className={`relative block h-11 w-11 overflow-hidden rounded-full bg-slate-900 ring-[3px] ring-white/80 ${
+            // h-9：36 + gap 4 + 16 字 = 56 = 原来那颗键的 min-h（44 的碟片会让整栏长 8px，640 高的屏只有 24px 余量）
+            className={`relative block h-9 w-9 overflow-hidden rounded-full bg-slate-900 ring-[3px] ring-white/80 ${
               active && !paused ? "motion-safe:animate-[spin_8s_linear_infinite]" : ""
             }`}
           >

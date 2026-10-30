@@ -691,7 +691,9 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
                   e.stopPropagation();
                   // ★ 先问一句（2026-10-30，UX 走查第 15 条）：这张多半是付费画出来的，删了服务端就没了、撤不回来 ——
                   //   「先删再撤销」只给能原样恢复的东西，花过钱又恢复不了的仍先确认（CLAUDE.md 轻提示那条的口径）
+                  // 先收放大层（z-[70]）再摆确认卡（z-50）：放大层开着时确认卡在它底下，看上去就是「点了没反应」（发版前复核抓到）
                   setRemoveAsk(zoom);
+                  setZoom(null);
                 }}
                 className="rounded-full bg-danger-500/90 px-4 py-1.5 text-xs font-bold text-white disabled:opacity-40"
               >
