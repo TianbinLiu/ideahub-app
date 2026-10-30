@@ -1,3 +1,13 @@
+启梦 2.75
+
+· 做视频模板时，免费版被「白模」那两条路挡住，红字下面多了一行能点的「改用「只用文字 + 封面」」，点了直接去做文字模板（不用会员，做模板也不花 token）；那一屏底下原来指人去选「经典配方」的那句删了（那条路早就没有了）。
+· 两句说错了的提示改成实话：对话正反打的三个机位画好之后画幅就定了（原来说「三个一起重画」能换画幅，其实换不了）；发布时不带卡组，别人照样能「做同款」，只是照着分段剧本做、不带你的卡（原来说不能做同款）。
+
+QiMeng 2.75
+
+· When making a video template on the free plan, the two blockout routes are locked — the red notice now has a link to “Text + cover only” instead, which needs no membership and costs no tokens to make. The old line pointing to “Classic recipe” (a route that no longer exists) is gone.
+· Two hints now tell the truth: in shot/reverse-shot dialogue, the aspect is locked once the angles are drawn (“Redraw all three” doesn't change it); and publishing without the card deck still lets others Remix your video — from the segment scripts, without your cards.
+
 启梦 2.74
 
 · 手机返回键在剩下几处也是先关上面那一层：新手引导开着时按返回关掉引导、留在这一页（原来直接离开这一页）；「圈出要改的地方」那块画板开着时按返回先关画板；AI 客服「我的工单」里按返回回到对话。

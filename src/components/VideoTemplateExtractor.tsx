@@ -624,7 +624,7 @@ export default function VideoTemplateExtractor({
   }
 
   function close() {
-    leave(onClose);
+    return leave(onClose);
   }
 
   /**
@@ -632,7 +632,7 @@ export default function VideoTemplateExtractor({
    * ★ 门禁红字里那颗「改用只用文字 + 封面」在第 2 步也画得出来，那时手里可能已经有一份传上去的回执 ——
    *   直接调 onPickText 会绕过下面的在跑闸与 dropReceipt：传上去的视频成了没人认的孤儿，或者在服务端切段时被删掉。
    */
-  function leave(next: () => void) {
+  function leave(next: () => void): boolean {
     // ★★ **在跑就别关**（2026-08-21 cherry-pick 评审）：这一屏的「取消」早就 disabled={busy}
     //   了（BlockoutTrimmer 那颗），但外层遮罩与标题栏的 ✕ 是无条件 close —— 同一屏两套纪律。
     //   分段登记那一发是服务端**串行逐段转码**、分钟级，这期间 receipt.spent 还是 false，
@@ -664,6 +664,7 @@ export default function VideoTemplateExtractor({
     }
     dropReceipt();
     next();
+    return true;
   }
   // 手机返回键先关这一层（hooks/useBackLayer），走同一个 close()：登记在途被拦下时回 false，这一下返回只是被拦住
   useBackLayer(true, close, "template-extract");
