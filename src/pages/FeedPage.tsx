@@ -25,6 +25,7 @@ import {
   listVideos,
   refreshFeed,
   feedLoading,
+  followingLoading,
   refreshFollowingFeed,
   profileHref,
   setLike,
@@ -1375,8 +1376,8 @@ export default function FeedPage() {
     return (
       <div className="fixed inset-0 bg-black">
         {tabs}
-        {feed === "recommend" && feedLoading() ? (
-          // 整份还在拉：画加载态，别先闪一下「还没有作品」（2.68 真机 LTE 上量到约 6 秒）
+        {(feed === "recommend" && feedLoading()) || (feed === "following" && followingLoading()) ? (
+          // 整份还在拉：画加载态，别先闪一下「还没有作品」/「关注的创作者还没有新作品」（2.68 真机 LTE 上量到约 6 秒；关注流 2026-10-30 补齐）
           <EmptyState className="h-full justify-center" loading text={t`正在取作品…`} />
         ) : (
         <EmptyState
