@@ -1233,13 +1233,14 @@ export default function SupportPage() {
             </button>
           )}
         </form>
-        <div className="mt-1.5 flex items-center justify-between px-2 text-[11px] text-slate-400">
+        <div className="mt-1.5 flex items-center justify-between gap-3 px-2 text-[11px] text-slate-400">
           {/* ★ 价钱写在这一行（2026-10-30 定）：没有一家客服机器人向用户按问收费，所以收的话必须明说；同类付费聊天（星野 / Talkie）
               都是余额条 / 额度条而不是发送键上的角标。每问的数只有 economy.CHAT_TURN_TOKENS 一处（与服务端 config/tokens 逐条相等） */}
           <span>
             <Trans>AI 回答仅供参考，涉及退款与账号的事会转人工 · 每问 {chatPrice}，开着语音另按字计</Trans>
           </span>
-          <button onClick={openSheet} className="text-brand underline underline-offset-2">
+          {/* 不许折行（2026-10-30 模拟器抓到）：左边那句英文加了价钱之后把这颗键挤成三行 */}
+          <button onClick={openSheet} className="flex-none whitespace-nowrap text-brand underline underline-offset-2">
             <Trans>转人工</Trans>
           </button>
         </div>
