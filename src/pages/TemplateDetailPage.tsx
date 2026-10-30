@@ -440,7 +440,7 @@ function OwnerBar({
         disabled={busy}
         className="rounded-full bg-brand px-3.5 py-1.5 text-xs font-bold text-ink disabled:opacity-40"
       >
-        {rs?.provenAt ? t`发布到模板市场` : t`发布（需先试炼）`}
+        {rs?.provenAt ? t`发布到模板市场` : t`发布（需先出一次片）`}
       </button>
     );
   }
@@ -568,7 +568,7 @@ function OwnerBar({
       {blockout && tpl.remoteId && rs?.status !== "blocked" && !tpl.published && (
         <div className="mt-2 rounded-lg bg-black/25 px-2.5 py-2 text-[11px] leading-relaxed text-slate-400">
           {rs?.provenAt ? (
-            <span className="text-ok-300"><Trans>✓ 试炼通过——你已经用这个模板真实出过片，可以发布了。</Trans></span>
+            <span className="text-ok-300"><Trans>✓ 已验证——你已经用这个模板真实出过片，可以发布了。</Trans></span>
           ) : (
             <>
               <Trans>发布前须用本模板<b>真实出过一次片</b>（套用它、挂上角色卡、付费出一段）——这一步能确保套用你模板的人不会白花钱。</Trans>

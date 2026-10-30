@@ -17,6 +17,7 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -234,6 +235,12 @@ public class AppUpdaterPlugin extends Plugin {
                 ret.put("sha256", j.optString("sha256", ""));
                 ret.put("sizeBytes", j.optLong("sizeBytes", 0));
                 ret.put("notes", j.optString("notes", ""));
+                // ★ 2.76 起清单多两格（2026-10-30 发版说明收短）：notesByLang = 当前版按语言分开的说明、history = 最近几版。
+                //   原样透传、不解析（哪一种语言、画几版由 Web 层按界面语言定）；老清单没有就不带，Web 层退回 notes。
+                JSONObject byLang = j.optJSONObject("notesByLang");
+                if (byLang != null) ret.put("notesByLang", byLang);
+                JSONArray history = j.optJSONArray("history");
+                if (history != null) ret.put("history", history);
                 call.resolve(ret);
             } catch (Exception e) {
                 // 检查更新失败**不该打扰用户**（没网、清单还没发都会走到这儿）。

@@ -60,6 +60,7 @@ import {
 } from "../types";
 import { useAccountVersion, useAuthState } from "../hooks/useAccount";
 import { clearStashedCard, peekStashedCard, stashCardForLogin } from "../data/cardHandoff";
+import ConfirmDialog from "../components/ConfirmDialog";
 
 /**
  * 老卡/素材卡没存这段信息时（字段仍叫 genPrompt，跨仓字段不改名），
@@ -335,6 +336,8 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
   const [err, setErr] = useState("");
   const [note, setNote] = useState("");
   const [zoom, setZoom] = useState<number | null>(null);
+  /** 放大层里按了「删掉这张」、还没确认的那一张的下标（2026-10-30 起删前先问一句） */
+  const [removeAsk, setRemoveAsk] = useState<number | null>(null);
   /** 「取舍规则」小窗（hintFor + pipelineNoteFor 的全文搬进去了，见下面那段 ★） */
   const [rulesOpen, setRulesOpen] = useState(false);
   /** 道具卡「只留主体」层（components/PhotoSubjectPicker）开着时：那张图，以及做完之后是「加一格」还是「换掉某一格」 */
@@ -686,7 +689,11 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
                 disabled={busy}
                 onClick={(e) => {
                   e.stopPropagation();
-                  void onRemove(zoom);
+                  // ★ 先问一句（2026-10-30，UX 走查第 15 条）：这张多半是付费画出来的，删了服务端就没了、撤不回来 ——
+                  //   「先删再撤销」只给能原样恢复的东西，花过钱又恢复不了的仍先确认（CLAUDE.md 轻提示那条的口径）
+                  // 先收放大层（z-[70]）再摆确认卡（z-50）：放大层开着时确认卡在它底下，看上去就是「点了没反应」（发版前复核抓到）
+                  setRemoveAsk(zoom);
+                  setZoom(null);
                 }}
                 className="rounded-full bg-danger-500/90 px-4 py-1.5 text-xs font-bold text-white disabled:opacity-40"
               >
@@ -697,6 +704,22 @@ function CardViewsSection({ card, owned }: { card: Card; owned: boolean }) {
           </div>,
           document.body,
         )}
+      {removeAsk !== null && (
+        <ConfirmDialog
+          title={t`删掉这张形象图？`}
+          confirmLabel={t`删掉`}
+          danger
+          busy={busy}
+          onConfirm={() => {
+            const i = removeAsk;
+            setRemoveAsk(null);
+            void onRemove(i);
+          }}
+          onClose={() => setRemoveAsk(null)}
+        >
+          <Trans>删了就没有了，画它花掉的 token 不退。出片时少一张参考图，形象可能没那么像。</Trans>
+        </ConfirmDialog>
+      )}
     </div>
   );
 }
@@ -959,8 +982,8 @@ export default function CardDetailPage() {
             但不等于当初那一张 */}
         <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
           {card.genPrompt
-            ? t`这是铸造这张卡时使用的完整生成提示词。`
-            : t`这张卡没留下铸造时的提示词（老卡/素材卡），上面是按同款格式现补的一份。`}
+            ? t`这是生成这张卡时使用的完整提示词。`
+            : t`这张卡没留下生成时的提示词（老卡/素材卡），上面是按同款格式现补的一份。`}
           {card.type === "character" ? (
             <Trans comment="紧跟在上一句（这段提示词从哪来）后面显示：英文译文开头要留一个空格">把它交给 AI（或在工坊中使用本卡），即可生成与卡面一致的角色画面 / 3D 建模。</Trans>
           ) : (

@@ -425,8 +425,9 @@ export default function PublishPage() {
       ) : null}
 
       <main className="mx-auto grid max-w-6xl gap-6 px-4 py-5 lg:grid-cols-[1.2fr_1fr]">
-        {/* 成片预览 */}
-        <div>
+        {/* 成片预览 —— 手机上排在表单**下面**（2026-10-30，UX 走查第 1 条：标题框原来在首屏之下；抖音发布页也是文案 / 封面在前）；
+            宽屏仍在左栏 */}
+        <div className="order-2 lg:order-1">
           <SegmentPlayer segments={draft.segments} cover={cover || draft.cover} frame="card" rate={1} overlay={null} onFull={null} />
           <div className="mt-2 text-center text-xs text-slate-500"><Trans>成片预览（各段按时间线依次播放）</Trans></div>
           {/* 看完成片还想动片段 / 配乐：回到合并之前接着剪（合并时源段留了底才有这条路，见 canReopenCut） */}
@@ -485,7 +486,7 @@ export default function PublishPage() {
         </div>
 
         {/* 发布表单 */}
-        <div className="space-y-5">
+        <div className="order-1 space-y-5 lg:order-2">
           <div>
             <div className="mb-1.5 text-sm font-semibold text-slate-300"><Trans>标题 *</Trans></div>
             <input
@@ -780,7 +781,13 @@ export default function PublishPage() {
               <Trans>发布后会做三件事：{note}并按<button onClick={() => setAigcOpen(true)} className="text-brand">《AIGC 内容须知》</button>承担发布者责任。<span className="text-slate-500">这项声明不可关闭。</span></Trans>
             </p>
           </div>
-          <div data-guide="publish-actions" className="flex items-center gap-3 pt-2">
+          {/* ★ 主键吸底（2026-10-30，UX 走查第 1 条）：抖音发布页的「发布」就是底部那颗红键；原来它排在十几块内容之后、三四屏外。
+              背景用实色 bg-ink（别加 backdrop-blur：会给 fixed 后代造包含块，见 CLAUDE.md 已知的坑） */}
+          <div
+            data-guide="publish-actions"
+            className="sticky bottom-0 z-10 -mx-4 flex items-center gap-3 border-t border-slate-700/60 bg-ink px-4 pt-2.5"
+            style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))" }}
+          >
             <button
               onClick={() => primary()}
               disabled={!!busy || !!deckIssue}

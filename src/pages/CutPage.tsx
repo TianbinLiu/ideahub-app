@@ -1664,7 +1664,7 @@ export default function CutPage() {
           tl.issue === "no-video"
             ? // ★ 渐变段（没出片、只有首尾帧）这条路做不了：原生拼的是视频，不是两张图。
               //   与其悄悄跳过它（成片里少一段，零报错），不如整句说清楚。
-              t`第 ${segNo} 段还没有视频（只有设定帧），合成做不了——先把这一段炼出来`
+              t`第 ${segNo} 段还没有视频（只有设定帧），合成做不了——先把这一段生成出来`
             : // ★ 分两种情况说，别让一句话指向不存在的出口（`idb:` 那种上面 alreadyMerged 已经拦掉了，
               //   落到这里的只可能是"多段里混着一段本机文件"这种不该出现的形状）
               tl.issue === "local-merged"
@@ -2293,7 +2293,7 @@ export default function CutPage() {
       >
         {busy ? (
           <div className="flex-none px-4 pt-2 text-center text-[11px] leading-relaxed text-slate-400">
-            <Trans>合成中——这里的改动不会进这一炉</Trans>
+            <Trans>合成中——这里的改动不会进这一次合成</Trans>
           </div>
         ) : null}
         {/* 见 presetAudioDrift 的 ★★：合并之前说，此刻改还来得及 */}

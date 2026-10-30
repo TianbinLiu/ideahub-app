@@ -449,7 +449,7 @@ export function draftFinalIssue(node: FlowNode, now = Date.now()): string | null
   const p = chosenOf(node);
   if (draftStageOf(p) !== "draft") return t`这一段现在放的不是样片，没有可以定稿的`;
   // ★ 我们的期限是 7 天差 1 小时（DRAFT_VALID_MS，服务端同一个数）：别说成「过了 7 天」—— 6 天 23 小时半回来的人读到的是一句自相矛盾的话
-  if (draftValidLeft(p, now) <= 0) return t`这条样片已经过了定稿期限（方舟的样片只留 7 天，我们在到期前 1 小时停止定稿）——要成片就重新生成（会重新计费）`;
+  if (draftValidLeft(p, now) <= 0) return t`这条样片已经过了定稿期限（样片只留 7 天，我们在到期前 1 小时停止定稿）——要成片就重新生成（会重新计费）`;
   // 定稿只认样片任务号、换不了档：地区挡住时不指「换成哪一档」（() => false，见 account.tierRegionIssue 的 ★★）
   return draftModeIssue(tierOf(draftTierId()), () => false);
 }
@@ -808,15 +808,15 @@ export function nodeRecastable(node: FlowNode): boolean {
  */
 export function recastBlocked(nodes: FlowNode[], nodeId: string): string | null {
   const node = nodes.find((n) => n.id === nodeId);
-  if (!node || !nodeRecastable(node)) return t`这一段已经出片了，退不回铸段窗——想换就删掉这一段再铸`;
+  if (!node || !nodeRecastable(node)) return t`这一段已经出片了，退不回铸段窗——想换就删掉这一段再重做`;
   if (nodes[nodes.length - 1]?.id !== nodeId)
-    return t`这一段后面还有别的段：退回铸段窗重铸只能接在最后。想换这一段的模式，先删掉它后面的几段再退。`;
+    return t`这一段后面还有别的段：退回铸段窗重做只能接在最后。想换这一段的模式，先删掉它后面的几段再退。`;
   const rest = nodes.slice(0, -1);
   const prev = rest[rest.length - 1];
   if (prev && !nodeDone(prev))
-    return t`前一段还没出片：退回铸段窗之后，新铸的段要等前一段炼出来才接得上，这一下就只是把这一段删掉了。先把前一段炼出来再退。`;
+    return t`前一段还没出片：退回铸段窗之后，新做的段要等前一段生成出来才接得上，这一下就只是把这一段删掉了。先把前一段生成出来再退。`;
   const blocked = appendBlocked(rest, null);
-  if (blocked) return t`退回铸段窗之后新铸的段接不上去（${blocked}），这一下就只是把这一段删掉了。`;
+  if (blocked) return t`退回铸段窗之后新做的段接不上去（${blocked}），这一下就只是把这一段删掉了。`;
   return null;
 }
 
@@ -1316,7 +1316,7 @@ export function appendBlocked(nodes: FlowNode[], template: FlowTemplate | null):
 export function appendIssue(s: Pick<FlowState, "nodes" | "template" | "busy">): string | null {
   const fixed = appendIssueStatic(s.nodes, s.template);
   if (fixed) return fixed;
-  if (s.busy || s.nodes.some((n) => n.status === "generating")) return t`有一段正在生成中，等它跑完再铸下一段`;
+  if (s.busy || s.nodes.some((n) => n.status === "generating")) return t`有一段正在生成中，等它跑完再做下一段`;
   return null;
 }
 
@@ -1331,7 +1331,7 @@ export function appendIssueStatic(nodes: FlowNode[], template: FlowTemplate | nu
   const blocked = appendBlocked(nodes, template);
   if (blocked) return blocked;
   const prev = nodes[nodes.length - 1];
-  if (prev && !nodeDone(prev)) return t`先把这一段炼出来，再铸下一段`;
+  if (prev && !nodeDone(prev)) return t`先把这一段生成出来，再做下一段`;
   return null;
 }
 
@@ -1594,7 +1594,7 @@ export function annSkipNote(
   if (plan.why === "unsupported") {
     return {
       tone: "warn",
-      text: t`这一段带着参考视频，出片时不接受圈选改画面——这 ${plan.skipped} 处得先清掉才能开炼（它们也不计费）。`,
+      text: t`这一段带着参考视频，出片时不接受圈选改画面——这 ${plan.skipped} 处得先清掉才能生成（它们也不计费）。`,
     };
   }
   if (plan.why === "carry") {
@@ -2553,7 +2553,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
     // ★ 已出片整句拒：换模板 = 这段成片作废重炼，那笔钱不能被一次点击静默作废。
     //   想换的路仍然开着：先「重新生成」（用户自己按下的重炼）或删除本段重加。
     if (nodeDone(node)) {
-      set({ err: t`这一段已经出片：换模板会作废这段成片。想换就删除本段重加，或先接受重炼这一段的花费` });
+      set({ err: t`这一段已经出片：换模板会作废这段成片。想换就删除本段重加，或先接受重新生成这一段的花费` });
       return false;
     }
     // 延长段 / 文字模板段的做法是固定的（extendLaneLocked / textTplLaneLocked）：套模板整句拒（摘模板那一支对它们本来就是「没套模板」）
@@ -2681,7 +2681,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
     // ★ 与别的动作一样让位给在途生成，但**要说一句**：这一步是用户刚从编辑页点了
     //   「完成挂卡」回来的，静默 return 的表现就是"挂了半天，回来什么都没变"（铁律八）
     if (s0.busy) {
-      set({ err: t`这一段正在生成中，等它跑完再改挂卡（改了也得重炼一次，别白花一次钱）` });
+      set({ err: t`这一段正在生成中，等它跑完再改挂卡（改了也得重新生成一次，别白花一次钱）` });
       return false;
     }
     // ★ 2026-08-20 起"本段"= 光标段：分段模板组一次铺 N 个白模节点，各挂各的卡。
@@ -3018,7 +3018,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
     // ★★ 顺序门禁：推演同样**真花钱**（一次 40~80k），所以这道闸不能只立在 genNode 上
     //   （2026-09-03 复核抓到：工坊在同一块面板上画着 🔒，旁边却摆着一颗能点的付费按钮）。
     if (clampCursor(s0.nodes, idx) !== idx) {
-      set({ err: t`前面还有没炼完的段——先把前面那段炼出来，再推演这一段。` });
+      set({ err: t`前面还有没生成完的段——先把前面那段生成出来，再推演这一段。` });
       return false;
     }
     // ★ 这一段的产线经不经过方案台 —— 一处判据（derivesProposals），两面共用。
@@ -3473,13 +3473,13 @@ export const useFlow = create<FlowState>()((set, get) => ({
         if (blocked) return { err: blocked };
       }
       // 顺序门禁：只能在末尾追加，且上一段必须已出片
-      if (prev && !nodeDone(prev)) return { err: t`先把这一段炼出来，再加下一段` };
+      if (prev && !nodeDone(prev)) return { err: t`先把这一段生成出来，再加下一段` };
       // ★ 生成中也拒（2026-08-21 自查：两个面的 ＋ 本来就 `disabled={busy}`，但 **agent 的
       //   add_segment 绕过 UI 这道闸** —— 闸该在 store，UI 只是把"为什么点不动"画出来。
       //   追加本身不会让 genNode 的写回错位（末尾追加不改前面的下标，而且写回认 id），
       //   但它会把光标从正在炼的那一段拽走，用户眼睁睁看着进度条消失。
       if (s.busy || s.nodes.some((n) => n.status === "generating")) {
-        return { err: t`有一段正在生成中，等它跑完再加下一段（它炼完你才知道下一段从哪一帧接）` };
+        return { err: t`有一段正在生成中，等它跑完再加下一段（它生成完你才知道下一段从哪一帧接）` };
       }
       const i = s.nodes.length;
       // 画幅跟着上一段：一部片里前三段竖、第四段横，剪辑页合并只有一块画布，
@@ -3519,7 +3519,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
         const issue = appendIssue(s);
         if (issue) return { err: issue };
       }
-      if (spec.proposals.length === 0) return { err: t`这一炉一个方案都没有，铸不成段` };
+      if (spec.proposals.length === 0) return { err: t`这一次一个方案都没有，做不成段` };
       const i = s.nodes.length;
       // 落下的这一段长什么样只在 appendedNode 一处（报价 appendQuote 问的是同一个节点）
       const node = appendedNode(s.nodes, spec);
@@ -4189,7 +4189,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
     //   越界抛错 —— 钱已经扣了、成片丢了，用户看到的是一句 JS 异常。
     //   ⚠ 删**别的**段同样拒：genNode 闭包里捏着 idx，删前面的段会让它整体前移，写回就打在另一段上。
     if (s.busy || s.nodes.some((n) => n.status === "generating")) {
-      set({ err: t`有一段正在生成中，等它跑完再删（现在删的话，那一炉的钱照扣、成片会落空）` });
+      set({ err: t`有一段正在生成中，等它跑完再删（现在删的话，那一次的钱照扣、成片会落空）` });
       return;
     }
     const i = s.nodes.findIndex((n) => n.id === id);
@@ -4233,7 +4233,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
     }
     // ★ 与 removeNode 同一道闸：genNode 的闭包里捏着 idx，这时往前面插回一段，回包就写到另一段上（钱扣了、成片落错位）
     if (s.busy || s.nodes.some((n) => n.status === "generating")) {
-      set({ err: t`有一段正在生成中，等它跑完再恢复（现在放回去的话，那一炉的成片会写到别的段上）` });
+      set({ err: t`有一段正在生成中，等它跑完再恢复（现在放回去的话，那一次的成片会写到别的段上）` });
       return false;
     }
     if (s.nodes.some((n) => n.id === trash.node.id)) {
@@ -4476,7 +4476,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
       return false;
     }
     if (s0.busy) {
-      set({ err: t`有一段正在生成，等它跑完再炼下一段` }); // 理由同 deriveProposals 的 ★（不许静默）
+      set({ err: t`有一段正在生成，等它跑完再生成下一段` }); // 理由同 deriveProposals 的 ★（不许静默）
       return false;
     }
     const idx = s0.nodes.findIndex((n) => n.id === id);
@@ -4495,7 +4495,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
     //   ⇒ 闸放进 store：**任何宿主都绕不过去**（agent 那条路也走这儿），
     //   UI 上的 🔒 只是把"为什么点不动"画出来，不是判据本身（铁律六）。
     if (clampCursor(s0.nodes, idx) !== idx) {
-      set({ err: t`前面还有没炼完的段——段与段靠上一段的真实结尾画面接着拍，得按顺序来。先把前面那段炼出来。` });
+      set({ err: t`前面还有没生成完的段——段与段靠上一段的真实结尾画面接着拍，得按顺序来。先把前面那段生成出来。` });
       return false;
     }
     if (nodePicking(node)) {
@@ -4954,7 +4954,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
           //   写死"方舟"会让用户拿着错的词去问客服
           error: atMinimax
             ? t`没接到出片结果，任务可能还在上游那边跑——用下面的「取回」领回来，别重新生成`
-            : t`没接到出片结果，任务可能还在方舟那边跑——用下面的「取回」领回来，别重新生成`,
+            : t`没接到出片结果，任务可能还在出片服务那边跑——用下面的「取回」领回来，别重新生成`,
         });
         // ★ 可行动的那半句在**这里**接上，不在 arkClient 里：那一层不知道调用它的路上
         //   有没有取回入口。而走到这一支就一定落过凭据 —— ArkTaskUnknown 只在任务被

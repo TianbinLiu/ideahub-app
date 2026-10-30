@@ -81,7 +81,7 @@ export default function TutorHomePage() {
         inset
         onBack={back}
         title={t`启梦老师`}
-        subtitle={t`用自己的教材铸一位 AI 老师`}
+        subtitle={t`用自己的教材做一位 AI 老师`}
         right={
           // 一门课都没有时空态里那颗「新建课程」才是主键，顶栏不再重复一颗
           state.kind === "ready" && state.courses.length > 0 ? (
@@ -117,7 +117,7 @@ export default function TutorHomePage() {
           )}
 
           {state.courses.length === 0 ? (
-            <EmptyState emoji="🎓" text={t`还没有课程`} hint={t`传一份 md / txt 讲义，AI 按它铸一位老师，带你按阶段学、自检、复习。`} cta={{ label: t`新建课程`, to: "/tutor/new", primary: true }} />
+            <EmptyState emoji="🎓" text={t`还没有课程`} hint={t`传一份 md / txt 讲义，AI 按它做一位老师，带你按阶段学、自检、复习。`} cta={{ label: t`新建课程`, to: "/tutor/new", primary: true }} />
           ) : (
             <ul className="space-y-3">
               {state.courses.map((c) => (

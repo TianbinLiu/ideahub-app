@@ -33,11 +33,11 @@ export function signOutBlocker(): string | null {
     return t`工坊里还有一步在跑（推演方案 / 重画画面 / 改图，钱已经在花了），等它跑完再退出登录。`;
   }
   // 铸卡师那一炉（forgeCards 只挂 dialog.busy）：离线模式下出炉那一拍按实收扣本机钱包，换了人就扣到别人头上
-  if (s.dialog.busy) return t`铸卡师正在炼卡（出图的钱已经在花了），等这一炉出炉再退出登录，卡才会落在这个账号里。`;
-  if (s.finalizing) return t`正在组稿（铸卡组），等它跑完再退出登录。`;
+  if (s.dialog.busy) return t`铸卡师正在做卡（出图的钱已经在花了），等它做完再退出登录，卡才会落在这个账号里。`;
+  if (s.finalizing) return t`正在组稿（提炼卡组），等它跑完再退出登录。`;
   if (publishInFlight()) return t`作品正在上传，等它传完再退出登录——现在退出的话，要等你再登录这个账号时才会补发。`;
   if (draftBusy(useCardDraft.getState())) {
-    return t`「自己传图做卡片」那一页还有活在跑（AI 出图 / 铸卡），等它跑完再退出登录，卡才会落在这个账号里。`;
+    return t`「自己传图做卡片」那一页还有活在跑（AI 出图 / 做卡），等它跑完再退出登录，卡才会落在这个账号里。`;
   }
   const jobs = runningJobs().filter((j) => j.kind !== "video-download");
   if (jobs.length > 0) {

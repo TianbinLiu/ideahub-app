@@ -712,7 +712,7 @@ function ComposePad() {
       new THREE.MeshBasicMaterial({
         map: composePlateTexture(
           enabled ? t`整片就绪` : t`尚未就绪`,
-          enabled ? t`点亮法阵 · 去剪辑成片` : picked ? t`先炼出当前段的视频` : t`先为当前段挑定一套方案`,
+          enabled ? t`点亮法阵 · 去剪辑成片` : picked ? t`先生成当前段的视频` : t`先为当前段挑定一套方案`,
           enabled,
         ),
         transparent: true,

@@ -123,7 +123,7 @@ function useHint(): string {
   const marketEmpty = useStudio((s) => s.market.open && !s.market.loading && s.market.items.length === 0);
   const spreadOpen = useStudio((s) => s.spreadOpen);
   if (projection === "editor") return t`填入素材与要求，AI 将推演三套走向`;
-  if (projection === "proposals") return t`挑一套方案 → 可换首尾帧/改剧情 → 炼出本段视频`;
+  if (projection === "proposals") return t`挑一套方案 → 可换首尾帧/改剧情 → 生成本段视频`;
   if (projection === "decks") return t`小窗右上角可在「卡组 / 卡片」间切换，单击卡片看详情`;
   if (focus) return t`点击卡片之外的桌面区域可拉远视角`;
   // ★ 空市场不许照念"点桌上的市场卡"——桌上一张都没有（卡片系统 V2 清掉了离线种子），
@@ -133,17 +133,17 @@ function useHint(): string {
   //   起就硬写成 `async () => []`；分享出去的卡落在**服务端广场**（browseSharedCards），
   //   这张桌子根本不去取它 —— 照着做的人会分享一张、回来发现还是空的，然后怀疑分享没成功。
   //   把桌面市场接到广场是另一条工单；在那之前，这句话只说**真的能拿到卡**的那条路。
-  if (marketEmpty) return t`这张桌子上还没有卡——去「创意工坊」的市场装几张，或在「我的仓库」用「从视频提取」现炼`;
+  if (marketEmpty) return t`这张桌子上还没有卡——去「创意工坊」的市场装几张，或在「我的仓库」用「从视频提取」现做`;
   if (marketOpen) return t`点桌上的市场卡放大查看，喜欢就收进卡组`;
-  if (spreadOpen) return t`拖卡片到虚线卡位铸段 · 单点看详情`;
-  if (nodes.length === 0 && deckLen === 0) return t`先把素材交给铸卡师炼卡，或让 TA 摊开市场`;
-  if (nodes.length === 0) return t`点击虚线卡位，铸造第一段视频节点`;
+  if (spreadOpen) return t`拖卡片到虚线卡位做一段 · 单点看详情`;
+  if (nodes.length === 0 && deckLen === 0) return t`先把素材交给铸卡师做卡，或让 TA 摊开市场`;
+  if (nodes.length === 0) return t`点击虚线卡位，做第一段视频`;
   // 「金色圆台」这个说法在圆台改成法阵后就对不上了（它现在暗着的时候是冷灰的）；
   // 统一叫「法阵」，与台前铭牌上的「点亮法阵」同一套词
   if (placeholderVisible(nodes) && composable(nodes)) return t`点虚线卡位延展下一段 · 点亮法阵去剪辑成片`;
   // 虚线卡位没亮 = 当前段还没挑方案或还没出片：把"下一段为什么开不了"说清楚，
   // 不然用户只会觉得桌面少了个卡位
-  return t`点击节点卡：挑定方案并炼出本段视频，才能延展下一段`;
+  return t`点击节点卡：挑定方案并生成本段视频，才能延展下一段`;
 }
 
 // ── 市场翻页箭头：屏幕两侧竖直居中，56px 热区（比卡组那对 36px 的大一圈，
@@ -334,7 +334,7 @@ export default function StudioPage() {
             <button
               aria-disabled
               aria-label={t`给工程起名`}
-              onClick={() => showToast(t`铸出第一段之后就能给这条工程起名`)}
+              onClick={() => showToast(t`做出第一段之后就能给这条工程起名`)}
               className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-panel/50 opacity-45 backdrop-blur"
             >
               <Icon name="pen" size={15} className="text-slate-400" />
@@ -347,9 +347,9 @@ export default function StudioPage() {
           {/* ★ 点不动的理由要**说出来**而不是只写在 title 里（2026-10-10 浏览器走查抓到）：手机 WebView 没有悬停，title 一个字都看不见，
               `disabled` 的键在手机上就是「点了没反应」。所以不设 disabled：空桌面时按下去用轻提示说一句为什么（画成灰的照旧） */}
           <button
-            onClick={() => (hasWork ? setCanvasOpen(true) : showToast(t`桌面还空着——先点虚线卡位铸一段`))}
+            onClick={() => (hasWork ? setCanvasOpen(true) : showToast(t`桌面还空着——先点虚线卡位做一段`))}
             aria-disabled={!hasWork}
-            title={hasWork ? t`工作流画布：同一条流水线的另一面` : t`桌面还空着——先点虚线卡位铸一段`}
+            title={hasWork ? t`工作流画布：同一条流水线的另一面` : t`桌面还空着——先点虚线卡位做一段`}
             aria-label={t`工作流画布`}
             className={`flex h-9 w-9 items-center justify-center rounded-full bg-panel/85 text-slate-100 backdrop-blur ${hasWork ? "" : "opacity-40"}`}
           >

@@ -1945,9 +1945,9 @@ export function refVideoOwnerNote(ref: VideoTemplate["refVideo"]): string | null
   // ★ 有没有秒数两句整话分开写（原来把「只有约 N 秒，」当片段拼进去，英文拼不成句）
   if (typeof sec === "number" && Number.isFinite(sec) && sec > 0) {
     const shown = Math.floor(sec * 10) / 10;
-    return t`这个模板的白模视频只有约 ${shown} 秒，不满足 AI 出片引擎要求的 ${min}~${max} 秒，所以它没法用来出片，也不能发布。这是我们当时的校验漏掉了，不是你操作错了——你之前那几次试炼失败都没有扣费。请重新做一个模板：框选时至少选 ${floor} 秒（AI 换白模时会把成片截短零点几秒，得留出这个余量）。`;
+    return t`这个模板的白模视频只有约 ${shown} 秒，不满足 AI 出片引擎要求的 ${min}~${max} 秒，所以它没法用来出片，也不能发布。这是我们当时的校验漏掉了，不是你操作错了——你之前那几次出片失败都没有扣费。请重新做一个模板：框选时至少选 ${floor} 秒（AI 换白模时会把成片截短零点几秒，得留出这个余量）。`;
   }
-  return t`这个模板的白模视频不满足 AI 出片引擎要求的 ${min}~${max} 秒，所以它没法用来出片，也不能发布。这是我们当时的校验漏掉了，不是你操作错了——你之前那几次试炼失败都没有扣费。请重新做一个模板：框选时至少选 ${floor} 秒（AI 换白模时会把成片截短零点几秒，得留出这个余量）。`;
+  return t`这个模板的白模视频不满足 AI 出片引擎要求的 ${min}~${max} 秒，所以它没法用来出片，也不能发布。这是我们当时的校验漏掉了，不是你操作错了——你之前那几次出片失败都没有扣费。请重新做一个模板：框选时至少选 ${floor} 秒（AI 换白模时会把成片截短零点几秒，得留出这个余量）。`;
 }
 
 // ── 模板是哪一种：白模 / 文字 / 经典配方 ──────────────────────────────
@@ -2952,7 +2952,7 @@ async function waitBlockoutTask(taskId: string, prog: (s: string) => void): Prom
     // expired（超过 execution_expires_after 被方舟终止）也是终态：原来不认它，这里会一直等到 12 分钟再说「没接到」
     if (st.status === "failed" || st.status === "cancelled" || st.status === "expired") return { kind: "failed" };
   }
-  return { kind: "unknown", note: t`等了 12 分钟还没出片（任务还在方舟那边跑，不是失败）。` };
+  return { kind: "unknown", note: t`等了 12 分钟还没出片（任务还在出片服务那边跑，不是失败）。` };
 }
 
 /**
@@ -3009,7 +3009,7 @@ function adoptRemoteTemplate(api: branch.ApiBranchTemplate, missingRefMsg: strin
 function adoptBlockoutTemplate(api: branch.ApiBranchTemplate): VideoTemplate {
   return adoptRemoteTemplate(
     api,
-    t`结果取回来了，但服务器返回的模板缺少参考视频地址——钱在开炼那一步已经付过，请去「我的模板」确认后再决定要不要重来。`,
+    t`结果取回来了，但服务器返回的模板缺少参考视频地址——钱在提交那一步已经付过，请去「我的模板」确认后再决定要不要重来。`,
   );
 }
 
@@ -3042,16 +3042,16 @@ async function takeBlockoutResult(job: BlockoutJob, prog: (s: string) => void): 
       const why = out.note;
       const left = blockoutJobNote(job);
       throw new Error(
-        t`${why}这一发的钱已经付过了，结果没有丢——${left}「我的模板」页顶部的「还没取回结果」那一栏随时可以继续取，别重新开炼（那是再花一次钱）。`,
+        t`${why}这一发的钱已经付过了，结果没有丢——${left}「我的模板」页顶部的「还没取回结果」那一栏随时可以继续取，别重新提交（那是再花一次钱）。`,
       );
     }
     if (out.kind === "failed") {
       // 方舟说失败了，但**扣没扣钱只有服务端说得准**（客户端报的数不作数）——
       // 照样走 finish，让服务端核实、结案，并给出那句权威的整话
-      prog(t`方舟报这一发没能出片，正在向服务器核实到底怎么回事…`);
+      prog(t`出片服务报这一发没能出片，正在向服务器核实到底怎么回事…`);
     }
   }
-  prog(t`正在取回结果：服务端会自己向方舟核实，再把产物转存下来（这一步不额外花钱）…`);
+  prog(t`正在取回结果：服务端会自己向出片服务核实，再把产物转存下来（这一步不额外花钱）…`);
   const res = await finishAndSync(job.jobId);
   dropPendingJob(job.jobId);
   prog(t`白模模板已生成`);
@@ -3195,7 +3195,7 @@ export async function blockoutizeTemplate(o: BlockoutizeInput): Promise<VideoTem
   if (frameTimes && frameTimes.length > BLOCKOUTIZE_FRAME_MAX) {
     const max = BLOCKOUTIZE_FRAME_MAX;
     const marked = frameTimes.length;
-    throw new Error(t`最多只能指定 ${max} 帧给 AI 看（现在是 ${marked} 帧）——删掉几帧再开炼。`);
+    throw new Error(t`最多只能指定 ${max} 帧给 AI 看（现在是 ${marked} 帧）——删掉几帧再提交。`);
   }
   /** 这一发**要看几帧** —— 报价与下面那句进度话读的是同一个数（唯一实现在 visionFrameCount） */
   const frames = visionFrameCount(durSec, frameTimes);
@@ -3207,7 +3207,7 @@ export async function blockoutizeTemplate(o: BlockoutizeInput): Promise<VideoTem
   // cost === null ⇒ economy.blockoutizeIssue 必然非空（那对函数一一对应，见 economy 的 ★）
   // ⇒ blockoutizeBlockReason 也非空（它把前者当第一道），上面那道门已经拦过 ——
   // 这句只为让类型闭合；真走到这里说明那几个函数分了叉
-  if (cost === null) throw new Error(t`白模化暂时报不出价，先不开炼（价目未就绪）`);
+  if (cost === null) throw new Error(t`白模化暂时报不出价，先不提交（价目未就绪）`);
   if (!canAfford(cost)) {
     const price = fmtTokens(cost);
     throw new Error(

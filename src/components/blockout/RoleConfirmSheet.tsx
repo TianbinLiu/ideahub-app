@@ -311,7 +311,7 @@ export default function RoleConfirmSheet({ t: tpl, onClose }: { t: VideoTemplate
             绝不能连"不用重炼"一起收走。 */}
         <details className="rounded-lg border border-slate-700/70 bg-panel/60">
           <summary className="cursor-pointer list-none px-3 py-2 text-[11px] leading-relaxed text-slate-300">
-            <Trans>▸ 对不上怎么办？<span className="text-slate-500">多数情况删掉那个位子就行，不用重炼</span></Trans>
+            <Trans>▸ 对不上怎么办？<span className="text-slate-500">多数情况删掉那个位子就行，不用重做</span></Trans>
           </summary>
           <div className="space-y-2 px-3 pb-3">
         {ordinal ? (
@@ -320,7 +320,7 @@ export default function RoleConfirmSheet({ t: tpl, onClose }: { t: VideoTemplate
               <Trans>
                 最常见的一种：<b className="font-bold">有个人根本没被换成人偶</b>（还是原来的样子），
                 尤其是画面正中央、看起来最像主角的那一个。这时清单里就多出一个画面上不存在的位子 ——
-                <b className="font-bold">把它删掉就行，不用重炼</b>。
+                <b className="font-bold">把它删掉就行，不用重做</b>。
                 ⚠ 但删完要顺手检查一遍：画面上少了一个人偶，<b className="font-bold">它右边那些人从左数
                 就都要往左挪一位</b>（这一条是按位置指认独有的，编号版没有）。
               </Trans>
@@ -328,7 +328,7 @@ export default function RoleConfirmSheet({ t: tpl, onClose }: { t: VideoTemplate
             <p className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-[11px] leading-relaxed text-sky-200/90">
               <Trans>
                 第二种：<b className="font-bold">相邻两行的位置排反了</b>（清单说他是从左数第 2 个，
-                画面上他其实是第 3 个）。把这两行的位置互换过来就行，同样不用重炼。
+                画面上他其实是第 3 个）。把这两行的位置互换过来就行，同样不用重做。
               </Trans>
             </p>
             <p className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-[11px] leading-relaxed text-sky-200/90">
@@ -345,7 +345,7 @@ export default function RoleConfirmSheet({ t: tpl, onClose }: { t: VideoTemplate
               <Trans>
                 画面上<b className="font-bold">可能有两个人偶印着同一个号</b>，也可能<b className="font-bold">某个号在画面上
                 根本找不到</b>（实测都出现过：一段 5 人素材实出 2/2/1/1/5，3 号和 4 号整个没出现）。
-                这两种<b className="font-bold">都不用重炼</b>：把找不到的那个位子删掉就行，剩下的编号一个都不会变。
+                这两种<b className="font-bold">都不用重做</b>：把找不到的那个位子删掉就行，剩下的编号一个都不会变。
               </Trans>
             </p>
             <p className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-[11px] leading-relaxed text-sky-200/90">
@@ -360,8 +360,8 @@ export default function RoleConfirmSheet({ t: tpl, onClose }: { t: VideoTemplate
         {/* 诚实的边界：不写这句，作者会以为删位是万能的，对着一段全错的白模删到只剩一个 */}
         <p className="px-1 text-[10px] leading-relaxed text-slate-500">
           {ordinal
-            ? t`如果画面上根本数不出这么多人偶，这段白模本身就没做好 —— 删位只能救回一部分，要全对得上只能重炼（要再花一次钱）。`
-            : t`如果画面上大部分号都对不上，这段白模的编号本身就没画好 —— 删位只能救回一部分，要全对得上只能重炼（要再花一次钱）。`}
+            ? t`如果画面上根本数不出这么多人偶，这段白模本身就没做好 —— 删位只能救回一部分，要全对得上只能重做（要再花一次钱）。`
+            : t`如果画面上大部分号都对不上，这段白模的编号本身就没画好 —— 删位只能救回一部分，要全对得上只能重做（要再花一次钱）。`}
         </p>
           </div>
         </details>
@@ -664,7 +664,7 @@ export function RoleConfirmEntry({ t: tpl, compact }: { t: VideoTemplate; compac
           disabled={opening}
           title={
             !pending
-              ? t`改错了不用重炼`
+              ? t`改错了不用重做`
               : ordinal
                 ? t`核对之前不能发布（位置对不上会让别人的角色卡换到别人身上）`
                 : t`核对之前不能发布（编号对不上会让别人的角色卡换到别人身上）`
@@ -739,8 +739,8 @@ export function RoleConfirmEntry({ t: tpl, compact }: { t: VideoTemplate; compac
             {opening
               ? t`正在取最新的角色位…`
               : ordinal
-                ? t`重新核对位置 —— 有个人没被换成人偶？相邻两行排反了？点这里改，不用重炼`
-                : t`重新核对编号 —— 画面上有两个一样的号？有个号找不着？点这里改，不用重炼`}
+                ? t`重新核对位置 —— 有个人没被换成人偶？相邻两行排反了？点这里改，不用重做`
+                : t`重新核对编号 —— 画面上有两个一样的号？有个号找不着？点这里改，不用重做`}
           </span>
         </button>
       )}

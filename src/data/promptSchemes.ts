@@ -579,7 +579,7 @@ export function defaultSchemeFor(o: { realPerson?: boolean; authorized?: boolean
 export function schemeIssue(d: { title?: string; slots?: SchemeSlot[] }): string | null {
   if (!d.title?.trim()) return t`先给这套方案起个名字`;
   const slots = d.slots ?? [];
-  if (slots.length === 0) return t`至少要有一个图位——方案就是「从一张裁剪能炼出哪几张图」`;
+  if (slots.length === 0) return t`至少要有一个图位——方案就是「从一张裁剪能生成哪几张图」`;
   if (slots.length > MAX_CARD_VIEWS)
     return t`一张卡最多存 ${MAX_CARD_VIEWS} 张形象图（服务端也钉着这个数），把图位删到 ${MAX_CARD_VIEWS} 个以内`;
   for (let i = 0; i < slots.length; i++) {

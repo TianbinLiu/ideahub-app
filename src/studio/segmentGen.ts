@@ -246,6 +246,8 @@ function quietVoiced(plot: string, materials?: Card[]): Card[] {
  */
 /* i18n-frozen: 发给视频模型的指令 */
 export const NO_SUBTITLE_LINE = "。台词只用声音说出来，画面上不要出现字幕";
+// i18n-ignore-next-line: 发给视频模型的提示词（与上一句成对：开头一遍、结尾一遍，见 withLineTails）
+export const NO_SUBTITLE_HEAD = "画面上不要出现字幕。";
 /**
  * 示例视频**默认去水印**（2026-10-24 主人点名）：挂了示例视频的段出片时，提示词里多这一句（32 字，从正文额度里扣，与时序点名句同一条纪律）。
  * ★ 只在素材参考那条路（reference 子任务）上说：白模 edit 是逐帧复刻，2026-08-15（F7）实测提示词去不掉台标 —— 那边的解是裁剪框，别把这句加过去。
@@ -508,8 +510,8 @@ export function blockoutIssue(o: {
   const ref = refVideoIssue(o.refVideo);
   if (ref) return ref;
   if (o.anns?.length) return t`白模出片没有设定帧可圈选修改——先删掉圈选标注，想改画面就改那句话`;
-  if (o.firstFrame) return t`白模出片不能带设定首帧（首帧与参考视频在方舟是互斥场景）——清掉这张帧再出片`;
-  if (o.carryFrame) return t`白模段不承接上一段的尾帧（承接帧与参考视频在方舟是互斥场景）——白模模板只有一段`;
+  if (o.firstFrame) return t`白模出片不能带设定首帧（首帧与参考视频是互斥场景）——清掉这张帧再出片`;
+  if (o.carryFrame) return t`白模段不承接上一段的尾帧（承接帧与参考视频是互斥场景）——白模模板只有一段`;
   if (!o.revise && !o.materials?.some((c) => viewsOf(c).length > 0))
     return t`白模出片要先挂一张带形象参考图的角色卡：模板只提供画面与运镜，「换成谁」全靠卡上的形象图`;
   return null;
@@ -1365,7 +1367,7 @@ export function textTplGapsError(gaps: readonly string[]): Error {
 function textTplRefusal<R extends { failure?: unknown; error?: string }>(res: R | undefined, on: boolean): R | undefined {
   const f = res?.failure;
   if (!on || !res || !(f instanceof ArkVideoRefused) || f.input !== "text") return res;
-  const line = t`提示词没过方舟的内容审核——这一段的正文来自文字模板，换图没用：改掉正文里可能被拦的说法再试`;
+  const line = t`提示词没过内容审核——这一段的正文来自文字模板，换图没用：改掉正文里可能被拦的说法再试`;
   return { ...res, failure: new ArkVideoRefused(line, f.status, f.code, f.upstreamCode, line, f.input), error: line };
 }
 
@@ -1490,8 +1492,12 @@ function withLineTails(
     else voiceDropped = true;
   }
   if (subLine) {
-    if (out.length + subLine.length <= cap) out += subLine;
-    else subDropped = true;
+    if (out.length + subLine.length <= cap) {
+      out += subLine;
+      // ★ 开头再说一遍（2026-10-30）：Seedance 2.5 官方指南把约束写在提示词**开头与结尾各一遍**来强化注意力（它对音频约束明说，
+      //   示例里【视频约束】也排在最前）；10-03 两次付费验证里只放结尾那句没压住字幕。接得下才接，接不下照旧只留结尾那句
+      if (out.length + NO_SUBTITLE_HEAD.length <= cap) out = NO_SUBTITLE_HEAD + out;
+    } else subDropped = true;
   }
   return { plot: out, voiceDropped, subDropped };
 }
@@ -1817,7 +1823,7 @@ export async function generateSegment(
     if (blockout) {
       // 跑得了白模模板的那一档只问 economy.blockoutTier（唯一实现），别写死「电影级」
       const bt = blockoutTier()?.label ?? "";
-      throw new Error(t`白模模板出片只在方舟档（真人档没有 r2v 能力）——这一段换回「${bt}」档，或换掉模板`);
+      throw new Error(t`白模模板出片只在能跑白模模板的档（真人档没有参考视频能力）——这一段换回「${bt}」档，或换掉模板`);
     }
     if (input.anns.length) throw new Error(t`真人档暂不支持圈选改画面（改图引擎会拒收真人脸）——清掉圈选标注再出片`);
     // 文字模板段的图位靠参考图发、正文可能比 400 长：这一档两样都接不住。这里是出片那一拍的最后一道（一分没花）——

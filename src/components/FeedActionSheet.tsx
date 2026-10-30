@@ -37,6 +37,7 @@ export default function FeedActionSheet({
   host,
   onSaveLocal,
   block,
+  onNotInterested,
 }: {
   video: VideoItem;
   /** 自己的作品：不摆举报 */
@@ -59,6 +60,11 @@ export default function FeedActionSheet({
   onSaveLocal: (() => void) | null;
   /** 拉黑作者那一行（详情页传，首页传 null —— 首页的拉黑在作者主页）。BlockButton 自己判摆不摆 */
   block: { userId: string; userName: string } | null;
+  /**
+   * 「不感兴趣」（2026-10-30；抖音 / TikTok 的长按菜单与分享面板都有）。null = 不摆：自己的作品、没登录、离线、
+   * 服务端没有 videoHide 能力位（点了什么都不会变的选项不摆）—— 判在宿主（FeedPage）。
+   */
+  onNotInterested: (() => void) | null;
 }) {
   const { t } = useLingui();
   const canSave = downloadSupport().ok && !!onSaveLocal;
@@ -132,6 +138,23 @@ export default function FeedActionSheet({
                   <Icon name="chevron" size={12} />
                 </span>
               )}
+            </button>
+          )}
+          {onNotInterested && (
+            <button
+              onClick={() => {
+                onClose();
+                onNotInterested();
+              }}
+              className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm text-slate-200 active:bg-white/5"
+            >
+              <Icon name="close" size={18} className="text-slate-400" />
+              <span className="min-w-0 flex-1">
+                <Trans>不感兴趣</Trans>
+              </span>
+              <span className="text-[11px] text-slate-400">
+                <Trans>这条不再出现</Trans>
+              </span>
             </button>
           )}
           <ReportButton row targetType="video" targetId={video.id} mine={mine} />

@@ -45,6 +45,10 @@ export interface ServerCaps {
    * 而这份能力位记一整场会话；地区由 data/videoZone 另问、另记。老服务端没有这一位 = 地区不知道，照今天的样子摆。
    */
   videoZone: boolean;
+  /** 有 POST/DELETE /api/branch/videos/:id/hide（「不感兴趣」，2026-10-30）。见不到就不摆那一行 —— 点了什么都不会变的选项不摆 */
+  videoHide: boolean;
+  /** 用户资料带 ipRegion（IP 属地，2026-10-30）。见不到就不画那一行 */
+  ipRegion: boolean;
   /**
    * 这台服务端开着 MiniMax H3（V2）出片（`POST /api/minimax/v2/video`，健康端点的 `minimaxV2`，2026-10-26 出片地区 P2b）。
    * 服务端只在 MiniMax 走国际站时为真（没有单独的开关）；为假时那条路回 501 MINIMAX_V2_OFF。老服务端没有这一位 = 没有。
@@ -69,6 +73,8 @@ export type BoolCap =
   | "imageGroups"
   | "clientEvents"
   | "videoZone"
+  | "videoHide"
+  | "ipRegion"
   | "minimaxV2"
   | "minimaxV2FreeTextOnly";
 
@@ -89,6 +95,8 @@ function capsOf(j: Record<string, unknown>): ServerCaps {
     freeVideo: j.freeVideoGate === false ? "legacy" : list,
     clientEvents: j.clientEvents === true,
     videoZone: j.videoZone === true,
+    videoHide: j.videoHide === true,
+    ipRegion: j.ipRegion === true,
     minimaxV2: j.minimaxV2 === true,
     minimaxV2FreeTextOnly: j.minimaxV2FreeTextOnly !== false,
   };
@@ -108,6 +116,8 @@ const NONE: ServerCaps = {
   freeVideo: null,
   clientEvents: false,
   videoZone: false,
+  videoHide: false,
+  ipRegion: false,
   minimaxV2: false,
   minimaxV2FreeTextOnly: true,
 };
@@ -127,6 +137,8 @@ const ALL: ServerCaps = {
   freeVideo: null,
   clientEvents: false,
   videoZone: false,
+  videoHide: false,
+  ipRegion: false,
   minimaxV2: false,
   minimaxV2FreeTextOnly: true,
 };

@@ -46,6 +46,8 @@ export interface User {
   /** emoji 或 dataURL */
   avatar: string;
   bio: string;
+  /** IP 属地（2026-10-30）：服务端 /api/auth/me 给的粒度（国家码 + 境内省名）；离线账号 / 老服务端没有，个人页那一行就不画 */
+  ipRegion?: { country: string; region: string };
   /** 关注的用户 id/作者名（本地账号阶段用作者名，接 server 后换 id） */
   following: string[];
   /** 收藏的视频 id（老账号可能缺字段，读写处 ??= 兜底） */
@@ -3122,6 +3124,8 @@ function toLocalUser(u: authApi.ApiUser): User {
     name: u.displayName || u.username || "我",
     avatar: u.avatarUrl || AVATARS[0],
     bio: u.bio ?? "",
+    // IP 属地（2026-10-30）：/me 给的粒度原样带；老服务端 / null 就没有这一格
+    ...(u.ipRegion && u.ipRegion.country ? { ipRegion: { country: u.ipRegion.country, region: u.ipRegion.region || "" } } : {}),
     following: [],
     // ★ 这一行以前是漏的：服务端明明返回了 role，映射时被整个丢掉，于是 App 侧
     //   对"我是不是管理员"一无所知。缺省保持 undefined（不补 "user"）—— isAdmin()

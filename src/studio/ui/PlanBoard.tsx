@@ -361,6 +361,10 @@ export default function PlanBoard({
                         );
                       })}
                     </div>
+                    {/* 「为什么灰着」写在行下面，不只在 title 里（手机没有 hover；2026-10-30 UX 走查第 14 条） */}
+                    {minSec !== undefined && durations.some((d) => d < minSec) && (
+                      <p className="text-[10px] leading-relaxed text-slate-500">{t`这一档最短 ${minSec} 秒，更短的点不了`}</p>
+                    )}
                     {/* 「按修改重画」只重画画面，不重写剧情——剧情是用户刚敲的字。参考图直出段不画帧，这颗键不摆 */}
                     {!direct && (
                     <button

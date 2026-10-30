@@ -171,7 +171,7 @@ export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: st
             /* ★ 与线性视图同一道闸（那边是 disabled={busy}）：生成期间圈的标注会被
                这次出片成功时的 patchNode({anns: []}) 整表抹掉 —— 存了等于没存，且零提示 */
             disabled={ann === "loading" || busy || node.status === "generating"}
-            title={busy || node.status === "generating" ? t`这一段正在生成，炼完再圈` : undefined}
+            title={busy || node.status === "generating" ? t`这一段正在生成，生成完再圈` : undefined}
             className="flex-none rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-200 disabled:opacity-40"
           >
             {ann === "loading" ? <Trans>取帧中…</Trans> : <Trans>⭕ 圈选改画面</Trans>}
@@ -329,7 +329,7 @@ export default function SegPlayer({ nodeId, onClose, onOpenPanel }: { nodeId: st
             <Trans>这一段现在选中的走向还没有成片</Trans>
             <br />
             <span className="text-[11px] text-slate-500">
-              <Trans>多半是刚换过走向或重推了方案。挑回原来那一套（或炼完这一套）就能回看</Trans>
+              <Trans>多半是刚换过走向或重推了方案。挑回原来那一套（或生成完这一套）就能回看</Trans>
             </span>
           </p>
         ) : failed ? (

@@ -46,7 +46,7 @@ const MODES: Mode[] = [
     emoji: "🎴",
     title: msg`工坊模式`,
     tag: msg`完整作品`,
-    desc: msg`在 3D 铸卡桌面上摆素材卡，AI 每段推演三套走向，挑一套炼一段，逐段往下铺；顶栏「🧩 工作流画布」把同一条流水线换成画布那一面。`,
+    desc: msg`在 3D 铸卡桌面上摆素材卡，AI 每段推演三套走向，挑一套生成一段，逐段往下铺；顶栏「🧩 工作流画布」把同一条流水线换成画布那一面。`,
     // 第三条原来写的是「3D 桌面与工作流画布是同一条流水线的两个面」—— 那是实现，不是用户能得到的东西（2026-10-14 UX 课收口）
     bullets: [msg`用素材卡定人物场景，全片一致`, msg`每段三选一，可回头改`, msg`每出一段自动存草稿，随时接着做`],
     cover: "/create/studio.jpg",
@@ -266,10 +266,11 @@ export default function CreatePage() {
             onClick={() => setTurns((n) => n + 1)}
             aria-label={t`翻到${otherTitle}`}
             title={t`翻到${otherTitle}`}
-            className="absolute -top-2 right-1 z-10 flex items-center gap-1.5 rounded-full bg-black/55 px-3 py-2 text-white backdrop-blur transition active:scale-95"
+            className="absolute -top-2 right-1 z-10 flex min-h-[44px] items-center gap-1.5 rounded-full bg-black/55 px-3.5 py-2 text-white backdrop-blur transition active:scale-95"
           >
             <Icon name="replay" size={16} />
-            <span className="text-[11px] font-semibold">{otherTitle}</span>
+            {/* 字号 11 → xs、命中区 44px（2026-10-30，UX 走查第 7 条：首次上手最快的那条路只靠这一颗钮） */}
+            <span className="text-xs font-semibold">{otherTitle}</span>
           </button>
         </div>
       </div>

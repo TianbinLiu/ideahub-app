@@ -74,6 +74,8 @@ export interface PersonaSummary {
   price: number;
   shared: boolean;
   author: PersonaAuthor;
+  /** 人格的开场白（服务端 personaAccess 的摘要带它；老服务端 / 没写就没有）。客服页第一句用它，见 SupportPage 的 personaGreeting */
+  greeting?: string;
 }
 
 /**

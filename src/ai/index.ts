@@ -47,7 +47,7 @@ export const recognizeCardSubject: typeof real.recognizeCardSubject = AI_REAL
   ? real.recognizeCardSubject
   : async (o) => ({
       name: o.type === "prop" ? t`演示道具` : t`演示场景`,
-      summary: t`演示模式的占位文案：配好方舟密钥后，这里会照着照片写`,
+      summary: t`演示模式的占位文案：配好 AI 服务密钥后，这里会照着照片写`,
       idLine: "",
       tags: [],
       hasPeople: false,

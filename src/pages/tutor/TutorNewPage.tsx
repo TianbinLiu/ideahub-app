@@ -149,10 +149,10 @@ export default function TutorNewPage() {
     setBusy(true);
     try {
       await startGenerateJob(course.id, q, {
-        title: t`铸老师 · ${title.trim() || course.title}`,
+        title: t`做老师 · ${title.trim() || course.title}`,
         progressOf: (p) => (p ? `${p.message || p.step} ${p.total ? `${p.done}/${p.total}` : ""}`.trim() : t`排队中…`),
-        done: t`老师铸好了，可以上课了`,
-        failed: (why) => t`老师没铸成：${why}`,
+        done: t`老师做好了，可以上课了`,
+        failed: (why) => t`老师没做成：${why}`,
         timeout: t`生成超过 30 分钟还没结束，去课程列表看看`,
       });
     } catch (e) {
@@ -219,7 +219,7 @@ export default function TutorNewPage() {
             <select value={license} onChange={(e) => setLicense(e.target.value as LicenseSource)} className={inputCls}>
               {LICENSES.map((s) => <option key={s} value={s}>{licenseLabel(s)}</option>)}
             </select>
-            <p className="mt-1.5 text-[11px] leading-relaxed text-slate-500"><Trans>「不确定」的教材可以自己学，铸出的老师不能发布到市场。</Trans></p>
+            <p className="mt-1.5 text-[11px] leading-relaxed text-slate-500"><Trans>「不确定」的教材可以自己学，做出的老师不能发布到市场。</Trans></p>
           </div>
           <input ref={fileRef} type="file" accept=".md,.txt,text/markdown,text/plain" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void addFile(f); }} />
           <button onClick={() => fileRef.current?.click()} disabled={!!uploading} className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:opacity-40">{uploading ? `${uploading.name} · ${phaseText(uploading)}` : t`选一份 .md / .txt`}</button>
@@ -292,7 +292,7 @@ export default function TutorNewPage() {
               <>
                 <ul className="space-y-0.5 text-xs text-slate-300">{quote.quote.lines.map((l, i) => <li key={i}>{l.why} × {l.n} · {l.each} token</li>)}</ul>
                 <div className="mt-1.5 text-sm font-semibold text-slate-100">{quote.demo ? t`演示模式：免费` : t`合计约 ${quote.quote.total} token`}</div>
-                <p className="mt-1 text-[11px] leading-relaxed text-slate-500"><Trans>受理那一刻按整份报价扣；生成要几十秒到几分钟，可以退出这一页，铸好了会通知你。</Trans></p>
+                <p className="mt-1 text-[11px] leading-relaxed text-slate-500"><Trans>受理那一刻按整份报价扣；生成要几十秒到几分钟，可以退出这一页，做好了会通知你。</Trans></p>
               </>
             ) : quote && quote.stages === 0 ? (
               <Warn><Trans>这门课还没有可用的教材文本，回上一步传一份。</Trans></Warn>
@@ -303,9 +303,9 @@ export default function TutorNewPage() {
           {gen && (
             <div className={`rounded-lg border px-3 py-2 text-xs leading-relaxed ${gen.status === "failed" ? "border-danger-500/40 bg-danger-500/10 text-danger-200" : "border-sky-500/40 bg-sky-500/10 text-sky-200"}`}>
               {gen.status === "failed" ? (
-                <>{t`老师没铸成：${gen.error || "?"}`}{gen.failures.length > 0 && <div className="mt-1 text-[11px] text-danger-300">{gen.failures.join("；")}</div>}</>
+                <>{t`老师没做成：${gen.error || "?"}`}{gen.failures.length > 0 && <div className="mt-1 text-[11px] text-danger-300">{gen.failures.join("；")}</div>}</>
               ) : gen.status === "succeeded" ? (
-                t`铸好了，正在进教室…`
+                t`做好了，正在进教室…`
               ) : (
                 <span className="inline-flex items-center gap-2"><Spinner size="xs" />{gen.progress ? `${gen.progress.message || gen.progress.step} ${gen.progress.total ? `${gen.progress.done}/${gen.progress.total}` : ""}` : t`排队中…`}</span>
               )}

@@ -68,7 +68,8 @@ import {
   retryPendingPublishes,
   type AuthorWorks,
 } from "../data/videos";
-import { getUser, userDisplayName, type ApiUserProfile } from "../api/users";
+import { getUser, ipRegionLabel, userDisplayName, type ApiUserProfile } from "../api/users";
+import { activeLang } from "../i18n/switch";
 import { MAX_DRAFTS, type WorkDraftMeta } from "../data/drafts";
 import { useDrafts, useDraftsLoad } from "../hooks/useDrafts";
 import { DraftsUnavailable, LocalStoreBanner } from "../components/LocalStoreIssue";
@@ -95,7 +96,7 @@ import { cardsLoadIssue,
 import { fetchOrder, fetchPayConfig, type PlayCatalogItem } from "../api/wallet";
 import { PlayBilling, playBillingAvailable, type PlayProduct } from "../utils/playBilling";
 import { API_ON } from "../api/client";
-import { PLANS, RECHARGE_PACKS, fmtTokens } from "../data/economy";
+import { CHAT_TURN_TOKENS, IMAGE_TOKENS, PLANS, RECHARGE_PACKS, fmtTokens, perSecTokensOf, priceTag, tierOf } from "../data/economy";
 import { notificationsState, refreshUnreadCount, subscribeNotifications } from "../data/notifications";
 import { useAccountVersion, useAuthState, useCurrentUser } from "../hooks/useAccount";
 import { useBackOr } from "../hooks/useBackOr";
@@ -510,7 +511,7 @@ export default function ProfilePage() {
     drafts: { icon: "pen", label: t({ message: "草稿", context: "主页页签：我存下的那些草稿（名词，整个页签的名字；不是某一条的「草稿」状态角标）" }), n: drafts.length },
     cards: { icon: "card", label: t`卡片`, n: cards.length },
     decks: { icon: "cards", label: t`卡组`, n: self ? decks.length : workDecks.length },
-    collects: { icon: "bookmark", label: t({ message: "收藏", context: "主页页签：我收藏的作品（名词，不是收藏键）" }), n: collects.length },
+    collects: { icon: "star", label: t({ message: "收藏", context: "主页页签：我收藏的作品（名词，不是收藏键）" }), n: collects.length },
   };
   // 我的页五个页签全列（空的那几个是创作入口，本身就有用）；
   // 别人的页只列真有东西的，否则点进去是个死胡同
@@ -786,6 +787,16 @@ export default function ProfilePage() {
             </p>
           )
         )}
+        {/* IP 属地（2026-10-30，《互联网用户账号信息管理规定》第十二条：账号信息页面展示 IP 归属地；境内到省、境外到国家 / 地区是行业做法）。
+            服务端算、这里只画；老服务端 / 没算过时字段没有，整行不画 —— 别编一个 */}
+        {(() => {
+          const r = self ? user?.ipRegion : stranger.profile?.ipRegion;
+          return r ? (
+            <p className="mt-1.5 text-center text-[11px] text-slate-500">
+              <Trans>IP 属地：{ipRegionLabel(r, activeLang())}</Trans>
+            </p>
+          ) : null;
+        })()}
 
         {/* token 钱包：生成视频/解锁付费内容的通货。套餐额度优先扣，add-on（直充 / 新人额度 / 创作收益）不过期。
             ★ 入口按 `self` 显示而**不是** `wallet &&`：远端模式下 walletOf() 在
@@ -848,8 +859,19 @@ export default function ProfilePage() {
                 </>
               )}
             </div>
-            <span className="rounded-full bg-brand px-3 py-1.5 text-xs font-bold text-ink"><Trans>充值 / 套餐</Trans></span>
+            {/* 退成次级键（2026-10-30，UX 走查第 4 条）：个人页首屏唯一的实底键不该是「充值」，创作与草稿才是这一页的主事 */}
+            <span className="rounded-full bg-panel px-3 py-1.5 text-xs font-semibold text-slate-100 ring-1 ring-slate-700"><Trans>充值 / 套餐</Trans></span>
           </button>
+        )}
+        {/* ★ token 是什么、一下大约花多少（2026-10-30，UX 走查第 18 条）：App 里从没解释过这个词。三个数都从 economy 现取
+            （与真扣同一处），别抄字面量；可灵 / 即梦都有一页「积分怎么算」，我们先给一行 */}
+        {self && !billingExempt() && (
+          <p className="mt-1.5 px-1 text-[11px] leading-relaxed text-slate-500">
+            <Trans>
+              token 是 App 里唯一的计量单位：问一次 AI 客服 {priceTag(CHAT_TURN_TOKENS)}，画一张画面约 {priceTag(IMAGE_TOKENS)}，高清出 5 秒片约{" "}
+              {priceTag(perSecTokensOf(tierOf("hd")) * 5)}。按钮上的 ⚡ 就是这一下要花的数。
+            </Trans>
+          </p>
         )}
       </div>
 
@@ -1165,7 +1187,7 @@ function CutSessionBanner() {
     <div className="mx-3 mt-3 rounded-xl border border-slate-700/70 border-l-2 border-l-cyan-400/80 bg-panel p-3">
       <div className="text-xs font-semibold text-slate-100"><Trans>有一条剪到一半的成片</Trans></div>
       <p className="mt-1 text-[11px] leading-relaxed text-slate-300">
-        {deckCount > 0 ? <Trans>{segCount} 段 · 卡组 {deckCount} 张已经铸好 · {when}</Trans> : <Trans>{segCount} 段 · {when}</Trans>}
+        {deckCount > 0 ? <Trans>{segCount} 段 · 卡组 {deckCount} 张已经做好 · {when}</Trans> : <Trans>{segCount} 段 · {when}</Trans>}
         {/* ★ 这句要说清"为什么值得回去"：里面是**已经花过钱**的东西 */}
         <br />
         <span className="text-slate-400"><Trans>这些是已经花过 token 生成的内容，丢掉就得重做一遍。</Trans></span>

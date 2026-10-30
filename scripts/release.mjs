@@ -284,6 +284,65 @@ function git(...args) {
   }
 }
 
+/**
+ * 更新弹窗里的「这一版改了什么」—— 从 RELEASE_NOTES.md 里**只取这一版**那两节（2026-10-30 起）。
+ *
+ * ★★ 为什么不再整份塞进清单：2.75 发版后在模拟器上看到弹窗里是 2.62 起全部 14 版、约 19,700 字塞在一个小滚动框里，
+ *   每一版都中文在前，英文手机上要翻到第二屏才看到自己的语言。同类 App 的更新说明全都只写当前这一版、几十到一百多字
+ *   （抖音 / 微信 / 快手 / TikTok / CapCut 的商店页逐条看过），Google Play 与华为应用市场对这段文字的上限都是每种语言 500 字；
+ *   NN/g 的意见是「What's new 要关得掉、以后找得回」—— 找得回那一半交给 history（App 设置页「更新记录」）。
+ * ★ 清单上三格一起写：`notes`（老 App 只认它：这一版的中英两节，与从前同形）、`notesByLang`（新 App 按界面语言只画一种）、
+ *   `history`（最近 HISTORY_MAX 版：新 App 的「你跳过的几版」+「更新记录」）。老包、服务端（`withApkBase` 原样展开 body）都不用认识新的两格。
+ * ★ 这一版在文件里没有自己那一节就当场停：发版说明忘了写不该等用户在弹窗里看到上一版的话才发现（--dry 也走这里）。
+ * ★ 每种语言超过 500 字只提醒不拦：那是商店的上限，我们的弹窗是滚动框；提醒是因为同类都写得比这短得多。
+ * 文件的形状：`启梦 X.YZ` / `QiMeng X.YZ` 两种标题行各起一节，新版在上。
+ */
+const HISTORY_MAX = 8;
+const NOTES_SOFT_MAX = 500;
+function releaseNotesFor(text, versionName, versionCode) {
+  const sections = new Map(); // versionName → { zh, en }（按文件顺序，新版在前）
+  let cur = null;
+  for (const raw of text.replace(/\r\n/g, "\n").split("\n")) {
+    const m = /^(启梦|QiMeng)\s+(\d+\.\d+)\s*$/.exec(raw);
+    if (m) {
+      const key = m[2];
+      if (!sections.has(key)) sections.set(key, { zh: "", en: "" });
+      cur = { key, lang: m[1] === "启梦" ? "zh" : "en" };
+      continue;
+    }
+    if (cur) sections.get(cur.key)[cur.lang] += raw + "\n";
+  }
+  for (const s of sections.values()) {
+    s.zh = s.zh.trim();
+    s.en = s.en.trim();
+  }
+  const mine = sections.get(versionName);
+  if (!mine || !mine.zh) die(`RELEASE_NOTES.md 里没有「启梦 ${versionName}」这一节 —— 先把这一版的更新说明写上（中英各一节）`);
+  if (!mine.en) console.log(`⚠ RELEASE_NOTES.md 里没有「QiMeng ${versionName}」—— 英文界面的更新弹窗会退回中文`);
+  for (const [lang, s] of Object.entries(mine)) {
+    if (s.length > NOTES_SOFT_MAX) console.log(`⚠ ${versionName} 的 ${lang} 更新说明 ${s.length} 字，超过 ${NOTES_SOFT_MAX}（同类 App 都在 200 字以内）`);
+  }
+  const notes = [`启梦 ${versionName}`, "", mine.zh, "", `QiMeng ${versionName}`, "", mine.en].join("\n").trim();
+  const history = [];
+  for (const [name, s] of sections) {
+    if (history.length >= HISTORY_MAX) break;
+    let code = name === versionName ? versionCode : 0;
+    // 本地日期（与老版本从 tag 读的 %cs 同一口径）：toISOString 是 UTC，中国晚上发版会写成前一天
+    let date = name === versionName ? new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10) : "";
+    if (name !== versionName) {
+      // 老版本的号与日期从 tag 上读；tag 不在（历史上漏打过的）就留空，App 那边按名字排、不拿 0 去比
+      try {
+        code = Number(/versionCode\s+(\d+)/.exec(git("show", `v${name}:android/app/build.gradle`))?.[1] ?? 0);
+        date = git("log", "-1", "--format=%cs", `v${name}`).trim();
+      } catch {
+        /* 没这个 tag */
+      }
+    }
+    history.push({ versionName: name, versionCode: code, date, zh: s.zh, en: s.en });
+  }
+  return { notes, notesByLang: { zh: mine.zh, en: mine.en }, history };
+}
+
 /** build-tools 里的 aapt2；不在就 null（第 2c 步只提醒不拦：核不了 ≠ 漂了，但要当面说） */
 function aapt2Bin(bt) {
   for (const n of ["aapt2", "aapt2.exe"]) {
@@ -672,6 +731,9 @@ async function main() {
   if (!/^[\w.-]+$/.test(versionName)) die(`versionName 里有文件名不该有的字符：${versionName}`);
   const tag = `v${versionName}`;
   console.log(`\n准备发布 ${tag}（versionCode ${versionCode}）\n`);
+  // 更新说明在第 0 步就读（2026-10-30 复核）：这一版那一节没写要在出包、上传之前就停，不是走到写清单那一步才停
+  const notesFile = path.join(root, "RELEASE_NOTES.md");
+  const notesPack = releaseNotesFor(fs.existsSync(notesFile) ? fs.readFileSync(notesFile, "utf8") : "", versionName, versionCode);
 
   // ── 0. 这个 tag 发过没有（好几步都按它分叉：重跑 = 把上次那一版验证完，不是发新版）──
   let exists = false;
@@ -841,9 +903,7 @@ async function main() {
 
   // ── 5. 写清单 ────────────────────────────────────────────
   const apkBuf = fs.readFileSync(APK);
-  const notesFile = path.join(root, "RELEASE_NOTES.md");
-  const notes = fs.existsSync(notesFile) ? fs.readFileSync(notesFile, "utf8").trim() : "";
-  if (!notes) console.log("⚠ 没有 RELEASE_NOTES.md —— 更新弹窗里将没有「这一版改了什么」");
+  const { notes, notesByLang, history } = notesPack;
   // ⚠ tag（v<versionName>）与这个资产名 App 里也照着拼了一份：强制更新时的 GitHub 备用下载（src/data/appUpdate.githubApkUrl）——
   //   清单经服务端转手时 apkUrl 被改写成镜像地址，App 拿不到下面这个原值。这里改名，那边一起改
   const apkAsset = `qimeng-${versionName}.apk`;
@@ -854,6 +914,8 @@ async function main() {
     sizeBytes: apkBuf.length,
     sha256: sha256(apkBuf),
     notes,
+    notesByLang,
+    history,
     // 0 = 不强制：不写这一格（与老清单同形，老包、服务端都不用认识它）
     ...(minVersionCode > 0 ? { minVersionCode } : {}),
   };

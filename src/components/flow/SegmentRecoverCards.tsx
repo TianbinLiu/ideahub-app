@@ -224,7 +224,7 @@ export function SegmentRecoverCard({ job, mine }: { job: VideoJob; mine: boolean
           而最常见的情形正是根本没有那条草稿（2026-09-05 主人真机） */}
       {!closed && !mine && (
         <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
-          <Trans>当初炼它的那一段不在这条流水线里（重启后没打开原草稿，或那一段从没存过草稿）：取回来会作为新的一段落在流水线里，之后照常剪辑、发布。凭据还在，没有浪费。</Trans>
+          <Trans>当初生成它的那一段不在这条流水线里（重启后没打开原草稿，或那一段从没存过草稿）：取回来会作为新的一段落在流水线里，之后照常剪辑、发布。凭据还在，没有浪费。</Trans>
         </p>
       )}
       {issue && <p className="mt-1 text-[10px] leading-relaxed text-danger-300">{issue}</p>}

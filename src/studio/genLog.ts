@@ -132,7 +132,7 @@ export function splitStatus(status: string): StepLine {
   // "标准档 · 生成中 12s" / "极速档 · 排队中 6s" —— 同一步的读秒
   // 生成契约（real.describeGenSpec）：标题固定、正文是那一串参数，别让整行当标题
   const c = status.match(/^契约\s*·\s*(.+)$/);
-  if (c) return { title: t`生成契约`, detail: c[1], keep: true }; // 契约正文是对账记录，收尾后保留（GenStep.keep）
+  if (c) return { title: t`出片设置`, detail: c[1], keep: true }; // 契约正文是对账记录，收尾后保留（GenStep.keep）
   const m = status.match(/^(.+?档)\s*·\s*(.+)$/);
   if (m) return { title: t`渲染视频`, detail: `${m[1]} · ${m[2]}` };
   return { title: status.replace(/[…\.]+$/, "") };
@@ -155,7 +155,7 @@ function stepOf(ev: GenEvent): StepLine {
   // composeSegments 收尾：不是新的一步，是"上一步跑完了"——当成一步会在日志尾巴上挂一条 0.0s 的空条目
   if (ev.kind === "done") return { title: "", terminal: true };
   // 生成契约：标题固定、正文是那一串参数，收尾后保留（GenStep.keep）—— 它是给人事后对账的记录
-  if (ev.kind === "contract") return { title: t`生成契约`, detail: contractLine(ev), keep: true, event: ev };
+  if (ev.kind === "contract") return { title: t`出片设置`, detail: contractLine(ev), keep: true, event: ev };
   const tierLabel = tierOf(ev.tier).label;
   // ★ 转存单独成一步（2026-09-06）：折进「渲染视频」就看不见「转存没成」这句了 ——
   //   而它决定了后面截帧走哪条路（Cloudinary 抽帧 / 代理整条下载），真机排查时正是这一步不见了
@@ -169,7 +169,7 @@ function stepOf(ev: GenEvent): StepLine {
     // tier-semantics-ok: 这句话按供应商说「先用谁家的临时链接」（shown 是 account 按地区挑过的那一家，或 null）
     if (shown === "minimax") return { title: t`成片转存没成（${reason}）——先用 MiniMax 的临时链接，预览帧稍后自动补上`, event: ev };
     // tier-semantics-ok: 同上（方舟那一家）
-    if (shown === "ark") return { title: t`成片转存没成（${reason}）——先用方舟临时链接，预览帧稍后自动补上`, event: ev };
+    if (shown === "ark") return { title: t`成片转存没成（${reason}）——先用出片服务的临时链接，预览帧稍后自动补上`, event: ev };
     return { title: t`成片转存没成（${reason}）——先用临时链接（有时效），预览帧稍后自动补上`, event: ev };
   }
   // 服务端还在后台搬、出片那一拍没等它（real.permanentVideoUrl 的上限）：不是「没成」—— 换好之后由 flowStore.settleNodeMedia 换上

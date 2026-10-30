@@ -78,6 +78,35 @@ import {
   type SupportTicket,
 } from "../api/support";
 import { relativeTime } from "../types";
+import { CHAT_TURN_TOKENS, priceTag } from "../data/economy";
+import { showToast } from "../data/toast";
+
+/**
+ * 「带我去」的落点（2026-10-30）：id 与服务端 support.service 的 GOTO_TARGETS **按 id 对**，服务端不认路由、这里不认别的 id；
+ * 加一个落点两边一起加。"tickets" 不是路由，是本页的「我的工单」。
+ */
+/** 👎 之后的举报理由（2026-10-30）：豆包社区公约的分类压成五个 + 「其他」。只是工单上的一句话，不是 Report 的 REASONS 枚举 */
+const REPORT_REASONS = [
+  { id: "wrong", label: msg`回答有误` },
+  { id: "harm", label: msg`有害或不安全` },
+  { id: "illegal", label: msg`违法违规` },
+  { id: "ip", label: msg`侵权` },
+  { id: "other", label: msg`其他` },
+] as const;
+
+const GOTO_ROUTES: Record<string, string> = {
+  settings: "/settings",
+  wallet: "/me?wallet=1",
+  models: "/support/models",
+  personas: "/support/personas",
+  voice: "/settings/voice",
+  create: "/support/create",
+  templates: "/templates",
+  drafts: "/me",
+  storage: "/settings/storage",
+  update: "/settings",
+  tickets: "tickets",
+};
 
 type Role = "user" | "assistant";
 type Rating = "up" | "down";
@@ -229,6 +258,11 @@ export default function SupportPage() {
   const [chatErr, setChatErr] = useState("");
   const [micErr, setMicErr] = useState("");
   const [handoffHint, setHandoffHint] = useState<{ category: SupportCategory } | null>(null);
+  /** 「带我去」/「拿不准先问」（2026-10-30，服务端在 done 之前发的两个事件；只画最近一轮的，下一轮开始就清） */
+  const [gotoHint, setGotoHint] = useState<{ id: string; label: string } | null>(null);
+  const [askHint, setAskHint] = useState<{ question: string; options: string[] } | null>(null);
+  /** 👎 之后举报过的那一条（message id）：举报芯片只给一次 */
+  const [reportedId, setReportedId] = useState<string | null>(null);
   /**
    * 舞台上那张求助卡（最近一次 safety 事件）。★ 与 messages 分开记：人点 ✕ 关掉的只是这一张，记录里那一条还在；
    * 新开一轮 send 也不清它（人可能正需要盯着号码，接着问一句就把卡收走是替他做了决定）—— 只缩成一行（safetyPast），号码照样一点就拨。
@@ -604,6 +638,8 @@ export default function SupportPage() {
     setStageNotice("");
     setReaction("");
     setHandoffHint(null);
+    setGotoHint(null);
+    setAskHint(null);
     const run = runRef.current;
     const controller = new AbortController();
     abortRef.current = controller;
@@ -647,6 +683,15 @@ export default function SupportPage() {
         // ★ caps 见文件头 ★ 求助卡：不声明的话求助卡会退化成一句台词被念出来
         { messages: history, lang: activeLang(), caps: SUPPORT_CAPS },
         {
+          // 「带我去」/「拿不准先问」：只记下来，画在字幕框下面（见 gotoHint / askHint 那两块）；路由表只在 GOTO_ROUTES 一处
+          onGoto: (g) => {
+            if (runRef.current !== run) return;
+            if (GOTO_ROUTES[g.id] !== undefined) setGotoHint(g);
+          },
+          onAsk: (a) => {
+            if (runRef.current !== run) return;
+            setAskHint(a);
+          },
           onSafety: (card) => {
             if (runRef.current !== run) return;
             crisis = true;
@@ -740,6 +785,30 @@ export default function SupportPage() {
     void rateSupportAnswer({ question: question.slice(0, 1000) || "（无）", answer: cm.text.slice(0, 4000), rating }).catch(() => undefined);
   }
 
+  /**
+   * 举报 AI 回答（2026-10-30，10-25 评审第 13 条）：👎 之后给 豆包 / Play 政策那几类理由，点一下就以「content」类别开一张工单
+   * （问 + 答 + 理由），人工在工单后台看 —— 不另开举报端点：Report 模型认的是带 ObjectId 的实体，而客服页的回答没有 id。
+   * 失败照实说、不装成已提交
+   */
+  function reportAnswer(cm: ChatMessage, reasonLabel: string) {
+    const idx = messages.findIndex((m) => m.id === cm.id);
+    const question = [...messages.slice(0, Math.max(0, idx))].reverse().find((m) => m.role === "user")?.text || "";
+    setReportedId(cm.id);
+    createSupportTicket({
+      transcript: [
+        ...(question ? [{ role: "user" as const, content: question.slice(0, 1000) }] : []),
+        { role: "assistant" as const, content: cm.text.slice(0, 4000) },
+      ],
+      note: t`举报 AI 回答：${reasonLabel}`,
+      category: "content",
+    })
+      .then(() => showToast(t`已提交，谢谢反馈`, 2500))
+      .catch((e) => {
+        setReportedId(null);
+        setChatErr(errorText(e, t`没提交成功，再试一次`));
+      });
+  }
+
   function openSheet() {
     setSheetErr("");
     setSheetOpen(true);
@@ -764,6 +833,8 @@ export default function SupportPage() {
       setSheetOpen(false);
       setNote("");
       setHandoffHint(null);
+      setGotoHint(null);
+      setAskHint(null);
       setMessages((prev) => [
         ...prev,
         {
@@ -803,8 +874,14 @@ export default function SupportPage() {
   officialStageRef.current = settingsSettled && !marketModelUrl;
   const quick = config?.quickQuestions ?? [];
   const statusLabel = phase === "thinking" ? t`思考中` : phase === "speaking" ? t`说话中` : enabled ? t`在线` : t`对话未开通`;
-  const greeting = t`你好，我是${name}，启梦的 AI 客服。账号、扣费、出片取回、安装更新都可以问我；我解决不了的会帮你转给人工。`;
+  // ★ 开场白跟人格走（2026-10-30 定）：服务端早就下发人格的 greeting、知识库也对用户承诺过「开场白会带进客服页」，App 一直没读。
+  //   与「客服身份是小梦、人格只改语气」的张力这样解：人格的开场白照用，但上面钉一行固定的小字说明这是哪个人格的开场白、
+  //   身份仍是官方 AI 客服（深度合成规定第十七条 / 标识办法第四条的「交互界面显著提示」；星野 / Character.ai 都是人格文字 + 固定声明行）。
+  //   人格没写开场白、或没装人格 → 原来那句
+  const personaGreeting = (persona?.greeting ?? "").trim();
+  const greeting = personaGreeting || t`你好，我是${name}，启梦的 AI 客服。账号、扣费、出片取回、安装更新都可以问我；我解决不了的会帮你转给人工。`;
   const voiceLabel = voiceOn ? t`语音播报：开` : t`语音播报：关`;
+  const chatPrice = priceTag(CHAT_TURN_TOKENS);
   // 求助卡那一条不给 👍👎：那不是她的回答（卡上的字是服务端的固定文案）
   const canRate = Boolean(lastAssistant && !lastAssistant.system && !lastAssistant.safety && !lastAssistant.streaming && lastAssistant.text && phase === "idle");
   // 字幕框显示什么：求助卡那一条只显示卡之前她说过的句子（卡的字不进字幕）；一句都没有又没在演触摸反应时，整个字幕框不画 ——
@@ -985,7 +1062,16 @@ export default function SupportPage() {
                     </span>
                   </Fragment>
                 ))
-              : reaction || captionText || (phase === "thinking" ? "…" : greeting)}
+              : reaction || captionText || (phase === "thinking" ? "…" : (
+                  <>
+                    {personaGreeting && persona && (
+                      <span className="mb-1 block text-[10px] leading-relaxed text-slate-500">
+                        <Trans>人格「{persona.name}」的开场白 · 回答你的仍是启梦官方 AI 客服</Trans>
+                      </span>
+                    )}
+                    {greeting}
+                  </>
+                ))}
             {configErr && !messages.length && <Warn className="mt-1">{configErr}</Warn>}
             {!enabled && !configErr && !messages.length && <Warn className="mt-1"><Trans>服务端还没开通 AI 对话，你可以直接转人工。</Trans></Warn>}
           </div>
@@ -1022,8 +1108,62 @@ export default function SupportPage() {
               </button>
             </div>
           )}
+          {/* 👎 之后的举报理由（2026-10-30）：豆包的分类 + Play 对聊天机器人的「应用内举报」要求；一条只给一次 */}
+          {canRate && lastAssistant?.rating === "down" && reportedId !== lastAssistant.id && (
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]">
+              <span className="text-slate-500">
+                <Trans>哪里不对？</Trans>
+              </span>
+              {REPORT_REASONS.map((r) => (
+                <button
+                  key={r.id}
+                  onClick={() => reportAnswer(lastAssistant, t(r.label))}
+                  className="rounded-full bg-panel px-2.5 py-1 text-slate-300 ring-1 ring-slate-700 active:bg-slate-800/60"
+                >
+                  {t(r.label)}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
+        {/* 「带我去」（2026-10-30）：支付宝 / 店小蜜的答案里直接给站内入口；最多一颗、link 型、落点只认 GOTO_ROUTES 的白名单 */}
+        {gotoHint && phase === "idle" && (
+          <div className="mb-2 flex items-center gap-2">
+            <button
+              onClick={() => {
+                const to = GOTO_ROUTES[gotoHint.id];
+                setGotoHint(null);
+                if (to === "tickets") showTickets(true);
+                else if (to) navigate(to);
+              }}
+              className="flex items-center gap-1.5 rounded-full bg-brand px-3.5 py-1.5 text-xs font-semibold text-ink active:opacity-60"
+            >
+              <Trans>带我去：{gotoHint.label}</Trans>
+              <Icon name="chevron" size={12} />
+            </button>
+          </div>
+        )}
+        {/* 「拿不准先问」：2～4 颗对等的芯片（Material suggestion chips 不突出某一个）；点一下 = 把选项的字发出去，照常是一轮 */}
+        {askHint && phase === "idle" && (
+          <div className="mb-2 rounded-xl border border-slate-700 bg-raised/95 p-3 ring-1 ring-white/10">
+            <p className="mb-2 text-xs leading-relaxed text-slate-200">{askHint.question}</p>
+            <div className="flex flex-wrap gap-1.5">
+              {askHint.options.map((o) => (
+                <button
+                  key={o}
+                  onClick={() => {
+                    setAskHint(null);
+                    void send(o);
+                  }}
+                  className="rounded-full bg-panel px-3 py-1.5 text-xs text-slate-100 ring-1 ring-slate-700 active:bg-slate-800/60"
+                >
+                  {o}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         {handoffHint && phase === "idle" && (
           <div className="mb-2 rounded-xl border border-warn-500/40 bg-warn-500/10 p-3 text-xs leading-relaxed text-warn-50 backdrop-blur-md">
             <Trans>这个问题需要人工处理（{categoryLabel(handoffHint.category)}）。转人工会把这段对话一起交给客服，你不用再讲一遍。</Trans>
@@ -1094,7 +1234,11 @@ export default function SupportPage() {
           )}
         </form>
         <div className="mt-1.5 flex items-center justify-between px-2 text-[11px] text-slate-400">
-          <span><Trans>AI 回答仅供参考，涉及退款与账号的事会转人工</Trans></span>
+          {/* ★ 价钱写在这一行（2026-10-30 定）：没有一家客服机器人向用户按问收费，所以收的话必须明说；同类付费聊天（星野 / Talkie）
+              都是余额条 / 额度条而不是发送键上的角标。每问的数只有 economy.CHAT_TURN_TOKENS 一处（与服务端 config/tokens 逐条相等） */}
+          <span>
+            <Trans>AI 回答仅供参考，涉及退款与账号的事会转人工 · 每问 {chatPrice}，开着语音另按字计</Trans>
+          </span>
           <button onClick={openSheet} className="text-brand underline underline-offset-2">
             <Trans>转人工</Trans>
           </button>

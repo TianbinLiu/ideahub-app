@@ -86,7 +86,7 @@ export function useFlowActions(opts?: {
             // ★ 草稿箱没读出来时"再点一次存草稿"只会原样再失败：换一句指对出路的（drafts.draftsUnavailableText）
             err: draftsLoadIssue()
               ? draftsUnavailableText()
-              : t`这一段炼好了，但自动存草稿失败（存储空间不足或浏览器隐私模式）——先别离开这一页，点上面的「存草稿」再试一次`,
+              : t`这一段生成好了，但自动存草稿失败（存储空间不足或浏览器隐私模式）——先别离开这一页，点上面的「存草稿」再试一次`,
           });
       })();
     }
@@ -160,7 +160,7 @@ export function useFlowActions(opts?: {
       const withDeck = (held.draft.deck?.cards.length ?? 0) > 0;
       useFlow.setState({
         err: withDeck
-          ? t`你还有一条剪到一半的成片（里面的卡组已经铸好、花过 token 了）。先去「我的」把它剪完发出去，或在那条横幅上丢掉它，再来组这一条 —— 直接组会把它顶掉。`
+          ? t`你还有一条剪到一半的成片（里面的卡组已经做好、花过 token 了）。先去「我的」把它剪完发出去，或在那条横幅上丢掉它，再来组这一条 —— 直接组会把它顶掉。`
           : t`你还有一条剪到一半的成片（那几段都是花过 token 出的）。先去「我的」把它剪完发出去，或在那条横幅上丢掉它，再来组这一条 —— 直接组会把它顶掉。`,
       });
       return;
@@ -228,9 +228,9 @@ export function useFlowActions(opts?: {
         // ★ 三种组合整句各写一份：碎片拼接在英文里会缺句间空格
         const warn =
           why && capWhy
-            ? t`卡组已经铸好了，但${why}——现在切后台会丢掉它，请先把片子剪完发出去。${capWhy}。`
+            ? t`卡组已经做好了，但${why}——现在切后台会丢掉它，请先把片子剪完发出去。${capWhy}。`
             : why
-              ? t`卡组已经铸好了，但${why}——现在切后台会丢掉它，请先把片子剪完发出去。`
+              ? t`卡组已经做好了，但${why}——现在切后台会丢掉它，请先把片子剪完发出去。`
               : capWhy
                 ? t`${capWhy}。`
                 : "";

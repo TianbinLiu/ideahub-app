@@ -77,7 +77,7 @@ export async function forgeLead(o: { name: string; desc: string; style: string |
     tierId: LEAD_IMAGE_TIER,
     onProgress: o.onProgress,
   });
-  if (workOwner() !== owner) throw new Error(t`这一炉是上一个登录的账号开的，已作废。`);
+  if (workOwner() !== owner) throw new Error(t`这一次是上一个登录的账号开的，已作废。`);
   // 按真画成的张数结算（离线账本；远端模式这一行是空操作，服务端早按调用结算过），与素材窗同一个函数
   if (AI_REAL) {
     const due = forgeSettle(minted, LEAD_IMAGE_TIER);

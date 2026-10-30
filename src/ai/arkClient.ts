@@ -481,15 +481,15 @@ export function unwrapFailure(e: unknown): unknown {
  */
 export function arkFailReason(o: { status: string; code?: string; detail?: string }): string {
   const code = o.code ?? "";
-  if (o.status === "expired") return t`任务超时没跑完，方舟把它自动终止了`;
+  if (o.status === "expired") return t`任务超时没跑完，出片服务把它自动终止了`;
   if (o.status === "cancelled") return t`任务被取消了`;
-  if (/PolicyViolation/i.test(code)) return t`成片可能涉及版权（常见于带版权的音乐、角色），没过方舟的审核`;
-  if (/PrivacyInformation/i.test(code)) return t`画面里可能有真人，被方舟拒了`;
-  if (/^Output\w*SensitiveContentDetected/i.test(code)) return t`成片没过方舟的内容审核`;
-  if (/^(Input\w*)?SensitiveContentDetected/i.test(code)) return t`输入的文字或图片没过方舟的内容审核`;
+  if (/PolicyViolation/i.test(code)) return t`成片可能涉及版权（常见于带版权的音乐、角色），没过出片服务的审核`;
+  if (/PrivacyInformation/i.test(code)) return t`画面里可能有真人，被出片服务拒了`;
+  if (/^Output\w*SensitiveContentDetected/i.test(code)) return t`成片没过内容审核`;
+  if (/^(Input\w*)?SensitiveContentDetected/i.test(code)) return t`输入的文字或图片没过内容审核`;
   const detail = (o.detail ?? "").trim();
   if (detail) return detail.slice(0, 80);
-  return t`方舟没有给出原因`;
+  return t`出片服务没有给出原因`;
 }
 
 /**
@@ -626,7 +626,7 @@ export function requestRefusalError(status: number, body: string): Error | null 
     VIDEO_PARAMS_NOT_ALLOWED: () =>
       t`出片请求里有服务器不收的参数（常见的是在提示词里写了 --dur、--rs 这类参数：分辨率、画幅、时长由档位与时长设置决定，请从提示词里删掉）——这一次没有受理，也没有扣费。`,
     DRAFT_FINAL_NOT_ALLOWED: () =>
-      t`这条样片现在转不了成片（可能已经过了有效期、方舟那边查不到了，或者时长对不上）——这一次没有受理，也没有扣费，可以重新出一条样片。`,
+      t`这条样片现在转不了成片（可能已经过了有效期、出片服务那边查不到了，或者时长对不上）——这一次没有受理，也没有扣费，可以重新出一条样片。`,
   };
   const ours = ourByCode[code];
   if (!ours) return null;
@@ -747,12 +747,12 @@ export function videoRefusalError(status: number, body: string): ArkVideoRefused
   if (p.code) return null;
   const up = p.upstreamCode;
   const make = (line: string, input: ArkVideoRefused["input"]) => new ArkVideoRefused(line, status, p.code, up, line, input);
-  if (/^InputText\w*SensitiveContentDetected/i.test(up)) return make(t`提示词没过方舟的内容审核——改掉里面可能被拦的说法再试`, "text");
+  if (/^InputText\w*SensitiveContentDetected/i.test(up)) return make(t`提示词没过内容审核——改掉里面可能被拦的说法再试`, "text");
   if (/^InputImage\w*SensitiveContentDetected/i.test(up) || /PrivacyInformation/i.test(up))
-    return make(t`有一张参考图没过方舟的审核（常见是真人照片）——换掉那张图再试`, "image");
-  if (/^(Input\w*)?SensitiveContentDetected/i.test(up)) return make(t`输入的文字或图片没过方舟的内容审核`, "either");
+    return make(t`有一张参考图没过内容审核（常见是真人照片）——换掉那张图再试`, "image");
+  if (/^(Input\w*)?SensitiveContentDetected/i.test(up)) return make(t`输入的文字或图片没过内容审核`, "either");
   if (/^InvalidParameter$/i.test(up) && /^content\[\d+\]$/.test(p.upstreamParam) && /invalid image format/i.test(p.upstreamMessage) && /received:\s*""/.test(p.upstreamMessage))
-    return make(t`有一张参考图方舟没拉到（多半是图刚传上去还没就绪）——过一会儿再点一次生成`, "fetch");
+    return make(t`有一张参考图图片服务没拉到（多半是图刚传上去还没就绪）——过一会儿再点一次生成`, "fetch");
   return null;
 }
 
@@ -808,9 +808,9 @@ export function imageRefusalError(status: number, body: string, model: string): 
   if (status === 402 || status === 429 || (status === 403 && (p.code || p.message))) return null;
   const up = p.upstreamCode;
   let line: string;
-  if (/PrivacyInformation/i.test(up)) line = t`参考图里可能有真人，被方舟拒了`;
-  else if (/^Output\w*SensitiveContentDetected/i.test(up)) line = t`画出来的图没过方舟的内容审核`;
-  else if (/SensitiveContentDetected/i.test(up)) line = t`输入的文字或图片没过方舟的内容审核`;
+  if (/PrivacyInformation/i.test(up)) line = t`参考图里可能有真人，被图片服务拒了`;
+  else if (/^Output\w*SensitiveContentDetected/i.test(up)) line = t`画出来的图没过内容审核`;
+  else if (/SensitiveContentDetected/i.test(up)) line = t`输入的文字或图片没过内容审核`;
   else if (status >= 500) line = t`这次没连上出图服务（服务器返回 ${status}），过一会儿再试`;
   else if (p.message && p.code && i18n.locale !== "en") line = p.message;
   else line = up ? t`出图请求没被受理（服务器返回 ${status}：${up}）` : t`出图请求没被受理（服务器返回 ${status}）`;
@@ -863,7 +863,7 @@ async function arkFetch<T>(
     //   这里把它翻成一句能直接行动的提示。
     const ct = res.headers.get("content-type") ?? "";
     if (!ct.includes("json")) {
-      if (res.status === 501) throw new Error(t`这台服务器没有配置方舟密钥（服务端 .env 的 ARK_API_KEY）`);
+      if (res.status === 501) throw new Error(t`这台服务器没有配置 AI 服务密钥（服务端 .env 的 ARK_API_KEY）`);
       // 「配没配服务端地址 × 回包有没有说类型」各一句整话，不拼「本机」「未知类型」那两个片段（多语言要整句）
       const host = API_BASE;
       const kind = ct.split(";")[0];
@@ -881,7 +881,7 @@ async function arkFetch<T>(
       const body = await res.text().catch(() => "");
       // 服务端把方舟的错误原样透传，所以这里既可能是方舟的 400，也可能是代理自己的
       // 401/403/429/501 —— 都带 message，原样抛给上层做回退与播报（铁律八）
-      if (res.status === 501) throw new Error(t`这台服务器没有配置方舟密钥（服务端 .env 的 ARK_API_KEY）`);
+      if (res.status === 501) throw new Error(t`这台服务器没有配置 AI 服务密钥（服务端 .env 的 ARK_API_KEY）`);
       if (res.status === 401) throw new Error(t`登录态失效，重新登录后再试`);
       // 这条路自己的翻译（出图：模型停用 / 审核 / 上游连不上……说成人话，见 imageRefusalError）
       const own = describeRefusal?.(res.status, body);
@@ -1087,7 +1087,7 @@ export async function startImageGroup(req: ImageGroupRequest): Promise<{ id: str
   }
   if (res.status === 409) throw new ImageGroupBusy(typeof j.id === "string" ? j.id : null);
   if (res.status === 401) throw new Error(t`登录态失效，重新登录后再试`);
-  if (res.status === 501) throw new Error(t`这台服务器没有配置方舟密钥（服务端 .env 的 ARK_API_KEY）`);
+  if (res.status === 501) throw new Error(t`这台服务器没有配置 AI 服务密钥（服务端 .env 的 ARK_API_KEY）`);
   // 出图模型停用 / 服务端不认（老服务端的白名单拒绝是一句英文机器话）：说成「请更新 App」，别把那句英文原样摆出来
   const gone = imageModelGoneError(res.status, body, req.model);
   if (gone) throw gone;
@@ -1286,7 +1286,7 @@ export async function runImageGroup(
     throw new Error(t`出图模型 ${label} 出不了组图，这是 App 的配置问题——请把 App 更新到最新版再试（这一次没有发出去）`);
   }
   if (import.meta.env.DEV) {
-    if (!req) throw new Error(t`开发环境直连方舟的组图断了就接不回来（页面刷新过）——重新出一组`);
+    if (!req) throw new Error(t`开发环境直连图片服务的组图断了就接不回来（页面刷新过）——重新出一组`);
     return streamImageGroup(req, o.onUpdate);
   }
   let id = o.resumeId;
@@ -1468,7 +1468,7 @@ export async function fetchTaskCharge(taskId: string): Promise<TaskRefund | "non
 export function arkTaskFailedOf(taskId: string, st: ArkTaskState): ArkTaskFailed {
   const status = st.status;
   const reason = arkFailReason({ status, code: st.error?.code, detail: st.error?.message });
-  return new ArkTaskFailed(t`方舟没出成这一发（${reason}）`, taskId, status, st.error?.code ?? "", taskRefundOf(st.refund), reason, "ark");
+  return new ArkTaskFailed(t`出片服务没出成这一发（${reason}）`, taskId, status, st.error?.code ?? "", taskRefundOf(st.refund), reason, "ark");
 }
 
 /**
@@ -1605,7 +1605,7 @@ export function describeArkProgress(tierLabel: string, ev: ArkProgress): string 
   if (ev.kind === "transfer") return t`${tierLabel}档 · 成片转存中（换成永久地址）…`;
   if (ev.kind === "transferFailed") {
     const reason = ev.reason;
-    return t`${tierLabel}档 · 成片转存没成（${reason}）——先用方舟临时链接，预览帧稍后自动补上`;
+    return t`${tierLabel}档 · 成片转存没成（${reason}）——先用临时链接，预览帧稍后自动补上`;
   }
   // 今天只有 real.permanentVideoUrl（MiniMax H3 的成片）报它，走的是步骤日志（studio/genLog）；这里接住是为了不落进下面读秒那一支
   if (ev.kind === "transferPending") return t`${tierLabel}档 · 成片还在转存（服务器后台在搬）——先用临时链接，搬好之后自动换上`;
@@ -1903,7 +1903,7 @@ export async function generateVideo(
         const why = briefArkReason(e);
         // ★ 钱的话不在这里说（CLAUDE.md：钱上的话只走 ai/failCharge）：这一句进步骤日志，而管理员免扣费 / 离线构建下
         //   「钱已经花掉了」是假的；扣没扣由取回卡按服务端的账说（data/videoJobs.videoJobNote）
-        throw new ArkTaskUnknown(t`盯不住这一发的进度了（${why}）。任务还在方舟那边跑，不是失败。`, id);
+        throw new ArkTaskUnknown(t`盯不住这一发的进度了（${why}）。任务还在出片服务那边跑，不是失败。`, id);
       }
       continue;
     }
@@ -1953,7 +1953,7 @@ export async function generateVideo(
   // ★ 任务号也不写进这句话：用户抄不动它，也不需要抄（取回按凭据走，不要人输号）。
   const minutes = Math.round((Date.now() - t0) / 60_000);
   // ★ 钱的话不在这里说（同上面 pollFails 那一支）：扣没扣由取回卡按服务端的账说
-  throw new ArkTaskUnknown(t`等了 ${minutes} 分钟还没出片。这不是失败：任务还在方舟那边跑。`, id);
+  throw new ArkTaskUnknown(t`等了 ${minutes} 分钟还没出片。这不是失败：任务还在出片服务那边跑。`, id);
 }
 
 /**

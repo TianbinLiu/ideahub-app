@@ -266,7 +266,7 @@ export default function TierRow({
             ))}
           </ul>
           <p className="text-[10px] leading-relaxed text-slate-400">
-            <Trans>已经炼出来的成片不受影响；换回来之后这些能力也会回来（示例视频要重新挂）。</Trans>
+            <Trans>已经生成的成片不受影响；换回来之后这些能力也会回来（示例视频要重新挂）。</Trans>
           </p>
           <div className="flex gap-2">
             <button

@@ -73,7 +73,7 @@ export default function ForgeOverlay({
   useEffect(() => setIntroDone(false), [phase]);
 
   const title =
-    phase === "done" ? t`本段炼成` : phase === "failed" ? t`这一炉没成` : phase === "unknown" ? t`还没接到成片` : t`炼制中…`;
+    phase === "done" ? t`本段已生成` : phase === "failed" ? t`这一次没成` : phase === "unknown" ? t`还没接到成片` : t`生成中…`;
   /** 收场的两种相：真失败与"没接到"。画面上的差别只有颜色与措辞，但那正是全部重点 */
   const settled = phase === "failed" || phase === "unknown";
   // key 必须跟着 pose 走：只改 background-image 的话 CSS 动画不会重新起一次，
@@ -159,10 +159,10 @@ export default function ForgeOverlay({
               没有取回入口，见 studioStore.genNodeVideo 的 ⚠）——往放心里说错一样是骗人。 */}
           <p className="mt-2.5 max-w-sm text-center text-[11px] leading-relaxed text-slate-500">
             {recoverable
-              ? t`可以先去逛逛——生成不会中断。就算退出 App 也不要紧：任务已被方舟受理，回这一段点「取回」就能把成片领回来（24 小时内有效，取回不花钱）`
+              ? t`可以先去逛逛——生成不会中断。就算退出 App 也不要紧：任务已被出片服务受理，回这一段点「取回」就能把成片领回来（24 小时内有效，取回不花钱）`
               : onLeave
                 ? t`可以先去逛逛——生成不会中断，好了顶部会弹提示带你回来。别退出 App 就行`
-                : t`整段一炉出，别退出 App`}
+                : t`整段一次生成，别退出 App`}
           </p>
           {onLeave && (
             <button

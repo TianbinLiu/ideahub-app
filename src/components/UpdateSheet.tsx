@@ -29,11 +29,14 @@ import {
   fmtSize,
   githubApkUrl,
   isMandatory,
+  notesFor,
   openInstallPermission,
   skipVersion,
+  skippedReleases,
   updateFailText,
   type UpdateInfo,
 } from "../data/appUpdate";
+import { pickLang } from "../i18n/locale";
 import { openExternal } from "../utils/openExternal";
 import { useBackLayer } from "../hooks/useBackLayer";
 import Icon from "./Icon";
@@ -54,6 +57,12 @@ export default function UpdateSheet({ info, onClose }: { info: UpdateInfo; onClo
   const versionName = info.versionName;
   /** 镜像也坏了时的备用源（文件头 ★★ 的 ②）；版本号拼不进地址时没有这一条 */
   const githubUrl = githubApkUrl(info);
+  // ★ 只画这一版、只画界面语言那一种（2026-10-30）：原来整份 RELEASE_NOTES.md 14 版都塞在这个小滚动框里，每版中文在前，
+  //   英文手机上要翻到第二屏才看到自己的语言；同类 App 的更新说明都只写当前版、几十到一百多字。跳过的几版折起来，点开才列
+  const lang = pickLang();
+  const noteText = notesFor(info, lang);
+  const skipped = skippedReleases(info, lang);
+  const [showSkipped, setShowSkipped] = useState(false);
 
   async function openLink(url: string) {
     setLinkFailed("");
@@ -121,10 +130,33 @@ export default function UpdateSheet({ info, onClose }: { info: UpdateInfo; onClo
           </div>
         )}
 
-        {info.notes && (
+        {noteText && (
           <p className="mb-3 max-h-40 overflow-y-auto whitespace-pre-wrap text-xs leading-relaxed text-slate-400">
-            {info.notes}
+            {noteText}
           </p>
+        )}
+        {skipped.length > 0 && (
+          <div className="mb-3">
+            <button
+              type="button"
+              onClick={() => setShowSkipped((v) => !v)}
+              aria-expanded={showSkipped}
+              className="text-[11px] text-slate-500 underline underline-offset-2"
+            >
+              {showSkipped ? t`收起` : t`还有 ${skipped.length} 个版本的更新你没装过`}
+            </button>
+            {showSkipped && (
+              <div className="mt-1.5 max-h-40 space-y-2 overflow-y-auto">
+                {skipped.map((s) => (
+                  <p key={s.versionName} className="whitespace-pre-wrap text-[11px] leading-relaxed text-slate-500">
+                    <span className="font-semibold text-slate-400">{s.versionName}</span>
+                    {"\n"}
+                    {s.text}
+                  </p>
+                ))}
+              </div>
+            )}
+          </div>
         )}
 
         {allowed === false && (

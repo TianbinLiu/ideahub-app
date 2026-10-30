@@ -11,7 +11,7 @@
 // · 顺序门禁只问 flowStore.clampCursor（唯一实现）；选中一段同时 setCursor（夹到哪算哪），
 //   与工坊共享"当前段"的全部机制（store 级模板同步、挂卡缓冲切换）。
 // · 手势只动 transform（合成层）：拖 = translate，捏合/滚轮 = scale。
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import Warn from "../Warn";
 import Spinner from "../Spinner";
 import ErrorBoundary from "../ErrorBoundary";
@@ -879,13 +879,11 @@ export default function FlowCanvas({
                   </button>
                 )}
                 {finish.allDone ? (
-                  <button
-                    onClick={() => !moved.current && finish.onRun()}
-                    disabled={busy || !!finish.finalizing}
-                    className="rounded-xl bg-brand px-3 py-2.5 text-sm font-bold text-ink disabled:bg-slate-700 disabled:text-slate-400"
-                  >
-                    {finish.finalizing || t`完成视频 ›`}
-                  </button>
+                  /* ★ 「完成视频」那颗键 2026-10-30 起钉在屏幕底部的停靠条上（UX 走查第 2 条：画在画布坐标里，两段以上就在屏幕外，
+                     要平移才找得到；ComfyUI / Figma / Miro 的运行 / 导出都钉在边上）。这里只留一句状态指过去 */
+                  <div className="rounded-xl border border-brand/40 px-3 py-2 text-[11px] leading-relaxed text-brand">
+                    <Trans>每一段都出片了 · 用下面的「完成视频」合成</Trans>
+                  </div>
                 ) : (
                   /* 没全出片时**不摆一颗灰按钮**（本仓明令禁止永远点不动的选项），
                      只如实说还差几段 —— 这是状态不是入口（文法④：短原因内联） */
@@ -927,6 +925,19 @@ export default function FlowCanvas({
               setCursor(i);
               panTo(i); // 那一格可能在屏幕外：只开窗不挪，用户看不出它说的是哪一段
             }}
+            // ★ 「完成视频」钉在停靠条上（2026-10-30）：原来画在流水线末尾的画布坐标里，两段以上就在屏幕外。
+            //   门禁与原来一处（finish.allDone / busy / finalizing 都由 FlowPage 算），这里只换了摆的地方
+            finish={
+              finish.allDone && nodes.length > 0 ? (
+                <button
+                  onClick={() => finish.onRun()}
+                  disabled={busy || !!finish.finalizing}
+                  className="w-full rounded-xl bg-brand px-3 py-2.5 text-sm font-bold text-ink shadow-lg disabled:bg-slate-700 disabled:text-slate-400"
+                >
+                  {finish.finalizing || t`完成视频 ›`}
+                </button>
+              ) : null
+            }
           />
 
           {/* 缩放的按钮替代（2026-10-15 教材人格评审 wcag-a11y-i18n-5，WCAG 2.5.1 指针手势）：
@@ -1207,7 +1218,7 @@ function NodePanel({
   function goCast() {
     useFlow.getState().setCursor(index);
     if (useFlow.getState().cursor !== index) {
-      useFlow.setState({ err: t`第 ${index + 1} 段还没轮到（前面的段先炼完才解锁），挂不了卡` });
+      useFlow.setState({ err: t`第 ${index + 1} 段还没轮到（前面的段先生成完才解锁），挂不了卡` });
       return;
     }
     // ★ 光标刚挪过来，这一拍的 cast 缓冲才是**本段**的（setCursor 顺带换的），所以现取
@@ -1370,7 +1381,7 @@ function NodePanel({
       <div className="flex items-center gap-2">
         <span className="text-xs font-bold text-slate-100">
           <Trans>第 {index + 1} 段</Trans>
-          {done ? t` · ✓ 已出片` : generating ? t` · 生成中…` : locked ? t` · 🔒 前面的段炼完才解锁` : ""}
+          {done ? t` · ✓ 已出片` : generating ? t` · 生成中…` : locked ? t` · 🔒 前面的段生成完才解锁` : ""}
         </span>
         <span className="min-w-0 flex-1" />
         {/* ⚙ 本段设置：时长/画幅/画质/承接。★ 时长与画质**直接决定这一段多少钱** ——
@@ -2085,7 +2096,7 @@ function NodePanel({
                     : t`先出样片（${costLabel}）`
                   : done
                     ? t`♻ 重新生成（${costLabel}）`
-                    : t`炼这一段视频（${costLabel}）`}
+                    : t`生成这一段视频（${costLabel}）`}
             </button>
             {/* 挑定之后仍要能回方案台：换首尾帧、逐字改剧情、重新推演都在那里
                 （入口只有一处 —— 这些编辑口 PlanBoard 只对选定行开，见它自己的 ★） */}
@@ -2431,7 +2442,8 @@ function EmptyPipelineHint() {
  *  （白名单 op、花钱不代按、降级不封口都收在那一处）；这里只画。
  *  回执分两色：✓ 落地了的、✗ 被拒的（store 的整句原话）——只说 say 不列账，
  *  用户就得自己去数哪段变了哪段没变。 */
-function AgentBar({ onFocus }: { onFocus: (i: number) => void }) {
+/** @param finish 钉在停靠条最上面的那一颗（「完成视频」，全出片时才有）——停靠条是画布上唯一不随平移走的底缘，终点键放这儿才永远找得到 */
+function AgentBar({ onFocus, finish }: { onFocus: (i: number) => void; finish?: ReactNode }) {
   const { t } = useLingui();
   const { active: lang } = useLang();
   const [text, setText] = useState("");
@@ -2482,6 +2494,7 @@ function AgentBar({ onFocus }: { onFocus: (i: number) => void }) {
       onPointerDown={(e) => e.stopPropagation()}
       onWheel={(e) => e.stopPropagation()}
     >
+      {finish}
       {log && (
         <div className="max-h-40 overflow-y-auto rounded-xl bg-raised/95 px-3 py-2 shadow-lg ring-1 ring-white/10">
           <div className="flex items-start gap-2">
