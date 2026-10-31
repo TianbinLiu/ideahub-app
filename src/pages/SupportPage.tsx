@@ -879,7 +879,11 @@ export default function SupportPage() {
   //   身份仍是官方 AI 客服（深度合成规定第十七条 / 标识办法第四条的「交互界面显著提示」；星野 / Character.ai 都是人格文字 + 固定声明行）。
   //   人格没写开场白、或没装人格 → 原来那句
   const personaGreeting = (persona?.greeting ?? "").trim();
-  const greeting = personaGreeting || t`你好，我是${name}，启梦的 AI 客服。账号、扣费、出片取回、安装更新都可以问我；我解决不了的会帮你转给人工。`;
+  // ★ 「问到扣费会读你本人的流水」写进开场白（2026-10-30 定：委托处理 + 显著提示；服务端只在问到钱时读、只给模型一份不带任务号的摘要，
+  //   见 server support.service.billingDigest）—— 人格的开场白照用时这句也要在，所以接在后面而不是只写在默认句里
+  const billingNote = t`问到扣费、余额或退款时，我会读你本人最近的 token 流水来回答（只在你问的时候读，只看你自己的）。`;
+  const baseGreeting = personaGreeting || t`你好，我是${name}，启梦的 AI 客服。账号、扣费、出片取回、安装更新都可以问我；我解决不了的会帮你转给人工。`;
+  const greeting = personaGreeting ? `${baseGreeting} ${billingNote}` : `${baseGreeting}${billingNote}`;
   const voiceLabel = voiceOn ? t`语音播报：开` : t`语音播报：关`;
   const chatPrice = priceTag(CHAT_TURN_TOKENS);
   // 求助卡那一条不给 👍👎：那不是她的回答（卡上的字是服务端的固定文案）
