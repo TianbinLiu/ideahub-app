@@ -34,7 +34,7 @@ NN/g：What's new 弹窗要「关得掉、以后找得回」（Evernote 的常�
 | # | 事 | 同类怎么做（出处） | 定 | 做没做 |
 |---|---|---|---|---|
 | 1 | 收藏改金色星 | 抖音 = 五角星、B 站 = 星；TikTok 是书签但点亮也是金色（[tt123 对比](https://www.tt123.com/ask/ZnWFKwyw)、[How-To Geek](https://www.howtogeek.com/873671/how-to-find-favorites-on-tiktok/)） | **改成五角星、点亮金色**。从此五角星只表示收藏，AI / 生成一律四角星 `sparkle` | 做了：`Icon` 加 `star`（描边 + 实心），首页右栏 / 作品页动作条 / 个人页「收藏」页签换上 |
-| 2 | 模板作者奖励 | CapCut 模板激励 / TikTok Effect House / 抖音像塑都是**按使用量**给、有门槛与封顶；PixVerse 按使用量给作者、月封顶；即梦 / 可灵给的是平台积分（[Effect House 规则](https://effecthouse.tiktok.com/learn/guides/management-and-growth/monetize-your-effects)、[CapCut 模板创作者](https://www.capcut.com/partners/template-creator-us)） | **要给，且与同款奖励同一套形状**：平台印 token、按「被套用出片并公开发布」的次数、有门槛与每模板 / 每月封顶、服务端判、App 只说服务端下发的那一句 | 没做（服务端新规则，见第七节待办） |
+| 2 | 模板作者奖励 | CapCut 模板激励 / TikTok Effect House / 抖音像塑都是**按使用量**给、有门槛与封顶；PixVerse 按使用量给作者、月封顶；即梦 / 可灵给的是平台积分（[Effect House 规则](https://effecthouse.tiktok.com/learn/guides/management-and-growth/monetize-your-effects)、[CapCut 模板创作者](https://www.capcut.com/partners/template-creator-us)） | **要给，且与同款奖励同一套形状**：平台印 token、按「被套用出片并公开发布」的次数、有门槛与每模板 / 每月封顶、服务端判、App 只说服务端下发的那一句 | **做了**（server#145 10-30 合并部署：规则表 `config/templateReward.js`、`services/templateReward.service`，套用模板的作品公开满 24 小时由平台印 token 给模板作者、有门槛与每模板 / 每天封顶、到期锚点是「挂上那一刻」；App 只说服务端下发的那一句 `components/recipe/TemplateRewardNote` + 通知 `BRANCH_TEMPLATE_REWARD`，随 2.77 发版；设计正本 docs/template-author-reward-design.md。10-31 核：本行原先写「没做」是 10-30 上午的状态，没跟着改） |
 | 3 | IP 属地 | 《互联网用户账号信息管理规定》第二条不设规模门槛、第十二条要求在**账号信息页面**展示；粒度（境内到省、境外到国家 / 地区）是行业做法不是条文（[网信办原文](https://www.cac.gov.cn/2022-06/26/c_1657868775042841.htm)、[抖音 2022-04 公告](https://www.ithome.com/0/613/191.htm)）；2025 ~ 2026 没查到新规 | **义务成立，要做**：个人主页显示「IP 属地：广东」；境内到省、境外到国家 / 地区；评论区暂不做。属地由服务端按登录 / 发布时的 IP 算、存在用户上；App 只画。法务定稿仍由主人把关，但条文清楚、不建议拖 | **做了**：服务端 `User.ipRegion`（`/me` 每 24 小时按 `geo.regionOf` 刷，cf-region 优先、geoip 兜底，只存粒度）+ `/me`、`/api/users/:id` 回包 + 健康端点 `ipRegion`；App 个人主页一行「IP 属地：广东」（`api/users.ipRegionLabel`）。⚠ 省级要 Cloudflare 开「Add visitor location headers」托管转换，没开就只有 geoip 兜底 |
 | 4 | 右栏「做同款碟片」 | 抖音 / TikTok 右栏 = 头像、赞、评论、收藏、分享 + 碟片，**全屏都不在右栏**（[TikTok 安全区](https://socialk.it/en/tools/tiktok-safe-zone-checker)）；CapCut 模板角标在左下角、不在右栏 | **全屏键撤出右栏**（长按菜单里早有清屏 / 转屏），底部换成**转着的碟片 = 做同款**；左下角「做同款」招牌芯片留着（抖音碟片与「拍同款」字样并存）；右栏仍是 7 颗，几何不变 | **做了**：右栏最下一枚换成转着的碟片（封面 + 碟心，播放时转、减少动态效果不转），新手引导那一步改讲碟片 |
 | 5 | 不感兴趣 / 热词 / 粉丝数口径 | 抖音 / TikTok 的「不感兴趣」**长按菜单与分享面板都有**（[TikTok newsroom 2019](https://newsroom.tiktok.com/limiting-unwanted-content/?lang=en)）；计数按 GB/T 15835：万以下原样、≥1 万「x.x万」、去掉 .0 | **不感兴趣做**（服务端一个端点 + 推荐流排除 + 长按菜单 / 分享面板两处入口，点了当场从流里抹掉）；计数已是 `formatPlays` 一处，粉丝数也走它；热词 / 热榜等有内容再做（空架子不摆） | **不感兴趣做了**（服务端 `models/BranchHide` + 一对端点 + 列表排除、健康端点 `videoHide`；App 长按菜单一行 + 当场抹掉 + 6 秒撤销；契约「不感兴趣」）；计数口径核过已统一；热词 / 热榜仍不做 |
@@ -105,7 +105,7 @@ Apple HIG / Material / NN/g 对引导都说「短、少、可跳过」，二手�
 | canvas-platforms §七 4 | 玩法生态与奖励 | RunningHub 按「成功运行次数」周结；TapNow 只给积分；Civitai 现金要门槛 + 会员；中国现金分成要代扣个税（税总 2025 年 16 号公告）、不许平台沉淀用户资金（二清）（[RunningHub](https://www.runninghub.ai/creator-reward)、[税总公告](https://fgk.chinatax.gov.cn/zcfgk/c100012/c5241472/content.html)） | **只发平台 token、按成功运行次数**，不做现金；与第二节 2 同一套规则 |
 | canvas-platforms §七 6 | 唱段 | Suno 拦版权音频上传、歌词→唱是各家第一入口（[Suno audio inputs](https://suno.com/blog/audio-inputs)） | **只做「歌词让模型唱」+ 本人声音样本自证**，不收第三方歌曲 |
 | canvas-platforms §七 7 | 电商 / 口播数字人 | 故事类（LibTV / updream / 即梦 / Pika）都没有，只有工具平台（TapNow / 智影 / HeyGen）有 | **不进清单** |
-| backlog 637 | 热点模板节奏 | CapCut「Trending + 月份 / 节日」页签，没有公开周期 | 节奏定为**每月一拍节日档 + 热门页签按周轮换**；每一拍要出片（约 ¥10 / 条）→ 到期问「花」。10-31：11 月档两条（立冬围炉 / 感恩餐桌）进 `design/gen-seed-templates.mjs`（app#462，出片约 ¥24 等「花」）；「热门」排序改按 `stats.trend`（heat 按上架时间 7 天半衰期衰减，server#151 + App 同批） |
+| backlog 637 | 热点模板节奏 | CapCut「Trending + 月份 / 节日」页签，没有公开周期 | 节奏定为**每月一拍节日档 + 热门页签按周轮换**；每一拍要出片（约 ¥10 / 条）→ 到期问「花」。10-31：11 月档两条（立冬围炉 / 感恩餐桌）已出片并上市场（app#462 + 主人「花」，方舟实扣 ≈ ¥24.4，源片与试炼两条一次过，角色位 最左边 / 最右边）；「热门」排序改按 `stats.trend`（heat 按上架时间 7 天半衰期衰减，server#151 + App 同批） |
 | api-contract 2659 | 旧包 11-24 之后的缓解 | 见第一节 4 | 已定 |
 | review-personas 897 | `signUpWithPassword` 删不删 | — | 10-30 核：仓里已经没有这个函数，无事可做 |
 | review-personas 897 | 作品页点赞名字随不随状态变 | WCAG 4.1.2：切换键用 aria-pressed 表态，名字不变 | 名字不变、`aria-pressed` 已有 —— 不改 |
@@ -129,8 +129,11 @@ Apple HIG / Material / NN/g 对引导都说「短、少、可跳过」，二手�
 
 ## 七、还没做、要主人一句话的
 
-- **服务端批次 A（要「合」+ 评测要「花」约 ¥3）**：客服提示词的安全段 / 外貌「成年」/ 动作白名单 / 版本号静默进上下文；`[goto:]` 白名单与 `[ask:]`；Report 加 targetType。
-- **服务端批次 B（要「合」）**：不感兴趣端点 + 推荐流排除；用户 IP 属地字段；模板作者奖励规则（与同款奖励同形）。
-- **App 第二批**（随后在本分支继续）：发布页重排、画布「完成视频」入停靠栏、个人页充值键退级、钱包「token 是什么」、右栏碟片、发布上传进度登记 jobs。
+> 10-31 核：下面前三条都已经合并部署（服务端批次 A = #142 / #143、批次 B = #142 不感兴趣 + IP 属地、#145 模板作者奖励；App 第二批随 2.76 / 2.77 发版），
+> 划掉留作记录；还开着的闸只剩最后一段「发版」与 §五的 12 月节日档「花」。
+
+- ~~**服务端批次 A（要「合」+ 评测要「花」约 ¥3）**：客服提示词的安全段 / 外貌「成年」/ 动作白名单 / 版本号静默进上下文；`[goto:]` 白名单与 `[ask:]`；Report 加 targetType。~~
+- ~~**服务端批次 B（要「合」）**：不感兴趣端点 + 推荐流排除；用户 IP 属地字段；模板作者奖励规则（与同款奖励同形）。~~
+- ~~**App 第二批**（随后在本分支继续）：发布页重排、画布「完成视频」入停靠栏、个人页充值键退级、钱包「token 是什么」、右栏碟片、发布上传进度登记 jobs。~~
 - ~~**付费验证（要「花」）**：推演直接写分镜（约 ¥5）、「同上一段的地点」自动补句（约 ¥5）、多人同框绑定（¥1 ~ 2）~~ —— 10-30 主人「花」，三笔都跑了（实扣约 ¥12.1：出图 ¥1.60 + 视频 ¥10.48 + chat 不到 ¥0.1；脚本 `design/decisions-probe-2026-10-30.mjs`）：前两笔改了代码（本批 PR），第三笔结论是不加。
-- **发版（要「出」）**：这一批合进 main 后出 2.76；11-24 前最后一版带 `--min-version-code=76`。
+- **发版（要「出」）**：~~这一批合进 main 后出 2.76~~（2.76 ~ 2.79 已发）；main 上还没发的：热门按周轮换（App 这一半 #463）、11 月节日档工具与记录（#462 / #464）→ 2.80；**11-24 前最后一版带 `--min-version-code=76`**。
