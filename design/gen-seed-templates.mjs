@@ -30,7 +30,7 @@ const ARK = "https://ark.cn-beijing.volces.com/api/v3";
 const AH = { "Content-Type": "application/json", Authorization: `Bearer ${KEY}` };
 
 /** 官方首批两条。id 兼作文件名与登记状态的键 */
-const TEMPLATES = [
+const ALL_TEMPLATES = [
   {
     id: "rainy-umbrella",
     title: "雨夜递伞",
@@ -126,6 +126,12 @@ const TEMPLATES = [
     descs: ["左边·先举杯的", "右边·抬杯碰上的"],
   },
 ];
+
+// ★ 只跑表里的某几条（2026-10-31 起：表越来越长，每一拍只出新加的那几条；不传 = 全表，与原来一样）：
+//   TEMPLATES_ONLY=lidong-stove,thanksgiving-toast node design/gen-seed-templates.mjs gen <OUT>
+const ONLY = String(process.env.TEMPLATES_ONLY || "").split(",").map((x) => x.trim()).filter(Boolean);
+const TEMPLATES = ONLY.length ? ALL_TEMPLATES.filter((t) => ONLY.includes(t.id)) : ALL_TEMPLATES;
+if (ONLY.length && TEMPLATES.length !== ONLY.length) throw new Error(`TEMPLATES_ONLY 里有认不出的 id：${ONLY.filter((id) => !ALL_TEMPLATES.some((t) => t.id === id)).join(",")}`);
 
 async function jfetch(base, path, opts = {}) {
   const r = await fetch(`${base}${path}`, {
