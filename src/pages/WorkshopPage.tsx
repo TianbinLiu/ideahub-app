@@ -99,6 +99,9 @@ function PlazaError({ error, onRetry }: { error: string; onRetry: () => void }) 
   return <EmptyState error emoji="📡" text={t`没取到：${error}`} cta={{ label: t`重试`, onClick: onRetry }} />;
 }
 
+/** 排「热门」用的分：trend（按周衰减）优先、老服务端退回 heat、没有 stats 当 0 —— 唯一读法，两个页签共用 */
+const trendOf = (st?: { heat?: number; trend?: number } | null): number => st?.trend ?? st?.heat ?? 0;
+
 /** 右侧那颗小的「最新 / 热门」分段（紧凑分段控件那一档） */
 function SortSwitch({ sort, onSort }: { sort: (typeof SORTS)[number]; onSort: (s: (typeof SORTS)[number]) => void }) {
   const { t } = useLingui();
@@ -205,14 +208,15 @@ export default function WorkshopPage() {
   }, [cardPlaza.items]);
   const shownCards = useMemo(() => {
     const list = ctype ? cardPlaza.items.filter((c) => c.type === ctype) : cardPlaza.items;
-    // 热门 = 服务端算好的 stats.heat（utils/hotScore：点赞、收藏、浏览）；不带 stats 的老服务端当 0、排在后面，原顺序（最新在前）不变
-    return sort === "hot" ? [...list].sort((a, b) => (b.stats?.heat ?? 0) - (a.stats?.heat ?? 0)) : list;
+    // 热门 = 服务端算好的 stats.trend（heat 按上架时间以 7 天半衰期衰减，2026-10-31「热门按周轮换」：新上架的每周都轮得到前面）；
+    // 老服务端没有 trend 就按 heat；连 stats 都没有的当 0、排在后面，原顺序（最新在前）不变
+    return sort === "hot" ? [...list].sort((a, b) => trendOf(b.stats) - trendOf(a.stats)) : list;
   }, [cardPlaza.items, ctype, sort]);
   const shownDecks = useMemo(
     () =>
       sort === "hot"
-        ? // 卡组有真的「装过」计数，先按它，再按 heat
-          [...deckPlaza.items].sort((a, b) => b.installs - a.installs || (b.stats?.heat ?? 0) - (a.stats?.heat ?? 0))
+        ? // 卡组有真的「装过」计数，先按它，再按 trend（老服务端退回 heat）
+          [...deckPlaza.items].sort((a, b) => b.installs - a.installs || trendOf(b.stats) - trendOf(a.stats))
         : deckPlaza.items,
     [deckPlaza.items, sort],
   );
