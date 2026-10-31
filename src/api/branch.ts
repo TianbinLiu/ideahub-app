@@ -147,6 +147,11 @@ export interface ApiAssetStats {
   bookmarks: number;
   /** 服务端 utils/hotScore.js 算出来的分，客户端不重算（重算必然分叉） */
   heat: number;
+  /**
+   * 排「热门」用的分：heat 按上架时间以 7 天半衰期衰减（server utils/hotScore.trendScore，2026-10-31「热门按周轮换」）。
+   * 界面上的 🔥 数字仍读 heat；老服务端没有这一格 —— 排序一律 `trend ?? heat`，别只读 trend
+   */
+  trend?: number;
   /** 我赞过没有 / 我收藏过没有（未登录恒 false） */
   liked?: boolean;
   bookmarked?: boolean;
