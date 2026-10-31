@@ -105,7 +105,7 @@ Apple HIG / Material / NN/g 对引导都说「短、少、可跳过」，二手�
 | canvas-platforms §七 4 | 玩法生态与奖励 | RunningHub 按「成功运行次数」周结；TapNow 只给积分；Civitai 现金要门槛 + 会员；中国现金分成要代扣个税（税总 2025 年 16 号公告）、不许平台沉淀用户资金（二清）（[RunningHub](https://www.runninghub.ai/creator-reward)、[税总公告](https://fgk.chinatax.gov.cn/zcfgk/c100012/c5241472/content.html)） | **只发平台 token、按成功运行次数**，不做现金；与第二节 2 同一套规则 |
 | canvas-platforms §七 6 | 唱段 | Suno 拦版权音频上传、歌词→唱是各家第一入口（[Suno audio inputs](https://suno.com/blog/audio-inputs)） | **只做「歌词让模型唱」+ 本人声音样本自证**，不收第三方歌曲 |
 | canvas-platforms §七 7 | 电商 / 口播数字人 | 故事类（LibTV / updream / 即梦 / Pika）都没有，只有工具平台（TapNow / 智影 / HeyGen）有 | **不进清单** |
-| backlog 637 | 热点模板节奏 | CapCut「Trending + 月份 / 节日」页签，没有公开周期 | 节奏定为**每月一拍节日档 + 热门页签按周轮换**；每一拍要出片（约 ¥10 / 条）→ 到期问「花」。10-31：11 月档两条（立冬围炉 / 感恩餐桌）进 `design/gen-seed-templates.mjs`（app#462，出片约 ¥24 等「花」）；「热门」排序改按 `stats.trend`（heat 按上架时间 7 天半衰期衰减，server#151 + App 同批） |
+| backlog 637 | 热点模板节奏 | CapCut「Trending + 月份 / 节日」页签，没有公开周期 | 节奏定为**每月一拍节日档 + 热门页签按周轮换**；每一拍要出片（约 ¥10 / 条）→ 到期问「花」。10-31：11 月档两条（立冬围炉 / 感恩餐桌）已出片并上市场（app#462 + 主人「花」，方舟实扣 ≈ ¥24.4，源片与试炼两条一次过，角色位 最左边 / 最右边）；「热门」排序改按 `stats.trend`（heat 按上架时间 7 天半衰期衰减，server#151 + App 同批） |
 | api-contract 2659 | 旧包 11-24 之后的缓解 | 见第一节 4 | 已定 |
 | review-personas 897 | `signUpWithPassword` 删不删 | — | 10-30 核：仓里已经没有这个函数，无事可做 |
 | review-personas 897 | 作品页点赞名字随不随状态变 | WCAG 4.1.2：切换键用 aria-pressed 表态，名字不变 | 名字不变、`aria-pressed` 已有 —— 不改 |
