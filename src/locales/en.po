@@ -30964,6 +30964,10 @@ msgstr "Press and hold"
 msgid "问{name}：哪里不对？"
 msgstr "Ask {name}: what's wrong?"
 
+#: src/pages/SupportPage.tsx
+msgid "问到扣费、余额或退款时，我会读你本人最近的 token 流水来回答（只在你问的时候读，只看你自己的）。"
+msgstr "When you ask about charges, balance or refunds, I read your own recent token ledger to answer (only when you ask, and only your own)."
+
 #: src/studio/personaWizardStore.ts
 msgid "问卷"
 msgstr "Questionnaire"

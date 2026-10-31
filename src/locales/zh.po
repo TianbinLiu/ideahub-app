@@ -30972,6 +30972,10 @@ msgstr "长按画面"
 msgid "问{name}：哪里不对？"
 msgstr "问{name}：哪里不对？"
 
+#: src/pages/SupportPage.tsx
+msgid "问到扣费、余额或退款时，我会读你本人最近的 token 流水来回答（只在你问的时候读，只看你自己的）。"
+msgstr "问到扣费、余额或退款时，我会读你本人最近的 token 流水来回答（只在你问的时候读，只看你自己的）。"
+
 #: src/studio/personaWizardStore.ts
 msgid "问卷"
 msgstr "问卷"
