@@ -1,3 +1,15 @@
+启梦 2.78
+
+· 推演三套方案：AI 直接把剧情写成 2~3 个镜头（方案台上就是分镜表），出片照着切镜；推演只画每套的开头画面，承接上一段时一张不画，报价跟着少。
+· 画设定帧时每张人物卡都带自己的形象图（原来只带第一张），同框的第二个人不再由 AI 自己编；一段最多带 4 张图。
+· 首页「关注」页签在拉取时显示加载态；作品页的评论预览在还没取到时写「正在取」，不再先说「没有评论」。
+
+QiMeng 2.78
+
+· Story proposals: the AI now writes each plan as 2–3 shots (shown as a shot list), and the video cuts along them; proposals draw only the opening frame (none when continuing from the previous segment), so they cost less.
+· Keyframes bring every character card’s picture (previously only the first), so the second person in a shot is no longer improvised; up to 4 pictures per segment.
+· The Following tab shows a loading state while fetching; the comment preview says “loading” instead of “no comments” before it has the data.
+
 启梦 2.77
 
 · 模板作者奖励：别人套用你登记在服务器上的视频模板出片、公开发布满 24 小时还公开着，平台奖励你 token（每次多少、每天几次以 App 里那一句为准）；到账会有通知。
