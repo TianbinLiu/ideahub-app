@@ -1,3 +1,11 @@
+启梦 2.79
+
+· AI 客服能查你本人的账：问到扣费、余额或退款时，服务器会读你本人最近的 token 流水，让小梦照着实际记录回答（只在你问的时候读，只看你自己的，不含任务号）。开场白里会说明这一点，隐私政策（设置页与官网）同步加了这一句。
+
+QiMeng 2.79
+
+· AI support can now check your own account: when you ask about charges, balance or refunds, the server reads your own recent token ledger so the answer follows your actual records (read only when you ask, only your own data, no task IDs). The greeting says so, and the privacy policy (Settings and website) has the matching sentence.
+
 启梦 2.78
 
 · 推演三套方案：AI 直接把剧情写成 2~3 个镜头（方案台上就是分镜表），出片照着切镜；推演只画每套的开头画面，承接上一段时一张不画，报价跟着少。
