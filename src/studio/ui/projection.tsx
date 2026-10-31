@@ -35,6 +35,8 @@ import LeadShotsWizard from "../../components/flow/LeadShotsWizard";
 import GridShotsWizard from "../../components/flow/GridShotsWizard";
 import EffectWizard from "../../components/flow/EffectWizard";
 import { resetEffect } from "../effectDraftStore";
+import SongWizard from "../../components/flow/SongWizard";
+import { resetSong } from "../songDraftStore";
 import DialogueWizard from "../../components/flow/DialogueWizard";
 import { resetDialogueLines } from "../dialogueDraftStore";
 import { leadAppendSpec } from "../leadCast";
@@ -303,9 +305,9 @@ function EditorPanel() {
   const [step, setStep] = useState<"mode" | "ref" | "content" | "spec">(() =>
     (useStudio.getState().editor?.slots.length ?? 0) > 0 ? "content" : "mode",
   );
-  const [lane, setLane] = useState<"cards" | "custom" | "direct" | "lead" | "grid" | "dialogue" | "effect">("cards");
+  const [lane, setLane] = useState<"cards" | "custom" | "direct" | "lead" | "grid" | "dialogue" | "effect" | "song">("cards");
   /** 向导整块接管第②③步的那几条车道（B / C / I / G）：铸段窗自己的步骤条与脚这时不画（向导自己带） */
-  const wizardLane = lane === "lead" || lane === "grid" || lane === "dialogue" || lane === "effect";
+  const wizardLane = lane === "lead" || lane === "grid" || lane === "dialogue" || lane === "effect" || lane === "song";
   /**
    * 跟着做 B「主角定妆 · 多镜头」（lane === "lead"）：向导整块接管②③两步（components/flow/LeadShotsWizard，与画布同一份），
    * 走完由 studioStore.layLeadNode 落段、要出片再走 genNodeVideo。下面这几样给向导用（★ hook 排在早退之前）
@@ -511,7 +513,7 @@ function EditorPanel() {
             derivePrice={derivePrice}
             onPick={(m) => {
               if (m === "template") setTplPick(true);
-              else if (m === "lead" || m === "grid" || m === "dialogue" || m === "effect") {
+              else if (m === "lead" || m === "grid" || m === "dialogue" || m === "effect" || m === "song") {
                 setLane(m);
                 setLeadErr("");
                 setStep("content");
@@ -608,6 +610,27 @@ function EditorPanel() {
                 return;
               }
               resetEffect();
+              if (generate) void useStudio.getState().genNodeVideo(r.nodeIds[0], r.firstProposalId);
+            }}
+            err={leadErr}
+            busy={flowBusy}
+          />
+        </div>
+      ) : lane === "song" ? (
+        /* ══ 跟着做 L：向导整块接管（谁来唱 → 歌词 + 曲风 → 出片），自己带步骤条与脚；落段与 C / G 同一个 layWizardNodes ══ */
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-3">
+          <SongWizard
+            tierId={editor.videoTier}
+            defaultAspect={editor.aspect}
+            quote={(specs) => appendSpecsQuote(flowNodes, flowMode, specs)}
+            onBack={() => setStep("mode")}
+            onFinish={(specs, generate) => {
+              const r = useStudio.getState().layWizardNodes(specs, t`唱的那一段铺好了——人物图直接给视频模型，歌词由它唱出来。`);
+              if (!r.ok) {
+                setLeadErr(r.why);
+                return;
+              }
+              resetSong();
               if (generate) void useStudio.getState().genNodeVideo(r.nodeIds[0], r.firstProposalId);
             }}
             err={leadErr}

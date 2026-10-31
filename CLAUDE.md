@@ -683,6 +683,7 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   与服务端 `VIDEO_MULT_R2V` 逐条相等，账单还待逐行核对）：「能带参考视频」（`refVid`）、「能延长」（`extendOk`）、「能跑白模模板」（`blockoutOk`）
   是档位表上**三位**，高清只有第一位 —— 判白模段的档位行 / 出片闸问 `blockoutPriceIssue`，返修与示例视频问 `r2vPriceIssue`，别混用
   （混用的症状：高清在白模段上变成可选、真按高清复刻模板）。
+  ⑫ **L 唱一段（2026-10-31，主人听过付费探测的五条成片「唱出来了」）**：向导只有一份 `components/flow/SongWizard`（工坊 lane `song`、画布抽屉，走完才落段），状态在 `studio/songDraftStore`。三步：谁来唱（一个人物卡 + 可选场景卡）→ 歌词 + 曲风（自己写一行一句，或一句主题让第六条官方结构化技能 `structuredSkills.runLyrics` 写 4 行）→ 出片。规则只在零依赖的 `data/songShots`（`check-song-shots.mjs` 实跑）：歌词怎么收、行数 2~8、「这几行至少要几秒」（汉字 1 / 字母 0.4，一秒 2.5）、提示词逐字照探测的 s2 写法（`{名字}是成年人，对着麦克风唱歌，不是念白：{曲风}…` + 每两行一句官方台词格式 `{名字}台词（唱，{情绪}）：“…”` + `严格按歌词演唱`），**「成年」钉死**（2.5 把人画成过未成年）；台词格式照 `lineSpeakers` / `hasDialogue` 认的形状，卡上的声音样本按名字带得上（说「会一起带上」是事实，别说「用本人的声音唱」—— 没验过）。落成一段参考图直出段（`songAppendSpec`：direct、不承接、挂人物卡 + 场景卡），哪一档能用 = `guidedModes.modeBlock("song")` 要出声（只在 2.0 mini / 2.5 验过会唱、2.5 不比 mini 更会唱；H3 没验）。不收用户上传的歌（版权），作词技能要求原创。探测读数在 docs/canvas-platforms-ecosystem-research.md 第十节。
 - **「这一段用哪个模板」是三态，且必须当场表态**（`FlowNode.tpl`）：`undefined` = 还没表态
   （退回 store 级 `template`，老草稿与单模板流靠它）、`null` = 明确没有、对象 = 这一段自己的
   快照。读**只准走 `tplOfNode`**。而 store 级那份会随 `setCursor` 换成**当前段**的快照 ——

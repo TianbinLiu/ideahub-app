@@ -10,8 +10,8 @@
 
 import type { VideoTierSpec } from "./videoTierTable";
 
-/** 模式 id（与设计稿的字母对照：direct = A、lead = B、grid = C、custom = F、cards = D、template = E、effect = G、dialogue = I） */
-export type GuidedModeId = "direct" | "lead" | "grid" | "dialogue" | "custom" | "cards" | "template" | "effect";
+/** 模式 id（与设计稿的字母对照：direct = A、lead = B、grid = C、custom = F、cards = D、template = E、effect = G、dialogue = I、song = L） */
+export type GuidedModeId = "direct" | "lead" | "grid" | "dialogue" | "song" | "custom" | "cards" | "template" | "effect";
 
 /** 选法屏上的三组：基础 / 跟着高手做 / 复刻 */
 export type GuidedGroup = "basic" | "pro" | "replica";
@@ -19,7 +19,7 @@ export type GuidedGroup = "basic" | "pro" | "replica";
 export interface GuidedModeDef {
   id: GuidedModeId;
   /** 设计稿里的字母，方便对照 docs/guided-modes-design.md */
-  letter: "A" | "B" | "C" | "D" | "E" | "F" | "G" | "I";
+  letter: "A" | "B" | "C" | "D" | "E" | "F" | "G" | "I" | "L";
   group: GuidedGroup;
   /** 固定步骤数（选法屏上写「N 步」；与向导的步骤条同一个数） */
   steps: number;
@@ -35,6 +35,8 @@ export const GUIDED_MODES: readonly GuidedModeDef[] = [
   { id: "grid", letter: "C", group: "pro", steps: 5 },
   // I 对话正反打（2026-10-05 第一批，docs/canvas-platforms-ecosystem-research.md §五）：两个人和场景 → 写对白 → 画三个机位（双人 + 两个过肩）→ 一句一段 · 出片
   { id: "dialogue", letter: "I", group: "pro", steps: 4 },
+  // L 唱一段（2026-10-31，docs/canvas-platforms-ecosystem-research.md §五 L + 第十节的付费探测）：谁来唱 → 歌词（自己写 / AI 写）+ 曲风 → 出片
+  { id: "song", letter: "L", group: "pro", steps: 3 },
   { id: "cards", letter: "D", group: "pro", steps: 3 },
   // G 特效同款（2026-10-05 第一批）：挑一个特效 → 挑主角 → 关键帧 · 出片。复刻 · 同款这一组里最常用，排第一
   { id: "effect", letter: "G", group: "replica", steps: 3 },
@@ -102,6 +104,10 @@ function capBlock(id: GuidedModeId, tier: ModeTier): "refImg" | "startOnly" | "a
       return null;
     // 对话正反打的看点就是台词：出不了声的档（1.0 两档、真人档）上三句话一个字都说不出来
     case "dialogue":
+      return tier.audio ? null : "audio";
+    // 唱一段同理：歌词是用声音唱出来的，出不了声的档上一个字都没有。出声的档今天都收参考图（人物图直接给视频模型、不画帧）
+    //   ★ 2026-10-31 只在 Seedance 2.0 mini / 2.5 上验过「给歌词会唱」（design/singing-probe）；MiniMax H3 也出声、按同一位摆，还没验过
+    case "song":
       return tier.audio ? null : "audio";
   }
 }

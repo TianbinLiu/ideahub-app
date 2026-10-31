@@ -53,11 +53,13 @@ import TextTplBanner from "./TextTplBanner";
 import LeadShotsWizard from "./LeadShotsWizard";
 import GridShotsWizard from "./GridShotsWizard";
 import EffectWizard from "./EffectWizard";
+import SongWizard from "./SongWizard";
 import DialogueWizard from "./DialogueWizard";
 import { leadAppendSpec, type LeadSpec } from "../../studio/leadCast";
 import { resetLeadScene } from "../../studio/leadDraftStore";
 import { resetGridScene } from "../../studio/gridDraftStore";
 import { resetEffect } from "../../studio/effectDraftStore";
+import { resetSong } from "../../studio/songDraftStore";
 import { resetDialogueLines } from "../../studio/dialogueDraftStore";
 import Sheet from "../Sheet";
 import { modeBlock, type GuidedModeId } from "../../data/guidedModes";
@@ -222,6 +224,8 @@ export default function FlowCanvas({
   const [gridSheet, setGridSheet] = useState<{ tier: string; aspect: VideoAspect } | null>(null);
   /** 跟着做 G「特效同款」的向导开在哪一档上；null = 没开。与 C 同一条：走完才落段（finishEffect），状态在 studio/effectDraftStore */
   const [effectSheet, setEffectSheet] = useState<{ tier: string; aspect: VideoAspect } | null>(null);
+  /** 跟着做 L「唱一段」的向导开在哪一档上；null = 没开。与 G 同一条：走完才落段（finishSong） */
+  const [songSheet, setSongSheet] = useState<{ tier: string; aspect: VideoAspect } | null>(null);
   /** 跟着做 I「对话正反打」的向导开在哪一档上；null = 没开。与 C 同一条：走完才落段（finishDialogue），状态在 studio/dialogueDraftStore */
   const [dialogueSheet, setDialogueSheet] = useState<{ tier: string; aspect: VideoAspect } | null>(null);
   const flowMode = useFlow((s) => s.mode);
@@ -468,6 +472,12 @@ export default function FlowCanvas({
       setDialogueSheet({ tier: tierId, aspect: st.nodes[st.nodes.length - 1]?.aspect ?? DEFAULT_ASPECT });
       return;
     }
+    if (m === "song") {
+      const st = useFlow.getState();
+      useFlow.setState({ err: "" }); // 理由同上（finishSong 的拒绝画在向导最后一步）
+      setSongSheet({ tier: tierId, aspect: st.nodes[st.nodes.length - 1]?.aspect ?? DEFAULT_ASPECT });
+      return;
+    }
     const before = useFlow.getState().nodes.length;
     addNode();
     const after = useFlow.getState().nodes;
@@ -532,6 +542,20 @@ export default function FlowCanvas({
     if (!ids?.length) return;
     setEffectSheet(null);
     resetEffect();
+    const i = useFlow.getState().nodes.findIndex((n) => n.id === ids[0]);
+    setSel(i);
+    setCursor(i);
+    panTo(i);
+    if (generate) void useFlow.getState().genNode(ids[0]);
+  }
+
+  /** L 的向导点了「生成这一段」/「只铺成这一段」：与 G 同一对入口（appendSpecs 落段 + genNode 出片），落完清掉这一次的歌词 */
+  function finishSong(specs: AppendSpec[], generate: boolean) {
+    if (!songSheet) return;
+    const ids = useFlow.getState().appendSpecs(specs, { tierGate: false });
+    if (!ids?.length) return;
+    setSongSheet(null);
+    resetSong();
     const i = useFlow.getState().nodes.findIndex((n) => n.id === ids[0]);
     setSel(i);
     setCursor(i);
@@ -1081,6 +1105,26 @@ export default function FlowCanvas({
               setAddPick({ tier });
             }}
             onFinish={finishEffect}
+            err={err}
+            busy={busy || nodes.some((n) => n.status === "generating")}
+          />
+        </Sheet>
+      )}
+      {songSheet && (
+        <Sheet onClose={() => setSongSheet(null)}>
+          <div className="mb-2 flex justify-end">
+            <CloseButton chip="sm" size={13} align="end" onClick={() => setSongSheet(null)} />
+          </div>
+          <SongWizard
+            tierId={songSheet.tier}
+            defaultAspect={songSheet.aspect}
+            quote={(specs) => appendSpecsQuote(nodes, flowMode, specs)}
+            onBack={() => {
+              const tier = songSheet.tier;
+              setSongSheet(null);
+              setAddPick({ tier });
+            }}
+            onFinish={finishSong}
             err={err}
             busy={busy || nodes.some((n) => n.status === "generating")}
           />
