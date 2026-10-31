@@ -1,3 +1,15 @@
+启梦 2.80
+
+· 创意工坊的「热门」改成按周轮换：热度按上架时间打折（一周减半），新分享的卡片、卡组每周都有机会排到前面，不再被老条目长期占着；热度数字本身不变。
+· 模板市场多了两条官方节日模板：「立冬围炉」（递饺子）与「感恩餐桌」（举杯相碰），都是两个角色位，服务器上线、所有版本可见。
+· 预告：11 月 24 日起 2.63 及更早的版本用的出图 / 出片模型停服，到时这些版本会被要求更新后才能继续用。
+
+QiMeng 2.80
+
+· “Hot” in the Workshop now rotates weekly: heat decays with listing age (halving each week), so newly shared cards and decks get a turn at the top instead of old entries holding it; the heat number itself is unchanged.
+· Two official festival templates in the template market: “Winter Stove” (passing dumplings) and “Thanksgiving Table” (clinking glasses), both with two character slots; server-side, visible on every version.
+· Heads-up: on Nov 24 the models used by 2.63 and earlier are retired; those versions will be asked to update first.
+
 启梦 2.79
 
 · AI 客服能查你本人的账：问到扣费、余额或退款时，服务器会读你本人最近的 token 流水，让小梦照着实际记录回答（只在你问的时候读，只看你自己的，不含任务号）。开场白里会说明这一点，隐私政策（设置页与官网）同步加了这一句。
