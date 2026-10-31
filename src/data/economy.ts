@@ -1537,11 +1537,14 @@ export function composeCost(segments: Array<Pick<VideoSegment, "durationSec" | "
  */
 export const MODEL3D_TOKENS = 160_000;
 
-/** 三方案推演：1 次豆包写剧情 + 每个方案的首尾帧。
- *  有确定开头帧时三个方案共用它，只画尾帧——图量减半，报价也得跟着减半，
- *  否则用户会看到"接着上一段做反而更贵"。 */
+/** 三方案推演：1 次豆包写剧情 + 每个方案一张**开头画面**（2026-10-30 起不再画结束画面）。
+ *  有确定开头帧（承接上一段尾帧）时三个方案共用它，一张图都不画 —— 只剩那一次对话。
+ *  ★ 为什么不画结束画面：推演写出来的 plot 从 2026-10-30 起是分镜（real.generateProposals 的系统提示词，付费验证见
+ *    docs/node-modes-libtv-alignment.md §八），多镜头的段不用 AI 画的结束画面（data/drawPlan 规矩 ②），画了就是每套 ¥0.2 白花；
+ *    偶尔写成单镜头的方案，结束画面由出片前补画那一步按 framesToDraw 补、钱算在出片报价里（nodeCost）。
+ *  ★ 与 real.generateProposals 的 jobs 逐条相等（那边只排 "first"，承接时一张不排）。 */
 export function proposalsCost(hasStartFrame: boolean): number {
-  return CARD_META_TOKENS + 3 * (hasStartFrame ? 1 : 2) * IMAGE_TOKENS;
+  return CARD_META_TOKENS + (hasStartFrame ? 0 : 3) * IMAGE_TOKENS;
 }
 
 /** 单张图的重画：方案设定图改图（refineFrame）、AI 封面（generateCover） */

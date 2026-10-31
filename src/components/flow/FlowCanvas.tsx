@@ -1291,7 +1291,7 @@ function NodePanel({
   const [planSheet, setPlanSheet] = useState<string | null>(null);
   const [settings, setSettings] = useState(false);
   const cost = nodeCost(nodes, index, mode);
-  // 推演报价与工坊方案台同一把尺（flowStore.deriveCostOf —— deriveProposals 真扣的就是它）：承接上一段真实尾帧的段少画一张起始帧。
+  // 推演报价与工坊方案台同一把尺（flowStore.deriveCostOf —— deriveProposals 真扣的就是它）：承接上一段真实尾帧的段一张帧都不画（2026-10-30 起推演只画开头画面）。
   // ★ 2026-10-15 教材人格评审：这里原来手抄 proposalsCost(carried)，与真扣逐字相同时只是冗余，但 deriveCostOf 头上 ★★ 记着
   //   2026-09-03 两个 prev 差出成倍价的事 —— 同一笔钱只许一把尺。carried / prevP 留给融图候选（fuseSourcesOf 的 carryFrame）
   const prevP = index > 0 ? chosenOf(nodes[index - 1]) : null;

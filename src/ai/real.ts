@@ -1903,6 +1903,35 @@ function framePrompts(
  *  onProgress 逐阶段播报——整个过程实测约 1-1.5 分钟，没有进度就是"卡死"体感。
  *  @param onFramesGone 帧**一张都没画成**、而且是因为出图模型用不了了（ArkImageModelGone）时调一次 —— 剧情照样交回去，
  *    调用方拿它把真正的原因（「请更新 App」）说在推演结果旁边（见函数末尾那段 ★★）。画成了一部分 / 别的原因失败时不调。 */
+/**
+ * 读模型回的 JSON 数组，**容两种常见的坏法**（2026-10-30 付费验证里 3 发分镜回话有 1 发漏了一个收尾的 `}`）：
+ * 去掉 ``` 围栏；解析失败就按「字符串外」的括号计数把缺的 `}` / `]` 补在末尾再试一次。
+ * 补不好照样抛 —— 调用方的 catch 退回本地剧本并说出来（那一发对话已经计费，少退一次就少花一次钱）。
+ * ★ 只补**末尾缺的收尾**，不动中间：中间坏的 JSON 补出来也是错的内容。
+ */
+function parseLooseJsonArray(raw: string): unknown {
+  const text = raw.replace(/```json|```/g, "").trim();
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    const stack: string[] = [];
+    let inStr = false;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (inStr) {
+        if (ch === "\\") i++;
+        else if (ch === '"') inStr = false;
+        continue;
+      }
+      if (ch === '"') inStr = true;
+      else if (ch === "{" || ch === "[") stack.push(ch === "{" ? "}" : "]");
+      else if (ch === "}" || ch === "]") stack.pop();
+    }
+    if (inStr || stack.length === 0) throw e;
+    return JSON.parse(text + stack.reverse().join(""));
+  }
+}
+
 export async function generateProposals(
   ctx: ProposalContext,
   onProgress?: (status: string) => void,
@@ -1923,7 +1952,11 @@ export async function generateProposals(
       .join("；");
     const raw = await chat(
       // ★ 2026-09-06：加结构化镜头字段（对标 updream 分镜 Skill）——景别 / 运镜 / 情绪节拍各是短语，出片提示词按字段读
-      zhPrompt`你是互动视频编剧兼分镜师。基于素材与要求，为同一段视频写 3 个不同走向（顺势推进/风云突变/柳暗花明），输出 JSON 数组：[{"title":"12字内标题","plot":"80-120字剧情，画面感强，小说式","durationSec":4到9的整数,"shot":{"size":"景别（远景/全景/中景/近景/特写）","camera":"运镜（固定/推/拉/摇/移/跟/环绕/手持，可带方向，6字内）","beat":"情绪节拍，6字内，如 压抑→爆发"}}]。只输出 JSON。`,
+      // ★ 2026-10-30 起 plot 直接写成分镜（主人「花」的付费验证，docs/node-modes-libtv-alignment.md §八）：
+      //   同一批人物图、同一个走向，散文 plot 出来的两发都是一个镜头到底，分镜 plot 的两发都照「镜头1 / 2 / 3」切了三次、人物照样对；
+      //   chat 输出 283 ~ 347 token（散文 307 ~ 323），离 800 上限很远。格式就是分镜表认的那一种（data/shotScript：「镜头N：」起一行），
+      //   方案台上直接按格子显示、多镜头不画结束画面（drawPlan 规矩 ②）。提示词里那个反斜杠 n 是告诉模型 JSON 串里用转义换行（源码里要写成两个反斜杠）
+      zhPrompt`你是互动视频编剧兼分镜师。基于素材与要求，为同一段视频写 3 个不同走向（顺势推进/风云突变/柳暗花明），输出 JSON 数组：[{"title":"12字内标题","plot":"分镜：2到3个镜头，每个镜头一行、以「镜头1：」「镜头2：」开头（行之间用\\n），每行30-45字写清谁在哪、做什么、景别与运镜，不写秒数；总计80-130字","durationSec":4到9的整数,"shot":{"size":"景别（远景/全景/中景/近景/特写）","camera":"运镜（固定/推/拉/摇/移/跟/环绕/手持，可带方向，6字内）","beat":"情绪节拍，6字内，如 压抑→爆发"}}]。只输出 JSON。`,
       // 要求里的 `@点名` 退成名字（data/refMentions.plainMentions；没有 @ 的句子逐字节原样）
       zhPrompt`这是第${ctx.index + 1}段。素材：${mats}\n要求：${plainMentions(ctx.requirement, ctx.materials, ctx.extraRefs) || "无"}\n已定前情：${ctx.pathPlots.join(" / ") || "无"}${
         ctx.startFrame
@@ -1933,7 +1966,7 @@ export async function generateProposals(
         ctx.durationMode === "manual" ? `\n用户指定时长：${ctx.durationSec}秒（durationSec 用这个值）` : ""
       }`,
     );
-    plots = JSON.parse(raw.replace(/```json|```/g, "").trim());
+    plots = parseLooseJsonArray(raw) as typeof plots;
     // i18n-ignore-next-line: 只进 console.warn：同一个 try 的 catch 吞掉，退回本地剧本
     if (!Array.isArray(plots) || plots.length < 3) throw new Error("剧情 JSON 结构不符");
   } catch (e) {
@@ -1969,10 +2002,12 @@ export async function generateProposals(
   //   等于这句话根本没说过（铁律八：失败要"响"，写进一个没人看得见的地方不算响）。
   //   攒到开画前最后一发，它会一直挂到第一张图回来（实测 20s+），用户才真读得到。
   const matNotes: string[] = [];
-  // 顺序固定为 [方案0首帧, 方案0尾帧, 方案1首帧, …]，与最终 results[pi*2] 取值对应
-  const jobs = three.flatMap((p) =>
-    (startFrame ? (["last"] as const) : (["first", "last"] as const)).map((which) => ({ p, which })),
-  );
+  // ★ 2026-10-30 起推演**只画开头画面**（每套一张；承接上一段尾帧时一张都不画）：plot 现在写成分镜（见上面的系统提示词），
+  //   多镜头的段本来就不用 AI 画的结束画面（drawPlan 规矩 ②：endFrameUsed 不认它、出片也不发），再画就是每套 ¥0.2 白花；
+  //   偶尔写成单镜头的方案，结束画面由出片前补画那一步按 framesToDraw 补（报价 nodeCost 数着它）。
+  //   报价 economy.proposalsCost 与这里逐条相等（1 次对话 + 不承接时 3 张）。
+  //   顺序固定为 [方案0首帧, 方案1首帧, 方案2首帧]，与最终 results[pi] 取值对应
+  const jobs = startFrame ? [] : three.map((p) => ({ p, which: "first" as const }));
   // 句子里的 `@点名` 退成名字（每套方案一份）
   const plainOf = new Map(three.map((p) => [p.id, plainMentions(p.plot, ctx.materials, ctx.extraRefs)]));
   // ★ 这一刻里有谁就只带谁的卡（shotScript.momentCards，2026-10-04 —— 与出片前补画、两面的「重画这一套」同一条规则）：
@@ -1995,7 +2030,7 @@ export async function generateProposals(
   // 设定帧的画布必须跟本段画幅走：横版帧喂竖屏视频任务会被 Seedance 裁一刀
   const frameSize = aspectOf(ctx.aspect).frameSize;
   const total = jobs.length;
-  onProgress?.(startFrame ? t`承接上段尾帧，绘制收尾画面 0/${total}…` : t`剧情就绪，绘制首尾帧 0/${total}…`);
+  if (total > 0) onProgress?.(t`剧情就绪，绘制开头画面 0/${total}…`);
   // 参考图的实情放在开画前最后一发（理由见上）：哪张没采用、为什么只锁了一个角色，
   // 都要在这几十秒里看得见 —— 这两件事一旦没说，用户只会觉得"AI 画得不像"
   if (matNotes.length) onProgress?.(joinNotes(matNotes));
@@ -2063,13 +2098,13 @@ export async function generateProposals(
   //   画成了一部分（模型还在，只是个别失败）照旧交回去、不调它。
   if (modelGone && results.every((f) => !f)) onFramesGone?.(modelGone);
 
-  const per = startFrame ? 1 : 2;
   return three.map((p, pi) => {
     // i18n-ignore-next-line: 存进 Proposal.title、随作品发布成 VideoSegment.title；「第N段 · 」前缀靠六条正则剥（studioStore 的分支选项 label ×2 / 兜底场景卡名 / 草稿自动标题，useFlowActions 的回炉工程标题，ai/index 的 mock 派生卡名），标题解耦之前冻结
     const title = `第${ctx.index + 1}段 · ${p.title}`;
-    const firstFrame = startFrame ?? results[pi * per];
-    const lastFrame = results[pi * per + (startFrame ? 0 : 1)];
-    const degraded = !firstFrame || !lastFrame;
+    const firstFrame = startFrame ?? results[pi];
+    // 结束画面推演不画（见 jobs 那段 ★）；degraded 只标「试着画了、没画成」的那张 —— 没试的空着不算没画成
+    const lastFrame: string | null = null;
+    const degraded = !startFrame && !firstFrame;
     return {
       id: p.id,
       title,

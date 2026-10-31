@@ -1762,7 +1762,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
     //     ① 起拍帧：那边是 `node.chain && prev ? prev.lastFrame : null`，这里是
     //        `prev?.lastFrame ?? null` —— 用户在 ⚙ 里**明确关掉**的承接，在工坊被悄悄接回来；
     //     ② 报价：那边 `proposalsCost(!!(node.chain && prev.lastFrame))`，这里按 `!!startFrame`
-    //        —— 同一段同一颗键，两面标价不同（承接时图量减半、价也减半）；
+    //        —— 同一段同一颗键，两面标价不同（承接时一张帧都不画、只剩那次对话的价）；
     //     ③ 「同时只跑一炉」的闸：这里只看工坊自己那三个旗标，**不问 flowStore.busy**
     //        —— 画布正在出片（几分钟、无 AbortController）时在工坊点重推照样放行：
     //        推演费先扣、整表换掉 proposals，几分钟后出片回包打在一个已经不存在的

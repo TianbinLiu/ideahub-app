@@ -9694,8 +9694,12 @@ msgid "剧情 AI 未响应，改用本地剧本…"
 msgstr "剧情 AI 未响应，改用本地剧本…"
 
 #: src/ai/real.ts
-msgid "剧情就绪，绘制首尾帧 0/{total}…"
-msgstr "剧情就绪，绘制首尾帧 0/{total}…"
+msgid "剧情就绪，绘制开头画面 0/{total}…"
+msgstr "剧情就绪，绘制开头画面 0/{total}…"
+
+#: src/ai/real.ts
+#~ msgid "剧情就绪，绘制首尾帧 0/{total}…"
+#~ msgstr "剧情就绪，绘制首尾帧 0/{total}…"
 
 #: src/ai/real.ts
 msgid "剧情推演中…"
@@ -15223,8 +15227,8 @@ msgid "承接上段尾帧，三个方案共用开头帧，只画尾帧"
 msgstr "承接上段尾帧，三个方案共用开头帧，只画尾帧"
 
 #: src/ai/real.ts
-msgid "承接上段尾帧，绘制收尾画面 0/{total}…"
-msgstr "承接上段尾帧，绘制收尾画面 0/{total}…"
+#~ msgid "承接上段尾帧，绘制收尾画面 0/{total}…"
+#~ msgstr "承接上段尾帧，绘制收尾画面 0/{total}…"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "承接尾帧"

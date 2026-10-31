@@ -148,7 +148,10 @@ async function video(tag, prompt, refs) {
     // 10 格缩略（每 0.5 秒一帧）给人看；尾帧单独截给承接用
     try {
       execFileSync("ffmpeg", ["-y", "-v", "error", "-i", file, "-vf", "fps=2,scale=248:-1,tile=5x2", "-frames:v", "1", join(OUT, `${tag}.sheet.png`)]);
-      execFileSync("ffmpeg", ["-y", "-v", "error", "-sseof", "-0.08", "-i", file, "-frames:v", "1", "-q:v", "3", "-vf", "scale=-1:1280", join(OUT, `${tag}.tail.jpg`)]);
+      // ★ 视频是 limited-range YUV，mjpeg 编码器默认拒收（"Non full-range YUV is non-standard"）：要 -pix_fmt yuvj420p；
+      //   -sseof -0.08 在这种 5 秒片上一帧都取不到（第一轮跑就栽在这儿，E2 因此停在第 1 段），按时长减 0.25 秒 -ss 才稳
+      const dur = Number(execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", file], { encoding: "utf8" })) || 5;
+      execFileSync("ffmpeg", ["-y", "-v", "error", "-ss", String(Math.max(0, dur - 0.25)), "-i", file, "-frames:v", "1", "-update", "1", "-pix_fmt", "yuvj420p", "-q:v", "3", "-vf", "scale=-1:1280", join(OUT, `${tag}.tail.jpg`)]);
       rec.sheet = join(OUT, `${tag}.sheet.png`);
       rec.tail = join(OUT, `${tag}.tail.jpg`);
     } catch (e) {

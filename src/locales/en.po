@@ -9686,8 +9686,12 @@ msgid "剧情 AI 未响应，改用本地剧本…"
 msgstr "The story AI didn't respond — using a local script instead…"
 
 #: src/ai/real.ts
-msgid "剧情就绪，绘制首尾帧 0/{total}…"
-msgstr "Story ready — drawing first and last frames 0/{total}…"
+msgid "剧情就绪，绘制开头画面 0/{total}…"
+msgstr "Story ready, drawing opening frames 0/{total}…"
+
+#: src/ai/real.ts
+#~ msgid "剧情就绪，绘制首尾帧 0/{total}…"
+#~ msgstr "Story ready — drawing first and last frames 0/{total}…"
 
 #: src/ai/real.ts
 msgid "剧情推演中…"
@@ -15215,8 +15219,8 @@ msgid "承接上段尾帧，三个方案共用开头帧，只画尾帧"
 msgstr "Continues from the previous segment's last frame: all three plans share the opening frame, so only last frames are drawn"
 
 #: src/ai/real.ts
-msgid "承接上段尾帧，绘制收尾画面 0/{total}…"
-msgstr "Continuing from the previous segment's last frame — drawing ending frames 0/{total}…"
+#~ msgid "承接上段尾帧，绘制收尾画面 0/{total}…"
+#~ msgstr "Continuing from the previous segment's last frame — drawing ending frames 0/{total}…"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "承接尾帧"
