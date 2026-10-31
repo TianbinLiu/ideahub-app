@@ -388,7 +388,7 @@ export function cardFitNote(
     })
     .join(t({ message: "、", comment: "列举几个名字时的分隔符" }));
   // 勾选框的名字与卡片页那一格（CardModelFit）同一句：它现在叫「文字版形象描述」，不再点名「标准/极速」（那两档 11-24 停用）
-  return t`${names}在这一档收不到形象图（设定帧只画得进第一张人物卡、一共 ${MAX_REF_IMAGES} 张图），只按出片句参与——去卡片页勾「文字版形象描述」补一段`;
+  return t`${names}在这一档收不到形象图（设定帧一共只画得进 ${MAX_REF_IMAGES} 张图），只按出片句参与——去卡片页勾「文字版形象描述」补一段`;
 }
 
 export function refVideoOn(o: {

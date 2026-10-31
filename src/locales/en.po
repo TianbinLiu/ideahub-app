@@ -1587,8 +1587,12 @@ msgid "{names}只带上了第 1 张形象图（预算 {budget} 张已满），�
 msgstr "Only the first reference image of {names} was included (the budget of {budget, plural, one {# image} other {# images}} is full), so each takes part with its first image only"
 
 #: src/studio/segmentGen.ts
-msgid "{names}在这一档收不到形象图（设定帧只画得进第一张人物卡、一共 {MAX_REF_IMAGES} 张图），只按出片句参与——去卡片页勾「文字版形象描述」补一段"
-msgstr "{names} can't get a likeness image on this tier (setting frames only fit the first character card, {MAX_REF_IMAGES} images in all) and only take part through the generation line — tick “Text likeness description” on the card page to add one"
+msgid "{names}在这一档收不到形象图（设定帧一共只画得进 {MAX_REF_IMAGES} 张图），只按出片句参与——去卡片页勾「文字版形象描述」补一段"
+msgstr "{names} get no reference picture on this tier (a keyframe can only take {MAX_REF_IMAGES} pictures in total), so they only take part through their production line — tick “Text appearance description” on the card page to add one"
+
+#: src/studio/segmentGen.ts
+#~ msgid "{names}在这一档收不到形象图（设定帧只画得进第一张人物卡、一共 {MAX_REF_IMAGES} 张图），只按出片句参与——去卡片页勾「文字版形象描述」补一段"
+#~ msgstr "{names} can't get a likeness image on this tier (setting frames only fit the first character card, {MAX_REF_IMAGES} images in all) and only take part through the generation line — tick “Text likeness description” on the card page to add one"
 
 #: src/studio/segmentGen.ts
 #~ msgid "{names}在这一档收不到形象图（设定帧只画得进第一张人物卡、一共 3 张图），只按出片句参与——去卡片页勾「标准/极速适用」补一段文字版形象描述"
@@ -1649,6 +1653,10 @@ msgstr "Real-person cards: {names}. The “{label}” tier only works in Simple 
 #: src/ai/real.ts
 msgid "{names}的形象参考图这次没带上（一次最多 {budget} 张，模型的协议上限）——提示词里只剩它们的名字，画面上那几个人会由 AI 自己编，想换成卡上的样子就少挂几张卡"
 msgstr "The reference images for {names} weren't included this time (at most {budget} per render — the model's protocol limit), so only their names are left in the prompt and the AI will make up those characters' looks; to have them look like their cards, attach fewer cards"
+
+#: src/ai/real.ts
+msgid "{names}的形象参考图这次没带上（画设定帧一次最多 {budget} 张），只按出片句参与（没写出片句的只报名字）——少挂几张卡就能带上"
+msgstr "The appearance pictures of {names} were left out this time (a keyframe takes at most {budget} pictures); they only take part through their production line (cards without one are named only) — attach fewer cards and they will fit"
 
 #: src/ai/real.ts
 #~ msgid "{names}的第 2 张参考图这次没带上（预算 {budget} 张已被更要紧的图位占满），它们按第 1 张参与"
@@ -8904,8 +8912,12 @@ msgid "出片前补画"
 msgstr "Drawn before rendering"
 
 #: src/pages/CardDetailPage.tsx
-msgid "出片前补画设定帧那一步（以及收不到参考图的档位）：一段里只有「第一张人物卡」能带形象参考图——先取 {MAX_CHAR_REFS} 张（优先{face} + {body}），标成「出片用」的第 3 张要等同段每张卡都拿到第 1 张之后，预算还有余才补得上；其余人物卡在那一步只按文字设定参与（画帧的出图模型只吃第一个人物的图）。所以上面的「出片用 / 仅展示」是按补画设定帧那一步、按\"这张卡就是那第一张人物卡\"标的：它排在别的人物卡后面时，标着出片用的那几张在那一步同样进不了模型（生成步骤里会点名说明）。{detail}这一格铸卡不会自动出图，只能自己传。"
-msgstr "In the setting-frame step (and on tiers that don't take reference images): only the “first character card” in a segment can bring likeness references — {MAX_CHAR_REFS} images are taken first ({face} + {body} preferred); a 3rd image marked “used” only comes in after every card in the segment has its 1st and budget is left; the other character cards take part in that step by text only (the image model that draws frames only takes the first character's images). So the “used / display only” labels above are for the setting-frame step and assume this card is that first character card: when it sits behind other character cards, images marked “used” don't reach the model in that step either (the generation steps say so). {detail} isn't drawn automatically when forging — upload it yourself."
+#~ msgid "出片前补画设定帧那一步（以及收不到参考图的档位）：一段里只有「第一张人物卡」能带形象参考图——先取 {MAX_CHAR_REFS} 张（优先{face} + {body}），标成「出片用」的第 3 张要等同段每张卡都拿到第 1 张之后，预算还有余才补得上；其余人物卡在那一步只按文字设定参与（画帧的出图模型只吃第一个人物的图）。所以上面的「出片用 / 仅展示」是按补画设定帧那一步、按\"这张卡就是那第一张人物卡\"标的：它排在别的人物卡后面时，标着出片用的那几张在那一步同样进不了模型（生成步骤里会点名说明）。{detail}这一格铸卡不会自动出图，只能自己传。"
+#~ msgstr "In the setting-frame step (and on tiers that don't take reference images): only the “first character card” in a segment can bring likeness references — {MAX_CHAR_REFS} images are taken first ({face} + {body} preferred); a 3rd image marked “used” only comes in after every card in the segment has its 1st and budget is left; the other character cards take part in that step by text only (the image model that draws frames only takes the first character's images). So the “used / display only” labels above are for the setting-frame step and assume this card is that first character card: when it sits behind other character cards, images marked “used” don't reach the model in that step either (the generation steps say so). {detail} isn't drawn automatically when forging — upload it yourself."
+
+#: src/pages/CardDetailPage.tsx
+msgid "出片前补画设定帧那一步（以及收不到参考图的档位）：每张人物卡各带自己的第 1 张（优先{face}），同一段总共最多 {MAX_REF_IMAGES} 张；预算有余时主角（同段的第一张人物卡）再补 {body}、最多 {MAX_CHAR_REFS} 张，标成「出片用」的第 3 张（{detail}）排在每张卡的第 1 张之后等预算。人物卡挂多了，排在后面的那几张整张带不上、只按文字设定参与（生成步骤里会点名说明）。所以上面的「出片用 / 仅展示」是按补画设定帧那一步、按\"同段只挂这一张卡\"标的。{detail}这一格铸卡不会自动出图，只能自己传。"
+msgstr "When keyframes are drawn before rendering (and on tiers that take no reference pictures): every character card brings its own first picture ({face} first), at most {MAX_REF_IMAGES} pictures per segment in total; if budget remains, the lead (the first character card in the segment) also gets {body}, up to {MAX_CHAR_REFS} pictures, and a 3rd picture marked “For rendering” ({detail}) waits behind every card’s first picture. Attach too many character cards and the later ones are left out entirely, taking part only through their text — the generation log names them. So the “For rendering / Display only” marks above assume this is the only card in the segment. The {detail} slot is never generated automatically; upload it yourself."
 
 #: src/components/guide/tours.tsx
 msgid "出片前这里显示你给的<0>开头帧</0>（没给就先空着），出片后就地回放这一段。 不满意就改下面那句话（或换圈选）再来一次。"
@@ -15572,8 +15584,8 @@ msgid "挂上你的角色"
 msgstr "Cast your characters"
 
 #: src/ai/real.ts
-msgid "挂了 {charCount} 张人物卡，只把「{heroName}」的形象参考图喂给绘图（一张图里画多个角色会被图片服务整条拒掉），其余只按出片句参与（没写出片句的只报名字）"
-msgstr "{charCount} character cards are attached, but only “{heroName}”'s reference images are fed to the image model (one image with several characters gets rejected outright by the image service); the others only take part through their video lines (just their names if they have none)"
+#~ msgid "挂了 {charCount} 张人物卡，只把「{heroName}」的形象参考图喂给绘图（一张图里画多个角色会被图片服务整条拒掉），其余只按出片句参与（没写出片句的只报名字）"
+#~ msgstr "{charCount} character cards are attached, but only “{heroName}”'s reference images are fed to the image model (one image with several characters gets rejected outright by the image service); the others only take part through their video lines (just their names if they have none)"
 
 #: src/ai/real.ts
 #~ msgid "挂了 {charCount} 张人物卡，只把「{heroName}」的形象参考图喂给绘图（一张图里画多个角色会被方舟整条拒掉），其余只按出片句参与（没写出片句的只报名字）"
@@ -16678,8 +16690,12 @@ msgid "收参考图"
 msgstr "takes reference images"
 
 #: src/pages/CardDetailPage.tsx
-msgid "收参考图的出片模型（{names}）与白模模板挂卡：每张人物卡都各带自己的形象图（先每卡 1 张，预算有余再补第 2 张；一段最多几张按所选模型的协议走）。出片前补画设定帧那一步（以及收不到参考图的档位）：一段里只有「第一张人物卡」能带形象参考图——先取 {MAX_CHAR_REFS} 张（优先{face} + {body}），标成「出片用」的第 3 张要等同段每张卡都拿到第 1 张之后，预算还有余才补得上；其余人物卡在那一步只按文字设定参与（画帧的出图模型只吃第一个人物的图）。所以上面的「出片用 / 仅展示」是按补画设定帧那一步、按\"这张卡就是那第一张人物卡\"标的：它排在别的人物卡后面时，标着出片用的那几张在那一步同样进不了模型（生成步骤里会点名说明）。{detail}这一格铸卡不会自动出图，只能自己传。"
-msgstr "On video models that take reference images ({names}) and with blockout template rigging: every character card brings its own likeness images (1 per card first, a 2nd when budget allows; the per-segment maximum follows the chosen model's protocol). In the setting-frame step (and on tiers that don't take reference images): only the “first character card” in a segment can bring likeness references — {MAX_CHAR_REFS} images are taken first ({face} + {body} preferred); a 3rd image marked “used” only comes in after every card in the segment has its 1st and budget is left; the other character cards take part in that step by text only (the image model that draws frames only takes the first character's images). So the “used / display only” labels above are for the setting-frame step and assume this card is that first character card: when it sits behind other character cards, images marked “used” don't reach the model in that step either (the generation steps say so). {detail} isn't drawn automatically when forging — upload it yourself."
+#~ msgid "收参考图的出片模型（{names}）与白模模板挂卡：每张人物卡都各带自己的形象图（先每卡 1 张，预算有余再补第 2 张；一段最多几张按所选模型的协议走）。出片前补画设定帧那一步（以及收不到参考图的档位）：一段里只有「第一张人物卡」能带形象参考图——先取 {MAX_CHAR_REFS} 张（优先{face} + {body}），标成「出片用」的第 3 张要等同段每张卡都拿到第 1 张之后，预算还有余才补得上；其余人物卡在那一步只按文字设定参与（画帧的出图模型只吃第一个人物的图）。所以上面的「出片用 / 仅展示」是按补画设定帧那一步、按\"这张卡就是那第一张人物卡\"标的：它排在别的人物卡后面时，标着出片用的那几张在那一步同样进不了模型（生成步骤里会点名说明）。{detail}这一格铸卡不会自动出图，只能自己传。"
+#~ msgstr "On video models that take reference images ({names}) and with blockout template rigging: every character card brings its own likeness images (1 per card first, a 2nd when budget allows; the per-segment maximum follows the chosen model's protocol). In the setting-frame step (and on tiers that don't take reference images): only the “first character card” in a segment can bring likeness references — {MAX_CHAR_REFS} images are taken first ({face} + {body} preferred); a 3rd image marked “used” only comes in after every card in the segment has its 1st and budget is left; the other character cards take part in that step by text only (the image model that draws frames only takes the first character's images). So the “used / display only” labels above are for the setting-frame step and assume this card is that first character card: when it sits behind other character cards, images marked “used” don't reach the model in that step either (the generation steps say so). {detail} isn't drawn automatically when forging — upload it yourself."
+
+#: src/pages/CardDetailPage.tsx
+msgid "收参考图的出片模型（{names}）与白模模板挂卡：每张人物卡都各带自己的形象图（先每卡 1 张，预算有余再补第 2 张；一段最多几张按所选模型的协议走）。出片前补画设定帧那一步（以及收不到参考图的档位）：每张人物卡各带自己的第 1 张（优先{face}），同一段总共最多 {MAX_REF_IMAGES} 张；预算有余时主角（同段的第一张人物卡）再补 {body}、最多 {MAX_CHAR_REFS} 张，标成「出片用」的第 3 张（{detail}）排在每张卡的第 1 张之后等预算。人物卡挂多了，排在后面的那几张整张带不上、只按文字设定参与（生成步骤里会点名说明）。所以上面的「出片用 / 仅展示」是按补画设定帧那一步、按\"同段只挂这一张卡\"标的。{detail}这一格铸卡不会自动出图，只能自己传。"
+msgstr "Video models that take reference pictures ({names}) and blockout-template casting: every character card brings its own pictures (one per card first, a 2nd if budget remains; the per-segment cap follows the chosen model’s protocol). When keyframes are drawn before rendering (and on tiers that take no reference pictures): every character card brings its own first picture ({face} first), at most {MAX_REF_IMAGES} pictures per segment in total; if budget remains, the lead (the first character card in the segment) also gets {body}, up to {MAX_CHAR_REFS} pictures, and a 3rd picture marked “For rendering” ({detail}) waits behind every card’s first picture. Attach too many character cards and the later ones are left out entirely, taking part only through their text — the generation log names them. So the “For rendering / Display only” marks above assume this is the only card in the segment. The {detail} slot is never generated automatically; upload it yourself."
 
 #: src/pages/CardDetailPage.tsx
 #~ msgid "收参考图的档位（{tiers}）与白模模板挂卡：每张人物卡都各带自己的形象图（先每卡 1 张，预算有余再补第 2 张；一段最多几张按所选档位的协议走）。出片前补画设定帧那一步（以及收不到参考图的档位）：一段里只有「第一张人物卡」能带形象参考图——先取 {MAX_CHAR_REFS} 张（优先{face} + {body}），标成「出片用」的第 3 张要等同段每张卡都拿到第 1 张之后，预算还有余才补得上；其余人物卡在那一步只按文字设定参与（画帧的出图模型只吃第一个人物的图）。所以上面的「出片用 / 仅展示」是按补画设定帧那一步、按\"这张卡就是那第一张人物卡\"标的：它排在别的人物卡后面时，标着出片用的那几张在那一步同样进不了模型（生成步骤里会点名说明）。{detail}这一格铸卡不会自动出图，只能自己传。"

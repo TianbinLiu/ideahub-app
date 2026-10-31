@@ -251,7 +251,7 @@ function namesIn(s: string, byLength: readonly string[]): Set<string> {
 
 /**
  * 这段话里**按出现先后**点到了哪几个名字 —— 画帧时「这一刻里有谁」用它（segmentGen.momentCards，2026-10-04）：
- * 出图模型只吃第一个人物的图（real.allocateRefs 规则一），所以先点到的那位排在最前。认法与 lineSpeakers 同一个。
+ * 先点到的那位排在最前 = 主角（real.allocateRefs 规则一：每张人物卡各 1 张图，预算有余时主角先补第 2 张）。认法与 lineSpeakers 同一个。
  */
 export function namesInOrder(text: string, names: readonly string[]): string[] {
   return scanNames(text || "", sortNames(names));
@@ -259,7 +259,7 @@ export function namesInOrder(text: string, names: readonly string[]): string[] {
 
 /**
  * 画**这一刻**要带哪些卡（2026-10-04，主人「开工」认的方案；调研 docs/multi-character-consistency-research.md §一：这一镜有谁就只给谁的图）。
- * · 这一刻里点到名的人物卡按出现先后排在最前 —— 出图模型只吃第一个人物的图（real.allocateRefs 规则一），先点到的那位就是主角；
+ * · 这一刻里点到名的人物卡按出现先后排在最前 —— 先点到的那位就是主角（real.allocateRefs 规则一：每张人物卡各 1 张图，主角预算有余时多 1 张；2026-10-30 之前只有主角有图）；
  * · **没点到的人物卡这一张帧不带**，连文字设定也不带：「本段固定素材设定：人物卡「小枫」＝…」会把她拉进「夜川特写」
  *   （第三次付费验证：结束画面被画成两人全身，视频为了靠上它多拍了一小段）；
  * · 一个人物都没点到（定场镜头、空镜）时照旧全带；非人物卡（场景 / 道具 / 风格 / 背景）照旧带，次序不动。
