@@ -647,8 +647,8 @@ const CARD_SAFE_AREA =
  *     现编一个主体出来，用户想要的那块底色第一步就没了；
  *   · scene 少了定场约束（模型爱画成局部特写），更要紧的是**它会往场景里放人**：
  *     场景卡与人物卡是一起喂给出片模型的，画面里两个主体抢戏，而"一张图里画多个角色"
- *     会被方舟整条 400 掉（同 prepareMaterialRefs 规则一），错误信息与"你的场景卡里
- *     有个人"毫无表面关联。
+ *     在精灵图写法下会被方舟整条 400 掉（出处见 docs/multi-character-consistency-research.md §一），
+ *     错误信息与"你的场景卡里有个人"毫无表面关联。
  */
 /* i18n-frozen: 各卡种卡面出图提示词的构图与禁忌，发给模型，不翻译 */
 const CARD_COMPOSITION: Record<CardType, string> = {
@@ -800,14 +800,17 @@ async function prepRefImage(src: string): Promise<string | null> {
 //   对外只有两个口子：`prepareMaterialRefs`（真去取图）和 `refUsedFlags`（只回答
 //   "这张卡的第几张图会进管线"，详情页拿它标注）—— 两者共用下面同一个 allocateRefs。
 //
-// 【规则一】**设定帧只锁一张人物卡的形象**（第一张人物卡＝主角），其余人物卡仍走纯文字。
-//   AGENTS.md 的方舟实测约束：「一张图里画多个角色一律被拒」。挂两张人物卡就把两张脸
-//   一起喂进去的话，用户会在"绘制起拍画面"处收到一个 400，而错误信息与"你挂了两张
-//   人物卡"毫无表面关联 —— 这种查不出源头的失败必须在代码里提前挡掉，并**当场说出来**。
+// 【规则一】**设定帧里每张人物卡各带自己的形象图**（2026-10-30 起；第一张人物卡＝主角，预算有余时它先补第 2 张）。
+//   ★★ 它之前的版本是「只锁第一张人物卡、其余人物卡走纯文字」，依据是 AGENTS.md 那句「一张图里画多个角色一律被拒」——
+//   2026-10-03 查清那条出处是**精灵图**（docs/multi-character-consistency-research.md §一），场景里的两个人从没被拒过；
+//   2026-10-30 付费验证（design/decisions-probe-2026-10-30.mjs E3，Seedream 4-0-20260415，同一刻两人同框各 2 发）：
+//   只喂第一个人的图时第二个人 0/2 对得上（没眼镜、没围裙、换了外套）；每人一张图 + 名字绑定（长句 / 紧凑式各 2 发）4/4 都对、没串脸。
+//   旧写法的代价是用户挂了配角的卡、配角却由模型自己编、零报错 —— 与直通路放开那条（下面 multiChar 的 ★★）同一个形状。
+//   预算仍是经典路自己的启发式（MAX_REF_IMAGES），人物卡多到放不下时**逐张点名**（铁律八）。
 //
 // 【规则二】总共最多 MAX_REF_IMAGES 张，**分两轮发**：
-//   · 第一轮：主角取前 MAX_CHAR_REFS 张；其余**每张**非人物卡各取 1 张
-//     —— 雨露均沾，不让排在前面的那张卡把预算一口吃光。
+//   · 第一轮：**每张**人物卡各取 1 张（face 优先；2026-10-30 之前是主角独占 MAX_CHAR_REFS 张、其余人物卡零张），
+//     其余**每张**非人物卡各取 1 张 —— 雨露均沾，不让排在前面的那张卡把预算一口吃光。
 //   · 第二轮起：预算还有余，就一轮一轮地给**每张已经排上号的卡**按图位顺序补下一张，
 //     直到预算用完（经典路 MAX_REF_IMAGES，直通路是档位协议上限）。
 //   ★★ 第二轮不是"能塞就塞"的凑数，是**在补一个真花了钱的窟窿**：老代码非人物卡一律
@@ -842,7 +845,10 @@ async function prepRefImage(src: string): Promise<string | null> {
  *   而它的图根本不经 Seedream —— 用启发式砍协议能力，挂第 2 张人物卡的用户拿到的是
  *   模型瞎编的脸，钱照付零报错。
  */
-export const MAX_REF_IMAGES = 3;
+// ★ 2026-10-30 从 3 提到 4（规则一放开：每张人物卡各 1 张）：两张人物卡 + 一张场景卡正好 3 张，再无余量给主角补全身照；
+//   4 让「两人 + 场景 + 主角第 2 张」放得下。同一个出图模型在九宫格组图那条路（shotGroupRefs）一次收 15 − 张数 张参考图、10-07 付费验过，
+//   4 张远在那之内；更多仍不给 —— "堆满了模型反而判断不出该优先保哪些特征"那半句照旧成立。
+export const MAX_REF_IMAGES = 4;
 /**
  * 方舟**协议**允许的参考图张数上限：Seedance **2.5 是 1–30 张**（2.0 系列 1–9）。
  *
@@ -896,7 +902,7 @@ function allocatable(card: Card): { view: CardView; index: number }[] {
 /**
  * 这一批卡里**哪几张分得到图**（参考图分配的结论，不取图、不联网）—— 按模型适配用：分不到图的那几张，
  * 出片提示词里用它们的文字版形象描述（Card.textDesc）替代图片。判据就是 allocateRefs 本身（唯一实现）：
- * `direct` 为假 = 经典路（Seedream 画设定帧：一段只画得进第一张人物卡、总共 MAX_REF_IMAGES 张）；
+ * `direct` 为假 = 经典路（Seedream 画设定帧：每张人物卡各 1 张、总共 MAX_REF_IMAGES 张）；
  * 为对象 = 直通路（参考图直接进 Seedance，上限 = 档位协议 cap）。
  */
 export function refCardIds(materials: Card[] | undefined, direct: false | { cap?: number }): Set<string> {
@@ -937,7 +943,6 @@ interface RefPick {
 function allocateRefs(materials: Card[], onNote?: (note: string) => void, multiChar = false, cap?: number): RefPick[] {
   const picks: RefPick[] = [];
   const chars = materials.filter((c) => c.type === "character");
-  const hero = chars[0];
   /**
    * 这一次的参考图预算。**两条路两个数，理由不同**（2026-08-15 放开）：
    *   · 经典路 = `MAX_REF_IMAGES`（3）—— 我们自己的启发式，图要喂给 Seedream 画设定帧；
@@ -1013,22 +1018,29 @@ function allocateRefs(materials: Card[], onNote?: (note: string) => void, multiC
       const names = quotedNameList(oneRef);
       onNote(t`${names}只带上了第 1 张形象图（预算 ${budget} 张已满），它们按第 1 张参与`);
     }
-  } else if (onNote && hero && chars.length > 1) {
-    // 规则一：说出来。不说的话用户只知道"另一个角色长得不像"，永远猜不到是配额问题
-    const charCount = chars.length;
-    const heroName = hero.name;
-    onNote(
-      t`挂了 ${charCount} 张人物卡，只把「${heroName}」的形象参考图喂给绘图（一张图里画多个角色会被图片服务整条拒掉），其余只按出片句参与（没写出片句的只报名字）`,
-    );
   }
 
-  // ── 第一轮：主角占满 MAX_CHAR_REFS，其余非人物卡各占 1 张 ──
-  if (hero && !multiChar) {
-    // ★ 排序必须**带着原下标**排：refUsedFlags 要的是"与 viewsOf(hero) 一一对齐"的下标，
-    //   而取图顺序是 face→body→detail（规则三）—— 两个顺序不是一回事，排完就丢下标
-    //   会让详情页把高亮标在错的那张图上。
-    const ordered = allocatable(hero).sort((a, b) => ROLE_ORDER[roleOf(a.view)] - ROLE_ORDER[roleOf(b.view)]);
-    for (const it of ordered.slice(0, MAX_CHAR_REFS)) picks.push({ card: hero, index: it.index, view: it.view });
+  // ── 第一轮（经典路）：每张人物卡各 1 张（规则一，2026-10-30 放开），其余非人物卡各占 1 张 ──
+  //   主角的第 2 张（全身照）由下面「第二轮起」那个队列补：它排在每张卡的第 1 张之后（预算有余才轮得到）。
+  if (!multiChar && chars.length > 0) {
+    /** 预算不够、连第 1 张都没排上号的人物卡 —— 这个人物只剩名字，画面上由模型自己编（最要紧，逐张点名） */
+    const noRef: string[] = [];
+    for (const card of chars) {
+      // ★ 排序必须**带着原下标**排：refUsedFlags 要的是"与 viewsOf(card) 一一对齐"的下标，
+      //   而取图顺序是 face→body→detail（规则三）—— 两个顺序不是一回事，排完就丢下标
+      //   会让详情页把高亮标在错的那张图上。
+      const it = allocatable(card).sort((a, b) => ROLE_ORDER[roleOf(a.view)] - ROLE_ORDER[roleOf(b.view)])[0];
+      if (!it) continue;
+      if (picks.length >= budget) {
+        noRef.push(card.name);
+        continue;
+      }
+      picks.push({ card, index: it.index, view: it.view });
+    }
+    if (onNote && noRef.length > 0) {
+      const names = quotedNameList(noRef);
+      onNote(t`${names}的形象参考图这次没带上（画设定帧一次最多 ${budget} 张），只按出片句参与（没写出片句的只报名字）——少挂几张卡就能带上`);
+    }
   }
   // ★ V3（2026-09-06）：背景卡 = 故事背景，**只以文字参与**（segmentGen.materialText 的「故事背景：」一句），
   //   卡面永不当参考图发 —— 一段文字设定没有"形象"可锁，发图只会把示意画面里的东西画进片子。
@@ -1075,7 +1087,7 @@ function allocateRefs(materials: Card[], onNote?: (note: string) => void, multiC
   for (const card of [...chars, ...others]) {
     const taken = picks.filter((p) => p.card === card).length;
     // 第一轮就没排上号的不补：越过一张"连第 1 张都没带上"的卡去补别人的下一张，
-    // 是把预算花在边际收益最低的地方。★ 经典路的非主角人物卡（规则一）正好也从这里被排除。
+    // 是把预算花在边际收益最低的地方。
     if (taken === 0) continue;
     const ordered =
       card.type === "character"
@@ -1205,9 +1217,7 @@ function featOf(type: CardType, view: CardView): string {
  *   当成一件东西画进画面。
  * ★ scene 那句尾巴上的"光线、天气与时间可随剧情变化"不是客套：不写它，一张场景卡
  *   会把整片五段的时间冻在同一刻 —— 第 1 段的正午和第 5 段的深夜长得一模一样。
- * ★ character 这一条**今天走不到**（规则一把非主角人物卡挡在参考图之外，只走文字）。
- *   仍然写全是因为这是个 Record：留空就得在调用点 `?? 兜底`，而那正是"以后放开限制时
- *   悄悄用错文案"的入口。
+ * ★ character 这一条 2026-10-30 起**走得到**（规则一放开：非主角人物卡也各带 1 张图）—— 付费验证里长句绑定正是这个写法（E3 V1，2/2）。
  */
 /* i18n-frozen: 参考图绑定句里各卡种的后半句（点名语法的一部分），发给模型，不翻译 */
 const BIND_HINT: Record<CardType, string> = {
@@ -1893,6 +1903,35 @@ function framePrompts(
  *  onProgress 逐阶段播报——整个过程实测约 1-1.5 分钟，没有进度就是"卡死"体感。
  *  @param onFramesGone 帧**一张都没画成**、而且是因为出图模型用不了了（ArkImageModelGone）时调一次 —— 剧情照样交回去，
  *    调用方拿它把真正的原因（「请更新 App」）说在推演结果旁边（见函数末尾那段 ★★）。画成了一部分 / 别的原因失败时不调。 */
+/**
+ * 读模型回的 JSON 数组，**容两种常见的坏法**（2026-10-30 付费验证里 3 发分镜回话有 1 发漏了一个收尾的 `}`）：
+ * 去掉 ``` 围栏；解析失败就按「字符串外」的括号计数把缺的 `}` / `]` 补在末尾再试一次。
+ * 补不好照样抛 —— 调用方的 catch 退回本地剧本并说出来（那一发对话已经计费，少退一次就少花一次钱）。
+ * ★ 只补**末尾缺的收尾**，不动中间：中间坏的 JSON 补出来也是错的内容。
+ */
+function parseLooseJsonArray(raw: string): unknown {
+  const text = raw.replace(/```json|```/g, "").trim();
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    const stack: string[] = [];
+    let inStr = false;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (inStr) {
+        if (ch === "\\") i++;
+        else if (ch === '"') inStr = false;
+        continue;
+      }
+      if (ch === '"') inStr = true;
+      else if (ch === "{" || ch === "[") stack.push(ch === "{" ? "}" : "]");
+      else if (ch === "}" || ch === "]") stack.pop();
+    }
+    if (inStr || stack.length === 0) throw e;
+    return JSON.parse(text + stack.reverse().join(""));
+  }
+}
+
 export async function generateProposals(
   ctx: ProposalContext,
   onProgress?: (status: string) => void,
@@ -1913,7 +1952,11 @@ export async function generateProposals(
       .join("；");
     const raw = await chat(
       // ★ 2026-09-06：加结构化镜头字段（对标 updream 分镜 Skill）——景别 / 运镜 / 情绪节拍各是短语，出片提示词按字段读
-      zhPrompt`你是互动视频编剧兼分镜师。基于素材与要求，为同一段视频写 3 个不同走向（顺势推进/风云突变/柳暗花明），输出 JSON 数组：[{"title":"12字内标题","plot":"80-120字剧情，画面感强，小说式","durationSec":4到9的整数,"shot":{"size":"景别（远景/全景/中景/近景/特写）","camera":"运镜（固定/推/拉/摇/移/跟/环绕/手持，可带方向，6字内）","beat":"情绪节拍，6字内，如 压抑→爆发"}}]。只输出 JSON。`,
+      // ★ 2026-10-30 起 plot 直接写成分镜（主人「花」的付费验证，docs/node-modes-libtv-alignment.md §八）：
+      //   同一批人物图、同一个走向，散文 plot 出来的两发都是一个镜头到底，分镜 plot 的两发都照「镜头1 / 2 / 3」切了三次、人物照样对；
+      //   chat 输出 283 ~ 347 token（散文 307 ~ 323），离 800 上限很远。格式就是分镜表认的那一种（data/shotScript：「镜头N：」起一行），
+      //   方案台上直接按格子显示、多镜头不画结束画面（drawPlan 规矩 ②）。提示词里那个反斜杠 n 是告诉模型 JSON 串里用转义换行（源码里要写成两个反斜杠）
+      zhPrompt`你是互动视频编剧兼分镜师。基于素材与要求，为同一段视频写 3 个不同走向（顺势推进/风云突变/柳暗花明），输出 JSON 数组：[{"title":"12字内标题","plot":"分镜：2到3个镜头，每个镜头一行、以「镜头1：」「镜头2：」开头（行之间用\\n），每行30-45字写清谁在哪、做什么、景别与运镜，不写秒数；总计80-130字","durationSec":4到9的整数,"shot":{"size":"景别（远景/全景/中景/近景/特写）","camera":"运镜（固定/推/拉/摇/移/跟/环绕/手持，可带方向，6字内）","beat":"情绪节拍，6字内，如 压抑→爆发"}}]。只输出 JSON。`,
       // 要求里的 `@点名` 退成名字（data/refMentions.plainMentions；没有 @ 的句子逐字节原样）
       zhPrompt`这是第${ctx.index + 1}段。素材：${mats}\n要求：${plainMentions(ctx.requirement, ctx.materials, ctx.extraRefs) || "无"}\n已定前情：${ctx.pathPlots.join(" / ") || "无"}${
         ctx.startFrame
@@ -1923,7 +1966,7 @@ export async function generateProposals(
         ctx.durationMode === "manual" ? `\n用户指定时长：${ctx.durationSec}秒（durationSec 用这个值）` : ""
       }`,
     );
-    plots = JSON.parse(raw.replace(/```json|```/g, "").trim());
+    plots = parseLooseJsonArray(raw) as typeof plots;
     // i18n-ignore-next-line: 只进 console.warn：同一个 try 的 catch 吞掉，退回本地剧本
     if (!Array.isArray(plots) || plots.length < 3) throw new Error("剧情 JSON 结构不符");
   } catch (e) {
@@ -1959,10 +2002,12 @@ export async function generateProposals(
   //   等于这句话根本没说过（铁律八：失败要"响"，写进一个没人看得见的地方不算响）。
   //   攒到开画前最后一发，它会一直挂到第一张图回来（实测 20s+），用户才真读得到。
   const matNotes: string[] = [];
-  // 顺序固定为 [方案0首帧, 方案0尾帧, 方案1首帧, …]，与最终 results[pi*2] 取值对应
-  const jobs = three.flatMap((p) =>
-    (startFrame ? (["last"] as const) : (["first", "last"] as const)).map((which) => ({ p, which })),
-  );
+  // ★ 2026-10-30 起推演**只画开头画面**（每套一张；承接上一段尾帧时一张都不画）：plot 现在写成分镜（见上面的系统提示词），
+  //   多镜头的段本来就不用 AI 画的结束画面（drawPlan 规矩 ②：endFrameUsed 不认它、出片也不发），再画就是每套 ¥0.2 白花；
+  //   偶尔写成单镜头的方案，结束画面由出片前补画那一步按 framesToDraw 补（报价 nodeCost 数着它）。
+  //   报价 economy.proposalsCost 与这里逐条相等（1 次对话 + 不承接时 3 张）。
+  //   顺序固定为 [方案0首帧, 方案1首帧, 方案2首帧]，与最终 results[pi] 取值对应
+  const jobs = startFrame ? [] : three.map((p) => ({ p, which: "first" as const }));
   // 句子里的 `@点名` 退成名字（每套方案一份）
   const plainOf = new Map(three.map((p) => [p.id, plainMentions(p.plot, ctx.materials, ctx.extraRefs)]));
   // ★ 这一刻里有谁就只带谁的卡（shotScript.momentCards，2026-10-04 —— 与出片前补画、两面的「重画这一套」同一条规则）：
@@ -1985,7 +2030,7 @@ export async function generateProposals(
   // 设定帧的画布必须跟本段画幅走：横版帧喂竖屏视频任务会被 Seedance 裁一刀
   const frameSize = aspectOf(ctx.aspect).frameSize;
   const total = jobs.length;
-  onProgress?.(startFrame ? t`承接上段尾帧，绘制收尾画面 0/${total}…` : t`剧情就绪，绘制首尾帧 0/${total}…`);
+  if (total > 0) onProgress?.(t`剧情就绪，绘制开头画面 0/${total}…`);
   // 参考图的实情放在开画前最后一发（理由见上）：哪张没采用、为什么只锁了一个角色，
   // 都要在这几十秒里看得见 —— 这两件事一旦没说，用户只会觉得"AI 画得不像"
   if (matNotes.length) onProgress?.(joinNotes(matNotes));
@@ -2053,13 +2098,13 @@ export async function generateProposals(
   //   画成了一部分（模型还在，只是个别失败）照旧交回去、不调它。
   if (modelGone && results.every((f) => !f)) onFramesGone?.(modelGone);
 
-  const per = startFrame ? 1 : 2;
   return three.map((p, pi) => {
     // i18n-ignore-next-line: 存进 Proposal.title、随作品发布成 VideoSegment.title；「第N段 · 」前缀靠六条正则剥（studioStore 的分支选项 label ×2 / 兜底场景卡名 / 草稿自动标题，useFlowActions 的回炉工程标题，ai/index 的 mock 派生卡名），标题解耦之前冻结
     const title = `第${ctx.index + 1}段 · ${p.title}`;
-    const firstFrame = startFrame ?? results[pi * per];
-    const lastFrame = results[pi * per + (startFrame ? 0 : 1)];
-    const degraded = !firstFrame || !lastFrame;
+    const firstFrame = startFrame ?? results[pi];
+    // 结束画面推演不画（见 jobs 那段 ★）；degraded 只标「试着画了、没画成」的那张 —— 没试的空着不算没画成
+    const lastFrame: string | null = null;
+    const degraded = !startFrame && !firstFrame;
     return {
       id: p.id,
       title,

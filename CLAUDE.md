@@ -606,7 +606,7 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   读它的是 `flowStore.usableFrames`（出片 / 报价 / 参考清单 / 改这一帧）与方案台的显示；「重画这一套」画哪几张只问 `flowStore.redrawFrames`
   （两面的 regenProposal 与 `redrawCost` 共用，多镜头时清掉旧的 AI 结束画面、不重画）。帧当参考图只有一张时，时序句不说「按图片编号顺序推进」
   （后面紧跟着的是人物图，`customRefPrompt`）。
-  ⑤ **一张帧只带这一刻出现的人**（`shotScript.momentCards`，认名字与 `lineSpeakers` 同一个认法）：点到名的人物卡按出现先后排最前（出图模型只吃第一个人物的图），
+  ⑤ **一张帧只带这一刻出现的人**（`shotScript.momentCards`，认名字与 `lineSpeakers` 同一个认法）：点到名的人物卡按出现先后排最前（先点到的是主角；2026-10-30 起每张人物卡各带 1 张图、主角预算有余再补 1 张，见 `real.allocateRefs` 规则一与 docs/multi-character-consistency-research.md §八），
   没点到的人物卡这一张帧不带（图与文字设定都不带），一个人都没点到照旧全带。画帧的四条路都问它（`check-shot-script.mjs` 从源文件核对）；
   **视频那一发照旧带全部人物卡**（这一段里谁都可能出场）。
   「自定义 / 简约」两格帧位空着时那句说明只问 `flowStore.nodeEmptyFrames`（归类在 `segmentGen.emptyFrameFates`，`CustomFrameSlots` 收 `fates` 不收字符串）——
